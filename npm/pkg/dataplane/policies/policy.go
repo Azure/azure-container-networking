@@ -17,13 +17,16 @@ type NPMNetworkPolicy struct {
 	PolicyKey string
 	// ACLPolicyID is only used in Windows. See aclPolicyID() in policy_windows.go for more info
 	ACLPolicyID string
-	// PodSelectorIPSets holds all the IPSets generated from Pod Selector
+	// TODO get rid of PodSelectorIPSets in favor of PodSelectorList (exact same except need to add members field to SetInfo)
+	// PodSelectorIPSets holds the IPSets for the Pod Selector
 	PodSelectorIPSets []*ipsets.TranslatedIPSet
+	// ChildPodSelectorIPSets holds the IPSets that are members of any ipset in PodSelectorIPSets
+	ChildPodSelectorIPSets []*ipsets.TranslatedIPSet
 	// TODO change to slice of pointers
-	// PodSelectorList holds target pod information to avoid duplicatoin in SrcList and DstList fields in ACLs
+	// PodSelectorList holds the ipsets from PodSelectorIPSets and info about them to avoid duplication in SrcList and DstList fields in ACLs
 	PodSelectorList []SetInfo
 	// RuleIPSets holds all IPSets generated from policy's rules
-	// and not from pod selector IPSets
+	// and not from pod selector IPSets, including children of a NestedLabelOfPod ipset
 	RuleIPSets []*ipsets.TranslatedIPSet
 	ACLs       []*ACLPolicy
 	// podIP is key and endpoint ID as value
@@ -37,6 +40,10 @@ func NewNPMNetworkPolicy(netPolName, netPolNamespace string) *NPMNetworkPolicy {
 		PolicyKey:   fmt.Sprintf("%s/%s", netPolNamespace, netPolName),
 		ACLPolicyID: aclPolicyID(netPolName, netPolNamespace),
 	}
+}
+
+func (netPol *NPMNetworkPolicy) AllPodSelectorIPSets() []*ipsets.TranslatedIPSet {
+	return append(netPol.PodSelectorIPSets, netPol.ChildPodSelectorIPSets...)
 }
 
 func (netPol *NPMNetworkPolicy) numACLRulesProducedInKernel() int {

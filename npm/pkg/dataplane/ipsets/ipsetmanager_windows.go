@@ -330,7 +330,7 @@ func getPolicyNetworkRequestMarshal(setPolicySettings map[string]*hcn.SetPolicyS
 	}
 
 	if len(policyNetworkRequest.Policies) == 0 {
-		klog.Info("[Dataplane Windows] no %s type of sets to apply", policyType)
+		klog.Infof("[Dataplane Windows] no %s type of sets to apply", policyType)
 		return nil, nil
 	}
 

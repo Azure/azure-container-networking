@@ -214,42 +214,46 @@ func ipBlockRule(policyName, ns string, direction policies.Direction, matchType 
 	return ipBlockIPSet, setInfo
 }
 
-// PodSelector translates podSelector of NetworkPolicyPeer field in networkpolicy object to translatedIPSet and SetInfo.
+// PodSelector translates podSelector of NetworkPolicyPeer field in networkpolicy object to translatedIPSets, children of translated IPSets, and SetInfo.
+// Children are members of a list-type IPSet.
 // This function is called only when the NetworkPolicyPeer has namespaceSelector field.
-func podSelector(policyKey string, matchType policies.MatchType, selector *metav1.LabelSelector) ([]*ipsets.TranslatedIPSet, []policies.SetInfo, error) {
+func podSelector(policyKey string, matchType policies.MatchType, selector *metav1.LabelSelector) (psSets, childPSSets []*ipsets.TranslatedIPSet, psList []policies.SetInfo, err error) {
 	podSelectors, err := parsePodSelector(policyKey, selector)
 	if err != nil {
-		return nil, nil, err
+		return
 	}
 	lenOfPodSelectors := len(podSelectors)
-	podSelectorIPSets := []*ipsets.TranslatedIPSet{}
-	podSelectorList := make([]policies.SetInfo, lenOfPodSelectors)
+	psSets = make([]*ipsets.TranslatedIPSet, 0)
+	childPSSets = make([]*ipsets.TranslatedIPSet, 0)
+	psList = make([]policies.SetInfo, lenOfPodSelectors)
 
 	for i := 0; i < lenOfPodSelectors; i++ {
 		ps := podSelectors[i]
-		podSelectorIPSets = append(podSelectorIPSets, ipsets.NewTranslatedIPSet(ps.setName, ps.setType, ps.members...))
+		psSets = append(psSets, ipsets.NewTranslatedIPSet(ps.setName, ps.setType, ps.members...))
+
 		// if value is nested value, create translatedIPSet with the nested value
 		for j := 0; j < len(ps.members); j++ {
-			podSelectorIPSets = append(podSelectorIPSets, ipsets.NewTranslatedIPSet(ps.members[j], ipsets.KeyValueLabelOfPod))
+			childPSSets = append(childPSSets, ipsets.NewTranslatedIPSet(ps.members[j], ipsets.KeyValueLabelOfPod))
 		}
 
-		podSelectorList[i] = policies.NewSetInfo(ps.setName, ps.setType, ps.include, matchType)
+		psList[i] = policies.NewSetInfo(ps.setName, ps.setType, ps.include, matchType)
 	}
 
-	return podSelectorIPSets, podSelectorList, nil
+	return
 }
 
-// podSelectorWithNS translates podSelector of spec and NetworkPolicyPeer in networkpolicy object to translatedIPSet and SetInfo.
+// podSelectorWithNS translates podSelector of spec and NetworkPolicyPeer in networkpolicy object to translatedIPSets, children of translated IPSets, and SetInfo.
+// Children are members of a list-type IPSet.
 // This function is called only when the NetworkPolicyPeer does not have namespaceSelector field.
-func podSelectorWithNS(policyKey, ns string, matchType policies.MatchType, selector *metav1.LabelSelector) ([]*ipsets.TranslatedIPSet, []policies.SetInfo, error) {
-	podSelectorIPSets, podSelectorList, err := podSelector(policyKey, matchType, selector)
+func podSelectorWithNS(policyKey, ns string, matchType policies.MatchType, selector *metav1.LabelSelector) (psSets, childPSSets []*ipsets.TranslatedIPSet, psList []policies.SetInfo, err error) {
+	psSets, childPSSets, psList, err = podSelector(policyKey, matchType, selector)
 	if err != nil {
-		return nil, nil, err
+		return
 	}
 	// Add translatedIPSet and SetInfo based on namespace
-	podSelectorIPSets = append(podSelectorIPSets, ipsets.NewTranslatedIPSet(ns, ipsets.Namespace))
-	podSelectorList = append(podSelectorList, policies.NewSetInfo(ns, ipsets.Namespace, included, matchType))
-	return podSelectorIPSets, podSelectorList, nil
+	psSets = append(psSets, ipsets.NewTranslatedIPSet(ns, ipsets.Namespace))
+	psList = append(psList, policies.NewSetInfo(ns, ipsets.Namespace, included, matchType))
+	return
 }
 
 // nameSpaceSelector translates namespaceSelector of NetworkPolicyPeer in networkpolicy object to translatedIPSet and SetInfo.
@@ -397,11 +401,12 @@ func translateRule(npmNetPol *policies.NPMNetworkPolicy, netPolName string, dire
 
 		// #2.3 handle podSelector and port if exist
 		if peer.PodSelector != nil && peer.NamespaceSelector == nil {
-			podSelectorIPSets, podSelectorList, err := podSelectorWithNS(npmNetPol.PolicyKey, npmNetPol.Namespace, matchType, peer.PodSelector)
+			podSelectorIPSets, childPodSelectorIPSets, podSelectorList, err := podSelectorWithNS(npmNetPol.PolicyKey, npmNetPol.Namespace, matchType, peer.PodSelector)
 			if err != nil {
 				return err
 			}
 			npmNetPol.RuleIPSets = append(npmNetPol.RuleIPSets, podSelectorIPSets...)
+			npmNetPol.RuleIPSets = append(npmNetPol.RuleIPSets, childPodSelectorIPSets...)
 			err = peerAndPortRule(npmNetPol, direction, ports, podSelectorList)
 			if err != nil {
 				return err
@@ -418,11 +423,12 @@ func translateRule(npmNetPol *policies.NPMNetworkPolicy, netPolName string, dire
 		}
 
 		// #2.4 handle namespaceSelector and podSelector and port if exist
-		podSelectorIPSets, podSelectorList, err := podSelector(npmNetPol.PolicyKey, matchType, peer.PodSelector)
+		podSelectorIPSets, childPodSelectorIPSets, podSelectorList, err := podSelector(npmNetPol.PolicyKey, matchType, peer.PodSelector)
 		if err != nil {
 			return err
 		}
 		npmNetPol.RuleIPSets = append(npmNetPol.RuleIPSets, podSelectorIPSets...)
+		npmNetPol.RuleIPSets = append(npmNetPol.RuleIPSets, childPodSelectorIPSets...)
 
 		// Before translating NamespaceSelector, flattenNameSpaceSelector function call should be called
 		// to handle multiple values in matchExpressions spec.
@@ -542,7 +548,12 @@ func TranslatePolicy(npObj *networkingv1.NetworkPolicy) (*policies.NPMNetworkPol
 	// podSelector in spec.PodSelector is common for ingress and egress.
 	// Process this podSelector first.
 	var err error
-	npmNetPol.PodSelectorIPSets, npmNetPol.PodSelectorList, err = podSelectorWithNS(npmNetPol.PolicyKey, npmNetPol.Namespace, policies.EitherMatch, &npObj.Spec.PodSelector)
+	npmNetPol.PodSelectorIPSets, npmNetPol.ChildPodSelectorIPSets, npmNetPol.PodSelectorList, err = podSelectorWithNS(
+		npmNetPol.PolicyKey,
+		npmNetPol.Namespace,
+		policies.EitherMatch,
+		&npObj.Spec.PodSelector,
+	)
 	if err != nil {
 		return nil, err
 	}

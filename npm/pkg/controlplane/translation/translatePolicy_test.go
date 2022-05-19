@@ -539,12 +539,13 @@ func TestPodSelector(t *testing.T) {
 	policyKey := "test-ns/test-policy"
 	policyKeyWithDash := policyKey + "-"
 	tests := []struct {
-		name              string
-		namespace         string
-		matchType         policies.MatchType
-		labelSelector     *metav1.LabelSelector
-		podSelectorIPSets []*ipsets.TranslatedIPSet
-		podSelectorList   []policies.SetInfo
+		name                   string
+		namespace              string
+		matchType              policies.MatchType
+		labelSelector          *metav1.LabelSelector
+		podSelectorIPSets      []*ipsets.TranslatedIPSet
+		childPodSelectorIPSets []*ipsets.TranslatedIPSet
+		podSelectorList        []policies.SetInfo
 	}{
 		{
 			name:      "all pods selector in default namespace in ingress",
@@ -556,6 +557,7 @@ func TestPodSelector(t *testing.T) {
 			podSelectorIPSets: []*ipsets.TranslatedIPSet{
 				ipsets.NewTranslatedIPSet(defaultNS, ipsets.Namespace),
 			},
+			childPodSelectorIPSets: []*ipsets.TranslatedIPSet{},
 			podSelectorList: []policies.SetInfo{
 				policies.NewSetInfo(defaultNS, ipsets.Namespace, included, matchType),
 			},
@@ -570,6 +572,7 @@ func TestPodSelector(t *testing.T) {
 			podSelectorIPSets: []*ipsets.TranslatedIPSet{
 				ipsets.NewTranslatedIPSet("test", ipsets.Namespace),
 			},
+			childPodSelectorIPSets: []*ipsets.TranslatedIPSet{},
 			podSelectorList: []policies.SetInfo{
 				policies.NewSetInfo("test", ipsets.Namespace, included, matchType),
 			},
@@ -585,6 +588,7 @@ func TestPodSelector(t *testing.T) {
 			podSelectorIPSets: []*ipsets.TranslatedIPSet{
 				ipsets.NewTranslatedIPSet("label:src", ipsets.KeyValueLabelOfPod),
 			},
+			childPodSelectorIPSets: []*ipsets.TranslatedIPSet{},
 			podSelectorList: []policies.SetInfo{
 				policies.NewSetInfo("label:src", ipsets.KeyValueLabelOfPod, included, matchType),
 			},
@@ -607,6 +611,7 @@ func TestPodSelector(t *testing.T) {
 				ipsets.NewTranslatedIPSet("label:src", ipsets.KeyValueLabelOfPod),
 				ipsets.NewTranslatedIPSet("label", ipsets.KeyLabelOfPod),
 			},
+			childPodSelectorIPSets: []*ipsets.TranslatedIPSet{},
 			podSelectorList: []policies.SetInfo{
 				policies.NewSetInfo("label:src", ipsets.KeyValueLabelOfPod, included, matchType),
 				policies.NewSetInfo("label", ipsets.KeyLabelOfPod, included, matchType),
@@ -633,6 +638,7 @@ func TestPodSelector(t *testing.T) {
 				ipsets.NewTranslatedIPSet("label:src", ipsets.KeyValueLabelOfPod),
 				ipsets.NewTranslatedIPSet("labelIn:src", ipsets.KeyValueLabelOfPod),
 			},
+			childPodSelectorIPSets: []*ipsets.TranslatedIPSet{},
 			podSelectorList: []policies.SetInfo{
 				policies.NewSetInfo("label:src", ipsets.KeyValueLabelOfPod, included, matchType),
 				policies.NewSetInfo("labelIn:src", ipsets.KeyValueLabelOfPod, included, matchType),
@@ -659,6 +665,7 @@ func TestPodSelector(t *testing.T) {
 				ipsets.NewTranslatedIPSet("label:src", ipsets.KeyValueLabelOfPod),
 				ipsets.NewTranslatedIPSet("labelNotIn:src", ipsets.KeyValueLabelOfPod),
 			},
+			childPodSelectorIPSets: []*ipsets.TranslatedIPSet{},
 			podSelectorList: []policies.SetInfo{
 				policies.NewSetInfo("label:src", ipsets.KeyValueLabelOfPod, included, matchType),
 				policies.NewSetInfo("labelNotIn:src", ipsets.KeyValueLabelOfPod, nonIncluded, matchType),
@@ -690,14 +697,57 @@ func TestPodSelector(t *testing.T) {
 			podSelectorIPSets: []*ipsets.TranslatedIPSet{
 				ipsets.NewTranslatedIPSet("k0:v0", ipsets.KeyValueLabelOfPod),
 				ipsets.NewTranslatedIPSet(policyKeyWithDash+"k1:v10:v11", ipsets.NestedLabelOfPod, []string{"k1:v10", "k1:v11"}...),
+				ipsets.NewTranslatedIPSet("k2", ipsets.KeyLabelOfPod),
+			},
+			childPodSelectorIPSets: []*ipsets.TranslatedIPSet{
 				ipsets.NewTranslatedIPSet("k1:v10", ipsets.KeyValueLabelOfPod),
 				ipsets.NewTranslatedIPSet("k1:v11", ipsets.KeyValueLabelOfPod),
-				ipsets.NewTranslatedIPSet("k2", ipsets.KeyLabelOfPod),
 			},
 			podSelectorList: []policies.SetInfo{
 				policies.NewSetInfo("k0:v0", ipsets.KeyValueLabelOfPod, included, matchType),
 				policies.NewSetInfo(policyKeyWithDash+"k1:v10:v11", ipsets.NestedLabelOfPod, included, matchType),
 				policies.NewSetInfo("k2", ipsets.KeyLabelOfPod, nonIncluded, matchType),
+			},
+		},
+		{
+			name:      "target pod Selector with three labels AND a namespace (one included value, one non-included value, and one included netest value) for acl in ingress",
+			namespace: defaultNS,
+			matchType: matchType,
+			labelSelector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"k0": "v0",
+				},
+				MatchExpressions: []metav1.LabelSelectorRequirement{
+					{
+						Key:      "k1",
+						Operator: metav1.LabelSelectorOpIn,
+						Values: []string{
+							"v10",
+							"v11",
+						},
+					},
+					{
+						Key:      "k2",
+						Operator: metav1.LabelSelectorOpDoesNotExist,
+						Values:   []string{},
+					},
+				},
+			},
+			podSelectorIPSets: []*ipsets.TranslatedIPSet{
+				ipsets.NewTranslatedIPSet("k0:v0", ipsets.KeyValueLabelOfPod),
+				ipsets.NewTranslatedIPSet(policyKeyWithDash+"k1:v10:v11", ipsets.NestedLabelOfPod, []string{"k1:v10", "k1:v11"}...),
+				ipsets.NewTranslatedIPSet("k2", ipsets.KeyLabelOfPod),
+				ipsets.NewTranslatedIPSet(defaultNS, ipsets.Namespace),
+			},
+			childPodSelectorIPSets: []*ipsets.TranslatedIPSet{
+				ipsets.NewTranslatedIPSet("k1:v10", ipsets.KeyValueLabelOfPod),
+				ipsets.NewTranslatedIPSet("k1:v11", ipsets.KeyValueLabelOfPod),
+			},
+			podSelectorList: []policies.SetInfo{
+				policies.NewSetInfo("k0:v0", ipsets.KeyValueLabelOfPod, included, matchType),
+				policies.NewSetInfo(policyKeyWithDash+"k1:v10:v11", ipsets.NestedLabelOfPod, included, matchType),
+				policies.NewSetInfo("k2", ipsets.KeyLabelOfPod, nonIncluded, matchType),
+				policies.NewSetInfo(defaultNS, ipsets.Namespace, included, matchType),
 			},
 		},
 	}
@@ -707,16 +757,18 @@ func TestPodSelector(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			var podSelectorIPSets []*ipsets.TranslatedIPSet
+			var childPodSelectorIPSets []*ipsets.TranslatedIPSet
 			var podSelectorList []policies.SetInfo
 			var err error
 			if tt.namespace == "" {
-				podSelectorIPSets, podSelectorList, err = podSelector(policyKey, tt.matchType, tt.labelSelector)
+				podSelectorIPSets, childPodSelectorIPSets, podSelectorList, err = podSelector(policyKey, tt.matchType, tt.labelSelector)
 			} else {
 				// technically, the policyKey prefix would contain the namespace, but it might not for these tests
-				podSelectorIPSets, podSelectorList, err = podSelectorWithNS(policyKey, tt.namespace, tt.matchType, tt.labelSelector)
+				podSelectorIPSets, childPodSelectorIPSets, podSelectorList, err = podSelectorWithNS(policyKey, tt.namespace, tt.matchType, tt.labelSelector)
 			}
 			require.NoError(t, err)
 			require.Equal(t, tt.podSelectorIPSets, podSelectorIPSets)
+			require.Equal(t, tt.childPodSelectorIPSets, childPodSelectorIPSets)
 			require.Equal(t, tt.podSelectorList, podSelectorList)
 		})
 	}
@@ -1300,14 +1352,16 @@ func TestIngressPolicy(t *testing.T) {
 	emptyString := intstr.FromString("")
 	// TODO(jungukcho): add test cases with more complex rules
 	tests := []struct {
-		name           string
-		targetSelector *metav1.LabelSelector
-		rules          []networkingv1.NetworkPolicyIngressRule
-		npmNetPol      *policies.NPMNetworkPolicy
-		wantErr        bool
+		name             string
+		isNewNwPolicyVer bool
+		targetSelector   *metav1.LabelSelector
+		rules            []networkingv1.NetworkPolicyIngressRule
+		npmNetPol        *policies.NPMNetworkPolicy
+		wantErr          bool
 	}{
 		{
-			name: "only port in ingress rules",
+			name:             "only port in ingress rules",
+			isNewNwPolicyVer: true,
 			targetSelector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
 					"label": "src",
@@ -1330,6 +1384,7 @@ func TestIngressPolicy(t *testing.T) {
 					ipsets.NewTranslatedIPSet("label:src", ipsets.KeyValueLabelOfPod),
 					ipsets.NewTranslatedIPSet(defaultNS, ipsets.Namespace),
 				},
+				ChildPodSelectorIPSets: []*ipsets.TranslatedIPSet{},
 				PodSelectorList: []policies.SetInfo{
 					policies.NewSetInfo("label:src", ipsets.KeyValueLabelOfPod, included, targetPodMatchType),
 					policies.NewSetInfo(defaultNS, ipsets.Namespace, included, targetPodMatchType),
@@ -1349,7 +1404,8 @@ func TestIngressPolicy(t *testing.T) {
 			},
 		},
 		{
-			name: "only ipBlock in ingress rules",
+			name:             "only ipBlock in ingress rules",
+			isNewNwPolicyVer: true,
 			targetSelector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
 					"label": "src",
@@ -1375,6 +1431,7 @@ func TestIngressPolicy(t *testing.T) {
 					ipsets.NewTranslatedIPSet("label:src", ipsets.KeyValueLabelOfPod),
 					ipsets.NewTranslatedIPSet(defaultNS, ipsets.Namespace),
 				},
+				ChildPodSelectorIPSets: []*ipsets.TranslatedIPSet{},
 				PodSelectorList: []policies.SetInfo{
 					policies.NewSetInfo("label:src", ipsets.KeyValueLabelOfPod, included, targetPodMatchType),
 					policies.NewSetInfo(defaultNS, ipsets.Namespace, included, targetPodMatchType),
@@ -1395,7 +1452,8 @@ func TestIngressPolicy(t *testing.T) {
 			},
 		},
 		{
-			name: "only peer podSelector in ingress rules",
+			name:             "only peer podSelector in ingress rules",
+			isNewNwPolicyVer: true,
 			targetSelector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
 					"label": "src",
@@ -1422,6 +1480,7 @@ func TestIngressPolicy(t *testing.T) {
 					ipsets.NewTranslatedIPSet("label:src", ipsets.KeyValueLabelOfPod),
 					ipsets.NewTranslatedIPSet(defaultNS, ipsets.Namespace),
 				},
+				ChildPodSelectorIPSets: []*ipsets.TranslatedIPSet{},
 				PodSelectorList: []policies.SetInfo{
 					policies.NewSetInfo("label:src", ipsets.KeyValueLabelOfPod, included, targetPodMatchType),
 					policies.NewSetInfo(defaultNS, ipsets.Namespace, included, targetPodMatchType),
@@ -1444,7 +1503,8 @@ func TestIngressPolicy(t *testing.T) {
 			},
 		},
 		{
-			name: "only peer nameSpaceSelector in ingress rules",
+			name:             "only peer nameSpaceSelector in ingress rules",
+			isNewNwPolicyVer: true,
 			targetSelector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
 					"label": "src",
@@ -1471,6 +1531,7 @@ func TestIngressPolicy(t *testing.T) {
 					ipsets.NewTranslatedIPSet("label:src", ipsets.KeyValueLabelOfPod),
 					ipsets.NewTranslatedIPSet(defaultNS, ipsets.Namespace),
 				},
+				ChildPodSelectorIPSets: []*ipsets.TranslatedIPSet{},
 				PodSelectorList: []policies.SetInfo{
 					policies.NewSetInfo("label:src", ipsets.KeyValueLabelOfPod, included, targetPodMatchType),
 					policies.NewSetInfo(defaultNS, ipsets.Namespace, included, targetPodMatchType),
@@ -1491,7 +1552,8 @@ func TestIngressPolicy(t *testing.T) {
 			},
 		},
 		{
-			name: "peer nameSpaceSelector and ipblock in ingress rules",
+			name:             "peer nameSpaceSelector and ipblock in ingress rules",
+			isNewNwPolicyVer: true,
 			targetSelector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
 					"label": "src",
@@ -1529,6 +1591,7 @@ func TestIngressPolicy(t *testing.T) {
 					ipsets.NewTranslatedIPSet("label:src", ipsets.KeyValueLabelOfPod),
 					ipsets.NewTranslatedIPSet(defaultNS, ipsets.Namespace),
 				},
+				ChildPodSelectorIPSets: []*ipsets.TranslatedIPSet{},
 				PodSelectorList: []policies.SetInfo{
 					policies.NewSetInfo("label:src", ipsets.KeyValueLabelOfPod, included, targetPodMatchType),
 					policies.NewSetInfo(defaultNS, ipsets.Namespace, included, targetPodMatchType),
@@ -1565,7 +1628,8 @@ func TestIngressPolicy(t *testing.T) {
 			},
 		},
 		{
-			name: "error",
+			name:             "error",
+			isNewNwPolicyVer: true,
 			targetSelector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
 					"label": "src",
@@ -1589,6 +1653,7 @@ func TestIngressPolicy(t *testing.T) {
 					ipsets.NewTranslatedIPSet("label:src", ipsets.KeyValueLabelOfPod),
 					ipsets.NewTranslatedIPSet("default", ipsets.Namespace),
 				},
+				ChildPodSelectorIPSets: []*ipsets.TranslatedIPSet{},
 				PodSelectorList: []policies.SetInfo{
 					policies.NewSetInfo("label:src", ipsets.KeyValueLabelOfPod, included, targetPodMatchType),
 					policies.NewSetInfo("default", ipsets.Namespace, included, targetPodMatchType),
@@ -1605,7 +1670,8 @@ func TestIngressPolicy(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name: "allow all ingress rules",
+			name:             "allow all ingress rules",
+			isNewNwPolicyVer: true,
 			targetSelector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
 					"label": "src",
@@ -1622,6 +1688,7 @@ func TestIngressPolicy(t *testing.T) {
 					ipsets.NewTranslatedIPSet("label:src", ipsets.KeyValueLabelOfPod),
 					ipsets.NewTranslatedIPSet("default", ipsets.Namespace),
 				},
+				ChildPodSelectorIPSets: []*ipsets.TranslatedIPSet{},
 				PodSelectorList: []policies.SetInfo{
 					policies.NewSetInfo("label:src", ipsets.KeyValueLabelOfPod, included, targetPodMatchType),
 					policies.NewSetInfo("default", ipsets.Namespace, included, targetPodMatchType),
@@ -1635,7 +1702,8 @@ func TestIngressPolicy(t *testing.T) {
 			},
 		},
 		{
-			name: "deny all in ingress rules",
+			name:             "deny all in ingress rules",
+			isNewNwPolicyVer: true,
 			targetSelector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
 					"label": "src",
@@ -1650,6 +1718,7 @@ func TestIngressPolicy(t *testing.T) {
 					ipsets.NewTranslatedIPSet("label:src", ipsets.KeyValueLabelOfPod),
 					ipsets.NewTranslatedIPSet("default", ipsets.Namespace),
 				},
+				ChildPodSelectorIPSets: []*ipsets.TranslatedIPSet{},
 				PodSelectorList: []policies.SetInfo{
 					policies.NewSetInfo("label:src", ipsets.KeyValueLabelOfPod, included, targetPodMatchType),
 					policies.NewSetInfo("default", ipsets.Namespace, included, targetPodMatchType),
@@ -1659,19 +1728,204 @@ func TestIngressPolicy(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:             "multi-value pod/target selector",
+			isNewNwPolicyVer: true,
+			targetSelector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"k0": "v0",
+				},
+				MatchExpressions: []metav1.LabelSelectorRequirement{
+					{
+						Key:      "k1",
+						Operator: metav1.LabelSelectorOpIn,
+						Values: []string{
+							"v10",
+							"v11",
+						},
+					},
+					{
+						Key:      "k2",
+						Operator: metav1.LabelSelectorOpDoesNotExist,
+						Values:   []string{},
+					},
+				},
+			},
+			rules: []networkingv1.NetworkPolicyIngressRule{
+				{},
+			},
+			npmNetPol: &policies.NPMNetworkPolicy{
+				Namespace:   "default",
+				PolicyKey:   "default/serve-tcp",
+				ACLPolicyID: "azure-acl-default-serve-tcp",
+				PodSelectorIPSets: []*ipsets.TranslatedIPSet{
+					ipsets.NewTranslatedIPSet("k0:v0", ipsets.KeyValueLabelOfPod),
+					ipsets.NewTranslatedIPSet("default/serve-tcp-k1:v10:v11", ipsets.NestedLabelOfPod, "k1:v10", "k1:v11"),
+					ipsets.NewTranslatedIPSet("k2", ipsets.KeyLabelOfPod),
+					ipsets.NewTranslatedIPSet("default", ipsets.Namespace),
+				},
+				ChildPodSelectorIPSets: []*ipsets.TranslatedIPSet{
+					ipsets.NewTranslatedIPSet("k1:v10", ipsets.KeyValueLabelOfPod),
+					ipsets.NewTranslatedIPSet("k1:v11", ipsets.KeyValueLabelOfPod),
+				},
+				PodSelectorList: []policies.SetInfo{
+					policies.NewSetInfo("k0:v0", ipsets.KeyValueLabelOfPod, included, targetPodMatchType),
+					policies.NewSetInfo("default/serve-tcp-k1:v10:v11", ipsets.NestedLabelOfPod, included, targetPodMatchType),
+					policies.NewSetInfo("k2", ipsets.KeyLabelOfPod, nonIncluded, targetPodMatchType),
+					policies.NewSetInfo("default", ipsets.Namespace, included, targetPodMatchType),
+				},
+				ACLs: []*policies.ACLPolicy{
+					{
+						Target:    policies.Allowed,
+						Direction: policies.Ingress,
+					},
+				},
+			},
+		},
+		{
+			name:             "multi-value pod/peer selector",
+			isNewNwPolicyVer: true,
+			targetSelector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"k0": "v0",
+				},
+			},
+			rules: []networkingv1.NetworkPolicyIngressRule{
+				{
+					From: []networkingv1.NetworkPolicyPeer{
+						{
+							PodSelector: &metav1.LabelSelector{
+								MatchExpressions: []metav1.LabelSelectorRequirement{
+									{
+										Key:      "k1",
+										Operator: metav1.LabelSelectorOpIn,
+										Values: []string{
+											"v10",
+											"v11",
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			npmNetPol: &policies.NPMNetworkPolicy{
+				Namespace:   "default",
+				PolicyKey:   "default/serve-tcp",
+				ACLPolicyID: "azure-acl-default-serve-tcp",
+				PodSelectorIPSets: []*ipsets.TranslatedIPSet{
+					ipsets.NewTranslatedIPSet("k0:v0", ipsets.KeyValueLabelOfPod),
+					ipsets.NewTranslatedIPSet("default", ipsets.Namespace),
+				},
+				ChildPodSelectorIPSets: []*ipsets.TranslatedIPSet{},
+				PodSelectorList: []policies.SetInfo{
+					policies.NewSetInfo("k0:v0", ipsets.KeyValueLabelOfPod, included, targetPodMatchType),
+					policies.NewSetInfo("default", ipsets.Namespace, included, targetPodMatchType),
+				},
+				RuleIPSets: []*ipsets.TranslatedIPSet{
+					ipsets.NewTranslatedIPSet("default/serve-tcp-k1:v10:v11", ipsets.NestedLabelOfPod, "k1:v10", "k1:v11"),
+					ipsets.NewTranslatedIPSet("default", ipsets.Namespace),
+					ipsets.NewTranslatedIPSet("k1:v10", ipsets.KeyValueLabelOfPod),
+					ipsets.NewTranslatedIPSet("k1:v11", ipsets.KeyValueLabelOfPod),
+				},
+				ACLs: []*policies.ACLPolicy{
+					{
+						Target:    policies.Allowed,
+						Direction: policies.Ingress,
+						SrcList: []policies.SetInfo{
+							policies.NewSetInfo("default/serve-tcp-k1:v10:v11", ipsets.NestedLabelOfPod, included, peerMatchType),
+							policies.NewSetInfo("default", ipsets.Namespace, included, peerMatchType),
+						},
+					},
+					{
+						Target:    policies.Dropped,
+						Direction: policies.Ingress,
+					},
+				},
+			},
+		},
+		{
+			name:             "multi-value pod/peer selector with namespace selector in same peer rule",
+			isNewNwPolicyVer: true,
+			targetSelector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"k0": "v0",
+				},
+			},
+			rules: []networkingv1.NetworkPolicyIngressRule{
+				{
+					From: []networkingv1.NetworkPolicyPeer{
+						{
+							NamespaceSelector: &metav1.LabelSelector{
+								MatchLabels: map[string]string{
+									"peer-nsselector-kay": "peer-nsselector-value",
+								},
+							},
+							PodSelector: &metav1.LabelSelector{
+								MatchExpressions: []metav1.LabelSelectorRequirement{
+									{
+										Key:      "k1",
+										Operator: metav1.LabelSelectorOpIn,
+										Values: []string{
+											"v10",
+											"v11",
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			npmNetPol: &policies.NPMNetworkPolicy{
+				Namespace:   "default",
+				PolicyKey:   "default/serve-tcp",
+				ACLPolicyID: "azure-acl-default-serve-tcp",
+				PodSelectorIPSets: []*ipsets.TranslatedIPSet{
+					ipsets.NewTranslatedIPSet("k0:v0", ipsets.KeyValueLabelOfPod),
+					ipsets.NewTranslatedIPSet("default", ipsets.Namespace),
+				},
+				ChildPodSelectorIPSets: []*ipsets.TranslatedIPSet{},
+				PodSelectorList: []policies.SetInfo{
+					policies.NewSetInfo("k0:v0", ipsets.KeyValueLabelOfPod, included, targetPodMatchType),
+					policies.NewSetInfo("default", ipsets.Namespace, included, targetPodMatchType),
+				},
+				RuleIPSets: []*ipsets.TranslatedIPSet{
+					ipsets.NewTranslatedIPSet("default/serve-tcp-k1:v10:v11", ipsets.NestedLabelOfPod, "k1:v10", "k1:v11"),
+					ipsets.NewTranslatedIPSet("k1:v10", ipsets.KeyValueLabelOfPod),
+					ipsets.NewTranslatedIPSet("k1:v11", ipsets.KeyValueLabelOfPod),
+					ipsets.NewTranslatedIPSet("peer-nsselector-kay:peer-nsselector-value", ipsets.KeyValueLabelOfNamespace),
+				},
+				ACLs: []*policies.ACLPolicy{
+					{
+						Target:    policies.Allowed,
+						Direction: policies.Ingress,
+						SrcList: []policies.SetInfo{
+							policies.NewSetInfo("peer-nsselector-kay:peer-nsselector-value", ipsets.KeyValueLabelOfNamespace, included, peerMatchType),
+							policies.NewSetInfo("default/serve-tcp-k1:v10:v11", ipsets.NestedLabelOfPod, included, peerMatchType),
+						},
+					},
+					{
+						Target:    policies.Dropped,
+						Direction: policies.Ingress,
+					},
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
+			util.IsNewNwPolicyVerFlag = tt.isNewNwPolicyVer
 			npmNetPol := &policies.NPMNetworkPolicy{
 				Namespace:   tt.npmNetPol.Namespace,
 				PolicyKey:   tt.npmNetPol.PolicyKey,
 				ACLPolicyID: tt.npmNetPol.ACLPolicyID,
 			}
 			var err error
-			npmNetPol.PodSelectorIPSets, npmNetPol.PodSelectorList, err = podSelectorWithNS(npmNetPol.PolicyKey, npmNetPol.Namespace, policies.EitherMatch, tt.targetSelector)
+			npmNetPol.PodSelectorIPSets, npmNetPol.ChildPodSelectorIPSets, npmNetPol.PodSelectorList, err = podSelectorWithNS(npmNetPol.PolicyKey, npmNetPol.Namespace, policies.EitherMatch, tt.targetSelector)
 			require.NoError(t, err)
 			splitPolicyKey := strings.Split(npmNetPol.PolicyKey, "/")
 			require.Len(t, splitPolicyKey, 2, "policy key must include name")
@@ -1692,14 +1946,16 @@ func TestEgressPolicy(t *testing.T) {
 	targetPodMatchType := policies.EitherMatch
 	peerMatchType := policies.DstMatch
 	tests := []struct {
-		name           string
-		targetSelector *metav1.LabelSelector
-		rules          []networkingv1.NetworkPolicyEgressRule
-		npmNetPol      *policies.NPMNetworkPolicy
-		wantErr        bool
+		name             string
+		isNewNwPolicyVer bool
+		targetSelector   *metav1.LabelSelector
+		rules            []networkingv1.NetworkPolicyEgressRule
+		npmNetPol        *policies.NPMNetworkPolicy
+		wantErr          bool
 	}{
 		{
-			name: "only port in egress rules",
+			name:             "only port in egress rules",
+			isNewNwPolicyVer: true,
 			targetSelector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
 					"label": "dst",
@@ -1722,6 +1978,7 @@ func TestEgressPolicy(t *testing.T) {
 					ipsets.NewTranslatedIPSet("label:dst", ipsets.KeyValueLabelOfPod),
 					ipsets.NewTranslatedIPSet("default", ipsets.Namespace),
 				},
+				ChildPodSelectorIPSets: []*ipsets.TranslatedIPSet{},
 				PodSelectorList: []policies.SetInfo{
 					policies.NewSetInfo("label:dst", ipsets.KeyValueLabelOfPod, included, targetPodMatchType),
 					policies.NewSetInfo("default", ipsets.Namespace, included, targetPodMatchType),
@@ -1741,7 +1998,8 @@ func TestEgressPolicy(t *testing.T) {
 			},
 		},
 		{
-			name: "only ipBlock in egress rules",
+			name:             "only ipBlock in egress rules",
+			isNewNwPolicyVer: true,
 			targetSelector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
 					"label": "dst",
@@ -1771,6 +2029,7 @@ func TestEgressPolicy(t *testing.T) {
 					policies.NewSetInfo("label:dst", ipsets.KeyValueLabelOfPod, included, targetPodMatchType),
 					policies.NewSetInfo("default", ipsets.Namespace, included, targetPodMatchType),
 				},
+				ChildPodSelectorIPSets: []*ipsets.TranslatedIPSet{},
 				RuleIPSets: []*ipsets.TranslatedIPSet{
 					ipsets.NewTranslatedIPSet("only-ipblock-in-ns-default-0-0OUT", ipsets.CIDRBlocks, []string{"172.17.0.0/16", "172.17.1.0/24 nomatch"}...),
 				},
@@ -1787,7 +2046,8 @@ func TestEgressPolicy(t *testing.T) {
 			},
 		},
 		{
-			name: "only peer podSelector in egress rules",
+			name:             "only peer podSelector in egress rules",
+			isNewNwPolicyVer: true,
 			targetSelector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
 					"label": "dst",
@@ -1814,6 +2074,7 @@ func TestEgressPolicy(t *testing.T) {
 					ipsets.NewTranslatedIPSet("label:dst", ipsets.KeyValueLabelOfPod),
 					ipsets.NewTranslatedIPSet("default", ipsets.Namespace),
 				},
+				ChildPodSelectorIPSets: []*ipsets.TranslatedIPSet{},
 				PodSelectorList: []policies.SetInfo{
 					policies.NewSetInfo("label:dst", ipsets.KeyValueLabelOfPod, included, targetPodMatchType),
 					policies.NewSetInfo("default", ipsets.Namespace, included, targetPodMatchType),
@@ -1836,7 +2097,8 @@ func TestEgressPolicy(t *testing.T) {
 			},
 		},
 		{
-			name: "only peer nameSpaceSelector in egress rules",
+			name:             "only peer nameSpaceSelector in egress rules",
+			isNewNwPolicyVer: true,
 			targetSelector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
 					"label": "dst",
@@ -1863,6 +2125,7 @@ func TestEgressPolicy(t *testing.T) {
 					ipsets.NewTranslatedIPSet("label:dst", ipsets.KeyValueLabelOfPod),
 					ipsets.NewTranslatedIPSet("default", ipsets.Namespace),
 				},
+				ChildPodSelectorIPSets: []*ipsets.TranslatedIPSet{},
 				PodSelectorList: []policies.SetInfo{
 					policies.NewSetInfo("label:dst", ipsets.KeyValueLabelOfPod, included, targetPodMatchType),
 					policies.NewSetInfo("default", ipsets.Namespace, included, targetPodMatchType),
@@ -1883,7 +2146,8 @@ func TestEgressPolicy(t *testing.T) {
 			},
 		},
 		{
-			name: "deny all in egress rules",
+			name:             "deny all in egress rules",
+			isNewNwPolicyVer: true,
 			targetSelector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
 					"label": "dst",
@@ -1898,6 +2162,7 @@ func TestEgressPolicy(t *testing.T) {
 					ipsets.NewTranslatedIPSet("label:dst", ipsets.KeyValueLabelOfPod),
 					ipsets.NewTranslatedIPSet("default", ipsets.Namespace),
 				},
+				ChildPodSelectorIPSets: []*ipsets.TranslatedIPSet{},
 				PodSelectorList: []policies.SetInfo{
 					policies.NewSetInfo("label:dst", ipsets.KeyValueLabelOfPod, included, targetPodMatchType),
 					policies.NewSetInfo("default", ipsets.Namespace, included, targetPodMatchType),
@@ -1908,7 +2173,8 @@ func TestEgressPolicy(t *testing.T) {
 			},
 		},
 		{
-			name: "allow all egress rules",
+			name:             "allow all egress rules",
+			isNewNwPolicyVer: true,
 			targetSelector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
 					"label": "dst",
@@ -1925,6 +2191,7 @@ func TestEgressPolicy(t *testing.T) {
 					ipsets.NewTranslatedIPSet("label:dst", ipsets.KeyValueLabelOfPod),
 					ipsets.NewTranslatedIPSet("default", ipsets.Namespace),
 				},
+				ChildPodSelectorIPSets: []*ipsets.TranslatedIPSet{},
 				PodSelectorList: []policies.SetInfo{
 					policies.NewSetInfo("label:dst", ipsets.KeyValueLabelOfPod, included, targetPodMatchType),
 					policies.NewSetInfo("default", ipsets.Namespace, included, targetPodMatchType),
@@ -1938,7 +2205,8 @@ func TestEgressPolicy(t *testing.T) {
 			},
 		},
 		{
-			name: "peer nameSpaceSelector and ipblock in egress rules",
+			name:             "peer nameSpaceSelector and ipblock in egress rules",
+			isNewNwPolicyVer: true,
 			targetSelector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
 					"label": "dst",
@@ -1976,6 +2244,7 @@ func TestEgressPolicy(t *testing.T) {
 					ipsets.NewTranslatedIPSet("label:dst", ipsets.KeyValueLabelOfPod),
 					ipsets.NewTranslatedIPSet("default", ipsets.Namespace),
 				},
+				ChildPodSelectorIPSets: []*ipsets.TranslatedIPSet{},
 				PodSelectorList: []policies.SetInfo{
 					policies.NewSetInfo("label:dst", ipsets.KeyValueLabelOfPod, included, targetPodMatchType),
 					policies.NewSetInfo("default", ipsets.Namespace, included, targetPodMatchType),
@@ -2012,7 +2281,8 @@ func TestEgressPolicy(t *testing.T) {
 			},
 		},
 		{
-			name: "error",
+			name:             "error",
+			isNewNwPolicyVer: true,
 			targetSelector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
 					"label": "dst",
@@ -2036,6 +2306,7 @@ func TestEgressPolicy(t *testing.T) {
 					ipsets.NewTranslatedIPSet("label:dst", ipsets.KeyValueLabelOfPod),
 					ipsets.NewTranslatedIPSet("default", ipsets.Namespace),
 				},
+				ChildPodSelectorIPSets: []*ipsets.TranslatedIPSet{},
 				PodSelectorList: []policies.SetInfo{
 					policies.NewSetInfo("label:dst", ipsets.KeyValueLabelOfPod, included, targetPodMatchType),
 					policies.NewSetInfo("default", ipsets.Namespace, included, targetPodMatchType),
@@ -2051,19 +2322,204 @@ func TestEgressPolicy(t *testing.T) {
 			},
 			wantErr: true,
 		},
+		{
+			name:             "multi-value pod/target selector",
+			isNewNwPolicyVer: true,
+			targetSelector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"k0": "v0",
+				},
+				MatchExpressions: []metav1.LabelSelectorRequirement{
+					{
+						Key:      "k1",
+						Operator: metav1.LabelSelectorOpIn,
+						Values: []string{
+							"v10",
+							"v11",
+						},
+					},
+					{
+						Key:      "k2",
+						Operator: metav1.LabelSelectorOpDoesNotExist,
+						Values:   []string{},
+					},
+				},
+			},
+			rules: []networkingv1.NetworkPolicyEgressRule{
+				{},
+			},
+			npmNetPol: &policies.NPMNetworkPolicy{
+				Namespace:   "default",
+				PolicyKey:   "default/serve-tcp",
+				ACLPolicyID: "azure-acl-default-serve-tcp",
+				PodSelectorIPSets: []*ipsets.TranslatedIPSet{
+					ipsets.NewTranslatedIPSet("k0:v0", ipsets.KeyValueLabelOfPod),
+					ipsets.NewTranslatedIPSet("default/serve-tcp-k1:v10:v11", ipsets.NestedLabelOfPod, "k1:v10", "k1:v11"),
+					ipsets.NewTranslatedIPSet("k2", ipsets.KeyLabelOfPod),
+					ipsets.NewTranslatedIPSet("default", ipsets.Namespace),
+				},
+				ChildPodSelectorIPSets: []*ipsets.TranslatedIPSet{
+					ipsets.NewTranslatedIPSet("k1:v10", ipsets.KeyValueLabelOfPod),
+					ipsets.NewTranslatedIPSet("k1:v11", ipsets.KeyValueLabelOfPod),
+				},
+				PodSelectorList: []policies.SetInfo{
+					policies.NewSetInfo("k0:v0", ipsets.KeyValueLabelOfPod, included, targetPodMatchType),
+					policies.NewSetInfo("default/serve-tcp-k1:v10:v11", ipsets.NestedLabelOfPod, included, targetPodMatchType),
+					policies.NewSetInfo("k2", ipsets.KeyLabelOfPod, nonIncluded, targetPodMatchType),
+					policies.NewSetInfo("default", ipsets.Namespace, included, targetPodMatchType),
+				},
+				ACLs: []*policies.ACLPolicy{
+					{
+						Target:    policies.Allowed,
+						Direction: policies.Egress,
+					},
+				},
+			},
+		},
+		{
+			name:             "multi-value pod/peer selector",
+			isNewNwPolicyVer: true,
+			targetSelector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"k0": "v0",
+				},
+			},
+			rules: []networkingv1.NetworkPolicyEgressRule{
+				{
+					To: []networkingv1.NetworkPolicyPeer{
+						{
+							PodSelector: &metav1.LabelSelector{
+								MatchExpressions: []metav1.LabelSelectorRequirement{
+									{
+										Key:      "k1",
+										Operator: metav1.LabelSelectorOpIn,
+										Values: []string{
+											"v10",
+											"v11",
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			npmNetPol: &policies.NPMNetworkPolicy{
+				Namespace:   "default",
+				PolicyKey:   "default/serve-tcp",
+				ACLPolicyID: "azure-acl-default-serve-tcp",
+				PodSelectorIPSets: []*ipsets.TranslatedIPSet{
+					ipsets.NewTranslatedIPSet("k0:v0", ipsets.KeyValueLabelOfPod),
+					ipsets.NewTranslatedIPSet("default", ipsets.Namespace),
+				},
+				ChildPodSelectorIPSets: []*ipsets.TranslatedIPSet{},
+				PodSelectorList: []policies.SetInfo{
+					policies.NewSetInfo("k0:v0", ipsets.KeyValueLabelOfPod, included, targetPodMatchType),
+					policies.NewSetInfo("default", ipsets.Namespace, included, targetPodMatchType),
+				},
+				RuleIPSets: []*ipsets.TranslatedIPSet{
+					ipsets.NewTranslatedIPSet("default/serve-tcp-k1:v10:v11", ipsets.NestedLabelOfPod, "k1:v10", "k1:v11"),
+					ipsets.NewTranslatedIPSet("default", ipsets.Namespace),
+					ipsets.NewTranslatedIPSet("k1:v10", ipsets.KeyValueLabelOfPod),
+					ipsets.NewTranslatedIPSet("k1:v11", ipsets.KeyValueLabelOfPod),
+				},
+				ACLs: []*policies.ACLPolicy{
+					{
+						Target:    policies.Allowed,
+						Direction: policies.Egress,
+						DstList: []policies.SetInfo{
+							policies.NewSetInfo("default/serve-tcp-k1:v10:v11", ipsets.NestedLabelOfPod, included, peerMatchType),
+							policies.NewSetInfo("default", ipsets.Namespace, included, peerMatchType),
+						},
+					},
+					{
+						Target:    policies.Dropped,
+						Direction: policies.Egress,
+					},
+				},
+			},
+		},
+		{
+			name:             "multi-value pod/peer selector with namespace selector in same peer rule",
+			isNewNwPolicyVer: true,
+			targetSelector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"k0": "v0",
+				},
+			},
+			rules: []networkingv1.NetworkPolicyEgressRule{
+				{
+					To: []networkingv1.NetworkPolicyPeer{
+						{
+							NamespaceSelector: &metav1.LabelSelector{
+								MatchLabels: map[string]string{
+									"peer-nsselector-kay": "peer-nsselector-value",
+								},
+							},
+							PodSelector: &metav1.LabelSelector{
+								MatchExpressions: []metav1.LabelSelectorRequirement{
+									{
+										Key:      "k1",
+										Operator: metav1.LabelSelectorOpIn,
+										Values: []string{
+											"v10",
+											"v11",
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			npmNetPol: &policies.NPMNetworkPolicy{
+				Namespace:   "default",
+				PolicyKey:   "default/serve-tcp",
+				ACLPolicyID: "azure-acl-default-serve-tcp",
+				PodSelectorIPSets: []*ipsets.TranslatedIPSet{
+					ipsets.NewTranslatedIPSet("k0:v0", ipsets.KeyValueLabelOfPod),
+					ipsets.NewTranslatedIPSet("default", ipsets.Namespace),
+				},
+				ChildPodSelectorIPSets: []*ipsets.TranslatedIPSet{},
+				PodSelectorList: []policies.SetInfo{
+					policies.NewSetInfo("k0:v0", ipsets.KeyValueLabelOfPod, included, targetPodMatchType),
+					policies.NewSetInfo("default", ipsets.Namespace, included, targetPodMatchType),
+				},
+				RuleIPSets: []*ipsets.TranslatedIPSet{
+					ipsets.NewTranslatedIPSet("default/serve-tcp-k1:v10:v11", ipsets.NestedLabelOfPod, "k1:v10", "k1:v11"),
+					ipsets.NewTranslatedIPSet("k1:v10", ipsets.KeyValueLabelOfPod),
+					ipsets.NewTranslatedIPSet("k1:v11", ipsets.KeyValueLabelOfPod),
+					ipsets.NewTranslatedIPSet("peer-nsselector-kay:peer-nsselector-value", ipsets.KeyValueLabelOfNamespace),
+				},
+				ACLs: []*policies.ACLPolicy{
+					{
+						Target:    policies.Allowed,
+						Direction: policies.Egress,
+						DstList: []policies.SetInfo{
+							policies.NewSetInfo("peer-nsselector-kay:peer-nsselector-value", ipsets.KeyValueLabelOfNamespace, included, peerMatchType),
+							policies.NewSetInfo("default/serve-tcp-k1:v10:v11", ipsets.NestedLabelOfPod, included, peerMatchType),
+						},
+					},
+					{
+						Target:    policies.Dropped,
+						Direction: policies.Egress,
+					},
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
+			util.IsNewNwPolicyVerFlag = tt.isNewNwPolicyVer
 			npmNetPol := &policies.NPMNetworkPolicy{
 				Namespace:   tt.npmNetPol.Namespace,
 				PolicyKey:   tt.npmNetPol.PolicyKey,
 				ACLPolicyID: tt.npmNetPol.ACLPolicyID,
 			}
 			var err error
-			npmNetPol.PodSelectorIPSets, npmNetPol.PodSelectorList, err = podSelectorWithNS(npmNetPol.PolicyKey, npmNetPol.Namespace, policies.EitherMatch, tt.targetSelector)
+			npmNetPol.PodSelectorIPSets, npmNetPol.ChildPodSelectorIPSets, npmNetPol.PodSelectorList, err = podSelectorWithNS(npmNetPol.PolicyKey, npmNetPol.Namespace, policies.EitherMatch, tt.targetSelector)
 			require.NoError(t, err)
 			splitPolicyKey := strings.Split(npmNetPol.PolicyKey, "/")
 			require.Len(t, splitPolicyKey, 2, "policy key must include name")

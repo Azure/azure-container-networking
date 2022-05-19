@@ -8,16 +8,16 @@ import (
 
 func TestAffiliatedIPs(t *testing.T) {
 	s1 := NewIPSet(NewIPSetMetadata("test-set1", Namespace))
-	s1.IPPodKey["1.1.1.1"] = "pod-a"
-	s1.IPPodKey["2.2.2.2"] = "pod-b"
+	s1.IPPodKey["1.1.1.1"] = "pod-w"
+	s1.IPPodKey["2.2.2.2"] = "pod-x"
 	s2 := NewIPSet(NewIPSetMetadata("test-set2", Namespace))
-	s2.IPPodKey["3.3.3.3"] = "pod-c"
-	s2.IPPodKey["4.4.4.4"] = "pod-d"
+	s2.IPPodKey["3.3.3.3"] = "pod-y"
+	s2.IPPodKey["4.4.4.4"] = "pod-z"
 
 	// 1 IP from each set above
 	s3 := NewIPSet(NewIPSetMetadata("test-set3", Namespace))
-	s3.IPPodKey["1.1.1.1"] = "pod-a"
-	s3.IPPodKey["4.4.4.4"] = "pod-d"
+	s3.IPPodKey["1.1.1.1"] = "pod-w"
+	s3.IPPodKey["4.4.4.4"] = "pod-z"
 
 	l := NewIPSet(NewIPSetMetadata("test-list", KeyLabelOfNamespace))
 	l.MemberIPSets[s1.Name] = s1
