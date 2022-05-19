@@ -306,6 +306,10 @@ func (setPolicyBuilder *networkPolicyBuilder) setNameExists(setName string) bool
 }
 
 func getPolicyNetworkRequestMarshal(setPolicySettings map[string]*hcn.SetPolicySetting, policyType hcn.SetPolicyType) ([]byte, error) {
+	if len(setPolicySettings) == 0 {
+		klog.Info("[Dataplane Windows] no set policies to apply on network")
+		return nil, nil
+	}
 	klog.Infof("[Dataplane Windows] marshalling %s type of sets", policyType)
 	policyNetworkRequest := &hcn.PolicyNetworkRequest{
 		Policies: make([]hcn.NetworkPolicy, 0),

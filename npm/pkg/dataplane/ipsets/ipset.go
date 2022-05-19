@@ -385,8 +385,7 @@ func (set *IPSet) affiliatedIPs() map[string]struct{} {
 		return result
 	}
 
-	// number of member ipsets usually underestimates the final map size
-	result := make(map[string]struct{}, len(set.MemberIPSets))
+	result := make(map[string]struct{})
 	for _, memberSet := range set.MemberIPSets {
 		for ip := range memberSet.IPPodKey {
 			result[ip] = struct{}{}
