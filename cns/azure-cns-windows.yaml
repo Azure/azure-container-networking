@@ -84,6 +84,8 @@ spec:
         - name: cns-config
           configMap:
             name: cns-config
+      nodeSelector:
+        kubernetes.io/os: windows
       serviceAccountName: azure-cns
 ---
 apiVersion: v1
