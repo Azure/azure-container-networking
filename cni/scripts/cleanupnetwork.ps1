@@ -1,7 +1,6 @@
  # ./cleanupnetwork.ps1 -CniDirectory c:\k -NetworkName azure
  param (
-    [string]$CniDirectory = "c:\k",
-    [Parameter(Mandatory=$true)][string]$NetworkName
+    [string]$CniDirectory = "c:\windows\system32",
  )
 
 Invoke-WebRequest -Uri https://raw.githubusercontent.com/microsoft/SDN/master/Kubernetes/windows/hns.psm1 -OutFile "c:\hns.psm1" -UseBasicParsing
