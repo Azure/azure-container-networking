@@ -756,20 +756,21 @@ func TestPodSelector(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			var podSelectorIPSets []*ipsets.TranslatedIPSet
-			var childPodSelectorIPSets []*ipsets.TranslatedIPSet
-			var podSelectorList []policies.SetInfo
+			var psResult *podSelectorResult
 			var err error
 			if tt.namespace == "" {
-				podSelectorIPSets, childPodSelectorIPSets, podSelectorList, err = podSelector(policyKey, tt.matchType, tt.labelSelector)
+				psResult, err = podSelector(policyKey, tt.matchType, tt.labelSelector)
 			} else {
 				// technically, the policyKey prefix would contain the namespace, but it might not for these tests
-				podSelectorIPSets, childPodSelectorIPSets, podSelectorList, err = podSelectorWithNS(policyKey, tt.namespace, tt.matchType, tt.labelSelector)
+				psResult, err = podSelectorWithNS(policyKey, tt.namespace, tt.matchType, tt.labelSelector)
+			}
+			if psResult == nil {
+				psResult = &podSelectorResult{}
 			}
 			require.NoError(t, err)
-			require.Equal(t, tt.podSelectorIPSets, podSelectorIPSets)
-			require.Equal(t, tt.childPodSelectorIPSets, childPodSelectorIPSets)
-			require.Equal(t, tt.podSelectorList, podSelectorList)
+			require.Equal(t, tt.podSelectorIPSets, psResult.psSets)
+			require.Equal(t, tt.childPodSelectorIPSets, psResult.childPSSets)
+			require.Equal(t, tt.podSelectorList, psResult.psList)
 		})
 	}
 }
@@ -1924,8 +1925,10 @@ func TestIngressPolicy(t *testing.T) {
 				PolicyKey:   tt.npmNetPol.PolicyKey,
 				ACLPolicyID: tt.npmNetPol.ACLPolicyID,
 			}
-			var err error
-			npmNetPol.PodSelectorIPSets, npmNetPol.ChildPodSelectorIPSets, npmNetPol.PodSelectorList, err = podSelectorWithNS(npmNetPol.PolicyKey, npmNetPol.Namespace, policies.EitherMatch, tt.targetSelector)
+			psResult, err := podSelectorWithNS(npmNetPol.PolicyKey, npmNetPol.Namespace, policies.EitherMatch, tt.targetSelector)
+			npmNetPol.PodSelectorIPSets = psResult.psSets
+			npmNetPol.ChildPodSelectorIPSets = psResult.childPSSets
+			npmNetPol.PodSelectorList = psResult.psList
 			require.NoError(t, err)
 			splitPolicyKey := strings.Split(npmNetPol.PolicyKey, "/")
 			require.Len(t, splitPolicyKey, 2, "policy key must include name")
@@ -2518,8 +2521,10 @@ func TestEgressPolicy(t *testing.T) {
 				PolicyKey:   tt.npmNetPol.PolicyKey,
 				ACLPolicyID: tt.npmNetPol.ACLPolicyID,
 			}
-			var err error
-			npmNetPol.PodSelectorIPSets, npmNetPol.ChildPodSelectorIPSets, npmNetPol.PodSelectorList, err = podSelectorWithNS(npmNetPol.PolicyKey, npmNetPol.Namespace, policies.EitherMatch, tt.targetSelector)
+			psResult, err := podSelectorWithNS(npmNetPol.PolicyKey, npmNetPol.Namespace, policies.EitherMatch, tt.targetSelector)
+			npmNetPol.PodSelectorIPSets = psResult.psSets
+			npmNetPol.ChildPodSelectorIPSets = psResult.childPSSets
+			npmNetPol.PodSelectorList = psResult.psList
 			require.NoError(t, err)
 			splitPolicyKey := strings.Split(npmNetPol.PolicyKey, "/")
 			require.Len(t, splitPolicyKey, 2, "policy key must include name")
