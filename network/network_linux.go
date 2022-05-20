@@ -6,11 +6,11 @@ package network
 import (
 	"errors"
 	"fmt"
-	"github.com/Azure/azure-container-networking/cni"
 	"net"
 	"strconv"
 	"strings"
 
+	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/iptables"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/netio"

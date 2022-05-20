@@ -9,7 +9,6 @@ import (
 	"strings"
 
 	"github.com/Azure/azure-container-networking/cni"
-
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/network/policy"
 	"github.com/Azure/azure-container-networking/platform"

@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/Azure/azure-container-networking/cni"
-
 	cnms "github.com/Azure/azure-container-networking/cnms/cnmspackage"
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/log"
@@ -163,7 +162,7 @@ func (nm *networkManager) restore(isRehydrationRequired bool) error {
 					for _, extIf := range nm.ExternalInterfaces {
 						for _, nw := range extIf.Networks {
 							log.Printf("[net] Deleting the network %s on reboot\n", nw.Id)
-							nm.deleteNetwork(nw.Id, &cni.NetworkConfig{})
+							nm.deleteNetwork(nw.Id, &cni.NetworkConfig{})  //nolint:errcheck // error is not needed to be checked in rehydration
 						}
 					}
 

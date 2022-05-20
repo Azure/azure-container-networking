@@ -45,7 +45,7 @@
                 }
             ],
              "windowsSettings": {
-                 "hnsTimeoutDurationInSeconds" : 60
+                 "hnsTimeoutDurationInSeconds" : 120
              }
         }
     ]

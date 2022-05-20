@@ -1,10 +1,10 @@
 package network
 
 import (
-	"github.com/Azure/azure-container-networking/cni"
 	"net"
 	"testing"
 
+	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/platform"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -117,7 +117,7 @@ var _ = Describe("Test Network", func() {
 				nwInfo := &NetworkInfo{
 					MasterIfName: "eth0",
 				}
-				nw, err := nm.newNetwork(nwInfo,&cni.NetworkConfig{})
+				nw, err := nm.newNetwork(nwInfo, &cni.NetworkConfig{})
 				Expect(err).To(Equal(errSubnetNotFound))
 				Expect(nw).To(BeNil())
 			})
@@ -136,7 +136,7 @@ var _ = Describe("Test Network", func() {
 						},
 					}},
 				}
-				nw, err := nm.newNetwork(nwInfo,&cni.NetworkConfig{})
+				nw, err := nm.newNetwork(nwInfo, &cni.NetworkConfig{})
 				Expect(err).To(Equal(errSubnetNotFound))
 				Expect(nw).To(BeNil())
 			})
@@ -155,7 +155,7 @@ var _ = Describe("Test Network", func() {
 					Id:           "nw",
 					MasterIfName: "eth0",
 				}
-				nw, err := nm.newNetwork(nwInfo,&cni.NetworkConfig{})
+				nw, err := nm.newNetwork(nwInfo, &cni.NetworkConfig{})
 				Expect(err).To(Equal(errNetworkExists))
 				Expect(nw).To(BeNil())
 			})
@@ -176,7 +176,7 @@ var _ = Describe("Test Network", func() {
 					Mode:         opModeTransparent,
 					IPV6Mode:     IPV6Nat,
 				}
-				nw, err := nm.newNetwork(nwInfo,&cni.NetworkConfig{})
+				nw, err := nm.newNetwork(nwInfo, &cni.NetworkConfig{})
 				Expect(err).To(BeNil())
 				Expect(nw).NotTo(BeNil())
 				Expect(nw.Id).To(Equal(nwInfo.Id))
@@ -188,7 +188,7 @@ var _ = Describe("Test Network", func() {
 		Context("When network not found", func() {
 			It("Should raise errNetworkNotFound", func() {
 				nm := &networkManager{}
-				err := nm.deleteNetwork("invalid",&cni.NetworkConfig{})
+				err := nm.deleteNetwork("invalid", &cni.NetworkConfig{})
 				Expect(err).To(Equal(errNetworkNotFound))
 			})
 		})
