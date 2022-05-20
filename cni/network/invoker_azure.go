@@ -96,23 +96,26 @@ func (invoker *AzureIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, er
 }
 
 func (invoker *AzureIPAMInvoker) deleteIpamState() {
-	log.Printf("[cni] Deleting IPAM state file")
 	cniStateExists, err := platform.CheckIfFileExists(platform.CNIStateFilePath)
 	if err != nil {
 		log.Printf("[cni] Error checking CNI state exist: %v", err)
+		return
 	}
 
 	ipamStateExists, err := platform.CheckIfFileExists(platform.CNIIpamStatePath)
 	if err != nil {
 		log.Printf("[cni] Error checking IPAM state exist: %v", err)
+		return
 	}
 
 	if !cniStateExists && ipamStateExists {
 		err = os.Remove(platform.CNIIpamStatePath)
 		if err != nil {
 			log.Printf("[cni] Error deleting state file %v", err)
+			return
 		}
 	}
+	log.Printf("[cni] Deleted IPAM state file")
 }
 
 func (invoker *AzureIPAMInvoker) Delete(address *net.IPNet, nwCfg *cni.NetworkConfig, _ *cniSkel.CmdArgs, options map[string]interface{}) error {

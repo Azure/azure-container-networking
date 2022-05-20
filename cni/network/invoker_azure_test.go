@@ -133,13 +133,12 @@ func TestAzureIPAMInvoker_Add(t *testing.T) {
 		options      map[string]interface{}
 	}
 	tests := []struct {
-		name        string
-		fields      fields
-		args        args
-		want        *cniTypesCurr.Result
-		want1       *cniTypesCurr.Result
-		wantErrType error
-		wantErr     bool
+		name    string
+		fields  fields
+		args    args
+		want    *cniTypesCurr.Result
+		want1   *cniTypesCurr.Result
+		wantErr bool
 	}{
 		{
 			name: "happy add ipv4",
