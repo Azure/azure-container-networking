@@ -49,7 +49,7 @@ func (plugin *NetPlugin) handleConsecutiveAdd(args *cniSkel.CmdArgs, endpointId 
 		return nil, err
 	}
 
-	if nwCfg.WindowsSettings.HnsTimeoutDurationInSeconds > 0 && strings.Contains( epInfo.PODName, "iis-2019"){
+	if nwCfg.WindowsSettings.HnsTimeoutDurationInSeconds > 0 {
 		network.EnableHnsV1Timeout(nwCfg.WindowsSettings.HnsTimeoutDurationInSeconds)
 	}
 

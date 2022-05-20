@@ -79,7 +79,7 @@ func (nw *network) newEndpointImpl(cli apipaClient, _ netlink.NetlinkInterface, 
 		return nw.newEndpointImplHnsV2(cli, epInfo)
 	}
 
-	if cniConfig.WindowsSettings.HnsTimeoutDurationInSeconds > 0 && strings.Contains( epInfo.PODName, "iis-2019")  {
+	if cniConfig.WindowsSettings.HnsTimeoutDurationInSeconds > 0 {
 		EnableHnsV1Timeout(cniConfig.WindowsSettings.HnsTimeoutDurationInSeconds)
 	}
 
@@ -424,13 +424,14 @@ func (nw *network) deleteEndpointImpl(_ netlink.NetlinkInterface, _ platform.Exe
 	if cniConfig.WindowsSettings.HnsTimeoutDurationInSeconds > 0 {
 		EnableHnsV1Timeout(cniConfig.WindowsSettings.HnsTimeoutDurationInSeconds)
 	}
+
 	return nw.deleteEndpointImplHnsV1(ep)
 }
 
 // deleteEndpointImplHnsV1 deletes an existing endpoint from the network using HNS v1.
 func (nw *network) deleteEndpointImplHnsV1(ep *endpoint) error {
 	log.Printf("[net] HNSEndpointRequest DELETE id:%v", ep.HnsId)
-	hnsResponse, err := hcsshim.HNSEndpointRequest("DELETE", ep.HnsId, "")
+	hnsResponse, err := Hnsv1.DeleteEndpoint(ep.HnsId)
 	log.Printf("[net] HNSEndpointRequest DELETE response:%+v err:%v.", hnsResponse, err)
 
 	// todo: may need to improve error handling if hns or hcsshim change their error bubbling.

@@ -225,6 +225,6 @@ func (h Hnsv1wrapperwithtimeout) GetHNSGlobals() (*hcsshim.HNSGlobals, error) {
 	case res := <-r:
 		return res.HnsGlobals, res.Err
 	case <-ctx.Done():
-		return nil, errors.Wrapf(ErrHNSCallTimeout, "IsHnsEndpointAttached timeout value is %v ", h.HnsCallTimeout.String())
+		return nil, errors.Wrapf(ErrHNSCallTimeout, "GetHNSGlobals timeout value is %v ", h.HnsCallTimeout.String())
 	}
 }
