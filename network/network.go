@@ -209,18 +209,18 @@ func (nm *networkManager) newNetwork(nwInfo *NetworkInfo, cniConfig *cni.Network
 }
 
 // DeleteNetwork deletes an existing container network.
-func (nm *networkManager) deleteNetwork(networkId string, cniConfig *cni.NetworkConfig) error {
+func (nm *networkManager) deleteNetwork(networkID string, cniConfig *cni.NetworkConfig) error {
 	var err error
 
-	log.Printf("[net] Deleting network %v.", networkId)
+	log.Printf("[net] Deleting network %v.", networkID)
 	defer func() {
 		if err != nil {
-			log.Printf("[net] Failed to delete network %v, err:%v.", networkId, err)
+			log.Printf("[net] Failed to delete network %v, err:%v.", networkID, err)
 		}
 	}()
 
 	// Find the network.
-	nw, err := nm.getNetwork(networkId)
+	nw, err := nm.getNetwork(networkID)
 	if err != nil {
 		return err
 	}
@@ -233,7 +233,7 @@ func (nm *networkManager) deleteNetwork(networkId string, cniConfig *cni.Network
 
 	// Remove the network object.
 	if nw.extIf != nil {
-		delete(nw.extIf.Networks, networkId)
+		delete(nw.extIf.Networks, networkID)
 	}
 
 	log.Printf("[net] Deleted network %+v.", nw)

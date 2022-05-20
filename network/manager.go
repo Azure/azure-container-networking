@@ -279,11 +279,11 @@ func (nm *networkManager) CreateNetwork(nwInfo *NetworkInfo, cniConfig *cni.Netw
 }
 
 // DeleteNetwork deletes an existing container network.
-func (nm *networkManager) DeleteNetwork(networkId string, cniConfig *cni.NetworkConfig) error {
+func (nm *networkManager) DeleteNetwork(networkID string, cniConfig *cni.NetworkConfig) error {
 	nm.Lock()
 	defer nm.Unlock()
 
-	err := nm.deleteNetwork(networkId, cniConfig)
+	err := nm.deleteNetwork(networkID, cniConfig)
 	if err != nil {
 		return err
 	}
