@@ -4,6 +4,7 @@
 package network
 
 import (
+	"fmt"
 	"net"
 	"strings"
 
@@ -91,6 +92,11 @@ type DNSInfo struct {
 	Options []string
 }
 
+func (nwInfo *NetworkInfo) PrettyString() string {
+	return fmt.Sprintf("Id:%s MasterIfName:%s AdapterName:%s Mode:%s Subnets:%v podsubnet:%v Enablesnatonhost:%t", nwInfo.Id, nwInfo.MasterIfName,
+		nwInfo.AdapterName, nwInfo.Mode, nwInfo.Subnets, nwInfo.PodSubnet, nwInfo.EnableSnatOnHost)
+}
+
 // NewExternalInterface adds a host interface to the list of available external interfaces.
 func (nm *networkManager) newExternalInterface(ifName string, subnet string) error {
 	// Check whether the external interface is already configured.
@@ -158,7 +164,7 @@ func (nm *networkManager) newNetwork(nwInfo *NetworkInfo, cniConfig *cni.Network
 	var nw *network
 	var err error
 
-	log.Printf("[net] Creating network %+v.", nwInfo)
+	log.Printf("[net] Creating network %s.", nwInfo.PrettyString())
 	defer func() {
 		if err != nil {
 			log.Printf("[net] Failed to create network %v, err:%v.", nwInfo.Id, err)

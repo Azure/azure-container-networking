@@ -5,9 +5,11 @@ package network
 
 import (
 	"context"
-	"github.com/Azure/azure-container-networking/cni"
+	"fmt"
 	"net"
 	"strings"
+
+	"github.com/Azure/azure-container-networking/cni"
 
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/netlink"
@@ -100,12 +102,17 @@ type apipaClient interface {
 	CreateHostNCApipaEndpoint(ctx context.Context, networkContainerID string) (string, error)
 }
 
+func (epInfo *EndpointInfo) PrettyString() string {
+	return fmt.Sprintf("Id:%s ContainerID:%s NetNsPath:%s IfName:%s IfIndex:%d MacAddr:%s IPAddrs:%v Gateways:%v",
+		epInfo.Id, epInfo.ContainerID, epInfo.NetNsPath, epInfo.IfName, epInfo.IfIndex, epInfo.MacAddress.String(), epInfo.IPAddresses,
+		epInfo.Gateways)
+}
+
 // NewEndpoint creates a new endpoint in the network.
 func (nw *network) newEndpoint(cli apipaClient, nl netlink.NetlinkInterface, plc platform.ExecClient, epInfo *EndpointInfo, cniConfig *cni.NetworkConfig) (*endpoint, error) {
 	var ep *endpoint
 	var err error
 
-	log.Printf("[net] Creating endpoint %+v in network %v.", epInfo, nw.Id)
 	defer func() {
 		if err != nil {
 			log.Printf("[net] Failed to create endpoint %v, err:%v.", epInfo.Id, err)
@@ -158,8 +165,6 @@ func (nw *network) deleteEndpoint(nl netlink.NetlinkInterface, plc platform.Exec
 
 // GetEndpoint returns the endpoint with the given ID.
 func (nw *network) getEndpoint(endpointId string) (*endpoint, error) {
-	log.Printf("Trying to retrieve endpoint id %v", endpointId)
-
 	ep := nw.Endpoints[endpointId]
 
 	if ep == nil {

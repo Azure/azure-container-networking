@@ -1,0 +1,76 @@
+## This example Prometheus scrape-config can be used with a manually 
+## configured Prometheus to collect azure-cns metrics.
+- job_name: azure-cns
+  honor_timestamps: true
+  scrape_interval: 30s
+  scrape_timeout: 10s
+  metrics_path: /metrics
+  scheme: http
+  follow_redirects: true
+  enable_http2: true
+  relabel_configs:
+  - source_labels: [job]
+    separator: ;
+    regex: (.*)
+    target_label: __tmp_prometheus_job_name
+    replacement: $1
+    action: replace
+  - source_labels: [__meta_kubernetes_pod_label_k8s_app, __meta_kubernetes_pod_labelpresent_k8s_app]
+    separator: ;
+    regex: (azure-cns);true
+    replacement: $1
+    action: keep
+  - source_labels: [__meta_kubernetes_pod_container_port_name]
+    separator: ;
+    regex: metrics
+    replacement: $1
+    action: keep
+  - source_labels: [__meta_kubernetes_namespace]
+    separator: ;
+    regex: (.*)
+    target_label: namespace
+    replacement: $1
+    action: replace
+  - source_labels: [__meta_kubernetes_pod_container_name]
+    separator: ;
+    regex: (.*)
+    target_label: container
+    replacement: $1
+    action: replace
+  - source_labels: [__meta_kubernetes_pod_name]
+    separator: ;
+    regex: (.*)
+    target_label: pod
+    replacement: $1
+    action: replace
+  - separator: ;
+    regex: (.*)
+    target_label: job
+    replacement: kube-system/azure-cns
+    action: replace
+  - separator: ;
+    regex: (.*)
+    target_label: endpoint
+    replacement: metrics
+    action: replace
+  - source_labels: [__address__]
+    separator: ;
+    regex: (.*)
+    modulus: 1
+    target_label: __tmp_hash
+    replacement: $1
+    action: hashmod
+  - source_labels: [__tmp_hash]
+    separator: ;
+    regex: "0"
+    replacement: $1
+    action: keep
+  kubernetes_sd_configs:
+  - role: pod
+    kubeconfig_file: ""
+    follow_redirects: true
+    enable_http2: true
+    namespaces:
+      own_namespace: false
+      names:
+      - kube-system

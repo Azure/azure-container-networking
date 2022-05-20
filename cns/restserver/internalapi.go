@@ -44,8 +44,7 @@ func (service *HTTPRestService) SetNodeOrchestrator(r *cns.SetOrchestratorTypeRe
 }
 
 // SyncNodeStatus :- Retrieve the latest node state from DNC & returns the first occurence of returnCode and error with respect to contextFromCNI
-func (service *HTTPRestService) SyncNodeStatus(
-	dncEP, infraVnet, nodeID string, contextFromCNI json.RawMessage) (returnCode types.ResponseCode, errStr string) {
+func (service *HTTPRestService) SyncNodeStatus(dncEP, infraVnet, nodeID string, contextFromCNI json.RawMessage) (returnCode types.ResponseCode, errStr string) {
 	logger.Printf("[Azure CNS] SyncNodeStatus")
 	var (
 		resp             *http.Response
@@ -223,8 +222,7 @@ func (service *HTTPRestService) syncHostNCVersion(ctx context.Context, channelMo
 }
 
 // This API will be called by CNS RequestController on CRD update.
-func (service *HTTPRestService) ReconcileNCState(
-	ncRequest *cns.CreateNetworkContainerRequest, podInfoByIP map[string]cns.PodInfo, nnc *v1alpha.NodeNetworkConfig) types.ResponseCode {
+func (service *HTTPRestService) ReconcileNCState(ncRequest *cns.CreateNetworkContainerRequest, podInfoByIP map[string]cns.PodInfo, nnc *v1alpha.NodeNetworkConfig) types.ResponseCode {
 	logger.Printf("Reconciling NC state with podInfo %+v", podInfoByIP)
 	// check if ncRequest is null, then return as there is no CRD state yet
 	if ncRequest == nil {

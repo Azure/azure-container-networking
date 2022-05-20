@@ -526,8 +526,6 @@ func (nm *networkManager) GetNumberOfEndpoints(ifName string, networkId string) 
 		}
 	}
 
-	log.Printf("Get number of endpoints for ifname %v network %v", ifName, networkId)
-
 	if nm.ExternalInterfaces != nil {
 		extIf := nm.ExternalInterfaces[ifName]
 		if extIf != nil && extIf.Networks != nil {
