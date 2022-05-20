@@ -401,7 +401,8 @@ func TestRemoveIpamState_Add(t *testing.T) {
 			fields: fields{
 				plugin: &mockDelegatePlugin{
 					add: add{
-						errv4: ipam.ErrNoAvailableAddressPools,
+						resultsIPv4: getResult("10.0.0.1/24"),
+						errv4:       ipam.ErrNoAvailableAddressPools,
 					},
 				},
 				nwInfo: getNwInfo("10.0.0.0/24", ""),
@@ -410,7 +411,8 @@ func TestRemoveIpamState_Add(t *testing.T) {
 				nwCfg:        &cni.NetworkConfig{},
 				subnetPrefix: getCIDRNotationForAddress("10.0.0.0/24"),
 			},
-			wantErrMsg: "resetting IPAM state",
+			want:       getResult("10.0.0.1/24")[0],
+			wantErrMsg: ipam.ErrNoAvailableAddressPools.Error(),
 			wantErr:    true,
 		},
 	}
