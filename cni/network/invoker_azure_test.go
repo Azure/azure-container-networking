@@ -4,13 +4,11 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/Azure/azure-container-networking/cni"
+	"github.com/Azure/azure-container-networking/ipam"
 	"github.com/Azure/azure-container-networking/network"
-	"github.com/Azure/azure-container-networking/platform"
 	cniSkel "github.com/containernetworking/cni/pkg/skel"
 	cniTypes "github.com/containernetworking/cni/pkg/types"
 	cniTypesCurr "github.com/containernetworking/cni/pkg/types/current"
@@ -135,12 +133,13 @@ func TestAzureIPAMInvoker_Add(t *testing.T) {
 		options      map[string]interface{}
 	}
 	tests := []struct {
-		name    string
-		fields  fields
-		args    args
-		want    *cniTypesCurr.Result
-		want1   *cniTypesCurr.Result
-		wantErr bool
+		name        string
+		fields      fields
+		args        args
+		want        *cniTypesCurr.Result
+		want1       *cniTypesCurr.Result
+		wantErrType error
+		wantErr     bool
 	}{
 		{
 			name: "happy add ipv4",
@@ -376,36 +375,60 @@ func TestNewAzureIpamInvoker(t *testing.T) {
 	NewAzureIpamInvoker(nil, nil)
 }
 
-// test if the constructor removes IPAM state file if CNI state file unavailable.
-func TestRemoveIPAMState(t *testing.T) {
-	dir, file := filepath.Split(platform.CNIIpamStatePath)
+func TestRemoveIpamState_Add(t *testing.T) {
+	requires := require.New(t)
+	type fields struct {
+		plugin delegatePlugin
+		nwInfo *network.NetworkInfo
+	}
+	type args struct {
+		nwCfg        *cni.NetworkConfig
+		in1          *cniSkel.CmdArgs
+		subnetPrefix *net.IPNet
+		options      map[string]interface{}
+	}
+	tests := []struct {
+		name       string
+		fields     fields
+		args       args
+		want       *cniTypesCurr.Result
+		want1      *cniTypesCurr.Result
+		wantErrMsg string
+		wantErr    bool
+	}{
+		{
+			name: "add ipv4 and delete IPAM state on ErrNoAvailableAddressPools",
+			fields: fields{
+				plugin: &mockDelegatePlugin{
+					add: add{
+						errv4: ipam.ErrNoAvailableAddressPools,
+					},
+				},
+				nwInfo: getNwInfo("10.0.0.0/24", ""),
+			},
+			args: args{
+				nwCfg:        &cni.NetworkConfig{},
+				subnetPrefix: getCIDRNotationForAddress("10.0.0.0/24"),
+			},
+			wantErrMsg: "resetting IPAM state",
+			wantErr:    true,
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			invoker := &AzureIPAMInvoker{
+				plugin: tt.fields.plugin,
+				nwInfo: tt.fields.nwInfo,
+			}
 
-	_, err := os.Stat(dir)
-	if err == nil {
-		t.Fatal(err)
+			_, err := invoker.Add(IPAMAddConfig{nwCfg: tt.args.nwCfg, args: tt.args.in1, options: tt.args.options})
+			if tt.wantErr {
+				requires.NotNil(err) // use NotNil since *cniTypes.Error is not of type Error
+				requires.ErrorContains(err, tt.wantErrMsg)
+			} else {
+				requires.Nil(err)
+			}
+		})
 	}
-	if os.IsNotExist(err) {
-		errorDir := os.MkdirAll(dir, 0o755)
-		if errorDir != nil {
-			t.Fatal(err)
-		}
-	}
-	_, err = os.Create(file)
-	if err != nil {
-		t.Fatalf("Fail to create file: %v", err)
-	}
-
-	NewAzureIpamInvoker(nil, nil) // this deletes the IPAM state file
-
-	exist := false
-	exist, err = platform.CheckIfFileExists(platform.CNIIpamStatePath)
-	if err != nil {
-		t.Fatalf("Failed to check if file exist %v", err)
-	}
-	if exist == true {
-		t.Fatal("Failed to delete Ipam state file")
-	}
-
-	os.Remove(file)
-	os.Remove(dir)
 }

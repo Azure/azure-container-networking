@@ -29,8 +29,7 @@ type delegatePlugin interface {
 	Errorf(format string, args ...interface{}) *cniTypes.Error
 }
 
-// Create an instance of CNI, then call a delegate function for CNI action (ADD/DEL)
-// Avoid having IPAM state but no CNI state.
+// Create an IPAM instance every time a CNI action is called.
 func NewAzureIpamInvoker(plugin *NetPlugin, nwInfo *network.NetworkInfo) *AzureIPAMInvoker {
 	return &AzureIPAMInvoker{
 		plugin: plugin,
@@ -54,26 +53,28 @@ func (invoker *AzureIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, er
 
 	// Call into IPAM plugin to allocate an address pool for the network.
 	addResult.ipv4Result, err = invoker.plugin.DelegateAdd(addConfig.nwCfg.Ipam.Type, addConfig.nwCfg)
-	if err != nil {
+	if errors.Is(err, ipam.ErrNoAvailableAddressPools) {
+		cniStateExists, er := platform.CheckIfFileExists(platform.CNIStateFilePath)
+		if er != nil {
+			log.Printf("[cni] Error checking CNI state exist: %v", er)
+		}
 
-		if errors.Is(err, ipam.ErrNoAvailableAddressPools) {
-			cniStateExists, er := platform.CheckIfFileExists(platform.CNIStateFilePath)
+		ipamStateExists, er := platform.CheckIfFileExists(platform.CNIIpamStatePath)
+		if er != nil {
+			log.Printf("[cni] Error checking IPAM state exist: %v", er)
+		}
+
+		if !cniStateExists && ipamStateExists {
+			er = os.Remove(platform.CNIIpamStatePath)
 			if er != nil {
-				log.Printf("[cni] Error checking CNI state exist: %v", er)
-			}
-
-			ipamStateExists, er := platform.CheckIfFileExists(platform.CNIIpamStatePath)
-			if er != nil {
-				log.Printf("[cni] Error checking IPAM state exist: %v", er)
-			}
-
-			if !cniStateExists && ipamStateExists {
-				er = os.Remove(platform.CNIIpamStatePath)
-				if er != nil {
-					log.Printf("[cni] error deleting state file %v", er)
-				}
+				log.Printf("[cni] error deleting state file %v", er)
 			}
 		}
+
+		log.Printf("[cni] Deleted IPAM state file")
+		err = invoker.plugin.Errorf("No available address pool, resetting IPAM state: %v", err)
+		return addResult, err
+	} else if err != nil {
 		err = invoker.plugin.Errorf("Failed to allocate pool: %v", err)
 		return addResult, err
 	}
