@@ -4,11 +4,11 @@
 package network
 
 import (
-	"github.com/Azure/azure-container-networking/cni"
 	"net"
 	"net/http"
 	"time"
 
+	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/cnm"
 	cnsclient "github.com/Azure/azure-container-networking/cns/client"
 	"github.com/Azure/azure-container-networking/common"

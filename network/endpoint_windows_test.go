@@ -22,7 +22,7 @@ func TestNewAndDeleteEndpointImplHnsV2(t *testing.T) {
 
 	// this hnsv2 variable overwrites the package level variable in network
 	// we do this to avoid passing around os specific objects in platform agnostic code
-	hnsv2 = hnswrapper.Hnsv2wrapperwithtimeout{
+	Hnsv2 = hnswrapper.Hnsv2wrapperwithtimeout{
 		Hnsv2: hnswrapper.NewHnsv2wrapperFake(),
 	}
 
@@ -67,7 +67,7 @@ func TestNewEndpointImplHnsv2Timesout(t *testing.T) {
 
 	hnsFake.Delay = 10 * time.Second
 
-	hnsv2 = hnswrapper.Hnsv2wrapperwithtimeout{
+	Hnsv2 = hnswrapper.Hnsv2wrapperwithtimeout{
 		Hnsv2: hnsFake,
 		HnsCallTimeout: 5 * time.Second,
 	}
@@ -98,7 +98,7 @@ func TestDeleteEndpointImplHnsv2Timeout(t *testing.T) {
 		Endpoints: map[string]*endpoint{},
 	}
 
-	hnsv2 = hnswrapper.NewHnsv2wrapperFake()
+	Hnsv2 = hnswrapper.NewHnsv2wrapperFake()
 
 	epInfo := &EndpointInfo{
 		Id:          "753d3fb6-e9b3-49e2-a109-2acc5dda61f1",
@@ -124,7 +124,7 @@ func TestDeleteEndpointImplHnsv2Timeout(t *testing.T) {
 
 	hnsFake.Delay = 10 * time.Second
 
-	hnsv2 = hnswrapper.Hnsv2wrapperwithtimeout{
+	Hnsv2 = hnswrapper.Hnsv2wrapperwithtimeout{
 		Hnsv2: hnsFake,
 		HnsCallTimeout: 5 * time.Second,
 	}

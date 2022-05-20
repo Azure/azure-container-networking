@@ -23,7 +23,7 @@ func TestNewAndDeleteNetworkImplHnsV2(t *testing.T) {
 
 	// this hnsv2 variable overwrites the package level variable in network
 	// we do this to avoid passing around os specific objects in platform agnostic code
-	hnsv2 = hnswrapper.NewHnsv2wrapperFake()
+	Hnsv2 = hnswrapper.NewHnsv2wrapperFake()
 
 	nwInfo := &NetworkInfo{
 		Id:           "d3e97a83-ba4c-45d5-ba88-dc56757ece28",
@@ -58,13 +58,13 @@ func TestSuccesfulNetworkCreationWhenAlreadyExists(t *testing.T) {
 
 	// this hnsv2 variable overwrites the package level variable in network
 	// we do this to avoid passing around os specific objects in platform agnostic code
-	hnsv2 = hnswrapper.NewHnsv2wrapperFake()
+	Hnsv2 = hnswrapper.NewHnsv2wrapperFake()
 
 	network := &hcn.HostComputeNetwork{
 		Name: "azure-vlan1-172-28-1-0_24",
 	}
 
-	_, err := hnsv2.CreateNetwork(network)
+	_, err := Hnsv2.CreateNetwork(network)
 
 	// network name is derived from network info id
 	nwInfo := &NetworkInfo{
@@ -95,7 +95,7 @@ func TestNewNetworkImplHnsV2WithTimeout(t *testing.T) {
 
 	hnsFake.Delay = 15 * time.Second
 
-	hnsv2 = hnswrapper.Hnsv2wrapperwithtimeout{
+	Hnsv2 = hnswrapper.Hnsv2wrapperwithtimeout{
 		Hnsv2: hnsFake,
 		HnsCallTimeout: 10 * time.Second,
 	}
@@ -135,7 +135,7 @@ func TestDeleteNetworkImplHnsV2WithTimeout(t *testing.T) {
 		Subnets: []string{"subnet1", "subnet2"},
 	}
 
-	hnsv2 = hnswrapper.NewHnsv2wrapperFake()
+	Hnsv2 = hnswrapper.NewHnsv2wrapperFake()
 
 	network, err := nm.newNetworkImplHnsV2(nwInfo, extInterface)
 
@@ -148,7 +148,7 @@ func TestDeleteNetworkImplHnsV2WithTimeout(t *testing.T) {
 
 	hnsFake.Delay = 10 * time.Second
 
-	hnsv2 = hnswrapper.Hnsv2wrapperwithtimeout{
+	Hnsv2 = hnswrapper.Hnsv2wrapperwithtimeout{
 		Hnsv2: hnsFake,
 		HnsCallTimeout: 5 * time.Second,
 	}

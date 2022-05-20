@@ -58,16 +58,16 @@ func UseHnsV2(netNs string) (bool, error) {
 	return useHnsV2, err
 }
 
-// this hnsv2 variable is package level variable in network
+// this Hnsv2 variable is package level variable in network
 // we do this to avoid passing around os specific objects in platform agnostic code
-var hnsv2 hnswrapper.HnsV2WrapperInterface = hnswrapper.Hnsv2wrapper{}
+var Hnsv2 hnswrapper.HnsV2WrapperInterface = hnswrapper.Hnsv2wrapper{}
 
 var Hnsv1 hnswrapper.HnsV1WrapperInterface = hnswrapper.Hnsv1wrapper{}
 
 func enableHnsV2Timeout(timeoutValue int) {
-	if _, ok := hnsv2.(hnswrapper.Hnsv2wrapperwithtimeout); !ok {
+	if _, ok := Hnsv2.(hnswrapper.Hnsv2wrapperwithtimeout); !ok {
 		var timeoutDuration = time.Duration(timeoutValue) * time.Second
-		hnsv2 = hnswrapper.Hnsv2wrapperwithtimeout{Hnsv2: hnswrapper.Hnsv2wrapper{}, HnsCallTimeout: timeoutDuration}
+		Hnsv2 = hnswrapper.Hnsv2wrapperwithtimeout{Hnsv2: hnswrapper.Hnsv2wrapper{}, HnsCallTimeout: timeoutDuration}
 	}
 }
 
@@ -325,13 +325,13 @@ func (nm *networkManager) newNetworkImplHnsV2(nwInfo *NetworkInfo, extIf *extern
 	}
 
 	// check if network exists, only create the network does not exist
-	hnsResponse, err := hnsv2.GetNetworkByName(hcnNetwork.Name)
+	hnsResponse, err := Hnsv2.GetNetworkByName(hcnNetwork.Name)
 
 	if err != nil {
 		// if network not found, create the HNS network.
 		if errors.As(err, &hcn.NetworkNotFoundError{}) {
 			log.Printf("[net] Creating hcn network: %+v", hcnNetwork)
-			hnsResponse, err = hnsv2.CreateNetwork(hcnNetwork)
+			hnsResponse, err = Hnsv2.CreateNetwork(hcnNetwork)
 
 			if err != nil {
 				return nil, fmt.Errorf("Failed to create hcn network: %s due to error: %v", hcnNetwork.Name, err)
@@ -412,17 +412,17 @@ func (nm *networkManager) deleteNetworkImplHnsV1(nw *network) error {
 	return err
 }
 
-// DeleteNetworkImplHnsV2 deletes an existing container network using HnsV2.
+// DeleteNetworkImplHnsV2 deletes an existing container network using Hnsv2.
 func (nm *networkManager) deleteNetworkImplHnsV2(nw *network) error {
 	var hcnNetwork *hcn.HostComputeNetwork
 	var err error
 	log.Printf("[net] Deleting hcn network with id: %s", nw.HnsId)
 
-	if hcnNetwork, err = hnsv2.GetNetworkByID(nw.HnsId); err != nil {
+	if hcnNetwork, err = Hnsv2.GetNetworkByID(nw.HnsId); err != nil {
 		return fmt.Errorf("Failed to get hcn network with id: %s due to err: %v", nw.HnsId, err)
 	}
 
-	if err = hnsv2.DeleteNetwork(hcnNetwork); err != nil {
+	if err = Hnsv2.DeleteNetwork(hcnNetwork); err != nil {
 		return fmt.Errorf("Failed to delete hcn network: %s due to error: %v", nw.HnsId, err)
 	}
 
