@@ -6,54 +6,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestAffiliatedIPs(t *testing.T) {
-	s1 := NewIPSet(NewIPSetMetadata("test-set1", Namespace))
-	s1.IPPodKey["1.1.1.1"] = "pod-w"
-	s1.IPPodKey["2.2.2.2"] = "pod-x"
-	s2 := NewIPSet(NewIPSetMetadata("test-set2", Namespace))
-	s2.IPPodKey["3.3.3.3"] = "pod-y"
-	s2.IPPodKey["4.4.4.4"] = "pod-z"
-
-	// 1 IP from each set above
-	s3 := NewIPSet(NewIPSetMetadata("test-set3", Namespace))
-	s3.IPPodKey["1.1.1.1"] = "pod-w"
-	s3.IPPodKey["4.4.4.4"] = "pod-z"
-
-	l := NewIPSet(NewIPSetMetadata("test-list", KeyLabelOfNamespace))
-	l.MemberIPSets[s1.Name] = s1
-	l.MemberIPSets[s2.Name] = s2
-
-	expected := map[string]struct{}{
-		"1.1.1.1": {},
-		"2.2.2.2": {},
-	}
-	require.Equal(t, expected, s1.affiliatedIPs(), "unexpected affiliated IPs for set 1")
-
-	expected = map[string]struct{}{
-		"1.1.1.1": {},
-		"2.2.2.2": {},
-		"3.3.3.3": {},
-		"4.4.4.4": {},
-	}
-	require.Equal(t, expected, l.affiliatedIPs(), "unexpected affiliated IPs for list")
-
-	intersection := s3.affiliatedIPs()
-	l.intersectAffiliatedIPs(intersection)
-	expected = map[string]struct{}{
-		"1.1.1.1": {},
-		"4.4.4.4": {},
-	}
-	require.Equal(t, expected, intersection, "unexpected intersection (direction #1)")
-
-	intersection = l.affiliatedIPs()
-	s3.intersectAffiliatedIPs(intersection)
-	expected = map[string]struct{}{
-		"1.1.1.1": {},
-		"4.4.4.4": {},
-	}
-	require.Equal(t, expected, intersection, "unexpected intersection (direction #2)")
-}
-
 func TestShouldBeInKernelAndCanDelete(t *testing.T) {
 	s := &IPSetMetadata{"test-set", Namespace}
 	l := &IPSetMetadata{"test-list", KeyLabelOfNamespace}
