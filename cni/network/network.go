@@ -396,6 +396,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 		return plugin.Errorf(errMsg)
 	}
 
+	platformInit(nwCfg)
 	if nwCfg.ExecutionMode == string(util.Baremetal) {
 		var res *nnscontracts.ConfigureContainerNetworkingResponse
 		log.Printf("Baremetal mode. Calling vnet agent for ADD")
@@ -895,6 +896,8 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 		SetCustomDimensions(&cniMetric, nwCfg, err)
 		telemetry.SendCNIMetric(&cniMetric, plugin.tb)
 	}
+
+	platformInit(nwCfg)
 
 	log.Printf("Execution mode :%s", nwCfg.ExecutionMode)
 	if nwCfg.ExecutionMode == string(util.Baremetal) {

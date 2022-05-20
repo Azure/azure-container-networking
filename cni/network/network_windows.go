@@ -49,10 +49,6 @@ func (plugin *NetPlugin) handleConsecutiveAdd(args *cniSkel.CmdArgs, endpointId 
 		return nil, err
 	}
 
-	if nwCfg.WindowsSettings.HnsTimeoutDurationInSeconds > 0 {
-		network.EnableHnsV1Timeout(nwCfg.WindowsSettings.HnsTimeoutDurationInSeconds)
-	}
-
 	hnsEndpoint, err := network.Hnsv1.GetHNSEndpointByName(endpointId)
 	if hnsEndpoint != nil {
 		log.Printf("[net] Found existing endpoint through hcsshim: %+v", hnsEndpoint)
@@ -391,4 +387,12 @@ func getNATInfo(executionMode string, ncPrimaryIPIface interface{}, multitenancy
 	}
 
 	return natInfo
+}
+
+func platformInit(cniConfig *cni.NetworkConfig) {
+	if cniConfig.WindowsSettings.HnsTimeoutDurationInSeconds > 0 {
+		log.Printf(fmt.Sprintf("Enabling timeout for Hns calls with a timeout value of : %v", cniConfig.WindowsSettings.HnsTimeoutDurationInSeconds))
+		network.EnableHnsV1Timeout(cniConfig.WindowsSettings.HnsTimeoutDurationInSeconds)
+		network.EnableHnsV2Timeout(cniConfig.WindowsSettings.HnsTimeoutDurationInSeconds)
+	}
 }

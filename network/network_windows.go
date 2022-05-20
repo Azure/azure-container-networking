@@ -58,13 +58,13 @@ func UseHnsV2(netNs string) (bool, error) {
 	return useHnsV2, err
 }
 
-// this Hnsv2 variable is package level variable in network
-// we do this to avoid passing around os specific objects in platform agnostic code
+// Regarding this Hnsv2 and Hnv1 variable
+// this pattern is to avoid passing around os specific objects in platform agnostic code
 var Hnsv2 hnswrapper.HnsV2WrapperInterface = hnswrapper.Hnsv2wrapper{}
 
 var Hnsv1 hnswrapper.HnsV1WrapperInterface = hnswrapper.Hnsv1wrapper{}
 
-func enableHnsV2Timeout(timeoutValue int) {
+func EnableHnsV2Timeout(timeoutValue int) {
 	if _, ok := Hnsv2.(hnswrapper.Hnsv2wrapperwithtimeout); !ok {
 		var timeoutDuration = time.Duration(timeoutValue) * time.Second
 		Hnsv2 = hnswrapper.Hnsv2wrapperwithtimeout{Hnsv2: hnswrapper.Hnsv2wrapper{}, HnsCallTimeout: timeoutDuration}
@@ -374,13 +374,7 @@ func (nm *networkManager) newNetworkImpl(nwInfo *NetworkInfo, extIf *externalInt
 		if err != nil {
 			return nil, err
 		}
-		if cniConfig.WindowsSettings.HnsTimeoutDurationInSeconds > 0 {
-			enableHnsV2Timeout(cniConfig.WindowsSettings.HnsTimeoutDurationInSeconds)
-		}
 		return nm.newNetworkImplHnsV2(nwInfo, extIf)
-	}
-	if cniConfig.WindowsSettings.HnsTimeoutDurationInSeconds > 0 {
-		EnableHnsV1Timeout(cniConfig.WindowsSettings.HnsTimeoutDurationInSeconds)
 	}
 	return nm.newNetworkImplHnsV1(nwInfo, extIf)
 }
@@ -391,14 +385,7 @@ func (nm *networkManager) deleteNetworkImpl(nw *network, cniConfig *cni.NetworkC
 		if err != nil {
 			return err
 		}
-
-		if cniConfig.WindowsSettings.HnsTimeoutDurationInSeconds > 0 {
-			enableHnsV2Timeout(cniConfig.WindowsSettings.HnsTimeoutDurationInSeconds)
-		}
 		return nm.deleteNetworkImplHnsV2(nw)
-	}
-	if cniConfig.WindowsSettings.HnsTimeoutDurationInSeconds > 0 {
-		EnableHnsV1Timeout(cniConfig.WindowsSettings.HnsTimeoutDurationInSeconds)
 	}
 	return nm.deleteNetworkImplHnsV1(nw)
 }

@@ -72,15 +72,7 @@ func (nw *network) newEndpointImpl(cli apipaClient, _ netlink.NetlinkInterface, 
 			return nil, err
 		}
 
-		if cniConfig.WindowsSettings.HnsTimeoutDurationInSeconds > 0 {
-			enableHnsV2Timeout(cniConfig.WindowsSettings.HnsTimeoutDurationInSeconds)
-		}
-
 		return nw.newEndpointImplHnsV2(cli, epInfo)
-	}
-
-	if cniConfig.WindowsSettings.HnsTimeoutDurationInSeconds > 0 {
-		EnableHnsV1Timeout(cniConfig.WindowsSettings.HnsTimeoutDurationInSeconds)
 	}
 
 	return nw.newEndpointImplHnsV1(epInfo)
@@ -415,14 +407,7 @@ func (nw *network) deleteEndpointImpl(_ netlink.NetlinkInterface, _ platform.Exe
 			return err
 		}
 
-		if cniConfig.WindowsSettings.HnsTimeoutDurationInSeconds > 0 {
-			enableHnsV2Timeout(cniConfig.WindowsSettings.HnsTimeoutDurationInSeconds)
-		}
 		return nw.deleteEndpointImplHnsV2(ep)
-	}
-
-	if cniConfig.WindowsSettings.HnsTimeoutDurationInSeconds > 0 {
-		EnableHnsV1Timeout(cniConfig.WindowsSettings.HnsTimeoutDurationInSeconds)
 	}
 
 	return nw.deleteEndpointImplHnsV1(ep)
