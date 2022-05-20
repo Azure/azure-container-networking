@@ -20,6 +20,7 @@ const (
 
 type CNSConfig struct {
 	ChannelMode                 string
+	EnablePprof                 bool
 	InitializeFromCNI           bool
 	ManagedSettings             ManagedSettings
 	MetricsBindAddress          string
