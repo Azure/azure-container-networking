@@ -162,7 +162,9 @@ func (dp *DataPlane) updatePod(pod *updateNPMPod) error {
 		}
 
 		for policyKey := range selectorReference {
-			toAddPolicies[policyKey] = struct{}{}
+			if _, ok := dp.pendingPolicies[policyKey]; !ok {
+				toAddPolicies[policyKey] = struct{}{}
+			}
 		}
 	}
 

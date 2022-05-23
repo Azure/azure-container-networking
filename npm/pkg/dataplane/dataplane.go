@@ -33,7 +33,10 @@ type DataPlane struct {
 	endpointCache  map[string]*NPMEndpoint
 	ioShim         *common.IOShim
 	updatePodCache map[string]*updateNPMPod
-	stopChannel    <-chan struct{}
+	// pendingPolicies includes the policy keys of policies which may
+	// be referenced by ipsets but have not been applied to the kernel yet
+	pendingPolicies map[string]struct{}
+	stopChannel     <-chan struct{}
 }
 
 // TODO this struct could be made unexported
@@ -50,14 +53,15 @@ type NPMEndpoint struct {
 func NewDataPlane(nodeName string, ioShim *common.IOShim, cfg *Config, stopChannel <-chan struct{}) (*DataPlane, error) {
 	metrics.InitializeAll()
 	dp := &DataPlane{
-		Config:         cfg,
-		policyMgr:      policies.NewPolicyManager(ioShim, cfg.PolicyManagerCfg),
-		ipsetMgr:       ipsets.NewIPSetManager(cfg.IPSetManagerCfg, ioShim),
-		endpointCache:  make(map[string]*NPMEndpoint),
-		nodeName:       nodeName,
-		ioShim:         ioShim,
-		updatePodCache: make(map[string]*updateNPMPod),
-		stopChannel:    stopChannel,
+		Config:          cfg,
+		policyMgr:       policies.NewPolicyManager(ioShim, cfg.PolicyManagerCfg),
+		ipsetMgr:        ipsets.NewIPSetManager(cfg.IPSetManagerCfg, ioShim),
+		endpointCache:   make(map[string]*NPMEndpoint),
+		nodeName:        nodeName,
+		ioShim:          ioShim,
+		updatePodCache:  make(map[string]*updateNPMPod),
+		pendingPolicies: make(map[string]struct{}),
+		stopChannel:     stopChannel,
 	}
 
 	err := dp.BootupDataplane()
@@ -202,6 +206,9 @@ func (dp *DataPlane) ApplyDataPlane() error {
 // AddPolicy takes in a translated NPMNetworkPolicy object and applies on dataplane
 func (dp *DataPlane) AddPolicy(policy *policies.NPMNetworkPolicy) error {
 	klog.Infof("[DataPlane] Add Policy called for %s", policy.PolicyKey)
+
+	dp.pendingPolicies[policy.PolicyKey] = struct{}{}
+
 	// Create and add references for Selector IPSets first
 	err := dp.createIPSetsAndReferences(policy.AllPodSelectorIPSets(), policy.PolicyKey, ipsets.SelectorType)
 	if err != nil {
@@ -229,6 +236,7 @@ func (dp *DataPlane) AddPolicy(policy *policies.NPMNetworkPolicy) error {
 	if err != nil {
 		return fmt.Errorf("[DataPlane] error while adding policy: %w", err)
 	}
+	delete(dp.pendingPolicies, policy.PolicyKey)
 	return nil
 }
 
