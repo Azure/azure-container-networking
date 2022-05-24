@@ -10,7 +10,6 @@ import (
 	"net"
 	"strings"
 
-	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/netio"
 	"github.com/Azure/azure-container-networking/netlink"
