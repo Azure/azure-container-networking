@@ -9,7 +9,7 @@ import (
 	"net"
 	"strconv"
 	"strings"
-	
+
 	"github.com/Azure/azure-container-networking/iptables"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/netio"
