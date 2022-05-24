@@ -391,7 +391,7 @@ func getNATInfo(executionMode string, ncPrimaryIPIface interface{}, multitenancy
 
 func platformInit(cniConfig *cni.NetworkConfig) {
 	if cniConfig.WindowsSettings.HnsTimeoutDurationInSeconds > 0 {
-		log.Printf(fmt.Sprintf("Enabling timeout for Hns calls with a timeout value of : %v", cniConfig.WindowsSettings.HnsTimeoutDurationInSeconds))
+		log.Printf("Enabling timeout for Hns calls with a timeout value of : %v", cniConfig.WindowsSettings.HnsTimeoutDurationInSeconds)
 		network.EnableHnsV1Timeout(cniConfig.WindowsSettings.HnsTimeoutDurationInSeconds)
 		network.EnableHnsV2Timeout(cniConfig.WindowsSettings.HnsTimeoutDurationInSeconds)
 	}
