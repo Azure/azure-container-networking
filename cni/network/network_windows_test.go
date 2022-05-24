@@ -22,7 +22,7 @@ import (
 
 func init() {
 	network.Hnsv2 = hnswrapper.NewHnsv2wrapperFake()
-	network.Hnsv1 = hnswrapper.Hnsv1wrapperfake{}
+	network.Hnsv1 = hnswrapper.NewHnsv1wrapperFake()
 }
 // Test windows network policies is set
 func TestAddWithRunTimeNetPolicies(t *testing.T) {

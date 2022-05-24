@@ -1007,10 +1007,10 @@ func TestGetAllEndpointState(t *testing.T) {
 	ep1 := getTestEndpoint("podname1", "podnamespace1", "10.0.0.1/24", "podinterfaceid1", "testcontainerid1")
 	ep2 := getTestEndpoint("podname2", "podnamespace2", "10.0.0.2/24", "podinterfaceid2", "testcontainerid2")
 
-	err := plugin.nm.CreateEndpoint(nil, networkid, ep1, &cni.NetworkConfig{})
+	err := plugin.nm.CreateEndpoint(nil, networkid, ep1)
 	require.NoError(t, err)
 
-	err = plugin.nm.CreateEndpoint(nil, networkid, ep2, &cni.NetworkConfig{})
+	err = plugin.nm.CreateEndpoint(nil, networkid, ep2)
 	require.NoError(t, err)
 
 	state, err := plugin.GetAllEndpointState(networkid)

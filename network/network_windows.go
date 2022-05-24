@@ -11,7 +11,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/network/hnswrapper"
 
 	"github.com/Azure/azure-container-networking/log"
@@ -369,7 +368,7 @@ func (nm *networkManager) newNetworkImplHnsV2(nwInfo *NetworkInfo, extIf *extern
 }
 
 // NewNetworkImpl creates a new container network.
-func (nm *networkManager) newNetworkImpl(nwInfo *NetworkInfo, extIf *externalInterface, cniConfig *cni.NetworkConfig) (*network, error) {
+func (nm *networkManager) newNetworkImpl(nwInfo *NetworkInfo, extIf *externalInterface) (*network, error) {
 	if useHnsV2, err := UseHnsV2(nwInfo.NetNs); useHnsV2 {
 		if err != nil {
 			return nil, err
@@ -380,7 +379,7 @@ func (nm *networkManager) newNetworkImpl(nwInfo *NetworkInfo, extIf *externalInt
 }
 
 // DeleteNetworkImpl deletes an existing container network.
-func (nm *networkManager) deleteNetworkImpl(nw *network, cniConfig *cni.NetworkConfig) error {
+func (nm *networkManager) deleteNetworkImpl(nw *network) error {
 	if useHnsV2, err := UseHnsV2(nw.NetNs); useHnsV2 {
 		if err != nil {
 			return err

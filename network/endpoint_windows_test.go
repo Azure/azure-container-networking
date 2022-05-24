@@ -54,7 +54,6 @@ func TestNewAndDeleteEndpointImplHnsV2(t *testing.T) {
 	}
 }
 
-
 func TestNewEndpointImplHnsv2Timesout(t *testing.T) {
 	nw := &network{
 		Endpoints: map[string]*endpoint{},
@@ -68,7 +67,7 @@ func TestNewEndpointImplHnsv2Timesout(t *testing.T) {
 	hnsFake.Delay = 10 * time.Second
 
 	Hnsv2 = hnswrapper.Hnsv2wrapperwithtimeout{
-		Hnsv2: hnsFake,
+		Hnsv2:          hnsFake,
 		HnsCallTimeout: 5 * time.Second,
 	}
 
@@ -125,7 +124,7 @@ func TestDeleteEndpointImplHnsv2Timeout(t *testing.T) {
 	hnsFake.Delay = 10 * time.Second
 
 	Hnsv2 = hnswrapper.Hnsv2wrapperwithtimeout{
-		Hnsv2: hnsFake,
+		Hnsv2:          hnsFake,
 		HnsCallTimeout: 5 * time.Second,
 	}
 
@@ -136,21 +135,19 @@ func TestDeleteEndpointImplHnsv2Timeout(t *testing.T) {
 	}
 }
 
-
 func TestCreateEndpointImplHnsv1Timeout(t *testing.T) {
 	nw := &network{
 		Endpoints: map[string]*endpoint{},
 	}
 
-	hnsFake := hnswrapper.Hnsv1wrapperfake{}
+	hnsFake := hnswrapper.NewHnsv1wrapperFake()
 
 	hnsFake.Delay = 10 * time.Second
 
 	Hnsv1 = hnswrapper.Hnsv1wrapperwithtimeout{
-		Hnsv1: hnsFake,
+		Hnsv1:          hnsFake,
 		HnsCallTimeout: 5 * time.Second,
 	}
-
 
 	epInfo := &EndpointInfo{
 		Id:          "753d3fb6-e9b3-49e2-a109-2acc5dda61f1",
@@ -173,13 +170,12 @@ func TestCreateEndpointImplHnsv1Timeout(t *testing.T) {
 
 }
 
-
 func TestDeleteEndpointImplHnsv1Timeout(t *testing.T) {
 	nw := &network{
 		Endpoints: map[string]*endpoint{},
 	}
 
-	Hnsv1 = hnswrapper.Hnsv1wrapperfake{}
+	Hnsv1 = hnswrapper.NewHnsv1wrapperFake()
 
 	epInfo := &EndpointInfo{
 		Id:          "753d3fb6-e9b3-49e2-a109-2acc5dda61f1",
@@ -201,12 +197,12 @@ func TestDeleteEndpointImplHnsv1Timeout(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	hnsFake := hnswrapper.Hnsv1wrapperfake{}
+	hnsFake := hnswrapper.NewHnsv1wrapperFake()
 
 	hnsFake.Delay = 10 * time.Second
 
 	Hnsv1 = hnswrapper.Hnsv1wrapperwithtimeout{
-		Hnsv1: hnsFake,
+		Hnsv1:          hnsFake,
 		HnsCallTimeout: 5 * time.Second,
 	}
 

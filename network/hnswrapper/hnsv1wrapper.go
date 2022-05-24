@@ -14,7 +14,6 @@ type Hnsv1wrapper struct {
 }
 
 func (Hnsv1wrapper) CreateEndpoint(endpoint *hcsshim.HNSEndpoint, path string) (*hcsshim.HNSEndpoint, error) {
-
 	// Marshal the request.
 	buffer, err := json.Marshal(endpoint)
 	if err != nil {

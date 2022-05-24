@@ -96,7 +96,7 @@ func TestNewNetworkImplHnsV2WithTimeout(t *testing.T) {
 	hnsFake.Delay = 15 * time.Second
 
 	Hnsv2 = hnswrapper.Hnsv2wrapperwithtimeout{
-		Hnsv2: hnsFake,
+		Hnsv2:          hnsFake,
 		HnsCallTimeout: 10 * time.Second,
 	}
 
@@ -123,7 +123,6 @@ func TestDeleteNetworkImplHnsV2WithTimeout(t *testing.T) {
 		ExternalInterfaces: map[string]*externalInterface{},
 	}
 
-
 	nwInfo := &NetworkInfo{
 		Id:           "d3e97a83-ba4c-45d5-ba88-dc56757ece28",
 		MasterIfName: "eth0",
@@ -149,7 +148,7 @@ func TestDeleteNetworkImplHnsV2WithTimeout(t *testing.T) {
 	hnsFake.Delay = 10 * time.Second
 
 	Hnsv2 = hnswrapper.Hnsv2wrapperwithtimeout{
-		Hnsv2: hnsFake,
+		Hnsv2:          hnsFake,
 		HnsCallTimeout: 5 * time.Second,
 	}
 
@@ -165,12 +164,12 @@ func TestNewNetworkImplHnsV1WithTimeout(t *testing.T) {
 		ExternalInterfaces: map[string]*externalInterface{},
 	}
 
-	hnsFake := hnswrapper.Hnsv1wrapperfake{}
+	hnsFake := hnswrapper.NewHnsv1wrapperFake()
 
 	hnsFake.Delay = 10 * time.Second
 
 	Hnsv1 = hnswrapper.Hnsv1wrapperwithtimeout{
-		Hnsv1: hnsFake,
+		Hnsv1:          hnsFake,
 		HnsCallTimeout: 5 * time.Second,
 	}
 
@@ -197,7 +196,6 @@ func TestDeleteNetworkImplHnsV1WithTimeout(t *testing.T) {
 		ExternalInterfaces: map[string]*externalInterface{},
 	}
 
-
 	nwInfo := &NetworkInfo{
 		Id:           "d3e97a83-ba4c-45d5-ba88-dc56757ece28",
 		MasterIfName: "eth0",
@@ -209,7 +207,7 @@ func TestDeleteNetworkImplHnsV1WithTimeout(t *testing.T) {
 		Subnets: []string{"subnet1", "subnet2"},
 	}
 
-	Hnsv1 = hnswrapper.Hnsv1wrapperfake{}
+	Hnsv1 = hnswrapper.NewHnsv1wrapperFake()
 
 	network, err := nm.newNetworkImplHnsV1(nwInfo, extInterface)
 
@@ -218,12 +216,12 @@ func TestDeleteNetworkImplHnsV1WithTimeout(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	hnsFake := hnswrapper.Hnsv1wrapperfake{}
+	hnsFake := hnswrapper.NewHnsv1wrapperFake()
 
 	hnsFake.Delay = 10 * time.Second
 
 	Hnsv1 = hnswrapper.Hnsv1wrapperwithtimeout{
-		Hnsv1: hnsFake,
+		Hnsv1:          hnsFake,
 		HnsCallTimeout: 5 * time.Second,
 	}
 
@@ -233,4 +231,3 @@ func TestDeleteNetworkImplHnsV1WithTimeout(t *testing.T) {
 		t.Fatal("Failed to timeout HNS calls for deleting network")
 	}
 }
-

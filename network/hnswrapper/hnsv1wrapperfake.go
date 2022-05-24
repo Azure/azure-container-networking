@@ -4,13 +4,17 @@
 package hnswrapper
 
 import (
-	"github.com/Microsoft/hcsshim"
 	"time"
+
+	"github.com/Microsoft/hcsshim"
 )
 
-
-type Hnsv1wrapperfake struct{
+type Hnsv1wrapperfake struct {
 	Delay time.Duration
+}
+
+func NewHnsv1wrapperFake() *Hnsv1wrapperfake {
+	return &Hnsv1wrapperfake{}
 }
 
 func (h Hnsv1wrapperfake) CreateEndpoint(endpoint *hcsshim.HNSEndpoint, path string) (*hcsshim.HNSEndpoint, error) {
