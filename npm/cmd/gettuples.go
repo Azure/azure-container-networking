@@ -33,14 +33,13 @@ func newGetTuples() *cobra.Command {
 			dstInput := &common.Input{Content: dst, Type: dstType}
 
 			config := &npmconfig.Config{}
-				err := viper.Unmarshal(config)
-				if err != nil {
-					return fmt.Errorf("failed to load config with err %w", err)
-				}
+			err := viper.Unmarshal(config)
+			if err != nil {
+				return fmt.Errorf("failed to load config with err %w", err)
+			}
 
 			switch {
 			case npmCacheF == "" && iptableSaveF == "":
-
 
 				c := &debug.Converter{
 					NPMDebugEndpointHost: "http://localhost",
@@ -56,7 +55,6 @@ func newGetTuples() *cobra.Command {
 				debug.PrettyPrintTuples(tuples, srcList, dstList)
 
 			case npmCacheF != "" && iptableSaveF != "":
-	
 
 				c := &debug.Converter{
 					EnableV2NPM: config.Toggles.EnableV2NPM,

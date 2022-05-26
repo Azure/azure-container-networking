@@ -265,7 +265,7 @@ func convertToCniResult(networkConfig *cns.GetNetworkContainerResponse, ifName s
 	var sb strings.Builder
 	sb.WriteString("Adding cnetAddressspace routes ")
 	for _, ipRouteSubnet := range networkConfig.CnetAddressSpace {
-		sb.WriteString(ipRouteSubnet.IPAddress + "/" + strconv.Itoa((int)(ipRouteSubnet.PrefixLength)) + ", ")
+		sb.WriteString(ipRouteSubnet.IPAddress + "/" + strconv.Itoa(int(ipRouteSubnet.PrefixLength)) + ", ")
 		routeIPnet := net.IPNet{IP: net.ParseIP(ipRouteSubnet.IPAddress), Mask: net.CIDRMask(int(ipRouteSubnet.PrefixLength), 32)}
 		gwIP := net.ParseIP(ipconfig.GatewayIPAddress)
 		result.Routes = append(result.Routes, &cniTypes.Route{Dst: routeIPnet, GW: gwIP})

@@ -31,20 +31,13 @@ type Tuple struct {
 	Protocol  string `json:"protocol"`
 }
 
-func printTuple(*TupleAndRule) {
-
-}
-
 func PrettyPrintTuples(tuples []*TupleAndRule, srcList map[string]*pb.RuleResponse_SetInfo, dstList map[string]*pb.RuleResponse_SetInfo) { //nolint: gocritic
 	allowedrules := []*TupleAndRule{}
-	blockedrules := []*TupleAndRule{}
 	for _, tuple := range tuples {
 		if tuple.Tuple.RuleType == "ALLOWED" {
 			allowedrules = append(allowedrules, tuple)
 			continue
 		}
-
-		blockedrules = append(blockedrules, tuple)
 		/*tuple.Tuple.Direction == "EGRESS" {
 			fmt.Printf("\tProtocol: %s, Port: %s\n, Chain: %v", tuple.Tuple.Protocol, tuple.Tuple.SrcPort, tuple.Rule.Chain)
 		}*/
@@ -90,37 +83,12 @@ func PrettyPrintTuples(tuples []*TupleAndRule, srcList map[string]*pb.RuleRespon
 	for i := range dstList {
 		fmt.Printf("\t\tName: %s, HashedName: %s,\n", dstList[i].Name, dstList[i].HashedSetName)
 	}
-
-	/*
-		fmt.Printf("Rules:\n")
-		for _, tuple := range tuples {
-			fmt.Printf("%s for %s\n", tuple.Tuple.RuleType, tuple.Tuple.Direction)
-			fmt.Printf("\tSource IP: %s, Port %s\n", tuple.Tuple.SrcIP, tuple.Tuple.SrcPort)
-			fmt.Printf("\tDestination IP: %s, Port %s\n", tuple.Tuple.DstIP, tuple.Tuple.DstPort)
-			fmt.Printf("\tProtocol: %s\n", tuple.Rule.Protocol)
-			fmt.Printf("\tChain: %+v\n", tuple.Rule.Chain)
-			fmt.Printf("\tSource Sets:\n")
-			for _, src := range tuple.Rule.SrcList {
-				fmt.Printf("\t\tName: %s\n", src.Name)
-				fmt.Printf("\t\t\tHashedName: %s\n", src.HashedSetName)
-				fmt.Printf("\t\t\tType: %s\n", src.Type)
-				fmt.Printf("\t\t\tIncluded: %v\n", src.Included)
-			}
-			fmt.Printf("\tDestination Sets:\n")
-			for _, dst := range tuple.Rule.DstList {
-				fmt.Printf("\t\tName: %s\n", dst.Name)
-				fmt.Printf("\t\t\tHashedName: %s\n", dst.HashedSetName)
-				fmt.Printf("\t\t\tType: %s\n", dst.Type)
-				fmt.Printf("\t\t\tIncluded: %v\n", dst.Included)
-			}
-		}
-	*/
 }
 
 // GetNetworkTuple read from node's NPM cache and iptables-save and
 // returns a list of hit rules between the source and the destination in
 // JSON format and a list of tuples from those rules.
-func (c *Converter) GetNetworkTuple(src, dst *common.Input, config *npmconfig.Config) ([][]byte, []*TupleAndRule, map[string]*pb.RuleResponse_SetInfo, map[string]*pb.RuleResponse_SetInfo, error) { //nolint: gocritic
+func (c *Converter) GetNetworkTuple(src, dst *common.Input, config *npmconfig.Config) ([][]byte, []*TupleAndRule, map[string]*pb.RuleResponse_SetInfo, map[string]*pb.RuleResponse_SetInfo, error) { //nolint: gocritic,lll
 	allRules, err := c.GetProtobufRulesFromIptable("filter")
 	if err != nil {
 		return nil, nil, nil, nil, fmt.Errorf("error occurred during get network tuple : %w", err)
@@ -134,7 +102,7 @@ func (c *Converter) GetNetworkTuple(src, dst *common.Input, config *npmconfig.Co
 // GetNetworkTupleFile read from NPM cache and iptables-save files and
 // returns a list of hit rules between the source and the destination in
 // JSON format and a list of tuples from those rules.
-func (c *Converter) GetNetworkTupleFile(
+func (c *Converter) GetNetworkTupleFile( //nolint:gocritic
 	src, dst *common.Input,
 	npmCacheFile string,
 	iptableSaveFile string,
