@@ -38,8 +38,8 @@ jobs:
         displayName: "Set environmental variables"
         condition: always()
 
-  - job: Build_test
-    displayName: "Build NPM and Kubernetes Test Suite"
+  - job: Build_npm
+    displayName: "Build NPM"
     pool:
       name: $(BUILD_POOL_NAME_DEFAULT)
       demands:
@@ -59,26 +59,53 @@ jobs:
 
       - checkout: self
 
-      - task: Docker@2
-        displayName: Docker Login
-        inputs:
-          containerRegistry: $(ACR_SERVICE_CONNECTION)
-          command: "login"
-          addPipelineData: false
+  - job: containerize
+    displayName: Build Images
+    variables:
+      TAG: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
+    pool:
+      name: "$(BUILD_POOL_NAME_DEFAULT)"
+    strategy:
+      matrix:
+        npm_linux_amd64:
+          arch: amd64
+          os: linux
+          name: npm
+    steps:
+      - template: ../containers/container-template.yaml
+        parameters:
+          name: $(name)
+          os: $(os)
+          arch: $(arch)
+          tag: $(TAG)
 
-      - script: |
-          echo Tag: $(TAG)
-          echo ResourceGroup: $(RESOURCE_GROUP)
-          make npm-image TAG=$(TAG) 
-          make npm-image-push TAG=$(TAG)
-        displayName: "Build and Push NPM Image"
+  - job: containerize_windows
+    displayName: Build Images
+    variables:
+      TAG: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
+    pool:
+      name: "$(BUILD_POOL_NAME_DEFAULT_WINDOWS)"
+    strategy:
+      matrix:
+        npm_windows_amd64:
+          arch: amd64
+          name: npm
+    steps:
+      - template: ../containers/container-template-windows.yaml
+        parameters:
+          name: $(name)
+          arch: $(arch)
+          tag: $(TAG)
 
-      - task: Docker@2
-        displayName: Docker Logout
-        inputs:
-          containerRegistry: $(ACR_SERVICE_CONNECTION)
-          command: "logout"
-          addPipelineData: false
+  - job: k8se2e
+    displayName: "Build Kubernetes Test Suite"
+    pool:
+      name: $(BUILD_POOL_NAME_DEFAULT)
+      demands:
+        - agent.os -equals Linux
+        - Role -equals Build
+    steps:
+      - checkout: self
 
       - script: git clone https://github.com/vakalapa/kubernetes.git
         displayName: "Clone Kubernetes Repo"
@@ -141,7 +168,7 @@ jobs:
       demands:
         - agent.os -equals Linux
         - Role -equals Build
-    dependsOn: [Create_RG, Build_test, setup]
+    dependsOn: [Create_RG, setup, k8se2e, containerize]
     variables:
       RESOURCE_GROUP: $[ dependencies.setup.outputs['EnvironmentalVariables.RESOURCE_GROUP'] ]
       TAG: $[ dependencies.setup.outputs['EnvironmentalVariables.TAG'] ]
@@ -253,7 +280,7 @@ jobs:
       demands:
         - agent.os -equals Linux
         - Role -equals Build
-    dependsOn: [Create_RG, Build_test, setup]
+    dependsOn: [Create_RG, containerize_windows, setup]
     variables:
       RESOURCE_GROUP: $[ dependencies.setup.outputs['EnvironmentalVariables.RESOURCE_GROUP'] ]
       TAG: $[ dependencies.setup.outputs['EnvironmentalVariables.TAG'] ]
@@ -345,6 +372,7 @@ jobs:
             --job-timeout-seconds=30 \
             --server-protocol=TCP,UDP \
             --verbosity=debug
+        name: cyclonus
         displayName: "Run Cyclonus Test"
         condition: always()
 
@@ -357,7 +385,7 @@ jobs:
         condition: always()
         artifact: NpmLogs_$(AZURE_CLUSTER)
 
-  - job: Clean_up
+  - job: clean_up
     displayName: "Cleanup"
     pool:
       name: $(BUILD_POOL_NAME_DEFAULT)
