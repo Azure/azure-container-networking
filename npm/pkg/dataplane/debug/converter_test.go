@@ -109,8 +109,10 @@ func TestGetProtobufRulesFromIptableFileV2(t *testing.T) {
 }
 
 func TestNpmCacheFromFile(t *testing.T) {
-	c := &Converter{}
-	err := c.NpmCacheFromFile(npmCacheFileOld)
+	c := &Converter{
+		EnableV2NPM: true,
+	}
+	err := c.NpmCacheFromFile(npmCacheFileV2)
 	if err != nil {
 		t.Errorf("Failed to decode NPMCache from %s file : %v", npmCacheFileOld, err)
 	}
