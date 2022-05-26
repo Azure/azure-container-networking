@@ -258,6 +258,10 @@ jobs:
       RESOURCE_GROUP: $[ dependencies.setup.outputs['EnvironmentalVariables.RESOURCE_GROUP'] ]
       TAG: $[ dependencies.setup.outputs['EnvironmentalVariables.TAG'] ]
       FQDN: empty
+    strategy:
+      matrix:
+        v2-windows:
+          PROFILE: "v2-default-windows"
     steps:
       - checkout: none
       - download: current
@@ -288,6 +292,13 @@ jobs:
                 --network-plugin azure \
                 --vm-set-type VirtualMachineScaleSets \
                 --node-count 1
+
+            # don't schedule anything on the linux system pool
+            az aks nodepool update \
+              --cluster-name $(RESOURCE_GROUP)-ws22 \
+              -g $(RESOURCE_GROUP) \
+              -n nodepool1 \
+              --node-taints CriticalAddonsOnly=true:NoSchedule
 
             az aks nodepool add \
                 --resource-group $(RESOURCE_GROUP) \
@@ -324,13 +335,22 @@ jobs:
             echo "##vso[task.setvariable variable=FQDN]$FQDN"
 
       - bash: |
-          make test-cyclonus
+          curl -fsSL github.com/mattfenwick/cyclonus/releases/latest/download/cyclonus_linux_amd64.tar.gz | tar -zxv
+          ./cyclonus_linux_amd64/cyclonus generate \
+            --noisy=true \
+            --ignore-loopback=true \
+            --cleanup-namespaces=true \
+            --perturbation-wait-seconds=10 \
+            --pod-creation-timeout-seconds=30 \
+            --job-timeout-seconds=30 \
+            --server-protocol=TCP,UDP \
+            --verbosity=debug
         displayName: "Run Cyclonus Test"
         condition: always()
 
       - bash: |
-          kubectl logs -n kube-system -l k8s-app=azure-npm --tail -1 --prefix > npm-logs_${{ matrix.profile }}.txt
-          mv ./test/cyclonus/cyclonus-test.txt  $(System.DefaultWorkingDirectory)/npmLogs_$(AZURE_CLUSTER)/cyclonus-test_${{ matrix.profile }}.txt
+          kubectl logs -n kube-system -l k8s-app=azure-npm --tail -1 --prefix > npm-logs_$(PROFILE).txt
+          mv ./test/cyclonus/cyclonus-test.txt  $(System.DefaultWorkingDirectory)/npmLogs_$(AZURE_CLUSTER)/cyclonus-test_$(PROFILE).txt
         condition: always()
 
       - publish: $(System.DefaultWorkingDirectory)/npmLogs_$(AZURE_CLUSTER)

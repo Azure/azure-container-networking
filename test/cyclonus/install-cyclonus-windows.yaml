@@ -18,7 +18,7 @@ spec:
               "--noisy=true",
               "--ignore-loopback=true",
               "--cleanup-namespaces=true",
-              "--perturbation-wait-seconds=30",
+              "--perturbation-wait-seconds=10",
               "--pod-creation-timeout-seconds=30",
               "--job-timeout-seconds=30",
               "--server-protocol=TCP,UDP",
