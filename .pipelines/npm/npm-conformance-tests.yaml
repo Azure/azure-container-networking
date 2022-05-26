@@ -38,27 +38,6 @@ jobs:
         displayName: "Set environmental variables"
         condition: always()
 
-  - job: Build_npm
-    displayName: "Build NPM"
-    pool:
-      name: $(BUILD_POOL_NAME_DEFAULT)
-      demands:
-        - agent.os -equals Linux
-        - Role -equals Build
-    dependsOn: [setup]
-    variables:
-      GOBIN: "$(GOPATH)/bin" # Go binaries path
-      GOPATH: "$(System.DefaultWorkingDirectory)/gopath" # Go workspace path
-      RESOURCE_GROUP: $[ dependencies.setup.outputs['EnvironmentalVariables.RESOURCE_GROUP'] ]
-      TAG: $[ dependencies.setup.outputs['EnvironmentalVariables.TAG'] ]
-
-    steps:
-      - script: |
-          rm -rf ./*
-        displayName: "Set up OS environment"
-
-      - checkout: self
-
   - job: containerize
     displayName: Build Images
     variables:
@@ -118,34 +97,6 @@ jobs:
       - publish: $(System.DefaultWorkingDirectory)/kubernetes/_output/local/bin/linux/amd64
         artifact: Test
 
-  - job: Create_RG
-    displayName: "Create AKS Resource Group"
-    pool:
-      name: $(BUILD_POOL_NAME_DEFAULT)
-      demands:
-        - agent.os -equals Linux
-        - Role -equals Build
-    dependsOn: [setup]
-    variables:
-      RESOURCE_GROUP: $[ dependencies.setup.outputs['EnvironmentalVariables.RESOURCE_GROUP'] ]
-    steps:
-      - script: |
-          sudo rm -rf ./*
-        displayName: "Set up OS environment"
-
-      - checkout: self
-
-      - task: AzureCLI@2
-        displayName: "Deploy"
-        inputs:
-          azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
-          scriptType: "bash"
-          scriptLocation: "inlineScript"
-          inlineScript: |
-            az group create -n $(RESOURCE_GROUP) -l $(LOCATION) -o table
-            echo created RG $(RESOURCE_GROUP) in $(LOCATION)
-            az version
-
   - job: Create_Cluster_and_Run_Test
     timeoutInMinutes: 360
     displayName: "Run Kubernetes Network Policy Test Suite"
@@ -168,7 +119,7 @@ jobs:
       demands:
         - agent.os -equals Linux
         - Role -equals Build
-    dependsOn: [Create_RG, setup, k8se2e, containerize]
+    dependsOn: [setup, k8se2e, containerize]
     variables:
       RESOURCE_GROUP: $[ dependencies.setup.outputs['EnvironmentalVariables.RESOURCE_GROUP'] ]
       TAG: $[ dependencies.setup.outputs['EnvironmentalVariables.TAG'] ]
@@ -177,6 +128,17 @@ jobs:
       - checkout: none
       - download: current
         artifact: Test
+
+      - task: AzureCLI@2
+        displayName: "Deploy"
+        inputs:
+          azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+          scriptType: "bash"
+          scriptLocation: "inlineScript"
+          inlineScript: |
+            az group create -n $(RESOURCE_GROUP) -l $(LOCATION) -o table
+            echo created RG $(RESOURCE_GROUP) in $(LOCATION)
+            az version
       - task: AzureCLI@2
         displayName: "Deploy NPM to Test Cluster"
         inputs:
@@ -280,7 +242,7 @@ jobs:
       demands:
         - agent.os -equals Linux
         - Role -equals Build
-    dependsOn: [Create_RG, containerize_windows, setup]
+    dependsOn: [containerize_windows, setup]
     variables:
       RESOURCE_GROUP: $[ dependencies.setup.outputs['EnvironmentalVariables.RESOURCE_GROUP'] ]
       TAG: $[ dependencies.setup.outputs['EnvironmentalVariables.TAG'] ]
@@ -307,12 +269,14 @@ jobs:
             az feature register --namespace Microsoft.ContainerService --name AKSWindows2022Preview
             az provider register -n Microsoft.ContainerService
 
-            az group create --name $myResourceGroup --location $myLocation
+            export CLUSTER_NAME=$(RESOURCE_GROUP)-ws22
+
+            az group create --name $CLUSTER_NAME -l $(LOCATION) -o table
 
             az aks create \
-                --resource-group $(RESOURCE_GROUP) \
-                --name $(RESOURCE_GROUP)-ws22 \
-                --ssh-key-value $mySSHKeyFilePath \
+                --resource-group $CLUSTER_NAME \
+                --name $CLUSTER_NAME \
+                --generate-ssh-keys \
                 --windows-admin-username admin \
                 --windows-admin-password alpha@numeric!password2 \
                 --kubernetes-version v1.23.1 \
@@ -322,20 +286,20 @@ jobs:
 
             # don't schedule anything on the linux system pool
             az aks nodepool update \
-              --cluster-name $(RESOURCE_GROUP)-ws22 \
-              -g $(RESOURCE_GROUP) \
+              --cluster-name $CLUSTER_NAME \
+              -g $CLUSTER_NAME \
               -n nodepool1 \
               --node-taints CriticalAddonsOnly=true:NoSchedule
 
             az aks nodepool add \
-                --resource-group $(RESOURCE_GROUP) \
-                --cluster-name $(RESOURCE_GROUP)-ws22 \
+                --resource-group $CLUSTER_NAME \
+                --cluster-name $CLUSTER_NAME \
                 --name awin22 \
                 --os-type Windows \
                 --os-sku Windows2022 \
                 --node-count 1
 
-            az aks get-credentials -g $(RESOURCE_GROUP) -n $(RESOURCE_GROUP)-ws22 --overwrite-existing
+            az aks get-credentials -g $CLUSTER_NAME -n $CLUSTER_NAME --overwrite-existing
 
       - task: AzureCLI@2
         displayName: "Deploy NPM to Test Cluster"
