@@ -26,7 +26,7 @@ jobs:
           mkdir -p '$(GOBIN)'
           mkdir -p '$(GOPATH)/pkg'
           BUILD_NUMBER=$(Build.BuildNumber)
-          RG=kubernetes-$(echo "npm-e2e-`date "+%Y-%m-%d-%S"`")
+          RG=$(echo "e2e-npm-`date "+%Y-%m-%d-%S"`")
           TAG=$(make version)-conformance-test
           echo "Resource group: $RG"
           echo "Image tag: $TAG"
@@ -139,6 +139,7 @@ jobs:
             az group create -n $(RESOURCE_GROUP) -l $(LOCATION) -o table
             echo created RG $(RESOURCE_GROUP) in $(LOCATION)
             az version
+
       - task: AzureCLI@2
         displayName: "Deploy NPM to Test Cluster"
         inputs:
