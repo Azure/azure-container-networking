@@ -1,11 +1,13 @@
 package dataplane
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"time"
 
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/policies"
+	"github.com/Azure/azure-container-networking/npm/util"
 	npmerrors "github.com/Azure/azure-container-networking/npm/util/errors"
 	"github.com/Microsoft/hcsshim/hcn"
 	"k8s.io/klog"
@@ -14,21 +16,23 @@ import (
 const (
 	maxNoNetRetryCount int = 240 // max wait time 240*5 == 20 mins
 	maxNoNetSleepTime  int = 5   // in seconds
+	unspecifiedPodKey      = ""
 )
 
-func (dp *DataPlane) setPolicyMode() {
-	dp.PolicyMode = policies.IPSetPolicyMode
-	err := hcn.SetPolicySupported()
-	if err != nil {
-		dp.PolicyMode = policies.IPPolicyMode
-	}
-}
+var errPolicyModeUnsupported = errors.New("only IPSet policy mode is supported")
 
 // initializeDataPlane will help gather network and endpoint details
 func (dp *DataPlane) initializeDataPlane() error {
 	klog.Infof("[DataPlane] Initializing dataplane for windows")
+
 	if dp.PolicyMode == "" {
-		dp.setPolicyMode()
+		dp.PolicyMode = policies.IPSetPolicyMode
+	}
+	if dp.PolicyMode != policies.IPSetPolicyMode {
+		return errPolicyModeUnsupported
+	}
+	if err := hcn.SetPolicySupported(); err != nil {
+		return npmerrors.SimpleErrorWrapper("[DataPlane] kernel does not support SetPolicies", err)
 	}
 
 	err := dp.getNetworkInfo()
@@ -51,7 +55,7 @@ func (dp *DataPlane) getNetworkInfo() error {
 
 	var err error
 	for ; true; <-ticker.C {
-		err = dp.setNetworkIDByName(AzureNetworkName)
+		err = dp.setNetworkIDByName(util.AzureNetworkName)
 		if err == nil || !isNetworkNotFoundErr(err) {
 			return err
 		}
@@ -60,7 +64,7 @@ func (dp *DataPlane) getNetworkInfo() error {
 			break
 		}
 		klog.Infof("[DataPlane Windows] Network with name %s not found. Retrying in %d seconds, Current retry number %d, max retries: %d",
-			AzureNetworkName,
+			util.AzureNetworkName,
 			maxNoNetSleepTime,
 			retryNumber,
 			maxNoNetRetryCount,
@@ -131,20 +135,20 @@ func (dp *DataPlane) updatePod(pod *updateNPMPod) error {
 			return err
 		}
 
-		for policyName := range selectorReference {
+		for policyKey := range selectorReference {
 			// Now check if any of these network policies are applied on this endpoint.
 			// If yes then proceed to delete the network policy
 			// Remove policy should be deleting this netpol reference
-			if _, ok := endpoint.NetPolReference[policyName]; ok {
+			if _, ok := endpoint.NetPolReference[policyKey]; ok {
 				// Delete the network policy
 				endpointList := map[string]string{
 					endpoint.IP: endpoint.ID,
 				}
-				err := dp.policyMgr.RemovePolicy(policyName, endpointList)
+				err := dp.policyMgr.RemovePolicy(policyKey, endpointList)
 				if err != nil {
 					return err
 				}
-				delete(endpoint.NetPolReference, policyName)
+				delete(endpoint.NetPolReference, policyKey)
 			}
 		}
 	}
@@ -157,33 +161,36 @@ func (dp *DataPlane) updatePod(pod *updateNPMPod) error {
 			return err
 		}
 
-		for netpol := range selectorReference {
-			toAddPolicies[netpol] = struct{}{}
+		for policyKey := range selectorReference {
+			if _, ok := dp.pendingPolicies[policyKey]; !ok {
+				toAddPolicies[policyKey] = struct{}{}
+			}
 		}
 	}
 
 	// Now check if any of these network policies are applied on this endpoint.
 	// If not then proceed to apply the network policy
-	for policyName := range toAddPolicies {
-		if _, ok := endpoint.NetPolReference[policyName]; ok {
+	for policyKey := range toAddPolicies {
+		if _, ok := endpoint.NetPolReference[policyKey]; ok {
 			continue
 		}
+
 		// TODO Also check if the endpoint reference in policy for this Ip is right
-		netpolSelectorIPs, err := dp.getSelectorIPsByPolicyName(policyName)
+		policy, ok := dp.policyMgr.GetPolicy(policyKey)
+		if !ok {
+			return fmt.Errorf("policy with name %s does not exist", policyKey)
+		}
+
+		selectorIPSets := dp.getSelectorIPSets(policy)
+		ok, err := dp.ipsetMgr.DoesIPSatisfySelectorIPSets(pod.PodIP, selectorIPSets)
 		if err != nil {
 			return err
 		}
-
-		if _, ok := netpolSelectorIPs[pod.PodIP]; !ok {
+		if !ok {
 			continue
 		}
 
 		// Apply the network policy
-		policy, ok := dp.policyMgr.GetPolicy(policyName)
-		if !ok {
-			return fmt.Errorf("policy with name %s does not exist", policyName)
-		}
-
 		endpointList := map[string]string{
 			endpoint.IP: endpoint.ID,
 		}
@@ -192,28 +199,19 @@ func (dp *DataPlane) updatePod(pod *updateNPMPod) error {
 			return err
 		}
 
-		endpoint.NetPolReference[policyName] = struct{}{}
+		endpoint.NetPolReference[policyKey] = struct{}{}
 	}
 
 	return nil
 }
 
-func (dp *DataPlane) getSelectorIPsByPolicyName(policyName string) (map[string]struct{}, error) {
-	policy, ok := dp.policyMgr.GetPolicy(policyName)
-	if !ok {
-		return nil, fmt.Errorf("policy with name %s does not exist", policyName)
-	}
-
-	return dp.getSelectorIPsByPolicy(policy)
-}
-
-func (dp *DataPlane) getSelectorIPsByPolicy(policy *policies.NPMNetworkPolicy) (map[string]struct{}, error) {
+func (dp *DataPlane) getSelectorIPSets(policy *policies.NPMNetworkPolicy) map[string]struct{} {
 	selectorIpSets := make(map[string]struct{})
 	for _, ipset := range policy.PodSelectorIPSets {
 		selectorIpSets[ipset.Metadata.GetPrefixName()] = struct{}{}
 	}
-
-	return dp.ipsetMgr.GetIPsFromSelectorIPSets(selectorIpSets)
+	klog.Infof("policy %s has policy selector: %+v", policy.PolicyKey, selectorIpSets) // FIXME remove after debugging
+	return selectorIpSets
 }
 
 func (dp *DataPlane) getEndpointsToApplyPolicy(policy *policies.NPMNetworkPolicy) (map[string]string, error) {
@@ -223,8 +221,8 @@ func (dp *DataPlane) getEndpointsToApplyPolicy(policy *policies.NPMNetworkPolicy
 		return nil, err
 	}
 
-	// TODO need to calculate all existing selector
-	netpolSelectorIPs, err := dp.getSelectorIPsByPolicy(policy)
+	selectorIPSets := dp.getSelectorIPSets(policy)
+	netpolSelectorIPs, err := dp.ipsetMgr.GetIPsFromSelectorIPSets(selectorIPSets)
 	if err != nil {
 		return nil, err
 	}
@@ -233,14 +231,13 @@ func (dp *DataPlane) getEndpointsToApplyPolicy(policy *policies.NPMNetworkPolicy
 	for ip := range netpolSelectorIPs {
 		endpoint, ok := dp.endpointCache[ip]
 		if !ok {
-			// this endpoint might not be in this particular Node.
-			klog.Infof("[DataPlane] Ignoring endpoint with IP %s. Not found in endpointCache", ip)
+			klog.Infof("[DataPlane] Ignoring endpoint with IP %s since it was not found in the endpoint cache. This IP might not be in the HNS network", ip)
 			continue
 		}
 		endpointList[ip] = endpoint.ID
-		// TODO make sure this is netpol key and not name
-		endpoint.NetPolReference[policy.Name] = struct{}{}
+		endpoint.NetPolReference[policy.PolicyKey] = struct{}{}
 	}
+	klog.Infof("[DataPlane] Endpoints to apply policy %s: %+v", policy.PolicyKey, endpointList) // FIXME remove after debugging
 	return endpointList, nil
 }
 
@@ -278,7 +275,9 @@ func (dp *DataPlane) refreshAllPodEndpoints() error {
 		}
 
 		dp.endpointCache[ep.IP] = ep
+		klog.Infof("updating endpoint cache to include %s: %+v", ep.IP, ep) // FIXME remove after debugging
 	}
+	klog.Infof("endpoint cache after refreshing all pod endpoints: %+v", dp.endpointCache) // FIXME remove after debugging
 	return nil
 }
 
@@ -324,5 +323,5 @@ func (dp *DataPlane) getAllEndpointIDs() []string {
 }
 
 func isNetworkNotFoundErr(err error) bool {
-	return strings.Contains(err.Error(), fmt.Sprintf("Network name \"%s\" not found", AzureNetworkName))
+	return strings.Contains(err.Error(), fmt.Sprintf("Network name \"%s\" not found", util.AzureNetworkName))
 }

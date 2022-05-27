@@ -28,9 +28,9 @@ var (
 	testNestedKeyPodSet   = ipsets.NewIPSetMetadata("test-nestedkeyPod-set", ipsets.NestedLabelOfPod)
 	testNestedKeyPodCPSet = controlplane.NewControllerIPSets(testNestedKeyPodSet)
 	testNetPol            = &policies.NPMNetworkPolicy{
-		Name:      "test-netpol",
-		NameSpace: "x",
-		PolicyKey: "x/test-netpol",
+		Namespace:   "x",
+		PolicyKey:   "x/test-netpol",
+		ACLPolicyID: "azure-acl-x-test-netpol",
 		PodSelectorIPSets: []*ipsets.TranslatedIPSet{
 			{
 				Metadata: testNSSet,
@@ -49,12 +49,10 @@ var (
 		},
 		ACLs: []*policies.ACLPolicy{
 			{
-				PolicyID:  "azure-acl-123",
 				Target:    policies.Dropped,
 				Direction: policies.Ingress,
 			},
 			{
-				PolicyID:  "azure-acl-234",
 				Target:    policies.Allowed,
 				Direction: policies.Ingress,
 				SrcList: []policies.SetInfo{

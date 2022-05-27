@@ -5,19 +5,32 @@ updates:
   directory: "/"
   schedule:
     interval: "daily"
-  reviewers:
-    - "azure/azure-sdn-members"
+  assigees:
     - "matmerr"
     - "rbtr"
+  reviewers:
+    - "azure/azure-sdn-members"
+  commit-message:
+    prefix: "deps"
+- package-ecosystem: "gomod"
+  directory: "/build/tools"
+  schedule:
+    interval: "daily"
+  assigees:
+    - "matmerr"
+    - "rbtr"
+  reviewers:
+    - "azure/azure-sdn-members"
   commit-message:
     prefix: "deps"
 - package-ecosystem: "gomod"
   directory: "/zapai"
   schedule:
     interval: "daily"
-  reviewers:
-    - "azure/azure-sdn-members"
+  assigees:
     - "matmerr"
     - "rbtr"
+  reviewers:
+    - "azure/azure-sdn-members"
   commit-message:
     prefix: "deps"

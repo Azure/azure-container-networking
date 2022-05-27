@@ -5,6 +5,7 @@ package network
 
 import (
 	"fmt"
+	"github.com/Azure/azure-container-networking/network/hnswrapper"
 	"net"
 	"testing"
 
@@ -19,6 +20,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func init() {
+	network.Hnsv2 = hnswrapper.NewHnsv2wrapperFake()
+	network.Hnsv1 = hnswrapper.NewHnsv1wrapperFake()
+}
 // Test windows network policies is set
 func TestAddWithRunTimeNetPolicies(t *testing.T) {
 	_, ipnetv4, _ := net.ParseCIDR("10.240.0.0/12")
@@ -87,7 +92,6 @@ func TestPluginSecondAddSamePodWindows(t *testing.T) {
 				Plugin:            plugin,
 				nm:                network.NewMockNetworkmanager(),
 				ipamInvoker:       NewMockIpamInvoker(false, false, false),
-				hnsEndpointClient: network.NewMockHNSEndpoint(true, false),
 				report:            &telemetry.CNIReport{},
 				tb:                &telemetry.TelemetryBuffer{},
 			},
@@ -107,7 +111,6 @@ func TestPluginSecondAddSamePodWindows(t *testing.T) {
 				Plugin:            plugin,
 				nm:                network.NewMockNetworkmanager(),
 				ipamInvoker:       NewMockIpamInvoker(false, false, false),
-				hnsEndpointClient: network.NewMockHNSEndpoint(false, false),
 				report:            &telemetry.CNIReport{},
 				tb:                &telemetry.TelemetryBuffer{},
 			},

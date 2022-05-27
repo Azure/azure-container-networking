@@ -4,6 +4,7 @@
 package network
 
 import (
+	"fmt"
 	"net"
 	"strings"
 
@@ -89,6 +90,11 @@ type DNSInfo struct {
 	Options []string
 }
 
+func (nwInfo *NetworkInfo) PrettyString() string {
+	return fmt.Sprintf("Id:%s MasterIfName:%s AdapterName:%s Mode:%s Subnets:%v podsubnet:%v Enablesnatonhost:%t", nwInfo.Id, nwInfo.MasterIfName,
+		nwInfo.AdapterName, nwInfo.Mode, nwInfo.Subnets, nwInfo.PodSubnet, nwInfo.EnableSnatOnHost)
+}
+
 // NewExternalInterface adds a host interface to the list of available external interfaces.
 func (nm *networkManager) newExternalInterface(ifName string, subnet string) error {
 	// Check whether the external interface is already configured.
@@ -156,7 +162,7 @@ func (nm *networkManager) newNetwork(nwInfo *NetworkInfo) (*network, error) {
 	var nw *network
 	var err error
 
-	log.Printf("[net] Creating network %+v.", nwInfo)
+	log.Printf("[net] Creating network %s.", nwInfo.PrettyString())
 	defer func() {
 		if err != nil {
 			log.Printf("[net] Failed to create network %v, err:%v.", nwInfo.Id, err)
@@ -202,18 +208,18 @@ func (nm *networkManager) newNetwork(nwInfo *NetworkInfo) (*network, error) {
 }
 
 // DeleteNetwork deletes an existing container network.
-func (nm *networkManager) deleteNetwork(networkId string) error {
+func (nm *networkManager) deleteNetwork(networkID string) error {
 	var err error
 
-	log.Printf("[net] Deleting network %v.", networkId)
+	log.Printf("[net] Deleting network %v.", networkID)
 	defer func() {
 		if err != nil {
-			log.Printf("[net] Failed to delete network %v, err:%v.", networkId, err)
+			log.Printf("[net] Failed to delete network %v, err:%v.", networkID, err)
 		}
 	}()
 
 	// Find the network.
-	nw, err := nm.getNetwork(networkId)
+	nw, err := nm.getNetwork(networkID)
 	if err != nil {
 		return err
 	}
@@ -226,7 +232,7 @@ func (nm *networkManager) deleteNetwork(networkId string) error {
 
 	// Remove the network object.
 	if nw.extIf != nil {
-		delete(nw.extIf.Networks, networkId)
+		delete(nw.extIf.Networks, networkID)
 	}
 
 	log.Printf("[net] Deleted network %+v.", nw)

@@ -220,3 +220,16 @@ func TestLock(t *testing.T) {
 		})
 	}
 }
+
+// test case for testing newjsonfilestore idempotent
+func TestFileName(t *testing.T) {
+	_, err := NewJsonFileStore("", processlock.NewMockFileLock(false))
+	if err == nil {
+		t.Errorf("This should have failed for empty file name")
+	}
+
+	_, err = NewJsonFileStore("test.json", processlock.NewMockFileLock(false))
+	if err != nil {
+		t.Fatalf("This should not fail for a non-empty file %v", err)
+	}
+}

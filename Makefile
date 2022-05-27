@@ -212,7 +212,6 @@ container-info: # util target to write container info file. do not invoke direct
 	sudo mkdir -p $(IMAGE_DIR) 
 	sudo chown -R $$(whoami) $(IMAGE_DIR) 
 	sudo chmod -R 777 $(IMAGE_DIR)
-	echo $(IMAGE):$(TAG) > $(IMAGE_DIR)/$(FILE)
 
 cni-manager-image-name: # util target to print the CNI manager image name.
 	@echo $(CNI_IMAGE)

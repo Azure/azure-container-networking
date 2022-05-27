@@ -138,3 +138,5 @@ func (plugin *NetPlugin) getNetworkName(_ string, _ *IPAMAddResult, nwCfg *cni.N
 func getNATInfo(_ string, _ interface{}, _, _ bool) (natInfo []policy.NATInfo) {
 	return natInfo
 }
+
+func platformInit(cniConfig *cni.NetworkConfig) {}

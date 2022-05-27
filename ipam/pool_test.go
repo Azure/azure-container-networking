@@ -597,7 +597,7 @@ var _ = Describe("Test Pool", func() {
 				ap, err := as.requestPool("", "", nil, false)
 				Expect(err).To(HaveOccurred())
 				Expect(ap).To(BeNil())
-				Expect(err).To(Equal(errNoAvailableAddressPools))
+				Expect(err).To(Equal(ErrNoAvailableAddressPools))
 			})
 		})
 
@@ -638,7 +638,7 @@ var _ = Describe("Test Pool", func() {
 					IsIPv6: false,
 				}
 				ap, err := as.requestPool("", "", nil, true)
-				Expect(err).To(Equal(errNoAvailableAddressPools))
+				Expect(err).To(Equal(ErrNoAvailableAddressPools))
 				Expect(ap).To(BeNil())
 			})
 		})
@@ -657,7 +657,7 @@ var _ = Describe("Test Pool", func() {
 				options := map[string]string{}
 				options[OptInterfaceName] = "en0"
 				ap, err := as.requestPool("", "", options, false)
-				Expect(err).To(Equal(errNoAvailableAddressPools))
+				Expect(err).To(Equal(ErrNoAvailableAddressPools))
 				Expect(ap).To(BeNil())
 			})
 		})

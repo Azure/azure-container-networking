@@ -104,7 +104,6 @@ const (
 	IptablesAzureEgressPolicyChainPrefix  string = "AZURE-NPM-EGRESS"
 
 	// Below chain exists only in NPM before v1.2.6
-	// TODO delete this below set while cleaning up
 	IptablesAzureTargetSetsChain string = "AZURE-NPM-TARGET-SETS"
 	// Below chain existing only in NPM before v1.2.7
 	IptablesAzureIngressWrongDropsChain string = "AZURE-NPM-INRGESS-DROPS"
@@ -223,6 +222,9 @@ const (
 
 	ErrorValue float64 = 1
 )
+
+// AzureNetworkName is the default network Azure CNI creates
+const AzureNetworkName = "azure"
 
 // These ID represents where did the error log generate from.
 // It's for better query purpose. In Kusto these value are used in

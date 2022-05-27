@@ -354,7 +354,7 @@ func (as *addressSpace) requestPool(poolId string, subPoolId string, options map
 		}
 
 		if ap == nil {
-			err = errNoAvailableAddressPools
+			err = ErrNoAvailableAddressPools
 		}
 	}
 

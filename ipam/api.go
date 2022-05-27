@@ -18,7 +18,7 @@ var (
 	errAddressPoolNotFound     = fmt.Errorf("Address pool not found")
 	errAddressPoolInUse        = fmt.Errorf("Address pool already in use")
 	errAddressPoolNotInUse     = fmt.Errorf("Address pool not in use")
-	errNoAvailableAddressPools = fmt.Errorf("No available address pools")
+	ErrNoAvailableAddressPools = fmt.Errorf("No available address pools")
 	errAddressExists           = fmt.Errorf("Address already exists")
 	errAddressNotFound         = fmt.Errorf("Address not found")
 	errAddressInUse            = fmt.Errorf("Address already in use")

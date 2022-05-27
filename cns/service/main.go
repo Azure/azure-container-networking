@@ -25,6 +25,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/cnireconciler"
 	"github.com/Azure/azure-container-networking/cns/common"
 	"github.com/Azure/azure-container-networking/cns/configuration"
+	"github.com/Azure/azure-container-networking/cns/healthserver"
 	"github.com/Azure/azure-container-networking/cns/hnsclient"
 	"github.com/Azure/azure-container-networking/cns/ipampool"
 	"github.com/Azure/azure-container-networking/cns/logger"
@@ -46,6 +47,7 @@ import (
 	"github.com/Azure/azure-container-networking/store"
 	"github.com/avast/retry-go/v3"
 	"github.com/pkg/errors"
+	"go.uber.org/zap"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	"k8s.io/apimachinery/pkg/types"
@@ -433,6 +435,10 @@ func main() {
 
 	configuration.SetCNSConfigDefaults(cnsconfig)
 	logger.Printf("[Azure CNS] Read config :%+v", cnsconfig)
+
+	// start the health server
+	z, _ := zap.NewProduction()
+	go healthserver.Start(z, cnsconfig.MetricsBindAddress)
 
 	if cnsconfig.WireserverIP != "" {
 		nmagent.WireserverIP = cnsconfig.WireserverIP
@@ -857,10 +863,21 @@ func reconcileInitialCNSState(ctx context.Context, cli nodeNetworkConfigGetter, 
 
 	// Convert to CreateNetworkContainerRequest
 	for i := range nnc.Status.NetworkContainers {
-		ncRequest, err := kubecontroller.CreateNCRequestFromDynamicNC(nnc.Status.NetworkContainers[i])
-		if err != nil {
-			return errors.Wrap(err, "failed to convert NNC status to network container request")
+		var ncRequest *cns.CreateNetworkContainerRequest
+		var err error
+
+		switch nnc.Status.NetworkContainers[i].AssignmentMode { //nolint:exhaustive // skipping dynamic case
+		case v1alpha.Static:
+			ncRequest, err = kubecontroller.CreateNCRequestFromStaticNC(nnc.Status.NetworkContainers[i])
+		default: // For backward compatibility, default will be treated as Dynamic too.
+			ncRequest, err = kubecontroller.CreateNCRequestFromDynamicNC(nnc.Status.NetworkContainers[i])
 		}
+
+		if err != nil {
+			return errors.Wrapf(err, "failed to convert NNC status to network container request, "+
+				"assignmentMode: %s", nnc.Status.NetworkContainers[i].AssignmentMode)
+		}
+
 		// rebuild CNS state
 		podInfoByIP, err := podInfoByIPProvider.PodInfoByIP()
 		if err != nil {
@@ -893,11 +910,12 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 
 	// build default clientset.
 	kubeConfig, err := ctrl.GetConfig()
-	kubeConfig.UserAgent = fmt.Sprintf("azure-cns-%s", version)
 	if err != nil {
 		logger.Errorf("[Azure CNS] Failed to get kubeconfig for request controller: %v", err)
-		return err
+		return errors.Wrap(err, "failed to get kubeconfig")
 	}
+	kubeConfig.UserAgent = fmt.Sprintf("azure-cns-%s", version)
+
 	clientset, err := kubernetes.NewForConfig(kubeConfig)
 	if err != nil {
 		return errors.Wrap(err, "failed to build clientset")
@@ -949,23 +967,33 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 	httpRestServiceImplementation.IPAMPoolMonitor = poolMonitor
 
 	// reconcile initial CNS state from CNI or apiserver.
-	// apiserver nnc might not be registered or api server might be down and crashloop backof puts us outside of 5-10 minutes we have for
-	// aks addons to come up so retry a bit more aggresively here.
-	// will retry 10 times maxing out at a minute taking about 8 minutes before it gives up.
-	attempt := 0
-	err = retry.Do(func() error {
-		attempt++
-		logger.Printf("reconciling initial CNS state attempt: %d", attempt)
-		err = reconcileInitialCNSState(ctx, scopedcli, httpRestServiceImplementation, podInfoByIPProvider)
-		if err != nil {
-			logger.Errorf("failed to reconcile initial CNS state, attempt: %d err: %v", attempt, err)
-		}
-		return errors.Wrap(err, "failed to initialize CNS state")
-	}, retry.Context(ctx), retry.Delay(initCNSInitalDelay), retry.MaxDelay(time.Minute))
+	// Only reconcile if there are any existing Pods using NC ips,
+	// else let the goal state be updated using a regular NNC Reconciler loop
+	podInfoByIP, err := podInfoByIPProvider.PodInfoByIP()
 	if err != nil {
-		return err
+		return errors.Wrap(err, "failed to provide PodInfoByIP")
 	}
-	logger.Printf("reconciled initial CNS state after %d attempts", attempt)
+	if len(podInfoByIP) > 0 {
+		logger.Printf("Reconciling initial CNS state as PodInfoByIP is not empty: %d", len(podInfoByIP))
+
+		// apiserver nnc might not be registered or api server might be down and crashloop backof puts us outside of 5-10 minutes we have for
+		// aks addons to come up so retry a bit more aggresively here.
+		// will retry 10 times maxing out at a minute taking about 8 minutes before it gives up.
+		attempt := 0
+		err = retry.Do(func() error {
+			attempt++
+			logger.Printf("reconciling initial CNS state attempt: %d", attempt)
+			err = reconcileInitialCNSState(ctx, scopedcli, httpRestServiceImplementation, podInfoByIPProvider)
+			if err != nil {
+				logger.Errorf("failed to reconcile initial CNS state, attempt: %d err: %v", attempt, err)
+			}
+			return errors.Wrap(err, "failed to initialize CNS state")
+		}, retry.Context(ctx), retry.Delay(initCNSInitalDelay), retry.MaxDelay(time.Minute))
+		if err != nil {
+			return err
+		}
+		logger.Printf("reconciled initial CNS state after %d attempts", attempt)
+	}
 
 	// start the pool Monitor before the Reconciler, since it needs to be ready to receive an
 	// NodeNetworkConfig update by the time the Reconciler tries to send it.
@@ -991,7 +1019,7 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 
 	manager, err := ctrl.NewManager(kubeConfig, ctrl.Options{
 		Scheme:             nodenetworkconfig.Scheme,
-		MetricsBindAddress: cnsconfig.MetricsBindAddress,
+		MetricsBindAddress: "0",
 		Namespace:          "kube-system", // TODO(rbtr): namespace should be in the cns config
 		NewCache:           nodeScopedCache,
 	})

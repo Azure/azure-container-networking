@@ -161,7 +161,7 @@ func (nm *networkManager) restore(isRehydrationRequired bool) error {
 					for _, extIf := range nm.ExternalInterfaces {
 						for _, nw := range extIf.Networks {
 							log.Printf("[net] Deleting the network %s on reboot\n", nw.Id)
-							nm.deleteNetwork(nw.Id)
+							_ = nm.deleteNetwork(nw.Id)
 						}
 					}
 
@@ -278,11 +278,11 @@ func (nm *networkManager) CreateNetwork(nwInfo *NetworkInfo) error {
 }
 
 // DeleteNetwork deletes an existing container network.
-func (nm *networkManager) DeleteNetwork(networkId string) error {
+func (nm *networkManager) DeleteNetwork(networkID string) error {
 	nm.Lock()
 	defer nm.Unlock()
 
-	err := nm.deleteNetwork(networkId)
+	err := nm.deleteNetwork(networkID)
 	if err != nil {
 		return err
 	}
@@ -523,8 +523,6 @@ func (nm *networkManager) GetNumberOfEndpoints(ifName string, networkId string) 
 			break
 		}
 	}
-
-	log.Printf("Get number of endpoints for ifname %v network %v", ifName, networkId)
 
 	if nm.ExternalInterfaces != nil {
 		extIf := nm.ExternalInterfaces[ifName]

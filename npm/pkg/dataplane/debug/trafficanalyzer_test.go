@@ -3,7 +3,6 @@ package debug
 import (
 	"crypto/sha256"
 	"fmt"
-	"reflect"
 	"sort"
 	"testing"
 
@@ -61,35 +60,53 @@ func TestGetNetworkTuple(t *testing.T) {
 	}
 
 	i0 := &srcDstPair{
-		src: &common.Input{Content: "y/a", Type: common.NSPODNAME},
-		dst: &common.Input{Content: "y/a", Type: common.NSPODNAME},
+		src: &common.Input{Content: "y/b", Type: common.NSPODNAME},
+		dst: &common.Input{Content: "x/b", Type: common.NSPODNAME},
 	}
 
 	expected0 := []*Tuple{
 		{
+			RuleType:  "ALLOWED",
+			Direction: "EGRESS",
+			SrcIP:     "10.224.0.17",
+			SrcPort:   "ANY",
+			DstIP:     "10.224.0.20",
+			DstPort:   "80",
+			Protocol:  "tcp",
+		},
+		{
+			RuleType:  "ALLOWED",
+			Direction: "EGRESS",
+			SrcIP:     "10.224.0.17",
+			SrcPort:   "ANY",
+			DstIP:     "ANY",
+			DstPort:   "53",
+			Protocol:  "udp",
+		},
+		{
+			RuleType:  "ALLOWED",
+			Direction: "EGRESS",
+			SrcIP:     "10.224.0.17",
+			SrcPort:   "ANY",
+			DstIP:     "ANY",
+			DstPort:   "53",
+			Protocol:  "tcp",
+		},
+		{
+			RuleType:  "ALLOWED",
+			Direction: "EGRESS",
+			SrcIP:     "10.224.0.17",
+			SrcPort:   "ANY",
+			DstIP:     "10.224.0.20",
+			DstPort:   "80",
+			Protocol:  "tcp",
+		},
+		{
 			RuleType:  "NOT ALLOWED",
-			Direction: "INGRESS",
-			SrcIP:     "ANY",
+			Direction: "EGRESS",
+			SrcIP:     "10.224.0.17",
 			SrcPort:   "ANY",
-			DstIP:     "10.240.0.13",
-			DstPort:   "ANY",
-			Protocol:  "ANY",
-		},
-		{
-			RuleType:  "ALLOWED",
-			Direction: "INGRESS",
-			SrcIP:     "10.240.0.70",
-			SrcPort:   "ANY",
-			DstIP:     "10.240.0.13",
-			DstPort:   "ANY",
-			Protocol:  "ANY",
-		},
-		{
-			RuleType:  "ALLOWED",
-			Direction: "INGRESS",
-			SrcIP:     "10.240.0.70",
-			SrcPort:   "ANY",
-			DstIP:     "10.240.0.13",
+			DstIP:     "ANY",
 			DstPort:   "ANY",
 			Protocol:  "ANY",
 		},
@@ -108,7 +125,7 @@ func TestGetNetworkTuple(t *testing.T) {
 				EnableV2NPM: true,
 			}
 
-			_, actualTupleList, srcList, dstList, err := c.GetNetworkTupleFile(
+			_, actualTupleList, _, _, err := c.GetNetworkTupleFile(
 				test.input.src,
 				test.input.dst,
 				npmCacheFileV2,
@@ -117,17 +134,13 @@ func TestGetNetworkTuple(t *testing.T) {
 
 			require.NoError(t, err)
 
-			PrettyPrintTuples(actualTupleList, srcList, dstList)
-
 			tuplelist := []*Tuple{}
 			for i := range actualTupleList {
 				tuplelist = append(tuplelist, actualTupleList[i].Tuple)
 			}
 
 			sortedActualTupleList := hashTheSortTupleList(tuplelist)
-			if !reflect.DeepEqual(sortedExpectedTupleList, sortedActualTupleList) {
-				t.Errorf("got '%+v', expected '%+v'", sortedActualTupleList, sortedExpectedTupleList)
-			}
+			require.Exactly(t, sortedExpectedTupleList, sortedActualTupleList)
 		})
 	}
 }

@@ -4,47 +4,51 @@ parameters:
   tag: ""
 
 steps:
-- task: Docker@2
-  displayName: Login
-  inputs:
-    containerRegistry: $(ACR_SERVICE_CONNECTION)
-    command: 'login'
-    addPipelineData: false
+  - task: Docker@2
+    displayName: Login
+    inputs:
+      containerRegistry: $(ACR_SERVICE_CONNECTION)
+      command: "login"
+      addPipelineData: false
 
-- script: |
-    set -e
-    make ${{ parameters.name }}-multiarch-manifest-create PLATFORMS="${{ parameters.platforms }}" TAG=${{ parameters.tag }}
-    make ${{ parameters.name }}-image-info TAG=${{ parameters.tag }}
-  name: manifest_build
-  displayName: Manifest Build
+  - script: |
+      set -e
+      make ${{ parameters.name }}-multiarch-manifest-create PLATFORMS="${{ parameters.platforms }}" TAG=${{ parameters.tag }}
+      make ${{ parameters.name }}-image-info TAG=${{ parameters.tag }}
+    name: manifest_build
+    displayName: Manifest Build
 
-- script: |
-    set -e
-    make multiarch-manifest-push IMAGE=$(make ${{ parameters.name }}-image-name) TAG=${{ parameters.tag }}
-    make container-pull IMAGE=$(make ${{ parameters.name }}-image-name) TAG=${{ parameters.tag }}
-  name: manifest_push
-  displayName: Manifest Push
+  - script: |
+      set -e
+      export IMAGE=$(make ${{ parameters.name }}-image-name)
+      export TAG=${{ parameters.tag }}
+      make multiarch-manifest-push IMAGE=$IMAGE TAG=$TAG
+      make container-pull IMAGE=$IMAGE TAG=$TAG
+      mkdir -p $(Build.ArtifactStagingDirectory)/images
+      skopeo copy --all docker://$IMAGE_REGISTRY/$IMAGE:$TAG oci-archive:$(Build.ArtifactStagingDirectory)/images/$IMAGE-$TAG.tar
+    name: manifest_push
+    displayName: Manifest Push
 
-- task: Docker@2
-  displayName: Logout
-  inputs:
-    containerRegistry: $(ACR_SERVICE_CONNECTION)
-    command: 'logout'
-    addPipelineData: false
+  - task: Docker@2
+    displayName: Logout
+    inputs:
+      containerRegistry: $(ACR_SERVICE_CONNECTION)
+      command: "logout"
+      addPipelineData: false
 
-- task: CopyFiles@2
-  inputs:
-    sourceFolder: "output"
-    targetFolder: $(Build.ArtifactStagingDirectory)
-  condition: succeeded()
+  - task: CopyFiles@2
+    inputs:
+      sourceFolder: "output"
+      targetFolder: $(Build.ArtifactStagingDirectory)
+    condition: succeeded()
 
-- task: ManifestGeneratorTask@0
-  displayName: "Add SBOM Generator tool"
-  inputs:
-    BuildDropPath: '$(Build.ArtifactStagingDirectory)'
+  - task: ManifestGeneratorTask@0
+    displayName: "Add SBOM Generator tool"
+    inputs:
+      BuildDropPath: "$(Build.ArtifactStagingDirectory)"
 
-- task: PublishBuildArtifacts@1
-  inputs:
-    artifactName: "output"
-    pathtoPublish: "$(Build.ArtifactStagingDirectory)"
-  condition: succeeded()
+  - task: PublishBuildArtifacts@1
+    inputs:
+      artifactName: "output"
+      pathtoPublish: "$(Build.ArtifactStagingDirectory)"
+    condition: succeeded()
