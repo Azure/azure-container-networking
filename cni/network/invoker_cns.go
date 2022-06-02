@@ -20,9 +20,8 @@ import (
 )
 
 var (
-	errEmtpyHostSubnetPrefix = errors.New("empty host subnet prefix not allowed")
-	errEmptyCNIArgs          = errors.New("empty CNI cmd args not allowed")
-	errInvalidArgs           = errors.New("invalid arg(s)")
+	errEmptyCNIArgs = errors.New("empty CNI cmd args not allowed")
+	errInvalidArgs  = errors.New("invalid arg(s)")
 )
 
 type CNSIPAMInvoker struct {
@@ -100,7 +99,7 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 	log.Printf("[cni-invoker-cns] Received info %+v for pod %v", info, podInfo)
 
 	ncgw := net.ParseIP(info.ncGatewayIPAddress)
-	if ncgw == nil {
+	if ncgw == nil && invoker.ipamMode != util.V4Overlay {
 		return IPAMAddResult{}, errors.Wrap(errInvalidArgs, "%w: Gateway address "+info.ncGatewayIPAddress+" from response is invalid")
 	}
 
@@ -133,10 +132,18 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 		},
 	}
 
+	// get the name of the primary IP address
+	_, hostIPNet, err := net.ParseCIDR(info.hostSubnet)
+	if err != nil {
+		return IPAMAddResult{}, fmt.Errorf("unable to parse hostSubnet: %w", err)
+	}
+
+	addResult.hostSubnetPrefix = *hostIPNet
+
 	// set subnet prefix for host vm
 	// setHostOptions will execute if IPAM mode is not v4 overlay
 	if invoker.ipamMode != util.V4Overlay {
-		if err := setHostOptions(&addResult.hostSubnetPrefix, ncipnet, addConfig.options, &info); err != nil {
+		if err := setHostOptions(ncipnet, addConfig.options, &info); err != nil {
 			return IPAMAddResult{}, err
 		}
 	}
@@ -144,18 +151,7 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 	return addResult, nil
 }
 
-func setHostOptions(hostSubnetPrefix, ncSubnetPrefix *net.IPNet, options map[string]interface{}, info *IPv4ResultInfo) error {
-	// get the name of the primary IP address
-	_, hostIPNet, err := net.ParseCIDR(info.hostSubnet)
-	if err != nil {
-		return err
-	}
-
-	if hostSubnetPrefix == nil {
-		return errEmtpyHostSubnetPrefix
-	}
-
-	*hostSubnetPrefix = *hostIPNet
+func setHostOptions(ncSubnetPrefix *net.IPNet, options map[string]interface{}, info *IPv4ResultInfo) error {
 
 	// get the host ip
 	hostIP := net.ParseIP(info.hostPrimaryIP)
