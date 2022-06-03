@@ -21,12 +21,12 @@ var (
 	errAddressInUse         = fmt.Errorf("Address already in use")
 	errNoAvailableAddresses = fmt.Errorf("No available addresses")
 
-	// Exportable errors returned by AddressManager
-	ErrNoAvailableAddressPools = fmt.Errorf("no available address pools")
-
 	// Options used by AddressManager.
 	OptInterfaceName      = "azure.interface.name"
 	OptAddressID          = "azure.address.id"
 	OptAddressType        = "azure.address.type"
 	OptAddressTypeGateway = "gateway"
 )
+
+// Exportable errors returned by AddressManager
+var ErrNoAvailableAddressPools = fmt.Errorf("no available address pools")
