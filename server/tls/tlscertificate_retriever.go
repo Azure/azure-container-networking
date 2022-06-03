@@ -2,12 +2,17 @@
 
 package tls
 
-// TlsCertificateSettins - Details related to the TLS certificate.
+import "time"
+
+// TlsSettings - Details related to the TLS certificate.
 type TlsSettings struct {
-	TLSSubjectName     string
-	TLSCertificatePath string
-	TLSEndpoint        string
-	TLSPort            string
+	TLSSubjectName                     string
+	TLSCertificatePath                 string
+	TLSPort                            string
+	KeyVaultURL                        string
+	KeyVaultCertificateName            string
+	MSIResourceID                      string
+	KeyVaultCertificateRefreshInterval time.Duration
 }
 
 func GetTlsCertificateRetriever(settings TlsSettings) (TlsCertificateRetriever, error) {

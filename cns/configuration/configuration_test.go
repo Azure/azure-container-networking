@@ -201,6 +201,9 @@ func TestSetCNSConfigDefaults(t *testing.T) {
 					RefreshIntervalInSecs:        15,
 					SnapshotIntervalInMins:       60,
 				},
+				KeyVaultSettings: KeyVaultSettings{
+					RefreshIntervalInHrs: 12,
+				},
 			},
 		},
 		{
@@ -220,6 +223,9 @@ func TestSetCNSConfigDefaults(t *testing.T) {
 					RefreshIntervalInSecs:        1,
 					SnapshotIntervalInMins:       6,
 				},
+				KeyVaultSettings: KeyVaultSettings{
+					RefreshIntervalInHrs: 3,
+				},
 			},
 			want: CNSConfig{
 				ChannelMode: "Other",
@@ -235,6 +241,9 @@ func TestSetCNSConfigDefaults(t *testing.T) {
 					HeartBeatIntervalInMins:      3,
 					RefreshIntervalInSecs:        1,
 					SnapshotIntervalInMins:       6,
+				},
+				KeyVaultSettings: KeyVaultSettings{
+					RefreshIntervalInHrs: 3,
 				},
 			},
 		},

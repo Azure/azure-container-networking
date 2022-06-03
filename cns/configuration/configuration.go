@@ -33,6 +33,8 @@ type CNSConfig struct {
 	TelemetrySettings           TelemetrySettings
 	UseHTTPS                    bool
 	WireserverIP                string
+	KeyVaultSettings            KeyVaultSettings
+	MSISettings                 MSISettings
 }
 
 type TelemetrySettings struct {
@@ -65,6 +67,16 @@ type ManagedSettings struct {
 	InfrastructureNetworkID   string
 	NodeID                    string
 	NodeSyncIntervalInSeconds int
+}
+
+type MSISettings struct {
+	ResourceID string
+}
+
+type KeyVaultSettings struct {
+	URL                  string
+	CertificateName      string
+	RefreshIntervalInHrs int
 }
 
 func getConfigFilePath(cmdLineConfigPath string) (string, error) {
@@ -144,10 +156,18 @@ func setManagedSettingDefaults(managedSettings *ManagedSettings) {
 	}
 }
 
+func setKeyVaultSettingsDefaults(kvs *KeyVaultSettings) {
+	if kvs.RefreshIntervalInHrs == 0 {
+		kvs.RefreshIntervalInHrs = 12 //nolint:gomnd // default times
+	}
+}
+
 // SetCNSConfigDefaults set default values of CNS config if not specified
 func SetCNSConfigDefaults(config *CNSConfig) {
 	setTelemetrySettingDefaults(&config.TelemetrySettings)
 	setManagedSettingDefaults(&config.ManagedSettings)
+	setKeyVaultSettingsDefaults(&config.KeyVaultSettings)
+
 	if config.ChannelMode == "" {
 		config.ChannelMode = cns.Direct
 	}

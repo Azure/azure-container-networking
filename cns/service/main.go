@@ -533,9 +533,13 @@ func main() {
 	if httpRestService != nil {
 		if cnsconfig.UseHTTPS {
 			config.TlsSettings = localtls.TlsSettings{
-				TLSSubjectName:     cnsconfig.TLSSubjectName,
-				TLSCertificatePath: cnsconfig.TLSCertificatePath,
-				TLSPort:            cnsconfig.TLSPort,
+				TLSSubjectName:                     cnsconfig.TLSSubjectName,
+				TLSCertificatePath:                 cnsconfig.TLSCertificatePath,
+				TLSPort:                            cnsconfig.TLSPort,
+				KeyVaultURL:                        cnsconfig.KeyVaultSettings.URL,
+				KeyVaultCertificateName:            cnsconfig.KeyVaultSettings.CertificateName,
+				MSIResourceID:                      cnsconfig.MSISettings.ResourceID,
+				KeyVaultCertificateRefreshInterval: time.Duration(cnsconfig.KeyVaultSettings.RefreshIntervalInHrs) * time.Hour,
 			}
 		}
 
