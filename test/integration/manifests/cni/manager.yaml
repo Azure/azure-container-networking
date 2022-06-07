@@ -19,7 +19,7 @@ spec:
       hostNetwork: true
       containers:
         - name: azure-cni-installer
-          image: acnpublic.azurecr.io/azure-cni-manager:v1.2.8-32-g77506640
+          image: acnpublic.azurecr.io/acncli:v1.2.8-32-g77506640
           command: ["./acn"]
           args: ["cni", "manager", "--follow", "--mode", "transparent", "--ipam", "azure-cns"]
           imagePullPolicy: Always
