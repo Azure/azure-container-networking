@@ -39,7 +39,7 @@ type jsonFileStore struct {
 // NewJsonFileStore creates a new jsonFileStore object, accessed as a KeyValueStore.
 func NewJsonFileStore(fileName string, lockclient processlock.Interface) (KeyValueStore, error) {
 	if fileName == "" {
-		return &jsonFileStore{}, errors.New("Need to pass in a json file path")
+		return &jsonFileStore{}, errors.New("need to pass in a json file path")
 	}
 	kvs := &jsonFileStore{
 		fileName:    fileName,

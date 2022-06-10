@@ -55,3 +55,5 @@ function Set-NetAdapterPriorityVLanTag
     Write-Host "No Network adapter found with '$MellanoxSearchString' in description"
     return;
 }
+
+Set-NetAdapterPriorityVLanTag

@@ -102,6 +102,10 @@ func (invoker *AzureIPAMInvoker) deleteIpamState() {
 		return
 	}
 
+	if cniStateExists {
+		return
+	}
+
 	ipamStateExists, err := platform.CheckIfFileExists(platform.CNIIpamStatePath)
 	if err != nil {
 		log.Printf("[cni] Error checking IPAM state exist: %v", err)

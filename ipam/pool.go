@@ -103,7 +103,7 @@ func NewAddressPoolIdFromString(s string) (*addressPoolId, error) {
 
 	p := strings.Split(s, "|")
 	if len(p) > 3 {
-		return nil, errInvalidPoolId
+		return nil, errInvalidPoolID
 	}
 
 	pid.AsId = p[0]
@@ -282,7 +282,7 @@ func (as *addressSpace) newAddressPool(ifName string, priority int, subnet *net.
 func (as *addressSpace) getAddressPool(poolId string) (*addressPool, error) {
 	ap := as.Pools[poolId]
 	if ap == nil {
-		return nil, fmt.Errorf("Pool id %v not found :%v", poolId, errInvalidPoolId)
+		return nil, fmt.Errorf("Pool id %v not found :%w", poolId, errInvalidPoolID)
 	}
 
 	return ap, nil

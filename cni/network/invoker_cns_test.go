@@ -305,7 +305,7 @@ func Test_setHostOptions(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			err := setHostOptions(tt.args.hostSubnetPrefix, tt.args.ncSubnetPrefix, tt.args.options, &tt.args.info)
+			err := setHostOptions(tt.args.ncSubnetPrefix, tt.args.options, &tt.args.info)
 			if tt.wantErr {
 				require.Error(err)
 				return
