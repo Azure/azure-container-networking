@@ -359,11 +359,14 @@ func IsIPV4(ip string) bool {
 	isIPBlock := strings.Contains(ip, "/")
 	ipOnly := strings.Split(ip, "/")
 	address, err := netip.ParseAddr(ipOnly[0])
-
-	if address.Is4() && isIPBlock {
-		_, _, err2 := net.ParseCIDR(ip)
-		return (err == nil && err2 == nil && address.Is4())
+	if err != nil {
+		return false
 	}
 
-	return (err == nil && address.Is4())
+	if address.Is4() && isIPBlock {
+		_, _, err := net.ParseCIDR(ip)
+		return err == nil
+	}
+
+	return address.Is4()
 }
