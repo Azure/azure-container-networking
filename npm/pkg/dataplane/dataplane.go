@@ -213,6 +213,8 @@ func (dp *DataPlane) AddPolicy(policy *policies.NPMNetworkPolicy) error {
 		return fmt.Errorf("[DataPlane] error while adding Rule IPSet references: %w", err)
 	}
 
+	// NOTE: if apply dataplane succeeds, but another area fails, then currently,
+	// netpol controller won't cache the netpol, and the IPSets applied will remain in the kernel since they will have a netpol reference
 	err = dp.ApplyDataPlane()
 	if err != nil {
 		return fmt.Errorf("[DataPlane] error while applying dataplane: %w", err)

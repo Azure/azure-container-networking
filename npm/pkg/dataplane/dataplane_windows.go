@@ -129,6 +129,10 @@ func (dp *DataPlane) updatePod(pod *updateNPMPod) error {
 	if endpoint.podKey == unspecifiedPodKey {
 		// while refreshing pod endpoints, newly discovered endpoints are given an unspecified pod key
 		if endpoint.isStalePodKey(pod.PodKey) {
+			// NOTE: if a pod restarts and takes up its previous IP, then its endpoint would be new and this branch would be taken.
+			// Updates to this pod would not occur. Pod IPs are expected to change on restart though.
+			// See: https://stackoverflow.com/questions/52362514/when-will-the-kubernetes-pod-ip-change
+			// If a pod does restart and take up its previous IP, then the pod can be deleted/restarted to mitigate this problem.
 			klog.Infof("ignoring pod update since pod with key %s is stale and likely was deleted", pod.PodKey)
 			return nil
 		}
@@ -283,29 +287,47 @@ func (dp *DataPlane) refreshAllPodEndpoints() error {
 
 		existingIPs[ip] = struct{}{}
 
-		oldEP, ok := dp.endpointCache[ip]
+		oldNPMEP, ok := dp.endpointCache[ip]
 		if !ok {
+			// add the endpoint to the cache if it's not already there
 			npmEP := newNPMEndpoint(&endpoint)
 			dp.endpointCache[ip] = npmEP
 			// NOTE: TSGs rely on this log line
 			klog.Infof("updating endpoint cache to include %s: %+v", npmEP.ip, npmEP)
-		} else if dp.endpointCache[ip].id != endpoint.Id {
-			// add the endpoint to the cache if it's not already there
-			// multiple endpoints can have the same IP address, but there will be one endpoint ID per pod
+		} else if oldNPMEP.id != endpoint.Id {
+			// multiple endpoints can have the same IP address, but there should be one endpoint ID per pod
 			// throw away old endpoints that have the same IP as a current endpoint (the old endpoint is getting deleted)
 			// we don't have to worry about cleaning up network policies on endpoints that are getting deleted
-			npmEP := oldEP.update(&endpoint, currentTime)
+			npmEP := newNPMEndpoint(&endpoint)
+			npmEP.stalePodKey = &staleKey{
+				key:       oldNPMEP.podKey,
+				timestamp: currentTime,
+			}
 			dp.endpointCache[ip] = npmEP
 			// NOTE: TSGs rely on this log line
-			klog.Infof("updating endpoint cache for previously cached IP %s: %+v", npmEP.ip, npmEP)
+			klog.Infof("updating endpoint cache for previously cached IP %s: %+v with stalePodKey %+v", npmEP.ip, npmEP, npmEP.stalePodKey)
 		}
 	}
 
 	// garbage collection for the endpoint cache
 	for ip, ep := range dp.endpointCache {
-		ep.markPodKeyStale(currentTime)
-		if _, ok := existingIPs[ip]; !ok && ep.shouldDelete(currentTime) {
-			delete(dp.endpointCache, ip)
+		if _, ok := existingIPs[ip]; !ok {
+			if ep.podKey == unspecifiedPodKey {
+				if ep.stalePodKey == nil {
+					klog.Infof("deleting old endpoint which never had a pod key. ID: %s, IP: %s", ep.id, ip)
+					delete(dp.endpointCache, ip)
+				} else if int(currentTime-ep.stalePodKey.timestamp)/60 > minutesToKeepStalePodKey {
+					klog.Infof("deleting old endpoint which had a stale pod key. ID: %s, IP: %s, stalePodKey: %+v", ep.id, ip, ep.stalePodKey)
+					delete(dp.endpointCache, ip)
+				}
+			} else {
+				ep.stalePodKey = &staleKey{
+					key:       ep.podKey,
+					timestamp: currentTime,
+				}
+				ep.podKey = unspecifiedPodKey
+				klog.Infof("marking endpoint stale for at least %d minutes. ID: %s, IP: %s, new stalePodKey: %+v", minutesToKeepStalePodKey, ep.id, ip, ep.stalePodKey)
+			}
 		}
 	}
 
