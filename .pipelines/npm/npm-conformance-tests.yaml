@@ -71,7 +71,7 @@ jobs:
       echo Tag: $(TAG)
       echo ResourceGroup: $(RESOURCE_GROUP)
       make npm-image TAG=$(TAG) 
-      make npm-image-push TAG=$(TAG)
+      make container-push TAG=$(TAG) IMAGE=$(make npm-image-name)
     displayName: 'Build and Push NPM Image'
 
   - task: Docker@2

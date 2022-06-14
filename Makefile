@@ -209,12 +209,6 @@ container-pull: # util target to pull container image. do not invoke directly.
 	$(CONTAINER_BUILDER) pull \
 		$(IMAGE_REGISTRY)/$(IMAGE):$(TAG)
 
-container-info: # util target to write container info file. do not invoke directly.
-	# these commands need to be root due to some ongoing perms issues in the pipeline.
-	sudo mkdir -p $(IMAGE_DIR) 
-	sudo chown -R $$(whoami) $(IMAGE_DIR) 
-	sudo chmod -R 777 $(IMAGE_DIR)
-
 acncli-image-name: # util target to print the CNI manager image name.
 	@echo $(ACNCLI_IMAGE)
 
@@ -226,23 +220,6 @@ acncli-image: ## build cni-manager container image.
 		IMAGE=$(ACNCLI_IMAGE) \
 		TAG=$(TAG)
 
-acncli-image-info: # util target to write cni-manager container info file.
-	$(MAKE) container-info IMAGE=$(ACNCLI_IMAGE) TAG=$(TAG) FILE=$(ACNCLI_IMAGE_INFO_FILE)
-
-acncli-image-push: ## push cni-manager container image.
-	$(MAKE) container-push \
-		PLATFORM=$(PLATFORM) \
-		REGISTRY=$(IMAGE_REGISTRY) \
-		IMAGE=$(ACNCLI_IMAGE) \
-		TAG=$(TAG)
-
-acncli-image-pull: ## pull cni-manager container image.
-	$(MAKE) container-pull \
-		PLATFORM=$(PLATFORM) \
-		REGISTRY=$(IMAGE_REGISTRY) \
-		IMAGE=$(ACNCLI_IMAGE) \
-		TAG=$(TAG)
-
 cni-dropgz-image-name: # util target to print the CNI dropgz image name.
 	@echo $(CNIDROPGZ_IMAGE)
 
@@ -250,23 +227,6 @@ cni-dropgz-image: ## build cni-dropgz container image.
 	$(MAKE) containerize-$(CONTAINER_BUILDER) \
 		PLATFORM=$(PLATFORM) \
 		DOCKERFILE=dropgz/build/cni.Dockerfile \
-		REGISTRY=$(IMAGE_REGISTRY) \
-		IMAGE=$(CNIDROPGZ_IMAGE) \
-		TAG=$(TAG)
-
-cni-dropgz-image-info: # util target to write cni-dropgz container info file.
-	$(MAKE) container-info IMAGE=$(CNIDROPGZ_IMAGE) TAG=$(TAG) FILE=$(CNIDROPGZ_IMAGE_INFO_FILE)
-
-cni-dropgz-image-push: ## push cni-dropgz container image.
-	$(MAKE) container-push \
-		PLATFORM=$(PLATFORM) \
-		REGISTRY=$(IMAGE_REGISTRY) \
-		IMAGE=$(CNIDROPGZ_IMAGE) \
-		TAG=$(TAG)
-
-cni-dropgz-image-pull: ## pull cni-dropgz container image.
-	$(MAKE) container-pull \
-		PLATFORM=$(PLATFORM) \
 		REGISTRY=$(IMAGE_REGISTRY) \
 		IMAGE=$(CNIDROPGZ_IMAGE) \
 		TAG=$(TAG)
@@ -283,22 +243,18 @@ cns-image: ## build cns container image.
 		EXTRA_BUILD_ARGS='--build-arg CNS_AI_PATH=$(CNS_AI_PATH) --build-arg CNS_AI_ID=$(CNS_AI_ID)' \
 		TAG=$(TAG)
 
-cns-image-info: # util target to write cns container info file.
-	$(MAKE) container-info IMAGE=$(CNS_IMAGE) TAG=$(TAG) FILE=$(CNS_IMAGE_INFO_FILE)
-
-cns-image-push: ## push cns container image.
-	$(MAKE) container-push \
-		PLATFORM=$(PLATFORM) \
-		REGISTRY=$(IMAGE_REGISTRY) \
-		IMAGE=$(CNS_IMAGE) \
-		TAG=$(TAG)
-
-cns-image-pull: ## pull cns container image.
-	$(MAKE) container-pull \
-		PLATFORM=$(PLATFORM) \
-		REGISTRY=$(IMAGE_REGISTRY) \
-		IMAGE=$(CNS_IMAGE) \
-		TAG=$(TAG)
+## can probably be combined with above with a GOOS.Dockerfile change?
+# Build the windows cns image
+cns-image-windows:
+	$(MKDIR) $(IMAGE_DIR); 
+	docker build \
+	--no-cache \
+	-f cns/windows.Dockerfile \
+	-t $(IMAGE_REGISTRY)/$(CNS_IMAGE)-win:$(TAG) \
+	--build-arg VERSION=$(TAG) \
+	--build-arg CNS_AI_PATH=$(CNS_AI_PATH) \
+	--build-arg CNS_AI_ID=$(CNS_AI_ID) .
+	echo $(CNS_IMAGE)-win:$(TAG) > $(IMAGE_DIR)/$(CNS_IMAGE_INFO_FILE)
 
 npm-image-name: # util target to print the NPM image name
 	@echo $(NPM_IMAGE)
@@ -311,38 +267,6 @@ npm-image: ## build the npm container image.
 			IMAGE=$(NPM_IMAGE) \
 			EXTRA_BUILD_ARGS='--build-arg NPM_AI_PATH=$(NPM_AI_PATH) --build-arg NPM_AI_ID=$(NPM_AI_ID)' \
 			TAG=$(TAG)
-
-npm-image-info: # util target to write npm container info file.
-	$(MAKE) container-info IMAGE=$(NPM_IMAGE) TAG=$(TAG) FILE=$(NPM_IMAGE_INFO_FILE)
-
-npm-image-push: ## push npm container image.
-	$(MAKE) container-push \
-		PLATFORM=$(PLATFORM) \
-		REGISTRY=$(IMAGE_REGISTRY) \
-		IMAGE=$(NPM_IMAGE) \
-		TAG=$(TAG)
-
-npm-image-pull: ## pull cns container image.
-	$(MAKE) container-pull \
-		PLATFORM=$(PLATFORM) \
-		REGISTRY=$(IMAGE_REGISTRY) \
-		IMAGE=$(NPM_IMAGE) \
-		TAG=$(TAG)
-
-## can probably be combined with above with a GOOS.Dockerfile change?
-# Build the windows cns image
-cns-image-windows:
-	$(MKDIR) $(IMAGE_DIR); 
-	docker build \
-	--no-cache \
-	-f cns/windows.Dockerfile \
-	-t $(IMAGE_REGISTRY)/$(CNS_IMAGE)-win:$(TAG) \
-	--build-arg VERSION=$(TAG) \
-	--build-arg CNS_AI_PATH=$(CNS_AI_PATH) \
-	--build-arg CNS_AI_ID=$(CNS_AI_ID) \
-	.
-
-	echo $(CNS_IMAGE)-win:$(TAG) > $(IMAGE_DIR)/$(CNS_IMAGE_INFO_FILE)
 
 
 ## Legacy
@@ -390,30 +314,6 @@ multiarch-manifest-create: # util target to compose multiarch container manifest
 
 multiarch-manifest-push: # util target to push multiarch container manifest.
 	$(CONTAINER_BUILDER) manifest push --all $(IMAGE_REGISTRY)/$(IMAGE):$(TAG) docker://$(IMAGE_REGISTRY)/$(IMAGE):$(TAG)
-
-acncli-multiarch-manifest-create: ## build acncli multi-arch container manifest.
-	$(MAKE) multiarch-manifest-create \
-		PLATFORMS="$(PLATFORMS)" \
-		IMAGE=$(ACNCLI_IMAGE) \
-		TAG=$(TAG)
-
-cni-dropgz-multiarch-manifest-create: ## build cni-dropgz multi-arch container manifest.
-	$(MAKE) multiarch-manifest-create \
-		PLATFORMS="$(PLATFORMS)" \
-		IMAGE=$(CNIDROPGZ_IMAGE) \
-		TAG=$(TAG)
-
-cns-multiarch-manifest-create: ## build azure-cns multi-arch container manifest.
-	$(MAKE) multiarch-manifest-create \
-		PLATFORMS="$(PLATFORMS)" \
-		IMAGE=$(CNS_IMAGE) \
-		TAG=$(TAG)
-
-npm-multiarch-manifest-create: ## build azure-npm multi-arch container manifest.
-	$(MAKE) multiarch-manifest-create \
-		PLATFORMS="$(PLATFORMS)" \
-		IMAGE=$(NPM_IMAGE) \
-		TAG=$(TAG)
 
 ########################### Archives ################################
 
