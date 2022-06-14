@@ -123,7 +123,6 @@ func (iMgr *IPSetManager) GetIPsFromSelectorIPSets(setList map[string]struct{}) 
 			}
 		}
 	}
-	klog.Infof("IPs in selector IPSets: %+v", ips) // FIXME remove after debugging
 	return ips, nil
 }
 
@@ -395,12 +394,12 @@ func getPolicyNetworkRequestMarshal(setPolicySettings map[string]*hcn.SetPolicyS
 		Policies: make([]hcn.NetworkPolicy, 0),
 	}
 
-	for setPol := range setPolicySettings {
-		if setPolicySettings[setPol].PolicyType != policyType {
+	for _, setPol := range setPolicySettings {
+		if setPol.PolicyType != policyType {
 			continue
 		}
-		klog.Infof("Found set pol %+v", setPolicySettings[setPol])
-		rawSettings, err := json.Marshal(setPolicySettings[setPol])
+		klog.Infof("will perform %s operation on set pol %+v", policyType, setPol)
+		rawSettings, err := json.Marshal(setPol)
 		if err != nil {
 			return nil, err
 		}

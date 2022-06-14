@@ -224,7 +224,7 @@ func (dp *DataPlane) getSelectorIPSets(policy *policies.NPMNetworkPolicy) map[st
 	for _, ipset := range policy.PodSelectorIPSets {
 		selectorIpSets[ipset.Metadata.GetPrefixName()] = struct{}{}
 	}
-	klog.Infof("policy %s has policy selector: %+v", policy.PolicyKey, selectorIpSets) // FIXME remove after debugging
+	klog.Infof("policy %s has policy selector: %+v", policy.PolicyKey, selectorIpSets)
 	return selectorIpSets
 }
 
@@ -251,7 +251,6 @@ func (dp *DataPlane) getEndpointsToApplyPolicy(policy *policies.NPMNetworkPolicy
 		endpointList[ip] = endpoint.id
 		endpoint.netPolReference[policy.PolicyKey] = struct{}{}
 	}
-	klog.Infof("[DataPlane] Endpoints to apply policy %s: %+v", policy.PolicyKey, endpointList) // FIXME remove after debugging
 	return endpointList, nil
 }
 
@@ -299,13 +298,18 @@ func (dp *DataPlane) refreshAllPodEndpoints() error {
 			// throw away old endpoints that have the same IP as a current endpoint (the old endpoint is getting deleted)
 			// we don't have to worry about cleaning up network policies on endpoints that are getting deleted
 			npmEP := newNPMEndpoint(&endpoint)
-			npmEP.stalePodKey = &staleKey{
-				key:       oldNPMEP.podKey,
-				timestamp: currentTime,
+			if oldNPMEP.podKey == unspecifiedPodKey {
+				klog.Infof("updating endpoint cache since endpoint changed for IP which never had a pod key. new endpoint: %s, old endpoint: %s, ip: %s", npmEP.id, oldNPMEP.id, npmEP.ip)
+				dp.endpointCache[ip] = npmEP
+			} else {
+				npmEP.stalePodKey = &staleKey{
+					key:       oldNPMEP.podKey,
+					timestamp: currentTime,
+				}
+				dp.endpointCache[ip] = npmEP
+				// NOTE: TSGs rely on this log line
+				klog.Infof("updating endpoint cache for previously cached IP %s: %+v with stalePodKey %+v", npmEP.ip, npmEP, npmEP.stalePodKey)
 			}
-			dp.endpointCache[ip] = npmEP
-			// NOTE: TSGs rely on this log line
-			klog.Infof("updating endpoint cache for previously cached IP %s: %+v with stalePodKey %+v", npmEP.ip, npmEP, npmEP.stalePodKey)
 		}
 	}
 
