@@ -3,10 +3,12 @@ package logger
 
 import (
 	"fmt"
+	"sync"
 
 	"github.com/Azure/azure-container-networking/aitelemetry"
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/log"
+	"github.com/pkg/errors"
 )
 
 const (
@@ -22,113 +24,90 @@ var (
 type CNSLogger struct {
 	logger               *log.Logger
 	th                   aitelemetry.TelemetryHandle
-	Orchestrator         string
-	NodeID               string
 	DisableTraceLogging  bool
 	DisableMetricLogging bool
 	DisableEventLogging  bool
+
+	m            sync.RWMutex
+	Orchestrator string
+	NodeID       string
 }
 
-// Initialize CNS Logger
-func InitLogger(fileName string, logLevel, logTarget int, logDir string) {
-	Log = &CNSLogger{
-		logger: log.NewLogger(fileName, logLevel, logTarget, logDir),
-	}
-}
-
-// Intialize CNS AI telmetry instance
-func InitAI(aiConfig aitelemetry.AIConfig, disableTraceLogging, disableMetricLogging bool, disableEventLogging bool) {
-	var err error
-
-	Log.th, err = aitelemetry.NewAITelemetry("", aiMetadata, aiConfig)
+func NewCNSLogger(fileName string, logLevel, logTarget int, logDir string) (*CNSLogger, error) {
+	l, err := log.NewLoggerE(fileName, logLevel, logTarget, logDir)
 	if err != nil {
-		Log.logger.Errorf("Error initializing AI Telemetry:%v", err)
+		return nil, errors.Wrap(err, "could not get new logger")
+	}
+
+	return &CNSLogger{logger: l}, nil
+}
+
+func (c *CNSLogger) InitAI(aiConfig aitelemetry.AIConfig, disableTraceLogging, disableMetricLogging, disableEventLogging bool) {
+	th, err := aitelemetry.NewAITelemetry("", aiMetadata, aiConfig)
+	if err != nil {
+		c.logger.Errorf("Error initializing AI Telemetry:%v", err)
 		return
 	}
 
-	Log.logger.Printf("AI Telemetry Handle created")
-	Log.DisableMetricLogging = disableMetricLogging
-	Log.DisableTraceLogging = disableTraceLogging
-	Log.DisableEventLogging = disableEventLogging
+	c.th = th
+	c.logger.Printf("AI Telemetry Handle created")
+	c.DisableMetricLogging = disableMetricLogging
+	c.DisableTraceLogging = disableTraceLogging
+	c.DisableEventLogging = disableEventLogging
 }
 
-// Close CNS and AI telemetry handle
-func Close() {
-	Log.logger.Close()
-	if Log.th != nil {
-		Log.th.Close(waitTimeInSecs)
+func (c *CNSLogger) Close() {
+	c.logger.Close()
+	if c.th != nil {
+		c.th.Close(waitTimeInSecs)
 	}
 }
 
-func SetTargetLogDirectory(target int, dir string) error {
-	return Log.logger.SetTargetLogDirectory(target, dir)
+func (c *CNSLogger) SetContextDetails(orchestrator, nodeID string) {
+	c.logger.Logf("SetContext details called with: %v orchestrator nodeID %v", orchestrator, nodeID)
+	c.m.Lock()
+	c.Orchestrator = orchestrator
+	c.NodeID = nodeID
+	c.m.Unlock()
 }
 
-// Set context details for logs and metrics
-func SetContextDetails(orchestrator string, nodeID string) {
-	Printf("SetContext details called with: %v orchestrator nodeID %v", orchestrator, nodeID)
-	Log.Orchestrator = orchestrator
-	Log.NodeID = nodeID
-}
+func (c *CNSLogger) Printf(format string, args ...any) {
+	c.logger.Logf(format, args...)
 
-// Send AI telemetry trace
-func sendTraceInternal(msg string) {
-	report := aitelemetry.Report{CustomDimensions: make(map[string]string)}
-	report.Message = msg
-	report.CustomDimensions[OrchestratorTypeStr] = Log.Orchestrator
-	report.CustomDimensions[NodeIDStr] = Log.NodeID
-	report.Context = Log.NodeID
-	Log.th.TrackLog(report)
-}
-
-// also logs in the AI telemetry
-func Printf(format string, args ...interface{}) {
-	Log.logger.Logf(format, args...)
-
-	if Log.th == nil || Log.DisableTraceLogging {
+	if c.th == nil || c.DisableTraceLogging {
 		return
 	}
 
 	msg := fmt.Sprintf(format, args...)
-	sendTraceInternal(msg)
+	c.sendTraceInternal(msg)
 }
 
-func Debugf(format string, args ...interface{}) {
-	Log.logger.Debugf(format, args...)
+func (c *CNSLogger) Debugf(format string, args ...any) {
+	c.logger.Debugf(format, args...)
 
-	if Log.th == nil || Log.DisableTraceLogging {
+	if c.th == nil || c.DisableTraceLogging {
 		return
 	}
 
 	msg := fmt.Sprintf(format, args...)
-	sendTraceInternal(msg)
+	c.sendTraceInternal(msg)
 }
 
-func LogEvent(event aitelemetry.Event) {
-	if Log.th == nil || Log.DisableEventLogging {
-		return
-	}
+func (c *CNSLogger) Errorf(format string, args ...any) {
+	c.logger.Errorf(format, args...)
 
-	event.Properties[OrchestratorTypeStr] = Log.Orchestrator
-	event.Properties[NodeIDStr] = Log.NodeID
-	Log.th.TrackEvent(event)
-}
-
-func Errorf(format string, args ...interface{}) {
-	Log.logger.Errorf(format, args...)
-
-	if Log.th == nil || Log.DisableTraceLogging {
+	if c.th == nil || c.DisableTraceLogging {
 		return
 	}
 
 	msg := fmt.Sprintf(format, args...)
-	sendTraceInternal(msg)
+	c.sendTraceInternal(msg)
 }
 
-func Request(tag string, request interface{}, err error) {
-	Log.logger.Request(tag, request, err)
+func (c *CNSLogger) Request(tag string, request any, err error) {
+	c.logger.Request(tag, request, err)
 
-	if Log.th == nil || Log.DisableTraceLogging {
+	if c.th == nil || c.DisableTraceLogging {
 		return
 	}
 
@@ -139,13 +118,13 @@ func Request(tag string, request interface{}, err error) {
 		msg = fmt.Sprintf("[%s] Failed to decode %T %+v %s.", tag, request, request, err.Error())
 	}
 
-	sendTraceInternal(msg)
+	c.sendTraceInternal(msg)
 }
 
-func Response(tag string, response interface{}, returnCode types.ResponseCode, err error) {
-	Log.logger.Response(tag, response, int(returnCode), returnCode.String(), err)
+func (c *CNSLogger) Response(tag string, response any, returnCode types.ResponseCode, err error) {
+	c.logger.Response(tag, response, int(returnCode), returnCode.String(), err)
 
-	if Log.th == nil || Log.DisableTraceLogging {
+	if c.th == nil || c.DisableTraceLogging {
 		return
 	}
 
@@ -158,14 +137,13 @@ func Response(tag string, response interface{}, returnCode types.ResponseCode, e
 		msg = fmt.Sprintf("[%s] Code:%s, %+v.", tag, returnCode.String(), response)
 	}
 
-	sendTraceInternal(msg)
+	c.sendTraceInternal(msg)
 }
 
-// ResponseEx put request and response info together to help easier debug.
-func ResponseEx(tag string, request interface{}, response interface{}, returnCode types.ResponseCode, err error) {
-	Log.logger.ResponseEx(tag, request, response, int(returnCode), returnCode.String(), err)
+func (c *CNSLogger) ResponseEx(tag string, request, response any, returnCode types.ResponseCode, err error) {
+	c.logger.ResponseEx(tag, request, response, int(returnCode), returnCode.String(), err)
 
-	if Log.th == nil || Log.DisableTraceLogging {
+	if c.th == nil || c.DisableTraceLogging {
 		return
 	}
 
@@ -178,16 +156,100 @@ func ResponseEx(tag string, request interface{}, response interface{}, returnCod
 		msg = fmt.Sprintf("[%s] Code:%s, %+v, %+v.", tag, returnCode.String(), request, response)
 	}
 
-	sendTraceInternal(msg)
+	c.sendTraceInternal(msg)
 }
 
-// Send AI telemetry metric
-func SendMetric(metric aitelemetry.Metric) {
-	if Log.th == nil || Log.DisableMetricLogging {
+func (c *CNSLogger) getOrchestratorAndNodeID() (orch, nodeID string) {
+	c.m.RLock()
+	orch, nodeID = c.Orchestrator, c.NodeID
+	c.m.RUnlock()
+	return
+}
+
+func (c *CNSLogger) sendTraceInternal(msg string) {
+	orch, nodeID := c.getOrchestratorAndNodeID()
+
+	report := aitelemetry.Report{
+		Message: msg,
+		Context: nodeID,
+		CustomDimensions: map[string]string{
+			OrchestratorTypeStr: orch,
+			NodeIDStr:           nodeID,
+		},
+	}
+
+	c.th.TrackLog(report)
+}
+
+func (c *CNSLogger) LogEvent(event aitelemetry.Event) {
+	if c.th == nil || c.DisableEventLogging {
 		return
 	}
 
-	metric.CustomDimensions[OrchestratorTypeStr] = Log.Orchestrator
-	metric.CustomDimensions[NodeIDStr] = Log.NodeID
-	Log.th.TrackMetric(metric)
+	orch, nodeID := c.getOrchestratorAndNodeID()
+	event.Properties[OrchestratorTypeStr] = orch
+	event.Properties[NodeIDStr] = nodeID
+	c.th.TrackEvent(event)
+}
+
+func (c *CNSLogger) SendMetric(metric aitelemetry.Metric) {
+	if c.th == nil || c.DisableMetricLogging {
+		return
+	}
+
+	orch, nodeID := c.getOrchestratorAndNodeID()
+	metric.CustomDimensions[OrchestratorTypeStr] = orch
+	metric.CustomDimensions[NodeIDStr] = nodeID
+	c.th.TrackMetric(metric)
+}
+
+// todo: the functions below remain in order to keep refactoring to a smaller scope.
+// as we migrate towards better logger dependency injection with zap, they can be deprecated/removed as needed.
+
+func Close() {
+	Log.Close()
+}
+
+func InitLogger(fileName string, logLevel, logTarget int, logDir string) {
+	Log, _ = NewCNSLogger(fileName, logLevel, logTarget, logDir)
+}
+
+func InitAI(aiConfig aitelemetry.AIConfig, disableTraceLogging, disableMetricLogging, disableEventLogging bool) {
+	Log.InitAI(aiConfig, disableTraceLogging, disableMetricLogging, disableEventLogging)
+}
+
+func SetContextDetails(orchestrator, nodeID string) {
+	Log.SetContextDetails(orchestrator, nodeID)
+}
+
+func Printf(format string, args ...any) {
+	Log.Printf(format, args...)
+}
+
+func Debugf(format string, args ...any) {
+	Log.Debugf(format, args...)
+}
+
+func LogEvent(event aitelemetry.Event) {
+	Log.LogEvent(event)
+}
+
+func Errorf(format string, args ...any) {
+	Log.Errorf(format, args...)
+}
+
+func Request(tag string, request any, err error) {
+	Log.Request(tag, request, err)
+}
+
+func Response(tag string, response any, returnCode types.ResponseCode, err error) {
+	Log.Response(tag, response, returnCode, err)
+}
+
+func ResponseEx(tag string, request, response any, returnCode types.ResponseCode, err error) {
+	Log.ResponseEx(tag, request, response, returnCode, err)
+}
+
+func SendMetric(metric aitelemetry.Metric) {
+	Log.SendMetric(metric)
 }
