@@ -286,9 +286,7 @@ func TestCmdDel(t *testing.T) {
 			}
 		})
 	}
-
 }
 
 func TestCmdCheck(t *testing.T) {
-
 }

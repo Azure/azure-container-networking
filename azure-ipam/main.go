@@ -21,7 +21,6 @@ func main() {
 }
 
 func executePlugin() error {
-
 	zapConfig := []byte(`{
 		"level": "debug",
 		"encoding": "json",
@@ -58,5 +57,4 @@ func executePlugin() error {
 	}
 
 	return skel.PluginMainWithError(plugin.CmdAdd, plugin.CmdCheck, plugin.CmdDel, version.All, bv.BuildString(PLUGIN_NAME))
-
 }

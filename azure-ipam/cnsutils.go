@@ -36,7 +36,6 @@ func createCNSRequest(args *cniSkel.CmdArgs) (cns.IPConfigRequest, error) {
 	}
 
 	return req, nil
-
 }
 
 func processCNSResponse(resp *cns.IPConfigResponse) (*net.IPNet, net.IP, error) {
