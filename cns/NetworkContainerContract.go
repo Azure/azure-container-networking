@@ -9,6 +9,7 @@ import (
 
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/pkg/errors"
+	"go.uber.org/zap/zapcore"
 	corev1 "k8s.io/api/core/v1"
 )
 
@@ -299,6 +300,14 @@ type IPConfiguration struct {
 	GatewayIPAddress string
 }
 
+// For zap logging
+func (i IPConfiguration) MarshalLogObject(enc zapcore.ObjectEncoder) error {
+	enc.AddObject("ipSubnet", i.IPSubnet)
+	enc.AddReflected("dnsServer", i.DNSServers)
+	enc.AddString("gatewayIPAddress", i.GatewayIPAddress)
+	return nil
+}
+
 // SecondaryIPConfig contains IP info of SecondaryIP
 type SecondaryIPConfig struct {
 	IPAddress string
@@ -310,6 +319,13 @@ type SecondaryIPConfig struct {
 type IPSubnet struct {
 	IPAddress    string
 	PrefixLength uint8
+}
+
+// For zap logging
+func (i IPSubnet) MarshalLogObject(enc zapcore.ObjectEncoder) error {
+	enc.AddString("ipAddress", i.IPAddress)
+	enc.AddUint8("prefixLength", i.PrefixLength)
+	return nil
 }
 
 // GetIPNet converts the IPSubnet to the standard net type
@@ -377,11 +393,27 @@ type PodIpInfo struct {
 	HostPrimaryIPInfo               HostIPInfo
 }
 
+// For zap logging
+func (p PodIpInfo) MarshalLogObject(enc zapcore.ObjectEncoder) error {
+	enc.AddObject("podIPConfig", p.PodIPConfig)
+	enc.AddObject("networkContainerPrimaryIPConfig", p.NetworkContainerPrimaryIPConfig)
+	enc.AddObject("hostPrimaryIPInfo", p.HostPrimaryIPInfo)
+	return nil
+}
+
 // DeleteNetworkContainerRequest specifies the details about the request to delete a specifc network container.
 type HostIPInfo struct {
 	Gateway   string
 	PrimaryIP string
 	Subnet    string
+}
+
+// For zap logging
+func (h HostIPInfo) MarshalLogObject(enc zapcore.ObjectEncoder) error {
+	enc.AddString("gateway", h.Gateway)
+	enc.AddString("primaryIP", h.PrimaryIP)
+	enc.AddString("subnet", h.Subnet)
+	return nil
 }
 
 type IPConfigRequest struct {
@@ -396,10 +428,26 @@ func (i IPConfigRequest) String() string {
 		i.DesiredIPAddress, i.PodInterfaceID, i.InfraContainerID, string(i.OrchestratorContext))
 }
 
+// For zap logging
+func (i IPConfigRequest) MarshalLogObject(enc zapcore.ObjectEncoder) error {
+	enc.AddString("desiredIPAddress", i.DesiredIPAddress)
+	enc.AddString("podInterfaceID", i.PodInterfaceID)
+	enc.AddString("infraContainerID", i.InfraContainerID)
+	enc.AddByteString("orchestratorContext", i.OrchestratorContext)
+	return nil
+}
+
 // IPConfigResponse is used in CNS IPAM mode as a response to CNI ADD
 type IPConfigResponse struct {
 	PodIpInfo PodIpInfo
 	Response  Response
+}
+
+// For zap logging
+func (i IPConfigResponse) MarshalLogObject(enc zapcore.ObjectEncoder) error {
+	enc.AddObject("podIpInfo", i.PodIpInfo)
+	enc.AddObject("response", i.Response)
+	return nil
 }
 
 // GetIPAddressesRequest is used in CNS IPAM mode to get the states of IPConfigs

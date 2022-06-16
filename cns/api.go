@@ -13,6 +13,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 	"github.com/pkg/errors"
+	"go.uber.org/zap/zapcore"
 )
 
 // Container Network Service remote API Contract
@@ -287,6 +288,13 @@ type IpamPoolMonitorStateSnapshot struct {
 type Response struct {
 	ReturnCode types.ResponseCode
 	Message    string
+}
+
+// For zap logging
+func (r Response) MarshalLogObject(enc zapcore.ObjectEncoder) error {
+	enc.AddString("returnCode", r.ReturnCode.String())
+	enc.AddString("message", r.Message)
+	return nil
 }
 
 // NumOfCPUCoresResponse describes num of cpu cores present on host.
