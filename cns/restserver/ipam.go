@@ -29,7 +29,7 @@ func (service *HTTPRestService) requestIPConfigHandler(w http.ResponseWriter, r 
 	podInfo, returnCode, returnMessage := service.validateIPConfigRequest(ipconfigRequest)
 	if returnCode != types.Success {
 		reserveResp := &cns.IPConfigResponse{
-			Response: cns.Response{
+			Response: &cns.Response{
 				ReturnCode: returnCode,
 				Message:    returnMessage,
 			},
@@ -46,11 +46,11 @@ func (service *HTTPRestService) requestIPConfigHandler(w http.ResponseWriter, r 
 	podIPInfo, err := requestIPConfigHelper(service, ipconfigRequest)
 	if err != nil {
 		reserveResp := &cns.IPConfigResponse{
-			Response: cns.Response{
+			Response: &cns.Response{
 				ReturnCode: types.FailedToAllocateIPConfig,
 				Message:    fmt.Sprintf("AllocateIPConfig failed: %v, IP config request is %s", err, ipconfigRequest),
 			},
-			PodIpInfo: podIPInfo,
+			PodIPInfo: &podIPInfo,
 		}
 		w.Header().Set(cnsReturnCode, reserveResp.Response.ReturnCode.String())
 		err = service.Listener.Encode(w, &reserveResp)
@@ -66,10 +66,10 @@ func (service *HTTPRestService) requestIPConfigHandler(w http.ResponseWriter, r 
 		}
 	}()
 	reserveResp := &cns.IPConfigResponse{
-		Response: cns.Response{
+		Response: &cns.Response{
 			ReturnCode: types.Success,
 		},
-		PodIpInfo: podIPInfo,
+		PodIPInfo: &podIPInfo,
 	}
 	w.Header().Set(cnsReturnCode, reserveResp.Response.ReturnCode.String())
 	err = service.Listener.Encode(w, &reserveResp)
@@ -356,9 +356,9 @@ func (service *HTTPRestService) MarkExistingIPsAsPendingRelease(pendingIPIDs []s
 	return nil
 }
 
-func (service *HTTPRestService) GetExistingIPConfig(podInfo cns.PodInfo) (cns.PodIpInfo, bool, error) {
+func (service *HTTPRestService) GetExistingIPConfig(podInfo cns.PodInfo) (cns.PodIPInfo, bool, error) {
 	var (
-		podIpInfo cns.PodIpInfo
+		podIPInfo cns.PodIPInfo
 		isExist   bool
 	)
 
@@ -368,19 +368,19 @@ func (service *HTTPRestService) GetExistingIPConfig(podInfo cns.PodInfo) (cns.Po
 	ipID := service.PodIPIDByPodInterfaceKey[podInfo.Key()]
 	if ipID != "" {
 		if ipState, isExist := service.PodIPConfigState[ipID]; isExist {
-			err := service.populateIPConfigInfoUntransacted(ipState, &podIpInfo)
-			return podIpInfo, isExist, err
+			err := service.populateIPConfigInfoUntransacted(ipState, &podIPInfo)
+			return podIPInfo, isExist, err
 		}
 
 		logger.Errorf("Failed to get existing ipconfig. Pod to IPID exists, but IPID to IPConfig doesn't exist, CNS State potentially corrupt")
-		return podIpInfo, isExist, fmt.Errorf("Failed to get existing ipconfig. Pod to IPID exists, but IPID to IPConfig doesn't exist, CNS State potentially corrupt")
+		return podIPInfo, isExist, errors.Wrapf(nil, "failed to get existing ipconfig. Pod to IPID exists, but IPID to IPConfig doesn't exist, CNS State potentially corrupt")
 	}
 
-	return podIpInfo, isExist, nil
+	return podIPInfo, isExist, nil
 }
 
-func (service *HTTPRestService) AssignDesiredIPConfig(podInfo cns.PodInfo, desiredIPAddress string) (cns.PodIpInfo, error) {
-	var podIpInfo cns.PodIpInfo
+func (service *HTTPRestService) AssignDesiredIPConfig(podInfo cns.PodInfo, desiredIPAddress string) (cns.PodIPInfo, error) {
+	var podIPInfo cns.PodIPInfo
 	service.Lock()
 	defer service.Unlock()
 
@@ -393,53 +393,53 @@ func (service *HTTPRestService) AssignDesiredIPConfig(podInfo cns.PodInfo, desir
 				if ipConfig.PodInfo.Key() == podInfo.Key() {
 					logger.Printf("[AssignDesiredIPConfig]: IP Config [%+v] is already assigned to this Pod [%+v]", ipConfig, podInfo)
 				} else {
-					return podIpInfo, errors.Errorf("[AssignDesiredIPConfig] Desired IP is already assigned %+v, requested for pod %+v", ipConfig, podInfo)
+					return podIPInfo, errors.Errorf("[AssignDesiredIPConfig] Desired IP is already assigned %+v, requested for pod %+v", ipConfig, podInfo)
 				}
 			case types.Available, types.PendingProgramming:
 				// This race can happen during restart, where CNS state is lost and thus we have lost the NC programmed version
 				// As part of reconcile, we mark IPs as Assigned which are already assigned to Pods (listed from APIServer)
 				if err := service.assignIPConfig(ipConfig, podInfo); err != nil {
-					return podIpInfo, err
+					return podIPInfo, err
 				}
 			default:
-				return podIpInfo, errors.Errorf("[AllocateDesiredIPConfig] Desired IP is not available %+v", ipConfig)
+				return podIPInfo, errors.Errorf("[AllocateDesiredIPConfig] Desired IP is not available %+v", ipConfig)
 			}
-			err := service.populateIPConfigInfoUntransacted(ipConfig, &podIpInfo)
-			return podIpInfo, err
+			err := service.populateIPConfigInfoUntransacted(ipConfig, &podIPInfo)
+			return podIPInfo, err
 		}
 	}
-	return podIpInfo, fmt.Errorf("Requested IP not found in pool")
+	return podIPInfo, errors.Wrapf(nil, "requested IP not found in pool")
 }
 
-func (service *HTTPRestService) AssignAnyAvailableIPConfig(podInfo cns.PodInfo) (cns.PodIpInfo, error) {
+func (service *HTTPRestService) AssignAnyAvailableIPConfig(podInfo cns.PodInfo) (cns.PodIPInfo, error) {
 	service.Lock()
 	defer service.Unlock()
 
 	for _, ipState := range service.PodIPConfigState {
 		if ipState.GetState() == types.Available {
 			if err := service.assignIPConfig(ipState, podInfo); err != nil {
-				return cns.PodIpInfo{}, err
+				return cns.PodIPInfo{}, err
 			}
 
-			podIPInfo := cns.PodIpInfo{}
+			podIPInfo := cns.PodIPInfo{}
 			if err := service.populateIPConfigInfoUntransacted(ipState, &podIPInfo); err != nil {
-				return cns.PodIpInfo{}, err
+				return cns.PodIPInfo{}, err
 			}
 
 			return podIPInfo, nil
 		}
 	}
 	//nolint:goerr113
-	return cns.PodIpInfo{}, fmt.Errorf("no IPs available, waiting on Azure CNS to allocate more")
+	return cns.PodIPInfo{}, fmt.Errorf("no IPs available, waiting on Azure CNS to allocate more")
 }
 
 // If IPConfig is already assigned to pod, it returns that else it returns one of the available ipconfigs.
-func requestIPConfigHelper(service *HTTPRestService, req cns.IPConfigRequest) (cns.PodIpInfo, error) {
+func requestIPConfigHelper(service *HTTPRestService, req cns.IPConfigRequest) (cns.PodIPInfo, error) {
 	// check if ipconfig already assigned tothis pod and return if exists or error
 	// if error, ipstate is nil, if exists, ipstate is not nil and error is nil
 	podInfo, err := cns.NewPodInfoFromIPConfigRequest(req)
 	if err != nil {
-		return cns.PodIpInfo{}, errors.Wrapf(err, "failed to parse IPConfigRequest %v", req)
+		return cns.PodIPInfo{}, errors.Wrapf(err, "failed to parse IPConfigRequest %v", req)
 	}
 
 	if podIPInfo, isExist, err := service.GetExistingIPConfig(podInfo); err != nil || isExist {

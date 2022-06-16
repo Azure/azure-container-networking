@@ -7,16 +7,15 @@ import (
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/log"
-	"github.com/pkg/errors"
-
 	cniSkel "github.com/containernetworking/cni/pkg/skel"
 	cniTypes "github.com/containernetworking/cni/pkg/types"
+	"github.com/pkg/errors"
 )
 
 func createCNSRequest(args *cniSkel.CmdArgs) (cns.IPConfigRequest, error) {
 	podConf, err := parsePodConf(args.Args)
 	if err != nil {
-		return cns.IPConfigRequest{}, errors.Wrapf(err, "Could not parse CNI args")
+		return cns.IPConfigRequest{}, errors.Wrapf(err, "failed to parse CNI args")
 	}
 
 	podInfo := cns.KubernetesPodInfo{
@@ -26,7 +25,7 @@ func createCNSRequest(args *cniSkel.CmdArgs) (cns.IPConfigRequest, error) {
 
 	orchestratorContext, err := json.Marshal(podInfo)
 	if err != nil {
-		return cns.IPConfigRequest{}, errors.Wrapf(err, "Could not marshal podInfo to JSON")
+		return cns.IPConfigRequest{}, errors.Wrapf(err, "failed to marshal podInfo to JSON")
 	}
 
 	req := cns.IPConfigRequest{
@@ -41,12 +40,12 @@ func createCNSRequest(args *cniSkel.CmdArgs) (cns.IPConfigRequest, error) {
 func processCNSResponse(resp *cns.IPConfigResponse) (*net.IPNet, net.IP, error) {
 	podCIDR := fmt.Sprintf(
 		"%s/%d",
-		resp.PodIpInfo.PodIPConfig.IPAddress,
-		resp.PodIpInfo.NetworkContainerPrimaryIPConfig.IPSubnet.PrefixLength,
+		resp.PodIPInfo.PodIPConfig.IPAddress,
+		resp.PodIPInfo.NetworkContainerPrimaryIPConfig.IPSubnet.PrefixLength,
 	)
 	podIP, podIPNet, err := net.ParseCIDR(podCIDR)
 	if err != nil {
-		return nil, nil, errors.Wrapf(err, "CNS returned invalid pod CIDR %q", podCIDR)
+		return nil, nil, errors.Wrapf(err, "cns returned invalid pod CIDR %q", podCIDR)
 	}
 
 	resultIPNet := &net.IPNet{
@@ -54,10 +53,10 @@ func processCNSResponse(resp *cns.IPConfigResponse) (*net.IPNet, net.IP, error) 
 		Mask: podIPNet.Mask,
 	}
 
-	ncGatewayIPAddress := resp.PodIpInfo.NetworkContainerPrimaryIPConfig.GatewayIPAddress
+	ncGatewayIPAddress := resp.PodIPInfo.NetworkContainerPrimaryIPConfig.GatewayIPAddress
 	gwIP := net.ParseIP(ncGatewayIPAddress)
 	if gwIP == nil {
-		return nil, nil, fmt.Errorf("CNS returned an invalid gateway address: %s", ncGatewayIPAddress)
+		return nil, nil, errors.Wrapf(nil, "cns returned an invalid gateway address: %s", ncGatewayIPAddress)
 	}
 
 	return resultIPNet, gwIP, nil
@@ -65,22 +64,23 @@ func processCNSResponse(resp *cns.IPConfigResponse) (*net.IPNet, net.IP, error) 
 
 type K8SPodEnvArgs struct {
 	cniTypes.CommonArgs
-	K8S_POD_NAMESPACE          cniTypes.UnmarshallableString `json:"K8S_POD_NAMESPACE,omitempty"`
-	K8S_POD_NAME               cniTypes.UnmarshallableString `json:"K8S_POD_NAME,omitempty"`
-	K8S_POD_INFRA_CONTAINER_ID cniTypes.UnmarshallableString `json:"K8S_POD_INFRA_CONTAINER_ID,omitempty"`
+	K8S_POD_NAMESPACE          cniTypes.UnmarshallableString `json:"K8S_POD_NAMESPACE,omitempty"`          // nolint
+	K8S_POD_NAME               cniTypes.UnmarshallableString `json:"K8S_POD_NAME,omitempty"`               // nolint
+	K8S_POD_INFRA_CONTAINER_ID cniTypes.UnmarshallableString `json:"K8S_POD_INFRA_CONTAINER_ID,omitempty"` // nolint
 }
 
 func parsePodConf(args string) (*K8SPodEnvArgs, error) {
 	podCfg := K8SPodEnvArgs{}
 	err := cniTypes.LoadArgs(args, &podCfg)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrapf(err, "failed to parse pod config from stdin")
 	}
 	return &podCfg, nil
 }
 
-func getEndpointID(containerID string, ifName string) string {
-	if len(containerID) > 8 {
+func getEndpointID(containerID, ifName string) string {
+	const minContainerLength = 8
+	if len(containerID) > minContainerLength {
 		containerID = containerID[:8]
 	} else {
 		log.Printf("Container ID length is not greater than 8: %v", containerID)
@@ -90,4 +90,19 @@ func getEndpointID(containerID string, ifName string) string {
 	infraEpName := containerID + "-" + ifName
 
 	return infraEpName
+}
+
+// Parse network config from given byte array
+func parseNetConf(b []byte) (*cniTypes.NetConf, error) {
+	netConf := &cniTypes.NetConf{}
+	err := json.Unmarshal(b, netConf)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to unmarshal net conf")
+	}
+
+	if netConf.CNIVersion == "" {
+		netConf.CNIVersion = "0.2.0"
+	}
+
+	return netConf, nil
 }

@@ -731,7 +731,7 @@ func (service *HTTPRestService) getPrimaryHostInterface(ctx context.Context) (*w
 }
 
 //nolint:gocritic // ignore hugeParam pls
-func (service *HTTPRestService) populateIPConfigInfoUntransacted(ipConfigStatus cns.IPConfigurationStatus, podIPInfo *cns.PodIpInfo) error {
+func (service *HTTPRestService) populateIPConfigInfoUntransacted(ipConfigStatus cns.IPConfigurationStatus, podIPInfo *cns.PodIPInfo) error {
 	ncStatus, exists := service.state.ContainerStatus[ipConfigStatus.NCID]
 	if !exists {
 		return fmt.Errorf("Failed to get NC Configuration for NcId: %s", ipConfigStatus.NCID)

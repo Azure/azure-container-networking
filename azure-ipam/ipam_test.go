@@ -16,13 +16,15 @@ import (
 
 type MockCNSClient struct{}
 
+var errFoo = errors.New("err")
+
 func (c *MockCNSClient) RequestIPAddress(ctx context.Context, ipconfig cns.IPConfigRequest) (*cns.IPConfigResponse, error) {
 	switch ipconfig.InfraContainerID {
 	case "failRequestCNSArgs":
-		return nil, errors.New("err")
+		return nil, errFoo
 	case "failProcessCNSResp":
 		result := &cns.IPConfigResponse{
-			PodIpInfo: cns.PodIpInfo{
+			PodIPInfo: &cns.PodIPInfo{
 				PodIPConfig: cns.IPSubnet{
 					IPAddress:    "10.0.1.10.2",
 					PrefixLength: 24,
@@ -41,7 +43,7 @@ func (c *MockCNSClient) RequestIPAddress(ctx context.Context, ipconfig cns.IPCon
 					Subnet:    "10.0.0.0/24",
 				},
 			},
-			Response: cns.Response{
+			Response: &cns.Response{
 				ReturnCode: 0,
 				Message:    "",
 			},
@@ -49,7 +51,7 @@ func (c *MockCNSClient) RequestIPAddress(ctx context.Context, ipconfig cns.IPCon
 		return result, nil
 	default:
 		result := &cns.IPConfigResponse{
-			PodIpInfo: cns.PodIpInfo{
+			PodIPInfo: &cns.PodIPInfo{
 				PodIPConfig: cns.IPSubnet{
 					IPAddress:    "10.0.1.10",
 					PrefixLength: 24,
@@ -68,7 +70,7 @@ func (c *MockCNSClient) RequestIPAddress(ctx context.Context, ipconfig cns.IPCon
 					Subnet:    "10.0.0.0/24",
 				},
 			},
-			Response: cns.Response{
+			Response: &cns.Response{
 				ReturnCode: 0,
 				Message:    "",
 			},
@@ -80,7 +82,7 @@ func (c *MockCNSClient) RequestIPAddress(ctx context.Context, ipconfig cns.IPCon
 func (c *MockCNSClient) ReleaseIPAddress(ctx context.Context, ipconfig cns.IPConfigRequest) error {
 	switch ipconfig.InfraContainerID {
 	case "failRequestCNSReleaseIPArgs":
-		return errors.New("err")
+		return errFoo
 	default:
 		return nil
 	}
@@ -98,7 +100,7 @@ type scenario struct {
 }
 
 func TestCmdAdd(t *testing.T) {
-	require := require.New(t)
+	req := require.New(t)
 
 	happyNetConf := &cniTypes.NetConf{
 		CNIVersion: "0.1.0",
@@ -110,8 +112,14 @@ func TestCmdAdd(t *testing.T) {
 		Name:       "nothappynetconf",
 	}
 
-	happyNetConfByteArr, _ := json.Marshal(happyNetConf)
-	invalidVersionNetConfByteArr, _ := json.Marshal(invalidVersionNetConf)
+	happyNetConfByteArr, err := json.Marshal(happyNetConf)
+	if err != nil {
+		panic(err)
+	}
+	invalidVersionNetConfByteArr, err := json.Marshal(invalidVersionNetConf)
+	if err != nil {
+		panic(err)
+	}
 	invalidNetConf := []byte("invalidNetConf")
 
 	happyArgs := &cniSkel.CmdArgs{
@@ -200,7 +208,7 @@ func TestCmdAdd(t *testing.T) {
 			fmt.Printf("test : %v\n", tt.name)
 			mockCNSClient := &MockCNSClient{}
 			logger, err := zap.NewProduction()
-			defer logger.Sync()
+			defer logger.Sync() // nolint
 			if err != nil {
 				return
 			}
@@ -208,23 +216,26 @@ func TestCmdAdd(t *testing.T) {
 			err = ipamPlugin.CmdAdd(tt.args)
 			fmt.Println()
 			if tt.wantErr {
-				require.Error(err)
+				req.Error(err)
 			} else {
-				require.NoError(err)
+				req.NoError(err)
 			}
 		})
 	}
 }
 
 func TestCmdDel(t *testing.T) {
-	require := require.New(t)
+	req := require.New(t)
 
 	happyNetConf := &cniTypes.NetConf{
 		CNIVersion: "0.1.0",
 		Name:       "happynetconf",
 	}
 
-	happyNetConfByteArr, _ := json.Marshal(happyNetConf)
+	happyNetConfByteArr, err := json.Marshal(happyNetConf)
+	if err != nil {
+		panic(err)
+	}
 
 	happyArgs := &cniSkel.CmdArgs{
 		ContainerID: "happyArgs",
@@ -272,7 +283,7 @@ func TestCmdDel(t *testing.T) {
 			fmt.Printf("test : %v\n", tt.name)
 			mockCNSClient := &MockCNSClient{}
 			logger, err := zap.NewProduction()
-			defer logger.Sync()
+			defer logger.Sync() // nolint
 			if err != nil {
 				return
 			}
@@ -280,9 +291,9 @@ func TestCmdDel(t *testing.T) {
 			err = ipamPlugin.CmdDel(tt.args)
 			fmt.Println()
 			if tt.wantErr {
-				require.Error(err)
+				req.Error(err)
 			} else {
-				require.NoError(err)
+				req.NoError(err)
 			}
 		})
 	}

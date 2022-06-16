@@ -13,7 +13,8 @@ import (
 	"go.uber.org/zap"
 )
 
-type ipamPlugin struct {
+// IPAMPlugin is the struct for the delegated azure-ipam plugin
+type IPAMPlugin struct {
 	Name      string
 	Version   string
 	Options   map[string]interface{}
@@ -27,9 +28,9 @@ type cnsClient interface {
 }
 
 // NewPlugin constructs a new IPAM plugin
-func NewPlugin(logger *zap.Logger, c cnsClient) (*ipamPlugin, error) {
-	plugin := &ipamPlugin{
-		Name:      PLUGIN_NAME,
+func NewPlugin(logger *zap.Logger, c cnsClient) (*IPAMPlugin, error) {
+	plugin := &IPAMPlugin{
+		Name:      pluginName,
 		Version:   buildinfo.Version,
 		logger:    logger,
 		cnsClient: c,
@@ -43,7 +44,7 @@ func NewPlugin(logger *zap.Logger, c cnsClient) (*ipamPlugin, error) {
 //
 
 // CmdAdd handles CNI add commands.
-func (p *ipamPlugin) CmdAdd(args *cniSkel.CmdArgs) error {
+func (p *IPAMPlugin) CmdAdd(args *cniSkel.CmdArgs) error {
 	p.logger.Info("ADD called")
 	// Create CNS request from args
 	req, err := createCNSRequest(args)
@@ -87,7 +88,7 @@ func (p *ipamPlugin) CmdAdd(args *cniSkel.CmdArgs) error {
 	)
 
 	// Parsing network conf
-	nwCfg, err := ParseNetConf(args.StdinData)
+	nwCfg, err := parseNetConf(args.StdinData)
 	if err != nil {
 		p.logger.Error("Could not parse CNI network config",
 			zap.Error(err),
@@ -129,7 +130,7 @@ func (p *ipamPlugin) CmdAdd(args *cniSkel.CmdArgs) error {
 }
 
 // CmdDel handles CNI delete commands.
-func (p *ipamPlugin) CmdDel(args *cniSkel.CmdArgs) error {
+func (p *IPAMPlugin) CmdDel(args *cniSkel.CmdArgs) error {
 	p.logger.Info("DEL called")
 	// Create CNS request from args
 	req, err := createCNSRequest(args)
@@ -156,7 +157,7 @@ func (p *ipamPlugin) CmdDel(args *cniSkel.CmdArgs) error {
 }
 
 // CmdCheck handles CNI check command - not implemented
-func (p *ipamPlugin) CmdCheck(args *cniSkel.CmdArgs) error {
+func (p *IPAMPlugin) CmdCheck(args *cniSkel.CmdArgs) error {
 	p.logger.Info("CHECK called")
 	return nil
 }

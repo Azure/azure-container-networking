@@ -15,7 +15,7 @@ import (
 
 func main() {
 	if err := executePlugin(); err != nil {
-		log.Printf("[%s] Error executing CNS IPAM plugin: %s\n", PLUGIN_NAME, err)
+		log.Printf("error executing azure-ipam plugin: %v\n", err)
 		os.Exit(1)
 	}
 }
@@ -39,22 +39,22 @@ func executePlugin() error {
 	}
 
 	logger, err := cfg.Build()
-	defer logger.Sync()
+	defer logger.Sync() // nolint
 	if err != nil {
 		return errors.Wrapf(err, "failed to setup IPAM logging")
 	}
 	logger.Info("logger construction succeeded")
 
 	// Create IPAM plugin with logger and CNS client
-	client, err := cnsclient.New(CNS_BASE_URL, CNS_REQ_TIMEOUT)
+	client, err := cnsclient.New(cnsBaseURL, csnReqTimeout)
 	if err != nil {
 		return errors.Wrapf(err, "failed to initialize CNS client")
 	}
 	plugin, err := NewPlugin(logger, client)
 	if err != nil {
 		logger.Info("Failed to create IPAM plugin")
-		return errors.Wrapf(err, "[%s] Failed to create IPAM plugin", PLUGIN_NAME)
+		return errors.Wrapf(err, "failed to create IPAM plugin")
 	}
 
-	return skel.PluginMainWithError(plugin.CmdAdd, plugin.CmdCheck, plugin.CmdDel, version.All, bv.BuildString(PLUGIN_NAME))
+	return skel.PluginMainWithError(plugin.CmdAdd, plugin.CmdCheck, plugin.CmdDel, version.All, bv.BuildString(pluginName))
 }

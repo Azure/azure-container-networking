@@ -302,8 +302,8 @@ type IPConfiguration struct {
 
 // For zap logging
 func (i IPConfiguration) MarshalLogObject(enc zapcore.ObjectEncoder) error {
-	enc.AddObject("ipSubnet", i.IPSubnet)
-	enc.AddReflected("dnsServer", i.DNSServers)
+	_ = enc.AddObject("ipSubnet", i.IPSubnet)
+	_ = enc.AddReflected("dnsServer", i.DNSServers)
 	enc.AddString("gatewayIPAddress", i.GatewayIPAddress)
 	return nil
 }
@@ -387,17 +387,17 @@ type GetNetworkContainerResponse struct {
 }
 
 // DeleteNetworkContainerRequest specifies the details about the request to delete a specifc network container.
-type PodIpInfo struct {
+type PodIPInfo struct {
 	PodIPConfig                     IPSubnet
 	NetworkContainerPrimaryIPConfig IPConfiguration
 	HostPrimaryIPInfo               HostIPInfo
 }
 
 // For zap logging
-func (p PodIpInfo) MarshalLogObject(enc zapcore.ObjectEncoder) error {
-	enc.AddObject("podIPConfig", p.PodIPConfig)
-	enc.AddObject("networkContainerPrimaryIPConfig", p.NetworkContainerPrimaryIPConfig)
-	enc.AddObject("hostPrimaryIPInfo", p.HostPrimaryIPInfo)
+func (p *PodIPInfo) MarshalLogObject(enc zapcore.ObjectEncoder) error {
+	_ = enc.AddObject("podIPConfig", p.PodIPConfig)
+	_ = enc.AddObject("networkContainerPrimaryIPConfig", p.NetworkContainerPrimaryIPConfig)
+	_ = enc.AddObject("hostPrimaryIPInfo", p.HostPrimaryIPInfo)
 	return nil
 }
 
@@ -439,14 +439,14 @@ func (i IPConfigRequest) MarshalLogObject(enc zapcore.ObjectEncoder) error {
 
 // IPConfigResponse is used in CNS IPAM mode as a response to CNI ADD
 type IPConfigResponse struct {
-	PodIpInfo PodIpInfo
-	Response  Response
+	PodIPInfo *PodIPInfo
+	Response  *Response
 }
 
 // For zap logging
-func (i IPConfigResponse) MarshalLogObject(enc zapcore.ObjectEncoder) error {
-	enc.AddObject("podIpInfo", i.PodIpInfo)
-	enc.AddObject("response", i.Response)
+func (i *IPConfigResponse) MarshalLogObject(enc zapcore.ObjectEncoder) error {
+	_ = enc.AddObject("podIpInfo", i.PodIPInfo)
+	_ = enc.AddObject("response", i.Response)
 	return nil
 }
 
