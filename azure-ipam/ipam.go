@@ -67,7 +67,7 @@ func (p *IPAMPlugin) CmdAdd(args *cniSkel.CmdArgs) error {
 			zap.Error(err),
 			zap.Object("request", req),
 		)
-		return errors.Wrapf(err, "Failed to get IP address from CNS")
+		return errors.Wrapf(err, "failed to get IP address from CNS")
 	}
 	p.logger.Info("Received CNS IP config response",
 		zap.Object("response", resp),
@@ -76,11 +76,11 @@ func (p *IPAMPlugin) CmdAdd(args *cniSkel.CmdArgs) error {
 	// Get Pod IP and gateway IP from CNS response
 	podIPNet, gwIP, err := processCNSResponse(resp)
 	if err != nil {
-		p.logger.Error("Could not interpret CNS IPConfigResponse",
+		p.logger.Error("Failed to interpret CNS IPConfigResponse",
 			zap.Error(err),
 			zap.Object("response", resp),
 		)
-		return errors.Wrapf(err, "Could not interpret CNS IPConfigResponse")
+		return errors.Wrapf(err, "failed to interpret CNS IPConfigResponse")
 	}
 	p.logger.Info("Parsed pod IP and gateway IP",
 		zap.String("podIPNet", podIPNet.String()),
@@ -90,11 +90,11 @@ func (p *IPAMPlugin) CmdAdd(args *cniSkel.CmdArgs) error {
 	// Parsing network conf
 	nwCfg, err := parseNetConf(args.StdinData)
 	if err != nil {
-		p.logger.Error("Could not parse CNI network config",
+		p.logger.Error("Failed to parse CNI network config",
 			zap.Error(err),
 			zap.Any("argStdinData", args.StdinData),
 		)
-		return errors.Wrapf(err, "Could not parse CNI network config")
+		return errors.Wrapf(err, "failed to parse CNI network config")
 	}
 	p.logger.Info("Parsed network config",
 		zap.Any("nwCfg", nwCfg),
@@ -117,11 +117,11 @@ func (p *IPAMPlugin) CmdAdd(args *cniSkel.CmdArgs) error {
 
 	versionedCniResult, err := cniResult.GetAsVersion(nwCfg.CNIVersion)
 	if err != nil {
-		p.logger.Error("Could not interpret CNI result with netconf CNI version",
+		p.logger.Error("Failed to interpret CNI result with netconf CNI version",
 			zap.Error(err),
 			zap.Any("cniVersion", nwCfg.CNIVersion),
 		)
-		return errors.Wrapf(err, "Could not interpret CNI result as version %s", nwCfg.CNIVersion)
+		return errors.Wrapf(err, "failed to interpret CNI result as version %s", nwCfg.CNIVersion)
 	}
 
 	versionedCniResult.Print()
@@ -138,7 +138,7 @@ func (p *IPAMPlugin) CmdDel(args *cniSkel.CmdArgs) error {
 		p.logger.Error("Failed to create CNS IP config request",
 			zap.Error(err),
 		)
-		return errors.Wrapf(err, "Failed to create CNS IP config request")
+		return errors.Wrapf(err, "failed to create CNS IP config request")
 	}
 	p.logger.Info("Created CNS IP config request",
 		zap.Object("request", req),
