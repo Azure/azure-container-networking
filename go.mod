@@ -56,7 +56,6 @@ require (
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect
 	github.com/containerd/cgroups v1.0.1 // indirect
-	github.com/containernetworking/plugins v0.9.1
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/docker/docker v20.10.8+incompatible // indirect
 	github.com/docker/go-connections v0.4.0 // indirect
@@ -106,7 +105,7 @@ require (
 	github.com/vishvananda/netns v0.0.0-20210104183010-2eb08e3e575f // indirect
 	go.opencensus.io v0.23.0 // indirect
 	go.uber.org/atomic v1.9.0 // indirect
-	go.uber.org/multierr v1.8.0 // indirect
+	go.uber.org/multierr v1.6.0 // indirect
 	golang.org/x/crypto v0.0.0-20220511200225-c6db032c6c88
 	golang.org/x/net v0.0.0-20220520000938-2e3eb7b945c2 // indirect
 	golang.org/x/oauth2 v0.0.0-20220411215720-9780585627b5 // indirect
