@@ -270,6 +270,10 @@ func Test_setHostOptions(t *testing.T) {
 					},
 					{
 						Version: "4",
+						Params:  "-t nat -I SWIFT 1  -m addrtype ! --dst-type local -s 10.0.1.0/24 -d 168.63.129.16 -p tcp --dport 53 -j SNAT --to 10.0.1.20",
+					},
+					{
+						Version: "4",
 						Params:  "-t nat -I SWIFT 1  -m addrtype ! --dst-type local -s 10.0.1.0/24 -d 169.254.169.254 -p tcp --dport 80 -j SNAT --to 10.0.0.3",
 					},
 				},

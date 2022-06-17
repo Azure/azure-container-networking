@@ -152,7 +152,6 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 }
 
 func setHostOptions(ncSubnetPrefix *net.IPNet, options map[string]interface{}, info *IPv4ResultInfo) error {
-
 	// get the host ip
 	hostIP := net.ParseIP(info.hostPrimaryIP)
 	if hostIP == nil {
@@ -173,7 +172,8 @@ func setHostOptions(ncSubnetPrefix *net.IPNet, options map[string]interface{}, i
 		},
 	}
 
-	azureDNSMatch := fmt.Sprintf(" -m addrtype ! --dst-type local -s %s -d %s -p %s --dport %d", ncSubnetPrefix.String(), networkutils.AzureDNS, iptables.UDP, iptables.DNSPort)
+	azureDNSUDPMatch := fmt.Sprintf(" -m addrtype ! --dst-type local -s %s -d %s -p %s --dport %d", ncSubnetPrefix.String(), networkutils.AzureDNS, iptables.UDP, iptables.DNSPort)
+	azureDNSTCPMatch := fmt.Sprintf(" -m addrtype ! --dst-type local -s %s -d %s -p %s --dport %d", ncSubnetPrefix.String(), networkutils.AzureDNS, iptables.TCP, iptables.DNSPort)
 	azureIMDSMatch := fmt.Sprintf(" -m addrtype ! --dst-type local -s %s -d %s -p %s --dport %d", ncSubnetPrefix.String(), networkutils.AzureIMDS, iptables.TCP, iptables.HTTPPort)
 
 	snatPrimaryIPJump := fmt.Sprintf("%s --to %s", iptables.Snat, info.ncPrimaryIP)
@@ -182,8 +182,9 @@ func setHostOptions(ncSubnetPrefix *net.IPNet, options map[string]interface{}, i
 	options[network.IPTablesKey] = []iptables.IPTableEntry{
 		iptables.GetCreateChainCmd(iptables.V4, iptables.Nat, iptables.Swift),
 		iptables.GetAppendIptableRuleCmd(iptables.V4, iptables.Nat, iptables.Postrouting, "", iptables.Swift),
-		// add a snat rule to primary NC IP for DNS
-		iptables.GetInsertIptableRuleCmd(iptables.V4, iptables.Nat, iptables.Swift, azureDNSMatch, snatPrimaryIPJump),
+		// add a snat rules to primary NC IP for DNS
+		iptables.GetInsertIptableRuleCmd(iptables.V4, iptables.Nat, iptables.Swift, azureDNSUDPMatch, snatPrimaryIPJump),
+		iptables.GetInsertIptableRuleCmd(iptables.V4, iptables.Nat, iptables.Swift, azureDNSTCPMatch, snatPrimaryIPJump),
 		// add a snat rule to node IP for IMDS http traffic
 		iptables.GetInsertIptableRuleCmd(iptables.V4, iptables.Nat, iptables.Swift, azureIMDSMatch, snatHostIPJump),
 	}
