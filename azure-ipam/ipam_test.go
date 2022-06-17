@@ -24,7 +24,7 @@ func (c *MockCNSClient) RequestIPAddress(ctx context.Context, ipconfig cns.IPCon
 		return nil, errFoo
 	case "failProcessCNSResp":
 		result := &cns.IPConfigResponse{
-			PodIPInfo: &cns.PodIPInfo{
+			PodIpInfo: cns.PodIpInfo{
 				PodIPConfig: cns.IPSubnet{
 					IPAddress:    "10.0.1.10.2",
 					PrefixLength: 24,
@@ -43,7 +43,7 @@ func (c *MockCNSClient) RequestIPAddress(ctx context.Context, ipconfig cns.IPCon
 					Subnet:    "10.0.0.0/24",
 				},
 			},
-			Response: &cns.Response{
+			Response: cns.Response{
 				ReturnCode: 0,
 				Message:    "",
 			},
@@ -51,7 +51,7 @@ func (c *MockCNSClient) RequestIPAddress(ctx context.Context, ipconfig cns.IPCon
 		return result, nil
 	default:
 		result := &cns.IPConfigResponse{
-			PodIPInfo: &cns.PodIPInfo{
+			PodIpInfo: cns.PodIpInfo{
 				PodIPConfig: cns.IPSubnet{
 					IPAddress:    "10.0.1.10",
 					PrefixLength: 24,
@@ -70,7 +70,7 @@ func (c *MockCNSClient) RequestIPAddress(ctx context.Context, ipconfig cns.IPCon
 					Subnet:    "10.0.0.0/24",
 				},
 			},
-			Response: &cns.Response{
+			Response: cns.Response{
 				ReturnCode: 0,
 				Message:    "",
 			},

@@ -56,7 +56,7 @@ func TestCNSIPAMInvoker_Add(t *testing.T) {
 					request: requestIPAddressHandler{
 						ipconfigArgument: getTestIPConfigRequest(),
 						result: &cns.IPConfigResponse{
-							PodIPInfo: &cns.PodIPInfo{
+							PodIpInfo: cns.PodIpInfo{
 								PodIPConfig: cns.IPSubnet{
 									IPAddress:    "10.0.1.10",
 									PrefixLength: 24,
@@ -75,7 +75,7 @@ func TestCNSIPAMInvoker_Add(t *testing.T) {
 									Subnet:    "10.0.0.0/24",
 								},
 							},
-							Response: &cns.Response{
+							Response: cns.Response{
 								ReturnCode: 0,
 								Message:    "",
 							},

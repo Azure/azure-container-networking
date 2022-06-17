@@ -8,7 +8,7 @@ import (
 	"github.com/Azure/azure-container-networking/network"
 	cniSkel "github.com/containernetworking/cni/pkg/skel"
 	cniTypes "github.com/containernetworking/cni/pkg/types"
-	current "github.com/containernetworking/cni/pkg/types/100"
+	types100 "github.com/containernetworking/cni/pkg/types/100"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
 )
@@ -55,7 +55,7 @@ func (p *IPAMPlugin) CmdAdd(args *cniSkel.CmdArgs) error {
 		return errors.Wrapf(err, "failed to create CNS IP config request")
 	}
 	p.logger.Info("Created CNS IP config request",
-		zap.Object("request", req),
+		zap.Any("request", req),
 	)
 
 	// cnsClient sets a request timeout.
@@ -65,12 +65,12 @@ func (p *IPAMPlugin) CmdAdd(args *cniSkel.CmdArgs) error {
 	if err != nil {
 		p.logger.Error("Failed to request IP address from CNS",
 			zap.Error(err),
-			zap.Object("request", req),
+			zap.Any("request", req),
 		)
 		return errors.Wrapf(err, "failed to get IP address from CNS")
 	}
 	p.logger.Info("Received CNS IP config response",
-		zap.Object("response", resp),
+		zap.Any("response", resp),
 	)
 
 	// Get Pod IP and gateway IP from CNS response
@@ -78,7 +78,7 @@ func (p *IPAMPlugin) CmdAdd(args *cniSkel.CmdArgs) error {
 	if err != nil {
 		p.logger.Error("Failed to interpret CNS IPConfigResponse",
 			zap.Error(err),
-			zap.Object("response", resp),
+			zap.Any("response", resp),
 		)
 		return errors.Wrapf(err, "failed to interpret CNS IPConfigResponse")
 	}
@@ -100,8 +100,8 @@ func (p *IPAMPlugin) CmdAdd(args *cniSkel.CmdArgs) error {
 		zap.Any("nwCfg", nwCfg),
 	)
 
-	cniResult := &current.Result{
-		IPs: []*current.IPConfig{
+	cniResult := &types100.Result{
+		IPs: []*types100.IPConfig{
 			{
 				Address: *podIPNet,
 				Gateway: gwIP,
@@ -141,14 +141,14 @@ func (p *IPAMPlugin) CmdDel(args *cniSkel.CmdArgs) error {
 		return errors.Wrapf(err, "failed to create CNS IP config request")
 	}
 	p.logger.Info("Created CNS IP config request",
-		zap.Object("request", req),
+		zap.Any("request", req),
 	)
 	ctx := context.TODO()
 	p.logger.Info("Making request to CNS")
 	if err := p.cnsClient.ReleaseIPAddress(ctx, req); err != nil {
 		p.logger.Error("Failed to release IP address from CNS",
 			zap.Error(err),
-			zap.Object("request", req),
+			zap.Any("request", req),
 		)
 		return cniTypes.NewError(cniTypes.ErrTryAgainLater, err.Error(), "")
 	}

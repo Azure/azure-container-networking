@@ -84,13 +84,13 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 	}
 
 	info := IPv4ResultInfo{
-		podIPAddress:       response.PodIPInfo.PodIPConfig.IPAddress,
-		ncSubnetPrefix:     response.PodIPInfo.NetworkContainerPrimaryIPConfig.IPSubnet.PrefixLength,
-		ncPrimaryIP:        response.PodIPInfo.NetworkContainerPrimaryIPConfig.IPSubnet.IPAddress,
-		ncGatewayIPAddress: response.PodIPInfo.NetworkContainerPrimaryIPConfig.GatewayIPAddress,
-		hostSubnet:         response.PodIPInfo.HostPrimaryIPInfo.Subnet,
-		hostPrimaryIP:      response.PodIPInfo.HostPrimaryIPInfo.PrimaryIP,
-		hostGateway:        response.PodIPInfo.HostPrimaryIPInfo.Gateway,
+		podIPAddress:       response.PodIpInfo.PodIPConfig.IPAddress,
+		ncSubnetPrefix:     response.PodIpInfo.NetworkContainerPrimaryIPConfig.IPSubnet.PrefixLength,
+		ncPrimaryIP:        response.PodIpInfo.NetworkContainerPrimaryIPConfig.IPSubnet.IPAddress,
+		ncGatewayIPAddress: response.PodIpInfo.NetworkContainerPrimaryIPConfig.GatewayIPAddress,
+		hostSubnet:         response.PodIpInfo.HostPrimaryIPInfo.Subnet,
+		hostPrimaryIP:      response.PodIpInfo.HostPrimaryIPInfo.PrimaryIP,
+		hostGateway:        response.PodIpInfo.HostPrimaryIPInfo.Gateway,
 	}
 
 	// set the NC Primary IP in options

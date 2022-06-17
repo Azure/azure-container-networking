@@ -123,8 +123,8 @@ func getIPNetFromResponse(resp *cns.IPConfigResponse) (net.IPNet, error) {
 	)
 
 	// set result ipconfig from CNS Response Body
-	prefix := strconv.Itoa(int(resp.PodIPInfo.PodIPConfig.PrefixLength))
-	ip, ipnet, err := net.ParseCIDR(resp.PodIPInfo.PodIPConfig.IPAddress + "/" + prefix)
+	prefix := strconv.Itoa(int(resp.PodIpInfo.PodIPConfig.PrefixLength))
+	ip, ipnet, err := net.ParseCIDR(resp.PodIpInfo.PodIPConfig.IPAddress + "/" + prefix)
 	if err != nil {
 		return resultIPnet, err
 	}
@@ -271,7 +271,7 @@ func TestCNSClientRequestAndRelease(t *testing.T) {
 	resp, err := cnsClient.RequestIPAddress(context.TODO(), cns.IPConfigRequest{OrchestratorContext: orchestratorContext})
 	assert.NoError(t, err, "get IP from CNS failed")
 
-	podIPInfo := resp.PodIPInfo
+	podIPInfo := resp.PodIpInfo
 	assert.Equal(t, primaryIp, podIPInfo.NetworkContainerPrimaryIPConfig.IPSubnet.IPAddress, "PrimaryIP is not added as epected ipConfig")
 	assert.EqualValues(t, podIPInfo.NetworkContainerPrimaryIPConfig.IPSubnet.PrefixLength, subnetPrfixLength, "Primary IP Prefix length is not added as expected ipConfig")
 
@@ -943,7 +943,7 @@ func TestRequestIPAddress(t *testing.T) {
 			mockdo: &mockdo{
 				errToReturn: nil,
 				objToReturn: &cns.IPConfigResponse{
-					Response: &cns.Response{
+					Response: cns.Response{
 						ReturnCode: types.UnsupportedNetworkType,
 					},
 				},

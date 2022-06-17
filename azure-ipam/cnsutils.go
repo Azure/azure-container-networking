@@ -3,10 +3,10 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"net"
 
 	"github.com/Azure/azure-container-networking/cns"
-	"github.com/Azure/azure-container-networking/log"
 	cniSkel "github.com/containernetworking/cni/pkg/skel"
 	cniTypes "github.com/containernetworking/cni/pkg/types"
 	"github.com/pkg/errors"
@@ -40,8 +40,8 @@ func createCNSRequest(args *cniSkel.CmdArgs) (cns.IPConfigRequest, error) {
 func processCNSResponse(resp *cns.IPConfigResponse) (*net.IPNet, net.IP, error) {
 	podCIDR := fmt.Sprintf(
 		"%s/%d",
-		resp.PodIPInfo.PodIPConfig.IPAddress,
-		resp.PodIPInfo.NetworkContainerPrimaryIPConfig.IPSubnet.PrefixLength,
+		resp.PodIpInfo.PodIPConfig.IPAddress,
+		resp.PodIpInfo.NetworkContainerPrimaryIPConfig.IPSubnet.PrefixLength,
 	)
 	podIP, podIPNet, err := net.ParseCIDR(podCIDR)
 	if err != nil {
@@ -53,7 +53,7 @@ func processCNSResponse(resp *cns.IPConfigResponse) (*net.IPNet, net.IP, error) 
 		Mask: podIPNet.Mask,
 	}
 
-	ncGatewayIPAddress := resp.PodIPInfo.NetworkContainerPrimaryIPConfig.GatewayIPAddress
+	ncGatewayIPAddress := resp.PodIpInfo.NetworkContainerPrimaryIPConfig.GatewayIPAddress
 	gwIP := net.ParseIP(ncGatewayIPAddress)
 	if gwIP == nil {
 		return nil, nil, errors.Wrapf(nil, "cns returned an invalid gateway address: %s", ncGatewayIPAddress)
