@@ -15,7 +15,8 @@ import (
 )
 
 const (
-	cwd = "gz"
+	cwd        = "gz"
+	pathPrefix = cwd + string(filepath.Separator)
 )
 
 var ErrArgsMismatched = errors.New("mismatched argument count")
@@ -34,7 +35,7 @@ func Contents() ([]string, error) {
 		if d.IsDir() {
 			return nil
 		}
-		contents = append(contents, strings.TrimPrefix(path, cwd+string(filepath.Separator)))
+		contents = append(contents, strings.TrimPrefix(path, pathPrefix))
 		return nil
 	}); err != nil {
 		return nil, errors.Wrap(err, "error walking gzfs")
@@ -42,28 +43,54 @@ func Contents() ([]string, error) {
 	return contents, nil
 }
 
-func Extract(path string) (io.ReadCloser, io.Closer, error) {
+// gzipCompoundReadCloser is a wrapper around the source file handle and
+// the gzip Reader on the file to provide a single Close implementation
+// which cleans up both.
+// We have to explicitly track and close the underlying Reader, because
+// the gzip readercloser# does not.
+type gzipCompoundReadCloser struct {
+	file     io.Closer
+	gzreader io.ReadCloser
+}
+
+func (rc *gzipCompoundReadCloser) Read(p []byte) (n int, err error) {
+	return rc.gzreader.Read(p)
+}
+
+func (rc *gzipCompoundReadCloser) Close() error {
+	if err := rc.gzreader.Close(); err != nil {
+		return err
+	}
+	if err := rc.file.Close(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func Extract(path string) (*gzipCompoundReadCloser, error) {
 	f, err := gzfs.Open(filepath.Join(cwd, path))
 	if err != nil {
-		return nil, nil, errors.Wrapf(err, "failed to open file %s", path)
+		return nil, errors.Wrapf(err, "failed to open file %s", path)
 	}
 	r, err := gzip.NewReader(bufio.NewReader(f))
-	return r, f, errors.Wrap(err, "failed to build gzip reader")
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to build gzip reader")
+	}
+	return &gzipCompoundReadCloser{file: f, gzreader: r}, nil
 }
 
 func deploy(src, dest string) error {
-	r, c, err := Extract(src)
+	rc, err := Extract(src)
 	if err != nil {
 		return err
 	}
-	defer c.Close()
-	defer r.Close()
-	target, err := os.Create(dest)
+	defer rc.Close()
+	target, err := os.OpenFile(dest, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0o766) //nolint:gomnd // executable file bitmask
 	if err != nil {
 		return errors.Wrapf(err, "failed to create file %s", dest)
 	}
 	defer target.Close()
-	_, err = io.Copy(bufio.NewWriter(target), r)
+	_, err = io.Copy(bufio.NewWriter(target), rc)
 	return errors.Wrapf(err, "failed to copy %s to %s", src, dest)
 }
 

@@ -32,14 +32,13 @@ func checksum(srcs, dests []string) error {
 	if len(srcs) != len(dests) {
 		return errors.Wrapf(embed.ErrArgsMismatched, "%d and %d", len(srcs), len(dests))
 	}
-	r, c, err := embed.Extract("sum.txt")
+	rc, err := embed.Extract("sum.txt")
 	if err != nil {
 		return errors.Wrap(err, "failed to extract checksum file")
 	}
-	defer c.Close()
-	defer r.Close()
+	defer rc.Close()
 
-	checksums, err := hash.Parse(r)
+	checksums, err := hash.Parse(rc)
 	if err != nil {
 		return errors.Wrap(err, "failed to parse checksums")
 	}

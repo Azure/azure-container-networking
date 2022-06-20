@@ -54,7 +54,7 @@ func init() {
 
 func Execute() {
 	if err := root.Execute(); err != nil {
-		os.Exit(1)
+		z.Fatal("exiting due to error", zap.Error(err))
 	}
 }
 
