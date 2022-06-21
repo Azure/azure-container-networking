@@ -6,13 +6,15 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/Azure/azure-container-networking/npm/metrics"
+	"github.com/Azure/azure-container-networking/npm/util"
 	"github.com/Microsoft/hcsshim/hcn"
 	"k8s.io/klog"
 )
 
 var (
-	ErrFailedMarshalACLSettings                      = errors.New("Failed to marshal ACL settings")
-	ErrFailedUnMarshalACLSettings                    = errors.New("Failed to unmarshal ACL settings")
+	ErrFailedMarshalACLSettings                      = errors.New("failed to marshal ACL settings")
+	ErrFailedUnMarshalACLSettings                    = errors.New("failed to unmarshal ACL settings")
 	resetAllACLs                  shouldResetAllACLs = true
 	removeOnlyGivenPolicy         shouldResetAllACLs = false
 )
@@ -35,11 +37,19 @@ func (pMgr *PolicyManager) bootup(epIDs []string) error {
 	for _, epID := range epIDs {
 		err := pMgr.removePolicyByEndpointID("", epID, 0, resetAllACLs)
 		if err != nil {
-			aggregateErr = fmt.Errorf("[PolicyManagerWindows] Skipping removing policies on %s ID Endpoint with %s err\n Previous %w", epID, err.Error(), aggregateErr)
+			if aggregateErr == nil {
+				aggregateErr = fmt.Errorf("skipping resetting policies on %s ID Endpoint with err: %w", epID, err)
+			} else {
+				aggregateErr = fmt.Errorf("skipping resetting policies on %s ID Endpoint with err: %s. previous err: [%w]", epID, err.Error(), aggregateErr)
+			}
 			continue
 		}
 	}
-	return aggregateErr
+
+	if aggregateErr != nil {
+		return fmt.Errorf("[PolicyManagerWindows] %w", aggregateErr)
+	}
+	return nil
 }
 
 func (pMgr *PolicyManager) reconcile() {
@@ -99,17 +109,24 @@ func (pMgr *PolicyManager) addPolicy(policy *NPMNetworkPolicy, endpointList map[
 	for epIP, epID := range endpointList {
 		err = pMgr.applyPoliciesToEndpointID(epID, epPolicyRequest)
 		if err != nil {
-			klog.Infof("[PolicyManagerWindows] Failed to add policy on %s ID Endpoint with %s err", epID, err.Error())
+			klog.Errorf("failed to add policy to kernel. policy %s, endpoint: %s, err: %s", policy.PolicyKey, epID, err.Error())
 			// Do not return if one endpoint fails, try all endpoints.
 			// aggregate the error message and return it at the end
-			aggregateErr = fmt.Errorf("Failed to add policy on %s ID Endpoint with %s err \n Previous %w", epID, err.Error(), aggregateErr)
+			if aggregateErr == nil {
+				aggregateErr = fmt.Errorf("failed to add policy on %s ID Endpoint with err: %w", epID, err)
+			} else {
+				aggregateErr = fmt.Errorf("failed to add policy on %s ID Endpoint with err: %s. previous err: [%w]", epID, err.Error(), aggregateErr)
+			}
 			continue
 		}
 		// Now update policy cache to reflect new endpoint
 		policy.PodEndpoints[epIP] = epID
 	}
 
-	return aggregateErr
+	if aggregateErr != nil {
+		return fmt.Errorf("[PolicyManagerWindows] %w", aggregateErr)
+	}
+	return nil
 }
 
 // removePolicy will remove the policy from the specified endpoints, or
@@ -136,7 +153,11 @@ func (pMgr *PolicyManager) removePolicy(policy *NPMNetworkPolicy, endpointList m
 	for epIPAddr, epID := range endpointList {
 		err := pMgr.removePolicyByEndpointID(rulesToRemove[0].Id, epID, numOfRulesToRemove, removeOnlyGivenPolicy)
 		if err != nil {
-			aggregateErr = fmt.Errorf("[PolicyManagerWindows] Skipping removing policies on %s ID Endpoint with %s err\n Previous %w", epID, err.Error(), aggregateErr)
+			if aggregateErr == nil {
+				aggregateErr = fmt.Errorf("skipping removing policy on %s ID Endpoint with err: %w", epID, err)
+			} else {
+				aggregateErr = fmt.Errorf("skipping removing policy on %s ID Endpoint with err: %s. previous err: [%w]", epID, err.Error(), aggregateErr)
+			}
 			continue
 		}
 
@@ -144,21 +165,29 @@ func (pMgr *PolicyManager) removePolicy(policy *NPMNetworkPolicy, endpointList m
 		delete(policy.PodEndpoints, epIPAddr)
 	}
 
-	return aggregateErr
+	if aggregateErr != nil {
+		return fmt.Errorf("[PolicyManagerWindows] while removing policy %s, %w", policy.PolicyKey, aggregateErr)
+	}
+	return nil
 }
 
 func (pMgr *PolicyManager) removePolicyByEndpointID(ruleID, epID string, noOfRulesToRemove int, resetAllACL shouldResetAllACLs) error {
-	epObj, err := pMgr.getEndpointByID(epID)
+	epObj, err := pMgr.ioShim.Hns.GetEndpointByID(epID)
 	if err != nil {
-		return fmt.Errorf("[PolicyManagerWindows] Skipping removing policies on %s ID Endpoint with %s err", epID, err.Error())
+		if isNotFoundErr(err) {
+			klog.Infof("[PolicyManagerWindows] ignoring remove policy on endpoint since the endpoint wasn't found. the corresponding pod was most likely deleted. policy: %s, endpoint: %s", ruleID, epID)
+			return nil
+		}
+		return fmt.Errorf("[PolicyManagerWindows] failed to remove policy while getting the endpoint. policy: %s, endpoint: %s, err: %w", ruleID, epID, err)
 	}
+
 	if len(epObj.Policies) == 0 {
 		klog.Infof("[DataPlanewindows] No Policies to remove on %s ID Endpoint", epID)
 	}
 
 	epBuilder, err := splitEndpointPolicies(epObj.Policies)
 	if err != nil {
-		return fmt.Errorf("[PolicyManagerWindows] Skipping removing policies on %s ID Endpoint with %s err", epID, err.Error())
+		return fmt.Errorf("couldn't split endpoint policies while trying to remove policy. policy: %s, endpoint: %s, err: %s", ruleID, epID, err.Error())
 	}
 
 	if resetAllACL {
@@ -178,49 +207,34 @@ func (pMgr *PolicyManager) removePolicyByEndpointID(ruleID, epID string, noOfRul
 	klog.Infof("[DataPlanewindows] Epbuilder Other policies before removing %+v", epBuilder.otherPolicies)
 	epPolicies, err := epBuilder.getHCNPolicyRequest()
 	if err != nil {
-		return fmt.Errorf("[DataPlanewindows] Skipping removing policies on %s ID Endpoint with %s err", epID, err.Error())
+		return fmt.Errorf("unable to get HCN policy request while trying to remove policy. policy: %s, endpoint: %s, err: %s", ruleID, epID, err.Error())
 	}
 
-	err = pMgr.updatePoliciesOnEndpoint(epObj, epPolicies)
+	err = pMgr.ioShim.Hns.ApplyEndpointPolicy(epObj, hcn.RequestTypeUpdate, epPolicies)
 	if err != nil {
-		return fmt.Errorf("[DataPlanewindows] Skipping removing policies on %s ID Endpoint with %s err", epID, err.Error())
+		return fmt.Errorf("unable to apply changes when removing policy. policy: %s, endpoint: %s, err: %w", ruleID, epID, err)
 	}
 	return nil
 }
 
 // addEPPolicyWithEpID given an EP ID and a list of policies, add the policies to the endpoint
 func (pMgr *PolicyManager) applyPoliciesToEndpointID(epID string, policies hcn.PolicyEndpointRequest) error {
-	epObj, err := pMgr.getEndpointByID(epID)
+	epObj, err := pMgr.ioShim.Hns.GetEndpointByID(epID)
 	if err != nil {
-		klog.Infof("[PolicyManagerWindows] Skipping applying policies %s ID Endpoint with %s err", epID, err.Error())
-		return err
+		if isNotFoundErr(err) {
+			// unlikely scenario where an endpoint is deleted right after we refresh HNS endpoints, or an unlikely scenario where an endpoint is deleted right after we refresh HNS endpoints
+			metrics.SendErrorLogAndMetric(util.IptmID, "[PolicyManagerWindows] ignoring apply policies to endpoint since the endpoint wasn't found. endpoint: %s", epID)
+			return nil
+		}
+		return fmt.Errorf("[PolicyManagerWindows] to apply policies while getting the endpoint. endpoint: %s, err: %w", epID, err)
 	}
 
 	err = pMgr.ioShim.Hns.ApplyEndpointPolicy(epObj, hcn.RequestTypeAdd, policies)
 	if err != nil {
-		klog.Infof("[PolicyManagerWindows]Failed to apply policies on %s ID Endpoint with %s err", epID, err.Error())
+		klog.Errorf("[PolicyManagerWindows] failed to apply policies. endpoint: %s, err: %s", epID, err.Error())
 		return err
 	}
 	return nil
-}
-
-// addEPPolicyWithEpID given an EP ID and a list of policies, add the policies to the endpoint
-func (pMgr *PolicyManager) updatePoliciesOnEndpoint(epObj *hcn.HostComputeEndpoint, policies hcn.PolicyEndpointRequest) error {
-	err := pMgr.ioShim.Hns.ApplyEndpointPolicy(epObj, hcn.RequestTypeUpdate, policies)
-	if err != nil {
-		klog.Infof("[PolicyManagerWindows]Failed to update/remove policies on %s ID Endpoint with %s err", epObj.Id, err.Error())
-		return err
-	}
-	return nil
-}
-
-func (pMgr *PolicyManager) getEndpointByID(id string) (*hcn.HostComputeEndpoint, error) {
-	epObj, err := pMgr.ioShim.Hns.GetEndpointByID(id)
-	if err != nil {
-		klog.Infof("[PolicyManagerWindows] Failed to get EndPoint object of %s ID from HNS", id)
-		return nil, err
-	}
-	return epObj, nil
 }
 
 // getEPPolicyReqFromACLSettings converts given ACLSettings into PolicyEndpointRequest
@@ -359,4 +373,9 @@ func (epBuilder *endpointPolicyBuilder) removeACLPolicyAtIndex(indexes map[int]s
 		}
 	}
 	epBuilder.aclPolicies = tempAclPolicies
+}
+
+func isNotFoundErr(err error) bool {
+	var notFoundErr hcn.EndpointNotFoundError
+	return errors.As(err, &notFoundErr)
 }
