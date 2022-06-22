@@ -286,13 +286,16 @@ func (c *NetworkPolicyController) syncAddAndUpdateNetPol(netPolObj *networkingv1
 	npmNetPolObj, err := translation.TranslatePolicy(netPolObj)
 	if err != nil {
 		if isUnsupportedWindowsTranslationErr(err) {
-			// We can safely suppress unsupported network policy because re-Queuing will result in same error
-			klog.Warningf("NetworkPolicy %s in namespace %s is not translated because it has unsupported translated features of Windows: %s", netPolObj.ObjectMeta.Name, netPolObj.ObjectMeta.Namespace, err.Error())
-			// consider a no-op since the policy is unsupported. The exec time here isn't important either.
+			klog.Warningf("NetworkPolicy %s in namespace %s is not translated because it has unsupported translated features of Windows: %s",
+				netPolObj.ObjectMeta.Name, netPolObj.ObjectMeta.Namespace, err.Error())
+
+			// We can safely suppress unsupported network policy because re-Queuing will result in same error.
+			// The exec time isn't relevant here, so consider a no-op.
 			return metrics.NoOp, nil
 		}
+
 		klog.Errorf("Failed to translate podSelector in NetworkPolicy %s in namespace %s: %s", netPolObj.ObjectMeta.Name, netPolObj.ObjectMeta.Namespace, err.Error())
-		// consider a no-op since we can't translate. The exec time here isn't important either.
+		// The exec time isn't relevant here, so consider a no-op.
 		return metrics.NoOp, errNetPolTranslationFailure
 	}
 
