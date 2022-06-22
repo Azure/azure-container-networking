@@ -385,9 +385,15 @@ func startTelemetryService(ctx context.Context) {
 	}
 
 	tbtemp := telemetry.NewTelemetryBuffer()
+	//nolint:errcheck // best effort to cleanup leaked pipe/socket before start
 	tbtemp.Cleanup(telemetry.FdName)
+
 	tb := telemetry.NewTelemetryBuffer()
-	tb.StartServer()
+	err = tb.StartServer()
+	if err != nil {
+		log.Errorf("Telemetry service failed to start: %w", err)
+		return
+	}
 	tb.PushData(rootCtx)
 }
 
