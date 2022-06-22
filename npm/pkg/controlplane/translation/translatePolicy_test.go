@@ -1629,7 +1629,7 @@ func TestIngressPolicy(t *testing.T) {
 			},
 		},
 		{
-			name:             "error",
+			name:             "unknown port type error",
 			isNewNwPolicyVer: true,
 			targetSelector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
@@ -2284,7 +2284,7 @@ func TestEgressPolicy(t *testing.T) {
 			},
 		},
 		{
-			name:             "error",
+			name:             "unknown port type error",
 			isNewNwPolicyVer: true,
 			targetSelector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{

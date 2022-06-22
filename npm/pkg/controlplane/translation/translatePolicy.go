@@ -9,7 +9,6 @@ import (
 	"github.com/Azure/azure-container-networking/npm/util"
 	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/klog/v2"
 )
 
 /*
@@ -25,6 +24,8 @@ var (
 	ErrUnsupportedNamedPort = errors.New("unsupported namedport translation features used on windows")
 	// ErrUnsupportedNegativeMatch is returned when negative match translation feature is used in windows.
 	ErrUnsupportedNegativeMatch = errors.New("unsupported NotExist operator translation features used on windows")
+	// ErrUnsupportedSCTP is returned when SCTP protocol is used in windows.
+	ErrUnsupportedSCTP = errors.New("unsupported SCTP protocol used on windows")
 )
 
 type podSelectorResult struct {
@@ -48,7 +49,6 @@ func portType(portRule networkingv1.NetworkPolicyPort) (netpolPortType, error) {
 		return numericPortType, nil
 	} else if portRule.Port.IntValue() == 0 && portRule.Port.String() != "" {
 		if util.IsWindowsDP() {
-			klog.Warningf("Windows does not support named port. Use numeric port instead.")
 			return "", ErrUnsupportedNamedPort
 		}
 		return namedPortType, nil
@@ -575,6 +575,15 @@ func TranslatePolicy(npObj *networkingv1.NetworkPolicy) (*policies.NPMNetworkPol
 			err := egressPolicy(npmNetPol, netPolName, npObj.Spec.Egress)
 			if err != nil {
 				return nil, err
+			}
+		}
+	}
+
+	// ad-hoc validation to reduce code changes (modifying function signatures and returning errors in all the correct places)
+	if util.IsWindowsDP() {
+		for _, acl := range npmNetPol.ACLs {
+			if acl.Protocol == policies.SCTP {
+				return nil, ErrUnsupportedSCTP
 			}
 		}
 	}

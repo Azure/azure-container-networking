@@ -273,7 +273,6 @@ func (dp *DataPlane) refreshAllPodEndpoints() error {
 	currentTime := time.Now().Unix()
 	existingIPs := make(map[string]struct{})
 	for _, endpoint := range endpoints {
-		klog.Infof("Endpoints info %+v", endpoint.Id)
 		if len(endpoint.IpConfigurations) == 0 {
 			klog.Infof("Endpoint ID %s has no IPAddreses", endpoint.Id)
 			continue
@@ -334,6 +333,8 @@ func (dp *DataPlane) refreshAllPodEndpoints() error {
 			}
 		}
 	}
+
+	klog.Infof("Endpoint cache after refresh: %+v", dp.endpointCache) // TODO: remove for public preview
 
 	return nil
 }

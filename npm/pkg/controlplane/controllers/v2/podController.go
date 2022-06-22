@@ -260,11 +260,21 @@ func (c *PodController) syncPod(key string) error {
 	// apply dataplane and record exec time after syncing
 	operationKind := metrics.NoOp
 	defer func() {
+		if err != nil {
+			klog.Infof("[syncPod] failed to sync pod, but will apply any changes to the dataplane. err: %s", err.Error())
+		}
+
 		dperr := c.dp.ApplyDataPlane()
+
 		// can't record this in another deferred func since deferred funcs are processed in LIFO order
 		metrics.RecordControllerPodExecTime(timer, operationKind, err != nil && dperr != nil)
+
 		if dperr != nil {
-			err = fmt.Errorf("failed with error %w, apply failed with %v", err, dperr)
+			if err == nil {
+				err = fmt.Errorf("failed to apply dataplane changes while syncing pod. err: %w", dperr)
+			} else {
+				err = fmt.Errorf("failed to sync pod and apply dataplane changes. sync err: [%w], apply err: [%v]", err, dperr)
+			}
 		}
 	}()
 
@@ -285,7 +295,7 @@ func (c *PodController) syncPod(key string) error {
 			err = c.cleanUpDeletedPod(key)
 			if err != nil {
 				// need to retry this cleaning-up process
-				return fmt.Errorf("Error: %w when pod is not found", err)
+				return fmt.Errorf("error: %w when pod is not found", err)
 			}
 			return err
 		}
@@ -302,7 +312,7 @@ func (c *PodController) syncPod(key string) error {
 			operationKind = metrics.DeleteOp
 		}
 		if err = c.cleanUpDeletedPod(key); err != nil {
-			return fmt.Errorf("Error: %w when when pod is in completed state", err)
+			return fmt.Errorf("error: %w when when pod is in completed state", err)
 		}
 		return nil
 	}
@@ -319,7 +329,7 @@ func (c *PodController) syncPod(key string) error {
 
 	operationKind, err = c.syncAddAndUpdatePod(pod)
 	if err != nil {
-		return fmt.Errorf("Failed to sync pod due to %w", err)
+		return fmt.Errorf("failed to sync pod due to %w", err)
 	}
 
 	return nil

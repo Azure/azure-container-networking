@@ -131,7 +131,6 @@ func NormalizePolicy(networkPolicy *NPMNetworkPolicy) {
 	}
 }
 
-// TODO do verification in controller?
 func ValidatePolicy(networkPolicy *NPMNetworkPolicy) error {
 	for _, aclPolicy := range networkPolicy.ACLs {
 		if !aclPolicy.hasKnownTarget() {
@@ -143,6 +142,10 @@ func ValidatePolicy(networkPolicy *NPMNetworkPolicy) error {
 		if !aclPolicy.hasKnownProtocol() {
 			return npmerrors.SimpleError(fmt.Sprintf("ACL policy for NetPol %s has unknown protocol [%s]", networkPolicy.PolicyKey, aclPolicy.Protocol))
 		}
+		if util.IsWindowsDP() && aclPolicy.Protocol == SCTP {
+			return npmerrors.SimpleError(fmt.Sprintf("ACL policy for NetPol %s has unsupported SCTP protocol on Windows", networkPolicy.PolicyKey))
+		}
+
 		if !aclPolicy.satisifiesPortAndProtocolConstraints() {
 			return npmerrors.SimpleError(fmt.Sprintf(
 				"ACL policy for NetPol %s has dst port(s) (Port or Port and EndPort), so must have protocol tcp, udp, udplite, sctp, or dccp but has protocol %s",

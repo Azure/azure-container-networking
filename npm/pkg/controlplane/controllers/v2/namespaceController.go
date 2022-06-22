@@ -26,13 +26,6 @@ import (
 	"k8s.io/klog"
 )
 
-type LabelAppendOperation bool
-
-const (
-	clearExistingLabels    LabelAppendOperation = true
-	appendToExistingLabels LabelAppendOperation = false
-)
-
 var errWorkqueueFormatting = errors.New("error in formatting")
 
 // NpmNamespaceCache to store namespace struct in nameSpaceController.go.
@@ -238,6 +231,10 @@ func (nsc *NamespaceController) syncNamespace(nsKey string) error {
 	// apply dataplane and record exec time after syncing
 	operationKind := metrics.NoOp
 	defer func() {
+		if err != nil {
+			klog.Infof("[syncNamespace] failed to sync namespace, but will apply any changes to the dataplane. err: %s", err.Error())
+		}
+
 		dperr := nsc.dp.ApplyDataPlane()
 
 		// NOTE: it may seem like Prometheus is considering some ns create events as updates.
@@ -248,7 +245,11 @@ func (nsc *NamespaceController) syncNamespace(nsKey string) error {
 		metrics.RecordControllerNamespaceExecTime(timer, operationKind, err != nil && dperr != nil)
 
 		if dperr != nil {
-			err = fmt.Errorf("failed with error %w, apply failed with %v", err, dperr)
+			if err == nil {
+				err = fmt.Errorf("failed to apply dataplane changes while syncing namespace. err: %w", dperr)
+			} else {
+				err = fmt.Errorf("failed to sync namespace and apply dataplane changes. sync err: [%w], apply err: [%v]", err, dperr)
+			}
 		}
 	}()
 
@@ -270,7 +271,7 @@ func (nsc *NamespaceController) syncNamespace(nsKey string) error {
 			if err != nil {
 				// need to retry this cleaning-up process
 				metrics.SendErrorLogAndMetric(util.NSID, "Error: %v when namespace is not found", err)
-				return fmt.Errorf("Error: %w when namespace is not found", err)
+				return fmt.Errorf("error: %w when namespace is not found", err)
 			}
 		}
 		return err

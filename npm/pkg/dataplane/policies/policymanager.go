@@ -111,7 +111,6 @@ func (pMgr *PolicyManager) AddPolicy(policy *NPMNetworkPolicy, endpointList map[
 		return nil
 	}
 
-	// TODO move this validation and normalization to controller
 	NormalizePolicy(policy)
 	if err := ValidatePolicy(policy); err != nil {
 		msg := fmt.Sprintf("failed to validate policy: %s", err.Error())
