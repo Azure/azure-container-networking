@@ -376,6 +376,14 @@ func sendRegisterNodeRequest(httpc *http.Client, httpRestService cns.HTTPService
 }
 
 func startTelemetryService(ctx context.Context) {
+	var config aitelemetry.AIConfig
+
+	err := telemetry.CreateAITelemetryHandle(config, false, false, false)
+	if err != nil {
+		log.Errorf("AI telemetry handle creation failed..:%w", err)
+		return
+	}
+
 	tbtemp := telemetry.NewTelemetryBuffer()
 	tbtemp.Cleanup(telemetry.FdName)
 	tb := telemetry.NewTelemetryBuffer()
