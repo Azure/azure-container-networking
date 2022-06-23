@@ -1,16 +1,15 @@
 package main
 
 import (
-	"encoding/json"
 	"log"
 	"os"
 
+	"github.com/Azure/azure-container-networking/azure-ipam/internal/buildinfo"
 	cnsclient "github.com/Azure/azure-container-networking/cns/client"
 	"github.com/containernetworking/cni/pkg/skel"
 	"github.com/containernetworking/cni/pkg/version"
 	bv "github.com/containernetworking/plugins/pkg/utils/buildversion"
 	"github.com/pkg/errors"
-	"go.uber.org/zap"
 )
 
 func main() {
@@ -21,29 +20,12 @@ func main() {
 }
 
 func executePlugin() error {
-	zapConfig := []byte(`{
-		"level": "debug",
-		"encoding": "json",
-		"outputPaths": ["/tmp/logs"],
-		"errorOutputPaths": ["stderr"],
-		"encoderConfig": {
-		  "messageKey": "msg",
-		  "levelKey": "level",
-		  "levelEncoder": "lowercase"
-		}
-	  }`)
-
-	var cfg zap.Config
-	if err := json.Unmarshal(zapConfig, &cfg); err != nil {
-		return errors.Wrapf(err, "failed to unmarshal zap config")
-	}
-
-	logger, err := cfg.Build()
-	defer logger.Sync() // nolint
+	logger, cleanup, err := NewLogger(Env(buildinfo.BuildEnv))
 	if err != nil {
 		return errors.Wrapf(err, "failed to setup IPAM logging")
 	}
-	logger.Info("logger construction succeeded")
+	logger.Debug("logger construction succeeded")
+	defer cleanup(logger) // nolint
 
 	// Create IPAM plugin with logger and CNS client
 	client, err := cnsclient.New(cnsBaseURL, csnReqTimeout)
@@ -52,7 +34,7 @@ func executePlugin() error {
 	}
 	plugin, err := NewPlugin(logger, client)
 	if err != nil {
-		logger.Info("Failed to create IPAM plugin")
+		logger.Error("Failed to create IPAM plugin")
 		return errors.Wrapf(err, "failed to create IPAM plugin")
 	}
 

@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"encoding/json"
+	"net"
 
 	"github.com/Azure/azure-container-networking/azure-ipam/internal/buildinfo"
 	"github.com/Azure/azure-container-networking/cns"
@@ -14,6 +16,7 @@ import (
 )
 
 // IPAMPlugin is the struct for the delegated azure-ipam plugin
+// https://www.cni.dev/docs/spec/#section-4-plugin-delegation
 type IPAMPlugin struct {
 	Name      string
 	Version   string
@@ -45,7 +48,23 @@ func NewPlugin(logger *zap.Logger, c cnsClient) (*IPAMPlugin, error) {
 
 // CmdAdd handles CNI add commands.
 func (p *IPAMPlugin) CmdAdd(args *cniSkel.CmdArgs) error {
-	p.logger.Info("ADD called")
+	p.logger.Info("ADD called",
+		zap.Any("args", args),
+	)
+
+	// Parsing network conf
+	nwCfg, err := parseNetConf(args.StdinData)
+	if err != nil {
+		p.logger.Error("Failed to parse CNI network config from stdin",
+			zap.Error(err),
+			zap.Any("argStdinData", args.StdinData),
+		)
+		return errors.Wrapf(err, "failed to parse CNI network config from stdin")
+	}
+	p.logger.Debug("Parsed network config",
+		zap.Any("netconf", nwCfg),
+	)
+
 	// Create CNS request from args
 	req, err := createCNSRequest(args)
 	if err != nil {
@@ -54,13 +73,15 @@ func (p *IPAMPlugin) CmdAdd(args *cniSkel.CmdArgs) error {
 		)
 		return errors.Wrapf(err, "failed to create CNS IP config request")
 	}
-	p.logger.Info("Created CNS IP config request",
+	p.logger.Debug("Created CNS IP config request",
 		zap.Any("request", req),
 	)
 
-	// cnsClient sets a request timeout.
+	// cnsClient enforces it own timeout
 	ctx := context.TODO()
-	p.logger.Info("Making request to CNS")
+	p.logger.Debug("Making request to CNS")
+	// if this fails, the caller plugin should execute again with cmdDel before returning error.
+	// https://www.cni.dev/docs/spec/#delegated-plugin-execution-procedure
 	resp, err := p.cnsClient.RequestIPAddress(ctx, req)
 	if err != nil {
 		p.logger.Error("Failed to request IP address from CNS",
@@ -69,7 +90,7 @@ func (p *IPAMPlugin) CmdAdd(args *cniSkel.CmdArgs) error {
 		)
 		return errors.Wrapf(err, "failed to get IP address from CNS")
 	}
-	p.logger.Info("Received CNS IP config response",
+	p.logger.Debug("Received CNS IP config response",
 		zap.Any("response", resp),
 	)
 
@@ -82,35 +103,25 @@ func (p *IPAMPlugin) CmdAdd(args *cniSkel.CmdArgs) error {
 		)
 		return errors.Wrapf(err, "failed to interpret CNS IPConfigResponse")
 	}
-	p.logger.Info("Parsed pod IP and gateway IP",
+	p.logger.Debug("Parsed pod IP and gateway IP",
 		zap.String("podIPNet", podIPNet.String()),
 		zap.String("gwIP", gwIP.String()),
-	)
-
-	// Parsing network conf
-	nwCfg, err := parseNetConf(args.StdinData)
-	if err != nil {
-		p.logger.Error("Failed to parse CNI network config",
-			zap.Error(err),
-			zap.Any("argStdinData", args.StdinData),
-		)
-		return errors.Wrapf(err, "failed to parse CNI network config")
-	}
-	p.logger.Info("Parsed network config",
-		zap.Any("nwCfg", nwCfg),
 	)
 
 	cniResult := &types100.Result{
 		IPs: []*types100.IPConfig{
 			{
-				Address: *podIPNet,
-				Gateway: gwIP,
+				Address: net.IPNet{
+					IP:   net.ParseIP(podIPNet.Addr().String()),
+					Mask: net.CIDRMask(podIPNet.Bits(), 32), // nolint
+				},
+				Gateway: net.ParseIP(gwIP.String()),
 			},
 		},
 		Routes: []*cniTypes.Route{
 			{
 				Dst: network.Ipv4DefaultRouteDstPrefix,
-				GW:  gwIP,
+				GW:  net.ParseIP(gwIP.String()),
 			},
 		},
 	}
@@ -124,6 +135,10 @@ func (p *IPAMPlugin) CmdAdd(args *cniSkel.CmdArgs) error {
 		return errors.Wrapf(err, "failed to interpret CNI result as version %s", nwCfg.CNIVersion)
 	}
 
+	p.logger.Info("ADD success",
+		zap.Any("result", versionedCniResult),
+	)
+
 	versionedCniResult.Print()
 
 	return nil
@@ -131,27 +146,33 @@ func (p *IPAMPlugin) CmdAdd(args *cniSkel.CmdArgs) error {
 
 // CmdDel handles CNI delete commands.
 func (p *IPAMPlugin) CmdDel(args *cniSkel.CmdArgs) error {
-	p.logger.Info("DEL called")
+	p.logger.Info("DEL called",
+		zap.Any("args", args),
+	)
+
 	// Create CNS request from args
 	req, err := createCNSRequest(args)
 	if err != nil {
 		p.logger.Error("Failed to create CNS IP config request",
 			zap.Error(err),
 		)
-		return errors.Wrapf(err, "failed to create CNS IP config request")
+		return cniTypes.NewError(cniTypes.ErrTryAgainLater, err.Error(), "failed to create CNS IP config request")
 	}
-	p.logger.Info("Created CNS IP config request",
+	p.logger.Debug("Created CNS IP config request",
 		zap.Any("request", req),
 	)
+	// cnsClient enforces it own timeout
 	ctx := context.TODO()
-	p.logger.Info("Making request to CNS")
+	p.logger.Debug("Making request to CNS")
 	if err := p.cnsClient.ReleaseIPAddress(ctx, req); err != nil {
 		p.logger.Error("Failed to release IP address from CNS",
 			zap.Error(err),
 			zap.Any("request", req),
 		)
-		return cniTypes.NewError(cniTypes.ErrTryAgainLater, err.Error(), "")
+		return cniTypes.NewError(cniTypes.ErrTryAgainLater, err.Error(), "failed to release IP address from CNS")
 	}
+
+	p.logger.Info("DEL success")
 
 	return nil
 }
@@ -160,4 +181,19 @@ func (p *IPAMPlugin) CmdDel(args *cniSkel.CmdArgs) error {
 func (p *IPAMPlugin) CmdCheck(args *cniSkel.CmdArgs) error {
 	p.logger.Info("CHECK called")
 	return nil
+}
+
+// Parse network config from given byte array
+func parseNetConf(b []byte) (*cniTypes.NetConf, error) {
+	netConf := &cniTypes.NetConf{}
+	err := json.Unmarshal(b, netConf)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to unmarshal net conf")
+	}
+
+	if netConf.CNIVersion == "" {
+		netConf.CNIVersion = "0.2.0"
+	}
+
+	return netConf, nil
 }

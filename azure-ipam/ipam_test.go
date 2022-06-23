@@ -7,11 +7,11 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/Azure/azure-container-networking/azure-ipam/internal/buildinfo"
 	"github.com/Azure/azure-container-networking/cns"
 	cniSkel "github.com/containernetworking/cni/pkg/skel"
 	cniTypes "github.com/containernetworking/cni/pkg/types"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 )
 
 type MockCNSClient struct{}
@@ -90,7 +90,7 @@ func (c *MockCNSClient) ReleaseIPAddress(ctx context.Context, ipconfig cns.IPCon
 
 const (
 	happyPodArgs    = "K8S_POD_NAMESPACE=testns;K8S_POD_NAME=testname;K8S_POD_INFRA_CONTAINER_ID=testid"
-	nothappyPodArgs = "K8S_POD_NAMESPACE=testns;K8S_POD_NAME=testname;K8S_POD_INFRA_CONTAINER_ID=testid;break=break"
+	nothappyPodArgs = "K8S_POD_NAMESPACE=testns;K8S_POD_NAME=testname;K8S_POD_INFRA_CONTAINER_ID=testid;break=break" // this will break the pod config parsing
 )
 
 type scenario struct {
@@ -99,9 +99,18 @@ type scenario struct {
 	wantErr bool
 }
 
-func TestCmdAdd(t *testing.T) {
-	req := require.New(t)
+// build args for tests
+func buildArgs(containerID, args string, stdin []byte) *cniSkel.CmdArgs {
+	return &cniSkel.CmdArgs{
+		ContainerID: containerID,
+		Netns:       "testnetns",
+		IfName:      "testifname",
+		Args:        args,
+		StdinData:   stdin,
+	}
+}
 
+func TestCmdAdd(t *testing.T) {
 	happyNetConf := &cniTypes.NetConf{
 		CNIVersion: "0.1.0",
 		Name:       "happynetconf",
@@ -122,83 +131,35 @@ func TestCmdAdd(t *testing.T) {
 	}
 	invalidNetConf := []byte("invalidNetConf")
 
-	happyArgs := &cniSkel.CmdArgs{
-		ContainerID: "happyArgs",
-		Netns:       "testnetns",
-		IfName:      "testifname",
-		Args:        happyPodArgs,
-		StdinData:   happyNetConfByteArr,
-	}
-
-	failCreateCNSReqArgs := &cniSkel.CmdArgs{
-		ContainerID: "failCreateCNSReqArgs",
-		Netns:       "testnetns",
-		IfName:      "testifname",
-		Args:        nothappyPodArgs,
-		StdinData:   happyNetConfByteArr,
-	}
-
-	failRequestCNSArgs := &cniSkel.CmdArgs{
-		ContainerID: "failRequestCNSArgs",
-		Netns:       "testnetns",
-		IfName:      "testifname",
-		Args:        happyPodArgs,
-		StdinData:   happyNetConfByteArr,
-	}
-
-	failProcessCNSResp := &cniSkel.CmdArgs{
-		ContainerID: "failProcessCNSResp",
-		Netns:       "testnetns",
-		IfName:      "testifname",
-		Args:        happyPodArgs,
-		StdinData:   happyNetConfByteArr,
-	}
-
-	failParseNetConf := &cniSkel.CmdArgs{
-		ContainerID: "failParseNetConf",
-		Netns:       "testnetns",
-		IfName:      "testifname",
-		Args:        happyPodArgs,
-		StdinData:   invalidNetConf,
-	}
-
-	failGetVersionedResult := &cniSkel.CmdArgs{
-		ContainerID: "failGetVersionedResult",
-		Netns:       "testnetns",
-		IfName:      "testifname",
-		Args:        happyPodArgs,
-		StdinData:   invalidVersionNetConfByteArr,
-	}
-
 	tests := []scenario{
 		{
 			name:    "Happy CNI add",
-			args:    happyArgs,
+			args:    buildArgs("happyArgs", happyPodArgs, happyNetConfByteArr),
 			wantErr: false,
 		},
 		{
 			name:    "Fail create CNS request during CmdAdd",
-			args:    failCreateCNSReqArgs,
+			args:    buildArgs("failCreateCNSReqArgs", nothappyPodArgs, happyNetConfByteArr),
 			wantErr: true,
 		},
 		{
 			name:    "Fail request CNS ipconfig during CmdAdd",
-			args:    failRequestCNSArgs,
+			args:    buildArgs("failRequestCNSArgs", happyPodArgs, happyNetConfByteArr),
 			wantErr: true,
 		},
 		{
 			name:    "Fail process CNS response during CmdAdd",
-			args:    failProcessCNSResp,
+			args:    buildArgs("failProcessCNSResp", happyPodArgs, happyNetConfByteArr),
 			wantErr: true,
 		},
 		{
 			name:    "Fail parse netconf during CmdAdd",
-			args:    failParseNetConf,
+			args:    buildArgs("failParseNetConf", happyPodArgs, invalidNetConf),
 			wantErr: true,
 		},
 		{
 			name:    "Fail get versioned result during CmdAdd",
-			args:    failGetVersionedResult,
+			args:    buildArgs("failGetVersionedResult", happyPodArgs, invalidVersionNetConfByteArr),
 			wantErr: true,
 		},
 	}
@@ -207,26 +168,25 @@ func TestCmdAdd(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			fmt.Printf("test : %v\n", tt.name)
 			mockCNSClient := &MockCNSClient{}
-			logger, err := zap.NewProduction()
-			defer logger.Sync() // nolint
+			buildinfo.BuildEnv = 2 // test env flag
+			logger, cleanup, err := NewLogger(Env(buildinfo.BuildEnv))
 			if err != nil {
+				fmt.Println(err)
 				return
 			}
+			defer cleanup(logger) // nolint
 			ipamPlugin, _ := NewPlugin(logger, mockCNSClient)
 			err = ipamPlugin.CmdAdd(tt.args)
-			fmt.Println()
 			if tt.wantErr {
-				req.Error(err)
+				require.Error(t, err)
 			} else {
-				req.NoError(err)
+				require.NoError(t, err)
 			}
 		})
 	}
 }
 
 func TestCmdDel(t *testing.T) {
-	req := require.New(t)
-
 	happyNetConf := &cniTypes.NetConf{
 		CNIVersion: "0.1.0",
 		Name:       "happynetconf",
@@ -237,43 +197,20 @@ func TestCmdDel(t *testing.T) {
 		panic(err)
 	}
 
-	happyArgs := &cniSkel.CmdArgs{
-		ContainerID: "happyArgs",
-		Netns:       "testnetns",
-		IfName:      "testifname",
-		Args:        happyPodArgs,
-		StdinData:   happyNetConfByteArr,
-	}
-
-	failCreateCNSReqArgs := &cniSkel.CmdArgs{
-		ContainerID: "failCreateCNSReqArgs",
-		Netns:       "testnetns",
-		IfName:      "testifname",
-		Args:        nothappyPodArgs,
-		StdinData:   happyNetConfByteArr,
-	}
-
-	failRequestCNSReleaseIPArgs := &cniSkel.CmdArgs{
-		ContainerID: "failRequestCNSReleaseIPArgs",
-		Netns:       "testnetns",
-		IfName:      "testifname",
-		Args:        happyPodArgs,
-		StdinData:   happyNetConfByteArr,
-	}
 	tests := []scenario{
 		{
 			name:    "Happy CNI del",
-			args:    happyArgs,
+			args:    buildArgs("happyArgs", happyPodArgs, happyNetConfByteArr),
 			wantErr: false,
 		},
 		{
 			name:    "Fail create CNS request during CmdDel",
-			args:    failCreateCNSReqArgs,
+			args:    buildArgs("failCreateCNSReqArgs", nothappyPodArgs, happyNetConfByteArr),
 			wantErr: true,
 		},
 		{
 			name:    "Fail request CNS release IP during CmdDel",
-			args:    failRequestCNSReleaseIPArgs,
+			args:    buildArgs("failRequestCNSReleaseIPArgs", happyPodArgs, happyNetConfByteArr),
 			wantErr: true,
 		},
 	}
@@ -282,22 +219,33 @@ func TestCmdDel(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			fmt.Printf("test : %v\n", tt.name)
 			mockCNSClient := &MockCNSClient{}
-			logger, err := zap.NewProduction()
-			defer logger.Sync() // nolint
+			buildinfo.BuildEnv = 2
+			logger, cleanup, err := NewLogger(Env(buildinfo.BuildEnv))
 			if err != nil {
 				return
 			}
+			defer cleanup(logger) // nolint
 			ipamPlugin, _ := NewPlugin(logger, mockCNSClient)
 			err = ipamPlugin.CmdDel(tt.args)
-			fmt.Println()
 			if tt.wantErr {
-				req.Error(err)
+				require.Error(t, err)
 			} else {
-				req.NoError(err)
+				require.NoError(t, err)
 			}
 		})
 	}
 }
 
 func TestCmdCheck(t *testing.T) {
+	fmt.Println("test : cmdCheck")
+	mockCNSClient := &MockCNSClient{}
+	buildinfo.BuildEnv = 2
+	logger, cleanup, err := NewLogger(Env(buildinfo.BuildEnv))
+	if err != nil {
+		return
+	}
+	defer cleanup(logger) // nolint
+	ipamPlugin, _ := NewPlugin(logger, mockCNSClient)
+	err = ipamPlugin.CmdCheck(nil)
+	require.NoError(t, err)
 }

@@ -3,8 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"log"
-	"net"
+	"net/netip"
 
 	"github.com/Azure/azure-container-networking/cns"
 	cniSkel "github.com/containernetworking/cni/pkg/skel"
@@ -15,7 +14,7 @@ import (
 func createCNSRequest(args *cniSkel.CmdArgs) (cns.IPConfigRequest, error) {
 	podConf, err := parsePodConf(args.Args)
 	if err != nil {
-		return cns.IPConfigRequest{}, errors.Wrapf(err, "failed to parse CNI args")
+		return cns.IPConfigRequest{}, errors.Wrapf(err, "failed to parse pod config from CNI args")
 	}
 
 	podInfo := cns.KubernetesPodInfo{
@@ -29,7 +28,7 @@ func createCNSRequest(args *cniSkel.CmdArgs) (cns.IPConfigRequest, error) {
 	}
 
 	req := cns.IPConfigRequest{
-		PodInterfaceID:      getEndpointID(args.ContainerID, args.IfName),
+		PodInterfaceID:      args.ContainerID,
 		InfraContainerID:    args.ContainerID,
 		OrchestratorContext: orchestratorContext,
 	}
@@ -37,29 +36,24 @@ func createCNSRequest(args *cniSkel.CmdArgs) (cns.IPConfigRequest, error) {
 	return req, nil
 }
 
-func processCNSResponse(resp *cns.IPConfigResponse) (*net.IPNet, net.IP, error) {
+func processCNSResponse(resp *cns.IPConfigResponse) (*netip.Prefix, *netip.Addr, error) {
 	podCIDR := fmt.Sprintf(
 		"%s/%d",
 		resp.PodIpInfo.PodIPConfig.IPAddress,
 		resp.PodIpInfo.NetworkContainerPrimaryIPConfig.IPSubnet.PrefixLength,
 	)
-	podIP, podIPNet, err := net.ParseCIDR(podCIDR)
+	podIPNet, err := netip.ParsePrefix(podCIDR)
 	if err != nil {
 		return nil, nil, errors.Wrapf(err, "cns returned invalid pod CIDR %q", podCIDR)
 	}
 
-	resultIPNet := &net.IPNet{
-		IP:   podIP,
-		Mask: podIPNet.Mask,
-	}
-
 	ncGatewayIPAddress := resp.PodIpInfo.NetworkContainerPrimaryIPConfig.GatewayIPAddress
-	gwIP := net.ParseIP(ncGatewayIPAddress)
-	if gwIP == nil {
-		return nil, nil, errors.Wrapf(nil, "cns returned an invalid gateway address: %s", ncGatewayIPAddress)
+	gwIP, err := netip.ParseAddr(ncGatewayIPAddress)
+	if err != nil {
+		return nil, nil, errors.Wrapf(err, "cns returned an invalid gateway address %q", ncGatewayIPAddress)
 	}
 
-	return resultIPNet, gwIP, nil
+	return &podIPNet, &gwIP, nil
 }
 
 type K8SPodEnvArgs struct {
@@ -76,33 +70,4 @@ func parsePodConf(args string) (*K8SPodEnvArgs, error) {
 		return nil, errors.Wrapf(err, "failed to parse pod config from stdin")
 	}
 	return &podCfg, nil
-}
-
-func getEndpointID(containerID, ifName string) string {
-	const minContainerLength = 8
-	if len(containerID) > minContainerLength {
-		containerID = containerID[:8]
-	} else {
-		log.Printf("Container ID length is not greater than 8: %v", containerID)
-		return ""
-	}
-
-	infraEpName := containerID + "-" + ifName
-
-	return infraEpName
-}
-
-// Parse network config from given byte array
-func parseNetConf(b []byte) (*cniTypes.NetConf, error) {
-	netConf := &cniTypes.NetConf{}
-	err := json.Unmarshal(b, netConf)
-	if err != nil {
-		return nil, errors.Wrapf(err, "failed to unmarshal net conf")
-	}
-
-	if netConf.CNIVersion == "" {
-		netConf.CNIVersion = "0.2.0"
-	}
-
-	return netConf, nil
 }
