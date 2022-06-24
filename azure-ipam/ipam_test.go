@@ -3,18 +3,33 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
+	"net"
 	"testing"
 
-	"github.com/Azure/azure-container-networking/azure-ipam/internal/buildinfo"
 	"github.com/Azure/azure-container-networking/cns"
 	cniSkel "github.com/containernetworking/cni/pkg/skel"
 	cniTypes "github.com/containernetworking/cni/pkg/types"
+	types100 "github.com/containernetworking/cni/pkg/types/100"
+	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
 )
 
+// MOckCNSClient is a mock implementation of the CNSClient interface
 type MockCNSClient struct{}
+
+// cniResultsWriter is a helper struct to write CNI results to a byte array
+type cniResultsWriter struct {
+	result *types100.Result
+}
+
+func (w *cniResultsWriter) Write(data []byte) (int, error) {
+	err := json.Unmarshal(data, &w.result)
+	if err != nil {
+		return 0, errors.Wrapf(err, "failed to unmarshal CNI result")
+	}
+	return len(data), nil
+}
 
 var errFoo = errors.New("err")
 
@@ -26,7 +41,7 @@ func (c *MockCNSClient) RequestIPAddress(ctx context.Context, ipconfig cns.IPCon
 		result := &cns.IPConfigResponse{
 			PodIpInfo: cns.PodIpInfo{
 				PodIPConfig: cns.IPSubnet{
-					IPAddress:    "10.0.1.10.2",
+					IPAddress:    "10.0.1.10.2", // invalid ip address
 					PrefixLength: 24,
 				},
 				NetworkContainerPrimaryIPConfig: cns.IPConfiguration{
@@ -96,6 +111,7 @@ const (
 type scenario struct {
 	name    string
 	args    *cniSkel.CmdArgs
+	want    *types100.Result
 	wantErr bool
 }
 
@@ -112,7 +128,7 @@ func buildArgs(containerID, args string, stdin []byte) *cniSkel.CmdArgs {
 
 func TestCmdAdd(t *testing.T) {
 	happyNetConf := &cniTypes.NetConf{
-		CNIVersion: "0.1.0",
+		CNIVersion: "1.0.0",
 		Name:       "happynetconf",
 	}
 
@@ -133,8 +149,30 @@ func TestCmdAdd(t *testing.T) {
 
 	tests := []scenario{
 		{
-			name:    "Happy CNI add",
-			args:    buildArgs("happyArgs", happyPodArgs, happyNetConfByteArr),
+			name: "Happy CNI add",
+			args: buildArgs("happyArgs", happyPodArgs, happyNetConfByteArr),
+			want: &types100.Result{
+				CNIVersion: "1.0.0",
+				IPs: []*types100.IPConfig{
+					{
+						Address: net.IPNet{
+							IP:   net.IPv4(10, 0, 1, 10),
+							Mask: net.CIDRMask(24, 32),
+						},
+						Gateway: net.IPv4(10, 0, 0, 1),
+					},
+				},
+				Routes: []*cniTypes.Route{
+					{
+						Dst: net.IPNet{
+							IP:   net.IPv4(0, 0, 0, 0),
+							Mask: net.CIDRMask(0, 32),
+						},
+						GW: net.IPv4(10, 0, 0, 1),
+					},
+				},
+				DNS: cniTypes.DNS{},
+			},
 			wantErr: false,
 		},
 		{
@@ -165,11 +203,12 @@ func TestCmdAdd(t *testing.T) {
 	}
 	for _, tt := range tests {
 		tt := tt
+		writer := &cniResultsWriter{}
+		Out = writer
 		t.Run(tt.name, func(t *testing.T) {
 			fmt.Printf("test : %v\n", tt.name)
 			mockCNSClient := &MockCNSClient{}
-			buildinfo.BuildEnv = 2 // test env flag
-			logger, cleanup, err := NewLogger(Env(buildinfo.BuildEnv))
+			logger, cleanup, err := NewLogger()
 			if err != nil {
 				fmt.Println(err)
 				return
@@ -181,6 +220,9 @@ func TestCmdAdd(t *testing.T) {
 				require.Error(t, err)
 			} else {
 				require.NoError(t, err)
+			}
+			if tt.want != nil {
+				require.Equal(t, tt.want, writer.result)
 			}
 		})
 	}
@@ -219,8 +261,7 @@ func TestCmdDel(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			fmt.Printf("test : %v\n", tt.name)
 			mockCNSClient := &MockCNSClient{}
-			buildinfo.BuildEnv = 2
-			logger, cleanup, err := NewLogger(Env(buildinfo.BuildEnv))
+			logger, cleanup, err := NewLogger()
 			if err != nil {
 				return
 			}
@@ -239,8 +280,7 @@ func TestCmdDel(t *testing.T) {
 func TestCmdCheck(t *testing.T) {
 	fmt.Println("test : cmdCheck")
 	mockCNSClient := &MockCNSClient{}
-	buildinfo.BuildEnv = 2
-	logger, cleanup, err := NewLogger(Env(buildinfo.BuildEnv))
+	logger, cleanup, err := NewLogger()
 	if err != nil {
 		return
 	}

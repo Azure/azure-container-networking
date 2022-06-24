@@ -4,7 +4,6 @@ import (
 	"log"
 	"os"
 
-	"github.com/Azure/azure-container-networking/azure-ipam/internal/buildinfo"
 	cnsclient "github.com/Azure/azure-container-networking/cns/client"
 	"github.com/containernetworking/cni/pkg/skel"
 	"github.com/containernetworking/cni/pkg/version"
@@ -20,7 +19,7 @@ func main() {
 }
 
 func executePlugin() error {
-	logger, cleanup, err := NewLogger(Env(buildinfo.BuildEnv))
+	logger, cleanup, err := NewLogger()
 	if err != nil {
 		return errors.Wrapf(err, "failed to setup IPAM logging")
 	}

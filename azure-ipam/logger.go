@@ -1,18 +1,27 @@
 package main
 
 import (
+	"strings"
+
+	"github.com/Azure/azure-container-networking/azure-ipam/internal/buildinfo"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
 
 // NewLogger creates and returns a zap logger and a clean up function
-func NewLogger(buildEnv Env) (*zap.Logger, func(_ *zap.Logger) error, error) {
+func NewLogger() (*zap.Logger, func(_ *zap.Logger) error, error) {
 	loggerCfg := &zap.Config{}
-	loggerCfg.Level = zap.NewAtomicLevelAt(getLogLevel(buildEnv))
+
+	level, err := zapcore.ParseLevel(buildinfo.LogLevel)
+	if err != nil {
+		return nil, nil, errors.Wrapf(err, "failed to parse log level")
+	}
+	loggerCfg.Level = zap.NewAtomicLevelAt(level)
+
 	loggerCfg.Encoding = "json"
-	loggerCfg.OutputPaths = getLogOutputPath(buildEnv)
-	loggerCfg.ErrorOutputPaths = getErrOutputPath(buildEnv)
+	loggerCfg.OutputPaths = getLogOutputPath(buildinfo.OutputPaths)
+	loggerCfg.ErrorOutputPaths = getErrOutputPath(buildinfo.ErrorOutputPaths)
 	loggerCfg.EncoderConfig = zapcore.EncoderConfig{
 		MessageKey:  "msg",
 		LevelKey:    "level",
@@ -32,44 +41,16 @@ func CleanUpLog(logger *zap.Logger) error {
 	return errors.Wrapf(err, "failed to flush log")
 }
 
-// getLogLevel return zap's log level based on the env the ipam is built in
-func getLogLevel(buildEnv Env) zapcore.Level {
-	switch buildEnv {
-	case Prod:
-		return zapcore.InfoLevel
-	case Dev:
-		return zapcore.DebugLevel
-	case Test:
-		return zapcore.DebugLevel
-	default:
-		return zapcore.DebugLevel
+func getLogOutputPath(paths string) []string {
+	if paths == "" {
+		return nil
 	}
+	return strings.Split(paths, ",")
 }
 
-// getLogLevel return logs output paths based on the env the ipam is built in
-func getLogOutputPath(buildEnv Env) []string {
-	switch buildEnv {
-	case Prod:
-		return []string{"var/logs"}
-	case Dev:
-		return []string{"stdout"}
-	case Test:
-		return []string{}
-	default:
-		return []string{}
+func getErrOutputPath(paths string) []string {
+	if paths == "" {
+		return nil
 	}
-}
-
-// getErrOutputPath return logs output paths based on the env the ipam is built in
-func getErrOutputPath(buildEnv Env) []string {
-	switch buildEnv {
-	case Prod:
-		return []string{"var/logs"}
-	case Dev:
-		return []string{"stderr"}
-	case Test:
-		return []string{}
-	default:
-		return []string{}
-	}
+	return strings.Split(paths, ",")
 }

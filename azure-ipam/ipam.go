@@ -3,7 +3,9 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net"
+	"os"
 
 	"github.com/Azure/azure-container-networking/azure-ipam/internal/buildinfo"
 	"github.com/Azure/azure-container-networking/cns"
@@ -30,7 +32,10 @@ type cnsClient interface {
 	ReleaseIPAddress(context.Context, cns.IPConfigRequest) error
 }
 
-// NewPlugin constructs a new IPAM plugin
+// Out indicate the output channel for the plugin
+var Out io.Writer = os.Stdout
+
+// NewPlugin constructs a new IPAM plugin instance with given logger and CNS client
 func NewPlugin(logger *zap.Logger, c cnsClient) (*IPAMPlugin, error) {
 	plugin := &IPAMPlugin{
 		Name:      pluginName,
@@ -126,6 +131,7 @@ func (p *IPAMPlugin) CmdAdd(args *cniSkel.CmdArgs) error {
 		},
 	}
 
+	// Get versioned result
 	versionedCniResult, err := cniResult.GetAsVersion(nwCfg.CNIVersion)
 	if err != nil {
 		p.logger.Error("Failed to interpret CNI result with netconf CNI version",
@@ -139,7 +145,15 @@ func (p *IPAMPlugin) CmdAdd(args *cniSkel.CmdArgs) error {
 		zap.Any("result", versionedCniResult),
 	)
 
-	versionedCniResult.Print()
+	// Write result to output channel
+	err = versionedCniResult.PrintTo(Out)
+	if err != nil {
+		p.logger.Error("Failed to output CNI result",
+			zap.Error(err),
+			zap.Any("result", versionedCniResult),
+		)
+		return errors.Wrapf(err, "failed to output CNI result")
+	}
 
 	return nil
 }
