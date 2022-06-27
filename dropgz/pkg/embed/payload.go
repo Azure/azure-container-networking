@@ -15,20 +15,20 @@ import (
 )
 
 const (
-	cwd        = "gz"
+	cwd        = "fs"
 	pathPrefix = cwd + string(filepath.Separator)
 )
 
 var ErrArgsMismatched = errors.New("mismatched argument count")
 
-// gzfs contains the gzipped files for deployment, as a read-only FileSystem containing only "gzfs/".
+// embedfs contains the embedded files for deployment, as a read-only FileSystem containing only "embedfs/".
 //nolint:typecheck // dir is populated at build.
-//go:embed gz
-var gzfs embed.FS
+//go:embed fs
+var embedfs embed.FS
 
 func Contents() ([]string, error) {
 	contents := []string{}
-	if err := fs.WalkDir(gzfs, cwd, func(path string, d fs.DirEntry, err error) error {
+	err := fs.WalkDir(embedfs, cwd, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -37,46 +37,47 @@ func Contents() ([]string, error) {
 		}
 		contents = append(contents, strings.TrimPrefix(path, pathPrefix))
 		return nil
-	}); err != nil {
-		return nil, errors.Wrap(err, "error walking gzfs")
+	})
+	if err != nil {
+		return nil, errors.Wrap(err, "error walking embed fs")
 	}
 	return contents, nil
 }
 
-// gzipCompoundReadCloser is a wrapper around the source file handle and
-// the gzip Reader on the file to provide a single Close implementation
+// compoundReadCloser is a wrapper around the source file handle and
+// the flate Reader on the file to provide a single Close implementation
 // which cleans up both.
 // We have to explicitly track and close the underlying Reader, because
-// the gzip readercloser# does not.
-type gzipCompoundReadCloser struct {
-	file     io.Closer
-	gzreader io.ReadCloser
+// the readercloser# does not.
+type compoundReadCloser struct {
+	closer     io.Closer
+	readcloser io.ReadCloser
 }
 
-func (rc *gzipCompoundReadCloser) Read(p []byte) (n int, err error) {
-	return rc.gzreader.Read(p)
+func (c *compoundReadCloser) Read(p []byte) (n int, err error) {
+	return c.readcloser.Read(p)
 }
 
-func (rc *gzipCompoundReadCloser) Close() error {
-	if err := rc.gzreader.Close(); err != nil {
+func (c *compoundReadCloser) Close() error {
+	if err := c.readcloser.Close(); err != nil {
 		return err
 	}
-	if err := rc.file.Close(); err != nil {
+	if err := c.closer.Close(); err != nil {
 		return err
 	}
 	return nil
 }
 
-func Extract(path string) (*gzipCompoundReadCloser, error) {
-	f, err := gzfs.Open(filepath.Join(cwd, path))
+func Extract(path string) (*compoundReadCloser, error) {
+	f, err := embedfs.Open(filepath.Join(cwd, path))
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to open file %s", path)
 	}
 	r, err := gzip.NewReader(bufio.NewReader(f))
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to build gzip reader")
+		return nil, errors.Wrap(err, "failed to build reader")
 	}
-	return &gzipCompoundReadCloser{file: f, gzreader: r}, nil
+	return &compoundReadCloser{closer: f, readcloser: r}, nil
 }
 
 func deploy(src, dest string) error {

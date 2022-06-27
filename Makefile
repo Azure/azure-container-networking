@@ -515,8 +515,8 @@ workspace: ## Set up the Go workspace.
 	go work init
 	go work use .
 	go work use ./build/tools
+	go work use ./dropgz
 	go work use ./zapai
-	go work sync
 
 ##@ Test 
 

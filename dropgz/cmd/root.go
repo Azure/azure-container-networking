@@ -38,6 +38,7 @@ func init() {
 		<-sig
 		cancel()
 		fmt.Println("exiting")
+		os.Exit(1)
 	}()
 
 	// build root logger
@@ -53,7 +54,7 @@ func init() {
 }
 
 func Execute() {
-	if err := root.Execute(); err != nil {
+	if err := root.ExecuteContext(ctx); err != nil {
 		z.Fatal("exiting due to error", zap.Error(err))
 	}
 }
