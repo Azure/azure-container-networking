@@ -34,7 +34,7 @@ func NewLogger() (*zap.Logger, func(), error) {
 	}
 
 	cleanup := func() {
-		logger.Sync()
+		logger.Sync() // nolint
 	}
 	return logger, cleanup, nil
 }
