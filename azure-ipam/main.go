@@ -19,23 +19,27 @@ func main() {
 }
 
 func executePlugin() error {
+	// Create logger
 	logger, cleanup, err := NewLogger()
 	if err != nil {
 		return errors.Wrapf(err, "failed to setup IPAM logging")
 	}
 	logger.Debug("logger construction succeeded")
-	defer cleanup(logger) // nolint
+	defer cleanup()
 
-	// Create IPAM plugin with logger and CNS client
+	// Create CNS client
 	client, err := cnsclient.New(cnsBaseURL, csnReqTimeout)
 	if err != nil {
 		return errors.Wrapf(err, "failed to initialize CNS client")
 	}
+
+	// Create IPAM plugin
 	plugin, err := NewPlugin(logger, client)
 	if err != nil {
 		logger.Error("Failed to create IPAM plugin")
 		return errors.Wrapf(err, "failed to create IPAM plugin")
 	}
 
+	// Execute CNI plugin
 	return skel.PluginMainWithError(plugin.CmdAdd, plugin.CmdCheck, plugin.CmdDel, version.All, bv.BuildString(pluginName))
 }

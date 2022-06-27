@@ -213,7 +213,7 @@ func TestCmdAdd(t *testing.T) {
 				fmt.Println(err)
 				return
 			}
-			defer cleanup(logger) // nolint
+			defer cleanup()
 			ipamPlugin, _ := NewPlugin(logger, mockCNSClient)
 			err = ipamPlugin.CmdAdd(tt.args)
 			if tt.wantErr {
@@ -230,7 +230,7 @@ func TestCmdAdd(t *testing.T) {
 
 func TestCmdDel(t *testing.T) {
 	happyNetConf := &cniTypes.NetConf{
-		CNIVersion: "0.1.0",
+		CNIVersion: "1.0.0",
 		Name:       "happynetconf",
 	}
 
@@ -265,7 +265,7 @@ func TestCmdDel(t *testing.T) {
 			if err != nil {
 				return
 			}
-			defer cleanup(logger) // nolint
+			defer cleanup()
 			ipamPlugin, _ := NewPlugin(logger, mockCNSClient)
 			err = ipamPlugin.CmdDel(tt.args)
 			if tt.wantErr {
@@ -284,7 +284,7 @@ func TestCmdCheck(t *testing.T) {
 	if err != nil {
 		return
 	}
-	defer cleanup(logger) // nolint
+	defer cleanup()
 	ipamPlugin, _ := NewPlugin(logger, mockCNSClient)
 	err = ipamPlugin.CmdCheck(nil)
 	require.NoError(t, err)

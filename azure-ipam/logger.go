@@ -10,7 +10,7 @@ import (
 )
 
 // NewLogger creates and returns a zap logger and a clean up function
-func NewLogger() (*zap.Logger, func(_ *zap.Logger) error, error) {
+func NewLogger() (*zap.Logger, func(), error) {
 	loggerCfg := &zap.Config{}
 
 	level, err := zapcore.ParseLevel(buildinfo.LogLevel)
@@ -32,13 +32,11 @@ func NewLogger() (*zap.Logger, func(_ *zap.Logger) error, error) {
 	if err != nil {
 		return nil, nil, errors.Wrapf(err, "failed to build zap logger")
 	}
-	return logger, CleanUpLog, nil
-}
 
-// CleanUpLog flushes the given logger's buffered log entries
-func CleanUpLog(logger *zap.Logger) error {
-	err := logger.Sync()
-	return errors.Wrapf(err, "failed to flush log")
+	cleanup := func() {
+		logger.Sync()
+	}
+	return logger, cleanup, nil
 }
 
 func getLogOutputPath(paths string) []string {
