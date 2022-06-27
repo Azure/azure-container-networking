@@ -172,11 +172,18 @@ func buildIPPoolState(ips map[string]cns.IPConfigurationStatus, spec v1alpha.Nod
 	return state
 }
 
+var statelogDownsample int
+
 func (pm *Monitor) reconcile(ctx context.Context) error {
 	allocatedIPs := pm.httpService.GetPodIPConfigState()
 	state := buildIPPoolState(allocatedIPs, pm.spec, pm.metastate.primaryIPAddresses)
-	logger.Printf("ipam-pool-monitor state %+v", state)
 	observeIPPoolState(state, pm.metastate, []string{subnet, subnetCIDR, subnetARMID})
+
+	// log every 10th reconcile to reduce the AI load. we will always log when the monitor
+	// changes the pool, below.
+	if statelogDownsample = (statelogDownsample + 1) % 10; statelogDownsample == 0 { //nolint:gomnd //downsample by 10
+		logger.Printf("ipam-pool-monitor state %+v", state)
+	}
 
 	switch {
 	// pod count is increasing
@@ -185,23 +192,26 @@ func (pm *Monitor) reconcile(ctx context.Context) error {
 			// If we're already at the maxIPCount, don't try to increase
 			return nil
 		}
-
+		logger.Printf("ipam-pool-monitor state %+v", state)
 		logger.Printf("[ipam-pool-monitor] Increasing pool size...")
 		return pm.increasePoolSize(ctx, state)
 
 	// pod count is decreasing
 	case state.currentAvailableIPs >= pm.metastate.maxFreeCount:
+		logger.Printf("ipam-pool-monitor state %+v", state)
 		logger.Printf("[ipam-pool-monitor] Decreasing pool size...")
 		return pm.decreasePoolSize(ctx, state)
 
 	// CRD has reconciled CNS state, and target spec is now the same size as the state
 	// free to remove the IPs from the CRD
 	case int64(len(pm.spec.IPsNotInUse)) != state.pendingRelease:
+		logger.Printf("ipam-pool-monitor state %+v", state)
 		logger.Printf("[ipam-pool-monitor] Removing Pending Release IPs from CRD...")
 		return pm.cleanPendingRelease(ctx)
 
 	// no pods scheduled
 	case state.allocatedToPods == 0:
+		logger.Printf("ipam-pool-monitor state %+v", state)
 		logger.Printf("[ipam-pool-monitor] No pods scheduled")
 		return nil
 	}
