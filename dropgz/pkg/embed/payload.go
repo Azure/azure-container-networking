@@ -86,7 +86,7 @@ func deploy(src, dest string) error {
 		return err
 	}
 	defer rc.Close()
-	target, err := os.OpenFile(dest, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0o766) //nolint:gomnd // executable file bitmask
+	target, err := os.OpenFile(dest, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0o755) //nolint:gomnd // executable file bitmask
 	if err != nil {
 		return errors.Wrapf(err, "failed to create file %s", dest)
 	}
