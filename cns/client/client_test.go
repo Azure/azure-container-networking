@@ -23,6 +23,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 	"github.com/Azure/azure-container-networking/log"
+	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -753,6 +754,136 @@ func TestCreateHostNCApipaEndpoint(t *testing.T) {
 				assert.NoError(t, err)
 			}
 			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+type RequestCapture struct {
+	Request *http.Request
+	Next    interface {
+		Do(*http.Request) (*http.Response, error)
+	}
+}
+
+// Do captures the outgoing HTTP request for later examination within a test.
+func (r *RequestCapture) Do(req *http.Request) (*http.Response, error) {
+	// clone the request to ensure that any downstream handlers can't modify what
+	// we've captured. Clone requires a non-nil context argument, so use a
+	// throwaway value.
+	r.Request = req.Clone(context.Background())
+
+	// invoke the next handler in the chain and transparently return its results
+	return r.Next.Do(req)
+}
+
+func TestDeleteNetworkContainer(t *testing.T) {
+	// the CNS client has to be provided with routes going somewhere, so create a
+	// bunch of routes mapped to the localhost
+	emptyRoutes, _ := buildRoutes(defaultBaseURL, clientPaths)
+
+	// define our test cases
+	deleteNCTests := []struct {
+		name      string
+		ncID      string
+		response  *RequestCapture
+		expReq    *cns.DeleteNetworkContainerRequest
+		exp       cns.DeleteNetworkContainerResponse
+		shouldErr bool
+	}{
+		{
+			"empty",
+			"",
+			&RequestCapture{
+				Next: &mockdo{},
+			},
+			nil,
+			cns.DeleteNetworkContainerResponse{},
+			true,
+		},
+		{
+			"with id",
+			"foo",
+			&RequestCapture{
+				Next: &mockdo{
+					httpStatusCodeToReturn: http.StatusOK,
+				},
+			},
+			&cns.DeleteNetworkContainerRequest{
+				NetworkContainerid: "foo",
+			},
+			cns.DeleteNetworkContainerResponse{},
+			false,
+		},
+		{
+			"unspecified error",
+			"foo",
+			&RequestCapture{
+				Next: &mockdo{
+					errToReturn: nil,
+					objToReturn: cns.DeleteNetworkContainerResponse{
+						Response: cns.Response{
+							ReturnCode: types.MalformedSubnet,
+						},
+					},
+					httpStatusCodeToReturn: http.StatusBadRequest,
+				},
+			},
+			&cns.DeleteNetworkContainerRequest{"foo"},
+			cns.DeleteNetworkContainerResponse{},
+			true,
+		},
+	}
+
+	for _, test := range deleteNCTests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			// create a new client with the mock routes and the mock doer
+			client := Client{
+				client: test.response,
+				routes: emptyRoutes,
+			}
+
+			// execute the method under test
+			got, err := client.DeleteNetworkContainer(test.ncID)
+			if err != nil && !test.shouldErr {
+				t.Fatal("unexpected error: err:", err)
+			}
+
+			if err == nil && test.shouldErr {
+				t.Fatal("expected test to error, but no error was produced")
+			}
+
+			// make sure a request was actually sent
+			if test.expReq != nil && test.response.Request == nil {
+				t.Fatal("expected a request to be sent, but none was")
+			}
+
+			// if a request was expected to be sent, decode it and ensure that it
+			// matches expectations
+			if test.expReq != nil {
+				var gotReq cns.DeleteNetworkContainerRequest
+				err = json.NewDecoder(test.response.Request.Body).Decode(&gotReq)
+				if err != nil {
+					t.Fatal("error decoding the received request: err:", err)
+				}
+
+				// a nil expReq is semantically meaningful (i.e. "no request"), but in
+				// order for cmp to work properly, the outer types should be identical.
+				// Thus we have to dereference it explicitly:
+				expReq := *test.expReq
+
+				// ensure that the received request is what was expected
+				if !cmp.Equal(gotReq, expReq) {
+					t.Error("received request differs from expectation: diff", cmp.Diff(gotReq, expReq))
+				}
+			}
+
+			// assert that the response is as was expected
+			if !cmp.Equal(got, test.exp) {
+				t.Error("received response differs from expectation: diff:", cmp.Diff(got, test.exp))
+			}
 		})
 	}
 }

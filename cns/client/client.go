@@ -411,3 +411,57 @@ func (c *Client) GetHTTPServiceData(ctx context.Context) (*restserver.GetHTTPSer
 
 	return &resp, nil
 }
+
+// DeleteNetworkContainer destroys the requested network container matching the
+// provided ID.
+func (c *Client) DeleteNetworkContainer(ncID string) (cns.DeleteNetworkContainerResponse, error) {
+	// define a utility function to avoid overly verbose error returns imposed by
+	// the return signature
+	die := func(err error) (cns.DeleteNetworkContainerResponse, error) {
+		return cns.DeleteNetworkContainerResponse{}, err
+	}
+
+	// the network container ID is required by the API, so ensure that we have
+	// one before we even make the request
+	if ncID == "" {
+		return die(errors.New("no network container ID provided"))
+	}
+
+	// build the request
+	dncr := cns.DeleteNetworkContainerRequest{
+		NetworkContainerid: ncID,
+	}
+	body, err := json.Marshal(dncr)
+	if err != nil {
+		return die(errors.Wrap(err, "encoding request body"))
+	}
+	u := c.routes[cns.DeleteNetworkContainer]
+	req, err := http.NewRequest(http.MethodPost, u.String(), bytes.NewReader(body))
+	if err != nil {
+		return die(errors.Wrap(err, "building HTTP request"))
+	}
+
+	// submit the request
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return die(errors.Wrap(err, "sending HTTP request"))
+	}
+	defer resp.Body.Close()
+
+	// decode the response
+	var out cns.DeleteNetworkContainerResponse
+	err = json.NewDecoder(resp.Body).Decode(&out)
+	if err != nil {
+		return die(errors.Wrap(err, "decoding response as JSON"))
+	}
+
+	// if a non-zero response code was received from CNS, it means something went
+	// wrong and it should be surfaced to the caller as an error
+	if out.Response.ReturnCode != 0 {
+		return die(errors.New(out.Response.Message))
+	}
+
+	// otherwise return the response, which doesn't have much useful information
+	// other than the successful response struct.
+	return out, nil
+}
