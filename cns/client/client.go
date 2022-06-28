@@ -414,17 +414,11 @@ func (c *Client) GetHTTPServiceData(ctx context.Context) (*restserver.GetHTTPSer
 
 // DeleteNetworkContainer destroys the requested network container matching the
 // provided ID.
-func (c *Client) DeleteNetworkContainer(ncID string) (cns.DeleteNetworkContainerResponse, error) {
-	// define a utility function to avoid overly verbose error returns imposed by
-	// the return signature
-	die := func(err error) (cns.DeleteNetworkContainerResponse, error) {
-		return cns.DeleteNetworkContainerResponse{}, err
-	}
-
+func (c *Client) DeleteNetworkContainer(ncID string) error {
 	// the network container ID is required by the API, so ensure that we have
 	// one before we even make the request
 	if ncID == "" {
-		return die(errors.New("no network container ID provided"))
+		return errors.New("no network container ID provided")
 	}
 
 	// build the request
@@ -433,18 +427,18 @@ func (c *Client) DeleteNetworkContainer(ncID string) (cns.DeleteNetworkContainer
 	}
 	body, err := json.Marshal(dncr)
 	if err != nil {
-		return die(errors.Wrap(err, "encoding request body"))
+		return errors.Wrap(err, "encoding request body")
 	}
 	u := c.routes[cns.DeleteNetworkContainer]
 	req, err := http.NewRequest(http.MethodPost, u.String(), bytes.NewReader(body))
 	if err != nil {
-		return die(errors.Wrap(err, "building HTTP request"))
+		return errors.Wrap(err, "building HTTP request")
 	}
 
 	// submit the request
 	resp, err := c.client.Do(req)
 	if err != nil {
-		return die(errors.Wrap(err, "sending HTTP request"))
+		return errors.Wrap(err, "sending HTTP request")
 	}
 	defer resp.Body.Close()
 
@@ -452,16 +446,17 @@ func (c *Client) DeleteNetworkContainer(ncID string) (cns.DeleteNetworkContainer
 	var out cns.DeleteNetworkContainerResponse
 	err = json.NewDecoder(resp.Body).Decode(&out)
 	if err != nil {
-		return die(errors.Wrap(err, "decoding response as JSON"))
+		return errors.Wrap(err, "decoding response as JSON")
 	}
 
 	// if a non-zero response code was received from CNS, it means something went
 	// wrong and it should be surfaced to the caller as an error
 	if out.Response.ReturnCode != 0 {
-		return die(errors.New(out.Response.Message))
+		return errors.New(out.Response.Message)
 	}
 
-	// otherwise return the response, which doesn't have much useful information
-	// other than the successful response struct.
-	return out, nil
+	// otherwise the response isn't terribly useful in a successful case, so it
+	// doesn't make sense to provide it to callers. The absence of an error is
+	// sufficient to communicate success.
+	return nil
 }

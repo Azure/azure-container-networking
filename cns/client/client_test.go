@@ -787,7 +787,6 @@ func TestDeleteNetworkContainer(t *testing.T) {
 		ncID      string
 		response  *RequestCapture
 		expReq    *cns.DeleteNetworkContainerRequest
-		exp       cns.DeleteNetworkContainerResponse
 		shouldErr bool
 	}{
 		{
@@ -797,7 +796,6 @@ func TestDeleteNetworkContainer(t *testing.T) {
 				Next: &mockdo{},
 			},
 			nil,
-			cns.DeleteNetworkContainerResponse{},
 			true,
 		},
 		{
@@ -811,7 +809,6 @@ func TestDeleteNetworkContainer(t *testing.T) {
 			&cns.DeleteNetworkContainerRequest{
 				NetworkContainerid: "foo",
 			},
-			cns.DeleteNetworkContainerResponse{},
 			false,
 		},
 		{
@@ -829,7 +826,6 @@ func TestDeleteNetworkContainer(t *testing.T) {
 				},
 			},
 			&cns.DeleteNetworkContainerRequest{"foo"},
-			cns.DeleteNetworkContainerResponse{},
 			true,
 		},
 	}
@@ -846,7 +842,7 @@ func TestDeleteNetworkContainer(t *testing.T) {
 			}
 
 			// execute the method under test
-			got, err := client.DeleteNetworkContainer(test.ncID)
+			err := client.DeleteNetworkContainer(test.ncID)
 			if err != nil && !test.shouldErr {
 				t.Fatal("unexpected error: err:", err)
 			}
@@ -878,11 +874,6 @@ func TestDeleteNetworkContainer(t *testing.T) {
 				if !cmp.Equal(gotReq, expReq) {
 					t.Error("received request differs from expectation: diff", cmp.Diff(gotReq, expReq))
 				}
-			}
-
-			// assert that the response is as was expected
-			if !cmp.Equal(got, test.exp) {
-				t.Error("received response differs from expectation: diff:", cmp.Diff(got, test.exp))
 			}
 		})
 	}
