@@ -9,7 +9,7 @@ AZCLI   = docker run -v $(AZCFG):/root/.azure -v $(KUBECFG):/root/.kube -v $(SSH
 
 # overrideable variables
 USER       ?= $(whoami)
-CLUSTER    ?= $(USER)-swift-$(REGION)
+CLUSTER    ?= $(USER)-$(REGION)
 GROUP      ?= $(CLUSTER)
 REGION     ?= centraluseuap
 SUB        ?= $(AZURE_SUBSCRIPTION)
@@ -44,22 +44,23 @@ shell: ## print $AZCLI so it can be used outside of make
 	@echo $(AZCLI)
 
 
-##@ SWIFT
-
-swift-vars: ## Show the env vars configured for the swift command
+##@ SWIFT Infra
+vars: ## Show the env vars configured for the swift command
 	@echo SUB=$(SUB)
 	@echo GROUP=$(GROUP)
 	@echo REGION=$(REGION)
 	@echo VNET=$(VNET)
 	@echo CLUSTER=$(CLUSTER)
 
-swift-net-up: azcfg ## Create required swift vnet/subnets
+net-up: azcfg ## Create required swift vnet/subnets
 	$(AZCLI) network vnet create -g $(GROUP) -l $(REGION) --name $(VNET) --address-prefixes 10.0.0.0/8 -o none
 	$(AZCLI) network vnet subnet create -g $(GROUP) --vnet-name $(VNET) --name nodenet --address-prefixes 10.240.0.0/16 -o none
 	$(AZCLI) network vnet subnet create -g $(GROUP) --vnet-name $(VNET) --name podnet --address-prefixes 10.241.0.0/16 -o none
 
-swift-rg-down: azcfg ## Delete the $GROUP in $SUB/$REGION
+rg-down: azcfg ## Delete the $GROUP in $SUB/$REGION
 	$(AZCLI) group delete -g $(GROUP) --yes
+
+##@ AKS Clusters
 
 swift-up: azcfg swift-net-up ## Brings up a swift cluster $name in $SUB/$REGION
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
@@ -71,8 +72,17 @@ swift-up: azcfg swift-net-up ## Brings up a swift cluster $name in $SUB/$REGION
 		--yes
 	@$(MAKE) set-kubeconf
 
-swift-down: azcfg ## Deletes the swift resources $SUB/$REGION
+byocni-up: azcfg swift-net-up ## Brings up a swift cluster $name in $SUB/$REGION
+	$(AZCLI) aks create -n $(CLUSTER)-g $(GROUP) -l $(REGION) \
+		--max-pods 250 \
+		--node-count 3 \
+		--network-plugin none \
+		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
+		--pod-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/podnet \
+		--yes
+	@$(MAKE) set-kubeconf
+
+down: azcfg ## Deletes the swift resources $SUB/$REGION
 	$(AZCLI) aks delete -g $(GROUP) -n $(CLUSTER) --yes
 	@$(MAKE) unset-kubeconf
 	@$(MAKE) swift-rg-down
-
