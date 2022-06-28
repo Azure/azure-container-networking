@@ -4,6 +4,7 @@ import (
 	"log"
 	"os"
 
+	"github.com/Azure/azure-container-networking/azure-ipam/logger"
 	cnsclient "github.com/Azure/azure-container-networking/cns/client"
 	"github.com/containernetworking/cni/pkg/skel"
 	"github.com/containernetworking/cni/pkg/version"
@@ -19,24 +20,30 @@ func main() {
 }
 
 func executePlugin() error {
+	// logger config
+	var loggerCfg *logger.Config
+	loggerCfg.Level = "debug"
+	loggerCfg.OutputPaths = "stdout"
+	loggerCfg.ErrorOutputPaths = "stderr"
+
 	// Create logger
-	logger, cleanup, err := NewLogger()
+	pluginLogger, cleanup, err := logger.New(loggerCfg)
 	if err != nil {
 		return errors.Wrapf(err, "failed to setup IPAM logging")
 	}
-	logger.Debug("logger construction succeeded")
+	pluginLogger.Debug("logger construction succeeded")
 	defer cleanup()
 
 	// Create CNS client
-	client, err := cnsclient.New(cnsBaseURL, csnReqTimeout)
+	client, err := cnsclient.New(cnsBaseURL, cnsReqTimeout)
 	if err != nil {
 		return errors.Wrapf(err, "failed to initialize CNS client")
 	}
 
 	// Create IPAM plugin
-	plugin, err := NewPlugin(logger, client)
+	plugin, err := NewPlugin(pluginLogger, client, os.Stdout)
 	if err != nil {
-		logger.Error("Failed to create IPAM plugin")
+		pluginLogger.Error("Failed to create IPAM plugin")
 		return errors.Wrapf(err, "failed to create IPAM plugin")
 	}
 

@@ -7,6 +7,7 @@ import (
 	"net"
 	"testing"
 
+	"github.com/Azure/azure-container-networking/azure-ipam/logger"
 	"github.com/Azure/azure-container-networking/cns"
 	cniSkel "github.com/containernetworking/cni/pkg/skel"
 	cniTypes "github.com/containernetworking/cni/pkg/types"
@@ -15,23 +16,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var (
+	errFoo                   = errors.New("err")
+	loggerCfg *logger.Config = &logger.Config{}
+)
+
 // MOckCNSClient is a mock implementation of the CNSClient interface
 type MockCNSClient struct{}
-
-// cniResultsWriter is a helper struct to write CNI results to a byte array
-type cniResultsWriter struct {
-	result *types100.Result
-}
-
-func (w *cniResultsWriter) Write(data []byte) (int, error) {
-	err := json.Unmarshal(data, &w.result)
-	if err != nil {
-		return 0, errors.Wrapf(err, "failed to unmarshal CNI result")
-	}
-	return len(data), nil
-}
-
-var errFoo = errors.New("err")
 
 func (c *MockCNSClient) RequestIPAddress(ctx context.Context, ipconfig cns.IPConfigRequest) (*cns.IPConfigResponse, error) {
 	switch ipconfig.InfraContainerID {
@@ -103,9 +94,21 @@ func (c *MockCNSClient) ReleaseIPAddress(ctx context.Context, ipconfig cns.IPCon
 	}
 }
 
+// cniResultsWriter is a helper struct to write CNI results to a byte array
+type cniResultsWriter struct {
+	result *types100.Result
+}
+
+func (w *cniResultsWriter) Write(data []byte) (int, error) {
+	err := json.Unmarshal(data, &w.result)
+	if err != nil {
+		return 0, errors.Wrapf(err, "failed to unmarshal CNI result")
+	}
+	return len(data), nil
+}
+
 const (
-	happyPodArgs    = "K8S_POD_NAMESPACE=testns;K8S_POD_NAME=testname;K8S_POD_INFRA_CONTAINER_ID=testid"
-	nothappyPodArgs = "K8S_POD_NAMESPACE=testns;K8S_POD_NAME=testname;K8S_POD_INFRA_CONTAINER_ID=testid;break=break" // this will break the pod config parsing
+	happyPodArgs = "K8S_POD_NAMESPACE=testns;K8S_POD_NAME=testname;K8S_POD_INFRA_CONTAINER_ID=testid"
 )
 
 type scenario struct {
@@ -176,11 +179,6 @@ func TestCmdAdd(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:    "Fail create CNS request during CmdAdd",
-			args:    buildArgs("failCreateCNSReqArgs", nothappyPodArgs, happyNetConfByteArr),
-			wantErr: true,
-		},
-		{
 			name:    "Fail request CNS ipconfig during CmdAdd",
 			args:    buildArgs("failRequestCNSArgs", happyPodArgs, happyNetConfByteArr),
 			wantErr: true,
@@ -204,17 +202,16 @@ func TestCmdAdd(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		writer := &cniResultsWriter{}
-		Out = writer
 		t.Run(tt.name, func(t *testing.T) {
 			fmt.Printf("test : %v\n", tt.name)
 			mockCNSClient := &MockCNSClient{}
-			logger, cleanup, err := NewLogger()
+			testLogger, cleanup, err := logger.New(loggerCfg)
 			if err != nil {
 				fmt.Println(err)
 				return
 			}
 			defer cleanup()
-			ipamPlugin, _ := NewPlugin(logger, mockCNSClient)
+			ipamPlugin, _ := NewPlugin(testLogger, mockCNSClient, writer)
 			err = ipamPlugin.CmdAdd(tt.args)
 			if tt.wantErr {
 				require.Error(t, err)
@@ -246,11 +243,6 @@ func TestCmdDel(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:    "Fail create CNS request during CmdDel",
-			args:    buildArgs("failCreateCNSReqArgs", nothappyPodArgs, happyNetConfByteArr),
-			wantErr: true,
-		},
-		{
 			name:    "Fail request CNS release IP during CmdDel",
 			args:    buildArgs("failRequestCNSReleaseIPArgs", happyPodArgs, happyNetConfByteArr),
 			wantErr: true,
@@ -261,12 +253,12 @@ func TestCmdDel(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			fmt.Printf("test : %v\n", tt.name)
 			mockCNSClient := &MockCNSClient{}
-			logger, cleanup, err := NewLogger()
+			testLogger, cleanup, err := logger.New(loggerCfg)
 			if err != nil {
 				return
 			}
 			defer cleanup()
-			ipamPlugin, _ := NewPlugin(logger, mockCNSClient)
+			ipamPlugin, _ := NewPlugin(testLogger, mockCNSClient, nil)
 			err = ipamPlugin.CmdDel(tt.args)
 			if tt.wantErr {
 				require.Error(t, err)
@@ -280,12 +272,12 @@ func TestCmdDel(t *testing.T) {
 func TestCmdCheck(t *testing.T) {
 	fmt.Println("test : cmdCheck")
 	mockCNSClient := &MockCNSClient{}
-	logger, cleanup, err := NewLogger()
+	testLogger, cleanup, err := logger.New(loggerCfg)
 	if err != nil {
 		return
 	}
 	defer cleanup()
-	ipamPlugin, _ := NewPlugin(logger, mockCNSClient)
+	ipamPlugin, _ := NewPlugin(testLogger, mockCNSClient, nil)
 	err = ipamPlugin.CmdCheck(nil)
 	require.NoError(t, err)
 }

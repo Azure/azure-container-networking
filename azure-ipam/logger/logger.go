@@ -1,27 +1,32 @@
-package main
+package logger
 
 import (
 	"strings"
 
-	"github.com/Azure/azure-container-networking/azure-ipam/internal/buildinfo"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
 
+type Config struct {
+	Level            string
+	OutputPaths      string // comma separated list of paths
+	ErrorOutputPaths string // comma separated list of paths
+}
+
 // NewLogger creates and returns a zap logger and a clean up function
-func NewLogger() (*zap.Logger, func(), error) {
+func New(cfg *Config) (*zap.Logger, func(), error) {
 	loggerCfg := &zap.Config{}
 
-	level, err := zapcore.ParseLevel(buildinfo.LogLevel)
+	level, err := zapcore.ParseLevel(cfg.Level)
 	if err != nil {
 		return nil, nil, errors.Wrapf(err, "failed to parse log level")
 	}
 	loggerCfg.Level = zap.NewAtomicLevelAt(level)
 
 	loggerCfg.Encoding = "json"
-	loggerCfg.OutputPaths = getLogOutputPath(buildinfo.OutputPaths)
-	loggerCfg.ErrorOutputPaths = getErrOutputPath(buildinfo.ErrorOutputPaths)
+	loggerCfg.OutputPaths = getLogOutputPath(cfg.OutputPaths)
+	loggerCfg.ErrorOutputPaths = getErrOutputPath(cfg.ErrorOutputPaths)
 	loggerCfg.EncoderConfig = zapcore.EncoderConfig{
 		MessageKey:  "msg",
 		LevelKey:    "level",
@@ -34,7 +39,7 @@ func NewLogger() (*zap.Logger, func(), error) {
 	}
 
 	cleanup := func() {
-		logger.Sync() // nolint
+		_ = logger.Sync()
 	}
 	return logger, cleanup, nil
 }
