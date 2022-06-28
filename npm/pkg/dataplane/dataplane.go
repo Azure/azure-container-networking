@@ -13,12 +13,7 @@ import (
 	"k8s.io/klog"
 )
 
-const (
-	// AzureNetworkName is default network Azure CNI creates
-	AzureNetworkName = "azure"
-
-	reconcileTimeInMinutes = 5
-)
+const reconcileTimeInMinutes = 5
 
 type PolicyMode string
 
@@ -34,34 +29,33 @@ type DataPlane struct {
 	ipsetMgr  *ipsets.IPSetManager
 	networkID string
 	nodeName  string
+	// endpointCache stores all endpoints of the network (including off-node)
 	// Key is PodIP
-	endpointCache  map[string]*NPMEndpoint
+	endpointCache  map[string]*npmEndpoint
 	ioShim         *common.IOShim
 	updatePodCache map[string]*updateNPMPod
-	stopChannel    <-chan struct{}
-}
-
-type NPMEndpoint struct {
-	Name string
-	ID   string
-	IP   string
-	// TODO: check it may use PolicyKey instead of Policy name
-	// Map with Key as Network Policy name to to emulate set
-	// and value as struct{} for minimal memory consumption
-	NetPolReference map[string]struct{}
+	// pendingPolicies includes the policy keys of policies which may
+	// be referenced by ipsets but have not been applied to the kernel yet
+	pendingPolicies map[string]struct{}
+	stopChannel     <-chan struct{}
 }
 
 func NewDataPlane(nodeName string, ioShim *common.IOShim, cfg *Config, stopChannel <-chan struct{}) (*DataPlane, error) {
 	metrics.InitializeAll()
+	if util.IsWindowsDP() {
+		klog.Infof("[DataPlane] enabling AddEmptySetToLists for Windows")
+		cfg.IPSetManagerCfg.AddEmptySetToLists = true
+	}
 	dp := &DataPlane{
-		Config:         cfg,
-		policyMgr:      policies.NewPolicyManager(ioShim, cfg.PolicyManagerCfg),
-		ipsetMgr:       ipsets.NewIPSetManager(cfg.IPSetManagerCfg, ioShim),
-		endpointCache:  make(map[string]*NPMEndpoint),
-		nodeName:       nodeName,
-		ioShim:         ioShim,
-		updatePodCache: make(map[string]*updateNPMPod),
-		stopChannel:    stopChannel,
+		Config:          cfg,
+		policyMgr:       policies.NewPolicyManager(ioShim, cfg.PolicyManagerCfg),
+		ipsetMgr:        ipsets.NewIPSetManager(cfg.IPSetManagerCfg, ioShim),
+		endpointCache:   make(map[string]*npmEndpoint),
+		nodeName:        nodeName,
+		ioShim:          ioShim,
+		updatePodCache:  make(map[string]*updateNPMPod),
+		pendingPolicies: make(map[string]struct{}),
+		stopChannel:     stopChannel,
 	}
 
 	err := dp.BootupDataplane()
@@ -73,7 +67,6 @@ func NewDataPlane(nodeName string, ioShim *common.IOShim, cfg *Config, stopChann
 }
 
 // BootupDataplane cleans the NPM sets and policies in the dataplane and performs initialization.
-// TODO rename this function to BootupDataplane
 func (dp *DataPlane) BootupDataplane() error {
 	// NOTE: used to create an all-namespaces set, but there's no need since it will be created by the control plane
 	return dp.bootupDataPlane() //nolint:wrapcheck // unnecessary to wrap error
@@ -129,7 +122,7 @@ func (dp *DataPlane) AddToSets(setNames []*ipsets.IPSetMetadata, podMetadata *Po
 	if dp.shouldUpdatePod() {
 		klog.Infof("[DataPlane] Updating Sets to Add for pod key %s", podMetadata.PodKey)
 		if _, ok := dp.updatePodCache[podMetadata.PodKey]; !ok {
-			klog.Infof("[DataPlane] {AddToSet} pod key %s not found creating a new obj", podMetadata.PodKey)
+			klog.Infof("[DataPlane] {AddToSet} pod key %s not found in updatePodCache. creating a new obj", podMetadata.PodKey)
 			dp.updatePodCache[podMetadata.PodKey] = newUpdateNPMPod(podMetadata)
 		}
 
@@ -150,7 +143,7 @@ func (dp *DataPlane) RemoveFromSets(setNames []*ipsets.IPSetMetadata, podMetadat
 	if dp.shouldUpdatePod() {
 		klog.Infof("[DataPlane] Updating Sets to Remove for pod key %s", podMetadata.PodKey)
 		if _, ok := dp.updatePodCache[podMetadata.PodKey]; !ok {
-			klog.Infof("[DataPlane] {RemoveFromSet} pod key %s not found creating a new obj", podMetadata.PodKey)
+			klog.Infof("[DataPlane] {RemoveFromSet} pod key %s not found in updatePodCache. creating a new obj", podMetadata.PodKey)
 			dp.updatePodCache[podMetadata.PodKey] = newUpdateNPMPod(podMetadata)
 		}
 
@@ -207,8 +200,11 @@ func (dp *DataPlane) ApplyDataPlane() error {
 // AddPolicy takes in a translated NPMNetworkPolicy object and applies on dataplane
 func (dp *DataPlane) AddPolicy(policy *policies.NPMNetworkPolicy) error {
 	klog.Infof("[DataPlane] Add Policy called for %s", policy.PolicyKey)
+
+	dp.pendingPolicies[policy.PolicyKey] = struct{}{}
+
 	// Create and add references for Selector IPSets first
-	err := dp.createIPSetsAndReferences(policy.PodSelectorIPSets, policy.PolicyKey, ipsets.SelectorType)
+	err := dp.createIPSetsAndReferences(policy.AllPodSelectorIPSets(), policy.PolicyKey, ipsets.SelectorType)
 	if err != nil {
 		klog.Infof("[DataPlane] error while adding Selector IPSet references: %s", err.Error())
 		return fmt.Errorf("[DataPlane] error while adding Selector IPSet references: %w", err)
@@ -221,11 +217,12 @@ func (dp *DataPlane) AddPolicy(policy *policies.NPMNetworkPolicy) error {
 		return fmt.Errorf("[DataPlane] error while adding Rule IPSet references: %w", err)
 	}
 
+	// NOTE: if apply dataplane succeeds, but another area fails, then currently,
+	// netpol controller won't cache the netpol, and the IPSets applied will remain in the kernel since they will have a netpol reference
 	err = dp.ApplyDataPlane()
 	if err != nil {
 		return fmt.Errorf("[DataPlane] error while applying dataplane: %w", err)
 	}
-	// TODO calculate endpoints to apply policy on
 	endpointList, err := dp.getEndpointsToApplyPolicy(policy)
 	if err != nil {
 		return err
@@ -235,6 +232,7 @@ func (dp *DataPlane) AddPolicy(policy *policies.NPMNetworkPolicy) error {
 	if err != nil {
 		return fmt.Errorf("[DataPlane] error while adding policy: %w", err)
 	}
+	delete(dp.pendingPolicies, policy.PolicyKey)
 	return nil
 }
 
@@ -260,7 +258,7 @@ func (dp *DataPlane) RemovePolicy(policyKey string) error {
 	}
 
 	// Remove references for Selector IPSets
-	err = dp.deleteIPSetsAndReferences(policy.PodSelectorIPSets, policy.PolicyKey, ipsets.SelectorType)
+	err = dp.deleteIPSetsAndReferences(policy.AllPodSelectorIPSets(), policy.PolicyKey, ipsets.SelectorType)
 	if err != nil {
 		return err
 	}
@@ -299,7 +297,7 @@ func (dp *DataPlane) UpdatePolicy(policy *policies.NPMNetworkPolicy) error {
 	return nil
 }
 
-func (dp *DataPlane) GetAllIPSets() []string {
+func (dp *DataPlane) GetAllIPSets() map[string]string {
 	return dp.ipsetMgr.GetAllIPSets()
 }
 
@@ -321,8 +319,6 @@ func (dp *DataPlane) createIPSetsAndReferences(sets []*ipsets.TranslatedIPSet, n
 		}
 	}
 
-	// TODO is there a possibility for a list set of selector referencing rule ipset?
-	// if so this below addition would throw an error because rule ipsets are not created
 	// Check if any list sets are provided with members to add
 	for _, set := range sets {
 		// Check if any CIDR block IPSets needs to be applied
@@ -362,11 +358,9 @@ func (dp *DataPlane) deleteIPSetsAndReferences(sets []*ipsets.TranslatedIPSet, n
 		}
 	}
 
-	// Check if any list sets are provided with members to add
-	// TODO for nested IPsets check if we are safe to remove members
-	// if k1:v0:v1 is created by two network policies
-	// and both have same members
-	// then we should not delete k1:v0:v1 members ( special case for nested ipsets )
+	// Check if any list sets are provided with members to delete
+	// NOTE: every translated member will be deleted, even if the member is part of the same set in another policy
+	// see the definition of TranslatedIPSet for how to avoid this situation
 	for _, set := range sets {
 		// Check if any CIDR block IPSets needs to be applied
 		setType := set.Metadata.Type

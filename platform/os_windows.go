@@ -29,6 +29,9 @@ const (
 	// CNIStateFilePath is the path to the CNI state file
 	CNIStateFilePath = "C:\\k\\azure-vnet.json"
 
+	// CNIIpamStatePath is the name of IPAM state file
+	CNIIpamStatePath = "C:\\k\\azure-vnet-ipam.json"
+
 	// CNIBinaryPath is the path to the CNI binary
 	CNIBinaryPath = "C:\\k\\azurecni\\bin\\azure-vnet.exe"
 

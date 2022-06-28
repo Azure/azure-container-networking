@@ -68,7 +68,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 		return reconcile.Result{}, errors.Wrapf(err, "failed to get NodeNetworkConfig %v", req.NamespacedName)
 	}
 
-	logger.Printf("[cns-rc] CRD Spec: %v", nnc.Spec)
+	logger.Printf("[cns-rc] CRD Spec: %+v", nnc.Spec)
 
 	// if there are no network containers, don't continue to updating Listeners
 	if len(nnc.Status.NetworkContainers) == 0 {
@@ -81,20 +81,22 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 	for i := range nnc.Status.NetworkContainers {
 		var req *cns.CreateNetworkContainerRequest
 		var err error
-		switch nnc.Status.NetworkContainers[i].AssignmentMode {
-		case v1alpha.Dynamic:
+		switch nnc.Status.NetworkContainers[i].AssignmentMode { //nolint:exhaustive // skipping dynamic case
+		case v1alpha.Static:
+			req, err = CreateNCRequestFromStaticNC(nnc.Status.NetworkContainers[i])
+		default: // For backward compatibility, default will be treated as Dynamic too.
 			req, err = CreateNCRequestFromDynamicNC(nnc.Status.NetworkContainers[i])
 			// in dynamic, we will also push this NNC to the IPAM Pool Monitor when we're done.
 			listenersToNotify = append(listenersToNotify, r.ipampoolmonitorcli)
-		case v1alpha.Static:
-			req, err = CreateNCRequestFromStaticNC(nnc.Status.NetworkContainers[i])
-		default:
-			// unrecognized mode, fail out
-			err = errors.Errorf("unknown NetworkContainer AssignmentMode %s", string(nnc.Status.NetworkContainers[i].AssignmentMode))
 		}
+
 		if err != nil {
-			return reconcile.Result{}, errors.Wrap(err, "failed to generate CreateNCRequest from NC")
+			logger.Errorf("[cns-rc] failed to generate CreateNCRequest from NC: %v, assignmentMode %s", err,
+				nnc.Status.NetworkContainers[i].AssignmentMode)
+			return reconcile.Result{}, errors.Wrapf(err, "failed to generate CreateNCRequest from NC "+
+				"assignmentMode %s", nnc.Status.NetworkContainers[i].AssignmentMode)
 		}
+
 		responseCode := r.cnscli.CreateOrUpdateNetworkContainerInternal(req)
 		if err := restserver.ResponseCodeToError(responseCode); err != nil {
 			logger.Errorf("[cns-rc] Error creating or updating NC in reconcile: %v", err)
@@ -113,6 +115,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 	}
 
 	// we have received and pushed an NNC update, we are "Started"
+	logger.Printf("[cns-rc] CNS NNC Reconciler Started")
 	r.once.Do(func() { close(r.started) })
 	return reconcile.Result{}, nil
 }

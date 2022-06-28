@@ -72,7 +72,6 @@ type NetPlugin struct {
 	report             *telemetry.CNIReport
 	tb                 *telemetry.TelemetryBuffer
 	nnsClient          NnsClient
-	hnsEndpointClient  network.AzureHNSEndpointClient
 	multitenancyClient MultitenancyClient
 }
 
@@ -106,7 +105,6 @@ func NewPlugin(name string,
 	config *common.PluginConfig,
 	client NnsClient,
 	multitenancyClient MultitenancyClient,
-	azHnsClient network.AzureHNSEndpointClient,
 ) (*NetPlugin, error) {
 	// Setup base plugin.
 	plugin, err := cni.NewPlugin(name, config.Version)
@@ -128,7 +126,6 @@ func NewPlugin(name string,
 		nm:                 nm,
 		nnsClient:          client,
 		multitenancyClient: multitenancyClient,
-		hnsEndpointClient:  azHnsClient,
 	}, nil
 }
 
@@ -334,8 +331,6 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 		return err
 	}
 
-	log.Printf("[cni-net] Read network configuration %+v.", nwCfg)
-
 	iptables.DisableIPTableLock = nwCfg.DisableIPTableLock
 	plugin.setCNIReportDetails(nwCfg, CNI_ADD, "")
 
@@ -376,7 +371,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 			res.Print()
 		}
 
-		log.Printf("[cni-net] ADD command completed for pod %v with result:%+v err:%v.", k8sPodName, ipamAddResult.ipv4Result, err)
+		log.Printf("[cni-net] ADD command completed for pod %v with IPs:%+v err:%v.", k8sPodName, ipamAddResult.ipv4Result.IPs, err)
 	}()
 
 	// Parse Pod arguments.
@@ -401,7 +396,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 		return plugin.Errorf(errMsg)
 	}
 
-	log.Printf("Execution mode :%s", nwCfg.ExecutionMode)
+	platformInit(nwCfg)
 	if nwCfg.ExecutionMode == string(util.Baremetal) {
 		var res *nnscontracts.ConfigureContainerNetworkingResponse
 		log.Printf("Baremetal mode. Calling vnet agent for ADD")
@@ -754,8 +749,7 @@ func (plugin *NetPlugin) createEndpointInternal(opt *createEndpointInternalOpt) 
 	}
 
 	// Create the endpoint.
-	telemetry.SendCNIEvent(plugin.tb, fmt.Sprintf("[cni-net] Creating endpoint %+v.", epInfo))
-	log.Printf("[cni-net] Creating endpoint %v.", epInfo.Id)
+	telemetry.LogAndSendEvent(plugin.tb, fmt.Sprintf("[cni-net] Creating endpoint %s.", epInfo.PrettyString()))
 	err = plugin.nm.CreateEndpoint(cnsclient, opt.nwInfo.Id, &epInfo)
 	if err != nil {
 		err = plugin.Errorf("Failed to create endpoint: %v", err)
@@ -883,8 +877,6 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 		return err
 	}
 
-	log.Printf("[cni-net] Read network configuration %+v.", nwCfg)
-
 	// Parse Pod arguments.
 	if k8sPodName, k8sNamespace, err = plugin.getPodInfo(args.Args); err != nil {
 		log.Printf("[cni-net] Failed to get POD info due to error: %v", err)
@@ -903,6 +895,8 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 		SetCustomDimensions(&cniMetric, nwCfg, err)
 		telemetry.SendCNIMetric(&cniMetric, plugin.tb)
 	}
+
+	platformInit(nwCfg)
 
 	log.Printf("Execution mode :%s", nwCfg.ExecutionMode)
 	if nwCfg.ExecutionMode == string(util.Baremetal) {
@@ -946,7 +940,7 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 	// Query the network.
 	if nwInfo, err = plugin.nm.GetNetworkInfo(networkID); err != nil {
 		if !nwCfg.MultiTenancy {
-			log.Printf("[cni-net] Failed to query network: %v", err)
+			log.Printf("[cni-net] Failed to query network:%s: %v", networkID, err)
 			// Log the error but return success if the network is not found.
 			// if cni hits this, mostly state file would be missing and it can be reboot scenario where
 			// container runtime tries to delete and create pods which existed before reboot.
@@ -962,7 +956,7 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 		if !nwCfg.MultiTenancy {
 			// attempt to release address associated with this Endpoint id
 			// This is to ensure clean up is done even in failure cases
-			log.Printf("[cni-net] Failed to query endpoint: %v", err)
+			log.Printf("[cni-net] Failed to query endpoint %s: %v", endpointID, err)
 			telemetry.LogAndSendEvent(plugin.tb, fmt.Sprintf("Release ip by ContainerID (endpoint not found):%v", args.ContainerID))
 			if err = plugin.ipamInvoker.Delete(nil, nwCfg, args, nwInfo.Options); err != nil {
 				return plugin.RetriableError(fmt.Errorf("failed to release address(no endpoint): %w", err))
@@ -986,7 +980,6 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 	}
 
 	if !nwCfg.MultiTenancy {
-		log.Printf("epinfo:%+v", epInfo)
 		// Call into IPAM plugin to release the endpoint's addresses.
 		for _, address := range epInfo.IPAddresses {
 			telemetry.LogAndSendEvent(plugin.tb, fmt.Sprintf("Release ip:%s", address.IP.String()))

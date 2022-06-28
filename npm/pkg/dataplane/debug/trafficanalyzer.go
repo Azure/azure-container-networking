@@ -1,16 +1,24 @@
-package dataplane
+package debug
 
 import (
 	"fmt"
+	"log"
 	"net"
+	"sort"
 	"strconv"
 	"strings"
 
-	controllersv1 "github.com/Azure/azure-container-networking/npm/pkg/controlplane/controllers/v1"
+	npmconfig "github.com/Azure/azure-container-networking/npm/config"
+	common "github.com/Azure/azure-container-networking/npm/pkg/controlplane/controllers/common"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/pb"
 	"github.com/Azure/azure-container-networking/npm/util"
 	"google.golang.org/protobuf/encoding/protojson"
 )
+
+type TupleAndRule struct {
+	Tuple *Tuple
+	Rule  *pb.RuleResponse
+}
 
 // Tuple struct
 type Tuple struct {
@@ -23,52 +31,85 @@ type Tuple struct {
 	Protocol  string `json:"protocol"`
 }
 
-// Input struct
-type Input struct {
-	Content string
-	Type    InputType
+func PrettyPrintTuples(tuples []*TupleAndRule, srcList map[string]*pb.RuleResponse_SetInfo, dstList map[string]*pb.RuleResponse_SetInfo) { //nolint: gocritic
+	allowedrules := []*TupleAndRule{}
+	for _, tuple := range tuples {
+		if tuple.Tuple.RuleType == "ALLOWED" {
+			allowedrules = append(allowedrules, tuple)
+			continue
+		}
+		/*tuple.Tuple.Direction == "EGRESS" {
+			fmt.Printf("\tProtocol: %s, Port: %s\n, Chain: %v", tuple.Tuple.Protocol, tuple.Tuple.SrcPort, tuple.Rule.Chain)
+		}*/
+	}
+
+	sort.Slice(allowedrules, func(i, j int) bool {
+		return allowedrules[i].Tuple.Direction == "EGRESS"
+	})
+
+	tuplechains := make(map[Tuple]string)
+
+	fmt.Printf("Allowed:\n")
+	section := ""
+	for _, tuple := range allowedrules {
+
+		if tuple.Tuple.Direction != section {
+			fmt.Printf("\t%s:\n", tuple.Tuple.Direction)
+			section = tuple.Tuple.Direction
+		}
+
+		t := *tuple
+		if chain, ok := tuplechains[*t.Tuple]; ok {
+			// doesn't exist in map
+			if chain != t.Rule.Chain {
+				// we've seen this tuple before with a different chain, need to print
+				fmt.Printf("\t\tProtocol: %s, Port: %s, Chain: %v, Comment: %v\n", tuple.Tuple.Protocol, tuple.Tuple.DstPort, tuple.Rule.Chain, tuple.Rule.Comment)
+			}
+		} else {
+			// we haven't seen this tuple before, print everything
+			tuplechains[*t.Tuple] = t.Rule.Chain
+			fmt.Printf("\t\tProtocol: %s, Port: %s, Chain: %v, Comment: %v\n", tuple.Tuple.Protocol, tuple.Tuple.DstPort, tuple.Rule.Chain, tuple.Rule.Comment)
+
+		}
+
+	}
+	fmt.Printf("Key:\n")
+	fmt.Printf("IPSets:")
+	fmt.Printf("\tSource IPSets:\n")
+	for i := range srcList {
+		fmt.Printf("\t\tName: %s, HashedName: %s,\n", srcList[i].Name, srcList[i].HashedSetName)
+	}
+	fmt.Printf("\tDestination IPSets:\n")
+	for i := range dstList {
+		fmt.Printf("\t\tName: %s, HashedName: %s,\n", dstList[i].Name, dstList[i].HashedSetName)
+	}
 }
-
-// InputType indicates allowed typle for source and destination input
-type InputType int32
-
-const (
-	// IPADDRS indicates the IP Address input type
-	IPADDRS InputType = 0
-	// PODNAME indicates the podname input type
-	PODNAME InputType = 1
-	// EXTERNAL indicates the external input type
-	EXTERNAL InputType = 2
-)
-
-var ipPodMap = make(map[string]*controllersv1.NpmPod)
 
 // GetNetworkTuple read from node's NPM cache and iptables-save and
 // returns a list of hit rules between the source and the destination in
 // JSON format and a list of tuples from those rules.
-func GetNetworkTuple(src, dst *Input) ([][]byte, []*Tuple, error) {
-	c := &Converter{}
-
+func (c *Converter) GetNetworkTuple(src, dst *common.Input, config *npmconfig.Config) ([][]byte, []*TupleAndRule, map[string]*pb.RuleResponse_SetInfo, map[string]*pb.RuleResponse_SetInfo, error) { //nolint: gocritic,lll
 	allRules, err := c.GetProtobufRulesFromIptable("filter")
 	if err != nil {
-		return nil, nil, fmt.Errorf("error occurred during get network tuple : %w", err)
+		return nil, nil, nil, nil, fmt.Errorf("error occurred during get network tuple : %w", err)
 	}
+
+	// after we have all rules from the AZURE-NPM chains in the filter table, get the network tuples of src and dst
+
 	return getNetworkTupleCommon(src, dst, c.NPMCache, allRules)
 }
 
 // GetNetworkTupleFile read from NPM cache and iptables-save files and
 // returns a list of hit rules between the source and the destination in
 // JSON format and a list of tuples from those rules.
-func GetNetworkTupleFile(
-	src, dst *Input,
+func (c *Converter) GetNetworkTupleFile( //nolint:gocritic
+	src, dst *common.Input,
 	npmCacheFile string,
 	iptableSaveFile string,
-) ([][]byte, []*Tuple, error) {
-
-	c := &Converter{}
+) ([][]byte, []*TupleAndRule, map[string]*pb.RuleResponse_SetInfo, map[string]*pb.RuleResponse_SetInfo, error) {
 	allRules, err := c.GetProtobufRulesFromIptableFile(util.IptablesFilterTable, npmCacheFile, iptableSaveFile)
 	if err != nil {
-		return nil, nil, fmt.Errorf("error occurred during get network tuple : %w", err)
+		return nil, nil, nil, nil, fmt.Errorf("error occurred during get network tuple : %w", err)
 	}
 
 	return getNetworkTupleCommon(src, dst, c.NPMCache, allRules)
@@ -76,28 +117,25 @@ func GetNetworkTupleFile(
 
 // Common function.
 func getNetworkTupleCommon(
-	src, dst *Input,
-	npmCache *controllersv1.Cache,
-	allRules []*pb.RuleResponse,
-) ([][]byte, []*Tuple, error) {
+	src, dst *common.Input,
+	npmCache common.GenericCache,
+	allRules map[*pb.RuleResponse]struct{},
+) ([][]byte, []*TupleAndRule, map[string]*pb.RuleResponse_SetInfo, map[string]*pb.RuleResponse_SetInfo, error) {
 
-	for _, pod := range npmCache.PodMap {
-		ipPodMap[pod.PodIP] = pod
+	srcPod, err := npmCache.GetPod(src)
+	if err != nil {
+		return nil, nil, nil, nil, fmt.Errorf("error occurred during get source pod : %w", err)
 	}
 
-	srcPod, err := getNPMPod(src, npmCache)
+	dstPod, err := npmCache.GetPod(dst)
 	if err != nil {
-		return nil, nil, fmt.Errorf("error occurred during get source pod : %w", err)
+		return nil, nil, nil, nil, fmt.Errorf("error occurred during get destination pod : %w", err)
 	}
 
-	dstPod, err := getNPMPod(dst, npmCache)
+	// find all rules where the source pod and dest pod exist
+	hitRules, srcSets, dstSets, err := getHitRules(srcPod, dstPod, allRules, npmCache)
 	if err != nil {
-		return nil, nil, fmt.Errorf("error occurred during get destination pod : %w", err)
-	}
-
-	hitRules, err := getHitRules(srcPod, dstPod, allRules, npmCache)
-	if err != nil {
-		return nil, nil, fmt.Errorf("%w", err)
+		return nil, nil, srcSets, dstSets, fmt.Errorf("%w", err)
 	}
 
 	ruleResListJSON := make([][]byte, 0)
@@ -108,12 +146,12 @@ func getNetworkTupleCommon(
 	for _, rule := range hitRules {
 		ruleJSON, err := m.Marshal(rule) // pretty print
 		if err != nil {
-			return nil, nil, fmt.Errorf("error occurred during marshalling : %w", err)
+			return nil, nil, srcSets, dstSets, fmt.Errorf("error occurred during marshalling : %w", err)
 		}
 		ruleResListJSON = append(ruleResListJSON, ruleJSON)
 	}
 
-	resTupleList := make([]*Tuple, 0)
+	resTupleList := make([]*TupleAndRule, 0)
 	for _, rule := range hitRules {
 		tuple := generateTuple(srcPod, dstPod, rule)
 		resTupleList = append(resTupleList, tuple)
@@ -126,40 +164,10 @@ func getNetworkTupleCommon(
 	// 	}
 	// 	tupleResListJson = append(tupleResListJson, ruleJson)
 	// }
-	return ruleResListJSON, resTupleList, nil
+	return ruleResListJSON, resTupleList, srcSets, dstSets, nil
 }
 
-func getNPMPod(input *Input, npmCache *controllersv1.Cache) (*controllersv1.NpmPod, error) {
-	switch input.Type {
-	case PODNAME:
-		if pod, ok := npmCache.PodMap[input.Content]; ok {
-			return pod, nil
-		}
-		return nil, errInvalidInput
-	case IPADDRS:
-		if pod, ok := ipPodMap[input.Content]; ok {
-			return pod, nil
-		}
-		return nil, errInvalidIPAddress
-	case EXTERNAL:
-		return &controllersv1.NpmPod{}, nil
-	default:
-		return nil, errInvalidInput
-	}
-}
-
-// GetInputType returns the type of the input for GetNetworkTuple.
-func GetInputType(input string) InputType {
-	if input == "External" {
-		return EXTERNAL
-	} else if ip := net.ParseIP(input); ip != nil {
-		return IPADDRS
-	} else {
-		return PODNAME
-	}
-}
-
-func generateTuple(src, dst *controllersv1.NpmPod, rule *pb.RuleResponse) *Tuple {
+func generateTuple(src, dst *common.NpmPod, rule *pb.RuleResponse) *TupleAndRule {
 	tuple := &Tuple{}
 	if rule.Allowed {
 		tuple.RuleType = "ALLOWED"
@@ -180,7 +188,7 @@ func generateTuple(src, dst *controllersv1.NpmPod, rule *pb.RuleResponse) *Tuple
 	if len(rule.SrcList) == 0 {
 		tuple.SrcIP = ANY
 	} else {
-		tuple.SrcIP = src.PodIP
+		tuple.SrcIP = src.IP()
 	}
 	if rule.SPort != 0 {
 		tuple.SrcPort = strconv.Itoa(int(rule.SPort))
@@ -190,7 +198,7 @@ func generateTuple(src, dst *controllersv1.NpmPod, rule *pb.RuleResponse) *Tuple
 	if len(rule.DstList) == 0 {
 		tuple.DstIP = ANY
 	} else {
-		tuple.DstIP = dst.PodIP
+		tuple.DstIP = dst.IP()
 	}
 	if rule.DPort != 0 {
 		tuple.DstPort = strconv.Itoa(int(rule.DPort))
@@ -202,71 +210,88 @@ func generateTuple(src, dst *controllersv1.NpmPod, rule *pb.RuleResponse) *Tuple
 	} else {
 		tuple.Protocol = ANY
 	}
-	return tuple
+	return &TupleAndRule{
+		Tuple: tuple,
+		Rule:  rule,
+	}
 }
 
 func getHitRules(
-	src, dst *controllersv1.NpmPod,
-	rules []*pb.RuleResponse,
-	npmCache *controllersv1.Cache,
-) ([]*pb.RuleResponse, error) {
+	src, dst *common.NpmPod,
+	rules map[*pb.RuleResponse]struct{},
+	npmCache common.GenericCache,
+) ([]*pb.RuleResponse, map[string]*pb.RuleResponse_SetInfo, map[string]*pb.RuleResponse_SetInfo, error) {
 
 	res := make([]*pb.RuleResponse, 0)
-	for _, rule := range rules {
-		matched := true
+	srcSets := make(map[string]*pb.RuleResponse_SetInfo, 0)
+	dstSets := make(map[string]*pb.RuleResponse_SetInfo, 0)
+
+	for rule := range rules {
+		matchedSrc := false
+		matchedDst := false
+		// evalute all match set in src
 		for _, setInfo := range rule.SrcList {
-			// evalute all match set in src
 			if src.Namespace == "" {
 				// internet
-				matched = false
 				break
 			}
+
 			matchedSource, err := evaluateSetInfo("src", setInfo, src, rule, npmCache)
 			if err != nil {
-				return nil, fmt.Errorf("error occurred during evaluating source's set info : %w", err)
+				return nil, nil, nil, fmt.Errorf("error occurred during evaluating source's set info : %w", err)
 			}
-			if !matchedSource {
-				matched = false
+			if matchedSource {
+				matchedSrc = true
+				srcSets[setInfo.HashedSetName] = setInfo
 				break
 			}
 		}
-		if !matched {
-			continue
-		}
+
+		// evaluate all match set in dst
 		for _, setInfo := range rule.DstList {
-			// evaluate all match set in dst
 			if dst.Namespace == "" {
 				// internet
-				matched = false
 				break
 			}
+
 			matchedDestination, err := evaluateSetInfo("dst", setInfo, dst, rule, npmCache)
 			if err != nil {
-				return nil, fmt.Errorf("error occurred during evaluating destination's set info : %w", err)
+				return nil, nil, nil, fmt.Errorf("error occurred during evaluating destination's set info : %w", err)
 			}
-			if !matchedDestination {
-				matched = false
+			if matchedDestination {
+
+				dstSets[setInfo.HashedSetName] = setInfo
+				matchedDst = true
 				break
 			}
 		}
-		if matched {
+
+		// conditions:
+		// add if src matches and there's no dst
+		// add if dst matches and there's no src
+		// add if src and dst match with both src and dst specified
+
+		if (matchedSrc && len(rule.DstList) == 0) ||
+			(matchedDst && len(rule.SrcList) == 0) ||
+			(matchedSrc && matchedDst) {
 			res = append(res, rule)
 		}
 	}
+
 	if len(res) == 0 {
 		// either no hit rules or no rules at all. Both cases allow all traffic
 		res = append(res, &pb.RuleResponse{Allowed: true})
 	}
-	return res, nil
+	return res, srcSets, dstSets, nil
 }
 
 // evalute an ipset to find out whether the pod's attributes match with the set
 func evaluateSetInfo(
 	origin string,
 	setInfo *pb.RuleResponse_SetInfo,
-	pod *controllersv1.NpmPod,
+	pod *common.NpmPod,
 	rule *pb.RuleResponse,
-	npmCache *controllersv1.Cache,
+	npmCache common.GenericCache,
 ) (bool, error) {
 
 	switch setInfo.Type {
@@ -287,14 +312,14 @@ func evaluateSetInfo(
 	case pb.SetType_CIDRBLOCKS:
 		return matchCIDRBLOCKS(pod, setInfo), nil
 	default:
-		return false, errSetType
+		return false, common.ErrSetType
 	}
 }
 
-func matchKEYVALUELABELOFNAMESPACE(pod *controllersv1.NpmPod, npmCache *controllersv1.Cache, setInfo *pb.RuleResponse_SetInfo) bool {
+func matchKEYVALUELABELOFNAMESPACE(pod *common.NpmPod, npmCache common.GenericCache, setInfo *pb.RuleResponse_SetInfo) bool {
 	srcNamespace := util.NamespacePrefix + pod.Namespace
 	key, expectedValue := processKeyValueLabelOfNameSpace(setInfo.Name)
-	actualValue := npmCache.NsMap[srcNamespace].LabelsMap[key]
+	actualValue := npmCache.GetNamespaceLabel(srcNamespace, key)
 	if expectedValue != actualValue {
 		// if the value is required but does not match
 		if setInfo.Included {
@@ -305,10 +330,11 @@ func matchKEYVALUELABELOFNAMESPACE(pod *controllersv1.NpmPod, npmCache *controll
 			return false
 		}
 	}
+
 	return true
 }
 
-func matchNESTEDLABELOFPOD(pod *controllersv1.NpmPod, setInfo *pb.RuleResponse_SetInfo) bool {
+func matchNESTEDLABELOFPOD(pod *common.NpmPod, setInfo *pb.RuleResponse_SetInfo) bool {
 	// a function to split the key and the values and then combine the key with each value
 	// return list of key value pairs which are keyvaluelabel of pod
 	// one match then break
@@ -327,13 +353,15 @@ func matchNESTEDLABELOFPOD(pod *controllersv1.NpmPod, setInfo *pb.RuleResponse_S
 	if !hasOneKeyValuePair && setInfo.Included {
 		return false
 	}
+
 	return true
 }
 
-func matchKEYLABELOFNAMESPACE(pod *controllersv1.NpmPod, npmCache *controllersv1.Cache, setInfo *pb.RuleResponse_SetInfo) bool {
-	srcNamespace := util.NamespacePrefix + pod.Namespace
-	key := strings.TrimPrefix(setInfo.Name, util.NamespacePrefix)
-	if _, ok := npmCache.NsMap[srcNamespace].LabelsMap[key]; ok {
+func matchKEYLABELOFNAMESPACE(pod *common.NpmPod, npmCache common.GenericCache, setInfo *pb.RuleResponse_SetInfo) bool {
+	srcNamespace := pod.Namespace
+	key := strings.Split(strings.TrimPrefix(setInfo.Name, util.NamespaceLabelPrefix), ":")
+	included := npmCache.GetNamespaceLabel(srcNamespace, key[0])
+	if included != "" && included == key[1] {
 		return setInfo.Included
 	}
 	if setInfo.Included {
@@ -343,7 +371,7 @@ func matchKEYLABELOFNAMESPACE(pod *controllersv1.NpmPod, npmCache *controllersv1
 	return true
 }
 
-func matchNAMESPACE(pod *controllersv1.NpmPod, setInfo *pb.RuleResponse_SetInfo) bool {
+func matchNAMESPACE(pod *common.NpmPod, setInfo *pb.RuleResponse_SetInfo) bool {
 	srcNamespace := util.NamespacePrefix + pod.Namespace
 	if setInfo.Name != srcNamespace || (setInfo.Name == srcNamespace && !setInfo.Included) {
 		return false
@@ -351,15 +379,16 @@ func matchNAMESPACE(pod *controllersv1.NpmPod, setInfo *pb.RuleResponse_SetInfo)
 	return true
 }
 
-func matchKEYVALUELABELOFPOD(pod *controllersv1.NpmPod, setInfo *pb.RuleResponse_SetInfo) bool {
+func matchKEYVALUELABELOFPOD(pod *common.NpmPod, setInfo *pb.RuleResponse_SetInfo) bool {
 	key, value := processKeyValueLabelOfPod(setInfo.Name)
 	if pod.Labels[key] != value || (pod.Labels[key] == value && !setInfo.Included) {
 		return false
 	}
+	log.Printf("matched key value label of pod")
 	return true
 }
 
-func matchKEYLABELOFPOD(pod *controllersv1.NpmPod, setInfo *pb.RuleResponse_SetInfo) bool {
+func matchKEYLABELOFPOD(pod *common.NpmPod, setInfo *pb.RuleResponse_SetInfo) bool {
 	key := setInfo.Name
 	if _, ok := pod.Labels[key]; ok {
 		return setInfo.Included
@@ -368,10 +397,11 @@ func matchKEYLABELOFPOD(pod *controllersv1.NpmPod, setInfo *pb.RuleResponse_SetI
 		// if key does not exist but required in rule
 		return false
 	}
+
 	return true
 }
 
-func matchNAMEDPORTS(pod *controllersv1.NpmPod, setInfo *pb.RuleResponse_SetInfo, rule *pb.RuleResponse, origin string) bool {
+func matchNAMEDPORTS(pod *common.NpmPod, setInfo *pb.RuleResponse_SetInfo, rule *pb.RuleResponse, origin string) bool {
 	portname := strings.TrimPrefix(setInfo.Name, util.NamedPortIPSetPrefix)
 	for _, namedPort := range pod.ContainerPorts {
 		if namedPort.Name == portname {
@@ -389,13 +419,14 @@ func matchNAMEDPORTS(pod *controllersv1.NpmPod, setInfo *pb.RuleResponse_SetInfo
 			} else {
 				rule.DPort = namedPort.ContainerPort
 			}
+
 			return true
 		}
 	}
 	return false
 }
 
-func matchCIDRBLOCKS(pod *controllersv1.NpmPod, setInfo *pb.RuleResponse_SetInfo) bool {
+func matchCIDRBLOCKS(pod *common.NpmPod, setInfo *pb.RuleResponse_SetInfo) bool {
 	matched := false
 	for _, entry := range setInfo.Contents {
 		entrySplitted := strings.Split(entry, " ")
@@ -414,6 +445,7 @@ func matchCIDRBLOCKS(pod *controllersv1.NpmPod, setInfo *pb.RuleResponse_SetInfo
 			}
 		}
 	}
+
 	return matched
 }
 
@@ -429,7 +461,8 @@ func processKeyValueLabelOfPod(kv string) (string, string) {
 }
 
 func processNestedLabelOfPod(kv string) []string {
-	kvList := strings.Split(kv, ":")
+	str := strings.TrimPrefix(kv, util.NestedLabelPrefix)
+	kvList := strings.Split(str, ":")
 	key := kvList[0]
 	ret := make([]string, 0)
 	for _, value := range kvList[1:] {

@@ -5,12 +5,14 @@ import (
 	"io"
 	"testing"
 
+	dataplane "github.com/Azure/azure-container-networking/npm/pkg/dataplane/debug"
+	"github.com/Azure/azure-container-networking/npm/util"
 	"github.com/stretchr/testify/require"
 )
 
 const (
-	iptableSaveFile = "../pkg/dataplane/testdata/iptablesave"
-	npmCacheFile    = "../pkg/dataplane/testdata/npmcache.json"
+	iptableSaveFile = "../pkg/dataplane/testdata/iptablesave-v1"
+	npmCacheFile    = "../pkg/dataplane/testdata/npmcachev1.json"
 	nonExistingFile = "non-existing-iptables-file"
 
 	npmCacheFlag         = "-c"
@@ -19,8 +21,8 @@ const (
 	srcFlag              = "-s"
 	unknownShorthandFlag = "-z"
 
-	testIP1 = "10.240.0.17" // from npmCacheWithCustomFormat.json
-	testIP2 = "10.240.0.68" // ditto
+	testIP1 = "10.224.0.87" // from npmCacheWithCustomFormat.json
+	testIP2 = "10.224.0.20" // ditto
 
 	debugCmdString          = "debug"
 	convertIPTableCmdString = "convertiptable"
@@ -64,4 +66,17 @@ func testCommand(t *testing.T, tests []*testCases) {
 
 func concatArgs(baseArgs []string, args ...string) []string {
 	return append(baseArgs, args...)
+}
+
+func TestPrettyPrint(t *testing.T) {
+	c := &dataplane.Converter{}
+
+	iptables, err := c.GetProtobufRulesFromIptableFile(
+		util.IptablesFilterTable,
+		npmCacheFile,
+		iptableSaveFile,
+	)
+
+	require.NoError(t, err)
+	require.NoError(t, prettyPrintIPTables(iptables))
 }

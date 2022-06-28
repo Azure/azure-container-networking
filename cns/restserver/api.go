@@ -790,7 +790,7 @@ func (service *HTTPRestService) createOrUpdateNetworkContainer(w http.ResponseWr
 
 	var req cns.CreateNetworkContainerRequest
 	err := service.Listener.Decode(w, r, &req)
-	logger.Request(service.Name, &req, err)
+	logger.Request(service.Name, req.String(), err)
 	if err != nil {
 		return
 	}

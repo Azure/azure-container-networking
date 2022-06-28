@@ -13,7 +13,7 @@
                 "portMappings": true
             },
             "ipam": {
-                "type": "azure-vnet-ipam"
+                "type": "azure-cns"
             },
             "dns": {
                 "Nameservers": [
@@ -43,7 +43,10 @@
                         "NeedEncap": true
                     }
                 }
-            ]
+            ],
+             "windowsSettings": {
+                 "hnsTimeoutDurationInSeconds" : 120
+             }
         }
     ]
 }

@@ -1,3 +1,11 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: azure-cns
+  namespace: kube-system
+  labels:
+    addonmanager.kubernetes.io/mode: EnsureExists
+---
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
@@ -13,30 +21,31 @@ spec:
     metadata:
       labels:
         k8s-app: azure-cns-win
+      annotations:
+        cluster-autoscaler.kubernetes.io/daemonset-pod: "true"
+        prometheus.io/port: "10092"
     spec:
       securityContext:
         windowsOptions:
           hostProcess: true
           runAsUserName: "NT AUTHORITY\\SYSTEM"
-      hostNetwork: true
       containers:
         - name: cns-container
-          image: acnpublic.azurecr.io/azure-cns-win:v1.4.15-1-g1b238a3f9
+          image: acnpublic.azurecr.io/azure-cns:v1.4.26-9-gc40fb852
           imagePullPolicy: IfNotPresent
-          command:
-            ["%CONTAINER_SANDBOX_MOUNT_POINT%/usr/local/bin/azure-cns.exe"]
-          args:
-            [
-              "-cns-url",
-              "tcp://$(CNSIpAddress):$(CNSPort)",
-              "-log-target",
-              "$(CNSLogTarget)",
-              "-log-location",
-              "$(CNSLogDirectory)",
-              "-store-file-path",
-              "$(CNSStoreFilePath)",
-              "-config-path",
-              "%CONTAINER_SANDBOX_MOUNT_POINT%\\$(CNS_CONFIGURATION_PATH)",
+          securityContext:
+            privileged: true
+          command: ["powershell.exe"]
+          args: 
+            [ 
+              '.\setkubeconfigpath.ps1', ";",
+              'powershell.exe', '.\azure-cns.exe',
+              '-c', "tcp://$(CNSIpAddress):$(CNSPort)",
+              '-t', "$(CNSLogTarget)",
+              '-o', "$(CNSLogDir)",
+              '-storefilepath', "$(CNSStoreFilePath)",
+              '-config-path', "%CONTAINER_SANDBOX_MOUNT_POINT%\\$(CNS_CONFIGURATION_PATH)",
+              '--kubeconfig', '.\kubeconfig',
             ]
           volumeMounts:
             - name: log
@@ -45,6 +54,9 @@ spec:
               mountPath: etc/azure-cns
           ports:
             - containerPort: 10090
+              name: api
+            - containerPort: 10092
+              name: metrics
           env:
             - name: CNSIpAddress
               value: "127.0.0.1"
@@ -52,19 +64,18 @@ spec:
               value: "10090"
             - name: CNSLogTarget
               value: "stdoutfile"
-            - name: CNSLogDirectory
-              value: "C:\\k"
+            - name: CNSLogDir
+              value: /k
             - name: CNSStoreFilePath
-              value: "C:\\k\\"
+              value: /k/
             - name: CNS_CONFIGURATION_PATH
-              value: "etc\\azure-cns\\cns_config.json"
+              value: etc/azure-cns/cns_config.json
             - name: NODENAME
               valueFrom:
                 fieldRef:
                   apiVersion: v1
-                  fieldPath: spec.nodeName
-            - name: KUBECONFIG
-              value: "C:\\k\\config"
+                  fieldPath: spec.nodeName 
+      hostNetwork: true
       volumes:
         - name: log
           hostPath:
@@ -75,6 +86,7 @@ spec:
             name: cns-config
       nodeSelector:
         kubernetes.io/os: windows
+      serviceAccountName: azure-cns
 ---
 apiVersion: v1
 kind: ConfigMap

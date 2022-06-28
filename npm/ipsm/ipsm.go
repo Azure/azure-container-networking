@@ -40,7 +40,7 @@ type IpsetManager struct {
 	exec    utilexec.Interface
 	listMap map[string]*Ipset // tracks all set lists.
 	setMap  map[string]*Ipset // label -> []ip
-	sync.Mutex
+	sync.RWMutex
 }
 
 // Ipset represents one ipset entry.
@@ -76,28 +76,42 @@ func NewIpsetManager(exec utilexec.Interface) *IpsetManager {
 	}
 }
 
-func (ipsMgr *IpsetManager) MarshalListMapJSON() ([]byte, error) {
-	ipsMgr.Lock()
-	defer ipsMgr.Unlock()
+func (ipsMgr *IpsetManager) GetListMapRaw() ([]byte, error) {
+	ipsMgr.RLock()
+	defer ipsMgr.RUnlock()
 
-	listMapRaw, err := json.Marshal(ipsMgr.listMap)
-	if err != nil {
-		return nil, errors.Errorf("failed to marshal ListMap due to %v", err)
+	listMap := make(map[string]string, len(ipsMgr.listMap))
+
+	for k := range ipsMgr.setMap {
+		hashedName := util.GetHashedName(k)
+		listMap[hashedName] = k
 	}
 
-	return listMapRaw, nil
+	b, err := json.Marshal(listMap)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to marshal list map")
+	}
+
+	return b, nil
 }
 
-func (ipsMgr *IpsetManager) MarshalSetMapJSON() ([]byte, error) {
-	ipsMgr.Lock()
-	defer ipsMgr.Unlock()
+func (ipsMgr *IpsetManager) GetSetMapRaw() ([]byte, error) {
+	ipsMgr.RLock()
+	defer ipsMgr.RUnlock()
 
-	setMapRaw, err := json.Marshal(ipsMgr.setMap)
-	if err != nil {
-		return nil, errors.Errorf("failed to marshal SetMap due to %v", err)
+	setMap := make(map[string]string, len(ipsMgr.setMap))
+
+	for k := range ipsMgr.setMap {
+		hashedName := util.GetHashedName(k)
+		setMap[hashedName] = k
 	}
 
-	return setMapRaw, nil
+	b, err := json.Marshal(setMap)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to marshal list map")
+	}
+
+	return b, nil
 }
 
 // Exists checks if an element exists in setMap/listMap.

@@ -11,6 +11,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Azure/azure-container-networking/network/hnswrapper"
+
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/network/policy"
 	"github.com/Microsoft/hcsshim"
@@ -53,6 +55,26 @@ func UseHnsV2(netNs string) (bool, error) {
 	}
 
 	return useHnsV2, err
+}
+
+// Regarding this Hnsv2 and Hnv1 variable
+// this pattern is to avoid passing around os specific objects in platform agnostic code
+var Hnsv2 hnswrapper.HnsV2WrapperInterface = hnswrapper.Hnsv2wrapper{}
+
+var Hnsv1 hnswrapper.HnsV1WrapperInterface = hnswrapper.Hnsv1wrapper{}
+
+func EnableHnsV2Timeout(timeoutValue int) {
+	if _, ok := Hnsv2.(hnswrapper.Hnsv2wrapperwithtimeout); !ok {
+		var timeoutDuration = time.Duration(timeoutValue) * time.Second
+		Hnsv2 = hnswrapper.Hnsv2wrapperwithtimeout{Hnsv2: hnswrapper.Hnsv2wrapper{}, HnsCallTimeout: timeoutDuration}
+	}
+}
+
+func EnableHnsV1Timeout(timeoutValue int) {
+	if _, ok := Hnsv1.(hnswrapper.Hnsv1wrapperwithtimeout); !ok {
+		var timeoutDuration = time.Duration(timeoutValue) * time.Second
+		Hnsv1 = hnswrapper.Hnsv1wrapperwithtimeout{Hnsv1: hnswrapper.Hnsv1wrapper{}, HnsCallTimeout: timeoutDuration}
+	}
 }
 
 // newNetworkImplHnsV1 creates a new container network for HNSv1.
@@ -122,17 +144,7 @@ func (nm *networkManager) newNetworkImplHnsV1(nwInfo *NetworkInfo, extIf *extern
 		hnsNetwork.Subnets = append(hnsNetwork.Subnets, hnsSubnet)
 	}
 
-	// Marshal the request.
-	buffer, err := json.Marshal(hnsNetwork)
-	if err != nil {
-		return nil, err
-	}
-	hnsRequest := string(buffer)
-
-	// Create the HNS network.
-	log.Printf("[net] HNSNetworkRequest POST request:%+v", hnsRequest)
-	hnsResponse, err := hcsshim.HNSNetworkRequest("POST", "", hnsRequest)
-	log.Printf("[net] HNSNetworkRequest POST response:%+v err:%v.", hnsResponse, err)
+	hnsResponse, err := Hnsv1.CreateNetwork(hnsNetwork, "")
 	if err != nil {
 		return nil, err
 	}
@@ -140,7 +152,7 @@ func (nm *networkManager) newNetworkImplHnsV1(nwInfo *NetworkInfo, extIf *extern
 	defer func() {
 		if err != nil {
 			log.Printf("[net] HNSNetworkRequest DELETE id:%v", hnsResponse.Id)
-			hnsResponse, err := hcsshim.HNSNetworkRequest("DELETE", hnsResponse.Id, "")
+			hnsResponse, err := Hnsv1.DeleteNetwork(hnsResponse.Id)
 			log.Printf("[net] HNSNetworkRequest DELETE response:%+v err:%v.", hnsResponse, err)
 		}
 	}()
@@ -162,7 +174,7 @@ func (nm *networkManager) newNetworkImplHnsV1(nwInfo *NetworkInfo, extIf *extern
 		NetNs:            nwInfo.NetNs,
 	}
 
-	globals, err := hcsshim.GetHNSGlobals()
+	globals, err := Hnsv1.GetHNSGlobals()
 	if err != nil || globals.Version.Major <= hcsshim.HNSVersion1803.Major {
 		// err would be not nil for windows 1709 & below
 		// Sleep for 10 seconds as a workaround for windows 1803 & below
@@ -312,13 +324,13 @@ func (nm *networkManager) newNetworkImplHnsV2(nwInfo *NetworkInfo, extIf *extern
 	}
 
 	// check if network exists, only create the network does not exist
-	hnsResponse, err := hnsv2.GetNetworkByName(hcnNetwork.Name)
+	hnsResponse, err := Hnsv2.GetNetworkByName(hcnNetwork.Name)
 
 	if err != nil {
 		// if network not found, create the HNS network.
 		if errors.As(err, &hcn.NetworkNotFoundError{}) {
 			log.Printf("[net] Creating hcn network: %+v", hcnNetwork)
-			hnsResponse, err = hnsv2.CreateNetwork(hcnNetwork)
+			hnsResponse, err = Hnsv2.CreateNetwork(hcnNetwork)
 
 			if err != nil {
 				return nil, fmt.Errorf("Failed to create hcn network: %s due to error: %v", hcnNetwork.Name, err)
@@ -361,10 +373,8 @@ func (nm *networkManager) newNetworkImpl(nwInfo *NetworkInfo, extIf *externalInt
 		if err != nil {
 			return nil, err
 		}
-
 		return nm.newNetworkImplHnsV2(nwInfo, extIf)
 	}
-
 	return nm.newNetworkImplHnsV1(nwInfo, extIf)
 }
 
@@ -374,33 +384,31 @@ func (nm *networkManager) deleteNetworkImpl(nw *network) error {
 		if err != nil {
 			return err
 		}
-
 		return nm.deleteNetworkImplHnsV2(nw)
 	}
-
 	return nm.deleteNetworkImplHnsV1(nw)
 }
 
 // DeleteNetworkImplHnsV1 deletes an existing container network using HnsV1.
 func (nm *networkManager) deleteNetworkImplHnsV1(nw *network) error {
 	log.Printf("[net] HNSNetworkRequest DELETE id:%v", nw.HnsId)
-	hnsResponse, err := hcsshim.HNSNetworkRequest("DELETE", nw.HnsId, "")
+	hnsResponse, err := Hnsv1.DeleteNetwork(nw.HnsId)
 	log.Printf("[net] HNSNetworkRequest DELETE response:%+v err:%v.", hnsResponse, err)
 
 	return err
 }
 
-// DeleteNetworkImplHnsV2 deletes an existing container network using HnsV2.
+// DeleteNetworkImplHnsV2 deletes an existing container network using Hnsv2.
 func (nm *networkManager) deleteNetworkImplHnsV2(nw *network) error {
 	var hcnNetwork *hcn.HostComputeNetwork
 	var err error
 	log.Printf("[net] Deleting hcn network with id: %s", nw.HnsId)
 
-	if hcnNetwork, err = hnsv2.GetNetworkByID(nw.HnsId); err != nil {
+	if hcnNetwork, err = Hnsv2.GetNetworkByID(nw.HnsId); err != nil {
 		return fmt.Errorf("Failed to get hcn network with id: %s due to err: %v", nw.HnsId, err)
 	}
 
-	if err = hnsv2.DeleteNetwork(hcnNetwork); err != nil {
+	if err = Hnsv2.DeleteNetwork(hcnNetwork); err != nil {
 		return fmt.Errorf("Failed to delete hcn network: %s due to error: %v", nw.HnsId, err)
 	}
 

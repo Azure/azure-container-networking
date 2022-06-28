@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"hash/fnv"
 	"net"
+	"net/netip"
 	"os"
 	"regexp"
 	"runtime"
@@ -355,10 +356,17 @@ func SliceToString(list []string) string {
 }
 
 func IsIPV4(ip string) bool {
-	if net.ParseIP(ip).To4() != nil {
-		return true
+	isIPBlock := strings.Contains(ip, "/")
+	ipOnly := strings.Split(ip, "/")
+	address, err := netip.ParseAddr(ipOnly[0])
+	if err != nil {
+		return false
 	}
 
-	_, _, err := net.ParseCIDR(ip)
-	return err == nil
+	if address.Is4() && isIPBlock {
+		_, _, err := net.ParseCIDR(ip)
+		return err == nil
+	}
+
+	return address.Is4()
 }

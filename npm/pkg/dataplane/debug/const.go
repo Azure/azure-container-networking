@@ -1,7 +1,6 @@
-package dataplane
+package debug
 
 import (
-	"errors"
 	"regexp"
 )
 
@@ -31,17 +30,11 @@ var AzureNPMChains = []string{
 
 var matcher = regexp.MustCompile(`(?i)[^ ]+-in-ns-[^ ]+-\d(out|in)\b`)
 
-// error type
-var (
-	errSetNotExist      = errors.New("set does not exists")
-	errInvalidIPAddress = errors.New("invalid ipaddress, no equivalent pod found")
-	errInvalidInput     = errors.New("invalid input")
-	errSetType          = errors.New("invalid set type")
-)
-
 // To test paser, converter, and trafficAnalyzer with stored files.
 const (
-	iptableSaveFile = "../testdata/iptablesave"
+	iptableSaveFileV1 = "../testdata/iptablesave-v1"
+	iptableSaveFileV2 = "../testdata/iptablesave-v2"
 	// stored file with json compatible form (i.e., can call json.Unmarshal)
-	npmCacheFile = "../testdata/npmcache.json"
+	npmCacheFileV1 = "../testdata/npmcachev1.json"
+	npmCacheFileV2 = "../testdata/npmcachev2.json"
 )

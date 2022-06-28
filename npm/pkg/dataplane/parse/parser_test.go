@@ -2,12 +2,15 @@ package parse
 
 import (
 	"bytes"
+	"log"
 	"reflect"
 	"strings"
 	"testing"
 
+	"github.com/Azure/azure-container-networking/common"
 	NPMIPtable "github.com/Azure/azure-container-networking/npm/pkg/dataplane/iptables"
 	"github.com/Azure/azure-container-networking/npm/util"
+	testutils "github.com/Azure/azure-container-networking/test/utils"
 )
 
 func TestParseIptablesObjectFile(t *testing.T) {
@@ -17,8 +20,24 @@ func TestParseIptablesObjectFile(t *testing.T) {
 	}
 }
 
+func TestParseIptablesObjectFileV2(t *testing.T) {
+	table, err := IptablesFile(util.IptablesFilterTable, "../testdata/iptablesave-v2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	log.Printf("%v", table)
+}
+
 func TestParseIptablesObject(t *testing.T) {
-	_, err := Iptables(util.IptablesFilterTable)
+	calls := []testutils.TestCmd{
+		{Cmd: []string{"iptables-save", "-t", "filter"}},
+	}
+
+	parser := IPTablesParser{
+		IOShim: common.NewMockIOShim(calls),
+	}
+
+	_, err := parser.Iptables(util.IptablesFilterTable)
 	if err != nil {
 		t.Fatal(err)
 	}

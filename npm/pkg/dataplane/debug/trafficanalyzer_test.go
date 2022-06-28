@@ -1,11 +1,13 @@
-package dataplane
+package debug
 
 import (
 	"crypto/sha256"
 	"fmt"
-	"reflect"
 	"sort"
 	"testing"
+
+	common "github.com/Azure/azure-container-networking/npm/pkg/controlplane/controllers/common"
+	"github.com/stretchr/testify/require"
 )
 
 func AsSha256(o interface{}) string {
@@ -28,17 +30,17 @@ func hashTheSortTupleList(tupleList []*Tuple) []string {
 func TestGetInputType(t *testing.T) {
 	type testInput struct {
 		input    string
-		expected InputType
+		expected common.InputType
 	}
 	tests := map[string]*testInput{
-		"external":  {input: "External", expected: EXTERNAL},
-		"podname":   {input: "test/server", expected: PODNAME},
-		"ipaddress": {input: "10.240.0.38", expected: IPADDRS},
+		"external":  {input: "External", expected: common.EXTERNAL},
+		"podname":   {input: "test/server", expected: common.NSPODNAME},
+		"ipaddress": {input: "10.240.0.38", expected: common.IPADDRS},
 	}
 	for name, test := range tests {
 		test := test
 		t.Run(name, func(t *testing.T) {
-			actualInputType := GetInputType(test.input)
+			actualInputType := common.GetInputType(test.input)
 			if actualInputType != test.expected {
 				t.Errorf("got '%+v', expected '%+v'", actualInputType, test.expected)
 			}
@@ -48,8 +50,8 @@ func TestGetInputType(t *testing.T) {
 
 func TestGetNetworkTuple(t *testing.T) {
 	type srcDstPair struct {
-		src *Input
-		dst *Input
+		src *common.Input
+		dst *common.Input
 	}
 
 	type testInput struct {
@@ -58,100 +60,24 @@ func TestGetNetworkTuple(t *testing.T) {
 	}
 
 	i0 := &srcDstPair{
-		src: &Input{Content: "z/b", Type: PODNAME},
-		dst: &Input{Content: "netpol-4537-x/a", Type: PODNAME},
-	}
-	i1 := &srcDstPair{
-		src: &Input{Content: "", Type: EXTERNAL},
-		dst: &Input{Content: "testnamespace/a", Type: PODNAME},
-	}
-	i2 := &srcDstPair{
-		src: &Input{Content: "testnamespace/a", Type: PODNAME},
-		dst: &Input{Content: "", Type: EXTERNAL},
-	}
-	i3 := &srcDstPair{
-		src: &Input{Content: "10.240.0.70", Type: IPADDRS},
-		dst: &Input{Content: "10.240.0.13", Type: IPADDRS},
-	}
-	i4 := &srcDstPair{
-		src: &Input{Content: "", Type: EXTERNAL},
-		dst: &Input{Content: "test/server", Type: PODNAME},
+		src: &common.Input{Content: "y/b", Type: common.NSPODNAME},
+		dst: &common.Input{Content: "x/b", Type: common.NSPODNAME},
 	}
 
 	expected0 := []*Tuple{
 		{
-			RuleType:  "NOT ALLOWED",
-			Direction: "INGRESS",
-			SrcIP:     "ANY",
-			SrcPort:   "ANY",
-			DstIP:     "10.240.0.13",
-			DstPort:   "ANY",
-			Protocol:  "ANY",
-		},
-		{
 			RuleType:  "ALLOWED",
-			Direction: "INGRESS",
-			SrcIP:     "10.240.0.70",
-			SrcPort:   "ANY",
-			DstIP:     "10.240.0.13",
-			DstPort:   "ANY",
-			Protocol:  "ANY",
-		},
-		{
-			RuleType:  "ALLOWED",
-			Direction: "INGRESS",
-			SrcIP:     "10.240.0.70",
-			SrcPort:   "ANY",
-			DstIP:     "10.240.0.13",
-			DstPort:   "ANY",
-			Protocol:  "ANY",
-		},
-	}
-
-	expected1 := []*Tuple{
-		{
-			RuleType:  "NOT ALLOWED",
-			Direction: "INGRESS",
-			SrcIP:     "ANY",
-			SrcPort:   "ANY",
-			DstIP:     "10.240.0.12",
-			DstPort:   "ANY",
-			Protocol:  "ANY",
-		},
-		{
-			RuleType:  "NOT ALLOWED",
-			Direction: "INGRESS",
-			SrcIP:     "ANY",
-			SrcPort:   "ANY",
-			DstIP:     "10.240.0.12",
-			DstPort:   "ANY",
-			Protocol:  "ANY",
-		},
-		{
-			RuleType:  "ALLOWED",
-			Direction: "INGRESS",
-			SrcIP:     "ANY",
-			SrcPort:   "ANY",
-			DstIP:     "10.240.0.12",
-			DstPort:   "ANY",
-			Protocol:  "ANY",
-		},
-	}
-
-	expected2 := []*Tuple{
-		{
-			RuleType:  "NOT ALLOWED",
 			Direction: "EGRESS",
-			SrcIP:     "10.240.0.12",
+			SrcIP:     "10.224.0.17",
 			SrcPort:   "ANY",
-			DstIP:     "ANY",
-			DstPort:   "ANY",
-			Protocol:  "ANY",
+			DstIP:     "10.224.0.20",
+			DstPort:   "80",
+			Protocol:  "tcp",
 		},
 		{
 			RuleType:  "ALLOWED",
 			Direction: "EGRESS",
-			SrcIP:     "10.240.0.12",
+			SrcIP:     "10.224.0.17",
 			SrcPort:   "ANY",
 			DstIP:     "ANY",
 			DstPort:   "53",
@@ -160,89 +86,61 @@ func TestGetNetworkTuple(t *testing.T) {
 		{
 			RuleType:  "ALLOWED",
 			Direction: "EGRESS",
-			SrcIP:     "10.240.0.12",
+			SrcIP:     "10.224.0.17",
 			SrcPort:   "ANY",
 			DstIP:     "ANY",
 			DstPort:   "53",
 			Protocol:  "tcp",
 		},
-	}
-
-	expected3 := []*Tuple{
-		{
-			RuleType:  "NOT ALLOWED",
-			Direction: "INGRESS",
-			SrcIP:     "ANY",
-			SrcPort:   "ANY",
-			DstIP:     "10.240.0.13",
-			DstPort:   "ANY",
-			Protocol:  "ANY",
-		},
 		{
 			RuleType:  "ALLOWED",
-			Direction: "INGRESS",
-			SrcIP:     "10.240.0.70",
+			Direction: "EGRESS",
+			SrcIP:     "10.224.0.17",
 			SrcPort:   "ANY",
-			DstIP:     "10.240.0.13",
-			DstPort:   "ANY",
-			Protocol:  "ANY",
-		},
-		{
-			RuleType:  "ALLOWED",
-			Direction: "INGRESS",
-			SrcIP:     "10.240.0.70",
-			SrcPort:   "ANY",
-			DstIP:     "10.240.0.13",
-			DstPort:   "ANY",
-			Protocol:  "ANY",
-		},
-	}
-	expected4 := []*Tuple{
-		{
-			RuleType:  "ALLOWED",
-			Direction: "INGRESS",
-			SrcIP:     "ANY",
-			SrcPort:   "ANY",
-			DstIP:     "10.240.0.38",
+			DstIP:     "10.224.0.20",
 			DstPort:   "80",
 			Protocol:  "tcp",
 		},
 		{
 			RuleType:  "NOT ALLOWED",
-			Direction: "INGRESS",
-			SrcIP:     "ANY",
+			Direction: "EGRESS",
+			SrcIP:     "10.224.0.17",
 			SrcPort:   "ANY",
-			DstIP:     "10.240.0.38",
+			DstIP:     "ANY",
 			DstPort:   "ANY",
 			Protocol:  "ANY",
 		},
 	}
 
 	tests := map[string]*testInput{
-		"podname to podname":     {input: i0, expected: expected0},
-		"internet to podname":    {input: i1, expected: expected1},
-		"podname to internet":    {input: i2, expected: expected2},
-		"ipaddress to ipaddress": {input: i3, expected: expected3},
-		"namedport":              {input: i4, expected: expected4},
+		"podname to podname": {input: i0, expected: expected0},
 	}
 
 	for name, test := range tests {
 		test := test
 		t.Run(name, func(t *testing.T) {
 			sortedExpectedTupleList := hashTheSortTupleList(test.expected)
-			_, actualTupleList, err := GetNetworkTupleFile(
+
+			c := &Converter{
+				EnableV2NPM: true,
+			}
+
+			_, actualTupleList, _, _, err := c.GetNetworkTupleFile(
 				test.input.src,
 				test.input.dst,
-				npmCacheFile,
-				iptableSaveFile,
+				npmCacheFileV2,
+				iptableSaveFileV2,
 			)
-			if err != nil {
-				t.Errorf("error during get network tuple : %v", err)
+
+			require.NoError(t, err)
+
+			tuplelist := []*Tuple{}
+			for i := range actualTupleList {
+				tuplelist = append(tuplelist, actualTupleList[i].Tuple)
 			}
-			sortedActualTupleList := hashTheSortTupleList(actualTupleList)
-			if !reflect.DeepEqual(sortedExpectedTupleList, sortedActualTupleList) {
-				t.Errorf("got '%+v', expected '%+v'", sortedActualTupleList, sortedExpectedTupleList)
-			}
+
+			sortedActualTupleList := hashTheSortTupleList(tuplelist)
+			require.Exactly(t, sortedExpectedTupleList, sortedActualTupleList)
 		})
 	}
 }

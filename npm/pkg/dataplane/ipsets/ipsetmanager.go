@@ -33,22 +33,41 @@ const (
 	ApplyOnNeed    IPSetMode = "on-need"
 )
 
+var (
+	emptySetMetadata = &IPSetMetadata{
+		Name: "emptyhashset",
+		Type: EmptyHashSet,
+	}
+	emptySetPrefixName = emptySetMetadata.GetPrefixName()
+)
+
 type IPSetManager struct {
-	iMgrCfg    *IPSetManagerCfg
+	iMgrCfg *IPSetManagerCfg
+	// emptySet is a direct reference to the empty ipset that should always be in the kernel.
+	// This set is used based on the AddEmptySetToLists flag.
+	// If emptySet is non-nil, it should be in the kernel or ready to be created in the dirtyCache.
+	// Its reference counts are currently unaccounted for and may be incorrect.
+	emptySet   *IPSet
 	setMap     map[string]*IPSet
 	dirtyCache dirtyCacheInterface
 	ioShim     *common.IOShim
-	sync.Mutex
+	sync.RWMutex
 }
 
 type IPSetManagerCfg struct {
-	IPSetMode   IPSetMode
+	IPSetMode IPSetMode
+	// NetworkName can be left empty or set to 'azure' (the only supported network)
 	NetworkName string
+	// AddEmptySetToLists determines whether all lists should have an empty set as a member.
+	// This is necessary for HNS (Windows); otherwise, an allow ACL with a list condition
+	// allows all IPs if the list has no members.
+	AddEmptySetToLists bool
 }
 
 func NewIPSetManager(iMgrCfg *IPSetManagerCfg, ioShim *common.IOShim) *IPSetManager {
 	return &IPSetManager{
 		iMgrCfg:    iMgrCfg,
+		emptySet:   nil, // will be set if needed in calls to AddToLists
 		setMap:     make(map[string]*IPSet),
 		dirtyCache: newDirtyCache(),
 		ioShim:     ioShim,
@@ -59,11 +78,6 @@ func NewIPSetManager(iMgrCfg *IPSetManagerCfg, ioShim *common.IOShim) *IPSetMana
 	Reconcile removes empty/unreferenced sets from the cache.
 	For ApplyAllIPSets mode, those sets are added to the toDeleteCache.
 	We can't delete from kernel immediately unless we lock iMgr during policy CRUD.
-	If this call adds a set to the toDeleteCache, and then that set is created before
-	ApplyIPSets is called, then the set may be unnecessarily added to the toAddOrUpdateCache,
-	meaning:
-		- for Linux, an unnecessary "-N set-name --exists" call would be made in the restore file
-		- for Windows, ...
 */
 func (iMgr *IPSetManager) Reconcile() {
 	iMgr.Lock()
@@ -85,6 +99,7 @@ func (iMgr *IPSetManager) ResetIPSets() error {
 	metrics.ResetIPSetEntries()
 	err := iMgr.resetIPSets()
 	iMgr.setMap = make(map[string]*IPSet)
+	iMgr.emptySet = nil
 	iMgr.clearDirtyCache()
 	if err != nil {
 		metrics.SendErrorLogAndMetric(util.IpsmID, "error: failed to reset ipsetmanager: %s", err.Error())
@@ -108,12 +123,28 @@ func (iMgr *IPSetManager) createAndGetIPSet(setMetadata *IPSetMetadata) *IPSet {
 	if exists {
 		return set
 	}
+
 	set = NewIPSet(setMetadata)
 	iMgr.setMap[prefixedName] = set
 	metrics.IncNumIPSets()
 	if iMgr.iMgrCfg.IPSetMode == ApplyAllIPSets {
 		iMgr.modifyCacheForKernelCreation(set)
 	}
+
+	// if configured, add the empty set to lists of type KeyLabelOfNamespace and KeyValueLabelOfNamespace.
+	// The NestedLabelOfPod list ipset type is assumed to always have a member (it is created specifically for network policy pod selectors).
+	if iMgr.iMgrCfg.AddEmptySetToLists && (set.Type == KeyLabelOfNamespace || set.Type == KeyValueLabelOfNamespace) {
+		if iMgr.emptySet == nil {
+			// duplicate of code chunk above
+			iMgr.emptySet = NewIPSet(emptySetMetadata)
+			iMgr.setMap[emptySetPrefixName] = iMgr.emptySet
+			metrics.IncNumIPSets()
+			iMgr.modifyCacheForKernelCreation(iMgr.emptySet)
+		}
+
+		iMgr.addMemberToList(set, iMgr.emptySet)
+	}
+
 	return set
 }
 
@@ -213,7 +244,6 @@ func (iMgr *IPSetManager) AddToSets(addToSets []*IPSetMetadata, ip, podKey strin
 		return npmerrors.Errorf(npmerrors.AppendIPSet, true, msg)
 	}
 
-	// TODO check if the IP is IPV4 family in controller
 	iMgr.Lock()
 	defer iMgr.Unlock()
 
@@ -333,17 +363,22 @@ func (iMgr *IPSetManager) AddToLists(listMetadatas, setMetadatas []*IPSetMetadat
 			}
 			member := iMgr.setMap[memberName]
 
-			iMgr.modifyCacheForKernelMemberAdd(list, member.HashedName)
-			list.MemberIPSets[memberName] = member
-			member.incIPSetReferCount()
-			metrics.AddEntryToIPSet(list.Name)
+			iMgr.addMemberToList(list, member)
 			listIsInKernel := iMgr.shouldBeInKernel(list)
 			if listIsInKernel {
 				iMgr.incKernelReferCountAndModifyCache(member)
 			}
 		}
 	}
+
 	return nil
+}
+
+func (iMgr *IPSetManager) addMemberToList(list, member *IPSet) {
+	iMgr.modifyCacheForKernelMemberAdd(list, member.HashedName)
+	list.MemberIPSets[member.Name] = member
+	member.incIPSetReferCount()
+	metrics.AddEntryToIPSet(list.Name)
 }
 
 func (iMgr *IPSetManager) RemoveFromList(listMetadata *IPSetMetadata, setMetadatas []*IPSetMetadata) error {
@@ -369,9 +404,15 @@ func (iMgr *IPSetManager) RemoveFromList(listMetadata *IPSetMetadata, setMetadat
 	for _, setMetadata := range setMetadatas {
 		memberName := setMetadata.GetPrefixName()
 		if memberName == "" {
-			metrics.SendErrorLogAndMetric(util.IpsmID, "[RemoveFromList] warning: removing empty member name from list %s", list.Name)
+			metrics.SendErrorLogAndMetric(util.IpsmID, "[RemoveFromList] warning: tried to remove empty member name from list %s", list.Name)
 			continue
 		}
+
+		if iMgr.iMgrCfg.AddEmptySetToLists && memberName == emptySetPrefixName {
+			metrics.SendErrorLogAndMetric(util.IpsmID, "[RemoveFromList] warning: tried to remove empty set from list %s", list.Name)
+			continue
+		}
+
 		member, exists := iMgr.setMap[memberName]
 		if !exists {
 			continue
@@ -431,16 +472,14 @@ func (iMgr *IPSetManager) ApplyIPSets() error {
 	return nil
 }
 
-func (iMgr *IPSetManager) GetAllIPSets() []string {
-	iMgr.Lock()
-	defer iMgr.Unlock()
-	setNames := make([]string, len(iMgr.setMap))
-	i := 0
-	for setName := range iMgr.setMap {
-		setNames[i] = setName
-		i++
+func (iMgr *IPSetManager) GetAllIPSets() map[string]string {
+	iMgr.RLock()
+	defer iMgr.RUnlock()
+	setMap := make(map[string]string, len(iMgr.setMap))
+	for _, metadata := range iMgr.setMap {
+		setMap[metadata.HashedName] = metadata.Name
 	}
-	return setNames
+	return setMap
 }
 
 func (iMgr *IPSetManager) exists(name string) bool {
@@ -450,21 +489,23 @@ func (iMgr *IPSetManager) exists(name string) bool {
 
 // the metric for number of ipsets in the kernel will be lower than in reality until the next applyIPSet call
 func (iMgr *IPSetManager) modifyCacheForCacheDeletion(set *IPSet, deleteOption util.DeleteOption) {
+	if set == iMgr.emptySet {
+		return
+	}
+
 	if deleteOption == util.ForceDelete {
 		// If force delete, then check if Set is used by other set or network policy
 		// else delete the set even if it has members
 		if !set.canBeForceDeleted() {
 			return
 		}
-	} else if !set.canBeDeleted() {
+	} else if !set.canBeDeleted(iMgr.emptySet) {
 		return
 	}
 
 	delete(iMgr.setMap, set.Name)
 	metrics.DeleteIPSet(set.Name)
 	if iMgr.iMgrCfg.IPSetMode == ApplyAllIPSets {
-		// NOTE: in ApplyAllIPSets mode, if this ipset has never been created in the kernel,
-		// it would be added to the deleteCache, and then the OS would fail to delete it
 		iMgr.modifyCacheForKernelRemoval(set)
 	}
 	// if mode is ApplyOnNeed, the set will not be in the kernel (or will be in the delete cache already) since there are no references
@@ -490,7 +531,7 @@ func (iMgr *IPSetManager) incKernelReferCountAndModifyCache(member *IPSet) {
 }
 
 func (iMgr *IPSetManager) shouldBeInKernel(set *IPSet) bool {
-	return set.shouldBeInKernel() || iMgr.iMgrCfg.IPSetMode == ApplyAllIPSets
+	return set.shouldBeInKernel() || iMgr.iMgrCfg.IPSetMode == ApplyAllIPSets || set == iMgr.emptySet
 }
 
 func (iMgr *IPSetManager) modifyCacheForKernelRemoval(set *IPSet) {
@@ -553,10 +594,7 @@ func validateIPSetMemberIP(ip string) bool {
 	// 192.168.0.0/24 nomatch
 	// always guaranteed to have ip, not guaranteed to have port + protocol
 	ipDetails := strings.Split(ip, ",")
-	if util.IsIPV4(ipDetails[0]) {
-		return true
-	}
+	ipField := strings.Split(ipDetails[0], " ")
 
-	err := ValidateIPBlock(ip)
-	return err == nil
+	return util.IsIPV4(ipField[0])
 }

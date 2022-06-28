@@ -20,5 +20,13 @@
     "TLSPort": "10091",
     "TLSSubjectName": "",
     "UseHTTPS": false,
-    "WireserverIP": "168.63.129.16"
+    "WireserverIP": "168.63.129.16",
+    "KeyVaultSettings": {
+        "URL": "",
+        "CertificateName": "",
+        "RefreshIntervalInHrs": 12
+    },
+    "MSISettings": {
+        "ResourceID": ""
+    }
 }

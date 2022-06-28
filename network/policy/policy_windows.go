@@ -506,7 +506,7 @@ func GetHcnEndpointPolicies(policyType CNIPolicyType, policies []Policy, epInfoD
 
 			if !(isOutboundNatPolicy && enableMultiTenancy && !enableSnatForDns) {
 				hcnEndPointPolicies = append(hcnEndPointPolicies, endpointPolicy)
-				log.Printf("Successfully set the policy: %+v", endpointPolicy)
+				log.Printf("Successfully retrieve endpoint policy: %s", endpointPolicy.Type)
 			}
 		}
 	}
@@ -520,7 +520,7 @@ func GetHcnEndpointPolicies(policyType CNIPolicyType, policies []Policy, epInfoD
 			}
 
 			hcnEndPointPolicies = append(hcnEndPointPolicies, natPolicy)
-			log.Printf("Successfully set the policy: %+v", natPolicy)
+			log.Printf("Successfully retrieve natInfo policy: %s", natPolicy.Type)
 		}
 	}
 

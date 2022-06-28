@@ -2,12 +2,19 @@ package parse
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
+	"strings"
 
+	"github.com/Azure/azure-container-networking/common"
+	"github.com/Azure/azure-container-networking/npm/metrics"
 	NPMIPtable "github.com/Azure/azure-container-networking/npm/pkg/dataplane/iptables"
 	"github.com/Azure/azure-container-networking/npm/util"
+	npmerrors "github.com/Azure/azure-container-networking/npm/util/errors"
+	"k8s.io/klog"
+	utilexec "k8s.io/utils/exec"
 )
 
 var (
@@ -19,12 +26,49 @@ var (
 	MinOptionLength = 2
 )
 
+type IPTablesParser struct {
+	IOShim *common.IOShim
+}
+
+// runCommand returns (stdout, stderr, error)
+func (i *IPTablesParser) runCommand(command string, args ...string) ([]byte, error) {
+	klog.Infof("Executing iptables command %v %v", command, args)
+
+	commandExec := i.IOShim.Exec.Command(command, args...)
+	output, err := commandExec.CombinedOutput()
+
+	var exitError utilexec.ExitError
+	if ok := errors.As(err, &exitError); ok {
+		errCode := exitError.ExitStatus()
+		allArgsString := command + " " + strings.Join(args, " ")
+		msgStr := strings.TrimSuffix(string(output), "\n")
+		if errCode > 0 {
+			metrics.SendErrorLogAndMetric(util.IptmID, "error: There was an error running command: [%s %s] Stderr: [%v, %s]", util.Iptables, allArgsString, exitError, msgStr)
+		}
+		return output, npmerrors.SimpleErrorWrapper(fmt.Sprintf("failed to run iptables command [%s %s] Stderr: [%s]", util.Iptables, allArgsString, msgStr), exitError)
+	}
+	return output, nil
+}
+
+// Iptables creates a Go object from specified iptable by calling iptables-save within node.
+func (i *IPTablesParser) Iptables(tableName string) (*NPMIPtable.Table, error) {
+	cmdArgs := []string{util.IptablesTableFlag, string(tableName)}
+
+	output, err := i.runCommand(util.IptablesSave, cmdArgs...)
+	if err != nil {
+		return nil, err
+	}
+
+	chains := parseIptablesChainObject(tableName, output)
+	return &NPMIPtable.Table{Name: tableName, Chains: chains}, nil
+}
+
 // Iptables creates a Go object from specified iptable by calling iptables-save within node.
 func Iptables(tableName string) (*NPMIPtable.Table, error) {
 	iptableBuffer := bytes.NewBuffer(nil)
 	// TODO: need to get iptable's lock
 	cmdArgs := []string{util.IptablesTableFlag, string(tableName)}
-	cmd := exec.Command(util.IptablesSave, cmdArgs...) //nolint:gosec
+	cmd := exec.Command(util.IptablesSave, cmdArgs...) //nolint:gosec // client usage is filter table only
 
 	cmd.Stdout = iptableBuffer
 	stderrBuffer := bytes.NewBuffer(nil)
@@ -42,7 +86,7 @@ func Iptables(tableName string) (*NPMIPtable.Table, error) {
 }
 
 // IptablesFile creates a Go object from specified iptable by reading from an iptables-save file.
-func IptablesFile(tableName string, iptableSaveFile string) (*NPMIPtable.Table, error) {
+func IptablesFile(tableName, iptableSaveFile string) (*NPMIPtable.Table, error) {
 	iptableBuffer := bytes.NewBuffer(nil)
 	byteArray, err := os.ReadFile(iptableSaveFile)
 	if err != nil {

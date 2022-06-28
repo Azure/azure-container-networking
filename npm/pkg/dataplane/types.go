@@ -9,7 +9,7 @@ import (
 type GenericDataplane interface {
 	BootupDataplane() error
 	RunPeriodicTasks()
-	GetAllIPSets() []string
+	GetAllIPSets() map[string]string
 	GetIPSet(setName string) *ipsets.IPSet
 	CreateIPSets(setMetadatas []*ipsets.IPSetMetadata)
 	DeleteIPSet(setMetadata *ipsets.IPSetMetadata, deleteOption util.DeleteOption)

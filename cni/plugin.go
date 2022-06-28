@@ -95,7 +95,7 @@ func (plugin *Plugin) DelegateAdd(pluginName string, nwCfg *NetworkConfig) (*cni
 	var result *cniTypesCurr.Result
 	var err error
 
-	log.Printf("[cni] Calling plugin %v ADD nwCfg:%+v.", pluginName, nwCfg)
+	log.Printf("[cni] Calling plugin %v ADD", pluginName)
 	defer func() { log.Printf("[cni] Plugin %v returned result:%+v, err:%v.", pluginName, result, err) }()
 
 	os.Setenv(Cmd, CmdAdd)

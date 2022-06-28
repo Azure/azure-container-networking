@@ -31,6 +31,8 @@ linters-settings:
     - "diagnostic"
     - "style"
     - "performance"
+    disabled-checks:
+    - "hugeParam"
   govet:
     check-shadowing: true
   lll:

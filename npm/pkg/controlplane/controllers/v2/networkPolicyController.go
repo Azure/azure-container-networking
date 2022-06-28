@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"sync"
 	"time"
 
 	"github.com/Azure/azure-container-networking/npm/metrics"
@@ -29,10 +30,17 @@ var (
 )
 
 type NetworkPolicyController struct {
+	sync.RWMutex
 	netPolLister netpollister.NetworkPolicyLister
 	workqueue    workqueue.RateLimitingInterface
 	rawNpSpecMap map[string]*networkingv1.NetworkPolicySpec // Key is <nsname>/<policyname>
 	dp           dataplane.GenericDataplane
+}
+
+func (c *NetworkPolicyController) GetCache() map[string]*networkingv1.NetworkPolicySpec {
+	c.RLock()
+	defer c.RUnlock()
+	return c.rawNpSpecMap
 }
 
 func NewNetworkPolicyController(npInformer networkinginformers.NetworkPolicyInformer, dp dataplane.GenericDataplane) *NetworkPolicyController {
@@ -277,14 +285,17 @@ func (c *NetworkPolicyController) syncAddAndUpdateNetPol(netPolObj *networkingv1
 	// install translated rules into kernel
 	npmNetPolObj, err := translation.TranslatePolicy(netPolObj)
 	if err != nil {
-		if errors.Is(err, translation.ErrUnsupportedNamedPort) || errors.Is(err, translation.ErrUnsupportedNegativeMatch) {
-			// We can safely suppress unsupported network policy because re-Queuing will result in same error
-			klog.Warningf("NetworkPolicy %s in namespace %s is not translated because it has unsupported translated features of Windows.", netPolObj.ObjectMeta.Name, netPolObj.ObjectMeta.Namespace)
-			// consider a no-op since we the policy is unsupported. The exec time here isn't important either.
+		if isUnsupportedWindowsTranslationErr(err) {
+			klog.Warningf("NetworkPolicy %s in namespace %s is not translated because it has unsupported translated features of Windows: %s",
+				netPolObj.ObjectMeta.Name, netPolObj.ObjectMeta.Namespace, err.Error())
+
+			// We can safely suppress unsupported network policy because re-Queuing will result in same error.
+			// The exec time isn't relevant here, so consider a no-op.
 			return metrics.NoOp, nil
 		}
+
 		klog.Errorf("Failed to translate podSelector in NetworkPolicy %s in namespace %s: %s", netPolObj.ObjectMeta.Name, netPolObj.ObjectMeta.Namespace, err.Error())
-		// consider a no-op since we can't translate. The exec time here isn't important either.
+		// The exec time isn't relevant here, so consider a no-op.
 		return metrics.NoOp, errNetPolTranslationFailure
 	}
 
@@ -333,4 +344,10 @@ func (c *NetworkPolicyController) cleanUpNetworkPolicy(netPolKey string) error {
 	delete(c.rawNpSpecMap, netPolKey)
 	metrics.DecNumPolicies()
 	return nil
+}
+
+func isUnsupportedWindowsTranslationErr(err error) bool {
+	return errors.Is(err, translation.ErrUnsupportedNamedPort) ||
+		errors.Is(err, translation.ErrUnsupportedNegativeMatch) ||
+		errors.Is(err, translation.ErrUnsupportedSCTP)
 }

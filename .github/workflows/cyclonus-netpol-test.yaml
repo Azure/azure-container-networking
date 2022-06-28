@@ -23,9 +23,9 @@ jobs:
         profile: [v1-default.yaml, v1-place-azure-chain-first.yaml, v2-default.yaml, v2-apply-on-need.yaml, v2-place-azure-after-kube-services.yaml]
     steps:
       - name: Checkout
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
-      - uses: actions/setup-go@v2
+      - uses: actions/setup-go@v3
         with:
           go-version: '^1.18'
 
@@ -71,7 +71,7 @@ jobs:
           mv ./test/cyclonus/cyclonus-test.txt ./cyclonus-test_${{ matrix.profile }}.txt
 
       - name: 'Upload Logs'
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         if: always()
         with:
           name: logs

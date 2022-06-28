@@ -44,7 +44,7 @@ func TestConvertIPTableCmd(t *testing.T) {
 		},
 		{
 			name:    "correct files with file order switched",
-			args:    concatArgs(baseArgs, npmCacheFlag, npmCacheFile, iptablesSaveFileFlag, iptableSaveFile),
+			args:    concatArgs(baseArgs, npmCacheFlag, npmCacheFile, iptablesSaveFileFlag, npmCacheFile),
 			wantErr: false,
 		},
 		{

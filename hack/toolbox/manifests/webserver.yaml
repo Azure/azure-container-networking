@@ -4,7 +4,6 @@ kind: Service
 metadata:
   name: toolbox
 spec:
-  ipFamily: IPv6
   type: LoadBalancer
   selector:
     app: toolbox
@@ -19,7 +18,6 @@ kind: Service
 metadata:
   name: matmerr-http-v4
 spec:
-  ipFamily: IPv4
   type: LoadBalancer
   selector:
     app: matmerr-http-v4
@@ -45,11 +43,10 @@ spec:
         app: toolbox
     spec:
       nodeSelector:
-        beta.kubernetes.io/os: linux
         kubernetes.io/role: agent
       containers:
         - name: toolbox
-          image: matmerr/toolbox:v6.2
+          image: acnpublic.azurecr.io/toolbox:latest
           env:
             - name: TCP_PORT
               value: "8085"

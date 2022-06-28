@@ -19,6 +19,7 @@ const (
 	// IPSetPolicyMode will references IPSets in policies
 	IPSetPolicyMode PolicyManagerMode = "IPSet"
 	// IPPolicyMode will replace ipset names with their value IPs in policies
+	// NOTE: this is currently unimplemented
 	IPPolicyMode PolicyManagerMode = "IP"
 
 	// this number is based on the implementation in chain-management_linux.go
@@ -110,7 +111,6 @@ func (pMgr *PolicyManager) AddPolicy(policy *NPMNetworkPolicy, endpointList map[
 		return nil
 	}
 
-	// TODO move this validation and normalization to controller
 	NormalizePolicy(policy)
 	if err := ValidatePolicy(policy); err != nil {
 		msg := fmt.Sprintf("failed to validate policy: %s", err.Error())

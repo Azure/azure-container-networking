@@ -2,11 +2,12 @@ package ipsets
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/Azure/azure-container-networking/npm/util"
-	"github.com/Azure/azure-container-networking/npm/util/errors"
+	npmerrors "github.com/Azure/azure-container-networking/npm/util/errors"
 	"github.com/Microsoft/hcsshim/hcn"
 	"k8s.io/klog"
 )
@@ -19,10 +20,34 @@ const (
 	donotResetIPSets                           = false
 )
 
+var errUnsupportedNetwork = errors.New("only 'azure' network is supported")
+
 type networkPolicyBuilder struct {
 	toAddSets    map[string]*hcn.SetPolicySetting
 	toUpdateSets map[string]*hcn.SetPolicySetting
 	toDeleteSets map[string]*hcn.SetPolicySetting
+}
+
+func (iMgr *IPSetManager) DoesIPSatisfySelectorIPSets(ip string, setList map[string]struct{}) (bool, error) {
+	if len(setList) == 0 {
+		klog.Infof("[ipset manager] unexpectedly encountered empty selector list")
+		return true, nil
+	}
+	iMgr.Lock()
+	defer iMgr.Unlock()
+
+	if err := iMgr.validateSelectorIPSets(setList); err != nil {
+		return false, err
+	}
+
+	for setName := range setList {
+		set := iMgr.setMap[setName]
+		if !set.isIPAffiliated(ip) {
+			return false, nil
+		}
+	}
+
+	return true, nil
 }
 
 // GetIPsFromSelectorIPSets will take in a map of prefixedSetNames and return an intersection of IPs
@@ -33,43 +58,104 @@ func (iMgr *IPSetManager) GetIPsFromSelectorIPSets(setList map[string]struct{}) 
 	iMgr.Lock()
 	defer iMgr.Unlock()
 
-	setintersections := make(map[string]struct{})
-	var err error
-	firstLoop := true
+	if err := iMgr.validateSelectorIPSets(setList); err != nil {
+		return nil, err
+	}
+
+	// the following is a space/time optimized way to get the intersection of IPs from the selector sets
+	// we should always take the hash set branch because a pod selector always includes a namespace ipset,
+	// which is a hash set, and we favor hash sets for firstSet
+	var firstSet *IPSet
 	for setName := range setList {
-		if !iMgr.exists(setName) {
-			return nil, errors.Errorf(
-				errors.GetSelectorReference,
-				false,
-				fmt.Sprintf("[ipset manager] selector ipset %s does not exist", setName))
-		}
 		set := iMgr.setMap[setName]
-		if firstLoop {
-			intialSetIPs := set.IPPodKey
-			for k := range intialSetIPs {
-				setintersections[k] = struct{}{}
-			}
-			firstLoop = false
-		}
-		setintersections, err = set.getSetIntersection(setintersections)
-		if err != nil {
-			return nil, err
+		if set.Kind == HashSet || firstSet == nil {
+			// firstSet can be any set, but ideally is a hash set for efficiency (compare the branch for hash sets to the one for lists below)
+			firstSet = set
 		}
 	}
-	return setintersections, err
+	ips := make(map[string]struct{})
+	if firstSet.Kind == HashSet {
+		// include every IP in firstSet that is also affiliated with every other selector set
+		for ip := range firstSet.IPPodKey {
+			isAffiliated := true
+			for otherSetName := range setList {
+				if otherSetName == firstSet.Name {
+					continue
+				}
+				otherSet := iMgr.setMap[otherSetName]
+				if !otherSet.isIPAffiliated(ip) {
+					isAffiliated = false
+					break
+				}
+			}
+
+			if isAffiliated {
+				ips[ip] = struct{}{}
+			}
+		}
+	} else {
+		// should never reach this branch (see note above)
+		// include every IP affiliated with firstSet that is also affiliated with every other selector set
+		// identical to the hash set case, except we have to make space for all IPs affiliated with firstSet
+
+		// only loop over the unique affiliated IPs
+		for _, memberSet := range firstSet.MemberIPSets {
+			for ip := range memberSet.IPPodKey {
+				ips[ip] = struct{}{}
+			}
+		}
+		for ip := range ips {
+			// identical to the hash set case
+			isAffiliated := true
+			for otherSetName := range setList {
+				if otherSetName == firstSet.Name {
+					continue
+				}
+				otherSet := iMgr.setMap[otherSetName]
+				if !otherSet.isIPAffiliated(ip) {
+					isAffiliated = false
+					break
+				}
+			}
+
+			if !isAffiliated {
+				delete(ips, ip)
+			}
+		}
+	}
+	return ips, nil
 }
 
 func (iMgr *IPSetManager) GetSelectorReferencesBySet(setName string) (map[string]struct{}, error) {
 	iMgr.Lock()
 	defer iMgr.Unlock()
 	if !iMgr.exists(setName) {
-		return nil, errors.Errorf(
-			errors.GetSelectorReference,
+		return nil, npmerrors.Errorf(
+			npmerrors.GetSelectorReference,
 			false,
 			fmt.Sprintf("[ipset manager] selector ipset %s does not exist", setName))
 	}
 	set := iMgr.setMap[setName]
 	return set.SelectorReference, nil
+}
+
+func (iMgr *IPSetManager) validateSelectorIPSets(setList map[string]struct{}) error {
+	for setName := range setList {
+		if !iMgr.exists(setName) {
+			return npmerrors.Errorf(
+				npmerrors.GetSelectorReference,
+				false,
+				fmt.Sprintf("[ipset manager] selector ipset %s does not exist", setName))
+		}
+		set := iMgr.setMap[setName]
+		if !set.canSetBeSelectorIPSet() {
+			return npmerrors.Errorf(
+				npmerrors.IPSetIntersection,
+				false,
+				fmt.Sprintf("[IPSet] Selector IPSet cannot be of type %s", set.Type.String()))
+		}
+	}
+	return nil
 }
 
 func (iMgr *IPSetManager) resetIPSets() error {
@@ -79,7 +165,6 @@ func (iMgr *IPSetManager) resetIPSets() error {
 		return err
 	}
 
-	// TODO delete 2nd level sets first and then 1st level sets
 	_, toDeleteSets := iMgr.segregateSetPolicies(network.Policies, resetIPSetsTrue)
 
 	if len(toDeleteSets) == 0 {
@@ -141,7 +226,7 @@ func (iMgr *IPSetManager) applyIPSets() error {
 
 // calculateNewSetPolicies will take in existing setPolicies on network in HNS and the dirty cache, will return back
 // networkPolicyBuild which contains the new setPolicies to be added, updated and deleted
-// TODO: This function is not thread safe.
+// Assumes that the dirty cache is locked (or equivalently, the ipsetmanager itself).
 // toAddSets:
 //      this function will loop through the dirty cache and adds non-existing sets to toAddSets
 // toUpdateSets:
@@ -171,7 +256,7 @@ func (iMgr *IPSetManager) calculateNewSetPolicies(networkPolicies []hcn.NetworkP
 	for setName := range toAddUpdateSetNames {
 		set, exists := iMgr.setMap[setName] // check if the Set exists
 		if !exists {
-			return nil, errors.Errorf(errors.AppendIPSet, false, fmt.Sprintf("ipset %s does not exist", setName))
+			return nil, npmerrors.Errorf(npmerrors.AppendIPSet, false, fmt.Sprintf("ipset %s does not exist", setName))
 		}
 
 		setPol, err := convertToSetPolicy(set)
@@ -208,9 +293,12 @@ func (iMgr *IPSetManager) calculateNewSetPolicies(networkPolicies []hcn.NetworkP
 
 func (iMgr *IPSetManager) getHCnNetwork() (*hcn.HostComputeNetwork, error) {
 	if iMgr.iMgrCfg.NetworkName == "" {
-		iMgr.iMgrCfg.NetworkName = "azure"
+		iMgr.iMgrCfg.NetworkName = util.AzureNetworkName
 	}
-	network, err := iMgr.ioShim.Hns.GetNetworkByName("azure")
+	if iMgr.iMgrCfg.NetworkName != util.AzureNetworkName {
+		return nil, errUnsupportedNetwork
+	}
+	network, err := iMgr.ioShim.Hns.GetNetworkByName(iMgr.iMgrCfg.NetworkName)
 	if err != nil {
 		return nil, err
 	}
@@ -241,8 +329,7 @@ func (iMgr *IPSetManager) modifySetPolicies(network *hcn.HostComputeNetwork, ope
 		}
 
 		if policyRequest == nil {
-			klog.Infof("[IPSetManager Windows] No Policies to apply")
-			return nil
+			continue
 		}
 
 		requestMessage := &hcn.ModifyNetworkSettingRequest{
@@ -307,12 +394,12 @@ func getPolicyNetworkRequestMarshal(setPolicySettings map[string]*hcn.SetPolicyS
 		Policies: make([]hcn.NetworkPolicy, 0),
 	}
 
-	for setPol := range setPolicySettings {
-		if setPolicySettings[setPol].PolicyType != policyType {
+	for _, setPol := range setPolicySettings {
+		if setPol.PolicyType != policyType {
 			continue
 		}
-		klog.Infof("Found set pol %+v", setPolicySettings[setPol])
-		rawSettings, err := json.Marshal(setPolicySettings[setPol])
+		klog.Infof("will perform %s operation on set pol %+v", policyType, setPol)
+		rawSettings, err := json.Marshal(setPol)
 		if err != nil {
 			return nil, err
 		}
@@ -323,6 +410,11 @@ func getPolicyNetworkRequestMarshal(setPolicySettings map[string]*hcn.SetPolicyS
 				Settings: rawSettings,
 			},
 		)
+	}
+
+	if len(policyNetworkRequest.Policies) == 0 {
+		klog.Infof("[Dataplane Windows] no %s type of sets to apply", policyType)
+		return nil, nil
 	}
 
 	policyReqSettings, err := json.Marshal(policyNetworkRequest)

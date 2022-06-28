@@ -37,8 +37,8 @@ var (
  * Issue link: https://github.com/kubernetes/kubernetes/issues/57253
  */
 func (plugin *NetPlugin) handleConsecutiveAdd(args *cniSkel.CmdArgs, endpointId string, networkId string,
-	nwInfo *network.NetworkInfo, nwCfg *cni.NetworkConfig) (*cniTypesCurr.Result, error) {
-
+	nwInfo *network.NetworkInfo, nwCfg *cni.NetworkConfig,
+) (*cniTypesCurr.Result, error) {
 	epInfo, _ := plugin.nm.GetEndpointInfo(networkId, endpointId)
 	if epInfo == nil {
 		return nil, nil
@@ -49,15 +49,15 @@ func (plugin *NetPlugin) handleConsecutiveAdd(args *cniSkel.CmdArgs, endpointId 
 		return nil, err
 	}
 
-	hnsEndpoint, err := plugin.hnsEndpointClient.GetHNSEndpointByName(endpointId)
+	hnsEndpoint, err := network.Hnsv1.GetHNSEndpointByName(endpointId)
 	if hnsEndpoint != nil {
 		log.Printf("[net] Found existing endpoint through hcsshim: %+v", hnsEndpoint)
-		endpoint, _ := plugin.hnsEndpointClient.GetHNSEndpointByID(hnsEndpoint.Id)
-		isAttached, _ := plugin.hnsEndpointClient.IsAttached(endpoint, args.ContainerID)
+		endpoint, _ := network.Hnsv1.GetHNSEndpointByID(hnsEndpoint.Id)
+		isAttached, _ := network.Hnsv1.IsAttached(endpoint, args.ContainerID)
 		// Attach endpoint if it's not attached yet.
 		if !isAttached {
 			log.Printf("[net] Attaching ep %v to container %v", hnsEndpoint.Id, args.ContainerID)
-			err := plugin.hnsEndpointClient.HotAttachEndpoint(args.ContainerID, hnsEndpoint.Id)
+			err := network.Hnsv1.HotAttachEndpoint(args.ContainerID, hnsEndpoint.Id)
 			if err != nil {
 				log.Printf("[cni-net] Failed to hot attach shared endpoint[%v] to container [%v], err:%v.", hnsEndpoint.Id, args.ContainerID, err)
 				return nil, err
@@ -141,13 +141,13 @@ func addSnatInterface(nwCfg *cni.NetworkConfig, result *cniTypesCurr.Result) {
 }
 
 func (plugin *NetPlugin) getNetworkName(netNs string, ipamAddResult *IPAMAddResult, nwCfg *cni.NetworkConfig) (string, error) {
+	determineWinVer()
 	// For singletenancy, the network name is simply the nwCfg.Name
 	if !nwCfg.MultiTenancy {
 		return nwCfg.Name, nil
 	}
 
 	// in multitenancy case, the network name will be in the state file or can be built from cnsResponse
-	determineWinVer()
 	if len(strings.TrimSpace(netNs)) == 0 {
 		return "", fmt.Errorf("NetNs cannot be empty")
 	}
@@ -387,4 +387,12 @@ func getNATInfo(executionMode string, ncPrimaryIPIface interface{}, multitenancy
 	}
 
 	return natInfo
+}
+
+func platformInit(cniConfig *cni.NetworkConfig) {
+	if cniConfig.WindowsSettings.HnsTimeoutDurationInSeconds > 0 {
+		log.Printf("Enabling timeout for Hns calls with a timeout value of : %v", cniConfig.WindowsSettings.HnsTimeoutDurationInSeconds)
+		network.EnableHnsV1Timeout(cniConfig.WindowsSettings.HnsTimeoutDurationInSeconds)
+		network.EnableHnsV2Timeout(cniConfig.WindowsSettings.HnsTimeoutDurationInSeconds)
+	}
 }

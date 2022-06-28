@@ -13,6 +13,7 @@ import (
 	"reflect"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/Microsoft/hcsshim/hcn"
 )
@@ -28,6 +29,7 @@ func newErrorFakeHNS(errStr string) error {
 type Hnsv2wrapperFake struct {
 	Cache FakeHNSCache
 	*sync.Mutex
+	Delay time.Duration
 }
 
 func NewHnsv2wrapperFake() *Hnsv2wrapperFake {
@@ -40,21 +42,30 @@ func NewHnsv2wrapperFake() *Hnsv2wrapperFake {
 	}
 }
 
+func delayHnsCall(delay time.Duration){
+	time.Sleep(delay)
+}
+
 func (f Hnsv2wrapperFake) CreateNetwork(network *hcn.HostComputeNetwork) (*hcn.HostComputeNetwork, error) {
 	f.Lock()
 	defer f.Unlock()
 
+	delayHnsCall(f.Delay)
 	f.Cache.networks[network.Name] = NewFakeHostComputeNetwork(network)
 	return network, nil
 }
 
 func (f Hnsv2wrapperFake) DeleteNetwork(network *hcn.HostComputeNetwork) error {
+	delayHnsCall(f.Delay)
 	return nil
 }
 
 func (f Hnsv2wrapperFake) ModifyNetworkSettings(network *hcn.HostComputeNetwork, request *hcn.ModifyNetworkSettingRequest) error {
 	f.Lock()
 	defer f.Unlock()
+
+	delayHnsCall(f.Delay)
+
 	networkCache, ok := f.Cache.networks[network.Name]
 	if !ok {
 		return nil
@@ -153,17 +164,20 @@ func (f Hnsv2wrapperFake) ModifyNetworkSettings(network *hcn.HostComputeNetwork,
 	return nil
 }
 
-func (Hnsv2wrapperFake) AddNetworkPolicy(network *hcn.HostComputeNetwork, networkPolicy hcn.PolicyNetworkRequest) error {
+func (f Hnsv2wrapperFake) AddNetworkPolicy(network *hcn.HostComputeNetwork, networkPolicy hcn.PolicyNetworkRequest) error {
+	delayHnsCall(f.Delay)
 	return nil
 }
 
-func (Hnsv2wrapperFake) RemoveNetworkPolicy(network *hcn.HostComputeNetwork, networkPolicy hcn.PolicyNetworkRequest) error {
+func (f Hnsv2wrapperFake) RemoveNetworkPolicy(network *hcn.HostComputeNetwork, networkPolicy hcn.PolicyNetworkRequest) error {
+	delayHnsCall(f.Delay)
 	return nil
 }
 
 func (f Hnsv2wrapperFake) GetNetworkByName(networkName string) (*hcn.HostComputeNetwork, error) {
 	f.Lock()
 	defer f.Unlock()
+	delayHnsCall(f.Delay)
 	if network, ok := f.Cache.networks[networkName]; ok {
 		return network.GetHCNObj(), nil
 	}
@@ -173,6 +187,7 @@ func (f Hnsv2wrapperFake) GetNetworkByName(networkName string) (*hcn.HostCompute
 func (f Hnsv2wrapperFake) GetNetworkByID(networkID string) (*hcn.HostComputeNetwork, error) {
 	f.Lock()
 	defer f.Unlock()
+	delayHnsCall(f.Delay)
 	for _, network := range f.Cache.networks {
 		if network.ID == networkID {
 			return network.GetHCNObj(), nil
@@ -184,6 +199,7 @@ func (f Hnsv2wrapperFake) GetNetworkByID(networkID string) (*hcn.HostComputeNetw
 func (f Hnsv2wrapperFake) GetEndpointByID(endpointID string) (*hcn.HostComputeEndpoint, error) {
 	f.Lock()
 	defer f.Unlock()
+	delayHnsCall(f.Delay)
 	if ep, ok := f.Cache.endpoints[endpointID]; ok {
 		return ep.GetHCNObj(), nil
 	}
@@ -193,6 +209,7 @@ func (f Hnsv2wrapperFake) GetEndpointByID(endpointID string) (*hcn.HostComputeEn
 func (f Hnsv2wrapperFake) CreateEndpoint(endpoint *hcn.HostComputeEndpoint) (*hcn.HostComputeEndpoint, error) {
 	f.Lock()
 	defer f.Unlock()
+	delayHnsCall(f.Delay)
 	f.Cache.endpoints[endpoint.Id] = NewFakeHostComputeEndpoint(endpoint)
 	return endpoint, nil
 }
@@ -200,26 +217,31 @@ func (f Hnsv2wrapperFake) CreateEndpoint(endpoint *hcn.HostComputeEndpoint) (*hc
 func (f Hnsv2wrapperFake) DeleteEndpoint(endpoint *hcn.HostComputeEndpoint) error {
 	f.Lock()
 	defer f.Unlock()
+	delayHnsCall(f.Delay)
 	delete(f.Cache.endpoints, endpoint.Id)
 	return nil
 }
 
-func (Hnsv2wrapperFake) GetNamespaceByID(netNamespacePath string) (*hcn.HostComputeNamespace, error) {
+func (f Hnsv2wrapperFake) GetNamespaceByID(netNamespacePath string) (*hcn.HostComputeNamespace, error) {
+	delayHnsCall(f.Delay)
 	nameSpace := &hcn.HostComputeNamespace{Id: "ea37ac15-119e-477b-863b-cc23d6eeaa4d", NamespaceId: 1000}
 	return nameSpace, nil
 }
 
-func (Hnsv2wrapperFake) AddNamespaceEndpoint(namespaceId string, endpointId string) error {
+func (f Hnsv2wrapperFake) AddNamespaceEndpoint(namespaceId string, endpointId string) error {
+	delayHnsCall(f.Delay)
 	return nil
 }
 
-func (Hnsv2wrapperFake) RemoveNamespaceEndpoint(namespaceId string, endpointId string) error {
+func (f Hnsv2wrapperFake) RemoveNamespaceEndpoint(namespaceId string, endpointId string) error {
+	delayHnsCall(f.Delay)
 	return nil
 }
 
 func (f Hnsv2wrapperFake) ListEndpointsOfNetwork(networkId string) ([]hcn.HostComputeEndpoint, error) {
 	f.Lock()
 	defer f.Unlock()
+	delayHnsCall(f.Delay)
 	endpoints := make([]hcn.HostComputeEndpoint, 0)
 	for _, endpoint := range f.Cache.endpoints {
 		if endpoint.HostComputeNetwork == networkId {
@@ -232,7 +254,7 @@ func (f Hnsv2wrapperFake) ListEndpointsOfNetwork(networkId string) ([]hcn.HostCo
 func (f Hnsv2wrapperFake) ApplyEndpointPolicy(endpoint *hcn.HostComputeEndpoint, requestType hcn.RequestType, endpointPolicy hcn.PolicyEndpointRequest) error {
 	f.Lock()
 	defer f.Unlock()
-
+	delayHnsCall(f.Delay)
 	epCache, ok := f.Cache.endpoints[endpoint.Id]
 	if !ok {
 		return newErrorFakeHNS(fmt.Sprintf("[FakeHNS] could not find endpoint %s", endpoint.Id))
@@ -285,7 +307,8 @@ func (f Hnsv2wrapperFake) ApplyEndpointPolicy(endpoint *hcn.HostComputeEndpoint,
 	return nil
 }
 
-func (Hnsv2wrapperFake) GetEndpointByName(endpointName string) (*hcn.HostComputeEndpoint, error) {
+func (f Hnsv2wrapperFake) GetEndpointByName(endpointName string) (*hcn.HostComputeEndpoint, error) {
+	delayHnsCall(f.Delay)
 	return nil, hcn.EndpointNotFoundError{EndpointName: endpointName}
 }
 

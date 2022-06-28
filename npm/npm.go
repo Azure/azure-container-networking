@@ -8,6 +8,7 @@ import (
 
 	npmconfig "github.com/Azure/azure-container-networking/npm/config"
 	"github.com/Azure/azure-container-networking/npm/ipsm"
+	"github.com/Azure/azure-container-networking/npm/pkg/controlplane/controllers/common"
 	controllersv1 "github.com/Azure/azure-container-networking/npm/pkg/controlplane/controllers/v1"
 	controllersv2 "github.com/Azure/azure-container-networking/npm/pkg/controlplane/controllers/v2"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane"
@@ -25,6 +26,8 @@ var aiMetadata string //nolint // aiMetadata is set in Makefile
 // NetworkPolicyManager contains informers for pod, namespace and networkpolicy.
 type NetworkPolicyManager struct {
 	config npmconfig.Config
+
+	Dataplane dataplane.GenericDataplane
 
 	// ipsMgr are shared in all controllers. Thus, only one ipsMgr is created for simple management
 	// and uses lock to avoid unintentional race condictions in IpsetManager.
@@ -55,7 +58,8 @@ func NewNetworkPolicyManager(config npmconfig.Config,
 	klog.Infof("API server version: %+v AI metadata %+v", k8sServerVersion, aiMetadata)
 
 	npMgr := &NetworkPolicyManager{
-		config: config,
+		config:    config,
+		Dataplane: dp,
 		Informers: models.Informers{
 			InformerFactory: informerFactory,
 			PodInformer:     informerFactory.Core().V1().Pods(),
@@ -72,7 +76,7 @@ func NewNetworkPolicyManager(config npmconfig.Config,
 
 	// create v2 NPM specific components.
 	if npMgr.config.Toggles.EnableV2NPM {
-		npMgr.NpmNamespaceCacheV2 = &controllersv2.NpmNamespaceCache{NsMap: make(map[string]*controllersv2.Namespace)}
+		npMgr.NpmNamespaceCacheV2 = &controllersv2.NpmNamespaceCache{NsMap: make(map[string]*common.Namespace)}
 		npMgr.PodControllerV2 = controllersv2.NewPodController(npMgr.PodInformer, dp, npMgr.NpmNamespaceCacheV2)
 		npMgr.NamespaceControllerV2 = controllersv2.NewNamespaceController(npMgr.NsInformer, dp, npMgr.NpmNamespaceCacheV2)
 		// Question(jungukcho): Is config.Toggles.PlaceAzureChainFirst needed for v2?
@@ -83,66 +87,77 @@ func NewNetworkPolicyManager(config npmconfig.Config,
 	// create v1 NPM specific components.
 	npMgr.ipsMgr = ipsm.NewIpsetManager(exec)
 
-	npMgr.NpmNamespaceCacheV1 = &controllersv1.NpmNamespaceCache{NsMap: make(map[string]*controllersv1.Namespace)}
+	npMgr.NpmNamespaceCacheV1 = &controllersv1.NpmNamespaceCache{NsMap: make(map[string]*common.Namespace)}
 	npMgr.PodControllerV1 = controllersv1.NewPodController(npMgr.PodInformer, npMgr.ipsMgr, npMgr.NpmNamespaceCacheV1)
 	npMgr.NamespaceControllerV1 = controllersv1.NewNameSpaceController(npMgr.NsInformer, npMgr.ipsMgr, npMgr.NpmNamespaceCacheV1)
 	npMgr.NetPolControllerV1 = controllersv1.NewNetworkPolicyController(npMgr.NpInformer, npMgr.ipsMgr, config.Toggles.PlaceAzureChainFirst)
 	return npMgr
 }
 
+// Dear Time Traveler:
+// This is the server end of the debug dragons den. Several of these properties of the
+// npMgr struct have overridden methods which override the MarshalJson, just as this one
+// is doing for npMgr. For example, npMgr.NamespaceCacheV2 does not marshal the whole struct,
+// but rather the NsMap of type map[string]*Namespace. When unmarshaling, expect this type,
+// and pay very close attention. Many hours have been wasted here when unmarshaling mismatched types.
 func (npMgr *NetworkPolicyManager) MarshalJSON() ([]byte, error) {
 	m := map[models.CacheKey]json.RawMessage{}
 
-	var npmNamespaceCacheRaw []byte
-	var err error
 	if npMgr.config.Toggles.EnableV2NPM {
-		npmNamespaceCacheRaw, err = json.Marshal(npMgr.NpmNamespaceCacheV2)
+		npmNamespaceCacheRaw, err := json.Marshal(npMgr.NpmNamespaceCacheV2)
+		if err != nil {
+			return nil, errors.Wrapf(err, "failed to marshal v2 ns cache")
+		}
+		m[models.NsMap] = npmNamespaceCacheRaw
+
+		podControllerRaw, err := json.Marshal(npMgr.PodControllerV2)
+		if err != nil {
+			return nil, errors.Wrapf(err, "failed to marshal v2 pod controller")
+		}
+		m[models.PodMap] = podControllerRaw
+
+		setMapRaw, err := json.Marshal(npMgr.Dataplane.GetAllIPSets())
+		if err != nil {
+			return nil, errors.Wrapf(err, "failed to marshal v2 set map")
+		}
+		m[models.SetMap] = setMapRaw
+
 	} else {
-		npmNamespaceCacheRaw, err = json.Marshal(npMgr.NpmNamespaceCacheV1)
-	}
+		npmNamespaceCacheRaw, err := json.Marshal(npMgr.NpmNamespaceCacheV1)
+		if err != nil {
+			return nil, errors.Wrapf(err, "failed to marshal v1 ns cache")
+		}
+		m[models.NsMap] = npmNamespaceCacheRaw
 
-	if err != nil {
-		return nil, errors.Errorf("%s: %v", models.ErrMarshalNPMCache, err)
-	}
-	m[models.NsMap] = npmNamespaceCacheRaw
+		podControllerRaw, err := json.Marshal(npMgr.PodControllerV1)
+		if err != nil {
+			return nil, errors.Wrapf(err, "failed to marshal v1 pod controller")
+		}
+		m[models.PodMap] = podControllerRaw
 
-	var podControllerRaw []byte
-	if npMgr.config.Toggles.EnableV2NPM {
-		podControllerRaw, err = json.Marshal(npMgr.PodControllerV2)
-	} else {
-		podControllerRaw, err = json.Marshal(npMgr.PodControllerV1)
-	}
-
-	if err != nil {
-		return nil, errors.Errorf("%s: %v", models.ErrMarshalNPMCache, err)
-	}
-	m[models.PodMap] = podControllerRaw
-
-	// TODO(jungukcho): NPM debug may be broken.
-	// Will fix it later after v2 controller and linux test if it is broken.
-	if !npMgr.config.Toggles.EnableV2NPM && npMgr.ipsMgr != nil {
-		listMapRaw, listMapMarshalErr := npMgr.ipsMgr.MarshalListMapJSON()
-		if listMapMarshalErr != nil {
-			return nil, errors.Errorf("%s: %v", models.ErrMarshalNPMCache, listMapMarshalErr)
+		listMapRaw, err := npMgr.ipsMgr.GetListMapRaw()
+		if err != nil {
+			return nil, errors.Wrapf(err, "failed to marshal v1 list map")
 		}
 		m[models.ListMap] = listMapRaw
 
-		setMapRaw, setMapMarshalErr := npMgr.ipsMgr.MarshalSetMapJSON()
-		if setMapMarshalErr != nil {
-			return nil, errors.Errorf("%s: %v", models.ErrMarshalNPMCache, setMapMarshalErr)
+		setMapRaw, err := npMgr.ipsMgr.GetSetMapRaw()
+		if err != nil {
+			return nil, errors.Wrapf(err, "failed to marshal v1 set map")
 		}
 		m[models.SetMap] = setMapRaw
+
 	}
 
-	nodeNameRaw, err := json.Marshal(npMgr.NodeName)
+	nodenameRaw, err := json.Marshal(npMgr.NodeName)
 	if err != nil {
-		return nil, errors.Errorf("%s: %v", models.ErrMarshalNPMCache, err)
+		return nil, errors.Wrapf(err, "failed to marshal node name")
 	}
-	m[models.NodeName] = nodeNameRaw
+	m[models.NodeName] = nodenameRaw
 
 	npmCacheRaw, err := json.Marshal(m)
 	if err != nil {
-		return nil, errors.Errorf("%s: %v", models.ErrMarshalNPMCache, err)
+		return nil, errors.Wrapf(err, "failed to marshall the cache map")
 	}
 
 	return npmCacheRaw, nil

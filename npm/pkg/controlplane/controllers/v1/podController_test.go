@@ -3,6 +3,7 @@
 package controllers
 
 import (
+	"encoding/json"
 	"fmt"
 	"reflect"
 	"strconv"
@@ -11,6 +12,7 @@ import (
 	"github.com/Azure/azure-container-networking/npm/ipsm"
 	"github.com/Azure/azure-container-networking/npm/metrics"
 	"github.com/Azure/azure-container-networking/npm/metrics/promutil"
+	"github.com/Azure/azure-container-networking/npm/pkg/controlplane/controllers/common"
 	"github.com/Azure/azure-container-networking/npm/util"
 	testutils "github.com/Azure/azure-container-networking/test/utils"
 	"github.com/stretchr/testify/assert"
@@ -77,7 +79,7 @@ func (f *podFixture) newPodController(stopCh chan struct{}) {
 	kubeclient := k8sfake.NewSimpleClientset(f.kubeobjects...)
 	f.kubeInformer = kubeinformers.NewSharedInformerFactory(kubeclient, noResyncPeriodFunc())
 
-	npmNamespaceCache := &NpmNamespaceCache{NsMap: make(map[string]*Namespace)}
+	npmNamespaceCache := &NpmNamespaceCache{NsMap: make(map[string]*common.Namespace)}
 	f.podController = NewPodController(f.kubeInformer.Core().V1().Pods(), f.ipsMgr, npmNamespaceCache)
 
 	for _, pod := range f.podLister {
@@ -241,7 +243,7 @@ func checkNpmPodWithInput(testName string, f *podFixture, inputPodObj *corev1.Po
 		f.t.Errorf("%s failed @ Labels check got = %v, want %v", testName, cachedNpmPodObj.Labels, inputPodObj.Labels)
 	}
 
-	inputPortList := getContainerPortList(inputPodObj)
+	inputPortList := common.GetContainerPortList(inputPodObj)
 	if !reflect.DeepEqual(cachedNpmPodObj.ContainerPorts, inputPortList) {
 		f.t.Errorf("%s failed @ Container port check got = %v, want %v", testName, cachedNpmPodObj.PodIP, inputPortList)
 	}
@@ -713,10 +715,10 @@ func TestPodMapMarshalJSON(t *testing.T) {
 	podKey, err := cache.MetaNamespaceKeyFunc(pod)
 	assert.NoError(t, err)
 
-	npmPod := newNpmPod(pod)
+	npmPod := common.NewNpmPod(pod)
 	f.podController.podMap[podKey] = npmPod
 
-	npMapRaw, err := f.podController.MarshalJSON()
+	npMapRaw, err := json.Marshal(f.podController)
 	assert.NoError(t, err)
 
 	expect := []byte(`{"test-namespace/test-pod":{"Name":"test-pod","Namespace":"test-namespace","PodIP":"1.2.3.4","Labels":{},"ContainerPorts":[],"Phase":"Running"}}`)
@@ -906,13 +908,13 @@ func TestNPMPodNoUpdate(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			corev1Pod := createPod(tt.podName, tt.ns, tt.rv, tt.podIP, tt.labels, tt.isHostNetwork, tt.podPhase)
-			npmPod := newNpmPod(corev1Pod)
+			npmPod := common.NewNpmPod(corev1Pod)
 			if tt.updatingNPMPod {
-				npmPod.appendLabels(corev1Pod.Labels, AppendToExistingLabels)
-				npmPod.updateNpmPodAttributes(corev1Pod)
-				npmPod.appendContainerPorts(corev1Pod)
+				npmPod.AppendLabels(corev1Pod.Labels, common.AppendToExistingLabels)
+				npmPod.UpdateNpmPodAttributes(corev1Pod)
+				npmPod.AppendContainerPorts(corev1Pod)
 			}
-			noUpdate := npmPod.noUpdate(corev1Pod)
+			noUpdate := npmPod.NoUpdate(corev1Pod)
 			require.Equal(t, tt.expectedNoUpdate, noUpdate)
 		})
 	}

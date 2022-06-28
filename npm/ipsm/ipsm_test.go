@@ -583,11 +583,11 @@ func TestMarshalListMapJSON(t *testing.T) {
 	err := ipsMgr.CreateListNoLock(testListSet)
 	require.NoError(t, err)
 
-	listMapRaw, err := ipsMgr.MarshalListMapJSON()
+	listMapRaw, err := ipsMgr.GetListMapRaw()
 	require.NoError(t, err)
 	fmt.Println(string(listMapRaw))
 
-	expect := []byte(`{"test-list":{}}`)
+	expect := []byte(`{}`)
 
 	fmt.Printf("%v\n", ipsMgr.listMap)
 	assert.ElementsMatch(t, expect, listMapRaw)
@@ -606,11 +606,11 @@ func TestMarshalSetMapJSON(t *testing.T) {
 	err := ipsMgr.CreateSetNoLock(testSet, []string{util.IpsetNetHashFlag})
 	require.NoError(t, err)
 
-	setMapRaw, err := ipsMgr.MarshalSetMapJSON()
+	setMapRaw, err := ipsMgr.GetSetMapRaw()
 	require.NoError(t, err)
 	fmt.Println(string(setMapRaw))
 
-	expect := []byte(`{"test-set":{}}`)
+	expect := []byte(`{"azure-npm-922816856":"test-set"}`)
 	for key, val := range ipsMgr.setMap {
 		fmt.Printf("key: %s value: %+v\n", key, val)
 	}

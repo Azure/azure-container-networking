@@ -11,10 +11,10 @@ jobs:
     name: CRDs are Generated
     runs-on: ${{ matrix.os }}
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
       with:
         fetch-depth: 0
-    - uses: actions/setup-go@v2
+    - uses: actions/setup-go@v3
       with:
         go-version: ${{ matrix.go-version }} 
     - name: Regenerate NodeNetworkConfig CRD

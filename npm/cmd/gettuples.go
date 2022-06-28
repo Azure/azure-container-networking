@@ -3,9 +3,13 @@ package main
 import (
 	"fmt"
 
-	dataplane "github.com/Azure/azure-container-networking/npm/pkg/dataplane/debug"
+	npmconfig "github.com/Azure/azure-container-networking/npm/config"
+	"github.com/Azure/azure-container-networking/npm/http/api"
+	"github.com/Azure/azure-container-networking/npm/pkg/controlplane/controllers/common"
+	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/debug"
 	"github.com/Azure/azure-container-networking/npm/util/errors"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
 func newGetTuples() *cobra.Command {
@@ -23,28 +27,46 @@ func newGetTuples() *cobra.Command {
 			}
 			npmCacheF, _ := cmd.Flags().GetString("cache-file")
 			iptableSaveF, _ := cmd.Flags().GetString("iptables-file")
-			srcType := dataplane.GetInputType(src)
-			dstType := dataplane.GetInputType(dst)
-			srcInput := &dataplane.Input{Content: src, Type: srcType}
-			dstInput := &dataplane.Input{Content: dst, Type: dstType}
+			srcType := common.GetInputType(src)
+			dstType := common.GetInputType(dst)
+			srcInput := &common.Input{Content: src, Type: srcType}
+			dstInput := &common.Input{Content: dst, Type: dstType}
+
+			config := &npmconfig.Config{}
+			err := viper.Unmarshal(config)
+			if err != nil {
+				return fmt.Errorf("failed to load config with err %w", err)
+			}
 
 			switch {
 			case npmCacheF == "" && iptableSaveF == "":
-				_, tuples, err := dataplane.GetNetworkTuple(srcInput, dstInput)
+
+				c := &debug.Converter{
+					NPMDebugEndpointHost: "http://localhost",
+					NPMDebugEndpointPort: api.DefaultHttpPort,
+					EnableV2NPM:          config.Toggles.EnableV2NPM, // todo: pass this a different way than param to this
+				}
+
+				_, tuples, srcList, dstList, err := c.GetNetworkTuple(srcInput, dstInput, config)
 				if err != nil {
 					return fmt.Errorf("%w", err)
 				}
-				for _, tuple := range tuples {
-					fmt.Printf("%+v\n", tuple)
-				}
+
+				debug.PrettyPrintTuples(tuples, srcList, dstList)
+
 			case npmCacheF != "" && iptableSaveF != "":
-				_, tuples, err := dataplane.GetNetworkTupleFile(srcInput, dstInput, npmCacheF, iptableSaveF)
+
+				c := &debug.Converter{
+					EnableV2NPM: config.Toggles.EnableV2NPM,
+				}
+
+				_, tuples, srcList, dstList, err := c.GetNetworkTupleFile(srcInput, dstInput, npmCacheF, iptableSaveF)
 				if err != nil {
 					return fmt.Errorf("%w", err)
 				}
-				for _, tuple := range tuples {
-					fmt.Printf("%+v\n", tuple)
-				}
+
+				debug.PrettyPrintTuples(tuples, srcList, dstList)
+
 			default:
 				return errSpecifyBothFiles
 			}

@@ -174,10 +174,18 @@ func (gsp *GoalStateProcessor) processHydrationEvent(payload map[string]*protos.
 	}
 
 	cachedIPSetNames := gsp.dp.GetAllIPSets()
+	hashedsetnames := make([]string, len(cachedIPSetNames))
+
 	toDeleteIPSets := make([]string, 0)
 
+	i := 0
+	for name := range cachedIPSetNames {
+		hashedsetnames[i] = name
+		i++
+	}
+
 	if appendedIPSets == nil {
-		toDeleteIPSets = cachedIPSetNames
+		toDeleteIPSets = hashedsetnames
 	} else {
 		for _, ipset := range cachedIPSetNames {
 			if _, ok := appendedIPSets[ipset]; !ok {
@@ -374,12 +382,12 @@ func (gsp *GoalStateProcessor) processPolicyApplyEvent(goalState *protos.GoalSta
 			klog.Warningf("Empty Policy apply event")
 			continue
 		}
-		klog.Infof("Processing %s Policy ADD event", netpol.Name)
+		klog.Infof("Processing %s Policy ADD event", netpol.PolicyKey)
 		klog.Infof("Netpol: %v", netpol)
 
 		err = gsp.dp.UpdatePolicy(netpol)
 		if err != nil {
-			klog.Errorf("Error applying policy %s to dataplane with error: %s", netpol.Name, err.Error())
+			klog.Errorf("Error applying policy %s to dataplane with error: %s", netpol.PolicyKey, err.Error())
 			return nil, npmerrors.SimpleErrorWrapper("failed update policy event", err)
 		}
 		appendedPolicies[netpol.PolicyKey] = struct{}{}

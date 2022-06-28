@@ -1,7 +1,30 @@
 # https://help.github.com/github/administering-a-repository/configuration-options-for-dependency-updates
-
 version: 2
 updates:
+- package-ecosystem: "docker"
+  directory: "/"
+  schedule:
+    interval: "daily"
+  assignees:
+    - "matmerr"
+    - "rbtr"
+  reviewers:
+    - "azure/azure-sdn-members"
+  commit-message:
+    prefix: "ci"
+  labels: [ "ci", "dependencies" ]
+- package-ecosystem: "github-actions"
+  directory: "/"
+  schedule:
+    interval: "daily"
+  assignees:
+    - "matmerr"
+    - "rbtr"
+  reviewers:
+    - "azure/azure-sdn-members"
+  commit-message:
+    prefix: "ci"
+  labels: [ "ci", "dependencies" ]
 - package-ecosystem: "gomod"
   directory: "/"
   schedule:
@@ -9,8 +32,21 @@ updates:
   assignees:
     - "matmerr"
     - "rbtr"
+  reviewers:
+    - "azure/azure-sdn-members"
   commit-message:
-    prefix: "vendor"
+    prefix: "deps"
+- package-ecosystem: "gomod"
+  directory: "/build/tools"
+  schedule:
+    interval: "daily"
+  assignees:
+    - "matmerr"
+    - "rbtr"
+  reviewers:
+    - "azure/azure-sdn-members"
+  commit-message:
+    prefix: "deps"
 - package-ecosystem: "gomod"
   directory: "/zapai"
   schedule:
@@ -18,5 +54,7 @@ updates:
   assignees:
     - "matmerr"
     - "rbtr"
+  reviewers:
+    - "azure/azure-sdn-members"
   commit-message:
-    prefix: "vendor"
+    prefix: "deps"

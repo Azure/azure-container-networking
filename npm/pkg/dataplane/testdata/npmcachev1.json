@@ -1,0 +1,517 @@
+{
+    "ListMap": {
+        "azure-npm-1029213848": "component:tunnel",
+        "azure-npm-1160989932": "pod",
+        "azure-npm-1181855383": "version",
+        "azure-npm-1213884878": "namedport:serve-81-tcp",
+        "azure-npm-1593667296": "component",
+        "azure-npm-1698367069": "k8s-app",
+        "azure-npm-1883894896": "ns-kube-node-lease",
+        "azure-npm-2064349730": "ns-kube-system",
+        "azure-npm-2075916349": "namedport:serve-80-udp",
+        "azure-npm-2186870374": "ns-kube-public",
+        "azure-npm-2725615454": "kube-system",
+        "azure-npm-2837910840": "ns-y",
+        "azure-npm-2854688459": "ns-x",
+        "azure-npm-2888243697": "ns-z",
+        "azure-npm-2965211778": "namedport:metrics",
+        "azure-npm-2978150538": "kubernetes.io/cluster-service",
+        "azure-npm-3036558620": "pod-template-hash:774f99dbf4",
+        "azure-npm-3263818547": "k8s-app:coredns-autoscaler",
+        "azure-npm-33169192": "kubernetes.io/cluster-service:true",
+        "azure-npm-3350107434": "k8s-app:kube-dns",
+        "azure-npm-3495159168": "pod:b",
+        "azure-npm-3511936787": "pod:c",
+        "azure-npm-3545492025": "pod:a",
+        "azure-npm-3673508966": "k8s-app:metrics-server",
+        "azure-npm-3692662174": "namedport:serve-81-udp",
+        "azure-npm-3723426212": "pod-template-hash",
+        "azure-npm-4033764768": "base-in-ns-y-0in",
+        "azure-npm-4284971813": "namedport:serve-80-tcp",
+        "azure-npm-471829337": "version:v20",
+        "azure-npm-527074092": "app",
+        "azure-npm-71974944": "namedport:dns",
+        "azure-npm-784554818": "ns-default",
+        "azure-npm-814692531": "pod-template-hash:69c47794",
+        "azure-npm-819955173": "base-in-ns-y-0out",
+        "azure-npm-826519261": "app:konnectivity-agent",
+        "azure-npm-86579108": "pod-template-hash:7bf5785fc7",
+        "azure-npm-917915898": "namedport:dns-tcp",
+        "azure-npm-979220620": "pod-template-hash:5f85dc856b"
+    },
+    "NsMap": {
+        "ns-default": {
+            "Name": "ns-default",
+            "LabelsMap": {
+                "kubernetes.io/metadata.name": "default"
+            }
+        },
+        "ns-kube-node-lease": {
+            "Name": "ns-kube-node-lease",
+            "LabelsMap": {
+                "kubernetes.io/metadata.name": "kube-node-lease"
+            }
+        },
+        "ns-kube-public": {
+            "Name": "ns-kube-public",
+            "LabelsMap": {
+                "kubernetes.io/metadata.name": "kube-public"
+            }
+        },
+        "ns-kube-system": {
+            "Name": "ns-kube-system",
+            "LabelsMap": {
+                "addonmanager.kubernetes.io/mode": "Reconcile",
+                "control-plane": "true",
+                "kubernetes.io/cluster-service": "true",
+                "kubernetes.io/metadata.name": "kube-system"
+            }
+        },
+        "ns-x": {
+            "Name": "ns-x",
+            "LabelsMap": {
+                "kubernetes.io/metadata.name": "x",
+                "ns": "x"
+            }
+        },
+        "ns-y": {
+            "Name": "ns-y",
+            "LabelsMap": {
+                "kubernetes.io/metadata.name": "y",
+                "ns": "y"
+            }
+        },
+        "ns-z": {
+            "Name": "ns-z",
+            "LabelsMap": {
+                "kubernetes.io/metadata.name": "z",
+                "ns": "z"
+            }
+        }
+    },
+    "PodMap": {
+        "kube-system/coredns-69c47794-9vtmc": {
+            "Name": "coredns-69c47794-9vtmc",
+            "Namespace": "kube-system",
+            "PodIP": "10.224.0.41",
+            "Labels": {
+                "k8s-app": "kube-dns",
+                "kubernetes.io/cluster-service": "true",
+                "pod-template-hash": "69c47794",
+                "version": "v20"
+            },
+            "ContainerPorts": [
+                {
+                    "name": "dns",
+                    "containerPort": 53,
+                    "protocol": "UDP"
+                },
+                {
+                    "name": "dns-tcp",
+                    "containerPort": 53,
+                    "protocol": "TCP"
+                },
+                {
+                    "name": "metrics",
+                    "containerPort": 9153,
+                    "protocol": "TCP"
+                }
+            ],
+            "Phase": "Running"
+        },
+        "kube-system/coredns-69c47794-c2987": {
+            "Name": "coredns-69c47794-c2987",
+            "Namespace": "kube-system",
+            "PodIP": "10.224.0.15",
+            "Labels": {
+                "k8s-app": "kube-dns",
+                "kubernetes.io/cluster-service": "true",
+                "pod-template-hash": "69c47794",
+                "version": "v20"
+            },
+            "ContainerPorts": [
+                {
+                    "name": "dns",
+                    "containerPort": 53,
+                    "protocol": "UDP"
+                },
+                {
+                    "name": "dns-tcp",
+                    "containerPort": 53,
+                    "protocol": "TCP"
+                },
+                {
+                    "name": "metrics",
+                    "containerPort": 9153,
+                    "protocol": "TCP"
+                }
+            ],
+            "Phase": "Running"
+        },
+        "kube-system/coredns-autoscaler-5f85dc856b-m7rsz": {
+            "Name": "coredns-autoscaler-5f85dc856b-m7rsz",
+            "Namespace": "kube-system",
+            "PodIP": "10.224.0.88",
+            "Labels": {
+                "k8s-app": "coredns-autoscaler",
+                "pod-template-hash": "5f85dc856b"
+            },
+            "ContainerPorts": [],
+            "Phase": "Running"
+        },
+        "kube-system/konnectivity-agent-7bf5785fc7-dljxt": {
+            "Name": "konnectivity-agent-7bf5785fc7-dljxt",
+            "Namespace": "kube-system",
+            "PodIP": "10.224.0.39",
+            "Labels": {
+                "app": "konnectivity-agent",
+                "component": "tunnel",
+                "pod-template-hash": "7bf5785fc7"
+            },
+            "ContainerPorts": [],
+            "Phase": "Running"
+        },
+        "kube-system/konnectivity-agent-7bf5785fc7-khlww": {
+            "Name": "konnectivity-agent-7bf5785fc7-khlww",
+            "Namespace": "kube-system",
+            "PodIP": "10.224.0.92",
+            "Labels": {
+                "app": "konnectivity-agent",
+                "component": "tunnel",
+                "pod-template-hash": "7bf5785fc7"
+            },
+            "ContainerPorts": [],
+            "Phase": "Running"
+        },
+        "kube-system/metrics-server-774f99dbf4-ggb8w": {
+            "Name": "metrics-server-774f99dbf4-ggb8w",
+            "Namespace": "kube-system",
+            "PodIP": "10.224.0.80",
+            "Labels": {
+                "k8s-app": "metrics-server",
+                "pod-template-hash": "774f99dbf4"
+            },
+            "ContainerPorts": [],
+            "Phase": "Running"
+        },
+        "x/a": {
+            "Name": "a",
+            "Namespace": "x",
+            "PodIP": "10.224.0.87",
+            "Labels": {
+                "pod": "a"
+            },
+            "ContainerPorts": [
+                {
+                    "name": "serve-80-tcp",
+                    "containerPort": 80,
+                    "protocol": "TCP"
+                },
+                {
+                    "name": "serve-80-udp",
+                    "containerPort": 80,
+                    "protocol": "UDP"
+                },
+                {
+                    "name": "serve-81-tcp",
+                    "containerPort": 81,
+                    "protocol": "TCP"
+                },
+                {
+                    "name": "serve-81-udp",
+                    "containerPort": 81,
+                    "protocol": "UDP"
+                }
+            ],
+            "Phase": "Running"
+        },
+        "x/b": {
+            "Name": "b",
+            "Namespace": "x",
+            "PodIP": "10.224.0.20",
+            "Labels": {
+                "pod": "b"
+            },
+            "ContainerPorts": [
+                {
+                    "name": "serve-80-tcp",
+                    "containerPort": 80,
+                    "protocol": "TCP"
+                },
+                {
+                    "name": "serve-80-udp",
+                    "containerPort": 80,
+                    "protocol": "UDP"
+                },
+                {
+                    "name": "serve-81-tcp",
+                    "containerPort": 81,
+                    "protocol": "TCP"
+                },
+                {
+                    "name": "serve-81-udp",
+                    "containerPort": 81,
+                    "protocol": "UDP"
+                }
+            ],
+            "Phase": "Running"
+        },
+        "x/c": {
+            "Name": "c",
+            "Namespace": "x",
+            "PodIP": "10.224.0.40",
+            "Labels": {
+                "pod": "c"
+            },
+            "ContainerPorts": [
+                {
+                    "name": "serve-80-tcp",
+                    "containerPort": 80,
+                    "protocol": "TCP"
+                },
+                {
+                    "name": "serve-80-udp",
+                    "containerPort": 80,
+                    "protocol": "UDP"
+                },
+                {
+                    "name": "serve-81-tcp",
+                    "containerPort": 81,
+                    "protocol": "TCP"
+                },
+                {
+                    "name": "serve-81-udp",
+                    "containerPort": 81,
+                    "protocol": "UDP"
+                }
+            ],
+            "Phase": "Running"
+        },
+        "y/a": {
+            "Name": "a",
+            "Namespace": "y",
+            "PodIP": "10.224.0.70",
+            "Labels": {
+                "pod": "a"
+            },
+            "ContainerPorts": [
+                {
+                    "name": "serve-80-tcp",
+                    "containerPort": 80,
+                    "protocol": "TCP"
+                },
+                {
+                    "name": "serve-80-udp",
+                    "containerPort": 80,
+                    "protocol": "UDP"
+                },
+                {
+                    "name": "serve-81-tcp",
+                    "containerPort": 81,
+                    "protocol": "TCP"
+                },
+                {
+                    "name": "serve-81-udp",
+                    "containerPort": 81,
+                    "protocol": "UDP"
+                }
+            ],
+            "Phase": "Running"
+        },
+        "y/b": {
+            "Name": "b",
+            "Namespace": "y",
+            "PodIP": "10.224.0.17",
+            "Labels": {
+                "pod": "b"
+            },
+            "ContainerPorts": [
+                {
+                    "name": "serve-80-tcp",
+                    "containerPort": 80,
+                    "protocol": "TCP"
+                },
+                {
+                    "name": "serve-80-udp",
+                    "containerPort": 80,
+                    "protocol": "UDP"
+                },
+                {
+                    "name": "serve-81-tcp",
+                    "containerPort": 81,
+                    "protocol": "TCP"
+                },
+                {
+                    "name": "serve-81-udp",
+                    "containerPort": 81,
+                    "protocol": "UDP"
+                }
+            ],
+            "Phase": "Running"
+        },
+        "y/c": {
+            "Name": "c",
+            "Namespace": "y",
+            "PodIP": "10.224.0.43",
+            "Labels": {
+                "pod": "c"
+            },
+            "ContainerPorts": [
+                {
+                    "name": "serve-80-tcp",
+                    "containerPort": 80,
+                    "protocol": "TCP"
+                },
+                {
+                    "name": "serve-80-udp",
+                    "containerPort": 80,
+                    "protocol": "UDP"
+                },
+                {
+                    "name": "serve-81-tcp",
+                    "containerPort": 81,
+                    "protocol": "TCP"
+                },
+                {
+                    "name": "serve-81-udp",
+                    "containerPort": 81,
+                    "protocol": "UDP"
+                }
+            ],
+            "Phase": "Running"
+        },
+        "z/a": {
+            "Name": "a",
+            "Namespace": "z",
+            "PodIP": "10.224.0.68",
+            "Labels": {
+                "pod": "a"
+            },
+            "ContainerPorts": [
+                {
+                    "name": "serve-80-tcp",
+                    "containerPort": 80,
+                    "protocol": "TCP"
+                },
+                {
+                    "name": "serve-80-udp",
+                    "containerPort": 80,
+                    "protocol": "UDP"
+                },
+                {
+                    "name": "serve-81-tcp",
+                    "containerPort": 81,
+                    "protocol": "TCP"
+                },
+                {
+                    "name": "serve-81-udp",
+                    "containerPort": 81,
+                    "protocol": "UDP"
+                }
+            ],
+            "Phase": "Running"
+        },
+        "z/b": {
+            "Name": "b",
+            "Namespace": "z",
+            "PodIP": "10.224.0.13",
+            "Labels": {
+                "pod": "b"
+            },
+            "ContainerPorts": [
+                {
+                    "name": "serve-80-tcp",
+                    "containerPort": 80,
+                    "protocol": "TCP"
+                },
+                {
+                    "name": "serve-80-udp",
+                    "containerPort": 80,
+                    "protocol": "UDP"
+                },
+                {
+                    "name": "serve-81-tcp",
+                    "containerPort": 81,
+                    "protocol": "TCP"
+                },
+                {
+                    "name": "serve-81-udp",
+                    "containerPort": 81,
+                    "protocol": "UDP"
+                }
+            ],
+            "Phase": "Running"
+        },
+        "z/c": {
+            "Name": "c",
+            "Namespace": "z",
+            "PodIP": "10.224.0.42",
+            "Labels": {
+                "pod": "c"
+            },
+            "ContainerPorts": [
+                {
+                    "name": "serve-80-tcp",
+                    "containerPort": 80,
+                    "protocol": "TCP"
+                },
+                {
+                    "name": "serve-80-udp",
+                    "containerPort": 80,
+                    "protocol": "UDP"
+                },
+                {
+                    "name": "serve-81-tcp",
+                    "containerPort": 81,
+                    "protocol": "TCP"
+                },
+                {
+                    "name": "serve-81-udp",
+                    "containerPort": 81,
+                    "protocol": "UDP"
+                }
+            ],
+            "Phase": "Running"
+        }
+    },
+    "SetMap": {
+        "azure-npm-1029213848": "component:tunnel",
+        "azure-npm-1160989932": "pod",
+        "azure-npm-1181855383": "version",
+        "azure-npm-1213884878": "namedport:serve-81-tcp",
+        "azure-npm-1593667296": "component",
+        "azure-npm-1698367069": "k8s-app",
+        "azure-npm-1883894896": "ns-kube-node-lease",
+        "azure-npm-2064349730": "ns-kube-system",
+        "azure-npm-2075916349": "namedport:serve-80-udp",
+        "azure-npm-2186870374": "ns-kube-public",
+        "azure-npm-2725615454": "kube-system",
+        "azure-npm-2837910840": "ns-y",
+        "azure-npm-2854688459": "ns-x",
+        "azure-npm-2888243697": "ns-z",
+        "azure-npm-2965211778": "namedport:metrics",
+        "azure-npm-2978150538": "kubernetes.io/cluster-service",
+        "azure-npm-3036558620": "pod-template-hash:774f99dbf4",
+        "azure-npm-3263818547": "k8s-app:coredns-autoscaler",
+        "azure-npm-33169192": "kubernetes.io/cluster-service:true",
+        "azure-npm-3350107434": "k8s-app:kube-dns",
+        "azure-npm-3495159168": "pod:b",
+        "azure-npm-3511936787": "pod:c",
+        "azure-npm-3545492025": "pod:a",
+        "azure-npm-3673508966": "k8s-app:metrics-server",
+        "azure-npm-3692662174": "namedport:serve-81-udp",
+        "azure-npm-3723426212": "pod-template-hash",
+        "azure-npm-4033764768": "base-in-ns-y-0in",
+        "azure-npm-4284971813": "namedport:serve-80-tcp",
+        "azure-npm-471829337": "version:v20",
+        "azure-npm-527074092": "app",
+        "azure-npm-71974944": "namedport:dns",
+        "azure-npm-784554818": "ns-default",
+        "azure-npm-814692531": "pod-template-hash:69c47794",
+        "azure-npm-819955173": "base-in-ns-y-0out",
+        "azure-npm-826519261": "app:konnectivity-agent",
+        "azure-npm-86579108": "pod-template-hash:7bf5785fc7",
+        "azure-npm-917915898": "namedport:dns-tcp",
+        "azure-npm-979220620": "pod-template-hash:5f85dc856b"
+    }
+}

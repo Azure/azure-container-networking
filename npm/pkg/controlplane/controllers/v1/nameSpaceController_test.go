@@ -11,6 +11,7 @@ import (
 	"github.com/Azure/azure-container-networking/npm/ipsm"
 	"github.com/Azure/azure-container-networking/npm/metrics"
 	"github.com/Azure/azure-container-networking/npm/metrics/promutil"
+	"github.com/Azure/azure-container-networking/npm/pkg/controlplane/controllers/common"
 	"github.com/Azure/azure-container-networking/npm/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -106,7 +107,7 @@ func (f *nameSpaceFixture) newNsController(stopCh chan struct{}) {
 	kubeclient := k8sfake.NewSimpleClientset(f.kubeobjects...)
 	f.kubeInformer = kubeinformers.NewSharedInformerFactory(kubeclient, noResyncPeriodFunc())
 
-	npmNamespaceCache := &NpmNamespaceCache{NsMap: make(map[string]*Namespace)}
+	npmNamespaceCache := &NpmNamespaceCache{NsMap: make(map[string]*common.Namespace)}
 	f.nsController = NewNameSpaceController(
 		f.kubeInformer.Core().V1().Namespaces(), f.ipsMgr, npmNamespaceCache)
 
@@ -528,12 +529,12 @@ func TestDeleteNamespaceWithTombstoneAfterAddingNameSpace(t *testing.T) {
 }
 
 func TestGetNamespaceObjFromNsObj(t *testing.T) {
-	ns := newNs("test-ns")
+	ns := common.NewNs("test-ns")
 	ns.LabelsMap = map[string]string{
 		"test": "new",
 	}
 
-	nsObj := ns.getNamespaceObjFromNsObj()
+	nsObj := ns.GetNamespaceObjFromNsObj()
 
 	if !reflect.DeepEqual(ns.LabelsMap, nsObj.ObjectMeta.Labels) {
 		t.Errorf("TestGetNamespaceObjFromNsObj failed @ nsObj labels check")
@@ -543,7 +544,7 @@ func TestGetNamespaceObjFromNsObj(t *testing.T) {
 func TestIsSystemNs(t *testing.T) {
 	nsObj := newNameSpace("kube-system", "0", map[string]string{"test": "new"})
 
-	if !isSystemNs(nsObj) {
+	if !common.IsSystemNs(nsObj) {
 		t.Errorf("TestIsSystemNs failed @ nsObj isSystemNs check")
 	}
 }
@@ -562,10 +563,10 @@ func checkNsTestResult(testName string, f *nameSpaceFixture, testCases []expecte
 }
 
 func TestNSMapMarshalJSON(t *testing.T) {
-	npmNSCache := &NpmNamespaceCache{NsMap: make(map[string]*Namespace)}
+	npmNSCache := &NpmNamespaceCache{NsMap: make(map[string]*common.Namespace)}
 	nsName := "ns-test"
-	ns := &Namespace{
-		name: nsName,
+	ns := &common.Namespace{
+		Name: nsName,
 		LabelsMap: map[string]string{
 			"test-key": "test-value",
 		},
@@ -575,6 +576,6 @@ func TestNSMapMarshalJSON(t *testing.T) {
 	nsMapRaw, err := npmNSCache.MarshalJSON()
 	require.NoError(t, err)
 
-	expect := []byte(`{"ns-test":{"LabelsMap":{"test-key":"test-value"}}}`)
+	expect := []byte(`{"ns-test":{"Name":"ns-test","LabelsMap":{"test-key":"test-value"}}}`)
 	assert.ElementsMatch(t, expect, nsMapRaw)
 }

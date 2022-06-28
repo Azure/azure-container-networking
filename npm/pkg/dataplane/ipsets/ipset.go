@@ -3,12 +3,10 @@ package ipsets
 import (
 	"errors"
 	"fmt"
-	"net"
-	"strings"
 
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/npm/util"
-	npmerrors "github.com/Azure/azure-container-networking/npm/util/errors"
+	"k8s.io/klog"
 )
 
 type IPSetMetadata struct {
@@ -63,9 +61,13 @@ func (setMetadata *IPSetMetadata) GetPrefixName() string {
 		return fmt.Sprintf("%s%s", util.NamespaceLabelPrefix, setMetadata.Name)
 	case NestedLabelOfPod:
 		return fmt.Sprintf("%s%s", util.NestedLabelPrefix, setMetadata.Name)
+	case EmptyHashSet:
+		return fmt.Sprintf("%s%s", util.EmptySetPrefix, setMetadata.Name)
 	case UnknownType: // adding this to appease golint
+		klog.Errorf("experienced unknown type in set metadata: %+v", setMetadata)
 		return Unknown
 	default:
+		klog.Errorf("experienced unexpected type %d in set metadata: %+v", setMetadata.Type, setMetadata)
 		return Unknown
 	}
 }
@@ -86,6 +88,8 @@ func (setType SetType) getSetKind() SetKind {
 		return HashSet
 	case KeyValueLabelOfPod:
 		return HashSet
+	case EmptyHashSet:
+		return HashSet
 	case KeyLabelOfNamespace:
 		return ListSet
 	case KeyValueLabelOfNamespace:
@@ -105,6 +109,10 @@ func (setType SetType) getSetKind() SetKind {
 // 2. NestedLabelOfPod IPSet from multi value labels
 // Members field holds member ipset names for NestedLabelOfPod and ip address ranges
 // for CIDRBlocks IPSet
+// Caveat: if a list set with translated members is referenced in multiple policies,
+// then it must have a different ipset name for each policy. Otherwise, deleting the policy
+// will result in removing the translated members from the set even if another policy requires
+// those members. See dataplane.go for more details.
 type TranslatedIPSet struct {
 	Metadata *IPSetMetadata
 	// Members holds member ipset names for NestedLabelOfPod and ip address ranges
@@ -131,10 +139,11 @@ type SetProperties struct {
 
 type SetType int8
 
+// Possble values for SetType
 const (
 	// Unknown SetType
 	UnknownType SetType = 0
-	// NameSpace IPSet is created to hold
+	// Namespace IPSet is created to hold
 	// ips of pods in a given NameSapce
 	Namespace SetType = 1
 	// KeyLabelOfNamespace IPSet is a list kind ipset
@@ -153,6 +162,9 @@ const (
 	NestedLabelOfPod SetType = 7
 	// CIDRBlocks holds CIDR blocks
 	CIDRBlocks SetType = 8
+	// EmptyHashSet is a set meant to have no members
+	EmptyHashSet SetType = 9
+
 	// Unknown const for unknown string
 	Unknown string = "unknown"
 )
@@ -160,14 +172,15 @@ const (
 var (
 	setTypeName = map[SetType]string{
 		UnknownType:              Unknown,
-		Namespace:                "NameSpace",
-		KeyLabelOfNamespace:      "KeyLabelOfNameSpace",
-		KeyValueLabelOfNamespace: "KeyValueLabelOfNameSpace",
+		Namespace:                "Namespace",
+		KeyLabelOfNamespace:      "KeyLabelOfNamespace",
+		KeyValueLabelOfNamespace: "KeyValueLabelOfNamespace",
 		KeyLabelOfPod:            "KeyLabelOfPod",
 		KeyValueLabelOfPod:       "KeyValueLabelOfPod",
 		NamedPorts:               "NamedPorts",
 		NestedLabelOfPod:         "NestedLabelOfPod",
 		CIDRBlocks:               "CIDRBlocks",
+		EmptyHashSet:             "EmptySet",
 	}
 	// ErrIPSetInvalidKind is returned when IPSet kind is invalid
 	ErrIPSetInvalidKind = errors.New("invalid IPSet Kind")
@@ -202,7 +215,7 @@ type IPSet struct {
 	// Using a map to emulate set and value as struct{} for
 	// minimal memory consumption
 	// SelectorReference holds networkpolicy names where this IPSet
-	// is being used in PodSelector and NameSpace
+	// is being used in PodSelector and Namespace
 	SelectorReference map[string]struct{}
 	// NetPolReference holds networkpolicy names where this IPSet
 	// is being referred as part of rules
@@ -341,11 +354,18 @@ func (set *IPSet) canBeForceDeleted() bool {
 		!set.referencedInList()
 }
 
-func (set *IPSet) canBeDeleted() bool {
+func (set *IPSet) canBeDeleted(ignorableMember *IPSet) bool {
+	var firstMember *IPSet
+	for _, member := range set.MemberIPSets {
+		firstMember = member
+		break
+	}
+	listMembersOk := len(set.MemberIPSets) == 0 || (len(set.MemberIPSets) == 1 && firstMember == ignorableMember)
+
 	return !set.usedByNetPol() &&
 		!set.referencedInList() &&
-		len(set.MemberIPSets) == 0 &&
-		len(set.IPPodKey) == 0
+		len(set.IPPodKey) == 0 &&
+		listMembersOk
 }
 
 // usedByNetPol check if an IPSet is referred in network policies.
@@ -368,21 +388,22 @@ func (set *IPSet) hasMember(memberName string) bool {
 	return isMember
 }
 
-func (set *IPSet) getSetIntersection(existingIntersection map[string]struct{}) (map[string]struct{}, error) {
-	if !set.canSetBeSelectorIPSet() {
-		return nil, npmerrors.Errorf(
-			npmerrors.IPSetIntersection,
-			false,
-			fmt.Sprintf("[IPSet] Selector IPSet cannot be of type %s", set.Type.String()))
-	}
-	newIntersectionMap := make(map[string]struct{})
-	for ip := range set.IPPodKey {
-		if _, ok := existingIntersection[ip]; ok {
-			newIntersectionMap[ip] = struct{}{}
+// isIPAffiliated determines whether an IP belongs to the set or its member sets in the case of a list set.
+// This method and GetSetContents are good examples of how the ipset struct may have been better designed
+// as an interface with hash and list implementations. Not worth it to redesign though.
+func (set *IPSet) isIPAffiliated(ip string) bool {
+	if set.Kind == HashSet {
+		if _, ok := set.IPPodKey[ip]; ok {
+			return true
 		}
 	}
-
-	return newIntersectionMap, nil
+	for _, memberSet := range set.MemberIPSets {
+		_, ok := memberSet.IPPodKey[ip]
+		if ok {
+			return true
+		}
+	}
+	return false
 }
 
 func (set *IPSet) canSetBeSelectorIPSet() bool {
@@ -390,18 +411,6 @@ func (set *IPSet) canSetBeSelectorIPSet() bool {
 		set.Type == KeyValueLabelOfPod ||
 		set.Type == Namespace ||
 		set.Type == NestedLabelOfPod)
-}
-
-// TODO: This is an adhoc approach for linux, but need to refactor data structure for better management.
-func ValidateIPBlock(ipblock string) error {
-	// TODO: This is fragile code with strong dependency with " "(space).
-	// onlyCidr has only cidr without "space" and "nomatch" in case except ipblock to validate cidr format.
-	onlyCidr := strings.Split(ipblock, " ")[0]
-	_, _, err := net.ParseCIDR(onlyCidr)
-	if err != nil {
-		return npmerrors.SimpleErrorWrapper("failed to parse CIDR", err)
-	}
-	return nil
 }
 
 func GetMembersOfTranslatedSets(members []string) []*IPSetMetadata {

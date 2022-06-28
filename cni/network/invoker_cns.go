@@ -20,9 +20,8 @@ import (
 )
 
 var (
-	errEmtpyHostSubnetPrefix = errors.New("empty host subnet prefix not allowed")
-	errEmptyCNIArgs          = errors.New("empty CNI cmd args not allowed")
-	errInvalidArgs           = errors.New("invalid arg(s)")
+	errEmptyCNIArgs = errors.New("empty CNI cmd args not allowed")
+	errInvalidArgs  = errors.New("invalid arg(s)")
 )
 
 type CNSIPAMInvoker struct {
@@ -100,7 +99,7 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 	log.Printf("[cni-invoker-cns] Received info %+v for pod %v", info, podInfo)
 
 	ncgw := net.ParseIP(info.ncGatewayIPAddress)
-	if ncgw == nil {
+	if ncgw == nil && invoker.ipamMode != util.V4Overlay {
 		return IPAMAddResult{}, errors.Wrap(errInvalidArgs, "%w: Gateway address "+info.ncGatewayIPAddress+" from response is invalid")
 	}
 
@@ -133,10 +132,18 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 		},
 	}
 
+	// get the name of the primary IP address
+	_, hostIPNet, err := net.ParseCIDR(info.hostSubnet)
+	if err != nil {
+		return IPAMAddResult{}, fmt.Errorf("unable to parse hostSubnet: %w", err)
+	}
+
+	addResult.hostSubnetPrefix = *hostIPNet
+
 	// set subnet prefix for host vm
 	// setHostOptions will execute if IPAM mode is not v4 overlay
 	if invoker.ipamMode != util.V4Overlay {
-		if err := setHostOptions(&addResult.hostSubnetPrefix, ncipnet, addConfig.options, &info); err != nil {
+		if err := setHostOptions(ncipnet, addConfig.options, &info); err != nil {
 			return IPAMAddResult{}, err
 		}
 	}
@@ -144,19 +151,7 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 	return addResult, nil
 }
 
-func setHostOptions(hostSubnetPrefix, ncSubnetPrefix *net.IPNet, options map[string]interface{}, info *IPv4ResultInfo) error {
-	// get the name of the primary IP address
-	_, hostIPNet, err := net.ParseCIDR(info.hostSubnet)
-	if err != nil {
-		return err
-	}
-
-	if hostSubnetPrefix == nil {
-		return errEmtpyHostSubnetPrefix
-	}
-
-	*hostSubnetPrefix = *hostIPNet
-
+func setHostOptions(ncSubnetPrefix *net.IPNet, options map[string]interface{}, info *IPv4ResultInfo) error {
 	// get the host ip
 	hostIP := net.ParseIP(info.hostPrimaryIP)
 	if hostIP == nil {
@@ -177,7 +172,8 @@ func setHostOptions(hostSubnetPrefix, ncSubnetPrefix *net.IPNet, options map[str
 		},
 	}
 
-	azureDNSMatch := fmt.Sprintf(" -m addrtype ! --dst-type local -s %s -d %s -p %s --dport %d", ncSubnetPrefix.String(), networkutils.AzureDNS, iptables.UDP, iptables.DNSPort)
+	azureDNSUDPMatch := fmt.Sprintf(" -m addrtype ! --dst-type local -s %s -d %s -p %s --dport %d", ncSubnetPrefix.String(), networkutils.AzureDNS, iptables.UDP, iptables.DNSPort)
+	azureDNSTCPMatch := fmt.Sprintf(" -m addrtype ! --dst-type local -s %s -d %s -p %s --dport %d", ncSubnetPrefix.String(), networkutils.AzureDNS, iptables.TCP, iptables.DNSPort)
 	azureIMDSMatch := fmt.Sprintf(" -m addrtype ! --dst-type local -s %s -d %s -p %s --dport %d", ncSubnetPrefix.String(), networkutils.AzureIMDS, iptables.TCP, iptables.HTTPPort)
 
 	snatPrimaryIPJump := fmt.Sprintf("%s --to %s", iptables.Snat, info.ncPrimaryIP)
@@ -186,8 +182,9 @@ func setHostOptions(hostSubnetPrefix, ncSubnetPrefix *net.IPNet, options map[str
 	options[network.IPTablesKey] = []iptables.IPTableEntry{
 		iptables.GetCreateChainCmd(iptables.V4, iptables.Nat, iptables.Swift),
 		iptables.GetAppendIptableRuleCmd(iptables.V4, iptables.Nat, iptables.Postrouting, "", iptables.Swift),
-		// add a snat rule to primary NC IP for DNS
-		iptables.GetInsertIptableRuleCmd(iptables.V4, iptables.Nat, iptables.Swift, azureDNSMatch, snatPrimaryIPJump),
+		// add a snat rules to primary NC IP for DNS
+		iptables.GetInsertIptableRuleCmd(iptables.V4, iptables.Nat, iptables.Swift, azureDNSUDPMatch, snatPrimaryIPJump),
+		iptables.GetInsertIptableRuleCmd(iptables.V4, iptables.Nat, iptables.Swift, azureDNSTCPMatch, snatPrimaryIPJump),
 		// add a snat rule to node IP for IMDS http traffic
 		iptables.GetInsertIptableRuleCmd(iptables.V4, iptables.Nat, iptables.Swift, azureIMDSMatch, snatHostIPJump),
 	}

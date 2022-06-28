@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 
+	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/parse"
 	"github.com/spf13/cobra"
 )
@@ -14,7 +15,11 @@ func newParseIPTableCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			iptableSaveF, _ := cmd.Flags().GetString("iptables-file")
 			if iptableSaveF == "" {
-				iptable, err := parse.Iptables("filter")
+				parser := parse.IPTablesParser{
+					IOShim: common.NewIOShim(),
+				}
+
+				iptable, err := parser.Iptables("filter")
 				if err != nil {
 					return fmt.Errorf("%w", err)
 				}

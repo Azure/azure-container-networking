@@ -4,7 +4,10 @@
 package cns
 
 import (
+	"context"
+	"crypto/tls"
 	"fmt"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -12,8 +15,11 @@ import (
 	"github.com/Azure/azure-container-networking/cns/common"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	acn "github.com/Azure/azure-container-networking/common"
+	"github.com/Azure/azure-container-networking/keyvault"
 	"github.com/Azure/azure-container-networking/log"
+	localtls "github.com/Azure/azure-container-networking/server/tls"
 	"github.com/Azure/azure-container-networking/store"
+	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/pkg/errors"
 )
 
@@ -68,19 +74,27 @@ func (service *Service) Initialize(config *common.ServiceConfig) error {
 		if err != nil {
 			return err
 		}
-		// Create the listener.
+
 		listener, err := acn.NewListener(u)
 		if err != nil {
 			return err
 		}
+
 		if config.TlsSettings.TLSPort != "" {
 			// listener.URL.Host will always be hostname:port, passed in to CNS via CNS command
 			// else it will default to localhost
 			// extract hostname and override tls port.
 			hostParts := strings.Split(listener.URL.Host, ":")
-			config.TlsSettings.TLSEndpoint = hostParts[0] + ":" + config.TlsSettings.TLSPort
+			tlsAddress := net.JoinHostPort(hostParts[0], config.TlsSettings.TLSPort)
+
 			// Start the listener and HTTP and HTTPS server.
-			if err = listener.StartTLS(config.ErrChan, config.TlsSettings); err != nil {
+			tlsConfig, err := getTLSConfig(config.TlsSettings, config.ErrChan)
+			if err != nil {
+				log.Printf("Failed to compose Tls Configuration with error: %+v", err)
+				return errors.Wrap(err, "could not get tls config")
+			}
+
+			if err := listener.StartTLS(config.ErrChan, tlsConfig, tlsAddress); err != nil {
 				return err
 			}
 		}
@@ -93,6 +107,89 @@ func (service *Service) Initialize(config *common.ServiceConfig) error {
 
 	log.Debugf("[Azure CNS] Successfully initialized a service with config: %+v", config)
 	return nil
+}
+
+func getTLSConfig(tlsSettings localtls.TlsSettings, errChan chan<- error) (*tls.Config, error) {
+	if tlsSettings.TLSCertificatePath != "" {
+		return getTLSConfigFromFile(tlsSettings)
+	}
+
+	if tlsSettings.KeyVaultURL != "" {
+		return getTLSConfigFromKeyVault(tlsSettings, errChan)
+	}
+
+	return nil, errors.Errorf("invalid tls settings: %+v", tlsSettings)
+}
+
+func getTLSConfigFromFile(tlsSettings localtls.TlsSettings) (*tls.Config, error) {
+	tlsCertRetriever, err := localtls.GetTlsCertificateRetriever(tlsSettings)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get certificate retriever")
+	}
+
+	leafCertificate, err := tlsCertRetriever.GetCertificate()
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get certificate")
+	}
+
+	if leafCertificate == nil {
+		return nil, errors.New("certificate retrieval returned empty")
+	}
+
+	privateKey, err := tlsCertRetriever.GetPrivateKey()
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get certificate private key")
+	}
+
+	tlsCert := tls.Certificate{
+		Certificate: [][]byte{leafCertificate.Raw},
+		PrivateKey:  privateKey,
+		Leaf:        leafCertificate,
+	}
+
+	tlsConfig := &tls.Config{
+		MaxVersion: tls.VersionTLS13,
+		MinVersion: tls.VersionTLS12,
+		Certificates: []tls.Certificate{
+			tlsCert,
+		},
+	}
+
+	return tlsConfig, nil
+}
+
+func getTLSConfigFromKeyVault(tlsSettings localtls.TlsSettings, errChan chan<- error) (*tls.Config, error) {
+	credOpts := azidentity.ManagedIdentityCredentialOptions{ID: azidentity.ResourceID(tlsSettings.MSIResourceID)}
+	cred, err := azidentity.NewManagedIdentityCredential(&credOpts)
+	if err != nil {
+		return nil, errors.Wrap(err, "could not create managed identity credential")
+	}
+
+	kvs, err := keyvault.NewShim(tlsSettings.KeyVaultURL, cred)
+	if err != nil {
+		return nil, errors.Wrap(err, "could not create new keyvault shim")
+	}
+
+	ctx := context.TODO()
+
+	cr, err := keyvault.NewCertRefresher(ctx, kvs, logger.Log, tlsSettings.KeyVaultCertificateName)
+	if err != nil {
+		return nil, errors.Wrap(err, "could not create new cert refresher")
+	}
+
+	go func() {
+		errChan <- cr.Refresh(ctx, tlsSettings.KeyVaultCertificateRefreshInterval)
+	}()
+
+	tlsConfig := tls.Config{
+		MinVersion: tls.VersionTLS12,
+		MaxVersion: tls.VersionTLS13,
+		GetCertificate: func(_ *tls.ClientHelloInfo) (*tls.Certificate, error) {
+			return cr.GetCertificate(), nil
+		},
+	}
+
+	return &tlsConfig, nil
 }
 
 func (service *Service) StartListener(config *common.ServiceConfig) error {

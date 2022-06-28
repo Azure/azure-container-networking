@@ -13,7 +13,6 @@ import (
 // This interface can be used to call into external binaries, like the azure-vnet-ipam binary,
 // or simply act as a client to an external ipam, such as azure-cns.
 type IPAMInvoker interface {
-
 	// Add returns two results, one IPv4, the other IPv6.
 	Add(IPAMAddConfig) (IPAMAddResult, error)
 

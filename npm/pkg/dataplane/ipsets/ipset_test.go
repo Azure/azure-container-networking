@@ -7,8 +7,12 @@ import (
 )
 
 func TestShouldBeInKernelAndCanDelete(t *testing.T) {
+	ignorableSetMetadata := &IPSetMetadata{"ignorableSet", EmptyHashSet}
+	ignorableSet := NewIPSet(ignorableSetMetadata)
+
 	s := &IPSetMetadata{"test-set", Namespace}
 	l := &IPSetMetadata{"test-list", KeyLabelOfNamespace}
+
 	tests := []struct {
 		name          string
 		set           *IPSet
@@ -88,6 +92,21 @@ func TestShouldBeInKernelAndCanDelete(t *testing.T) {
 			wantDeletable: false,
 		},
 		{
+			name: "only has ignorable member",
+			set: &IPSet{
+				Name: l.GetPrefixName(),
+				SetProperties: SetProperties{
+					Type: l.Type,
+					Kind: l.GetSetKind(),
+				},
+				MemberIPSets: map[string]*IPSet{
+					ignorableSet.Name: ignorableSet,
+				},
+			},
+			wantInKernel:  false,
+			wantDeletable: true,
+		},
+		{
 			name: "only has ip members",
 			set: &IPSet{
 				Name: s.GetPrefixName(),
@@ -125,9 +144,9 @@ func TestShouldBeInKernelAndCanDelete(t *testing.T) {
 			}
 
 			if tt.wantDeletable {
-				require.True(t, tt.set.canBeDeleted())
+				require.True(t, tt.set.canBeDeleted(ignorableSet))
 			} else {
-				require.False(t, tt.set.canBeDeleted())
+				require.False(t, tt.set.canBeDeleted(ignorableSet))
 			}
 		})
 	}

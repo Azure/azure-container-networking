@@ -9,8 +9,7 @@ import (
 
 	"github.com/Azure/azure-container-networking/npm"
 	"github.com/Azure/azure-container-networking/npm/http/api"
-	"github.com/Azure/azure-container-networking/npm/ipsm"
-	controllersv1 "github.com/Azure/azure-container-networking/npm/pkg/controlplane/controllers/v1"
+	"github.com/Azure/azure-container-networking/npm/pkg/controlplane/controllers/common"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -40,18 +39,18 @@ func TestGetNPMCacheHandler(t *testing.T) {
 		t.Errorf("failed to read response's data : %v", err)
 	}
 
-	actual := &controllersv1.Cache{}
+	actual := &common.Cache{}
 	err = json.Unmarshal(byteArray, actual)
 	if err != nil {
 		t.Fatalf("failed to unmarshal %s due to %v", string(byteArray), err)
 	}
 
-	expected := &controllersv1.Cache{
+	expected := &common.Cache{
 		NodeName: nodeName,
-		NsMap:    make(map[string]*controllersv1.Namespace),
-		PodMap:   make(map[string]*controllersv1.NpmPod),
-		ListMap:  make(map[string]*ipsm.Ipset),
-		SetMap:   make(map[string]*ipsm.Ipset),
+		NsMap:    make(map[string]*common.Namespace),
+		PodMap:   make(map[string]*common.NpmPod),
+		ListMap:  make(map[string]string),
+		SetMap:   make(map[string]string),
 	}
 
 	assert.Exactly(expected, actual)

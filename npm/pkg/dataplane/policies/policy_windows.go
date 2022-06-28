@@ -11,6 +11,7 @@ import (
 const (
 	blockRulePriotity = 3000
 	allowRulePriotity = 222
+	policyIDPrefix    = "azure-acl"
 )
 
 var (
@@ -26,6 +27,13 @@ var (
 	ErrNegativeMatchsNotSupported = errors.New("Negative match types is not supported in windows dataplane")
 	ErrProtocolNotSupported       = errors.New("Protocol mentioned is not supported")
 )
+
+// aclPolicyID returns azure-acl-<network policy namespace>-<network policy name> format
+// to differentiate ACLs among different network policies,
+// but aclPolicy in the same network policy has the same aclPolicyID.
+func aclPolicyID(policyNS, policyName string) string {
+	return fmt.Sprintf("%s-%s-%s", policyIDPrefix, policyNS, policyName)
+}
 
 // NPMACLPolSettings is an adaption over the existing hcn.ACLPolicySettings
 // default ACL settings does not contain ID field but HNS is happy with taking an ID
@@ -57,7 +65,7 @@ func (orig NPMACLPolSettings) compare(newACL *NPMACLPolSettings) bool {
 		orig.Priority == newACL.Priority
 }
 
-func (acl *ACLPolicy) convertToAclSettings() (*NPMACLPolSettings, error) {
+func (acl *ACLPolicy) convertToAclSettings(aclID string) (*NPMACLPolSettings, error) {
 	policySettings := &NPMACLPolSettings{}
 	for _, setInfo := range acl.SrcList {
 		if !setInfo.Included {
@@ -70,7 +78,7 @@ func (acl *ACLPolicy) convertToAclSettings() (*NPMACLPolSettings, error) {
 	}
 
 	policySettings.RuleType = hcn.RuleTypeSwitch
-	policySettings.Id = acl.PolicyID
+	policySettings.Id = aclID
 	policySettings.Direction = getHCNDirection(acl.Direction)
 	policySettings.Action = getHCNAction(acl.Target)
 

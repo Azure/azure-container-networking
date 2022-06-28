@@ -17,7 +17,8 @@ type expectedInfo struct {
 	mainCache        []setMembers
 	toAddUpdateCache []*IPSetMetadata
 	toDeleteCache    []string
-	// setsForKernel represents the sets in toAddUpdateCache that should be in the kernel
+	// setsForKernel represents the sets in toAddUpdateCache that should be in the kernel.
+	// This field seems unnecessary since all usages have the same values as toAddUpdateCache.
 	setsForKernel []*IPSetMetadata
 
 	/*
@@ -69,6 +70,10 @@ var (
 	keyLabelOfPodSet = NewIPSetMetadata("test-set2", KeyLabelOfPod)
 	portSet          = NewIPSetMetadata("test-set3", NamedPorts)
 	list             = NewIPSetMetadata("test-list1", KeyLabelOfNamespace)
+
+	nsKeyList          = NewIPSetMetadata("test-ns-key-list", KeyLabelOfNamespace)
+	nsKeyValueList     = NewIPSetMetadata("test-ns-key-value-list", KeyValueLabelOfNamespace)
+	nestedPodLabelList = NewIPSetMetadata("test-nested-pod-label-list", NestedLabelOfPod)
 )
 
 func TestReconcileCache(t *testing.T) {
@@ -113,6 +118,62 @@ func TestReconcileCache(t *testing.T) {
 			assertExpectedInfo(t, iMgr, &expectedInfo{
 				mainCache: []setMembers{
 					{metadata: otherSet, members: []member{{testPodIP, isHashMember}}},
+				},
+				toAddUpdateCache: nil,
+				toDeleteCache:    tt.toDeleteCache,
+				setsForKernel:    nil,
+			})
+		})
+	}
+}
+
+func TestReconcileCacheWithEmptySet(t *testing.T) {
+	tests := []struct {
+		name          string
+		mode          IPSetMode
+		toDeleteCache []string
+	}{
+		{
+			name:          "Apply Always",
+			mode:          ApplyAllIPSets,
+			toDeleteCache: []string{nsKeyList.GetPrefixName()},
+		},
+		{
+			name:          "Apply On Need",
+			mode:          ApplyOnNeed,
+			toDeleteCache: nil,
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &IPSetManagerCfg{
+				IPSetMode:          tt.mode,
+				NetworkName:        "azure",
+				AddEmptySetToLists: true,
+			}
+
+			cache := []*IPSetMetadata{nsKeyList, emptySetMetadata}
+
+			metrics.ReinitializeAll()
+			calls := GetApplyIPSetsTestCalls(cache, nil)
+			ioShim := common.NewMockIOShim(calls)
+			defer ioShim.VerifyCalls(t, calls)
+			iMgr := NewIPSetManager(cfg, ioShim)
+
+			// create two sets, one which can be deleted
+			iMgr.CreateIPSets([]*IPSetMetadata{nsKeyList})
+			nsKeySet, ok := iMgr.setMap[nsKeyList.GetPrefixName()]
+			require.True(t, ok, "list should be created")
+			_, ok = nsKeySet.MemberIPSets[emptySetMetadata.GetPrefixName()]
+			require.True(t, ok, "empty set should be a member of the list")
+
+			require.NoError(t, iMgr.ApplyIPSets())
+
+			iMgr.Reconcile()
+			assertExpectedInfo(t, iMgr, &expectedInfo{
+				mainCache: []setMembers{
+					{metadata: emptySetMetadata},
 				},
 				toAddUpdateCache: nil,
 				toDeleteCache:    tt.toDeleteCache,
@@ -308,6 +369,63 @@ func TestCreateIPSet(t *testing.T) {
 			iMgr := NewIPSetManager(tt.args.cfg, ioShim)
 			iMgr.CreateIPSets(tt.args.metadatas)
 			assertExpectedInfo(t, iMgr, &tt.expectedInfo)
+		})
+	}
+}
+
+func TestCreateListWithEmptySet(t *testing.T) {
+	tests := []struct {
+		name             string
+		mode             IPSetMode
+		toAddUpdateCache []*IPSetMetadata
+	}{
+		{
+			name: "Apply Always",
+			mode: ApplyAllIPSets,
+			toAddUpdateCache: []*IPSetMetadata{
+				nsKeyList,
+				nsKeyValueList,
+				nestedPodLabelList,
+				emptySetMetadata,
+			},
+		},
+		{
+			name: "Apply On Need",
+			mode: ApplyOnNeed,
+			toAddUpdateCache: []*IPSetMetadata{
+				emptySetMetadata,
+			},
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &IPSetManagerCfg{
+				IPSetMode:          tt.mode,
+				NetworkName:        "azure",
+				AddEmptySetToLists: true,
+			}
+
+			metrics.ReinitializeAll()
+			calls := GetApplyIPSetsTestCalls(nil, nil)
+			ioShim := common.NewMockIOShim(calls)
+			defer ioShim.VerifyCalls(t, calls)
+			iMgr := NewIPSetManager(cfg, ioShim)
+
+			iMgr.CreateIPSets([]*IPSetMetadata{nsKeyList, nsKeyValueList, nestedPodLabelList})
+
+			prefix := emptySetMetadata.GetPrefixName()
+			assertExpectedInfo(t, iMgr, &expectedInfo{
+				mainCache: []setMembers{
+					{metadata: nsKeyList, members: []member{{prefix, isSetMember}}},
+					{metadata: nsKeyValueList, members: []member{{prefix, isSetMember}}},
+					{metadata: nestedPodLabelList},
+					{metadata: emptySetMetadata},
+				},
+				toAddUpdateCache: tt.toAddUpdateCache,
+				toDeleteCache:    nil,
+				setsForKernel:    tt.toAddUpdateCache,
+			})
 		})
 	}
 }
@@ -1357,48 +1475,84 @@ func TestMain(m *testing.M) {
 	os.Exit(exitCode)
 }
 
-func TestValidateIPBlock(t *testing.T) {
+func TestValidateIPSetMemberIP(t *testing.T) {
 	tests := []struct {
 		name    string
 		ipblock string
-		wantErr bool
+		want    bool
 	}{
 		{
 			name:    "cidr",
 			ipblock: "172.17.0.0/16",
-			wantErr: false,
+			want:    true,
 		},
 		{
 			name:    "except ipblock",
 			ipblock: "172.17.1.0/24 nomatch",
-			wantErr: false,
+			want:    true,
 		},
 		{
 			name:    "incorrect ip format",
 			ipblock: "1234",
-			wantErr: true,
+			want:    false,
 		},
 		{
 			name:    "incorrect ip range",
 			ipblock: "256.1.2.3",
-			wantErr: true,
+			want:    false,
 		},
 		{
 			name:    "empty cidr",
 			ipblock: "",
-			wantErr: true,
+			want:    false,
+		},
+		{
+			name:    "ipv6",
+			ipblock: "2345:0425:2CA1:0000:0000:0567:5673:23b5/24",
+			want:    false,
+		},
+		{
+			name:    "tcp",
+			ipblock: "192.168.0.0/24,tcp:25227",
+			want:    true,
+		},
+		{
+			name:    "valid ip no cidr",
+			ipblock: "10.0.0.0",
+			want:    true,
+		},
+		{
+			name:    "invalid cidr",
+			ipblock: "10.0.0.1/33",
+			want:    false,
+		},
+		{
+			name:    "valid ip nomatch",
+			ipblock: "192.168.0.1 nomatch",
+			want:    true,
+		},
+		{
+			name:    "valid ip tcp",
+			ipblock: "192.168.0.1,tcp:25227",
+			want:    true,
+		},
+		{
+			name:    "ipv6 tcp",
+			ipblock: "2345:0425:2CA1:0000:0000:0567:5673:23b5/24,tcp:25227",
+			want:    false,
+		},
+		{
+			name:    "ipv6 nomatch",
+			ipblock: "2345:0425:2CA1:0000:0000:0567:5673:23b5 nomatch",
+			want:    false,
 		},
 	}
 
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			err := ValidateIPBlock(tt.ipblock)
-			if tt.wantErr {
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
-			}
+			got := validateIPSetMemberIP(tt.ipblock)
+			require.Equal(t, tt.want, got)
 		})
 	}
 }
