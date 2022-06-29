@@ -79,7 +79,7 @@ spec:
           operator: Exists
       containers:
         - name: azure-npm
-          image: acnpublic.azurecr.io/azure-npm:v1.4.22-24-g0df7a4d7-dirty-v3
+          image: mcr.microsoft.com/containernetworking/azure-npm:v1.4.28
           resources:
             limits:
               cpu: 250m
