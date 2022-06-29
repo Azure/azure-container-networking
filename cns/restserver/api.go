@@ -899,6 +899,102 @@ func (service *HTTPRestService) getNetworkContainerByOrchestratorContext(w http.
 	logger.Response(service.Name, getNetworkContainerResponse, returnCode, err)
 }
 
+// 1: Check if Network Container from DNC exist in CNS.
+func (service *HTTPRestService) checkIfNetworkContainerExistInCNS(w http.ResponseWriter, r *http.Request) {
+	logger.Printf("[Azure CNS] checkIfNetworkContainerExistInCNS")
+
+	var req cns.CheckNetworkContainerExistRequest
+	err := service.Listener.Decode(w, r, &req)
+	logger.Request(service.Name, &req, err)
+	if err != nil {
+		return
+	}
+	var returnCode types.ResponseCode
+	var returnMessage string
+
+	// Try to get the saved NC state if it exists
+	_, containerExists := service.getNetworkContainerDetails(req.NetworkContainerID)
+
+	if !containerExists {
+		returnCode = types.NotFound
+		returnMessage = fmt.Sprintf("[Azure CNS] This Network Container does not exist in CNS, need to refresh")
+	} else {
+		returnMessage = fmt.Sprintf("[Azure CNS] This Network Container is found in CNS")
+	}
+
+	resp := cns.Response{
+		ReturnCode: returnCode,
+		Message:    returnMessage,
+	}
+
+	reserveResp := &cns.CheckNetworkContainerExistResponse{
+		NetworkContainerExist: containerExists,
+		Response:              cns.Response{},
+	}
+
+	err = service.Listener.Encode(w, &reserveResp)
+	logger.Response(service.Name, reserveResp, resp.ReturnCode, err)
+}
+
+// 2: If the Network Container does not exist in CNS, then receive and store the GS for all the NCs for that node from DNC.
+func (service *HTTPRestService) replenishNetworkContainer(w http.ResponseWriter, r *http.Request) {
+	logger.Printf("[Azure CNS] replenishNetworkContainer")
+
+	var req cns.CreateNetworkContainerRequest
+	err := service.Listener.Decode(w, r, &req)
+	logger.Request(service.Name, req.String(), err)
+	if err != nil {
+		return
+	}
+
+	var returnCode types.ResponseCode
+	var returnMessage string
+
+	if req.NetworkContainerType == cns.WebApps {
+		// Try to get the saved nc state if it exists
+		existing, containerExists := service.getNetworkContainerDetails(req.NetworkContainerid)
+
+		// Create/update nc only if it doesn't exist, or it exists and the requested version is different from the saved version
+		if !containerExists || (containerExists && existing.VMVersion != req.Version) {
+			nc := service.networkContainer
+			if err = nc.Create(req); err != nil {
+				returnMessage = fmt.Sprintf("[Azure CNS] Error. replenishNetworkContainer failed %v", err.Error())
+				returnCode = types.UnexpectedError
+			}
+		}
+	} else if req.NetworkContainerType == cns.AzureContainerInstance {
+		// Try to get the saved nc state if it exists
+		existing, containerExists := service.getNetworkContainerDetails(req.NetworkContainerid)
+
+		// Create/update nc only if it doesn't exist, or it exists and the requested version is different from the saved version
+		if containerExists && existing.VMVersion != req.Version {
+			nc := service.networkContainer
+			netPluginConfig := service.getNetPluginDetails()
+			if err = nc.Update(req, netPluginConfig); err != nil {
+				returnMessage = fmt.Sprintf("[Azure CNS] Error. replenishNetworkContainer failed %v", err.Error())
+				returnCode = types.UnexpectedError
+			}
+		}
+	}
+
+	returnCode, returnMessage = service.saveNetworkContainerGoalState(req)
+
+	resp := cns.Response{
+		ReturnCode: returnCode,
+		Message:    returnMessage,
+	}
+
+	reserveResp := &cns.CreateNetworkContainerResponse{Response: resp}
+	err = service.Listener.Encode(w, &reserveResp)
+
+	// If the NC was created successfully, log NC snapshot.
+	if returnCode == types.Success {
+		logNCSnapshot(req)
+	}
+
+	logger.Response(service.Name, reserveResp, resp.ReturnCode, err)
+}
+
 func (service *HTTPRestService) deleteNetworkContainer(w http.ResponseWriter, r *http.Request) {
 	logger.Printf("[Azure CNS] deleteNetworkContainer")
 
