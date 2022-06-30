@@ -5,9 +5,9 @@ set -xv
 
 if [ -z "$1" == "windows"]
   then
-    cyclonusProfile="./install-cyclonus.yaml"
-  else
     cyclonusProfile="./install-cyclonus-windows.yaml"
+  else
+    cyclonusProfile="./install-cyclonus.yaml"
 fi
 
 
@@ -21,6 +21,7 @@ then
     echo "Running with exclude SCTP profile with 214 testcases: $cyclonusProfile"
 fi
 
+echo "Running with cyclonus profile: $cyclonusProfile"
 kubectl delete --ignore-not-found=true clusterrolebinding cyclonus 
 kubectl delete --ignore-not-found=true sa cyclonus -n kube-system
 kubectl delete --ignore-not-found=true -f $cyclonusProfile

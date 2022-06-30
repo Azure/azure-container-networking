@@ -278,9 +278,8 @@ jobs:
                 --resource-group $CLUSTER_NAME \
                 --name $CLUSTER_NAME \
                 --generate-ssh-keys \
-                --windows-admin-username admin \
                 --windows-admin-password alpha@numeric!password2 \
-                --kubernetes-version v1.23.1 \
+                --kubernetes-version v1.23 \
                 --network-plugin azure \
                 --vm-set-type VirtualMachineScaleSets \
                 --node-count 1
