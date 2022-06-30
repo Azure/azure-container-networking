@@ -203,7 +203,6 @@ func TestCmdAdd(t *testing.T) {
 		tt := tt
 		writer := &cniResultsWriter{}
 		t.Run(tt.name, func(t *testing.T) {
-			fmt.Printf("test : %v\n", tt.name)
 			mockCNSClient := &MockCNSClient{}
 			testLogger, cleanup, err := logger.New(loggerCfg)
 			if err != nil {
@@ -251,7 +250,6 @@ func TestCmdDel(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			fmt.Printf("test : %v\n", tt.name)
 			mockCNSClient := &MockCNSClient{}
 			testLogger, cleanup, err := logger.New(loggerCfg)
 			if err != nil {
@@ -270,7 +268,6 @@ func TestCmdDel(t *testing.T) {
 }
 
 func TestCmdCheck(t *testing.T) {
-	fmt.Println("test : cmdCheck")
 	mockCNSClient := &MockCNSClient{}
 	testLogger, cleanup, err := logger.New(loggerCfg)
 	if err != nil {
