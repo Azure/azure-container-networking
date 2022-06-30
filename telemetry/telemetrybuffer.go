@@ -171,8 +171,9 @@ func (tb *TelemetryBuffer) Connect() error {
 
 // PushData - PushData running an instance if it isn't already being run elsewhere
 func (tb *TelemetryBuffer) PushData(ctx context.Context) {
-	loop := true
-	for loop {
+	defer tb.Close()
+
+	for {
 		select {
 		case report := <-tb.data:
 			tb.mutex.Lock()
@@ -180,14 +181,12 @@ func (tb *TelemetryBuffer) PushData(ctx context.Context) {
 			tb.mutex.Unlock()
 		case <-tb.cancel:
 			log.Logf("[Telemetry] server cancel event")
-			loop = false
+			return
 		case <-ctx.Done():
 			log.Logf("[Telemetry] received context done event")
-			loop = false
+			return
 		}
 	}
-
-	tb.Close()
 }
 
 // read - read from the file descriptor
