@@ -68,6 +68,12 @@ func newStartNPMCmd() *cobra.Command {
 
 func start(config npmconfig.Config, flags npmconfig.Flags) error {
 	klog.Infof("loaded config: %+v", config)
+	if util.IsWindowsDP() {
+		config.Toggles.EnableV2NPM = true
+		klog.Infof("NPM is running on Windows Dataplane. Enabling V2 NPM")
+	} else {
+		klog.Infof("NPM is running on Linux Dataplane")
+	}
 	klog.Infof("starting NPM version %d with image %s", config.NPMVersion(), version)
 
 	var err error
