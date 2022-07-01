@@ -773,6 +773,7 @@ func (r *RequestCapture) Do(req *http.Request) (*http.Response, error) {
 	r.Request = req.Clone(context.Background())
 
 	// invoke the next handler in the chain and transparently return its results
+	//nolint:wrapcheck // we don't need error wrapping for tests
 	return r.Next.Do(req)
 }
 
@@ -825,7 +826,9 @@ func TestDeleteNetworkContainer(t *testing.T) {
 					httpStatusCodeToReturn: http.StatusBadRequest,
 				},
 			},
-			&cns.DeleteNetworkContainerRequest{"foo"},
+			&cns.DeleteNetworkContainerRequest{
+				NetworkContainerid: "foo",
+			},
 			true,
 		},
 	}
