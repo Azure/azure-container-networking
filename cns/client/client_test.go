@@ -879,6 +879,141 @@ func TestDeleteNetworkContainer(t *testing.T) {
 	}
 }
 
+func TestSetOrchestrator(t *testing.T) {
+	// define the required routes for the CNS client
+	emptyRoutes, _ := buildRoutes(defaultBaseURL, clientPaths)
+
+	// define test cases
+	setOrchestratorTests := []struct {
+		name      string
+		req       cns.SetOrchestratorTypeRequest
+		response  *RequestCapture
+		expReq    *cns.SetOrchestratorTypeRequest
+		shouldErr bool
+	}{
+		{
+			"empty",
+			cns.SetOrchestratorTypeRequest{},
+			&RequestCapture{
+				Next: &mockdo{},
+			},
+			nil,
+			true,
+		},
+		{
+			"missing dnc partition key",
+			cns.SetOrchestratorTypeRequest{
+				OrchestratorType: "Kubernetes",
+				NodeID:           "12345",
+			},
+			&RequestCapture{
+				Next: &mockdo{},
+			},
+			nil,
+			true,
+		},
+		{
+			"missing node id key",
+			cns.SetOrchestratorTypeRequest{
+				OrchestratorType: "Kubernetes",
+				DncPartitionKey:  "foo",
+			},
+			&RequestCapture{
+				Next: &mockdo{},
+			},
+			nil,
+			true,
+		},
+		{
+			"full request",
+			cns.SetOrchestratorTypeRequest{
+				OrchestratorType: "Kubernetes",
+				DncPartitionKey:  "foo",
+				NodeID:           "12345",
+			},
+			&RequestCapture{
+				Next: &mockdo{},
+			},
+			&cns.SetOrchestratorTypeRequest{
+				OrchestratorType: "Kubernetes",
+				DncPartitionKey:  "foo",
+				NodeID:           "12345",
+			},
+			false,
+		},
+		{
+			"unspecified error",
+			cns.SetOrchestratorTypeRequest{
+				OrchestratorType: "Kubernetes",
+				DncPartitionKey:  "foo",
+				NodeID:           "12345",
+			},
+			&RequestCapture{
+				Next: &mockdo{
+					errToReturn: nil,
+					objToReturn: cns.Response{
+						ReturnCode: types.MalformedSubnet,
+					},
+					httpStatusCodeToReturn: http.StatusBadRequest,
+				},
+			},
+			&cns.SetOrchestratorTypeRequest{
+				OrchestratorType: "Kubernetes",
+				DncPartitionKey:  "foo",
+				NodeID:           "12345",
+			},
+			true,
+		},
+	}
+
+	for _, test := range setOrchestratorTests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			// set up a client with the mocked routes
+			client := Client{
+				client: test.response,
+				routes: emptyRoutes,
+			}
+
+			// execute
+			err := client.SetOrchestratorType(context.TODO(), test.req)
+			if err != nil && !test.shouldErr {
+				t.Fatal("request produced an error where none was expected: err:", err)
+			}
+
+			if err == nil && test.shouldErr {
+				t.Fatal("expected an error from the request, but none received")
+			}
+
+			// check to see if we expected a request to be sent. If so,
+			// compare it to the request we actually received
+			if test.expReq != nil {
+				// first make sure any request at all was received
+				if test.response.Request == nil {
+					t.Fatal("expected a request to be sent, but none was")
+				}
+
+				var gotReq cns.SetOrchestratorTypeRequest
+				err := json.NewDecoder(test.response.Request.Body).Decode(&gotReq)
+				if err != nil {
+					t.Fatal("decoding received request body")
+				}
+
+				// because a nil pointer in the expected request means "no
+				// request expected", we have to dereference it here to make
+				// sure that the type aligns with the gotReq
+				expReq := *test.expReq
+
+				if !cmp.Equal(gotReq, expReq) {
+					t.Error("received request differs from expectation: diff:", cmp.Diff(gotReq, expReq))
+				}
+			}
+		})
+	}
+}
+
 func TestDeleteHostNCApipaEndpoint(t *testing.T) {
 	emptyRoutes, _ := buildRoutes(defaultBaseURL, clientPaths)
 	tests := []struct {

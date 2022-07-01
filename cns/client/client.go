@@ -460,3 +460,56 @@ func (c *Client) DeleteNetworkContainer(ncID string) error {
 	// sufficient to communicate success.
 	return nil
 }
+
+// SetOrchestratorType sets the orchestrator type for a given node
+func (c *Client) SetOrchestratorType(ctx context.Context, sotr cns.SetOrchestratorTypeRequest) error {
+	// validate that the request has all of the required fields before we waste a
+	// round trip
+	if sotr.OrchestratorType == "" {
+		return errors.New("request missing field OrchestratorType")
+	}
+
+	if sotr.DncPartitionKey == "" {
+		return errors.New("request missing field DncPartitionKey")
+	}
+
+	if sotr.NodeID == "" {
+		return errors.New("request missing field NodeID")
+	}
+
+	// build the HTTP request using the supplied request body
+	// submit the request
+	body, err := json.Marshal(sotr)
+	if err != nil {
+		return errors.Wrap(err, "encoding request body")
+	}
+	u := c.routes[cns.SetOrchestratorType]
+	req, err := http.NewRequest(http.MethodPost, u.String(), bytes.NewReader(body))
+	if err != nil {
+		return errors.Wrap(err, "building HTTP request")
+	}
+
+	// send the request
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return errors.Wrap(err, "sending HTTP request")
+	}
+	defer resp.Body.Close()
+
+	// decode the response
+	var out cns.Response
+	err = json.NewDecoder(resp.Body).Decode(&out)
+	if err != nil {
+		return errors.Wrap(err, "decoding JSON response")
+	}
+
+	// if there was a non-zero response code, this is an error that
+	// should be communicated back to the caller...
+	if out.ReturnCode != 0 {
+		return errors.New(out.Message)
+	}
+
+	// ...otherwise it's a success and returning nil is sufficient to
+	// communicate that
+	return nil
+}
