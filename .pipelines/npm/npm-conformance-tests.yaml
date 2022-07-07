@@ -333,7 +333,7 @@ jobs:
             --cleanup-namespaces=true \
             --perturbation-wait-seconds=10 \
             --pod-creation-timeout-seconds=30 \
-            --job-timeout-seconds=30 \
+            --job-timeout-seconds=15 \
             --server-protocol=TCP,UDP \
             --verbosity=debug
         name: cyclonus
