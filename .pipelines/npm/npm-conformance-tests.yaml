@@ -39,9 +39,10 @@ jobs:
         condition: always()
 
   - job: containerize
+    dependsOn: [setup]
     displayName: Build Images
     variables:
-      TAG: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
+      TAG: $[ dependencies.setup.outputs['EnvironmentalVariables.TAG'] ]
     pool:
       name: "$(BUILD_POOL_NAME_DEFAULT)"
     strategy:
@@ -59,9 +60,10 @@ jobs:
           tag: $(TAG)
 
   - job: containerize_windows
+    dependsOn: [setup]
     displayName: Build Images
     variables:
-      TAG: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
+      TAG: $[ dependencies.setup.outputs['EnvironmentalVariables.TAG'] ]
     pool:
       name: "$(BUILD_POOL_NAME_DEFAULT_WINDOWS)"
     strategy:
@@ -164,7 +166,7 @@ jobs:
             ./kubectl --kubeconfig=./kubeconfig apply -f https://raw.githubusercontent.com/Azure/azure-container-networking/master/npm/azure-npm.yaml
 
             # swap azure-npm image with one built during run
-            ./kubectl --kubeconfig=./kubeconfig set image daemonset/azure-npm -n kube-system azure-npm=$IMAGE_REGISTRY/azure-npm:$(TAG)
+            ./kubectl --kubeconfig=./kubeconfig set image daemonset/azure-npm -n kube-system azure-npm=$IMAGE_REGISTRY/azure-npm:linux-amd64-$(TAG)
 
             # swap NPM profile with one specified as parameter
             ./kubectl --kubeconfig=./kubeconfig apply -f https://raw.githubusercontent.com/Azure/azure-container-networking/master/npm/profiles/$(PROFILE).yaml
@@ -257,7 +259,7 @@ jobs:
       - download: current
         artifact: Test
       - task: AzureCLI@2
-        displayName: "Deploy NPM to Test Cluster"
+        displayName: "Create AKS Cluster"
         inputs:
           azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
           scriptType: "bash"
@@ -272,12 +274,15 @@ jobs:
 
             export CLUSTER_NAME=$(RESOURCE_GROUP)-ws22
 
+            echo "Creating resource group named $CLUSTER_NAME"
             az group create --name $CLUSTER_NAME -l $(LOCATION) -o table
 
+            echo "Creating resource group named $CLUSTER_NAME"
             az aks create \
                 --resource-group $CLUSTER_NAME \
                 --name $CLUSTER_NAME \
                 --generate-ssh-keys \
+                --windows-admin-username e2eadmin \
                 --windows-admin-password alpha@numeric!password2 \
                 --kubernetes-version v1.23 \
                 --network-plugin azure \
@@ -285,12 +290,14 @@ jobs:
                 --node-count 1
 
             # don't schedule anything on the linux system pool
+            echo "Updating $CLUSTER_NAME to not schedule anything on linux pool..."
             az aks nodepool update \
               --cluster-name $CLUSTER_NAME \
               -g $CLUSTER_NAME \
               -n nodepool1 \
               --node-taints CriticalAddonsOnly=true:NoSchedule
 
+            echo "Adding Windows nodepool to $CLUSTER_NAME"
             az aks nodepool add \
                 --resource-group $CLUSTER_NAME \
                 --cluster-name $CLUSTER_NAME \
@@ -299,6 +306,7 @@ jobs:
                 --os-sku Windows2022 \
                 --node-count 1
 
+            echo "Getting credentials to $CLUSTER_NAME"
             az aks get-credentials -g $CLUSTER_NAME -n $CLUSTER_NAME --overwrite-existing
 
       - task: AzureCLI@2
@@ -316,7 +324,7 @@ jobs:
             ./kubectl --kubeconfig=./kubeconfig apply -f https://github.com/Azure/azure-container-networking/blob/master/npm/examples/windows/azure-npm.yaml
 
             # swap azure-npm image with one built during run
-            ./kubectl --kubeconfig=./kubeconfig set image daemonset/azure-npm -n kube-system azure-npm=$IMAGE_REGISTRY/azure-npm:$(TAG)
+            ./kubectl --kubeconfig=./kubeconfig set image daemonset/azure-npm -n kube-system azure-npm=$IMAGE_REGISTRY/azure-npm:windows-amd64-$(TAG)
 
             # swap NPM profile with one specified as parameter
             ./kubectl --kubeconfig=./kubeconfig apply -f 
