@@ -513,3 +513,51 @@ func (c *Client) SetOrchestratorType(ctx context.Context, sotr cns.SetOrchestrat
 	// communicate that
 	return nil
 }
+
+// CreateNetworkContainer will create the provided network container, or update
+// an existing one if one already exists.
+func (c *Client) CreateNetworkContainer(ctx context.Context, cncr cns.CreateNetworkContainerRequest) error {
+	// CreateNetworkContainerRequest is a deep and complicated struct, so
+	// validating fields before we send it off is difficult and likely redundant
+	// since the backend will have similar checks. However, we can be pretty
+	// certain that if the NetworkContainerid is missing, it's likely an invalid
+	// request (since that parameter is mandatory).
+	if cncr.NetworkContainerid == "" {
+		return errors.New("empty request provided")
+	}
+
+	// build the request using the supplied struct and the client's internal
+	// routes
+	body, err := json.Marshal(cncr)
+	if err != nil {
+		return errors.Wrap(err, "encoding request as JSON")
+	}
+	u := c.routes[cns.CreateOrUpdateNetworkContainer]
+	req, err := http.NewRequest(http.MethodPost, u.String(), bytes.NewReader(body))
+	if err != nil {
+		return errors.Wrap(err, "building HTTP request")
+	}
+
+	// send the request
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return errors.Wrap(err, "sending HTTP request")
+	}
+	defer resp.Body.Close()
+
+	// decode the response
+	var out cns.Response
+	err = json.NewDecoder(resp.Body).Decode(&out)
+	if err != nil {
+		return errors.Wrap(err, "decoding JSON response")
+	}
+
+	// if there was a non-zero response code, this is an error that
+	// should be communicated back to the caller...
+	if out.ReturnCode != 0 {
+		return errors.New(out.Message)
+	}
+
+	// ...otherwise the request was successful so
+	return nil
+}

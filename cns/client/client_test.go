@@ -882,6 +882,125 @@ func TestDeleteNetworkContainer(t *testing.T) {
 	}
 }
 
+func TestCreateOrUpdateNetworkContainer(t *testing.T) {
+	// create the routes necessary for a test client
+	emptyRoutes, _ := buildRoutes(defaultBaseURL, clientPaths)
+
+	// define test cases
+	createNCTests := []struct {
+		name      string
+		client    *RequestCapture
+		req       cns.CreateNetworkContainerRequest
+		expReq    *cns.CreateNetworkContainerRequest
+		shouldErr bool
+	}{
+		{
+			"empty request",
+			&RequestCapture{
+				Next: &mockdo{},
+			},
+			cns.CreateNetworkContainerRequest{},
+			nil,
+			true,
+		},
+		{
+			"valid",
+			&RequestCapture{
+				Next: &mockdo{},
+			},
+			cns.CreateNetworkContainerRequest{
+				Version:              "12345",
+				NetworkContainerType: "blah",
+				NetworkContainerid:   "4815162342",
+				// to get a proper zero value for this informational field, we have to
+				// do this json.RawMessage trick:
+				OrchestratorContext: json.RawMessage("null"),
+			},
+			&cns.CreateNetworkContainerRequest{
+				Version:              "12345",
+				NetworkContainerType: "blah",
+				NetworkContainerid:   "4815162342",
+				OrchestratorContext:  json.RawMessage("null"),
+			},
+			false,
+		},
+		{
+			"unspecified error",
+			&RequestCapture{
+				Next: &mockdo{
+					errToReturn: nil,
+					objToReturn: cns.Response{
+						ReturnCode: types.MalformedSubnet,
+					},
+					httpStatusCodeToReturn: http.StatusBadRequest,
+				},
+			},
+			cns.CreateNetworkContainerRequest{
+				Version:              "12345",
+				NetworkContainerType: "blah",
+				NetworkContainerid:   "4815162342",
+				// to get a proper zero value for this informational field, we have to
+				// do this json.RawMessage trick:
+				OrchestratorContext: json.RawMessage("null"),
+			},
+			&cns.CreateNetworkContainerRequest{
+				Version:              "12345",
+				NetworkContainerType: "blah",
+				NetworkContainerid:   "4815162342",
+				OrchestratorContext:  json.RawMessage("null"),
+			},
+			true,
+		},
+	}
+
+	for _, test := range createNCTests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			// create a new client
+			client := &Client{
+				client: test.client,
+				routes: emptyRoutes,
+			}
+
+			// execute
+			err := client.CreateNetworkContainer(context.TODO(), test.req)
+			if err != nil && !test.shouldErr {
+				t.Fatal("unexpected error: err:", err)
+			}
+
+			if err == nil && test.shouldErr {
+				t.Fatal("expected an error but received none")
+			}
+
+			// make sure that if we expected a request, that the correct one was
+			// received
+			if test.expReq != nil {
+				// first make sure a request was actually received
+				if test.client.Request == nil {
+					t.Fatal("expected to receive a request, but none received")
+				}
+
+				// decode the received request for later comparison
+				var gotReq cns.CreateNetworkContainerRequest
+				err = json.NewDecoder(test.client.Request.Body).Decode(&gotReq)
+				if err != nil {
+					t.Fatal("error decoding received request: err:", err)
+				}
+
+				// we know a non-nil request is present (i.e. we expect a request), so
+				// we dereference it so that cmp can properly compare the types
+				expReq := *test.expReq
+
+				if !cmp.Equal(gotReq, expReq) {
+					t.Error("received request differs from expectation: diff:", cmp.Diff(gotReq, expReq))
+				}
+			}
+		})
+	}
+}
+
 func TestSetOrchestrator(t *testing.T) {
 	// define the required routes for the CNS client
 	emptyRoutes, _ := buildRoutes(defaultBaseURL, clientPaths)
