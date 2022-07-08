@@ -1048,8 +1048,10 @@ func TestPublishNC(t *testing.T) {
 			&RequestCapture{
 				Next: &mockdo{
 					errToReturn: nil,
-					objToReturn: cns.Response{
-						ReturnCode: types.MalformedSubnet,
+					objToReturn: cns.PublishNetworkContainerResponse{
+						Response: cns.Response{
+							ReturnCode: types.MalformedSubnet,
+						},
 					},
 					httpStatusCodeToReturn: http.StatusBadRequest,
 				},

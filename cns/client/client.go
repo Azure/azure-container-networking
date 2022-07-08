@@ -594,7 +594,7 @@ func (c *Client) PublishNetworkContainer(ctx context.Context, pncr cns.PublishNe
 	defer resp.Body.Close()
 
 	// decode the response to see if it was successful
-	var out cns.Response
+	var out cns.PublishNetworkContainerResponse
 	err = json.NewDecoder(resp.Body).Decode(&out)
 	if err != nil {
 		return errors.Wrap(err, "decoding JSON response")
@@ -602,8 +602,8 @@ func (c *Client) PublishNetworkContainer(ctx context.Context, pncr cns.PublishNe
 
 	// if there was a non-zero response code, this is an error that
 	// should be communicated back to the caller...
-	if out.ReturnCode != 0 {
-		return errors.New(out.Message)
+	if out.Response.ReturnCode != 0 {
+		return errors.New(out.Response.Message)
 	}
 
 	// ...otherwise the request was successful so
