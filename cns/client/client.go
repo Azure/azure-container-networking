@@ -572,7 +572,7 @@ func (c *Client) PublishNetworkContainer(ctx context.Context, pncr cns.PublishNe
 	// if it's missing a NetworkContainerID. Check for its presence and
 	// pre-emptively fail if that ID is missing:
 	if pncr.NetworkContainerID == "" {
-		return errors.New("boom")
+		return errors.New("network container id missing from request")
 	}
 
 	// Now that the request is valid it can be packaged as an HTTP request:
