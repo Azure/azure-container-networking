@@ -1107,6 +1107,108 @@ func TestPublishNC(t *testing.T) {
 	}
 }
 
+func TestUnpublishNC(t *testing.T) {
+	// create the routes necessary for a test client
+	emptyRoutes, _ := buildRoutes(defaultBaseURL, clientPaths)
+
+	// define test cases
+	unpublishTests := []struct {
+		name      string
+		client    *RequestCapture
+		req       cns.UnpublishNetworkContainerRequest
+		expReq    *cns.UnpublishNetworkContainerRequest
+		shouldErr bool
+	}{
+		{
+			"empty",
+			&RequestCapture{
+				Next: &mockdo{},
+			},
+			cns.UnpublishNetworkContainerRequest{},
+			nil,
+			true,
+		},
+		{
+			"complete",
+			&RequestCapture{
+				Next: &mockdo{},
+			},
+			cns.UnpublishNetworkContainerRequest{
+				NetworkID:                 "foo",
+				NetworkContainerID:        "bar",
+				JoinNetworkURL:            "http://example.com",
+				DeleteNetworkContainerURL: "http://example.com",
+			},
+			&cns.UnpublishNetworkContainerRequest{
+				NetworkID:                 "foo",
+				NetworkContainerID:        "bar",
+				JoinNetworkURL:            "http://example.com",
+				DeleteNetworkContainerURL: "http://example.com",
+			},
+			false,
+		},
+		{
+			"unexpected error",
+			&RequestCapture{
+				Next: &mockdo{
+					errToReturn: nil,
+					objToReturn: cns.UnpublishNetworkContainerResponse{
+						Response: cns.Response{
+							ReturnCode: types.MalformedSubnet,
+						},
+					},
+					httpStatusCodeToReturn: http.StatusBadRequest,
+				},
+			},
+			cns.UnpublishNetworkContainerRequest{
+				NetworkID:                 "foo",
+				NetworkContainerID:        "bar",
+				JoinNetworkURL:            "http://example.com",
+				DeleteNetworkContainerURL: "http://example.com",
+			},
+			&cns.UnpublishNetworkContainerRequest{
+				NetworkID:                 "foo",
+				NetworkContainerID:        "bar",
+				JoinNetworkURL:            "http://example.com",
+				DeleteNetworkContainerURL: "http://example.com",
+			},
+			true,
+		},
+	}
+
+	for _, test := range unpublishTests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			// create a client
+			client := &Client{
+				client: test.client,
+				routes: emptyRoutes,
+			}
+
+			// invoke the endpoint
+			err := client.UnpublishNC(context.TODO(), test.req)
+			if err != nil && !test.shouldErr {
+				t.Fatal("unexpected error: err:", err)
+			}
+
+			if err == nil && test.shouldErr {
+				t.Fatal("expected an error but received none")
+			}
+
+			// ensure the received request matches expectations if a request was
+			// expected to be received
+			if test.expReq != nil {
+				// make sure that a request was sent
+				if test.client.Request == nil {
+					t.Fatal("expected a request to be sent but none was received")
+				}
+			}
+		})
+	}
+}
+
 func TestSetOrchestrator(t *testing.T) {
 	// define the required routes for the CNS client
 	emptyRoutes, _ := buildRoutes(defaultBaseURL, clientPaths)

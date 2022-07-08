@@ -609,3 +609,49 @@ func (c *Client) PublishNetworkContainer(ctx context.Context, pncr cns.PublishNe
 	// ...otherwise the request was successful so
 	return nil
 }
+
+// UnpublishNC unpublishes the network container via the NMAgent running
+// alongside the CNS service. This is useful to avoid throttling issues imposed
+// by Wireserver.
+func (c *Client) UnpublishNC(ctx context.Context, uncr cns.UnpublishNetworkContainerRequest) error {
+	// In order to unpublish a Network Container, we need its ID. If the ID is
+	// missing, we can assume that the request is invalid and immediately return
+	// an error
+	if uncr.NetworkContainerID == "" {
+		return errors.New("request missing network container id")
+	}
+
+	// Now that the request is valid it can be packaged as an HTTP request:
+	body, err := json.Marshal(uncr)
+	if err != nil {
+		return errors.Wrap(err, "encoding request body as json")
+	}
+	u := c.routes[cns.UnpublishNetworkContainer]
+	req, err := http.NewRequest(http.MethodPost, u.String(), bytes.NewReader(body))
+	if err != nil {
+		return errors.Wrap(err, "building HTTP request")
+	}
+
+	// send the HTTP request
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return errors.Wrap(err, "sending HTTP request")
+	}
+	defer resp.Body.Close()
+
+	// decode the response to see if it was successful
+	var out cns.UnpublishNetworkContainerResponse
+	err = json.NewDecoder(resp.Body).Decode(&out)
+	if err != nil {
+		return errors.Wrap(err, "decoding JSON response")
+	}
+
+	// if there was a non-zero response code, this is an error that
+	// should be communicated back to the caller...
+	if out.Response.ReturnCode != 0 {
+		return errors.New(out.Response.Message)
+	}
+
+	// ...otherwise the request was successful so
+	return nil
+}
