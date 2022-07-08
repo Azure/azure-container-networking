@@ -561,3 +561,51 @@ func (c *Client) CreateNetworkContainer(ctx context.Context, cncr cns.CreateNetw
 	// ...otherwise the request was successful so
 	return nil
 }
+
+// PublishNetworkContainer publishes the provided network container via the
+// NMAgent resident on the node where CNS is running. This effectively proxies
+// the publication through CNS which can be useful for avoiding throttling
+// issues from Wireserver.
+func (c *Client) PublishNetworkContainer(ctx context.Context, pncr cns.PublishNetworkContainerRequest) error {
+	// Given that the PublishNetworkContainer endpoint is intended to publish
+	// network containers, it's reasonable to assume that the request is invalid
+	// if it's missing a NetworkContainerID. Check for its presence and
+	// pre-emptively fail if that ID is missing:
+	if pncr.NetworkContainerID == "" {
+		return errors.New("boom")
+	}
+
+	// Now that the request is valid it can be packaged as an HTTP request:
+	body, err := json.Marshal(pncr)
+	if err != nil {
+		return errors.Wrap(err, "encoding request body as json")
+	}
+	u := c.routes[cns.PublishNetworkContainer]
+	req, err := http.NewRequest(http.MethodPost, u.String(), bytes.NewReader(body))
+	if err != nil {
+		return errors.Wrap(err, "building HTTP request")
+	}
+
+	// send the HTTP request
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return errors.Wrap(err, "sending HTTP request")
+	}
+	defer resp.Body.Close()
+
+	// decode the response to see if it was successful
+	var out cns.Response
+	err = json.NewDecoder(resp.Body).Decode(&out)
+	if err != nil {
+		return errors.Wrap(err, "decoding JSON response")
+	}
+
+	// if there was a non-zero response code, this is an error that
+	// should be communicated back to the caller...
+	if out.ReturnCode != 0 {
+		return errors.New(out.Message)
+	}
+
+	// ...otherwise the request was successful so
+	return nil
+}
