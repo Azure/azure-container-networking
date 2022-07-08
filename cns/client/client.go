@@ -414,7 +414,7 @@ func (c *Client) GetHTTPServiceData(ctx context.Context) (*restserver.GetHTTPSer
 
 // DeleteNetworkContainer destroys the requested network container matching the
 // provided ID.
-func (c *Client) DeleteNetworkContainer(ncID string) error {
+func (c *Client) DeleteNetworkContainer(ctx context.Context, ncID string) error {
 	// the network container ID is required by the API, so ensure that we have
 	// one before we even make the request
 	if ncID == "" {

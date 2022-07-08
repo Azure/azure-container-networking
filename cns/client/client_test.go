@@ -845,7 +845,7 @@ func TestDeleteNetworkContainer(t *testing.T) {
 			}
 
 			// execute the method under test
-			err := client.DeleteNetworkContainer(test.ncID)
+			err := client.DeleteNetworkContainer(context.TODO(), test.ncID)
 			if err != nil && !test.shouldErr {
 				t.Fatal("unexpected error: err:", err)
 			}
