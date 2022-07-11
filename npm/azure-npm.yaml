@@ -106,6 +106,8 @@ spec:
             - name: azure-npm-config
               mountPath: /etc/azure-npm
       hostNetwork: true
+      nodeSelector:
+        kubernetes.io/os: linux
       volumes:
         - name: log
           hostPath:
