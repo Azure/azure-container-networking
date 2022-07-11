@@ -52,7 +52,7 @@ roleRef:
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
-  name: azure-npm
+  name: azure-npm-win
   namespace: kube-system
   labels:
     app: azure-npm
@@ -83,7 +83,7 @@ spec:
       hostNetwork: true
       containers:
         - name: azure-npm
-          image: acnpublic.azurecr.io/azure-npm:v26-windows-amd64
+          image: mcr.microsoft.com/containernetworking/azure-npm:v1.4.29
           command: ["powershell.exe"]
           args: ['.\setkubeconfigpath.ps1', ';', 'powershell.exe', '.\npm.exe', "start", '--kubeconfig=.\kubeconfig']
           resources:
@@ -141,7 +141,7 @@ data:
             "EnablePprof":             true,
             "EnableHTTPDebugAPI":      true,
             "EnableV2NPM":             true,
-            "PlaceAzureChainFirst":    false,
+            "PlaceAzureChainFirst":    true,
             "ApplyIPSetsOnNeed":       false
         },
         "Transport": {
@@ -150,5 +150,3 @@ data:
           "ServicePort": 9001
         }
     }
-
-    
