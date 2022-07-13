@@ -152,6 +152,7 @@ func rootExecute() error {
 			SystemDetails:    telemetry.SystemInfo{},
 			InterfaceDetails: telemetry.InterfaceInfo{},
 			BridgeDetails:    telemetry.BridgeInfo{},
+			Version:          version,
 		},
 	}
 

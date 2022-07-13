@@ -334,8 +334,6 @@ func (dp *DataPlane) refreshAllPodEndpoints() error {
 		}
 	}
 
-	klog.Infof("Endpoint cache after refresh: %+v", dp.endpointCache) // TODO: remove for public preview
-
 	return nil
 }
 

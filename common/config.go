@@ -87,6 +87,10 @@ const (
 	OptTelemetry      = "telemetry"
 	OptTelemetryAlias = "dt"
 
+	// Enable Telemetry service
+	OptTelemetryService      = "telemetry-service"
+	OptTelemetryServiceAlias = "ts"
+
 	// HTTP connection timeout
 	OptHttpConnectionTimeout      = "http-connection-timeout"
 	OptHttpConnectionTimeoutAlias = "httpcontimeout"

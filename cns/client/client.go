@@ -411,3 +411,247 @@ func (c *Client) GetHTTPServiceData(ctx context.Context) (*restserver.GetHTTPSer
 
 	return &resp, nil
 }
+
+// DeleteNetworkContainer destroys the requested network container matching the
+// provided ID.
+func (c *Client) DeleteNetworkContainer(ctx context.Context, ncID string) error {
+	// the network container ID is required by the API, so ensure that we have
+	// one before we even make the request
+	if ncID == "" {
+		return errors.New("no network container ID provided")
+	}
+
+	// build the request
+	dncr := cns.DeleteNetworkContainerRequest{
+		NetworkContainerid: ncID,
+	}
+	body, err := json.Marshal(dncr)
+	if err != nil {
+		return errors.Wrap(err, "encoding request body")
+	}
+	u := c.routes[cns.DeleteNetworkContainer]
+	req, err := http.NewRequest(http.MethodPost, u.String(), bytes.NewReader(body))
+	if err != nil {
+		return errors.Wrap(err, "building HTTP request")
+	}
+
+	// submit the request
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return errors.Wrap(err, "sending HTTP request")
+	}
+	defer resp.Body.Close()
+
+	// decode the response
+	var out cns.DeleteNetworkContainerResponse
+	err = json.NewDecoder(resp.Body).Decode(&out)
+	if err != nil {
+		return errors.Wrap(err, "decoding response as JSON")
+	}
+
+	// if a non-zero response code was received from CNS, it means something went
+	// wrong and it should be surfaced to the caller as an error
+	if out.Response.ReturnCode != 0 {
+		return errors.New(out.Response.Message)
+	}
+
+	// otherwise the response isn't terribly useful in a successful case, so it
+	// doesn't make sense to provide it to callers. The absence of an error is
+	// sufficient to communicate success.
+	return nil
+}
+
+// SetOrchestratorType sets the orchestrator type for a given node
+func (c *Client) SetOrchestratorType(ctx context.Context, sotr cns.SetOrchestratorTypeRequest) error {
+	// validate that the request has all of the required fields before we waste a
+	// round trip
+	if sotr.OrchestratorType == "" {
+		return errors.New("request missing field OrchestratorType")
+	}
+
+	if sotr.DncPartitionKey == "" {
+		return errors.New("request missing field DncPartitionKey")
+	}
+
+	if sotr.NodeID == "" {
+		return errors.New("request missing field NodeID")
+	}
+
+	// build the HTTP request using the supplied request body
+	// submit the request
+	body, err := json.Marshal(sotr)
+	if err != nil {
+		return errors.Wrap(err, "encoding request body")
+	}
+	u := c.routes[cns.SetOrchestratorType]
+	req, err := http.NewRequest(http.MethodPost, u.String(), bytes.NewReader(body))
+	if err != nil {
+		return errors.Wrap(err, "building HTTP request")
+	}
+
+	// send the request
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return errors.Wrap(err, "sending HTTP request")
+	}
+	defer resp.Body.Close()
+
+	// decode the response
+	var out cns.Response
+	err = json.NewDecoder(resp.Body).Decode(&out)
+	if err != nil {
+		return errors.Wrap(err, "decoding JSON response")
+	}
+
+	// if there was a non-zero response code, this is an error that
+	// should be communicated back to the caller...
+	if out.ReturnCode != 0 {
+		return errors.New(out.Message)
+	}
+
+	// ...otherwise it's a success and returning nil is sufficient to
+	// communicate that
+	return nil
+}
+
+// CreateNetworkContainer will create the provided network container, or update
+// an existing one if one already exists.
+func (c *Client) CreateNetworkContainer(ctx context.Context, cncr cns.CreateNetworkContainerRequest) error {
+	// CreateNetworkContainerRequest is a deep and complicated struct, so
+	// validating fields before we send it off is difficult and likely redundant
+	// since the backend will have similar checks. However, we can be pretty
+	// certain that if the NetworkContainerid is missing, it's likely an invalid
+	// request (since that parameter is mandatory).
+	if cncr.NetworkContainerid == "" {
+		return errors.New("empty request provided")
+	}
+
+	// build the request using the supplied struct and the client's internal
+	// routes
+	body, err := json.Marshal(cncr)
+	if err != nil {
+		return errors.Wrap(err, "encoding request as JSON")
+	}
+	u := c.routes[cns.CreateOrUpdateNetworkContainer]
+	req, err := http.NewRequest(http.MethodPost, u.String(), bytes.NewReader(body))
+	if err != nil {
+		return errors.Wrap(err, "building HTTP request")
+	}
+
+	// send the request
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return errors.Wrap(err, "sending HTTP request")
+	}
+	defer resp.Body.Close()
+
+	// decode the response
+	var out cns.Response
+	err = json.NewDecoder(resp.Body).Decode(&out)
+	if err != nil {
+		return errors.Wrap(err, "decoding JSON response")
+	}
+
+	// if there was a non-zero response code, this is an error that
+	// should be communicated back to the caller...
+	if out.ReturnCode != 0 {
+		return errors.New(out.Message)
+	}
+
+	// ...otherwise the request was successful so
+	return nil
+}
+
+// PublishNetworkContainer publishes the provided network container via the
+// NMAgent resident on the node where CNS is running. This effectively proxies
+// the publication through CNS which can be useful for avoiding throttling
+// issues from Wireserver.
+func (c *Client) PublishNetworkContainer(ctx context.Context, pncr cns.PublishNetworkContainerRequest) error {
+	// Given that the PublishNetworkContainer endpoint is intended to publish
+	// network containers, it's reasonable to assume that the request is invalid
+	// if it's missing a NetworkContainerID. Check for its presence and
+	// pre-emptively fail if that ID is missing:
+	if pncr.NetworkContainerID == "" {
+		return errors.New("network container id missing from request")
+	}
+
+	// Now that the request is valid it can be packaged as an HTTP request:
+	body, err := json.Marshal(pncr)
+	if err != nil {
+		return errors.Wrap(err, "encoding request body as json")
+	}
+	u := c.routes[cns.PublishNetworkContainer]
+	req, err := http.NewRequest(http.MethodPost, u.String(), bytes.NewReader(body))
+	if err != nil {
+		return errors.Wrap(err, "building HTTP request")
+	}
+
+	// send the HTTP request
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return errors.Wrap(err, "sending HTTP request")
+	}
+	defer resp.Body.Close()
+
+	// decode the response to see if it was successful
+	var out cns.PublishNetworkContainerResponse
+	err = json.NewDecoder(resp.Body).Decode(&out)
+	if err != nil {
+		return errors.Wrap(err, "decoding JSON response")
+	}
+
+	// if there was a non-zero response code, this is an error that
+	// should be communicated back to the caller...
+	if out.Response.ReturnCode != 0 {
+		return errors.New(out.Response.Message)
+	}
+
+	// ...otherwise the request was successful so
+	return nil
+}
+
+// UnpublishNC unpublishes the network container via the NMAgent running
+// alongside the CNS service. This is useful to avoid throttling issues imposed
+// by Wireserver.
+func (c *Client) UnpublishNC(ctx context.Context, uncr cns.UnpublishNetworkContainerRequest) error {
+	// In order to unpublish a Network Container, we need its ID. If the ID is
+	// missing, we can assume that the request is invalid and immediately return
+	// an error
+	if uncr.NetworkContainerID == "" {
+		return errors.New("request missing network container id")
+	}
+
+	// Now that the request is valid it can be packaged as an HTTP request:
+	body, err := json.Marshal(uncr)
+	if err != nil {
+		return errors.Wrap(err, "encoding request body as json")
+	}
+	u := c.routes[cns.UnpublishNetworkContainer]
+	req, err := http.NewRequest(http.MethodPost, u.String(), bytes.NewReader(body))
+	if err != nil {
+		return errors.Wrap(err, "building HTTP request")
+	}
+
+	// send the HTTP request
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return errors.Wrap(err, "sending HTTP request")
+	}
+	defer resp.Body.Close()
+
+	// decode the response to see if it was successful
+	var out cns.UnpublishNetworkContainerResponse
+	err = json.NewDecoder(resp.Body).Decode(&out)
+	if err != nil {
+		return errors.Wrap(err, "decoding JSON response")
+	}
+
+	// if there was a non-zero response code, this is an error that
+	// should be communicated back to the caller...
+	if out.Response.ReturnCode != 0 {
+		return errors.New(out.Response.Message)
+	}
+
+	// ...otherwise the request was successful so
+	return nil
+}

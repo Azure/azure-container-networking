@@ -23,6 +23,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 	"github.com/Azure/azure-container-networking/log"
+	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -753,6 +754,592 @@ func TestCreateHostNCApipaEndpoint(t *testing.T) {
 				assert.NoError(t, err)
 			}
 			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+type RequestCapture struct {
+	Request *http.Request
+	Next    interface {
+		Do(*http.Request) (*http.Response, error)
+	}
+}
+
+// Do captures the outgoing HTTP request for later examination within a test.
+func (r *RequestCapture) Do(req *http.Request) (*http.Response, error) {
+	// clone the request to ensure that any downstream handlers can't modify what
+	// we've captured. Clone requires a non-nil context argument, so use a
+	// throwaway value.
+	r.Request = req.Clone(context.Background())
+
+	// invoke the next handler in the chain and transparently return its results
+	//nolint:wrapcheck // we don't need error wrapping for tests
+	return r.Next.Do(req)
+}
+
+func TestDeleteNetworkContainer(t *testing.T) {
+	// the CNS client has to be provided with routes going somewhere, so create a
+	// bunch of routes mapped to the localhost
+	emptyRoutes, _ := buildRoutes(defaultBaseURL, clientPaths)
+
+	// define our test cases
+	deleteNCTests := []struct {
+		name      string
+		ncID      string
+		response  *RequestCapture
+		expReq    *cns.DeleteNetworkContainerRequest
+		shouldErr bool
+	}{
+		{
+			"empty",
+			"",
+			&RequestCapture{
+				Next: &mockdo{},
+			},
+			nil,
+			true,
+		},
+		{
+			"with id",
+			"foo",
+			&RequestCapture{
+				Next: &mockdo{
+					httpStatusCodeToReturn: http.StatusOK,
+				},
+			},
+			&cns.DeleteNetworkContainerRequest{
+				NetworkContainerid: "foo",
+			},
+			false,
+		},
+		{
+			"unspecified error",
+			"foo",
+			&RequestCapture{
+				Next: &mockdo{
+					errToReturn: nil,
+					objToReturn: cns.DeleteNetworkContainerResponse{
+						Response: cns.Response{
+							ReturnCode: types.MalformedSubnet,
+						},
+					},
+					httpStatusCodeToReturn: http.StatusBadRequest,
+				},
+			},
+			&cns.DeleteNetworkContainerRequest{
+				NetworkContainerid: "foo",
+			},
+			true,
+		},
+	}
+
+	for _, test := range deleteNCTests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			// create a new client with the mock routes and the mock doer
+			client := Client{
+				client: test.response,
+				routes: emptyRoutes,
+			}
+
+			// execute the method under test
+			err := client.DeleteNetworkContainer(context.TODO(), test.ncID)
+			if err != nil && !test.shouldErr {
+				t.Fatal("unexpected error: err:", err)
+			}
+
+			if err == nil && test.shouldErr {
+				t.Fatal("expected test to error, but no error was produced")
+			}
+
+			// make sure a request was actually sent
+			if test.expReq != nil && test.response.Request == nil {
+				t.Fatal("expected a request to be sent, but none was")
+			}
+
+			// if a request was expected to be sent, decode it and ensure that it
+			// matches expectations
+			if test.expReq != nil {
+				var gotReq cns.DeleteNetworkContainerRequest
+				err = json.NewDecoder(test.response.Request.Body).Decode(&gotReq)
+				if err != nil {
+					t.Fatal("error decoding the received request: err:", err)
+				}
+
+				// a nil expReq is semantically meaningful (i.e. "no request"), but in
+				// order for cmp to work properly, the outer types should be identical.
+				// Thus we have to dereference it explicitly:
+				expReq := *test.expReq
+
+				// ensure that the received request is what was expected
+				if !cmp.Equal(gotReq, expReq) {
+					t.Error("received request differs from expectation: diff", cmp.Diff(gotReq, expReq))
+				}
+			}
+		})
+	}
+}
+
+func TestCreateOrUpdateNetworkContainer(t *testing.T) {
+	// create the routes necessary for a test client
+	emptyRoutes, _ := buildRoutes(defaultBaseURL, clientPaths)
+
+	// define test cases
+	createNCTests := []struct {
+		name      string
+		client    *RequestCapture
+		req       cns.CreateNetworkContainerRequest
+		expReq    *cns.CreateNetworkContainerRequest
+		shouldErr bool
+	}{
+		{
+			"empty request",
+			&RequestCapture{
+				Next: &mockdo{},
+			},
+			cns.CreateNetworkContainerRequest{},
+			nil,
+			true,
+		},
+		{
+			"valid",
+			&RequestCapture{
+				Next: &mockdo{},
+			},
+			cns.CreateNetworkContainerRequest{
+				Version:              "12345",
+				NetworkContainerType: "blah",
+				NetworkContainerid:   "4815162342",
+				// to get a proper zero value for this informational field, we have to
+				// do this json.RawMessage trick:
+				OrchestratorContext: json.RawMessage("null"),
+			},
+			&cns.CreateNetworkContainerRequest{
+				Version:              "12345",
+				NetworkContainerType: "blah",
+				NetworkContainerid:   "4815162342",
+				OrchestratorContext:  json.RawMessage("null"),
+			},
+			false,
+		},
+		{
+			"unspecified error",
+			&RequestCapture{
+				Next: &mockdo{
+					errToReturn: nil,
+					objToReturn: cns.Response{
+						ReturnCode: types.MalformedSubnet,
+					},
+					httpStatusCodeToReturn: http.StatusBadRequest,
+				},
+			},
+			cns.CreateNetworkContainerRequest{
+				Version:              "12345",
+				NetworkContainerType: "blah",
+				NetworkContainerid:   "4815162342",
+				// to get a proper zero value for this informational field, we have to
+				// do this json.RawMessage trick:
+				OrchestratorContext: json.RawMessage("null"),
+			},
+			&cns.CreateNetworkContainerRequest{
+				Version:              "12345",
+				NetworkContainerType: "blah",
+				NetworkContainerid:   "4815162342",
+				OrchestratorContext:  json.RawMessage("null"),
+			},
+			true,
+		},
+	}
+
+	for _, test := range createNCTests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			// create a new client
+			client := &Client{
+				client: test.client,
+				routes: emptyRoutes,
+			}
+
+			// execute
+			err := client.CreateNetworkContainer(context.TODO(), test.req)
+			if err != nil && !test.shouldErr {
+				t.Fatal("unexpected error: err:", err)
+			}
+
+			if err == nil && test.shouldErr {
+				t.Fatal("expected an error but received none")
+			}
+
+			// make sure that if we expected a request, that the correct one was
+			// received
+			if test.expReq != nil {
+				// first make sure a request was actually received
+				if test.client.Request == nil {
+					t.Fatal("expected to receive a request, but none received")
+				}
+
+				// decode the received request for later comparison
+				var gotReq cns.CreateNetworkContainerRequest
+				err = json.NewDecoder(test.client.Request.Body).Decode(&gotReq)
+				if err != nil {
+					t.Fatal("error decoding received request: err:", err)
+				}
+
+				// we know a non-nil request is present (i.e. we expect a request), so
+				// we dereference it so that cmp can properly compare the types
+				expReq := *test.expReq
+
+				if !cmp.Equal(gotReq, expReq) {
+					t.Error("received request differs from expectation: diff:", cmp.Diff(gotReq, expReq))
+				}
+			}
+		})
+	}
+}
+
+func TestPublishNC(t *testing.T) {
+	// create the routes necessary for a test client
+	emptyRoutes, _ := buildRoutes(defaultBaseURL, clientPaths)
+
+	// define the test cases
+	publishNCTests := []struct {
+		name      string
+		client    *RequestCapture
+		req       cns.PublishNetworkContainerRequest
+		expReq    *cns.PublishNetworkContainerRequest
+		shouldErr bool
+	}{
+		{
+			"empty",
+			&RequestCapture{
+				Next: &mockdo{},
+			},
+			cns.PublishNetworkContainerRequest{},
+			nil,
+			true,
+		},
+		{
+			"complete",
+			&RequestCapture{
+				Next: &mockdo{},
+			},
+			cns.PublishNetworkContainerRequest{
+				NetworkID:                         "foo",
+				NetworkContainerID:                "frob",
+				JoinNetworkURL:                    "http://example.com",
+				CreateNetworkContainerURL:         "http://example.com",
+				CreateNetworkContainerRequestBody: []byte{},
+			},
+			&cns.PublishNetworkContainerRequest{
+				NetworkID:                         "foo",
+				NetworkContainerID:                "frob",
+				JoinNetworkURL:                    "http://example.com",
+				CreateNetworkContainerURL:         "http://example.com",
+				CreateNetworkContainerRequestBody: []byte{},
+			},
+			false,
+		},
+		{
+			"unspecified error",
+			&RequestCapture{
+				Next: &mockdo{
+					errToReturn: nil,
+					objToReturn: cns.PublishNetworkContainerResponse{
+						Response: cns.Response{
+							ReturnCode: types.MalformedSubnet,
+						},
+					},
+					httpStatusCodeToReturn: http.StatusBadRequest,
+				},
+			},
+			cns.PublishNetworkContainerRequest{
+				NetworkID:                         "foo",
+				NetworkContainerID:                "frob",
+				JoinNetworkURL:                    "http://example.com",
+				CreateNetworkContainerURL:         "http://example.com",
+				CreateNetworkContainerRequestBody: []byte{},
+			},
+			&cns.PublishNetworkContainerRequest{
+				NetworkID:                         "foo",
+				NetworkContainerID:                "frob",
+				JoinNetworkURL:                    "http://example.com",
+				CreateNetworkContainerURL:         "http://example.com",
+				CreateNetworkContainerRequestBody: []byte{},
+			},
+			true,
+		},
+	}
+
+	for _, test := range publishNCTests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			// create a client
+			client := &Client{
+				client: test.client,
+				routes: emptyRoutes,
+			}
+
+			// invoke the endpoint
+			err := client.PublishNetworkContainer(context.TODO(), test.req)
+			if err != nil && !test.shouldErr {
+				t.Fatal("unexpected error: err:", err)
+			}
+
+			if err == nil && test.shouldErr {
+				t.Fatal("expected an error but received none")
+			}
+
+			// if we expected to receive a request, make sure it's identical to the
+			// one we received
+			if test.expReq != nil {
+				// first ensure that we actually got a request
+				if test.client.Request == nil {
+					t.Fatal("expected to receive a request, but received none")
+				}
+			}
+		})
+	}
+}
+
+func TestUnpublishNC(t *testing.T) {
+	// create the routes necessary for a test client
+	emptyRoutes, _ := buildRoutes(defaultBaseURL, clientPaths)
+
+	// define test cases
+	unpublishTests := []struct {
+		name      string
+		client    *RequestCapture
+		req       cns.UnpublishNetworkContainerRequest
+		expReq    *cns.UnpublishNetworkContainerRequest
+		shouldErr bool
+	}{
+		{
+			"empty",
+			&RequestCapture{
+				Next: &mockdo{},
+			},
+			cns.UnpublishNetworkContainerRequest{},
+			nil,
+			true,
+		},
+		{
+			"complete",
+			&RequestCapture{
+				Next: &mockdo{},
+			},
+			cns.UnpublishNetworkContainerRequest{
+				NetworkID:                 "foo",
+				NetworkContainerID:        "bar",
+				JoinNetworkURL:            "http://example.com",
+				DeleteNetworkContainerURL: "http://example.com",
+			},
+			&cns.UnpublishNetworkContainerRequest{
+				NetworkID:                 "foo",
+				NetworkContainerID:        "bar",
+				JoinNetworkURL:            "http://example.com",
+				DeleteNetworkContainerURL: "http://example.com",
+			},
+			false,
+		},
+		{
+			"unexpected error",
+			&RequestCapture{
+				Next: &mockdo{
+					errToReturn: nil,
+					objToReturn: cns.UnpublishNetworkContainerResponse{
+						Response: cns.Response{
+							ReturnCode: types.MalformedSubnet,
+						},
+					},
+					httpStatusCodeToReturn: http.StatusBadRequest,
+				},
+			},
+			cns.UnpublishNetworkContainerRequest{
+				NetworkID:                 "foo",
+				NetworkContainerID:        "bar",
+				JoinNetworkURL:            "http://example.com",
+				DeleteNetworkContainerURL: "http://example.com",
+			},
+			&cns.UnpublishNetworkContainerRequest{
+				NetworkID:                 "foo",
+				NetworkContainerID:        "bar",
+				JoinNetworkURL:            "http://example.com",
+				DeleteNetworkContainerURL: "http://example.com",
+			},
+			true,
+		},
+	}
+
+	for _, test := range unpublishTests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			// create a client
+			client := &Client{
+				client: test.client,
+				routes: emptyRoutes,
+			}
+
+			// invoke the endpoint
+			err := client.UnpublishNC(context.TODO(), test.req)
+			if err != nil && !test.shouldErr {
+				t.Fatal("unexpected error: err:", err)
+			}
+
+			if err == nil && test.shouldErr {
+				t.Fatal("expected an error but received none")
+			}
+
+			// ensure the received request matches expectations if a request was
+			// expected to be received
+			if test.expReq != nil {
+				// make sure that a request was sent
+				if test.client.Request == nil {
+					t.Fatal("expected a request to be sent but none was received")
+				}
+			}
+		})
+	}
+}
+
+func TestSetOrchestrator(t *testing.T) {
+	// define the required routes for the CNS client
+	emptyRoutes, _ := buildRoutes(defaultBaseURL, clientPaths)
+
+	// define test cases
+	setOrchestratorTests := []struct {
+		name      string
+		req       cns.SetOrchestratorTypeRequest
+		response  *RequestCapture
+		expReq    *cns.SetOrchestratorTypeRequest
+		shouldErr bool
+	}{
+		{
+			"empty",
+			cns.SetOrchestratorTypeRequest{},
+			&RequestCapture{
+				Next: &mockdo{},
+			},
+			nil,
+			true,
+		},
+		{
+			"missing dnc partition key",
+			cns.SetOrchestratorTypeRequest{
+				OrchestratorType: "Kubernetes",
+				NodeID:           "12345",
+			},
+			&RequestCapture{
+				Next: &mockdo{},
+			},
+			nil,
+			true,
+		},
+		{
+			"missing node id key",
+			cns.SetOrchestratorTypeRequest{
+				OrchestratorType: "Kubernetes",
+				DncPartitionKey:  "foo",
+			},
+			&RequestCapture{
+				Next: &mockdo{},
+			},
+			nil,
+			true,
+		},
+		{
+			"full request",
+			cns.SetOrchestratorTypeRequest{
+				OrchestratorType: "Kubernetes",
+				DncPartitionKey:  "foo",
+				NodeID:           "12345",
+			},
+			&RequestCapture{
+				Next: &mockdo{},
+			},
+			&cns.SetOrchestratorTypeRequest{
+				OrchestratorType: "Kubernetes",
+				DncPartitionKey:  "foo",
+				NodeID:           "12345",
+			},
+			false,
+		},
+		{
+			"unspecified error",
+			cns.SetOrchestratorTypeRequest{
+				OrchestratorType: "Kubernetes",
+				DncPartitionKey:  "foo",
+				NodeID:           "12345",
+			},
+			&RequestCapture{
+				Next: &mockdo{
+					errToReturn: nil,
+					objToReturn: cns.Response{
+						ReturnCode: types.MalformedSubnet,
+					},
+					httpStatusCodeToReturn: http.StatusBadRequest,
+				},
+			},
+			&cns.SetOrchestratorTypeRequest{
+				OrchestratorType: "Kubernetes",
+				DncPartitionKey:  "foo",
+				NodeID:           "12345",
+			},
+			true,
+		},
+	}
+
+	for _, test := range setOrchestratorTests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			// set up a client with the mocked routes
+			client := Client{
+				client: test.response,
+				routes: emptyRoutes,
+			}
+
+			// execute
+			err := client.SetOrchestratorType(context.TODO(), test.req)
+			if err != nil && !test.shouldErr {
+				t.Fatal("request produced an error where none was expected: err:", err)
+			}
+
+			if err == nil && test.shouldErr {
+				t.Fatal("expected an error from the request, but none received")
+			}
+
+			// check to see if we expected a request to be sent. If so,
+			// compare it to the request we actually received
+			if test.expReq != nil {
+				// first make sure any request at all was received
+				if test.response.Request == nil {
+					t.Fatal("expected a request to be sent, but none was")
+				}
+
+				var gotReq cns.SetOrchestratorTypeRequest
+				err := json.NewDecoder(test.response.Request.Body).Decode(&gotReq)
+				if err != nil {
+					t.Fatal("decoding received request body")
+				}
+
+				// because a nil pointer in the expected request means "no
+				// request expected", we have to dereference it here to make
+				// sure that the type aligns with the gotReq
+				expReq := *test.expReq
+
+				if !cmp.Equal(gotReq, expReq) {
+					t.Error("received request differs from expectation: diff:", cmp.Diff(gotReq, expReq))
+				}
+			}
 		})
 	}
 }

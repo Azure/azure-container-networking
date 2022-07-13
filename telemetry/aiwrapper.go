@@ -54,6 +54,7 @@ func SendAITelemetry(cnireport CNIReport) {
 	report := aitelemetry.Report{
 		Message:          msg,
 		Context:          cnireport.ContainerName,
+		AppVersion:       cnireport.Version,
 		CustomDimensions: make(map[string]string),
 	}
 
