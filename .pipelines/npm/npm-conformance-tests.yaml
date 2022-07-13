@@ -26,7 +26,7 @@ jobs:
           mkdir -p '$(GOBIN)'
           mkdir -p '$(GOPATH)/pkg'
           BUILD_NUMBER=$(Build.BuildNumber)
-          RG=$(echo "e2e-npm-`date "+%Y-%m-%d-%S"`")
+          RG=$(echo "e2e-npm-`date "%m-%d-%S"`")
           TAG=$(make version)-conformance-test
           echo "Resource group: $RG"
           echo "Image tag: $TAG"
