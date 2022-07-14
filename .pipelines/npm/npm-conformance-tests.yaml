@@ -26,7 +26,7 @@ jobs:
           mkdir -p '$(GOBIN)'
           mkdir -p '$(GOPATH)/pkg'
           BUILD_NUMBER=$(Build.BuildNumber)
-          RG=$(echo "e2e-npm-`date "%m-%d-%S"`")
+          RG=e2e-$(echo "npm-`date "+%Y-%m-%d-%S"`")
           TAG=$(make version)-conformance-test
           echo "Resource group: $RG"
           echo "Image tag: $TAG"
@@ -105,15 +105,15 @@ jobs:
     strategy:
       matrix:
         v1-default:
-          AZURE_CLUSTER: "v1-default-cluster"
+          AZURE_CLUSTER: "conformance-v1-default"
           PROFILE: "v1-default"
           IS_STRESS_TEST: "false"
         v2-default:
-          AZURE_CLUSTER: "v2-default-cluster"
+          AZURE_CLUSTER: "conformance-v2-default"
           PROFILE: "v2-default"
           IS_STRESS_TEST: "false"
         v2-default-stress:
-          AZURE_CLUSTER: "v2-default-stress-cluster"
+          AZURE_CLUSTER: "conformance-v2-default-stress"
           PROFILE: "v2-default"
           IS_STRESS_TEST: "true"
     pool:
@@ -308,6 +308,8 @@ jobs:
 
             echo "Getting credentials to $CLUSTER_NAME"
             az aks get-credentials -g $CLUSTER_NAME -n $CLUSTER_NAME --overwrite-existing --file ./kubeconfig
+            mkdir -p ~/.kube/
+            cp ./kubeconfig ~/.kube/config
 
       - task: AzureCLI@2
         displayName: "Deploy NPM to Test Cluster"
@@ -337,6 +339,7 @@ jobs:
             echo "##vso[task.setvariable variable=FQDN]$FQDN"
 
       - bash: |
+          cat ~/.kube/config
           curl -fsSL github.com/mattfenwick/cyclonus/releases/latest/download/cyclonus_linux_amd64.tar.gz | tar -zxv
           ./cyclonus_linux_amd64/cyclonus generate \
             --noisy=true \
