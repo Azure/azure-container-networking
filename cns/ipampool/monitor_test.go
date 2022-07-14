@@ -215,6 +215,27 @@ func TestPoolIncreaseBatchSizeGreaterThanMaxPodIPCount(t *testing.T) {
 	assert.Equal(t, initState.max, poolmonitor.spec.RequestedIPCount)
 }
 
+func TestIncreaseWithPendingRelease(t *testing.T) {
+	initState := testState{
+		batch:                   16,
+		assigned:                16,
+		allocated:               32,
+		requestThresholdPercent: 50,
+		releaseThresholdPercent: 150,
+		max:                     250,
+		pendingRelease:          16,
+	}
+	_, rc, mon := initFakes(initState)
+	assert.NoError(t, rc.Reconcile(true))
+	assert.NoError(t, mon.reconcile(context.Background()))
+	assert.Equal(t, int64(32), mon.spec.RequestedIPCount)
+	assert.Len(t, mon.spec.IPsNotInUse, 16)
+	assert.NoError(t, rc.Reconcile(true))
+	assert.NoError(t, mon.reconcile(context.Background()))
+	assert.Equal(t, int64(32), mon.spec.RequestedIPCount)
+	assert.Empty(t, mon.spec.IPsNotInUse)
+}
+
 func TestPoolDecrease(t *testing.T) {
 	initState := testState{
 		batch:                   10,
