@@ -157,7 +157,7 @@ func (service *HTTPRestService) SyncHostNCVersion(ctx context.Context, channelMo
 	if err != nil {
 		logger.Errorf("sync host error %v", err)
 	}
-	syncHostNcVersion.WithLabelValues(strconv.FormatBool(err == nil)).Observe(time.Since(start).Seconds())
+	syncHostNCVersion.WithLabelValues(strconv.FormatBool(err == nil)).Observe(time.Since(start).Seconds())
 }
 
 var errNonExistentContainerStatus = errors.New("nonExistantContainerstatus")

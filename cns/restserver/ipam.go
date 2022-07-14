@@ -62,7 +62,7 @@ func (service *HTTPRestService) requestIPConfigHandler(w http.ResponseWriter, r 
 	defer func() {
 		// observe IP assignment wait time
 		if since := service.podsPendingIPAssignment.Pop(podInfo.Key()); since > 0 {
-			ipAssignmentLatency.Observe(float64(since))
+			ipAssignmentLatency.Observe(since.Seconds())
 		}
 	}()
 	reserveResp := &cns.IPConfigResponse{
