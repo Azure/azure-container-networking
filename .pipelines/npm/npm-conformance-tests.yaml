@@ -345,8 +345,8 @@ jobs:
             --noisy=true \
             --ignore-loopback=true \
             --cleanup-namespaces=true \
-            --perturbation-wait-seconds=10 \
-            --pod-creation-timeout-seconds=30 \
+            --perturbation-wait-seconds=20 \
+            --pod-creation-timeout-seconds=360 \
             --job-timeout-seconds=15 \
             --server-protocol=TCP,UDP \
             --verbosity=debug
