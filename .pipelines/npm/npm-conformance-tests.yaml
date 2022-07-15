@@ -253,7 +253,7 @@ jobs:
     strategy:
       matrix:
         v2-windows:
-          PROFILE: "cyclonus-ws22"
+          PROFILE: "cyc-ws22"
     steps:
       - checkout: none
       - download: current
