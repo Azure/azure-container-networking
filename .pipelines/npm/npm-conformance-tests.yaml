@@ -287,6 +287,7 @@ jobs:
                 --kubernetes-version v1.23 \
                 --network-plugin azure \
                 --vm-set-type VirtualMachineScaleSets \
+                --node-vm-size Standard_D4_v3 \
                 --node-count 1
 
             # don't schedule anything on the linux system pool
@@ -304,6 +305,7 @@ jobs:
                 --name awin22 \
                 --os-type Windows \
                 --os-sku Windows2022 \
+                --node-vm-size Standard_D4_v3 \
                 --node-count 1
 
             echo "Getting credentials to $CLUSTER_NAME"
