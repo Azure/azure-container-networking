@@ -52,7 +52,7 @@ vars: ## Show the env vars configured for the swift command
 	@echo VNET=$(VNET)
 	@echo CLUSTER=$(CLUSTER)
 
-net-up: azcfg ## Create required swift vnet/subnets
+swift-net-up: azcfg ## Create required swift vnet/subnets
 	$(AZCLI) network vnet create -g $(GROUP) -l $(REGION) --name $(VNET) --address-prefixes 10.0.0.0/8 -o none
 	$(AZCLI) network vnet subnet create -g $(GROUP) --vnet-name $(VNET) --name nodenet --address-prefixes 10.240.0.0/16 -o none
 	$(AZCLI) network vnet subnet create -g $(GROUP) --vnet-name $(VNET) --name podnet --address-prefixes 10.241.0.0/16 -o none
