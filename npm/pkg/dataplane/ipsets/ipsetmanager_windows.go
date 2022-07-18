@@ -252,9 +252,7 @@ func (iMgr *IPSetManager) calculateNewSetPolicies(networkPolicies []hcn.NetworkP
 	for _, setName := range existingSets {
 		existingSetNames[setName] = struct{}{}
 	}
-	// (TODO) remove this log line later
-	klog.Infof("toAddUpdateSetNames %+v \n ", toAddUpdateSetNames)
-	klog.Infof("existingSetNames %+v \n ", existingSetNames)
+
 	for setName := range toAddUpdateSetNames {
 		set, exists := iMgr.setMap[setName] // check if the Set exists
 		if !exists {
