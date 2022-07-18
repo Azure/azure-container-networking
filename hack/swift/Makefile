@@ -73,7 +73,7 @@ swift-up: azcfg swift-net-up ## Brings up a swift cluster $name in $SUB/$REGION
 	@$(MAKE) set-kubeconf
 
 byocni-up: azcfg swift-net-up ## Brings up a swift cluster $name in $SUB/$REGION
-	$(AZCLI) aks create -n $(CLUSTER)-g $(GROUP) -l $(REGION) \
+	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
 		--max-pods 250 \
 		--node-count 3 \
 		--network-plugin none \
