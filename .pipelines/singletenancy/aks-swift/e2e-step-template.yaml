@@ -31,13 +31,11 @@ steps:
       addSpnToEnvironment: true
       inlineScript: |
         mkdir -p ~/.kube/
-        echo "DNC Underlay config"
-        az keyvault secret show --name $(KV_DNC_UNDERLAY_SECRET_NAME) --vault-name $(KV_NAME) --query value | sed 's/\\n/\n/g' | sed -e 's/^"//' -e 's/"$//'
-        az keyvault secret show --name $(KV_DNC_UNDERLAY_SECRET_NAME) --vault-name $(KV_NAME) --query value | sed 's/\\n/\n/g' | sed -e 's/^"//' -e 's/"$//' > ~/.kube/dnc-underlay
-        echo "Dirty ACN ccp config"
-        az keyvault secret show --name $(KV_AKS_SWIFT_CX_SECRET_NAME) --vault-name $(KV_NAME) --query value | sed 's/\\n/\n/g' | sed -e 's/^"//' -e 's/"$//'
-        az keyvault secret show --name $(KV_AKS_SWIFT_CX_SECRET_NAME) --vault-name $(KV_NAME) --query value | sed 's/\\n/\n/g' | sed -e 's/^"//' -e 's/"$//' > ~/.kube/config
-    displayName: Pull Kubeconfig from Keyvault
+        echo "Create AKS cluster"
+        cd ./hack/swift
+        sudo make byocni-up
+        cd ../..
+    displayName: Create test cluster
     condition: succeeded()
 
   - script: |
@@ -60,10 +58,6 @@ steps:
       sudo rm -rf $ARTIFACT_DIR
       sudo mkdir $ARTIFACT_DIR
       sudo cp test/integration/logs/* $ARTIFACT_DIR
-      export KUBECONFIG=~/.kube/dnc-underlay
-      kubectl logs -n $STABLE_DNC_NAMESPACE -l app=dnc --tail -1 -c dnc --prefix > dnc-logs.txt
-      kubectl logs -n $STABLE_DNC_NAMESPACE -l app=dnc --tail -1 -c requestcontroller --prefix > dnc-rc-logs.txt
-      sudo cp *.txt $ARTIFACT_DIR
     name: "GetLogs"
     displayName: "Get logs"
     condition: always()
@@ -81,4 +75,10 @@ steps:
       sudo rm -rf test/integration/logs
     name: "Cleanupartifactdir"
     displayName: "Cleanup artifact dir"
+    condition: always()
+
+  - script: |
+      make down
+    name: "Cleanupcluster"
+    displayName: "Cleanup cluster"
     condition: always()
