@@ -112,6 +112,10 @@ jobs:
           AZURE_CLUSTER: "conformance-v2-default"
           PROFILE: "v2-default"
           IS_STRESS_TEST: "false"
+        v2-default-ws22:
+          AZURE_CLUSTER: "conformance-v2-default-ws22"
+          PROFILE: "v2-default-ws22"
+          IS_STRESS_TEST: "false"
         v2-default-stress:
           AZURE_CLUSTER: "conformance-v2-default-stress"
           PROFILE: "v2-default"
@@ -149,10 +153,46 @@ jobs:
           scriptType: "bash"
           scriptLocation: "inlineScript"
           inlineScript: |
-            az aks create --no-ssh-key \
+
+
+            if [[ $(AZURE_CLUSTER) == *ws22 ]] # * is used for pattern matching
+            then
+              echo "creating WS22 Cluster";
+              az aks create \
+                  --resource-group $(RESOURCE_GROUP) \
+                  --name $(AZURE_CLUSTER) \
+                  --generate-ssh-keys \
+                  --windows-admin-username e2eadmin \
+                  --windows-admin-password alpha@numeric!password2 \
+                  --network-plugin azure \
+                  --vm-set-type VirtualMachineScaleSets \
+                  --node-vm-size Standard_D4s_v3 \
+                  --node-count 1
+
+              # don't schedule anything on the linux system pool
+              echo "Updating $(AZURE_CLUSTER) to not schedule anything on linux pool..."
+              az aks nodepool update \
+                --cluster-name $(AZURE_CLUSTER) \
+                -g $(RESOURCE_GROUP) \
+                -n nodepool1 \
+                --node-taints CriticalAddonsOnly=true:NoSchedule
+
+              echo "Adding Windows nodepool to $(AZURE_CLUSTER) to group $(RESOURCE_GROUP)"
+              az aks nodepool add \
+                  --resource-group $(RESOURCE_GROUP) \
+                  --cluster-name $(AZURE_CLUSTER) \
+                  --name awin22 \
+                  --os-type Windows \
+                  --os-sku Windows2022 \
+                  --node-vm-size Standard_D4s_v3 \
+                  --node-count 1
+            else
+              echo "Creating Linux Cluster"; 
+              az aks create --no-ssh-key \
               --resource-group $(RESOURCE_GROUP) \
               --name $(AZURE_CLUSTER) \
               --network-plugin azure
+            fi
 
             echo Cluster $(AZURE_CLUSTER)
             echo Resource $(RESOURCE_GROUP)
@@ -284,10 +324,9 @@ jobs:
                 --generate-ssh-keys \
                 --windows-admin-username e2eadmin \
                 --windows-admin-password alpha@numeric!password2 \
-                --kubernetes-version v1.23 \
                 --network-plugin azure \
                 --vm-set-type VirtualMachineScaleSets \
-                --node-vm-size Standard_D4_v3 \
+                --node-vm-size Standard_D4s_v3 \
                 --node-count 1
 
             # don't schedule anything on the linux system pool
@@ -305,7 +344,7 @@ jobs:
                 --name awin22 \
                 --os-type Windows \
                 --os-sku Windows2022 \
-                --node-vm-size Standard_D4_v3 \
+                --node-vm-size Standard_D4s_v3 \
                 --node-count 1
 
             echo "Getting credentials to $CLUSTER_NAME"
@@ -348,7 +387,7 @@ jobs:
             --ignore-loopback=true \
             --cleanup-namespaces=true \
             --perturbation-wait-seconds=20 \
-            --pod-creation-timeout-seconds=360 \
+            --pod-creation-timeout-seconds=480 \
             --job-timeout-seconds=15 \
             --server-protocol=TCP,UDP \
             --verbosity=debug
