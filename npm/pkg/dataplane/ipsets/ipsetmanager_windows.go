@@ -219,6 +219,8 @@ func (iMgr *IPSetManager) applyIPSets() error {
 		}
 	}
 
+	klog.Info("[IPSetManager Windows] Done applying IPSets.")
+
 	iMgr.clearDirtyCache()
 
 	return nil
@@ -389,7 +391,7 @@ func getPolicyNetworkRequestMarshal(setPolicySettings map[string]*hcn.SetPolicyS
 		klog.Info("[Dataplane Windows] no set policies to apply on network")
 		return nil, nil
 	}
-	klog.Infof("[Dataplane Windows] marshalling %s type of sets", policyType)
+	klog.Infof("[Dataplane Windows] marshalling %s(s)", policyType)
 	policyNetworkRequest := &hcn.PolicyNetworkRequest{
 		Policies: make([]hcn.NetworkPolicy, 0),
 	}
@@ -398,7 +400,6 @@ func getPolicyNetworkRequestMarshal(setPolicySettings map[string]*hcn.SetPolicyS
 		if setPol.PolicyType != policyType {
 			continue
 		}
-		klog.Infof("will perform %s operation on set pol %+v", policyType, setPol)
 		rawSettings, err := json.Marshal(setPol)
 		if err != nil {
 			return nil, err
@@ -410,6 +411,7 @@ func getPolicyNetworkRequestMarshal(setPolicySettings map[string]*hcn.SetPolicyS
 				Settings: rawSettings,
 			},
 		)
+		klog.Infof("%s with name: %s is marshalled.", policyType, setPol.Name)
 	}
 
 	if len(policyNetworkRequest.Policies) == 0 {
