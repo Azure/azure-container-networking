@@ -157,6 +157,10 @@ jobs:
 
             if [[ $(AZURE_CLUSTER) == *ws22 ]] # * is used for pattern matching
             then
+              # Enable Microsoft.ContainerService/AKSWindows2022Preview
+              az feature register --namespace Microsoft.ContainerService --name AKSWindows2022Preview
+              az provider register -n Microsoft.ContainerService
+
               echo "creating WS22 Cluster";
               az aks create \
                   --resource-group $(RESOURCE_GROUP) \
@@ -166,6 +170,7 @@ jobs:
                   --windows-admin-password alpha@numeric!password2 \
                   --network-plugin azure \
                   --vm-set-type VirtualMachineScaleSets \
+                  --kubernetes-version v1.23 \
                   --node-vm-size Standard_D4s_v3 \
                   --node-count 1
 
@@ -327,6 +332,7 @@ jobs:
                 --network-plugin azure \
                 --vm-set-type VirtualMachineScaleSets \
                 --node-vm-size Standard_D4s_v3 \
+                --kubernetes-version v1.23 \
                 --node-count 1
 
             # don't schedule anything on the linux system pool
@@ -366,7 +372,7 @@ jobs:
             chmod +x kubectl
 
             # deploy azure-npm
-            ./kubectl --kubeconfig=./kubeconfig apply -f https://github.com/Azure/azure-container-networking/blob/master/npm/examples/windows/azure-npm.yaml
+            ./kubectl --kubeconfig=./kubeconfig apply -f https://raw.githubusercontent.com/Azure/azure-container-networking/master/npm/examples/windows/azure-npm.yaml
 
             # swap azure-npm image with one built during run
             ./kubectl --kubeconfig=./kubeconfig set image daemonset/azure-npm -n kube-system azure-npm=$IMAGE_REGISTRY/azure-npm:windows-amd64-$(TAG)
@@ -376,7 +382,7 @@ jobs:
             ./kubectl --kubeconfig=./kubeconfig rollout restart ds azure-npm -n kube-system
 
             echo "Showing cluster status for $CLUSTER_NAME"
-            FQDN=`az aks show -n $(CLUSTER_NAME) -g $(RESOURCE_GROUP) --query fqdn -o tsv`
+            FQDN=`az aks show -n $CLUSTER_NAME -g $(RESOURCE_GROUP) --query fqdn -o tsv`
             echo "##vso[task.setvariable variable=FQDN]$FQDN"
 
       - bash: |
