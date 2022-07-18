@@ -157,6 +157,9 @@ jobs:
 
             if [[ $(AZURE_CLUSTER) == *ws22 ]] # * is used for pattern matching
             then
+              az extension add --name aks-preview
+              az extension update --name aks-preview
+
               # Enable Microsoft.ContainerService/AKSWindows2022Preview
               az feature register --namespace Microsoft.ContainerService --name AKSWindows2022Preview
               az provider register -n Microsoft.ContainerService
