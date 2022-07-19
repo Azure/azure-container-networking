@@ -33,8 +33,9 @@ steps:
         mkdir -p ~/.kube/
         echo "Create AKS cluster"
         cd ./hack/swift
-        sudo make byocni-up
+        sudo make byocni-up SUB=$(SUB_AZURE_NETWORK_AGENT_RUNNERS)
         cd ../..
+        echo "Cluster successfully created"
     displayName: Create test cluster
     condition: succeeded()
 
@@ -78,7 +79,10 @@ steps:
     condition: always()
 
   - script: |
-      make down
+      cd ./hack/swift
+      echo "Deleting cluster"
+      sudo make down SUB=$(SUB_AZURE_NETWORK_AGENT_RUNNERS)
+      cd ../..
     name: "Cleanupcluster"
     displayName: "Cleanup cluster"
     condition: always()
