@@ -25,10 +25,7 @@ help:  ## Display this help
 
 azlogin:
 	@$(AZCLI) login
-
-azcfg:
 	@$(AZCLI) account set -s $(SUB)
-	@$(AZCLI) group create --location $(REGION) --name $(GROUP)
 	@$(AZCLI) extension add --name aks-preview --yes
 
 set-kubeconf: ## Adds the kubeconf for $CLUSTER
@@ -52,17 +49,21 @@ vars: ## Show the env vars configured for the swift command
 	@echo VNET=$(VNET)
 	@echo CLUSTER=$(CLUSTER)
 
-swift-net-up: azcfg ## Create required swift vnet/subnets
+rg-up: ## Create resource group $GROUP in $SUB/$REGION
+	@$(AZCLI) group create --location $(REGION) --name $(GROUP)
+
+rg-down: ## Delete the $GROUP in $SUB/$REGION
+	$(AZCLI) group delete -g $(GROUP) --yes
+
+net-up: ## Create required swift vnet/subnets
 	$(AZCLI) network vnet create -g $(GROUP) -l $(REGION) --name $(VNET) --address-prefixes 10.0.0.0/8 -o none
 	$(AZCLI) network vnet subnet create -g $(GROUP) --vnet-name $(VNET) --name nodenet --address-prefixes 10.240.0.0/16 -o none
 	$(AZCLI) network vnet subnet create -g $(GROUP) --vnet-name $(VNET) --name podnet --address-prefixes 10.241.0.0/16 -o none
 
-rg-down: azcfg ## Delete the $GROUP in $SUB/$REGION
-	$(AZCLI) group delete -g $(GROUP) --yes
 
 ##@ AKS Clusters
 
-swift-up: azcfg swift-net-up ## Brings up a swift cluster $name in $SUB/$REGION
+swift-up: rg-up net-up ## Brings up a swift cluster $name in $SUB/$REGION
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
 		--max-pods 250 \
 		--node-count 3 \
@@ -72,7 +73,7 @@ swift-up: azcfg swift-net-up ## Brings up a swift cluster $name in $SUB/$REGION
 		--yes
 	@$(MAKE) set-kubeconf
 
-byocni-up: azcfg swift-net-up ## Brings up a swift cluster $name in $SUB/$REGION
+byocni-up: rg-up net-up ## Brings up a swift cluster $name in $SUB/$REGION
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
 		--max-pods 250 \
 		--node-count 3 \
@@ -82,7 +83,7 @@ byocni-up: azcfg swift-net-up ## Brings up a swift cluster $name in $SUB/$REGION
 		--yes
 	@$(MAKE) set-kubeconf
 
-down: azcfg ## Deletes the swift resources $SUB/$REGION
+down: ## Deletes the swift resources $SUB/$REGION
 	$(AZCLI) aks delete -g $(GROUP) -n $(CLUSTER) --yes
 	@$(MAKE) unset-kubeconf
 	@$(MAKE) swift-rg-down
