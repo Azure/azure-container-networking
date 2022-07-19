@@ -175,7 +175,7 @@ jobs:
                   --vm-set-type VirtualMachineScaleSets \
                   --kubernetes-version v1.23 \
                   --node-vm-size Standard_D4s_v3 \
-                  --node-count 1
+                  --node-count 2
 
               # don't schedule anything on the linux system pool
               echo "Updating $(AZURE_CLUSTER) to not schedule anything on linux pool..."
@@ -193,7 +193,7 @@ jobs:
                   --os-type Windows \
                   --os-sku Windows2022 \
                   --node-vm-size Standard_D4s_v3 \
-                  --node-count 1
+                  --node-count 2
             else
               echo "Creating Linux Cluster"; 
               az aks create --no-ssh-key \
