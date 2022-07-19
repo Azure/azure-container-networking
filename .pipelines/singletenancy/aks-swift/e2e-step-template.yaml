@@ -24,18 +24,17 @@ steps:
       echo $(Tag)
     displayName: Echo Tag
 
-  - task: AzureCLI@1
+  - task: AzureCLI@2
     inputs:
-      azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+      azureSubscription: "Azure Container Networking - Test"
       scriptLocation: "inlineScript"
+      scriptType: "bash"
       addSpnToEnvironment: true
       inlineScript: |
         mkdir -p ~/.kube/
         echo "Create AKS cluster"
-        cd ./hack/swift
-        sudo make azlogin SUB=$(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS)
-        sudo make byocni-up SUB=$(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS) 
-        cd ../..
+        make -C ./hack/swift azcfg AZCLI=az
+        make -C ./hack/swift byocni-up SUB=$(SUB_AZURE_NETWORK_AGENT_TEST) AZCLI=az CLUSTER=swifte2e-$(make revision)
         echo "Cluster successfully created"
     displayName: Create test cluster
     condition: succeeded()
@@ -79,11 +78,14 @@ steps:
     displayName: "Cleanup artifact dir"
     condition: always()
 
-  - script: |
-      cd ./hack/swift
-      echo "Deleting cluster"
-      sudo make down SUB=$(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS)
-      cd ../..
-    name: "Cleanupcluster"
-    displayName: "Cleanup cluster"
-    condition: always()
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: "Azure Container Networking - Test"
+      scriptLocation: "inlineScript"
+      scriptType: "bash"
+      addSpnToEnvironment: true
+      inlineScript: |
+        echo "Deleting cluster"
+        make -C ./hack/swift down SUB=$(SUB_AZURE_NETWORK_AGENT_TEST) AZCLI=az CLUSTER=swifte2e-$(make revision)
+    displayName: Create test cluster
+    condition: succeeded()

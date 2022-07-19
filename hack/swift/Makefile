@@ -5,7 +5,7 @@ KUBECFG = $(HOME)/.kube
 SSH     = $(HOME)/.ssh
 AZCFG   = $(HOME)/.azure
 AZIMG   = mcr.microsoft.com/azure-cli
-AZCLI   = docker run -v $(AZCFG):/root/.azure -v $(KUBECFG):/root/.kube -v $(SSH):/root/.ssh $(AZIMG) az
+AZCLI  ?= docker run -v $(AZCFG):/root/.azure -v $(KUBECFG):/root/.kube -v $(SSH):/root/.ssh $(AZIMG) az
 
 # overrideable variables
 USER       ?= $(whoami)
@@ -26,6 +26,8 @@ help:  ## Display this help
 azlogin:
 	@$(AZCLI) login
 	@$(AZCLI) account set -s $(SUB)
+
+azcfg:
 	@$(AZCLI) extension add --name aks-preview --yes
 
 set-kubeconf: ## Adds the kubeconf for $CLUSTER
@@ -50,7 +52,7 @@ vars: ## Show the env vars configured for the swift command
 	@echo CLUSTER=$(CLUSTER)
 
 rg-up: ## Create resource group $GROUP in $SUB/$REGION
-	@$(AZCLI) group create --location $(REGION) --name $(GROUP)
+	$(AZCLI) group create --location $(REGION) --name $(GROUP)
 
 rg-down: ## Delete the $GROUP in $SUB/$REGION
 	$(AZCLI) group delete -g $(GROUP) --yes
@@ -65,21 +67,25 @@ net-up: ## Create required swift vnet/subnets
 
 swift-up: rg-up net-up ## Brings up a swift cluster $name in $SUB/$REGION
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
+		--debug \
 		--max-pods 250 \
 		--node-count 3 \
 		--network-plugin azure \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
 		--pod-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/podnet \
+		--generate-ssh-keys \
 		--yes
 	@$(MAKE) set-kubeconf
 
 byocni-up: rg-up net-up ## Brings up a swift cluster $name in $SUB/$REGION
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
+		--debug \
 		--max-pods 250 \
 		--node-count 3 \
 		--network-plugin none \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
 		--pod-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/podnet \
+		--generate-ssh-keys \
 		--yes
 	@$(MAKE) set-kubeconf
 
