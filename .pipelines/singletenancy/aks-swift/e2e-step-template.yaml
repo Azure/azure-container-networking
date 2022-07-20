@@ -32,6 +32,7 @@ steps:
       inlineScript: |
         mkdir -p ~/.kube/
         echo "Create AKS cluster"
+        az upgrade
         cd ./hack/swift
         make byocni-up SUB=$(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS) AZCLI=az
         cd ../..
@@ -81,7 +82,7 @@ steps:
   - script: |
       cd ./hack/swift
       echo "Deleting cluster"
-      sudo make down SUB=$(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS) AZCLI=az
+      make down SUB=$(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS) AZCLI=az
       cd ../..
     name: "Cleanupcluster"
     displayName: "Cleanup cluster"
