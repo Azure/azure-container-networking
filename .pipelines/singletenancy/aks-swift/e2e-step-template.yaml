@@ -35,7 +35,7 @@ steps:
         az upgrade --all --yes
         cd ./hack/swift
         make azcfg AZCLI=az
-        make byocni-up SUB=9b8218f9-902a-4d20-a65c-e98acec5362f AZCLI=az
+        make byocni-up SUB=9b8218f9-902a-4d20-a65c-e98acec5362f AZCLI=az CLUSTER=$(Tag)
         cd ../..
         echo "Cluster successfully created"
     displayName: Create test cluster
@@ -82,12 +82,17 @@ steps:
     displayName: "Cleanup artifact dir"
     condition: always()
 
-  - script: |
-      cd ./hack/swift
-      echo "Deleting cluster"
-      make azcfg AZCLI=az
-      make down SUB=9b8218f9-902a-4d20-a65c-e98acec5362f AZCLI=az
-      cd ../..
+  - task: AzureCLI@1
+    inputs:
+      azureSubscription: "Azure Container Networking - Test"
+      scriptLocation: "inlineScript"
+      addSpnToEnvironment: true
+      inlineScript: |
+        cd ./hack/swift
+        echo "Deleting cluster"
+        make azcfg AZCLI=az
+        make down SUB=9b8218f9-902a-4d20-a65c-e98acec5362f AZCLI=az CLUSTER=$(TAG)
+        cd ../..
     name: "Cleanupcluster"
     displayName: "Cleanup cluster"
     condition: always()
