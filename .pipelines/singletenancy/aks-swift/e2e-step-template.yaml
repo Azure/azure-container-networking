@@ -34,8 +34,7 @@ steps:
         echo "Create AKS cluster"
         az upgrade --all --yes
         cd ./hack/swift
-        make azcfg AZCLI=az
-        make byocni-up SUB=$(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS) AZCLI=az
+        make byocni-up SUB=$(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS)
         cd ../..
         echo "Cluster successfully created"
     displayName: Create test cluster

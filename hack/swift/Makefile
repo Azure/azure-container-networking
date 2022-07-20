@@ -79,7 +79,7 @@ byocni-up: rg-up net-up ## Brings up a swift cluster $name in $SUB/$REGION
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
 		--max-pods 250 \
 		--node-count 3 \
-		--network-plugin None \
+		--network-plugin none \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
 		--pod-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/podnet \
 		--generate-ssh-keys \
