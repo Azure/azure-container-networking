@@ -371,6 +371,7 @@ func (service *HTTPRestService) CreateOrUpdateNetworkContainerInternal(req *cns.
 	return returnCode
 }
 
+// nolint
 func (service *HTTPRestService) programSNATIPTableRules(req *cns.CreateNetworkContainerRequest) (types.ResponseCode, string) {
 	service.Lock()
 	defer service.Unlock()
