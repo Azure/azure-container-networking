@@ -89,7 +89,8 @@ CNS_IMAGE_INFO_FILE = azure-cns-$(VERSION).txt
 CNM_PLUGIN_IMAGE ?= microsoft/azure-vnet-plugin
 CNM_PLUGIN_ROOTFS = azure-vnet-plugin-rootfs
 
-VERSION ?= $(shell git describe --exclude "zapai*" --tags --always --dirty)
+REVISION ?= $(shell git rev-parse --short HEAD)
+VERSION  ?= $(shell git describe --exclude "zapai*" --tags --always --dirty)
 
 # Default target
 all-binaries-platforms: ## Make all platform binaries
@@ -558,6 +559,9 @@ install-hooks: $(REPO_ROOT)/.git/hooks/pre-push ## installs git hooks
 
 setup: tools install-hooks ## performs common required repo setup
 
+revision: ## print the current git revision
+	@echo $(REVISION)
+	
 version: ## prints the version
 	@echo $(VERSION)
 
