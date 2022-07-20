@@ -32,10 +32,8 @@ steps:
       inlineScript: |
         mkdir -p ~/.kube/
         echo "Create AKS cluster"
-        cd ./hack/swift
-        make azcfg AZCLI=az
-        make byocni-up SUB=9b8218f9-902a-4d20-a65c-e98acec5362f AZCLI=az CLUSTER=swifte2e-$(make revision)
-        cd ../..
+        make -C ./hack/swift azcfg AZCLI=az
+        make -C ./hack/swift byocni-up SUB=9b8218f9-902a-4d20-a65c-e98acec5362f AZCLI=az CLUSTER=swifte2e-$(make revision)
         echo "Cluster successfully created"
     displayName: Create test cluster
     condition: succeeded()
@@ -81,17 +79,15 @@ steps:
     displayName: "Cleanup artifact dir"
     condition: always()
 
-  - task: AzureCLI@1
+  - task: AzureCLI@2
     inputs:
       azureSubscription: "Azure Container Networking - Test"
       scriptLocation: "inlineScript"
       addSpnToEnvironment: true
       inlineScript: |
-        cd ./hack/swift
         echo "Deleting cluster"
-        make azcfg AZCLI=az
-        make down SUB=9b8218f9-902a-4d20-a65c-e98acec5362f AZCLI=az CLUSTER=swifte2e-$(make revision)
-        cd ../..
+        make -C ./hack/swift azcfg AZCLI=az
+        make -C ./hack/swift down SUB=9b8218f9-902a-4d20-a65c-e98acec5362f AZCLI=az CLUSTER=swifte2e-$(make revision)
     name: "Cleanupcluster"
     displayName: "Cleanup cluster"
     condition: always()
