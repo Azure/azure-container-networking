@@ -398,8 +398,17 @@ jobs:
             --perturbation-wait-seconds=20 \
             --pod-creation-timeout-seconds=480 \
             --job-timeout-seconds=15 \
-            --server-protocol=TCP,UDP \
-            --verbosity=debug
+            --include "any-port" \
+            --server-protocol=TCP,UDP | tee cyclonus-$CLUSTER_NAME
+
+            rc=0
+
+            cat cyclonus-$CLUSTER_NAME | grep "failed" > /dev/null 2>&1 || rc=$?
+            echo $rc
+            if [ $rc -eq 0 ]; then
+                exit 1
+            fi
+
         name: cyclonus
         displayName: "Run Cyclonus Test"
         condition: always()
