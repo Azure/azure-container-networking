@@ -87,6 +87,10 @@ const (
 	OptTelemetry      = "telemetry"
 	OptTelemetryAlias = "dt"
 
+	// Enable delegated ipam mode
+	OptDelegatedIPAM      = "delegated-ipam"
+	OptDelegatedIPAMAlias = "d-ipam"
+
 	// Enable Telemetry service
 	OptTelemetryService      = "telemetry-service"
 	OptTelemetryServiceAlias = "ts"

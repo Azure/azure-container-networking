@@ -553,6 +553,7 @@ func main() {
 	httpRestService.SetOption(acn.OptCreateDefaultExtNetworkType, createDefaultExtNetworkType)
 	httpRestService.SetOption(acn.OptHttpConnectionTimeout, httpConnectionTimeout)
 	httpRestService.SetOption(acn.OptHttpResponseHeaderTimeout, httpResponseHeaderTimeout)
+	httpRestService.SetOption(acn.OptDelegatedIPAM, cnsconfig.DelegatedIPAMUsed)
 
 	// Create default ext network if commandline option is set
 	if len(strings.TrimSpace(createDefaultExtNetworkType)) > 0 {

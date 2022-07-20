@@ -35,6 +35,7 @@ type CNSConfig struct {
 	WireserverIP                string
 	KeyVaultSettings            KeyVaultSettings
 	MSISettings                 MSISettings
+	DelegatedIPAMUsed           bool
 }
 
 type TelemetrySettings struct {
