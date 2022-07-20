@@ -35,7 +35,7 @@ steps:
         az upgrade --all --yes
         cd ./hack/swift
         make azcfg AZCLI=az
-        make byocni-up SUB=$(SUB_AZURE_NETWORK_AGENT_TEST) AZCLI=az
+        make byocni-up SUB=9b8218f9-902a-4d20-a65c-e98acec5362f AZCLI=az
         cd ../..
         echo "Cluster successfully created"
     displayName: Create test cluster
@@ -86,7 +86,7 @@ steps:
       cd ./hack/swift
       echo "Deleting cluster"
       make azcfg AZCLI=az
-      make down SUB=$(SUB_AZURE_NETWORK_AGENT_TEST) AZCLI=az
+      make down SUB=9b8218f9-902a-4d20-a65c-e98acec5362f AZCLI=az
       cd ../..
     name: "Cleanupcluster"
     displayName: "Cleanup cluster"
