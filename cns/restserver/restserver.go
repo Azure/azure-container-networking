@@ -58,7 +58,8 @@ type HTTPRestService struct {
 	state                    *httpRestServiceState
 	podsPendingIPAssignment  *bounded.TimedSet
 	sync.RWMutex
-	dncPartitionKey string
+	dncPartitionKey    string
+	programmedIPtables bool
 }
 
 type GetHTTPServiceDataResponse struct {

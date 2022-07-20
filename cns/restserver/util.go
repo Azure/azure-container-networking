@@ -256,7 +256,8 @@ func (service *HTTPRestService) updateIPConfigsStateUntransacted(
 // If the IP is already added then it will be an idempotent call. Also note, caller will
 // acquire/release the service lock.
 func (service *HTTPRestService) addIPConfigStateUntransacted(ncID string, hostVersion int, ipconfigs,
-	existingSecondaryIPConfigs map[string]cns.SecondaryIPConfig) {
+	existingSecondaryIPConfigs map[string]cns.SecondaryIPConfig,
+) {
 	// add ipconfigs to state
 	for ipID, ipconfig := range ipconfigs {
 		// New secondary IP configs has new NC version however, CNS don't want to override existing IPs'with new
@@ -628,7 +629,8 @@ func (service *HTTPRestService) setNetworkStateJoined(networkID string) {
 
 // Join Network by calling nmagent
 func (service *HTTPRestService) joinNetwork(
-	networkID string) (*http.Response, error, error) {
+	networkID string,
+) (*http.Response, error, error) {
 	var err error
 	joinResponse, joinErr := nmagent.JoinNetwork(networkID)
 

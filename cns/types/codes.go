@@ -38,6 +38,7 @@ const (
 	NetworkContainerVfpProgramCheckSkipped ResponseCode = 36
 	NmAgentSupportedApisError              ResponseCode = 37
 	UnsupportedNCVersion                   ResponseCode = 38
+	FailedToRunIPTableCmd                  ResponseCode = 39
 	UnexpectedError                        ResponseCode = 99
 )
 

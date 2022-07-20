@@ -73,6 +73,7 @@ const (
 
 // CreateNetworkContainerRequest specifies request to create a network container or network isolation boundary.
 type CreateNetworkContainerRequest struct {
+	HostPrimaryIP              string
 	Version                    string
 	NetworkContainerType       string
 	NetworkContainerid         string // Mandatory input.
