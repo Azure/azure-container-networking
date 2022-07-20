@@ -26,6 +26,8 @@ help:  ## Display this help
 azlogin:
 	@$(AZCLI) login
 	@$(AZCLI) account set -s $(SUB)
+
+azcfg:
 	@$(AZCLI) extension add --name aks-preview --yes
 
 set-kubeconf: ## Adds the kubeconf for $CLUSTER
@@ -77,9 +79,10 @@ byocni-up: rg-up net-up ## Brings up a swift cluster $name in $SUB/$REGION
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
 		--max-pods 250 \
 		--node-count 3 \
-		--network-plugin none \
+		--network-plugin None \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
 		--pod-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/podnet \
+		--generate-ssh-keys \
 		--yes
 	@$(MAKE) set-kubeconf
 
