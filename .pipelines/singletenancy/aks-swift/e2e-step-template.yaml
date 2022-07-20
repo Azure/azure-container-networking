@@ -35,7 +35,7 @@ steps:
         az upgrade --all --yes
         cd ./hack/swift
         make azcfg AZCLI=az
-        make byocni-up SUB=9b8218f9-902a-4d20-a65c-e98acec5362f AZCLI=az
+        make byocni-up SUB=$(SUB_AZURE_NETWORK_AGENT_TEST) AZCLI=az
         cd ../..
         echo "Cluster successfully created"
     displayName: Create test cluster
@@ -49,7 +49,9 @@ steps:
       sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
       kubectl cluster-info
       kubectl get po -owide -A
-      sudo -E env "PATH=$PATH" VERSION=$(Tag) INSTALL_CNI=true INSTALL_CNS=true make test-integration
+      kubectl apply -f ./test/integration/manifests/cni/manager.yaml
+      kubectl apply -f ./cns/azure-cns.yaml
+      sudo make test-integration
     retryCountOnTaskFailure: 3
     name: "aksswifte2e"
     displayName: "Run AKS Swift E2E"
@@ -83,7 +85,8 @@ steps:
   - script: |
       cd ./hack/swift
       echo "Deleting cluster"
-      make down SUB=9b8218f9-902a-4d20-a65c-e98acec5362f AZCLI=az
+      make azcfg AZCLI=az
+      make down SUB=$(SUB_AZURE_NETWORK_AGENT_TEST) AZCLI=az
       cd ../..
     name: "Cleanupcluster"
     displayName: "Cleanup cluster"
