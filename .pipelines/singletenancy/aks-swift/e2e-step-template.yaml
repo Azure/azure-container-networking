@@ -32,7 +32,7 @@ steps:
       inlineScript: |
         mkdir -p ~/.kube/
         echo "Create AKS cluster"
-        az upgrade
+        az upgrade --yes
         cd ./hack/swift
         make byocni-up SUB=$(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS) AZCLI=az
         cd ../..
