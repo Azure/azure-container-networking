@@ -26,7 +26,7 @@ steps:
 
   - task: AzureCLI@1
     inputs:
-      azureSubscription: $(NETWORK_AGENT_TEST_SERVICE_CONNECTION)
+      azureSubscription: NETWORK_AGENT_TEST_SERVICE_CONNECTION
       scriptLocation: "inlineScript"
       addSpnToEnvironment: true
       inlineScript: |
