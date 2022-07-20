@@ -26,7 +26,7 @@ steps:
 
   - task: AzureCLI@1
     inputs:
-      azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+      azureSubscription: $(NETWORK_AGENT_TEST_SERVICE_CONNECTION)
       scriptLocation: "inlineScript"
       addSpnToEnvironment: true
       inlineScript: |
@@ -34,7 +34,8 @@ steps:
         echo "Create AKS cluster"
         az upgrade --all --yes
         cd ./hack/swift
-        make byocni-up SUB=$(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS)
+        make azcfg AZCLI=az
+        make byocni-up SUB=$(9b8218f9-902a-4d20-a65c-e98acec5362f) AZCLI=az
         cd ../..
         echo "Cluster successfully created"
     displayName: Create test cluster
@@ -82,7 +83,7 @@ steps:
   - script: |
       cd ./hack/swift
       echo "Deleting cluster"
-      make down SUB=$(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS) AZCLI=az
+      make down SUB=$(9b8218f9-902a-4d20-a65c-e98acec5362f) AZCLI=az
       cd ../..
     name: "Cleanupcluster"
     displayName: "Cleanup cluster"
