@@ -35,8 +35,6 @@ steps:
         echo "Create AKS cluster"
         make -C ./hack/swift azcfg AZCLI=az
         make -C ./hack/swift byocni-up SUB=$(SUB_AZURE_NETWORK_AGENT_TEST) AZCLI=az CLUSTER=swifte2e-$(make revision)
-        kubectl cluster-info
-        kubectl get po -owide -A
         echo "Cluster successfully created"
     displayName: Create test cluster
     condition: succeeded()
