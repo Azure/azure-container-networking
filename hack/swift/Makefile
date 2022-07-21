@@ -77,7 +77,7 @@ swift-up: rg-up net-up ## Brings up a swift cluster $name in $SUB/$REGION
 
 byocni-up: rg-up net-up ## Brings up a swift cluster $name in $SUB/$REGION
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
-		--debug
+		--debug \
 		--max-pods 250 \
 		--node-count 3 \
 		--network-plugin none \
