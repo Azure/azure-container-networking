@@ -84,6 +84,7 @@ steps:
     inputs:
       azureSubscription: "Azure Container Networking - Test"
       scriptLocation: "inlineScript"
+      scriptType: "bash"
       addSpnToEnvironment: true
       inlineScript: |
         echo "Deleting cluster"
