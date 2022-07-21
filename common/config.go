@@ -87,9 +87,8 @@ const (
 	OptTelemetry      = "telemetry"
 	OptTelemetryAlias = "dt"
 
-	// Enable delegated ipam mode
-	OptDelegatedIPAM      = "delegated-ipam"
-	OptDelegatedIPAMAlias = "d-ipam"
+	// Enable CNS to program SNAT iptables rules
+	OptProgramSNATIPTables = "program-snat-iptables"
 
 	// Enable Telemetry service
 	OptTelemetryService      = "telemetry-service"
