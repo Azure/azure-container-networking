@@ -313,20 +313,12 @@ stages:
     displayName: Cleanup
     dependsOn:
       - "aks_swift_e2e"
-<<<<<<< HEAD
       # - "ubuntu_18_04_linux_e2e"
       # - "windows_19_03_e2e"
       # - "windows_20_04_e2e"
-      # - "windows_20_22_e2e"
+      # # - "windows_20_22_e2e"
       # - "ubuntu_18_04_linux_dualstack_e2e"
-=======
-      - "ubuntu_18_04_linux_e2e"
-      - "windows_19_03_e2e"
-      - "windows_20_04_e2e"
-      # - "windows_20_22_e2e"
-      - "ubuntu_18_04_linux_dualstack_e2e"
->>>>>>> 76e5f20dbfd1bb3e6d8e098a96d9db812fee21da
-      # - "windows_20_04_dualstack_e2e"
+      # # - "windows_20_04_dualstack_e2e"
     jobs:
       - job: delete_remote_artifacts
         displayName: Delete remote artifacts
