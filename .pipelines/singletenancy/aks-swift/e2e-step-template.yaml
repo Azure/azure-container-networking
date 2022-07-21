@@ -47,10 +47,7 @@ steps:
       sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
       kubectl cluster-info
       kubectl get po -owide -A
-      kubectl apply -f ./test/integration/manifests/cni/manager.yaml
-      kubectl apply -f ./cns/azure-cns.yaml
-      kubectl get po -owide -A
-      sudo -E env "PATH=$PATH" make test-integration
+      sudo -E env "PATH=$PATH" VERSION=$(Tag) INSTALL_CNI=true INSTALL_CNS=true make test-integration
     retryCountOnTaskFailure: 3
     name: "aksswifte2e"
     displayName: "Run AKS Swift E2E"
