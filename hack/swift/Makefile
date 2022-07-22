@@ -90,4 +90,4 @@ byocni-up: rg-up net-up ## Brings up a swift cluster $name in $SUB/$REGION
 down: ## Deletes the swift resources $SUB/$REGION
 	$(AZCLI) aks delete -g $(GROUP) -n $(CLUSTER) --yes
 	@$(MAKE) unset-kubeconf
-	@$(MAKE) swift-rg-down
+	@$(MAKE) rg-down
