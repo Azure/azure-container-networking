@@ -179,9 +179,9 @@ func (pm *Monitor) reconcile(ctx context.Context) error {
 	state := buildIPPoolState(allocatedIPs, pm.spec, pm.metastate.primaryIPAddresses)
 	observeIPPoolState(state, pm.metastate, []string{subnet, subnetCIDR, subnetARMID})
 
-	// log every 10th reconcile to reduce the AI load. we will always log when the monitor
+	// log every 30th reconcile to reduce the AI load. we will always log when the monitor
 	// changes the pool, below.
-	if statelogDownsample = (statelogDownsample + 1) % 10; statelogDownsample == 0 { //nolint:gomnd //downsample by 10
+	if statelogDownsample = (statelogDownsample + 1) % 30; statelogDownsample == 0 { //nolint:gomnd //downsample by 30
 		logger.Printf("ipam-pool-monitor state %+v", state)
 	}
 
