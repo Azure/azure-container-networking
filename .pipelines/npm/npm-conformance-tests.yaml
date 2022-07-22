@@ -152,6 +152,7 @@ jobs:
           azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
           scriptType: "bash"
           scriptLocation: "inlineScript"
+          failOnStderr: true
           inlineScript: |
 
 
@@ -280,6 +281,7 @@ jobs:
           pkill -P $$
           exit $exitCode
         displayName: "Run Test Suite and Get Logs"
+        failOnStderr: true
 
       - publish: $(System.DefaultWorkingDirectory)/npmLogs_$(AZURE_CLUSTER)
         condition: always()
@@ -312,6 +314,7 @@ jobs:
           azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
           scriptType: "bash"
           scriptLocation: "inlineScript"
+          failOnStderr: true
           inlineScript: |
             az extension add --name aks-preview
             az extension update --name aks-preview
@@ -367,6 +370,7 @@ jobs:
           azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
           scriptType: "bash"
           scriptLocation: "inlineScript"
+          failOnStderr: true
           inlineScript: |
 
             export CLUSTER_NAME=$(RESOURCE_GROUP)-$(PROFILE)
@@ -378,7 +382,7 @@ jobs:
             ./kubectl --kubeconfig=./kubeconfig apply -f https://raw.githubusercontent.com/Azure/azure-container-networking/master/npm/examples/windows/azure-npm.yaml
 
             # swap azure-npm image with one built during run
-            ./kubectl --kubeconfig=./kubeconfig set image daemonset/azure-npm -n kube-system azure-npm=$IMAGE_REGISTRY/azure-npm:windows-amd64-$(TAG)
+            ./kubectl --kubeconfig=./kubeconfig set image daemonset/azure-npm-win -n kube-system azure-npm=$IMAGE_REGISTRY/azure-npm:windows-amd64-$(TAG)
 
             # swap NPM profile with one specified as parameter
             ./kubectl --kubeconfig=./kubeconfig apply -f 
@@ -411,6 +415,7 @@ jobs:
 
         name: cyclonus
         displayName: "Run Cyclonus Test"
+        failOnStderr: true
         condition: always()
 
       - bash: |
