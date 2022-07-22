@@ -154,7 +154,11 @@ jobs:
           scriptLocation: "inlineScript"
           failOnStderr: true
           inlineScript: |
-
+            # get kubectl 
+            curl -LO https://dl.k8s.io/release/v1.23.0/bin/linux/amd64/kubectl
+            chmod +x kubectl
+            echo Cluster $(AZURE_CLUSTER)
+            echo Resource $(RESOURCE_GROUP)
 
             if [[ $(AZURE_CLUSTER) == *ws22 ]] # * is used for pattern matching
             then
@@ -195,31 +199,30 @@ jobs:
                   --os-sku Windows2022 \
                   --node-vm-size Standard_D4s_v3 \
                   --node-count 2
+
+              az aks get-credentials -n $(AZURE_CLUSTER) -g $(RESOURCE_GROUP) --file ./kubeconfig
+              ./kubectl --kubeconfig=./kubeconfig apply -f https://raw.githubusercontent.com/Azure/azure-container-networking/master/npm/azure-npm.yaml
+              ./kubectl --kubeconfig=./kubeconfig set image daemonset/azure-npm-win -n kube-system azure-npm=$IMAGE_REGISTRY/azure-npm:windows-amd64-$(TAG)
+
             else
               echo "Creating Linux Cluster"; 
               az aks create --no-ssh-key \
               --resource-group $(RESOURCE_GROUP) \
               --name $(AZURE_CLUSTER) \
               --network-plugin azure
+
+              az aks get-credentials -n $(AZURE_CLUSTER) -g $(RESOURCE_GROUP) --file ./kubeconfig
+
+              # deploy azure-npm
+              ./kubectl --kubeconfig=./kubeconfig apply -f https://raw.githubusercontent.com/Azure/azure-container-networking/master/npm/azure-npm.yaml
+
+              # swap azure-npm image with one built during run
+              ./kubectl --kubeconfig=./kubeconfig set image daemonset/azure-npm -n kube-system azure-npm=$IMAGE_REGISTRY/azure-npm:linux-amd64-$(TAG)
+
+              # swap NPM profile with one specified as parameter
+              ./kubectl --kubeconfig=./kubeconfig apply -f https://raw.githubusercontent.com/Azure/azure-container-networking/master/npm/profiles/$(PROFILE).yaml
+              ./kubectl --kubeconfig=./kubeconfig rollout restart ds azure-npm -n kube-system
             fi
-
-            echo Cluster $(AZURE_CLUSTER)
-            echo Resource $(RESOURCE_GROUP)
-
-            az aks get-credentials -n $(AZURE_CLUSTER) -g $(RESOURCE_GROUP) --file ./kubeconfig
-            # get kubectl 
-            curl -LO https://dl.k8s.io/release/v1.20.0/bin/linux/amd64/kubectl
-            chmod +x kubectl
-
-            # deploy azure-npm
-            ./kubectl --kubeconfig=./kubeconfig apply -f https://raw.githubusercontent.com/Azure/azure-container-networking/master/npm/azure-npm.yaml
-
-            # swap azure-npm image with one built during run
-            ./kubectl --kubeconfig=./kubeconfig set image daemonset/azure-npm -n kube-system azure-npm=$IMAGE_REGISTRY/azure-npm:linux-amd64-$(TAG)
-
-            # swap NPM profile with one specified as parameter
-            ./kubectl --kubeconfig=./kubeconfig apply -f https://raw.githubusercontent.com/Azure/azure-container-networking/master/npm/profiles/$(PROFILE).yaml
-            ./kubectl --kubeconfig=./kubeconfig rollout restart ds azure-npm -n kube-system
 
             ./kubectl --kubeconfig=./kubeconfig describe daemonset azure-npm -n kube-system
 
@@ -357,7 +360,7 @@ jobs:
                 --os-type Windows \
                 --os-sku Windows2022 \
                 --node-vm-size Standard_D4s_v3 \
-                --node-count 1
+                --node-count 3
 
             echo "Getting credentials to $CLUSTER_NAME"
             az aks get-credentials -g $CLUSTER_NAME -n $CLUSTER_NAME --overwrite-existing --file ./kubeconfig
@@ -372,7 +375,6 @@ jobs:
           scriptLocation: "inlineScript"
           failOnStderr: true
           inlineScript: |
-
             export CLUSTER_NAME=$(RESOURCE_GROUP)-$(PROFILE)
 
             curl -LO https://dl.k8s.io/release/v1.23.0/bin/linux/amd64/kubectl
@@ -385,7 +387,6 @@ jobs:
             ./kubectl --kubeconfig=./kubeconfig set image daemonset/azure-npm-win -n kube-system azure-npm=$IMAGE_REGISTRY/azure-npm:windows-amd64-$(TAG)
 
             # swap NPM profile with one specified as parameter
-            ./kubectl --kubeconfig=./kubeconfig apply -f 
             ./kubectl --kubeconfig=./kubeconfig rollout restart ds azure-npm -n kube-system
 
             echo "Showing cluster status for $CLUSTER_NAME"
