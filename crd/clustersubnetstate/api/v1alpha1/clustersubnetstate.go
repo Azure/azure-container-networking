@@ -21,18 +21,13 @@ type ClusterSubnetState struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   ClusterSubnetStateSpec   `json:"spec,omitempty"`
 	Status ClusterSubnetStateStatus `json:"status,omitempty"`
-}
-
-// ClusterSubnetStateSpec defines the desired state of ClusterSubnetState
-type ClusterSubnetStateSpec struct {
-	Timestamp string `json:"Timestamp"`
 }
 
 // ClusterSubnetStateStatus defines the observed state of ClusterSubnetState
 type ClusterSubnetStateStatus struct {
-	Exhausted bool `json:"Exhausted"`
+	Exhausted bool   `json:"Exhausted"`
+	Timestamp string `json:"Timestamp"`
 }
 
 // +kubebuilder:object:root=true
