@@ -3,7 +3,7 @@ module github.com/Azure/azure-container-networking/build/tools
 go 1.18
 
 require (
-	github.com/AlekSi/gocov-xml v1.0.0
+	github.com/AlekSi/gocov-xml v1.1.0
 	github.com/axw/gocov v1.1.0
 	github.com/golang/mock v1.6.0
 	github.com/golangci/golangci-lint v1.47.2
