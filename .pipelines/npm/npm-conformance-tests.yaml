@@ -416,7 +416,7 @@ jobs:
 
         name: cyclonus
         displayName: "Run Cyclonus Test"
-        failOnStderr: true
+        failOnStderr: false
         condition: always()
 
       - bash: |
