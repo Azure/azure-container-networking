@@ -386,8 +386,10 @@ jobs:
             # swap azure-npm image with one built during run
             ./kubectl --kubeconfig=./kubeconfig set image daemonset/azure-npm-win -n kube-system azure-npm=$IMAGE_REGISTRY/azure-npm:windows-amd64-$(TAG)
 
-            # swap NPM profile with one specified as parameter
-            ./kubectl --kubeconfig=./kubeconfig rollout restart ds azure-npm -n kube-system
+            echo "sleeping 3 minutes to allow NPM pods to restart"
+            sleep 180
+
+            ./kubectl --kubeconfig=./kubeconfig get po -n kube-system -owide -A
 
             echo "Showing cluster status for $CLUSTER_NAME"
             FQDN=`az aks show -n $CLUSTER_NAME -g $(RESOURCE_GROUP) --query fqdn -o tsv`
@@ -411,6 +413,7 @@ jobs:
             cat cyclonus-$CLUSTER_NAME | grep "failed" > /dev/null 2>&1 || rc=$?
             echo $rc
             if [ $rc -eq 0 ]; then
+                echo "failures detected"
                 exit 1
             fi
 
