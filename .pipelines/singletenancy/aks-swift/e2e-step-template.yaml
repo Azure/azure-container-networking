@@ -61,7 +61,7 @@ steps:
       echo $ARTIFACT_DIR
       sudo rm -rf $ARTIFACT_DIR
       sudo mkdir $ARTIFACT_DIR
-      sudo cp -r ./test/integration/... $ARTIFACT_DIR
+      sudo cp -r test/integration $ARTIFACT_DIR
     name: "GetLogs"
     displayName: "Get logs"
     condition: always()
