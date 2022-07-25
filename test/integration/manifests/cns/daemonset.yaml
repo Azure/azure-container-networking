@@ -41,7 +41,7 @@ spec:
           effect: NoSchedule
       containers:
         - name: cns-container
-          image: acnpublic.azurecr.io/azure-cns:v1.2.8
+          image: acnpublic.azurecr.io/azure-cns:v1.4.29
           imagePullPolicy: IfNotPresent
           args: [ "-c", "tcp://$(CNSIpAddress):$(CNSPort)", "-t", "$(CNSLogTarget)"]
           volumeMounts:
