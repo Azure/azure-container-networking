@@ -15,7 +15,7 @@ func TestEmbed(t *testing.T) {
 	assert.Equal(t, b, ClusterSubnetStatesYAML)
 }
 
-func TestGetNodeNetworkConfigs(t *testing.T) {
+func TestGetClusterSubnetStates(t *testing.T) {
 	_, err := GetClusterSubnetStates()
 	assert.NoError(t, err)
 }

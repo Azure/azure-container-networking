@@ -19,7 +19,7 @@ import (
 	ctrlutil "sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
-// Scheme is a runtime scheme containing the client-go scheme and the NodeNetworkConfig scheme.
+// Scheme is a runtime scheme containing the client-go scheme and the ClusterSubnetStatus scheme.
 var Scheme = runtime.NewScheme()
 
 func init() {
@@ -103,7 +103,7 @@ func (c *Client) InstallOrUpdate(ctx context.Context) (*v1.CustomResourceDefinit
 	return current, nil
 }
 
-// SetOwnerRef sets the owner of the NodeNetworkConfig to the given object, using HTTP Patch
+// SetOwnerRef sets the owner of the ClusterSubnetStatus to the given object, using HTTP Patch
 func (c *Client) SetOwnerRef(ctx context.Context, key types.NamespacedName, owner metav1.Object, fieldManager string) (*v1alpha1.ClusterSubnetState, error) {
 	obj := genPatchSkel(key)
 	if err := ctrlutil.SetControllerReference(owner, obj, Scheme); err != nil {

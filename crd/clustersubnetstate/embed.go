@@ -14,7 +14,7 @@ import (
 //go:embed manifests/acn.azure.com_clustersubnetstates.yaml
 var ClusterSubnetStatesYAML []byte
 
-// GetNodeNetworkConfigsDefinition parses the raw []byte NodeNetworkConfigs in
+// GetClusterSubnetStatussDefinition parses the raw []byte ClusterSubnetStatuss in
 // to a CustomResourceDefinition and returns it or an unmarshalling error.
 func GetClusterSubnetStates() (*apiextensionsv1.CustomResourceDefinition, error) {
 	clusterSubnetStates := &apiextensionsv1.CustomResourceDefinition{}
