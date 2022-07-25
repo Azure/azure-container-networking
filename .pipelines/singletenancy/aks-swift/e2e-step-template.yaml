@@ -51,9 +51,6 @@ steps:
       kubectl apply -f ./cns/azure-cns.yaml
       kubectl get po -owide -A
       sudo make test-integration
-      sudo mkdir integration-logs
-      sudo ls
-      sudo cp test/integration/logs/* integration-logs
     retryCountOnTaskFailure: 3
     name: "aksswifte2e"
     displayName: "Run AKS Swift E2E"
@@ -64,7 +61,8 @@ steps:
       echo $ARTIFACT_DIR
       sudo rm -rf $ARTIFACT_DIR
       sudo mkdir $ARTIFACT_DIR
-      sudo cp test/integration/logs/* $ARTIFACT_DIR
+      sudo cp test/integration $ARTIFACT_DIR
+      sudo ls test/integration/logs
     name: "GetLogs"
     displayName: "Get logs"
     condition: always()
