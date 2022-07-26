@@ -88,11 +88,11 @@ jobs:
     steps:
       - checkout: self
 
-      - script: git clone https://github.com/vakalapa/kubernetes.git
+      - script: git clone https://github.com/huntergregory/kubernetes.git
         displayName: "Clone Kubernetes Repo"
       - bash: |
           cd kubernetes
-          git checkout vakr/sleepinnpmtests
+          git checkout sleep-before-probing
           export PATH=$PATH:/usr/local/go/bin/
           make WHAT=test/e2e/e2e.test
         displayName: "Build Kubernetes e2e.test"
@@ -180,7 +180,7 @@ jobs:
                   --vm-set-type VirtualMachineScaleSets \
                   --kubernetes-version v1.23 \
                   --node-vm-size Standard_D4s_v3 \
-                  --node-count 2
+                  --node-count 1
 
               # don't schedule anything on the linux system pool
               echo "Updating $(AZURE_CLUSTER) to not schedule anything on linux pool..."
@@ -252,17 +252,41 @@ jobs:
               # there can't be a command after e2e.test because the exit code is important
           }
 
+          runConformanceWindows () {
+            nomatch1="should enforce policy based on PodSelector or NamespaceSelector"
+            nomatch2="should enforce policy based on NamespaceSelector with MatchExpressions using default ns label"
+            nomatch3="should enforce policy based on PodSelector and NamespaceSelector"
+            nomatch4="should enforce policy based on Multiple PodSelectors and NamespaceSelectors"
+            cidrExcept1="should ensure an IP overlapping both IPBlock.CIDR and IPBlock.Except is allowed"
+            cidrExcept2="should enforce except clause while egress access to server in CIDR block"
+            namedPorts="named port"
+            wrongK8sVersion="Netpol API"
+            toSkip="\[LinuxOnly\]|$nomatch1|$nomatch2|$nomatch3|$nomatch4|$cidrExcept1|$cidrExcept2|$namedPorts|$wrongK8sVersion|SCTP"
+            KUBERNETES_SERVICE_HOST="$FQDN" KUBERNETES_SERVICE_PORT=443 $(Pipeline.Workspace)/Test/e2e.test --provider=local --ginkgo.focus="NetworkPolicy" --ginkgo.skip="$toSkip"  --node-os-distro=windows --allowed-not-ready-nodes=1 --kubeconfig=./kubeconfig
+          }
+
           exitCode=0
           if [ $(IS_STRESS_TEST) == "true" ]; then
               echo "Running $NUM_PARALLEL_JOBS_FOR_STRESS_TEST conformance tests at once and writing outputs to files"
               declare -a conformancePIDs
               for round in $(seq 1 $NUM_PARALLEL_JOBS_FOR_STRESS_TEST); do
                   # for each iteration, run the conformance test and echos in the background, and write the output of the conformance test to a file
-                  echo "starting conformance test #$round" && \
-                      runConformance > $npmLogsFolder/conformance-results-$round && \
-                      echo "finished conformance test #$round" &
-                  pidOfConformanceTest=$!
-                  conformancePIDs+=($pidOfConformanceTest)
+                  
+                   # run the conformance test in the foreground and write the output to stdout and a file
+                  if [[ $(AZURE_CLUSTER) == *ws22 ]] # * is used for pattern matching
+                  then
+                    echo "starting conformance test #$round" && \
+                        runConformanceWindows > $npmLogsFolder/conformance-results-$round && \
+                        echo "finished conformance test #$round" &
+                    pidOfConformanceTest=$!
+                    conformancePIDs+=($pidOfConformanceTest)
+                  else
+                    echo "starting windows conformance test #$round" && \
+                        runConformance > $npmLogsFolder/conformance-results-$round && \
+                        echo "finished conformance test #$round" &
+                    pidOfConformanceTest=$!
+                    conformancePIDs+=($pidOfConformanceTest)
+                  fi
               done
 
               # wait until all conformance tests finish and take note of any failed tests
@@ -277,8 +301,14 @@ jobs:
               done
           else
               # run the conformance test in the foreground and write the output to stdout and a file
+            if [[ $(AZURE_CLUSTER) == *ws22 ]] # * is used for pattern matching
+            then
+              runConformanceWindows > $npmLogsFolder/conformance-results
+              exitCode=$?
+            else
               runConformance > $npmLogsFolder/conformance-results
               exitCode=$?
+            fi
           fi
           # kill the background processes (the logs) that have this process' pid (i.e. $$) as a parent
           pkill -P $$
@@ -406,7 +436,8 @@ jobs:
             --pod-creation-timeout-seconds=480 \
             --job-timeout-seconds=15 \
             --include "any-port" \
-            --server-protocol=TCP,UDP | tee cyclonus-$CLUSTER_NAME
+            --server-protocol=TCP,UDP \
+            --exclude sctp,named-port,ip-block-with-except,multi-peer,upstream-e2e,example,end-port,namespaces-by-default | tee cyclonus-$CLUSTER_NAME
 
             rc=0
 
