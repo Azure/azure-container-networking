@@ -34,214 +34,214 @@ stages:
             displayName: "Set environmental variables"
             condition: always()
 
-  # - stage: test
-  #   displayName: Test ACN
-  #   dependsOn:
-  #     - setup
-  #   jobs:
-  #     - job: test
-  #       displayName: Run Tests
-  #       variables:
-  #         STORAGE_ID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.StorageID'] ]
-  #       pool:
-  #         name: "$(BUILD_POOL_NAME_DEFAULT)"
-  #       steps:
-  #         - script: |
-  #             make tools
-  #             # run test, echo exit status code to fd 3, pipe output from test to tee, which splits output to stdout and go-junit-report (which converts test output to report.xml), stdout from tee is redirected to fd 4. Take output written to fd 3 (which is the exit code of test), redirect to stdout, pipe to read from stdout then exit with that status code. Read all output from fd 4 (output from tee) and write to top stdout
-  #             { { { {
-  #                   sudo -E env "PATH=$PATH" make test-all;
-  #                   echo $? >&3;
-  #                   } | tee >(build/tools/bin/go-junit-report > report.xml) >&4;
-  #                 } 3>&1;
-  #               } | { read xs; exit $xs; }
-  #             } 4>&1
-  #           retryCountOnTaskFailure: 3
-  #           name: "Test"
-  #           displayName: "Run Tests"
+  - stage: test
+    displayName: Test ACN
+    dependsOn:
+      - setup
+    jobs:
+      - job: test
+        displayName: Run Tests
+        variables:
+          STORAGE_ID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.StorageID'] ]
+        pool:
+          name: "$(BUILD_POOL_NAME_DEFAULT)"
+        steps:
+          - script: |
+              make tools
+              # run test, echo exit status code to fd 3, pipe output from test to tee, which splits output to stdout and go-junit-report (which converts test output to report.xml), stdout from tee is redirected to fd 4. Take output written to fd 3 (which is the exit code of test), redirect to stdout, pipe to read from stdout then exit with that status code. Read all output from fd 4 (output from tee) and write to top stdout
+              { { { {
+                    sudo -E env "PATH=$PATH" make test-all;
+                    echo $? >&3;
+                    } | tee >(build/tools/bin/go-junit-report > report.xml) >&4;
+                  } 3>&1;
+                } | { read xs; exit $xs; }
+              } 4>&1
+            retryCountOnTaskFailure: 3
+            name: "Test"
+            displayName: "Run Tests"
 
-  #         - bash: |
-  #             build/tools/bin/gocov convert coverage.out > coverage.json
-  #             build/tools/bin/gocov-xml < coverage.json > coverage.xml
-  #           name: "Coverage"
-  #           displayName: "Generate Coverage Reports"
-  #           condition: always()
+          - bash: |
+              build/tools/bin/gocov convert coverage.out > coverage.json
+              build/tools/bin/gocov-xml < coverage.json > coverage.xml
+            name: "Coverage"
+            displayName: "Generate Coverage Reports"
+            condition: always()
 
-  #         - task: PublishTestResults@2
-  #           inputs:
-  #             testRunner: JUnit
-  #             testResultsFiles: report.xml
-  #           displayName: "Publish Test Results"
-  #           condition: always()
+          - task: PublishTestResults@2
+            inputs:
+              testRunner: JUnit
+              testResultsFiles: report.xml
+            displayName: "Publish Test Results"
+            condition: always()
 
-  #         - task: PublishCodeCoverageResults@1
-  #           inputs:
-  #             codeCoverageTool: Cobertura
-  #             summaryFileLocation: coverage.xml
-  #           displayName: "Publish Code Coverage Results"
-  #           condition: always()
+          - task: PublishCodeCoverageResults@1
+            inputs:
+              codeCoverageTool: Cobertura
+              summaryFileLocation: coverage.xml
+            displayName: "Publish Code Coverage Results"
+            condition: always()
 
-  # - stage: binaries
-  #   displayName: Build Binaries
-  #   dependsOn:
-  #     - setup
-  #     - test
-  #   jobs:
-  #     - job: build
-  #       displayName: Build Binaries
-  #       variables:
-  #         TAG: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
-  #         STORAGE_ID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.StorageID'] ]
-  #       pool:
-  #         name: "$(BUILD_POOL_NAME_DEFAULT)"
-  #       steps:
-  #         - script: |
-  #             make all-binaries-platforms VERSION=$(TAG)
-  #           name: "BuildAllPlatformBinaries"
-  #           displayName: "Build all platform binaries"
+  - stage: binaries
+    displayName: Build Binaries
+    dependsOn:
+      - setup
+      - test
+    jobs:
+      - job: build
+        displayName: Build Binaries
+        variables:
+          TAG: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
+          STORAGE_ID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.StorageID'] ]
+        pool:
+          name: "$(BUILD_POOL_NAME_DEFAULT)"
+        steps:
+          - script: |
+              make all-binaries-platforms VERSION=$(TAG)
+            name: "BuildAllPlatformBinaries"
+            displayName: "Build all platform binaries"
 
-  #         - script: |
-  #             mkdir -p ./output/bins
-  #             cd ./output
-  #             find . -name '*.tgz' -print -exec mv -t ./bins/ {} +
-  #             find . -name '*.zip' -print -exec mv -t ./bins/ {} +
-  #             shopt -s extglob
-  #             rm -rf !("bins")
-  #           name: "PrepareArtifacts"
-  #           displayName: "Prepare Artifacts"
+          - script: |
+              mkdir -p ./output/bins
+              cd ./output
+              find . -name '*.tgz' -print -exec mv -t ./bins/ {} +
+              find . -name '*.zip' -print -exec mv -t ./bins/ {} +
+              shopt -s extglob
+              rm -rf !("bins")
+            name: "PrepareArtifacts"
+            displayName: "Prepare Artifacts"
 
-  #         - task: CopyFiles@2
-  #           inputs:
-  #             sourceFolder: "output"
-  #             targetFolder: $(Build.ArtifactStagingDirectory)
-  #           condition: succeeded()
+          - task: CopyFiles@2
+            inputs:
+              sourceFolder: "output"
+              targetFolder: $(Build.ArtifactStagingDirectory)
+            condition: succeeded()
 
-  #         - task: PublishBuildArtifacts@1
-  #           inputs:
-  #             artifactName: "output"
-  #             pathtoPublish: "$(Build.ArtifactStagingDirectory)"
-  #           condition: succeeded()
+          - task: PublishBuildArtifacts@1
+            inputs:
+              artifactName: "output"
+              pathtoPublish: "$(Build.ArtifactStagingDirectory)"
+            condition: succeeded()
 
-  #         - task: AzureCLI@1
-  #           inputs:
-  #             azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
-  #             scriptLocation: "inlineScript"
-  #             inlineScript: |
-  #               echo Creating storage container with name acn-$(STORAGE_ID) and account name $(STORAGE_ACCOUNT_NAME)
-  #               az storage container create -n acn-$(STORAGE_ID) --account-name $(STORAGE_ACCOUNT_NAME) --public-access container
-  #               az storage blob upload-batch -d acn-$(STORAGE_ID) -s ./output/bins/  --account-name $(STORAGE_ACCOUNT_NAME)
-  #           displayName: Create artifact storage container
-  #           condition: succeeded()
+          - task: AzureCLI@1
+            inputs:
+              azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+              scriptLocation: "inlineScript"
+              inlineScript: |
+                echo Creating storage container with name acn-$(STORAGE_ID) and account name $(STORAGE_ACCOUNT_NAME)
+                az storage container create -n acn-$(STORAGE_ID) --account-name $(STORAGE_ACCOUNT_NAME) --public-access container
+                az storage blob upload-batch -d acn-$(STORAGE_ID) -s ./output/bins/  --account-name $(STORAGE_ACCOUNT_NAME)
+            displayName: Create artifact storage container
+            condition: succeeded()
 
-  #         - publish: ./test/apimodels/
-  #           artifact: clusterdefinitions
+          - publish: ./test/apimodels/
+            artifact: clusterdefinitions
 
-  # - stage: containerize
-  #   displayName: Build Images
-  #   dependsOn:
-  #     - setup
-  #     - test
-  #   jobs:
-  #     - job: containerize
-  #       displayName: Build Images
-  #       variables:
-  #         TAG: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
-  #       pool:
-  #         name: "$(BUILD_POOL_NAME_DEFAULT)"
-  #       strategy:
-  #         matrix:
-  #           acncli_linux_amd64:
-  #             arch: amd64
-  #             os: linux
-  #             name: acncli
-  #           acncli_linux_arm64:
-  #             arch: arm64
-  #             os: linux
-  #             name: acncli
-  #           cni_dropgz_linux_amd64:
-  #             arch: amd64
-  #             os: linux
-  #             name: cni-dropgz
-  #           cni_dropgz_linux_arm64:
-  #             arch: arm64
-  #             os: linux
-  #             name: cni-dropgz
-  #           cns_linux_amd64:
-  #             arch: amd64
-  #             os: linux
-  #             name: cns
-  #           cns_linux_arm64:
-  #             arch: arm64
-  #             os: linux
-  #             name: cns
-  #           npm_linux_amd64:
-  #             arch: amd64
-  #             os: linux
-  #             name: npm
-  #           npm_linux_arm64:
-  #             arch: arm64
-  #             os: linux
-  #             name: npm
-  #       steps:
-  #         - template: containers/container-template.yaml
-  #           parameters:
-  #             name: $(name)
-  #             os: $(os)
-  #             arch: $(arch)
-  #             tag: $(TAG)
-  #     - job: containerize_windows
-  #       displayName: Build Images
-  #       variables:
-  #         TAG: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
-  #       pool:
-  #         name: "$(BUILD_POOL_NAME_DEFAULT_WINDOWS)"
-  #       strategy:
-  #         matrix:
-  #           cns_windows_amd64:
-  #             arch: amd64
-  #             name: cns
-  #           npm_windows_amd64:
-  #             arch: amd64
-  #             name: npm
-  #       steps:
-  #         - template: containers/container-template-windows.yaml
-  #           parameters:
-  #             name: $(name)
-  #             arch: $(arch)
-  #             tag: $(TAG)
+  - stage: containerize
+    displayName: Build Images
+    dependsOn:
+      - setup
+      - test
+    jobs:
+      - job: containerize
+        displayName: Build Images
+        variables:
+          TAG: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
+        pool:
+          name: "$(BUILD_POOL_NAME_DEFAULT)"
+        strategy:
+          matrix:
+            acncli_linux_amd64:
+              arch: amd64
+              os: linux
+              name: acncli
+            acncli_linux_arm64:
+              arch: arm64
+              os: linux
+              name: acncli
+            cni_dropgz_linux_amd64:
+              arch: amd64
+              os: linux
+              name: cni-dropgz
+            cni_dropgz_linux_arm64:
+              arch: arm64
+              os: linux
+              name: cni-dropgz
+            cns_linux_amd64:
+              arch: amd64
+              os: linux
+              name: cns
+            cns_linux_arm64:
+              arch: arm64
+              os: linux
+              name: cns
+            npm_linux_amd64:
+              arch: amd64
+              os: linux
+              name: npm
+            npm_linux_arm64:
+              arch: arm64
+              os: linux
+              name: npm
+        steps:
+          - template: containers/container-template.yaml
+            parameters:
+              name: $(name)
+              os: $(os)
+              arch: $(arch)
+              tag: $(TAG)
+      - job: containerize_windows
+        displayName: Build Images
+        variables:
+          TAG: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
+        pool:
+          name: "$(BUILD_POOL_NAME_DEFAULT_WINDOWS)"
+        strategy:
+          matrix:
+            cns_windows_amd64:
+              arch: amd64
+              name: cns
+            npm_windows_amd64:
+              arch: amd64
+              name: npm
+        steps:
+          - template: containers/container-template-windows.yaml
+            parameters:
+              name: $(name)
+              arch: $(arch)
+              tag: $(TAG)
 
-  # - stage: publish
-  #   displayName: Publish Multiarch Manifests
-  #   dependsOn:
-  #     - setup
-  #     - containerize
-  #   jobs:
-  #     - job: manifest
-  #       displayName: Compile Manifests
-  #       variables:
-  #         TAG: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
-  #       pool:
-  #         name: "$(BUILD_POOL_NAME_DEFAULT)"
-  #       strategy:
-  #         matrix:
-  #           acncli:
-  #             name: acncli 
-  #             platforms: linux/amd64 linux/arm64
-  #           cni_dropgz:
-  #             name: cni-dropgz
-  #             platforms: linux/amd64 linux/arm64
-  #           cns:
-  #             name: cns
-  #             platforms: linux/amd64 linux/arm64 windows/amd64
-  #           npm:
-  #             name: npm
-  #             platforms: linux/amd64 linux/arm64 windows/amd64
-  #       steps:
-  #         - template: containers/manifest-template.yaml
-  #           parameters:
-  #             name: $(name)
-  #             platforms: $(platforms)
-  #             tag: $(TAG)
+  - stage: publish
+    displayName: Publish Multiarch Manifests
+    dependsOn:
+      - setup
+      - containerize
+    jobs:
+      - job: manifest
+        displayName: Compile Manifests
+        variables:
+          TAG: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
+        pool:
+          name: "$(BUILD_POOL_NAME_DEFAULT)"
+        strategy:
+          matrix:
+            acncli:
+              name: acncli 
+              platforms: linux/amd64 linux/arm64
+            cni_dropgz:
+              name: cni-dropgz
+              platforms: linux/amd64 linux/arm64
+            cns:
+              name: cns
+              platforms: linux/amd64 linux/arm64 windows/amd64
+            npm:
+              name: npm
+              platforms: linux/amd64 linux/arm64 windows/amd64
+        steps:
+          - template: containers/manifest-template.yaml
+            parameters:
+              name: $(name)
+              platforms: $(platforms)
+              tag: $(TAG)
 
   - template: singletenancy/aks-swift/e2e-job-template.yaml
     parameters:
