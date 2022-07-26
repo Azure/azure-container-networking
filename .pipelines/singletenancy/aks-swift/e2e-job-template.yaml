@@ -9,7 +9,7 @@ stages:
     lockBehavior: sequential
     dependsOn: 
     - setup
-    # - publish
+    - publish
     jobs:
       - job: ${{ parameters.name }}
         displayName: Singletenancy AKS Swift Suite - (${{ parameters.name }})
