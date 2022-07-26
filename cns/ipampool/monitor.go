@@ -433,14 +433,16 @@ func (pm *Monitor) clampScaler(scaler *v1alpha.Scaler) {
 
 // CalculateMinFreeIPs calculates the minimum free IP quantity based on the Scaler
 // in the passed NodeNetworkConfig.
+// Half of odd batches are rounded up!
 //nolint:gocritic // ignore hugeparam
 func CalculateMinFreeIPs(scaler v1alpha.Scaler) int64 {
-	return int64(float64(scaler.BatchSize) * (float64(scaler.RequestThresholdPercent) / 100)) //nolint:gomnd // it's a percent
+	return int64(float64(scaler.BatchSize)*(float64(scaler.RequestThresholdPercent)/100) + .5) //nolint:gomnd // it's a percent
 }
 
 // CalculateMaxFreeIPs calculates the maximum free IP quantity based on the Scaler
 // in the passed NodeNetworkConfig.
+// Half of odd batches are rounded up!
 //nolint:gocritic // ignore hugeparam
 func CalculateMaxFreeIPs(scaler v1alpha.Scaler) int64 {
-	return int64(float64(scaler.BatchSize) * (float64(scaler.ReleaseThresholdPercent) / 100)) //nolint:gomnd // it's a percent
+	return int64(float64(scaler.BatchSize)*(float64(scaler.ReleaseThresholdPercent)/100) + .5) //nolint:gomnd // it's a percent
 }

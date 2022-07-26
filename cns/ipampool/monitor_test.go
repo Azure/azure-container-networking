@@ -78,36 +78,63 @@ func initFakes(state testState) (*fakes.HTTPServiceFake, *fakes.RequestControlle
 }
 
 func TestPoolSizeIncrease(t *testing.T) {
-	initState := testState{
-		batch:                   10,
-		assigned:                8,
-		allocated:               10,
-		requestThresholdPercent: 50,
-		releaseThresholdPercent: 150,
-		max:                     30,
+	tests := []struct {
+		name string
+		in   testState
+		want int64
+	}{
+		{
+			name: "typ",
+			in: testState{
+				batch:                   10,
+				assigned:                8,
+				allocated:               10,
+				requestThresholdPercent: 50,
+				releaseThresholdPercent: 150,
+				max:                     30,
+			},
+			want: 20,
+		},
+		{
+			name: "starvation",
+			in: testState{
+				batch:                   1,
+				assigned:                10,
+				allocated:               10,
+				requestThresholdPercent: 50,
+				releaseThresholdPercent: 150,
+				max:                     30,
+			},
+			want: 11,
+		},
 	}
 
-	fakecns, fakerc, poolmonitor := initFakes(initState)
-	assert.NoError(t, fakerc.Reconcile(true))
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			fakecns, fakerc, poolmonitor := initFakes(tt.in)
+			assert.NoError(t, fakerc.Reconcile(true))
 
-	// When poolmonitor reconcile is called, trigger increase and cache goal state
-	assert.NoError(t, poolmonitor.reconcile(context.Background()))
+			// When poolmonitor reconcile is called, trigger increase and cache goal state
+			assert.NoError(t, poolmonitor.reconcile(context.Background()))
 
-	// ensure pool monitor has reached quorum with cns
-	assert.Equal(t, initState.allocated+(1*initState.batch), poolmonitor.spec.RequestedIPCount)
+			// ensure pool monitor has reached quorum with cns
+			assert.Equal(t, tt.want, poolmonitor.spec.RequestedIPCount)
 
-	// request controller reconciles, carves new IPs from the test subnet and adds to CNS state
-	assert.NoError(t, fakerc.Reconcile(true))
+			// request controller reconciles, carves new IPs from the test subnet and adds to CNS state
+			assert.NoError(t, fakerc.Reconcile(true))
 
-	// when poolmonitor reconciles again here, the IP count will be within the thresholds
-	// so no CRD update and nothing pending
-	assert.NoError(t, poolmonitor.reconcile(context.Background()))
+			// when poolmonitor reconciles again here, the IP count will be within the thresholds
+			// so no CRD update and nothing pending
+			assert.NoError(t, poolmonitor.reconcile(context.Background()))
 
-	// ensure pool monitor has reached quorum with cns
-	assert.Equal(t, initState.allocated+(1*initState.batch), poolmonitor.spec.RequestedIPCount)
+			// ensure pool monitor has reached quorum with cns
+			assert.Equal(t, tt.want, poolmonitor.spec.RequestedIPCount)
 
-	// make sure IPConfig state size reflects the new pool size
-	assert.Len(t, fakecns.GetPodIPConfigState(), int(initState.allocated+(1*initState.batch)))
+			// make sure IPConfig state size reflects the new pool size
+			assert.Len(t, fakecns.GetPodIPConfigState(), int(tt.want))
+		})
+	}
 }
 
 func TestPoolIncreaseDoesntChangeWhenIncreaseIsAlreadyInProgress(t *testing.T) {
@@ -237,37 +264,66 @@ func TestIncreaseWithPendingRelease(t *testing.T) {
 }
 
 func TestPoolDecrease(t *testing.T) {
-	initState := testState{
-		batch:                   10,
-		allocated:               20,
-		assigned:                15,
-		requestThresholdPercent: 50,
-		releaseThresholdPercent: 150,
-		max:                     30,
+	tests := []struct {
+		name         string
+		in           testState
+		want         int64
+		wantReleased int
+	}{
+		{
+			name: "typ",
+			in: testState{
+				batch:                   10,
+				allocated:               20,
+				assigned:                15,
+				requestThresholdPercent: 50,
+				releaseThresholdPercent: 150,
+				max:                     30,
+			},
+			want:         10,
+			wantReleased: 10,
+		},
+		{
+			name: "starvation",
+			in: testState{
+				batch:                   1,
+				allocated:               20,
+				assigned:                19,
+				requestThresholdPercent: 50,
+				releaseThresholdPercent: 150,
+				max:                     30,
+			},
+			want:         19,
+			wantReleased: 1,
+		},
 	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			fakecns, fakerc, poolmonitor := initFakes(tt.in)
+			assert.NoError(t, fakerc.Reconcile(true))
 
-	fakecns, fakerc, poolmonitor := initFakes(initState)
-	assert.NoError(t, fakerc.Reconcile(true))
+			// Pool monitor does nothing, as the current number of IPs falls in the threshold
+			assert.NoError(t, poolmonitor.reconcile(context.Background()))
 
-	// Pool monitor does nothing, as the current number of IPs falls in the threshold
-	assert.NoError(t, poolmonitor.reconcile(context.Background()))
+			// Decrease the number of allocated IPs down to 5. This should trigger a scale down
+			assert.NoError(t, fakecns.SetNumberOfAssignedIPs(4))
 
-	// Decrease the number of allocated IPs down to 5. This should trigger a scale down
-	assert.NoError(t, fakecns.SetNumberOfAssignedIPs(4))
+			// Pool monitor will adjust the spec so the pool size will be 1 batch size smaller
+			assert.NoError(t, poolmonitor.reconcile(context.Background()))
 
-	// Pool monitor will adjust the spec so the pool size will be 1 batch size smaller
-	assert.NoError(t, poolmonitor.reconcile(context.Background()))
+			// ensure that the adjusted spec is smaller than the initial pool size
+			assert.Len(t, poolmonitor.spec.IPsNotInUse, tt.wantReleased)
 
-	// ensure that the adjusted spec is smaller than the initial pool size
-	assert.Len(t, poolmonitor.spec.IPsNotInUse, int(initState.allocated-initState.batch))
+			// reconcile the fake request controller
+			assert.NoError(t, fakerc.Reconcile(true))
 
-	// reconcile the fake request controller
-	assert.NoError(t, fakerc.Reconcile(true))
-
-	// CNS won't actually clean up the IPsNotInUse until it changes the spec for some other reason (i.e. scale up)
-	// so instead we should just verify that the CNS state has no more PendingReleaseIPConfigs,
-	// and that they were cleaned up.
-	assert.Empty(t, fakecns.GetPendingReleaseIPConfigs())
+			// CNS won't actually clean up the IPsNotInUse until it changes the spec for some other reason (i.e. scale up)
+			// so instead we should just verify that the CNS state has no more PendingReleaseIPConfigs,
+			// and that they were cleaned up.
+			assert.Empty(t, fakecns.GetPendingReleaseIPConfigs())
+		})
+	}
 }
 
 func TestPoolSizeDecreaseWhenDecreaseHasAlreadyBeenRequested(t *testing.T) {
@@ -504,11 +560,37 @@ func TestCalculateIPs(t *testing.T) {
 			wantMinFree: 16,
 			wantMaxFree: 32,
 		},
+		{
+			name: "odd batch",
+			in: v1alpha.Scaler{
+				BatchSize:               3,
+				RequestThresholdPercent: 50,
+				ReleaseThresholdPercent: 150,
+				MaxIPCount:              250,
+			},
+			wantMinFree: 2,
+			wantMaxFree: 5,
+		},
+		{
+			name: "starvation",
+			in: v1alpha.Scaler{
+				BatchSize:               1,
+				RequestThresholdPercent: 50,
+				ReleaseThresholdPercent: 150,
+				MaxIPCount:              250,
+			},
+			wantMinFree: 1,
+			wantMaxFree: 2,
+		},
 	}
 	for _, tt := range tests {
 		tt := tt
-		t.Run(tt.name, func(t *testing.T) {
+		t.Run(tt.name+" min free", func(t *testing.T) {
 			assert.Equal(t, tt.wantMinFree, CalculateMinFreeIPs(tt.in))
+			t.Parallel()
+		})
+		t.Run(tt.name+" max free", func(t *testing.T) {
+			t.Parallel()
 			assert.Equal(t, tt.wantMaxFree, CalculateMaxFreeIPs(tt.in))
 		})
 	}
