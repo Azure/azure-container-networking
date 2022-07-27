@@ -314,7 +314,7 @@ jobs:
           pkill -P $$
           exit $exitCode
         displayName: "Run Test Suite and Get Logs"
-        failOnStderr: true
+        failOnStderr: false
 
       - publish: $(System.DefaultWorkingDirectory)/npmLogs_$(AZURE_CLUSTER)
         condition: always()
@@ -422,7 +422,7 @@ jobs:
             ./kubectl --kubeconfig=./kubeconfig get po -n kube-system -owide -A
 
             echo "Showing cluster status for $CLUSTER_NAME"
-            FQDN=`az aks show -n $CLUSTER_NAME -g $(RESOURCE_GROUP) --query fqdn -o tsv`
+            FQDN=`az aks show -n $CLUSTER_NAME -g $CLUSTER_NAME --query fqdn -o tsv`
             echo "##vso[task.setvariable variable=FQDN]$FQDN"
 
       - bash: |
@@ -435,11 +435,12 @@ jobs:
             --perturbation-wait-seconds=20 \
             --pod-creation-timeout-seconds=480 \
             --job-timeout-seconds=15 \
-            --include "any-port" \
             --server-protocol=TCP,UDP \
-            --exclude sctp,named-port,ip-block-with-except,multi-peer,upstream-e2e,example,end-port,namespaces-by-default | tee cyclonus-$CLUSTER_NAME
+            --exclude sctp,named-port,ip-block-with-except,multi-peer,upstream-e2e,example,end-port,namespaces-by-default-label | tee cyclonus-$CLUSTER_NAME
 
             rc=0
+
+            cp cyclonus-$CLUSTER_NAME $(System.DefaultWorkingDirectory)/$CLUSTER_NAME/cyclonus-$CLUSTER_NAME
 
             cat cyclonus-$CLUSTER_NAME | grep "failed" > /dev/null 2>&1 || rc=$?
             echo $rc
