@@ -29,12 +29,12 @@ import (
 	"github.com/Azure/azure-container-networking/cns/healthserver"
 	"github.com/Azure/azure-container-networking/cns/hnsclient"
 	"github.com/Azure/azure-container-networking/cns/ipampool"
+	nncctrl "github.com/Azure/azure-container-networking/cns/kubecontroller/nodenetworkconfig"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/multitenantcontroller"
 	"github.com/Azure/azure-container-networking/cns/multitenantcontroller/multitenantoperator"
 	"github.com/Azure/azure-container-networking/cns/nmagent"
 	"github.com/Azure/azure-container-networking/cns/restserver"
-	kubecontroller "github.com/Azure/azure-container-networking/cns/singletenantcontroller"
 	cnstypes "github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/cns/wireserver"
 	acn "github.com/Azure/azure-container-networking/common"
@@ -910,9 +910,9 @@ func reconcileInitialCNSState(ctx context.Context, cli nodeNetworkConfigGetter, 
 
 		switch nnc.Status.NetworkContainers[i].AssignmentMode { //nolint:exhaustive // skipping dynamic case
 		case v1alpha.Static:
-			ncRequest, err = kubecontroller.CreateNCRequestFromStaticNC(nnc.Status.NetworkContainers[i])
+			ncRequest, err = nncctrl.CreateNCRequestFromStaticNC(nnc.Status.NetworkContainers[i])
 		default: // For backward compatibility, default will be treated as Dynamic too.
-			ncRequest, err = kubecontroller.CreateNCRequestFromDynamicNC(nnc.Status.NetworkContainers[i])
+			ncRequest, err = nncctrl.CreateNCRequestFromDynamicNC(nnc.Status.NetworkContainers[i])
 		}
 
 		if err != nil {
@@ -999,7 +999,7 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 		return errors.Wrap(err, "failed to create NNC client")
 	}
 	// TODO(rbtr): nodename and namespace should be in the cns config
-	scopedcli := kubecontroller.NewScopedClient(nnccli, types.NamespacedName{Namespace: "kube-system", Name: nodeName})
+	scopedcli := nncctrl.NewScopedClient(nnccli, types.NamespacedName{Namespace: "kube-system", Name: nodeName})
 
 	// initialize the ipam pool monitor
 	poolOpts := ipampool.Options{
@@ -1076,7 +1076,7 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 		return errors.Wrapf(err, "failed to get node %s", nodeName)
 	}
 
-	reconciler := kubecontroller.NewReconciler(httpRestServiceImplementation, nnccli, poolMonitor)
+	reconciler := nncctrl.NewReconciler(httpRestServiceImplementation, nnccli, poolMonitor)
 	// pass Node to the Reconciler for Controller xref
 	if err := reconciler.SetupWithManager(manager, node); err != nil {
 		return errors.Wrapf(err, "failed to setup reconciler with manager")

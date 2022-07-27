@@ -1,4 +1,4 @@
-package kubecontroller
+package nodenetworkconfig
 
 import (
 	"github.com/prometheus/client_golang/prometheus"
