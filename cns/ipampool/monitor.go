@@ -10,6 +10,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/metric"
 	"github.com/Azure/azure-container-networking/cns/types"
+	"github.com/Azure/azure-container-networking/crd/clustersubnetstate/api/v1alpha1"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 	"github.com/pkg/errors"
 )
@@ -49,6 +50,7 @@ type Monitor struct {
 	nnccli      nodeNetworkConfigSpecUpdater
 	httpService cns.HTTPService
 	started     chan interface{}
+	cssSource   <-chan v1alpha1.ClusterSubnetState
 	nncSource   chan v1alpha.NodeNetworkConfig
 	once        sync.Once
 }
@@ -57,7 +59,7 @@ type Monitor struct {
 // For Subnet, Subnet Address Space and Subnet ARM ID
 var subnet, subnetCIDR, subnetARMID string
 
-func NewMonitor(httpService cns.HTTPService, nnccli nodeNetworkConfigSpecUpdater, opts *Options) *Monitor {
+func NewMonitor(httpService cns.HTTPService, nnccli nodeNetworkConfigSpecUpdater, cssSource <-chan v1alpha1.ClusterSubnetState, opts *Options) *Monitor {
 	if opts.RefreshDelay < 1 {
 		opts.RefreshDelay = DefaultRefreshDelay
 	}
@@ -79,6 +81,11 @@ func NewMonitor(httpService cns.HTTPService, nnccli nodeNetworkConfigSpecUpdater
 func (pm *Monitor) Start(ctx context.Context) error {
 	logger.Printf("[ipam-pool-monitor] Starting CNS IPAM Pool Monitor")
 
+	// the exhausted subnet set is populated by parsing incoming cluster subnet states
+	// if a subnet is present in this map, the batch from the NNC is ignored and instead
+	// the pool monitor batches 1 IP at a time to relieve capacity pressure.
+	exhaustedSubnetSet := map[string]struct{}{}
+
 	ticker := time.NewTicker(pm.opts.RefreshDelay)
 	defer ticker.Stop()
 
@@ -89,11 +96,27 @@ func (pm *Monitor) Start(ctx context.Context) error {
 			return errors.Wrap(ctx.Err(), "pool monitor context closed")
 		case <-ticker.C: // attempt to reconcile every tick.
 			select {
-			case <-pm.started: // this blocks until we have initialized
-				// if we have initialized and enter this case, we proceed out of the select and continue to reconcile.
 			default:
 				// if we have NOT initialized and enter this case, we continue out of this iteration and let the for loop begin again.
 				continue
+			case <-pm.started: // this blocks until we have initialized
+				// if we have initialized and enter this case, we proceed out of the select and continue to reconcile.
+			}
+		case css := <-pm.cssSource: // received an updated ClusterSubnetState
+			// this map does not need additional synchronization thanks to channels <3
+			if css.Status.Exhausted {
+				logger.Printf("subnet %s is exhausted", css.Name)
+				exhaustedSubnetSet[css.Name] = struct{}{}
+			} else {
+				logger.Printf("subnet %s is no longer exhausted", css.Name)
+				delete(exhaustedSubnetSet, css.Name)
+			}
+			select {
+			default:
+				// if we have NOT initialized and enter this case, we continue out of this iteration and let the for loop begin again.
+				continue
+			case <-pm.started: // this blocks until we have initialized
+				// if we have initialized and enter this case, we proceed out of the select and continue to reconcile.
 			}
 		case nnc := <-pm.nncSource: // received a new NodeNetworkConfig, extract the data from it and re-reconcile.
 			scaler := nnc.Status.Scaler
@@ -102,6 +125,8 @@ func (pm *Monitor) Start(ctx context.Context) error {
 			subnet = nnc.Status.NetworkContainers[0].SubnetName
 			subnetCIDR = nnc.Status.NetworkContainers[0].SubnetAddressSpace
 			subnetARMID = GenerateARMID(&nnc.Status.NetworkContainers[0])
+			// check for subnet exhaustion
+			_, exhausted := exhaustedSubnetSet[nnc.Status.NetworkContainers[0].SubnetName]
 
 			pm.metastate.primaryIPAddresses = make(map[string]struct{})
 			// Add Primary IP to Map, if not present.
@@ -114,6 +139,10 @@ func (pm *Monitor) Start(ctx context.Context) error {
 			}
 
 			pm.metastate.batch = scaler.BatchSize
+			if exhausted {
+				// if the subnet is exhausted, we ignore the scaler batch and set our local batch size to 1.
+				pm.metastate.batch = 1
+			}
 			pm.metastate.max = scaler.MaxIPCount
 			pm.metastate.minFreeCount, pm.metastate.maxFreeCount = CalculateMinFreeIPs(scaler), CalculateMaxFreeIPs(scaler)
 			pm.once.Do(func() {

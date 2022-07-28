@@ -149,7 +149,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager, node *v1.Node) error {
 			return metav1.IsControlledBy(object, node)
 		})).
 		WithEventFilter(predicate.Funcs{
-			// check that the generation is the same - status changes don't update generation.a
+			// check that the generation is the same - status changes don't update generation.
 			UpdateFunc: func(ue event.UpdateEvent) bool {
 				return ue.ObjectOld.GetGeneration() == ue.ObjectNew.GetGeneration()
 			},

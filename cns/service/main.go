@@ -29,6 +29,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/healthserver"
 	"github.com/Azure/azure-container-networking/cns/hnsclient"
 	"github.com/Azure/azure-container-networking/cns/ipampool"
+	cssctrl "github.com/Azure/azure-container-networking/cns/kubecontroller/clustersubnetstate"
 	nncctrl "github.com/Azure/azure-container-networking/cns/kubecontroller/nodenetworkconfig"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/multitenantcontroller"
@@ -39,6 +40,8 @@ import (
 	"github.com/Azure/azure-container-networking/cns/wireserver"
 	acn "github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/crd"
+	"github.com/Azure/azure-container-networking/crd/clustersubnetstate"
+	"github.com/Azure/azure-container-networking/crd/clustersubnetstate/api/v1alpha1"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 	"github.com/Azure/azure-container-networking/log"
@@ -1001,11 +1004,12 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 	// TODO(rbtr): nodename and namespace should be in the cns config
 	scopedcli := nncctrl.NewScopedClient(nnccli, types.NamespacedName{Namespace: "kube-system", Name: nodeName})
 
+	clusterSubnetStateChan := make(chan v1alpha1.ClusterSubnetState)
 	// initialize the ipam pool monitor
 	poolOpts := ipampool.Options{
 		RefreshDelay: poolIPAMRefreshRateInMilliseconds * time.Millisecond,
 	}
-	poolMonitor := ipampool.NewMonitor(httpRestServiceImplementation, scopedcli, &poolOpts)
+	poolMonitor := ipampool.NewMonitor(httpRestServiceImplementation, scopedcli, clusterSubnetStateChan, &poolOpts)
 	httpRestServiceImplementation.IPAMPoolMonitor = poolMonitor
 
 	// reconcile initial CNS state from CNI or apiserver.
@@ -1076,10 +1080,25 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 		return errors.Wrapf(err, "failed to get node %s", nodeName)
 	}
 
-	reconciler := nncctrl.NewReconciler(httpRestServiceImplementation, nnccli, poolMonitor)
+	// NodeNetworkConfig reconciler
+	nncReconciler := nncctrl.NewReconciler(httpRestServiceImplementation, nnccli, poolMonitor)
 	// pass Node to the Reconciler for Controller xref
-	if err := reconciler.SetupWithManager(manager, node); err != nil {
-		return errors.Wrapf(err, "failed to setup reconciler with manager")
+	if err := nncReconciler.SetupWithManager(manager, node); err != nil {
+		return errors.Wrapf(err, "failed to setup nnc reconciler with manager")
+	}
+
+	cssCli, err := clustersubnetstate.NewClient(kubeConfig)
+	if err != nil {
+		return errors.Wrapf(err, "failed to init css client")
+	}
+
+	// ClusterSubnetState reconciler
+	cssReconciler := cssctrl.Reconciler{
+		Cli:  cssCli,
+		Sink: clusterSubnetStateChan,
+	}
+	if err := cssReconciler.SetupWithManager(manager); err != nil {
+		return errors.Wrapf(err, "failed to setup css reconciler with manager")
 	}
 
 	// adding some routes to the root service mux
@@ -1123,7 +1142,7 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 	// wait for up to 10m for the Reconciler to run once.
 	timedCtx, cancel := context.WithTimeout(ctx, 10*time.Minute) //nolint:gomnd // default 10m
 	defer cancel()
-	if started := reconciler.Started(timedCtx); !started {
+	if started := nncReconciler.Started(timedCtx); !started {
 		return errors.Errorf("timed out waiting for reconciler start")
 	}
 	logger.Printf("started NodeNetworkConfig reconciler")

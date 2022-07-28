@@ -8,6 +8,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/fakes"
 	"github.com/Azure/azure-container-networking/cns/logger"
+	"github.com/Azure/azure-container-networking/crd/clustersubnetstate/api/v1alpha1"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 	"github.com/stretchr/testify/assert"
 )
@@ -60,8 +61,9 @@ func initFakes(state testState) (*fakes.HTTPServiceFake, *fakes.RequestControlle
 	}
 	fakecns := fakes.NewHTTPServiceFake()
 	fakerc := fakes.NewRequestControllerFake(fakecns, scalarUnits, subnetaddresspace, state.totalIPs)
+	fakeCSSSource := make(chan v1alpha1.ClusterSubnetState)
 
-	poolmonitor := NewMonitor(fakecns, &fakeNodeNetworkConfigUpdater{fakerc.NNC}, &Options{RefreshDelay: 100 * time.Second})
+	poolmonitor := NewMonitor(fakecns, &fakeNodeNetworkConfigUpdater{fakerc.NNC}, fakeCSSSource, &Options{RefreshDelay: 100 * time.Second})
 	poolmonitor.metastate = metaState{
 		batch: state.batch,
 		max:   state.max,
