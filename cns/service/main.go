@@ -1087,18 +1087,20 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 		return errors.Wrapf(err, "failed to setup nnc reconciler with manager")
 	}
 
-	cssCli, err := clustersubnetstate.NewClient(kubeConfig)
-	if err != nil {
-		return errors.Wrapf(err, "failed to init css client")
-	}
+	if cnsconfig.EnableSubnetScarcity {
+		cssCli, err := clustersubnetstate.NewClient(kubeConfig)
+		if err != nil {
+			return errors.Wrapf(err, "failed to init css client")
+		}
 
-	// ClusterSubnetState reconciler
-	cssReconciler := cssctrl.Reconciler{
-		Cli:  cssCli,
-		Sink: clusterSubnetStateChan,
-	}
-	if err := cssReconciler.SetupWithManager(manager); err != nil {
-		return errors.Wrapf(err, "failed to setup css reconciler with manager")
+		// ClusterSubnetState reconciler
+		cssReconciler := cssctrl.Reconciler{
+			Cli:  cssCli,
+			Sink: clusterSubnetStateChan,
+		}
+		if err := cssReconciler.SetupWithManager(manager); err != nil {
+			return errors.Wrapf(err, "failed to setup css reconciler with manager")
+		}
 	}
 
 	// adding some routes to the root service mux

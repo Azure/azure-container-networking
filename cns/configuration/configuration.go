@@ -21,6 +21,7 @@ const (
 type CNSConfig struct {
 	ChannelMode                 string
 	EnablePprof                 bool
+	EnableSubnetScarcity        bool
 	InitializeFromCNI           bool
 	ManagedSettings             ManagedSettings
 	MetricsBindAddress          string

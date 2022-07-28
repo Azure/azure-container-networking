@@ -53,8 +53,10 @@ func TestReadConfigFromFile(t *testing.T) {
 			name: "full config",
 			path: "testdata/good.json",
 			want: &CNSConfig{
-				ChannelMode:       "Direct",
-				InitializeFromCNI: true,
+				ChannelMode:          "Direct",
+				InitializeFromCNI:    true,
+				EnablePprof:          true,
+				EnableSubnetScarcity: true,
 				ManagedSettings: ManagedSettings{
 					PrivateEndpoint:           "abc",
 					InfrastructureNetworkID:   "abc",
