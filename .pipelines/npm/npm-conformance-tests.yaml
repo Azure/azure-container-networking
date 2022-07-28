@@ -88,14 +88,19 @@ jobs:
     steps:
       - checkout: self
 
-      - script: git clone https://github.com/huntergregory/kubernetes.git
+      - script: |
+          echo "cloning vakr"
+          git clone https://github.com/vakalapa/kubernetes.git
+
         displayName: "Clone Kubernetes Repo"
+
       - bash: |
           cd kubernetes
-          git checkout sleep-before-probing
+          git checkout vakr/sleepinnpmtests
           export PATH=$PATH:/usr/local/go/bin/
           make WHAT=test/e2e/e2e.test
         displayName: "Build Kubernetes e2e.test"
+
       - publish: $(System.DefaultWorkingDirectory)/kubernetes/_output/local/bin/linux/amd64
         artifact: Test
 
@@ -136,7 +141,7 @@ jobs:
         artifact: Test
 
       - task: AzureCLI@2
-        displayName: "Deploy"
+        displayName: "Create resource group"
         inputs:
           azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
           scriptType: "bash"
@@ -338,7 +343,7 @@ jobs:
         v2-windows:
           PROFILE: "cyc-ws22"
     steps:
-      - checkout: none
+      - checkout: self
       - download: current
         artifact: Test
       - task: AzureCLI@2
