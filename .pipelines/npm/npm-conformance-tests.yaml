@@ -201,7 +201,7 @@ jobs:
                   --node-count 2
 
               az aks get-credentials -n $(AZURE_CLUSTER) -g $(RESOURCE_GROUP) --file ./kubeconfig
-              ./kubectl --kubeconfig=./kubeconfig apply -f https://raw.githubusercontent.com/Azure/azure-container-networking/master/npm/azure-npm.yaml
+              ./kubectl --kubeconfig=./kubeconfig apply -f https://raw.githubusercontent.com/Azure/azure-container-networking/master/npm/examples/windows/azure-npm.yaml
               ./kubectl --kubeconfig=./kubeconfig set image daemonset/azure-npm-win -n kube-system azure-npm=$IMAGE_REGISTRY/azure-npm:windows-amd64-$(TAG)
 
             else
@@ -428,27 +428,7 @@ jobs:
       - bash: |
           cat ~/.kube/config
           curl -fsSL github.com/mattfenwick/cyclonus/releases/latest/download/cyclonus_linux_amd64.tar.gz | tar -zxv
-          ./cyclonus_linux_amd64/cyclonus generate \
-            --noisy=true \
-            --ignore-loopback=true \
-            --cleanup-namespaces=true \
-            --perturbation-wait-seconds=20 \
-            --pod-creation-timeout-seconds=480 \
-            --job-timeout-seconds=15 \
-            --server-protocol=TCP,UDP \
-            --exclude sctp,named-port,ip-block-with-except,multi-peer,upstream-e2e,example,end-port,namespaces-by-default-label | tee cyclonus-$CLUSTER_NAME
-
-            rc=0
-
-            cp cyclonus-$CLUSTER_NAME $(System.DefaultWorkingDirectory)/$CLUSTER_NAME/cyclonus-$CLUSTER_NAME
-
-            cat cyclonus-$CLUSTER_NAME | grep "failed" > /dev/null 2>&1 || rc=$?
-            echo $rc
-            if [ $rc -eq 0 ]; then
-                echo "failures detected"
-                exit 1
-            fi
-
+          ./test/cyclonus/test-cyclonus-windows.sh
         name: cyclonus
         displayName: "Run Cyclonus Test"
         failOnStderr: false
@@ -456,6 +436,7 @@ jobs:
 
       - bash: |
           export CLUSTER_NAME=$(RESOURCE_GROUP)-$(PROFILE)
+          cp cyclonus-$CLUSTER_NAME $(System.DefaultWorkingDirectory)/$CLUSTER_NAME/cyclonus-$CLUSTER_NAME
           echo "Getting cluster state for $CLUSTER_NAME"
           mkdir -p $(System.DefaultWorkingDirectory)/$CLUSTER_NAME
           kubectl logs -n kube-system -l k8s-app=azure-npm --tail -1 --prefix > $(System.DefaultWorkingDirectory)/$CLUSTER_NAME/npm-logs_$(PROFILE).txt
