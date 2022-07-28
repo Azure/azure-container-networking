@@ -1,6 +1,7 @@
 curl -fsSL github.com/mattfenwick/cyclonus/releases/latest/download/cyclonus_linux_amd64.tar.gz | tar -zxv
 ./cyclonus_linux_amd64/cyclonus generate \
     --noisy=true \
+    --retries=7 \
     --ignore-loopback=true \
     --cleanup-namespaces=true \
     --perturbation-wait-seconds=20 \

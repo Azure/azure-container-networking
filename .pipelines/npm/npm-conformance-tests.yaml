@@ -236,6 +236,7 @@ jobs:
       - bash: |
           echo "sleeping 3 minutes to allow NPM pods to restart"
           sleep 180
+          set -o pipefail
 
           ## create the output folder and include the kubeconfig there
           npmLogsFolder=$(System.DefaultWorkingDirectory)/npmLogs_$(AZURE_CLUSTER)
@@ -245,9 +246,7 @@ jobs:
           ## write to all NPM pod logs in the background (do this in the background instead of after to make sure the logs aren't truncated)
           npmPodList=`kubectl --kubeconfig=./kubeconfig get pods -n kube-system | grep npm | awk '{print $1}'`
           echo "Found NPM pods: $npmPodList"
-          for npmPod in $npmPodList; do
-              ./kubectl --kubeconfig=./kubeconfig logs -n kube-system $npmPod -f > $npmLogsFolder/$npmPod-logs.txt &
-          done
+
 
           ## Run all Conformance tests in the background
           echo $FQDN
@@ -258,6 +257,13 @@ jobs:
           }
 
           runConformanceWindows () {
+            git clone https://github.com/huntergregory/kubernetes.git
+            cd kubernetes
+            git checkout sleep-before-probing
+            export PATH=$PATH:/usr/local/go/bin/
+            make WHAT=test/e2e/e2e.test
+            cd ..
+
             nomatch1="should enforce policy based on PodSelector or NamespaceSelector"
             nomatch2="should enforce policy based on NamespaceSelector with MatchExpressions using default ns label"
             nomatch3="should enforce policy based on PodSelector and NamespaceSelector"
@@ -267,7 +273,7 @@ jobs:
             namedPorts="named port"
             wrongK8sVersion="Netpol API"
             toSkip="\[LinuxOnly\]|$nomatch1|$nomatch2|$nomatch3|$nomatch4|$cidrExcept1|$cidrExcept2|$namedPorts|$wrongK8sVersion|SCTP"
-            KUBERNETES_SERVICE_HOST="$FQDN" KUBERNETES_SERVICE_PORT=443 $(Pipeline.Workspace)/Test/e2e.test --provider=local --ginkgo.focus="NetworkPolicy" --ginkgo.skip="$toSkip"  --node-os-distro=windows --allowed-not-ready-nodes=1 --kubeconfig=./kubeconfig
+            KUBERNETES_SERVICE_HOST="$FQDN" KUBERNETES_SERVICE_PORT=443 $(System.DefaultWorkingDirectory)/kubernetes/_output/local/bin/linux/amd64/e2e.test --provider=local --ginkgo.focus="NetworkPolicy" --ginkgo.skip="$toSkip"  --node-os-distro=windows --allowed-not-ready-nodes=1 --kubeconfig=./kubeconfig
           }
 
           exitCode=0
@@ -281,7 +287,7 @@ jobs:
                   if [[ $(AZURE_CLUSTER) == *ws22 ]] # * is used for pattern matching
                   then
                     echo "starting conformance test #$round" && \
-                        runConformanceWindows > $npmLogsFolder/conformance-results-$round && \
+                        runConformanceWindows | tee $npmLogsFolder/conformance-results-$round && \
                         echo "finished conformance test #$round" &
                     pidOfConformanceTest=$!
                     conformancePIDs+=($pidOfConformanceTest)
@@ -308,15 +314,19 @@ jobs:
               # run the conformance test in the foreground and write the output to stdout and a file
             if [[ $(AZURE_CLUSTER) == *ws22 ]] # * is used for pattern matching
             then
-              runConformanceWindows > $npmLogsFolder/conformance-results
+              runConformanceWindows | tee $npmLogsFolder/conformance-results
               exitCode=$?
             else
-              runConformance > $npmLogsFolder/conformance-results
+              runConformance | tee $npmLogsFolder/conformance-results
               exitCode=$?
             fi
           fi
           # kill the background processes (the logs) that have this process' pid (i.e. $$) as a parent
-          pkill -P $$
+
+          for npmPod in $npmPodList; do
+              ./kubectl --kubeconfig=./kubeconfig logs -n kube-system $npmPod > $npmLogsFolder/$npmPod-logs.txt
+          done
+
           exit $exitCode
         displayName: "Run Test Suite and Get Logs"
         failOnStderr: false
