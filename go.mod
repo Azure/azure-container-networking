@@ -11,7 +11,7 @@ require (
 	github.com/Microsoft/hcsshim v0.8.23
 	github.com/avast/retry-go/v3 v3.1.1
 	github.com/billgraziano/dpapi v0.4.0
-	github.com/containernetworking/cni v0.8.1
+	github.com/containernetworking/cni v1.1.2
 	github.com/docker/libnetwork v0.8.0-dev.2.0.20210525090646-64b7a4574d14
 	github.com/golang/mock v1.6.0
 	github.com/golang/protobuf v1.5.2
