@@ -1083,7 +1083,7 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 	// NodeNetworkConfig reconciler
 	nncReconciler := nncctrl.NewReconciler(httpRestServiceImplementation, nnccli, poolMonitor)
 	// pass Node to the Reconciler for Controller xref
-	if err := nncReconciler.SetupWithManager(manager, node); err != nil {
+	if err := nncReconciler.SetupWithManager(manager, node); err != nil { //nolint:govet // intentional shadow
 		return errors.Wrapf(err, "failed to setup nnc reconciler with manager")
 	}
 
