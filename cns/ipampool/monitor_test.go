@@ -8,7 +8,6 @@ import (
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/fakes"
 	"github.com/Azure/azure-container-networking/cns/logger"
-	"github.com/Azure/azure-container-networking/crd/clustersubnetstate/api/v1alpha1"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 	"github.com/stretchr/testify/assert"
 )
@@ -38,6 +37,7 @@ type testState struct {
 	allocated               int64
 	assigned                int
 	batch                   int64
+	exhausted               bool
 	max                     int64
 	pendingRelease          int64
 	releaseThresholdPercent int64
@@ -61,12 +61,12 @@ func initFakes(state testState) (*fakes.HTTPServiceFake, *fakes.RequestControlle
 	}
 	fakecns := fakes.NewHTTPServiceFake()
 	fakerc := fakes.NewRequestControllerFake(fakecns, scalarUnits, subnetaddresspace, state.totalIPs)
-	fakeCSSSource := make(chan v1alpha1.ClusterSubnetState)
 
-	poolmonitor := NewMonitor(fakecns, &fakeNodeNetworkConfigUpdater{fakerc.NNC}, fakeCSSSource, &Options{RefreshDelay: 100 * time.Second})
+	poolmonitor := NewMonitor(fakecns, &fakeNodeNetworkConfigUpdater{fakerc.NNC}, nil, &Options{RefreshDelay: 100 * time.Second})
 	poolmonitor.metastate = metaState{
-		batch: state.batch,
-		max:   state.max,
+		batch:     state.batch,
+		max:       state.max,
+		exhausted: state.exhausted,
 	}
 	fakecns.PoolMonitor = &directUpdatePoolMonitor{m: poolmonitor}
 	if err := fakecns.SetNumberOfAssignedIPs(state.assigned); err != nil {
@@ -88,26 +88,39 @@ func TestPoolSizeIncrease(t *testing.T) {
 		{
 			name: "typ",
 			in: testState{
-				batch:                   10,
-				assigned:                8,
 				allocated:               10,
-				requestThresholdPercent: 50,
-				releaseThresholdPercent: 150,
+				assigned:                8,
+				batch:                   10,
 				max:                     30,
+				releaseThresholdPercent: 150,
+				requestThresholdPercent: 50,
 			},
 			want: 20,
 		},
 		{
-			name: "starvation",
+			name: "odd batch",
 			in: testState{
-				batch:                   1,
-				assigned:                10,
 				allocated:               10,
-				requestThresholdPercent: 50,
-				releaseThresholdPercent: 150,
+				assigned:                10,
+				batch:                   3,
 				max:                     30,
+				releaseThresholdPercent: 150,
+				requestThresholdPercent: 50,
 			},
-			want: 11,
+			want: 13,
+		},
+		{
+			name: "subnet exhausted",
+			in: testState{
+				allocated:               10,
+				assigned:                8,
+				batch:                   10,
+				exhausted:               true,
+				max:                     30,
+				releaseThresholdPercent: 150,
+				requestThresholdPercent: 50,
+			},
+			want: 9,
 		},
 	}
 
@@ -267,36 +280,54 @@ func TestIncreaseWithPendingRelease(t *testing.T) {
 
 func TestPoolDecrease(t *testing.T) {
 	tests := []struct {
-		name         string
-		in           testState
-		want         int64
-		wantReleased int
+		name           string
+		in             testState
+		targetAssigned int
+		want           int64
+		wantReleased   int
 	}{
 		{
 			name: "typ",
 			in: testState{
-				batch:                   10,
 				allocated:               20,
 				assigned:                15,
-				requestThresholdPercent: 50,
-				releaseThresholdPercent: 150,
+				batch:                   10,
 				max:                     30,
+				releaseThresholdPercent: 150,
+				requestThresholdPercent: 50,
 			},
-			want:         10,
-			wantReleased: 10,
+			targetAssigned: 5,
+			want:           10,
+			wantReleased:   10,
 		},
 		{
-			name: "starvation",
+			name: "odd batch",
 			in: testState{
-				batch:                   1,
-				allocated:               20,
+				allocated:               21,
 				assigned:                19,
-				requestThresholdPercent: 50,
-				releaseThresholdPercent: 150,
+				batch:                   3,
 				max:                     30,
+				releaseThresholdPercent: 150,
+				requestThresholdPercent: 50,
 			},
-			want:         19,
-			wantReleased: 1,
+			targetAssigned: 15,
+			want:           18,
+			wantReleased:   3,
+		},
+		{
+			name: "exhausted",
+			in: testState{
+				allocated:               20,
+				assigned:                15,
+				batch:                   10,
+				exhausted:               true,
+				max:                     30,
+				releaseThresholdPercent: 150,
+				requestThresholdPercent: 50,
+			},
+			targetAssigned: 15,
+			want:           16,
+			wantReleased:   4,
 		},
 	}
 	for _, tt := range tests {
@@ -305,20 +336,25 @@ func TestPoolDecrease(t *testing.T) {
 			fakecns, fakerc, poolmonitor := initFakes(tt.in)
 			assert.NoError(t, fakerc.Reconcile(true))
 
-			// Pool monitor does nothing, as the current number of IPs falls in the threshold
-			assert.NoError(t, poolmonitor.reconcile(context.Background()))
+			// Decrease the number of allocated IPs down to target. This may trigger a scale down.
+			assert.NoError(t, fakecns.SetNumberOfAssignedIPs(tt.targetAssigned))
 
-			// Decrease the number of allocated IPs down to 5. This should trigger a scale down
-			assert.NoError(t, fakecns.SetNumberOfAssignedIPs(4))
+			assert.Eventually(t, func() bool {
+				_ = poolmonitor.reconcile(context.Background())
+				return tt.want == poolmonitor.spec.RequestedIPCount
+			}, time.Second, 1*time.Millisecond)
 
-			// Pool monitor will adjust the spec so the pool size will be 1 batch size smaller
-			assert.NoError(t, poolmonitor.reconcile(context.Background()))
+			// verify that the adjusted spec is smaller than the initial pool size
+			assert.Less(t, poolmonitor.spec.RequestedIPCount, tt.in.allocated)
 
-			// ensure that the adjusted spec is smaller than the initial pool size
+			// verify that we have released the expected amount
 			assert.Len(t, poolmonitor.spec.IPsNotInUse, tt.wantReleased)
 
 			// reconcile the fake request controller
 			assert.NoError(t, fakerc.Reconcile(true))
+
+			// make sure IPConfig state size reflects the new pool size
+			assert.Len(t, fakecns.GetPodIPConfigState(), int(tt.want))
 
 			// CNS won't actually clean up the IPsNotInUse until it changes the spec for some other reason (i.e. scale up)
 			// so instead we should just verify that the CNS state has no more PendingReleaseIPConfigs,

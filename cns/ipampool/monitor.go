@@ -50,9 +50,9 @@ type Monitor struct {
 	metastate   metaState
 	nnccli      nodeNetworkConfigSpecUpdater
 	httpService cns.HTTPService
-	started     chan interface{}
 	cssSource   <-chan v1alpha1.ClusterSubnetState
 	nncSource   chan v1alpha.NodeNetworkConfig
+	started     chan interface{}
 	once        sync.Once
 }
 
@@ -71,8 +71,9 @@ func NewMonitor(httpService cns.HTTPService, nnccli nodeNetworkConfigSpecUpdater
 		opts:        opts,
 		httpService: httpService,
 		nnccli:      nnccli,
-		started:     make(chan interface{}),
+		cssSource:   cssSource,
 		nncSource:   make(chan v1alpha.NodeNetworkConfig),
+		started:     make(chan interface{}),
 	}
 }
 
@@ -263,7 +264,7 @@ func (pm *Monitor) increasePoolSize(ctx context.Context, meta metaState, state i
 	tempNNCSpec.RequestedIPCount += batchSize
 	if tempNNCSpec.RequestedIPCount > meta.max {
 		// We don't want to ask for more ips than the max
-		logger.Printf("[ipam-pool-monitor] Requested IP count (%d) is over max limit (%d), requesting max limit instead.", tempNNCSpec.RequestedIPCount, pm.metastate.max)
+		logger.Printf("[ipam-pool-monitor] Requested IP count (%d) is over max limit (%d), requesting max limit instead.", tempNNCSpec.RequestedIPCount, meta.max)
 		tempNNCSpec.RequestedIPCount = meta.max
 	}
 
