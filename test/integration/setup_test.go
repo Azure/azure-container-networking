@@ -123,6 +123,8 @@ func installCNSDaemonset(ctx context.Context, clientset *kubernetes.Clientset, i
 
 	image, _ := parseImageString(cns.Spec.Template.Spec.Containers[0].Image)
 	cns.Spec.Template.Spec.Containers[0].Image = getImageString(image, imageTag)
+	initImage, _ := parseImageString(cns.Spec.Template.Spec.InitContainers[0].Image)
+	cns.Spec.Template.Spec.InitContainers[0].Image = getImageString(initImage, imageTag)
 	cnsDaemonsetClient := clientset.AppsV1().DaemonSets(cns.Namespace)
 
 	log.Printf("Installing CNS with image %s", cns.Spec.Template.Spec.Containers[0].Image)
