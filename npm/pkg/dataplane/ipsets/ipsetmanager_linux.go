@@ -94,23 +94,35 @@ func (iMgr *IPSetManager) resetIPSets() error {
 	if !haveAzureIPSets {
 		return nil
 	}
-	creator, originalNumAzureSets, destroyFailureCount := iMgr.fileCreatorForReset(azureIPSets)
+
+	creator, names, failedNames := iMgr.fileCreatorForFlushAll(azureIPSets)
 	restoreError := creator.RunCommandWithFile(ipsetCommand, ipsetRestoreFlag)
 	if restoreError != nil {
 		klog.Errorf(
-			"failed to restore ipsets (prometheus metrics may be off now). Had originalNumAzureSets %d and destroyFailureCount %d with err: %v",
-			originalNumAzureSets, destroyFailureCount, restoreError,
+			"failed to flush all ipsets (prometheus metrics may be off now). originalNumAzureSets: %d. failed flushes: [%+v]. err: %v",
+			len(names), failedNames, restoreError,
 		)
-		return npmerrors.SimpleErrorWrapper("failed to run ipset restore for resetting IPSets", restoreError)
+		return npmerrors.SimpleErrorWrapper("failed to run ipset restore while flushing all for resetting IPSets", restoreError)
+	}
+
+	creator, destroyFailureCount := iMgr.fileCreatorForDestroyAll(names, failedNames)
+	destroyError := creator.RunCommandWithFile(ipsetCommand, ipsetRestoreFlag)
+	if destroyError != nil {
+		klog.Errorf(
+			"failed to destroy all ipsets (prometheus metrics may be off now). destroyFailureCount %d. err: %v",
+			destroyFailureCount, destroyError,
+		)
+		return npmerrors.SimpleErrorWrapper("failed to run ipset restore while destroying all for resetting IPSets", destroyError)
 	}
 	return nil
 }
 
 // this needs to be a separate function because we need to check creator contents in UTs
-func (iMgr *IPSetManager) fileCreatorForReset(ipsetListOutput []byte) (*ioutil.FileCreator, int, *int) {
+func (iMgr *IPSetManager) fileCreatorForFlushAll(ipsetListOutput []byte) (*ioutil.FileCreator, []string, map[string]struct{}) {
 	destroyFailureCount := 0
 	creator := ioutil.NewFileCreator(iMgr.ioShim, maxTryCount, ipsetRestoreLineFailurePattern)
 	names := make([]string, 0)
+	failedNames := make(map[string]struct{}, 0)
 	readIndex := 0
 	var line []byte
 	// flush all the sets and create a list of the sets so we can destroy them
@@ -122,17 +134,18 @@ func (iMgr *IPSetManager) fileCreatorForReset(ipsetListOutput []byte) (*ioutil.F
 		errorHandlers := []*ioutil.LineErrorHandler{
 			{
 				Definition: setDoesntExistDefinition,
-				Method:     ioutil.ContinueAndAbortSection,
+				Method:     ioutil.Continue,
 				Callback: func() {
 					klog.Infof("[RESET-IPSETS] skipping flush and upcoming destroy for set %s since the set doesn't exist", hashedSetName)
 				},
 			},
 			{
 				Definition: ioutil.AlwaysMatchDefinition,
-				Method:     ioutil.ContinueAndAbortSection,
+				Method:     ioutil.Continue,
 				Callback: func() {
 					klog.Errorf("[RESET-IPSETS] marking flush and upcoming destroy for set %s as a failure due to unknown error", hashedSetName)
 					destroyFailureCount++
+					failedNames[hashedSetName] = struct{}{}
 					// TODO mark as a failure
 				},
 			},
@@ -141,8 +154,20 @@ func (iMgr *IPSetManager) fileCreatorForReset(ipsetListOutput []byte) (*ioutil.F
 		creator.AddLine(sectionID, errorHandlers, ipsetFlushFlag, hashedSetName) // flush set
 	}
 
+	return creator, names, failedNames
+}
+
+func (iMgr *IPSetManager) fileCreatorForDestroyAll(names []string, failedNames map[string]struct{}) (*ioutil.FileCreator, *int) {
+	destroyFailureCount := 0
+	creator := ioutil.NewFileCreator(iMgr.ioShim, maxTryCount, ipsetRestoreLineFailurePattern)
+
 	// destroy all the sets
 	for _, hashedSetName := range names {
+		if _, ok := failedNames[hashedSetName]; ok {
+			klog.Infof("skipping destroy for set %s since it failed to flush", hashedSetName)
+			continue
+		}
+
 		hashedSetName := hashedSetName // to appease go lint
 		errorHandlers := []*ioutil.LineErrorHandler{
 			// error handlers specific to resetting ipsets
@@ -175,8 +200,8 @@ func (iMgr *IPSetManager) fileCreatorForReset(ipsetListOutput []byte) (*ioutil.F
 		sectionID := sectionID(destroySectionPrefix, hashedSetName)
 		creator.AddLine(sectionID, errorHandlers, ipsetDestroyFlag, hashedSetName) // destroy set
 	}
-	originalNumAzureSets := len(names)
-	return creator, originalNumAzureSets, &destroyFailureCount
+
+	return creator, &destroyFailureCount
 }
 
 /*

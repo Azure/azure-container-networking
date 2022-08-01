@@ -20,17 +20,17 @@ import (
 const (
 	saveResult = "create test-list1 list:set size 8\nadd test-list1 test-list2"
 
-	resetIPSetsListOutputString = `azure-npm-123456
-azure-npm-987654
-azure-npm-777777`
-	resetIPSetsNumGreppedSets = 3
-
 	createNethashFormat  = "create %s hash:net family inet hashsize 1024 maxelem 65536"
 	createPorthashFormat = "create %s hash:ip,port family inet hashsize 1024 maxelem 65536"
 	createListFormat     = "create %s list:set size 8"
 )
 
-var resetIPSetsListOutput = []byte(resetIPSetsListOutputString)
+var (
+	// need to be sorted
+	resetIPSetsNames            = []string{"azure-npm-123456", "azure-npm-777777", "azure-npm-987654"}
+	resetIPSetsListOutputString = strings.Join(resetIPSetsNames, "\n")
+	resetIPSetsListOutput       = []byte(resetIPSetsListOutputString)
+)
 
 // TODO test that a reconcile list is updated for all the TestFailure UTs
 // TODO same exact TestFailure UTs for unknown errors
@@ -196,88 +196,134 @@ func TestNextCreateLine(t *testing.T) {
 }
 
 func TestDestroyNPMIPSetsCreatorSuccess(t *testing.T) {
-	calls := []testutils.TestCmd{fakeRestoreSuccessCommand}
+	calls := []testutils.TestCmd{fakeRestoreSuccessCommand, fakeRestoreSuccessCommand}
 	ioshim := common.NewMockIOShim(calls)
 	defer ioshim.VerifyCalls(t, calls)
 	iMgr := NewIPSetManager(applyAlwaysCfg, ioshim)
-	creator, numSets, destroyFailureCount := iMgr.fileCreatorForReset(resetIPSetsListOutput)
+	creator, names, failedNames := iMgr.fileCreatorForFlushAll(resetIPSetsListOutput)
 	actualLines := strings.Split(creator.ToString(), "\n")
 	expectedLines := []string{
 		"-F azure-npm-123456",
-		"-F azure-npm-987654",
 		"-F azure-npm-777777",
-		"-X azure-npm-123456",
-		"-X azure-npm-987654",
-		"-X azure-npm-777777",
+		"-F azure-npm-987654",
 		"",
 	}
 	dptestutils.AssertEqualLines(t, expectedLines, actualLines)
-	require.Equal(t, resetIPSetsNumGreppedSets, numSets, "got unexpected num sets")
+	sort.Strings(names)
+	require.Equal(t, resetIPSetsNames, names, "got unexpected ipset names")
 	wasModified, err := creator.RunCommandOnceWithFile("ipset", "restore")
-	require.False(t, wasModified)
-	require.NoError(t, err)
-	require.Equal(t, 0, *destroyFailureCount, "got unexpected failure count")
+	require.False(t, wasModified, "got unexpected flush modify flag")
+	require.NoError(t, err, "got unexpected flush error")
+	require.Len(t, failedNames, 0, "got unexpected flush failure count")
+
+	creator, destroyFailureCount := iMgr.fileCreatorForDestroyAll(names, failedNames)
+	actualLines = strings.Split(creator.ToString(), "\n")
+	expectedLines = []string{
+		"-X azure-npm-123456",
+		"-X azure-npm-777777",
+		"-X azure-npm-987654",
+		"",
+	}
+	dptestutils.AssertEqualLines(t, expectedLines, actualLines)
+	wasModified, err = creator.RunCommandOnceWithFile("ipset", "restore")
+	require.False(t, wasModified, "got unexpected destroy modified flag")
+	require.NoError(t, err, "got unexpected destroy error")
+	require.Equal(t, 0, *destroyFailureCount, "got unexpected destroy failure count")
 }
 
 func TestDestroyNPMIPSetsCreatorErrorHandling(t *testing.T) {
 	tests := []struct {
-		name                 string
-		call                 testutils.TestCmd
-		expectedLines        []string
-		expectedFailureCount int
+		name                   string
+		calls                  []testutils.TestCmd
+		expectedFlushFailure   bool
+		expectedFlushLines     []string
+		expectedFailedNames    map[string]struct{}
+		expectedDestroyFailure bool
+		expectedDestroyLines   []string
+		expectedFailureCount   int
 	}{
 		{
 			name: "set doesn't exist on flush",
-			call: testutils.TestCmd{
-				Cmd:      ipsetRestoreStringSlice,
-				Stdout:   "Error in line 2: The set with the given name does not exist",
-				ExitCode: 1,
+			calls: []testutils.TestCmd{
+				{
+					Cmd:      ipsetRestoreStringSlice,
+					Stdout:   "Error in line 2: The set with the given name does not exist",
+					ExitCode: 1,
+				},
+				fakeRestoreSuccessCommand,
 			},
-			expectedLines: []string{
-				"-F azure-npm-777777",
+			expectedFlushFailure: true,
+			expectedFlushLines: []string{
+				"-F azure-npm-987654",
+				"",
+			},
+			expectedFailedNames:    make(map[string]struct{}),
+			expectedDestroyFailure: false,
+			expectedDestroyLines: []string{
 				"-X azure-npm-123456",
-				"-X azure-npm-777777",
+				"-X azure-npm-987654",
 				"",
 			},
 			expectedFailureCount: 0,
 		},
 		{
 			name: "some other error on flush",
-			call: testutils.TestCmd{
-				Cmd:      ipsetRestoreStringSlice,
-				Stdout:   "Error in line 2: for some other error",
-				ExitCode: 1,
+			calls: []testutils.TestCmd{
+				{
+					Cmd:      ipsetRestoreStringSlice,
+					Stdout:   "Error in line 2: for some other error",
+					ExitCode: 1,
+				},
+				fakeRestoreSuccessCommand,
 			},
-			expectedLines: []string{
-				"-F azure-npm-777777",
-				"-X azure-npm-123456",
-				"-X azure-npm-777777",
+			expectedFlushFailure: true,
+			expectedFlushLines: []string{
+				"-F azure-npm-987654",
 				"",
 			},
-			expectedFailureCount: 1,
+			expectedFailedNames: map[string]struct{}{
+				"azure-npm-777777": {},
+			},
+			expectedDestroyFailure: false,
+			expectedDestroyLines: []string{
+				"-X azure-npm-123456",
+				"-X azure-npm-987654",
+				"",
+			},
+			expectedFailureCount: 0,
 		},
 		{
 			name: "set doesn't exist on destroy",
-			call: testutils.TestCmd{
-				Cmd:      ipsetRestoreStringSlice,
-				Stdout:   "Error in line 5: The set with the given name does not exist",
-				ExitCode: 1,
+			calls: []testutils.TestCmd{
+				fakeRestoreSuccessCommand,
+				{
+					Cmd:      ipsetRestoreStringSlice,
+					Stdout:   "Error in line 2: The set with the given name does not exist",
+					ExitCode: 1,
+				},
 			},
-			expectedLines: []string{
-				"-X azure-npm-777777",
+			expectedFlushFailure:   false,
+			expectedDestroyFailure: true,
+			expectedDestroyLines: []string{
+				"-X azure-npm-987654",
 				"",
 			},
 			expectedFailureCount: 0,
 		},
 		{
 			name: "some other error on destroy",
-			call: testutils.TestCmd{
-				Cmd:      ipsetRestoreStringSlice,
-				Stdout:   "Error in line 5: some other error",
-				ExitCode: 1,
+			calls: []testutils.TestCmd{
+				fakeRestoreSuccessCommand,
+				{
+					Cmd:      ipsetRestoreStringSlice,
+					Stdout:   "Error in line 2: some other error",
+					ExitCode: 1,
+				},
 			},
-			expectedLines: []string{
-				"-X azure-npm-777777",
+			expectedFlushFailure:   false,
+			expectedDestroyFailure: true,
+			expectedDestroyLines: []string{
+				"-X azure-npm-987654",
 				"",
 			},
 			expectedFailureCount: 1,
@@ -285,19 +331,43 @@ func TestDestroyNPMIPSetsCreatorErrorHandling(t *testing.T) {
 	}
 	for _, tt := range tests {
 		tt := tt
+		fmt.Println(tt)
 		t.Run(tt.name, func(t *testing.T) {
-			calls := []testutils.TestCmd{tt.call}
-			ioshim := common.NewMockIOShim(calls)
-			defer ioshim.VerifyCalls(t, calls)
+			ioshim := common.NewMockIOShim(tt.calls)
+			defer ioshim.VerifyCalls(t, tt.calls)
 			iMgr := NewIPSetManager(applyAlwaysCfg, ioshim)
-			creator, numSets, destroyFailureCount := iMgr.fileCreatorForReset(resetIPSetsListOutput)
-			require.Equal(t, resetIPSetsNumGreppedSets, numSets, "got unexpected num sets")
+			creator, names, failedNames := iMgr.fileCreatorForFlushAll(resetIPSetsListOutput)
+
+			sort.Strings(names)
+			require.Equal(t, resetIPSetsNames, names, "got unexpected ipset names")
 			wasModified, err := creator.RunCommandOnceWithFile("ipset", "restore")
-			require.True(t, wasModified)
-			require.Error(t, err)
-			actualLines := strings.Split(creator.ToString(), "\n")
-			dptestutils.AssertEqualLines(t, tt.expectedLines, actualLines)
-			require.Equal(t, tt.expectedFailureCount, *destroyFailureCount, "got unexpected failure count")
+			if tt.expectedFlushFailure {
+				require.True(t, wasModified, "got unexpected flush modify flag")
+				require.Error(t, err, "got unexpected flush success")
+				fmt.Println("err:", err.Error())
+				require.Equal(t, failedNames, tt.expectedFailedNames)
+				actualLines := strings.Split(creator.ToString(), "\n")
+				dptestutils.AssertEqualLines(t, tt.expectedFlushLines, actualLines)
+			} else {
+				require.False(t, wasModified, "got unexpected flush modify flag")
+				require.NoError(t, err, "got unexpected flush error")
+				require.Len(t, failedNames, 0)
+			}
+
+			creator, destroyFailureCount := iMgr.fileCreatorForDestroyAll(names, failedNames)
+			wasModified, err = creator.RunCommandOnceWithFile("ipset", "restore")
+			if tt.expectedDestroyFailure {
+				require.True(t, wasModified, "got unexpected destroy modify flag")
+				require.Error(t, err, "got unexpected destroy success")
+				fmt.Println("err:", err.Error())
+				require.Equal(t, tt.expectedFailureCount, *destroyFailureCount, "got unexpected failure count")
+				actualLines := strings.Split(creator.ToString(), "\n")
+				dptestutils.AssertEqualLines(t, tt.expectedDestroyLines, actualLines)
+			} else {
+				require.False(t, wasModified, "got unexpected destroy modify flag")
+				require.NoError(t, err, "got unexpected destroy error")
+				require.Equal(t, 0, *destroyFailureCount, "got unexpected failure count")
+			}
 		})
 	}
 }
@@ -321,6 +391,7 @@ func TestDestroyNPMIPSets(t *testing.T) {
 			calls: []testutils.TestCmd{
 				{Cmd: []string{"ipset", "list", "--name"}, PipedToCommand: true},
 				{Cmd: []string{"grep", "azure-npm-"}, Stdout: resetIPSetsListOutputString},
+				fakeRestoreSuccessCommand,
 				fakeRestoreSuccessCommand,
 			},
 			wantErr: false,
@@ -355,6 +426,7 @@ func TestDestroyNPMIPSets(t *testing.T) {
 					ExitCode: 1,
 				},
 				fakeRestoreSuccessCommand,
+				fakeRestoreSuccessCommand,
 			},
 			wantErr: false,
 		},
@@ -369,6 +441,7 @@ func TestDestroyNPMIPSets(t *testing.T) {
 					ExitCode: 1,
 				},
 				fakeRestoreSuccessCommand,
+				fakeRestoreSuccessCommand,
 			},
 			wantErr: false,
 		},
@@ -377,9 +450,10 @@ func TestDestroyNPMIPSets(t *testing.T) {
 			calls: []testutils.TestCmd{
 				{Cmd: []string{"ipset", "list", "--name"}, PipedToCommand: true},
 				{Cmd: []string{"grep", "azure-npm-"}, Stdout: resetIPSetsListOutputString},
+				fakeRestoreSuccessCommand,
 				{
 					Cmd:      ipsetRestoreStringSlice,
-					Stdout:   "Error in line 5: The set with the given name does not exist",
+					Stdout:   "Error in line 2: The set with the given name does not exist",
 					ExitCode: 1,
 				},
 				fakeRestoreSuccessCommand,
@@ -391,9 +465,10 @@ func TestDestroyNPMIPSets(t *testing.T) {
 			calls: []testutils.TestCmd{
 				{Cmd: []string{"ipset", "list", "--name"}, PipedToCommand: true},
 				{Cmd: []string{"grep", "azure-npm-"}, Stdout: resetIPSetsListOutputString},
+				fakeRestoreSuccessCommand,
 				{
 					Cmd:      ipsetRestoreStringSlice,
-					Stdout:   "Error in line 5: for some other error",
+					Stdout:   "Error in line 2: for some other error",
 					ExitCode: 1,
 				},
 				fakeRestoreSuccessCommand,
