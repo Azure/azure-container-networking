@@ -993,19 +993,20 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 	}
 
 	var podInfoByIPProvider cns.PodInfoByIPProvider
-	if cnsconfig.ManageEndpointState {
+	switch {
+	case cnsconfig.ManageEndpointState:
 		logger.Printf("Initializing from self managed endpoint store")
 		podInfoByIPProvider, err = cnireconciler.NewCNSPodInfoProvider(httpRestServiceImplementation.EndpointStateStore) // get reference to endpoint state store from rest server
 		if err != nil {
 			return errors.Wrap(err, "failed to create CNS PodInfoProvider")
 		}
-	} else if cnsconfig.InitializeFromCNI {
+	case cnsconfig.InitializeFromCNI:
 		logger.Printf("Initializing from CNI")
 		podInfoByIPProvider, err = cnireconciler.NewCNIPodInfoProvider()
 		if err != nil {
 			return errors.Wrap(err, "failed to create CNI PodInfoProvider")
 		}
-	} else {
+	default:
 		logger.Printf("Initializing from Kubernetes")
 		podInfoByIPProvider = cns.PodInfoByIPProviderFunc(func() (map[string]cns.PodInfo, error) {
 			pods, err := clientset.CoreV1().Pods("").List(ctx, metav1.ListOptions{ //nolint:govet // ignore err shadow
@@ -1021,7 +1022,6 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 			return podInfo, nil
 		})
 	}
-
 	// create scoped kube clients.
 	nnccli, err := nodenetworkconfig.NewClient(kubeConfig)
 	if err != nil {
