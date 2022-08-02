@@ -11,7 +11,7 @@ AZCLI   ?= docker run -v $(AZCFG):/root/.azure -v $(KUBECFG):/root/.kube -v $(SS
 USER       ?= $(whoami)
 CLUSTER    ?= $(USER)-$(REGION)
 GROUP      ?= $(CLUSTER)
-REGION     ?= centraluseuap
+REGION     ?= eastus2euap
 SUB        ?= $(AZURE_SUBSCRIPTION)
 VNET       ?= $(CLUSTER)
 
