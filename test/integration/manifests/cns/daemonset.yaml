@@ -91,6 +91,10 @@ spec:
               mountPath: /etc/cni/net.d
       hostNetwork: true
       volumes:
+        - name: cni-conflist
+          hostPath:
+            path: /etc/cni/net.d
+            type: Directory
         - name: log
           hostPath:
             path: /var/log
