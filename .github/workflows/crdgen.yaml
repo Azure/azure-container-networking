@@ -28,3 +28,43 @@ jobs:
       run: make -C crd/multitenantnetworkcontainer
     - name: Fail if the tree is dirty
       run: test -z "$(git status --porcelain)"
+  crdgen118:
+    strategy:
+      matrix:
+        go-version: ['1.18']
+        os: [ubuntu-latest]
+    name: CRDs are Generated
+    runs-on: ${{ matrix.os }}
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
+    - uses: actions/setup-go@v3
+      with:
+        go-version: ${{ matrix.go-version }} 
+    - name: Regenerate NodeNetworkConfig CRD
+      run: make -C crd/nodenetworkconfig
+    - name: Regenerate MultitenantNetworkContainer CRD
+      run: make -C crd/multitenantnetworkcontainer
+    - name: Fail if the tree is dirty
+      run: test -z "$(git status --porcelain)"
+  crdgen119:
+    strategy:
+      matrix:
+        go-version: ['1.19']
+        os: [ubuntu-latest]
+    name: CRDs are Generated
+    runs-on: ${{ matrix.os }}
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
+    - uses: actions/setup-go@v3
+      with:
+        go-version: ${{ matrix.go-version }} 
+    - name: Regenerate NodeNetworkConfig CRD
+      run: make -C crd/nodenetworkconfig
+    - name: Regenerate MultitenantNetworkContainer CRD
+      run: make -C crd/multitenantnetworkcontainer
+    - name: Fail if the tree is dirty
+      run: test -z "$(git status --porcelain)"

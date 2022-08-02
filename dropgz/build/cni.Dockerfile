@@ -1,12 +1,12 @@
 FROM mcr.microsoft.com/oss/cilium/cilium:1.12.1.1 as cilium
 
-FROM mcr.microsoft.com/oss/go/microsoft/golang:1.18 AS azure-ipam
+FROM mcr.microsoft.com/oss/go/microsoft/golang:1.19 AS azure-ipam
 ARG VERSION
 WORKDIR /azure-ipam
 COPY ./azure-ipam .
 RUN CGO_ENABLED=0 go build -a -o bin/azure-ipam -trimpath -ldflags "-X main.version="$VERSION"" -gcflags="-dwarflocationlists=true" .
 
-FROM mcr.microsoft.com/oss/go/microsoft/golang:1.18 AS azure-vnet
+FROM mcr.microsoft.com/oss/go/microsoft/golang:1.19 AS azure-vnet
 ARG VERSION
 ARG OS
 ARG ARCH
@@ -28,7 +28,7 @@ COPY --from=cilium /opt/cni/bin/cilium-cni pkg/embed/fs
 RUN cd pkg/embed/fs/ && sha256sum * > sum.txt
 RUN gzip --verbose --best --recursive pkg/embed/fs && for f in pkg/embed/fs/*.gz; do mv -- "$f" "${f%%.gz}"; done
 
-FROM mcr.microsoft.com/oss/go/microsoft/golang:1.18 AS dropgz
+FROM mcr.microsoft.com/oss/go/microsoft/golang:1.19 AS dropgz
 ARG VERSION
 WORKDIR /dropgz
 COPY --from=compressor /dropgz .

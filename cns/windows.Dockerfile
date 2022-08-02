@@ -1,5 +1,5 @@
 # Build cns
-FROM mcr.microsoft.com/oss/go/microsoft/golang:1.18-windowsservercore-ltsc2022 AS builder
+FROM mcr.microsoft.com/oss/go/microsoft/golang:1.19-windowsservercore-ltsc2022 AS builder
 # Build args
 ARG VERSION
 ARG CNS_AI_PATH
