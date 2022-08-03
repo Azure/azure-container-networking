@@ -157,16 +157,19 @@ func (service *HTTPRestService) releaseIPConfigHandler(w http.ResponseWriter, r 
 
 	podInfo, returnCode, message := service.validateIPConfigRequest(req)
 
-	if err = service.removeEndpointState(podInfo); err != nil {
-		resp := cns.Response{
-			ReturnCode: types.UnexpectedError,
-			Message:    err.Error(),
+	// Check if http rest service managed endpoint state is set
+	if service.Options[common.OptManageEndpointState] == true {
+		if err = service.removeEndpointState(podInfo); err != nil {
+			resp := cns.Response{
+				ReturnCode: types.UnexpectedError,
+				Message:    err.Error(),
+			}
+			logger.Errorf("releaseIPConfigHandler remove endpoint state failed because %v, release IP config info %s", resp.Message, req)
+			w.Header().Set(cnsReturnCode, resp.ReturnCode.String())
+			err = service.Listener.Encode(w, &resp)
+			logger.ResponseEx(service.Name, req, resp, resp.ReturnCode, err)
+			return
 		}
-		logger.Errorf("releaseIPConfigHandler remove endpoint state failed because %v, release IP config info %s", resp.Message, req)
-		w.Header().Set(cnsReturnCode, resp.ReturnCode.String())
-		err = service.Listener.Encode(w, &resp)
-		logger.ResponseEx(service.Name, req, resp, resp.ReturnCode, err)
-		return
 	}
 
 	if err = service.releaseIPConfig(podInfo); err != nil {
