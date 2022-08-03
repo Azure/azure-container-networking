@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/Azure/azure-container-networking/npm/metrics"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/parse"
 	"github.com/Azure/azure-container-networking/npm/util"
 	npmerrors "github.com/Azure/azure-container-networking/npm/util/errors"
@@ -12,7 +13,12 @@ import (
 )
 
 const (
-	azureNPMPrefix = "azure-npm-"
+	azureNPMPrefix        = "azure-npm-"
+	azureNPMRegex         = "azure-npm-\\d+"
+	positiveMembersRegex  = "Number of entries: \\d"
+	positiveRefsRegex     = "References: \\d"
+	referenceGrepLookBack = "5"
+	membersGrepLookBack   = "6"
 
 	ipsetCommand        = "ipset"
 	ipsetListFlag       = "list"
@@ -45,6 +51,8 @@ const (
 	destroySectionPrefix           = "delete"
 	addOrUpdateSectionPrefix       = "add/update"
 	ipsetRestoreLineFailurePattern = "Error in line (\\d+):"
+
+	maxLinesToPrint = 10
 )
 
 var (
@@ -85,9 +93,26 @@ var (
 		If a flush fails, we could update the num entries for that set, but that would be a lot of overhead.
 */
 func (iMgr *IPSetManager) resetIPSets() error {
-	listCommand := iMgr.ioShim.Exec.Command(ipsetCommand, ipsetListFlag, ipsetNameFlag)
-	grepCommand := iMgr.ioShim.Exec.Command(ioutil.Grep, azureNPMPrefix)
-	azureIPSets, haveAzureIPSets, commandError := ioutil.PipeCommandToGrep(listCommand, grepCommand)
+	// verify there are no iptables references
+	// iptablesListCommand := iMgr.ioShim.Exec.Command(util.Iptables, util.IptablesWaitFlag, util.IptablesDefaultWaitTime, util.IptablesNumericFlag, util.IptablesListFlag)
+	// observe all tables in iptables
+	iptablesListCommand := iMgr.ioShim.Exec.Command(util.IptablesSave)
+	grepCommand := iMgr.ioShim.Exec.Command(ioutil.Grep, ioutil.GrepOnlyMatchingFlag, ioutil.GrepRegexFlag, azureNPMRegex)
+	klog.Infof("running this command: [%s | %s %s %s %s]", util.IptablesSave, ioutil.Grep, ioutil.GrepOnlyMatchingFlag, ioutil.GrepRegexFlag, azureNPMRegex)
+	referencedSetsBytes, haveReferencedSets, iptablesErr := ioutil.PipeCommandToGrep(iptablesListCommand, grepCommand)
+	if haveReferencedSets {
+		referencedSets := readByteLinesToMap(referencedSetsBytes)
+		msg := fmt.Sprintf(
+			"failed to reset ipsets since there are referenced sets in iptables. referenced sets (max %d): %+v",
+			maxLinesToPrint, referencedSets)
+		return npmerrors.SimpleErrorWrapper(msg, iptablesErr)
+	}
+
+	// get current NPM ipsets
+	listNamesCommand := iMgr.ioShim.Exec.Command(ipsetCommand, ipsetListFlag, ipsetNameFlag)
+	grepCommand = iMgr.ioShim.Exec.Command(ioutil.Grep, azureNPMPrefix)
+	klog.Infof("running this command while resetting ipsets: [%s %s %s | %s %s]", ipsetCommand, ipsetListFlag, ipsetNameFlag, ioutil.Grep, azureNPMRegex)
+	azureIPSets, haveAzureIPSets, commandError := ioutil.PipeCommandToGrep(listNamesCommand, grepCommand)
 	if commandError != nil {
 		return npmerrors.SimpleErrorWrapper("failed to run ipset list for resetting IPSets (prometheus metrics may be off now)", commandError)
 	}
@@ -95,17 +120,48 @@ func (iMgr *IPSetManager) resetIPSets() error {
 		return nil
 	}
 
+	// flush all NPM sets
 	creator, names, failedNames := iMgr.fileCreatorForFlushAll(azureIPSets)
 	restoreError := creator.RunCommandWithFile(ipsetCommand, ipsetRestoreFlag)
 	if restoreError != nil {
 		klog.Errorf(
-			"failed to flush all ipsets (prometheus metrics may be off now). originalNumAzureSets: %d. failed flushes: [%+v]. err: %v",
+			"failed to flush all ipsets (prometheus metrics may be off now). originalNumAzureSets: %d. failed flushes: %+v. err: %v",
 			len(names), failedNames, restoreError,
 		)
 		return npmerrors.SimpleErrorWrapper("failed to run ipset restore while flushing all for resetting IPSets", restoreError)
 	}
 
-	creator, destroyFailureCount := iMgr.fileCreatorForDestroyAll(names, failedNames)
+	// verify there are no ipset members
+	listAllCommand := iMgr.ioShim.Exec.Command(ipsetCommand, ipsetListFlag)
+	grep1 := iMgr.ioShim.Exec.Command(ioutil.Grep, ioutil.GrepBeforeFlag, membersGrepLookBack, ioutil.GrepRegexFlag, positiveMembersRegex)
+	grep2 := iMgr.ioShim.Exec.Command(ioutil.Grep, ioutil.GrepOnlyMatchingFlag, ioutil.GrepRegexFlag, azureNPMRegex)
+	klog.Infof("running this command while resetting ipsets: [%s %s | %s %s %s %s %s | %s %s %s %s]", ipsetCommand, ipsetListFlag,
+		ioutil.Grep, ioutil.GrepBeforeFlag, membersGrepLookBack, ioutil.GrepRegexFlag, positiveMembersRegex,
+		ioutil.Grep, ioutil.GrepOnlyMatchingFlag, ioutil.GrepRegexFlag, azureNPMRegex)
+	setsWithMembersBytes, haveMembersStill, err := ioutil.DoublePipeToGrep(listAllCommand, grep1, grep2)
+	if haveMembersStill {
+		setsWithMembers := readByteLinesToMap(setsWithMembersBytes)
+		msg := fmt.Sprintf("failed to reset ipsets since there are members in ipset: %+v", setsWithMembers)
+		return npmerrors.SimpleErrorWrapper(msg, err)
+	}
+
+	// find any ipsets with leaked reference counts
+	listAllCommand = iMgr.ioShim.Exec.Command(ipsetCommand, ipsetListFlag)
+	grep1 = iMgr.ioShim.Exec.Command(ioutil.Grep, ioutil.GrepBeforeFlag, referenceGrepLookBack, ioutil.GrepRegexFlag, positiveRefsRegex)
+	grep2 = iMgr.ioShim.Exec.Command(ioutil.Grep, ioutil.GrepOnlyMatchingFlag, ioutil.GrepRegexFlag, azureNPMRegex)
+	klog.Infof("running this command while resetting ipsets: [%s %s | %s %s %s %s %s | %s %s %s %s]", ipsetCommand, ipsetListFlag,
+		ioutil.Grep, ioutil.GrepBeforeFlag, referenceGrepLookBack, ioutil.GrepRegexFlag, positiveRefsRegex,
+		ioutil.Grep, ioutil.GrepOnlyMatchingFlag, ioutil.GrepRegexFlag, azureNPMRegex)
+	setsWithReferencesBytes, haveRefsStill, err := ioutil.DoublePipeToGrep(listAllCommand, grep1, grep2)
+	var setsWithReferences map[string]struct{}
+	if haveRefsStill {
+		setsWithReferences = readByteLinesToMap(setsWithReferencesBytes)
+		metrics.SendErrorLogAndMetric(util.IpsmID, "error: found leaked reference counts in kernel. ipsets (max %d): %+v. err: %v",
+			maxLinesToPrint, setsWithReferences, err)
+	}
+
+	// destroy all NPM sets
+	creator, destroyFailureCount := iMgr.fileCreatorForDestroyAll(names, failedNames, setsWithReferences)
 	destroyError := creator.RunCommandWithFile(ipsetCommand, ipsetRestoreFlag)
 	if destroyError != nil {
 		klog.Errorf(
@@ -129,6 +185,10 @@ func (iMgr *IPSetManager) fileCreatorForFlushAll(ipsetListOutput []byte) (*iouti
 	for readIndex < len(ipsetListOutput) {
 		line, readIndex = parse.Line(readIndex, ipsetListOutput)
 		hashedSetName := string(line)
+		if readIndex >= len(ipsetListOutput) {
+			// parse.Line() will include the newline character for the end of the byte array
+			hashedSetName = strings.Trim(hashedSetName, "\n")
+		}
 		names = append(names, hashedSetName)
 		// error handlers specific to resetting ipsets
 		errorHandlers := []*ioutil.LineErrorHandler{
@@ -157,7 +217,7 @@ func (iMgr *IPSetManager) fileCreatorForFlushAll(ipsetListOutput []byte) (*iouti
 	return creator, names, failedNames
 }
 
-func (iMgr *IPSetManager) fileCreatorForDestroyAll(names []string, failedNames map[string]struct{}) (*ioutil.FileCreator, *int) {
+func (iMgr *IPSetManager) fileCreatorForDestroyAll(names []string, failedNames, setsWithReferences map[string]struct{}) (*ioutil.FileCreator, *int) {
 	destroyFailureCount := 0
 	creator := ioutil.NewFileCreator(iMgr.ioShim, maxTryCount, ipsetRestoreLineFailurePattern)
 
@@ -165,6 +225,11 @@ func (iMgr *IPSetManager) fileCreatorForDestroyAll(names []string, failedNames m
 	for _, hashedSetName := range names {
 		if _, ok := failedNames[hashedSetName]; ok {
 			klog.Infof("skipping destroy for set %s since it failed to flush", hashedSetName)
+			continue
+		}
+
+		if _, ok := setsWithReferences[hashedSetName]; ok {
+			klog.Infof("skipping destroy for set %s since it has leaked reference counts", hashedSetName)
 			continue
 		}
 
@@ -729,4 +794,19 @@ func (iMgr *IPSetManager) addMemberForApply(creator *ioutil.FileCreator, set *IP
 
 func sectionID(prefix, prefixedName string) string {
 	return fmt.Sprintf("%s-%s", prefix, prefixedName)
+}
+
+func readByteLinesToMap(output []byte) map[string]struct{} {
+	readIndex := 0
+	var line []byte
+	lines := make(map[string]struct{})
+	for readIndex < len(output) {
+		line, readIndex = parse.Line(readIndex, output)
+		hashedSetName := strings.Trim(string(line), "\n")
+		lines[hashedSetName] = struct{}{}
+		if len(lines) > maxLinesToPrint {
+			break
+		}
+	}
+	return lines
 }

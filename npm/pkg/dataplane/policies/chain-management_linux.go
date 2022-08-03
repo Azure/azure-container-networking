@@ -18,9 +18,6 @@ import (
 )
 
 const (
-	// TODO replace all util constants with local constants
-	defaultlockWaitTimeInSeconds string = "60"
-
 	doesNotExistErrorCode      int = 1 // stderr possibility: Bad rule (does a matching rule exist in that chain?)
 	couldntLoadTargetErrorCode int = 2 // Couldn't load target `AZURE-NPM-EGRESS':No such file or directory
 
@@ -66,7 +63,7 @@ var (
 	}
 
 	listForwardEntriesArgs = []string{
-		util.IptablesWaitFlag, defaultlockWaitTimeInSeconds, util.IptablesTableFlag, util.IptablesFilterTable,
+		util.IptablesWaitFlag, util.IptablesDefaultWaitTime, util.IptablesTableFlag, util.IptablesFilterTable,
 		util.IptablesNumericFlag, util.IptablesListFlag, util.IptablesForwardChain, util.IptablesLineNumbersFlag,
 	}
 	spaceByte                                 = []byte(" ")

@@ -43,6 +43,7 @@ const (
 	IptablesDestroyFlag        string = "-X"
 	IptablesJumpFlag           string = "-j"
 	IptablesWaitFlag           string = "-w"
+	IptablesDefaultWaitTime    string = "60"
 	IptablesAccept             string = "ACCEPT"
 	IptablesReject             string = "REJECT"
 	IptablesDrop               string = "DROP"
@@ -80,6 +81,7 @@ const (
 	IptablesListFlag        string = "-L"
 	IptablesNumericFlag     string = "-n"
 	IptablesLineNumbersFlag string = "--line-numbers"
+	defa
 
 	IptablesKubeServicesChain          string = "KUBE-SERVICES"
 	IptablesForwardChain               string = "FORWARD"
