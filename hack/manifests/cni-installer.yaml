@@ -1,0 +1,89 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: cni-installer
+  namespace: kube-system
+  labels:
+    app: cni-installer
+spec:
+  selector:
+    matchLabels:
+      k8s-app: cni-installer
+  template:
+    metadata:
+      labels:
+        k8s-app: cni-installer
+      annotations:
+        cluster-autoscaler.kubernetes.io/daemonset-pod: "true"
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: kubernetes.azure.com/cluster
+                operator: Exists
+              - key: type
+                operator: NotIn
+                values:
+                - virtual-kubelet
+              - key: beta.kubernetes.io/os
+                operator: In
+                values:
+                - linux
+      priorityClassName: system-node-critical
+      tolerations:
+        - key: CriticalAddonsOnly
+          operator: Exists
+        - operator: "Exists"
+          effect: NoExecute
+        - operator: "Exists"
+          effect: NoSchedule
+      containers:
+        - name: cni-installer
+          image: acnpublic.azurecr.io/cni-dropgz:v1.4.28-41-g3ecb7fb1
+          imagePullPolicy: Always
+          command: ["/dropgz"]
+          args:
+            - deploy
+            - azure-vnet
+            - -o
+            - /opt/cni/bin/azure-vnet
+            - azure-linux-swift.conflist
+            - -o 
+            - /etc/cni/net.d/10-azure.conflist
+          volumeMounts:
+            - name: cni-bin
+              mountPath: /opt/cni/bin
+            - name: cni-conflist
+              mountPath: /etc/cni/net.d
+      hostNetwork: true
+      volumes:
+        - name: cni-conflist
+          hostPath:
+            path: /etc/cni/net.d
+            type: Directory
+        - name: log
+          hostPath:
+            path: /var/log
+            type: Directory
+        - name: cns-state
+          hostPath:
+            path: /var/lib/azure-network
+            type: DirectoryOrCreate
+        - name: cni-bin
+          hostPath:
+            path: /opt/cni/bin
+            type: Directory
+        - name: azure-vnet
+          hostPath:
+            path: /var/run/azure-vnet
+            type: DirectoryOrCreate
+        - name: legacy-cni-state
+          hostPath:
+            path: /var/run/azure-vnet.json
+            type: FileOrCreate
+        - name: cns-config
+          configMap:
+            name: cns-config
+      serviceAccountName: azure-cns
