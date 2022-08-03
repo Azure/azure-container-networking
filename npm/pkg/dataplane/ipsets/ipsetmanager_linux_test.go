@@ -643,7 +643,7 @@ func TestResetIPSetsOnFailure(t *testing.T) {
 	calls := []testutils.TestCmd{
 		{Cmd: []string{"iptables-save"}, PipedToCommand: true},
 		{Cmd: []string{"grep", "-o", "-P", "azure-npm-\\d+"}, ExitCode: 1},
-		{Cmd: []string{"ipset", "list", "--name"}, PipedToCommand: true, HasStartError: true},
+		{Cmd: []string{"ipset", "list", "--name"}, PipedToCommand: true, HasStartError: true, ExitCode: 1},
 		{Cmd: []string{"grep", "azure-npm-"}},
 	}
 	ioShim := common.NewMockIOShim(calls)
@@ -658,7 +658,7 @@ func TestResetIPSetsOnFailure(t *testing.T) {
 	metrics.AddEntryToIPSet("test1")
 	metrics.AddEntryToIPSet("test2")
 
-	require.NoError(t, iMgr.ResetIPSets())
+	require.Error(t, iMgr.ResetIPSets())
 
 	assertExpectedInfo(t, iMgr, &expectedInfo{
 		mainCache:        nil,
