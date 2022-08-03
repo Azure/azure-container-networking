@@ -141,7 +141,7 @@ func (creator *FileCreator) RunCommandWithFile(cmd string, args ...string) error
 		if wasFileAltered {
 			sameNew = "updated"
 		}
-		msg := fmt.Sprintf("on try number %d, failed to run command [%s]. Rerunning with %s file. Had error [%s].Used file:%s", creator.tryCount, commandString, sameNew, err.Error(), fileString)
+		msg := fmt.Sprintf("on try number %d, failed to run command [%s]. Rerunning with %s file. err: [%s]", creator.tryCount, commandString, sameNew, err.Error())
 		klog.Error(msg)
 		metrics.SendErrorLogAndMetric(util.UtilID, "error: %s", msg)
 
@@ -180,6 +180,8 @@ func (creator *FileCreator) runCommandOnceWithFile(fileString, cmd string, args 
 		klog.Infof("returning as a success without running command [%s] since the fileString is empty", commandString)
 		return false, nil
 	}
+
+	klog.Infof("running this restore command: [%s]", commandString)
 
 	command := creator.ioShim.Exec.Command(cmd, args...)
 	command.SetStdin(bytes.NewBufferString(fileString))
