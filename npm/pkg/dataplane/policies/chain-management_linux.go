@@ -181,7 +181,7 @@ func (pMgr *PolicyManager) bootup(_ []string) error {
 		klog.Errorf("failed to delete deprecated jump rule from FORWARD chain to AZURE-NPM chain for unexpected reason with exit code %d and error: %s", deprecatedErrCode, deprecatedErr.Error())
 	}
 
-	currentChains, err := ioutil.AllCurrentAzureChains(pMgr.ioShim.Exec, defaultlockWaitTimeInSeconds)
+	currentChains, err := ioutil.AllCurrentAzureChains(pMgr.ioShim.Exec, util.IptablesDefaultWaitTime)
 	if err != nil {
 		return npmerrors.SimpleErrorWrapper("failed to get current chains for bootup", err)
 	}
@@ -267,7 +267,7 @@ func (pMgr *PolicyManager) runIPTablesCommand(operationFlag string, args ...stri
 }
 
 func (pMgr *PolicyManager) ignoreErrorsAndRunIPTablesCommand(ignored []*exitErrorInfo, operationFlag string, args ...string) (int, error) {
-	allArgs := []string{util.IptablesWaitFlag, defaultlockWaitTimeInSeconds, operationFlag}
+	allArgs := []string{util.IptablesWaitFlag, util.IptablesDefaultWaitTime, operationFlag}
 	allArgs = append(allArgs, args...)
 
 	klog.Infof("Executing iptables command with args %v", allArgs)
