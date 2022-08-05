@@ -107,6 +107,10 @@ func (iMgr *IPSetManager) resetIPSets() error {
 
 	// flush all NPM sets
 	creator, names, failedNames := iMgr.fileCreatorForFlushAll(azureIPSets)
+	// FIXME: remove
+	creator = ioutil.NewFileCreator(iMgr.ioShim, maxTryCount, ipsetRestoreLineFailurePattern)
+	creator.AddLine("", nil, ipsetCreateFlag, "azure-npm-test", ipsetExistFlag, ipsetNetHashFlag)
+
 	restoreError := creator.RunCommandWithFile(ipsetCommand, ipsetRestoreFlag)
 	if restoreError != nil {
 		klog.Errorf(
