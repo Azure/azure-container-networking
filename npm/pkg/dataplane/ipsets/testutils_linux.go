@@ -22,8 +22,6 @@ func GetApplyIPSetsTestCalls(toAddOrUpdateIPSets, toDeleteIPSets []*IPSetMetadat
 
 func GetResetTestCalls() []testutils.TestCmd {
 	return []testutils.TestCmd{
-		{Cmd: []string{"iptables-save"}, PipedToCommand: true},
-		{Cmd: []string{"grep", "-o", "-P", "azure-npm-\\d+"}, ExitCode: 1},
 		{Cmd: []string{"ipset", "list", "--name"}, PipedToCommand: true},
 		{Cmd: []string{"grep", "azure-npm-"}, ExitCode: 1}, // grep didn't find anything
 	}

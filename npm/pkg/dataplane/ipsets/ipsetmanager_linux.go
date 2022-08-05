@@ -15,10 +15,9 @@ import (
 const (
 	azureNPMPrefix        = "azure-npm-"
 	azureNPMRegex         = "azure-npm-\\d+"
-	positiveMembersRegex  = "Number of entries: \\d"
-	positiveRefsRegex     = "References: \\d"
+	positiveRefsRegex     = "References: [1-9]"
 	referenceGrepLookBack = "5"
-	membersGrepLookBack   = "6"
+	maxLinesToPrint       = 10
 
 	ipsetCommand        = "ipset"
 	ipsetListFlag       = "list"
@@ -51,8 +50,6 @@ const (
 	destroySectionPrefix           = "delete"
 	addOrUpdateSectionPrefix       = "add/update"
 	ipsetRestoreLineFailurePattern = "Error in line (\\d+):"
-
-	maxLinesToPrint = 10
 )
 
 var (
@@ -65,6 +62,9 @@ var (
 
 /*
 	based on ipset list output with azure-npm- prefix, create an ipset restore file where we flush all sets first, then destroy all sets
+
+	NOTE: the behavior has changed to run two separate restore files. The first to flush all, the second to destroy all. In between restores,
+	we determine if there are any sets with leaked ipset reference counts. We ignore destroys for those sets in-line with v1.
 
 	overall error handling:
 	- if flush fails because the set doesn't exist (should never happen because we're listing sets right before), then ignore it and the destroy
@@ -93,24 +93,9 @@ var (
 		If a flush fails, we could update the num entries for that set, but that would be a lot of overhead.
 */
 func (iMgr *IPSetManager) resetIPSets() error {
-	// verify there are no iptables references
-	// iptablesListCommand := iMgr.ioShim.Exec.Command(util.Iptables, util.IptablesWaitFlag, util.IptablesDefaultWaitTime, util.IptablesNumericFlag, util.IptablesListFlag)
-	// observe all tables in iptables
-	iptablesListCommand := iMgr.ioShim.Exec.Command(util.IptablesSave)
-	grepCommand := iMgr.ioShim.Exec.Command(ioutil.Grep, ioutil.GrepOnlyMatchingFlag, ioutil.GrepRegexFlag, azureNPMRegex)
-	klog.Infof("running this command: [%s | %s %s %s %s]", util.IptablesSave, ioutil.Grep, ioutil.GrepOnlyMatchingFlag, ioutil.GrepRegexFlag, azureNPMRegex)
-	referencedSetsBytes, haveReferencedSets, iptablesErr := ioutil.PipeCommandToGrep(iptablesListCommand, grepCommand)
-	if haveReferencedSets {
-		referencedSets := readByteLinesToMap(referencedSetsBytes)
-		msg := fmt.Sprintf(
-			"failed to reset ipsets since there are referenced sets in iptables. referenced sets (max %d): %+v",
-			maxLinesToPrint, referencedSets)
-		return npmerrors.SimpleErrorWrapper(msg, iptablesErr)
-	}
-
 	// get current NPM ipsets
 	listNamesCommand := iMgr.ioShim.Exec.Command(ipsetCommand, ipsetListFlag, ipsetNameFlag)
-	grepCommand = iMgr.ioShim.Exec.Command(ioutil.Grep, azureNPMPrefix)
+	grepCommand := iMgr.ioShim.Exec.Command(ioutil.Grep, azureNPMPrefix)
 	klog.Infof("running this command while resetting ipsets: [%s %s %s | %s %s]", ipsetCommand, ipsetListFlag, ipsetNameFlag, ioutil.Grep, azureNPMRegex)
 	azureIPSets, haveAzureIPSets, commandError := ioutil.PipeCommandToGrep(listNamesCommand, grepCommand)
 	if commandError != nil {
@@ -131,24 +116,10 @@ func (iMgr *IPSetManager) resetIPSets() error {
 		return npmerrors.SimpleErrorWrapper("failed to run ipset restore while flushing all for resetting IPSets", restoreError)
 	}
 
-	// verify there are no ipset members
-	listAllCommand := iMgr.ioShim.Exec.Command(ipsetCommand, ipsetListFlag)
-	grep1 := iMgr.ioShim.Exec.Command(ioutil.Grep, ioutil.GrepBeforeFlag, membersGrepLookBack, ioutil.GrepRegexFlag, positiveMembersRegex)
-	grep2 := iMgr.ioShim.Exec.Command(ioutil.Grep, ioutil.GrepOnlyMatchingFlag, ioutil.GrepRegexFlag, azureNPMRegex)
-	klog.Infof("running this command while resetting ipsets: [%s %s | %s %s %s %s %s | %s %s %s %s]", ipsetCommand, ipsetListFlag,
-		ioutil.Grep, ioutil.GrepBeforeFlag, membersGrepLookBack, ioutil.GrepRegexFlag, positiveMembersRegex,
-		ioutil.Grep, ioutil.GrepOnlyMatchingFlag, ioutil.GrepRegexFlag, azureNPMRegex)
-	setsWithMembersBytes, haveMembersStill, err := ioutil.DoublePipeToGrep(listAllCommand, grep1, grep2)
-	if haveMembersStill {
-		setsWithMembers := readByteLinesToMap(setsWithMembersBytes)
-		msg := fmt.Sprintf("failed to reset ipsets since there are members in ipset: %+v", setsWithMembers)
-		return npmerrors.SimpleErrorWrapper(msg, err)
-	}
-
 	// find any ipsets with leaked reference counts
-	listAllCommand = iMgr.ioShim.Exec.Command(ipsetCommand, ipsetListFlag)
-	grep1 = iMgr.ioShim.Exec.Command(ioutil.Grep, ioutil.GrepBeforeFlag, referenceGrepLookBack, ioutil.GrepRegexFlag, positiveRefsRegex)
-	grep2 = iMgr.ioShim.Exec.Command(ioutil.Grep, ioutil.GrepOnlyMatchingFlag, ioutil.GrepRegexFlag, azureNPMRegex)
+	listAllCommand := iMgr.ioShim.Exec.Command(ipsetCommand, ipsetListFlag)
+	grep1 := iMgr.ioShim.Exec.Command(ioutil.Grep, ioutil.GrepBeforeFlag, referenceGrepLookBack, ioutil.GrepRegexFlag, positiveRefsRegex)
+	grep2 := iMgr.ioShim.Exec.Command(ioutil.Grep, ioutil.GrepOnlyMatchingFlag, ioutil.GrepRegexFlag, azureNPMRegex)
 	klog.Infof("running this command while resetting ipsets: [%s %s | %s %s %s %s %s | %s %s %s %s]", ipsetCommand, ipsetListFlag,
 		ioutil.Grep, ioutil.GrepBeforeFlag, referenceGrepLookBack, ioutil.GrepRegexFlag, positiveRefsRegex,
 		ioutil.Grep, ioutil.GrepOnlyMatchingFlag, ioutil.GrepRegexFlag, azureNPMRegex)

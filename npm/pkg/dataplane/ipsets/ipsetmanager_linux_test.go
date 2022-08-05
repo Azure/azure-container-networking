@@ -400,8 +400,6 @@ func TestDestroyNPMIPSets(t *testing.T) {
 		{
 			name: "success with no results from grep",
 			calls: []testutils.TestCmd{
-				{Cmd: []string{"iptables-save"}, PipedToCommand: true},
-				{Cmd: []string{"grep", "-o", "-P", "azure-npm-\\d+"}, ExitCode: 1},
 				{Cmd: []string{"ipset", "list", "--name"}, PipedToCommand: true},
 				{Cmd: []string{"grep", "azure-npm-"}, ExitCode: 1},
 			},
@@ -410,48 +408,19 @@ func TestDestroyNPMIPSets(t *testing.T) {
 		{
 			name: "successfully delete sets",
 			calls: []testutils.TestCmd{
-				{Cmd: []string{"iptables-save"}, PipedToCommand: true},
-				{Cmd: []string{"grep", "-o", "-P", "azure-npm-\\d+"}, ExitCode: 1},
 				{Cmd: []string{"ipset", "list", "--name"}, PipedToCommand: true},
 				{Cmd: []string{"grep", "azure-npm-"}, Stdout: resetIPSetsListOutputString},
 				fakeRestoreSuccessCommand,
 				{Cmd: []string{"ipset", "list"}, PipedToCommand: true},
-				{Cmd: []string{"grep", "-B", "6", "-P", "Number of entries: \\d"}, PipedToCommand: true},
-				{Cmd: []string{"grep", "-o", "-P", "azure-npm-\\d+"}, ExitCode: 1},
-				{Cmd: []string{"ipset", "list"}, PipedToCommand: true},
-				{Cmd: []string{"grep", "-B", "5", "-P", "References: \\d"}, PipedToCommand: true},
+				{Cmd: []string{"grep", "-B", "5", "-P", "References: [1-9]"}, PipedToCommand: true},
 				{Cmd: []string{"grep", "-o", "-P", "azure-npm-\\d+"}, ExitCode: 1},
 				fakeRestoreSuccessCommand,
 			},
 			wantErr: false,
 		},
 		{
-			name: "fail because some sets have entries",
-			calls: []testutils.TestCmd{
-				{Cmd: []string{"iptables-save"}, PipedToCommand: true},
-				{Cmd: []string{"grep", "-o", "-P", "azure-npm-\\d+"}, ExitCode: 1},
-				{Cmd: []string{"ipset", "list", "--name"}, PipedToCommand: true},
-				{Cmd: []string{"grep", "azure-npm-"}, Stdout: resetIPSetsListOutputString},
-				fakeRestoreSuccessCommand,
-				{Cmd: []string{"ipset", "list"}, PipedToCommand: true},
-				{Cmd: []string{"grep", "-B", "6", "-P", "Number of entries: \\d"}, PipedToCommand: true},
-				{Cmd: []string{"grep", "-o", "-P", "azure-npm-\\d+"}, Stdout: resetIPSetsListOutputString},
-			},
-			wantErr: true,
-		},
-		{
-			name: "fail because some sets have iptables references",
-			calls: []testutils.TestCmd{
-				{Cmd: []string{"iptables-save"}, PipedToCommand: true},
-				{Cmd: []string{"grep", "-o", "-P", "azure-npm-\\d+"}, Stdout: resetIPSetsListOutputString},
-			},
-			wantErr: true,
-		},
-		{
 			name: "grep error",
 			calls: []testutils.TestCmd{
-				{Cmd: []string{"iptables-save"}, PipedToCommand: true},
-				{Cmd: []string{"grep", "-o", "-P", "azure-npm-\\d+"}, ExitCode: 1},
 				{Cmd: []string{"ipset", "list", "--name"}, HasStartError: true, PipedToCommand: true, ExitCode: 1},
 				{Cmd: []string{"grep", "azure-npm-"}},
 			},
@@ -460,8 +429,6 @@ func TestDestroyNPMIPSets(t *testing.T) {
 		{
 			name: "restore error from max flush tries",
 			calls: []testutils.TestCmd{
-				{Cmd: []string{"iptables-save"}, PipedToCommand: true},
-				{Cmd: []string{"grep", "-o", "-P", "azure-npm-\\d+"}, ExitCode: 1},
 				{Cmd: []string{"ipset", "list", "--name"}, PipedToCommand: true},
 				{Cmd: []string{"grep", "azure-npm-"}, Stdout: resetIPSetsListOutputString},
 				{Cmd: ipsetRestoreStringSlice, ExitCode: 1},
@@ -473,16 +440,11 @@ func TestDestroyNPMIPSets(t *testing.T) {
 		{
 			name: "restore error from max destroy tries",
 			calls: []testutils.TestCmd{
-				{Cmd: []string{"iptables-save"}, PipedToCommand: true},
-				{Cmd: []string{"grep", "-o", "-P", "azure-npm-\\d+"}, ExitCode: 1},
 				{Cmd: []string{"ipset", "list", "--name"}, PipedToCommand: true},
 				{Cmd: []string{"grep", "azure-npm-"}, Stdout: resetIPSetsListOutputString},
 				fakeRestoreSuccessCommand,
 				{Cmd: []string{"ipset", "list"}, PipedToCommand: true},
-				{Cmd: []string{"grep", "-B", "6", "-P", "Number of entries: \\d"}, PipedToCommand: true},
-				{Cmd: []string{"grep", "-o", "-P", "azure-npm-\\d+"}, ExitCode: 1},
-				{Cmd: []string{"ipset", "list"}, PipedToCommand: true},
-				{Cmd: []string{"grep", "-B", "5", "-P", "References: \\d"}, PipedToCommand: true},
+				{Cmd: []string{"grep", "-B", "5", "-P", "References: [1-9]"}, PipedToCommand: true},
 				{Cmd: []string{"grep", "-o", "-P", "azure-npm-\\d+"}, ExitCode: 1},
 				{Cmd: ipsetRestoreStringSlice, ExitCode: 1},
 				{Cmd: ipsetRestoreStringSlice, ExitCode: 1},
@@ -493,16 +455,11 @@ func TestDestroyNPMIPSets(t *testing.T) {
 		{
 			name: "success despite all sets having references",
 			calls: []testutils.TestCmd{
-				{Cmd: []string{"iptables-save"}, PipedToCommand: true},
-				{Cmd: []string{"grep", "-o", "-P", "azure-npm-\\d+"}, ExitCode: 1},
 				{Cmd: []string{"ipset", "list", "--name"}, PipedToCommand: true},
 				{Cmd: []string{"grep", "azure-npm-"}, Stdout: resetIPSetsListOutputString},
 				fakeRestoreSuccessCommand,
 				{Cmd: []string{"ipset", "list"}, PipedToCommand: true},
-				{Cmd: []string{"grep", "-B", "6", "-P", "Number of entries: \\d"}, PipedToCommand: true},
-				{Cmd: []string{"grep", "-o", "-P", "azure-npm-\\d+"}, ExitCode: 1},
-				{Cmd: []string{"ipset", "list"}, PipedToCommand: true},
-				{Cmd: []string{"grep", "-B", "5", "-P", "References: \\d"}, PipedToCommand: true},
+				{Cmd: []string{"grep", "-B", "5", "-P", "References: [1-9]"}, PipedToCommand: true},
 				{Cmd: []string{"grep", "-o", "-P", "azure-npm-\\d+"}, Stdout: resetIPSetsListOutputString},
 			},
 			wantErr: false,
@@ -510,16 +467,11 @@ func TestDestroyNPMIPSets(t *testing.T) {
 		{
 			name: "success despite one set having references",
 			calls: []testutils.TestCmd{
-				{Cmd: []string{"iptables-save"}, PipedToCommand: true},
-				{Cmd: []string{"grep", "-o", "-P", "azure-npm-\\d+"}, ExitCode: 1},
 				{Cmd: []string{"ipset", "list", "--name"}, PipedToCommand: true},
 				{Cmd: []string{"grep", "azure-npm-"}, Stdout: resetIPSetsListOutputString},
 				fakeRestoreSuccessCommand,
 				{Cmd: []string{"ipset", "list"}, PipedToCommand: true},
-				{Cmd: []string{"grep", "-B", "6", "-P", "Number of entries: \\d"}, PipedToCommand: true},
-				{Cmd: []string{"grep", "-o", "-P", "azure-npm-\\d+"}, ExitCode: 1},
-				{Cmd: []string{"ipset", "list"}, PipedToCommand: true},
-				{Cmd: []string{"grep", "-B", "5", "-P", "References: \\d"}, PipedToCommand: true},
+				{Cmd: []string{"grep", "-B", "5", "-P", "References: [1-9]"}, PipedToCommand: true},
 				{Cmd: []string{"grep", "-o", "-P", "azure-npm-\\d+"}, Stdout: otherIPSetsListOutput},
 				fakeRestoreSuccessCommand,
 			},
@@ -528,8 +480,6 @@ func TestDestroyNPMIPSets(t *testing.T) {
 		{
 			name: "successfully restore, but fail to flush/destroy 1 set since the set doesn't exist when flushing",
 			calls: []testutils.TestCmd{
-				{Cmd: []string{"iptables-save"}, PipedToCommand: true},
-				{Cmd: []string{"grep", "-o", "-P", "azure-npm-\\d+"}, ExitCode: 1},
 				{Cmd: []string{"ipset", "list", "--name"}, PipedToCommand: true},
 				{Cmd: []string{"grep", "azure-npm-"}, Stdout: resetIPSetsListOutputString},
 				{
@@ -539,10 +489,7 @@ func TestDestroyNPMIPSets(t *testing.T) {
 				},
 				fakeRestoreSuccessCommand,
 				{Cmd: []string{"ipset", "list"}, PipedToCommand: true},
-				{Cmd: []string{"grep", "-B", "6", "-P", "Number of entries: \\d"}, PipedToCommand: true},
-				{Cmd: []string{"grep", "-o", "-P", "azure-npm-\\d+"}, ExitCode: 1},
-				{Cmd: []string{"ipset", "list"}, PipedToCommand: true},
-				{Cmd: []string{"grep", "-B", "5", "-P", "References: \\d"}, PipedToCommand: true},
+				{Cmd: []string{"grep", "-B", "5", "-P", "References: [1-9]"}, PipedToCommand: true},
 				{Cmd: []string{"grep", "-o", "-P", "azure-npm-\\d+"}, ExitCode: 1},
 				fakeRestoreSuccessCommand,
 			},
@@ -551,8 +498,6 @@ func TestDestroyNPMIPSets(t *testing.T) {
 		{
 			name: "successfully restore, but fail to flush/destroy 1 set due to other flush error",
 			calls: []testutils.TestCmd{
-				{Cmd: []string{"iptables-save"}, PipedToCommand: true},
-				{Cmd: []string{"grep", "-o", "-P", "azure-npm-\\d+"}, ExitCode: 1},
 				{Cmd: []string{"ipset", "list", "--name"}, PipedToCommand: true},
 				{Cmd: []string{"grep", "azure-npm-"}, Stdout: resetIPSetsListOutputString},
 				{
@@ -562,10 +507,7 @@ func TestDestroyNPMIPSets(t *testing.T) {
 				},
 				fakeRestoreSuccessCommand,
 				{Cmd: []string{"ipset", "list"}, PipedToCommand: true},
-				{Cmd: []string{"grep", "-B", "6", "-P", "Number of entries: \\d"}, PipedToCommand: true},
-				{Cmd: []string{"grep", "-o", "-P", "azure-npm-\\d+"}, ExitCode: 1},
-				{Cmd: []string{"ipset", "list"}, PipedToCommand: true},
-				{Cmd: []string{"grep", "-B", "5", "-P", "References: \\d"}, PipedToCommand: true},
+				{Cmd: []string{"grep", "-B", "5", "-P", "References: [1-9]"}, PipedToCommand: true},
 				{Cmd: []string{"grep", "-o", "-P", "azure-npm-\\d+"}, ExitCode: 1},
 				fakeRestoreSuccessCommand,
 			},
@@ -574,16 +516,11 @@ func TestDestroyNPMIPSets(t *testing.T) {
 		{
 			name: "successfully restore, but fail to destroy 1 set since the set doesn't exist when destroying",
 			calls: []testutils.TestCmd{
-				{Cmd: []string{"iptables-save"}, PipedToCommand: true},
-				{Cmd: []string{"grep", "-o", "-P", "azure-npm-\\d+"}, ExitCode: 1},
 				{Cmd: []string{"ipset", "list", "--name"}, PipedToCommand: true},
 				{Cmd: []string{"grep", "azure-npm-"}, Stdout: resetIPSetsListOutputString},
 				fakeRestoreSuccessCommand,
 				{Cmd: []string{"ipset", "list"}, PipedToCommand: true},
-				{Cmd: []string{"grep", "-B", "6", "-P", "Number of entries: \\d"}, PipedToCommand: true},
-				{Cmd: []string{"grep", "-o", "-P", "azure-npm-\\d+"}, ExitCode: 1},
-				{Cmd: []string{"ipset", "list"}, PipedToCommand: true},
-				{Cmd: []string{"grep", "-B", "5", "-P", "References: \\d"}, PipedToCommand: true},
+				{Cmd: []string{"grep", "-B", "5", "-P", "References: [1-9]"}, PipedToCommand: true},
 				{Cmd: []string{"grep", "-o", "-P", "azure-npm-\\d+"}, ExitCode: 1},
 				{
 					Cmd:      ipsetRestoreStringSlice,
@@ -597,16 +534,11 @@ func TestDestroyNPMIPSets(t *testing.T) {
 		{
 			name: "successfully restore, but fail to destroy 1 set due to other destroy error",
 			calls: []testutils.TestCmd{
-				{Cmd: []string{"iptables-save"}, PipedToCommand: true},
-				{Cmd: []string{"grep", "-o", "-P", "azure-npm-\\d+"}, ExitCode: 1},
 				{Cmd: []string{"ipset", "list", "--name"}, PipedToCommand: true},
 				{Cmd: []string{"grep", "azure-npm-"}, Stdout: resetIPSetsListOutputString},
 				fakeRestoreSuccessCommand,
 				{Cmd: []string{"ipset", "list"}, PipedToCommand: true},
-				{Cmd: []string{"grep", "-B", "6", "-P", "Number of entries: \\d"}, PipedToCommand: true},
-				{Cmd: []string{"grep", "-o", "-P", "azure-npm-\\d+"}, ExitCode: 1},
-				{Cmd: []string{"ipset", "list"}, PipedToCommand: true},
-				{Cmd: []string{"grep", "-B", "5", "-P", "References: \\d"}, PipedToCommand: true},
+				{Cmd: []string{"grep", "-B", "5", "-P", "References: [1-9]"}, PipedToCommand: true},
 				{Cmd: []string{"grep", "-o", "-P", "azure-npm-\\d+"}, ExitCode: 1},
 				{
 					Cmd:      ipsetRestoreStringSlice,
@@ -641,8 +573,6 @@ func TestDestroyNPMIPSets(t *testing.T) {
 func TestResetIPSetsOnFailure(t *testing.T) {
 	metrics.ReinitializeAll()
 	calls := []testutils.TestCmd{
-		{Cmd: []string{"iptables-save"}, PipedToCommand: true},
-		{Cmd: []string{"grep", "-o", "-P", "azure-npm-\\d+"}, ExitCode: 1},
 		{Cmd: []string{"ipset", "list", "--name"}, PipedToCommand: true, HasStartError: true, ExitCode: 1},
 		{Cmd: []string{"grep", "azure-npm-"}},
 	}
