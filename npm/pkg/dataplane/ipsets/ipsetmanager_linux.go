@@ -105,11 +105,11 @@ func (iMgr *IPSetManager) resetIPSets() error {
 	listNamesCommand := iMgr.ioShim.Exec.Command(ipsetCommand, ipsetListFlag, ipsetNameFlag)
 	grepCommand := iMgr.ioShim.Exec.Command(ioutil.Grep, azureNPMPrefix)
 	klog.Infof("running this command while resetting ipsets: [%s %s %s | %s %s]", ipsetCommand, ipsetListFlag, ipsetNameFlag, ioutil.Grep, azureNPMRegex)
-	azureIPSets, haveAzureIPSets, commandError := ioutil.PipeCommandToGrep(listNamesCommand, grepCommand)
+	azureIPSets, haveAzureNPMIPSets, commandError := ioutil.PipeCommandToGrep(listNamesCommand, grepCommand)
 	if commandError != nil {
 		return npmerrors.SimpleErrorWrapper("failed to run ipset list for resetting IPSets (prometheus metrics may be off now)", commandError)
 	}
-	if !haveAzureIPSets {
+	if !haveAzureNPMIPSets {
 		return nil
 	}
 
@@ -143,12 +143,12 @@ func (iMgr *IPSetManager) resetWithoutRestore() bool {
 	grepCommand := iMgr.ioShim.Exec.Command(ioutil.Grep, ioutil.GrepQuietFlag, ioutil.GrepAntiMatchFlag, azureNPMPrefix)
 	commandString := fmt.Sprintf(" [%s %s %s | %s %s %s %s]", ipsetCommand, ipsetListFlag, ipsetNameFlag, ioutil.Grep, ioutil.GrepQuietFlag, ioutil.GrepAntiMatchFlag, azureNPMPrefix)
 	klog.Infof("running this command while resetting ipsets: [%s]", commandString)
-	_, haveNonAzureIPSets, commandError := ioutil.PipeCommandToGrep(listNamesCommand, grepCommand)
+	_, haveNonAzureNPMIPSets, commandError := ioutil.PipeCommandToGrep(listNamesCommand, grepCommand)
 	if commandError != nil {
 		metrics.SendErrorLogAndMetric(util.IpsmID, "failed to determine if there were non-azure sets while resetting. err: %v", commandError)
 		return false
 	}
-	if haveNonAzureIPSets {
+	if haveNonAzureNPMIPSets {
 		return false
 	}
 
