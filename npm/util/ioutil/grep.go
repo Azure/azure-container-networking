@@ -63,7 +63,7 @@ func DoublePipeToGrep(command, grepCommand1, grepCommand2 utilexec.Cmd) (searchR
 	}
 	searchResults = output
 	gotMatches = true
-	return searchResults, gotMatches, commandError
+	return searchResults, gotMatches, commandError // include named results to appease lint
 }
 
 func PipeCommandToGrep(command, grepCommand utilexec.Cmd) (searchResults []byte, gotMatches bool, commandError error) {
