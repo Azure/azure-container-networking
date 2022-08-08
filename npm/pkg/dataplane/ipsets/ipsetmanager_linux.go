@@ -1,6 +1,7 @@
 package ipsets
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -10,9 +11,12 @@ import (
 	npmerrors "github.com/Azure/azure-container-networking/npm/util/errors"
 	"github.com/Azure/azure-container-networking/npm/util/ioutil"
 	"k8s.io/klog"
+	utilexec "k8s.io/utils/exec"
 )
 
 const (
+	ipsetFlushAndDestroyString = "ipset flush && ipset destroy"
+
 	azureNPMPrefix        = "azure-npm-"
 	azureNPMRegex         = "azure-npm-\\d+"
 	positiveRefsRegex     = "References: [1-9]"
@@ -93,6 +97,10 @@ var (
 		If a flush fails, we could update the num entries for that set, but that would be a lot of overhead.
 */
 func (iMgr *IPSetManager) resetIPSets() error {
+	if success := iMgr.resetWithoutRestore(); success {
+		return nil
+	}
+
 	// get current NPM ipsets
 	listNamesCommand := iMgr.ioShim.Exec.Command(ipsetCommand, ipsetListFlag, ipsetNameFlag)
 	grepCommand := iMgr.ioShim.Exec.Command(ioutil.Grep, azureNPMPrefix)
@@ -116,23 +124,8 @@ func (iMgr *IPSetManager) resetIPSets() error {
 		return npmerrors.SimpleErrorWrapper("failed to run ipset restore while flushing all for resetting IPSets", restoreError)
 	}
 
-	// find any ipsets with leaked reference counts
-	listAllCommand := iMgr.ioShim.Exec.Command(ipsetCommand, ipsetListFlag)
-	grep1 := iMgr.ioShim.Exec.Command(ioutil.Grep, ioutil.GrepBeforeFlag, referenceGrepLookBack, ioutil.GrepRegexFlag, positiveRefsRegex)
-	grep2 := iMgr.ioShim.Exec.Command(ioutil.Grep, ioutil.GrepOnlyMatchingFlag, ioutil.GrepRegexFlag, azureNPMRegex)
-	klog.Infof("running this command while resetting ipsets: [%s %s | %s %s %s %s %s | %s %s %s %s]", ipsetCommand, ipsetListFlag,
-		ioutil.Grep, ioutil.GrepBeforeFlag, referenceGrepLookBack, ioutil.GrepRegexFlag, positiveRefsRegex,
-		ioutil.Grep, ioutil.GrepOnlyMatchingFlag, ioutil.GrepRegexFlag, azureNPMRegex)
-	setsWithReferencesBytes, haveRefsStill, err := ioutil.DoublePipeToGrep(listAllCommand, grep1, grep2)
-	var setsWithReferences map[string]struct{}
-	if haveRefsStill {
-		setsWithReferences = readByteLinesToMap(setsWithReferencesBytes)
-		metrics.SendErrorLogAndMetric(util.IpsmID, "error: found leaked reference counts in kernel. ipsets (max %d): %+v. err: %v",
-			maxLinesToPrint, setsWithReferences, err)
-	}
-
 	// destroy all NPM sets
-	creator, destroyFailureCount := iMgr.fileCreatorForDestroyAll(names, failedNames, setsWithReferences)
+	creator, destroyFailureCount := iMgr.fileCreatorForDestroyAll(names, failedNames, iMgr.setsWithReferences())
 	destroyError := creator.RunCommandWithFile(ipsetCommand, ipsetRestoreFlag)
 	if destroyError != nil {
 		klog.Errorf(
@@ -142,6 +135,38 @@ func (iMgr *IPSetManager) resetIPSets() error {
 		return npmerrors.SimpleErrorWrapper("failed to run ipset restore while destroying all for resetting IPSets", destroyError)
 	}
 	return nil
+}
+
+// resetWithoutRestore will return true (success) if able to reset without restore
+func (iMgr *IPSetManager) resetWithoutRestore() bool {
+	listNamesCommand := iMgr.ioShim.Exec.Command(ipsetCommand, ipsetListFlag, ipsetNameFlag)
+	grepCommand := iMgr.ioShim.Exec.Command(ioutil.Grep, ioutil.GrepQuietFlag, ioutil.GrepAntiMatchFlag, azureNPMPrefix)
+	commandString := fmt.Sprintf(" [%s %s %s | %s %s %s %s]", ipsetCommand, ipsetListFlag, ipsetNameFlag, ioutil.Grep, ioutil.GrepQuietFlag, ioutil.GrepAntiMatchFlag, azureNPMPrefix)
+	klog.Infof("running this command while resetting ipsets: [%s]", commandString)
+	_, haveNonAzureIPSets, commandError := ioutil.PipeCommandToGrep(listNamesCommand, grepCommand)
+	if commandError != nil {
+		metrics.SendErrorLogAndMetric(util.IpsmID, "failed to determine if there were non-azure sets while resetting. err: %v", commandError)
+		return false
+	}
+	if haveNonAzureIPSets {
+		return false
+	}
+
+	flushAndDestroy := iMgr.ioShim.Exec.Command(util.BashCommand, util.BashCommandFlag, ipsetFlushAndDestroyString)
+	klog.Infof("running this command while resetting ipsets: [%s %s '%s']", util.BashCommand, util.BashCommandFlag, ipsetFlushAndDestroyString)
+	output, err := flushAndDestroy.CombinedOutput()
+	if err != nil {
+		exitCode := -1
+		stdErr := "no stdErr detected"
+		var exitError utilexec.ExitError
+		if ok := errors.As(err, &exitError); ok {
+			exitCode = exitError.ExitStatus()
+			stdErr = strings.TrimSuffix(string(output), "\n")
+		}
+		metrics.SendErrorLogAndMetric(util.IpsmID, "failed to flush and destroy ipsets at once. exitCode: %d. stdErr: [%v]", exitCode, stdErr)
+		return false
+	}
+	return true
 }
 
 // this needs to be a separate function because we need to check creator contents in UTs
@@ -169,6 +194,7 @@ func (iMgr *IPSetManager) fileCreatorForFlushAll(ipsetListOutput []byte) (creato
 				Method:     ioutil.Continue,
 				Callback: func() {
 					klog.Infof("[RESET-IPSETS] skipping flush and upcoming destroy for set %s since the set doesn't exist", hashedSetName)
+					failedNames[hashedSetName] = struct{}{}
 				},
 			},
 			{
@@ -187,6 +213,25 @@ func (iMgr *IPSetManager) fileCreatorForFlushAll(ipsetListOutput []byte) (creato
 	}
 
 	return creator, names, failedNames
+}
+
+func (iMgr *IPSetManager) setsWithReferences() map[string]struct{} {
+	listAllCommand := iMgr.ioShim.Exec.Command(ipsetCommand, ipsetListFlag)
+	grep1 := iMgr.ioShim.Exec.Command(ioutil.Grep, ioutil.GrepBeforeFlag, referenceGrepLookBack, ioutil.GrepRegexFlag, positiveRefsRegex)
+	grep2 := iMgr.ioShim.Exec.Command(ioutil.Grep, ioutil.GrepOnlyMatchingFlag, ioutil.GrepRegexFlag, azureNPMRegex)
+	klog.Infof("running this command while resetting ipsets: [%s %s | %s %s %s %s %s | %s %s %s %s]", ipsetCommand, ipsetListFlag,
+		ioutil.Grep, ioutil.GrepBeforeFlag, referenceGrepLookBack, ioutil.GrepRegexFlag, positiveRefsRegex,
+		ioutil.Grep, ioutil.GrepOnlyMatchingFlag, ioutil.GrepRegexFlag, azureNPMRegex)
+	setsWithReferencesBytes, haveRefsStill, err := ioutil.DoublePipeToGrep(listAllCommand, grep1, grep2)
+
+	var setsWithReferences map[string]struct{}
+	if haveRefsStill {
+		setsWithReferences = readByteLinesToMap(setsWithReferencesBytes)
+		metrics.SendErrorLogAndMetric(util.IpsmID, "error: found leaked reference counts in kernel. ipsets (max %d): %+v. err: %v",
+			maxLinesToPrint, setsWithReferences, err)
+	}
+
+	return setsWithReferences
 }
 
 // named returns to appease lint

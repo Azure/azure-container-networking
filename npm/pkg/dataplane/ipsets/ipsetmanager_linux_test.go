@@ -232,6 +232,13 @@ func TestDestroyNPMIPSetsCreatorSuccess(t *testing.T) {
 }
 
 func TestDestroyNPMIPSetsCreatorErrorHandling(t *testing.T) {
+	/*
+		original lines:
+
+		"-F azure-npm-123456",
+		"-F azure-npm-777777",
+		"-F azure-npm-987654",
+	*/
 	tests := []struct {
 		name                   string
 		calls                  []testutils.TestCmd
@@ -258,7 +265,9 @@ func TestDestroyNPMIPSetsCreatorErrorHandling(t *testing.T) {
 				"-F azure-npm-987654",
 				"",
 			},
-			expectedFailedNames:    make(map[string]struct{}),
+			expectedFailedNames: map[string]struct{}{
+				"azure-npm-777777": {},
+			},
 			expectedDestroyFailure: false,
 			expectedDestroyLines: []string{
 				"-X azure-npm-123456",
@@ -342,15 +351,31 @@ func TestDestroyNPMIPSetsCreatorErrorHandling(t *testing.T) {
 				"-X azure-npm-987654",
 				"",
 			},
-			expectedFailureCount: 1,
+			expectedFailureCount: 0,
 			setsWithReferences: map[string]struct{}{
-				"-X azure-npm-777777": {},
+				"azure-npm-777777": {},
+			},
+		},
+		{
+			name: "all sets with references",
+			calls: []testutils.TestCmd{
+				fakeRestoreSuccessCommand,
+			},
+			expectedFlushFailure:   false,
+			expectedDestroyFailure: false,
+			expectedDestroyLines: []string{
+				"",
+			},
+			expectedFailureCount: 0,
+			setsWithReferences: map[string]struct{}{
+				"azure-npm-123456": {},
+				"azure-npm-777777": {},
+				"azure-npm-987654": {},
 			},
 		},
 	}
 	for _, tt := range tests {
 		tt := tt
-		fmt.Println(tt)
 		t.Run(tt.name, func(t *testing.T) {
 			ioshim := common.NewMockIOShim(tt.calls)
 			defer ioshim.VerifyCalls(t, tt.calls)
@@ -386,6 +411,8 @@ func TestDestroyNPMIPSetsCreatorErrorHandling(t *testing.T) {
 				require.False(t, wasModified, "got unexpected destroy modify flag")
 				require.NoError(t, err, "got unexpected destroy error")
 				require.Equal(t, 0, *destroyFailureCount, "got unexpected failure count")
+				actualLines := strings.Split(creator.ToString(), "\n")
+				dptestutils.AssertEqualLines(t, tt.expectedDestroyLines, actualLines)
 			}
 		})
 	}
@@ -398,8 +425,30 @@ func TestDestroyNPMIPSets(t *testing.T) {
 		wantErr bool
 	}{
 		{
+			name: "non-azure sets don't exist",
+			calls: []testutils.TestCmd{
+				{Cmd: []string{"ipset", "list", "--name"}, PipedToCommand: true},
+				{Cmd: []string{"grep", "-q", "-v", "azure-npm-"}, ExitCode: 1}, // grep didn't find anything
+				{Cmd: []string{"bash", "-c", "ipset flush && ipset destroy"}},
+			},
+			wantErr: false,
+		},
+		{
+			name: "ignore failure when looking for non-azure sets",
+			calls: []testutils.TestCmd{
+				{Cmd: []string{"ipset", "list", "--name"}, PipedToCommand: true},
+				{Cmd: []string{"grep", "-q", "-v", "azure-npm-"}, ExitCode: 1}, // grep didn't find anything
+				{Cmd: []string{"bash", "-c", "ipset flush && ipset destroy"}, ExitCode: 1, Stdout: "some error here"},
+				{Cmd: []string{"ipset", "list", "--name"}, PipedToCommand: true},
+				{Cmd: []string{"grep", "azure-npm-"}, ExitCode: 1},
+			},
+			wantErr: false,
+		},
+		{
 			name: "success with no results from grep",
 			calls: []testutils.TestCmd{
+				{Cmd: []string{"ipset", "list", "--name"}, PipedToCommand: true},
+				{Cmd: []string{"grep", "-q", "-v", "azure-npm-"}, ExitCode: 0}, // non-azure sets exist
 				{Cmd: []string{"ipset", "list", "--name"}, PipedToCommand: true},
 				{Cmd: []string{"grep", "azure-npm-"}, ExitCode: 1},
 			},
@@ -408,6 +457,8 @@ func TestDestroyNPMIPSets(t *testing.T) {
 		{
 			name: "successfully delete sets",
 			calls: []testutils.TestCmd{
+				{Cmd: []string{"ipset", "list", "--name"}, PipedToCommand: true},
+				{Cmd: []string{"grep", "-q", "-v", "azure-npm-"}, ExitCode: 0}, // non-azure sets exist
 				{Cmd: []string{"ipset", "list", "--name"}, PipedToCommand: true},
 				{Cmd: []string{"grep", "azure-npm-"}, Stdout: resetIPSetsListOutputString},
 				fakeRestoreSuccessCommand,
@@ -421,7 +472,9 @@ func TestDestroyNPMIPSets(t *testing.T) {
 		{
 			name: "grep error",
 			calls: []testutils.TestCmd{
-				{Cmd: []string{"ipset", "list", "--name"}, HasStartError: true, PipedToCommand: true, ExitCode: 1},
+				{Cmd: []string{"ipset", "list", "--name"}, PipedToCommand: true},
+				{Cmd: []string{"grep", "-q", "-v", "azure-npm-"}, ExitCode: 0}, // non-azure sets exist
+				{Cmd: []string{"ipset", "list", "--name"}, PipedToCommand: true, HasStartError: true, ExitCode: 1},
 				{Cmd: []string{"grep", "azure-npm-"}},
 			},
 			wantErr: true,
@@ -429,6 +482,8 @@ func TestDestroyNPMIPSets(t *testing.T) {
 		{
 			name: "restore error from max flush tries",
 			calls: []testutils.TestCmd{
+				{Cmd: []string{"ipset", "list", "--name"}, PipedToCommand: true},
+				{Cmd: []string{"grep", "-q", "-v", "azure-npm-"}, ExitCode: 0}, // non-azure sets exist
 				{Cmd: []string{"ipset", "list", "--name"}, PipedToCommand: true},
 				{Cmd: []string{"grep", "azure-npm-"}, Stdout: resetIPSetsListOutputString},
 				{Cmd: ipsetRestoreStringSlice, ExitCode: 1},
@@ -440,6 +495,8 @@ func TestDestroyNPMIPSets(t *testing.T) {
 		{
 			name: "restore error from max destroy tries",
 			calls: []testutils.TestCmd{
+				{Cmd: []string{"ipset", "list", "--name"}, PipedToCommand: true},
+				{Cmd: []string{"grep", "-q", "-v", "azure-npm-"}, ExitCode: 0}, // non-azure sets exist
 				{Cmd: []string{"ipset", "list", "--name"}, PipedToCommand: true},
 				{Cmd: []string{"grep", "azure-npm-"}, Stdout: resetIPSetsListOutputString},
 				fakeRestoreSuccessCommand,
@@ -456,6 +513,8 @@ func TestDestroyNPMIPSets(t *testing.T) {
 			name: "success despite all sets having references",
 			calls: []testutils.TestCmd{
 				{Cmd: []string{"ipset", "list", "--name"}, PipedToCommand: true},
+				{Cmd: []string{"grep", "-q", "-v", "azure-npm-"}, ExitCode: 0}, // non-azure sets exist
+				{Cmd: []string{"ipset", "list", "--name"}, PipedToCommand: true},
 				{Cmd: []string{"grep", "azure-npm-"}, Stdout: resetIPSetsListOutputString},
 				fakeRestoreSuccessCommand,
 				{Cmd: []string{"ipset", "list"}, PipedToCommand: true},
@@ -467,6 +526,8 @@ func TestDestroyNPMIPSets(t *testing.T) {
 		{
 			name: "success despite one set having references",
 			calls: []testutils.TestCmd{
+				{Cmd: []string{"ipset", "list", "--name"}, PipedToCommand: true},
+				{Cmd: []string{"grep", "-q", "-v", "azure-npm-"}, ExitCode: 0}, // non-azure sets exist
 				{Cmd: []string{"ipset", "list", "--name"}, PipedToCommand: true},
 				{Cmd: []string{"grep", "azure-npm-"}, Stdout: resetIPSetsListOutputString},
 				fakeRestoreSuccessCommand,
@@ -480,6 +541,8 @@ func TestDestroyNPMIPSets(t *testing.T) {
 		{
 			name: "successfully restore, but fail to flush/destroy 1 set since the set doesn't exist when flushing",
 			calls: []testutils.TestCmd{
+				{Cmd: []string{"ipset", "list", "--name"}, PipedToCommand: true},
+				{Cmd: []string{"grep", "-q", "-v", "azure-npm-"}, ExitCode: 0}, // non-azure sets exist
 				{Cmd: []string{"ipset", "list", "--name"}, PipedToCommand: true},
 				{Cmd: []string{"grep", "azure-npm-"}, Stdout: resetIPSetsListOutputString},
 				{
@@ -499,6 +562,8 @@ func TestDestroyNPMIPSets(t *testing.T) {
 			name: "successfully restore, but fail to flush/destroy 1 set due to other flush error",
 			calls: []testutils.TestCmd{
 				{Cmd: []string{"ipset", "list", "--name"}, PipedToCommand: true},
+				{Cmd: []string{"grep", "-q", "-v", "azure-npm-"}, ExitCode: 0}, // non-azure sets exist
+				{Cmd: []string{"ipset", "list", "--name"}, PipedToCommand: true},
 				{Cmd: []string{"grep", "azure-npm-"}, Stdout: resetIPSetsListOutputString},
 				{
 					Cmd:      ipsetRestoreStringSlice,
@@ -517,6 +582,8 @@ func TestDestroyNPMIPSets(t *testing.T) {
 			name: "successfully restore, but fail to destroy 1 set since the set doesn't exist when destroying",
 			calls: []testutils.TestCmd{
 				{Cmd: []string{"ipset", "list", "--name"}, PipedToCommand: true},
+				{Cmd: []string{"grep", "-q", "-v", "azure-npm-"}, ExitCode: 0}, // non-azure sets exist
+				{Cmd: []string{"ipset", "list", "--name"}, PipedToCommand: true},
 				{Cmd: []string{"grep", "azure-npm-"}, Stdout: resetIPSetsListOutputString},
 				fakeRestoreSuccessCommand,
 				{Cmd: []string{"ipset", "list"}, PipedToCommand: true},
@@ -534,6 +601,8 @@ func TestDestroyNPMIPSets(t *testing.T) {
 		{
 			name: "successfully restore, but fail to destroy 1 set due to other destroy error",
 			calls: []testutils.TestCmd{
+				{Cmd: []string{"ipset", "list", "--name"}, PipedToCommand: true},
+				{Cmd: []string{"grep", "-q", "-v", "azure-npm-"}, ExitCode: 0}, // non-azure sets exist
 				{Cmd: []string{"ipset", "list", "--name"}, PipedToCommand: true},
 				{Cmd: []string{"grep", "azure-npm-"}, Stdout: resetIPSetsListOutputString},
 				fakeRestoreSuccessCommand,
@@ -573,6 +642,8 @@ func TestDestroyNPMIPSets(t *testing.T) {
 func TestResetIPSetsOnFailure(t *testing.T) {
 	metrics.ReinitializeAll()
 	calls := []testutils.TestCmd{
+		{Cmd: []string{"ipset", "list", "--name"}, PipedToCommand: true, HasStartError: true, ExitCode: 1},
+		{Cmd: []string{"grep", "-q", "-v", "azure-npm-"}, ExitCode: 0}, // non-azure sets exist
 		{Cmd: []string{"ipset", "list", "--name"}, PipedToCommand: true, HasStartError: true, ExitCode: 1},
 		{Cmd: []string{"grep", "azure-npm-"}},
 	}
@@ -640,7 +711,7 @@ func TestApplyIPSetsSuccessWithSave(t *testing.T) {
 
 func TestApplyIPSetsFailureOnSave(t *testing.T) {
 	calls := []testutils.TestCmd{
-		{Cmd: ipsetSaveStringSlice, HasStartError: true, PipedToCommand: true, ExitCode: 1},
+		{Cmd: ipsetSaveStringSlice, PipedToCommand: true, HasStartError: true, ExitCode: 1},
 		{Cmd: []string{"grep", "azure-npm-"}},
 	}
 	ioshim := common.NewMockIOShim(calls)

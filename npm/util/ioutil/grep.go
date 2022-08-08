@@ -13,6 +13,8 @@ const (
 	Grep                 = "grep"
 	GrepRegexFlag        = "-P"
 	GrepOnlyMatchingFlag = "-o"
+	GrepAntiMatchFlag    = "-v"
+	GrepQuietFlag        = "-q"
 	GrepBeforeFlag       = "-B"
 )
 

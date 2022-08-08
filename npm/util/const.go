@@ -191,6 +191,11 @@ const (
 	SetPolicyDelimiter string = ","
 )
 
+const (
+	BashCommand     string = "bash"
+	BashCommandFlag string = "-c"
+)
+
 // NPM telemetry constants.
 const (
 	AddNamespaceEvent    string = "Add Namespace"
