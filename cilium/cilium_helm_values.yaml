@@ -1,0 +1,44 @@
+image:
+  repository: mcr.microsoft.com/oss/cilium/cilium
+  tag: v1.12.0
+  digest: ""
+  useDigest: false
+
+operator:
+  image:
+    repository: mcr.microsoft.com/oss/cilium/operator
+    tag: v1.12.0
+    suffix: ""
+    digest: ""
+    useDigest: false
+
+ipam:
+  mode: "delegated-plugin"
+
+tunnel: disabled
+
+endpointRoutes:
+  enabled: true
+
+extraArgs:
+  - --local-router-ipv4=169.254.23.0
+
+# kubenet pod CIDR
+ipv4NativeRoutingCIDR: 10.240.0.0/16
+enableIPv4Masquerade: false
+install-no-conntrack-iptables-rules: false
+installIptablesRules: false
+l7Proxy: false
+hubble:
+  enabled: false
+l2NeighDiscovery:
+  enabled: false
+kubeProxyReplacement: strict
+
+endpointHealthChecking:
+  enabled: false
+
+cni:
+  install: true
+  customConf: true
+  configMap: cni-configuration

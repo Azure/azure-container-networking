@@ -38,7 +38,7 @@ steps:
         echo "Cluster successfully created"
     displayName: Create test cluster
     condition: succeeded()
-
+  
   - script: |
       ls -lah
       pwd
@@ -46,6 +46,11 @@ steps:
       curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
       sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
       kubectl cluster-info
+      kubectl get po -owide -A
+      echo "deploy Cilium ConfigMap"
+      kubectl apply -f cilium/configmap.yaml
+      echo "install Cilium"
+      helm install cilium cilium/cilium --version 1.12.0 --namespace kube-system -f cilium/cilium_helm_values.yaml
       kubectl get po -owide -A
       sudo -E env "PATH=$PATH" VERSION=$(Tag) INSTALL_CNS=true make test-integration
     retryCountOnTaskFailure: 3

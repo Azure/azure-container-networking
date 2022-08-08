@@ -83,7 +83,11 @@ spec:
              "azure-vnet",
              "-o", "/opt/cni/bin/azure-vnet",
              "azure-linux-swift.conflist",
-             "-o", "/etc/cni/net.d/10-azure.conflist"]
+             "-o", "/etc/cni/net.d/10-azure.conflist",
+             "azure-ipam",
+             "-o", "/opt/cni/bin/azure-ipam",
+             "cilium",
+             "-o", "/opt/cni/bin/cilium-cni"]
           imagePullPolicy: Always
           volumeMounts:
             - name: cni-bin
