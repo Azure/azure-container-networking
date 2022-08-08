@@ -145,11 +145,12 @@ func (iMgr *IPSetManager) resetIPSets() error {
 }
 
 // this needs to be a separate function because we need to check creator contents in UTs
-func (iMgr *IPSetManager) fileCreatorForFlushAll(ipsetListOutput []byte) (*ioutil.FileCreator, []string, map[string]struct{}) {
+// named returns to appease lint
+func (iMgr *IPSetManager) fileCreatorForFlushAll(ipsetListOutput []byte) (creator *ioutil.FileCreator, names []string, failedNames map[string]struct{}) {
 	destroyFailureCount := 0
-	creator := ioutil.NewFileCreator(iMgr.ioShim, maxTryCount, ipsetRestoreLineFailurePattern)
-	names := make([]string, 0)
-	failedNames := make(map[string]struct{}, 0)
+	creator = ioutil.NewFileCreator(iMgr.ioShim, maxTryCount, ipsetRestoreLineFailurePattern)
+	names = make([]string, 0)
+	failedNames = make(map[string]struct{}, 0)
 	readIndex := 0
 	var line []byte
 	// flush all the sets and create a list of the sets so we can destroy them
@@ -188,9 +189,11 @@ func (iMgr *IPSetManager) fileCreatorForFlushAll(ipsetListOutput []byte) (*iouti
 	return creator, names, failedNames
 }
 
-func (iMgr *IPSetManager) fileCreatorForDestroyAll(names []string, failedNames, setsWithReferences map[string]struct{}) (*ioutil.FileCreator, *int) {
-	destroyFailureCount := 0
-	creator := ioutil.NewFileCreator(iMgr.ioShim, maxTryCount, ipsetRestoreLineFailurePattern)
+// named returns to appease lint
+func (iMgr *IPSetManager) fileCreatorForDestroyAll(names []string, failedNames, setsWithReferences map[string]struct{}) (creator *ioutil.FileCreator, failureCount *int) {
+	failureCountVal := 0
+	failureCount = &failureCountVal
+	creator = ioutil.NewFileCreator(iMgr.ioShim, maxTryCount, ipsetRestoreLineFailurePattern)
 
 	// destroy all the sets
 	for _, hashedSetName := range names {
@@ -212,7 +215,7 @@ func (iMgr *IPSetManager) fileCreatorForDestroyAll(names []string, failedNames, 
 				Method:     ioutil.Continue,
 				Callback: func() {
 					klog.Errorf("[RESET-IPSETS] marking destroy for set %s as a failure since the set is in use by a kernel component", hashedSetName)
-					destroyFailureCount++
+					failureCountVal++
 					// TODO mark the set as a failure and reconcile what iptables rule or ipset is referring to it
 				},
 			},
@@ -228,7 +231,7 @@ func (iMgr *IPSetManager) fileCreatorForDestroyAll(names []string, failedNames, 
 				Method:     ioutil.Continue,
 				Callback: func() {
 					klog.Errorf("[RESET-IPSETS] marking destroy for set %s as a failure due to unknown error", hashedSetName)
-					destroyFailureCount++
+					failureCountVal++
 					// TODO mark the set as a failure and reconcile what iptables rule or ipset is referring to it
 				},
 			},
@@ -237,7 +240,7 @@ func (iMgr *IPSetManager) fileCreatorForDestroyAll(names []string, failedNames, 
 		creator.AddLine(sectionID, errorHandlers, ipsetDestroyFlag, hashedSetName) // destroy set
 	}
 
-	return creator, &destroyFailureCount
+	return creator, failureCount
 }
 
 /*

@@ -81,7 +81,6 @@ const (
 	IptablesListFlag        string = "-L"
 	IptablesNumericFlag     string = "-n"
 	IptablesLineNumbersFlag string = "--line-numbers"
-	defa
 
 	IptablesKubeServicesChain          string = "KUBE-SERVICES"
 	IptablesForwardChain               string = "FORWARD"
