@@ -86,7 +86,7 @@ spec:
              "-o", "/etc/cni/net.d/10-azure.conflist",
              "azure-ipam",
              "-o", "/opt/cni/bin/azure-ipam",
-             "cilium",
+             "cilium-cni",
              "-o", "/opt/cni/bin/cilium-cni"]
           imagePullPolicy: Always
           volumeMounts:
