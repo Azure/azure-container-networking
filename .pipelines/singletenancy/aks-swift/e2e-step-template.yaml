@@ -47,6 +47,14 @@ steps:
       sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
       kubectl cluster-info
       kubectl get po -owide -A
+      sudo -E env "PATH=$PATH" VERSION=$(Tag) INSTALL_CNS=true INSTALL_AZURE_VNET=true make test-integration
+    retryCountOnTaskFailure: 3
+    name: "aksswifte2e"
+    displayName: "Run AKS Swift E2E"
+
+  - script: |
+      ls -lah
+      pwd
       curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
       chmod 700 get_helm.sh
       ./get_helm.sh
@@ -56,14 +64,14 @@ steps:
       helm repo add cilium https://helm.cilium.io/
       helm install cilium cilium/cilium --version 1.12.0 --namespace kube-system -f cilium/cilium_helm_values.yaml
       kubectl get po -owide -A
-      sudo -E env "PATH=$PATH" VERSION=$(Tag) INSTALL_CNS=true make test-integration
+      sudo -E env "PATH=$PATH" VERSION=$(Tag) INSTALL_CNS=true INSTALL_AZILIUM=true make test-integration
     retryCountOnTaskFailure: 3
-    name: "aksswifte2e"
-    displayName: "Run AKS Swift E2E"
+    name: "aziliumTest"
+    displayName: "Run Azilium E2E"
 
   - script: |
       echo "Logs will be available as a build artifact"
-      ARTIFACT_DIR=$(Build.ArtifactStagingDirectory)/aks-swift-output/
+      ARTIFACT_DIR=$(Build.ArtifactStagingDirectory)/test-output/
       echo $ARTIFACT_DIR
       sudo rm -rf $ARTIFACT_DIR
       sudo mkdir $ARTIFACT_DIR
@@ -74,12 +82,12 @@ steps:
 
   - task: PublishBuildArtifacts@1
     inputs:
-      artifactName: aks-swift-output
-      pathtoPublish: "$(Build.ArtifactStagingDirectory)/aks-swift-output"
+      artifactName: test-output
+      pathtoPublish: "$(Build.ArtifactStagingDirectory)/test-output"
     condition: always()
 
   - script: |
-      ARTIFACT_DIR=$(Build.ArtifactStagingDirectory)/aks-swift-output/
+      ARTIFACT_DIR=$(Build.ArtifactStagingDirectory)/test-output/
       echo $ARTIFACT_DIR
       sudo rm -rf $ARTIFACT_DIR
       sudo rm -rf test/integration/logs

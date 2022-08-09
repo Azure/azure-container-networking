@@ -19,9 +19,11 @@ import (
 const (
 	exitFail = 1
 
-	envTag        = "VERSION"
-	envInstallCNI = "INSTALL_CNI"
-	envInstallCNS = "INSTALL_CNS"
+	envTag              = "VERSION"
+	envInstallCNI       = "INSTALL_CNI"
+	envInstallCNS       = "INSTALL_CNS"
+	envInstallAzilium   = "INSTALL_AZILIUM"
+	envInstallAzureVnet = "INSTALL_AZURE_VNET"
 
 	// relative azure-cni-manager path
 	cniDaemonSetPath = "manifests/cni/manager.yaml"
@@ -93,7 +95,7 @@ func TestMain(m *testing.M) {
 	if installopt := os.Getenv(envInstallCNS); installopt != "" {
 		// create dirty cns ds
 		if installCNS, err := strconv.ParseBool(installopt); err == nil && installCNS == true {
-			if cnscleanup, err = installCNSDaemonset(ctx, clientset, os.Getenv(envTag), logDir); err != nil {
+			if cnscleanup, err = installCNSDaemonset(ctx, clientset, os.Getenv(envTag), os.Getenv(envInstallAzilium), os.Getenv(envInstallAzureVnet) logDir); err != nil {
 				log.Print(err)
 				exitCode = 2
 				return
@@ -106,7 +108,7 @@ func TestMain(m *testing.M) {
 	exitCode = m.Run()
 }
 
-func installCNSDaemonset(ctx context.Context, clientset *kubernetes.Clientset, imageTag, logDir string) (func() error, error) {
+func installCNSDaemonset(ctx context.Context, clientset *kubernetes.Clientset, imageTag, aziliumScenario, azVnetScenario, logDir string) (func() error, error) {
 	var (
 		err error
 		cns v1.DaemonSet
@@ -123,8 +125,25 @@ func installCNSDaemonset(ctx context.Context, clientset *kubernetes.Clientset, i
 
 	image, _ := parseImageString(cns.Spec.Template.Spec.Containers[0].Image)
 	cns.Spec.Template.Spec.Containers[0].Image = getImageString(image, imageTag)
-	initImage, _ := parseImageString(cns.Spec.Template.Spec.InitContainers[0].Image)
-	cns.Spec.Template.Spec.InitContainers[0].Image = getImageString(initImage, imageTag)
+
+	// check environment scenario
+	log.Printf("Checking environment scenario")
+	if azVnetScenario == true {
+		log.Printf("Env %v set to true, deploy azure-vnet", envInstallAzureVnet)
+		initImage, _ := parseImageString(cns.Spec.Template.Spec.InitContainers[0].Image)
+		cns.Spec.Template.Spec.InitContainers[0].Image = getImageString(initImage, imageTag)
+	} else {
+		log.Printf("Env %v not set to true, skipping", envInstallAzureVnet)
+	}
+
+	if aziliumScenario == true {
+		log.Printf("Env %v set to true, deploy azure-ipam and cilium-cni", envInstallAzilium)
+		initImage, _ := parseImageString(cns.Spec.Template.Spec.InitContainers[1].Image)
+		cns.Spec.Template.Spec.InitContainers[1].Image = getImageString(initImage, imageTag)
+	} else {
+		log.Printf("Env %v not set to true, skipping", envInstallAzilium)
+	}
+
 	cnsDaemonsetClient := clientset.AppsV1().DaemonSets(cns.Namespace)
 
 	log.Printf("Installing CNS with image %s", cns.Spec.Template.Spec.Containers[0].Image)
