@@ -104,6 +104,8 @@ spec:
               mountPath: /var/log
             - name: cns-state
               mountPath: /var/lib/azure-network
+            - name: azure-endpoints
+              mountPath: /var/run/azure-cns/
             - name: cns-config
               mountPath: /etc/azure-cns
             - name: cni-bin
@@ -130,6 +132,10 @@ spec:
                     fieldPath: spec.nodeName 
       hostNetwork: true
       volumes:
+        - name: azure-endpoints
+          hostPath:
+            path: /var/run/azure-cns/
+            type: DirectoryOrCreate
         - name: log
           hostPath:
             path: /var/log
@@ -179,5 +185,8 @@ data:
           "NodeSyncIntervalInSeconds": 30
       },
       "ChannelMode": "CRD",
-      "InitializeFromCNI": true
+      "InitializeFromCNI": true,
+      "ManageEndpointState": false,
+      "ProgramSNATIPTables" : false
     }
+# Toggle ManageEndpointState and ProgramSNATIPTables to true for delegated IPAM use case.

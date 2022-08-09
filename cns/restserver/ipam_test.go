@@ -4,6 +4,8 @@
 package restserver
 
 import (
+	"fmt"
+	"net"
 	"strconv"
 	"testing"
 
@@ -12,6 +14,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/fakes"
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
+	"github.com/Azure/azure-container-networking/store"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 )
@@ -37,7 +40,7 @@ var (
 
 func getTestService() *HTTPRestService {
 	var config common.ServiceConfig
-	httpsvc, _ := NewHTTPRestService(&config, &fakes.WireserverClientFake{}, &fakes.NMAgentClientFake{}, nil)
+	httpsvc, _ := NewHTTPRestService(&config, &fakes.WireserverClientFake{}, &fakes.NMAgentClientFake{}, store.NewMockStore(""))
 	svc = httpsvc.(*HTTPRestService)
 	svc.IPAMPoolMonitor = &fakes.MonitorFake{}
 	setOrchestratorTypeInternal(cns.KubernetesCRD)
@@ -123,6 +126,70 @@ func UpdatePodIpConfigState(t *testing.T, svc *HTTPRestService, ipconfigs map[st
 		}
 	}
 	return nil
+}
+
+func TestEndpointStateReadAndWrite(t *testing.T) {
+	svc := getTestService()
+	testState := NewPodState(testIP1, 24, testPod1GUID, testNCID, types.Available, 0)
+	ipconfigs := map[string]cns.IPConfigurationStatus{
+		testState.ID: testState,
+	}
+	err := UpdatePodIpConfigState(t, svc, ipconfigs)
+	if err != nil {
+		t.Fatalf("Expected to not fail update service with config: %+v", err)
+	}
+	req := cns.IPConfigRequest{
+		PodInterfaceID:   testPod1Info.InterfaceID(),
+		InfraContainerID: testPod1Info.InfraContainerID(),
+	}
+	b, _ := testPod1Info.OrchestratorContext()
+	req.OrchestratorContext = b
+	req.Ifname = "eth0"
+	podIPInfo, err := requestIPConfigHelper(svc, req)
+	if err != nil {
+		t.Fatalf("Expected to not fail getting pod ip info: %+v", err)
+	}
+	ip, ipnet, err := net.ParseCIDR(podIPInfo.PodIPConfig.IPAddress + "/" + fmt.Sprint(podIPInfo.PodIPConfig.PrefixLength))
+	if err != nil {
+		t.Fatalf("failed to parse pod ip address: %+v", err)
+	}
+	ipconfig := &net.IPNet{IP: ip, Mask: ipnet.Mask}
+	ipInfo := &IPInfo{}
+	if ip.To4() == nil { // is an ipv6 address
+		ipInfo.IPv6 = ipconfig
+	} else {
+		ipInfo.IPv4 = ipconfig
+	}
+
+	// add
+	desiredState := map[string]*EndpointInfo{req.InfraContainerID: {PodName: testPod1Info.Name(), PodNamespace: testPod1Info.Namespace(), IfnameToIPMap: map[string]*IPInfo{req.Ifname: ipInfo}}}
+	err = svc.updateEndpointState(req, testPod1Info, podIPInfo)
+	if err != nil {
+		t.Fatalf("Expected to not fail updating endpoint state: %+v", err)
+	}
+	assert.Equal(t, desiredState, svc.EndpointState)
+
+	// consecutive add of same endpoint should not change state or cause error
+	err = svc.updateEndpointState(req, testPod1Info, podIPInfo)
+	if err != nil {
+		t.Fatalf("Expected to not fail updating existing endpoint state: %+v", err)
+	}
+	assert.Equal(t, desiredState, svc.EndpointState)
+
+	// delete
+	desiredState = map[string]*EndpointInfo{}
+	err = svc.removeEndpointState(testPod1Info)
+	if err != nil {
+		t.Fatalf("Expected to not fail removing endpoint state: %+v", err)
+	}
+	assert.Equal(t, desiredState, svc.EndpointState)
+
+	// delete non-existent endpoint should not change state or cause error
+	err = svc.removeEndpointState(testPod1Info)
+	if err != nil {
+		t.Fatalf("Expected to not fail removing non existing key: %+v", err)
+	}
+	assert.Equal(t, desiredState, svc.EndpointState)
 }
 
 // Want first IP
