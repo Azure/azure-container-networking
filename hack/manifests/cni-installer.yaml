@@ -1,18 +1,18 @@
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
-  name: cni-installer
+  name: azure-cni
   namespace: kube-system
   labels:
-    app: cni-installer
+    app: azure-cni
 spec:
   selector:
     matchLabels:
-      k8s-app: cni-installer
+      k8s-app: azure-cni
   template:
     metadata:
       labels:
-        k8s-app: cni-installer
+        k8s-app: azure-cni
       annotations:
         cluster-autoscaler.kubernetes.io/daemonset-pod: "true"
     spec:
@@ -39,8 +39,8 @@ spec:
           effect: NoExecute
         - operator: "Exists"
           effect: NoSchedule
-      containers:
-        - name: cni-installer
+      initContainers:
+        - name: azure-cni
           image: acnpublic.azurecr.io/cni-dropgz:v1.4.28-41-g3ecb7fb1
           imagePullPolicy: Always
           command: ["/dropgz"]
@@ -57,33 +57,16 @@ spec:
               mountPath: /opt/cni/bin
             - name: cni-conflist
               mountPath: /etc/cni/net.d
+      containers:
+        - name: pause
+          image: k8s.gcr.io/pause:2.0
       hostNetwork: true
       volumes:
         - name: cni-conflist
           hostPath:
             path: /etc/cni/net.d
             type: Directory
-        - name: log
-          hostPath:
-            path: /var/log
-            type: Directory
-        - name: cns-state
-          hostPath:
-            path: /var/lib/azure-network
-            type: DirectoryOrCreate
         - name: cni-bin
           hostPath:
             path: /opt/cni/bin
             type: Directory
-        - name: azure-vnet
-          hostPath:
-            path: /var/run/azure-vnet
-            type: DirectoryOrCreate
-        - name: legacy-cni-state
-          hostPath:
-            path: /var/run/azure-vnet.json
-            type: FileOrCreate
-        - name: cns-config
-          configMap:
-            name: cns-config
-      serviceAccountName: azure-cns
