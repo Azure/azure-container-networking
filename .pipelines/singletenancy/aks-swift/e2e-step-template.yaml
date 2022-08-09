@@ -47,24 +47,14 @@ steps:
       sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
       kubectl cluster-info
       kubectl get po -owide -A
+      curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
+      chmod 700 get_helm.sh
+      ./get_helm.sh
       echo "deploy Cilium ConfigMap"
       kubectl apply -f cilium/configmap.yaml
-    name: "DeployConfigmap"
-    displayName: "Deploy Cilium ConfigMap"
-
-  - task: HelmDeploy@0
-    displayName: Helm install
-    inputs:
-      azureSubscription: $(AZURE_TEST_AGENT_SERVICE_CONNECTION)
-      azureResourceGroup: swifte2e-$(make revision)
-      kubernetesCluster: swifte2e-$(make revision)
-      command: install
-      chartType: FilePath
-      chartPath: cilium/cilium
-      arguments: --version 1.12.0 --namespace kube-system -f cilium/cilium_helm_values.yaml
-  
-  - script: |
-      echo "Install CNS and Run Swift E2E"
+      echo "install Cilium"
+      helm repo add cilium https://helm.cilium.io/
+      helm install cilium cilium/cilium --version 1.12.0 --namespace kube-system -f cilium/cilium_helm_values.yaml
       kubectl get po -owide -A
       sudo -E env "PATH=$PATH" VERSION=$(Tag) INSTALL_CNS=true make test-integration
     retryCountOnTaskFailure: 3
