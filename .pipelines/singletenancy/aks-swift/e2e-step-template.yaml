@@ -61,7 +61,7 @@ steps:
       command: install
       chartType: FilePath
       chartPath: cilium/cilium
-      arguments: ["--version", "1.12.0", "--namespace", "kube-system", "-f", "cilium/cilium_helm_values.yaml"]
+      arguments: --version 1.12.0 --namespace kube-system -f cilium/cilium_helm_values.yaml
   
   - script: |
       echo "Install CNS and Run Swift E2E"
