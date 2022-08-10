@@ -108,7 +108,7 @@ func TestMain(m *testing.M) {
 	exitCode = m.Run()
 }
 
-func installCNSDaemonset(ctx context.Context, clientset *kubernetes.Clientset, imageTag, aziliumScenario, azVnetScenario, logDir string) (func() error, error) {
+func installCNSDaemonset(ctx context.Context, clientset *kubernetes.Clientset, imageTag, aziliumScenario bool, azVnetScenario bool, logDir string) (func() error, error) {
 	var (
 		err error
 		cns v1.DaemonSet
