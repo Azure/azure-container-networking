@@ -95,7 +95,7 @@ func TestMain(m *testing.M) {
 	if installopt := os.Getenv(envInstallCNS); installopt != "" {
 		// create dirty cns ds
 		if installCNS, err := strconv.ParseBool(installopt); err == nil && installCNS == true {
-			if cnscleanup, err = installCNSDaemonset(ctx, clientset, os.Getenv(envTag), os.Getenv(envInstallAzilium), os.Getenv(envInstallAzureVnet) logDir); err != nil {
+			if cnscleanup, err = installCNSDaemonset(ctx, clientset, os.Getenv(envTag), os.Getenv(envInstallAzilium), os.Getenv(envInstallAzureVnet), logDir); err != nil {
 				log.Print(err)
 				exitCode = 2
 				return
