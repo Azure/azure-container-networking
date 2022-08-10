@@ -249,7 +249,7 @@ stages:
       displayName: AKS Swift
       pipelineBuildImage: "$(BUILD_IMAGE)"
   
-  - template: singletenancy/cilium/e2e-job-template.yaml
+  - template: singletenancy/cilium/cilium-e2e-job-template.yaml
     parameters:
       name: "cilium_e2e"
       displayName: AKS Swift

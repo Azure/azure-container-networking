@@ -24,6 +24,6 @@ stages:
           Tag: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
           modulePath: "$(GOPATH)/src/github.com/Azure/azure-container-networking"
         steps:
-          - template: e2e-step-template.yaml
+          - template: cilium-e2e-step-template.yaml
             parameters:
               name: ${{ parameters.name }}
