@@ -95,7 +95,7 @@ func TestMain(m *testing.M) {
 	if installopt := os.Getenv(envInstallCNS); installopt != "" {
 		// create dirty cns ds
 		if installCNS, err := strconv.ParseBool(installopt); err == nil && installCNS == true {
-			if cnscleanup, err = installCNSDaemonset(ctx, clientset, os.Getenv(envTag), os.Getenv(envInstallAzilium), os.Getenv(envInstallAzureVnet), logDir); err != nil {
+			if cnscleanup, err = installCNSDaemonset(ctx, clientset, os.Getenv(envTag), strconv.ParseBool(os.Getenv(envInstallAzilium)), strconv.ParseBool(os.Getenv(envInstallAzureVnet)), logDir); err != nil {
 				log.Print(err)
 				exitCode = 2
 				return
@@ -128,7 +128,7 @@ func installCNSDaemonset(ctx context.Context, clientset *kubernetes.Clientset, i
 
 	// check environment scenario
 	log.Printf("Checking environment scenario")
-	if azVnetScenario == 'true' {
+	if azVnetScenario == true {
 		log.Printf("Env %v set to true, deploy azure-vnet", envInstallAzureVnet)
 		initImage, _ := parseImageString(cns.Spec.Template.Spec.InitContainers[0].Image)
 		cns.Spec.Template.Spec.InitContainers[0].Image = getImageString(initImage, imageTag)
@@ -136,7 +136,7 @@ func installCNSDaemonset(ctx context.Context, clientset *kubernetes.Clientset, i
 		log.Printf("Env %v not set to true, skipping", envInstallAzureVnet)
 	}
 
-	if aziliumScenario == 'true' {
+	if aziliumScenario == true {
 		log.Printf("Env %v set to true, deploy azure-ipam and cilium-cni", envInstallAzilium)
 		initImage, _ := parseImageString(cns.Spec.Template.Spec.InitContainers[1].Image)
 		cns.Spec.Template.Spec.InitContainers[1].Image = getImageString(initImage, imageTag)
