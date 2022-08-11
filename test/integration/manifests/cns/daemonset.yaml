@@ -76,7 +76,7 @@ spec:
       initContainers:
         - name: init-cni-dropgz-swift
           image: acnpublic.azurecr.io/cni-dropgz:v1.4.28-41-g3ecb7fb1
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           command: ["/dropgz"]
           args: [
              "deploy",
@@ -92,7 +92,7 @@ spec:
               mountPath: /etc/cni/net.d
         - name: init-cni-dropgz-azilium
           image: acnpublic.azurecr.io/cni-dropgz:v1.4.28-41-g3ecb7fb1
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           command: ["/dropgz"]
           args: [
              "deploy",
