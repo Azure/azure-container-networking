@@ -81,16 +81,21 @@ func (c *Core) Write(entry zapcore.Entry, fields []zapcore.Field) error {
 	// add fields from core
 	fields = append(c.fields, fields...)
 
+	// clone encoder
+	clone := c.enc.cloneEncoder(t)
+
 	// set fields
 	for i := range fields {
-		// check mapped fields first
-		if mapper, ok := c.fieldMappers[fields[i].Key]; ok {
+		// handle zap object first
+		if fields[i].Type == zapcore.ObjectMarshalerType {
+			fields[i].AddTo(clone)
+		} else if mapper, ok := c.fieldMappers[fields[i].Key]; ok {
+			// check mapped fields
 			mapper(t, fieldStringer(&fields[i]))
 		} else {
 			t.Properties[fields[i].Key] = fieldStringer(&fields[i])
 		}
 	}
-
 	b, err := c.enc.encode(t)
 	if err != nil {
 		return errors.Wrap(err, "core failed to encode trace")
