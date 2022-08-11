@@ -121,14 +121,14 @@ func (pm *Monitor) Start(ctx context.Context) error {
 				// if we have initialized and enter this case, we proceed out of the select and continue to reconcile.
 			}
 		case nnc := <-pm.nncSource: // received a new NodeNetworkConfig, extract the data from it and re-reconcile.
-			scaler := nnc.Status.Scaler
-
-			// Set SubnetName, SubnetAddressSpace and Pod Network ARM ID values to the global subnet, subnetCIDR and subnetARM variables.
-			subnet = nnc.Status.NetworkContainers[0].SubnetName
-			subnetCIDR = nnc.Status.NetworkContainers[0].SubnetAddressSpace
-			subnetARMID = GenerateARMID(&nnc.Status.NetworkContainers[0])
-			// check for subnet exhaustion
-			_, pm.metastate.exhausted = exhaustedSubnetSet[nnc.Status.NetworkContainers[0].SubnetName]
+			if len(nnc.Status.NetworkContainers) > 0 {
+				// Set SubnetName, SubnetAddressSpace and Pod Network ARM ID values to the global subnet, subnetCIDR and subnetARM variables.
+				subnet = nnc.Status.NetworkContainers[0].SubnetName
+				subnetCIDR = nnc.Status.NetworkContainers[0].SubnetAddressSpace
+				subnetARMID = GenerateARMID(&nnc.Status.NetworkContainers[0])
+				// check for subnet exhaustion
+				_, pm.metastate.exhausted = exhaustedSubnetSet[nnc.Status.NetworkContainers[0].SubnetName]
+			}
 
 			pm.metastate.primaryIPAddresses = make(map[string]struct{})
 			// Add Primary IP to Map, if not present.
@@ -140,6 +140,7 @@ func (pm *Monitor) Start(ctx context.Context) error {
 				}
 			}
 
+			scaler := nnc.Status.Scaler
 			pm.metastate.batch = scaler.BatchSize
 			pm.metastate.max = scaler.MaxIPCount
 			pm.metastate.minFreeCount, pm.metastate.maxFreeCount = CalculateMinFreeIPs(scaler), CalculateMaxFreeIPs(scaler)
@@ -469,6 +470,7 @@ func (pm *Monitor) clampScaler(scaler *v1alpha.Scaler) {
 // CalculateMinFreeIPs calculates the minimum free IP quantity based on the Scaler
 // in the passed NodeNetworkConfig.
 // Half of odd batches are rounded up!
+//
 //nolint:gocritic // ignore hugeparam
 func CalculateMinFreeIPs(scaler v1alpha.Scaler) int64 {
 	return int64(float64(scaler.BatchSize)*(float64(scaler.RequestThresholdPercent)/100) + .5) //nolint:gomnd // it's a percent
@@ -477,6 +479,7 @@ func CalculateMinFreeIPs(scaler v1alpha.Scaler) int64 {
 // CalculateMaxFreeIPs calculates the maximum free IP quantity based on the Scaler
 // in the passed NodeNetworkConfig.
 // Half of odd batches are rounded up!
+//
 //nolint:gocritic // ignore hugeparam
 func CalculateMaxFreeIPs(scaler v1alpha.Scaler) int64 {
 	return int64(float64(scaler.BatchSize)*(float64(scaler.ReleaseThresholdPercent)/100) + .5) //nolint:gomnd // it's a percent
