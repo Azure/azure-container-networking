@@ -5,10 +5,6 @@ ARG VERSION
 WORKDIR /azure-ipam
 COPY ./azure-ipam .
 RUN CGO_ENABLED=0 go build -a -o bin/azure-ipam -trimpath -ldflags "-X main.version="$VERSION"" -gcflags="-dwarflocationlists=true" .
-# RUN curl -LO https://github.com/Azure/azure-container-networking/releases/download/v1.4.29/azure-ipam-cni-swift-$OS-$ARCH-v1.4.29.tgz
-# RUN tar -xvf azure-ipam-cni-swift-windows-amd64-v1.4.29.tgz
-# RUN mv azure-ipam-cni-swift-windows-amd64-v1.4.29 /pkg/embed/fs
-# something like above -- but replace windows and amd64 with something like $OS + $ARCH vars 
 
 FROM mcr.microsoft.com/oss/go/microsoft/golang:1.18 AS azure-vnet
 ARG VERSION
@@ -16,8 +12,8 @@ WORKDIR /azure-container-networking
 COPY . .
 # RUN CGO_ENABLED=0 go build -a -o bin/azure-vnet -trimpath -ldflags "-X main.version="$VERSION"" -gcflags="-dwarflocationlists=true" cni/network/plugin/main.go
 RUN curl -LO https://github.com/Azure/azure-container-networking/releases/download/v1.4.29/azure-vnet-cni-swift-$OS-$ARCH-v1.4.29.tgz
-RUN tar -xvf azure-vnet-cni-swift-windows-amd64-v1.4.29.tgz
-RUN mv azure-vnet-cni-swift-windows-amd64-v1.4.29 /pkg/embed/fs
+RUN tar -xvf azure-vnet-cni-swift-$OS-$ARCH-v1.4.29.tgz
+RUN mv azure-vnet-cni-swift-$OS-$ARCH-v1.4.29 /pkg/embed/fs
 
 FROM mcr.microsoft.com/cbl-mariner/base/core:2.0 AS compressor
 WORKDIR /dropgz
