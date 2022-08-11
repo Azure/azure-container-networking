@@ -11,8 +11,7 @@ ARG VERSION
 WORKDIR /azure-container-networking
 COPY . .
 # RUN CGO_ENABLED=0 go build -a -o bin/azure-vnet -trimpath -ldflags "-X main.version="$VERSION"" -gcflags="-dwarflocationlists=true" cni/network/plugin/main.go
-RUN curl -LO https://github.com/Azure/azure-container-networking/releases/download/v1.4.29/azure-vnet-cni-swift-$OS-$ARCH-v1.4.29.tgz
-RUN tar -xvf azure-vnet-cni-swift-$OS-$ARCH-v1.4.29.tgz
+RUN curl -LO https://github.com/Azure/azure-container-networking/releases/download/v1.4.29/azure-vnet-cni-swift-$OS-$ARCH-v1.4.29.tgz && tar -xvf azure-vnet-cni-swift-$OS-$ARCH-v1.4.29.tgz
 RUN mv azure-vnet-cni-swift-$OS-$ARCH-v1.4.29 /pkg/embed/fs
 
 FROM mcr.microsoft.com/cbl-mariner/base/core:2.0 AS compressor
