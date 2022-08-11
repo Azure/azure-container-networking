@@ -254,6 +254,8 @@ cni-dropgz-image-name: # util target to print the CNI dropgz image name.
 cni-dropgz-image: ## build cni-dropgz container image.
 	$(MAKE) containerize-$(CONTAINER_BUILDER) \
 		PLATFORM=$(PLATFORM) \
+		OS=$(OS) \
+		ARCH=$(ARCH) \
 		DOCKERFILE=dropgz/build/cni.Dockerfile \
 		REGISTRY=$(IMAGE_REGISTRY) \
 		IMAGE=$(CNIDROPGZ_IMAGE) \
