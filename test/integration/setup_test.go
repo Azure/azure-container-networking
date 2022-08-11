@@ -128,11 +128,6 @@ func installCNSDaemonset(ctx context.Context, clientset *kubernetes.Clientset, i
 
 	// check environment scenario
 	log.Printf("Checking environment scenario")
-	// if azVnetScenario == true {
-	// 	log.Printf("Env %v set to true, deploy azure-vnet", envInstallAzureVnet)
-	// 	initImage, _ := parseImageString(cns.Spec.Template.Spec.InitContainers[0].Image)
-	// 	cns.Spec.Template.Spec.InitContainers[0].Image = getImageString(initImage, imageTag)
-	// }
 	if installBool1 := os.Getenv(envInstallAzureVnet); installBool1 != "" {
 		// create dirty cns ds
 		if azureVnetScenario, err := strconv.ParseBool(installBool1); err == nil && azureVnetScenario == true {
@@ -144,15 +139,10 @@ func installCNSDaemonset(ctx context.Context, clientset *kubernetes.Clientset, i
 		log.Printf("Env %v not set to true, skipping", envInstallAzureVnet)
 	}
 
-	// if aziliumScenario == true {
-	// 	log.Printf("Env %v set to true, deploy azure-ipam and cilium-cni", envInstallAzilium)
-	// 	initImage, _ := parseImageString(cns.Spec.Template.Spec.InitContainers[1].Image)
-	// 	cns.Spec.Template.Spec.InitContainers[1].Image = getImageString(initImage, imageTag)
-	// }
 	if installBool2 := os.Getenv(envInstallAzilium); installBool2 != "" {
 		// create dirty cns ds
 		if aziliumScenario, err := strconv.ParseBool(installBool2); err == nil && aziliumScenario == true {
-			log.Printf("Env %v set to true, deploy azure-vnet", envInstallAzilium)
+			log.Printf("Env %v set to true, deploy azure-ipam and cilium-cni", envInstallAzilium)
 			initImage, _ := parseImageString(cns.Spec.Template.Spec.InitContainers[1].Image)
 			cns.Spec.Template.Spec.InitContainers[1].Image = getImageString(initImage, imageTag)
 		}
