@@ -141,7 +141,7 @@ func (creator *FileCreator) RunCommandWithFile(cmd string, args ...string) error
 		if wasFileAltered {
 			sameNew = "updated"
 		}
-		msg := fmt.Sprintf("on try number %d, failed to run command [%s]. Rerunning with %s file. Had error [%s].Used file:%s", creator.tryCount, commandString, sameNew, err.Error(), fileString)
+		msg := fmt.Sprintf("on try number %d, failed to run command [%s]. Rerunning with %s file. err: [%s]", creator.tryCount, commandString, sameNew, err.Error())
 		klog.Error(msg)
 		metrics.SendErrorLogAndMetric(util.UtilID, "error: %s", msg)
 
@@ -181,6 +181,8 @@ func (creator *FileCreator) runCommandOnceWithFile(fileString, cmd string, args 
 		return false, nil
 	}
 
+	klog.Infof("running this restore command: [%s]", commandString)
+
 	command := creator.ioShim.Exec.Command(cmd, args...)
 	command.SetStdin(bytes.NewBufferString(fileString))
 
@@ -208,8 +210,8 @@ func (creator *FileCreator) runCommandOnceWithFile(fileString, cmd string, args 
 	for _, lineFailureDefinition := range creator.lineFailureDefinitions {
 		lineNum := lineFailureDefinition.getErrorLineNumber(stdErr, commandString, numLines)
 		if lineNum != -1 {
-			wasFileAltered := creator.handleLineError(stdErr, commandString, lineNum)
-			return wasFileAltered, npmerrors.SimpleErrorWrapper("line-number error", err)
+			wasFileAltered, line := creator.handleLineError(stdErr, commandString, lineNum)
+			return wasFileAltered, npmerrors.SimpleErrorWrapper(fmt.Sprintf("line-number error for line [%s]", line.content), err)
 		}
 	}
 	return false, npmerrors.SimpleErrorWrapper("unknown error", err)
@@ -260,9 +262,20 @@ func (definition *ErrorDefinition) getErrorLineNumber(stdErr, commandString stri
 }
 
 // return whether the file was altered
-func (creator *FileCreator) handleLineError(stdErr, commandString string, lineNum int) bool {
-	lineNumIndex := lineNum - 1
-	line := creator.lines[lineNumIndex]
+func (creator *FileCreator) handleLineError(stdErr, commandString string, lineNum int) (bool, *Line) {
+	lineIndex := 0
+	currentLineIndex := 0
+	for i := range creator.lines {
+		if _, isOmitted := creator.lineNumbersToOmit[i]; isOmitted {
+			continue
+		}
+		if currentLineIndex == lineNum-1 {
+			lineIndex = currentLineIndex
+		}
+		currentLineIndex++
+	}
+
+	line := creator.lines[lineIndex]
 	for _, errorHandler := range line.errorHandlers {
 		if !errorHandler.Definition.isMatch(stdErr) {
 			continue
@@ -270,12 +283,12 @@ func (creator *FileCreator) handleLineError(stdErr, commandString string, lineNu
 		switch errorHandler.Method {
 		case Continue:
 			klog.Infof("continuing after line %d for command [%s]", lineNum, commandString)
-			for i := 0; i <= lineNumIndex; i++ {
+			for i := 0; i <= lineIndex; i++ {
 				creator.lineNumbersToOmit[i] = struct{}{}
 			}
 		case ContinueAndAbortSection:
 			klog.Infof("continuing after line %d and aborting section associated with the line for command [%s]", lineNum, commandString)
-			for i := 0; i <= lineNumIndex; i++ {
+			for i := 0; i <= lineIndex; i++ {
 				creator.lineNumbersToOmit[i] = struct{}{}
 			}
 			section := creator.sections[line.sectionID]
@@ -284,7 +297,7 @@ func (creator *FileCreator) handleLineError(stdErr, commandString string, lineNu
 			}
 		}
 		errorHandler.Callback()
-		return true
+		return true, creator.lines[lineIndex]
 	}
-	return false
+	return false, creator.lines[lineIndex]
 }

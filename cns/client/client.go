@@ -33,6 +33,10 @@ var clientPaths = []string{
 	cns.PathDebugIPAddresses,
 	cns.PathDebugPodContext,
 	cns.PathDebugRestData,
+	cns.UnpublishNetworkContainer,
+	cns.PublishNetworkContainer,
+	cns.CreateOrUpdateNetworkContainer,
+	cns.SetOrchestratorType,
 }
 
 type do interface {

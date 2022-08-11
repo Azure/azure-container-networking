@@ -15,11 +15,11 @@ import (
 
 const (
 	// Operational modes.
-	opModeBridge      = "bridge"
-	opModeTunnel      = "tunnel"
-	opModeTransparent = "transparent"
-	opModeNative      = "native"
-	opModeDefault     = opModeTunnel
+	opModeBridge          = "bridge"
+	opModeTunnel          = "tunnel"
+	opModeTransparent     = "transparent"
+	opModeTransparentVlan = "transparent-vlan"
+	opModeDefault         = opModeTunnel
 )
 
 const (

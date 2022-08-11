@@ -91,7 +91,7 @@ func (pMgr *PolicyManager) removePolicy(networkPolicy *NPMNetworkPolicy, _ map[s
 }
 
 func restore(creator *ioutil.FileCreator) error {
-	err := creator.RunCommandWithFile(util.IptablesRestore, util.IptablesWaitFlag, defaultlockWaitTimeInSeconds, util.IptablesRestoreTableFlag, util.IptablesFilterTable, util.IptablesRestoreNoFlushFlag)
+	err := creator.RunCommandWithFile(util.IptablesRestore, util.IptablesWaitFlag, util.IptablesDefaultWaitTime, util.IptablesRestoreTableFlag, util.IptablesFilterTable, util.IptablesRestoreNoFlushFlag)
 	if err != nil {
 		return npmerrors.SimpleErrorWrapper("failed to restore iptables file", err)
 	}

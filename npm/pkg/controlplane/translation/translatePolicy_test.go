@@ -33,7 +33,6 @@ func TestPortType(t *testing.T) {
 		name     string
 		portRule networkingv1.NetworkPolicyPort
 		want     netpolPortType
-		wantErr  bool
 	}{
 		{
 			name:     "empty",
@@ -179,7 +178,6 @@ func TestNamedPortRuleInfo(t *testing.T) {
 		name     string
 		portRule *networkingv1.NetworkPolicyPort
 		want     *namedPortOutput
-		wantErr  bool
 	}{
 		{
 			name:     "empty",
@@ -239,7 +237,6 @@ func TestNamedPortRule(t *testing.T) {
 		name     string
 		portRule *networkingv1.NetworkPolicyPort
 		want     *namedPortRuleOutput
-		wantErr  bool
 	}{
 		{
 			name:     "empty",
@@ -249,7 +246,6 @@ func TestNamedPortRule(t *testing.T) {
 				setInfo:         policies.SetInfo{},
 				protocol:        "",
 			},
-			wantErr: false,
 		},
 		{
 			name: "serve-tcp",
@@ -461,7 +457,8 @@ func TestIPBlockIPSet(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			got := ipBlockIPSet(tt.policyName, tt.namemspace, tt.direction, tt.ipBlockSetIndex, tt.ipBlockPeerIndex, tt.ipBlockRule)
+			got, err := ipBlockIPSet(tt.policyName, tt.namemspace, tt.direction, tt.ipBlockSetIndex, tt.ipBlockPeerIndex, tt.ipBlockRule)
+			require.NoError(t, err)
 			require.Equal(t, tt.translatedIPSet, got)
 		})
 	}
@@ -527,7 +524,8 @@ func TestIPBlockRule(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			translatedIPSet, setInfo := ipBlockRule(tt.policyName, tt.namemspace, tt.direction, tt.matchType, tt.ipBlockSetIndex, tt.ipBlockPeerIndex, tt.ipBlockRule)
+			translatedIPSet, setInfo, err := ipBlockRule(tt.policyName, tt.namemspace, tt.direction, tt.matchType, tt.ipBlockSetIndex, tt.ipBlockPeerIndex, tt.ipBlockRule)
+			require.NoError(t, err)
 			require.Equal(t, tt.translatedIPSet, translatedIPSet)
 			require.Equal(t, tt.setInfo, setInfo)
 		})

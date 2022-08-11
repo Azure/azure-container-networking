@@ -1,11 +1,10 @@
-package ovssnat
+package snat
 
 import (
 	"os"
 	"testing"
 
 	"github.com/Azure/azure-container-networking/netlink"
-	"github.com/Azure/azure-container-networking/ovsctl"
 )
 
 var anyInterface = "dummy"
@@ -20,12 +19,11 @@ func TestMain(m *testing.M) {
 
 func TestAllowInboundFromHostToNC(t *testing.T) {
 	nl := netlink.NewNetlink()
-	client := &OVSSnatClient{
-		snatBridgeIP:          "169.254.0.1/16",
+	client := &Client{
+		SnatBridgeIP:          "169.254.0.1/16",
 		localIP:               "169.254.0.4/16",
 		containerSnatVethName: anyInterface,
 		netlink:               nl,
-		ovsctlClient:          ovsctl.NewMockOvsctl(false, "", ""),
 	}
 
 	if err := nl.AddLink(&netlink.DummyLink{
@@ -68,8 +66,8 @@ func TestAllowInboundFromHostToNC(t *testing.T) {
 
 func TestAllowInboundFromNCToHost(t *testing.T) {
 	nl := netlink.NewNetlink()
-	client := &OVSSnatClient{
-		snatBridgeIP:          "169.254.0.1/16",
+	client := &Client{
+		SnatBridgeIP:          "169.254.0.1/16",
 		localIP:               "169.254.0.4/16",
 		containerSnatVethName: anyInterface,
 		netlink:               nl,
