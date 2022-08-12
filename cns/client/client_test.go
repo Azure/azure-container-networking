@@ -2009,3 +2009,53 @@ func TestGetHTTPServiceData(t *testing.T) {
 		})
 	}
 }
+
+func TestNumberOfCPUCores(t *testing.T) {
+	emptyRoutes, _ := buildRoutes(defaultBaseURL, clientPaths)
+	tests := []struct {
+		name      string
+		shouldErr bool
+		exp       *cns.NumOfCPUCoresResponse
+	}{
+		{
+			"happy path",
+			false,
+			&cns.NumOfCPUCoresResponse{
+				Response: cns.Response{
+					ReturnCode: 0,
+					Message:    "success",
+				},
+				NumOfCPUCores: 42,
+			},
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			client := &Client{
+				client: &mockdo{
+					errToReturn:            nil,
+					objToReturn:            test.exp,
+					httpStatusCodeToReturn: http.StatusOK,
+				},
+				routes: emptyRoutes,
+			}
+
+			got, err := client.NumOfCPUCores(context.Background())
+			if err != nil && !test.shouldErr {
+				t.Fatal("unexpected error: err:", err)
+			}
+
+			if err == nil && test.shouldErr {
+				t.Fatal("expected an error but received none")
+			}
+
+			if !cmp.Equal(got, *test.exp) {
+				t.Error("received response differs from expectation: diff:", cmp.Diff(got, *test.exp))
+			}
+		})
+	}
+}

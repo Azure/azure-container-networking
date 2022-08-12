@@ -37,6 +37,7 @@ var clientPaths = []string{
 	cns.PublishNetworkContainer,
 	cns.CreateOrUpdateNetworkContainer,
 	cns.SetOrchestratorType,
+	cns.NumberOfCPUCores,
 }
 
 type do interface {
@@ -414,6 +415,38 @@ func (c *Client) GetHTTPServiceData(ctx context.Context) (*restserver.GetHTTPSer
 	}
 
 	return &resp, nil
+}
+
+// NumOfCPUCores returns the number of CPU cores available on the host that
+// CNS is running on.
+func (c *Client) NumOfCPUCores(ctx context.Context) (cns.NumOfCPUCoresResponse, error) {
+	// define a wrapper function to avoid repeatedly dealing with the empty
+	// response type
+	die := func(err error, msg string) (cns.NumOfCPUCoresResponse, error) {
+		return cns.NumOfCPUCoresResponse{}, errors.Wrap(err, msg)
+	}
+
+	// build the request
+	u := c.routes[cns.NumberOfCPUCores]
+	req, err := http.NewRequest(http.MethodGet, u.String(), nil)
+	if err != nil {
+		return die(err, "building http request")
+	}
+
+	// submit the request
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return die(err, "sending HTTP request")
+	}
+	defer resp.Body.Close()
+
+	// decode the response
+	var out cns.NumOfCPUCoresResponse
+	err = json.NewDecoder(resp.Body).Decode(&out)
+	if err != nil {
+		return die(err, "decoding response as JSON")
+	}
+	return out, nil
 }
 
 // DeleteNetworkContainer destroys the requested network container matching the

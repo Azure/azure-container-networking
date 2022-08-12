@@ -29,6 +29,7 @@ const (
 	PathDebugIPAddresses                     = "/debug/ipaddresses"
 	PathDebugPodContext                      = "/debug/podcontext"
 	PathDebugRestData                        = "/debug/restdata"
+	NumberOfCPUCores                         = "/hostcpucores"
 )
 
 // NetworkContainer Prefixes
