@@ -10,8 +10,6 @@ FROM mcr.microsoft.com/oss/go/microsoft/golang:1.18 AS azure-vnet
 ARG VERSION
 ARG OS
 ARG ARCH
-ENV OS=${OS}
-ENV ARCH=${ARCH}
 WORKDIR /azure-container-networking
 COPY . .
 RUN curl -LO https://github.com/Azure/azure-container-networking/releases/download/v1.4.29/azure-vnet-cni-swift-$OS-$ARCH-v1.4.29.tgz && tar -xvf azure-vnet-cni-swift-$OS-$ARCH-v1.4.29.tgz
