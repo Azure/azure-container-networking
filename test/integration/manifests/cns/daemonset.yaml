@@ -95,8 +95,6 @@ spec:
           command: ["/dropgz"]
           args: [
              "deploy",
-             "azure-linux-swift.conflist",
-             "-o", "/etc/cni/net.d/10-azure.conflist",
              "azure-ipam",
              "-o", "/opt/cni/bin/azure-ipam",
              "cilium-cni",
