@@ -8,24 +8,23 @@ import (
 )
 
 type Config struct {
-	Level       string // Debug by default
-	Filepath   	string // if Empty log into <processname>-lumberjack.log within os.TempDir()
-	MaxSize    	int    // megabytes
-	MaxBackups 	int    // # of backups, no limitation by default
+	Level           string // Debug by default
+	Filepath        string // if Empty log into <processname>-lumberjack.log within os.TempDir()
+	MaxSizeInMB     int    // MegaBytes
+	MaxBackups      int    // # of backups, no limitation by default
 }
 
 // NewLogger creates and returns a zap logger and a clean up function
 func New(cfg *Config) (*zap.Logger, func(), error) {
-	// check the filepath is not empty
 	logLevel, err := zapcore.ParseLevel(cfg.Level)
 	if err != nil {
 		return nil, nil, errors.Wrapf(err, "failed to parse log level")
 	}
 	// define a lumberjack fileWriter
 	logFileWriter := zapcore.AddSync(&lumberjack.Logger{
-		Filename:   cfg.Filepath,
-		MaxSize:    cfg.MaxSize, // megabytes
-		MaxBackups: cfg.MaxBackups,
+		Filename:    cfg.Filepath,
+		MaxSize:     cfg.MaxSizeInMB, // MegaBytes
+		MaxBackups:  cfg.MaxBackups,
 	})
 	// define the log encoding
 	encoderConfig := zap.NewProductionEncoderConfig()

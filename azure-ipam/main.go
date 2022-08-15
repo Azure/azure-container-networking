@@ -24,7 +24,7 @@ func executePlugin() error {
 	loggerCfg := &logger.Config{
 		Level:                "debug",
 		Filepath:             "/var/log/azure-ipam.log",
-		MaxSize:              5, // MB
+		MaxSizeInMB:          5, // MegaBytes
 		MaxBackups:           8,
 	}
 	// Create logger
