@@ -98,7 +98,7 @@ func (service *HTTPRestService) restoreState() {
 	logger.Printf("[Azure CNS]  Restored state, %+v\n", service.state)
 
 	if service.Options[common.OptManageEndpointState] == true {
-		err := service.EndpointStateStore.Read("endpoints", &service.EndpointState)
+		err := service.EndpointStateStore.Read(EndpointStoreKey, &service.EndpointState)
 		if err != nil {
 			if err == store.ErrKeyNotFound {
 				// Nothing to restore.

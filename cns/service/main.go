@@ -67,6 +67,8 @@ const (
 	// Service name.
 	name                              = "azure-cns"
 	pluginName                        = "azure-vnet"
+	endpointStoreName                 = "azure-endpoints"
+	endpointStoreLocation             = "/var/run/azure-cns/"
 	defaultCNINetworkConfigFileName   = "10-azure.conflist"
 	dncApiVersion                     = "?api-version=2018-03-01"
 	poolIPAMRefreshRateInMilliseconds = 1000
@@ -545,14 +547,19 @@ func main() {
 
 	// Initialize endpoint state store if cns is managing endpoint state.
 	if cnsconfig.ManageEndpointState {
-		lockclient, err = processlock.NewFileLock(platform.CNILockPath + "endpoints" + store.LockExtension)
+		log.Printf("[Azure CNS] Configured to manage endpoints state")
+		lockclient, err = processlock.NewFileLock(platform.CNILockPath + endpointStoreName + store.LockExtension)
 		if err != nil {
 			log.Printf("Error initializing endpoint state file lock:%v", err)
 			return
 		}
-
+		err = platform.CreateDirectory(endpointStoreLocation)
+		if err != nil {
+			logger.Errorf("Failed to create File Store directory %s, due to Error:%v", storeFileLocation, err.Error())
+			return
+		}
 		// Create the key value store.
-		storeFileName := storeFileLocation + "endpoints" + ".json"
+		storeFileName := endpointStoreLocation + endpointStoreName + ".json"
 		endpointStateStore, err = store.NewJsonFileStore(storeFileName, lockclient)
 		if err != nil {
 			logger.Errorf("Failed to create endpoint state store file: %s, due to error %v\n", storeFileName, err)

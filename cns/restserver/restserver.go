@@ -60,7 +60,6 @@ type HTTPRestService struct {
 	podsPendingIPAssignment  *bounded.TimedSet
 	sync.RWMutex
 	dncPartitionKey    string
-	programmedIPtables bool
 	EndpointState      map[string]*EndpointInfo // key : container id
 	EndpointStateStore store.KeyValueStore
 }
