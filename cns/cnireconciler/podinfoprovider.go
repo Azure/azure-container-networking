@@ -30,7 +30,7 @@ func newCNSPodInfoProvider(endpointStore store.KeyValueStore) (cns.PodInfoByIPPr
 			// Nothing to restore.
 			return cns.PodInfoByIPProviderFunc(func() (map[string]cns.PodInfo, error) {
 				return endpointStateToPodInfoByIP(state)
-			}), nil
+			}), err
 		}
 		return nil, fmt.Errorf("failed to read endpoints state from store : %w", err)
 	}

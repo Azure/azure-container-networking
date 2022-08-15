@@ -1005,7 +1005,11 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 		logger.Printf("Initializing from self managed endpoint store")
 		podInfoByIPProvider, err = cnireconciler.NewCNSPodInfoProvider(httpRestServiceImplementation.EndpointStateStore) // get reference to endpoint state store from rest server
 		if err != nil {
-			return errors.Wrap(err, "failed to create CNS PodInfoProvider")
+			if errors.Is(err, store.ErrKeyNotFound) {
+				logger.Printf("[Azure CNS] No endpoint state found, skipping initializing CNS state")
+			} else {
+				return errors.Wrap(err, "failed to create CNS PodInfoProvider")
+			}
 		}
 	case cnsconfig.InitializeFromCNI:
 		logger.Printf("Initializing from CNI")
