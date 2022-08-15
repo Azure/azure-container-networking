@@ -70,7 +70,10 @@ func TestNewCNSPodInfoProvider(t *testing.T) {
 	endpointInfo.IfnameToIPMap["eth0"] = &restserver.IPInfo{IPv4: &net.IPNet{IP: net.IPv4(10, 241, 0, 65), Mask: net.IPv4Mask(255, 255, 255, 0)}}
 
 	goodEndpointState["0a4917617e15d24dc495e407d8eb5c88e4406e58fa209e4eb75a2c2fb7045eea"] = endpointInfo
-	_ = goodStore.Write(restserver.EndpointStoreKey, goodEndpointState)
+	err := goodStore.Write(restserver.EndpointStoreKey, goodEndpointState)
+	if err != nil {
+		t.Fatalf("Error writing to store: %v", err)
+	}
 	tests := []struct {
 		name    string
 		store   store.KeyValueStore
