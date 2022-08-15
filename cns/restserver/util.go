@@ -104,7 +104,6 @@ func (service *HTTPRestService) restoreState() {
 				logger.Printf("[Azure CNS]  No endpoint state to restore.\n")
 			} else {
 				logger.Errorf("[Azure CNS]  Failed to restore endpoint state, err:%v. Removing endpoints.json", err)
-				service.EndpointStateStore.Remove()
 			}
 			return
 		}
