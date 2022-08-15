@@ -26,6 +26,12 @@ func newCNSPodInfoProvider(endpointStore store.KeyValueStore) (cns.PodInfoByIPPr
 	var state map[string]*restserver.EndpointInfo
 	err := endpointStore.Read(restserver.EndpointStoreKey, &state)
 	if err != nil {
+		if errors.Is(err, store.ErrKeyNotFound) {
+			// Nothing to restore.
+			return cns.PodInfoByIPProviderFunc(func() (map[string]cns.PodInfo, error) {
+				return endpointStateToPodInfoByIP(state)
+			}), nil
+		}
 		return nil, fmt.Errorf("failed to read endpoints state from store : %w", err)
 	}
 	return cns.PodInfoByIPProviderFunc(func() (map[string]cns.PodInfo, error) {
