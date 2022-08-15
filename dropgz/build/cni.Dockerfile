@@ -19,7 +19,7 @@ WORKDIR /dropgz
 COPY dropgz .
 COPY --from=azure-ipam /azure-ipam/*.conflist pkg/embed/fs
 COPY --from=azure-ipam /azure-ipam/bin/* pkg/embed/fs
-COPY --from=azure-vnet /azure-container-networking/*.conflist pkg/embed/fs
+COPY --from=azure-vnet /azure-container-networking/cni/*.conflist pkg/embed/fs
 COPY --from=azure-vnet /azure-container-networking/azure-vnet pkg/embed/fs
 COPY --from=azure-vnet /azure-container-networking/azure-vnet-telemetry pkg/embed/fs
 COPY --from=azure-vnet /azure-container-networking/azure-vnet-ipam pkg/embed/fs
