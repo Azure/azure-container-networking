@@ -15,7 +15,7 @@ metadata:
     addonmanager.kubernetes.io/mode: EnsureExists
 rules:
   - apiGroups:
-    - ""
+      - ""
     resources:
       - pods
       - nodes
@@ -25,7 +25,7 @@ rules:
       - list
       - watch
   - apiGroups:
-    - networking.k8s.io
+      - networking.k8s.io
     resources:
       - networkpolicies
     verbs:
@@ -65,17 +65,17 @@ spec:
     metadata:
       labels:
         k8s-app: azure-npm
-      annotations:  
-        azure.npm/scrapeable: ''
+      annotations:
+        azure.npm/scrapeable: ""
     spec:
       priorityClassName: system-node-critical
       tolerations:
-      - operator: "Exists"
-        effect: NoExecute
-      - operator: "Exists"
-        effect: NoSchedule
-      - key: CriticalAddonsOnly
-        operator: Exists
+        - operator: "Exists"
+          effect: NoExecute
+        - operator: "Exists"
+          effect: NoSchedule
+        - key: CriticalAddonsOnly
+          operator: Exists
       securityContext:
         windowsOptions:
           hostProcess: true
@@ -85,7 +85,15 @@ spec:
         - name: azure-npm
           image: mcr.microsoft.com/containernetworking/azure-npm:v1.4.29
           command: ["powershell.exe"]
-          args: ['.\setkubeconfigpath.ps1', ';', 'powershell.exe', '.\npm.exe', "start", '--kubeconfig=.\kubeconfig']
+          args:
+            [
+              '.\setkubeconfigpath.ps1',
+              ";",
+              "powershell.exe",
+              '.\npm.exe',
+              "start",
+              '--kubeconfig=.\kubeconfig',
+            ]
           resources:
             limits:
               cpu: 250m
@@ -101,14 +109,14 @@ spec:
             - name: NPM_CONFIG
               value: .\\etc\\azure-npm\\azure-npm.json
           volumeMounts:
-          - name: azure-npm-config
-            mountPath: .\\etc\\azure-npm
+            - name: azure-npm-config
+              mountPath: .\\etc\\azure-npm
       nodeSelector:
         kubernetes.io/os: windows
       volumes:
-      - name: azure-npm-config
-        configMap:
-          name: azure-npm-config
+        - name: azure-npm-config
+          configMap:
+            name: azure-npm-config
       serviceAccountName: azure-npm
 ---
 apiVersion: v1

@@ -13,7 +13,6 @@ import (
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/netio"
 	"github.com/Azure/azure-container-networking/netlink"
-	"github.com/Azure/azure-container-networking/netns"
 	"github.com/Azure/azure-container-networking/network/networkutils"
 	"github.com/Azure/azure-container-networking/ovsctl"
 	"github.com/Azure/azure-container-networking/platform"
@@ -90,25 +89,12 @@ func (nw *network) newEndpointImpl(_ apipaClient, nl netlink.NetlinkInterface, p
 	}
 
 	if vlanid != 0 {
-		if nw.Mode == opModeNative {
-			log.Printf("Native client")
-			vlanVethName := fmt.Sprintf("%s.%d", nw.extIf.Name, vlanid)
-			vnetNSName := fmt.Sprintf("az_ns_%d", vlanid)
-
-			epClient = &NativeEndpointClient{
-				primaryHostIfName: nw.extIf.Name,
-				vlanIfName:        vlanVethName,
-				vnetVethName:      hostIfName,
-				containerVethName: contIfName,
-				vnetNSName:        vnetNSName,
-				nw:                nw,
-				vlanID:            vlanid,
-				netnsClient:       netns.New(),
-				netlink:           nl,
-				netioshim:         &netio.NetIO{},
-				plClient:          plc,
-				netUtilsClient:    networkutils.NewNetworkUtils(nl, plc),
+		if nw.Mode == opModeTransparentVlan {
+			log.Printf("Transparent vlan client")
+			if _, ok := epInfo.Data[SnatBridgeIPKey]; ok {
+				nw.SnatBridgeIP = epInfo.Data[SnatBridgeIPKey].(string)
 			}
+			epClient = NewTransparentVlanEndpointClient(nw, epInfo, hostIfName, contIfName, vlanid, localIP, nl, plc)
 		} else {
 			log.Printf("OVS client")
 			if _, ok := epInfo.Data[SnatBridgeIPKey]; ok {
@@ -261,25 +247,10 @@ func (nw *network) deleteEndpointImpl(nl netlink.NetlinkInterface, plc platform.
 	// entering the container netns and hence works both for CNI and CNM.
 	if ep.VlanID != 0 {
 		epInfo := ep.getInfo()
-		if nw.Mode == opModeNative {
-			log.Printf("Native client")
-			vlanVethName := fmt.Sprintf("%s.%d", nw.extIf.Name, ep.VlanID)
-			vnetNSName := fmt.Sprintf("az_ns_%d", ep.VlanID)
+		if nw.Mode == opModeTransparentVlan {
+			log.Printf("Transparent vlan client")
+			epClient = NewTransparentVlanEndpointClient(nw, epInfo, ep.HostIfName, "", ep.VlanID, ep.LocalIP, nl, plc)
 
-			epClient = &NativeEndpointClient{
-				primaryHostIfName: nw.extIf.Name,
-				vlanIfName:        vlanVethName,
-				vnetVethName:      ep.HostIfName,
-				containerVethName: "",
-				vnetNSName:        vnetNSName,
-				nw:                nw,
-				vlanID:            ep.VlanID,
-				netnsClient:       netns.New(),
-				netlink:           nl,
-				netioshim:         &netio.NetIO{},
-				plClient:          plc,
-				netUtilsClient:    networkutils.NewNetworkUtils(nl, plc),
-			}
 		} else {
 			epClient = NewOVSEndpointClient(nw, epInfo, ep.HostIfName, "", ep.VlanID, ep.LocalIP, nl, ovsctl.NewOvsctl(), plc)
 		}
@@ -330,6 +301,7 @@ func addRoutes(nl netlink.NetlinkInterface, netioshim netio.NetIOInterface, inte
 			Priority:  route.Priority,
 			Protocol:  route.Protocol,
 			Scope:     route.Scope,
+			Table:     route.Table,
 		}
 
 		if err := nl.AddIPRoute(nlRoute); err != nil {

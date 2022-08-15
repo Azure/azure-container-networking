@@ -43,6 +43,7 @@ const (
 	IptablesDestroyFlag        string = "-X"
 	IptablesJumpFlag           string = "-j"
 	IptablesWaitFlag           string = "-w"
+	IptablesDefaultWaitTime    string = "60"
 	IptablesAccept             string = "ACCEPT"
 	IptablesReject             string = "REJECT"
 	IptablesDrop               string = "DROP"
@@ -188,6 +189,11 @@ const (
 	NegationPrefix string = "not-"
 
 	SetPolicyDelimiter string = ","
+)
+
+const (
+	BashCommand     string = "bash"
+	BashCommandFlag string = "-c"
 )
 
 // NPM telemetry constants.

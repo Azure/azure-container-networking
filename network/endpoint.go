@@ -93,6 +93,7 @@ type RouteInfo struct {
 	DevName  string
 	Scope    int
 	Priority int
+	Table    int
 }
 
 type apipaClient interface {

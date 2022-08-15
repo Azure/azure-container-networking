@@ -1,114 +1,151 @@
 package network
 
 import (
-	"fmt"
+	"net"
 
+	"github.com/Azure/azure-container-networking/log"
+	"github.com/Azure/azure-container-networking/netlink"
 	"github.com/Azure/azure-container-networking/network/networkutils"
-	"github.com/Azure/azure-container-networking/network/ovssnat"
+	"github.com/Azure/azure-container-networking/network/snat"
+	"github.com/pkg/errors"
 )
 
-func NewSnatClient(client *OVSEndpointClient, snatBridgeIP string, localIP string, epInfo *EndpointInfo) {
-	if client.enableSnatOnHost || client.allowInboundFromHostToNC || client.allowInboundFromNCToHost || client.enableSnatForDns {
-		hostIfName := fmt.Sprintf("%s%s", snatVethInterfacePrefix, epInfo.Id[:7])
-		contIfName := fmt.Sprintf("%s%s-2", snatVethInterfacePrefix, epInfo.Id[:7])
+// Communication between ovs switch and snat bridge, master of azuresnatveth0 is snat bridge itself
+const (
+	azureSnatVeth0 = "azSnatveth0"
+	azureSnatVeth1 = "azSnatveth1"
+)
 
-		client.snatClient = ovssnat.NewSnatClient(hostIfName,
-			contIfName,
+func (client *OVSEndpointClient) isSnatEnabled() bool {
+	return client.enableSnatOnHost || client.allowInboundFromHostToNC || client.allowInboundFromNCToHost || client.enableSnatForDns
+}
+
+func (client *OVSEndpointClient) NewSnatClient(snatBridgeIP, localIP string, epInfo *EndpointInfo) {
+	if client.isSnatEnabled() {
+		client.snatClient = snat.NewSnatClient(
+			GetSnatHostIfName(epInfo),
+			GetSnatContIfName(epInfo),
 			localIP,
 			snatBridgeIP,
 			client.hostPrimaryMac,
 			epInfo.DNS.Servers,
 			client.netlink,
-			client.ovsctlClient,
 			client.plClient,
 		)
 	}
 }
 
-func AddSnatEndpoint(client *OVSEndpointClient) error {
-	if client.enableSnatOnHost || client.allowInboundFromHostToNC || client.allowInboundFromNCToHost || client.enableSnatForDns {
-		if err := client.snatClient.CreateSnatEndpoint(client.bridgeName); err != nil {
+func (client *OVSEndpointClient) AddSnatEndpoint() error {
+	if client.isSnatEnabled() {
+		if err := AddSnatEndpoint(&client.snatClient); err != nil {
 			return err
 		}
-	}
+		// A lot of this code was in createSnatBridge initially and moved here since it is for ovs only
 
-	return nil
-}
+		snatClient := client.snatClient
 
-func AddSnatEndpointRules(client *OVSEndpointClient) error {
-	if client.enableSnatOnHost || client.allowInboundFromHostToNC || client.allowInboundFromNCToHost || client.enableSnatForDns {
-		// Allow specific Private IPs via Snat Bridge
-		if err := client.snatClient.AllowIPAddressesOnSnatBridge(); err != nil {
+		log.Printf("Drop ARP for snat bridge ip: %s", snatClient.SnatBridgeIP)
+		if err := client.snatClient.DropArpForSnatBridgeApipaRange(snatClient.SnatBridgeIP, azureSnatVeth0); err != nil {
 			return err
 		}
 
-		// Block Private IPs via Snat Bridge
-		if err := client.snatClient.BlockIPAddressesOnSnatBridge(); err != nil {
-			return err
+		// Create a veth pair. One end of veth will be attached to ovs bridge and other end
+		// of veth will be attached to linux bridge
+		_, err := net.InterfaceByName(azureSnatVeth0)
+		if err == nil {
+			log.Printf("Azure snat veth already exists")
+			return nil
 		}
 
-		// Add route for 169.254.169.54 in host via azure0, otherwise it will route via snat bridge
-		if err := AddStaticRoute(client.netlink, client.netioshim, ovssnat.ImdsIP, client.bridgeName); err != nil {
-			return err
+		vethLink := netlink.VEthLink{
+			LinkInfo: netlink.LinkInfo{
+				Type: netlink.LINK_TYPE_VETH,
+				Name: azureSnatVeth0,
+			},
+			PeerName: azureSnatVeth1,
 		}
 
+		err = client.netlink.AddLink(&vethLink)
+		if err != nil {
+			log.Printf("[net] Failed to create veth pair, err:%v.", err)
+			return errors.Wrap(err, "failed to create veth pair")
+		}
 		nuc := networkutils.NewNetworkUtils(client.netlink, client.plClient)
-		if err := nuc.EnableIPForwarding(ovssnat.SnatBridgeName); err != nil {
+		//nolint
+		if err = nuc.DisableRAForInterface(azureSnatVeth0); err != nil {
 			return err
 		}
 
-		if client.allowInboundFromHostToNC {
-			if err := client.snatClient.AllowInboundFromHostToNC(); err != nil {
-				return err
-			}
+		//nolint
+		if err = nuc.DisableRAForInterface(azureSnatVeth1); err != nil {
+			return err
 		}
 
-		if client.allowInboundFromNCToHost {
-			return client.snatClient.AllowInboundFromNCToHost()
+		if err := client.netlink.SetLinkState(azureSnatVeth0, true); err != nil {
+			return errors.Wrap(err, "failed to set azure snat veth 0 to up")
+		}
+
+		if err := client.netlink.SetLinkMaster(azureSnatVeth0, snat.SnatBridgeName); err != nil {
+			return errors.Wrap(err, "failed to set snat veth 0 master to snat bridge")
+		}
+
+		if err := client.netlink.SetLinkState(azureSnatVeth1, true); err != nil {
+			return errors.Wrap(err, "failed to set azure snat veth 1 to up")
+		}
+
+		if err := client.ovsctlClient.AddPortOnOVSBridge(azureSnatVeth1, client.bridgeName, 0); err != nil {
+			return errors.Wrap(err, "failed to add port on OVS bridge")
+		}
+	}
+	return nil
+}
+
+func (client *OVSEndpointClient) AddSnatEndpointRules() error {
+	if client.isSnatEnabled() {
+		// Add route for 169.254.169.254 in host via azure0, otherwise it will route via snat bridge
+		if err := AddSnatEndpointRules(&client.snatClient, client.allowInboundFromHostToNC, client.allowInboundFromNCToHost, client.netlink, client.plClient); err != nil {
+			return err
+		}
+		if err := AddStaticRoute(client.netlink, client.netioshim, snat.ImdsIP, client.bridgeName); err != nil {
+			return err
 		}
 	}
 
 	return nil
 }
 
-func MoveSnatEndpointToContainerNS(client *OVSEndpointClient, netnsPath string, nsID uintptr) error {
-	if client.enableSnatOnHost || client.allowInboundFromHostToNC || client.allowInboundFromNCToHost || client.enableSnatForDns {
-		return client.snatClient.MoveSnatEndpointToContainerNS(netnsPath, nsID)
+func (client *OVSEndpointClient) MoveSnatEndpointToContainerNS(netnsPath string, nsID uintptr) error {
+	if client.isSnatEnabled() {
+		return MoveSnatEndpointToContainerNS(&client.snatClient, netnsPath, nsID)
 	}
 
 	return nil
 }
 
-func SetupSnatContainerInterface(client *OVSEndpointClient) error {
-	if client.enableSnatOnHost || client.allowInboundFromHostToNC || client.allowInboundFromNCToHost || client.enableSnatForDns {
-		return client.snatClient.SetupSnatContainerInterface()
+func (client *OVSEndpointClient) SetupSnatContainerInterface() error {
+	if client.isSnatEnabled() {
+		return SetupSnatContainerInterface(&client.snatClient)
 	}
 
 	return nil
 }
 
-func ConfigureSnatContainerInterface(client *OVSEndpointClient) error {
-	if client.enableSnatOnHost || client.allowInboundFromHostToNC || client.allowInboundFromNCToHost || client.enableSnatForDns {
-		return client.snatClient.ConfigureSnatContainerInterface()
+func (client *OVSEndpointClient) ConfigureSnatContainerInterface() error {
+	if client.isSnatEnabled() {
+		return ConfigureSnatContainerInterface(&client.snatClient)
 	}
 
 	return nil
 }
 
-func DeleteSnatEndpoint(client *OVSEndpointClient) error {
-	if client.enableSnatOnHost || client.allowInboundFromHostToNC || client.allowInboundFromNCToHost || client.enableSnatForDns {
-		return client.snatClient.DeleteSnatEndpoint()
+func (client *OVSEndpointClient) DeleteSnatEndpoint() error {
+	if client.isSnatEnabled() {
+		return DeleteSnatEndpoint(&client.snatClient)
 	}
 
 	return nil
 }
 
-func DeleteSnatEndpointRules(client *OVSEndpointClient) {
-	if client.allowInboundFromHostToNC {
-		client.snatClient.DeleteInboundFromHostToNC()
-	}
-
-	if client.allowInboundFromNCToHost {
-		client.snatClient.DeleteInboundFromNCToHost()
-	}
+func (client *OVSEndpointClient) DeleteSnatEndpointRules() {
+	DeleteSnatEndpointRules(&client.snatClient, client.allowInboundFromHostToNC, client.allowInboundFromNCToHost)
 }

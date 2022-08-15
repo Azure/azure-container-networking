@@ -69,13 +69,13 @@ func defaultDeleteNamed(name string) error {
 	return nil
 }
 
-func TestNativeAddEndpoints(t *testing.T) {
+func TestTransparentVlanAddEndpoints(t *testing.T) {
 	nl := netlink.NewMockNetlink(false, "")
 	plc := platform.NewMockExecClient(false)
 
 	tests := []struct {
 		name       string
-		client     *NativeEndpointClient
+		client     *TransparentVlanEndpointClient
 		epInfo     *EndpointInfo
 		wantErr    bool
 		wantErrMsg string
@@ -83,7 +83,7 @@ func TestNativeAddEndpoints(t *testing.T) {
 		// Populating VM with data and creating interfaces/links
 		{
 			name: "Add endpoints create vnet ns failure",
-			client: &NativeEndpointClient{
+			client: &TransparentVlanEndpointClient{
 				primaryHostIfName: "eth0",
 				vlanIfName:        "eth0.1",
 				vnetVethName:      "A1veth0",
@@ -109,7 +109,7 @@ func TestNativeAddEndpoints(t *testing.T) {
 		},
 		{
 			name: "Add endpoints with existing vnet ns",
-			client: &NativeEndpointClient{
+			client: &TransparentVlanEndpointClient{
 				primaryHostIfName: "eth0",
 				vlanIfName:        "eth0.1",
 				vnetVethName:      "A1veth0",
@@ -132,7 +132,7 @@ func TestNativeAddEndpoints(t *testing.T) {
 		},
 		{
 			name: "Add endpoints netlink fail",
-			client: &NativeEndpointClient{
+			client: &TransparentVlanEndpointClient{
 				primaryHostIfName: "eth0",
 				vlanIfName:        "eth0.1",
 				vnetVethName:      "A1veth0",
@@ -156,7 +156,7 @@ func TestNativeAddEndpoints(t *testing.T) {
 		},
 		{
 			name: "Add endpoints get interface fail for primary interface (eth0)",
-			client: &NativeEndpointClient{
+			client: &TransparentVlanEndpointClient{
 				primaryHostIfName: "eth0",
 				vlanIfName:        "eth0.1",
 				vnetVethName:      "A1veth0",
@@ -182,7 +182,7 @@ func TestNativeAddEndpoints(t *testing.T) {
 		},
 		{
 			name: "Add endpoints get interface fail for getting container veth",
-			client: &NativeEndpointClient{
+			client: &TransparentVlanEndpointClient{
 				primaryHostIfName: "eth0",
 				vlanIfName:        "eth0.1",
 				vnetVethName:      "A1veth0",
@@ -206,7 +206,7 @@ func TestNativeAddEndpoints(t *testing.T) {
 		},
 		{
 			name: "Add endpoints NetNS Get fail",
-			client: &NativeEndpointClient{
+			client: &TransparentVlanEndpointClient{
 				primaryHostIfName: "eth0",
 				vlanIfName:        "eth0.1",
 				vnetVethName:      "A1veth0",
@@ -228,7 +228,7 @@ func TestNativeAddEndpoints(t *testing.T) {
 		},
 		{
 			name: "Add endpoints NetNS Set fail",
-			client: &NativeEndpointClient{
+			client: &TransparentVlanEndpointClient{
 				primaryHostIfName: "eth0",
 				vlanIfName:        "eth0.1",
 				vnetVethName:      "A1veth0",
@@ -271,7 +271,7 @@ func TestNativeAddEndpoints(t *testing.T) {
 
 	tests = []struct {
 		name       string
-		client     *NativeEndpointClient
+		client     *TransparentVlanEndpointClient
 		epInfo     *EndpointInfo
 		wantErr    bool
 		wantErrMsg string
@@ -279,7 +279,7 @@ func TestNativeAddEndpoints(t *testing.T) {
 		// Populate the client with information from the vnet and set up vnet
 		{
 			name: "Add endpoints get vnet veth mac address",
-			client: &NativeEndpointClient{
+			client: &TransparentVlanEndpointClient{
 				primaryHostIfName: "eth0",
 				vlanIfName:        "eth0.1",
 				vnetVethName:      "A1veth0",
@@ -295,7 +295,7 @@ func TestNativeAddEndpoints(t *testing.T) {
 		},
 		{
 			name: "Add endpoints fail check vlan veth exists",
-			client: &NativeEndpointClient{
+			client: &TransparentVlanEndpointClient{
 				primaryHostIfName: "eth0",
 				vlanIfName:        "eth0.1",
 				vnetVethName:      "A1veth0",
@@ -312,7 +312,7 @@ func TestNativeAddEndpoints(t *testing.T) {
 		},
 		{
 			name: "Add endpoints fail check vnet veth exists",
-			client: &NativeEndpointClient{
+			client: &TransparentVlanEndpointClient{
 				primaryHostIfName: "eth0",
 				vlanIfName:        "eth0.1",
 				vnetVethName:      "A1veth0",
@@ -343,7 +343,7 @@ func TestNativeAddEndpoints(t *testing.T) {
 	}
 }
 
-func TestNativeDeleteEndpoints(t *testing.T) {
+func TestTransparentVlanDeleteEndpoints(t *testing.T) {
 	nl := netlink.NewMockNetlink(false, "")
 	plc := platform.NewMockExecClient(false)
 	IPAddresses := []net.IPNet{
@@ -359,7 +359,7 @@ func TestNativeDeleteEndpoints(t *testing.T) {
 
 	tests := []struct {
 		name       string
-		client     *NativeEndpointClient
+		client     *TransparentVlanEndpointClient
 		ep         *endpoint
 		wantErr    bool
 		wantErrMsg string
@@ -367,7 +367,7 @@ func TestNativeDeleteEndpoints(t *testing.T) {
 	}{
 		{
 			name: "Delete endpoint delete vnet ns",
-			client: &NativeEndpointClient{
+			client: &TransparentVlanEndpointClient{
 				primaryHostIfName: "eth0",
 				vlanIfName:        "eth0.1",
 				vnetVethName:      "A1veth0",
@@ -391,7 +391,7 @@ func TestNativeDeleteEndpoints(t *testing.T) {
 		},
 		{
 			name: "Delete endpoint do not delete vnet ns it is still in use",
-			client: &NativeEndpointClient{
+			client: &TransparentVlanEndpointClient{
 				primaryHostIfName: "eth0",
 				vlanIfName:        "eth0.1",
 				vnetVethName:      "A1veth0",
@@ -417,7 +417,7 @@ func TestNativeDeleteEndpoints(t *testing.T) {
 		},
 		{
 			name: "Delete endpoint fail to delete namespace",
-			client: &NativeEndpointClient{
+			client: &TransparentVlanEndpointClient{
 				primaryHostIfName: "eth0",
 				vlanIfName:        "eth0.1",
 				vnetVethName:      "A1veth0",
@@ -458,7 +458,7 @@ func TestNativeDeleteEndpoints(t *testing.T) {
 	}
 }
 
-func TestNativeConfigureContainerInterfacesAndRoutes(t *testing.T) {
+func TestTransparentVlanConfigureContainerInterfacesAndRoutes(t *testing.T) {
 	nl := netlink.NewMockNetlink(false, "")
 	plc := platform.NewMockExecClient(false)
 
@@ -466,14 +466,14 @@ func TestNativeConfigureContainerInterfacesAndRoutes(t *testing.T) {
 
 	tests := []struct {
 		name       string
-		client     *NativeEndpointClient
+		client     *TransparentVlanEndpointClient
 		epInfo     *EndpointInfo
 		wantErr    bool
 		wantErrMsg string
 	}{
 		{
 			name: "Configure interface and routes good path for container",
-			client: &NativeEndpointClient{
+			client: &TransparentVlanEndpointClient{
 				primaryHostIfName: "eth0",
 				vlanIfName:        "eth0.1",
 				vnetVethName:      "A1veth0",
@@ -497,7 +497,7 @@ func TestNativeConfigureContainerInterfacesAndRoutes(t *testing.T) {
 		},
 		{
 			name: "Configure interface and routes multiple IPs",
-			client: &NativeEndpointClient{
+			client: &TransparentVlanEndpointClient{
 				primaryHostIfName: "eth0",
 				vlanIfName:        "eth0.1",
 				vnetVethName:      "A1veth0",
@@ -529,7 +529,7 @@ func TestNativeConfigureContainerInterfacesAndRoutes(t *testing.T) {
 		},
 		{
 			name: "Configure interface and routes assign ip fail",
-			client: &NativeEndpointClient{
+			client: &TransparentVlanEndpointClient{
 				primaryHostIfName: "eth0",
 				vlanIfName:        "eth0.1",
 				vnetVethName:      "A1veth0",
@@ -554,7 +554,7 @@ func TestNativeConfigureContainerInterfacesAndRoutes(t *testing.T) {
 		},
 		{
 			name: "Configure interface and routes container 2nd default route added fail",
-			client: &NativeEndpointClient{
+			client: &TransparentVlanEndpointClient{
 				primaryHostIfName: "eth0",
 				vlanIfName:        "eth0.1",
 				vnetVethName:      "A1veth0",
@@ -593,14 +593,14 @@ func TestNativeConfigureContainerInterfacesAndRoutes(t *testing.T) {
 	}
 	tests = []struct {
 		name       string
-		client     *NativeEndpointClient
+		client     *TransparentVlanEndpointClient
 		epInfo     *EndpointInfo
 		wantErr    bool
 		wantErrMsg string
 	}{
 		{
 			name: "Configure interface and routes good path for vnet",
-			client: &NativeEndpointClient{
+			client: &TransparentVlanEndpointClient{
 				primaryHostIfName: "eth0",
 				vlanIfName:        "eth0.1",
 				vnetVethName:      "A1veth0",
@@ -625,7 +625,7 @@ func TestNativeConfigureContainerInterfacesAndRoutes(t *testing.T) {
 		{
 			// fail route that tells which device container ip is on for vnet
 			name: "Configure interface and routes fail final routes for vnet",
-			client: &NativeEndpointClient{
+			client: &TransparentVlanEndpointClient{
 				primaryHostIfName: "eth0",
 				vlanIfName:        "eth0.1",
 				vnetVethName:      "A1veth0",
