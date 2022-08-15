@@ -60,14 +60,20 @@ type HTTPRestService struct {
 	podsPendingIPAssignment  *bounded.TimedSet
 	sync.RWMutex
 	dncPartitionKey    string
-	EndpointState      map[string]*EndpointInfo // key : container ID
+	programmedIPtables bool
+	EndpointState      map[string]*EndpointInfo // key : container id
 	EndpointStateStore store.KeyValueStore
 }
 
 type EndpointInfo struct {
 	PodName       string
 	PodNamespace  string
-	IfnameToIPMap map[string]*net.IPNet
+	IfnameToIPMap map[string]*IPInfo // key : interface name, value : IPInfo
+}
+
+type IPInfo struct {
+	IPv4 *net.IPNet
+	IPv6 *net.IPNet
 }
 
 type GetHTTPServiceDataResponse struct {
@@ -168,6 +174,7 @@ func NewHTTPRestService(config *common.ServiceConfig, wscli interfaceGetter, nma
 		state:                    serviceState,
 		podsPendingIPAssignment:  bounded.NewTimedSet(250), // nolint:gomnd // maxpods
 		EndpointStateStore:       endpointStateStore,
+		EndpointState:            make(map[string]*EndpointInfo),
 	}, nil
 }
 

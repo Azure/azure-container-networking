@@ -17,6 +17,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/nmagent"
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/cns/wireserver"
+	"github.com/Azure/azure-container-networking/common"
 	acn "github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/platform"
 	"github.com/Azure/azure-container-networking/store"
@@ -95,6 +96,23 @@ func (service *HTTPRestService) restoreState() {
 	}
 
 	logger.Printf("[Azure CNS]  Restored state, %+v\n", service.state)
+
+	if service.Options[common.OptManageEndpointState] == true {
+		err := service.EndpointStateStore.Read("endpoints", &service.EndpointState)
+		if err != nil {
+			if err == store.ErrKeyNotFound {
+				// Nothing to restore.
+				logger.Printf("[Azure CNS]  No endpoint state to restore.\n")
+			} else {
+				logger.Errorf("[Azure CNS]  Failed to restore endpoint state, err:%v. Removing endpoints.json", err)
+				service.EndpointStateStore.Remove()
+			}
+			return
+		}
+		logger.Printf("[Azure CNS]  Restored endpoint state, %+v\n", service.EndpointState)
+
+	}
+
 }
 
 func (service *HTTPRestService) saveNetworkContainerGoalState(
