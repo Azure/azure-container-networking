@@ -53,6 +53,7 @@ func TestReconcile(t *testing.T) {
 		in                 reconcile.Request
 		ncGetter           mockNCGetter
 		cnsClient          mockCNSClient
+		nodeIP             string
 		want               reconcile.Result
 		wantCNSClientState cnsClientState
 		wantErr            bool
@@ -145,11 +146,35 @@ func TestReconcile(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "node IP mismatch",
+			ncGetter: mockNCGetter{
+				get: func(context.Context, types.NamespacedName) (*v1alpha.NodeNetworkConfig, error) {
+					return &v1alpha.NodeNetworkConfig{
+						Status: validSwiftStatus,
+						Spec: v1alpha.NodeNetworkConfigSpec{
+							RequestedIPCount: 1,
+						},
+					}, nil
+				},
+			},
+			cnsClient: mockCNSClient{
+				createOrUpdateNC: func(*cns.CreateNetworkContainerRequest) cnstypes.ResponseCode {
+					return cnstypes.Success
+				},
+				update: func(*v1alpha.NodeNetworkConfig) error {
+					return nil
+				},
+			},
+			nodeIP:             "192.168.1.5", // nodeIP in above NNC status is 10.1.0.5
+			wantErr:            false,
+			wantCNSClientState: cnsClientState{}, // state should be empty since we should skip this NC
+		},
 	}
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			r := NewReconciler(&tt.cnsClient, &tt.ncGetter, &tt.cnsClient)
+			r := NewReconciler(&tt.cnsClient, &tt.ncGetter, &tt.cnsClient, tt.nodeIP)
 			got, err := r.Reconcile(context.Background(), tt.in)
 			if tt.wantErr {
 				require.Error(t, err)

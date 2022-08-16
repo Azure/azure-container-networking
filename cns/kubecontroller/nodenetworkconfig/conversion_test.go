@@ -22,6 +22,7 @@ const (
 	subnetPrefixLen    = 24
 	testSecIP          = "10.0.0.2"
 	version            = 1
+	nodeIP             = "10.1.0.5"
 )
 
 var invalidStatusMultiNC = v1alpha.NodeNetworkConfigStatus{
@@ -46,6 +47,7 @@ var validSwiftNC = v1alpha.NetworkContainer{
 	DefaultGateway:     defaultGateway,
 	SubnetAddressSpace: subnetAddressSpace,
 	Version:            version,
+	NodeIP:             nodeIP,
 }
 
 var validSwiftStatus = v1alpha.NodeNetworkConfigStatus{
@@ -55,7 +57,8 @@ var validSwiftStatus = v1alpha.NodeNetworkConfigStatus{
 }
 
 var validSwiftRequest = &cns.CreateNetworkContainerRequest{
-	Version: strconv.FormatInt(version, 10),
+	HostPrimaryIP: nodeIP,
+	Version:       strconv.FormatInt(version, 10),
 	IPConfiguration: cns.IPConfiguration{
 		GatewayIPAddress: defaultGateway,
 		IPSubnet: cns.IPSubnet{
@@ -78,6 +81,7 @@ var validOverlayNC = v1alpha.NetworkContainer{
 	AssignmentMode:     v1alpha.Static,
 	Type:               v1alpha.Overlay,
 	PrimaryIP:          overlayPrimaryIP,
+	NodeIP:             nodeIP,
 	SubnetName:         subnetName,
 	SubnetAddressSpace: subnetAddressSpace,
 	Version:            version,
@@ -162,6 +166,7 @@ func TestCreateNCRequestFromDynamicNC(t *testing.T) {
 			input: v1alpha.NetworkContainer{
 				PrimaryIP: ipIsCIDR,
 				ID:        ncID,
+				NodeIP:    nodeIP,
 				IPAssignments: []v1alpha.IPAssignment{
 					{
 						Name: uuid,

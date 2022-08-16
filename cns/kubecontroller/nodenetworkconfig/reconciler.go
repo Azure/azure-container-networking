@@ -74,9 +74,6 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 
 	ipAssignments := 0
 
-	// keep a count of NCs we find that were created for this Node
-	foundNCForNodeCount := 0
-
 	// for each NC, parse it in to a CreateNCRequest and forward it to the appropriate Listener
 	for i := range nnc.Status.NetworkContainers {
 		// check if this NC matches the Node IP if we have one to check against
@@ -88,8 +85,6 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 				continue
 			}
 		}
-
-		foundNCForNodeCount++
 
 		var req *cns.CreateNetworkContainerRequest
 		var err error
@@ -115,12 +110,6 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 			return reconcile.Result{}, errors.Wrap(err, "failed to create or update network container")
 		}
 		ipAssignments += len(req.SecondaryIPConfigs)
-	}
-
-	if foundNCForNodeCount == 0 {
-		logger.Debugf("[cns-rc] reconciler is not yet considered to be started since the NCs in the NNC were not created for this Node")
-		// return nil error since requeuing won't solve anything
-		return reconcile.Result{}, nil
 	}
 
 	// record assigned IPs metric
