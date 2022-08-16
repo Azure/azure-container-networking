@@ -94,7 +94,7 @@ CNM_PLUGIN_IMAGE ?= microsoft/azure-vnet-plugin
 CNM_PLUGIN_ROOTFS = azure-vnet-plugin-rootfs
 
 REVISION ?= $(shell git rev-parse --short HEAD)
-VERSION  ?= $(shell git describe --exclude "zapai*" --tags --always --dirty)
+VERSION  ?= $(shell git describe --exclude "azure-ipam*" --exclude "cni-dropgz*" --exclude "zapai*" --tags --always --dirty)
 
 # Default target
 all-binaries-platforms: ## Make all platform binaries
