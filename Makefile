@@ -29,8 +29,15 @@ ARCHIVE_EXT = zip
 EXE_EXT = .exe
 endif
 
+# Interrogate the git repo and set some variables
+REPO_ROOT 		    = $(shell git rev-parse --show-toplevel)
+REVISION 		   ?= $(shell git rev-parse --short HEAD)
+ACN_VERSION  	   ?= $(shell git describe --exclude "azure-ipam*" --exclude "cni-dropgz*" --exclude "zapai*" --tags --always --dirty)
+AZURE_IPAM_VERSION ?= $(shell git describe --match "azure-ipam*" --tags --always --dirty)
+CNIDROPGZ_VERSION  ?= $(shell git describe --match "cni-dropgz*" --tags --always --dirty)
+ZAPAI_VERSION  	   ?= $(shell git describe --match "zapai*" --tags --always --dirty)
+
 # Build directories.
-REPO_ROOT = $(shell git rev-parse --show-toplevel)
 AZURE_IPAM_DIR = $(REPO_ROOT)/azure-ipam
 CNM_DIR = $(REPO_ROOT)/cnm/plugin
 CNI_NET_DIR = $(REPO_ROOT)/cni/network/plugin
@@ -74,27 +81,23 @@ GO_JUNIT_REPORT := $(TOOLS_BIN_DIR)/go-junit-report
 MOCKGEN := $(TOOLS_BIN_DIR)/mockgen
 
 # Archive file names.
-CNM_ARCHIVE_NAME = azure-vnet-cnm-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
-CNI_ARCHIVE_NAME = azure-vnet-cni-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
-ACNCLI_ARCHIVE_NAME = acncli-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
-CNI_MULTITENANCY_ARCHIVE_NAME = azure-vnet-cni-multitenancy-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
-CNI_MULTITENANCY_TRANSPARENT_VLAN_ARCHIVE_NAME = azure-vnet-cni-multitenancy-transparent-vlan-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
-CNI_SWIFT_ARCHIVE_NAME = azure-vnet-cni-swift-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
-CNI_OVERLAY_ARCHIVE_NAME = azure-vnet-cni-overlay-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
-CNI_BAREMETAL_ARCHIVE_NAME = azure-vnet-cni-baremetal-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
-CNS_ARCHIVE_NAME = azure-cns-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
-NPM_ARCHIVE_NAME = azure-npm-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
-NPM_IMAGE_INFO_FILE = azure-npm-$(VERSION).txt
-CNIDROPGZ_IMAGE_ARCHIVE_NAME = cni-dropgz-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
-CNIDROPGZ_IMAGE_INFO_FILE = cni-dropgz-$(VERSION).txt
-CNS_IMAGE_INFO_FILE = azure-cns-$(VERSION).txt
+CNM_ARCHIVE_NAME = azure-vnet-cnm-$(GOOS)-$(GOARCH)-$(ACN_VERSION).$(ARCHIVE_EXT)
+CNI_ARCHIVE_NAME = azure-vnet-cni-$(GOOS)-$(GOARCH)-$(ACN_VERSION).$(ARCHIVE_EXT)
+ACNCLI_ARCHIVE_NAME = acncli-$(GOOS)-$(GOARCH)-$(ACN_VERSION).$(ARCHIVE_EXT)
+CNI_MULTITENANCY_ARCHIVE_NAME = azure-vnet-cni-multitenancy-$(GOOS)-$(GOARCH)-$(ACN_VERSION).$(ARCHIVE_EXT)
+CNI_MULTITENANCY_TRANSPARENT_VLAN_ARCHIVE_NAME = azure-vnet-cni-multitenancy-transparent-vlan-$(GOOS)-$(GOARCH)-$(ACN_VERSION).$(ARCHIVE_EXT)
+CNI_SWIFT_ARCHIVE_NAME = azure-vnet-cni-swift-$(GOOS)-$(GOARCH)-$(ACN_VERSION).$(ARCHIVE_EXT)
+CNI_OVERLAY_ARCHIVE_NAME = azure-vnet-cni-overlay-$(GOOS)-$(GOARCH)-$(ACN_VERSION).$(ARCHIVE_EXT)
+CNI_BAREMETAL_ARCHIVE_NAME = azure-vnet-cni-baremetal-$(GOOS)-$(GOARCH)-$(ACN_VERSION).$(ARCHIVE_EXT)
+CNS_ARCHIVE_NAME = azure-cns-$(GOOS)-$(GOARCH)-$(ACN_VERSION).$(ARCHIVE_EXT)
+NPM_ARCHIVE_NAME = azure-npm-$(GOOS)-$(GOARCH)-$(ACN_VERSION).$(ARCHIVE_EXT)
+NPM_IMAGE_INFO_FILE = azure-npm-$(ACN_VERSION).txt
+CNIDROPGZ_IMAGE_INFO_FILE = cni-dropgz-$(CNI_DROPGZ_VERSION).txt
+CNS_IMAGE_INFO_FILE = azure-cns-$(ACN_VERSION).txt
 
 # Docker libnetwork (CNM) plugin v2 image parameters.
 CNM_PLUGIN_IMAGE ?= microsoft/azure-vnet-plugin
 CNM_PLUGIN_ROOTFS = azure-vnet-plugin-rootfs
-
-REVISION ?= $(shell git rev-parse --short HEAD)
-VERSION  ?= $(shell git describe --exclude "azure-ipam*" --exclude "cni-dropgz*" --exclude "zapai*" --tags --always --dirty)
 
 # Default target
 all-binaries-platforms: ## Make all platform binaries
@@ -127,39 +130,40 @@ azure-npm: azure-npm-binary npm-archive
 
 # Build the delegated IPAM plugin binary.
 azure-ipam-binary:
-	cd $(AZURE_IPAM_DIR) && CGO_ENABLED=0 go build -v -o $(AUZRE_IPAM_BUILD_DIR)/azure-ipam$(EXE_EXT) -ldflags "-X main.version=$(VERSION)" -gcflags="-dwarflocationlists=true"
+	cd $(AZURE_IPAM_DIR) && CGO_ENABLED=0 go build -v -o $(AUZRE_IPAM_BUILD_DIR)/azure-ipam$(EXE_EXT) -ldflags "-X main.version=$(AZURE_IPAM_VERSION)" -gcflags="-dwarflocationlists=true"
+
 # Build the Azure CNM binary.
 cnm-binary:
-	cd $(CNM_DIR) && CGO_ENABLED=0 go build -v -o $(CNM_BUILD_DIR)/azure-vnet-plugin$(EXE_EXT) -ldflags "-X main.version=$(VERSION)" -gcflags="-dwarflocationlists=true"
+	cd $(CNM_DIR) && CGO_ENABLED=0 go build -v -o $(CNM_BUILD_DIR)/azure-vnet-plugin$(EXE_EXT) -ldflags "-X main.version=$(ACN_VERSION)" -gcflags="-dwarflocationlists=true"
 
 # Build the Azure CNI network binary.
 azure-vnet-binary:
-	cd $(CNI_NET_DIR) && CGO_ENABLED=0 go build -v -o $(CNI_BUILD_DIR)/azure-vnet$(EXE_EXT) -ldflags "-X main.version=$(VERSION)" -gcflags="-dwarflocationlists=true"
+	cd $(CNI_NET_DIR) && CGO_ENABLED=0 go build -v -o $(CNI_BUILD_DIR)/azure-vnet$(EXE_EXT) -ldflags "-X main.version=$(ACN_VERSION)" -gcflags="-dwarflocationlists=true"
 
 # Build the Azure CNI IPAM binary.
 azure-vnet-ipam-binary:
-	cd $(CNI_IPAM_DIR) && CGO_ENABLED=0 go build -v -o $(CNI_BUILD_DIR)/azure-vnet-ipam$(EXE_EXT) -ldflags "-X main.version=$(VERSION)" -gcflags="-dwarflocationlists=true"
+	cd $(CNI_IPAM_DIR) && CGO_ENABLED=0 go build -v -o $(CNI_BUILD_DIR)/azure-vnet-ipam$(EXE_EXT) -ldflags "-X main.version=$(ACN_VERSION)" -gcflags="-dwarflocationlists=true"
 
 # Build the Azure CNI IPAMV6 binary.
 azure-vnet-ipamv6-binary:
-	cd $(CNI_IPAMV6_DIR) && CGO_ENABLED=0 go build -v -o $(CNI_BUILD_DIR)/azure-vnet-ipamv6$(EXE_EXT) -ldflags "-X main.version=$(VERSION)" -gcflags="-dwarflocationlists=true"
+	cd $(CNI_IPAMV6_DIR) && CGO_ENABLED=0 go build -v -o $(CNI_BUILD_DIR)/azure-vnet-ipamv6$(EXE_EXT) -ldflags "-X main.version=$(ACN_VERSION)" -gcflags="-dwarflocationlists=true"
 
 # Build the Azure CNI telemetry binary.
 azure-vnet-telemetry-binary:
-	cd $(CNI_TELEMETRY_DIR) && CGO_ENABLED=0 go build -v -o $(CNI_BUILD_DIR)/azure-vnet-telemetry$(EXE_EXT) -ldflags "-X main.version=$(VERSION) -X $(CNI_AI_PATH)=$(CNI_AI_ID)" -gcflags="-dwarflocationlists=true"
+	cd $(CNI_TELEMETRY_DIR) && CGO_ENABLED=0 go build -v -o $(CNI_BUILD_DIR)/azure-vnet-telemetry$(EXE_EXT) -ldflags "-X main.version=$(ACN_VERSION) -X $(CNI_AI_PATH)=$(CNI_AI_ID)" -gcflags="-dwarflocationlists=true"
 
 # Build the Azure CLI network binary.
 acncli-binary:
-	cd $(ACNCLI_DIR) && CGO_ENABLED=0 go build -v -o $(ACNCLI_BUILD_DIR)/acn$(EXE_EXT) -ldflags "-X main.version=$(VERSION)" -gcflags="-dwarflocationlists=true"
+	cd $(ACNCLI_DIR) && CGO_ENABLED=0 go build -v -o $(ACNCLI_BUILD_DIR)/acn$(EXE_EXT) -ldflags "-X main.version=$(ACN_VERSION)" -gcflags="-dwarflocationlists=true"
 
 # Build the Azure CNS binary.
 azure-cns-binary:
-	cd $(CNS_DIR) && CGO_ENABLED=0 go build -v -o $(CNS_BUILD_DIR)/azure-cns$(EXE_EXT) -ldflags "-X main.version=$(VERSION) -X $(CNS_AI_PATH)=$(CNS_AI_ID) -X $(CNI_AI_PATH)=$(CNI_AI_ID)" -gcflags="-dwarflocationlists=true"
+	cd $(CNS_DIR) && CGO_ENABLED=0 go build -v -o $(CNS_BUILD_DIR)/azure-cns$(EXE_EXT) -ldflags "-X main.version=$(ACN_VERSION) -X $(CNS_AI_PATH)=$(CNS_AI_ID) -X $(CNI_AI_PATH)=$(CNI_AI_ID)" -gcflags="-dwarflocationlists=true"
 
 # Build the Azure NPM binary.
 azure-npm-binary:
-	cd $(CNI_TELEMETRY_DIR) && CGO_ENABLED=0 go build -v -o $(NPM_BUILD_DIR)/azure-vnet-telemetry$(EXE_EXT) -ldflags "-X main.version=$(VERSION)" -gcflags="-dwarflocationlists=true"
-	cd $(NPM_DIR) && CGO_ENABLED=0 go build -v -o $(NPM_BUILD_DIR)/azure-npm$(EXE_EXT) -ldflags "-X main.version=$(VERSION) -X $(NPM_AI_PATH)=$(NPM_AI_ID)" -gcflags="-dwarflocationlists=true"
+	cd $(CNI_TELEMETRY_DIR) && CGO_ENABLED=0 go build -v -o $(NPM_BUILD_DIR)/azure-vnet-telemetry$(EXE_EXT) -ldflags "-X main.version=$(ACN_VERSION)" -gcflags="-dwarflocationlists=true"
+	cd $(NPM_DIR) && CGO_ENABLED=0 go build -v -o $(NPM_BUILD_DIR)/azure-npm$(EXE_EXT) -ldflags "-X main.version=$(ACN_VERSION) -X $(NPM_AI_PATH)=$(NPM_AI_ID)" -gcflags="-dwarflocationlists=true"
 
 
 ##@ Containers
@@ -169,7 +173,7 @@ CNIDROPGZ_IMAGE = cni-dropgz
 CNS_IMAGE       = azure-cns
 NPM_IMAGE       = azure-npm
 
-TAG               ?= $(VERSION)
+TAG               ?= $(ACN_VERSION)
 IMAGE_REGISTRY    ?= acnpublic.azurecr.io
 OS                ?= $(GOOS)
 ARCH              ?= $(GOARCH)
@@ -191,7 +195,7 @@ containerize-buildah: # util target to build container images using buildah. do 
 		--jobs 16 \
 		--platform $(PLATFORM) \
 		-f $(DOCKERFILE) \
-		--build-arg VERSION=$(VERSION) $(EXTRA_BUILD_ARGS) \
+		--build-arg VERSION=$(ACN_VERSION) $(EXTRA_BUILD_ARGS) \
 		-t $(IMAGE_REGISTRY)/$(IMAGE):$(TAG) \
 		.
 
@@ -199,7 +203,7 @@ containerize-docker: # util target to build container images using docker buildx
 	docker buildx build \
 		--platform $(PLATFORM) \
 		-f $(DOCKERFILE) \
-		--build-arg VERSION=$(VERSION) $(EXTRA_BUILD_ARGS) \
+		--build-arg VERSION=$(ACN_VERSION) $(EXTRA_BUILD_ARGS) \
 		-t $(IMAGE_REGISTRY)/$(IMAGE):$(TAG) \
 		.
 
@@ -506,7 +510,7 @@ release:
 # Publish the Azure CNM plugin image to a Docker registry.
 .PHONY: publish-azure-cnm-plugin-image
 publish-azure-cnm-plugin-image:
-	docker plugin push $(CNM_PLUGIN_IMAGE):$(VERSION)
+	docker plugin push $(CNM_PLUGIN_IMAGE):$(ACN_VERSION)
 
 
 ##@ Utils 
@@ -535,6 +539,7 @@ fmt: $(GOFUMPT) ## run gofumpt on $FMT_PKG (default "cni cns npm").
 workspace: ## Set up the Go workspace.
 	go work init
 	go work use .
+	go work use ./azure-ipam
 	go work use ./build/tools
 	go work use ./dropgz
 	go work use ./zapai
@@ -584,7 +589,7 @@ revision: ## print the current git revision
 	@echo $(REVISION)
 	
 version: ## prints the version
-	@echo $(VERSION)
+	@echo $(ACN_VERSION)
 
 
 ##@ Tools 
