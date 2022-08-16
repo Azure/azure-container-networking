@@ -17,5 +17,6 @@ data:
           "enable-debug": true,
           "log-file": "/var/log/cilium-cni.log"
         }
-      ]
+      ],
+      "ProgramSNATIPTables" : true
     }
