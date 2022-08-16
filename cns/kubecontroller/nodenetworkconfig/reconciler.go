@@ -70,12 +70,6 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 
 	logger.Printf("[cns-rc] CRD Spec: %+v", nnc.Spec)
 
-	// if there are no network containers, don't continue to updating Listeners
-	if len(nnc.Status.NetworkContainers) == 0 {
-		logger.Errorf("[cns-rc] Empty NetworkContainers")
-		return reconcile.Result{}, nil
-	}
-
 	ipAssignments := 0
 	// for each NC, parse it in to a CreateNCRequest and forward it to the appropriate Listener
 	for i := range nnc.Status.NetworkContainers {
