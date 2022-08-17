@@ -1,4 +1,4 @@
-FROM mcr.microsoft.com/oss/cilium/cilium:v1.12.0 as cilium
+FROM mcr.microsoft.com/oss/cilium/cilium:v1.12.1 as cilium
 
 FROM mcr.microsoft.com/oss/go/microsoft/golang:1.18 AS azure-ipam
 ARG VERSION
