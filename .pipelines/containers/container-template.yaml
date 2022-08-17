@@ -2,7 +2,6 @@ parameters:
   name: ""
   os: ""
   arch: ""
-  tag: ""
 
 steps:
 - task: Docker@2
@@ -20,7 +19,8 @@ steps:
 
 - script: |
     set -e
-    export PLATFORM_TAG=$(make container-platform-tag TAG=${{ parameters.tag }} PLATFORM=${{ parameters.os }}/${{ parameters.arch }})
+    export VERSION=$(make ${{ parameters.name }}-version)
+    export PLATFORM_TAG=$(make container-platform-tag TAG=$VERSION PLATFORM=${{ parameters.os }}/${{ parameters.arch }})
     make ${{ parameters.name }}-image OS=${{ parameters.os }} ARCH=${{ parameters.arch }} PLATFORM=${{ parameters.os }}/${{ parameters.arch }} TAG=$PLATFORM_TAG
   name: image_build
   displayName: Image Build
@@ -28,7 +28,8 @@ steps:
 
 - script: |
     set -e
-    export PLATFORM_TAG=$(make container-platform-tag TAG=${{ parameters.tag }} PLATFORM=${{ parameters.os }}/${{ parameters.arch }})
+    export VERSION=$(make ${{ parameters.name }}-version)
+    export PLATFORM_TAG=$(make container-platform-tag TAG=$VERSION PLATFORM=${{ parameters.os }}/${{ parameters.arch }})
     export REF=$(IMAGE_REGISTRY)/$(make ${{ parameters.name }}-image-name):$PLATFORM_TAG
     skopeo copy containers-storage:$REF docker-daemon:$REF
     wget https://github.com/aquasecurity/trivy/releases/download/v0.18.1/trivy_0.18.1_Linux-64bit.tar.gz
@@ -40,7 +41,8 @@ steps:
 
 - script: |
     set -e
-    export PLATFORM_TAG=$(make container-platform-tag TAG=${{ parameters.tag }} PLATFORM=${{ parameters.os }}/${{ parameters.arch }})
+    export VERSION=$(make ${{ parameters.name }}-version)
+    export PLATFORM_TAG=$(make container-platform-tag TAG=$VERSION PLATFORM=${{ parameters.os }}/${{ parameters.arch }})
     make ${{ parameters.name }}-image-push PLATFORM=${{ parameters.os }}/${{ parameters.arch }} TAG=$PLATFORM_TAG
     make ${{ parameters.name }}-image-pull PLATFORM=${{ parameters.os }}/${{ parameters.arch }} TAG=$PLATFORM_TAG
   retryCountOnTaskFailure: 3

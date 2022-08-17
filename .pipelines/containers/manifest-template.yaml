@@ -1,7 +1,6 @@
 parameters:
   name: ""
   platforms: ""
-  tag: ""
 
 steps:
   - task: Docker@2
@@ -13,19 +12,20 @@ steps:
 
   - script: |
       set -e
-      make ${{ parameters.name }}-multiarch-manifest-create PLATFORMS="${{ parameters.platforms }}" TAG=${{ parameters.tag }}
-      make ${{ parameters.name }}-image-info TAG=${{ parameters.tag }}
+      export VERSION=$(make ${{ parameters.name }}-version)
+      make ${{ parameters.name }}-multiarch-manifest-create PLATFORMS="${{ parameters.platforms }}" TAG=$VERSION
+      make ${{ parameters.name }}-image-info TAG=$VERSION
     name: manifest_build
     displayName: Manifest Build
 
   - script: |
       set -e
+      export VERSION=$(make ${{ parameters.name }}-version)
       export IMAGE=$(make ${{ parameters.name }}-image-name)
-      export TAG=${{ parameters.tag }}
-      make multiarch-manifest-push IMAGE=$IMAGE TAG=$TAG
-      make container-pull IMAGE=$IMAGE TAG=$TAG
+      make multiarch-manifest-push IMAGE=$IMAGE TAG=$VERSION
+      make container-pull IMAGE=$IMAGE TAG=$VERSION
       mkdir -p $(Build.ArtifactStagingDirectory)/images
-      skopeo copy --all docker://$IMAGE_REGISTRY/$IMAGE:$TAG oci-archive:$(Build.ArtifactStagingDirectory)/images/$IMAGE-$TAG.tar
+      skopeo copy --all docker://$IMAGE_REGISTRY/$IMAGE:$VERSION oci-archive:$(Build.ArtifactStagingDirectory)/images/$IMAGE-$VERSION.tar
     name: manifest_push
     displayName: Manifest Push
 
