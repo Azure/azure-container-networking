@@ -97,11 +97,11 @@ func (service *HTTPRestService) requestIPConfigHandler(w http.ResponseWriter, r 
 	logger.ResponseEx(service.Name+operationName, ipconfigRequest, reserveResp, reserveResp.Response.ReturnCode, err)
 }
 
-var errNilStateStore = errors.New("nil endpoint state store")
+var errStoreEmpty = errors.New("empty endpoint state store")
 
 func (service *HTTPRestService) updateEndpointState(ipconfigRequest cns.IPConfigRequest, podInfo cns.PodInfo, podIPInfo cns.PodIpInfo) error {
 	if service.EndpointStateStore == nil {
-		return errNilStateStore
+		return errStoreEmpty
 	}
 	service.Lock()
 	defer service.Unlock()
@@ -112,11 +112,23 @@ func (service *HTTPRestService) updateEndpointState(ipconfigRequest cns.IPConfig
 		if err != nil {
 			return fmt.Errorf("failed to parse pod ip address: %w", err)
 		}
-		ipconfig := &net.IPNet{IP: ip, Mask: ipnet.Mask}
+		ipconfig := net.IPNet{IP: ip, Mask: ipnet.Mask}
 		if ip.To4() == nil { // is an ipv6 address
-			endpointInfo.IfnameToIPMap[ipconfigRequest.Ifname].IPv6 = ipconfig
+			for _, ipconf := range endpointInfo.IfnameToIPMap[ipconfigRequest.Ifname].IPv6 {
+				if ipconf.IP.Equal(ipconfig.IP) {
+					logger.Printf("[updateEndpointState] Found existing ipv6 ipconfig for infra container %s", ipconfigRequest.InfraContainerID)
+					return nil
+				}
+			}
+			endpointInfo.IfnameToIPMap[ipconfigRequest.Ifname].IPv6 = append(endpointInfo.IfnameToIPMap[ipconfigRequest.Ifname].IPv6, ipconfig)
 		} else {
-			endpointInfo.IfnameToIPMap[ipconfigRequest.Ifname].IPv4 = ipconfig
+			for _, ipconf := range endpointInfo.IfnameToIPMap[ipconfigRequest.Ifname].IPv4 {
+				if ipconf.IP.Equal(ipconfig.IP) {
+					logger.Printf("[updateEndpointState] Found existing ipv4 ipconfig for infra container %s", ipconfigRequest.InfraContainerID)
+					return nil
+				}
+			}
+			endpointInfo.IfnameToIPMap[ipconfigRequest.Ifname].IPv4 = append(endpointInfo.IfnameToIPMap[ipconfigRequest.Ifname].IPv4, ipconfig)
 		}
 
 		service.EndpointState[ipconfigRequest.InfraContainerID] = endpointInfo
@@ -127,12 +139,12 @@ func (service *HTTPRestService) updateEndpointState(ipconfigRequest cns.IPConfig
 		if err != nil {
 			return fmt.Errorf("failed to parse pod ip address: %w", err)
 		}
-		ipconfig := &net.IPNet{IP: ip, Mask: ipnet.Mask}
+		ipconfig := net.IPNet{IP: ip, Mask: ipnet.Mask}
 		ipInfo := &IPInfo{}
 		if ip.To4() == nil { // is an ipv6 address
-			ipInfo.IPv6 = ipconfig
+			ipInfo.IPv6 = append(ipInfo.IPv6, ipconfig)
 		} else {
-			ipInfo.IPv4 = ipconfig
+			ipInfo.IPv4 = append(ipInfo.IPv4, ipconfig)
 		}
 		endpointInfo.IfnameToIPMap[ipconfigRequest.Ifname] = ipInfo
 		service.EndpointState[ipconfigRequest.InfraContainerID] = endpointInfo
@@ -194,7 +206,7 @@ func (service *HTTPRestService) releaseIPConfigHandler(w http.ResponseWriter, r 
 
 func (service *HTTPRestService) removeEndpointState(podInfo cns.PodInfo) error {
 	if service.EndpointStateStore == nil {
-		return errNilStateStore
+		return errStoreEmpty
 	}
 	service.Lock()
 	defer service.Unlock()

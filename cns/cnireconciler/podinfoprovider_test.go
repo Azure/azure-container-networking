@@ -67,7 +67,7 @@ func TestNewCNSPodInfoProvider(t *testing.T) {
 	goodStore := store.NewMockStore("")
 	goodEndpointState := make(map[string]*restserver.EndpointInfo)
 	endpointInfo := &restserver.EndpointInfo{PodName: "goldpinger-deploy-bbbf9fd7c-z8v4l", PodNamespace: "default", IfnameToIPMap: make(map[string]*restserver.IPInfo)}
-	endpointInfo.IfnameToIPMap["eth0"] = &restserver.IPInfo{IPv4: &net.IPNet{IP: net.IPv4(10, 241, 0, 65), Mask: net.IPv4Mask(255, 255, 255, 0)}}
+	endpointInfo.IfnameToIPMap["eth0"] = &restserver.IPInfo{IPv4: []net.IPNet{{IP: net.IPv4(10, 241, 0, 65), Mask: net.IPv4Mask(255, 255, 255, 0)}}}
 
 	goodEndpointState["0a4917617e15d24dc495e407d8eb5c88e4406e58fa209e4eb75a2c2fb7045eea"] = endpointInfo
 	err := goodStore.Write(restserver.EndpointStoreKey, goodEndpointState)

@@ -153,12 +153,12 @@ func TestEndpointStateReadAndWrite(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to parse pod ip address: %+v", err)
 	}
-	ipconfig := &net.IPNet{IP: ip, Mask: ipnet.Mask}
+	ipconfig := net.IPNet{IP: ip, Mask: ipnet.Mask}
 	ipInfo := &IPInfo{}
 	if ip.To4() == nil { // is an ipv6 address
-		ipInfo.IPv6 = ipconfig
+		ipInfo.IPv6 = append(ipInfo.IPv6, ipconfig)
 	} else {
-		ipInfo.IPv4 = ipconfig
+		ipInfo.IPv4 = append(ipInfo.IPv4, ipconfig)
 	}
 
 	// add

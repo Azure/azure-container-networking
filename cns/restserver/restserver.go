@@ -71,8 +71,8 @@ type EndpointInfo struct {
 }
 
 type IPInfo struct {
-	IPv4 *net.IPNet
-	IPv6 *net.IPNet
+	IPv4 []net.IPNet
+	IPv6 []net.IPNet
 }
 
 type GetHTTPServiceDataResponse struct {
