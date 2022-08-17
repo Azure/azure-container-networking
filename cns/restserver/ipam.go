@@ -5,6 +5,7 @@ package restserver
 
 import (
 	"fmt"
+	"net"
 	"net/http"
 	"strconv"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/filter"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/types"
+	"github.com/Azure/azure-container-networking/common"
 	"github.com/pkg/errors"
 )
 
@@ -65,6 +67,25 @@ func (service *HTTPRestService) requestIPConfigHandler(w http.ResponseWriter, r 
 			ipAssignmentLatency.Observe(since.Seconds())
 		}
 	}()
+
+	// Check if http rest service managed endpoint state is set
+	if service.Options[common.OptManageEndpointState] == true {
+		err = service.updateEndpointState(ipconfigRequest, podInfo, podIPInfo)
+		if err != nil {
+			reserveResp := &cns.IPConfigResponse{
+				Response: cns.Response{
+					ReturnCode: types.UnexpectedError,
+					Message:    fmt.Sprintf("Update endpoint state failed: %v ", err),
+				},
+				PodIpInfo: podIPInfo,
+			}
+			w.Header().Set(cnsReturnCode, reserveResp.Response.ReturnCode.String())
+			err = service.Listener.Encode(w, &reserveResp)
+			logger.ResponseEx(service.Name+operationName, ipconfigRequest, reserveResp, reserveResp.Response.ReturnCode, err)
+			return
+		}
+	}
+
 	reserveResp := &cns.IPConfigResponse{
 		Response: cns.Response{
 			ReturnCode: types.Success,
@@ -74,6 +95,44 @@ func (service *HTTPRestService) requestIPConfigHandler(w http.ResponseWriter, r 
 	w.Header().Set(cnsReturnCode, reserveResp.Response.ReturnCode.String())
 	err = service.Listener.Encode(w, &reserveResp)
 	logger.ResponseEx(service.Name+operationName, ipconfigRequest, reserveResp, reserveResp.Response.ReturnCode, err)
+}
+
+func (service *HTTPRestService) updateEndpointState(ipconfigRequest cns.IPConfigRequest, podInfo cns.PodInfo, podIPInfo cns.PodIpInfo) error {
+	if service.EndpointStateStore == nil {
+		return fmt.Errorf("nil endpoint state store")
+	}
+	service.Lock()
+	defer service.Unlock()
+	if service.EndpointState == nil { // if endpoint state is empty then read from store
+		err := service.EndpointStateStore.Read("endpoints", service.EndpointState)
+		if err != nil {
+			return fmt.Errorf("failed to read endpoint state from store: %w", err)
+		}
+	}
+
+	if endpointInfo, ok := service.EndpointState[ipconfigRequest.InfraContainerID]; ok {
+		_, ipnet, err := net.ParseCIDR(podIPInfo.PodIPConfig.IPAddress + "/" + fmt.Sprint(podIPInfo.PodIPConfig.PrefixLength))
+		if err != nil {
+			return fmt.Errorf("failed to parse pod ip address: %w", err)
+		}
+		endpointInfo.IfnameToIPMap[ipconfigRequest.Ifname] = ipnet
+		service.EndpointState[ipconfigRequest.InfraContainerID] = endpointInfo
+
+	} else {
+		endpointInfo := &EndpointInfo{PodName: podInfo.Name(), PodNamespace: podInfo.Namespace(), IfnameToIPMap: make(map[string]*net.IPNet)}
+		_, ipnet, err := net.ParseCIDR(podIPInfo.PodIPConfig.IPAddress + "/" + fmt.Sprint(podIPInfo.PodIPConfig.PrefixLength))
+		if err != nil {
+			return fmt.Errorf("failed to parse pod ip address: %w", err)
+		}
+		endpointInfo.IfnameToIPMap[ipconfigRequest.Ifname] = ipnet
+		service.EndpointState[ipconfigRequest.InfraContainerID] = endpointInfo
+	}
+
+	err := service.EndpointStateStore.Write("endpoints", service.EndpointState)
+	if err != nil {
+		return fmt.Errorf("failed to write endpoint state to store: %w", err)
+	}
+	return nil
 }
 
 func (service *HTTPRestService) releaseIPConfigHandler(w http.ResponseWriter, r *http.Request) {

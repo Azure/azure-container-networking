@@ -2,6 +2,7 @@ package restserver
 
 import (
 	"context"
+	"net"
 	"sync"
 	"time"
 
@@ -58,7 +59,15 @@ type HTTPRestService struct {
 	state                    *httpRestServiceState
 	podsPendingIPAssignment  *bounded.TimedSet
 	sync.RWMutex
-	dncPartitionKey string
+	dncPartitionKey    string
+	EndpointState      map[string]*EndpointInfo // key : container ID
+	EndpointStateStore store.KeyValueStore
+}
+
+type EndpointInfo struct {
+	PodName       string
+	PodNamespace  string
+	IfnameToIPMap map[string]*net.IPNet
 }
 
 type GetHTTPServiceDataResponse struct {
@@ -109,7 +118,7 @@ type networkInfo struct {
 }
 
 // NewHTTPRestService creates a new HTTP Service object.
-func NewHTTPRestService(config *common.ServiceConfig, wscli interfaceGetter, nmagentClient nmagentClient) (cns.HTTPService, error) {
+func NewHTTPRestService(config *common.ServiceConfig, wscli interfaceGetter, nmagentClient nmagentClient, endpointStateStore store.KeyValueStore) (cns.HTTPService, error) {
 	service, err := cns.NewService(config.Name, config.Version, config.ChannelMode, config.Store)
 	if err != nil {
 		return nil, err
@@ -158,6 +167,7 @@ func NewHTTPRestService(config *common.ServiceConfig, wscli interfaceGetter, nma
 		routingTable:             routingTable,
 		state:                    serviceState,
 		podsPendingIPAssignment:  bounded.NewTimedSet(250), // nolint:gomnd // maxpods
+		EndpointStateStore:       endpointStateStore,
 	}, nil
 }
 

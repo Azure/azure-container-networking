@@ -438,8 +438,9 @@ func main() {
 
 	// Initialize CNS.
 	var (
-		err    error
-		config common.ServiceConfig
+		err                error
+		config             common.ServiceConfig
+		endpointStateStore store.KeyValueStore
 	)
 
 	config.Version = version
@@ -541,9 +542,27 @@ func main() {
 		logger.Errorf("Failed to start nmagent client due to error %v", err)
 		return
 	}
+
+	// Initialize endpoint state store if cns is managing endpoint state.
+	if cnsconfig.ManageEndpointState {
+		lockclient, err = processlock.NewFileLock(platform.CNILockPath + "endpoints" + store.LockExtension)
+		if err != nil {
+			log.Printf("Error initializing endpoint state file lock:%v", err)
+			return
+		}
+
+		// Create the key value store.
+		storeFileName := storeFileLocation + "endpoints" + ".json"
+		endpointStateStore, err = store.NewJsonFileStore(storeFileName, lockclient)
+		if err != nil {
+			logger.Errorf("Failed to create endpoint state store file: %s, due to error %v\n", storeFileName, err)
+			return
+		}
+	}
+
 	// Create CNS object.
 
-	httpRestService, err := restserver.NewHTTPRestService(&config, &wireserver.Client{HTTPClient: &http.Client{}}, nmaclient)
+	httpRestService, err := restserver.NewHTTPRestService(&config, &wireserver.Client{HTTPClient: &http.Client{}}, nmaclient, endpointStateStore)
 	if err != nil {
 		logger.Errorf("Failed to create CNS object, err:%v.\n", err)
 		return
@@ -557,6 +576,7 @@ func main() {
 	httpRestService.SetOption(acn.OptHttpConnectionTimeout, httpConnectionTimeout)
 	httpRestService.SetOption(acn.OptHttpResponseHeaderTimeout, httpResponseHeaderTimeout)
 	httpRestService.SetOption(acn.OptProgramSNATIPTables, cnsconfig.ProgramSNATIPTables)
+	httpRestService.SetOption(acn.OptManageEndpointState, cnsconfig.ManageEndpointState)
 
 	// Create default ext network if commandline option is set
 	if len(strings.TrimSpace(createDefaultExtNetworkType)) > 0 {
@@ -973,7 +993,13 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 	}
 
 	var podInfoByIPProvider cns.PodInfoByIPProvider
-	if cnsconfig.InitializeFromCNI {
+	if cnsconfig.ManageEndpointState {
+		logger.Printf("Initializing from self managed endpoint store")
+		podInfoByIPProvider, err = cnireconciler.NewCNSPodInfoProvider(httpRestServiceImplementation.EndpointStateStore) // get reference to endpoint state store from rest server
+		if err != nil {
+			return errors.Wrap(err, "failed to create CNS PodInfoProvider")
+		}
+	} else if cnsconfig.InitializeFromCNI {
 		logger.Printf("Initializing from CNI")
 		podInfoByIPProvider, err = cnireconciler.NewCNIPodInfoProvider()
 		if err != nil {
