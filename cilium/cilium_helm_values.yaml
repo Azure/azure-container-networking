@@ -24,7 +24,7 @@ extraArgs:
   - --local-router-ipv4=169.254.23.0
 
 # kubenet pod CIDR
-ipv4NativeRoutingCIDR: 10.240.0.0/16
+ipv4NativeRoutingCIDR: 10.241.0.0/16
 enableIPv4Masquerade: false
 install-no-conntrack-iptables-rules: false
 installIptablesRules: false
