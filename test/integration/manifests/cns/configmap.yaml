@@ -22,6 +22,6 @@ data:
           "NodeSyncIntervalInSeconds": 30
       },
       "ChannelMode": "CRD",
-      "InitializeFromCNI": false
+      "InitializeFromCNI": false,
       "ProgramSNATIPTables" : true
     }
