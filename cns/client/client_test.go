@@ -2028,6 +2028,17 @@ func TestNumberOfCPUCores(t *testing.T) {
 				NumOfCPUCores: 42,
 			},
 		},
+		{
+			"unspecified error",
+			true,
+			&cns.NumOfCPUCoresResponse{
+				Response: cns.Response{
+					ReturnCode: types.MalformedSubnet,
+					Message:    "malformed subnet",
+				},
+				NumOfCPUCores: 0,
+			},
+		},
 	}
 
 	for _, test := range tests {
@@ -2053,8 +2064,8 @@ func TestNumberOfCPUCores(t *testing.T) {
 				t.Fatal("expected an error but received none")
 			}
 
-			if !cmp.Equal(got, *test.exp) {
-				t.Error("received response differs from expectation: diff:", cmp.Diff(got, *test.exp))
+			if !test.shouldErr && !cmp.Equal(got, test.exp) {
+				t.Error("received response differs from expectation: diff:", cmp.Diff(got, test.exp))
 			}
 		})
 	}

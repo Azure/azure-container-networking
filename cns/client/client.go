@@ -419,24 +419,18 @@ func (c *Client) GetHTTPServiceData(ctx context.Context) (*restserver.GetHTTPSer
 
 // NumOfCPUCores returns the number of CPU cores available on the host that
 // CNS is running on.
-func (c *Client) NumOfCPUCores(ctx context.Context) (cns.NumOfCPUCoresResponse, error) {
-	// define a wrapper function to avoid repeatedly dealing with the empty
-	// response type
-	die := func(err error, msg string) (cns.NumOfCPUCoresResponse, error) {
-		return cns.NumOfCPUCoresResponse{}, errors.Wrap(err, msg)
-	}
-
+func (c *Client) NumOfCPUCores(ctx context.Context) (*cns.NumOfCPUCoresResponse, error) {
 	// build the request
 	u := c.routes[cns.NumberOfCPUCores]
 	req, err := http.NewRequest(http.MethodGet, u.String(), nil)
 	if err != nil {
-		return die(err, "building http request")
+		return nil, errors.Wrap(err, "building http request")
 	}
 
 	// submit the request
 	resp, err := c.client.Do(req)
 	if err != nil {
-		return die(err, "sending HTTP request")
+		return nil, errors.Wrap(err, "sending HTTP request")
 	}
 	defer resp.Body.Close()
 
@@ -444,9 +438,19 @@ func (c *Client) NumOfCPUCores(ctx context.Context) (cns.NumOfCPUCoresResponse, 
 	var out cns.NumOfCPUCoresResponse
 	err = json.NewDecoder(resp.Body).Decode(&out)
 	if err != nil {
-		return die(err, "decoding response as JSON")
+		return nil, errors.Wrap(err, "decoding response as JSON")
 	}
-	return out, nil
+
+	// if the return code is non-zero, something went wrong and it should be
+	// surfaced to the caller
+	if out.Response.ReturnCode != 0 {
+		return nil, &CNSClientError{
+			Code: out.Response.ReturnCode,
+			Err:  errors.New(out.Response.Message),
+		}
+	}
+
+	return &out, nil
 }
 
 // DeleteNetworkContainer destroys the requested network container matching the
