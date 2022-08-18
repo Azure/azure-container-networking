@@ -90,19 +90,14 @@ func fieldStringer(f *zapcore.Field) string {
 	switch f.Type {
 	case zapcore.StringType:
 		return f.String
-
 	case zapcore.Int64Type:
 		return strconv.FormatInt(f.Integer, 10)
-
 	case zapcore.Uint16Type:
 		return strconv.FormatInt(f.Integer, 10)
-
 	case zapcore.ErrorType:
 		return f.Interface.(error).Error()
-
 	case zapcore.BoolType:
 		return strconv.FormatBool(f.Integer == 1)
-
 	default:
 		return fmt.Sprintf("%v", f)
 	}
