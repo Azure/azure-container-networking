@@ -327,6 +327,23 @@ func TestTransparentVlanAddEndpoints(t *testing.T) {
 			wantErr:    true,
 			wantErrMsg: "vnet veth doesn't exist: " + netio.ErrMockNetIOFail.Error() + ":A1veth0",
 		},
+		{
+			name: "Add endpoints fail populate vnet disable rp filter",
+			client: &TransparentVlanEndpointClient{
+				primaryHostIfName: "eth0",
+				vlanIfName:        "eth0.1",
+				vnetVethName:      "A1veth0",
+				containerVethName: "B1veth0",
+				vnetNSName:        "az_ns_1",
+				netlink:           netlink.NewMockNetlink(false, ""),
+				plClient:          platform.NewMockExecClient(true),
+				netUtilsClient:    networkutils.NewNetworkUtils(nl, plc),
+				netioshim:         netio.NewMockNetIO(false, 0),
+			},
+			epInfo:     &EndpointInfo{},
+			wantErr:    true,
+			wantErrMsg: "transparent vlan failed to disable rp filter in vnet: " + platform.ErrMockExec.Error(),
+		},
 	}
 
 	for _, tt := range tests {

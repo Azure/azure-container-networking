@@ -8,7 +8,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -21,8 +20,6 @@ import (
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
-	"github.com/Azure/azure-container-networking/iptables"
-	"github.com/Azure/azure-container-networking/network/networkutils"
 	"github.com/pkg/errors"
 )
 
@@ -364,64 +361,11 @@ func (service *HTTPRestService) CreateOrUpdateNetworkContainerInternal(req *cns.
 	}
 
 	if service.Options[common.OptProgramSNATIPTables] == true {
-		returnCode, returnMessage = service.programSNATIPTableRules(req)
+		returnCode, returnMessage = service.programSNATRules(req)
 		if returnCode != 0 {
 			logger.Errorf(returnMessage)
 		}
 	}
 
 	return returnCode
-}
-
-// nolint
-func (service *HTTPRestService) programSNATIPTableRules(req *cns.CreateNetworkContainerRequest) (types.ResponseCode, string) {
-	service.Lock()
-	defer service.Unlock()
-
-	if service.programmedIPtables { // check if iptables has already been programmed
-		logger.Printf("[Azure CNS] SNAT IPTables rules already programmed")
-		return types.Success, ""
-	}
-
-	ncPrimaryIP, ncIPNet, _ := net.ParseCIDR(req.IPConfiguration.IPSubnet.IPAddress + "/" + fmt.Sprintf("%d", req.IPConfiguration.IPSubnet.PrefixLength))
-
-	azureDNSUDPMatch := fmt.Sprintf(" -m addrtype ! --dst-type local -s %s -d %s -p %s --dport %d", ncIPNet.String(), networkutils.AzureDNS, iptables.UDP, iptables.DNSPort)
-	azureDNSTCPMatch := fmt.Sprintf(" -m addrtype ! --dst-type local -s %s -d %s -p %s --dport %d", ncIPNet.String(), networkutils.AzureDNS, iptables.TCP, iptables.DNSPort)
-	azureIMDSMatch := fmt.Sprintf(" -m addrtype ! --dst-type local -s %s -d %s -p %s --dport %d", ncIPNet.String(), networkutils.AzureIMDS, iptables.TCP, iptables.HTTPPort)
-
-	snatPrimaryIPJump := fmt.Sprintf("%s --to %s", iptables.Snat, ncPrimaryIP)
-	// we need to snat IMDS traffic to node IP, this sets up snat '--to'
-	snatHostIPJump := fmt.Sprintf("%s --to %s", iptables.Snat, req.HostPrimaryIP)
-
-	// Check if iptables rules exist already
-	if iptables.RuleExists(iptables.V4, iptables.Nat, iptables.Postrouting, "", iptables.Swift) &&
-		iptables.RuleExists(iptables.V4, iptables.Nat, iptables.Swift, azureDNSUDPMatch, snatPrimaryIPJump) &&
-		iptables.RuleExists(iptables.V4, iptables.Nat, iptables.Swift, azureDNSTCPMatch, snatPrimaryIPJump) &&
-		iptables.RuleExists(iptables.V4, iptables.Nat, iptables.Swift, azureIMDSMatch, snatHostIPJump) {
-
-		logger.Printf("[Azure CNS] SNAT IPTables rules already programmed")
-		service.programmedIPtables = true
-		return types.Success, ""
-	}
-
-	cmds := []iptables.IPTableEntry{
-		iptables.GetCreateChainCmd(iptables.V4, iptables.Nat, iptables.Swift),
-		iptables.GetAppendIptableRuleCmd(iptables.V4, iptables.Nat, iptables.Postrouting, "", iptables.Swift),
-		// add a snat rules to primary NC IP for DNS
-		iptables.GetInsertIptableRuleCmd(iptables.V4, iptables.Nat, iptables.Swift, azureDNSUDPMatch, snatPrimaryIPJump),
-		iptables.GetInsertIptableRuleCmd(iptables.V4, iptables.Nat, iptables.Swift, azureDNSTCPMatch, snatPrimaryIPJump),
-		// add a snat rule to node IP for IMDS http traffic
-		iptables.GetInsertIptableRuleCmd(iptables.V4, iptables.Nat, iptables.Swift, azureIMDSMatch, snatHostIPJump),
-	}
-
-	logger.Printf("Adding iptable rules...")
-	for _, cmd := range cmds {
-		err := iptables.RunCmd(cmd.Version, cmd.Params)
-		if err != nil {
-			return types.FailedToRunIPTableCmd, "failed to run iptable cmd: " + err.Error()
-		}
-		logger.Printf("Successfully run iptables rule %v", cmd)
-	}
-
-	return types.Success, ""
 }

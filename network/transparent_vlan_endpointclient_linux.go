@@ -3,7 +3,9 @@ package network
 import (
 	"fmt"
 	"net"
+	"strings"
 
+	"github.com/Azure/azure-container-networking/iptables"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/netio"
 	"github.com/Azure/azure-container-networking/netlink"
@@ -16,9 +18,12 @@ import (
 )
 
 const (
-	azureMac         = "12:34:56:78:9a:bc" // Packets leaving the VM should have this MAC
-	loopbackIf       = "lo"                // The name of the loopback interface
-	numDefaultRoutes = 2                   // VNET NS, when no containers use it, has this many routes
+	azureMac           = "12:34:56:78:9a:bc"                       // Packets leaving the VM should have this MAC
+	loopbackIf         = "lo"                                      // The name of the loopback interface
+	numDefaultRoutes   = 2                                         // VNET NS, when no containers use it, has this many routes
+	tunnelingTable     = 2                                         // Packets not entering on the vlan interface go to this routing table
+	tunnelingMark      = 333                                       // The packets that are to tunnel will be marked with this number
+	DisableRPFilterCmd = "sysctl -w net.ipv4.conf.all.rp_filter=0" // Command to disable the rp filter for tunneling
 )
 
 type netnsClient interface {
@@ -229,6 +234,16 @@ func (client *TransparentVlanEndpointClient) PopulateVnet(epInfo *EndpointInfo) 
 		return errors.Wrap(err, "vnet veth doesn't exist")
 	}
 	client.vnetMac = vnetVethIf.HardwareAddr
+	// Disable rp filter again to allow asymmetric routing for tunneling packets
+	_, err = client.plClient.ExecuteCommand(DisableRPFilterCmd)
+	if err != nil {
+		return errors.Wrap(err, "transparent vlan failed to disable rp filter in vnet")
+	}
+	disableRPFilterVlanIfCmd := strings.Replace(DisableRPFilterCmd, "all", client.vlanIfName, 1)
+	_, err = client.plClient.ExecuteCommand(disableRPFilterVlanIfCmd)
+	if err != nil {
+		return errors.Wrap(err, "transparent vlan failed to disable rp filter vlan interface in vnet")
+	}
 	return nil
 }
 
@@ -236,6 +251,46 @@ func (client *TransparentVlanEndpointClient) AddEndpointRules(epInfo *EndpointIn
 	if err := client.AddSnatEndpointRules(); err != nil {
 		return errors.Wrap(err, "failed to add snat endpoint rules")
 	}
+	log.Printf("[transparent vlan] Adding tunneling rules in vnet namespace")
+	err := ExecuteInNS(client.vnetNSName, func() error {
+		return client.AddVnetRules(epInfo)
+	})
+	return err
+}
+
+// Add rules related to tunneling the packet outside of the VM, assumes all calls are idempotent. Namespace: vnet
+func (client *TransparentVlanEndpointClient) AddVnetRules(epInfo *EndpointInfo) error {
+	// iptables -t mangle -I PREROUTING -j MARK --set-mark <TUNNELING MARK>
+	markOption := fmt.Sprintf("MARK --set-mark %d", tunnelingMark)
+	if err := iptables.InsertIptableRule(iptables.V4, "mangle", "PREROUTING", "", markOption); err != nil {
+		return errors.Wrap(err, "unable to insert iptables rule mark all packets not entering on vlan interface")
+	}
+	// iptables -t mangle -I PREROUTING -j ACCEPT -i <VLAN IF>
+	match := fmt.Sprintf("-i %s", client.vlanIfName)
+	if err := iptables.InsertIptableRule(iptables.V4, "mangle", "PREROUTING", match, "ACCEPT"); err != nil {
+		return errors.Wrap(err, "unable to insert iptables rule accept all incoming from vlan interface")
+	}
+	// Packets that are marked should go to the tunneling table
+	newRule := vishnetlink.NewRule()
+	newRule.Mark = tunnelingMark
+	newRule.Table = tunnelingTable
+	rules, err := vishnetlink.RuleList(vishnetlink.FAMILY_V4)
+	if err != nil {
+		return errors.Wrap(err, "unable to get existing ip rule list")
+	}
+	// Check if rule exists already
+	ruleExists := false
+	for index := range rules {
+		if rules[index].Mark == newRule.Mark {
+			ruleExists = true
+		}
+	}
+	if !ruleExists {
+		if err := vishnetlink.RuleAdd(newRule); err != nil {
+			return errors.Wrap(err, "failed to add rule that forwards packet with mark to tunneling routing table")
+		}
+	}
+
 	return nil
 }
 
@@ -306,7 +361,7 @@ func (client *TransparentVlanEndpointClient) ConfigureContainerInterfacesAndRout
 		}
 	}
 
-	if err := client.AddDefaultRoutes(client.containerVethName); err != nil {
+	if err := client.AddDefaultRoutes(client.containerVethName, 0); err != nil {
 		return errors.Wrap(err, "failed container ns add default routes")
 	}
 	if err := client.AddDefaultArp(client.containerVethName, client.vnetMac.String()); err != nil {
@@ -324,8 +379,7 @@ func (client *TransparentVlanEndpointClient) ConfigureVnetInterfacesAndRoutesImp
 
 	// Add route specifying which device the pod ip(s) are on
 	routeInfoList := client.GetVnetRoutes(epInfo.IPAddresses)
-
-	if err = client.AddDefaultRoutes(client.vlanIfName); err != nil {
+	if err = client.AddDefaultRoutes(client.vlanIfName, 0); err != nil {
 		return errors.Wrap(err, "failed vnet ns add default/gateway routes (idempotent)")
 	}
 	if err = client.AddDefaultArp(client.vlanIfName, azureMac); err != nil {
@@ -333,6 +387,9 @@ func (client *TransparentVlanEndpointClient) ConfigureVnetInterfacesAndRoutesImp
 	}
 	if err = addRoutes(client.netlink, client.netioshim, client.vnetVethName, routeInfoList); err != nil {
 		return errors.Wrap(err, "failed adding routes to vnet specific to this container")
+	}
+	if err = client.AddDefaultRoutes(client.vlanIfName, tunnelingTable); err != nil {
+		return errors.Wrap(err, "failed vnet ns add outbound routing table routes for tunneling (idempotent)")
 	}
 	// Return to ConfigureContainerInterfacesAndRoutes
 	return err
@@ -366,12 +423,13 @@ func (client *TransparentVlanEndpointClient) GetVnetRoutes(ipAddresses []net.IPN
 // to the virtual gateway ip on linkToName device interface
 // Route 1: 169.254.1.1 dev <linkToName>
 // Route 2: default via 169.254.1.1 dev <linkToName>
-func (client *TransparentVlanEndpointClient) AddDefaultRoutes(linkToName string) error {
+func (client *TransparentVlanEndpointClient) AddDefaultRoutes(linkToName string, table int) error {
 	// Add route for virtualgwip (ip route add 169.254.1.1/32 dev eth0)
 	virtualGwIP, virtualGwNet, _ := net.ParseCIDR(virtualGwIPString)
 	routeInfo := RouteInfo{
 		Dst:   *virtualGwNet,
 		Scope: netlink.RT_SCOPE_LINK,
+		Table: table,
 	}
 	// Difference between interface name in addRoutes and DevName: in RouteInfo?
 	if err := addRoutes(client.netlink, client.netioshim, linkToName, []RouteInfo{routeInfo}); err != nil {
@@ -382,8 +440,9 @@ func (client *TransparentVlanEndpointClient) AddDefaultRoutes(linkToName string)
 	_, defaultIPNet, _ := net.ParseCIDR(defaultGwCidr)
 	dstIP := net.IPNet{IP: net.ParseIP(defaultGw), Mask: defaultIPNet.Mask}
 	routeInfo = RouteInfo{
-		Dst: dstIP,
-		Gw:  virtualGwIP,
+		Dst:   dstIP,
+		Gw:    virtualGwIP,
+		Table: table,
 	}
 
 	if err := addRoutes(client.netlink, client.netioshim, linkToName, []RouteInfo{routeInfo}); err != nil {
