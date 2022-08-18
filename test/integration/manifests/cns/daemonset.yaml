@@ -143,7 +143,6 @@ spec:
         - name: cns-config
           configMap:
             name: cns-config
-           - name: xtables-lock
         - name: xtables-lock
           hostPath:
             path: /run/xtables.lock
