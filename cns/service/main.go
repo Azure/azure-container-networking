@@ -548,11 +548,13 @@ func main() {
 	// Initialize endpoint state store if cns is managing endpoint state.
 	if cnsconfig.ManageEndpointState {
 		log.Printf("[Azure CNS] Configured to manage endpoints state")
-		lockclient, err = processlock.NewFileLock(platform.CNILockPath + endpointStoreName + store.LockExtension)
+		endpointStoreLock, err := processlock.NewFileLock(platform.CNILockPath + endpointStoreName + store.LockExtension) // nolint
 		if err != nil {
 			log.Printf("Error initializing endpoint state file lock:%v", err)
 			return
 		}
+		defer endpointStoreLock.Unlock() // nolint
+
 		err = platform.CreateDirectory(endpointStoreLocation)
 		if err != nil {
 			logger.Errorf("Failed to create File Store directory %s, due to Error:%v", storeFileLocation, err.Error())
@@ -560,7 +562,7 @@ func main() {
 		}
 		// Create the key value store.
 		storeFileName := endpointStoreLocation + endpointStoreName + ".json"
-		endpointStateStore, err = store.NewJsonFileStore(storeFileName, lockclient)
+		endpointStateStore, err = store.NewJsonFileStore(storeFileName, endpointStoreLock)
 		if err != nil {
 			logger.Errorf("Failed to create endpoint state store file: %s, due to error %v\n", storeFileName, err)
 			return

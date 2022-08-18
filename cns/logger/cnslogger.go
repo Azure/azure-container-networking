@@ -85,6 +85,17 @@ func (c *CNSLogger) Debugf(format string, args ...any) {
 	c.sendTraceInternal(msg)
 }
 
+func (c *CNSLogger) Warnf(format string, args ...any) {
+	c.logger.Warnf(format, args...)
+
+	if c.th == nil || c.DisableTraceLogging {
+		return
+	}
+
+	msg := fmt.Sprintf(format, args...)
+	c.sendTraceInternal(msg)
+}
+
 func (c *CNSLogger) Errorf(format string, args ...any) {
 	c.logger.Errorf(format, args...)
 
