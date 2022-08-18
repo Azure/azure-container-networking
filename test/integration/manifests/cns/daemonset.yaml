@@ -44,6 +44,10 @@ spec:
           image: acnpublic.azurecr.io/azure-cns:v1.4.29
           imagePullPolicy: IfNotPresent
           args: [ "-c", "tcp://$(CNSIpAddress):$(CNSPort)", "-t", "$(CNSLogTarget)"]
+          securityContext:
+            capabilities:
+              add:
+                - NET_ADMIN
           volumeMounts:
             - name: log
               mountPath: /var/log
@@ -57,6 +61,8 @@ spec:
               mountPath: /var/run/azure-vnet
             - name: legacy-cni-state
               mountPath: /var/run/azure-vnet.json
+            - name: xtables-lock
+              mountPath: /run/xtables.lock
           ports:
             - containerPort: 10090
           env:
@@ -137,5 +143,10 @@ spec:
         - name: cns-config
           configMap:
             name: cns-config
+           - name: xtables-lock
+        - name: xtables-lock
+          hostPath:
+            path: /run/xtables.lock
+            type: File
       serviceAccountName: azure-cns
 
