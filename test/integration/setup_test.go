@@ -126,7 +126,7 @@ func installCNSDaemonset(ctx context.Context, clientset *kubernetes.Clientset, i
 	image, _ := parseImageString(cns.Spec.Template.Spec.Containers[0].Image)
 	cns.Spec.Template.Spec.Containers[0].Image = getImageString(image, imageTag)
 	initImage, _ := parseImageString(cns.Spec.Template.Spec.InitContainers[0].Image)
-	// 		cns.Spec.Template.Spec.InitContainers[0].Image = getImageString(initImage, imageTag)
+	cns.Spec.Template.Spec.InitContainers[0].Image = getImageString(initImage, imageTag)
 	// // check environment scenario
 	// log.Printf("Checking environment scenario")
 	// if installBool1 := os.Getenv(envInstallAzureVnet); installBool1 != "" {
