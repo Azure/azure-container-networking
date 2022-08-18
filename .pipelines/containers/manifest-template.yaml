@@ -12,20 +12,15 @@ steps:
 
   - script: |
       set -e
-      export VERSION=$(make ${{ parameters.name }}-version)
-      make ${{ parameters.name }}-multiarch-manifest-create PLATFORMS="${{ parameters.platforms }}" TAG=$VERSION
-      make ${{ parameters.name }}-image-info TAG=$VERSION
+      make ${{ parameters.name }}-manifest-create PLATFORMS="${{ parameters.platforms }}"
     name: manifest_build
     displayName: Manifest Build
 
   - script: |
       set -e
-      export VERSION=$(make ${{ parameters.name }}-version)
-      export IMAGE=$(make ${{ parameters.name }}-image-name)
-      make multiarch-manifest-push IMAGE=$IMAGE TAG=$VERSION
-      make container-pull IMAGE=$IMAGE TAG=$VERSION
+      make ${{ parameters.name }}-manifest-push
       mkdir -p $(Build.ArtifactStagingDirectory)/images
-      skopeo copy --all docker://$IMAGE_REGISTRY/$IMAGE:$VERSION oci-archive:$(Build.ArtifactStagingDirectory)/images/$IMAGE-$VERSION.tar
+      make ${{ parameters.name }}-skopeo-archive IMAGE_ARCHIVE_DIR=$(Build.ArtifactStagingDirectory)/images
     name: manifest_push
     displayName: Manifest Push
 
@@ -35,12 +30,6 @@ steps:
       containerRegistry: $(ACR_SERVICE_CONNECTION)
       command: "logout"
       addPipelineData: false
-
-  - task: CopyFiles@2
-    inputs:
-      sourceFolder: "output"
-      targetFolder: $(Build.ArtifactStagingDirectory)
-    condition: succeeded()
 
   - task: ManifestGeneratorTask@0
     displayName: "Add SBOM Generator tool"

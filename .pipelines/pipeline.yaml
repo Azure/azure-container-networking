@@ -138,6 +138,7 @@ stages:
   - stage: containerize
     displayName: Build Images
     dependsOn:
+      - setup
       - test
     jobs:
       - job: containerize
