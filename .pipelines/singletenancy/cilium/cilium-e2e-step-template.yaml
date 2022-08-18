@@ -56,7 +56,7 @@ steps:
       helm repo add cilium https://helm.cilium.io/
       helm install cilium cilium/cilium --version 1.12.0 --namespace kube-system -f cilium/cilium_helm_values.yaml
       kubectl get po -owide -A
-      sudo -E env "PATH=$PATH" VERSION=$(Tag) INSTALL_CNS=true INSTALL_AZILIUM=true make test-integration
+      sudo -E env "PATH=$PATH" VERSION=$(Tag) INSTALL_CNS=true make test-integration
     retryCountOnTaskFailure: 3
     name: "aziliumTest"
     displayName: "Run Azilium E2E"
