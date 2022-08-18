@@ -91,6 +91,12 @@ func fieldStringer(f *zapcore.Field) string {
 	case zapcore.StringType:
 		return f.String
 
+	case zapcore.Int64Type:
+		return strconv.FormatInt(f.Integer, 10)
+
+	case zapcore.Uint16Type:
+		return strconv.FormatInt(f.Integer, 10)
+
 	case zapcore.ErrorType:
 		return f.Interface.(error).Error()
 
