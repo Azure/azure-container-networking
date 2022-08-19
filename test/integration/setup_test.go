@@ -125,9 +125,6 @@ func installCNSDaemonset(ctx context.Context, clientset *kubernetes.Clientset, i
 
 	image, _ := parseImageString(cns.Spec.Template.Spec.Containers[0].Image)
 	cns.Spec.Template.Spec.Containers[0].Image = getImageString(image, imageTag)
-	// initImage, _ := parseImageString(cns.Spec.Template.Spec.InitContainers[0].Image)
-	// cns.Spec.Template.Spec.InitContainers[0].Image = getImageString(initImage, imageTag)
-	// cns.Spec.Template.Spec.InitContainers[0].Args = []string{"deploy", "azure-vnet", "-o", "/opt/cni/bin/azure-vnet", "azure-linux-swift.conflist", "-o", "/etc/cni/net.d/10-azure.conflist"}
 
 	// check environment scenario
 	log.Printf("Checking environment scenario")
