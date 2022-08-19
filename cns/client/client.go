@@ -696,3 +696,50 @@ func (c *Client) UnpublishNC(ctx context.Context, uncr cns.UnpublishNetworkConta
 	// ...otherwise the request was successful so
 	return nil
 }
+
+// NMAgentSupportedAPIs returns the supported API names from NMAgent. This can
+// be used, for example, to detect whether the node is capable for GRE
+// allocations.
+func (c *Client) NMAgentSupportedAPIs(ctx context.Context) (*cns.NmAgentSupportedApisResponse, error) {
+	// build the request
+	reqBody := &cns.NmAgentSupportedApisRequest{
+		// the IP used below is that of the Wireserver
+		GetNmAgentSupportedApisURL: "http://168.63.129.16/machine/plugins/?comp=nmagent&type=GetSupportedApis",
+	}
+
+	body, err := json.Marshal(reqBody)
+	if err != nil {
+		return nil, errors.Wrap(err, "encoding request body")
+	}
+
+	u := c.routes[cns.NMAgentSupportedAPIs]
+	req, err := http.NewRequest(http.MethodGet, u.String(), bytes.NewReader(body))
+	if err != nil {
+		return nil, errors.Wrap(err, "building http request")
+	}
+
+	// submit the request
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return nil, errors.Wrap(err, "sending http request")
+	}
+	defer resp.Body.Close()
+
+	// decode response
+	var out cns.NmAgentSupportedApisResponse
+	err = json.NewDecoder(resp.Body).Decode(&out)
+	if err != nil {
+		return nil, errors.Wrap(err, "decoding response body")
+	}
+
+	// if there was a non-zero status code, that indicates an error and should be
+	// communicated as such
+	if out.Response.ReturnCode != 0 {
+		return nil, &CNSClientError{
+			Code: out.Response.ReturnCode,
+			Err:  errors.New(out.Response.Message),
+		}
+	}
+
+	return &out, nil
+}
