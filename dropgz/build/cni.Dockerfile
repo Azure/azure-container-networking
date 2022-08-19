@@ -15,11 +15,12 @@ COPY . .
 RUN curl -LO https://github.com/Azure/azure-container-networking/releases/download/v1.4.29/azure-vnet-cni-swift-$OS-$ARCH-v1.4.29.tgz && tar -xvf azure-vnet-cni-swift-$OS-$ARCH-v1.4.29.tgz
 
 FROM mcr.microsoft.com/cbl-mariner/base/core:2.0 AS compressor
+ARG OS
 WORKDIR /dropgz
 COPY dropgz .
 COPY --from=azure-ipam /azure-ipam/*.conflist pkg/embed/fs
 COPY --from=azure-ipam /azure-ipam/bin/* pkg/embed/fs
-COPY --from=azure-vnet /azure-container-networking/cni/*.conflist pkg/embed/fs
+COPY --from=azure-vnet /azure-container-networking/cni/azure-$OS-swift.conflist pkg/embed/fs/azure-swift.conflist
 COPY --from=azure-vnet /azure-container-networking/azure-vnet pkg/embed/fs
 COPY --from=azure-vnet /azure-container-networking/azure-vnet-telemetry pkg/embed/fs
 COPY --from=azure-vnet /azure-container-networking/azure-vnet-ipam pkg/embed/fs

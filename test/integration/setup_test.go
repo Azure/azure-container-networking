@@ -133,7 +133,7 @@ func installCNSDaemonset(ctx context.Context, clientset *kubernetes.Clientset, i
 			log.Printf("Env %v set to true, deploy azure-vnet", envInstallAzureVnet)
 			initImage, _ := parseImageString(cns.Spec.Template.Spec.InitContainers[0].Image)
 			cns.Spec.Template.Spec.InitContainers[0].Image = getImageString(initImage, imageTag)
-			cns.Spec.Template.Spec.InitContainers[0].Args = []string{"deploy", "azure-vnet", "-o", "/opt/cni/bin/azure-vnet", "azure-linux-swift.conflist", "-o", "/etc/cni/net.d/10-azure.conflist"}
+			cns.Spec.Template.Spec.InitContainers[0].Args = []string{"deploy", "azure-vnet", "-o", "/opt/cni/bin/azure-vnet", "azure-swift.conflist", "-o", "/etc/cni/net.d/10-azure.conflist"}
 		}
 	} else {
 		log.Printf("Env %v not set to true, skipping", envInstallAzureVnet)
