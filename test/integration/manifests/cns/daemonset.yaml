@@ -80,7 +80,7 @@ spec:
                     apiVersion: v1
                     fieldPath: spec.nodeName 
       initContainers:
-        - name: init-cni-dropgz-swift
+        - name: init-cni-dropgz
           image: acnpublic.azurecr.io/cni-dropgz:v1.4.28-41-g3ecb7fb1
           imagePullPolicy: IfNotPresent
           command: ["/dropgz"]
