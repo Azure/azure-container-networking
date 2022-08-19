@@ -79,7 +79,7 @@ func NewOVSEndpointClient(
 
 func (client *OVSEndpointClient) AddEndpoints(epInfo *EndpointInfo) error {
 	epc := networkutils.NewNetworkUtils(client.netlink, client.plClient)
-	if err := epc.CreateEndpoint(client.hostVethName, client.containerVethName); err != nil {
+	if err := epc.CreateEndpoint(client.hostVethName, client.containerVethName, nil); err != nil {
 		return err
 	}
 

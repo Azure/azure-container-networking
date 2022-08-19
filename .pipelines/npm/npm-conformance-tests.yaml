@@ -183,7 +183,7 @@ jobs:
                   --windows-admin-password alpha@numeric!password2 \
                   --network-plugin azure \
                   --vm-set-type VirtualMachineScaleSets \
-                  --kubernetes-version v1.23 \
+                  --kubernetes-version v1.23.5 \
                   --node-vm-size Standard_D4s_v3 \
                   --node-count 1
 
@@ -386,7 +386,7 @@ jobs:
                 --network-plugin azure \
                 --vm-set-type VirtualMachineScaleSets \
                 --node-vm-size Standard_D4s_v3 \
-                --kubernetes-version v1.23 \
+                --kubernetes-version v1.23.5 \
                 --node-count 1
 
             # don't schedule anything on the linux system pool

@@ -191,7 +191,7 @@ func (client *TransparentVlanEndpointClient) PopulateVM(epInfo *EndpointInfo) er
 	}
 	client.vnetNSFileDescriptor = vnetNS
 
-	if err = client.netUtilsClient.CreateEndpoint(client.vnetVethName, client.containerVethName); err != nil {
+	if err = client.netUtilsClient.CreateEndpoint(client.vnetVethName, client.containerVethName, nil); err != nil {
 		return errors.Wrap(err, "failed to create veth pair")
 	}
 	// Disable RA for veth pair, and delete if any failure
@@ -462,7 +462,13 @@ func (client *TransparentVlanEndpointClient) AddDefaultArp(interfaceName, destMa
 	if err != nil {
 		return errors.Wrap(err, "unable to parse mac")
 	}
-	if err := client.netlink.AddOrRemoveStaticArp(netlink.ADD, interfaceName, virtualGwNet.IP, hardwareAddr, false); err != nil {
+	linkInfo := netlink.LinkInfo{
+		Name:       interfaceName,
+		IPAddr:     virtualGwNet.IP,
+		MacAddress: hardwareAddr,
+	}
+
+	if err := client.netlink.SetOrRemoveLinkAddress(linkInfo, netlink.ADD, netlink.NUD_PERMANENT); err != nil {
 		return fmt.Errorf("adding arp entry failed: %w", err)
 	}
 	return nil

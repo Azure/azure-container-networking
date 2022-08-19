@@ -13,15 +13,16 @@ import (
 )
 
 const (
-	virtualGwIPString = "169.254.1.1/32"
-	defaultGwCidr     = "0.0.0.0/0"
-	defaultGw         = "0.0.0.0"
-	virtualv6GwString = "fe80::1234:5678:9abc/128"
-	defaultv6Cidr     = "::/0"
-	ipv4Bits          = 32
-	ipv6Bits          = 128
-	ipv4FullMask      = 32
-	ipv6FullMask      = 128
+	virtualGwIPString     = "169.254.1.1/32"
+	defaultGwCidr         = "0.0.0.0/0"
+	defaultGw             = "0.0.0.0"
+	virtualv6GwString     = "fe80::1234:5678:9abc/128"
+	defaultv6Cidr         = "::/0"
+	ipv4Bits              = 32
+	ipv6Bits              = 128
+	ipv4FullMask          = 32
+	ipv6FullMask          = 128
+	defaultHostVethHwAddr = "aa:aa:aa:aa:aa:aa"
 )
 
 var errorTransparentEndpointClient = errors.New("TransparentEndpointClient Error")
@@ -89,7 +90,12 @@ func (client *TransparentEndpointClient) AddEndpoints(epInfo *EndpointInfo) erro
 		return newErrorTransparentEndpointClient(err.Error())
 	}
 
-	if err = client.netUtilsClient.CreateEndpoint(client.hostVethName, client.containerVethName); err != nil {
+	mac, err := net.ParseMAC(defaultHostVethHwAddr)
+	if err != nil {
+		log.Printf("[net] Failed to parse the mac addrress %v", defaultHostVethHwAddr)
+	}
+
+	if err = client.netUtilsClient.CreateEndpoint(client.hostVethName, client.containerVethName, mac); err != nil {
 		return newErrorTransparentEndpointClient(err.Error())
 	}
 
@@ -246,11 +252,13 @@ func (client *TransparentEndpointClient) ConfigureContainerInterfacesAndRoutes(e
 	// arp -s 169.254.1.1 e3:45:f4:ac:34:12 - add static arp entry for virtualgwip to hostveth interface mac
 	log.Printf("[net] Adding static arp for IP address %v and MAC %v in Container namespace",
 		virtualGwNet.String(), client.hostVethMac)
-	if err := client.netlink.AddOrRemoveStaticArp(netlink.ADD,
-		client.containerVethName,
-		virtualGwNet.IP,
-		client.hostVethMac,
-		false); err != nil {
+	linkInfo := netlink.LinkInfo{
+		Name:       client.containerVethName,
+		IPAddr:     virtualGwNet.IP,
+		MacAddress: client.hostVethMac,
+	}
+
+	if err := client.netlink.SetOrRemoveLinkAddress(linkInfo, netlink.ADD, netlink.NUD_PROBE); err != nil {
 		return fmt.Errorf("Adding arp in container failed: %w", err)
 	}
 
@@ -292,8 +300,13 @@ func (client *TransparentEndpointClient) setupIPV6Routes() error {
 func (client *TransparentEndpointClient) setIPV6NeighEntry() error {
 	log.Printf("[net] Add v6 neigh entry for default gw ip")
 	hostGwIP, _, _ := net.ParseCIDR(virtualv6GwString)
-	if err := client.netlink.AddOrRemoveStaticArp(netlink.ADD, client.containerVethName,
-		hostGwIP, client.hostVethMac, false); err != nil {
+	linkInfo := netlink.LinkInfo{
+		Name:       client.containerVethName,
+		IPAddr:     hostGwIP,
+		MacAddress: client.hostVethMac,
+	}
+
+	if err := client.netlink.SetOrRemoveLinkAddress(linkInfo, netlink.ADD, netlink.NUD_PERMANENT); err != nil {
 		log.Printf("Failed setting neigh entry in container: %+v", err)
 		return fmt.Errorf("Failed setting neigh entry in container: %w", err)
 	}

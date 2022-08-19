@@ -259,6 +259,7 @@ cni-dropgz-image: ## build cni-dropgz container image.
 		DOCKERFILE=dropgz/build/cni.Dockerfile \
 		REGISTRY=$(IMAGE_REGISTRY) \
 		IMAGE=$(CNIDROPGZ_IMAGE) \
+		EXTRA_BUILD_ARGS='--build-arg OS=$(OS) --build-arg ARCH=$(ARCH)' \
 		TAG=$(TAG)
 
 cni-dropgz-image-info: # util target to write cni-dropgz container info file.

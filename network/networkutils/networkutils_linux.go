@@ -55,13 +55,14 @@ func NewNetworkUtils(nl netlink.NetlinkInterface, plClient platform.ExecClient) 
 	}
 }
 
-func (nu NetworkUtils) CreateEndpoint(hostVethName, containerVethName string) error {
+func (nu NetworkUtils) CreateEndpoint(hostVethName, containerVethName string, macAddress net.HardwareAddr) error {
 	log.Printf("[net] Creating veth pair %v %v.", hostVethName, containerVethName)
 
 	link := netlink.VEthLink{
 		LinkInfo: netlink.LinkInfo{
-			Type: netlink.LINK_TYPE_VETH,
-			Name: hostVethName,
+			Type:       netlink.LINK_TYPE_VETH,
+			Name:       hostVethName,
+			MacAddress: macAddress,
 		},
 		PeerName: containerVethName,
 	}

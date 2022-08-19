@@ -40,18 +40,20 @@ type Reconciler struct {
 	nnccli             nncGetter
 	once               sync.Once
 	started            chan interface{}
+	nodeIP             string
 }
 
 // NewReconciler creates a NodeNetworkConfig Reconciler which will get updates from the Kubernetes
 // apiserver for NNC events.
 // Provided nncListeners are passed the NNC after the Reconcile preprocesses it. Note: order matters! The
 // passed Listeners are notified in the order provided.
-func NewReconciler(cnscli cnsClient, nnccli nncGetter, ipampoolmonitorcli nodeNetworkConfigListener) *Reconciler {
+func NewReconciler(cnscli cnsClient, nnccli nncGetter, ipampoolmonitorcli nodeNetworkConfigListener, nodeIP string) *Reconciler {
 	return &Reconciler{
 		cnscli:             cnscli,
 		ipampoolmonitorcli: ipampoolmonitorcli,
 		nnccli:             nnccli,
 		started:            make(chan interface{}),
+		nodeIP:             nodeIP,
 	}
 }
 
@@ -71,8 +73,19 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 	logger.Printf("[cns-rc] CRD Spec: %+v", nnc.Spec)
 
 	ipAssignments := 0
+
 	// for each NC, parse it in to a CreateNCRequest and forward it to the appropriate Listener
 	for i := range nnc.Status.NetworkContainers {
+		// check if this NC matches the Node IP if we have one to check against
+		if r.nodeIP != "" {
+			if r.nodeIP != nnc.Status.NetworkContainers[i].NodeIP {
+				// skip this NC since it was created for a different node
+				logger.Debugf("[cns-rc] skipping network container %s found in NNC because node IP doesn't match, got %s, expected %s",
+					nnc.Status.NetworkContainers[i].ID, nnc.Status.NetworkContainers[i].NodeIP, r.nodeIP)
+				continue
+			}
+		}
+
 		var req *cns.CreateNetworkContainerRequest
 		var err error
 		switch nnc.Status.NetworkContainers[i].AssignmentMode { //nolint:exhaustive // skipping dynamic case
@@ -98,6 +111,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 		}
 		ipAssignments += len(req.SecondaryIPConfigs)
 	}
+
 	// record assigned IPs metric
 	allocatedIPs.Set(float64(ipAssignments))
 

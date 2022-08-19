@@ -1080,8 +1080,11 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 		return errors.Wrapf(err, "failed to get node %s", nodeName)
 	}
 
+	// get CNS Node IP to compare NC Node IP with this Node IP to ensure NCs were created for this node
+	nodeIP := configuration.NodeIP()
+
 	// NodeNetworkConfig reconciler
-	nncReconciler := nncctrl.NewReconciler(httpRestServiceImplementation, nnccli, poolMonitor)
+	nncReconciler := nncctrl.NewReconciler(httpRestServiceImplementation, nnccli, poolMonitor, nodeIP)
 	// pass Node to the Reconciler for Controller xref
 	if err := nncReconciler.SetupWithManager(manager, node); err != nil { //nolint:govet // intentional shadow
 		return errors.Wrapf(err, "failed to setup nnc reconciler with manager")
@@ -1141,11 +1144,9 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 		}
 	}()
 	logger.Printf("initialized NodeNetworkConfig reconciler")
-	// wait for up to 10m for the Reconciler to run once.
-	timedCtx, cancel := context.WithTimeout(ctx, 10*time.Minute) //nolint:gomnd // default 10m
-	defer cancel()
-	if started := nncReconciler.Started(timedCtx); !started {
-		return errors.Errorf("timed out waiting for reconciler start")
+	// wait for the Reconciler to run once on a NNC that was made for this Node
+	if started := nncReconciler.Started(ctx); !started {
+		return errors.Errorf("context cancelled while waiting for reconciler start")
 	}
 	logger.Printf("started NodeNetworkConfig reconciler")
 

@@ -51,6 +51,8 @@ type LinkInfo struct {
 	MTU         uint
 	TxQLen      uint
 	ParentIndex int
+	MacAddress  net.HardwareAddr
+	IPAddr      net.IP
 }
 
 func (linkInfo *LinkInfo) Info() *LinkInfo {
@@ -121,6 +123,11 @@ func (Netlink) AddLink(link Link) error {
 	// Set parent interface index.
 	if info.ParentIndex != 0 {
 		req.addPayload(newAttributeUint32(unix.IFLA_LINK, uint32(info.ParentIndex)))
+	}
+
+	// Set the mac address on the interface
+	if info.MacAddress != nil {
+		req.addPayload(newRtAttr(unix.IFLA_ADDRESS, []byte(info.MacAddress)))
 	}
 
 	// Set link info.
@@ -415,8 +422,8 @@ func (Netlink) SetLinkHairpin(bridgeName string, on bool) error {
 	return s.sendAndWaitForAck(req)
 }
 
-// AddOrRemoveStaticArp sets/removes static arp entry based on mode
-func (Netlink) AddOrRemoveStaticArp(mode int, name string, ipaddr net.IP, mac net.HardwareAddr, isProxy bool) error {
+// SetOrRemoveLinkAddress sets/removes static arp entry based on mode
+func (Netlink) SetOrRemoveLinkAddress(linkInfo LinkInfo, mode, linkState int) error {
 	s, err := getSocket()
 	if err != nil {
 		return err
@@ -426,39 +433,33 @@ func (Netlink) AddOrRemoveStaticArp(mode int, name string, ipaddr net.IP, mac ne
 	state := 0
 	if mode == ADD {
 		req = newRequest(unix.RTM_NEWNEIGH, unix.NLM_F_CREATE|unix.NLM_F_REPLACE|unix.NLM_F_ACK)
-		state = NUD_PERMANENT
 	} else {
 		req = newRequest(unix.RTM_DELNEIGH, unix.NLM_F_ACK)
-		state = NUD_INCOMPLETE
 	}
+	state = linkState
 
-	iface, err := net.InterfaceByName(name)
+	iface, err := net.InterfaceByName(linkInfo.Name)
 	if err != nil {
 		return err
 	}
 
 	msg := neighMsg{
-		Family: uint8(GetIPAddressFamily(ipaddr)),
+		Family: uint8(GetIPAddressFamily(linkInfo.IPAddr)),
 		Index:  uint32(iface.Index),
 		State:  uint16(state),
 	}
 
-	// NTF_PROXY is for setting neighbor proxy
-	if isProxy {
-		msg.Flags = msg.Flags | NTF_PROXY
-	}
-
 	req.addPayload(&msg)
 
-	ipData := ipaddr.To4()
+	ipData := linkInfo.IPAddr.To4()
 	if ipData == nil {
-		ipData = ipaddr.To16()
+		ipData = linkInfo.IPAddr.To16()
 	}
 
 	dstData := newRtAttr(NDA_DST, ipData)
 	req.addPayload(dstData)
 
-	hwData := newRtAttr(NDA_LLADDR, []byte(mac))
+	hwData := newRtAttr(NDA_LLADDR, []byte(linkInfo.MacAddress))
 	req.addPayload(hwData)
 
 	return s.sendAndWaitForAck(req)

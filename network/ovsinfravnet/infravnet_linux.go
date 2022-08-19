@@ -49,7 +49,7 @@ func NewInfraVnetClient(hostIfName, contIfName string, nl netlink.NetlinkInterfa
 func (client *OVSInfraVnetClient) CreateInfraVnetEndpoint(bridgeName string) error {
 	ovs := ovsctl.NewOvsctl()
 	epc := networkutils.NewNetworkUtils(client.netlink, client.plClient)
-	if err := epc.CreateEndpoint(client.hostInfraVethName, client.ContainerInfraVethName); err != nil {
+	if err := epc.CreateEndpoint(client.hostInfraVethName, client.ContainerInfraVethName, nil); err != nil {
 		log.Printf("Creating infraep failed with error %v", err)
 		return err
 	}

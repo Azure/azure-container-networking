@@ -390,6 +390,7 @@ type IPConfigRequest struct {
 	PodInterfaceID      string
 	InfraContainerID    string
 	OrchestratorContext json.RawMessage
+	Ifname              string
 }
 
 func (i IPConfigRequest) String() string {
