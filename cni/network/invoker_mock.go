@@ -6,7 +6,7 @@ import (
 
 	"github.com/Azure/azure-container-networking/cni"
 	"github.com/containernetworking/cni/pkg/skel"
-	"github.com/containernetworking/cni/pkg/types/current"
+	current "github.com/containernetworking/cni/pkg/types/100"
 )
 
 const (
@@ -53,7 +53,7 @@ func (invoker *MockIpamInvoker) Add(opt IPAMAddConfig) (ipamAddResult IPAMAddRes
 	ip := net.ParseIP(ipv4Str)
 	ipnet := net.IPNet{IP: ip, Mask: net.CIDRMask(subnetBits, ipv4Bits)}
 	gwIP := net.ParseIP("10.240.0.1")
-	ipConfig := &current.IPConfig{Address: ipnet, Gateway: gwIP, Version: "4"}
+	ipConfig := &current.IPConfig{Address: ipnet, Gateway: gwIP}
 	ipamAddResult.ipv4Result = &current.Result{}
 	ipamAddResult.ipv4Result.IPs = append(ipamAddResult.ipv4Result.IPs, ipConfig)
 	invoker.ipMap[ipnet.String()] = true
@@ -70,7 +70,7 @@ func (invoker *MockIpamInvoker) Add(opt IPAMAddConfig) (ipamAddResult IPAMAddRes
 		ip := net.ParseIP(ipv6Str)
 		ipnet := net.IPNet{IP: ip, Mask: net.CIDRMask(subnetv6Bits, ipv6Bits)}
 		gwIP := net.ParseIP("fc00::1")
-		ipConfig := &current.IPConfig{Address: ipnet, Gateway: gwIP, Version: "6"}
+		ipConfig := &current.IPConfig{Address: ipnet, Gateway: gwIP}
 		ipamAddResult.ipv6Result = &current.Result{}
 		ipamAddResult.ipv6Result.IPs = append(ipamAddResult.ipv6Result.IPs, ipConfig)
 		invoker.ipMap[ipnet.String()] = true

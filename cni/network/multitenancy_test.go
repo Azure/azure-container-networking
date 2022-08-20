@@ -10,7 +10,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/network"
 	cniTypes "github.com/containernetworking/cni/pkg/types"
-	cniTypesCurr "github.com/containernetworking/cni/pkg/types/current"
+	cniTypesCurr "github.com/containernetworking/cni/pkg/types/100"
 	"github.com/stretchr/testify/require"
 )
 
@@ -304,7 +304,6 @@ func TestGetMultiTenancyCNIResult(t *testing.T) {
 				},
 				IPs: []*cniTypesCurr.IPConfig{
 					{
-						Version: "4",
 						Address: getIPNet(net.IPv4(10, 1, 0, 5), net.CIDRMask(16, 32)),
 						Gateway: net.ParseIP("10.1.0.1"),
 					},
@@ -354,7 +353,6 @@ func TestGetMultiTenancyCNIResult(t *testing.T) {
 			want3: &cniTypesCurr.Result{
 				IPs: []*cniTypesCurr.IPConfig{
 					{
-						Version: "4",
 						Address: net.IPNet{
 							IP:   net.ParseIP("10.240.0.5"),
 							Mask: net.CIDRMask(24, 32),
