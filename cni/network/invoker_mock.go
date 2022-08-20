@@ -6,7 +6,7 @@ import (
 
 	"github.com/Azure/azure-container-networking/cni"
 	"github.com/containernetworking/cni/pkg/skel"
-	"github.com/containernetworking/cni/pkg/types/current"
+	current "github.com/containernetworking/cni/pkg/types/100"
 )
 
 const (

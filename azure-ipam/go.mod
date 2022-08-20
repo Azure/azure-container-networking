@@ -75,7 +75,7 @@ require (
 
 require (
 	github.com/Azure/azure-container-networking v1.4.31
-	github.com/containernetworking/cni v1.1.1
+	github.com/containernetworking/cni v1.1.2
 	github.com/containernetworking/plugins v1.1.1
 	go.uber.org/atomic v1.9.0 // indirect
 	go.uber.org/multierr v1.8.0 // indirect
