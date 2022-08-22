@@ -123,8 +123,10 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 	}
 
 	// we have received and pushed an NNC update, we are "Started"
-	logger.Printf("[cns-rc] CNS NNC Reconciler Started")
-	r.once.Do(func() { close(r.started) })
+	r.once.Do(func() {
+		close(r.started)
+		logger.Printf("[cns-rc] CNS NNC Reconciler Started")
+	})
 	return reconcile.Result{}, nil
 }
 
