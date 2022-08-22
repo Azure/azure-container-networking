@@ -87,6 +87,13 @@ const (
 	OptTelemetry      = "telemetry"
 	OptTelemetryAlias = "dt"
 
+	// Enable CNS to program SNAT iptables rules
+	OptProgramSNATIPTables = "program-snat-iptables"
+
+	// Enable Telemetry service
+	OptTelemetryService      = "telemetry-service"
+	OptTelemetryServiceAlias = "ts"
+
 	// HTTP connection timeout
 	OptHttpConnectionTimeout      = "http-connection-timeout"
 	OptHttpConnectionTimeoutAlias = "httpcontimeout"

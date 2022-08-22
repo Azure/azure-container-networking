@@ -1,5 +1,5 @@
 //go:build windows
-//+build windows
+// +build windows
 
 package hnswrapper
 
@@ -10,8 +10,7 @@ import (
 	"github.com/Microsoft/hcsshim"
 )
 
-type Hnsv1wrapper struct {
-}
+type Hnsv1wrapper struct{}
 
 func (Hnsv1wrapper) CreateEndpoint(endpoint *hcsshim.HNSEndpoint, path string) (*hcsshim.HNSEndpoint, error) {
 	// Marshal the request.
@@ -35,13 +34,11 @@ func (Hnsv1wrapper) CreateEndpoint(endpoint *hcsshim.HNSEndpoint, path string) (
 
 func (Hnsv1wrapper) DeleteEndpoint(endpointId string) (*hcsshim.HNSEndpoint, error) {
 	hnsResponse, err := hcsshim.HNSEndpointRequest("DELETE", endpointId, "")
-
 	if err != nil {
 		return nil, err
 	}
 
 	return hnsResponse, err
-
 }
 
 func (Hnsv1wrapper) CreateNetwork(network *hcsshim.HNSNetwork, path string) (*hcsshim.HNSNetwork, error) {
@@ -66,7 +63,6 @@ func (Hnsv1wrapper) CreateNetwork(network *hcsshim.HNSNetwork, path string) (*hc
 
 func (Hnsv1wrapper) DeleteNetwork(networkId string) (*hcsshim.HNSNetwork, error) {
 	hnsResponse, err := hcsshim.HNSNetworkRequest("DELETE", networkId, "")
-
 	if err != nil {
 		return nil, err
 	}

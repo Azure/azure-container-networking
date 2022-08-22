@@ -29,16 +29,19 @@ import (
 	"github.com/Azure/azure-container-networking/cns/healthserver"
 	"github.com/Azure/azure-container-networking/cns/hnsclient"
 	"github.com/Azure/azure-container-networking/cns/ipampool"
+	cssctrl "github.com/Azure/azure-container-networking/cns/kubecontroller/clustersubnetstate"
+	nncctrl "github.com/Azure/azure-container-networking/cns/kubecontroller/nodenetworkconfig"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/multitenantcontroller"
 	"github.com/Azure/azure-container-networking/cns/multitenantcontroller/multitenantoperator"
 	"github.com/Azure/azure-container-networking/cns/nmagent"
 	"github.com/Azure/azure-container-networking/cns/restserver"
-	kubecontroller "github.com/Azure/azure-container-networking/cns/singletenantcontroller"
 	cnstypes "github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/cns/wireserver"
 	acn "github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/crd"
+	"github.com/Azure/azure-container-networking/crd/clustersubnetstate"
+	"github.com/Azure/azure-container-networking/crd/clustersubnetstate/api/v1alpha1"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 	"github.com/Azure/azure-container-networking/log"
@@ -46,6 +49,7 @@ import (
 	"github.com/Azure/azure-container-networking/processlock"
 	localtls "github.com/Azure/azure-container-networking/server/tls"
 	"github.com/Azure/azure-container-networking/store"
+	"github.com/Azure/azure-container-networking/telemetry"
 	"github.com/avast/retry-go/v3"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
@@ -266,6 +270,13 @@ var args = acn.ArgumentList{
 		Type:         "string",
 		DefaultValue: "",
 	},
+	{
+		Name:         acn.OptTelemetryService,
+		Shorthand:    acn.OptTelemetryServiceAlias,
+		Description:  "Flag to start telemetry service to receive telemetry events from CNI. Default, disabled.",
+		Type:         "bool",
+		DefaultValue: false,
+	},
 }
 
 // init() is executed before main() whenever this package is imported
@@ -367,6 +378,28 @@ func sendRegisterNodeRequest(httpc *http.Client, httpRestService cns.HTTPService
 	return nil
 }
 
+func startTelemetryService(ctx context.Context) {
+	var config aitelemetry.AIConfig
+
+	err := telemetry.CreateAITelemetryHandle(config, false, false, false)
+	if err != nil {
+		log.Errorf("AI telemetry handle creation failed..:%w", err)
+		return
+	}
+
+	tbtemp := telemetry.NewTelemetryBuffer()
+	//nolint:errcheck // best effort to cleanup leaked pipe/socket before start
+	tbtemp.Cleanup(telemetry.FdName)
+
+	tb := telemetry.NewTelemetryBuffer()
+	err = tb.StartServer()
+	if err != nil {
+		log.Errorf("Telemetry service failed to start: %w", err)
+		return
+	}
+	tb.PushData(rootCtx)
+}
+
 // Main is the entry point for CNS.
 func main() {
 	// Initialize and parse command line arguments.
@@ -396,6 +429,7 @@ func main() {
 	clientDebugCmd := acn.GetArg(acn.OptDebugCmd).(string)
 	clientDebugArg := acn.GetArg(acn.OptDebugArg).(string)
 	cmdLineConfigPath := acn.GetArg(acn.OptCNSConfigPath).(string)
+	telemetryDaemonEnabled := acn.GetArg(acn.OptTelemetryService).(bool)
 
 	if vers {
 		printVersion()
@@ -475,6 +509,10 @@ func main() {
 		logger.InitAI(aiConfig, ts.DisableTrace, ts.DisableMetric, ts.DisableEvent)
 	}
 
+	if telemetryDaemonEnabled {
+		go startTelemetryService(rootCtx)
+	}
+
 	// Log platform information.
 	logger.Printf("Running on %v", platform.GetOSInfo())
 
@@ -518,6 +556,7 @@ func main() {
 	httpRestService.SetOption(acn.OptCreateDefaultExtNetworkType, createDefaultExtNetworkType)
 	httpRestService.SetOption(acn.OptHttpConnectionTimeout, httpConnectionTimeout)
 	httpRestService.SetOption(acn.OptHttpResponseHeaderTimeout, httpResponseHeaderTimeout)
+	httpRestService.SetOption(acn.OptProgramSNATIPTables, cnsconfig.ProgramSNATIPTables)
 
 	// Create default ext network if commandline option is set
 	if len(strings.TrimSpace(createDefaultExtNetworkType)) > 0 {
@@ -874,9 +913,9 @@ func reconcileInitialCNSState(ctx context.Context, cli nodeNetworkConfigGetter, 
 
 		switch nnc.Status.NetworkContainers[i].AssignmentMode { //nolint:exhaustive // skipping dynamic case
 		case v1alpha.Static:
-			ncRequest, err = kubecontroller.CreateNCRequestFromStaticNC(nnc.Status.NetworkContainers[i])
+			ncRequest, err = nncctrl.CreateNCRequestFromStaticNC(nnc.Status.NetworkContainers[i])
 		default: // For backward compatibility, default will be treated as Dynamic too.
-			ncRequest, err = kubecontroller.CreateNCRequestFromDynamicNC(nnc.Status.NetworkContainers[i])
+			ncRequest, err = nncctrl.CreateNCRequestFromDynamicNC(nnc.Status.NetworkContainers[i])
 		}
 
 		if err != nil {
@@ -963,13 +1002,14 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 		return errors.Wrap(err, "failed to create NNC client")
 	}
 	// TODO(rbtr): nodename and namespace should be in the cns config
-	scopedcli := kubecontroller.NewScopedClient(nnccli, types.NamespacedName{Namespace: "kube-system", Name: nodeName})
+	scopedcli := nncctrl.NewScopedClient(nnccli, types.NamespacedName{Namespace: "kube-system", Name: nodeName})
 
+	clusterSubnetStateChan := make(chan v1alpha1.ClusterSubnetState)
 	// initialize the ipam pool monitor
 	poolOpts := ipampool.Options{
 		RefreshDelay: poolIPAMRefreshRateInMilliseconds * time.Millisecond,
 	}
-	poolMonitor := ipampool.NewMonitor(httpRestServiceImplementation, scopedcli, &poolOpts)
+	poolMonitor := ipampool.NewMonitor(httpRestServiceImplementation, scopedcli, clusterSubnetStateChan, &poolOpts)
 	httpRestServiceImplementation.IPAMPoolMonitor = poolMonitor
 
 	// reconcile initial CNS state from CNI or apiserver.
@@ -1040,10 +1080,30 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 		return errors.Wrapf(err, "failed to get node %s", nodeName)
 	}
 
-	reconciler := kubecontroller.NewReconciler(httpRestServiceImplementation, nnccli, poolMonitor)
+	// get CNS Node IP to compare NC Node IP with this Node IP to ensure NCs were created for this node
+	nodeIP := configuration.NodeIP()
+
+	// NodeNetworkConfig reconciler
+	nncReconciler := nncctrl.NewReconciler(httpRestServiceImplementation, nnccli, poolMonitor, nodeIP)
 	// pass Node to the Reconciler for Controller xref
-	if err := reconciler.SetupWithManager(manager, node); err != nil {
-		return errors.Wrapf(err, "failed to setup reconciler with manager")
+	if err := nncReconciler.SetupWithManager(manager, node); err != nil { //nolint:govet // intentional shadow
+		return errors.Wrapf(err, "failed to setup nnc reconciler with manager")
+	}
+
+	if cnsconfig.EnableSubnetScarcity {
+		cssCli, err := clustersubnetstate.NewClient(kubeConfig)
+		if err != nil {
+			return errors.Wrapf(err, "failed to init css client")
+		}
+
+		// ClusterSubnetState reconciler
+		cssReconciler := cssctrl.Reconciler{
+			Cli:  cssCli,
+			Sink: clusterSubnetStateChan,
+		}
+		if err := cssReconciler.SetupWithManager(manager); err != nil {
+			return errors.Wrapf(err, "failed to setup css reconciler with manager")
+		}
 	}
 
 	// adding some routes to the root service mux
@@ -1084,11 +1144,9 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 		}
 	}()
 	logger.Printf("initialized NodeNetworkConfig reconciler")
-	// wait for up to 10m for the Reconciler to run once.
-	timedCtx, cancel := context.WithTimeout(ctx, 10*time.Minute) //nolint:gomnd // default 10m
-	defer cancel()
-	if started := reconciler.Started(timedCtx); !started {
-		return errors.Errorf("timed out waiting for reconciler start")
+	// wait for the Reconciler to run once on a NNC that was made for this Node
+	if started := nncReconciler.Started(ctx); !started {
+		return errors.Errorf("context cancelled while waiting for reconciler start")
 	}
 	logger.Printf("started NodeNetworkConfig reconciler")
 

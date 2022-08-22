@@ -42,7 +42,7 @@ func NewHnsv2wrapperFake() *Hnsv2wrapperFake {
 	}
 }
 
-func delayHnsCall(delay time.Duration){
+func delayHnsCall(delay time.Duration) {
 	time.Sleep(delay)
 }
 

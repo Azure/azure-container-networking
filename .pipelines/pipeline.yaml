@@ -150,14 +150,22 @@ stages:
           name: "$(BUILD_POOL_NAME_DEFAULT)"
         strategy:
           matrix:
-            cni_manager_linux_amd64:
+            acncli_linux_amd64:
               arch: amd64
               os: linux
-              name: cni-manager
-            cni_manager_linux_arm64:
+              name: acncli
+            acncli_linux_arm64:
               arch: arm64
               os: linux
-              name: cni-manager
+              name: acncli
+            cni_dropgz_linux_amd64:
+              arch: amd64
+              os: linux
+              name: cni-dropgz
+            cni_dropgz_linux_arm64:
+              arch: arm64
+              os: linux
+              name: cni-dropgz
             cns_linux_amd64:
               arch: amd64
               os: linux
@@ -216,8 +224,11 @@ stages:
           name: "$(BUILD_POOL_NAME_DEFAULT)"
         strategy:
           matrix:
-            cni-manager:
-              name: cni-manager
+            acncli:
+              name: acncli 
+              platforms: linux/amd64 linux/arm64
+            cni_dropgz:
+              name: cni-dropgz
               platforms: linux/amd64 linux/arm64
             cns:
               name: cns
@@ -268,15 +279,15 @@ stages:
       clusterDefinitionCniBuildOS: "windows"
       clusterDefinitionCniBuildExt: ".zip"
 
-  - template: singletenancy/aks-engine/e2e-job-template.yaml
-    parameters:
-      name: "windows_20_22_e2e"
-      displayName: "Windows 2022"
-      pipelineBuildImage: "$(BUILD_IMAGE)"
-      clusterDefinition: "cniWindows2022.json"
-      clusterDefinitionCniTypeKey: "azureCNIURLWindows"
-      clusterDefinitionCniBuildOS: "windows"
-      clusterDefinitionCniBuildExt: ".zip"
+  # - template: singletenancy/aks-engine/e2e-job-template.yaml
+  #   parameters:
+  #     name: "windows_20_22_e2e"
+  #     displayName: "Windows 2022"
+  #     pipelineBuildImage: "$(BUILD_IMAGE)"
+  #     clusterDefinition: "cniWindows2022.json"
+  #     clusterDefinitionCniTypeKey: "azureCNIURLWindows"
+  #     clusterDefinitionCniBuildOS: "windows"
+  #     clusterDefinitionCniBuildExt: ".zip"
 
   - template: singletenancy/aks-engine/e2e-dualstack-job-template.yaml
     parameters:
@@ -305,7 +316,7 @@ stages:
       - "ubuntu_18_04_linux_e2e"
       - "windows_19_03_e2e"
       - "windows_20_04_e2e"
-      - "windows_20_22_e2e"
+      # - "windows_20_22_e2e"
       - "ubuntu_18_04_linux_dualstack_e2e"
       # - "windows_20_04_dualstack_e2e"
     jobs:

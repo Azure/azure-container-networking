@@ -24,6 +24,8 @@ var (
 	ErrUnsupportedNamedPort = errors.New("unsupported namedport translation features used on windows")
 	// ErrUnsupportedNegativeMatch is returned when negative match translation feature is used in windows.
 	ErrUnsupportedNegativeMatch = errors.New("unsupported NotExist operator translation features used on windows")
+	// ErrUnsupportedExceptCIDR is returned when Except CIDR block translation feature is used in windows.
+	ErrUnsupportedExceptCIDR = errors.New("unsupported Except CIDR block translation features used on windows")
 	// ErrUnsupportedSCTP is returned when SCTP protocol is used in windows.
 	ErrUnsupportedSCTP = errors.New("unsupported SCTP protocol used on windows")
 )
@@ -156,14 +158,19 @@ func deDuplicateExcept(exceptInIPBlock []string) []string {
 }
 
 // ipBlockIPSet return translatedIPSet based based on ipBlockRule.
-func ipBlockIPSet(policyName, ns string, direction policies.Direction, ipBlockSetIndex, ipBlockPeerIndex int, ipBlockRule *networkingv1.IPBlock) *ipsets.TranslatedIPSet {
+func ipBlockIPSet(policyName, ns string, direction policies.Direction, ipBlockSetIndex, ipBlockPeerIndex int, ipBlockRule *networkingv1.IPBlock) (*ipsets.TranslatedIPSet, error) {
 	if ipBlockRule == nil || ipBlockRule.CIDR == "" {
-		return nil
+		return nil, nil
 	}
 
 	// de-duplicated Except if there are redundance elements.
 	deDupExcepts := deDuplicateExcept(ipBlockRule.Except)
 	lenOfDeDupExcepts := len(deDupExcepts)
+
+	if util.IsWindowsDP() && lenOfDeDupExcepts > 0 {
+		return nil, ErrUnsupportedExceptCIDR
+	}
+
 	var members []string
 	indexOfMembers := 0
 	// Ipset doesn't allow 0.0.0.0/0 to be added.
@@ -203,21 +210,23 @@ func ipBlockIPSet(policyName, ns string, direction policies.Direction, ipBlockSe
 
 	ipBlockIPSetName := ipBlockSetName(policyName, ns, direction, ipBlockSetIndex, ipBlockPeerIndex)
 	ipBlockIPSet := ipsets.NewTranslatedIPSet(ipBlockIPSetName, ipsets.CIDRBlocks, members...)
-	return ipBlockIPSet
+	return ipBlockIPSet, nil
 }
 
 // ipBlockRule translates IPBlock field in networkpolicy object to translatedIPSet and SetInfo.
 // ipBlockSetIndex parameter is used to diffentiate ipBlock fields in one networkpolicy object.
 func ipBlockRule(policyName, ns string, direction policies.Direction, matchType policies.MatchType, ipBlockSetIndex, ipBlockPeerIndex int,
-	ipBlockRule *networkingv1.IPBlock) (*ipsets.TranslatedIPSet, policies.SetInfo) {
-
+	ipBlockRule *networkingv1.IPBlock) (*ipsets.TranslatedIPSet, policies.SetInfo, error) { //nolint // gofumpt
 	if ipBlockRule == nil || ipBlockRule.CIDR == "" {
-		return nil, policies.SetInfo{}
+		return nil, policies.SetInfo{}, nil
 	}
 
-	ipBlockIPSet := ipBlockIPSet(policyName, ns, direction, ipBlockSetIndex, ipBlockPeerIndex, ipBlockRule)
+	ipBlockIPSet, err := ipBlockIPSet(policyName, ns, direction, ipBlockSetIndex, ipBlockPeerIndex, ipBlockRule)
+	if err != nil {
+		return nil, policies.SetInfo{}, err
+	}
 	setInfo := policies.NewSetInfo(ipBlockIPSet.Metadata.Name, ipsets.CIDRBlocks, included, matchType)
-	return ipBlockIPSet, setInfo
+	return ipBlockIPSet, setInfo, err
 }
 
 // PodSelector translates podSelector of NetworkPolicyPeer field in networkpolicy object to translatedIPSets, children of translated IPSets, and SetInfo.
@@ -373,9 +382,13 @@ func translateRule(npmNetPol *policies.NPMNetworkPolicy, netPolName string, dire
 		// #2.1 Handle IPBlock and port if exist
 		if peer.IPBlock != nil {
 			if len(peer.IPBlock.CIDR) > 0 {
-				ipBlockIPSet, ipBlockSetInfo := ipBlockRule(netPolName, npmNetPol.Namespace, direction, matchType, ruleIndex, peerIdx, peer.IPBlock)
+				ipBlockIPSet, ipBlockSetInfo, err := ipBlockRule(netPolName, npmNetPol.Namespace, direction, matchType, ruleIndex, peerIdx, peer.IPBlock)
+				if err != nil {
+					return err
+				}
 				npmNetPol.RuleIPSets = append(npmNetPol.RuleIPSets, ipBlockIPSet)
-				err := peerAndPortRule(npmNetPol, direction, ports, []policies.SetInfo{ipBlockSetInfo})
+
+				err = peerAndPortRule(npmNetPol, direction, ports, []policies.SetInfo{ipBlockSetInfo})
 				if err != nil {
 					return err
 				}

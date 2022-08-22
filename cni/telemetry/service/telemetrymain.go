@@ -3,6 +3,7 @@ package main
 // Entry point of the telemetry service if started by CNI
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"runtime"
@@ -189,7 +190,7 @@ func main() {
 	err = telemetry.CreateAITelemetryHandle(aiConfig, config.DisableAll, config.DisableTrace, config.DisableMetric)
 	log.Printf("[Telemetry] AI Handle creation status:%v", err)
 	log.Logf("[Telemetry] Report to host for an interval of %d seconds", config.ReportToHostIntervalInSeconds)
-	tb.PushData()
+	tb.PushData(context.Background())
 	telemetry.CloseAITelemetryHandle()
 
 	log.Close()

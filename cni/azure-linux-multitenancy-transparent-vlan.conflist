@@ -1,0 +1,29 @@
+{
+   "cniVersion":"0.3.0",
+   "name":"azure",
+   "plugins":[
+      {
+         "type":"azure-vnet",
+         "mode":"transparent-vlan",
+         "bridge":"azure0",
+         "multiTenancy":true,
+         "infraVnetAddressSpace":"",
+         "podNamespaceForDualNetwork":[],
+         "enableExactMatchForPodName": false,
+         "enableSnatOnHost":true,
+         "ipam":{
+            "type":"azure-cns"
+         },
+         "dns":{
+            "nameservers":[]
+        }
+      },
+      {
+         "type":"portmap",
+         "capabilities":{
+            "portMappings":true
+         },
+         "snat":true
+      }
+   ]
+}

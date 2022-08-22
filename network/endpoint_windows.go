@@ -64,7 +64,6 @@ func ConstructEndpointID(containerID string, netNsPath string, ifName string) (s
 
 // newEndpointImpl creates a new endpoint in the network.
 func (nw *network) newEndpointImpl(cli apipaClient, _ netlink.NetlinkInterface, _ platform.ExecClient, epInfo *EndpointInfo) (*endpoint, error) {
-
 	if useHnsV2, err := UseHnsV2(epInfo.NetNsPath); useHnsV2 {
 		if err != nil {
 			return nil, err
@@ -115,7 +114,6 @@ func (nw *network) newEndpointImplHnsV1(epInfo *EndpointInfo) (*endpoint, error)
 	}
 
 	hnsResponse, err := Hnsv1.CreateEndpoint(hnsEndpoint, "")
-
 	if err != nil {
 		return nil, err
 	}
@@ -290,8 +288,7 @@ func (nw *network) createHostNCApipaEndpoint(cli apipaClient, epInfo *EndpointIn
 	log.Printf("[net] Creating HostNCApipaEndpoint for host container connectivity for NC: %s",
 		epInfo.NetworkContainerID)
 
-	if hostNCApipaEndpointID, err =
-		cli.CreateHostNCApipaEndpoint(context.TODO(), epInfo.NetworkContainerID); err != nil {
+	if hostNCApipaEndpointID, err = cli.CreateHostNCApipaEndpoint(context.TODO(), epInfo.NetworkContainerID); err != nil {
 		return err
 	}
 
@@ -318,7 +315,7 @@ func (nw *network) newEndpointImplHnsV2(cli apipaClient, epInfo *EndpointInfo) (
 	}
 
 	// Create the HCN endpoint.
-	log.Printf("[net] Creating hcn endpoint: %+v", hcnEndpoint)
+	log.Printf("[net] Creating hcn endpoint: %s computenetwork:%s", hcnEndpoint.Name, hcnEndpoint.HostComputeNetwork)
 	hnsResponse, err := Hnsv2.CreateEndpoint(hcnEndpoint)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to create endpoint: %s due to error: %v", hcnEndpoint.Name, err)

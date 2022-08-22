@@ -205,9 +205,8 @@ func (nm *networkManager) restore(isRehydrationRequired bool) error {
 		}
 	}
 
-	log.Printf("[net] Restored state, %+v\n", nm)
+	log.Printf("[net] Restored state")
 	for _, extIf := range nm.ExternalInterfaces {
-		log.Printf("External Interface %+v", extIf)
 		for _, nw := range extIf.Networks {
 			log.Printf("Number of endpoints: %d", len(nw.Endpoints))
 		}

@@ -5,6 +5,7 @@ package telemetry
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -17,8 +18,6 @@ import (
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/platform"
-	"github.com/Azure/azure-container-networking/processlock"
-	"github.com/Azure/azure-container-networking/store"
 )
 
 // TelemetryConfig - telemetry config read by telemetry service
@@ -171,7 +170,9 @@ func (tb *TelemetryBuffer) Connect() error {
 }
 
 // PushData - PushData running an instance if it isn't already being run elsewhere
-func (tb *TelemetryBuffer) PushData() {
+func (tb *TelemetryBuffer) PushData(ctx context.Context) {
+	defer tb.Close()
+
 	for {
 		select {
 		case report := <-tb.data:
@@ -180,12 +181,12 @@ func (tb *TelemetryBuffer) PushData() {
 			tb.mutex.Unlock()
 		case <-tb.cancel:
 			log.Logf("[Telemetry] server cancel event")
-			goto EXIT
+			return
+		case <-ctx.Done():
+			log.Logf("[Telemetry] received context done event")
+			return
 		}
 	}
-
-EXIT:
-	tb.Close()
 }
 
 // read - read from the file descriptor
@@ -245,43 +246,8 @@ func (tb *TelemetryBuffer) Close() {
 
 // push - push the report (x) to corresponding slice
 func push(x interface{}) {
-	metadata, err := common.GetHostMetadata(metadataFile)
-	if err != nil {
-		log.Logf("Error getting metadata %v", err)
-
-		var lockclient processlock.Interface
-		lockclient, err = processlock.NewFileLock(metadataFile + store.LockExtension)
-		if err != nil {
-			log.Printf("Error initializing file lock:%v", err)
-			return
-		}
-
-		var kvs store.KeyValueStore
-		kvs, err = store.NewJsonFileStore(metadataFile, lockclient)
-		if err != nil {
-			log.Printf("Error acuiring lock for writing metadata file: %v", err)
-		}
-
-		err = kvs.Lock(store.DefaultLockTimeout)
-		if err != nil {
-			log.Errorf("push: Not able to acquire lock:%v", err)
-			return
-		}
-
-		err = common.SaveHostMetadata(metadata, metadataFile)
-		if err != nil {
-			log.Logf("saving host metadata failed with :%v", err)
-		}
-
-		err = kvs.Unlock()
-		if err != nil {
-			log.Errorf("push: Not able to release lock:%v", err)
-		}
-	}
-
 	switch y := x.(type) {
 	case CNIReport:
-		y.Metadata = metadata
 		SendAITelemetry(y)
 
 	case AIMetric:

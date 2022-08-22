@@ -31,6 +31,7 @@ endif
 
 # Build directories.
 REPO_ROOT = $(shell git rev-parse --show-toplevel)
+AZURE_IPAM_DIR = $(REPO_ROOT)/azure-ipam
 CNM_DIR = $(REPO_ROOT)/cnm/plugin
 CNI_NET_DIR = $(REPO_ROOT)/cni/network/plugin
 CNI_IPAM_DIR = $(REPO_ROOT)/cni/ipam/plugin
@@ -41,11 +42,13 @@ CNS_DIR = $(REPO_ROOT)/cns/service
 NPM_DIR = $(REPO_ROOT)/npm/cmd
 OUTPUT_DIR = $(REPO_ROOT)/output
 BUILD_DIR = $(OUTPUT_DIR)/$(GOOS)_$(GOARCH)
+AUZRE_IPAM_BUILD_DIR = $(BUILD_DIR)/azure-ipam
 IMAGE_DIR  = $(OUTPUT_DIR)/images
 CNM_BUILD_DIR = $(BUILD_DIR)/cnm
 CNI_BUILD_DIR = $(BUILD_DIR)/cni
 ACNCLI_BUILD_DIR = $(BUILD_DIR)/acncli
 CNI_MULTITENANCY_BUILD_DIR = $(BUILD_DIR)/cni-multitenancy
+CNI_MULTITENANCY_TRANSPARENT_VLAN_BUILD_DIR = $(BUILD_DIR)/cni-multitenancy-transparent-vlan
 CNI_SWIFT_BUILD_DIR = $(BUILD_DIR)/cni-swift
 CNI_OVERLAY_BUILD_DIR = $(BUILD_DIR)/cni-overlay
 CNI_BAREMETAL_BUILD_DIR = $(BUILD_DIR)/cni-baremetal
@@ -75,21 +78,23 @@ CNM_ARCHIVE_NAME = azure-vnet-cnm-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
 CNI_ARCHIVE_NAME = azure-vnet-cni-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
 ACNCLI_ARCHIVE_NAME = acncli-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
 CNI_MULTITENANCY_ARCHIVE_NAME = azure-vnet-cni-multitenancy-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
+CNI_MULTITENANCY_TRANSPARENT_VLAN_ARCHIVE_NAME = azure-vnet-cni-multitenancy-transparent-vlan-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
 CNI_SWIFT_ARCHIVE_NAME = azure-vnet-cni-swift-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
 CNI_OVERLAY_ARCHIVE_NAME = azure-vnet-cni-overlay-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
 CNI_BAREMETAL_ARCHIVE_NAME = azure-vnet-cni-baremetal-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
 CNS_ARCHIVE_NAME = azure-cns-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
 NPM_ARCHIVE_NAME = azure-npm-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
 NPM_IMAGE_INFO_FILE = azure-npm-$(VERSION).txt
-CNI_IMAGE_ARCHIVE_NAME = azure-cni-manager-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
-CNI_IMAGE_INFO_FILE = azure-cni-manager-$(VERSION).txt
+CNIDROPGZ_IMAGE_ARCHIVE_NAME = cni-dropgz-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
+CNIDROPGZ_IMAGE_INFO_FILE = cni-dropgz-$(VERSION).txt
 CNS_IMAGE_INFO_FILE = azure-cns-$(VERSION).txt
 
 # Docker libnetwork (CNM) plugin v2 image parameters.
 CNM_PLUGIN_IMAGE ?= microsoft/azure-vnet-plugin
 CNM_PLUGIN_ROOTFS = azure-vnet-plugin-rootfs
 
-VERSION ?= $(shell git describe --tags --always --dirty)
+REVISION ?= $(shell git rev-parse --short HEAD)
+VERSION  ?= $(shell git describe --exclude "azure-ipam*" --exclude "cni-dropgz*" --exclude "zapai*" --tags --always --dirty)
 
 # Default target
 all-binaries-platforms: ## Make all platform binaries
@@ -101,7 +106,7 @@ all-binaries-platforms: ## Make all platform binaries
 
 # OS specific binaries/images
 ifeq ($(GOOS),linux)
-all-binaries: azure-cnm-plugin azure-cni-plugin azure-cns azure-npm
+all-binaries: acncli azure-cnm-plugin azure-cni-plugin azure-cns azure-npm
 all-images: npm-image cns-image cni-manager-image
 else
 all-binaries: azure-cnm-plugin azure-cni-plugin azure-cns azure-npm
@@ -120,6 +125,9 @@ azure-npm: azure-npm-binary npm-archive
 
 ##@ Binaries 
 
+# Build the delegated IPAM plugin binary.
+azure-ipam-binary:
+	cd $(AZURE_IPAM_DIR) && CGO_ENABLED=0 go build -v -o $(AUZRE_IPAM_BUILD_DIR)/azure-ipam$(EXE_EXT) -ldflags "-X main.version=$(VERSION)" -gcflags="-dwarflocationlists=true"
 # Build the Azure CNM binary.
 cnm-binary:
 	cd $(CNM_DIR) && CGO_ENABLED=0 go build -v -o $(CNM_BUILD_DIR)/azure-vnet-plugin$(EXE_EXT) -ldflags "-X main.version=$(VERSION)" -gcflags="-dwarflocationlists=true"
@@ -146,7 +154,7 @@ acncli-binary:
 
 # Build the Azure CNS binary.
 azure-cns-binary:
-	cd $(CNS_DIR) && CGO_ENABLED=0 go build -v -o $(CNS_BUILD_DIR)/azure-cns$(EXE_EXT) -ldflags "-X main.version=$(VERSION) -X $(CNS_AI_PATH)=$(CNS_AI_ID)" -gcflags="-dwarflocationlists=true"
+	cd $(CNS_DIR) && CGO_ENABLED=0 go build -v -o $(CNS_BUILD_DIR)/azure-cns$(EXE_EXT) -ldflags "-X main.version=$(VERSION) -X $(CNS_AI_PATH)=$(CNS_AI_ID) -X $(CNI_AI_PATH)=$(CNI_AI_ID)" -gcflags="-dwarflocationlists=true"
 
 # Build the Azure NPM binary.
 azure-npm-binary:
@@ -156,9 +164,10 @@ azure-npm-binary:
 
 ##@ Containers
 
-CNI_IMAGE = azure-cni-manager
-CNS_IMAGE = azure-cns
-NPM_IMAGE = azure-npm
+ACNCLI_IMAGE    = acncli
+CNIDROPGZ_IMAGE = cni-dropgz
+CNS_IMAGE       = azure-cns
+NPM_IMAGE       = azure-npm
 
 TAG               ?= $(VERSION)
 IMAGE_REGISTRY    ?= acnpublic.azurecr.io
@@ -213,33 +222,61 @@ container-info: # util target to write container info file. do not invoke direct
 	sudo chown -R $$(whoami) $(IMAGE_DIR) 
 	sudo chmod -R 777 $(IMAGE_DIR)
 
-cni-manager-image-name: # util target to print the CNI manager image name.
-	@echo $(CNI_IMAGE)
+acncli-image-name: # util target to print the CNI manager image name.
+	@echo $(ACNCLI_IMAGE)
 
-cni-manager-image: ## build cni-manager container image.
+acncli-image: ## build cni-manager container image.
 	$(MAKE) containerize-$(CONTAINER_BUILDER) \
 		PLATFORM=$(PLATFORM) \
 		DOCKERFILE=tools/acncli/Dockerfile \
 		REGISTRY=$(IMAGE_REGISTRY) \
-		IMAGE=$(CNI_IMAGE) \
-		EXTRA_BUILD_ARGS='--build-arg PLATFORM=$(OS)_$(ARCH)' \
+		IMAGE=$(ACNCLI_IMAGE) \
 		TAG=$(TAG)
 
-cni-manager-image-info: # util target to write cni-manager container info file.
-	$(MAKE) container-info IMAGE=$(CNI_IMAGE) TAG=$(TAG) FILE=$(CNI_IMAGE_INFO_FILE)
+acncli-image-info: # util target to write cni-manager container info file.
+	$(MAKE) container-info IMAGE=$(ACNCLI_IMAGE) TAG=$(TAG) FILE=$(ACNCLI_IMAGE_INFO_FILE)
 
-cni-manager-image-push: ## push cni-manager container image.
+acncli-image-push: ## push cni-manager container image.
 	$(MAKE) container-push \
 		PLATFORM=$(PLATFORM) \
 		REGISTRY=$(IMAGE_REGISTRY) \
-		IMAGE=$(CNI_IMAGE) \
+		IMAGE=$(ACNCLI_IMAGE) \
 		TAG=$(TAG)
 
-cni-manager-image-pull: ## pull cni-manager container image.
+acncli-image-pull: ## pull cni-manager container image.
 	$(MAKE) container-pull \
 		PLATFORM=$(PLATFORM) \
 		REGISTRY=$(IMAGE_REGISTRY) \
-		IMAGE=$(CNI_IMAGE) \
+		IMAGE=$(ACNCLI_IMAGE) \
+		TAG=$(TAG)
+
+cni-dropgz-image-name: # util target to print the CNI dropgz image name.
+	@echo $(CNIDROPGZ_IMAGE)
+
+cni-dropgz-image: ## build cni-dropgz container image.
+	$(MAKE) containerize-$(CONTAINER_BUILDER) \
+		PLATFORM=$(PLATFORM) \
+		DOCKERFILE=dropgz/build/cni.Dockerfile \
+		REGISTRY=$(IMAGE_REGISTRY) \
+		IMAGE=$(CNIDROPGZ_IMAGE) \
+		EXTRA_BUILD_ARGS='--build-arg OS=$(OS) --build-arg ARCH=$(ARCH)' \
+		TAG=$(TAG)
+
+cni-dropgz-image-info: # util target to write cni-dropgz container info file.
+	$(MAKE) container-info IMAGE=$(CNIDROPGZ_IMAGE) TAG=$(TAG) FILE=$(CNIDROPGZ_IMAGE_INFO_FILE)
+
+cni-dropgz-image-push: ## push cni-dropgz container image.
+	$(MAKE) container-push \
+		PLATFORM=$(PLATFORM) \
+		REGISTRY=$(IMAGE_REGISTRY) \
+		IMAGE=$(CNIDROPGZ_IMAGE) \
+		TAG=$(TAG)
+
+cni-dropgz-image-pull: ## pull cni-dropgz container image.
+	$(MAKE) container-pull \
+		PLATFORM=$(PLATFORM) \
+		REGISTRY=$(IMAGE_REGISTRY) \
+		IMAGE=$(CNIDROPGZ_IMAGE) \
 		TAG=$(TAG)
 
 cns-image-name: # util target to print the CNS image name
@@ -362,10 +399,16 @@ multiarch-manifest-create: # util target to compose multiarch container manifest
 multiarch-manifest-push: # util target to push multiarch container manifest.
 	$(CONTAINER_BUILDER) manifest push --all $(IMAGE_REGISTRY)/$(IMAGE):$(TAG) docker://$(IMAGE_REGISTRY)/$(IMAGE):$(TAG)
 
-cni-manager-multiarch-manifest-create: ## build cni-manager multi-arch container manifest.
+acncli-multiarch-manifest-create: ## build acncli multi-arch container manifest.
 	$(MAKE) multiarch-manifest-create \
 		PLATFORMS="$(PLATFORMS)" \
-		IMAGE=$(CNI_IMAGE) \
+		IMAGE=$(ACNCLI_IMAGE) \
+		TAG=$(TAG)
+
+cni-dropgz-multiarch-manifest-create: ## build cni-dropgz multi-arch container manifest.
+	$(MAKE) multiarch-manifest-create \
+		PLATFORMS="$(PLATFORMS)" \
+		IMAGE=$(CNIDROPGZ_IMAGE) \
 		TAG=$(TAG)
 
 cns-multiarch-manifest-create: ## build azure-cns multi-arch container manifest.
@@ -392,9 +435,21 @@ cni-archive: azure-vnet-binary azure-vnet-ipam-binary azure-vnet-ipamv6-binary a
 
 	$(MKDIR) $(CNI_MULTITENANCY_BUILD_DIR)
 	cp cni/azure-$(GOOS)-multitenancy.conflist $(CNI_MULTITENANCY_BUILD_DIR)/10-azure.conflist
+	cp $(CNI_BUILD_DIR)/azure-vnet$(EXE_EXT) $(CNI_BUILD_DIR)/azure-vnet-ipam$(EXE_EXT) $(CNI_MULTITENANCY_BUILD_DIR)
+ifeq ($(GOOS),linux)
 	cp telemetry/azure-vnet-telemetry.config $(CNI_MULTITENANCY_BUILD_DIR)/azure-vnet-telemetry.config
-	cp $(CNI_BUILD_DIR)/azure-vnet$(EXE_EXT) $(CNI_BUILD_DIR)/azure-vnet-ipam$(EXE_EXT) $(CNI_BUILD_DIR)/azure-vnet-telemetry$(EXE_EXT) $(CNI_MULTITENANCY_BUILD_DIR)
+	cp $(CNI_BUILD_DIR)/azure-vnet-telemetry$(EXE_EXT) $(CNI_MULTITENANCY_BUILD_DIR)
+endif
 	cd $(CNI_MULTITENANCY_BUILD_DIR) && $(ARCHIVE_CMD) $(CNI_MULTITENANCY_ARCHIVE_NAME) azure-vnet$(EXE_EXT) azure-vnet-ipam$(EXE_EXT) azure-vnet-telemetry$(EXE_EXT) 10-azure.conflist azure-vnet-telemetry.config
+
+	$(MKDIR) $(CNI_MULTITENANCY_TRANSPARENT_VLAN_BUILD_DIR)
+	cp cni/azure-$(GOOS)-multitenancy-transparent-vlan.conflist $(CNI_MULTITENANCY_TRANSPARENT_VLAN_BUILD_DIR)/10-azure.conflist
+	cp $(CNI_BUILD_DIR)/azure-vnet$(EXE_EXT) $(CNI_BUILD_DIR)/azure-vnet-ipam$(EXE_EXT) $(CNI_MULTITENANCY_TRANSPARENT_VLAN_BUILD_DIR)
+ifeq ($(GOOS),linux)
+	cp telemetry/azure-vnet-telemetry.config $(CNI_MULTITENANCY_TRANSPARENT_VLAN_BUILD_DIR)/azure-vnet-telemetry.config
+	cp $(CNI_BUILD_DIR)/azure-vnet-telemetry$(EXE_EXT) $(CNI_MULTITENANCY_TRANSPARENT_VLAN_BUILD_DIR)
+endif
+	cd $(CNI_MULTITENANCY_TRANSPARENT_VLAN_BUILD_DIR) && $(ARCHIVE_CMD) $(CNI_MULTITENANCY_TRANSPARENT_VLAN_ARCHIVE_NAME) azure-vnet$(EXE_EXT) azure-vnet-ipam$(EXE_EXT) azure-vnet-telemetry$(EXE_EXT) 10-azure.conflist azure-vnet-telemetry.config
 
 	$(MKDIR) $(CNI_SWIFT_BUILD_DIR)
 	cp cni/azure-$(GOOS)-swift.conflist $(CNI_SWIFT_BUILD_DIR)/10-azure.conflist
@@ -481,8 +536,8 @@ workspace: ## Set up the Go workspace.
 	go work init
 	go work use .
 	go work use ./build/tools
+	go work use ./dropgz
 	go work use ./zapai
-	go work sync
 
 ##@ Test 
 
@@ -500,6 +555,10 @@ test-integration: ## run all integration tests.
 
 test-cyclonus: ## run the cyclonus test for npm.
 	cd test/cyclonus && bash ./test-cyclonus.sh
+	cd ..
+
+test-cyclonus-windows: ## run the cyclonus test for npm.
+	cd test/cyclonus && bash ./test-cyclonus.sh windows
 	cd ..
 
 test-extended-cyclonus: ## run the cyclonus test for npm.
@@ -521,6 +580,9 @@ install-hooks: $(REPO_ROOT)/.git/hooks/pre-push ## installs git hooks
 
 setup: tools install-hooks ## performs common required repo setup
 
+revision: ## print the current git revision
+	@echo $(REVISION)
+	
 version: ## prints the version
 	@echo $(VERSION)
 

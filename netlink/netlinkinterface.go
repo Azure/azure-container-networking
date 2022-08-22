@@ -18,7 +18,7 @@ type NetlinkInterface interface {
 	SetLinkAddress(ifName string, hwAddress net.HardwareAddr) error
 	SetLinkPromisc(ifName string, on bool) error
 	SetLinkHairpin(bridgeName string, on bool) error
-	AddOrRemoveStaticArp(mode int, name string, ipaddr net.IP, mac net.HardwareAddr, isProxy bool) error
+	SetOrRemoveLinkAddress(linkInfo LinkInfo, mode, linkState int) error
 	AddIPAddress(ifName string, ipAddress net.IP, ipNet *net.IPNet) error
 	DeleteIPAddress(ifName string, ipAddress net.IP, ipNet *net.IPNet) error
 	GetIPRoute(filter *Route) ([]*Route, error)

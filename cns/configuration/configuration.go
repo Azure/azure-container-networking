@@ -21,6 +21,7 @@ const (
 type CNSConfig struct {
 	ChannelMode                 string
 	EnablePprof                 bool
+	EnableSubnetScarcity        bool
 	InitializeFromCNI           bool
 	ManagedSettings             ManagedSettings
 	MetricsBindAddress          string
@@ -35,6 +36,7 @@ type CNSConfig struct {
 	WireserverIP                string
 	KeyVaultSettings            KeyVaultSettings
 	MSISettings                 MSISettings
+	ProgramSNATIPTables         bool
 }
 
 type TelemetrySettings struct {

@@ -157,7 +157,7 @@ func (service *HTTPRestService) SyncHostNCVersion(ctx context.Context, channelMo
 	if err != nil {
 		logger.Errorf("sync host error %v", err)
 	}
-	syncHostNcVersion.WithLabelValues(strconv.FormatBool(err == nil)).Observe(time.Since(start).Seconds())
+	syncHostNCVersion.WithLabelValues(strconv.FormatBool(err == nil)).Observe(time.Since(start).Seconds())
 }
 
 var errNonExistentContainerStatus = errors.New("nonExistantContainerstatus")
@@ -358,6 +358,13 @@ func (service *HTTPRestService) CreateOrUpdateNetworkContainerInternal(req *cns.
 		logNCSnapshot(*req)
 	} else {
 		logger.Errorf(returnMessage)
+	}
+
+	if service.Options[common.OptProgramSNATIPTables] == true {
+		returnCode, returnMessage = service.programSNATRules(req)
+		if returnCode != 0 {
+			logger.Errorf(returnMessage)
+		}
 	}
 
 	return returnCode

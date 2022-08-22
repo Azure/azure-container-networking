@@ -22,9 +22,9 @@ var (
 	errInvalidGrepResult    = errors.New("unexpectedly got no lines while grepping for current Azure chains")
 )
 
-func AllCurrentAzureChains(exec utilexec.Interface, defaultlockWaitTimeInSeconds string) (map[string]struct{}, error) {
+func AllCurrentAzureChains(exec utilexec.Interface, lockWaitTimeSeconds string) (map[string]struct{}, error) {
 	iptablesListCommand := exec.Command(util.Iptables,
-		util.IptablesWaitFlag, defaultlockWaitTimeInSeconds, util.IptablesTableFlag, util.IptablesFilterTable,
+		util.IptablesWaitFlag, lockWaitTimeSeconds, util.IptablesTableFlag, util.IptablesFilterTable,
 		util.IptablesNumericFlag, util.IptablesListFlag,
 	)
 	grepCommand := exec.Command(Grep, azureChainGrepPattern)

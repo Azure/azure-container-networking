@@ -48,13 +48,20 @@ updates:
   commit-message:
     prefix: "deps"
 - package-ecosystem: "gomod"
+  directory: "/dropgz"
+  schedule:
+    interval: "daily"
+  assignees:
+    - "matmerr"
+    - "rbtr"
+  commit-message:
+    prefix: "deps"
+- package-ecosystem: "gomod"
   directory: "/zapai"
   schedule:
     interval: "daily"
   assignees:
     - "matmerr"
     - "rbtr"
-  reviewers:
-    - "azure/azure-sdn-members"
   commit-message:
     prefix: "deps"

@@ -205,6 +205,11 @@ func (th *telemetryHandle) TrackLog(report Report) {
 	// Initialize new trace message
 	trace := appinsights.NewTraceTelemetry(report.Message, appinsights.Warning)
 
+	// will be empty if cns used as telemetry service for cni
+	if th.appVersion == "" {
+		th.appVersion = report.AppVersion
+	}
+
 	// Override few of existing columns with metadata
 	trace.Tags.User().SetAuthUserId(runtime.GOOS)
 	trace.Tags.Operation().SetId(report.Context)
@@ -294,6 +299,10 @@ func (th *telemetryHandle) TrackMetric(metric Metric) {
 	th.rwmutex.RLock()
 	metadata := th.metadata
 	th.rwmutex.RUnlock()
+
+	if th.appVersion == "" {
+		th.appVersion = metric.AppVersion
+	}
 
 	// Check if metadata is populated
 	if metadata.SubscriptionID != "" {

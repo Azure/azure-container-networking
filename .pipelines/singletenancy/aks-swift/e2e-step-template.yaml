@@ -26,18 +26,17 @@ steps:
 
   - task: AzureCLI@1
     inputs:
-      azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+      azureSubscription: $(AZURE_TEST_AGENT_SERVICE_CONNECTION)
       scriptLocation: "inlineScript"
+      scriptType: "bash"
       addSpnToEnvironment: true
       inlineScript: |
         mkdir -p ~/.kube/
-        echo "DNC Underlay config"
-        az keyvault secret show --name $(KV_DNC_UNDERLAY_SECRET_NAME) --vault-name $(KV_NAME) --query value | sed 's/\\n/\n/g' | sed -e 's/^"//' -e 's/"$//'
-        az keyvault secret show --name $(KV_DNC_UNDERLAY_SECRET_NAME) --vault-name $(KV_NAME) --query value | sed 's/\\n/\n/g' | sed -e 's/^"//' -e 's/"$//' > ~/.kube/dnc-underlay
-        echo "Dirty ACN ccp config"
-        az keyvault secret show --name $(KV_AKS_SWIFT_CX_SECRET_NAME) --vault-name $(KV_NAME) --query value | sed 's/\\n/\n/g' | sed -e 's/^"//' -e 's/"$//'
-        az keyvault secret show --name $(KV_AKS_SWIFT_CX_SECRET_NAME) --vault-name $(KV_NAME) --query value | sed 's/\\n/\n/g' | sed -e 's/^"//' -e 's/"$//' > ~/.kube/config
-    displayName: Pull Kubeconfig from Keyvault
+        echo "Create AKS cluster"
+        make -C ./hack/swift azcfg AZCLI=az
+        make -C ./hack/swift byocni-up SUB=$(SUB_AZURE_NETWORK_AGENT_TEST) AZCLI=az CLUSTER=swifte2e-$(make revision)
+        echo "Cluster successfully created"
+    displayName: Create test cluster
     condition: succeeded()
 
   - script: |
@@ -48,7 +47,7 @@ steps:
       sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
       kubectl cluster-info
       kubectl get po -owide -A
-      sudo -E env "PATH=$PATH" VERSION=$(Tag) INSTALL_CNI=true INSTALL_CNS=true make test-integration
+      sudo -E env "PATH=$PATH" VERSION=$(Tag) INSTALL_CNS=true make test-integration
     retryCountOnTaskFailure: 3
     name: "aksswifte2e"
     displayName: "Run AKS Swift E2E"
@@ -60,10 +59,6 @@ steps:
       sudo rm -rf $ARTIFACT_DIR
       sudo mkdir $ARTIFACT_DIR
       sudo cp test/integration/logs/* $ARTIFACT_DIR
-      export KUBECONFIG=~/.kube/dnc-underlay
-      kubectl logs -n $STABLE_DNC_NAMESPACE -l app=dnc --tail -1 -c dnc --prefix > dnc-logs.txt
-      kubectl logs -n $STABLE_DNC_NAMESPACE -l app=dnc --tail -1 -c requestcontroller --prefix > dnc-rc-logs.txt
-      sudo cp *.txt $ARTIFACT_DIR
     name: "GetLogs"
     displayName: "Get logs"
     condition: always()
@@ -81,4 +76,19 @@ steps:
       sudo rm -rf test/integration/logs
     name: "Cleanupartifactdir"
     displayName: "Cleanup artifact dir"
+    condition: always()
+
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: "Azure Container Networking - Test"
+      scriptLocation: "inlineScript"
+      scriptType: "bash"
+      addSpnToEnvironment: true
+      inlineScript: |
+        echo "Deleting cluster"
+        make -C ./hack/swift azcfg AZCLI=az
+        make -C ./hack/swift down SUB=$(SUB_AZURE_NETWORK_AGENT_TEST) AZCLI=az CLUSTER=swifte2e-$(make revision)
+        echo "Cluster and resources down"
+    name: "Cleanupcluster"
+    displayName: "Cleanup cluster"
     condition: always()

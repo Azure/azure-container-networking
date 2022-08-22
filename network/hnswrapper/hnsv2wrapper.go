@@ -10,8 +10,7 @@ import (
 	"github.com/Microsoft/hcsshim/hcn"
 )
 
-type Hnsv2wrapper struct {
-}
+type Hnsv2wrapper struct{}
 
 func (Hnsv2wrapper) CreateEndpoint(endpoint *hcn.HostComputeEndpoint) (*hcn.HostComputeEndpoint, error) {
 	return endpoint.Create()

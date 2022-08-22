@@ -40,7 +40,6 @@ func TestNewAndDeleteEndpointImplHnsV2(t *testing.T) {
 		MacAddress: net.HardwareAddr("00:00:5e:00:53:01"),
 	}
 	endpoint, err := nw.newEndpointImplHnsV2(nil, epInfo)
-
 	if err != nil {
 		fmt.Printf("+%v", err)
 		t.Fatal(err)
@@ -89,7 +88,6 @@ func TestNewEndpointImplHnsv2Timesout(t *testing.T) {
 	if err == nil {
 		t.Fatal("Failed to timeout HNS calls for creating endpoint")
 	}
-
 }
 
 func TestDeleteEndpointImplHnsv2Timeout(t *testing.T) {
@@ -113,7 +111,6 @@ func TestDeleteEndpointImplHnsv2Timeout(t *testing.T) {
 		MacAddress: net.HardwareAddr("00:00:5e:00:53:01"),
 	}
 	endpoint, err := nw.newEndpointImplHnsV2(nil, epInfo)
-
 	if err != nil {
 		fmt.Printf("+%v", err)
 		t.Fatal(err)
@@ -167,7 +164,6 @@ func TestCreateEndpointImplHnsv1Timeout(t *testing.T) {
 	if err == nil {
 		t.Fatal("Failed to timeout HNS calls for creating endpoint")
 	}
-
 }
 
 func TestDeleteEndpointImplHnsv1Timeout(t *testing.T) {
@@ -191,7 +187,6 @@ func TestDeleteEndpointImplHnsv1Timeout(t *testing.T) {
 		MacAddress: net.HardwareAddr("00:00:5e:00:53:01"),
 	}
 	endpoint, err := nw.newEndpointImplHnsV1(epInfo)
-
 	if err != nil {
 		fmt.Printf("+%v", err)
 		t.Fatal(err)

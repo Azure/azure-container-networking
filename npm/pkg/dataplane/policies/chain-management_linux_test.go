@@ -45,7 +45,7 @@ func TestBootupFailure(t *testing.T) {
 	metrics.ReinitializeAll()
 	calls := []testutils.TestCmd{
 		{Cmd: []string{"iptables", "-w", "60", "-D", "FORWARD", "-j", "AZURE-NPM"}, ExitCode: 2}, //nolint // AZURE-NPM chain didn't exist
-		{Cmd: listAllCommandStrings, PipedToCommand: true, HasStartError: true},
+		{Cmd: listAllCommandStrings, PipedToCommand: true, HasStartError: true, ExitCode: 1},
 		{Cmd: []string{"grep", "Chain AZURE-NPM"}},
 	}
 	ioshim := common.NewMockIOShim(calls)
@@ -702,6 +702,7 @@ func TestPositionAzureChainJumpRule(t *testing.T) {
 			calls: []testutils.TestCmd{
 				{Cmd: listLineNumbersCommandStrings, PipedToCommand: true},
 				{Cmd: []string{"grep", "AZURE-NPM"}, ExitCode: 1},
+				// should add ExitCode: 1 to below, but this causes an error for the previous commands actually...
 				{Cmd: listLineNumbersCommandStrings, PipedToCommand: true, HasStartError: true},
 				{Cmd: []string{"grep", "KUBE-SERVICES"}},
 			},

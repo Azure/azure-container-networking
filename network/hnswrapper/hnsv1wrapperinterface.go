@@ -19,5 +19,5 @@ type HnsV1WrapperInterface interface {
 	GetHNSEndpointByID(endpointID string) (*hcsshim.HNSEndpoint, error)
 	HotAttachEndpoint(containerID string, endpointID string) error
 	IsAttached(hnsep *hcsshim.HNSEndpoint, containerID string) (bool, error)
-	GetHNSGlobals()  (*hcsshim.HNSGlobals, error)
+	GetHNSGlobals() (*hcsshim.HNSGlobals, error)
 }

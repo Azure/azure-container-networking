@@ -608,7 +608,8 @@ func TestGetNetworkContainerVersionStatus(t *testing.T) {
 func createNC(
 	t *testing.T,
 	params createOrUpdateNetworkContainerParams,
-	expectError bool) {
+	expectError bool,
+) {
 	if err := createOrUpdateNetworkContainerWithParams(t, params); err != nil {
 		t.Errorf("createOrUpdateNetworkContainerWithParams failed Err:%+v", err)
 		t.Fatal(err)
@@ -658,7 +659,8 @@ func publishNCViaCNS(t *testing.T,
 	networkID,
 	networkContainerID,
 	createNetworkContainerURL string,
-	expectError bool) error {
+	expectError bool,
+) error {
 	var (
 		body bytes.Buffer
 		resp cns.PublishNetworkContainerResponse

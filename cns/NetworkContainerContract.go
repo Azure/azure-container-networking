@@ -75,6 +75,7 @@ const (
 
 // CreateNetworkContainerRequest specifies request to create a network container or network isolation boundary.
 type CreateNetworkContainerRequest struct {
+	HostPrimaryIP              string
 	Version                    string
 	NetworkContainerType       string
 	NetworkContainerid         string // Mandatory input.
@@ -404,6 +405,7 @@ type IPConfigRequest struct {
 	PodInterfaceID      string
 	InfraContainerID    string
 	OrchestratorContext json.RawMessage
+	Ifname              string
 }
 
 func (i IPConfigRequest) String() string {

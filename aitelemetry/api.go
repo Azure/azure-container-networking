@@ -11,6 +11,7 @@ import (
 type Report struct {
 	Message          string
 	Context          string
+	AppVersion       string
 	CustomDimensions map[string]string
 }
 
@@ -25,6 +26,7 @@ type Event struct {
 type Metric struct {
 	Name             string
 	Value            float64
+	AppVersion       string
 	CustomDimensions map[string]string
 }
 

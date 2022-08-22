@@ -65,14 +65,14 @@ var Hnsv1 hnswrapper.HnsV1WrapperInterface = hnswrapper.Hnsv1wrapper{}
 
 func EnableHnsV2Timeout(timeoutValue int) {
 	if _, ok := Hnsv2.(hnswrapper.Hnsv2wrapperwithtimeout); !ok {
-		var timeoutDuration = time.Duration(timeoutValue) * time.Second
+		timeoutDuration := time.Duration(timeoutValue) * time.Second
 		Hnsv2 = hnswrapper.Hnsv2wrapperwithtimeout{Hnsv2: hnswrapper.Hnsv2wrapper{}, HnsCallTimeout: timeoutDuration}
 	}
 }
 
 func EnableHnsV1Timeout(timeoutValue int) {
 	if _, ok := Hnsv1.(hnswrapper.Hnsv1wrapperwithtimeout); !ok {
-		var timeoutDuration = time.Duration(timeoutValue) * time.Second
+		timeoutDuration := time.Duration(timeoutValue) * time.Second
 		Hnsv1 = hnswrapper.Hnsv1wrapperwithtimeout{Hnsv1: hnswrapper.Hnsv1wrapper{}, HnsCallTimeout: timeoutDuration}
 	}
 }

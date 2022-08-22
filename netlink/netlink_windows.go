@@ -62,7 +62,7 @@ func (Netlink) SetLinkHairpin(bridgeName string, on bool) error {
 	return nil
 }
 
-func (Netlink) AddOrRemoveStaticArp(mode int, name string, ipaddr net.IP, mac net.HardwareAddr, isProxy bool) error {
+func (Netlink) SetOrRemoveLinkAddress(linkInfo LinkInfo, mode, linkState int) error {
 	return nil
 }
 
