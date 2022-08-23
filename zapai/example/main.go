@@ -24,10 +24,12 @@ type Example struct {
 
 type Sub struct {
 	subnet string
+	num    int
 }
 
 func (s Sub) MarshalLogObject(encoder zapcore.ObjectEncoder) error {
 	encoder.AddString("subnet", s.subnet)
+	encoder.AddInt("num", s.num)
 	return nil
 }
 
@@ -95,6 +97,7 @@ func main() {
 
 	subn := Sub{
 		subnet: "123.222.222",
+		num:    123,
 	}
 	ex1 := Example{
 		NetworkID:          "vetId-1",

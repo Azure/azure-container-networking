@@ -14,33 +14,9 @@ import (
 )
 
 type traceEncoder interface {
+	zapcore.ObjectEncoder
 	encode(*appinsights.TraceTelemetry) ([]byte, error)
-	AddArray(string, zapcore.ArrayMarshaler) error
-	AddObject(string, zapcore.ObjectMarshaler) error
-	AddBinary(string, []byte)
-	AddByteString(string, []byte)
-	AddBool(string, bool)
-	AddComplex128(string, complex128)
-	AddComplex64(string, complex64)
-	AddDuration(string, time.Duration)
-	AddFloat64(string, float64)
-	AddFloat32(string, float32)
-	AddInt(string, int)
-	AddInt64(string, int64)
-	AddInt32(string, int32)
-	AddInt16(string, int16)
-	AddInt8(string, int8)
-	AddString(string, string)
-	AddTime(string, time.Time)
-	AddUint(string, uint)
-	AddUint64(string, uint64)
-	AddUint32(string, uint32)
-	AddUint16(string, uint16)
-	AddUint8(string, uint8)
-	AddUintptr(string, uintptr)
-	AddReflected(string, interface{}) error
-	OpenNamespace(string)
-	cloneEncoder(*appinsights.TraceTelemetry) traceEncoder
+	setTraceTelemetry(*appinsights.TraceTelemetry)
 }
 
 type traceDecoder interface {
@@ -62,76 +38,122 @@ type gobber struct {
 	decoder        *gob.Decoder
 	buffer         *bytes.Buffer
 	traceTelemetry *appinsights.TraceTelemetry
-	lock           sync.Mutex
+	keyPrefix      string
+	sync.Mutex
 }
 
-var _tracePool = sync.Pool{New: func() interface{} {
-	return &gobber{}
-}}
-
-func (g *gobber) AddObject(_ string, marshaler zapcore.ObjectMarshaler) error {
+func (g *gobber) AddObject(key string, marshaler zapcore.ObjectMarshaler) error {
+	curPrefix := g.keyPrefix
+	if len(g.keyPrefix) == 0 {
+		g.keyPrefix = key
+	} else {
+		g.keyPrefix = g.keyPrefix + "_" + key
+	}
 	marshaler.MarshalLogObject(g)
+	g.keyPrefix = curPrefix
 	return nil
 }
 
 func (g *gobber) AddString(key, value string) {
-	g.traceTelemetry.Properties[key] = value
+	g.traceTelemetry.Properties[g.keyPrefix+"_"+key] = value
 }
 
-func (g *gobber) AddArray(_ string, _ zapcore.ArrayMarshaler) error { return nil }
+func (g *gobber) AddBool(key string, value bool) {
+	g.traceTelemetry.Properties[g.keyPrefix+"_"+key] = strconv.FormatBool(value)
+}
 
-func (g *gobber) AddBinary(_ string, _ []byte) {}
+func (g *gobber) AddInt(key string, value int) {
+	g.traceTelemetry.Properties[g.keyPrefix+"_"+key] = strconv.Itoa(value)
+}
 
-func (g *gobber) AddByteString(_ string, _ []byte) {}
+func (g *gobber) AddInt64(key string, value int64) {
+	g.traceTelemetry.Properties[g.keyPrefix+"_"+key] = strconv.FormatInt(value, 10)
+}
 
-func (g *gobber) AddBool(_ string, _ bool) {}
+func (g *gobber) AddUint16(key string, value uint16) {
+	g.traceTelemetry.Properties[g.keyPrefix+"_"+key] = strconv.FormatUint(uint64(value), 10)
+}
 
-func (g *gobber) AddComplex128(_ string, _ complex128) {}
+func (g *gobber) AddArray(_ string, _ zapcore.ArrayMarshaler) error {
+	// TODO to be implemented
+	return nil
+}
 
-func (g *gobber) AddComplex64(_ string, _ complex64) {}
+func (g *gobber) AddBinary(_ string, _ []byte) {
+	// TODO to be implemented
+}
 
-func (g *gobber) AddDuration(_ string, _ time.Duration) {}
+func (g *gobber) AddByteString(_ string, _ []byte) {
+	// TODO to be implemented
+}
 
-func (g *gobber) AddFloat64(_ string, _ float64) {}
+func (g *gobber) AddComplex128(_ string, _ complex128) {
+	// TODO to be implemented
+}
 
-func (g *gobber) AddFloat32(_ string, _ float32) {}
+func (g *gobber) AddComplex64(_ string, _ complex64) {
+	// TODO to be implemented
+}
 
-func (g *gobber) AddInt(_ string, _ int) {}
+func (g *gobber) AddDuration(_ string, _ time.Duration) {
+	// TODO to be implemented
+}
 
-func (g *gobber) AddInt64(_ string, _ int64) {}
+func (g *gobber) AddFloat64(_ string, _ float64) {
+	// TODO to be implemented
+}
 
-func (g *gobber) AddInt32(_ string, _ int32) {}
+func (g *gobber) AddFloat32(_ string, _ float32) {
+	// TODO to be implemented
+}
 
-func (g *gobber) AddInt16(_ string, _ int16) {}
+func (g *gobber) AddInt32(_ string, _ int32) {
+	// TODO to be implemented
+}
 
-func (g *gobber) AddInt8(_ string, _ int8) {}
+func (g *gobber) AddInt16(_ string, _ int16) {
+	// TODO to be implemented
+}
 
-func (g *gobber) AddTime(_ string, _ time.Time) {}
+func (g *gobber) AddInt8(_ string, _ int8) {
+	// TODO to be implemented
+}
 
-func (g *gobber) AddUint(_ string, _ uint) {}
+func (g *gobber) AddTime(_ string, _ time.Time) {
+	// TODO to be implemented
+}
 
-func (g *gobber) AddUint64(_ string, _ uint64) {}
+func (g *gobber) AddUint(_ string, _ uint) {
+	// TODO to be implemented
+}
 
-func (g *gobber) AddUint32(_ string, _ uint32) {}
+func (g *gobber) AddUint64(_ string, _ uint64) {
+	// TODO to be implemented
+}
 
-func (g *gobber) AddUint16(_ string, _ uint16) {}
+func (g *gobber) AddUint32(_ string, _ uint32) {
+	// TODO to be implemented
+}
 
-func (g *gobber) AddUint8(_ string, _ uint8) {}
+func (g *gobber) AddUint8(_ string, _ uint8) {
+	// TODO to be implemented
+}
 
-func (g *gobber) AddUintptr(_ string, _ uintptr) {}
+func (g *gobber) AddUintptr(_ string, _ uintptr) {
+	// TODO to be implemented
+}
 
-func (g *gobber) AddReflected(_ string, _ interface{}) error { return nil }
+func (g *gobber) AddReflected(_ string, _ interface{}) error {
+	// TODO to be implemented
+	return nil
+}
 
-func (g *gobber) OpenNamespace(_ string) {}
+func (g *gobber) OpenNamespace(_ string) {
+	// TODO to be implemented
+}
 
-func (g *gobber) cloneEncoder(traceTelemetry *appinsights.TraceTelemetry) traceEncoder {
-	clone := _tracePool.Get().(*gobber)
-	buf := &bytes.Buffer{}
-	clone.encoder = gob.NewEncoder(buf)
-	clone.buffer = buf
-	clone.lock = g.lock
-	clone.traceTelemetry = traceTelemetry
-	return clone
+func (g *gobber) setTraceTelemetry(traceTelemetry *appinsights.TraceTelemetry) {
+	g.traceTelemetry = traceTelemetry
 }
 
 // newTraceEncoder creates a gobber that can only encode.
@@ -155,8 +177,8 @@ func newTraceDecoder() traceDecoder {
 // encode turns an appinsights.TraceTelemetry into a []byte gob.
 // encode is safe for concurrent use.
 func (g *gobber) encode(t *appinsights.TraceTelemetry) ([]byte, error) {
-	g.lock.Lock()
-	defer g.lock.Unlock()
+	g.Lock()
+	defer g.Unlock()
 	if err := g.encoder.Encode(t); err != nil {
 		return nil, errors.Wrap(err, "gobber failed to encode trace")
 	}
@@ -170,8 +192,8 @@ func (g *gobber) encode(t *appinsights.TraceTelemetry) ([]byte, error) {
 // decode turns a []byte gob in to an appinsights.TraceTelemetry.
 // decode is safe for concurrent use.
 func (g *gobber) decode(b []byte) (*appinsights.TraceTelemetry, error) {
-	g.lock.Lock()
-	defer g.lock.Unlock()
+	g.Lock()
+	defer g.Unlock()
 	if _, err := g.buffer.Write(b); err != nil {
 		return nil, errors.Wrap(err, "gobber failed to write to buffer")
 	}

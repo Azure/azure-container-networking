@@ -81,14 +81,14 @@ func (c *Core) Write(entry zapcore.Entry, fields []zapcore.Field) error {
 	// add fields from core
 	fields = append(c.fields, fields...)
 
-	// clone encoder
-	clone := c.enc.cloneEncoder(t)
+	// reset the traceTelemetry in encoder
+	c.enc.setTraceTelemetry(t)
 
 	// set fields
 	for i := range fields {
 		// handle zap object first
 		if fields[i].Type == zapcore.ObjectMarshalerType {
-			fields[i].AddTo(clone)
+			fields[i].AddTo(c.enc)
 		} else if mapper, ok := c.fieldMappers[fields[i].Key]; ok {
 			// check mapped fields
 			mapper(t, fieldStringer(&fields[i]))
