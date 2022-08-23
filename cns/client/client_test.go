@@ -2076,11 +2076,13 @@ func TestNMASupportedAPIs(t *testing.T) {
 	tests := []struct {
 		name      string
 		shouldErr bool
+		respCode  int
 		exp       *cns.NmAgentSupportedApisResponse
 	}{
 		{
 			"happy",
 			false,
+			http.StatusOK,
 			&cns.NmAgentSupportedApisResponse{
 				Response: cns.Response{
 					ReturnCode: 0,
@@ -2092,6 +2094,7 @@ func TestNMASupportedAPIs(t *testing.T) {
 		{
 			"unspecified error",
 			true,
+			http.StatusOK,
 			&cns.NmAgentSupportedApisResponse{
 				Response: cns.Response{
 					ReturnCode: types.MalformedSubnet,
@@ -2099,6 +2102,12 @@ func TestNMASupportedAPIs(t *testing.T) {
 				},
 				SupportedApis: []string{},
 			},
+		},
+		{
+			"not found",
+			true,
+			http.StatusNotFound,
+			nil,
 		},
 	}
 
@@ -2111,7 +2120,7 @@ func TestNMASupportedAPIs(t *testing.T) {
 				client: &mockdo{
 					errToReturn:            nil,
 					objToReturn:            test.exp,
-					httpStatusCodeToReturn: http.StatusOK,
+					httpStatusCodeToReturn: test.respCode,
 				},
 				routes: emptyRoutes,
 			}
