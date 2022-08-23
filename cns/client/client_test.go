@@ -24,6 +24,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 	"github.com/Azure/azure-container-networking/log"
+	"github.com/Azure/azure-container-networking/nmagent"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -1032,14 +1033,14 @@ func TestPublishNC(t *testing.T) {
 				NetworkContainerID:                "frob",
 				JoinNetworkURL:                    "http://example.com",
 				CreateNetworkContainerURL:         "http://example.com",
-				CreateNetworkContainerRequestBody: []byte{},
+				CreateNetworkContainerRequestBody: nmagent.PutNetworkContainerRequest{},
 			},
 			&cns.PublishNetworkContainerRequest{
 				NetworkID:                         "foo",
 				NetworkContainerID:                "frob",
 				JoinNetworkURL:                    "http://example.com",
 				CreateNetworkContainerURL:         "http://example.com",
-				CreateNetworkContainerRequestBody: []byte{},
+				CreateNetworkContainerRequestBody: nmagent.PutNetworkContainerRequest{},
 			},
 			false,
 		},
@@ -1061,14 +1062,14 @@ func TestPublishNC(t *testing.T) {
 				NetworkContainerID:                "frob",
 				JoinNetworkURL:                    "http://example.com",
 				CreateNetworkContainerURL:         "http://example.com",
-				CreateNetworkContainerRequestBody: []byte{},
+				CreateNetworkContainerRequestBody: nmagent.PutNetworkContainerRequest{},
 			},
 			&cns.PublishNetworkContainerRequest{
 				NetworkID:                         "foo",
 				NetworkContainerID:                "frob",
 				JoinNetworkURL:                    "http://example.com",
 				CreateNetworkContainerURL:         "http://example.com",
-				CreateNetworkContainerRequestBody: []byte{},
+				CreateNetworkContainerRequestBody: nmagent.PutNetworkContainerRequest{},
 			},
 			true,
 		},

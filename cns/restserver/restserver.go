@@ -18,6 +18,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/types/bounded"
 	"github.com/Azure/azure-container-networking/cns/wireserver"
 	acn "github.com/Azure/azure-container-networking/common"
+	nma "github.com/Azure/azure-container-networking/nmagent"
 	"github.com/Azure/azure-container-networking/store"
 	"github.com/pkg/errors"
 )
@@ -62,6 +63,9 @@ type HTTPRestService struct {
 	dncPartitionKey    string
 	EndpointState      map[string]*EndpointInfo // key : container id
 	EndpointStateStore store.KeyValueStore
+	nma                interface {
+		PutNetworkContainer(context.Context, *nma.PutNetworkContainerRequest) error
+	}
 }
 
 type EndpointInfo struct {

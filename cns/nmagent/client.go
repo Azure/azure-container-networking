@@ -106,37 +106,6 @@ func JoinNetwork(networkID string) (*http.Response, error) {
 	return response, err
 }
 
-// PublishNetworkContainer publishes given network container
-func PublishNetworkContainer(networkContainerID, associatedInterfaceID, accessToken string, requestBodyData []byte) (*http.Response, error) {
-	logger.Printf("[NMAgentClient] PublishNetworkContainer NC: %s", networkContainerID)
-
-	createNcTypeValue := fmt.Sprintf(
-		PutNetworkValueFmt,
-		associatedInterfaceID,
-		networkContainerID,
-		accessToken)
-
-	createURL := url.URL{
-		Host:   WireserverIP,
-		Path:   WireServerPath,
-		Scheme: WireServerScheme,
-	}
-
-	queryString := createURL.Query()
-	queryString.Set("type", createNcTypeValue)
-	queryString.Set("comp", "nmagent")
-
-	createURL.RawQuery = queryString.Encode()
-
-	requestBody := bytes.NewBuffer(requestBodyData)
-	response, err := common.PostCtx(context.TODO(), common.GetHttpClient(), createURL.String(), "application/json", requestBody)
-
-	logger.Printf("[NMAgentClient][Response] Publish NC: %s. Response: %+v. Error: %v",
-		networkContainerID, response, err)
-
-	return response, err
-}
-
 // UnpublishNetworkContainer unpublishes given network container
 func UnpublishNetworkContainer(networkContainerID, associatedInterfaceID, accessToken string) (*http.Response, error) {
 	logger.Printf("[NMAgentClient] UnpublishNetworkContainer NC: %s", networkContainerID)

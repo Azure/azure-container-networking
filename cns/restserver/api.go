@@ -1116,6 +1116,8 @@ func getAuthTokenAndInterfaceIDFromNcURL(networkContainerURL string) (*cns.Netwo
 func (service *HTTPRestService) publishNetworkContainer(w http.ResponseWriter, r *http.Request) {
 	logger.Printf("[Azure-CNS] PublishNetworkContainer")
 
+	ctx := r.Context()
+
 	var (
 		err                 error
 		req                 cns.PublishNetworkContainerRequest
@@ -1185,18 +1187,17 @@ func (service *HTTPRestService) publishNetworkContainer(w http.ResponseWriter, r
 		if isNetworkJoined {
 			// Publish Network Container
 
+			pncr := req.CreateNetworkContainerRequestBody
+			pncr.AuthenticationToken = ncParameters.AuthToken
+			pncr.PrimaryAddress = ncParameters.AssociatedInterfaceID
+
+			err := service.nma.PutNetworkContainer(ctx, &pncr)
 			// nolint:bodyclose // existing code needs refactoring
-			publishResponse, publishError = nmagent.PublishNetworkContainer(
-				req.NetworkContainerID,
-				ncParameters.AssociatedInterfaceID,
-				ncParameters.AuthToken,
-				req.CreateNetworkContainerRequestBody)
-			if publishError != nil || publishResponse.StatusCode != http.StatusOK {
+			if err != nil {
 				returnMessage = fmt.Sprintf("Failed to publish Network Container: %s", req.NetworkContainerID)
 				returnCode = types.NetworkContainerPublishFailed
 				logger.Errorf("[Azure-CNS] %s", returnMessage)
 			}
-			defer publishResponse.Body.Close()
 		}
 
 		// Store ncGetVersionURL needed for calling NMAgent to check if vfp programming is completed for the NC
