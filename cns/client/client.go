@@ -38,6 +38,7 @@ var clientPaths = []string{
 	cns.CreateOrUpdateNetworkContainer,
 	cns.SetOrchestratorType,
 	cns.NumberOfCPUCores,
+	cns.NMAgentSupportedAPIs,
 }
 
 type do interface {
