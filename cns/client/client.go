@@ -423,7 +423,7 @@ func (c *Client) GetHTTPServiceData(ctx context.Context) (*restserver.GetHTTPSer
 func (c *Client) NumOfCPUCores(ctx context.Context) (*cns.NumOfCPUCoresResponse, error) {
 	// build the request
 	u := c.routes[cns.NumberOfCPUCores]
-	req, err := http.NewRequest(http.MethodGet, u.String(), nil)
+	req, err := http.NewRequest(http.MethodGet, u.String(), http.NoBody)
 	if err != nil {
 		return nil, errors.Wrap(err, "building http request")
 	}
