@@ -22,7 +22,7 @@ const (
 	UnpublishNetworkContainer                = "/network/unpublishnetworkcontainer"
 	GetInterfaceForContainer                 = "/network/getinterfaceforcontainer"
 	GetNetworkContainerByOrchestratorContext = "/network/getnetworkcontainerbyorchestratorcontext"
-	CheckIfNetworkContainerExistInCNS        = "/network/checkifnetworkcontainerexistincns"
+	GetAllNetworkContainers                  = "/network/getallnetworkcontainers"
 	ReplenishNetworkContainer                = "/network/replenishnetworkcontainer"
 	AttachContainerToNetwork                 = "/network/attachcontainertonetwork"
 	DetachContainerFromNetwork               = "/network/detachcontainerfromnetwork"
@@ -353,17 +353,25 @@ type GetNetworkContainerStatusResponse struct {
 	Response           Response
 }
 
-// CheckNetworkContainerExistRequest specifies the details about the request to retrieve a specific network container.
-type CheckNetworkContainerExistRequest struct {
-	NetworkContainerID string
+// GetAllNetworkContainersRequest specifies the details about the request to retrieve all network containers on node.
+type GetAllNetworkContainersRequest struct {
+	NodeID string
 }
 
-// CheckNetworkContainerExistResponse checks if NetworkContainerID from DNC exist in CNS.
-type CheckNetworkContainerExistResponse struct {
-	NetworkContainerID    string
-	NetworkContainerExist bool
-	Version               string
-	Response              Response
+// GetAllNetworkContainersResponse returns all network containers' ID on node.
+type GetAllNetworkContainersResponse struct {
+	NetworkContainerIDs []string
+	Response            Response
+}
+
+type ReplenishNetworkContainerRequest struct {
+	DncEP     string
+	InfraVnet string
+	NodeID    string
+}
+
+type ReplenishNetworkContainerResponse struct {
+	Response Response
 }
 
 // GetNetworkContainerRequest specifies the details about the request to retrieve a specific network container.

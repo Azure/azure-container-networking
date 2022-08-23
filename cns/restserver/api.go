@@ -4,12 +4,14 @@
 package restserver
 
 import (
+	"bytes"
 	"context"
-	"errors"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"regexp"
 	"runtime"
@@ -23,6 +25,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/wireserver"
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/platform"
+	"github.com/pkg/errors"
 )
 
 var (
@@ -899,100 +902,139 @@ func (service *HTTPRestService) getNetworkContainerByOrchestratorContext(w http.
 	logger.Response(service.Name, getNetworkContainerResponse, returnCode, err)
 }
 
-// 1: Check if Network Container from DNC exist in CNS.
-func (service *HTTPRestService) checkIfNetworkContainerExistInCNS(w http.ResponseWriter, r *http.Request) {
-	logger.Printf("[Azure CNS] checkIfNetworkContainerExistInCNS")
+func (service *HTTPRestService) getAllNetworkContainers(w http.ResponseWriter, r *http.Request) {
+	logger.Printf("[Azure CNS] getAllNetworkContainers")
 
-	var req cns.CheckNetworkContainerExistRequest
+	var (
+		req           cns.GetAllNetworkContainersRequest
+		returnCode    types.ResponseCode
+		returnMessage string
+		nodeID        string
+	)
+
 	err := service.Listener.Decode(w, r, &req)
 	logger.Request(service.Name, &req, err)
 	if err != nil {
 		return
 	}
-	var returnCode types.ResponseCode
-	var returnMessage string
 
-	// Try to get the saved NC state if it exists
-	_, containerExists := service.getNetworkContainerDetails(req.NetworkContainerID)
-
-	if !containerExists {
-		returnCode = types.NotFound
-		returnMessage = fmt.Sprintf("[Azure CNS] This Network Container does not exist in CNS, need to refresh")
-	} else {
-		returnMessage = fmt.Sprintf("[Azure CNS] This Network Container is found in CNS")
+	nodeID = service.state.NodeID
+	if req.NodeID != nodeID {
+		returnMessage = fmt.Sprintf("[Azure CNS] Invalid request for node %s", nodeID)
+		returnCode = types.InvalidRequest
 	}
 
-	resp := cns.Response{
-		ReturnCode: returnCode,
-		Message:    returnMessage,
+	// Get all network containers' ID in CNS
+	networkContainerIDs := make([]string, len(service.state.ContainerStatus))
+	i := 0
+
+	for NcID := range service.state.ContainerStatus {
+		networkContainerIDs[i] = NcID
+		i++
 	}
 
-	reserveResp := &cns.CheckNetworkContainerExistResponse{
-		NetworkContainerExist: containerExists,
-		Response:              cns.Response{},
+	response := cns.GetAllNetworkContainersResponse{
+		NetworkContainerIDs: networkContainerIDs,
+		Response: cns.Response{
+			ReturnCode: returnCode,
+			Message:    returnMessage,
+		},
 	}
 
-	err = service.Listener.Encode(w, &reserveResp)
-	logger.Response(service.Name, reserveResp, resp.ReturnCode, err)
+	err = service.Listener.Encode(w, &response)
+	logger.Response(service.Name, response, response.Response.ReturnCode, err)
 }
 
-// 2: If the Network Container does not exist in CNS, then receive and store the GS for all the NCs for that node from DNC.
+// replenishNetworkContainer receives and stores the GS for all the NCs of node from DNC
 func (service *HTTPRestService) replenishNetworkContainer(w http.ResponseWriter, r *http.Request) {
 	logger.Printf("[Azure CNS] replenishNetworkContainer")
 
-	var req cns.CreateNetworkContainerRequest
-	err := service.Listener.Decode(w, r, &req)
-	logger.Request(service.Name, req.String(), err)
+	var (
+		req              cns.ReplenishNetworkContainerRequest
+		resp             *http.Response
+		nodeInfoResponse cns.NodeInfoResponse
+		body             []byte
+		httpClient       = common.GetHttpClient()
+		returnCode       types.ResponseCode
+		returnMessage    string
+	)
+
+	// Try to retrieve NodeInfoResponse from DNC
+	reqUrl := fmt.Sprintf(common.SyncNodeNetworkContainersURLFmt, req.DncEP, req.InfraVnet, req.NodeID, dncApiVersion)
+	request, _ := http.NewRequestWithContext(context.TODO(), http.MethodGet, reqUrl, nil)
+	resp, err := httpClient.Do(request)
+	if err == nil {
+		if resp.StatusCode == http.StatusOK {
+			err = json.NewDecoder(resp.Body).Decode(&nodeInfoResponse)
+		} else {
+			err = errors.Errorf("http err: %d", resp.StatusCode)
+		}
+
+		resp.Body.Close()
+	}
+
 	if err != nil {
+		returnCode = types.UnexpectedError
+		returnMessage = fmt.Sprintf("[Azure CNS] Failed to replenish NCs with error: %+v", err)
+		logger.Errorf(returnMessage)
 		return
 	}
 
-	var returnCode types.ResponseCode
-	var returnMessage string
+	var ncsToBeAdded = make(map[string]cns.CreateNetworkContainerRequest)
 
-	if req.NetworkContainerType == cns.WebApps {
-		// Try to get the saved nc state if it exists
-		existing, containerExists := service.getNetworkContainerDetails(req.NetworkContainerid)
-
-		// Create/update nc only if it doesn't exist, or it exists and the requested version is different from the saved version
-		if !containerExists || (containerExists && existing.VMVersion != req.Version) {
-			nc := service.networkContainer
-			if err = nc.Create(req); err != nil {
-				returnMessage = fmt.Sprintf("[Azure CNS] Error. replenishNetworkContainer failed %v", err.Error())
-				returnCode = types.UnexpectedError
-			}
-		}
-	} else if req.NetworkContainerType == cns.AzureContainerInstance {
-		// Try to get the saved nc state if it exists
-		existing, containerExists := service.getNetworkContainerDetails(req.NetworkContainerid)
-
-		// Create/update nc only if it doesn't exist, or it exists and the requested version is different from the saved version
-		if containerExists && existing.VMVersion != req.Version {
-			nc := service.networkContainer
-			netPluginConfig := service.getNetPluginDetails()
-			if err = nc.Update(req, netPluginConfig); err != nil {
-				returnMessage = fmt.Sprintf("[Azure CNS] Error. replenishNetworkContainer failed %v", err.Error())
-				returnCode = types.UnexpectedError
-			}
+	// Determine new NCs to be added
+	service.RLock()
+	for _, nc := range nodeInfoResponse.NetworkContainers {
+		ncID := nc.NetworkContainerid
+		if savedNc, exists := service.state.ContainerStatus[ncID]; !exists || savedNc.CreateNetworkContainerRequest.Version < nc.Version {
+			ncsToBeAdded[ncID] = nc
 		}
 	}
+	service.RUnlock()
 
-	returnCode, returnMessage = service.saveNetworkContainerGoalState(req)
+	// Check if the version is valid and save it to service state
+	for ncID, nc := range ncsToBeAdded {
+		var (
+			versionURL = fmt.Sprintf(nmagent.GetNetworkContainerVersionURLFmt,
+				nmagent.WireserverIP,
+				nc.PrimaryInterfaceIdentifier,
+				nc.NetworkContainerid,
+				nc.AuthorizationToken)
+			w = httptest.NewRecorder()
+		)
 
-	resp := cns.Response{
-		ReturnCode: returnCode,
-		Message:    returnMessage,
+		ncVersionURLs.Store(nc.NetworkContainerid, versionURL)
+		waitingForUpdate, _, _ := service.isNCWaitingForUpdate(nc.Version, nc.NetworkContainerid)
+
+		body, _ = json.Marshal(nc)
+		request, _ = http.NewRequest(http.MethodPost, "", bytes.NewBuffer(body))
+		request.Header.Set(common.ContentType, common.JsonContent)
+		service.createOrUpdateNetworkContainer(w, request)
+		if w.Result().StatusCode == http.StatusOK {
+			var resp cns.CreateNetworkContainerResponse
+			if err = json.Unmarshal(w.Body.Bytes(), &resp); err == nil && resp.Response.ReturnCode == types.Success {
+				service.Lock()
+				ncStatus := service.state.ContainerStatus[ncID]
+				ncStatus.VfpUpdateComplete = !waitingForUpdate
+				service.state.ContainerStatus[ncID] = ncStatus
+				service.Unlock()
+			}
+		}
 	}
 
-	reserveResp := &cns.CreateNetworkContainerResponse{Response: resp}
-	err = service.Listener.Encode(w, &reserveResp)
+	service.Lock()
+	service.saveState()
+	service.Unlock()
 
-	// If the NC was created successfully, log NC snapshot.
-	if returnCode == types.Success {
-		logNCSnapshot(req)
+	response := cns.GetAllNetworkContainersResponse{
+		Response: cns.Response{
+			ReturnCode: returnCode,
+			Message:    returnMessage,
+		},
 	}
 
-	logger.Response(service.Name, reserveResp, resp.ReturnCode, err)
+	err = service.Listener.Encode(w, &response)
+	logger.Response(service.Name, response, response.Response.ReturnCode, err)
 }
 
 func (service *HTTPRestService) deleteNetworkContainer(w http.ResponseWriter, r *http.Request) {
