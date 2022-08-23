@@ -727,7 +727,9 @@ func (c *Client) NMAgentSupportedAPIs(ctx context.Context) (*cns.NmAgentSupporte
 	defer resp.Body.Close()
 
 	if code := resp.StatusCode; code != http.StatusOK {
-		return nil, fmt.Errorf("http request failed: %s (%d)", http.StatusText(code), code)
+		return nil, &FailedHTTPRequest{
+			Code: code,
+		}
 	}
 
 	// decode response
