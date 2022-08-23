@@ -11,7 +11,7 @@ import (
 	"github.com/Azure/azure-container-networking/network"
 	cniSkel "github.com/containernetworking/cni/pkg/skel"
 	cniTypes "github.com/containernetworking/cni/pkg/types"
-	cniTypesCurr "github.com/containernetworking/cni/pkg/types/current"
+	cniTypesCurr "github.com/containernetworking/cni/pkg/types/100"
 	"github.com/stretchr/testify/require"
 )
 
@@ -97,7 +97,6 @@ func TestCNSIPAMInvoker_Add(t *testing.T) {
 			want: &cniTypesCurr.Result{
 				IPs: []*cniTypesCurr.IPConfig{
 					{
-						Version: "4",
 						Address: *getCIDRNotationForAddress("10.0.1.10/24"),
 						Gateway: net.ParseIP("10.0.0.1"),
 					},

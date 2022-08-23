@@ -13,7 +13,7 @@ import (
 	"time"
 
 	cniSkel "github.com/containernetworking/cni/pkg/skel"
-	cniTypesCurr "github.com/containernetworking/cni/pkg/types/current"
+	cniTypesCurr "github.com/containernetworking/cni/pkg/types/100"
 	"github.com/google/uuid"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
