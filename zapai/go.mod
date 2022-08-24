@@ -3,7 +3,7 @@ module github.com/Azure/azure-container-networking/zapai
 go 1.19
 
 require (
-	github.com/jsternberg/zap-logfmt v1.2.0
+	github.com/jsternberg/zap-logfmt v1.3.0
 	github.com/microsoft/ApplicationInsights-Go v0.4.4
 	github.com/pkg/errors v0.9.1
 	go.uber.org/zap v1.22.0
