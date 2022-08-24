@@ -36,6 +36,7 @@ type PolicyManagerCfg struct {
 }
 
 type PolicyMap struct {
+	sync.RWMutex
 	cache map[string]*NPMNetworkPolicy
 }
 
@@ -86,6 +87,9 @@ func (pMgr *PolicyManager) Reconcile() {
 }
 
 func (pMgr *PolicyManager) GetAllPolicies() []string {
+	pMgr.policyMap.RLock()
+	defer pMgr.policyMap.RUnlock()
+
 	policyKeys := make([]string, len(pMgr.policyMap.cache))
 	i := 0
 	for policyKey := range pMgr.policyMap.cache {
@@ -96,11 +100,17 @@ func (pMgr *PolicyManager) GetAllPolicies() []string {
 }
 
 func (pMgr *PolicyManager) PolicyExists(policyKey string) bool {
+	pMgr.policyMap.RLock()
+	defer pMgr.policyMap.RUnlock()
+
 	_, ok := pMgr.policyMap.cache[policyKey]
 	return ok
 }
 
 func (pMgr *PolicyManager) GetPolicy(policyKey string) (*NPMNetworkPolicy, bool) {
+	pMgr.policyMap.RLock()
+	defer pMgr.policyMap.RUnlock()
+
 	policy, ok := pMgr.policyMap.cache[policyKey]
 	return policy, ok
 }
@@ -117,6 +127,9 @@ func (pMgr *PolicyManager) AddPolicy(policy *NPMNetworkPolicy, endpointList map[
 		metrics.SendErrorLogAndMetric(util.IptmID, "error: %s", msg)
 		return npmerrors.Errorf(npmerrors.AddPolicy, false, msg)
 	}
+
+	pMgr.policyMap.Lock()
+	defer pMgr.policyMap.Unlock()
 
 	// Call actual dataplane function to apply changes
 	timer := metrics.StartNewTimer()
@@ -151,6 +164,10 @@ func (pMgr *PolicyManager) RemovePolicy(policyKey string, endpointList map[strin
 		klog.Infof("[DataPlane] No ACLs in policy %s to remove", policyKey)
 		return nil
 	}
+
+	pMgr.policyMap.Lock()
+	defer pMgr.policyMap.Unlock()
+
 	// Call actual dataplane function to apply changes
 	err := pMgr.removePolicy(policy, endpointList)
 	// currently we only have acl rule exec time for "adding" rules, so we skip recording here
