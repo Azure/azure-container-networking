@@ -1,6 +1,6 @@
 module github.com/Azure/azure-container-networking/zapai
 
-go 1.18
+go 1.19
 
 require (
 	github.com/jsternberg/zap-logfmt v1.2.0
