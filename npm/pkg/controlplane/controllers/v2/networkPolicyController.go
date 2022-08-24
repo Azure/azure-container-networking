@@ -311,6 +311,7 @@ func (c *NetworkPolicyController) syncAddAndUpdateNetPol(netPolObj *networkingv1
 	// DP update policy call will check if this policy already exists in kernel
 	// if yes: then will delete old rules and program new rules
 	// if no: then will program add new rules
+	klog.Infof("[syncAddAndUpdateNetPol] updating policy: %s", npmNetPolObj.PolicyKey)
 	err = c.dp.UpdatePolicy(npmNetPolObj)
 	if err != nil {
 		// if error occurred the key is re-queued in workqueue and process this function again,
@@ -335,6 +336,7 @@ func (c *NetworkPolicyController) cleanUpNetworkPolicy(netPolKey string) error {
 		return nil
 	}
 
+	klog.Infof("[syncAddAndUpdateNetPol] removing policy: %s", netPolKey)
 	err := c.dp.RemovePolicy(netPolKey)
 	if err != nil {
 		return fmt.Errorf("[cleanUpNetworkPolicy] Error: failed to remove policy due to %w", err)

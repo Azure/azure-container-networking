@@ -235,6 +235,7 @@ func (nsc *NamespaceController) syncNamespace(nsKey string) error {
 			klog.Infof("[syncNamespace] failed to sync namespace, but will apply any changes to the dataplane. err: %s", err.Error())
 		}
 
+		klog.Info("[syncNamespace] applying dataplane changes...")
 		dperr := nsc.dp.ApplyDataPlane()
 		klog.Infof("[syncNamespace] applied dataplane changes. worked: %v", dperr == nil)
 
