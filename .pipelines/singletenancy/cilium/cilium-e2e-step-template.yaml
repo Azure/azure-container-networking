@@ -68,16 +68,9 @@ steps:
       go install sigs.k8s.io/kubetest2/kubetest2-tester-ginkgo@latest
       wget https://storage.googleapis.com/pub/gsutil.tar.gz
       tar xfz gsutil.tar.gz
+      export PATH=${PATH}:~/gsutil
     name: "installKubetest"
     displayName: "Set up Conformance Tests"
-  
-  - script: |
-      echo "Run Service Conformance E2E"
-      KUBECONFIG=~/.kube/config kubetest2 noop \
-        --test ginkgo -- \
-        --focus-regex "Services.*\[Conformance\].*"
-    name: "servicesConformance"
-    displayName: "Run Services Conformance Tests"
 
   - script: |
       echo "Start Azilium E2E Tests"
@@ -103,6 +96,14 @@ steps:
       artifactName: test-output
       pathtoPublish: "$(Build.ArtifactStagingDirectory)/test-output"
     condition: always()
+
+  - script: |
+      echo "Run Service Conformance E2E"
+      KUBECONFIG=~/.kube/config kubetest2 noop \
+        --test ginkgo -- \
+        --focus-regex "Services.*\[Conformance\].*"
+    name: "servicesConformance"
+    displayName: "Run Services Conformance Tests"
 
   - script: |
       ARTIFACT_DIR=$(Build.ArtifactStagingDirectory)/test-output/
