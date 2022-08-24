@@ -36,8 +36,32 @@ type PolicyManagerCfg struct {
 }
 
 type PolicyMap struct {
-	sync.RWMutex
+	mutex sync.RWMutex
 	cache map[string]*NPMNetworkPolicy
+}
+
+func (m *PolicyMap) RLock() {
+	if util.IsWindowsDP() {
+		m.mutex.RLock()
+	}
+}
+
+func (m *PolicyMap) RUnlock() {
+	if util.IsWindowsDP() {
+		m.mutex.RUnlock()
+	}
+}
+
+func (m *PolicyMap) Lock() {
+	if util.IsWindowsDP() {
+		m.mutex.Lock()
+	}
+}
+
+func (m *PolicyMap) Unlock() {
+	if util.IsWindowsDP() {
+		m.mutex.Unlock()
+	}
 }
 
 type reconcileManager struct {
@@ -84,19 +108,6 @@ func (pMgr *PolicyManager) Bootup(epIDs []string) error {
 
 func (pMgr *PolicyManager) Reconcile() {
 	pMgr.reconcile()
-}
-
-func (pMgr *PolicyManager) GetAllPolicies() []string {
-	pMgr.policyMap.RLock()
-	defer pMgr.policyMap.RUnlock()
-
-	policyKeys := make([]string, len(pMgr.policyMap.cache))
-	i := 0
-	for policyKey := range pMgr.policyMap.cache {
-		policyKeys[i] = policyKey
-		i++
-	}
-	return policyKeys
 }
 
 func (pMgr *PolicyManager) PolicyExists(policyKey string) bool {

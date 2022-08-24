@@ -329,8 +329,9 @@ func (dp *DataPlane) GetAllIPSets() map[string]string {
 	return dp.ipsetMgr.GetAllIPSets()
 }
 
+// GetAllPolicies is deprecated and only used in the goalstateprocessor, which is deprecated
 func (dp *DataPlane) GetAllPolicies() []string {
-	return dp.policyMgr.GetAllPolicies()
+	return nil
 }
 
 func (dp *DataPlane) createIPSetsAndReferences(sets []*ipsets.TranslatedIPSet, netpolName string, referenceType ipsets.ReferenceType) error {
