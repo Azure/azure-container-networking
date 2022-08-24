@@ -338,6 +338,7 @@ func (iMgr *IPSetManager) modifySetPolicies(network *hcn.HostComputeNetwork, ope
 			Settings:     policyRequest,
 		}
 
+		klog.Infof("[IPSetManager Windows] modifying network settings. operation: %s, policyType: %s", operation, policyType)
 		err = iMgr.ioShim.Hns.ModifyNetworkSettings(network, requestMessage)
 		if err != nil {
 			klog.Infof("[IPSetManager Windows] %s operation has failed with error %s", operation, err.Error())
@@ -409,7 +410,6 @@ func getPolicyNetworkRequestMarshal(setPolicySettings map[string]*hcn.SetPolicyS
 				Settings: rawSettings,
 			},
 		)
-		klog.Infof("%s with name: %s is marshalled.", policyType, setPol.Name)
 	}
 
 	if len(policyNetworkRequest.Policies) == 0 {
