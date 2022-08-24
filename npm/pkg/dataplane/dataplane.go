@@ -2,6 +2,7 @@ package dataplane
 
 import (
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/Azure/azure-container-networking/common"
@@ -23,6 +24,15 @@ type Config struct {
 	*policies.PolicyManagerCfg
 }
 
+type updatePodCache struct {
+	sync.Mutex
+	cache map[string]*updateNPMPod
+}
+
+func newUpdatePodCache() *updatePodCache {
+	return &updatePodCache{cache: make(map[string]*updateNPMPod)}
+}
+
 type DataPlane struct {
 	*Config
 	policyMgr *policies.PolicyManager
@@ -33,7 +43,7 @@ type DataPlane struct {
 	// Key is PodIP
 	endpointCache  map[string]*npmEndpoint
 	ioShim         *common.IOShim
-	updatePodCache map[string]*updateNPMPod
+	updatePodCache *updatePodCache
 	// pendingPolicies includes the policy keys of policies which may
 	// be referenced by ipsets but have not been applied to the kernel yet
 	pendingPolicies map[string]struct{}
@@ -53,7 +63,7 @@ func NewDataPlane(nodeName string, ioShim *common.IOShim, cfg *Config, stopChann
 		endpointCache:   make(map[string]*npmEndpoint),
 		nodeName:        nodeName,
 		ioShim:          ioShim,
-		updatePodCache:  make(map[string]*updateNPMPod),
+		updatePodCache:  newUpdatePodCache(),
 		pendingPolicies: make(map[string]struct{}),
 		stopChannel:     stopChannel,
 	}
@@ -121,12 +131,19 @@ func (dp *DataPlane) AddToSets(setNames []*ipsets.IPSetMetadata, podMetadata *Po
 	}
 	if dp.shouldUpdatePod() {
 		klog.Infof("[DataPlane] Updating Sets to Add for pod key %s", podMetadata.PodKey)
-		if _, ok := dp.updatePodCache[podMetadata.PodKey]; !ok {
+
+		dp.updatePodCache.Lock()
+
+		updatePod, ok := dp.updatePodCache.cache[podMetadata.PodKey]
+		if !ok {
 			klog.Infof("[DataPlane] {AddToSet} pod key %s not found in updatePodCache. creating a new obj", podMetadata.PodKey)
-			dp.updatePodCache[podMetadata.PodKey] = newUpdateNPMPod(podMetadata)
+			updatePod = newUpdateNPMPod(podMetadata)
+			dp.updatePodCache.cache[podMetadata.PodKey] = updatePod
 		}
 
-		dp.updatePodCache[podMetadata.PodKey].updateIPSetsToAdd(setNames)
+		updatePod.updateIPSetsToAdd(setNames)
+
+		dp.updatePodCache.Unlock()
 	}
 
 	return nil
@@ -142,12 +159,19 @@ func (dp *DataPlane) RemoveFromSets(setNames []*ipsets.IPSetMetadata, podMetadat
 
 	if dp.shouldUpdatePod() {
 		klog.Infof("[DataPlane] Updating Sets to Remove for pod key %s", podMetadata.PodKey)
-		if _, ok := dp.updatePodCache[podMetadata.PodKey]; !ok {
+
+		dp.updatePodCache.Lock()
+
+		updatePod, ok := dp.updatePodCache.cache[podMetadata.PodKey]
+		if !ok {
 			klog.Infof("[DataPlane] {RemoveFromSet} pod key %s not found in updatePodCache. creating a new obj", podMetadata.PodKey)
-			dp.updatePodCache[podMetadata.PodKey] = newUpdateNPMPod(podMetadata)
+			updatePod = newUpdateNPMPod(podMetadata)
+			dp.updatePodCache.cache[podMetadata.PodKey] = updatePod
 		}
 
-		dp.updatePodCache[podMetadata.PodKey].updateIPSetsToRemove(setNames)
+		updatePod.updateIPSetsToRemove(setNames)
+
+		dp.updatePodCache.Unlock()
 	}
 
 	return nil
@@ -185,14 +209,18 @@ func (dp *DataPlane) ApplyDataPlane() error {
 	}
 
 	if dp.shouldUpdatePod() {
-		for podKey, pod := range dp.updatePodCache {
+		dp.updatePodCache.Lock()
+
+		for podKey, pod := range dp.updatePodCache.cache {
 			err := dp.updatePod(pod)
 			if err != nil {
 				metrics.SendErrorLogAndMetric(util.DaemonDataplaneID, "error: failed to update pods: %s", err.Error())
 				return fmt.Errorf("[DataPlane] error while updating pod: %w", err)
 			}
-			delete(dp.updatePodCache, podKey)
+			delete(dp.updatePodCache.cache, podKey)
 		}
+
+		dp.updatePodCache.Unlock()
 	}
 	return nil
 }
