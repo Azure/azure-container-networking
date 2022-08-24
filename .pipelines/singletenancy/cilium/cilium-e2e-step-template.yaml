@@ -68,10 +68,6 @@ steps:
       go install sigs.k8s.io/kubetest2/kubetest2-tester-ginkgo@latest
       wget https://storage.googleapis.com/pub/gsutil.tar.gz
       tar xfz gsutil.tar.gz
-      echo $PATH
-      export PATH=${PATH}:gsutil
-      echo "add gsutil to path"
-      echo $PATH
     name: "installKubetest"
     displayName: "Set up Conformance Tests"
 
@@ -104,7 +100,7 @@ steps:
       echo "Run Service Conformance E2E"
       echo $PATH
       export PATH=${PATH}:gsutil
-      export $PATH
+      echo $PATH
       KUBECONFIG=~/.kube/config kubetest2 noop \
         --test ginkgo -- \
         --focus-regex "Services.*\[Conformance\].*"
