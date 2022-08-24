@@ -69,6 +69,12 @@ type reconcileManager struct {
 	releaseLockSignal chan struct{}
 }
 
+// PolicyManager has two locks.
+// The PolicyMap lock is used only in Windows to prevent concurrent write access to the PolicyMap
+// from both the NetPol Controller thread and the PodController thread, accessed respectively from
+// dataplane.AddPolicy()/dataplane.RemovePolicy(), and dataplane.ApplyDataplane() --> dataplane.updatePod().
+// In Linux, the reconcileManager's lock is used to avoid iptables contention for adding/removing policies versus
+// background cleanup of stale, ineffective chains.
 type PolicyManager struct {
 	policyMap        *PolicyMap
 	ioShim           *common.IOShim

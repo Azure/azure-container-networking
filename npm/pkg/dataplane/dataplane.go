@@ -133,6 +133,7 @@ func (dp *DataPlane) AddToSets(setNames []*ipsets.IPSetMetadata, podMetadata *Po
 		klog.Infof("[DataPlane] Updating Sets to Add for pod key %s", podMetadata.PodKey)
 
 		dp.updatePodCache.Lock()
+		defer dp.updatePodCache.Unlock()
 
 		updatePod, ok := dp.updatePodCache.cache[podMetadata.PodKey]
 		if !ok {
@@ -142,8 +143,6 @@ func (dp *DataPlane) AddToSets(setNames []*ipsets.IPSetMetadata, podMetadata *Po
 		}
 
 		updatePod.updateIPSetsToAdd(setNames)
-
-		dp.updatePodCache.Unlock()
 	}
 
 	return nil
@@ -161,6 +160,7 @@ func (dp *DataPlane) RemoveFromSets(setNames []*ipsets.IPSetMetadata, podMetadat
 		klog.Infof("[DataPlane] Updating Sets to Remove for pod key %s", podMetadata.PodKey)
 
 		dp.updatePodCache.Lock()
+		defer dp.updatePodCache.Unlock()
 
 		updatePod, ok := dp.updatePodCache.cache[podMetadata.PodKey]
 		if !ok {
@@ -170,8 +170,6 @@ func (dp *DataPlane) RemoveFromSets(setNames []*ipsets.IPSetMetadata, podMetadat
 		}
 
 		updatePod.updateIPSetsToRemove(setNames)
-
-		dp.updatePodCache.Unlock()
 	}
 
 	return nil
@@ -210,6 +208,7 @@ func (dp *DataPlane) ApplyDataPlane() error {
 
 	if dp.shouldUpdatePod() {
 		dp.updatePodCache.Lock()
+		defer dp.updatePodCache.Unlock()
 
 		for podKey, pod := range dp.updatePodCache.cache {
 			err := dp.updatePod(pod)
@@ -219,8 +218,6 @@ func (dp *DataPlane) ApplyDataPlane() error {
 			}
 			delete(dp.updatePodCache.cache, podKey)
 		}
-
-		dp.updatePodCache.Unlock()
 	}
 	return nil
 }
