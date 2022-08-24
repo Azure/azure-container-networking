@@ -265,6 +265,7 @@ func (c *PodController) syncPod(key string) error {
 		}
 
 		dperr := c.dp.ApplyDataPlane()
+		klog.Infof("[syncPod] applied dataplane changes. worked: %v", dperr == nil)
 
 		// can't record this in another deferred func since deferred funcs are processed in LIFO order
 		metrics.RecordControllerPodExecTime(timer, operationKind, err != nil && dperr != nil)

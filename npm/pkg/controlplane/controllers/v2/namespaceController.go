@@ -236,6 +236,7 @@ func (nsc *NamespaceController) syncNamespace(nsKey string) error {
 		}
 
 		dperr := nsc.dp.ApplyDataPlane()
+		klog.Infof("[syncNamespace] applied dataplane changes. worked: %v", dperr == nil)
 
 		// NOTE: it may seem like Prometheus is considering some ns create events as updates.
 		// This happens when pod create events beat ns create events, so the pod controller will create the ipset

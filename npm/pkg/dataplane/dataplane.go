@@ -132,8 +132,13 @@ func (dp *DataPlane) AddToSets(setNames []*ipsets.IPSetMetadata, podMetadata *Po
 	if dp.shouldUpdatePod() {
 		klog.Infof("[DataPlane] Updating Sets to Add for pod key %s", podMetadata.PodKey)
 
+		klog.Infof("[DataPlane] locking updatePodCache for AddToSets") // FIXME remove
 		dp.updatePodCache.Lock()
-		defer dp.updatePodCache.Unlock()
+		// defer dp.updatePodCache.Unlock()
+		defer func() {
+			dp.updatePodCache.Unlock()
+			klog.Infof("[DataPlane] unlocked updatePodCache for AddToSets")
+		}()
 
 		updatePod, ok := dp.updatePodCache.cache[podMetadata.PodKey]
 		if !ok {
@@ -159,8 +164,13 @@ func (dp *DataPlane) RemoveFromSets(setNames []*ipsets.IPSetMetadata, podMetadat
 	if dp.shouldUpdatePod() {
 		klog.Infof("[DataPlane] Updating Sets to Remove for pod key %s", podMetadata.PodKey)
 
+		klog.Infof("[DataPlane] locking updatePodCache for RemoveFromSets") // FIXME remove
 		dp.updatePodCache.Lock()
-		defer dp.updatePodCache.Unlock()
+		// defer dp.updatePodCache.Unlock()
+		defer func() {
+			dp.updatePodCache.Unlock()
+			klog.Infof("[DataPlane] unlocked updatePodCache for RemoveFromSets")
+		}()
 
 		updatePod, ok := dp.updatePodCache.cache[podMetadata.PodKey]
 		if !ok {
@@ -207,8 +217,13 @@ func (dp *DataPlane) ApplyDataPlane() error {
 	}
 
 	if dp.shouldUpdatePod() {
+		klog.Infof("[DataPlane] locking updatePodCache for ApplyDataPlane") // FIXME remove
 		dp.updatePodCache.Lock()
-		defer dp.updatePodCache.Unlock()
+		// defer dp.updatePodCache.Unlock()
+		defer func() {
+			dp.updatePodCache.Unlock()
+			klog.Infof("[DataPlane] unlocked updatePodCache for ApplyDataPlane") // FIXME remove
+			}()
 
 		for podKey, pod := range dp.updatePodCache.cache {
 			err := dp.updatePod(pod)
