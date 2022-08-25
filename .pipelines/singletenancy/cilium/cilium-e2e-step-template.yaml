@@ -60,7 +60,9 @@ steps:
 
   - script: |
       echo "install kubetest2 and gsutils"
+      pwd
       cd /usr/local/bin
+      pwd
       go get github.com/onsi/ginkgo/ginkgo
       go get github.com/onsi/gomega/...
       go install github.com/onsi/ginkgo/ginkgo@latest
@@ -68,7 +70,7 @@ steps:
       go install sigs.k8s.io/kubetest2/kubetest2-noop@latest
       go install sigs.k8s.io/kubetest2/kubetest2-tester-ginkgo@latest
       wget https://storage.googleapis.com/pub/gsutil.tar.gz
-      tar xfz gsutil.tar.gz
+      sudo tar xfz gsutil.tar.gz
       ls
       cd
     name: "installKubetest"
