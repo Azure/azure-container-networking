@@ -23,6 +23,8 @@ stages:
               BUILD_NUMBER=$(Build.BuildNumber)
               echo "##vso[task.setvariable variable=StorageID;isOutput=true]$(echo ${BUILD_NUMBER//./-})"
               echo "##vso[task.setvariable variable=Tag;isOutput=true]$(make version)"
+              echo "##vso[task.setvariable variable=cniVersion;isOutput=true]$(make cni-version)"
+              echo "##vso[task.setvariable variable=npmVersion;isOutput=true]$(make npm-version)"
               cat /etc/os-release
               uname -a
               sudo chown -R $(whoami):$(whoami) .

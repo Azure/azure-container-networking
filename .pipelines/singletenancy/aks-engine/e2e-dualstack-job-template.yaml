@@ -28,9 +28,9 @@ stages:
           GOPATH: "$(Agent.TempDirectory)/go" # Go workspace path
           GOBIN: "$(GOPATH)/bin" # Go binaries path
           acnPath: "$(GOPATH)/src/github.com/Azure/azure-container-networking"
-          Tag: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
           CommitHash: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.CommitHash'] ]
           StorageID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.StorageID'] ]
+          cniVersion: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.cniVersion'] ]
         steps:
           - task: DownloadPipelineArtifact@2
             inputs:
@@ -39,15 +39,14 @@ stages:
               targetPath: $(Pipeline.Workspace)
           - bash: |
               ls -lah
-              export CNI_URL=https://$(ARTIFACT_STORAGE).blob.core.windows.net/acn-$(StorageID)/azure-vnet-cni-${{ parameters.clusterDefinitionCniBuildOS }}-amd64-$(Tag)${{ parameters.clusterDefinitionCniBuildExt }}
+              export CNI_URL=https://$(ARTIFACT_STORAGE).blob.core.windows.net/acn-$(StorageID)/azure-vnet-cni-${{ parameters.clusterDefinitionCniBuildOS }}-amd64-$(cniVersion)${{ parameters.clusterDefinitionCniBuildExt }}
               export CNI_TYPE=${{ parameters.clusterDefinitionCniTypeKey }}
               echo CNI type is $CNI_TYPE
-              echo Tag is $(Tag)
               echo CNI_URL is $CNI_URL
               echo Config: '${{ parameters.clusterDefinition }}'
               cat '${{ parameters.clusterDefinition }}'
               cat '${{ parameters.clusterDefinition }}' | jq --arg cnikey $CNI_TYPE --arg cniurl $CNI_URL '.properties.orchestratorProfile.kubernetesConfig[$cnikey]= $cniurl' > '${{ parameters.clusterDefinition }}'.tmp
-              cat '${{ parameters.clusterDefinition }}'.tmp | jq --arg tag $(Tag) '.properties.orchestratorProfile.kubernetesConfig.azureCNIVersion = $tag' > '${{ parameters.clusterDefinition }}'
+              cat '${{ parameters.clusterDefinition }}'.tmp | jq --arg ver $(cniVersion) '.properties.orchestratorProfile.kubernetesConfig.azureCNIVersion = $ver' > '${{ parameters.clusterDefinition }}'
               mv '${{ parameters.clusterDefinition }}'.tmp '${{ parameters.clusterDefinition }}'
               echo "Running E2E tests against a cluster built with the following API model:"
               cp ${{ parameters.clusterDefinition }} clusterDefinition.json
