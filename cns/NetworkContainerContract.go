@@ -29,8 +29,8 @@ const (
 	PathDebugIPAddresses                     = "/debug/ipaddresses"
 	PathDebugPodContext                      = "/debug/podcontext"
 	PathDebugRestData                        = "/debug/restdata"
-	NumberOfCPUCores                         = "/hostcpucores"
-	NMAgentSupportedAPIs                     = "/network/nmagentsupportedapis"
+	NumberOfCPUCores                         = NumberOfCPUCoresPath
+	NMAgentSupportedAPIs                     = NmAgentSupportedApisPath
 )
 
 // NetworkContainer Prefixes
