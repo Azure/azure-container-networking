@@ -83,6 +83,45 @@ stages:
             displayName: "Publish Code Coverage Results"
             condition: always()
 
+  - stage: test_windows
+    displayName: Test ACN Windows
+    dependsOn:
+      - setup
+    jobs:
+      - job: test
+        displayName: Run Tests
+        variables:
+          STORAGE_ID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.StorageID'] ]
+        pool:
+          name: "$(BUILD_POOL_NAME_DEFAULT_WINDOWS)"
+        steps:
+          - script: |
+              go test -buildvcs=false -tags ./npm/..
+            retryCountOnTaskFailure: 3
+            name: "TestWindows"
+            displayName: "Run Windows Tests"
+
+          - bash: |
+              build/tools/bin/gocov convert coverage.out > coverage.json
+              build/tools/bin/gocov-xml < coverage.json > coverage.xml
+            name: "Coverage"
+            displayName: "Generate Coverage Reports"
+            condition: always()
+
+          - task: PublishTestResults@2
+            inputs:
+              testRunner: JUnit
+              testResultsFiles: report.xml
+            displayName: "Publish Test Results"
+            condition: always()
+
+          - task: PublishCodeCoverageResults@1
+            inputs:
+              codeCoverageTool: Cobertura
+              summaryFileLocation: coverage.xml
+            displayName: "Publish Code Coverage Results"
+            condition: always()
+
   - stage: binaries
     displayName: Build Binaries
     dependsOn:
@@ -234,7 +273,7 @@ stages:
         strategy:
           matrix:
             acncli:
-              name: acncli 
+              name: acncli
               platforms: linux/amd64 linux/arm64
             cni_dropgz:
               name: cni-dropgz
@@ -250,7 +289,7 @@ stages:
             parameters:
               name: $(name)
               platforms: $(platforms)
-  
+
   - template: singletenancy/cilium/cilium-e2e-job-template.yaml
     parameters:
       name: "cilium_e2e"
