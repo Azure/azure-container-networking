@@ -94,6 +94,7 @@ stages:
           STORAGE_ID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.StorageID'] ]
         pool:
           name: "$(BUILD_POOL_NAME_DEFAULT_WINDOWS)"
+        container: golang:1.19.0-nanoserver-ltsc2022
         steps:
           - script: |
               go test -buildvcs=false -tags ./npm/..
