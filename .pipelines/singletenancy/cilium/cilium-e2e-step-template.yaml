@@ -60,6 +60,7 @@ steps:
 
   - script: |
       echo "install kubetest2 and gsutils"
+      cd /usr/local/bin
       go get github.com/onsi/ginkgo/ginkgo
       go get github.com/onsi/gomega/...
       go install github.com/onsi/ginkgo/ginkgo@latest
@@ -68,6 +69,8 @@ steps:
       go install sigs.k8s.io/kubetest2/kubetest2-tester-ginkgo@latest
       wget https://storage.googleapis.com/pub/gsutil.tar.gz
       tar xfz gsutil.tar.gz
+      ls
+      cd
     name: "installKubetest"
     displayName: "Set up Conformance Tests"
 
@@ -99,7 +102,7 @@ steps:
   - script: |
       echo "Run Service Conformance E2E"
       echo $PATH
-      export PATH=${PATH}:gsutil
+      export PATH=${PATH}:/usr/local/bin/gsutil
       echo $PATH
       KUBECONFIG=~/.kube/config kubetest2 noop \
         --test ginkgo -- \
