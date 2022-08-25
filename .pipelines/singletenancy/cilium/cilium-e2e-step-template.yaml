@@ -69,7 +69,8 @@ steps:
       go install sigs.k8s.io/kubetest2/kubetest2-tester-ginkgo@latest
       wget https://storage.googleapis.com/pub/gsutil.tar.gz
       tar xfz gsutil.tar.gz
-      sudo mv gsutil gingko kubetest2-noop kubetest2-tester-ginkgo kubetest2 /usr/local/bin
+      ls
+      sudo mv gsutil /usr/local/bin
     name: "installKubetest"
     displayName: "Set up Conformance Tests"
 
