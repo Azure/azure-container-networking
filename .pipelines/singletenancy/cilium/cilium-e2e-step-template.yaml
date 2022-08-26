@@ -76,7 +76,6 @@ steps:
       echo "Start Azilium E2E Tests"
       kubectl get po -owide -A
       sudo -E env "PATH=$PATH" VERSION=$(Tag) INSTALL_CNS=true INSTALL_AZILIUM=true make test-integration
-      kubectl get pod -owide -A
     retryCountOnTaskFailure: 3
     name: "aziliumTest"
     displayName: "Run Azilium E2E"
@@ -101,7 +100,6 @@ steps:
   - script: |
       echo "Run Service Conformance E2E"
       export PATH=${PATH}:/usr/local/bin/gsutil
-      kubectl get pod -owide -A
       KUBECONFIG=~/.kube/config kubetest2 noop \
         --test ginkgo -- \
         --focus-regex "Services.*\[Conformance\].*"
