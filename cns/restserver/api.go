@@ -21,6 +21,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/cns/wireserver"
 	"github.com/Azure/azure-container-networking/common"
+	nma "github.com/Azure/azure-container-networking/nmagent"
 	"github.com/Azure/azure-container-networking/platform"
 	"github.com/pkg/errors"
 )
@@ -1246,6 +1247,7 @@ func (service *HTTPRestService) publishNetworkContainer(w http.ResponseWriter, r
 // Unpublish Network Container by calling nmagent
 func (service *HTTPRestService) unpublishNetworkContainer(w http.ResponseWriter, r *http.Request) {
 	logger.Printf("[Azure-CNS] UnpublishNetworkContainer")
+	ctx := r.Context()
 
 	var (
 		err                   error
@@ -1313,27 +1315,17 @@ func (service *HTTPRestService) unpublishNetworkContainer(w http.ResponseWriter,
 		}
 
 		if isNetworkJoined {
-			// Unpublish Network Container
-			unpublishResponse, unpublishError = nmagent.UnpublishNetworkContainer(
-				req.NetworkContainerID,
-				ncParameters.AssociatedInterfaceID,
-				ncParameters.AuthToken)
-			if unpublishError != nil || unpublishResponse.StatusCode != http.StatusOK {
+			dcr := nma.DeleteContainerRequest{
+				NCID:                req.NetworkContainerID,
+				PrimaryAddress:      ncParameters.AssociatedInterfaceID,
+				AuthenticationToken: ncParameters.AuthToken,
+			}
+
+			err := service.nma.DeleteNetworkContainer(ctx, dcr)
+			if err != nil {
 				returnMessage = fmt.Sprintf("Failed to unpublish Network Container: %s", req.NetworkContainerID)
 				returnCode = types.NetworkContainerUnpublishFailed
 				logger.Errorf("[Azure-CNS] %s", returnMessage)
-			}
-
-			if unpublishResponse != nil {
-				var errParse error
-				unpublishResponseBody, errParse = io.ReadAll(unpublishResponse.Body)
-				if errParse != nil {
-					returnMessage = fmt.Sprintf("Failed to parse the unpublish body. Error: %v", errParse)
-					returnCode = types.UnexpectedError
-					logger.Errorf("[Azure-CNS] %s", returnMessage)
-				}
-
-				unpublishResponse.Body.Close()
 			}
 		}
 

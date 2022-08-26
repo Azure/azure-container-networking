@@ -65,6 +65,7 @@ type HTTPRestService struct {
 	EndpointStateStore store.KeyValueStore
 	nma                interface {
 		PutNetworkContainer(context.Context, *nma.PutNetworkContainerRequest) error
+		DeleteNetworkContainer(context.Context, nma.DeleteContainerRequest) error
 	}
 }
 

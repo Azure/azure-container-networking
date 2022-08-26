@@ -25,6 +25,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/nmagent"
 	"github.com/Azure/azure-container-networking/cns/types"
 	acncommon "github.com/Azure/azure-container-networking/common"
+	nma "github.com/Azure/azure-container-networking/nmagent"
 	"github.com/Azure/azure-container-networking/processlock"
 	"github.com/Azure/azure-container-networking/store"
 	"github.com/stretchr/testify/assert"
@@ -686,6 +687,15 @@ func publishNCViaCNS(t *testing.T,
 		resp cns.PublishNetworkContainerResponse
 	)
 
+	mnma := &MockNMAgent{
+		PutNetworkContainerF: func(_ context.Context, _ *nma.PutNetworkContainerRequest) error {
+			return nil
+		},
+	}
+
+	setMockNMAgent(svc, mnma)
+	defer setMockNMAgent(svc, nil)
+
 	joinNetworkURL := "http://" + nmagentEndpoint + "/dummyVnetURL"
 
 	publishNCRequest := &cns.PublishNetworkContainerRequest{
@@ -693,7 +703,7 @@ func publishNCViaCNS(t *testing.T,
 		NetworkContainerID:                networkContainerID,
 		JoinNetworkURL:                    joinNetworkURL,
 		CreateNetworkContainerURL:         createNetworkContainerURL,
-		CreateNetworkContainerRequestBody: make([]byte, 0),
+		CreateNetworkContainerRequestBody: nma.PutNetworkContainerRequest{},
 	}
 
 	json.NewEncoder(&body).Encode(publishNCRequest)
@@ -773,6 +783,15 @@ func testUnpublishNCViaCNS(t *testing.T,
 	if err != nil {
 		return fmt.Errorf("Failed to create unpublish request %w", err)
 	}
+
+	mnma := &MockNMAgent{
+		DeleteNetworkContainerF: func(_ context.Context, _ nma.DeleteContainerRequest) error {
+			return nil
+		},
+	}
+
+	setMockNMAgent(svc, mnma)
+	defer setMockNMAgent(svc, nil)
 
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)

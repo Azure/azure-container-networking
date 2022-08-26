@@ -106,39 +106,6 @@ func JoinNetwork(networkID string) (*http.Response, error) {
 	return response, err
 }
 
-// UnpublishNetworkContainer unpublishes given network container
-func UnpublishNetworkContainer(networkContainerID, associatedInterfaceID, accessToken string) (*http.Response, error) {
-	logger.Printf("[NMAgentClient] UnpublishNetworkContainer NC: %s", networkContainerID)
-
-	deleteNCTypeValue := fmt.Sprintf(
-		DeleteNetworkContainerURLFmt,
-		associatedInterfaceID,
-		networkContainerID,
-		accessToken)
-
-	deleteURL := url.URL{
-		Host:   WireserverIP,
-		Path:   WireServerPath,
-		Scheme: WireServerScheme,
-	}
-
-	queryString := deleteURL.Query()
-	queryString.Set("type", deleteNCTypeValue)
-	queryString.Set("comp", "nmagent")
-
-	deleteURL.RawQuery = queryString.Encode()
-
-	// Empty body is required as wireserver cannot handle a post without the body.
-	var body bytes.Buffer
-	json.NewEncoder(&body).Encode("")
-	response, err := common.PostCtx(context.TODO(), common.GetHttpClient(), deleteURL.String(), "application/json", &body)
-
-	logger.Printf("[NMAgentClient][Response] Unpublish NC: %s. Response: %+v. Error: %v",
-		networkContainerID, response, err)
-
-	return response, err
-}
-
 // GetNetworkContainerVersion :- Retrieves NC version from NMAgent
 func GetNetworkContainerVersion(networkContainerID, getNetworkContainerVersionURL string) (*http.Response, error) {
 	logger.Printf("[NMAgentClient] GetNetworkContainerVersion NC: %s", networkContainerID)
