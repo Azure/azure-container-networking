@@ -60,7 +60,6 @@ steps:
 
   - script: |
       echo "install kubetest2 and gsutils"
-      pwd
       go get github.com/onsi/ginkgo/ginkgo
       go get github.com/onsi/gomega/...
       go install github.com/onsi/ginkgo/ginkgo@latest
@@ -69,7 +68,6 @@ steps:
       go install sigs.k8s.io/kubetest2/kubetest2-tester-ginkgo@latest
       wget https://storage.googleapis.com/pub/gsutil.tar.gz
       tar xfz gsutil.tar.gz
-      ls
       sudo mv gsutil /usr/local/bin
     name: "installKubetest"
     displayName: "Set up Conformance Tests"
@@ -78,6 +76,7 @@ steps:
       echo "Start Azilium E2E Tests"
       kubectl get po -owide -A
       sudo -E env "PATH=$PATH" VERSION=$(Tag) INSTALL_CNS=true INSTALL_AZILIUM=true make test-integration
+      kubectl get pod -owide -A
     retryCountOnTaskFailure: 3
     name: "aziliumTest"
     displayName: "Run Azilium E2E"
@@ -101,9 +100,8 @@ steps:
 
   - script: |
       echo "Run Service Conformance E2E"
-      echo $PATH
       export PATH=${PATH}:/usr/local/bin/gsutil
-      echo $PATH
+      kubectl get pod -owide -A
       KUBECONFIG=~/.kube/config kubetest2 noop \
         --test ginkgo -- \
         --focus-regex "Services.*\[Conformance\].*"
