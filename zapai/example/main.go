@@ -76,7 +76,7 @@ func main() {
 	teecore := zapcore.NewTee(logfmtcore, jsoncore, aicore)
 
 	// reassign log using the teecore
-	log = zap.New(teecore)
+	log = zap.New(teecore, zap.AddCaller())
 
 	//(optional): add normalized fields for the built-in AI Tags
 	log = log.With(

@@ -5,6 +5,7 @@ import (
 	"github.com/microsoft/ApplicationInsights-Go/appinsights/contracts"
 	"github.com/pkg/errors"
 	"go.uber.org/zap/zapcore"
+	"sync"
 )
 
 var levelToSev = map[zapcore.Level]contracts.SeverityLevel{
@@ -31,6 +32,7 @@ type Core struct {
 	fieldMappers map[string]fieldTagMapper
 	fields       []zapcore.Field
 	out          zapcore.WriteSyncer
+	sync.Mutex
 }
 
 // NewCore creates a new appinsights zap core. Should only be initialized using an appinsights Sink as the
@@ -76,6 +78,8 @@ func (c *Core) Check(entry zapcore.Entry, checked *zapcore.CheckedEntry) *zapcor
 // Write implements zapcore.Core
 //nolint:gocritic // ignore hugeparam in interface impl
 func (c *Core) Write(entry zapcore.Entry, fields []zapcore.Field) error {
+	c.Lock()
+	defer c.Unlock()
 	t := appinsights.NewTraceTelemetry(entry.Message, levelToSev[entry.Level])
 
 	// add fields from core
@@ -83,6 +87,11 @@ func (c *Core) Write(entry zapcore.Entry, fields []zapcore.Field) error {
 
 	// reset the traceTelemetry in encoder
 	c.enc.setTraceTelemetry(t)
+
+	// set caller
+	if entry.Caller.Defined {
+		t.Properties["caller"] = entry.Caller.String()
+	}
 
 	// set fields
 	for i := range fields {
