@@ -18,6 +18,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/cns/wireserver"
 	acn "github.com/Azure/azure-container-networking/common"
+	nma "github.com/Azure/azure-container-networking/nmagent"
 	"github.com/Azure/azure-container-networking/platform"
 	"github.com/Azure/azure-container-networking/store"
 	"github.com/pkg/errors"
@@ -645,19 +646,21 @@ func (service *HTTPRestService) setNetworkStateJoined(networkID string) {
 // Join Network by calling nmagent
 func (service *HTTPRestService) joinNetwork(
 	networkID string,
-) (*http.Response, error, error) {
-	var err error
-	joinResponse, joinErr := nmagent.JoinNetwork(networkID)
-
-	if joinErr == nil && joinResponse.StatusCode == http.StatusOK {
-		// Network joined successfully
-		service.setNetworkStateJoined(networkID)
-		logger.Printf("[Azure-CNS] setNetworkStateJoined for network: %s", networkID)
-	} else {
-		err = fmt.Errorf("Failed to join network: %s", networkID)
+) error {
+	jnr := nma.JoinNetworkRequest{
+		NetworkID: networkID,
 	}
 
-	return joinResponse, joinErr, err
+	err := service.nma.JoinNetwork(context.TODO(), jnr)
+	if err != nil {
+		return err
+	}
+
+	// Network joined successfully
+	service.setNetworkStateJoined(networkID)
+	logger.Printf("[Azure-CNS] setNetworkStateJoined for network: %s", networkID)
+
+	return nil
 }
 
 func logNCSnapshot(createNetworkContainerRequest cns.CreateNetworkContainerRequest) {

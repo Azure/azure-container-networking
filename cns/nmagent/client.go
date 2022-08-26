@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 	"time"
 
 	"github.com/Azure/azure-container-networking/cns/logger"
@@ -68,42 +67,6 @@ func NewClient(url string) (*Client, error) {
 	return &Client{
 		connectionURL: url,
 	}, nil
-}
-
-// JoinNetwork joins the given network
-func JoinNetwork(networkID string) (*http.Response, error) {
-	logger.Printf("[NMAgentClient] JoinNetwork: %s", networkID)
-
-	// Empty body is required as wireserver cannot handle a post without the body.
-	var body bytes.Buffer
-	json.NewEncoder(&body).Encode("")
-
-	joinNetworkTypeValue := fmt.Sprintf(
-		JoinNetworkURLFmt,
-		networkID)
-
-	joinNetworkURL := url.URL{
-		Host:   WireserverIP,
-		Path:   WireServerPath,
-		Scheme: WireServerScheme,
-	}
-
-	queryString := joinNetworkURL.Query()
-	queryString.Set("type", joinNetworkTypeValue)
-	queryString.Set("comp", "nmagent")
-
-	joinNetworkURL.RawQuery = queryString.Encode()
-
-	response, err := common.PostCtx(context.TODO(), common.GetHttpClient(), joinNetworkURL.String(), "application/json", &body)
-
-	if err == nil && response.StatusCode == http.StatusOK {
-		defer response.Body.Close()
-	}
-
-	logger.Printf("[NMAgentClient][Response] Join network: %s. Response: %+v. Error: %v",
-		networkID, response, err)
-
-	return response, err
 }
 
 // GetNetworkContainerVersion :- Retrieves NC version from NMAgent

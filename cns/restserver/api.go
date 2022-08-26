@@ -6,7 +6,6 @@ package restserver
 import (
 	"context"
 	"fmt"
-	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -1124,10 +1123,8 @@ func (service *HTTPRestService) publishNetworkContainer(w http.ResponseWriter, r
 		req                 cns.PublishNetworkContainerRequest
 		returnCode          types.ResponseCode
 		returnMessage       string
-		publishResponse     *http.Response
 		publishStatusCode   int
 		publishResponseBody []byte
-		publishError        error
 		publishErrorStr     string
 		isNetworkJoined     bool
 	)
@@ -1177,12 +1174,17 @@ func (service *HTTPRestService) publishNetworkContainer(w http.ResponseWriter, r
 		// Please refactor this
 		// do not reuse the below variable between network join and publish
 		// nolint:bodyclose // existing code needs refactoring
-		publishResponse, publishError, err = service.joinNetwork(req.NetworkID)
-		if err == nil {
-			isNetworkJoined = true
-		} else {
+		err := service.joinNetwork(req.NetworkID)
+		if err != nil {
 			returnMessage = err.Error()
 			returnCode = types.NetworkJoinFailed
+			publishErrorStr = err.Error()
+
+			if nmaErr, ok := err.(nma.Error); ok {
+				publishStatusCode = nmaErr.StatusCode()
+			}
+		} else {
+			isNetworkJoined = true
 		}
 
 		if isNetworkJoined {
@@ -1214,22 +1216,6 @@ func (service *HTTPRestService) publishNetworkContainer(w http.ResponseWriter, r
 		returnCode = types.UnsupportedVerb
 	}
 
-	if publishError != nil {
-		publishErrorStr = publishError.Error()
-	}
-
-	if publishResponse != nil {
-		publishStatusCode = publishResponse.StatusCode
-
-		var errParse error
-		publishResponseBody, errParse = io.ReadAll(publishResponse.Body)
-		if errParse != nil {
-			returnMessage = fmt.Sprintf("Failed to parse the publish body. Error: %v", errParse)
-			returnCode = types.UnexpectedError
-			logger.Errorf("[Azure-CNS] %s", returnMessage)
-		}
-	}
-
 	response := cns.PublishNetworkContainerResponse{
 		Response: cns.Response{
 			ReturnCode: returnCode,
@@ -1250,19 +1236,16 @@ func (service *HTTPRestService) unpublishNetworkContainer(w http.ResponseWriter,
 	ctx := r.Context()
 
 	var (
-		err                   error
 		req                   cns.UnpublishNetworkContainerRequest
 		returnCode            types.ResponseCode
 		returnMessage         string
-		unpublishResponse     *http.Response
 		unpublishStatusCode   int
 		unpublishResponseBody []byte
-		unpublishError        error
 		unpublishErrorStr     string
 		isNetworkJoined       bool
 	)
 
-	err = service.Listener.Decode(w, r, &req)
+	err := service.Listener.Decode(w, r, &req)
 
 	deleteNcURLCopy := req.DeleteNetworkContainerURL
 
@@ -1305,12 +1288,18 @@ func (service *HTTPRestService) unpublishNetworkContainer(w http.ResponseWriter,
 		isNetworkJoined = service.isNetworkJoined(req.NetworkID)
 		if !isNetworkJoined {
 			// nolint:bodyclose // existing code needs refactoring
-			unpublishResponse, unpublishError, err = service.joinNetwork(req.NetworkID)
-			if err == nil {
-				isNetworkJoined = true
-			} else {
+			err = service.joinNetwork(req.NetworkID)
+			if err != nil {
 				returnMessage = err.Error()
 				returnCode = types.NetworkJoinFailed
+				unpublishErrorStr = err.Error()
+
+				if nmaErr, ok := err.(nma.Error); ok {
+					unpublishStatusCode = nmaErr.StatusCode()
+				}
+
+			} else {
+				isNetworkJoined = true
 			}
 		}
 
@@ -1334,14 +1323,6 @@ func (service *HTTPRestService) unpublishNetworkContainer(w http.ResponseWriter,
 	default:
 		returnMessage = "UnpublishNetworkContainer API expects a POST"
 		returnCode = types.UnsupportedVerb
-	}
-
-	if unpublishError != nil {
-		unpublishErrorStr = unpublishError.Error()
-	}
-
-	if unpublishResponse != nil {
-		unpublishStatusCode = unpublishResponse.StatusCode
 	}
 
 	response := cns.UnpublishNetworkContainerResponse{

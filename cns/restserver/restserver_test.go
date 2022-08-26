@@ -15,6 +15,7 @@ func setMockNMAgent(h *HTTPRestService, m *MockNMAgent) {
 type MockNMAgent struct {
 	PutNetworkContainerF    func(context.Context, *nmagent.PutNetworkContainerRequest) error
 	DeleteNetworkContainerF func(context.Context, nmagent.DeleteContainerRequest) error
+	JoinNetworkF            func(context.Context, nmagent.JoinNetworkRequest) error
 }
 
 func (m *MockNMAgent) PutNetworkContainer(ctx context.Context, pncr *nmagent.PutNetworkContainerRequest) error {
@@ -23,4 +24,8 @@ func (m *MockNMAgent) PutNetworkContainer(ctx context.Context, pncr *nmagent.Put
 
 func (m *MockNMAgent) DeleteNetworkContainer(ctx context.Context, dcr nmagent.DeleteContainerRequest) error {
 	return m.DeleteNetworkContainerF(ctx, dcr)
+}
+
+func (m *MockNMAgent) JoinNetwork(ctx context.Context, jnr nmagent.JoinNetworkRequest) error {
+	return m.JoinNetworkF(ctx, jnr)
 }

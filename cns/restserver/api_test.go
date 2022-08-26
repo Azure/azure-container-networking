@@ -691,6 +691,9 @@ func publishNCViaCNS(t *testing.T,
 		PutNetworkContainerF: func(_ context.Context, _ *nma.PutNetworkContainerRequest) error {
 			return nil
 		},
+		JoinNetworkF: func(_ context.Context, _ nma.JoinNetworkRequest) error {
+			return nil
+		},
 	}
 
 	setMockNMAgent(svc, mnma)
@@ -786,6 +789,9 @@ func testUnpublishNCViaCNS(t *testing.T,
 
 	mnma := &MockNMAgent{
 		DeleteNetworkContainerF: func(_ context.Context, _ nma.DeleteContainerRequest) error {
+			return nil
+		},
+		JoinNetworkF: func(_ context.Context, _ nma.JoinNetworkRequest) error {
 			return nil
 		},
 	}
