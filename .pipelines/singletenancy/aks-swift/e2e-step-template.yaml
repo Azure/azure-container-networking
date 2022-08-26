@@ -39,7 +39,7 @@ steps:
     displayName: Create test cluster
     condition: succeeded()
 
-    - script: |
+  - script: |
       echo "install kubetest2 and gsutils"
       go get github.com/onsi/ginkgo/ginkgo
       go get github.com/onsi/gomega/...
