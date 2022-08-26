@@ -180,9 +180,10 @@ func installCNSDaemonset(ctx context.Context, clientset *kubernetes.Clientset, i
 		if err := exportLogsByLabelSelector(ctx, clientset, cns.Namespace, cnsLabelSelector, logDir); err != nil {
 			return err
 		}
-		if err := mustDeleteDaemonset(ctx, cnsDaemonsetClient, cns); err != nil {
-			return err
-		}
+		// skip Daemonset deletion for conformance tests
+		// if err := mustDeleteDaemonset(ctx, cnsDaemonsetClient, cns); err != nil {
+		// 	return err
+		// }
 		return nil
 	}
 
