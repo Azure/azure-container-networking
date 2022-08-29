@@ -1,10 +1,8 @@
 package nmagent
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
-	"encoding/xml"
 	"fmt"
 	"io"
 	"net/http"
@@ -38,10 +36,6 @@ type NetworkContainerResponse struct {
 	ResponseCode       string `json:"httpStatusCode"`
 	NetworkContainerID string `json:"networkContainerId"`
 	Version            string `json:"version"`
-}
-
-type SupportedAPIsResponseXML struct {
-	SupportedApis []string `xml:"type"`
 }
 
 type ContainerInfo struct {
@@ -78,61 +72,6 @@ func GetNetworkContainerVersion(networkContainerID, getNetworkContainerVersionUR
 	logger.Printf("[NMAgentClient][Response] GetNetworkContainerVersion NC: %s. Response: %+v. Error: %v",
 		networkContainerID, response, err)
 	return response, err
-}
-
-// GetNmAgentSupportedApis :- Retrieves Supported Apis from NMAgent
-func GetNmAgentSupportedApis(httpc *http.Client, getNmAgentSupportedApisURL string) ([]string, error) {
-	var returnErr error
-
-	if getNmAgentSupportedApisURL == "" {
-		getNmAgentSupportedApisURL = fmt.Sprintf(
-			GetNmAgentSupportedApiURLFmt, WireserverIP)
-	}
-
-	req, err := http.NewRequestWithContext(context.TODO(), http.MethodGet, getNmAgentSupportedApisURL, nil)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to build request")
-	}
-
-	resp, err := httpc.Do(req)
-	if err != nil {
-		returnErr = fmt.Errorf(
-			"Failed to retrieve Supported Apis from NMAgent with error %v",
-			err.Error())
-		logger.Errorf("[Azure-CNS] %s", returnErr)
-		return nil, returnErr
-	}
-	if resp == nil {
-		returnErr = fmt.Errorf(
-			"Response from getNmAgentSupportedApis call is <nil>")
-		logger.Errorf("[Azure-CNS] %s", returnErr)
-		return nil, returnErr
-	}
-	defer resp.Body.Close()
-	b, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to read response body")
-	}
-	if resp.StatusCode != http.StatusOK {
-		returnErr = fmt.Errorf(
-			"Failed to retrieve Supported Apis from NMAgent with StatusCode: %d",
-			resp.StatusCode)
-		logger.Errorf("[Azure-CNS] %s", returnErr)
-		return nil, returnErr
-	}
-
-	var xmlDoc SupportedAPIsResponseXML
-	err = xml.NewDecoder(bytes.NewReader(b)).Decode(&xmlDoc)
-	if err != nil {
-		returnErr = fmt.Errorf(
-			"Failed to decode XML response of Supported Apis from NMAgent with error %v",
-			err.Error())
-		logger.Errorf("[Azure-CNS] %s", returnErr)
-		return nil, returnErr
-	}
-
-	logger.Printf("[NMAgentClient][Response] GetNmAgentSupportedApis. Response: %+v.", resp)
-	return xmlDoc.SupportedApis, nil
 }
 
 // GetNCVersionList query nmagent for programmed container versions.

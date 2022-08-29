@@ -67,6 +67,7 @@ type HTTPRestService struct {
 		PutNetworkContainer(context.Context, *nma.PutNetworkContainerRequest) error
 		DeleteNetworkContainer(context.Context, nma.DeleteContainerRequest) error
 		JoinNetwork(context.Context, nma.JoinNetworkRequest) error
+		SupportedAPIs(context.Context) ([]string, error)
 	}
 }
 

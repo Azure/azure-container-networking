@@ -432,3 +432,62 @@ func TestNMAgentDeleteNC(t *testing.T) {
 		})
 	}
 }
+
+func TestNMAgentSupportedAPIs(t *testing.T) {
+	tests := []struct {
+		name      string
+		exp       []string
+		expPath   string
+		resp      string
+		shouldErr bool
+	}{
+		{
+			"empty",
+			nil,
+			"/machine/plugins/?comp=nmagent&type=network/nmagentsupportedapis",
+			"<SupportedAPIsResponseXML></SupportedAPIsResponseXML>",
+			false,
+		},
+		{
+			"happy",
+			[]string{"foo"},
+			"/machine/plugins/?comp=nmagent&type=network/nmagentsupportedapis",
+			"<SupportedAPIsResponseXML><type>foo</type></SupportedAPIsResponseXML>",
+			false,
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			var gotPath string
+			client := nmagent.NewTestClient(&TestTripper{
+				RoundTripF: func(req *http.Request) (*http.Response, error) {
+					gotPath = req.URL.Path
+					rr := httptest.NewRecorder()
+					_, _ = rr.WriteString(test.resp)
+					return rr.Result(), nil
+				},
+			})
+
+			got, err := client.SupportedAPIs(context.Background())
+			if err != nil && !test.shouldErr {
+				t.Fatal("unexpected error: err:", err)
+			}
+
+			if err == nil && test.shouldErr {
+				t.Fatal("expected error but received none")
+			}
+
+			if gotPath != test.expPath {
+				t.Error("paths differ: got:", gotPath, "exp:", test.expPath)
+			}
+
+			if !cmp.Equal(got, test.exp) {
+				t.Error("response differs from expectation: diff:", cmp.Diff(got, test.exp))
+			}
+		})
+	}
+}

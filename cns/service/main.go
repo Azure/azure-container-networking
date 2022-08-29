@@ -45,6 +45,7 @@ import (
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 	"github.com/Azure/azure-container-networking/log"
+	nma "github.com/Azure/azure-container-networking/nmagent"
 	"github.com/Azure/azure-container-networking/platform"
 	"github.com/Azure/azure-container-networking/processlock"
 	localtls "github.com/Azure/azure-container-networking/server/tls"
@@ -312,8 +313,12 @@ func printVersion() {
 	fmt.Printf("Version %v\n", version)
 }
 
+type NodeInquirer interface {
+	SupportedAPIs(context.Context) ([]string, error)
+}
+
 // RegisterNode - Tries to register node with DNC when CNS is started in managed DNC mode
-func registerNode(httpc *http.Client, httpRestService cns.HTTPService, dncEP, infraVnet, nodeID string) error {
+func registerNode(httpc *http.Client, httpRestService cns.HTTPService, dncEP, infraVnet, nodeID string, ni NodeInquirer) error {
 	logger.Printf("[Azure CNS] Registering node %s with Infrastructure Network: %s PrivateEndpoint: %s", nodeID, infraVnet, dncEP)
 
 	var (
@@ -323,7 +328,7 @@ func registerNode(httpc *http.Client, httpRestService cns.HTTPService, dncEP, in
 	)
 
 	nodeRegisterRequest.NumCores = numCPU
-	supportedApis, retErr := nmagent.GetNmAgentSupportedApis(httpc, "")
+	supportedApis, retErr := ni.SupportedAPIs(context.TODO())
 
 	if retErr != nil {
 		logger.Errorf("[Azure CNS] Failed to retrieve SupportedApis from NMagent of node %s with Infrastructure Network: %s PrivateEndpoint: %s",
@@ -461,6 +466,18 @@ func main() {
 			os.Exit(1)
 		}
 		os.Exit(0)
+	}
+
+	// create an NMAgent Client
+	nmaClient, err := nma.NewClient(nma.Config{
+		Host: "168.63.129.16", // wireserver
+
+		// nolint:gomnd // there's no benefit to constantizing a well-known port
+		Port: 80,
+	})
+	if err != nil {
+		fmt.Println(err)
+		os.Exit(1)
 	}
 
 	if !telemetryEnabled {
@@ -709,7 +726,7 @@ func main() {
 		httpRestService.SetOption(acn.OptInfrastructureNetworkID, infravnet)
 		httpRestService.SetOption(acn.OptNodeID, nodeID)
 
-		registerErr := registerNode(acn.GetHttpClient(), httpRestService, privateEndpoint, infravnet, nodeID)
+		registerErr := registerNode(acn.GetHttpClient(), httpRestService, privateEndpoint, infravnet, nodeID, nmaClient)
 		if registerErr != nil {
 			logger.Errorf("[Azure CNS] Resgistering Node failed with error: %v PrivateEndpoint: %s InfrastructureNetworkID: %s NodeID: %s",
 				registerErr,

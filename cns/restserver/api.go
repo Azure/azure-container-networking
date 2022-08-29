@@ -19,7 +19,6 @@ import (
 	"github.com/Azure/azure-container-networking/cns/nmagent"
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/cns/wireserver"
-	"github.com/Azure/azure-container-networking/common"
 	nma "github.com/Azure/azure-container-networking/nmagent"
 	"github.com/Azure/azure-container-networking/platform"
 	"github.com/pkg/errors"
@@ -1448,6 +1447,8 @@ func (service *HTTPRestService) nmAgentSupportedApisHandler(w http.ResponseWrite
 		supportedApis []string
 	)
 
+	ctx := r.Context()
+
 	err = service.Listener.Decode(w, r, &req)
 	logger.Request(service.Name, &req, err)
 	if err != nil {
@@ -1456,15 +1457,12 @@ func (service *HTTPRestService) nmAgentSupportedApisHandler(w http.ResponseWrite
 
 	switch r.Method {
 	case http.MethodPost:
-		supportedApis, retErr = nmagent.GetNmAgentSupportedApis(common.GetHttpClient(),
-			req.GetNmAgentSupportedApisURL)
-		if retErr != nil {
+		apis, err := service.nma.SupportedAPIs(ctx)
+		if err != nil {
 			returnCode = types.NmAgentSupportedApisError
 			returnMessage = fmt.Sprintf("[Azure-CNS] %s", retErr.Error())
 		}
-		if supportedApis == nil {
-			supportedApis = []string{}
-		}
+		supportedApis = apis
 
 	default:
 		returnMessage = "[Azure-CNS] NmAgentSupported API list expects a POST method."

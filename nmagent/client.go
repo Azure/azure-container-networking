@@ -3,6 +3,7 @@ package nmagent
 import (
 	"context"
 	"encoding/json"
+	"encoding/xml"
 	"io"
 	"net"
 	"net/http"
@@ -131,6 +132,30 @@ func (c *Client) PutNetworkContainer(ctx context.Context, pncr *PutNetworkContai
 		return die(resp.StatusCode, resp.Header, resp.Body)
 	}
 	return nil
+}
+
+// SupportedAPIs retrieves the capabilities of the nmagent running on
+// the node. This is useful for detecting if GRE Keys are supported.
+func (c *Client) SupportedAPIs(ctx context.Context) ([]string, error) {
+	sar := &SupportedAPIsRequest{}
+	req, err := c.buildRequest(ctx, sar)
+	if err != nil {
+		return nil, errors.Wrap(err, "building request")
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, errors.Wrap(err, "submitting request")
+	}
+	defer resp.Body.Close()
+
+	var out SupportedAPIsResponseXML
+	err = xml.NewDecoder(resp.Body).Decode(&out)
+	if err != nil {
+		return nil, errors.Wrap(err, "decoding response")
+	}
+
+	return out.SupportedApis, nil
 }
 
 // DeleteNetworkContainer removes a Network Container, its associated IP

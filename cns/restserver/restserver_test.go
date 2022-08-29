@@ -16,6 +16,7 @@ type MockNMAgent struct {
 	PutNetworkContainerF    func(context.Context, *nmagent.PutNetworkContainerRequest) error
 	DeleteNetworkContainerF func(context.Context, nmagent.DeleteContainerRequest) error
 	JoinNetworkF            func(context.Context, nmagent.JoinNetworkRequest) error
+	SupportedAPIsF          func(context.Context) ([]string, error)
 }
 
 func (m *MockNMAgent) PutNetworkContainer(ctx context.Context, pncr *nmagent.PutNetworkContainerRequest) error {
@@ -28,4 +29,8 @@ func (m *MockNMAgent) DeleteNetworkContainer(ctx context.Context, dcr nmagent.De
 
 func (m *MockNMAgent) JoinNetwork(ctx context.Context, jnr nmagent.JoinNetworkRequest) error {
 	return m.JoinNetworkF(ctx, jnr)
+}
+
+func (m *MockNMAgent) SupportedAPIs(ctx context.Context) ([]string, error) {
+	return m.SupportedAPIsF(ctx)
 }

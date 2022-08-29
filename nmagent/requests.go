@@ -282,3 +282,31 @@ func (g GetNetworkConfigRequest) Validate() error {
 	}
 	return err
 }
+
+var _ Request = &SupportedAPIsRequest{}
+
+// SupportedAPIsRequest is a collection of parameters necessary to submit a
+// valid request to retrieve the supported APIs from an NMAgent instance.
+type SupportedAPIsRequest struct{}
+
+// Body is a no-op method to satisfy the Request interface while indicating
+// that there is no body for a SupportedAPIs Request.
+func (s *SupportedAPIsRequest) Body() (io.Reader, error) {
+	return nil, nil
+}
+
+// Method indicates that SupportedAPIs requests are GET requests.
+func (s *SupportedAPIsRequest) Method() string {
+	return http.MethodGet
+}
+
+// Path returns the necessary URI path for invoking a supported APIs request.
+func (s *SupportedAPIsRequest) Path() string {
+	return "/network/nmagentsupportedapis"
+}
+
+// Validate is a no-op method because SupportedAPIsRequests have no parameters,
+// and therefore can never be invalid.
+func (s *SupportedAPIsRequest) Validate() error {
+	return nil
+}
