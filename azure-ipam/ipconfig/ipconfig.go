@@ -32,6 +32,7 @@ func CreateIPConfigReq(args *cniSkel.CmdArgs) (cns.IPConfigRequest, error) {
 		PodInterfaceID:      args.ContainerID,
 		InfraContainerID:    args.ContainerID,
 		OrchestratorContext: orchestratorContext,
+		Ifname:              args.IfName,
 	}
 
 	return req, nil

@@ -72,7 +72,7 @@ func (f *MockNetlink) SetLinkHairpin(string, bool) error {
 	return f.error()
 }
 
-func (f *MockNetlink) AddOrRemoveStaticArp(int, string, net.IP, net.HardwareAddr, bool) error {
+func (f *MockNetlink) SetOrRemoveLinkAddress(LinkInfo, int, int) error {
 	return f.error()
 }
 

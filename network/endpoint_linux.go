@@ -89,21 +89,29 @@ func (nw *network) newEndpointImpl(_ apipaClient, nl netlink.NetlinkInterface, p
 	}
 
 	if vlanid != 0 {
-		log.Printf("OVS client")
-		if _, ok := epInfo.Data[SnatBridgeIPKey]; ok {
-			nw.SnatBridgeIP = epInfo.Data[SnatBridgeIPKey].(string)
-		}
+		if nw.Mode == opModeTransparentVlan {
+			log.Printf("Transparent vlan client")
+			if _, ok := epInfo.Data[SnatBridgeIPKey]; ok {
+				nw.SnatBridgeIP = epInfo.Data[SnatBridgeIPKey].(string)
+			}
+			epClient = NewTransparentVlanEndpointClient(nw, epInfo, hostIfName, contIfName, vlanid, localIP, nl, plc)
+		} else {
+			log.Printf("OVS client")
+			if _, ok := epInfo.Data[SnatBridgeIPKey]; ok {
+				nw.SnatBridgeIP = epInfo.Data[SnatBridgeIPKey].(string)
+			}
 
-		epClient = NewOVSEndpointClient(
-			nw,
-			epInfo,
-			hostIfName,
-			contIfName,
-			vlanid,
-			localIP,
-			nl,
-			ovsctl.NewOvsctl(),
-			plc)
+			epClient = NewOVSEndpointClient(
+				nw,
+				epInfo,
+				hostIfName,
+				contIfName,
+				vlanid,
+				localIP,
+				nl,
+				ovsctl.NewOvsctl(),
+				plc)
+		}
 	} else if nw.Mode != opModeTransparent {
 		log.Printf("Bridge client")
 		epClient = NewLinuxBridgeEndpointClient(nw.extIf, hostIfName, contIfName, nw.Mode, nl, plc)
@@ -239,7 +247,13 @@ func (nw *network) deleteEndpointImpl(nl netlink.NetlinkInterface, plc platform.
 	// entering the container netns and hence works both for CNI and CNM.
 	if ep.VlanID != 0 {
 		epInfo := ep.getInfo()
-		epClient = NewOVSEndpointClient(nw, epInfo, ep.HostIfName, "", ep.VlanID, ep.LocalIP, nl, ovsctl.NewOvsctl(), plc)
+		if nw.Mode == opModeTransparentVlan {
+			log.Printf("Transparent vlan client")
+			epClient = NewTransparentVlanEndpointClient(nw, epInfo, ep.HostIfName, "", ep.VlanID, ep.LocalIP, nl, plc)
+
+		} else {
+			epClient = NewOVSEndpointClient(nw, epInfo, ep.HostIfName, "", ep.VlanID, ep.LocalIP, nl, ovsctl.NewOvsctl(), plc)
+		}
 	} else if nw.Mode != opModeTransparent {
 		epClient = NewLinuxBridgeEndpointClient(nw.extIf, ep.HostIfName, "", nw.Mode, nl, plc)
 	} else {
@@ -287,6 +301,7 @@ func addRoutes(nl netlink.NetlinkInterface, netioshim netio.NetIOInterface, inte
 			Priority:  route.Priority,
 			Protocol:  route.Protocol,
 			Scope:     route.Scope,
+			Table:     route.Table,
 		}
 
 		if err := nl.AddIPRoute(nlRoute); err != nil {

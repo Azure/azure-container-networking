@@ -29,16 +29,19 @@ import (
 	"github.com/Azure/azure-container-networking/cns/healthserver"
 	"github.com/Azure/azure-container-networking/cns/hnsclient"
 	"github.com/Azure/azure-container-networking/cns/ipampool"
+	cssctrl "github.com/Azure/azure-container-networking/cns/kubecontroller/clustersubnetstate"
+	nncctrl "github.com/Azure/azure-container-networking/cns/kubecontroller/nodenetworkconfig"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/multitenantcontroller"
 	"github.com/Azure/azure-container-networking/cns/multitenantcontroller/multitenantoperator"
 	"github.com/Azure/azure-container-networking/cns/nmagent"
 	"github.com/Azure/azure-container-networking/cns/restserver"
-	kubecontroller "github.com/Azure/azure-container-networking/cns/singletenantcontroller"
 	cnstypes "github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/cns/wireserver"
 	acn "github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/crd"
+	"github.com/Azure/azure-container-networking/crd/clustersubnetstate"
+	"github.com/Azure/azure-container-networking/crd/clustersubnetstate/api/v1alpha1"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 	"github.com/Azure/azure-container-networking/log"
@@ -64,6 +67,8 @@ const (
 	// Service name.
 	name                              = "azure-cns"
 	pluginName                        = "azure-vnet"
+	endpointStoreName                 = "azure-endpoints"
+	endpointStoreLocation             = "/var/run/azure-cns/"
 	defaultCNINetworkConfigFileName   = "10-azure.conflist"
 	dncApiVersion                     = "?api-version=2018-03-01"
 	poolIPAMRefreshRateInMilliseconds = 1000
@@ -435,8 +440,9 @@ func main() {
 
 	// Initialize CNS.
 	var (
-		err    error
-		config common.ServiceConfig
+		err                error
+		config             common.ServiceConfig
+		endpointStateStore store.KeyValueStore
 	)
 
 	config.Version = version
@@ -538,9 +544,34 @@ func main() {
 		logger.Errorf("Failed to start nmagent client due to error %v", err)
 		return
 	}
+
+	// Initialize endpoint state store if cns is managing endpoint state.
+	if cnsconfig.ManageEndpointState {
+		log.Printf("[Azure CNS] Configured to manage endpoints state")
+		endpointStoreLock, err := processlock.NewFileLock(platform.CNILockPath + endpointStoreName + store.LockExtension) // nolint
+		if err != nil {
+			log.Printf("Error initializing endpoint state file lock:%v", err)
+			return
+		}
+		defer endpointStoreLock.Unlock() // nolint
+
+		err = platform.CreateDirectory(endpointStoreLocation)
+		if err != nil {
+			logger.Errorf("Failed to create File Store directory %s, due to Error:%v", storeFileLocation, err.Error())
+			return
+		}
+		// Create the key value store.
+		storeFileName := endpointStoreLocation + endpointStoreName + ".json"
+		endpointStateStore, err = store.NewJsonFileStore(storeFileName, endpointStoreLock)
+		if err != nil {
+			logger.Errorf("Failed to create endpoint state store file: %s, due to error %v\n", storeFileName, err)
+			return
+		}
+	}
+
 	// Create CNS object.
 
-	httpRestService, err := restserver.NewHTTPRestService(&config, &wireserver.Client{HTTPClient: &http.Client{}}, nmaclient)
+	httpRestService, err := restserver.NewHTTPRestService(&config, &wireserver.Client{HTTPClient: &http.Client{}}, nmaclient, endpointStateStore)
 	if err != nil {
 		logger.Errorf("Failed to create CNS object, err:%v.\n", err)
 		return
@@ -554,6 +585,7 @@ func main() {
 	httpRestService.SetOption(acn.OptHttpConnectionTimeout, httpConnectionTimeout)
 	httpRestService.SetOption(acn.OptHttpResponseHeaderTimeout, httpResponseHeaderTimeout)
 	httpRestService.SetOption(acn.OptProgramSNATIPTables, cnsconfig.ProgramSNATIPTables)
+	httpRestService.SetOption(acn.OptManageEndpointState, cnsconfig.ManageEndpointState)
 
 	// Create default ext network if commandline option is set
 	if len(strings.TrimSpace(createDefaultExtNetworkType)) > 0 {
@@ -910,9 +942,9 @@ func reconcileInitialCNSState(ctx context.Context, cli nodeNetworkConfigGetter, 
 
 		switch nnc.Status.NetworkContainers[i].AssignmentMode { //nolint:exhaustive // skipping dynamic case
 		case v1alpha.Static:
-			ncRequest, err = kubecontroller.CreateNCRequestFromStaticNC(nnc.Status.NetworkContainers[i])
+			ncRequest, err = nncctrl.CreateNCRequestFromStaticNC(nnc.Status.NetworkContainers[i])
 		default: // For backward compatibility, default will be treated as Dynamic too.
-			ncRequest, err = kubecontroller.CreateNCRequestFromDynamicNC(nnc.Status.NetworkContainers[i])
+			ncRequest, err = nncctrl.CreateNCRequestFromDynamicNC(nnc.Status.NetworkContainers[i])
 		}
 
 		if err != nil {
@@ -970,13 +1002,24 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 	}
 
 	var podInfoByIPProvider cns.PodInfoByIPProvider
-	if cnsconfig.InitializeFromCNI {
+	switch {
+	case cnsconfig.ManageEndpointState:
+		logger.Printf("Initializing from self managed endpoint store")
+		podInfoByIPProvider, err = cnireconciler.NewCNSPodInfoProvider(httpRestServiceImplementation.EndpointStateStore) // get reference to endpoint state store from rest server
+		if err != nil {
+			if errors.Is(err, store.ErrKeyNotFound) {
+				logger.Printf("[Azure CNS] No endpoint state found, skipping initializing CNS state")
+			} else {
+				return errors.Wrap(err, "failed to create CNS PodInfoProvider")
+			}
+		}
+	case cnsconfig.InitializeFromCNI:
 		logger.Printf("Initializing from CNI")
 		podInfoByIPProvider, err = cnireconciler.NewCNIPodInfoProvider()
 		if err != nil {
 			return errors.Wrap(err, "failed to create CNI PodInfoProvider")
 		}
-	} else {
+	default:
 		logger.Printf("Initializing from Kubernetes")
 		podInfoByIPProvider = cns.PodInfoByIPProviderFunc(func() (map[string]cns.PodInfo, error) {
 			pods, err := clientset.CoreV1().Pods("").List(ctx, metav1.ListOptions{ //nolint:govet // ignore err shadow
@@ -992,20 +1035,20 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 			return podInfo, nil
 		})
 	}
-
 	// create scoped kube clients.
 	nnccli, err := nodenetworkconfig.NewClient(kubeConfig)
 	if err != nil {
 		return errors.Wrap(err, "failed to create NNC client")
 	}
 	// TODO(rbtr): nodename and namespace should be in the cns config
-	scopedcli := kubecontroller.NewScopedClient(nnccli, types.NamespacedName{Namespace: "kube-system", Name: nodeName})
+	scopedcli := nncctrl.NewScopedClient(nnccli, types.NamespacedName{Namespace: "kube-system", Name: nodeName})
 
+	clusterSubnetStateChan := make(chan v1alpha1.ClusterSubnetState)
 	// initialize the ipam pool monitor
 	poolOpts := ipampool.Options{
 		RefreshDelay: poolIPAMRefreshRateInMilliseconds * time.Millisecond,
 	}
-	poolMonitor := ipampool.NewMonitor(httpRestServiceImplementation, scopedcli, &poolOpts)
+	poolMonitor := ipampool.NewMonitor(httpRestServiceImplementation, scopedcli, clusterSubnetStateChan, &poolOpts)
 	httpRestServiceImplementation.IPAMPoolMonitor = poolMonitor
 
 	// reconcile initial CNS state from CNI or apiserver.
@@ -1076,10 +1119,30 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 		return errors.Wrapf(err, "failed to get node %s", nodeName)
 	}
 
-	reconciler := kubecontroller.NewReconciler(httpRestServiceImplementation, nnccli, poolMonitor)
+	// get CNS Node IP to compare NC Node IP with this Node IP to ensure NCs were created for this node
+	nodeIP := configuration.NodeIP()
+
+	// NodeNetworkConfig reconciler
+	nncReconciler := nncctrl.NewReconciler(httpRestServiceImplementation, nnccli, poolMonitor, nodeIP)
 	// pass Node to the Reconciler for Controller xref
-	if err := reconciler.SetupWithManager(manager, node); err != nil {
-		return errors.Wrapf(err, "failed to setup reconciler with manager")
+	if err := nncReconciler.SetupWithManager(manager, node); err != nil { //nolint:govet // intentional shadow
+		return errors.Wrapf(err, "failed to setup nnc reconciler with manager")
+	}
+
+	if cnsconfig.EnableSubnetScarcity {
+		cssCli, err := clustersubnetstate.NewClient(kubeConfig)
+		if err != nil {
+			return errors.Wrapf(err, "failed to init css client")
+		}
+
+		// ClusterSubnetState reconciler
+		cssReconciler := cssctrl.Reconciler{
+			Cli:  cssCli,
+			Sink: clusterSubnetStateChan,
+		}
+		if err := cssReconciler.SetupWithManager(manager); err != nil {
+			return errors.Wrapf(err, "failed to setup css reconciler with manager")
+		}
 	}
 
 	// adding some routes to the root service mux
@@ -1120,11 +1183,9 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 		}
 	}()
 	logger.Printf("initialized NodeNetworkConfig reconciler")
-	// wait for up to 10m for the Reconciler to run once.
-	timedCtx, cancel := context.WithTimeout(ctx, 10*time.Minute) //nolint:gomnd // default 10m
-	defer cancel()
-	if started := reconciler.Started(timedCtx); !started {
-		return errors.Errorf("timed out waiting for reconciler start")
+	// wait for the Reconciler to run once on a NNC that was made for this Node
+	if started := nncReconciler.Started(ctx); !started {
+		return errors.Errorf("context cancelled while waiting for reconciler start")
 	}
 	logger.Printf("started NodeNetworkConfig reconciler")
 

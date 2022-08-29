@@ -102,6 +102,9 @@ const (
 	OptHttpResponseHeaderTimeout      = "http-response-header-timeout"
 	OptHttpResponseHeaderTimeoutAlias = "httprespheadertimeout"
 
+	// Enable CNS to manage endpoint state
+	OptManageEndpointState = "manage-endpoint-state"
+
 	// Store file location
 	OptStoreFileLocation      = "store-file-path"
 	OptStoreFileLocationAlias = "storefilepath"

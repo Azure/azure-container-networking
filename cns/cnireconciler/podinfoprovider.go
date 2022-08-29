@@ -6,6 +6,8 @@ import (
 	"github.com/Azure/azure-container-networking/cni/api"
 	"github.com/Azure/azure-container-networking/cni/client"
 	"github.com/Azure/azure-container-networking/cns"
+	"github.com/Azure/azure-container-networking/cns/restserver"
+	"github.com/Azure/azure-container-networking/store"
 	"github.com/pkg/errors"
 	"k8s.io/utils/exec"
 )
@@ -14,6 +16,27 @@ import (
 // that execs out to the CNI and uses the response to build the PodInfo map.
 func NewCNIPodInfoProvider() (cns.PodInfoByIPProvider, error) {
 	return newCNIPodInfoProvider(exec.New())
+}
+
+func NewCNSPodInfoProvider(endpointStore store.KeyValueStore) (cns.PodInfoByIPProvider, error) {
+	return newCNSPodInfoProvider(endpointStore)
+}
+
+func newCNSPodInfoProvider(endpointStore store.KeyValueStore) (cns.PodInfoByIPProvider, error) {
+	var state map[string]*restserver.EndpointInfo
+	err := endpointStore.Read(restserver.EndpointStoreKey, &state)
+	if err != nil {
+		if errors.Is(err, store.ErrKeyNotFound) {
+			// Nothing to restore.
+			return cns.PodInfoByIPProviderFunc(func() (map[string]cns.PodInfo, error) {
+				return endpointStateToPodInfoByIP(state)
+			}), err
+		}
+		return nil, fmt.Errorf("failed to read endpoints state from store : %w", err)
+	}
+	return cns.PodInfoByIPProviderFunc(func() (map[string]cns.PodInfo, error) {
+		return endpointStateToPodInfoByIP(state)
+	}), nil
 }
 
 func newCNIPodInfoProvider(exec exec.Interface) (cns.PodInfoByIPProvider, error) {
@@ -41,6 +64,37 @@ func cniStateToPodInfoByIP(state *api.AzureCNIState) (map[string]cns.PodInfo, er
 			endpoint.PodName,
 			endpoint.PodNamespace,
 		)
+	}
+	return podInfoByIP, nil
+}
+
+func endpointStateToPodInfoByIP(state map[string]*restserver.EndpointInfo) (map[string]cns.PodInfo, error) {
+	podInfoByIP := map[string]cns.PodInfo{}
+	for containerID, endpointInfo := range state { // for each endpoint
+		for ifname, ipinfo := range endpointInfo.IfnameToIPMap { // for each IP info object of the endpoint's interfaces
+			for _, ipv4conf := range ipinfo.IPv4 { // for each IPv4 config of the endpoint's interfaces
+				if _, ok := podInfoByIP[ipv4conf.IP.String()]; ok {
+					return nil, errors.Wrap(cns.ErrDuplicateIP, ipv4conf.IP.String())
+				}
+				podInfoByIP[ipv4conf.IP.String()] = cns.NewPodInfo(
+					containerID,
+					ifname,
+					endpointInfo.PodName,
+					endpointInfo.PodNamespace,
+				)
+			}
+			for _, ipv6conf := range ipinfo.IPv6 { // for each IPv6 config of the endpoint's interfaces
+				if _, ok := podInfoByIP[ipv6conf.IP.String()]; ok {
+					return nil, errors.Wrap(cns.ErrDuplicateIP, ipv6conf.IP.String())
+				}
+				podInfoByIP[ipv6conf.IP.String()] = cns.NewPodInfo(
+					containerID,
+					ifname,
+					endpointInfo.PodName,
+					endpointInfo.PodNamespace,
+				)
+			}
+		}
 	}
 	return podInfoByIP, nil
 }

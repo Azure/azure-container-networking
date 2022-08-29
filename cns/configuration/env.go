@@ -9,6 +9,8 @@ import (
 const (
 	// EnvNodeName is the NODENAME env var string key.
 	EnvNodeName = "NODENAME"
+	// EnvNodeIP is the IP of the node running this CNS binary
+	EnvNodeIP = "NODE_IP"
 )
 
 // ErrNodeNameUnset indicates the the $EnvNodeName variable is unset in the environment.
@@ -21,4 +23,9 @@ func NodeName() (string, error) {
 		return "", ErrNodeNameUnset
 	}
 	return nodeName, nil
+}
+
+// NodeIP returns the value of the NODE_IP environment variable, or empty string if unset.
+func NodeIP() string {
+	return os.Getenv(EnvNodeIP)
 }

@@ -6,7 +6,6 @@ parameters:
 stages:
   - stage: ${{ parameters.name }}
     displayName: E2E - ${{ parameters.displayName }}
-    lockBehavior: sequential
     dependsOn: 
     - setup
     - publish

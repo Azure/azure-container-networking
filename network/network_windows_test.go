@@ -37,7 +37,6 @@ func TestNewAndDeleteNetworkImplHnsV2(t *testing.T) {
 	}
 
 	network, err := nm.newNetworkImplHnsV2(nwInfo, extInterface)
-
 	if err != nil {
 		fmt.Printf("+%v", err)
 		t.Fatal(err)
@@ -137,7 +136,6 @@ func TestDeleteNetworkImplHnsV2WithTimeout(t *testing.T) {
 	Hnsv2 = hnswrapper.NewHnsv2wrapperFake()
 
 	network, err := nm.newNetworkImplHnsV2(nwInfo, extInterface)
-
 	if err != nil {
 		fmt.Printf("+%v", err)
 		t.Fatal(err)
@@ -210,7 +208,6 @@ func TestDeleteNetworkImplHnsV1WithTimeout(t *testing.T) {
 	Hnsv1 = hnswrapper.NewHnsv1wrapperFake()
 
 	network, err := nm.newNetworkImplHnsV1(nwInfo, extInterface)
-
 	if err != nil {
 		fmt.Printf("+%v", err)
 		t.Fatal(err)

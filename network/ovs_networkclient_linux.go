@@ -73,7 +73,8 @@ func (client *OVSNetworkClient) AddRoutes(nwInfo *NetworkInfo, interfaceName str
 }
 
 func NewOVSClient(bridgeName, hostInterfaceName string, ovsctlClient ovsctl.OvsInterface,
-	nl netlink.NetlinkInterface, plc platform.ExecClient) *OVSNetworkClient {
+	nl netlink.NetlinkInterface, plc platform.ExecClient,
+) *OVSNetworkClient {
 	ovsClient := &OVSNetworkClient{
 		bridgeName:        bridgeName,
 		hostInterfaceName: hostInterfaceName,

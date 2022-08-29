@@ -1,6 +1,8 @@
 {
     "ChannelMode": "Direct",
     "InitializeFromCNI": true,
+    "EnablePprof": true,
+    "EnableSubnetScarcity": true,
     "ManagedSettings": {
         "InfrastructureNetworkID": "abc",
         "NodeID": "abc",

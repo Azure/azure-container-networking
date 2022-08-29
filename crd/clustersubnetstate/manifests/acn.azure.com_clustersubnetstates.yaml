@@ -3,7 +3,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.9.0
+    controller-gen.kubebuilder.io/version: v0.9.2
   creationTimestamp: null
   name: clustersubnetstates.acn.azure.com
 spec:
@@ -39,21 +39,16 @@ spec:
             type: string
           metadata:
             type: object
-          spec:
-            description: ClusterSubnetStateSpec defines the desired state of ClusterSubnetState
-            properties:
-              Timestamp:
-                type: string
-            required:
-            - Timestamp
-            type: object
           status:
             description: ClusterSubnetStateStatus defines the observed state of ClusterSubnetState
             properties:
               Exhausted:
                 type: boolean
+              Timestamp:
+                type: string
             required:
             - Exhausted
+            - Timestamp
             type: object
         type: object
     served: true

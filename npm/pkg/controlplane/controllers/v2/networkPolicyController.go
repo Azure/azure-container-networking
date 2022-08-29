@@ -349,5 +349,6 @@ func (c *NetworkPolicyController) cleanUpNetworkPolicy(netPolKey string) error {
 func isUnsupportedWindowsTranslationErr(err error) bool {
 	return errors.Is(err, translation.ErrUnsupportedNamedPort) ||
 		errors.Is(err, translation.ErrUnsupportedNegativeMatch) ||
-		errors.Is(err, translation.ErrUnsupportedSCTP)
+		errors.Is(err, translation.ErrUnsupportedSCTP) ||
+		errors.Is(err, translation.ErrUnsupportedExceptCIDR)
 }

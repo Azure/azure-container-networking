@@ -1,0 +1,29 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: cyclonus
+  namespace: kube-system
+  labels:
+    app: cyclonus
+spec:
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: cyclonus
+          command: ["cyclonus.exe"]
+          args:
+            [
+              "generate",
+              "--noisy=true",
+              "--ignore-loopback=true",
+              "--cleanup-namespaces=true",
+              "--perturbation-wait-seconds=10",
+              "--pod-creation-timeout-seconds=30",
+              "--job-timeout-seconds=30",
+              "--server-protocol=TCP,UDP",
+              "--verbosity=debug",
+            ]
+          imagePullPolicy: IfNotPresent
+          image: acnpublic.azurecr.io/cyclonus-windows:v0.4.6.8
+      serviceAccount: cyclonus

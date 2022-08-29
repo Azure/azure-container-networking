@@ -2,6 +2,7 @@ package network
 
 import (
 	"errors"
+
 	"github.com/Microsoft/hcsshim"
 )
 
@@ -12,9 +13,11 @@ type MockHNSEndpoint struct {
 }
 
 func NewMockHNSEndpoint(isAttached bool, hotAttachFailure bool) *MockHNSEndpoint {
-	return &MockHNSEndpoint{HnsIDMap: make(map[string]*hcsshim.HNSEndpoint),
+	return &MockHNSEndpoint{
+		HnsIDMap:         make(map[string]*hcsshim.HNSEndpoint),
 		IsAttachedFlag:   isAttached,
-		HotAttachFailure: hotAttachFailure}
+		HotAttachFailure: hotAttachFailure,
+	}
 }
 
 func (az *MockHNSEndpoint) GetHNSEndpointByName(endpointName string) (*hcsshim.HNSEndpoint, error) {

@@ -41,9 +41,13 @@ spec:
           effect: NoSchedule
       containers:
         - name: cns-container
-          image: acnpublic.azurecr.io/azure-cns:v1.2.8
+          image: acnpublic.azurecr.io/azure-cns:v1.4.32
           imagePullPolicy: IfNotPresent
           args: [ "-c", "tcp://$(CNSIpAddress):$(CNSPort)", "-t", "$(CNSLogTarget)"]
+          securityContext:
+            capabilities:
+              add:
+                - NET_ADMIN
           volumeMounts:
             - name: log
               mountPath: /var/log
@@ -57,6 +61,8 @@ spec:
               mountPath: /var/run/azure-vnet
             - name: legacy-cni-state
               mountPath: /var/run/azure-vnet.json
+            - name: xtables-lock
+              mountPath: /run/xtables.lock
           ports:
             - containerPort: 10090
           env:
@@ -73,8 +79,22 @@ spec:
                   fieldRef:
                     apiVersion: v1
                     fieldPath: spec.nodeName 
+      initContainers:
+        - name: init-cni-dropgz
+          image: acnpublic.azurecr.io/cni-dropgz:v1.4.28-41-g3ecb7fb1
+          imagePullPolicy: Always
+          command: ["/dropgz"]
+          volumeMounts:
+            - name: cni-bin
+              mountPath: /opt/cni/bin
+            - name: cni-conflist
+              mountPath: /etc/cni/net.d
       hostNetwork: true
       volumes:
+        - name: cni-conflist
+          hostPath:
+            path: /etc/cni/net.d
+            type: Directory
         - name: log
           hostPath:
             path: /var/log
@@ -98,4 +118,9 @@ spec:
         - name: cns-config
           configMap:
             name: cns-config
+        - name: xtables-lock
+          hostPath:
+            path: /run/xtables.lock
+            type: File
       serviceAccountName: azure-cns
+

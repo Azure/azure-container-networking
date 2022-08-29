@@ -23,6 +23,7 @@ func GetApplyIPSetsTestCalls(toAddOrUpdateIPSets, toDeleteIPSets []*IPSetMetadat
 func GetResetTestCalls() []testutils.TestCmd {
 	return []testutils.TestCmd{
 		{Cmd: []string{"ipset", "list", "--name"}, PipedToCommand: true},
-		{Cmd: []string{"grep", "azure-npm-"}, ExitCode: 1}, // grep didn't find anything
+		{Cmd: []string{"grep", "-q", "-v", "azure-npm-"}, ExitCode: 1}, // grep didn't find anything
+		{Cmd: []string{"bash", "-c", "ipset flush && ipset destroy"}},
 	}
 }

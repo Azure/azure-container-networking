@@ -1,61 +1,53 @@
 package logger
 
 import (
-	"strings"
-
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+	"gopkg.in/natefinch/lumberjack.v2"
+)
+
+const (
+	Filepath = "/var/log/azure-ipam.log"
 )
 
 type Config struct {
-	Level            string
-	OutputPaths      string // comma separated list of paths
-	ErrorOutputPaths string // comma separated list of paths
+	Level           string // Debug by default
+	Filepath        string // default /var/log/azure-ipam.log
+	MaxSizeInMB     int    // MegaBytes
+	MaxBackups      int    // # of backups, no limitation by default
 }
 
 // NewLogger creates and returns a zap logger and a clean up function
 func New(cfg *Config) (*zap.Logger, func(), error) {
-	loggerCfg := &zap.Config{}
-
-	level, err := zapcore.ParseLevel(cfg.Level)
+	logLevel, err := zapcore.ParseLevel(cfg.Level)
 	if err != nil {
 		return nil, nil, errors.Wrapf(err, "failed to parse log level")
 	}
-	loggerCfg.Level = zap.NewAtomicLevelAt(level)
-
-	loggerCfg.Encoding = "json"
-	loggerCfg.OutputPaths = getLogOutputPath(cfg.OutputPaths)
-	loggerCfg.ErrorOutputPaths = getErrOutputPath(cfg.ErrorOutputPaths)
-	loggerCfg.EncoderConfig = zapcore.EncoderConfig{
-		TimeKey:     "time",
-		MessageKey:  "msg",
-		LevelKey:    "level",
-		EncodeLevel: zapcore.LowercaseLevelEncoder,
-		EncodeTime:  zapcore.ISO8601TimeEncoder,
+	if cfg.Filepath == "" {
+		cfg.Filepath = Filepath
 	}
-
-	logger, err := loggerCfg.Build()
-	if err != nil {
-		return nil, nil, errors.Wrapf(err, "failed to build zap logger")
-	}
-
+	logger := newFileLogger(cfg, logLevel)
 	cleanup := func() {
 		_ = logger.Sync()
 	}
 	return logger, cleanup, nil
 }
 
-func getLogOutputPath(paths string) []string {
-	if paths == "" {
-		return nil
-	}
-	return strings.Split(paths, ",")
-}
-
-func getErrOutputPath(paths string) []string {
-	if paths == "" {
-		return nil
-	}
-	return strings.Split(paths, ",")
+// create and return a zap logger via lumbejack with rotation
+func newFileLogger(cfg *Config, logLevel zapcore.Level) (*zap.Logger) {
+	// define a lumberjack fileWriter
+	logFileWriter := zapcore.AddSync(&lumberjack.Logger{
+		Filename:    cfg.Filepath,
+		MaxSize:     cfg.MaxSizeInMB, // MegaBytes
+		MaxBackups:  cfg.MaxBackups,
+	})
+	// define the log encoding
+	encoderConfig := zap.NewProductionEncoderConfig()
+	encoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
+	jsonEncoder := zapcore.NewJSONEncoder(encoderConfig)
+	// create a new zap logger
+	core := zapcore.NewCore(jsonEncoder, logFileWriter, logLevel)
+	logger := zap.New(core)
+	return logger
 }

@@ -10,6 +10,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/metric"
 	"github.com/Azure/azure-container-networking/cns/types"
+	"github.com/Azure/azure-container-networking/crd/clustersubnetstate/api/v1alpha1"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 	"github.com/pkg/errors"
 )
@@ -30,6 +31,7 @@ type nodeNetworkConfigSpecUpdater interface {
 // metaState is the Monitor's configuration state for the IP pool.
 type metaState struct {
 	batch              int64
+	exhausted          bool
 	max                int64
 	maxFreeCount       int64
 	minFreeCount       int64
@@ -48,8 +50,9 @@ type Monitor struct {
 	metastate   metaState
 	nnccli      nodeNetworkConfigSpecUpdater
 	httpService cns.HTTPService
-	started     chan interface{}
+	cssSource   <-chan v1alpha1.ClusterSubnetState
 	nncSource   chan v1alpha.NodeNetworkConfig
+	started     chan interface{}
 	once        sync.Once
 }
 
@@ -57,7 +60,7 @@ type Monitor struct {
 // For Subnet, Subnet Address Space and Subnet ARM ID
 var subnet, subnetCIDR, subnetARMID string
 
-func NewMonitor(httpService cns.HTTPService, nnccli nodeNetworkConfigSpecUpdater, opts *Options) *Monitor {
+func NewMonitor(httpService cns.HTTPService, nnccli nodeNetworkConfigSpecUpdater, cssSource <-chan v1alpha1.ClusterSubnetState, opts *Options) *Monitor {
 	if opts.RefreshDelay < 1 {
 		opts.RefreshDelay = DefaultRefreshDelay
 	}
@@ -68,8 +71,9 @@ func NewMonitor(httpService cns.HTTPService, nnccli nodeNetworkConfigSpecUpdater
 		opts:        opts,
 		httpService: httpService,
 		nnccli:      nnccli,
-		started:     make(chan interface{}),
+		cssSource:   cssSource,
 		nncSource:   make(chan v1alpha.NodeNetworkConfig),
+		started:     make(chan interface{}),
 	}
 }
 
@@ -78,6 +82,11 @@ func NewMonitor(httpService cns.HTTPService, nnccli nodeNetworkConfigSpecUpdater
 // Subsequently, it will run run once per RefreshDelay and attempt to re-reconcile the pool.
 func (pm *Monitor) Start(ctx context.Context) error {
 	logger.Printf("[ipam-pool-monitor] Starting CNS IPAM Pool Monitor")
+
+	// the exhausted subnet set is populated by parsing incoming cluster subnet states
+	// if a subnet is present in this map, the batch from the NNC is ignored and instead
+	// the pool monitor batches 1 IP at a time to relieve capacity pressure.
+	exhaustedSubnetSet := map[string]struct{}{}
 
 	ticker := time.NewTicker(pm.opts.RefreshDelay)
 	defer ticker.Stop()
@@ -89,19 +98,37 @@ func (pm *Monitor) Start(ctx context.Context) error {
 			return errors.Wrap(ctx.Err(), "pool monitor context closed")
 		case <-ticker.C: // attempt to reconcile every tick.
 			select {
-			case <-pm.started: // this blocks until we have initialized
-				// if we have initialized and enter this case, we proceed out of the select and continue to reconcile.
 			default:
 				// if we have NOT initialized and enter this case, we continue out of this iteration and let the for loop begin again.
 				continue
+			case <-pm.started: // this blocks until we have initialized
+				// if we have initialized and enter this case, we proceed out of the select and continue to reconcile.
+			}
+		case css := <-pm.cssSource: // received an updated ClusterSubnetState
+			// this map does not need additional synchronization thanks to channels <3
+			if css.Status.Exhausted {
+				logger.Printf("subnet %s is exhausted", css.Name)
+				exhaustedSubnetSet[css.Name] = struct{}{}
+			} else {
+				logger.Printf("subnet %s is no longer exhausted", css.Name)
+				delete(exhaustedSubnetSet, css.Name)
+			}
+			select {
+			default:
+				// if we have NOT initialized and enter this case, we continue out of this iteration and let the for loop begin again.
+				continue
+			case <-pm.started: // this blocks until we have initialized
+				// if we have initialized and enter this case, we proceed out of the select and continue to reconcile.
 			}
 		case nnc := <-pm.nncSource: // received a new NodeNetworkConfig, extract the data from it and re-reconcile.
-			scaler := nnc.Status.Scaler
-
-			// Set SubnetName, SubnetAddressSpace and Pod Network ARM ID values to the global subnet, subnetCIDR and subnetARM variables.
-			subnet = nnc.Status.NetworkContainers[0].SubnetName
-			subnetCIDR = nnc.Status.NetworkContainers[0].SubnetAddressSpace
-			subnetARMID = GenerateARMID(&nnc.Status.NetworkContainers[0])
+			if len(nnc.Status.NetworkContainers) > 0 {
+				// Set SubnetName, SubnetAddressSpace and Pod Network ARM ID values to the global subnet, subnetCIDR and subnetARM variables.
+				subnet = nnc.Status.NetworkContainers[0].SubnetName
+				subnetCIDR = nnc.Status.NetworkContainers[0].SubnetAddressSpace
+				subnetARMID = GenerateARMID(&nnc.Status.NetworkContainers[0])
+				// check for subnet exhaustion
+				_, pm.metastate.exhausted = exhaustedSubnetSet[nnc.Status.NetworkContainers[0].SubnetName]
+			}
 
 			pm.metastate.primaryIPAddresses = make(map[string]struct{})
 			// Add Primary IP to Map, if not present.
@@ -113,6 +140,7 @@ func (pm *Monitor) Start(ctx context.Context) error {
 				}
 			}
 
+			scaler := nnc.Status.Scaler
 			pm.metastate.batch = scaler.BatchSize
 			pm.metastate.max = scaler.MaxIPCount
 			pm.metastate.minFreeCount, pm.metastate.maxFreeCount = CalculateMinFreeIPs(scaler), CalculateMaxFreeIPs(scaler)
@@ -176,8 +204,16 @@ var statelogDownsample int
 
 func (pm *Monitor) reconcile(ctx context.Context) error {
 	allocatedIPs := pm.httpService.GetPodIPConfigState()
-	state := buildIPPoolState(allocatedIPs, pm.spec, pm.metastate.primaryIPAddresses)
-	observeIPPoolState(state, pm.metastate, []string{subnet, subnetCIDR, subnetARMID})
+	meta := pm.metastate
+	state := buildIPPoolState(allocatedIPs, pm.spec, meta.primaryIPAddresses)
+	observeIPPoolState(state, meta, []string{subnet, subnetCIDR, subnetARMID})
+
+	// if the subnet is exhausted, overwrite the batch/minfree/maxfree in the meta copy for this iteration
+	if meta.exhausted {
+		meta.batch = 1
+		meta.minFreeCount = 1
+		meta.maxFreeCount = 2
+	}
 
 	// log every 30th reconcile to reduce the AI load. we will always log when the monitor
 	// changes the pool, below.
@@ -187,20 +223,20 @@ func (pm *Monitor) reconcile(ctx context.Context) error {
 
 	switch {
 	// pod count is increasing
-	case state.expectedAvailableIPs < pm.metastate.minFreeCount:
-		if state.requestedIPs == pm.metastate.max {
+	case state.expectedAvailableIPs < meta.minFreeCount:
+		if state.requestedIPs == meta.max {
 			// If we're already at the maxIPCount, don't try to increase
 			return nil
 		}
 		logger.Printf("ipam-pool-monitor state %+v", state)
 		logger.Printf("[ipam-pool-monitor] Increasing pool size...")
-		return pm.increasePoolSize(ctx, state)
+		return pm.increasePoolSize(ctx, meta, state)
 
 	// pod count is decreasing
-	case state.currentAvailableIPs >= pm.metastate.maxFreeCount:
+	case state.currentAvailableIPs >= meta.maxFreeCount:
 		logger.Printf("ipam-pool-monitor state %+v", state)
 		logger.Printf("[ipam-pool-monitor] Decreasing pool size...")
-		return pm.decreasePoolSize(ctx, state)
+		return pm.decreasePoolSize(ctx, meta, state)
 
 	// CRD has reconciled CNS state, and target spec is now the same size as the state
 	// free to remove the IPs from the CRD
@@ -219,18 +255,18 @@ func (pm *Monitor) reconcile(ctx context.Context) error {
 	return nil
 }
 
-func (pm *Monitor) increasePoolSize(ctx context.Context, state ipPoolState) error {
+func (pm *Monitor) increasePoolSize(ctx context.Context, meta metaState, state ipPoolState) error {
 	tempNNCSpec := pm.createNNCSpecForCRD()
 
 	// Query the max IP count
 	previouslyRequestedIPCount := tempNNCSpec.RequestedIPCount
-	batchSize := pm.metastate.batch
+	batchSize := meta.batch
 
 	tempNNCSpec.RequestedIPCount += batchSize
-	if tempNNCSpec.RequestedIPCount > pm.metastate.max {
+	if tempNNCSpec.RequestedIPCount > meta.max {
 		// We don't want to ask for more ips than the max
-		logger.Printf("[ipam-pool-monitor] Requested IP count (%d) is over max limit (%d), requesting max limit instead.", tempNNCSpec.RequestedIPCount, pm.metastate.max)
-		tempNNCSpec.RequestedIPCount = pm.metastate.max
+		logger.Printf("[ipam-pool-monitor] Requested IP count (%d) is over max limit (%d), requesting max limit instead.", tempNNCSpec.RequestedIPCount, meta.max)
+		tempNNCSpec.RequestedIPCount = meta.max
 	}
 
 	// If the requested IP count is same as before, then don't do anything
@@ -254,7 +290,7 @@ func (pm *Monitor) increasePoolSize(ctx context.Context, state ipPoolState) erro
 	return nil
 }
 
-func (pm *Monitor) decreasePoolSize(ctx context.Context, state ipPoolState) error {
+func (pm *Monitor) decreasePoolSize(ctx context.Context, meta metaState, state ipPoolState) error {
 	// mark n number of IPs as pending
 	var newIpsMarkedAsPending bool
 	var pendingIPAddresses map[string]cns.IPConfigurationStatus
@@ -262,7 +298,7 @@ func (pm *Monitor) decreasePoolSize(ctx context.Context, state ipPoolState) erro
 
 	// Ensure the updated requested IP count is a multiple of the batch size
 	previouslyRequestedIPCount := pm.spec.RequestedIPCount
-	batchSize := pm.metastate.batch
+	batchSize := meta.batch
 	modResult := previouslyRequestedIPCount % batchSize
 
 	logger.Printf("[ipam-pool-monitor] Previously RequestedIP Count %d", previouslyRequestedIPCount)
@@ -282,7 +318,7 @@ func (pm *Monitor) decreasePoolSize(ctx context.Context, state ipPoolState) erro
 
 	logger.Printf("[ipam-pool-monitor] updatedRequestedIPCount %d", updatedRequestedIPCount)
 
-	if pm.metastate.notInUseCount == 0 || pm.metastate.notInUseCount < state.pendingRelease {
+	if meta.notInUseCount == 0 || meta.notInUseCount < state.pendingRelease {
 		logger.Printf("[ipam-pool-monitor] Marking IPs as PendingRelease, ipsToBeReleasedCount %d", decreaseIPCountBy)
 		var err error
 		if pendingIPAddresses, err = pm.httpService.MarkIPAsPendingRelease(int(decreaseIPCountBy)); err != nil {
@@ -433,14 +469,18 @@ func (pm *Monitor) clampScaler(scaler *v1alpha.Scaler) {
 
 // CalculateMinFreeIPs calculates the minimum free IP quantity based on the Scaler
 // in the passed NodeNetworkConfig.
+// Half of odd batches are rounded up!
+//
 //nolint:gocritic // ignore hugeparam
 func CalculateMinFreeIPs(scaler v1alpha.Scaler) int64 {
-	return int64(float64(scaler.BatchSize) * (float64(scaler.RequestThresholdPercent) / 100)) //nolint:gomnd // it's a percent
+	return int64(float64(scaler.BatchSize)*(float64(scaler.RequestThresholdPercent)/100) + .5) //nolint:gomnd // it's a percent
 }
 
 // CalculateMaxFreeIPs calculates the maximum free IP quantity based on the Scaler
 // in the passed NodeNetworkConfig.
+// Half of odd batches are rounded up!
+//
 //nolint:gocritic // ignore hugeparam
 func CalculateMaxFreeIPs(scaler v1alpha.Scaler) int64 {
-	return int64(float64(scaler.BatchSize) * (float64(scaler.ReleaseThresholdPercent) / 100)) //nolint:gomnd // it's a percent
+	return int64(float64(scaler.BatchSize)*(float64(scaler.ReleaseThresholdPercent)/100) + .5) //nolint:gomnd // it's a percent
 }

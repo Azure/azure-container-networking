@@ -1,0 +1,32 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: cyclonus
+  namespace: kube-system
+  labels:
+    app: cyclonus
+spec:
+  template:
+    spec:
+      restartPolicy: Never
+      tolerations:
+        - key: "node-role.kubernetes.io/master"
+          operator: "Exists"
+          effect: "NoSchedule"
+      nodeSelector:
+        node-role.kubernetes.io/master: ""
+      containers:
+        - command:
+            - ./cyclonus
+            - generate
+            - --noisy=true
+            - --ignore-loopback=true
+            - --cleanup-namespaces=true
+            - --perturbation-wait-seconds=5
+            - --pod-creation-timeout-seconds=30
+            - --job-timeout-seconds=2
+            - --server-protocol=TCP,UDP
+          name: cyclonus
+          imagePullPolicy: IfNotPresent
+          image: acnpublic.azurecr.io/cyclonus:v0.4.6.8
+      serviceAccount: cyclonus

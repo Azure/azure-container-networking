@@ -284,12 +284,24 @@ func TestAddRemoveStaticArp(t *testing.T) {
 	mac, _ := net.ParseMAC("aa:b3:4d:5e:e2:4a")
 	nl := NewNetlink()
 
-	err = nl.AddOrRemoveStaticArp(ADD, ifName, ip, mac, false)
+	linkInfo := LinkInfo{
+		Name:       ifName,
+		IPAddr:     ip,
+		MacAddress: mac,
+	}
+
+	err = nl.SetOrRemoveLinkAddress(linkInfo, ADD, NUD_PERMANENT)
 	if err != nil {
 		t.Errorf("ret val %v", err)
 	}
 
-	err = nl.AddOrRemoveStaticArp(REMOVE, ifName, ip, mac, false)
+	linkInfo = LinkInfo{
+		Name:       ifName,
+		IPAddr:     ip,
+		MacAddress: mac,
+	}
+
+	err = nl.SetOrRemoveLinkAddress(linkInfo, REMOVE, NUD_INCOMPLETE)
 	if err != nil {
 		t.Errorf("ret val %v", err)
 	}

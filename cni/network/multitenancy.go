@@ -18,7 +18,7 @@ import (
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/network"
 	cniTypes "github.com/containernetworking/cni/pkg/types"
-	cniTypesCurr "github.com/containernetworking/cni/pkg/types/current"
+	cniTypesCurr "github.com/containernetworking/cni/pkg/types/100"
 )
 
 const (
@@ -243,10 +243,8 @@ func convertToCniResult(networkConfig *cns.GetNetworkContainerResponse, ifName s
 	ipAddr := net.ParseIP(ipconfig.IPSubnet.IPAddress)
 
 	if ipAddr.To4() != nil {
-		resultIpconfig.Version = "4"
 		resultIpconfig.Address = net.IPNet{IP: ipAddr, Mask: net.CIDRMask(int(ipconfig.IPSubnet.PrefixLength), 32)}
 	} else {
-		resultIpconfig.Version = "6"
 		resultIpconfig.Address = net.IPNet{IP: ipAddr, Mask: net.CIDRMask(int(ipconfig.IPSubnet.PrefixLength), 128)}
 	}
 

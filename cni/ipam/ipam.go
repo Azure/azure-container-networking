@@ -13,10 +13,9 @@ import (
 	"github.com/Azure/azure-container-networking/ipam"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/platform"
-
 	cniSkel "github.com/containernetworking/cni/pkg/skel"
 	cniTypes "github.com/containernetworking/cni/pkg/types"
-	cniTypesCurr "github.com/containernetworking/cni/pkg/types/current"
+	cniTypesCurr "github.com/containernetworking/cni/pkg/types/100"
 )
 
 const ipamV6 = "azure-vnet-ipamv6"
@@ -215,16 +214,10 @@ func (plugin *ipamPlugin) Add(args *cniSkel.CmdArgs) error {
 		return err
 	}
 
-	version := "4"
-	if ipAddress.IP.To4() == nil {
-		version = "6"
-	}
-
 	// Populate result.
 	result = &cniTypesCurr.Result{
 		IPs: []*cniTypesCurr.IPConfig{
 			{
-				Version: version,
 				Address: *ipAddress,
 				Gateway: apInfo.Gateway,
 			},

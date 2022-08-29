@@ -5,9 +5,10 @@ package hnswrapper
 
 import (
 	"context"
+	"time"
+
 	"github.com/Microsoft/hcsshim"
 	"github.com/pkg/errors"
-	"time"
 )
 
 type Hnsv1wrapperwithtimeout struct {
