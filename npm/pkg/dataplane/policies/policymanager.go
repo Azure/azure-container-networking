@@ -117,26 +117,16 @@ func (pMgr *PolicyManager) Reconcile() {
 }
 
 func (pMgr *PolicyManager) PolicyExists(policyKey string) bool {
-	klog.Infof("[PolicyManager] RLocking policyexists") // FIXME remove
 	pMgr.policyMap.RLock()
-	// defer pMgr.policyMap.RUnlock()
-	defer func() {
-		pMgr.policyMap.RUnlock()
-		klog.Infof("[PolicyManager] RUnlocked policyexists")
-	}()
+	defer pMgr.policyMap.RUnlock()
 
 	_, ok := pMgr.policyMap.cache[policyKey]
 	return ok
 }
 
 func (pMgr *PolicyManager) GetPolicy(policyKey string) (*NPMNetworkPolicy, bool) {
-	klog.Infof("[PolicyManager] RLocking getpolicy") // FIXME remove
 	pMgr.policyMap.RLock()
-	// defer pMgr.policyMap.RUnlock()
-	defer func() {
-		pMgr.policyMap.RUnlock()
-		klog.Infof("[PolicyManager] RUnlocked getpolicy")
-	}()
+	defer pMgr.policyMap.RUnlock()
 
 	policy, ok := pMgr.policyMap.cache[policyKey]
 	return policy, ok
@@ -155,13 +145,9 @@ func (pMgr *PolicyManager) AddPolicy(policy *NPMNetworkPolicy, endpointList map[
 		return npmerrors.Errorf(npmerrors.AddPolicy, false, msg)
 	}
 
-	klog.Infof("map lock for Adding policy %s", policy.PolicyKey) // FIXME remove
 	pMgr.policyMap.Lock()
-	// defer pMgr.policyMap.Unlock()
-	defer func() {
-		pMgr.policyMap.Unlock()
-		klog.Infof("map unlock for Adding policy %s", policy.PolicyKey)
-	}()
+	defer pMgr.policyMap.Unlock()
+
 	// Call actual dataplane function to apply changes
 	timer := metrics.StartNewTimer()
 	err := pMgr.addPolicy(policy, endpointList)
@@ -196,13 +182,8 @@ func (pMgr *PolicyManager) RemovePolicy(policyKey string, endpointList map[strin
 		return nil
 	}
 
-	klog.Infof("map lock for Removing policy %s", policyKey) // FIXME remove
 	pMgr.policyMap.Lock()
-	// defer pMgr.policyMap.Unlock()
-	defer func() {
-		pMgr.policyMap.Unlock()
-		klog.Infof("map unlock for Removing policy %s", policyKey)
-	}()
+	defer pMgr.policyMap.Unlock()
 
 	// Call actual dataplane function to apply changes
 	err := pMgr.removePolicy(policy, endpointList)
