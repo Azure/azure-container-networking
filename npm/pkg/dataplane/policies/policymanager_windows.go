@@ -174,7 +174,8 @@ func (pMgr *PolicyManager) removePolicy(policy *NPMNetworkPolicy, endpointList m
 func (pMgr *PolicyManager) removePolicyByEndpointID(ruleID, epID string, noOfRulesToRemove int, resetAllACL shouldResetAllACLs) error {
 	epObj, err := pMgr.ioShim.Hns.GetEndpointByID(epID)
 	if err != nil {
-		if isNotFoundErr(err) {
+		// IsNotFound check is being skipped at times. So adding a redundant check here.
+		if isNotFoundErr(err) || strings.Contains(err.Error(), "endpoint was not found") {
 			klog.Infof("[PolicyManagerWindows] ignoring remove policy on endpoint since the endpoint wasn't found. the corresponding pod was most likely deleted. policy: %s, endpoint: %s", ruleID, epID)
 			return nil
 		}

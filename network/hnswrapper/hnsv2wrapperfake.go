@@ -203,7 +203,7 @@ func (f Hnsv2wrapperFake) GetEndpointByID(endpointID string) (*hcn.HostComputeEn
 	if ep, ok := f.Cache.endpoints[endpointID]; ok {
 		return ep.GetHCNObj(), nil
 	}
-	return &hcn.HostComputeEndpoint{}, nil
+	return &hcn.HostComputeEndpoint{}, hcn.EndpointNotFoundError{EndpointID: endpointID}
 }
 
 func (f Hnsv2wrapperFake) CreateEndpoint(endpoint *hcn.HostComputeEndpoint) (*hcn.HostComputeEndpoint, error) {
