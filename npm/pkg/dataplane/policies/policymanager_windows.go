@@ -176,7 +176,7 @@ func (pMgr *PolicyManager) removePolicyByEndpointID(ruleID, epID string, noOfRul
 	if err != nil {
 		// IsNotFound check is being skipped at times. So adding a redundant check here.
 		if isNotFoundErr(err) || strings.Contains(err.Error(), "endpoint was not found") {
-			klog.Infof("[PolicyManagerWindows] ignoring remove policy on endpoint since the endpoint wasn't found. the corresponding pod was most likely deleted. policy: %s, endpoint: %s", ruleID, epID)
+			klog.Infof("[PolicyManagerWindows] ignoring remove policy since the endpoint wasn't found. the corresponding pod might be deleted. policy: %s, endpoint: %s, err: %s", ruleID, epID, err.Error())
 			return nil
 		}
 		return fmt.Errorf("[PolicyManagerWindows] failed to remove policy while getting the endpoint. policy: %s, endpoint: %s, err: %w", ruleID, epID, err)
