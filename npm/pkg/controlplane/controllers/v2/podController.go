@@ -243,7 +243,7 @@ func (c *PodController) processNextWorkItem() bool {
 }
 
 // syncPod compares the actual state with the desired, and attempts to converge the two.
-func (c *PodController) syncPod(key string) (err error) {
+func (c *PodController) syncPod(key string) error {
 	// timer for recording execution times
 	timer := metrics.StartNewTimer()
 

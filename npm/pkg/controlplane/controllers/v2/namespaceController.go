@@ -221,7 +221,7 @@ func (nsc *NamespaceController) processNextWorkItem() bool {
 }
 
 // syncNamespace compares the actual state with the desired, and attempts to converge the two.
-func (nsc *NamespaceController) syncNamespace(nsKey string) (err error) {
+func (nsc *NamespaceController) syncNamespace(nsKey string) error {
 	// timer for recording execution times
 	timer := metrics.StartNewTimer()
 
