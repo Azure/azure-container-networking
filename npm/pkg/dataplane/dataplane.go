@@ -219,7 +219,7 @@ func (dp *DataPlane) ApplyDataPlane() error {
 				} else {
 					aggregateErr = fmt.Errorf("failed to update pod while applying the dataplane. key: [%s], err: [%s]. previous err: [%w]", podKey, err.Error(), aggregateErr)
 				}
-				metrics.SendErrorLogAndMetric(util.DaemonDataplaneID, "error: failed to update pods: %s", err.Error())
+				metrics.SendErrorLogAndMetric(util.DaemonDataplaneID, "failed to update pod while applying the dataplane. key: [%s], err: [%s]", podKey, err.Error())
 				continue
 			}
 			delete(dp.updatePodCache.cache, podKey)
