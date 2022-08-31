@@ -32,7 +32,7 @@ type Core struct {
 	fieldMappers map[string]fieldTagMapper
 	fields       []zapcore.Field
 	out          zapcore.WriteSyncer
-	sync.Mutex
+	lock         sync.Mutex
 }
 
 // NewCore creates a new appinsights zap core. Should only be initialized using an appinsights Sink as the
@@ -78,8 +78,8 @@ func (c *Core) Check(entry zapcore.Entry, checked *zapcore.CheckedEntry) *zapcor
 // Write implements zapcore.Core
 //nolint:gocritic // ignore hugeparam in interface impl
 func (c *Core) Write(entry zapcore.Entry, fields []zapcore.Field) error {
-	c.Lock()
-	defer c.Unlock()
+	c.lock.Lock()
+	defer c.lock.Unlock()
 	t := appinsights.NewTraceTelemetry(entry.Message, levelToSev[entry.Level])
 
 	// add fields from core
@@ -135,5 +135,6 @@ func (c *Core) clone() *Core {
 		fieldMappers: fieldMappers,
 		fields:       fields,
 		out:          c.out,
+		lock:         c.lock,
 	}
 }
