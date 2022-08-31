@@ -23,3 +23,10 @@ type Tag struct {
 type SupportedAPIsResponseXML struct {
 	SupportedApis []string `xml:"type"`
 }
+
+// NCVersion is a response produced from requests for a network container's
+// version.
+type NCVersion struct {
+	NetworkContainerID string `json:"networkContainerId"`
+	Version            string `json:"version"` // the current network container version
+}

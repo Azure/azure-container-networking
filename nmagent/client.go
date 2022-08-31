@@ -114,6 +114,37 @@ func (c *Client) GetNetworkConfiguration(ctx context.Context, gncr GetNetworkCon
 	return out, err // nolint:wrapcheck // wrapping just introduces noise here
 }
 
+// GetNetworkContainerVersion gets the current goal state version of a Network
+// Container. This method can be used to detect changes in a Network
+// Container's state that would indicate that it requires re-programming. The
+// request must originate from a VM network interface that has a Swift
+// Provisioning OwningServiceInstanceId property. The authentication token must
+// match the token on the subnet containing the Network Container address.
+func (c *Client) GetNCVersion(ctx context.Context, ncvr NCVersionRequest) (NCVersion, error) {
+	req, err := c.buildRequest(ctx, ncvr)
+	if err != nil {
+		return NCVersion{}, errors.Wrap(err, "building request")
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return NCVersion{}, errors.Wrap(err, "submitting request")
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return NCVersion{}, die(resp.StatusCode, resp.Header, resp.Body)
+	}
+
+	var out NCVersion
+	err = json.NewDecoder(resp.Body).Decode(&out)
+	if err != nil {
+		return NCVersion{}, errors.Wrap(err, "decoding response")
+	}
+
+	return out, nil
+}
+
 // PutNetworkContainer applies a Network Container goal state and publishes it
 // to PubSub.
 func (c *Client) PutNetworkContainer(ctx context.Context, pncr *PutNetworkContainerRequest) error {

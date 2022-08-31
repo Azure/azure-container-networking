@@ -68,6 +68,7 @@ type HTTPRestService struct {
 		DeleteNetworkContainer(context.Context, nma.DeleteContainerRequest) error
 		JoinNetwork(context.Context, nma.JoinNetworkRequest) error
 		SupportedAPIs(context.Context) ([]string, error)
+		GetNCVersion(context.Context, nma.NCVersionRequest) (nma.NCVersion, error)
 	}
 }
 

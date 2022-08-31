@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/Azure/azure-container-networking/cns/logger"
-	"github.com/Azure/azure-container-networking/common"
 	"github.com/pkg/errors"
 )
 
@@ -61,17 +60,6 @@ func NewClient(url string) (*Client, error) {
 	return &Client{
 		connectionURL: url,
 	}, nil
-}
-
-// GetNetworkContainerVersion :- Retrieves NC version from NMAgent
-func GetNetworkContainerVersion(networkContainerID, getNetworkContainerVersionURL string) (*http.Response, error) {
-	logger.Printf("[NMAgentClient] GetNetworkContainerVersion NC: %s", networkContainerID)
-
-	response, err := common.GetHttpClient().Get(getNetworkContainerVersionURL)
-
-	logger.Printf("[NMAgentClient][Response] GetNetworkContainerVersion NC: %s. Response: %+v. Error: %v",
-		networkContainerID, response, err)
-	return response, err
 }
 
 // GetNCVersionList query nmagent for programmed container versions.

@@ -310,3 +310,52 @@ func (s *SupportedAPIsRequest) Path() string {
 func (s *SupportedAPIsRequest) Validate() error {
 	return nil
 }
+
+var _ Request = NCVersionRequest{}
+
+type NCVersionRequest struct {
+	AuthToken          string `json:"-"`
+	NetworkContainerID string `json:"-"`
+	PrimaryAddress     string `json:"-"`
+}
+
+func (n NCVersionRequest) Body() (io.Reader, error) {
+	// there is no body to an NCVersionRequest, so return nil
+	return nil, nil
+}
+
+// Method indicates this request is a GET request
+func (n NCVersionRequest) Method() string {
+	return http.MethodGet
+}
+
+// Path returns the URL Path for the request with parameters interpolated as
+// necessary.
+func (n NCVersionRequest) Path() string {
+	const path = "/NetworkManagement/interfaces/%s/networkContainers/%s/version/authenticationToken/%s/api-version/1"
+	return fmt.Sprintf(path, n.PrimaryAddress, n.NetworkContainerID, n.AuthToken)
+}
+
+// Validate ensures the presence of all parameters of the NCVersionRequest, as
+// none are optional.
+func (n NCVersionRequest) Validate() error {
+	err := internal.ValidationError{}
+
+	if n.AuthToken == "" {
+		err.MissingFields = append(err.MissingFields, "AuthToken")
+	}
+
+	if n.NetworkContainerID == "" {
+		err.MissingFields = append(err.MissingFields, "NetworkContainerID")
+	}
+
+	if n.PrimaryAddress == "" {
+		err.MissingFields = append(err.MissingFields, "PrimaryAddress")
+	}
+
+	if err.IsEmpty() {
+		return nil
+	}
+
+	return err
+}

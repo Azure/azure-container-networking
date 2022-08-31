@@ -4,8 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
 	"strconv"
 	"time"
 
@@ -804,33 +802,28 @@ func (service *HTTPRestService) isNCWaitingForUpdate(
 		return
 	}
 
-	resp, err := nmagent.GetNetworkContainerVersion(ncid, getNCVersionURL.(string))
+	resp, err := service.nma.GetNCVersion(context.TODO(), getNCVersionURL.(nmagent.NCVersionRequest))
 	if err != nil {
 		logger.Printf("[Azure CNS] Failed to get NC version status from NMAgent with error: %+v. "+
 			"Skipping GetNCVersionStatus check from NMAgent", err)
 		returnCode = types.NetworkContainerVfpProgramCheckSkipped
 		return
 	}
-	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
-		logger.Printf("[Azure CNS] Failed to get NC version status from NMAgent with http status %d. "+
-			"Skipping GetNCVersionStatus check from NMAgent", resp.StatusCode)
+	ncTargetVersion, _ := strconv.Atoi(ncVersion)
+	nmaProgrammedNCVersion, err := strconv.Atoi(resp.Version)
+	if err != nil {
+		// it's unclear whether or not this can actually happen. In the NMAgent
+		// documentation, Version is described as a string, but in practice the
+		// values appear to be exclusively integers. Nevertheless, NMAgent is
+		// allowed to make this parameter anything (by contract), so we should
+		// defend against it by erroring appropriately:
+		logger.Printf("[Azure CNS] Failed to get NC version status from NMAgent with error: %+v. "+
+			"Skipping GetNCVersionStatus check from NMAgent", err)
 		returnCode = types.NetworkContainerVfpProgramCheckSkipped
 		return
 	}
 
-	var versionResponse nmagent.NetworkContainerResponse
-	rBytes, _ := io.ReadAll(resp.Body)
-	json.Unmarshal(rBytes, &versionResponse)
-	if versionResponse.ResponseCode != "200" {
-		returnCode = types.NetworkContainerVfpProgramPending
-		message = fmt.Sprintf("Failed to get NC version status from NMAgent. NC: %s, Response %s", ncid, rBytes)
-		return
-	}
-
-	ncTargetVersion, _ := strconv.Atoi(ncVersion)
-	nmaProgrammedNCVersion, _ := strconv.Atoi(versionResponse.Version)
 	if ncTargetVersion > nmaProgrammedNCVersion {
 		returnCode = types.NetworkContainerVfpProgramPending
 		message = fmt.Sprintf("Network container: %s version: %d is not yet programmed by NMAgent. Programmed version: %d",

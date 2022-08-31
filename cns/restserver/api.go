@@ -16,7 +16,6 @@ import (
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/hnsclient"
 	"github.com/Azure/azure-container-networking/cns/logger"
-	"github.com/Azure/azure-container-networking/cns/nmagent"
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/cns/wireserver"
 	nma "github.com/Azure/azure-container-networking/nmagent"
@@ -1202,13 +1201,13 @@ func (service *HTTPRestService) publishNetworkContainer(w http.ResponseWriter, r
 			}
 		}
 
-		// Store ncGetVersionURL needed for calling NMAgent to check if vfp programming is completed for the NC
-		ncGetVersionURL := fmt.Sprintf(nmagent.GetNetworkContainerVersionURLFmt,
-			nmagent.WireserverIP,
-			ncParameters.AssociatedInterfaceID,
-			req.NetworkContainerID,
-			ncParameters.AuthToken)
-		ncVersionURLs.Store(cns.SwiftPrefix+req.NetworkContainerID, ncGetVersionURL)
+		req := nma.NCVersionRequest{
+			AuthToken:          ncParameters.AuthToken,
+			NetworkContainerID: req.NetworkContainerID,
+			PrimaryAddress:     ncParameters.AssociatedInterfaceID,
+		}
+
+		ncVersionURLs.Store(cns.SwiftPrefix+req.NetworkContainerID, req)
 
 	default:
 		returnMessage = "PublishNetworkContainer API expects a POST"
