@@ -210,13 +210,22 @@ func (dp *DataPlane) ApplyDataPlane() error {
 		dp.updatePodCache.Lock()
 		defer dp.updatePodCache.Unlock()
 
+		var aggregateErr error
 		for podKey, pod := range dp.updatePodCache.cache {
 			err := dp.updatePod(pod)
 			if err != nil {
+				if aggregateErr == nil {
+					aggregateErr = fmt.Errorf("failed to update pod while applying the dataplane. key: [%s], err: [%w]", podKey, err)
+				} else {
+					aggregateErr = fmt.Errorf("failed to update pod while applying the dataplane. key: [%s], err: [%s]. previous err: [%w]", podKey, err.Error(), aggregateErr)
+				}
 				metrics.SendErrorLogAndMetric(util.DaemonDataplaneID, "error: failed to update pods: %s", err.Error())
-				return fmt.Errorf("[DataPlane] error while updating pod: %w", err)
+				continue
 			}
 			delete(dp.updatePodCache.cache, podKey)
+		}
+		if aggregateErr != nil {
+			return fmt.Errorf("[DataPlane] error while updating pods: %w", err)
 		}
 	}
 	return nil
