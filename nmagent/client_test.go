@@ -74,26 +74,13 @@ func TestNMAgentClientJoinNetwork(t *testing.T) {
 				},
 			})
 
-			// if the test provides a timeout, use it in the context
-			var ctx context.Context
-			if deadline, ok := t.Deadline(); ok {
-				var cancel context.CancelFunc
-				ctx, cancel = context.WithDeadline(context.Background(), deadline)
-				defer cancel()
-			} else {
-				ctx = context.Background()
-			}
+			ctx, cancel := testContext(t)
+			defer cancel()
 
 			// attempt to join network
 			// TODO(timraymond): need a more realistic network ID, I think
 			err := client.JoinNetwork(ctx, nmagent.JoinNetworkRequest{test.id})
-			if err != nil && !test.shouldErr {
-				t.Fatal("unexpected error: err:", err)
-			}
-
-			if err == nil && test.shouldErr {
-				t.Fatal("expected error but received none")
-			}
+			checkErr(t, err, test.shouldErr)
 
 			if got != test.exp {
 				t.Error("received URL differs from expectation: got", got, "exp:", test.exp)
@@ -122,15 +109,8 @@ func TestNMAgentClientJoinNetworkRetry(t *testing.T) {
 		},
 	})
 
-	// if the test provides a timeout, use it in the context
-	var ctx context.Context
-	if deadline, ok := t.Deadline(); ok {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithDeadline(context.Background(), deadline)
-		defer cancel()
-	} else {
-		ctx = context.Background()
-	}
+	ctx, cancel := testContext(t)
+	defer cancel()
 
 	// attempt to join network
 	err := client.JoinNetwork(ctx, nmagent.JoinNetworkRequest{"00000000-0000-0000-0000-000000000000"})
@@ -156,7 +136,7 @@ ww.w3.org/2001/XMLSchema">
 `
 
 	client := nmagent.NewTestClient(&TestTripper{
-		RoundTripF: func(req *http.Request) (*http.Response, error) {
+		RoundTripF: func(_ *http.Request) (*http.Response, error) {
 			rr := httptest.NewRecorder()
 			rr.WriteHeader(http.StatusInternalServerError)
 			_, _ = rr.WriteString(wsError)
@@ -167,7 +147,11 @@ ww.w3.org/2001/XMLSchema">
 	req := nmagent.GetNetworkConfigRequest{
 		VNetID: "4815162342",
 	}
-	_, err := client.GetNetworkConfiguration(context.TODO(), req)
+
+	ctx, cancel := testContext(t)
+	defer cancel()
+
+	_, err := client.GetNetworkConfiguration(ctx, req)
 
 	if err == nil {
 		t.Fatal("expected error to not be nil")
@@ -235,15 +219,8 @@ func TestNMAgentGetNetworkConfig(t *testing.T) {
 				},
 			})
 
-			// if the test provides a timeout, use it in the context
-			var ctx context.Context
-			if deadline, ok := t.Deadline(); ok {
-				var cancel context.CancelFunc
-				ctx, cancel = context.WithDeadline(context.Background(), deadline)
-				defer cancel()
-			} else {
-				ctx = context.Background()
-			}
+			ctx, cancel := testContext(t)
+			defer cancel()
 
 			gotVNet, err := client.GetNetworkConfiguration(ctx, nmagent.GetNetworkConfigRequest{test.vnetID})
 			checkErr(t, err, test.shouldErr)
@@ -274,7 +251,7 @@ func TestNMAgentGetNetworkConfigRetry(t *testing.T) {
 	count := 0
 	exp := 10
 	client := nmagent.NewTestClient(&TestTripper{
-		RoundTripF: func(req *http.Request) (*http.Response, error) {
+		RoundTripF: func(_ *http.Request) (*http.Response, error) {
 			rr := httptest.NewRecorder()
 			if count < exp {
 				rr.WriteHeader(http.StatusProcessing)
@@ -289,15 +266,8 @@ func TestNMAgentGetNetworkConfigRetry(t *testing.T) {
 		},
 	})
 
-	// if the test provides a timeout, use it in the context
-	var ctx context.Context
-	if deadline, ok := t.Deadline(); ok {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithDeadline(context.Background(), deadline)
-		defer cancel()
-	} else {
-		ctx = context.Background()
-	}
+	ctx, cancel := testContext(t)
+	defer cancel()
 
 	_, err := client.GetNetworkConfiguration(ctx, nmagent.GetNetworkConfigRequest{"00000000-0000-0000-0000-000000000000"})
 	if err != nil {
@@ -350,7 +320,7 @@ func TestNMAgentPutNetworkContainer(t *testing.T) {
 
 			didCall := false
 			client := nmagent.NewTestClient(&TestTripper{
-				RoundTripF: func(req *http.Request) (*http.Response, error) {
+				RoundTripF: func(_ *http.Request) (*http.Response, error) {
 					rr := httptest.NewRecorder()
 					_, _ = rr.WriteString(`{"httpStatusCode": "200"}`)
 					rr.WriteHeader(http.StatusOK)
