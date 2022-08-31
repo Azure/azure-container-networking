@@ -13,12 +13,6 @@ steps:
 
 - script: |
     set -e
-    make qemu-user-static
-  name: container_env
-  displayName: Prepare Environment
-
-- script: |
-    set -e
     make ${{ parameters.name }}-image OS=${{ parameters.os }} ARCH=${{ parameters.arch }}
   name: image_build
   displayName: Image Build
