@@ -129,6 +129,15 @@ func TestRemovePolicies(t *testing.T) {
 	verifyACLCacheIsCleaned(t, hns, len(endPointIDList))
 }
 
+func TestApplyPoliciesEndpointNotFound(t *testing.T) {
+	pMgr, _ := getPMgr(t)
+	testendPointIDList := map[string]string{
+		"10.0.0.5": "test10",
+	}
+	err := pMgr.AddPolicy(TestNetworkPolicies[0], testendPointIDList)
+	require.NoError(t, err)
+}
+
 func TestRemovePoliciesEndpointNotFound(t *testing.T) {
 	pMgr, hns := getPMgr(t)
 	err := pMgr.AddPolicy(TestNetworkPolicies[0], endPointIDList)
@@ -138,16 +147,6 @@ func TestRemovePoliciesEndpointNotFound(t *testing.T) {
 
 	_, err = hns.Cache.ACLPolicies(endPointIDList, aclID)
 	require.NoError(t, err)
-	/*
-		for _, id := range endPointIDList {
-			acls, ok := aclPolicies[id]
-			if !ok {
-				t.Errorf("Expected %s to be in ACLs", id)
-			}
-			verifyFakeHNSCacheACLs(t, expectedACLs, acls)
-		}
-	*/
-
 	testendPointIDList := map[string]string{
 		"10.0.0.5": "test10",
 	}
