@@ -39,6 +39,7 @@ const (
 	NmAgentSupportedApisError              ResponseCode = 37
 	UnsupportedNCVersion                   ResponseCode = 38
 	FailedToRunIPTableCmd                  ResponseCode = 39
+	NilEndpointStateStore                  ResponseCode = 40
 	UnexpectedError                        ResponseCode = 99
 )
 

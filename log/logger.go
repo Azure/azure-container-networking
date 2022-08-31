@@ -257,3 +257,12 @@ func (logger *Logger) Debugf(format string, args ...interface{}) {
 func (logger *Logger) Errorf(format string, args ...interface{}) {
 	logger.Logf(format, args...)
 }
+
+// Warnf logs a formatted string at warninglevel
+func (logger *Logger) Warnf(format string, args ...interface{}) {
+	if logger.level < LevelWarning {
+		return
+	}
+
+	logger.Logf(format, args...)
+}

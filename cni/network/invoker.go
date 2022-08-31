@@ -6,7 +6,7 @@ import (
 	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/cns"
 	cniSkel "github.com/containernetworking/cni/pkg/skel"
-	cniTypesCurr "github.com/containernetworking/cni/pkg/types/current"
+	cniTypesCurr "github.com/containernetworking/cni/pkg/types/100"
 )
 
 // IPAMInvoker is used by the azure-vnet CNI plugin to call different sources for IPAM.

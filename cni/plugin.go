@@ -17,7 +17,7 @@ import (
 	cniInvoke "github.com/containernetworking/cni/pkg/invoke"
 	cniSkel "github.com/containernetworking/cni/pkg/skel"
 	cniTypes "github.com/containernetworking/cni/pkg/types"
-	cniTypesCurr "github.com/containernetworking/cni/pkg/types/current"
+	cniTypesCurr "github.com/containernetworking/cni/pkg/types/100"
 	cniVers "github.com/containernetworking/cni/pkg/version"
 	"github.com/pkg/errors"
 )

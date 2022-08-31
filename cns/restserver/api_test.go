@@ -1078,7 +1078,7 @@ func startService() error {
 	}
 
 	nmagentClient := &fakes.NMAgentClientFake{}
-	service, err = NewHTTPRestService(&config, &fakes.WireserverClientFake{}, nmagentClient)
+	service, err = NewHTTPRestService(&config, &fakes.WireserverClientFake{}, nmagentClient, nil)
 	if err != nil {
 		return err
 	}

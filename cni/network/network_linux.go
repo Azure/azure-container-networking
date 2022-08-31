@@ -11,7 +11,7 @@ import (
 	"github.com/Azure/azure-container-networking/network/policy"
 	cniSkel "github.com/containernetworking/cni/pkg/skel"
 	cniTypes "github.com/containernetworking/cni/pkg/types"
-	cniTypesCurr "github.com/containernetworking/cni/pkg/types/current"
+	cniTypesCurr "github.com/containernetworking/cni/pkg/types/100"
 )
 
 const (
@@ -23,7 +23,8 @@ const snatConfigFileName = "/tmp/snatConfig"
 
 // handleConsecutiveAdd is a dummy function for Linux platform.
 func (plugin *NetPlugin) handleConsecutiveAdd(args *cniSkel.CmdArgs, endpointID string, networkID string,
-	nwInfo *network.NetworkInfo, nwCfg *cni.NetworkConfig) (*cniTypesCurr.Result, error) {
+	nwInfo *network.NetworkInfo, nwCfg *cni.NetworkConfig,
+) (*cniTypesCurr.Result, error) {
 	return nil, nil
 }
 
@@ -87,8 +88,8 @@ func setupInfraVnetRoutingForMultitenancy(
 	nwCfg *cni.NetworkConfig,
 	azIpamResult *cniTypesCurr.Result,
 	epInfo *network.EndpointInfo,
-	result *cniTypesCurr.Result) {
-
+	result *cniTypesCurr.Result,
+) {
 	if epInfo.EnableInfraVnet {
 		_, ipNet, _ := net.ParseCIDR(nwCfg.InfraVnetAddressSpace)
 		epInfo.Routes = append(epInfo.Routes, network.RouteInfo{Dst: *ipNet, Gw: azIpamResult.IPs[0].Gateway, DevName: infraInterface})

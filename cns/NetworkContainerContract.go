@@ -390,7 +390,7 @@ type IPConfigRequest struct {
 	PodInterfaceID      string
 	InfraContainerID    string
 	OrchestratorContext json.RawMessage
-	Ifname              string
+	Ifname              string // Used by delegated IPAM
 }
 
 func (i IPConfigRequest) String() string {

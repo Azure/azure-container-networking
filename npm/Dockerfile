@@ -1,5 +1,5 @@
 # Build npm
-FROM mcr.microsoft.com/oss/go/microsoft/golang:1.18 AS builder
+FROM mcr.microsoft.com/oss/go/microsoft/golang:1.19 AS builder
 # Build args
 ARG VERSION
 ARG NPM_AI_PATH

@@ -34,10 +34,29 @@ steps:
         mkdir -p ~/.kube/
         echo "Create AKS cluster"
         make -C ./hack/swift azcfg AZCLI=az
-        make -C ./hack/swift byocni-up SUB=$(SUB_AZURE_NETWORK_AGENT_TEST) AZCLI=az CLUSTER=swifte2e-$(make revision)
+        make -C ./hack/swift byocni-up SUB=$(SUB_AZURE_NETWORK_AGENT_TEST) AZCLI=az CLUSTER=ciliume2e-$(make revision)
         echo "Cluster successfully created"
     displayName: Create test cluster
     condition: succeeded()
+
+  - script: |
+      ls -lah
+      pwd
+      echo "installing kubectl"
+      curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+      sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+      kubectl cluster-info
+      kubectl get po -owide -A
+      curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
+      chmod 700 get_helm.sh
+      ./get_helm.sh
+      echo "deploy Cilium ConfigMap"
+      kubectl apply -f cilium/configmap.yaml
+      echo "install Cilium"
+      helm repo add cilium https://helm.cilium.io/
+      helm install cilium cilium/cilium --version 1.12.1.1 --namespace kube-system -f cilium/cilium_helm_values.yaml
+    name: "installCilium"
+    displayName: "Install Cilium"
 
   - script: |
       echo "install kubetest2 and gsutils"
@@ -52,23 +71,18 @@ steps:
       sudo mv gsutil /usr/local/bin
     name: "installKubetest"
     displayName: "Set up Conformance Tests"
-  
+
   - script: |
-      ls -lah
-      pwd
-      echo "installing kubectl"
-      curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-      sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
-      kubectl cluster-info
+      echo "Start Azilium E2E Tests"
       kubectl get po -owide -A
-      sudo -E env "PATH=$PATH" VERSION=$(Tag) INSTALL_CNS=true INSTALL_AZURE_VNET=true make test-integration
+      sudo -E env "PATH=$PATH" VERSION=$(Tag) INSTALL_CNS=true INSTALL_AZILIUM=true make test-integration
     retryCountOnTaskFailure: 3
-    name: "aksswifte2e"
-    displayName: "Run AKS Swift E2E"
+    name: "aziliumTest"
+    displayName: "Run Azilium E2E"
 
   - script: |
       echo "Logs will be available as a build artifact"
-      ARTIFACT_DIR=$(Build.ArtifactStagingDirectory)/aks-swift-output/
+      ARTIFACT_DIR=$(Build.ArtifactStagingDirectory)/test-output/
       echo $ARTIFACT_DIR
       sudo rm -rf $ARTIFACT_DIR
       sudo mkdir $ARTIFACT_DIR
@@ -79,8 +93,8 @@ steps:
 
   - task: PublishBuildArtifacts@1
     inputs:
-      artifactName: aks-swift-output
-      pathtoPublish: "$(Build.ArtifactStagingDirectory)/aks-swift-output"
+      artifactName: test-output
+      pathtoPublish: "$(Build.ArtifactStagingDirectory)/test-output"
     condition: always()
 
   - script: |
@@ -93,7 +107,7 @@ steps:
     displayName: "Run Services Conformance Tests"
 
   - script: |
-      ARTIFACT_DIR=$(Build.ArtifactStagingDirectory)/aks-swift-output/
+      ARTIFACT_DIR=$(Build.ArtifactStagingDirectory)/test-output/
       echo $ARTIFACT_DIR
       sudo rm -rf $ARTIFACT_DIR
       sudo rm -rf test/integration/logs
@@ -110,7 +124,7 @@ steps:
       inlineScript: |
         echo "Deleting cluster"
         make -C ./hack/swift azcfg AZCLI=az
-        make -C ./hack/swift down SUB=$(SUB_AZURE_NETWORK_AGENT_TEST) AZCLI=az CLUSTER=swifte2e-$(make revision)
+        make -C ./hack/swift down SUB=$(SUB_AZURE_NETWORK_AGENT_TEST) AZCLI=az CLUSTER=ciliume2e-$(make revision)
         echo "Cluster and resources down"
     name: "Cleanupcluster"
     displayName: "Cleanup cluster"

@@ -306,7 +306,7 @@ func (client *TransparentEndpointClient) setIPV6NeighEntry() error {
 		MacAddress: client.hostVethMac,
 	}
 
-	if err := client.netlink.SetOrRemoveLinkAddress(linkInfo, netlink.ADD, netlink.NUD_PROBE); err != nil {
+	if err := client.netlink.SetOrRemoveLinkAddress(linkInfo, netlink.ADD, netlink.NUD_PERMANENT); err != nil {
 		log.Printf("Failed setting neigh entry in container: %+v", err)
 		return fmt.Errorf("Failed setting neigh entry in container: %w", err)
 	}

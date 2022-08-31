@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/gob"
 	"fmt"
+	"strconv"
 	"sync"
 
 	"github.com/microsoft/ApplicationInsights-Go/appinsights"
@@ -86,8 +87,18 @@ func (g *gobber) decode(b []byte) (*appinsights.TraceTelemetry, error) {
 
 // fieldStringer evaluates a zapcore.Field in to a best-effort string.
 func fieldStringer(f *zapcore.Field) string {
-	if f.Type == zapcore.StringType {
+	switch f.Type {
+	case zapcore.StringType:
 		return f.String
+	case zapcore.Int64Type:
+		return strconv.FormatInt(f.Integer, 10)
+	case zapcore.Uint16Type:
+		return strconv.FormatInt(f.Integer, 10)
+	case zapcore.ErrorType:
+		return f.Interface.(error).Error()
+	case zapcore.BoolType:
+		return strconv.FormatBool(f.Integer == 1)
+	default:
+		return fmt.Sprintf("%v", f)
 	}
-	return fmt.Sprintf("%v", f)
 }

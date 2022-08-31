@@ -5,17 +5,17 @@ package network
 
 import (
 	"fmt"
-	"github.com/Azure/azure-container-networking/network/hnswrapper"
 	"net"
 	"testing"
 
 	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/network"
+	"github.com/Azure/azure-container-networking/network/hnswrapper"
 	"github.com/Azure/azure-container-networking/network/policy"
 	"github.com/Azure/azure-container-networking/telemetry"
 	"github.com/containernetworking/cni/pkg/skel"
-	cniTypesCurr "github.com/containernetworking/cni/pkg/types/current"
+	cniTypesCurr "github.com/containernetworking/cni/pkg/types/100"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -24,6 +24,7 @@ func init() {
 	network.Hnsv2 = hnswrapper.NewHnsv2wrapperFake()
 	network.Hnsv1 = hnswrapper.NewHnsv1wrapperFake()
 }
+
 // Test windows network policies is set
 func TestAddWithRunTimeNetPolicies(t *testing.T) {
 	_, ipnetv4, _ := net.ParseCIDR("10.240.0.0/12")
@@ -89,11 +90,11 @@ func TestPluginSecondAddSamePodWindows(t *testing.T) {
 				IfName:      eth0IfName,
 			},
 			plugin: &NetPlugin{
-				Plugin:            plugin,
-				nm:                network.NewMockNetworkmanager(),
-				ipamInvoker:       NewMockIpamInvoker(false, false, false),
-				report:            &telemetry.CNIReport{},
-				tb:                &telemetry.TelemetryBuffer{},
+				Plugin:      plugin,
+				nm:          network.NewMockNetworkmanager(),
+				ipamInvoker: NewMockIpamInvoker(false, false, false),
+				report:      &telemetry.CNIReport{},
+				tb:          &telemetry.TelemetryBuffer{},
 			},
 			wantErr: false,
 		},
@@ -108,11 +109,11 @@ func TestPluginSecondAddSamePodWindows(t *testing.T) {
 				IfName:      eth0IfName,
 			},
 			plugin: &NetPlugin{
-				Plugin:            plugin,
-				nm:                network.NewMockNetworkmanager(),
-				ipamInvoker:       NewMockIpamInvoker(false, false, false),
-				report:            &telemetry.CNIReport{},
-				tb:                &telemetry.TelemetryBuffer{},
+				Plugin:      plugin,
+				nm:          network.NewMockNetworkmanager(),
+				ipamInvoker: NewMockIpamInvoker(false, false, false),
+				report:      &telemetry.CNIReport{},
+				tb:          &telemetry.TelemetryBuffer{},
 			},
 			wantErr: false,
 		},

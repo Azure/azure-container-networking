@@ -242,6 +242,12 @@ stages:
               name: $(name)
               platforms: $(platforms)
               tag: $(TAG)
+  
+  - template: singletenancy/cilium/cilium-e2e-job-template.yaml
+    parameters:
+      name: "cilium_e2e"
+      displayName: Cilium
+      pipelineBuildImage: "$(BUILD_IMAGE)"
 
   - template: singletenancy/aks-swift/e2e-job-template.yaml
     parameters:
