@@ -169,7 +169,7 @@ func (dp *DataPlane) updatePod(pod *updateNPMPod) error {
 				endpointList := map[string]string{
 					endpoint.ip: endpoint.id,
 				}
-				err := dp.policyMgr.RemovePolicy(policyKey, endpointList)
+				err := dp.policyMgr.RemovePolicyForEndpoints(policyKey, endpointList)
 				if err != nil {
 					return err
 				}
