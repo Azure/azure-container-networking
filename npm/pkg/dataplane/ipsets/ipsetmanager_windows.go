@@ -51,9 +51,10 @@ func (iMgr *IPSetManager) DoesIPSatisfySelectorIPSets(ip string, setList map[str
 }
 
 // GetIPsFromSelectorIPSets will take in a map of prefixedSetNames and return an intersection of IPs
-func (iMgr *IPSetManager) GetIPsFromSelectorIPSets(setList map[string]struct{}) (map[string]struct{}, error) {
+func (iMgr *IPSetManager) GetIPsFromSelectorIPSets(setList map[string]struct{}) (map[string]string, error) {
+	ips := make(map[string]string)
 	if len(setList) == 0 {
-		return map[string]struct{}{}, nil
+		return ips, nil
 	}
 	iMgr.Lock()
 	defer iMgr.Unlock()
@@ -73,10 +74,9 @@ func (iMgr *IPSetManager) GetIPsFromSelectorIPSets(setList map[string]struct{}) 
 			firstSet = set
 		}
 	}
-	ips := make(map[string]struct{})
 	if firstSet.Kind == HashSet {
 		// include every IP in firstSet that is also affiliated with every other selector set
-		for ip := range firstSet.IPPodKey {
+		for ip, podKey := range firstSet.IPPodKey {
 			isAffiliated := true
 			for otherSetName := range setList {
 				if otherSetName == firstSet.Name {
@@ -90,7 +90,7 @@ func (iMgr *IPSetManager) GetIPsFromSelectorIPSets(setList map[string]struct{}) 
 			}
 
 			if isAffiliated {
-				ips[ip] = struct{}{}
+				ips[ip] = podKey
 			}
 		}
 	} else {
@@ -100,8 +100,8 @@ func (iMgr *IPSetManager) GetIPsFromSelectorIPSets(setList map[string]struct{}) 
 
 		// only loop over the unique affiliated IPs
 		for _, memberSet := range firstSet.MemberIPSets {
-			for ip := range memberSet.IPPodKey {
-				ips[ip] = struct{}{}
+			for ip, podKey := range memberSet.IPPodKey {
+				ips[ip] = podKey
 			}
 		}
 		for ip := range ips {

@@ -263,12 +263,21 @@ func (dp *DataPlane) getEndpointsToApplyPolicy(policy *policies.NPMNetworkPolicy
 	defer dp.endpointCache.Unlock()
 
 	endpointList := make(map[string]string)
-	for ip := range netpolSelectorIPs {
+	for ip, podKey := range netpolSelectorIPs {
 		endpoint, ok := dp.endpointCache.cache[ip]
 		if !ok {
 			klog.Infof("[DataPlane] Ignoring endpoint with IP %s since it was not found in the endpoint cache. This IP might not be in the HNS network", ip)
 			continue
 		}
+
+		if endpoint.podKey != podKey {
+			// in case the pod controller hasn't updated the dp yet that the IP's pod owner has changed
+			klog.Infof(
+				"[DataPlane] ignoring endpoint with IP %s since the pod keys are different. podKey: [%s], endpoint: [%+v], endpoint stale pod key: [%+v]",
+				ip, podKey, endpoint, endpoint.stalePodKey)
+			continue
+		}
+
 		endpointList[ip] = endpoint.id
 		endpoint.netPolReference[policy.PolicyKey] = struct{}{}
 	}

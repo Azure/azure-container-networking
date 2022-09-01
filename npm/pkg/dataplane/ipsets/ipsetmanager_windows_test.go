@@ -53,9 +53,9 @@ func TestGetIPsFromSelectorIPSets(t *testing.T) {
 
 	require.Equal(t, 2, len(ips))
 
-	expectedintersection := map[string]struct{}{
-		"10.0.0.1": {},
-		"10.0.0.2": {},
+	expectedintersection := map[string]string{
+		"10.0.0.1": "test3",
+		"10.0.0.2": "test3",
 	}
 
 	require.Equal(t, ips, expectedintersection)
