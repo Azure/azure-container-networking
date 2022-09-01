@@ -33,6 +33,15 @@ func newUpdatePodCache() *updatePodCache {
 	return &updatePodCache{cache: make(map[string]*updateNPMPod)}
 }
 
+type endpointCache struct {
+	sync.Mutex
+	cache map[string]*npmEndpoint
+}
+
+func newEndpointCache() *endpointCache {
+	return &endpointCache{cache: make(map[string]*npmEndpoint)}
+}
+
 type DataPlane struct {
 	*Config
 	policyMgr *policies.PolicyManager
@@ -41,13 +50,10 @@ type DataPlane struct {
 	nodeName  string
 	// endpointCache stores all endpoints of the network (including off-node)
 	// Key is PodIP
-	endpointCache  map[string]*npmEndpoint
+	endpointCache  *endpointCache
 	ioShim         *common.IOShim
 	updatePodCache *updatePodCache
-	// pendingPolicies includes the policy keys of policies which may
-	// be referenced by ipsets but have not been applied to the kernel yet
-	pendingPolicies map[string]struct{}
-	stopChannel     <-chan struct{}
+	stopChannel    <-chan struct{}
 }
 
 func NewDataPlane(nodeName string, ioShim *common.IOShim, cfg *Config, stopChannel <-chan struct{}) (*DataPlane, error) {
@@ -57,15 +63,14 @@ func NewDataPlane(nodeName string, ioShim *common.IOShim, cfg *Config, stopChann
 		cfg.IPSetManagerCfg.AddEmptySetToLists = true
 	}
 	dp := &DataPlane{
-		Config:          cfg,
-		policyMgr:       policies.NewPolicyManager(ioShim, cfg.PolicyManagerCfg),
-		ipsetMgr:        ipsets.NewIPSetManager(cfg.IPSetManagerCfg, ioShim),
-		endpointCache:   make(map[string]*npmEndpoint),
-		nodeName:        nodeName,
-		ioShim:          ioShim,
-		updatePodCache:  newUpdatePodCache(),
-		pendingPolicies: make(map[string]struct{}),
-		stopChannel:     stopChannel,
+		Config:         cfg,
+		policyMgr:      policies.NewPolicyManager(ioShim, cfg.PolicyManagerCfg),
+		ipsetMgr:       ipsets.NewIPSetManager(cfg.IPSetManagerCfg, ioShim),
+		endpointCache:  newEndpointCache(),
+		nodeName:       nodeName,
+		ioShim:         ioShim,
+		updatePodCache: newUpdatePodCache(),
+		stopChannel:    stopChannel,
 	}
 
 	err := dp.BootupDataplane()
@@ -235,8 +240,6 @@ func (dp *DataPlane) ApplyDataPlane() error {
 func (dp *DataPlane) AddPolicy(policy *policies.NPMNetworkPolicy) error {
 	klog.Infof("[DataPlane] Add Policy called for %s", policy.PolicyKey)
 
-	dp.pendingPolicies[policy.PolicyKey] = struct{}{}
-
 	// Create and add references for Selector IPSets first
 	err := dp.createIPSetsAndReferences(policy.AllPodSelectorIPSets(), policy.PolicyKey, ipsets.SelectorType)
 	if err != nil {
@@ -266,7 +269,6 @@ func (dp *DataPlane) AddPolicy(policy *policies.NPMNetworkPolicy) error {
 	if err != nil {
 		return fmt.Errorf("[DataPlane] error while adding policy: %w", err)
 	}
-	delete(dp.pendingPolicies, policy.PolicyKey)
 	return nil
 }
 
