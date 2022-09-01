@@ -120,6 +120,7 @@ func installCNSDaemonset(ctx context.Context, clientset *kubernetes.Clientset, l
 			initImage, _ := parseImageString(cns.Spec.Template.Spec.InitContainers[0].Image)
 			cns.Spec.Template.Spec.InitContainers[0].Image = getImageString(initImage, cniDropgzVersion)
 			cns.Spec.Template.Spec.InitContainers[0].Args = []string{"deploy", "azure-ipam", "-o", "/opt/cni/bin/azure-ipam", "azilium.conflist", "-o", "/etc/cni/net.d/05-cilium.conflist"}
+		}
 	} else {
 		log.Printf("Env %v not set to true, skipping", envInstallAzilium)
 	}
