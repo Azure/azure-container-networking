@@ -12,7 +12,7 @@ steps:
     addPipelineData: false
 
 - powershell: |
-    powershell.exe -command "& { . .\windows.ps1; Retry({${{ parameters.name }}-image windows-${{ parameters.arch }}-${{ parameters.tag }}}) }"
+    powershell.exe -command "& { . .\build\scripts\windows.ps1; Retry({${{ parameters.name }}-image windows-${{ parameters.arch }}-${{ parameters.tag }}}) }"
   name: image_build
   displayName: Image Build
 
