@@ -36,32 +36,8 @@ type PolicyManagerCfg struct {
 }
 
 type PolicyMap struct {
-	mutex sync.RWMutex
+	sync.RWMutex
 	cache map[string]*NPMNetworkPolicy
-}
-
-func (m *PolicyMap) RLock() {
-	if util.IsWindowsDP() {
-		m.mutex.RLock()
-	}
-}
-
-func (m *PolicyMap) RUnlock() {
-	if util.IsWindowsDP() {
-		m.mutex.RUnlock()
-	}
-}
-
-func (m *PolicyMap) Lock() {
-	if util.IsWindowsDP() {
-		m.mutex.Lock()
-	}
-}
-
-func (m *PolicyMap) Unlock() {
-	if util.IsWindowsDP() {
-		m.mutex.Unlock()
-	}
 }
 
 type reconcileManager struct {
