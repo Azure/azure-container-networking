@@ -43,6 +43,7 @@ func (dp *DataPlane) initializeDataPlane() error {
 	}
 
 	// reset endpoint cache so that netpol references are removed for all endpoints while refreshing pod endpoints
+	// no need to lock endpointCache at boot up
 	dp.endpointCache.cache = make(map[string]*npmEndpoint)
 	err = dp.refreshAllPodEndpoints()
 	if err != nil {
@@ -111,11 +112,9 @@ func (dp *DataPlane) updatePod(pod *updateNPMPod) error {
 		return nil
 	}
 
-	err := dp.refreshAllPodEndpoints()
-	if err != nil {
-		klog.Infof("[DataPlane] failed to refresh endpoints in updatePod with %s", err.Error())
-		return err
-	}
+	// lock the endpoint cache while we read/modify the endpoint with the pod's IP
+	dp.endpointCache.Lock()
+	defer dp.endpointCache.Unlock()
 
 	// Check if pod is already present in cache
 	endpoint, ok := dp.endpointCache.cache[pod.PodIP]
@@ -231,18 +230,13 @@ func (dp *DataPlane) getSelectorIPSets(policy *policies.NPMNetworkPolicy) map[st
 }
 
 func (dp *DataPlane) getEndpointsToApplyPolicy(policy *policies.NPMNetworkPolicy) (map[string]string, error) {
-	err := dp.refreshAllPodEndpoints()
-	if err != nil {
-		klog.Infof("[DataPlane] failed to refresh endpoints in getEndpointsToApplyPolicy with %s", err.Error())
-		return nil, err
-	}
-
 	selectorIPSets := dp.getSelectorIPSets(policy)
 	netpolSelectorIPs, err := dp.ipsetMgr.GetIPsFromSelectorIPSets(selectorIPSets)
 	if err != nil {
 		return nil, err
 	}
 
+	// lock the endpoint cache while we read/modify the endpoints with IPs in the policy's pod selector
 	dp.endpointCache.Lock()
 	defer dp.endpointCache.Unlock()
 
@@ -269,12 +263,29 @@ func (dp *DataPlane) getAllPodEndpoints() ([]hcn.HostComputeEndpoint, error) {
 }
 
 // refreshAllPodEndpoints will refresh all the pod endpoints and create empty netpol references for new endpoints
+/*
+Key Assumption: a new pod event (w/ IP) cannot come before HNS knows (and can tell us) about the endpoint.
+From NPM logs, it seems that endpoints are updated far earlier (several seconds) before the pod event comes in.
+
+What we learn from refreshing endpoints:
+- an old endpoint doesn't exist anymore
+- a new endpoint has come up
+
+Why not refresh when adding a netpol to all required pods?
+- It's ok if we try to apply on an endpoint that doesn't exist anymore.
+- We won't know the pod associated with a new endpoint even if we refresh.
+
+Why can we refresh only once before updating all pods in the updatePodCache (see ApplyDataplane)?
+- Again, it's ok if we try to apply on a non-existent endpoint.
+- We won't miss the endpoint (see the assumption). At the time the pod event came in (when AddToSets/RemoveFromSets were called), HNS already knew about the endpoint.
+*/
 func (dp *DataPlane) refreshAllPodEndpoints() error {
 	endpoints, err := dp.getAllPodEndpoints()
 	if err != nil {
 		return err
 	}
 
+	// lock the endpoint cache while we reconcile with HNS goal state
 	dp.endpointCache.Lock()
 	defer dp.endpointCache.Unlock()
 
@@ -357,6 +368,7 @@ func (dp *DataPlane) setNetworkIDByName(networkName string) error {
 }
 
 func (dp *DataPlane) getAllEndpointIDs() []string {
+	// no need to lock endpointCache at boot up
 	endpointIDs := make([]string, 0, len(dp.endpointCache.cache))
 	for _, endpoint := range dp.endpointCache.cache {
 		endpointIDs = append(endpointIDs, endpoint.id)

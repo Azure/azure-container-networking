@@ -137,6 +137,7 @@ func (dp *DataPlane) AddToSets(setNames []*ipsets.IPSetMetadata, podMetadata *Po
 	if dp.shouldUpdatePod() {
 		klog.Infof("[DataPlane] Updating Sets to Add for pod key %s", podMetadata.PodKey)
 
+		// lock updatePodCache while reading/modifying or setting the updatePod in the cache
 		dp.updatePodCache.Lock()
 		defer dp.updatePodCache.Unlock()
 
@@ -164,6 +165,7 @@ func (dp *DataPlane) RemoveFromSets(setNames []*ipsets.IPSetMetadata, podMetadat
 	if dp.shouldUpdatePod() {
 		klog.Infof("[DataPlane] Updating Sets to Remove for pod key %s", podMetadata.PodKey)
 
+		// lock updatePodCache while reading/modifying or setting the updatePod in the cache
 		dp.updatePodCache.Lock()
 		defer dp.updatePodCache.Unlock()
 
@@ -212,6 +214,14 @@ func (dp *DataPlane) ApplyDataPlane() error {
 	}
 
 	if dp.shouldUpdatePod() {
+		err := dp.refreshAllPodEndpoints()
+		if err != nil {
+			metrics.SendErrorLogAndMetric(util.DaemonDataplaneID, "[DataPlane] failed to refresh endpoints while updating pods. err: [%s]", err.Error())
+			return fmt.Errorf("[DataPlane] failed to refresh endpoints while updating pods. err: [%w]", err)
+		}
+
+		// lock updatePodCache while driving goal state to kernel
+		// prevents another ApplyDataplane call from updating the same pods
 		dp.updatePodCache.Lock()
 		defer dp.updatePodCache.Unlock()
 
