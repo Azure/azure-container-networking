@@ -174,8 +174,9 @@ func (pMgr *PolicyManager) removePolicy(policy *NPMNetworkPolicy, endpointList m
 func (pMgr *PolicyManager) removePolicyByEndpointID(ruleID, epID string, noOfRulesToRemove int, resetAllACL shouldResetAllACLs) error {
 	epObj, err := pMgr.ioShim.Hns.GetEndpointByID(epID)
 	if err != nil {
-		if isNotFoundErr(err) {
-			klog.Infof("[PolicyManagerWindows] ignoring remove policy on endpoint since the endpoint wasn't found. the corresponding pod was most likely deleted. policy: %s, endpoint: %s", ruleID, epID)
+		// IsNotFound check is being skipped at times. So adding a redundant check here.
+		if isNotFoundErr(err) || strings.Contains(err.Error(), "endpoint was not found") {
+			klog.Infof("[PolicyManagerWindows] ignoring remove policy since the endpoint wasn't found. the corresponding pod might be deleted. policy: %s, endpoint: %s, err: %s", ruleID, epID, err.Error())
 			return nil
 		}
 		return fmt.Errorf("[PolicyManagerWindows] failed to remove policy while getting the endpoint. policy: %s, endpoint: %s, err: %w", ruleID, epID, err)
@@ -221,9 +222,10 @@ func (pMgr *PolicyManager) removePolicyByEndpointID(ruleID, epID string, noOfRul
 func (pMgr *PolicyManager) applyPoliciesToEndpointID(epID string, policies hcn.PolicyEndpointRequest) error {
 	epObj, err := pMgr.ioShim.Hns.GetEndpointByID(epID)
 	if err != nil {
-		if isNotFoundErr(err) {
+		// IsNotFound check is being skipped at times. So adding a redundant check here.
+		if isNotFoundErr(err) || strings.Contains(err.Error(), "endpoint was not found") {
 			// unlikely scenario where an endpoint is deleted right after we refresh HNS endpoints, or an unlikely scenario where an endpoint is deleted right after we refresh HNS endpoints
-			metrics.SendErrorLogAndMetric(util.IptmID, "[PolicyManagerWindows] ignoring apply policies to endpoint since the endpoint wasn't found. endpoint: %s", epID)
+			metrics.SendErrorLogAndMetric(util.IptmID, "[PolicyManagerWindows] ignoring apply policies to endpoint since the endpoint wasn't found. endpoint: %s, err: %s", epID, err.Error())
 			return nil
 		}
 		return fmt.Errorf("[PolicyManagerWindows] to apply policies while getting the endpoint. endpoint: %s, err: %w", epID, err)
