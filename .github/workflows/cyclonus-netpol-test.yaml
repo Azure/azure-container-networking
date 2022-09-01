@@ -42,7 +42,7 @@ jobs:
 
       - name: Make NPM image
         run: |
-          make npm-image VERSION=cyclonus PLATFORM=linux/amd64 CONTAINER_BUILDER=docker
+          make npm-image NPM_PLATFORM_TAG=cyclonus PLATFORM=linux/amd64 CONTAINER_BUILDER=docker
       
       - name: Install Azure NPM
         # set the ConfigMap based on the build matrix

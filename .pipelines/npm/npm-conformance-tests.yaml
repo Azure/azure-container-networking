@@ -27,7 +27,7 @@ jobs:
           mkdir -p '$(GOPATH)/pkg'
           BUILD_NUMBER=$(Build.BuildNumber)
           RG=e2e-$(echo "npm-`date "+%Y-%m-%d-%S"`")
-          TAG=$(make version)-conformance-test
+          TAG=$(make npm-version)
           echo "Resource group: $RG"
           echo "Image tag: $TAG"
 
@@ -57,7 +57,6 @@ jobs:
           name: $(name)
           os: $(os)
           arch: $(arch)
-          tag: $(TAG)
 
   - job: containerize_windows
     dependsOn: [setup]
@@ -76,7 +75,6 @@ jobs:
         parameters:
           name: $(name)
           arch: $(arch)
-          tag: $(TAG)
 
   - job: k8se2e
     displayName: "Build Kubernetes Test Suite"

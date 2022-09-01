@@ -23,6 +23,8 @@ stages:
               BUILD_NUMBER=$(Build.BuildNumber)
               echo "##vso[task.setvariable variable=StorageID;isOutput=true]$(echo ${BUILD_NUMBER//./-})"
               echo "##vso[task.setvariable variable=Tag;isOutput=true]$(make version)"
+              echo "##vso[task.setvariable variable=cniVersion;isOutput=true]$(make cni-version)"
+              echo "##vso[task.setvariable variable=npmVersion;isOutput=true]$(make npm-version)"
               cat /etc/os-release
               uname -a
               sudo chown -R $(whoami):$(whoami) .
@@ -90,13 +92,12 @@ stages:
       - job: build
         displayName: Build Binaries
         variables:
-          TAG: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
           STORAGE_ID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.StorageID'] ]
         pool:
           name: "$(BUILD_POOL_NAME_DEFAULT)"
         steps:
           - script: |
-              make all-binaries-platforms VERSION=$(TAG)
+              make all-binaries-platforms 
             name: "BuildAllPlatformBinaries"
             displayName: "Build all platform binaries"
 
@@ -144,8 +145,6 @@ stages:
     jobs:
       - job: containerize
         displayName: Build Images
-        variables:
-          TAG: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
         pool:
           name: "$(BUILD_POOL_NAME_DEFAULT)"
         strategy:
@@ -188,7 +187,6 @@ stages:
               name: $(name)
               os: $(os)
               arch: $(arch)
-              tag: $(TAG)
       - job: containerize_windows
         displayName: Build Images
         variables:
@@ -213,13 +211,10 @@ stages:
   - stage: publish
     displayName: Publish Multiarch Manifests
     dependsOn:
-      - setup
       - containerize
     jobs:
       - job: manifest
         displayName: Compile Manifests
-        variables:
-          TAG: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
         pool:
           name: "$(BUILD_POOL_NAME_DEFAULT)"
         strategy:
@@ -241,7 +236,6 @@ stages:
             parameters:
               name: $(name)
               platforms: $(platforms)
-              tag: $(TAG)
   
   - template: singletenancy/cilium/cilium-e2e-job-template.yaml
     parameters:

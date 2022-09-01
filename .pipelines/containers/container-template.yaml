@@ -2,7 +2,6 @@ parameters:
   name: ""
   os: ""
   arch: ""
-  tag: ""
 
 steps:
 - task: Docker@2
@@ -14,35 +13,31 @@ steps:
 
 - script: |
     set -e
-    sudo podman run --rm --privileged multiarch/qemu-user-static --reset -p yes
+    make qemu-user-static
   name: container_env
   displayName: Prepare Environment
 
 - script: |
     set -e
-    export PLATFORM_TAG=$(make container-platform-tag TAG=${{ parameters.tag }} PLATFORM=${{ parameters.os }}/${{ parameters.arch }})
-    make ${{ parameters.name }}-image OS=${{ parameters.os }} ARCH=${{ parameters.arch }} PLATFORM=${{ parameters.os }}/${{ parameters.arch }} TAG=$PLATFORM_TAG
+    make ${{ parameters.name }}-image OS=${{ parameters.os }} ARCH=${{ parameters.arch }}
   name: image_build
   displayName: Image Build
   retryCountOnTaskFailure: 3
 
 - script: |
     set -e
-    export PLATFORM_TAG=$(make container-platform-tag TAG=${{ parameters.tag }} PLATFORM=${{ parameters.os }}/${{ parameters.arch }})
-    export REF=$(IMAGE_REGISTRY)/$(make ${{ parameters.name }}-image-name):$PLATFORM_TAG
-    skopeo copy containers-storage:$REF docker-daemon:$REF
+    make ${{ parameters.name }}-skopeo-export OS=${{ parameters.os }} ARCH=${{ parameters.arch }}
     wget https://github.com/aquasecurity/trivy/releases/download/v0.18.1/trivy_0.18.1_Linux-64bit.tar.gz
     tar -zxvf trivy*.tar.gz
     mkdir -p ./trivy-cache
     sudo ./trivy --exit-code 1 --cache-dir ./trivy-cache --severity HIGH,CRITICAL $REF
   name: trivy
   displayName: Vulnerability Scan
+  retryCountOnTaskFailure: 3
 
 - script: |
     set -e
-    export PLATFORM_TAG=$(make container-platform-tag TAG=${{ parameters.tag }} PLATFORM=${{ parameters.os }}/${{ parameters.arch }})
-    make ${{ parameters.name }}-image-push PLATFORM=${{ parameters.os }}/${{ parameters.arch }} TAG=$PLATFORM_TAG
-    make ${{ parameters.name }}-image-pull PLATFORM=${{ parameters.os }}/${{ parameters.arch }} TAG=$PLATFORM_TAG
+    make ${{ parameters.name }}-image-push OS=${{ parameters.os }} ARCH=${{ parameters.arch }}
   retryCountOnTaskFailure: 3
   name: image_push
   displayName: Push Images
