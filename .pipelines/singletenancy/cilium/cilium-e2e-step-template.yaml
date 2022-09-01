@@ -122,7 +122,7 @@ steps:
   - script: |
       echo "Run Cilium Connectivity Tests"
       cilium status
-      cilium connectivity test --test '!no-policies/pod-to-hostport' --test '!allow-all-except-world/pod-to-service'
+      cilium connectivity test
     name: "ciliumConnectivityTests"
     displayName: "Run Cilium Connectivity Tests"
   
