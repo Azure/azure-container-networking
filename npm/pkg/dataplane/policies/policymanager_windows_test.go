@@ -129,6 +129,32 @@ func TestRemovePolicies(t *testing.T) {
 	verifyACLCacheIsCleaned(t, hns, len(endPointIDList))
 }
 
+func TestApplyPoliciesEndpointNotFound(t *testing.T) {
+	pMgr, _ := getPMgr(t)
+	testendPointIDList := map[string]string{
+		"10.0.0.5": "test10",
+	}
+	err := pMgr.AddPolicy(TestNetworkPolicies[0], testendPointIDList)
+	require.NoError(t, err)
+}
+
+func TestRemovePoliciesEndpointNotFound(t *testing.T) {
+	pMgr, hns := getPMgr(t)
+	err := pMgr.AddPolicy(TestNetworkPolicies[0], endPointIDList)
+	require.NoError(t, err)
+
+	aclID := TestNetworkPolicies[0].ACLPolicyID
+
+	_, err = hns.Cache.ACLPolicies(endPointIDList, aclID)
+	require.NoError(t, err)
+	testendPointIDList := map[string]string{
+		"10.0.0.5": "test10",
+	}
+	err = pMgr.RemovePolicy(TestNetworkPolicies[0].PolicyKey, testendPointIDList)
+	require.NoError(t, err, err)
+	verifyACLCacheIsCleaned(t, hns, len(endPointIDList))
+}
+
 // Helper functions for UTS
 
 func getPMgr(t *testing.T) (*PolicyManager, *hnswrapper.Hnsv2wrapperFake) {
