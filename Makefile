@@ -120,7 +120,7 @@ ifeq ($(GOOS),linux)
 all-binaries: acncli azure-cnm-plugin azure-cni-plugin azure-cns azure-npm azure-ipam zapai
 all-images: npm-image cns-image cni-manager-image
 else
-all-binaries: azure-cnm-plugin azure-cni-plugin azure-cns azure-npm azure-ipam zapai
+all-binaries: azure-cnm-plugin azure-cni-plugin azure-cns azure-npm zapai
 all-images:
 	@echo "Nothing to build. Skip."
 endif
