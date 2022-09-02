@@ -97,6 +97,8 @@ CNI_BAREMETAL_ARCHIVE_NAME = azure-vnet-cni-baremetal-$(GOOS)-$(GOARCH)-$(CNI_VE
 CNM_ARCHIVE_NAME = azure-vnet-cnm-$(GOOS)-$(GOARCH)-$(ACN_VERSION).$(ARCHIVE_EXT)
 CNS_ARCHIVE_NAME = azure-cns-$(GOOS)-$(GOARCH)-$(CNS_VERSION).$(ARCHIVE_EXT)
 NPM_ARCHIVE_NAME = azure-npm-$(GOOS)-$(GOARCH)-$(NPM_VERSION).$(ARCHIVE_EXT)
+AZURE_IPAM_ARCHIVE_NAME = azure-ipam-$(GOOS)-$(GOARCH)-$(AZURE_IPAM_VERSION).$(ARCHIVE_EXT)
+ZAPAI_ARCHIVE_NAME = zapai-$(GOOS)-$(GOARCH)-$(ZAPAI_VERSION).$(ARCHIVE_EXT)
 
 # Image info file names.
 CNI_DROPGZ_IMAGE_INFO_FILE = cni-dropgz-$(CNI_DROPGZ_VERSION).txt
@@ -592,6 +594,18 @@ npm-archive: azure-npm-binary
 ifeq ($(GOOS),linux)
 	cd $(NPM_BUILD_DIR) && $(ARCHIVE_CMD) $(NPM_ARCHIVE_NAME) azure-npm$(EXE_EXT)
 endif
+
+# Create a azure-ipam archive for the target platform.
+.PHONY: azure-ipam-archive
+npm-archive: azure-ipam-binary
+ifeq ($(GOOS),linux)
+	cd $(AZURE_IPAM_BUILD_DIR) && $(ARCHIVE_CMD) $(AZURE_IPAM_ARCHIVE_NAME) azure-npm$(EXE_EXT)
+endif
+
+# Create a zapai archive for the target platform.
+.PHONY: zapai-archive
+zapai-archive: zapai-binary
+	cd $(ZAPAI_BUILD_DIR) && $(ARCHIVE_CMD) $(ZAPAI_ARCHIVE_NAME) azure-vnet-plugin$(EXE_EXT)
 
 
 ##@ Utils 
