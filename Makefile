@@ -131,7 +131,7 @@ azure-cns: azure-cns-binary cns-archive
 acncli: acncli-binary acncli-archive
 azure-cnms: azure-cnms-binary cnms-archive
 azure-npm: azure-npm-binary npm-archive
-azure-ipam: azure-ipam-binary 
+azure-ipam: azure-ipam-binary azure-ipam-archive
 
 
 ##@ Versioning
@@ -591,6 +591,7 @@ endif
 .PHONY: azure-ipam-archive
 azure-ipam-archive: azure-ipam-binary
 ifeq ($(GOOS),linux)
+	$(MKDIR) $(AZURE_IPAM_BUILD_DIR)
 	cd $(AZURE_IPAM_BUILD_DIR) && $(ARCHIVE_CMD) $(AZURE_IPAM_ARCHIVE_NAME) azure-ipam$(EXE_EXT)
 endif
 
