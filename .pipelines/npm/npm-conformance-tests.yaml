@@ -128,7 +128,7 @@ jobs:
       demands:
         - agent.os -equals Linux
         - Role -equals Build
-    dependsOn: [setup, k8se2e, containerize]
+    dependsOn: [setup, k8se2e, containerize, containerize_windows]
     variables:
       RESOURCE_GROUP: $[ dependencies.setup.outputs['EnvironmentalVariables.RESOURCE_GROUP'] ]
       TAG: $[ dependencies.setup.outputs['EnvironmentalVariables.TAG'] ]
