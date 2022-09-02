@@ -75,6 +75,7 @@ jobs:
         parameters:
           name: $(name)
           arch: $(arch)
+          tag: $(TAG)
 
   - job: k8se2e
     displayName: "Build Kubernetes Test Suite"
