@@ -589,9 +589,9 @@ endif
 
 # Create a azure-ipam archive for the target platform.
 .PHONY: azure-ipam-archive
-npm-archive: azure-ipam-binary
+azure-ipam-archive: azure-ipam-binary
 ifeq ($(GOOS),linux)
-	cd $(AZURE_IPAM_BUILD_DIR) && $(ARCHIVE_CMD) $(AZURE_IPAM_ARCHIVE_NAME) azure-npm$(EXE_EXT)
+	cd $(AZURE_IPAM_BUILD_DIR) && $(ARCHIVE_CMD) $(AZURE_IPAM_ARCHIVE_NAME) azure-ipam$(EXE_EXT)
 endif
 
 
