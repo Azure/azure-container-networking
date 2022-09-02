@@ -54,7 +54,6 @@ NPM_DIR = $(REPO_ROOT)/npm/cmd
 OUTPUT_DIR = $(REPO_ROOT)/output
 BUILD_DIR = $(OUTPUT_DIR)/$(GOOS)_$(GOARCH)
 AZURE_IPAM_BUILD_DIR = $(BUILD_DIR)/azure-ipam
-ZAPAI_BUILD_DIR = $(BUILD_DIR)/zapai
 IMAGE_DIR  = $(OUTPUT_DIR)/images
 CNM_BUILD_DIR = $(BUILD_DIR)/cnm
 CNI_BUILD_DIR = $(BUILD_DIR)/cni
@@ -75,7 +74,6 @@ ACN_PACKAGE_PATH = github.com/Azure/azure-container-networking
 CNI_AI_PATH=$(ACN_PACKAGE_PATH)/telemetry.aiMetadata
 CNS_AI_PATH=$(ACN_PACKAGE_PATH)/cns/logger.aiMetadata
 NPM_AI_PATH=$(ACN_PACKAGE_PATH)/npm.aiMetadata
-ZAPAI_DIR = $(REPO_ROOT)/zapai/example
 
 # Tool paths
 CONTROLLER_GEN  := $(TOOLS_BIN_DIR)/controller-gen
@@ -98,7 +96,6 @@ CNM_ARCHIVE_NAME = azure-vnet-cnm-$(GOOS)-$(GOARCH)-$(ACN_VERSION).$(ARCHIVE_EXT
 CNS_ARCHIVE_NAME = azure-cns-$(GOOS)-$(GOARCH)-$(CNS_VERSION).$(ARCHIVE_EXT)
 NPM_ARCHIVE_NAME = azure-npm-$(GOOS)-$(GOARCH)-$(NPM_VERSION).$(ARCHIVE_EXT)
 AZURE_IPAM_ARCHIVE_NAME = azure-ipam-$(GOOS)-$(GOARCH)-$(AZURE_IPAM_VERSION).$(ARCHIVE_EXT)
-ZAPAI_ARCHIVE_NAME = zapai-$(GOOS)-$(GOARCH)-$(ZAPAI_VERSION).$(ARCHIVE_EXT)
 
 # Image info file names.
 CNI_DROPGZ_IMAGE_INFO_FILE = cni-dropgz-$(CNI_DROPGZ_VERSION).txt
@@ -119,10 +116,10 @@ all-binaries-platforms: ## Make all platform binaries
 
 # OS specific binaries/images
 ifeq ($(GOOS),linux)
-all-binaries: acncli azure-cnm-plugin azure-cni-plugin azure-cns azure-npm azure-ipam zapai
+all-binaries: acncli azure-cnm-plugin azure-cni-plugin azure-cns azure-npm azure-ipam
 all-images: npm-image cns-image cni-manager-image
 else
-all-binaries: azure-cnm-plugin azure-cni-plugin azure-cns azure-npm zapai
+all-binaries: azure-cnm-plugin azure-cni-plugin azure-cns azure-npm
 all-images:
 	@echo "Nothing to build. Skip."
 endif
@@ -135,7 +132,6 @@ acncli: acncli-binary acncli-archive
 azure-cnms: azure-cnms-binary cnms-archive
 azure-npm: azure-npm-binary npm-archive
 azure-ipam: azure-ipam-binary 
-zapai: zapai-binary
 
 
 ##@ Versioning
@@ -204,10 +200,6 @@ azure-cns-binary:
 azure-npm-binary:
 	cd $(CNI_TELEMETRY_DIR) && CGO_ENABLED=0 go build -v -o $(NPM_BUILD_DIR)/azure-vnet-telemetry$(EXE_EXT) -ldflags "-X main.version=$(NPM_VERSION)" -gcflags="-dwarflocationlists=true"
 	cd $(NPM_DIR) && CGO_ENABLED=0 go build -v -o $(NPM_BUILD_DIR)/azure-npm$(EXE_EXT) -ldflags "-X main.version=$(NPM_VERSION) -X $(NPM_AI_PATH)=$(NPM_AI_ID)" -gcflags="-dwarflocationlists=true"
-
-# Build the zapai binary.
-zapai-binary:
-	cd $(ZAPAI_DIR) && CGO_ENABLED=0 go build -v -o $(ZAPAI_BUILD_DIR)/zapai$(EXE_EXT) -ldflags "-X main.version=$(ZAPAI_VERSION)" -gcflags="-dwarflocationlists=true"
 
 ##@ Containers
 
@@ -601,11 +593,6 @@ npm-archive: azure-ipam-binary
 ifeq ($(GOOS),linux)
 	cd $(AZURE_IPAM_BUILD_DIR) && $(ARCHIVE_CMD) $(AZURE_IPAM_ARCHIVE_NAME) azure-npm$(EXE_EXT)
 endif
-
-# Create a zapai archive for the target platform.
-.PHONY: zapai-archive
-zapai-archive: zapai-binary
-	cd $(ZAPAI_BUILD_DIR) && $(ARCHIVE_CMD) $(ZAPAI_ARCHIVE_NAME) azure-vnet-plugin$(EXE_EXT)
 
 
 ##@ Utils 
