@@ -37,6 +37,7 @@ type CNSConfig struct {
 	KeyVaultSettings            KeyVaultSettings
 	MSISettings                 MSISettings
 	ProgramSNATIPTables         bool
+	ManageEndpointState         bool
 }
 
 type TelemetrySettings struct {

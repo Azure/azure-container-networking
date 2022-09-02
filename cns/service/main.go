@@ -67,6 +67,8 @@ const (
 	// Service name.
 	name                              = "azure-cns"
 	pluginName                        = "azure-vnet"
+	endpointStoreName                 = "azure-endpoints"
+	endpointStoreLocation             = "/var/run/azure-cns/"
 	defaultCNINetworkConfigFileName   = "10-azure.conflist"
 	dncApiVersion                     = "?api-version=2018-03-01"
 	poolIPAMRefreshRateInMilliseconds = 1000
@@ -438,8 +440,9 @@ func main() {
 
 	// Initialize CNS.
 	var (
-		err    error
-		config common.ServiceConfig
+		err                error
+		config             common.ServiceConfig
+		endpointStateStore store.KeyValueStore
 	)
 
 	config.Version = version
@@ -541,9 +544,34 @@ func main() {
 		logger.Errorf("Failed to start nmagent client due to error %v", err)
 		return
 	}
+
+	// Initialize endpoint state store if cns is managing endpoint state.
+	if cnsconfig.ManageEndpointState {
+		log.Printf("[Azure CNS] Configured to manage endpoints state")
+		endpointStoreLock, err := processlock.NewFileLock(platform.CNILockPath + endpointStoreName + store.LockExtension) // nolint
+		if err != nil {
+			log.Printf("Error initializing endpoint state file lock:%v", err)
+			return
+		}
+		defer endpointStoreLock.Unlock() // nolint
+
+		err = platform.CreateDirectory(endpointStoreLocation)
+		if err != nil {
+			logger.Errorf("Failed to create File Store directory %s, due to Error:%v", storeFileLocation, err.Error())
+			return
+		}
+		// Create the key value store.
+		storeFileName := endpointStoreLocation + endpointStoreName + ".json"
+		endpointStateStore, err = store.NewJsonFileStore(storeFileName, endpointStoreLock)
+		if err != nil {
+			logger.Errorf("Failed to create endpoint state store file: %s, due to error %v\n", storeFileName, err)
+			return
+		}
+	}
+
 	// Create CNS object.
 
-	httpRestService, err := restserver.NewHTTPRestService(&config, &wireserver.Client{HTTPClient: &http.Client{}}, nmaclient)
+	httpRestService, err := restserver.NewHTTPRestService(&config, &wireserver.Client{HTTPClient: &http.Client{}}, nmaclient, endpointStateStore)
 	if err != nil {
 		logger.Errorf("Failed to create CNS object, err:%v.\n", err)
 		return
@@ -557,6 +585,7 @@ func main() {
 	httpRestService.SetOption(acn.OptHttpConnectionTimeout, httpConnectionTimeout)
 	httpRestService.SetOption(acn.OptHttpResponseHeaderTimeout, httpResponseHeaderTimeout)
 	httpRestService.SetOption(acn.OptProgramSNATIPTables, cnsconfig.ProgramSNATIPTables)
+	httpRestService.SetOption(acn.OptManageEndpointState, cnsconfig.ManageEndpointState)
 
 	// Create default ext network if commandline option is set
 	if len(strings.TrimSpace(createDefaultExtNetworkType)) > 0 {
@@ -973,13 +1002,24 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 	}
 
 	var podInfoByIPProvider cns.PodInfoByIPProvider
-	if cnsconfig.InitializeFromCNI {
+	switch {
+	case cnsconfig.ManageEndpointState:
+		logger.Printf("Initializing from self managed endpoint store")
+		podInfoByIPProvider, err = cnireconciler.NewCNSPodInfoProvider(httpRestServiceImplementation.EndpointStateStore) // get reference to endpoint state store from rest server
+		if err != nil {
+			if errors.Is(err, store.ErrKeyNotFound) {
+				logger.Printf("[Azure CNS] No endpoint state found, skipping initializing CNS state")
+			} else {
+				return errors.Wrap(err, "failed to create CNS PodInfoProvider")
+			}
+		}
+	case cnsconfig.InitializeFromCNI:
 		logger.Printf("Initializing from CNI")
 		podInfoByIPProvider, err = cnireconciler.NewCNIPodInfoProvider()
 		if err != nil {
 			return errors.Wrap(err, "failed to create CNI PodInfoProvider")
 		}
-	} else {
+	default:
 		logger.Printf("Initializing from Kubernetes")
 		podInfoByIPProvider = cns.PodInfoByIPProviderFunc(func() (map[string]cns.PodInfo, error) {
 			pods, err := clientset.CoreV1().Pods("").List(ctx, metav1.ListOptions{ //nolint:govet // ignore err shadow
@@ -995,7 +1035,6 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 			return podInfo, nil
 		})
 	}
-
 	// create scoped kube clients.
 	nnccli, err := nodenetworkconfig.NewClient(kubeConfig)
 	if err != nil {

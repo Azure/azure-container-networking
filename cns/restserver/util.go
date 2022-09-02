@@ -95,6 +95,21 @@ func (service *HTTPRestService) restoreState() {
 	}
 
 	logger.Printf("[Azure CNS]  Restored state, %+v\n", service.state)
+
+	if service.Options[acn.OptManageEndpointState] == true {
+		err := service.EndpointStateStore.Read(EndpointStoreKey, &service.EndpointState)
+		if err != nil {
+			if errors.Is(err, store.ErrKeyNotFound) {
+				// Nothing to restore.
+				logger.Printf("[Azure CNS]  No endpoint state to restore.\n")
+			} else {
+				logger.Errorf("[Azure CNS]  Failed to restore endpoint state, err:%v. Removing endpoints.json", err)
+			}
+			return
+		}
+		logger.Printf("[Azure CNS]  Restored endpoint state, %+v\n", service.EndpointState)
+
+	}
 }
 
 func (service *HTTPRestService) saveNetworkContainerGoalState(

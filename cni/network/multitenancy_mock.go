@@ -8,7 +8,7 @@ import (
 	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/network"
-	"github.com/containernetworking/cni/pkg/types/current"
+	current "github.com/containernetworking/cni/pkg/types/100"
 )
 
 type MockMultitenancy struct {
@@ -46,7 +46,8 @@ func (m *MockMultitenancy) GetContainerNetworkConfiguration(
 	ctx context.Context,
 	nwCfg *cni.NetworkConfig,
 	podName string,
-	podNamespace string) (*cns.GetNetworkContainerResponse, net.IPNet, error) {
+	podNamespace string,
+) (*cns.GetNetworkContainerResponse, net.IPNet, error) {
 	if m.fail {
 		return nil, net.IPNet{}, errMockMulAdd
 	}

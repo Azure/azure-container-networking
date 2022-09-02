@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cni-configuration
+  namespace: kube-system
+data:
+  cni-config: |-
+    {
+      "cniVersion": "0.3.1",
+      "name": "cilium",
+      "plugins": [
+        {
+          "type": "cilium-cni",
+          "ipam": {
+            "type": "azure-ipam"
+          },
+          "enable-debug": true,
+          "log-file": "/var/log/cilium-cni.log"
+        }
+      ]
+    }

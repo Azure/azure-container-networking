@@ -10,11 +10,10 @@ import (
 	"testing"
 	"time"
 
-	cniTypesCurr "github.com/containernetworking/cni/pkg/types/current"
+	"github.com/Azure/azure-container-networking/common"
+	cniTypesCurr "github.com/containernetworking/cni/pkg/types/100"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-
-	"github.com/Azure/azure-container-networking/common"
 )
 
 var (

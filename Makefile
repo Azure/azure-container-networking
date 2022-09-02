@@ -1,9 +1,9 @@
 .DEFAULT_GOAL := help
 
 # Default platform commands
-SHELL=/bin/bash
-MKDIR := mkdir -p
-RMDIR := rm -rf
+SHELL		= /bin/bash
+MKDIR 	   := mkdir -p
+RMDIR 	   := rm -rf
 ARCHIVE_CMD = tar -czvf
 
 # Default platform extensions
@@ -16,21 +16,32 @@ RMDIR := powershell.exe -NoProfile -Command Remove-Item -Recurse -Force
 endif
 
 # Build defaults.
-GOOS ?= $(shell go env GOOS)
-GOARCH ?= $(shell go env GOARCH)
-GOOSES ?= "linux windows" # To override at the cli do: GOOSES="\"darwin bsd\""
+GOOS 	 ?= $(shell go env GOOS)
+GOARCH   ?= $(shell go env GOARCH)
+GOOSES   ?= "linux windows" # To override at the cli do: GOOSES="\"darwin bsd\""
 GOARCHES ?= "amd64 arm64" # To override at the cli do: GOARCHES="\"ppc64 mips\""
-WINVER ?= "10.0.20348.643"
+WINVER   ?= "10.0.20348.643"
 
 # Windows specific extensions
+# set these based on the GOOS, not the OS
 ifeq ($(GOOS),windows)
 ARCHIVE_CMD = zip -9lq
 ARCHIVE_EXT = zip
-EXE_EXT = .exe
+EXE_EXT 	= .exe
 endif
 
+# Interrogate the git repo and set some variables
+REPO_ROOT 		    = $(shell git rev-parse --show-toplevel)
+REVISION 		   ?= $(shell git rev-parse --short HEAD)
+ACN_VERSION  	   ?= $(shell git describe --exclude "azure-ipam*" --exclude "cni-dropgz*" --exclude "zapai*" --tags --always)
+AZURE_IPAM_VERSION ?= $(notdir $(shell git describe --match "azure-ipam*" --tags --always))
+CNI_VERSION        ?= $(ACN_VERSION)
+CNI_DROPGZ_VERSION ?= $(notdir $(shell git describe --match "cni-dropgz*" --tags --always))
+CNS_VERSION  	   ?= $(ACN_VERSION)
+NPM_VERSION        ?= $(ACN_VERSION)
+ZAPAI_VERSION  	   ?= $(notdir $(shell git describe --match "zapai*" --tags --always))
+
 # Build directories.
-REPO_ROOT = $(shell git rev-parse --show-toplevel)
 AZURE_IPAM_DIR = $(REPO_ROOT)/azure-ipam
 CNM_DIR = $(REPO_ROOT)/cnm/plugin
 CNI_NET_DIR = $(REPO_ROOT)/cni/network/plugin
@@ -65,36 +76,34 @@ CNS_AI_PATH=$(ACN_PACKAGE_PATH)/cns/logger.aiMetadata
 NPM_AI_PATH=$(ACN_PACKAGE_PATH)/npm.aiMetadata
 
 # Tool paths
-CONTROLLER_GEN := $(TOOLS_BIN_DIR)/controller-gen
-GOCOV := $(TOOLS_BIN_DIR)/gocov
-GOCOV_XML := $(TOOLS_BIN_DIR)/gocov-xml
-GOFUMPT := $(TOOLS_BIN_DIR)/gofumpt
-GOLANGCI_LINT := $(TOOLS_BIN_DIR)/golangci-lint
+CONTROLLER_GEN  := $(TOOLS_BIN_DIR)/controller-gen
+GOCOV           := $(TOOLS_BIN_DIR)/gocov
+GOCOV_XML       := $(TOOLS_BIN_DIR)/gocov-xml
+GOFUMPT         := $(TOOLS_BIN_DIR)/gofumpt
+GOLANGCI_LINT   := $(TOOLS_BIN_DIR)/golangci-lint
 GO_JUNIT_REPORT := $(TOOLS_BIN_DIR)/go-junit-report
-MOCKGEN := $(TOOLS_BIN_DIR)/mockgen
+MOCKGEN         := $(TOOLS_BIN_DIR)/mockgen
 
 # Archive file names.
-CNM_ARCHIVE_NAME = azure-vnet-cnm-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
-CNI_ARCHIVE_NAME = azure-vnet-cni-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
-ACNCLI_ARCHIVE_NAME = acncli-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
-CNI_MULTITENANCY_ARCHIVE_NAME = azure-vnet-cni-multitenancy-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
-CNI_MULTITENANCY_TRANSPARENT_VLAN_ARCHIVE_NAME = azure-vnet-cni-multitenancy-transparent-vlan-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
-CNI_SWIFT_ARCHIVE_NAME = azure-vnet-cni-swift-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
-CNI_OVERLAY_ARCHIVE_NAME = azure-vnet-cni-overlay-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
-CNI_BAREMETAL_ARCHIVE_NAME = azure-vnet-cni-baremetal-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
-CNS_ARCHIVE_NAME = azure-cns-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
-NPM_ARCHIVE_NAME = azure-npm-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
-NPM_IMAGE_INFO_FILE = azure-npm-$(VERSION).txt
-CNIDROPGZ_IMAGE_ARCHIVE_NAME = cni-dropgz-$(GOOS)-$(GOARCH)-$(VERSION).$(ARCHIVE_EXT)
-CNIDROPGZ_IMAGE_INFO_FILE = cni-dropgz-$(VERSION).txt
-CNS_IMAGE_INFO_FILE = azure-cns-$(VERSION).txt
+ACNCLI_ARCHIVE_NAME = acncli-$(GOOS)-$(GOARCH)-$(ACN_VERSION).$(ARCHIVE_EXT)
+CNI_ARCHIVE_NAME = azure-vnet-cni-$(GOOS)-$(GOARCH)-$(CNI_VERSION).$(ARCHIVE_EXT)
+CNI_MULTITENANCY_ARCHIVE_NAME = azure-vnet-cni-multitenancy-$(GOOS)-$(GOARCH)-$(CNI_VERSION).$(ARCHIVE_EXT)
+CNI_MULTITENANCY_TRANSPARENT_VLAN_ARCHIVE_NAME = azure-vnet-cni-multitenancy-transparent-vlan-$(GOOS)-$(GOARCH)-$(CNI_VERSION).$(ARCHIVE_EXT)
+CNI_SWIFT_ARCHIVE_NAME = azure-vnet-cni-swift-$(GOOS)-$(GOARCH)-$(CNI_VERSION).$(ARCHIVE_EXT)
+CNI_OVERLAY_ARCHIVE_NAME = azure-vnet-cni-overlay-$(GOOS)-$(GOARCH)-$(CNI_VERSION).$(ARCHIVE_EXT)
+CNI_BAREMETAL_ARCHIVE_NAME = azure-vnet-cni-baremetal-$(GOOS)-$(GOARCH)-$(CNI_VERSION).$(ARCHIVE_EXT)
+CNM_ARCHIVE_NAME = azure-vnet-cnm-$(GOOS)-$(GOARCH)-$(ACN_VERSION).$(ARCHIVE_EXT)
+CNS_ARCHIVE_NAME = azure-cns-$(GOOS)-$(GOARCH)-$(CNS_VERSION).$(ARCHIVE_EXT)
+NPM_ARCHIVE_NAME = azure-npm-$(GOOS)-$(GOARCH)-$(NPM_VERSION).$(ARCHIVE_EXT)
+
+# Image info file names.
+CNI_DROPGZ_IMAGE_INFO_FILE = cni-dropgz-$(CNI_DROPGZ_VERSION).txt
+CNS_IMAGE_INFO_FILE 	   = azure-cns-$(CNS_VERSION).txt
+NPM_IMAGE_INFO_FILE 	   = azure-npm-$(NPM_VERSION).txt
 
 # Docker libnetwork (CNM) plugin v2 image parameters.
 CNM_PLUGIN_IMAGE ?= microsoft/azure-vnet-plugin
 CNM_PLUGIN_ROOTFS = azure-vnet-plugin-rootfs
-
-REVISION ?= $(shell git rev-parse --short HEAD)
-VERSION  ?= $(shell git describe --exclude "azure-ipam*" --exclude "cni-dropgz*" --exclude "zapai*" --tags --always --dirty)
 
 # Default target
 all-binaries-platforms: ## Make all platform binaries
@@ -123,90 +132,131 @@ azure-cnms: azure-cnms-binary cnms-archive
 azure-npm: azure-npm-binary npm-archive
 
 
+##@ Versioning
+
+revision: ## print the current git revision
+	@echo $(REVISION)
+	
+version: ## prints the root version
+	@echo $(ACN_VERSION)
+
+acncli-version: version
+
+azure-ipam-version: ## prints the azure-ipam version
+	@echo $(AZURE_IPAM_VERSION)
+
+cni-version: ## prints the cni version
+	@echo $(CNI_VERSION)
+
+cni-dropgz-version: ## prints the cni-dropgz version
+	@echo $(CNI_DROPGZ_VERSION)
+
+cns-version:
+	@echo $(CNS_VERSION) 
+
+npm-version:
+	@echo $(NPM_VERSION) 
+
+zapai-version: ## prints the zapai version
+	@echo $(ZAPAI_VERSION)
+
 ##@ Binaries 
 
 # Build the delegated IPAM plugin binary.
 azure-ipam-binary:
-	cd $(AZURE_IPAM_DIR) && CGO_ENABLED=0 go build -v -o $(AUZRE_IPAM_BUILD_DIR)/azure-ipam$(EXE_EXT) -ldflags "-X main.version=$(VERSION)" -gcflags="-dwarflocationlists=true"
+	cd $(AZURE_IPAM_DIR) && CGO_ENABLED=0 go build -v -o $(AUZRE_IPAM_BUILD_DIR)/azure-ipam$(EXE_EXT) -ldflags "-X main.version=$(AZURE_IPAM_VERSION)" -gcflags="-dwarflocationlists=true"
+
 # Build the Azure CNM binary.
 cnm-binary:
-	cd $(CNM_DIR) && CGO_ENABLED=0 go build -v -o $(CNM_BUILD_DIR)/azure-vnet-plugin$(EXE_EXT) -ldflags "-X main.version=$(VERSION)" -gcflags="-dwarflocationlists=true"
+	cd $(CNM_DIR) && CGO_ENABLED=0 go build -v -o $(CNM_BUILD_DIR)/azure-vnet-plugin$(EXE_EXT) -ldflags "-X main.version=$(ACN_VERSION)" -gcflags="-dwarflocationlists=true"
 
 # Build the Azure CNI network binary.
 azure-vnet-binary:
-	cd $(CNI_NET_DIR) && CGO_ENABLED=0 go build -v -o $(CNI_BUILD_DIR)/azure-vnet$(EXE_EXT) -ldflags "-X main.version=$(VERSION)" -gcflags="-dwarflocationlists=true"
+	cd $(CNI_NET_DIR) && CGO_ENABLED=0 go build -v -o $(CNI_BUILD_DIR)/azure-vnet$(EXE_EXT) -ldflags "-X main.version=$(CNI_VERSION)" -gcflags="-dwarflocationlists=true"
 
 # Build the Azure CNI IPAM binary.
 azure-vnet-ipam-binary:
-	cd $(CNI_IPAM_DIR) && CGO_ENABLED=0 go build -v -o $(CNI_BUILD_DIR)/azure-vnet-ipam$(EXE_EXT) -ldflags "-X main.version=$(VERSION)" -gcflags="-dwarflocationlists=true"
+	cd $(CNI_IPAM_DIR) && CGO_ENABLED=0 go build -v -o $(CNI_BUILD_DIR)/azure-vnet-ipam$(EXE_EXT) -ldflags "-X main.version=$(CNI_VERSION)" -gcflags="-dwarflocationlists=true"
 
 # Build the Azure CNI IPAMV6 binary.
 azure-vnet-ipamv6-binary:
-	cd $(CNI_IPAMV6_DIR) && CGO_ENABLED=0 go build -v -o $(CNI_BUILD_DIR)/azure-vnet-ipamv6$(EXE_EXT) -ldflags "-X main.version=$(VERSION)" -gcflags="-dwarflocationlists=true"
+	cd $(CNI_IPAMV6_DIR) && CGO_ENABLED=0 go build -v -o $(CNI_BUILD_DIR)/azure-vnet-ipamv6$(EXE_EXT) -ldflags "-X main.version=$(CNI_VERSION)" -gcflags="-dwarflocationlists=true"
 
 # Build the Azure CNI telemetry binary.
 azure-vnet-telemetry-binary:
-	cd $(CNI_TELEMETRY_DIR) && CGO_ENABLED=0 go build -v -o $(CNI_BUILD_DIR)/azure-vnet-telemetry$(EXE_EXT) -ldflags "-X main.version=$(VERSION) -X $(CNI_AI_PATH)=$(CNI_AI_ID)" -gcflags="-dwarflocationlists=true"
+	cd $(CNI_TELEMETRY_DIR) && CGO_ENABLED=0 go build -v -o $(CNI_BUILD_DIR)/azure-vnet-telemetry$(EXE_EXT) -ldflags "-X main.version=$(CNI_VERSION) -X $(CNI_AI_PATH)=$(CNI_AI_ID)" -gcflags="-dwarflocationlists=true"
 
 # Build the Azure CLI network binary.
 acncli-binary:
-	cd $(ACNCLI_DIR) && CGO_ENABLED=0 go build -v -o $(ACNCLI_BUILD_DIR)/acn$(EXE_EXT) -ldflags "-X main.version=$(VERSION)" -gcflags="-dwarflocationlists=true"
+	cd $(ACNCLI_DIR) && CGO_ENABLED=0 go build -v -o $(ACNCLI_BUILD_DIR)/acn$(EXE_EXT) -ldflags "-X main.version=$(ACN_VERSION)" -gcflags="-dwarflocationlists=true"
 
 # Build the Azure CNS binary.
 azure-cns-binary:
-	cd $(CNS_DIR) && CGO_ENABLED=0 go build -v -o $(CNS_BUILD_DIR)/azure-cns$(EXE_EXT) -ldflags "-X main.version=$(VERSION) -X $(CNS_AI_PATH)=$(CNS_AI_ID) -X $(CNI_AI_PATH)=$(CNI_AI_ID)" -gcflags="-dwarflocationlists=true"
+	cd $(CNS_DIR) && CGO_ENABLED=0 go build -v -o $(CNS_BUILD_DIR)/azure-cns$(EXE_EXT) -ldflags "-X main.version=$(CNS_VERSION) -X $(CNS_AI_PATH)=$(CNS_AI_ID) -X $(CNI_AI_PATH)=$(CNI_AI_ID)" -gcflags="-dwarflocationlists=true"
 
 # Build the Azure NPM binary.
 azure-npm-binary:
-	cd $(CNI_TELEMETRY_DIR) && CGO_ENABLED=0 go build -v -o $(NPM_BUILD_DIR)/azure-vnet-telemetry$(EXE_EXT) -ldflags "-X main.version=$(VERSION)" -gcflags="-dwarflocationlists=true"
-	cd $(NPM_DIR) && CGO_ENABLED=0 go build -v -o $(NPM_BUILD_DIR)/azure-npm$(EXE_EXT) -ldflags "-X main.version=$(VERSION) -X $(NPM_AI_PATH)=$(NPM_AI_ID)" -gcflags="-dwarflocationlists=true"
+	cd $(CNI_TELEMETRY_DIR) && CGO_ENABLED=0 go build -v -o $(NPM_BUILD_DIR)/azure-vnet-telemetry$(EXE_EXT) -ldflags "-X main.version=$(NPM_VERSION)" -gcflags="-dwarflocationlists=true"
+	cd $(NPM_DIR) && CGO_ENABLED=0 go build -v -o $(NPM_BUILD_DIR)/azure-npm$(EXE_EXT) -ldflags "-X main.version=$(NPM_VERSION) -X $(NPM_AI_PATH)=$(NPM_AI_ID)" -gcflags="-dwarflocationlists=true"
 
 
 ##@ Containers
 
-ACNCLI_IMAGE    = acncli
-CNIDROPGZ_IMAGE = cni-dropgz
-CNS_IMAGE       = azure-cns
-NPM_IMAGE       = azure-npm
-
-TAG               ?= $(VERSION)
+## Common variables for all containers.
 IMAGE_REGISTRY    ?= acnpublic.azurecr.io
 OS                ?= $(GOOS)
 ARCH              ?= $(GOARCH)
-PLATFORM          ?= $(GOOS)/$(GOARCH)
-CONTAINER_BUILDER  = buildah
+PLATFORM          ?= $(OS)/$(ARCH)
+CONTAINER_BUILDER ?= buildah
+CONTAINER_RUNTIME ?= podman
 
 # prefer buildah, if available, but fall back to docker if that binary is not in the path.
 ifeq (, $(shell which $(CONTAINER_BUILDER)))
 CONTAINER_BUILDER = docker
 endif
+# prefer podman, if available, but fall back to docker if that binary is not in the path.
+ifeq (, $(shell which $(CONTAINER_RUNTIME)))
+CONTAINER_RUNTIME = docker
+endif
 
-## This section is for building individual container images.
+## Image name definitions.
+ACNCLI_IMAGE     = acncli
+CNI_DROPGZ_IMAGE = cni-dropgz
+CNS_IMAGE        = azure-cns
+NPM_IMAGE        = azure-npm
 
-container-platform-tag: # util target to print the container tag
-	@echo $(subst /,-,$(PLATFORM))-$(TAG)
+## Image platform tags.
+ACNCLI_PLATFORM_TAG     ?= $(subst /,-,$(PLATFORM))-$(ACN_VERSION)
+CNI_DROPGZ_PLATFORM_TAG ?= $(subst /,-,$(PLATFORM))-$(CNI_DROPGZ_VERSION)
+CNS_PLATFORM_TAG        ?= $(subst /,-,$(PLATFORM))-$(CNS_VERSION)
+NPM_PLATFORM_TAG        ?= $(subst /,-,$(PLATFORM))-$(NPM_VERSION)
 
-containerize-buildah: # util target to build container images using buildah. do not invoke directly.
+
+qemu-user-static: ## Set up the host to run qemu multiplatform container builds.
+	sudo $(CONTAINER_RUNTIME) run --rm --privileged multiarch/qemu-user-static --reset -p yes
+
+
+## Reusable build targets for building individual container images.
+
+container-buildah: # util target to build container images using buildah. do not invoke directly.
 	buildah bud \
 		--jobs 16 \
 		--platform $(PLATFORM) \
 		-f $(DOCKERFILE) \
-		--build-arg VERSION=$(VERSION) $(EXTRA_BUILD_ARGS) \
+		--build-arg VERSION=$(TAG) $(EXTRA_BUILD_ARGS) \
 		-t $(IMAGE_REGISTRY)/$(IMAGE):$(TAG) \
 		.
 
-containerize-docker: # util target to build container images using docker buildx. do not invoke directly.
+container-docker: # util target to build container images using docker buildx. do not invoke directly.
 	docker buildx build \
 		--platform $(PLATFORM) \
 		-f $(DOCKERFILE) \
-		--build-arg VERSION=$(VERSION) $(EXTRA_BUILD_ARGS) \
+		--build-arg VERSION=$(TAG) $(EXTRA_BUILD_ARGS) \
 		-t $(IMAGE_REGISTRY)/$(IMAGE):$(TAG) \
 		.
 
-container-tag-test: # util target to retag an image with -test suffix. do not invoke directly.
-	$(CONTAINER_BUILDER) tag \
-		$(IMAGE_REGISTRY)/$(IMAGE):$(TAG) \
-		$(IMAGE_REGISTRY)/$(IMAGE):$(TAG)-test
+container: # util target to build container images. do not invoke directly.
+	$(MAKE) container-$(CONTAINER_BUILDER)
 
 container-push: # util target to publish container image. do not invoke directly.
 	$(CONTAINER_BUILDER) push \
@@ -216,126 +266,117 @@ container-pull: # util target to pull container image. do not invoke directly.
 	$(CONTAINER_BUILDER) pull \
 		$(IMAGE_REGISTRY)/$(IMAGE):$(TAG)
 
-container-info: # util target to write container info file. do not invoke directly.
-	# these commands need to be root due to some ongoing perms issues in the pipeline.
-	sudo mkdir -p $(IMAGE_DIR) 
-	sudo chown -R $$(whoami) $(IMAGE_DIR) 
-	sudo chmod -R 777 $(IMAGE_DIR)
+skopeo-export: # util target to copy a container from containers-storage to the docker daemon.
+	skopeo copy \
+		containers-storage:$(REF) \
+		docker-daemon:$(REF)
+
+
+## Build specific container images.
+
+# acncli
 
 acncli-image-name: # util target to print the CNI manager image name.
 	@echo $(ACNCLI_IMAGE)
 
 acncli-image: ## build cni-manager container image.
-	$(MAKE) containerize-$(CONTAINER_BUILDER) \
-		PLATFORM=$(PLATFORM) \
+	$(MAKE) container \
 		DOCKERFILE=tools/acncli/Dockerfile \
-		REGISTRY=$(IMAGE_REGISTRY) \
 		IMAGE=$(ACNCLI_IMAGE) \
-		TAG=$(TAG)
-
-acncli-image-info: # util target to write cni-manager container info file.
-	$(MAKE) container-info IMAGE=$(ACNCLI_IMAGE) TAG=$(TAG) FILE=$(ACNCLI_IMAGE_INFO_FILE)
+		TAG=$(ACNCLI_PLATFORM_TAG)
 
 acncli-image-push: ## push cni-manager container image.
 	$(MAKE) container-push \
-		PLATFORM=$(PLATFORM) \
-		REGISTRY=$(IMAGE_REGISTRY) \
 		IMAGE=$(ACNCLI_IMAGE) \
-		TAG=$(TAG)
+		TAG=$(ACNCLI_PLATFORM_TAG)
 
 acncli-image-pull: ## pull cni-manager container image.
 	$(MAKE) container-pull \
-		PLATFORM=$(PLATFORM) \
-		REGISTRY=$(IMAGE_REGISTRY) \
 		IMAGE=$(ACNCLI_IMAGE) \
-		TAG=$(TAG)
+		TAG=$(ACNCLI_PLATFORM_TAG)
+
+acncli-skopeo-export: 
+	$(MAKE) skopeo-export \
+		REF=$(IMAGE_REGISTRY)/$(ACNCLI_IMAGE):$(ACNCLI_PLATFORM_TAG)
+
+# cni-dropgz
 
 cni-dropgz-image-name: # util target to print the CNI dropgz image name.
-	@echo $(CNIDROPGZ_IMAGE)
+	@echo $(CNI_DROPGZ_IMAGE)
 
 cni-dropgz-image: ## build cni-dropgz container image.
-	$(MAKE) containerize-$(CONTAINER_BUILDER) \
-		PLATFORM=$(PLATFORM) \
+	$(MAKE) container \
 		DOCKERFILE=dropgz/build/cni.Dockerfile \
-		REGISTRY=$(IMAGE_REGISTRY) \
-		IMAGE=$(CNIDROPGZ_IMAGE) \
 		EXTRA_BUILD_ARGS='--build-arg OS=$(OS) --build-arg ARCH=$(ARCH)' \
-		TAG=$(TAG)
-
-cni-dropgz-image-info: # util target to write cni-dropgz container info file.
-	$(MAKE) container-info IMAGE=$(CNIDROPGZ_IMAGE) TAG=$(TAG) FILE=$(CNIDROPGZ_IMAGE_INFO_FILE)
+		IMAGE=$(CNI_DROPGZ_IMAGE) \
+		TAG=$(CNI_DROPGZ_PLATFORM_TAG)
 
 cni-dropgz-image-push: ## push cni-dropgz container image.
 	$(MAKE) container-push \
-		PLATFORM=$(PLATFORM) \
-		REGISTRY=$(IMAGE_REGISTRY) \
-		IMAGE=$(CNIDROPGZ_IMAGE) \
-		TAG=$(TAG)
+		IMAGE=$(CNI_DROPGZ_IMAGE) \
+		TAG=$(CNI_DROPGZ_PLATFORM_TAG)
 
 cni-dropgz-image-pull: ## pull cni-dropgz container image.
 	$(MAKE) container-pull \
-		PLATFORM=$(PLATFORM) \
-		REGISTRY=$(IMAGE_REGISTRY) \
-		IMAGE=$(CNIDROPGZ_IMAGE) \
-		TAG=$(TAG)
+		IMAGE=$(CNI_DROPGZ_IMAGE) \
+		TAG=$(CNI_DROPGZ_PLATFORM_TAG)
+
+cni-dropgz-skopeo-export: 
+	$(MAKE) skopeo-export \
+		REF=$(IMAGE_REGISTRY)/$(CNI_DROPGZ_IMAGE):$(CNI_DROPGZ_PLATFORM_TAG)
+
+# cns
 
 cns-image-name: # util target to print the CNS image name
 	@echo $(CNS_IMAGE)
 
 cns-image: ## build cns container image.
-	$(MAKE) containerize-$(CONTAINER_BUILDER) \
-		PLATFORM=$(PLATFORM) \
+	$(MAKE) container \
 		DOCKERFILE=cns/Dockerfile \
-		REGISTRY=$(IMAGE_REGISTRY) \
 		IMAGE=$(CNS_IMAGE) \
 		EXTRA_BUILD_ARGS='--build-arg CNS_AI_PATH=$(CNS_AI_PATH) --build-arg CNS_AI_ID=$(CNS_AI_ID)' \
-		TAG=$(TAG)
-
-cns-image-info: # util target to write cns container info file.
-	$(MAKE) container-info IMAGE=$(CNS_IMAGE) TAG=$(TAG) FILE=$(CNS_IMAGE_INFO_FILE)
+		TAG=$(CNS_PLATFORM_TAG)
 
 cns-image-push: ## push cns container image.
 	$(MAKE) container-push \
-		PLATFORM=$(PLATFORM) \
-		REGISTRY=$(IMAGE_REGISTRY) \
 		IMAGE=$(CNS_IMAGE) \
-		TAG=$(TAG)
+		TAG=$(CNS_PLATFORM_TAG)
 
 cns-image-pull: ## pull cns container image.
 	$(MAKE) container-pull \
-		PLATFORM=$(PLATFORM) \
-		REGISTRY=$(IMAGE_REGISTRY) \
 		IMAGE=$(CNS_IMAGE) \
-		TAG=$(TAG)
+		TAG=$(CNS_PLATFORM_TAG)
+
+cns-skopeo-export:
+	$(MAKE) skopeo-export \
+		REF=$(IMAGE_REGISTRY)/$(CNS_IMAGE):$(CNS_PLATFORM_TAG)
+
+# npm
 
 npm-image-name: # util target to print the NPM image name
 	@echo $(NPM_IMAGE)
 
 npm-image: ## build the npm container image.
-	$(MAKE) containerize-$(CONTAINER_BUILDER) \
-			PLATFORM=$(PLATFORM) \
+	$(MAKE) container-$(CONTAINER_BUILDER) \
 			DOCKERFILE=npm/Dockerfile \
-			REGISTRY=$(IMAGE_REGISTRY) \
 			IMAGE=$(NPM_IMAGE) \
 			EXTRA_BUILD_ARGS='--build-arg NPM_AI_PATH=$(NPM_AI_PATH) --build-arg NPM_AI_ID=$(NPM_AI_ID)' \
-			TAG=$(TAG)
-
-npm-image-info: # util target to write npm container info file.
-	$(MAKE) container-info IMAGE=$(NPM_IMAGE) TAG=$(TAG) FILE=$(NPM_IMAGE_INFO_FILE)
+			TAG=$(NPM_PLATFORM_TAG)
 
 npm-image-push: ## push npm container image.
 	$(MAKE) container-push \
-		PLATFORM=$(PLATFORM) \
-		REGISTRY=$(IMAGE_REGISTRY) \
 		IMAGE=$(NPM_IMAGE) \
-		TAG=$(TAG)
+		TAG=$(NPM_PLATFORM_TAG)
 
 npm-image-pull: ## pull cns container image.
 	$(MAKE) container-pull \
-		PLATFORM=$(PLATFORM) \
-		REGISTRY=$(IMAGE_REGISTRY) \
 		IMAGE=$(NPM_IMAGE) \
-		TAG=$(TAG)
+		TAG=$(NPM_PLATFORM_TAG)
+
+npm-skopeo-export:
+	$(MAKE) skopeo-export \
+		REF=$(IMAGE_REGISTRY)/$(NPM_IMAGE):$(NPM_PLATFORM_TAG)
+
 
 ## can probably be combined with above with a GOOS.Dockerfile change?
 # Build the windows cns image
@@ -344,30 +385,30 @@ cns-image-windows:
 	docker build \
 	--no-cache \
 	-f cns/windows.Dockerfile \
-	-t $(IMAGE_REGISTRY)/$(CNS_IMAGE)-win:$(TAG) \
-	--build-arg VERSION=$(TAG) \
+	-t $(IMAGE_REGISTRY)/$(CNS_IMAGE)-win:$(CNS_PLATFORM_TAG) \
+	--build-arg VERSION=$(CNS_VERSION) \
 	--build-arg CNS_AI_PATH=$(CNS_AI_PATH) \
 	--build-arg CNS_AI_ID=$(CNS_AI_ID) \
 	.
 
-	echo $(CNS_IMAGE)-win:$(TAG) > $(IMAGE_DIR)/$(CNS_IMAGE_INFO_FILE)
+	echo $(CNS_IMAGE)-win:$(CNS_VERSION) > $(IMAGE_DIR)/$(CNS_IMAGE_INFO_FILE)
 
 
 ## Legacy
 
 # Build the Azure CNM plugin image, installable with "docker plugin install".
 azure-cnm-plugin-image: azure-cnm-plugin ## build the azure-cnm plugin container image.
-	docker images -q $(CNM_PLUGIN_ROOTFS):$(TAG) > cid
+	docker images -q $(CNM_PLUGIN_ROOTFS):$(ACN_VERSION) > cid
 	docker build --no-cache \
 		-f Dockerfile.cnm \
-		-t $(CNM_PLUGIN_ROOTFS):$(TAG) \
+		-t $(CNM_PLUGIN_ROOTFS):$(ACN_VERSION) \
 		--build-arg CNM_BUILD_DIR=$(CNM_BUILD_DIR) \
 		.
 	$(eval CID := `cat cid`)
 	docker rmi $(CID) || true
 
 	# Create a container using the image and export its rootfs.
-	docker create $(CNM_PLUGIN_ROOTFS):$(TAG) > cid
+	docker create $(CNM_PLUGIN_ROOTFS):$(ACN_VERSION) > cid
 	$(eval CID := `cat cid`)
 	$(MKDIR) $(OUTPUT_DIR)/$(CID)/rootfs
 	docker export $(CID) | tar -x -C $(OUTPUT_DIR)/$(CID)/rootfs
@@ -378,17 +419,19 @@ azure-cnm-plugin-image: azure-cnm-plugin ## build the azure-cnm plugin container
 	chgrp -R docker $(OUTPUT_DIR)/$(CID)
 
 	# Create the plugin.
-	docker plugin rm $(CNM_PLUGIN_IMAGE):$(TAG) || true
-	docker plugin create $(CNM_PLUGIN_IMAGE):$(TAG) $(OUTPUT_DIR)/$(CID)
+	docker plugin rm $(CNM_PLUGIN_IMAGE):$(ACN_VERSION) || true
+	docker plugin create $(CNM_PLUGIN_IMAGE):$(ACN_VERSION) $(OUTPUT_DIR)/$(CID)
 
 	# Cleanup temporary files.
 	rm -rf $(OUTPUT_DIR)/$(CID)
 	rm cid
 
 
-## This section is for building multi-arch/os container image manifests.
+## Reusable targets for building multiplat container image manifests.
 
-multiarch-manifest-create: # util target to compose multiarch container manifests from os/arch images.
+IMAGE_ARCHIVE_DIR ?= $(shell pwd)
+
+manifest-create: # util target to compose multiarch container manifests from platform specific images.
 	$(CONTAINER_BUILDER) manifest create $(IMAGE_REGISTRY)/$(IMAGE):$(TAG)
 	$(foreach PLATFORM,$(PLATFORMS),                                                                                                                                        \
 		$(if $(filter $(PLATFORM),windows/amd64),                                                                                                                           \
@@ -396,32 +439,78 @@ multiarch-manifest-create: # util target to compose multiarch container manifest
 		,                                                                                                                                                                   \
 			$(CONTAINER_BUILDER) manifest add $(IMAGE_REGISTRY)/$(IMAGE):$(TAG) docker://$(IMAGE_REGISTRY)/$(IMAGE):$(subst /,-,$(PLATFORM))-$(TAG);))
 
-multiarch-manifest-push: # util target to push multiarch container manifest.
+manifest-push: # util target to push multiarch container manifest.
 	$(CONTAINER_BUILDER) manifest push --all $(IMAGE_REGISTRY)/$(IMAGE):$(TAG) docker://$(IMAGE_REGISTRY)/$(IMAGE):$(TAG)
 
-acncli-multiarch-manifest-create: ## build acncli multi-arch container manifest.
-	$(MAKE) multiarch-manifest-create \
+manifest-skopeo-archive: # util target to export tar archive of multiarch container manifest.
+	skopeo copy --all docker://$(IMAGE_REGISTRY)/$(IMAGE):$(TAG) oci-archive:$(IMAGE_ARCHIVE_DIR)/$(IMAGE)-$(TAG).tar
+
+## Build specific multiplat images.
+
+acncli-manifest-create: ## build acncli multiplat container manifest.
+	$(MAKE) manifest-create \
 		PLATFORMS="$(PLATFORMS)" \
 		IMAGE=$(ACNCLI_IMAGE) \
-		TAG=$(TAG)
+		TAG=$(ACN_VERSION)
 
-cni-dropgz-multiarch-manifest-create: ## build cni-dropgz multi-arch container manifest.
-	$(MAKE) multiarch-manifest-create \
+acncli-manifest-push: ## push acncli multiplat container manifest
+	$(MAKE) manifest-push \
+		IMAGE=$(ACNCLI_IMAGE) \
+		TAG=$(ACN_VERSION)
+
+acncli-skopeo-archive: ## export tar archive of acncli multiplat container manifest.
+	$(MAKE) manifest-skopeo-archive \
+		IMAGE=$(ACNCLI_IMAGE) \
+		TAG=$(ACN_VERSION) 
+
+cni-dropgz-manifest-create: ## build cni-dropgz multiplat container manifest.
+	$(MAKE) manifest-create \
 		PLATFORMS="$(PLATFORMS)" \
-		IMAGE=$(CNIDROPGZ_IMAGE) \
-		TAG=$(TAG)
+		IMAGE=$(CNI_DROPGZ_IMAGE) \
+		TAG=$(CNI_DROPGZ_VERSION)
 
-cns-multiarch-manifest-create: ## build azure-cns multi-arch container manifest.
-	$(MAKE) multiarch-manifest-create \
+cni-dropgz-manifest-push: ## push cni-dropgz multiplat container manifest
+	$(MAKE) manifest-push \
+		IMAGE=$(CNI_DROPGZ_IMAGE) \
+		TAG=$(CNI_DROPGZ_VERSION)
+
+cni-dropgz-skopeo-archive: ## export tar archive of cni-dropgz multiplat container manifest.
+	$(MAKE) manifest-skopeo-archive \
+		IMAGE=$(CNI_DROPGZ_IMAGE) \
+		TAG=$(CNI_DROPGZ_VERSION)
+
+cns-manifest-create: ## build azure-cns multiplat container manifest.
+	$(MAKE) manifest-create \
 		PLATFORMS="$(PLATFORMS)" \
 		IMAGE=$(CNS_IMAGE) \
-		TAG=$(TAG)
+		TAG=$(CNS_VERSION)
 
-npm-multiarch-manifest-create: ## build azure-npm multi-arch container manifest.
-	$(MAKE) multiarch-manifest-create \
+cns-manifest-push: ## push cns multiplat container manifest
+	$(MAKE) manifest-push \
+		IMAGE=$(CNS_IMAGE) \
+		TAG=$(CNS_VERSION)
+
+cns-skopeo-archive: ## export tar archive of cns multiplat container manifest.
+	$(MAKE) manifest-skopeo-archive \
+		IMAGE=$(CNS_IMAGE) \
+		TAG=$(CNS_VERSION)
+
+npm-manifest-create: ## build azure-npm multiplat container manifest.
+	$(MAKE) manifest-create \
 		PLATFORMS="$(PLATFORMS)" \
 		IMAGE=$(NPM_IMAGE) \
-		TAG=$(TAG)
+		TAG=$(NPM_VERSION)
+
+npm-manifest-push: ## push multiplat container manifest
+	$(MAKE) manifest-push \
+		IMAGE=$(NPM_IMAGE) \
+		TAG=$(NPM_VERSION)
+
+npm-skopeo-archive: ## export tar archive of multiplat container manifest.
+	$(MAKE) manifest-skopeo-archive \
+		IMAGE=$(NPM_IMAGE) \
+		TAG=$(NPM_VERSION)
+
 
 ########################### Archives ################################
 
@@ -497,17 +586,6 @@ ifeq ($(GOOS),linux)
 	cd $(NPM_BUILD_DIR) && $(ARCHIVE_CMD) $(NPM_ARCHIVE_NAME) azure-npm$(EXE_EXT)
 endif
 
-########################### Tasks ###################################
-# Release tag
-.PHONY: release
-release:
-	./scripts/semver-release.sh
-
-# Publish the Azure CNM plugin image to a Docker registry.
-.PHONY: publish-azure-cnm-plugin-image
-publish-azure-cnm-plugin-image:
-	docker plugin push $(CNM_PLUGIN_IMAGE):$(VERSION)
-
 
 ##@ Utils 
 
@@ -535,6 +613,7 @@ fmt: $(GOFUMPT) ## run gofumpt on $FMT_PKG (default "cni cns npm").
 workspace: ## Set up the Go workspace.
 	go work init
 	go work use .
+	go work use ./azure-ipam
 	go work use ./build/tools
 	go work use ./dropgz
 	go work use ./zapai
@@ -551,7 +630,9 @@ test-all: ## run all unit tests.
 
 
 test-integration: ## run all integration tests.
-	go test -buildvcs=false -timeout 1h -coverpkg=./... -race -covermode atomic -coverprofile=coverage.out -tags=integration ./test/integration...
+	CNI_DROPGZ_VERSION=$(CNI_DROPGZ_VERSION) \
+		CNS_VERSION=$(CNS_VERSION) \
+		go test -buildvcs=false -timeout 1h -coverpkg=./... -race -covermode atomic -coverprofile=coverage.out -tags=integration ./test/integration...
 
 test-cyclonus: ## run the cyclonus test for npm.
 	cd test/cyclonus && bash ./test-cyclonus.sh
@@ -565,7 +646,6 @@ test-extended-cyclonus: ## run the cyclonus test for npm.
 	cd test/cyclonus && bash ./test-cyclonus.sh extended
 	cd ..
 
-.PHONY: kind
 kind:
 	kind create cluster --config ./test/kind/kind.yaml
 
@@ -578,13 +658,7 @@ $(REPO_ROOT)/.git/hooks/pre-push:
 
 install-hooks: $(REPO_ROOT)/.git/hooks/pre-push ## installs git hooks
 
-setup: tools install-hooks ## performs common required repo setup
-
-revision: ## print the current git revision
-	@echo $(REVISION)
-	
-version: ## prints the version
-	@echo $(VERSION)
+setup: tools install-hooks workspace ## performs common required repo setup
 
 
 ##@ Tools 

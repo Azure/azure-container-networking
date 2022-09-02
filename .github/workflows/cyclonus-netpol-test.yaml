@@ -27,7 +27,7 @@ jobs:
 
       - uses: actions/setup-go@v3
         with:
-          go-version: '^1.18'
+          go-version: '^1.19'
 
       - name: Setup Kind
         uses: engineerd/setup-kind@v0.5.0
@@ -42,7 +42,7 @@ jobs:
 
       - name: Make NPM image
         run: |
-          make npm-image VERSION=cyclonus PLATFORM=linux/amd64 CONTAINER_BUILDER=docker
+          make npm-image NPM_PLATFORM_TAG=cyclonus PLATFORM=linux/amd64 CONTAINER_BUILDER=docker
       
       - name: Install Azure NPM
         # set the ConfigMap based on the build matrix

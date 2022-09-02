@@ -20,7 +20,7 @@ import (
 	hnsv2 "github.com/Microsoft/hcsshim/hcn"
 	cniSkel "github.com/containernetworking/cni/pkg/skel"
 	cniTypes "github.com/containernetworking/cni/pkg/types"
-	cniTypesCurr "github.com/containernetworking/cni/pkg/types/current"
+	cniTypesCurr "github.com/containernetworking/cni/pkg/types/100"
 	"github.com/pkg/errors"
 	"golang.org/x/sys/windows/registry"
 )
@@ -70,7 +70,6 @@ func (plugin *NetPlugin) handleConsecutiveAdd(args *cniSkel.CmdArgs, endpointId 
 		result := &cniTypesCurr.Result{
 			IPs: []*cniTypesCurr.IPConfig{
 				{
-					Version: "4",
 					Address: address,
 					Gateway: net.ParseIP(hnsEndpoint.GatewayAddress),
 				},
@@ -85,7 +84,6 @@ func (plugin *NetPlugin) handleConsecutiveAdd(args *cniSkel.CmdArgs, endpointId 
 
 		if nwCfg.IPV6Mode != "" && len(epInfo.IPAddresses) > 1 {
 			ipv6Config := &cniTypesCurr.IPConfig{
-				Version: "6",
 				Address: epInfo.IPAddresses[1],
 			}
 

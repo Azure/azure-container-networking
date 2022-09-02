@@ -30,7 +30,7 @@ import (
 	"github.com/Azure/azure-container-networking/telemetry"
 	cniSkel "github.com/containernetworking/cni/pkg/skel"
 	cniTypes "github.com/containernetworking/cni/pkg/types"
-	cniTypesCurr "github.com/containernetworking/cni/pkg/types/current"
+	cniTypesCurr "github.com/containernetworking/cni/pkg/types/100"
 	"github.com/pkg/errors"
 )
 
@@ -38,7 +38,6 @@ const (
 	dockerNetworkOption = "com.docker.network.generic"
 	opModeTransparent   = "transparent"
 	// Supported IP version. Currently support only IPv4
-	ipVersion             = "4"
 	ipamV6                = "azure-vnet-ipamv6"
 	defaultRequestTimeout = 15 * time.Second
 )
@@ -841,7 +840,6 @@ func (plugin *NetPlugin) Get(args *cniSkel.CmdArgs) error {
 
 	for _, ipAddresses := range epInfo.IPAddresses {
 		ipConfig := &cniTypesCurr.IPConfig{
-			Version:   ipVersion,
 			Interface: &epInfo.IfIndex,
 			Address:   ipAddresses,
 		}
@@ -1224,7 +1222,6 @@ func convertNnsToCniResult(
 				ipConfig := &cniTypesCurr.IPConfig{
 					Address:   *ipNet,
 					Gateway:   gateway,
-					Version:   ip.Version,
 					Interface: &intIndex,
 				}
 

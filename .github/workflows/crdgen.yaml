@@ -8,10 +8,10 @@ on:
         - synchronize
         - ready_for_review
 jobs:
-  crdgen:
+  crdgen119:
     strategy:
       matrix:
-        go-version: ['1.18']
+        go-version: ['1.19']
         os: [ubuntu-latest]
     name: CRDs are Generated
     runs-on: ${{ matrix.os }}

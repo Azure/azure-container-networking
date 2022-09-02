@@ -37,6 +37,10 @@ func Debugf(format string, args ...any) {
 	Log.Debugf(format, args...)
 }
 
+func Warnf(format string, args ...any) {
+	Log.Warnf(format, args...)
+}
+
 func LogEvent(event aitelemetry.Event) {
 	Log.LogEvent(event)
 }

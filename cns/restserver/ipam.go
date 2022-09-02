@@ -5,6 +5,7 @@ package restserver
 
 import (
 	"fmt"
+	"net"
 	"net/http"
 	"strconv"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/filter"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/types"
+	"github.com/Azure/azure-container-networking/common"
 	"github.com/pkg/errors"
 )
 
@@ -65,6 +67,25 @@ func (service *HTTPRestService) requestIPConfigHandler(w http.ResponseWriter, r 
 			ipAssignmentLatency.Observe(since.Seconds())
 		}
 	}()
+
+	// Check if http rest service managed endpoint state is set
+	if service.Options[common.OptManageEndpointState] == true {
+		err = service.updateEndpointState(ipconfigRequest, podInfo, podIPInfo)
+		if err != nil {
+			reserveResp := &cns.IPConfigResponse{
+				Response: cns.Response{
+					ReturnCode: types.UnexpectedError,
+					Message:    fmt.Sprintf("Update endpoint state failed: %v ", err),
+				},
+				PodIpInfo: podIPInfo,
+			}
+			w.Header().Set(cnsReturnCode, reserveResp.Response.ReturnCode.String())
+			err = service.Listener.Encode(w, &reserveResp)
+			logger.ResponseEx(service.Name+operationName, ipconfigRequest, reserveResp, reserveResp.Response.ReturnCode, err)
+			return
+		}
+	}
+
 	reserveResp := &cns.IPConfigResponse{
 		Response: cns.Response{
 			ReturnCode: types.Success,
@@ -74,6 +95,73 @@ func (service *HTTPRestService) requestIPConfigHandler(w http.ResponseWriter, r 
 	w.Header().Set(cnsReturnCode, reserveResp.Response.ReturnCode.String())
 	err = service.Listener.Encode(w, &reserveResp)
 	logger.ResponseEx(service.Name+operationName, ipconfigRequest, reserveResp, reserveResp.Response.ReturnCode, err)
+}
+
+var (
+	errStoreEmpty       = errors.New("empty endpoint state store")
+	errParsePodIPFailed = errors.New("failed to parse pod's ip")
+)
+
+func (service *HTTPRestService) updateEndpointState(ipconfigRequest cns.IPConfigRequest, podInfo cns.PodInfo, podIPInfo cns.PodIpInfo) error {
+	if service.EndpointStateStore == nil {
+		return errStoreEmpty
+	}
+	service.Lock()
+	defer service.Unlock()
+	logger.Printf("[updateEndpointState] Updating endpoint state for infra container %s", ipconfigRequest.InfraContainerID)
+	if endpointInfo, ok := service.EndpointState[ipconfigRequest.InfraContainerID]; ok {
+		logger.Warnf("[updateEndpointState] Found existing endpoint state for infra container %s", ipconfigRequest.InfraContainerID)
+		ip := net.ParseIP(podIPInfo.PodIPConfig.IPAddress)
+		if ip == nil {
+			logger.Errorf("failed to parse pod ip address %s", podIPInfo.PodIPConfig.IPAddress)
+			return errParsePodIPFailed
+		}
+		if ip.To4() == nil { // is an ipv6 address
+			ipconfig := net.IPNet{IP: ip, Mask: net.CIDRMask(int(podIPInfo.PodIPConfig.PrefixLength), 128)} // nolint
+			for _, ipconf := range endpointInfo.IfnameToIPMap[ipconfigRequest.Ifname].IPv6 {
+				if ipconf.IP.Equal(ipconfig.IP) {
+					logger.Printf("[updateEndpointState] Found existing ipv6 ipconfig for infra container %s", ipconfigRequest.InfraContainerID)
+					return nil
+				}
+			}
+			endpointInfo.IfnameToIPMap[ipconfigRequest.Ifname].IPv6 = append(endpointInfo.IfnameToIPMap[ipconfigRequest.Ifname].IPv6, ipconfig)
+		} else {
+			ipconfig := net.IPNet{IP: ip, Mask: net.CIDRMask(int(podIPInfo.PodIPConfig.PrefixLength), 32)} // nolint
+			for _, ipconf := range endpointInfo.IfnameToIPMap[ipconfigRequest.Ifname].IPv4 {
+				if ipconf.IP.Equal(ipconfig.IP) {
+					logger.Printf("[updateEndpointState] Found existing ipv4 ipconfig for infra container %s", ipconfigRequest.InfraContainerID)
+					return nil
+				}
+			}
+			endpointInfo.IfnameToIPMap[ipconfigRequest.Ifname].IPv4 = append(endpointInfo.IfnameToIPMap[ipconfigRequest.Ifname].IPv4, ipconfig)
+		}
+
+		service.EndpointState[ipconfigRequest.InfraContainerID] = endpointInfo
+
+	} else {
+		endpointInfo := &EndpointInfo{PodName: podInfo.Name(), PodNamespace: podInfo.Namespace(), IfnameToIPMap: make(map[string]*IPInfo)}
+		ip := net.ParseIP(podIPInfo.PodIPConfig.IPAddress)
+		if ip == nil {
+			logger.Errorf("failed to parse pod ip address %s", podIPInfo.PodIPConfig.IPAddress)
+			return errParsePodIPFailed
+		}
+		ipInfo := &IPInfo{}
+		if ip.To4() == nil { // is an ipv6 address
+			ipconfig := net.IPNet{IP: ip, Mask: net.CIDRMask(int(podIPInfo.PodIPConfig.PrefixLength), 128)} // nolint
+			ipInfo.IPv6 = append(ipInfo.IPv6, ipconfig)
+		} else {
+			ipconfig := net.IPNet{IP: ip, Mask: net.CIDRMask(int(podIPInfo.PodIPConfig.PrefixLength), 32)} // nolint
+			ipInfo.IPv4 = append(ipInfo.IPv4, ipconfig)
+		}
+		endpointInfo.IfnameToIPMap[ipconfigRequest.Ifname] = ipInfo
+		service.EndpointState[ipconfigRequest.InfraContainerID] = endpointInfo
+	}
+
+	err := service.EndpointStateStore.Write(EndpointStoreKey, service.EndpointState)
+	if err != nil {
+		return fmt.Errorf("failed to write endpoint state to store: %w", err)
+	}
+	return nil
 }
 
 func (service *HTTPRestService) releaseIPConfigHandler(w http.ResponseWriter, r *http.Request) {
@@ -94,6 +182,21 @@ func (service *HTTPRestService) releaseIPConfigHandler(w http.ResponseWriter, r 
 
 	podInfo, returnCode, message := service.validateIPConfigRequest(req)
 
+	// Check if http rest service managed endpoint state is set
+	if service.Options[common.OptManageEndpointState] == true {
+		if err = service.removeEndpointState(podInfo); err != nil {
+			resp := cns.Response{
+				ReturnCode: types.UnexpectedError,
+				Message:    err.Error(),
+			}
+			logger.Errorf("releaseIPConfigHandler remove endpoint state failed because %v, release IP config info %s", resp.Message, req)
+			w.Header().Set(cnsReturnCode, resp.ReturnCode.String())
+			err = service.Listener.Encode(w, &resp)
+			logger.ResponseEx(service.Name, req, resp, resp.ReturnCode, err)
+			return
+		}
+	}
+
 	if err = service.releaseIPConfig(podInfo); err != nil {
 		returnCode = types.UnexpectedError
 		message = err.Error()
@@ -106,6 +209,25 @@ func (service *HTTPRestService) releaseIPConfigHandler(w http.ResponseWriter, r 
 	w.Header().Set(cnsReturnCode, resp.ReturnCode.String())
 	err = service.Listener.Encode(w, &resp)
 	logger.ResponseEx(service.Name, req, resp, resp.ReturnCode, err)
+}
+
+func (service *HTTPRestService) removeEndpointState(podInfo cns.PodInfo) error {
+	if service.EndpointStateStore == nil {
+		return errStoreEmpty
+	}
+	service.Lock()
+	defer service.Unlock()
+	logger.Printf("[removeEndpointState] Removing endpoint state for infra container %s", podInfo.InfraContainerID())
+	if _, ok := service.EndpointState[podInfo.InfraContainerID()]; ok {
+		delete(service.EndpointState, podInfo.InfraContainerID())
+		err := service.EndpointStateStore.Write(EndpointStoreKey, service.EndpointState)
+		if err != nil {
+			return fmt.Errorf("failed to write endpoint state to store: %w", err)
+		}
+	} else { // will not fail if no endpoint state for infra container id is found
+		logger.Printf("[removeEndpointState] No endpoint state found for infra container %s", podInfo.InfraContainerID())
+	}
+	return nil
 }
 
 // MarkIPAsPendingRelease will set the IPs which are in PendingProgramming or Available to PendingRelease state
