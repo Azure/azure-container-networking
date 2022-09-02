@@ -2,19 +2,43 @@ package main
 
 import (
 	"fmt"
-	"net/http"
-	"os"
-	"runtime"
-	"time"
-
 	"github.com/Azure/azure-container-networking/zapai"
 	logfmt "github.com/jsternberg/zap-logfmt"
 	"github.com/microsoft/ApplicationInsights-Go/appinsights"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+	"net/http"
+	"os"
+	"runtime"
+	"time"
 )
 
 const version = "1.2.3"
+
+type Example struct {
+	NetworkContainerID string
+	NetworkID          string
+	ReservationID      string
+	Sub                Sub
+}
+
+type Sub struct {
+	subnet string
+	num    int
+}
+
+func (s Sub) MarshalLogObject(encoder zapcore.ObjectEncoder) error {
+	encoder.AddString("subnet", s.subnet)
+	encoder.AddInt("num", s.num)
+	return nil
+}
+
+func (e Example) MarshalLogObject(encoder zapcore.ObjectEncoder) error {
+	encoder.AddString("ncId", e.NetworkContainerID)
+	encoder.AddString("vnetId", e.NetworkID)
+	encoder.AddObject("sub", e.Sub)
+	return nil
+}
 
 func main() {
 	// stdoutcore logs to stdout with a default JSON encoding
@@ -26,7 +50,7 @@ func main() {
 	logfmtcore := zapcore.NewCore(logfmt.NewEncoder(zap.NewProductionEncoderConfig()), os.Stdout, zapcore.DebugLevel)
 	log = zap.New(logfmtcore) // reassign log
 	log.Error("subnet failed to join", zap.String("subnet", "podnet"), zap.String("prefix", "10.0.0.0/8"))
-
+	jsoncore := zapcore.NewCore(zapcore.NewJSONEncoder(zap.NewProductionEncoderConfig()), os.Stdout, zapcore.DebugLevel)
 	// build the AI config
 	sinkcfg := zapai.SinkConfig{
 		GracePeriod:            30 * time.Second, //nolint:gomnd // ignore
@@ -49,12 +73,12 @@ func main() {
 	aicore = aicore.WithFieldMappers(zapai.DefaultMappers)
 
 	// compose the logfmt and aicore in to a virtual tee core so they both receive all log events
-	teecore := zapcore.NewTee(logfmtcore, aicore)
+	teecore := zapcore.NewTee(logfmtcore, jsoncore, aicore)
 
 	// reassign log using the teecore
-	log = zap.New(teecore)
+	log = zap.New(teecore, zap.AddCaller())
 
-	// (optional): add normalized fields for the built-in AI Tags
+	//(optional): add normalized fields for the built-in AI Tags
 	log = log.With(
 		zap.String("user_id", runtime.GOOS),
 		zap.String("operation_id", ""),
@@ -70,6 +94,26 @@ func main() {
 		zap.String("OSVersion", "OSVersion"),
 		zap.String("VMID", "VMID"),
 	)
+
+	subn := Sub{
+		subnet: "123.222.222",
+		num:    123,
+	}
+	ex1 := Example{
+		NetworkID:          "vetId-1",
+		NetworkContainerID: "nc-1",
+		Sub:                subn,
+	}
+
+	ex2 := Example{
+		NetworkID:          "vetId-2",
+		NetworkContainerID: "nc-2",
+		Sub:                subn,
+	}
+
+	// log with zap.Object
+	log.Debug("testing message-1", zap.Object("ex1", &ex1))
+	log.Debug("testing message-2", zap.Object("ex2", &ex2))
 
 	// muxlog adds a component=mux field to every log that it writes
 	muxlog := log.With(zap.String("component", "mux"))
