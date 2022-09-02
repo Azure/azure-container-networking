@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"strconv"
 	"time"
 
@@ -12,7 +13,6 @@ import (
 	"github.com/Azure/azure-container-networking/cns/dockerclient"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/networkcontainers"
-	"github.com/Azure/azure-container-networking/cns/nmagent"
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/cns/wireserver"
 	acn "github.com/Azure/azure-container-networking/common"
@@ -782,15 +782,12 @@ func (service *HTTPRestService) populateIPConfigInfoUntransacted(ipConfigStatus 
 func (service *HTTPRestService) isNCWaitingForUpdate(
 	ncVersion, ncid string,
 ) (waitingForUpdate bool, returnCode types.ResponseCode, message string) {
-	waitingForUpdate = true
 	ncStatus, ok := service.state.ContainerStatus[ncid]
 	if ok {
 		if ncStatus.VfpUpdateComplete &&
 			(ncStatus.CreateNetworkContainerRequest.Version == ncVersion) {
 			logger.Printf("[Azure CNS] Network container: %s, version: %s has VFP programming already completed", ncid, ncVersion)
-			returnCode = types.NetworkContainerVfpProgramCheckSkipped
-			waitingForUpdate = false
-			return
+			return false, types.NetworkContainerVfpProgramCheckSkipped, ""
 		}
 	}
 
@@ -798,16 +795,19 @@ func (service *HTTPRestService) isNCWaitingForUpdate(
 	if !ok {
 		logger.Printf("[Azure CNS] getNCVersionURL for Network container %s not found. Skipping GetNCVersionStatus check from NMAgent",
 			ncid)
-		returnCode = types.NetworkContainerVfpProgramCheckSkipped
-		return
+		return true, types.NetworkContainerVfpProgramCheckSkipped, ""
 	}
 
-	resp, err := service.nma.GetNCVersion(context.TODO(), getNCVersionURL.(nmagent.NCVersionRequest))
+	resp, err := service.nma.GetNCVersion(context.TODO(), getNCVersionURL.(nma.NCVersionRequest))
+	var nmaErr nma.Error
+	if errors.As(err, &nmaErr); nmaErr.Unauthorized() {
+		return true, types.NetworkContainerVfpProgramPending, ""
+	}
+
 	if err != nil {
 		logger.Printf("[Azure CNS] Failed to get NC version status from NMAgent with error: %+v. "+
 			"Skipping GetNCVersionStatus check from NMAgent", err)
-		returnCode = types.NetworkContainerVfpProgramCheckSkipped
-		return
+		return true, types.NetworkContainerVfpProgramCheckSkipped, ""
 	}
 
 	ncTargetVersion, _ := strconv.Atoi(ncVersion)
@@ -820,21 +820,18 @@ func (service *HTTPRestService) isNCWaitingForUpdate(
 		// defend against it by erroring appropriately:
 		logger.Printf("[Azure CNS] Failed to get NC version status from NMAgent with error: %+v. "+
 			"Skipping GetNCVersionStatus check from NMAgent", err)
-		returnCode = types.NetworkContainerVfpProgramCheckSkipped
-		return
+		return true, types.NetworkContainerVfpProgramCheckSkipped, ""
 	}
 
 	if ncTargetVersion > nmaProgrammedNCVersion {
-		returnCode = types.NetworkContainerVfpProgramPending
-		message = fmt.Sprintf("Network container: %s version: %d is not yet programmed by NMAgent. Programmed version: %d",
+		msg := fmt.Sprintf("Network container: %s version: %d is not yet programmed by NMAgent. Programmed version: %d",
 			ncid, ncTargetVersion, nmaProgrammedNCVersion)
-	} else {
-		returnCode = types.NetworkContainerVfpProgramComplete
-		waitingForUpdate = false
-		message = "Vfp programming complete"
-		logger.Printf("[Azure CNS] Vfp programming complete for NC: %s with version: %d", ncid, ncTargetVersion)
+		return false, types.NetworkContainerVfpProgramPending, msg
 	}
-	return
+
+	msg := "Vfp programming complete"
+	logger.Printf("[Azure CNS] Vfp programming complete for NC: %s with version: %d", ncid, ncTargetVersion)
+	return false, types.NetworkContainerVfpProgramComplete, msg
 }
 
 // handleGetNetworkContainers returns all NCs in CNS

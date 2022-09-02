@@ -332,7 +332,7 @@ func TestCreateNetworkContainer(t *testing.T) {
 		podNamespace: "testpodnamespace",
 	}
 
-	err := createOrUpdateNetworkContainerWithParams(t, params)
+	err := createOrUpdateNetworkContainerWithParams(params)
 	if err != nil {
 		t.Errorf("Failed to save the goal state for network container of type JobObject "+
 			" due to error: %+v", err)
@@ -340,7 +340,7 @@ func TestCreateNetworkContainer(t *testing.T) {
 	}
 
 	fmt.Println("Deleting the saved goal state for network container of type JobObject")
-	err = deleteNetworkContainerWithParams(t, params)
+	err = deleteNetworkContainerWithParams(params)
 	if err != nil {
 		t.Errorf("Failed to delete the saved goal state due to error: %+v", err)
 		t.Fatal(err)
@@ -357,7 +357,7 @@ func TestCreateNetworkContainer(t *testing.T) {
 		podNamespace: "testpodnamespace",
 	}
 
-	err = createOrUpdateNetworkContainerWithParams(t, params)
+	err = createOrUpdateNetworkContainerWithParams(params)
 	if err != nil {
 		t.Errorf("creatOrUpdateWebAppContainerWithName failed Err:%+v", err)
 		t.Fatal(err)
@@ -372,7 +372,7 @@ func TestCreateNetworkContainer(t *testing.T) {
 		podNamespace: "testpodnamespace",
 	}
 
-	err = createOrUpdateNetworkContainerWithParams(t, params)
+	err = createOrUpdateNetworkContainerWithParams(params)
 	if err != nil {
 		t.Errorf("Updating interface failed Err:%+v", err)
 		t.Fatal(err)
@@ -380,7 +380,7 @@ func TestCreateNetworkContainer(t *testing.T) {
 
 	fmt.Println("Now calling DeleteNetworkContainer")
 
-	err = deleteNetworkContainerWithParams(t, params)
+	err = deleteNetworkContainerWithParams(params)
 	if err != nil {
 		t.Errorf("Deleting interface failed Err:%+v", err)
 		t.Fatal(err)
@@ -396,7 +396,7 @@ func TestCreateNetworkContainer(t *testing.T) {
 		podNamespace: "testpodnamespace",
 	}
 
-	err = createOrUpdateNetworkContainerWithParams(t, params)
+	err = createOrUpdateNetworkContainerWithParams(params)
 	if err != nil {
 		t.Errorf("Failed to save the goal state for network container of type COW"+
 			" due to error: %+v", err)
@@ -404,7 +404,7 @@ func TestCreateNetworkContainer(t *testing.T) {
 	}
 
 	fmt.Println("Deleting the saved goal state for network container of type COW")
-	err = deleteNetworkContainerWithParams(t, params)
+	err = deleteNetworkContainerWithParams(params)
 	if err != nil {
 		t.Errorf("Failed to delete the saved goal state due to error: %+v", err)
 		t.Fatal(err)
@@ -427,28 +427,29 @@ func TestGetNetworkContainerByOrchestratorContext(t *testing.T) {
 		podNamespace: "testpodnamespace",
 	}
 
-	err := createOrUpdateNetworkContainerWithParams(t, params)
+	err := createOrUpdateNetworkContainerWithParams(params)
 	if err != nil {
 		t.Errorf("createOrUpdateNetworkContainerWithParams failed Err:%+v", err)
 		t.Fatal(err)
 	}
 
 	fmt.Println("Now calling getNetworkContainerByContext")
-	err = getNetworkContainerByContext(t, params)
+	resp, err := getNetworkContainerByContext(params)
 	if err != nil {
 		t.Errorf("TestGetNetworkContainerByOrchestratorContext failed Err:%+v", err)
 		t.Fatal(err)
 	}
+	expectCNSSuccess(t, resp.Response)
 
 	fmt.Println("Now calling DeleteNetworkContainer")
 
-	err = deleteNetworkContainerWithParams(t, params)
+	err = deleteNetworkContainerWithParams(params)
 	if err != nil {
 		t.Errorf("Deleting interface failed Err:%+v", err)
 		t.Fatal(err)
 	}
 
-	err = getNonExistNetworkContainerByContext(t, params)
+	err = getNonExistNetworkContainerByContext(params)
 	if err != nil {
 		t.Errorf("TestGetNetworkContainerByOrchestratorContext failed Err:%+v", err)
 		t.Fatal(err)
@@ -471,14 +472,14 @@ func TestGetInterfaceForNetworkContainer(t *testing.T) {
 		podNamespace: "testpodnamespace",
 	}
 
-	err := createOrUpdateNetworkContainerWithParams(t, params)
+	err := createOrUpdateNetworkContainerWithParams(params)
 	if err != nil {
 		t.Errorf("creatOrUpdateWebAppContainerWithName failed Err:%+v", err)
 		t.Fatal(err)
 	}
 
 	fmt.Println("Now calling getInterfaceForContainer")
-	err = getInterfaceForContainer(t, params)
+	err = getInterfaceForContainer(params)
 	if err != nil {
 		t.Errorf("getInterfaceForContainer failed Err:%+v", err)
 		t.Fatal(err)
@@ -486,7 +487,7 @@ func TestGetInterfaceForNetworkContainer(t *testing.T) {
 
 	fmt.Println("Now calling DeleteNetworkContainer")
 
-	err = deleteNetworkContainerWithParams(t, params)
+	err = deleteNetworkContainerWithParams(params)
 	if err != nil {
 		t.Errorf("Deleting interface failed Err:%+v", err)
 		t.Fatal(err)
@@ -519,10 +520,22 @@ func TestGetNumOfCPUCores(t *testing.T) {
 }
 
 func TestGetNetworkContainerVersionStatus(t *testing.T) {
-	fmt.Println("Test: TestGetNetworkContainerVersionStatus")
-
 	setEnv(t)
 	setOrchestratorType(t, cns.Kubernetes)
+
+	// set up a mock NMAgent with some "successful" functionality so that
+	// creating things will work as expected
+	mnma := &MockNMAgent{
+		PutNetworkContainerF: func(_ context.Context, _ *nma.PutNetworkContainerRequest) error {
+			return nil
+		},
+		JoinNetworkF: func(_ context.Context, _ nma.JoinNetworkRequest) error {
+			return nil
+		},
+	}
+
+	cleanup := setMockNMAgent(svc, mnma)
+	defer cleanup()
 
 	params := createOrUpdateNetworkContainerParams{
 		ncID:         "nc-nma-success",
@@ -534,23 +547,34 @@ func TestGetNetworkContainerVersionStatus(t *testing.T) {
 		podNamespace: "testpodnamespace",
 	}
 
-	createNC(t, params, false)
-
-	if err := getNetworkContainerByContext(t, params); err != nil {
-		t.Errorf("TestGetNetworkContainerByOrchestratorContext failed Err:%+v", err)
-		t.Fatal(err)
+	err := createNC(params)
+	if err != nil {
+		t.Fatal("error creating NC: err:", err)
 	}
+
+	mnma.GetNCVersionF = func(_ context.Context, _ nma.NCVersionRequest) (nma.NCVersion, error) {
+		return nma.NCVersion{
+			NetworkContainerID: params.ncID,
+			Version:            params.ncVersion,
+		}, nil
+	}
+
+	resp, err := getNetworkContainerByContext(params)
+	if err != nil {
+		t.Fatal("error getting NC: err:", err)
+	}
+	expectCNSSuccess(t, resp.Response)
 
 	// Get NC goal state again to test the path where the NMA API doesn't need to be executed but
 	// instead use the cached state ( in json ) of version status
-	if err := getNetworkContainerByContext(t, params); err != nil {
-		t.Errorf("TestGetNetworkContainerByOrchestratorContext failed Err:%+v", err)
-		t.Fatal(err)
+	resp, err = getNetworkContainerByContext(params)
+	if err != nil {
+		t.Fatal("error getting NC with cached state: err:", err)
 	}
+	expectCNSSuccess(t, resp.Response)
 
-	if err := deleteNetworkContainerWithParams(t, params); err != nil {
-		t.Errorf("Deleting interface failed Err:%+v", err)
-		t.Fatal(err)
+	if err := deleteNetworkContainerWithParams(params); err != nil {
+		t.Fatal("error deleting NC: err:", err)
 	}
 
 	// Testing the path where the NC version with CNS is higher than the one with NMAgent.
@@ -565,16 +589,26 @@ func TestGetNetworkContainerVersionStatus(t *testing.T) {
 		podNamespace: "testpodnamespace",
 	}
 
-	createNC(t, params, false)
-
-	if err := getNetworkContainerByContextExpectedError(t, params); err != nil {
-		t.Errorf("TestGetNetworkContainerVersionStatus failed")
-		t.Fatal(err)
+	mnma.GetNCVersionF = func(_ context.Context, _ nma.NCVersionRequest) (nma.NCVersion, error) {
+		return nma.NCVersion{
+			NetworkContainerID: params.ncID,
+			Version:            "0", // explicitly 1 less than the version above
+		}, nil
 	}
 
-	if err := deleteNetworkContainerWithParams(t, params); err != nil {
-		t.Errorf("Deleting interface failed Err:%+v", err)
-		t.Fatal(err)
+	err = createNC(params)
+	if err != nil {
+		t.Fatal("error creating NC: err:", err)
+	}
+
+	resp, err = getNetworkContainerByContext(params)
+	if err != nil {
+		t.Fatal("error doing getNetworkContainerByContextExpectedError: err:", err)
+	}
+	expectCNSFailure(t, resp.Response)
+
+	if err := deleteNetworkContainerWithParams(params); err != nil {
+		t.Fatal("error deleting interface: err:", err)
 	}
 
 	// Testing the path where NMAgent response status code is not 200.
@@ -589,16 +623,29 @@ func TestGetNetworkContainerVersionStatus(t *testing.T) {
 		podNamespace: "testpodnamespace",
 	}
 
-	createNC(t, params, true)
-
-	if err := getNetworkContainerByContext(t, params); err != nil {
-		t.Errorf("TestGetNetworkContainerVersionStatus failed")
-		t.Fatal(err)
+	mnma.GetNCVersionF = func(_ context.Context, _ nma.NCVersionRequest) (nma.NCVersion, error) {
+		return nma.NCVersion{}, errors.New("boom")
+	}
+	mnma.JoinNetworkF = func(_ context.Context, _ nma.JoinNetworkRequest) error {
+		return errors.New("boom")
+	}
+	mnma.PutNetworkContainerF = func(_ context.Context, _ *nma.PutNetworkContainerRequest) error {
+		return errors.New("boom")
 	}
 
-	if err := deleteNetworkContainerWithParams(t, params); err != nil {
-		t.Errorf("Deleting interface failed Err:%+v", err)
-		t.Fatal(err)
+	err = createNC(params)
+	if err == nil {
+		t.Fatal("expected error creating NC but received none")
+	}
+
+	resp, err = getNetworkContainerByContext(params)
+	if err != nil {
+		t.Fatal("error getting network container: err:", err)
+	}
+	expectCNSSuccess(t, resp.Response)
+
+	if err := deleteNetworkContainerWithParams(params); err != nil {
+		t.Fatal("error deleting network container: err:", err)
 	}
 
 	// Testing the path where NMAgent response status code is 200 but embedded response is 401
@@ -612,80 +659,52 @@ func TestGetNetworkContainerVersionStatus(t *testing.T) {
 		podNamespace: "testpodnamespace",
 	}
 
-	createNC(t, params, false)
-
-	if err := getNetworkContainerByContextExpectedError(t, params); err != nil {
-		t.Errorf("TestGetNetworkContainerVersionStatus failed")
-		t.Fatal(err)
+	// set the mock NMAgent to be "successful" again
+	mnma.GetNCVersionF = func(_ context.Context, _ nma.NCVersionRequest) (nma.NCVersion, error) {
+		return nma.NCVersion{}, nma.Error{
+			Code: http.StatusUnauthorized,
+		}
+	}
+	mnma.JoinNetworkF = func(_ context.Context, _ nma.JoinNetworkRequest) error {
+		return nil
+	}
+	mnma.PutNetworkContainerF = func(_ context.Context, _ *nma.PutNetworkContainerRequest) error {
+		return nil
 	}
 
-	if err := deleteNetworkContainerWithParams(t, params); err != nil {
-		t.Errorf("Deleting interface failed Err:%+v", err)
-		t.Fatal(err)
+	err = createNC(params)
+	if err != nil {
+		t.Fatal("creating NC: err:", err)
+	}
+
+	resp, err = getNetworkContainerByContext(params)
+	if err != nil {
+		t.Fatal("error doing getting network container: err:", err)
+	}
+	expectCNSFailure(t, resp.Response)
+
+	if err := deleteNetworkContainerWithParams(params); err != nil {
+		t.Fatal("error deleting network container: err:", err)
 	}
 }
 
-//nolint:gocritic // param is just for testing
-func createNC(
-	t *testing.T,
-	params createOrUpdateNetworkContainerParams,
-	expectError bool,
-) {
-	if err := createOrUpdateNetworkContainerWithParams(t, params); err != nil {
-		t.Errorf("createOrUpdateNetworkContainerWithParams failed Err:%+v", err)
-		t.Fatal(err)
+func createNC(params createOrUpdateNetworkContainerParams) error {
+	if err := createOrUpdateNetworkContainerWithParams(params); err != nil {
+		return fmt.Errorf("creating nc with params: %w", err)
 	}
 
 	createNetworkContainerURL := "http://" + nmagentEndpoint +
 		"/machine/plugins/?comp=nmagent&type=NetworkManagement/interfaces/dummyIntf/networkContainers/dummyNCURL/authenticationToken/dummyT/api-version/1"
 
-	err := publishNCViaCNS(t, params.vnetID, params.ncID, createNetworkContainerURL, expectError)
+	err := publishNCViaCNS(params.vnetID, params.ncID, createNetworkContainerURL)
 	if err != nil {
-		t.Fatal(err)
+		return fmt.Errorf("publishing via CNS: %w", err)
 	}
+	return nil
 }
 
 func TestPublishNCViaCNS(t *testing.T) {
 	fmt.Println("Test: publishNetworkContainer")
-
-	createNetworkContainerURL := "http://" + nmagentEndpoint +
-		"/machine/plugins/?comp=nmagent&type=NetworkManagement/interfaces/dummyIntf/networkContainers/dummyNCURL/authenticationToken/dummyT/api-version/1"
-	err := publishNCViaCNS(t, "vnet1", "ethWebApp", createNetworkContainerURL, false)
-	if err != nil {
-		t.Fatal(fmt.Errorf("publish container failed %w ", err))
-	}
-
-	createNetworkContainerURL = "http://" + nmagentEndpoint +
-		"/machine/plugins/?comp=nmagent&type=NetworkManagement/interfaces/dummyIntf/networkContainers/dummyNCURL/authenticationTok/" +
-		"8636c99d-7861-401f-b0d3-7e5b7dc8183c" +
-		"/api-version/1"
-
-	err = publishNCViaCNS(t, "vnet1", "ethWebApp", createNetworkContainerURL, true)
-	if err == nil {
-		t.Fatal("Expected a bad request error due to create network url being incorrect")
-	}
-
-	createNetworkContainerURL = "http://" + nmagentEndpoint +
-		"/machine/plugins/?comp=nmagent&NetworkManagement/interfaces/dummyIntf/networkContainers/dummyNCURL/authenticationToken/" +
-		"8636c99d-7861-401f-b0d3-7e5b7dc8183c8636c99d-7861-401f-b0d3-7e5b7dc8183c" +
-		"/api-version/1"
-
-	err = publishNCViaCNS(t, "vnet1", "ethWebApp", createNetworkContainerURL, true)
-	if err == nil {
-		t.Fatal("Expected a bad request error due to create network url having more characters than permitted in auth token")
-	}
-}
-
-func publishNCViaCNS(t *testing.T,
-	networkID,
-	networkContainerID,
-	createNetworkContainerURL string,
-	expectError bool,
-) error {
-	var (
-		body bytes.Buffer
-		resp cns.PublishNetworkContainerResponse
-	)
 
 	mnma := &MockNMAgent{
 		PutNetworkContainerF: func(_ context.Context, _ *nma.PutNetworkContainerRequest) error {
@@ -696,8 +715,46 @@ func publishNCViaCNS(t *testing.T,
 		},
 	}
 
-	setMockNMAgent(svc, mnma)
-	defer setMockNMAgent(svc, nil)
+	cleanup := setMockNMAgent(svc, mnma)
+	defer cleanup()
+
+	createNetworkContainerURL := "http://" + nmagentEndpoint +
+		"/machine/plugins/?comp=nmagent&type=NetworkManagement/interfaces/dummyIntf/networkContainers/dummyNCURL/authenticationToken/dummyT/api-version/1"
+	err := publishNCViaCNS("vnet1", "ethWebApp", createNetworkContainerURL)
+	if err != nil {
+		t.Fatal(fmt.Errorf("publish container failed %w ", err))
+	}
+
+	createNetworkContainerURL = "http://" + nmagentEndpoint +
+		"/machine/plugins/?comp=nmagent&type=NetworkManagement/interfaces/dummyIntf/networkContainers/dummyNCURL/authenticationTok/" +
+		"8636c99d-7861-401f-b0d3-7e5b7dc8183c" +
+		"/api-version/1"
+
+	err = publishNCViaCNS("vnet1", "ethWebApp", createNetworkContainerURL)
+	if err == nil {
+		t.Fatal("Expected a bad request error due to create network url being incorrect")
+	}
+
+	createNetworkContainerURL = "http://" + nmagentEndpoint +
+		"/machine/plugins/?comp=nmagent&NetworkManagement/interfaces/dummyIntf/networkContainers/dummyNCURL/authenticationToken/" +
+		"8636c99d-7861-401f-b0d3-7e5b7dc8183c8636c99d-7861-401f-b0d3-7e5b7dc8183c" +
+		"/api-version/1"
+
+	err = publishNCViaCNS("vnet1", "ethWebApp", createNetworkContainerURL)
+	if err == nil {
+		t.Fatal("Expected a bad request error due to create network url having more characters than permitted in auth token")
+	}
+}
+
+func publishNCViaCNS(
+	networkID,
+	networkContainerID,
+	createNetworkContainerURL string,
+) error {
+	var (
+		body bytes.Buffer
+		resp cns.PublishNetworkContainerResponse
+	)
 
 	joinNetworkURL := "http://" + nmagentEndpoint + "/dummyVnetURL"
 
@@ -720,10 +777,7 @@ func publishNCViaCNS(t *testing.T,
 
 	err = decodeResponse(w, &resp)
 	if err != nil || resp.Response.ReturnCode != 0 {
-		if !expectError {
-			t.Errorf("PublishNetworkContainer failed with response %+v Err:%+v", resp, err)
-		}
-		return err
+		return fmt.Errorf("decoding response: %w", err)
 	}
 
 	fmt.Printf("PublishNetworkContainer succeded with response %+v, raw:%+v\n", resp, w.Body)
@@ -731,9 +785,24 @@ func publishNCViaCNS(t *testing.T,
 }
 
 func TestUnpublishNCViaCNS(t *testing.T) {
+	mnma := &MockNMAgent{
+		JoinNetworkF: func(_ context.Context, _ nma.JoinNetworkRequest) error {
+			return nil
+		},
+		DeleteNetworkContainerF: func(_ context.Context, _ nma.DeleteContainerRequest) error {
+			return nil
+		},
+		PutNetworkContainerF: func(_ context.Context, _ *nma.PutNetworkContainerRequest) error {
+			return nil
+		},
+	}
+
+	cleanup := setMockNMAgent(svc, mnma)
+	defer cleanup()
+
 	deleteNetworkContainerURL := "http://" + nmagentEndpoint +
 		"/machine/plugins/?comp=nmagent&type=NetworkManagement/interfaces/dummyIntf/networkContainers/dummyNCURL/authenticationToken/dummyT/api-version/1/method/DELETE"
-	err := publishNCViaCNS(t, "vnet1", "ethWebApp", deleteNetworkContainerURL, false)
+	err := publishNCViaCNS("vnet1", "ethWebApp", deleteNetworkContainerURL)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -743,7 +812,7 @@ func TestUnpublishNCViaCNS(t *testing.T) {
 		"8636c99d-7861-401f-b0d3-7e5b7dc8183c" +
 		"/api-version/1/method/DELETE"
 
-	err = publishNCViaCNS(t, "vnet1", "ethWebApp", deleteNetworkContainerURL, true)
+	err = publishNCViaCNS("vnet1", "ethWebApp", deleteNetworkContainerURL)
 	if err == nil {
 		t.Fatal("Expected a bad request error due to delete network url being incorrect")
 	}
@@ -796,8 +865,8 @@ func testUnpublishNCViaCNS(t *testing.T,
 		},
 	}
 
-	setMockNMAgent(svc, mnma)
-	defer setMockNMAgent(svc, nil)
+	cleanup := setMockNMAgent(svc, mnma)
+	defer cleanup()
 
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
@@ -881,7 +950,7 @@ func TestGetNetworkContainers(t *testing.T) {
 	}
 
 	for i := 0; i < len(ncParams); i++ {
-		err = createOrUpdateNetworkContainerWithParams(t, ncParams[i])
+		err = createOrUpdateNetworkContainerWithParams(ncParams[i])
 		if err != nil {
 			t.Fatalf("createOrUpdateNetworkContainerWithParams failed with error:%+v", err)
 		}
@@ -893,7 +962,7 @@ func TestGetNetworkContainers(t *testing.T) {
 	}
 
 	for i := 0; i < len(ncParams); i++ {
-		err = deleteNetworkContainerWithParams(t, ncParams[i])
+		err = deleteNetworkContainerWithParams(ncParams[i])
 		if err != nil {
 			t.Fatalf("createOrUpdateNetworkContainerWithParams failed with error:%+v", err)
 		}
@@ -944,7 +1013,7 @@ func TestPostNetworkContainers(t *testing.T) {
 	}
 
 	for i := 0; i < len(ncParams); i++ {
-		err = deleteNetworkContainerWithParams(t, ncParams[i])
+		err = deleteNetworkContainerWithParams(ncParams[i])
 		if err != nil {
 			t.Fatalf("TestPostNetworkContainers failed with error:%+v", err)
 		}
@@ -1032,7 +1101,7 @@ func setOrchestratorType(t *testing.T, orchestratorType string) error {
 	return nil
 }
 
-func createOrUpdateNetworkContainerWithParams(t *testing.T, params createOrUpdateNetworkContainerParams) error {
+func createOrUpdateNetworkContainerWithParams(params createOrUpdateNetworkContainerParams) error {
 	var body bytes.Buffer
 	var ipConfig cns.IPConfiguration
 	ipConfig.DNSServers = []string{"8.8.8.8", "8.8.4.4"}
@@ -1057,7 +1126,7 @@ func createOrUpdateNetworkContainerWithParams(t *testing.T, params createOrUpdat
 
 	req, err := http.NewRequest(http.MethodPost, cns.CreateOrUpdateNetworkContainer, &body)
 	if err != nil {
-		t.Fatal(err)
+		return fmt.Errorf("sending post request to CNS create NC: %w", err)
 	}
 
 	w := httptest.NewRecorder()
@@ -1067,17 +1136,12 @@ func createOrUpdateNetworkContainerWithParams(t *testing.T, params createOrUpdat
 	fmt.Printf("Raw response: %+v", w.Body)
 
 	if err != nil || resp.Response.ReturnCode != 0 {
-		t.Errorf("CreateNetworkContainerRequest failed with response %+v Err:%+v", resp, err)
-		t.Fatal(err)
-	} else {
-		fmt.Printf("CreateNetworkContainerRequest passed with response %+v Err:%+v", resp, err)
+		return fmt.Errorf("decoding response: %w", err)
 	}
-
-	fmt.Printf("CreateNetworkContainerRequest succeeded with response %+v\n", resp)
 	return nil
 }
 
-func deleteNetworkContainerWithParams(t *testing.T, params createOrUpdateNetworkContainerParams) error {
+func deleteNetworkContainerWithParams(params createOrUpdateNetworkContainerParams) error {
 	var (
 		body bytes.Buffer
 		resp cns.DeleteNetworkContainerResponse
@@ -1090,7 +1154,7 @@ func deleteNetworkContainerWithParams(t *testing.T, params createOrUpdateNetwork
 	json.NewEncoder(&body).Encode(deleteInfo)
 	req, err := http.NewRequest(http.MethodPost, cns.DeleteNetworkContainer, &body)
 	if err != nil {
-		t.Fatal(err)
+		return fmt.Errorf("sending post request to delete nc endpoint: %w", err)
 	}
 
 	w := httptest.NewRecorder()
@@ -1098,15 +1162,13 @@ func deleteNetworkContainerWithParams(t *testing.T, params createOrUpdateNetwork
 
 	err = decodeResponse(w, &resp)
 	if err != nil || resp.Response.ReturnCode != 0 {
-		t.Errorf("DeleteNetworkContainer failed with response %+v Err:%+v", resp, err)
-		t.Fatal(err)
+		return fmt.Errorf("decoding response: %w", err)
 	}
 
-	fmt.Printf("DeleteNetworkContainer succeded with response %+v\n", resp)
 	return nil
 }
 
-func getNetworkContainerByContext(t *testing.T, params createOrUpdateNetworkContainerParams) error {
+func getNetworkContainerByContext(params createOrUpdateNetworkContainerParams) (cns.GetNetworkContainerResponse, error) {
 	var body bytes.Buffer
 	var resp cns.GetNetworkContainerResponse
 	podInfo := cns.KubernetesPodInfo{PodName: params.podName, PodNamespace: params.podNamespace}
@@ -1117,23 +1179,21 @@ func getNetworkContainerByContext(t *testing.T, params createOrUpdateNetworkCont
 	json.NewEncoder(&body).Encode(getReq)
 	req, err := http.NewRequest(http.MethodPost, cns.GetNetworkContainerByOrchestratorContext, &body)
 	if err != nil {
-		t.Fatal(err)
+		return cns.GetNetworkContainerResponse{}, fmt.Errorf("sending post request to GetNetworkContainerByOrchestratorContext: %w", err)
 	}
 
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 
 	err = decodeResponse(w, &resp)
-	if err != nil || resp.Response.ReturnCode != 0 {
-		t.Errorf("GetNetworkContainerByContext failed with response %+v Err:%+v", resp, err)
-		t.Fatal(err)
+	if err != nil {
+		return cns.GetNetworkContainerResponse{}, fmt.Errorf("decoding response: %w", err)
 	}
 
-	fmt.Printf("**GetNetworkContainerByContext succeded with response %+v, raw:%+v\n", resp, w.Body)
-	return nil
+	return resp, nil
 }
 
-func getNonExistNetworkContainerByContext(t *testing.T, params createOrUpdateNetworkContainerParams) error {
+func getNonExistNetworkContainerByContext(params createOrUpdateNetworkContainerParams) error {
 	var body bytes.Buffer
 	var resp cns.GetNetworkContainerResponse
 	podInfo := cns.KubernetesPodInfo{PodName: params.podName, PodNamespace: params.podNamespace}
@@ -1144,7 +1204,7 @@ func getNonExistNetworkContainerByContext(t *testing.T, params createOrUpdateNet
 	json.NewEncoder(&body).Encode(getReq)
 	req, err := http.NewRequest(http.MethodPost, cns.GetNetworkContainerByOrchestratorContext, &body)
 	if err != nil {
-		t.Fatal(err)
+		fmt.Errorf("sending http post to get NC by orchestrator endpoint: %w", err)
 	}
 
 	w := httptest.NewRecorder()
@@ -1152,42 +1212,27 @@ func getNonExistNetworkContainerByContext(t *testing.T, params createOrUpdateNet
 
 	err = decodeResponse(w, &resp)
 	if err != nil || resp.Response.ReturnCode != types.UnknownContainerID {
-		t.Errorf("GetNetworkContainerByContext unexpected response %+v Err:%+v", resp, err)
-		t.Fatal(err)
+		return fmt.Errorf("decoding response: %w", err)
 	}
 
-	fmt.Printf("**GetNonExistNetworkContainerByContext succeded with response %+v, raw:%+v\n", resp, w.Body)
 	return nil
 }
 
-func getNetworkContainerByContextExpectedError(t *testing.T, params createOrUpdateNetworkContainerParams) error {
-	var body bytes.Buffer
-	var resp cns.GetNetworkContainerResponse
-	podInfo := cns.KubernetesPodInfo{PodName: params.podName, PodNamespace: params.podNamespace}
-
-	podInfoBytes, err := json.Marshal(podInfo)
-	getReq := &cns.GetNetworkContainerRequest{OrchestratorContext: podInfoBytes}
-
-	json.NewEncoder(&body).Encode(getReq)
-	req, err := http.NewRequest(http.MethodPost, cns.GetNetworkContainerByOrchestratorContext, &body)
-	if err != nil {
-		t.Fatal(err)
+func expectCNSSuccess(t *testing.T, resp cns.Response) {
+	t.Helper()
+	if resp.ReturnCode != 0 {
+		t.Fatalf("expected success from CNS but received return code %d", resp.ReturnCode)
 	}
-
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-
-	err = decodeResponse(w, &resp)
-	if err != nil || resp.Response.ReturnCode == 0 {
-		t.Errorf("GetNetworkContainerByContext failed with response %+v Err:%+v", resp, err)
-		t.Fatal(err)
-	}
-
-	fmt.Printf("**getNetworkContainerByContextExpectedError succeded with response %+v, raw:%+v\n", resp, w.Body)
-	return nil
 }
 
-func getInterfaceForContainer(t *testing.T, params createOrUpdateNetworkContainerParams) error {
+func expectCNSFailure(t *testing.T, resp cns.Response) {
+	t.Helper()
+	if resp.ReturnCode == 0 {
+		t.Fatal("expected failing return code from CNS, but received success (code: 0)")
+	}
+}
+
+func getInterfaceForContainer(params createOrUpdateNetworkContainerParams) error {
 	var body bytes.Buffer
 	var resp cns.GetInterfaceForContainerResponse
 
@@ -1198,7 +1243,7 @@ func getInterfaceForContainer(t *testing.T, params createOrUpdateNetworkContaine
 	json.NewEncoder(&body).Encode(getReq)
 	req, err := http.NewRequest(http.MethodPost, cns.GetInterfaceForContainer, &body)
 	if err != nil {
-		t.Fatal(err)
+		return fmt.Errorf("sending post to get interface for container: %w", err)
 	}
 
 	w := httptest.NewRecorder()
@@ -1206,11 +1251,9 @@ func getInterfaceForContainer(t *testing.T, params createOrUpdateNetworkContaine
 
 	err = decodeResponse(w, &resp)
 	if err != nil || resp.Response.ReturnCode != 0 {
-		t.Errorf("GetInterfaceForContainer failed with response %+v Err:%+v", resp, err)
-		t.Fatal(err)
+		return fmt.Errorf("decoding response: %w", err)
 	}
 
-	fmt.Printf("**GetInterfaceForContainer succeded with response %+v, raw:%+v\n", resp, w.Body)
 	return nil
 }
 
