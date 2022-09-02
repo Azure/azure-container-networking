@@ -1917,7 +1917,6 @@ func TestIngressPolicy(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			util.IsNewNwPolicyVerFlag = tt.isNewNwPolicyVer
 			npmNetPol := &policies.NPMNetworkPolicy{
 				Namespace:   tt.npmNetPol.Namespace,
 				PolicyKey:   tt.npmNetPol.PolicyKey,
@@ -2513,7 +2512,6 @@ func TestEgressPolicy(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			util.IsNewNwPolicyVerFlag = tt.isNewNwPolicyVer
 			npmNetPol := &policies.NPMNetworkPolicy{
 				Namespace:   tt.npmNetPol.Namespace,
 				PolicyKey:   tt.npmNetPol.PolicyKey,
