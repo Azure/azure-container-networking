@@ -53,7 +53,7 @@ CNS_DIR = $(REPO_ROOT)/cns/service
 NPM_DIR = $(REPO_ROOT)/npm/cmd
 OUTPUT_DIR = $(REPO_ROOT)/output
 BUILD_DIR = $(OUTPUT_DIR)/$(GOOS)_$(GOARCH)
-AUZRE_IPAM_BUILD_DIR = $(BUILD_DIR)/azure-ipam
+AZURE_IPAM_BUILD_DIR = $(BUILD_DIR)/azure-ipam
 IMAGE_DIR  = $(OUTPUT_DIR)/images
 CNM_BUILD_DIR = $(BUILD_DIR)/cnm
 CNI_BUILD_DIR = $(BUILD_DIR)/cni
@@ -95,6 +95,7 @@ CNI_BAREMETAL_ARCHIVE_NAME = azure-vnet-cni-baremetal-$(GOOS)-$(GOARCH)-$(CNI_VE
 CNM_ARCHIVE_NAME = azure-vnet-cnm-$(GOOS)-$(GOARCH)-$(ACN_VERSION).$(ARCHIVE_EXT)
 CNS_ARCHIVE_NAME = azure-cns-$(GOOS)-$(GOARCH)-$(CNS_VERSION).$(ARCHIVE_EXT)
 NPM_ARCHIVE_NAME = azure-npm-$(GOOS)-$(GOARCH)-$(NPM_VERSION).$(ARCHIVE_EXT)
+AZURE_IPAM_ARCHIVE_NAME = azure-ipam-$(GOOS)-$(GOARCH)-$(AZURE_IPAM_VERSION).$(ARCHIVE_EXT)
 
 # Image info file names.
 CNI_DROPGZ_IMAGE_INFO_FILE = cni-dropgz-$(CNI_DROPGZ_VERSION).txt
@@ -115,7 +116,7 @@ all-binaries-platforms: ## Make all platform binaries
 
 # OS specific binaries/images
 ifeq ($(GOOS),linux)
-all-binaries: acncli azure-cnm-plugin azure-cni-plugin azure-cns azure-npm
+all-binaries: acncli azure-cnm-plugin azure-cni-plugin azure-cns azure-npm azure-ipam
 all-images: npm-image cns-image cni-manager-image
 else
 all-binaries: azure-cnm-plugin azure-cni-plugin azure-cns azure-npm
@@ -130,6 +131,7 @@ azure-cns: azure-cns-binary cns-archive
 acncli: acncli-binary acncli-archive
 azure-cnms: azure-cnms-binary cnms-archive
 azure-npm: azure-npm-binary npm-archive
+azure-ipam: azure-ipam-binary azure-ipam-archive
 
 
 ##@ Versioning
@@ -164,7 +166,7 @@ zapai-version: ## prints the zapai version
 
 # Build the delegated IPAM plugin binary.
 azure-ipam-binary:
-	cd $(AZURE_IPAM_DIR) && CGO_ENABLED=0 go build -v -o $(AUZRE_IPAM_BUILD_DIR)/azure-ipam$(EXE_EXT) -ldflags "-X main.version=$(AZURE_IPAM_VERSION)" -gcflags="-dwarflocationlists=true"
+	cd $(AZURE_IPAM_DIR) && CGO_ENABLED=0 go build -v -o $(AZURE_IPAM_BUILD_DIR)/azure-ipam$(EXE_EXT) -ldflags "-X main.version=$(AZURE_IPAM_VERSION)" -gcflags="-dwarflocationlists=true"
 
 # Build the Azure CNM binary.
 cnm-binary:
@@ -198,7 +200,6 @@ azure-cns-binary:
 azure-npm-binary:
 	cd $(CNI_TELEMETRY_DIR) && CGO_ENABLED=0 go build -v -o $(NPM_BUILD_DIR)/azure-vnet-telemetry$(EXE_EXT) -ldflags "-X main.version=$(NPM_VERSION)" -gcflags="-dwarflocationlists=true"
 	cd $(NPM_DIR) && CGO_ENABLED=0 go build -v -o $(NPM_BUILD_DIR)/azure-npm$(EXE_EXT) -ldflags "-X main.version=$(NPM_VERSION) -X $(NPM_AI_PATH)=$(NPM_AI_ID)" -gcflags="-dwarflocationlists=true"
-
 
 ##@ Containers
 
@@ -584,6 +585,14 @@ cns-archive: azure-cns-binary
 npm-archive: azure-npm-binary
 ifeq ($(GOOS),linux)
 	cd $(NPM_BUILD_DIR) && $(ARCHIVE_CMD) $(NPM_ARCHIVE_NAME) azure-npm$(EXE_EXT)
+endif
+
+# Create a azure-ipam archive for the target platform.
+.PHONY: azure-ipam-archive
+azure-ipam-archive: azure-ipam-binary
+ifeq ($(GOOS),linux)
+	$(MKDIR) $(AZURE_IPAM_BUILD_DIR)
+	cd $(AZURE_IPAM_BUILD_DIR) && $(ARCHIVE_CMD) $(AZURE_IPAM_ARCHIVE_NAME) azure-ipam$(EXE_EXT)
 endif
 
 

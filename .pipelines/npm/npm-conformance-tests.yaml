@@ -75,6 +75,7 @@ jobs:
         parameters:
           name: $(name)
           arch: $(arch)
+          tag: $(TAG)
 
   - job: k8se2e
     displayName: "Build Kubernetes Test Suite"
@@ -438,9 +439,18 @@ jobs:
             FQDN=`az aks show -n $CLUSTER_NAME -g $CLUSTER_NAME --query fqdn -o tsv`
             echo "##vso[task.setvariable variable=FQDN]$FQDN"
 
-      - bash: |
+
+
+      - script: |
           cat ~/.kube/config
           curl -fsSL github.com/mattfenwick/cyclonus/releases/latest/download/cyclonus_linux_amd64.tar.gz | tar -zxv
+        name: download_cyclonus
+        displayName: "Download Cyclonus"
+        failOnStderr: false
+        condition: always()
+
+
+      - script: |
           ./test/cyclonus/test-cyclonus-windows.sh
         name: cyclonus
         displayName: "Run Cyclonus Test"

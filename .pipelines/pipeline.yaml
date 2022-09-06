@@ -143,40 +143,54 @@ stages:
       - setup
       - test
     jobs:
-      - job: containerize
+      - job: containerize_linux_amd64
         displayName: Build Images
         pool:
-          name: "$(BUILD_POOL_NAME_DEFAULT)"
+          name: "$(BUILD_POOL_NAME_LINUX_AMD64)"
         strategy:
           matrix:
             acncli_linux_amd64:
               arch: amd64
               os: linux
               name: acncli
-            acncli_linux_arm64:
-              arch: arm64
-              os: linux
-              name: acncli
             cni_dropgz_linux_amd64:
               arch: amd64
-              os: linux
-              name: cni-dropgz
-            cni_dropgz_linux_arm64:
-              arch: arm64
               os: linux
               name: cni-dropgz
             cns_linux_amd64:
               arch: amd64
               os: linux
               name: cns
-            cns_linux_arm64:
-              arch: arm64
-              os: linux
-              name: cns
             npm_linux_amd64:
               arch: amd64
               os: linux
               name: npm
+        steps:
+          - template: containers/container-template.yaml
+            parameters:
+              name: $(name)
+              os: $(os)
+              arch: $(arch)
+      - job: containerize_linux_arm64
+        displayName: Build Images
+        variables:
+          TAG: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
+        pool:
+          name: "$(BUILD_POOL_NAME_LINUX_ARM64)"
+        strategy:
+          matrix:
+            acncli_linux_arm64:
+              arch: arm64
+              os: linux
+              name: acncli
+            cni_dropgz_linux_arm64:
+              arch: arm64
+              os: linux
+              name: cni-dropgz
+            cns_linux_arm64:
+              arch: arm64
+              os: linux
+              name: cns
             npm_linux_arm64:
               arch: arm64
               os: linux
@@ -187,12 +201,12 @@ stages:
               name: $(name)
               os: $(os)
               arch: $(arch)
-      - job: containerize_windows
+      - job: containerize_windows_amd64
         displayName: Build Images
         variables:
           TAG: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
         pool:
-          name: "$(BUILD_POOL_NAME_DEFAULT_WINDOWS)"
+          name: "$(BUILD_POOL_NAME_WINDOWS_AMD64)"
         strategy:
           matrix:
             cns_windows_amd64:

@@ -121,11 +121,14 @@ func craftPartialIptEntrySpecFromOpsAndLabels(ns string, ops, labels []string, s
 // craftPartialIptEntrySpecFromSelector :- ns must be "" for namespace selectors
 // func helps in taking a labelSelector and converts it into corresponding matchSets
 // to be a used in full iptable rules
-//  selector *metav1.LabelSelector: is used to create matchSets
-//  ns string: helps with adding a namespace name in case of empty (or all) selector
-//  srcOrDstFlag string: helps with determining if the src flag is to used in matchsets or dst flag,
+//
+//	selector *metav1.LabelSelector: is used to create matchSets
+//	ns string: helps with adding a namespace name in case of empty (or all) selector
+//	srcOrDstFlag string: helps with determining if the src flag is to used in matchsets or dst flag,
+//
 // depending on ingress or egress translate policy
-//  isNamespaceSelector bool: helps in adding prefix for nameSpace ipsets
+//
+//	isNamespaceSelector bool: helps in adding prefix for nameSpace ipsets
 func craftPartialIptEntrySpecFromSelector(ns string, selector *metav1.LabelSelector, srcOrDstFlag string, isNamespaceSelector bool) ([]string, []string, map[string][]string) {
 	// parse the sector into labels and maps of multiVal match Exprs
 	labelsWithOps, nsLabelListKVs := parseSelector(selector)
@@ -715,13 +718,6 @@ func translateIngress(ns string, policyName string, targetSelector metav1.LabelS
 				continue
 			}
 
-			// fromRule has both namespaceSelector and podSelector set.
-			// We should match the selected pods in the selected namespaces.
-			// This allows traffic from podSelector intersects namespaceSelector
-			// This is only supported in kubernetes version >= 1.11
-			if !util.IsNewNwPolicyVerFlag {
-				continue
-			}
 			for _, nsSelector := range FlattenNameSpaceSelector(fromRule.NamespaceSelector) {
 				// we pass empty ns for the podspec and comment here because it's a combo of both selectors and not limited to network policy namespace
 				iptPartialNsSpec, nsLabelsWithoutOps, listLabelsWithMembers := craftPartialIptEntrySpecFromSelector("", &nsSelector, util.IptablesSrcFlag, true) // Add namespaces prefix to distinguish namespace ipsets and pod ipsets
@@ -1377,13 +1373,6 @@ func translateEgress(ns string, policyName string, targetSelector metav1.LabelSe
 				continue
 			}
 
-			// toRule has both namespaceSelector and podSelector set.
-			// We should match the selected pods in the selected namespaces.
-			// This allows traffic from podSelector intersects namespaceSelector
-			// This is only supported in kubernetes version >= 1.11
-			if !util.IsNewNwPolicyVerFlag {
-				continue
-			}
 			for _, nsSelector := range FlattenNameSpaceSelector(toRule.NamespaceSelector) {
 				// we pass true for the podspec and comment here because it's a combo of both selectors and not limited to network policy namespace
 				iptPartialNsSpec, nsLabelsWithoutOps, listLabelsWithMembers := craftPartialIptEntrySpecFromSelector("", &nsSelector, util.IptablesDstFlag, true)

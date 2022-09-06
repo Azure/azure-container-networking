@@ -43,7 +43,8 @@ func (dp *DataPlane) initializeDataPlane() error {
 	}
 
 	// reset endpoint cache so that netpol references are removed for all endpoints while refreshing pod endpoints
-	dp.endpointCache = make(map[string]*npmEndpoint)
+	// no need to lock endpointCache at boot up
+	dp.endpointCache.cache = make(map[string]*npmEndpoint)
 	err = dp.refreshAllPodEndpoints()
 	if err != nil {
 		return err
@@ -111,14 +112,12 @@ func (dp *DataPlane) updatePod(pod *updateNPMPod) error {
 		return nil
 	}
 
-	err := dp.refreshAllPodEndpoints()
-	if err != nil {
-		klog.Infof("[DataPlane] failed to refresh endpoints in updatePod with %s", err.Error())
-		return err
-	}
+	// lock the endpoint cache while we read/modify the endpoint with the pod's IP
+	dp.endpointCache.Lock()
+	defer dp.endpointCache.Unlock()
 
 	// Check if pod is already present in cache
-	endpoint, ok := dp.endpointCache[pod.PodIP]
+	endpoint, ok := dp.endpointCache.cache[pod.PodIP]
 	if !ok {
 		// ignore this err and pod endpoint will be deleted in ApplyDP
 		// if the endpoint is not found, it means the pod is not part of this node or pod got deleted.
@@ -133,7 +132,7 @@ func (dp *DataPlane) updatePod(pod *updateNPMPod) error {
 			// Updates to this pod would not occur. Pod IPs are expected to change on restart though.
 			// See: https://stackoverflow.com/questions/52362514/when-will-the-kubernetes-pod-ip-change
 			// If a pod does restart and take up its previous IP, then the pod can be deleted/restarted to mitigate this problem.
-			klog.Infof("ignoring pod update since pod with key %s is stale and likely was deleted", pod.PodKey)
+			klog.Infof("[DataPlane] ignoring pod update since pod with key %s is stale and likely was deleted", pod.PodKey)
 			return nil
 		}
 		endpoint.podKey = pod.PodKey
@@ -175,8 +174,10 @@ func (dp *DataPlane) updatePod(pod *updateNPMPod) error {
 		}
 
 		for policyKey := range selectorReference {
-			if _, ok := dp.pendingPolicies[policyKey]; !ok {
+			if dp.policyMgr.PolicyExists(policyKey) {
 				toAddPolicies[policyKey] = struct{}{}
+			} else {
+				klog.Infof("[DataPlane] while updating pod, policy is referenced but does not exist. pod: [%s], policy: [%s], set [%s]", pod.PodKey, policyKey, setName)
 			}
 		}
 	}
@@ -229,21 +230,19 @@ func (dp *DataPlane) getSelectorIPSets(policy *policies.NPMNetworkPolicy) map[st
 }
 
 func (dp *DataPlane) getEndpointsToApplyPolicy(policy *policies.NPMNetworkPolicy) (map[string]string, error) {
-	err := dp.refreshAllPodEndpoints()
-	if err != nil {
-		klog.Infof("[DataPlane] failed to refresh endpoints in getEndpointsToApplyPolicy with %s", err.Error())
-		return nil, err
-	}
-
 	selectorIPSets := dp.getSelectorIPSets(policy)
 	netpolSelectorIPs, err := dp.ipsetMgr.GetIPsFromSelectorIPSets(selectorIPSets)
 	if err != nil {
 		return nil, err
 	}
 
+	// lock the endpoint cache while we read/modify the endpoints with IPs in the policy's pod selector
+	dp.endpointCache.Lock()
+	defer dp.endpointCache.Unlock()
+
 	endpointList := make(map[string]string)
 	for ip := range netpolSelectorIPs {
-		endpoint, ok := dp.endpointCache[ip]
+		endpoint, ok := dp.endpointCache.cache[ip]
 		if !ok {
 			klog.Infof("[DataPlane] Ignoring endpoint with IP %s since it was not found in the endpoint cache. This IP might not be in the HNS network", ip)
 			continue
@@ -264,11 +263,31 @@ func (dp *DataPlane) getAllPodEndpoints() ([]hcn.HostComputeEndpoint, error) {
 }
 
 // refreshAllPodEndpoints will refresh all the pod endpoints and create empty netpol references for new endpoints
+/*
+Key Assumption: a new pod event (w/ IP) cannot come before HNS knows (and can tell us) about the endpoint.
+From NPM logs, it seems that endpoints are updated far earlier (several seconds) before the pod event comes in.
+
+What we learn from refreshing endpoints:
+- an old endpoint doesn't exist anymore
+- a new endpoint has come up
+
+Why not refresh when adding a netpol to all required pods?
+- It's ok if we try to apply on an endpoint that doesn't exist anymore.
+- We won't know the pod associated with a new endpoint even if we refresh.
+
+Why can we refresh only once before updating all pods in the updatePodCache (see ApplyDataplane)?
+- Again, it's ok if we try to apply on a non-existent endpoint.
+- We won't miss the endpoint (see the assumption). At the time the pod event came in (when AddToSets/RemoveFromSets were called), HNS already knew about the endpoint.
+*/
 func (dp *DataPlane) refreshAllPodEndpoints() error {
 	endpoints, err := dp.getAllPodEndpoints()
 	if err != nil {
 		return err
 	}
+
+	// lock the endpoint cache while we reconcile with HNS goal state
+	dp.endpointCache.Lock()
+	defer dp.endpointCache.Unlock()
 
 	currentTime := time.Now().Unix()
 	existingIPs := make(map[string]struct{})
@@ -285,11 +304,11 @@ func (dp *DataPlane) refreshAllPodEndpoints() error {
 
 		existingIPs[ip] = struct{}{}
 
-		oldNPMEP, ok := dp.endpointCache[ip]
+		oldNPMEP, ok := dp.endpointCache.cache[ip]
 		if !ok {
 			// add the endpoint to the cache if it's not already there
 			npmEP := newNPMEndpoint(&endpoint)
-			dp.endpointCache[ip] = npmEP
+			dp.endpointCache.cache[ip] = npmEP
 			// NOTE: TSGs rely on this log line
 			klog.Infof("updating endpoint cache to include %s: %+v", npmEP.ip, npmEP)
 		} else if oldNPMEP.id != endpoint.Id {
@@ -299,13 +318,13 @@ func (dp *DataPlane) refreshAllPodEndpoints() error {
 			npmEP := newNPMEndpoint(&endpoint)
 			if oldNPMEP.podKey == unspecifiedPodKey {
 				klog.Infof("updating endpoint cache since endpoint changed for IP which never had a pod key. new endpoint: %s, old endpoint: %s, ip: %s", npmEP.id, oldNPMEP.id, npmEP.ip)
-				dp.endpointCache[ip] = npmEP
+				dp.endpointCache.cache[ip] = npmEP
 			} else {
 				npmEP.stalePodKey = &staleKey{
 					key:       oldNPMEP.podKey,
 					timestamp: currentTime,
 				}
-				dp.endpointCache[ip] = npmEP
+				dp.endpointCache.cache[ip] = npmEP
 				// NOTE: TSGs rely on this log line
 				klog.Infof("updating endpoint cache for previously cached IP %s: %+v with stalePodKey %+v", npmEP.ip, npmEP, npmEP.stalePodKey)
 			}
@@ -313,15 +332,15 @@ func (dp *DataPlane) refreshAllPodEndpoints() error {
 	}
 
 	// garbage collection for the endpoint cache
-	for ip, ep := range dp.endpointCache {
+	for ip, ep := range dp.endpointCache.cache {
 		if _, ok := existingIPs[ip]; !ok {
 			if ep.podKey == unspecifiedPodKey {
 				if ep.stalePodKey == nil {
 					klog.Infof("deleting old endpoint which never had a pod key. ID: %s, IP: %s", ep.id, ip)
-					delete(dp.endpointCache, ip)
+					delete(dp.endpointCache.cache, ip)
 				} else if int(currentTime-ep.stalePodKey.timestamp)/60 > minutesToKeepStalePodKey {
 					klog.Infof("deleting old endpoint which had a stale pod key. ID: %s, IP: %s, stalePodKey: %+v", ep.id, ip, ep.stalePodKey)
-					delete(dp.endpointCache, ip)
+					delete(dp.endpointCache.cache, ip)
 				}
 			} else {
 				ep.stalePodKey = &staleKey{
@@ -349,8 +368,9 @@ func (dp *DataPlane) setNetworkIDByName(networkName string) error {
 }
 
 func (dp *DataPlane) getAllEndpointIDs() []string {
-	endpointIDs := make([]string, 0, len(dp.endpointCache))
-	for _, endpoint := range dp.endpointCache {
+	// no need to lock endpointCache at boot up
+	endpointIDs := make([]string, 0, len(dp.endpointCache.cache))
+	for _, endpoint := range dp.endpointCache.cache {
 		endpointIDs = append(endpointIDs, endpoint.id)
 	}
 	return endpointIDs

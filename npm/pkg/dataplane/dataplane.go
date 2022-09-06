@@ -2,6 +2,7 @@ package dataplane
 
 import (
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/Azure/azure-container-networking/common"
@@ -23,6 +24,24 @@ type Config struct {
 	*policies.PolicyManagerCfg
 }
 
+type updatePodCache struct {
+	sync.Mutex
+	cache map[string]*updateNPMPod
+}
+
+func newUpdatePodCache() *updatePodCache {
+	return &updatePodCache{cache: make(map[string]*updateNPMPod)}
+}
+
+type endpointCache struct {
+	sync.Mutex
+	cache map[string]*npmEndpoint
+}
+
+func newEndpointCache() *endpointCache {
+	return &endpointCache{cache: make(map[string]*npmEndpoint)}
+}
+
 type DataPlane struct {
 	*Config
 	policyMgr *policies.PolicyManager
@@ -31,13 +50,10 @@ type DataPlane struct {
 	nodeName  string
 	// endpointCache stores all endpoints of the network (including off-node)
 	// Key is PodIP
-	endpointCache  map[string]*npmEndpoint
+	endpointCache  *endpointCache
 	ioShim         *common.IOShim
-	updatePodCache map[string]*updateNPMPod
-	// pendingPolicies includes the policy keys of policies which may
-	// be referenced by ipsets but have not been applied to the kernel yet
-	pendingPolicies map[string]struct{}
-	stopChannel     <-chan struct{}
+	updatePodCache *updatePodCache
+	stopChannel    <-chan struct{}
 }
 
 func NewDataPlane(nodeName string, ioShim *common.IOShim, cfg *Config, stopChannel <-chan struct{}) (*DataPlane, error) {
@@ -47,15 +63,14 @@ func NewDataPlane(nodeName string, ioShim *common.IOShim, cfg *Config, stopChann
 		cfg.IPSetManagerCfg.AddEmptySetToLists = true
 	}
 	dp := &DataPlane{
-		Config:          cfg,
-		policyMgr:       policies.NewPolicyManager(ioShim, cfg.PolicyManagerCfg),
-		ipsetMgr:        ipsets.NewIPSetManager(cfg.IPSetManagerCfg, ioShim),
-		endpointCache:   make(map[string]*npmEndpoint),
-		nodeName:        nodeName,
-		ioShim:          ioShim,
-		updatePodCache:  make(map[string]*updateNPMPod),
-		pendingPolicies: make(map[string]struct{}),
-		stopChannel:     stopChannel,
+		Config:         cfg,
+		policyMgr:      policies.NewPolicyManager(ioShim, cfg.PolicyManagerCfg),
+		ipsetMgr:       ipsets.NewIPSetManager(cfg.IPSetManagerCfg, ioShim),
+		endpointCache:  newEndpointCache(),
+		nodeName:       nodeName,
+		ioShim:         ioShim,
+		updatePodCache: newUpdatePodCache(),
+		stopChannel:    stopChannel,
 	}
 
 	err := dp.BootupDataplane()
@@ -121,12 +136,19 @@ func (dp *DataPlane) AddToSets(setNames []*ipsets.IPSetMetadata, podMetadata *Po
 	}
 	if dp.shouldUpdatePod() {
 		klog.Infof("[DataPlane] Updating Sets to Add for pod key %s", podMetadata.PodKey)
-		if _, ok := dp.updatePodCache[podMetadata.PodKey]; !ok {
+
+		// lock updatePodCache while reading/modifying or setting the updatePod in the cache
+		dp.updatePodCache.Lock()
+		defer dp.updatePodCache.Unlock()
+
+		updatePod, ok := dp.updatePodCache.cache[podMetadata.PodKey]
+		if !ok {
 			klog.Infof("[DataPlane] {AddToSet} pod key %s not found in updatePodCache. creating a new obj", podMetadata.PodKey)
-			dp.updatePodCache[podMetadata.PodKey] = newUpdateNPMPod(podMetadata)
+			updatePod = newUpdateNPMPod(podMetadata)
+			dp.updatePodCache.cache[podMetadata.PodKey] = updatePod
 		}
 
-		dp.updatePodCache[podMetadata.PodKey].updateIPSetsToAdd(setNames)
+		updatePod.updateIPSetsToAdd(setNames)
 	}
 
 	return nil
@@ -142,12 +164,19 @@ func (dp *DataPlane) RemoveFromSets(setNames []*ipsets.IPSetMetadata, podMetadat
 
 	if dp.shouldUpdatePod() {
 		klog.Infof("[DataPlane] Updating Sets to Remove for pod key %s", podMetadata.PodKey)
-		if _, ok := dp.updatePodCache[podMetadata.PodKey]; !ok {
+
+		// lock updatePodCache while reading/modifying or setting the updatePod in the cache
+		dp.updatePodCache.Lock()
+		defer dp.updatePodCache.Unlock()
+
+		updatePod, ok := dp.updatePodCache.cache[podMetadata.PodKey]
+		if !ok {
 			klog.Infof("[DataPlane] {RemoveFromSet} pod key %s not found in updatePodCache. creating a new obj", podMetadata.PodKey)
-			dp.updatePodCache[podMetadata.PodKey] = newUpdateNPMPod(podMetadata)
+			updatePod = newUpdateNPMPod(podMetadata)
+			dp.updatePodCache.cache[podMetadata.PodKey] = updatePod
 		}
 
-		dp.updatePodCache[podMetadata.PodKey].updateIPSetsToRemove(setNames)
+		updatePod.updateIPSetsToRemove(setNames)
 	}
 
 	return nil
@@ -185,13 +214,33 @@ func (dp *DataPlane) ApplyDataPlane() error {
 	}
 
 	if dp.shouldUpdatePod() {
-		for podKey, pod := range dp.updatePodCache {
+		err := dp.refreshAllPodEndpoints()
+		if err != nil {
+			metrics.SendErrorLogAndMetric(util.DaemonDataplaneID, "[DataPlane] failed to refresh endpoints while updating pods. err: [%s]", err.Error())
+			return fmt.Errorf("[DataPlane] failed to refresh endpoints while updating pods. err: [%w]", err)
+		}
+
+		// lock updatePodCache while driving goal state to kernel
+		// prevents another ApplyDataplane call from updating the same pods
+		dp.updatePodCache.Lock()
+		defer dp.updatePodCache.Unlock()
+
+		var aggregateErr error
+		for podKey, pod := range dp.updatePodCache.cache {
 			err := dp.updatePod(pod)
 			if err != nil {
-				metrics.SendErrorLogAndMetric(util.DaemonDataplaneID, "error: failed to update pods: %s", err.Error())
-				return fmt.Errorf("[DataPlane] error while updating pod: %w", err)
+				if aggregateErr == nil {
+					aggregateErr = fmt.Errorf("failed to update pod while applying the dataplane. key: [%s], err: [%w]", podKey, err)
+				} else {
+					aggregateErr = fmt.Errorf("failed to update pod while applying the dataplane. key: [%s], err: [%s]. previous err: [%w]", podKey, err.Error(), aggregateErr)
+				}
+				metrics.SendErrorLogAndMetric(util.DaemonDataplaneID, "failed to update pod while applying the dataplane. key: [%s], err: [%s]", podKey, err.Error())
+				continue
 			}
-			delete(dp.updatePodCache, podKey)
+			delete(dp.updatePodCache.cache, podKey)
+		}
+		if aggregateErr != nil {
+			return fmt.Errorf("[DataPlane] error while updating pods: %w", err)
 		}
 	}
 	return nil
@@ -200,8 +249,6 @@ func (dp *DataPlane) ApplyDataPlane() error {
 // AddPolicy takes in a translated NPMNetworkPolicy object and applies on dataplane
 func (dp *DataPlane) AddPolicy(policy *policies.NPMNetworkPolicy) error {
 	klog.Infof("[DataPlane] Add Policy called for %s", policy.PolicyKey)
-
-	dp.pendingPolicies[policy.PolicyKey] = struct{}{}
 
 	// Create and add references for Selector IPSets first
 	err := dp.createIPSetsAndReferences(policy.AllPodSelectorIPSets(), policy.PolicyKey, ipsets.SelectorType)
@@ -232,7 +279,6 @@ func (dp *DataPlane) AddPolicy(policy *policies.NPMNetworkPolicy) error {
 	if err != nil {
 		return fmt.Errorf("[DataPlane] error while adding policy: %w", err)
 	}
-	delete(dp.pendingPolicies, policy.PolicyKey)
 	return nil
 }
 
@@ -301,8 +347,9 @@ func (dp *DataPlane) GetAllIPSets() map[string]string {
 	return dp.ipsetMgr.GetAllIPSets()
 }
 
+// GetAllPolicies is deprecated and only used in the goalstateprocessor, which is deprecated
 func (dp *DataPlane) GetAllPolicies() []string {
-	return dp.policyMgr.GetAllPolicies()
+	return nil
 }
 
 func (dp *DataPlane) createIPSetsAndReferences(sets []*ipsets.TranslatedIPSet, netpolName string, referenceType ipsets.ReferenceType) error {

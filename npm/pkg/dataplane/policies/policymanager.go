@@ -36,6 +36,7 @@ type PolicyManagerCfg struct {
 }
 
 type PolicyMap struct {
+	sync.RWMutex
 	cache map[string]*NPMNetworkPolicy
 }
 
@@ -44,6 +45,12 @@ type reconcileManager struct {
 	releaseLockSignal chan struct{}
 }
 
+// PolicyManager has two locks.
+// The PolicyMap lock is used only in Windows to prevent concurrent write access to the PolicyMap
+// from both the NetPol Controller thread and the PodController thread, accessed respectively from
+// dataplane.AddPolicy()/dataplane.RemovePolicy(), and dataplane.ApplyDataplane() --> dataplane.updatePod().
+// In Linux, the reconcileManager's lock is used to avoid iptables contention for adding/removing policies versus
+// background cleanup of stale, ineffective chains.
 type PolicyManager struct {
 	policyMap        *PolicyMap
 	ioShim           *common.IOShim
@@ -85,22 +92,18 @@ func (pMgr *PolicyManager) Reconcile() {
 	pMgr.reconcile()
 }
 
-func (pMgr *PolicyManager) GetAllPolicies() []string {
-	policyKeys := make([]string, len(pMgr.policyMap.cache))
-	i := 0
-	for policyKey := range pMgr.policyMap.cache {
-		policyKeys[i] = policyKey
-		i++
-	}
-	return policyKeys
-}
-
 func (pMgr *PolicyManager) PolicyExists(policyKey string) bool {
+	pMgr.policyMap.RLock()
+	defer pMgr.policyMap.RUnlock()
+
 	_, ok := pMgr.policyMap.cache[policyKey]
 	return ok
 }
 
 func (pMgr *PolicyManager) GetPolicy(policyKey string) (*NPMNetworkPolicy, bool) {
+	pMgr.policyMap.RLock()
+	defer pMgr.policyMap.RUnlock()
+
 	policy, ok := pMgr.policyMap.cache[policyKey]
 	return policy, ok
 }
@@ -117,6 +120,9 @@ func (pMgr *PolicyManager) AddPolicy(policy *NPMNetworkPolicy, endpointList map[
 		metrics.SendErrorLogAndMetric(util.IptmID, "error: %s", msg)
 		return npmerrors.Errorf(npmerrors.AddPolicy, false, msg)
 	}
+
+	pMgr.policyMap.Lock()
+	defer pMgr.policyMap.Unlock()
 
 	// Call actual dataplane function to apply changes
 	timer := metrics.StartNewTimer()
@@ -151,6 +157,10 @@ func (pMgr *PolicyManager) RemovePolicy(policyKey string, endpointList map[strin
 		klog.Infof("[DataPlane] No ACLs in policy %s to remove", policyKey)
 		return nil
 	}
+
+	pMgr.policyMap.Lock()
+	defer pMgr.policyMap.Unlock()
+
 	// Call actual dataplane function to apply changes
 	err := pMgr.removePolicy(policy, endpointList)
 	// currently we only have acl rule exec time for "adding" rules, so we skip recording here
