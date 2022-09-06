@@ -545,3 +545,80 @@ func TestGetNCVersion(t *testing.T) {
 		})
 	}
 }
+
+func TestGetNCVersionList(t *testing.T) {
+	tests := []struct {
+		name      string
+		resp      map[string]interface{}
+		expURL    string
+		exp       nmagent.NCVersionList
+		shouldErr bool
+	}{
+		{
+			"happy path",
+			map[string]interface{}{
+				"httpStatusCode": "200",
+				"networkContainers": []map[string]interface{}{
+					{
+						"networkContainerId": "foo",
+						"version":            "42",
+					},
+				},
+			},
+			"/machine/plugins/?comp=nmagent&type=NetworkManagement/interfaces/api-version/1",
+			nmagent.NCVersionList{
+				Containers: []nmagent.NCVersion{
+					{
+						NetworkContainerID: "foo",
+						Version:            "42",
+					},
+				},
+			},
+			false,
+		},
+		{
+			"nma fail",
+			map[string]interface{}{
+				"httpStatusCode": "500",
+			},
+			"/machine/plugins/?comp=nmagent&type=NetworkManagement/interfaces/api-version/1",
+			nmagent.NCVersionList{},
+			true,
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			var gotURL string
+			client := nmagent.NewTestClient(&TestTripper{
+				RoundTripF: func(req *http.Request) (*http.Response, error) {
+					gotURL = req.URL.Path
+					rr := httptest.NewRecorder()
+					rr.WriteHeader(http.StatusOK)
+					err := json.NewEncoder(rr).Encode(test.resp)
+					if err != nil {
+						t.Fatal("unexpected error encoding response: err:", err)
+					}
+					return rr.Result(), nil
+				},
+			})
+
+			ctx, cancel := testContext(t)
+			defer cancel()
+
+			resp, err := client.GetNCVersionList(ctx)
+			checkErr(t, err, test.shouldErr)
+
+			if gotURL != test.expURL {
+				t.Error("received URL differs from expected: got:", gotURL, "exp:", test.expURL)
+			}
+
+			if got := resp; !cmp.Equal(got, test.exp) {
+				t.Error("response differs from expectation: diff:", cmp.Diff(got, test.exp))
+			}
+		})
+	}
+}

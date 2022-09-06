@@ -359,3 +359,31 @@ func (n NCVersionRequest) Validate() error {
 
 	return err
 }
+
+var _ Request = NCVersionListRequest{}
+
+// NCVersionListRequest is a collection of parameters necessary to submit a
+// request to receive a list of NCVersions available from the NMAgent instance.
+type NCVersionListRequest struct{}
+
+func (NCVersionListRequest) Body() (io.Reader, error) {
+	// there is no body for this request so...
+	return nil, nil
+}
+
+// Method returns the HTTP method required for the request.
+func (NCVersionListRequest) Method() string {
+	return http.MethodGet
+}
+
+// Path returns the path required to issue the request.
+func (NCVersionListRequest) Path() string {
+	return "/NetworkManagement/interfaces/api-version/1"
+}
+
+// Validate performs any necessary validations for the request.
+func (NCVersionListRequest) Validate() error {
+	// there are no parameters, thus nothing to validate. Since the request
+	// cannot be made invalid it's fine for this to simply...
+	return nil
+}

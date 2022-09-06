@@ -29,6 +29,7 @@ type MockNMAgent struct {
 	JoinNetworkF            func(context.Context, nmagent.JoinNetworkRequest) error
 	SupportedAPIsF          func(context.Context) ([]string, error)
 	GetNCVersionF           func(context.Context, nmagent.NCVersionRequest) (nmagent.NCVersion, error)
+	GetNCVersionListF       func(context.Context) (nmagent.NCVersionList, error)
 }
 
 func (m *MockNMAgent) PutNetworkContainer(ctx context.Context, pncr *nmagent.PutNetworkContainerRequest) error {
@@ -49,4 +50,8 @@ func (m *MockNMAgent) SupportedAPIs(ctx context.Context) ([]string, error) {
 
 func (m *MockNMAgent) GetNCVersion(ctx context.Context, req nmagent.NCVersionRequest) (nmagent.NCVersion, error) {
 	return m.GetNCVersionF(ctx, req)
+}
+
+func (m *MockNMAgent) GetNCVersionList(ctx context.Context) (nmagent.NCVersionList, error) {
+	return m.GetNCVersionListF(ctx)
 }

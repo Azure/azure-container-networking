@@ -187,7 +187,7 @@ func (service *HTTPRestService) syncHostNCVersion(ctx context.Context, channelMo
 	if len(outdatedNCs) == 0 {
 		return nil
 	}
-	ncVersionListResp, err := service.nmagentClient.GetNCVersionList(ctx)
+	ncVersionListResp, err := service.nma.GetNCVersionList(ctx)
 	if err != nil {
 		return errors.Wrap(err, "failed to get nc version list from nmagent")
 	}

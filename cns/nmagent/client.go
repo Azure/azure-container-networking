@@ -1,15 +1,7 @@
 package nmagent
 
 import (
-	"context"
-	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
-	"time"
-
-	"github.com/Azure/azure-container-networking/cns/logger"
-	"github.com/pkg/errors"
 )
 
 const (
@@ -60,33 +52,4 @@ func NewClient(url string) (*Client, error) {
 	return &Client{
 		connectionURL: url,
 	}, nil
-}
-
-// GetNCVersionList query nmagent for programmed container versions.
-func (c *Client) GetNCVersionList(ctx context.Context) (*NetworkContainerListResponse, error) {
-	now := time.Now()
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.connectionURL, nil)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to build nmagent request")
-	}
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to make nmagent request")
-	}
-	defer resp.Body.Close()
-	b, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to read response body")
-	}
-	logger.Printf("[NMAgentClient][Response] GetNcVersionListWithOutToken response: %s, latency is %d", string(b), time.Since(now).Milliseconds())
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, errors.Errorf("failed to GetNCVersionList with status %d", resp.StatusCode)
-	}
-
-	var response NetworkContainerListResponse
-	if err := json.Unmarshal(b, &response); err != nil {
-		return nil, errors.Wrap(err, "failed to unmarshal response")
-	}
-	return &response, nil
 }
