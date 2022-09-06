@@ -401,11 +401,28 @@ func NewFakeHostComputeEndpoint(endpoint *hcn.HostComputeEndpoint) *FakeHostComp
 }
 
 func (fEndpoint *FakeHostComputeEndpoint) GetHCNObj() *hcn.HostComputeEndpoint {
-	return &hcn.HostComputeEndpoint{
+	// NOTE: not including other policy types like perhaps SetPolicies
+	hcnEndpoint := &hcn.HostComputeEndpoint{
 		Id:                 fEndpoint.ID,
 		Name:               fEndpoint.Name,
 		HostComputeNetwork: fEndpoint.HostComputeNetwork,
+		Policies:           make([]hcn.EndpointPolicy, 0),
 	}
+
+	for _, fakeEndpointPol := range fEndpoint.Policies {
+		rawJson, err := json.Marshal(fakeEndpointPol)
+		if err != nil {
+			fmt.Printf("FAILURE marshalling fake endpoint policy: %s\n", err.Error())
+		} else {
+			hcnPolicy := hcn.EndpointPolicy{
+				Type:     hcn.ACL,
+				Settings: rawJson,
+			}
+			hcnEndpoint.Policies = append(hcnEndpoint.Policies, hcnPolicy)
+		}
+	}
+
+	return hcnEndpoint
 }
 
 func (fEndpoint *FakeHostComputeEndpoint) RemovePolicy(toRemovePol *FakeEndpointPolicy) error {
