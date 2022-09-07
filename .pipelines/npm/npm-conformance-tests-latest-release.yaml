@@ -27,7 +27,7 @@ jobs:
           mkdir -p '$(GOPATH)/pkg'
           BUILD_NUMBER=$(Build.BuildNumber)
           RG=e2e-$(echo "npm-`date "+%Y-%m-%d-%S"`")
-          TAG=$(git -c 'versionsort.suffix=-' ls-remote --tags --sort='v:refname' https://github.com/Azure/azure-container-networking  | grep -v "zapai" | grep -v "ipam" | grep -v "{}"| tail  --lines=1 | cut --delimiter='/' --fields=3)
+          TAG=$(git -c "versionsort.suffix=-" ls-remote --tags --sort="v:refname" https://github.com/Azure/azure-container-networking  | grep -v "zapai" | grep -v "ipam" | grep -v "{}"| tail  --lines=1 | cut --delimiter="/" --fields=3)
           echo "Resource group: $RG"
           echo "Image tag: $TAG"
 
