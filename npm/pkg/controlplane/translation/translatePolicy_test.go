@@ -1352,6 +1352,7 @@ func TestIngressPolicy(t *testing.T) {
 	// TODO(jungukcho): add test cases with more complex rules
 	tests := []struct {
 		name             string
+		isNewNwPolicyVer bool
 		targetSelector   *metav1.LabelSelector
 		rules            []networkingv1.NetworkPolicyIngressRule
 		npmNetPol        *policies.NPMNetworkPolicy
@@ -1359,6 +1360,7 @@ func TestIngressPolicy(t *testing.T) {
 	}{
 		{
 			name:             "only port in ingress rules",
+			isNewNwPolicyVer: true,
 			targetSelector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
 					"label": "src",
@@ -1402,6 +1404,7 @@ func TestIngressPolicy(t *testing.T) {
 		},
 		{
 			name:             "only ipBlock in ingress rules",
+			isNewNwPolicyVer: true,
 			targetSelector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
 					"label": "src",
@@ -1449,6 +1452,7 @@ func TestIngressPolicy(t *testing.T) {
 		},
 		{
 			name:             "only peer podSelector in ingress rules",
+			isNewNwPolicyVer: true,
 			targetSelector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
 					"label": "src",
@@ -1499,6 +1503,7 @@ func TestIngressPolicy(t *testing.T) {
 		},
 		{
 			name:             "only peer nameSpaceSelector in ingress rules",
+			isNewNwPolicyVer: true,
 			targetSelector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
 					"label": "src",
@@ -1547,6 +1552,7 @@ func TestIngressPolicy(t *testing.T) {
 		},
 		{
 			name:             "peer nameSpaceSelector and ipblock in ingress rules",
+			isNewNwPolicyVer: true,
 			targetSelector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
 					"label": "src",
@@ -1622,6 +1628,7 @@ func TestIngressPolicy(t *testing.T) {
 		},
 		{
 			name:             "unknown port type error",
+			isNewNwPolicyVer: true,
 			targetSelector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
 					"label": "src",
@@ -1663,6 +1670,7 @@ func TestIngressPolicy(t *testing.T) {
 		},
 		{
 			name:             "allow all ingress rules",
+			isNewNwPolicyVer: true,
 			targetSelector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
 					"label": "src",
@@ -1694,6 +1702,7 @@ func TestIngressPolicy(t *testing.T) {
 		},
 		{
 			name:             "deny all in ingress rules",
+			isNewNwPolicyVer: true,
 			targetSelector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
 					"label": "src",
@@ -1720,6 +1729,7 @@ func TestIngressPolicy(t *testing.T) {
 		},
 		{
 			name:             "multi-value pod/target selector",
+			isNewNwPolicyVer: true,
 			targetSelector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
 					"k0": "v0",
@@ -1773,6 +1783,7 @@ func TestIngressPolicy(t *testing.T) {
 		},
 		{
 			name:             "multi-value pod/peer selector",
+			isNewNwPolicyVer: true,
 			targetSelector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
 					"k0": "v0",
@@ -1835,6 +1846,7 @@ func TestIngressPolicy(t *testing.T) {
 		},
 		{
 			name:             "multi-value pod/peer selector with namespace selector in same peer rule",
+			isNewNwPolicyVer: true,
 			targetSelector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
 					"k0": "v0",
@@ -1905,6 +1917,7 @@ func TestIngressPolicy(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			util.IsNewNwPolicyVerFlag = tt.isNewNwPolicyVer
 			npmNetPol := &policies.NPMNetworkPolicy{
 				Namespace:   tt.npmNetPol.Namespace,
 				PolicyKey:   tt.npmNetPol.PolicyKey,
@@ -1935,6 +1948,7 @@ func TestEgressPolicy(t *testing.T) {
 	peerMatchType := policies.DstMatch
 	tests := []struct {
 		name             string
+		isNewNwPolicyVer bool
 		targetSelector   *metav1.LabelSelector
 		rules            []networkingv1.NetworkPolicyEgressRule
 		npmNetPol        *policies.NPMNetworkPolicy
@@ -1942,6 +1956,7 @@ func TestEgressPolicy(t *testing.T) {
 	}{
 		{
 			name:             "only port in egress rules",
+			isNewNwPolicyVer: true,
 			targetSelector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
 					"label": "dst",
@@ -1985,6 +2000,7 @@ func TestEgressPolicy(t *testing.T) {
 		},
 		{
 			name:             "only ipBlock in egress rules",
+			isNewNwPolicyVer: true,
 			targetSelector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
 					"label": "dst",
@@ -2032,6 +2048,7 @@ func TestEgressPolicy(t *testing.T) {
 		},
 		{
 			name:             "only peer podSelector in egress rules",
+			isNewNwPolicyVer: true,
 			targetSelector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
 					"label": "dst",
@@ -2082,6 +2099,7 @@ func TestEgressPolicy(t *testing.T) {
 		},
 		{
 			name:             "only peer nameSpaceSelector in egress rules",
+			isNewNwPolicyVer: true,
 			targetSelector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
 					"label": "dst",
@@ -2130,6 +2148,7 @@ func TestEgressPolicy(t *testing.T) {
 		},
 		{
 			name:             "deny all in egress rules",
+			isNewNwPolicyVer: true,
 			targetSelector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
 					"label": "dst",
@@ -2156,6 +2175,7 @@ func TestEgressPolicy(t *testing.T) {
 		},
 		{
 			name:             "allow all egress rules",
+			isNewNwPolicyVer: true,
 			targetSelector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
 					"label": "dst",
@@ -2187,6 +2207,7 @@ func TestEgressPolicy(t *testing.T) {
 		},
 		{
 			name:             "peer nameSpaceSelector and ipblock in egress rules",
+			isNewNwPolicyVer: true,
 			targetSelector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
 					"label": "dst",
@@ -2262,6 +2283,7 @@ func TestEgressPolicy(t *testing.T) {
 		},
 		{
 			name:             "unknown port type error",
+			isNewNwPolicyVer: true,
 			targetSelector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
 					"label": "dst",
@@ -2303,6 +2325,7 @@ func TestEgressPolicy(t *testing.T) {
 		},
 		{
 			name:             "multi-value pod/target selector",
+			isNewNwPolicyVer: true,
 			targetSelector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
 					"k0": "v0",
@@ -2356,6 +2379,7 @@ func TestEgressPolicy(t *testing.T) {
 		},
 		{
 			name:             "multi-value pod/peer selector",
+			isNewNwPolicyVer: true,
 			targetSelector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
 					"k0": "v0",
@@ -2418,6 +2442,7 @@ func TestEgressPolicy(t *testing.T) {
 		},
 		{
 			name:             "multi-value pod/peer selector with namespace selector in same peer rule",
+			isNewNwPolicyVer: true,
 			targetSelector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
 					"k0": "v0",
@@ -2488,6 +2513,7 @@ func TestEgressPolicy(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
+			util.IsNewNwPolicyVerFlag = tt.isNewNwPolicyVer
 			npmNetPol := &policies.NPMNetworkPolicy{
 				Namespace:   tt.npmNetPol.Namespace,
 				PolicyKey:   tt.npmNetPol.PolicyKey,

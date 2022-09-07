@@ -26,7 +26,7 @@ var version string
 // panicRecoverAndExitWithStackTrace - recovery from panic, print a failure message and stack trace and exit the program
 func panicRecoverAndExitWithStackTrace() {
 	if r := recover(); r != nil {
-		klog.Infoln(r)
+		klog.Errorf("%+v", r)
 		klog.Errorf("Stack trace: %s", string(debug.Stack()))
 	}
 }
