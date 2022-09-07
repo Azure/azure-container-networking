@@ -1,7 +1,6 @@
 .DEFAULT_GOAL := help
 
 # Default platform commands
-SHELL		= /bin/bash
 MKDIR 	   := mkdir -p
 RMDIR 	   := rm -rf
 ARCHIVE_CMD = tar -czvf

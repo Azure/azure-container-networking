@@ -1,6 +1,7 @@
 parameters:
   name: ""
   arch: ""
+  tag: ""
 
 steps:
 - task: Docker@2
@@ -10,24 +11,22 @@ steps:
     command: 'login'
     addPipelineData: false
 
-- powershell: |
-    Set-ExecutionPolicy Bypass -Scope Process -Force; [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))
-    choco install make which git
-  name: win_env
-  displayName: Install dependencies
+# - powershell: |
+#     winget install -h --accept-package-agreements --accept-source-agreements GnuWin32.Make 
+#     winget install -h --accept-package-agreements --accept-source-agreements Git.Git  
+#   name: win_env
+#   displayName: Install dependencies
 
 - powershell: |
-    $tag = make ${{ parameters.name }}-version
-    echo "using tag $tag"
-    . .\build\scripts\windows.ps1; ( ${{ parameters.name }}-image windows-${{ parameters.arch }}-$tag )
+    echo "using tag ${{ parameters.tag }}"
+    . .\build\scripts\windows.ps1; ( ${{ parameters.name }}-image windows-${{ parameters.arch }}-${{ parameters.tag }} )
   name: image_build
   displayName: Image Build
   retryCountOnTaskFailure: 3
 
 - powershell: |
     $registry = "acnpublic.azurecr.io"
-    $tag = make ${{ parameters.name }}-version
-    docker push $registry/azure-${{ parameters.name }}:windows-${{ parameters.arch }}-$tag
+    docker push $registry/azure-${{ parameters.name }}:windows-${{ parameters.arch }}-${{ parameters.tag }}
   name: image_push
   displayName: Image Push
   retryCountOnTaskFailure: 3
