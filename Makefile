@@ -364,6 +364,19 @@ npm-image: ## build the npm container image.
 			EXTRA_BUILD_ARGS='--build-arg NPM_AI_PATH=$(NPM_AI_PATH) --build-arg NPM_AI_ID=$(NPM_AI_ID)' \
 			TAG=$(NPM_PLATFORM_TAG)
 
+npm-image-windows: ## build the npm container windows image.	
+	$(MKDIR) $(IMAGE_DIR); 
+	docker build \
+	--no-cache \
+	-f cns/windows.Dockerfile \
+	-t $(IMAGE_REGISTRY)/$(NPM_IMAGE)-win:$(NPM_PLATFORM_TAG) \
+	--build-arg VERSION=$(NPM_VERSION) \
+	--build-arg NPM_AI_PATH=$(NPM_AI_PATH) \
+	--build-arg NPM_AI_ID=$(NPM_AI_ID) \
+	.
+
+	echo $(NPM_IMAGE)-win:$(NPM_VERSION) > $(IMAGE_DIR)/$(NPM_IMAGE_INFO_FILE)
+
 npm-image-push: ## push npm container image.
 	$(MAKE) container-push \
 		IMAGE=$(NPM_IMAGE) \

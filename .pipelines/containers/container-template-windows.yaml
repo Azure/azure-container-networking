@@ -16,8 +16,6 @@ steps:
     powershell.exe -command "& { . .\build\scripts\windows.ps1; {${{ parameters.name }}-image windows-${{ parameters.arch }}-${{ parameters.tag }}} }"
   name: image_build
   displayName: Image Build
-  inputs:
-    failOnStderr: true
 
 
 - powershell: |
