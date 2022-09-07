@@ -423,7 +423,7 @@ func (c *Client) GetHTTPServiceData(ctx context.Context) (*restserver.GetHTTPSer
 func (c *Client) NumOfCPUCores(ctx context.Context) (*cns.NumOfCPUCoresResponse, error) {
 	// build the request
 	u := c.routes[cns.NumberOfCPUCores]
-	req, err := http.NewRequest(http.MethodGet, u.String(), http.NoBody)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), http.NoBody)
 	if err != nil {
 		return nil, errors.Wrap(err, "building http request")
 	}
@@ -472,7 +472,7 @@ func (c *Client) DeleteNetworkContainer(ctx context.Context, ncID string) error 
 		return errors.Wrap(err, "encoding request body")
 	}
 	u := c.routes[cns.DeleteNetworkContainer]
-	req, err := http.NewRequest(http.MethodPost, u.String(), bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, u.String(), bytes.NewReader(body))
 	if err != nil {
 		return errors.Wrap(err, "building HTTP request")
 	}
@@ -526,7 +526,7 @@ func (c *Client) SetOrchestratorType(ctx context.Context, sotr cns.SetOrchestrat
 		return errors.Wrap(err, "encoding request body")
 	}
 	u := c.routes[cns.SetOrchestratorType]
-	req, err := http.NewRequest(http.MethodPost, u.String(), bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, u.String(), bytes.NewReader(body))
 	if err != nil {
 		return errors.Wrap(err, "building HTTP request")
 	}
@@ -575,7 +575,7 @@ func (c *Client) CreateNetworkContainer(ctx context.Context, cncr cns.CreateNetw
 		return errors.Wrap(err, "encoding request as JSON")
 	}
 	u := c.routes[cns.CreateOrUpdateNetworkContainer]
-	req, err := http.NewRequest(http.MethodPost, u.String(), bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, u.String(), bytes.NewReader(body))
 	if err != nil {
 		return errors.Wrap(err, "building HTTP request")
 	}
@@ -623,7 +623,7 @@ func (c *Client) PublishNetworkContainer(ctx context.Context, pncr cns.PublishNe
 		return errors.Wrap(err, "encoding request body as json")
 	}
 	u := c.routes[cns.PublishNetworkContainer]
-	req, err := http.NewRequest(http.MethodPost, u.String(), bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, u.String(), bytes.NewReader(body))
 	if err != nil {
 		return errors.Wrap(err, "building HTTP request")
 	}
@@ -669,7 +669,7 @@ func (c *Client) UnpublishNC(ctx context.Context, uncr cns.UnpublishNetworkConta
 		return errors.Wrap(err, "encoding request body as json")
 	}
 	u := c.routes[cns.UnpublishNetworkContainer]
-	req, err := http.NewRequest(http.MethodPost, u.String(), bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, u.String(), bytes.NewReader(body))
 	if err != nil {
 		return errors.Wrap(err, "building HTTP request")
 	}
@@ -714,7 +714,7 @@ func (c *Client) NMAgentSupportedAPIs(ctx context.Context) (*cns.NmAgentSupporte
 	}
 
 	u := c.routes[cns.NMAgentSupportedAPIs]
-	req, err := http.NewRequest(http.MethodGet, u.String(), bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), bytes.NewReader(body))
 	if err != nil {
 		return nil, errors.Wrap(err, "building http request")
 	}
