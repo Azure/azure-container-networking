@@ -142,6 +142,20 @@ func (dp *DataPlane) updatePod(pod *updateNPMPod) error {
 
 	// for every ipset we're removing from the endpoint, remove from the endpoint any policy that requires the set
 	for _, setName := range pod.IPSetsToRemove {
+		/*
+			Scenarios:
+			1. There's a chance a policy is/was just removed, but the ipset's selector hasn't been updated yet.
+			   We may try to remove the policy again here, which is ok.
+
+			2. If a policy is added to the ipset's selector after getting the selector (meaning dp.AddPolicy() was called),
+			   we won't try to remove the policy, which is fine since the policy must've never existed on the endpoint.
+
+			3. If a policy is added to the ipset's selector in a dp.AddPolicy() thread AFTER getting the selector here,
+			   then the ensuing policyMgr.AddPolicy() call will wait for this function to release the endpointCache lock.
+
+			4. If a policy is added to the ipset's selector in a dp.AddPolicy() thread BEFORE getting the selector here,
+			   there could be a race between policyMgr.RemovePolicy() here and policyMgr.AddPolicy() there.
+		*/
 		selectorReference, err := dp.ipsetMgr.GetSelectorReferencesBySet(setName)
 		if err != nil {
 			return err
@@ -149,8 +163,7 @@ func (dp *DataPlane) updatePod(pod *updateNPMPod) error {
 
 		for policyKey := range selectorReference {
 			// Now check if any of these network policies are applied on this endpoint.
-			// If yes then proceed to delete the network policy
-			// Remove policy should be deleting this netpol reference
+			// If yes then proceed to delete the network policy.
 			if _, ok := endpoint.netPolReference[policyKey]; ok {
 				// Delete the network policy
 				endpointList := map[string]string{
@@ -168,6 +181,18 @@ func (dp *DataPlane) updatePod(pod *updateNPMPod) error {
 	// for every ipset we're adding to the endpoint, consider adding to the endpoint every policy that the set touches
 	toAddPolicies := make(map[string]struct{})
 	for _, setName := range pod.IPSetsToAdd {
+		/*
+			Scenarios:
+			1. If a policy is added to the ipset's selector after getting the selector (meaning dp.AddPolicy() was called),
+			   we will miss adding the policy here, but will add the policy to all endpoints in that other thread, which has
+			   to wait on the endpointCache lock when calling getEndpointsToApplyPolicy().
+
+			2. We may add the policy here and in the dp.AddPolicy() thread if the policy is added to the ipset's selector before
+			   that other thread calls policyMgr.AddPolicy(), which is ok.
+
+			3. FIXME: If a policy is/was just removed, but the ipset's selector hasn't been updated yet,
+			   we may try to add the policy again here...
+		*/
 		selectorReference, err := dp.ipsetMgr.GetSelectorReferencesBySet(setName)
 		if err != nil {
 			return err
