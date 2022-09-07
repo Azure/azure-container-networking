@@ -334,7 +334,7 @@ func TestRemovePoliciesAcceptableError(t *testing.T) {
 	defer ioshim.VerifyCalls(t, calls)
 	pMgr := NewPolicyManager(ioshim, ipsetConfig)
 	require.NoError(t, pMgr.AddPolicy(bothDirectionsNetPol, epList))
-	require.NoError(t, pMgr.RemovePolicy(bothDirectionsNetPol.PolicyKey, nil))
+	require.NoError(t, pMgr.RemovePolicy(bothDirectionsNetPol.PolicyKey))
 	_, ok := pMgr.GetPolicy(bothDirectionsNetPol.PolicyKey)
 	require.False(t, ok)
 	promVals{0, 1}.testPrometheusMetrics(t)
@@ -381,7 +381,7 @@ func TestRemovePoliciesError(t *testing.T) {
 			pMgr := NewPolicyManager(ioshim, ipsetConfig)
 			err := pMgr.AddPolicy(bothDirectionsNetPol, nil)
 			require.NoError(t, err)
-			err = pMgr.RemovePolicy(bothDirectionsNetPol.PolicyKey, nil)
+			err = pMgr.RemovePolicy(bothDirectionsNetPol.PolicyKey)
 			require.Error(t, err)
 
 			promVals{6, 1}.testPrometheusMetrics(t)
@@ -407,7 +407,7 @@ func TestUpdatingStaleChains(t *testing.T) {
 	assertStaleChainsContain(t, pMgr.staleChains)
 
 	// successful removal, so mark the policy's chains as stale
-	require.NoError(t, pMgr.RemovePolicy(bothDirectionsNetPol.PolicyKey, nil))
+	require.NoError(t, pMgr.RemovePolicy(bothDirectionsNetPol.PolicyKey))
 	assertStaleChainsContain(t, pMgr.staleChains, bothDirectionsNetPolIngressChain, bothDirectionsNetPolEgressChain)
 
 	// successful add, so keep the same stale chains
@@ -415,7 +415,7 @@ func TestUpdatingStaleChains(t *testing.T) {
 	assertStaleChainsContain(t, pMgr.staleChains, bothDirectionsNetPolIngressChain, bothDirectionsNetPolEgressChain)
 
 	// failure to remove, so keep the same stale chains
-	require.Error(t, pMgr.RemovePolicy(ingressNetPol.PolicyKey, nil))
+	require.Error(t, pMgr.RemovePolicy(ingressNetPol.PolicyKey))
 	assertStaleChainsContain(t, pMgr.staleChains, bothDirectionsNetPolIngressChain, bothDirectionsNetPolEgressChain)
 
 	// successfully add a new policy. keep the same stale chains
@@ -423,7 +423,7 @@ func TestUpdatingStaleChains(t *testing.T) {
 	assertStaleChainsContain(t, pMgr.staleChains, bothDirectionsNetPolIngressChain, bothDirectionsNetPolEgressChain)
 
 	// successful removal, so mark the policy's chains as stale
-	require.NoError(t, pMgr.RemovePolicy(egressNetPol.PolicyKey, nil))
+	require.NoError(t, pMgr.RemovePolicy(egressNetPol.PolicyKey))
 	assertStaleChainsContain(t, pMgr.staleChains, bothDirectionsNetPolIngressChain, bothDirectionsNetPolEgressChain, egressNetPolChain)
 
 	// failure to add, so keep the same stale chains the same

@@ -293,7 +293,7 @@ func (dp *DataPlane) RemovePolicy(policyKey string) error {
 		return nil
 	}
 	// Use the endpoint list saved in cache for this network policy to remove
-	err := dp.policyMgr.RemovePolicy(policy.PolicyKey, nil)
+	err := dp.policyMgr.RemovePolicy(policy.PolicyKey)
 	if err != nil {
 		return fmt.Errorf("[DataPlane] error while removing policy: %w", err)
 	}
