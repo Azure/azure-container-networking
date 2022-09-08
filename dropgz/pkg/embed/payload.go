@@ -15,8 +15,9 @@ import (
 )
 
 const (
-	cwd        = "fs"
-	pathPrefix = cwd + string(filepath.Separator)
+	cwd             = "fs"
+	pathPrefix      = cwd + string(filepath.Separator)
+	OLD_FILE_SUFFIX = ".old"
 )
 
 var ErrArgsMismatched = errors.New("mismatched argument count")
@@ -86,6 +87,17 @@ func deploy(src, dest string) error {
 		return err
 	}
 	defer rc.Close()
+	if _, err := os.Stat(dest); err == nil || !os.IsNotExist(err) {
+		old_file_dest := dest + OLD_FILE_SUFFIX
+		if err = os.RemoveAll(old_file_dest); err != nil {
+			return errors.Wrapf(err, "not able to remove the %s", &old_file_dest)
+		}
+		if err = os.Rename(dest, old_file_dest); err != nil {
+			return errors.Wrapf(err, "not able to rename the %s to %s", dest, old_file_dest)
+		}
+	} else {
+		return err
+	}
 	target, err := os.OpenFile(dest, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0o755) //nolint:gomnd // executable file bitmask
 	if err != nil {
 		return errors.Wrapf(err, "failed to create file %s", dest)
