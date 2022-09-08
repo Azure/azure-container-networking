@@ -94,9 +94,6 @@ func deploy(src, dest string) error {
 		}
 	} else {
 		oldDest := dest + oldFileSuffix
-		if err = os.RemoveAll(oldDest); err != nil {
-			return errors.Wrapf(err, "failed to remove the %s", oldDest)
-		}
 		if err = os.Rename(dest, oldDest); err != nil {
 			return errors.Wrapf(err, "failed to rename the %s to %s", dest, oldDest)
 		}
