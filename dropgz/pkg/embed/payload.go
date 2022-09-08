@@ -15,9 +15,9 @@ import (
 )
 
 const (
-	cwd             = "fs"
-	pathPrefix      = cwd + string(filepath.Separator)
-	OLD_FILE_SUFFIX = ".old"
+	cwd           = "fs"
+	pathPrefix    = cwd + string(filepath.Separator)
+	oldFileSuffix = ".old"
 )
 
 var ErrArgsMismatched = errors.New("mismatched argument count")
@@ -87,16 +87,19 @@ func deploy(src, dest string) error {
 		return err
 	}
 	defer rc.Close()
-	if _, err := os.Stat(dest); err == nil || !os.IsNotExist(err) {
-		old_file_dest := dest + OLD_FILE_SUFFIX
-		if err = os.RemoveAll(old_file_dest); err != nil {
-			return errors.Wrapf(err, "failed to remove the %s", old_file_dest)
-		}
-		if err = os.Rename(dest, old_file_dest); err != nil {
-			return errors.Wrapf(err, "failed to rename the %s to %s", dest, old_file_dest)
+	_, err = os.Stat(dest)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			return err
 		}
 	} else {
-		return err
+		oldDest := dest + oldFileSuffix
+		if err = os.RemoveAll(oldDest); err != nil {
+			return errors.Wrapf(err, "failed to remove the %s", oldDest)
+		}
+		if err = os.Rename(dest, oldDest); err != nil {
+			return errors.Wrapf(err, "failed to rename the %s to %s", dest, oldDest)
+		}
 	}
 	target, err := os.OpenFile(dest, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0o755) //nolint:gomnd // executable file bitmask
 	if err != nil {
