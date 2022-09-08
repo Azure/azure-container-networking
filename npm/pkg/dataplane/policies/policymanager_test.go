@@ -172,7 +172,7 @@ func TestRemovePolicy(t *testing.T) {
 	defer ioshim.VerifyCalls(t, calls)
 	pMgr := NewPolicyManager(ioshim, ipsetConfig)
 	require.NoError(t, pMgr.AddPolicy(testNetPol, epList))
-	require.NoError(t, pMgr.RemovePolicy(testNetPol.PolicyKey, nil))
+	require.NoError(t, pMgr.RemovePolicy(testNetPol.PolicyKey))
 	_, ok := pMgr.GetPolicy(testNetPol.PolicyKey)
 	require.False(t, ok)
 	promVals{0, 1}.testPrometheusMetrics(t)
@@ -183,7 +183,7 @@ func TestRemoveNonexistentPolicy(t *testing.T) {
 	metrics.ReinitializeAll()
 	ioshim := common.NewMockIOShim(nil)
 	pMgr := NewPolicyManager(ioshim, ipsetConfig)
-	require.NoError(t, pMgr.RemovePolicy("wrong-policy-key", epList))
+	require.NoError(t, pMgr.RemovePolicy("wrong-policy-key"))
 	promVals{0, 0}.testPrometheusMetrics(t)
 }
 
