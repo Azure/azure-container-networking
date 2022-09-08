@@ -13,9 +13,10 @@ steps:
 
 - powershell: |
     echo "using tag ${{ parameters.tag }}"
-    powershell.exe -command "& { . .\build\scripts\windows.ps1; Retry({${{ parameters.name }}-image windows-${{ parameters.arch }}-${{ parameters.tag }}}) }"
+    . .\build\scripts\windows.ps1; ${{ parameters.name }}-image windows-${{ parameters.arch }}-${{ parameters.tag }} 
   name: image_build
   displayName: Image Build
+  retryCountOnTaskFailure: 3  
 
 - powershell: |
     $registry = "acnpublic.azurecr.io"

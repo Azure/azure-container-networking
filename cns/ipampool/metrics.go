@@ -78,6 +78,14 @@ var (
 		},
 		[]string{subnetLabel, subnetCIDRLabel, podnetARMIDLabel},
 	)
+	ipamPrimaryIPCount = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name:        "cx_ipam_primary_ips",
+			Help:        "NC Primary IP count.",
+			ConstLabels: prometheus.Labels{customerMetricLabel: customerMetricLabelValue},
+		},
+		[]string{subnetLabel, subnetCIDRLabel, podnetARMIDLabel},
+	)
 	ipamRequestedIPConfigCount = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name:        "cx_ipam_requested_ips",
@@ -106,6 +114,7 @@ func init() {
 		ipamMaxIPCount,
 		ipamPendingProgramIPCount,
 		ipamPendingReleaseIPCount,
+		ipamPrimaryIPCount,
 		ipamRequestedIPConfigCount,
 		ipamTotalIPCount,
 	)
@@ -120,6 +129,7 @@ func observeIPPoolState(state ipPoolState, meta metaState, labels []string) {
 	ipamMaxIPCount.WithLabelValues(labels...).Set(float64(meta.max))
 	ipamPendingProgramIPCount.WithLabelValues(labels...).Set(float64(state.pendingProgramming))
 	ipamPendingReleaseIPCount.WithLabelValues(labels...).Set(float64(state.pendingRelease))
+	ipamPrimaryIPCount.WithLabelValues(labels...).Set(float64(len(meta.primaryIPAddresses)))
 	ipamRequestedIPConfigCount.WithLabelValues(labels...).Set(float64(state.requestedIPs))
 	ipamTotalIPCount.WithLabelValues(labels...).Set(float64(state.totalIPs))
 }
