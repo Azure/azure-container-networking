@@ -90,10 +90,10 @@ func deploy(src, dest string) error {
 	if _, err := os.Stat(dest); err == nil || !os.IsNotExist(err) {
 		old_file_dest := dest + OLD_FILE_SUFFIX
 		if err = os.RemoveAll(old_file_dest); err != nil {
-			return errors.Wrapf(err, "not able to remove the %s", &old_file_dest)
+			return errors.Wrapf(err, "failed to remove the %s", old_file_dest)
 		}
 		if err = os.Rename(dest, old_file_dest); err != nil {
-			return errors.Wrapf(err, "not able to rename the %s to %s", dest, old_file_dest)
+			return errors.Wrapf(err, "failed to rename the %s to %s", dest, old_file_dest)
 		}
 	} else {
 		return err
