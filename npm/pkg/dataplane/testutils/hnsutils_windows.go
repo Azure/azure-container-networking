@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func addIPsToHNS(t *testing.T, hns *hnswrapper.Hnsv2wrapperFake, ipsToEndpoints map[string]string) {
+func AddIPsToHNS(t *testing.T, hns *hnswrapper.Hnsv2wrapperFake, ipsToEndpoints map[string]string) {
 	for ip, epID := range ipsToEndpoints {
 		ep := &hcn.HostComputeEndpoint{
 			Id:   epID,

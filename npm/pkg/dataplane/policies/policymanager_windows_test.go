@@ -76,7 +76,7 @@ func endpointIDListCopy() map[string]string {
 	return m
 }
 
-func TestZZZCompareAndRemovePolicies(t *testing.T) {
+func TestCompareAndRemovePolicies(t *testing.T) {
 	epbuilder := newEndpointPolicyBuilder()
 
 	testPol := &NPMACLPolSettings{
@@ -97,7 +97,7 @@ func TestZZZCompareAndRemovePolicies(t *testing.T) {
 	}
 }
 
-func TestZZZAddPolicies(t *testing.T) {
+func TestAddPolicies(t *testing.T) {
 	pMgr, hns := getPMgr(t)
 
 	// AddPolicy may modify the endpointIDList, so we need to pass a copy
@@ -118,7 +118,7 @@ func TestZZZAddPolicies(t *testing.T) {
 	}
 }
 
-func TestZZZRemovePolicies(t *testing.T) {
+func TestRemovePolicies(t *testing.T) {
 	pMgr, hns := getPMgr(t)
 
 	// AddPolicy may modify the endpointIDList, so we need to pass a copy
@@ -143,29 +143,41 @@ func TestZZZRemovePolicies(t *testing.T) {
 }
 
 func TestApplyPoliciesEndpointNotFound(t *testing.T) {
-	pMgr, _ := getPMgr(t)
+	pMgr, hns := getPMgr(t)
 	testendPointIDList := map[string]string{
 		"10.0.0.5": "test10",
 	}
 	err := pMgr.AddPolicy(TestNetworkPolicies[0], testendPointIDList)
 	require.NoError(t, err)
+	verifyACLCacheIsCleaned(t, hns, len(endPointIDList))
 }
 
 func TestRemovePoliciesEndpointNotFound(t *testing.T) {
 	pMgr, hns := getPMgr(t)
-	err := pMgr.AddPolicy(TestNetworkPolicies[0], endPointIDList)
+
+	// AddPolicy may modify the endpointIDList, so we need to pass a copy
+	err := pMgr.AddPolicy(TestNetworkPolicies[0], endpointIDListCopy())
 	require.NoError(t, err)
 
 	aclID := TestNetworkPolicies[0].ACLPolicyID
 
-	_, err = hns.Cache.ACLPolicies(endPointIDList, aclID)
+	aclPolicies, err := hns.Cache.ACLPolicies(endPointIDList, aclID)
 	require.NoError(t, err)
+
 	testendPointIDList := map[string]string{
 		"10.0.0.5": "test10",
 	}
 	err = pMgr.RemovePolicyForEndpoints(TestNetworkPolicies[0].PolicyKey, testendPointIDList)
 	require.NoError(t, err, err)
-	verifyACLCacheIsCleaned(t, hns, len(endPointIDList))
+
+	for _, id := range endPointIDList {
+		acls, ok := aclPolicies[id]
+		if !ok {
+			t.Errorf("Expected endpoint ID %s to have ACLs", id)
+		}
+		fmt.Printf("verifying ACLs on endpoint ID %s\n", id)
+		verifyFakeHNSCacheACLs(t, expectedACLs, acls)
+	}
 }
 
 // Helper functions for UTS
@@ -174,7 +186,13 @@ func getPMgr(t *testing.T) (*PolicyManager, *hnswrapper.Hnsv2wrapperFake) {
 	hns := ipsets.GetHNSFake(t)
 	io := common.NewMockIOShimWithFakeHNS(hns)
 
-	dptestutils.addIPsToHNS(t, hns, endPointIDList)
+	dptestutils.AddIPsToHNS(t, hns, endPointIDList)
+
+	// reset all policy PodEndpoints
+	for k := range TestNetworkPolicies {
+		TestNetworkPolicies[k].PodEndpoints = nil
+	}
+
 	return NewPolicyManager(io, ipsetConfig), hns
 }
 
