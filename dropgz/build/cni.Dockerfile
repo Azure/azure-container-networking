@@ -2,9 +2,11 @@ FROM mcr.microsoft.com/oss/cilium/cilium:1.12.1.1 as cilium
 
 FROM mcr.microsoft.com/oss/go/microsoft/golang:1.19 AS azure-ipam
 ARG VERSION
+ARG OS
+ARG ARCH
 WORKDIR /azure-ipam
 COPY ./azure-ipam .
-RUN CGO_ENABLED=0 go build -a -o bin/azure-ipam -trimpath -ldflags "-X main.version="$VERSION"" -gcflags="-dwarflocationlists=true" .
+RUN curl -LO https://github.com/Azure/azure-container-networking/releases/download/azure-ipam%2Fv0.0.2/azure-ipam-$OS-$ARCH-v0.0.2.tgz && tar -xvf azure-ipam-$OS-$ARCH-v0.0.2.tgz
 
 FROM mcr.microsoft.com/oss/go/microsoft/golang:1.19 AS azure-vnet
 ARG VERSION
@@ -19,7 +21,7 @@ ARG OS
 WORKDIR /dropgz
 COPY dropgz .
 COPY --from=azure-ipam /azure-ipam/*.conflist pkg/embed/fs
-COPY --from=azure-ipam /azure-ipam/bin/* pkg/embed/fs
+COPY --from=azure-ipam /azure-ipam/azure-ipam pkg/embed/fs
 COPY --from=azure-vnet /azure-container-networking/cni/azure-$OS-swift.conflist pkg/embed/fs/azure-swift.conflist
 COPY --from=azure-vnet /azure-container-networking/azure-vnet pkg/embed/fs
 COPY --from=azure-vnet /azure-container-networking/azure-vnet-telemetry pkg/embed/fs
