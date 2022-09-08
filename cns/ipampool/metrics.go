@@ -120,7 +120,8 @@ func init() {
 	)
 }
 
-func observeIPPoolState(state ipPoolState, meta metaState, labels []string) {
+func observeIPPoolState(state ipPoolState, meta metaState) {
+	labels := []string{meta.subnet, meta.subnetCIDR, meta.subnetARMID}
 	ipamAllocatedIPCount.WithLabelValues(labels...).Set(float64(state.allocatedToPods))
 	ipamAvailableIPCount.WithLabelValues(labels...).Set(float64(state.available))
 	ipamBatchSize.WithLabelValues(labels...).Set(float64(meta.batch))
