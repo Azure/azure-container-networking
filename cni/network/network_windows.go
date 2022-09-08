@@ -154,8 +154,13 @@ func (plugin *NetPlugin) getNetworkName(netNs string, ipamAddResult *IPAMAddResu
 	// This will happen during ADD call
 	if ipamAddResult != nil && ipamAddResult.ncResponse != nil {
 		// networkName will look like ~ azure-vlan1-172-28-1-0_24
-		subnet := ipamAddResult.ipv4Result.IPs[0].Address
-		networkName := strings.Replace(subnet.String(), ".", "-", -1)
+		ipAddrNet := ipamAddResult.ipv4Result.IPs[0].Address
+		_, ipNet, err := net.ParseCIDR(ipAddrNet.String())
+		if err != nil {
+			log.Printf("Error parsing network CIDR: %v.", err)
+			return "", err
+		}
+		networkName := strings.Replace(ipNet.String(), ".", "-", -1)
 		networkName = strings.Replace(networkName, "/", "_", -1)
 		networkName = fmt.Sprintf("%s-vlan%v-%v", nwCfg.Name, ipamAddResult.ncResponse.MultiTenancyInfo.ID, networkName)
 		return networkName, nil

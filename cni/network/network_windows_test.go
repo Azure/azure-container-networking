@@ -301,3 +301,59 @@ func TestDSRPolciy(t *testing.T) {
 		})
 	}
 }
+
+func TestGetNetworkNameFromCNS(t *testing.T) {
+	plugin, _ := cni.NewPlugin("name", "0.3.0")
+	tests := []struct {
+		name  			string
+		plugin      	*NetPlugin
+		netNs 			string
+		nwCfg 			*cni.NetworkConfig
+		ipamAddResult   *IPAMAddResult
+		want 			string
+	}{
+		{		
+			name: "Runtime network polices",
+			plugin: &NetPlugin{
+				Plugin:      plugin,
+				nm:          network.NewMockNetworkmanager(),
+				ipamInvoker: NewMockIpamInvoker(false, false, false),
+				report:      &telemetry.CNIReport{},
+				tb:          &telemetry.TelemetryBuffer{},
+			},
+			netNs: "net",
+			nwCfg: &cni.NetworkConfig{
+				CNIVersion:                 "0.3.0",
+				Name:                       "azure",
+				MultiTenancy:               true,
+			},
+			ipamAddResult:  &IPAMAddResult{
+				ncResponse:       &cns.GetNetworkContainerResponse{
+										MultiTenancyInfo: cns.MultiTenancyInfo{
+												ID: 1,
+										},
+				},
+				ipv4Result:       &cniTypesCurr.Result{
+						IPs: []*cniTypesCurr.IPConfig{
+						{
+								Address: net.IPNet{
+									IP:   net.ParseIP("10.240.0.5"),
+									Mask: net.CIDRMask(24, 32),
+								},
+						},
+					},
+				},
+			},
+			want: "azure-vlan1-10-240-0-0_24",
+		},
+	}
+	
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			networkName, err := tt.plugin.getNetworkName(tt.netNs, tt.ipamAddResult, tt.nwCfg)
+			require.NoError(t, err)
+			require.Equal(t, tt.want, networkName)
+		})
+	}
+}
