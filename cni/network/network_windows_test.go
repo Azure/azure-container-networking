@@ -305,15 +305,16 @@ func TestDSRPolciy(t *testing.T) {
 func TestGetNetworkNameFromCNS(t *testing.T) {
 	plugin, _ := cni.NewPlugin("name", "0.3.0")
 	tests := []struct {
-		name  			string
-		plugin      	*NetPlugin
-		netNs 			string
-		nwCfg 			*cni.NetworkConfig
-		ipamAddResult   *IPAMAddResult
-		want 			string
+		name          string
+		plugin        *NetPlugin
+		netNs         string
+		nwCfg         *cni.NetworkConfig
+		ipamAddResult *IPAMAddResult
+		want          string
+		wantErr       bool
 	}{
-		{		
-			name: "Runtime network polices",
+		{
+			name: "Get Network Name from CNS with correct CIDR",
 			plugin: &NetPlugin{
 				Plugin:      plugin,
 				nm:          network.NewMockNetworkmanager(),
@@ -323,37 +324,178 @@ func TestGetNetworkNameFromCNS(t *testing.T) {
 			},
 			netNs: "net",
 			nwCfg: &cni.NetworkConfig{
-				CNIVersion:                 "0.3.0",
-				Name:                       "azure",
-				MultiTenancy:               true,
+				CNIVersion:   "0.3.0",
+				Name:         "azure",
+				MultiTenancy: true,
 			},
-			ipamAddResult:  &IPAMAddResult{
-				ncResponse:       &cns.GetNetworkContainerResponse{
-										MultiTenancyInfo: cns.MultiTenancyInfo{
-												ID: 1,
-										},
+			ipamAddResult: &IPAMAddResult{
+				ncResponse: &cns.GetNetworkContainerResponse{
+					MultiTenancyInfo: cns.MultiTenancyInfo{
+						ID: 1,
+					},
 				},
-				ipv4Result:       &cniTypesCurr.Result{
-						IPs: []*cniTypesCurr.IPConfig{
+				ipv4Result: &cniTypesCurr.Result{
+					IPs: []*cniTypesCurr.IPConfig{
 						{
-								Address: net.IPNet{
-									IP:   net.ParseIP("10.240.0.5"),
-									Mask: net.CIDRMask(24, 32),
-								},
+							Address: net.IPNet{
+								IP:   net.ParseIP("10.240.0.5"),
+								Mask: net.CIDRMask(24, 32),
+							},
 						},
 					},
 				},
 			},
-			want: "azure-vlan1-10-240-0-0_24",
+			want:    "azure-vlan1-10-240-0-0_24",
+			wantErr: false,
+		},
+		{
+			name: "Get Network Name from CNS with malformed CIDR #1",
+			plugin: &NetPlugin{
+				Plugin:      plugin,
+				nm:          network.NewMockNetworkmanager(),
+				ipamInvoker: NewMockIpamInvoker(false, false, false),
+				report:      &telemetry.CNIReport{},
+				tb:          &telemetry.TelemetryBuffer{},
+			},
+			netNs: "net",
+			nwCfg: &cni.NetworkConfig{
+				CNIVersion:   "0.3.0",
+				Name:         "azure",
+				MultiTenancy: true,
+			},
+			ipamAddResult: &IPAMAddResult{
+				ncResponse: &cns.GetNetworkContainerResponse{
+					MultiTenancyInfo: cns.MultiTenancyInfo{
+						ID: 1,
+					},
+				},
+				ipv4Result: &cniTypesCurr.Result{
+					IPs: []*cniTypesCurr.IPConfig{
+						{
+							Address: net.IPNet{
+								IP:   net.ParseIP(""),
+								Mask: net.CIDRMask(24, 32),
+							},
+						},
+					},
+				},
+			},
+			want:    "",
+			wantErr: true,
+		},
+		{
+			name: "Get Network Name from CNS with malformed CIDR #2",
+			plugin: &NetPlugin{
+				Plugin:      plugin,
+				nm:          network.NewMockNetworkmanager(),
+				ipamInvoker: NewMockIpamInvoker(false, false, false),
+				report:      &telemetry.CNIReport{},
+				tb:          &telemetry.TelemetryBuffer{},
+			},
+			netNs: "net",
+			nwCfg: &cni.NetworkConfig{
+				CNIVersion:   "0.3.0",
+				Name:         "azure",
+				MultiTenancy: true,
+			},
+			ipamAddResult: &IPAMAddResult{
+				ncResponse: &cns.GetNetworkContainerResponse{
+					MultiTenancyInfo: cns.MultiTenancyInfo{
+						ID: 1,
+					},
+				},
+				ipv4Result: &cniTypesCurr.Result{
+					IPs: []*cniTypesCurr.IPConfig{
+						{
+							Address: net.IPNet{
+								IP:   net.ParseIP("10.0.00.6"),
+								Mask: net.CIDRMask(24, 32),
+							},
+						},
+					},
+				},
+			},
+			want:    "",
+			wantErr: true,
+		},
+		{
+			name: "Get Network Name from CNS without NetNS",
+			plugin: &NetPlugin{
+				Plugin:      plugin,
+				nm:          network.NewMockNetworkmanager(),
+				ipamInvoker: NewMockIpamInvoker(false, false, false),
+				report:      &telemetry.CNIReport{},
+				tb:          &telemetry.TelemetryBuffer{},
+			},
+			netNs: "",
+			nwCfg: &cni.NetworkConfig{
+				CNIVersion:   "0.3.0",
+				Name:         "azure",
+				MultiTenancy: true,
+			},
+			ipamAddResult: &IPAMAddResult{
+				ncResponse: &cns.GetNetworkContainerResponse{
+					MultiTenancyInfo: cns.MultiTenancyInfo{
+						ID: 1,
+					},
+				},
+				ipv4Result: &cniTypesCurr.Result{
+					IPs: []*cniTypesCurr.IPConfig{
+						{
+							Address: net.IPNet{
+								IP:   net.ParseIP("10.0.0.6"),
+								Mask: net.CIDRMask(24, 32),
+							},
+						},
+					},
+				},
+			},
+			want:    "",
+			wantErr: true,
+		},
+		{
+			name: "Get Network Name from CNS without multitenancy",
+			plugin: &NetPlugin{
+				Plugin:      plugin,
+				nm:          network.NewMockNetworkmanager(),
+				ipamInvoker: NewMockIpamInvoker(false, false, false),
+				report:      &telemetry.CNIReport{},
+				tb:          &telemetry.TelemetryBuffer{},
+			},
+			netNs: "azure",
+			nwCfg: &cni.NetworkConfig{
+				CNIVersion:   "0.3.0",
+				Name:         "azure",
+				MultiTenancy: false,
+			},
+			ipamAddResult: &IPAMAddResult{
+				ncResponse: &cns.GetNetworkContainerResponse{},
+				ipv4Result: &cniTypesCurr.Result{
+					IPs: []*cniTypesCurr.IPConfig{
+						{
+							Address: net.IPNet{
+								IP:   net.ParseIP("10.0.0.6"),
+								Mask: net.CIDRMask(24, 32),
+							},
+						},
+					},
+				},
+			},
+			want:    "azure",
+			wantErr: false,
 		},
 	}
-	
+
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			networkName, err := tt.plugin.getNetworkName(tt.netNs, tt.ipamAddResult, tt.nwCfg)
-			require.NoError(t, err)
-			require.Equal(t, tt.want, networkName)
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, tt.want, networkName)
+			}
 		})
 	}
 }
