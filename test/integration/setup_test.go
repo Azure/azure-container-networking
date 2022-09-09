@@ -89,8 +89,8 @@ func TestMain(m *testing.M) {
 }
 
 func installCNSDaemonset(ctx context.Context, clientset *kubernetes.Clientset, logDir string) (func() error, error) {
-	cniDropgzVersion := os.Getenv(envCNIDropgzVersion)
-	cnsVersion := os.Getenv(envCNSVersion)
+	cniDropgzVersion := os.Getenv(envCNIDropgzPlatformVersion)
+	cnsVersion := os.Getenv(envCNSPlatformVersion)
 
 	// setup daemonset
 	cns, err := mustParseDaemonSet(cnsDaemonSetPath)
