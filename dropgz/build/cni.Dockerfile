@@ -32,7 +32,6 @@ COPY --from=azure-vnet /azure-container-networking/cni/azure-$OS-swift.conflist 
 COPY --from=azure-vnet /azure-container-networking/azure-vnet pkg/embed/fs
 COPY --from=azure-vnet /azure-container-networking/azure-vnet-telemetry pkg/embed/fs
 COPY --from=azure-vnet /azure-container-networking/azure-vnet-ipam pkg/embed/fs
-COPY --from=mcr.microsoft.com/oss/cilium/cilium:1.12.1.1 /opt/cni/bin/cilium-cni pkg/embed/fs
 RUN cd pkg/embed/fs/ && sha256sum * > sum.txt
 RUN gzip --verbose --best --recursive pkg/embed/fs && for f in pkg/embed/fs/*.gz; do mv -- "$f" "${f%%.gz}"; done
 
