@@ -11,7 +11,7 @@ ARG ARCH
 WORKDIR /azure-ipam
 COPY ./azure-ipam .
 COPY --from=certs /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
-RUN curl -LO --cacert /etc/ssl/certs/ca-certificates.crt https://github.com/Azure/azure-container-networking/releases/download/azure-ipam%2Fv0.0.2/azure-ipam-$OS-$ARCH-v0.0.2.tgz && tar -xvf azure-ipam-$OS-$ARCH-v0.0.2.tgz
+RUN curl -LO --cacert /etc/ssl/certs/ca-certificates.crt https://github.com/Azure/azure-container-networking/releases/download/azure-ipam%2Fv0.0.3/azure-ipam-$OS-$ARCH-v0.0.3.tgz && tar -xvf azure-ipam-$OS-$ARCH-v0.0.3.tgz
 
 FROM tar AS azure-vnet
 ARG VERSION
