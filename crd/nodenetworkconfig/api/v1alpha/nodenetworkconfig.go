@@ -92,19 +92,22 @@ const (
 type NetworkContainer struct {
 	ID string `json:"id,omitempty"`
 	// +kubebuilder:default=dynamic
-	AssignmentMode     AssignmentMode `json:"assignmentMode,omitempty"`
-	Type               NCType         `json:"type,omitempty"`
-	PrimaryIP          string         `json:"primaryIP,omitempty"`
-	SubnetName         string         `json:"subnetName,omitempty"`
-	IPAssignments      []IPAssignment `json:"ipAssignments,omitempty"`
-	DefaultGateway     string         `json:"defaultGateway,omitempty"`
-	SubnetAddressSpace string         `json:"subnetAddressSpace,omitempty"`
-	Version            int64          `json:"version,omitempty"`
-	NodeIP             string         `json:"nodeIP,omitempty"`
-	SubscriptionID     string         `json:"subcriptionID,omitempty"`
-	ResourceGroupID    string         `json:"resourceGroupID,omitempty"`
-	VNETID             string         `json:"vnetID,omitempty"`
-	SubnetID           string         `json:"subnetID,omitempty"`
+	AssignmentMode       AssignmentMode `json:"assignmentMode,omitempty"`
+	Type                 NCType         `json:"type,omitempty"`
+	PrimaryIP            string         `json:"primaryIP,omitempty"`
+	PrimaryIPv6          *string        `json:"primaryIPv6,omitempty"`
+	SubnetName           string         `json:"subnetName,omitempty"`
+	Subnetv6Name         string         `json:"subnetv6Name,omitempty"`
+	IPAssignments        []IPAssignment `json:"ipAssignments,omitempty"`
+	DefaultGateway       string         `json:"defaultGateway,omitempty"`
+	SubnetAddressSpace   string         `json:"subnetAddressSpace,omitempty"`
+	Subnetv6AddressSpace string         `json:"subnetv6AddressSpace,omitempty"`
+	Version              int64          `json:"version,omitempty"`
+	NodeIP               string         `json:"nodeIP,omitempty"`
+	SubscriptionID       string         `json:"subcriptionID,omitempty"`
+	ResourceGroupID      string         `json:"resourceGroupID,omitempty"`
+	VNETID               string         `json:"vnetID,omitempty"`
+	SubnetID             string         `json:"subnetID,omitempty"`
 }
 
 // IPAssignment groups an IP address and Name. Name is a UUID set by the the IP address assigner.
