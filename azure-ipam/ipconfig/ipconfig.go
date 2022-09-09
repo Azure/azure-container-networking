@@ -39,7 +39,7 @@ func CreateIPConfigReq(args *cniSkel.CmdArgs) (cns.IPConfigRequest, error) {
 }
 
 // ProcessIPConfigResp processes the IPConfigResponse from the CNS.
-func ProcessIPConfigResp(resp *cns.IPConfigResponse) (*netip.Prefix, *netip.Addr, error) {
+func ProcessIPConfigResp(resp *cns.IPConfigResponse) (*netip.Prefix, error) {
 	podCIDR := fmt.Sprintf(
 		"%s/%d",
 		resp.PodIpInfo.PodIPConfig.IPAddress,
@@ -47,16 +47,10 @@ func ProcessIPConfigResp(resp *cns.IPConfigResponse) (*netip.Prefix, *netip.Addr
 	)
 	podIPNet, err := netip.ParsePrefix(podCIDR)
 	if err != nil {
-		return nil, nil, errors.Wrapf(err, "cns returned invalid pod CIDR %q", podCIDR)
+		return nil, errors.Wrapf(err, "cns returned invalid pod CIDR %q", podCIDR)
 	}
 
-	ncGatewayIPAddress := resp.PodIpInfo.NetworkContainerPrimaryIPConfig.GatewayIPAddress
-	gwIP, err := netip.ParseAddr(ncGatewayIPAddress)
-	if err != nil {
-		return nil, nil, errors.Wrapf(err, "cns returned an invalid gateway address %q", ncGatewayIPAddress)
-	}
-
-	return &podIPNet, &gwIP, nil
+	return &podIPNet, nil
 }
 
 type k8sPodEnvArgs struct {
