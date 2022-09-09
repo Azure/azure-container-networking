@@ -95,6 +95,52 @@ func CreateNCRequestFromStaticNC(nc v1alpha.NetworkContainer) (*cns.CreateNetwor
 			NCVersion: int(nc.Version),
 		}
 	}
+
+	// Check to see if there is a v6 Ip in the struct denoting a dualstack container
+	if nc.PrimaryIPv6 != nil {
+		primaryIPv6 := *nc.PrimaryIPv6
+		primaryPrefix, err := netip.ParsePrefix(primaryIPv6)
+		if err != nil {
+			return nil, errors.Wrapf(err, "IPv6: %s", primaryIPv6)
+		}
+
+		subnetPrefix, err := netip.ParsePrefix(nc.Subnetv6AddressSpace)
+		if err != nil {
+			return nil, errors.Wrapf(err, "invalid Subnetv6AddressSpace %s", nc.Subnetv6AddressSpace)
+		}
+		subnetv6 := cns.IPSubnet{
+			IPAddress:    primaryPrefix.Addr().String(),
+			PrefixLength: uint8(subnetPrefix.Bits()),
+		}
+
+		secondaryIPConfigsv6 := map[string]cns.SecondaryIPConfig{}
+
+		// iterate through all IP addresses in the ipv6 subnet described by primaryPrefix and
+		// add them to the request as secondary IPConfigs.
+		for addr := primaryPrefix.Masked().Addr(); primaryPrefix.Contains(addr); addr = addr.Next() {
+			secondaryIPConfigsv6[addr.String()] = cns.SecondaryIPConfig{
+				IPAddress: addr.String(),
+				NCVersion: int(nc.Version),
+			}
+		}
+
+		return &cns.CreateNetworkContainerRequest{
+			SecondaryIPConfigs:   secondaryIPConfigs,
+			SecondaryIPConfigsv6: secondaryIPConfigsv6,
+			NetworkContainerid:   nc.ID,
+			NetworkContainerType: cns.Docker,
+			Version:              strconv.FormatInt(nc.Version, 10), //nolint:gomnd // it's decimal
+			IPConfiguration: cns.IPConfiguration{
+				IPSubnet:         subnet,
+				GatewayIPAddress: nc.DefaultGateway,
+			},
+			IPConfigurationv6: cns.IPConfiguration{
+				IPSubnet:         subnetv6,
+				GatewayIPAddress: nc.DefaultGateway,
+			},
+		}, nil
+
+	}
 	return &cns.CreateNetworkContainerRequest{
 		SecondaryIPConfigs:   secondaryIPConfigs,
 		NetworkContainerid:   nc.ID,
@@ -105,4 +151,5 @@ func CreateNCRequestFromStaticNC(nc v1alpha.NetworkContainer) (*cns.CreateNetwor
 			GatewayIPAddress: nc.DefaultGateway,
 		},
 	}, nil
+
 }
