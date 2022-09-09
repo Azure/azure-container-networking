@@ -124,7 +124,7 @@ func TestRemovePolicies(t *testing.T) {
 		verifyFakeHNSCacheACLs(t, expectedACLs, acls)
 	}
 
-	err = pMgr.RemovePolicy(TestNetworkPolicies[0].PolicyKey, nil)
+	err = pMgr.RemovePolicy(TestNetworkPolicies[0].PolicyKey)
 	require.NoError(t, err)
 	verifyACLCacheIsCleaned(t, hns, len(endPointIDList))
 }
@@ -150,7 +150,7 @@ func TestRemovePoliciesEndpointNotFound(t *testing.T) {
 	testendPointIDList := map[string]string{
 		"10.0.0.5": "test10",
 	}
-	err = pMgr.RemovePolicy(TestNetworkPolicies[0].PolicyKey, testendPointIDList)
+	err = pMgr.RemovePolicyForEndpoints(TestNetworkPolicies[0].PolicyKey, testendPointIDList)
 	require.NoError(t, err, err)
 	verifyACLCacheIsCleaned(t, hns, len(endPointIDList))
 }

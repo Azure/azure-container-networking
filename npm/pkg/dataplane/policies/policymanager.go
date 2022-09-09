@@ -36,6 +36,7 @@ type PolicyManagerCfg struct {
 }
 
 type PolicyMap struct {
+	sync.RWMutex
 	cache map[string]*NPMNetworkPolicy
 }
 
@@ -44,6 +45,12 @@ type reconcileManager struct {
 	releaseLockSignal chan struct{}
 }
 
+// PolicyManager has two locks.
+// The PolicyMap lock is used only in Windows to prevent concurrent write access to the PolicyMap
+// from both the NetPol Controller thread and the PodController thread, accessed respectively from
+// dataplane.AddPolicy()/dataplane.RemovePolicy(), and dataplane.ApplyDataplane() --> dataplane.updatePod().
+// In Linux, the reconcileManager's lock is used to avoid iptables contention for adding/removing policies versus
+// background cleanup of stale, ineffective chains.
 type PolicyManager struct {
 	policyMap        *PolicyMap
 	ioShim           *common.IOShim
@@ -85,22 +92,18 @@ func (pMgr *PolicyManager) Reconcile() {
 	pMgr.reconcile()
 }
 
-func (pMgr *PolicyManager) GetAllPolicies() []string {
-	policyKeys := make([]string, len(pMgr.policyMap.cache))
-	i := 0
-	for policyKey := range pMgr.policyMap.cache {
-		policyKeys[i] = policyKey
-		i++
-	}
-	return policyKeys
-}
-
 func (pMgr *PolicyManager) PolicyExists(policyKey string) bool {
+	pMgr.policyMap.RLock()
+	defer pMgr.policyMap.RUnlock()
+
 	_, ok := pMgr.policyMap.cache[policyKey]
 	return ok
 }
 
 func (pMgr *PolicyManager) GetPolicy(policyKey string) (*NPMNetworkPolicy, bool) {
+	pMgr.policyMap.RLock()
+	defer pMgr.policyMap.RUnlock()
+
 	policy, ok := pMgr.policyMap.cache[policyKey]
 	return policy, ok
 }
@@ -118,19 +121,27 @@ func (pMgr *PolicyManager) AddPolicy(policy *NPMNetworkPolicy, endpointList map[
 		return npmerrors.Errorf(npmerrors.AddPolicy, false, msg)
 	}
 
+	pMgr.policyMap.Lock()
+	defer pMgr.policyMap.Unlock()
+
 	// Call actual dataplane function to apply changes
 	timer := metrics.StartNewTimer()
 	err := pMgr.addPolicy(policy, endpointList)
 	metrics.RecordACLRuleExecTime(timer) // record execution time regardless of failure
 	if err != nil {
 		// NOTE: in Linux, Prometheus metrics may be off at this point since some ACL rules may have been applied successfully
+		// In Windows, Prometheus metrics may be off at this point since we don't know how many endpoints had rules applied successfully.
 		msg := fmt.Sprintf("failed to add policy: %s", err.Error())
 		metrics.SendErrorLogAndMetric(util.IptmID, "error: %s", msg)
 		return npmerrors.Errorf(npmerrors.AddPolicy, false, msg)
 	}
 
 	// update Prometheus metrics on success
-	metrics.IncNumACLRulesBy(policy.numACLRulesProducedInKernel())
+	numEndpoints := 1
+	if util.IsWindowsDP() {
+		numEndpoints = len(endpointList)
+	}
+	metrics.IncNumACLRulesBy(policy.numACLRulesProducedInKernel() * numEndpoints)
 
 	pMgr.policyMap.cache[policy.PolicyKey] = policy
 	return nil
@@ -140,7 +151,7 @@ func (pMgr *PolicyManager) isFirstPolicy() bool {
 	return len(pMgr.policyMap.cache) == 0
 }
 
-func (pMgr *PolicyManager) RemovePolicy(policyKey string, endpointList map[string]string) error {
+func (pMgr *PolicyManager) RemovePolicy(policyKey string) error {
 	policy, ok := pMgr.GetPolicy(policyKey)
 
 	if !ok {
@@ -151,20 +162,59 @@ func (pMgr *PolicyManager) RemovePolicy(policyKey string, endpointList map[strin
 		klog.Infof("[DataPlane] No ACLs in policy %s to remove", policyKey)
 		return nil
 	}
+
+	pMgr.policyMap.Lock()
+	defer pMgr.policyMap.Unlock()
+
 	// Call actual dataplane function to apply changes
-	err := pMgr.removePolicy(policy, endpointList)
+	err := pMgr.removePolicy(policy, nil)
 	// currently we only have acl rule exec time for "adding" rules, so we skip recording here
 	if err != nil {
-		// NOTE: in Linux, Prometheus metrics may be off at this point since some ACL rules may have been applied successfully
+		// NOTE: in Linux, Prometheus metrics may be off at this point since some ACL rules may have been applied successfully.
+		// In Windows, Prometheus metrics may be off at this point since we don't know how many endpoints had rules applied successfully.
 		msg := fmt.Sprintf("failed to remove policy: %s", err.Error())
 		metrics.SendErrorLogAndMetric(util.IptmID, "error: %s", msg)
 		return npmerrors.Errorf(npmerrors.RemovePolicy, false, msg)
 	}
 
 	// update Prometheus metrics on success
-	metrics.DecNumACLRulesBy(policy.numACLRulesProducedInKernel())
+	numEndpoints := 1
+	if util.IsWindowsDP() {
+		numEndpoints = len(policy.PodEndpoints)
+	}
+	metrics.DecNumACLRulesBy(policy.numACLRulesProducedInKernel() * numEndpoints)
 
+	// remove policy from cache
 	delete(pMgr.policyMap.cache, policyKey)
+	return nil
+}
+
+// RemovePolicyForEndpoints is identical to RemovePolicy except it will not remove the policy from the cache.
+// This function is intended for Windows only.
+func (pMgr *PolicyManager) RemovePolicyForEndpoints(policyKey string, endpointList map[string]string) error {
+	policy, ok := pMgr.GetPolicy(policyKey)
+
+	if !ok {
+		return nil
+	}
+
+	if len(policy.ACLs) == 0 {
+		klog.Infof("[DataPlane] No ACLs in policy %s to remove for endpoints", policyKey)
+		return nil
+	}
+	// Call actual dataplane function to apply changes
+	err := pMgr.removePolicy(policy, endpointList)
+	// currently we only have acl rule exec time for "adding" rules, so we skip recording here
+	if err != nil {
+		// NOTE: Prometheus metrics may be off at this point since we don't know how many endpoints had rules applied successfully.
+		msg := fmt.Sprintf("failed to remove policy. endpoints: [%+v]. err: [%s]", endpointList, err.Error())
+		metrics.SendErrorLogAndMetric(util.IptmID, "error: %s", msg)
+		return npmerrors.Errorf(npmerrors.RemovePolicy, false, msg)
+	}
+
+	// update Prometheus metrics on success
+	metrics.DecNumACLRulesBy(policy.numACLRulesProducedInKernel() * len(endpointList))
+
 	return nil
 }
 

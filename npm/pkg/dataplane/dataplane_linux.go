@@ -6,7 +6,7 @@ import (
 )
 
 func (dp *DataPlane) getEndpointsToApplyPolicy(policy *policies.NPMNetworkPolicy) (map[string]string, error) {
-	// NOOP in Linux at the moment
+	// NOOP in Linux
 	return nil, nil
 }
 
@@ -14,8 +14,8 @@ func (dp *DataPlane) shouldUpdatePod() bool {
 	return false
 }
 
-// updatePod is no-op in Linux
 func (dp *DataPlane) updatePod(pod *updateNPMPod) error {
+	// NOOP in Linux
 	return nil
 }
 
@@ -27,5 +27,10 @@ func (dp *DataPlane) bootupDataPlane() error {
 	if err := dp.ipsetMgr.ResetIPSets(); err != nil {
 		return npmerrors.ErrorWrapper(npmerrors.BootupDataplane, false, "failed to reset ipsets dataplane", err)
 	}
+	return nil
+}
+
+func (dp *DataPlane) refreshAllPodEndpoints() error {
+	// NOOP in Linux
 	return nil
 }

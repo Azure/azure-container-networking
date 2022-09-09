@@ -80,12 +80,12 @@ func (p *IPAMPlugin) CmdAdd(args *cniSkel.CmdArgs) error {
 	p.logger.Debug("Received CNS IP config response", zap.Any("response", resp))
 
 	// Get Pod IP and gateway IP from ip config response
-	podIPNet, gwIP, err := ipconfig.ProcessIPConfigResp(resp)
+	podIPNet, err := ipconfig.ProcessIPConfigResp(resp)
 	if err != nil {
 		p.logger.Error("Failed to interpret CNS IPConfigResponse", zap.Error(err), zap.Any("response", resp))
 		return cniTypes.NewError(ErrProcessIPConfigResponse, err.Error(), "failed to interpret CNS IPConfigResponse")
 	}
-	p.logger.Debug("Parsed pod IP and gateway IP", zap.String("podIPNet", podIPNet.String()), zap.String("gwIP", gwIP.String()))
+	p.logger.Debug("Parsed pod IP", zap.String("podIPNet", podIPNet.String()))
 
 	cniResult := &types100.Result{
 		IPs: []*types100.IPConfig{
@@ -94,16 +94,6 @@ func (p *IPAMPlugin) CmdAdd(args *cniSkel.CmdArgs) error {
 					IP:   net.ParseIP(podIPNet.Addr().String()),
 					Mask: net.CIDRMask(podIPNet.Bits(), 32), // nolint
 				},
-				Gateway: net.ParseIP(gwIP.String()),
-			},
-		},
-		Routes: []*cniTypes.Route{
-			{
-				Dst: net.IPNet{
-					IP:   net.IPv4zero,
-					Mask: net.IPv4Mask(0, 0, 0, 0),
-				},
-				GW: net.ParseIP(gwIP.String()),
 			},
 		},
 	}

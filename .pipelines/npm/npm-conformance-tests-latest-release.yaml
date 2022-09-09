@@ -27,7 +27,9 @@ jobs:
           mkdir -p '$(GOPATH)/pkg'
           BUILD_NUMBER=$(Build.BuildNumber)
           RG=e2e-$(echo "npm-`date "+%Y-%m-%d-%S"`")
-          TAG=$(make npm-version)
+
+          git --version
+          TAG=$(git -c "versionsort.suffix=-" ls-remote --tags https://github.com/Azure/azure-container-networking  | grep -v "zapai" | grep -v "ipam" | grep -v "{}"| cut --delimiter="/" --fields=3 | sort -V | tail -1)
           echo "Resource group: $RG"
           echo "Image tag: $TAG"
 
@@ -37,45 +39,6 @@ jobs:
         name: "EnvironmentalVariables"
         displayName: "Set environmental variables"
         condition: always()
-
-  - job: containerize
-    dependsOn: [setup]
-    displayName: Build Images
-    variables:
-      TAG: $[ dependencies.setup.outputs['EnvironmentalVariables.TAG'] ]
-    pool:
-      name: "$(BUILD_POOL_NAME_DEFAULT)"
-    strategy:
-      matrix:
-        npm_linux_amd64:
-          arch: amd64
-          os: linux
-          name: npm
-    steps:
-      - template: ../containers/container-template.yaml
-        parameters:
-          name: $(name)
-          os: $(os)
-          arch: $(arch)
-
-  - job: containerize_windows
-    dependsOn: [setup]
-    displayName: Build Images
-    variables:
-      TAG: $[ dependencies.setup.outputs['EnvironmentalVariables.TAG'] ]
-    pool:
-      name: "$(BUILD_POOL_NAME_DEFAULT_WINDOWS)"
-    strategy:
-      matrix:
-        npm_windows_amd64:
-          arch: amd64
-          name: npm
-    steps:
-      - template: ../containers/container-template-windows.yaml
-        parameters:
-          name: $(name)
-          arch: $(arch)
-          tag: $(TAG)
 
   - job: k8se2e
     displayName: "Build Kubernetes Test Suite"
@@ -108,10 +71,6 @@ jobs:
     displayName: "Run Kubernetes Network Policy Test Suite"
     strategy:
       matrix:
-        v1-default:
-          AZURE_CLUSTER: "conformance-v1-default"
-          PROFILE: "v1-default"
-          IS_STRESS_TEST: "false"
         v2-default:
           AZURE_CLUSTER: "conformance-v2-default"
           PROFILE: "v2-default"
@@ -120,16 +79,12 @@ jobs:
           AZURE_CLUSTER: "conformance-v2-default-ws22"
           PROFILE: "v2-default-ws22"
           IS_STRESS_TEST: "false"
-        v2-default-stress:
-          AZURE_CLUSTER: "conformance-v2-default-stress"
-          PROFILE: "v2-default"
-          IS_STRESS_TEST: "true"
     pool:
       name: $(BUILD_POOL_NAME_DEFAULT)
       demands:
         - agent.os -equals Linux
         - Role -equals Build
-    dependsOn: [setup, k8se2e, containerize, containerize_windows]
+    dependsOn: [setup, k8se2e]
     variables:
       RESOURCE_GROUP: $[ dependencies.setup.outputs['EnvironmentalVariables.RESOURCE_GROUP'] ]
       TAG: $[ dependencies.setup.outputs['EnvironmentalVariables.TAG'] ]
@@ -372,7 +327,7 @@ jobs:
       demands:
         - agent.os -equals Linux
         - Role -equals Build
-    dependsOn: [containerize_windows, setup]
+    dependsOn: [setup]
     variables:
       RESOURCE_GROUP: $[ dependencies.setup.outputs['EnvironmentalVariables.RESOURCE_GROUP'] ]
       TAG: $[ dependencies.setup.outputs['EnvironmentalVariables.TAG'] ]
@@ -383,8 +338,8 @@ jobs:
           PROFILE: "cyc-ws22"
     steps:
       - checkout: self
-      - download: current
-        artifact: Test
+      - download: none
+
       - task: AzureCLI@2
         displayName: "Create AKS Cluster"
         inputs:

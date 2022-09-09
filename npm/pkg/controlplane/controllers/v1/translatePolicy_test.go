@@ -642,7 +642,6 @@ func TestTranslateIngress(t *testing.T) {
 		},
 	}
 
-	util.IsNewNwPolicyVerFlag = true
 	sets, _, lists, _, iptEntries := translateIngress(ns, name, targetSelector, rules)
 	expectedSets := []string{
 		"context:dev",
@@ -925,7 +924,6 @@ func TestTranslateEgress(t *testing.T) {
 		},
 	}
 
-	util.IsNewNwPolicyVerFlag = true
 	sets, _, lists, _, iptEntries := translateEgress(ns, name, targetSelector, rules)
 	expectedSets := []string{
 		"context:dev",
@@ -1788,7 +1786,6 @@ func TestAllowNsDevAndAppBackendToAppFrontend(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	util.IsNewNwPolicyVerFlag = true
 	sets, _, lists, _, _, iptEntries := translatePolicy(allowNsDevAndBackendToFrontendPolicy)
 
 	expectedSets := []string{
@@ -2399,8 +2396,6 @@ func TestAllowMultiplePodSelectors(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	util.IsNewNwPolicyVerFlag = true
 
 	sets, _, lists, _, _, iptEntries := translatePolicy(multiPodSlector)
 

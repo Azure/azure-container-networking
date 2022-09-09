@@ -136,7 +136,11 @@ func (iMgr *IPSetManager) GetSelectorReferencesBySet(setName string) (map[string
 			fmt.Sprintf("[ipset manager] selector ipset %s does not exist", setName))
 	}
 	set := iMgr.setMap[setName]
-	return set.SelectorReference, nil
+	m := make(map[string]struct{}, len(set.SelectorReference))
+	for r := range set.SelectorReference {
+		m[r] = struct{}{}
+	}
+	return m, nil
 }
 
 func (iMgr *IPSetManager) validateSelectorIPSets(setList map[string]struct{}) error {

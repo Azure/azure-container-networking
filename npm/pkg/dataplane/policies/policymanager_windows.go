@@ -144,6 +144,7 @@ func (pMgr *PolicyManager) removePolicy(policy *NPMNetworkPolicy, endpointList m
 	if err != nil {
 		return err
 	}
+	// FIXME rulesToRemove is a list of pointers
 	klog.Infof("[PolicyManagerWindows] To Remove Policy: %s \n To Delete ACLs: %+v \n To Remove From %+v endpoints", policy.PolicyKey, rulesToRemove, endpointList)
 	// If remove bug is solved we can directly remove the exact policy from the endpoint
 	// but if the bug is not solved then get all existing policies and remove relevant policies from list
@@ -204,6 +205,7 @@ func (pMgr *PolicyManager) removePolicyByEndpointID(ruleID, epID string, noOfRul
 			return nil
 		}
 	}
+	// FIXME epBuilder.aclPolicies is a list of pointers
 	klog.Infof("[DataPlanewindows] Epbuilder ACL policies before removing %+v", epBuilder.aclPolicies)
 	klog.Infof("[DataPlanewindows] Epbuilder Other policies before removing %+v", epBuilder.otherPolicies)
 	epPolicies, err := epBuilder.getHCNPolicyRequest()
@@ -246,6 +248,7 @@ func getEPPolicyReqFromACLSettings(settings []*NPMACLPolSettings) (hcn.PolicyEnd
 	}
 
 	for i, acl := range settings {
+		// FIXME a lot of prints
 		klog.Infof("Acl settings: %+v", acl)
 		byteACL, err := json.Marshal(acl)
 		if err != nil {
