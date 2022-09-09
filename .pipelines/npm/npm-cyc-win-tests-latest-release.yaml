@@ -178,7 +178,7 @@ jobs:
           ./test/cyclonus/test-cyclonus-windows.sh
         name: cyclonus
         displayName: "Run Cyclonus Test"
-        failOnStderr: false
+        failOnStderr: true
         condition: always()
 
       - bash: |
