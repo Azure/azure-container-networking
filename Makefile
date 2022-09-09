@@ -162,6 +162,19 @@ npm-version:
 zapai-version: ## prints the zapai version
 	@echo $(ZAPAI_VERSION)
 
+acncli-platform-tag: ## prints the acncli platform tag
+	@echo $(ACNCLI_PLATFORM_TAG)
+
+cni-dropgz-platform-tag: ## prints the cni-dropgz platform tag
+	@echo $(CNI_DROPGZ_PLATFORM_TAG)
+
+cns-platform-tag: ## prints the cns platform tag
+	@echo $(CNS_PLATFORM_TAG)
+
+npm-platform-tag: ## prints the npm platform tag
+	@echo $(NPM_PLATFORM_TAG)
+	
+
 ##@ Binaries 
 
 # Build the delegated IPAM plugin binary.

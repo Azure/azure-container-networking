@@ -16,8 +16,8 @@ import (
 const (
 	exitFail = 1
 
-	envCNIDropgzVersion = "CNI_DROPGZ_VERSION"
-	envCNSVersion       = "CNS_VERSION"
+	envCNIDropgzPlatformVersion = "CNI_DROPGZ_PLATFORM_VERSION"
+	envCNSPlatformVersion       = "CNS_PLATFORM_VERSION"
 	envInstallCNS       = "INSTALL_CNS"
 	envInstallAzilium   = "INSTALL_AZILIUM"
 	envInstallAzureVnet = "INSTALL_AZURE_VNET"
