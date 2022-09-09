@@ -665,8 +665,8 @@ test-all: ## run all unit tests.
 
 
 test-integration: ## run all integration tests.
-	CNI_DROPGZ_VERSION=$(CNI_DROPGZ_VERSION) \
-		CNS_VERSION=$(CNS_VERSION) \
+	CNI_DROPGZ_VERSION=$(CNI_DROPGZ_PLATFORM_TAG) \
+		CNS_VERSION=$(CNS_PLATFORM_TAG) \
 		go test -buildvcs=false -timeout 1h -coverpkg=./... -race -covermode atomic -coverprofile=coverage.out -tags=integration ./test/integration...
 
 test-cyclonus: ## run the cyclonus test for npm.
