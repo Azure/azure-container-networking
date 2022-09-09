@@ -186,7 +186,7 @@ jobs:
                   --node-vm-size Standard_D4s_v3 \
                   --node-count 1
 
-              if [ $? == 0 ]
+              if [ $? != 0 ]
               then
               echo "Failing fast since previous command failed"
               exit 1
@@ -200,7 +200,7 @@ jobs:
                 -n nodepool1 \
                 --node-taints CriticalAddonsOnly=true:NoSchedule
 
-              if [ $? == 0 ]
+              if [ $? != 0 ]
               then
               echo "Failing fast since previous command failed"
               exit 1
@@ -216,7 +216,7 @@ jobs:
                   --node-vm-size Standard_D4s_v3 \
                   --node-count 2
 
-              if [ $? == 0 ]
+              if [ $? != 0 ]
               then
               echo "Failing fast since previous command failed"
               exit 1
@@ -233,7 +233,7 @@ jobs:
               --name $(AZURE_CLUSTER) \
               --network-plugin azure
 
-              if [ $? == 0 ]
+              if [ $? != 0 ]
               then
               echo "Failing fast since previous command failed"
               exit 1
@@ -254,7 +254,7 @@ jobs:
 
             ./kubectl --kubeconfig=./kubeconfig describe daemonset azure-npm -n kube-system
 
-            if [ $? == 0 ]
+            if [ $? != 0 ]
             then
             echo "Failing fast since previous command failed"
             exit 1
