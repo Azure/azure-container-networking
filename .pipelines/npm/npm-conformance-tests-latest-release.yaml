@@ -209,11 +209,11 @@ jobs:
 
             ./kubectl --kubeconfig=./kubeconfig describe daemonset azure-npm -n kube-system
 
-              if [ $? == 0 ]
-              then
-              echo "Failing fast since previous command failed"
-              exit 1
-              fi
+            if [ $? == 0 ]
+            then
+            echo "Failing fast since previous command failed"
+            exit 1
+            fi
 
             FQDN=`az aks show -n $(AZURE_CLUSTER) -g $(RESOURCE_GROUP) --query fqdn -o tsv`
             echo "##vso[task.setvariable variable=FQDN]$FQDN"
