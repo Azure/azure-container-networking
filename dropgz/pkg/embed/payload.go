@@ -87,12 +87,8 @@ func deploy(src, dest string) error {
 		return err
 	}
 	defer rc.Close()
-	_, err = os.Stat(dest)
-	if err != nil {
-		if !os.IsNotExist(err) {
-			return err
-		}
-	} else {
+	// check if the file exists at dest already and rename it as an old one
+	if _, err := os.Stat(dest); err == nil {
 		oldDest := dest + oldFileSuffix
 		if err = os.Rename(dest, oldDest); err != nil {
 			return errors.Wrapf(err, "failed to rename the %s to %s", dest, oldDest)
