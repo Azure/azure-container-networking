@@ -17,10 +17,10 @@ spec:
   versions:
   - additionalPrinterColumns:
     - jsonPath: .status.exhausted
-      name: Timestamp
+      name: Exhausted
       type: string
     - jsonPath: .spec.timestamp
-      name: Status
+      name: Updated
       type: string
     name: v1alpha1
     schema:
@@ -42,13 +42,13 @@ spec:
           status:
             description: ClusterSubnetStateStatus defines the observed state of ClusterSubnetState
             properties:
-              Exhausted:
+              exhausted:
                 type: boolean
-              Timestamp:
+              timestamp:
                 type: string
             required:
-            - Exhausted
-            - Timestamp
+            - exhausted
+            - timestamp
             type: object
         type: object
     served: true

@@ -680,7 +680,14 @@ $(REPO_ROOT)/.git/hooks/pre-push:
 
 install-hooks: $(REPO_ROOT)/.git/hooks/pre-push ## installs git hooks
 
-setup: tools install-hooks workspace ## performs common required repo setup
+gitconfig: ## configure the local git repository
+	@git config commit.gpgsign true
+	@git config pull.rebase true
+	@git config fetch.prune true
+	@git config core.fsmonitor true
+	@git config core.untrackedcache true
+
+setup: tools install-hooks gitconfig ## performs common required repo setup
 
 
 ##@ Tools 
