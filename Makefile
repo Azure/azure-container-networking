@@ -368,7 +368,7 @@ npm-image-windows: ## build the npm container windows image.
 	$(MKDIR) $(IMAGE_DIR); 
 	docker build \
 	--no-cache \
-	-f cns/windows.Dockerfile \
+	-f npm/windows.Dockerfile \
 	-t $(IMAGE_REGISTRY)/$(NPM_IMAGE)-win:$(NPM_PLATFORM_TAG) \
 	--build-arg VERSION=$(NPM_VERSION) \
 	--build-arg NPM_AI_PATH=$(NPM_AI_PATH) \
