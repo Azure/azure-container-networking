@@ -141,6 +141,12 @@ jobs:
                   --node-vm-size Standard_D4s_v3 \
                   --node-count 1
 
+              if [ $? != 0 ]
+              then
+              echo "Failing fast since previous command failed"
+              exit 1
+              fi
+
               # don't schedule anything on the linux system pool
               echo "Updating $(AZURE_CLUSTER) to not schedule anything on linux pool..."
               az aks nodepool update \
@@ -148,6 +154,12 @@ jobs:
                 -g $(RESOURCE_GROUP) \
                 -n nodepool1 \
                 --node-taints CriticalAddonsOnly=true:NoSchedule
+
+              if [ $? != 0 ]
+              then
+              echo "Failing fast since previous command failed"
+              exit 1
+              fi
 
               echo "Adding Windows nodepool to $(AZURE_CLUSTER) to group $(RESOURCE_GROUP)"
               az aks nodepool add \
@@ -159,6 +171,12 @@ jobs:
                   --node-vm-size Standard_D4s_v3 \
                   --node-count 2
 
+              if [ $? != 0 ]
+              then
+              echo "Failing fast since previous command failed"
+              exit 1
+              fi
+
               az aks get-credentials -n $(AZURE_CLUSTER) -g $(RESOURCE_GROUP) --file ./kubeconfig
               ./kubectl --kubeconfig=./kubeconfig apply -f https://raw.githubusercontent.com/Azure/azure-container-networking/master/npm/examples/windows/azure-npm.yaml
               ./kubectl --kubeconfig=./kubeconfig set image daemonset/azure-npm-win -n kube-system azure-npm=$IMAGE_REGISTRY/azure-npm:windows-amd64-$(TAG)
@@ -169,6 +187,12 @@ jobs:
               --resource-group $(RESOURCE_GROUP) \
               --name $(AZURE_CLUSTER) \
               --network-plugin azure
+
+              if [ $? != 0 ]
+              then
+              echo "Failing fast since previous command failed"
+              exit 1
+              fi
 
               az aks get-credentials -n $(AZURE_CLUSTER) -g $(RESOURCE_GROUP) --file ./kubeconfig
 
@@ -184,6 +208,12 @@ jobs:
             fi
 
             ./kubectl --kubeconfig=./kubeconfig describe daemonset azure-npm -n kube-system
+
+            if [ $? != 0 ]
+            then
+            echo "Failing fast since previous command failed"
+            exit 1
+            fi
 
             FQDN=`az aks show -n $(AZURE_CLUSTER) -g $(RESOURCE_GROUP) --query fqdn -o tsv`
             echo "##vso[task.setvariable variable=FQDN]$FQDN"
