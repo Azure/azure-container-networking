@@ -177,13 +177,7 @@ func k8sServerVersion(kubeclientset kubernetes.Interface) *k8sversion.Info {
 	}
 
 	if err != nil {
-		metrics.SendErrorLogAndMetric(util.NpmID, "Error: failed to retrieving kubernetes version")
-		panic(err.Error)
-	}
-
-	if err = util.SetIsNewNwPolicyVerFlag(serverVersion); err != nil {
-		metrics.SendErrorLogAndMetric(util.NpmID, "Error: failed to set IsNewNwPolicyVerFlag")
-		panic(err.Error)
+		metrics.SendErrorLogAndMetric(util.NpmID, "Error: failed to retrieving kubernetes version with err: %s", err.Error())
 	}
 	return serverVersion
 }

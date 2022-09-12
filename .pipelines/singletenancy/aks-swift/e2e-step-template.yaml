@@ -20,10 +20,6 @@ steps:
     name: "GoEnv"
     displayName: "Set up the Go environment"
 
-  - bash: |
-      echo $(Tag)
-    displayName: Echo Tag
-
   - task: AzureCLI@1
     inputs:
       azureSubscription: $(AZURE_TEST_AGENT_SERVICE_CONNECTION)
@@ -38,6 +34,20 @@ steps:
         echo "Cluster successfully created"
     displayName: Create test cluster
     condition: succeeded()
+
+  - script: |
+      echo "install kubetest2 and gsutils"
+      go get github.com/onsi/ginkgo/ginkgo
+      go get github.com/onsi/gomega/...
+      go install github.com/onsi/ginkgo/ginkgo@latest
+      go install sigs.k8s.io/kubetest2@latest
+      go install sigs.k8s.io/kubetest2/kubetest2-noop@latest
+      go install sigs.k8s.io/kubetest2/kubetest2-tester-ginkgo@latest
+      wget https://storage.googleapis.com/pub/gsutil.tar.gz
+      tar xfz gsutil.tar.gz
+      sudo mv gsutil /usr/local/bin
+    name: "installKubetest"
+    displayName: "Set up Conformance Tests"
   
   - script: |
       ls -lah
@@ -47,7 +57,7 @@ steps:
       sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
       kubectl cluster-info
       kubectl get po -owide -A
-      sudo -E env "PATH=$PATH" VERSION=$(Tag) INSTALL_CNS=true INSTALL_AZURE_VNET=true make test-integration
+      sudo -E env "PATH=$PATH" make test-integration CNS_VERSION=$(make cns-version) CNI_DROPGZ_VERSION=$(make cni-dropgz-version) INSTALL_CNS=true INSTALL_AZURE_VNET=true
     retryCountOnTaskFailure: 3
     name: "aksswifte2e"
     displayName: "Run AKS Swift E2E"
@@ -68,6 +78,15 @@ steps:
       artifactName: aks-swift-output
       pathtoPublish: "$(Build.ArtifactStagingDirectory)/aks-swift-output"
     condition: always()
+
+  - script: |
+      echo "Run Service Conformance E2E"
+      export PATH=${PATH}:/usr/local/bin/gsutil
+      KUBECONFIG=~/.kube/config kubetest2 noop \
+        --test ginkgo -- \
+        --focus-regex "Services.*\[Conformance\].*"
+    name: "servicesConformance"
+    displayName: "Run Services Conformance Tests"
 
   - script: |
       ARTIFACT_DIR=$(Build.ArtifactStagingDirectory)/aks-swift-output/

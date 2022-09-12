@@ -58,6 +58,7 @@ func (pMgr *PolicyManager) reconcile() {
 
 // addPolicy will add the policy for each specified endpoint if the policy doesn't exist on the endpoint yet,
 // and will add the endpoint to the PodEndpoints of the policy if successful.
+// addPolicy may modify the endpointList input.
 func (pMgr *PolicyManager) addPolicy(policy *NPMNetworkPolicy, endpointList map[string]string) error {
 	if len(endpointList) == 0 {
 		klog.Infof("[PolicyManagerWindows] No Endpoints to apply policy %s on", policy.PolicyKey)
@@ -144,6 +145,7 @@ func (pMgr *PolicyManager) removePolicy(policy *NPMNetworkPolicy, endpointList m
 	if err != nil {
 		return err
 	}
+	// FIXME rulesToRemove is a list of pointers
 	klog.Infof("[PolicyManagerWindows] To Remove Policy: %s \n To Delete ACLs: %+v \n To Remove From %+v endpoints", policy.PolicyKey, rulesToRemove, endpointList)
 	// If remove bug is solved we can directly remove the exact policy from the endpoint
 	// but if the bug is not solved then get all existing policies and remove relevant policies from list
@@ -174,8 +176,9 @@ func (pMgr *PolicyManager) removePolicy(policy *NPMNetworkPolicy, endpointList m
 func (pMgr *PolicyManager) removePolicyByEndpointID(ruleID, epID string, noOfRulesToRemove int, resetAllACL shouldResetAllACLs) error {
 	epObj, err := pMgr.ioShim.Hns.GetEndpointByID(epID)
 	if err != nil {
-		if isNotFoundErr(err) {
-			klog.Infof("[PolicyManagerWindows] ignoring remove policy on endpoint since the endpoint wasn't found. the corresponding pod was most likely deleted. policy: %s, endpoint: %s", ruleID, epID)
+		// IsNotFound check is being skipped at times. So adding a redundant check here.
+		if isNotFoundErr(err) || strings.Contains(err.Error(), "endpoint was not found") {
+			klog.Infof("[PolicyManagerWindows] ignoring remove policy since the endpoint wasn't found. the corresponding pod might be deleted. policy: %s, endpoint: %s, err: %s", ruleID, epID, err.Error())
 			return nil
 		}
 		return fmt.Errorf("[PolicyManagerWindows] failed to remove policy while getting the endpoint. policy: %s, endpoint: %s, err: %w", ruleID, epID, err)
@@ -203,6 +206,7 @@ func (pMgr *PolicyManager) removePolicyByEndpointID(ruleID, epID string, noOfRul
 			return nil
 		}
 	}
+	// FIXME epBuilder.aclPolicies is a list of pointers
 	klog.Infof("[DataPlanewindows] Epbuilder ACL policies before removing %+v", epBuilder.aclPolicies)
 	klog.Infof("[DataPlanewindows] Epbuilder Other policies before removing %+v", epBuilder.otherPolicies)
 	epPolicies, err := epBuilder.getHCNPolicyRequest()
@@ -221,9 +225,10 @@ func (pMgr *PolicyManager) removePolicyByEndpointID(ruleID, epID string, noOfRul
 func (pMgr *PolicyManager) applyPoliciesToEndpointID(epID string, policies hcn.PolicyEndpointRequest) error {
 	epObj, err := pMgr.ioShim.Hns.GetEndpointByID(epID)
 	if err != nil {
-		if isNotFoundErr(err) {
+		// IsNotFound check is being skipped at times. So adding a redundant check here.
+		if isNotFoundErr(err) || strings.Contains(err.Error(), "endpoint was not found") {
 			// unlikely scenario where an endpoint is deleted right after we refresh HNS endpoints, or an unlikely scenario where an endpoint is deleted right after we refresh HNS endpoints
-			metrics.SendErrorLogAndMetric(util.IptmID, "[PolicyManagerWindows] ignoring apply policies to endpoint since the endpoint wasn't found. endpoint: %s", epID)
+			metrics.SendErrorLogAndMetric(util.IptmID, "[PolicyManagerWindows] ignoring apply policies to endpoint since the endpoint wasn't found. endpoint: %s, err: %s", epID, err.Error())
 			return nil
 		}
 		return fmt.Errorf("[PolicyManagerWindows] to apply policies while getting the endpoint. endpoint: %s, err: %w", epID, err)
@@ -244,6 +249,7 @@ func getEPPolicyReqFromACLSettings(settings []*NPMACLPolSettings) (hcn.PolicyEnd
 	}
 
 	for i, acl := range settings {
+		// FIXME a lot of prints
 		klog.Infof("Acl settings: %+v", acl)
 		byteACL, err := json.Marshal(acl)
 		if err != nil {

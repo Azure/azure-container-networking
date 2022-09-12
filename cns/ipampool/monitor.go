@@ -178,9 +178,9 @@ type ipPoolState struct {
 	totalIPs int64
 }
 
-func buildIPPoolState(ips map[string]cns.IPConfigurationStatus, spec v1alpha.NodeNetworkConfigSpec, primaryIPAddresses map[string]struct{}) ipPoolState {
+func buildIPPoolState(ips map[string]cns.IPConfigurationStatus, spec v1alpha.NodeNetworkConfigSpec) ipPoolState {
 	state := ipPoolState{
-		totalIPs:     int64(len(primaryIPAddresses) + len(ips)),
+		totalIPs:     int64(len(ips)),
 		requestedIPs: spec.RequestedIPCount,
 	}
 	for _, v := range ips {
@@ -205,20 +205,20 @@ var statelogDownsample int
 func (pm *Monitor) reconcile(ctx context.Context) error {
 	allocatedIPs := pm.httpService.GetPodIPConfigState()
 	meta := pm.metastate
-	state := buildIPPoolState(allocatedIPs, pm.spec, meta.primaryIPAddresses)
+	state := buildIPPoolState(allocatedIPs, pm.spec)
 	observeIPPoolState(state, meta, []string{subnet, subnetCIDR, subnetARMID})
+
+	// log every 30th reconcile to reduce the AI load. we will always log when the monitor
+	// changes the pool, below.
+	if statelogDownsample = (statelogDownsample + 1) % 30; statelogDownsample == 0 { //nolint:gomnd //downsample by 30
+		logger.Printf("ipam-pool-monitor state: %+v, meta: %+v", state, meta)
+	}
 
 	// if the subnet is exhausted, overwrite the batch/minfree/maxfree in the meta copy for this iteration
 	if meta.exhausted {
 		meta.batch = 1
 		meta.minFreeCount = 1
 		meta.maxFreeCount = 2
-	}
-
-	// log every 30th reconcile to reduce the AI load. we will always log when the monitor
-	// changes the pool, below.
-	if statelogDownsample = (statelogDownsample + 1) % 30; statelogDownsample == 0 { //nolint:gomnd //downsample by 30
-		logger.Printf("ipam-pool-monitor state %+v", state)
 	}
 
 	switch {

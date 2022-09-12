@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strconv"
 	"sync"
+	"time"
 
 	"github.com/microsoft/ApplicationInsights-Go/appinsights"
 	"github.com/pkg/errors"
@@ -13,7 +14,9 @@ import (
 )
 
 type traceEncoder interface {
+	zapcore.ObjectEncoder
 	encode(*appinsights.TraceTelemetry) ([]byte, error)
+	setTraceTelemetry(*appinsights.TraceTelemetry)
 }
 
 type traceDecoder interface {
@@ -31,10 +34,126 @@ type traceDecoder interface {
 // Encoders and Decoders also need to be matched up 1:1, as the first thing an Encoder sends (once!) is type data, and
 // it is an error for a Decoder to receive the same type data from its stream more than once.
 type gobber struct {
-	encoder *gob.Encoder
-	decoder *gob.Decoder
-	buffer  *bytes.Buffer
+	encoder        *gob.Encoder
+	decoder        *gob.Decoder
+	buffer         *bytes.Buffer
+	traceTelemetry *appinsights.TraceTelemetry
+	keyPrefix      string
 	sync.Mutex
+}
+
+func (g *gobber) AddObject(key string, marshaler zapcore.ObjectMarshaler) error {
+	curPrefix := g.keyPrefix
+	if len(g.keyPrefix) == 0 {
+		g.keyPrefix = key
+	} else {
+		g.keyPrefix = g.keyPrefix + "_" + key
+	}
+	marshaler.MarshalLogObject(g)
+	g.keyPrefix = curPrefix
+	return nil
+}
+
+func (g *gobber) AddString(key, value string) {
+	g.traceTelemetry.Properties[g.keyPrefix+"_"+key] = value
+}
+
+func (g *gobber) AddBool(key string, value bool) {
+	g.traceTelemetry.Properties[g.keyPrefix+"_"+key] = strconv.FormatBool(value)
+}
+
+func (g *gobber) AddInt(key string, value int) {
+	g.traceTelemetry.Properties[g.keyPrefix+"_"+key] = strconv.Itoa(value)
+}
+
+func (g *gobber) AddInt64(key string, value int64) {
+	g.traceTelemetry.Properties[g.keyPrefix+"_"+key] = strconv.FormatInt(value, 10)
+}
+
+func (g *gobber) AddUint16(key string, value uint16) {
+	g.traceTelemetry.Properties[g.keyPrefix+"_"+key] = strconv.FormatUint(uint64(value), 10)
+}
+
+func (g *gobber) AddArray(_ string, _ zapcore.ArrayMarshaler) error {
+	// TODO to be implemented
+	return nil
+}
+
+func (g *gobber) AddBinary(_ string, _ []byte) {
+	// TODO to be implemented
+}
+
+func (g *gobber) AddByteString(_ string, _ []byte) {
+	// TODO to be implemented
+}
+
+func (g *gobber) AddComplex128(_ string, _ complex128) {
+	// TODO to be implemented
+}
+
+func (g *gobber) AddComplex64(_ string, _ complex64) {
+	// TODO to be implemented
+}
+
+func (g *gobber) AddDuration(_ string, _ time.Duration) {
+	// TODO to be implemented
+}
+
+func (g *gobber) AddFloat64(_ string, _ float64) {
+	// TODO to be implemented
+}
+
+func (g *gobber) AddFloat32(_ string, _ float32) {
+	// TODO to be implemented
+}
+
+func (g *gobber) AddInt32(_ string, _ int32) {
+	// TODO to be implemented
+}
+
+func (g *gobber) AddInt16(_ string, _ int16) {
+	// TODO to be implemented
+}
+
+func (g *gobber) AddInt8(_ string, _ int8) {
+	// TODO to be implemented
+}
+
+func (g *gobber) AddTime(_ string, _ time.Time) {
+	// TODO to be implemented
+}
+
+func (g *gobber) AddUint(_ string, _ uint) {
+	// TODO to be implemented
+}
+
+func (g *gobber) AddUint64(_ string, _ uint64) {
+	// TODO to be implemented
+}
+
+func (g *gobber) AddUint32(_ string, _ uint32) {
+	// TODO to be implemented
+}
+
+func (g *gobber) AddUint8(_ string, _ uint8) {
+	// TODO to be implemented
+}
+
+func (g *gobber) AddUintptr(_ string, _ uintptr) {
+	// TODO to be implemented
+}
+
+func (g *gobber) AddReflected(_ string, _ interface{}) error {
+	// TODO to be implemented
+	return nil
+}
+
+func (g *gobber) OpenNamespace(_ string) {
+	// TODO to be implemented
+}
+
+func (g *gobber) setTraceTelemetry(traceTelemetry *appinsights.TraceTelemetry) {
+	g.traceTelemetry = traceTelemetry
 }
 
 // newTraceEncoder creates a gobber that can only encode.
