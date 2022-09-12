@@ -223,6 +223,7 @@ func (service *HTTPRestService) Init(config *common.ServiceConfig) error {
 	listener.AddHandler(cns.PathDebugIPAddresses, service.handleDebugIPAddresses)
 	listener.AddHandler(cns.PathDebugPodContext, service.handleDebugPodContext)
 	listener.AddHandler(cns.PathDebugRestData, service.handleDebugRestData)
+	listener.AddHandler(cns.NetworkContainersURLPath, service.getOrRefreshNetworkContainers)
 
 	// handlers for v0.2
 	listener.AddHandler(cns.V2Prefix+cns.SetEnvironmentPath, service.setEnvironment)
