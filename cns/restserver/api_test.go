@@ -852,38 +852,38 @@ func TestGetNetworkContainers(t *testing.T) {
 		setEnv(t)
 		err := setOrchestratorType(t, cns.Kubernetes)
 		if err != nil {
-			t.Errorf("TestGetNetworkContainers failed Err:%+v", err)
+			t.Errorf("TestGetNetworkContainers failed with error:%+v", err)
 			t.Fatal(err)
 		}
 
 		for i := 0; i < len(ncParams); i++ {
 			err = createOrUpdateNetworkContainerWithParams(t, ncParams[i])
 			if err != nil {
-				t.Errorf("createOrUpdateNetworkContainerWithParams failed Err:%+v", err)
+				t.Errorf("createOrUpdateNetworkContainerWithParams failed with error:%+v", err)
 				t.Fatal(err)
 			}
 		}
 
-		err = getAllNetworkContainers(t, ncParams)
+		err = getAllNetworkContainers(ncParams)
 		if err != nil {
-			t.Errorf("TestGetNetworkContainers failed Err:%+v", err)
+			t.Errorf("TestGetNetworkContainers failed with error:%+v", err)
 			t.Fatal(err)
 		}
 
 		for i := 0; i < len(ncParams); i++ {
 			err = deleteNetworkContainerWithParams(t, ncParams[i])
 			if err != nil {
-				t.Errorf("createOrUpdateNetworkContainerWithParams failed Err:%+v", err)
+				t.Errorf("createOrUpdateNetworkContainerWithParams failed with error:%+v", err)
 				t.Fatal(err)
 			}
 		}
 	})
 }
 
-func getAllNetworkContainers(t *testing.T, ncParams []createOrUpdateNetworkContainerParams) error {
-	req, err := http.NewRequest(http.MethodGet, cns.NetworkContainersURLPath, nil)
+func getAllNetworkContainers(ncParams []createOrUpdateNetworkContainerParams) error {
+	req, err := http.NewRequest(http.MethodGet, cns.NetworkContainersURLPath, http.NoBody)
 	if err != nil {
-		t.Fatal(err)
+		return err
 	}
 
 	w := httptest.NewRecorder()
@@ -892,18 +892,16 @@ func getAllNetworkContainers(t *testing.T, ncParams []createOrUpdateNetworkConta
 	var resp cns.GetAllNetworkContainersResponse
 	err = decodeResponse(w, &resp)
 	if err != nil || resp.Response.ReturnCode != types.Success || len(resp.NetworkContainers) != len(ncParams) {
-		t.Errorf("GetNetworkContainers failed with response %+v Err:%+v", resp, err)
-		t.Fatal(err)
+		return fmt.Errorf("GetNetworkContainers failed with response %+v Err:%+v", resp, err)
 	}
 
 	for i := 0; i < len(ncParams); i++ {
 		if resp.NetworkContainers[i].NetworkContainerID != (cns.SwiftPrefix + ncParams[i].ncID) {
-			t.Errorf("GetNetworkContainers failed")
-			t.Fatal(err)
+			return fmt.Errorf("GetNetworkContainers failed")
 		}
 	}
 
-	fmt.Printf("GetNetworkContainers succeded with response %+v, raw:%+v\n", resp, w.Body)
+	fmt.Printf("GetNetworkContainers succeeded with response %+v, raw:%+v\n", resp, w.Body)
 	return nil
 }
 
@@ -916,13 +914,13 @@ func TestPostNetworkContainers(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		err = postAllNetworkContainers(t, ncParams)
+		err = postAllNetworkContainers(ncParams)
 		if err != nil {
 			t.Errorf("Failed to save all network containers due to error: %+v", err)
 			t.Fatal(err)
 		}
 
-		err = getAllNetworkContainers(t, ncParams)
+		err = getAllNetworkContainers(ncParams)
 		if err != nil {
 			t.Errorf("TestPostNetworkContainers failed Err:%+v", err)
 			t.Fatal(err)
@@ -938,12 +936,15 @@ func TestPostNetworkContainers(t *testing.T) {
 	})
 }
 
-func postAllNetworkContainers(t *testing.T, ncParams []createOrUpdateNetworkContainerParams) error {
+func postAllNetworkContainers(ncParams []createOrUpdateNetworkContainerParams) error {
 	var ipConfig cns.IPConfiguration
 	ipConfig.DNSServers = []string{"8.8.8.8", "8.8.4.4"}
 	ipConfig.GatewayIPAddress = "11.0.0.1"
 	podInfo := cns.KubernetesPodInfo{PodName: "testpod", PodNamespace: "testpodnamespace"}
-	ctx, _ := json.Marshal(podInfo)
+	ctx, err := json.Marshal(podInfo)
+	if err != nil {
+		return fmt.Errorf("postAllNetworkContainers failed with error:%+v", err)
+	}
 	createReq := make([]cns.CreateNetworkContainerRequest, len(ncParams))
 	postReq := cns.PostNetworkContainersRequest{CreateNetworkContainerRequests: createReq}
 
@@ -964,29 +965,27 @@ func postAllNetworkContainers(t *testing.T, ncParams []createOrUpdateNetworkCont
 	}
 
 	var body bytes.Buffer
-	err := json.NewEncoder(&body).Encode(postReq)
+	err = json.NewEncoder(&body).Encode(postReq)
 	if err != nil {
-		return err
+		return fmt.Errorf("postAllNetworkContainers failed with error:%+v", err)
 	}
 
-	req, err := http.NewRequest(http.MethodPost, cns.NetworkContainersURLPath, &body)
+	req, err := http.NewRequestWithContext(context.TODO(), http.MethodPost, cns.NetworkContainersURLPath, &body)
 	if err != nil {
-		t.Fatal(err)
+		return fmt.Errorf("postAllNetworkContainers failed with error:%+v", err)
 	}
 
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
-
 	var resp cns.PostNetworkContainersResponse
 	err = decodeResponse(w, &resp)
 	fmt.Printf("Raw response: %+v", w.Body)
 
 	if err != nil || resp.Response.ReturnCode != types.Success {
-		t.Errorf("Post Network Containers failed with response %+v Err:%+v", resp, err)
-		t.Fatal(err)
+		return fmt.Errorf("post Network Containers failed with response %+v Err:%+v", resp, err)
 	}
-
 	fmt.Printf("Post Network Containers succeeded with response %+v\n", resp)
+
 	return nil
 }
 
