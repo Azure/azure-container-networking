@@ -2009,3 +2009,139 @@ func TestGetHTTPServiceData(t *testing.T) {
 		})
 	}
 }
+
+func TestNumberOfCPUCores(t *testing.T) {
+	emptyRoutes, _ := buildRoutes(defaultBaseURL, clientPaths)
+	tests := []struct {
+		name      string
+		shouldErr bool
+		exp       *cns.NumOfCPUCoresResponse
+	}{
+		{
+			"happy path",
+			false,
+			&cns.NumOfCPUCoresResponse{
+				Response: cns.Response{
+					ReturnCode: 0,
+					Message:    "success",
+				},
+				NumOfCPUCores: 42,
+			},
+		},
+		{
+			"unspecified error",
+			true,
+			&cns.NumOfCPUCoresResponse{
+				Response: cns.Response{
+					ReturnCode: types.MalformedSubnet,
+					Message:    "malformed subnet",
+				},
+				NumOfCPUCores: 0,
+			},
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			client := &Client{
+				client: &mockdo{
+					errToReturn:            nil,
+					objToReturn:            test.exp,
+					httpStatusCodeToReturn: http.StatusOK,
+				},
+				routes: emptyRoutes,
+			}
+
+			got, err := client.NumOfCPUCores(context.Background())
+			if err != nil && !test.shouldErr {
+				t.Fatal("unexpected error: err:", err)
+			}
+
+			if err == nil && test.shouldErr {
+				t.Fatal("expected an error but received none")
+			}
+
+			if !test.shouldErr && !cmp.Equal(got, test.exp) {
+				t.Error("received response differs from expectation: diff:", cmp.Diff(got, test.exp))
+			}
+		})
+	}
+}
+
+func TestNMASupportedAPIs(t *testing.T) {
+	emptyRoutes, _ := buildRoutes(defaultBaseURL, clientPaths)
+	tests := []struct {
+		name      string
+		shouldErr bool
+		respCode  int
+		exp       *cns.NmAgentSupportedApisResponse
+	}{
+		{
+			"happy",
+			false,
+			http.StatusOK,
+			&cns.NmAgentSupportedApisResponse{
+				Response: cns.Response{
+					ReturnCode: 0,
+					Message:    "success",
+				},
+				SupportedApis: []string{},
+			},
+		},
+		{
+			"unspecified error",
+			true,
+			http.StatusOK,
+			&cns.NmAgentSupportedApisResponse{
+				Response: cns.Response{
+					ReturnCode: types.MalformedSubnet,
+					Message:    "malformed subnet",
+				},
+				SupportedApis: []string{},
+			},
+		},
+		{
+			"not found",
+			true,
+			http.StatusNotFound,
+			nil,
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			client := &Client{
+				client: &mockdo{
+					errToReturn:            nil,
+					objToReturn:            test.exp,
+					httpStatusCodeToReturn: test.respCode,
+				},
+				routes: emptyRoutes,
+			}
+
+			got, err := client.NMAgentSupportedAPIs(context.Background())
+			if err != nil && !test.shouldErr {
+				t.Fatal("unexpected error: err:", err)
+			}
+
+			if err == nil && test.shouldErr {
+				t.Fatal("expected an error but received none")
+			}
+
+			// there should always be a response when there's no error
+			if err == nil && got == nil {
+				t.Fatal("expected a response but received none")
+			}
+
+			if !test.shouldErr && !cmp.Equal(got, test.exp) {
+				t.Error("received response differs from expectation: diff:", cmp.Diff(got, test.exp))
+			}
+		})
+	}
+}
