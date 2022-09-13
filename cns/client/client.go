@@ -37,6 +37,8 @@ var clientPaths = []string{
 	cns.PublishNetworkContainer,
 	cns.CreateOrUpdateNetworkContainer,
 	cns.SetOrchestratorType,
+	cns.NumberOfCPUCores,
+	cns.NMAgentSupportedAPIs,
 }
 
 type do interface {
@@ -416,6 +418,42 @@ func (c *Client) GetHTTPServiceData(ctx context.Context) (*restserver.GetHTTPSer
 	return &resp, nil
 }
 
+// NumOfCPUCores returns the number of CPU cores available on the host that
+// CNS is running on.
+func (c *Client) NumOfCPUCores(ctx context.Context) (*cns.NumOfCPUCoresResponse, error) {
+	// build the request
+	u := c.routes[cns.NumberOfCPUCores]
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), http.NoBody)
+	if err != nil {
+		return nil, errors.Wrap(err, "building http request")
+	}
+
+	// submit the request
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return nil, errors.Wrap(err, "sending HTTP request")
+	}
+	defer resp.Body.Close()
+
+	// decode the response
+	var out cns.NumOfCPUCoresResponse
+	err = json.NewDecoder(resp.Body).Decode(&out)
+	if err != nil {
+		return nil, errors.Wrap(err, "decoding response as JSON")
+	}
+
+	// if the return code is non-zero, something went wrong and it should be
+	// surfaced to the caller
+	if out.Response.ReturnCode != 0 {
+		return nil, &CNSClientError{
+			Code: out.Response.ReturnCode,
+			Err:  errors.New(out.Response.Message),
+		}
+	}
+
+	return &out, nil
+}
+
 // DeleteNetworkContainer destroys the requested network container matching the
 // provided ID.
 func (c *Client) DeleteNetworkContainer(ctx context.Context, ncID string) error {
@@ -434,7 +472,7 @@ func (c *Client) DeleteNetworkContainer(ctx context.Context, ncID string) error 
 		return errors.Wrap(err, "encoding request body")
 	}
 	u := c.routes[cns.DeleteNetworkContainer]
-	req, err := http.NewRequest(http.MethodPost, u.String(), bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, u.String(), bytes.NewReader(body))
 	if err != nil {
 		return errors.Wrap(err, "building HTTP request")
 	}
@@ -488,7 +526,7 @@ func (c *Client) SetOrchestratorType(ctx context.Context, sotr cns.SetOrchestrat
 		return errors.Wrap(err, "encoding request body")
 	}
 	u := c.routes[cns.SetOrchestratorType]
-	req, err := http.NewRequest(http.MethodPost, u.String(), bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, u.String(), bytes.NewReader(body))
 	if err != nil {
 		return errors.Wrap(err, "building HTTP request")
 	}
@@ -537,7 +575,7 @@ func (c *Client) CreateNetworkContainer(ctx context.Context, cncr cns.CreateNetw
 		return errors.Wrap(err, "encoding request as JSON")
 	}
 	u := c.routes[cns.CreateOrUpdateNetworkContainer]
-	req, err := http.NewRequest(http.MethodPost, u.String(), bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, u.String(), bytes.NewReader(body))
 	if err != nil {
 		return errors.Wrap(err, "building HTTP request")
 	}
@@ -585,7 +623,7 @@ func (c *Client) PublishNetworkContainer(ctx context.Context, pncr cns.PublishNe
 		return errors.Wrap(err, "encoding request body as json")
 	}
 	u := c.routes[cns.PublishNetworkContainer]
-	req, err := http.NewRequest(http.MethodPost, u.String(), bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, u.String(), bytes.NewReader(body))
 	if err != nil {
 		return errors.Wrap(err, "building HTTP request")
 	}
@@ -631,7 +669,7 @@ func (c *Client) UnpublishNC(ctx context.Context, uncr cns.UnpublishNetworkConta
 		return errors.Wrap(err, "encoding request body as json")
 	}
 	u := c.routes[cns.UnpublishNetworkContainer]
-	req, err := http.NewRequest(http.MethodPost, u.String(), bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, u.String(), bytes.NewReader(body))
 	if err != nil {
 		return errors.Wrap(err, "building HTTP request")
 	}
@@ -658,4 +696,57 @@ func (c *Client) UnpublishNC(ctx context.Context, uncr cns.UnpublishNetworkConta
 
 	// ...otherwise the request was successful so
 	return nil
+}
+
+// NMAgentSupportedAPIs returns the supported API names from NMAgent. This can
+// be used, for example, to detect whether the node is capable for GRE
+// allocations.
+func (c *Client) NMAgentSupportedAPIs(ctx context.Context) (*cns.NmAgentSupportedApisResponse, error) {
+	// build the request
+	reqBody := &cns.NmAgentSupportedApisRequest{
+		// the IP used below is that of the Wireserver
+		GetNmAgentSupportedApisURL: "http://168.63.129.16/machine/plugins/?comp=nmagent&type=GetSupportedApis",
+	}
+
+	body, err := json.Marshal(reqBody)
+	if err != nil {
+		return nil, errors.Wrap(err, "encoding request body")
+	}
+
+	u := c.routes[cns.NMAgentSupportedAPIs]
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), bytes.NewReader(body))
+	if err != nil {
+		return nil, errors.Wrap(err, "building http request")
+	}
+
+	// submit the request
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return nil, errors.Wrap(err, "sending http request")
+	}
+	defer resp.Body.Close()
+
+	if code := resp.StatusCode; code != http.StatusOK {
+		return nil, &FailedHTTPRequest{
+			Code: code,
+		}
+	}
+
+	// decode response
+	var out cns.NmAgentSupportedApisResponse
+	err = json.NewDecoder(resp.Body).Decode(&out)
+	if err != nil {
+		return nil, errors.Wrap(err, "decoding response body")
+	}
+
+	// if there was a non-zero status code, that indicates an error and should be
+	// communicated as such
+	if out.Response.ReturnCode != 0 {
+		return nil, &CNSClientError{
+			Code: out.Response.ReturnCode,
+			Err:  errors.New(out.Response.Message),
+		}
+	}
+
+	return &out, nil
 }
