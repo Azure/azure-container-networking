@@ -23,7 +23,7 @@ jobs:
           mkdir -p '$(GOBIN)'
           mkdir -p '$(GOPATH)/pkg'
           BUILD_NUMBER=$(Build.BuildNumber)
-          RG=cyc-$(echo "npm-`date "+%Y-%m-%d-%S"`")
+          RG=e2e-$(echo "npm-`date "+%Y-%m-%d-%S"`")
 
           git --version
           TAG=$(git -c "versionsort.suffix=-" ls-remote --tags https://github.com/Azure/azure-container-networking  | grep -v "zapai" | grep -v "ipam" | grep -v "{}"| cut --delimiter="/" --fields=3 | sort -V | tail -1)
