@@ -840,3 +840,90 @@ func (service *HTTPRestService) isNCWaitingForUpdate(
 	}
 	return
 }
+
+// handleGetNetworkContainers returns all NCs in CNS
+func (service *HTTPRestService) handleGetNetworkContainers(w http.ResponseWriter) {
+	service.RLock()
+	networkContainers := make([]cns.GetNetworkContainerResponse, len(service.state.ContainerStatus))
+	i := 0
+	for ncID := range service.state.ContainerStatus {
+		ncDetails := service.state.ContainerStatus[ncID]
+		getNcResp := cns.GetNetworkContainerResponse{
+			NetworkContainerID:         ncDetails.CreateNetworkContainerRequest.NetworkContainerid,
+			IPConfiguration:            ncDetails.CreateNetworkContainerRequest.IPConfiguration,
+			Routes:                     ncDetails.CreateNetworkContainerRequest.Routes,
+			CnetAddressSpace:           ncDetails.CreateNetworkContainerRequest.CnetAddressSpace,
+			MultiTenancyInfo:           ncDetails.CreateNetworkContainerRequest.MultiTenancyInfo,
+			PrimaryInterfaceIdentifier: ncDetails.CreateNetworkContainerRequest.PrimaryInterfaceIdentifier,
+			LocalIPConfiguration:       ncDetails.CreateNetworkContainerRequest.LocalIPConfiguration,
+			AllowHostToNCCommunication: ncDetails.CreateNetworkContainerRequest.AllowHostToNCCommunication,
+			AllowNCToHostCommunication: ncDetails.CreateNetworkContainerRequest.AllowNCToHostCommunication,
+		}
+		networkContainers[i] = getNcResp
+		i++
+	}
+	service.RUnlock()
+
+	response := cns.GetAllNetworkContainersResponse{
+		NetworkContainers: networkContainers,
+		Response: cns.Response{
+			ReturnCode: types.Success,
+		},
+	}
+	err := service.Listener.Encode(w, &response)
+	logger.Response(service.Name, response, response.Response.ReturnCode, err)
+}
+
+// handlePostNetworkContainers stores all the NCs (from the request that client sent) into CNS's state file
+func (service *HTTPRestService) handlePostNetworkContainers(w http.ResponseWriter, r *http.Request) {
+	var req cns.PostNetworkContainersRequest
+	err := service.Listener.Decode(w, r, &req)
+	logger.Request(service.Name, &req, err)
+	if err != nil {
+		response := cns.PostNetworkContainersResponse{
+			Response: cns.Response{
+				ReturnCode: types.InvalidRequest,
+				Message:    fmt.Sprintf("[Azure CNS] Create Network Container failed with error: %s", err.Error()),
+			},
+		}
+		err = service.Listener.Encode(w, &response)
+		logger.Response(service.Name, response, response.Response.ReturnCode, err)
+		return
+	}
+
+	returnCode := types.Success
+	returnMessage := ""
+	for i := 0; i < len(req.CreateNetworkContainerRequests); i++ {
+		createNcReq := req.CreateNetworkContainerRequests[i]
+		ncDetails, found := service.getNetworkContainerDetails(createNcReq.NetworkContainerid)
+		// Create NC if it doesn't exist, or it exists and the requested version is different from the saved version
+		if !found || (found && ncDetails.VMVersion != createNcReq.Version) {
+			nc := service.networkContainer
+			if err = nc.Create(createNcReq); err != nil {
+				returnCode = types.UnexpectedError
+				returnMessage = fmt.Sprintf("[Azure CNS] Create Network Container failed with error: %s", err.Error())
+				break
+			}
+		}
+		// Save NC Goal State details
+		saveNcReturnCode, saveNcReturnMessage := service.saveNetworkContainerGoalState(createNcReq)
+
+		// If NC was created successfully, log NC snapshot.
+		if saveNcReturnCode == types.Success {
+			logNCSnapshot(createNcReq)
+		} else {
+			returnCode = saveNcReturnCode
+			returnMessage = saveNcReturnMessage
+			break
+		}
+	}
+
+	response := cns.PostNetworkContainersResponse{
+		Response: cns.Response{
+			ReturnCode: returnCode,
+			Message:    returnMessage,
+		},
+	}
+	err = service.Listener.Encode(w, &response)
+	logger.Response(service.Name, response, response.Response.ReturnCode, err)
+}
