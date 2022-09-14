@@ -202,6 +202,7 @@ stages:
               os: $(os)
               arch: $(arch)
       - job: containerize_windows_amd64
+        timeoutInMinutes: 120
         displayName: Build Images
         variables:
           TAG: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
