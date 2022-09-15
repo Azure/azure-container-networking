@@ -902,9 +902,6 @@ func (service *HTTPRestService) handlePostNetworkContainers(w http.ResponseWrite
 }
 
 func (service *HTTPRestService) createNetworkContainers(createNetworkContainerRequests []cns.CreateNetworkContainerRequest) cns.Response {
-	returnCode := types.Success
-	returnMessage := ""
-
 	for i := 0; i < len(createNetworkContainerRequests); i++ {
 		createNcReq := createNetworkContainerRequests[i]
 		ncDetails, found := service.getNetworkContainerDetails(createNcReq.NetworkContainerid)
@@ -912,9 +909,10 @@ func (service *HTTPRestService) createNetworkContainers(createNetworkContainerRe
 		if !found || (found && ncDetails.VMVersion != createNcReq.Version) {
 			nc := service.networkContainer
 			if err := nc.Create(createNcReq); err != nil {
-				returnCode = types.UnexpectedError
-				returnMessage = fmt.Sprintf("[Azure CNS] Create Network Container failed with error: %s", err.Error())
-				break
+				return cns.Response{
+					ReturnCode: types.UnexpectedError,
+					Message:    fmt.Sprintf("[Azure CNS] Create Network Containers failed with error: %s", err.Error()),
+				}
 			}
 		}
 		// Save NC Goal State details
@@ -930,7 +928,7 @@ func (service *HTTPRestService) createNetworkContainers(createNetworkContainerRe
 	}
 
 	return cns.Response{
-		ReturnCode: returnCode,
-		Message:    returnMessage,
+		ReturnCode: types.Success,
+		Message:    "",
 	}
 }
