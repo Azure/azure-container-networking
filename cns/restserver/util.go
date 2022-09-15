@@ -843,7 +843,7 @@ func (service *HTTPRestService) isNCWaitingForUpdate(
 
 // handleGetNetworkContainers returns all NCs in CNS
 func (service *HTTPRestService) handleGetNetworkContainers(w http.ResponseWriter) {
-	logger.Printf("[Azure CNS] getOrRefreshNetworkContainers do GET operation and return all NCs in CNS")
+	logger.Printf("[Azure CNS] handleGetNetworkContainers")
 	service.RLock()
 	networkContainers := make([]cns.GetNetworkContainerResponse, len(service.state.ContainerStatus))
 	i := 0
@@ -877,7 +877,7 @@ func (service *HTTPRestService) handleGetNetworkContainers(w http.ResponseWriter
 
 // handlePostNetworkContainers stores all the NCs (from the request that client sent) into CNS's state file
 func (service *HTTPRestService) handlePostNetworkContainers(w http.ResponseWriter, r *http.Request) {
-	logger.Printf("[Azure CNS] getOrRefreshNetworkContainers do POST operation and store all the NCs from the request into CNS")
+	logger.Printf("[Azure CNS] handlePostNetworkContainers")
 	var req cns.PostNetworkContainersRequest
 	err := service.Listener.Decode(w, r, &req)
 	logger.Request(service.Name, &req, err)
