@@ -157,6 +157,10 @@ stages:
               arch: amd64
               os: linux
               name: cni-dropgz
+            cni_dropgz_test_linux_amd64:
+              arch: amd64
+              os: linux
+              name: cni-dropgz-test
             cns_linux_amd64:
               arch: amd64
               os: linux
@@ -187,6 +191,10 @@ stages:
               arch: arm64
               os: linux
               name: cni-dropgz
+            cni_dropgz_test_linux_arm64:
+              arch: arm64
+              os: linux
+              name: cni-dropgz-test
             cns_linux_arm64:
               arch: arm64
               os: linux
@@ -238,6 +246,9 @@ stages:
               platforms: linux/amd64 linux/arm64
             cni_dropgz:
               name: cni-dropgz
+              platforms: linux/amd64 linux/arm64
+            cni_dropgz_test:
+              name: cni-dropgz-test
               platforms: linux/amd64 linux/arm64
             cns:
               name: cns

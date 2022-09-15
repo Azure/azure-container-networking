@@ -153,6 +153,9 @@ cni-version: ## prints the cni version
 cni-dropgz-version: ## prints the cni-dropgz version
 	@echo $(CNI_DROPGZ_VERSION)
 
+cni-dropgz-test-version: ## prints the cni-dropgz version
+	@echo $(CNI_DROPGZ_TEST_VERSION)
+
 cns-version:
 	@echo $(CNS_VERSION) 
 
@@ -223,12 +226,14 @@ endif
 ## Image name definitions.
 ACNCLI_IMAGE     = acncli
 CNI_DROPGZ_IMAGE = cni-dropgz
+CNI_DROPGZ_TEST_IMAGE = cni-dropgz-test
 CNS_IMAGE        = azure-cns
 NPM_IMAGE        = azure-npm
 
 ## Image platform tags.
 ACNCLI_PLATFORM_TAG     ?= $(subst /,-,$(PLATFORM))-$(ACN_VERSION)
 CNI_DROPGZ_PLATFORM_TAG ?= $(subst /,-,$(PLATFORM))-$(CNI_DROPGZ_VERSION)
+CNI_DROPGZ_TEST_PLATFORM_TAG ?= $(subst /,-,$(PLATFORM))-$(CNI_DROPGZ_TEST_VERSION)
 CNS_PLATFORM_TAG        ?= $(subst /,-,$(PLATFORM))-$(CNS_VERSION)
 NPM_PLATFORM_TAG        ?= $(subst /,-,$(PLATFORM))-$(NPM_VERSION)
 
@@ -325,6 +330,31 @@ cni-dropgz-image-pull: ## pull cni-dropgz container image.
 cni-dropgz-skopeo-export: 
 	$(MAKE) skopeo-export \
 		REF=$(IMAGE_REGISTRY)/$(CNI_DROPGZ_IMAGE):$(CNI_DROPGZ_PLATFORM_TAG)
+
+# cni-dropgz-test
+
+cni-dropgz-test-image-name: # util target to print the CNI dropgz test image name.
+	@echo $(CNI_DROPGZ_TEST_IMAGE)
+
+cni-dropgz-test-image: ## build cni-dropgz-test container image.
+	$(MAKE) container \
+		DOCKERFILE=dropgz/build/cniTest.Dockerfile \
+		IMAGE=$(CNI_DROPGZ_TEST_IMAGE) \
+		TAG=$(CNI_DROPGZ_TEST_PLATFORM_TAG)
+
+cni-dropgz-test-image-push: ## push cni-dropgz-test container image.
+	$(MAKE) container-push \
+		IMAGE=$(CNI_DROPGZ_TEST_IMAGE) \
+		TAG=$(CNI_DROPGZ_TEST_PLATFORM_TAG)
+
+cni-dropgz-test-image-pull: ## pull cni-dropgz-test container image.
+	$(MAKE) container-pull \
+		IMAGE=$(CNI_DROPGZ_TEST_IMAGE) \
+		TAG=$(CNI_DROPGZ_TEST_PLATFORM_TAG)
+
+cni-dropgz-test-skopeo-export: 
+	$(MAKE) skopeo-export \
+		REF=$(IMAGE_REGISTRY)/$(CNI_DROPGZ_TEST_IMAGE):$(CNI_DROPGZ_TEST_PLATFORM_TAG)
 
 # cns
 
