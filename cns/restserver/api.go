@@ -883,8 +883,6 @@ func (service *HTTPRestService) getNetworkContainerByOrchestratorContext(w http.
 // If received  "GET": Return all NCs in CNS's state file to DNC in order to check if NC refresh is needed
 // If received "POST": Store all the NCs (from the request body that client sent) into CNS's state file
 func (service *HTTPRestService) getOrRefreshNetworkContainers(w http.ResponseWriter, r *http.Request) {
-	logger.Printf("[Azure CNS] getOrRefreshNetworkContainers")
-
 	switch r.Method {
 	case http.MethodGet:
 		service.handleGetNetworkContainers(w)
