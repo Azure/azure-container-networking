@@ -261,8 +261,12 @@ func (pm *Monitor) increasePoolSize(ctx context.Context, meta metaState, state i
 	// Query the max IP count
 	previouslyRequestedIPCount := tempNNCSpec.RequestedIPCount
 	batchSize := meta.batch
+	modResult := previouslyRequestedIPCount % batchSize
+	logger.Printf("[ipam-pool-monitor] Previously RequestedIP Count %d", previouslyRequestedIPCount)
+	logger.Printf("[ipam-pool-monitor] Batch size : %d", batchSize)
+	logger.Printf("[ipam-pool-monitor] modResult of (previously requested IP count mod batch size) = %d", modResult)
 
-	tempNNCSpec.RequestedIPCount += batchSize
+	tempNNCSpec.RequestedIPCount += batchSize - modResult
 	if tempNNCSpec.RequestedIPCount > meta.max {
 		// We don't want to ask for more ips than the max
 		logger.Printf("[ipam-pool-monitor] Requested IP count (%d) is over max limit (%d), requesting max limit instead.", tempNNCSpec.RequestedIPCount, meta.max)
@@ -300,7 +304,6 @@ func (pm *Monitor) decreasePoolSize(ctx context.Context, meta metaState, state i
 	previouslyRequestedIPCount := pm.spec.RequestedIPCount
 	batchSize := meta.batch
 	modResult := previouslyRequestedIPCount % batchSize
-
 	logger.Printf("[ipam-pool-monitor] Previously RequestedIP Count %d", previouslyRequestedIPCount)
 	logger.Printf("[ipam-pool-monitor] Batch size : %d", batchSize)
 	logger.Printf("[ipam-pool-monitor] modResult of (previously requested IP count mod batch size) = %d", modResult)
