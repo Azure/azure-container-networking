@@ -891,15 +891,25 @@ func (service *HTTPRestService) handlePostNetworkContainers(w http.ResponseWrite
 		return
 	}
 
+	createNCsResp := service.createNetworkContainers(req.CreateNetworkContainerRequests)
+	response := cns.PostNetworkContainersResponse{
+		Response: createNCsResp,
+	}
+	err = service.Listener.Encode(w, &response)
+	logger.Response(service.Name, response, response.Response.ReturnCode, err)
+}
+
+func (service *HTTPRestService) createNetworkContainers(createNetworkContainerRequests []cns.CreateNetworkContainerRequest) cns.Response {
 	returnCode := types.Success
 	returnMessage := ""
-	for i := 0; i < len(req.CreateNetworkContainerRequests); i++ {
-		createNcReq := req.CreateNetworkContainerRequests[i]
+
+	for i := 0; i < len(createNetworkContainerRequests); i++ {
+		createNcReq := createNetworkContainerRequests[i]
 		ncDetails, found := service.getNetworkContainerDetails(createNcReq.NetworkContainerid)
 		// Create NC if it doesn't exist, or it exists and the requested version is different from the saved version
 		if !found || (found && ncDetails.VMVersion != createNcReq.Version) {
 			nc := service.networkContainer
-			if err = nc.Create(createNcReq); err != nil {
+			if err := nc.Create(createNcReq); err != nil {
 				returnCode = types.UnexpectedError
 				returnMessage = fmt.Sprintf("[Azure CNS] Create Network Container failed with error: %s", err.Error())
 				break
@@ -909,21 +919,17 @@ func (service *HTTPRestService) handlePostNetworkContainers(w http.ResponseWrite
 		saveNcReturnCode, saveNcReturnMessage := service.saveNetworkContainerGoalState(createNcReq)
 
 		// If NC was created successfully, log NC snapshot.
-		if saveNcReturnCode == types.Success {
-			logNCSnapshot(createNcReq)
-		} else {
-			returnCode = saveNcReturnCode
-			returnMessage = saveNcReturnMessage
-			break
+		if saveNcReturnCode != types.Success {
+			return cns.Response{
+				ReturnCode: saveNcReturnCode,
+				Message:    saveNcReturnMessage,
+			}
 		}
+		logNCSnapshot(createNcReq)
 	}
 
-	response := cns.PostNetworkContainersResponse{
-		Response: cns.Response{
-			ReturnCode: returnCode,
-			Message:    returnMessage,
-		},
+	return cns.Response{
+		ReturnCode: returnCode,
+		Message:    returnMessage,
 	}
-	err = service.Listener.Encode(w, &response)
-	logger.Response(service.Name, response, response.Response.ReturnCode, err)
 }

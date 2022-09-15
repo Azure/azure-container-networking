@@ -305,7 +305,7 @@ type IPConfiguration struct {
 // SecondaryIPConfig contains IP info of SecondaryIP
 type SecondaryIPConfig struct {
 	IPAddress string
-	// NCVesion will help in determining whether IP is in pending programming or available when reconciling.
+	// NCVersion will help in determining whether IP is in pending programming or available when reconciling.
 	NCVersion int
 }
 
@@ -353,15 +353,18 @@ type GetNetworkContainerStatusResponse struct {
 	Response           Response
 }
 
+// GetAllNetworkContainersResponse specifies response of retrieving all NCs from CNS during the process of NC refresh association.
 type GetAllNetworkContainersResponse struct {
 	NetworkContainers []GetNetworkContainerResponse
 	Response          Response
 }
 
+// PostNetworkContainersRequest specifies the request of creating all NCs that are sent from DNC.
 type PostNetworkContainersRequest struct {
 	CreateNetworkContainerRequests []CreateNetworkContainerRequest
 }
 
+// PostNetworkContainersResponse specifies response of creating all NCs that are sent from DNC.
 type PostNetworkContainersResponse struct {
 	Response Response
 }
@@ -386,14 +389,12 @@ type GetNetworkContainerResponse struct {
 	AllowNCToHostCommunication bool
 }
 
-// DeleteNetworkContainerRequest specifies the details about the request to delete a specifc network container.
 type PodIpInfo struct {
 	PodIPConfig                     IPSubnet
 	NetworkContainerPrimaryIPConfig IPConfiguration
 	HostPrimaryIPInfo               HostIPInfo
 }
 
-// DeleteNetworkContainerRequest specifies the details about the request to delete a specifc network container.
 type HostIPInfo struct {
 	Gateway   string
 	PrimaryIP string
