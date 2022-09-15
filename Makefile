@@ -523,6 +523,22 @@ cni-dropgz-skopeo-archive: ## export tar archive of cni-dropgz multiplat contain
 		IMAGE=$(CNI_DROPGZ_IMAGE) \
 		TAG=$(CNI_DROPGZ_VERSION)
 
+cni-dropgz-test-manifest-create: ## build cni-dropgz multiplat container manifest.
+	$(MAKE) manifest-create \
+		PLATFORMS="$(PLATFORMS)" \
+		IMAGE=$(CNI_DROPGZ_TEST_IMAGE) \
+		TAG=$(CNI_DROPGZ_TEST_VERSION)
+
+cni-dropgz-test-manifest-push: ## push cni-dropgz multiplat container manifest
+	$(MAKE) manifest-push \
+		IMAGE=$(CNI_DROPGZ_TEST_IMAGE) \
+		TAG=$(CNI_DROPGZ_TEST_VERSION)
+
+cni-dropgz-test-skopeo-archive: ## export tar archive of cni-dropgz multiplat container manifest.
+	$(MAKE) manifest-skopeo-archive \
+		IMAGE=$(CNI_DROPGZ_TEST_IMAGE) \
+		TAG=$(CNI_DROPGZ_TEST_VERSION)
+
 cns-manifest-create: ## build azure-cns multiplat container manifest.
 	$(MAKE) manifest-create \
 		PLATFORMS="$(PLATFORMS)" \
