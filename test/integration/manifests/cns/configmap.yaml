@@ -23,5 +23,6 @@ data:
       },
       "ChannelMode": "CRD",
       "InitializeFromCNI": false,
+      "ManageEndpointState": true,
       "ProgramSNATIPTables" : true
     }
