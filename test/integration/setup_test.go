@@ -27,7 +27,8 @@ const (
 	cnsDaemonSetPath          = cnsManifestFolder + "/daemonset.yaml"
 	cnsClusterRolePath        = cnsManifestFolder + "/clusterrole.yaml"
 	cnsClusterRoleBindingPath = cnsManifestFolder + "/clusterrolebinding.yaml"
-	cnsConfigMapPath          = cnsManifestFolder + "/configmap.yaml"
+	cnsSwiftConfigMapPath     = cnsManifestFolder + "/swiftconfigmap.yaml"
+	cnsCiliumConfigMapPath    = cnsManifestFolder + "/ciliumconfigmap.yaml"
 	cnsRolePath               = cnsManifestFolder + "/role.yaml"
 	cnsRoleBindingPath        = cnsManifestFolder + "/rolebinding.yaml"
 	cnsServiceAccountPath     = cnsManifestFolder + "/serviceaccount.yaml"
@@ -110,6 +111,10 @@ func installCNSDaemonset(ctx context.Context, clientset *kubernetes.Clientset, l
 			cns.Spec.Template.Spec.InitContainers[0].Image = getImageString(initImage, cniDropgzVersion)
 			cns.Spec.Template.Spec.InitContainers[0].Args = []string{"deploy", "azure-vnet", "-o", "/opt/cni/bin/azure-vnet", "azure-swift.conflist", "-o", "/etc/cni/net.d/10-azure.conflist"}
 		}
+		// setup the CNS swiftconfigmap
+		if err := mustSetupConfigMap(ctx, clientset, cnsSwiftConfigMapPath); err != nil {
+			return nil, err
+		}
 	} else {
 		log.Printf("Env %v not set to true, skipping", envInstallAzureVnet)
 	}
@@ -121,6 +126,10 @@ func installCNSDaemonset(ctx context.Context, clientset *kubernetes.Clientset, l
 			cns.Spec.Template.Spec.InitContainers[0].Image = getImageString(initImage, cniDropgzVersion)
 			cns.Spec.Template.Spec.InitContainers[0].Args = []string{"deploy", "azure-ipam", "-o", "/opt/cni/bin/azure-ipam", "azilium.conflist", "-o", "/etc/cni/net.d/05-cilium.conflist"}
 		}
+		// setup the CNS ciliumconfigmap
+		if err := mustSetupConfigMap(ctx, clientset, cnsCiliumConfigMapPath); err != nil {
+			return nil, err
+		}
 	} else {
 		log.Printf("Env %v not set to true, skipping", envInstallAzilium)
 	}
@@ -128,10 +137,6 @@ func installCNSDaemonset(ctx context.Context, clientset *kubernetes.Clientset, l
 	cnsDaemonsetClient := clientset.AppsV1().DaemonSets(cns.Namespace)
 
 	log.Printf("Installing CNS with image %s", cns.Spec.Template.Spec.Containers[0].Image)
-	// setup the CNS configmap
-	if err := mustSetupConfigMap(ctx, clientset, cnsConfigMapPath); err != nil {
-		return nil, err
-	}
 
 	// setup common RBAC, ClusteerRole, ClusterRoleBinding, ServiceAccount
 	if _, err := mustSetUpClusterRBAC(ctx, clientset, cnsClusterRolePath, cnsClusterRoleBindingPath, cnsServiceAccountPath); err != nil {
