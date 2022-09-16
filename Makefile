@@ -153,9 +153,6 @@ cni-version: ## prints the cni version
 cni-dropgz-version: ## prints the cni-dropgz version
 	@echo $(CNI_DROPGZ_VERSION)
 
-cni-dropgz-test-version: ## prints the cni-dropgz version
-	@echo $(CNI_DROPGZ_TEST_VERSION)
-
 cns-version:
 	@echo $(CNS_VERSION) 
 
@@ -233,7 +230,6 @@ NPM_IMAGE        = azure-npm
 ## Image platform tags.
 ACNCLI_PLATFORM_TAG     ?= $(subst /,-,$(PLATFORM))-$(ACN_VERSION)
 CNI_DROPGZ_PLATFORM_TAG ?= $(subst /,-,$(PLATFORM))-$(CNI_DROPGZ_VERSION)
-CNI_DROPGZ_TEST_PLATFORM_TAG ?= $(subst /,-,$(PLATFORM))-$(CNI_DROPGZ_TEST_VERSION)
 CNS_PLATFORM_TAG        ?= $(subst /,-,$(PLATFORM))-$(CNS_VERSION)
 NPM_PLATFORM_TAG        ?= $(subst /,-,$(PLATFORM))-$(NPM_VERSION)
 
@@ -340,17 +336,17 @@ cni-dropgz-test-image: ## build cni-dropgz-test container image.
 	$(MAKE) container \
 		DOCKERFILE=dropgz/build/cniTest.Dockerfile \
 		IMAGE=$(CNI_DROPGZ_TEST_IMAGE) \
-		TAG=$(CNI_DROPGZ_TEST_PLATFORM_TAG)
+		TAG=$(CNI_DROPGZ_PLATFORM_TAG)
 
 cni-dropgz-test-image-push: ## push cni-dropgz-test container image.
 	$(MAKE) container-push \
 		IMAGE=$(CNI_DROPGZ_TEST_IMAGE) \
-		TAG=$(CNI_DROPGZ_TEST_PLATFORM_TAG)
+		TAG=$(CNI_DROPGZ_PLATFORM_TAG)
 
 cni-dropgz-test-image-pull: ## pull cni-dropgz-test container image.
 	$(MAKE) container-pull \
 		IMAGE=$(CNI_DROPGZ_TEST_IMAGE) \
-		TAG=$(CNI_DROPGZ_TEST_PLATFORM_TAG)
+		TAG=$(CNI_DROPGZ_PLATFORM_TAG)
 
 cni-dropgz-test-skopeo-export: 
 	$(MAKE) skopeo-export \
@@ -527,17 +523,17 @@ cni-dropgz-test-manifest-create: ## build cni-dropgz multiplat container manifes
 	$(MAKE) manifest-create \
 		PLATFORMS="$(PLATFORMS)" \
 		IMAGE=$(CNI_DROPGZ_TEST_IMAGE) \
-		TAG=$(CNI_DROPGZ_TEST_VERSION)
+		TAG=$(CNI_DROPGZ_VERSION)
 
 cni-dropgz-test-manifest-push: ## push cni-dropgz multiplat container manifest
 	$(MAKE) manifest-push \
 		IMAGE=$(CNI_DROPGZ_TEST_IMAGE) \
-		TAG=$(CNI_DROPGZ_TEST_VERSION)
+		TAG=$(CNI_DROPGZ_VERSION)
 
 cni-dropgz-test-skopeo-archive: ## export tar archive of cni-dropgz multiplat container manifest.
 	$(MAKE) manifest-skopeo-archive \
 		IMAGE=$(CNI_DROPGZ_TEST_IMAGE) \
-		TAG=$(CNI_DROPGZ_TEST_VERSION)
+		TAG=$(CNI_DROPGZ_VERSION)
 
 cns-manifest-create: ## build azure-cns multiplat container manifest.
 	$(MAKE) manifest-create \
