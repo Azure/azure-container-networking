@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/json"
 	"encoding/xml"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -82,6 +83,25 @@ var (
 			},
 		}},
 	}
+
+	nc1 = createOrUpdateNetworkContainerParams{
+		ncID:         "ethWebApp1",
+		ncIP:         "11.0.0.5",
+		ncType:       cns.AzureContainerInstance,
+		ncVersion:    "0",
+		podName:      "testpod",
+		podNamespace: "testpodnamespace",
+	}
+	nc2 = createOrUpdateNetworkContainerParams{
+		ncID:         "ethWebApp2",
+		ncIP:         "11.0.0.5",
+		ncType:       cns.AzureContainerInstance,
+		ncVersion:    "0",
+		podName:      "testpod",
+		podNamespace: "testpodnamespace",
+	}
+	ncParams         = []createOrUpdateNetworkContainerParams{nc1, nc2}
+	errMismatchedNCs = errors.New("GetNetworkContainers failed because NCs not matched")
 )
 
 const (
@@ -828,6 +848,136 @@ func TestCreateHostNCApipaEndpoint(t *testing.T) {
 	fmt.Printf("createHostNCApipaEndpoint Responded with %+v\n", createHostNCApipaEndpointResponse)
 }
 
+func TestGetNetworkContainers(t *testing.T) {
+	setEnv(t)
+	err := setOrchestratorType(t, cns.Kubernetes)
+	if err != nil {
+		t.Fatalf("TestGetNetworkContainers failed with error:%+v", err)
+	}
+
+	for i := 0; i < len(ncParams); i++ {
+		err = createOrUpdateNetworkContainerWithParams(t, ncParams[i])
+		if err != nil {
+			t.Fatalf("createOrUpdateNetworkContainerWithParams failed with error:%+v", err)
+		}
+	}
+
+	err = getAllNetworkContainers(t, ncParams)
+	if err != nil {
+		t.Fatalf("TestGetNetworkContainers failed with error:%+v", err)
+	}
+
+	for i := 0; i < len(ncParams); i++ {
+		err = deleteNetworkContainerWithParams(t, ncParams[i])
+		if err != nil {
+			t.Fatalf("createOrUpdateNetworkContainerWithParams failed with error:%+v", err)
+		}
+	}
+}
+
+func getAllNetworkContainers(t *testing.T, ncParams []createOrUpdateNetworkContainerParams) error {
+	req, err := http.NewRequestWithContext(context.TODO(), http.MethodGet, cns.NetworkContainersURLPath, http.NoBody)
+	if err != nil {
+		return fmt.Errorf("GetNetworkContainers failed with error: %w", err)
+	}
+
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	var resp cns.GetAllNetworkContainersResponse
+	err = decodeResponse(w, &resp)
+	if err != nil || resp.Response.ReturnCode != types.Success || len(resp.NetworkContainers) != len(ncParams) {
+		return fmt.Errorf("GetNetworkContainers failed with response %+v Err: %w", resp, err)
+	}
+
+	// If any NC in response is not found in ncParams, it means get all NCs failed
+	for i := 0; i < len(ncParams); i++ {
+		if !contains(resp.NetworkContainers, cns.SwiftPrefix+ncParams[i].ncID) {
+			return errMismatchedNCs
+		}
+	}
+
+	t.Logf("GetNetworkContainers succeeded with response: %+v", resp)
+	return nil
+}
+
+func TestPostNetworkContainers(t *testing.T) {
+	setEnv(t)
+	err := setOrchestratorType(t, cns.Kubernetes)
+	if err != nil {
+		t.Fatalf("TestPostNetworkContainers failed with error:%+v", err)
+	}
+
+	err = postAllNetworkContainers(t, ncParams)
+	if err != nil {
+		t.Fatalf("Failed to save all network containers due to error: %+v", err)
+	}
+
+	err = getAllNetworkContainers(t, ncParams)
+	if err != nil {
+		t.Fatalf("TestPostNetworkContainers failed with error:%+v", err)
+	}
+
+	for i := 0; i < len(ncParams); i++ {
+		err = deleteNetworkContainerWithParams(t, ncParams[i])
+		if err != nil {
+			t.Fatalf("TestPostNetworkContainers failed with error:%+v", err)
+		}
+	}
+}
+
+func postAllNetworkContainers(t *testing.T, ncParams []createOrUpdateNetworkContainerParams) error {
+	var ipConfig cns.IPConfiguration
+	ipConfig.DNSServers = []string{"8.8.8.8", "8.8.4.4"}
+	ipConfig.GatewayIPAddress = "11.0.0.1"
+	podInfo := cns.KubernetesPodInfo{PodName: "testpod", PodNamespace: "testpodnamespace"}
+	ctx, err := json.Marshal(podInfo)
+	if err != nil {
+		return fmt.Errorf("postAllNetworkContainers failed with error: %w", err)
+	}
+	createReq := make([]cns.CreateNetworkContainerRequest, len(ncParams))
+	postReq := cns.PostNetworkContainersRequest{CreateNetworkContainerRequests: createReq}
+
+	for i := 0; i < len(ncParams); i++ {
+		var ipSubnet cns.IPSubnet
+		ipSubnet.IPAddress = ncParams[i].ncIP
+		ipSubnet.PrefixLength = 24
+		ipConfig.IPSubnet = ipSubnet
+
+		postReq.CreateNetworkContainerRequests[i] = cns.CreateNetworkContainerRequest{
+			Version:                    ncParams[i].ncVersion,
+			NetworkContainerType:       ncParams[i].ncType,
+			NetworkContainerid:         cns.SwiftPrefix + ncParams[i].ncID,
+			OrchestratorContext:        ctx,
+			IPConfiguration:            ipConfig,
+			PrimaryInterfaceIdentifier: "11.0.0.7",
+		}
+	}
+
+	var body bytes.Buffer
+	err = json.NewEncoder(&body).Encode(postReq)
+	if err != nil {
+		return fmt.Errorf("postAllNetworkContainers failed with error: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(context.TODO(), http.MethodPost, cns.NetworkContainersURLPath, &body)
+	if err != nil {
+		return fmt.Errorf("postAllNetworkContainers failed with error: %w", err)
+	}
+
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	var resp cns.PostNetworkContainersResponse
+	err = decodeResponse(w, &resp)
+
+	if err != nil || resp.Response.ReturnCode != types.Success {
+		return fmt.Errorf("post Network Containers failed with response %+v Err:  %w", resp, err)
+	}
+	t.Logf("Post Network Containers succeeded with response %+v\n", resp)
+
+	return nil
+}
+
 func setOrchestratorType(t *testing.T, orchestratorType string) error {
 	var body bytes.Buffer
 
@@ -1146,6 +1296,15 @@ func startService() error {
 	mux = service.(*HTTPRestService).Listener.GetMux()
 
 	return nil
+}
+
+func contains(networkContainers []cns.GetNetworkContainerResponse, str string) bool {
+	for i := 0; i < len(networkContainers); i++ {
+		if networkContainers[i].NetworkContainerID == str {
+			return true
+		}
+	}
+	return false
 }
 
 // IGNORE TEST AS IT IS FAILING. TODO:- Fix it https://msazure.visualstudio.com/One/_workitems/edit/7720083
