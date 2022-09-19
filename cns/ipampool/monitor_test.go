@@ -107,7 +107,7 @@ func TestPoolSizeIncrease(t *testing.T) {
 				releaseThresholdPercent: 150,
 				requestThresholdPercent: 50,
 			},
-			want: 13,
+			want: 12,
 		},
 		{
 			name: "subnet exhausted",

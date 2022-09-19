@@ -55,6 +55,7 @@ import (
 	"go.uber.org/zap"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
+	kuberuntime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -1102,8 +1103,15 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 		},
 	})
 
+	crdSchemes := kuberuntime.NewScheme()
+	if err = v1alpha.AddToScheme(crdSchemes); err != nil {
+		return errors.Wrap(err, "failed to add nodenetworkconfig/v1alpha to scheme")
+	}
+	if err = v1alpha1.AddToScheme(crdSchemes); err != nil {
+		return errors.Wrap(err, "failed to add clustersubnetstate/v1alpha1 to scheme")
+	}
 	manager, err := ctrl.NewManager(kubeConfig, ctrl.Options{
-		Scheme:             nodenetworkconfig.Scheme,
+		Scheme:             crdSchemes,
 		MetricsBindAddress: "0",
 		Namespace:          "kube-system", // TODO(rbtr): namespace should be in the cns config
 		NewCache:           nodeScopedCache,
