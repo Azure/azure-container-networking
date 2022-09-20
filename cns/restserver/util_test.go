@@ -27,8 +27,8 @@ func TestAreNCsPresent(t *testing.T) {
 			name: "containerIDByOrchestorContext present",
 			service: HTTPRestService{
 				state: &httpRestServiceState{
-					ContainerIDByOrchestratorContext: map[string]string{
-						"nc1": "present",
+					ContainerIDByOrchestratorContext: map[string][]string{
+						"nc1": {"present"},
 					},
 				},
 			},

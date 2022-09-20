@@ -945,10 +945,12 @@ func (service *HTTPRestService) deleteNetworkContainer(w http.ResponseWriter, r 
 		}
 
 		if service.state.ContainerIDByOrchestratorContext != nil {
-			for orchestratorContext, networkContainerID := range service.state.ContainerIDByOrchestratorContext {
-				if networkContainerID == req.NetworkContainerid {
-					delete(service.state.ContainerIDByOrchestratorContext, orchestratorContext)
-					break
+			for orchestratorContext, networkContainerIDs := range service.state.ContainerIDByOrchestratorContext {
+				for _, networkContainerID := range networkContainerIDs {
+					if networkContainerID == req.NetworkContainerid {
+						delete(service.state.ContainerIDByOrchestratorContext, orchestratorContext)
+						break
+					}
 				}
 			}
 		}

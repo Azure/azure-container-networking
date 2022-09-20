@@ -188,10 +188,11 @@ func (service *HTTPRestService) saveNetworkContainerGoalState(
 			logger.Printf("Pod info %v", podInfo)
 
 			if service.state.ContainerIDByOrchestratorContext == nil {
-				service.state.ContainerIDByOrchestratorContext = make(map[string]string)
+				service.state.ContainerIDByOrchestratorContext = make(map[string][]string)
 			}
 
-			service.state.ContainerIDByOrchestratorContext[podInfo.Name()+podInfo.Namespace()] = req.NetworkContainerid
+			ncid := podInfo.Name() + podInfo.Namespace()
+			service.state.ContainerIDByOrchestratorContext[ncid] = append(service.state.ContainerIDByOrchestratorContext[ncid], req.NetworkContainerid)
 
 		case cns.KubernetesCRD:
 			// Validate and Update the SecondaryIpConfig state
@@ -355,7 +356,7 @@ func (service *HTTPRestService) getNetworkContainerResponse(
 	req cns.GetNetworkContainerRequest,
 ) cns.GetNetworkContainerResponse {
 	var (
-		containerID                 string
+		networkContainerIDs         []string
 		getNetworkContainerResponse cns.GetNetworkContainerResponse
 		exists                      bool
 		waitingForUpdate            bool
@@ -383,32 +384,33 @@ func (service *HTTPRestService) getNetworkContainerResponse(
 
 		logger.Printf("pod info %+v", podInfo)
 
-		containerID, exists = service.state.ContainerIDByOrchestratorContext[podInfo.Name()+podInfo.Namespace()]
+		networkContainerIDs, exists = service.state.ContainerIDByOrchestratorContext[podInfo.Name()+podInfo.Namespace()]
 
 		if exists {
-			// If the goal state is available with CNS, check if the NC is pending VFP programming
-			waitingForUpdate, getNetworkContainerResponse.Response.ReturnCode, getNetworkContainerResponse.Response.Message = service.isNCWaitingForUpdate(service.state.ContainerStatus[containerID].CreateNetworkContainerRequest.Version, containerID) //nolint:lll // bad code
-			// If the return code is not success, return the error to the caller
-			if getNetworkContainerResponse.Response.ReturnCode == types.NetworkContainerVfpProgramPending {
-				logger.Errorf("[Azure-CNS] isNCWaitingForUpdate failed for NC: %s with error: %s",
-					containerID, getNetworkContainerResponse.Response.Message)
-				return getNetworkContainerResponse
-			}
+			for _, networkContainerID := range networkContainerIDs {
+				// If the goal state is available with CNS, check if the NC is pending VFP programming
+				waitingForUpdate, getNetworkContainerResponse.Response.ReturnCode, getNetworkContainerResponse.Response.Message = service.isNCWaitingForUpdate(service.state.ContainerStatus[networkContainerID].CreateNetworkContainerRequest.Version, networkContainerID) //nolint:lll // bad code
+				// If the return code is not success, return the error to the caller
+				if getNetworkContainerResponse.Response.ReturnCode == types.NetworkContainerVfpProgramPending {
+					logger.Errorf("[Azure-CNS] isNCWaitingForUpdate failed for NCID: %s with error: %s",
+						networkContainerID, getNetworkContainerResponse.Response.Message)
+					return getNetworkContainerResponse
+				}
 
-			vfpUpdateComplete := !waitingForUpdate
-			ncstatus := service.state.ContainerStatus[containerID]
-			// Update the container status if-
-			// 1. VfpUpdateCompleted successfully
-			// 2. VfpUpdateComplete changed to false
-			if (getNetworkContainerResponse.Response.ReturnCode == types.NetworkContainerVfpProgramComplete &&
-				vfpUpdateComplete && ncstatus.VfpUpdateComplete != vfpUpdateComplete) ||
-				(!vfpUpdateComplete && ncstatus.VfpUpdateComplete != vfpUpdateComplete) {
-				logger.Printf("[Azure-CNS] Setting VfpUpdateComplete to %t for NC: %s", vfpUpdateComplete, containerID)
-				ncstatus.VfpUpdateComplete = vfpUpdateComplete
-				service.state.ContainerStatus[containerID] = ncstatus
-				service.saveState()
+				vfpUpdateComplete := !waitingForUpdate
+				ncstatus := service.state.ContainerStatus[networkContainerID]
+				// Update the container status if-
+				// 1. VfpUpdateCompleted successfully
+				// 2. VfpUpdateComplete changed to false
+				if (getNetworkContainerResponse.Response.ReturnCode == types.NetworkContainerVfpProgramComplete &&
+					vfpUpdateComplete && ncstatus.VfpUpdateComplete != vfpUpdateComplete) ||
+					(!vfpUpdateComplete && ncstatus.VfpUpdateComplete != vfpUpdateComplete) {
+					logger.Printf("[Azure-CNS] Setting VfpUpdateComplete to %t for NCID: %s", vfpUpdateComplete, networkContainerID)
+					ncstatus.VfpUpdateComplete = vfpUpdateComplete
+					service.state.ContainerStatus[networkContainerID] = ncstatus
+					service.saveState()
+				}
 			}
-
 		} else if service.ChannelMode == cns.Managed {
 			// If the NC goal state doesn't exist in CNS running in managed mode, call DNC to retrieve the goal state
 			var (
@@ -424,10 +426,10 @@ func (service *HTTPRestService) getNetworkContainerResponse(
 				return getNetworkContainerResponse
 			}
 
-			containerID = service.state.ContainerIDByOrchestratorContext[podInfo.Name()+podInfo.Namespace()]
+			networkContainerIDs = service.state.ContainerIDByOrchestratorContext[podInfo.Name()+podInfo.Namespace()]
 		}
 
-		logger.Printf("containerid %v", containerID)
+		logger.Printf("containerid %v", networkContainerIDs)
 
 	default:
 		getNetworkContainerResponse.Response.ReturnCode = types.UnsupportedOrchestratorType
@@ -435,25 +437,28 @@ func (service *HTTPRestService) getNetworkContainerResponse(
 		return getNetworkContainerResponse
 	}
 
-	containerStatus := service.state.ContainerStatus
-	containerDetails, ok := containerStatus[containerID]
-	if !ok {
-		getNetworkContainerResponse.Response.ReturnCode = types.UnknownContainerID
-		getNetworkContainerResponse.Response.Message = "NetworkContainer doesn't exist."
-		return getNetworkContainerResponse
-	}
+	for _, networkContainerID := range networkContainerIDs {
+		containerStatus := service.state.ContainerStatus
+		containerDetails, ok := containerStatus[networkContainerID]
+		if !ok {
+			getNetworkContainerResponse.Response.ReturnCode = types.UnknownContainerID
+			getNetworkContainerResponse.Response.Message = "NetworkContainer doesn't exist."
+			return getNetworkContainerResponse
+		}
 
-	savedReq := containerDetails.CreateNetworkContainerRequest
-	getNetworkContainerResponse = cns.GetNetworkContainerResponse{
-		NetworkContainerID:         savedReq.NetworkContainerid,
-		IPConfiguration:            savedReq.IPConfiguration,
-		Routes:                     savedReq.Routes,
-		CnetAddressSpace:           savedReq.CnetAddressSpace,
-		MultiTenancyInfo:           savedReq.MultiTenancyInfo,
-		PrimaryInterfaceIdentifier: savedReq.PrimaryInterfaceIdentifier,
-		LocalIPConfiguration:       savedReq.LocalIPConfiguration,
-		AllowHostToNCCommunication: savedReq.AllowHostToNCCommunication,
-		AllowNCToHostCommunication: savedReq.AllowNCToHostCommunication,
+		savedReq := containerDetails.CreateNetworkContainerRequest
+		getNetworkContainerResponse = cns.GetNetworkContainerResponse{
+			NetworkContainerID:         savedReq.NetworkContainerid,
+			IPConfiguration:            savedReq.IPConfiguration,
+			Routes:                     savedReq.Routes,
+			CnetAddressSpace:           savedReq.CnetAddressSpace,
+			MultiTenancyInfo:           savedReq.MultiTenancyInfo,
+			PrimaryInterfaceIdentifier: savedReq.PrimaryInterfaceIdentifier,
+			LocalIPConfiguration:       savedReq.LocalIPConfiguration,
+			AllowHostToNCCommunication: savedReq.AllowHostToNCCommunication,
+			AllowNCToHostCommunication: savedReq.AllowNCToHostCommunication,
+		}
+		return getNetworkContainerResponse
 	}
 
 	return getNetworkContainerResponse
