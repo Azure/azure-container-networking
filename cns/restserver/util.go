@@ -408,7 +408,9 @@ func (service *HTTPRestService) getNetworkContainerResponse(
 					logger.Printf("[Azure-CNS] Setting VfpUpdateComplete to %t for NCID: %s", vfpUpdateComplete, networkContainerID)
 					ncstatus.VfpUpdateComplete = vfpUpdateComplete
 					service.state.ContainerStatus[networkContainerID] = ncstatus
-					service.saveState()
+					if err = service.saveState(); err != nil {
+						fmt.Sprintf("Failed to save state")
+					}
 				}
 			}
 		} else if service.ChannelMode == cns.Managed {

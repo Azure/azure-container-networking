@@ -825,9 +825,6 @@ func (plugin *NetPlugin) Get(args *cniSkel.CmdArgs) error {
 	iptables.DisableIPTableLock = nwCfg.DisableIPTableLock
 
 	// Initialize values from network config.
-	if !nwCfg.MultiTenancy {
-
-	}
 	if networkID, err = plugin.getNetworkName(args.Netns, nil, nwCfg); err != nil {
 		// TODO: Ideally we should return from here only.
 		log.Printf("[cni-net] Failed to extract network name from network config. error: %v", err)
