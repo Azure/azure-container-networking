@@ -10,6 +10,8 @@ for ($i = 0; $i -lt $rows.Length; $i += 2) {
     $npm = $rows[$i]
     $node = $rows[$i + 1]
 
+    Write-Output "Gathering logs for node $node"
+
     $ip = kubectl get pod -n kube-system -owide --output=custom-columns='IP:.status.podIP,Node:spec.nodeName' | Select-String "$node"
     $ip = (-split $ip)
     [string] $ips = ""

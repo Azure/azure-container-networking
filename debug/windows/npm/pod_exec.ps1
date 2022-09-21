@@ -11,6 +11,7 @@ foreach ($r in ($podIps -split " ")) {
 
 
  foreach ($row in $podIp) {    
+    Write-Output "Gathering logs for IP $row"
     [string]$endpoint = hnsdiag list endpoints | select-string -context 2, 0 "$row"
     if($endpoint -ne $null){
         $endpointID = $endpoint.Substring($endpoint.IndexOf(":")+2,37).Trim()
