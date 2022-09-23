@@ -42,6 +42,11 @@ type MultitenancyClient interface {
 		nwCfg *cni.NetworkConfig,
 		podName string,
 		podNamespace string) (*cns.GetNetworkContainerResponse, net.IPNet, error)
+	GetContainersNetworkConfiguration(
+		ctx context.Context,
+		nwCfg *cni.NetworkConfig,
+		podName string,
+		podNamespace string) (*[]cns.GetNetworkContainerResponse, net.IPNet, error)
 	Init(cnsclient cnsclient, netioshim netioshim)
 }
 
@@ -199,8 +204,66 @@ func (m *Multitenancy) GetContainerNetworkConfiguration(
 			return nil, net.IPNet{}, errSnatIP
 		}
 	}
-
 	return ncResponse, hostSubnetPrefix, err
+}
+
+func (m *Multitenancy) GetContainersNetworkConfiguration(
+	ctx context.Context, nwCfg *cni.NetworkConfig, podName, podNamespace string,
+) (*[]cns.GetNetworkContainerResponse, net.IPNet, error) {
+	var podNameWithoutSuffix string
+
+	if !nwCfg.EnableExactMatchForPodName {
+		podNameWithoutSuffix = network.GetPodNameWithoutSuffix(podName)
+	} else {
+		podNameWithoutSuffix = podName
+	}
+
+	log.Printf("Podname without suffix %v", podNameWithoutSuffix)
+	ncResponses, hostSubnetPrefix, err := m.getContainersNetworkConfigurationInternal(ctx, podNamespace, podNameWithoutSuffix)
+	for _, ncResponse := range *ncResponses {
+		if nwCfg.EnableSnatOnHost {
+			if ncResponse.LocalIPConfiguration.IPSubnet.IPAddress == "" {
+				log.Printf("Snat IP is not populated. Got empty string")
+				return nil, net.IPNet{}, errSnatIP
+			}
+		}
+	}
+	return ncResponses, hostSubnetPrefix, err
+}
+
+func (m *Multitenancy) getContainersNetworkConfigurationInternal(
+	ctx context.Context, namespace, podName string,
+) (*[]cns.GetNetworkContainerResponse, net.IPNet, error) {
+	podInfo := cns.KubernetesPodInfo{
+		PodName:      podName,
+		PodNamespace: namespace,
+	}
+
+	orchestratorContext, err := json.Marshal(podInfo)
+	if err != nil {
+		log.Printf("Marshalling KubernetesPodInfo failed with %v", err)
+		return nil, net.IPNet{}, fmt.Errorf("%w", err)
+	}
+
+	networkConfigs, err := m.cnsclient.GetNetworkContainersConfiguration(ctx, orchestratorContext)
+	if err != nil {
+		log.Printf("GetNetworkContainerConfiguration failed with %v", err)
+		return nil, net.IPNet{}, fmt.Errorf("%w", err)
+	}
+
+	log.Printf("Network configs received from cns %+v", networkConfigs)
+
+	var subnetPrefix *net.IPNet
+	for _, networkConfig := range *networkConfigs {
+		subnetPrefix = m.netioshim.GetInterfaceSubnetWithSpecificIP(networkConfig.PrimaryInterfaceIdentifier)
+		if subnetPrefix == nil {
+			errBuf := fmt.Errorf("%w %s", errIfaceNotFound, networkConfig.PrimaryInterfaceIdentifier)
+			log.Printf(errBuf.Error())
+			return nil, net.IPNet{}, errBuf
+		}
+	}
+
+	return networkConfigs, *subnetPrefix, nil
 }
 
 func (m *Multitenancy) getContainerNetworkConfigurationInternal(
@@ -217,9 +280,9 @@ func (m *Multitenancy) getContainerNetworkConfigurationInternal(
 		return nil, net.IPNet{}, fmt.Errorf("%w", err)
 	}
 
-	networkConfig, err := m.cnsclient.GetNetworkConfiguration(ctx, orchestratorContext)
+	networkConfig, err := m.cnsclient.GetNetworkContainerConfiguration(ctx, orchestratorContext)
 	if err != nil {
-		log.Printf("GetNetworkConfiguration failed with %v", err)
+		log.Printf("GetNetworkContainerConfiguration failed with %v", err)
 		return nil, net.IPNet{}, fmt.Errorf("%w", err)
 	}
 

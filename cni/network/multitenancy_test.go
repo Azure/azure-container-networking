@@ -52,9 +52,16 @@ func (c *MockCNSClient) ReleaseIPAddress(_ context.Context, ipconfig cns.IPConfi
 	return c.release.err
 }
 
-func (c *MockCNSClient) GetNetworkConfiguration(ctx context.Context, orchestratorContext []byte) (*cns.GetNetworkContainerResponse, error) {
+func (c *MockCNSClient) GetNetworkContainerConfiguration(ctx context.Context, orchestratorContext []byte) (*cns.GetNetworkContainerResponse, error) {
 	c.require.Exactly(c.getNetworkConfiguration.orchestratorContext, orchestratorContext)
 	return c.getNetworkConfiguration.returnResponse, c.getNetworkConfiguration.err
+}
+
+func (c *MockCNSClient) GetNetworkContainersConfiguration(ctx context.Context, orchestratorContext []byte) (*[]cns.GetNetworkContainerResponse, error) {
+	c.require.Exactly(c.getNetworkConfiguration.orchestratorContext, orchestratorContext)
+	var getNetworkContainerResponses []cns.GetNetworkContainerResponse
+	getNetworkContainerResponses = append(getNetworkContainerResponses, *c.getNetworkConfiguration.returnResponse)
+	return &getNetworkContainerResponses, c.getNetworkConfiguration.err
 }
 
 func defaultIPNet() *net.IPNet {

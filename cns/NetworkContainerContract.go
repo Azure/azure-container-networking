@@ -14,23 +14,24 @@ import (
 
 // Container Network Service DNC Contract
 const (
-	SetOrchestratorType                      = "/network/setorchestratortype"
-	CreateOrUpdateNetworkContainer           = "/network/createorupdatenetworkcontainer"
-	DeleteNetworkContainer                   = "/network/deletenetworkcontainer"
-	PublishNetworkContainer                  = "/network/publishnetworkcontainer"
-	UnpublishNetworkContainer                = "/network/unpublishnetworkcontainer"
-	GetInterfaceForContainer                 = "/network/getinterfaceforcontainer"
-	GetNetworkContainerByOrchestratorContext = "/network/getnetworkcontainerbyorchestratorcontext"
-	NetworkContainersURLPath                 = "/network/networkcontainers"
-	AttachContainerToNetwork                 = "/network/attachcontainertonetwork"
-	DetachContainerFromNetwork               = "/network/detachcontainerfromnetwork"
-	RequestIPConfig                          = "/network/requestipconfig"
-	ReleaseIPConfig                          = "/network/releaseipconfig"
-	PathDebugIPAddresses                     = "/debug/ipaddresses"
-	PathDebugPodContext                      = "/debug/podcontext"
-	PathDebugRestData                        = "/debug/restdata"
-	NumberOfCPUCores                         = NumberOfCPUCoresPath
-	NMAgentSupportedAPIs                     = NmAgentSupportedApisPath
+	SetOrchestratorType                       = "/network/setorchestratortype"
+	CreateOrUpdateNetworkContainer            = "/network/createorupdatenetworkcontainer"
+	DeleteNetworkContainer                    = "/network/deletenetworkcontainer"
+	PublishNetworkContainer                   = "/network/publishnetworkcontainer"
+	UnpublishNetworkContainer                 = "/network/unpublishnetworkcontainer"
+	GetInterfaceForContainer                  = "/network/getinterfaceforcontainer"
+	GetNetworkContainerByOrchestratorContext  = "/network/getnetworkcontainerbyorchestratorcontext"
+	GetNetworkContainersByOrchestratorContext = "/network/getnetworkcontainersbyorchestratorcontext"
+	NetworkContainersURLPath                  = "/network/networkcontainers"
+	AttachContainerToNetwork                  = "/network/attachcontainertonetwork"
+	DetachContainerFromNetwork                = "/network/detachcontainerfromnetwork"
+	RequestIPConfig                           = "/network/requestipconfig"
+	ReleaseIPConfig                           = "/network/releaseipconfig"
+	PathDebugIPAddresses                      = "/debug/ipaddresses"
+	PathDebugPodContext                       = "/debug/podcontext"
+	PathDebugRestData                         = "/debug/restdata"
+	NumberOfCPUCores                          = NumberOfCPUCoresPath
+	NMAgentSupportedAPIs                      = NmAgentSupportedApisPath
 )
 
 // NetworkContainer Prefixes

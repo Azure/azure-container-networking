@@ -161,6 +161,7 @@ func (plugin *NetPlugin) getNetworkName(netNs string, ipamAddResult *IPAMAddResu
 			log.Printf("Error parsing %s network CIDR: %v.", ipAddrNet.String(), err)
 			return "", errors.Wrapf(err, "cns returned invalid CIDR %s", ipAddrNet.String())
 		}
+		log.Printf("ipAddrNet is %+v", ipAddrNet)
 		networkName := strings.ReplaceAll(prefix.Masked().String(), ".", "-")
 		networkName = strings.ReplaceAll(networkName, "/", "_")
 		networkName = fmt.Sprintf("%s-vlan%v-%v", nwCfg.Name, ipamAddResult.ncResponse.MultiTenancyInfo.ID, networkName)

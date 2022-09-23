@@ -108,7 +108,7 @@ type httpRestServiceState struct {
 	OrchestratorType                 string
 	NodeID                           string
 	Initialized                      bool
-	ContainerIDByOrchestratorContext map[string][]string        // OrchestratorContext is key and value is a list of NetworkContainerID.
+	ContainerIDByOrchestratorContext map[string][]string        // OrchestratorContext is key and value is a set of NetworkContainerIDs.
 	ContainerStatus                  map[string]containerstatus // NetworkContainerID is key.
 	Networks                         map[string]*networkInfo
 	TimeStamp                        time.Time
@@ -208,6 +208,7 @@ func (service *HTTPRestService) Init(config *common.ServiceConfig) error {
 	listener.AddHandler(cns.GetInterfaceForContainer, service.getInterfaceForContainer)
 	listener.AddHandler(cns.SetOrchestratorType, service.setOrchestratorType)
 	listener.AddHandler(cns.GetNetworkContainerByOrchestratorContext, service.getNetworkContainerByOrchestratorContext)
+	listener.AddHandler(cns.GetNetworkContainersByOrchestratorContext, service.getNetworkContainersByOrchestratorContext)
 	listener.AddHandler(cns.AttachContainerToNetwork, service.attachNetworkContainerToNetwork)
 	listener.AddHandler(cns.DetachContainerFromNetwork, service.detachNetworkContainerFromNetwork)
 	listener.AddHandler(cns.CreateHnsNetworkPath, service.createHnsNetwork)
@@ -239,6 +240,7 @@ func (service *HTTPRestService) Init(config *common.ServiceConfig) error {
 	listener.AddHandler(cns.V2Prefix+cns.GetInterfaceForContainer, service.getInterfaceForContainer)
 	listener.AddHandler(cns.V2Prefix+cns.SetOrchestratorType, service.setOrchestratorType)
 	listener.AddHandler(cns.V2Prefix+cns.GetNetworkContainerByOrchestratorContext, service.getNetworkContainerByOrchestratorContext)
+	listener.AddHandler(cns.V2Prefix+cns.GetNetworkContainersByOrchestratorContext, service.getNetworkContainersByOrchestratorContext)
 	listener.AddHandler(cns.V2Prefix+cns.AttachContainerToNetwork, service.attachNetworkContainerToNetwork)
 	listener.AddHandler(cns.V2Prefix+cns.DetachContainerFromNetwork, service.detachNetworkContainerFromNetwork)
 	listener.AddHandler(cns.V2Prefix+cns.CreateHnsNetworkPath, service.createHnsNetwork)

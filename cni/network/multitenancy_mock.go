@@ -78,3 +78,43 @@ func (m *MockMultitenancy) GetContainerNetworkConfiguration(
 
 	return cnsResponse, *ipnet, nil
 }
+
+func (m *MockMultitenancy) GetContainersNetworkConfiguration(
+	ctx context.Context,
+	nwCfg *cni.NetworkConfig,
+	podName string,
+	podNamespace string,
+) (*[]cns.GetNetworkContainerResponse, net.IPNet, error) {
+	if m.fail {
+		return nil, net.IPNet{}, errMockMulAdd
+	}
+
+	cnsResponse := &cns.GetNetworkContainerResponse{
+		IPConfiguration: cns.IPConfiguration{
+			IPSubnet: cns.IPSubnet{
+				IPAddress:    "192.168.0.4",
+				PrefixLength: ipPrefixLen,
+			},
+			GatewayIPAddress: "192.168.0.1",
+		},
+		LocalIPConfiguration: cns.IPConfiguration{
+			IPSubnet: cns.IPSubnet{
+				IPAddress:    "169.254.0.4",
+				PrefixLength: localIPPrefixLen,
+			},
+			GatewayIPAddress: "169.254.0.1",
+		},
+
+		PrimaryInterfaceIdentifier: "10.240.0.4/24",
+		MultiTenancyInfo: cns.MultiTenancyInfo{
+			EncapType: cns.Vlan,
+			ID:        1,
+		},
+	}
+	_, ipnet, _ := net.ParseCIDR(cnsResponse.PrimaryInterfaceIdentifier)
+
+	var cnsResponses []cns.GetNetworkContainerResponse
+	cnsResponses = append(cnsResponses, *cnsResponse)
+
+	return &cnsResponses, *ipnet, nil
+}

@@ -854,6 +854,37 @@ func (service *HTTPRestService) getNetworkContainerByID(w http.ResponseWriter, r
 	logger.Response(service.Name, reserveResp, resp.ReturnCode, err)
 }
 
+func (service *HTTPRestService) getNetworkContainersByOrchestratorContext(w http.ResponseWriter, r *http.Request) {
+	logger.Printf("[Azure CNS] getNetworkContainersByOrchestratorContext")
+
+	var req cns.GetNetworkContainerRequest
+
+	err := service.Listener.Decode(w, r, &req)
+	logger.Request(service.Name, &req, err)
+	if err != nil {
+		return
+	}
+
+	// getNetworkContainersByOrchestratorContext gets called for multitenancy and
+	// setting the SDNRemoteArpMacAddress regKey is essential for the multitenancy
+	// to work correctly in case of windows platform. Return if there is an error
+	if err = platform.SetSdnRemoteArpMacAddress(); err != nil {
+		logger.Printf("[Azure CNS] SetSdnRemoteArpMacAddress failed with error: %s", err.Error())
+		return
+	}
+
+	getNetworkContainersResponse := service.getNetworkContainersResponse(req)
+	logger.Printf("getNetworkContainersResponse is %v", getNetworkContainersResponse)
+
+	var resp cns.GetAllNetworkContainersResponse
+	resp.Response.ReturnCode = getNetworkContainersResponse[0].Response.ReturnCode
+	resp.Response.Message = getNetworkContainersResponse[0].Response.Message
+	resp.NetworkContainers = getNetworkContainersResponse
+
+	err = service.Listener.Encode(w, &resp)
+	logger.Response(service.Name, resp, resp.Response.ReturnCode, err)
+}
+
 func (service *HTTPRestService) getNetworkContainerByOrchestratorContext(w http.ResponseWriter, r *http.Request) {
 	logger.Printf("[Azure CNS] getNetworkContainerByOrchestratorContext")
 
@@ -877,6 +908,7 @@ func (service *HTTPRestService) getNetworkContainerByOrchestratorContext(w http.
 	returnCode := getNetworkContainerResponse.Response.ReturnCode
 	err = service.Listener.Encode(w, &getNetworkContainerResponse)
 	logger.Response(service.Name, getNetworkContainerResponse, returnCode, err)
+
 }
 
 // getOrRefreshNetworkContainers is to check whether refresh association is needed.
