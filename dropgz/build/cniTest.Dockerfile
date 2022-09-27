@@ -21,7 +21,7 @@ COPY --from=azure-vnet /azure-container-networking/bin/* pkg/embed/fs
 RUN cd pkg/embed/fs/ && sha256sum * > sum.txt
 RUN gzip --verbose --best --recursive pkg/embed/fs && for f in pkg/embed/fs/*.gz; do mv -- "$f" "${f%%.gz}"; done
 
-FROM mcr.microsoft.com/oss/go/microsoft/golang:1.18 AS dropgz
+FROM mcr.microsoft.com/oss/go/microsoft/golang:1.19 AS dropgz
 ARG VERSION
 WORKDIR /dropgz
 COPY --from=compressor /dropgz .
