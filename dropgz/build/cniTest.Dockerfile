@@ -9,6 +9,7 @@ ARG VERSION
 WORKDIR /azure-container-networking
 COPY . .
 RUN CGO_ENABLED=0 go build -a -o bin/azure-vnet -trimpath -ldflags "-X main.version="$VERSION"" -gcflags="-dwarflocationlists=true" cni/network/plugin/main.go
+RUN CGO_ENABLED=0 go build -a -o bin/azure-vnet-ipam -trimpath -ldflags "-X main.version="$VERSION"" -gcflags="-dwarflocationlists=true" cni/ipam/plugin/main.go
 
 FROM mcr.microsoft.com/cbl-mariner/base/core:2.0 AS compressor
 WORKDIR /dropgz
@@ -17,7 +18,7 @@ COPY --from=azure-ipam /azure-ipam/*.conflist pkg/embed/fs
 COPY --from=azure-ipam /azure-ipam/bin/* pkg/embed/fs
 COPY --from=azure-vnet /azure-container-networking/cni/*.conflist pkg/embed/fs/azure-swift.conflist
 COPY --from=azure-vnet /azure-container-networking/bin/* pkg/embed/fs
-COPY --from=azure-vnet /azure-container-networking/azure-vnet* pkg/embed/fs
+COPY --from=azure-vnet /azure-container-networking/bin/azure-vnet-ipam pkg/embed/fs
 RUN cd pkg/embed/fs/ && sha256sum * > sum.txt
 RUN gzip --verbose --best --recursive pkg/embed/fs && for f in pkg/embed/fs/*.gz; do mv -- "$f" "${f%%.gz}"; done
 
