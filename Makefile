@@ -340,6 +340,7 @@ cni-dropgz-test-image-name: # util target to print the CNI dropgz test image nam
 cni-dropgz-test-image: ## build cni-dropgz-test container image.
 	$(MAKE) container \
 		DOCKERFILE=dropgz/build/cniTest.Dockerfile \
+		EXTRA_BUILD_ARGS='--build-arg OS=$(OS)' \
 		IMAGE=$(CNI_DROPGZ_TEST_IMAGE) \
 		TAG=$(CNI_DROPGZ_TEST_PLATFORM_TAG)
 
