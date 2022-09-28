@@ -280,6 +280,13 @@ stages:
       name: "cilium_e2e"
       displayName: Cilium
       pipelineBuildImage: "$(BUILD_IMAGE)"
+  
+  - template: singletenancy/ipam-dropgz/ipam-dropgz-e2e-job-template.yaml
+    parameters:
+      name: "ipam_dropgz_e2e"
+      displayName: Azure-ipam and CNI-Dropgz
+      pipelineBuildImage: "$(BUILD_IMAGE)"
+      directory: or("/azure-ipam", "/dropgz")
 
   - template: singletenancy/aks-swift/e2e-job-template.yaml
     parameters:
