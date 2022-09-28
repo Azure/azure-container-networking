@@ -1,5 +1,20 @@
 # Release History
 
+## 1.1.3 (2022-09-01)
+
+### Bugs Fixed
+* Adjusted the initial retry delay to 800ms per the Azure SDK guidelines.
+
+## 1.1.2 (2022-08-09)
+
+### Other Changes
+* Fixed various doc bugs.
+
+## 1.1.1 (2022-06-30)
+
+### Bugs Fixed
+* Avoid polling when a RELO LRO synchronously terminates.
+
 ## 1.1.0 (2022-06-03)
 
 ### Other Changes
