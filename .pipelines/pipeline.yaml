@@ -2,13 +2,22 @@ pr:
   branches:
     include:
       - master
-      - honeycomb-dev
+  paths:
+    exclude:
+    - ".*"
+    - docs
 
 trigger:
-  branches:
+  paths:
+    exclude:
+    - docs
+  tags:
     include:
-      - master
-      - honeycomb-dev
+    - "*"
+    exclude:
+    - "zapai/*"
+    - "azure-ipam/*"
+    - "dropgz/*"
 
 stages:
   - stage: setup
