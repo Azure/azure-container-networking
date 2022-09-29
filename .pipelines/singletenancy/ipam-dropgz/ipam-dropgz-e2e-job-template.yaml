@@ -1,3 +1,8 @@
+trigger:
+  paths:
+    include:
+    - "azure-ipam/*"
+    - "cni-dropgz/*"
 parameters:
   name: ""
   displayName: ""
