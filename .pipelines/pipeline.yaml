@@ -286,6 +286,10 @@ stages:
       name: "ipam_dropgz_e2e"
       displayName: Azure-ipam and CNI-Dropgz
       pipelineBuildImage: "$(BUILD_IMAGE)"
+      paths:
+        include:
+        - "azure-ipam/*"
+        - "cni-dropgz/*"
 
   - template: singletenancy/aks-swift/e2e-job-template.yaml
     parameters:
