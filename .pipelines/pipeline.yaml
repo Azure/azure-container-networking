@@ -274,7 +274,7 @@ stages:
             parameters:
               name: $(name)
               platforms: $(platforms)
-  
+
   - template: singletenancy/cilium/cilium-e2e-job-template.yaml
     parameters:
       name: "cilium_e2e"
@@ -286,6 +286,9 @@ stages:
       name: "ipam_dropgz_e2e"
       displayName: Azure-ipam and CNI-Dropgz
       pipelineBuildImage: "$(BUILD_IMAGE)"
+      branches:
+        include:
+        - master
       paths:
         include:
         - "azure-ipam/*"
