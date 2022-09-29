@@ -112,7 +112,7 @@ func installCNSDaemonset(ctx context.Context, clientset *kubernetes.Clientset, l
 			cns.Spec.Template.Spec.InitContainers[0].Image = getImageString(initImage, cniDropgzVersion)
 		}
 	} else {
-		log.Printf("Env %v not set to true, skipping", envTestDropgz)
+		log.Printf("Env %v not set to true, deploying cni.Dockerfile", envTestDropgz)
 		initImage, _ := parseImageString(cns.Spec.Template.Spec.InitContainers[0].Image)
 		cns.Spec.Template.Spec.InitContainers[0].Image = getImageString(initImage, cniDropgzVersion)
 	}
