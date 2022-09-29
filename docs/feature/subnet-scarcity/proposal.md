@@ -62,3 +62,16 @@ If the Subnet is exhausted, DNC-RC will write an additional per-subnet CRD, the 
 
 #### [[1-3]](phase-1/3-releaseips.md) IPs are released by CNS
 CNS will watch the `ClusterSubnetState` CRD and will update its internal state with the Subnet's exhaustion status. When the Subnet is exhausted, CNS will ignore the configured Batch size from the `NodeNetworkConfig`, and instead will scale in Batches of 1 IP. This will have the effect of releasing almost every unassigned IP back to the Subnet - 1 free IP will be kept in the Node's IPAM Pool, and scaling up or down will be done in increments of 1 IP.
+
+### Phase 2
+The batch size $B$ is dynamically adjusted based on the current subnet utilization. The batch size is increased when the subnet utilization is low, and decreased when the subnet utilization is high. IPs are not assigned to a new Node until CNS requests them, allowing Nodes to start safely even in very constrained subnets.
+
+#### Nodes/NCs are not assigned initial IPs by DNC-RC
+DNC-RC will create the NNC for a new Node with an initial IP Request of 0. An empty NC (containing a Primary, but no Secondary IPs) will be created via normal DNC API calls. The empty NC will be written to the NNC, allowing the Node CNS to start.
+
+DNC-RC will continue to poll the `SubnetState` API periodically to check the Subnet utilization.
+
+#### CNS scales IPAM pool idempotently
+
+
+
