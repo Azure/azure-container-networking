@@ -15,7 +15,7 @@ import (
 func main() {
 	if err := executePlugin(); err != nil {
 		log.Printf("error executing azure-ipam plugin: %v\n", err)
-		log.Printf("test line. adding change to trigger submodule pipeline. REMOVE later")
+		log.Printf("adding change to trigger submodule pipeline. REMOVE later")
 		os.Exit(1)
 	}
 }

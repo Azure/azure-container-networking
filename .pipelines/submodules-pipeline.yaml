@@ -164,10 +164,6 @@ stages:
               arch: amd64
               os: linux
               name: acncli
-            cni_dropgz_linux_amd64:
-              arch: amd64
-              os: linux
-              name: cni-dropgz
             cni_dropgz_test_linux_amd64:
               arch: amd64
               os: linux
@@ -198,10 +194,6 @@ stages:
               arch: arm64
               os: linux
               name: acncli
-            cni_dropgz_linux_arm64:
-              arch: arm64
-              os: linux
-              name: cni-dropgz
             cni_dropgz_test_linux_arm64:
               arch: arm64
               os: linux
@@ -255,9 +247,6 @@ stages:
           matrix:
             acncli:
               name: acncli 
-              platforms: linux/amd64 linux/arm64
-            cni_dropgz:
-              name: cni-dropgz
               platforms: linux/amd64 linux/arm64
             cni_dropgz_test:
               name: cni-dropgz-test
