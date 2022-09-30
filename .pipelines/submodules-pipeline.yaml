@@ -4,20 +4,19 @@ pr:
       - master
   paths:
     exclude:
-    - ".devcontainer"
-    - ".hooks"
-    - ".vscode"
-    - ".github"
+    - ".*"
     - docs
 
 trigger:
   paths:
+    include:
+    - "zapai/*"
+    - "azure-ipam/*"
+    - "dropgz/*"
     exclude:
     - docs
   tags:
     include:
-    - "*"
-    exclude:
     - "zapai/*"
     - "azure-ipam/*"
     - "dropgz/*"
@@ -280,6 +279,12 @@ stages:
       name: "cilium_e2e"
       displayName: Cilium
       pipelineBuildImage: "$(BUILD_IMAGE)"
+  
+  - template: singletenancy/ipam-dropgz/ipam-dropgz-e2e-job-template.yaml
+    parameters:
+      name: "ipam_dropgz_e2e"
+      displayName: Azure-ipam and CNI-Dropgz
+      pipelineBuildImage: "$(BUILD_IMAGE)"
 
   - template: singletenancy/aks-swift/e2e-job-template.yaml
     parameters:
@@ -287,35 +292,35 @@ stages:
       displayName: AKS Swift
       pipelineBuildImage: "$(BUILD_IMAGE)"
 
-  - template: singletenancy/aks-engine/e2e-job-template.yaml
-    parameters:
-      name: "ubuntu_18_04_linux_e2e"
-      displayName: Ubuntu 18.04
-      pipelineBuildImage: "$(BUILD_IMAGE)"
-      clusterDefinition: "cniLinux1804.json"
-      clusterDefinitionCniTypeKey: "azureCNIURLLinux"
-      clusterDefinitionCniBuildOS: "linux"
-      clusterDefinitionCniBuildExt: ".tgz"
+  # - template: singletenancy/aks-engine/e2e-job-template.yaml
+  #   parameters:
+  #     name: "ubuntu_18_04_linux_e2e"
+  #     displayName: Ubuntu 18.04
+  #     pipelineBuildImage: "$(BUILD_IMAGE)"
+  #     clusterDefinition: "cniLinux1804.json"
+  #     clusterDefinitionCniTypeKey: "azureCNIURLLinux"
+  #     clusterDefinitionCniBuildOS: "linux"
+  #     clusterDefinitionCniBuildExt: ".tgz"
 
-  - template: singletenancy/aks-engine/e2e-job-template.yaml
-    parameters:
-      name: "windows_19_03_e2e"
-      displayName: "Windows 1903"
-      pipelineBuildImage: "$(BUILD_IMAGE)"
-      clusterDefinition: "cniWindows1903.json"
-      clusterDefinitionCniTypeKey: "azureCNIURLWindows"
-      clusterDefinitionCniBuildOS: "windows"
-      clusterDefinitionCniBuildExt: ".zip"
+  # - template: singletenancy/aks-engine/e2e-job-template.yaml
+  #   parameters:
+  #     name: "windows_19_03_e2e"
+  #     displayName: "Windows 1903"
+  #     pipelineBuildImage: "$(BUILD_IMAGE)"
+  #     clusterDefinition: "cniWindows1903.json"
+  #     clusterDefinitionCniTypeKey: "azureCNIURLWindows"
+  #     clusterDefinitionCniBuildOS: "windows"
+  #     clusterDefinitionCniBuildExt: ".zip"
 
-  - template: singletenancy/aks-engine/e2e-job-template.yaml
-    parameters:
-      name: "windows_20_04_e2e"
-      displayName: "Windows 2004"
-      pipelineBuildImage: "$(BUILD_IMAGE)"
-      clusterDefinition: "cniWindows2004.json"
-      clusterDefinitionCniTypeKey: "azureCNIURLWindows"
-      clusterDefinitionCniBuildOS: "windows"
-      clusterDefinitionCniBuildExt: ".zip"
+  # - template: singletenancy/aks-engine/e2e-job-template.yaml
+  #   parameters:
+  #     name: "windows_20_04_e2e"
+  #     displayName: "Windows 2004"
+  #     pipelineBuildImage: "$(BUILD_IMAGE)"
+  #     clusterDefinition: "cniWindows2004.json"
+  #     clusterDefinitionCniTypeKey: "azureCNIURLWindows"
+  #     clusterDefinitionCniBuildOS: "windows"
+  #     clusterDefinitionCniBuildExt: ".zip"
 
   # - template: singletenancy/aks-engine/e2e-job-template.yaml
   #   parameters:
@@ -326,15 +331,37 @@ stages:
   #     clusterDefinitionCniTypeKey: "azureCNIURLWindows"
   #     clusterDefinitionCniBuildOS: "windows"
   #     clusterDefinitionCniBuildExt: ".zip"
-  
+
+  # - template: singletenancy/aks-engine/e2e-dualstack-job-template.yaml
+  #   parameters:
+  #     name: "ubuntu_18_04_linux_dualstack_e2e"
+  #     displayName: "Ubuntu 18.04 Dualstack"
+  #     pipelineBuildImage: "$(BUILD_IMAGE)"
+  #     clusterDefinition: "cniLinuxDualstack1804.json"
+  #     clusterDefinitionCniTypeKey: "azureCNIURLLinux"
+  #     clusterDefinitionCniBuildOS: "linux"
+  #     clusterDefinitionCniBuildExt: ".tgz"
+
+  # - template: singletenancy/aks-engine/e2e-dualstack-job-template.yaml
+  #   parameters:
+  #     name: "windows_20_04_dualstack_e2e"
+  #     displayName: "Windows 20.04 Dualstack"
+  #     pipelineBuildImage: "$(BUILD_IMAGE)"
+  #     clusterDefinition: "cniWindowsDualstack2004.json"
+  #     clusterDefinitionCniTypeKey: "azureCNIURLWindows"
+  #     clusterDefinitionCniBuildOS: "windows"
+  #     clusterDefinitionCniBuildExt: ".zip"
+
   - stage: cleanup
     displayName: Cleanup
     dependsOn:
       - "aks_swift_e2e"
-      - "ubuntu_18_04_linux_e2e"
-      - "windows_19_03_e2e"
-      - "windows_20_04_e2e"
+      # - "ubuntu_18_04_linux_e2e"
+      # - "windows_19_03_e2e"
+      # - "windows_20_04_e2e"
       # - "windows_20_22_e2e"
+      # - "ubuntu_18_04_linux_dualstack_e2e"
+      # - "windows_20_04_dualstack_e2e"
     jobs:
       - job: delete_remote_artifacts
         displayName: Delete remote artifacts
