@@ -15,6 +15,7 @@ import (
 func main() {
 	if err := executePlugin(); err != nil {
 		log.Printf("error executing azure-ipam plugin: %v\n", err)
+		log.Printf("test line. adding change to trigger submodule pipeline. REMOVE later")
 		os.Exit(1)
 	}
 }
@@ -22,10 +23,10 @@ func main() {
 func executePlugin() error {
 	// logger config
 	loggerCfg := &logger.Config{
-		Level:                "debug",
-		Filepath:             "/var/log/azure-ipam.log",
-		MaxSizeInMB:          5, // MegaBytes
-		MaxBackups:           8,
+		Level:       "debug",
+		Filepath:    "/var/log/azure-ipam.log",
+		MaxSizeInMB: 5, // MegaBytes
+		MaxBackups:  8,
 	}
 	// Create logger
 	pluginLogger, cleanup, err := logger.New(loggerCfg)
