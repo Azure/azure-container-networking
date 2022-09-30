@@ -112,6 +112,15 @@ func (service *HTTPRestService) restoreState() {
 	}
 }
 
+func containInSlice(items []string, item string) bool {
+	for _, eachItem := range items {
+		if item == eachItem {
+			return true
+		}
+	}
+	return false
+}
+
 func (service *HTTPRestService) saveNetworkContainerGoalState(
 	req cns.CreateNetworkContainerRequest,
 ) (types.ResponseCode, string) {
@@ -192,7 +201,12 @@ func (service *HTTPRestService) saveNetworkContainerGoalState(
 			}
 
 			ncid := podInfo.Name() + podInfo.Namespace()
-			service.state.ContainerIDByOrchestratorContext[ncid] = append(service.state.ContainerIDByOrchestratorContext[ncid], req.NetworkContainerid)
+
+			if !containInSlice(service.state.ContainerIDByOrchestratorContext[ncid], req.NetworkContainerid) {
+				service.state.ContainerIDByOrchestratorContext[ncid] = append(service.state.ContainerIDByOrchestratorContext[ncid], req.NetworkContainerid)
+			}
+
+			logger.Printf("service.state.ContainerIDByOrchestratorContext[ncid] are %+v", service.state.ContainerIDByOrchestratorContext[ncid])
 
 		case cns.KubernetesCRD:
 			// Validate and Update the SecondaryIpConfig state
