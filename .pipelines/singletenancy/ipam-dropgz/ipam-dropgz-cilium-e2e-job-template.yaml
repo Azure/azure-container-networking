@@ -12,7 +12,7 @@ stages:
     - publish
     jobs:
       - job: ${{ parameters.name }}
-        displayName: Azure-ipam/Dropgz Test Suite - (${{ parameters.name }})
+        displayName: Azure-ipam/Dropgz Cilium Test Suite - (${{ parameters.name }})
         timeoutInMinutes: 120
         pool:
           name: $(BUILD_POOL_NAME_DEFAULT)
@@ -24,6 +24,6 @@ stages:
           GOBIN: "$(GOPATH)/bin" # Go binaries path
           modulePath: "$(GOPATH)/src/github.com/Azure/azure-container-networking"
         steps:
-          - template: ipam-dropgz-e2e-step-template.yaml
+          - template: ipam-dropgz-cilium-e2e-step-template.yaml
             parameters:
               name: ${{ parameters.name }}

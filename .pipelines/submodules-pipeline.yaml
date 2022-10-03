@@ -263,23 +263,29 @@ stages:
               name: $(name)
               platforms: $(platforms)
 
-  - template: singletenancy/cilium/cilium-e2e-job-template.yaml
-    parameters:
-      name: "cilium_e2e"
-      displayName: Cilium
-      pipelineBuildImage: "$(BUILD_IMAGE)"
+  # - template: singletenancy/cilium/cilium-e2e-job-template.yaml
+  #   parameters:
+  #     name: "cilium_e2e"
+  #     displayName: Cilium
+  #     pipelineBuildImage: "$(BUILD_IMAGE)"
   
-  - template: singletenancy/ipam-dropgz/ipam-dropgz-e2e-job-template.yaml
+  - template: singletenancy/ipam-dropgz/ipam-dropgz-cilium-e2e-job-template.yaml
     parameters:
-      name: "ipam_dropgz_e2e"
-      displayName: Azure-ipam and CNI-Dropgz
+      name: "ipam_dropgz_cilium_e2e"
+      displayName: Azure-ipam and CNI-Dropgz for Cilium
       pipelineBuildImage: "$(BUILD_IMAGE)"
 
-  - template: singletenancy/aks-swift/e2e-job-template.yaml
+  - template: singletenancy/ipam-dropgz/ipam-dropgz-swift-e2e-job-template.yaml
     parameters:
-      name: "aks_swift_e2e"
-      displayName: AKS Swift
+      name: "ipam_dropgz_swift_e2e"
+      displayName: Azure-ipam and CNI-Dropgz for Swift
       pipelineBuildImage: "$(BUILD_IMAGE)"
+
+  # - template: singletenancy/aks-swift/e2e-job-template.yaml
+  #   parameters:
+  #     name: "aks_swift_e2e"
+  #     displayName: AKS Swift
+  #     pipelineBuildImage: "$(BUILD_IMAGE)"
 
   # - template: singletenancy/aks-engine/e2e-job-template.yaml
   #   parameters:
@@ -344,7 +350,9 @@ stages:
   - stage: cleanup
     displayName: Cleanup
     dependsOn:
-      - "aks_swift_e2e"
+      - ipam_dropgz_cilium_e2e
+      - ipam_dropgz_swift_e2e
+      # - "aks_swift_e2e"
       # - "ubuntu_18_04_linux_e2e"
       # - "windows_19_03_e2e"
       # - "windows_20_04_e2e"
