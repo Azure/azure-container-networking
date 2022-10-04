@@ -77,3 +77,11 @@ CNS will include the NC Primary IP(s) as IPs that it has been allocated, and wil
 
 #### [[2-3]](phase-2/3-subnetscaler.md) Scaler properties move to the ClusterSubnet CRD
 The Scaler properties from the v1alpha/NodeNetworkConfig `Status.Scaler` definition are moved to the ClusterSubnet CRD, and CNS will use the Scaler from this CRD as priority when it is available, and fall back to the NNC Scaler otherwise. The `.Spec` field of the CRD may serve as an "overrides" location for runtime reconfiguration.
+
+### Phase 3
+#### [[3-1]](phase-3/1-watchpods.md) CNS watches Pods
+CNS will Watch for Pod events on its Node, and use the number of scheduled Pods to calculate the target Requested IP Count.
+
+
+#### [[3-2]](phase-3/3-subnetscaler.md) Scaler properties move to the ClusterSubnet CRD
+The Scaler properties from the v1alpha/NodeNetworkConfig `Status.Scaler` definition are moved to the ClusterSubnet CRD, and CNS will use the Scaler from this CRD as priority when it is available, and fall back to the NNC Scaler otherwise.
