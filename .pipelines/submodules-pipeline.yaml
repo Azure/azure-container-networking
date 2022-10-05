@@ -3,9 +3,12 @@ pr:
     include:
       - master
   paths:
+    include:
+    - "zapai/*"
+    - "azure-ipam/*"
+    - "dropgz/*"
     exclude:
-    - ".*"
-    - docs
+    - "*"
 
 trigger:
   paths:
@@ -14,12 +17,14 @@ trigger:
     - "azure-ipam/*"
     - "dropgz/*"
     exclude:
-    - docs
+    - "*"
   tags:
     include:
     - "zapai/*"
     - "azure-ipam/*"
     - "dropgz/*"
+    exclude:
+    - "*"
 
 stages:
   - stage: setup
@@ -263,17 +268,31 @@ stages:
               name: $(name)
               platforms: $(platforms)
   
-  - template: singletenancy/ipam-dropgz/ipam-dropgz-cilium-e2e-job-template.yaml
-    parameters:
-      name: "ipam_dropgz_cilium_e2e"
-      displayName: Azure-ipam and CNI-Dropgz for Cilium
-      pipelineBuildImage: "$(BUILD_IMAGE)"
+  # - template: singletenancy/ipam-dropgz/ipam-dropgz-cilium-e2e-job-template.yaml
+  #   parameters:
+  #     name: "ipam_dropgz_cilium_e2e"
+  #     displayName: Azure-ipam and CNI-Dropgz for Cilium
+  #     pipelineBuildImage: "$(BUILD_IMAGE)"
 
-  - template: singletenancy/ipam-dropgz/ipam-dropgz-swift-e2e-job-template.yaml
+  # - template: singletenancy/ipam-dropgz/ipam-dropgz-swift-e2e-job-template.yaml
+  #   parameters:
+  #     name: "ipam_dropgz_swift_e2e"
+  #     displayName: Azure-ipam and CNI-Dropgz for Swift
+  #     pipelineBuildImage: "$(BUILD_IMAGE)"
+
+  - template: singletenancy/cilium/cilium-e2e-job-template.yaml
     parameters:
-      name: "ipam_dropgz_swift_e2e"
-      displayName: Azure-ipam and CNI-Dropgz for Swift
+      name: "cilium_e2e"
+      displayName: Cilium
       pipelineBuildImage: "$(BUILD_IMAGE)"
+      testDropgz: true
+
+  - template: singletenancy/aks-swift/e2e-job-template.yaml
+    parameters:
+      name: "aks_swift_e2e"
+      displayName: AKS Swift
+      pipelineBuildImage: "$(BUILD_IMAGE)"
+      testDropgz: true
 
   - stage: cleanup
     displayName: Cleanup
