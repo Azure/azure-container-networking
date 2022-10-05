@@ -297,8 +297,8 @@ stages:
   - stage: cleanup
     displayName: Cleanup
     dependsOn:
-      - ipam_dropgz_cilium_e2e
-      - ipam_dropgz_swift_e2e
+      - cilium_e2e
+      - aks_swift_e2e
     jobs:
       - job: delete_remote_artifacts
         displayName: Delete remote artifacts
