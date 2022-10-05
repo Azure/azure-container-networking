@@ -331,6 +331,7 @@ stages:
     displayName: Cleanup
     dependsOn:
       - "aks_swift_e2e"
+      - "cilium_e2e"
       - "ubuntu_18_04_linux_e2e"
       - "windows_19_03_e2e"
       - "windows_20_04_e2e"

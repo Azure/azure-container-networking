@@ -120,8 +120,6 @@ func installCNSDaemonset(ctx context.Context, clientset *kubernetes.Clientset, l
 	if installBool1 := os.Getenv(envInstallAzureVnet); installBool1 != "" {
 		if azureVnetScenario, err := strconv.ParseBool(installBool1); err == nil && azureVnetScenario == true {
 			log.Printf("Env %v set to true, deploy azure-vnet", envInstallAzureVnet)
-			// initImage, _ := parseImageString(cns.Spec.Template.Spec.InitContainers[0].Image)
-			// cns.Spec.Template.Spec.InitContainers[0].Image = getImageString(initImage, cniDropgzVersion)
 			cns.Spec.Template.Spec.InitContainers[0].Args = []string{"deploy", "azure-vnet", "-o", "/opt/cni/bin/azure-vnet", "azure-swift.conflist", "-o", "/etc/cni/net.d/10-azure.conflist"}
 		}
 		// setup the CNS swiftconfigmap
@@ -135,8 +133,6 @@ func installCNSDaemonset(ctx context.Context, clientset *kubernetes.Clientset, l
 	if installBool2 := os.Getenv(envInstallAzilium); installBool2 != "" {
 		if aziliumScenario, err := strconv.ParseBool(installBool2); err == nil && aziliumScenario == true {
 			log.Printf("Env %v set to true, deploy azure-ipam and cilium-cni", envInstallAzilium)
-			// initImage, _ := parseImageString(cns.Spec.Template.Spec.InitContainers[0].Image)
-			// cns.Spec.Template.Spec.InitContainers[0].Image = getImageString(initImage, cniDropgzVersion)
 			cns.Spec.Template.Spec.InitContainers[0].Args = []string{"deploy", "azure-ipam", "-o", "/opt/cni/bin/azure-ipam", "azilium.conflist", "-o", "/etc/cni/net.d/05-cilium.conflist"}
 		}
 		// setup the CNS ciliumconfigmap
