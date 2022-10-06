@@ -280,14 +280,14 @@ stages:
       name: "cilium_e2e"
       displayName: Cilium
       pipelineBuildImage: "$(BUILD_IMAGE)"
-      testDropgz: false
+      testDropgz: ""
 
   - template: singletenancy/aks-swift/e2e-job-template.yaml
     parameters:
       name: "aks_swift_e2e"
       displayName: AKS Swift
       pipelineBuildImage: "$(BUILD_IMAGE)"
-      testDropgz: false
+      testDropgz: ""
 
   - template: singletenancy/aks-engine/e2e-job-template.yaml
     parameters:

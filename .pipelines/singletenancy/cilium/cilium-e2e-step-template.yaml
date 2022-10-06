@@ -85,9 +85,7 @@ steps:
   - script: |
       echo "Start Azilium E2E Tests"
       kubectl get po -owide -A
-      export dropgzBool=${{ parameters.testDropgz }}
-      echo Test Dropgz bool set to $dropgzBool
-      sudo -E env "PATH=$PATH" make test-integration CNS_VERSION=$(make cns-version) CNI_DROPGZ_VERSION=$(make cni-dropgz-version) INSTALL_CNS=true INSTALL_AZILIUM=true TEST_DROPGZ=$dropgzBool
+      sudo -E env "PATH=$PATH" make test-integration CNS_VERSION=$(make cns-version) CNI_DROPGZ_VERSION=$(make cni-dropgz-version) INSTALL_CNS=true INSTALL_AZILIUM=true TEST_DROPGZ=${{ parameters.testDropgz }}
     retryCountOnTaskFailure: 3
     name: "aziliumTest"
     displayName: "Run Azilium E2E"
