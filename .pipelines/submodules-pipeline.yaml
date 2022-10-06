@@ -68,7 +68,7 @@ stages:
               make tools
               # run test, echo exit status code to fd 3, pipe output from test to tee, which splits output to stdout and go-junit-report (which converts test output to report.xml), stdout from tee is redirected to fd 4. Take output written to fd 3 (which is the exit code of test), redirect to stdout, pipe to read from stdout then exit with that status code. Read all output from fd 4 (output from tee) and write to top stdout
               { { { {
-                    sudo -E env "PATH=$PATH" make test-all;
+                    sudo -E env "PATH=$PATH" make test-azure-ipam;
                     echo $? >&3;
                     } | tee >(build/tools/bin/go-junit-report > report.xml) >&4;
                   } 3>&1;
@@ -267,18 +267,6 @@ stages:
             parameters:
               name: $(name)
               platforms: $(platforms)
-  
-  # - template: singletenancy/ipam-dropgz/ipam-dropgz-cilium-e2e-job-template.yaml
-  #   parameters:
-  #     name: "ipam_dropgz_cilium_e2e"
-  #     displayName: Azure-ipam and CNI-Dropgz for Cilium
-  #     pipelineBuildImage: "$(BUILD_IMAGE)"
-
-  # - template: singletenancy/ipam-dropgz/ipam-dropgz-swift-e2e-job-template.yaml
-  #   parameters:
-  #     name: "ipam_dropgz_swift_e2e"
-  #     displayName: Azure-ipam and CNI-Dropgz for Swift
-  #     pipelineBuildImage: "$(BUILD_IMAGE)"
 
   - template: singletenancy/cilium/cilium-e2e-job-template.yaml
     parameters:

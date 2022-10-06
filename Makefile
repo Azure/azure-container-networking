@@ -716,6 +716,9 @@ test-extended-cyclonus: ## run the cyclonus test for npm.
 	cd test/cyclonus && bash ./test-cyclonus.sh extended
 	cd ..
 
+test-azure-ipam: ## run the unit test for azure-ipam
+	cd $(AZURE_IPAM_DIR) && go test
+
 kind:
 	kind create cluster --config ./test/kind/kind.yaml
 
