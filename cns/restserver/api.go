@@ -877,12 +877,16 @@ func (service *HTTPRestService) getNetworkContainersByOrchestratorContext(w http
 	logger.Printf("getNetworkContainersResponse is %v", getNetworkContainersResponse)
 
 	var resp cns.GetAllNetworkContainersResponse
-	resp.Response.ReturnCode = getNetworkContainersResponse[0].Response.ReturnCode
-	resp.Response.Message = getNetworkContainersResponse[0].Response.Message
-	resp.NetworkContainers = getNetworkContainersResponse
+	if getNetworkContainersResponse != nil {
+		resp.Response.ReturnCode = getNetworkContainersResponse[0].Response.ReturnCode
+		resp.Response.Message = getNetworkContainersResponse[0].Response.Message
+		resp.NetworkContainers = getNetworkContainersResponse
 
-	err = service.Listener.Encode(w, &resp)
-	logger.Response(service.Name, resp, resp.Response.ReturnCode, err)
+		err = service.Listener.Encode(w, &resp)
+		logger.Response(service.Name, resp, resp.Response.ReturnCode, err)
+	} else {
+		logger.Printf("[Azure CNS] No Network Container Response found!")
+	}
 }
 
 func (service *HTTPRestService) getNetworkContainerByOrchestratorContext(w http.ResponseWriter, r *http.Request) {

@@ -219,12 +219,15 @@ func (m *Multitenancy) GetContainersNetworkConfiguration(
 	}
 
 	log.Printf("Podname without suffix %v", podNameWithoutSuffix)
+	
 	ncResponses, hostSubnetPrefix, err := m.getContainersNetworkConfigurationInternal(ctx, podNamespace, podNameWithoutSuffix)
-	for _, ncResponse := range *ncResponses {
-		if nwCfg.EnableSnatOnHost {
-			if ncResponse.LocalIPConfiguration.IPSubnet.IPAddress == "" {
-				log.Printf("Snat IP is not populated. Got empty string")
-				return nil, net.IPNet{}, errSnatIP
+	if ncResponses != nil {
+		for _, ncResponse := range *ncResponses {
+			if nwCfg.EnableSnatOnHost {
+				if ncResponse.LocalIPConfiguration.IPSubnet.IPAddress == "" {
+					log.Printf("Snat IP is not populated. Got empty string")
+					return nil, net.IPNet{}, errSnatIP
+				}
 			}
 		}
 	}
