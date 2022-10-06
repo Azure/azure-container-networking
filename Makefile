@@ -717,7 +717,7 @@ test-extended-cyclonus: ## run the cyclonus test for npm.
 	cd ..
 
 test-azure-ipam: ## run the unit test for azure-ipam
-	cd $(AZURE_IPAM_DIR) && go test
+	cd $(AZURE_IPAM_DIR) && go test -mod=readonly -buildvcs=false -coverpkg=$(COVER_FILTER) -race -covermode atomic -failfast -coverprofile=coverage.out $(COVER_PKG)/...
 
 kind:
 	kind create cluster --config ./test/kind/kind.yaml
