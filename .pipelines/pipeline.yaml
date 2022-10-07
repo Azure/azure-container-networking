@@ -323,27 +323,7 @@ stages:
   #     clusterDefinitionCniTypeKey: "azureCNIURLWindows"
   #     clusterDefinitionCniBuildOS: "windows"
   #     clusterDefinitionCniBuildExt: ".zip"
-
-  - template: singletenancy/aks-engine/e2e-dualstack-job-template.yaml
-    parameters:
-      name: "ubuntu_18_04_linux_dualstack_e2e"
-      displayName: "Ubuntu 18.04 Dualstack"
-      pipelineBuildImage: "$(BUILD_IMAGE)"
-      clusterDefinition: "cniLinuxDualstack1804.json"
-      clusterDefinitionCniTypeKey: "azureCNIURLLinux"
-      clusterDefinitionCniBuildOS: "linux"
-      clusterDefinitionCniBuildExt: ".tgz"
-
-  # - template: singletenancy/aks-engine/e2e-dualstack-job-template.yaml
-  #   parameters:
-  #     name: "windows_20_04_dualstack_e2e"
-  #     displayName: "Windows 20.04 Dualstack"
-  #     pipelineBuildImage: "$(BUILD_IMAGE)"
-  #     clusterDefinition: "cniWindowsDualstack2004.json"
-  #     clusterDefinitionCniTypeKey: "azureCNIURLWindows"
-  #     clusterDefinitionCniBuildOS: "windows"
-  #     clusterDefinitionCniBuildExt: ".zip"
-
+  
   - stage: cleanup
     displayName: Cleanup
     dependsOn:
@@ -352,8 +332,6 @@ stages:
       - "windows_19_03_e2e"
       - "windows_20_04_e2e"
       # - "windows_20_22_e2e"
-      - "ubuntu_18_04_linux_dualstack_e2e"
-      # - "windows_20_04_dualstack_e2e"
     jobs:
       - job: delete_remote_artifacts
         displayName: Delete remote artifacts
