@@ -450,31 +450,41 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 
 		ncResponses, ipamAddResult.hostSubnetPrefix, er = plugin.multitenancyClient.GetContainersNetworkConfiguration(
 			context.TODO(), nwCfg, k8sPodName, k8sNamespace)
-		if er != nil {
-			er = errors.Wrapf(er, "GetContainerNetworkConfiguration failed for podname %v namespace %v", k8sPodName, k8sNamespace)
-			log.Printf("%+v", er)
-			return er
-		}
 
-		log.Printf("ncResponses are %+v", ncResponses)
-		var ncResponseCopy [2]cns.GetNetworkContainerResponse
-		for i, ncResponse := range *ncResponses {
-			//ipamAddResult.ncResponse = &ncResponse
-			ncResponseCopy[i] = ncResponse
-			ipamAddResult.ncResponse = &ncResponseCopy[i]
+		if ncResponses == nil {
+			log.Printf("CNS is old version, invoke old CNI API")
+			ipamAddResult.ncResponse, ipamAddResult.hostSubnetPrefix, er = plugin.multitenancyClient.GetContainerNetworkConfiguration(
+				context.TODO(), nwCfg, k8sPodName, k8sNamespace)
+			if er != nil {
+				er = errors.Wrapf(er, "GetContainerNetworkConfiguration failed for podname %v namespace %v", k8sPodName, k8sNamespace)
+				log.Printf("%+v", er)
+				return er
+			}
 			ipamAddResult.ipv4Result = convertToCniResult(ipamAddResult.ncResponse, args.IfName)
-			log.Printf("current ipamAddResult.ncResponse", ipamAddResult.ncResponse)
 			ipamAddResults = append(ipamAddResults, ipamAddResult)
+
+			log.Printf("PrimaryInterfaceIdentifier: %v", ipamAddResult.hostSubnetPrefix.IP.String())
+		} else {
+			if er != nil {
+				er = errors.Wrapf(er, "GetContainersNetworkConfiguration failed for podname %v namespace %v", k8sPodName, k8sNamespace)
+				log.Printf("%+v", er)
+				return er
+			}
+
+			var ncResponseCopy [2]cns.GetNetworkContainerResponse
+			for i, ncResponse := range *ncResponses {
+				ncResponseCopy[i] = ncResponse
+				ipamAddResult.ncResponse = &ncResponseCopy[i]
+				ipamAddResult.ipv4Result = convertToCniResult(ipamAddResult.ncResponse, args.IfName)
+				ipamAddResults = append(ipamAddResults, ipamAddResult)
+			}
 		}
 
-		for _, ip := range ipamAddResults {
-			log.Printf("[paul] ipamAddResult response is %+v", ip.ncResponse)
-		}
+		log.Printf("ipamAddResults are %+v", ipamAddResults)
 
 		for i := 0; i < len(ipamAddResults); i++ {
 			ipamAddResult = ipamAddResults[i]
 			networkID, err := plugin.getNetworkName(args.Netns, &ipamAddResult, nwCfg)
-			log.Printf("networkID is %s", networkID)
 			if err != nil {
 				log.Printf("[cni-net] Failed to extract network name from network config. error: %v", err)
 				return err

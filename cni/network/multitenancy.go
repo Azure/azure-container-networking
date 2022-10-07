@@ -219,8 +219,9 @@ func (m *Multitenancy) GetContainersNetworkConfiguration(
 	}
 
 	log.Printf("Podname without suffix %v", podNameWithoutSuffix)
-	
+
 	ncResponses, hostSubnetPrefix, err := m.getContainersNetworkConfigurationInternal(ctx, podNamespace, podNameWithoutSuffix)
+
 	if ncResponses != nil {
 		for _, ncResponse := range *ncResponses {
 			if nwCfg.EnableSnatOnHost {
@@ -249,8 +250,9 @@ func (m *Multitenancy) getContainersNetworkConfigurationInternal(
 	}
 
 	networkConfigs, err := m.cnsclient.GetNetworkContainersConfiguration(ctx, orchestratorContext)
+
 	if err != nil {
-		log.Printf("GetNetworkContainerConfiguration failed with %v", err)
+		log.Printf("GetNetworkContainersConfiguration failed with %v", err)
 		return nil, net.IPNet{}, fmt.Errorf("%w", err)
 	}
 
@@ -284,6 +286,7 @@ func (m *Multitenancy) getContainerNetworkConfigurationInternal(
 	}
 
 	networkConfig, err := m.cnsclient.GetNetworkContainerConfiguration(ctx, orchestratorContext)
+
 	if err != nil {
 		log.Printf("GetNetworkContainerConfiguration failed with %v", err)
 		return nil, net.IPNet{}, fmt.Errorf("%w", err)
