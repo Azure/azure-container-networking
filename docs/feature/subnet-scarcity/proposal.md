@@ -58,7 +58,7 @@ R \lt t \times Q &\text{if exhausted}
 \end{cases}
 $$
 
-If the Subnet is exhausted, DNC-RC will write an additional per-subnet CRD, the `ClusterSubnetState`, with a Status of `exhausted=true`. When the Subnet is not exhausted, DNC-RC will write the Status as `exhausted=false`.
+If the Subnet is exhausted, DNC-RC will write an additional per-subnet CRD, the [`ClusterSubnetState`](https://github.com/Azure/azure-container-networking/blob/master/crd/clustersubnetstate/api/v1alpha1/clustersubnetstate.go), with a Status of `exhausted=true`. When the Subnet is not exhausted, DNC-RC will write the Status as `exhausted=false`.
 
 #### [[1-3]](phase-1/3-releaseips.md) IPs are released by CNS
 CNS will watch the `ClusterSubnetState` CRD and will update its internal state with the Subnet's exhaustion status. When the Subnet is exhausted, CNS will ignore the configured Batch size from the `NodeNetworkConfig`, and instead will scale in Batches of 1 IP. This will have the effect of releasing almost every unassigned IP back to the Subnet - 1 free IP will be kept in the Node's IPAM Pool, and scaling up or down will be done in increments of 1 IP.
@@ -66,19 +66,25 @@ CNS will watch the `ClusterSubnetState` CRD and will update its internal state w
 ### Phase 2
 The batch size $B$ is dynamically adjusted based on the current subnet utilization. The batch size is increased when the subnet utilization is low, and decreased when the subnet utilization is high. IPs are not assigned to a new Node until CNS requests them, allowing Nodes to start safely even in very constrained subnets.
 
-#### Nodes/NCs are not assigned initial IPs by DNC-RC
-DNC-RC will create the NNC for a new Node with an initial IP Request of 0. An empty NC (containing a Primary, but no Secondary IPs) will be created via normal DNC API calls. The empty NC will be written to the NNC, allowing the Node CNS to start.
+#### [[2-1]](phase-2/1-emptync.md) DNC-RC creates NCs with no Secondary IPs
+DNC-RC will create the NNC for a new Node with an initial IP Request of 0. An empty NC (containing a Primary, but no Secondary IPs) will be created via normal DNC API calls. The empty NC will be written to the NNC, allowing CNS to start. CNS will make the initial IP request according to the Subnet Exhaustion State.
 
-DNC-RC will continue to poll the `SubnetState` API periodically to check the Subnet utilization.
+DNC-RC will continue to poll the `SubnetState` API periodically to check the Subnet utilization, and write the exhaustion to the `ClusterSubnetState` CRD.
 
-#### CNS scales IPAM pool idempotently
+#### [[2-2]](phase-2/2-scalingmath.md) CNS scales IPAM pool idempotently
+Instead of increasing/decreasing the Pool size by 1 Batch at a time to try to satisfy the min/max free IP constraints, CNS will calculate the correct target Requested IP Count using a single O(1) algorithm.
+
+This idempotent Pool scaling formula is:
+
+$$
+Request = B \times \lceil mf + \frac{U}{B} \rceil
+$$
+
+where $U$ is the number of Assigned (Used) IPs on the Node.
 
 ### Phase 3
-#### CNS watches Pods
-CNS current IPAM solution is reactive: it waits for the CNI to request (or release) an IP address for a Pod, and attempts to honor that request out of the current IP Pool. Because of this, requests are necessarily serial, and this creates a scaling bottleneck. 
-When a Pod is created, the CNI will call with a request to assign an IP. If CNS is out of IPs and cannot honor that request, the CNI will return an error to the CRI, which will follow up by tearing down that Pod sandbox and starting over. Because of this stateless retrying, CNS can only reliable understand that it needs _at least one more_ IP, because it is impossible to tell if subsequent requests are retries for the same Pod, or many different Pods. If _many_ Pods have been scheduled, CNS will still only request a single additional batch of IPs, and assign those IPs one at a time until it runs out, then request a single additional batch of IPs...
+#### [[3-1]](phase-3/1-watchpods.md) CNS watches Pods
 
-A more predictive method of IP Pool scaling will be added to CNS: CNS will watch Pods for its Node, and will request/release IPs immediately based on the number of Pods scheduled. The Batching behavior will be unchanged, and CNS will continue to request IPs in Batches $B$ based on the local IP usage.
 
 #### CNS stops watching the ClusterSubnetState
 #### DNC-RC iteratively adjusts the Batch size
