@@ -163,10 +163,6 @@ stages:
               arch: amd64
               os: linux
               name: cns
-            npm_linux_amd64:
-              arch: amd64
-              os: linux
-              name: npm
         steps:
           - template: containers/container-template.yaml
             parameters:
@@ -193,10 +189,6 @@ stages:
               arch: arm64
               os: linux
               name: cns
-            npm_linux_arm64:
-              arch: arm64
-              os: linux
-              name: npm
         steps:
           - template: containers/container-template.yaml
             parameters:
@@ -215,9 +207,6 @@ stages:
             cns_windows_amd64:
               arch: amd64
               name: cns
-            npm_windows_amd64:
-              arch: amd64
-              name: npm
         steps:
           - template: containers/container-template-windows.yaml
             parameters:
@@ -244,9 +233,6 @@ stages:
               platforms: linux/amd64 linux/arm64
             cns:
               name: cns
-              platforms: linux/amd64 linux/arm64 windows/amd64
-            npm:
-              name: npm
               platforms: linux/amd64 linux/arm64 windows/amd64
         steps:
           - template: containers/manifest-template.yaml
