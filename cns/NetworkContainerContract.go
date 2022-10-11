@@ -17,11 +17,11 @@ const (
 	SetOrchestratorType                      = "/network/setorchestratortype"
 	CreateOrUpdateNetworkContainer           = "/network/createorupdatenetworkcontainer"
 	DeleteNetworkContainer                   = "/network/deletenetworkcontainer"
-	GetNetworkContainerStatus                = "/network/getnetworkcontainerstatus"
 	PublishNetworkContainer                  = "/network/publishnetworkcontainer"
 	UnpublishNetworkContainer                = "/network/unpublishnetworkcontainer"
 	GetInterfaceForContainer                 = "/network/getinterfaceforcontainer"
 	GetNetworkContainerByOrchestratorContext = "/network/getnetworkcontainerbyorchestratorcontext"
+	NetworkContainersURLPath                 = "/network/networkcontainers"
 	AttachContainerToNetwork                 = "/network/attachcontainertonetwork"
 	DetachContainerFromNetwork               = "/network/detachcontainerfromnetwork"
 	RequestIPConfig                          = "/network/requestipconfig"
@@ -29,6 +29,8 @@ const (
 	PathDebugIPAddresses                     = "/debug/ipaddresses"
 	PathDebugPodContext                      = "/debug/podcontext"
 	PathDebugRestData                        = "/debug/restdata"
+	NumberOfCPUCores                         = NumberOfCPUCoresPath
+	NMAgentSupportedAPIs                     = NmAgentSupportedApisPath
 )
 
 // NetworkContainer Prefixes
@@ -303,7 +305,7 @@ type IPConfiguration struct {
 // SecondaryIPConfig contains IP info of SecondaryIP
 type SecondaryIPConfig struct {
 	IPAddress string
-	// NCVesion will help in determining whether IP is in pending programming or available when reconciling.
+	// NCVersion will help in determining whether IP is in pending programming or available when reconciling.
 	NCVersion int
 }
 
@@ -338,12 +340,12 @@ type CreateNetworkContainerResponse struct {
 	Response Response
 }
 
-// GetNetworkContainerStatusRequest specifies the details about the request to retrieve status of a specifc network container.
+// GetNetworkContainerStatusRequest specifies the details about the request to retrieve status of a specific network container.
 type GetNetworkContainerStatusRequest struct {
 	NetworkContainerid string
 }
 
-// GetNetworkContainerStatusResponse specifies response of retriving a network container status.
+// GetNetworkContainerStatusResponse specifies response of retrieving a network container status.
 type GetNetworkContainerStatusResponse struct {
 	NetworkContainerid string
 	Version            string
@@ -351,13 +353,29 @@ type GetNetworkContainerStatusResponse struct {
 	Response           Response
 }
 
-// GetNetworkContainerRequest specifies the details about the request to retrieve a specifc network container.
+// GetAllNetworkContainersResponse specifies response of retrieving all NCs from CNS during the process of NC refresh association.
+type GetAllNetworkContainersResponse struct {
+	NetworkContainers []GetNetworkContainerResponse
+	Response          Response
+}
+
+// PostNetworkContainersRequest specifies the request of creating all NCs that are sent from DNC.
+type PostNetworkContainersRequest struct {
+	CreateNetworkContainerRequests []CreateNetworkContainerRequest
+}
+
+// PostNetworkContainersResponse specifies response of creating all NCs that are sent from DNC.
+type PostNetworkContainersResponse struct {
+	Response Response
+}
+
+// GetNetworkContainerRequest specifies the details about the request to retrieve a specific network container.
 type GetNetworkContainerRequest struct {
 	NetworkContainerid  string
 	OrchestratorContext json.RawMessage
 }
 
-// GetNetworkContainerResponse describes the response to retrieve a specifc network container.
+// GetNetworkContainerResponse describes the response to retrieve a specific network container.
 type GetNetworkContainerResponse struct {
 	NetworkContainerID         string
 	IPConfiguration            IPConfiguration
@@ -371,14 +389,12 @@ type GetNetworkContainerResponse struct {
 	AllowNCToHostCommunication bool
 }
 
-// DeleteNetworkContainerRequest specifies the details about the request to delete a specifc network container.
 type PodIpInfo struct {
 	PodIPConfig                     IPSubnet
 	NetworkContainerPrimaryIPConfig IPConfiguration
 	HostPrimaryIPInfo               HostIPInfo
 }
 
-// DeleteNetworkContainerRequest specifies the details about the request to delete a specifc network container.
 type HostIPInfo struct {
 	Gateway   string
 	PrimaryIP string
@@ -434,12 +450,12 @@ type IPAddressState struct {
 	State     string
 }
 
-// DeleteNetworkContainerRequest specifies the details about the request to delete a specifc network container.
+// DeleteNetworkContainerRequest specifies the details about the request to delete a specific network container.
 type DeleteNetworkContainerRequest struct {
 	NetworkContainerid string
 }
 
-// DeleteNetworkContainerResponse describes the response to delete a specifc network container.
+// DeleteNetworkContainerResponse describes the response to delete a specific network container.
 type DeleteNetworkContainerResponse struct {
 	Response Response
 }
@@ -468,7 +484,7 @@ type DetachContainerFromNetworkResponse struct {
 	Response Response
 }
 
-// NetworkInterface specifies the information that can be used to unquely identify an interface.
+// NetworkInterface specifies the information that can be used to uniquely identify an interface.
 type NetworkInterface struct {
 	Name      string
 	IPAddress string

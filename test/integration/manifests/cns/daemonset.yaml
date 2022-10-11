@@ -41,7 +41,7 @@ spec:
           effect: NoSchedule
       containers:
         - name: cns-container
-          image: acnpublic.azurecr.io/azure-cns:v1.4.32
+          image: acnpublic.azurecr.io/azure-cns:v1.4.33
           imagePullPolicy: IfNotPresent
           args: [ "-c", "tcp://$(CNSIpAddress):$(CNSPort)", "-t", "$(CNSLogTarget)"]
           securityContext:
@@ -53,6 +53,8 @@ spec:
               mountPath: /var/log
             - name: cns-state
               mountPath: /var/lib/azure-network
+            - name: azure-endpoints
+              mountPath: /var/run/azure-cns/
             - name: cns-config
               mountPath: /etc/azure-cns
             - name: cni-bin
@@ -81,7 +83,7 @@ spec:
                     fieldPath: spec.nodeName 
       initContainers:
         - name: init-cni-dropgz
-          image: acnpublic.azurecr.io/cni-dropgz:v1.4.28-41-g3ecb7fb1
+          image: acnpublic.azurecr.io/cni-dropgz-test:latest
           imagePullPolicy: Always
           command: ["/dropgz"]
           volumeMounts:
@@ -95,6 +97,10 @@ spec:
           hostPath:
             path: /etc/cni/net.d
             type: Directory
+        - name: azure-endpoints
+          hostPath:
+            path: /var/run/azure-cns/
+            type: DirectoryOrCreate
         - name: log
           hostPath:
             path: /var/log

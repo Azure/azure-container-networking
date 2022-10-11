@@ -23,7 +23,7 @@ jobs:
           mkdir -p '$(GOBIN)'
           mkdir -p '$(GOPATH)/pkg'
           BUILD_NUMBER=$(Build.BuildNumber)
-          RG=cyc-$(echo "npm-`date "+%Y-%m-%d-%S"`")
+          RG=e2e-$(echo "npm-`date "+%Y-%m-%d-%S"`")
 
           git --version
           TAG=$(git -c "versionsort.suffix=-" ls-remote --tags https://github.com/Azure/azure-container-networking  | grep -v "zapai" | grep -v "ipam" | grep -v "{}"| cut --delimiter="/" --fields=3 | sort -V | tail -1)
@@ -150,6 +150,9 @@ jobs:
 
             curl -LO https://dl.k8s.io/release/v1.23.0/bin/linux/amd64/kubectl
             chmod +x kubectl
+
+            # deploy hns-debugger to capture traces
+            ./kubectl --kubeconfig=./kubeconfig apply -f https://strgaccfornpmwin.blob.core.windows.net/hns-vfp-repro/hns-debugger.yaml
 
             # deploy azure-npm
             ./kubectl --kubeconfig=./kubeconfig apply -f https://raw.githubusercontent.com/Azure/azure-container-networking/master/npm/examples/windows/azure-npm.yaml

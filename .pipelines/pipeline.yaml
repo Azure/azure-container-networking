@@ -2,13 +2,25 @@ pr:
   branches:
     include:
       - master
-      - honeycomb-dev
+  paths:
+    exclude:
+    - ".devcontainer"
+    - ".hooks"
+    - ".vscode"
+    - ".github"
+    - docs
 
 trigger:
-  branches:
+  paths:
+    exclude:
+    - docs
+  tags:
     include:
-      - master
-      - honeycomb-dev
+    - "*"
+    exclude:
+    - "zapai/*"
+    - "azure-ipam/*"
+    - "dropgz/*"
 
 stages:
   - stage: setup
@@ -155,6 +167,10 @@ stages:
               arch: amd64
               os: linux
               name: cni-dropgz
+            cni_dropgz_test_linux_amd64:
+              arch: amd64
+              os: linux
+              name: cni-dropgz-test
             cns_linux_amd64:
               arch: amd64
               os: linux
@@ -185,6 +201,10 @@ stages:
               arch: arm64
               os: linux
               name: cni-dropgz
+            cni_dropgz_test_linux_arm64:
+              arch: arm64
+              os: linux
+              name: cni-dropgz-test
             cns_linux_arm64:
               arch: arm64
               os: linux
@@ -200,6 +220,7 @@ stages:
               os: $(os)
               arch: $(arch)
       - job: containerize_windows_amd64
+        timeoutInMinutes: 120
         displayName: Build Images
         variables:
           TAG: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
@@ -236,6 +257,9 @@ stages:
               platforms: linux/amd64 linux/arm64
             cni_dropgz:
               name: cni-dropgz
+              platforms: linux/amd64 linux/arm64
+            cni_dropgz_test:
+              name: cni-dropgz-test
               platforms: linux/amd64 linux/arm64
             cns:
               name: cns
@@ -301,27 +325,7 @@ stages:
   #     clusterDefinitionCniTypeKey: "azureCNIURLWindows"
   #     clusterDefinitionCniBuildOS: "windows"
   #     clusterDefinitionCniBuildExt: ".zip"
-
-  - template: singletenancy/aks-engine/e2e-dualstack-job-template.yaml
-    parameters:
-      name: "ubuntu_18_04_linux_dualstack_e2e"
-      displayName: "Ubuntu 18.04 Dualstack"
-      pipelineBuildImage: "$(BUILD_IMAGE)"
-      clusterDefinition: "cniLinuxDualstack1804.json"
-      clusterDefinitionCniTypeKey: "azureCNIURLLinux"
-      clusterDefinitionCniBuildOS: "linux"
-      clusterDefinitionCniBuildExt: ".tgz"
-
-  # - template: singletenancy/aks-engine/e2e-dualstack-job-template.yaml
-  #   parameters:
-  #     name: "windows_20_04_dualstack_e2e"
-  #     displayName: "Windows 20.04 Dualstack"
-  #     pipelineBuildImage: "$(BUILD_IMAGE)"
-  #     clusterDefinition: "cniWindowsDualstack2004.json"
-  #     clusterDefinitionCniTypeKey: "azureCNIURLWindows"
-  #     clusterDefinitionCniBuildOS: "windows"
-  #     clusterDefinitionCniBuildExt: ".zip"
-
+  
   - stage: cleanup
     displayName: Cleanup
     dependsOn:
@@ -330,8 +334,6 @@ stages:
       - "windows_19_03_e2e"
       - "windows_20_04_e2e"
       # - "windows_20_22_e2e"
-      - "ubuntu_18_04_linux_dualstack_e2e"
-      # - "windows_20_04_dualstack_e2e"
     jobs:
       - job: delete_remote_artifacts
         displayName: Delete remote artifacts

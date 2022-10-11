@@ -15,8 +15,8 @@ import (
 // +kubebuilder:object:root=true
 // +kubebuilder:resource:scope=Namespaced
 // +kubebuilder:subresource:status
-// +kubebuilder:printcolumn:name="Timestamp",type=string,JSONPath=`.status.exhausted`
-// +kubebuilder:printcolumn:name="Status",type=string,JSONPath=`.spec.timestamp`
+// +kubebuilder:printcolumn:name="Exhausted",type=string,JSONPath=`.status.exhausted`
+// +kubebuilder:printcolumn:name="Updated",type=string,JSONPath=`.spec.timestamp`
 type ClusterSubnetState struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -26,8 +26,8 @@ type ClusterSubnetState struct {
 
 // ClusterSubnetStateStatus defines the observed state of ClusterSubnetState
 type ClusterSubnetStateStatus struct {
-	Exhausted bool   `json:"Exhausted"`
-	Timestamp string `json:"Timestamp"`
+	Exhausted bool   `json:"exhausted"`
+	Timestamp string `json:"timestamp"`
 }
 
 // +kubebuilder:object:root=true
