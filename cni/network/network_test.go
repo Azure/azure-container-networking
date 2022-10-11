@@ -113,6 +113,7 @@ func TestPluginAdd(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 				endpoints, _ := plugin.nm.GetAllEndpoints(tt.nwCfg.Name)
+				t.Logf("endpoints are %+v", endpoints)
 				require.Condition(t, assert.Comparison(func() bool { return len(endpoints) == 1 }))
 			}
 		})
@@ -706,7 +707,7 @@ func TestPluginMultitenancyDelete(t *testing.T) {
 }
 
 /*
-	Baremetal scenarios
+Baremetal scenarios
 */
 func TestPluginBaremetalAdd(t *testing.T) {
 	plugin, _ := cni.NewPlugin("test", "0.3.0")
@@ -835,7 +836,7 @@ func TestPluginBaremetalDelete(t *testing.T) {
 }
 
 /*
-	AKS-Swift scenario
+AKS-Swift scenario
 */
 func TestPluginAKSSwiftAdd(t *testing.T) {
 	plugin := GetTestResources()

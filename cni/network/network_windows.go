@@ -17,7 +17,6 @@ import (
 	"github.com/Azure/azure-container-networking/network"
 	"github.com/Azure/azure-container-networking/network/networkutils"
 	"github.com/Azure/azure-container-networking/network/policy"
-	"github.com/Microsoft/hcsshim"
 	hnsv2 "github.com/Microsoft/hcsshim/hcn"
 	cniSkel "github.com/containernetworking/cni/pkg/skel"
 	cniTypes "github.com/containernetworking/cni/pkg/types"
@@ -161,7 +160,6 @@ func (plugin *NetPlugin) getNetworkName(netNs string, ipamAddResult *IPAMAddResu
 			log.Printf("Error parsing %s network CIDR: %v.", ipAddrNet.String(), err)
 			return "", errors.Wrapf(err, "cns returned invalid CIDR %s", ipAddrNet.String())
 		}
-		log.Printf("ipAddrNet is %+v", ipAddrNet)
 		networkName := strings.ReplaceAll(prefix.Masked().String(), ".", "-")
 		networkName = strings.ReplaceAll(networkName, "/", "_")
 		networkName = fmt.Sprintf("%s-vlan%v-%v", nwCfg.Name, ipamAddResult.ncResponse.MultiTenancyInfo.ID, networkName)

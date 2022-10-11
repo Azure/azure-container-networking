@@ -912,7 +912,6 @@ func (service *HTTPRestService) getNetworkContainerByOrchestratorContext(w http.
 	returnCode := getNetworkContainerResponse.Response.ReturnCode
 	err = service.Listener.Encode(w, &getNetworkContainerResponse)
 	logger.Response(service.Name, getNetworkContainerResponse, returnCode, err)
-
 }
 
 // getOrRefreshNetworkContainers is to check whether refresh association is needed.

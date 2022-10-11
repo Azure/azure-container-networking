@@ -410,6 +410,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 		errMsg := "Interfacename not specified in CNI Args"
 		log.Printf(errMsg)
 		return plugin.Errorf(errMsg)
+
 	}
 
 	platformInit(nwCfg)
@@ -480,8 +481,6 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 			}
 		}
 
-		log.Printf("ipamAddResults are %+v", ipamAddResults)
-
 		for i := 0; i < len(ipamAddResults); i++ {
 			ipamAddResult = ipamAddResults[i]
 			networkID, err := plugin.getNetworkName(args.Netns, &ipamAddResult, nwCfg)
@@ -496,7 +495,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 			options := make(map[string]interface{})
 			// Check whether the network already exists.
 			nwInfo, nwInfoErr := plugin.nm.GetNetworkInfo(networkID)
-			log.Printf("nwInfo is %+v", nwInfo)
+
 			/* Handle consecutive ADD calls for infrastructure containers.
 			 * This is a temporary work around for issue #57253 of Kubernetes.
 			 * We can delete this if statement once they fix it.

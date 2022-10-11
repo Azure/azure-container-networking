@@ -13,7 +13,6 @@ import (
 	"github.com/Azure/azure-container-networking/netlink"
 	"github.com/Azure/azure-container-networking/network/policy"
 	"github.com/Azure/azure-container-networking/platform"
-	"github.com/Microsoft/hcsshim"
 	"github.com/Microsoft/hcsshim/hcn"
 )
 
@@ -317,7 +316,6 @@ func (nw *network) newEndpointImplHnsV2(cli apipaClient, epInfo *EndpointInfo) (
 	// Create the HCN endpoint.
 	log.Printf("[net] Creating hcn endpoint: %s computenetwork:%s", hcnEndpoint.Name, hcnEndpoint.HostComputeNetwork)
 	hnsResponse, err := Hnsv2.CreateEndpoint(hcnEndpoint)
-
 	if err != nil {
 		return nil, fmt.Errorf("Failed to create endpoint: %s due to error: %v", hcnEndpoint.Name, err)
 	}
