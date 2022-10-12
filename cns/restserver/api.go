@@ -1171,7 +1171,7 @@ func (service *HTTPRestService) publishNetworkContainer(w http.ResponseWriter, r
 		// Please refactor this
 		// do not reuse the below variable between network join and publish
 		// nolint:bodyclose // existing code needs refactoring
-		err = service.joinNetwork(req.NetworkID)
+		err = service.joinNetwork(ctx, req.NetworkID)
 		if err != nil {
 			returnMessage = err.Error()
 			returnCode = types.NetworkJoinFailed
@@ -1286,7 +1286,7 @@ func (service *HTTPRestService) unpublishNetworkContainer(w http.ResponseWriter,
 		isNetworkJoined = service.isNetworkJoined(req.NetworkID)
 		if !isNetworkJoined {
 			// nolint:bodyclose // existing code needs refactoring
-			err = service.joinNetwork(req.NetworkID)
+			err = service.joinNetwork(ctx, req.NetworkID)
 			if err != nil {
 				returnMessage = err.Error()
 				returnCode = types.NetworkJoinFailed

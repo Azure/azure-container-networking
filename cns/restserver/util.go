@@ -642,14 +642,12 @@ func (service *HTTPRestService) setNetworkStateJoined(networkID string) {
 }
 
 // Join Network by calling nmagent
-func (service *HTTPRestService) joinNetwork(
-	networkID string,
-) error {
+func (service *HTTPRestService) joinNetwork(ctx context.Context, networkID string) error {
 	jnr := nma.JoinNetworkRequest{
 		NetworkID: networkID,
 	}
 
-	err := service.nma.JoinNetwork(context.TODO(), jnr)
+	err := service.nma.JoinNetwork(ctx, jnr)
 	if err != nil {
 		return err
 	}
