@@ -800,7 +800,7 @@ func (service *HTTPRestService) isNCWaitingForUpdate(
 
 	resp, err := service.nma.GetNCVersion(context.TODO(), getNCVersionURL.(nma.NCVersionRequest))
 	var nmaErr nma.Error
-	if errors.As(err, &nmaErr); nmaErr.Unauthorized() {
+	if errors.As(err, &nmaErr) && nmaErr.Unauthorized() {
 		return true, types.NetworkContainerVfpProgramPending, ""
 	}
 

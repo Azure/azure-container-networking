@@ -1177,7 +1177,8 @@ func (service *HTTPRestService) publishNetworkContainer(w http.ResponseWriter, r
 			returnCode = types.NetworkJoinFailed
 			publishErrorStr = err.Error()
 
-			if nmaErr, ok := err.(nma.Error); ok {
+			var nmaErr nma.Error
+			if errors.As(err, &nmaErr) {
 				publishStatusCode = nmaErr.StatusCode()
 			}
 		} else {
@@ -1291,7 +1292,8 @@ func (service *HTTPRestService) unpublishNetworkContainer(w http.ResponseWriter,
 				returnCode = types.NetworkJoinFailed
 				unpublishErrorStr = err.Error()
 
-				if nmaErr, ok := err.(nma.Error); ok {
+				var nmaErr nma.Error
+				if errors.As(err, &nmaErr) {
 					unpublishStatusCode = nmaErr.StatusCode()
 				}
 
