@@ -573,7 +573,8 @@ func TestGetNetworkContainerVersionStatus(t *testing.T) {
 	}
 	expectCNSSuccess(t, resp.Response)
 
-	if err := deleteNetworkContainerWithParams(params); err != nil {
+	err = deleteNetworkContainerWithParams(params)
+	if err != nil {
 		t.Fatal("error deleting NC: err:", err)
 	}
 
@@ -607,7 +608,8 @@ func TestGetNetworkContainerVersionStatus(t *testing.T) {
 	}
 	expectCNSFailure(t, resp.Response)
 
-	if err := deleteNetworkContainerWithParams(params); err != nil {
+	err = deleteNetworkContainerWithParams(params)
+	if err != nil {
 		t.Fatal("error deleting interface: err:", err)
 	}
 
@@ -644,7 +646,8 @@ func TestGetNetworkContainerVersionStatus(t *testing.T) {
 	}
 	expectCNSSuccess(t, resp.Response)
 
-	if err := deleteNetworkContainerWithParams(params); err != nil {
+	err = deleteNetworkContainerWithParams(params)
+	if err != nil {
 		t.Fatal("error deleting network container: err:", err)
 	}
 
