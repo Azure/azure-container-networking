@@ -649,7 +649,7 @@ func (service *HTTPRestService) joinNetwork(ctx context.Context, networkID strin
 
 	err := service.nma.JoinNetwork(ctx, jnr)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "sending join network request")
 	}
 
 	// Network joined successfully
