@@ -317,10 +317,13 @@ func (f Hnsv2wrapperFake) GetEndpointByName(endpointName string) (*hcn.HostCompu
 }
 
 type FakeHNSCache struct {
-	networks  map[string]*FakeHostComputeNetwork
+	// networks maps network name to network object
+	networks map[string]*FakeHostComputeNetwork
+	// endpoints maps endpoint ID to endpoint object
 	endpoints map[string]*FakeHostComputeEndpoint
 }
 
+// SetPolicy returns the first SetPolicy found with this ID in any network.
 func (fCache FakeHNSCache) SetPolicy(setID string) *hcn.SetPolicySetting {
 	for _, network := range fCache.networks {
 		for _, policy := range network.Policies {
@@ -332,6 +335,45 @@ func (fCache FakeHNSCache) SetPolicy(setID string) *hcn.SetPolicySetting {
 	return nil
 }
 
+// StrictlyHasSetPolicies is true if the network exists and has all the SetPolicies and no others.
+func (fCache FakeHNSCache) StrictlyHasSetPolicies(networkID string, setIDs []string) bool {
+	for _, network := range fCache.networks {
+		if network.ID == networkID {
+			for _, setID := range setIDs {
+				hasPolicy := false
+				for _, policy := range network.Policies {
+					if policy.Id == setID {
+						hasPolicy = true
+						break
+					}
+				}
+
+				if !hasPolicy {
+					return false
+				}
+			}
+
+			return len(network.Policies) == len(setIDs)
+		}
+	}
+	return false
+}
+
+func (fCache FakeHNSCache) PrettyString() string {
+	var networkStrings []string
+	for _, network := range fCache.networks {
+		networkStrings = append(networkStrings, fmt.Sprintf("[%+v]", network.PrettyString()))
+	}
+
+	var endpointStrings []string
+	for _, endpoint := range fCache.endpoints {
+		endpointStrings = append(endpointStrings, fmt.Sprintf("[%+v]", endpoint.PrettyString()))
+	}
+
+	return fmt.Sprintf("networks: [%s]\nendpoints: [%s]", strings.Join(networkStrings, ","), strings.Join(endpointStrings, ","))
+}
+
+// ACLPolicies returns a map of the inputed Endpoint IDs to Policies with the given policyID
 func (fCache FakeHNSCache) ACLPolicies(epList map[string]string, policyID string) (map[string][]*FakeEndpointPolicy, error) {
 	aclPols := make(map[string][]*FakeEndpointPolicy)
 	for ip, epID := range epList {
@@ -354,6 +396,7 @@ func (fCache FakeHNSCache) ACLPolicies(epList map[string]string, policyID string
 	return aclPols, nil
 }
 
+// GetAllACLs maps all Endpoint IDs to ACLs
 func (fCache FakeHNSCache) GetAllACLs() map[string][]*FakeEndpointPolicy {
 	aclPols := make(map[string][]*FakeEndpointPolicy)
 	for _, ep := range fCache.endpoints {
@@ -362,9 +405,20 @@ func (fCache FakeHNSCache) GetAllACLs() map[string][]*FakeEndpointPolicy {
 	return aclPols
 }
 
+// EndpointIP returns the Endpoint's IP or an empty string if the Endpoint doesn't exist.
+func (fCache FakeHNSCache) EndpointIP(id string) string {
+	for _, ep := range fCache.endpoints {
+		if ep.ID == id {
+			return ep.IPConfiguration
+		}
+	}
+	return ""
+}
+
 type FakeHostComputeNetwork struct {
-	ID       string
-	Name     string
+	ID   string
+	Name string
+	// Policies maps SetPolicy ID to SetPolicy object
 	Policies map[string]*hcn.SetPolicySetting
 }
 
@@ -374,6 +428,14 @@ func NewFakeHostComputeNetwork(network *hcn.HostComputeNetwork) *FakeHostCompute
 		Name:     network.Name,
 		Policies: make(map[string]*hcn.SetPolicySetting),
 	}
+}
+
+func (fNetwork *FakeHostComputeNetwork) PrettyString() string {
+	var setPolicyStrings []string
+	for _, setPolicy := range fNetwork.Policies {
+		setPolicyStrings = append(setPolicyStrings, fmt.Sprintf("[%+v]", setPolicy))
+	}
+	return fmt.Sprintf("ID: %s, Name: %s, SetPolicies: [%s]", fNetwork.ID, fNetwork.Name, strings.Join(setPolicyStrings, ","))
 }
 
 func (fNetwork *FakeHostComputeNetwork) GetHCNObj() *hcn.HostComputeNetwork {
@@ -402,6 +464,15 @@ func NewFakeHostComputeEndpoint(endpoint *hcn.HostComputeEndpoint) *FakeHostComp
 		HostComputeNetwork: endpoint.HostComputeNetwork,
 		IPConfiguration:    ip,
 	}
+}
+
+func (fEndpoint *FakeHostComputeEndpoint) PrettyString() string {
+	var aclStrings []string
+	for _, acl := range fEndpoint.Policies {
+		aclStrings = append(aclStrings, fmt.Sprintf("[%+v]", acl))
+	}
+	return fmt.Sprintf("ID: %s, Name: %s, IP: %s, ACLs: [%s]",
+		fEndpoint.ID, fEndpoint.Name, fEndpoint.IPConfiguration, strings.Join(aclStrings, ","))
 }
 
 func (fEndpoint *FakeHostComputeEndpoint) GetHCNObj() *hcn.HostComputeEndpoint {
