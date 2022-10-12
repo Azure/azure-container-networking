@@ -164,75 +164,79 @@ func (service *HTTPRestService) SyncHostNCVersion(ctx context.Context, channelMo
 var errNonExistentContainerStatus = errors.New("nonExistantContainerstatus")
 
 func (service *HTTPRestService) syncHostNCVersion(ctx context.Context, channelMode string) error {
-	hostVersionNeedsUpdateContainers := map[string]struct{}{}
+	outdatedNCs := map[string]struct{}{}
 	for idx := range service.state.ContainerStatus {
 		// Will open a separate PR to convert all the NC version related variable to int. Change from string to int is a pain.
-		hostVersion, err := strconv.Atoi(service.state.ContainerStatus[idx].HostVersion)
+		localNCVersion, err := strconv.Atoi(service.state.ContainerStatus[idx].HostVersion)
 		if err != nil {
 			logger.Errorf("Received err when change containerstatus.HostVersion %s to int, err msg %v", service.state.ContainerStatus[idx].HostVersion, err)
 			continue
 		}
-		dncNcVersion, err := strconv.Atoi(service.state.ContainerStatus[idx].CreateNetworkContainerRequest.Version)
+		dncNCVersion, err := strconv.Atoi(service.state.ContainerStatus[idx].CreateNetworkContainerRequest.Version)
 		if err != nil {
 			logger.Errorf("Received err when change nc version %s in containerstatus to int, err msg %v", service.state.ContainerStatus[idx].CreateNetworkContainerRequest.Version, err)
 			continue
 		}
 		// host NC version is the NC version from NMAgent, if it's smaller than NC version from DNC, then append it to indicate it needs update.
-		if hostVersion < dncNcVersion {
-			hostVersionNeedsUpdateContainers[service.state.ContainerStatus[idx].ID] = struct{}{}
-		} else if hostVersion > dncNcVersion {
-			logger.Errorf("NC version from NMAgent is larger than DNC, NC version from NMAgent is %d, NC version from DNC is %d", hostVersion, dncNcVersion)
+		if localNCVersion < dncNCVersion {
+			outdatedNCs[service.state.ContainerStatus[idx].ID] = struct{}{}
+		} else if localNCVersion > dncNCVersion {
+			logger.Errorf("NC version from NMAgent is larger than DNC, NC version from NMAgent is %d, NC version from DNC is %d", localNCVersion, dncNCVersion)
 		}
 	}
-	if len(hostVersionNeedsUpdateContainers) == 0 {
+	if len(outdatedNCs) == 0 {
 		return nil
 	}
-	ncList, err := service.nmagentClient.GetNCVersionList(ctx)
+	ncVersionListResp, err := service.nmagentClient.GetNCVersionList(ctx)
 	if err != nil {
 		return errors.Wrap(err, "failed to get nc version list from nmagent")
 	}
 
-	newHostNCVersionList := map[string]string{}
-	for _, nc := range ncList.Containers {
-		newHostNCVersionList[nc.NetworkContainerID] = nc.Version
+	nmaNCs := map[string]string{}
+	for _, nc := range ncVersionListResp.Containers {
+		nmaNCs[nc.NetworkContainerID] = nc.Version
 	}
-	for ncID := range hostVersionNeedsUpdateContainers {
-		versionStr, ok := newHostNCVersionList[ncID]
+	for ncID := range outdatedNCs {
+		nmaNCVersionStr, ok := nmaNCs[ncID]
 		if !ok {
 			// NMA doesn't have this NC that we need programmed yet, bail out
 			continue
 		}
-		version, err := strconv.Atoi(versionStr)
+		nmaNCVersion, err := strconv.Atoi(nmaNCVersionStr)
 		if err != nil {
-			return errors.Wrapf(err, "failed to parse container version of %s", ncID)
+			logger.Errorf("failed to parse container version of %s: %s", ncID, err)
+			continue
 		}
 		// Check whether it exist in service state and get the related nc info
 		ncInfo, exist := service.state.ContainerStatus[ncID]
 		if !exist {
+			// if we marked this NC as needs update, but it no longer exists in internal state when we reach
+			// this point, our internal state has changed unexpectedly and we should bail out and try again.
 			return errors.Wrapf(errNonExistentContainerStatus, "can't find NC with ID %s in service state, stop updating this host NC version", ncID)
 		}
-		hostVersion, err := strconv.Atoi(ncInfo.HostVersion)
+		localNCVersion, err := strconv.Atoi(ncInfo.HostVersion)
 		if err != nil {
-			return errors.Wrapf(err, "failed to parse host nc version string %s", ncInfo.HostVersion)
+			logger.Errorf("failed to parse host nc version string %s: %s", ncInfo.HostVersion, err)
+			continue
 		}
-		if hostVersion > version {
-			logger.Errorf("NC version from NMA is decreasing: have %d, got %d", hostVersion, version)
+		if localNCVersion > nmaNCVersion {
+			logger.Errorf("NC version from NMA is decreasing: have %d, got %d", localNCVersion, nmaNCVersion)
 			continue
 		}
 		if channelMode == cns.CRD {
-			service.MarkIpsAsAvailableUntransacted(ncInfo.ID, version)
+			service.MarkIpsAsAvailableUntransacted(ncInfo.ID, nmaNCVersion)
 		}
-		oldHostNCVersion := ncInfo.HostVersion
-		ncInfo.HostVersion = versionStr
+		logger.Printf("Updating NC %s host version from %s to %s", ncID, ncInfo.HostVersion, nmaNCVersionStr)
+		ncInfo.HostVersion = nmaNCVersionStr
+		logger.Printf("Updated NC %s host version to %s", ncID, ncInfo.HostVersion)
 		service.state.ContainerStatus[ncID] = ncInfo
-		logger.Printf("Updated NC %s host version from %s to %s", ncID, oldHostNCVersion, ncInfo.HostVersion)
 		// if we successfully updated the NC, pop it from the needs update set.
-		delete(hostVersionNeedsUpdateContainers, ncID)
+		delete(outdatedNCs, ncID)
 	}
 	// if we didn't empty out the needs update set, NMA has not programmed all the NCs we are expecting, and we
 	// need to return an error indicating that
-	if len(hostVersionNeedsUpdateContainers) > 0 {
-		return errors.Errorf("unabled to update some NCs: %v, missing or bad response from NMA", hostVersionNeedsUpdateContainers)
+	if len(outdatedNCs) > 0 {
+		return errors.Errorf("unabled to update some NCs: %v, missing or bad response from NMA", outdatedNCs)
 	}
 	return nil
 }
