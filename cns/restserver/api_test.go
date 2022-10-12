@@ -626,13 +626,13 @@ func TestGetNetworkContainerVersionStatus(t *testing.T) {
 	}
 
 	mnma.GetNCVersionF = func(_ context.Context, _ nma.NCVersionRequest) (nma.NCVersion, error) {
-		return nma.NCVersion{}, errors.New("boom")
+		return nma.NCVersion{}, errors.New("boom") //nolint:goerr113 // it's just a test
 	}
 	mnma.JoinNetworkF = func(_ context.Context, _ nma.JoinNetworkRequest) error {
-		return errors.New("boom")
+		return errors.New("boom") //nolint:goerr113 // it's just a test
 	}
 	mnma.PutNetworkContainerF = func(_ context.Context, _ *nma.PutNetworkContainerRequest) error {
-		return errors.New("boom")
+		return errors.New("boom") //nolint:goerr113 // it's just a test
 	}
 
 	err = createNC(params)
