@@ -92,7 +92,7 @@ func buildRoutes(baseURL string, paths []string) (map[string]url.URL, error) {
 }
 
 // GetNetworkContainersConfiguration Request to get network container configs.
-func (c *Client) GetNetworkContainersConfiguration(ctx context.Context, orchestratorContext []byte) (*[]cns.GetNetworkContainerResponse, error) {
+func (c *Client) GetConfigsForNetworkContainers(ctx context.Context, orchestratorContext []byte) (*[]cns.GetNetworkContainerResponse, error) {
 	payload := cns.GetNetworkContainerRequest{
 		OrchestratorContext: orchestratorContext,
 	}

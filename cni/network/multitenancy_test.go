@@ -57,7 +57,7 @@ func (c *MockCNSClient) GetNetworkContainerConfiguration(ctx context.Context, or
 	return c.getNetworkConfiguration.returnResponse, c.getNetworkConfiguration.err
 }
 
-func (c *MockCNSClient) GetNetworkContainersConfiguration(ctx context.Context, orchestratorContext []byte) (*[]cns.GetNetworkContainerResponse, error) {
+func (c *MockCNSClient) GetConfigsForNetworkContainers(ctx context.Context, orchestratorContext []byte) (*[]cns.GetNetworkContainerResponse, error) {
 	c.require.Exactly(c.getNetworkConfiguration.orchestratorContext, orchestratorContext)
 	var getNetworkContainerResponses []cns.GetNetworkContainerResponse
 	getNetworkContainerResponses = append(getNetworkContainerResponses, *c.getNetworkConfiguration.returnResponse)
@@ -240,6 +240,7 @@ func TestGetMultiTenancyCNIResult(t *testing.T) {
 		want1   *cns.GetNetworkContainerResponse
 		want2   net.IPNet
 		want3   *cniTypesCurr.Result
+		want4   *[]cns.GetNetworkContainerResponse
 		wantErr bool
 	}{
 		{
@@ -370,8 +371,41 @@ func TestGetMultiTenancyCNIResult(t *testing.T) {
 				Routes: nil,
 				DNS:    cniTypes.DNS{},
 			},
+			want4: &[]cns.GetNetworkContainerResponse{
+				{
+					PrimaryInterfaceIdentifier: "10.0.0.0/16",
+					LocalIPConfiguration: cns.IPConfiguration{
+						IPSubnet: cns.IPSubnet{
+							IPAddress:    "10.0.0.5",
+							PrefixLength: 16,
+						},
+						GatewayIPAddress: "",
+					},
+					CnetAddressSpace: []cns.IPSubnet{
+						{
+							IPAddress:    "10.1.0.0",
+							PrefixLength: 16,
+						},
+					},
+					IPConfiguration: cns.IPConfiguration{
+						IPSubnet: cns.IPSubnet{
+							IPAddress:    "10.1.0.5",
+							PrefixLength: 16,
+						},
+						DNSServers:       nil,
+						GatewayIPAddress: "10.1.0.1",
+					},
+					Routes: []cns.Route{
+						{
+							IPAddress:        "10.1.0.0/16",
+							GatewayIPAddress: "10.1.0.1",
+						},
+					},
+				},
+			},
 		},
 	}
+
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
@@ -390,6 +424,18 @@ func TestGetMultiTenancyCNIResult(t *testing.T) {
 			require.NoError(err)
 			require.Exactly(tt.want1, got1)
 			require.Exactly(tt.want2, got2)
+		})
+
+		t.Run(tt.name, func(t *testing.T) {
+			got4, _, err := tt.args.plugin.multitenancyClient.GetContainersNetworkConfiguration(
+				tt.args.ctx,
+				tt.args.nwCfg,
+				tt.args.k8sPodName,
+				tt.args.k8sNamespace)
+			if err != nil {
+				return
+			}
+			require.Exactly(tt.want4, got4)
 		})
 	}
 }

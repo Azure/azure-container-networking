@@ -132,7 +132,7 @@ func addIPV6EndpointPolicy(nwInfo network.NetworkInfo) (policy.Policy, error) {
 	return policy.Policy{}, nil
 }
 
-func (plugin *NetPlugin) getNetworkName(_ string, _ *IPAMAddResult, nwCfg *cni.NetworkConfig) (string, error) {
+func (plugin *NetPlugin) getNetworkName(_ string, _ *[]IPAMAddResult, nwCfg *cni.NetworkConfig) (string, error) {
 	return nwCfg.Name, nil
 }
 

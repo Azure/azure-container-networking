@@ -249,10 +249,10 @@ func (m *Multitenancy) getContainersNetworkConfigurationInternal(
 		return nil, net.IPNet{}, fmt.Errorf("%w", err)
 	}
 
-	networkConfigs, err := m.cnsclient.GetNetworkContainersConfiguration(ctx, orchestratorContext)
+	networkConfigs, err := m.cnsclient.GetConfigsForNetworkContainers(ctx, orchestratorContext)
 
 	if err != nil {
-		log.Printf("GetNetworkContainersConfiguration failed with %v", err)
+		log.Printf("GetConfigsForNetworkContainers failed with %v", err)
 		return nil, net.IPNet{}, fmt.Errorf("%w", err)
 	}
 
