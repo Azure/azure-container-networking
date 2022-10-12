@@ -1117,7 +1117,6 @@ func (service *HTTPRestService) publishNetworkContainer(w http.ResponseWriter, r
 	ctx := r.Context()
 
 	var (
-		err                 error
 		req                 cns.PublishNetworkContainerRequest
 		returnCode          types.ResponseCode
 		returnMessage       string
@@ -1127,7 +1126,7 @@ func (service *HTTPRestService) publishNetworkContainer(w http.ResponseWriter, r
 		isNetworkJoined     bool
 	)
 
-	err = service.Listener.Decode(w, r, &req)
+	err := service.Listener.Decode(w, r, &req)
 
 	creteNcURLCopy := req.CreateNetworkContainerURL
 
@@ -1172,7 +1171,7 @@ func (service *HTTPRestService) publishNetworkContainer(w http.ResponseWriter, r
 		// Please refactor this
 		// do not reuse the below variable between network join and publish
 		// nolint:bodyclose // existing code needs refactoring
-		err := service.joinNetwork(req.NetworkID)
+		err = service.joinNetwork(req.NetworkID)
 		if err != nil {
 			returnMessage = err.Error()
 			returnCode = types.NetworkJoinFailed
@@ -1308,7 +1307,7 @@ func (service *HTTPRestService) unpublishNetworkContainer(w http.ResponseWriter,
 				AuthenticationToken: ncParameters.AuthToken,
 			}
 
-			err := service.nma.DeleteNetworkContainer(ctx, dcr)
+			err = service.nma.DeleteNetworkContainer(ctx, dcr)
 			if err != nil {
 				returnMessage = fmt.Sprintf("Failed to unpublish Network Container: %s", req.NetworkContainerID)
 				returnCode = types.NetworkContainerUnpublishFailed
