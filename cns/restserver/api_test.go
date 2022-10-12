@@ -1207,7 +1207,7 @@ func getNonExistNetworkContainerByContext(params createOrUpdateNetworkContainerP
 	json.NewEncoder(&body).Encode(getReq)
 	req, err := http.NewRequest(http.MethodPost, cns.GetNetworkContainerByOrchestratorContext, &body)
 	if err != nil {
-		fmt.Errorf("sending http post to get NC by orchestrator endpoint: %w", err)
+		return fmt.Errorf("sending http post to get NC by orchestrator endpoint: %w", err)
 	}
 
 	w := httptest.NewRecorder()
