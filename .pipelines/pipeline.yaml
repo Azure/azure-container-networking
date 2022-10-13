@@ -291,20 +291,10 @@ stages:
       testDropgz: ""
       clusterName: "swifte2e"
 
-  # - template: singletenancy/aks-engine/e2e-job-template.yaml
-  #   parameters:
-  #     name: "ubuntu_18_04_linux_e2e"
-  #     displayName: Ubuntu 18.04
-  #     pipelineBuildImage: "$(BUILD_IMAGE)"
-  #     clusterDefinition: "cniLinux1804.json"
-  #     clusterDefinitionCniTypeKey: "azureCNIURLLinux"
-  #     clusterDefinitionCniBuildOS: "linux"
-  #     clusterDefinitionCniBuildExt: ".tgz"
-
-  - template: singletenancy/aks-engine/e2e-job-template-new.yaml
+  - template: singletenancy/aks-engine/e2e-job-template.yaml
     parameters:
-      name: "ubuntu_18_04_linux_e2e_new"
-      displayName: Ubuntu 18.04 new
+      name: "ubuntu_18_04_linux_e2e"
+      displayName: Ubuntu 18.04
       pipelineBuildImage: "$(BUILD_IMAGE)"
       clusterDefinition: "cniLinux1804.json"
       clusterDefinitionCniTypeKey: "azureCNIURLLinux"

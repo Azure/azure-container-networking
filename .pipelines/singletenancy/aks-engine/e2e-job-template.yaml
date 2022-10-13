@@ -34,7 +34,7 @@ stages:
           cniVersion: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.cniVersion'] ]
           npmVersion: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.npmVersion'] ]
         steps:
-          - template: e2e-step-template-new.yaml
+          - template: e2e-step-template.yaml
             parameters:
               name: ${{ parameters.name }}
               clusterDefinition: ${{ parameters.clusterDefinition }}
