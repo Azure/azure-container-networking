@@ -1192,7 +1192,7 @@ func (service *HTTPRestService) publishNetworkContainer(w http.ResponseWriter, r
 			pncr.AuthenticationToken = ncParameters.AuthToken
 			pncr.PrimaryAddress = ncParameters.AssociatedInterfaceID
 
-			err := service.nma.PutNetworkContainer(ctx, &pncr)
+			err = service.nma.PutNetworkContainer(ctx, &pncr)
 			// nolint:bodyclose // existing code needs refactoring
 			if err != nil {
 				returnMessage = fmt.Sprintf("Failed to publish Network Container: %s", req.NetworkContainerID)
