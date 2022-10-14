@@ -46,7 +46,6 @@ import (
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/nmagent"
-	nma "github.com/Azure/azure-container-networking/nmagent"
 	"github.com/Azure/azure-container-networking/platform"
 	"github.com/Azure/azure-container-networking/processlock"
 	localtls "github.com/Azure/azure-container-networking/server/tls"
@@ -495,7 +494,7 @@ func main() {
 
 	// create an NMAgent Client based on provided configuration
 	if cnsconfig.WireserverIP != "" {
-		host, prt, err := net.SplitHostPort(cnsconfig.WireserverIP)
+		host, prt, err := net.SplitHostPort(cnsconfig.WireserverIP) //nolint:govet // it's fine to shadow err here
 		if err != nil {
 			logger.Errorf("[Azure CNS] Invalid IP for Wireserver: %q: %s", cnsconfig.WireserverIP, err.Error())
 			return
@@ -511,7 +510,7 @@ func main() {
 		nmaConfig.Port = uint16(port)
 	}
 
-	nmaClient, err := nma.NewClient(nmaConfig)
+	nmaClient, err := nmagent.NewClient(nmaConfig)
 	if err != nil {
 		logger.Errorf("[Azure CNS] Failed to start nmagent client due to error: %v", err)
 		return
