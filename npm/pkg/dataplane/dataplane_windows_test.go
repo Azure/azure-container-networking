@@ -10,10 +10,13 @@ import (
 
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/network/hnswrapper"
+	"github.com/Azure/azure-container-networking/npm/pkg/controlplane/translation"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/ipsets"
 	"github.com/Microsoft/hcsshim/hcn"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	networkingv1 "k8s.io/api/networking/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/klog"
 )
 
@@ -38,6 +41,7 @@ const (
 	defaultHNSLatency = time.Duration(0)
 )
 
+// IPSet constants
 var (
 	podLabel1Set    = ipsets.NewIPSetMetadata("k1", ipsets.KeyLabelOfPod)
 	podLabelVal1Set = ipsets.NewIPSetMetadata("k1:v1", ipsets.KeyValueLabelOfPod)
@@ -59,6 +63,37 @@ var (
 	nsLabel2Set    = ipsets.NewIPSetMetadata("k1", ipsets.KeyLabelOfNamespace)
 	nsLabelVal2Set = ipsets.NewIPSetMetadata("k1:v1", ipsets.KeyValueLabelOfNamespace)
 )
+
+// POLICIES
+// see translatePolicy_test.go for example rules
+
+func policyNs1LabelPair1AllowAll() *networkingv1.NetworkPolicy {
+	return &networkingv1.NetworkPolicy{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "labelPair1-allow-all",
+			Namespace: ns1Set.Name,
+		},
+		Spec: networkingv1.NetworkPolicySpec{
+			PodSelector: metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"k1": "v1",
+				},
+			},
+			Ingress: []networkingv1.NetworkPolicyIngressRule{
+				{},
+			},
+			Egress: []networkingv1.NetworkPolicyEgressRule{
+				{},
+			},
+			PolicyTypes: []networkingv1.PolicyType{
+				networkingv1.PolicyTypeIngress,
+				networkingv1.PolicyTypeEgress,
+			},
+		},
+	}
+}
+
+// DP EVENTS
 
 // podCreateEvent models a Pod CREATE in the PodController
 func podCreateEvent(pod *PodMetadata, nsIPSet *ipsets.IPSetMetadata, labelIPSets ...*ipsets.IPSetMetadata) dpEvent {
@@ -129,17 +164,18 @@ func nsDeleteEvent(nsIPSet *ipsets.IPSetMetadata, labelIPSets ...*ipsets.IPSetMe
 }
 
 // policyUpdateEvent models a Network Policy CREATE/UPDATE in the PolicyController
-// FIXME have NPMNetworkPolicy as input
-func policyUpdateEvent(policyKey string) dpEvent {
+func policyUpdateEvent(policy *networkingv1.NetworkPolicy) dpEvent {
 	return func(t *testing.T, dp *DataPlane, _ *hnswrapper.Hnsv2wrapperFake) {
-		// TODO
+		npmNetPol, err := translation.TranslatePolicy(policy)
+		require.Nil(t, err, "failed to translate policy")
+		require.Nil(t, dp.UpdatePolicy(npmNetPol), "failed to update policy")
 	}
 }
 
 // policyDeleteEvent models a Network Policy DELETE in the PolicyController
 func policyDeleteEvent(policyKey string) dpEvent {
 	return func(t *testing.T, dp *DataPlane, _ *hnswrapper.Hnsv2wrapperFake) {
-		// TODO
+		require.Nil(t, dp.RemovePolicy(policyKey), "failed to delete policy")
 	}
 }
 
@@ -224,7 +260,125 @@ func TestAllEventSequences(t *testing.T) {
 			},
 		},
 		{
-			name:        "pod created then deleted",
+			name:        "policy created with no pods",
+			cfg:         dpCfg,
+			ipEndpoints: nil,
+			events: []dpEvent{
+				// pre-defined dpEvent
+				policyUpdateEvent(policyNs1LabelPair1AllowAll()),
+			},
+			expectedSetPolicies: []*hcn.SetPolicySetting{
+				// will not be an all-namespaces IPSet unless there's a Pod/Namespace event
+				setPolicy(ns1Set),
+				// Policies do not create the KeyLabelOfPod type IPSet if the selector has a key-value requirement
+				setPolicy(podLabelVal1Set),
+			},
+			expectedEnpdointACLs: nil,
+		},
+		{
+			name:        "pod created on node -> policy created and applied to it",
+			cfg:         dpCfg,
+			ipEndpoints: nil,
+			events: []dpEvent{
+				endpointCreateEvent(endpoint1, ip1),
+				podCreateEvent(NewPodMetadata(podKey1, ip1, thisNode), ns1Set, podLabelSets1...),
+				policyUpdateEvent(policyNs1LabelPair1AllowAll()),
+			},
+			expectedSetPolicies: []*hcn.SetPolicySetting{
+				setPolicy(emptySet),
+				setPolicy(allNamespaces, ns1Set.GetHashedName(), emptySet.GetHashedName()),
+				setPolicy(ns1Set, ip1),
+				setPolicy(podLabel1Set, ip1),
+				setPolicy(podLabelVal1Set, ip1),
+			},
+			expectedEnpdointACLs: map[string][]*hnswrapper.FakeEndpointPolicy{
+				endpoint1: {
+					{
+						ID:              "azure-acl-ns1-labelPair1-allow-all",
+						Protocols:       "",
+						Action:          "Allow",
+						Direction:       "In",
+						LocalAddresses:  "",
+						RemoteAddresses: "",
+						LocalPorts:      "",
+						RemotePorts:     "",
+						Priority:        222,
+					},
+					{
+						ID:              "azure-acl-ns1-labelPair1-allow-all",
+						Protocols:       "",
+						Action:          "Allow",
+						Direction:       "Out",
+						LocalAddresses:  "",
+						RemoteAddresses: "",
+						LocalPorts:      "",
+						RemotePorts:     "",
+						Priority:        222,
+					},
+				},
+			},
+		},
+		{
+			// FIXME: failing because need to fix hnsv2 wrapper fake to marshal Endpoint ACLs
+			name:        "pod created on node -> policy created and applied to it -> policy deleted",
+			cfg:         dpCfg,
+			ipEndpoints: nil,
+			events: []dpEvent{
+				endpointCreateEvent(endpoint1, ip1),
+				podCreateEvent(NewPodMetadata(podKey1, ip1, thisNode), ns1Set, podLabelSets1...),
+				policyUpdateEvent(policyNs1LabelPair1AllowAll()),
+			},
+			expectedSetPolicies: []*hcn.SetPolicySetting{
+				setPolicy(emptySet),
+				setPolicy(allNamespaces, ns1Set.GetHashedName(), emptySet.GetHashedName()),
+				setPolicy(ns1Set, ip1),
+				setPolicy(podLabel1Set, ip1),
+				setPolicy(podLabelVal1Set, ip1),
+			},
+			expectedEnpdointACLs: map[string][]*hnswrapper.FakeEndpointPolicy{
+				endpoint1: {},
+			},
+		},
+		{
+			// NOTE: this fails right now. we incorrectly add a policy
+			name:        "pod created off node -> relevant policy created but not applied (even though there's a local Endpoint with the same IP)",
+			cfg:         dpCfg,
+			ipEndpoints: nil,
+			events: []dpEvent{
+				endpointCreateEvent(endpoint1, ip1),
+				podCreateEvent(NewPodMetadata(podKey1, ip1, otherNode), ns1Set, podLabelSets1...),
+				policyUpdateEvent(policyNs1LabelPair1AllowAll()),
+			},
+			expectedSetPolicies: []*hcn.SetPolicySetting{
+				setPolicy(emptySet),
+				setPolicy(allNamespaces, ns1Set.GetHashedName(), emptySet.GetHashedName()),
+				setPolicy(ns1Set, ip1),
+				setPolicy(podLabel1Set, ip1),
+				setPolicy(podLabelVal1Set, ip1),
+			},
+			expectedEnpdointACLs: map[string][]*hnswrapper.FakeEndpointPolicy{
+				endpoint1: {},
+			},
+		},
+		{
+			name:        "pod created off node -> relevant policy created but not applied (no local Endpoint)",
+			cfg:         dpCfg,
+			ipEndpoints: nil,
+			events: []dpEvent{
+				podCreateEvent(NewPodMetadata(podKey1, ip1, otherNode), ns1Set, podLabelSets1...),
+				policyUpdateEvent(policyNs1LabelPair1AllowAll()),
+			},
+			expectedSetPolicies: []*hcn.SetPolicySetting{
+				setPolicy(emptySet),
+				setPolicy(allNamespaces, ns1Set.GetHashedName(), emptySet.GetHashedName()),
+				setPolicy(ns1Set, ip1),
+				setPolicy(podLabel1Set, ip1),
+				setPolicy(podLabelVal1Set, ip1),
+			},
+			expectedEnpdointACLs: nil,
+		},
+		{
+			name:        "pod created -> pod deleted",
 			cfg:         dpCfg,
 			ipEndpoints: nil,
 			events: []dpEvent{
@@ -233,6 +387,7 @@ func TestAllEventSequences(t *testing.T) {
 				podCreateEvent(NewPodMetadata(podKey1, ip1, thisNode), ns1Set, podLabelSets1...),
 				endpointDeleteEvent(endpoint1),
 				podDeleteEvent(NewPodMetadata(podKey1, ip1, thisNode), ns1Set, podLabelSets1...),
+				// garbage collect IPSets
 				func(t *testing.T, dp *DataPlane, _ *hnswrapper.Hnsv2wrapperFake) {
 					dp.ipsetMgr.Reconcile()
 					require.Nil(t, dp.ApplyDataPlane())
@@ -247,14 +402,15 @@ func TestAllEventSequences(t *testing.T) {
 			expectedEnpdointACLs: nil,
 		},
 		{
-			name:        "pod created then updated, with policy add in background",
+			// FIXME: may fail because need to fix hnsv2 wrapper fake to marshal Endpoint ACLs
+			name:        "pod created on node -> relevant policy created in background -> pod updated so policy no longer relevant",
 			cfg:         dpCfg,
 			ipEndpoints: nil,
 			events: []dpEvent{
 				// pre-defined dpEvents
 				endpointCreateEvent(endpoint1, ip1),
 				podCreateEvent(NewPodMetadata(podKey1, ip1, thisNode), ns1Set, podLabelSets1...),
-				backgroundEvent(policyUpdateEvent("x/base")),
+				backgroundEvent(policyUpdateEvent(policyNs1LabelPair1AllowAll())),
 				podUpdateEventSameIP(NewPodMetadata(podKey1, ip1, thisNode), ns1Set, podLabelSets1, podLabelSets2),
 			},
 			expectedSetPolicies: []*hcn.SetPolicySetting{
@@ -268,19 +424,7 @@ func TestAllEventSequences(t *testing.T) {
 				setPolicy(podLabel1Set),
 			},
 			expectedEnpdointACLs: map[string][]*hnswrapper.FakeEndpointPolicy{
-				endpoint1: {
-					// {
-					// 	ID:              "",
-					// 	Protocols:       "",
-					// 	Action:          "",
-					// 	Direction:       "",
-					// 	LocalAddresses:  "",
-					// 	RemoteAddresses: "",
-					// 	LocalPorts:      "",
-					// 	RemotePorts:     "",
-					// 	Priority:        0,
-					// },
-				},
+				endpoint1: {},
 			},
 		},
 	}
