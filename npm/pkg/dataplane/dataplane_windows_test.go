@@ -71,7 +71,7 @@ func policyNs1LabelPair1AllowAll() *networkingv1.NetworkPolicy {
 	return &networkingv1.NetworkPolicy{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "labelPair1-allow-all",
-			Namespace: ns1Set.Name,
+			Namespace: "ns1",
 		},
 		Spec: networkingv1.NetworkPolicySpec{
 			PodSelector: metav1.LabelSelector{
@@ -319,7 +319,6 @@ func TestAllEventSequences(t *testing.T) {
 			},
 		},
 		{
-			// FIXME: failing because need to fix hnsv2 wrapper fake to marshal Endpoint ACLs
 			name:        "pod created on node -> policy created and applied to it -> policy deleted",
 			cfg:         dpCfg,
 			ipEndpoints: nil,
@@ -327,6 +326,7 @@ func TestAllEventSequences(t *testing.T) {
 				endpointCreateEvent(endpoint1, ip1),
 				podCreateEvent(NewPodMetadata(podKey1, ip1, thisNode), ns1Set, podLabelSets1...),
 				policyUpdateEvent(policyNs1LabelPair1AllowAll()),
+				policyDeleteEvent("ns1/labelPair1-allow-all"),
 			},
 			expectedSetPolicies: []*hcn.SetPolicySetting{
 				setPolicy(emptySet),
@@ -402,7 +402,71 @@ func TestAllEventSequences(t *testing.T) {
 			expectedEnpdointACLs: nil,
 		},
 		{
-			// FIXME: may fail because need to fix hnsv2 wrapper fake to marshal Endpoint ACLs
+			name:        "policy created -> pod created which satisfies the policy pod selector",
+			cfg:         dpCfg,
+			ipEndpoints: nil,
+			events: []dpEvent{
+				policyUpdateEvent(policyNs1LabelPair1AllowAll()),
+				endpointCreateEvent(endpoint1, ip1),
+				podCreateEvent(NewPodMetadata(podKey1, ip1, thisNode), ns1Set, podLabelSets1...),
+			},
+			expectedSetPolicies: []*hcn.SetPolicySetting{
+				setPolicy(emptySet),
+				setPolicy(allNamespaces, ns1Set.GetHashedName(), emptySet.GetHashedName()),
+				setPolicy(ns1Set, ip1),
+				setPolicy(podLabel1Set, ip1),
+				setPolicy(podLabelVal1Set, ip1),
+			},
+			expectedEnpdointACLs: map[string][]*hnswrapper.FakeEndpointPolicy{
+				endpoint1: {
+					{
+						ID:              "azure-acl-ns1-labelPair1-allow-all",
+						Protocols:       "",
+						Action:          "Allow",
+						Direction:       "In",
+						LocalAddresses:  "",
+						RemoteAddresses: "",
+						LocalPorts:      "",
+						RemotePorts:     "",
+						Priority:        222,
+					},
+					{
+						ID:              "azure-acl-ns1-labelPair1-allow-all",
+						Protocols:       "",
+						Action:          "Allow",
+						Direction:       "Out",
+						LocalAddresses:  "",
+						RemoteAddresses: "",
+						LocalPorts:      "",
+						RemotePorts:     "",
+						Priority:        222,
+					},
+				},
+			},
+		},
+		{
+			// FIXME: debug why this case fails
+			name:        "policy created -> pod created which satisfies the policy pod selector -> pod relabeled so policy removed",
+			cfg:         dpCfg,
+			ipEndpoints: nil,
+			events: []dpEvent{
+				policyUpdateEvent(policyNs1LabelPair1AllowAll()),
+				endpointCreateEvent(endpoint1, ip1),
+				podCreateEvent(NewPodMetadata(podKey1, ip1, thisNode), ns1Set, podLabelSets1...),
+				podUpdateEventSameIP(NewPodMetadata(podKey1, ip1, thisNode), ns1Set, podLabelSets1, podLabelSets2),
+			},
+			expectedSetPolicies: []*hcn.SetPolicySetting{
+				setPolicy(emptySet),
+				setPolicy(allNamespaces, ns1Set.GetHashedName(), emptySet.GetHashedName()),
+				setPolicy(ns1Set, ip1),
+				setPolicy(podLabel1Set, ip1),
+				setPolicy(podLabelVal1Set, ip1),
+			},
+			expectedEnpdointACLs: map[string][]*hnswrapper.FakeEndpointPolicy{
+				endpoint1: {},
+			},
+		},
+		{
 			name:        "pod created on node -> relevant policy created in background -> pod updated so policy no longer relevant",
 			cfg:         dpCfg,
 			ipEndpoints: nil,
@@ -450,7 +514,7 @@ func TestAllEventSequences(t *testing.T) {
 			verifyHNSCache(t, hns, tt.expectedSetPolicies, tt.expectedEnpdointACLs)
 
 			// uncomment to see output even for succeeding test cases
-			require.Fail(t, "DEBUGME: successful")
+			// require.Fail(t, "DEBUGME: successful")
 		})
 	}
 }
@@ -543,7 +607,7 @@ func verifyACLs(t *testing.T, hns *hnswrapper.Hnsv2wrapperFake, expectedEndpoint
 func printGetAllOutput(hns *hnswrapper.Hnsv2wrapperFake) {
 	klog.Info("SETPOLICIES...")
 	for _, setPol := range hns.Cache.AllSetPolicies(azureNetworkID) {
-		klog.Infof("%+v\n", setPol)
+		klog.Infof("%+v", setPol)
 	}
 	klog.Info("Endpoint ACLs...")
 	for id, acls := range hns.Cache.GetAllACLs() {
@@ -551,6 +615,6 @@ func printGetAllOutput(hns *hnswrapper.Hnsv2wrapperFake) {
 		for k, v := range acls {
 			a[k] = fmt.Sprintf("%+v", v)
 		}
-		klog.Infof("%s:\n%s\n", id, strings.Join(a, "\n"))
+		klog.Infof("%s: %s", id, strings.Join(a, ","))
 	}
 }
