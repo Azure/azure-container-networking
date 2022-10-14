@@ -12,7 +12,6 @@ import (
 	"github.com/Azure/azure-container-networking/cns/ipamclient"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/networkcontainers"
-	"github.com/Azure/azure-container-networking/cns/nmagent"
 	"github.com/Azure/azure-container-networking/cns/routes"
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/cns/types/bounded"
@@ -41,7 +40,12 @@ type interfaceGetter interface {
 }
 
 type nmagentClient interface {
-	GetNCVersionList(ctx context.Context) (*nmagent.NetworkContainerListResponse, error)
+	PutNetworkContainer(context.Context, *nma.PutNetworkContainerRequest) error
+	DeleteNetworkContainer(context.Context, nma.DeleteContainerRequest) error
+	JoinNetwork(context.Context, nma.JoinNetworkRequest) error
+	SupportedAPIs(context.Context) ([]string, error)
+	GetNCVersion(context.Context, nma.NCVersionRequest) (nma.NCVersion, error)
+	GetNCVersionList(context.Context) (nma.NCVersionList, error)
 }
 
 // HTTPRestService represents http listener for CNS - Container Networking Service.
@@ -50,7 +54,7 @@ type HTTPRestService struct {
 	dockerClient             *dockerclient.Client
 	wscli                    interfaceGetter
 	ipamClient               *ipamclient.IpamClient
-	nmagentClient            nmagentClient
+	nma                      nmagentClient
 	networkContainer         *networkcontainers.NetworkContainers
 	PodIPIDByPodInterfaceKey map[string]string                    // PodInterfaceId is key and value is Pod IP (SecondaryIP) uuid.
 	PodIPConfigState         map[string]cns.IPConfigurationStatus // Secondary IP ID(uuid) is key
@@ -63,14 +67,6 @@ type HTTPRestService struct {
 	dncPartitionKey    string
 	EndpointState      map[string]*EndpointInfo // key : container id
 	EndpointStateStore store.KeyValueStore
-	nma                interface {
-		PutNetworkContainer(context.Context, *nma.PutNetworkContainerRequest) error
-		DeleteNetworkContainer(context.Context, nma.DeleteContainerRequest) error
-		JoinNetwork(context.Context, nma.JoinNetworkRequest) error
-		SupportedAPIs(context.Context) ([]string, error)
-		GetNCVersion(context.Context, nma.NCVersionRequest) (nma.NCVersion, error)
-		GetNCVersionList(context.Context) (nma.NCVersionList, error)
-	}
 }
 
 type EndpointInfo struct {
@@ -174,7 +170,7 @@ func NewHTTPRestService(config *common.ServiceConfig, wscli interfaceGetter, nma
 		dockerClient:             dc,
 		wscli:                    wscli,
 		ipamClient:               ic,
-		nmagentClient:            nmagentClient,
+		nma:                      nmagentClient,
 		networkContainer:         nc,
 		PodIPIDByPodInterfaceKey: podIPIDByPodInterfaceKey,
 		PodIPConfigState:         podIPConfigState,

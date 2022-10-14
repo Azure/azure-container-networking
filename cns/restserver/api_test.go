@@ -22,10 +22,9 @@ import (
 	"github.com/Azure/azure-container-networking/cns/common"
 	"github.com/Azure/azure-container-networking/cns/fakes"
 	"github.com/Azure/azure-container-networking/cns/logger"
-	"github.com/Azure/azure-container-networking/cns/nmagent"
 	"github.com/Azure/azure-container-networking/cns/types"
 	acncommon "github.com/Azure/azure-container-networking/common"
-	nma "github.com/Azure/azure-container-networking/nmagent"
+	"github.com/Azure/azure-container-networking/nmagent"
 	"github.com/Azure/azure-container-networking/processlock"
 	"github.com/Azure/azure-container-networking/store"
 	"github.com/stretchr/testify/assert"
@@ -173,7 +172,6 @@ func TestMain(m *testing.M) {
 
 	nmAgentServer.AddHandler("/getInterface", getInterfaceInfo)
 	nmAgentServer.AddHandler("/", nmagentHandler)
-	nmagent.WireserverIP = nmagentEndpoint
 
 	err = nmAgentServer.Start(make(chan error, 1))
 	if err != nil {
@@ -525,11 +523,11 @@ func TestGetNetworkContainerVersionStatus(t *testing.T) {
 
 	// set up a mock NMAgent with some "successful" functionality so that
 	// creating things will work as expected
-	mnma := &MockNMAgent{
-		PutNetworkContainerF: func(_ context.Context, _ *nma.PutNetworkContainerRequest) error {
+	mnma := &fakes.NMAgentClientFake{
+		PutNetworkContainerF: func(_ context.Context, _ *nmagent.PutNetworkContainerRequest) error {
 			return nil
 		},
-		JoinNetworkF: func(_ context.Context, _ nma.JoinNetworkRequest) error {
+		JoinNetworkF: func(_ context.Context, _ nmagent.JoinNetworkRequest) error {
 			return nil
 		},
 	}
@@ -552,8 +550,8 @@ func TestGetNetworkContainerVersionStatus(t *testing.T) {
 		t.Fatal("error creating NC: err:", err)
 	}
 
-	mnma.GetNCVersionF = func(_ context.Context, _ nma.NCVersionRequest) (nma.NCVersion, error) {
-		return nma.NCVersion{
+	mnma.GetNCVersionF = func(_ context.Context, _ nmagent.NCVersionRequest) (nmagent.NCVersion, error) {
+		return nmagent.NCVersion{
 			NetworkContainerID: params.ncID,
 			Version:            params.ncVersion,
 		}, nil
@@ -590,8 +588,8 @@ func TestGetNetworkContainerVersionStatus(t *testing.T) {
 		podNamespace: "testpodnamespace",
 	}
 
-	mnma.GetNCVersionF = func(_ context.Context, _ nma.NCVersionRequest) (nma.NCVersion, error) {
-		return nma.NCVersion{
+	mnma.GetNCVersionF = func(_ context.Context, _ nmagent.NCVersionRequest) (nmagent.NCVersion, error) {
+		return nmagent.NCVersion{
 			NetworkContainerID: params.ncID,
 			Version:            "0", // explicitly 1 less than the version above
 		}, nil
@@ -625,13 +623,13 @@ func TestGetNetworkContainerVersionStatus(t *testing.T) {
 		podNamespace: "testpodnamespace",
 	}
 
-	mnma.GetNCVersionF = func(_ context.Context, _ nma.NCVersionRequest) (nma.NCVersion, error) {
-		return nma.NCVersion{}, errors.New("boom") //nolint:goerr113 // it's just a test
+	mnma.GetNCVersionF = func(_ context.Context, _ nmagent.NCVersionRequest) (nmagent.NCVersion, error) {
+		return nmagent.NCVersion{}, errors.New("boom") //nolint:goerr113 // it's just a test
 	}
-	mnma.JoinNetworkF = func(_ context.Context, _ nma.JoinNetworkRequest) error {
+	mnma.JoinNetworkF = func(_ context.Context, _ nmagent.JoinNetworkRequest) error {
 		return errors.New("boom") //nolint:goerr113 // it's just a test
 	}
-	mnma.PutNetworkContainerF = func(_ context.Context, _ *nma.PutNetworkContainerRequest) error {
+	mnma.PutNetworkContainerF = func(_ context.Context, _ *nmagent.PutNetworkContainerRequest) error {
 		return errors.New("boom") //nolint:goerr113 // it's just a test
 	}
 
@@ -663,15 +661,15 @@ func TestGetNetworkContainerVersionStatus(t *testing.T) {
 	}
 
 	// set the mock NMAgent to be "successful" again
-	mnma.GetNCVersionF = func(_ context.Context, _ nma.NCVersionRequest) (nma.NCVersion, error) {
-		return nma.NCVersion{}, nma.Error{
+	mnma.GetNCVersionF = func(_ context.Context, _ nmagent.NCVersionRequest) (nmagent.NCVersion, error) {
+		return nmagent.NCVersion{}, nmagent.Error{
 			Code: http.StatusUnauthorized,
 		}
 	}
-	mnma.JoinNetworkF = func(_ context.Context, _ nma.JoinNetworkRequest) error {
+	mnma.JoinNetworkF = func(_ context.Context, _ nmagent.JoinNetworkRequest) error {
 		return nil
 	}
-	mnma.PutNetworkContainerF = func(_ context.Context, _ *nma.PutNetworkContainerRequest) error {
+	mnma.PutNetworkContainerF = func(_ context.Context, _ *nmagent.PutNetworkContainerRequest) error {
 		return nil
 	}
 
@@ -709,11 +707,11 @@ func createNC(params createOrUpdateNetworkContainerParams) error {
 func TestPublishNCViaCNS(t *testing.T) {
 	fmt.Println("Test: publishNetworkContainer")
 
-	mnma := &MockNMAgent{
-		PutNetworkContainerF: func(_ context.Context, _ *nma.PutNetworkContainerRequest) error {
+	mnma := &fakes.NMAgentClientFake{
+		PutNetworkContainerF: func(_ context.Context, _ *nmagent.PutNetworkContainerRequest) error {
 			return nil
 		},
-		JoinNetworkF: func(_ context.Context, _ nma.JoinNetworkRequest) error {
+		JoinNetworkF: func(_ context.Context, _ nmagent.JoinNetworkRequest) error {
 			return nil
 		},
 	}
@@ -766,7 +764,7 @@ func publishNCViaCNS(
 		NetworkContainerID:                networkContainerID,
 		JoinNetworkURL:                    joinNetworkURL,
 		CreateNetworkContainerURL:         createNetworkContainerURL,
-		CreateNetworkContainerRequestBody: nma.PutNetworkContainerRequest{},
+		CreateNetworkContainerRequestBody: nmagent.PutNetworkContainerRequest{},
 	}
 
 	json.NewEncoder(&body).Encode(publishNCRequest)
@@ -788,14 +786,14 @@ func publishNCViaCNS(
 }
 
 func TestUnpublishNCViaCNS(t *testing.T) {
-	mnma := &MockNMAgent{
-		JoinNetworkF: func(_ context.Context, _ nma.JoinNetworkRequest) error {
+	mnma := &fakes.NMAgentClientFake{
+		JoinNetworkF: func(_ context.Context, _ nmagent.JoinNetworkRequest) error {
 			return nil
 		},
-		DeleteNetworkContainerF: func(_ context.Context, _ nma.DeleteContainerRequest) error {
+		DeleteNetworkContainerF: func(_ context.Context, _ nmagent.DeleteContainerRequest) error {
 			return nil
 		},
-		PutNetworkContainerF: func(_ context.Context, _ *nma.PutNetworkContainerRequest) error {
+		PutNetworkContainerF: func(_ context.Context, _ *nmagent.PutNetworkContainerRequest) error {
 			return nil
 		},
 	}
@@ -859,11 +857,11 @@ func testUnpublishNCViaCNS(t *testing.T,
 		return fmt.Errorf("Failed to create unpublish request %w", err)
 	}
 
-	mnma := &MockNMAgent{
-		DeleteNetworkContainerF: func(_ context.Context, _ nma.DeleteContainerRequest) error {
+	mnma := &fakes.NMAgentClientFake{
+		DeleteNetworkContainerF: func(_ context.Context, _ nmagent.DeleteContainerRequest) error {
 			return nil
 		},
-		JoinNetworkF: func(_ context.Context, _ nma.JoinNetworkRequest) error {
+		JoinNetworkF: func(_ context.Context, _ nmagent.JoinNetworkRequest) error {
 			return nil
 		},
 	}
@@ -1311,7 +1309,7 @@ func startService() error {
 	}
 
 	svc.IPAMPoolMonitor = &fakes.MonitorFake{}
-	nmagentClient.GetNCVersionListFunc = func(context.Context) (*nmagent.NetworkContainerListResponse, error) {
+	nmagentClient.GetNCVersionListF = func(context.Context) (nmagent.NCVersionList, error) {
 		var hostVersionNeedsUpdateContainers []string
 		for idx := range svc.state.ContainerStatus {
 			hostVersion, err := strconv.Atoi(svc.state.ContainerStatus[idx].HostVersion) //nolint:govet // intentional shadowing
@@ -1331,11 +1329,11 @@ func startService() error {
 				logger.Errorf("NC version from NMAgent is larger than DNC, NC version from NMAgent is %d, NC version from DNC is %d", hostVersion, dncNcVersion)
 			}
 		}
-		resp := &nmagent.NetworkContainerListResponse{
-			Containers: []nmagent.ContainerInfo{},
+		resp := nmagent.NCVersionList{
+			Containers: []nmagent.NCVersion{},
 		}
 		for _, cs := range hostVersionNeedsUpdateContainers {
-			resp.Containers = append(resp.Containers, nmagent.ContainerInfo{Version: "0", NetworkContainerID: cs})
+			resp.Containers = append(resp.Containers, nmagent.NCVersion{Version: "0", NetworkContainerID: cs})
 		}
 		return resp, nil
 	}

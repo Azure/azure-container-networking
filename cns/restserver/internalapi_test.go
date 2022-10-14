@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/Azure/azure-container-networking/cns"
+	"github.com/Azure/azure-container-networking/cns/fakes"
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 	nma "github.com/Azure/azure-container-networking/nmagent"
@@ -131,7 +132,7 @@ func TestSyncHostNCVersion(t *testing.T) {
 				t.Errorf("Unexpected nc version in containerStatus as %s, expected VM version should be 0 in string", containerStatus.CreateNetworkContainerRequest.Version)
 			}
 
-			mnma := &MockNMAgent{
+			mnma := &fakes.NMAgentClientFake{
 				GetNCVersionListF: func(_ context.Context) (nma.NCVersionList, error) {
 					return nma.NCVersionList{
 						Containers: []nma.NCVersion{
@@ -175,7 +176,7 @@ func TestPendingIPsGotUpdatedWhenSyncHostNCVersion(t *testing.T) {
 		}
 	}
 
-	mnma := &MockNMAgent{
+	mnma := &fakes.NMAgentClientFake{
 		GetNCVersionListF: func(_ context.Context) (nma.NCVersionList, error) {
 			return nma.NCVersionList{
 				Containers: []nma.NCVersion{
