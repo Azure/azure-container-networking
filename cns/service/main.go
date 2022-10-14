@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"net/http/pprof"
 	"os"
@@ -485,8 +486,35 @@ func main() {
 	z, _ := zap.NewProduction()
 	go healthserver.Start(z, cnsconfig.MetricsBindAddress)
 
+	nmaConfig := nmagent.Config{
+		Host: "168.63.129.16", // wireserver
+
+		// nolint:gomnd // there's no benefit to constantizing a well-known port
+		Port: 80,
+	}
+
+	// create an NMAgent Client based on provided configuration
 	if cnsconfig.WireserverIP != "" {
-		nmagent.WireserverIP = cnsconfig.WireserverIP
+		host, prt, err := net.SplitHostPort(cnsconfig.WireserverIP)
+		if err != nil {
+			logger.Errorf("[Azure CNS] Invalid IP for Wireserver: %q: %s", cnsconfig.WireserverIP, err.Error())
+			return
+		}
+
+		port, err := strconv.ParseUint(prt, 10, 16) //nolint:gomnd // obvious from ParseUint docs
+		if err != nil {
+			logger.Errorf("[Azure CNS] Invalid port value for Wireserver: %q: %s", cnsconfig.WireserverIP, err.Error())
+			return
+		}
+
+		nmaConfig.Host = host
+		nmaConfig.Port = uint16(port)
+	}
+
+	nmaClient, err := nma.NewClient(nmaConfig)
+	if err != nil {
+		logger.Errorf("[Azure CNS] Failed to start nmagent client due to error: %v", err)
+		return
 	}
 
 	if cnsconfig.ChannelMode == cns.Managed {
@@ -542,18 +570,6 @@ func main() {
 	config.Store, err = store.NewJsonFileStore(storeFileName, lockclient)
 	if err != nil {
 		logger.Errorf("Failed to create store file: %s, due to error %v\n", storeFileName, err)
-		return
-	}
-
-	// create an NMAgent Client
-	nmaClient, err := nma.NewClient(nma.Config{
-		Host: "168.63.129.16", // wireserver
-
-		// nolint:gomnd // there's no benefit to constantizing a well-known port
-		Port: 80,
-	})
-	if err != nil {
-		logger.Errorf("Failed to start nmagent client due to error %v", err)
 		return
 	}
 
