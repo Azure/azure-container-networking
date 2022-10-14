@@ -306,15 +306,9 @@ func TestAllEventSequences(t *testing.T) {
 			verifyHNSCache(t, hns, tt.expectedSetPolicies, tt.expectedEnpdointACLs)
 
 			// uncomment to see output even for succeeding test cases
-			// require.Fail(t, "DEBUGME")
+			require.Fail(t, "DEBUGME: successful")
 		})
 	}
-
-	// 	I1013 15:07:01.118147   12452 ipsetmanager_windows.go:226] [IPSetManager Windows] Done applying IPSets.
-	// I1013 15:07:01.118147   12452 dataplane_windows.go:279] Getting all endpoints for Network ID 1234
-	// I1013 15:07:01.118147   12452 dataplane_windows.go:318] Endpoint ID test1 has no IPAddreses
-	// I1013 15:07:01.118147   12452 dataplane_windows.go:105] [DataPlane] updatePod called for Pod Key pod1
-	// W1013 15:07:01.118147   12452 dataplane_windows.go:121] [DataPlane] did not find endpoint with IPaddress 10.0.0.1
 }
 
 func setPolicy(setMetadata *ipsets.IPSetMetadata, members ...string) *hcn.SetPolicySetting {
@@ -341,7 +335,7 @@ func setPolicy(setMetadata *ipsets.IPSetMetadata, members ...string) *hcn.SetPol
 func verifyHNSCache(t *testing.T, hns *hnswrapper.Hnsv2wrapperFake, expectedSetPolicies []*hcn.SetPolicySetting, expectedEndpointACLs map[string][]*hnswrapper.FakeEndpointPolicy) {
 	// we want to evaluate both verify functions even if one fails, so don't write as verifySetPolicies() && verifyACLs() in case of short-circuiting
 	success := verifySetPolicies(t, hns, expectedSetPolicies)
-	success = success && verifyACLs(t, hns, expectedEndpointACLs)
+	success = verifyACLs(t, hns, expectedEndpointACLs) && success
 
 	printGetAllOutput(hns)
 	if !success {
@@ -356,7 +350,7 @@ func verifySetPolicies(t *testing.T, hns *hnswrapper.Hnsv2wrapperFake, expectedS
 	success := assert.Equal(t, len(expectedSetPolicies), len(cachedSetPolicies), "unexpected number of SetPolicies")
 	for _, expectedSetPolicy := range expectedSetPolicies {
 		cachedSetPolicy, ok := cachedSetPolicies[expectedSetPolicy.Id]
-		success = success && assert.True(t, ok, fmt.Sprintf("expected SetPolicy not found. ID %s, name: %s", expectedSetPolicy.Id, expectedSetPolicy.Name))
+		success = assert.True(t, ok, fmt.Sprintf("expected SetPolicy not found. ID %s, name: %s", expectedSetPolicy.Id, expectedSetPolicy.Name)) && success
 		if !ok {
 			continue
 		}
@@ -366,7 +360,7 @@ func verifySetPolicies(t *testing.T, hns *hnswrapper.Hnsv2wrapperFake, expectedS
 		copyOfCachedSetPolicy := *cachedSetPolicy
 		copyOfCachedSetPolicy.Values = strings.Join(members, ",")
 
-		success = success && assert.Equal(t, expectedSetPolicy, &copyOfCachedSetPolicy, fmt.Sprintf("SetPolicy has unexpected contents. ID %s, name: %s", expectedSetPolicy.Id, expectedSetPolicy.Name))
+		success = assert.Equal(t, expectedSetPolicy, &copyOfCachedSetPolicy, fmt.Sprintf("SetPolicy has unexpected contents. ID %s, name: %s", expectedSetPolicy.Id, expectedSetPolicy.Name)) && success
 	}
 
 	return success
@@ -379,14 +373,13 @@ func verifyACLs(t *testing.T, hns *hnswrapper.Hnsv2wrapperFake, expectedEndpoint
 	success := assert.Equal(t, len(expectedEndpointACLs), len(cachedEndpointACLs), "unexpected number of Endpoints")
 	for epID, expectedACLs := range expectedEndpointACLs {
 		cachedACLs, ok := cachedEndpointACLs[epID]
-		success = success && assert.True(t, ok, fmt.Sprintf("expected ACL not found for endpoint %s", epID))
+		success = assert.True(t, ok, fmt.Sprintf("expected ACL not found for endpoint %s", epID)) && success
 		if !ok {
 			continue
 		}
 
+		success = assert.Equal(t, len(expectedACLs), len(cachedACLs), fmt.Sprintf("unexpected number of ACLs for Endpoint with ID: %s", epID)) && success
 		for _, expectedACL := range expectedACLs {
-			success = success && assert.Equal(t, len(expectedACLs), len(cachedACLs), fmt.Sprintf("unexpected number of ACLs for Endpoint with ID: %s", epID))
-
 			foundACL := false
 			for _, cacheACL := range cachedACLs {
 				if expectedACL.ID == cacheACL.ID {
@@ -396,7 +389,7 @@ func verifyACLs(t *testing.T, hns *hnswrapper.Hnsv2wrapperFake, expectedEndpoint
 					}
 				}
 			}
-			success = success && assert.True(t, foundACL, fmt.Sprintf("missing expected ACL. ID: %s, full ACL: %+v", expectedACL.ID, expectedACL))
+			success = assert.True(t, foundACL, fmt.Sprintf("missing expected ACL. ID: %s, full ACL: %+v", expectedACL.ID, expectedACL)) && success
 		}
 	}
 	return success

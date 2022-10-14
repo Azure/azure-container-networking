@@ -346,7 +346,7 @@ func (fCache FakeHNSCache) PrettyString() string {
 		endpointStrings = append(endpointStrings, fmt.Sprintf("[%+v]", endpoint.PrettyString()))
 	}
 
-	return fmt.Sprintf("networks: [%s]\nendpoints: [%s]", strings.Join(networkStrings, ","), strings.Join(endpointStrings, ","))
+	return fmt.Sprintf("networks: %s\nendpoints: %s", strings.Join(networkStrings, ","), strings.Join(endpointStrings, ","))
 }
 
 // AllSetPolicies returns all SetPolicies in a given network as a map of SetPolicy ID to SetPolicy object.
@@ -429,10 +429,24 @@ func (fNetwork *FakeHostComputeNetwork) PrettyString() string {
 }
 
 func (fNetwork *FakeHostComputeNetwork) GetHCNObj() *hcn.HostComputeNetwork {
+	setPolicies := make([]hcn.NetworkPolicy, 0)
+	for _, setPolicy := range fNetwork.Policies {
+		rawSettings, err := json.Marshal(setPolicy)
+		if err != nil {
+			fmt.Printf("FakeHostComputeNetwork: error marshalling SetPolicy: %+v. err: %s\n", setPolicy, err.Error())
+			continue
+		}
+		policy := hcn.NetworkPolicy{
+			Type:     hcn.SetPolicy,
+			Settings: rawSettings,
+		}
+		setPolicies = append(setPolicies, policy)
+	}
+
 	return &hcn.HostComputeNetwork{
-		Id:   fNetwork.ID,
-		Name: fNetwork.Name,
-		// FIXME need to include SetPolicies
+		Id:       fNetwork.ID,
+		Name:     fNetwork.Name,
+		Policies: setPolicies,
 	}
 }
 
