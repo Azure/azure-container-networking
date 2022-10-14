@@ -3,6 +3,7 @@ parameters:
   displayName: ""
   pipelineBuildImage: "$(BUILD_IMAGE)"
   testDropgz: ""
+  clusterName: ""
 
 stages:
   - stage: ${{ parameters.name }}
@@ -28,3 +29,4 @@ stages:
             parameters:
               name: ${{ parameters.name }}
               testDropgz: ${{ parameters.testDropgz }}
+              clusterName: ${{ parameters.clusterName }}

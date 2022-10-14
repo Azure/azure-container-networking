@@ -244,6 +244,7 @@ stages:
       displayName: Cilium
       pipelineBuildImage: "$(BUILD_IMAGE)"
       testDropgz: true
+      clusterName: "submodules-ciliume2e"
 
   - template: singletenancy/aks-swift/e2e-job-template.yaml
     parameters:
@@ -251,6 +252,7 @@ stages:
       displayName: AKS Swift
       pipelineBuildImage: "$(BUILD_IMAGE)"
       testDropgz: true
+      clusterName: "submodules-swifte2e"
 
   - stage: cleanup
     displayName: Cleanup
