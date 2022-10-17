@@ -2,7 +2,6 @@ package dataplane
 
 import (
 	"fmt"
-	"reflect"
 	"sort"
 	"strings"
 	"testing"
@@ -13,6 +12,8 @@ import (
 	"github.com/Azure/azure-container-networking/npm/pkg/controlplane/translation"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/ipsets"
 	"github.com/Microsoft/hcsshim/hcn"
+	"github.com/google/go-cmp/cmp"
+	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	networkingv1 "k8s.io/api/networking/v1"
@@ -550,11 +551,14 @@ func setPolicy(setMetadata *ipsets.IPSetMetadata, members ...string) *hcn.SetPol
 // verifyHNSCache asserts that HNS has the correct state.
 // TODO: move all these functions to common location used by windows test files in pkg ipsets and policies.
 func verifyHNSCache(t *testing.T, hns *hnswrapper.Hnsv2wrapperFake, expectedSetPolicies []*hcn.SetPolicySetting, expectedEndpointACLs map[string][]*hnswrapper.FakeEndpointPolicy) {
+	t.Helper()
+
+	printGetAllOutput(hns)
+
 	// we want to evaluate both verify functions even if one fails, so don't write as verifySetPolicies() && verifyACLs() in case of short-circuiting
 	success := verifySetPolicies(t, hns, expectedSetPolicies)
 	success = verifyACLs(t, hns, expectedEndpointACLs) && success
 
-	printGetAllOutput(hns)
 	if !success {
 		require.FailNow(t, fmt.Sprintf("hns cache had unexpected state. printing hns cache...\n%s", hns.Cache.PrettyString()))
 	}
@@ -562,6 +566,8 @@ func verifyHNSCache(t *testing.T, hns *hnswrapper.Hnsv2wrapperFake, expectedSetP
 
 // verifySetPolicies is true if HNS strictly has the expected SetPolicies.
 func verifySetPolicies(t *testing.T, hns *hnswrapper.Hnsv2wrapperFake, expectedSetPolicies []*hcn.SetPolicySetting) bool {
+	t.Helper()
+
 	cachedSetPolicies := hns.Cache.AllSetPolicies(azureNetworkID)
 
 	success := assert.Equal(t, len(expectedSetPolicies), len(cachedSetPolicies), "unexpected number of SetPolicies")
@@ -585,6 +591,8 @@ func verifySetPolicies(t *testing.T, hns *hnswrapper.Hnsv2wrapperFake, expectedS
 
 // verifyACLs is true if HNS strictly has the expected Endpoints and ACLs.
 func verifyACLs(t *testing.T, hns *hnswrapper.Hnsv2wrapperFake, expectedEndpointACLs map[string][]*hnswrapper.FakeEndpointPolicy) bool {
+	t.Helper()
+
 	cachedEndpointACLs := hns.Cache.GetAllACLs()
 
 	success := assert.Equal(t, len(expectedEndpointACLs), len(cachedEndpointACLs), "unexpected number of Endpoints")
@@ -600,7 +608,7 @@ func verifyACLs(t *testing.T, hns *hnswrapper.Hnsv2wrapperFake, expectedEndpoint
 			foundACL := false
 			for _, cacheACL := range cachedACLs {
 				if expectedACL.ID == cacheACL.ID {
-					if reflect.DeepEqual(expectedACL, cacheACL) {
+					if cmp.Equal(expectedACL, cacheACL) {
 						foundACL = true
 						break
 					}
