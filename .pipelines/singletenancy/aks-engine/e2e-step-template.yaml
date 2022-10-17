@@ -116,9 +116,11 @@ steps:
         export IS_JENKINS=false 
         export DEBUG_CRASHING_PODS=true
         export AZURE_CORE_ONLY_SHOW_ERRORS=True
-        RGNAME="kubernetes"$RANDOM
+        RGNAME="kubernetes"-$REGIONS-$RANDOM
         export RESOURCE_GROUP=$RGNAME
+        echo Region is $REGIONS
         echo "##vso[task.setvariable variable=RESOURCE_GROUP]$RESOURCE_GROUP"
+        echo Resource Group is $RESOURCE_GROUP
         echo Cluster Def $CLUSTER_DEFINITION
         cat $CLUSTER_DEFINITION
         make test-kubernetes
