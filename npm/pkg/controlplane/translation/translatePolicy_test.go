@@ -28,11 +28,13 @@ func TestPortType(t *testing.T) {
 	port8000 := intstr.FromInt(8000)
 	var endPort int32 = 8100
 	namedPortName := intstr.FromString(namedPortStr)
+	
 
 	tests := []struct {
-		name     string
-		portRule networkingv1.NetworkPolicyPort
-		want     netpolPortType
+		name     	string
+		portRule 	networkingv1.NetworkPolicyPort
+		want     	netpolPortType
+		skipWindows bool
 	}{
 		{
 			name:     "empty",
@@ -77,6 +79,7 @@ func TestPortType(t *testing.T) {
 				Port:     &namedPortName,
 			},
 			want: namedPortType,
+			skipWindows: true,
 		},
 	}
 
@@ -85,8 +88,13 @@ func TestPortType(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			got, err := portType(tt.portRule)
-			require.NoError(t, err)
-			require.Equal(t, tt.want, got)
+			if(tt.skipWindows && util.IsWindowsDP()) {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, tt.want, got)
+			}
+			
 		})
 	}
 }
@@ -347,6 +355,7 @@ func TestIPBlockIPSet(t *testing.T) {
 		*ipBlockInfo
 		ipBlockRule     *networkingv1.IPBlock
 		translatedIPSet *ipsets.TranslatedIPSet
+		skipWindows	 	bool
 	}{
 		{
 			name:            "empty ipblock rule",
@@ -379,6 +388,7 @@ func TestIPBlockIPSet(t *testing.T) {
 				Except: []string{"172.17.1.0/24"},
 			},
 			translatedIPSet: ipsets.NewTranslatedIPSet("test-in-ns-default-0-0IN", ipsets.CIDRBlocks, []string{"172.17.0.0/16", "172.17.1.0/24 nomatch"}...),
+			skipWindows: true,
 		},
 		{
 			name:        "one cidr and multiple elements in except",
@@ -388,6 +398,7 @@ func TestIPBlockIPSet(t *testing.T) {
 				Except: []string{"172.17.1.0/24", "172.17.2.0/24"},
 			},
 			translatedIPSet: ipsets.NewTranslatedIPSet("test-network-policy-in-ns-default-0-0IN", ipsets.CIDRBlocks, []string{"172.17.0.0/16", "172.17.1.0/24 nomatch", "172.17.2.0/24 nomatch"}...),
+			skipWindows: true,
 		},
 		{
 			name:        "one cidr and multiple and duplicated elements in except",
@@ -397,6 +408,7 @@ func TestIPBlockIPSet(t *testing.T) {
 				Except: []string{"172.17.1.0/24", "172.17.2.0/24", "172.17.2.0/24"},
 			},
 			translatedIPSet: ipsets.NewTranslatedIPSet("test-network-policy-in-ns-default-0-0IN", ipsets.CIDRBlocks, []string{"172.17.0.0/16", "172.17.1.0/24 nomatch", "172.17.2.0/24 nomatch"}...),
+			skipWindows: true,
 		},
 		{
 			name:        "cidr : 0.0.0.0/0",
@@ -414,6 +426,7 @@ func TestIPBlockIPSet(t *testing.T) {
 				Except: []string{"10.0.0.0/1"},
 			},
 			translatedIPSet: ipsets.NewTranslatedIPSet("test-in-ns-default-0-0IN", ipsets.CIDRBlocks, []string{"0.0.0.0/1", "128.0.0.0/1", "10.0.0.0/1 nomatch"}...),
+			skipWindows: true,
 		},
 		{
 			name:        "cidr: 0.0.0.0/0 and except: 0.0.0.0/1",
@@ -423,6 +436,7 @@ func TestIPBlockIPSet(t *testing.T) {
 				Except: []string{"0.0.0.0/1"},
 			},
 			translatedIPSet: ipsets.NewTranslatedIPSet("test-in-ns-default-0-0IN", ipsets.CIDRBlocks, []string{"0.0.0.0/1 nomatch", "128.0.0.0/1"}...),
+			skipWindows: true,
 		},
 		{
 			name:        "cidr: 0.0.0.0/0 and except: 128.0.0.0/1",
@@ -432,6 +446,7 @@ func TestIPBlockIPSet(t *testing.T) {
 				Except: []string{"128.0.0.0/1"},
 			},
 			translatedIPSet: ipsets.NewTranslatedIPSet("test-in-ns-default-0-0IN", ipsets.CIDRBlocks, []string{"0.0.0.0/1", "128.0.0.0/1 nomatch"}...),
+			skipWindows: true,
 		},
 		{
 			name:        "cidr: 0.0.0.0/0 and except: 0.0.0.0/1 and 128.0.0.0/1",
@@ -441,6 +456,7 @@ func TestIPBlockIPSet(t *testing.T) {
 				Except: []string{"0.0.0.0/1", "128.0.0.0/1"},
 			},
 			translatedIPSet: ipsets.NewTranslatedIPSet("test-in-ns-default-0-0IN", ipsets.CIDRBlocks, []string{"0.0.0.0/1 nomatch", "128.0.0.0/1 nomatch"}...),
+			skipWindows: true,
 		},
 		{
 			name:        "cidr: 0.0.0.0/0 and except: 0.0.0.0/1 and two 128.0.0.0/1",
@@ -450,6 +466,7 @@ func TestIPBlockIPSet(t *testing.T) {
 				Except: []string{"0.0.0.0/1", "128.0.0.0/1", "128.0.0.0/1"},
 			},
 			translatedIPSet: ipsets.NewTranslatedIPSet("test-in-ns-default-0-0IN", ipsets.CIDRBlocks, []string{"0.0.0.0/1 nomatch", "128.0.0.0/1 nomatch"}...),
+			skipWindows: true,
 		},
 	}
 
@@ -458,8 +475,12 @@ func TestIPBlockIPSet(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			got, err := ipBlockIPSet(tt.policyName, tt.namemspace, tt.direction, tt.ipBlockSetIndex, tt.ipBlockPeerIndex, tt.ipBlockRule)
-			require.NoError(t, err)
-			require.Equal(t, tt.translatedIPSet, got)
+			if(tt.skipWindows && util.IsWindowsDP()) {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, tt.translatedIPSet, got)
+			}	
 		})
 	}
 }
@@ -471,6 +492,7 @@ func TestIPBlockRule(t *testing.T) {
 		ipBlockRule     *networkingv1.IPBlock
 		translatedIPSet *ipsets.TranslatedIPSet
 		setInfo         policies.SetInfo
+		skipWindows 	bool
 	}{
 		{
 			name:            "empty ipblock rule ",
@@ -507,6 +529,7 @@ func TestIPBlockRule(t *testing.T) {
 			},
 			translatedIPSet: ipsets.NewTranslatedIPSet("test-in-ns-default-0-0IN", ipsets.CIDRBlocks, []string{"172.17.0.0/16", "172.17.1.0/24 nomatch"}...),
 			setInfo:         policies.NewSetInfo("test-in-ns-default-0-0IN", ipsets.CIDRBlocks, included, policies.SrcMatch),
+			skipWindows: 	true,
 		},
 		{
 			name:        "one cidr and multiple elements in except",
@@ -517,6 +540,7 @@ func TestIPBlockRule(t *testing.T) {
 			},
 			translatedIPSet: ipsets.NewTranslatedIPSet("test-network-policy-in-ns-default-0-0IN", ipsets.CIDRBlocks, []string{"172.17.0.0/16", "172.17.1.0/24 nomatch", "172.17.2.0/24 nomatch"}...),
 			setInfo:         policies.NewSetInfo("test-network-policy-in-ns-default-0-0IN", ipsets.CIDRBlocks, included, policies.SrcMatch),
+			skipWindows: true,
 		},
 	}
 
@@ -525,9 +549,13 @@ func TestIPBlockRule(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			translatedIPSet, setInfo, err := ipBlockRule(tt.policyName, tt.namemspace, tt.direction, tt.matchType, tt.ipBlockSetIndex, tt.ipBlockPeerIndex, tt.ipBlockRule)
-			require.NoError(t, err)
-			require.Equal(t, tt.translatedIPSet, translatedIPSet)
-			require.Equal(t, tt.setInfo, setInfo)
+			if(tt.skipWindows && util.IsWindowsDP()) {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, tt.translatedIPSet, translatedIPSet)
+				require.Equal(t, tt.setInfo, setInfo)
+			}			
 		})
 	}
 }
@@ -544,6 +572,7 @@ func TestPodSelector(t *testing.T) {
 		podSelectorIPSets      []*ipsets.TranslatedIPSet
 		childPodSelectorIPSets []*ipsets.TranslatedIPSet
 		podSelectorList        []policies.SetInfo
+		skipWindows 		   bool
 	}{
 		{
 			name:      "all pods selector in default namespace in ingress",
@@ -668,6 +697,7 @@ func TestPodSelector(t *testing.T) {
 				policies.NewSetInfo("label:src", ipsets.KeyValueLabelOfPod, included, matchType),
 				policies.NewSetInfo("labelNotIn:src", ipsets.KeyValueLabelOfPod, nonIncluded, matchType),
 			},
+			skipWindows: true,
 		},
 		{
 			name:      "target pod Selector with three labels (one included value, one non-included value, and one included netest value) for acl in ingress",
@@ -706,6 +736,7 @@ func TestPodSelector(t *testing.T) {
 				policies.NewSetInfo(policyKeyWithDash+"k1:v10:v11", ipsets.NestedLabelOfPod, included, matchType),
 				policies.NewSetInfo("k2", ipsets.KeyLabelOfPod, nonIncluded, matchType),
 			},
+			skipWindows: true,
 		},
 		{
 			name:      "target pod Selector with three labels AND a namespace (one included value, one non-included value, and one included netest value) for acl in ingress",
@@ -747,6 +778,7 @@ func TestPodSelector(t *testing.T) {
 				policies.NewSetInfo("k2", ipsets.KeyLabelOfPod, nonIncluded, matchType),
 				policies.NewSetInfo(defaultNS, ipsets.Namespace, included, matchType),
 			},
+			skipWindows: true,
 		},
 	}
 
@@ -765,10 +797,14 @@ func TestPodSelector(t *testing.T) {
 			if psResult == nil {
 				psResult = &podSelectorResult{}
 			}
-			require.NoError(t, err)
-			require.Equal(t, tt.podSelectorIPSets, psResult.psSets)
-			require.Equal(t, tt.childPodSelectorIPSets, psResult.childPSSets)
-			require.Equal(t, tt.podSelectorList, psResult.psList)
+			if(tt.skipWindows && util.IsWindowsDP()) {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, tt.podSelectorIPSets, psResult.psSets)
+				require.Equal(t, tt.childPodSelectorIPSets, psResult.childPSSets)
+				require.Equal(t, tt.podSelectorList, psResult.psList)
+			}
 		})
 	}
 }
@@ -1177,9 +1213,10 @@ func TestPeerAndPortRule(t *testing.T) {
 
 	// TODO(jungukcho): add test case with multiple ports
 	tests := []struct {
-		name      string
-		ports     []networkingv1.NetworkPolicyPort
-		npmNetPol *policies.NPMNetworkPolicy
+		name      	string
+		ports     	[]networkingv1.NetworkPolicyPort
+		npmNetPol 	*policies.NPMNetworkPolicy
+		skipWindows	bool
 	}{
 		{
 			name: "tcp port 8000-81000",
@@ -1235,6 +1272,7 @@ func TestPeerAndPortRule(t *testing.T) {
 					},
 				},
 			},
+			skipWindows: true,
 		},
 		{
 			name: "serve-tcp with ipBlock SetInfo",
@@ -1265,6 +1303,7 @@ func TestPeerAndPortRule(t *testing.T) {
 					},
 				},
 			},
+			skipWindows: true,
 		},
 		{
 			name: "serve-tcp with namespaceSelector SetInfo",
@@ -1293,6 +1332,7 @@ func TestPeerAndPortRule(t *testing.T) {
 					},
 				},
 			},
+			skipWindows: true,
 		},
 		{
 			name: "serve-tcp with podSelector SetInfo",
@@ -1321,6 +1361,7 @@ func TestPeerAndPortRule(t *testing.T) {
 					},
 				},
 			},
+			skipWindows: true,
 		},
 	}
 
@@ -1338,8 +1379,12 @@ func TestPeerAndPortRule(t *testing.T) {
 				ACLPolicyID: tt.npmNetPol.ACLPolicyID,
 			}
 			err := peerAndPortRule(npmNetPol, policies.Ingress, tt.ports, setInfo)
-			require.NoError(t, err)
-			require.Equal(t, tt.npmNetPol, npmNetPol)
+			if(tt.skipWindows && util.IsWindowsDP()) {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, tt.npmNetPol, npmNetPol)
+			}
 		})
 	}
 }
@@ -1356,6 +1401,7 @@ func TestIngressPolicy(t *testing.T) {
 		rules            []networkingv1.NetworkPolicyIngressRule
 		npmNetPol        *policies.NPMNetworkPolicy
 		wantErr          bool
+		skipWindows      bool
 	}{
 		{
 			name:             "only port in ingress rules",
@@ -1446,6 +1492,7 @@ func TestIngressPolicy(t *testing.T) {
 					defaultDropACL(policies.Ingress),
 				},
 			},
+			skipWindows: true,
 		},
 		{
 			name:             "only peer podSelector in ingress rules",
@@ -1619,6 +1666,7 @@ func TestIngressPolicy(t *testing.T) {
 					defaultDropACL(policies.Ingress),
 				},
 			},
+			skipWindows: true,
 		},
 		{
 			name:             "unknown port type error",
@@ -1770,6 +1818,7 @@ func TestIngressPolicy(t *testing.T) {
 					},
 				},
 			},
+			skipWindows: true,
 		},
 		{
 			name:             "multi-value pod/peer selector",
@@ -1918,7 +1967,7 @@ func TestIngressPolicy(t *testing.T) {
 			splitPolicyKey := strings.Split(npmNetPol.PolicyKey, "/")
 			require.Len(t, splitPolicyKey, 2, "policy key must include name")
 			err = ingressPolicy(npmNetPol, splitPolicyKey[1], tt.rules)
-			if tt.wantErr {
+			if tt.wantErr || (tt.skipWindows && util.IsWindowsDP()) {
 				require.Error(t, err)
 			} else {
 				require.NoError(t, err)
@@ -1939,6 +1988,7 @@ func TestEgressPolicy(t *testing.T) {
 		rules            []networkingv1.NetworkPolicyEgressRule
 		npmNetPol        *policies.NPMNetworkPolicy
 		wantErr          bool
+		skipWindows		 bool
 	}{
 		{
 			name:             "only port in egress rules",
@@ -2029,6 +2079,7 @@ func TestEgressPolicy(t *testing.T) {
 					defaultDropACL(policies.Egress),
 				},
 			},
+			skipWindows: true,
 		},
 		{
 			name:             "only peer podSelector in egress rules",
@@ -2259,6 +2310,7 @@ func TestEgressPolicy(t *testing.T) {
 					defaultDropACL(policies.Egress),
 				},
 			},
+			skipWindows: true,
 		},
 		{
 			name:             "unknown port type error",
@@ -2353,6 +2405,7 @@ func TestEgressPolicy(t *testing.T) {
 					},
 				},
 			},
+			skipWindows: true,
 		},
 		{
 			name:             "multi-value pod/peer selector",
@@ -2501,7 +2554,7 @@ func TestEgressPolicy(t *testing.T) {
 			splitPolicyKey := strings.Split(npmNetPol.PolicyKey, "/")
 			require.Len(t, splitPolicyKey, 2, "policy key must include name")
 			err = egressPolicy(npmNetPol, splitPolicyKey[1], tt.rules)
-			if tt.wantErr {
+			if tt.wantErr || (tt.skipWindows && util.IsWindowsDP()) {
 				require.Error(t, err)
 			} else {
 				require.NoError(t, err)
