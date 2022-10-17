@@ -73,7 +73,7 @@ func TestAddToSetWindows(t *testing.T) {
 	require.NoError(t, err)
 
 	err = iMgr.AddToSets([]*IPSetMetadata{setMetadata}, "2001:db8:0:0:0:0:2:1", "newpod")
-	require.NoError(t, err)
+	require.Error(t, err)
 
 	// same IP changed podkey
 	err = iMgr.AddToSets([]*IPSetMetadata{setMetadata}, testPodIP, "newpod")

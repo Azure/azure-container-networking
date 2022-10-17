@@ -86,11 +86,14 @@ func (f Hnsv2wrapperFake) ModifyNetworkSettings(network *hcn.HostComputeNetwork,
 				}
 				if setpol.PolicyType != hcn.SetPolicyTypeIpSet {
 					// Check Nested SetPolicy members
-					members := strings.Split(setpol.Values, ",")
-					for _, memberID := range members {
-						_, ok := networkCache.Policies[memberID]
-						if !ok {
-							return newErrorFakeHNS(fmt.Sprintf("Member Policy %s not found", memberID))
+					// checking for the case of no members in nested policy. iMgrCfg.AddEmptySetToLists is set to false in some tests so it creates a nested policy with no members
+					if(setpol.Values != ""){
+						members := strings.Split(setpol.Values, ",")
+						for _, memberID := range members {
+							_, ok := networkCache.Policies[memberID]
+							if !ok {
+								return newErrorFakeHNS(fmt.Sprintf("Member Policy %s not found", memberID))
+							}
 						}
 					}
 				}

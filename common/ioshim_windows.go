@@ -5,6 +5,7 @@ import (
 
 	"github.com/Azure/azure-container-networking/network/hnswrapper"
 	testutils "github.com/Azure/azure-container-networking/test/utils"
+	"github.com/Microsoft/hcsshim/hcn"
 	utilexec "k8s.io/utils/exec"
 )
 
@@ -21,10 +22,21 @@ func NewIOShim() *IOShim {
 }
 
 func NewMockIOShim(calls []testutils.TestCmd) *IOShim {
-	return &IOShim{
-		Exec: testutils.GetFakeExecWithScripts(calls),
-		Hns:  hnswrapper.NewHnsv2wrapperFake(),
-	}
+	hns := hnswrapper.NewHnsv2wrapperFake()
+    network := &hcn.HostComputeNetwork{
+        Id:   "1234",
+        Name: "azure",
+    }
+
+    _, err := hns.CreateNetwork(network)
+    if err != nil {
+        return nil
+    }
+
+    return &IOShim{
+        Exec: testutils.GetFakeExecWithScripts(calls),
+        Hns:   hns,
+    }
 }
 
 func NewMockIOShimWithFakeHNS(hns *hnswrapper.Hnsv2wrapperFake) *IOShim {
