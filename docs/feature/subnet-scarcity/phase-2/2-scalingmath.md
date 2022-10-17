@@ -52,6 +52,8 @@ $$
 Request = B \times \lceil mf + \frac{U}{B} \rceil
 $$
 
+> Note: $\lceil ... \rceil$ is the ceiling function.
+
 where $U$ is the number of Assigned (Used) IPs on the Node, $B$ is the Batch size, and $mf$ is the Minimum Free Fraction, as discussed in the [Background](../proposal.md#background).
 
 The "Required" IP Count is forward looking without effecting the correctness of the Request: it represents the target quantity of IP addresses that CNS *will Assign to Pods* at some instant in time. This may include Pods scheduled which do not *currently* have Assigned IPs because there are insufficient Available IPs in the Pool.
