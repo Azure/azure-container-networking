@@ -26,6 +26,9 @@ type dpEvent func(*testing.T, *DataPlane, *hnswrapper.Hnsv2wrapperFake)
 const azureNetworkID = "1234"
 
 const (
+	applyDP      bool = true
+	doNotApplyDP bool = false
+
 	thisNode  = "this-node"
 	otherNode = "other-node"
 
@@ -96,7 +99,7 @@ func policyNs1LabelPair1AllowAll() *networkingv1.NetworkPolicy {
 // DP EVENTS
 
 // podCreateEvent models a Pod CREATE in the PodController
-func podCreateEvent(pod *PodMetadata, nsIPSet *ipsets.IPSetMetadata, labelIPSets ...*ipsets.IPSetMetadata) dpEvent {
+func podCreateEvent(shouldApply bool, pod *PodMetadata, nsIPSet *ipsets.IPSetMetadata, labelIPSets ...*ipsets.IPSetMetadata) dpEvent {
 	return func(t *testing.T, dp *DataPlane, _ *hnswrapper.Hnsv2wrapperFake) {
 		// PodController might not call this if the namespace already existed
 		require.Nil(t, dp.AddToLists([]*ipsets.IPSetMetadata{allNamespaces}, []*ipsets.IPSetMetadata{nsIPSet}))
@@ -104,12 +107,14 @@ func podCreateEvent(pod *PodMetadata, nsIPSet *ipsets.IPSetMetadata, labelIPSets
 		// technically, the Pod Controller would make this call two sets at a time (for each key-val pair)
 		require.Nil(t, dp.AddToSets(labelIPSets, pod))
 
-		require.Nil(t, dp.ApplyDataPlane())
+		if shouldApply {
+			require.Nil(t, dp.ApplyDataPlane())
+		}
 	}
 }
 
 // podUpdateEvent models a Pod UPDATE in the PodController
-func podUpdateEvent(oldPod, newPod *PodMetadata, nsIPSet *ipsets.IPSetMetadata, toRemoveLabelSets, toAddLabelSets []*ipsets.IPSetMetadata) dpEvent {
+func podUpdateEvent(shouldApply bool, oldPod, newPod *PodMetadata, nsIPSet *ipsets.IPSetMetadata, toRemoveLabelSets, toAddLabelSets []*ipsets.IPSetMetadata) dpEvent {
 	return func(t *testing.T, dp *DataPlane, _ *hnswrapper.Hnsv2wrapperFake) {
 		// think it's impossible for this to be called on an UPDATE
 		// dp.AddToLists([]*ipsets.IPSetMetadata{allNamespaces}, []*ipsets.IPSetMetadata{nsIPSet})
@@ -122,42 +127,46 @@ func podUpdateEvent(oldPod, newPod *PodMetadata, nsIPSet *ipsets.IPSetMetadata, 
 			require.Nil(t, dp.AddToSets([]*ipsets.IPSetMetadata{toAddSet}, newPod))
 		}
 
-		require.Nil(t, dp.ApplyDataPlane())
+		if shouldApply {
+			require.Nil(t, dp.ApplyDataPlane())
+		}
 	}
 }
 
 // podUpdateEvent models a Pod UPDATE in the PodController where the Pod does not change IP/node.
-func podUpdateEventSameIP(pod *PodMetadata, nsIPSet *ipsets.IPSetMetadata, toRemoveLabelSets, toAddLabelSets []*ipsets.IPSetMetadata) dpEvent {
-	return podUpdateEvent(pod, pod, nsIPSet, toRemoveLabelSets, toAddLabelSets)
+func podUpdateEventSameIP(shouldApply bool, pod *PodMetadata, nsIPSet *ipsets.IPSetMetadata, toRemoveLabelSets, toAddLabelSets []*ipsets.IPSetMetadata) dpEvent {
+	return podUpdateEvent(shouldApply, pod, pod, nsIPSet, toRemoveLabelSets, toAddLabelSets)
 }
 
 // podDeleteEvent models a Pod DELETE in the PodController
-func podDeleteEvent(pod *PodMetadata, nsIPSet *ipsets.IPSetMetadata, labelIPSets ...*ipsets.IPSetMetadata) dpEvent {
+func podDeleteEvent(shouldApply bool, pod *PodMetadata, nsIPSet *ipsets.IPSetMetadata, labelIPSets ...*ipsets.IPSetMetadata) dpEvent {
 	return func(t *testing.T, dp *DataPlane, _ *hnswrapper.Hnsv2wrapperFake) {
 		require.Nil(t, dp.RemoveFromSets([]*ipsets.IPSetMetadata{nsIPSet}, pod))
 		// technically, the Pod Controller would make this call two sets at a time (for each key-val pair)
 		require.Nil(t, dp.RemoveFromSets(labelIPSets, pod))
 
-		require.Nil(t, dp.ApplyDataPlane())
+		if shouldApply {
+			require.Nil(t, dp.ApplyDataPlane())
+		}
 	}
 }
 
 // nsCreateEvent models a Namespace CREATE in the NamespaceController
-func nsCreateEvent(nsIPSet *ipsets.IPSetMetadata, labelIPSets ...*ipsets.IPSetMetadata) dpEvent {
+func nsCreateEvent(shouldApply bool, nsIPSet *ipsets.IPSetMetadata, labelIPSets ...*ipsets.IPSetMetadata) dpEvent {
 	return func(t *testing.T, dp *DataPlane, _ *hnswrapper.Hnsv2wrapperFake) {
 		// TODO
 	}
 }
 
 // nsUpdateEvent models a Namespace UPDATE in the NamespaceController
-func nsUpdateEvent(nsIPSet *ipsets.IPSetMetadata, labelIPSets ...*ipsets.IPSetMetadata) dpEvent {
+func nsUpdateEvent(shouldApply bool, nsIPSet *ipsets.IPSetMetadata, labelIPSets ...*ipsets.IPSetMetadata) dpEvent {
 	return func(t *testing.T, dp *DataPlane, _ *hnswrapper.Hnsv2wrapperFake) {
 		// TODO
 	}
 }
 
 // nsDeleteEvent models a Namespace DELETE in the NamespaceController
-func nsDeleteEvent(nsIPSet *ipsets.IPSetMetadata, labelIPSets ...*ipsets.IPSetMetadata) dpEvent {
+func nsDeleteEvent(shouldApply bool, nsIPSet *ipsets.IPSetMetadata, labelIPSets ...*ipsets.IPSetMetadata) dpEvent {
 	return func(t *testing.T, dp *DataPlane, _ *hnswrapper.Hnsv2wrapperFake) {
 		// TODO
 	}
@@ -281,7 +290,7 @@ func TestAllEventSequences(t *testing.T) {
 			ipEndpoints: nil,
 			events: []dpEvent{
 				endpointCreateEvent(endpoint1, ip1),
-				podCreateEvent(NewPodMetadata(podKey1, ip1, thisNode), ns1Set, podLabelSets1...),
+				podCreateEvent(applyDP, NewPodMetadata(podKey1, ip1, thisNode), ns1Set, podLabelSets1...),
 				policyUpdateEvent(policyNs1LabelPair1AllowAll()),
 			},
 			expectedSetPolicies: []*hcn.SetPolicySetting{
@@ -324,7 +333,7 @@ func TestAllEventSequences(t *testing.T) {
 			ipEndpoints: nil,
 			events: []dpEvent{
 				endpointCreateEvent(endpoint1, ip1),
-				podCreateEvent(NewPodMetadata(podKey1, ip1, thisNode), ns1Set, podLabelSets1...),
+				podCreateEvent(applyDP, NewPodMetadata(podKey1, ip1, thisNode), ns1Set, podLabelSets1...),
 				policyUpdateEvent(policyNs1LabelPair1AllowAll()),
 				policyDeleteEvent("ns1/labelPair1-allow-all"),
 			},
@@ -346,7 +355,7 @@ func TestAllEventSequences(t *testing.T) {
 			ipEndpoints: nil,
 			events: []dpEvent{
 				endpointCreateEvent(endpoint1, ip1),
-				podCreateEvent(NewPodMetadata(podKey1, ip1, otherNode), ns1Set, podLabelSets1...),
+				podCreateEvent(applyDP, NewPodMetadata(podKey1, ip1, otherNode), ns1Set, podLabelSets1...),
 				policyUpdateEvent(policyNs1LabelPair1AllowAll()),
 			},
 			expectedSetPolicies: []*hcn.SetPolicySetting{
@@ -365,7 +374,7 @@ func TestAllEventSequences(t *testing.T) {
 			cfg:         dpCfg,
 			ipEndpoints: nil,
 			events: []dpEvent{
-				podCreateEvent(NewPodMetadata(podKey1, ip1, otherNode), ns1Set, podLabelSets1...),
+				podCreateEvent(applyDP, NewPodMetadata(podKey1, ip1, otherNode), ns1Set, podLabelSets1...),
 				policyUpdateEvent(policyNs1LabelPair1AllowAll()),
 			},
 			expectedSetPolicies: []*hcn.SetPolicySetting{
@@ -384,9 +393,9 @@ func TestAllEventSequences(t *testing.T) {
 			events: []dpEvent{
 				// mix of pre-defined dpEvents and a custom one
 				endpointCreateEvent(endpoint1, ip1),
-				podCreateEvent(NewPodMetadata(podKey1, ip1, thisNode), ns1Set, podLabelSets1...),
+				podCreateEvent(applyDP, NewPodMetadata(podKey1, ip1, thisNode), ns1Set, podLabelSets1...),
 				endpointDeleteEvent(endpoint1),
-				podDeleteEvent(NewPodMetadata(podKey1, ip1, thisNode), ns1Set, podLabelSets1...),
+				podDeleteEvent(applyDP, NewPodMetadata(podKey1, ip1, thisNode), ns1Set, podLabelSets1...),
 				// garbage collect IPSets
 				func(t *testing.T, dp *DataPlane, _ *hnswrapper.Hnsv2wrapperFake) {
 					dp.ipsetMgr.Reconcile()
@@ -408,7 +417,7 @@ func TestAllEventSequences(t *testing.T) {
 			events: []dpEvent{
 				policyUpdateEvent(policyNs1LabelPair1AllowAll()),
 				endpointCreateEvent(endpoint1, ip1),
-				podCreateEvent(NewPodMetadata(podKey1, ip1, thisNode), ns1Set, podLabelSets1...),
+				podCreateEvent(applyDP, NewPodMetadata(podKey1, ip1, thisNode), ns1Set, podLabelSets1...),
 			},
 			expectedSetPolicies: []*hcn.SetPolicySetting{
 				setPolicy(emptySet),
@@ -452,8 +461,8 @@ func TestAllEventSequences(t *testing.T) {
 			events: []dpEvent{
 				policyUpdateEvent(policyNs1LabelPair1AllowAll()),
 				endpointCreateEvent(endpoint1, ip1),
-				podCreateEvent(NewPodMetadata(podKey1, ip1, thisNode), ns1Set, podLabelSets1...),
-				podUpdateEventSameIP(NewPodMetadata(podKey1, ip1, thisNode), ns1Set, podLabelSets1, podLabelSets2),
+				podCreateEvent(applyDP, NewPodMetadata(podKey1, ip1, thisNode), ns1Set, podLabelSets1...),
+				podUpdateEventSameIP(applyDP, NewPodMetadata(podKey1, ip1, thisNode), ns1Set, podLabelSets1, podLabelSets2),
 			},
 			expectedSetPolicies: []*hcn.SetPolicySetting{
 				setPolicy(emptySet),
@@ -473,9 +482,9 @@ func TestAllEventSequences(t *testing.T) {
 			events: []dpEvent{
 				// pre-defined dpEvents
 				endpointCreateEvent(endpoint1, ip1),
-				podCreateEvent(NewPodMetadata(podKey1, ip1, thisNode), ns1Set, podLabelSets1...),
+				podCreateEvent(applyDP, NewPodMetadata(podKey1, ip1, thisNode), ns1Set, podLabelSets1...),
 				backgroundEvent(policyUpdateEvent(policyNs1LabelPair1AllowAll())),
-				podUpdateEventSameIP(NewPodMetadata(podKey1, ip1, thisNode), ns1Set, podLabelSets1, podLabelSets2),
+				podUpdateEventSameIP(applyDP, NewPodMetadata(podKey1, ip1, thisNode), ns1Set, podLabelSets1, podLabelSets2),
 			},
 			expectedSetPolicies: []*hcn.SetPolicySetting{
 				setPolicy(emptySet),
