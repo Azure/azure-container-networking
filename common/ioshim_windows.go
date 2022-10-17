@@ -23,20 +23,20 @@ func NewIOShim() *IOShim {
 
 func NewMockIOShim(calls []testutils.TestCmd) *IOShim {
 	hns := hnswrapper.NewHnsv2wrapperFake()
-    network := &hcn.HostComputeNetwork{
-        Id:   "1234",
-        Name: "azure",
-    }
+	network := &hcn.HostComputeNetwork{
+		Id:   "1234",
+		Name: "azure",
+	}
 
-    _, err := hns.CreateNetwork(network)
-    if err != nil {
-        return nil
-    }
+	_, err := hns.CreateNetwork(network)
+	if err != nil {
+		return nil
+	}
 
-    return &IOShim{
-        Exec: testutils.GetFakeExecWithScripts(calls),
-        Hns:   hns,
-    }
+	return &IOShim{
+		Exec: testutils.GetFakeExecWithScripts(calls),
+		Hns:  hns,
+	}
 }
 
 func NewMockIOShimWithFakeHNS(hns *hnswrapper.Hnsv2wrapperFake) *IOShim {
