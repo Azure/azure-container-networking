@@ -74,3 +74,14 @@ $$
 As shown, if the demand is for $25$ IPs, and the Batch is $16$, and the Min Free is $8$ (half of the Batch), then the Request must be $48$. $32$ is too few, as $32-25=7 < 8$.
 
 This algorithm will significantly improve the time-to-pod-ready for large changes in the quantity of scheduled Pods on a Node, due to eliminating all iterations required for CNS to converge on the final Requested IP Count.
+
+
+### Including PrimaryIPs
+
+The IPAM Pool scaling operates only on NC SecondaryIPs. However, CNS is allocated an additional `PrimaryIP` for every NC as a prerequisite of that NC's existence. Therefore, to align the **real allocated** IP Count to the Batch size, CNS should deduct those PrimaryIPs from its Requested (Secondary) IP Count.
+
+This makes the RequestedIPCount:
+
+$$
+RequestedIPCount = B \times \lceil mf + \frac{U}{B} \rceil - PrimaryIPCount
+$$
