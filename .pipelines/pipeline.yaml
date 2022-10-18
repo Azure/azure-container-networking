@@ -1,4 +1,5 @@
 resources:
+  repositories:
   - repository: ACN
     type: github
     name: Azure/azure-container-networking
