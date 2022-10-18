@@ -1,12 +1,12 @@
-resources:
-  repositories:
-  - repository: ACN
-    endpoint: camryn_githubconnection
-    type: github
-    name: Azure/azure-container-networking
-    branches:
-      include:
-        - master
+# resources:
+#   repositories:
+#   - repository: ACN
+#     endpoint: camryn_githubconnection
+#     type: github
+#     name: Azure/azure-container-networking
+#     branches:
+#       include:
+#       - master
 
 pr:
   branches:
@@ -54,6 +54,7 @@ stages:
               go env
               which go
               echo $PATH
+              echo $TAG
             name: "EnvironmentalVariables"
             displayName: "Set environmental variables"
             condition: always()
@@ -257,6 +258,7 @@ stages:
     displayName: Publish Multiarch Manifests
     dependsOn:
       - containerize
+    condtion: eq(make version, $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ])
     jobs:
       - job: manifest
         displayName: Compile Manifests
