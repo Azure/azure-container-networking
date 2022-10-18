@@ -258,7 +258,7 @@ stages:
     displayName: Publish Multiarch Manifests
     dependsOn:
       - containerize
-    condition: eq(make version, $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ])
+    condition: eq($(make version), $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ])
     jobs:
       - job: manifest
         displayName: Compile Manifests
