@@ -1,3 +1,8 @@
+repository:
+  branches:
+    include:
+      - master
+
 pr:
   branches:
     include:
