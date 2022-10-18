@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -21,7 +22,9 @@ import (
 	"k8s.io/klog"
 )
 
-type dpEvent func(*testing.T, *DataPlane, *hnswrapper.Hnsv2wrapperFake)
+type dpEvent func(*DataPlane, *hnswrapper.Hnsv2wrapperFake) error
+type thread []dpEvent
+type concurrentSession []thread
 
 // FIXME move this into the common code path along with the verification functions below
 const azureNetworkID = "1234"
@@ -101,36 +104,59 @@ func policyNs1LabelPair1AllowAll() *networkingv1.NetworkPolicy {
 
 // podCreateEvent models a Pod CREATE in the PodController
 func podCreateEvent(shouldApply bool, pod *PodMetadata, nsIPSet *ipsets.IPSetMetadata, labelIPSets ...*ipsets.IPSetMetadata) dpEvent {
-	return func(t *testing.T, dp *DataPlane, _ *hnswrapper.Hnsv2wrapperFake) {
+	return func(dp *DataPlane, _ *hnswrapper.Hnsv2wrapperFake) error {
+		context := fmt.Sprintf("create context: [pod: %+v. ns: %s. label sets: %+v]", pod, nsIPSet.Name, prefixNames(labelIPSets))
+
 		// PodController might not call this if the namespace already existed
-		require.Nil(t, dp.AddToLists([]*ipsets.IPSetMetadata{allNamespaces}, []*ipsets.IPSetMetadata{nsIPSet}))
-		require.Nil(t, dp.AddToSets([]*ipsets.IPSetMetadata{nsIPSet}, pod))
+		if err := dp.AddToLists([]*ipsets.IPSetMetadata{allNamespaces}, []*ipsets.IPSetMetadata{nsIPSet}); err != nil {
+			return errors.Wrapf(err, "[podCreateEvent] failed to add ns set to all namespaces list. %s", context)
+		}
+
+		if err := dp.AddToSets([]*ipsets.IPSetMetadata{nsIPSet}, pod); err != nil {
+			return errors.Wrapf(err, "[podCreateEvent] failed to add pod ip to ns set. %s", context)
+		}
+
 		// technically, the Pod Controller would make this call two sets at a time (for each key-val pair)
-		require.Nil(t, dp.AddToSets(labelIPSets, pod))
+		if err := dp.AddToSets(labelIPSets, pod); err != nil {
+			return errors.Wrapf(err, "[podCreateEvent] failed to add pod ip to label sets. %s", context)
+		}
 
 		if shouldApply {
-			require.Nil(t, dp.ApplyDataPlane())
+			if err := dp.ApplyDataPlane(); err != nil {
+				return errors.Wrapf(err, "[podCreateEvent] failed to apply. %s", context)
+			}
 		}
+		return nil
 	}
 }
 
 // podUpdateEvent models a Pod UPDATE in the PodController
 func podUpdateEvent(shouldApply bool, oldPod, newPod *PodMetadata, nsIPSet *ipsets.IPSetMetadata, toRemoveLabelSets, toAddLabelSets []*ipsets.IPSetMetadata) dpEvent {
-	return func(t *testing.T, dp *DataPlane, _ *hnswrapper.Hnsv2wrapperFake) {
+	return func(dp *DataPlane, _ *hnswrapper.Hnsv2wrapperFake) error {
+		context := fmt.Sprintf("update context: [old pod: %+v. new pod: %+v. ns: %s. label sets to remove: %+v. label sets to add: %+v]",
+			oldPod, newPod, nsIPSet.Name, prefixNames(toRemoveLabelSets), prefixNames(toAddLabelSets))
+
 		// think it's impossible for this to be called on an UPDATE
 		// dp.AddToLists([]*ipsets.IPSetMetadata{allNamespaces}, []*ipsets.IPSetMetadata{nsIPSet})
 
 		for _, toRemoveSet := range toRemoveLabelSets {
-			require.Nil(t, dp.RemoveFromSets([]*ipsets.IPSetMetadata{toRemoveSet}, oldPod))
+			if err := dp.RemoveFromSets([]*ipsets.IPSetMetadata{toRemoveSet}, oldPod); err != nil {
+				return errors.Wrapf(err, "[podUpdateEvent] failed to remove old pod ip from set %s. %s", toRemoveSet.GetPrefixName(), context)
+			}
 		}
 
 		for _, toAddSet := range toAddLabelSets {
-			require.Nil(t, dp.AddToSets([]*ipsets.IPSetMetadata{toAddSet}, newPod))
+			if err := dp.AddToSets([]*ipsets.IPSetMetadata{toAddSet}, newPod); err != nil {
+				return errors.Wrapf(err, "[podUpdateEvent] failed to add new pod ip to set %s. %s", toAddSet.GetPrefixName(), context)
+			}
 		}
 
 		if shouldApply {
-			require.Nil(t, dp.ApplyDataPlane())
+			if err := dp.ApplyDataPlane(); err != nil {
+				return errors.Wrapf(err, "[podUpdateEvent] failed to apply. %s", context)
+			}
 		}
+		return nil
 	}
 }
 
@@ -141,58 +167,80 @@ func podUpdateEventSameIP(shouldApply bool, pod *PodMetadata, nsIPSet *ipsets.IP
 
 // podDeleteEvent models a Pod DELETE in the PodController
 func podDeleteEvent(shouldApply bool, pod *PodMetadata, nsIPSet *ipsets.IPSetMetadata, labelIPSets ...*ipsets.IPSetMetadata) dpEvent {
-	return func(t *testing.T, dp *DataPlane, _ *hnswrapper.Hnsv2wrapperFake) {
-		require.Nil(t, dp.RemoveFromSets([]*ipsets.IPSetMetadata{nsIPSet}, pod))
+	return func(dp *DataPlane, _ *hnswrapper.Hnsv2wrapperFake) error {
+		context := fmt.Sprintf("delete context: [pod: %+v. ns: %s. label sets: %+v]", pod, nsIPSet.Name, prefixNames(labelIPSets))
+
+		if err := dp.RemoveFromSets([]*ipsets.IPSetMetadata{nsIPSet}, pod); err != nil {
+			return errors.Wrapf(err, "[podDeleteEvent] failed to remove pod ip from ns set. %s", context)
+		}
+
 		// technically, the Pod Controller would make this call two sets at a time (for each key-val pair)
-		require.Nil(t, dp.RemoveFromSets(labelIPSets, pod))
+		if err := dp.RemoveFromSets(labelIPSets, pod); err != nil {
+			return errors.Wrapf(err, "[podDeleteEvent] failed to remove pod ip from label sets. %s", context)
+		}
 
 		if shouldApply {
-			require.Nil(t, dp.ApplyDataPlane())
+			if err := dp.ApplyDataPlane(); err != nil {
+				return errors.Wrapf(err, "[podDeleteEvent] failed to apply. %s", context)
+			}
 		}
+		return nil
 	}
 }
 
 // nsCreateEvent models a Namespace CREATE in the NamespaceController
 func nsCreateEvent(shouldApply bool, nsIPSet *ipsets.IPSetMetadata, labelIPSets ...*ipsets.IPSetMetadata) dpEvent {
-	return func(t *testing.T, dp *DataPlane, _ *hnswrapper.Hnsv2wrapperFake) {
+	return func(dp *DataPlane, _ *hnswrapper.Hnsv2wrapperFake) error {
 		// TODO
+		return nil
 	}
 }
 
 // nsUpdateEvent models a Namespace UPDATE in the NamespaceController
 func nsUpdateEvent(shouldApply bool, nsIPSet *ipsets.IPSetMetadata, labelIPSets ...*ipsets.IPSetMetadata) dpEvent {
-	return func(t *testing.T, dp *DataPlane, _ *hnswrapper.Hnsv2wrapperFake) {
+	return func(dp *DataPlane, _ *hnswrapper.Hnsv2wrapperFake) error {
 		// TODO
+		return nil
 	}
 }
 
 // nsDeleteEvent models a Namespace DELETE in the NamespaceController
 func nsDeleteEvent(shouldApply bool, nsIPSet *ipsets.IPSetMetadata, labelIPSets ...*ipsets.IPSetMetadata) dpEvent {
-	return func(t *testing.T, dp *DataPlane, _ *hnswrapper.Hnsv2wrapperFake) {
+	return func(dp *DataPlane, _ *hnswrapper.Hnsv2wrapperFake) error {
 		// TODO
+		return nil
 	}
 }
 
 // policyUpdateEvent models a Network Policy CREATE/UPDATE in the PolicyController
 func policyUpdateEvent(policy *networkingv1.NetworkPolicy) dpEvent {
-	return func(t *testing.T, dp *DataPlane, _ *hnswrapper.Hnsv2wrapperFake) {
+	return func(dp *DataPlane, _ *hnswrapper.Hnsv2wrapperFake) error {
 		npmNetPol, err := translation.TranslatePolicy(policy)
-		require.Nil(t, err, "failed to translate policy")
-		require.Nil(t, dp.UpdatePolicy(npmNetPol), "failed to update policy")
+		if err != nil {
+			return errors.Wrapf(err, "[policyUpdateEvent] failed to translate policy with key %s/%s", policy.Namespace, policy.Name)
+		}
+
+		if err := dp.UpdatePolicy(npmNetPol); err != nil {
+			return errors.Wrapf(err, "[policyUpdateEvent] failed to update policy with key %s/%s", policy.Namespace, policy.Name)
+		}
+		return nil
 	}
 }
 
 // policyDeleteEvent models a Network Policy DELETE in the PolicyController
 func policyDeleteEvent(policyKey string) dpEvent {
-	return func(t *testing.T, dp *DataPlane, _ *hnswrapper.Hnsv2wrapperFake) {
-		require.Nil(t, dp.RemovePolicy(policyKey), "failed to delete policy")
+	return func(dp *DataPlane, _ *hnswrapper.Hnsv2wrapperFake) error {
+		if err := dp.RemovePolicy(policyKey); err != nil {
+			return errors.Wrapf(err, "[policyDeleteEvent] failed to remove policy with key %s", policyKey)
+		}
+		return nil
 	}
 }
 
 // endpointCreateEvent models an Endpoint being created within HNS
 // With this Event, Endpoints can be created in between calls to dp
 func endpointCreateEvent(epID, ip string) dpEvent {
-	return func(t *testing.T, _ *DataPlane, hns *hnswrapper.Hnsv2wrapperFake) {
+	return func(_ *DataPlane, hns *hnswrapper.Hnsv2wrapperFake) error {
 		ep := &hcn.HostComputeEndpoint{
 			Id:                 epID,
 			Name:               epID,
@@ -204,40 +252,28 @@ func endpointCreateEvent(epID, ip string) dpEvent {
 			},
 		}
 		_, err := hns.CreateEndpoint(ep)
-		require.Nil(t, err, "failed to create hns endpoint in mock: %+v", ep)
+		if err != nil {
+			return errors.Wrapf(err, "[endpointCreateEvent] failed to create hns endpoint. ep: %+v", ep)
+		}
+		return nil
 	}
 }
 
 // endpointDeleteEvent models an Endpoint being deleted within HNS
 // With this Event, Endpoints can be deleted in between calls to dp
 func endpointDeleteEvent(epID string) dpEvent {
-	return func(t *testing.T, _ *DataPlane, hns *hnswrapper.Hnsv2wrapperFake) {
+	return func(_ *DataPlane, hns *hnswrapper.Hnsv2wrapperFake) error {
 		ep := &hcn.HostComputeEndpoint{
 			Id: epID,
 		}
-		err := hns.DeleteEndpoint(ep)
-		require.Nil(t, err, "failed to create hns endpoint in mock: %+v", ep)
-	}
-}
-
-// backgroundEvent will run the dpEvents in the background when called
-func backgroundEvent(event1 dpEvent, otherEvents ...dpEvent) dpEvent {
-	allEvents := make([]dpEvent, 1)
-	allEvents[0] = event1
-	allEvents = append(allEvents, otherEvents...)
-
-	return func(t *testing.T, dp *DataPlane, hns *hnswrapper.Hnsv2wrapperFake) {
-		go func() {
-			// delay would impact other threads as well
-			for _, event := range allEvents {
-				event(t, dp, hns)
-			}
-		}()
+		if err := hns.DeleteEndpoint(ep); err != nil {
+			return errors.Wrapf(err, "[endpointDeleteEvent] failed to delete hns endpoint. ep: %+v", ep)
+		}
+		return nil
 	}
 }
 
 // TestAllEventSequences can test any config with a sequence of events.
-// TODO double check HNS mock is working as planned
 func TestAllEventSequences(t *testing.T) {
 	tests := []struct {
 		name                 string
@@ -255,15 +291,21 @@ func TestAllEventSequences(t *testing.T) {
 			},
 			events: []dpEvent{
 				// custom dpEvent
-				func(t *testing.T, dp *DataPlane, _ *hnswrapper.Hnsv2wrapperFake) {
+				func(dp *DataPlane, _ *hnswrapper.Hnsv2wrapperFake) error {
 					pod1 := NewPodMetadata(podKey1, ip1, thisNode)
-					require.Nil(t, dp.AddToSets([]*ipsets.IPSetMetadata{ns1Set, podLabel1Set}, pod1))
-					require.Nil(t, dp.ApplyDataPlane())
+					if err := dp.AddToSets([]*ipsets.IPSetMetadata{ns1Set, podLabel1Set}, pod1); err != nil {
+						return errors.Wrap(err, "[custom-add-apply] failed to add set")
+					}
+
+					if err := dp.ApplyDataPlane(); err != nil {
+						return errors.Wrapf(err, "[custom-add-apply] failed to apply dp")
+					}
+					return nil
 				},
 			},
 			expectedSetPolicies: []*hcn.SetPolicySetting{
 				setPolicy(ns1Set, ip1),
-				setPolicy(podLabel1Set, ip1),
+				// setPolicy(podLabel1Set, ip1),
 			},
 			expectedEnpdointACLs: map[string][]*hnswrapper.FakeEndpointPolicy{
 				endpoint1: {},
@@ -398,9 +440,12 @@ func TestAllEventSequences(t *testing.T) {
 				endpointDeleteEvent(endpoint1),
 				podDeleteEvent(applyDP, NewPodMetadata(podKey1, ip1, thisNode), ns1Set, podLabelSets1...),
 				// garbage collect IPSets
-				func(t *testing.T, dp *DataPlane, _ *hnswrapper.Hnsv2wrapperFake) {
+				func(dp *DataPlane, _ *hnswrapper.Hnsv2wrapperFake) error {
 					dp.ipsetMgr.Reconcile()
-					require.Nil(t, dp.ApplyDataPlane())
+					if err := dp.ApplyDataPlane(); err != nil {
+						return errors.Wrap(err, "[custom-reconcile] failed to apply dp")
+					}
+					return nil
 				},
 			},
 			expectedSetPolicies: []*hcn.SetPolicySetting{
@@ -476,16 +521,62 @@ func TestAllEventSequences(t *testing.T) {
 				endpoint1: {},
 			},
 		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			hns := ipsets.GetHNSFake(t)
+			hns.Delay = defaultHNSLatency
+			io := common.NewMockIOShimWithFakeHNS(hns)
+			for ip, epID := range tt.ipEndpoints {
+				event := endpointCreateEvent(epID, ip)
+				require.Nil(t, event(nil, hns), "failed to create endpoint. ep ID: %s. ip: %s", epID, ip)
+			}
+
+			dp, err := NewDataPlane(thisNode, io, tt.cfg, nil)
+			require.NoError(t, err, "failed to initialize dp")
+
+			for k, event := range tt.events {
+				require.Nil(t, event(dp, hns), "failed while running event number %d", k)
+			}
+
+			verifyHNSCache(t, hns, tt.expectedSetPolicies, tt.expectedEnpdointACLs)
+
+			// uncomment to see output even for succeeding test cases
+			// require.Fail(t, "DEBUGME: successful")
+		})
+	}
+}
+
+func TestConcurrentEvents(t *testing.T) {
+	tests := []struct {
+		name                 string
+		cfg                  *Config
+		ipEndpoints          map[string]string
+		sessions             []concurrentSession
+		expectedSetPolicies  []*hcn.SetPolicySetting
+		expectedEnpdointACLs map[string][]*hnswrapper.FakeEndpointPolicy
+	}{
 		{
-			name:        "pod created on node -> relevant policy created in background -> pod updated so policy no longer relevant",
+			name:        "pod created on node -> concurrent: 1) creating relevant policy <=> 2) updating pod so policy no longer relevant",
 			cfg:         dpCfg,
 			ipEndpoints: nil,
-			events: []dpEvent{
-				// pre-defined dpEvents
-				endpointCreateEvent(endpoint1, ip1),
-				podCreateEvent(applyDP, NewPodMetadata(podKey1, ip1, thisNode), ns1Set, podLabelSets1...),
-				backgroundEvent(policyUpdateEvent(policyNs1LabelPair1AllowAll())),
-				podUpdateEventSameIP(applyDP, NewPodMetadata(podKey1, ip1, thisNode), ns1Set, podLabelSets1, podLabelSets2),
+			sessions: []concurrentSession{
+				{
+					thread{
+						endpointCreateEvent(endpoint1, ip1),
+						podCreateEvent(applyDP, NewPodMetadata(podKey1, ip1, thisNode), ns1Set, podLabelSets1...),
+					},
+				},
+				{
+					thread{
+						policyUpdateEvent(policyNs1LabelPair1AllowAll()),
+					},
+					thread{
+						podUpdateEventSameIP(applyDP, NewPodMetadata(podKey1, ip1, thisNode), ns1Set, podLabelSets1, podLabelSets2),
+					},
+				},
 			},
 			expectedSetPolicies: []*hcn.SetPolicySetting{
 				setPolicy(emptySet),
@@ -511,14 +602,47 @@ func TestAllEventSequences(t *testing.T) {
 			io := common.NewMockIOShimWithFakeHNS(hns)
 			for ip, epID := range tt.ipEndpoints {
 				event := endpointCreateEvent(epID, ip)
-				event(t, nil, hns)
+				require.Nil(t, event(nil, hns), "failed to create endpoint. ep ID: %s. ip: %s", epID, ip)
 			}
 
 			dp, err := NewDataPlane(thisNode, io, tt.cfg, nil)
 			require.NoError(t, err, "failed to initialize dp")
 
-			for _, event := range tt.events {
-				event(t, dp, hns)
+			for i, session := range tt.sessions {
+				if len(session) == 0 {
+					t.Fatal("sequence should have >= 1 threads")
+				}
+
+				if len(session) == 1 {
+					// single-thread case: no need to run go routines
+					th := session[0]
+					for j, event := range th {
+						require.Nil(t, event(dp, hns), "failed while running single thread for sequence %d, event %d", i, j)
+					}
+				} else {
+					// concurrent case with multiple go routines
+					wg := new(sync.WaitGroup)
+					wg.Add(len(session))
+					threadErrors := make(chan error, len(session))
+					for j, th := range session {
+						go func(threadNum int, th thread) {
+							defer wg.Done()
+							for k, event := range th {
+								if err := event(dp, hns); err != nil {
+									threadErrors <- errors.Wrapf(err, "failed to run thread %d, event %d", threadNum, k)
+									return
+								}
+							}
+							threadErrors <- nil
+						}(j, th)
+					}
+
+					wg.Wait()
+					close(threadErrors)
+					for err := range threadErrors {
+						assert.Nil(t, err, "failed during concurrency for sequence %d", i)
+					}
+				}
 			}
 
 			verifyHNSCache(t, hns, tt.expectedSetPolicies, tt.expectedEnpdointACLs)
@@ -634,4 +758,12 @@ func printGetAllOutput(hns *hnswrapper.Hnsv2wrapperFake) {
 		}
 		klog.Infof("%s: %s", id, strings.Join(a, ","))
 	}
+}
+
+func prefixNames(sets []*ipsets.IPSetMetadata) []string {
+	a := make([]string, len(sets))
+	for k, s := range sets {
+		a[k] = s.GetPrefixName()
+	}
+	return a
 }
