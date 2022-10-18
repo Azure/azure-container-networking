@@ -49,7 +49,7 @@ DNC (which maintains the state of the Subnet in its database) will cache the res
 per Subnet. DNC will also expose an API to query $R$ of the Subnet, the `SubnetState` API.
 
 #### [[1-2]](phase-1/2-exhaustion.md) Subnet Exhaustion is calculated by DNC-RC
-DNC-RC will DNC's SubnetState API on an interval to check the Subnet Utilization. If the Subnet Utilization crosses some configurable lower and upper thresholds, RC will consider that Subnet un-exhausted or exhausted, respectively, and will write the exhaustion state to the ClusterSubnet CRD.
+DNC-RC will poll DNC's SubnetState API on a fixed interval to check the Subnet Utilization. If the Subnet Utilization crosses some configurable lower and upper thresholds, RC will consider that Subnet un-exhausted or exhausted, respectively, and will write the exhaustion state to the ClusterSubnet CRD.
 
 #### [[1-3]](phase-1/3-releaseips.md) IPs are released by CNS
 CNS will watch the `ClusterSubnet` CRD, scaling down and releasing IPs when the Subnet is marked as Exhausted.

@@ -1,11 +1,11 @@
 # DNC-RC watches and reacts to exhaustion [[Phase 1 Design]](../proposal.md#1-2-subnet-exhaustion-is-calculated-by-dnc-rc)
 
-DNC-RC will poll the `SubnetState` API to periodically check the Subnet utilization. DNC-RC will be configured with a lower and upper threshold ( $T_l$ and $T_u$ ) as percentages of the Subnet capacity $Q$. If the Subnet utilization crosses the upper threshold, DNC-RC will consider the Subnet "exhausted". If the Subnet utilization then falls below the lower threshold, DNC-RC will consider the Subnet "not exhausted". Two values are necessary to induce hysteresis and minimize oscillation between the two states.
+DNC-RC will poll the `SubnetState` API to periodically check the Subnet utilization. DNC-RC will be configured with a lower and upper threshold ( $T_l$ and $T_u$ ) as percentages of the Subnet capacity $C$. If the Subnet utilization $U$ crosses the upper threshold, DNC-RC will consider the Subnet "exhausted". If the Subnet utilization then falls below the lower threshold, DNC-RC will consider the Subnet "not exhausted". Two values are necessary to induce hysteresis and minimize oscillation between the two states.
 
 $$
 E = \neg E \text{ when}\begin{cases}
-R \gt T \times Q &\text{if } \neg E\\
-R \lt t \times Q &\text{if } E
+U \gt T_u \times C &\text{if } E \text{ is true}\\
+U \lt T_l \times C &\text{if } E \text{ is false}
 \end{cases}
 $$
 
