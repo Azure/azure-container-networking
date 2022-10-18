@@ -49,19 +49,10 @@ DNC (which maintains the state of the Subnet in its database) will cache the res
 per Subnet. DNC will also expose an API to query $R$ of the Subnet, the `SubnetState` API.
 
 #### [[1-2]](phase-1/2-exhaustion.md) Subnet Exhaustion is calculated by DNC-RC
-DNC-RC will poll the `SubnetState` API to periodically check the Subnet utilization. DNC-RC will be configured with a lower and upper threshold ( $t$ and $T$ ) as fractions of the Subnet capacity $Q$. If the Subnet utilization crosses the upper threshold, DNC-RC will consider the Subnet "exhausted". If the Subnet utilization falls below the lower threshold, DNC-RC will consider the Subnet "not exhausted". Two values are necessary to induce hysteresis and avoid continous oscillation between the two states.
-
-$$
-E = !E \text{(toggle exhaustion) when}\begin{cases}
-R \gt T \times Q &\text{if not exhausted}\\
-R \lt t \times Q &\text{if exhausted}
-\end{cases}
-$$
-
-If the Subnet is exhausted, DNC-RC will write an additional per-subnet CRD, the [`ClusterSubnetState`](https://github.com/Azure/azure-container-networking/blob/master/crd/clustersubnetstate/api/v1alpha1/clustersubnetstate.go), with a Status of `exhausted=true`. When the Subnet is not exhausted, DNC-RC will write the Status as `exhausted=false`.
+DNC-RC will poll DNC's SubnetState API on a fixed interval to check the Subnet Utilization. If the Subnet Utilization crosses some configurable lower and upper thresholds, RC will consider that Subnet un-exhausted or exhausted, respectively, and will write the exhaustion state to the ClusterSubnet CRD.
 
 #### [[1-3]](phase-1/3-releaseips.md) IPs are released by CNS
-CNS will watch the `ClusterSubnetState` CRD and will update its internal state with the Subnet's exhaustion status. When the Subnet is exhausted, CNS will ignore the configured Batch size from the `NodeNetworkConfig`, and instead will scale in Batches of 1 IP. This will have the effect of releasing almost every unassigned IP back to the Subnet - 1 free IP will be kept in the Node's IPAM Pool, and scaling up or down will be done in increments of 1 IP.
+CNS will watch the `ClusterSubnet` CRD, scaling down and releasing IPs when the Subnet is marked as Exhausted.
 
 ### Phase 2
 The batch size $B$ is dynamically adjusted based on the current subnet utilization. The batch size is increased when the subnet utilization is low, and decreased when the subnet utilization is high. IPs are not assigned to a new Node until CNS requests them, allowing Nodes to start safely even in very constrained subnets.
@@ -69,7 +60,7 @@ The batch size $B$ is dynamically adjusted based on the current subnet utilizati
 #### [[2-1]](phase-2/1-emptync.md) DNC-RC creates NCs with no Secondary IPs
 DNC-RC will create the NNC for a new Node with an initial IP Request of 0. An empty NC (containing a Primary, but no Secondary IPs) will be created via normal DNC API calls. The empty NC will be written to the NNC, allowing CNS to start. CNS will make the initial IP request according to the Subnet Exhaustion State.
 
-DNC-RC will continue to poll the `SubnetState` API periodically to check the Subnet utilization, and write the exhaustion to the `ClusterSubnetState` CRD.
+DNC-RC will continue to poll the `SubnetState` API periodically to check the Subnet utilization, and write the exhaustion to the `ClusterSubnet` CRD.
 
 #### [[2-2]](phase-2/2-scalingmath.md) CNS scales IPAM pool idempotently
 Instead of increasing/decreasing the Pool size by 1 Batch at a time to try to satisfy the min/max free IP constraints, CNS will calculate the correct target Requested IP Count using a single O(1) algorithm.
@@ -86,10 +77,3 @@ CNS will include the NC Primary IP(s) as IPs that it has been allocated, and wil
 
 #### [[2-3]](phase-2/3-subnetscaler.md) Scaler properties move to the ClusterSubnet CRD
 The Scaler properties from the v1alpha/NodeNetworkConfig `Status.Scaler` definition are moved to the ClusterSubnet CRD, and CNS will use the Scaler from this CRD as priority when it is available, and fall back to the NNC Scaler otherwise. The `.Spec` field of the CRD may serve as an "overrides" location for runtime reconfiguration.
-
-### Phase 3
-#### [[3-1]](phase-3/1-watchpods.md) CNS watches Pods
-
-
-#### CNS stops watching the ClusterSubnetState
-#### DNC-RC iteratively adjusts the Batch size

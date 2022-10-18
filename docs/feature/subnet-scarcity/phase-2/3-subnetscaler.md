@@ -14,23 +14,38 @@ Since the Scaler values are dependent on the state of the Subnet, the Scaler obj
 
 ### ClusterSubnet Scaler
 The ClusterSubnet `Status.Scaler` definition will be: 
-```yaml
-...
-status:
-    scaler:
-        batch: X // equal to batchSize
-        buffer: X // equal to requestThresholdPercent
+```diff
+    apiVersion: acn.azure.com/v1alpha1
+    kind: ClusterSubnet
+    metadata:
+        name: subnet
+        namespace: kube-system
+    status:
+        exhausted: true
+        timestamp: 123456789
++       scaler:
++           batch: 16
++           buffer: 0.5 
 ```
 
 Additionally, the `Spec` of the ClusterSubnet will accept `Scaler` values to be used as runtime overrides. DNC-RC will read and validate the `Spec`, then write the values back out to the `Status` if present.
-```yaml
-...
-spec:
-    scaler:
-        <...>
+```diff
+    apiVersion: acn.azure.com/v1alpha1
+    kind: ClusterSubnet
+    metadata:
+        name: subnet
+        namespace: kube-system
+    spec:
++       scaler:
++           batch: 8
++           buffer: 0.25
+    status:
+        exhausted: true
+        timestamp: 123456789
++       scaler:
++           batch: 8
++           buffer: 0.25
 ```
-
-
 
 Note: 
 - The `scaler.maxIPCount` will not be migrated, as the maxIPCount is a property of the Node and not the Subnet.
