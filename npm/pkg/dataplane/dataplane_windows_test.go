@@ -609,39 +609,27 @@ func TestConcurrentEvents(t *testing.T) {
 			require.NoError(t, err, "failed to initialize dp")
 
 			for i, session := range tt.sessions {
-				if len(session) == 0 {
-					t.Fatal("sequence should have >= 1 threads")
+				// concurrent case with multiple go routines
+				wg := new(sync.WaitGroup)
+				wg.Add(len(session))
+				threadErrors := make(chan error, len(session))
+				for j, th := range session {
+					go func(threadNum int, th thread) {
+						defer wg.Done()
+						for k, event := range th {
+							if err := event(dp, hns); err != nil {
+								threadErrors <- errors.Wrapf(err, "failed to run thread %d, event %d", threadNum, k)
+								return
+							}
+						}
+						threadErrors <- nil
+					}(j, th)
 				}
 
-				if len(session) == 1 {
-					// single-thread case: no need to run go routines
-					th := session[0]
-					for j, event := range th {
-						require.Nil(t, event(dp, hns), "failed while running single thread for sequence %d, event %d", i, j)
-					}
-				} else {
-					// concurrent case with multiple go routines
-					wg := new(sync.WaitGroup)
-					wg.Add(len(session))
-					threadErrors := make(chan error, len(session))
-					for j, th := range session {
-						go func(threadNum int, th thread) {
-							defer wg.Done()
-							for k, event := range th {
-								if err := event(dp, hns); err != nil {
-									threadErrors <- errors.Wrapf(err, "failed to run thread %d, event %d", threadNum, k)
-									return
-								}
-							}
-							threadErrors <- nil
-						}(j, th)
-					}
-
-					wg.Wait()
-					close(threadErrors)
-					for err := range threadErrors {
-						assert.Nil(t, err, "failed during concurrency for sequence %d", i)
-					}
+				wg.Wait()
+				close(threadErrors)
+				for err := range threadErrors {
+					assert.Nil(t, err, "failed during concurrency for sequence %d", i)
 				}
 			}
 
