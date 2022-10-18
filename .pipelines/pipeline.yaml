@@ -1,6 +1,7 @@
 resources:
   repositories:
   - repository: ACN
+    endpoint: camryn_githubconnection
     type: github
     name: Azure/azure-container-networking
     branches:
