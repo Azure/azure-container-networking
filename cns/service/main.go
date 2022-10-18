@@ -313,12 +313,14 @@ func printVersion() {
 	fmt.Printf("Version %v\n", version)
 }
 
-type NodeInquirer interface {
+// NodeInterrogator is functionality necessary to read information about nodes.
+// It is intended to be strictly read-only.
+type NodeInterrogator interface {
 	SupportedAPIs(context.Context) ([]string, error)
 }
 
 // RegisterNode - Tries to register node with DNC when CNS is started in managed DNC mode
-func registerNode(httpc *http.Client, httpRestService cns.HTTPService, dncEP, infraVnet, nodeID string, ni NodeInquirer) error {
+func registerNode(httpc *http.Client, httpRestService cns.HTTPService, dncEP, infraVnet, nodeID string, ni NodeInterrogator) error {
 	logger.Printf("[Azure CNS] Registering node %s with Infrastructure Network: %s PrivateEndpoint: %s", nodeID, infraVnet, dncEP)
 
 	var (
