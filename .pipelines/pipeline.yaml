@@ -1,7 +1,10 @@
-repository:
-  branches:
-    include:
-      - master
+resources:
+  - repository: ACN
+    type: github
+    name: Azure/azure-container-networking
+    branches:
+      include:
+        - master
 
 pr:
   branches:
