@@ -82,6 +82,11 @@ $$
 
 where $U$ is the number of Assigned (Used) IPs on the Node.
 
+CNS will include the NC Primary IP(s) as IPs that it has been allocated, and will subtract them from its real Requested IP Count such that the _total_ number of IPs allocated to CNS is a multiple of the Batch.
+
+#### [[2-3]](phase-2/3-subnetscaler.md) Scaler properties move to the ClusterSubnet CRD
+The Scaler properties from the v1alpha/NodeNetworkConfig `Status.Scaler` definition are moved to the ClusterSubnet CRD, and CNS will use the Scaler from this CRD as priority when it is available, and fall back to the NNC Scaler otherwise. The `.Spec` field of the CRD may serve as an "overrides" location for runtime reconfiguration.
+
 ### Phase 3
 #### [[3-1]](phase-3/1-watchpods.md) CNS watches Pods
 

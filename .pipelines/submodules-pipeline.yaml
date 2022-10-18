@@ -3,24 +3,28 @@ pr:
     include:
       - master
   paths:
-    exclude:
-    - ".devcontainer"
-    - ".hooks"
-    - ".vscode"
-    - ".github"
-    - docs
-
-trigger:
-  paths:
-    exclude:
-    - docs
-  tags:
     include:
-    - "*"
-    exclude:
     - "zapai/*"
     - "azure-ipam/*"
     - "dropgz/*"
+    exclude:
+    - "*"
+
+trigger:
+  paths:
+    include:
+    - "zapai/*"
+    - "azure-ipam/*"
+    - "dropgz/*"
+    exclude:
+    - "*"
+  tags:
+    include:
+    - "zapai/*"
+    - "azure-ipam/*"
+    - "dropgz/*"
+    exclude:
+    - "*"
 
 stages:
   - stage: setup
@@ -55,45 +59,15 @@ stages:
     jobs:
       - job: test
         displayName: Run Tests
-        variables:
-          STORAGE_ID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.StorageID'] ]
         pool:
           name: "$(BUILD_POOL_NAME_DEFAULT)"
         steps:
           - script: |
               make tools
-              # run test, echo exit status code to fd 3, pipe output from test to tee, which splits output to stdout and go-junit-report (which converts test output to report.xml), stdout from tee is redirected to fd 4. Take output written to fd 3 (which is the exit code of test), redirect to stdout, pipe to read from stdout then exit with that status code. Read all output from fd 4 (output from tee) and write to top stdout
-              { { { {
-                    sudo -E env "PATH=$PATH" make test-all;
-                    echo $? >&3;
-                    } | tee >(build/tools/bin/go-junit-report > report.xml) >&4;
-                  } 3>&1;
-                } | { read xs; exit $xs; }
-              } 4>&1
+              sudo -E env "PATH=$PATH" make test-azure-ipam;
             retryCountOnTaskFailure: 3
             name: "Test"
             displayName: "Run Tests"
-
-          - bash: |
-              build/tools/bin/gocov convert coverage.out > coverage.json
-              build/tools/bin/gocov-xml < coverage.json > coverage.xml
-            name: "Coverage"
-            displayName: "Generate Coverage Reports"
-            condition: always()
-
-          - task: PublishTestResults@2
-            inputs:
-              testRunner: JUnit
-              testResultsFiles: report.xml
-            displayName: "Publish Test Results"
-            condition: always()
-
-          - task: PublishCodeCoverageResults@1
-            inputs:
-              codeCoverageTool: Cobertura
-              summaryFileLocation: coverage.xml
-            displayName: "Publish Code Coverage Results"
-            condition: always()
 
   - stage: binaries
     displayName: Build Binaries
@@ -165,10 +139,6 @@ stages:
               arch: amd64
               os: linux
               name: acncli
-            cni_dropgz_linux_amd64:
-              arch: amd64
-              os: linux
-              name: cni-dropgz
             cni_dropgz_test_linux_amd64:
               arch: amd64
               os: linux
@@ -199,10 +169,6 @@ stages:
               arch: arm64
               os: linux
               name: acncli
-            cni_dropgz_linux_arm64:
-              arch: arm64
-              os: linux
-              name: cni-dropgz
             cni_dropgz_test_linux_arm64:
               arch: arm64
               os: linux
@@ -257,9 +223,6 @@ stages:
             acncli:
               name: acncli 
               platforms: linux/amd64 linux/arm64
-            cni_dropgz:
-              name: cni-dropgz
-              platforms: linux/amd64 linux/arm64
             cni_dropgz_test:
               name: cni-dropgz-test
               platforms: linux/amd64 linux/arm64
@@ -280,66 +243,22 @@ stages:
       name: "cilium_e2e"
       displayName: Cilium
       pipelineBuildImage: "$(BUILD_IMAGE)"
-      testDropgz: ""
-      clusterName: "ciliume2e"
+      testDropgz: true
+      clusterName: "submodules-ciliume2e"
 
   - template: singletenancy/aks-swift/e2e-job-template.yaml
     parameters:
       name: "aks_swift_e2e"
       displayName: AKS Swift
       pipelineBuildImage: "$(BUILD_IMAGE)"
-      testDropgz: ""
-      clusterName: "swifte2e"
+      testDropgz: true
+      clusterName: "submodules-swifte2e"
 
-  - template: singletenancy/aks-engine/e2e-job-template.yaml
-    parameters:
-      name: "ubuntu_18_04_linux_e2e"
-      displayName: Ubuntu 18.04
-      pipelineBuildImage: "$(BUILD_IMAGE)"
-      clusterDefinition: "cniLinux1804.json"
-      clusterDefinitionCniTypeKey: "azureCNIURLLinux"
-      clusterDefinitionCniBuildOS: "linux"
-      clusterDefinitionCniBuildExt: ".tgz"
-
-  - template: singletenancy/aks-engine/e2e-job-template.yaml
-    parameters:
-      name: "windows_19_03_e2e"
-      displayName: "Windows 1903"
-      pipelineBuildImage: "$(BUILD_IMAGE)"
-      clusterDefinition: "cniWindows1903.json"
-      clusterDefinitionCniTypeKey: "azureCNIURLWindows"
-      clusterDefinitionCniBuildOS: "windows"
-      clusterDefinitionCniBuildExt: ".zip"
-
-  - template: singletenancy/aks-engine/e2e-job-template.yaml
-    parameters:
-      name: "windows_20_04_e2e"
-      displayName: "Windows 2004"
-      pipelineBuildImage: "$(BUILD_IMAGE)"
-      clusterDefinition: "cniWindows2004.json"
-      clusterDefinitionCniTypeKey: "azureCNIURLWindows"
-      clusterDefinitionCniBuildOS: "windows"
-      clusterDefinitionCniBuildExt: ".zip"
-
-  # - template: singletenancy/aks-engine/e2e-job-template.yaml
-  #   parameters:
-  #     name: "windows_20_22_e2e"
-  #     displayName: "Windows 2022"
-  #     pipelineBuildImage: "$(BUILD_IMAGE)"
-  #     clusterDefinition: "cniWindows2022.json"
-  #     clusterDefinitionCniTypeKey: "azureCNIURLWindows"
-  #     clusterDefinitionCniBuildOS: "windows"
-  #     clusterDefinitionCniBuildExt: ".zip"
-  
   - stage: cleanup
     displayName: Cleanup
     dependsOn:
-      - "aks_swift_e2e"
-      - "cilium_e2e"
-      - "ubuntu_18_04_linux_e2e"
-      - "windows_19_03_e2e"
-      - "windows_20_04_e2e"
-      # - "windows_20_22_e2e"
+      - cilium_e2e
+      - aks_swift_e2e
     jobs:
       - job: delete_remote_artifacts
         displayName: Delete remote artifacts

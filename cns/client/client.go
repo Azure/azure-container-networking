@@ -40,6 +40,7 @@ var clientPaths = []string{
 	cns.NumberOfCPUCores,
 	cns.NMAgentSupportedAPIs,
 	cns.DeleteNetworkContainer,
+	cns.NetworkContainersURLPath,
 }
 
 type do interface {
@@ -750,4 +751,63 @@ func (c *Client) NMAgentSupportedAPIs(ctx context.Context) (*cns.NmAgentSupporte
 	}
 
 	return &out, nil
+}
+
+func (c *Client) GetAllNCsFromCns(ctx context.Context) (cns.GetAllNetworkContainersResponse, error) {
+	// Build the request
+	urlPath := c.routes[cns.NetworkContainersURLPath]
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, urlPath.String(), http.NoBody)
+	if err != nil {
+		return cns.GetAllNetworkContainersResponse{}, errors.Wrap(err, "building HTTP request")
+	}
+
+	// Submit the request
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return cns.GetAllNetworkContainersResponse{}, errors.Wrap(err, "sending HTTP request")
+	}
+	defer resp.Body.Close()
+
+	// Decode the response
+	var response cns.GetAllNetworkContainersResponse
+	err = json.NewDecoder(resp.Body).Decode(&response)
+	if err != nil || response.Response.ReturnCode != types.Success {
+		return cns.GetAllNetworkContainersResponse{}, errors.Wrap(err, "decoding GetAllNetworkContainersResponse as JSON")
+	}
+
+	return response, nil
+}
+
+func (c *Client) PostAllNetworkContainers(ctx context.Context, createNcRequest cns.PostNetworkContainersRequest) error {
+	if createNcRequest.CreateNetworkContainerRequests == nil || len(createNcRequest.CreateNetworkContainerRequests) == 0 {
+		return errors.New("empty request provided")
+	}
+
+	// Build the request
+	var body bytes.Buffer
+	err := json.NewEncoder(&body).Encode(createNcRequest)
+	if err != nil {
+		return errors.Wrap(err, "building HTTP request")
+	}
+	urlPath := c.routes[cns.NetworkContainersURLPath]
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, urlPath.String(), &body)
+	if err != nil {
+		return errors.Wrap(err, "building HTTP request")
+	}
+
+	// Submit the request
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return errors.Wrap(err, "sending HTTP request")
+	}
+	defer resp.Body.Close()
+
+	// Decode the response
+	var response cns.PostNetworkContainersResponse
+	err = json.NewDecoder(resp.Body).Decode(&response)
+	if err != nil || response.Response.ReturnCode != types.Success {
+		return errors.Wrap(err, "decoding PostNetworkContainersResponse as JSON")
+	}
+
+	return nil
 }

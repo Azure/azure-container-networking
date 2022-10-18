@@ -2,6 +2,8 @@ parameters:
   name: ""
   displayName: ""
   pipelineBuildImage: "$(BUILD_IMAGE)"
+  testDropgz: ""
+  clusterName: ""
 
 stages:
   - stage: ${{ parameters.name }}
@@ -26,3 +28,5 @@ stages:
           - template: e2e-step-template.yaml
             parameters:
               name: ${{ parameters.name }}
+              testDropgz: ${{ parameters.testDropgz }}
+              clusterName: ${{ parameters.clusterName }}
