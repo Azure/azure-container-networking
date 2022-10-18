@@ -16,7 +16,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/cns/wireserver"
 	acn "github.com/Azure/azure-container-networking/common"
-	nma "github.com/Azure/azure-container-networking/nmagent"
+	"github.com/Azure/azure-container-networking/nmagent"
 	"github.com/Azure/azure-container-networking/platform"
 	"github.com/Azure/azure-container-networking/store"
 	"github.com/pkg/errors"
@@ -643,11 +643,11 @@ func (service *HTTPRestService) setNetworkStateJoined(networkID string) {
 
 // Join Network by calling nmagent
 func (service *HTTPRestService) joinNetwork(ctx context.Context, networkID string) error {
-	jnr := nma.JoinNetworkRequest{
+	req := nmagent.JoinNetworkRequest{
 		NetworkID: networkID,
 	}
 
-	err := service.nma.JoinNetwork(ctx, jnr)
+	err := service.nma.JoinNetwork(ctx, req)
 	if err != nil {
 		return errors.Wrap(err, "sending join network request")
 	}
@@ -796,8 +796,8 @@ func (service *HTTPRestService) isNCWaitingForUpdate(
 		return true, types.NetworkContainerVfpProgramCheckSkipped, ""
 	}
 
-	resp, err := service.nma.GetNCVersion(context.TODO(), getNCVersionURL.(nma.NCVersionRequest))
-	var nmaErr nma.Error
+	resp, err := service.nma.GetNCVersion(context.TODO(), getNCVersionURL.(nmagent.NCVersionRequest))
+	var nmaErr nmagent.Error
 	if errors.As(err, &nmaErr) && nmaErr.Unauthorized() {
 		return true, types.NetworkContainerVfpProgramPending, ""
 	}
