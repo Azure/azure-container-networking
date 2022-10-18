@@ -169,10 +169,6 @@ jobs:
               az extension add --name aks-preview
               az extension update --name aks-preview
 
-              # Enable Microsoft.ContainerService/AKSWindows2022Preview
-              az feature register --namespace Microsoft.ContainerService --name AKSWindows2022Preview
-              az provider register -n Microsoft.ContainerService
-
               echo "creating WS22 Cluster";
               az aks create \
                   --resource-group $(RESOURCE_GROUP) \
@@ -395,10 +391,6 @@ jobs:
           inlineScript: |
             az extension add --name aks-preview
             az extension update --name aks-preview
-
-            # Enable Microsoft.ContainerService/AKSWindows2022Preview
-            az feature register --namespace Microsoft.ContainerService --name AKSWindows2022Preview
-            az provider register -n Microsoft.ContainerService
 
             export CLUSTER_NAME=$(RESOURCE_GROUP)-$(PROFILE)
 
