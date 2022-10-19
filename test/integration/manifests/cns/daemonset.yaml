@@ -83,7 +83,7 @@ spec:
                     fieldPath: spec.nodeName 
       initContainers:
         - name: init-cni-dropgz
-          image: acnpublic.azurecr.io/cni-dropgz-test:latest
+          image: acnpublic.azurecr.io/cni-dropgz:latest
           imagePullPolicy: Always
           command: ["/dropgz"]
           volumeMounts:

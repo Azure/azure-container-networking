@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"sort"
 	"strconv"
 	"testing"
 	"time"
@@ -30,11 +31,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-var (
-	svc           *restserver.HTTPRestService
-	errBadRequest = errors.New("bad request")
-)
-
 const (
 	primaryIp           = "10.0.0.5"
 	gatewayIp           = "10.0.0.1"
@@ -46,7 +42,11 @@ const (
 	initPoolSize        = 10
 )
 
-var dnsservers = []string{"8.8.8.8", "8.8.4.4"}
+var (
+	svc           *restserver.HTTPRestService
+	dnsServers    = []string{"8.8.8.8", "8.8.4.4"}
+	errBadRequest = errors.New("bad request")
+)
 
 type mockdo struct {
 	errToReturn            error
@@ -66,7 +66,7 @@ func (m *mockdo) Do(req *http.Request) (*http.Response, error) {
 
 func addTestStateToRestServer(t *testing.T, secondaryIps []string) {
 	var ipConfig cns.IPConfiguration
-	ipConfig.DNSServers = dnsservers
+	ipConfig.DNSServers = dnsServers
 	ipConfig.GatewayIPAddress = gatewayIp
 	var ipSubnet cns.IPSubnet
 	ipSubnet.IPAddress = primaryIp
@@ -277,7 +277,7 @@ func TestCNSClientRequestAndRelease(t *testing.T) {
 	assert.EqualValues(t, podIPInfo.NetworkContainerPrimaryIPConfig.IPSubnet.PrefixLength, subnetPrfixLength, "Primary IP Prefix length is not added as expected ipConfig")
 
 	// validate DnsServer and Gateway Ip as the same configured for Primary IP
-	assert.Equal(t, dnsservers, podIPInfo.NetworkContainerPrimaryIPConfig.DNSServers, "DnsServer is not added as expected ipConfig")
+	assert.Equal(t, dnsServers, podIPInfo.NetworkContainerPrimaryIPConfig.DNSServers, "DnsServer is not added as expected ipConfig")
 	assert.Equal(t, gatewayIp, podIPInfo.NetworkContainerPrimaryIPConfig.GatewayIPAddress, "Gateway is not added as expected ipConfig")
 
 	resultIPnet, err := getIPNetFromResponse(resp)
@@ -2141,6 +2141,121 @@ func TestNMASupportedAPIs(t *testing.T) {
 
 			if !test.shouldErr && !cmp.Equal(got, test.exp) {
 				t.Error("received response differs from expectation: diff:", cmp.Diff(got, test.exp))
+			}
+		})
+	}
+}
+
+func TestGetAllNCsFromCns(t *testing.T) {
+	emptyRoutes, _ := buildRoutes(defaultBaseURL, clientPaths)
+	exp := cns.GetAllNetworkContainersResponse{
+		NetworkContainers: nil,
+		Response: cns.Response{
+			ReturnCode: types.Success,
+			Message:    "",
+		},
+	}
+	mockDo := &mockdo{
+		errToReturn:            nil,
+		objToReturn:            cns.GetAllNetworkContainersResponse{},
+		httpStatusCodeToReturn: http.StatusOK,
+	}
+	client := &Client{
+		client: mockDo,
+		routes: emptyRoutes,
+	}
+
+	got, err := client.GetAllNCsFromCns(context.TODO())
+	assert.NoError(t, err)
+	assert.Equal(t, exp.Response.ReturnCode, got.Response.ReturnCode)
+}
+
+func TestPostAllNetworkContainers(t *testing.T) {
+	postAllNcsRequests := cns.PostNetworkContainersRequest{
+		CreateNetworkContainerRequests: []cns.CreateNetworkContainerRequest{
+			{
+				Version:              "12345",
+				NetworkContainerType: "type1",
+				NetworkContainerid:   "nc1",
+				OrchestratorContext:  json.RawMessage("null"),
+			},
+			{
+				Version:              "12345",
+				NetworkContainerType: "type2",
+				NetworkContainerid:   "nc2",
+				OrchestratorContext:  json.RawMessage("null"),
+			},
+		},
+	}
+
+	testCases := []struct {
+		name      string
+		client    *RequestCapture
+		req       cns.PostNetworkContainersRequest
+		expReq    *cns.PostNetworkContainersRequest
+		shouldErr bool
+	}{
+		{
+			"Empty request",
+			&RequestCapture{
+				Next: &mockdo{},
+			},
+			cns.PostNetworkContainersRequest{},
+			nil,
+			true,
+		},
+		{
+			"Happy path",
+			&RequestCapture{
+				Next: &mockdo{},
+			},
+			postAllNcsRequests,
+			&postAllNcsRequests,
+			false,
+		},
+	}
+
+	emptyRoutes, _ := buildRoutes(defaultBaseURL, clientPaths)
+	for _, test := range testCases {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			client := &Client{
+				client: test.client,
+				routes: emptyRoutes,
+			}
+
+			err := client.PostAllNetworkContainers(context.TODO(), test.req)
+			if err != nil && !test.shouldErr {
+				t.Fatal("unexpected error: err:", err)
+			}
+
+			if err == nil && test.shouldErr {
+				t.Fatal("expected an error but received none")
+			}
+
+			// Make sure if we expected a request, the correct one will be received
+			if test.expReq != nil {
+				// Make sure a request was actually received
+				if test.client.Request == nil {
+					t.Fatal("expected to receive a request, but none received")
+				}
+				// Decode the received request for later comparison
+				var gotReq cns.PostNetworkContainersRequest
+				err = json.NewDecoder(test.client.Request.Body).Decode(&gotReq)
+				if err != nil {
+					t.Fatal("error decoding received request: err:", err)
+				}
+
+				sort.Slice(test.expReq.CreateNetworkContainerRequests, func(i, j int) bool {
+					return test.expReq.CreateNetworkContainerRequests[i].NetworkContainerid < test.expReq.CreateNetworkContainerRequests[j].NetworkContainerid
+				})
+				sort.Slice(gotReq.CreateNetworkContainerRequests, func(i, j int) bool {
+					return gotReq.CreateNetworkContainerRequests[i].NetworkContainerid < gotReq.CreateNetworkContainerRequests[j].NetworkContainerid
+				})
+
+				for i := 0; i < len(test.expReq.CreateNetworkContainerRequests); i++ {
+					assert.Equal(t, test.expReq.CreateNetworkContainerRequests[i], gotReq.CreateNetworkContainerRequests[i])
+				}
 			}
 		})
 	}
