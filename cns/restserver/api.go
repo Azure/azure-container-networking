@@ -874,7 +874,7 @@ func (service *HTTPRestService) getNetworkContainersByOrchestratorContext(w http
 	}
 
 	getNetworkContainersResponse := service.getNetworkContainersResponse(req)
-	logger.Printf("getNetworkContainersResponse is %v", getNetworkContainersResponse)
+	logger.Printf("getNetworkContainersResponses are %v", getNetworkContainersResponse)
 
 	var resp cns.GetAllNetworkContainersResponse
 	if getNetworkContainersResponse != nil {
@@ -980,12 +980,9 @@ func (service *HTTPRestService) deleteNetworkContainer(w http.ResponseWriter, r 
 		}
 
 		if service.state.ContainerIDByOrchestratorContext != nil {
-			for orchestratorContext, networkContainerIDs := range service.state.ContainerIDByOrchestratorContext {
-				for _, networkContainerID := range networkContainerIDs {
-					if networkContainerID == req.NetworkContainerid {
-						delete(service.state.ContainerIDByOrchestratorContext, orchestratorContext)
-						break
-					}
+			for orchestratorContext, _ := range service.state.ContainerIDByOrchestratorContext {
+				if service.state.ContainerIDByOrchestratorContext[orchestratorContext].Contains(req.NetworkContainerid) {
+					service.state.ContainerIDByOrchestratorContext[orchestratorContext].Delete(req.NetworkContainerid)
 				}
 			}
 		}

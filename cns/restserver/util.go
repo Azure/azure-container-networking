@@ -112,15 +112,6 @@ func (service *HTTPRestService) restoreState() {
 	}
 }
 
-func containInSlice(items []string, item string) bool {
-	for _, eachItem := range items {
-		if item == eachItem {
-			return true
-		}
-	}
-	return false
-}
-
 func (service *HTTPRestService) saveNetworkContainerGoalState(
 	req cns.CreateNetworkContainerRequest,
 ) (types.ResponseCode, string) {
@@ -195,18 +186,15 @@ func (service *HTTPRestService) saveNetworkContainerGoalState(
 			}
 
 			logger.Printf("Pod info %v", podInfo)
-
-			if service.state.ContainerIDByOrchestratorContext == nil {
-				service.state.ContainerIDByOrchestratorContext = make(map[string][]string)
-			}
-
 			ncid := podInfo.Name() + podInfo.Namespace()
 
-			if !containInSlice(service.state.ContainerIDByOrchestratorContext[ncid], req.NetworkContainerid) {
-				service.state.ContainerIDByOrchestratorContext[ncid] = append(service.state.ContainerIDByOrchestratorContext[ncid], req.NetworkContainerid)
+			if service.state.ContainerIDByOrchestratorContext == nil {
+				service.state.ContainerIDByOrchestratorContext = make(map[string]*ncSet)
 			}
 
-			logger.Printf("service.state.ContainerIDByOrchestratorContext[ncid] are %+v", service.state.ContainerIDByOrchestratorContext[ncid])
+			service.state.ContainerIDByOrchestratorContext[ncid].Add(req.NetworkContainerid)
+
+			logger.Printf("service.state.ContainerIDByOrchestratorContext[ncid] is %+v", service.state.ContainerIDByOrchestratorContext[ncid])
 
 		case cns.KubernetesCRD:
 			// Validate and Update the SecondaryIpConfig state
@@ -370,7 +358,7 @@ func (service *HTTPRestService) getNetworkContainersResponse(
 	req cns.GetNetworkContainerRequest,
 ) []cns.GetNetworkContainerResponse {
 	var (
-		networkContainerIDs          []string
+		networkContainerID           string
 		getNetworkContainerResponse  cns.GetNetworkContainerResponse
 		getNetworkContainersResponse []cns.GetNetworkContainerResponse
 		exists                       bool
@@ -380,8 +368,6 @@ func (service *HTTPRestService) getNetworkContainersResponse(
 	service.Lock()
 	defer service.Unlock()
 
-	logger.Printf("service state is %v", service.state)
-	logger.Printf(" request context is %v", string(req.OrchestratorContext))
 	switch service.state.OrchestratorType {
 	case cns.Kubernetes:
 		fallthrough
@@ -402,30 +388,46 @@ func (service *HTTPRestService) getNetworkContainersResponse(
 
 		logger.Printf("pod info %+v", podInfo)
 
-		networkContainerIDs, exists = service.state.ContainerIDByOrchestratorContext[podInfo.Name()+podInfo.Namespace()]
-		logger.Printf("networkContainerIDs are %v", networkContainerIDs)
+		exists = false
+		ncidBytes, err := json.Marshal(service.state.ContainerIDByOrchestratorContext[podInfo.Name()+podInfo.Namespace()])
+		if err != nil {
+			fmt.Errorf("Failed to marshal ContainerIDByOrchestratorContext")
+		}
+
+		networkContainerID = string(ncidBytes)
+		if networkContainerID != "" {
+			exists = true
+		}
+
+		ncSet := &ncSet{}
+
+		if err := json.Unmarshal(ncidBytes, &ncSet); err != nil {
+			fmt.Println("Failed to unmarshal NC set")
+		}
+
 		if exists {
-			// If the goal state is available with CNS, check if the NC is pending VFP programming
-			for _, networkContainerID := range networkContainerIDs {
+			for ncid := range *ncSet {
+				// If the goal state is available with CNS, check if the NC is pending VFP programming
 				waitingForUpdate, getNetworkContainerResponse.Response.ReturnCode, getNetworkContainerResponse.Response.Message = service.isNCWaitingForUpdate(service.state.ContainerStatus[networkContainerID].CreateNetworkContainerRequest.Version, networkContainerID) //nolint:lll // bad code
 				// If the return code is not success, return the error to the caller
 				if getNetworkContainerResponse.Response.ReturnCode == types.NetworkContainerVfpProgramPending {
 					logger.Errorf("[Azure-CNS] isNCWaitingForUpdate failed for NCID: %s with error: %s",
-						networkContainerID, getNetworkContainerResponse.Response.Message)
+						ncid, getNetworkContainerResponse.Response.Message)
 					getNetworkContainersResponse = append(getNetworkContainersResponse, getNetworkContainerResponse)
 					return getNetworkContainersResponse
 				}
+
 				vfpUpdateComplete := !waitingForUpdate
-				ncstatus := service.state.ContainerStatus[networkContainerID]
+				ncstatus := service.state.ContainerStatus[ncid]
 				// Update the container status if-
 				// 1. VfpUpdateCompleted successfully
 				// 2. VfpUpdateComplete changed to false
 				if (getNetworkContainerResponse.Response.ReturnCode == types.NetworkContainerVfpProgramComplete &&
 					vfpUpdateComplete && ncstatus.VfpUpdateComplete != vfpUpdateComplete) ||
 					(!vfpUpdateComplete && ncstatus.VfpUpdateComplete != vfpUpdateComplete) {
-					logger.Printf("[Azure-CNS] Setting VfpUpdateComplete to %t for NCID: %s", vfpUpdateComplete, networkContainerID)
+					logger.Printf("[Azure-CNS] Setting VfpUpdateComplete to %t for NCID: %s", vfpUpdateComplete, ncid)
 					ncstatus.VfpUpdateComplete = vfpUpdateComplete
-					service.state.ContainerStatus[networkContainerID] = ncstatus
+					service.state.ContainerStatus[ncid] = ncstatus
 					service.saveState()
 				}
 			}
@@ -445,10 +447,10 @@ func (service *HTTPRestService) getNetworkContainersResponse(
 				return getNetworkContainersResponse
 			}
 
-			networkContainerIDs = service.state.ContainerIDByOrchestratorContext[podInfo.Name()+podInfo.Namespace()]
+			networkContainerID = string(ncidBytes)
 		}
 
-		logger.Printf("containerids %v", networkContainerIDs)
+		logger.Printf("networkContainerID string %s", networkContainerID)
 
 	default:
 		getNetworkContainerResponse.Response.ReturnCode = types.UnsupportedOrchestratorType
@@ -457,9 +459,15 @@ func (service *HTTPRestService) getNetworkContainersResponse(
 		return getNetworkContainersResponse
 	}
 
-	for _, networkContainerID := range networkContainerIDs {
+	ncSet := &ncSet{}
+
+	if err := json.Unmarshal([]byte(networkContainerID), &ncSet); err != nil {
+		fmt.Println("Failed to unmarshal NC set")
+	}
+
+	for ncid := range *ncSet {
 		containerStatus := service.state.ContainerStatus
-		containerDetails, ok := containerStatus[networkContainerID]
+		containerDetails, ok := containerStatus[ncid]
 		if !ok {
 			getNetworkContainerResponse.Response.ReturnCode = types.UnknownContainerID
 			getNetworkContainerResponse.Response.Message = "NetworkContainer doesn't exist."
@@ -481,17 +489,17 @@ func (service *HTTPRestService) getNetworkContainersResponse(
 		}
 
 		getNetworkContainersResponse = append(getNetworkContainersResponse, getNetworkContainerResponse)
+		logger.Printf("getNetworkContainersResponses are %+v", getNetworkContainersResponse)
 	}
 
 	return getNetworkContainersResponse
-
 }
 
 func (service *HTTPRestService) getNetworkContainerResponse(
 	req cns.GetNetworkContainerRequest,
 ) cns.GetNetworkContainerResponse {
 	var (
-		networkContainerIDs         []string
+		networkContainerID          string
 		getNetworkContainerResponse cns.GetNetworkContainerResponse
 		exists                      bool
 		waitingForUpdate            bool
@@ -519,8 +527,16 @@ func (service *HTTPRestService) getNetworkContainerResponse(
 
 		logger.Printf("pod info %+v", podInfo)
 
-		networkContainerIDs, exists = service.state.ContainerIDByOrchestratorContext[podInfo.Name()+podInfo.Namespace()]
-		networkContainerID := networkContainerIDs[0]
+		exists = false
+		ncidBytes, err := json.Marshal(service.state.ContainerIDByOrchestratorContext[podInfo.Name()+podInfo.Namespace()])
+		if err != nil {
+			fmt.Errorf("Failed to marshal ContainerIDByOrchestratorContext")
+		}
+
+		networkContainerID = string(ncidBytes)
+		if networkContainerID != "" {
+			exists = true
+		}
 
 		if exists {
 			// If the goal state is available with CNS, check if the NC is pending VFP programming
@@ -560,10 +576,10 @@ func (service *HTTPRestService) getNetworkContainerResponse(
 				return getNetworkContainerResponse
 			}
 
-			networkContainerIDs = service.state.ContainerIDByOrchestratorContext[podInfo.Name()+podInfo.Namespace()]
+			networkContainerID = string(ncidBytes)
 		}
 
-		logger.Printf("containerid %v", networkContainerIDs)
+		logger.Printf("networkContainerID string %s", networkContainerID)
 
 	default:
 		getNetworkContainerResponse.Response.ReturnCode = types.UnsupportedOrchestratorType
@@ -572,7 +588,7 @@ func (service *HTTPRestService) getNetworkContainerResponse(
 	}
 
 	containerStatus := service.state.ContainerStatus
-	containerDetails, ok := containerStatus[networkContainerIDs[0]]
+	containerDetails, ok := containerStatus[networkContainerID]
 	if !ok {
 		getNetworkContainerResponse.Response.ReturnCode = types.UnknownContainerID
 		getNetworkContainerResponse.Response.Message = "NetworkContainer doesn't exist."

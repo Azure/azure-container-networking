@@ -298,12 +298,9 @@ func (service *HTTPRestService) DeleteNetworkContainerInternal(
 	}
 
 	if service.state.ContainerIDByOrchestratorContext != nil {
-		for orchestratorContext, networkContainerIDs := range service.state.ContainerIDByOrchestratorContext {
-			for _, networkContainerID := range networkContainerIDs {
-				if networkContainerID == req.NetworkContainerid {
-					delete(service.state.ContainerIDByOrchestratorContext, orchestratorContext)
-					break
-				}
+		for orchestratorContext, _ := range service.state.ContainerIDByOrchestratorContext {
+			if service.state.ContainerIDByOrchestratorContext[orchestratorContext].Contains(req.NetworkContainerid) {
+				service.state.ContainerIDByOrchestratorContext[orchestratorContext].Delete(req.NetworkContainerid)
 			}
 		}
 	}

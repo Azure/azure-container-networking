@@ -204,6 +204,7 @@ func (m *Multitenancy) GetContainerNetworkConfiguration(
 			return nil, net.IPNet{}, errSnatIP
 		}
 	}
+
 	return ncResponse, hostSubnetPrefix, err
 }
 
@@ -286,9 +287,8 @@ func (m *Multitenancy) getContainerNetworkConfigurationInternal(
 	}
 
 	networkConfig, err := m.cnsclient.GetNetworkContainerConfiguration(ctx, orchestratorContext)
-
 	if err != nil {
-		log.Printf("GetNetworkContainerConfiguration failed with %v", err)
+		log.Printf("GetNetworkConfiguration failed with %v", err)
 		return nil, net.IPNet{}, fmt.Errorf("%w", err)
 	}
 

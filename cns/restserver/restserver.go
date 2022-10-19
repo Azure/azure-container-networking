@@ -2,7 +2,10 @@ package restserver
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"net"
+	"strings"
 	"sync"
 	"time"
 
@@ -101,6 +104,63 @@ type containerstatus struct {
 	VfpUpdateComplete             bool // True when VFP programming is completed for the NC
 }
 
+type ncSet map[string]struct{}
+
+func (n *ncSet) Add(nc string) {
+	if n == nil {
+		*n = make(map[string]struct{})
+	}
+
+	(*n)[nc] = struct{}{}
+}
+
+func (n *ncSet) Delete(nc string) error {
+	if n == nil {
+		return fmt.Errorf("no NC to be deleted")
+	}
+	delete(*n, nc)
+	return nil
+}
+
+func (n *ncSet) Contains(nc string) bool {
+	if n == nil {
+		return false
+	}
+	_, ok := (*n)[nc]
+	return ok
+}
+
+func (n *ncSet) UnmarshalJSON(data []byte) error {
+	var ncString string
+	if err := json.Unmarshal(data, &ncString); err != nil {
+		return err
+	}
+
+	res := strings.Split(ncString, ",")
+
+	if *n == nil {
+		*n = make(map[string]struct{})
+	}
+
+	for _, nc := range res {
+		(*n)[nc] = struct{}{}
+	}
+
+	return nil
+}
+
+func (n ncSet) MarshalJSON() ([]byte, error) {
+	result := make([]string, len(n))
+	index := 0
+	for nc := range n {
+		result[index] = nc
+		index++
+	}
+
+	res := strings.Join(result, ",")
+	return json.Marshal(&res)
+}
+
 // httpRestServiceState contains the state we would like to persist.
 type httpRestServiceState struct {
 	Location                         string
@@ -108,7 +168,7 @@ type httpRestServiceState struct {
 	OrchestratorType                 string
 	NodeID                           string
 	Initialized                      bool
-	ContainerIDByOrchestratorContext map[string][]string        // OrchestratorContext is key and value is a set of NetworkContainerIDs.
+	ContainerIDByOrchestratorContext map[string]*ncSet          // OrchestratorContext is key and value is NetworkContainerID separated by comma.
 	ContainerStatus                  map[string]containerstatus // NetworkContainerID is key.
 	Networks                         map[string]*networkInfo
 	TimeStamp                        time.Time
