@@ -76,6 +76,18 @@ swift-up: rg-up net-up ## Brings up a swift cluster $name in $SUB/$REGION
 		--yes
 	@$(MAKE) set-kubeconf
 
+overlay-up: rg-up overlay-net-up ## Brings up an overlay cluster $name in $SUB/$REGION
+	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
+		--max-pods 250 \
+		--node-count 3 \
+		--network-plugin azure \
+		--network-plugin-mode overlay \
+		--pod-cidr 192.168.0.0/16 \
+		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
+		--generate-ssh-keys \
+		--yes
+	@$(MAKE) set-kubeconf
+
 byocni-up: rg-up net-up ## Brings up a swift cluster $name in $SUB/$REGION
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
 		--max-pods 250 \
