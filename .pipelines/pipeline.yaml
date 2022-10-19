@@ -54,7 +54,6 @@ stages:
               go env
               which go
               echo $PATH
-              echo $TAG
             name: "EnvironmentalVariables"
             displayName: "Set environmental variables"
             condition: always()
@@ -254,6 +253,26 @@ stages:
               arch: $(arch)
               tag: $(TAG)
 
+   - stage: validate1
+    displayName: Validate Tags
+    dependsOn:
+      - setup
+      - containerize
+    variables:
+      TAG: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
+      CURRENT_VERSION: $(make version)
+    condition: not(eq(variables.TAG, variables.CURRENT_VERSION))
+    jobs:
+      - job: timeout_and_cancel
+        displayName: Cancel Run
+        pool:
+          name: $(BUILD_POOL_NAME_DEFAULT)
+        steps:
+          - script: |
+              echo "Cancelling pipeline run, branch is not up to date with master"
+              sleep 2m
+        timeoutInMinutes: 1
+
   - stage: publish
     displayName: Publish Multiarch Manifests
     dependsOn:
@@ -346,7 +365,7 @@ stages:
   #     clusterDefinitionCniBuildOS: "windows"
   #     clusterDefinitionCniBuildExt: ".zip"
 
-  - stage: validate
+  - stage: validate2
     displayName: Validate Tags
     dependsOn:
       - setup
@@ -354,7 +373,7 @@ stages:
     variables:
       TAG: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
       CURRENT_VERSION: $(make version)
-    condition: not(eq(variables.TAG, variables.CURRENT_VERSION))
+    condition: and(SucceededOrFailed(), not(eq(variables.TAG, variables.CURRENT_VERSION)))
     jobs:
       - job: timeout_and_cancel
         displayName: Cancel Run
@@ -363,6 +382,7 @@ stages:
         steps:
           - script: |
               echo "Cancelling pipeline run, branch is not up to date with master"
+              sleep 2m;
         timeoutInMinutes: 1
   
   - stage: cleanup

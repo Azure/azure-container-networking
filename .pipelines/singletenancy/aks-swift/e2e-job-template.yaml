@@ -11,6 +11,7 @@ stages:
     dependsOn: 
     - setup
     - publish
+    - validate2
     variables:
       TAG: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
       CURRENT_VERSION: $(make version)
