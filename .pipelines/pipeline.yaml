@@ -346,7 +346,7 @@ stages:
   #     clusterDefinitionCniBuildOS: "windows"
   #     clusterDefinitionCniBuildExt: ".zip"
 
-  - stage: cancel pipeline
+  - stage: cancel
     displayName: Cancel Pipeline Run
     dependsOn:
       - setup
