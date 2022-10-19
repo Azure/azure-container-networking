@@ -357,7 +357,12 @@ stages:
     condition: not(eq(variables.TAG, variables.CURRENT_VERSION))
     jobs:
       - job: timeout_and_cancel
-        displayName: Cancelling, branch is not up to date with master
+        displayName: Cancel Run
+        pool:
+          name: $(BUILD_POOL_NAME_DEFAULT)
+        steps:
+          - script: |
+              echo "Cancelling pipeline run, branch is not up to date with master"
         timeoutInMinutes: 1
   
   - stage: cleanup
