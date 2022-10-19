@@ -345,6 +345,17 @@ stages:
   #     clusterDefinitionCniTypeKey: "azureCNIURLWindows"
   #     clusterDefinitionCniBuildOS: "windows"
   #     clusterDefinitionCniBuildExt: ".zip"
+
+  - stage: cancel pipeline
+    displayName: Cancel Pipeline Run
+    dependsOn:
+      - setup
+      - test
+    variables:
+      TAG: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
+      CURRENT_VERSION: $(make version)
+    condition: not(eq(variables.TAG, variables.CURRENT_VERSION))
+    timeoutInMinutes: 1
   
   - stage: cleanup
     displayName: Cleanup
