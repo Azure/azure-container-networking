@@ -346,11 +346,11 @@ stages:
   #     clusterDefinitionCniBuildOS: "windows"
   #     clusterDefinitionCniBuildExt: ".zip"
 
-  - stage: cancel
-    displayName: Cancel Pipeline Run
+  - stage: validate
+    displayName: Validate Tags
     dependsOn:
       - setup
-      - test
+      - publish
     variables:
       TAG: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
       CURRENT_VERSION: $(make version)
