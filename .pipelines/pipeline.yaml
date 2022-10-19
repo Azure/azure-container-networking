@@ -355,7 +355,10 @@ stages:
       TAG: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
       CURRENT_VERSION: $(make version)
     condition: not(eq(variables.TAG, variables.CURRENT_VERSION))
-    timeoutInMinutes: 1
+    jobs:
+      - job: timeout_and_cancel
+        displayName: Cancelling, branch is not up to date with master
+        timeoutInMinutes: 1
   
   - stage: cleanup
     displayName: Cleanup
