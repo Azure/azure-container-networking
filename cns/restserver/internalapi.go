@@ -16,10 +16,10 @@ import (
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/logger"
-	"github.com/Azure/azure-container-networking/cns/nmagent"
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
+	"github.com/Azure/azure-container-networking/nmagent"
 	"github.com/pkg/errors"
 )
 
@@ -96,22 +96,22 @@ func (service *HTTPRestService) SyncNodeStatus(dncEP, infraVnet, nodeID string, 
 
 	// check if the version is valid and save it to service state
 	for ncid, nc := range ncsToBeAdded {
-		var (
-			versionURL = fmt.Sprintf(nmagent.GetNetworkContainerVersionURLFmt,
-				nmagent.WireserverIP,
-				nc.PrimaryInterfaceIdentifier,
-				nc.NetworkContainerid,
-				nc.AuthorizationToken)
-			w = httptest.NewRecorder()
-		)
+		nmaReq := nmagent.NCVersionRequest{
+			AuthToken:          nc.AuthorizationToken,
+			NetworkContainerID: nc.NetworkContainerid,
+			PrimaryAddress:     nc.PrimaryInterfaceIdentifier,
+		}
 
-		ncVersionURLs.Store(nc.NetworkContainerid, versionURL)
+		ncVersionURLs.Store(nc.NetworkContainerid, nmaReq)
 		waitingForUpdate, _, _ := service.isNCWaitingForUpdate(nc.Version, nc.NetworkContainerid)
 
 		body, _ = json.Marshal(nc)
 		req, _ = http.NewRequest(http.MethodPost, "", bytes.NewBuffer(body))
 		req.Header.Set(common.ContentType, common.JsonContent)
+
+		w := httptest.NewRecorder()
 		service.createOrUpdateNetworkContainer(w, req)
+
 		if w.Result().StatusCode == http.StatusOK {
 			var resp cns.CreateNetworkContainerResponse
 			if err = json.Unmarshal(w.Body.Bytes(), &resp); err == nil && resp.Response.ReturnCode == types.Success {
@@ -187,7 +187,7 @@ func (service *HTTPRestService) syncHostNCVersion(ctx context.Context, channelMo
 	if len(outdatedNCs) == 0 {
 		return nil
 	}
-	ncVersionListResp, err := service.nmagentClient.GetNCVersionList(ctx)
+	ncVersionListResp, err := service.nma.GetNCVersionList(ctx)
 	if err != nil {
 		return errors.Wrap(err, "failed to get nc version list from nmagent")
 	}
