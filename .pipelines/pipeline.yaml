@@ -253,7 +253,7 @@ stages:
               arch: $(arch)
               tag: $(TAG)
 
-   - stage: validate1
+  - stage: validate1
     displayName: Validate Tags
     dependsOn:
       - setup
