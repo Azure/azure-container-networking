@@ -3,7 +3,7 @@
 As described in [Phase 2: Scaling Math](../phase-2/2-scalingmath.md), the IPAM Pool Scaling is reactive: CNS assigns IPs out of the IPAM Pool as it is asked for them by the CNI, while trying to maintain a buffer of IPs that is within the Scaler parameters. The CNI makes IP assignment requests serially, and as CNI requests that IPs are assigned or freed, CNS makes requests to scale up or down the IPAM Pool by adjusting the Requested IP Count in the NodeNetworkConfig. If CNS is unable to honor an IP assignment requests due to no free IPs, CNI returns an error to the CRI which causes the Pod sandbox to be cleaned up, and CNS will receive an IP Release request for that Pod.
 
 In the reactive architecture, CNS is not able to track the number of incoming Pod IP assignment requests, CNS can only reliably scale by a single Batch at a time. For example:
-- At $T_0$ 1 Pod $P_0$ is scheduled: CNS has 1 Batch ($16$) IPs
+- At $T_0$ 1 Pod $P_0$ is scheduled: CNS has 1 Batch ( $16$ ) IPs
 - At $T_1$ 35 Pods are scheduled for a Total of 36 Pods
 - At $T_2$ CNI is sequentially requesting IP assignments for Pods, and for Pod $P_8$, CNS has less than $B\times mf$ unassigned IPs and requests an additional Batch of IPs
 - At $T_3$ CNI requests an IP for Pod $P_{16}$ but CNS is out of free IPs and returns an error
@@ -15,12 +15,12 @@ In the reactive architecture, CNS is not able to track the number of incoming Po
 - At $T_7$ CNS receives an additional Batch of IPs, and as the CNI retries they are assigned to $P_{32-35}$
 
 By proactively watching Pods instead of waiting for the CNI requests, this process could be faster and simpler:
-- At $T_0$ 1 Pod $P_0$ is scheduled: CNS has 1 Batch ($16$) IPs
+- At $T_0$ 1 Pod $P_0$ is scheduled: CNS has 1 Batch ( $16$ ) IPs
 - At $T_1$ 35 Pods are scheduled for a Total of 36 Pods
 - At $T_2$ CNS sees 36 Pods have been scheduled and updates the Requested IP Count to $48$ according to the [Scaling Equation](../phase-2/2-scalingmath.md#idempotent-scaling-math)
 - At $T_3$ CNS receives 48 total IPs, and as the CNI requests IP assignments they are assigned to $P_{1-35}$
 
-The following details explain how this design will be accomplished while accounting for the horizontal scalability of CNS ($N = Nodes$) and the load on the API Server from watching Pods ($N \propto Nodes$).
+The following details explain how this design will be accomplished while accounting for the horizontal scalability of CNS ( $N = Nodes$ ) and the load on the API Server from watching Pods ( $N \propto Nodes$ ).
 
 #### SharedInformers and local Caches
 Kubernetes `client-go` [provides machinery for local caching](https://github.com/kubernetes/sample-controller/blob/6d1d76794eb5f951e63a46f1ad6e097c1879d81b/docs/controller-client-go.md): Reflectors, (Shared)Informers, Indexer, and Stores
