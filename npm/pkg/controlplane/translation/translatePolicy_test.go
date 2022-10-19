@@ -1963,9 +1963,8 @@ func TestIngressPolicy(t *testing.T) {
 			if tt.windowsNil && util.IsWindowsDP() {
 				require.Error(t, err)
 				return
-			} else {
-				require.NoError(t, err)
 			}
+			require.NoError(t, err)
 			npmNetPol.PodSelectorIPSets = psResult.psSets
 			npmNetPol.ChildPodSelectorIPSets = psResult.childPSSets
 			npmNetPol.PodSelectorList = psResult.psList
@@ -2557,9 +2556,8 @@ func TestEgressPolicy(t *testing.T) {
 			if tt.windowsNil && util.IsWindowsDP() {
 				require.Error(t, err)
 				return
-			} else {
-				require.NoError(t, err)
 			}
+			require.NoError(t, err)
 			npmNetPol.PodSelectorIPSets = psResult.psSets
 			npmNetPol.ChildPodSelectorIPSets = psResult.childPSSets
 			npmNetPol.PodSelectorList = psResult.psList
