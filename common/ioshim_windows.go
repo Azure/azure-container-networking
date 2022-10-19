@@ -28,10 +28,8 @@ func NewMockIOShim(calls []testutils.TestCmd) *IOShim {
 		Name: "azure",
 	}
 
-	_, err := hns.CreateNetwork(network)
-	if err != nil {
-		return nil
-	}
+	// CreateNetwork will never return an error
+	_, _ = hns.CreateNetwork(network)
 
 	return &IOShim{
 		Exec: testutils.GetFakeExecWithScripts(calls),

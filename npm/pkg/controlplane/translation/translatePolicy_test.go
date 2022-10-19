@@ -1401,6 +1401,7 @@ func TestIngressPolicy(t *testing.T) {
 		npmNetPol      *policies.NPMNetworkPolicy
 		wantErr        bool
 		skipWindows    bool
+		windowsNil     bool
 	}{
 		{
 			name: "only port in ingress rules",
@@ -1818,6 +1819,7 @@ func TestIngressPolicy(t *testing.T) {
 				},
 			},
 			skipWindows: true,
+			windowsNil:  true,
 		},
 		{
 			name: "multi-value pod/peer selector",
@@ -1959,10 +1961,15 @@ func TestIngressPolicy(t *testing.T) {
 				ACLPolicyID: tt.npmNetPol.ACLPolicyID,
 			}
 			psResult, err := podSelectorWithNS(npmNetPol.PolicyKey, npmNetPol.Namespace, policies.EitherMatch, tt.targetSelector)
+			if tt.windowsNil && util.IsWindowsDP() {
+				require.Error(t, err)
+				return
+			} else {
+				require.NoError(t, err)
+			}
 			npmNetPol.PodSelectorIPSets = psResult.psSets
 			npmNetPol.ChildPodSelectorIPSets = psResult.childPSSets
 			npmNetPol.PodSelectorList = psResult.psList
-			require.NoError(t, err)
 			splitPolicyKey := strings.Split(npmNetPol.PolicyKey, "/")
 			require.Len(t, splitPolicyKey, 2, "policy key must include name")
 			err = ingressPolicy(npmNetPol, splitPolicyKey[1], tt.rules)
@@ -1988,6 +1995,7 @@ func TestEgressPolicy(t *testing.T) {
 		npmNetPol      *policies.NPMNetworkPolicy
 		wantErr        bool
 		skipWindows    bool
+		windowsNil     bool
 	}{
 		{
 			name: "only port in egress rules",
@@ -2405,6 +2413,7 @@ func TestEgressPolicy(t *testing.T) {
 				},
 			},
 			skipWindows: true,
+			windowsNil:  true,
 		},
 		{
 			name: "multi-value pod/peer selector",
@@ -2546,10 +2555,15 @@ func TestEgressPolicy(t *testing.T) {
 				ACLPolicyID: tt.npmNetPol.ACLPolicyID,
 			}
 			psResult, err := podSelectorWithNS(npmNetPol.PolicyKey, npmNetPol.Namespace, policies.EitherMatch, tt.targetSelector)
+			if tt.windowsNil && util.IsWindowsDP() {
+				require.Error(t, err)
+				return
+			} else {
+				require.NoError(t, err)
+			}
 			npmNetPol.PodSelectorIPSets = psResult.psSets
 			npmNetPol.ChildPodSelectorIPSets = psResult.childPSSets
 			npmNetPol.PodSelectorList = psResult.psList
-			require.NoError(t, err)
 			splitPolicyKey := strings.Split(npmNetPol.PolicyKey, "/")
 			require.Len(t, splitPolicyKey, 2, "policy key must include name")
 			err = egressPolicy(npmNetPol, splitPolicyKey[1], tt.rules)

@@ -46,6 +46,7 @@ func delayHnsCall(delay time.Duration) {
 	time.Sleep(delay)
 }
 
+// NewMockIOShim is dependent on this function never returning an error
 func (f Hnsv2wrapperFake) CreateNetwork(network *hcn.HostComputeNetwork) (*hcn.HostComputeNetwork, error) {
 	f.Lock()
 	defer f.Unlock()
