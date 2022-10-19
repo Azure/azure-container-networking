@@ -162,16 +162,6 @@ func TestCmdAdd(t *testing.T) {
 							IP:   net.IPv4(10, 0, 1, 10),
 							Mask: net.CIDRMask(24, 32),
 						},
-						Gateway: net.IPv4(10, 0, 0, 1),
-					},
-				},
-				Routes: []*cniTypes.Route{
-					{
-						Dst: net.IPNet{
-							IP:   net.IPv4(0, 0, 0, 0),
-							Mask: net.CIDRMask(0, 32),
-						},
-						GW: net.IPv4(10, 0, 0, 1),
 					},
 				},
 				DNS: cniTypes.DNS{},
