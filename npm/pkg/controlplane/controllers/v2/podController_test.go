@@ -814,7 +814,6 @@ func TestIsCompletePod(t *testing.T) {
 		podState             podState
 		expectedCompletedPod bool
 	}{
-
 		{
 			name: "pod is in running status",
 			podState: podState{
