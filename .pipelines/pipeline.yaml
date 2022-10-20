@@ -320,16 +320,16 @@ stages:
             parameters:
               name: $(name)
               platforms: $(platforms)
-    - job: check_tag
-        displayName: Check Tag
-        pool:
-          name: $(BUILD_POOL_NAME_DEFAULT)
-        steps:
-          - script: |
-              echo "##vso[task.setvariable variable=currentTagManifests;isOutput=true]$(make version)"
-            name: "CurrentTagManifests"
-            displayName: "Set current tag variable"
-            condition: always()
+      - job: check_tag
+          displayName: Check Tag
+          pool:
+            name: $(BUILD_POOL_NAME_DEFAULT)
+          steps:
+            - script: |
+                echo "##vso[task.setvariable variable=currentTagManifests;isOutput=true]$(make version)"
+              name: "CurrentTagManifests"
+              displayName: "Set current tag variable"
+              condition: always()
 
   - template: singletenancy/cilium/cilium-e2e-job-template.yaml
     parameters:
