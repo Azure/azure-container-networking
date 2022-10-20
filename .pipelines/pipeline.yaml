@@ -312,9 +312,9 @@ stages:
               platforms: $(platforms)
       - job: check_tag
         displayName: Check Tag
-         pool:
+        pool:
           name: $(BUILD_POOL_NAME_DEFAULT)
-         steps:
+        steps:
           - script: |
               echo "##vso[task.setvariable variable=currentTagManifests;isOutput=true]$(make version)"
             name: "CurrentTagManifests"
