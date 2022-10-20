@@ -58,6 +58,7 @@ func (pMgr *PolicyManager) reconcile() {
 
 // addPolicy will add the policy for each specified endpoint if the policy doesn't exist on the endpoint yet,
 // and will add the endpoint to the PodEndpoints of the policy if successful.
+// addPolicy may modify the endpointList input.
 func (pMgr *PolicyManager) addPolicy(policy *NPMNetworkPolicy, endpointList map[string]string) error {
 	if len(endpointList) == 0 {
 		klog.Infof("[PolicyManagerWindows] No Endpoints to apply policy %s on", policy.PolicyKey)

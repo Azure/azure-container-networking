@@ -19,11 +19,27 @@ var (
 	}
 
 	// below epList is no-op for linux
-	epList        = map[string]string{"10.0.0.1": "test123", "10.0.0.2": "test456"}
-	epIDs         = []string{"test123", "test456"}
+	epList = map[string]string{
+		"10.0.0.1": "test123",
+		"10.0.0.2": "test456",
+	}
+	epIDs = []string{
+		"test123",
+		"test456",
+	}
+
 	testNSSet     = ipsets.NewIPSetMetadata("test-ns-set", ipsets.Namespace)
 	testKeyPodSet = ipsets.NewIPSetMetadata("test-keyPod-set", ipsets.KeyLabelOfPod)
-	testNetPol    = &NPMNetworkPolicy{
+)
+
+type promVals struct {
+	numACLs   int
+	execCount int
+}
+
+// need this as a function so that PodEndpoints is reset everytime
+func testNetworkPolicy() *NPMNetworkPolicy {
+	return &NPMNetworkPolicy{
 		Namespace:   "x",
 		PolicyKey:   "x/test-netpol",
 		ACLPolicyID: "azure-acl-x-test-netpol",
@@ -69,11 +85,6 @@ var (
 			"10.0.0.1": "1234",
 		},
 	}
-)
-
-type promVals struct {
-	numACLs   int
-	execCount int
 }
 
 func (p promVals) testPrometheusMetrics(t *testing.T) {
@@ -109,6 +120,7 @@ func TestBootup(t *testing.T) {
 // see policymanager_linux.go for testing when an error occurs
 func TestAddPolicy(t *testing.T) {
 	metrics.ReinitializeAll()
+	testNetPol := testNetworkPolicy()
 	calls := GetAddPolicyTestCalls(testNetPol)
 	ioshim := common.NewMockIOShim(calls)
 	defer ioshim.VerifyCalls(t, calls)
@@ -119,13 +131,15 @@ func TestAddPolicy(t *testing.T) {
 	require.True(t, ok)
 	numTestNetPolACLRulesProducedInKernel := 3
 	if util.IsWindowsDP() {
-		numTestNetPolACLRulesProducedInKernel = 2
+		numEndpoints := 2
+		numTestNetPolACLRulesProducedInKernel *= numEndpoints
 	}
 	promVals{numTestNetPolACLRulesProducedInKernel, 1}.testPrometheusMetrics(t)
 }
 
 func TestAddEmptyPolicy(t *testing.T) {
 	metrics.ReinitializeAll()
+	testNetPol := testNetworkPolicy()
 	ioshim := common.NewMockIOShim(nil)
 	pMgr := NewPolicyManager(ioshim, ipsetConfig)
 	require.NoError(t, pMgr.AddPolicy(&NPMNetworkPolicy{
@@ -167,6 +181,7 @@ func TestGetPolicy(t *testing.T) {
 
 func TestRemovePolicy(t *testing.T) {
 	metrics.ReinitializeAll()
+	testNetPol := testNetworkPolicy()
 	calls := append(GetAddPolicyTestCalls(testNetPol), GetRemovePolicyTestCalls(testNetPol)...)
 	ioshim := common.NewMockIOShim(calls)
 	defer ioshim.VerifyCalls(t, calls)

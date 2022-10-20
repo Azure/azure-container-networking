@@ -32,7 +32,7 @@ type Core struct {
 	fieldMappers map[string]fieldTagMapper
 	fields       []zapcore.Field
 	out          zapcore.WriteSyncer
-	lock         sync.Mutex
+	lock         *sync.Mutex
 }
 
 // NewCore creates a new appinsights zap core. Should only be initialized using an appinsights Sink as the
@@ -43,6 +43,7 @@ func NewCore(le zapcore.LevelEnabler, out zapcore.WriteSyncer) *Core {
 		enc:          newTraceEncoder(),
 		fieldMappers: make(map[string]fieldTagMapper),
 		out:          out,
+		lock:         &sync.Mutex{},
 	}
 }
 

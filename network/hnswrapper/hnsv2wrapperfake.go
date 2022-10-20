@@ -46,6 +46,7 @@ func delayHnsCall(delay time.Duration) {
 	time.Sleep(delay)
 }
 
+// NewMockIOShim is dependent on this function never returning an error
 func (f Hnsv2wrapperFake) CreateNetwork(network *hcn.HostComputeNetwork) (*hcn.HostComputeNetwork, error) {
 	f.Lock()
 	defer f.Unlock()
@@ -86,11 +87,14 @@ func (f Hnsv2wrapperFake) ModifyNetworkSettings(network *hcn.HostComputeNetwork,
 				}
 				if setpol.PolicyType != hcn.SetPolicyTypeIpSet {
 					// Check Nested SetPolicy members
-					members := strings.Split(setpol.Values, ",")
-					for _, memberID := range members {
-						_, ok := networkCache.Policies[memberID]
-						if !ok {
-							return newErrorFakeHNS(fmt.Sprintf("Member Policy %s not found", memberID))
+					// checking for the case of no members in nested policy. iMgrCfg.AddEmptySetToLists is set to false in some tests so it creates a nested policy with no members
+					if setpol.Values != "" {
+						members := strings.Split(setpol.Values, ",")
+						for _, memberID := range members {
+							_, ok := networkCache.Policies[memberID]
+							if !ok {
+								return newErrorFakeHNS(fmt.Sprintf("Member Policy %s not found", memberID))
+							}
 						}
 					}
 				}
@@ -401,11 +405,28 @@ func NewFakeHostComputeEndpoint(endpoint *hcn.HostComputeEndpoint) *FakeHostComp
 }
 
 func (fEndpoint *FakeHostComputeEndpoint) GetHCNObj() *hcn.HostComputeEndpoint {
-	return &hcn.HostComputeEndpoint{
+	// NOTE: not including other policy types like perhaps SetPolicies
+	hcnEndpoint := &hcn.HostComputeEndpoint{
 		Id:                 fEndpoint.ID,
 		Name:               fEndpoint.Name,
 		HostComputeNetwork: fEndpoint.HostComputeNetwork,
+		Policies:           make([]hcn.EndpointPolicy, 0),
 	}
+
+	for _, fakeEndpointPol := range fEndpoint.Policies {
+		rawJSON, err := json.Marshal(fakeEndpointPol)
+		if err != nil {
+			fmt.Printf("FAILURE marshalling fake endpoint policy: %s\n", err.Error())
+		} else {
+			hcnPolicy := hcn.EndpointPolicy{
+				Type:     hcn.ACL,
+				Settings: rawJSON,
+			}
+			hcnEndpoint.Policies = append(hcnEndpoint.Policies, hcnPolicy)
+		}
+	}
+
+	return hcnEndpoint
 }
 
 func (fEndpoint *FakeHostComputeEndpoint) RemovePolicy(toRemovePol *FakeEndpointPolicy) error {

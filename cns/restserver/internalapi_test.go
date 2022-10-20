@@ -12,8 +12,10 @@ import (
 	"testing"
 
 	"github.com/Azure/azure-container-networking/cns"
+	"github.com/Azure/azure-container-networking/cns/fakes"
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
+	nma "github.com/Azure/azure-container-networking/nmagent"
 	"github.com/google/uuid"
 )
 
@@ -120,27 +122,42 @@ func TestSyncHostNCVersion(t *testing.T) {
 	// cns.KubernetesCRD has one more logic compared to other orchestrator type, so test both of them
 	orchestratorTypes := []string{cns.Kubernetes, cns.KubernetesCRD}
 	for _, orchestratorType := range orchestratorTypes {
-		testSyncHostNCVersion(t, orchestratorType)
-	}
-}
+		t.Run(orchestratorType, func(t *testing.T) {
+			req := createNCReqeustForSyncHostNCVersion(t)
+			containerStatus := svc.state.ContainerStatus[req.NetworkContainerid]
+			if containerStatus.HostVersion != "-1" {
+				t.Errorf("Unexpected containerStatus.HostVersion %s, expected host version should be -1 in string", containerStatus.HostVersion)
+			}
+			if containerStatus.CreateNetworkContainerRequest.Version != "0" {
+				t.Errorf("Unexpected nc version in containerStatus as %s, expected VM version should be 0 in string", containerStatus.CreateNetworkContainerRequest.Version)
+			}
 
-func testSyncHostNCVersion(t *testing.T, orchestratorType string) {
-	req := createNCReqeustForSyncHostNCVersion(t)
-	containerStatus := svc.state.ContainerStatus[req.NetworkContainerid]
-	if containerStatus.HostVersion != "-1" {
-		t.Errorf("Unexpected containerStatus.HostVersion %s, expeted host version should be -1 in string", containerStatus.HostVersion)
-	}
-	if containerStatus.CreateNetworkContainerRequest.Version != "0" {
-		t.Errorf("Unexpected nc version in containerStatus as %s, expeted VM version should be 0 in string", containerStatus.CreateNetworkContainerRequest.Version)
-	}
-	// When sync host NC version, it will use the orchestratorType pass in.
-	svc.SyncHostNCVersion(context.Background(), orchestratorType)
-	containerStatus = svc.state.ContainerStatus[req.NetworkContainerid]
-	if containerStatus.HostVersion != "0" {
-		t.Errorf("Unexpected containerStatus.HostVersion %s, expeted host version should be 0 in string", containerStatus.HostVersion)
-	}
-	if containerStatus.CreateNetworkContainerRequest.Version != "0" {
-		t.Errorf("Unexpected nc version in containerStatus as %s, expeted VM version should be 0 in string", containerStatus.CreateNetworkContainerRequest.Version)
+			mnma := &fakes.NMAgentClientFake{
+				GetNCVersionListF: func(_ context.Context) (nma.NCVersionList, error) {
+					return nma.NCVersionList{
+						Containers: []nma.NCVersion{
+							{
+								NetworkContainerID: req.NetworkContainerid,
+								Version:            "0",
+							},
+						},
+					}, nil
+				},
+			}
+			cleanup := setMockNMAgent(svc, mnma)
+			defer cleanup()
+
+			// When syncing the host NC version, it will use the orchestratorType passed
+			// in.
+			svc.SyncHostNCVersion(context.Background(), orchestratorType)
+			containerStatus = svc.state.ContainerStatus[req.NetworkContainerid]
+			if containerStatus.HostVersion != "0" {
+				t.Errorf("Unexpected containerStatus.HostVersion %s, expected host version should be 0 in string", containerStatus.HostVersion)
+			}
+			if containerStatus.CreateNetworkContainerRequest.Version != "0" {
+				t.Errorf("Unexpected nc version in containerStatus as %s, expected VM version should be 0 in string", containerStatus.CreateNetworkContainerRequest.Version)
+			}
+		})
 	}
 }
 
@@ -158,6 +175,22 @@ func TestPendingIPsGotUpdatedWhenSyncHostNCVersion(t *testing.T) {
 			t.Errorf("Unexpected State %s, expected State is %s, IP address is %s", podIPConfigState.GetState(), types.PendingProgramming, podIPConfigState.IPAddress)
 		}
 	}
+
+	mnma := &fakes.NMAgentClientFake{
+		GetNCVersionListF: func(_ context.Context) (nma.NCVersionList, error) {
+			return nma.NCVersionList{
+				Containers: []nma.NCVersion{
+					{
+						NetworkContainerID: req.NetworkContainerid,
+						Version:            "0",
+					},
+				},
+			}, nil
+		},
+	}
+	cleanup := setMockNMAgent(svc, mnma)
+	defer cleanup()
+
 	svc.SyncHostNCVersion(context.Background(), cns.CRD)
 	containerStatus = svc.state.ContainerStatus[req.NetworkContainerid]
 

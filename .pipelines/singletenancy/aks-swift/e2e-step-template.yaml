@@ -117,7 +117,7 @@ steps:
       inlineScript: |
         echo "Deleting cluster"
         make -C ./hack/swift azcfg AZCLI=az
-        make -C ./hack/swift down SUB=$(SUB_AZURE_NETWORK_AGENT_TEST) AZCLI=az CLUSTER=swifte2e-$(make revision)
+        make -C ./hack/swift down SUB=$(SUB_AZURE_NETWORK_AGENT_TEST) AZCLI=az CLUSTER=${{ parameters.clusterName }}-$(make revision)
         echo "Cluster and resources down"
     name: "Cleanupcluster"
     displayName: "Cleanup cluster"

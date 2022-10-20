@@ -62,6 +62,9 @@ net-up: ## Create required swift vnet/subnets
 	$(AZCLI) network vnet subnet create -g $(GROUP) --vnet-name $(VNET) --name nodenet --address-prefixes 10.240.0.0/16 -o none
 	$(AZCLI) network vnet subnet create -g $(GROUP) --vnet-name $(VNET) --name podnet --address-prefixes 10.241.0.0/16 -o none
 
+overlay-net-up:
+	$(AZCLI) network vnet create -g $(GROUP) -l $(REGION) --name $(VNET) --address-prefixes 10.0.0.0/8 -o none
+	$(AZCLI) network vnet subnet create -g $(GROUP) --vnet-name $(VNET) --name nodenet --address-prefix 10.10.0.0/16 -o none
 
 ##@ AKS Clusters
 
@@ -72,6 +75,18 @@ swift-up: rg-up net-up ## Brings up a swift cluster $name in $SUB/$REGION
 		--network-plugin azure \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
 		--pod-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/podnet \
+		--generate-ssh-keys \
+		--yes
+	@$(MAKE) set-kubeconf
+
+overlay-up: rg-up overlay-net-up ## Brings up an overlay cluster $name in $SUB/$REGION
+	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
+		--max-pods 250 \
+		--node-count 3 \
+		--network-plugin azure \
+		--network-plugin-mode overlay \
+		--pod-cidr 192.168.0.0/16 \
+		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
 		--generate-ssh-keys \
 		--yes
 	@$(MAKE) set-kubeconf

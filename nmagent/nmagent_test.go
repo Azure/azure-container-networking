@@ -2,6 +2,7 @@ package nmagent_test
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"io"
 	"net/http"
@@ -125,5 +126,26 @@ func TestContentErrorNew(t *testing.T) {
 				t.Error("unexpected error message: got:", got, "exp:", test.exp)
 			}
 		})
+	}
+}
+
+// testContext creates a context from the provided testing.T that will be
+// canceled if the test suite is terminated.
+func testContext(t *testing.T) (context.Context, context.CancelFunc) {
+	if deadline, ok := t.Deadline(); ok {
+		return context.WithDeadline(context.Background(), deadline)
+	}
+	return context.WithCancel(context.Background())
+}
+
+// checkErr is an assertion of the presence or absence of an error
+func checkErr(t *testing.T, err error, shouldErr bool) {
+	t.Helper()
+	if err != nil && !shouldErr {
+		t.Fatal("unexpected error: err:", err)
+	}
+
+	if err == nil && shouldErr {
+		t.Fatal("expected error but received none")
 	}
 }
