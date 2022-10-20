@@ -252,6 +252,16 @@ stages:
               name: $(name)
               arch: $(arch)
               tag: $(TAG)
+      - job: check_tag
+        displayName: Check Tag
+        pool:
+          name: $(BUILD_POOL_NAME_DEFAULT)
+        steps:
+          - script: |
+              echo "##vso[task.setvariable variable=currentTagBuild;isOutput=true]$(make version)"
+            name: "CurrentTagBuild"
+            displayName: "Set current tag variable"
+            condition: always()
 
   - stage: validate1
     displayName: Validate Tags
@@ -260,7 +270,7 @@ stages:
       - containerize
     variables:
       TAG: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
-      CURRENT_VERSION: $(make version)
+      CURRENT_VERSION: $[ stagedependencies.containerize.check_tag.outputs['CurrentTagBuild.current'] ]
     condition: ne(variables.TAG, variables.CURRENT_VERSION)
     jobs:
       - job: timeout_and_cancel
@@ -272,8 +282,8 @@ stages:
               echo $TAG
               echo $CURRENT_VERSION
               echo "Cancelling pipeline run, branch is not up to date with master"
-              echo "##vso[task.setvariable variable=agent.jobstatus;]canceled"
-              echo "##vso[task.complete result=Canceled;]DONE" 
+              sleep 61s
+        timeoutInMinutes: 1
   
   - stage: publish
     displayName: Publish Multiarch Manifests
@@ -310,6 +320,16 @@ stages:
             parameters:
               name: $(name)
               platforms: $(platforms)
+    - job: check_tag
+        displayName: Check Tag
+        pool:
+          name: $(BUILD_POOL_NAME_DEFAULT)
+        steps:
+          - script: |
+              echo "##vso[task.setvariable variable=currentTagManifests;isOutput=true]$(make version)"
+            name: "CurrentTagManifests"
+            displayName: "Set current tag variable"
+            condition: always()
 
   - template: singletenancy/cilium/cilium-e2e-job-template.yaml
     parameters:
@@ -374,7 +394,7 @@ stages:
       - publish
     variables:
       TAG: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
-      CURRENT_VERSION: $(make version)
+      CURRENT_VERSION: $[ stagedependencies.publish.check_tag.outputs['CurrentTagManifests.current'] ]
     condition: ne(variables.TAG, variables.CURRENT_VERSION)
     jobs:
       - job: timeout_and_cancel
@@ -386,8 +406,8 @@ stages:
               echo $TAG
               echo $CURRENT_VERSION
               echo "Cancelling pipeline run, branch is not up to date with master"
-              echo "##vso[task.setvariable variable=agent.jobstatus;]canceled"
-              echo "##vso[task.complete result=Canceled;]DONE" 
+              sleep 61s
+        timeoutInMinutes: 1
   
   - stage: cleanup
     displayName: Cleanup

@@ -13,7 +13,7 @@ stages:
     - publish
     variables:
       TAG: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
-      CURRENT_VERSION: $(make version)
+      CURRENT_VERSION: $[ stagedependencies.containerize.check_tag.outputs['CurrentTagManifests.current'] ]
     condition: eq(variables.TAG, variables.CURRENT_VERSION)
     jobs:
       - job: ${{ parameters.name }}
