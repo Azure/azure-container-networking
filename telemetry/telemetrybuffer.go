@@ -216,12 +216,7 @@ func (tb *TelemetryBuffer) Write(b []byte) (c int, err error) {
 
 // Cancel - signal to tear down telemetry buffer
 func (tb *TelemetryBuffer) Cancel() {
-	select {
-	case tb.cancel <- true:
-		log.Logf("server cancel")
-	default:
-		log.Logf("Cancel fn: default case: no message sent")
-	}
+	tb.cancel <- true
 }
 
 // Close - close all connections
