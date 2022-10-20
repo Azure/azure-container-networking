@@ -113,6 +113,7 @@ func TestPluginAdd(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 				endpoints, _ := plugin.nm.GetAllEndpoints(tt.nwCfg.Name)
+				t.Logf("endpoints is %+v", endpoints)
 				require.Condition(t, assert.Comparison(func() bool { return len(endpoints) == 1 }))
 			}
 		})

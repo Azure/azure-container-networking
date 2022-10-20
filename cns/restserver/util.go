@@ -188,11 +188,13 @@ func (service *HTTPRestService) saveNetworkContainerGoalState(
 			logger.Printf("Pod info %v", podInfo)
 			ncid := podInfo.Name() + podInfo.Namespace()
 
+			nc := ncSet{}
 			if service.state.ContainerIDByOrchestratorContext == nil {
 				service.state.ContainerIDByOrchestratorContext = make(map[string]*ncSet)
 			}
+			nc.Add(req.NetworkContainerid)
 
-			service.state.ContainerIDByOrchestratorContext[ncid].Add(req.NetworkContainerid)
+			service.state.ContainerIDByOrchestratorContext[ncid] = &nc
 
 			logger.Printf("service.state.ContainerIDByOrchestratorContext[ncid] is %+v", service.state.ContainerIDByOrchestratorContext[ncid])
 
