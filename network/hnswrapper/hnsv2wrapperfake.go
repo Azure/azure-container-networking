@@ -414,13 +414,13 @@ func (fEndpoint *FakeHostComputeEndpoint) GetHCNObj() *hcn.HostComputeEndpoint {
 	}
 
 	for _, fakeEndpointPol := range fEndpoint.Policies {
-		rawJson, err := json.Marshal(fakeEndpointPol)
+		rawJSON, err := json.Marshal(fakeEndpointPol)
 		if err != nil {
 			fmt.Printf("FAILURE marshalling fake endpoint policy: %s\n", err.Error())
 		} else {
 			hcnPolicy := hcn.EndpointPolicy{
 				Type:     hcn.ACL,
-				Settings: rawJson,
+				Settings: rawJSON,
 			}
 			hcnEndpoint.Policies = append(hcnEndpoint.Policies, hcnPolicy)
 		}
