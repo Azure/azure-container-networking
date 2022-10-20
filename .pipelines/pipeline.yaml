@@ -269,6 +269,8 @@ stages:
           name: $(BUILD_POOL_NAME_DEFAULT)
         steps:
           - script: |
+              echo $TAG
+              echo $CURRENT_VERSION
               echo "Cancelling pipeline run, branch is not up to date with master"
               echo "##vso[task.setvariable variable=agent.jobstatus;]canceled"
               echo "##vso[task.complete result=Canceled;]DONE" 
@@ -381,6 +383,8 @@ stages:
           name: $(BUILD_POOL_NAME_DEFAULT)
         steps:
           - script: |
+              echo $TAG
+              echo $CURRENT_VERSION
               echo "Cancelling pipeline run, branch is not up to date with master"
               echo "##vso[task.setvariable variable=agent.jobstatus;]canceled"
               echo "##vso[task.complete result=Canceled;]DONE" 
