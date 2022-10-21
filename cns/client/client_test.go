@@ -2260,3 +2260,65 @@ func TestPostAllNetworkContainers(t *testing.T) {
 		})
 	}
 }
+
+func TestGetHomeAzInfo(t *testing.T) {
+	emptyRoutes, _ := buildRoutes(defaultBaseURL, clientPaths)
+	tests := []struct {
+		name      string
+		shouldErr bool
+		exp       *cns.GetHomeAzInfoResponse
+	}{
+		{
+			"happy path",
+			false,
+			&cns.GetHomeAzInfoResponse{
+				Response: cns.Response{
+					ReturnCode: 0,
+					Message:    "success",
+				},
+				HomeAzInfo: nmagent.HomeAzInfo{
+					HomeAz: "01",
+				},
+			},
+		},
+		{
+			"error",
+			true,
+			&cns.GetHomeAzInfoResponse{
+				Response: cns.Response{
+					ReturnCode: types.NmAgentServerInternalError,
+					Message:    "internal error",
+				},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			client := &Client{
+				client: &mockdo{
+					errToReturn:            nil,
+					objToReturn:            test.exp,
+					httpStatusCodeToReturn: http.StatusOK,
+				},
+				routes: emptyRoutes,
+			}
+
+			got, err := client.GetHomeAzInfo(context.Background())
+			if err != nil && !test.shouldErr {
+				t.Fatal("unexpected error: err:", err)
+			}
+
+			if err == nil && test.shouldErr {
+				t.Fatal("expected an error but received none")
+			}
+
+			if !test.shouldErr && !cmp.Equal(got, test.exp) {
+				t.Error("received response differs from expectation: diff:", cmp.Diff(got, test.exp))
+			}
+		})
+	}
+}

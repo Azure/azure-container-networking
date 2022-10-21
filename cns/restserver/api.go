@@ -35,7 +35,11 @@ var (
 // 3) the ncid parameter
 // 4) the authentication token parameter
 // 5) the optional delete path
-const ncURLExpectedMatches = 5
+const (
+	ncURLExpectedMatches = 5
+
+	getHomeAzInfoAPIName = "GetHomeAzInfo"
+)
 
 // This file contains implementation of all HTTP APIs which are exposed to external clients.
 // TODO: break it even further per module (network, nc, etc) like it is done for ipam
@@ -764,6 +768,35 @@ func (service *HTTPRestService) setOrchestratorType(w http.ResponseWriter, r *ht
 	logger.Response(service.Name, resp, resp.ReturnCode, err)
 }
 
+// getHomeAzInfo retrieves home AZ of host
+func (service *HTTPRestService) getHomeAzInfo(w http.ResponseWriter, r *http.Request) {
+	logger.Printf("[Azure CNS] getHomeAzInfo")
+	logger.Request(service.Name, " getHomeAzInfo", nil)
+	ctx := r.Context()
+
+	switch r.Method {
+	case http.MethodGet:
+		getHomeAzInfoResp := service.GetHomeAzInfo(ctx)
+		service.setResponse(w, getHomeAzInfoResp.Response.ReturnCode, getHomeAzInfoResp)
+
+	default:
+		returnMessage := "[Azure CNS] Error. getHomeAzInfo did not receive a GET."
+		returnCode := types.UnsupportedVerb
+		service.setResponse(w, returnCode, cns.GetHomeAzInfoResponse{
+			Response: cns.Response{ReturnCode: returnCode, Message: returnMessage},
+		})
+	}
+}
+
+func isAPISupportedByNMAgent(supportedAPIs []string, api string) bool {
+	for _, supportedAPI := range supportedAPIs {
+		if supportedAPI == api {
+			return true
+		}
+	}
+	return false
+}
+
 func (service *HTTPRestService) createOrUpdateNetworkContainer(w http.ResponseWriter, r *http.Request) {
 	logger.Printf("[Azure CNS] createOrUpdateNetworkContainer")
 
@@ -1479,7 +1512,11 @@ func (service *HTTPRestService) nmAgentSupportedApisHandler(w http.ResponseWrite
 		if err != nil {
 			returnCode = types.NmAgentSupportedApisError
 			returnMessage = fmt.Sprintf("[Azure-CNS] %s", retErr.Error())
+		} else {
+			// caching supportedApis value
+			service.updateSupportedApisCache(apis)
 		}
+
 		supportedApis = apis
 
 	default:

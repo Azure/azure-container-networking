@@ -923,3 +923,32 @@ func (service *HTTPRestService) createNetworkContainers(createNetworkContainerRe
 		Message:    "",
 	}
 }
+
+func (service *HTTPRestService) setResponse(w http.ResponseWriter, returnCode types.ResponseCode, response interface{}) {
+	serviceErr := service.Listener.Encode(w, &response)
+	logger.Response(service.Name, response, returnCode, serviceErr)
+}
+
+func (service *HTTPRestService) readSupportedApisCache() []string {
+	service.RLock()
+	defer service.RUnlock()
+	return service.supportedApisCache
+}
+
+func (service *HTTPRestService) updateSupportedApisCache(supportedApis []string) {
+	service.Lock()
+	defer service.Unlock()
+	service.supportedApisCache = supportedApis
+}
+
+func (service *HTTPRestService) readHomeAzCache() string {
+	service.RLock()
+	defer service.RUnlock()
+	return service.homeAzCache
+}
+
+func (service *HTTPRestService) updateHomeAzCache(homeAz string) {
+	service.Lock()
+	defer service.Unlock()
+	service.homeAzCache = homeAz
+}

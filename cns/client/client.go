@@ -41,6 +41,7 @@ var clientPaths = []string{
 	cns.NMAgentSupportedAPIs,
 	cns.DeleteNetworkContainer,
 	cns.NetworkContainersURLPath,
+	cns.GetHomeAzInfo,
 }
 
 type do interface {
@@ -810,4 +811,39 @@ func (c *Client) PostAllNetworkContainers(ctx context.Context, createNcRequest c
 	}
 
 	return nil
+}
+
+// GetHomeAzInfo gets home AZ of host
+func (c *Client) GetHomeAzInfo(ctx context.Context) (*cns.GetHomeAzInfoResponse, error) {
+	// build the request
+	u := c.routes[cns.GetHomeAzInfo]
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), http.NoBody)
+	if err != nil {
+		return nil, errors.Wrap(err, "building http request")
+	}
+
+	// submit the request
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return nil, errors.Wrap(err, "sending HTTP request")
+	}
+	defer resp.Body.Close()
+
+	// decode the response
+	var getHomeAzInfoResponse cns.GetHomeAzInfoResponse
+	err = json.NewDecoder(resp.Body).Decode(&getHomeAzInfoResponse)
+	if err != nil {
+		return nil, errors.Wrap(err, "decoding response as JSON")
+	}
+
+	// if the return code is non-zero, something went wrong and it should be
+	// surfaced to the caller
+	if getHomeAzInfoResponse.Response.ReturnCode != 0 {
+		return nil, &CNSClientError{
+			Code: getHomeAzInfoResponse.Response.ReturnCode,
+			Err:  errors.New(getHomeAzInfoResponse.Response.Message),
+		}
+	}
+
+	return &getHomeAzInfoResponse, nil
 }

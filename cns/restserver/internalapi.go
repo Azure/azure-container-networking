@@ -394,3 +394,61 @@ func (service *HTTPRestService) CreateOrUpdateNetworkContainerInternal(req *cns.
 
 	return returnCode
 }
+
+// GetHomeAzInfo gets home AZ from cache or from nmagent
+func (service *HTTPRestService) GetHomeAzInfo(ctx context.Context) cns.GetHomeAzInfoResponse {
+	homeAz := service.readHomeAzCache()
+	if homeAz != "" {
+		return cns.GetHomeAzInfoResponse{HomeAzInfo: nmagent.HomeAzInfo{HomeAz: homeAz}}
+	}
+	suppApisCache := service.readSupportedApisCache()
+	if len(suppApisCache) == 0 || !isAPISupportedByNMAgent(suppApisCache, getHomeAzInfoAPIName) { // to account for if nma getting updated underneath
+		// Get NMAgent supported apis
+		supportedAPIs, err := service.nma.SupportedAPIs(ctx)
+		if err != nil {
+			returnMessage := fmt.Sprintf("[Azure CNS] Error. getHomeAzInfo failed to get NMAgent supported Apis %v", err)
+			returnCode := types.NmAgentSupportedApisError
+			return cns.GetHomeAzInfoResponse{Response: cns.Response{ReturnCode: returnCode, Message: returnMessage}}
+		}
+
+		// updating supportedApisCache
+		service.updateSupportedApisCache(supportedAPIs)
+
+		if !isAPISupportedByNMAgent(supportedAPIs, getHomeAzInfoAPIName) {
+			returnMessage := "[Azure CNS] Error. NMAgent does not support GetHomeAzInfo api."
+			returnCode := types.NmAgentUnSupportedAPIError
+			return cns.GetHomeAzInfoResponse{Response: cns.Response{ReturnCode: returnCode, Message: returnMessage}}
+		}
+	}
+
+	// calling NMAgent to get home AZ info
+	homeAzInfo, err := service.nma.GetHomeAzInfo(ctx)
+	if err != nil {
+		apiError := nmagent.Error{}
+		if ok := errors.As(err, &apiError); ok {
+			switch apiError.StatusCode() {
+			case http.StatusInternalServerError:
+				returnMessage := "[Azure CNS] Error. GetHomeAzInfo failed due to Nmagent server internal error."
+				returnCode := types.NmAgentServerInternalError
+				return cns.GetHomeAzInfoResponse{Response: cns.Response{ReturnCode: returnCode, Message: returnMessage}}
+
+			case http.StatusUnauthorized:
+				returnMessage := "[Azure CNS] Error. GetHomeAzInfo failed due to Nmagent server internal error."
+				returnCode := types.StatusUnauthorized
+				return cns.GetHomeAzInfoResponse{Response: cns.Response{ReturnCode: returnCode, Message: returnMessage}}
+
+			default:
+				returnMessage := fmt.Sprintf("[Azure CNS] Error. GetHomeAzInfo failed with StatusCode: %d", apiError.StatusCode())
+				returnCode := types.UnexpectedError
+				return cns.GetHomeAzInfoResponse{Response: cns.Response{ReturnCode: returnCode, Message: returnMessage}}
+			}
+		}
+		returnCode := types.UnexpectedError
+		returnMessage := fmt.Sprintf("[Azure CNS] Error. getHomeAzInfo failed %v", err)
+		return cns.GetHomeAzInfoResponse{Response: cns.Response{ReturnCode: returnCode, Message: returnMessage}}
+	}
+
+	service.updateHomeAzCache(homeAzInfo.HomeAz)
+
+	return cns.GetHomeAzInfoResponse{HomeAzInfo: homeAzInfo}
+}

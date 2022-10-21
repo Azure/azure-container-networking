@@ -387,3 +387,29 @@ func (NCVersionListRequest) Validate() error {
 	// cannot be made invalid it's fine for this to simply...
 	return nil
 }
+
+var _ Request = &GetHomeAzInfoRequest{}
+
+type GetHomeAzInfoRequest struct{}
+
+// Body is a no-op method to satisfy the Request interface while indicating
+// that there is no body for a GetHomeAzInfo Request.
+func (g *GetHomeAzInfoRequest) Body() (io.Reader, error) {
+	return nil, nil
+}
+
+// Method indicates that GetHomeAzInfo requests are GET requests.
+func (g *GetHomeAzInfoRequest) Method() string {
+	return http.MethodGet
+}
+
+// Path returns the necessary URI path for invoking a GetHomeAzInfo request.
+func (g *GetHomeAzInfoRequest) Path() string {
+	return "/GetHomeAzInfo"
+}
+
+// Validate is a no-op method because GetHomeAzInfoRequest have no parameters,
+// and therefore can never be invalid.
+func (g *GetHomeAzInfoRequest) Validate() error {
+	return nil
+}

@@ -622,3 +622,72 @@ func TestGetNCVersionList(t *testing.T) {
 		})
 	}
 }
+
+func TestGetHomeAzInfo(t *testing.T) {
+	tests := []struct {
+		name      string
+		exp       nmagent.HomeAzInfo
+		expPath   string
+		resp      map[string]interface{}
+		shouldErr bool
+	}{
+		{
+			"happy path",
+			nmagent.HomeAzInfo{HomeAz: "01"},
+			"/machine/plugins/?comp=nmagent&type=GetHomeAzInfo",
+			map[string]interface{}{
+				"httpStatusCode": "200",
+				"HomeAz":         "01",
+			},
+			false,
+		},
+		{
+			"empty response",
+			nmagent.HomeAzInfo{},
+			"/machine/plugins/?comp=nmagent&type=GetHomeAzInfo",
+			map[string]interface{}{
+				"httpStatusCode": "500",
+			},
+			true,
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			var gotPath string
+			client := nmagent.NewTestClient(&TestTripper{
+				RoundTripF: func(req *http.Request) (*http.Response, error) {
+					gotPath = req.URL.Path
+					fmt.Println(gotPath)
+					rr := httptest.NewRecorder()
+					err := json.NewEncoder(rr).Encode(test.resp)
+					if err != nil {
+						t.Fatal("unexpected error encoding response: err:", err)
+					}
+					rr.WriteHeader(http.StatusOK)
+					return rr.Result(), nil
+				},
+			})
+
+			got, err := client.GetHomeAzInfo(context.TODO())
+			if err != nil && !test.shouldErr {
+				t.Fatal("unexpected error: err:", err)
+			}
+
+			if err == nil && test.shouldErr {
+				t.Fatal("expected error but received none")
+			}
+
+			if gotPath != test.expPath {
+				t.Error("paths differ: got:", gotPath, "exp:", test.expPath)
+			}
+
+			if !cmp.Equal(got, test.exp) {
+				t.Error("response differs from expectation: diff:", cmp.Diff(got, test.exp))
+			}
+		})
+	}
+}
