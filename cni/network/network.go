@@ -316,6 +316,11 @@ func addNatIPV6SubnetInfo(nwCfg *cni.NetworkConfig,
 	}
 }
 
+//
+// CNI implementation
+// https://github.com/containernetworking/cni/blob/master/SPEC.md
+//
+
 // Add handles CNI add commands.
 func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 	var (

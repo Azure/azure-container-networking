@@ -393,7 +393,8 @@ func (service *HTTPRestService) getNetworkContainersResponse(
 		exists = false
 		ncidBytes, err := json.Marshal(service.state.ContainerIDByOrchestratorContext[podInfo.Name()+podInfo.Namespace()])
 		if err != nil {
-			fmt.Errorf("Failed to marshal ContainerIDByOrchestratorContext")
+			logger.Errorf("Failed to marlshal NC set")
+			return nil
 		}
 
 		networkContainerID = string(ncidBytes)
@@ -404,7 +405,8 @@ func (service *HTTPRestService) getNetworkContainersResponse(
 		ncSet := &ncSet{}
 
 		if err := json.Unmarshal(ncidBytes, &ncSet); err != nil {
-			fmt.Println("Failed to unmarshal NC set")
+			logger.Errorf("Failed to unmarlshal NC set")
+			return nil
 		}
 
 		if exists {

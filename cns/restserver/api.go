@@ -982,7 +982,9 @@ func (service *HTTPRestService) deleteNetworkContainer(w http.ResponseWriter, r 
 		if service.state.ContainerIDByOrchestratorContext != nil {
 			for orchestratorContext, _ := range service.state.ContainerIDByOrchestratorContext {
 				if service.state.ContainerIDByOrchestratorContext[orchestratorContext].Contains(req.NetworkContainerid) {
-					service.state.ContainerIDByOrchestratorContext[orchestratorContext].Delete(req.NetworkContainerid)
+					if err = service.state.ContainerIDByOrchestratorContext[orchestratorContext].Delete(req.NetworkContainerid); err != nil {
+						logger.Printf("Not able to delete networkContainerId %s", req.NetworkContainerid)
+					}
 				}
 			}
 		}

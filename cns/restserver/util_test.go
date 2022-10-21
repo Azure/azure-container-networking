@@ -9,6 +9,7 @@ import (
 func TestAreNCsPresent(t *testing.T) {
 	nc := &ncSet{}
 	nc.Add("present")
+
 	tests := []struct {
 		name    string
 		service HTTPRestService
