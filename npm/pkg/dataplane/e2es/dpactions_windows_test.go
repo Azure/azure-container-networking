@@ -31,11 +31,11 @@ func (p *PodCreateAction) Do(dp *dataplane.DataPlane) error {
 	nsIPSet := []*ipsets.IPSetMetadata{ipsets.NewIPSetMetadata(p.Pod.Namespace(), ipsets.Namespace)}
 	// PodController technically wouldn't call this if the namespace already existed
 	if err := dp.AddToLists([]*ipsets.IPSetMetadata{allNamespaces}, nsIPSet); err != nil {
-		return errors.Wrapf(err, "[podCreateEvent] failed to add ns set to all namespaces list. %s", context)
+		return errors.Wrapf(err, "[PodCreateAction] failed to add ns set to all namespaces list. %s", context)
 	}
 
 	if err := dp.AddToSets(nsIPSet, p.Pod); err != nil {
-		return errors.Wrapf(err, "[podCreateEvent] failed to add pod ip to ns set. %s", context)
+		return errors.Wrapf(err, "[PodCreateAction] failed to add pod ip to ns set. %s", context)
 	}
 
 	for key, val := range p.Labels {
@@ -46,7 +46,7 @@ func (p *PodCreateAction) Do(dp *dataplane.DataPlane) error {
 		}
 
 		if err := dp.AddToSets(labelIPSets, p.Pod); err != nil {
-			return errors.Wrapf(err, "[podCreateEvent] failed to add pod ip to label sets. %s", context)
+			return errors.Wrapf(err, "[PodCreateAction] failed to add pod ip to label sets. %s", context)
 		}
 
 	}

@@ -52,7 +52,7 @@ var (
 func getAllTests() []*TestCaseMetadata {
 	return []*TestCaseMetadata{
 		{
-			Description: "test case 1",
+			Description: "pod x/a created, then two netpols added in the background while pods are creating, then netpol deleted",
 			Tags: []Tag{
 				podCrudTag,
 				netpolCrudTag,
@@ -63,9 +63,12 @@ func getAllTests() []*TestCaseMetadata {
 			},
 			TestCase: NewTestCase([]*TestStep{
 				{
-					ID:           "pod1",
-					InBackground: false,
-					Action:       CreatePod("x", "a", ip1, thisNode, map[string]string{"k1": "v1"}),
+					ID:     "ep1",
+					Action: CreateEndpoint(endpoint1, ip1),
+				},
+				{
+					ID:     "pod1",
+					Action: CreatePod("x", "a", ip1, thisNode, map[string]string{"k1": "v1"}),
 				},
 				{
 					ID:           "netpol1",
@@ -83,14 +86,14 @@ func getAllTests() []*TestCaseMetadata {
 					Action:       CreatePod("x", "b", ip2, otherNode, map[string]string{"k2": "v2"}),
 				},
 				{
+					// for demo purposes (technically an impossible pod event)
 					ID:           "pod3",
 					InBackground: true,
 					Action:       CreatePod("y", "a", ip2, otherNode, map[string]string{"k1": "v1"}),
 				},
 				{
-					ID:           "netpol3",
-					InBackground: false,
-					Action:       DeletePolicyByObject(policyNs1LabelPair1AllowAll()),
+					ID:     "netpol3",
+					Action: DeletePolicyByObject(policyNs1LabelPair1AllowAll()),
 				},
 			}, map[string][]string{
 				// netpol2 won't run until netpol1 is complete
