@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/network/hnswrapper"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/ipsets"
 	"github.com/Microsoft/hcsshim/hcn"
@@ -14,9 +15,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"k8s.io/klog"
 )
-
-// NOTE: depends on fake ioshim input
-const azureNetworkID = "1234"
 
 func PrefixNames(sets []*ipsets.IPSetMetadata) []string {
 	a := make([]string, len(sets))
@@ -30,7 +28,7 @@ func Endpoint(epID, ip string) *hcn.HostComputeEndpoint {
 	return &hcn.HostComputeEndpoint{
 		Id:                 epID,
 		Name:               epID,
-		HostComputeNetwork: azureNetworkID,
+		HostComputeNetwork: common.FakeHNSNetworkID,
 		IpConfigurations: []hcn.IpConfig{
 			{
 				IpAddress: ip,
@@ -78,7 +76,7 @@ func VerifyHNSCache(t *testing.T, hns *hnswrapper.Hnsv2wrapperFake, expectedSetP
 func VerifySetPolicies(t *testing.T, hns *hnswrapper.Hnsv2wrapperFake, expectedSetPolicies []*hcn.SetPolicySetting) bool {
 	t.Helper()
 
-	cachedSetPolicies := hns.Cache.AllSetPolicies(azureNetworkID)
+	cachedSetPolicies := hns.Cache.AllSetPolicies(common.FakeHNSNetworkID)
 
 	success := assert.Equal(t, len(expectedSetPolicies), len(cachedSetPolicies), "unexpected number of SetPolicies")
 	for _, expectedSetPolicy := range expectedSetPolicies {
@@ -134,7 +132,7 @@ func VerifyACLs(t *testing.T, hns *hnswrapper.Hnsv2wrapperFake, expectedEndpoint
 // helpful for debugging if there's a discrepancy between GetAll functions and the HNS PrettyString
 func PrintGetAllOutput(hns *hnswrapper.Hnsv2wrapperFake) {
 	klog.Info("SETPOLICIES...")
-	for _, setPol := range hns.Cache.AllSetPolicies(azureNetworkID) {
+	for _, setPol := range hns.Cache.AllSetPolicies(common.FakeHNSNetworkID) {
 		klog.Infof("%+v", setPol)
 	}
 	klog.Info("Endpoint ACLs...")
