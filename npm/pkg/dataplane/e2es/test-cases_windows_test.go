@@ -2,7 +2,6 @@ package e2e
 
 import (
 	"github.com/Azure/azure-container-networking/network/hnswrapper"
-	"github.com/Azure/azure-container-networking/npm/pkg/dataplane"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/ipsets"
 	dptestutils "github.com/Azure/azure-container-networking/npm/pkg/dataplane/testutils"
 	"github.com/Microsoft/hcsshim/hcn"
@@ -15,19 +14,13 @@ import (
 const (
 	podCrudTag    Tag = "pod-crud"
 	nsCrudTag     Tag = "namespace-crud"
-	policyCrudTag Tag = "policy-crud"
+	netpolCrudTag Tag = "netpol-crud"
 	backgroundTag Tag = "has-background-steps"
 )
 
 const (
-	applyDP      bool = true
-	doNotApplyDP bool = false
-
 	thisNode  = "this-node"
 	otherNode = "other-node"
-
-	podKey1 = "pod1"
-	podKey2 = "pod2"
 
 	ip1 = "10.0.0.1"
 	ip2 = "10.0.0.2"
@@ -38,22 +31,22 @@ const (
 
 // IPSet constants
 var (
-	podLabel1Set    = ipsets.NewIPSetMetadata("k1", ipsets.KeyLabelOfPod)
-	podLabelVal1Set = ipsets.NewIPSetMetadata("k1:v1", ipsets.KeyValueLabelOfPod)
-	podLabel2Set    = ipsets.NewIPSetMetadata("k2", ipsets.KeyLabelOfPod)
-	podLabelVal2Set = ipsets.NewIPSetMetadata("k2:v2", ipsets.KeyValueLabelOfPod)
+	podK1Set   = ipsets.NewIPSetMetadata("k1", ipsets.KeyLabelOfPod)
+	podK1V1Set = ipsets.NewIPSetMetadata("k1:v1", ipsets.KeyValueLabelOfPod)
+	podK2Set   = ipsets.NewIPSetMetadata("k2", ipsets.KeyLabelOfPod)
+	podK2V2Set = ipsets.NewIPSetMetadata("k2:v2", ipsets.KeyValueLabelOfPod)
 
 	// emptySet is a member of a list if enabled in the dp Config
 	// in Windows, this Config option is actually forced to be enabled in NewDataPlane()
 	emptySet      = ipsets.NewIPSetMetadata("emptyhashset", ipsets.EmptyHashSet)
 	allNamespaces = ipsets.NewIPSetMetadata("all-namespaces", ipsets.KeyLabelOfNamespace)
-	ns1Set        = ipsets.NewIPSetMetadata("ns1", ipsets.Namespace)
-	ns2Set        = ipsets.NewIPSetMetadata("ns2", ipsets.Namespace)
+	nsXSet        = ipsets.NewIPSetMetadata("ns1", ipsets.Namespace)
+	nsYSet        = ipsets.NewIPSetMetadata("ns2", ipsets.Namespace)
 
-	nsLabel1Set    = ipsets.NewIPSetMetadata("k1", ipsets.KeyLabelOfNamespace)
-	nsLabelVal1Set = ipsets.NewIPSetMetadata("k1:v1", ipsets.KeyValueLabelOfNamespace)
-	nsLabel2Set    = ipsets.NewIPSetMetadata("k1", ipsets.KeyLabelOfNamespace)
-	nsLabelVal2Set = ipsets.NewIPSetMetadata("k1:v1", ipsets.KeyValueLabelOfNamespace)
+	nsK1Set   = ipsets.NewIPSetMetadata("k1", ipsets.KeyLabelOfNamespace)
+	nsK1V1Set = ipsets.NewIPSetMetadata("k1:v1", ipsets.KeyValueLabelOfNamespace)
+	nsK2Set   = ipsets.NewIPSetMetadata("k1", ipsets.KeyLabelOfNamespace)
+	nsK2V2Set = ipsets.NewIPSetMetadata("k1:v1", ipsets.KeyValueLabelOfNamespace)
 )
 
 func getAllTests() []*TestCaseMetadata {
@@ -62,6 +55,7 @@ func getAllTests() []*TestCaseMetadata {
 			Description: "test case 1",
 			Tags: []Tag{
 				podCrudTag,
+				netpolCrudTag,
 				backgroundTag,
 			},
 			InitialEndpoints: []*hcn.HostComputeEndpoint{
@@ -69,55 +63,52 @@ func getAllTests() []*TestCaseMetadata {
 			},
 			TestCase: NewTestCase([]*TestStep{
 				{
-					ID:           "pod controller 1",
+					ID:           "pod1",
 					InBackground: false,
-					Action: &PodCreateAction{
-						Pod:       dataplane.NewPodMetadata(podKey1, ip1, thisNode),
-						Namespace: "ns1",
-						Labels: map[string]string{
-							"k1": "v1",
-						},
-					},
+					Action:       CreatePod("x", "a", ip1, thisNode, map[string]string{"k1": "v1"}),
 				},
 				{
-					ID:           "policy controller 1",
+					ID:           "netpol1",
 					InBackground: true,
-					Action: &PolicyUpdateAction{
-						Policy: policyNs1LabelPair1AllowAll(),
-					},
+					Action:       UpdatePolicy(policyNs1LabelPair1AllowAll()),
 				},
 				{
-					ID:           "pod controller 2",
+					ID:           "netpol2",
 					InBackground: true,
-					Action: &PodCreateAction{
-						Pod:       dataplane.NewPodMetadata(podKey1, ip1, thisNode),
-						Namespace: "ns1",
-						Labels: map[string]string{
-							"k1": "v1",
-						},
-					},
+					Action:       UpdatePolicy(policyNs1LabelPair1AllowAll()),
 				},
 				{
-					ID:           "policy controller 2",
+					ID:           "pod2",
+					InBackground: true,
+					Action:       CreatePod("x", "b", ip2, otherNode, map[string]string{"k2": "v2"}),
+				},
+				{
+					ID:           "pod3",
+					InBackground: true,
+					Action:       CreatePod("y", "a", ip2, otherNode, map[string]string{"k1": "v1"}),
+				},
+				{
+					ID:           "netpol3",
 					InBackground: false,
-					Action: &PolicyDeleteAction{
-						Namespace: policyNs1LabelPair1AllowAll().Namespace,
-						Name:      policyNs1LabelPair1AllowAll().Name,
-					},
+					Action:       DeletePolicyByObject(policyNs1LabelPair1AllowAll()),
 				},
 			}, map[string][]string{
-				// "policy controller 2" action won't run until both "policy controller 1" and "pod controller 2" are done
-				"policy controller 2": {
-					"policy controller 1",
-					"pod controller 2",
+				// netpol2 won't run until netpol1 is complete
+				"netpol2": {"netpol1"},
+				// pod3 won't run until pod2 is complete
+				"pod3": {"pod2"},
+				// netpol3 won't run until all background threads have complete
+				"netpol3": {
+					"netpol2",
+					"pod3",
 				},
 			}),
 			ExpectedSetPolicies: []*hcn.SetPolicySetting{
 				dptestutils.SetPolicy(emptySet),
-				dptestutils.SetPolicy(allNamespaces, ns1Set.GetHashedName(), emptySet.GetHashedName()),
-				dptestutils.SetPolicy(ns1Set, ip1),
-				dptestutils.SetPolicy(podLabel1Set, ip1),
-				dptestutils.SetPolicy(podLabelVal1Set, ip1),
+				dptestutils.SetPolicy(allNamespaces, nsXSet.GetHashedName(), emptySet.GetHashedName()),
+				dptestutils.SetPolicy(nsXSet, ip1),
+				dptestutils.SetPolicy(podK1Set, ip1),
+				dptestutils.SetPolicy(podK1V1Set, ip1),
 			},
 			ExpectedEnpdointACLs: map[string][]*hnswrapper.FakeEndpointPolicy{
 				endpoint1: {

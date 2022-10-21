@@ -1,7 +1,6 @@
 package e2e
 
 import (
-	"sync"
 	"testing"
 	"time"
 
@@ -39,30 +38,35 @@ func TestAll(t *testing.T) {
 
 			backgroundErrors := make(chan error)
 			for _, s := range tt.Steps {
-				s.SetHNS(hns)
-				// necessary for NPM tests
-				s.SetDP(dp)
-
 				if s.InBackground {
-					wg := new(sync.WaitGroup)
-					wg.Add(1)
-					tt.AddStepWaitGroup(s.ID, wg)
-					go func() {
-						defer wg.Done()
-						tt.WaitToRun(s.ID)
-						if err := s.Do(); err != nil {
-							backgroundErrors <- errors.Wrapf(err, "failed to run step in background: %s", s.ID)
+					tt.MarkStepRunningInBackground(s.ID)
+					go func(s *TestStep) {
+						defer tt.MarkStepComplete(s.ID)
+
+						var err error
+						if s.HNSAction != nil {
+							err = s.HNSAction.Do(hns)
+						} else if s.DPAction != nil {
+							err = s.DPAction.Do(dp)
 						}
-					}()
+
+						if err != nil {
+							backgroundErrors <- errors.Wrapf(err, "failed to run action for step in background: %s", s.ID)
+						}
+					}(s)
 				} else {
-					if !assert.Nil(t, s.Do(), "failed to run step in foreground: %s", s.ID) {
-						// stop processing steps on a foreground failure
-						break
+					var err error
+					if s.HNSAction != nil {
+						err = s.HNSAction.Do(hns)
+					} else if s.DPAction != nil {
+						err = s.DPAction.Do(dp)
 					}
+
+					assert.Nil(t, err, "failed to run step in foreground: %s", s.ID)
 				}
 			}
 
-			tt.WaitForAll()
+			tt.WaitForAllStepsToComplete()
 			close(backgroundErrors)
 			for err := range backgroundErrors {
 				assert.Nil(t, err, "failed during concurrency")

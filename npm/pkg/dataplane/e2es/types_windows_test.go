@@ -43,15 +43,30 @@ func NewTestCase(steps []*TestStep, waitToComplete map[string][]string) *TestCas
 	}
 }
 
-// AddStepWaitGroup tracks the wait group for the step.
-// The caller is expected to call wg.Done().
-func (tt *TestCase) AddStepWaitGroup(step string, wg *sync.WaitGroup) {
+// MarkStepRunningInBackground should be called if a step will run in the background.
+// MarkStepComplete must be called afterwards.
+func (tt *TestCase) MarkStepRunningInBackground(stepID string) {
 	tt.lock.Lock()
 	defer tt.lock.Unlock()
-	tt.waitGroups[step] = wg
+
+	wg := new(sync.WaitGroup)
+	wg.Add(1)
+	tt.waitGroups[stepID] = wg
 }
 
-func (tt *TestCase) WaitToRun(step string) {
+func (tt *TestCase) MarkStepComplete(stepID string) {
+	tt.lock.Lock()
+	defer tt.lock.Unlock()
+
+	wg, ok := tt.waitGroups[stepID]
+	if ok {
+		wg.Done()
+	}
+}
+
+func (tt *TestCase) WaitToRunStep(step string) {
+	// don't keep tt locked while waiting on a single wait group
+
 	tt.lock.Lock()
 	stepsToWaitOn, ok := tt.waitToComplete[step]
 	tt.lock.Unlock()
@@ -70,7 +85,7 @@ func (tt *TestCase) WaitToRun(step string) {
 	}
 }
 
-func (tt *TestCase) WaitForAll() {
+func (tt *TestCase) WaitForAllStepsToComplete() {
 	tt.lock.Lock()
 	defer tt.lock.Unlock()
 	for _, wg := range tt.waitGroups {
@@ -81,40 +96,18 @@ func (tt *TestCase) WaitForAll() {
 type TestStep struct {
 	ID           string
 	InBackground bool
-	Action
+	*Action
 }
 
-type Action interface {
-	Do() error
-	SetHNS(hns *hnswrapper.Hnsv2wrapperFake)
-	// SetDP needs to be implemented for NPM tests only
-	SetDP(dp *dataplane.DataPlane)
+type Action struct {
+	HNSAction
+	DPAction
 }
 
-// HNSAction is meant to be embedded in other Actions so that they don't have to implement SetHNS and SetDP.
-// HNSAction does not implement Do().
-type HNSAction struct {
-	hns *hnswrapper.Hnsv2wrapperFake
+type HNSAction interface {
+	Do(hns *hnswrapper.Hnsv2wrapperFake) error
 }
 
-func (h *HNSAction) SetHNS(hns *hnswrapper.Hnsv2wrapperFake) {
-	h.hns = hns
-}
-
-func (h *HNSAction) SetDP(_ *dataplane.DataPlane) {
-	// purposely not implemented
-}
-
-// DPAction is meant to be embedded in other Actions so that they don't have to implement SetHNS and SetDP.
-// DPAction does not implement Do().
-type DPAction struct {
-	dp *dataplane.DataPlane
-}
-
-func (d *DPAction) SetHNS(_ *hnswrapper.Hnsv2wrapperFake) {
-	// purposely not implemented
-}
-
-func (d *DPAction) SetDP(dp *dataplane.DataPlane) {
-	d.dp = dp
+type DPAction interface {
+	Do(dp *dataplane.DataPlane) error
 }
