@@ -433,7 +433,7 @@ func (service *HTTPRestService) GetHomeAzInfo(ctx context.Context) cns.GetHomeAz
 				return cns.GetHomeAzInfoResponse{Response: cns.Response{ReturnCode: returnCode, Message: returnMessage}}
 
 			case http.StatusUnauthorized:
-				returnMessage := "[Azure CNS] Error. GetHomeAzInfo failed due to Nmagent server internal error."
+				returnMessage := "[Azure CNS] Error. GetHomeAzInfo failed to authenticate with OwningServiceInstanceId"
 				returnCode := types.StatusUnauthorized
 				return cns.GetHomeAzInfoResponse{Response: cns.Response{ReturnCode: returnCode, Message: returnMessage}}
 
