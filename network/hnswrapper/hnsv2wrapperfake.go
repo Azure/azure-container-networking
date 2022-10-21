@@ -506,7 +506,6 @@ func (fEndpoint *FakeHostComputeEndpoint) GetHCNObj() *hcn.HostComputeEndpoint {
 		},
 		Policies: acls,
 	}
-	return hcnEndpoint
 }
 
 func (fEndpoint *FakeHostComputeEndpoint) RemovePolicy(toRemovePol *FakeEndpointPolicy) error {
