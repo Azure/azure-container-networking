@@ -1,8 +1,6 @@
 package dataplane
 
 import (
-	"time"
-
 	"github.com/Azure/azure-container-networking/network/hnswrapper"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/ipsets"
 	"github.com/Microsoft/hcsshim/hcn"
@@ -137,7 +135,6 @@ func getAllThreadedTests() []*ThreadedTestCase {
 	return []*ThreadedTestCase{
 		{
 			Description: "pod x/a created, then relevant network policy created",
-			HNSLatency:  time.Duration(1 * time.Second),
 			Threads: map[string][]*Action{
 				"pod_controller": {
 					CreatePod("x", "a", ip1, thisNode, map[string]string{"k1": "v1"}),

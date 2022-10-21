@@ -2,7 +2,6 @@ package dataplane
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/Azure/azure-container-networking/network/hnswrapper"
 	"github.com/Azure/azure-container-networking/npm/pkg/controlplane/translation"
@@ -23,7 +22,6 @@ type SerialTestCase struct {
 
 type ThreadedTestCase struct {
 	Description string
-	HNSLatency  time.Duration
 	Threads     map[string][]*Action
 	*TestCaseMetadata
 }

@@ -16,7 +16,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const defaultHNSLatency = time.Duration(0)
+const (
+	defaultHNSLatency  = time.Duration(0)
+	threadedHNSLatency = time.Duration(1 * time.Second)
+)
 
 func TestAllSerialCases(t *testing.T) {
 	tests := getAllSerialTests()
@@ -62,7 +65,7 @@ func TestAllThreadedCases(t *testing.T) {
 			t.Logf("beginning test #%d. Description: [%s]. Tags: %+v", i, tt.Description, tt.Tags)
 
 			hns := ipsets.GetHNSFake(t)
-			hns.Delay = tt.HNSLatency
+			hns.Delay = threadedHNSLatency
 			io := common.NewMockIOShimWithFakeHNS(hns)
 			for _, ep := range tt.InitialEndpoints {
 				_, err := hns.CreateEndpoint(ep)
