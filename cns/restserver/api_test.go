@@ -978,8 +978,6 @@ func TestNmAgentSupportedApisHandler(t *testing.T) {
 }
 
 func TestGetHomeAzInfo_UnsupportedHttpMethod(t *testing.T) {
-	logger.Printf("Test: GetHomeAzInfoHandler_UnsupportedHttpMethod")
-
 	req, err := http.NewRequestWithContext(context.TODO(), http.MethodPost, cns.GetHomeAzInfo, http.NoBody)
 	if err != nil {
 		t.Fatal(err)
@@ -997,8 +995,6 @@ func TestGetHomeAzInfo_UnsupportedHttpMethod(t *testing.T) {
 }
 
 func TestGetHomeAzInfo_With_NmAgentSupportedAPIsError(t *testing.T) {
-	logger.Printf("Test: GetHomeAzInfoHandle_With_NmAgentSupportedAPIsError")
-
 	req, err := http.NewRequestWithContext(context.TODO(), http.MethodGet, cns.GetHomeAzInfo, http.NoBody)
 	if err != nil {
 		t.Fatal(err)
