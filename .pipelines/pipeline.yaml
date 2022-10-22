@@ -258,8 +258,8 @@ stages:
       - containerize
     variables:
       TAG: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
-      CURRENT_VERSION: $[ stagedependencies.containerize.check_tag.outputs['CurrentTagBuild.current'] ]
-    # condition: ne(variables.TAG, variables.CURRENT_VERSION)
+      CURRENT_VERSION: $[ stagedependencies.containerize.check_tag.outputs['CurrentTagBuild.currentTagBuild'] ]
+    condition: ne(variables.TAG, variables.CURRENT_VERSION)
     jobs:
       - job: timeout_and_cancel
         displayName: Cancel Run
@@ -279,7 +279,7 @@ stages:
       - containerize
     variables:
       TAG: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
-      CURRENT_VERSION: $[ stagedependencies.containerize.check_tag.outputs['CurrentTagBuild.current'] ]
+      CURRENT_VERSION: $[ stagedependencies.containerize.check_tag.outputs['CurrentTagBuild.currentTagBuild'] ]
     condition: eq(variables.TAG, variables.CURRENT_VERSION)
     jobs:
       - job: manifest
@@ -383,7 +383,7 @@ stages:
       - publish
     variables:
       TAG: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
-      CURRENT_VERSION: $[ stagedependencies.publish.check_tag.outputs['CurrentTagManifests.current'] ]
+      CURRENT_VERSION: $[ stagedependencies.publish.check_tag.outputs['CurrentTagManifests.currentTagManifests'] ]
     condition: ne(variables.TAG, variables.CURRENT_VERSION)
     jobs:
       - job: timeout_and_cancel
