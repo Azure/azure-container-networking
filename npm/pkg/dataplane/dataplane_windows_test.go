@@ -12,14 +12,30 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"go.uber.org/multierr"
 )
 
 const (
 	defaultHNSLatency  = time.Duration(0)
 	threadedHNSLatency = time.Duration(1 * time.Second)
 )
+
+type MultiErrManager struct {
+	sync.Mutex
+}
+
+func (m *MultiErrManager) Append(left, right error) error {
+	m.Lock()
+	defer m.Unlock()
+	if left == nil {
+		return right
+	}
+
+	if right == nil {
+		return left
+	}
+
+	return errors.Wrap(left, right.Error())
+}
 
 func TestAllSerialCases(t *testing.T) {
 	tests := getAllSerialTests()
@@ -77,6 +93,7 @@ func TestAllMultiJobCases(t *testing.T) {
 			require.NoError(t, err, "failed to initialize dp")
 
 			var errMulti error
+			m := new(MultiErrManager)
 			wg := new(sync.WaitGroup)
 			wg.Add(len(tt.Jobs))
 			for jobName, job := range tt.Jobs {
@@ -93,7 +110,7 @@ func TestAllMultiJobCases(t *testing.T) {
 						}
 
 						if err != nil {
-							errMulti = multierr.Append(errMulti, errors.Wrapf(err, "failed to run action %d in job %s", k, jobName))
+							errMulti = m.Append(errMulti, errors.Wrapf(err, "failed to run action %d in job %s", k, jobName))
 							break
 						}
 					}
