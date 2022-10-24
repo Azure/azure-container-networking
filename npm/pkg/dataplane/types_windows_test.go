@@ -205,9 +205,10 @@ func (p *PodUpdateAction) Do(dp *DataPlane) error {
 	// dp.AddToLists([]*ipsets.IPSetMetadata{allNamespaces}, []*ipsets.IPSetMetadata{nsIPSet})
 
 	for k, v := range p.LabelsToRemove {
+		keyVal := fmt.Sprintf("%s:%s", k, v)
 		sets := []*ipsets.IPSetMetadata{
 			ipsets.NewIPSetMetadata(k, ipsets.KeyLabelOfPod),
-			ipsets.NewIPSetMetadata(v, ipsets.KeyValueLabelOfPod),
+			ipsets.NewIPSetMetadata(keyVal, ipsets.KeyValueLabelOfPod),
 		}
 		for _, toRemoveSet := range sets {
 			if err := dp.RemoveFromSets([]*ipsets.IPSetMetadata{toRemoveSet}, p.OldPod); err != nil {
@@ -217,9 +218,10 @@ func (p *PodUpdateAction) Do(dp *DataPlane) error {
 	}
 
 	for k, v := range p.LabelsToAdd {
+		keyVal := fmt.Sprintf("%s:%s", k, v)
 		sets := []*ipsets.IPSetMetadata{
 			ipsets.NewIPSetMetadata(k, ipsets.KeyLabelOfPod),
-			ipsets.NewIPSetMetadata(v, ipsets.KeyValueLabelOfPod),
+			ipsets.NewIPSetMetadata(keyVal, ipsets.KeyValueLabelOfPod),
 		}
 		for _, toAddSet := range sets {
 			if err := dp.AddToSets([]*ipsets.IPSetMetadata{toAddSet}, p.NewPod); err != nil {
@@ -291,9 +293,10 @@ func (n *NamespaceCreateAction) Do(dp *DataPlane) error {
 
 	listsToAddTo := []*ipsets.IPSetMetadata{allNamespaces}
 	for k, v := range n.Labels {
+		keyVal := fmt.Sprintf("%s:%s", k, v)
 		listsToAddTo = append(listsToAddTo,
 			ipsets.NewIPSetMetadata(k, ipsets.KeyLabelOfNamespace),
-			ipsets.NewIPSetMetadata(v, ipsets.KeyValueLabelOfNamespace))
+			ipsets.NewIPSetMetadata(keyVal, ipsets.KeyValueLabelOfNamespace))
 	}
 
 	if err := dp.AddToLists(listsToAddTo, nsIPSet); err != nil {
@@ -324,9 +327,10 @@ func (n *NamespaceUpdateAction) Do(dp *DataPlane) error {
 	nsIPSet := []*ipsets.IPSetMetadata{ipsets.NewIPSetMetadata(n.NS, ipsets.Namespace)}
 
 	for k, v := range n.LabelsToRemove {
+		keyVal := fmt.Sprintf("%s:%s", k, v)
 		lists := []*ipsets.IPSetMetadata{
 			ipsets.NewIPSetMetadata(k, ipsets.KeyLabelOfNamespace),
-			ipsets.NewIPSetMetadata(v, ipsets.KeyValueLabelOfNamespace),
+			ipsets.NewIPSetMetadata(keyVal, ipsets.KeyValueLabelOfNamespace),
 		}
 		for _, listToRemoveFrom := range lists {
 			if err := dp.RemoveFromList(listToRemoveFrom, nsIPSet); err != nil {
@@ -336,9 +340,10 @@ func (n *NamespaceUpdateAction) Do(dp *DataPlane) error {
 	}
 
 	for k, v := range n.LabelsToAdd {
+		keyVal := fmt.Sprintf("%s:%s", k, v)
 		lists := []*ipsets.IPSetMetadata{
 			ipsets.NewIPSetMetadata(k, ipsets.KeyLabelOfNamespace),
-			ipsets.NewIPSetMetadata(v, ipsets.KeyValueLabelOfNamespace),
+			ipsets.NewIPSetMetadata(keyVal, ipsets.KeyValueLabelOfNamespace),
 		}
 		for _, listToAddTo := range lists {
 			if err := dp.RemoveFromList(listToAddTo, nsIPSet); err != nil {
@@ -369,9 +374,10 @@ func (n *NamespaceDeleteAction) Do(dp *DataPlane) error {
 	nsIPSet := []*ipsets.IPSetMetadata{ipsets.NewIPSetMetadata(n.NS, ipsets.Namespace)}
 
 	for k, v := range n.Labels {
+		keyVal := fmt.Sprintf("%s:%s", k, v)
 		lists := []*ipsets.IPSetMetadata{
 			ipsets.NewIPSetMetadata(k, ipsets.KeyLabelOfNamespace),
-			ipsets.NewIPSetMetadata(v, ipsets.KeyValueLabelOfNamespace),
+			ipsets.NewIPSetMetadata(keyVal, ipsets.KeyValueLabelOfNamespace),
 		}
 		for _, listToRemoveFrom := range lists {
 			if err := dp.RemoveFromList(listToRemoveFrom, nsIPSet); err != nil {
