@@ -259,7 +259,7 @@ stages:
     variables:
       TAG: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
       CURRENT_VERSION: $[ stagedependencies.containerize.check_tag.outputs['CurrentTagBuild.currentTagBuild'] ]
-    condition: ne(variables.TAG, variables.CURRENT_VERSION)
+    # condition: ne(variables.TAG, variables.CURRENT_VERSION)
     jobs:
       - job: timeout_and_cancel
         displayName: Cancel Run
@@ -270,8 +270,8 @@ stages:
               echo $TAG
               echo $CURRENT_VERSION
               echo "Cancelling pipeline run, branch is not up to date with master"
-              sleep 61s
-        timeoutInMinutes: 1
+        #       sleep 61s
+        # timeoutInMinutes: 1
   
   - stage: publish
     displayName: Publish Multiarch Manifests
@@ -384,7 +384,7 @@ stages:
     variables:
       TAG: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
       CURRENT_VERSION: $[ stagedependencies.publish.check_tag.outputs['CurrentTagManifests.currentTagManifests'] ]
-    condition: ne(variables.TAG, variables.CURRENT_VERSION)
+    # condition: ne(variables.TAG, variables.CURRENT_VERSION)
     jobs:
       - job: timeout_and_cancel
         displayName: Cancel Run
@@ -395,8 +395,8 @@ stages:
               echo $TAG
               echo $CURRENT_VERSION
               echo "Cancelling pipeline run, branch is not up to date with master"
-              sleep 61s
-        timeoutInMinutes: 1
+        #       sleep 61s
+        # timeoutInMinutes: 1
   
   - stage: cleanup
     displayName: Cleanup
