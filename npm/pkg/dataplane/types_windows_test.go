@@ -114,6 +114,22 @@ func (*ApplyDPAction) Do(dp *DataPlane) error {
 	return nil
 }
 
+type ReconcileDPAction struct{}
+
+func ReconcileDP() *Action {
+	return &Action{
+		DPAction: &ReconcileDPAction{},
+	}
+}
+
+// Do reconciles the IPSetManager and PolicyManager
+func (*ReconcileDPAction) Do(dp *DataPlane) error {
+	dp.ipsetMgr.Reconcile()
+	// currently does nothing in windows
+	dp.policyMgr.Reconcile()
+	return nil
+}
+
 type PodCreateAction struct {
 	Pod    *PodMetadata
 	Labels map[string]string
