@@ -20,11 +20,11 @@ trigger:
     - "*"
   tags:
     include:
-    - "refs/tags/zapai/*"
-    - "refs/tags/azure-ipam/*"
-    - "refs/tags/dropgz/*"
+    - "zapai/*"
+    - "azure-ipam/*"
+    - "dropgz/*"
     exclude:
-    - "*"
+    - "v*"
 
 stages:
   - stage: setup
