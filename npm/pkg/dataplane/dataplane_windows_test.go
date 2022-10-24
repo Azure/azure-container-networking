@@ -56,8 +56,8 @@ func TestAllSerialCases(t *testing.T) {
 	}
 }
 
-func TestAllMultiRoutineCases(t *testing.T) {
-	tests := getAllMultiRoutineTests()
+func TestAllMultiJobCases(t *testing.T) {
+	tests := getAllMultiJobTests()
 	for i, tt := range tests {
 		i := i
 		tt := tt
@@ -78,13 +78,13 @@ func TestAllMultiRoutineCases(t *testing.T) {
 
 			var errMulti error
 			wg := new(sync.WaitGroup)
-			wg.Add(len(tt.Routines))
-			for rName, r := range tt.Routines {
-				rName := rName
-				r := r
+			wg.Add(len(tt.Jobs))
+			for jobName, job := range tt.Jobs {
+				jobName := jobName
+				job := job
 				go func() {
 					defer wg.Done()
-					for k, a := range r {
+					for k, a := range job {
 						var err error
 						if a.HNSAction != nil {
 							err = a.HNSAction.Do(hns)
@@ -93,7 +93,7 @@ func TestAllMultiRoutineCases(t *testing.T) {
 						}
 
 						if err != nil {
-							errMulti = multierr.Append(errMulti, errors.Wrapf(err, "failed to run action %d in routine %s", k, rName))
+							errMulti = multierr.Append(errMulti, errors.Wrapf(err, "failed to run action %d in job %s", k, jobName))
 							break
 						}
 					}
@@ -101,7 +101,9 @@ func TestAllMultiRoutineCases(t *testing.T) {
 			}
 
 			wg.Wait()
-			assert.Nil(t, errMulti, "encountered errors in multi-routine test")
+			assert.Nil(t, errMulti, "encountered errors in multi-job test")
+
+			dptestutils.VerifyHNSCache(t, hns, tt.ExpectedSetPolicies, tt.ExpectedEnpdointACLs)
 		})
 	}
 }

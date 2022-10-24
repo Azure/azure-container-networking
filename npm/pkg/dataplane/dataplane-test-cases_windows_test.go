@@ -46,8 +46,8 @@ var (
 
 	nsK1Set   = ipsets.NewIPSetMetadata("k1", ipsets.KeyLabelOfNamespace)
 	nsK1V1Set = ipsets.NewIPSetMetadata("k1:v1", ipsets.KeyValueLabelOfNamespace)
-	nsK2Set   = ipsets.NewIPSetMetadata("k1", ipsets.KeyLabelOfNamespace)
-	nsK2V2Set = ipsets.NewIPSetMetadata("k1:v1", ipsets.KeyValueLabelOfNamespace)
+	nsK2Set   = ipsets.NewIPSetMetadata("k2", ipsets.KeyLabelOfNamespace)
+	nsK2V2Set = ipsets.NewIPSetMetadata("k2:v2", ipsets.KeyValueLabelOfNamespace)
 )
 
 // DP Configs
@@ -106,7 +106,7 @@ func getAllSerialTests() []*SerialTestCase {
 				InitialEndpoints: nil,
 				ExpectedSetPolicies: []*hcn.SetPolicySetting{
 					dptestutils.SetPolicy(emptySet),
-					dptestutils.SetPolicy(allNamespaces, nsXSet.GetHashedName(), emptySet.GetHashedName()),
+					dptestutils.SetPolicy(allNamespaces, emptySet.GetHashedName(), nsXSet.GetHashedName()),
 					dptestutils.SetPolicy(nsXSet, ip1),
 					dptestutils.SetPolicy(podK1Set, ip1),
 					dptestutils.SetPolicy(podK1V1Set, ip1),
@@ -134,7 +134,7 @@ func getAllSerialTests() []*SerialTestCase {
 				InitialEndpoints: nil,
 				ExpectedSetPolicies: []*hcn.SetPolicySetting{
 					dptestutils.SetPolicy(emptySet),
-					dptestutils.SetPolicy(allNamespaces, nsXSet.GetHashedName(), emptySet.GetHashedName()),
+					dptestutils.SetPolicy(allNamespaces, emptySet.GetHashedName(), nsXSet.GetHashedName()),
 					dptestutils.SetPolicy(nsXSet),
 					dptestutils.SetPolicy(podK1Set),
 					dptestutils.SetPolicy(podK1V1Set),
@@ -162,7 +162,7 @@ func getAllSerialTests() []*SerialTestCase {
 				InitialEndpoints: nil,
 				ExpectedSetPolicies: []*hcn.SetPolicySetting{
 					dptestutils.SetPolicy(emptySet),
-					dptestutils.SetPolicy(allNamespaces, nsXSet.GetHashedName(), emptySet.GetHashedName()),
+					dptestutils.SetPolicy(allNamespaces, emptySet.GetHashedName(), nsXSet.GetHashedName()),
 					dptestutils.SetPolicy(nsXSet),
 				},
 				ExpectedEnpdointACLs: nil,
@@ -204,7 +204,7 @@ func getAllSerialTests() []*SerialTestCase {
 				InitialEndpoints: nil,
 				ExpectedSetPolicies: []*hcn.SetPolicySetting{
 					dptestutils.SetPolicy(emptySet),
-					dptestutils.SetPolicy(allNamespaces, nsXSet.GetHashedName(), emptySet.GetHashedName()),
+					dptestutils.SetPolicy(allNamespaces, emptySet.GetHashedName(), nsXSet.GetHashedName()),
 					dptestutils.SetPolicy(nsXSet, ip1),
 					dptestutils.SetPolicy(podK1Set, ip1),
 					dptestutils.SetPolicy(podK1V1Set, ip1),
@@ -255,7 +255,7 @@ func getAllSerialTests() []*SerialTestCase {
 				InitialEndpoints: nil,
 				ExpectedSetPolicies: []*hcn.SetPolicySetting{
 					dptestutils.SetPolicy(emptySet),
-					dptestutils.SetPolicy(allNamespaces, nsXSet.GetHashedName(), emptySet.GetHashedName()),
+					dptestutils.SetPolicy(allNamespaces, emptySet.GetHashedName(), nsXSet.GetHashedName()),
 					dptestutils.SetPolicy(nsXSet, ip1),
 					dptestutils.SetPolicy(podK1Set, ip1),
 					dptestutils.SetPolicy(podK1V1Set, ip1),
@@ -281,7 +281,7 @@ func getAllSerialTests() []*SerialTestCase {
 				InitialEndpoints: nil,
 				ExpectedSetPolicies: []*hcn.SetPolicySetting{
 					dptestutils.SetPolicy(emptySet),
-					dptestutils.SetPolicy(allNamespaces, nsXSet.GetHashedName(), emptySet.GetHashedName()),
+					dptestutils.SetPolicy(allNamespaces, emptySet.GetHashedName(), nsXSet.GetHashedName()),
 					dptestutils.SetPolicy(nsXSet, ip1),
 					dptestutils.SetPolicy(podK1Set, ip1),
 					dptestutils.SetPolicy(podK1V1Set, ip1),
@@ -306,7 +306,7 @@ func getAllSerialTests() []*SerialTestCase {
 				InitialEndpoints: nil,
 				ExpectedSetPolicies: []*hcn.SetPolicySetting{
 					dptestutils.SetPolicy(emptySet),
-					dptestutils.SetPolicy(allNamespaces, nsXSet.GetHashedName(), emptySet.GetHashedName()),
+					dptestutils.SetPolicy(allNamespaces, emptySet.GetHashedName(), nsXSet.GetHashedName()),
 					dptestutils.SetPolicy(nsXSet, ip1),
 					dptestutils.SetPolicy(podK1Set, ip1),
 					dptestutils.SetPolicy(podK1V1Set, ip1),
@@ -358,7 +358,7 @@ func getAllSerialTests() []*SerialTestCase {
 				InitialEndpoints: nil,
 				ExpectedSetPolicies: []*hcn.SetPolicySetting{
 					dptestutils.SetPolicy(emptySet),
-					dptestutils.SetPolicy(allNamespaces, nsXSet.GetHashedName(), emptySet.GetHashedName()),
+					dptestutils.SetPolicy(allNamespaces, emptySet.GetHashedName(), nsXSet.GetHashedName()),
 					dptestutils.SetPolicy(nsXSet, ip1),
 					// old labels (not yet garbage collected)
 					dptestutils.SetPolicy(podK1Set),
@@ -375,22 +375,76 @@ func getAllSerialTests() []*SerialTestCase {
 	}
 }
 
-func getAllMultiRoutineTests() []*MultiRoutineTestCase {
-	return []*MultiRoutineTestCase{
-		// {
-		// 	Description: "pod x/a created, then relevant network policy created",
-		// 	Routines: map[string][]*Action{
-		// 		"pod_controller": {
-		// 			CreatePod("x", "a", ip1, thisNode, map[string]string{"k1": "v1"}),
-		// 			CreatePod("y", "a", ip2, otherNode, map[string]string{"k2": "v2"}),
-		// 		},
-		// 		"policy_controller": {
-		// 			UpdatePolicy(policyNs1LabelPair1AllowAll()),
-		// 		},
-		// 		"namespace_controller": {},
-		// 	},
-		// 	// would fill metadata out for actual test case
-		// 	TestCaseMetadata: nil,
-		// },
+func getAllMultiJobTests() []*MultiJobTestCase {
+	return []*MultiJobTestCase{
+		{
+			Description: "create namespaces, pods, and a policy which applies to a pod",
+			Jobs: map[string][]*Action{
+				"namespace_controller": {
+					CreateNamespace("x", map[string]string{"k1": "v1"}),
+					CreateNamespace("y", map[string]string{"k2": "v2"}),
+					ApplyDP(),
+				},
+				"pod_controller": {
+					CreatePod("x", "a", ip1, thisNode, map[string]string{"k1": "v1"}),
+					CreatePod("y", "a", ip2, otherNode, map[string]string{"k1": "v1"}),
+					ApplyDP(),
+				},
+				"policy_controller": {
+					UpdatePolicy(policyXBaseOnK1V1()),
+				},
+			},
+			TestCaseMetadata: &TestCaseMetadata{
+				Tags: []Tag{
+					nsCrudTag,
+					podCrudTag,
+					netpolCrudTag,
+				},
+				DpCfg: defaultWindowsDPCfg,
+				InitialEndpoints: []*hcn.HostComputeEndpoint{
+					dptestutils.Endpoint(endpoint1, ip1),
+					dptestutils.Endpoint(endpoint2, ip2),
+				},
+				ExpectedSetPolicies: []*hcn.SetPolicySetting{
+					dptestutils.SetPolicy(emptySet),
+					dptestutils.SetPolicy(allNamespaces, emptySet.GetHashedName(), nsXSet.GetHashedName(), nsYSet.GetHashedName()),
+					dptestutils.SetPolicy(nsXSet, ip1),
+					dptestutils.SetPolicy(nsYSet, ip2),
+					dptestutils.SetPolicy(nsK1Set, emptySet.GetHashedName(), nsXSet.GetHashedName()),
+					dptestutils.SetPolicy(nsK1V1Set, emptySet.GetHashedName(), nsXSet.GetHashedName()),
+					dptestutils.SetPolicy(nsK2Set, emptySet.GetHashedName(), nsYSet.GetHashedName()),
+					dptestutils.SetPolicy(nsK2V2Set, emptySet.GetHashedName(), nsYSet.GetHashedName()),
+					dptestutils.SetPolicy(podK1Set, ip1, ip2),
+					dptestutils.SetPolicy(podK1V1Set, ip1, ip2),
+				},
+				ExpectedEnpdointACLs: map[string][]*hnswrapper.FakeEndpointPolicy{
+					endpoint1: {
+						{
+							ID:              "azure-acl-x-base",
+							Protocols:       "",
+							Action:          "Allow",
+							Direction:       "In",
+							LocalAddresses:  "",
+							RemoteAddresses: "",
+							LocalPorts:      "",
+							RemotePorts:     "",
+							Priority:        222,
+						},
+						{
+							ID:              "azure-acl-x-base",
+							Protocols:       "",
+							Action:          "Allow",
+							Direction:       "Out",
+							LocalAddresses:  "",
+							RemoteAddresses: "",
+							LocalPorts:      "",
+							RemotePorts:     "",
+							Priority:        222,
+						},
+					},
+					endpoint2: {},
+				},
+			},
+		},
 	}
 }
