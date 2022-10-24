@@ -38,13 +38,13 @@ func Endpoint(epID, ip string) *hcn.HostComputeEndpoint {
 }
 
 func SetPolicy(setMetadata *ipsets.IPSetMetadata, members ...string) *hcn.SetPolicySetting {
-	var pType hcn.SetPolicyType
+	pType := hcn.SetPolicyType("")
 	switch setMetadata.GetSetKind() {
 	case ipsets.ListSet:
 		pType = hcn.SetPolicyTypeNestedIpSet
 	case ipsets.HashSet:
 		pType = hcn.SetPolicyTypeIpSet
-	default:
+	case ipsets.UnknownKind:
 		pType = hcn.SetPolicyType("")
 	}
 

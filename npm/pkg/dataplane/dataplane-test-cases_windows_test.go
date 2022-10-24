@@ -4,10 +4,8 @@ import (
 	"github.com/Azure/azure-container-networking/network/hnswrapper"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/ipsets"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/policies"
-	"github.com/Microsoft/hcsshim/hcn"
-
 	dptestutils "github.com/Azure/azure-container-networking/npm/pkg/dataplane/testutils"
-
+	"github.com/Microsoft/hcsshim/hcn"
 	networkingv1 "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
