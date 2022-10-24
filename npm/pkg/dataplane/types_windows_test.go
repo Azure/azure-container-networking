@@ -42,6 +42,7 @@ type Action struct {
 }
 
 type HNSAction interface {
+	// Do models events in HNS
 	Do(hns *hnswrapper.Hnsv2wrapperFake) error
 }
 
@@ -59,6 +60,7 @@ func CreateEndpoint(id, ip string) *Action {
 	}
 }
 
+// Do models endpoint creation in HNS
 func (e *EndpointCreateAction) Do(hns *hnswrapper.Hnsv2wrapperFake) error {
 	ep := dptestutils.Endpoint(e.ID, e.IP)
 	_, err := hns.CreateEndpoint(ep)
@@ -80,6 +82,7 @@ func DeleteEndpoint(id string) *Action {
 	}
 }
 
+// Do models endpoint deletion in HNS
 func (e *EndpointDeleteAction) Do(hns *hnswrapper.Hnsv2wrapperFake) error {
 	ep := &hcn.HostComputeEndpoint{
 		Id: e.ID,
@@ -91,6 +94,7 @@ func (e *EndpointDeleteAction) Do(hns *hnswrapper.Hnsv2wrapperFake) error {
 }
 
 type DPAction interface {
+	// Do models interactions with the DataPlane
 	Do(dp *DataPlane) error
 }
 
@@ -102,6 +106,7 @@ func ApplyDP() *Action {
 	}
 }
 
+// Do applies the dataplane
 func (*ApplyDPAction) Do(dp *DataPlane) error {
 	if err := dp.ApplyDataPlane(); err != nil {
 		return errors.Wrapf(err, "[ApplyDPAction] failed to apply")
@@ -124,6 +129,7 @@ func CreatePod(namespace, name, ip, node string, labels map[string]string) *Acti
 	}
 }
 
+// Do models pod creation in the PodController
 func (p *PodCreateAction) Do(dp *DataPlane) error {
 	context := fmt.Sprintf("create context: [pod: %+v. labels: %+v]", p.Pod, p.Labels)
 
@@ -175,6 +181,7 @@ func UpdatePodLabels(namespace, name, ip, node string, labelsToRemove, labelsToA
 	return UpdatePod(namespace, name, ip, node, ip, node, labelsToRemove, labelsToAdd)
 }
 
+// Do models pod updates in the PodController
 func (p *PodUpdateAction) Do(dp *DataPlane) error {
 	context := fmt.Sprintf("update context: [old pod: %+v. current IP: %+v. old labels: %+v. new labels: %+v]", p.OldPod, p.NewPod.PodIP, p.LabelsToRemove, p.LabelsToAdd)
 
@@ -217,13 +224,14 @@ func DeletePod(namespace, name, ip string, labels map[string]string) *Action {
 	podKey := fmt.Sprintf("%s/%s", namespace, name)
 	return &Action{
 		DPAction: &PodDeleteAction{
-			// currently, the Pod Controller doesn't share the node name
+			// currently, the PodController doesn't share the node name
 			Pod:    NewPodMetadata(podKey, ip, ""),
 			Labels: labels,
 		},
 	}
 }
 
+// Do models pod deletion in the PodController
 func (p *PodDeleteAction) Do(dp *DataPlane) error {
 	context := fmt.Sprintf("delete context: [pod: %+v. labels: %+v]", p.Pod, p.Labels)
 
@@ -261,6 +269,7 @@ func CreateNamespace(ns string, labels map[string]string) *Action {
 	}
 }
 
+// Do models namespace creation in the NamespaceController
 func (n *NamespaceCreateAction) Do(dp *DataPlane) error {
 	nsIPSet := []*ipsets.IPSetMetadata{ipsets.NewIPSetMetadata(n.NS, ipsets.Namespace)}
 
@@ -294,6 +303,7 @@ func UpdateNamespace(ns string, labelsToRemove, labelsToAdd map[string]string) *
 	}
 }
 
+// Do models namespace updates in the NamespaceController
 func (n *NamespaceUpdateAction) Do(dp *DataPlane) error {
 	nsIPSet := []*ipsets.IPSetMetadata{ipsets.NewIPSetMetadata(n.NS, ipsets.Namespace)}
 
@@ -338,6 +348,7 @@ func DeleteNamespace(ns string, labels map[string]string) *Action {
 	}
 }
 
+// Do models namespace deletion in the NamespaceController
 func (n *NamespaceDeleteAction) Do(dp *DataPlane) error {
 	nsIPSet := []*ipsets.IPSetMetadata{ipsets.NewIPSetMetadata(n.NS, ipsets.Namespace)}
 
@@ -372,6 +383,7 @@ func UpdatePolicy(policy *networkingv1.NetworkPolicy) *Action {
 	}
 }
 
+// Do models policy updates in the NetworkPolicyController
 func (p *PolicyUpdateAction) Do(dp *DataPlane) error {
 	npmNetPol, err := translation.TranslatePolicy(p.Policy)
 	if err != nil {
@@ -402,6 +414,7 @@ func DeletePolicyByObject(policy *networkingv1.NetworkPolicy) *Action {
 	return DeletePolicy(policy.Namespace, policy.Name)
 }
 
+// Do models policy deletion in the NetworkPolicyController
 func (p *PolicyDeleteAction) Do(dp *DataPlane) error {
 	policyKey := fmt.Sprintf("%s/%s", p.Namespace, p.Name)
 	if err := dp.RemovePolicy(policyKey); err != nil {
