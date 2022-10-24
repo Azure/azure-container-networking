@@ -130,7 +130,7 @@ func (p *PodCreateAction) Do(dp *DataPlane) error {
 	nsIPSet := []*ipsets.IPSetMetadata{ipsets.NewIPSetMetadata(p.Pod.Namespace(), ipsets.Namespace)}
 	// PodController technically wouldn't call this if the namespace already existed
 	if err := dp.AddToLists([]*ipsets.IPSetMetadata{allNamespaces}, nsIPSet); err != nil {
-		return errors.Wrapf(err, "[PodCreateAction] failed to add ns set to all namespaces list. %s", context)
+		return errors.Wrapf(err, "[PodCreateAction] failed to add ns set to all-namespaces list. %s", context)
 	}
 
 	if err := dp.AddToSets(nsIPSet, p.Pod); err != nil {
@@ -153,35 +153,35 @@ func (p *PodCreateAction) Do(dp *DataPlane) error {
 }
 
 type PodUpdateAction struct {
-	OldPod    *PodMetadata
-	NewPod    *PodMetadata
-	OldLabels map[string]string
-	NewLabels map[string]string
+	OldPod         *PodMetadata
+	NewPod         *PodMetadata
+	LabelsToRemove map[string]string
+	LabelsToAdd    map[string]string
 }
 
-func UpdatePod(namespace, name, oldIP, oldNode string, oldLabels map[string]string, newIP, newNode string, newLabels map[string]string) *Action {
+func UpdatePod(namespace, name, oldIP, oldNode, newIP, newNode string, labelsToRemove, labelsToAdd map[string]string) *Action {
 	podKey := fmt.Sprintf("%s/%s", namespace, name)
 	return &Action{
 		DPAction: &PodUpdateAction{
-			OldPod:    NewPodMetadata(podKey, oldIP, oldNode),
-			NewPod:    NewPodMetadata(podKey, newIP, newNode),
-			OldLabels: oldLabels,
-			NewLabels: newLabels,
+			OldPod:         NewPodMetadata(podKey, oldIP, oldNode),
+			NewPod:         NewPodMetadata(podKey, newIP, newNode),
+			LabelsToRemove: labelsToRemove,
+			LabelsToAdd:    labelsToAdd,
 		},
 	}
 }
 
-func UpdatePodLabels(namespace, name, ip, node string, oldLabels, newLabels map[string]string) *Action {
-	return UpdatePod(namespace, name, ip, node, oldLabels, ip, node, newLabels)
+func UpdatePodLabels(namespace, name, ip, node string, labelsToRemove, labelsToAdd map[string]string) *Action {
+	return UpdatePod(namespace, name, ip, node, ip, node, labelsToRemove, labelsToAdd)
 }
 
 func (p *PodUpdateAction) Do(dp *DataPlane) error {
-	context := fmt.Sprintf("update context: [old pod: %+v. current IP: %+v. old labels: %+v. new labels: %+v]", p.OldPod, p.NewPod.PodIP, p.OldLabels, p.NewLabels)
+	context := fmt.Sprintf("update context: [old pod: %+v. current IP: %+v. old labels: %+v. new labels: %+v]", p.OldPod, p.NewPod.PodIP, p.LabelsToRemove, p.LabelsToAdd)
 
 	// think it's impossible for this to be called on an UPDATE
 	// dp.AddToLists([]*ipsets.IPSetMetadata{allNamespaces}, []*ipsets.IPSetMetadata{nsIPSet})
 
-	for k, v := range p.OldLabels {
+	for k, v := range p.LabelsToRemove {
 		sets := []*ipsets.IPSetMetadata{
 			ipsets.NewIPSetMetadata(k, ipsets.KeyLabelOfPod),
 			ipsets.NewIPSetMetadata(v, ipsets.KeyValueLabelOfPod),
@@ -193,7 +193,7 @@ func (p *PodUpdateAction) Do(dp *DataPlane) error {
 		}
 	}
 
-	for k, v := range p.NewLabels {
+	for k, v := range p.LabelsToAdd {
 		sets := []*ipsets.IPSetMetadata{
 			ipsets.NewIPSetMetadata(k, ipsets.KeyLabelOfPod),
 			ipsets.NewIPSetMetadata(v, ipsets.KeyValueLabelOfPod),
@@ -247,7 +247,118 @@ func (p *PodDeleteAction) Do(dp *DataPlane) error {
 	return nil
 }
 
-// TODO namespace actions
+type NamespaceCreateAction struct {
+	NS     string
+	Labels map[string]string
+}
+
+func CreateNamespace(ns string, labels map[string]string) *Action {
+	return &Action{
+		DPAction: &NamespaceCreateAction{
+			NS:     ns,
+			Labels: labels,
+		},
+	}
+}
+
+func (n *NamespaceCreateAction) Do(dp *DataPlane) error {
+	nsIPSet := []*ipsets.IPSetMetadata{ipsets.NewIPSetMetadata(n.NS, ipsets.Namespace)}
+
+	listsToAddTo := []*ipsets.IPSetMetadata{allNamespaces}
+	for k, v := range n.Labels {
+		listsToAddTo = append(listsToAddTo,
+			ipsets.NewIPSetMetadata(k, ipsets.KeyLabelOfNamespace),
+			ipsets.NewIPSetMetadata(v, ipsets.KeyValueLabelOfNamespace))
+	}
+
+	if err := dp.AddToLists(listsToAddTo, nsIPSet); err != nil {
+		return errors.Wrapf(err, "[NamespaceCreateAction] failed to add ns ipset to all lists. Action: %+v", n)
+	}
+
+	return nil
+}
+
+type NamespaceUpdateAction struct {
+	NS             string
+	LabelsToRemove map[string]string
+	LabelsToAdd    map[string]string
+}
+
+func UpdateNamespace(ns string, labelsToRemove, labelsToAdd map[string]string) *Action {
+	return &Action{
+		DPAction: &NamespaceUpdateAction{
+			NS:             ns,
+			LabelsToRemove: labelsToRemove,
+			LabelsToAdd:    labelsToAdd,
+		},
+	}
+}
+
+func (n *NamespaceUpdateAction) Do(dp *DataPlane) error {
+	nsIPSet := []*ipsets.IPSetMetadata{ipsets.NewIPSetMetadata(n.NS, ipsets.Namespace)}
+
+	for k, v := range n.LabelsToRemove {
+		lists := []*ipsets.IPSetMetadata{
+			ipsets.NewIPSetMetadata(k, ipsets.KeyLabelOfNamespace),
+			ipsets.NewIPSetMetadata(v, ipsets.KeyValueLabelOfNamespace),
+		}
+		for _, listToRemoveFrom := range lists {
+			if err := dp.RemoveFromList(listToRemoveFrom, nsIPSet); err != nil {
+				return errors.Wrapf(err, "[NamespaceUpdateAction] failed to remove ns ipset from list %s. Action: %+v", listToRemoveFrom.GetPrefixName(), n)
+			}
+		}
+	}
+
+	for k, v := range n.LabelsToAdd {
+		lists := []*ipsets.IPSetMetadata{
+			ipsets.NewIPSetMetadata(k, ipsets.KeyLabelOfNamespace),
+			ipsets.NewIPSetMetadata(v, ipsets.KeyValueLabelOfNamespace),
+		}
+		for _, listToAddTo := range lists {
+			if err := dp.RemoveFromList(listToAddTo, nsIPSet); err != nil {
+				return errors.Wrapf(err, "[NamespaceUpdateAction] failed to add ns ipset to list %s. Action: %+v", listToAddTo.GetPrefixName(), n)
+			}
+		}
+	}
+
+	return nil
+}
+
+type NamespaceDeleteAction struct {
+	NS     string
+	Labels map[string]string
+}
+
+func DeleteNamespace(ns string, labels map[string]string) *Action {
+	return &Action{
+		DPAction: &NamespaceDeleteAction{
+			NS:     ns,
+			Labels: labels,
+		},
+	}
+}
+
+func (n *NamespaceDeleteAction) Do(dp *DataPlane) error {
+	nsIPSet := []*ipsets.IPSetMetadata{ipsets.NewIPSetMetadata(n.NS, ipsets.Namespace)}
+
+	for k, v := range n.Labels {
+		lists := []*ipsets.IPSetMetadata{
+			ipsets.NewIPSetMetadata(k, ipsets.KeyLabelOfNamespace),
+			ipsets.NewIPSetMetadata(v, ipsets.KeyValueLabelOfNamespace),
+		}
+		for _, listToRemoveFrom := range lists {
+			if err := dp.RemoveFromList(listToRemoveFrom, nsIPSet); err != nil {
+				return errors.Wrapf(err, "[NamespaceDeleteAction] failed to remove ns ipset from list %s. Action: %+v", listToRemoveFrom.GetPrefixName(), n)
+			}
+		}
+	}
+
+	if err := dp.RemoveFromList(allNamespaces, nsIPSet); err != nil {
+		return errors.Wrapf(err, "[NamespaceDeleteAction] failed to remove ns ipset from all-namespaces list. Action: %+v", n)
+	}
+
+	return nil
+}
 
 type PolicyUpdateAction struct {
 	Policy *networkingv1.NetworkPolicy
