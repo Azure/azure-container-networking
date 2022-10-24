@@ -18,9 +18,9 @@ trigger:
     include:
     - "*"
     exclude:
-    - "zapai/*"
-    - "azure-ipam/*"
-    - "dropgz/*"
+    - "refs/tags/zapai/*"
+    - "refs/tags/azure-ipam/*"
+    - "refs/tags/dropgz/*"
 
 stages:
   - stage: setup
