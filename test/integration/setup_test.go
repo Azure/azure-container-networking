@@ -22,6 +22,7 @@ const (
 	envInstallCNS       = "INSTALL_CNS"
 	envInstallAzilium   = "INSTALL_AZILIUM"
 	envInstallAzureVnet = "INSTALL_AZURE_VNET"
+	envInstallOverlay   = "INSTALL_OVERLAY"
 
 	// relative cns manifest paths
 	cnsManifestFolder         = "manifests/cns"
@@ -141,6 +142,19 @@ func installCNSDaemonset(ctx context.Context, clientset *kubernetes.Clientset, l
 		}
 	} else {
 		log.Printf("Env %v not set to true, skipping", envInstallAzilium)
+	}
+
+	if installBool3 := os.Getenv(envInstallOverlay); installBool3 != "" {
+		if overlayScenario, err := strconv.ParseBool(installBool3); err == nil && overlayScenario == true {
+			log.Printf("Env %v set to true, deploy azure-ipam and overlay", envInstallOverlay)
+			cns.Spec.Template.Spec.InitContainers[0].Args = []string{"deploy", "azure-ipam", "-o", "/opt/cni/bin/azure-ipam", "azure-swift-overlay.conflist", "-o", "/etc/cni/net.d/10-azure.conflist"}
+		}
+		// setup the CNS ciliumconfigmap
+		if err := mustSetupConfigMap(ctx, clientset, cnsCiliumConfigMapPath); err != nil {
+			return nil, err
+		}
+	} else {
+		log.Printf("Env %v not set to true, skipping", envInstallOverlay)
 	}
 
 	cnsDaemonsetClient := clientset.AppsV1().DaemonSets(cns.Namespace)

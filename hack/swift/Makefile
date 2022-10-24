@@ -76,6 +76,17 @@ byocni-up: swift-byocni-up ## Alias to swift-byocni-up
 cilium-up: swift-cilium-up ## Alias to swift-cilium-up
 up: swift-up ## Alias to swift-up
 
+overlay-byocni-up: rg-up overlay-net-up ## Brings up an Overlay AzCNI cluster
+	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
+		--node-count 3 \
+		--network-plugin none \
+		--network-plugin-mode overlay \
+		--pod-cidr 192.168.0.0/16 \
+		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
+		--generate-ssh-keys \
+		--yes
+	@$(MAKE) set-kubeconf
+
 overlay-up: rg-up overlay-net-up ## Brings up an Overlay AzCNI cluster
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
 		--node-count 3 \
