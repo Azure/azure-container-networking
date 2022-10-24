@@ -252,7 +252,7 @@ stages:
       displayName: Cilium on AKS Overlay
       pipelineBuildImage: "$(BUILD_IMAGE)"
       testDropgz: true
-      clusterName: "submodules-ciliume2e"
+      clusterName: "submodules-overlaye2e"
 
   - template: singletenancy/aks-swift/e2e-job-template.yaml
     parameters:
