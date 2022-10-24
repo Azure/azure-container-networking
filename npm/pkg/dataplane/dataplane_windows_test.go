@@ -1,8 +1,6 @@
 package dataplane
 
 import (
-	"fmt"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -14,6 +12,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"go.uber.org/multierr"
 )
 
 const (
@@ -56,8 +56,8 @@ func TestAllSerialCases(t *testing.T) {
 	}
 }
 
-func TestAllThreadedCases(t *testing.T) {
-	tests := getAllThreadedTests()
+func TestAllMultiRoutineCases(t *testing.T) {
+	tests := getAllMultiRoutineTests()
 	for i, tt := range tests {
 		i := i
 		tt := tt
@@ -76,15 +76,15 @@ func TestAllThreadedCases(t *testing.T) {
 			dp, err := NewDataPlane(thisNode, io, tt.DpCfg, nil)
 			require.NoError(t, err, "failed to initialize dp")
 
+			var errMulti error
 			wg := new(sync.WaitGroup)
-			wg.Add(len(tt.Threads))
-			backgroundErrors := make(chan error, len(tt.Threads))
-			for thName, th := range tt.Threads {
-				thName := thName
-				th := th
+			wg.Add(len(tt.Routines))
+			for rName, r := range tt.Routines {
+				rName := rName
+				r := r
 				go func() {
 					defer wg.Done()
-					for k, a := range th {
+					for k, a := range r {
 						var err error
 						if a.HNSAction != nil {
 							err = a.HNSAction.Do(hns)
@@ -93,7 +93,7 @@ func TestAllThreadedCases(t *testing.T) {
 						}
 
 						if err != nil {
-							backgroundErrors <- errors.Wrapf(err, "failed to run action %d in thread %s", k, thName)
+							errMulti = multierr.Append(errMulti, errors.Wrapf(err, "failed to run action %d in routine %s", k, rName))
 							break
 						}
 					}
@@ -101,12 +101,7 @@ func TestAllThreadedCases(t *testing.T) {
 			}
 
 			wg.Wait()
-			close(backgroundErrors)
-			errStrings := make([]string, len(backgroundErrors))
-			for err := range backgroundErrors {
-				errStrings = append(errStrings, fmt.Sprintf("[%s]", err.Error()))
-			}
-			assert.Empty(t, backgroundErrors, "encountered errors in threaded test: %s", strings.Join(errStrings, ","))
+			assert.Nil(t, errMulti, "encountered errors in multi-routine test")
 		})
 	}
 }

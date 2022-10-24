@@ -3,6 +3,7 @@ package dataplane
 import (
 	"github.com/Azure/azure-container-networking/network/hnswrapper"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/ipsets"
+	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/policies"
 	"github.com/Microsoft/hcsshim/hcn"
 
 	dptestutils "github.com/Azure/azure-container-networking/npm/pkg/dataplane/testutils"
@@ -50,6 +51,19 @@ var (
 	nsK2V2Set = ipsets.NewIPSetMetadata("k1:v1", ipsets.KeyValueLabelOfNamespace)
 )
 
+// DP Configs
+var (
+	defaultWindowsDPCfg = &Config{
+		IPSetManagerCfg: &ipsets.IPSetManagerCfg{
+			IPSetMode:          ipsets.ApplyAllIPSets,
+			AddEmptySetToLists: true,
+		},
+		PolicyManagerCfg: &policies.PolicyManagerCfg{
+			PolicyMode: policies.IPSetPolicyMode,
+		},
+	}
+)
+
 func policyNs1LabelPair1AllowAll() *networkingv1.NetworkPolicy {
 	return &networkingv1.NetworkPolicy{
 		ObjectMeta: metav1.ObjectMeta{
@@ -90,6 +104,7 @@ func getAllSerialTests() []*SerialTestCase {
 					netpolCrudTag,
 					backgroundTag,
 				},
+				DpCfg: defaultWindowsDPCfg,
 				InitialEndpoints: []*hcn.HostComputeEndpoint{
 					dptestutils.Endpoint(endpoint1, ip1),
 				},
@@ -131,11 +146,11 @@ func getAllSerialTests() []*SerialTestCase {
 	}
 }
 
-func getAllThreadedTests() []*ThreadedTestCase {
-	return []*ThreadedTestCase{
+func getAllMultiRoutineTests() []*MultiRoutineTestCase {
+	return []*MultiRoutineTestCase{
 		{
 			Description: "pod x/a created, then relevant network policy created",
-			Threads: map[string][]*Action{
+			Routines: map[string][]*Action{
 				"pod_controller": {
 					CreatePod("x", "a", ip1, thisNode, map[string]string{"k1": "v1"}),
 					CreatePod("y", "a", ip2, otherNode, map[string]string{"k2": "v2"}),

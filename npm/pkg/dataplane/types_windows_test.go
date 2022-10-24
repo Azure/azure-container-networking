@@ -20,9 +20,9 @@ type SerialTestCase struct {
 	*TestCaseMetadata
 }
 
-type ThreadedTestCase struct {
+type MultiRoutineTestCase struct {
 	Description string
-	Threads     map[string][]*Action
+	Routines    map[string][]*Action
 	*TestCaseMetadata
 }
 
