@@ -5,8 +5,6 @@ TOOLS_DIR = $(REPO_ROOT)/build/tools
 TOOLS_BIN_DIR = $(REPO_ROOT)/build/tools/bin
 CONTROLLER_GEN = $(TOOLS_BIN_DIR)/controller-gen
 
-.PHONY: generate manifests
-
 all: generate manifests
 
 generate: $(CONTROLLER_GEN)

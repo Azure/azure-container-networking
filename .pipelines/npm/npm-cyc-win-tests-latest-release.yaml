@@ -69,10 +69,6 @@ jobs:
             az extension add --name aks-preview
             az extension update --name aks-preview
 
-            # Enable Microsoft.ContainerService/AKSWindows2022Preview
-            az feature register --namespace Microsoft.ContainerService --name AKSWindows2022Preview
-            az provider register -n Microsoft.ContainerService
-
             export CLUSTER_NAME=$(RESOURCE_GROUP)
 
             echo "Creating resource group named $CLUSTER_NAME"
@@ -94,7 +90,6 @@ jobs:
                 --network-plugin azure \
                 --vm-set-type VirtualMachineScaleSets \
                 --node-vm-size Standard_D4s_v3 \
-                --kubernetes-version v1.23.5 \
                 --node-count 1
 
             if [ $? != 0 ]

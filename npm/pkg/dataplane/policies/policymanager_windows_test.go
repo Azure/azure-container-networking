@@ -8,7 +8,7 @@ import (
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/network/hnswrapper"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/ipsets"
-	"github.com/Microsoft/hcsshim/hcn"
+	dptestutils "github.com/Azure/azure-container-networking/npm/pkg/dataplane/testutils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -21,10 +21,10 @@ var (
 			Protocols:       "6",
 			Direction:       "In",
 			Action:          "Block",
-			LocalAddresses:  "azure-npm-3216600258",
-			RemoteAddresses: "azure-npm-2031808719",
-			RemotePorts:     getPortStr(222, 333),
-			LocalPorts:      "",
+			LocalAddresses:  ipsets.TestCIDRSet.HashedName,
+			RemoteAddresses: ipsets.TestKeyPodSet.HashedName,
+			RemotePorts:     "",
+			LocalPorts:      getPortStr(222, 333),
 			Priority:        blockRulePriotity,
 		},
 		{
@@ -32,7 +32,7 @@ var (
 			Protocols:       "17",
 			Direction:       "In",
 			Action:          "Allow",
-			LocalAddresses:  "azure-npm-3216600258",
+			LocalAddresses:  ipsets.TestCIDRSet.HashedName,
 			RemoteAddresses: "",
 			LocalPorts:      "",
 			RemotePorts:     "",
@@ -43,19 +43,19 @@ var (
 			Protocols:       "17",
 			Direction:       "Out",
 			Action:          "Block",
-			LocalAddresses:  "",
-			RemoteAddresses: "azure-npm-3216600258",
-			LocalPorts:      "144",
-			RemotePorts:     "",
+			LocalAddresses:  ipsets.TestCIDRSet.HashedName,
+			RemoteAddresses: "",
+			LocalPorts:      "",
+			RemotePorts:     "144",
 			Priority:        blockRulePriotity,
 		},
 		{
 			ID:              TestNetworkPolicies[0].ACLPolicyID,
-			Protocols:       "256",
+			Protocols:       "", // any protocol
 			Direction:       "Out",
 			Action:          "Allow",
-			LocalAddresses:  "",
-			RemoteAddresses: "azure-npm-3216600258",
+			LocalAddresses:  ipsets.TestCIDRSet.HashedName,
+			RemoteAddresses: "",
 			LocalPorts:      "",
 			RemotePorts:     "",
 			Priority:        allowRulePriotity,
@@ -67,6 +67,14 @@ var (
 		"10.0.0.2": "test2",
 	}
 )
+
+func endpointIDListCopy() map[string]string {
+	m := make(map[string]string, len(endPointIDList))
+	for k, v := range endPointIDList {
+		m[k] = v
+	}
+	return m
+}
 
 func TestCompareAndRemovePolicies(t *testing.T) {
 	epbuilder := newEndpointPolicyBuilder()
@@ -91,7 +99,9 @@ func TestCompareAndRemovePolicies(t *testing.T) {
 
 func TestAddPolicies(t *testing.T) {
 	pMgr, hns := getPMgr(t)
-	err := pMgr.AddPolicy(TestNetworkPolicies[0], endPointIDList)
+
+	// AddPolicy may modify the endpointIDList, so we need to pass a copy
+	err := pMgr.AddPolicy(TestNetworkPolicies[0], endpointIDListCopy())
 	require.NoError(t, err)
 
 	aclID := TestNetworkPolicies[0].ACLPolicyID
@@ -101,15 +111,18 @@ func TestAddPolicies(t *testing.T) {
 	for _, id := range endPointIDList {
 		acls, ok := aclPolicies[id]
 		if !ok {
-			t.Errorf("Expected %s to be in ACLs", id)
+			t.Errorf("Expected endpoint ID %s to have ACLs", id)
 		}
+		fmt.Printf("verifying ACLs on endpoint ID %s\n", id)
 		verifyFakeHNSCacheACLs(t, expectedACLs, acls)
 	}
 }
 
 func TestRemovePolicies(t *testing.T) {
 	pMgr, hns := getPMgr(t)
-	err := pMgr.AddPolicy(TestNetworkPolicies[0], endPointIDList)
+
+	// AddPolicy may modify the endpointIDList, so we need to pass a copy
+	err := pMgr.AddPolicy(TestNetworkPolicies[0], endpointIDListCopy())
 	require.NoError(t, err)
 
 	aclID := TestNetworkPolicies[0].ACLPolicyID
@@ -130,29 +143,41 @@ func TestRemovePolicies(t *testing.T) {
 }
 
 func TestApplyPoliciesEndpointNotFound(t *testing.T) {
-	pMgr, _ := getPMgr(t)
+	pMgr, hns := getPMgr(t)
 	testendPointIDList := map[string]string{
 		"10.0.0.5": "test10",
 	}
 	err := pMgr.AddPolicy(TestNetworkPolicies[0], testendPointIDList)
 	require.NoError(t, err)
+	verifyACLCacheIsCleaned(t, hns, len(endPointIDList))
 }
 
 func TestRemovePoliciesEndpointNotFound(t *testing.T) {
 	pMgr, hns := getPMgr(t)
-	err := pMgr.AddPolicy(TestNetworkPolicies[0], endPointIDList)
+
+	// AddPolicy may modify the endpointIDList, so we need to pass a copy
+	err := pMgr.AddPolicy(TestNetworkPolicies[0], endpointIDListCopy())
 	require.NoError(t, err)
 
 	aclID := TestNetworkPolicies[0].ACLPolicyID
 
-	_, err = hns.Cache.ACLPolicies(endPointIDList, aclID)
+	aclPolicies, err := hns.Cache.ACLPolicies(endPointIDList, aclID)
 	require.NoError(t, err)
+
 	testendPointIDList := map[string]string{
 		"10.0.0.5": "test10",
 	}
 	err = pMgr.RemovePolicyForEndpoints(TestNetworkPolicies[0].PolicyKey, testendPointIDList)
 	require.NoError(t, err, err)
-	verifyACLCacheIsCleaned(t, hns, len(endPointIDList))
+
+	for _, id := range endPointIDList {
+		acls, ok := aclPolicies[id]
+		if !ok {
+			t.Errorf("Expected endpoint ID %s to have ACLs", id)
+		}
+		fmt.Printf("verifying ACLs on endpoint ID %s\n", id)
+		verifyFakeHNSCacheACLs(t, expectedACLs, acls)
+	}
 }
 
 // Helper functions for UTS
@@ -161,19 +186,13 @@ func getPMgr(t *testing.T) (*PolicyManager, *hnswrapper.Hnsv2wrapperFake) {
 	hns := ipsets.GetHNSFake(t)
 	io := common.NewMockIOShimWithFakeHNS(hns)
 
-	for ip, epID := range endPointIDList {
-		ep := &hcn.HostComputeEndpoint{
-			Id:   epID,
-			Name: epID,
-			IpConfigurations: []hcn.IpConfig{
-				{
-					IpAddress: ip,
-				},
-			},
-		}
-		_, err := hns.CreateEndpoint(ep)
-		require.NoError(t, err)
+	dptestutils.AddIPsToHNS(t, hns, endPointIDList)
+
+	// reset all policy PodEndpoints
+	for k := range TestNetworkPolicies {
+		TestNetworkPolicies[k].PodEndpoints = nil
 	}
+
 	return NewPolicyManager(io, ipsetConfig), hns
 }
 
@@ -188,13 +207,16 @@ func verifyFakeHNSCacheACLs(t *testing.T, expected, actual []*hnswrapper.FakeEnd
 		// While printing actual with %+v it only prints the pointers and it is hard to debug.
 		// So creating this errStr to print the actual values.
 		errStr := ""
+		fmt.Printf("verifying expected ACL at index %d exists\n", i)
 		for j, cacheACL := range actual {
 			assert.Equal(t,
 				expectedACL.ID,
 				actual[i].ID,
-				fmt.Sprintf("Expected %s, got %s", expectedACL.ID, actual[i].ID),
+				fmt.Sprintf("Expected ID %s, got %s", expectedACL.ID, actual[i].ID),
 			)
-			if reflect.DeepEqual(expectedACL, cacheACL) {
+			// for some reason, this only works if we make a copy
+			expectedACLCopy := *expectedACL
+			if reflect.DeepEqual(&expectedACLCopy, cacheACL) {
 				foundACL = true
 				break
 			}
@@ -208,6 +230,7 @@ func verifyFakeHNSCacheACLs(t *testing.T, expected, actual []*hnswrapper.FakeEnd
 func verifyACLCacheIsCleaned(t *testing.T, hns *hnswrapper.Hnsv2wrapperFake, lenOfEPs int) {
 	epACLs := hns.Cache.GetAllACLs()
 	assert.Equal(t, lenOfEPs, len(epACLs))
+	fmt.Printf("ACLs: %+v\n", epACLs)
 	for _, acls := range epACLs {
 		assert.Equal(t, 0, len(acls))
 	}

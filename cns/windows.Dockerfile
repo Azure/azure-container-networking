@@ -12,7 +12,7 @@ RUN mkdir /usr/bin/
 COPY . .
 
 # Build cns
-RUN $Env:CGO_ENABLED=0; go build -v -o /usr/bin/azure-cns.exe -ldflags """-X main.version=${env:VERSION} -X ${env:CNS_AI_PATH}=${env:CNS_AI_ID}""" -gcflags="-dwarflocationlists=true" ./cns/service
+RUN $Env:CGO_ENABLED=0; go build -mod vendor -v -o /usr/bin/azure-cns.exe -ldflags """-X main.version=${env:VERSION} -X ${env:CNS_AI_PATH}=${env:CNS_AI_ID}""" -gcflags="-dwarflocationlists=true" ./cns/service
 
 # Copy into final image
 FROM mcr.microsoft.com/windows/servercore:ltsc2022

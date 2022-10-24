@@ -33,9 +33,6 @@ func (dp *DataPlane) initializeDataPlane() error {
 	if dp.PolicyMode != policies.IPSetPolicyMode {
 		return errPolicyModeUnsupported
 	}
-	if err := hcn.SetPolicySupported(); err != nil {
-		return npmerrors.SimpleErrorWrapper("[DataPlane] kernel does not support SetPolicies", err)
-	}
 
 	err := dp.getNetworkInfo()
 	if err != nil {

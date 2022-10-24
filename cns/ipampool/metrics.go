@@ -6,11 +6,14 @@ import (
 )
 
 const (
-	subnetLabel              = "subnet"
-	subnetCIDRLabel          = "subnet_cidr"
-	podnetARMIDLabel         = "podnet_arm_id"
-	customerMetricLabel      = "customer_metric"
-	customerMetricLabelValue = "customer metric"
+	subnetLabel                = "subnet"
+	subnetCIDRLabel            = "subnet_cidr"
+	podnetARMIDLabel           = "podnet_arm_id"
+	customerMetricLabel        = "customer_metric"
+	customerMetricLabelValue   = "customer metric"
+	subnetExhaustionStateLabel = "subnet_exhaustion_state"
+	subnetIPExhausted          = 1
+	subnetIPNotExhausted       = 0
 )
 
 var (
@@ -102,6 +105,21 @@ var (
 		},
 		[]string{subnetLabel, subnetCIDRLabel, podnetARMIDLabel},
 	)
+	ipamSubnetExhaustionState = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name:        "cx_ipam_subnet_exhaustion_state",
+			Help:        "IPAM view of subnet exhaustion state",
+			ConstLabels: prometheus.Labels{customerMetricLabel: customerMetricLabelValue},
+		},
+		[]string{subnetLabel, subnetCIDRLabel, podnetARMIDLabel},
+	)
+	ipamSubnetExhaustionCount = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "cx_ipam_subnet_exhaustion_state_count_total",
+			Help: "Count of the number of times the ipam pool monitor sees subnet exhaustion",
+		},
+		[]string{subnetLabel, subnetCIDRLabel, podnetARMIDLabel, subnetExhaustionStateLabel},
+	)
 )
 
 func init() {
@@ -117,6 +135,8 @@ func init() {
 		ipamPrimaryIPCount,
 		ipamRequestedIPConfigCount,
 		ipamTotalIPCount,
+		ipamSubnetExhaustionState,
+		ipamSubnetExhaustionCount,
 	)
 }
 
@@ -133,4 +153,9 @@ func observeIPPoolState(state ipPoolState, meta metaState) {
 	ipamPrimaryIPCount.WithLabelValues(labels...).Set(float64(len(meta.primaryIPAddresses)))
 	ipamRequestedIPConfigCount.WithLabelValues(labels...).Set(float64(state.requestedIPs))
 	ipamTotalIPCount.WithLabelValues(labels...).Set(float64(state.totalIPs))
+	if meta.exhausted {
+		ipamSubnetExhaustionState.WithLabelValues(labels...).Set(float64(subnetIPExhausted))
+	} else {
+		ipamSubnetExhaustionState.WithLabelValues(labels...).Set(float64(subnetIPNotExhausted))
+	}
 }
