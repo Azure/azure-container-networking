@@ -1,6 +1,7 @@
 package dataplane
 
 import (
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -10,7 +11,6 @@ import (
 	dptestutils "github.com/Azure/azure-container-networking/npm/pkg/dataplane/testutils"
 	"github.com/pkg/errors"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -18,24 +18,6 @@ const (
 	defaultHNSLatency  = time.Duration(0)
 	threadedHNSLatency = time.Duration(1 * time.Second)
 )
-
-type MultiErrManager struct {
-	sync.Mutex
-}
-
-func (m *MultiErrManager) Append(left, right error) error {
-	m.Lock()
-	defer m.Unlock()
-	if left == nil {
-		return right
-	}
-
-	if right == nil {
-		return left
-	}
-
-	return errors.Wrap(left, right.Error())
-}
 
 func TestAllSerialCases(t *testing.T) {
 	tests := getAllSerialTests()
@@ -92,8 +74,7 @@ func TestAllMultiJobCases(t *testing.T) {
 			dp, err := NewDataPlane(thisNode, io, tt.DpCfg, nil)
 			require.NoError(t, err, "failed to initialize dp")
 
-			var errMulti error
-			m := new(MultiErrManager)
+			backgroundErrors := make(chan error, len(tt.Jobs))
 			wg := new(sync.WaitGroup)
 			wg.Add(len(tt.Jobs))
 			for jobName, job := range tt.Jobs {
@@ -110,7 +91,7 @@ func TestAllMultiJobCases(t *testing.T) {
 						}
 
 						if err != nil {
-							errMulti = m.Append(errMulti, errors.Wrapf(err, "failed to run action %d in job %s", k, jobName))
+							backgroundErrors <- errors.Wrapf(err, "failed to run action %d in job %s", k, jobName)
 							break
 						}
 					}
@@ -118,7 +99,14 @@ func TestAllMultiJobCases(t *testing.T) {
 			}
 
 			wg.Wait()
-			assert.Nil(t, errMulti, "encountered errors in multi-job test")
+			close(backgroundErrors)
+			if len(backgroundErrors) > 0 {
+				errStrings := make([]string, 0)
+				for err := range backgroundErrors {
+					errStrings = append(errStrings, fmt.Sprintf("[%s]", err.Error()))
+				}
+				require.FailNow(t, "encountered errors in multi-job test: %+v", errStrings)
+			}
 
 			dptestutils.VerifyHNSCache(t, hns, tt.ExpectedSetPolicies, tt.ExpectedEnpdointACLs)
 		})
