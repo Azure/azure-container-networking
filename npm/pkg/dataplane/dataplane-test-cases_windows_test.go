@@ -17,7 +17,6 @@ const (
 	podCrudTag    Tag = "pod-crud"
 	nsCrudTag     Tag = "namespace-crud"
 	netpolCrudTag Tag = "netpol-crud"
-	backgroundTag Tag = "has-background-steps"
 )
 
 const (
@@ -42,8 +41,8 @@ var (
 	// in Windows, this Config option is actually forced to be enabled in NewDataPlane()
 	emptySet      = ipsets.NewIPSetMetadata("emptyhashset", ipsets.EmptyHashSet)
 	allNamespaces = ipsets.NewIPSetMetadata("all-namespaces", ipsets.KeyLabelOfNamespace)
-	nsXSet        = ipsets.NewIPSetMetadata("ns1", ipsets.Namespace)
-	nsYSet        = ipsets.NewIPSetMetadata("ns2", ipsets.Namespace)
+	nsXSet        = ipsets.NewIPSetMetadata("x", ipsets.Namespace)
+	nsYSet        = ipsets.NewIPSetMetadata("y", ipsets.Namespace)
 
 	nsK1Set   = ipsets.NewIPSetMetadata("k1", ipsets.KeyLabelOfNamespace)
 	nsK1V1Set = ipsets.NewIPSetMetadata("k1:v1", ipsets.KeyValueLabelOfNamespace)
@@ -64,11 +63,11 @@ var (
 	}
 )
 
-func policyNs1LabelPair1AllowAll() *networkingv1.NetworkPolicy {
+func policyXBaseOnK1V1() *networkingv1.NetworkPolicy {
 	return &networkingv1.NetworkPolicy{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "labelPair1-allow-all",
-			Namespace: "ns1",
+			Name:      "base",
+			Namespace: "x",
 		},
 		Spec: networkingv1.NetworkPolicySpec{
 			PodSelector: metav1.LabelSelector{
@@ -93,21 +92,116 @@ func policyNs1LabelPair1AllowAll() *networkingv1.NetworkPolicy {
 func getAllSerialTests() []*SerialTestCase {
 	return []*SerialTestCase{
 		{
-			Description: "pod x/a created, then relevant network policy created",
+			Description: "pod created",
 			Actions: []*Action{
+				CreateEndpoint(endpoint1, ip1),
 				CreatePod("x", "a", ip1, thisNode, map[string]string{"k1": "v1"}),
-				UpdatePolicy(policyNs1LabelPair1AllowAll()),
+				ApplyDP(),
+			},
+			TestCaseMetadata: &TestCaseMetadata{
+				Tags: []Tag{
+					podCrudTag,
+				},
+				DpCfg:            defaultWindowsDPCfg,
+				InitialEndpoints: nil,
+				ExpectedSetPolicies: []*hcn.SetPolicySetting{
+					dptestutils.SetPolicy(emptySet),
+					dptestutils.SetPolicy(allNamespaces, nsXSet.GetHashedName(), emptySet.GetHashedName()),
+					dptestutils.SetPolicy(nsXSet, ip1),
+					dptestutils.SetPolicy(podK1Set, ip1),
+					dptestutils.SetPolicy(podK1V1Set, ip1),
+				},
+				ExpectedEnpdointACLs: map[string][]*hnswrapper.FakeEndpointPolicy{
+					endpoint1: {},
+				},
+			},
+		},
+		{
+			Description: "pod created, then pod deleted",
+			Actions: []*Action{
+				CreateEndpoint(endpoint1, ip1),
+				CreatePod("x", "a", ip1, thisNode, map[string]string{"k1": "v1"}),
+				ApplyDP(),
+				DeleteEndpoint(endpoint1),
+				DeletePod("x", "a", ip1, map[string]string{"k1": "v1"}),
+				ApplyDP(),
+			},
+			TestCaseMetadata: &TestCaseMetadata{
+				Tags: []Tag{
+					podCrudTag,
+				},
+				DpCfg:            defaultWindowsDPCfg,
+				InitialEndpoints: nil,
+				ExpectedSetPolicies: []*hcn.SetPolicySetting{
+					dptestutils.SetPolicy(emptySet),
+					dptestutils.SetPolicy(allNamespaces, nsXSet.GetHashedName(), emptySet.GetHashedName()),
+					dptestutils.SetPolicy(nsXSet),
+					dptestutils.SetPolicy(podK1Set),
+					dptestutils.SetPolicy(podK1V1Set),
+				},
+				ExpectedEnpdointACLs: nil,
+			},
+		},
+		{
+			Description: "pod created, then pod deleted, then ipsets garbage collected",
+			Actions: []*Action{
+				CreateEndpoint(endpoint1, ip1),
+				CreatePod("x", "a", ip1, thisNode, map[string]string{"k1": "v1"}),
+				ApplyDP(),
+				DeleteEndpoint(endpoint1),
+				DeletePod("x", "a", ip1, map[string]string{"k1": "v1"}),
+				ApplyDP(),
+				ReconcileDP(),
+				ApplyDP(),
+			},
+			TestCaseMetadata: &TestCaseMetadata{
+				Tags: []Tag{
+					podCrudTag,
+				},
+				DpCfg:            defaultWindowsDPCfg,
+				InitialEndpoints: nil,
+				ExpectedSetPolicies: []*hcn.SetPolicySetting{
+					dptestutils.SetPolicy(emptySet),
+					dptestutils.SetPolicy(allNamespaces, nsXSet.GetHashedName(), emptySet.GetHashedName()),
+					dptestutils.SetPolicy(nsXSet),
+				},
+				ExpectedEnpdointACLs: nil,
+			},
+		},
+		{
+			Description: "policy created with no pods",
+			Actions: []*Action{
+				UpdatePolicy(policyXBaseOnK1V1()),
+			},
+			TestCaseMetadata: &TestCaseMetadata{
+				Tags: []Tag{
+					netpolCrudTag,
+				},
+				DpCfg:            defaultWindowsDPCfg,
+				InitialEndpoints: nil,
+				ExpectedSetPolicies: []*hcn.SetPolicySetting{
+					// will not be an all-namespaces IPSet unless there's a Pod/Namespace event
+					dptestutils.SetPolicy(nsXSet),
+					// Policies do not create the KeyLabelOfPod type IPSet if the selector has a key-value requirement
+					dptestutils.SetPolicy(podK1V1Set),
+				},
+			},
+		},
+		{
+			Description: "pod created on node, then relevant policy created",
+			Actions: []*Action{
+				CreateEndpoint(endpoint1, ip1),
+				CreatePod("x", "a", ip1, thisNode, map[string]string{"k1": "v1"}),
+				// will apply dirty ipsets from CreatePod
+				UpdatePolicy(policyXBaseOnK1V1()),
 			},
 			TestCaseMetadata: &TestCaseMetadata{
 				Tags: []Tag{
 					podCrudTag,
 					netpolCrudTag,
-					backgroundTag,
 				},
-				DpCfg: defaultWindowsDPCfg,
-				InitialEndpoints: []*hcn.HostComputeEndpoint{
-					dptestutils.Endpoint(endpoint1, ip1),
-				},
+				DpCfg:            defaultWindowsDPCfg,
+				InitialEndpoints: nil,
 				ExpectedSetPolicies: []*hcn.SetPolicySetting{
 					dptestutils.SetPolicy(emptySet),
 					dptestutils.SetPolicy(allNamespaces, nsXSet.GetHashedName(), emptySet.GetHashedName()),
@@ -118,7 +212,7 @@ func getAllSerialTests() []*SerialTestCase {
 				ExpectedEnpdointACLs: map[string][]*hnswrapper.FakeEndpointPolicy{
 					endpoint1: {
 						{
-							ID:              "azure-acl-ns1-labelPair1-allow-all",
+							ID:              "azure-acl-x-base",
 							Protocols:       "",
 							Action:          "Allow",
 							Direction:       "In",
@@ -129,7 +223,7 @@ func getAllSerialTests() []*SerialTestCase {
 							Priority:        222,
 						},
 						{
-							ID:              "azure-acl-ns1-labelPair1-allow-all",
+							ID:              "azure-acl-x-base",
 							Protocols:       "",
 							Action:          "Allow",
 							Direction:       "Out",
@@ -143,25 +237,160 @@ func getAllSerialTests() []*SerialTestCase {
 				},
 			},
 		},
+		{
+			Description: "pod created on node, then relevant policy created, then policy deleted",
+			Actions: []*Action{
+				CreateEndpoint(endpoint1, ip1),
+				CreatePod("x", "a", ip1, thisNode, map[string]string{"k1": "v1"}),
+				// will apply dirty ipsets from CreatePod
+				UpdatePolicy(policyXBaseOnK1V1()),
+				DeletePolicyByObject(policyXBaseOnK1V1()),
+			},
+			TestCaseMetadata: &TestCaseMetadata{
+				Tags: []Tag{
+					podCrudTag,
+					netpolCrudTag,
+				},
+				DpCfg:            defaultWindowsDPCfg,
+				InitialEndpoints: nil,
+				ExpectedSetPolicies: []*hcn.SetPolicySetting{
+					dptestutils.SetPolicy(emptySet),
+					dptestutils.SetPolicy(allNamespaces, nsXSet.GetHashedName(), emptySet.GetHashedName()),
+					dptestutils.SetPolicy(nsXSet, ip1),
+					dptestutils.SetPolicy(podK1Set, ip1),
+					dptestutils.SetPolicy(podK1V1Set, ip1),
+				},
+				ExpectedEnpdointACLs: map[string][]*hnswrapper.FakeEndpointPolicy{
+					endpoint1: {},
+				},
+			},
+		},
+		{
+			Description: "pod created off node (no local endpoint), then relevant policy created",
+			Actions: []*Action{
+				CreatePod("x", "a", ip1, otherNode, map[string]string{"k1": "v1"}),
+				// will apply dirty ipsets from CreatePod
+				UpdatePolicy(policyXBaseOnK1V1()),
+			},
+			TestCaseMetadata: &TestCaseMetadata{
+				Tags: []Tag{
+					podCrudTag,
+					netpolCrudTag,
+				},
+				DpCfg:            defaultWindowsDPCfg,
+				InitialEndpoints: nil,
+				ExpectedSetPolicies: []*hcn.SetPolicySetting{
+					dptestutils.SetPolicy(emptySet),
+					dptestutils.SetPolicy(allNamespaces, nsXSet.GetHashedName(), emptySet.GetHashedName()),
+					dptestutils.SetPolicy(nsXSet, ip1),
+					dptestutils.SetPolicy(podK1Set, ip1),
+					dptestutils.SetPolicy(podK1V1Set, ip1),
+				},
+				ExpectedEnpdointACLs: nil,
+			},
+		},
+		{
+			Description: "policy created, then pod created which satisfies policy",
+			Actions: []*Action{
+				UpdatePolicy(policyXBaseOnK1V1()),
+				CreateEndpoint(endpoint1, ip1),
+				CreatePod("x", "a", ip1, thisNode, map[string]string{"k1": "v1"}),
+				ApplyDP(),
+			},
+			TestCaseMetadata: &TestCaseMetadata{
+				Tags: []Tag{
+					podCrudTag,
+					netpolCrudTag,
+				},
+				DpCfg:            defaultWindowsDPCfg,
+				InitialEndpoints: nil,
+				ExpectedSetPolicies: []*hcn.SetPolicySetting{
+					dptestutils.SetPolicy(emptySet),
+					dptestutils.SetPolicy(allNamespaces, nsXSet.GetHashedName(), emptySet.GetHashedName()),
+					dptestutils.SetPolicy(nsXSet, ip1),
+					dptestutils.SetPolicy(podK1Set, ip1),
+					dptestutils.SetPolicy(podK1V1Set, ip1),
+				},
+				ExpectedEnpdointACLs: map[string][]*hnswrapper.FakeEndpointPolicy{
+					endpoint1: {
+						{
+							ID:              "azure-acl-x-base",
+							Protocols:       "",
+							Action:          "Allow",
+							Direction:       "In",
+							LocalAddresses:  "",
+							RemoteAddresses: "",
+							LocalPorts:      "",
+							RemotePorts:     "",
+							Priority:        222,
+						},
+						{
+							ID:              "azure-acl-x-base",
+							Protocols:       "",
+							Action:          "Allow",
+							Direction:       "Out",
+							LocalAddresses:  "",
+							RemoteAddresses: "",
+							LocalPorts:      "",
+							RemotePorts:     "",
+							Priority:        222,
+						},
+					},
+				},
+			},
+		},
+		{
+			Description: "policy created, then pod created which satisfies policy, then pod relabeled and no longer satisfies policy",
+			Actions: []*Action{
+				UpdatePolicy(policyXBaseOnK1V1()),
+				CreateEndpoint(endpoint1, ip1),
+				CreatePod("x", "a", ip1, thisNode, map[string]string{"k1": "v1"}),
+				ApplyDP(),
+				UpdatePodLabels("x", "a", ip1, thisNode, map[string]string{"k1": "v1"}, map[string]string{"k2": "v2"}),
+				ApplyDP(),
+			},
+			TestCaseMetadata: &TestCaseMetadata{
+				Tags: []Tag{
+					podCrudTag,
+					netpolCrudTag,
+				},
+				DpCfg:            defaultWindowsDPCfg,
+				InitialEndpoints: nil,
+				ExpectedSetPolicies: []*hcn.SetPolicySetting{
+					dptestutils.SetPolicy(emptySet),
+					dptestutils.SetPolicy(allNamespaces, nsXSet.GetHashedName(), emptySet.GetHashedName()),
+					dptestutils.SetPolicy(nsXSet, ip1),
+					// old labels (not yet garbage collected)
+					dptestutils.SetPolicy(podK1Set),
+					dptestutils.SetPolicy(podK1V1Set),
+					// new labels
+					dptestutils.SetPolicy(podK2Set, ip1),
+					dptestutils.SetPolicy(podK2V2Set, ip1),
+				},
+				ExpectedEnpdointACLs: map[string][]*hnswrapper.FakeEndpointPolicy{
+					endpoint1: {},
+				},
+			},
+		},
 	}
 }
 
 func getAllMultiRoutineTests() []*MultiRoutineTestCase {
 	return []*MultiRoutineTestCase{
-		{
-			Description: "pod x/a created, then relevant network policy created",
-			Routines: map[string][]*Action{
-				"pod_controller": {
-					CreatePod("x", "a", ip1, thisNode, map[string]string{"k1": "v1"}),
-					CreatePod("y", "a", ip2, otherNode, map[string]string{"k2": "v2"}),
-				},
-				"policy_controller": {
-					UpdatePolicy(policyNs1LabelPair1AllowAll()),
-				},
-				"namespace_controller": {},
-			},
-			// would fill metadata out for actual test case
-			TestCaseMetadata: nil,
-		},
+		// {
+		// 	Description: "pod x/a created, then relevant network policy created",
+		// 	Routines: map[string][]*Action{
+		// 		"pod_controller": {
+		// 			CreatePod("x", "a", ip1, thisNode, map[string]string{"k1": "v1"}),
+		// 			CreatePod("y", "a", ip2, otherNode, map[string]string{"k2": "v2"}),
+		// 		},
+		// 		"policy_controller": {
+		// 			UpdatePolicy(policyNs1LabelPair1AllowAll()),
+		// 		},
+		// 		"namespace_controller": {},
+		// 	},
+		// 	// would fill metadata out for actual test case
+		// 	TestCaseMetadata: nil,
+		// },
 	}
 }
