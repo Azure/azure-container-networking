@@ -11,11 +11,10 @@ stages:
     dependsOn: 
     - setup
     - publish
-    - validate2
     variables:
       TAG: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
       CURRENT_VERSION: $[ stagedependencies.containerize.check_tag.outputs['CurrentTagManifests.currentTagManifests'] ]
-    condition: eq(variables.TAG, variables.CURRENT_VERSION)
+    condition: and(suceeded(), eq(variables.TAG, variables.CURRENT_VERSION))
     jobs:
       - job: ${{ parameters.name }}
         displayName: Cilium Test Suite - (${{ parameters.name }})
