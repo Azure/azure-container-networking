@@ -100,9 +100,10 @@ type PodCreateAction struct {
 }
 
 func CreatePod(namespace, name, ip, node string, labels map[string]string) *Action {
+	podKey := fmt.Sprintf("%s/%s", namespace, name)
 	return &Action{
 		DPAction: &PodCreateAction{
-			Pod:    NewPodMetadata(fmt.Sprintf("%s/%s", namespace, name), ip, node),
+			Pod:    NewPodMetadata(podKey, ip, node),
 			Labels: labels,
 		},
 	}
@@ -125,13 +126,107 @@ func (p *PodCreateAction) Do(dp *DataPlane) error {
 		keyVal := fmt.Sprintf("%s:%s", key, val)
 		labelIPSets := []*ipsets.IPSetMetadata{
 			ipsets.NewIPSetMetadata(key, ipsets.KeyLabelOfPod),
-			ipsets.NewIPSetMetadata(keyVal, ipsets.KeyValueLabelOfNamespace),
+			ipsets.NewIPSetMetadata(keyVal, ipsets.KeyValueLabelOfPod),
 		}
 
 		if err := dp.AddToSets(labelIPSets, p.Pod); err != nil {
-			return errors.Wrapf(err, "[PodCreateAction] failed to add pod ip to label sets. %s", context)
+			return errors.Wrapf(err, "[PodCreateAction] failed to add pod ip to label sets %+v. %s", labelIPSets, context)
+		}
+	}
+
+	return nil
+}
+
+type PodUpdateAction struct {
+	OldPod    *PodMetadata
+	NewPod    *PodMetadata
+	OldLabels map[string]string
+	NewLabels map[string]string
+}
+
+func UpdatePod(namespace, name, oldIP, oldNode string, oldLabels map[string]string, newIP, newNode string, newLabels map[string]string) *Action {
+	podKey := fmt.Sprintf("%s/%s", namespace, name)
+	return &Action{
+		DPAction: &PodUpdateAction{
+			OldPod:    NewPodMetadata(podKey, oldIP, oldNode),
+			NewPod:    NewPodMetadata(podKey, newIP, newNode),
+			OldLabels: oldLabels,
+			NewLabels: newLabels,
+		},
+	}
+}
+
+func UpdatePodLabels(namespace, name, ip, node string, oldLabels, newLabels map[string]string) *Action {
+	return UpdatePod(namespace, name, ip, node, oldLabels, ip, node, newLabels)
+}
+
+func (p *PodUpdateAction) Do(dp *DataPlane) error {
+	context := fmt.Sprintf("update context: [old pod: %+v. current IP: %+v. old labels: %+v. new labels: %+v]", p.OldPod, p.NewPod.PodIP, p.OldLabels, p.NewLabels)
+
+	// think it's impossible for this to be called on an UPDATE
+	// dp.AddToLists([]*ipsets.IPSetMetadata{allNamespaces}, []*ipsets.IPSetMetadata{nsIPSet})
+
+	for k, v := range p.OldLabels {
+		sets := []*ipsets.IPSetMetadata{
+			ipsets.NewIPSetMetadata(k, ipsets.KeyLabelOfPod),
+			ipsets.NewIPSetMetadata(v, ipsets.KeyValueLabelOfPod),
+		}
+		for _, toRemoveSet := range sets {
+			if err := dp.RemoveFromSets([]*ipsets.IPSetMetadata{toRemoveSet}, p.OldPod); err != nil {
+				return errors.Wrapf(err, "[PodUpdateAction] failed to remove old pod ip from set %s. %s", toRemoveSet.GetPrefixName(), context)
+			}
+		}
+	}
+
+	for k, v := range p.NewLabels {
+		sets := []*ipsets.IPSetMetadata{
+			ipsets.NewIPSetMetadata(k, ipsets.KeyLabelOfPod),
+			ipsets.NewIPSetMetadata(v, ipsets.KeyValueLabelOfPod),
+		}
+		for _, toAddSet := range sets {
+			if err := dp.AddToSets([]*ipsets.IPSetMetadata{toAddSet}, p.NewPod); err != nil {
+				return errors.Wrapf(err, "[PodUpdateAction] failed to add new pod ip to set %s. %s", toAddSet.GetPrefixName(), context)
+			}
+		}
+	}
+
+	return nil
+}
+
+type PodDeleteAction struct {
+	Pod    *PodMetadata
+	Labels map[string]string
+}
+
+func DeletePod(namespace, name, ip string, labels map[string]string) *Action {
+	podKey := fmt.Sprintf("%s/%s", namespace, name)
+	return &Action{
+		DPAction: &PodDeleteAction{
+			// currently, the Pod Controller doesn't share the node name
+			Pod:    NewPodMetadata(podKey, ip, ""),
+			Labels: labels,
+		},
+	}
+}
+
+func (p *PodDeleteAction) Do(dp *DataPlane) error {
+	context := fmt.Sprintf("delete context: [pod: %+v. labels: %+v]", p.Pod, p.Labels)
+
+	nsIPSet := []*ipsets.IPSetMetadata{ipsets.NewIPSetMetadata(p.Pod.Namespace(), ipsets.Namespace)}
+	if err := dp.RemoveFromSets(nsIPSet, p.Pod); err != nil {
+		return errors.Wrapf(err, "[PodDeleteAction] failed to remove pod ip from ns set. %s", context)
+	}
+
+	for key, val := range p.Labels {
+		keyVal := fmt.Sprintf("%s:%s", key, val)
+		labelIPSets := []*ipsets.IPSetMetadata{
+			ipsets.NewIPSetMetadata(key, ipsets.KeyLabelOfPod),
+			ipsets.NewIPSetMetadata(keyVal, ipsets.KeyValueLabelOfPod),
 		}
 
+		if err := dp.RemoveFromSets(labelIPSets, p.Pod); err != nil {
+			return errors.Wrapf(err, "[PodDeleteAction] failed to remove pod ip from label set %+v. %s", labelIPSets, context)
+		}
 	}
 
 	return nil
@@ -151,8 +246,6 @@ func (*ApplyDPAction) Do(dp *DataPlane) error {
 	}
 	return nil
 }
-
-// TODO PodUpdateAction and PodDeleteAction
 
 // TODO namespace actions
 
