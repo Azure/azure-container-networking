@@ -573,6 +573,8 @@ func (c *PodController) cleanUpDeletedPod(cachedNpmPodKey string) error {
 func (c *PodController) manageNamedPortIpsets(portList []corev1.ContainerPort, podKey,
 	podIP, nodeName string, namedPortOperation NamedPortOperation) error {
 	if util.IsWindowsDP() {
+		// NOTE: if we support namedport operations, need to be careful of implications of including the node name in the pod metadata below
+		// since we say the node name is "" in cleanUpDeletedPod
 		klog.Warningf("Windows Dataplane does not support NamedPort operations. Operation: %s portList is %+v", namedPortOperation, portList)
 		return nil
 	}
