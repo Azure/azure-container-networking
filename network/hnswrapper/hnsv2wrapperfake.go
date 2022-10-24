@@ -336,12 +336,12 @@ func (fCache FakeHNSCache) SetPolicy(setID string) *hcn.SetPolicySetting {
 }
 
 func (fCache FakeHNSCache) PrettyString() string {
-	var networkStrings []string
+	networkStrings := make([]string, 0, len(fCache.networks))
 	for _, network := range fCache.networks {
 		networkStrings = append(networkStrings, fmt.Sprintf("[%+v]", network.PrettyString()))
 	}
 
-	var endpointStrings []string
+	endpointStrings := make([]string, 0, len(fCache.endpoints))
 	for _, endpoint := range fCache.endpoints {
 		endpointStrings = append(endpointStrings, fmt.Sprintf("[%+v]", endpoint.PrettyString()))
 	}
@@ -421,7 +421,7 @@ func NewFakeHostComputeNetwork(network *hcn.HostComputeNetwork) *FakeHostCompute
 }
 
 func (fNetwork *FakeHostComputeNetwork) PrettyString() string {
-	var setPolicyStrings []string
+	setPolicyStrings := make([]string, 0, len(fNetwork.Policies))
 	for _, setPolicy := range fNetwork.Policies {
 		setPolicyStrings = append(setPolicyStrings, fmt.Sprintf("[%+v]", setPolicy))
 	}
@@ -472,7 +472,7 @@ func NewFakeHostComputeEndpoint(endpoint *hcn.HostComputeEndpoint) *FakeHostComp
 }
 
 func (fEndpoint *FakeHostComputeEndpoint) PrettyString() string {
-	var aclStrings []string
+	aclStrings := make([]string, 0, len(fEndpoint.Policies))
 	for _, acl := range fEndpoint.Policies {
 		aclStrings = append(aclStrings, fmt.Sprintf("[%+v]", acl))
 	}
