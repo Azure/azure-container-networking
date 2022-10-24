@@ -94,6 +94,21 @@ type DPAction interface {
 	Do(dp *DataPlane) error
 }
 
+type ApplyDPAction struct{}
+
+func ApplyDP() *Action {
+	return &Action{
+		DPAction: &ApplyDPAction{},
+	}
+}
+
+func (*ApplyDPAction) Do(dp *DataPlane) error {
+	if err := dp.ApplyDataPlane(); err != nil {
+		return errors.Wrapf(err, "[ApplyDPAction] failed to apply")
+	}
+	return nil
+}
+
 type PodCreateAction struct {
 	Pod    *PodMetadata
 	Labels map[string]string
@@ -229,21 +244,6 @@ func (p *PodDeleteAction) Do(dp *DataPlane) error {
 		}
 	}
 
-	return nil
-}
-
-type ApplyDPAction struct{}
-
-func ApplyDP() *Action {
-	return &Action{
-		DPAction: &ApplyDPAction{},
-	}
-}
-
-func (*ApplyDPAction) Do(dp *DataPlane) error {
-	if err := dp.ApplyDataPlane(); err != nil {
-		return errors.Wrapf(err, "[ApplyDPAction] failed to apply")
-	}
 	return nil
 }
 
