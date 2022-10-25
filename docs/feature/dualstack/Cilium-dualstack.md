@@ -16,7 +16,7 @@ For this issue two solutions are being proposed.
 
 The first is having azure-ipam send two separate requests for both an IPv4 and an IPv6. The add command would need to be able to recognize that the pod is dualstack, create two [`IPConfigRequest`](https://github.com/Azure/azure-container-networking/blob/master/cns/NetworkContainerContract.go)s with an added type field to specify either v4 or v6. These two IPs would then both be added to the array of IPs in `cniResult` and return them to the Cilium CNI. 
 
-```
+```diff
 type IPConfigRequest struct {
 	
     DesiredIPAddress    string
@@ -30,7 +30,7 @@ type IPConfigRequest struct {
 
 The second solution is to send one request from azure-ipam and have it specify in its `IPConfigRequest` that it wants a dualstack pod. With solution instead of calling CNS twice to request two IPs it would only call the CNS once and would return both IPs requested in an array. This would most likely require a much more extensive code change as requesting an IP would now return an array of IPs instead of just the one IP.  
 
-```
+```diff
 type IPConfigRequest struct {
 	
     DesiredIPAddress    string
@@ -42,7 +42,7 @@ type IPConfigRequest struct {
 }
 ```
 
-```
+```diff
 type IPConfigResponse struct {
     +PodIpInfo []PodIpInfo 
     Response  Response
