@@ -14,13 +14,12 @@ trigger:
   paths:
     exclude:
     - docs
-  tags:
-    include:
-    - "*"
-    exclude:
     - "zapai/*"
     - "azure-ipam/*"
     - "dropgz/*"
+  tags:
+    include:
+    - "*"
 
 stages:
   - stage: setup
@@ -331,20 +330,11 @@ stages:
   - template: singletenancy/aks-swift/e2e-job-template.yaml
     parameters:
       name: "aks_swift_e2e"
-      displayName: AKS Swift
+      displayName: AKS Swift Ubuntu
       pipelineBuildImage: "$(BUILD_IMAGE)"
       testDropgz: ""
       clusterName: "swifte2e"
-
-  - template: singletenancy/aks-engine/e2e-job-template.yaml
-    parameters:
-      name: "ubuntu_18_04_linux_e2e"
-      displayName: Ubuntu 18.04
-      pipelineBuildImage: "$(BUILD_IMAGE)"
-      clusterDefinition: "cniLinux1804.json"
-      clusterDefinitionCniTypeKey: "azureCNIURLLinux"
-      clusterDefinitionCniBuildOS: "linux"
-      clusterDefinitionCniBuildExt: ".tgz"
+      osSku: "Ubuntu"
 
   - template: singletenancy/aks-engine/e2e-job-template.yaml
     parameters:
@@ -365,16 +355,6 @@ stages:
       clusterDefinitionCniTypeKey: "azureCNIURLWindows"
       clusterDefinitionCniBuildOS: "windows"
       clusterDefinitionCniBuildExt: ".zip"
-
-  # - template: singletenancy/aks-engine/e2e-job-template.yaml
-  #   parameters:
-  #     name: "windows_20_22_e2e"
-  #     displayName: "Windows 2022"
-  #     pipelineBuildImage: "$(BUILD_IMAGE)"
-  #     clusterDefinition: "cniWindows2022.json"
-  #     clusterDefinitionCniTypeKey: "azureCNIURLWindows"
-  #     clusterDefinitionCniBuildOS: "windows"
-  #     clusterDefinitionCniBuildExt: ".zip"
 
   - stage: validate2
     displayName: Validate Tags
@@ -403,10 +383,8 @@ stages:
     dependsOn:
       - "aks_swift_e2e"
       - "cilium_e2e"
-      - "ubuntu_18_04_linux_e2e"
       - "windows_19_03_e2e"
       - "windows_20_04_e2e"
-      # - "windows_20_22_e2e"
     jobs:
       - job: delete_remote_artifacts
         displayName: Delete remote artifacts

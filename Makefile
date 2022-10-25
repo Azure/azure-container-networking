@@ -31,16 +31,16 @@ EXE_EXT 	= .exe
 endif
 
 # Interrogate the git repo and set some variables
-REPO_ROOT 		    = $(shell git rev-parse --show-toplevel)
-REVISION 		   ?= $(shell git rev-parse --short HEAD)
-ACN_VERSION  	   ?= $(shell git describe --exclude "azure-ipam*" --exclude "cni-dropgz*" --exclude "zapai*" --tags --always)
-AZURE_IPAM_VERSION ?= $(notdir $(shell git describe --match "azure-ipam*" --tags --always))
-CNI_VERSION        ?= $(ACN_VERSION)
-CNI_DROPGZ_VERSION ?= $(notdir $(shell git describe --match "cni-dropgz*" --tags --always))
-CNI_DROPGZ_TEST_VERSION ?= $(notdir $(shell git describe --match "cni-dropgz-test*" --tags --always))
-CNS_VERSION  	   ?= $(ACN_VERSION)
-NPM_VERSION        ?= $(ACN_VERSION)
-ZAPAI_VERSION  	   ?= $(notdir $(shell git describe --match "zapai*" --tags --always))
+REPO_ROOT 		   		 = $(shell git rev-parse --show-toplevel)
+REVISION 		   		?= $(shell git rev-parse --short HEAD)
+ACN_VERSION  	   		?= $(shell git describe --exclude "azure-ipam*" --exclude "dropgz*" --exclude "zapai*" --tags --always)
+AZURE_IPAM_VERSION 		?= $(notdir $(shell git describe --match "azure-ipam*" --tags --always))
+CNI_VERSION        		?= $(ACN_VERSION)
+CNI_DROPGZ_VERSION 		?= $(notdir $(shell git describe --match "dropgz*" --tags --always))
+CNI_DROPGZ_TEST_VERSION ?= $(notdir $(shell git describe --match "dropgz-test*" --tags --always))
+CNS_VERSION  	   		?= $(ACN_VERSION)
+NPM_VERSION        		?= $(ACN_VERSION)
+ZAPAI_VERSION  	   		?= $(notdir $(shell git describe --match "zapai*" --tags --always))
 
 # Build directories.
 AZURE_IPAM_DIR = $(REPO_ROOT)/azure-ipam

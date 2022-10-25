@@ -2,6 +2,7 @@ parameters:
   name: ""
   testDropgz: ""
   clusterName: ""
+  osSku: ""
 
 steps:
   - bash: |
@@ -32,7 +33,7 @@ steps:
         mkdir -p ~/.kube/
         echo "Create AKS cluster"
         make -C ./hack/swift azcfg AZCLI=az
-        make -C ./hack/swift byocni-up SUB=$(SUB_AZURE_NETWORK_AGENT_TEST) AZCLI=az CLUSTER=${{ parameters.clusterName }}-$(make revision)
+        make -C ./hack/swift byocni-up SUB=$(SUB_AZURE_NETWORK_AGENT_TEST) AZCLI=az CLUSTER=${{ parameters.clusterName }}-${{ parameters.osSku }}-$(make revision) OSSKU=${{ parameters.osSku }}
         echo "Cluster successfully created"
     displayName: Create test cluster
     condition: succeeded()

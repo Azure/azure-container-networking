@@ -4,7 +4,7 @@ parameters:
   pipelineBuildImage: "$(BUILD_IMAGE)"
   testDropgz: ""
   clusterName: ""
-
+  osSku: ""
 stages:
   - stage: ${{ parameters.name }}
     displayName: E2E - ${{ parameters.displayName }}
@@ -34,3 +34,4 @@ stages:
               name: ${{ parameters.name }}
               testDropgz: ${{ parameters.testDropgz }}
               clusterName: ${{ parameters.clusterName }}
+              osSku: ${{ parameters.osSku }}
