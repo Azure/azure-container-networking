@@ -18,7 +18,6 @@ The first is having azure-ipam send two separate requests for both an IPv4 and a
 
 ```diff
 type IPConfigRequest struct {
-	
     DesiredIPAddress    string
     PodInterfaceID      string
     InfraContainerID    string
@@ -32,7 +31,6 @@ The second solution is to send one request from azure-ipam and have it specify i
 
 ```diff
 type IPConfigRequest struct {
-	
     DesiredIPAddress    string
     PodInterfaceID      string
     InfraContainerID    string
