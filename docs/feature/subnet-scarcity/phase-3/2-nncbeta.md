@@ -36,8 +36,8 @@ Since this is a significant breaking change, the NodeNetworkConfig definition mu
 +               id: abc-ip-123-guid
             subcriptionID: abc-sub-123-guid
             subnetAddressSpace: 10.241.0.0/16
-            subnetID: podnet
--           subnetName: podnet
+-           subnetID: podnet
+            subnetName: podnet
             type: vnet
             version: 49
             vnetID: vnet-id
@@ -57,7 +57,7 @@ In order:
 - the `status.assignedIPCount` field is moved and renamed to `status.networkContainers[].secondaryIPCount`
 - the `status.networkContainers[].ipAssignments` field is renamed to `status.networkContainers[].secondaryIPs`
     - the keys of the secondaryIPs are renamed from `ip` and `name` to `address` and `id` respectively
-- the `status.subnetName` fields is removed as a duplicate of `status.subnetID`
+- the `status.subnetID` fields is removed as a duplicate of `status.subnetName`, where both were actually the "name" and not a unique ID.
 - the `status.scaler` is removed entirely
 
 #### Migration
