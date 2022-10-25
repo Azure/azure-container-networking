@@ -339,7 +339,7 @@ type NmAgentSupportedApisResponse struct {
 	SupportedApis []string
 }
 
-type GetHomeAzInfoResponse struct {
-	Response   Response       `json:"Response"`
-	HomeAzInfo nma.HomeAzInfo `json:"HomeAzInfo"`
+type GetHomeAzResponse struct {
+	Response       Response           `json:"Response"`
+	HomeAzResponse nma.HomeAzResponse `json:"HomeAzResponse"`
 }

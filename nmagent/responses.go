@@ -37,6 +37,6 @@ type NCVersionList struct {
 	Containers []NCVersion `json:"networkContainers"`
 }
 
-type HomeAzInfo struct {
+type HomeAzResponse struct {
 	HomeAz string `json:"HomeAz"`
 }

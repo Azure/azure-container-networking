@@ -2261,22 +2261,22 @@ func TestPostAllNetworkContainers(t *testing.T) {
 	}
 }
 
-func TestGetHomeAzInfo(t *testing.T) {
+func TestGetHomeAz(t *testing.T) {
 	emptyRoutes, _ := buildRoutes(defaultBaseURL, clientPaths)
 	tests := []struct {
 		name      string
 		shouldErr bool
-		exp       *cns.GetHomeAzInfoResponse
+		exp       *cns.GetHomeAzResponse
 	}{
 		{
 			"happy path",
 			false,
-			&cns.GetHomeAzInfoResponse{
+			&cns.GetHomeAzResponse{
 				Response: cns.Response{
 					ReturnCode: 0,
 					Message:    "success",
 				},
-				HomeAzInfo: nmagent.HomeAzInfo{
+				HomeAzResponse: nmagent.HomeAzResponse{
 					HomeAz: "01",
 				},
 			},
@@ -2284,9 +2284,9 @@ func TestGetHomeAzInfo(t *testing.T) {
 		{
 			"error",
 			true,
-			&cns.GetHomeAzInfoResponse{
+			&cns.GetHomeAzResponse{
 				Response: cns.Response{
-					ReturnCode: types.NmAgentServerInternalError,
+					ReturnCode: types.NmAgentInternalServerError,
 					Message:    "internal error",
 				},
 			},
@@ -2307,7 +2307,7 @@ func TestGetHomeAzInfo(t *testing.T) {
 				routes: emptyRoutes,
 			}
 
-			got, err := client.GetHomeAzInfo(context.Background())
+			got, err := client.GetHomeAz(context.Background())
 			if err != nil && !test.shouldErr {
 				t.Fatal("unexpected error: err:", err)
 			}

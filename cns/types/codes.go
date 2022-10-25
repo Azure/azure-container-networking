@@ -41,7 +41,7 @@ const (
 	FailedToRunIPTableCmd                  ResponseCode = 39
 	NilEndpointStateStore                  ResponseCode = 40
 	NmAgentUnSupportedAPIError             ResponseCode = 41
-	NmAgentServerInternalError             ResponseCode = 42
+	NmAgentInternalServerError             ResponseCode = 42
 	StatusUnauthorized                     ResponseCode = 43
 	UnexpectedError                        ResponseCode = 99
 )
@@ -121,8 +121,8 @@ func (c ResponseCode) String() string {
 		return "UnsupportedVerb"
 	case NmAgentUnSupportedAPIError:
 		return "NmAgentUnSupportedAPIError"
-	case NmAgentServerInternalError:
-		return "NmAgentServerInternalError"
+	case NmAgentInternalServerError:
+		return "NmAgentInternalServerError"
 	case StatusUnauthorized:
 		return "StatusUnauthorized"
 	default:

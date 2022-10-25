@@ -235,11 +235,11 @@ func (c *Client) GetNCVersionList(ctx context.Context) (NCVersionList, error) {
 	return out, nil
 }
 
-// GetHomeAzInfo gets node's home az info from nmagent
-func (c *Client) GetHomeAzInfo(ctx context.Context) (HomeAzInfo, error) {
-	getHomeAzInfoRequest := &GetHomeAzInfoRequest{}
-	var homeAzInfo HomeAzInfo
-	req, err := c.buildRequest(ctx, getHomeAzInfoRequest)
+// GetHomeAz gets node's home az info from nmagent
+func (c *Client) GetHomeAz(ctx context.Context) (HomeAzResponse, error) {
+	getHomeAzRequest := &GetHomeAzRequest{}
+	var homeAzInfo HomeAzResponse
+	req, err := c.buildRequest(ctx, getHomeAzRequest)
 	if err != nil {
 		return homeAzInfo, errors.Wrap(err, "building request")
 	}

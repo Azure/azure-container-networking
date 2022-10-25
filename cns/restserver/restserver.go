@@ -46,7 +46,7 @@ type nmagentClient interface {
 	SupportedAPIs(context.Context) ([]string, error)
 	GetNCVersion(context.Context, nma.NCVersionRequest) (nma.NCVersion, error)
 	GetNCVersionList(context.Context) (nma.NCVersionList, error)
-	GetHomeAzInfo(context.Context) (nma.HomeAzInfo, error)
+	GetHomeAz(context.Context) (nma.HomeAzResponse, error)
 }
 
 // HTTPRestService represents http listener for CNS - Container Networking Service.
@@ -256,7 +256,7 @@ func (service *HTTPRestService) Init(config *common.ServiceConfig) error {
 	listener.AddHandler(cns.PathDebugPodContext, service.handleDebugPodContext)
 	listener.AddHandler(cns.PathDebugRestData, service.handleDebugRestData)
 	listener.AddHandler(cns.NetworkContainersURLPath, service.getOrRefreshNetworkContainers)
-	listener.AddHandler(cns.GetHomeAzInfo, service.getHomeAzInfo)
+	listener.AddHandler(cns.GetHomeAz, service.getHomeAz)
 
 	// handlers for v0.2
 	listener.AddHandler(cns.V2Prefix+cns.SetEnvironmentPath, service.setEnvironment)
@@ -280,7 +280,7 @@ func (service *HTTPRestService) Init(config *common.ServiceConfig) error {
 	listener.AddHandler(cns.V2Prefix+cns.CreateHostNCApipaEndpointPath, service.createHostNCApipaEndpoint)
 	listener.AddHandler(cns.V2Prefix+cns.DeleteHostNCApipaEndpointPath, service.deleteHostNCApipaEndpoint)
 	listener.AddHandler(cns.V2Prefix+cns.NmAgentSupportedApisPath, service.nmAgentSupportedApisHandler)
-	listener.AddHandler(cns.V2Prefix+cns.GetHomeAzInfo, service.getHomeAzInfo)
+	listener.AddHandler(cns.V2Prefix+cns.GetHomeAz, service.getHomeAz)
 
 	// Initialize HTTP client to be reused in CNS
 	connectionTimeout, _ := service.GetOption(acn.OptHttpConnectionTimeout).(int)

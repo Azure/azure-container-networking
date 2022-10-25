@@ -623,18 +623,18 @@ func TestGetNCVersionList(t *testing.T) {
 	}
 }
 
-func TestGetHomeAzInfo(t *testing.T) {
+func TestGetHomeAz(t *testing.T) {
 	tests := []struct {
 		name      string
-		exp       nmagent.HomeAzInfo
+		exp       nmagent.HomeAzResponse
 		expPath   string
 		resp      map[string]interface{}
 		shouldErr bool
 	}{
 		{
 			"happy path",
-			nmagent.HomeAzInfo{HomeAz: "01"},
-			"/machine/plugins/?comp=nmagent&type=GetHomeAzInfo",
+			nmagent.HomeAzResponse{HomeAz: "01"},
+			"/machine/plugins/?comp=nmagent&type=GetHomeAz",
 			map[string]interface{}{
 				"httpStatusCode": "200",
 				"HomeAz":         "01",
@@ -643,8 +643,8 @@ func TestGetHomeAzInfo(t *testing.T) {
 		},
 		{
 			"empty response",
-			nmagent.HomeAzInfo{},
-			"/machine/plugins/?comp=nmagent&type=GetHomeAzInfo",
+			nmagent.HomeAzResponse{},
+			"/machine/plugins/?comp=nmagent&type=GetHomeAz",
 			map[string]interface{}{
 				"httpStatusCode": "500",
 			},
@@ -661,7 +661,6 @@ func TestGetHomeAzInfo(t *testing.T) {
 			client := nmagent.NewTestClient(&TestTripper{
 				RoundTripF: func(req *http.Request) (*http.Response, error) {
 					gotPath = req.URL.Path
-					fmt.Println(gotPath)
 					rr := httptest.NewRecorder()
 					err := json.NewEncoder(rr).Encode(test.resp)
 					if err != nil {
@@ -672,7 +671,7 @@ func TestGetHomeAzInfo(t *testing.T) {
 				},
 			})
 
-			got, err := client.GetHomeAzInfo(context.TODO())
+			got, err := client.GetHomeAz(context.TODO())
 			if err != nil && !test.shouldErr {
 				t.Fatal("unexpected error: err:", err)
 			}

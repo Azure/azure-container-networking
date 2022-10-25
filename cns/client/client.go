@@ -41,7 +41,7 @@ var clientPaths = []string{
 	cns.NMAgentSupportedAPIs,
 	cns.DeleteNetworkContainer,
 	cns.NetworkContainersURLPath,
-	cns.GetHomeAzInfo,
+	cns.GetHomeAz,
 }
 
 type do interface {
@@ -813,10 +813,10 @@ func (c *Client) PostAllNetworkContainers(ctx context.Context, createNcRequest c
 	return nil
 }
 
-// GetHomeAzInfo gets home AZ of host
-func (c *Client) GetHomeAzInfo(ctx context.Context) (*cns.GetHomeAzInfoResponse, error) {
+// GetHomeAz gets home AZ of host
+func (c *Client) GetHomeAz(ctx context.Context) (*cns.GetHomeAzResponse, error) {
 	// build the request
-	u := c.routes[cns.GetHomeAzInfo]
+	u := c.routes[cns.GetHomeAz]
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), http.NoBody)
 	if err != nil {
 		return nil, errors.Wrap(err, "building http request")
@@ -830,20 +830,20 @@ func (c *Client) GetHomeAzInfo(ctx context.Context) (*cns.GetHomeAzInfoResponse,
 	defer resp.Body.Close()
 
 	// decode the response
-	var getHomeAzInfoResponse cns.GetHomeAzInfoResponse
-	err = json.NewDecoder(resp.Body).Decode(&getHomeAzInfoResponse)
+	var getHomeAzResponse cns.GetHomeAzResponse
+	err = json.NewDecoder(resp.Body).Decode(&getHomeAzResponse)
 	if err != nil {
 		return nil, errors.Wrap(err, "decoding response as JSON")
 	}
 
 	// if the return code is non-zero, something went wrong and it should be
 	// surfaced to the caller
-	if getHomeAzInfoResponse.Response.ReturnCode != 0 {
+	if getHomeAzResponse.Response.ReturnCode != 0 {
 		return nil, &CNSClientError{
-			Code: getHomeAzInfoResponse.Response.ReturnCode,
-			Err:  errors.New(getHomeAzInfoResponse.Response.Message),
+			Code: getHomeAzResponse.Response.ReturnCode,
+			Err:  errors.New(getHomeAzResponse.Response.Message),
 		}
 	}
 
-	return &getHomeAzInfoResponse, nil
+	return &getHomeAzResponse, nil
 }

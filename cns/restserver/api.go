@@ -38,7 +38,7 @@ var (
 const (
 	ncURLExpectedMatches = 5
 
-	getHomeAzInfoAPIName = "GetHomeAzInfo"
+	getHomeAzAPIName = "GetHomeAz"
 )
 
 // This file contains implementation of all HTTP APIs which are exposed to external clients.
@@ -768,21 +768,21 @@ func (service *HTTPRestService) setOrchestratorType(w http.ResponseWriter, r *ht
 	logger.Response(service.Name, resp, resp.ReturnCode, err)
 }
 
-// getHomeAzInfo retrieves home AZ of host
-func (service *HTTPRestService) getHomeAzInfo(w http.ResponseWriter, r *http.Request) {
-	logger.Printf("[Azure CNS] getHomeAzInfo")
-	logger.Request(service.Name, " getHomeAzInfo", nil)
+// getHomeAz retrieves home AZ of host
+func (service *HTTPRestService) getHomeAz(w http.ResponseWriter, r *http.Request) {
+	logger.Printf("[Azure CNS] getHomeAz")
+	logger.Request(service.Name, " getHomeAz", nil)
 	ctx := r.Context()
 
 	switch r.Method {
 	case http.MethodGet:
-		getHomeAzInfoResp := service.GetHomeAzInfo(ctx)
-		service.setResponse(w, getHomeAzInfoResp.Response.ReturnCode, getHomeAzInfoResp)
+		getHomeAzResp := service.GetHomeAz(ctx)
+		service.setResponse(w, getHomeAzResp.Response.ReturnCode, getHomeAzResp)
 
 	default:
-		returnMessage := "[Azure CNS] Error. getHomeAzInfo did not receive a GET."
+		returnMessage := "[Azure CNS] Error. getHomeAz did not receive a GET."
 		returnCode := types.UnsupportedVerb
-		service.setResponse(w, returnCode, cns.GetHomeAzInfoResponse{
+		service.setResponse(w, returnCode, cns.GetHomeAzResponse{
 			Response: cns.Response{ReturnCode: returnCode, Message: returnMessage},
 		})
 	}
