@@ -44,7 +44,7 @@ Due to the division of responsibilities, it is possible for this flow to deadloc
 
 If the Subnet becomes exhausted _after_ the Node Reconciler loop has set the initial Requested IP count and the NodeNetworkConfig Reconciler is unable to honor the request, the NetworkContainer will never be written to the NNC Status. This Status update is what indicates to CNS that the Network is ready (enough for it to start). In this scenario, no running components can safely update the Request IP Count to get it within the constraints of the Subnet, and the NNC Status will never be updated. CNS will get no IPs, and no Pods can run on that Node.
 
-#### Solution: Create NetworkContainer with no SecondaryIPs when creating NodeNetworkConfig
+### Solution: Create NetworkContainer with no SecondaryIPs when creating NodeNetworkConfig
 
 Instead of creating the NodeNetworkConfig with a Requested IP count of $B$, the NodeController will create NodeNetworkConfigs with a Requested IP count of $0$. The NodeNetworkController will create an NC Request with only single Primary IP and zero Secondary IPs for the initial create, and will write the empty NC to the NodeNetworkConfig Status. This skeleton NC in the NNC Status will be enough to signal to CNS to start the IPAM loop, and CNS will be able to iteratively adjust the Requested IP Count based on the current Subnet Exhaustion State at any time, as it does at steady state already.
 

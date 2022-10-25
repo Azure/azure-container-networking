@@ -55,7 +55,7 @@ DNC-RC will poll DNC's SubnetState API on a fixed interval to check the Subnet U
 CNS will watch the `ClusterSubnet` CRD, scaling down and releasing IPs when the Subnet is marked as Exhausted.
 
 ### Phase 2
-The batch size $B$ is dynamically adjusted based on the current subnet utilization. The batch size is increased when the subnet utilization is low, and decreased when the subnet utilization is high. IPs are not assigned to a new Node until CNS requests them, allowing Nodes to start safely even in very constrained subnets.
+IPs are not assigned to a new Node until CNS requests them, allowing Nodes to start safely even in very constrained subnets. CNS scaling math is improved, and CNS Scalar properties come from the ClusterSubnet CRD instead of the NodeNetworkConfig CRD.
 
 #### [[2-1]](phase-2/1-emptync.md) DNC-RC creates NCs with no Secondary IPs
 DNC-RC will create the NNC for a new Node with an initial IP Request of 0. An empty NC (containing a Primary, but no Secondary IPs) will be created via normal DNC API calls. The empty NC will be written to the NNC, allowing CNS to start. CNS will make the initial IP request according to the Subnet Exhaustion State.
@@ -77,3 +77,14 @@ CNS will include the NC Primary IP(s) as IPs that it has been allocated, and wil
 
 #### [[2-3]](phase-2/3-subnetscaler.md) Scaler properties move to the ClusterSubnet CRD
 The Scaler properties from the v1alpha/NodeNetworkConfig `Status.Scaler` definition are moved to the ClusterSubnet CRD, and CNS will use the Scaler from this CRD as priority when it is available, and fall back to the NNC Scaler otherwise. The `.Spec` field of the CRD may serve as an "overrides" location for runtime reconfiguration.
+
+### Phase 3
+CNS watches Pods and adjusts the SecondaryIP Count immediately in reaction to Pod IP demand changes. The NNC is revised to cut weight and prepare for the dynamic batch size (or multi-nc) future.
+
+
+#### [[3-1]](phase-3/1-watchpods.md) CNS watches Pods
+CNS will Watch for Pod events on its Node, and use the number of scheduled Pods to calculate the target Requested IP Count.
+
+
+#### [[3-2]](phase-3/2-nncbeta.md) Revise the NNC to v1beta1
+With the Scaler migration in [[Phase 2-3]](#2-3-scaler-properties-move-to-the-clustersubnet-crd), the NodeNetworkConfig will be revised to remove this object and optimize.
