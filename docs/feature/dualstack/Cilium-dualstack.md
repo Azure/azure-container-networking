@@ -44,6 +44,7 @@ type IPConfigRequest struct {
 
 ```diff
 type IPConfigResponse struct {
+-   PodIpInfo PodIpInfo 
 +   PodIpInfo []PodIpInfo 
     Response  Response
 }
