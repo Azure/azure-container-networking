@@ -24,7 +24,7 @@ trigger:
     - "azure-ipam/*"
     - "dropgz/*"
     exclude:
-    - "*"
+    - "v*"
 
 stages:
   - stage: setup

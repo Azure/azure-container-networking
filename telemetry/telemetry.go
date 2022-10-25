@@ -111,10 +111,8 @@ func (reportMgr *ReportManager) SendReport(tb *TelemetryBuffer) error {
 	if tb != nil && tb.Connected {
 		report, err = reportMgr.ReportToBytes()
 		if err == nil {
-			// If write fails, try to re-establish connections as server/client
 			if _, err = tb.Write(report); err != nil {
 				log.Printf("telemetry write failed:%v", err)
-				tb.Cancel()
 			}
 		}
 	}
@@ -124,7 +122,6 @@ func (reportMgr *ReportManager) SendReport(tb *TelemetryBuffer) error {
 
 // ReportToBytes - returns the report bytes
 func (reportMgr *ReportManager) ReportToBytes() ([]byte, error) {
-
 	switch reportMgr.Report.(type) {
 	case *CNIReport:
 	case *AIMetric:
@@ -145,9 +142,8 @@ func SendCNIMetric(cniMetric *AIMetric, tb *TelemetryBuffer) error {
 		reportMgr := &ReportManager{Report: cniMetric}
 		report, err = reportMgr.ReportToBytes()
 		if err == nil {
-			// If write fails, try to re-establish connections as server/client
 			if _, err = tb.Write(report); err != nil {
-				tb.Cancel()
+				log.Printf("Error writing to telemetry socket:%v", err)
 			}
 		}
 	}
@@ -160,10 +156,8 @@ func SendCNIEvent(tb *TelemetryBuffer, report *CNIReport) {
 		reportMgr := &ReportManager{Report: report}
 		reportBytes, err := reportMgr.ReportToBytes()
 		if err == nil {
-			// If write fails, try to re-establish connections as server/client
 			if _, err = tb.Write(reportBytes); err != nil {
 				log.Printf("Error writing to telemetry socket:%v", err)
-				tb.Cancel()
 			}
 		}
 	}

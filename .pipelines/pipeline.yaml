@@ -14,13 +14,12 @@ trigger:
   paths:
     exclude:
     - docs
-  tags:
-    include:
-    - "*"
-    exclude:
     - "zapai/*"
     - "azure-ipam/*"
     - "dropgz/*"
+  tags:
+    include:
+    - "*"
 
 stages:
   - stage: setup
