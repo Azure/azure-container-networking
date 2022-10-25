@@ -19,12 +19,12 @@ The first is having azure-ipam send two separate requests for both an IPv4 and a
 ```
 type IPConfigRequest struct {
 	
-	DesiredIPAddress    string
-	PodInterfaceID      string
-	InfraContainerID    string
-	OrchestratorContext json.RawMessage
-	Ifname              string // Used by delegated IPAM
-    IPType              string // designating 'IPv4' or 'IPv6'. If not filled than we will return first IP of any type
+    DesiredIPAddress    string
+    PodInterfaceID      string
+    InfraContainerID    string
+    OrchestratorContext json.RawMessage
+    Ifname              string // Used by delegated IPAM
+    <mark >IPType              string // designating 'IPv4' or 'IPv6'. If not filled than we will return first IP of any type</mark> 
 }
 ```
 
@@ -33,19 +33,19 @@ The second solution is to send one request from azure-ipam and have it specify i
 ```
 type IPConfigRequest struct {
 	
-	DesiredIPAddress    string
-	PodInterfaceID      string
-	InfraContainerID    string
-	OrchestratorContext json.RawMessage
-	Ifname              string // Used by delegated IPAM
-    PodType             string // would designate that a pod is 'dualstack' and search for two IPs instead of just one
+    DesiredIPAddress    string
+    PodInterfaceID      string
+    InfraContainerID    string
+    OrchestratorContext json.RawMessage
+    Ifname              string // Used by delegated IPAM
+    <mark >PodType             string // would designate that a pod is 'dualstack' and search for two IPs instead of just one</mark> 
 }
 ```
 
 ```
 type IPConfigResponse struct {
-	PodIpInfo []PodIpInfo
-	Response  Response
+    <mark >PodIpInfo []PodIpInfo</mark> 
+    Response  Response
 }
 ```
 
