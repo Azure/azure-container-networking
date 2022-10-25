@@ -24,7 +24,7 @@ type IPConfigRequest struct {
     InfraContainerID    string
     OrchestratorContext json.RawMessage
     Ifname              string // Used by delegated IPAM
-    <mark >IPType              string // designating 'IPv4' or 'IPv6'. If not filled than we will return first IP of any type</mark> 
+    <mark>IPType              string // designating 'IPv4' or 'IPv6'. If not filled than we will return first IP of any type</mark> 
 }
 ```
 
@@ -38,13 +38,13 @@ type IPConfigRequest struct {
     InfraContainerID    string
     OrchestratorContext json.RawMessage
     Ifname              string // Used by delegated IPAM
-    <mark >PodType             string // would designate that a pod is 'dualstack' and search for two IPs instead of just one</mark> 
+    <mark>PodType             string // would designate that a pod is 'dualstack' and search for two IPs instead of just one</mark> 
 }
 ```
 
 ```
 type IPConfigResponse struct {
-    <mark >PodIpInfo []PodIpInfo</mark> 
+    <mark>PodIpInfo []PodIpInfo</mark> 
     Response  Response
 }
 ```
