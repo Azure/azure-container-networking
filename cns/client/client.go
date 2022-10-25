@@ -92,7 +92,7 @@ func buildRoutes(baseURL string, paths []string) (map[string]url.URL, error) {
 }
 
 // GetNetworkContainersConfiguration Request to get network container configs.
-func (c *Client) GetConfigsForNetworkContainers(ctx context.Context, orchestratorContext []byte) (*[]cns.GetNetworkContainerResponse, error) {
+func (c *Client) GetNetworkContainersWithOrchestratorContext(ctx context.Context, orchestratorContext []byte) (*[]cns.GetNetworkContainerResponse, error) {
 	payload := cns.GetNetworkContainerRequest{
 		OrchestratorContext: orchestratorContext,
 	}
@@ -143,8 +143,8 @@ func (c *Client) GetConfigsForNetworkContainers(ctx context.Context, orchestrato
 	return &resp.NetworkContainers, nil
 }
 
-// GetNetworkContainerConfiguration Request to get network container config.
-func (c *Client) GetNetworkContainerConfiguration(ctx context.Context, orchestratorContext []byte) (*cns.GetNetworkContainerResponse, error) {
+// GetNetworkContainerWithOrchestratorContext Request to get network container config.
+func (c *Client) GetNetworkContainerWithOrchestratorContext(ctx context.Context, orchestratorContext []byte) (*cns.GetNetworkContainerResponse, error) {
 	payload := cns.GetNetworkContainerRequest{
 		OrchestratorContext: orchestratorContext,
 	}

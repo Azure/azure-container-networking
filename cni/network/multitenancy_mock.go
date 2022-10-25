@@ -42,7 +42,7 @@ func (m *MockMultitenancy) DetermineSnatFeatureOnHost(snatFile, nmAgentSupported
 	return true, true, nil
 }
 
-func (m *MockMultitenancy) GetContainerNetworkConfiguration(
+func (m *MockMultitenancy) GetNetworkContainerWithOrchestratorContext(
 	ctx context.Context,
 	nwCfg *cni.NetworkConfig,
 	podName string,
@@ -79,17 +79,17 @@ func (m *MockMultitenancy) GetContainerNetworkConfiguration(
 	return cnsResponse, *ipnet, nil
 }
 
-func (m *MockMultitenancy) GetContainersNetworkConfiguration(
+func (m *MockMultitenancy) GetNetworkContainersWithOrchestratorContext(
 	ctx context.Context,
 	nwCfg *cni.NetworkConfig,
 	podName string,
 	podNamespace string,
-) (*[]cns.GetNetworkContainerResponse, net.IPNet, error) {
+) (*[]cns.GetNetworkContainerResponse, []net.IPNet, error) {
 	if m.fail {
-		return nil, net.IPNet{}, errMockMulAdd
+		return nil, []net.IPNet{}, errMockMulAdd
 	}
 
-	cnsResponse := &cns.GetNetworkContainerResponse{
+	cnsResponseOne := &cns.GetNetworkContainerResponse{
 		IPConfiguration: cns.IPConfiguration{
 			IPSubnet: cns.IPSubnet{
 				IPAddress:    "192.168.0.4",
@@ -111,10 +111,41 @@ func (m *MockMultitenancy) GetContainersNetworkConfiguration(
 			ID:        1,
 		},
 	}
-	_, ipnet, _ := net.ParseCIDR(cnsResponse.PrimaryInterfaceIdentifier)
+
+	cnsResponseTwo := &cns.GetNetworkContainerResponse{
+		IPConfiguration: cns.IPConfiguration{
+			IPSubnet: cns.IPSubnet{
+				IPAddress:    "192.168.0.5",
+				PrefixLength: ipPrefixLen,
+			},
+			GatewayIPAddress: "192.168.0.1",
+		},
+		LocalIPConfiguration: cns.IPConfiguration{
+			IPSubnet: cns.IPSubnet{
+				IPAddress:    "169.254.0.4",
+				PrefixLength: localIPPrefixLen,
+			},
+			GatewayIPAddress: "169.254.0.1",
+		},
+
+		PrimaryInterfaceIdentifier: "10.240.0.4/24",
+		MultiTenancyInfo: cns.MultiTenancyInfo{
+			EncapType: cns.Vlan,
+			ID:        1,
+		},
+	}
+
+	_, firstIPnet, _ := net.ParseCIDR(cnsResponseOne.PrimaryInterfaceIdentifier)
+	_, secondIPnet, _ := net.ParseCIDR(cnsResponseTwo.PrimaryInterfaceIdentifier)
 
 	var cnsResponses []cns.GetNetworkContainerResponse
-	cnsResponses = append(cnsResponses, *cnsResponse)
+	var ipNets []net.IPNet
 
-	return &cnsResponses, *ipnet, nil
+	ipNets = append(ipNets, *firstIPnet)
+	ipNets = append(ipNets, *secondIPnet)
+
+	cnsResponses = append(cnsResponses, *cnsResponseOne)
+	cnsResponses = append(cnsResponses, *cnsResponseTwo)
+
+	return &cnsResponses, ipNets, nil
 }

@@ -605,6 +605,7 @@ func TestPluginMultitenancyAdd(t *testing.T) {
 				report:             &telemetry.CNIReport{},
 				multitenancyClient: NewMockMultitenancy(false),
 			},
+
 			args: &cniSkel.CmdArgs{
 				StdinData:   localNwCfg.Serialize(),
 				ContainerID: "test-container",

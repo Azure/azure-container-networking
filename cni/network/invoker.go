@@ -27,8 +27,9 @@ type IPAMAddConfig struct {
 }
 
 type IPAMAddResult struct {
-	ipv4Result       *cniTypesCurr.Result
-	ipv6Result       *cniTypesCurr.Result
-	ncResponse       *cns.GetNetworkContainerResponse
-	hostSubnetPrefix net.IPNet
+	ipv4Result         *cniTypesCurr.Result
+	ipv6Result         *cniTypesCurr.Result
+	ncResponse         *cns.GetNetworkContainerResponse
+	hostSubnetPrefix   net.IPNet
+	hostSubnetPrefixes []net.IPNet
 }

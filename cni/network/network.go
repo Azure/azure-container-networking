@@ -449,12 +449,12 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 			return fmt.Errorf("%w", err)
 		}
 
-		ncResponses, ipamAddResult.hostSubnetPrefix, er = plugin.multitenancyClient.GetContainersNetworkConfiguration(
+		ncResponses, ipamAddResult.hostSubnetPrefixes, er = plugin.multitenancyClient.GetNetworkContainersWithOrchestratorContext(
 			context.TODO(), nwCfg, k8sPodName, k8sNamespace)
 
 		if ncResponses == nil {
 			log.Printf("CNS is old version, invoke old CNI API")
-			ipamAddResult.ncResponse, ipamAddResult.hostSubnetPrefix, er = plugin.multitenancyClient.GetContainerNetworkConfiguration(
+			ipamAddResult.ncResponse, ipamAddResult.hostSubnetPrefix, er = plugin.multitenancyClient.GetNetworkContainerWithOrchestratorContext(
 				context.TODO(), nwCfg, k8sPodName, k8sNamespace)
 			if er != nil {
 				er = errors.Wrapf(er, "GetContainerNetworkConfiguration failed for podname %v namespace %v", k8sPodName, k8sNamespace)
@@ -467,14 +467,15 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 			log.Printf("PrimaryInterfaceIdentifier: %v", ipamAddResult.hostSubnetPrefix.IP.String())
 		} else {
 			if er != nil {
-				er = errors.Wrapf(er, "GetContainersNetworkConfiguration failed for podname %v namespace %v", k8sPodName, k8sNamespace)
+				er = errors.Wrapf(er, "GetNetworkContainersWithOrchestratorContext failed for podname %v namespace %v", k8sPodName, k8sNamespace)
 				log.Printf("%+v", er)
 				return er
 			}
 
 			var ncResponsesCopy [2]cns.GetNetworkContainerResponse
-			for i, ncResponse := range *ncResponses {
-				ncResponsesCopy[i] = ncResponse
+			responses := *ncResponses
+			for i := 0; i < len(responses); i++ {
+				ncResponsesCopy[i] = responses[i]
 				ipamAddResult.ncResponse = &ncResponsesCopy[i]
 				ipamAddResult.ipv4Result = convertToCniResult(ipamAddResult.ncResponse, args.IfName)
 				ipamAddResults = append(ipamAddResults, ipamAddResult)
@@ -1170,8 +1171,8 @@ func (plugin *NetPlugin) Update(args *cniSkel.CmdArgs) error {
 		return plugin.Errorf(err.Error())
 	}
 
-	if targetNetworkConfig, err = cnsclient.GetNetworkContainerConfiguration(context.TODO(), orchestratorContext); err != nil {
-		log.Printf("GetNetworkContainerConfiguration failed with %v", err)
+	if targetNetworkConfig, err = cnsclient.GetNetworkContainerWithOrchestratorContext(context.TODO(), orchestratorContext); err != nil {
+		log.Printf("GetNetworkContainerWithOrchestratorContext failed with %v", err)
 		return plugin.Errorf(err.Error())
 	}
 
