@@ -31,6 +31,7 @@ const (
 	cnsClusterRoleBindingPath = cnsManifestFolder + "/clusterrolebinding.yaml"
 	cnsSwiftConfigMapPath     = cnsManifestFolder + "/swiftconfigmap.yaml"
 	cnsCiliumConfigMapPath    = cnsManifestFolder + "/ciliumconfigmap.yaml"
+	cnsOverlayConfigMapPath   = cnsManifestFolder + "/overlayconfigmap.yaml"
 	cnsRolePath               = cnsManifestFolder + "/role.yaml"
 	cnsRoleBindingPath        = cnsManifestFolder + "/rolebinding.yaml"
 	cnsServiceAccountPath     = cnsManifestFolder + "/serviceaccount.yaml"
@@ -150,7 +151,7 @@ func installCNSDaemonset(ctx context.Context, clientset *kubernetes.Clientset, l
 			cns.Spec.Template.Spec.InitContainers[0].Args = []string{"deploy", "azure-ipam", "-o", "/opt/cni/bin/azure-ipam", "azilium.conflist", "-o", "/etc/cni/net.d/05-cilium.conflist"}
 		}
 		// setup the CNS ciliumconfigmap
-		if err := mustSetupConfigMap(ctx, clientset, cnsCiliumConfigMapPath); err != nil {
+		if err := mustSetupConfigMap(ctx, clientset, cnsOverlayConfigMapPath); err != nil {
 			return nil, err
 		}
 	} else {
