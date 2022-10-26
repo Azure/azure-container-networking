@@ -26,7 +26,8 @@ jobs:
           mkdir -p '$(GOBIN)'
           mkdir -p '$(GOPATH)/pkg'
           BUILD_NUMBER=$(Build.BuildNumber)
-          RG=e2e-$(echo "npm-`date "+%Y-%m-%d-%S"`")
+          # format: npm-<year>-<month>-<day>-<minute>-<second>
+          RG=e2e-$(echo "npm-`date "+%Y-%m-%d-%M-%S"`")
           TAG=$(make npm-version)
           echo "Resource group: $RG"
           echo "Image tag: $TAG"
