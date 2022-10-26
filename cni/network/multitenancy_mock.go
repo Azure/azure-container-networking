@@ -84,7 +84,7 @@ func (m *MockMultitenancy) GetNetworkContainersWithOrchestratorContext(
 	nwCfg *cni.NetworkConfig,
 	podName string,
 	podNamespace string,
-) (*[]cns.GetNetworkContainerResponse, []net.IPNet, error) {
+) ([]cns.GetNetworkContainerResponse, []net.IPNet, error) {
 	if m.fail {
 		return nil, []net.IPNet{}, errMockMulAdd
 	}
@@ -92,33 +92,33 @@ func (m *MockMultitenancy) GetNetworkContainersWithOrchestratorContext(
 	cnsResponseOne := &cns.GetNetworkContainerResponse{
 		IPConfiguration: cns.IPConfiguration{
 			IPSubnet: cns.IPSubnet{
-				IPAddress:    "192.168.0.4",
+				IPAddress:    "20.0.0.10",
 				PrefixLength: ipPrefixLen,
 			},
-			GatewayIPAddress: "192.168.0.1",
+			GatewayIPAddress: "20.0.0.1",
 		},
 		LocalIPConfiguration: cns.IPConfiguration{
 			IPSubnet: cns.IPSubnet{
-				IPAddress:    "169.254.0.4",
+				IPAddress:    "168.254.0.4",
 				PrefixLength: localIPPrefixLen,
 			},
-			GatewayIPAddress: "169.254.0.1",
+			GatewayIPAddress: "168.254.0.1",
 		},
 
-		PrimaryInterfaceIdentifier: "10.240.0.4/24",
+		PrimaryInterfaceIdentifier: "20.240.0.4/24",
 		MultiTenancyInfo: cns.MultiTenancyInfo{
 			EncapType: cns.Vlan,
-			ID:        1,
+			ID:        2,
 		},
 	}
 
 	cnsResponseTwo := &cns.GetNetworkContainerResponse{
 		IPConfiguration: cns.IPConfiguration{
 			IPSubnet: cns.IPSubnet{
-				IPAddress:    "192.168.0.5",
+				IPAddress:    "10.0.0.10",
 				PrefixLength: ipPrefixLen,
 			},
-			GatewayIPAddress: "192.168.0.1",
+			GatewayIPAddress: "10.0.0.1",
 		},
 		LocalIPConfiguration: cns.IPConfiguration{
 			IPSubnet: cns.IPSubnet{
@@ -141,11 +141,8 @@ func (m *MockMultitenancy) GetNetworkContainersWithOrchestratorContext(
 	var cnsResponses []cns.GetNetworkContainerResponse
 	var ipNets []net.IPNet
 
-	ipNets = append(ipNets, *firstIPnet)
-	ipNets = append(ipNets, *secondIPnet)
+	ipNets = append(ipNets, *firstIPnet, *secondIPnet)
+	cnsResponses = append(cnsResponses, *cnsResponseOne, *cnsResponseTwo)
 
-	cnsResponses = append(cnsResponses, *cnsResponseOne)
-	cnsResponses = append(cnsResponses, *cnsResponseTwo)
-
-	return &cnsResponses, ipNets, nil
+	return cnsResponses, ipNets, nil
 }

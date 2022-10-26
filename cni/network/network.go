@@ -326,7 +326,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 	var (
 		ipamAddResult    IPAMAddResult
 		ipamAddResults   []IPAMAddResult
-		ncResponses      *[]cns.GetNetworkContainerResponse
+		ncResponses      []cns.GetNetworkContainerResponse
 		azIpamResult     *cniTypesCurr.Result
 		enableInfraVnet  bool
 		enableSnatForDNS bool
@@ -473,9 +473,8 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 			}
 
 			var ncResponsesCopy [2]cns.GetNetworkContainerResponse
-			responses := *ncResponses
-			for i := 0; i < len(responses); i++ {
-				ncResponsesCopy[i] = responses[i]
+			for i := 0; i < len(ncResponses); i++ {
+				ncResponsesCopy[i] = ncResponses[i]
 				ipamAddResult.ncResponse = &ncResponsesCopy[i]
 				ipamAddResult.ipv4Result = convertToCniResult(ipamAddResult.ncResponse, args.IfName)
 				ipamAddResults = append(ipamAddResults, ipamAddResult)

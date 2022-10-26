@@ -37,7 +37,7 @@ type getNetworkContainerConfigurationHandler struct {
 
 type getNetworkContainersConfigurationHandler struct {
 	orchestratorContext []byte
-	returnResponse      *[]cns.GetNetworkContainerResponse
+	returnResponse      []cns.GetNetworkContainerResponse
 	err                 error
 }
 
@@ -64,7 +64,7 @@ func (c *MockCNSClient) GetNetworkContainerWithOrchestratorContext(ctx context.C
 	return c.getNetworkContainerConfiguration.returnResponse, c.getNetworkContainerConfiguration.err
 }
 
-func (c *MockCNSClient) GetNetworkContainersWithOrchestratorContext(ctx context.Context, orchestratorContext []byte) (*[]cns.GetNetworkContainerResponse, error) {
+func (c *MockCNSClient) GetNetworkContainersWithOrchestratorContext(ctx context.Context, orchestratorContext []byte) ([]cns.GetNetworkContainerResponse, error) {
 	c.require.Exactly(c.getNetworkContainersConfiguration.orchestratorContext, orchestratorContext)
 	return c.getNetworkContainersConfiguration.returnResponse, c.getNetworkContainerConfiguration.err
 }
@@ -262,32 +262,32 @@ func TestGetMultiTenancyCNINCResponses(t *testing.T) {
 		},
 	}
 	nc2 := &cns.GetNetworkContainerResponse{
-		PrimaryInterfaceIdentifier: "10.0.0.0/16",
+		PrimaryInterfaceIdentifier: "20.0.0.0/16",
 		LocalIPConfiguration: cns.IPConfiguration{
 			IPSubnet: cns.IPSubnet{
-				IPAddress:    "10.0.0.5",
+				IPAddress:    "20.0.0.5",
 				PrefixLength: 16,
 			},
 			GatewayIPAddress: "",
 		},
 		CnetAddressSpace: []cns.IPSubnet{
 			{
-				IPAddress:    "10.1.0.0",
+				IPAddress:    "20.1.0.0",
 				PrefixLength: 16,
 			},
 		},
 		IPConfiguration: cns.IPConfiguration{
 			IPSubnet: cns.IPSubnet{
-				IPAddress:    "10.1.0.6",
+				IPAddress:    "20.1.0.6",
 				PrefixLength: 16,
 			},
 			DNSServers:       nil,
-			GatewayIPAddress: "10.1.0.1",
+			GatewayIPAddress: "20.1.0.1",
 		},
 		Routes: []cns.Route{
 			{
-				IPAddress:        "10.1.0.0/16",
-				GatewayIPAddress: "10.1.0.1",
+				IPAddress:        "20.1.0.0/16",
+				GatewayIPAddress: "20.1.0.1",
 			},
 		},
 	}
@@ -307,7 +307,7 @@ func TestGetMultiTenancyCNINCResponses(t *testing.T) {
 	tests := []struct {
 		name    string
 		args    args
-		want    *[]cns.GetNetworkContainerResponse
+		want    []cns.GetNetworkContainerResponse
 		wantErr bool
 	}{
 		{
@@ -332,7 +332,7 @@ func TestGetMultiTenancyCNINCResponses(t *testing.T) {
 									PodName:      "testpod",
 									PodNamespace: "testnamespace",
 								}),
-								returnResponse: &ncs,
+								returnResponse: ncs,
 							},
 						},
 					},
@@ -341,7 +341,7 @@ func TestGetMultiTenancyCNINCResponses(t *testing.T) {
 				k8sNamespace: "testnamespace",
 				ifName:       "eth0",
 			},
-			want: &ncs,
+			want: ncs,
 		},
 	}
 	for _, tt := range tests {

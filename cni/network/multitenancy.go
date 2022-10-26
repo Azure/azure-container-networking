@@ -46,7 +46,7 @@ type MultitenancyClient interface {
 		ctx context.Context,
 		nwCfg *cni.NetworkConfig,
 		podName string,
-		podNamespace string) (*[]cns.GetNetworkContainerResponse, []net.IPNet, error)
+		podNamespace string) ([]cns.GetNetworkContainerResponse, []net.IPNet, error)
 	Init(cnsclient cnsclient, netioshim netioshim)
 }
 
@@ -208,10 +208,10 @@ func (m *Multitenancy) GetNetworkContainerWithOrchestratorContext(
 	return ncResponse, hostSubnetPrefix, err
 }
 
-// get all network container configurations by given orchestratorContext
+// get all network container configurations for given orchestratorContext
 func (m *Multitenancy) GetNetworkContainersWithOrchestratorContext(
 	ctx context.Context, nwCfg *cni.NetworkConfig, podName, podNamespace string,
-) (*[]cns.GetNetworkContainerResponse, []net.IPNet, error) {
+) ([]cns.GetNetworkContainerResponse, []net.IPNet, error) {
 	var podNameWithoutSuffix string
 
 	if !nwCfg.EnableExactMatchForPodName {
@@ -222,26 +222,25 @@ func (m *Multitenancy) GetNetworkContainersWithOrchestratorContext(
 
 	log.Printf("Podname without suffix %v", podNameWithoutSuffix)
 
-	ncResponses, hostSubnetPrefix, err := m.getNetworkContainersWithOrchestratorContextInternal(ctx, podNamespace, podNameWithoutSuffix)
+	ncResponses, hostSubnetPrefixes, err := m.getNetworkContainersWithOrchestratorContextInternal(ctx, podNamespace, podNameWithoutSuffix)
 
-	responses := *ncResponses
 	if ncResponses != nil {
-		for i := 0; i < len(responses); i++ {
+		for i := 0; i < len(ncResponses); i++ {
 			if nwCfg.EnableSnatOnHost {
-				if responses[i].LocalIPConfiguration.IPSubnet.IPAddress == "" {
+				if ncResponses[i].LocalIPConfiguration.IPSubnet.IPAddress == "" {
 					log.Printf("Snat IP is not populated. Got empty string")
 					return nil, []net.IPNet{}, errSnatIP
 				}
 			}
 		}
 	}
-	return ncResponses, hostSubnetPrefix, err
+	return ncResponses, hostSubnetPrefixes, err
 }
 
-// get all network container configuration by given orchestratorContext
+// get all network container configuration for given orchestratorContext
 func (m *Multitenancy) getNetworkContainersWithOrchestratorContextInternal(
 	ctx context.Context, namespace, podName string,
-) (*[]cns.GetNetworkContainerResponse, []net.IPNet, error) {
+) ([]cns.GetNetworkContainerResponse, []net.IPNet, error) {
 	podInfo := cns.KubernetesPodInfo{
 		PodName:      podName,
 		PodNamespace: namespace,
@@ -264,11 +263,10 @@ func (m *Multitenancy) getNetworkContainersWithOrchestratorContextInternal(
 
 	var subnetPrefixes []net.IPNet
 
-	config := *ncConfigs
-	for i := 0; i < len(config); i++ {
-		subnetPrefix := m.netioshim.GetInterfaceSubnetWithSpecificIP(config[i].PrimaryInterfaceIdentifier)
+	for i := 0; i < len(ncConfigs); i++ {
+		subnetPrefix := m.netioshim.GetInterfaceSubnetWithSpecificIP(ncConfigs[i].PrimaryInterfaceIdentifier)
 		if subnetPrefix == nil {
-			errBuf := fmt.Errorf("%w %s", errIfaceNotFound, config[i].PrimaryInterfaceIdentifier)
+			errBuf := fmt.Errorf("%w %s", errIfaceNotFound, ncConfigs[i].PrimaryInterfaceIdentifier)
 			log.Printf(errBuf.Error())
 			return nil, []net.IPNet{}, errBuf
 		}
