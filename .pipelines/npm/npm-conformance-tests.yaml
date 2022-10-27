@@ -494,7 +494,7 @@ jobs:
           kubectl get pods -n kube-system | grep npm
           kubectl logs -n kube-system -l k8s-app=azure-npm --tail -1 --prefix > $(System.DefaultWorkingDirectory)/$CLUSTER_NAME/npm-logs_$(PROFILE).txt
           # capture any previous logs in case there was a crash
-          npmPodList=`kubectl --kubeconfig=./kubeconfig get pods -n kube-system | grep npm | awk '{print $1}'`
+          npmPodList=`kubectl get pods -n kube-system | grep npm | awk '{print $1}'`
           for npmPod in $npmPodList; do
               previousLogFile=$(System.DefaultWorkingDirectory)/$CLUSTER_NAME/previous-npm-logs_$(PROFILE).txt
               kubectl logs -n kube-system $npmPod -p > $previousLogFile
