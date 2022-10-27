@@ -11,14 +11,19 @@ LOG_FILE=cyclonus-$CLUSTER_NAME
     --server-protocol=TCP,UDP \
     --exclude sctp,named-port,ip-block-with-except,multi-peer,upstream-e2e,example,end-port,namespaces-by-default-label,update-policy | tee $LOG_FILE
 
-cat $LOG_FILE | grep "SummaryTable:" -q
-if [[ $? -ne 0 ]]; then
-    echo "cyclonus tests did not complete"
+# might need to redirect to /dev/null 2>&1 instead of just grepping with -q to avoid "cat: write error: Broken pipe"
+rc=999
+cat $LOG_FILE | grep "SummaryTable:" > /dev/null 2>&1 && rc=$?
+echo $rc
+if [ $rc -ne 0 ]; then
+    echo "FAILING because cyclonus tests did not complete"
     exit 2
 fi
 
-cat $LOG_FILE | grep "failed" -q
-if [[ $? -eq 0 ]]; then
-    echo "failures detected"
-    exit 1
+rc=0
+cat $LOG_FILE | grep "failed" > /dev/null 2>&1 || rc=$?
+echo $rc
+if [ $rc -eq 0 ]; then
+    echo "FAILING because cyclonus completed but failures detected"
+    exit 3
 fi
