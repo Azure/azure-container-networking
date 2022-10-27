@@ -434,14 +434,6 @@ func translateRule(npmNetPol *policies.NPMNetworkPolicy, netPolName string, dire
 			continue
 		}
 
-		// peer has both namespaceSelector and podSelector set.
-		// We should match the selected pods in the selected namespaces.
-		// This allows traffic from podSelector intersects namespaceSelector
-		// This is only supported in kubernetes version >= 1.11
-		if !util.IsNewNwPolicyVerFlag {
-			continue
-		}
-
 		// #2.4 handle namespaceSelector and podSelector and port if exist
 		psResult, err := podSelector(npmNetPol.PolicyKey, matchType, peer.PodSelector)
 		if err != nil {

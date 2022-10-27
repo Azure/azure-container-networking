@@ -29,9 +29,10 @@ stages:
           GOBIN: "$(GOPATH)/bin" # Go binaries path
           modulePath: "$(GOPATH)/src/github.com/Azure/aks-engine"
           acnPath: "$(GOPATH)/src/github.com/Azure/azure-container-networking"
-          Tag: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
           CommitHash: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.CommitHash'] ]
           StorageID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.StorageID'] ]
+          cniVersion: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.cniVersion'] ]
+          npmVersion: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.npmVersion'] ]
         steps:
           - template: e2e-step-template.yaml
             parameters:
@@ -40,3 +41,5 @@ stages:
               clusterDefinitionCniTypeKey: ${{ parameters.clusterDefinitionCniTypeKey }}
               clusterDefinitionCniBuildOS: ${{ parameters.clusterDefinitionCniBuildOS }}
               clusterDefinitionCniBuildExt: ${{ parameters.clusterDefinitionCniBuildExt }}
+              cniVersion: $(cniVersion)
+              npmVersion: $(npmVersion)

@@ -80,7 +80,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 		if r.nodeIP != "" {
 			if r.nodeIP != nnc.Status.NetworkContainers[i].NodeIP {
 				// skip this NC since it was created for a different node
-				logger.Debugf("[cns-rc] skipping network container %s found in NNC because node IP doesn't match, got %s, expected %s",
+				logger.Printf("[cns-rc] skipping network container %s found in NNC because node IP doesn't match, got %s, expected %s",
 					nnc.Status.NetworkContainers[i].ID, nnc.Status.NetworkContainers[i].NodeIP, r.nodeIP)
 				continue
 			}

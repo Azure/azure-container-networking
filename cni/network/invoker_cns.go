@@ -20,8 +20,9 @@ import (
 )
 
 var (
-	errEmptyCNIArgs = errors.New("empty CNI cmd args not allowed")
-	errInvalidArgs  = errors.New("invalid arg(s)")
+	errEmptyCNIArgs  = errors.New("empty CNI cmd args not allowed")
+	errInvalidArgs   = errors.New("invalid arg(s)")
+	overlayGatewayIP = "169.254.1.1"
 )
 
 type CNSIPAMInvoker struct {
@@ -99,8 +100,12 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 	log.Printf("[cni-invoker-cns] Received info %+v for pod %v", info, podInfo)
 
 	ncgw := net.ParseIP(info.ncGatewayIPAddress)
-	if ncgw == nil && invoker.ipamMode != util.V4Overlay {
-		return IPAMAddResult{}, errors.Wrap(errInvalidArgs, "%w: Gateway address "+info.ncGatewayIPAddress+" from response is invalid")
+	if ncgw == nil {
+		if invoker.ipamMode != util.V4Overlay {
+			return IPAMAddResult{}, errors.Wrap(errInvalidArgs, "%w: Gateway address "+info.ncGatewayIPAddress+" from response is invalid")
+		}
+
+		ncgw = net.ParseIP(overlayGatewayIP)
 	}
 
 	// set result ipconfigArgument from CNS Response Body

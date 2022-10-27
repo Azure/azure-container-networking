@@ -168,7 +168,7 @@ func isBaseChain(chain string) bool {
 func (pMgr *PolicyManager) bootup(_ []string) error {
 	klog.Infof("booting up iptables Azure chains")
 
-	// Stop reconciling so we don't centend for iptables, and so we don't update the staleChains at the same time as reconcile()
+	// Stop reconciling so we don't contend for iptables, and so we don't update the staleChains at the same time as reconcile()
 	// Reconciling would only be happening if this function were called to reset iptables well into the azure-npm pod lifecycle.
 	pMgr.reconcileManager.forceLock()
 	defer pMgr.reconcileManager.forceUnlock()

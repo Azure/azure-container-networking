@@ -27,7 +27,7 @@ jobs:
           mkdir -p '$(GOPATH)/pkg'
           BUILD_NUMBER=$(Build.BuildNumber)
           RG=e2e-$(echo "npm-`date "+%Y-%m-%d-%S"`")
-          TAG=$(make version)-conformance-test
+          TAG=$(make npm-version)
           echo "Resource group: $RG"
           echo "Image tag: $TAG"
 
@@ -57,7 +57,6 @@ jobs:
           name: $(name)
           os: $(os)
           arch: $(arch)
-          tag: $(TAG)
 
   - job: containerize_windows
     dependsOn: [setup]
@@ -130,7 +129,7 @@ jobs:
       demands:
         - agent.os -equals Linux
         - Role -equals Build
-    dependsOn: [setup, k8se2e, containerize]
+    dependsOn: [setup, k8se2e, containerize, containerize_windows]
     variables:
       RESOURCE_GROUP: $[ dependencies.setup.outputs['EnvironmentalVariables.RESOURCE_GROUP'] ]
       TAG: $[ dependencies.setup.outputs['EnvironmentalVariables.TAG'] ]
@@ -170,10 +169,6 @@ jobs:
               az extension add --name aks-preview
               az extension update --name aks-preview
 
-              # Enable Microsoft.ContainerService/AKSWindows2022Preview
-              az feature register --namespace Microsoft.ContainerService --name AKSWindows2022Preview
-              az provider register -n Microsoft.ContainerService
-
               echo "creating WS22 Cluster";
               az aks create \
                   --resource-group $(RESOURCE_GROUP) \
@@ -183,9 +178,14 @@ jobs:
                   --windows-admin-password alpha@numeric!password2 \
                   --network-plugin azure \
                   --vm-set-type VirtualMachineScaleSets \
-                  --kubernetes-version v1.23.5 \
                   --node-vm-size Standard_D4s_v3 \
                   --node-count 1
+
+              if [ $? != 0 ]
+              then
+              echo "Failing fast since previous command failed"
+              exit 1
+              fi
 
               # don't schedule anything on the linux system pool
               echo "Updating $(AZURE_CLUSTER) to not schedule anything on linux pool..."
@@ -194,6 +194,12 @@ jobs:
                 -g $(RESOURCE_GROUP) \
                 -n nodepool1 \
                 --node-taints CriticalAddonsOnly=true:NoSchedule
+
+              if [ $? != 0 ]
+              then
+              echo "Failing fast since previous command failed"
+              exit 1
+              fi
 
               echo "Adding Windows nodepool to $(AZURE_CLUSTER) to group $(RESOURCE_GROUP)"
               az aks nodepool add \
@@ -205,6 +211,12 @@ jobs:
                   --node-vm-size Standard_D4s_v3 \
                   --node-count 2
 
+              if [ $? != 0 ]
+              then
+              echo "Failing fast since previous command failed"
+              exit 1
+              fi
+
               az aks get-credentials -n $(AZURE_CLUSTER) -g $(RESOURCE_GROUP) --file ./kubeconfig
               ./kubectl --kubeconfig=./kubeconfig apply -f https://raw.githubusercontent.com/Azure/azure-container-networking/master/npm/examples/windows/azure-npm.yaml
               ./kubectl --kubeconfig=./kubeconfig set image daemonset/azure-npm-win -n kube-system azure-npm=$IMAGE_REGISTRY/azure-npm:windows-amd64-$(TAG)
@@ -215,6 +227,12 @@ jobs:
               --resource-group $(RESOURCE_GROUP) \
               --name $(AZURE_CLUSTER) \
               --network-plugin azure
+
+              if [ $? != 0 ]
+              then
+              echo "Failing fast since previous command failed"
+              exit 1
+              fi
 
               az aks get-credentials -n $(AZURE_CLUSTER) -g $(RESOURCE_GROUP) --file ./kubeconfig
 
@@ -230,6 +248,12 @@ jobs:
             fi
 
             ./kubectl --kubeconfig=./kubeconfig describe daemonset azure-npm -n kube-system
+
+            if [ $? != 0 ]
+            then
+            echo "Failing fast since previous command failed"
+            exit 1
+            fi
 
             FQDN=`az aks show -n $(AZURE_CLUSTER) -g $(RESOURCE_GROUP) --query fqdn -o tsv`
             echo "##vso[task.setvariable variable=FQDN]$FQDN"
@@ -367,10 +391,6 @@ jobs:
             az extension add --name aks-preview
             az extension update --name aks-preview
 
-            # Enable Microsoft.ContainerService/AKSWindows2022Preview
-            az feature register --namespace Microsoft.ContainerService --name AKSWindows2022Preview
-            az provider register -n Microsoft.ContainerService
-
             export CLUSTER_NAME=$(RESOURCE_GROUP)-$(PROFILE)
 
             echo "Creating resource group named $CLUSTER_NAME"
@@ -386,7 +406,6 @@ jobs:
                 --network-plugin azure \
                 --vm-set-type VirtualMachineScaleSets \
                 --node-vm-size Standard_D4s_v3 \
-                --kubernetes-version v1.23.5 \
                 --node-count 1
 
             # don't schedule anything on the linux system pool
@@ -440,9 +459,15 @@ jobs:
             FQDN=`az aks show -n $CLUSTER_NAME -g $CLUSTER_NAME --query fqdn -o tsv`
             echo "##vso[task.setvariable variable=FQDN]$FQDN"
 
-      - bash: |
+      - script: |
           cat ~/.kube/config
           curl -fsSL github.com/mattfenwick/cyclonus/releases/latest/download/cyclonus_linux_amd64.tar.gz | tar -zxv
+        name: download_cyclonus
+        displayName: "Download Cyclonus"
+        failOnStderr: false
+        condition: always()
+
+      - script: |
           ./test/cyclonus/test-cyclonus-windows.sh
         name: cyclonus
         displayName: "Run Cyclonus Test"

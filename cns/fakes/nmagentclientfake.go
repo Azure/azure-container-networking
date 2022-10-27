@@ -9,15 +9,39 @@ package fakes
 import (
 	"context"
 
-	"github.com/Azure/azure-container-networking/cns/nmagent"
+	"github.com/Azure/azure-container-networking/nmagent"
 )
 
 // NMAgentClientFake can be used to query to VM Host info.
 type NMAgentClientFake struct {
-	GetNCVersionListFunc func(context.Context) (*nmagent.NetworkContainerListResponse, error)
+	PutNetworkContainerF    func(context.Context, *nmagent.PutNetworkContainerRequest) error
+	DeleteNetworkContainerF func(context.Context, nmagent.DeleteContainerRequest) error
+	JoinNetworkF            func(context.Context, nmagent.JoinNetworkRequest) error
+	SupportedAPIsF          func(context.Context) ([]string, error)
+	GetNCVersionF           func(context.Context, nmagent.NCVersionRequest) (nmagent.NCVersion, error)
+	GetNCVersionListF       func(context.Context) (nmagent.NCVersionList, error)
 }
 
-// GetNcVersionListWithOutToken is mock implementation to return nc version list.
-func (c *NMAgentClientFake) GetNCVersionList(ctx context.Context) (*nmagent.NetworkContainerListResponse, error) {
-	return c.GetNCVersionListFunc(ctx)
+func (c *NMAgentClientFake) PutNetworkContainer(ctx context.Context, req *nmagent.PutNetworkContainerRequest) error {
+	return c.PutNetworkContainerF(ctx, req)
+}
+
+func (c *NMAgentClientFake) DeleteNetworkContainer(ctx context.Context, req nmagent.DeleteContainerRequest) error {
+	return c.DeleteNetworkContainerF(ctx, req)
+}
+
+func (c *NMAgentClientFake) JoinNetwork(ctx context.Context, req nmagent.JoinNetworkRequest) error {
+	return c.JoinNetworkF(ctx, req)
+}
+
+func (c *NMAgentClientFake) SupportedAPIs(ctx context.Context) ([]string, error) {
+	return c.SupportedAPIsF(ctx)
+}
+
+func (c *NMAgentClientFake) GetNCVersion(ctx context.Context, req nmagent.NCVersionRequest) (nmagent.NCVersion, error) {
+	return c.GetNCVersionF(ctx, req)
+}
+
+func (c *NMAgentClientFake) GetNCVersionList(ctx context.Context) (nmagent.NCVersionList, error) {
+	return c.GetNCVersionListF(ctx)
 }

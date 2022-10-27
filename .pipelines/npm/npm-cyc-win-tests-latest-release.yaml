@@ -1,0 +1,215 @@
+variables:
+  - name: VNET_NAME
+    value: npm-vnet
+  - name: NUM_PARALLEL_JOBS_FOR_STRESS_TEST
+    value: "3"
+
+jobs:
+  - job: setup
+    displayName: "Configure Test Environment"
+    pool:
+      name: $(BUILD_POOL_NAME_DEFAULT)
+      demands:
+        - agent.os -equals Linux
+        - Role -equals Build
+    steps:
+      - checkout: self
+
+      - script: |
+          go version
+          go env
+          which go
+          echo $PATH
+          mkdir -p '$(GOBIN)'
+          mkdir -p '$(GOPATH)/pkg'
+          BUILD_NUMBER=$(Build.BuildNumber)
+          RG=e2e-$(echo "npm-`date "+%Y-%m-%d-%S"`")
+
+          git --version
+          TAG=$(git -c "versionsort.suffix=-" ls-remote --tags https://github.com/Azure/azure-container-networking  | grep -v "zapai" | grep -v "ipam" | grep -v "{}"| cut --delimiter="/" --fields=3 | sort -V | tail -1)
+          echo "Resource group: $RG"
+          echo "Image tag: $TAG"
+
+          echo "##vso[task.setvariable variable=RESOURCE_GROUP;isOutput=true;]$RG"
+          echo "##vso[task.setvariable variable=TAG;isOutput=true;]$TAG"
+
+        name: "EnvironmentalVariables"
+        displayName: "Set environmental variables"
+        condition: always()
+
+  - job: Create_Windows_Cluster_and_Run_Test
+    timeoutInMinutes: 360
+    displayName: "Run Windows Cyclonus"
+    pool:
+      name: $(BUILD_POOL_NAME_DEFAULT)
+      demands:
+        - agent.os -equals Linux
+        - Role -equals Build
+    dependsOn: [setup]
+    variables:
+      RESOURCE_GROUP: $[ dependencies.setup.outputs['EnvironmentalVariables.RESOURCE_GROUP'] ]
+      TAG: $[ dependencies.setup.outputs['EnvironmentalVariables.TAG'] ]
+      FQDN: empty
+    strategy:
+      matrix:
+        v2-windows:
+          PROFILE: "cyc-ws22"
+    steps:
+      - checkout: self
+      - download: none
+
+      - task: AzureCLI@2
+        displayName: "Create AKS Cluster"
+        inputs:
+          azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+          scriptType: "bash"
+          scriptLocation: "inlineScript"
+          failOnStderr: true
+          inlineScript: |
+            az extension add --name aks-preview
+            az extension update --name aks-preview
+
+            export CLUSTER_NAME=$(RESOURCE_GROUP)
+
+            echo "Creating resource group named $CLUSTER_NAME"
+            az group create --name $CLUSTER_NAME -l $(LOCATION) -o table
+
+            if [ $? != 0 ]
+            then
+            echo "Failing fast since previous command failed"
+            exit 1
+            fi
+
+            echo "Creating resource group named $CLUSTER_NAME"
+            az aks create \
+                --resource-group $CLUSTER_NAME \
+                --name $CLUSTER_NAME \
+                --generate-ssh-keys \
+                --windows-admin-username e2eadmin \
+                --windows-admin-password alpha@numeric!password2 \
+                --network-plugin azure \
+                --vm-set-type VirtualMachineScaleSets \
+                --node-vm-size Standard_D4s_v3 \
+                --node-count 1
+
+            if [ $? != 0 ]
+            then
+            echo "Failing fast since previous command failed"
+            exit 1
+            fi
+
+            # don't schedule anything on the linux system pool
+            echo "Updating $CLUSTER_NAME to not schedule anything on linux pool..."
+            az aks nodepool update \
+              --cluster-name $CLUSTER_NAME \
+              -g $CLUSTER_NAME \
+              -n nodepool1 \
+              --node-taints CriticalAddonsOnly=true:NoSchedule
+
+            if [ $? != 0 ]
+            then
+            echo "Failing fast since previous command failed"
+            exit 1
+            fi
+
+            echo "Adding Windows nodepool to $CLUSTER_NAME"
+            az aks nodepool add \
+                --resource-group $CLUSTER_NAME \
+                --cluster-name $CLUSTER_NAME \
+                --name awin22 \
+                --os-type Windows \
+                --os-sku Windows2022 \
+                --node-vm-size Standard_D4s_v3 \
+                --node-count 3
+
+            if [ $? != 0 ]
+            then
+            echo "Failing fast since previous command failed"
+            exit 1
+            fi
+
+            echo "Getting credentials to $CLUSTER_NAME"
+            az aks get-credentials -g $CLUSTER_NAME -n $CLUSTER_NAME --overwrite-existing --file ./kubeconfig
+            mkdir -p ~/.kube/
+            cp ./kubeconfig ~/.kube/config
+
+      - task: AzureCLI@2
+        displayName: "Deploy NPM to Test Cluster"
+        inputs:
+          azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+          scriptType: "bash"
+          scriptLocation: "inlineScript"
+          failOnStderr: true
+          inlineScript: |
+            export CLUSTER_NAME=$(RESOURCE_GROUP)-$(PROFILE)
+
+            curl -LO https://dl.k8s.io/release/v1.23.0/bin/linux/amd64/kubectl
+            chmod +x kubectl
+
+            # deploy hns-debugger to capture traces
+            ./kubectl --kubeconfig=./kubeconfig apply -f https://strgaccfornpmwin.blob.core.windows.net/hns-vfp-repro/hns-debugger.yaml
+
+            # deploy azure-npm
+            ./kubectl --kubeconfig=./kubeconfig apply -f https://raw.githubusercontent.com/Azure/azure-container-networking/master/npm/examples/windows/azure-npm.yaml
+
+            # swap azure-npm image with one built during run
+            ./kubectl --kubeconfig=./kubeconfig set image daemonset/azure-npm-win -n kube-system azure-npm=$IMAGE_REGISTRY/azure-npm:windows-amd64-$(TAG)
+
+            echo "sleeping 3 minutes to allow NPM pods to restart"
+            sleep 180
+
+            ./kubectl --kubeconfig=./kubeconfig get po -n kube-system -owide -A
+
+            echo "Showing cluster status for $CLUSTER_NAME"
+            FQDN=`az aks show -n $CLUSTER_NAME -g $CLUSTER_NAME --query fqdn -o tsv`
+            echo "##vso[task.setvariable variable=FQDN]$FQDN"
+
+      - script: |
+          cat ~/.kube/config
+          curl -fsSL github.com/mattfenwick/cyclonus/releases/latest/download/cyclonus_linux_amd64.tar.gz | tar -zxv
+        name: download_cyclonus
+        displayName: "Download Cyclonus"
+        failOnStderr: false
+        condition: always()
+
+      - script: |
+          ./test/cyclonus/test-cyclonus-windows.sh
+        name: cyclonus
+        displayName: "Run Cyclonus Test"
+        failOnStderr: false
+        condition: always()
+
+      - bash: |
+          export CLUSTER_NAME=$(RESOURCE_GROUP)-$(PROFILE)
+          cp cyclonus-$CLUSTER_NAME $(System.DefaultWorkingDirectory)/$CLUSTER_NAME/cyclonus-$CLUSTER_NAME
+          echo "Getting cluster state for $CLUSTER_NAME"
+          mkdir -p $(System.DefaultWorkingDirectory)/$CLUSTER_NAME
+          kubectl logs -n kube-system -l k8s-app=azure-npm --tail -1 --prefix > $(System.DefaultWorkingDirectory)/$CLUSTER_NAME/npm-logs_$(PROFILE).txt
+          cp ./kubeconfig $(System.DefaultWorkingDirectory)/$CLUSTER_NAME/.kubeconfig
+        condition: always()
+
+      - publish: $(System.DefaultWorkingDirectory)/$(RESOURCE_GROUP)-$(PROFILE)
+        condition: always()
+        artifact: NpmLogs-$(RESOURCE_GROUP)-$(PROFILE)
+
+  - job: clean_up
+    displayName: "Cleanup"
+    pool:
+      name: $(BUILD_POOL_NAME_DEFAULT)
+      demands:
+        - agent.os -equals Linux
+        - Role -equals Build
+    dependsOn: [Create_Windows_Cluster_and_Run_Test, setup]
+    variables:
+      RESOURCE_GROUP: $[ dependencies.setup.outputs['EnvironmentalVariables.RESOURCE_GROUP'] ]
+    steps:
+      - checkout: none
+      - task: AzureCLI@2
+        displayName: "Delete Test Cluster Resource Group"
+        inputs:
+          azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+          scriptType: "bash"
+          scriptLocation: "inlineScript"
+          inlineScript: |
+            echo Deleting $(RESOURCE_GROUP)
+            az group delete -n $(RESOURCE_GROUP) --yes

@@ -1,40 +1,35 @@
 //go:build integration
-// +build integration
 
 package k8s
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"os"
 	"runtime/debug"
 	"strconv"
 	"testing"
 
-	v1 "k8s.io/api/apps/v1"
 	"k8s.io/client-go/kubernetes"
 )
 
 const (
 	exitFail = 1
 
-	envTag              = "VERSION"
-	envInstallCNI       = "INSTALL_CNI"
+	envTestDropgz       = "TEST_DROPGZ"
+	envCNIDropgzVersion = "CNI_DROPGZ_VERSION"
+	envCNSVersion       = "CNS_VERSION"
 	envInstallCNS       = "INSTALL_CNS"
 	envInstallAzilium   = "INSTALL_AZILIUM"
 	envInstallAzureVnet = "INSTALL_AZURE_VNET"
-
-	// relative azure-cni-manager path
-	cniDaemonSetPath = "manifests/cni/manager.yaml"
-	cniLabelSelector = "acn=azure-cni-manager"
 
 	// relative cns manifest paths
 	cnsManifestFolder         = "manifests/cns"
 	cnsDaemonSetPath          = cnsManifestFolder + "/daemonset.yaml"
 	cnsClusterRolePath        = cnsManifestFolder + "/clusterrole.yaml"
 	cnsClusterRoleBindingPath = cnsManifestFolder + "/clusterrolebinding.yaml"
-	cnsConfigMapPath          = cnsManifestFolder + "/configmap.yaml"
+	cnsSwiftConfigMapPath     = cnsManifestFolder + "/swiftconfigmap.yaml"
+	cnsCiliumConfigMapPath    = cnsManifestFolder + "/ciliumconfigmap.yaml"
 	cnsRolePath               = cnsManifestFolder + "/role.yaml"
 	cnsRoleBindingPath        = cnsManifestFolder + "/rolebinding.yaml"
 	cnsServiceAccountPath     = cnsManifestFolder + "/serviceaccount.yaml"
@@ -48,7 +43,6 @@ func TestMain(m *testing.M) {
 	var (
 		err        error
 		exitCode   int
-		clientset  *kubernetes.Clientset
 		cnicleanup func() error
 		cnscleanup func() error
 	)
@@ -74,28 +68,16 @@ func TestMain(m *testing.M) {
 		os.Exit(exitCode)
 	}()
 
-	if clientset, err = mustGetClientset(); err != nil {
+	clientset, err := mustGetClientset()
+	if err != nil {
 		return
 	}
 
 	ctx := context.Background()
-	if installopt := os.Getenv(envInstallCNI); installopt != "" {
-		// create dirty cni-manager ds
-		if installCNI, err := strconv.ParseBool(installopt); err == nil && installCNI == true {
-			if cnicleanup, err = installCNIManagerDaemonset(ctx, clientset, os.Getenv(envTag), logDir); err != nil {
-				log.Print(err)
-				exitCode = 2
-				return
-			}
-		}
-	} else {
-		log.Printf("Env %v not set to true, skipping", envInstallCNI)
-	}
-
 	if installopt := os.Getenv(envInstallCNS); installopt != "" {
 		// create dirty cns ds
 		if installCNS, err := strconv.ParseBool(installopt); err == nil && installCNS == true {
-			if cnscleanup, err = installCNSDaemonset(ctx, clientset, os.Getenv(envTag), logDir); err != nil {
+			if cnscleanup, err = installCNSDaemonset(ctx, clientset, logDir); err != nil {
 				log.Print(err)
 				exitCode = 2
 				return
@@ -108,32 +90,41 @@ func TestMain(m *testing.M) {
 	exitCode = m.Run()
 }
 
-func installCNSDaemonset(ctx context.Context, clientset *kubernetes.Clientset, imageTag, logDir string) (func() error, error) {
-	var (
-		err error
-		cns v1.DaemonSet
-	)
-
-	if imageTag == "" {
-		return nil, fmt.Errorf("Azure CNS image tag not set")
-	}
+func installCNSDaemonset(ctx context.Context, clientset *kubernetes.Clientset, logDir string) (func() error, error) {
+	cniDropgzVersion := os.Getenv(envCNIDropgzVersion)
+	cnsVersion := os.Getenv(envCNSVersion)
 
 	// setup daemonset
-	if cns, err = mustParseDaemonSet(cnsDaemonSetPath); err != nil {
+	cns, err := mustParseDaemonSet(cnsDaemonSetPath)
+	if err != nil {
 		return nil, err
 	}
 
 	image, _ := parseImageString(cns.Spec.Template.Spec.Containers[0].Image)
-	cns.Spec.Template.Spec.Containers[0].Image = getImageString(image, imageTag)
+	cns.Spec.Template.Spec.Containers[0].Image = getImageString(image, cnsVersion)
 
 	// check environment scenario
 	log.Printf("Checking environment scenario")
+	if installBoolDropgz := os.Getenv(envTestDropgz); installBoolDropgz != "" {
+		if testDropgzScenario, err := strconv.ParseBool(installBoolDropgz); err == nil && testDropgzScenario == true {
+			log.Printf("Env %v set to true, deploy cniTest.Dockerfile", envTestDropgz)
+			initImage, _ := parseImageString("acnpublic.azurecr.io/cni-dropgz-test:latest")
+			cns.Spec.Template.Spec.InitContainers[0].Image = getImageString(initImage, cniDropgzVersion)
+		}
+	} else {
+		log.Printf("Env %v not set to true, deploying cni.Dockerfile", envTestDropgz)
+		initImage, _ := parseImageString(cns.Spec.Template.Spec.InitContainers[0].Image)
+		cns.Spec.Template.Spec.InitContainers[0].Image = getImageString(initImage, cniDropgzVersion)
+	}
+
 	if installBool1 := os.Getenv(envInstallAzureVnet); installBool1 != "" {
 		if azureVnetScenario, err := strconv.ParseBool(installBool1); err == nil && azureVnetScenario == true {
 			log.Printf("Env %v set to true, deploy azure-vnet", envInstallAzureVnet)
-			initImage, _ := parseImageString(cns.Spec.Template.Spec.InitContainers[0].Image)
-			cns.Spec.Template.Spec.InitContainers[0].Image = getImageString(initImage, imageTag)
 			cns.Spec.Template.Spec.InitContainers[0].Args = []string{"deploy", "azure-vnet", "-o", "/opt/cni/bin/azure-vnet", "azure-swift.conflist", "-o", "/etc/cni/net.d/10-azure.conflist"}
+		}
+		// setup the CNS swiftconfigmap
+		if err := mustSetupConfigMap(ctx, clientset, cnsSwiftConfigMapPath); err != nil {
+			return nil, err
 		}
 	} else {
 		log.Printf("Env %v not set to true, skipping", envInstallAzureVnet)
@@ -142,9 +133,11 @@ func installCNSDaemonset(ctx context.Context, clientset *kubernetes.Clientset, i
 	if installBool2 := os.Getenv(envInstallAzilium); installBool2 != "" {
 		if aziliumScenario, err := strconv.ParseBool(installBool2); err == nil && aziliumScenario == true {
 			log.Printf("Env %v set to true, deploy azure-ipam and cilium-cni", envInstallAzilium)
-			initImage, _ := parseImageString(cns.Spec.Template.Spec.InitContainers[0].Image)
-			cns.Spec.Template.Spec.InitContainers[0].Image = getImageString(initImage, imageTag)
-			cns.Spec.Template.Spec.InitContainers[0].Args = []string{"deploy", "azure-ipam", "-o", "/opt/cni/bin/azure-ipam", "azilium.conflist", "-o", "/etc/cni/net.d/05-cilium.conflist", "cilium-cni", "-o", "/opt/cni/bin/cilium-cni"}
+			cns.Spec.Template.Spec.InitContainers[0].Args = []string{"deploy", "azure-ipam", "-o", "/opt/cni/bin/azure-ipam", "azilium.conflist", "-o", "/etc/cni/net.d/05-cilium.conflist"}
+		}
+		// setup the CNS ciliumconfigmap
+		if err := mustSetupConfigMap(ctx, clientset, cnsCiliumConfigMapPath); err != nil {
+			return nil, err
 		}
 	} else {
 		log.Printf("Env %v not set to true, skipping", envInstallAzilium)
@@ -153,10 +146,6 @@ func installCNSDaemonset(ctx context.Context, clientset *kubernetes.Clientset, i
 	cnsDaemonsetClient := clientset.AppsV1().DaemonSets(cns.Namespace)
 
 	log.Printf("Installing CNS with image %s", cns.Spec.Template.Spec.Containers[0].Image)
-	// setup the CNS configmap
-	if err := mustSetupConfigMap(ctx, clientset, cnsConfigMapPath); err != nil {
-		return nil, err
-	}
 
 	// setup common RBAC, ClusteerRole, ClusterRoleBinding, ServiceAccount
 	if _, err := mustSetUpClusterRBAC(ctx, clientset, cnsClusterRolePath, cnsClusterRoleBindingPath, cnsServiceAccountPath); err != nil {
@@ -178,48 +167,6 @@ func installCNSDaemonset(ctx context.Context, clientset *kubernetes.Clientset, i
 
 	cleanupds := func() error {
 		if err := exportLogsByLabelSelector(ctx, clientset, cns.Namespace, cnsLabelSelector, logDir); err != nil {
-			return err
-		}
-		return nil
-	}
-
-	return cleanupds, nil
-}
-
-func installCNIManagerDaemonset(ctx context.Context, clientset *kubernetes.Clientset, imageTag, logDir string) (func() error, error) {
-	var (
-		err error
-		cni v1.DaemonSet
-	)
-
-	if imageTag == "" {
-		return nil, fmt.Errorf("No image tag specified, set using the VERSION environmental variable")
-	}
-
-	if cni, err = mustParseDaemonSet(cniDaemonSetPath); err != nil {
-		return nil, err
-	}
-
-	// set the custom image tag and install
-	image, _ := parseImageString(cni.Spec.Template.Spec.Containers[0].Image)
-	cni.Spec.Template.Spec.Containers[0].Image = getImageString(image, imageTag)
-	cniDaemonsetClient := clientset.AppsV1().DaemonSets(cni.Namespace)
-
-	log.Printf("Installing CNI with image %s", cni.Spec.Template.Spec.Containers[0].Image)
-
-	if err = mustCreateDaemonset(ctx, cniDaemonsetClient, cni); err != nil {
-		return nil, err
-	}
-
-	if err = waitForPodsRunning(ctx, clientset, cni.Namespace, cniLabelSelector); err != nil {
-		return nil, err
-	}
-
-	cleanupds := func() error {
-		if err := exportLogsByLabelSelector(ctx, clientset, cni.Namespace, cniLabelSelector, logDir); err != nil {
-			return err
-		}
-		if err := mustDeleteDaemonset(ctx, cniDaemonsetClient, cni); err != nil {
 			return err
 		}
 		return nil

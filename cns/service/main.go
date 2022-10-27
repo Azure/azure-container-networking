@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"net/http/pprof"
 	"os"
@@ -34,7 +35,6 @@ import (
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/multitenantcontroller"
 	"github.com/Azure/azure-container-networking/cns/multitenantcontroller/multitenantoperator"
-	"github.com/Azure/azure-container-networking/cns/nmagent"
 	"github.com/Azure/azure-container-networking/cns/restserver"
 	cnstypes "github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/cns/wireserver"
@@ -45,6 +45,7 @@ import (
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 	"github.com/Azure/azure-container-networking/log"
+	"github.com/Azure/azure-container-networking/nmagent"
 	"github.com/Azure/azure-container-networking/platform"
 	"github.com/Azure/azure-container-networking/processlock"
 	localtls "github.com/Azure/azure-container-networking/server/tls"
@@ -55,6 +56,7 @@ import (
 	"go.uber.org/zap"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
+	kuberuntime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -311,8 +313,14 @@ func printVersion() {
 	fmt.Printf("Version %v\n", version)
 }
 
+// NodeInterrogator is functionality necessary to read information about nodes.
+// It is intended to be strictly read-only.
+type NodeInterrogator interface {
+	SupportedAPIs(context.Context) ([]string, error)
+}
+
 // RegisterNode - Tries to register node with DNC when CNS is started in managed DNC mode
-func registerNode(httpc *http.Client, httpRestService cns.HTTPService, dncEP, infraVnet, nodeID string) error {
+func registerNode(httpc *http.Client, httpRestService cns.HTTPService, dncEP, infraVnet, nodeID string, ni NodeInterrogator) error {
 	logger.Printf("[Azure CNS] Registering node %s with Infrastructure Network: %s PrivateEndpoint: %s", nodeID, infraVnet, dncEP)
 
 	var (
@@ -322,7 +330,7 @@ func registerNode(httpc *http.Client, httpRestService cns.HTTPService, dncEP, in
 	)
 
 	nodeRegisterRequest.NumCores = numCPU
-	supportedApis, retErr := nmagent.GetNmAgentSupportedApis(httpc, "")
+	supportedApis, retErr := ni.SupportedAPIs(context.TODO())
 
 	if retErr != nil {
 		logger.Errorf("[Azure CNS] Failed to retrieve SupportedApis from NMagent of node %s with Infrastructure Network: %s PrivateEndpoint: %s",
@@ -479,8 +487,35 @@ func main() {
 	z, _ := zap.NewProduction()
 	go healthserver.Start(z, cnsconfig.MetricsBindAddress)
 
+	nmaConfig := nmagent.Config{
+		Host: "168.63.129.16", // wireserver
+
+		// nolint:gomnd // there's no benefit to constantizing a well-known port
+		Port: 80,
+	}
+
+	// create an NMAgent Client based on provided configuration
 	if cnsconfig.WireserverIP != "" {
-		nmagent.WireserverIP = cnsconfig.WireserverIP
+		host, prt, err := net.SplitHostPort(cnsconfig.WireserverIP) //nolint:govet // it's fine to shadow err here
+		if err != nil {
+			logger.Errorf("[Azure CNS] Invalid IP for Wireserver: %q: %s", cnsconfig.WireserverIP, err.Error())
+			return
+		}
+
+		port, err := strconv.ParseUint(prt, 10, 16) //nolint:gomnd // obvious from ParseUint docs
+		if err != nil {
+			logger.Errorf("[Azure CNS] Invalid port value for Wireserver: %q: %s", cnsconfig.WireserverIP, err.Error())
+			return
+		}
+
+		nmaConfig.Host = host
+		nmaConfig.Port = uint16(port)
+	}
+
+	nmaClient, err := nmagent.NewClient(nmaConfig)
+	if err != nil {
+		logger.Errorf("[Azure CNS] Failed to start nmagent client due to error: %v", err)
+		return
 	}
 
 	if cnsconfig.ChannelMode == cns.Managed {
@@ -509,7 +544,11 @@ func main() {
 			DebugMode:                    ts.DebugMode,
 		}
 
-		logger.InitAI(aiConfig, ts.DisableTrace, ts.DisableMetric, ts.DisableEvent)
+		if aiKey := cnsconfig.TelemetrySettings.AppInsightsInstrumentationKey; aiKey != "" {
+			logger.InitAIWithIKey(aiConfig, aiKey, ts.DisableTrace, ts.DisableMetric, ts.DisableEvent)
+		} else {
+			logger.InitAI(aiConfig, ts.DisableTrace, ts.DisableMetric, ts.DisableEvent)
+		}
 	}
 
 	if telemetryDaemonEnabled {
@@ -539,12 +578,6 @@ func main() {
 		return
 	}
 
-	nmaclient, err := nmagent.NewClient("")
-	if err != nil {
-		logger.Errorf("Failed to start nmagent client due to error %v", err)
-		return
-	}
-
 	// Initialize endpoint state store if cns is managing endpoint state.
 	if cnsconfig.ManageEndpointState {
 		log.Printf("[Azure CNS] Configured to manage endpoints state")
@@ -571,7 +604,7 @@ func main() {
 
 	// Create CNS object.
 
-	httpRestService, err := restserver.NewHTTPRestService(&config, &wireserver.Client{HTTPClient: &http.Client{}}, nmaclient, endpointStateStore)
+	httpRestService, err := restserver.NewHTTPRestService(&config, &wireserver.Client{HTTPClient: &http.Client{}}, nmaClient, endpointStateStore)
 	if err != nil {
 		logger.Errorf("Failed to create CNS object, err:%v.\n", err)
 		return
@@ -708,7 +741,7 @@ func main() {
 		httpRestService.SetOption(acn.OptInfrastructureNetworkID, infravnet)
 		httpRestService.SetOption(acn.OptNodeID, nodeID)
 
-		registerErr := registerNode(acn.GetHttpClient(), httpRestService, privateEndpoint, infravnet, nodeID)
+		registerErr := registerNode(acn.GetHttpClient(), httpRestService, privateEndpoint, infravnet, nodeID, nmaClient)
 		if registerErr != nil {
 			logger.Errorf("[Azure CNS] Resgistering Node failed with error: %v PrivateEndpoint: %s InfrastructureNetworkID: %s NodeID: %s",
 				registerErr,
@@ -1102,8 +1135,15 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 		},
 	})
 
+	crdSchemes := kuberuntime.NewScheme()
+	if err = v1alpha.AddToScheme(crdSchemes); err != nil {
+		return errors.Wrap(err, "failed to add nodenetworkconfig/v1alpha to scheme")
+	}
+	if err = v1alpha1.AddToScheme(crdSchemes); err != nil {
+		return errors.Wrap(err, "failed to add clustersubnetstate/v1alpha1 to scheme")
+	}
 	manager, err := ctrl.NewManager(kubeConfig, ctrl.Options{
-		Scheme:             nodenetworkconfig.Scheme,
+		Scheme:             crdSchemes,
 		MetricsBindAddress: "0",
 		Namespace:          "kube-system", // TODO(rbtr): namespace should be in the cns config
 		NewCache:           nodeScopedCache,
