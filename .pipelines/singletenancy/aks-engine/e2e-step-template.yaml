@@ -4,6 +4,8 @@ parameters:
   clusterDefinitionCniTypeKey: ""
   clusterDefinitionCniBuildOS: ""
   clusterDefinitionCniBuildExt: ""
+  cniVersion: ""
+  npmVersion: ""
 
 steps:
   - checkout: none
@@ -29,22 +31,23 @@ steps:
       echo Using AKS-Engine version $aksEVersion
 
       #download source
-      wget https://github.com/jaer-tsun/aks-engine/archive/v1.0.5.tar.gz
+      wget https://github.com/csfmomo/aks-engine/archive/v1.0.6.tar.gz
 
       # extract source
       #tar -zxf $aksEVersion.tar.gz
-      tar -zxf v1.0.5.tar.gz
+      tar -zxf v1.0.6.tar.gz
 
       # move source to current directory
       mv aks-engine-*/* .
 
       # download binary
-      wget https://github.com/jaer-tsun/aks-engine/releases/download/v1.0.5/aks-engine-v1.0.5-linux-amd64.tar.gz
+      wget https://github.com/csfmomo/aks-engine/releases/download/v1.0.6/aks-engine-v1.0.6-linux-amd64.tar.gz
+
       rm -rf ./bin
       mkdir ./bin
 
       # extract binary
-      tar -zxvf aks-engine-v1.0.5-linux-amd64.tar.gz -C bin
+      tar -zxvf aks-engine-v1.0.6-linux-amd64.tar.gz -C bin
       mv ./bin/aks-engine-*/* ./bin/
       ls -l ./bin
       ./bin/aks-engine version
@@ -63,16 +66,16 @@ steps:
 
   - bash: |
       ls -lah
-      export CNI_URL=https://$(ARTIFACT_STORAGE).blob.core.windows.net/acn-$(StorageID)/azure-vnet-cni-${{ parameters.clusterDefinitionCniBuildOS }}-amd64-$(Tag)${{ parameters.clusterDefinitionCniBuildExt }}
+      cd $(modulePath)
+      export CNI_URL=https://$(ARTIFACT_STORAGE).blob.core.windows.net/acn-$(StorageID)/azure-vnet-cni-${{ parameters.clusterDefinitionCniBuildOS }}-amd64-${{ parameters.cniVersion }}${{ parameters.clusterDefinitionCniBuildExt }}
       export CNI_TYPE=${{ parameters.clusterDefinitionCniTypeKey }}
       echo CNI type is $CNI_TYPE
-      echo Tag is $(Tag)
       echo CNI_URL is $CNI_URL
       echo Config: '${{ parameters.clusterDefinition }}'
       cat '${{ parameters.clusterDefinition }}'
       cat '${{ parameters.clusterDefinition }}' | jq --arg cnikey $CNI_TYPE --arg cniurl $CNI_URL '.properties.orchestratorProfile.kubernetesConfig[$cnikey]= $cniurl' > '${{ parameters.clusterDefinition }}'.tmp	
-      cat '${{ parameters.clusterDefinition }}'.tmp | jq --arg tag $(Tag) '.properties.orchestratorProfile.kubernetesConfig.azureCNIVersion = $tag' > '${{ parameters.clusterDefinition }}'
-      cat '${{ parameters.clusterDefinition }}' | jq --arg npmimage $IMAGE_REGISTRY/azure-npm:$(Tag) '.properties.orchestratorProfile.kubernetesConfig.addons[0].containers[0].image = $npmimage' > '${{ parameters.clusterDefinition }}'.tmp
+      cat '${{ parameters.clusterDefinition }}'.tmp | jq --arg ver ${{ parameters.cniVersion }} '.properties.orchestratorProfile.kubernetesConfig.azureCNIVersion = $ver' > '${{ parameters.clusterDefinition }}'
+      cat '${{ parameters.clusterDefinition }}' | jq --arg ver $IMAGE_REGISTRY/azure-npm:${{ parameters.npmVersion }} '.properties.orchestratorProfile.kubernetesConfig.addons[0].containers[0].image = $ver' > '${{ parameters.clusterDefinition }}'.tmp
       if [ "${{ parameters.Name }}" == "windows_20_22_e2e" ]; then
         if [[ -z $(WS2022_IMG_SUBSCRIPTION) || -z $(WS2022_IMG_VERSION) ]]; then
           echo WS2022 Gallery/Image Subscription and Version not set, using defaults in cniWindows2022.json
@@ -86,7 +89,6 @@ steps:
       echo "Running E2E tests against a cluster built with the following API model:" 
       cp ${{ parameters.clusterDefinition }} clusterDefinition.json
     displayName: Configure AKS-Engine
-    workingDirectory: "$(modulePath)"
 
   - task: AzureCLI@1
     inputs:
@@ -131,14 +133,3 @@ steps:
       artifactName: ${{ parameters.name }}
       pathtoPublish: "$(Build.ArtifactStagingDirectory)/${{ parameters.name }}"
     condition: always()
-
-  - task: AzureCLI@2
-    displayName: "Delete Test Cluster Resource Group"
-    condition: always()
-    inputs:
-      azureSubscription: $(AKS_ENGINE_SERVICE_CONNECTION)
-      scriptType: 'bash'
-      scriptLocation: 'inlineScript'
-      inlineScript: |
-        echo "Deleting: $(RESOURCE_GROUP)"
-        az group delete -n $(RESOURCE_GROUP) --yes

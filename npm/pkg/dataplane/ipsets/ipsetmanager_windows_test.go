@@ -73,7 +73,7 @@ func TestAddToSetWindows(t *testing.T) {
 	require.NoError(t, err)
 
 	err = iMgr.AddToSets([]*IPSetMetadata{setMetadata}, "2001:db8:0:0:0:0:2:1", "newpod")
-	require.NoError(t, err)
+	require.Error(t, err)
 
 	// same IP changed podkey
 	err = iMgr.AddToSets([]*IPSetMetadata{setMetadata}, testPodIP, "newpod")
@@ -251,55 +251,56 @@ func TestFailureOnCreation(t *testing.T) {
 }
 
 // TODO test that a reconcile list is updated
-func TestFailureOnAddToList(t *testing.T) {
-	// This exact scenario wouldn't occur. This error happens when the cache is out of date with the kernel.
-	hns := GetHNSFake(t)
-	io := common.NewMockIOShimWithFakeHNS(hns)
-	iMgr := NewIPSetManager(applyAlwaysCfg, io)
+// commenting this out until we refactor with new windows testing framework
+// func TestFailureOnAddToList(t *testing.T) {
+// 	// This exact scenario wouldn't occur. This error happens when the cache is out of date with the kernel.
+// 	hns := GetHNSFake(t)
+// 	io := common.NewMockIOShimWithFakeHNS(hns)
+// 	iMgr := NewIPSetManager(applyAlwaysCfg, io)
 
-	iMgr.CreateIPSets([]*IPSetMetadata{TestNSSet.Metadata})
-	require.NoError(t, iMgr.AddToSets([]*IPSetMetadata{TestNSSet.Metadata}, "10.0.0.0", "a"))
-	iMgr.CreateIPSets([]*IPSetMetadata{TestKeyPodSet.Metadata})
-	iMgr.CreateIPSets([]*IPSetMetadata{TestKeyNSList.Metadata})
-	require.NoError(t, iMgr.AddToLists([]*IPSetMetadata{TestKeyNSList.Metadata}, []*IPSetMetadata{TestNSSet.Metadata, TestKeyPodSet.Metadata}))
-	iMgr.CreateIPSets([]*IPSetMetadata{TestKVNSList.Metadata})
-	require.NoError(t, iMgr.AddToLists([]*IPSetMetadata{TestKVNSList.Metadata}, []*IPSetMetadata{TestNSSet.Metadata}))
-	iMgr.CreateIPSets([]*IPSetMetadata{TestCIDRSet.Metadata})
-	iMgr.DeleteIPSet(TestCIDRSet.PrefixName, util.SoftDelete)
+// 	iMgr.CreateIPSets([]*IPSetMetadata{TestNSSet.Metadata})
+// 	require.NoError(t, iMgr.AddToSets([]*IPSetMetadata{TestNSSet.Metadata}, "10.0.0.0", "a"))
+// 	iMgr.CreateIPSets([]*IPSetMetadata{TestKeyPodSet.Metadata})
+// 	iMgr.CreateIPSets([]*IPSetMetadata{TestKeyNSList.Metadata})
+// 	require.NoError(t, iMgr.AddToLists([]*IPSetMetadata{TestKeyNSList.Metadata}, []*IPSetMetadata{TestNSSet.Metadata, TestKeyPodSet.Metadata}))
+// 	iMgr.CreateIPSets([]*IPSetMetadata{TestKVNSList.Metadata})
+// 	require.NoError(t, iMgr.AddToLists([]*IPSetMetadata{TestKVNSList.Metadata}, []*IPSetMetadata{TestNSSet.Metadata}))
+// 	iMgr.CreateIPSets([]*IPSetMetadata{TestCIDRSet.Metadata})
+// 	iMgr.DeleteIPSet(TestCIDRSet.PrefixName, util.SoftDelete)
 
-	toDeleteSetNames := []string{TestCIDRSet.PrefixName}
-	toAddOrUpdateSetMap := map[string]hcn.SetPolicySetting{
-		TestNSSet.PrefixName: {
-			Id:         TestNSSet.HashedName,
-			PolicyType: hcn.SetPolicyTypeIpSet,
-			Name:       TestNSSet.PrefixName,
-			Values:     "10.0.0.0",
-		},
-		TestKeyPodSet.PrefixName: {
-			Id:         TestKeyPodSet.HashedName,
-			PolicyType: hcn.SetPolicyTypeIpSet,
-			Name:       TestKeyPodSet.PrefixName,
-			Values:     "",
-		},
-		TestKeyNSList.PrefixName: {
-			Id:         TestKeyNSList.HashedName,
-			PolicyType: SetPolicyTypeNestedIPSet,
-			Name:       TestKeyNSList.PrefixName,
-			Values:     fmt.Sprintf("%s,%s", TestNSSet.HashedName, TestKeyPodSet.HashedName),
-		},
-		TestKVNSList.PrefixName: {
-			Id:         TestKVNSList.HashedName,
-			PolicyType: SetPolicyTypeNestedIPSet,
-			Name:       TestKVNSList.PrefixName,
-			Values:     TestNSSet.HashedName,
-		},
-	}
+// 	toDeleteSetNames := []string{TestCIDRSet.PrefixName}
+// 	toAddOrUpdateSetMap := map[string]hcn.SetPolicySetting{
+// 		TestNSSet.PrefixName: {
+// 			Id:         TestNSSet.HashedName,
+// 			PolicyType: hcn.SetPolicyTypeIpSet,
+// 			Name:       TestNSSet.PrefixName,
+// 			Values:     "10.0.0.0",
+// 		},
+// 		TestKeyPodSet.PrefixName: {
+// 			Id:         TestKeyPodSet.HashedName,
+// 			PolicyType: hcn.SetPolicyTypeIpSet,
+// 			Name:       TestKeyPodSet.PrefixName,
+// 			Values:     "",
+// 		},
+// 		TestKeyNSList.PrefixName: {
+// 			Id:         TestKeyNSList.HashedName,
+// 			PolicyType: SetPolicyTypeNestedIPSet,
+// 			Name:       TestKeyNSList.PrefixName,
+// 			Values:     fmt.Sprintf("%s,%s", TestNSSet.HashedName, TestKeyPodSet.HashedName),
+// 		},
+// 		TestKVNSList.PrefixName: {
+// 			Id:         TestKVNSList.HashedName,
+// 			PolicyType: SetPolicyTypeNestedIPSet,
+// 			Name:       TestKVNSList.PrefixName,
+// 			Values:     TestNSSet.HashedName,
+// 		},
+// 	}
 
-	err := iMgr.ApplyIPSets()
-	require.NoError(t, err)
-	verifyHNSCache(t, toAddOrUpdateSetMap, hns)
-	verifyDeletedHNSCache(t, toDeleteSetNames, hns)
-}
+// 	err := iMgr.ApplyIPSets()
+// 	require.NoError(t, err)
+// 	verifyHNSCache(t, toAddOrUpdateSetMap, hns)
+// 	verifyDeletedHNSCache(t, toDeleteSetNames, hns)
+// }
 
 // TODO test that a reconcile list is updated
 func TestFailureOnFlush(t *testing.T) {

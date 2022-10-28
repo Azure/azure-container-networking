@@ -18,6 +18,7 @@ type GenericDataplane interface {
 	AddToLists(listMetadatas []*ipsets.IPSetMetadata, setMetadatas []*ipsets.IPSetMetadata) error
 	RemoveFromList(listMetadata *ipsets.IPSetMetadata, setMetadatas []*ipsets.IPSetMetadata) error
 	ApplyDataPlane() error
+	// GetAllPolicies is deprecated and only used in the goalstateprocessor, which is deprecated
 	GetAllPolicies() []string
 	AddPolicy(policies *policies.NPMNetworkPolicy) error
 	RemovePolicy(PolicyKey string) error

@@ -29,9 +29,6 @@ const (
 	SoftDelete  DeleteOption = false
 )
 
-// IsNewNwPolicyVerFlag indicates if the current kubernetes version is newer than 1.11 or not
-var IsNewNwPolicyVerFlag = false
-
 // regex to get minor version
 var re = regexp.MustCompile("[0-9]+")
 
@@ -186,39 +183,6 @@ func CompareK8sVer(firstVer *version.Info, secondVer *version.Info) int {
 	}
 
 	return v1.Compare(v2)
-}
-
-// IsNewNwPolicyVer checks if the current k8s version >= 1.11,
-// if so, then the networkPolicy should support 'AND' between namespaceSelector & podSelector.
-func IsNewNwPolicyVer(ver *version.Info) (bool, error) {
-	newVer := &version.Info{
-		Major: k8sMajorVerForNewPolicyDef,
-		Minor: k8sMinorVerForNewPolicyDef,
-	}
-
-	isNew := CompareK8sVer(ver, newVer)
-	switch isNew {
-	case -2:
-		return false, fmt.Errorf("invalid Kubernetes version")
-	case -1:
-		return false, nil
-	case 0:
-		return true, nil
-	case 1:
-		return true, nil
-	default:
-		return false, nil
-	}
-}
-
-// SetIsNewNwPolicyVerFlag sets IsNewNwPolicyVerFlag variable depending on version.
-func SetIsNewNwPolicyVerFlag(ver *version.Info) error {
-	var err error
-	if IsNewNwPolicyVerFlag, err = IsNewNwPolicyVer(ver); err != nil {
-		return err
-	}
-
-	return nil
 }
 
 // GetOperatorAndLabel returns the operator associated with the label and the label without operator.

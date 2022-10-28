@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"net/netip"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -154,9 +155,14 @@ func (plugin *NetPlugin) getNetworkName(netNs string, ipamAddResult *IPAMAddResu
 	// This will happen during ADD call
 	if ipamAddResult != nil && ipamAddResult.ncResponse != nil {
 		// networkName will look like ~ azure-vlan1-172-28-1-0_24
-		subnet := ipamAddResult.ipv4Result.IPs[0].Address
-		networkName := strings.Replace(subnet.String(), ".", "-", -1)
-		networkName = strings.Replace(networkName, "/", "_", -1)
+		ipAddrNet := ipamAddResult.ipv4Result.IPs[0].Address
+		prefix, err := netip.ParsePrefix(ipAddrNet.String())
+		if err != nil {
+			log.Printf("Error parsing %s network CIDR: %v.", ipAddrNet.String(), err)
+			return "", errors.Wrapf(err, "cns returned invalid CIDR %s", ipAddrNet.String())
+		}
+		networkName := strings.ReplaceAll(prefix.Masked().String(), ".", "-")
+		networkName = strings.ReplaceAll(networkName, "/", "_")
 		networkName = fmt.Sprintf("%s-vlan%v-%v", nwCfg.Name, ipamAddResult.ncResponse.MultiTenancyInfo.ID, networkName)
 		return networkName, nil
 	}

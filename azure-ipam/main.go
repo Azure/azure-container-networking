@@ -22,10 +22,10 @@ func main() {
 func executePlugin() error {
 	// logger config
 	loggerCfg := &logger.Config{
-		Level:                "debug",
-		Filepath:             "/var/log/azure-ipam.log",
-		MaxSizeInMB:          5, // MegaBytes
-		MaxBackups:           8,
+		Level:       "debug",
+		Filepath:    "/var/log/azure-ipam.log",
+		MaxSizeInMB: 5, // MegaBytes
+		MaxBackups:  8,
 	}
 	// Create logger
 	pluginLogger, cleanup, err := logger.New(loggerCfg)

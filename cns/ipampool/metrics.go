@@ -6,11 +6,14 @@ import (
 )
 
 const (
-	subnetLabel              = "subnet"
-	subnetCIDRLabel          = "subnet_cidr"
-	podnetARMIDLabel         = "podnet_arm_id"
-	customerMetricLabel      = "customer_metric"
-	customerMetricLabelValue = "customer metric"
+	subnetLabel                = "subnet"
+	subnetCIDRLabel            = "subnet_cidr"
+	podnetARMIDLabel           = "podnet_arm_id"
+	customerMetricLabel        = "customer_metric"
+	customerMetricLabelValue   = "customer metric"
+	subnetExhaustionStateLabel = "subnet_exhaustion_state"
+	subnetIPExhausted          = 1
+	subnetIPNotExhausted       = 0
 )
 
 var (
@@ -78,6 +81,14 @@ var (
 		},
 		[]string{subnetLabel, subnetCIDRLabel, podnetARMIDLabel},
 	)
+	ipamPrimaryIPCount = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name:        "cx_ipam_primary_ips",
+			Help:        "NC Primary IP count.",
+			ConstLabels: prometheus.Labels{customerMetricLabel: customerMetricLabelValue},
+		},
+		[]string{subnetLabel, subnetCIDRLabel, podnetARMIDLabel},
+	)
 	ipamRequestedIPConfigCount = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name:        "cx_ipam_requested_ips",
@@ -94,6 +105,21 @@ var (
 		},
 		[]string{subnetLabel, subnetCIDRLabel, podnetARMIDLabel},
 	)
+	ipamSubnetExhaustionState = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name:        "cx_ipam_subnet_exhaustion_state",
+			Help:        "IPAM view of subnet exhaustion state",
+			ConstLabels: prometheus.Labels{customerMetricLabel: customerMetricLabelValue},
+		},
+		[]string{subnetLabel, subnetCIDRLabel, podnetARMIDLabel},
+	)
+	ipamSubnetExhaustionCount = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "cx_ipam_subnet_exhaustion_state_count_total",
+			Help: "Count of the number of times the ipam pool monitor sees subnet exhaustion",
+		},
+		[]string{subnetLabel, subnetCIDRLabel, podnetARMIDLabel, subnetExhaustionStateLabel},
+	)
 )
 
 func init() {
@@ -106,12 +132,16 @@ func init() {
 		ipamMaxIPCount,
 		ipamPendingProgramIPCount,
 		ipamPendingReleaseIPCount,
+		ipamPrimaryIPCount,
 		ipamRequestedIPConfigCount,
 		ipamTotalIPCount,
+		ipamSubnetExhaustionState,
+		ipamSubnetExhaustionCount,
 	)
 }
 
-func observeIPPoolState(state ipPoolState, meta metaState, labels []string) {
+func observeIPPoolState(state ipPoolState, meta metaState) {
+	labels := []string{meta.subnet, meta.subnetCIDR, meta.subnetARMID}
 	ipamAllocatedIPCount.WithLabelValues(labels...).Set(float64(state.allocatedToPods))
 	ipamAvailableIPCount.WithLabelValues(labels...).Set(float64(state.available))
 	ipamBatchSize.WithLabelValues(labels...).Set(float64(meta.batch))
@@ -120,6 +150,12 @@ func observeIPPoolState(state ipPoolState, meta metaState, labels []string) {
 	ipamMaxIPCount.WithLabelValues(labels...).Set(float64(meta.max))
 	ipamPendingProgramIPCount.WithLabelValues(labels...).Set(float64(state.pendingProgramming))
 	ipamPendingReleaseIPCount.WithLabelValues(labels...).Set(float64(state.pendingRelease))
+	ipamPrimaryIPCount.WithLabelValues(labels...).Set(float64(len(meta.primaryIPAddresses)))
 	ipamRequestedIPConfigCount.WithLabelValues(labels...).Set(float64(state.requestedIPs))
 	ipamTotalIPCount.WithLabelValues(labels...).Set(float64(state.totalIPs))
+	if meta.exhausted {
+		ipamSubnetExhaustionState.WithLabelValues(labels...).Set(float64(subnetIPExhausted))
+	} else {
+		ipamSubnetExhaustionState.WithLabelValues(labels...).Set(float64(subnetIPNotExhausted))
+	}
 }

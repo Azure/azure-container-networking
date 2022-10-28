@@ -2,13 +2,24 @@ pr:
   branches:
     include:
       - master
-      - honeycomb-dev
+  paths:
+    exclude:
+    - ".devcontainer"
+    - ".hooks"
+    - ".vscode"
+    - ".github"
+    - docs
 
 trigger:
-  branches:
+  paths:
+    exclude:
+    - docs
+    - "zapai/*"
+    - "azure-ipam/*"
+    - "dropgz/*"
+  tags:
     include:
-      - master
-      - honeycomb-dev
+    - "*"
 
 stages:
   - stage: setup
@@ -23,6 +34,8 @@ stages:
               BUILD_NUMBER=$(Build.BuildNumber)
               echo "##vso[task.setvariable variable=StorageID;isOutput=true]$(echo ${BUILD_NUMBER//./-})"
               echo "##vso[task.setvariable variable=Tag;isOutput=true]$(make version)"
+              echo "##vso[task.setvariable variable=cniVersion;isOutput=true]$(make cni-version)"
+              echo "##vso[task.setvariable variable=npmVersion;isOutput=true]$(make npm-version)"
               cat /etc/os-release
               uname -a
               sudo chown -R $(whoami):$(whoami) .
@@ -60,26 +73,24 @@ stages:
             name: "Test"
             displayName: "Run Tests"
 
-          - bash: |
-              build/tools/bin/gocov convert coverage.out > coverage.json
-              build/tools/bin/gocov-xml < coverage.json > coverage.xml
-            name: "Coverage"
-            displayName: "Generate Coverage Reports"
-            condition: always()
-
-          - task: PublishTestResults@2
-            inputs:
-              testRunner: JUnit
-              testResultsFiles: report.xml
-            displayName: "Publish Test Results"
-            condition: always()
-
-          - task: PublishCodeCoverageResults@1
-            inputs:
-              codeCoverageTool: Cobertura
-              summaryFileLocation: coverage.xml
-            displayName: "Publish Code Coverage Results"
-            condition: always()
+  - stage: test_windows
+    displayName: Test ACN Windows
+    dependsOn:
+      - setup
+    jobs:
+      - job: test
+        displayName: Run Tests
+        variables:
+          STORAGE_ID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.StorageID'] ]
+        pool:
+          name: "$(BUILD_POOL_NAME_DEFAULT_WINDOWS_ALT)"
+        steps:
+          - script: |
+              cd npm/
+              go test ./...
+            retryCountOnTaskFailure: 3
+            name: "TestWindows"
+            displayName: "Run Windows Tests"
 
   - stage: binaries
     displayName: Build Binaries
@@ -90,13 +101,12 @@ stages:
       - job: build
         displayName: Build Binaries
         variables:
-          TAG: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
           STORAGE_ID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.StorageID'] ]
         pool:
           name: "$(BUILD_POOL_NAME_DEFAULT)"
         steps:
           - script: |
-              make all-binaries-platforms VERSION=$(TAG)
+              make all-binaries-platforms
             name: "BuildAllPlatformBinaries"
             displayName: "Build all platform binaries"
 
@@ -142,42 +152,62 @@ stages:
       - setup
       - test
     jobs:
-      - job: containerize
+      - job: containerize_linux_amd64
         displayName: Build Images
-        variables:
-          TAG: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
         pool:
-          name: "$(BUILD_POOL_NAME_DEFAULT)"
+          name: "$(BUILD_POOL_NAME_LINUX_AMD64)"
         strategy:
           matrix:
             acncli_linux_amd64:
               arch: amd64
               os: linux
               name: acncli
-            acncli_linux_arm64:
-              arch: arm64
-              os: linux
-              name: acncli
             cni_dropgz_linux_amd64:
               arch: amd64
               os: linux
               name: cni-dropgz
-            cni_dropgz_linux_arm64:
-              arch: arm64
-              os: linux
-              name: cni-dropgz
-            cns_linux_amd64:
+            cni_dropgz_test_linux_amd64:
               arch: amd64
               os: linux
-              name: cns
-            cns_linux_arm64:
-              arch: arm64
+              name: cni-dropgz-test
+            cns_linux_amd64:
+              arch: amd64
               os: linux
               name: cns
             npm_linux_amd64:
               arch: amd64
               os: linux
               name: npm
+        steps:
+          - template: containers/container-template.yaml
+            parameters:
+              name: $(name)
+              os: $(os)
+              arch: $(arch)
+      - job: containerize_linux_arm64
+        displayName: Build Images
+        variables:
+          TAG: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
+        pool:
+          name: "$(BUILD_POOL_NAME_LINUX_ARM64)"
+        strategy:
+          matrix:
+            acncli_linux_arm64:
+              arch: arm64
+              os: linux
+              name: acncli
+            cni_dropgz_linux_arm64:
+              arch: arm64
+              os: linux
+              name: cni-dropgz
+            cni_dropgz_test_linux_arm64:
+              arch: arm64
+              os: linux
+              name: cni-dropgz-test
+            cns_linux_arm64:
+              arch: arm64
+              os: linux
+              name: cns
             npm_linux_arm64:
               arch: arm64
               os: linux
@@ -188,13 +218,13 @@ stages:
               name: $(name)
               os: $(os)
               arch: $(arch)
-              tag: $(TAG)
-      - job: containerize_windows
+      - job: containerize_windows_amd64
+        timeoutInMinutes: 120
         displayName: Build Images
         variables:
           TAG: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
         pool:
-          name: "$(BUILD_POOL_NAME_DEFAULT_WINDOWS)"
+          name: "$(BUILD_POOL_NAME_WINDOWS_AMD64)"
         strategy:
           matrix:
             cns_windows_amd64:
@@ -213,22 +243,22 @@ stages:
   - stage: publish
     displayName: Publish Multiarch Manifests
     dependsOn:
-      - setup
       - containerize
     jobs:
       - job: manifest
         displayName: Compile Manifests
-        variables:
-          TAG: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
         pool:
           name: "$(BUILD_POOL_NAME_DEFAULT)"
         strategy:
           matrix:
             acncli:
-              name: acncli 
+              name: acncli
               platforms: linux/amd64 linux/arm64
             cni_dropgz:
               name: cni-dropgz
+              platforms: linux/amd64 linux/arm64
+            cni_dropgz_test:
+              name: cni-dropgz-test
               platforms: linux/amd64 linux/arm64
             cns:
               name: cns
@@ -242,28 +272,24 @@ stages:
               name: $(name)
               platforms: $(platforms)
               tag: $(TAG)
-  
+
+
   - template: singletenancy/cilium/cilium-e2e-job-template.yaml
     parameters:
       name: "cilium_e2e"
       displayName: Cilium
       pipelineBuildImage: "$(BUILD_IMAGE)"
+      testDropgz: ""
+      clusterName: "ciliume2e"
 
   - template: singletenancy/aks-swift/e2e-job-template.yaml
     parameters:
       name: "aks_swift_e2e"
-      displayName: AKS Swift
+      displayName: AKS Swift Ubuntu
       pipelineBuildImage: "$(BUILD_IMAGE)"
-
-  - template: singletenancy/aks-engine/e2e-job-template.yaml
-    parameters:
-      name: "ubuntu_18_04_linux_e2e"
-      displayName: Ubuntu 18.04
-      pipelineBuildImage: "$(BUILD_IMAGE)"
-      clusterDefinition: "cniLinux1804.json"
-      clusterDefinitionCniTypeKey: "azureCNIURLLinux"
-      clusterDefinitionCniBuildOS: "linux"
-      clusterDefinitionCniBuildExt: ".tgz"
+      testDropgz: ""
+      clusterName: "swifte2e"
+      osSku: "Ubuntu"
 
   - template: singletenancy/aks-engine/e2e-job-template.yaml
     parameters:
@@ -285,46 +311,13 @@ stages:
       clusterDefinitionCniBuildOS: "windows"
       clusterDefinitionCniBuildExt: ".zip"
 
-  # - template: singletenancy/aks-engine/e2e-job-template.yaml
-  #   parameters:
-  #     name: "windows_20_22_e2e"
-  #     displayName: "Windows 2022"
-  #     pipelineBuildImage: "$(BUILD_IMAGE)"
-  #     clusterDefinition: "cniWindows2022.json"
-  #     clusterDefinitionCniTypeKey: "azureCNIURLWindows"
-  #     clusterDefinitionCniBuildOS: "windows"
-  #     clusterDefinitionCniBuildExt: ".zip"
-
-  - template: singletenancy/aks-engine/e2e-dualstack-job-template.yaml
-    parameters:
-      name: "ubuntu_18_04_linux_dualstack_e2e"
-      displayName: "Ubuntu 18.04 Dualstack"
-      pipelineBuildImage: "$(BUILD_IMAGE)"
-      clusterDefinition: "cniLinuxDualstack1804.json"
-      clusterDefinitionCniTypeKey: "azureCNIURLLinux"
-      clusterDefinitionCniBuildOS: "linux"
-      clusterDefinitionCniBuildExt: ".tgz"
-
-  # - template: singletenancy/aks-engine/e2e-dualstack-job-template.yaml
-  #   parameters:
-  #     name: "windows_20_04_dualstack_e2e"
-  #     displayName: "Windows 20.04 Dualstack"
-  #     pipelineBuildImage: "$(BUILD_IMAGE)"
-  #     clusterDefinition: "cniWindowsDualstack2004.json"
-  #     clusterDefinitionCniTypeKey: "azureCNIURLWindows"
-  #     clusterDefinitionCniBuildOS: "windows"
-  #     clusterDefinitionCniBuildExt: ".zip"
-
   - stage: cleanup
     displayName: Cleanup
     dependsOn:
       - "aks_swift_e2e"
-      - "ubuntu_18_04_linux_e2e"
+      - "cilium_e2e"
       - "windows_19_03_e2e"
       - "windows_20_04_e2e"
-      # - "windows_20_22_e2e"
-      - "ubuntu_18_04_linux_dualstack_e2e"
-      # - "windows_20_04_dualstack_e2e"
     jobs:
       - job: delete_remote_artifacts
         displayName: Delete remote artifacts

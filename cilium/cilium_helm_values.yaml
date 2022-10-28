@@ -27,11 +27,9 @@ extraArgs:
 ipv4NativeRoutingCIDR: 10.241.0.0/16
 enableIPv4Masquerade: false
 install-no-conntrack-iptables-rules: false
-installIptablesRules: false
+installIptablesRules: true
 l7Proxy: false
 hubble:
-  enabled: false
-l2NeighDiscovery:
   enabled: false
 kubeProxyReplacement: strict
 
@@ -41,4 +39,3 @@ endpointHealthChecking:
 cni:
   install: true
   customConf: true
-  configMap: cni-configuration
