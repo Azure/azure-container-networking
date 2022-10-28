@@ -264,15 +264,16 @@ func (definition *ErrorDefinition) getErrorLineNumber(stdErr, commandString stri
 // return whether the file was altered
 func (creator *FileCreator) handleLineError(stdErr, commandString string, lineNum int) (bool, *Line) {
 	lineIndex := 0
-	currentLineIndex := 0
+	currentLineNum := 1
 	for i := range creator.lines {
 		if _, isOmitted := creator.lineNumbersToOmit[i]; isOmitted {
 			continue
 		}
-		if currentLineIndex == lineNum-1 {
-			lineIndex = currentLineIndex
+		if currentLineNum == lineNum {
+			lineIndex = i
+			break
 		}
-		currentLineIndex++
+		currentLineNum++
 	}
 
 	line := creator.lines[lineIndex]
