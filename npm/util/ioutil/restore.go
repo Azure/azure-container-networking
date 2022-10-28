@@ -288,7 +288,7 @@ func (creator *FileCreator) handleLineError(stdErr, commandString string, lineNu
 				creator.lineNumbersToOmit[i] = struct{}{}
 			}
 		case ContinueAndAbortSection:
-			klog.Infof("continuing after line %d and aborting section associated with the line for command [%s]", lineNum, commandString)
+			klog.Infof("continuing after line %d and aborting section [%s] for command [%s]", lineNum, line.sectionID, commandString)
 			for i := 0; i <= lineIndex; i++ {
 				creator.lineNumbersToOmit[i] = struct{}{}
 			}
@@ -304,11 +304,37 @@ func (creator *FileCreator) handleLineError(stdErr, commandString string, lineNu
 }
 
 func (creator *FileCreator) logLines(commandString string) {
-	lineNum := 0
-	for i, line := range creator.lines {
-		if _, ok := creator.lineNumbersToOmit[i]; !ok {
+	if creator.tryCount == 0 {
+		// print every line
+		lineNum := 1
+		for i, line := range creator.lines {
+			if _, ok := creator.lineNumbersToOmit[i]; ok {
+				metrics.SendErrorLogAndMetric(util.UtilID, "unexpectedly seeing an omitted line for tryCount=0. line num: %d", i)
+				continue
+			}
 			klog.Infof("line %d of restore command [%s] with section ID [%s]: [%s]", lineNum, commandString, line.sectionID, line.content)
 			lineNum++
 		}
+
+		return
 	}
+
+	// don't print every line because printing all lines can pollute the logs and we already know the lines
+	if len(creator.lineNumbersToOmit) == 0 {
+		klog.Infof("on try %d of restore command [%s]. repeating with same lines", creator.tryCount, commandString)
+		return
+	}
+
+	lineNumMappings := make([]string, 0, creator.numLines())
+	lineNum := 1
+	for i := range creator.lines {
+		if _, ok := creator.lineNumbersToOmit[i]; ok {
+			continue
+		}
+		// this mapping could be off if we unexpectedly saw an omitted line for the first try (see error log in branch above)
+		lineNumMappings = append(lineNumMappings, fmt.Sprintf("%d->%d", lineNum, i+1))
+		lineNum++
+	}
+
+	klog.Infof("on try %d of restore command [%s]. mapping of current line numbers to original line numbers: %+v", creator.tryCount, commandString, lineNumMappings)
 }

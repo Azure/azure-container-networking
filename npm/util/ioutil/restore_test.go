@@ -190,6 +190,7 @@ func TestHandleLineErrorForContinueAndAbortSection(t *testing.T) {
 	fileString := creator.ToString()
 	assert.Equal(t, "line3-item1 line3-item2 line3-item3\nline5-item1 line5-item2 line5-item3\n", fileString)
 
+	creator.logLines(testCommandString)
 	require.Equal(t, map[int]struct{}{0: {}, 1: {}, 3: {}}, creator.lineNumbersToOmit, "expected line 1, 2, and 4 to be marked omitted")
 
 	_, line := creator.handleLineError("some error", testCommandString, 1)
@@ -224,6 +225,7 @@ func TestHandleLineErrorForContinue(t *testing.T) {
 	fileString := creator.ToString()
 	assert.Equal(t, "line3-item1 line3-item2 line3-item3\nline4-item1 line4-item2 line4-item3\n", fileString)
 
+	creator.logLines(testCommandString)
 	require.Equal(t, map[int]struct{}{0: {}, 1: {}}, creator.lineNumbersToOmit, "expected line 1 and 2 to be marked omitted")
 
 	_, line := creator.handleLineError("some error", testCommandString, 1)
@@ -258,6 +260,7 @@ func TestHandleLineErrorNoMatch(t *testing.T) {
 	fileStringAfter := creator.ToString()
 	require.Equal(t, fileStringBefore, fileStringAfter)
 
+	creator.logLines(testCommandString)
 	require.Equal(t, map[int]struct{}{}, creator.lineNumbersToOmit, "expected no lines to be marked omitted")
 }
 
