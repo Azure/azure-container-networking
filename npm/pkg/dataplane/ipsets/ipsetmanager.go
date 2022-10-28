@@ -483,7 +483,6 @@ func (iMgr *IPSetManager) ApplyIPSets() error {
 	iMgr.clearDirtyCache()
 	// reset the maxRestoreTryCount
 	iMgr.maxRestoreTryCount = initialMaxRestoreTryCount
-	fmt.Println("DEBUGME applied ipsets", iMgr.maxRestoreTryCount)
 	return nil
 }
 
