@@ -186,17 +186,21 @@ func (service *HTTPRestService) saveNetworkContainerGoalState(
 			}
 
 			logger.Printf("Pod info %v", podInfo)
-			ncid := podInfo.Name() + podInfo.Namespace()
+			orchestratorContext := podInfo.Name() + podInfo.Namespace()
 
-			nc := ncSet{}
 			if service.state.ContainerIDByOrchestratorContext == nil {
 				service.state.ContainerIDByOrchestratorContext = make(map[string]*ncSet)
 			}
+
+			if service.state.ContainerIDByOrchestratorContext[orchestratorContext] == nil {
+				service.state.ContainerIDByOrchestratorContext[orchestratorContext] = &ncSet{}
+			}
+
+			nc := service.state.ContainerIDByOrchestratorContext[orchestratorContext]
 			nc.Add(req.NetworkContainerid)
+			service.state.ContainerIDByOrchestratorContext[orchestratorContext] = nc
 
-			service.state.ContainerIDByOrchestratorContext[ncid] = &nc
-
-			logger.Printf("service.state.ContainerIDByOrchestratorContext[ncid] is %+v", service.state.ContainerIDByOrchestratorContext[ncid])
+			logger.Printf("service.state.ContainerIDByOrchestratorContext[orchestratorContext] is %+v", service.state.ContainerIDByOrchestratorContext[orchestratorContext])
 
 		case cns.KubernetesCRD:
 			// Validate and Update the SecondaryIpConfig state

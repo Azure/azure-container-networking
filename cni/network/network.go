@@ -326,7 +326,6 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 	var (
 		ipamAddResult    IPAMAddResult
 		ipamAddResults   []IPAMAddResult
-		ncResponses      []cns.GetNetworkContainerResponse
 		azIpamResult     *cniTypesCurr.Result
 		enableInfraVnet  bool
 		enableSnatForDNS bool
@@ -449,8 +448,10 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 			return fmt.Errorf("%w", err)
 		}
 
-		ncResponses, ipamAddResult.hostSubnetPrefixes, er = plugin.multitenancyClient.GetNetworkContainersWithOrchestratorContext(
+		ncResponses, hostSubnetPrefixes, er := plugin.multitenancyClient.GetNetworkContainersWithOrchestratorContext(
 			context.TODO(), nwCfg, k8sPodName, k8sNamespace)
+
+		log.Printf("hostSubnetPrefixes are %+v", hostSubnetPrefixes)
 
 		if ncResponses == nil {
 			log.Printf("CNS is old version, invoke old CNI API")
@@ -477,8 +478,10 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 				ncResponsesCopy[i] = ncResponses[i]
 				ipamAddResult.ncResponse = &ncResponsesCopy[i]
 				ipamAddResult.ipv4Result = convertToCniResult(ipamAddResult.ncResponse, args.IfName)
+				ipamAddResult.hostSubnetPrefix = hostSubnetPrefixes[i]
 				ipamAddResults = append(ipamAddResults, ipamAddResult)
 			}
+			log.Printf("ipamAddResults are %+v", ipamAddResults)
 		}
 	} else {
 		ipamAddResults = append(ipamAddResults, ipamAddResult)
