@@ -544,7 +544,11 @@ func main() {
 			DebugMode:                    ts.DebugMode,
 		}
 
-		logger.InitAI(aiConfig, ts.DisableTrace, ts.DisableMetric, ts.DisableEvent)
+		if aiKey := cnsconfig.TelemetrySettings.AppInsightsInstrumentationKey; aiKey != "" {
+			logger.InitAIWithIKey(aiConfig, aiKey, ts.DisableTrace, ts.DisableMetric, ts.DisableEvent)
+		} else {
+			logger.InitAI(aiConfig, ts.DisableTrace, ts.DisableMetric, ts.DisableEvent)
+		}
 	}
 
 	if telemetryDaemonEnabled {

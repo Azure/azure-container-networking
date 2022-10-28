@@ -63,6 +63,8 @@ type TelemetrySettings struct {
 	DebugMode bool
 	// Interval for sending snapshot events.
 	SnapshotIntervalInMins int
+	// AppInsightsInstrumentationKey allows the user to override the default appinsights ikey
+	AppInsightsInstrumentationKey string
 }
 
 type ManagedSettings struct {
