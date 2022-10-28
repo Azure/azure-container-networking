@@ -65,6 +65,7 @@ func SendErrorLogAndMetric(operationID int, format string, args ...interface{}) 
 		Value:            util.ErrorValue,
 		CustomDimensions: customDimensions,
 	}
+	// SendMetric prints out a log visible in kubectl logs
 	SendMetric(metric)
 
 	// Send error logs

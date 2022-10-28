@@ -3,8 +3,8 @@ package metrics
 import (
 	"time"
 
+	"github.com/Azure/azure-container-networking/npm/util"
 	"github.com/prometheus/client_golang/prometheus"
-	"k8s.io/klog"
 )
 
 // Timer is a one-time-use tool for recording time between a start and end point
@@ -27,7 +27,7 @@ func (timer *Timer) stopAndRecord(observer prometheus.Summary) {
 func (timer *Timer) stopAndRecordCRUDExecTime(observer *prometheus.SummaryVec, op OperationKind, hadError bool) {
 	timer.stop()
 	if !op.isValid() {
-		klog.Errorf("Unknown operation [%v] when recording exec time", op)
+		SendErrorLogAndMetric(util.UtilID, "Unknown operation [%v] when recording exec time", op)
 		return
 	}
 	if op != NoOp {

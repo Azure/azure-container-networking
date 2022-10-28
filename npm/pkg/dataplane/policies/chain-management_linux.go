@@ -178,7 +178,7 @@ func (pMgr *PolicyManager) bootup(_ []string) error {
 	if deprecatedErrCode == 0 {
 		klog.Infof("deleted deprecated jump rule from FORWARD chain to AZURE-NPM chain")
 	} else if deprecatedErr != nil {
-		klog.Errorf("failed to delete deprecated jump rule from FORWARD chain to AZURE-NPM chain for unexpected reason with exit code %d and error: %s", deprecatedErrCode, deprecatedErr.Error())
+		metrics.SendErrorLogAndMetric(util.IptmID, "failed to delete deprecated jump rule from FORWARD chain to AZURE-NPM chain for unexpected reason with exit code %d and error: %s", deprecatedErrCode, deprecatedErr.Error())
 	}
 
 	currentChains, err := ioutil.AllCurrentAzureChains(pMgr.ioShim.Exec, util.IptablesDefaultWaitTime)
