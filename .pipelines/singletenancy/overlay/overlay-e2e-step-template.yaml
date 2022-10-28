@@ -87,8 +87,10 @@ steps:
       echo "Start Azilium E2E Tests on Overlay Cluster"
       echo "deploy ip-masq-agent for overlay"
       kubectl create -f test/integration/manifests/ip-masq-agent/ip-masq-agent.yaml --validate=false
-      kubectl create configmap test/integration/manifests/ip-masq-agent/config-custom.yaml
-      kubectl create configmap test/integration/manifests/ip-masq-agent/config-reconcile.yaml
+      cd test/integration/manifests/ip-masq-agent/
+      kubectl create configmap config-custom.yaml
+      kubectl create configmap config-reconcile.yaml
+      cd ../../../..
       kubectl get po -owide -A
       sudo -E env "PATH=$PATH" make test-integration CNS_VERSION=$(make cns-version) CNI_DROPGZ_VERSION=$(make cni-dropgz-version) INSTALL_CNS=true INSTALL_OVERLAY=true TEST_DROPGZ=${{ parameters.testDropgz }}
     retryCountOnTaskFailure: 3
