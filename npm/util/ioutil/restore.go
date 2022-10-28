@@ -182,6 +182,7 @@ func (creator *FileCreator) runCommandOnceWithFile(fileString, cmd string, args 
 	}
 
 	klog.Infof("running this restore command: [%s]", commandString)
+	creator.logLines(commandString)
 
 	command := creator.ioShim.Exec.Command(cmd, args...)
 	command.SetStdin(bytes.NewBufferString(fileString))
@@ -300,4 +301,14 @@ func (creator *FileCreator) handleLineError(stdErr, commandString string, lineNu
 		return true, creator.lines[lineIndex]
 	}
 	return false, creator.lines[lineIndex]
+}
+
+func (creator *FileCreator) logLines(commandString string) {
+	lineNum := 0
+	for i, line := range creator.lines {
+		if _, ok := creator.lineNumbersToOmit[i]; !ok {
+			klog.Infof("line %d of restore command [%s] with section ID [%s]: [%s]", lineNum, commandString, line.sectionID, line.content)
+			lineNum++
+		}
+	}
 }
