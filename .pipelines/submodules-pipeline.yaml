@@ -253,6 +253,7 @@ stages:
       pipelineBuildImage: "$(BUILD_IMAGE)"
       testDropgz: true
       clusterName: "submodules-swifte2e"
+      osSku: "Ubuntu"
 
   - stage: cleanup
     displayName: Cleanup
