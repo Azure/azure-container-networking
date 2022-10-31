@@ -26,7 +26,8 @@ jobs:
           mkdir -p '$(GOBIN)'
           mkdir -p '$(GOPATH)/pkg'
           BUILD_NUMBER=$(Build.BuildNumber)
-          RG=e2e-$(echo "npm-`date "+%Y-%m-%d-%S"`")
+          # format: npm-<year>-<month>-<day>-<minute>-<second>
+          RG=e2e-$(echo "npm-`date "+%Y-%m-%d-%M-%S"`")
           TAG=$(make npm-version)
           echo "Resource group: $RG"
           echo "Image tag: $TAG"
@@ -267,10 +268,8 @@ jobs:
           mkdir -p $npmLogsFolder
           cp ./kubeconfig $npmLogsFolder/kubeconfig
 
-          ## write to all NPM pod logs in the background (do this in the background instead of after to make sure the logs aren't truncated)
           npmPodList=`kubectl --kubeconfig=./kubeconfig get pods -n kube-system | grep npm | awk '{print $1}'`
           echo "Found NPM pods: $npmPodList"
-
 
           ## Run all Conformance tests in the background
           echo $FQDN
@@ -345,10 +344,23 @@ jobs:
               exitCode=$?
             fi
           fi
-          # kill the background processes (the logs) that have this process' pid (i.e. $$) as a parent
 
+          # get all current npm pods
+          kubectl --kubeconfig=./kubeconfig get pods -n kube-system | grep npm
+          npmPodList=`kubectl --kubeconfig=./kubeconfig get pods -n kube-system | grep npm | awk '{print $1}'`
+          # capture all logs
           for npmPod in $npmPodList; do
               ./kubectl --kubeconfig=./kubeconfig logs -n kube-system $npmPod > $npmLogsFolder/$npmPod-logs.txt
+          done
+
+          # capture any previous logs in case there was a crash
+          for npmPod in $npmPodList; do
+              previousLogFile=$npmLogsFolder/previous-$npmPod-logs.txt
+              ./kubectl --kubeconfig=./kubeconfig logs -n kube-system $npmPod -p > $previousLogFile
+              if [[ $? -ne 0 ]]; then
+                  # remove the empty file if kubectl logs failed (e.g. there was no previous terminated container)
+                  rm $previousLogFile
+              fi
           done
 
           exit $exitCode
@@ -479,7 +491,18 @@ jobs:
           cp cyclonus-$CLUSTER_NAME $(System.DefaultWorkingDirectory)/$CLUSTER_NAME/cyclonus-$CLUSTER_NAME
           echo "Getting cluster state for $CLUSTER_NAME"
           mkdir -p $(System.DefaultWorkingDirectory)/$CLUSTER_NAME
+          kubectl get pods -n kube-system | grep npm
           kubectl logs -n kube-system -l k8s-app=azure-npm --tail -1 --prefix > $(System.DefaultWorkingDirectory)/$CLUSTER_NAME/npm-logs_$(PROFILE).txt
+          # capture any previous logs in case there was a crash
+          npmPodList=`kubectl get pods -n kube-system | grep npm | awk '{print $1}'`
+          for npmPod in $npmPodList; do
+              previousLogFile=$(System.DefaultWorkingDirectory)/$CLUSTER_NAME/previous-npm-logs_$(PROFILE).txt
+              kubectl logs -n kube-system $npmPod -p > $previousLogFile
+              if [[ $? -ne 0 ]]; then
+                  # remove the empty file if kubectl logs failed (e.g. there was no previous terminated container)
+                  rm $previousLogFile
+              fi
+          done
           cp ./kubeconfig $(System.DefaultWorkingDirectory)/$CLUSTER_NAME/.kubeconfig
         condition: always()
 
