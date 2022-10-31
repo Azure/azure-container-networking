@@ -168,16 +168,6 @@ func (service *HTTPRestService) saveNetworkContainerGoalState(
 		fallthrough
 	case cns.WebApps:
 		switch service.state.OrchestratorType {
-		case cns.Kubernetes:
-			fallthrough
-		case cns.ServiceFabric:
-			fallthrough
-		case cns.Batch:
-			fallthrough
-		case cns.DBforPostgreSQL:
-			fallthrough
-		case cns.AzureFirstParty:
-			fallthrough
 		case cns.WebApps: // todo: Is WebApps an OrchastratorType or ContainerType?
 			podInfo, err := cns.UnmarshalPodInfo(req.OrchestratorContext)
 			if err != nil {
@@ -362,27 +352,18 @@ func (service *HTTPRestService) removeToBeDeletedIPStateUntransacted(
 
 func (service *HTTPRestService) getNetworkContainersResponse(
 	req cns.GetNetworkContainerRequest,
-) []cns.GetNetworkContainerResponse {
+) (getNetworkContainersResponse []cns.GetNetworkContainerResponse) {
 	var (
-		networkContainerID           string
-		getNetworkContainerResponse  cns.GetNetworkContainerResponse
-		getNetworkContainersResponse []cns.GetNetworkContainerResponse
-		exists                       bool
-		waitingForUpdate             bool
+		networkContainerID          string
+		getNetworkContainerResponse cns.GetNetworkContainerResponse
+		exists                      bool
+		waitingForUpdate            bool
 	)
 
 	service.Lock()
 	defer service.Unlock()
 
 	switch service.state.OrchestratorType {
-	case cns.Kubernetes:
-		fallthrough
-	case cns.ServiceFabric:
-		fallthrough
-	case cns.Batch:
-		fallthrough
-	case cns.DBforPostgreSQL:
-		fallthrough
 	case cns.AzureFirstParty:
 		podInfo, err := cns.UnmarshalPodInfo(req.OrchestratorContext)
 		if err != nil {
@@ -436,7 +417,10 @@ func (service *HTTPRestService) getNetworkContainersResponse(
 					logger.Printf("[Azure-CNS] Setting VfpUpdateComplete to %t for NCID: %s", vfpUpdateComplete, ncid)
 					ncstatus.VfpUpdateComplete = vfpUpdateComplete
 					service.state.ContainerStatus[ncid] = ncstatus
-					service.saveState()
+					err = service.saveState()
+					if err != nil {
+						logger.Errorf("Failed to save goal states due to %s", err)
+					}
 				}
 			}
 		} else if service.ChannelMode == cns.Managed {
@@ -454,7 +438,6 @@ func (service *HTTPRestService) getNetworkContainersResponse(
 				getNetworkContainersResponse = append(getNetworkContainersResponse, getNetworkContainerResponse)
 				return getNetworkContainersResponse
 			}
-
 			networkContainerID = string(ncidBytes)
 		}
 
@@ -567,7 +550,10 @@ func (service *HTTPRestService) getNetworkContainerResponse(
 				logger.Printf("[Azure-CNS] Setting VfpUpdateComplete to %t for NCID: %s", vfpUpdateComplete, networkContainerID)
 				ncstatus.VfpUpdateComplete = vfpUpdateComplete
 				service.state.ContainerStatus[networkContainerID] = ncstatus
-				service.saveState()
+				err = service.saveState()
+				if err != nil {
+					logger.Errorf("Failed to save goal states due to %s", err)
+				}
 			}
 		} else if service.ChannelMode == cns.Managed {
 			// If the NC goal state doesn't exist in CNS running in managed mode, call DNC to retrieve the goal state

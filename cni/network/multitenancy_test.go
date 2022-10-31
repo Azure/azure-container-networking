@@ -292,8 +292,7 @@ func TestGetMultiTenancyCNINCResponses(t *testing.T) {
 		},
 	}
 
-	ncs = append(ncs, *nc1)
-	ncs = append(ncs, *nc2)
+	ncs = append(ncs, *nc1, *nc2)
 
 	type args struct {
 		ctx             context.Context
