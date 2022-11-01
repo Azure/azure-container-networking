@@ -36,6 +36,7 @@ steps:
   inputs:
     command: 'push'
     containerRegistry: $(ACR_SERVICE_CONNECTION)
+    repository: 'azure-${{ parameters.name }}'
     tags: 'windows-${{ parameters.arch }}-${{ parameters.tag }}'
 
 - task: Docker@2
