@@ -85,7 +85,7 @@ overlay-up: rg-up overlay-net-up ## Brings up an Overlay AzCNI cluster
 		--network-plugin-mode overlay \
 		--pod-cidr 192.168.0.0/16 \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
-		--generate-ssh-keys \
+		--no-ssh-key \
 		--yes
 	@$(MAKE) set-kubeconf
 
@@ -96,7 +96,7 @@ swift-byocni-up: rg-up net-up ## Bring up a SWIFT BYO CNI cluster
 		--network-plugin none \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
 		--pod-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/podnet \
-		--generate-ssh-keys \
+		--no-ssh-key \
 		--os-sku $(OSSKU) \
 		--yes
 	@$(MAKE) set-kubeconf
@@ -110,7 +110,7 @@ swift-cilium-up: rg-up net-up ## Bring up a SWIFT Cilium cluster
 		--aks-custom-headers AKSHTTPCustomFeatures=Microsoft.ContainerService/CiliumDataplanePreview \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
 		--pod-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/podnet \
-		--generate-ssh-keys \
+		--no-ssh-key \
 		--yes
 	@$(MAKE) set-kubeconf
 
@@ -121,7 +121,7 @@ swift-up: rg-up net-up ## Bring up a SWIFT AzCNI cluster
 		--network-plugin azure \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
 		--pod-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/podnet \
-		--generate-ssh-keys \
+		--no-ssh-key \
 		--yes
 	@$(MAKE) set-kubeconf
 
