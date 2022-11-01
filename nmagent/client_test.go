@@ -408,14 +408,14 @@ func TestNMAgentSupportedAPIs(t *testing.T) {
 		{
 			"empty",
 			nil,
-			"/machine/plugins/?comp=nmagent&type=network/nmagentsupportedapis",
+			"/machine/plugins/?comp=nmagent&type=GetSupportedApis",
 			"<SupportedAPIsResponseXML></SupportedAPIsResponseXML>",
 			false,
 		},
 		{
 			"happy",
 			[]string{"foo"},
-			"/machine/plugins/?comp=nmagent&type=network/nmagentsupportedapis",
+			"/machine/plugins/?comp=nmagent&type=GetSupportedApis",
 			"<SupportedAPIsResponseXML><type>foo</type></SupportedAPIsResponseXML>",
 			false,
 		},
