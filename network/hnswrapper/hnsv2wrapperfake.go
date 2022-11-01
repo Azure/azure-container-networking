@@ -317,10 +317,13 @@ func (f Hnsv2wrapperFake) GetEndpointByName(endpointName string) (*hcn.HostCompu
 }
 
 type FakeHNSCache struct {
-	networks  map[string]*FakeHostComputeNetwork
+	// networks maps network name to network object
+	networks map[string]*FakeHostComputeNetwork
+	// endpoints maps endpoint ID to endpoint object
 	endpoints map[string]*FakeHostComputeEndpoint
 }
 
+// SetPolicy returns the first SetPolicy found with this ID in any network.
 func (fCache FakeHNSCache) SetPolicy(setID string) *hcn.SetPolicySetting {
 	for _, network := range fCache.networks {
 		for _, policy := range network.Policies {
@@ -332,6 +335,35 @@ func (fCache FakeHNSCache) SetPolicy(setID string) *hcn.SetPolicySetting {
 	return nil
 }
 
+func (fCache FakeHNSCache) PrettyString() string {
+	networkStrings := make([]string, 0, len(fCache.networks))
+	for _, network := range fCache.networks {
+		networkStrings = append(networkStrings, fmt.Sprintf("[%+v]", network.PrettyString()))
+	}
+
+	endpointStrings := make([]string, 0, len(fCache.endpoints))
+	for _, endpoint := range fCache.endpoints {
+		endpointStrings = append(endpointStrings, fmt.Sprintf("[%+v]", endpoint.PrettyString()))
+	}
+
+	return fmt.Sprintf("networks: %s\nendpoints: %s", strings.Join(networkStrings, ","), strings.Join(endpointStrings, ","))
+}
+
+// AllSetPolicies returns all SetPolicies in a given network as a map of SetPolicy ID to SetPolicy object.
+func (fCache FakeHNSCache) AllSetPolicies(networkID string) map[string]*hcn.SetPolicySetting {
+	setPolicies := make(map[string]*hcn.SetPolicySetting)
+	for _, network := range fCache.networks {
+		if network.ID == networkID {
+			for _, setPolicy := range network.Policies {
+				setPolicies[setPolicy.Id] = setPolicy
+			}
+			break
+		}
+	}
+	return setPolicies
+}
+
+// ACLPolicies returns a map of the inputed Endpoint IDs to Policies with the given policyID.
 func (fCache FakeHNSCache) ACLPolicies(epList map[string]string, policyID string) (map[string][]*FakeEndpointPolicy, error) {
 	aclPols := make(map[string][]*FakeEndpointPolicy)
 	for ip, epID := range epList {
@@ -354,6 +386,7 @@ func (fCache FakeHNSCache) ACLPolicies(epList map[string]string, policyID string
 	return aclPols, nil
 }
 
+// GetAllACLs maps all Endpoint IDs to ACLs
 func (fCache FakeHNSCache) GetAllACLs() map[string][]*FakeEndpointPolicy {
 	aclPols := make(map[string][]*FakeEndpointPolicy)
 	for _, ep := range fCache.endpoints {
@@ -362,9 +395,20 @@ func (fCache FakeHNSCache) GetAllACLs() map[string][]*FakeEndpointPolicy {
 	return aclPols
 }
 
+// EndpointIP returns the Endpoint's IP or an empty string if the Endpoint doesn't exist.
+func (fCache FakeHNSCache) EndpointIP(id string) string {
+	for _, ep := range fCache.endpoints {
+		if ep.ID == id {
+			return ep.IPConfiguration
+		}
+	}
+	return ""
+}
+
 type FakeHostComputeNetwork struct {
-	ID       string
-	Name     string
+	ID   string
+	Name string
+	// Policies maps SetPolicy ID to SetPolicy object
 	Policies map[string]*hcn.SetPolicySetting
 }
 
@@ -376,10 +420,33 @@ func NewFakeHostComputeNetwork(network *hcn.HostComputeNetwork) *FakeHostCompute
 	}
 }
 
+func (fNetwork *FakeHostComputeNetwork) PrettyString() string {
+	setPolicyStrings := make([]string, 0, len(fNetwork.Policies))
+	for _, setPolicy := range fNetwork.Policies {
+		setPolicyStrings = append(setPolicyStrings, fmt.Sprintf("[%+v]", setPolicy))
+	}
+	return fmt.Sprintf("ID: %s, Name: %s, SetPolicies: [%s]", fNetwork.ID, fNetwork.Name, strings.Join(setPolicyStrings, ","))
+}
+
 func (fNetwork *FakeHostComputeNetwork) GetHCNObj() *hcn.HostComputeNetwork {
+	setPolicies := make([]hcn.NetworkPolicy, 0)
+	for _, setPolicy := range fNetwork.Policies {
+		rawSettings, err := json.Marshal(setPolicy)
+		if err != nil {
+			fmt.Printf("FakeHostComputeNetwork: error marshalling SetPolicy: %+v. err: %s\n", setPolicy, err.Error())
+			continue
+		}
+		policy := hcn.NetworkPolicy{
+			Type:     hcn.SetPolicy,
+			Settings: rawSettings,
+		}
+		setPolicies = append(setPolicies, policy)
+	}
+
 	return &hcn.HostComputeNetwork{
-		Id:   fNetwork.ID,
-		Name: fNetwork.Name,
+		Id:       fNetwork.ID,
+		Name:     fNetwork.Name,
+		Policies: setPolicies,
 	}
 }
 
@@ -404,29 +471,41 @@ func NewFakeHostComputeEndpoint(endpoint *hcn.HostComputeEndpoint) *FakeHostComp
 	}
 }
 
+func (fEndpoint *FakeHostComputeEndpoint) PrettyString() string {
+	aclStrings := make([]string, 0, len(fEndpoint.Policies))
+	for _, acl := range fEndpoint.Policies {
+		aclStrings = append(aclStrings, fmt.Sprintf("[%+v]", acl))
+	}
+	return fmt.Sprintf("ID: %s, Name: %s, IP: %s, ACLs: [%s]",
+		fEndpoint.ID, fEndpoint.Name, fEndpoint.IPConfiguration, strings.Join(aclStrings, ","))
+}
+
 func (fEndpoint *FakeHostComputeEndpoint) GetHCNObj() *hcn.HostComputeEndpoint {
-	// NOTE: not including other policy types like perhaps SetPolicies
-	hcnEndpoint := &hcn.HostComputeEndpoint{
+	acls := make([]hcn.EndpointPolicy, 0)
+	for _, acl := range fEndpoint.Policies {
+		rawSettings, err := json.Marshal(acl)
+		if err != nil {
+			fmt.Printf("FakeHostComputeEndpoint: error marshalling ACL: %+v. err: %s\n", acl, err.Error())
+			continue
+		}
+		policy := hcn.EndpointPolicy{
+			Type:     hcn.ACL,
+			Settings: rawSettings,
+		}
+		acls = append(acls, policy)
+	}
+
+	return &hcn.HostComputeEndpoint{
 		Id:                 fEndpoint.ID,
 		Name:               fEndpoint.Name,
 		HostComputeNetwork: fEndpoint.HostComputeNetwork,
-		Policies:           make([]hcn.EndpointPolicy, 0),
+		IpConfigurations: []hcn.IpConfig{
+			{
+				IpAddress: fEndpoint.IPConfiguration,
+			},
+		},
+		Policies: acls,
 	}
-
-	for _, fakeEndpointPol := range fEndpoint.Policies {
-		rawJSON, err := json.Marshal(fakeEndpointPol)
-		if err != nil {
-			fmt.Printf("FAILURE marshalling fake endpoint policy: %s\n", err.Error())
-		} else {
-			hcnPolicy := hcn.EndpointPolicy{
-				Type:     hcn.ACL,
-				Settings: rawJSON,
-			}
-			hcnEndpoint.Policies = append(hcnEndpoint.Policies, hcnPolicy)
-		}
-	}
-
-	return hcnEndpoint
 }
 
 func (fEndpoint *FakeHostComputeEndpoint) RemovePolicy(toRemovePol *FakeEndpointPolicy) error {

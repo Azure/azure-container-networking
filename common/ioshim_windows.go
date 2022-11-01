@@ -9,6 +9,8 @@ import (
 	utilexec "k8s.io/utils/exec"
 )
 
+const FakeHNSNetworkID = "1234"
+
 type IOShim struct {
 	Exec utilexec.Interface
 	Hns  hnswrapper.HnsV2WrapperInterface
@@ -24,7 +26,7 @@ func NewIOShim() *IOShim {
 func NewMockIOShim(calls []testutils.TestCmd) *IOShim {
 	hns := hnswrapper.NewHnsv2wrapperFake()
 	network := &hcn.HostComputeNetwork{
-		Id:   "1234",
+		Id:   FakeHNSNetworkID,
 		Name: "azure",
 	}
 
