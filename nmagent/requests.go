@@ -302,7 +302,7 @@ func (s *SupportedAPIsRequest) Method() string {
 
 // Path returns the necessary URI path for invoking a supported APIs request.
 func (s *SupportedAPIsRequest) Path() string {
-	return "/network/nmagentsupportedapis"
+	return "/GetSupportedApis"
 }
 
 // Validate is a no-op method because SupportedAPIsRequests have no parameters,
