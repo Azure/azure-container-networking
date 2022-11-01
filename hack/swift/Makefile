@@ -80,6 +80,7 @@ up: swift-up ## Alias to swift-up
 overlay-up: rg-up overlay-net-up ## Brings up an Overlay AzCNI cluster
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
 		--node-count 2 \
+		--node-vm-size Standard_B2s \
 		--load-balancer-sku basic \
 		--network-plugin azure \
 		--network-plugin-mode overlay \
@@ -92,6 +93,7 @@ overlay-up: rg-up overlay-net-up ## Brings up an Overlay AzCNI cluster
 swift-byocni-up: rg-up net-up ## Bring up a SWIFT BYO CNI cluster
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
 		--node-count 2 \
+		--node-vm-size Standard_B2s \
 		--load-balancer-sku basic \
 		--network-plugin none \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
@@ -104,6 +106,7 @@ swift-byocni-up: rg-up net-up ## Bring up a SWIFT BYO CNI cluster
 swift-cilium-up: rg-up net-up ## Bring up a SWIFT Cilium cluster
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
 		--node-count 2 \
+		--node-vm-size Standard_B2s \
 		--load-balancer-sku basic \
 		--network-plugin azure \
 		--enable-cilium-dataplane \
@@ -117,6 +120,7 @@ swift-cilium-up: rg-up net-up ## Bring up a SWIFT Cilium cluster
 swift-up: rg-up net-up ## Bring up a SWIFT AzCNI cluster
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
 		--node-count 2 \
+		--node-vm-size Standard_B2s \
 		--load-balancer-sku basic \
 		--network-plugin azure \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
