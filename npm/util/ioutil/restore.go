@@ -242,13 +242,17 @@ func (creator *FileCreator) numLines() int {
 func (definition *ErrorDefinition) getErrorLineNumber(stdErr, commandString string, numLines int) int {
 	result := definition.re.FindStringSubmatch(stdErr)
 	if result == nil || len(result) < 2 {
-		metrics.SendErrorLogAndMetric(util.UtilID, "expected error with line number, but couldn't detect one with error regex pattern [%s] for command [%s] with stdErr [%s]", definition.matchPattern, commandString, stdErr)
+		metrics.SendErrorLogAndMetric(util.UtilID,
+			"expected error with line number, but couldn't detect one with error regex pattern [%s] for command [%s] with stdErr [%s]",
+			definition.matchPattern, commandString, stdErr)
 		return -1
 	}
 	lineNumString := result[1]
 	lineNum, err := strconv.Atoi(lineNumString)
 	if err != nil {
-		metrics.SendErrorLogAndMetric(util.UtilID, "expected error with line number, but error regex pattern %s didn't produce a number for command [%s] with stdErr [%s]", definition.matchPattern, commandString, stdErr)
+		metrics.SendErrorLogAndMetric(util.UtilID,
+			"expected error with line number, but error regex pattern %s didn't produce a number for command [%s] with stdErr [%s]",
+			definition.matchPattern, commandString, stdErr)
 		return -1
 	}
 	if lineNum < 1 || lineNum > numLines {
