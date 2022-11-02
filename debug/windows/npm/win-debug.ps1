@@ -37,7 +37,7 @@ for ($i = 0; $i -lt $rows.Length; $i += 2) {
     kubectl exec -it -n kube-system $npm -- powershell.exe -Command  .\execw.ps1 "'$ips'"
 
     Write-Output "copying logs.zip from $npm"
-    kubectl cp kube-system/"$npm":logs.zip ./$filepath/logs_$node.zip
+    kubectl cp kube-system/"$npm":npm-exec-logs.zip ./$filepath/npm-exec-logs_$node.zip
 }
 
 Write-Output "finished capturing all logs. written to $filepath/"

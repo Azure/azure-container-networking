@@ -48,7 +48,7 @@ for i in $(seq 1 ${#npmPods[*]}); do
     kubectl exec -it -n kube-system $npmPod -- powershell.exe -Command  .\\execw.ps1 "'${ips[@]}'"
 
     echo "copying logs.zip from $npmPod. NOTE: this will be a windows-based compressed archive (probably need windows to expand it)"
-    kubectl cp kube-system/"$npmPod":logs.zip $filepath/logs_$node.zip
+    kubectl cp kube-system/"$npmPod":npm-exec-logs.zip $filepath/npm-exec-logs_$node.zip
 done
 
 echo "finished gathering all logs. written to $filepath/"

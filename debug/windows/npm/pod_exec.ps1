@@ -24,6 +24,6 @@ foreach ($r in ($podIps -split " ")) {
     }
  }
 
- Compress-Archive -Path 'logs' -DestinationPath 'logs.zip' -Force
+ Compress-Archive -Path "$filepath" -DestinationPath "$filepath.zip" -Force
 
 exit
