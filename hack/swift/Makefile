@@ -8,14 +8,14 @@ AZIMG   = mcr.microsoft.com/azure-cli
 AZCLI   ?= docker run --rm -v $(AZCFG):/root/.azure -v $(KUBECFG):/root/.kube -v $(SSH):/root/.ssh $(AZIMG) az
 
 # overrideable variables
-USER       ?= $(whoami)
-OSSKU      ?= Ubuntu
-CLUSTER    ?= $(USER)-$(REGION)
-GROUP      ?= $(CLUSTER)
-REGION     ?= westus2
 SUB        ?= $(AZURE_SUBSCRIPTION)
+CLUSTER    ?= $(whoami)-$(REGION)
+GROUP      ?= $(CLUSTER)
 VNET       ?= $(CLUSTER)
-
+# overrideable defaults
+REGION     ?= westus2
+OS_SKU     ?= Ubuntu
+VM_SIZE	   ?= Standard_B2s
 
 ##@ Help
 
@@ -45,28 +45,30 @@ unset-kubeconf: ## Deletes the kubeconf for $CLUSTER
 shell: ## print $AZCLI so it can be used outside of make
 	@echo $(AZCLI)
 
+vars: ## Show the input vars configured for the cluster commands
+	@echo CLUSTER=$(CLUSTER)
+	@echo GROUP=$(GROUP)
+	@echo REGION=$(REGION)
+	@echo SUB=$(SUB)
+	@echo VNET=$(VNET)
+	@echo OS_SKU=$(OS_SKU)
+	@echo VM_SIZE=$(VM_SIZE)
+
 
 ##@ SWIFT Infra
 
-vars: ## Show the env vars configured for the swift command
-	@echo SUB=$(SUB)
-	@echo GROUP=$(GROUP)
-	@echo REGION=$(REGION)
-	@echo VNET=$(VNET)
-	@echo CLUSTER=$(CLUSTER)
-
-rg-up: ## Create resource group $GROUP in $SUB/$REGION
+rg-up: ## Create resource group 
 	@$(AZCLI) group create --location $(REGION) --name $(GROUP)
 
-rg-down: ## Delete the $GROUP in $SUB/$REGION
+rg-down: ## Delete resource group
 	$(AZCLI) group delete -g $(GROUP) --yes
 
-net-up: ## Create required swift vnet/subnets
+swift-net-up: ## Create vnet, nodenet and podnet subnets
 	$(AZCLI) network vnet create -g $(GROUP) -l $(REGION) --name $(VNET) --address-prefixes 10.0.0.0/8 -o none
 	$(AZCLI) network vnet subnet create -g $(GROUP) --vnet-name $(VNET) --name nodenet --address-prefixes 10.240.0.0/16 -o none
 	$(AZCLI) network vnet subnet create -g $(GROUP) --vnet-name $(VNET) --name podnet --address-prefixes 10.241.0.0/16 -o none
 
-overlay-net-up:
+overlay-net-up: ## Create vnet, nodenet subnets
 	$(AZCLI) network vnet create -g $(GROUP) -l $(REGION) --name $(VNET) --address-prefixes 10.0.0.0/8 -o none
 	$(AZCLI) network vnet subnet create -g $(GROUP) --vnet-name $(VNET) --name nodenet --address-prefix 10.10.0.0/16 -o none
 
@@ -80,7 +82,7 @@ up: swift-up ## Alias to swift-up
 overlay-up: rg-up overlay-net-up ## Brings up an Overlay AzCNI cluster
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
 		--node-count 2 \
-		--node-vm-size Standard_B2s \
+		--node-vm-size $(VM_SIZE) \
 		--load-balancer-sku basic \
 		--network-plugin azure \
 		--network-plugin-mode overlay \
@@ -90,23 +92,23 @@ overlay-up: rg-up overlay-net-up ## Brings up an Overlay AzCNI cluster
 		--yes
 	@$(MAKE) set-kubeconf
 
-swift-byocni-up: rg-up net-up ## Bring up a SWIFT BYO CNI cluster
+swift-byocni-up: rg-up swift-net-up ## Bring up a SWIFT BYO CNI cluster
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
 		--node-count 2 \
-		--node-vm-size Standard_B2s \
+		--node-vm-size $(VM_SIZE) \
 		--load-balancer-sku basic \
 		--network-plugin none \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
 		--pod-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/podnet \
 		--no-ssh-key \
-		--os-sku $(OSSKU) \
+		--os-sku $(OS_SKU) \
 		--yes
 	@$(MAKE) set-kubeconf
 
-swift-cilium-up: rg-up net-up ## Bring up a SWIFT Cilium cluster
+swift-cilium-up: rg-up swift-net-up ## Bring up a SWIFT Cilium cluster
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
 		--node-count 2 \
-		--node-vm-size Standard_B2s \
+		--node-vm-size $(VM_SIZE) \
 		--load-balancer-sku basic \
 		--network-plugin azure \
 		--enable-cilium-dataplane \
@@ -117,10 +119,10 @@ swift-cilium-up: rg-up net-up ## Bring up a SWIFT Cilium cluster
 		--yes
 	@$(MAKE) set-kubeconf
 
-swift-up: rg-up net-up ## Bring up a SWIFT AzCNI cluster
+swift-up: rg-up swift-net-up ## Bring up a SWIFT AzCNI cluster
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
 		--node-count 2 \
-		--node-vm-size Standard_B2s \
+		--node-vm-size $(VM_SIZE) \
 		--load-balancer-sku basic \
 		--network-plugin azure \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
