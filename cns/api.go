@@ -12,7 +12,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/common"
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
-	nma "github.com/Azure/azure-container-networking/nmagent"
+	"github.com/Azure/azure-container-networking/nmagent"
 	"github.com/pkg/errors"
 )
 
@@ -340,6 +340,6 @@ type NmAgentSupportedApisResponse struct {
 }
 
 type GetHomeAzResponse struct {
-	Response       Response           `json:"Response"`
-	HomeAzResponse nma.HomeAzResponse `json:"HomeAzResponse"`
+	Response       Response               `json:"response"`
+	HomeAzResponse nmagent.HomeAzResponse `json:"homeAzResponse"`
 }

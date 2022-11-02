@@ -942,32 +942,34 @@ func (service *HTTPRestService) generateAndCacheGetHomeAzResponse(returnMessage 
 
 // readNMASupportedApisCache gets the nmsSupportedApisCache value
 func (service *HTTPRestService) readNMASupportedApisCache() []string {
-	service.RLock()
+	service.nmaSupportedApisCacheMux.RLock()
 	supportedApis := service.nmaSupportedApisCache
-	service.RUnlock()
-	return supportedApis
+	supportedApisCopy := make([]string, len(supportedApis))
+	copy(supportedApisCopy, supportedApis)
+	service.nmaSupportedApisCacheMux.RUnlock()
+	return supportedApisCopy
 }
 
 // updateNMASupportedApisCache updates the nmaSupportedApisCache value
 func (service *HTTPRestService) updateNMASupportedApisCache(supportedApis []string) {
-	service.Lock()
+	service.nmaSupportedApisCacheMux.Lock()
 	service.nmaSupportedApisCache = supportedApis
-	service.Unlock()
+	service.nmaSupportedApisCacheMux.Unlock()
 }
 
 // readGetHomeAzResponseCache gets the GetHomeAzResponseCache value
 func (service *HTTPRestService) readGetHomeAzResponseCache() cns.GetHomeAzResponse {
-	service.RLock()
+	service.getHomeAzResponseCacheMux.RLock()
 	response := service.getHomeAzResponseCache
-	service.RUnlock()
+	service.getHomeAzResponseCacheMux.RUnlock()
 	return response
 }
 
 // updateGetHomeAzResponseCache updates the GetHomeAzResponseCache value
 func (service *HTTPRestService) updateGetHomeAzResponseCache(response cns.GetHomeAzResponse) {
-	service.Lock()
+	service.getHomeAzResponseCacheMux.Lock()
 	service.getHomeAzResponseCache = response
-	service.Unlock()
+	service.getHomeAzResponseCacheMux.Unlock()
 }
 
 // isAPISupportedByNMAgent checks cache to see if the given api supported by nmagent client

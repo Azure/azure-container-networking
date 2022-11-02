@@ -72,6 +72,8 @@ type HTTPRestService struct {
 	generateCNIConflistOnce sync.Once
 	nmaSupportedApisCache  []string
 	getHomeAzResponseCache cns.GetHomeAzResponse // TODO: implement mechanism to cache this value when CNS starts in following PR
+	nmaSupportedApisCacheMux  sync.RWMutex
+	getHomeAzResponseCacheMux sync.RWMutex
 }
 
 type CNIConflistGenerator interface {
