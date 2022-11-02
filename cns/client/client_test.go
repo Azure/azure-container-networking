@@ -2277,7 +2277,7 @@ func TestGetHomeAz(t *testing.T) {
 					Message:    "success",
 				},
 				HomeAzResponse: nmagent.HomeAzResponse{
-					HomeAz: "01",
+					HomeAz: uint(1),
 				},
 			},
 		},
