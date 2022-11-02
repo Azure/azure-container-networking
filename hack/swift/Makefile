@@ -79,12 +79,14 @@ up: swift-up ## Alias to swift-up
 
 overlay-byocni-up: rg-up overlay-net-up ## Brings up an Overlay BYO CNI cluster
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
-		--node-count 3 \
+		--node-count 2 \
+		--node-vm-size Standard_B2s \
+		--load-balancer-sku basic \
 		--network-plugin none \
 		--network-plugin-mode overlay \
 		--pod-cidr 192.168.0.0/16 \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
-		--generate-ssh-keys \
+		--no-ssh-key \
 		--yes
 	@$(MAKE) set-kubeconf
 
