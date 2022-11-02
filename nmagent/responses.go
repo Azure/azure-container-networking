@@ -38,5 +38,5 @@ type NCVersionList struct {
 }
 
 type HomeAzResponse struct {
-	HomeAz string `json:"HomeAz"`
+	HomeAz uint `json:"HomeAz"`
 }

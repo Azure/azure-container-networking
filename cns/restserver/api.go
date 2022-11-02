@@ -37,8 +37,7 @@ var (
 // 5) the optional delete path
 const (
 	ncURLExpectedMatches = 5
-
-	getHomeAzAPIName = "GetHomeAz"
+	getHomeAzAPIName     = "GetHomeAz"
 )
 
 // This file contains implementation of all HTTP APIs which are exposed to external clients.
@@ -772,11 +771,10 @@ func (service *HTTPRestService) setOrchestratorType(w http.ResponseWriter, r *ht
 func (service *HTTPRestService) getHomeAz(w http.ResponseWriter, r *http.Request) {
 	logger.Printf("[Azure CNS] getHomeAz")
 	logger.Request(service.Name, " getHomeAz", nil)
-	ctx := r.Context()
 
 	switch r.Method {
 	case http.MethodGet:
-		getHomeAzResp := service.GetHomeAz(ctx)
+		getHomeAzResp := service.readGetHomeAzResponseCache()
 		service.setResponse(w, getHomeAzResp.Response.ReturnCode, getHomeAzResp)
 
 	default:
@@ -786,15 +784,6 @@ func (service *HTTPRestService) getHomeAz(w http.ResponseWriter, r *http.Request
 			Response: cns.Response{ReturnCode: returnCode, Message: returnMessage},
 		})
 	}
-}
-
-func isAPISupportedByNMAgent(supportedAPIs []string, api string) bool {
-	for _, supportedAPI := range supportedAPIs {
-		if supportedAPI == api {
-			return true
-		}
-	}
-	return false
 }
 
 func (service *HTTPRestService) createOrUpdateNetworkContainer(w http.ResponseWriter, r *http.Request) {
@@ -1514,7 +1503,7 @@ func (service *HTTPRestService) nmAgentSupportedApisHandler(w http.ResponseWrite
 			returnMessage = fmt.Sprintf("[Azure-CNS] %s", retErr.Error())
 		} else {
 			// caching supportedApis value
-			service.updateSupportedApisCache(apis)
+			service.updateNMASupportedApisCache(apis)
 		}
 
 		supportedApis = apis

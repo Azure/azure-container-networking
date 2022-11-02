@@ -382,7 +382,7 @@ func TestReconcileNCWithSystemPods(t *testing.T) {
 }
 
 func TestGetHomeAz(t *testing.T) {
-	expHomeAz := "01"
+	expHomeAz := uint(1)
 	mnma := &fakes.NMAgentClientFake{
 		SupportedAPIsF: func(_ context.Context) ([]string, error) {
 			return []string{
@@ -403,7 +403,7 @@ func TestGetHomeAz(t *testing.T) {
 		t.Errorf("unexpected return code %s", resp.Response.ReturnCode)
 	}
 	if resp.HomeAzResponse.HomeAz != expHomeAz {
-		t.Errorf("Unexpected homeAz, expect %s but got %s", expHomeAz, resp.HomeAzResponse.HomeAz)
+		t.Errorf("Unexpected homeAz, expect %d but got %d", expHomeAz, resp.HomeAzResponse.HomeAz)
 	}
 }
 

@@ -977,6 +977,7 @@ func TestNmAgentSupportedApisHandler(t *testing.T) {
 	fmt.Printf("nmAgentSupportedApisHandler Responded with %+v\n", nmAgentSupportedApisResponse)
 }
 
+// Testing GetHomeAz API handler, return UnsupportedVerb if http method is not supported
 func TestGetHomeAz_UnsupportedHttpMethod(t *testing.T) {
 	req, err := http.NewRequestWithContext(context.TODO(), http.MethodPost, cns.GetHomeAz, http.NoBody)
 	if err != nil {
@@ -990,23 +991,6 @@ func TestGetHomeAz_UnsupportedHttpMethod(t *testing.T) {
 	err = decodeResponse(w, &getHomeAzResponse)
 	if err != nil && getHomeAzResponse.Response.ReturnCode != types.UnsupportedVerb {
 		t.Errorf("GetHomeAz not failing to unsupported http method with response %+v", getHomeAzResponse)
-	}
-	logger.Printf("GetHomeAz Responded with %+v\n", getHomeAzResponse)
-}
-
-func TestGetHomeAz_With_NmAgentSupportedAPIsError(t *testing.T) {
-	req, err := http.NewRequestWithContext(context.TODO(), http.MethodGet, cns.GetHomeAz, http.NoBody)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-
-	var getHomeAzResponse cns.GetHomeAzResponse
-	err = decodeResponse(w, &getHomeAzResponse)
-	if err != nil && getHomeAzResponse.Response.ReturnCode != types.NmAgentSupportedApisError {
-		t.Errorf("GetHomeAz not faild to NmAgentSupportedAPIsError with response %+v", getHomeAzResponse)
 	}
 	logger.Printf("GetHomeAz Responded with %+v\n", getHomeAzResponse)
 }
@@ -1432,10 +1416,6 @@ func startService() error {
 			resp.Containers = append(resp.Containers, nmagent.NCVersion{Version: "0", NetworkContainerID: cs})
 		}
 		return resp, nil
-	}
-
-	nmagentClient.SupportedAPIsF = func(context.Context) ([]string, error) {
-		return []string{}, nil
 	}
 
 	if service != nil {

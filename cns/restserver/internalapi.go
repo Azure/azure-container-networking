@@ -397,32 +397,24 @@ func (service *HTTPRestService) CreateOrUpdateNetworkContainerInternal(req *cns.
 
 // GetHomeAz gets home AZ from cache or from nmagent
 func (service *HTTPRestService) GetHomeAz(ctx context.Context) cns.GetHomeAzResponse {
-	homeAz := service.readHomeAzCache()
-	if homeAz != "" {
-		return cns.GetHomeAzResponse{HomeAzResponse: nmagent.HomeAzResponse{HomeAz: homeAz}}
-	}
-	suppApisCache := service.readSupportedApisCache()
-	if len(suppApisCache) == 0 || !isAPISupportedByNMAgent(suppApisCache, getHomeAzAPIName) { // to account for if nma getting updated underneath
-		// Get NMAgent supported apis
-		supportedAPIs, err := service.nma.SupportedAPIs(ctx)
+	if !service.isAPISupportedByNMAgent(getHomeAzAPIName) { // to account for if nma getting updated underneath
+		// Getting NMAgent supported apis and update cache
+		err := service.queryAndUpdateNMASupportedAPICache(ctx)
 		if err != nil {
-			returnMessage := fmt.Sprintf("[Azure CNS] Error. getHomeAz failed to get NMAgent supported Apis %v", err)
+			returnMessage := fmt.Sprintf("[Azure CNS] Error. GetSupportedApis API call to NMAgent failed. %v", err)
 			returnCode := types.NmAgentSupportedApisError
-			return cns.GetHomeAzResponse{Response: cns.Response{ReturnCode: returnCode, Message: returnMessage}}
+			return service.generateAndCacheGetHomeAzResponse(returnMessage, returnCode, nmagent.HomeAzResponse{})
 		}
 
-		// updating supportedApisCache
-		service.updateSupportedApisCache(supportedAPIs)
-
-		if !isAPISupportedByNMAgent(supportedAPIs, getHomeAzAPIName) {
-			returnMessage := "[Azure CNS] Error. NMAgent does not support GetHomeAz api."
+		if !service.isAPISupportedByNMAgent(getHomeAzAPIName) {
+			returnMessage := fmt.Sprintf("[Azure CNS] Error. NMAgent does not support %s api.", getHomeAzAPIName)
 			returnCode := types.NmAgentUnSupportedAPIError
-			return cns.GetHomeAzResponse{Response: cns.Response{ReturnCode: returnCode, Message: returnMessage}}
+			return service.generateAndCacheGetHomeAzResponse(returnMessage, returnCode, nmagent.HomeAzResponse{})
 		}
 	}
 
-	// calling NMAgent to get home AZ info
-	homeAzInfo, err := service.nma.GetHomeAz(ctx)
+	// calling NMAgent to get home AZ
+	homeAzResponse, err := service.nma.GetHomeAz(ctx)
 	if err != nil {
 		apiError := nmagent.Error{}
 		if ok := errors.As(err, &apiError); ok {
@@ -430,25 +422,33 @@ func (service *HTTPRestService) GetHomeAz(ctx context.Context) cns.GetHomeAzResp
 			case http.StatusInternalServerError:
 				returnMessage := "[Azure CNS] Error. GetHomeAz failed due to Nmagent server internal error."
 				returnCode := types.NmAgentInternalServerError
-				return cns.GetHomeAzResponse{Response: cns.Response{ReturnCode: returnCode, Message: returnMessage}}
+				return service.generateAndCacheGetHomeAzResponse(returnMessage, returnCode, nmagent.HomeAzResponse{})
 
 			case http.StatusUnauthorized:
 				returnMessage := "[Azure CNS] Error. GetHomeAz failed to authenticate with OwningServiceInstanceId"
 				returnCode := types.StatusUnauthorized
-				return cns.GetHomeAzResponse{Response: cns.Response{ReturnCode: returnCode, Message: returnMessage}}
+				return service.generateAndCacheGetHomeAzResponse(returnMessage, returnCode, nmagent.HomeAzResponse{})
 
 			default:
 				returnMessage := fmt.Sprintf("[Azure CNS] Error. GetHomeAz failed with StatusCode: %d", apiError.StatusCode())
 				returnCode := types.UnexpectedError
-				return cns.GetHomeAzResponse{Response: cns.Response{ReturnCode: returnCode, Message: returnMessage}}
+				return service.generateAndCacheGetHomeAzResponse(returnMessage, returnCode, nmagent.HomeAzResponse{})
 			}
 		}
 		returnCode := types.UnexpectedError
 		returnMessage := fmt.Sprintf("[Azure CNS] Error. getHomeAz failed %v", err)
-		return cns.GetHomeAzResponse{Response: cns.Response{ReturnCode: returnCode, Message: returnMessage}}
+		return service.generateAndCacheGetHomeAzResponse(returnMessage, returnCode, nmagent.HomeAzResponse{})
 	}
+	return service.generateAndCacheGetHomeAzResponse("GetHomeAz Success!", types.Success, homeAzResponse)
+}
 
-	service.updateHomeAzCache(homeAzInfo.HomeAz)
-
-	return cns.GetHomeAzResponse{HomeAzResponse: homeAzInfo}
+// queryAndUpdateNMASupportedAPICache makes call to NMA to query supported Api list and update the cache value
+func (service *HTTPRestService) queryAndUpdateNMASupportedAPICache(ctx context.Context) error {
+	// Getting NMAgent supported apis
+	supportedAPIs, err := service.nma.SupportedAPIs(ctx)
+	if err != nil {
+		return errors.Wrap(err, "Get NMA supported apis failed")
+	}
+	service.updateNMASupportedApisCache(supportedAPIs)
+	return nil
 }

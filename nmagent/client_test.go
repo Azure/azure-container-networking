@@ -633,11 +633,11 @@ func TestGetHomeAz(t *testing.T) {
 	}{
 		{
 			"happy path",
-			nmagent.HomeAzResponse{HomeAz: "01"},
+			nmagent.HomeAzResponse{HomeAz: uint(1)},
 			"/machine/plugins/?comp=nmagent&type=GetHomeAz",
 			map[string]interface{}{
 				"httpStatusCode": "200",
-				"HomeAz":         "01",
+				"HomeAz":         1,
 			},
 			false,
 		},

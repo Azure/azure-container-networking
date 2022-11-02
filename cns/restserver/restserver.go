@@ -70,8 +70,8 @@ type HTTPRestService struct {
 	EndpointStateStore      store.KeyValueStore
 	cniConflistGenerator    CNIConflistGenerator
 	generateCNIConflistOnce sync.Once
-	supportedApisCache []string
-	homeAzCache        string // TODO: implement mechanism to cache this value when CNS starts in following PR
+	nmaSupportedApisCache  []string
+	getHomeAzResponseCache cns.GetHomeAzResponse // TODO: implement mechanism to cache this value when CNS starts in following PR
 }
 
 type CNIConflistGenerator interface {
