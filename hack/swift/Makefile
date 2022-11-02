@@ -12,7 +12,7 @@ USER       ?= $(whoami)
 OSSKU      ?= Ubuntu
 CLUSTER    ?= $(USER)-$(REGION)
 GROUP      ?= $(CLUSTER)
-REGION     ?= centraluseuap
+REGION     ?= westus2
 SUB        ?= $(AZURE_SUBSCRIPTION)
 VNET       ?= $(CLUSTER)
 
@@ -90,45 +90,53 @@ overlay-byocni-up: rg-up overlay-net-up ## Brings up an Overlay BYO CNI cluster
 
 overlay-up: rg-up overlay-net-up ## Brings up an Overlay AzCNI cluster
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
-		--node-count 3 \
+		--node-count 2 \
+		--node-vm-size Standard_B2s \
+		--load-balancer-sku basic \
 		--network-plugin azure \
 		--network-plugin-mode overlay \
 		--pod-cidr 192.168.0.0/16 \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
-		--generate-ssh-keys \
+		--no-ssh-key \
 		--yes
 	@$(MAKE) set-kubeconf
 
 swift-byocni-up: rg-up net-up ## Bring up a SWIFT BYO CNI cluster
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
-		--node-count 3 \
+		--node-count 2 \
+		--node-vm-size Standard_B2s \
+		--load-balancer-sku basic \
 		--network-plugin none \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
 		--pod-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/podnet \
-		--generate-ssh-keys \
+		--no-ssh-key \
 		--os-sku $(OSSKU) \
 		--yes
 	@$(MAKE) set-kubeconf
 
 swift-cilium-up: rg-up net-up ## Bring up a SWIFT Cilium cluster
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
-		--node-count 3 \
+		--node-count 2 \
+		--node-vm-size Standard_B2s \
+		--load-balancer-sku basic \
 		--network-plugin azure \
 		--enable-cilium-dataplane \
 		--aks-custom-headers AKSHTTPCustomFeatures=Microsoft.ContainerService/CiliumDataplanePreview \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
 		--pod-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/podnet \
-		--generate-ssh-keys \
+		--no-ssh-key \
 		--yes
 	@$(MAKE) set-kubeconf
 
 swift-up: rg-up net-up ## Bring up a SWIFT AzCNI cluster
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
-		--node-count 3 \
+		--node-count 2 \
+		--node-vm-size Standard_B2s \
+		--load-balancer-sku basic \
 		--network-plugin azure \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
 		--pod-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/podnet \
-		--generate-ssh-keys \
+		--no-ssh-key \
 		--yes
 	@$(MAKE) set-kubeconf
 
