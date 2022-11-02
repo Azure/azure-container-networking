@@ -1,5 +1,33 @@
 # Release History
 
+## 0.10.1 (2022-09-20)
+
+### Features Added
+* Added `ClientOptions.DisableChallengeResourceVerification`.
+  See https://aka.ms/azsdk/blog/vault-uri for more information.
+
+## 0.10.0 (2022-09-12)
+
+### Breaking Changes
+* Verify the challenge resource matches the vault domain.
+
+## 0.9.0 (2022-08-09)
+
+### Breaking Changes
+* Changed type of `NewClient` options parameter to `azsecrets.ClientOptions`, which embeds
+  the former type, `azcore.ClientOptions`
+
+## 0.8.0 (2022-07-07)
+
+### Breaking Changes
+* The `Client` API now corresponds more directly to the Key Vault REST API.
+  Most method signatures and types have changed. See the
+  [module documentation](https://aka.ms/azsdk/go/keyvault-secrets/docs)
+  for updated code examples and more details.
+
+### Other Changes
+* Upgrade to latest `azcore`
+
 ## 0.7.1 (2022-05-12)
 
 ### Other Changes

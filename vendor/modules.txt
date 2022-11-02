@@ -28,11 +28,10 @@ github.com/Azure/azure-sdk-for-go/sdk/internal/errorinfo
 github.com/Azure/azure-sdk-for-go/sdk/internal/log
 github.com/Azure/azure-sdk-for-go/sdk/internal/temporal
 github.com/Azure/azure-sdk-for-go/sdk/internal/uuid
-# github.com/Azure/azure-sdk-for-go/sdk/keyvault/azsecrets v0.7.1
+# github.com/Azure/azure-sdk-for-go/sdk/keyvault/azsecrets v0.10.1
 ## explicit; go 1.18
 github.com/Azure/azure-sdk-for-go/sdk/keyvault/azsecrets
-github.com/Azure/azure-sdk-for-go/sdk/keyvault/azsecrets/internal
-# github.com/Azure/azure-sdk-for-go/sdk/keyvault/internal v0.5.0
+# github.com/Azure/azure-sdk-for-go/sdk/keyvault/internal v0.7.0
 ## explicit; go 1.18
 github.com/Azure/azure-sdk-for-go/sdk/keyvault/internal
 # github.com/AzureAD/microsoft-authentication-library-for-go v0.5.1
