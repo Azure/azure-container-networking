@@ -370,6 +370,40 @@ func getAllSerialTests() []*SerialTestCase {
 				},
 			},
 		},
+		{
+			Description: "Pod B replaces Pod A with same IP",
+			Actions: []*Action{
+				CreateEndpoint(endpoint1, ip1),
+				CreatePod("x", "a", ip1, thisNode, map[string]string{"k1": "v1"}),
+				ApplyDP(),
+				DeleteEndpoint(endpoint1),
+				CreateEndpoint(endpoint2, ip1),
+				// in case CreatePod("x", "b", ...) is somehow processed before DeletePod("x", "a", ...)
+				CreatePod("x", "b", ip1, thisNode, map[string]string{"k2": "v2"}),
+				// policy should not be applied to x/b since ipset manager should not consider pod x/b part of k1:v1 selector ipsets
+				UpdatePolicy(policyXBaseOnK1V1()),
+			},
+			TestCaseMetadata: &TestCaseMetadata{
+				Tags: []Tag{
+					podCrudTag,
+					netpolCrudTag,
+				},
+				DpCfg:            defaultWindowsDPCfg,
+				InitialEndpoints: nil,
+				ExpectedSetPolicies: []*hcn.SetPolicySetting{
+					dptestutils.SetPolicy(emptySet),
+					dptestutils.SetPolicy(allNamespaces, emptySet.GetHashedName(), nsXSet.GetHashedName()),
+					dptestutils.SetPolicy(nsXSet, ip1),
+					dptestutils.SetPolicy(podK1Set, ip1),
+					dptestutils.SetPolicy(podK1V1Set, ip1),
+					dptestutils.SetPolicy(podK2Set, ip1),
+					dptestutils.SetPolicy(podK2V2Set, ip1),
+				},
+				ExpectedEnpdointACLs: map[string][]*hnswrapper.FakeEndpointPolicy{
+					endpoint2: {},
+				},
+			},
+		},
 	}
 }
 
