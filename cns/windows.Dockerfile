@@ -11,8 +11,6 @@ RUN mkdir /usr/bin/
 # Copy the source
 COPY . .
 
-RUN $PWD
-RUN ls
 # Build cns
 RUN $Env:CGO_ENABLED=0; go build -mod vendor -v -o /usr/bin/azure-cns.exe -ldflags """-X main.version=${env:VERSION} -X ${env:CNS_AI_PATH}=${env:CNS_AI_ID}""" -gcflags="-dwarflocationlists=true" ./cns/service
 
