@@ -50,7 +50,7 @@ const (
 	ipsetIPPortHashString = ipsetIPPortHashFlag
 
 	// creator constants
-	maxTryCount                    = 3
+	maxTryCount                    = 5
 	destroySectionPrefix           = "delete"
 	addOrUpdateSectionPrefix       = "add/update"
 	ipsetRestoreLineFailurePattern = "Error in line (\\d+):"
