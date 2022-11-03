@@ -36,60 +36,6 @@ var (
 // TODO test that a reconcile list is updated for all the TestFailure UTs
 // TODO same exact TestFailure UTs for unknown errors
 
-func TestMaxRestoreTryCount(t *testing.T) {
-	metrics.ReinitializeAll()
-
-	tryCounts := []int{2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 1024}
-	numSets := 1025
-	toAddIPSets := make([]*IPSetMetadata, numSets)
-	for k := range toAddIPSets {
-		toAddIPSets[k] = NewIPSetMetadata(fmt.Sprintf("bad-set-%d", k), Namespace)
-	}
-	numSetsWhenSuccessful := 1022
-	toAddIPSetsForSuccess := make([]*IPSetMetadata, numSetsWhenSuccessful)
-	for k := range toAddIPSetsForSuccess {
-		toAddIPSetsForSuccess[k] = NewIPSetMetadata(fmt.Sprintf("good-set-%d", k), Namespace)
-	}
-
-	errorInLine1 := testutils.TestCmd{
-		Cmd:      ipsetRestoreStringSlice,
-		Stdout:   "Error in line 1: for some other error",
-		ExitCode: 1,
-	}
-	sumCounts := 0
-	for _, tryCount := range tryCounts {
-		sumCounts += tryCount
-	}
-	numCalls := sumCounts + numSetsWhenSuccessful
-	calls := make([]testutils.TestCmd, numCalls)
-	for k := range calls {
-		calls[k] = errorInLine1
-	}
-	calls[numCalls-1].ExitCode = 0
-	calls[numCalls-1].Stdout = ""
-
-	ioShim := common.NewMockIOShim(calls)
-	defer ioShim.VerifyCalls(t, calls)
-	iMgr := NewIPSetManager(applyAlwaysCfg, ioShim)
-	iMgr.CreateIPSets(toAddIPSets)
-
-	for _, tryCount := range tryCounts {
-		require.Equal(t, tryCount, iMgr.maxRestoreTryCount)
-		require.Error(t, iMgr.ApplyIPSets())
-		// cache behavior is currently undefined if there's an apply error
-	}
-
-	// set the dirty cache to less sets and succeed by skipping all sets
-	iMgr.clearDirtyCache()
-	iMgr.CreateIPSets(toAddIPSetsForSuccess)
-	require.NoError(t, iMgr.ApplyIPSets())
-	require.Equal(t, 2, iMgr.maxRestoreTryCount)
-
-	execCount, err := metrics.GetIPSetExecCount()
-	promutil.NotifyIfErrors(t, err)
-	require.Equal(t, len(tryCounts)+1, execCount)
-}
-
 func TestApplyIPSets(t *testing.T) {
 	type args struct {
 		toAddUpdateSets []*IPSetMetadata
@@ -164,7 +110,7 @@ func TestApplyIPSets(t *testing.T) {
 				require.Greater(t, len(calls), 0)
 				calls[len(calls)-1].ExitCode = 1
 				// then add errors as many times as we retry
-				for i := 1; i < initialMaxRestoreTryCount; i++ {
+				for i := 1; i < maxTryCount; i++ {
 					calls = append(calls, testutils.TestCmd{Cmd: ipsetRestoreStringSlice, ExitCode: 1})
 				}
 			}
@@ -542,6 +488,7 @@ func TestDestroyNPMIPSets(t *testing.T) {
 				{Cmd: []string{"grep", "azure-npm-"}, Stdout: resetIPSetsListOutputString},
 				{Cmd: ipsetRestoreStringSlice, ExitCode: 1},
 				{Cmd: ipsetRestoreStringSlice, ExitCode: 1},
+				{Cmd: ipsetRestoreStringSlice, ExitCode: 1},
 			},
 			wantErr: true,
 		},
@@ -556,6 +503,7 @@ func TestDestroyNPMIPSets(t *testing.T) {
 				{Cmd: []string{"ipset", "list"}, PipedToCommand: true},
 				{Cmd: []string{"grep", "-B", "5", "-P", "References: [1-9]"}, PipedToCommand: true},
 				{Cmd: []string{"grep", "-o", "-P", "azure-npm-\\d+"}, ExitCode: 1},
+				{Cmd: ipsetRestoreStringSlice, ExitCode: 1},
 				{Cmd: ipsetRestoreStringSlice, ExitCode: 1},
 				{Cmd: ipsetRestoreStringSlice, ExitCode: 1},
 			},
@@ -778,7 +726,8 @@ func TestApplyIPSetsFailureOnSave(t *testing.T) {
 
 func TestApplyIPSetsFailureOnRestore(t *testing.T) {
 	calls := []testutils.TestCmd{
-		// fail 2 times because this is our max try count
+		// fail 3 times because this is our max try count
+		{Cmd: ipsetRestoreStringSlice, ExitCode: 1},
 		{Cmd: ipsetRestoreStringSlice, ExitCode: 1},
 		{Cmd: ipsetRestoreStringSlice, ExitCode: 1},
 	}
@@ -794,7 +743,8 @@ func TestApplyIPSetsFailureOnRestore(t *testing.T) {
 	calls = []testutils.TestCmd{
 		{Cmd: ipsetSaveStringSlice, PipedToCommand: true},
 		{Cmd: []string{"grep", "azure-npm-"}},
-		// fail 2 times because this is our max try count
+		// fail 3 times because this is our max try count
+		{Cmd: ipsetRestoreStringSlice, ExitCode: 1},
 		{Cmd: ipsetRestoreStringSlice, ExitCode: 1},
 		{Cmd: ipsetRestoreStringSlice, ExitCode: 1},
 	}

@@ -50,6 +50,7 @@ const (
 	ipsetIPPortHashString = ipsetIPPortHashFlag
 
 	// creator constants
+	maxTryCount                    = 3
 	destroySectionPrefix           = "delete"
 	addOrUpdateSectionPrefix       = "add/update"
 	ipsetRestoreLineFailurePattern = "Error in line (\\d+):"
@@ -172,7 +173,7 @@ func (iMgr *IPSetManager) resetWithoutRestore() bool {
 // named returns to appease lint
 func (iMgr *IPSetManager) fileCreatorForFlushAll(ipsetListOutput []byte) (creator *ioutil.FileCreator, names []string, failedNames map[string]struct{}) {
 	destroyFailureCount := 0
-	creator = ioutil.NewFileCreator(iMgr.ioShim, iMgr.maxRestoreTryCount, ipsetRestoreLineFailurePattern)
+	creator = ioutil.NewFileCreator(iMgr.ioShim, maxTryCount, ipsetRestoreLineFailurePattern)
 	names = make([]string, 0)
 	failedNames = make(map[string]struct{}, 0)
 	readIndex := 0
@@ -237,7 +238,7 @@ func (iMgr *IPSetManager) setsWithReferences() map[string]struct{} {
 func (iMgr *IPSetManager) fileCreatorForDestroyAll(names []string, failedNames, setsWithReferences map[string]struct{}) (creator *ioutil.FileCreator, failureCount *int) {
 	failureCountVal := 0
 	failureCount = &failureCountVal
-	creator = ioutil.NewFileCreator(iMgr.ioShim, iMgr.maxRestoreTryCount, ipsetRestoreLineFailurePattern)
+	creator = ioutil.NewFileCreator(iMgr.ioShim, maxTryCount, ipsetRestoreLineFailurePattern)
 
 	// destroy all the sets
 	for _, hashedSetName := range names {
@@ -363,7 +364,7 @@ func (iMgr *IPSetManager) applyIPSetsWithSaveFile() error {
 			return npmerrors.SimpleErrorWrapper("ipset save failed when applying ipsets", saveError)
 		}
 	}
-	creator := iMgr.fileCreatorForApplyWithSaveFile(iMgr.maxRestoreTryCount, saveFile)
+	creator := iMgr.fileCreatorForApplyWithSaveFile(maxTryCount, saveFile)
 	restoreError := creator.RunCommandWithFile(ipsetCommand, ipsetRestoreFlag)
 	if restoreError != nil {
 		return npmerrors.SimpleErrorWrapper("ipset restore failed when applying ipsets with save file", restoreError)
@@ -404,7 +405,7 @@ example where:
 		-X set4
 */
 func (iMgr *IPSetManager) applyIPSets() error {
-	creator := iMgr.fileCreatorForApply(iMgr.maxRestoreTryCount)
+	creator := iMgr.fileCreatorForApply(maxTryCount)
 	restoreError := creator.RunCommandWithFile(ipsetCommand, ipsetRestoreFlag)
 	if restoreError != nil {
 		return npmerrors.SimpleErrorWrapper("ipset restore failed when applying ipsets", restoreError)
