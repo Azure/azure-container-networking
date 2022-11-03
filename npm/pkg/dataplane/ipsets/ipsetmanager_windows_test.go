@@ -35,10 +35,10 @@ func TestGetIPsFromSelectorIPSets(t *testing.T) {
 
 	iMgr.CreateIPSets(setsTocreate)
 
-	err := iMgr.AddToSets(setsTocreate, "10.0.0.1", "test")
+	err := iMgr.AddToSets(setsTocreate, "10.0.0.1", "test1")
 	require.NoError(t, err)
 
-	err = iMgr.AddToSets(setsTocreate, "10.0.0.2", "test1")
+	err = iMgr.AddToSets(setsTocreate, "10.0.0.2", "test2")
 	require.NoError(t, err)
 
 	err = iMgr.AddToSets([]*IPSetMetadata{setsTocreate[0], setsTocreate[2], setsTocreate[3]}, "10.0.0.3", "test3")
@@ -54,11 +54,11 @@ func TestGetIPsFromSelectorIPSets(t *testing.T) {
 	require.Equal(t, 2, len(ips))
 
 	expectedintersection := map[string]string{
-		"10.0.0.1": "test3",
-		"10.0.0.2": "test3",
+		"10.0.0.1": "test1",
+		"10.0.0.2": "test2",
 	}
 
-	require.Equal(t, ips, expectedintersection)
+	require.Equal(t, expectedintersection, ips)
 }
 
 func TestAddToSetWindows(t *testing.T) {

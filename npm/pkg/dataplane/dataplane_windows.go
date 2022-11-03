@@ -219,7 +219,7 @@ func (dp *DataPlane) updatePod(pod *updateNPMPod) error {
 		}
 
 		selectorIPSets := dp.getSelectorIPSets(policy)
-		ok, err := dp.ipsetMgr.DoesIPSatisfySelectorIPSets(pod.PodIP, selectorIPSets)
+		ok, err := dp.ipsetMgr.DoesIPSatisfySelectorIPSets(pod.PodIP, pod.PodKey, selectorIPSets)
 		if err != nil {
 			return err
 		}
