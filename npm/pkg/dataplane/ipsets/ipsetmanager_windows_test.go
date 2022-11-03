@@ -44,10 +44,16 @@ func TestGetIPsFromSelectorIPSets(t *testing.T) {
 	err = iMgr.AddToSets([]*IPSetMetadata{setsTocreate[0], setsTocreate[2], setsTocreate[3]}, "10.0.0.3", "test3")
 	require.NoError(t, err)
 
+	kvl := []*IPSetMetadata{NewIPSetMetadata("kvl-1", KeyValueLabelOfPod)}
+	require.NoError(t, iMgr.AddToLists([]*IPSetMetadata{nestedPodLabelList}, kvl))
+	require.NoError(t, iMgr.AddToSets(kvl, "10.0.0.1", "test1"))
+	require.NoError(t, iMgr.AddToSets(kvl, "10.0.0.2", "test2"))
+
 	ipsetList := map[string]struct{}{}
 	for _, v := range setsTocreate {
 		ipsetList[v.GetPrefixName()] = struct{}{}
 	}
+	ipsetList[nestedPodLabelList.GetPrefixName()] = struct{}{}
 	ips, err := iMgr.GetIPsFromSelectorIPSets(ipsetList)
 	require.NoError(t, err)
 
