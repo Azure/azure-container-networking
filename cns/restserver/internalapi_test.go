@@ -381,32 +381,6 @@ func TestReconcileNCWithSystemPods(t *testing.T) {
 	validateNCStateAfterReconcile(t, req, expectedNcCount, expectedAssignedPods)
 }
 
-func TestGetHomeAz(t *testing.T) {
-	expHomeAz := uint(1)
-	mnma := &fakes.NMAgentClientFake{
-		SupportedAPIsF: func(_ context.Context) ([]string, error) {
-			return []string{
-				"GetHomeAz",
-			}, nil
-		},
-		GetHomeAzF: func(_ context.Context) (nma.HomeAzResponse, error) {
-			return nma.HomeAzResponse{
-				HomeAz: expHomeAz,
-			}, nil
-		},
-	}
-	cleanup := setMockNMAgent(svc, mnma)
-	defer cleanup()
-
-	resp := svc.GetHomeAz(context.Background())
-	if resp.Response.ReturnCode != types.Success {
-		t.Errorf("unexpected return code %s", resp.Response.ReturnCode)
-	}
-	if resp.HomeAzResponse.HomeAz != expHomeAz {
-		t.Errorf("Unexpected homeAz, expect %d but got %d", expHomeAz, resp.HomeAzResponse.HomeAz)
-	}
-}
-
 func setOrchestratorTypeInternal(orchestratorType string) {
 	fmt.Println("setOrchestratorTypeInternal")
 	svc.state.OrchestratorType = orchestratorType

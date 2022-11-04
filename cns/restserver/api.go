@@ -37,7 +37,6 @@ var (
 // 5) the optional delete path
 const (
 	ncURLExpectedMatches = 5
-	getHomeAzAPIName     = "GetHomeAz"
 )
 
 // This file contains implementation of all HTTP APIs which are exposed to external clients.
@@ -770,12 +769,58 @@ func (service *HTTPRestService) setOrchestratorType(w http.ResponseWriter, r *ht
 // getHomeAz retrieves home AZ of host
 func (service *HTTPRestService) getHomeAz(w http.ResponseWriter, r *http.Request) {
 	logger.Printf("[Azure CNS] getHomeAz")
-	logger.Request(service.Name, " getHomeAz", nil)
+	logger.Request(service.Name, "getHomeAz", nil)
+	ctx := r.Context()
 
 	switch r.Method {
 	case http.MethodGet:
-		getHomeAzResp := service.readGetHomeAzResponseCache()
-		service.setResponse(w, getHomeAzResp.Response.ReturnCode, getHomeAzResp)
+		homeAzResponse, err := service.nma.GetHomeAz(ctx)
+		if err != nil {
+			apiError := nma.Error{}
+			if ok := errors.As(err, &apiError); ok {
+				switch apiError.StatusCode() {
+				case http.StatusNotImplemented:
+					returnMessage := fmt.Sprintf("[Azure CNS] Error. NMAgent does not support %s api.", nma.GetHomeAzAPIName)
+					returnCode := types.NmAgentUnSupportedAPIError
+					service.setResponse(w, returnCode, cns.GetHomeAzResponse{
+						Response: cns.Response{ReturnCode: returnCode, Message: returnMessage},
+					})
+					return
+				case http.StatusInternalServerError:
+					returnMessage := "[Azure CNS] Error. GetHomeAz failed due to Nmagent server internal error."
+					returnCode := types.NmAgentInternalServerError
+					service.setResponse(w, returnCode, cns.GetHomeAzResponse{
+						Response: cns.Response{ReturnCode: returnCode, Message: returnMessage},
+					})
+					return
+
+				case http.StatusUnauthorized:
+					returnMessage := "[Azure CNS] Error. GetHomeAz failed to authenticate with OwningServiceInstanceId"
+					returnCode := types.StatusUnauthorized
+					service.setResponse(w, returnCode, cns.GetHomeAzResponse{
+						Response: cns.Response{ReturnCode: returnCode, Message: returnMessage},
+					})
+					return
+
+				default:
+					returnMessage := fmt.Sprintf("[Azure CNS] Error. GetHomeAz failed with StatusCode: %d", apiError.StatusCode())
+					returnCode := types.UnexpectedError
+					service.setResponse(w, returnCode, cns.GetHomeAzResponse{
+						Response: cns.Response{ReturnCode: returnCode, Message: returnMessage},
+					})
+					return
+				}
+			}
+			returnCode := types.UnexpectedError
+			returnMessage := fmt.Sprintf("[Azure CNS] Error. getHomeAz failed %v", err)
+			service.setResponse(w, returnCode, cns.GetHomeAzResponse{
+				Response: cns.Response{ReturnCode: returnCode, Message: returnMessage},
+			})
+			return
+		}
+		service.setResponse(w, types.Success, cns.GetHomeAzResponse{
+			HomeAzResponse: homeAzResponse,
+		})
 
 	default:
 		returnMessage := "[Azure CNS] Error. getHomeAz did not receive a GET."
@@ -1501,11 +1546,7 @@ func (service *HTTPRestService) nmAgentSupportedApisHandler(w http.ResponseWrite
 		if err != nil {
 			returnCode = types.NmAgentSupportedApisError
 			returnMessage = fmt.Sprintf("[Azure-CNS] %s", retErr.Error())
-		} else {
-			// caching supportedApis value
-			service.updateNMASupportedApisCache(apis)
 		}
-
 		supportedApis = apis
 
 	default:

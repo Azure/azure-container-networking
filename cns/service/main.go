@@ -542,6 +542,22 @@ func main() {
 		logger.Errorf("[Azure CNS] Failed to start nmagent client due to error: %v", err)
 		return
 	}
+	nmaCachedClient := &nmagent.CachedClient{
+		Client: nmaClient,
+	}
+	// populating home az cache
+	go func() {
+		for {
+			err := nmaCachedClient.PopulateHomeAzCache(rootCtx)
+			if err != nil {
+				logger.Printf("Failed to retrieve home az from nmagent, will retry. %v", err)
+				time.Sleep(time.Duration(cnsconfig.PopulateHomeAzCacheRetryIntervalSecs) * time.Second)
+				continue
+			}
+			logger.Printf("Successfully populated home az cache!")
+			return
+		}
+	}()
 
 	if cnsconfig.ChannelMode == cns.Managed {
 		config.ChannelMode = cns.Managed
@@ -629,7 +645,7 @@ func main() {
 
 	// Create CNS object.
 
-	httpRestService, err := restserver.NewHTTPRestService(&config, &wireserver.Client{HTTPClient: &http.Client{}}, nmaClient,
+	httpRestService, err := restserver.NewHTTPRestService(&config, &wireserver.Client{HTTPClient: &http.Client{}}, nmaCachedClient,
 		endpointStateStore, conflistGenerator)
 	if err != nil {
 		logger.Errorf("Failed to create CNS object, err:%v.\n", err)

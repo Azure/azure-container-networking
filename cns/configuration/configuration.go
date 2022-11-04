@@ -41,6 +41,7 @@ type CNSConfig struct {
 	CNIConflistScenario         string
 	EnableCNIConflistGeneration bool
 	CNIConflistFilepath         string
+	PopulateHomeAzCacheRetryIntervalSecs int
 }
 
 type TelemetrySettings struct {
@@ -187,5 +188,9 @@ func SetCNSConfigDefaults(config *CNSConfig) {
 	}
 	if config.SyncHostNCTimeoutMs == 0 {
 		config.SyncHostNCTimeoutMs = 500 //nolint:gomnd // default times
+	}
+	if config.PopulateHomeAzCacheRetryIntervalSecs == 0 {
+		// set the default PopulateHomeAzCache retry interval to 15 seconds
+		config.PopulateHomeAzCacheRetryIntervalSecs = 15
 	}
 }
