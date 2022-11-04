@@ -7,9 +7,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/google/go-cmp/cmp"
-
 	"github.com/Azure/azure-container-networking/nmagent"
+	"github.com/google/go-cmp/cmp"
 )
 
 // TestHomeAzCache makes sure the CachedClient works properly in caching home ez response and error
@@ -58,11 +57,14 @@ func TestHomeAzCache(t *testing.T) {
 			})}
 
 			// only testing the cache value, Other scenarios were covered in client_test.go
-			client.PopulateHomeAzCache(context.TODO())
+			populateErr := client.PopulateHomeAzCache(context.TODO())
 			homeAzResponseCache, errCache := client.GetHomeAz(context.TODO())
 
 			if errCache != nil && !test.shouldErr {
 				t.Fatal("unexpected error: err:", errCache)
+			}
+			if errCache != nil && !cmp.Equal(populateErr, errCache) {
+				t.Fatal("got discrepant errors, diff: ", cmp.Diff(errCache, populateErr))
 			}
 
 			if errCache == nil && test.shouldErr {

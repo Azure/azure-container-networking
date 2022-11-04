@@ -34,7 +34,7 @@ func (c *CachedClient) SupportedAPIs(ctx context.Context) ([]string, error) {
 }
 
 // GetHomeAz returns homeaz cache directly
-func (c *CachedClient) GetHomeAz() (HomeAzResponse, error) {
+func (c *CachedClient) GetHomeAz(_ context.Context) (HomeAzResponse, error) {
 	return c.readHomeAzAndErrorCache()
 }
 

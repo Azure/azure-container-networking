@@ -548,9 +548,9 @@ func main() {
 	// populating home az cache
 	go func() {
 		for {
-			err := nmaCachedClient.PopulateHomeAzCache(rootCtx)
+			populateErr := nmaCachedClient.PopulateHomeAzCache(rootCtx)
 			if err != nil {
-				logger.Printf("Failed to retrieve home az from nmagent, will retry. %v", err)
+				logger.Printf("Failed to retrieve home az from nmagent, will retry. %v", populateErr)
 				time.Sleep(time.Duration(cnsconfig.PopulateHomeAzCacheRetryIntervalSecs) * time.Second)
 				continue
 			}
