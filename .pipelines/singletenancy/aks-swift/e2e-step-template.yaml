@@ -32,8 +32,8 @@ steps:
       inlineScript: |
         mkdir -p ~/.kube/
         echo "Create AKS cluster"
-        make -C ./hack/swift azcfg AZCLI=az
-        make -C ./hack/swift byocni-up SUB=$(SUB_AZURE_NETWORK_AGENT_TEST) AZCLI=az CLUSTER=${{ parameters.clusterName }}-${{ parameters.osSku }}-$(make revision) OSSKU=${{ parameters.osSku }}
+        make -C ./hack/swift azcfg AZCLI=az REGION=$(REGION_AKS_CLUSTER_TEST)
+        make -C ./hack/swift byocni-up AZCLI=az REGION=$(REGION_AKS_CLUSTER_TEST) SUB=$(SUB_AZURE_NETWORK_AGENT_TEST) CLUSTER=${{ parameters.clusterName }}-${{ parameters.osSku }}-$(make revision) OSSKU=${{ parameters.osSku }}
         echo "Cluster successfully created"
     displayName: Create test cluster
     condition: succeeded()
@@ -117,8 +117,8 @@ steps:
       addSpnToEnvironment: true
       inlineScript: |
         echo "Deleting cluster"
-        make -C ./hack/swift azcfg AZCLI=az
-        make -C ./hack/swift down SUB=$(SUB_AZURE_NETWORK_AGENT_TEST) AZCLI=az CLUSTER=${{ parameters.clusterName }}-${{ parameters.osSku }}-$(make revision)
+        make -C ./hack/swift azcfg AZCLI=az REGION=$(REGION_AKS_CLUSTER_TEST)
+        make -C ./hack/swift down AZCLI=az REGION=$(REGION_AKS_CLUSTER_TEST) SUB=$(SUB_AZURE_NETWORK_AGENT_TEST) CLUSTER=${{ parameters.clusterName }}-${{ parameters.osSku }}-$(make revision)
         echo "Cluster and resources down"
     name: "Cleanupcluster"
     displayName: "Cleanup cluster"

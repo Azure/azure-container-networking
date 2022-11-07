@@ -1,5 +1,8 @@
 param([string]$podIps)
-$filepath = "logs"
+$filepath = "npm-exec-logs"
+
+Write-Output "attempting to delete previous results if they exist"
+Remove-Item -path $filepath -recurse
 
 $podIp = @()
 foreach ($r in ($podIps -split " ")) {
@@ -21,6 +24,6 @@ foreach ($r in ($podIps -split " ")) {
     }
  }
 
- Compress-Archive -Path 'logs' -DestinationPath 'logs.zip' -Force
+ Compress-Archive -Path "$filepath" -DestinationPath "$filepath.zip" -Force
 
 exit
