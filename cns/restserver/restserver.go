@@ -45,7 +45,7 @@ type HTTPRestService struct {
 	dockerClient             *dockerclient.Client
 	wscli                    interfaceGetter
 	ipamClient               *ipamclient.IpamClient
-	nma                      nma.NMAgentClient
+	nma                      nma.ClientIF
 	networkContainer         *networkcontainers.NetworkContainers
 	PodIPIDByPodInterfaceKey map[string]string                    // PodInterfaceId is key and value is Pod IP (SecondaryIP) uuid.
 	PodIPConfigState         map[string]cns.IPConfigurationStatus // Secondary IP ID(uuid) is key
@@ -140,7 +140,7 @@ type networkInfo struct {
 }
 
 // NewHTTPRestService creates a new HTTP Service object.
-func NewHTTPRestService(config *common.ServiceConfig, wscli interfaceGetter, nmagentClient nma.NMAgentClient,
+func NewHTTPRestService(config *common.ServiceConfig, wscli interfaceGetter, nmagentClient nma.ClientIF,
 	endpointStateStore store.KeyValueStore, gen CNIConflistGenerator,
 ) (cns.HTTPService, error) {
 	service, err := cns.NewService(config.Name, config.Version, config.ChannelMode, config.Store)

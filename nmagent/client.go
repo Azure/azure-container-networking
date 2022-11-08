@@ -308,7 +308,7 @@ func (c *Client) scheme() string {
 	return "http"
 }
 
-type NMAgentClient interface {
+type ClientIF interface {
 	PutNetworkContainer(context.Context, *PutNetworkContainerRequest) error
 	DeleteNetworkContainer(context.Context, DeleteContainerRequest) error
 	JoinNetwork(context.Context, JoinNetworkRequest) error

@@ -2,13 +2,13 @@ package nmagent_test
 
 import (
 	"context"
-	"fmt"
 	"testing"
 	"time"
 
 	"github.com/Azure/azure-container-networking/nmagent"
 	"github.com/Azure/azure-container-networking/nmagent/fakes"
 	"github.com/google/go-cmp/cmp"
+	"github.com/pkg/errors"
 )
 
 // TestHomeAzCache makes sure the CachedClient works properly in caching home ez response and error
@@ -52,7 +52,7 @@ func TestHomeAzCache(t *testing.T) {
 					return []string{"dummy"}, nil
 				},
 				GetHomeAzF: func(ctx context.Context) (nmagent.HomeAzResponse, error) {
-					return nmagent.HomeAzResponse{}, fmt.Errorf("unexpected errors")
+					return nmagent.HomeAzResponse{}, errors.New("unexpected error")
 				},
 			},
 			nmagent.HomeAzResponse{},

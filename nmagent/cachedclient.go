@@ -2,7 +2,6 @@ package nmagent
 
 import (
 	"context"
-	"fmt"
 	"sync"
 	"time"
 
@@ -10,10 +9,13 @@ import (
 	"github.com/pkg/errors"
 )
 
-const GetHomeAzAPIName = "GetHomeAz"
+const (
+	GetHomeAzAPIName = "GetHomeAz"
+	ContextTimeOut   = 2 * time.Second
+)
 
 type CachedClient struct {
-	NMAgentClient
+	ClientIF
 	// The purpose of nmaSupportedApisCache here is only for reducing the call to nmagent when the getHomeAz api is supported,
 	// but having other unexpected errors while querying homeAz During the retry
 	nmaSupportedApisCache    []string
@@ -25,24 +27,24 @@ type CachedClient struct {
 }
 
 // NewCachedClient creates a new CachedClient object
-func NewCachedClient(nmagentClient NMAgentClient) *CachedClient {
+func NewCachedClient(nmagentClient ClientIF) *CachedClient {
 	return &CachedClient{
-		NMAgentClient: nmagentClient,
-		closing:       make(chan struct{}),
+		ClientIF: nmagentClient,
+		closing:  make(chan struct{}),
 		// the purpose of the default error here is for handling the case when cns started and already taken request to get HomeAz,
 		// but the initial request to nmagent that sent from the refresh thread is still in process. In this case, the cache value
 		// not get updated in time, so it will return empty homeAzResponse and nil err back, which is misleading. Adding a default
 		// error cache here to resolve that
-		homeAzResponseErrorCache: fmt.Errorf("default error cache"),
+		homeAzResponseErrorCache: errors.New("default error cache"),
 	}
 }
 
 // SupportedAPIs retrieves the capabilities of the nmagent running on
 // the node. Cache the response if success
 func (c *CachedClient) SupportedAPIs(ctx context.Context) ([]string, error) {
-	supportedAPIs, err := c.NMAgentClient.SupportedAPIs(ctx)
+	supportedAPIs, err := c.ClientIF.SupportedAPIs(ctx)
 	if err != nil {
-		return supportedAPIs, err
+		return supportedAPIs, errors.Wrap(err, "failed to retrieve supportedApis from nmagent")
 	}
 	c.updateNMASupportedApisCache(supportedAPIs)
 	return supportedAPIs, nil
@@ -115,7 +117,7 @@ func (c *CachedClient) refresh(retryIntervalInSecs int) {
 		case <-c.closing:
 			return
 		default:
-			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), ContextTimeOut)
 			homeAzResponse, populateErr := c.populateHomeAzCache(ctx)
 			// keep retrying when there is an error or getHomeAz api is not supported by nmagent
 			if populateErr != nil || !homeAzResponse.IsSupported {
@@ -150,8 +152,13 @@ func (c *CachedClient) populateHomeAzCache(ctx context.Context) (HomeAzResponse,
 	}
 
 	// calling NMAgent to get home AZ
-	homeAzResponse, err := c.NMAgentClient.GetHomeAz(ctx)
+	homeAzResponse, err := c.ClientIF.GetHomeAz(ctx)
+	if err != nil {
+		wrapedErr := errors.Wrap(err, "failed to get HomeAz from nmagent")
+		c.updateHomeAzAndErrorCache(homeAzResponse, wrapedErr)
+		return homeAzResponse, wrapedErr
+	}
 	homeAzResponse.IsSupported = true
-	c.updateHomeAzAndErrorCache(homeAzResponse, err)
-	return homeAzResponse, err
+	c.updateHomeAzAndErrorCache(homeAzResponse, nil)
+	return homeAzResponse, nil
 }
