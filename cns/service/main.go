@@ -542,22 +542,9 @@ func main() {
 		logger.Errorf("[Azure CNS] Failed to start nmagent client due to error: %v", err)
 		return
 	}
-	nmaCachedClient := &nmagent.CachedClient{
-		Client: nmaClient,
-	}
-	// populating home az cache
-	go func() {
-		for {
-			populateErr := nmaCachedClient.PopulateHomeAzCache(rootCtx)
-			if err != nil {
-				logger.Printf("Failed to retrieve home az from nmagent, will retry. %v", populateErr)
-				time.Sleep(time.Duration(cnsconfig.PopulateHomeAzCacheRetryIntervalSecs) * time.Second)
-				continue
-			}
-			logger.Printf("Successfully populated home az cache!")
-			return
-		}
-	}()
+
+	nmaCachedClient := nmagent.NewCachedClient(nmaClient)
+	nmaCachedClient.Start(cnsconfig.PopulateHomeAzCacheRetryIntervalSecs)
 
 	if cnsconfig.ChannelMode == cns.Managed {
 		config.ChannelMode = cns.Managed
@@ -877,6 +864,9 @@ func main() {
 	if httpRestService != nil {
 		httpRestService.Stop()
 	}
+
+	logger.Printf("end the goroutine for retrieving homeAz")
+	nmaCachedClient.Stop()
 
 	if startCNM {
 		logger.Printf("stop cnm plugin")

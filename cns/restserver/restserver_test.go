@@ -1,6 +1,6 @@
 package restserver
 
-import "github.com/Azure/azure-container-networking/cns/fakes"
+import "github.com/Azure/azure-container-networking/nmagent/fakes"
 
 func setMockNMAgent(h *HTTPRestService, m *fakes.NMAgentClientFake) func() {
 	// this is a hack that exists because the tests are too DRY, so the setup

@@ -14,6 +14,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/fakes"
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
+	nmafakes "github.com/Azure/azure-container-networking/nmagent/fakes"
 	"github.com/Azure/azure-container-networking/store"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
@@ -40,7 +41,7 @@ var (
 
 func getTestService() *HTTPRestService {
 	var config common.ServiceConfig
-	httpsvc, _ := NewHTTPRestService(&config, &fakes.WireserverClientFake{}, &fakes.NMAgentClientFake{}, store.NewMockStore(""), nil)
+	httpsvc, _ := NewHTTPRestService(&config, &fakes.WireserverClientFake{}, &nmafakes.NMAgentClientFake{}, store.NewMockStore(""), nil)
 	svc = httpsvc.(*HTTPRestService)
 	svc.IPAMPoolMonitor = &fakes.MonitorFake{}
 	setOrchestratorTypeInternal(cns.KubernetesCRD)

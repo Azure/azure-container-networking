@@ -776,41 +776,6 @@ func (service *HTTPRestService) getHomeAz(w http.ResponseWriter, r *http.Request
 	case http.MethodGet:
 		homeAzResponse, err := service.nma.GetHomeAz(ctx)
 		if err != nil {
-			apiError := nma.Error{}
-			if ok := errors.As(err, &apiError); ok {
-				switch apiError.StatusCode() {
-				case http.StatusNotImplemented:
-					returnMessage := fmt.Sprintf("[Azure CNS] Error. NMAgent does not support %s api.", nma.GetHomeAzAPIName)
-					returnCode := types.NmAgentUnSupportedAPIError
-					service.setResponse(w, returnCode, cns.GetHomeAzResponse{
-						Response: cns.Response{ReturnCode: returnCode, Message: returnMessage},
-					})
-					return
-				case http.StatusInternalServerError:
-					returnMessage := "[Azure CNS] Error. GetHomeAz failed due to Nmagent server internal error."
-					returnCode := types.NmAgentInternalServerError
-					service.setResponse(w, returnCode, cns.GetHomeAzResponse{
-						Response: cns.Response{ReturnCode: returnCode, Message: returnMessage},
-					})
-					return
-
-				case http.StatusUnauthorized:
-					returnMessage := "[Azure CNS] Error. GetHomeAz failed to authenticate with OwningServiceInstanceId"
-					returnCode := types.StatusUnauthorized
-					service.setResponse(w, returnCode, cns.GetHomeAzResponse{
-						Response: cns.Response{ReturnCode: returnCode, Message: returnMessage},
-					})
-					return
-
-				default:
-					returnMessage := fmt.Sprintf("[Azure CNS] Error. GetHomeAz failed with StatusCode: %d", apiError.StatusCode())
-					returnCode := types.UnexpectedError
-					service.setResponse(w, returnCode, cns.GetHomeAzResponse{
-						Response: cns.Response{ReturnCode: returnCode, Message: returnMessage},
-					})
-					return
-				}
-			}
 			returnCode := types.UnexpectedError
 			returnMessage := fmt.Sprintf("[Azure CNS] Error. getHomeAz failed %v", err)
 			service.setResponse(w, returnCode, cns.GetHomeAzResponse{

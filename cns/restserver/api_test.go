@@ -25,6 +25,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/types"
 	acncommon "github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/nmagent"
+	nmafakes "github.com/Azure/azure-container-networking/nmagent/fakes"
 	"github.com/Azure/azure-container-networking/processlock"
 	"github.com/Azure/azure-container-networking/store"
 	"github.com/stretchr/testify/assert"
@@ -523,7 +524,7 @@ func TestGetNetworkContainerVersionStatus(t *testing.T) {
 
 	// set up a mock NMAgent with some "successful" functionality so that
 	// creating things will work as expected
-	mnma := &fakes.NMAgentClientFake{
+	mnma := &nmafakes.NMAgentClientFake{
 		PutNetworkContainerF: func(_ context.Context, _ *nmagent.PutNetworkContainerRequest) error {
 			return nil
 		},
@@ -707,7 +708,7 @@ func createNC(params createOrUpdateNetworkContainerParams) error {
 func TestPublishNCViaCNS(t *testing.T) {
 	fmt.Println("Test: publishNetworkContainer")
 
-	mnma := &fakes.NMAgentClientFake{
+	mnma := &nmafakes.NMAgentClientFake{
 		PutNetworkContainerF: func(_ context.Context, _ *nmagent.PutNetworkContainerRequest) error {
 			return nil
 		},
@@ -848,7 +849,7 @@ func publishNCViaCNS(
 }
 
 func TestUnpublishNCViaCNS(t *testing.T) {
-	mnma := &fakes.NMAgentClientFake{
+	mnma := &nmafakes.NMAgentClientFake{
 		JoinNetworkF: func(_ context.Context, _ nmagent.JoinNetworkRequest) error {
 			return nil
 		},
@@ -919,7 +920,7 @@ func testUnpublishNCViaCNS(t *testing.T,
 		return fmt.Errorf("Failed to create unpublish request %w", err)
 	}
 
-	mnma := &fakes.NMAgentClientFake{
+	mnma := &nmafakes.NMAgentClientFake{
 		DeleteNetworkContainerF: func(_ context.Context, _ nmagent.DeleteContainerRequest) error {
 			return nil
 		},
@@ -1376,7 +1377,7 @@ func startService() error {
 		return err
 	}
 
-	nmagentClient := &fakes.NMAgentClientFake{}
+	nmagentClient := &nmafakes.NMAgentClientFake{}
 	service, err = NewHTTPRestService(&config, &fakes.WireserverClientFake{}, nmagentClient, nil, nil)
 	if err != nil {
 		return err

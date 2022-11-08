@@ -2,78 +2,86 @@ package nmagent_test
 
 import (
 	"context"
-	"encoding/json"
-	"net/http"
-	"net/http/httptest"
+	"fmt"
 	"testing"
+	"time"
 
 	"github.com/Azure/azure-container-networking/nmagent"
+	"github.com/Azure/azure-container-networking/nmagent/fakes"
 	"github.com/google/go-cmp/cmp"
 )
 
 // TestHomeAzCache makes sure the CachedClient works properly in caching home ez response and error
 func TestHomeAzCache(t *testing.T) {
 	tests := []struct {
-		name      string
-		exp       nmagent.HomeAzResponse
-		expPath   string
-		resp      map[string]interface{}
-		shouldErr bool
+		name         string
+		client       *fakes.NMAgentClientFake
+		getHomeAzExp nmagent.HomeAzResponse
+		shouldErr    bool
 	}{
 		{
 			"happy path",
-			nmagent.HomeAzResponse{HomeAz: uint(1)},
-			"/machine/plugins/?comp=nmagent&type=GetHomeAz",
-			map[string]interface{}{
-				"httpStatusCode": "200",
-				"HomeAz":         1,
+			&fakes.NMAgentClientFake{
+				SupportedAPIsF: func(ctx context.Context) ([]string, error) {
+					return []string{"GetHomeAz"}, nil
+				},
+				GetHomeAzF: func(ctx context.Context) (nmagent.HomeAzResponse, error) {
+					return nmagent.HomeAzResponse{IsSupported: true, HomeAz: uint(1)}, nil
+				},
 			},
+			nmagent.HomeAzResponse{IsSupported: true, HomeAz: uint(1)},
 			false,
 		},
 		{
-			"empty response",
-			nmagent.HomeAzResponse{},
-			"/machine/plugins/?comp=nmagent&type=GetHomeAz",
-			map[string]interface{}{
-				"httpStatusCode": "500",
+			"getHomeAz is not supported in nmagent",
+			&fakes.NMAgentClientFake{
+				SupportedAPIsF: func(ctx context.Context) ([]string, error) {
+					return []string{"dummy"}, nil
+				},
+				GetHomeAzF: func(ctx context.Context) (nmagent.HomeAzResponse, error) {
+					return nmagent.HomeAzResponse{}, nil
+				},
 			},
-			true,
+			nmagent.HomeAzResponse{},
+			false,
+		},
+		{
+			"unexpected errors",
+			&fakes.NMAgentClientFake{
+				SupportedAPIsF: func(ctx context.Context) ([]string, error) {
+					return []string{"dummy"}, nil
+				},
+				GetHomeAzF: func(ctx context.Context) (nmagent.HomeAzResponse, error) {
+					return nmagent.HomeAzResponse{}, fmt.Errorf("unexpected errors")
+				},
+			},
+			nmagent.HomeAzResponse{},
+			false,
 		},
 	}
 	for _, test := range tests {
 		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-			client := nmagent.CachedClient{Client: nmagent.NewTestClient(&TestTripper{
-				RoundTripF: func(req *http.Request) (*http.Response, error) {
-					rr := httptest.NewRecorder()
-					err := json.NewEncoder(rr).Encode(test.resp)
-					if err != nil {
-						t.Fatal("unexpected error encoding response: err:", err)
-					}
-					rr.WriteHeader(http.StatusOK)
-					return rr.Result(), nil
-				},
-			})}
+			client := nmagent.NewCachedClient(test.client)
+			client.Start(1)
 
-			// only testing the cache value, Other scenarios were covered in client_test.go
-			populateErr := client.PopulateHomeAzCache(context.TODO())
+			// give some time for the thread to complete retrieving home az and update the cache
+			time.Sleep(2 * time.Second)
 			homeAzResponseCache, errCache := client.GetHomeAz(context.TODO())
+			// check the homeAz cache value
+			if !cmp.Equal(homeAzResponseCache, test.getHomeAzExp) {
+				t.Error("homeAz cache differs from expectation: diff:", cmp.Diff(homeAzResponseCache, test.getHomeAzExp))
+			}
 
+			// check the error Cache
 			if errCache != nil && !test.shouldErr {
 				t.Fatal("unexpected error: err:", errCache)
 			}
-			if errCache != nil && !cmp.Equal(populateErr, errCache) {
-				t.Fatal("got discrepant errors, diff: ", cmp.Diff(errCache, populateErr))
-			}
-
 			if errCache == nil && test.shouldErr {
 				t.Fatal("expected error but received none")
 			}
-
-			if !cmp.Equal(homeAzResponseCache, test.exp) {
-				t.Error("response differs from expectation: diff:", cmp.Diff(homeAzResponseCache, test.exp))
-			}
+			client.Stop()
 		})
 	}
 }

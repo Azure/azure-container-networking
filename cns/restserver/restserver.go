@@ -39,23 +39,13 @@ type interfaceGetter interface {
 	GetInterfaces(ctx context.Context) (*wireserver.GetInterfacesResult, error)
 }
 
-type nmagentClient interface {
-	PutNetworkContainer(context.Context, *nma.PutNetworkContainerRequest) error
-	DeleteNetworkContainer(context.Context, nma.DeleteContainerRequest) error
-	JoinNetwork(context.Context, nma.JoinNetworkRequest) error
-	SupportedAPIs(context.Context) ([]string, error)
-	GetNCVersion(context.Context, nma.NCVersionRequest) (nma.NCVersion, error)
-	GetNCVersionList(context.Context) (nma.NCVersionList, error)
-	GetHomeAz(context.Context) (nma.HomeAzResponse, error)
-}
-
 // HTTPRestService represents http listener for CNS - Container Networking Service.
 type HTTPRestService struct {
 	*cns.Service
 	dockerClient             *dockerclient.Client
 	wscli                    interfaceGetter
 	ipamClient               *ipamclient.IpamClient
-	nma                      nmagentClient
+	nma                      nma.NMAgentClient
 	networkContainer         *networkcontainers.NetworkContainers
 	PodIPIDByPodInterfaceKey map[string]string                    // PodInterfaceId is key and value is Pod IP (SecondaryIP) uuid.
 	PodIPConfigState         map[string]cns.IPConfigurationStatus // Secondary IP ID(uuid) is key
@@ -150,7 +140,7 @@ type networkInfo struct {
 }
 
 // NewHTTPRestService creates a new HTTP Service object.
-func NewHTTPRestService(config *common.ServiceConfig, wscli interfaceGetter, nmagentClient nmagentClient,
+func NewHTTPRestService(config *common.ServiceConfig, wscli interfaceGetter, nmagentClient nma.NMAgentClient,
 	endpointStateStore store.KeyValueStore, gen CNIConflistGenerator,
 ) (cns.HTTPService, error) {
 	service, err := cns.NewService(config.Name, config.Version, config.ChannelMode, config.Store)

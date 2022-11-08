@@ -38,5 +38,6 @@ type NCVersionList struct {
 }
 
 type HomeAzResponse struct {
-	HomeAz uint `json:"homeAz"`
+	IsSupported bool `json:"isSupported"`
+	HomeAz      uint `json:"homeAz"`
 }
