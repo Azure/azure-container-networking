@@ -5,6 +5,7 @@ package restserver
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
@@ -18,6 +19,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/cns/wireserver"
+	"github.com/Azure/azure-container-networking/nmagent"
 	nma "github.com/Azure/azure-container-networking/nmagent"
 	"github.com/Azure/azure-container-networking/platform"
 	"github.com/pkg/errors"
@@ -1188,11 +1190,20 @@ func (service *HTTPRestService) publishNetworkContainer(w http.ResponseWriter, r
 		if isNetworkJoined {
 			// Publish Network Container
 
-			pncr := req.CreateNetworkContainerRequestBody
-			pncr.AuthenticationToken = ncParameters.AuthToken
-			pncr.PrimaryAddress = ncParameters.AssociatedInterfaceID
+			innerReqBytes := req.CreateNetworkContainerRequestBody
 
-			err = service.nma.PutNetworkContainer(ctx, &pncr)
+			var innerReq nmagent.PutNetworkContainerRequest
+			err = json.Unmarshal(innerReqBytes, &innerReq)
+			if err != nil {
+				returnMessage = fmt.Sprintf("Failed to publish Network Container: %s", req.NetworkContainerID)
+				returnCode = types.NetworkContainerPublishFailed
+				logger.Errorf("[Azure-CNS] %s", returnMessage)
+			}
+
+			innerReq.AuthenticationToken = ncParameters.AuthToken
+			innerReq.PrimaryAddress = ncParameters.AssociatedInterfaceID
+
+			err = service.nma.PutNetworkContainer(ctx, &innerReq)
 			// nolint:bodyclose // existing code needs refactoring
 			if err != nil {
 				returnMessage = fmt.Sprintf("Failed to publish Network Container: %s", req.NetworkContainerID)

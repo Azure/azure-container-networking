@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/Azure/azure-container-networking/cns/types"
-	"github.com/Azure/azure-container-networking/nmagent"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 )
@@ -497,7 +496,7 @@ type PublishNetworkContainerRequest struct {
 	NetworkContainerID                string
 	JoinNetworkURL                    string
 	CreateNetworkContainerURL         string
-	CreateNetworkContainerRequestBody nmagent.PutNetworkContainerRequest
+	CreateNetworkContainerRequestBody []byte
 }
 
 // NetworkContainerParameters parameters available in network container operations

@@ -764,7 +764,7 @@ func publishNCViaCNS(
 		NetworkContainerID:                networkContainerID,
 		JoinNetworkURL:                    joinNetworkURL,
 		CreateNetworkContainerURL:         createNetworkContainerURL,
-		CreateNetworkContainerRequestBody: nmagent.PutNetworkContainerRequest{},
+		CreateNetworkContainerRequestBody: []byte("{}"),
 	}
 
 	json.NewEncoder(&body).Encode(publishNCRequest)
