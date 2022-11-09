@@ -3,7 +3,6 @@ package nmagent_test
 import (
 	"context"
 	"testing"
-	"time"
 
 	"github.com/Azure/azure-container-networking/nmagent"
 	"github.com/Azure/azure-container-networking/nmagent/fakes"
@@ -66,8 +65,6 @@ func TestHomeAzCache(t *testing.T) {
 			client := nmagent.NewCachedClient(test.client)
 			client.Start(1)
 
-			// give some time for the thread to complete retrieving home az and update the cache
-			time.Sleep(2 * time.Second)
 			homeAzResponseCache, errCache := client.GetHomeAz(context.TODO())
 			// check the homeAz cache value
 			if !cmp.Equal(homeAzResponseCache, test.getHomeAzExp) {
@@ -81,7 +78,9 @@ func TestHomeAzCache(t *testing.T) {
 			if errCache == nil && test.shouldErr {
 				t.Fatal("expected error but received none")
 			}
-			client.Stop()
+			t.Cleanup(func() {
+				client.Stop()
+			})
 		})
 	}
 }

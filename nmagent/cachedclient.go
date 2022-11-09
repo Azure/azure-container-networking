@@ -23,7 +23,10 @@ type CachedClient struct {
 	homeAzResponseErrorCache error
 	supportedApisMu          sync.RWMutex
 	homeAzMu                 sync.RWMutex
-	closing                  chan struct{}
+	// channel used as signal to end of the goroutine for populating home az cache
+	closing chan struct{}
+	// channel used as signal to block the Start() of cachedClient until the first request to retrieve home az completes
+	block chan struct{}
 }
 
 // NewCachedClient creates a new CachedClient object
@@ -31,11 +34,7 @@ func NewCachedClient(nmagentClient ClientIF) *CachedClient {
 	return &CachedClient{
 		ClientIF: nmagentClient,
 		closing:  make(chan struct{}),
-		// the purpose of the default error here is for handling the case when cns started and already taken request to get HomeAz,
-		// but the initial request to nmagent that sent from the refresh thread is still in process. In this case, the cache value
-		// not get updated in time, so it will return empty homeAzResponse and nil err back, which is misleading. Adding a default
-		// error cache here to resolve that
-		homeAzResponseErrorCache: errors.New("default error cache"),
+		block:    make(chan struct{}),
 	}
 }
 
@@ -101,8 +100,10 @@ func (c *CachedClient) updateHomeAzAndErrorCache(homeAzResponse HomeAzResponse, 
 }
 
 // Start starts a new thread to refresh home az cache
-func (c *CachedClient) Start(retryIntervalInSecs int) {
+func (c *CachedClient) Start(retryIntervalInSecs time.Duration) {
 	go c.refresh(retryIntervalInSecs)
+	// block until the first request to nmagent for retrieving home az completes
+	<-c.block
 }
 
 // Stop ends the refresh thread
@@ -111,21 +112,34 @@ func (c *CachedClient) Stop() {
 }
 
 // refresh keeps retrying until successfully getting home az from nmagent
-func (c *CachedClient) refresh(retryIntervalInSecs int) {
+func (c *CachedClient) refresh(retryIntervalInSecs time.Duration) {
+	// Ticker will not tick right away, so proactively make a call here to achieve that
+	ctx, cancel := context.WithTimeout(context.Background(), ContextTimeOut)
+	homeAzResponse, populateErr := c.populateHomeAzCache(ctx)
+	cancel()
+	// unblock Start()
+	c.block <- struct{}{}
+	if populateErr == nil && homeAzResponse.HomeAz != 0 {
+		log.Debugf("Successfully populated home az cache!")
+		return
+	}
+
+	ticker := time.NewTicker(retryIntervalInSecs)
+	defer ticker.Stop()
 	for {
 		select {
 		case <-c.closing:
 			return
-		default:
-			ctx, cancel := context.WithTimeout(context.Background(), ContextTimeOut)
-			homeAzResponse, populateErr := c.populateHomeAzCache(ctx)
+		case <-ticker.C:
+			ctx, cancel = context.WithTimeout(context.Background(), ContextTimeOut)
+			homeAzResponse, populateErr = c.populateHomeAzCache(ctx)
+			cancel()
 			// keep retrying when there is an error or getHomeAz api is not supported by nmagent
 			if populateErr != nil || !homeAzResponse.IsSupported {
 				log.Debugf("Failed to retrieve home az from nmagent, will retry. %v", populateErr)
-				time.Sleep(time.Duration(retryIntervalInSecs) * time.Second)
+				continue
 			}
 			log.Debugf("Successfully populated home az cache!")
-			cancel()
 			return
 		}
 	}

@@ -544,7 +544,7 @@ func main() {
 	}
 
 	nmaCachedClient := nmagent.NewCachedClient(nmaClient)
-	nmaCachedClient.Start(cnsconfig.PopulateHomeAzCacheRetryIntervalSecs)
+	nmaCachedClient.Start(time.Duration(cnsconfig.PopulateHomeAzCacheRetryIntervalSecs) * time.Second)
 
 	if cnsconfig.ChannelMode == cns.Managed {
 		config.ChannelMode = cns.Managed
