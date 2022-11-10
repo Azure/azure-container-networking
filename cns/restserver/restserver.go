@@ -3,7 +3,6 @@ package restserver
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net"
 	"strings"
 	"sync"
@@ -116,7 +115,7 @@ func (n *ncSet) Add(nc string) {
 
 func (n *ncSet) Delete(nc string) error {
 	if n == nil {
-		return fmt.Errorf("no NC to be deleted")
+		return errors.New("No NC is found to be deleted")
 	}
 	delete(*n, nc)
 	return nil

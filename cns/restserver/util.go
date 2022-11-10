@@ -388,8 +388,7 @@ func (service *HTTPRestService) getNetworkContainersResponse(
 		}
 
 		ncSet := &ncSet{}
-
-		if err := json.Unmarshal(ncidBytes, &ncSet); err != nil {
+		if err = json.Unmarshal(ncidBytes, &ncSet); err != nil {
 			logger.Errorf("Failed to unmarlshal NC set")
 			return nil
 		}
@@ -417,8 +416,7 @@ func (service *HTTPRestService) getNetworkContainersResponse(
 					logger.Printf("[Azure-CNS] Setting VfpUpdateComplete to %t for NCID: %s", vfpUpdateComplete, ncid)
 					ncstatus.VfpUpdateComplete = vfpUpdateComplete
 					service.state.ContainerStatus[ncid] = ncstatus
-					err = service.saveState()
-					if err != nil {
+					if err = service.saveState(); err != nil {
 						logger.Errorf("Failed to save goal states due to %s", err)
 					}
 				}
@@ -521,7 +519,7 @@ func (service *HTTPRestService) getNetworkContainerResponse(
 		exists = false
 		ncidBytes, err := json.Marshal(service.state.ContainerIDByOrchestratorContext[podInfo.Name()+podInfo.Namespace()])
 		if err != nil {
-			fmt.Errorf("Failed to marshal ContainerIDByOrchestratorContext")
+			logger.Errorf("Failed to marshal ContainerIDByOrchestratorContext")
 		}
 
 		networkContainerID = string(ncidBytes)
@@ -550,8 +548,7 @@ func (service *HTTPRestService) getNetworkContainerResponse(
 				logger.Printf("[Azure-CNS] Setting VfpUpdateComplete to %t for NCID: %s", vfpUpdateComplete, networkContainerID)
 				ncstatus.VfpUpdateComplete = vfpUpdateComplete
 				service.state.ContainerStatus[networkContainerID] = ncstatus
-				err = service.saveState()
-				if err != nil {
+				if err = service.saveState(); err != nil {
 					logger.Errorf("Failed to save goal states due to %s", err)
 				}
 			}

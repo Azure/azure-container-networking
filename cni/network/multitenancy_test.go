@@ -66,7 +66,7 @@ func (c *MockCNSClient) GetNetworkContainerWithOrchestratorContext(ctx context.C
 
 func (c *MockCNSClient) GetNetworkContainersWithOrchestratorContext(ctx context.Context, orchestratorContext []byte) ([]cns.GetNetworkContainerResponse, error) {
 	c.require.Exactly(c.getNetworkContainersConfiguration.orchestratorContext, orchestratorContext)
-	return c.getNetworkContainersConfiguration.returnResponse, c.getNetworkContainerConfiguration.err
+	return c.getNetworkContainersConfiguration.returnResponse, c.getNetworkContainersConfiguration.err
 }
 
 func defaultIPNet() *net.IPNet {
