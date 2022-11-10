@@ -108,7 +108,7 @@ func (m *MockMultitenancy) GetNetworkContainersWithOrchestratorContext(
 		PrimaryInterfaceIdentifier: "20.240.0.4/24",
 		MultiTenancyInfo: cns.MultiTenancyInfo{
 			EncapType: cns.Vlan,
-			ID:        2,
+			ID:        1,
 		},
 	}
 
@@ -131,7 +131,7 @@ func (m *MockMultitenancy) GetNetworkContainersWithOrchestratorContext(
 		PrimaryInterfaceIdentifier: "10.240.0.4/24",
 		MultiTenancyInfo: cns.MultiTenancyInfo{
 			EncapType: cns.Vlan,
-			ID:        1,
+			ID:        2,
 		},
 	}
 

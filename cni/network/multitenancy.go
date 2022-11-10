@@ -253,7 +253,6 @@ func (m *Multitenancy) getNetworkContainersWithOrchestratorContextInternal(
 	}
 
 	ncConfigs, err := m.cnsclient.GetNetworkContainersWithOrchestratorContext(ctx, orchestratorContext)
-
 	if err != nil {
 		log.Printf("GetConfigsForNetworkContainers failed with %v", err)
 		return nil, []net.IPNet{}, fmt.Errorf("%w", err)

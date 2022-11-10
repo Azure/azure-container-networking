@@ -132,7 +132,7 @@ func (n *ncSet) Contains(nc string) bool {
 func (n *ncSet) UnmarshalJSON(data []byte) error {
 	var ncString string
 	if err := json.Unmarshal(data, &ncString); err != nil {
-		return err
+		return errors.Wrapf(err, "failed to unmarshal NC result")
 	}
 
 	res := strings.Split(ncString, ",")

@@ -481,12 +481,12 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 				ipamAddResult.hostSubnetPrefix = hostSubnetPrefixes[i]
 				ipamAddResults = append(ipamAddResults, ipamAddResult)
 			}
-			log.Printf("ipamAddResults are %+v", ipamAddResults)
 		}
 	} else {
 		ipamAddResults = append(ipamAddResults, ipamAddResult)
 	}
 
+	// get all ipamAddResult
 	for i := 0; i < len(ipamAddResults); i++ {
 		if nwCfg.MultiTenancy {
 			ipamAddResult = ipamAddResults[i]
