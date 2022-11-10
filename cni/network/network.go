@@ -486,7 +486,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 		ipamAddResults = append(ipamAddResults, ipamAddResult)
 	}
 
-	// get all ipamAddResult
+	// get each ipamAddResult
 	for i := 0; i < len(ipamAddResults); i++ {
 		if nwCfg.MultiTenancy {
 			ipamAddResult = ipamAddResults[i]
@@ -553,11 +553,9 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 
 		sendEvent(plugin, fmt.Sprintf("Allocated IPAddress from ipam:%+v v6:%+v", ipamAddResult.ipv4Result, ipamAddResult.ipv6Result))
 
-		defer func() {
-			if err != nil {
-				plugin.cleanupAllocationOnError(ipamAddResult.ipv4Result, ipamAddResult.ipv6Result, nwCfg, args, options)
-			}
-		}()
+		if err != nil {
+			plugin.cleanupAllocationOnError(ipamAddResult.ipv4Result, ipamAddResult.ipv6Result, nwCfg, args, options)
+		}
 
 		// Create network
 		if nwInfoErr != nil {

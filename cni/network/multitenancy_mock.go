@@ -16,8 +16,10 @@ type MockMultitenancy struct {
 }
 
 const (
-	ipPrefixLen      = 24
-	localIPPrefixLen = 17
+	ipPrefixLen       = 24
+	localIPPrefixLen  = 17
+	multiTenancyVlan1 = 1
+	multiTenancyVlan2 = 2
 )
 
 var errMockMulAdd = errors.New("multitenancy fail")
@@ -108,7 +110,7 @@ func (m *MockMultitenancy) GetNetworkContainersWithOrchestratorContext(
 		PrimaryInterfaceIdentifier: "20.240.0.4/24",
 		MultiTenancyInfo: cns.MultiTenancyInfo{
 			EncapType: cns.Vlan,
-			ID:        1,
+			ID:        multiTenancyVlan1,
 		},
 	}
 
@@ -131,7 +133,7 @@ func (m *MockMultitenancy) GetNetworkContainersWithOrchestratorContext(
 		PrimaryInterfaceIdentifier: "10.240.0.4/24",
 		MultiTenancyInfo: cns.MultiTenancyInfo{
 			EncapType: cns.Vlan,
-			ID:        2,
+			ID:        multiTenancyVlan2,
 		},
 	}
 
