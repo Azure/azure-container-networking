@@ -43,7 +43,7 @@ var (
 	kubeconfig          = flag.String("test-kubeconfig", filepath.Join(homedir.HomeDir(), ".kube", "config"), "(optional) absolute path to the kubeconfig file")
 	delegatedSubnetID   = flag.String("delegated-subnet-id", "", "delegated subnet id for node labeling")
 	delegatedSubnetName = flag.String("subnet-name", "", "subnet name for node labeling")
-	gpPodScaleCounts    = []int{3, 15, 150, 3}
+	gpPodScaleCounts    = []int{2, 10, 100, 2}
 )
 
 func shouldLabelNodes() bool {
