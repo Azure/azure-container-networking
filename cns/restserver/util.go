@@ -168,6 +168,16 @@ func (service *HTTPRestService) saveNetworkContainerGoalState(
 		fallthrough
 	case cns.WebApps:
 		switch service.state.OrchestratorType {
+		case cns.Kubernetes:
+			fallthrough
+		case cns.ServiceFabric:
+			fallthrough
+		case cns.Batch:
+			fallthrough
+		case cns.DBforPostgreSQL:
+			fallthrough
+		case cns.AzureFirstParty:
+			fallthrough
 		case cns.WebApps: // todo: Is WebApps an OrchastratorType or ContainerType?
 			podInfo, err := cns.UnmarshalPodInfo(req.OrchestratorContext)
 			if err != nil {
