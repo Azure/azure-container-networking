@@ -20,7 +20,6 @@ import (
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/cns/wireserver"
 	"github.com/Azure/azure-container-networking/nmagent"
-	nma "github.com/Azure/azure-container-networking/nmagent"
 	"github.com/Azure/azure-container-networking/platform"
 	"github.com/pkg/errors"
 )
@@ -1112,6 +1111,34 @@ func getAuthTokenAndInterfaceIDFromNcURL(networkContainerURL string) (*cns.Netwo
 	return &cns.NetworkContainerParameters{AssociatedInterfaceID: matches[1], AuthToken: matches[3]}, nil
 }
 
+//nolint:revive // the previous receiver naming "service" is bad, this is correct:
+func (h *HTTPRestService) doPublish(ctx context.Context, req cns.PublishNetworkContainerRequest, ncParameters *cns.NetworkContainerParameters) (string, types.ResponseCode) {
+	innerReqBytes := req.CreateNetworkContainerRequestBody
+
+	var innerReq nmagent.PutNetworkContainerRequest
+	err := json.Unmarshal(innerReqBytes, &innerReq)
+	if err != nil {
+		returnMessage := fmt.Sprintf("Failed to publish Network Container: %s", req.NetworkContainerID)
+		returnCode := types.NetworkContainerPublishFailed
+		logger.Errorf("[Azure-CNS] %s", returnMessage)
+		return returnMessage, returnCode
+	}
+
+	innerReq.AuthenticationToken = ncParameters.AuthToken
+	innerReq.PrimaryAddress = ncParameters.AssociatedInterfaceID
+
+	err = h.nma.PutNetworkContainer(ctx, &innerReq)
+	// nolint:bodyclose // existing code needs refactoring
+	if err != nil {
+		returnMessage := fmt.Sprintf("Failed to publish Network Container: %s", req.NetworkContainerID)
+		returnCode := types.NetworkContainerPublishFailed
+		logger.Errorf("[Azure-CNS] %s", returnMessage)
+		return returnMessage, returnCode
+	}
+
+	return "", types.Success
+}
+
 // Publish Network Container by calling nmagent
 func (service *HTTPRestService) publishNetworkContainer(w http.ResponseWriter, r *http.Request) {
 	logger.Printf("[Azure-CNS] PublishNetworkContainer")
@@ -1179,7 +1206,7 @@ func (service *HTTPRestService) publishNetworkContainer(w http.ResponseWriter, r
 			returnCode = types.NetworkJoinFailed
 			publishErrorStr = err.Error()
 
-			var nmaErr nma.Error
+			var nmaErr nmagent.Error
 			if errors.As(err, &nmaErr) {
 				publishStatusCode = nmaErr.StatusCode()
 			}
@@ -1189,30 +1216,10 @@ func (service *HTTPRestService) publishNetworkContainer(w http.ResponseWriter, r
 
 		if isNetworkJoined {
 			// Publish Network Container
-
-			innerReqBytes := req.CreateNetworkContainerRequestBody
-
-			var innerReq nmagent.PutNetworkContainerRequest
-			err = json.Unmarshal(innerReqBytes, &innerReq)
-			if err != nil {
-				returnMessage = fmt.Sprintf("Failed to publish Network Container: %s", req.NetworkContainerID)
-				returnCode = types.NetworkContainerPublishFailed
-				logger.Errorf("[Azure-CNS] %s", returnMessage)
-			}
-
-			innerReq.AuthenticationToken = ncParameters.AuthToken
-			innerReq.PrimaryAddress = ncParameters.AssociatedInterfaceID
-
-			err = service.nma.PutNetworkContainer(ctx, &innerReq)
-			// nolint:bodyclose // existing code needs refactoring
-			if err != nil {
-				returnMessage = fmt.Sprintf("Failed to publish Network Container: %s", req.NetworkContainerID)
-				returnCode = types.NetworkContainerPublishFailed
-				logger.Errorf("[Azure-CNS] %s", returnMessage)
-			}
+			returnMessage, returnCode = service.doPublish(ctx, req, ncParameters)
 		}
 
-		req := nma.NCVersionRequest{
+		req := nmagent.NCVersionRequest{
 			AuthToken:          ncParameters.AuthToken,
 			NetworkContainerID: req.NetworkContainerID,
 			PrimaryAddress:     ncParameters.AssociatedInterfaceID,
@@ -1303,7 +1310,7 @@ func (service *HTTPRestService) unpublishNetworkContainer(w http.ResponseWriter,
 				returnCode = types.NetworkJoinFailed
 				unpublishErrorStr = err.Error()
 
-				var nmaErr nma.Error
+				var nmaErr nmagent.Error
 				if errors.As(err, &nmaErr) {
 					unpublishStatusCode = nmaErr.StatusCode()
 				}
@@ -1314,7 +1321,7 @@ func (service *HTTPRestService) unpublishNetworkContainer(w http.ResponseWriter,
 		}
 
 		if isNetworkJoined {
-			dcr := nma.DeleteContainerRequest{
+			dcr := nmagent.DeleteContainerRequest{
 				NCID:                req.NetworkContainerID,
 				PrimaryAddress:      ncParameters.AssociatedInterfaceID,
 				AuthenticationToken: ncParameters.AuthToken,
