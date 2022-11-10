@@ -4,7 +4,7 @@
         "orchestratorProfile": {
             "orchestratorType": "Kubernetes",
             "orchestratorRelease": "1.22",
-            "orchestratorVersion": "1.22.7",
+            "orchestratorVersion": "1.22.15",
             "kubernetesConfig": {
                 "networkPlugin": "azure",
                 "networkPolicy": "azure",

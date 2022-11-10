@@ -31,22 +31,23 @@ steps:
       echo Using AKS-Engine version $aksEVersion
 
       #download source
-      wget https://github.com/jaer-tsun/aks-engine/archive/v1.0.5.tar.gz
+      wget https://github.com/csfmomo/aks-engine/archive/v1.0.6.tar.gz
 
       # extract source
       #tar -zxf $aksEVersion.tar.gz
-      tar -zxf v1.0.5.tar.gz
+      tar -zxf v1.0.6.tar.gz
 
       # move source to current directory
       mv aks-engine-*/* .
 
       # download binary
-      wget https://github.com/jaer-tsun/aks-engine/releases/download/v1.0.5/aks-engine-v1.0.5-linux-amd64.tar.gz
+      wget https://github.com/csfmomo/aks-engine/releases/download/v1.0.6/aks-engine-v1.0.6-linux-amd64.tar.gz
+
       rm -rf ./bin
       mkdir ./bin
 
       # extract binary
-      tar -zxvf aks-engine-v1.0.5-linux-amd64.tar.gz -C bin
+      tar -zxvf aks-engine-v1.0.6-linux-amd64.tar.gz -C bin
       mv ./bin/aks-engine-*/* ./bin/
       ls -l ./bin
       ./bin/aks-engine version
@@ -132,14 +133,3 @@ steps:
       artifactName: ${{ parameters.name }}
       pathtoPublish: "$(Build.ArtifactStagingDirectory)/${{ parameters.name }}"
     condition: always()
-
-  - task: AzureCLI@2
-    displayName: "Delete Test Cluster Resource Group"
-    condition: always()
-    inputs:
-      azureSubscription: $(AKS_ENGINE_SERVICE_CONNECTION)
-      scriptType: 'bash'
-      scriptLocation: 'inlineScript'
-      inlineScript: |
-        echo "Deleting: $(RESOURCE_GROUP)"
-        az group delete -n $(RESOURCE_GROUP) --yes

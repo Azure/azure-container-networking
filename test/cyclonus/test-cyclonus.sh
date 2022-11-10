@@ -54,11 +54,19 @@ kubectl delete --ignore-not-found=true clusterrolebinding cyclonus
 kubectl delete --ignore-not-found=true sa cyclonus -n kube-system
 kubectl delete --ignore-not-found=true -f $cyclonusProfile
 
-# if 'failure' is in the logs, fail; otherwise succeed
-rc=0
+# might need to redirect to /dev/null 2>&1 instead of just grepping with -q to avoid "cat: write error: Broken pipe"
+rc=999
+cat $LOG_FILE | grep "SummaryTable:" > /dev/null 2>&1 && rc=$?
+echo $rc
+if [ $rc -ne 0 ]; then
+    echo "FAILING because cyclonus tests did not complete"
+    exit 2
+fi
 
-cat "$LOG_FILE" | grep "failed" > /dev/null 2>&1 || rc=$?
+rc=0
+cat $LOG_FILE | grep "failed" > /dev/null 2>&1 || rc=$?
 echo $rc
 if [ $rc -eq 0 ]; then
-    exit 1
+    echo "FAILING because cyclonus completed but failures detected"
+    exit 3
 fi

@@ -1,5 +1,8 @@
 parameters:
   name: ""
+  testDropgz: ""
+  clusterName: ""
+  osSku: ""
 
 steps:
   - bash: |
@@ -29,8 +32,8 @@ steps:
       inlineScript: |
         mkdir -p ~/.kube/
         echo "Create AKS cluster"
-        make -C ./hack/swift azcfg AZCLI=az
-        make -C ./hack/swift byocni-up SUB=$(SUB_AZURE_NETWORK_AGENT_TEST) AZCLI=az CLUSTER=swifte2e-$(make revision)
+        make -C ./hack/swift azcfg AZCLI=az REGION=$(REGION_AKS_CLUSTER_TEST)
+        make -C ./hack/swift byocni-up AZCLI=az REGION=$(REGION_AKS_CLUSTER_TEST) SUB=$(SUB_AZURE_NETWORK_AGENT_TEST) CLUSTER=${{ parameters.clusterName }}-${{ parameters.osSku }}-$(make revision) OSSKU=${{ parameters.osSku }}
         echo "Cluster successfully created"
     displayName: Create test cluster
     condition: succeeded()
@@ -57,7 +60,7 @@ steps:
       sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
       kubectl cluster-info
       kubectl get po -owide -A
-      sudo -E env "PATH=$PATH" make test-integration CNS_VERSION=$(make cns-version) CNI_DROPGZ_VERSION=$(make cni-dropgz-version) INSTALL_CNS=true INSTALL_AZURE_VNET=true
+      sudo -E env "PATH=$PATH" make test-integration CNS_VERSION=$(make cns-version) CNI_DROPGZ_VERSION=$(make cni-dropgz-version) INSTALL_CNS=true INSTALL_AZURE_VNET=true TEST_DROPGZ=${{ parameters.testDropgz }}
     retryCountOnTaskFailure: 3
     name: "aksswifte2e"
     displayName: "Run AKS Swift E2E"
@@ -89,6 +92,15 @@ steps:
     displayName: "Run Services Conformance Tests"
 
   - script: |
+      echo "Run HostPort Conformance E2E"
+      export PATH=${PATH}:/usr/local/bin/gsutil
+      KUBECONFIG=~/.kube/config kubetest2 noop \
+        --test ginkgo -- \
+        --focus-regex "HostPort.*\[Conformance\].*"
+    name: "hostportConformance"
+    displayName: "Run HostPort Conformance Tests"
+
+  - script: |
       ARTIFACT_DIR=$(Build.ArtifactStagingDirectory)/aks-swift-output/
       echo $ARTIFACT_DIR
       sudo rm -rf $ARTIFACT_DIR
@@ -105,8 +117,8 @@ steps:
       addSpnToEnvironment: true
       inlineScript: |
         echo "Deleting cluster"
-        make -C ./hack/swift azcfg AZCLI=az
-        make -C ./hack/swift down SUB=$(SUB_AZURE_NETWORK_AGENT_TEST) AZCLI=az CLUSTER=swifte2e-$(make revision)
+        make -C ./hack/swift azcfg AZCLI=az REGION=$(REGION_AKS_CLUSTER_TEST)
+        make -C ./hack/swift down AZCLI=az REGION=$(REGION_AKS_CLUSTER_TEST) SUB=$(SUB_AZURE_NETWORK_AGENT_TEST) CLUSTER=${{ parameters.clusterName }}-${{ parameters.osSku }}-$(make revision)
         echo "Cluster and resources down"
     name: "Cleanupcluster"
     displayName: "Cleanup cluster"
