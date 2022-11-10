@@ -28,7 +28,7 @@ type networkPolicyBuilder struct {
 	toDeleteSets map[string]*hcn.SetPolicySetting
 }
 
-func (iMgr *IPSetManager) DoesIPSatisfySelectorIPSets(ip string, setList map[string]struct{}) (bool, error) {
+func (iMgr *IPSetManager) DoesIPSatisfySelectorIPSets(ip, podKey string, setList map[string]struct{}) (bool, error) {
 	if len(setList) == 0 {
 		klog.Infof("[ipset manager] unexpectedly encountered empty selector list")
 		return true, nil
@@ -42,7 +42,7 @@ func (iMgr *IPSetManager) DoesIPSatisfySelectorIPSets(ip string, setList map[str
 
 	for setName := range setList {
 		set := iMgr.setMap[setName]
-		if !set.isIPAffiliated(ip) {
+		if !set.isIPAffiliated(ip, podKey) {
 			return false, nil
 		}
 	}
@@ -50,10 +50,11 @@ func (iMgr *IPSetManager) DoesIPSatisfySelectorIPSets(ip string, setList map[str
 	return true, nil
 }
 
-// GetIPsFromSelectorIPSets will take in a map of prefixedSetNames and return an intersection of IPs
-func (iMgr *IPSetManager) GetIPsFromSelectorIPSets(setList map[string]struct{}) (map[string]struct{}, error) {
+// GetIPsFromSelectorIPSets will take in a map of prefixedSetNames and return an intersection of IPs mapped to pod key
+func (iMgr *IPSetManager) GetIPsFromSelectorIPSets(setList map[string]struct{}) (map[string]string, error) {
+	ips := make(map[string]string)
 	if len(setList) == 0 {
-		return map[string]struct{}{}, nil
+		return ips, nil
 	}
 	iMgr.Lock()
 	defer iMgr.Unlock()
@@ -67,30 +68,29 @@ func (iMgr *IPSetManager) GetIPsFromSelectorIPSets(setList map[string]struct{}) 
 	// which is a hash set, and we favor hash sets for firstSet
 	var firstSet *IPSet
 	for setName := range setList {
-		set := iMgr.setMap[setName]
-		if set.Kind == HashSet || firstSet == nil {
+		firstSet = iMgr.setMap[setName]
+		if firstSet.Kind == HashSet {
 			// firstSet can be any set, but ideally is a hash set for efficiency (compare the branch for hash sets to the one for lists below)
-			firstSet = set
+			break
 		}
 	}
-	ips := make(map[string]struct{})
 	if firstSet.Kind == HashSet {
 		// include every IP in firstSet that is also affiliated with every other selector set
-		for ip := range firstSet.IPPodKey {
+		for ip, podKey := range firstSet.IPPodKey {
 			isAffiliated := true
 			for otherSetName := range setList {
 				if otherSetName == firstSet.Name {
 					continue
 				}
 				otherSet := iMgr.setMap[otherSetName]
-				if !otherSet.isIPAffiliated(ip) {
+				if !otherSet.isIPAffiliated(ip, podKey) {
 					isAffiliated = false
 					break
 				}
 			}
 
 			if isAffiliated {
-				ips[ip] = struct{}{}
+				ips[ip] = podKey
 			}
 		}
 	} else {
@@ -100,11 +100,19 @@ func (iMgr *IPSetManager) GetIPsFromSelectorIPSets(setList map[string]struct{}) 
 
 		// only loop over the unique affiliated IPs
 		for _, memberSet := range firstSet.MemberIPSets {
-			for ip := range memberSet.IPPodKey {
-				ips[ip] = struct{}{}
+			for ip, podKey := range memberSet.IPPodKey {
+				if oldKey, ok := ips[ip]; ok && oldKey != podKey {
+					// this could lead to unintentionally considering this Pod (Pod B) to be part of the selector set if:
+					// 1. Pod B has the same IP as a previous Pod A
+					// 2. Pod B create is somehow processed before Pod A delete
+					// 3. This method is called before Pod A delete
+					// again, this
+					klog.Warningf("[GetIPsFromSelectorIPSets] IP currently associated with two different pod keys. to ensure no issues occur with network policies, restart this ip: %s", ip)
+				}
+				ips[ip] = podKey
 			}
 		}
-		for ip := range ips {
+		for ip, podKey := range ips {
 			// identical to the hash set case
 			isAffiliated := true
 			for otherSetName := range setList {
@@ -112,7 +120,7 @@ func (iMgr *IPSetManager) GetIPsFromSelectorIPSets(setList map[string]struct{}) 
 					continue
 				}
 				otherSet := iMgr.setMap[otherSetName]
-				if !otherSet.isIPAffiliated(ip) {
+				if !otherSet.isIPAffiliated(ip, podKey) {
 					isAffiliated = false
 					break
 				}

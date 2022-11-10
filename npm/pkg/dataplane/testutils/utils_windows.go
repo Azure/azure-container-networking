@@ -109,7 +109,7 @@ func VerifyACLs(t *testing.T, hns *hnswrapper.Hnsv2wrapperFake, expectedEndpoint
 	success := assert.Equal(t, len(expectedEndpointACLs), len(cachedEndpointACLs), "unexpected number of Endpoints")
 	for epID, expectedACLs := range expectedEndpointACLs {
 		cachedACLs, ok := cachedEndpointACLs[epID]
-		success = assert.True(t, ok, fmt.Sprintf("expected ACL not found for endpoint %s", epID)) && success
+		success = assert.True(t, ok, fmt.Sprintf("expected endpoint not found: %s", epID)) && success
 		if !ok {
 			continue
 		}
