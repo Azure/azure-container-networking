@@ -157,6 +157,7 @@ func (n ncSet) MarshalJSON() ([]byte, error) {
 	}
 
 	res := strings.Join(result, ",")
+	// nolint:wrapcheck // wrapping this error provides no useful information
 	return json.Marshal(&res)
 }
 
