@@ -120,7 +120,7 @@ steps:
   - script: |
       echo "Run Cilium Connectivity Tests"
       cilium status
-      cilium connectivity test
+      cilium connectivity test --test '!/pod-to-cidr'
     retryCountOnTaskFailure: 3
     name: "ciliumConnectivityTests"
     displayName: "Run Cilium Connectivity Tests"
