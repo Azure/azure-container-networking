@@ -23,6 +23,8 @@ The following environments are supported:
 
 Plugins are offered as part of [Azure Kubernetes Service (AKS)](https://docs.microsoft.com/en-us/azure/aks/), as well as for individual Azure IaaS VMs. For Kubernetes clusters created by [aks-engine](https://github.com/Azure/aks-engine), the deployment and configuration of both plugins on both Linux and Windows nodes is automatic and default.
 
+The next generation of Azure CNI Plugin is powered by [Cilium](https://cilium.io/). Learn more at [Azure CNI Powered By Cilium](docs/cilium.md)
+
 ## Documentation
 See [Documentation](docs/) for more information and examples.
 

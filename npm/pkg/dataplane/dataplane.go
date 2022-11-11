@@ -240,7 +240,7 @@ func (dp *DataPlane) ApplyDataPlane() error {
 			delete(dp.updatePodCache.cache, podKey)
 		}
 		if aggregateErr != nil {
-			return fmt.Errorf("[DataPlane] error while updating pods: %w", err)
+			return fmt.Errorf("[DataPlane] error while updating pods: %w", aggregateErr)
 		}
 	}
 	return nil

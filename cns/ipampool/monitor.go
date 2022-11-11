@@ -3,6 +3,7 @@ package ipampool
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"sync"
 	"time"
 
@@ -13,6 +14,7 @@ import (
 	"github.com/Azure/azure-container-networking/crd/clustersubnetstate/api/v1alpha1"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 	"github.com/pkg/errors"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 const (
@@ -99,6 +101,10 @@ func (pm *Monitor) Start(ctx context.Context) error {
 		case css := <-pm.cssSource: // received an updated ClusterSubnetState
 			pm.metastate.exhausted = css.Status.Exhausted
 			logger.Printf("subnet exhausted status = %t", pm.metastate.exhausted)
+			ipamSubnetExhaustionCount.With(prometheus.Labels{
+				subnetLabel: pm.metastate.subnet, subnetCIDRLabel: pm.metastate.subnetCIDR,
+				podnetARMIDLabel: pm.metastate.subnetARMID, subnetExhaustionStateLabel: strconv.FormatBool(pm.metastate.exhausted),
+			}).Inc()
 			select {
 			default:
 				// if we have NOT initialized and enter this case, we continue out of this iteration and let the for loop begin again.
@@ -166,8 +172,9 @@ func buildIPPoolState(ips map[string]cns.IPConfigurationStatus, spec v1alpha.Nod
 		totalIPs:     int64(len(ips)),
 		requestedIPs: spec.RequestedIPCount,
 	}
-	for _, v := range ips {
-		switch v.GetState() {
+	for i := range ips {
+		ip := ips[i]
+		switch ip.GetState() {
 		case types.Assigned:
 			state.allocatedToPods++
 		case types.Available:
@@ -266,7 +273,7 @@ func (pm *Monitor) increasePoolSize(ctx context.Context, meta metaState, state i
 
 	if _, err := pm.nnccli.UpdateSpec(ctx, &tempNNCSpec); err != nil {
 		// caller will retry to update the CRD again
-		return err
+		return errors.Wrap(err, "executing UpdateSpec with NNC CLI")
 	}
 
 	logger.Printf("[ipam-pool-monitor] Increasing pool size: UpdateCRDSpec succeeded for spec %+v", tempNNCSpec)
@@ -308,7 +315,7 @@ func (pm *Monitor) decreasePoolSize(ctx context.Context, meta metaState, state i
 		logger.Printf("[ipam-pool-monitor] Marking IPs as PendingRelease, ipsToBeReleasedCount %d", decreaseIPCountBy)
 		var err error
 		if pendingIPAddresses, err = pm.httpService.MarkIPAsPendingRelease(int(decreaseIPCountBy)); err != nil {
-			return err
+			return errors.Wrap(err, "marking IPs that are pending release")
 		}
 
 		newIpsMarkedAsPending = true
@@ -330,7 +337,7 @@ func (pm *Monitor) decreasePoolSize(ctx context.Context, meta metaState, state i
 	_, err := pm.nnccli.UpdateSpec(ctx, &tempNNCSpec)
 	if err != nil {
 		// caller will retry to update the CRD again
-		return err
+		return errors.Wrap(err, "executing UpdateSpec with NNC CLI")
 	}
 
 	logger.Printf("[ipam-pool-monitor] Decreasing pool size: UpdateCRDSpec succeeded for spec %+v", tempNNCSpec)
@@ -355,7 +362,7 @@ func (pm *Monitor) cleanPendingRelease(ctx context.Context) error {
 	_, err := pm.nnccli.UpdateSpec(ctx, &tempNNCSpec)
 	if err != nil {
 		// caller will retry to update the CRD again
-		return err
+		return errors.Wrap(err, "executing UpdateSpec with NNC CLI")
 	}
 
 	logger.Printf("[ipam-pool-monitor] cleanPendingRelease: UpdateCRDSpec succeeded for spec %+v", tempNNCSpec)
@@ -374,7 +381,8 @@ func (pm *Monitor) createNNCSpecForCRD() v1alpha.NodeNetworkConfigSpec {
 
 	// Get All Pending IPs from CNS and populate it again.
 	pendingIPs := pm.httpService.GetPendingReleaseIPConfigs()
-	for _, pendingIP := range pendingIPs {
+	for i := range pendingIPs {
+		pendingIP := pendingIPs[i]
 		spec.IPsNotInUse = append(spec.IPsNotInUse, pendingIP.ID)
 	}
 

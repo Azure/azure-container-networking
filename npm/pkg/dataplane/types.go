@@ -1,6 +1,8 @@
 package dataplane
 
 import (
+	"strings"
+
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/ipsets"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/policies"
 	"github.com/Azure/azure-container-networking/npm/util"
@@ -49,6 +51,10 @@ func NewPodMetadata(podKey, podIP, nodeName string) *PodMetadata {
 		PodIP:    podIP,
 		NodeName: nodeName,
 	}
+}
+
+func (p *PodMetadata) Namespace() string {
+	return strings.Split(p.PodKey, "/")[0]
 }
 
 func newUpdateNPMPod(podMetadata *PodMetadata) *updateNPMPod {
