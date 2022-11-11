@@ -52,6 +52,7 @@ func NewCNSInvoker(podName, namespace string, cnsClient cnsclient, executionMode
 	}
 }
 
+// ryand IPv6 not currently supported
 // Add uses the requestipconfig API in cns, and returns ipv4 and a nil ipv6 as CNS doesn't support IPv6 yet
 func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, error) {
 	// Parse Pod arguments.
@@ -84,13 +85,13 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 	}
 
 	info := IPv4ResultInfo{
-		podIPAddress:       response.PodIpInfo.PodIPConfig.IPAddress,
-		ncSubnetPrefix:     response.PodIpInfo.NetworkContainerPrimaryIPConfig.IPSubnet.PrefixLength,
-		ncPrimaryIP:        response.PodIpInfo.NetworkContainerPrimaryIPConfig.IPSubnet.IPAddress,
-		ncGatewayIPAddress: response.PodIpInfo.NetworkContainerPrimaryIPConfig.GatewayIPAddress,
-		hostSubnet:         response.PodIpInfo.HostPrimaryIPInfo.Subnet,
-		hostPrimaryIP:      response.PodIpInfo.HostPrimaryIPInfo.PrimaryIP,
-		hostGateway:        response.PodIpInfo.HostPrimaryIPInfo.Gateway,
+		podIPAddress:       response.PodIPInfo[0].PodIPConfig.IPAddress,
+		ncSubnetPrefix:     response.PodIPInfo[0].NetworkContainerPrimaryIPConfig.IPSubnet.PrefixLength,
+		ncPrimaryIP:        response.PodIPInfo[0].NetworkContainerPrimaryIPConfig.IPSubnet.IPAddress,
+		ncGatewayIPAddress: response.PodIPInfo[0].NetworkContainerPrimaryIPConfig.GatewayIPAddress,
+		hostSubnet:         response.PodIPInfo[0].HostPrimaryIPInfo.Subnet,
+		hostPrimaryIP:      response.PodIPInfo[0].HostPrimaryIPInfo.PrimaryIP,
+		hostGateway:        response.PodIPInfo[0].HostPrimaryIPInfo.Gateway,
 	}
 
 	// set the NC Primary IP in options

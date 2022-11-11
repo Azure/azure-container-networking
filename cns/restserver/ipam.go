@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/netip"
 	"strconv"
 
 	"github.com/Azure/azure-container-networking/cns"
@@ -52,7 +53,7 @@ func (service *HTTPRestService) requestIPConfigHandler(w http.ResponseWriter, r 
 				ReturnCode: types.FailedToAllocateIPConfig,
 				Message:    fmt.Sprintf("AllocateIPConfig failed: %v, IP config request is %s", err, ipconfigRequest),
 			},
-			PodIpInfo: podIPInfo,
+			PodIPInfo: podIPInfo,
 		}
 		w.Header().Set(cnsReturnCode, reserveResp.Response.ReturnCode.String())
 		err = service.Listener.Encode(w, &reserveResp)
@@ -77,7 +78,7 @@ func (service *HTTPRestService) requestIPConfigHandler(w http.ResponseWriter, r 
 					ReturnCode: types.UnexpectedError,
 					Message:    fmt.Sprintf("Update endpoint state failed: %v ", err),
 				},
-				PodIpInfo: podIPInfo,
+				PodIPInfo: podIPInfo,
 			}
 			w.Header().Set(cnsReturnCode, reserveResp.Response.ReturnCode.String())
 			err = service.Listener.Encode(w, &reserveResp)
@@ -90,7 +91,7 @@ func (service *HTTPRestService) requestIPConfigHandler(w http.ResponseWriter, r 
 		Response: cns.Response{
 			ReturnCode: types.Success,
 		},
-		PodIpInfo: podIPInfo,
+		PodIPInfo: podIPInfo,
 	}
 	w.Header().Set(cnsReturnCode, reserveResp.Response.ReturnCode.String())
 	err = service.Listener.Encode(w, &reserveResp)
@@ -102,64 +103,66 @@ var (
 	errParsePodIPFailed = errors.New("failed to parse pod's ip")
 )
 
-func (service *HTTPRestService) updateEndpointState(ipconfigRequest cns.IPConfigRequest, podInfo cns.PodInfo, podIPInfo cns.PodIpInfo) error {
+func (service *HTTPRestService) updateEndpointState(ipconfigRequest cns.IPConfigRequest, podInfo cns.PodInfo, podIPInfo []cns.PodIpInfo) error {
 	if service.EndpointStateStore == nil {
 		return errStoreEmpty
 	}
 	service.Lock()
 	defer service.Unlock()
 	logger.Printf("[updateEndpointState] Updating endpoint state for infra container %s", ipconfigRequest.InfraContainerID)
-	if endpointInfo, ok := service.EndpointState[ipconfigRequest.InfraContainerID]; ok {
-		logger.Warnf("[updateEndpointState] Found existing endpoint state for infra container %s", ipconfigRequest.InfraContainerID)
-		ip := net.ParseIP(podIPInfo.PodIPConfig.IPAddress)
-		if ip == nil {
-			logger.Errorf("failed to parse pod ip address %s", podIPInfo.PodIPConfig.IPAddress)
-			return errParsePodIPFailed
-		}
-		if ip.To4() == nil { // is an ipv6 address
-			ipconfig := net.IPNet{IP: ip, Mask: net.CIDRMask(int(podIPInfo.PodIPConfig.PrefixLength), 128)} // nolint
-			for _, ipconf := range endpointInfo.IfnameToIPMap[ipconfigRequest.Ifname].IPv6 {
-				if ipconf.IP.Equal(ipconfig.IP) {
-					logger.Printf("[updateEndpointState] Found existing ipv6 ipconfig for infra container %s", ipconfigRequest.InfraContainerID)
-					return nil
-				}
+	for i := range podIPInfo {
+		if endpointInfo, ok := service.EndpointState[ipconfigRequest.InfraContainerID]; ok {
+			logger.Warnf("[updateEndpointState] Found existing endpoint state for infra container %s", ipconfigRequest.InfraContainerID)
+			ip := net.ParseIP(podIPInfo[i].PodIPConfig.IPAddress)
+			if ip == nil {
+				logger.Errorf("failed to parse pod ip address %s", podIPInfo[i].PodIPConfig.IPAddress)
+				return errParsePodIPFailed
 			}
-			endpointInfo.IfnameToIPMap[ipconfigRequest.Ifname].IPv6 = append(endpointInfo.IfnameToIPMap[ipconfigRequest.Ifname].IPv6, ipconfig)
-		} else {
-			ipconfig := net.IPNet{IP: ip, Mask: net.CIDRMask(int(podIPInfo.PodIPConfig.PrefixLength), 32)} // nolint
-			for _, ipconf := range endpointInfo.IfnameToIPMap[ipconfigRequest.Ifname].IPv4 {
-				if ipconf.IP.Equal(ipconfig.IP) {
-					logger.Printf("[updateEndpointState] Found existing ipv4 ipconfig for infra container %s", ipconfigRequest.InfraContainerID)
-					return nil
+			if ip.To4() == nil { // is an ipv6 address
+				ipconfig := net.IPNet{IP: ip, Mask: net.CIDRMask(int(podIPInfo[i].PodIPConfig.PrefixLength), 128)} // nolint
+				for _, ipconf := range endpointInfo.IfnameToIPMap[ipconfigRequest.Ifname].IPv6 {
+					if ipconf.IP.Equal(ipconfig.IP) {
+						logger.Printf("[updateEndpointState] Found existing ipv6 ipconfig for infra container %s", ipconfigRequest.InfraContainerID)
+						return nil
+					}
 				}
+				endpointInfo.IfnameToIPMap[ipconfigRequest.Ifname].IPv6 = append(endpointInfo.IfnameToIPMap[ipconfigRequest.Ifname].IPv6, ipconfig)
+			} else {
+				ipconfig := net.IPNet{IP: ip, Mask: net.CIDRMask(int(podIPInfo[i].PodIPConfig.PrefixLength), 32)} // nolint
+				for _, ipconf := range endpointInfo.IfnameToIPMap[ipconfigRequest.Ifname].IPv4 {
+					if ipconf.IP.Equal(ipconfig.IP) {
+						logger.Printf("[updateEndpointState] Found existing ipv4 ipconfig for infra container %s", ipconfigRequest.InfraContainerID)
+						return nil
+					}
+				}
+				endpointInfo.IfnameToIPMap[ipconfigRequest.Ifname].IPv4 = append(endpointInfo.IfnameToIPMap[ipconfigRequest.Ifname].IPv4, ipconfig)
 			}
-			endpointInfo.IfnameToIPMap[ipconfigRequest.Ifname].IPv4 = append(endpointInfo.IfnameToIPMap[ipconfigRequest.Ifname].IPv4, ipconfig)
-		}
 
-		service.EndpointState[ipconfigRequest.InfraContainerID] = endpointInfo
+			service.EndpointState[ipconfigRequest.InfraContainerID] = endpointInfo
 
-	} else {
-		endpointInfo := &EndpointInfo{PodName: podInfo.Name(), PodNamespace: podInfo.Namespace(), IfnameToIPMap: make(map[string]*IPInfo)}
-		ip := net.ParseIP(podIPInfo.PodIPConfig.IPAddress)
-		if ip == nil {
-			logger.Errorf("failed to parse pod ip address %s", podIPInfo.PodIPConfig.IPAddress)
-			return errParsePodIPFailed
-		}
-		ipInfo := &IPInfo{}
-		if ip.To4() == nil { // is an ipv6 address
-			ipconfig := net.IPNet{IP: ip, Mask: net.CIDRMask(int(podIPInfo.PodIPConfig.PrefixLength), 128)} // nolint
-			ipInfo.IPv6 = append(ipInfo.IPv6, ipconfig)
 		} else {
-			ipconfig := net.IPNet{IP: ip, Mask: net.CIDRMask(int(podIPInfo.PodIPConfig.PrefixLength), 32)} // nolint
-			ipInfo.IPv4 = append(ipInfo.IPv4, ipconfig)
+			endpointInfo := &EndpointInfo{PodName: podInfo.Name(), PodNamespace: podInfo.Namespace(), IfnameToIPMap: make(map[string]*IPInfo)}
+			ip := net.ParseIP(podIPInfo[i].PodIPConfig.IPAddress)
+			if ip == nil {
+				logger.Errorf("failed to parse pod ip address %s", podIPInfo[i].PodIPConfig.IPAddress)
+				return errParsePodIPFailed
+			}
+			ipInfo := &IPInfo{}
+			if ip.To4() == nil { // is an ipv6 address
+				ipconfig := net.IPNet{IP: ip, Mask: net.CIDRMask(int(podIPInfo[i].PodIPConfig.PrefixLength), 128)} // nolint
+				ipInfo.IPv6 = append(ipInfo.IPv6, ipconfig)
+			} else {
+				ipconfig := net.IPNet{IP: ip, Mask: net.CIDRMask(int(podIPInfo[i].PodIPConfig.PrefixLength), 32)} // nolint
+				ipInfo.IPv4 = append(ipInfo.IPv4, ipconfig)
+			}
+			endpointInfo.IfnameToIPMap[ipconfigRequest.Ifname] = ipInfo
+			service.EndpointState[ipconfigRequest.InfraContainerID] = endpointInfo
 		}
-		endpointInfo.IfnameToIPMap[ipconfigRequest.Ifname] = ipInfo
-		service.EndpointState[ipconfigRequest.InfraContainerID] = endpointInfo
-	}
 
-	err := service.EndpointStateStore.Write(EndpointStoreKey, service.EndpointState)
-	if err != nil {
-		return fmt.Errorf("failed to write endpoint state to store: %w", err)
+		err := service.EndpointStateStore.Write(EndpointStoreKey, service.EndpointState)
+		if err != nil {
+			return fmt.Errorf("failed to write endpoint state to store: %w", err)
+		}
 	}
 	return nil
 }
@@ -478,9 +481,9 @@ func (service *HTTPRestService) MarkExistingIPsAsPendingRelease(pendingIPIDs []s
 	return nil
 }
 
-func (service *HTTPRestService) GetExistingIPConfig(podInfo cns.PodInfo) (cns.PodIpInfo, bool, error) {
+func (service *HTTPRestService) GetExistingIPConfig(podInfo cns.PodInfo) ([]cns.PodIpInfo, bool, error) {
 	var (
-		podIpInfo cns.PodIpInfo
+		podIpInfo []cns.PodIpInfo
 		isExist   bool
 	)
 
@@ -490,7 +493,7 @@ func (service *HTTPRestService) GetExistingIPConfig(podInfo cns.PodInfo) (cns.Po
 	ipID := service.PodIPIDByPodInterfaceKey[podInfo.Key()]
 	if ipID != "" {
 		if ipState, isExist := service.PodIPConfigState[ipID]; isExist {
-			err := service.populateIPConfigInfoUntransacted(ipState, &podIpInfo)
+			err := service.populateIPConfigInfoUntransacted(ipState, &podIpInfo[0])
 			return podIpInfo, isExist, err
 		}
 
@@ -501,8 +504,8 @@ func (service *HTTPRestService) GetExistingIPConfig(podInfo cns.PodInfo) (cns.Po
 	return podIpInfo, isExist, nil
 }
 
-func (service *HTTPRestService) AssignDesiredIPConfig(podInfo cns.PodInfo, desiredIPAddress string) (cns.PodIpInfo, error) {
-	var podIpInfo cns.PodIpInfo
+func (service *HTTPRestService) AssignDesiredIPConfig(podInfo cns.PodInfo, desiredIPAddress string) ([]cns.PodIpInfo, error) {
+	var podIpInfo []cns.PodIpInfo
 	service.Lock()
 	defer service.Unlock()
 
@@ -526,42 +529,64 @@ func (service *HTTPRestService) AssignDesiredIPConfig(podInfo cns.PodInfo, desir
 			default:
 				return podIpInfo, errors.Errorf("[AllocateDesiredIPConfig] Desired IP is not available %+v", ipConfig)
 			}
-			err := service.populateIPConfigInfoUntransacted(ipConfig, &podIpInfo)
+			err := service.populateIPConfigInfoUntransacted(ipConfig, &podIpInfo[0])
 			return podIpInfo, err
 		}
 	}
 	return podIpInfo, fmt.Errorf("Requested IP not found in pool")
 }
 
-func (service *HTTPRestService) AssignAnyAvailableIPConfig(podInfo cns.PodInfo) (cns.PodIpInfo, error) {
+// ryand setting to default dualstack mode for testing while waiting to get pod labels - will change
+func (service *HTTPRestService) AssignAnyAvailableIPConfig(podInfo cns.PodInfo) ([]cns.PodIpInfo, error) {
 	service.Lock()
 	defer service.Unlock()
 
-	for _, ipState := range service.PodIPConfigState {
-		if ipState.GetState() == types.Available {
-			if err := service.assignIPConfig(ipState, podInfo); err != nil {
-				return cns.PodIpInfo{}, err
-			}
+	var podIPInfo []cns.PodIpInfo
 
-			podIPInfo := cns.PodIpInfo{}
-			if err := service.populateIPConfigInfoUntransacted(ipState, &podIPInfo); err != nil {
-				return cns.PodIpInfo{}, err
+	for _, ipState := range service.PodIPConfigState {
+		address, err := netip.ParseAddr(ipState.IPAddress)
+		if err != nil {
+			return []cns.PodIpInfo{}, err
+		}
+		if ipState.GetState() == types.Available && address.Is4() {
+			if err := service.assignIPConfig(ipState, podInfo); err != nil {
+				return []cns.PodIpInfo{}, err
+			}
+			if err := service.populateIPConfigInfoUntransacted(ipState, &podIPInfo[0]); err != nil {
+				return []cns.PodIpInfo{}, err
+			}
+			break
+		}
+	}
+
+	// going to change this to be a helper method that passes in Ip rules based on labels, hard coding to test
+	for _, ipState := range service.PodIPConfigState {
+		address, err := netip.ParseAddr(ipState.IPAddress)
+		if err != nil {
+			return []cns.PodIpInfo{}, err
+		}
+		if ipState.GetState() == types.Available && address.Is6() {
+			if err := service.assignIPConfig(ipState, podInfo); err != nil {
+				return []cns.PodIpInfo{}, err
+			}
+			if err := service.populateIPConfigInfoUntransacted(ipState, &podIPInfo[1]); err != nil {
+				return []cns.PodIpInfo{}, err
 			}
 
 			return podIPInfo, nil
 		}
 	}
 	//nolint:goerr113
-	return cns.PodIpInfo{}, fmt.Errorf("no IPs available, waiting on Azure CNS to allocate more")
+	return []cns.PodIpInfo{}, fmt.Errorf("no IPs available, waiting on Azure CNS to allocate more")
 }
 
 // If IPConfig is already assigned to pod, it returns that else it returns one of the available ipconfigs.
-func requestIPConfigHelper(service *HTTPRestService, req cns.IPConfigRequest) (cns.PodIpInfo, error) {
+func requestIPConfigHelper(service *HTTPRestService, req cns.IPConfigRequest) ([]cns.PodIpInfo, error) {
 	// check if ipconfig already assigned tothis pod and return if exists or error
 	// if error, ipstate is nil, if exists, ipstate is not nil and error is nil
 	podInfo, err := cns.NewPodInfoFromIPConfigRequest(req)
 	if err != nil {
-		return cns.PodIpInfo{}, errors.Wrapf(err, "failed to parse IPConfigRequest %v", req)
+		return []cns.PodIpInfo{}, errors.Wrapf(err, "failed to parse IPConfigRequest %v", req)
 	}
 
 	if podIPInfo, isExist, err := service.GetExistingIPConfig(podInfo); err != nil || isExist {

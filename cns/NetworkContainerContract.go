@@ -418,7 +418,7 @@ func (i IPConfigRequest) String() string {
 
 // IPConfigResponse is used in CNS IPAM mode as a response to CNI ADD
 type IPConfigResponse struct {
-	PodIpInfo PodIpInfo
+	PodIPInfo []PodIpInfo
 	Response  Response
 }
 
