@@ -45,6 +45,8 @@ require (
 	sigs.k8s.io/yaml v1.3.0
 )
 
+require github.com/patrickmn/go-cache v2.1.0+incompatible // indirect
+
 require (
 	code.cloudfoundry.org/clock v1.0.0 // indirect
 	github.com/Azure/azure-sdk-for-go/sdk/internal v1.0.0 // indirect

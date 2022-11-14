@@ -543,8 +543,8 @@ func main() {
 		return
 	}
 
-	nmaCachedClient := nmagent.NewCachedClient(nmaClient)
-	nmaCachedClient.Start(time.Duration(cnsconfig.PopulateHomeAzCacheRetryIntervalSecs) * time.Second)
+	homeAzCache := restserver.NewHomeAzCache(nmaClient)
+	homeAzCache.Start(time.Duration(cnsconfig.PopulateHomeAzCacheRetryIntervalSecs) * time.Second)
 
 	if cnsconfig.ChannelMode == cns.Managed {
 		config.ChannelMode = cns.Managed
@@ -632,8 +632,8 @@ func main() {
 
 	// Create CNS object.
 
-	httpRestService, err := restserver.NewHTTPRestService(&config, &wireserver.Client{HTTPClient: &http.Client{}}, nmaCachedClient,
-		endpointStateStore, conflistGenerator)
+	httpRestService, err := restserver.NewHTTPRestService(&config, &wireserver.Client{HTTPClient: &http.Client{}}, nmaClient,
+		endpointStateStore, conflistGenerator, homeAzCache)
 	if err != nil {
 		logger.Errorf("Failed to create CNS object, err:%v.\n", err)
 		return
@@ -859,14 +859,14 @@ func main() {
 		}
 	}
 
+	logger.Printf("end the goroutine for refreshing homeAz")
+	homeAzCache.Stop()
+
 	logger.Printf("stop cns service")
 	// Cleanup.
 	if httpRestService != nil {
 		httpRestService.Stop()
 	}
-
-	logger.Printf("end the goroutine for retrieving homeAz")
-	nmaCachedClient.Stop()
 
 	if startCNM {
 		logger.Printf("stop cnm plugin")

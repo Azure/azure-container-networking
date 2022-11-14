@@ -1,16 +1,17 @@
-package nmagent_test
+package restserver
 
 import (
 	"context"
 	"testing"
 
+	"github.com/Azure/azure-container-networking/cns/fakes"
+	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/nmagent"
-	"github.com/Azure/azure-container-networking/nmagent/fakes"
 	"github.com/google/go-cmp/cmp"
 	"github.com/pkg/errors"
 )
 
-// TestHomeAzCache makes sure the CachedClient works properly in caching home ez response and error
+// TestHomeAzCache makes sure the HomeAzCache works properly in caching home az
 func TestHomeAzCache(t *testing.T) {
 	tests := []struct {
 		name         string
@@ -62,24 +63,24 @@ func TestHomeAzCache(t *testing.T) {
 		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-			client := nmagent.NewCachedClient(test.client)
-			client.Start(1)
+			homeAzCache := NewHomeAzCache(test.client)
+			homeAzCache.Start(1)
 
-			homeAzResponseCache, errCache := client.GetHomeAz(context.TODO())
+			getHomeAzResponse := homeAzCache.GetHomeAz(context.TODO())
 			// check the homeAz cache value
-			if !cmp.Equal(homeAzResponseCache, test.getHomeAzExp) {
-				t.Error("homeAz cache differs from expectation: diff:", cmp.Diff(homeAzResponseCache, test.getHomeAzExp))
+			if !cmp.Equal(getHomeAzResponse.HomeAzResponse, test.getHomeAzExp) {
+				t.Error("homeAz cache differs from expectation: diff:", cmp.Diff(getHomeAzResponse.HomeAzResponse, test.getHomeAzExp))
 			}
 
-			// check the error Cache
-			if errCache != nil && !test.shouldErr {
-				t.Fatal("unexpected error: err:", errCache)
+			// check returnCode for error
+			if getHomeAzResponse.Response.ReturnCode != types.Success && !test.shouldErr {
+				t.Fatal("unexpected error: ", getHomeAzResponse.Response.Message)
 			}
-			if errCache == nil && test.shouldErr {
+			if getHomeAzResponse.Response.ReturnCode == types.Success && test.shouldErr {
 				t.Fatal("expected error but received none")
 			}
 			t.Cleanup(func() {
-				client.Stop()
+				homeAzCache.Stop()
 			})
 		})
 	}

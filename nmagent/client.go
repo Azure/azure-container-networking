@@ -307,13 +307,3 @@ func (c *Client) scheme() string {
 	}
 	return "http"
 }
-
-type ClientIF interface {
-	PutNetworkContainer(context.Context, *PutNetworkContainerRequest) error
-	DeleteNetworkContainer(context.Context, DeleteContainerRequest) error
-	JoinNetwork(context.Context, JoinNetworkRequest) error
-	SupportedAPIs(context.Context) ([]string, error)
-	GetNCVersion(context.Context, NCVersionRequest) (NCVersion, error)
-	GetNCVersionList(context.Context) (NCVersionList, error)
-	GetHomeAz(context.Context) (HomeAzResponse, error)
-}

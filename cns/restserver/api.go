@@ -774,19 +774,8 @@ func (service *HTTPRestService) getHomeAz(w http.ResponseWriter, r *http.Request
 
 	switch r.Method {
 	case http.MethodGet:
-		homeAzResponse, err := service.nma.GetHomeAz(ctx)
-		if err != nil {
-			returnCode := types.UnexpectedError
-			returnMessage := fmt.Sprintf("[Azure CNS] Error. getHomeAz failed %v", err)
-			service.setResponse(w, returnCode, cns.GetHomeAzResponse{
-				Response: cns.Response{ReturnCode: returnCode, Message: returnMessage},
-			})
-			return
-		}
-		service.setResponse(w, types.Success, cns.GetHomeAzResponse{
-			HomeAzResponse: homeAzResponse,
-		})
-
+		getHomeAzResponse := service.homeAzCache.GetHomeAz(ctx)
+		service.setResponse(w, getHomeAzResponse.Response.ReturnCode, getHomeAzResponse)
 	default:
 		returnMessage := "[Azure CNS] Error. getHomeAz did not receive a GET."
 		returnCode := types.UnsupportedVerb
