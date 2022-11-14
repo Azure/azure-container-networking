@@ -1074,7 +1074,7 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 		})
 	}
 	// create scoped kube clients.
-	directcli, err := client.New(kubeConfig, client.Options{})
+	directcli, err := client.New(kubeConfig, client.Options{Scheme: nodenetworkconfig.Scheme})
 	if err != nil {
 		return errors.Wrap(err, "failed to create ctrl client")
 	}
