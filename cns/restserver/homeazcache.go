@@ -97,14 +97,14 @@ func (h *HomeAzCache) populate(ctx context.Context) {
 	if err != nil {
 		returnMessage := fmt.Sprintf("[HomeAzCache] failed to query nmagent's supported apis, %v", err)
 		returnCode := types.NmAgentSupportedApisError
-		h.constructGetHomeAzResponseAndUpdateCache(returnCode, returnMessage, nmagent.HomeAzResponse{})
+		h.update(returnCode, returnMessage, nmagent.HomeAzResponse{})
 		return
 	}
 	// check if getHomeAz api is supported by nmagent
 	if !isAPISupportedByNMAgent(supportedApis, GetHomeAzAPIName) {
 		returnMessage := fmt.Sprintf("[HomeAzCache] nmagent does not support %s api.", GetHomeAzAPIName)
 		returnCode := types.Success
-		h.constructGetHomeAzResponseAndUpdateCache(returnCode, returnMessage, nmagent.HomeAzResponse{})
+		h.update(returnCode, returnMessage, nmagent.HomeAzResponse{})
 		return
 	}
 
@@ -118,32 +118,33 @@ func (h *HomeAzCache) populate(ctx context.Context) {
 			case http.StatusInternalServerError:
 				returnMessage := fmt.Sprintf("[HomeAzCache] nmagent server internal error, %v", err)
 				returnCode := types.NmAgentInternalServerError
-				h.constructGetHomeAzResponseAndUpdateCache(returnCode, returnMessage, homeAzResponse)
+				h.update(returnCode, returnMessage, homeAzResponse)
 				return
 
 			case http.StatusUnauthorized:
 				returnMessage := fmt.Sprintf("[HomeAzCache] failed to authenticate with OwningServiceInstanceId, %v", err)
 				returnCode := types.StatusUnauthorized
-				h.constructGetHomeAzResponseAndUpdateCache(returnCode, returnMessage, homeAzResponse)
+				h.update(returnCode, returnMessage, homeAzResponse)
 				return
 
 			default:
 				returnMessage := fmt.Sprintf("[HomeAzCache] failed with StatusCode: %d", apiError.StatusCode())
 				returnCode := types.UnexpectedError
-				h.constructGetHomeAzResponseAndUpdateCache(returnCode, returnMessage, homeAzResponse)
+				h.update(returnCode, returnMessage, homeAzResponse)
 				return
 			}
 		}
 		returnMessage := fmt.Sprintf("[HomeAzCache] failed with Error. %v", err)
 		returnCode := types.UnexpectedError
-		h.constructGetHomeAzResponseAndUpdateCache(returnCode, returnMessage, homeAzResponse)
+		h.update(returnCode, returnMessage, homeAzResponse)
 		return
 	}
 
-	h.constructGetHomeAzResponseAndUpdateCache(types.Success, "Get Home Az successfully", homeAzResponse)
+	h.update(types.Success, "Get Home Az successfully", homeAzResponse)
 }
 
-func (h *HomeAzCache) constructGetHomeAzResponseAndUpdateCache(code types.ResponseCode, msg string, homeAzResponse nmagent.HomeAzResponse) {
+// update constructs a GetHomeAzResponse entity and update its cache
+func (h *HomeAzCache) update(code types.ResponseCode, msg string, homeAzResponse nmagent.HomeAzResponse) {
 	log.Debugf(msg)
 	resp := cns.GetHomeAzResponse{
 		Response: cns.Response{
