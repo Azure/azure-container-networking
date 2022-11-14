@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: ip-masq-agent
+  namespace: kube-system
+  labels:
+    component: ip-masq-agent
+    kubernetes.io/cluster-service: "true"
+    addonmanager.kubernetes.io/mode: Reconcile
+spec:
+  selector:
+    matchLabels:
+      k8s-app: ip-masq-agent
+  template:
+    metadata:
+      labels:
+        k8s-app: ip-masq-agent
+    spec:
+      hostNetwork: true
+      containers:
+      - name: ip-masq-agent
+        image: mcr.microsoft.com/aks/ip-masq-agent-v2:v0.1.1
+        imagePullPolicy: Always
+        securityContext:
+          privileged: false
+          capabilities:
+            add: ["NET_ADMIN", "NET_RAW"]
+        # Uses projected volumes to merge all data in /etc/config
+        volumeMounts:
+          - name: ip-masq-agent-volume
+            mountPath: /etc/config
+            readOnly: true
+      volumes:
+      - name: ip-masq-agent-volume
+        projected:
+          sources:
+            # Note these ConfigMaps must be created in the same namespace as the daemonset
+            - configMap:
+              name: ip-masq-agent-config
+              optional: true
+              items:
+                - key: ip-masq-agent
+                  path: ip-masq-agent
+                  mode: 444
+            - configMap:
+              name: ip-masq-agent-config-reconciled
+              optional: true
+              items:
+                # Avoiding duplicate paths
+                - key: ip-masq-agent-reconciled
+                  path: ip-masq-agent-reconciled
+                  mode: 444
