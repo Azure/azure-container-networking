@@ -188,11 +188,11 @@ func (service *HTTPRestService) saveNetworkContainerGoalState(
 			orchestratorContext := podInfo.Name() + podInfo.Namespace()
 
 			if service.state.ContainerIDByOrchestratorContext == nil {
-				service.state.ContainerIDByOrchestratorContext = make(map[string]*ncSet)
+				service.state.ContainerIDByOrchestratorContext = make(map[string]*Set)
 			}
 
 			if service.state.ContainerIDByOrchestratorContext[orchestratorContext] == nil {
-				service.state.ContainerIDByOrchestratorContext[orchestratorContext] = &ncSet{}
+				service.state.ContainerIDByOrchestratorContext[orchestratorContext] = &Set{}
 			}
 
 			nc := service.state.ContainerIDByOrchestratorContext[orchestratorContext]
@@ -396,7 +396,7 @@ func (service *HTTPRestService) getNetworkContainersResponse(
 			exists = true
 		}
 
-		ncSet := &ncSet{}
+		ncSet := &Set{}
 		if err = json.Unmarshal(ncidBytes, &ncSet); err != nil {
 			logger.Errorf("Failed to unmarlshal NC set")
 			return nil
@@ -457,7 +457,7 @@ func (service *HTTPRestService) getNetworkContainersResponse(
 		return getNetworkContainersResponse
 	}
 
-	ncSet := &ncSet{}
+	ncSet := &Set{}
 
 	if err := json.Unmarshal([]byte(networkContainerID), &ncSet); err != nil {
 		fmt.Println("Failed to unmarshal NC set")

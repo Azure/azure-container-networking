@@ -433,9 +433,9 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 		}
 	}
 
-	cnsClient, er := cnscli.New(nwCfg.CNSUrl, defaultRequestTimeout)
-	if er != nil {
-		return fmt.Errorf("failed to create cns client with error: %w", er)
+	cnsClient, err := cnscli.New(nwCfg.CNSUrl, defaultRequestTimeout)
+	if err != nil {
+		return fmt.Errorf("failed to create cns client with error: %w", err)
 	}
 
 	if nwCfg.MultiTenancy {
@@ -448,29 +448,37 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 			return fmt.Errorf("%w", err)
 		}
 
-		ncResponses, hostSubnetPrefixes, er := plugin.multitenancyClient.GetNetworkContainersWithOrchestratorContext(
+		ncResponses, hostSubnetPrefixes, err := plugin.multitenancyClient.GetNetworkContainersWithOrchestratorContext(
 			context.TODO(), nwCfg, k8sPodName, k8sNamespace)
 
-		log.Printf("hostSubnetPrefixes are %+v", hostSubnetPrefixes)
+		if err != nil {
+			err = errors.Wrapf(err, "GetNetworkContainers failed for podname %v namespace %v", k8sPodName, k8sNamespace)
+			log.Printf("%+v", err)
+			return err
+		}
 
+		if hostSubnetPrefixes == nil {
+			return fmt.Errorf("failed to get host prefixes")
+		}
+
+		// if ncResponses are nil, the current system is using old CNS version. To be compatible with old CNS version, the old CNI API should be invoked
 		if ncResponses == nil {
 			log.Printf("CNS is old version, invoke old CNI API")
-			ipamAddResult.ncResponse, ipamAddResult.hostSubnetPrefix, er = plugin.multitenancyClient.GetNetworkContainerWithOrchestratorContext(
+			ipamAddResult.ncResponse, ipamAddResult.hostSubnetPrefix, err = plugin.multitenancyClient.GetNetworkContainerWithOrchestratorContext(
 				context.TODO(), nwCfg, k8sPodName, k8sNamespace)
-			if er != nil {
-				er = errors.Wrapf(er, "GetContainerNetworkConfiguration failed for podname %v namespace %v", k8sPodName, k8sNamespace)
-				log.Printf("%+v", er)
-				return er
+			if err != nil {
+				err = errors.Wrapf(err, "GetNetworkContainer failed for podname %v namespace %v", k8sPodName, k8sNamespace)
+				return err
 			}
 			ipamAddResult.ipv4Result = convertToCniResult(ipamAddResult.ncResponse, args.IfName)
 			ipamAddResults = append(ipamAddResults, ipamAddResult)
 
 			log.Printf("PrimaryInterfaceIdentifier: %v", ipamAddResult.hostSubnetPrefix.IP.String())
 		} else {
-			if er != nil {
-				er = errors.Wrapf(er, "GetNetworkContainersWithOrchestratorContext failed for podname %v namespace %v", k8sPodName, k8sNamespace)
-				log.Printf("%+v", er)
-				return er
+			if err != nil {
+				err = errors.Wrapf(err, "GetNetworkContainersWithOrchestratorContext failed for podname %v namespace %v", k8sPodName, k8sNamespace)
+				log.Printf("%+v", err)
+				return err
 			}
 
 			var ncResponsesCopy [2]cns.GetNetworkContainerResponse
@@ -503,15 +511,15 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 		endpointID := GetEndpointID(args)
 		policies := cni.GetPoliciesFromNwCfg(nwCfg.AdditionalArgs)
 
-		options := make(map[string]interface{})
+		options := make(map[string]any)
 		// Check whether the network already exists.
 		nwInfo, nwInfoErr := plugin.nm.GetNetworkInfo(networkID)
 
-		/* Handle consecutive ADD calls for infrastructure containers.
-		 * This is a temporary work around for issue #57253 of Kubernetes.
-		 * We can delete this if statement once they fix it.
-		 * Issue link: https://github.com/kubernetes/kubernetes/issues/57253
-		 */
+		// Handle consecutive ADD calls for infrastructure containers.
+		// This is a temporary work around for issue #57253 of Kubernetes.
+		// We can delete this if statement once they fix it.
+		// Issue link: https://github.com/kubernetes/kubernetes/issues/57253
+
 		if nwInfoErr == nil {
 			log.Printf("[cni-net] Found network %v with subnet %v.", networkID, nwInfo.Subnets[0].Prefix.String())
 			nwInfo.IPAMType = nwCfg.Ipam.Type

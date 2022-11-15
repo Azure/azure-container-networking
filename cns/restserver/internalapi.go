@@ -305,24 +305,23 @@ func (service *HTTPRestService) GetNetworkContainerInternal(
 func (service *HTTPRestService) DeleteNetworkContainerInternal(
 	req cns.DeleteNetworkContainerRequest,
 ) types.ResponseCode {
-	_, exist := service.getNetworkContainerDetails(req.NetworkContainerid)
+	ncid := req.NetworkContainerid
+	_, exist := service.getNetworkContainerDetails(ncid)
 	if !exist {
-		logger.Printf("network container for id %v doesn't exist", req.NetworkContainerid)
+		logger.Printf("network container for id %v doesn't exist", ncid)
 		return types.Success
 	}
 
 	service.Lock()
 	defer service.Unlock()
 	if service.state.ContainerStatus != nil {
-		delete(service.state.ContainerStatus, req.NetworkContainerid)
+		delete(service.state.ContainerStatus, ncid)
 	}
 
 	if service.state.ContainerIDByOrchestratorContext != nil {
-		for orchestratorContext := range service.state.ContainerIDByOrchestratorContext {
-			if service.state.ContainerIDByOrchestratorContext[orchestratorContext].Contains(req.NetworkContainerid) {
-				if err := service.state.ContainerIDByOrchestratorContext[orchestratorContext].Delete(req.NetworkContainerid); err != nil {
-					logger.Printf("Not able to delete networkContainerId %s", req.NetworkContainerid)
-				}
+		for oc := range service.state.ContainerIDByOrchestratorContext {
+			if err := service.state.ContainerIDByOrchestratorContext[oc].Delete(ncid); err != nil {
+				logger.Printf("Not able to delete networkContainerId %s", ncid)
 			}
 		}
 	}

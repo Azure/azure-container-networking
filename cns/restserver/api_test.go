@@ -230,7 +230,7 @@ func FirstRequest(req *http.Request, err error) *http.Request {
 }
 
 func TestSetOrchestratorType_NCsPresent(t *testing.T) {
-	nc := &ncSet{}
+	nc := &Set{}
 	nc.Add("present")
 
 	tests := []struct {
@@ -249,7 +249,7 @@ func TestSetOrchestratorType_NCsPresent(t *testing.T) {
 					ContainerStatus: map[string]containerstatus{
 						"nc1": {},
 					},
-					ContainerIDByOrchestratorContext: map[string]*ncSet{
+					ContainerIDByOrchestratorContext: map[string]*Set{
 						"nc1": nc,
 					},
 				},
@@ -315,7 +315,7 @@ func TestSetOrchestratorType_NCsPresent(t *testing.T) {
 }
 
 func TestSetOrchestratorType_DualNCsPresent(t *testing.T) {
-	nc := &ncSet{}
+	nc := &Set{}
 	nc.Add("present")
 	nc.Add("gift")
 
@@ -335,7 +335,7 @@ func TestSetOrchestratorType_DualNCsPresent(t *testing.T) {
 					ContainerStatus: map[string]containerstatus{
 						"nc1": {},
 					},
-					ContainerIDByOrchestratorContext: map[string]*ncSet{
+					ContainerIDByOrchestratorContext: map[string]*Set{
 						"nc1": nc,
 					},
 				},

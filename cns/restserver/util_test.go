@@ -7,7 +7,7 @@ import (
 )
 
 func TestAreNCsPresent(t *testing.T) {
-	nc := &ncSet{}
+	nc := &Set{}
 	nc.Add("present")
 
 	tests := []struct {
@@ -30,7 +30,7 @@ func TestAreNCsPresent(t *testing.T) {
 			name: "containerIDByOrchestorContext present",
 			service: HTTPRestService{
 				state: &httpRestServiceState{
-					ContainerIDByOrchestratorContext: map[string]*ncSet{
+					ContainerIDByOrchestratorContext: map[string]*Set{
 						"nc1": nc,
 					},
 				},

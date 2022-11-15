@@ -860,6 +860,7 @@ func (service *HTTPRestService) getNetworkContainersByOrchestratorContext(w http
 	err := service.Listener.Decode(w, r, &req)
 	logger.Request(service.Name, &req, err)
 	if err != nil {
+		logger.Errorf("[Azure CNS] failed to decode cns request due to %+v", err)
 		return
 	}
 
@@ -944,7 +945,8 @@ func (service *HTTPRestService) deleteNetworkContainer(w http.ResponseWriter, r 
 		return
 	}
 
-	if req.NetworkContainerid == "" {
+	ncid := req.NetworkContainerid
+	if ncid == "" {
 		returnCode = types.NetworkContainerNotSpecified
 		returnMessage = "[Azure CNS] Error. NetworkContainerid is empty"
 	}
@@ -954,16 +956,16 @@ func (service *HTTPRestService) deleteNetworkContainer(w http.ResponseWriter, r 
 		var containerStatus containerstatus
 		var ok bool
 
-		containerStatus, ok = service.getNetworkContainerDetails(req.NetworkContainerid)
+		containerStatus, ok = service.getNetworkContainerDetails(ncid)
 
 		if !ok {
-			logger.Printf("Not able to retrieve network container details for this container id %v", req.NetworkContainerid)
+			logger.Printf("Not able to retrieve network container details for this container id %v", ncid)
 			break
 		}
 
 		if containerStatus.CreateNetworkContainerRequest.NetworkContainerType == cns.WebApps {
 			nc := service.networkContainer
-			if err := nc.Delete(req.NetworkContainerid); err != nil {
+			if err := nc.Delete(ncid); err != nil {
 				returnMessage = fmt.Sprintf("[Azure CNS] Error. DeleteNetworkContainer failed %v", err.Error())
 				returnCode = types.UnexpectedError
 				break
@@ -974,15 +976,13 @@ func (service *HTTPRestService) deleteNetworkContainer(w http.ResponseWriter, r 
 		defer service.Unlock()
 
 		if service.state.ContainerStatus != nil {
-			delete(service.state.ContainerStatus, req.NetworkContainerid)
+			delete(service.state.ContainerStatus, ncid)
 		}
 
 		if service.state.ContainerIDByOrchestratorContext != nil {
-			for orchestratorContext := range service.state.ContainerIDByOrchestratorContext {
-				if service.state.ContainerIDByOrchestratorContext[orchestratorContext].Contains(req.NetworkContainerid) {
-					if err = service.state.ContainerIDByOrchestratorContext[orchestratorContext].Delete(req.NetworkContainerid); err != nil {
-						logger.Printf("Not able to delete networkContainerId %s", req.NetworkContainerid)
-					}
+			for oc := range service.state.ContainerIDByOrchestratorContext {
+				if err = service.state.ContainerIDByOrchestratorContext[oc].Delete(ncid); err != nil {
+					logger.Printf("Not able to delete networkContainerId %s", ncid)
 				}
 			}
 		}

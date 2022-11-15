@@ -108,33 +108,34 @@ type containerstatus struct {
 	VfpUpdateComplete             bool // True when VFP programming is completed for the NC
 }
 
-type ncSet map[string]struct{}
+type Set map[string]struct{}
 
-func (n *ncSet) Add(nc string) {
-	if n == nil {
-		*n = make(map[string]struct{})
+func (s *Set) Add(nc string) {
+	if s == nil {
+		*s = make(map[string]struct{})
 	}
 
-	(*n)[nc] = struct{}{}
+	(*s)[nc] = struct{}{}
 }
 
-func (n *ncSet) Delete(nc string) error {
-	if n == nil {
-		return errors.New("No NC is found to be deleted")
-	}
-	delete(*n, nc)
-	return nil
-}
-
-func (n *ncSet) Contains(nc string) bool {
-	if n == nil {
+func (s *Set) Contains(nc string) bool {
+	if s == nil {
 		return false
 	}
-	_, ok := (*n)[nc]
+	_, ok := (*s)[nc]
 	return ok
 }
 
-func (n *ncSet) UnmarshalJSON(data []byte) error {
+func (s *Set) Delete(nc string) error {
+	if !s.Contains(nc) {
+		return errors.New("no NC is found to be deleted")
+	}
+
+	delete(*s, nc)
+	return nil
+}
+
+func (s *Set) UnmarshalJSON(data []byte) error {
 	var ncString string
 	if err := json.Unmarshal(data, &ncString); err != nil {
 		return errors.Wrapf(err, "failed to unmarshal NC result")
@@ -142,21 +143,21 @@ func (n *ncSet) UnmarshalJSON(data []byte) error {
 
 	res := strings.Split(ncString, ",")
 
-	if *n == nil {
-		*n = make(map[string]struct{})
+	if *s == nil {
+		*s = make(map[string]struct{})
 	}
 
 	for _, nc := range res {
-		(*n)[nc] = struct{}{}
+		(*s)[nc] = struct{}{}
 	}
 
 	return nil
 }
 
-func (n ncSet) MarshalJSON() ([]byte, error) {
-	result := make([]string, len(n))
+func (s Set) MarshalJSON() ([]byte, error) {
+	result := make([]string, len(s))
 	index := 0
-	for nc := range n {
+	for nc := range s {
 		result[index] = nc
 		index++
 	}
@@ -173,7 +174,7 @@ type httpRestServiceState struct {
 	OrchestratorType                 string
 	NodeID                           string
 	Initialized                      bool
-	ContainerIDByOrchestratorContext map[string]*ncSet          // OrchestratorContext is key and value is NetworkContainerID separated by comma.
+	ContainerIDByOrchestratorContext map[string]*Set            // OrchestratorContext is key and value is NetworkContainerID separated by comma.
 	ContainerStatus                  map[string]containerstatus // NetworkContainerID is key.
 	Networks                         map[string]*networkInfo
 	TimeStamp                        time.Time
