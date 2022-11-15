@@ -24,6 +24,7 @@ import (
 	"github.com/Azure/azure-container-networking/cnm/network"
 	"github.com/Azure/azure-container-networking/cns"
 	cnscli "github.com/Azure/azure-container-networking/cns/cmd/cli"
+	"github.com/Azure/azure-container-networking/cns/cniconflist"
 	"github.com/Azure/azure-container-networking/cns/cnireconciler"
 	"github.com/Azure/azure-container-networking/cns/common"
 	"github.com/Azure/azure-container-networking/cns/configuration"
@@ -78,6 +79,12 @@ const (
 	// 720 * acn.FiveSeconds sec sleeps = 1Hr
 	maxRetryNodeRegister = 720
 	initCNSInitalDelay   = 10 * time.Second
+)
+
+type cniConflistScenario string
+
+const (
+	scenarioV4Overlay cniConflistScenario = "v4overlay"
 )
 
 var (
@@ -483,6 +490,23 @@ func main() {
 	configuration.SetCNSConfigDefaults(cnsconfig)
 	logger.Printf("[Azure CNS] Read config :%+v", cnsconfig)
 
+	var conflistGenerator restserver.CNIConflistGenerator
+	if cnsconfig.EnableCNIConflistGeneration {
+		conflistFile, createErr := os.Create(cnsconfig.CNIConflistFilepath)
+		if createErr != nil {
+			logger.Errorf("[Azure CNS] failed to open file %s for writing: %v", cnsconfig.CNIConflistFilepath, err)
+			os.Exit(1)
+		}
+
+		switch scenario := cniConflistScenario(cnsconfig.CNIConflistScenario); scenario {
+		case scenarioV4Overlay:
+			conflistGenerator = &cniconflist.V4OverlayGenerator{Writer: conflistFile}
+		default:
+			logger.Errorf("unable to generate cni conflist for unknown scenario: %s", scenario)
+			os.Exit(1)
+		}
+	}
+
 	// start the health server
 	z, _ := zap.NewProduction()
 	go healthserver.Start(z, cnsconfig.MetricsBindAddress)
@@ -604,7 +628,8 @@ func main() {
 
 	// Create CNS object.
 
-	httpRestService, err := restserver.NewHTTPRestService(&config, &wireserver.Client{HTTPClient: &http.Client{}}, nmaClient, endpointStateStore)
+	httpRestService, err := restserver.NewHTTPRestService(&config, &wireserver.Client{HTTPClient: &http.Client{}}, nmaClient,
+		endpointStateStore, conflistGenerator)
 	if err != nil {
 		logger.Errorf("Failed to create CNS object, err:%v.\n", err)
 		return

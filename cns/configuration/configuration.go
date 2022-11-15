@@ -38,6 +38,9 @@ type CNSConfig struct {
 	MSISettings                 MSISettings
 	ProgramSNATIPTables         bool
 	ManageEndpointState         bool
+	CNIConflistScenario         string
+	EnableCNIConflistGeneration bool
+	CNIConflistFilepath         string
 }
 
 type TelemetrySettings struct {

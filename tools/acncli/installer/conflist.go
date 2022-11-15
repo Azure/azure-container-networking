@@ -78,7 +78,7 @@ func ModifyConflists(conflistpath string, installerConf InstallerConfig, perm os
 	netconfig, conflist, confindex, err := LoadConf(conflistpath)
 
 	// change the netconfig from passed installerConf
-	netconfig.Ipam.Type = installerConf.IPAMType
+	netconfig.IPAM.Type = installerConf.IPAMType
 	netconfig.Mode = installerConf.CNIMode
 
 	// no bridge in transparent mode

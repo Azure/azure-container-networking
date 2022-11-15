@@ -40,43 +40,45 @@ type RuntimeDNSConfig struct {
 	Options  []string `json:"options,omitempty"`
 }
 
+type IPAM struct {
+	Mode          string `json:"mode,omitempty"`
+	Type          string `json:"type"`
+	Environment   string `json:"environment,omitempty"`
+	AddrSpace     string `json:"addressSpace,omitempty"`
+	Subnet        string `json:"subnet,omitempty"`
+	Address       string `json:"ipAddress,omitempty"`
+	QueryInterval string `json:"queryInterval,omitempty"`
+}
+
 // NetworkConfig represents Azure CNI plugin network configuration.
 type NetworkConfig struct {
-	CNIVersion                    string   `json:"cniVersion,omitempty"`
-	Name                          string   `json:"name,omitempty"`
-	Type                          string   `json:"type,omitempty"`
-	Mode                          string   `json:"mode,omitempty"`
-	Master                        string   `json:"master,omitempty"`
-	AdapterName                   string   `json:"adapterName,omitempty"`
-	Bridge                        string   `json:"bridge,omitempty"`
-	LogLevel                      string   `json:"logLevel,omitempty"`
-	LogTarget                     string   `json:"logTarget,omitempty"`
-	InfraVnetAddressSpace         string   `json:"infraVnetAddressSpace,omitempty"`
-	IPV6Mode                      string   `json:"ipv6Mode,omitempty"`
-	ServiceCidrs                  string   `json:"serviceCidrs,omitempty"`
-	VnetCidrs                     string   `json:"vnetCidrs,omitempty"`
-	PodNamespaceForDualNetwork    []string `json:"podNamespaceForDualNetwork,omitempty"`
-	IPsToRouteViaHost             []string `json:"ipsToRouteViaHost,omitempty"`
-	MultiTenancy                  bool     `json:"multiTenancy,omitempty"`
-	EnableSnatOnHost              bool     `json:"enableSnatOnHost,omitempty"`
-	EnableExactMatchForPodName    bool     `json:"enableExactMatchForPodName,omitempty"`
-	DisableHairpinOnHostInterface bool     `json:"disableHairpinOnHostInterface,omitempty"`
-	DisableIPTableLock            bool     `json:"disableIPTableLock,omitempty"`
-	CNSUrl                        string   `json:"cnsurl,omitempty"`
-	ExecutionMode                 string   `json:"executionMode,omitempty"`
-	Ipam                          struct {
-		Mode          string `json:"mode,omitempty"`
-		Type          string `json:"type"`
-		Environment   string `json:"environment,omitempty"`
-		AddrSpace     string `json:"addressSpace,omitempty"`
-		Subnet        string `json:"subnet,omitempty"`
-		Address       string `json:"ipAddress,omitempty"`
-		QueryInterval string `json:"queryInterval,omitempty"`
-	} `json:"ipam,omitempty"`
-	DNS             cniTypes.DNS    `json:"dns,omitempty"`
-	RuntimeConfig   RuntimeConfig   `json:"runtimeConfig,omitempty"`
-	WindowsSettings WindowsSettings `json:"windowsSettings,omitempty"`
-	AdditionalArgs  []KVPair        `json:"AdditionalArgs,omitempty"`
+	CNIVersion                    string          `json:"cniVersion,omitempty"`
+	Name                          string          `json:"name,omitempty"`
+	Type                          string          `json:"type,omitempty"`
+	Mode                          string          `json:"mode,omitempty"`
+	Master                        string          `json:"master,omitempty"`
+	AdapterName                   string          `json:"adapterName,omitempty"`
+	Bridge                        string          `json:"bridge,omitempty"`
+	LogLevel                      string          `json:"logLevel,omitempty"`
+	LogTarget                     string          `json:"logTarget,omitempty"`
+	InfraVnetAddressSpace         string          `json:"infraVnetAddressSpace,omitempty"`
+	IPV6Mode                      string          `json:"ipv6Mode,omitempty"`
+	ServiceCidrs                  string          `json:"serviceCidrs,omitempty"`
+	VnetCidrs                     string          `json:"vnetCidrs,omitempty"`
+	PodNamespaceForDualNetwork    []string        `json:"podNamespaceForDualNetwork,omitempty"`
+	IPsToRouteViaHost             []string        `json:"ipsToRouteViaHost,omitempty"`
+	MultiTenancy                  bool            `json:"multiTenancy,omitempty"`
+	EnableSnatOnHost              bool            `json:"enableSnatOnHost,omitempty"`
+	EnableExactMatchForPodName    bool            `json:"enableExactMatchForPodName,omitempty"`
+	DisableHairpinOnHostInterface bool            `json:"disableHairpinOnHostInterface,omitempty"`
+	DisableIPTableLock            bool            `json:"disableIPTableLock,omitempty"`
+	CNSUrl                        string          `json:"cnsurl,omitempty"`
+	ExecutionMode                 string          `json:"executionMode,omitempty"`
+	IPAM                          IPAM            `json:"ipam,omitempty"`
+	DNS                           cniTypes.DNS    `json:"dns,omitempty"`
+	RuntimeConfig                 RuntimeConfig   `json:"runtimeConfig,omitempty"`
+	WindowsSettings               WindowsSettings `json:"windowsSettings,omitempty"`
+	AdditionalArgs                []KVPair        `json:"AdditionalArgs,omitempty"`
 }
 
 type WindowsSettings struct {

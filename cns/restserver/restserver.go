@@ -64,9 +64,26 @@ type HTTPRestService struct {
 	state                    *httpRestServiceState
 	podsPendingIPAssignment  *bounded.TimedSet
 	sync.RWMutex
-	dncPartitionKey    string
-	EndpointState      map[string]*EndpointInfo // key : container id
-	EndpointStateStore store.KeyValueStore
+	dncPartitionKey         string
+	EndpointState           map[string]*EndpointInfo // key : container id
+	EndpointStateStore      store.KeyValueStore
+	cniConflistGenerator    CNIConflistGenerator
+	generateCNIConflistOnce sync.Once
+}
+
+type CNIConflistGenerator interface {
+	Generate() error
+	Close() error
+}
+
+type NoOpConflistGenerator struct{}
+
+func (*NoOpConflistGenerator) Generate() error {
+	return nil
+}
+
+func (*NoOpConflistGenerator) Close() error {
+	return nil
 }
 
 type EndpointInfo struct {
@@ -128,7 +145,9 @@ type networkInfo struct {
 }
 
 // NewHTTPRestService creates a new HTTP Service object.
-func NewHTTPRestService(config *common.ServiceConfig, wscli interfaceGetter, nmagentClient nmagentClient, endpointStateStore store.KeyValueStore) (cns.HTTPService, error) {
+func NewHTTPRestService(config *common.ServiceConfig, wscli interfaceGetter, nmagentClient nmagentClient,
+	endpointStateStore store.KeyValueStore, gen CNIConflistGenerator,
+) (cns.HTTPService, error) {
 	service, err := cns.NewService(config.Name, config.Version, config.ChannelMode, config.Store)
 	if err != nil {
 		return nil, err
@@ -164,6 +183,10 @@ func NewHTTPRestService(config *common.ServiceConfig, wscli interfaceGetter, nma
 	podIPIDByPodInterfaceKey := make(map[string]string)
 	podIPConfigState := make(map[string]cns.IPConfigurationStatus)
 
+	if gen == nil {
+		gen = &NoOpConflistGenerator{}
+	}
+
 	return &HTTPRestService{
 		Service:                  service,
 		store:                    service.Service.Store,
@@ -179,6 +202,7 @@ func NewHTTPRestService(config *common.ServiceConfig, wscli interfaceGetter, nma
 		podsPendingIPAssignment:  bounded.NewTimedSet(250), // nolint:gomnd // maxpods
 		EndpointStateStore:       endpointStateStore,
 		EndpointState:            make(map[string]*EndpointInfo),
+		cniConflistGenerator:     gen,
 	}, nil
 }
 
@@ -280,4 +304,18 @@ func (service *HTTPRestService) Start(config *common.ServiceConfig) error {
 func (service *HTTPRestService) Stop() {
 	service.Uninitialize()
 	logger.Printf("[Azure CNS]  Service stopped.")
+}
+
+// MustGenerateCNIConflistOnce will generate the CNI conflist once if the service was initialized with
+// a conflist generator. If not, this is a no-op.
+func (service *HTTPRestService) MustGenerateCNIConflistOnce() {
+	service.generateCNIConflistOnce.Do(func() {
+		if err := service.cniConflistGenerator.Generate(); err != nil {
+			panic("unable to generate cni conflist with error: " + err.Error())
+		}
+
+		if err := service.cniConflistGenerator.Close(); err != nil {
+			panic("unable to close the cni conflist output stream: " + err.Error())
+		}
+	})
 }
