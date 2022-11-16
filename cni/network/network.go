@@ -409,7 +409,6 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 		errMsg := "Interfacename not specified in CNI Args"
 		log.Printf(errMsg)
 		return plugin.Errorf(errMsg)
-
 	}
 
 	platformInit(nwCfg)
@@ -450,7 +449,6 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 
 		ncResponses, hostSubnetPrefixes, err := plugin.multitenancyClient.GetNetworkContainersWithOrchestratorContext(
 			context.TODO(), nwCfg, k8sPodName, k8sNamespace)
-
 		if err != nil {
 			err = errors.Wrapf(err, "GetNetworkContainers failed for podname %v namespace %v", k8sPodName, k8sNamespace)
 			log.Printf("%+v", err)
@@ -458,11 +456,12 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 		}
 
 		if hostSubnetPrefixes == nil {
-			return fmt.Errorf("failed to get host prefixes")
+			err = errors.Wrap(err, "failed to get host prefixes")
+			return err
 		}
 
-		// if ncResponses are nil, the current system is using old CNS version. To be compatible with old CNS version, the old CNI API should be invoked
 		if ncResponses == nil {
+			// if ncResponses are nil, the current system is using old CNS version. To be compatible with old CNS version, the old CNI API should be invoked
 			log.Printf("CNS is old version, invoke old CNI API")
 			ipamAddResult.ncResponse, ipamAddResult.hostSubnetPrefix, err = plugin.multitenancyClient.GetNetworkContainerWithOrchestratorContext(
 				context.TODO(), nwCfg, k8sPodName, k8sNamespace)

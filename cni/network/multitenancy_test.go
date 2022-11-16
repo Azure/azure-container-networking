@@ -351,10 +351,9 @@ func TestGetMultiTenancyCNINCResponses(t *testing.T) {
 				tt.args.nwCfg,
 				tt.args.k8sPodName,
 				tt.args.k8sNamespace)
-			if err != nil && tt.wantErr {
-				t.Errorf("GetContainerNetworkConfiguration() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
+
+			require.NoError(err, tt.wantErr)
+
 			if tt.wantErr {
 				require.Error(err)
 			}
@@ -522,10 +521,8 @@ func TestGetMultiTenancyCNIResult(t *testing.T) {
 				tt.args.nwCfg,
 				tt.args.k8sPodName,
 				tt.args.k8sNamespace)
-			if err != nil && tt.wantErr {
-				t.Errorf("GetContainerNetworkConfiguration() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
+
+			require.NoError(err, tt.wantErr)
 			if tt.wantErr {
 				require.Error(err)
 			}
