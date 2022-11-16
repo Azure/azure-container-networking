@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/fakes"
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/nmagent"
@@ -14,10 +15,10 @@ import (
 // TestHomeAzCache makes sure the HomeAzCache works properly in caching home az
 func TestHomeAzCache(t *testing.T) {
 	tests := []struct {
-		name         string
-		client       *fakes.NMAgentClientFake
-		getHomeAzExp nmagent.HomeAzResponse
-		shouldErr    bool
+		name      string
+		client    *fakes.NMAgentClientFake
+		homeAzExp cns.HomeAzResponse
+		shouldErr bool
 	}{
 		{
 			"happy path",
@@ -25,11 +26,11 @@ func TestHomeAzCache(t *testing.T) {
 				SupportedAPIsF: func(ctx context.Context) ([]string, error) {
 					return []string{"GetHomeAz"}, nil
 				},
-				GetHomeAzF: func(ctx context.Context) (nmagent.HomeAzResponse, error) {
-					return nmagent.HomeAzResponse{IsSupported: true, HomeAz: uint(1)}, nil
+				GetHomeAzF: func(ctx context.Context) (nmagent.AzResponse, error) {
+					return nmagent.AzResponse{HomeAz: uint(1)}, nil
 				},
 			},
-			nmagent.HomeAzResponse{IsSupported: true, HomeAz: uint(1)},
+			cns.HomeAzResponse{IsSupported: true, HomeAz: uint(1)},
 			false,
 		},
 		{
@@ -38,25 +39,25 @@ func TestHomeAzCache(t *testing.T) {
 				SupportedAPIsF: func(ctx context.Context) ([]string, error) {
 					return []string{"dummy"}, nil
 				},
-				GetHomeAzF: func(ctx context.Context) (nmagent.HomeAzResponse, error) {
-					return nmagent.HomeAzResponse{}, nil
+				GetHomeAzF: func(ctx context.Context) (nmagent.AzResponse, error) {
+					return nmagent.AzResponse{}, nil
 				},
 			},
-			nmagent.HomeAzResponse{},
+			cns.HomeAzResponse{},
 			false,
 		},
 		{
-			"unexpected errors",
+			"api supported but got unexpected errors",
 			&fakes.NMAgentClientFake{
 				SupportedAPIsF: func(ctx context.Context) ([]string, error) {
-					return []string{"dummy"}, nil
+					return []string{GetHomeAzAPIName}, nil
 				},
-				GetHomeAzF: func(ctx context.Context) (nmagent.HomeAzResponse, error) {
-					return nmagent.HomeAzResponse{}, errors.New("unexpected error")
+				GetHomeAzF: func(ctx context.Context) (nmagent.AzResponse, error) {
+					return nmagent.AzResponse{}, errors.New("unexpected error")
 				},
 			},
-			nmagent.HomeAzResponse{},
-			false,
+			cns.HomeAzResponse{IsSupported: true},
+			true,
 		},
 	}
 	for _, test := range tests {
@@ -68,8 +69,8 @@ func TestHomeAzCache(t *testing.T) {
 
 			getHomeAzResponse := homeAzCache.GetHomeAz(context.TODO())
 			// check the homeAz cache value
-			if !cmp.Equal(getHomeAzResponse.HomeAzResponse, test.getHomeAzExp) {
-				t.Error("homeAz cache differs from expectation: diff:", cmp.Diff(getHomeAzResponse.HomeAzResponse, test.getHomeAzExp))
+			if !cmp.Equal(getHomeAzResponse.HomeAzResponse, test.homeAzExp) {
+				t.Error("homeAz cache differs from expectation: diff:", cmp.Diff(getHomeAzResponse.HomeAzResponse, test.homeAzExp))
 			}
 
 			// check returnCode for error

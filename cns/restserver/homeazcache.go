@@ -97,20 +97,19 @@ func (h *HomeAzCache) populate(ctx context.Context) {
 	if err != nil {
 		returnMessage := fmt.Sprintf("[HomeAzCache] failed to query nmagent's supported apis, %v", err)
 		returnCode := types.NmAgentSupportedApisError
-		h.update(returnCode, returnMessage, nmagent.HomeAzResponse{})
+		h.update(returnCode, returnMessage, cns.HomeAzResponse{})
 		return
 	}
 	// check if getHomeAz api is supported by nmagent
 	if !isAPISupportedByNMAgent(supportedApis, GetHomeAzAPIName) {
 		returnMessage := fmt.Sprintf("[HomeAzCache] nmagent does not support %s api.", GetHomeAzAPIName)
 		returnCode := types.Success
-		h.update(returnCode, returnMessage, nmagent.HomeAzResponse{})
+		h.update(returnCode, returnMessage, cns.HomeAzResponse{})
 		return
 	}
 
 	// calling NMAgent to get home AZ
-	homeAzResponse, err := h.nmagentClient.GetHomeAz(ctx)
-	homeAzResponse.IsSupported = true
+	azResponse, err := h.nmagentClient.GetHomeAz(ctx)
 	if err != nil {
 		apiError := nmagent.Error{}
 		if ok := errors.As(err, &apiError); ok {
@@ -118,33 +117,33 @@ func (h *HomeAzCache) populate(ctx context.Context) {
 			case http.StatusInternalServerError:
 				returnMessage := fmt.Sprintf("[HomeAzCache] nmagent server internal error, %v", err)
 				returnCode := types.NmAgentInternalServerError
-				h.update(returnCode, returnMessage, homeAzResponse)
+				h.update(returnCode, returnMessage, cns.HomeAzResponse{IsSupported: true})
 				return
 
 			case http.StatusUnauthorized:
 				returnMessage := fmt.Sprintf("[HomeAzCache] failed to authenticate with OwningServiceInstanceId, %v", err)
 				returnCode := types.StatusUnauthorized
-				h.update(returnCode, returnMessage, homeAzResponse)
+				h.update(returnCode, returnMessage, cns.HomeAzResponse{IsSupported: true})
 				return
 
 			default:
 				returnMessage := fmt.Sprintf("[HomeAzCache] failed with StatusCode: %d", apiError.StatusCode())
 				returnCode := types.UnexpectedError
-				h.update(returnCode, returnMessage, homeAzResponse)
+				h.update(returnCode, returnMessage, cns.HomeAzResponse{IsSupported: true})
 				return
 			}
 		}
 		returnMessage := fmt.Sprintf("[HomeAzCache] failed with Error. %v", err)
 		returnCode := types.UnexpectedError
-		h.update(returnCode, returnMessage, homeAzResponse)
+		h.update(returnCode, returnMessage, cns.HomeAzResponse{IsSupported: true})
 		return
 	}
 
-	h.update(types.Success, "Get Home Az successfully", homeAzResponse)
+	h.update(types.Success, "Get Home Az successfully", cns.HomeAzResponse{IsSupported: true, HomeAz: azResponse.HomeAz})
 }
 
 // update constructs a GetHomeAzResponse entity and update its cache
-func (h *HomeAzCache) update(code types.ResponseCode, msg string, homeAzResponse nmagent.HomeAzResponse) {
+func (h *HomeAzCache) update(code types.ResponseCode, msg string, homeAzResponse cns.HomeAzResponse) {
 	log.Debugf(msg)
 	resp := cns.GetHomeAzResponse{
 		Response: cns.Response{

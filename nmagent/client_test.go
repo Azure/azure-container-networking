@@ -626,14 +626,14 @@ func TestGetNCVersionList(t *testing.T) {
 func TestGetHomeAz(t *testing.T) {
 	tests := []struct {
 		name      string
-		exp       nmagent.HomeAzResponse
+		exp       nmagent.AzResponse
 		expPath   string
 		resp      map[string]interface{}
 		shouldErr bool
 	}{
 		{
 			"happy path",
-			nmagent.HomeAzResponse{HomeAz: uint(1)},
+			nmagent.AzResponse{HomeAz: uint(1)},
 			"/machine/plugins/?comp=nmagent&type=GetHomeAz",
 			map[string]interface{}{
 				"httpStatusCode": "200",
@@ -643,7 +643,7 @@ func TestGetHomeAz(t *testing.T) {
 		},
 		{
 			"empty response",
-			nmagent.HomeAzResponse{},
+			nmagent.AzResponse{},
 			"/machine/plugins/?comp=nmagent&type=GetHomeAz",
 			map[string]interface{}{
 				"httpStatusCode": "500",

@@ -37,7 +37,6 @@ type NCVersionList struct {
 	Containers []NCVersion `json:"networkContainers"`
 }
 
-type HomeAzResponse struct {
-	IsSupported bool `json:"isSupported"`
-	HomeAz      uint `json:"homeAz"`
+type AzResponse struct {
+	HomeAz uint `json:"homeAz"`
 }

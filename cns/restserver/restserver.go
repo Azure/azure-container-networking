@@ -46,7 +46,7 @@ type nmagentClient interface {
 	SupportedAPIs(context.Context) ([]string, error)
 	GetNCVersion(context.Context, nma.NCVersionRequest) (nma.NCVersion, error)
 	GetNCVersionList(context.Context) (nma.NCVersionList, error)
-	GetHomeAz(context.Context) (nma.HomeAzResponse, error)
+	GetHomeAz(context.Context) (nma.AzResponse, error)
 }
 
 // HTTPRestService represents http listener for CNS - Container Networking Service.
