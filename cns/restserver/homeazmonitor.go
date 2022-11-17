@@ -20,55 +20,57 @@ const (
 	homeAzCacheKey   = "HomeAz"
 )
 
-type HomeAzCache struct {
+type HomeAzMonitor struct {
 	nmagentClient
 	values *cache.Cache
 	// channel used as signal to end of the goroutine for populating home az cache
 	closing chan struct{}
-	// channel used as signal to block the Start() of HomeAzCache until the first request to retrieve home az completes
-	block chan struct{}
+	// channel used as signal to block the Start() of HomeAzMonitor until the first request to retrieve home az completes
+	block                    chan struct{}
+	cacheRefreshIntervalSecs time.Duration
 }
 
-// NewHomeAzCache creates a new HomeAzCache object
-func NewHomeAzCache(client nmagentClient) *HomeAzCache {
-	return &HomeAzCache{
-		nmagentClient: client,
-		values:        cache.New(cache.NoExpiration, cache.NoExpiration),
-		closing:       make(chan struct{}),
-		block:         make(chan struct{}),
+// New creates a new HomeAzMonitor object
+func New(client nmagentClient, cacheRefreshIntervalSecs time.Duration) *HomeAzMonitor {
+	return &HomeAzMonitor{
+		nmagentClient:            client,
+		cacheRefreshIntervalSecs: cacheRefreshIntervalSecs,
+		values:                   cache.New(cache.NoExpiration, cache.NoExpiration),
+		closing:                  make(chan struct{}),
+		block:                    make(chan struct{}),
 	}
 }
 
 // GetHomeAz returns home az cache value directly
-func (h *HomeAzCache) GetHomeAz(_ context.Context) cns.GetHomeAzResponse {
+func (h *HomeAzMonitor) GetHomeAz(_ context.Context) cns.GetHomeAzResponse {
 	return h.readCacheValue()
 }
 
 // updateCacheValue updates home az cache value
-func (h *HomeAzCache) updateCacheValue(resp cns.GetHomeAzResponse) {
+func (h *HomeAzMonitor) updateCacheValue(resp cns.GetHomeAzResponse) {
 	h.values.Set(homeAzCacheKey, resp, cache.NoExpiration)
 }
 
 // readCacheValue reads home az cache value
-func (h *HomeAzCache) readCacheValue() cns.GetHomeAzResponse {
+func (h *HomeAzMonitor) readCacheValue() cns.GetHomeAzResponse {
 	cachedResp, _ := h.values.Get(homeAzCacheKey)
 	return cachedResp.(cns.GetHomeAzResponse)
 }
 
 // Start starts a new thread to refresh home az cache
-func (h *HomeAzCache) Start(retryIntervalInSecs time.Duration) {
-	go h.refresh(retryIntervalInSecs)
+func (h *HomeAzMonitor) Start() {
+	go h.refresh()
 	// block until the first request to nmagent for retrieving home az completes
 	<-h.block
 }
 
 // Stop ends the refresh thread
-func (h *HomeAzCache) Stop() {
+func (h *HomeAzMonitor) Stop() {
 	close(h.closing)
 }
 
 // refresh periodically pulls home az from nmagent
-func (h *HomeAzCache) refresh(retryIntervalInSecs time.Duration) {
+func (h *HomeAzMonitor) refresh() {
 	// Ticker will not tick right away, so proactively make a call here to achieve that
 	ctx, cancel := context.WithTimeout(context.Background(), ContextTimeOut)
 	h.populate(ctx)
@@ -77,7 +79,7 @@ func (h *HomeAzCache) refresh(retryIntervalInSecs time.Duration) {
 	// unblock Start()
 	h.block <- struct{}{}
 
-	ticker := time.NewTicker(retryIntervalInSecs)
+	ticker := time.NewTicker(h.cacheRefreshIntervalSecs)
 	defer ticker.Stop()
 	for {
 		select {
@@ -92,19 +94,19 @@ func (h *HomeAzCache) refresh(retryIntervalInSecs time.Duration) {
 }
 
 // populate makes call to nmagent to retrieve home az if getHomeAz api is supported by nmagent
-func (h *HomeAzCache) populate(ctx context.Context) {
+func (h *HomeAzMonitor) populate(ctx context.Context) {
 	supportedApis, err := h.SupportedAPIs(ctx)
 	if err != nil {
-		returnMessage := fmt.Sprintf("[HomeAzCache] failed to query nmagent's supported apis, %v", err)
+		returnMessage := fmt.Sprintf("[HomeAzMonitor] failed to query nmagent's supported apis, %v", err)
 		returnCode := types.NmAgentSupportedApisError
-		h.update(returnCode, returnMessage, cns.HomeAzResponse{})
+		h.update(returnCode, returnMessage, cns.HomeAzResponse{IsSupported: false})
 		return
 	}
 	// check if getHomeAz api is supported by nmagent
 	if !isAPISupportedByNMAgent(supportedApis, GetHomeAzAPIName) {
-		returnMessage := fmt.Sprintf("[HomeAzCache] nmagent does not support %s api.", GetHomeAzAPIName)
+		returnMessage := fmt.Sprintf("[HomeAzMonitor] nmagent does not support %s api.", GetHomeAzAPIName)
 		returnCode := types.Success
-		h.update(returnCode, returnMessage, cns.HomeAzResponse{})
+		h.update(returnCode, returnMessage, cns.HomeAzResponse{IsSupported: false})
 		return
 	}
 
@@ -115,25 +117,25 @@ func (h *HomeAzCache) populate(ctx context.Context) {
 		if ok := errors.As(err, &apiError); ok {
 			switch apiError.StatusCode() {
 			case http.StatusInternalServerError:
-				returnMessage := fmt.Sprintf("[HomeAzCache] nmagent server internal error, %v", err)
+				returnMessage := fmt.Sprintf("[HomeAzMonitor] nmagent internal server error, %v", err)
 				returnCode := types.NmAgentInternalServerError
 				h.update(returnCode, returnMessage, cns.HomeAzResponse{IsSupported: true})
 				return
 
 			case http.StatusUnauthorized:
-				returnMessage := fmt.Sprintf("[HomeAzCache] failed to authenticate with OwningServiceInstanceId, %v", err)
+				returnMessage := fmt.Sprintf("[HomeAzMonitor] failed to authenticate with OwningServiceInstanceId, %v", err)
 				returnCode := types.StatusUnauthorized
 				h.update(returnCode, returnMessage, cns.HomeAzResponse{IsSupported: true})
 				return
 
 			default:
-				returnMessage := fmt.Sprintf("[HomeAzCache] failed with StatusCode: %d", apiError.StatusCode())
+				returnMessage := fmt.Sprintf("[HomeAzMonitor] failed with StatusCode: %d", apiError.StatusCode())
 				returnCode := types.UnexpectedError
 				h.update(returnCode, returnMessage, cns.HomeAzResponse{IsSupported: true})
 				return
 			}
 		}
-		returnMessage := fmt.Sprintf("[HomeAzCache] failed with Error. %v", err)
+		returnMessage := fmt.Sprintf("[HomeAzMonitor] failed with Error. %v", err)
 		returnCode := types.UnexpectedError
 		h.update(returnCode, returnMessage, cns.HomeAzResponse{IsSupported: true})
 		return
@@ -143,7 +145,7 @@ func (h *HomeAzCache) populate(ctx context.Context) {
 }
 
 // update constructs a GetHomeAzResponse entity and update its cache
-func (h *HomeAzCache) update(code types.ResponseCode, msg string, homeAzResponse cns.HomeAzResponse) {
+func (h *HomeAzMonitor) update(code types.ResponseCode, msg string, homeAzResponse cns.HomeAzResponse) {
 	log.Debugf(msg)
 	resp := cns.GetHomeAzResponse{
 		Response: cns.Response{

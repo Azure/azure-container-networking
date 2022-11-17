@@ -56,7 +56,7 @@ type HTTPRestService struct {
 	wscli                    interfaceGetter
 	ipamClient               *ipamclient.IpamClient
 	nma                      nmagentClient
-	homeAzCache              *HomeAzCache
+	homeAzMonitor            *HomeAzMonitor
 	networkContainer         *networkcontainers.NetworkContainers
 	PodIPIDByPodInterfaceKey map[string]string                    // PodInterfaceId is key and value is Pod IP (SecondaryIP) uuid.
 	PodIPConfigState         map[string]cns.IPConfigurationStatus // Secondary IP ID(uuid) is key
@@ -152,7 +152,7 @@ type networkInfo struct {
 
 // NewHTTPRestService creates a new HTTP Service object.
 func NewHTTPRestService(config *common.ServiceConfig, wscli interfaceGetter, nmagentClient nmagentClient,
-	endpointStateStore store.KeyValueStore, gen CNIConflistGenerator, homeAzCache *HomeAzCache,
+	endpointStateStore store.KeyValueStore, gen CNIConflistGenerator, homeAzMonitor *HomeAzMonitor,
 ) (cns.HTTPService, error) {
 	service, err := cns.NewService(config.Name, config.Version, config.ChannelMode, config.Store)
 	if err != nil {
@@ -208,7 +208,7 @@ func NewHTTPRestService(config *common.ServiceConfig, wscli interfaceGetter, nma
 		podsPendingIPAssignment:  bounded.NewTimedSet(250), // nolint:gomnd // maxpods
 		EndpointStateStore:       endpointStateStore,
 		EndpointState:            make(map[string]*EndpointInfo),
-		homeAzCache:              homeAzCache,
+		homeAzMonitor:            homeAzMonitor,
 		cniConflistGenerator:     gen,
 	}, nil
 }

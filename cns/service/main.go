@@ -543,8 +543,8 @@ func main() {
 		return
 	}
 
-	homeAzCache := restserver.NewHomeAzCache(nmaClient)
-	homeAzCache.Start(time.Duration(cnsconfig.PopulateHomeAzCacheRetryIntervalSecs) * time.Second)
+	homeAzMonitor := restserver.New(nmaClient, time.Duration(cnsconfig.PopulateHomeAzCacheRetryIntervalSecs)*time.Second)
+	homeAzMonitor.Start()
 
 	if cnsconfig.ChannelMode == cns.Managed {
 		config.ChannelMode = cns.Managed
@@ -633,7 +633,7 @@ func main() {
 	// Create CNS object.
 
 	httpRestService, err := restserver.NewHTTPRestService(&config, &wireserver.Client{HTTPClient: &http.Client{}}, nmaClient,
-		endpointStateStore, conflistGenerator, homeAzCache)
+		endpointStateStore, conflistGenerator, homeAzMonitor)
 	if err != nil {
 		logger.Errorf("Failed to create CNS object, err:%v.\n", err)
 		return
@@ -860,7 +860,7 @@ func main() {
 	}
 
 	logger.Printf("end the goroutine for refreshing homeAz")
-	homeAzCache.Stop()
+	homeAzMonitor.Stop()
 
 	logger.Printf("stop cns service")
 	// Cleanup.

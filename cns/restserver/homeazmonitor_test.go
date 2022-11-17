@@ -3,6 +3,7 @@ package restserver
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/fakes"
@@ -12,8 +13,8 @@ import (
 	"github.com/pkg/errors"
 )
 
-// TestHomeAzCache makes sure the HomeAzCache works properly in caching home az
-func TestHomeAzCache(t *testing.T) {
+// TestHomeAzMonitor makes sure the HomeAzMonitor works properly in caching home az
+func TestHomeAzMonitor(t *testing.T) {
 	tests := []struct {
 		name      string
 		client    *fakes.NMAgentClientFake
@@ -64,10 +65,10 @@ func TestHomeAzCache(t *testing.T) {
 		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-			homeAzCache := NewHomeAzCache(test.client)
-			homeAzCache.Start(1)
+			homeAzMonitor := New(test.client, time.Second)
+			homeAzMonitor.Start()
 
-			getHomeAzResponse := homeAzCache.GetHomeAz(context.TODO())
+			getHomeAzResponse := homeAzMonitor.GetHomeAz(context.TODO())
 			// check the homeAz cache value
 			if !cmp.Equal(getHomeAzResponse.HomeAzResponse, test.homeAzExp) {
 				t.Error("homeAz cache differs from expectation: diff:", cmp.Diff(getHomeAzResponse.HomeAzResponse, test.homeAzExp))
@@ -81,7 +82,7 @@ func TestHomeAzCache(t *testing.T) {
 				t.Fatal("expected error but received none")
 			}
 			t.Cleanup(func() {
-				homeAzCache.Stop()
+				homeAzMonitor.Stop()
 			})
 		})
 	}
