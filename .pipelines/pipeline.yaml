@@ -251,11 +251,45 @@ stages:
               ai_id: $(ai_id)
               ai_id_var: $(ai_id_var)
               tag: $(TAG)
+      - job: check_tag
+        displayName: Check Tag
+        pool:
+          name: $(BUILD_POOL_NAME_DEFAULT)
+        steps:
+          - script: |
+              echo "##vso[task.setvariable variable=currentTagBuild;isOutput=true]$(make version)"
+            name: "CurrentTagBuild"
+            displayName: "Set current tag variable"
+            condition: always()
 
+  - stage: validate1
+    displayName: Validate Tags
+    dependsOn:
+      - setup
+      - containerize
+    variables:
+      TAG: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
+      CURRENT_VERSION: $[ stagedependencies.containerize.check_tag.outputs['CurrentTagBuild.currentTagBuild'] ]
+    condition: ne(variables.TAG, variables.CURRENT_VERSION)
+    jobs:
+      - job: timeout_and_cancel
+        displayName: Cancel Run
+        pool:
+          name: $(BUILD_POOL_NAME_DEFAULT)
+        steps:
+          - script: |
+              echo $TAG
+              echo $CURRENT_VERSION
+              echo "Checking if branch up to date with master"
+  
   - stage: publish
     displayName: Publish Multiarch Manifests
     dependsOn:
       - containerize
+    variables:
+      TAG: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
+      CURRENT_VERSION: $[ stagedependencies.containerize.check_tag.outputs['CurrentTagBuild.currentTagBuild'] ]
+    condition: and(succeeded(), eq(variables.TAG, variables.CURRENT_VERSION))
     jobs:
       - job: manifest
         displayName: Compile Manifests
@@ -284,7 +318,16 @@ stages:
               name: $(name)
               platforms: $(platforms)
               tag: $(TAG)
-
+      - job: check_tag
+        displayName: Check Tag
+        pool:
+          name: $(BUILD_POOL_NAME_DEFAULT)
+        steps:
+          - script: |
+              echo "##vso[task.setvariable variable=currentTagManifests;isOutput=true]$(make version)"
+            name: "CurrentTagManifests"
+            displayName: "Set current tag variable"
+            condition: always()
 
   - template: singletenancy/cilium/cilium-e2e-job-template.yaml
     parameters:
@@ -293,6 +336,14 @@ stages:
       pipelineBuildImage: "$(BUILD_IMAGE)"
       testDropgz: ""
       clusterName: "ciliume2e"
+
+  - template: singletenancy/overlay/overlay-e2e-job-template.yaml
+    parameters:
+      name: "overlay_e2e"
+      displayName: Cilium on AKS Overlay
+      pipelineBuildImage: "$(BUILD_IMAGE)"
+      testDropgz: ""
+      clusterName: "overlaye2e"
 
   - template: singletenancy/aks-swift/e2e-job-template.yaml
     parameters:
@@ -323,6 +374,26 @@ stages:
       clusterDefinitionCniBuildOS: "windows"
       clusterDefinitionCniBuildExt: ".zip"
 
+  - stage: validate2
+    displayName: Validate Tags
+    dependsOn:
+      - setup
+      - publish
+    variables:
+      TAG: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
+      CURRENT_VERSION: $[ stagedependencies.publish.check_tag.outputs['CurrentTagManifests.currentTagManifests'] ]
+    condition: ne(variables.TAG, variables.CURRENT_VERSION)
+    jobs:
+      - job: timeout_and_cancel
+        displayName: Cancel Run
+        pool:
+          name: $(BUILD_POOL_NAME_DEFAULT)
+        steps:
+          - script: |
+              echo $TAG
+              echo $CURRENT_VERSION
+              echo "Checking if branch is up to date with master"
+  
   - stage: cleanup
     displayName: Cleanup
     dependsOn:
