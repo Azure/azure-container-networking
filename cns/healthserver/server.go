@@ -12,7 +12,7 @@ import (
 
 func Start(log *zap.Logger, addr string) {
 	e := echo.New()
-
+	e.HideBanner = true
 	e.GET("/healthz", echo.WrapHandler(http.StripPrefix("/healthz", &healthz.Handler{})))
 	e.GET("/metrics", echo.WrapHandler(promhttp.HandlerFor(metrics.Registry, promhttp.HandlerOpts{
 		ErrorHandling: promhttp.HTTPErrorOnError,

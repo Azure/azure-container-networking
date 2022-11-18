@@ -3,6 +3,7 @@ package ipampool
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"sync"
 	"time"
 
@@ -13,6 +14,7 @@ import (
 	"github.com/Azure/azure-container-networking/crd/clustersubnetstate/api/v1alpha1"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 	"github.com/pkg/errors"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 const (
@@ -37,6 +39,9 @@ type metaState struct {
 	minFreeCount       int64
 	notInUseCount      int64
 	primaryIPAddresses map[string]struct{}
+	subnet             string
+	subnetARMID        string
+	subnetCIDR         string
 }
 
 type Options struct {
@@ -55,10 +60,6 @@ type Monitor struct {
 	started     chan interface{}
 	once        sync.Once
 }
-
-// Global Variables:
-// For Subnet, Subnet Address Space and Subnet ARM ID
-var subnet, subnetCIDR, subnetARMID string
 
 func NewMonitor(httpService cns.HTTPService, nnccli nodeNetworkConfigSpecUpdater, cssSource <-chan v1alpha1.ClusterSubnetState, opts *Options) *Monitor {
 	if opts.RefreshDelay < 1 {
@@ -82,15 +83,8 @@ func NewMonitor(httpService cns.HTTPService, nnccli nodeNetworkConfigSpecUpdater
 // Subsequently, it will run run once per RefreshDelay and attempt to re-reconcile the pool.
 func (pm *Monitor) Start(ctx context.Context) error {
 	logger.Printf("[ipam-pool-monitor] Starting CNS IPAM Pool Monitor")
-
-	// the exhausted subnet set is populated by parsing incoming cluster subnet states
-	// if a subnet is present in this map, the batch from the NNC is ignored and instead
-	// the pool monitor batches 1 IP at a time to relieve capacity pressure.
-	exhaustedSubnetSet := map[string]struct{}{}
-
 	ticker := time.NewTicker(pm.opts.RefreshDelay)
 	defer ticker.Stop()
-
 	for {
 		// proceed when things happen:
 		select {
@@ -105,14 +99,12 @@ func (pm *Monitor) Start(ctx context.Context) error {
 				// if we have initialized and enter this case, we proceed out of the select and continue to reconcile.
 			}
 		case css := <-pm.cssSource: // received an updated ClusterSubnetState
-			// this map does not need additional synchronization thanks to channels <3
-			if css.Status.Exhausted {
-				logger.Printf("subnet %s is exhausted", css.Name)
-				exhaustedSubnetSet[css.Name] = struct{}{}
-			} else {
-				logger.Printf("subnet %s is no longer exhausted", css.Name)
-				delete(exhaustedSubnetSet, css.Name)
-			}
+			pm.metastate.exhausted = css.Status.Exhausted
+			logger.Printf("subnet exhausted status = %t", pm.metastate.exhausted)
+			ipamSubnetExhaustionCount.With(prometheus.Labels{
+				subnetLabel: pm.metastate.subnet, subnetCIDRLabel: pm.metastate.subnetCIDR,
+				podnetARMIDLabel: pm.metastate.subnetARMID, subnetExhaustionStateLabel: strconv.FormatBool(pm.metastate.exhausted),
+			}).Inc()
 			select {
 			default:
 				// if we have NOT initialized and enter this case, we continue out of this iteration and let the for loop begin again.
@@ -123,13 +115,10 @@ func (pm *Monitor) Start(ctx context.Context) error {
 		case nnc := <-pm.nncSource: // received a new NodeNetworkConfig, extract the data from it and re-reconcile.
 			if len(nnc.Status.NetworkContainers) > 0 {
 				// Set SubnetName, SubnetAddressSpace and Pod Network ARM ID values to the global subnet, subnetCIDR and subnetARM variables.
-				subnet = nnc.Status.NetworkContainers[0].SubnetName
-				subnetCIDR = nnc.Status.NetworkContainers[0].SubnetAddressSpace
-				subnetARMID = GenerateARMID(&nnc.Status.NetworkContainers[0])
-				// check for subnet exhaustion
-				_, pm.metastate.exhausted = exhaustedSubnetSet[nnc.Status.NetworkContainers[0].SubnetName]
+				pm.metastate.subnet = nnc.Status.NetworkContainers[0].SubnetName
+				pm.metastate.subnetCIDR = nnc.Status.NetworkContainers[0].SubnetAddressSpace
+				pm.metastate.subnetARMID = GenerateARMID(&nnc.Status.NetworkContainers[0])
 			}
-
 			pm.metastate.primaryIPAddresses = make(map[string]struct{})
 			// Add Primary IP to Map, if not present.
 			// This is only for Swift i.e. if NC Type is vnet.
@@ -183,8 +172,9 @@ func buildIPPoolState(ips map[string]cns.IPConfigurationStatus, spec v1alpha.Nod
 		totalIPs:     int64(len(ips)),
 		requestedIPs: spec.RequestedIPCount,
 	}
-	for _, v := range ips {
-		switch v.GetState() {
+	for i := range ips {
+		ip := ips[i]
+		switch ip.GetState() {
 		case types.Assigned:
 			state.allocatedToPods++
 		case types.Available:
@@ -206,7 +196,7 @@ func (pm *Monitor) reconcile(ctx context.Context) error {
 	allocatedIPs := pm.httpService.GetPodIPConfigState()
 	meta := pm.metastate
 	state := buildIPPoolState(allocatedIPs, pm.spec)
-	observeIPPoolState(state, meta, []string{subnet, subnetCIDR, subnetARMID})
+	observeIPPoolState(state, meta)
 
 	// log every 30th reconcile to reduce the AI load. we will always log when the monitor
 	// changes the pool, below.
@@ -261,8 +251,12 @@ func (pm *Monitor) increasePoolSize(ctx context.Context, meta metaState, state i
 	// Query the max IP count
 	previouslyRequestedIPCount := tempNNCSpec.RequestedIPCount
 	batchSize := meta.batch
+	modResult := previouslyRequestedIPCount % batchSize
+	logger.Printf("[ipam-pool-monitor] Previously RequestedIP Count %d", previouslyRequestedIPCount)
+	logger.Printf("[ipam-pool-monitor] Batch size : %d", batchSize)
+	logger.Printf("[ipam-pool-monitor] modResult of (previously requested IP count mod batch size) = %d", modResult)
 
-	tempNNCSpec.RequestedIPCount += batchSize
+	tempNNCSpec.RequestedIPCount += batchSize - modResult
 	if tempNNCSpec.RequestedIPCount > meta.max {
 		// We don't want to ask for more ips than the max
 		logger.Printf("[ipam-pool-monitor] Requested IP count (%d) is over max limit (%d), requesting max limit instead.", tempNNCSpec.RequestedIPCount, meta.max)
@@ -279,7 +273,7 @@ func (pm *Monitor) increasePoolSize(ctx context.Context, meta metaState, state i
 
 	if _, err := pm.nnccli.UpdateSpec(ctx, &tempNNCSpec); err != nil {
 		// caller will retry to update the CRD again
-		return err
+		return errors.Wrap(err, "executing UpdateSpec with NNC CLI")
 	}
 
 	logger.Printf("[ipam-pool-monitor] Increasing pool size: UpdateCRDSpec succeeded for spec %+v", tempNNCSpec)
@@ -300,7 +294,6 @@ func (pm *Monitor) decreasePoolSize(ctx context.Context, meta metaState, state i
 	previouslyRequestedIPCount := pm.spec.RequestedIPCount
 	batchSize := meta.batch
 	modResult := previouslyRequestedIPCount % batchSize
-
 	logger.Printf("[ipam-pool-monitor] Previously RequestedIP Count %d", previouslyRequestedIPCount)
 	logger.Printf("[ipam-pool-monitor] Batch size : %d", batchSize)
 	logger.Printf("[ipam-pool-monitor] modResult of (previously requested IP count mod batch size) = %d", modResult)
@@ -322,7 +315,7 @@ func (pm *Monitor) decreasePoolSize(ctx context.Context, meta metaState, state i
 		logger.Printf("[ipam-pool-monitor] Marking IPs as PendingRelease, ipsToBeReleasedCount %d", decreaseIPCountBy)
 		var err error
 		if pendingIPAddresses, err = pm.httpService.MarkIPAsPendingRelease(int(decreaseIPCountBy)); err != nil {
-			return err
+			return errors.Wrap(err, "marking IPs that are pending release")
 		}
 
 		newIpsMarkedAsPending = true
@@ -344,7 +337,7 @@ func (pm *Monitor) decreasePoolSize(ctx context.Context, meta metaState, state i
 	_, err := pm.nnccli.UpdateSpec(ctx, &tempNNCSpec)
 	if err != nil {
 		// caller will retry to update the CRD again
-		return err
+		return errors.Wrap(err, "executing UpdateSpec with NNC CLI")
 	}
 
 	logger.Printf("[ipam-pool-monitor] Decreasing pool size: UpdateCRDSpec succeeded for spec %+v", tempNNCSpec)
@@ -369,7 +362,7 @@ func (pm *Monitor) cleanPendingRelease(ctx context.Context) error {
 	_, err := pm.nnccli.UpdateSpec(ctx, &tempNNCSpec)
 	if err != nil {
 		// caller will retry to update the CRD again
-		return err
+		return errors.Wrap(err, "executing UpdateSpec with NNC CLI")
 	}
 
 	logger.Printf("[ipam-pool-monitor] cleanPendingRelease: UpdateCRDSpec succeeded for spec %+v", tempNNCSpec)
@@ -388,7 +381,8 @@ func (pm *Monitor) createNNCSpecForCRD() v1alpha.NodeNetworkConfigSpec {
 
 	// Get All Pending IPs from CNS and populate it again.
 	pendingIPs := pm.httpService.GetPendingReleaseIPConfigs()
-	for _, pendingIP := range pendingIPs {
+	for i := range pendingIPs {
+		pendingIP := pendingIPs[i]
 		spec.IPsNotInUse = append(spec.IPsNotInUse, pendingIP.ID)
 	}
 

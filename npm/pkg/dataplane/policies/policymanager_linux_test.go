@@ -207,6 +207,7 @@ func TestChainNames(t *testing.T) {
 // similar to TestAddPolicy in policymanager.go except an error occurs
 func TestAddPolicyFailure(t *testing.T) {
 	metrics.ReinitializeAll()
+	testNetPol := testNetworkPolicy()
 	calls := GetAddPolicyFailureTestCalls(testNetPol)
 	ioshim := common.NewMockIOShim(calls)
 	defer ioshim.VerifyCalls(t, calls)

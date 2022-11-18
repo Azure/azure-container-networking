@@ -2,6 +2,8 @@
 
 ## Table of Contents
 * [CNI plugin](cni.md) - describes how to setup Azure CNI plugins.
+* [Azure CNI Powered By Cilium](cilium.md) - describes the next generation of Azure CNI Plugin powered by Cilium dataplane.
+* [Azure CNI Overlay Mode for AKS](overlay-for-aks.md) - describes a mode of the Azure CNI Plugin to provide a Pod network from an overlay address space with no encapsulation.
 * [CNM (libnetwork) plugin](cnm.md) - describes how to setup Azure CNM plugins.
 * [ACS](acs.md) - describes how to use the plugins with Azure Container Service.
 * [Network](network.md) - describes container networks created by plugins.

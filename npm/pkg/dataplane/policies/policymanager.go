@@ -166,6 +166,9 @@ func (pMgr *PolicyManager) RemovePolicy(policyKey string) error {
 	pMgr.policyMap.Lock()
 	defer pMgr.policyMap.Unlock()
 
+	// used for Prometheus metrics later
+	numEndpointsBefore := len(policy.PodEndpoints)
+
 	// Call actual dataplane function to apply changes
 	err := pMgr.removePolicy(policy, nil)
 	// currently we only have acl rule exec time for "adding" rules, so we skip recording here
@@ -178,11 +181,11 @@ func (pMgr *PolicyManager) RemovePolicy(policyKey string) error {
 	}
 
 	// update Prometheus metrics on success
-	numEndpoints := 1
+	numEndpointsRemoved := 1
 	if util.IsWindowsDP() {
-		numEndpoints = len(policy.PodEndpoints)
+		numEndpointsRemoved = numEndpointsBefore - len(policy.PodEndpoints)
 	}
-	metrics.DecNumACLRulesBy(policy.numACLRulesProducedInKernel() * numEndpoints)
+	metrics.DecNumACLRulesBy(policy.numACLRulesProducedInKernel() * numEndpointsRemoved)
 
 	// remove policy from cache
 	delete(pMgr.policyMap.cache, policyKey)

@@ -21,14 +21,39 @@
 	],
 	// Set *default* container specific settings.json values on container create.
 	"settings": {
-		"go.toolsManagement.checkForUpdates": "local",
-		"go.useLanguageServer": true,
+		"editor.formatOnSave": true,
+		"files.autoSave": "onFocusChange",
+		"files.insertFinalNewline": true,
+		"git.allowForcePush": true,
+		"git.alwaysSignOff": true,
+		"git.autoStash": true,
+		"git.autofetch": "all",
+		"git.branchSortOrder": "alphabetically",
+		"git.enableCommitSigning": true,
+		"git.fetchOnPull": true,
+		"git.pruneOnFetch": true,
+		"git.rebaseWhenSync": true,
+		"go.coverOnSave": true,
+		"go.coverOnSingleTest": true,
+		"go.coverOnSingleTestFile": true,
+		"go.formatTool": "gofumpt",
 		"go.gopath": "/go",
-		"go.goroot": "/usr/local/go"
+		"go.goroot": "/usr/local/go",
+		"go.lintTool": "golangci-lint",
+		"go.testOnSave": true,
+		"go.toolsManagement.autoUpdate": true,
+		"go.toolsManagement.checkForUpdates": "local",
+		"go.useLanguageServer": true
 	},
 	// Add the IDs of extensions you want installed when the container is created.
 	"extensions": [
-		"golang.Go"
+		"bierner.github-markdown-preview",
+		"gitHub.codespaces",
+		"ms-vscode-remote.vscode-remote-extensionpack",
+		"golang.go",
+		"ms-vsliveshare.vsliveshare-pack",
+		"redhat.vscode-yaml",
+		"eamodio.gitlens"
 	],
 	// Use 'forwardPorts' to make a list of ports inside the container available locally.
 	// "forwardPorts": [],

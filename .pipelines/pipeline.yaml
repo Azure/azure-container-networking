@@ -2,13 +2,24 @@ pr:
   branches:
     include:
       - master
-      - honeycomb-dev
+  paths:
+    exclude:
+    - ".devcontainer"
+    - ".hooks"
+    - ".vscode"
+    - ".github"
+    - docs
 
 trigger:
-  branches:
+  paths:
+    exclude:
+    - docs
+    - "zapai/*"
+    - "azure-ipam/*"
+    - "dropgz/*"
+  tags:
     include:
-      - master
-      - honeycomb-dev
+    - "*"
 
 stages:
   - stage: setup
@@ -62,26 +73,24 @@ stages:
             name: "Test"
             displayName: "Run Tests"
 
-          - bash: |
-              build/tools/bin/gocov convert coverage.out > coverage.json
-              build/tools/bin/gocov-xml < coverage.json > coverage.xml
-            name: "Coverage"
-            displayName: "Generate Coverage Reports"
-            condition: always()
-
-          - task: PublishTestResults@2
-            inputs:
-              testRunner: JUnit
-              testResultsFiles: report.xml
-            displayName: "Publish Test Results"
-            condition: always()
-
-          - task: PublishCodeCoverageResults@1
-            inputs:
-              codeCoverageTool: Cobertura
-              summaryFileLocation: coverage.xml
-            displayName: "Publish Code Coverage Results"
-            condition: always()
+  - stage: test_windows
+    displayName: Test ACN Windows
+    dependsOn:
+      - setup
+    jobs:
+      - job: test
+        displayName: Run Tests
+        variables:
+          STORAGE_ID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.StorageID'] ]
+        pool:
+          name: "$(BUILD_POOL_NAME_DEFAULT_WINDOWS_ALT)"
+        steps:
+          - script: |
+              cd npm/
+              go test ./...
+            retryCountOnTaskFailure: 3
+            name: "TestWindows"
+            displayName: "Run Windows Tests"
 
   - stage: binaries
     displayName: Build Binaries
@@ -97,7 +106,7 @@ stages:
           name: "$(BUILD_POOL_NAME_DEFAULT)"
         steps:
           - script: |
-              make all-binaries-platforms 
+              make all-binaries-platforms
             name: "BuildAllPlatformBinaries"
             displayName: "Build all platform binaries"
 
@@ -157,6 +166,10 @@ stages:
               arch: amd64
               os: linux
               name: cni-dropgz
+            cni_dropgz_test_linux_amd64:
+              arch: amd64
+              os: linux
+              name: cni-dropgz-test
             cns_linux_amd64:
               arch: amd64
               os: linux
@@ -187,6 +200,10 @@ stages:
               arch: arm64
               os: linux
               name: cni-dropgz
+            cni_dropgz_test_linux_arm64:
+              arch: arm64
+              os: linux
+              name: cni-dropgz-test
             cns_linux_arm64:
               arch: arm64
               os: linux
@@ -202,6 +219,7 @@ stages:
               os: $(os)
               arch: $(arch)
       - job: containerize_windows_amd64
+        timeoutInMinutes: 120
         displayName: Build Images
         variables:
           TAG: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
@@ -212,20 +230,66 @@ stages:
             cns_windows_amd64:
               arch: amd64
               name: cns
+              ai_path: github.com/Azure/azure-container-networking/cns/logger.aiMetadata
+              ai_path_var: CNS_AI_PATH
+              ai_id: ce672799-8f08-4235-8c12-08563dc2acef
+              ai_id_var: CNS_AI_ID
             npm_windows_amd64:
               arch: amd64
               name: npm
+              ai_path: github.com/Azure/azure-container-networking/npm.aiMetadata
+              ai_path_var: NPM_AI_PATH
+              ai_id: 014c22bd-4107-459e-8475-67909e96edcb
+              ai_id_var: NPM_AI_ID
         steps:
           - template: containers/container-template-windows.yaml
             parameters:
               name: $(name)
               arch: $(arch)
+              ai_path: $(ai_path)
+              ai_path_var: $(ai_path_var)
+              ai_id: $(ai_id)
+              ai_id_var: $(ai_id_var)
               tag: $(TAG)
+      - job: check_tag
+        displayName: Check Tag
+        pool:
+          name: $(BUILD_POOL_NAME_DEFAULT)
+        steps:
+          - script: |
+              echo "##vso[task.setvariable variable=currentTagBuild;isOutput=true]$(make version)"
+            name: "CurrentTagBuild"
+            displayName: "Set current tag variable"
+            condition: always()
 
+  - stage: validate1
+    displayName: Validate Tags
+    dependsOn:
+      - setup
+      - containerize
+    variables:
+      TAG: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
+      CURRENT_VERSION: $[ stagedependencies.containerize.check_tag.outputs['CurrentTagBuild.currentTagBuild'] ]
+    condition: ne(variables.TAG, variables.CURRENT_VERSION)
+    jobs:
+      - job: timeout_and_cancel
+        displayName: Cancel Run
+        pool:
+          name: $(BUILD_POOL_NAME_DEFAULT)
+        steps:
+          - script: |
+              echo $TAG
+              echo $CURRENT_VERSION
+              echo "Checking if branch up to date with master"
+  
   - stage: publish
     displayName: Publish Multiarch Manifests
     dependsOn:
       - containerize
+    variables:
+      TAG: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
+      CURRENT_VERSION: $[ stagedependencies.containerize.check_tag.outputs['CurrentTagBuild.currentTagBuild'] ]
+    condition: and(succeeded(), eq(variables.TAG, variables.CURRENT_VERSION))
     jobs:
       - job: manifest
         displayName: Compile Manifests
@@ -234,10 +298,13 @@ stages:
         strategy:
           matrix:
             acncli:
-              name: acncli 
+              name: acncli
               platforms: linux/amd64 linux/arm64
             cni_dropgz:
               name: cni-dropgz
+              platforms: linux/amd64 linux/arm64
+            cni_dropgz_test:
+              name: cni-dropgz-test
               platforms: linux/amd64 linux/arm64
             cns:
               name: cns
@@ -250,28 +317,42 @@ stages:
             parameters:
               name: $(name)
               platforms: $(platforms)
-  
+              tag: $(TAG)
+      - job: check_tag
+        displayName: Check Tag
+        pool:
+          name: $(BUILD_POOL_NAME_DEFAULT)
+        steps:
+          - script: |
+              echo "##vso[task.setvariable variable=currentTagManifests;isOutput=true]$(make version)"
+            name: "CurrentTagManifests"
+            displayName: "Set current tag variable"
+            condition: always()
+
   - template: singletenancy/cilium/cilium-e2e-job-template.yaml
     parameters:
       name: "cilium_e2e"
       displayName: Cilium
       pipelineBuildImage: "$(BUILD_IMAGE)"
+      testDropgz: ""
+      clusterName: "ciliume2e"
+
+  - template: singletenancy/overlay/overlay-e2e-job-template.yaml
+    parameters:
+      name: "overlay_e2e"
+      displayName: Cilium on AKS Overlay
+      pipelineBuildImage: "$(BUILD_IMAGE)"
+      testDropgz: ""
+      clusterName: "overlaye2e"
 
   - template: singletenancy/aks-swift/e2e-job-template.yaml
     parameters:
       name: "aks_swift_e2e"
-      displayName: AKS Swift
+      displayName: AKS Swift Ubuntu
       pipelineBuildImage: "$(BUILD_IMAGE)"
-
-  - template: singletenancy/aks-engine/e2e-job-template.yaml
-    parameters:
-      name: "ubuntu_18_04_linux_e2e"
-      displayName: Ubuntu 18.04
-      pipelineBuildImage: "$(BUILD_IMAGE)"
-      clusterDefinition: "cniLinux1804.json"
-      clusterDefinitionCniTypeKey: "azureCNIURLLinux"
-      clusterDefinitionCniBuildOS: "linux"
-      clusterDefinitionCniBuildExt: ".tgz"
+      testDropgz: ""
+      clusterName: "swifte2e"
+      osSku: "Ubuntu"
 
   - template: singletenancy/aks-engine/e2e-job-template.yaml
     parameters:
@@ -293,46 +374,33 @@ stages:
       clusterDefinitionCniBuildOS: "windows"
       clusterDefinitionCniBuildExt: ".zip"
 
-  # - template: singletenancy/aks-engine/e2e-job-template.yaml
-  #   parameters:
-  #     name: "windows_20_22_e2e"
-  #     displayName: "Windows 2022"
-  #     pipelineBuildImage: "$(BUILD_IMAGE)"
-  #     clusterDefinition: "cniWindows2022.json"
-  #     clusterDefinitionCniTypeKey: "azureCNIURLWindows"
-  #     clusterDefinitionCniBuildOS: "windows"
-  #     clusterDefinitionCniBuildExt: ".zip"
-
-  - template: singletenancy/aks-engine/e2e-dualstack-job-template.yaml
-    parameters:
-      name: "ubuntu_18_04_linux_dualstack_e2e"
-      displayName: "Ubuntu 18.04 Dualstack"
-      pipelineBuildImage: "$(BUILD_IMAGE)"
-      clusterDefinition: "cniLinuxDualstack1804.json"
-      clusterDefinitionCniTypeKey: "azureCNIURLLinux"
-      clusterDefinitionCniBuildOS: "linux"
-      clusterDefinitionCniBuildExt: ".tgz"
-
-  # - template: singletenancy/aks-engine/e2e-dualstack-job-template.yaml
-  #   parameters:
-  #     name: "windows_20_04_dualstack_e2e"
-  #     displayName: "Windows 20.04 Dualstack"
-  #     pipelineBuildImage: "$(BUILD_IMAGE)"
-  #     clusterDefinition: "cniWindowsDualstack2004.json"
-  #     clusterDefinitionCniTypeKey: "azureCNIURLWindows"
-  #     clusterDefinitionCniBuildOS: "windows"
-  #     clusterDefinitionCniBuildExt: ".zip"
-
+  - stage: validate2
+    displayName: Validate Tags
+    dependsOn:
+      - setup
+      - publish
+    variables:
+      TAG: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
+      CURRENT_VERSION: $[ stagedependencies.publish.check_tag.outputs['CurrentTagManifests.currentTagManifests'] ]
+    condition: ne(variables.TAG, variables.CURRENT_VERSION)
+    jobs:
+      - job: timeout_and_cancel
+        displayName: Cancel Run
+        pool:
+          name: $(BUILD_POOL_NAME_DEFAULT)
+        steps:
+          - script: |
+              echo $TAG
+              echo $CURRENT_VERSION
+              echo "Checking if branch is up to date with master"
+  
   - stage: cleanup
     displayName: Cleanup
     dependsOn:
       - "aks_swift_e2e"
-      - "ubuntu_18_04_linux_e2e"
+      - "cilium_e2e"
       - "windows_19_03_e2e"
       - "windows_20_04_e2e"
-      # - "windows_20_22_e2e"
-      - "ubuntu_18_04_linux_dualstack_e2e"
-      # - "windows_20_04_dualstack_e2e"
     jobs:
       - job: delete_remote_artifacts
         displayName: Delete remote artifacts

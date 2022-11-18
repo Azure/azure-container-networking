@@ -1,8 +1,6 @@
-FROM mcr.microsoft.com/cbl-mariner/base/core:2.0 AS certs
-RUN tdnf upgrade -y && tdnf install -y ca-certificates
-
 FROM mcr.microsoft.com/cbl-mariner/base/core:2.0 AS tar
 RUN tdnf install -y tar
+RUN tdnf upgrade -y && tdnf install -y ca-certificates
 
 FROM tar AS azure-ipam
 ARG VERSION
@@ -10,7 +8,6 @@ ARG OS
 ARG ARCH
 WORKDIR /azure-ipam
 COPY ./azure-ipam .
-COPY --from=certs /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 RUN curl -LO --cacert /etc/ssl/certs/ca-certificates.crt https://github.com/Azure/azure-container-networking/releases/download/azure-ipam%2Fv0.0.3/azure-ipam-$OS-$ARCH-v0.0.3.tgz && tar -xvf azure-ipam-$OS-$ARCH-v0.0.3.tgz
 
 FROM tar AS azure-vnet
@@ -19,7 +16,6 @@ ARG OS
 ARG ARCH
 WORKDIR /azure-container-networking
 COPY . .
-COPY --from=certs /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 RUN curl -LO --cacert /etc/ssl/certs/ca-certificates.crt https://github.com/Azure/azure-container-networking/releases/download/v1.4.29/azure-vnet-cni-swift-$OS-$ARCH-v1.4.29.tgz && tar -xvf azure-vnet-cni-swift-$OS-$ARCH-v1.4.29.tgz
 
 FROM mcr.microsoft.com/cbl-mariner/base/core:2.0 AS compressor
@@ -29,6 +25,7 @@ COPY dropgz .
 COPY --from=azure-ipam /azure-ipam/*.conflist pkg/embed/fs
 COPY --from=azure-ipam /azure-ipam/azure-ipam pkg/embed/fs
 COPY --from=azure-vnet /azure-container-networking/cni/azure-$OS-swift.conflist pkg/embed/fs/azure-swift.conflist
+COPY --from=azure-vnet /azure-container-networking/cni/azure-$OS-swift-overlay.conflist pkg/embed/fs/azure-swift-overlay.conflist
 COPY --from=azure-vnet /azure-container-networking/azure-vnet pkg/embed/fs
 COPY --from=azure-vnet /azure-container-networking/azure-vnet-telemetry pkg/embed/fs
 COPY --from=azure-vnet /azure-container-networking/azure-vnet-ipam pkg/embed/fs

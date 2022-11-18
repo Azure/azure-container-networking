@@ -2,13 +2,19 @@ parameters:
   name: ""
   displayName: ""
   pipelineBuildImage: "$(BUILD_IMAGE)"
-
+  testDropgz: ""
+  clusterName: ""
+  osSku: ""
 stages:
   - stage: ${{ parameters.name }}
     displayName: E2E - ${{ parameters.displayName }}
     dependsOn: 
     - setup
     - publish
+    variables:
+      TAG: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
+      CURRENT_VERSION: $[ stagedependencies.containerize.check_tag.outputs['CurrentTagManifests.currentTagManifests'] ]
+    condition: and(succeeded(), eq(variables.TAG, variables.CURRENT_VERSION))
     jobs:
       - job: ${{ parameters.name }}
         displayName: Singletenancy AKS Swift Suite - (${{ parameters.name }})
@@ -26,3 +32,6 @@ stages:
           - template: e2e-step-template.yaml
             parameters:
               name: ${{ parameters.name }}
+              testDropgz: ${{ parameters.testDropgz }}
+              clusterName: ${{ parameters.clusterName }}
+              osSku: ${{ parameters.osSku }}

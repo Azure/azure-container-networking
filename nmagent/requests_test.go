@@ -400,3 +400,87 @@ func TestPutNetworkContainerRequestValidate(t *testing.T) {
 		})
 	}
 }
+
+func TestNCVersionRequestValidate(t *testing.T) {
+	tests := []struct {
+		name          string
+		req           nmagent.NCVersionRequest
+		shouldBeValid bool
+	}{
+		{
+			"empty",
+			nmagent.NCVersionRequest{},
+			false,
+		},
+		{
+			"complete",
+			nmagent.NCVersionRequest{
+				AuthToken:          "blah",
+				NetworkContainerID: "12345",
+				PrimaryAddress:     "4815162342",
+			},
+			true,
+		},
+		{
+			"missing ncid",
+			nmagent.NCVersionRequest{
+				AuthToken:      "blah",
+				PrimaryAddress: "4815162342",
+			},
+			false,
+		},
+		{
+			"missing auth token",
+			nmagent.NCVersionRequest{
+				NetworkContainerID: "12345",
+				PrimaryAddress:     "4815162342",
+			},
+			false,
+		},
+		{
+			"missing primary address",
+			nmagent.NCVersionRequest{
+				AuthToken:          "blah",
+				NetworkContainerID: "12345",
+			},
+			false,
+		},
+		{
+			"only auth token",
+			nmagent.NCVersionRequest{
+				AuthToken: "blah",
+			},
+			false,
+		},
+		{
+			"only ncid",
+			nmagent.NCVersionRequest{
+				NetworkContainerID: "12345",
+			},
+			false,
+		},
+		{
+			"only primary address",
+			nmagent.NCVersionRequest{
+				PrimaryAddress: "4815162342",
+			},
+			false,
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := test.req.Validate()
+			if err != nil && test.shouldBeValid {
+				t.Fatal("request was not valid when it should have been: err:", err)
+			}
+
+			if err == nil && !test.shouldBeValid {
+				t.Fatal("expected request to be invalid when it was valid")
+			}
+		})
+	}
+}
