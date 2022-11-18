@@ -14,8 +14,9 @@ import (
 )
 
 const (
-	maxNoNetRetryCount int = 240 // max wait time 240*5 == 20 mins
-	maxNoNetSleepTime  int = 5   // in seconds
+	maxNoNetRetryCount  int  = 240 // max wait time 240*5 == 20 mins
+	maxNoNetSleepTime   int  = 5   // in seconds
+	refreshAllEndpoints bool = true
 )
 
 var (
@@ -284,21 +285,18 @@ func (dp *DataPlane) getEndpointsToApplyPolicy(policy *policies.NPMNetworkPolicy
 	return endpointList, nil
 }
 
-func (dp *DataPlane) getPodEndpoints(remoteEndpoints bool) ([]hcn.HostComputeEndpoint, error) {
+func (dp *DataPlane) getPodEndpoints(includeRemoteEndpoints bool) ([]*hcn.HostComputeEndpoint, error) {
 	klog.Infof("Getting all endpoints for Network ID %s", dp.networkID)
 	endpoints, err := dp.ioShim.Hns.ListEndpointsOfNetwork(dp.networkID)
 	if err != nil {
 		return nil, err
 	}
 
-	if remoteEndpoints {
-		return endpoints, nil
-	}
-
-	localEndpoints := make([]hcn.HostComputeEndpoint, 0)
+	localEndpoints := make([]*hcn.HostComputeEndpoint, 0)
 	for _, e := range endpoints {
-		if e.Flags == hcn.EndpointFlagsNone {
-			localEndpoints = append(localEndpoints, e)
+		if includeRemoteEndpoints || e.Flags == hcn.EndpointFlagsNone {
+			// having EndpointFlagsNone means it is a local endpoint
+			localEndpoints = append(localEndpoints, &e)
 		}
 	}
 	return localEndpoints, nil
@@ -349,7 +347,7 @@ func (dp *DataPlane) refreshPodEndpoints(remoteEndpoints bool) error {
 		oldNPMEP, ok := dp.endpointCache.cache[ip]
 		if !ok {
 			// add the endpoint to the cache if it's not already there
-			npmEP := newNPMEndpoint(&endpoint)
+			npmEP := newNPMEndpoint(endpoint)
 			dp.endpointCache.cache[ip] = npmEP
 			// NOTE: TSGs rely on this log line
 			klog.Infof("updating endpoint cache to include %s: %+v", npmEP.ip, npmEP)
@@ -357,7 +355,7 @@ func (dp *DataPlane) refreshPodEndpoints(remoteEndpoints bool) error {
 			// multiple endpoints can have the same IP address, but there should be one endpoint ID per pod
 			// throw away old endpoints that have the same IP as a current endpoint (the old endpoint is getting deleted)
 			// we don't have to worry about cleaning up network policies on endpoints that are getting deleted
-			npmEP := newNPMEndpoint(&endpoint)
+			npmEP := newNPMEndpoint(endpoint)
 			if oldNPMEP.podKey == unspecifiedPodKey {
 				klog.Infof("updating endpoint cache since endpoint changed for IP which never had a pod key. new endpoint: %s, old endpoint: %s, ip: %s", npmEP.id, oldNPMEP.id, npmEP.ip)
 				dp.endpointCache.cache[ip] = npmEP

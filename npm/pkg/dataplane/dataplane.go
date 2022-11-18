@@ -16,7 +16,6 @@ import (
 
 const (
 	reconcileTimeInMinutes int  = 5
-	refreshAllEndpoints    bool = true
 	refreshLocalEndpoints  bool = false
 )
 
