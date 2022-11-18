@@ -37,6 +37,12 @@ func Endpoint(epID, ip string) *hcn.HostComputeEndpoint {
 	}
 }
 
+func RemoteEndpoint(epID, ip string) *hcn.HostComputeEndpoint {
+	e := Endpoint(epID, ip)
+	e.Flags = hcn.EndpointFlagsRemoteEndpoint
+	return e
+}
+
 func SetPolicy(setMetadata *ipsets.IPSetMetadata, members ...string) *hcn.SetPolicySetting {
 	pType := hcn.SetPolicyType("")
 	switch setMetadata.GetSetKind() {

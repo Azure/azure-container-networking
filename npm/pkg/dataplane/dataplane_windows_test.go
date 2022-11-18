@@ -15,7 +15,7 @@ import (
 
 const (
 	defaultHNSLatency  = time.Duration(0)
-	threadedHNSLatency = time.Duration(1 * time.Second)
+	threadedHNSLatency = time.Duration(50 * time.Millisecond)
 )
 
 func TestAllSerialCases(t *testing.T) {
