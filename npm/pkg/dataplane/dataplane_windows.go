@@ -14,9 +14,11 @@ import (
 )
 
 const (
-	maxNoNetRetryCount  int  = 240 // max wait time 240*5 == 20 mins
-	maxNoNetSleepTime   int  = 5   // in seconds
-	refreshAllEndpoints bool = true
+	maxNoNetRetryCount int = 240 // max wait time 240*5 == 20 mins
+	maxNoNetSleepTime  int = 5   // in seconds
+
+	refreshAllEndpoints   bool = true
+	refreshLocalEndpoints bool = false
 )
 
 var (
@@ -43,10 +45,6 @@ func (dp *DataPlane) initializeDataPlane() error {
 	// reset endpoint cache so that netpol references are removed for all endpoints while refreshing pod endpoints
 	// no need to lock endpointCache at boot up
 	dp.endpointCache.cache = make(map[string]*npmEndpoint)
-	err = dp.refreshPodEndpoints(refreshAllEndpoints)
-	if err != nil {
-		return err
-	}
 
 	return nil
 }
@@ -80,10 +78,23 @@ func (dp *DataPlane) getNetworkInfo() error {
 func (dp *DataPlane) bootupDataPlane() error {
 	// initialize the DP so the podendpoints will get updated.
 	if err := dp.initializeDataPlane(); err != nil {
-		return err
+		return npmerrors.SimpleErrorWrapper("failed to initialize dataplane", err)
 	}
 
-	epIDs := dp.getAllEndpointIDs()
+	// for backwards compatibility, get remote allEndpoints to delete as well
+	allEndpoints, err := dp.getPodEndpoints(refreshAllEndpoints)
+	if err != nil {
+		return npmerrors.SimpleErrorWrapper("failed to get all pod endpoints", err)
+	}
+
+	// TODO once we make endpoint refreshing smarter, it would be most efficient to use allEndpoints to refreshPodEndpoints here.
+	// But currently, we call refreshPodEndpoints for every Pod event, so this optimization wouldn't do anything for now.
+	// There's also no need to refreshPodEndpoints at bootup since we don't know of any Pods at this point, and the endpoint cache is only needed for known Pods.
+
+	epIDs := make([]string, len(allEndpoints))
+	for k, e := range allEndpoints {
+		epIDs[k] = e.Id
+	}
 
 	// It is important to keep order to clean-up ACLs before ipsets. Otherwise we won't be able to delete ipsets referenced by ACLs
 	if err := dp.policyMgr.Bootup(epIDs); err != nil {
@@ -298,6 +309,9 @@ func (dp *DataPlane) getPodEndpoints(includeRemoteEndpoints bool) ([]*hcn.HostCo
 		if includeRemoteEndpoints || e.Flags == hcn.EndpointFlagsNone {
 			// having EndpointFlagsNone means it is a local endpoint
 			localEndpoints = append(localEndpoints, e)
+		} else {
+			// TODO remove for GA
+			klog.Infof("ignoring remote endpoint. ID: %s, IP configs: %+v", e.Id, e.IpConfigurations)
 		}
 	}
 	return localEndpoints, nil
@@ -320,8 +334,8 @@ Why can we refresh only once before updating all pods in the updatePodCache (see
 - Again, it's ok if we try to apply on a non-existent endpoint.
 - We won't miss the endpoint (see the assumption). At the time the pod event came in (when AddToSets/RemoveFromSets were called), HNS already knew about the endpoint.
 */
-func (dp *DataPlane) refreshPodEndpoints(remoteEndpoints bool) error {
-	endpoints, err := dp.getPodEndpoints(remoteEndpoints)
+func (dp *DataPlane) refreshPodEndpoints() error {
+	endpoints, err := dp.getPodEndpoints(refreshLocalEndpoints)
 	if err != nil {
 		return err
 	}
@@ -406,15 +420,6 @@ func (dp *DataPlane) setNetworkIDByName(networkName string) error {
 
 	dp.networkID = network.Id
 	return nil
-}
-
-func (dp *DataPlane) getAllEndpointIDs() []string {
-	// no need to lock endpointCache at boot up
-	endpointIDs := make([]string, 0, len(dp.endpointCache.cache))
-	for _, endpoint := range dp.endpointCache.cache {
-		endpointIDs = append(endpointIDs, endpoint.id)
-	}
-	return endpointIDs
 }
 
 func isNetworkNotFoundErr(err error) bool {

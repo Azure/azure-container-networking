@@ -14,10 +14,7 @@ import (
 	"k8s.io/klog"
 )
 
-const (
-	reconcileTimeInMinutes int  = 5
-	refreshLocalEndpoints  bool = false
-)
+const reconcileTimeInMinutes int = 5
 
 type PolicyMode string
 
@@ -217,7 +214,7 @@ func (dp *DataPlane) ApplyDataPlane() error {
 	}
 
 	if dp.shouldUpdatePod() {
-		err := dp.refreshPodEndpoints(refreshLocalEndpoints)
+		err := dp.refreshPodEndpoints()
 		if err != nil {
 			metrics.SendErrorLogAndMetric(util.DaemonDataplaneID, "[DataPlane] failed to refresh endpoints while updating pods. err: [%s]", err.Error())
 			return fmt.Errorf("[DataPlane] failed to refresh endpoints while updating pods. err: [%w]", err)
