@@ -30,10 +30,12 @@ func (c *MockCNSClient) RequestIPAddress(ctx context.Context, ipconfig cns.IPCon
 		return nil, errFoo
 	case "failProcessCNSResp":
 		result := &cns.IPConfigResponse{
-			PodIpInfo: cns.PodIpInfo{
-				PodIPConfig: cns.IPSubnet{
-					IPAddress:    "10.0.1.10.2", // invalid ip address
-					PrefixLength: 24,
+			PodIPInfo: []cns.PodIpInfo{
+				{
+					PodIPConfig: cns.IPSubnet{
+						IPAddress:    "10.0.1.10.2", // invalid ip address
+						PrefixLength: 24,
+					},
 				},
 				NetworkContainerPrimaryIPConfig: cns.IPConfiguration{
 					IPSubnet: cns.IPSubnet{
@@ -57,10 +59,12 @@ func (c *MockCNSClient) RequestIPAddress(ctx context.Context, ipconfig cns.IPCon
 		return result, nil
 	default:
 		result := &cns.IPConfigResponse{
-			PodIpInfo: cns.PodIpInfo{
-				PodIPConfig: cns.IPSubnet{
-					IPAddress:    "10.0.1.10",
-					PrefixLength: 24,
+			PodIpInfo: []cns.PodIpInfo{
+				{
+					PodIPConfig: cns.IPSubnet{
+						IPAddress:    "10.0.1.10",
+						PrefixLength: 24,
+					},
 				},
 				NetworkContainerPrimaryIPConfig: cns.IPConfiguration{
 					IPSubnet: cns.IPSubnet{
@@ -162,16 +166,6 @@ func TestCmdAdd(t *testing.T) {
 							IP:   net.IPv4(10, 0, 1, 10),
 							Mask: net.CIDRMask(24, 32),
 						},
-						Gateway: net.IPv4(10, 0, 0, 1),
-					},
-				},
-				Routes: []*cniTypes.Route{
-					{
-						Dst: net.IPNet{
-							IP:   net.IPv4(0, 0, 0, 0),
-							Mask: net.CIDRMask(0, 32),
-						},
-						GW: net.IPv4(10, 0, 0, 1),
 					},
 				},
 				DNS: cniTypes.DNS{},

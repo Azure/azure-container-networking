@@ -560,8 +560,8 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 		return err
 	}
 
-	sendEvent(plugin, fmt.Sprintf("CNI ADD succeeded : IP:%+v, VlanID: %v, podname %v, namespace %v numendpoints:%d",
-		ipamAddResult.ipv4Result.IPs, epInfo.Data[network.VlanIDKey], k8sPodName, k8sNamespace, plugin.nm.GetNumberOfEndpoints("", nwCfg.Name)))
+	sendEvent(plugin, fmt.Sprintf("CNI ADD succeeded : ipv4 IP:%+v, ipv6 IP:%+v:,VlanID: %v, podname %v, namespace %v numendpoints:%d",
+		ipamAddResult.ipv4Result.IPs, ipamAddResult.ipv6Result.IPs, epInfo.Data[network.VlanIDKey], k8sPodName, k8sNamespace, plugin.nm.GetNumberOfEndpoints("", nwCfg.Name)))
 
 	return nil
 }

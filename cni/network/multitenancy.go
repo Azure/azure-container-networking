@@ -276,7 +276,7 @@ func getInfraVnetIP(
 	infraSubnet string,
 	nwCfg *cni.NetworkConfig,
 	plugin *NetPlugin,
-) (*cniTypesCurr.Result, error) {
+) (cniResults []cniTypesCurr.Result, err error) {
 	if enableInfraVnet {
 		_, ipNet, _ := net.ParseCIDR(infraSubnet)
 		nwCfg.Ipam.Subnet = ipNet.String()
@@ -289,7 +289,13 @@ func getInfraVnetIP(
 			return nil, err
 		}
 
-		return ipamAddResult.ipv4Result, nil
+		if ipamAddResult.ipv4Result != nil {
+			cniResults = append(cniResults, *ipamAddResult.ipv4Result)
+		} else {
+			cniResults = append(cniResults, *ipamAddResult.ipv6Result)
+		}
+
+		return cniResults, nil
 	}
 
 	return nil, nil
