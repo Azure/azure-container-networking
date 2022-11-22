@@ -182,7 +182,8 @@ func (creator *FileCreator) runCommandOnceWithFile(fileString, cmd string, args 
 
 	klog.Infof("running this restore command: [%s]", commandString)
 	creator.tryCount++
-	creator.logLines(commandString)
+	// TODO uncomment for debugging or after ensuring no performance decrease
+	// creator.logLines(commandString)
 
 	command := creator.ioShim.Exec.Command(cmd, args...)
 	command.SetStdin(bytes.NewBufferString(fileString))
