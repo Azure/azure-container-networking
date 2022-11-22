@@ -293,10 +293,11 @@ func (dp *DataPlane) getPodEndpoints(includeRemoteEndpoints bool) ([]*hcn.HostCo
 	}
 
 	localEndpoints := make([]*hcn.HostComputeEndpoint, 0)
-	for _, e := range endpoints {
+	for k := range endpoints {
+		e := &endpoints[k]
 		if includeRemoteEndpoints || e.Flags == hcn.EndpointFlagsNone {
 			// having EndpointFlagsNone means it is a local endpoint
-			localEndpoints = append(localEndpoints, &e)
+			localEndpoints = append(localEndpoints, e)
 		}
 	}
 	return localEndpoints, nil
