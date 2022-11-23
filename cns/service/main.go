@@ -45,6 +45,7 @@ import (
 	"github.com/Azure/azure-container-networking/crd/clustersubnetstate/api/v1alpha1"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
+	"github.com/Azure/azure-container-networking/fs"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/nmagent"
 	"github.com/Azure/azure-container-networking/platform"
@@ -492,15 +493,15 @@ func main() {
 
 	var conflistGenerator restserver.CNIConflistGenerator
 	if cnsconfig.EnableCNIConflistGeneration {
-		conflistFile, createErr := os.Create(cnsconfig.CNIConflistFilepath)
-		if createErr != nil {
-			logger.Errorf("[Azure CNS] failed to open file %s for writing: %v", cnsconfig.CNIConflistFilepath, err)
+		writer, err := fs.NewAtomicWriter(cnsconfig.CNIConflistFilepath)
+		if err != nil {
+			logger.Errorf("unable to create atomic writer to generate cni conflist: %v", err)
 			os.Exit(1)
 		}
 
 		switch scenario := cniConflistScenario(cnsconfig.CNIConflistScenario); scenario {
 		case scenarioV4Overlay:
-			conflistGenerator = &cniconflist.V4OverlayGenerator{Writer: conflistFile}
+			conflistGenerator = &cniconflist.V4OverlayGenerator{Writer: writer}
 		default:
 			logger.Errorf("unable to generate cni conflist for unknown scenario: %s", scenario)
 			os.Exit(1)
