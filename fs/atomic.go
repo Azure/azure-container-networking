@@ -21,7 +21,7 @@ func NewAtomicWriter(filename string) (*AtomicWriter, error) {
 		if os.IsNotExist(err) {
 			exists = false
 		} else {
-			return nil, err
+			return nil, errors.Wrap(err, "unable to stat existing file")
 		}
 	}
 
@@ -31,7 +31,7 @@ func NewAtomicWriter(filename string) (*AtomicWriter, error) {
 		}
 	}
 
-	tempFile, err := os.CreateTemp("", path.Base(filename))
+	tempFile, err := os.CreateTemp(path.Dir(filename), path.Base(filename)+"*.tmp")
 	if err != nil {
 		return nil, errors.Wrap(err, "unable to create temporary file")
 	}

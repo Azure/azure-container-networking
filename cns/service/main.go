@@ -493,9 +493,9 @@ func main() {
 
 	var conflistGenerator restserver.CNIConflistGenerator
 	if cnsconfig.EnableCNIConflistGeneration {
-		writer, err := fs.NewAtomicWriter(cnsconfig.CNIConflistFilepath)
-		if err != nil {
-			logger.Errorf("unable to create atomic writer to generate cni conflist: %v", err)
+		writer, newWriterErr := fs.NewAtomicWriter(cnsconfig.CNIConflistFilepath)
+		if newWriterErr != nil {
+			logger.Errorf("unable to create atomic writer to generate cni conflist: %v", newWriterErr)
 			os.Exit(1)
 		}
 
