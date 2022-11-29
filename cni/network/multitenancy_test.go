@@ -59,12 +59,12 @@ func (c *MockCNSClient) ReleaseIPAddress(_ context.Context, ipconfig cns.IPConfi
 	return c.release.err
 }
 
-func (c *MockCNSClient) GetNetworkContainerWithOrchestratorContext(ctx context.Context, orchestratorContext []byte) (*cns.GetNetworkContainerResponse, error) {
+func (c *MockCNSClient) GetNetworkContainer(ctx context.Context, orchestratorContext []byte) (*cns.GetNetworkContainerResponse, error) {
 	c.require.Exactly(c.getNetworkContainerConfiguration.orchestratorContext, orchestratorContext)
 	return c.getNetworkContainerConfiguration.returnResponse, c.getNetworkContainerConfiguration.err
 }
 
-func (c *MockCNSClient) GetNetworkContainersWithOrchestratorContext(ctx context.Context, orchestratorContext []byte) ([]cns.GetNetworkContainerResponse, error) {
+func (c *MockCNSClient) GetNetworkContainers(ctx context.Context, orchestratorContext []byte) ([]cns.GetNetworkContainerResponse, error) {
 	c.require.Exactly(c.getNetworkContainersConfiguration.orchestratorContext, orchestratorContext)
 	return c.getNetworkContainersConfiguration.returnResponse, c.getNetworkContainersConfiguration.err
 }
@@ -346,7 +346,7 @@ func TestGetMultiTenancyCNINCResponses(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			got1, _, err := tt.args.plugin.multitenancyClient.GetNetworkContainersWithOrchestratorContext(
+			got1, _, err := tt.args.plugin.multitenancyClient.GetNetworkContainers(
 				tt.args.ctx,
 				tt.args.nwCfg,
 				tt.args.k8sPodName,
@@ -516,7 +516,7 @@ func TestGetMultiTenancyCNIResult(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			got1, got2, err := tt.args.plugin.multitenancyClient.GetNetworkContainerWithOrchestratorContext(
+			got1, got2, err := tt.args.plugin.multitenancyClient.GetNetworkContainer(
 				tt.args.ctx,
 				tt.args.nwCfg,
 				tt.args.k8sPodName,

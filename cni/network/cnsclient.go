@@ -9,6 +9,6 @@ import (
 type cnsclient interface {
 	RequestIPAddress(ctx context.Context, ipconfig cns.IPConfigRequest) (*cns.IPConfigResponse, error)
 	ReleaseIPAddress(ctx context.Context, ipconfig cns.IPConfigRequest) error
-	GetNetworkContainerWithOrchestratorContext(ctx context.Context, orchestratorContext []byte) (*cns.GetNetworkContainerResponse, error)
-	GetNetworkContainersWithOrchestratorContext(ctx context.Context, orchestratorContext []byte) ([]cns.GetNetworkContainerResponse, error)
+	GetNetworkContainer(ctx context.Context, orchestratorContext []byte) (*cns.GetNetworkContainerResponse, error)
+	GetNetworkContainers(ctx context.Context, orchestratorContext []byte) ([]cns.GetNetworkContainerResponse, error)
 }

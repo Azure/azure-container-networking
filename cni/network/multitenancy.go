@@ -37,12 +37,12 @@ type MultitenancyClient interface {
 	DetermineSnatFeatureOnHost(
 		snatFile string,
 		nmAgentSupportedApisURL string) (bool, bool, error)
-	GetNetworkContainerWithOrchestratorContext(
+	GetNetworkContainer(
 		ctx context.Context,
 		nwCfg *cni.NetworkConfig,
 		podName string,
 		podNamespace string) (*cns.GetNetworkContainerResponse, net.IPNet, error)
-	GetNetworkContainersWithOrchestratorContext(
+	GetNetworkContainers(
 		ctx context.Context,
 		nwCfg *cni.NetworkConfig,
 		podName string,
@@ -185,7 +185,7 @@ func (m *Multitenancy) SetupRoutingForMultitenancy(
 	setupInfraVnetRoutingForMultitenancy(nwCfg, azIpamResult, epInfo, result)
 }
 
-func (m *Multitenancy) GetNetworkContainerWithOrchestratorContext(
+func (m *Multitenancy) GetNetworkContainer(
 	ctx context.Context, nwCfg *cni.NetworkConfig, podName, podNamespace string,
 ) (*cns.GetNetworkContainerResponse, net.IPNet, error) {
 	var podNameWithoutSuffix string
@@ -209,7 +209,7 @@ func (m *Multitenancy) GetNetworkContainerWithOrchestratorContext(
 }
 
 // get all network container configurations for given orchestratorContext
-func (m *Multitenancy) GetNetworkContainersWithOrchestratorContext(
+func (m *Multitenancy) GetNetworkContainers(
 	ctx context.Context, nwCfg *cni.NetworkConfig, podName, podNamespace string,
 ) ([]cns.GetNetworkContainerResponse, []net.IPNet, error) {
 	var podNameWithoutSuffix string
@@ -252,7 +252,7 @@ func (m *Multitenancy) getNetworkContainersWithOrchestratorContextInternal(
 		return nil, []net.IPNet{}, fmt.Errorf("%w", err)
 	}
 
-	ncConfigs, err := m.cnsclient.GetNetworkContainersWithOrchestratorContext(ctx, orchestratorContext)
+	ncConfigs, err := m.cnsclient.GetNetworkContainers(ctx, orchestratorContext)
 	if err != nil {
 		log.Printf("GetConfigsForNetworkContainers failed with %v", err)
 		return nil, []net.IPNet{}, fmt.Errorf("%w", err)
@@ -289,22 +289,22 @@ func (m *Multitenancy) getNetworkContainerWithOrchestratorContextInternal(
 		return nil, net.IPNet{}, fmt.Errorf("%w", err)
 	}
 
-	networkConfig, err := m.cnsclient.GetNetworkContainerWithOrchestratorContext(ctx, orchestratorContext)
+	ncConfig, err := m.cnsclient.GetNetworkContainer(ctx, orchestratorContext)
 	if err != nil {
 		log.Printf("GetNetworkConfiguration failed with %v", err)
 		return nil, net.IPNet{}, fmt.Errorf("%w", err)
 	}
 
-	log.Printf("Network config received from cns %+v", networkConfig)
+	log.Printf("Network config received from cns %+v", ncConfig)
 
-	subnetPrefix := m.netioshim.GetInterfaceSubnetWithSpecificIP(networkConfig.PrimaryInterfaceIdentifier)
+	subnetPrefix := m.netioshim.GetInterfaceSubnetWithSpecificIP(ncConfig.PrimaryInterfaceIdentifier)
 	if subnetPrefix == nil {
-		errBuf := fmt.Errorf("%w %s", errIfaceNotFound, networkConfig.PrimaryInterfaceIdentifier)
+		errBuf := fmt.Errorf("%w %s", errIfaceNotFound, ncConfig.PrimaryInterfaceIdentifier)
 		log.Printf(errBuf.Error())
 		return nil, net.IPNet{}, errBuf
 	}
 
-	return networkConfig, *subnetPrefix, nil
+	return ncConfig, *subnetPrefix, nil
 }
 
 func convertToCniResult(networkConfig *cns.GetNetworkContainerResponse, ifName string) *cniTypesCurr.Result {

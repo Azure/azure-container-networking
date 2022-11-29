@@ -874,7 +874,6 @@ func (service *HTTPRestService) getNetworkContainersByOrchestratorContext(w http
 	}
 
 	getNetworkContainersResponse := service.getNetworkContainersResponse(req)
-	logger.Printf("getNetworkContainersResponses are %v", getNetworkContainersResponse)
 
 	var resp cns.GetAllNetworkContainersResponse
 	if getNetworkContainersResponse != nil {
@@ -966,6 +965,7 @@ func (service *HTTPRestService) deleteNetworkContainer(w http.ResponseWriter, r 
 
 		if containerStatus.CreateNetworkContainerRequest.NetworkContainerType == cns.WebApps {
 			nc := service.networkContainer
+			//nolint:gocritic // err name is ok
 			if err := nc.Delete(ncid); err != nil {
 				returnMessage = fmt.Sprintf("[Azure CNS] Error. DeleteNetworkContainer failed %v", err.Error())
 				returnCode = types.UnexpectedError

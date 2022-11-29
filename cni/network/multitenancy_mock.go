@@ -44,7 +44,7 @@ func (m *MockMultitenancy) DetermineSnatFeatureOnHost(snatFile, nmAgentSupported
 	return true, true, nil
 }
 
-func (m *MockMultitenancy) GetNetworkContainerWithOrchestratorContext(
+func (m *MockMultitenancy) GetNetworkContainer(
 	ctx context.Context,
 	nwCfg *cni.NetworkConfig,
 	podName string,
@@ -81,7 +81,7 @@ func (m *MockMultitenancy) GetNetworkContainerWithOrchestratorContext(
 	return cnsResponse, *ipnet, nil
 }
 
-func (m *MockMultitenancy) GetNetworkContainersWithOrchestratorContext(
+func (m *MockMultitenancy) GetNetworkContainers(
 	ctx context.Context,
 	nwCfg *cni.NetworkConfig,
 	podName string,

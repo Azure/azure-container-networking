@@ -69,6 +69,7 @@ type HTTPRestService struct {
 	dncPartitionKey    string
 	EndpointState      map[string]*EndpointInfo // key : container id
 	EndpointStateStore store.KeyValueStore
+	mu                 sync.RWMutex
 }
 
 type EndpointInfo struct {

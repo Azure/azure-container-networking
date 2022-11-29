@@ -447,13 +447,8 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 			return fmt.Errorf("%w", err)
 		}
 
-		ncResponses, hostSubnetPrefixes, err := plugin.multitenancyClient.GetNetworkContainersWithOrchestratorContext(
+		ncResponses, hostSubnetPrefixes, err := plugin.multitenancyClient.GetNetworkContainers(
 			context.TODO(), nwCfg, k8sPodName, k8sNamespace)
-		if err != nil {
-			err = errors.Wrapf(err, "GetNetworkContainers failed for podname %v namespace %v", k8sPodName, k8sNamespace)
-			log.Printf("%+v", err)
-			return err
-		}
 
 		if hostSubnetPrefixes == nil {
 			err = errors.Wrap(err, "failed to get host prefixes")
@@ -462,8 +457,8 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 
 		if ncResponses == nil {
 			// if ncResponses are nil, the current system is using old CNS version. To be compatible with old CNS version, the old CNI API should be invoked
-			log.Printf("CNS is old version, invoke old CNI API")
-			ipamAddResult.ncResponse, ipamAddResult.hostSubnetPrefix, err = plugin.multitenancyClient.GetNetworkContainerWithOrchestratorContext(
+			log.Printf("CNS is old version, try invoking the old CNI API")
+			ipamAddResult.ncResponse, ipamAddResult.hostSubnetPrefix, err = plugin.multitenancyClient.GetNetworkContainer(
 				context.TODO(), nwCfg, k8sPodName, k8sNamespace)
 			if err != nil {
 				err = errors.Wrapf(err, "GetNetworkContainer failed for podname %v namespace %v", k8sPodName, k8sNamespace)
@@ -475,14 +470,16 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 			log.Printf("PrimaryInterfaceIdentifier: %v", ipamAddResult.hostSubnetPrefix.IP.String())
 		} else {
 			if err != nil {
-				err = errors.Wrapf(err, "GetNetworkContainersWithOrchestratorContext failed for podname %v namespace %v", k8sPodName, k8sNamespace)
+				err = errors.Wrapf(err, "GetNetworkContainers failed for podname %v namespace %v", k8sPodName, k8sNamespace)
 				log.Printf("%+v", err)
 				return err
 			}
 
+			// currently only allow dual NICs to be created
 			var ncResponsesCopy [2]cns.GetNetworkContainerResponse
-			for i := 0; i < len(ncResponses); i++ {
-				ncResponsesCopy[i] = ncResponses[i]
+			//nolint:gocritic // copy is ok
+			for i, nc := range ncResponses {
+				ncResponsesCopy[i] = nc
 				ipamAddResult.ncResponse = &ncResponsesCopy[i]
 				ipamAddResult.ipv4Result = convertToCniResult(ipamAddResult.ncResponse, args.IfName)
 				ipamAddResult.hostSubnetPrefix = hostSubnetPrefixes[i]
@@ -505,6 +502,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 		if err != nil {
 			log.Printf("[cni-net] Failed to extract network name from network config. error: %v", err)
 			return err
+
 		}
 
 		endpointID := GetEndpointID(args)
@@ -1178,8 +1176,8 @@ func (plugin *NetPlugin) Update(args *cniSkel.CmdArgs) error {
 		return plugin.Errorf(err.Error())
 	}
 
-	if targetNetworkConfig, err = cnsclient.GetNetworkContainerWithOrchestratorContext(context.TODO(), orchestratorContext); err != nil {
-		log.Printf("GetNetworkContainerWithOrchestratorContext failed with %v", err)
+	if targetNetworkConfig, err = cnsclient.GetNetworkContainer(context.TODO(), orchestratorContext); err != nil {
+		log.Printf("GetNetworkContainer failed with %v", err)
 		return plugin.Errorf(err.Error())
 	}
 

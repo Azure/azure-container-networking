@@ -639,7 +639,7 @@ func TestGetNetworkConfiguration(t *testing.T) {
 			orchestratorContext, err := json.Marshal(tt.podInfo)
 			assert.NoError(t, err, "marshaling orchestrator context failed")
 
-			got, err := client.GetNetworkContainerWithOrchestratorContext(tt.ctx, orchestratorContext)
+			got, err := client.GetNetworkContainer(tt.ctx, orchestratorContext)
 			if tt.wantErr {
 				assert.Error(t, err)
 			} else {
