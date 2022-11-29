@@ -66,15 +66,12 @@ type HTTPRestService struct {
 	state                    *httpRestServiceState
 	podsPendingIPAssignment  *bounded.TimedSet
 	sync.RWMutex
-	dncPartitionKey    string
-	EndpointState      map[string]*EndpointInfo // key : container id
-	EndpointStateStore store.KeyValueStore
-	mu                 sync.RWMutex
 	dncPartitionKey         string
 	EndpointState           map[string]*EndpointInfo // key : container id
 	EndpointStateStore      store.KeyValueStore
 	cniConflistGenerator    CNIConflistGenerator
 	generateCNIConflistOnce sync.Once
+	mu                      sync.RWMutex
 }
 
 type CNIConflistGenerator interface {

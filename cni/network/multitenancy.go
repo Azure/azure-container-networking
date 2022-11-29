@@ -262,10 +262,10 @@ func (m *Multitenancy) getNetworkContainersWithOrchestratorContextInternal(
 
 	var subnetPrefixes []net.IPNet
 
-	for i := 0; i < len(ncConfigs); i++ {
-		subnetPrefix := m.netioshim.GetInterfaceSubnetWithSpecificIP(ncConfigs[i].PrimaryInterfaceIdentifier)
+	for _, ncConfig := range ncConfigs {
+		subnetPrefix := m.netioshim.GetInterfaceSubnetWithSpecificIP(ncConfig.PrimaryInterfaceIdentifier)
 		if subnetPrefix == nil {
-			errBuf := fmt.Errorf("%w %s", errIfaceNotFound, ncConfigs[i].PrimaryInterfaceIdentifier)
+			errBuf := fmt.Errorf("%w %s", errIfaceNotFound, ncConfig.PrimaryInterfaceIdentifier)
 			log.Printf(errBuf.Error())
 			return nil, []net.IPNet{}, errBuf
 		}
