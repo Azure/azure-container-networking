@@ -71,12 +71,20 @@ jobs:
         npm_windows_amd64:
           arch: amd64
           name: npm
+          ai_path: github.com/Azure/azure-container-networking/npm.aiMetadata
+          ai_path_var: NPM_AI_PATH
+          ai_id: 014c22bd-4107-459e-8475-67909e96edcb
+          ai_id_var: NPM_AI_ID
     steps:
       - template: ../containers/container-template-windows.yaml
         parameters:
           name: $(name)
           arch: $(arch)
           tag: $(TAG)
+          ai_path: $(ai_path)
+          ai_path_var: $(ai_path_var)
+          ai_id: $(ai_id)
+          ai_id_var: $(ai_id_var)
 
   - job: k8se2e
     displayName: "Build Kubernetes Test Suite"

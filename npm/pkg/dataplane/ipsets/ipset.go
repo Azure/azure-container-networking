@@ -5,8 +5,8 @@ import (
 	"fmt"
 
 	"github.com/Azure/azure-container-networking/log"
+	"github.com/Azure/azure-container-networking/npm/metrics"
 	"github.com/Azure/azure-container-networking/npm/util"
-	"k8s.io/klog"
 )
 
 type IPSetMetadata struct {
@@ -64,10 +64,10 @@ func (setMetadata *IPSetMetadata) GetPrefixName() string {
 	case EmptyHashSet:
 		return fmt.Sprintf("%s%s", util.EmptySetPrefix, setMetadata.Name)
 	case UnknownType: // adding this to appease golint
-		klog.Errorf("experienced unknown type in set metadata: %+v", setMetadata)
+		metrics.SendErrorLogAndMetric(util.UtilID, "experienced unknown type in set metadata: %+v", setMetadata)
 		return Unknown
 	default:
-		klog.Errorf("experienced unexpected type %d in set metadata: %+v", setMetadata.Type, setMetadata)
+		metrics.SendErrorLogAndMetric(util.UtilID, "experienced unexpected type %d in set metadata: %+v", setMetadata.Type, setMetadata)
 		return Unknown
 	}
 }

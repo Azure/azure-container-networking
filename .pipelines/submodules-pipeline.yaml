@@ -199,15 +199,27 @@ stages:
             cns_windows_amd64:
               arch: amd64
               name: cns
+              ai_path: github.com/Azure/azure-container-networking/cns/logger.aiMetadata
+              ai_path_var: CNS_AI_PATH
+              ai_id: ce672799-8f08-4235-8c12-08563dc2acef
+              ai_id_var: CNS_AI_ID
             npm_windows_amd64:
               arch: amd64
               name: npm
+              ai_path: github.com/Azure/azure-container-networking/npm.aiMetadata
+              ai_path_var: NPM_AI_PATH
+              ai_id: 014c22bd-4107-459e-8475-67909e96edcb
+              ai_id_var: NPM_AI_ID
         steps:
           - template: containers/container-template-windows.yaml
             parameters:
               name: $(name)
               arch: $(arch)
               tag: $(TAG)
+              ai_path: $(ai_path)
+              ai_path_var: $(ai_path_var)
+              ai_id: $(ai_id)
+              ai_id_var: $(ai_id_var)
 
   - stage: publish
     displayName: Publish Multiarch Manifests
@@ -245,6 +257,14 @@ stages:
       pipelineBuildImage: "$(BUILD_IMAGE)"
       testDropgz: true
       clusterName: "submodules-ciliume2e"
+    
+  - template: singletenancy/overlay/overlay-e2e-job-template.yaml
+    parameters:
+      name: "overlay_e2e"
+      displayName: Cilium on AKS Overlay
+      pipelineBuildImage: "$(BUILD_IMAGE)"
+      testDropgz: true
+      clusterName: "submodules-overlaye2e"
 
   - template: singletenancy/aks-swift/e2e-job-template.yaml
     parameters:
@@ -252,7 +272,7 @@ stages:
       displayName: AKS Swift
       pipelineBuildImage: "$(BUILD_IMAGE)"
       testDropgz: true
-      clusterName: "submodules-swifte2e"
+      clusterName: "submodswift"
       osSku: "Ubuntu"
 
   - stage: cleanup

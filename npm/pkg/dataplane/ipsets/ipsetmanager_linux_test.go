@@ -489,6 +489,8 @@ func TestDestroyNPMIPSets(t *testing.T) {
 				{Cmd: ipsetRestoreStringSlice, ExitCode: 1},
 				{Cmd: ipsetRestoreStringSlice, ExitCode: 1},
 				{Cmd: ipsetRestoreStringSlice, ExitCode: 1},
+				{Cmd: ipsetRestoreStringSlice, ExitCode: 1},
+				{Cmd: ipsetRestoreStringSlice, ExitCode: 1},
 			},
 			wantErr: true,
 		},
@@ -503,6 +505,8 @@ func TestDestroyNPMIPSets(t *testing.T) {
 				{Cmd: []string{"ipset", "list"}, PipedToCommand: true},
 				{Cmd: []string{"grep", "-B", "5", "-P", "References: [1-9]"}, PipedToCommand: true},
 				{Cmd: []string{"grep", "-o", "-P", "azure-npm-\\d+"}, ExitCode: 1},
+				{Cmd: ipsetRestoreStringSlice, ExitCode: 1},
+				{Cmd: ipsetRestoreStringSlice, ExitCode: 1},
 				{Cmd: ipsetRestoreStringSlice, ExitCode: 1},
 				{Cmd: ipsetRestoreStringSlice, ExitCode: 1},
 				{Cmd: ipsetRestoreStringSlice, ExitCode: 1},
@@ -726,7 +730,9 @@ func TestApplyIPSetsFailureOnSave(t *testing.T) {
 
 func TestApplyIPSetsFailureOnRestore(t *testing.T) {
 	calls := []testutils.TestCmd{
-		// fail 3 times because this is our max try count
+		// fail 5 times because this is our max try count
+		{Cmd: ipsetRestoreStringSlice, ExitCode: 1},
+		{Cmd: ipsetRestoreStringSlice, ExitCode: 1},
 		{Cmd: ipsetRestoreStringSlice, ExitCode: 1},
 		{Cmd: ipsetRestoreStringSlice, ExitCode: 1},
 		{Cmd: ipsetRestoreStringSlice, ExitCode: 1},
@@ -743,7 +749,9 @@ func TestApplyIPSetsFailureOnRestore(t *testing.T) {
 	calls = []testutils.TestCmd{
 		{Cmd: ipsetSaveStringSlice, PipedToCommand: true},
 		{Cmd: []string{"grep", "azure-npm-"}},
-		// fail 3 times because this is our max try count
+		// fail 5 times because this is our max try count
+		{Cmd: ipsetRestoreStringSlice, ExitCode: 1},
+		{Cmd: ipsetRestoreStringSlice, ExitCode: 1},
 		{Cmd: ipsetRestoreStringSlice, ExitCode: 1},
 		{Cmd: ipsetRestoreStringSlice, ExitCode: 1},
 		{Cmd: ipsetRestoreStringSlice, ExitCode: 1},

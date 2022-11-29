@@ -35,7 +35,7 @@ func TestMain(m *testing.M) {
 		Mode:              "bridge",
 		Master:            eth0IfName,
 		IPsToRouteViaHost: []string{"169.254.20.10"},
-		Ipam: struct {
+		IPAM: struct {
 			Mode          string `json:"mode,omitempty"`
 			Type          string `json:"type"`
 			Environment   string `json:"environment,omitempty"`

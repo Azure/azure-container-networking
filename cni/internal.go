@@ -18,8 +18,8 @@ const (
 func CallPlugin(plugin PluginApi, cmd string, args *cniSkel.CmdArgs, nwCfg *NetworkConfig) (*cniTypes.Result, error) {
 	var err error
 
-	savedType := nwCfg.Ipam.Type
-	nwCfg.Ipam.Type = Internal
+	savedType := nwCfg.IPAM.Type
+	nwCfg.IPAM.Type = Internal
 	args.StdinData = nwCfg.Serialize()
 
 	// Call the plugin's internal interface.
@@ -29,7 +29,7 @@ func CallPlugin(plugin PluginApi, cmd string, args *cniSkel.CmdArgs, nwCfg *Netw
 		err = plugin.Delete(args)
 	}
 
-	nwCfg.Ipam.Type = savedType
+	nwCfg.IPAM.Type = savedType
 
 	if err != nil {
 		return nil, err

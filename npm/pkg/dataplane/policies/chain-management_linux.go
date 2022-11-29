@@ -178,7 +178,9 @@ func (pMgr *PolicyManager) bootup(_ []string) error {
 	if deprecatedErrCode == 0 {
 		klog.Infof("deleted deprecated jump rule from FORWARD chain to AZURE-NPM chain")
 	} else if deprecatedErr != nil {
-		klog.Errorf("failed to delete deprecated jump rule from FORWARD chain to AZURE-NPM chain for unexpected reason with exit code %d and error: %s", deprecatedErrCode, deprecatedErr.Error())
+		metrics.SendErrorLogAndMetric(util.IptmID,
+			"failed to delete deprecated jump rule from FORWARD chain to AZURE-NPM chain for unexpected reason with exit code %d and error: %s",
+			deprecatedErrCode, deprecatedErr.Error())
 	}
 
 	currentChains, err := ioutil.AllCurrentAzureChains(pMgr.ioShim.Exec, util.IptablesDefaultWaitTime)
@@ -437,12 +439,12 @@ func (pMgr *PolicyManager) chainLineNumber(chain string) (int, error) {
 			lineNumberString := string(searchResults[0:firstSpaceIndex])
 			lineNum, err := strconv.Atoi(lineNumberString)
 			if err != nil {
-				return 0, errNoLineNumber
+				return 0, npmerrors.SimpleErrorWrapper(fmt.Sprintf("unable to parse line number. lineNumberString: [%s]. searchResults: [%s]", lineNumberString, string(searchResults)), errNoLineNumber)
 			}
 			return lineNum, nil
 		}
 	}
-	return 0, errUnexpectedLineNumberString
+	return 0, npmerrors.SimpleErrorWrapper(fmt.Sprintf("unable to parse line number. searchResults: [%s]", string(searchResults)), errUnexpectedLineNumberString)
 }
 
 func onMarkSpecs(mark string) []string {
