@@ -8,7 +8,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net"
 	"net/http"
 	"net/http/pprof"
 	"os"
@@ -512,32 +511,13 @@ func main() {
 	z, _ := zap.NewProduction()
 	go healthserver.Start(z, cnsconfig.MetricsBindAddress)
 
-	nmaConfig := nmagent.Config{
-		Host: "168.63.129.16", // wireserver
-
-		// nolint:gomnd // there's no benefit to constantizing a well-known port
-		Port: 80,
+	nmaConfig, err := cnsconfig.NMAgentConfig()
+	if err != nil {
+		logger.Errorf("[Azure CNS] Failed to produce NMAgent config from supplied configuration: %v", err)
+		return
 	}
 
-	// create an NMAgent Client based on provided configuration
-	if cnsconfig.WireserverIP != "" {
-		host, prt, err := net.SplitHostPort(cnsconfig.WireserverIP) //nolint:govet // it's fine to shadow err here
-		if err != nil {
-			logger.Errorf("[Azure CNS] Invalid IP for Wireserver: %q: %s", cnsconfig.WireserverIP, err.Error())
-			return
-		}
-
-		port, err := strconv.ParseUint(prt, 10, 16) //nolint:gomnd // obvious from ParseUint docs
-		if err != nil {
-			logger.Errorf("[Azure CNS] Invalid port value for Wireserver: %q: %s", cnsconfig.WireserverIP, err.Error())
-			return
-		}
-
-		nmaConfig.Host = host
-		nmaConfig.Port = uint16(port)
-	}
-
-	nmaClient, err := nmagent.NewClient(nmaConfig)
+	nmaClient, err := nmagent.NewClient(nmagent.Config(nmaConfig))
 	if err != nil {
 		logger.Errorf("[Azure CNS] Failed to start nmagent client due to error: %v", err)
 		return
