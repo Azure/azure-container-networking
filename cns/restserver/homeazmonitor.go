@@ -30,8 +30,8 @@ type HomeAzMonitor struct {
 	cacheRefreshIntervalSecs time.Duration
 }
 
-// New creates a new HomeAzMonitor object
-func New(client nmagentClient, cacheRefreshIntervalSecs time.Duration) *HomeAzMonitor {
+// NewHomeAzMonitor creates a new HomeAzMonitor object
+func NewHomeAzMonitor(client nmagentClient, cacheRefreshIntervalSecs time.Duration) *HomeAzMonitor {
 	return &HomeAzMonitor{
 		nmagentClient:            client,
 		cacheRefreshIntervalSecs: cacheRefreshIntervalSecs,
@@ -141,7 +141,7 @@ func (h *HomeAzMonitor) populate(ctx context.Context) {
 		return
 	}
 
-	h.update(types.Success, "Get Home Az successfully", cns.HomeAzResponse{IsSupported: true, HomeAz: azResponse.HomeAz})
+	h.update(types.Success, "Get Home Az succeeded", cns.HomeAzResponse{IsSupported: true, HomeAz: azResponse.HomeAz})
 }
 
 // update constructs a GetHomeAzResponse entity and update its cache

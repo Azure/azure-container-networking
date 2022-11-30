@@ -65,7 +65,7 @@ func TestHomeAzMonitor(t *testing.T) {
 		test := test
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-			homeAzMonitor := New(test.client, time.Second)
+			homeAzMonitor := NewHomeAzMonitor(test.client, time.Second)
 			homeAzMonitor.Start()
 
 			getHomeAzResponse := homeAzMonitor.GetHomeAz(context.TODO())

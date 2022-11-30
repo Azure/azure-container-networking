@@ -543,7 +543,8 @@ func main() {
 		return
 	}
 
-	homeAzMonitor := restserver.New(nmaClient, time.Duration(cnsconfig.PopulateHomeAzCacheRetryIntervalSecs)*time.Second)
+	homeAzMonitor := restserver.NewHomeAzMonitor(nmaClient, time.Duration(cnsconfig.PopulateHomeAzCacheRetryIntervalSecs)*time.Second)
+	logger.Printf("start the goroutine for refreshing homeAz")
 	homeAzMonitor.Start()
 
 	if cnsconfig.ChannelMode == cns.Managed {
