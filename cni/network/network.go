@@ -503,7 +503,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 	endpointID := GetEndpointID(args)
 	policies := cni.GetPoliciesFromNwCfg(nwCfg.AdditionalArgs)
 
-	options := make(map[string]interface{})
+	options := make(map[string]any)
 	// Check whether the network already exists.
 	nwInfo, nwInfoErr := plugin.nm.GetNetworkInfo(networkID)
 	// Handle consecutive ADD calls for infrastructure containers.

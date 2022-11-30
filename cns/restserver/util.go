@@ -367,8 +367,8 @@ func (service *HTTPRestService) getNetworkContainersResponse(
 		getNetworkContainerResponse cns.GetNetworkContainerResponse
 	)
 
-	service.mu.Lock()
-	defer service.mu.Unlock()
+	service.Lock()
+	defer service.Unlock()
 
 	switch service.state.OrchestratorType {
 	case cns.Kubernetes:

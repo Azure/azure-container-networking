@@ -71,7 +71,6 @@ type HTTPRestService struct {
 	EndpointStateStore      store.KeyValueStore
 	cniConflistGenerator    CNIConflistGenerator
 	generateCNIConflistOnce sync.Once
-	mu                      sync.RWMutex
 }
 
 type CNIConflistGenerator interface {

@@ -727,19 +727,7 @@ func (service *HTTPRestService) setOrchestratorType(w http.ResponseWriter, r *ht
 
 	if nodeID == "" || nodeID == req.NodeID || !service.areNCsPresent() {
 		switch req.OrchestratorType {
-		case cns.ServiceFabric:
-			fallthrough
-		case cns.Kubernetes:
-			fallthrough
-		case cns.KubernetesCRD:
-			fallthrough
-		case cns.WebApps:
-			fallthrough
-		case cns.Batch:
-			fallthrough
-		case cns.DBforPostgreSQL:
-			fallthrough
-		case cns.AzureFirstParty:
+		case cns.ServiceFabric, cns.Kubernetes, cns.KubernetesCRD, cns.WebApps, cns.Batch, cns.DBforPostgreSQL, cns.AzureFirstParty:
 			service.state.OrchestratorType = req.OrchestratorType
 			service.state.NodeID = req.NodeID
 			logger.SetContextDetails(req.OrchestratorType, req.NodeID)
