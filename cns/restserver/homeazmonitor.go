@@ -24,9 +24,7 @@ type HomeAzMonitor struct {
 	nmagentClient
 	values *cache.Cache
 	// channel used as signal to end of the goroutine for populating home az cache
-	closing chan struct{}
-	// channel used as signal to block the Start() of HomeAzMonitor until the first request to retrieve home az completes
-	block                    chan struct{}
+	closing                  chan struct{}
 	cacheRefreshIntervalSecs time.Duration
 }
 
@@ -37,7 +35,6 @@ func NewHomeAzMonitor(client nmagentClient, cacheRefreshIntervalSecs time.Durati
 		cacheRefreshIntervalSecs: cacheRefreshIntervalSecs,
 		values:                   cache.New(cache.NoExpiration, cache.NoExpiration),
 		closing:                  make(chan struct{}),
-		block:                    make(chan struct{}),
 	}
 }
 
@@ -53,15 +50,19 @@ func (h *HomeAzMonitor) updateCacheValue(resp cns.GetHomeAzResponse) {
 
 // readCacheValue reads home az cache value
 func (h *HomeAzMonitor) readCacheValue() cns.GetHomeAzResponse {
-	cachedResp, _ := h.values.Get(homeAzCacheKey)
+	cachedResp, found := h.values.Get(homeAzCacheKey)
+	if !found {
+		return cns.GetHomeAzResponse{Response: cns.Response{
+			ReturnCode: types.UnexpectedError,
+			Message:    "HomeAz Cache is unavailable",
+		}, HomeAzResponse: cns.HomeAzResponse{IsSupported: false}}
+	}
 	return cachedResp.(cns.GetHomeAzResponse)
 }
 
 // Start starts a new thread to refresh home az cache
 func (h *HomeAzMonitor) Start() {
 	go h.refresh()
-	// block until the first request to nmagent for retrieving home az completes
-	<-h.block
 }
 
 // Stop ends the refresh thread
@@ -73,11 +74,8 @@ func (h *HomeAzMonitor) Stop() {
 func (h *HomeAzMonitor) refresh() {
 	// Ticker will not tick right away, so proactively make a call here to achieve that
 	ctx, cancel := context.WithTimeout(context.Background(), ContextTimeOut)
-	h.populate(ctx)
+	h.Populate(ctx)
 	cancel()
-
-	// unblock Start()
-	h.block <- struct{}{}
 
 	ticker := time.NewTicker(h.cacheRefreshIntervalSecs)
 	defer ticker.Stop()
@@ -87,14 +85,14 @@ func (h *HomeAzMonitor) refresh() {
 			return
 		case <-ticker.C:
 			ctx, cancel = context.WithTimeout(context.Background(), ContextTimeOut)
-			h.populate(ctx)
+			h.Populate(ctx)
 			cancel()
 		}
 	}
 }
 
-// populate makes call to nmagent to retrieve home az if getHomeAz api is supported by nmagent
-func (h *HomeAzMonitor) populate(ctx context.Context) {
+// Populate makes call to nmagent to retrieve home az if getHomeAz api is supported by nmagent
+func (h *HomeAzMonitor) Populate(ctx context.Context) {
 	supportedApis, err := h.SupportedAPIs(ctx)
 	if err != nil {
 		returnMessage := fmt.Sprintf("[HomeAzMonitor] failed to query nmagent's supported apis, %v", err)

@@ -66,7 +66,7 @@ func TestHomeAzMonitor(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			homeAzMonitor := NewHomeAzMonitor(test.client, time.Second)
-			homeAzMonitor.Start()
+			homeAzMonitor.Populate(context.TODO())
 
 			getHomeAzResponse := homeAzMonitor.GetHomeAz(context.TODO())
 			// check the homeAz cache value
