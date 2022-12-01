@@ -371,15 +371,7 @@ func (service *HTTPRestService) getNetworkContainersResponse(
 	defer service.Unlock()
 
 	switch service.state.OrchestratorType {
-	case cns.Kubernetes:
-		fallthrough
-	case cns.ServiceFabric:
-		fallthrough
-	case cns.Batch:
-		fallthrough
-	case cns.DBforPostgreSQL:
-		fallthrough
-	case cns.AzureFirstParty:
+	case cns.Kubernetes, cns.ServiceFabric, cns.Batch, cns.DBforPostgreSQL, cns.AzureFirstParty:
 		podInfo, err := cns.UnmarshalPodInfo(req.OrchestratorContext)
 		if err != nil {
 			getNetworkContainerResponse.Response.ReturnCode = types.UnexpectedError

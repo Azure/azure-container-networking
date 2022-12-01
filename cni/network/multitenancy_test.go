@@ -318,7 +318,7 @@ func TestGetMultiTenancyCNINCResponses(t *testing.T) {
 					EnableSnatOnHost:           true,
 					EnableExactMatchForPodName: true,
 					InfraVnetAddressSpace:      "10.0.0.0/16",
-					Ipam:                       ipamStruct{Type: "azure-vnet-ipam"},
+					IPAM:                       cni.IPAM{Type: "azure-vnet-ipam"},
 				},
 				plugin: &NetPlugin{
 					ipamInvoker: NewMockIpamInvoker(false, false, false),

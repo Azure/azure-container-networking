@@ -953,9 +953,8 @@ func (service *HTTPRestService) deleteNetworkContainer(w http.ResponseWriter, r 
 
 		if containerStatus.CreateNetworkContainerRequest.NetworkContainerType == cns.WebApps {
 			nc := service.networkContainer
-			//nolint:gocritic // err name is ok
-			if err := nc.Delete(ncid); err != nil {
-				returnMessage = fmt.Sprintf("[Azure CNS] Error. DeleteNetworkContainer failed %v", err.Error())
+			if deleteErr := nc.Delete(ncid); deleteErr != nil {
+				returnMessage = fmt.Sprintf("[Azure CNS] Error. DeleteNetworkContainer failed %v", deleteErr.Error())
 				returnCode = types.UnexpectedError
 				break
 			}
@@ -970,8 +969,8 @@ func (service *HTTPRestService) deleteNetworkContainer(w http.ResponseWriter, r 
 
 		if service.state.ContainerIDByOrchestratorContext != nil {
 			for oc := range service.state.ContainerIDByOrchestratorContext {
-				if err := service.state.ContainerIDByOrchestratorContext[oc].Delete(ncid); err != nil {
-					logger.Printf("Not able to delete networkContainerId %s due to %+v", ncid, err)
+				if deleteErr := service.state.ContainerIDByOrchestratorContext[oc].Delete(ncid); deleteErr != nil {
+					logger.Printf("Not able to delete networkContainerId %s due to %+v", ncid, deleteErr)
 				}
 			}
 		}

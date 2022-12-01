@@ -316,10 +316,8 @@ func addNatIPV6SubnetInfo(nwCfg *cni.NetworkConfig,
 	}
 }
 
-//
 // CNI implementation
 // https://github.com/containernetworking/cni/blob/master/SPEC.md
-//
 
 // Add handles CNI add commands.
 func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
@@ -475,12 +473,10 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 				return err
 			}
 
-			// currently only allow dual NICs to be created
-			var ncResponsesCopy [2]cns.GetNetworkContainerResponse
+			// currently DNC only allows to create dual NICs
 			//nolint:gocritic // copy is ok
 			for i, nc := range ncResponses {
-				ncResponsesCopy[i] = nc
-				ipamAddResult.ncResponse = &ncResponsesCopy[i]
+				ipamAddResult.ncResponse = &nc
 				ipamAddResult.ipv4Result = convertToCniResult(ipamAddResult.ncResponse, args.IfName)
 				ipamAddResult.hostSubnetPrefix = hostSubnetPrefixes[i]
 				ipamAddResults = append(ipamAddResults, ipamAddResult)
@@ -489,7 +485,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 	} else {
 		ipamAddResults = append(ipamAddResults, ipamAddResult)
 	}
-  
+
 	// get each ipamAddResult
 	for i := 0; i < len(ipamAddResults); i++ {
 		if nwCfg.MultiTenancy {
@@ -500,38 +496,12 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 
 		networkID, err := plugin.getNetworkName(args.Netns, &ipamAddResult, nwCfg)
 
-	endpointID := GetEndpointID(args)
-	policies := cni.GetPoliciesFromNwCfg(nwCfg.AdditionalArgs)
-
-	options := make(map[string]any)
-	// Check whether the network already exists.
-	nwInfo, nwInfoErr := plugin.nm.GetNetworkInfo(networkID)
-	// Handle consecutive ADD calls for infrastructure containers.
-	// This is a temporary work around for issue #57253 of Kubernetes.
-	// We can delete this if statement once they fix it.
-	// Issue link: https://github.com/kubernetes/kubernetes/issues/57253
-  
-	if nwInfoErr == nil {
-		log.Printf("[cni-net] Found network %v with subnet %v.", networkID, nwInfo.Subnets[0].Prefix.String())
-		nwInfo.IPAMType = nwCfg.IPAM.Type
-		options = nwInfo.Options
-
-		var resultSecondAdd *cniTypesCurr.Result
-		resultSecondAdd, err = plugin.handleConsecutiveAdd(args, endpointID, networkID, &nwInfo, nwCfg)
-    
-		if err != nil {
-			log.Printf("[cni-net] Failed to extract network name from network config. error: %v", err)
-			return err
-
-		}
-
 		endpointID := GetEndpointID(args)
 		policies := cni.GetPoliciesFromNwCfg(nwCfg.AdditionalArgs)
 
 		options := make(map[string]any)
 		// Check whether the network already exists.
 		nwInfo, nwInfoErr := plugin.nm.GetNetworkInfo(networkID)
-
 		// Handle consecutive ADD calls for infrastructure containers.
 		// This is a temporary work around for issue #57253 of Kubernetes.
 		// We can delete this if statement once they fix it.
@@ -539,7 +509,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 
 		if nwInfoErr == nil {
 			log.Printf("[cni-net] Found network %v with subnet %v.", networkID, nwInfo.Subnets[0].Prefix.String())
-			nwInfo.IPAMType = nwCfg.Ipam.Type
+			nwInfo.IPAMType = nwCfg.IPAM.Type
 			options = nwInfo.Options
 
 			var resultSecondAdd *cniTypesCurr.Result
@@ -554,12 +524,12 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 				return nil
 			}
 		}
-    
-	// Initialize azureipam/cns ipam
-	if plugin.ipamInvoker == nil {
-		switch nwCfg.IPAM.Type {
-		case network.AzureCNS:
-			plugin.ipamInvoker = NewCNSInvoker(k8sPodName, k8sNamespace, cnsClient, util.ExecutionMode(nwCfg.ExecutionMode), util.IpamMode(nwCfg.IPAM.Mode))
+
+		// Initialize azureipam/cns ipam
+		if plugin.ipamInvoker == nil {
+			switch nwCfg.IPAM.Type {
+			case network.AzureCNS:
+				plugin.ipamInvoker = NewCNSInvoker(k8sPodName, k8sNamespace, cnsClient, util.ExecutionMode(nwCfg.ExecutionMode), util.IpamMode(nwCfg.IPAM.Mode))
 
 			default:
 				plugin.ipamInvoker = NewAzureIpamInvoker(plugin, &nwInfo)
@@ -622,6 +592,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 
 		sendEvent(plugin, fmt.Sprintf("CNI ADD succeeded : IP:%+v, VlanID: %v, podname %v, namespace %v numendpoints:%d",
 			ipamAddResult.ipv4Result.IPs, epInfo.Data[network.VlanIDKey], k8sPodName, k8sNamespace, plugin.nm.GetNumberOfEndpoints("", nwCfg.Name)))
+
 	}
 
 	return nil
