@@ -115,19 +115,6 @@ func (nm *networkManager) Initialize(config *common.PluginConfig, isRehydrationR
 func (nm *networkManager) Uninitialize() {
 }
 
-// Remove the lock on the key-value store
-func (nm *networkManager) unlockStore() error {
-	if nm.store != nil {
-		err := nm.store.Unlock()
-		if err != nil {
-			log.Printf("[cni] Failed to unlock store: %v.", err)
-			return err
-		}
-	}
-	nm.store = nil
-	return nil
-}
-
 // Restore reads network manager state from persistent store.
 func (nm *networkManager) restore(isRehydrationRequired bool) error {
 	log.Printf("entering restore func...")
@@ -146,21 +133,29 @@ func (nm *networkManager) restore(isRehydrationRequired bool) error {
 		log.Printf("[cni] Failed to lock store: %v.", err)
 		return err
 	}
+	// Remove the lock on the key-value store
+	defer func() {
+		if nm.store != nil {
+			err := nm.store.Unlock()
+			if err != nil {
+				log.Printf("[cni] Failed to unlock store: %v.", err)
+			}
+		}
+		nm.store = nil
+	}()
+
 	// Read any persisted state.
 	err := nm.store.Read(storeKey, nm)
 	if err != nil {
 		if err == store.ErrKeyNotFound {
 			log.Printf("[net] network store key not found")
 			// Considered successful.
-			nm.unlockStore()
 			return nil
 		} else if err == store.ErrStoreEmpty {
 			log.Printf("[net] network store empty")
-			nm.unlockStore()
 			return nil
 		} else {
 			log.Printf("[net] Failed to restore state, err:%v\n", err)
-			nm.unlockStore()
 			return err
 		}
 	}
@@ -176,7 +171,6 @@ func (nm *networkManager) restore(isRehydrationRequired bool) error {
 				if clearNwConfig, err := platform.ClearNetworkConfiguration(); clearNwConfig {
 					if err != nil {
 						log.Printf("[net] Failed to clear network configuration, err:%v\n", err)
-						nm.unlockStore()
 						return err
 					}
 
@@ -193,7 +187,6 @@ func (nm *networkManager) restore(isRehydrationRequired bool) error {
 					for extIfName := range nm.ExternalInterfaces {
 						delete(nm.ExternalInterfaces, extIfName)
 					}
-					nm.unlockStore()
 					return nil
 				}
 			}
@@ -214,7 +207,6 @@ func (nm *networkManager) restore(isRehydrationRequired bool) error {
 				nwInfo, err := nm.GetNetworkInfo(nw.Id)
 				if err != nil {
 					log.Printf("[net] Failed to fetch network info for network %v extif %v err %v. This should not happen", nw, extIf, err)
-					nm.unlockStore()
 					return err
 				}
 
@@ -223,7 +215,6 @@ func (nm *networkManager) restore(isRehydrationRequired bool) error {
 				_, err = nm.newNetworkImpl(&nwInfo, extIf)
 				if err != nil {
 					log.Printf("[net] Restoring network failed for nwInfo %v extif %v. This should not happen %v", nwInfo, extIf, err)
-					nm.unlockStore()
 					return err
 				}
 			}
@@ -237,7 +228,6 @@ func (nm *networkManager) restore(isRehydrationRequired bool) error {
 		}
 	}
 
-	nm.unlockStore()
 	return nil
 }
 
@@ -257,13 +247,23 @@ func (nm *networkManager) save() error {
 		log.Printf("[cni] Failed to lock store: %v.", err)
 		return err
 	}
+	// Remove the lock on the key-value store
+	defer func() {
+		if nm.store != nil {
+			err := nm.store.Unlock()
+			if err != nil {
+				log.Printf("[cni] Failed to unlock store: %v.", err)
+			}
+		}
+		nm.store = nil
+	}()
+
 	err := nm.store.Write(storeKey, nm)
 	if err == nil {
 		log.Printf("[net] Save succeeded.\n")
 	} else {
 		log.Printf("[net] Save failed, err:%v\n", err)
 	}
-	nm.unlockStore()
 	return err
 }
 
