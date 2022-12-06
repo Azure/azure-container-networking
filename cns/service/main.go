@@ -40,7 +40,6 @@ import (
 	"github.com/Azure/azure-container-networking/cns/wireserver"
 	acn "github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/crd"
-	"github.com/Azure/azure-container-networking/crd/clustersubnetstate"
 	"github.com/Azure/azure-container-networking/crd/clustersubnetstate/api/v1alpha1"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
@@ -1082,7 +1081,11 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 		})
 	}
 	// create scoped kube clients.
-	nnccli, err := nodenetworkconfig.NewClient(kubeConfig)
+	directcli, err := client.New(kubeConfig, client.Options{Scheme: nodenetworkconfig.Scheme})
+	if err != nil {
+		return errors.Wrap(err, "failed to create ctrl client")
+	}
+	nnccli := nodenetworkconfig.NewClient(directcli)
 	if err != nil {
 		return errors.Wrap(err, "failed to create NNC client")
 	}
@@ -1176,23 +1179,15 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 	nodeIP := configuration.NodeIP()
 
 	// NodeNetworkConfig reconciler
-	nncReconciler := nncctrl.NewReconciler(httpRestServiceImplementation, nnccli, poolMonitor, nodeIP)
+	nncReconciler := nncctrl.NewReconciler(httpRestServiceImplementation, poolMonitor, nodeIP)
 	// pass Node to the Reconciler for Controller xref
 	if err := nncReconciler.SetupWithManager(manager, node); err != nil { //nolint:govet // intentional shadow
 		return errors.Wrapf(err, "failed to setup nnc reconciler with manager")
 	}
 
 	if cnsconfig.EnableSubnetScarcity {
-		cssCli, err := clustersubnetstate.NewClient(kubeConfig)
-		if err != nil {
-			return errors.Wrapf(err, "failed to init css client")
-		}
-
 		// ClusterSubnetState reconciler
-		cssReconciler := cssctrl.Reconciler{
-			Cli:  cssCli,
-			Sink: clusterSubnetStateChan,
-		}
+		cssReconciler := cssctrl.New(clusterSubnetStateChan)
 		if err := cssReconciler.SetupWithManager(manager); err != nil {
 			return errors.Wrapf(err, "failed to setup css reconciler with manager")
 		}

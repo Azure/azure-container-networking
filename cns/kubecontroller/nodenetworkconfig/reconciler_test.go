@@ -174,7 +174,8 @@ func TestReconcile(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			r := NewReconciler(&tt.cnsClient, &tt.ncGetter, &tt.cnsClient, tt.nodeIP)
+			r := NewReconciler(&tt.cnsClient, &tt.cnsClient, tt.nodeIP)
+			r.nnccli = &tt.ncGetter
 			got, err := r.Reconcile(context.Background(), tt.in)
 			if tt.wantErr {
 				require.Error(t, err)

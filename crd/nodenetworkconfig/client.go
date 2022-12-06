@@ -13,9 +13,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
-	ctrlcli "sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	ctrlutil "sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
@@ -23,71 +23,54 @@ import (
 var Scheme = runtime.NewScheme()
 
 func init() {
-	_ = clientgoscheme.AddToScheme(Scheme)
+	_ = scheme.AddToScheme(Scheme)
 	_ = v1alpha.AddToScheme(Scheme)
 }
 
-// Client is provided to interface with the NodeNetworkConfig CRDs.
-type Client struct {
-	nnccli ctrlcli.Client
-	crdcli typedv1.CustomResourceDefinitionInterface
+// Installer provides methods to manage the lifecycle of the NodeNetworkConfig resource definition.
+type Installer struct {
+	cli typedv1.CustomResourceDefinitionInterface
 }
 
-// NewClient creates a new NodeNetworkConfig client from the passed k8s Config.
-func NewClient(c *rest.Config) (*Client, error) {
-	crdCli, err := crd.NewCRDClient(c)
+func NewInstaller(c *rest.Config) (*Installer, error) {
+	cli, err := crd.NewCRDClientFromConfig(c)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to init crd client")
 	}
-	opts := ctrlcli.Options{
-		Scheme: Scheme,
-	}
-	nncCli, err := ctrlcli.New(c, opts)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to init nnc client")
-	}
-	return &Client{
-		crdcli: crdCli,
-		nnccli: nncCli,
+	return &Installer{
+		cli: cli,
 	}, nil
 }
 
-func (c *Client) create(ctx context.Context, res *v1.CustomResourceDefinition) (*v1.CustomResourceDefinition, error) {
-	res, err := c.crdcli.Create(ctx, res, metav1.CreateOptions{})
+func (i *Installer) create(ctx context.Context, res *v1.CustomResourceDefinition) (*v1.CustomResourceDefinition, error) {
+	res, err := i.cli.Create(ctx, res, metav1.CreateOptions{})
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to create nnc crd")
 	}
 	return res, nil
 }
 
-// Get returns the NodeNetworkConfig identified by the NamespacedName.
-func (c *Client) Get(ctx context.Context, key types.NamespacedName) (*v1alpha.NodeNetworkConfig, error) {
-	nodeNetworkConfig := &v1alpha.NodeNetworkConfig{}
-	err := c.nnccli.Get(ctx, key, nodeNetworkConfig)
-	return nodeNetworkConfig, errors.Wrapf(err, "failed to get nnc %v", key)
-}
-
 // Install installs the embedded NodeNetworkConfig CRD definition in the cluster.
-func (c *Client) Install(ctx context.Context) (*v1.CustomResourceDefinition, error) {
+func (i *Installer) Install(ctx context.Context) (*v1.CustomResourceDefinition, error) {
 	nnc, err := GetNodeNetworkConfigs()
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get embedded nnc crd")
 	}
-	return c.create(ctx, nnc)
+	return i.create(ctx, nnc)
 }
 
 // InstallOrUpdate installs the embedded NodeNetworkConfig CRD definition in the cluster or updates it if present.
-func (c *Client) InstallOrUpdate(ctx context.Context) (*v1.CustomResourceDefinition, error) {
+func (i *Installer) InstallOrUpdate(ctx context.Context) (*v1.CustomResourceDefinition, error) {
 	nnc, err := GetNodeNetworkConfigs()
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get embedded nnc crd")
 	}
-	current, err := c.create(ctx, nnc)
+	current, err := i.create(ctx, nnc)
 	if !apierrors.IsAlreadyExists(err) {
 		return current, err
 	}
 	if current == nil {
-		current, err = c.crdcli.Get(ctx, nnc.Name, metav1.GetOptions{})
+		current, err = i.cli.Get(ctx, nnc.Name, metav1.GetOptions{})
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to get existing nnc crd")
 		}
@@ -95,7 +78,7 @@ func (c *Client) InstallOrUpdate(ctx context.Context) (*v1.CustomResourceDefinit
 	if !reflect.DeepEqual(nnc.Spec.Versions, current.Spec.Versions) {
 		nnc.SetResourceVersion(current.GetResourceVersion())
 		previous := *current
-		current, err = c.crdcli.Update(ctx, nnc, metav1.UpdateOptions{})
+		current, err = i.cli.Update(ctx, nnc, metav1.UpdateOptions{})
 		if err != nil {
 			return &previous, errors.Wrap(err, "failed to update existing nnc crd")
 		}
@@ -103,11 +86,30 @@ func (c *Client) InstallOrUpdate(ctx context.Context) (*v1.CustomResourceDefinit
 	return current, nil
 }
 
+// Client provides methods to interact with instances of the NodeNetworkConfig custom resource.
+type Client struct {
+	cli client.Client
+}
+
+// NewClient creates a new NodeNetworkConfig client around the passed ctrlcli.Client.
+func NewClient(cli client.Client) *Client {
+	return &Client{
+		cli: cli,
+	}
+}
+
+// Get returns the NodeNetworkConfig identified by the NamespacedName.
+func (c *Client) Get(ctx context.Context, key types.NamespacedName) (*v1alpha.NodeNetworkConfig, error) {
+	nodeNetworkConfig := &v1alpha.NodeNetworkConfig{}
+	err := c.cli.Get(ctx, key, nodeNetworkConfig)
+	return nodeNetworkConfig, errors.Wrapf(err, "failed to get nnc %v", key)
+}
+
 // PatchSpec performs a server-side patch of the passed NodeNetworkConfigSpec to the NodeNetworkConfig specified by the NamespacedName.
 func (c *Client) PatchSpec(ctx context.Context, key types.NamespacedName, spec *v1alpha.NodeNetworkConfigSpec, fieldManager string) (*v1alpha.NodeNetworkConfig, error) {
 	obj := genPatchSkel(key)
 	obj.Spec = *spec
-	if err := c.nnccli.Patch(ctx, obj, ctrlcli.Apply, ctrlcli.ForceOwnership, ctrlcli.FieldOwner(fieldManager)); err != nil {
+	if err := c.cli.Patch(ctx, obj, client.Apply, client.ForceOwnership, client.FieldOwner(fieldManager)); err != nil {
 		return nil, errors.Wrap(err, "failed to patch nnc")
 	}
 	return obj, nil
@@ -121,7 +123,7 @@ func (c *Client) UpdateSpec(ctx context.Context, key types.NamespacedName, spec 
 		return nil, errors.Wrap(err, "failed to get nnc")
 	}
 	spec.DeepCopyInto(&nnc.Spec)
-	if err := c.nnccli.Update(ctx, nnc); err != nil {
+	if err := c.cli.Update(ctx, nnc); err != nil {
 		return nil, errors.Wrap(err, "failed to update nnc")
 	}
 	return nnc, nil
@@ -133,7 +135,7 @@ func (c *Client) SetOwnerRef(ctx context.Context, key types.NamespacedName, owne
 	if err := ctrlutil.SetControllerReference(owner, obj, Scheme); err != nil {
 		return nil, errors.Wrapf(err, "failed to set controller reference for nnc")
 	}
-	if err := c.nnccli.Patch(ctx, obj, ctrlcli.Apply, ctrlcli.ForceOwnership, ctrlcli.FieldOwner(fieldManager)); err != nil {
+	if err := c.cli.Patch(ctx, obj, client.Apply, client.ForceOwnership, client.FieldOwner(fieldManager)); err != nil {
 		return nil, errors.Wrapf(err, "failed to patch nnc")
 	}
 	return obj, nil
