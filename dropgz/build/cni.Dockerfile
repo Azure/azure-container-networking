@@ -16,7 +16,7 @@ ARG OS
 ARG ARCH
 WORKDIR /azure-container-networking
 COPY . .
-RUN curl -LO --cacert /etc/ssl/certs/ca-certificates.crt https://github.com/Azure/azure-container-networking/releases/download/v1.4.29/azure-vnet-cni-swift-$OS-$ARCH-v1.4.29.tgz && tar -xvf azure-vnet-cni-swift-$OS-$ARCH-v1.4.29.tgz
+RUN curl -LO --cacert /etc/ssl/certs/ca-certificates.crt https://github.com/Azure/azure-container-networking/releases/download/v1.4.35/azure-vnet-cni-swift-$OS-$ARCH-v1.4.35.tgz && tar -xvf azure-vnet-cni-swift-$OS-$ARCH-v1.4.35.tgz
 
 FROM mcr.microsoft.com/cbl-mariner/base/core:2.0 AS compressor
 ARG OS
