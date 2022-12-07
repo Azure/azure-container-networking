@@ -125,6 +125,8 @@ type containerstatus struct {
 	VfpUpdateComplete             bool // True when VFP programming is completed for the NC
 }
 
+// set key is nc, value is empty structure
+// i.e., &map[Swift_58d4f537-acac-47ba-a159-7ca7d7e775ce:{} Swift_af4829c3-d403-4bf1-8585-3e35b2ed97d7:{}]
 type Set map[string]struct{}
 
 func (s *Set) Add(nc string) {
@@ -171,6 +173,8 @@ func (s *Set) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// concatenate all nc string by comma and return bytes
+// i.e., "Swift_af4829c3-d403-4bf1-8585-3e35b2ed97d7,Swift_58d4f537-acac-47ba-a159-7ca7d7e775ce"
 func (s Set) MarshalJSON() ([]byte, error) {
 	result := make([]string, len(s))
 	index := 0
@@ -191,7 +195,7 @@ type httpRestServiceState struct {
 	OrchestratorType                 string
 	NodeID                           string
 	Initialized                      bool
-	ContainerIDByOrchestratorContext map[string]*Set            // OrchestratorContext is key and value is NetworkContainerID separated by comma.
+	ContainerIDByOrchestratorContext map[string]*Set            // OrchestratorContext is the key and value is NetworkContainerIDs separated by comma.
 	ContainerStatus                  map[string]containerstatus // NetworkContainerID is key.
 	Networks                         map[string]*networkInfo
 	TimeStamp                        time.Time

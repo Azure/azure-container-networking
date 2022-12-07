@@ -385,18 +385,22 @@ func (service *HTTPRestService) getNetworkContainersResponse(
 		exists := false
 		waitingForUpdate := false
 
+		// marshal nc set i.e.,&map[nc1:{} nc2:{}] to bytes
 		ncidBytes, err := json.Marshal(service.state.ContainerIDByOrchestratorContext[podInfo.Name()+podInfo.Namespace()])
 		if err != nil {
 			logger.Errorf("Failed to marlshal NC set")
 			return nil
 		}
 
+		// get networkContainerID, the format is "nc1,nc2"
+		// networkContainerID is used for isNCWaitingForUpdate() and stored for usage out of this case
 		networkContainerID = string(ncidBytes)
 		if networkContainerID != "" {
 			exists = true
 		}
 
 		ncSet := &Set{}
+		// unmarshal nc set i.e.,&map[nc1:{} nc2:{}] to list ["nc1","nc2"]
 		if err = json.Unmarshal(ncidBytes, &ncSet); err != nil {
 			logger.Errorf("Failed to unmarlshal NC set")
 			return nil
@@ -405,7 +409,7 @@ func (service *HTTPRestService) getNetworkContainersResponse(
 		if exists {
 			for ncid := range *ncSet {
 				// If the goal state is available with CNS, check if the NC is pending VFP programming
-				waitingForUpdate, getNetworkContainerResponse.Response.ReturnCode, getNetworkContainerResponse.Response.Message = service.isNCWaitingForUpdate(service.state.ContainerStatus[networkContainerID].CreateNetworkContainerRequest.Version, networkContainerID) //nolint:lll // bad code
+				waitingForUpdate, getNetworkContainerResponse.Response.ReturnCode, getNetworkContainerResponse.Response.Message = service.isNCWaitingForUpdate(service.state.ContainerStatus[ncid].CreateNetworkContainerRequest.Version, networkContainerID) //nolint:lll // bad code
 				// If the return code is not success, return the error to the caller
 				if getNetworkContainerResponse.Response.ReturnCode == types.NetworkContainerVfpProgramPending {
 					logger.Errorf("[Azure-CNS] isNCWaitingForUpdate failed for NCID: %s with error: %s",
@@ -457,8 +461,8 @@ func (service *HTTPRestService) getNetworkContainersResponse(
 		return getNetworkContainersResponse
 	}
 
+	// get ncSet from networkContainerID and unmarshal to list, i.e.,["nc1","nc2"]
 	ncSet := &Set{}
-
 	if err := json.Unmarshal([]byte(networkContainerID), &ncSet); err != nil {
 		fmt.Println("Failed to unmarshal NC set")
 	}

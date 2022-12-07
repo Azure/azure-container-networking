@@ -435,6 +435,9 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 		return fmt.Errorf("failed to create cns client with error: %w", err)
 	}
 
+	options := make(map[string]any)
+	ipamAddConfig := IPAMAddConfig{nwCfg: nwCfg, args: args, options: options}
+
 	if nwCfg.MultiTenancy {
 		plugin.report.Context = "AzureCNIMultitenancy"
 		plugin.multitenancyClient.Init(cnsClient, AzureNetIOShim{})
@@ -445,61 +448,39 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 			return fmt.Errorf("%w", err)
 		}
 
-		ncResponses, hostSubnetPrefixes, err := plugin.multitenancyClient.GetNetworkContainers(
+		// return ipamAddResults
+		ipamAddResults, err = plugin.multitenancyClient.GetNetworkContainers(
 			context.TODO(), nwCfg, k8sPodName, k8sNamespace)
 
-		if hostSubnetPrefixes == nil {
-			err = errors.Wrap(err, "failed to get host prefixes")
+		// API call itself gets failed no matter using old or new CNS client API version except errGetNCs
+		if err != nil {
+			err = errors.Wrapf(err, "GetNetworkContainers failed for podname %v namespace %v", k8sPodName, k8sNamespace)
+			log.Printf("%+v", err)
 			return err
 		}
 
-		if ncResponses == nil {
-			// if ncResponses are nil, the current system is using old CNS version. To be compatible with old CNS version, the old CNI API should be invoked
-			log.Printf("CNS is old version, try invoking the old CNI API")
-			ipamAddResult.ncResponse, ipamAddResult.hostSubnetPrefix, err = plugin.multitenancyClient.GetNetworkContainer(
-				context.TODO(), nwCfg, k8sPodName, k8sNamespace)
-			if err != nil {
-				err = errors.Wrapf(err, "GetNetworkContainer failed for podname %v namespace %v", k8sPodName, k8sNamespace)
-				return err
-			}
-			ipamAddResult.ipv4Result = convertToCniResult(ipamAddResult.ncResponse, args.IfName)
-			ipamAddResults = append(ipamAddResults, ipamAddResult)
-
-			log.Printf("PrimaryInterfaceIdentifier: %v", ipamAddResult.hostSubnetPrefix.IP.String())
-		} else {
-			if err != nil {
-				err = errors.Wrapf(err, "GetNetworkContainers failed for podname %v namespace %v", k8sPodName, k8sNamespace)
-				log.Printf("%+v", err)
-				return err
-			}
-
-			// currently DNC only allows to create dual NICs
-			//nolint:gocritic // copy is ok
-			for i, nc := range ncResponses {
-				ipamAddResult.ncResponse = &nc
-				ipamAddResult.ipv4Result = convertToCniResult(ipamAddResult.ncResponse, args.IfName)
-				ipamAddResult.hostSubnetPrefix = hostSubnetPrefixes[i]
-				ipamAddResults = append(ipamAddResults, ipamAddResult)
-			}
+		for i, ipamResult := range ipamAddResults {
+			ipamAddResults[i].ipv4Result = convertToCniResult(ipamResult.ncResponse, args.IfName)
 		}
 	} else {
+		// single tenancy mode
+		// No need to call Add if we already got IPAMAddResult in multitenancy section via GetNetworkContainer
+		ipamAddResult, err = plugin.ipamInvoker.Add(ipamAddConfig)
+		if err != nil {
+			return fmt.Errorf("IPAM Invoker Add failed with error: %w", err)
+		}
 		ipamAddResults = append(ipamAddResults, ipamAddResult)
+		sendEvent(plugin, fmt.Sprintf("Allocated IPAddress from ipam:%+v v6:%+v", ipamAddResult.ipv4Result, ipamAddResult.ipv6Result))
 	}
 
-	// get each ipamAddResult
+	// iterate ipamAddResults and program the endpoint
 	for i := 0; i < len(ipamAddResults); i++ {
-		if nwCfg.MultiTenancy {
-			ipamAddResult = ipamAddResults[i]
-		} else {
-			ipamAddResults = nil
-		}
+		ipamAddResult = ipamAddResults[i]
 
 		networkID, err := plugin.getNetworkName(args.Netns, &ipamAddResult, nwCfg)
-
 		endpointID := GetEndpointID(args)
 		policies := cni.GetPoliciesFromNwCfg(nwCfg.AdditionalArgs)
 
-		options := make(map[string]any)
 		// Check whether the network already exists.
 		nwInfo, nwInfoErr := plugin.nm.GetNetworkInfo(networkID)
 		// Handle consecutive ADD calls for infrastructure containers.
@@ -534,22 +515,6 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 			default:
 				plugin.ipamInvoker = NewAzureIpamInvoker(plugin, &nwInfo)
 			}
-		}
-
-		ipamAddConfig := IPAMAddConfig{nwCfg: nwCfg, args: args, options: options}
-		// No need to call Add if we already got IPAMAddResult in multitenancy section via GetContainerNetworkConfiguration
-		if !nwCfg.MultiTenancy {
-			ipamAddResult, err = plugin.ipamInvoker.Add(ipamAddConfig)
-			if err != nil {
-				return fmt.Errorf("IPAM Invoker Add failed with error: %w", err)
-			}
-			ipamAddResults = append(ipamAddResults, ipamAddResult)
-		}
-
-		sendEvent(plugin, fmt.Sprintf("Allocated IPAddress from ipam:%+v v6:%+v", ipamAddResult.ipv4Result, ipamAddResult.ipv6Result))
-
-		if err != nil {
-			plugin.cleanupAllocationOnError(ipamAddResult.ipv4Result, ipamAddResult.ipv6Result, nwCfg, args, options)
 		}
 
 		// Create network
@@ -592,7 +557,6 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 
 		sendEvent(plugin, fmt.Sprintf("CNI ADD succeeded : IP:%+v, VlanID: %v, podname %v, namespace %v numendpoints:%d",
 			ipamAddResult.ipv4Result.IPs, epInfo.Data[network.VlanIDKey], k8sPodName, k8sNamespace, plugin.nm.GetNumberOfEndpoints("", nwCfg.Name)))
-
 	}
 
 	return nil

@@ -37,16 +37,11 @@ type MultitenancyClient interface {
 	DetermineSnatFeatureOnHost(
 		snatFile string,
 		nmAgentSupportedApisURL string) (bool, bool, error)
-	GetNetworkContainer(
-		ctx context.Context,
-		nwCfg *cni.NetworkConfig,
-		podName string,
-		podNamespace string) (*cns.GetNetworkContainerResponse, net.IPNet, error)
 	GetNetworkContainers(
 		ctx context.Context,
 		nwCfg *cni.NetworkConfig,
 		podName string,
-		podNamespace string) ([]cns.GetNetworkContainerResponse, []net.IPNet, error)
+		podNamespace string) ([]IPAMAddResult, error)
 	Init(cnsclient cnsclient, netioshim netioshim)
 }
 
@@ -208,12 +203,21 @@ func (m *Multitenancy) GetNetworkContainer(
 	return ncResponse, hostSubnetPrefix, err
 }
 
-// get all network container configurations for given orchestratorContext
+// get all network container configuration(s) for given orchestratorContext
 func (m *Multitenancy) GetNetworkContainers(
 	ctx context.Context, nwCfg *cni.NetworkConfig, podName, podNamespace string,
-) ([]cns.GetNetworkContainerResponse, []net.IPNet, error) {
-	var podNameWithoutSuffix string
+) (ipamResults []IPAMAddResult, err error) {
 
+	var (
+		ipamResult           IPAMAddResult
+		podNameWithoutSuffix string
+		ncResponse           *cns.GetNetworkContainerResponse
+		ncResponses          []cns.GetNetworkContainerResponse
+		hostSubnetPrefix     net.IPNet
+		hostSubnetPrefixes   []net.IPNet
+	)
+
+	// call old API within this function
 	if !nwCfg.EnableExactMatchForPodName {
 		podNameWithoutSuffix = network.GetPodNameWithoutSuffix(podName)
 	} else {
@@ -222,25 +226,56 @@ func (m *Multitenancy) GetNetworkContainers(
 
 	log.Printf("Podname without suffix %v", podNameWithoutSuffix)
 
-	ncResponses, hostSubnetPrefixes, err := m.getNetworkContainersWithOrchestratorContextInternal(ctx, podNamespace, podNameWithoutSuffix)
-
+	// try to use new CNS client API for dual nic mode
+	ncResponses, hostSubnetPrefixes, err = m.getNetworkContainersWithOrchestratorContextInternal(ctx, podNamespace, podNameWithoutSuffix)
 	if ncResponses != nil {
 		for i := 0; i < len(ncResponses); i++ {
 			if nwCfg.EnableSnatOnHost {
 				if ncResponses[i].LocalIPConfiguration.IPSubnet.IPAddress == "" {
 					log.Printf("Snat IP is not populated. Got empty string")
-					return nil, []net.IPNet{}, errSnatIP
+					return []IPAMAddResult{}, errSnatIP
 				}
 			}
 		}
+
+		if hostSubnetPrefixes == nil {
+			return nil, fmt.Errorf("failed to get host prefixes")
+		}
+
+		for i := 0; i < len(ncResponses); i++ {
+			//nolint:gocritic // copy is ok
+			ipamResult.ncResponse = &ncResponses[i]
+			ipamResult.hostSubnetPrefix = hostSubnetPrefixes[i]
+			ipamResults = append(ipamResults, ipamResult)
+		}
+	} else if ncResponses == nil && err == errGetNCs {
+		// try to invoke old CNS API
+		ncResponse, hostSubnetPrefix, err = m.getNetworkContainerWithOrchestratorContextInternal(ctx, podNamespace, podNameWithoutSuffix)
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to get ncResponse")
+		}
+
+		if nwCfg.EnableSnatOnHost {
+			if ncResponse.LocalIPConfiguration.IPSubnet.IPAddress == "" {
+				log.Printf("Snat IP is not populated. Got empty string")
+				return []IPAMAddResult{}, errSnatIP
+			}
+		}
+
+		ipamResult.ncResponse = ncResponse
+		ipamResult.hostSubnetPrefix = hostSubnetPrefix
+		ipamResults = append(ipamResults, ipamResult)
 	}
-	return ncResponses, hostSubnetPrefixes, err
+
+	return ipamResults, err
 }
 
 // get all network container configuration for given orchestratorContext
 func (m *Multitenancy) getNetworkContainersWithOrchestratorContextInternal(
 	ctx context.Context, namespace, podName string,
-) ([]cns.GetNetworkContainerResponse, []net.IPNet, error) {
+) (ncConfigs []cns.GetNetworkContainerResponse, subnetPrefixes []net.IPNet, err error) {
+
 	podInfo := cns.KubernetesPodInfo{
 		PodName:      podName,
 		PodNamespace: namespace,
@@ -252,22 +287,20 @@ func (m *Multitenancy) getNetworkContainersWithOrchestratorContextInternal(
 		return nil, []net.IPNet{}, fmt.Errorf("%w", err)
 	}
 
-	ncConfigs, err := m.cnsclient.GetNetworkContainers(ctx, orchestratorContext)
+	ncConfigs, err = m.cnsclient.GetNetworkContainers(ctx, orchestratorContext)
 	if err != nil {
-		log.Printf("GetConfigsForNetworkContainers failed with %v", err)
-		return nil, []net.IPNet{}, fmt.Errorf("%w", err)
+		return nil, []net.IPNet{}, errGetNCs
 	}
 
 	log.Printf("Network container configs received from cns %+v", ncConfigs)
 
-	var subnetPrefixes []net.IPNet
-
 	for _, ncConfig := range ncConfigs {
+		//nolint:gocritic // copy is ok
 		subnetPrefix := m.netioshim.GetInterfaceSubnetWithSpecificIP(ncConfig.PrimaryInterfaceIdentifier)
 		if subnetPrefix == nil {
 			errBuf := fmt.Errorf("%w %s", errIfaceNotFound, ncConfig.PrimaryInterfaceIdentifier)
 			log.Printf(errBuf.Error())
-			return nil, []net.IPNet{}, errBuf
+			return nil, []net.IPNet{}, errIfaceNotFound
 		}
 		subnetPrefixes = append(subnetPrefixes, *subnetPrefix)
 	}
@@ -390,4 +423,5 @@ var (
 	errInfraVnet     = errors.New("infravnet not populated")
 	errSubnetOverlap = errors.New("subnet overlap error")
 	errIfaceNotFound = errors.New("Interface not found for this ip")
+	errGetNCs        = errors.New("Failed to get nc responses")
 )

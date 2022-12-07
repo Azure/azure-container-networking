@@ -86,9 +86,9 @@ func (m *MockMultitenancy) GetNetworkContainers(
 	nwCfg *cni.NetworkConfig,
 	podName string,
 	podNamespace string,
-) ([]cns.GetNetworkContainerResponse, []net.IPNet, error) {
+) (ipamResults []IPAMAddResult, err error) {
 	if m.fail {
-		return nil, []net.IPNet{}, errMockMulAdd
+		return nil, errMockMulAdd
 	}
 
 	cnsResponseOne := &cns.GetNetworkContainerResponse{
@@ -146,5 +146,14 @@ func (m *MockMultitenancy) GetNetworkContainers(
 	ipNets = append(ipNets, *firstIPnet, *secondIPnet)
 	cnsResponses = append(cnsResponses, *cnsResponseOne, *cnsResponseTwo)
 
-	return cnsResponses, ipNets, nil
+	var ipamResult IPAMAddResult
+	for i, nc := range cnsResponses {
+		//nolint:gocritic // copy is ok
+		ipamResult.ncResponse = &nc
+		// ipamAddResult.ipv4Result = convertToCniResult(ipamAddResult.ncResponse, args.IfName)
+		ipamResult.hostSubnetPrefix = ipNets[i]
+		ipamResults = append(ipamResults, ipamResult)
+	}
+
+	return ipamResults, nil
 }
