@@ -207,7 +207,6 @@ func (m *Multitenancy) GetNetworkContainer(
 func (m *Multitenancy) GetNetworkContainers(
 	ctx context.Context, nwCfg *cni.NetworkConfig, podName, podNamespace string,
 ) (ipamResults []IPAMAddResult, err error) {
-
 	var (
 		ipamResult           IPAMAddResult
 		podNameWithoutSuffix string
@@ -239,21 +238,21 @@ func (m *Multitenancy) GetNetworkContainers(
 		}
 
 		if hostSubnetPrefixes == nil {
-			return nil, fmt.Errorf("failed to get host prefixes")
+			return nil, errors.New("Failed to get host subnet prefixes")
 		}
 
 		for i := 0; i < len(ncResponses); i++ {
-			//nolint:gocritic // copy is ok
 			ipamResult.ncResponse = &ncResponses[i]
 			ipamResult.hostSubnetPrefix = hostSubnetPrefixes[i]
 			ipamResults = append(ipamResults, ipamResult)
 		}
-	} else if ncResponses == nil && err == errGetNCs {
+	} else if ncResponses == nil && err.Error() == errGetNCs.Error() {
 		// try to invoke old CNS API
+		log.Printf("Trying to invoke old CNS API")
 		ncResponse, hostSubnetPrefix, err = m.getNetworkContainerWithOrchestratorContextInternal(ctx, podNamespace, podNameWithoutSuffix)
 
 		if err != nil {
-			return nil, fmt.Errorf("failed to get ncResponse")
+			return nil, errors.New("Failed to get ncResponse")
 		}
 
 		if nwCfg.EnableSnatOnHost {
@@ -275,7 +274,6 @@ func (m *Multitenancy) GetNetworkContainers(
 func (m *Multitenancy) getNetworkContainersWithOrchestratorContextInternal(
 	ctx context.Context, namespace, podName string,
 ) (ncConfigs []cns.GetNetworkContainerResponse, subnetPrefixes []net.IPNet, err error) {
-
 	podInfo := cns.KubernetesPodInfo{
 		PodName:      podName,
 		PodNamespace: namespace,
@@ -294,11 +292,10 @@ func (m *Multitenancy) getNetworkContainersWithOrchestratorContextInternal(
 
 	log.Printf("Network container configs received from cns %+v", ncConfigs)
 
-	for _, ncConfig := range ncConfigs {
-		//nolint:gocritic // copy is ok
-		subnetPrefix := m.netioshim.GetInterfaceSubnetWithSpecificIP(ncConfig.PrimaryInterfaceIdentifier)
+	for i := 0; i < len(ncConfigs); i++ {
+		subnetPrefix := m.netioshim.GetInterfaceSubnetWithSpecificIP(ncConfigs[i].PrimaryInterfaceIdentifier)
 		if subnetPrefix == nil {
-			errBuf := fmt.Errorf("%w %s", errIfaceNotFound, ncConfig.PrimaryInterfaceIdentifier)
+			errBuf := fmt.Errorf("%w %s", errIfaceNotFound, ncConfigs[i].PrimaryInterfaceIdentifier)
 			log.Printf(errBuf.Error())
 			return nil, []net.IPNet{}, errIfaceNotFound
 		}

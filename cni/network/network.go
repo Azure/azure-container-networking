@@ -448,7 +448,6 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 			return fmt.Errorf("%w", err)
 		}
 
-		// return ipamAddResults
 		ipamAddResults, err = plugin.multitenancyClient.GetNetworkContainers(
 			context.TODO(), nwCfg, k8sPodName, k8sNamespace)
 

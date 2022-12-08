@@ -147,10 +147,8 @@ func (m *MockMultitenancy) GetNetworkContainers(
 	cnsResponses = append(cnsResponses, *cnsResponseOne, *cnsResponseTwo)
 
 	var ipamResult IPAMAddResult
-	for i, nc := range cnsResponses {
-		//nolint:gocritic // copy is ok
-		ipamResult.ncResponse = &nc
-		// ipamAddResult.ipv4Result = convertToCniResult(ipamAddResult.ncResponse, args.IfName)
+	for i := 0; i < len(cnsResponses); i++ {
+		ipamResult.ncResponse = &cnsResponses[i]
 		ipamResult.hostSubnetPrefix = ipNets[i]
 		ipamResults = append(ipamResults, ipamResult)
 	}
