@@ -5,6 +5,7 @@ package network
 
 import (
 	"net"
+	"runtime"
 	"sync"
 	"time"
 
@@ -117,7 +118,6 @@ func (nm *networkManager) Uninitialize() {
 
 // Restore reads network manager state from persistent store.
 func (nm *networkManager) restore(isRehydrationRequired bool) error {
-	log.Printf("entering restore func...")
 	// Skip if a store is not provided.
 	if nm.store == nil {
 		log.Printf("[net] network store is nil")
@@ -128,21 +128,21 @@ func (nm *networkManager) restore(isRehydrationRequired bool) error {
 	// After a reboot, all address resources are implicitly released.
 	// Ignore the persisted state if it is older than the last reboot time.
 
-	// Acquire store lock.
-	if err := nm.store.Lock(store.DefaultLockTimeout); err != nil {
-		log.Printf("[cni] Failed to lock store: %v.", err)
-		return err
-	}
-	// Remove the lock on the key-value store
-	defer func() {
-		if nm.store != nil {
+	// Acquiring store lock at this stage for optimization purpuses on Windows
+	if runtime.GOOS == "windows" {
+		// Acquire store lock.
+		if err := nm.store.Lock(store.DefaultLockTimeout); err != nil {
+			log.Printf("[cni] Failed to lock store: %v.", err)
+			return err
+		}
+		// Remove the lock on the key-value store
+		defer func() {
 			err := nm.store.Unlock()
 			if err != nil {
 				log.Printf("[cni] Failed to unlock store: %v.", err)
 			}
-		}
-		nm.store = nil
-	}()
+		}()
+	}
 
 	// Read any persisted state.
 	err := nm.store.Read(storeKey, nm)
@@ -233,7 +233,6 @@ func (nm *networkManager) restore(isRehydrationRequired bool) error {
 
 // Save writes network manager state to persistent store.
 func (nm *networkManager) save() error {
-	log.Printf("entering save func...")
 	// Skip if a store is not provided.
 	if nm.store == nil {
 		return nil
@@ -242,21 +241,21 @@ func (nm *networkManager) save() error {
 	// Update time stamp.
 	nm.TimeStamp = time.Now()
 
-	// Acquire store lock.
-	if err := nm.store.Lock(store.DefaultLockTimeout); err != nil {
-		log.Printf("[cni] Failed to lock store: %v.", err)
-		return err
-	}
-	// Remove the lock on the key-value store
-	defer func() {
-		if nm.store != nil {
+	// Acquiring store lock at this stage for optimization purpuses on Windows
+	if runtime.GOOS == "windows" {
+		// Acquire store lock.
+		if err := nm.store.Lock(store.DefaultLockTimeout); err != nil {
+			log.Printf("[cni] Failed to lock store: %v.", err)
+			return err
+		}
+		// Remove the lock on the key-value store
+		defer func() {
 			err := nm.store.Unlock()
 			if err != nil {
 				log.Printf("[cni] Failed to unlock store: %v.", err)
 			}
-		}
-		nm.store = nil
-	}()
+		}()
+	}
 
 	err := nm.store.Write(storeKey, nm)
 	if err == nil {

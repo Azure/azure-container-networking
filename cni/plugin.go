@@ -174,6 +174,14 @@ func (plugin *Plugin) InitializeKeyValueStore(config *common.PluginConfig) error
 		}
 	}
 
+	// Acquiring store lock at this stage for optimization purpuses on Windows
+	if runtime.GOOS != "windows" {
+		// Acquire store lock.
+		if err := plugin.Store.Lock(store.DefaultLockTimeout); err != nil {
+			log.Printf("[cni] Failed to lock store: %v.", err)
+			return err
+		}
+	}
 	config.Store = plugin.Store
 
 	return nil
