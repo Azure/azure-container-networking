@@ -506,6 +506,7 @@ func (service *HTTPRestService) GetExistingIPConfig(podInfo cns.PodInfo) ([]cns.
 
 func (service *HTTPRestService) AssignDesiredIPConfig(podInfo cns.PodInfo, desiredIPAddress string) ([]cns.PodIpInfo, error) {
 	var podIpInfo []cns.PodIpInfo
+	podIpInfo = make([]cns.PodIpInfo, 2)
 	service.Lock()
 	defer service.Unlock()
 
@@ -540,8 +541,8 @@ func (service *HTTPRestService) AssignDesiredIPConfig(podInfo cns.PodInfo, desir
 func (service *HTTPRestService) AssignAnyAvailableIPConfig(podInfo cns.PodInfo) ([]cns.PodIpInfo, error) {
 	service.Lock()
 	defer service.Unlock()
-
-	var podIPInfo []cns.PodIpInfo
+	var podIpInfo []cns.PodIpInfo
+	podIpInfo = make([]cns.PodIpInfo, 2)
 
 	for _, ipState := range service.PodIPConfigState {
 		address, err := netip.ParseAddr(ipState.IPAddress)
@@ -552,7 +553,7 @@ func (service *HTTPRestService) AssignAnyAvailableIPConfig(podInfo cns.PodInfo) 
 			if err := service.assignIPConfig(ipState, podInfo); err != nil {
 				return []cns.PodIpInfo{}, err
 			}
-			if err := service.populateIPConfigInfoUntransacted(ipState, &podIPInfo[0]); err != nil {
+			if err := service.populateIPConfigInfoUntransacted(ipState, &podIpInfo[0]); err != nil {
 				return []cns.PodIpInfo{}, err
 			}
 			break
@@ -569,11 +570,10 @@ func (service *HTTPRestService) AssignAnyAvailableIPConfig(podInfo cns.PodInfo) 
 			if err := service.assignIPConfig(ipState, podInfo); err != nil {
 				return []cns.PodIpInfo{}, err
 			}
-			if err := service.populateIPConfigInfoUntransacted(ipState, &podIPInfo[1]); err != nil {
+			if err := service.populateIPConfigInfoUntransacted(ipState, &podIpInfo[1]); err != nil {
 				return []cns.PodIpInfo{}, err
 			}
-
-			return podIPInfo, nil
+			return podIpInfo, nil
 		}
 	}
 	//nolint:goerr113
