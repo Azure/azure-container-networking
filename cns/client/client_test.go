@@ -169,7 +169,7 @@ func TestMain(m *testing.M) {
 	logger.InitLogger(logName, 0, 0, tmpLogDir+"/")
 	config := common.ServiceConfig{}
 
-	httpRestService, err := restserver.NewHTTPRestService(&config, &fakes.WireserverClientFake{}, &fakes.NMAgentClientFake{}, nil, nil)
+	httpRestService, err := restserver.NewHTTPRestService(&config, &fakes.WireserverClientFake{}, &fakes.NMAgentClientFake{}, nil, nil, nil)
 	svc = httpRestService.(*restserver.HTTPRestService)
 	svc.Name = "cns-test-server"
 	fakeNNC := v1alpha.NodeNetworkConfig{
@@ -2256,6 +2256,69 @@ func TestPostAllNetworkContainers(t *testing.T) {
 				for i := 0; i < len(test.expReq.CreateNetworkContainerRequests); i++ {
 					assert.Equal(t, test.expReq.CreateNetworkContainerRequests[i], gotReq.CreateNetworkContainerRequests[i])
 				}
+			}
+		})
+	}
+}
+
+func TestGetHomeAz(t *testing.T) {
+	emptyRoutes, _ := buildRoutes(defaultBaseURL, clientPaths)
+	tests := []struct {
+		name      string
+		shouldErr bool
+		exp       *cns.GetHomeAzResponse
+	}{
+		{
+			"happy path",
+			false,
+			&cns.GetHomeAzResponse{
+				Response: cns.Response{
+					ReturnCode: 0,
+					Message:    "success",
+				},
+				HomeAzResponse: cns.HomeAzResponse{
+					IsSupported: true,
+					HomeAz:      uint(1),
+				},
+			},
+		},
+		{
+			"error",
+			true,
+			&cns.GetHomeAzResponse{
+				Response: cns.Response{
+					ReturnCode: types.UnexpectedError,
+					Message:    "unexpected error",
+				},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			client := &Client{
+				client: &mockdo{
+					errToReturn:            nil,
+					objToReturn:            test.exp,
+					httpStatusCodeToReturn: http.StatusOK,
+				},
+				routes: emptyRoutes,
+			}
+
+			got, err := client.GetHomeAz(context.Background())
+			if err != nil && !test.shouldErr {
+				t.Fatal("unexpected error: err:", err)
+			}
+
+			if err == nil && test.shouldErr {
+				t.Fatal("expected an error but received none")
+			}
+
+			if !test.shouldErr && !cmp.Equal(got, test.exp) {
+				t.Error("received response differs from expectation: diff:", cmp.Diff(got, test.exp))
 			}
 		})
 	}

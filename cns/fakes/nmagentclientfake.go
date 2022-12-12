@@ -20,28 +20,33 @@ type NMAgentClientFake struct {
 	SupportedAPIsF          func(context.Context) ([]string, error)
 	GetNCVersionF           func(context.Context, nmagent.NCVersionRequest) (nmagent.NCVersion, error)
 	GetNCVersionListF       func(context.Context) (nmagent.NCVersionList, error)
+	GetHomeAzF              func(context.Context) (nmagent.AzResponse, error)
 }
 
-func (c *NMAgentClientFake) PutNetworkContainer(ctx context.Context, req *nmagent.PutNetworkContainerRequest) error {
-	return c.PutNetworkContainerF(ctx, req)
+func (n *NMAgentClientFake) PutNetworkContainer(ctx context.Context, req *nmagent.PutNetworkContainerRequest) error {
+	return n.PutNetworkContainerF(ctx, req)
 }
 
-func (c *NMAgentClientFake) DeleteNetworkContainer(ctx context.Context, req nmagent.DeleteContainerRequest) error {
-	return c.DeleteNetworkContainerF(ctx, req)
+func (n *NMAgentClientFake) DeleteNetworkContainer(ctx context.Context, req nmagent.DeleteContainerRequest) error {
+	return n.DeleteNetworkContainerF(ctx, req)
 }
 
-func (c *NMAgentClientFake) JoinNetwork(ctx context.Context, req nmagent.JoinNetworkRequest) error {
-	return c.JoinNetworkF(ctx, req)
+func (n *NMAgentClientFake) JoinNetwork(ctx context.Context, req nmagent.JoinNetworkRequest) error {
+	return n.JoinNetworkF(ctx, req)
 }
 
-func (c *NMAgentClientFake) SupportedAPIs(ctx context.Context) ([]string, error) {
-	return c.SupportedAPIsF(ctx)
+func (n *NMAgentClientFake) SupportedAPIs(ctx context.Context) ([]string, error) {
+	return n.SupportedAPIsF(ctx)
 }
 
-func (c *NMAgentClientFake) GetNCVersion(ctx context.Context, req nmagent.NCVersionRequest) (nmagent.NCVersion, error) {
-	return c.GetNCVersionF(ctx, req)
+func (n *NMAgentClientFake) GetNCVersion(ctx context.Context, req nmagent.NCVersionRequest) (nmagent.NCVersion, error) {
+	return n.GetNCVersionF(ctx, req)
 }
 
-func (c *NMAgentClientFake) GetNCVersionList(ctx context.Context) (nmagent.NCVersionList, error) {
-	return c.GetNCVersionListF(ctx)
+func (n *NMAgentClientFake) GetNCVersionList(ctx context.Context) (nmagent.NCVersionList, error) {
+	return n.GetNCVersionListF(ctx)
+}
+
+func (n *NMAgentClientFake) GetHomeAz(ctx context.Context) (nmagent.AzResponse, error) {
+	return n.GetHomeAzF(ctx)
 }

@@ -48,6 +48,7 @@ type nmagentClient interface {
 	SupportedAPIs(context.Context) ([]string, error)
 	GetNCVersion(context.Context, nma.NCVersionRequest) (nma.NCVersion, error)
 	GetNCVersionList(context.Context) (nma.NCVersionList, error)
+	GetHomeAz(context.Context) (nma.AzResponse, error)
 }
 
 // HTTPRestService represents http listener for CNS - Container Networking Service.
@@ -57,6 +58,7 @@ type HTTPRestService struct {
 	wscli                    interfaceGetter
 	ipamClient               *ipamclient.IpamClient
 	nma                      nmagentClient
+	homeAzMonitor            *HomeAzMonitor
 	networkContainer         *networkcontainers.NetworkContainers
 	PodIPIDByPodInterfaceKey map[string]string                    // PodInterfaceId is key and value is Pod IP (SecondaryIP) uuid.
 	PodIPConfigState         map[string]cns.IPConfigurationStatus // Secondary IP ID(uuid) is key
@@ -211,7 +213,7 @@ type networkInfo struct {
 
 // NewHTTPRestService creates a new HTTP Service object.
 func NewHTTPRestService(config *common.ServiceConfig, wscli interfaceGetter, nmagentClient nmagentClient,
-	endpointStateStore store.KeyValueStore, gen CNIConflistGenerator,
+	endpointStateStore store.KeyValueStore, gen CNIConflistGenerator, homeAzMonitor *HomeAzMonitor,
 ) (cns.HTTPService, error) {
 	service, err := cns.NewService(config.Name, config.Version, config.ChannelMode, config.Store)
 	if err != nil {
@@ -267,6 +269,7 @@ func NewHTTPRestService(config *common.ServiceConfig, wscli interfaceGetter, nma
 		podsPendingIPAssignment:  bounded.NewTimedSet(250), // nolint:gomnd // maxpods
 		EndpointStateStore:       endpointStateStore,
 		EndpointState:            make(map[string]*EndpointInfo),
+		homeAzMonitor:            homeAzMonitor,
 		cniConflistGenerator:     gen,
 	}, nil
 }
@@ -319,6 +322,7 @@ func (service *HTTPRestService) Init(config *common.ServiceConfig) error {
 	listener.AddHandler(cns.PathDebugPodContext, service.handleDebugPodContext)
 	listener.AddHandler(cns.PathDebugRestData, service.handleDebugRestData)
 	listener.AddHandler(cns.NetworkContainersURLPath, service.getOrRefreshNetworkContainers)
+	listener.AddHandler(cns.GetHomeAz, service.getHomeAz)
 
 	// handlers for v0.2
 	listener.AddHandler(cns.V2Prefix+cns.SetEnvironmentPath, service.setEnvironment)
@@ -343,6 +347,7 @@ func (service *HTTPRestService) Init(config *common.ServiceConfig) error {
 	listener.AddHandler(cns.V2Prefix+cns.CreateHostNCApipaEndpointPath, service.createHostNCApipaEndpoint)
 	listener.AddHandler(cns.V2Prefix+cns.DeleteHostNCApipaEndpointPath, service.deleteHostNCApipaEndpoint)
 	listener.AddHandler(cns.V2Prefix+cns.NmAgentSupportedApisPath, service.nmAgentSupportedApisHandler)
+	listener.AddHandler(cns.V2Prefix+cns.GetHomeAz, service.getHomeAz)
 
 	// Initialize HTTP client to be reused in CNS
 	connectionTimeout, _ := service.GetOption(acn.OptHttpConnectionTimeout).(int)
