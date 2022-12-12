@@ -12,6 +12,7 @@ import (
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/platform"
 	"github.com/Azure/azure-container-networking/store"
+	"github.com/pkg/errors"
 )
 
 const (
@@ -106,7 +107,7 @@ func (am *addressManager) restore(rehydrateIpamInfoOnReboot bool) error {
 		// Acquire store lock.
 		if err := am.store.Lock(store.DefaultLockTimeout); err != nil {
 			log.Printf("[ipam] Failed to lock store: %v.", err)
-			return err
+			return errors.Wrap(err, "error Acquiring store lock")
 		}
 		// Remove the lock on the key-value store
 		defer func() {
@@ -191,7 +192,7 @@ func (am *addressManager) save() error {
 		// Acquire store lock.
 		if err := am.store.Lock(store.DefaultLockTimeout); err != nil {
 			log.Printf("[ipam] Failed to lock store: %v.", err)
-			return err
+			return errors.Wrap(err, "error Acquiring store lock")
 		}
 		// Remove the lock on the key-value store
 		defer func() {

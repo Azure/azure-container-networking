@@ -174,12 +174,13 @@ func (plugin *Plugin) InitializeKeyValueStore(config *common.PluginConfig) error
 		}
 	}
 
-	// Acquiring store lock at this stage for optimization purpuses on Windows
+	// Acquiring store lock at this stage only for Linux. For optimization purpuses on Windows, the store lock will take place at later stage.
+	// TODO: The Linux store locking should be removed from here as well after some more validation.
 	if runtime.GOOS != "windows" {
 		// Acquire store lock.
 		if err := plugin.Store.Lock(store.DefaultLockTimeout); err != nil {
 			log.Printf("[cni] Failed to lock store: %v.", err)
-			return err
+			return errors.Wrap(err, "error Acquiring store lock")
 		}
 	}
 	config.Store = plugin.Store

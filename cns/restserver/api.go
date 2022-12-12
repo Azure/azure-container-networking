@@ -20,7 +20,6 @@ import (
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/cns/wireserver"
 	"github.com/Azure/azure-container-networking/nmagent"
-	"github.com/Azure/azure-container-networking/platform"
 	"github.com/pkg/errors"
 )
 
@@ -882,14 +881,6 @@ func (service *HTTPRestService) getNetworkContainerByOrchestratorContext(w http.
 	err := service.Listener.Decode(w, r, &req)
 	logger.Request(service.Name, &req, err)
 	if err != nil {
-		return
-	}
-
-	// getNetworkContainerByOrchestratorContext gets called for multitenancy and
-	// setting the SDNRemoteArpMacAddress regKey is essential for the multitenancy
-	// to work correctly in case of windows platform. Return if there is an error
-	if err = platform.SetSdnRemoteArpMacAddress(); err != nil {
-		logger.Printf("[Azure CNS] SetSdnRemoteArpMacAddress failed with error: %s", err.Error())
 		return
 	}
 
