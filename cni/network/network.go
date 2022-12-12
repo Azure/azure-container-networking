@@ -477,6 +477,10 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 		ipamAddResult = ipamAddResults[i]
 
 		networkID, err := plugin.getNetworkName(args.Netns, &ipamAddResult, nwCfg)
+		if err != nil {
+			return fmt.Errorf("Failed to get networkID due to %+v", err)
+		}
+
 		endpointID := GetEndpointID(args)
 		policies := cni.GetPoliciesFromNwCfg(nwCfg.AdditionalArgs)
 
