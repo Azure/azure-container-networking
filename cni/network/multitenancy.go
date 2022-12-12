@@ -238,9 +238,7 @@ func (m *Multitenancy) GetNetworkContainers(
 		}
 
 		if hostSubnetPrefixes == nil {
-			errHostPrefix := fmt.Errorf("Failed to get host subnet prefixes")
-			log.Printf(errHostPrefix.Error())
-			return nil, errHostPrefix
+			return nil, err
 		}
 
 		for i := 0; i < len(ncResponses); i++ {
@@ -254,9 +252,7 @@ func (m *Multitenancy) GetNetworkContainers(
 		ncResponse, hostSubnetPrefix, err = m.getNetworkContainerWithOrchestratorContextInternal(ctx, podNamespace, podNameWithoutSuffix)
 
 		if err != nil {
-			errBuf := fmt.Errorf("Failed to get ncResponse")
-			log.Printf(errBuf.Error())
-			return nil, errBuf
+			return nil, err
 		}
 
 		if nwCfg.EnableSnatOnHost {
