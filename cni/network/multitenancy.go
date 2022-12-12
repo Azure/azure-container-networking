@@ -279,9 +279,9 @@ func getInfraVnetIP(
 ) (*cniTypesCurr.Result, error) {
 	if enableInfraVnet {
 		_, ipNet, _ := net.ParseCIDR(infraSubnet)
-		nwCfg.Ipam.Subnet = ipNet.String()
+		nwCfg.IPAM.Subnet = ipNet.String()
 
-		log.Printf("call ipam to allocate ip from subnet %v", nwCfg.Ipam.Subnet)
+		log.Printf("call ipam to allocate ip from subnet %v", nwCfg.IPAM.Subnet)
 		ipamAddOpt := IPAMAddConfig{nwCfg: nwCfg, options: make(map[string]interface{})}
 		ipamAddResult, err := plugin.ipamInvoker.Add(ipamAddOpt)
 		if err != nil {

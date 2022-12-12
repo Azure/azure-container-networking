@@ -5,9 +5,9 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/Azure/azure-container-networking/npm/metrics"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/ipsets"
 	"github.com/Azure/azure-container-networking/npm/util"
-	"k8s.io/klog"
 )
 
 type UniqueDirection bool
@@ -117,7 +117,7 @@ func (aclPolicy *ACLPolicy) comment() string {
 	for _, info := range aclPolicy.DstList {
 		if info.IPSet.Type == ipsets.NamedPorts {
 			if foundNamedPortPeer {
-				klog.Errorf("while creating ACL comment, unexpectedly found more than one namedPort peer for ACL:\n%s", aclPolicy.PrettyString())
+				metrics.SendErrorLogAndMetric(util.IptmID, "while creating ACL comment, unexpectedly found more than one namedPort peer for ACL:\n%s", aclPolicy.PrettyString())
 			}
 			namedPortPeer = info
 			foundNamedPortPeer = true

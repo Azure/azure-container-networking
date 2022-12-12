@@ -238,6 +238,11 @@ func (service *HTTPRestService) syncHostNCVersion(ctx context.Context, channelMo
 	if len(outdatedNCs) > 0 {
 		return errors.Errorf("unabled to update some NCs: %v, missing or bad response from NMA", outdatedNCs)
 	}
+
+	// if NMA has programmed all the NCs that we expect, we should write the CNI conflist. This will only be done
+	// once per lifetime of the CNS process. This function is threadsafe and will panic if it fails, so it is safe
+	// to call in a non-preemptable goroutine.
+	go service.MustGenerateCNIConflistOnce()
 	return nil
 }
 

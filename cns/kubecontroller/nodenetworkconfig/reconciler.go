@@ -8,6 +8,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/restserver"
 	cnstypes "github.com/Azure/azure-container-networking/cns/types"
+	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 	"github.com/pkg/errors"
 	v1 "k8s.io/api/core/v1"
@@ -47,11 +48,10 @@ type Reconciler struct {
 // apiserver for NNC events.
 // Provided nncListeners are passed the NNC after the Reconcile preprocesses it. Note: order matters! The
 // passed Listeners are notified in the order provided.
-func NewReconciler(cnscli cnsClient, nnccli nncGetter, ipampoolmonitorcli nodeNetworkConfigListener, nodeIP string) *Reconciler {
+func NewReconciler(cnscli cnsClient, ipampoolmonitorcli nodeNetworkConfigListener, nodeIP string) *Reconciler {
 	return &Reconciler{
 		cnscli:             cnscli,
 		ipampoolmonitorcli: ipampoolmonitorcli,
-		nnccli:             nnccli,
 		started:            make(chan interface{}),
 		nodeIP:             nodeIP,
 	}
@@ -146,6 +146,7 @@ func (r *Reconciler) Started(ctx context.Context) bool {
 
 // SetupWithManager Sets up the reconciler with a new manager, filtering using NodeNetworkConfigFilter on nodeName.
 func (r *Reconciler) SetupWithManager(mgr ctrl.Manager, node *v1.Node) error {
+	r.nnccli = nodenetworkconfig.NewClient(mgr.GetClient())
 	err := ctrl.NewControllerManagedBy(mgr).
 		For(&v1alpha.NodeNetworkConfig{}).
 		WithEventFilter(predicate.Funcs{

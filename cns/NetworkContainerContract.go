@@ -15,6 +15,7 @@ import (
 // Container Network Service DNC Contract
 const (
 	SetOrchestratorType                      = "/network/setorchestratortype"
+	GetHomeAz                                = "/homeaz"
 	CreateOrUpdateNetworkContainer           = "/network/createorupdatenetworkcontainer"
 	DeleteNetworkContainer                   = "/network/deletenetworkcontainer"
 	PublishNetworkContainer                  = "/network/publishnetworkcontainer"

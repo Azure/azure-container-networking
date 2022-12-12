@@ -235,6 +235,33 @@ func (c *Client) GetNCVersionList(ctx context.Context) (NCVersionList, error) {
 	return out, nil
 }
 
+// GetHomeAz gets node's home az from nmagent
+func (c *Client) GetHomeAz(ctx context.Context) (AzResponse, error) {
+	getHomeAzRequest := &GetHomeAzRequest{}
+	var homeAzResponse AzResponse
+	req, err := c.buildRequest(ctx, getHomeAzRequest)
+	if err != nil {
+		return homeAzResponse, errors.Wrap(err, "building request")
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return homeAzResponse, errors.Wrap(err, "submitting request")
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return homeAzResponse, die(resp.StatusCode, resp.Header, resp.Body)
+	}
+
+	err = json.NewDecoder(resp.Body).Decode(&homeAzResponse)
+	if err != nil {
+		return homeAzResponse, errors.Wrap(err, "decoding response")
+	}
+
+	return homeAzResponse, nil
+}
+
 func die(code int, headers http.Header, body io.ReadCloser) error {
 	// nolint:errcheck // make a best effort to return whatever information we can
 	// returning an error here without the code and source would

@@ -7,15 +7,15 @@ AZCFG   = $(HOME)/.azure
 AZIMG   = mcr.microsoft.com/azure-cli
 AZCLI   ?= docker run --rm -v $(AZCFG):/root/.azure -v $(KUBECFG):/root/.kube -v $(SSH):/root/.ssh $(AZIMG) az
 
-# overrideable variables
-SUB        ?= $(AZURE_SUBSCRIPTION)
-CLUSTER    ?= $(whoami)-$(REGION)
-GROUP      ?= $(CLUSTER)
-VNET       ?= $(CLUSTER)
 # overrideable defaults
 REGION     ?= westus2
 OS_SKU     ?= Ubuntu
 VM_SIZE	   ?= Standard_B2s
+# overrideable variables
+SUB        ?= $(AZURE_SUBSCRIPTION)
+CLUSTER    ?= $(USER)-$(REGION)
+GROUP      ?= $(CLUSTER)
+VNET       ?= $(CLUSTER)
 
 ##@ Help
 

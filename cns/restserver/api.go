@@ -35,7 +35,9 @@ var (
 // 3) the ncid parameter
 // 4) the authentication token parameter
 // 5) the optional delete path
-const ncURLExpectedMatches = 5
+const (
+	ncURLExpectedMatches = 5
+)
 
 // This file contains implementation of all HTTP APIs which are exposed to external clients.
 // TODO: break it even further per module (network, nc, etc) like it is done for ipam
@@ -762,6 +764,25 @@ func (service *HTTPRestService) setOrchestratorType(w http.ResponseWriter, r *ht
 
 	err = service.Listener.Encode(w, &resp)
 	logger.Response(service.Name, resp, resp.ReturnCode, err)
+}
+
+// getHomeAz retrieves home AZ of host
+func (service *HTTPRestService) getHomeAz(w http.ResponseWriter, r *http.Request) {
+	logger.Printf("[Azure CNS] getHomeAz")
+	logger.Request(service.Name, "getHomeAz", nil)
+	ctx := r.Context()
+
+	switch r.Method {
+	case http.MethodGet:
+		getHomeAzResponse := service.homeAzMonitor.GetHomeAz(ctx)
+		service.setResponse(w, getHomeAzResponse.Response.ReturnCode, getHomeAzResponse)
+	default:
+		returnMessage := "[Azure CNS] Error. getHomeAz did not receive a GET."
+		returnCode := types.UnsupportedVerb
+		service.setResponse(w, returnCode, cns.GetHomeAzResponse{
+			Response: cns.Response{ReturnCode: returnCode, Message: returnMessage},
+		})
+	}
 }
 
 func (service *HTTPRestService) createOrUpdateNetworkContainer(w http.ResponseWriter, r *http.Request) {

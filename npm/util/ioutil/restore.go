@@ -142,7 +142,6 @@ func (creator *FileCreator) RunCommandWithFile(cmd string, args ...string) error
 			sameNew = "updated"
 		}
 		msg := fmt.Sprintf("on try number %d, failed to run command [%s]. Rerunning with %s file. err: [%s]", creator.tryCount, commandString, sameNew, err.Error())
-		klog.Error(msg)
 		metrics.SendErrorLogAndMetric(util.UtilID, "error: %s", msg)
 
 		if wasFileAltered {
@@ -182,13 +181,15 @@ func (creator *FileCreator) runCommandOnceWithFile(fileString, cmd string, args 
 	}
 
 	klog.Infof("running this restore command: [%s]", commandString)
+	creator.tryCount++
+	// TODO uncomment for debugging or after ensuring no performance decrease
+	// creator.logLines(commandString)
 
 	command := creator.ioShim.Exec.Command(cmd, args...)
 	command.SetStdin(bytes.NewBufferString(fileString))
 
 	// run the command
 	stdErrBytes, err := command.CombinedOutput()
-	creator.tryCount++
 	if err == nil {
 		// success
 		return false, nil
@@ -242,17 +243,21 @@ func (creator *FileCreator) numLines() int {
 func (definition *ErrorDefinition) getErrorLineNumber(stdErr, commandString string, numLines int) int {
 	result := definition.re.FindStringSubmatch(stdErr)
 	if result == nil || len(result) < 2 {
-		klog.Errorf("expected error with line number, but couldn't detect one with error regex pattern [%s] for command [%s] with stdErr [%s]", definition.matchPattern, commandString, stdErr)
+		metrics.SendErrorLogAndMetric(util.UtilID,
+			"expected error with line number, but couldn't detect one with error regex pattern [%s] for command [%s] with stdErr [%s]",
+			definition.matchPattern, commandString, stdErr)
 		return -1
 	}
 	lineNumString := result[1]
 	lineNum, err := strconv.Atoi(lineNumString)
 	if err != nil {
-		klog.Errorf("expected error with line number, but error regex pattern %s didn't produce a number for command [%s] with stdErr [%s]", definition.matchPattern, commandString, stdErr)
+		metrics.SendErrorLogAndMetric(util.UtilID,
+			"expected error with line number, but error regex pattern %s didn't produce a number for command [%s] with stdErr [%s]",
+			definition.matchPattern, commandString, stdErr)
 		return -1
 	}
 	if lineNum < 1 || lineNum > numLines {
-		klog.Errorf(
+		metrics.SendErrorLogAndMetric(util.UtilID,
 			"expected error with line number, but error regex pattern %s produced an invalid line number %d for command [%s] with stdErr [%s]",
 			definition.matchPattern, lineNum, commandString, stdErr,
 		)
@@ -264,15 +269,16 @@ func (definition *ErrorDefinition) getErrorLineNumber(stdErr, commandString stri
 // return whether the file was altered
 func (creator *FileCreator) handleLineError(stdErr, commandString string, lineNum int) (bool, *Line) {
 	lineIndex := 0
-	currentLineIndex := 0
+	currentLineNum := 1
 	for i := range creator.lines {
 		if _, isOmitted := creator.lineNumbersToOmit[i]; isOmitted {
 			continue
 		}
-		if currentLineIndex == lineNum-1 {
-			lineIndex = currentLineIndex
+		if currentLineNum == lineNum {
+			lineIndex = i
+			break
 		}
-		currentLineIndex++
+		currentLineNum++
 	}
 
 	line := creator.lines[lineIndex]
@@ -287,7 +293,7 @@ func (creator *FileCreator) handleLineError(stdErr, commandString string, lineNu
 				creator.lineNumbersToOmit[i] = struct{}{}
 			}
 		case ContinueAndAbortSection:
-			klog.Infof("continuing after line %d and aborting section associated with the line for command [%s]", lineNum, commandString)
+			klog.Infof("continuing after line %d and aborting section [%s] for command [%s]", lineNum, line.sectionID, commandString)
 			for i := 0; i <= lineIndex; i++ {
 				creator.lineNumbersToOmit[i] = struct{}{}
 			}
@@ -300,4 +306,40 @@ func (creator *FileCreator) handleLineError(stdErr, commandString string, lineNu
 		return true, creator.lines[lineIndex]
 	}
 	return false, creator.lines[lineIndex]
+}
+
+func (creator *FileCreator) logLines(commandString string) {
+	if creator.tryCount == 0 {
+		// print every line
+		lineNum := 1
+		for i, line := range creator.lines {
+			if _, ok := creator.lineNumbersToOmit[i]; ok {
+				metrics.SendErrorLogAndMetric(util.UtilID, "unexpectedly seeing an omitted line for tryCount=0. line num: %d", i)
+				continue
+			}
+			klog.Infof("line %d of restore command [%s] with section ID [%s]: [%s]", lineNum, commandString, line.sectionID, line.content)
+			lineNum++
+		}
+
+		return
+	}
+
+	// don't print every line because printing all lines can pollute the logs and we already know the lines
+	if len(creator.lineNumbersToOmit) == 0 {
+		klog.Infof("on try %d of restore command [%s]. repeating with same lines", creator.tryCount, commandString)
+		return
+	}
+
+	lineNumMappings := make([]string, 0, creator.numLines())
+	lineNum := 1
+	for i := range creator.lines {
+		if _, ok := creator.lineNumbersToOmit[i]; ok {
+			continue
+		}
+		// this mapping could be off if we unexpectedly saw an omitted line for the first try (see error log in branch above)
+		lineNumMappings = append(lineNumMappings, fmt.Sprintf("%d->%d", lineNum, i+1))
+		lineNum++
+	}
+
+	klog.Infof("on try %d of restore command [%s]. mapping of current line numbers to original line numbers: %+v", creator.tryCount, commandString, lineNumMappings)
 }
