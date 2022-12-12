@@ -1,23 +1,27 @@
 package translation
 
 import (
+	"fmt"
 	"reflect"
 	"testing"
 
+	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func TestFlattenNameSpaceSelectorCases(t *testing.T) {
 	firstSelector := &metav1.LabelSelector{}
 
-	testSelectors := flattenNameSpaceSelector(firstSelector)
+	testSelectors, err := flattenNameSpaceSelector(firstSelector)
+	require.Nil(t, err)
 	if len(testSelectors) != 1 {
 		t.Errorf("TestFlattenNameSpaceSelectorCases failed @ 1st selector length check %+v", testSelectors)
 	}
 
 	var secondSelector *metav1.LabelSelector
 
-	testSelectors = flattenNameSpaceSelector(secondSelector)
+	testSelectors, err = flattenNameSpaceSelector(secondSelector)
+	require.Nil(t, err)
 	if len(testSelectors) > 0 {
 		t.Errorf("TestFlattenNameSpaceSelectorCases failed @ 1st selector length check %+v", testSelectors)
 	}
@@ -61,7 +65,8 @@ func TestFlattenNameSpaceSelector(t *testing.T) {
 		MatchLabels: commonMatchLabel,
 	}
 
-	testSelectors := flattenNameSpaceSelector(firstSelector)
+	testSelectors, err := flattenNameSpaceSelector(firstSelector)
+	require.Nil(t, err)
 	if len(testSelectors) != 1 {
 		t.Errorf("TestFlattenNameSpaceSelector failed @ 1st selector length check %+v", testSelectors)
 	}
@@ -105,7 +110,8 @@ func TestFlattenNameSpaceSelector(t *testing.T) {
 		MatchLabels: commonMatchLabel,
 	}
 
-	testSelectors = flattenNameSpaceSelector(secondSelector)
+	testSelectors, err = flattenNameSpaceSelector(secondSelector)
+	require.Nil(t, err)
 	if len(testSelectors) != 8 {
 		t.Errorf("TestFlattenNameSpaceSelector failed @ 2nd selector length check %+v", testSelectors)
 	}
@@ -399,7 +405,8 @@ func TestFlattenNameSpaceSelectorWoMatchLabels(t *testing.T) {
 		},
 	}
 
-	testSelectors := flattenNameSpaceSelector(firstSelector)
+	testSelectors, err := flattenNameSpaceSelector(firstSelector)
+	require.Nil(t, err)
 	if len(testSelectors) != 2 {
 		t.Errorf("TestFlattenNameSpaceSelector failed @ 1st selector length check %+v", testSelectors)
 	}
@@ -469,5 +476,127 @@ func TestFlattenNameSpaceSelectorWoMatchLabels(t *testing.T) {
 
 	if !reflect.DeepEqual(testSelectors, expectedSelectors) {
 		t.Errorf("TestFlattenNameSpaceSelector failed @ 1st selector deepEqual check.\n Expected: %+v \n Actual: %+v", expectedSelectors, testSelectors)
+	}
+}
+
+func TestFlattenNamespaceSelectorError(t *testing.T) {
+	tests := []struct {
+		name     string
+		selector *metav1.LabelSelector
+		wantErr  bool
+	}{
+		{
+			name: "good alphanumeric with hyphen",
+			selector: &metav1.LabelSelector{
+				MatchExpressions: []metav1.LabelSelectorRequirement{
+					{
+						Key:      "testIn",
+						Operator: metav1.LabelSelectorOpIn,
+						Values: []string{
+							"good",
+							"good-1",
+							"good2-too",
+							"good-end-in-hyphen-",
+						},
+					},
+					{
+						Key:      "testNotIn",
+						Operator: metav1.LabelSelectorOpNotIn,
+						Values: []string{
+							"good",
+							"good-1",
+							"good2-too",
+							"good-end-in-hyphen-",
+						},
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "bad in",
+			selector: &metav1.LabelSelector{
+				MatchExpressions: []metav1.LabelSelectorRequirement{
+					{
+						Key:      "testIn",
+						Operator: metav1.LabelSelectorOpIn,
+						Values: []string{
+							"good-1",
+							"bad$",
+						},
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "bad not in",
+			selector: &metav1.LabelSelector{
+				MatchExpressions: []metav1.LabelSelectorRequirement{
+					{
+						Key:      "testNotIn",
+						Operator: metav1.LabelSelectorOpIn,
+						Values: []string{
+							"bad$",
+							"good-1",
+						},
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "good and bad",
+			selector: &metav1.LabelSelector{
+				MatchExpressions: []metav1.LabelSelectorRequirement{
+					{
+						Key:      "testIn",
+						Operator: metav1.LabelSelectorOpIn,
+						Values: []string{
+							"good-1",
+						},
+					},
+					{
+						Key:      "testNotIn",
+						Operator: metav1.LabelSelectorOpIn,
+						Values: []string{
+							"bad$",
+							"good-1",
+						},
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "bad with space",
+			selector: &metav1.LabelSelector{
+				MatchExpressions: []metav1.LabelSelectorRequirement{
+					{
+						Key:      "testIn",
+						Operator: metav1.LabelSelectorOpIn,
+						Values: []string{
+							"bad space",
+							"good-1",
+						},
+					},
+				},
+			},
+			wantErr: true,
+		},
+	}
+
+	for i, tt := range tests {
+		tt := tt
+		t.Run(fmt.Sprintf("test %d", i), func(t *testing.T) {
+			s, err := flattenNameSpaceSelector(tt.selector)
+			if tt.wantErr {
+				require.Error(t, err)
+				require.Nil(t, s)
+			} else {
+				require.NoError(t, err)
+				require.NotNil(t, s)
+			}
+		})
 	}
 }
