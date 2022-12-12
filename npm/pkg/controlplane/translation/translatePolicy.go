@@ -29,7 +29,9 @@ var (
 	// ErrUnsupportedSCTP is returned when SCTP protocol is used in windows.
 	ErrUnsupportedSCTP = errors.New("unsupported SCTP protocol used on windows")
 	// ErrInvalidMatchExpressionValues ensures proper matchExpression label values since k8s doesn't perform this check.
-	ErrInvalidMatchExpressionValues = errors.New("matchExpression values must be an empty string or consist of alphanumeric characters, '-', '_' or '.', and must start and end with an alphanumeric character")
+	ErrInvalidMatchExpressionValues = errors.New(
+		"matchExpression label values must be an empty string or consist of alphanumeric characters, '-', '_' or '.', and must start and end with an alphanumeric character",
+	)
 )
 
 type podSelectorResult struct {
