@@ -11,9 +11,10 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// validLabelRegex is a match for this requirement:
-// must consist of alphanumeric characters, '-', '_' or '.', and must start and end with an alphanumeric character
-var validLabelRegex = regexp.MustCompile("[A-Za-z0-9][-A-Za-z0-9_.]*")
+// validLabelRegex is defined from the result of kubectl (this includes empty string matches):
+// a valid label must be an empty string or consist of alphanumeric characters, '-', '_' or '.', and must start and end with
+// an alphanumeric character (e.g. 'MyValue',  or 'my_value',  or '12345', regex used for validation is '(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])?'
+var validLabelRegex = regexp.MustCompile("(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])?")
 
 // flattenNameSpaceSelector will help flatten multiple nameSpace selector match Expressions values
 // into multiple label selectors helping with the OR condition.
@@ -304,7 +305,14 @@ func unsupportedOpsInWindows(op metav1.LabelSelectorOperator) bool {
 }
 
 // isValidLabelValue ensures the string is empty or satisfies validLabelRegex.
+// Given that v != "", ReplaceAllString() would yield "" when v matches this regex exactly once.
 func isValidLabelValue(v string) bool {
-	return v == "" ||
-		validLabelRegex.ReplaceAllString(v, "") == ""
+	matches := validLabelRegex.FindAllStringIndex(v, -1)
+	// v = "abc-123" would produce [[0 7]], which satisfies the below
+	// v = "" will produce [[0 0]], which satisfies the below
+	// v = "$" would produce [[0 0] [1 1]], which would fail the below
+	// v = "abc$" would produce [[0 3] [4 4]], which would fail the below
+	fmt.Printf("%+v\n", validLabelRegex.FindAllStringIndex("abc-123", -1))
+	fmt.Printf("%+v\n", validLabelRegex.FindAllStringIndex("abc$", -1))
+	return len(matches) == 1 && matches[0][0] == 0 && matches[0][1] == len(v)
 }

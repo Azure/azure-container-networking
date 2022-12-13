@@ -496,7 +496,6 @@ func TestFlattenNamespaceSelectorError(t *testing.T) {
 							"good",
 							"good-1",
 							"good2-too",
-							"good-end-in-hyphen-",
 						},
 					},
 					{
@@ -506,7 +505,6 @@ func TestFlattenNamespaceSelectorError(t *testing.T) {
 							"good",
 							"good-1",
 							"good2-too",
-							"good-end-in-hyphen-",
 						},
 					},
 				},
@@ -598,5 +596,44 @@ func TestFlattenNamespaceSelectorError(t *testing.T) {
 				require.NotNil(t, s)
 			}
 		})
+	}
+}
+
+func TestIsValidLabel(t *testing.T) {
+	require.Fail(t, "hey")
+
+	good := []string{
+		"",
+		"1",
+		"abc",
+		"ABC",
+		"abc1",
+		"ABC1",
+		"abc-1",
+		"ABC-1",
+		"ABC_1",
+		"ABC_-a54--f",
+	}
+
+	for _, g := range good {
+		require.True(t, isValidLabelValue(g), "string was [%s]", g)
+	}
+
+	bad := []string{
+		"-",
+		"_",
+		"$",
+		" ",
+		"abc-",
+		"abc$",
+		"abc$123",
+		"bad space",
+		"end-with-hyphen-",
+		"end-with-underscore_",
+		"end-with-space ",
+	}
+
+	for _, b := range bad {
+		require.False(t, isValidLabelValue(b), "string was [%s]", b)
 	}
 }
