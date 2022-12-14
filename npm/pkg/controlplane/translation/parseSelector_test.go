@@ -600,8 +600,6 @@ func TestFlattenNamespaceSelectorError(t *testing.T) {
 }
 
 func TestIsValidLabel(t *testing.T) {
-	require.Fail(t, "hey")
-
 	good := []string{
 		"",
 		"1",

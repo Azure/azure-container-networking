@@ -312,7 +312,5 @@ func isValidLabelValue(v string) bool {
 	// v = "" will produce [[0 0]], which satisfies the below
 	// v = "$" would produce [[0 0] [1 1]], which would fail the below
 	// v = "abc$" would produce [[0 3] [4 4]], which would fail the below
-	fmt.Printf("%+v\n", validLabelRegex.FindAllStringIndex("abc-123", -1))
-	fmt.Printf("%+v\n", validLabelRegex.FindAllStringIndex("abc$", -1))
 	return len(matches) == 1 && matches[0][0] == 0 && matches[0][1] == len(v)
 }
