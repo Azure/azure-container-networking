@@ -107,7 +107,7 @@ steps:
         export TENANT_ID=$(AKS_ENGINE_TENANT_ID) 
         export SUBSCRIPTION_ID=$(AKS_ENGINE_SUBSCRIPTION_ID) 
         export CLEANUP_ON_EXIT=true
-        export CLEANUP_IF_FAIL=false
+        export CLEANUP_IF_FAIL=true
         export REGIONS=$(AKS_ENGINE_REGION) 
         export IS_JENKINS=false 
         export DEBUG_CRASHING_PODS=true
