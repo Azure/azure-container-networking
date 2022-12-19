@@ -1955,7 +1955,7 @@ func TestGetPodOrchestratorContext(t *testing.T) {
 			mockdo: &mockdo{
 				errToReturn: nil,
 				objToReturn: &cns.GetPodContextResponse{
-					PodContext: map[string]string{},
+					PodContext: map[string][]string{},
 				},
 				httpStatusCodeToReturn: http.StatusOK,
 			},

@@ -24,7 +24,7 @@ func HandleCNSClientCommands(ctx context.Context, cmd string, arg string) error 
 	cnsIPAddress := os.Getenv(envCNSIPAddress)
 	cnsPort := os.Getenv(envCNSPort)
 
-	cnsClient, err := client.New("http://"+cnsIPAddress+":"+cnsPort, client.DefaultTimeout)
+	cnsClient, err := client.New(nil, "http://"+cnsIPAddress+":"+cnsPort, client.DefaultTimeout)
 	if err != nil {
 		return err
 	}

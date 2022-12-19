@@ -88,7 +88,7 @@ func requestIPAddressAndGetState(t *testing.T, req cns.IPConfigRequest) (cns.IPC
 		return cns.IPConfigurationStatus{}, errors.Wrap(err, "failed to unmarshal pod info")
 	}
 
-	ipID := svc.PodIPIDByPodInterfaceKey[podInfo.Key()]
+	ipID := svc.PodIPIDByPodInterfaceKey[podInfo.Key()][0]
 	return svc.PodIPConfigState[ipID], nil
 }
 
@@ -123,7 +123,7 @@ func UpdatePodIpConfigState(t *testing.T, svc *HTTPRestService, ipconfigs map[st
 	// update ipconfigs to expected state
 	for ipId, ipconfig := range ipconfigs {
 		if ipconfig.GetState() == types.Assigned {
-			svc.PodIPIDByPodInterfaceKey[ipconfig.PodInfo.Key()] = ipId
+			svc.PodIPIDByPodInterfaceKey[ipconfig.PodInfo.Key()][0] = ipId
 			svc.PodIPConfigState[ipId] = ipconfig
 		}
 	}
@@ -231,7 +231,7 @@ func TestIPAMGetNextAvailableIPConfig(t *testing.T) {
 	svc := getTestService()
 
 	// Add already assigned pod ip to state
-	svc.PodIPIDByPodInterfaceKey[testPod1Info.Key()] = testPod1GUID
+	svc.PodIPIDByPodInterfaceKey[testPod1Info.Key()][0] = testPod1GUID
 	state1, _ := NewPodStateWithOrchestratorContext(testIP1, testPod1GUID, testNCID, types.Assigned, 24, 0, testPod1Info)
 	state2 := NewPodState(testIP2, 24, testPod2GUID, testNCID, types.Available, 0)
 
@@ -747,7 +747,7 @@ func TestIPAMMarkExistingIPConfigAsPending(t *testing.T) {
 	svc := getTestService()
 
 	// Add already assigned pod ip to state
-	svc.PodIPIDByPodInterfaceKey[testPod1Info.Key()] = testPod1GUID
+	svc.PodIPIDByPodInterfaceKey[testPod1Info.Key()][0] = testPod1GUID
 	state1, _ := NewPodStateWithOrchestratorContext(testIP1, testPod1GUID, testNCID, types.Assigned, 24, 0, testPod1Info)
 	state2 := NewPodState(testIP2, 24, testPod2GUID, testNCID, types.Available, 0)
 

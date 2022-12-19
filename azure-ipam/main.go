@@ -36,7 +36,7 @@ func executePlugin() error {
 	defer cleanup()
 
 	// Create CNS client
-	client, err := cnsclient.New(cnsBaseURL, cnsReqTimeout)
+	client, err := cnsclient.New(pluginLogger, cnsBaseURL, cnsReqTimeout)
 	if err != nil {
 		return errors.Wrapf(err, "failed to initialize CNS client")
 	}
