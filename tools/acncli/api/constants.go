@@ -36,6 +36,7 @@ const (
 	// Multitenant Config flags
 	FlagCNSUrl                     = "cnsurl"
 	FlagEnableExactMatchForPodName = "enableexactmatchforpodname"
+	FlagNetworkName                = "networkname"
 
 	// os flags
 	Linux   = "linux"
@@ -74,6 +75,7 @@ const (
 	// Multitenancy defaults
 	DefaultCNSUrl                     = "http://localhost:10090"
 	DefaultEnableExactMatchForPodName = "false"
+	DefaultNetworkName                = "azure"
 )
 
 var (
@@ -89,6 +91,7 @@ var (
 	EnvCNILogFile                    = EnvPrefix + "_" + "LOG_FILE"
 	EnvCNICNSUrl                     = EnvPrefix + "_" + strings.ToUpper(FlagCNSUrl)
 	EnvCNIEnableExactMatchForPodName = EnvPrefix + "_" + strings.ToUpper(FlagEnableExactMatchForPodName)
+	EnvNetworkname                   = EnvPrefix + "_" + strings.ToUpper(FlagNetworkName)
 
 	Defaults = map[string]string{
 		FlagOS:                         Linux,
@@ -107,6 +110,7 @@ var (
 		EnvCNISourceDir:                DefaultSrcDirLinux,
 		EnvCNIDestinationBinDir:        DefaultBinDirLinux,
 		EnvCNIDestinationConflistDir:   DefaultConflistDirLinux,
+		FlagNetworkName:                DefaultNetworkName,
 	}
 
 	DefaultToggles = map[string]bool{
