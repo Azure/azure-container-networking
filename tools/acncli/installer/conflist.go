@@ -78,7 +78,7 @@ func ModifyConflists(conflistpath string, installerConf InstallerConfig, perm os
 	netconfig, conflist, confindex, err := LoadConf(conflistpath)
 
 	// Set the newtork name (default is 'azure')
-	netconfig.Name = installerConf.NetworkName
+	conflist.Name = installerConf.NetworkName
 
 	// change the netconfig from passed installerConf
 	netconfig.IPAM.Type = installerConf.IPAMType
