@@ -459,14 +459,12 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 	} else {
 		// single tenancy mode
 		// No need to call Add if we already got IPAMAddResult in multitenancy section via GetNetworkContainer
-		if !nwCfg.MultiTenancy {
-			ipamAddResult, err = plugin.ipamInvoker.Add(ipamAddConfig)
-			if err != nil {
-				return fmt.Errorf("IPAM Invoker Add failed with error: %w", err)
-			}
-			ipamAddResults = append(ipamAddResults, ipamAddResult)
-			sendEvent(plugin, fmt.Sprintf("Allocated IPAddress from ipam:%+v v6:%+v", ipamAddResult.ipv4Result, ipamAddResult.ipv6Result))
+		ipamAddResult, err = plugin.ipamInvoker.Add(ipamAddConfig)
+		if err != nil {
+			return fmt.Errorf("IPAM Invoker Add failed with error: %w", err)
 		}
+		ipamAddResults = append(ipamAddResults, ipamAddResult)
+		sendEvent(plugin, fmt.Sprintf("Allocated IPAddress from ipam:%+v v6:%+v", ipamAddResult.ipv4Result, ipamAddResult.ipv6Result))
 	}
 
 	// iterate ipamAddResults and program the endpoint

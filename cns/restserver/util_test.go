@@ -7,7 +7,6 @@ import (
 )
 
 func TestAreNCsPresent(t *testing.T) {
-
 	tests := []struct {
 		name    string
 		service HTTPRestService

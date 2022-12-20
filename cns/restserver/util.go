@@ -362,9 +362,8 @@ func (service *HTTPRestService) getNetworkContainersResponse(
 	req cns.GetNetworkContainerRequest,
 ) []cns.GetNetworkContainerResponse {
 	var (
-		networkContainerIDs          string
-		getNetworkContainerResponse  cns.GetNetworkContainerResponse
-		getNetworkContainersResponse []cns.GetNetworkContainerResponse
+		networkContainerIDs         string
+		getNetworkContainerResponse cns.GetNetworkContainerResponse
 	)
 
 	service.Lock()
@@ -373,7 +372,7 @@ func (service *HTTPRestService) getNetworkContainersResponse(
 	switch service.state.OrchestratorType {
 	case cns.Kubernetes, cns.ServiceFabric, cns.Batch, cns.DBforPostgreSQL, cns.AzureFirstParty:
 		podInfo, err := cns.UnmarshalPodInfo(req.OrchestratorContext)
-
+		getNetworkContainersResponse := []cns.GetNetworkContainerResponse{}
 		if err != nil {
 			getNetworkContainerResponse.Response.ReturnCode = types.UnexpectedError
 			getNetworkContainerResponse.Response.Message = fmt.Sprintf("Unmarshalling orchestrator context failed with error %v", err)
@@ -386,7 +385,7 @@ func (service *HTTPRestService) getNetworkContainersResponse(
 		// get networkContainerIDs as string, "nc1, nc2"
 		ncSet := service.state.ContainerIDByOrchestratorContext[podInfo.Name()+podInfo.Namespace()]
 		ncList, _ := ncSet.GetData()
-		networkContainerIDs = strings.Join(ncList[:], ",")
+		networkContainerIDs = strings.Join(ncList, ",")
 
 		if networkContainerIDs != "" {
 			exists = true
@@ -438,6 +437,7 @@ func (service *HTTPRestService) getNetworkContainersResponse(
 			logger.Printf("networkContainerIDs string %s", networkContainerIDs)
 		}
 	default:
+		getNetworkContainersResponse := []cns.GetNetworkContainerResponse{}
 		getNetworkContainerResponse.Response.ReturnCode = types.UnsupportedOrchestratorType
 		getNetworkContainerResponse.Response.Message = fmt.Sprintf("Invalid orchestrator type %v", service.state.OrchestratorType)
 		getNetworkContainersResponse = append(getNetworkContainersResponse, getNetworkContainerResponse)
@@ -445,6 +445,7 @@ func (service *HTTPRestService) getNetworkContainersResponse(
 	}
 
 	// get ncList i.e.,["nc1","nc2"]
+	getNetworkContainersResponse := []cns.GetNetworkContainerResponse{}
 	ncList := strings.Split(networkContainerIDs, ",")
 
 	for _, ncid := range ncList {

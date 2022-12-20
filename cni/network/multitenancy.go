@@ -185,9 +185,7 @@ func (m *Multitenancy) SetupRoutingForMultitenancy(
 func (m *Multitenancy) GetAllNetworkContainers(
 	ctx context.Context, nwCfg *cni.NetworkConfig, podName, podNamespace, ifName string,
 ) ([]IPAMAddResult, error) {
-	var (
-		podNameWithoutSuffix string
-	)
+	var podNameWithoutSuffix string
 
 	if !nwCfg.EnableExactMatchForPodName {
 		podNameWithoutSuffix = network.GetPodNameWithoutSuffix(podName)
@@ -231,9 +229,7 @@ func (m *Multitenancy) GetAllNetworkContainers(
 func (m *Multitenancy) getNetworkContainersInternal(
 	ctx context.Context, namespace, podName string,
 ) ([]cns.GetNetworkContainerResponse, []net.IPNet, error) {
-
-	ncConfigs := []cns.GetNetworkContainerResponse{}
-	subnetPrefixes := []net.IPNet{}
+	var subnetPrefixes []net.IPNet
 
 	podInfo := cns.KubernetesPodInfo{
 		PodName:      podName,
@@ -246,7 +242,7 @@ func (m *Multitenancy) getNetworkContainersInternal(
 		return nil, []net.IPNet{}, fmt.Errorf("%w", err)
 	}
 
-	ncConfigs, err = m.cnsclient.GetAllNetworkContainers(ctx, orchestratorContext)
+	ncConfigs, err := m.cnsclient.GetAllNetworkContainers(ctx, orchestratorContext)
 
 	if err != nil && err.Error() != errGetNCs.Error() {
 		return nil, []net.IPNet{}, err

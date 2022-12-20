@@ -310,8 +310,8 @@ func TestSetOrchestratorType_NCsPresent(t *testing.T) {
 		})
 	}
 }
-func TestSetOrchestratorType_DualNCsPresent(t *testing.T) {
 
+func TestSetOrchestratorType_DualNCsPresent(t *testing.T) {
 	tests := []struct {
 		name          string
 		service       *HTTPRestService
