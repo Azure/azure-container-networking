@@ -229,7 +229,6 @@ func (m *Multitenancy) GetAllNetworkContainers(
 func (m *Multitenancy) getNetworkContainersInternal(
 	ctx context.Context, namespace, podName string,
 ) ([]cns.GetNetworkContainerResponse, []net.IPNet, error) {
-	var subnetPrefixes []net.IPNet
 
 	podInfo := cns.KubernetesPodInfo{
 		PodName:      podName,
@@ -244,9 +243,7 @@ func (m *Multitenancy) getNetworkContainersInternal(
 
 	ncConfigs, err := m.cnsclient.GetAllNetworkContainers(ctx, orchestratorContext)
 
-	if err != nil && err.Error() != errGetNCs.Error() {
-		return nil, []net.IPNet{}, err
-	} else if err != nil {
+	if err != nil {
 		ncConfig, err := m.cnsclient.GetNetworkContainer(ctx, orchestratorContext)
 		if err != nil {
 			return nil, []net.IPNet{}, err
@@ -254,6 +251,7 @@ func (m *Multitenancy) getNetworkContainersInternal(
 		ncConfigs = append(ncConfigs, *ncConfig)
 	}
 
+	subnetPrefixes := []net.IPNet{}
 	for i := 0; i < len(ncConfigs); i++ {
 		subnetPrefix := m.netioshim.GetInterfaceSubnetWithSpecificIP(ncConfigs[i].PrimaryInterfaceIdentifier)
 		if subnetPrefix == nil {
