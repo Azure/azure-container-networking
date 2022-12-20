@@ -862,11 +862,13 @@ func (service *HTTPRestService) getNetworkContainerByID(w http.ResponseWriter, r
 	logger.Response(service.Name, reserveResp, resp.ReturnCode, err)
 }
 
-func (service *HTTPRestService) getNetworkContainersByOrchestratorContext(w http.ResponseWriter, r *http.Request) {
-	logger.Printf("[Azure CNS] getNetworkContainersByOrchestratorContext")
+// the function is to get all network containers based on given OrchestratorContext
+func (service *HTTPRestService) getAllNetworkContainers(w http.ResponseWriter, r *http.Request) {
+	logger.Printf("[Azure CNS] getAllNetworkContainers")
 
 	var req cns.GetNetworkContainerRequest
 
+	logger.Printf("req is %+v", req)
 	err := service.Listener.Decode(w, r, &req)
 	logger.Request(service.Name, &req, err)
 	if err != nil {
@@ -874,7 +876,7 @@ func (service *HTTPRestService) getNetworkContainersByOrchestratorContext(w http
 		return
 	}
 
-	// getNetworkContainersByOrchestratorContext gets called for multitenancy and
+	// getAllNetworkContainers gets called for multitenancy and
 	// setting the SDNRemoteArpMacAddress regKey is essential for the multitenancy
 	// to work correctly in case of windows platform. Return if there is an error
 	if err = platform.SetSdnRemoteArpMacAddress(); err != nil {
@@ -883,18 +885,15 @@ func (service *HTTPRestService) getNetworkContainersByOrchestratorContext(w http
 	}
 
 	getNetworkContainersResponse := service.getNetworkContainersResponse(req)
-
+	logger.Printf("getNetworkContainersResponse are %+v", getNetworkContainersResponse)
 	var resp cns.GetAllNetworkContainersResponse
-	if getNetworkContainersResponse != nil {
-		resp.Response.ReturnCode = getNetworkContainersResponse[0].Response.ReturnCode
-		resp.Response.Message = getNetworkContainersResponse[0].Response.Message
-		resp.NetworkContainers = getNetworkContainersResponse
 
-		err = service.Listener.Encode(w, &resp)
-		logger.Response(service.Name, resp, resp.Response.ReturnCode, err)
-	} else {
-		logger.Printf("[Azure CNS] No Network Container Response found!")
-	}
+	resp.Response.ReturnCode = getNetworkContainersResponse[0].Response.ReturnCode
+	resp.Response.Message = getNetworkContainersResponse[0].Response.Message
+	resp.NetworkContainers = getNetworkContainersResponse
+
+	err = service.Listener.Encode(w, &resp)
+	logger.Response(service.Name, resp, resp.Response.ReturnCode, err)
 }
 
 func (service *HTTPRestService) getNetworkContainerByOrchestratorContext(w http.ResponseWriter, r *http.Request) {

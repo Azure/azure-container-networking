@@ -448,28 +448,25 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 			return fmt.Errorf("%w", err)
 		}
 
-		ipamAddResults, err = plugin.multitenancyClient.GetNetworkContainers(
-			context.TODO(), nwCfg, k8sPodName, k8sNamespace)
+		ipamAddResults, err = plugin.multitenancyClient.GetAllNetworkContainers(context.TODO(), nwCfg, k8sPodName, k8sNamespace, args.IfName)
 
 		// API call itself gets failed no matter using old or new CNS client API version except errGetNCs
 		if err != nil {
-			err = errors.Wrapf(err, "GetNetworkContainers failed for podname %v namespace %v", k8sPodName, k8sNamespace)
+			err = errors.Wrapf(err, "GetAllNetworkContainers failed for podname %v namespace %v", k8sPodName, k8sNamespace)
 			log.Printf("%+v", err)
 			return err
-		}
-
-		for i, ipamResult := range ipamAddResults {
-			ipamAddResults[i].ipv4Result = convertToCniResult(ipamResult.ncResponse, args.IfName)
 		}
 	} else {
 		// single tenancy mode
 		// No need to call Add if we already got IPAMAddResult in multitenancy section via GetNetworkContainer
-		ipamAddResult, err = plugin.ipamInvoker.Add(ipamAddConfig)
-		if err != nil {
-			return fmt.Errorf("IPAM Invoker Add failed with error: %w", err)
+		if !nwCfg.MultiTenancy {
+			ipamAddResult, err = plugin.ipamInvoker.Add(ipamAddConfig)
+			if err != nil {
+				return fmt.Errorf("IPAM Invoker Add failed with error: %w", err)
+			}
+			ipamAddResults = append(ipamAddResults, ipamAddResult)
+			sendEvent(plugin, fmt.Sprintf("Allocated IPAddress from ipam:%+v v6:%+v", ipamAddResult.ipv4Result, ipamAddResult.ipv6Result))
 		}
-		ipamAddResults = append(ipamAddResults, ipamAddResult)
-		sendEvent(plugin, fmt.Sprintf("Allocated IPAddress from ipam:%+v v6:%+v", ipamAddResult.ipv4Result, ipamAddResult.ipv6Result))
 	}
 
 	// iterate ipamAddResults and program the endpoint

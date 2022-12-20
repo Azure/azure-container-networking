@@ -26,7 +26,7 @@ const (
 
 var clientPaths = []string{
 	cns.GetNetworkContainerByOrchestratorContext,
-	cns.GetNetworkContainersByOrchestratorContext,
+	cns.GetAllNetworkContainers,
 	cns.CreateHostNCApipaEndpointPath,
 	cns.DeleteHostNCApipaEndpointPath,
 	cns.RequestIPConfig,
@@ -94,8 +94,8 @@ func buildRoutes(baseURL string, paths []string) (map[string]url.URL, error) {
 	return routes, nil
 }
 
-// GetNetworkContainersConfiguration Request to get network container configs.
-func (c *Client) GetNetworkContainers(ctx context.Context, orchestratorContext []byte) ([]cns.GetNetworkContainerResponse, error) {
+// GetAllNetworkContainers Request to get network container configs.
+func (c *Client) GetAllNetworkContainers(ctx context.Context, orchestratorContext []byte) ([]cns.GetNetworkContainerResponse, error) {
 	payload := cns.GetNetworkContainerRequest{
 		OrchestratorContext: orchestratorContext,
 	}
@@ -108,7 +108,7 @@ func (c *Client) GetNetworkContainers(ctx context.Context, orchestratorContext [
 		}
 	}
 
-	u := c.routes[cns.GetNetworkContainersByOrchestratorContext]
+	u := c.routes[cns.GetAllNetworkContainers]
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, u.String(), &body)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to build request")

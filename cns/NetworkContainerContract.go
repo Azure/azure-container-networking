@@ -22,7 +22,7 @@ const (
 	UnpublishNetworkContainer                = "/network/unpublishnetworkcontainer"
 	GetInterfaceForContainer                 = "/network/getinterfaceforcontainer"
 	GetNetworkContainerByOrchestratorContext = "/network/getnetworkcontainerbyorchestratorcontext"
-  GetNetworkContainersByOrchestratorContext = "/network/getnetworkcontainersbyorchestratorcontext"
+	GetAllNetworkContainers                  = "/network/getAllNetworkContainers"
 	NetworkContainersURLPath                 = "/network/networkcontainers"
 	AttachContainerToNetwork                 = "/network/attachcontainertonetwork"
 	DetachContainerFromNetwork               = "/network/detachcontainerfromnetwork"

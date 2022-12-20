@@ -35,18 +35,18 @@ type getNetworkContainerConfigurationHandler struct {
 	err                 error
 }
 
-type getNetworkContainersConfigurationHandler struct {
+type getAllNetworkContainersConfigurationHandler struct {
 	orchestratorContext []byte
 	returnResponse      []cns.GetNetworkContainerResponse
 	err                 error
 }
 
 type MockCNSClient struct {
-	require                           *require.Assertions
-	request                           requestIPAddressHandler
-	release                           releaseIPAddressHandler
-	getNetworkContainerConfiguration  getNetworkContainerConfigurationHandler
-	getNetworkContainersConfiguration getNetworkContainersConfigurationHandler
+	require                              *require.Assertions
+	request                              requestIPAddressHandler
+	release                              releaseIPAddressHandler
+	getNetworkContainerConfiguration     getNetworkContainerConfigurationHandler
+	getAllNetworkContainersConfiguration getAllNetworkContainersConfigurationHandler
 }
 
 func (c *MockCNSClient) RequestIPAddress(_ context.Context, ipconfig cns.IPConfigRequest) (*cns.IPConfigResponse, error) {
@@ -64,9 +64,9 @@ func (c *MockCNSClient) GetNetworkContainer(ctx context.Context, orchestratorCon
 	return c.getNetworkContainerConfiguration.returnResponse, c.getNetworkContainerConfiguration.err
 }
 
-func (c *MockCNSClient) GetNetworkContainers(ctx context.Context, orchestratorContext []byte) ([]cns.GetNetworkContainerResponse, error) {
-	c.require.Exactly(c.getNetworkContainersConfiguration.orchestratorContext, orchestratorContext)
-	return c.getNetworkContainersConfiguration.returnResponse, c.getNetworkContainersConfiguration.err
+func (c *MockCNSClient) GetAllNetworkContainers(ctx context.Context, orchestratorContext []byte) ([]cns.GetNetworkContainerResponse, error) {
+	c.require.Exactly(c.getAllNetworkContainersConfiguration.orchestratorContext, orchestratorContext)
+	return c.getAllNetworkContainersConfiguration.returnResponse, c.getAllNetworkContainersConfiguration.err
 }
 
 func defaultIPNet() *net.IPNet {
@@ -223,6 +223,185 @@ func TestCleanupMultitenancyResources(t *testing.T) {
 			require.Exactly(tt.expected.nwCfg, tt.args.nwCfg)
 			require.Exactly(tt.expected.infraIPNet, tt.args.infraIPNet)
 			require.Exactly(tt.expected.plugin, tt.args.plugin)
+		})
+	}
+}
+
+func TestGetMultiTenancyCNIResult(t *testing.T) {
+	require := require.New(t) //nolint:gocritic
+
+	var ncResponses []cns.GetNetworkContainerResponse
+	ncResponse := cns.GetNetworkContainerResponse{
+		PrimaryInterfaceIdentifier: "10.0.0.0/16",
+		LocalIPConfiguration: cns.IPConfiguration{
+			IPSubnet: cns.IPSubnet{
+				IPAddress:    "10.0.0.5",
+				PrefixLength: 16,
+			},
+			GatewayIPAddress: "",
+		},
+		CnetAddressSpace: []cns.IPSubnet{
+			{
+				IPAddress:    "10.1.0.0",
+				PrefixLength: 16,
+			},
+		},
+		IPConfiguration: cns.IPConfiguration{
+			IPSubnet: cns.IPSubnet{
+				IPAddress:    "10.1.0.5",
+				PrefixLength: 16,
+			},
+			DNSServers:       nil,
+			GatewayIPAddress: "10.1.0.1",
+		},
+		Routes: []cns.Route{
+			{
+				IPAddress:        "10.1.0.0/16",
+				GatewayIPAddress: "10.1.0.1",
+			},
+		},
+	}
+	ncResponses = append(ncResponses, ncResponse)
+
+	type args struct {
+		ctx             context.Context
+		enableInfraVnet bool
+		nwCfg           *cni.NetworkConfig
+		plugin          *NetPlugin
+		k8sPodName      string
+		k8sNamespace    string
+		ifName          string
+	}
+
+	tests := []struct {
+		name    string
+		args    args
+		want    *cniTypesCurr.Result
+		want1   *cns.GetNetworkContainerResponse
+		want2   net.IPNet
+		want3   *cniTypesCurr.Result
+		wantErr bool
+	}{
+		{
+			name: "test happy path",
+			args: args{
+				enableInfraVnet: true,
+				nwCfg: &cni.NetworkConfig{
+					MultiTenancy:               true,
+					EnableSnatOnHost:           true,
+					EnableExactMatchForPodName: true,
+					InfraVnetAddressSpace:      "10.0.0.0/16",
+					IPAM:                       cni.IPAM{Type: "azure-vnet-ipam"},
+				},
+				plugin: &NetPlugin{
+					ipamInvoker: NewMockIpamInvoker(false, false, false),
+					multitenancyClient: &Multitenancy{
+						netioshim: &mockNetIOShim{},
+						cnsclient: &MockCNSClient{
+							require: require,
+							getAllNetworkContainersConfiguration: getAllNetworkContainersConfigurationHandler{
+								orchestratorContext: marshallPodInfo(cns.KubernetesPodInfo{
+									PodName:      "testpod",
+									PodNamespace: "testnamespace",
+								}),
+								returnResponse: ncResponses,
+							},
+						},
+					},
+				},
+				k8sPodName:   "testpod",
+				k8sNamespace: "testnamespace",
+				ifName:       "eth0",
+			},
+
+			want: &cniTypesCurr.Result{
+				Interfaces: []*cniTypesCurr.Interface{
+					{
+						Name: "eth0",
+					},
+				},
+				IPs: []*cniTypesCurr.IPConfig{
+					{
+						Address: getIPNet(net.IPv4(10, 1, 0, 5), net.CIDRMask(16, 32)),
+						Gateway: net.ParseIP("10.1.0.1"),
+					},
+				},
+				Routes: []*cniTypes.Route{
+					{
+						Dst: *getIPNetWithString("10.1.0.0/16"),
+						GW:  net.ParseIP("10.1.0.1"),
+					},
+					{
+						Dst: net.IPNet{IP: net.ParseIP("10.1.0.0"), Mask: net.CIDRMask(16, 32)},
+						GW:  net.ParseIP("10.1.0.1"),
+					},
+				},
+			},
+			want1: &cns.GetNetworkContainerResponse{
+				PrimaryInterfaceIdentifier: "10.0.0.0/16",
+				LocalIPConfiguration: cns.IPConfiguration{
+					IPSubnet: cns.IPSubnet{
+						IPAddress:    "10.0.0.5",
+						PrefixLength: 16,
+					},
+					GatewayIPAddress: "",
+				},
+				CnetAddressSpace: []cns.IPSubnet{
+					{
+						IPAddress:    "10.1.0.0",
+						PrefixLength: 16,
+					},
+				},
+				IPConfiguration: cns.IPConfiguration{
+					IPSubnet: cns.IPSubnet{
+						IPAddress:    "10.1.0.5",
+						PrefixLength: 16,
+					},
+					DNSServers:       nil,
+					GatewayIPAddress: "10.1.0.1",
+				},
+				Routes: []cns.Route{
+					{
+						IPAddress:        "10.1.0.0/16",
+						GatewayIPAddress: "10.1.0.1",
+					},
+				},
+			},
+			want2: *getCIDRNotationForAddress("10.0.0.0/16"),
+			want3: &cniTypesCurr.Result{
+				IPs: []*cniTypesCurr.IPConfig{
+					{
+						Address: net.IPNet{
+							IP:   net.ParseIP("10.240.0.5"),
+							Mask: net.CIDRMask(24, 32),
+						},
+						Gateway: net.ParseIP("10.240.0.1"),
+					},
+				},
+				Routes: nil,
+				DNS:    cniTypes.DNS{},
+			},
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := tt.args.plugin.multitenancyClient.GetAllNetworkContainers(
+				tt.args.ctx,
+				tt.args.nwCfg,
+				tt.args.k8sPodName,
+				tt.args.k8sNamespace,
+				tt.args.ifName)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("GetContainerNetworkConfiguration() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if tt.wantErr {
+				require.Error(err)
+			}
+			require.NoError(err)
+			require.Exactly(tt.want1, got[0].ncResponse)
+			require.Exactly(tt.want2, got[0].hostSubnetPrefix)
 		})
 	}
 }

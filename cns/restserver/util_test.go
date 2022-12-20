@@ -7,8 +7,6 @@ import (
 )
 
 func TestAreNCsPresent(t *testing.T) {
-	nc := &Set{}
-	nc.Add("present")
 
 	tests := []struct {
 		name    string
@@ -30,8 +28,8 @@ func TestAreNCsPresent(t *testing.T) {
 			name: "containerIDByOrchestorContext present",
 			service: HTTPRestService{
 				state: &httpRestServiceState{
-					ContainerIDByOrchestratorContext: map[string]*Set{
-						"nc1": nc,
+					ContainerIDByOrchestratorContext: map[string]Set{
+						"nc1": {"present": {}},
 					},
 				},
 			},

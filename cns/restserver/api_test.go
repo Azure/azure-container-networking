@@ -230,9 +230,6 @@ func FirstRequest(req *http.Request, err error) *http.Request {
 }
 
 func TestSetOrchestratorType_NCsPresent(t *testing.T) {
-	nc := &Set{}
-	nc.Add("present")
-
 	tests := []struct {
 		name          string
 		service       *HTTPRestService
@@ -249,8 +246,8 @@ func TestSetOrchestratorType_NCsPresent(t *testing.T) {
 					ContainerStatus: map[string]containerstatus{
 						"nc1": {},
 					},
-					ContainerIDByOrchestratorContext: map[string]*Set{
-						"nc1": nc,
+					ContainerIDByOrchestratorContext: map[string]Set{
+						"nc1": {"present": {}},
 					},
 				},
 			},
@@ -313,11 +310,7 @@ func TestSetOrchestratorType_NCsPresent(t *testing.T) {
 		})
 	}
 }
-
 func TestSetOrchestratorType_DualNCsPresent(t *testing.T) {
-	nc := &Set{}
-	nc.Add("present")
-	nc.Add("gift")
 
 	tests := []struct {
 		name          string
@@ -335,8 +328,8 @@ func TestSetOrchestratorType_DualNCsPresent(t *testing.T) {
 					ContainerStatus: map[string]containerstatus{
 						"nc1": {},
 					},
-					ContainerIDByOrchestratorContext: map[string]*Set{
-						"nc1": nc,
+					ContainerIDByOrchestratorContext: map[string]Set{
+						"nc1": {"present": {}, "gift": {}},
 					},
 				},
 			},
@@ -1112,7 +1105,7 @@ func TestCreateHostNCApipaEndpoint(t *testing.T) {
 	fmt.Printf("createHostNCApipaEndpoint Responded with %+v\n", createHostNCApipaEndpointResponse)
 }
 
-func TestGetNetworkContainers(t *testing.T) {
+func TestGetAllNetworkContainers(t *testing.T) {
 	setEnv(t)
 	err := setOrchestratorType(t, cns.Kubernetes)
 	if err != nil {
@@ -1128,7 +1121,7 @@ func TestGetNetworkContainers(t *testing.T) {
 
 	err = getAllNetworkContainers(t, ncParams)
 	if err != nil {
-		t.Fatalf("TestGetNetworkContainers failed with error:%+v", err)
+		t.Fatalf("TestGetAllNetworkContainers failed with error:%+v", err)
 	}
 
 	for i := 0; i < len(ncParams); i++ {

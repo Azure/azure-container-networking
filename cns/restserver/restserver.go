@@ -2,9 +2,7 @@ package restserver
 
 import (
 	"context"
-	"encoding/json"
 	"net"
-	"strings"
 	"sync"
 	"time"
 
@@ -127,69 +125,6 @@ type containerstatus struct {
 	VfpUpdateComplete             bool // True when VFP programming is completed for the NC
 }
 
-// set key is nc, value is empty structure
-// i.e., &map[Swift_58d4f537-acac-47ba-a159-7ca7d7e775ce:{} Swift_af4829c3-d403-4bf1-8585-3e35b2ed97d7:{}]
-type Set map[string]struct{}
-
-func (s *Set) Add(nc string) {
-	if s == nil {
-		*s = make(map[string]struct{})
-	}
-
-	(*s)[nc] = struct{}{}
-}
-
-func (s *Set) Contains(nc string) bool {
-	if s == nil {
-		return false
-	}
-	_, ok := (*s)[nc]
-	return ok
-}
-
-func (s *Set) Delete(nc string) error {
-	if !s.Contains(nc) {
-		return errors.New("no NC is found to be deleted")
-	}
-
-	delete(*s, nc)
-	return nil
-}
-
-func (s *Set) UnmarshalJSON(data []byte) error {
-	var ncString string
-	if err := json.Unmarshal(data, &ncString); err != nil {
-		return errors.Wrapf(err, "failed to unmarshal NC result")
-	}
-
-	res := strings.Split(ncString, ",")
-
-	if *s == nil {
-		*s = make(map[string]struct{})
-	}
-
-	for _, nc := range res {
-		(*s)[nc] = struct{}{}
-	}
-
-	return nil
-}
-
-// concatenate all nc string by comma and return bytes
-// i.e., "Swift_af4829c3-d403-4bf1-8585-3e35b2ed97d7,Swift_58d4f537-acac-47ba-a159-7ca7d7e775ce"
-func (s Set) MarshalJSON() ([]byte, error) {
-	result := make([]string, len(s))
-	index := 0
-	for nc := range s {
-		result[index] = nc
-		index++
-	}
-
-	res := strings.Join(result, ",")
-	// nolint:wrapcheck // wrapping this error provides no useful information
-	return json.Marshal(&res)
-}
-
 // httpRestServiceState contains the state we would like to persist.
 type httpRestServiceState struct {
 	Location                         string
@@ -197,7 +132,7 @@ type httpRestServiceState struct {
 	OrchestratorType                 string
 	NodeID                           string
 	Initialized                      bool
-	ContainerIDByOrchestratorContext map[string]*Set            // OrchestratorContext is the key and value is NetworkContainerIDs separated by comma.
+	ContainerIDByOrchestratorContext map[string]Set             // OrchestratorContext is the key and value is NetworkContainerIDs separated by comma.
 	ContainerStatus                  map[string]containerstatus // NetworkContainerID is key.
 	Networks                         map[string]*networkInfo
 	TimeStamp                        time.Time
@@ -305,7 +240,7 @@ func (service *HTTPRestService) Init(config *common.ServiceConfig) error {
 	listener.AddHandler(cns.GetInterfaceForContainer, service.getInterfaceForContainer)
 	listener.AddHandler(cns.SetOrchestratorType, service.setOrchestratorType)
 	listener.AddHandler(cns.GetNetworkContainerByOrchestratorContext, service.getNetworkContainerByOrchestratorContext)
-	listener.AddHandler(cns.GetNetworkContainersByOrchestratorContext, service.getNetworkContainersByOrchestratorContext)
+	listener.AddHandler(cns.GetAllNetworkContainers, service.getAllNetworkContainers)
 	listener.AddHandler(cns.AttachContainerToNetwork, service.attachNetworkContainerToNetwork)
 	listener.AddHandler(cns.DetachContainerFromNetwork, service.detachNetworkContainerFromNetwork)
 	listener.AddHandler(cns.CreateHnsNetworkPath, service.createHnsNetwork)
@@ -338,7 +273,7 @@ func (service *HTTPRestService) Init(config *common.ServiceConfig) error {
 	listener.AddHandler(cns.V2Prefix+cns.GetInterfaceForContainer, service.getInterfaceForContainer)
 	listener.AddHandler(cns.V2Prefix+cns.SetOrchestratorType, service.setOrchestratorType)
 	listener.AddHandler(cns.V2Prefix+cns.GetNetworkContainerByOrchestratorContext, service.getNetworkContainerByOrchestratorContext)
-	listener.AddHandler(cns.V2Prefix+cns.GetNetworkContainersByOrchestratorContext, service.getNetworkContainersByOrchestratorContext)
+	listener.AddHandler(cns.V2Prefix+cns.GetAllNetworkContainers, service.getAllNetworkContainers)
 	listener.AddHandler(cns.V2Prefix+cns.AttachContainerToNetwork, service.attachNetworkContainerToNetwork)
 	listener.AddHandler(cns.V2Prefix+cns.DetachContainerFromNetwork, service.detachNetworkContainerFromNetwork)
 	listener.AddHandler(cns.V2Prefix+cns.CreateHnsNetworkPath, service.createHnsNetwork)

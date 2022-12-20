@@ -81,12 +81,13 @@ func (m *MockMultitenancy) GetNetworkContainer(
 	return cnsResponse, *ipnet, nil
 }
 
-func (m *MockMultitenancy) GetNetworkContainers(
+func (m *MockMultitenancy) GetAllNetworkContainers(
 	ctx context.Context,
 	nwCfg *cni.NetworkConfig,
 	podName string,
 	podNamespace string,
-) (ipamResults []IPAMAddResult, err error) {
+	ifName string,
+) ([]IPAMAddResult, error) {
 	if m.fail {
 		return nil, errMockMulAdd
 	}
@@ -147,9 +148,11 @@ func (m *MockMultitenancy) GetNetworkContainers(
 	cnsResponses = append(cnsResponses, *cnsResponseOne, *cnsResponseTwo)
 
 	var ipamResult IPAMAddResult
+	ipamResults := []IPAMAddResult{}
 	for i := 0; i < len(cnsResponses); i++ {
 		ipamResult.ncResponse = &cnsResponses[i]
 		ipamResult.hostSubnetPrefix = ipNets[i]
+		ipamResult.ipv4Result = convertToCniResult(ipamResult.ncResponse, ifName)
 		ipamResults = append(ipamResults, ipamResult)
 	}
 
