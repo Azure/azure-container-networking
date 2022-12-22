@@ -358,7 +358,7 @@ func (service *HTTPRestService) removeToBeDeletedIPStateUntransacted(
 	return 0, ""
 }
 
-func (service *HTTPRestService) getNetworkContainersResponse(
+func (service *HTTPRestService) getAllNetworkContainerResponses(
 	req cns.GetNetworkContainerRequest,
 ) []cns.GetNetworkContainerResponse {
 	var (
@@ -384,7 +384,7 @@ func (service *HTTPRestService) getNetworkContainersResponse(
 
 		// get networkContainerIDs as string, "nc1, nc2"
 		ncSet := service.state.ContainerIDByOrchestratorContext[podInfo.Name()+podInfo.Namespace()]
-		ncList, _ := ncSet.GetData()
+		ncList := ncSet.GetData()
 		networkContainerIDs = strings.Join(ncList, ",")
 
 		if networkContainerIDs != "" {
@@ -444,7 +444,6 @@ func (service *HTTPRestService) getNetworkContainersResponse(
 		return getNetworkContainersResponse
 	}
 
-	// get ncList i.e.,["nc1","nc2"]
 	getNetworkContainersResponse := []cns.GetNetworkContainerResponse{}
 	ncList := strings.Split(networkContainerIDs, ",")
 
@@ -455,6 +454,7 @@ func (service *HTTPRestService) getNetworkContainersResponse(
 			getNetworkContainerResponse.Response.ReturnCode = types.UnknownContainerID
 			getNetworkContainerResponse.Response.Message = "NetworkContainer doesn't exist."
 			getNetworkContainersResponse = append(getNetworkContainersResponse, getNetworkContainerResponse)
+			continue
 		}
 
 		savedReq := containerDetails.CreateNetworkContainerRequest
@@ -483,7 +483,6 @@ func (service *HTTPRestService) getNetworkContainerResponse(
 	var (
 		networkContainerIDs         []string
 		getNetworkContainerResponse cns.GetNetworkContainerResponse
-		exists                      bool
 		waitingForUpdate            bool
 	)
 
@@ -507,44 +506,42 @@ func (service *HTTPRestService) getNetworkContainerResponse(
 			return getNetworkContainerResponse
 		}
 
-		// get ncSet
-		ncSet := service.state.ContainerIDByOrchestratorContext[podInfo.Name()+podInfo.Namespace()]
+		orchestratorContext := podInfo.Name() + podInfo.Namespace()
+		ncSet := service.state.ContainerIDByOrchestratorContext[orchestratorContext]
 
-		if networkContainerIDs, err = ncSet.GetData(); err != nil {
-			logger.Errorf("Failed to get networkContainerIDs from ncSet %+v", ncSet)
+		networkContainerIDs = ncSet.GetData()
+		if len(networkContainerIDs) == 0 {
+			getNetworkContainerResponse.Response.ReturnCode = types.UnknownContainerID
+			getNetworkContainerResponse.Response.Message = fmt.Sprintf("Failed to find networkID for orchestratorContext %s", orchestratorContext)
 			return getNetworkContainerResponse
 		}
 
-		if networkContainerIDs != nil {
-			exists = true
+		// If the goal state is available with CNS, check if the NC is pending VFP programming
+		waitingForUpdate, getNetworkContainerResponse.Response.ReturnCode, getNetworkContainerResponse.Response.Message = service.isNCWaitingForUpdate(service.state.ContainerStatus[networkContainerIDs[0]].CreateNetworkContainerRequest.Version, networkContainerIDs[0]) //nolint:lll // bad code
+		// If the return code is not success, return the error to the caller
+		if getNetworkContainerResponse.Response.ReturnCode == types.NetworkContainerVfpProgramPending {
+			logger.Errorf("[Azure-CNS] isNCWaitingForUpdate failed for NCID: %s with error: %s",
+				networkContainerIDs[0], getNetworkContainerResponse.Response.Message)
+			return getNetworkContainerResponse
 		}
 
-		if exists {
-			// If the goal state is available with CNS, check if the NC is pending VFP programming
-			waitingForUpdate, getNetworkContainerResponse.Response.ReturnCode, getNetworkContainerResponse.Response.Message = service.isNCWaitingForUpdate(service.state.ContainerStatus[networkContainerIDs[0]].CreateNetworkContainerRequest.Version, networkContainerIDs[0]) //nolint:lll // bad code
-			// If the return code is not success, return the error to the caller
-			if getNetworkContainerResponse.Response.ReturnCode == types.NetworkContainerVfpProgramPending {
-				logger.Errorf("[Azure-CNS] isNCWaitingForUpdate failed for NCID: %s with error: %s",
-					networkContainerIDs[0], getNetworkContainerResponse.Response.Message)
-				return getNetworkContainerResponse
+		vfpUpdateComplete := !waitingForUpdate
+		ncstatus := service.state.ContainerStatus[networkContainerIDs[0]]
+		// Update the container status if-
+		// 1. VfpUpdateCompleted successfully
+		// 2. VfpUpdateComplete changed to false
+		if (getNetworkContainerResponse.Response.ReturnCode == types.NetworkContainerVfpProgramComplete &&
+			vfpUpdateComplete && ncstatus.VfpUpdateComplete != vfpUpdateComplete) ||
+			(!vfpUpdateComplete && ncstatus.VfpUpdateComplete != vfpUpdateComplete) {
+			logger.Printf("[Azure-CNS] Setting VfpUpdateComplete to %t for NCID: %s", vfpUpdateComplete, networkContainerIDs[0])
+			ncstatus.VfpUpdateComplete = vfpUpdateComplete
+			service.state.ContainerStatus[networkContainerIDs[0]] = ncstatus
+			if err = service.saveState(); err != nil {
+				logger.Errorf("Failed to save goal states for nc %+v due to %s", getNetworkContainerResponse, err)
 			}
+		}
 
-			vfpUpdateComplete := !waitingForUpdate
-			ncstatus := service.state.ContainerStatus[networkContainerIDs[0]]
-			// Update the container status if-
-			// 1. VfpUpdateCompleted successfully
-			// 2. VfpUpdateComplete changed to false
-			if (getNetworkContainerResponse.Response.ReturnCode == types.NetworkContainerVfpProgramComplete &&
-				vfpUpdateComplete && ncstatus.VfpUpdateComplete != vfpUpdateComplete) ||
-				(!vfpUpdateComplete && ncstatus.VfpUpdateComplete != vfpUpdateComplete) {
-				logger.Printf("[Azure-CNS] Setting VfpUpdateComplete to %t for NCID: %s", vfpUpdateComplete, networkContainerIDs[0])
-				ncstatus.VfpUpdateComplete = vfpUpdateComplete
-				service.state.ContainerStatus[networkContainerIDs[0]] = ncstatus
-				if err = service.saveState(); err != nil {
-					logger.Errorf("Failed to save goal states for nc %+v due to %s", getNetworkContainerResponse, err)
-				}
-			}
-		} else if service.ChannelMode == cns.Managed {
+		if service.ChannelMode == cns.Managed {
 			// If the NC goal state doesn't exist in CNS running in managed mode, call DNC to retrieve the goal state
 			var (
 				dncEP     = service.GetOption(acn.OptPrivateEndpoint).(string)
@@ -1065,7 +1062,6 @@ func (service *HTTPRestService) setResponse(w http.ResponseWriter, returnCode ty
 }
 
 // set key is data, value is empty structure
-// i.e., &map[Swift_58d4f537-acac-47ba-a159-7ca7d7e775ce:{} Swift_af4829c3-d403-4bf1-8585-3e35b2ed97d7:{}]
 type Set map[string]struct{}
 
 func (s Set) Add(data string) {
@@ -1093,14 +1089,10 @@ func (s Set) Delete(data string) error {
 	return nil
 }
 
-func (s Set) GetData() ([]string, error) {
-	if s == nil {
-		return nil, errors.New("no data is found")
-	}
-
+func (s Set) GetData() []string {
 	data := make([]string, 0)
 	for d := range s {
 		data = append(data, d)
 	}
-	return data, nil
+	return data
 }

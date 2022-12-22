@@ -35,6 +35,7 @@ type getNetworkContainerConfigurationHandler struct {
 	err                 error
 }
 
+// this is to get all the NCs for testing with given orchestratorContext
 type getAllNetworkContainersConfigurationHandler struct {
 	orchestratorContext []byte
 	returnResponse      []cns.GetNetworkContainerResponse

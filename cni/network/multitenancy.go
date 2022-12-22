@@ -14,6 +14,7 @@ import (
 
 	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/cns"
+	"github.com/Azure/azure-container-networking/cns/client"
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/network"
@@ -195,9 +196,11 @@ func (m *Multitenancy) GetAllNetworkContainers(
 
 	log.Printf("Podname without suffix %v", podNameWithoutSuffix)
 
-	// First try the new CNS API that returns slice of nc responses. If CNS doesn't support the new API, an error will be returned and as a result
-	// try using the old CNS API that returns single nc response.
 	ncResponses, hostSubnetPrefixes, err := m.getNetworkContainersInternal(ctx, podNamespace, podNameWithoutSuffix)
+	if err != nil {
+		return []IPAMAddResult{}, fmt.Errorf("%w", err)
+	}
+
 	for i := 0; i < len(ncResponses); i++ {
 		if nwCfg.EnableSnatOnHost {
 			if ncResponses[i].LocalIPConfiguration.IPSubnet.IPAddress == "" {
@@ -207,19 +210,12 @@ func (m *Multitenancy) GetAllNetworkContainers(
 		}
 	}
 
-	if hostSubnetPrefixes == nil {
-		log.Printf("no host subnet prefixes are found for ncs %+v", ncResponses)
-		return nil, err
-	}
-
-	ipamResult := IPAMAddResult{}
-	ipamResults := []IPAMAddResult{}
+	ipamResults := make([]IPAMAddResult, len(ncResponses))
 
 	for i := 0; i < len(ncResponses); i++ {
-		ipamResult.ncResponse = &ncResponses[i]
-		ipamResult.hostSubnetPrefix = hostSubnetPrefixes[i]
-		ipamResult.ipv4Result = convertToCniResult(ipamResult.ncResponse, ifName)
-		ipamResults = append(ipamResults, ipamResult)
+		ipamResults[i].ncResponse = &ncResponses[i]
+		ipamResults[i].hostSubnetPrefix = hostSubnetPrefixes[i]
+		ipamResults[i].ipv4Result = convertToCniResult(ipamResults[i].ncResponse, ifName)
 	}
 
 	return ipamResults, err
@@ -229,7 +225,6 @@ func (m *Multitenancy) GetAllNetworkContainers(
 func (m *Multitenancy) getNetworkContainersInternal(
 	ctx context.Context, namespace, podName string,
 ) ([]cns.GetNetworkContainerResponse, []net.IPNet, error) {
-
 	podInfo := cns.KubernetesPodInfo{
 		PodName:      podName,
 		PodNamespace: namespace,
@@ -241,22 +236,24 @@ func (m *Multitenancy) getNetworkContainersInternal(
 		return nil, []net.IPNet{}, fmt.Errorf("%w", err)
 	}
 
+	// First try the new CNS API that returns slice of nc responses. If CNS doesn't support the new API, an error will be returned and as a result
+	// try using the old CNS API that returns single nc response.
 	ncConfigs, err := m.cnsclient.GetAllNetworkContainers(ctx, orchestratorContext)
-
-	if err != nil {
+	if err != nil && client.IsUnsupportedAPI(err) {
 		ncConfig, err := m.cnsclient.GetNetworkContainer(ctx, orchestratorContext)
 		if err != nil {
-			return nil, []net.IPNet{}, err
+			return nil, []net.IPNet{}, fmt.Errorf("%w", err)
 		}
 		ncConfigs = append(ncConfigs, *ncConfig)
+	} else if err != nil {
+		return nil, []net.IPNet{}, fmt.Errorf("%w", err)
 	}
 
 	subnetPrefixes := []net.IPNet{}
 	for i := 0; i < len(ncConfigs); i++ {
 		subnetPrefix := m.netioshim.GetInterfaceSubnetWithSpecificIP(ncConfigs[i].PrimaryInterfaceIdentifier)
 		if subnetPrefix == nil {
-			errBuf := fmt.Errorf("%w %s", errIfaceNotFound, ncConfigs[i].PrimaryInterfaceIdentifier)
-			log.Printf(errBuf.Error())
+			log.Printf("%w %s", errIfaceNotFound, ncConfigs[i].PrimaryInterfaceIdentifier)
 			return nil, []net.IPNet{}, errIfaceNotFound
 		}
 		subnetPrefixes = append(subnetPrefixes, *subnetPrefix)
@@ -348,5 +345,4 @@ var (
 	errInfraVnet     = errors.New("infravnet not populated")
 	errSubnetOverlap = errors.New("subnet overlap error")
 	errIfaceNotFound = errors.New("Interface not found for this ip")
-	errGetNCs        = errors.New("Failed to get nc responses")
 )

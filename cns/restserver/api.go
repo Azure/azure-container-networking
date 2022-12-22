@@ -872,7 +872,7 @@ func (service *HTTPRestService) getAllNetworkContainers(w http.ResponseWriter, r
 	err := service.Listener.Decode(w, r, &req)
 	logger.Request(service.Name, &req, err)
 	if err != nil {
-		logger.Errorf("[Azure CNS] failed to decode cns request due to %+v", err)
+		logger.Errorf("[Azure CNS] failed to decode cns request with req %+v due to %+v", req, err)
 		return
 	}
 
@@ -884,13 +884,27 @@ func (service *HTTPRestService) getAllNetworkContainers(w http.ResponseWriter, r
 		return
 	}
 
-	getNetworkContainersResponse := service.getNetworkContainersResponse(req)
-	logger.Printf("getNetworkContainersResponse are %+v", getNetworkContainersResponse)
+	getAllNetworkContainerResponses := service.getAllNetworkContainerResponses(req)
+	logger.Printf("getAllNetworkContainerResponses are %+v", getAllNetworkContainerResponses)
+
 	var resp cns.GetAllNetworkContainersResponse
 
-	resp.Response.ReturnCode = getNetworkContainersResponse[0].Response.ReturnCode
-	resp.Response.Message = getNetworkContainersResponse[0].Response.Message
-	resp.NetworkContainers = getNetworkContainersResponse
+	failedNCs := make([]string, 0)
+	for i := 0; i < len(getAllNetworkContainerResponses); i++ {
+		if getAllNetworkContainerResponses[i].Response.ReturnCode != types.Success {
+			failedNCs = append(failedNCs, getAllNetworkContainerResponses[i].NetworkContainerID)
+		}
+	}
+
+	resp.NetworkContainers = getAllNetworkContainerResponses
+
+	if len(failedNCs) > 0 {
+		resp.Response.ReturnCode = types.UnexpectedError
+		resp.Response.Message = fmt.Sprintf("Failed to get NCs %s", strings.Join(failedNCs, ","))
+	} else {
+		resp.Response.ReturnCode = types.Success
+		resp.Response.Message = fmt.Sprint("Successfully retrieved NCs")
+	}
 
 	err = service.Listener.Encode(w, &resp)
 	logger.Response(service.Name, resp, resp.Response.ReturnCode, err)

@@ -435,9 +435,6 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 		return fmt.Errorf("failed to create cns client with error: %w", err)
 	}
 
-	options := make(map[string]any)
-	ipamAddConfig := IPAMAddConfig{nwCfg: nwCfg, args: args, options: options}
-
 	if nwCfg.MultiTenancy {
 		plugin.report.Context = "AzureCNIMultitenancy"
 		plugin.multitenancyClient.Init(cnsClient, AzureNetIOShim{})
@@ -457,20 +454,15 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 			return err
 		}
 	} else {
-		// single tenancy mode
-		// No need to call Add if we already got IPAMAddResult in multitenancy section via GetNetworkContainer
-		ipamAddResult, err = plugin.ipamInvoker.Add(ipamAddConfig)
-		if err != nil {
-			return fmt.Errorf("IPAM Invoker Add failed with error: %w", err)
-		}
+		// TODO: refactor this code for simplification
+		// Add empty ipamAddResult object for single tenancy mode
+		// this will be used for: ipamAddResult, err = plugin.ipamInvoker.Add(ipamAddConfig)
 		ipamAddResults = append(ipamAddResults, ipamAddResult)
-		sendEvent(plugin, fmt.Sprintf("Allocated IPAddress from ipam:%+v v6:%+v", ipamAddResult.ipv4Result, ipamAddResult.ipv6Result))
 	}
 
 	// iterate ipamAddResults and program the endpoint
-	for i := 0; i < len(ipamAddResults); i++ {
-		ipamAddResult = ipamAddResults[i]
-
+	for _, ipamAddResult := range ipamAddResults {
+		options := make(map[string]any)
 		networkID, err := plugin.getNetworkName(args.Netns, &ipamAddResult, nwCfg)
 		if err != nil {
 			plugin.cleanupAllocationOnError(ipamAddResult.ipv4Result, ipamAddResult.ipv6Result, nwCfg, args, options)
@@ -514,6 +506,15 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 			default:
 				plugin.ipamInvoker = NewAzureIpamInvoker(plugin, &nwInfo)
 			}
+		}
+
+		ipamAddConfig := IPAMAddConfig{nwCfg: nwCfg, args: args, options: options}
+		if !nwCfg.MultiTenancy {
+			ipamAddResult, err = plugin.ipamInvoker.Add(ipamAddConfig)
+			if err != nil {
+				return fmt.Errorf("IPAM Invoker Add failed with error: %w", err)
+			}
+			sendEvent(plugin, fmt.Sprintf("Allocated IPAddress from ipam:%+v v6:%+v", ipamAddResult.ipv4Result, ipamAddResult.ipv6Result))
 		}
 
 		// Create network

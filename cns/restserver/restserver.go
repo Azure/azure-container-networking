@@ -132,7 +132,7 @@ type httpRestServiceState struct {
 	OrchestratorType                 string
 	NodeID                           string
 	Initialized                      bool
-	ContainerIDByOrchestratorContext map[string]Set             // OrchestratorContext is the key and value is NetworkContainerIDs separated by comma.
+	ContainerIDByOrchestratorContext map[string]Set             // OrchestratorContext is the key and value is NetworkContainerIDs;i.e., &map[nc1:{} nc2:{}]
 	ContainerStatus                  map[string]containerstatus // NetworkContainerID is key.
 	Networks                         map[string]*networkInfo
 	TimeStamp                        time.Time
