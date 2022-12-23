@@ -390,7 +390,6 @@ stages:
       - "aks_swift_e2e"
       - "cilium_e2e"
       - "windows_19_03_e2e"
-      - "windows_20_04_e2e"
     jobs:
       - job: delete_remote_artifacts
         displayName: Delete remote artifacts
