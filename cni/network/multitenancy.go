@@ -240,8 +240,8 @@ func (m *Multitenancy) getNetworkContainersInternal(
 	// try using the old CNS API that returns single nc response.
 	ncConfigs, err := m.cnsclient.GetAllNetworkContainers(ctx, orchestratorContext)
 	if err != nil && client.IsUnsupportedAPI(err) {
-		ncConfig, err := m.cnsclient.GetNetworkContainer(ctx, orchestratorContext)
-		if err != nil {
+		ncConfig, errGetNC := m.cnsclient.GetNetworkContainer(ctx, orchestratorContext)
+		if errGetNC != nil {
 			return nil, []net.IPNet{}, fmt.Errorf("%w", err)
 		}
 		ncConfigs = append(ncConfigs, *ncConfig)

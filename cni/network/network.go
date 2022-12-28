@@ -461,7 +461,9 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 	}
 
 	// iterate ipamAddResults and program the endpoint
-	for _, ipamAddResult := range ipamAddResults {
+	for i := 0; i < len(ipamAddResults); i++ {
+		ipamAddResult = ipamAddResults[i]
+
 		options := make(map[string]any)
 		networkID, err := plugin.getNetworkName(args.Netns, &ipamAddResult, nwCfg)
 		if err != nil {

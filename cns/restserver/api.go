@@ -903,7 +903,7 @@ func (service *HTTPRestService) getAllNetworkContainers(w http.ResponseWriter, r
 		resp.Response.Message = fmt.Sprintf("Failed to get NCs %s", strings.Join(failedNCs, ","))
 	} else {
 		resp.Response.ReturnCode = types.Success
-		resp.Response.Message = fmt.Sprint("Successfully retrieved NCs")
+		resp.Response.Message = "Successfully retrieved NCs"
 	}
 
 	err = service.Listener.Encode(w, &resp)
