@@ -868,7 +868,6 @@ func (service *HTTPRestService) getAllNetworkContainers(w http.ResponseWriter, r
 
 	var req cns.GetNetworkContainerRequest
 
-	logger.Printf("req is %+v", req)
 	err := service.Listener.Decode(w, r, &req)
 	logger.Request(service.Name, &req, err)
 	if err != nil {

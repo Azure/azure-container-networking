@@ -239,6 +239,7 @@ func (m *Multitenancy) getNetworkContainersInternal(
 	// First try the new CNS API that returns slice of nc responses. If CNS doesn't support the new API, an error will be returned and as a result
 	// try using the old CNS API that returns single nc response.
 	ncConfigs, err := m.cnsclient.GetAllNetworkContainers(ctx, orchestratorContext)
+	log.Printf("ncConfigs are %+v", ncConfigs)
 	if err != nil && client.IsUnsupportedAPI(err) {
 		ncConfig, errGetNC := m.cnsclient.GetNetworkContainer(ctx, orchestratorContext)
 		if errGetNC != nil {
@@ -251,6 +252,7 @@ func (m *Multitenancy) getNetworkContainersInternal(
 
 	subnetPrefixes := []net.IPNet{}
 	for i := 0; i < len(ncConfigs); i++ {
+		log.Printf("[Paul]")
 		subnetPrefix := m.netioshim.GetInterfaceSubnetWithSpecificIP(ncConfigs[i].PrimaryInterfaceIdentifier)
 		if subnetPrefix == nil {
 			log.Printf("%w %s", errIfaceNotFound, ncConfigs[i].PrimaryInterfaceIdentifier)
