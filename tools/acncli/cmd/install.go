@@ -55,6 +55,7 @@ func InstallCNICmd() *cobra.Command {
 			envs.IPAMType = viper.GetString(c.FlagIPAM)
 			envs.CNSURL = viper.GetString(c.FlagCNSUrl)
 			envs.EnableExactMatchForPodName = viper.GetBool(c.FlagEnableExactMatchForPodName)
+			envs.NetworkName = viper.GetString(c.FlagNetworkName)
 
 			return i.InstallLocal(envs)
 		},
@@ -70,6 +71,7 @@ func InstallCNICmd() *cobra.Command {
 	cmd.Flags().String(c.FlagExempt, c.Defaults[c.FlagExempt], "Exempt files that won't be installed")
 	cmd.Flags().String(c.FlagCNSUrl, c.Defaults[c.FlagCNSUrl], "CNS URL if multitenancy")
 	cmd.Flags().String(c.FlagEnableExactMatchForPodName, c.Defaults[c.FlagEnableExactMatchForPodName], "Enable exact match for pod name if multitenancy")
+	cmd.Flags().String(c.FlagNetworkName, c.Defaults[c.FlagNetworkName], "Network name to create pods in")
 
 	return cmd
 }

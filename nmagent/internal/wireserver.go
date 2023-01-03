@@ -96,8 +96,32 @@ func (w *WireserverTransport) RoundTrip(inReq *http.Request) (*http.Response, er
 	}
 
 	// all POST requests (and by extension, PUT) must have a non-nil body
-	if req.Method == http.MethodPost && req.Body == nil {
-		req.Body = io.NopCloser(strings.NewReader(""))
+	if req.Method == http.MethodPost {
+		if req.Body == nil || req.Body == http.NoBody {
+			// the non-nil body that Wireserver expects is an empty JSON string. This
+			// is not the same as an empty Go string. The equivalent Go string is one
+			// with two quote characters:
+			emptyJSONString := `""`
+
+			// Body is expected to be an io.ReadCloser of some type, so this string
+			// needs to be dressed in appropriate wrapping types before it can be
+			// assigned:
+			req.Body = io.NopCloser(strings.NewReader(emptyJSONString))
+
+			// also, because the Body is a Reader, its length cannot be known apriori.
+			// Thus, we need to manually set this length, otherwise it will be sent
+			// with no Content-Length header (and Transfer-Encoding: chunked instead).
+			// Wireserver gets angry when there's no Content-Length header, and returns
+			// a 411 status code:
+			req.ContentLength = int64(len(emptyJSONString))
+
+			// the Content-Type must also be manually set, because the net/http
+			// Content-Type detection can't be run without draining the Reader set
+			// for the Request Body. This is a good idea anyway, because the
+			// detection uses heuristic methods to figure out the Content-Type, which
+			// may not necessarily be correct for a short JSON string like this:
+			req.Header.Set(HeaderContentType, MimeJSON)
+		}
 	}
 
 	// execute the request to the downstream transport
