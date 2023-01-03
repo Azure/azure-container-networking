@@ -56,6 +56,7 @@
     "windowsProfile": {
       "adminUsername": "azureuser",
       "adminPassword": "azureTest@!",
+      "enableAutomaticUpdates": true,
       "windowsPublisher": "MicrosoftWindowsServer",
       "windowsOffer": "WindowsServer",
       "windowsSku": "Datacenter-Core-2004-with-Containers-smalldisk",
