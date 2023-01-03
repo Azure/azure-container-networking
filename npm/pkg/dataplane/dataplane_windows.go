@@ -115,11 +115,6 @@ func (dp *DataPlane) shouldUpdatePod() bool {
 // 2. Will check for existing applicable network policies and applies it on endpoint
 func (dp *DataPlane) updatePod(pod *updateNPMPod) error {
 	klog.Infof("[DataPlane] updatePod called for Pod Key %s", pod.PodKey)
-	// Check if pod is part of this node
-	if pod.NodeName != dp.nodeName {
-		klog.Infof("[DataPlane] ignoring update pod as expected Node: [%s] got: [%s]", dp.nodeName, pod.NodeName)
-		return nil
-	}
 
 	// lock the endpoint cache while we read/modify the endpoint with the pod's IP
 	dp.endpointCache.Lock()
@@ -167,7 +162,9 @@ func (dp *DataPlane) updatePod(pod *updateNPMPod) error {
 		*/
 		selectorReference, err := dp.ipsetMgr.GetSelectorReferencesBySet(setName)
 		if err != nil {
-			return err
+			// ignore this set since it may have been deleted in the background reconcile thread
+			klog.Infof("[DataPlane] ignoring pod update for ipset to remove since the set does not exist. pod: %+v. set: %s", pod, setName)
+			continue
 		}
 
 		for policyKey := range selectorReference {
@@ -204,7 +201,9 @@ func (dp *DataPlane) updatePod(pod *updateNPMPod) error {
 		*/
 		selectorReference, err := dp.ipsetMgr.GetSelectorReferencesBySet(setName)
 		if err != nil {
-			return err
+			// ignore this set since it may have been deleted in the background reconcile thread
+			klog.Infof("[DataPlane] ignoring pod update for ipset to remove since the set does not exist. pod: %+v. set: %s", pod, setName)
+			continue
 		}
 
 		for policyKey := range selectorReference {

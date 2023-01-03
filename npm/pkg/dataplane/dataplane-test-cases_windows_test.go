@@ -15,6 +15,7 @@ const (
 	podCrudTag    Tag = "pod-crud"
 	nsCrudTag     Tag = "namespace-crud"
 	netpolCrudTag Tag = "netpol-crud"
+	reconcileTag  Tag = "reconcile"
 )
 
 const (
@@ -155,6 +156,7 @@ func getAllSerialTests() []*SerialTestCase {
 			TestCaseMetadata: &TestCaseMetadata{
 				Tags: []Tag{
 					podCrudTag,
+					reconcileTag,
 				},
 				DpCfg:            defaultWindowsDPCfg,
 				InitialEndpoints: nil,
@@ -479,6 +481,33 @@ func getAllSerialTests() []*SerialTestCase {
 				},
 				ExpectedEnpdointACLs: map[string][]*hnswrapper.FakeEndpointPolicy{
 					endpoint2: {},
+				},
+			},
+		},
+		{
+			Description: "issue 1613: remove last instance of label, then reconcile IPSets, then apply DP",
+			Actions: []*Action{
+				CreateEndpoint(endpoint1, ip1),
+				CreatePod("x", "a", ip1, thisNode, map[string]string{"k1": "v1"}),
+				ApplyDP(),
+				UpdatePodLabels("x", "a", ip1, thisNode, map[string]string{"k1": "v1"}, nil),
+				ReconcileDP(),
+				ApplyDP(),
+			},
+			TestCaseMetadata: &TestCaseMetadata{
+				Tags: []Tag{
+					podCrudTag,
+					reconcileTag,
+				},
+				DpCfg:            defaultWindowsDPCfg,
+				InitialEndpoints: nil,
+				ExpectedSetPolicies: []*hcn.SetPolicySetting{
+					dptestutils.SetPolicy(emptySet),
+					dptestutils.SetPolicy(allNamespaces, emptySet.GetHashedName(), nsXSet.GetHashedName()),
+					dptestutils.SetPolicy(nsXSet, ip1),
+				},
+				ExpectedEnpdointACLs: map[string][]*hnswrapper.FakeEndpointPolicy{
+					endpoint1: {},
 				},
 			},
 		},
