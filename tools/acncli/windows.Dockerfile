@@ -3,6 +3,7 @@ WORKDIR /go/src/github.com/Azure/azure-container-networking/
 ARG VERSION
 ADD . . 
 ENV GOOS=windows
+RUN apt-get update && apt-get -y install zip
 RUN make all-binaries
 RUN make acncli
 RUN rm -rf ./output/**/npm

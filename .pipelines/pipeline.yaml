@@ -210,6 +210,10 @@ stages:
           name: "$(BUILD_POOL_NAME_WINDOWS_AMD64)"
         strategy:
           matrix:
+            acncli_windows_amd64:
+              arch: amd64
+              os: windows
+              name: windowsacncli
             cns_windows_amd64:
               arch: amd64
               name: cns
@@ -236,7 +240,7 @@ stages:
           matrix:
             acncli:
               name: acncli 
-              platforms: linux/amd64 linux/arm64
+              platforms: linux/amd64 linux/arm64 windows/amd64
             cni_dropgz:
               name: cni-dropgz
               platforms: linux/amd64 linux/arm64
