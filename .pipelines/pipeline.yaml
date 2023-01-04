@@ -374,16 +374,6 @@ stages:
       clusterDefinitionCniBuildOS: "windows"
       clusterDefinitionCniBuildExt: ".zip"
 
-  - template: singletenancy/aks-engine/e2e-job-template.yaml
-    parameters:
-      name: "windows_20_04_e2e"
-      displayName: "Windows 2004"
-      pipelineBuildImage: "$(BUILD_IMAGE)"
-      clusterDefinition: "cniWindows2004.json"
-      clusterDefinitionCniTypeKey: "azureCNIURLWindows"
-      clusterDefinitionCniBuildOS: "windows"
-      clusterDefinitionCniBuildExt: ".zip"
-
   - stage: validate2
     displayName: Validate Tags
     dependsOn:
@@ -411,7 +401,6 @@ stages:
       - "cilium_e2e"
       - "ubuntu_18_04_linux_e2e"
       - "windows_19_03_e2e"
-      - "windows_20_04_e2e"
     jobs:
       - job: delete_remote_artifacts
         displayName: Delete remote artifacts
