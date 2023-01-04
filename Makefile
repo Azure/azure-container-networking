@@ -280,9 +280,15 @@ skopeo-export: # util target to copy a container from containers-storage to the 
 acncli-image-name: # util target to print the CNI manager image name.
 	@echo $(ACNCLI_IMAGE)
 
-acncli-image: ## build cni-manager container image.
+acncli-image: ## build cni-manager container Linux image.
 	$(MAKE) container \
 		DOCKERFILE=tools/acncli/Dockerfile \
+		IMAGE=$(ACNCLI_IMAGE) \
+		TAG=$(ACNCLI_PLATFORM_TAG)
+
+acncli-image-windows: ## build cni-manager container Windows image.
+	$(MAKE) container \
+		DOCKERFILE=tools/acncli/windows.Dockerfile \
 		IMAGE=$(ACNCLI_IMAGE) \
 		TAG=$(ACNCLI_PLATFORM_TAG)
 

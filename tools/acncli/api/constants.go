@@ -71,6 +71,10 @@ const (
 	Bridge                  = "bridge"
 	Azure0                  = "azure0"
 
+	DefaultBinDirWindows      = "C:\\cni"
+	DefaultConflistDirWindows = "C:\\cni\\config"
+	DefaultWindowsLogFile     = "C:\\Windows\\System32\\azure-vnet.log"
+
 	// Multitenancy defaults
 	DefaultCNSUrl                     = "http://localhost:10090"
 	DefaultEnableExactMatchForPodName = "false"
