@@ -5,8 +5,8 @@ import (
 	"fmt"
 
 	"github.com/Azure/azure-container-networking/log"
+	"github.com/Azure/azure-container-networking/npm/metrics"
 	"github.com/Azure/azure-container-networking/npm/util"
-	"k8s.io/klog"
 )
 
 type IPSetMetadata struct {
@@ -64,10 +64,10 @@ func (setMetadata *IPSetMetadata) GetPrefixName() string {
 	case EmptyHashSet:
 		return fmt.Sprintf("%s%s", util.EmptySetPrefix, setMetadata.Name)
 	case UnknownType: // adding this to appease golint
-		klog.Errorf("experienced unknown type in set metadata: %+v", setMetadata)
+		metrics.SendErrorLogAndMetric(util.UtilID, "experienced unknown type in set metadata: %+v", setMetadata)
 		return Unknown
 	default:
-		klog.Errorf("experienced unexpected type %d in set metadata: %+v", setMetadata.Type, setMetadata)
+		metrics.SendErrorLogAndMetric(util.UtilID, "experienced unexpected type %d in set metadata: %+v", setMetadata.Type, setMetadata)
 		return Unknown
 	}
 }
@@ -386,24 +386,6 @@ func (set *IPSet) referencedInKernel() bool {
 func (set *IPSet) hasMember(memberName string) bool {
 	_, isMember := set.MemberIPSets[memberName]
 	return isMember
-}
-
-// isIPAffiliated determines whether an IP belongs to the set or its member sets in the case of a list set.
-// This method and GetSetContents are good examples of how the ipset struct may have been better designed
-// as an interface with hash and list implementations. Not worth it to redesign though.
-func (set *IPSet) isIPAffiliated(ip string) bool {
-	if set.Kind == HashSet {
-		if _, ok := set.IPPodKey[ip]; ok {
-			return true
-		}
-	}
-	for _, memberSet := range set.MemberIPSets {
-		_, ok := memberSet.IPPodKey[ip]
-		if ok {
-			return true
-		}
-	}
-	return false
 }
 
 func (set *IPSet) canSetBeSelectorIPSet() bool {

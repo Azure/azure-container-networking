@@ -9,15 +9,44 @@ package fakes
 import (
 	"context"
 
-	"github.com/Azure/azure-container-networking/cns/nmagent"
+	"github.com/Azure/azure-container-networking/nmagent"
 )
 
 // NMAgentClientFake can be used to query to VM Host info.
 type NMAgentClientFake struct {
-	GetNCVersionListFunc func(context.Context) (*nmagent.NetworkContainerListResponse, error)
+	PutNetworkContainerF    func(context.Context, *nmagent.PutNetworkContainerRequest) error
+	DeleteNetworkContainerF func(context.Context, nmagent.DeleteContainerRequest) error
+	JoinNetworkF            func(context.Context, nmagent.JoinNetworkRequest) error
+	SupportedAPIsF          func(context.Context) ([]string, error)
+	GetNCVersionF           func(context.Context, nmagent.NCVersionRequest) (nmagent.NCVersion, error)
+	GetNCVersionListF       func(context.Context) (nmagent.NCVersionList, error)
+	GetHomeAzF              func(context.Context) (nmagent.AzResponse, error)
 }
 
-// GetNcVersionListWithOutToken is mock implementation to return nc version list.
-func (c *NMAgentClientFake) GetNCVersionList(ctx context.Context) (*nmagent.NetworkContainerListResponse, error) {
-	return c.GetNCVersionListFunc(ctx)
+func (n *NMAgentClientFake) PutNetworkContainer(ctx context.Context, req *nmagent.PutNetworkContainerRequest) error {
+	return n.PutNetworkContainerF(ctx, req)
+}
+
+func (n *NMAgentClientFake) DeleteNetworkContainer(ctx context.Context, req nmagent.DeleteContainerRequest) error {
+	return n.DeleteNetworkContainerF(ctx, req)
+}
+
+func (n *NMAgentClientFake) JoinNetwork(ctx context.Context, req nmagent.JoinNetworkRequest) error {
+	return n.JoinNetworkF(ctx, req)
+}
+
+func (n *NMAgentClientFake) SupportedAPIs(ctx context.Context) ([]string, error) {
+	return n.SupportedAPIsF(ctx)
+}
+
+func (n *NMAgentClientFake) GetNCVersion(ctx context.Context, req nmagent.NCVersionRequest) (nmagent.NCVersion, error) {
+	return n.GetNCVersionF(ctx, req)
+}
+
+func (n *NMAgentClientFake) GetNCVersionList(ctx context.Context) (nmagent.NCVersionList, error) {
+	return n.GetNCVersionListF(ctx)
+}
+
+func (n *NMAgentClientFake) GetHomeAz(ctx context.Context) (nmagent.AzResponse, error) {
+	return n.GetHomeAzF(ctx)
 }

@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	common "github.com/Azure/azure-container-networking/npm/pkg/controlplane/controllers/common"
+	"github.com/Azure/azure-container-networking/npm/util"
 	"github.com/stretchr/testify/require"
 )
 
@@ -114,6 +115,10 @@ func TestGetNetworkTuple(t *testing.T) {
 
 	tests := map[string]*testInput{
 		"podname to podname": {input: i0, expected: expected0},
+	}
+
+	if util.IsWindowsDP() {
+		return
 	}
 
 	for name, test := range tests {

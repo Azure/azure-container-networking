@@ -14,7 +14,7 @@ import (
 	"k8s.io/klog"
 )
 
-const reconcileTimeInMinutes = 5
+const reconcileTimeInMinutes int = 5
 
 type PolicyMode string
 
@@ -214,7 +214,7 @@ func (dp *DataPlane) ApplyDataPlane() error {
 	}
 
 	if dp.shouldUpdatePod() {
-		err := dp.refreshAllPodEndpoints()
+		err := dp.refreshPodEndpoints()
 		if err != nil {
 			metrics.SendErrorLogAndMetric(util.DaemonDataplaneID, "[DataPlane] failed to refresh endpoints while updating pods. err: [%s]", err.Error())
 			return fmt.Errorf("[DataPlane] failed to refresh endpoints while updating pods. err: [%w]", err)
@@ -240,7 +240,7 @@ func (dp *DataPlane) ApplyDataPlane() error {
 			delete(dp.updatePodCache.cache, podKey)
 		}
 		if aggregateErr != nil {
-			return fmt.Errorf("[DataPlane] error while updating pods: %w", err)
+			return fmt.Errorf("[DataPlane] error while updating pods: %w", aggregateErr)
 		}
 	}
 	return nil

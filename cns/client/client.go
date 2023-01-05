@@ -39,6 +39,9 @@ var clientPaths = []string{
 	cns.SetOrchestratorType,
 	cns.NumberOfCPUCores,
 	cns.NMAgentSupportedAPIs,
+	cns.DeleteNetworkContainer,
+	cns.NetworkContainersURLPath,
+	cns.GetHomeAz,
 }
 
 type do interface {
@@ -749,4 +752,98 @@ func (c *Client) NMAgentSupportedAPIs(ctx context.Context) (*cns.NmAgentSupporte
 	}
 
 	return &out, nil
+}
+
+func (c *Client) GetAllNCsFromCns(ctx context.Context) (cns.GetAllNetworkContainersResponse, error) {
+	// Build the request
+	urlPath := c.routes[cns.NetworkContainersURLPath]
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, urlPath.String(), http.NoBody)
+	if err != nil {
+		return cns.GetAllNetworkContainersResponse{}, errors.Wrap(err, "building HTTP request")
+	}
+
+	// Submit the request
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return cns.GetAllNetworkContainersResponse{}, errors.Wrap(err, "sending HTTP request")
+	}
+	defer resp.Body.Close()
+
+	// Decode the response
+	var response cns.GetAllNetworkContainersResponse
+	err = json.NewDecoder(resp.Body).Decode(&response)
+	if err != nil || response.Response.ReturnCode != types.Success {
+		return cns.GetAllNetworkContainersResponse{}, errors.Wrap(err, "decoding GetAllNetworkContainersResponse as JSON")
+	}
+
+	return response, nil
+}
+
+func (c *Client) PostAllNetworkContainers(ctx context.Context, createNcRequest cns.PostNetworkContainersRequest) error {
+	if createNcRequest.CreateNetworkContainerRequests == nil || len(createNcRequest.CreateNetworkContainerRequests) == 0 {
+		return errors.New("empty request provided")
+	}
+
+	// Build the request
+	var body bytes.Buffer
+	err := json.NewEncoder(&body).Encode(createNcRequest)
+	if err != nil {
+		return errors.Wrap(err, "building HTTP request")
+	}
+	urlPath := c.routes[cns.NetworkContainersURLPath]
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, urlPath.String(), &body)
+	if err != nil {
+		return errors.Wrap(err, "building HTTP request")
+	}
+
+	// Submit the request
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return errors.Wrap(err, "sending HTTP request")
+	}
+	defer resp.Body.Close()
+
+	// Decode the response
+	var response cns.PostNetworkContainersResponse
+	err = json.NewDecoder(resp.Body).Decode(&response)
+	if err != nil || response.Response.ReturnCode != types.Success {
+		return errors.Wrap(err, "decoding PostNetworkContainersResponse as JSON")
+	}
+
+	return nil
+}
+
+// GetHomeAz gets home AZ of host
+func (c *Client) GetHomeAz(ctx context.Context) (*cns.GetHomeAzResponse, error) {
+	// build the request
+	u := c.routes[cns.GetHomeAz]
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), http.NoBody)
+	if err != nil {
+		return nil, errors.Wrap(err, "building http request")
+	}
+
+	// submit the request
+	resp, err := c.client.Do(req)
+	if err != nil {
+		return nil, errors.Wrap(err, "sending HTTP request")
+	}
+	defer resp.Body.Close()
+
+	// decode the response
+	var getHomeAzResponse cns.GetHomeAzResponse
+	err = json.NewDecoder(resp.Body).Decode(&getHomeAzResponse)
+	if err != nil {
+		return nil, errors.Wrap(err, "decoding response as JSON")
+	}
+
+	// if the return code is non-zero, something went wrong and it should be
+	// surfaced to the caller
+	if getHomeAzResponse.Response.ReturnCode != 0 {
+		return nil, &CNSClientError{
+			Code: getHomeAzResponse.Response.ReturnCode,
+			Err:  errors.New(getHomeAzResponse.Response.Message),
+		}
+	}
+
+	return &getHomeAzResponse, nil
 }

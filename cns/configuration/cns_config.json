@@ -28,5 +28,6 @@
     },
     "MSISettings": {
         "ResourceID": ""
-    }
+    },
+    "PopulateHomeAzCacheRetryIntervalSecs": 15
 }

@@ -14,7 +14,6 @@ import (
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/ipsets"
 	"github.com/Azure/azure-container-networking/npm/util"
-	npmerrors "github.com/Azure/azure-container-networking/npm/util/errors"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -340,10 +339,14 @@ func (c *PodController) syncAddedPod(podObj *corev1.Pod) error {
 		podObj.Name, podObj.Spec.NodeName, podObj.Labels, podObj.Status.PodIP)
 
 	if !util.IsIPV4(podObj.Status.PodIP) {
-		msg := fmt.Sprintf("[syncAddedPod] Error: ADD POD  [%s/%s/%s/%+v/%s] failed as the PodIP is not valid ipv4 address", podObj.Namespace,
+		msg := fmt.Sprintf("[syncAddedPod] warning: ADD POD  [%s/%s/%s/%+v] ignored as the PodIP is not valid ipv4 address. ip: [%s]", podObj.Namespace,
 			podObj.Name, podObj.Spec.NodeName, podObj.Labels, podObj.Status.PodIP)
-		metrics.SendErrorLogAndMetric(util.PodID, msg)
-		return npmerrors.Errorf(npmerrors.AddPod, true, msg)
+		metrics.SendLog(util.PodID, msg, metrics.PrintLog)
+		// return nil so that we don't requeue.
+		// Wait until an update event comes from API Server where the IP is valid e.g. if the IP is empty.
+		// There may be latency in receiving the update event versus retrying on our own,
+		// but this prevents us from retrying indefinitely for pods stuck in Running state with no IP as seen in AKS Windows Server '22.
+		return nil
 	}
 
 	var err error
@@ -573,6 +576,8 @@ func (c *PodController) cleanUpDeletedPod(cachedNpmPodKey string) error {
 func (c *PodController) manageNamedPortIpsets(portList []corev1.ContainerPort, podKey,
 	podIP, nodeName string, namedPortOperation NamedPortOperation) error {
 	if util.IsWindowsDP() {
+		// NOTE: if we support namedport operations, need to be careful of implications of including the node name in the pod metadata below
+		// since we say the node name is "" in cleanUpDeletedPod
 		klog.Warningf("Windows Dataplane does not support NamedPort operations. Operation: %s portList is %+v", namedPortOperation, portList)
 		return nil
 	}

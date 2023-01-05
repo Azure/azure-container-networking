@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"strconv"
 	"time"
@@ -14,10 +13,10 @@ import (
 	"github.com/Azure/azure-container-networking/cns/dockerclient"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/networkcontainers"
-	"github.com/Azure/azure-container-networking/cns/nmagent"
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/cns/wireserver"
 	acn "github.com/Azure/azure-container-networking/common"
+	"github.com/Azure/azure-container-networking/nmagent"
 	"github.com/Azure/azure-container-networking/platform"
 	"github.com/Azure/azure-container-networking/store"
 	"github.com/pkg/errors"
@@ -643,21 +642,21 @@ func (service *HTTPRestService) setNetworkStateJoined(networkID string) {
 }
 
 // Join Network by calling nmagent
-func (service *HTTPRestService) joinNetwork(
-	networkID string,
-) (*http.Response, error, error) {
-	var err error
-	joinResponse, joinErr := nmagent.JoinNetwork(networkID)
-
-	if joinErr == nil && joinResponse.StatusCode == http.StatusOK {
-		// Network joined successfully
-		service.setNetworkStateJoined(networkID)
-		logger.Printf("[Azure-CNS] setNetworkStateJoined for network: %s", networkID)
-	} else {
-		err = fmt.Errorf("Failed to join network: %s", networkID)
+func (service *HTTPRestService) joinNetwork(ctx context.Context, networkID string) error {
+	req := nmagent.JoinNetworkRequest{
+		NetworkID: networkID,
 	}
 
-	return joinResponse, joinErr, err
+	err := service.nma.JoinNetwork(ctx, req)
+	if err != nil {
+		return errors.Wrap(err, "sending join network request")
+	}
+
+	// Network joined successfully
+	service.setNetworkStateJoined(networkID)
+	logger.Printf("[Azure-CNS] setNetworkStateJoined for network: %s", networkID)
+
+	return nil
 }
 
 func logNCSnapshot(createNetworkContainerRequest cns.CreateNetworkContainerRequest) {
@@ -781,15 +780,12 @@ func (service *HTTPRestService) populateIPConfigInfoUntransacted(ipConfigStatus 
 func (service *HTTPRestService) isNCWaitingForUpdate(
 	ncVersion, ncid string,
 ) (waitingForUpdate bool, returnCode types.ResponseCode, message string) {
-	waitingForUpdate = true
 	ncStatus, ok := service.state.ContainerStatus[ncid]
 	if ok {
 		if ncStatus.VfpUpdateComplete &&
 			(ncStatus.CreateNetworkContainerRequest.Version == ncVersion) {
 			logger.Printf("[Azure CNS] Network container: %s, version: %s has VFP programming already completed", ncid, ncVersion)
-			returnCode = types.NetworkContainerVfpProgramCheckSkipped
-			waitingForUpdate = false
-			return
+			return false, types.NetworkContainerVfpProgramCheckSkipped, ""
 		}
 	}
 
@@ -797,48 +793,43 @@ func (service *HTTPRestService) isNCWaitingForUpdate(
 	if !ok {
 		logger.Printf("[Azure CNS] getNCVersionURL for Network container %s not found. Skipping GetNCVersionStatus check from NMAgent",
 			ncid)
-		returnCode = types.NetworkContainerVfpProgramCheckSkipped
-		return
+		return true, types.NetworkContainerVfpProgramCheckSkipped, ""
 	}
 
-	resp, err := nmagent.GetNetworkContainerVersion(ncid, getNCVersionURL.(string))
+	resp, err := service.nma.GetNCVersion(context.TODO(), getNCVersionURL.(nmagent.NCVersionRequest))
+	var nmaErr nmagent.Error
+	if errors.As(err, &nmaErr) && nmaErr.Unauthorized() {
+		return true, types.NetworkContainerVfpProgramPending, ""
+	}
+
 	if err != nil {
 		logger.Printf("[Azure CNS] Failed to get NC version status from NMAgent with error: %+v. "+
 			"Skipping GetNCVersionStatus check from NMAgent", err)
-		returnCode = types.NetworkContainerVfpProgramCheckSkipped
-		return
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		logger.Printf("[Azure CNS] Failed to get NC version status from NMAgent with http status %d. "+
-			"Skipping GetNCVersionStatus check from NMAgent", resp.StatusCode)
-		returnCode = types.NetworkContainerVfpProgramCheckSkipped
-		return
-	}
-
-	var versionResponse nmagent.NetworkContainerResponse
-	rBytes, _ := io.ReadAll(resp.Body)
-	json.Unmarshal(rBytes, &versionResponse)
-	if versionResponse.ResponseCode != "200" {
-		returnCode = types.NetworkContainerVfpProgramPending
-		message = fmt.Sprintf("Failed to get NC version status from NMAgent. NC: %s, Response %s", ncid, rBytes)
-		return
+		return true, types.NetworkContainerVfpProgramCheckSkipped, ""
 	}
 
 	ncTargetVersion, _ := strconv.Atoi(ncVersion)
-	nmaProgrammedNCVersion, _ := strconv.Atoi(versionResponse.Version)
-	if ncTargetVersion > nmaProgrammedNCVersion {
-		returnCode = types.NetworkContainerVfpProgramPending
-		message = fmt.Sprintf("Network container: %s version: %d is not yet programmed by NMAgent. Programmed version: %d",
-			ncid, ncTargetVersion, nmaProgrammedNCVersion)
-	} else {
-		returnCode = types.NetworkContainerVfpProgramComplete
-		waitingForUpdate = false
-		message = "Vfp programming complete"
-		logger.Printf("[Azure CNS] Vfp programming complete for NC: %s with version: %d", ncid, ncTargetVersion)
+	nmaProgrammedNCVersion, err := strconv.Atoi(resp.Version)
+	if err != nil {
+		// it's unclear whether or not this can actually happen. In the NMAgent
+		// documentation, Version is described as a string, but in practice the
+		// values appear to be exclusively integers. Nevertheless, NMAgent is
+		// allowed to make this parameter anything (by contract), so we should
+		// defend against it by erroring appropriately:
+		logger.Printf("[Azure CNS] Failed to get NC version status from NMAgent with error: %+v. "+
+			"Skipping GetNCVersionStatus check from NMAgent", err)
+		return true, types.NetworkContainerVfpProgramCheckSkipped, ""
 	}
-	return
+
+	if ncTargetVersion > nmaProgrammedNCVersion {
+		msg := fmt.Sprintf("Network container: %s version: %d is not yet programmed by NMAgent. Programmed version: %d",
+			ncid, ncTargetVersion, nmaProgrammedNCVersion)
+		return false, types.NetworkContainerVfpProgramPending, msg
+	}
+
+	msg := "Vfp programming complete"
+	logger.Printf("[Azure CNS] Vfp programming complete for NC: %s with version: %d", ncid, ncTargetVersion)
+	return false, types.NetworkContainerVfpProgramComplete, msg
 }
 
 // handleGetNetworkContainers returns all NCs in CNS
@@ -931,4 +922,10 @@ func (service *HTTPRestService) createNetworkContainers(createNetworkContainerRe
 		ReturnCode: types.Success,
 		Message:    "",
 	}
+}
+
+// setResponse encodes the http response
+func (service *HTTPRestService) setResponse(w http.ResponseWriter, returnCode types.ResponseCode, response interface{}) {
+	serviceErr := service.Listener.Encode(w, &response)
+	logger.Response(service.Name, response, returnCode, serviceErr)
 }

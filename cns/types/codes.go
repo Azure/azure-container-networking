@@ -40,6 +40,8 @@ const (
 	UnsupportedNCVersion                   ResponseCode = 38
 	FailedToRunIPTableCmd                  ResponseCode = 39
 	NilEndpointStateStore                  ResponseCode = 40
+	NmAgentInternalServerError             ResponseCode = 41
+	StatusUnauthorized                     ResponseCode = 42
 	UnexpectedError                        ResponseCode = 99
 )
 
@@ -116,6 +118,10 @@ func (c ResponseCode) String() string {
 		return "UnsupportedOrchestratorType"
 	case UnsupportedVerb:
 		return "UnsupportedVerb"
+	case NmAgentInternalServerError:
+		return "NmAgentInternalServerError"
+	case StatusUnauthorized:
+		return "StatusUnauthorized"
 	default:
 		return "UnknownError"
 	}

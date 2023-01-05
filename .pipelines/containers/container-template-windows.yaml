@@ -2,6 +2,10 @@ parameters:
   name: ""
   arch: ""
   tag: ""
+  ai_path: ""
+  ai_path_var: ""
+  ai_id: ""
+  ai_id_var: ""
 
 steps:
 - task: Docker@2
@@ -11,19 +15,29 @@ steps:
     command: 'login'
     addPipelineData: false
 
-- powershell: |
-    echo "using tag ${{ parameters.tag }}"
-    . .\build\scripts\windows.ps1; ${{ parameters.name }}-image windows-${{ parameters.arch }}-${{ parameters.tag }} 
-  name: image_build
+- task: Docker@2
   displayName: Image Build
-  retryCountOnTaskFailure: 3  
+  retryCountOnTaskFailure: 3
+  inputs:
+    command: 'build'
+    containerRegistry: $(ACR_SERVICE_CONNECTION)
+    repository: 'azure-${{ parameters.name }}'
+    tags: 'windows-${{ parameters.arch }}-${{ parameters.tag }}'
+    Dockerfile: '${{ parameters.name }}/windows.Dockerfile'
+    arguments: '
+    --build-arg VERSION=windows-${{ parameters.arch }}-${{ parameters.tag }} 
+    --build-arg ${{ parameters.ai_path_var }}=${{ parameters.ai_path }} 
+    --build-arg ${{ parameters.ai_id_var }}=${{ parameters.ai_id }}'
+    buildContext: '**/..'
 
-- powershell: |
-    $registry = "acnpublic.azurecr.io"
-    docker push $registry/azure-${{ parameters.name }}:windows-${{ parameters.arch }}-${{ parameters.tag }}
-  name: image_push
+- task: Docker@2
   displayName: Image Push
   retryCountOnTaskFailure: 3
+  inputs:
+    command: 'push'
+    containerRegistry: $(ACR_SERVICE_CONNECTION)
+    repository: 'azure-${{ parameters.name }}'
+    tags: 'windows-${{ parameters.arch }}-${{ parameters.tag }}'
 
 - task: Docker@2
   displayName: Logout

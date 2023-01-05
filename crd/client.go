@@ -7,10 +7,16 @@ import (
 	"k8s.io/client-go/rest"
 )
 
-func NewCRDClient(config *rest.Config) (v1.CustomResourceDefinitionInterface, error) {
+// NewCRDCLientFromConfig creates a CRD-scoped client from the provided kubeconfig.
+func NewCRDClientFromConfig(config *rest.Config) (v1.CustomResourceDefinitionInterface, error) {
 	c, err := clientset.NewForConfig(config)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to init CRD client")
 	}
+	return NewCRDClientFromClientset(c)
+}
+
+// NewCRDCLientFromConfig creates a CRD-scoped client from the provided kube clientset.
+func NewCRDClientFromClientset(c *clientset.Clientset) (v1.CustomResourceDefinitionInterface, error) {
 	return c.ApiextensionsV1().CustomResourceDefinitions(), nil
 }

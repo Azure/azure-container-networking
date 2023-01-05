@@ -31,15 +31,16 @@ EXE_EXT 	= .exe
 endif
 
 # Interrogate the git repo and set some variables
-REPO_ROOT 		    = $(shell git rev-parse --show-toplevel)
-REVISION 		   ?= $(shell git rev-parse --short HEAD)
-ACN_VERSION  	   ?= $(shell git describe --exclude "azure-ipam*" --exclude "cni-dropgz*" --exclude "zapai*" --tags --always)
-AZURE_IPAM_VERSION ?= $(notdir $(shell git describe --match "azure-ipam*" --tags --always))
-CNI_VERSION        ?= $(ACN_VERSION)
-CNI_DROPGZ_VERSION ?= $(notdir $(shell git describe --match "cni-dropgz*" --tags --always))
-CNS_VERSION  	   ?= $(ACN_VERSION)
-NPM_VERSION        ?= $(ACN_VERSION)
-ZAPAI_VERSION  	   ?= $(notdir $(shell git describe --match "zapai*" --tags --always))
+REPO_ROOT 		   		 = $(shell git rev-parse --show-toplevel)
+REVISION 		   		?= $(shell git rev-parse --short HEAD)
+ACN_VERSION  	   		?= $(shell git describe --exclude "azure-ipam*" --exclude "dropgz*" --exclude "zapai*" --tags --always)
+AZURE_IPAM_VERSION 		?= $(notdir $(shell git describe --match "azure-ipam*" --tags --always))
+CNI_VERSION        		?= $(ACN_VERSION)
+CNI_DROPGZ_VERSION 		?= $(notdir $(shell git describe --match "dropgz*" --tags --always))
+CNI_DROPGZ_TEST_VERSION ?= $(notdir $(shell git describe --match "dropgz-test*" --tags --always))
+CNS_VERSION  	   		?= $(ACN_VERSION)
+NPM_VERSION        		?= $(ACN_VERSION)
+ZAPAI_VERSION  	   		?= $(notdir $(shell git describe --match "zapai*" --tags --always))
 
 # Build directories.
 AZURE_IPAM_DIR = $(REPO_ROOT)/azure-ipam
@@ -153,6 +154,9 @@ cni-version: ## prints the cni version
 cni-dropgz-version: ## prints the cni-dropgz version
 	@echo $(CNI_DROPGZ_VERSION)
 
+cni-dropgz-test-version: ## prints the cni-dropgz version
+	@echo $(CNI_DROPGZ_TEST_VERSION)
+
 cns-version:
 	@echo $(CNS_VERSION) 
 
@@ -223,12 +227,14 @@ endif
 ## Image name definitions.
 ACNCLI_IMAGE     = acncli
 CNI_DROPGZ_IMAGE = cni-dropgz
+CNI_DROPGZ_TEST_IMAGE = cni-dropgz-test
 CNS_IMAGE        = azure-cns
 NPM_IMAGE        = azure-npm
 
 ## Image platform tags.
 ACNCLI_PLATFORM_TAG     ?= $(subst /,-,$(PLATFORM))-$(ACN_VERSION)
 CNI_DROPGZ_PLATFORM_TAG ?= $(subst /,-,$(PLATFORM))-$(CNI_DROPGZ_VERSION)
+CNI_DROPGZ_TEST_PLATFORM_TAG ?= $(subst /,-,$(PLATFORM))-$(CNI_DROPGZ_TEST_VERSION)
 CNS_PLATFORM_TAG        ?= $(subst /,-,$(PLATFORM))-$(CNS_VERSION)
 NPM_PLATFORM_TAG        ?= $(subst /,-,$(PLATFORM))-$(NPM_VERSION)
 
@@ -280,6 +286,9 @@ skopeo-export: # util target to copy a container from containers-storage to the 
 acncli-image-name: # util target to print the CNI manager image name.
 	@echo $(ACNCLI_IMAGE)
 
+acncli-image-name-and-tag: # util target to print the CNI manager image name and tag.
+	@echo $(IMAGE_REGISTRY)/$(ACNCLI_IMAGE):$(ACNCLI_PLATFORM_TAG)
+
 acncli-image: ## build cni-manager container image.
 	$(MAKE) container \
 		DOCKERFILE=tools/acncli/Dockerfile \
@@ -305,6 +314,9 @@ acncli-skopeo-export:
 cni-dropgz-image-name: # util target to print the CNI dropgz image name.
 	@echo $(CNI_DROPGZ_IMAGE)
 
+cni-dropgz-image-name-and-tag: # util target to print the CNI dropgz image name and tag.
+	@echo $(IMAGE_REGISTRY)/$(CNI_DROPGZ_IMAGE):$(CNI_DROPGZ_PLATFORM_TAG)
+
 cni-dropgz-image: ## build cni-dropgz container image.
 	$(MAKE) container \
 		DOCKERFILE=dropgz/build/cni.Dockerfile \
@@ -326,10 +338,42 @@ cni-dropgz-skopeo-export:
 	$(MAKE) skopeo-export \
 		REF=$(IMAGE_REGISTRY)/$(CNI_DROPGZ_IMAGE):$(CNI_DROPGZ_PLATFORM_TAG)
 
+# cni-dropgz-test
+
+cni-dropgz-test-image-name: # util target to print the CNI dropgz test image name.
+	@echo $(CNI_DROPGZ_TEST_IMAGE)
+
+cni-dropgz-test-image-name-and-tag: # util target to print the CNI dropgz test image name and tag.
+	@echo $(IMAGE_REGISTRY)/$(CNI_DROPGZ_TEST_IMAGE):$(CNI_DROPGZ_TEST_PLATFORM_TAG)
+
+cni-dropgz-test-image: ## build cni-dropgz-test container image.
+	$(MAKE) container \
+		DOCKERFILE=dropgz/build/cniTest.Dockerfile \
+		EXTRA_BUILD_ARGS='--build-arg OS=$(OS)' \
+		IMAGE=$(CNI_DROPGZ_TEST_IMAGE) \
+		TAG=$(CNI_DROPGZ_TEST_PLATFORM_TAG)
+
+cni-dropgz-test-image-push: ## push cni-dropgz-test container image.
+	$(MAKE) container-push \
+		IMAGE=$(CNI_DROPGZ_TEST_IMAGE) \
+		TAG=$(CNI_DROPGZ_TEST_PLATFORM_TAG)
+
+cni-dropgz-test-image-pull: ## pull cni-dropgz-test container image.
+	$(MAKE) container-pull \
+		IMAGE=$(CNI_DROPGZ_TEST_IMAGE) \
+		TAG=$(CNI_DROPGZ_TEST_PLATFORM_TAG)
+
+cni-dropgz-test-skopeo-export: 
+	$(MAKE) skopeo-export \
+		REF=$(IMAGE_REGISTRY)/$(CNI_DROPGZ_TEST_IMAGE):$(CNI_DROPGZ_TEST_PLATFORM_TAG)
+
 # cns
 
 cns-image-name: # util target to print the CNS image name
 	@echo $(CNS_IMAGE)
+
+cns-image-name-and-tag: # util target to print the CNS image name and tag.
+	@echo $(IMAGE_REGISTRY)/$(CNS_IMAGE):$(CNS_PLATFORM_TAG)
 
 cns-image: ## build cns container image.
 	$(MAKE) container \
@@ -356,6 +400,9 @@ cns-skopeo-export:
 
 npm-image-name: # util target to print the NPM image name
 	@echo $(NPM_IMAGE)
+
+npm-image-name-and-tag: # util target to print the NPM image name and tag.
+	@echo $(IMAGE_REGISTRY)/$(NPM_IMAGE):$(NPM_PLATFORM_TAG)
 
 npm-image: ## build the npm container image.
 	$(MAKE) container-$(CONTAINER_BUILDER) \
@@ -493,6 +540,22 @@ cni-dropgz-skopeo-archive: ## export tar archive of cni-dropgz multiplat contain
 		IMAGE=$(CNI_DROPGZ_IMAGE) \
 		TAG=$(CNI_DROPGZ_VERSION)
 
+cni-dropgz-test-manifest-create: ## build cni-dropgz multiplat container manifest.
+	$(MAKE) manifest-create \
+		PLATFORMS="$(PLATFORMS)" \
+		IMAGE=$(CNI_DROPGZ_TEST_IMAGE) \
+		TAG=$(CNI_DROPGZ_TEST_VERSION)
+
+cni-dropgz-test-manifest-push: ## push cni-dropgz multiplat container manifest
+	$(MAKE) manifest-push \
+		IMAGE=$(CNI_DROPGZ_TEST_IMAGE) \
+		TAG=$(CNI_DROPGZ_TEST_VERSION)
+
+cni-dropgz-test-skopeo-archive: ## export tar archive of cni-dropgz multiplat container manifest.
+	$(MAKE) manifest-skopeo-archive \
+		IMAGE=$(CNI_DROPGZ_TEST_IMAGE) \
+		TAG=$(CNI_DROPGZ_TEST_VERSION)
+
 cns-manifest-create: ## build azure-cns multiplat container manifest.
 	$(MAKE) manifest-create \
 		PLATFORMS="$(PLATFORMS)" \
@@ -620,10 +683,10 @@ clean: ## Clean build artifacts.
 LINT_PKG ?= .
 
 lint: $(GOLANGCI_LINT) ## Fast lint vs default branch showing only new issues.
-	$(GOLANGCI_LINT) run --new-from-rev master --timeout 10m -v $(LINT_PKG)/...
+	GOGC=20 $(GOLANGCI_LINT) run --new-from-rev master --timeout 10m -v $(LINT_PKG)/...
 
 lint-all: $(GOLANGCI_LINT) ## Lint the current branch in entirety.
-	$(GOLANGCI_LINT) run -v $(LINT_PKG)/...
+	GOGC=20 $(GOLANGCI_LINT) run -v $(LINT_PKG)/...
 
 
 FMT_PKG ?= cni cns npm
@@ -648,13 +711,12 @@ COVER_PKG ?= .
 test-all: ## run all unit tests.
 	@$(eval COVER_FILTER=`go list --tags ignore_uncovered,ignore_autogenerated $(COVER_PKG)/... | tr '\n' ','`)
 	@echo Test coverpkg: $(COVER_FILTER)
-	go test -buildvcs=false -tags "unit" -coverpkg=$(COVER_FILTER) -race -covermode atomic -failfast -coverprofile=coverage.out $(COVER_PKG)/...
-
+	go test -mod=readonly -buildvcs=false -tags "unit" -coverpkg=$(COVER_FILTER) -race -covermode atomic -coverprofile=coverage.out $(COVER_PKG)/...
 
 test-integration: ## run all integration tests.
 	CNI_DROPGZ_VERSION=$(CNI_DROPGZ_VERSION) \
 		CNS_VERSION=$(CNS_VERSION) \
-		go test -buildvcs=false -timeout 1h -coverpkg=./... -race -covermode atomic -coverprofile=coverage.out -tags=integration ./test/integration...
+		go test -mod=readonly -buildvcs=false -timeout 1h -coverpkg=./... -race -covermode atomic -coverprofile=coverage.out -tags=integration ./test/integration...
 
 test-cyclonus: ## run the cyclonus test for npm.
 	cd test/cyclonus && bash ./test-cyclonus.sh
@@ -667,6 +729,9 @@ test-cyclonus-windows: ## run the cyclonus test for npm.
 test-extended-cyclonus: ## run the cyclonus test for npm.
 	cd test/cyclonus && bash ./test-cyclonus.sh extended
 	cd ..
+
+test-azure-ipam: ## run the unit test for azure-ipam
+	cd $(AZURE_IPAM_DIR) && go test
 
 kind:
 	kind create cluster --config ./test/kind/kind.yaml

@@ -3,6 +3,7 @@ package nmagent
 import (
 	"context"
 	"encoding/json"
+	"encoding/xml"
 	"io"
 	"net"
 	"net/http"
@@ -113,6 +114,37 @@ func (c *Client) GetNetworkConfiguration(ctx context.Context, gncr GetNetworkCon
 	return out, err // nolint:wrapcheck // wrapping just introduces noise here
 }
 
+// GetNetworkContainerVersion gets the current goal state version of a Network
+// Container. This method can be used to detect changes in a Network
+// Container's state that would indicate that it requires re-programming. The
+// request must originate from a VM network interface that has a Swift
+// Provisioning OwningServiceInstanceId property. The authentication token must
+// match the token on the subnet containing the Network Container address.
+func (c *Client) GetNCVersion(ctx context.Context, ncvr NCVersionRequest) (NCVersion, error) {
+	req, err := c.buildRequest(ctx, ncvr)
+	if err != nil {
+		return NCVersion{}, errors.Wrap(err, "building request")
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return NCVersion{}, errors.Wrap(err, "submitting request")
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return NCVersion{}, die(resp.StatusCode, resp.Header, resp.Body)
+	}
+
+	var out NCVersion
+	err = json.NewDecoder(resp.Body).Decode(&out)
+	if err != nil {
+		return NCVersion{}, errors.Wrap(err, "decoding response")
+	}
+
+	return out, nil
+}
+
 // PutNetworkContainer applies a Network Container goal state and publishes it
 // to PubSub.
 func (c *Client) PutNetworkContainer(ctx context.Context, pncr *PutNetworkContainerRequest) error {
@@ -131,6 +163,30 @@ func (c *Client) PutNetworkContainer(ctx context.Context, pncr *PutNetworkContai
 		return die(resp.StatusCode, resp.Header, resp.Body)
 	}
 	return nil
+}
+
+// SupportedAPIs retrieves the capabilities of the nmagent running on
+// the node. This is useful for detecting if GRE Keys are supported.
+func (c *Client) SupportedAPIs(ctx context.Context) ([]string, error) {
+	sar := &SupportedAPIsRequest{}
+	req, err := c.buildRequest(ctx, sar)
+	if err != nil {
+		return nil, errors.Wrap(err, "building request")
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, errors.Wrap(err, "submitting request")
+	}
+	defer resp.Body.Close()
+
+	var out SupportedAPIsResponseXML
+	err = xml.NewDecoder(resp.Body).Decode(&out)
+	if err != nil {
+		return nil, errors.Wrap(err, "decoding response")
+	}
+
+	return out.SupportedApis, nil
 }
 
 // DeleteNetworkContainer removes a Network Container, its associated IP
@@ -152,6 +208,58 @@ func (c *Client) DeleteNetworkContainer(ctx context.Context, dcr DeleteContainer
 	}
 
 	return nil
+}
+
+func (c *Client) GetNCVersionList(ctx context.Context) (NCVersionList, error) {
+	req, err := c.buildRequest(ctx, &NCVersionListRequest{})
+	if err != nil {
+		return NCVersionList{}, errors.Wrap(err, "building request")
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return NCVersionList{}, errors.Wrap(err, "submitting request")
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return NCVersionList{}, die(resp.StatusCode, resp.Header, resp.Body)
+	}
+
+	var out NCVersionList
+	err = json.NewDecoder(resp.Body).Decode(&out)
+	if err != nil {
+		return NCVersionList{}, errors.Wrap(err, "decoding response")
+	}
+
+	return out, nil
+}
+
+// GetHomeAz gets node's home az from nmagent
+func (c *Client) GetHomeAz(ctx context.Context) (AzResponse, error) {
+	getHomeAzRequest := &GetHomeAzRequest{}
+	var homeAzResponse AzResponse
+	req, err := c.buildRequest(ctx, getHomeAzRequest)
+	if err != nil {
+		return homeAzResponse, errors.Wrap(err, "building request")
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return homeAzResponse, errors.Wrap(err, "submitting request")
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return homeAzResponse, die(resp.StatusCode, resp.Header, resp.Body)
+	}
+
+	err = json.NewDecoder(resp.Body).Decode(&homeAzResponse)
+	if err != nil {
+		return homeAzResponse, errors.Wrap(err, "decoding response")
+	}
+
+	return homeAzResponse, nil
 }
 
 func die(code int, headers http.Header, body io.ReadCloser) error {

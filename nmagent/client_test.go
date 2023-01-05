@@ -74,26 +74,13 @@ func TestNMAgentClientJoinNetwork(t *testing.T) {
 				},
 			})
 
-			// if the test provides a timeout, use it in the context
-			var ctx context.Context
-			if deadline, ok := t.Deadline(); ok {
-				var cancel context.CancelFunc
-				ctx, cancel = context.WithDeadline(context.Background(), deadline)
-				defer cancel()
-			} else {
-				ctx = context.Background()
-			}
+			ctx, cancel := testContext(t)
+			defer cancel()
 
 			// attempt to join network
 			// TODO(timraymond): need a more realistic network ID, I think
 			err := client.JoinNetwork(ctx, nmagent.JoinNetworkRequest{test.id})
-			if err != nil && !test.shouldErr {
-				t.Fatal("unexpected error: err:", err)
-			}
-
-			if err == nil && test.shouldErr {
-				t.Fatal("expected error but received none")
-			}
+			checkErr(t, err, test.shouldErr)
 
 			if got != test.exp {
 				t.Error("received URL differs from expectation: got", got, "exp:", test.exp)
@@ -109,7 +96,7 @@ func TestNMAgentClientJoinNetworkRetry(t *testing.T) {
 	exp := 10
 
 	client := nmagent.NewTestClient(&TestTripper{
-		RoundTripF: func(req *http.Request) (*http.Response, error) {
+		RoundTripF: func(_ *http.Request) (*http.Response, error) {
 			rr := httptest.NewRecorder()
 			if invocations < exp {
 				rr.WriteHeader(http.StatusProcessing)
@@ -122,15 +109,8 @@ func TestNMAgentClientJoinNetworkRetry(t *testing.T) {
 		},
 	})
 
-	// if the test provides a timeout, use it in the context
-	var ctx context.Context
-	if deadline, ok := t.Deadline(); ok {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithDeadline(context.Background(), deadline)
-		defer cancel()
-	} else {
-		ctx = context.Background()
-	}
+	ctx, cancel := testContext(t)
+	defer cancel()
 
 	// attempt to join network
 	err := client.JoinNetwork(ctx, nmagent.JoinNetworkRequest{"00000000-0000-0000-0000-000000000000"})
@@ -156,7 +136,7 @@ ww.w3.org/2001/XMLSchema">
 `
 
 	client := nmagent.NewTestClient(&TestTripper{
-		RoundTripF: func(req *http.Request) (*http.Response, error) {
+		RoundTripF: func(_ *http.Request) (*http.Response, error) {
 			rr := httptest.NewRecorder()
 			rr.WriteHeader(http.StatusInternalServerError)
 			_, _ = rr.WriteString(wsError)
@@ -167,7 +147,11 @@ ww.w3.org/2001/XMLSchema">
 	req := nmagent.GetNetworkConfigRequest{
 		VNetID: "4815162342",
 	}
-	_, err := client.GetNetworkConfiguration(context.TODO(), req)
+
+	ctx, cancel := testContext(t)
+	defer cancel()
+
+	_, err := client.GetNetworkConfiguration(ctx, req)
 
 	if err == nil {
 		t.Fatal("expected error to not be nil")
@@ -235,24 +219,11 @@ func TestNMAgentGetNetworkConfig(t *testing.T) {
 				},
 			})
 
-			// if the test provides a timeout, use it in the context
-			var ctx context.Context
-			if deadline, ok := t.Deadline(); ok {
-				var cancel context.CancelFunc
-				ctx, cancel = context.WithDeadline(context.Background(), deadline)
-				defer cancel()
-			} else {
-				ctx = context.Background()
-			}
+			ctx, cancel := testContext(t)
+			defer cancel()
 
 			gotVNet, err := client.GetNetworkConfiguration(ctx, nmagent.GetNetworkConfigRequest{test.vnetID})
-			if err != nil && !test.shouldErr {
-				t.Fatal("unexpected error: err:", err)
-			}
-
-			if err == nil && test.shouldErr {
-				t.Fatal("expected error but received none")
-			}
+			checkErr(t, err, test.shouldErr)
 
 			if got != test.expURL && test.shouldCall {
 				t.Error("unexpected URL: got:", got, "exp:", test.expURL)
@@ -280,7 +251,7 @@ func TestNMAgentGetNetworkConfigRetry(t *testing.T) {
 	count := 0
 	exp := 10
 	client := nmagent.NewTestClient(&TestTripper{
-		RoundTripF: func(req *http.Request) (*http.Response, error) {
+		RoundTripF: func(_ *http.Request) (*http.Response, error) {
 			rr := httptest.NewRecorder()
 			if count < exp {
 				rr.WriteHeader(http.StatusProcessing)
@@ -295,15 +266,8 @@ func TestNMAgentGetNetworkConfigRetry(t *testing.T) {
 		},
 	})
 
-	// if the test provides a timeout, use it in the context
-	var ctx context.Context
-	if deadline, ok := t.Deadline(); ok {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithDeadline(context.Background(), deadline)
-		defer cancel()
-	} else {
-		ctx = context.Background()
-	}
+	ctx, cancel := testContext(t)
+	defer cancel()
 
 	_, err := client.GetNetworkConfiguration(ctx, nmagent.GetNetworkConfigRequest{"00000000-0000-0000-0000-000000000000"})
 	if err != nil {
@@ -356,7 +320,7 @@ func TestNMAgentPutNetworkContainer(t *testing.T) {
 
 			didCall := false
 			client := nmagent.NewTestClient(&TestTripper{
-				RoundTripF: func(req *http.Request) (*http.Response, error) {
+				RoundTripF: func(_ *http.Request) (*http.Response, error) {
 					rr := httptest.NewRecorder()
 					_, _ = rr.WriteString(`{"httpStatusCode": "200"}`)
 					rr.WriteHeader(http.StatusOK)
@@ -428,6 +392,300 @@ func TestNMAgentDeleteNC(t *testing.T) {
 
 			if test.exp != got {
 				t.Errorf("received URL differs from expectation:\n\texp: %q:\n\tgot: %q", test.exp, got)
+			}
+		})
+	}
+}
+
+func TestNMAgentSupportedAPIs(t *testing.T) {
+	tests := []struct {
+		name      string
+		exp       []string
+		expPath   string
+		resp      string
+		shouldErr bool
+	}{
+		{
+			"empty",
+			nil,
+			"/machine/plugins/?comp=nmagent&type=GetSupportedApis",
+			"<SupportedAPIsResponseXML></SupportedAPIsResponseXML>",
+			false,
+		},
+		{
+			"happy",
+			[]string{"foo"},
+			"/machine/plugins/?comp=nmagent&type=GetSupportedApis",
+			"<SupportedAPIsResponseXML><type>foo</type></SupportedAPIsResponseXML>",
+			false,
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			var gotPath string
+			client := nmagent.NewTestClient(&TestTripper{
+				RoundTripF: func(req *http.Request) (*http.Response, error) {
+					gotPath = req.URL.Path
+					rr := httptest.NewRecorder()
+					_, _ = rr.WriteString(test.resp)
+					return rr.Result(), nil
+				},
+			})
+
+			got, err := client.SupportedAPIs(context.Background())
+			if err != nil && !test.shouldErr {
+				t.Fatal("unexpected error: err:", err)
+			}
+
+			if err == nil && test.shouldErr {
+				t.Fatal("expected error but received none")
+			}
+
+			if gotPath != test.expPath {
+				t.Error("paths differ: got:", gotPath, "exp:", test.expPath)
+			}
+
+			if !cmp.Equal(got, test.exp) {
+				t.Error("response differs from expectation: diff:", cmp.Diff(got, test.exp))
+			}
+		})
+	}
+}
+
+func TestGetNCVersion(t *testing.T) {
+	tests := []struct {
+		name      string
+		req       nmagent.NCVersionRequest
+		expURL    string
+		resp      map[string]interface{}
+		shouldErr bool
+	}{
+		{
+			"empty",
+			nmagent.NCVersionRequest{},
+			"",
+			map[string]interface{}{},
+			true,
+		},
+		{
+			"happy path",
+			nmagent.NCVersionRequest{
+				AuthToken:          "foo",
+				NetworkContainerID: "bar",
+				PrimaryAddress:     "baz",
+			},
+			"/machine/plugins/?comp=nmagent&type=NetworkManagement/interfaces/baz/networkContainers/bar/version/authenticationToken/foo/api-version/1",
+			map[string]interface{}{
+				"httpStatusCode":     "200",
+				"networkContainerId": "bar",
+				"version":            "4815162342",
+			},
+			false,
+		},
+		{
+			"non-200",
+			nmagent.NCVersionRequest{
+				AuthToken:          "foo",
+				NetworkContainerID: "bar",
+				PrimaryAddress:     "baz",
+			},
+			"/machine/plugins/?comp=nmagent&type=NetworkManagement/interfaces/baz/networkContainers/bar/version/authenticationToken/foo/api-version/1",
+			map[string]interface{}{
+				"httpStatusCode": "500",
+			},
+			true,
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			var gotURL string
+			client := nmagent.NewTestClient(&TestTripper{
+				RoundTripF: func(req *http.Request) (*http.Response, error) {
+					gotURL = req.URL.Path
+					rr := httptest.NewRecorder()
+					err := json.NewEncoder(rr).Encode(test.resp)
+					if err != nil {
+						t.Fatal("unexpected error encoding test response: err:", err)
+					}
+					rr.WriteHeader(http.StatusOK)
+					return rr.Result(), nil
+				},
+			})
+
+			ctx, cancel := testContext(t)
+			defer cancel()
+
+			got, err := client.GetNCVersion(ctx, test.req)
+			checkErr(t, err, test.shouldErr)
+
+			if gotURL != test.expURL {
+				t.Error("received URL differs from expected: got:", gotURL, "exp:", test.expURL)
+			}
+
+			exp := nmagent.NCVersion{}
+			if ncid, ok := test.resp["networkContainerId"]; ok {
+				exp.NetworkContainerID = ncid.(string)
+			}
+
+			if version, ok := test.resp["version"]; ok {
+				exp.Version = version.(string)
+			}
+
+			if !cmp.Equal(got, exp) {
+				t.Error("response differs from expectation: diff:", cmp.Diff(got, exp))
+			}
+		})
+	}
+}
+
+func TestGetNCVersionList(t *testing.T) {
+	tests := []struct {
+		name      string
+		resp      map[string]interface{}
+		expURL    string
+		exp       nmagent.NCVersionList
+		shouldErr bool
+	}{
+		{
+			"happy path",
+			map[string]interface{}{
+				"httpStatusCode": "200",
+				"networkContainers": []map[string]interface{}{
+					{
+						"networkContainerId": "foo",
+						"version":            "42",
+					},
+				},
+			},
+			"/machine/plugins/?comp=nmagent&type=NetworkManagement/interfaces/api-version/1",
+			nmagent.NCVersionList{
+				Containers: []nmagent.NCVersion{
+					{
+						NetworkContainerID: "foo",
+						Version:            "42",
+					},
+				},
+			},
+			false,
+		},
+		{
+			"nma fail",
+			map[string]interface{}{
+				"httpStatusCode": "500",
+			},
+			"/machine/plugins/?comp=nmagent&type=NetworkManagement/interfaces/api-version/1",
+			nmagent.NCVersionList{},
+			true,
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			var gotURL string
+			client := nmagent.NewTestClient(&TestTripper{
+				RoundTripF: func(req *http.Request) (*http.Response, error) {
+					gotURL = req.URL.Path
+					rr := httptest.NewRecorder()
+					rr.WriteHeader(http.StatusOK)
+					err := json.NewEncoder(rr).Encode(test.resp)
+					if err != nil {
+						t.Fatal("unexpected error encoding response: err:", err)
+					}
+					return rr.Result(), nil
+				},
+			})
+
+			ctx, cancel := testContext(t)
+			defer cancel()
+
+			resp, err := client.GetNCVersionList(ctx)
+			checkErr(t, err, test.shouldErr)
+
+			if gotURL != test.expURL {
+				t.Error("received URL differs from expected: got:", gotURL, "exp:", test.expURL)
+			}
+
+			if got := resp; !cmp.Equal(got, test.exp) {
+				t.Error("response differs from expectation: diff:", cmp.Diff(got, test.exp))
+			}
+		})
+	}
+}
+
+func TestGetHomeAz(t *testing.T) {
+	tests := []struct {
+		name      string
+		exp       nmagent.AzResponse
+		expPath   string
+		resp      map[string]interface{}
+		shouldErr bool
+	}{
+		{
+			"happy path",
+			nmagent.AzResponse{HomeAz: uint(1)},
+			"/machine/plugins/?comp=nmagent&type=GetHomeAz",
+			map[string]interface{}{
+				"httpStatusCode": "200",
+				"HomeAz":         1,
+			},
+			false,
+		},
+		{
+			"empty response",
+			nmagent.AzResponse{},
+			"/machine/plugins/?comp=nmagent&type=GetHomeAz",
+			map[string]interface{}{
+				"httpStatusCode": "500",
+			},
+			true,
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			var gotPath string
+			client := nmagent.NewTestClient(&TestTripper{
+				RoundTripF: func(req *http.Request) (*http.Response, error) {
+					gotPath = req.URL.Path
+					rr := httptest.NewRecorder()
+					err := json.NewEncoder(rr).Encode(test.resp)
+					if err != nil {
+						t.Fatal("unexpected error encoding response: err:", err)
+					}
+					rr.WriteHeader(http.StatusOK)
+					return rr.Result(), nil
+				},
+			})
+
+			got, err := client.GetHomeAz(context.TODO())
+			if err != nil && !test.shouldErr {
+				t.Fatal("unexpected error: err:", err)
+			}
+
+			if err == nil && test.shouldErr {
+				t.Fatal("expected error but received none")
+			}
+
+			if gotPath != test.expPath {
+				t.Error("paths differ: got:", gotPath, "exp:", test.expPath)
+			}
+
+			if !cmp.Equal(got, test.exp) {
+				t.Error("response differs from expectation: diff:", cmp.Diff(got, test.exp))
 			}
 		})
 	}

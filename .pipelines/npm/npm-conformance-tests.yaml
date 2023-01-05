@@ -26,7 +26,8 @@ jobs:
           mkdir -p '$(GOBIN)'
           mkdir -p '$(GOPATH)/pkg'
           BUILD_NUMBER=$(Build.BuildNumber)
-          RG=e2e-$(echo "npm-`date "+%Y-%m-%d-%S"`")
+          # format: npm-<year>-<month>-<day>-<minute>-<second>
+          RG=e2e-$(echo "npm-`date "+%Y-%m-%d-%M-%S"`")
           TAG=$(make npm-version)
           echo "Resource group: $RG"
           echo "Image tag: $TAG"
@@ -70,12 +71,20 @@ jobs:
         npm_windows_amd64:
           arch: amd64
           name: npm
+          ai_path: github.com/Azure/azure-container-networking/npm.aiMetadata
+          ai_path_var: NPM_AI_PATH
+          ai_id: 014c22bd-4107-459e-8475-67909e96edcb
+          ai_id_var: NPM_AI_ID
     steps:
       - template: ../containers/container-template-windows.yaml
         parameters:
           name: $(name)
           arch: $(arch)
           tag: $(TAG)
+          ai_path: $(ai_path)
+          ai_path_var: $(ai_path_var)
+          ai_id: $(ai_id)
+          ai_id_var: $(ai_id_var)
 
   - job: k8se2e
     displayName: "Build Kubernetes Test Suite"
@@ -169,10 +178,6 @@ jobs:
               az extension add --name aks-preview
               az extension update --name aks-preview
 
-              # Enable Microsoft.ContainerService/AKSWindows2022Preview
-              az feature register --namespace Microsoft.ContainerService --name AKSWindows2022Preview
-              az provider register -n Microsoft.ContainerService
-
               echo "creating WS22 Cluster";
               az aks create \
                   --resource-group $(RESOURCE_GROUP) \
@@ -182,7 +187,6 @@ jobs:
                   --windows-admin-password alpha@numeric!password2 \
                   --network-plugin azure \
                   --vm-set-type VirtualMachineScaleSets \
-                  --kubernetes-version v1.23.5 \
                   --node-vm-size Standard_D4s_v3 \
                   --node-count 1
 
@@ -272,10 +276,8 @@ jobs:
           mkdir -p $npmLogsFolder
           cp ./kubeconfig $npmLogsFolder/kubeconfig
 
-          ## write to all NPM pod logs in the background (do this in the background instead of after to make sure the logs aren't truncated)
           npmPodList=`kubectl --kubeconfig=./kubeconfig get pods -n kube-system | grep npm | awk '{print $1}'`
           echo "Found NPM pods: $npmPodList"
-
 
           ## Run all Conformance tests in the background
           echo $FQDN
@@ -350,10 +352,23 @@ jobs:
               exitCode=$?
             fi
           fi
-          # kill the background processes (the logs) that have this process' pid (i.e. $$) as a parent
 
+          # get all current npm pods
+          kubectl --kubeconfig=./kubeconfig get pods -n kube-system | grep npm
+          npmPodList=`kubectl --kubeconfig=./kubeconfig get pods -n kube-system | grep npm | awk '{print $1}'`
+          # capture all logs
           for npmPod in $npmPodList; do
               ./kubectl --kubeconfig=./kubeconfig logs -n kube-system $npmPod > $npmLogsFolder/$npmPod-logs.txt
+          done
+
+          # capture any previous logs in case there was a crash
+          for npmPod in $npmPodList; do
+              previousLogFile=$npmLogsFolder/previous-$npmPod-logs.txt
+              ./kubectl --kubeconfig=./kubeconfig logs -n kube-system $npmPod -p > $previousLogFile
+              if [[ $? -ne 0 ]]; then
+                  # remove the empty file if kubectl logs failed (e.g. there was no previous terminated container)
+                  rm $previousLogFile
+              fi
           done
 
           exit $exitCode
@@ -396,10 +411,6 @@ jobs:
             az extension add --name aks-preview
             az extension update --name aks-preview
 
-            # Enable Microsoft.ContainerService/AKSWindows2022Preview
-            az feature register --namespace Microsoft.ContainerService --name AKSWindows2022Preview
-            az provider register -n Microsoft.ContainerService
-
             export CLUSTER_NAME=$(RESOURCE_GROUP)-$(PROFILE)
 
             echo "Creating resource group named $CLUSTER_NAME"
@@ -415,7 +426,6 @@ jobs:
                 --network-plugin azure \
                 --vm-set-type VirtualMachineScaleSets \
                 --node-vm-size Standard_D4s_v3 \
-                --kubernetes-version v1.23.5 \
                 --node-count 1
 
             # don't schedule anything on the linux system pool
@@ -489,7 +499,18 @@ jobs:
           cp cyclonus-$CLUSTER_NAME $(System.DefaultWorkingDirectory)/$CLUSTER_NAME/cyclonus-$CLUSTER_NAME
           echo "Getting cluster state for $CLUSTER_NAME"
           mkdir -p $(System.DefaultWorkingDirectory)/$CLUSTER_NAME
+          kubectl get pods -n kube-system | grep npm
           kubectl logs -n kube-system -l k8s-app=azure-npm --tail -1 --prefix > $(System.DefaultWorkingDirectory)/$CLUSTER_NAME/npm-logs_$(PROFILE).txt
+          # capture any previous logs in case there was a crash
+          npmPodList=`kubectl get pods -n kube-system | grep npm | awk '{print $1}'`
+          for npmPod in $npmPodList; do
+              previousLogFile=$(System.DefaultWorkingDirectory)/$CLUSTER_NAME/previous-npm-logs_$(PROFILE).txt
+              kubectl logs -n kube-system $npmPod -p > $previousLogFile
+              if [[ $? -ne 0 ]]; then
+                  # remove the empty file if kubectl logs failed (e.g. there was no previous terminated container)
+                  rm $previousLogFile
+              fi
+          done
           cp ./kubeconfig $(System.DefaultWorkingDirectory)/$CLUSTER_NAME/.kubeconfig
         condition: always()
 

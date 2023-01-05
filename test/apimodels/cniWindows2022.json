@@ -4,7 +4,7 @@
         "orchestratorProfile": {
             "orchestratorType": "Kubernetes",
             "orchestratorRelease": "1.22",
-            "orchestratorVersion": "1.22.7",
+            "orchestratorVersion": "1.22.15",
             "kubernetesConfig": {
                 "networkPlugin": "azure",
                 "networkPolicy": "azure",
@@ -46,7 +46,7 @@
         "windowsProfile": {
             "adminUsername": "azureuser",
             "adminPassword": "azureTest@!",
-            "enableAutomaticUpdates": false,
+            "enableAutomaticUpdates": true,
             "sshEnabled": false,
             "windowsPauseImageURL": "mcr.microsoft.com/oss/kubernetes/pause:3.6",
             "alwaysPullWindowsPauseImage": true,

@@ -17,6 +17,7 @@ const (
 	testCommandString = "test command"
 	section1ID        = "section1"
 	section2ID        = "section2"
+	section3ID        = "section3"
 )
 
 var (
@@ -182,11 +183,21 @@ func TestHandleLineErrorForContinueAndAbortSection(t *testing.T) {
 	creator.AddLine(section2ID, errorHandlers, "line2-item1", "line2-item2", "line2-item3")
 	creator.AddLine(section1ID, nil, "line3-item1", "line3-item2", "line3-item3")
 	creator.AddLine(section2ID, nil, "line4-item1", "line4-item2", "line4-item3")
+	creator.AddLine(section3ID, nil, "line5-item1", "line5-item2", "line5-item3")
 	wasFileAltered, err := creator.RunCommandOnceWithFile(testCommandString)
 	require.Error(t, err)
 	require.True(t, wasFileAltered)
 	fileString := creator.ToString()
-	assert.Equal(t, "line3-item1 line3-item2 line3-item3\n", fileString)
+	assert.Equal(t, "line3-item1 line3-item2 line3-item3\nline5-item1 line5-item2 line5-item3\n", fileString)
+
+	creator.logLines(testCommandString)
+	require.Equal(t, map[int]struct{}{0: {}, 1: {}, 3: {}}, creator.lineNumbersToOmit, "expected line 1, 2, and 4 to be marked omitted")
+
+	_, line := creator.handleLineError("some error", testCommandString, 1)
+	require.Equal(t, creator.lines[2], line, "expected a failure in line 1 to map to original line 3")
+
+	_, line = creator.handleLineError("some error", testCommandString, 2)
+	require.Equal(t, creator.lines[4], line, "expected a failure in line 2 to map to original line 5")
 }
 
 func TestHandleLineErrorForContinue(t *testing.T) {
@@ -213,6 +224,15 @@ func TestHandleLineErrorForContinue(t *testing.T) {
 	require.True(t, wasFileAltered)
 	fileString := creator.ToString()
 	assert.Equal(t, "line3-item1 line3-item2 line3-item3\nline4-item1 line4-item2 line4-item3\n", fileString)
+
+	creator.logLines(testCommandString)
+	require.Equal(t, map[int]struct{}{0: {}, 1: {}}, creator.lineNumbersToOmit, "expected line 1 and 2 to be marked omitted")
+
+	_, line := creator.handleLineError("some error", testCommandString, 1)
+	require.Equal(t, creator.lines[2], line, "expected a failure in line 1 to map to original line 3")
+
+	_, line = creator.handleLineError("some error", testCommandString, 2)
+	require.Equal(t, creator.lines[3], line, "expected a failure in line 2 to map to original line 4")
 }
 
 func TestHandleLineErrorNoMatch(t *testing.T) {
@@ -239,6 +259,9 @@ func TestHandleLineErrorNoMatch(t *testing.T) {
 	require.False(t, wasFileAltered)
 	fileStringAfter := creator.ToString()
 	require.Equal(t, fileStringBefore, fileStringAfter)
+
+	creator.logLines(testCommandString)
+	require.Equal(t, map[int]struct{}{}, creator.lineNumbersToOmit, "expected no lines to be marked omitted")
 }
 
 func TestAlwaysMatchDefinition(t *testing.T) {

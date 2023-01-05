@@ -5,8 +5,8 @@ package restserver
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
-	"io"
 	"net"
 	"net/http"
 	"net/url"
@@ -17,10 +17,9 @@ import (
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/hnsclient"
 	"github.com/Azure/azure-container-networking/cns/logger"
-	"github.com/Azure/azure-container-networking/cns/nmagent"
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/cns/wireserver"
-	"github.com/Azure/azure-container-networking/common"
+	"github.com/Azure/azure-container-networking/nmagent"
 	"github.com/Azure/azure-container-networking/platform"
 	"github.com/pkg/errors"
 )
@@ -36,7 +35,9 @@ var (
 // 3) the ncid parameter
 // 4) the authentication token parameter
 // 5) the optional delete path
-const ncURLExpectedMatches = 5
+const (
+	ncURLExpectedMatches = 5
+)
 
 // This file contains implementation of all HTTP APIs which are exposed to external clients.
 // TODO: break it even further per module (network, nc, etc) like it is done for ipam
@@ -765,6 +766,25 @@ func (service *HTTPRestService) setOrchestratorType(w http.ResponseWriter, r *ht
 	logger.Response(service.Name, resp, resp.ReturnCode, err)
 }
 
+// getHomeAz retrieves home AZ of host
+func (service *HTTPRestService) getHomeAz(w http.ResponseWriter, r *http.Request) {
+	logger.Printf("[Azure CNS] getHomeAz")
+	logger.Request(service.Name, "getHomeAz", nil)
+	ctx := r.Context()
+
+	switch r.Method {
+	case http.MethodGet:
+		getHomeAzResponse := service.homeAzMonitor.GetHomeAz(ctx)
+		service.setResponse(w, getHomeAzResponse.Response.ReturnCode, getHomeAzResponse)
+	default:
+		returnMessage := "[Azure CNS] Error. getHomeAz did not receive a GET."
+		returnCode := types.UnsupportedVerb
+		service.setResponse(w, returnCode, cns.GetHomeAzResponse{
+			Response: cns.Response{ReturnCode: returnCode, Message: returnMessage},
+		})
+	}
+}
+
 func (service *HTTPRestService) createOrUpdateNetworkContainer(w http.ResponseWriter, r *http.Request) {
 	logger.Printf("[Azure CNS] createOrUpdateNetworkContainer")
 
@@ -1112,24 +1132,51 @@ func getAuthTokenAndInterfaceIDFromNcURL(networkContainerURL string) (*cns.Netwo
 	return &cns.NetworkContainerParameters{AssociatedInterfaceID: matches[1], AuthToken: matches[3]}, nil
 }
 
+//nolint:revive // the previous receiver naming "service" is bad, this is correct:
+func (h *HTTPRestService) doPublish(ctx context.Context, req cns.PublishNetworkContainerRequest, ncParameters *cns.NetworkContainerParameters) (string, types.ResponseCode) {
+	innerReqBytes := req.CreateNetworkContainerRequestBody
+
+	var innerReq nmagent.PutNetworkContainerRequest
+	err := json.Unmarshal(innerReqBytes, &innerReq)
+	if err != nil {
+		returnMessage := fmt.Sprintf("Failed to publish Network Container: %s", req.NetworkContainerID)
+		returnCode := types.NetworkContainerPublishFailed
+		logger.Errorf("[Azure-CNS] %s", returnMessage)
+		return returnMessage, returnCode
+	}
+
+	innerReq.AuthenticationToken = ncParameters.AuthToken
+	innerReq.PrimaryAddress = ncParameters.AssociatedInterfaceID
+
+	err = h.nma.PutNetworkContainer(ctx, &innerReq)
+	// nolint:bodyclose // existing code needs refactoring
+	if err != nil {
+		returnMessage := fmt.Sprintf("Failed to publish Network Container: %s", req.NetworkContainerID)
+		returnCode := types.NetworkContainerPublishFailed
+		logger.Errorf("[Azure-CNS] %s", returnMessage)
+		return returnMessage, returnCode
+	}
+
+	return "", types.Success
+}
+
 // Publish Network Container by calling nmagent
 func (service *HTTPRestService) publishNetworkContainer(w http.ResponseWriter, r *http.Request) {
 	logger.Printf("[Azure-CNS] PublishNetworkContainer")
 
+	ctx := r.Context()
+
 	var (
-		err                 error
 		req                 cns.PublishNetworkContainerRequest
 		returnCode          types.ResponseCode
 		returnMessage       string
-		publishResponse     *http.Response
 		publishStatusCode   int
 		publishResponseBody []byte
-		publishError        error
 		publishErrorStr     string
 		isNetworkJoined     bool
 	)
 
-	err = service.Listener.Decode(w, r, &req)
+	err := service.Listener.Decode(w, r, &req)
 
 	creteNcURLCopy := req.CreateNetworkContainerURL
 
@@ -1174,58 +1221,36 @@ func (service *HTTPRestService) publishNetworkContainer(w http.ResponseWriter, r
 		// Please refactor this
 		// do not reuse the below variable between network join and publish
 		// nolint:bodyclose // existing code needs refactoring
-		publishResponse, publishError, err = service.joinNetwork(req.NetworkID)
-		if err == nil {
-			isNetworkJoined = true
-		} else {
+		err = service.joinNetwork(ctx, req.NetworkID)
+		if err != nil {
 			returnMessage = err.Error()
 			returnCode = types.NetworkJoinFailed
+			publishErrorStr = err.Error()
+
+			var nmaErr nmagent.Error
+			if errors.As(err, &nmaErr) {
+				publishStatusCode = nmaErr.StatusCode()
+			}
+		} else {
+			isNetworkJoined = true
 		}
 
 		if isNetworkJoined {
 			// Publish Network Container
-
-			// nolint:bodyclose // existing code needs refactoring
-			publishResponse, publishError = nmagent.PublishNetworkContainer(
-				req.NetworkContainerID,
-				ncParameters.AssociatedInterfaceID,
-				ncParameters.AuthToken,
-				req.CreateNetworkContainerRequestBody)
-			if publishError != nil || publishResponse.StatusCode != http.StatusOK {
-				returnMessage = fmt.Sprintf("Failed to publish Network Container: %s", req.NetworkContainerID)
-				returnCode = types.NetworkContainerPublishFailed
-				logger.Errorf("[Azure-CNS] %s", returnMessage)
-			}
-			defer publishResponse.Body.Close()
+			returnMessage, returnCode = service.doPublish(ctx, req, ncParameters)
 		}
 
-		// Store ncGetVersionURL needed for calling NMAgent to check if vfp programming is completed for the NC
-		ncGetVersionURL := fmt.Sprintf(nmagent.GetNetworkContainerVersionURLFmt,
-			nmagent.WireserverIP,
-			ncParameters.AssociatedInterfaceID,
-			req.NetworkContainerID,
-			ncParameters.AuthToken)
-		ncVersionURLs.Store(cns.SwiftPrefix+req.NetworkContainerID, ncGetVersionURL)
+		req := nmagent.NCVersionRequest{
+			AuthToken:          ncParameters.AuthToken,
+			NetworkContainerID: req.NetworkContainerID,
+			PrimaryAddress:     ncParameters.AssociatedInterfaceID,
+		}
+
+		ncVersionURLs.Store(cns.SwiftPrefix+req.NetworkContainerID, req)
 
 	default:
 		returnMessage = "PublishNetworkContainer API expects a POST"
 		returnCode = types.UnsupportedVerb
-	}
-
-	if publishError != nil {
-		publishErrorStr = publishError.Error()
-	}
-
-	if publishResponse != nil {
-		publishStatusCode = publishResponse.StatusCode
-
-		var errParse error
-		publishResponseBody, errParse = io.ReadAll(publishResponse.Body)
-		if errParse != nil {
-			returnMessage = fmt.Sprintf("Failed to parse the publish body. Error: %v", errParse)
-			returnCode = types.UnexpectedError
-			logger.Errorf("[Azure-CNS] %s", returnMessage)
-		}
 	}
 
 	response := cns.PublishNetworkContainerResponse{
@@ -1245,21 +1270,19 @@ func (service *HTTPRestService) publishNetworkContainer(w http.ResponseWriter, r
 // Unpublish Network Container by calling nmagent
 func (service *HTTPRestService) unpublishNetworkContainer(w http.ResponseWriter, r *http.Request) {
 	logger.Printf("[Azure-CNS] UnpublishNetworkContainer")
+	ctx := r.Context()
 
 	var (
-		err                   error
 		req                   cns.UnpublishNetworkContainerRequest
 		returnCode            types.ResponseCode
 		returnMessage         string
-		unpublishResponse     *http.Response
 		unpublishStatusCode   int
 		unpublishResponseBody []byte
-		unpublishError        error
 		unpublishErrorStr     string
 		isNetworkJoined       bool
 	)
 
-	err = service.Listener.Decode(w, r, &req)
+	err := service.Listener.Decode(w, r, &req)
 
 	deleteNcURLCopy := req.DeleteNetworkContainerURL
 
@@ -1302,37 +1325,34 @@ func (service *HTTPRestService) unpublishNetworkContainer(w http.ResponseWriter,
 		isNetworkJoined = service.isNetworkJoined(req.NetworkID)
 		if !isNetworkJoined {
 			// nolint:bodyclose // existing code needs refactoring
-			unpublishResponse, unpublishError, err = service.joinNetwork(req.NetworkID)
-			if err == nil {
-				isNetworkJoined = true
-			} else {
+			err = service.joinNetwork(ctx, req.NetworkID)
+			if err != nil {
 				returnMessage = err.Error()
 				returnCode = types.NetworkJoinFailed
+				unpublishErrorStr = err.Error()
+
+				var nmaErr nmagent.Error
+				if errors.As(err, &nmaErr) {
+					unpublishStatusCode = nmaErr.StatusCode()
+				}
+
+			} else {
+				isNetworkJoined = true
 			}
 		}
 
 		if isNetworkJoined {
-			// Unpublish Network Container
-			unpublishResponse, unpublishError = nmagent.UnpublishNetworkContainer(
-				req.NetworkContainerID,
-				ncParameters.AssociatedInterfaceID,
-				ncParameters.AuthToken)
-			if unpublishError != nil || unpublishResponse.StatusCode != http.StatusOK {
+			dcr := nmagent.DeleteContainerRequest{
+				NCID:                req.NetworkContainerID,
+				PrimaryAddress:      ncParameters.AssociatedInterfaceID,
+				AuthenticationToken: ncParameters.AuthToken,
+			}
+
+			err = service.nma.DeleteNetworkContainer(ctx, dcr)
+			if err != nil {
 				returnMessage = fmt.Sprintf("Failed to unpublish Network Container: %s", req.NetworkContainerID)
 				returnCode = types.NetworkContainerUnpublishFailed
 				logger.Errorf("[Azure-CNS] %s", returnMessage)
-			}
-
-			if unpublishResponse != nil {
-				var errParse error
-				unpublishResponseBody, errParse = io.ReadAll(unpublishResponse.Body)
-				if errParse != nil {
-					returnMessage = fmt.Sprintf("Failed to parse the unpublish body. Error: %v", errParse)
-					returnCode = types.UnexpectedError
-					logger.Errorf("[Azure-CNS] %s", returnMessage)
-				}
-
-				unpublishResponse.Body.Close()
 			}
 		}
 
@@ -1341,14 +1361,6 @@ func (service *HTTPRestService) unpublishNetworkContainer(w http.ResponseWriter,
 	default:
 		returnMessage = "UnpublishNetworkContainer API expects a POST"
 		returnCode = types.UnsupportedVerb
-	}
-
-	if unpublishError != nil {
-		unpublishErrorStr = unpublishError.Error()
-	}
-
-	if unpublishResponse != nil {
-		unpublishStatusCode = unpublishResponse.StatusCode
 	}
 
 	response := cns.UnpublishNetworkContainerResponse{
@@ -1474,6 +1486,8 @@ func (service *HTTPRestService) nmAgentSupportedApisHandler(w http.ResponseWrite
 		supportedApis []string
 	)
 
+	ctx := r.Context()
+
 	err = service.Listener.Decode(w, r, &req)
 	logger.Request(service.Name, &req, err)
 	if err != nil {
@@ -1482,15 +1496,12 @@ func (service *HTTPRestService) nmAgentSupportedApisHandler(w http.ResponseWrite
 
 	switch r.Method {
 	case http.MethodPost:
-		supportedApis, retErr = nmagent.GetNmAgentSupportedApis(common.GetHttpClient(),
-			req.GetNmAgentSupportedApisURL)
-		if retErr != nil {
+		apis, err := service.nma.SupportedAPIs(ctx)
+		if err != nil {
 			returnCode = types.NmAgentSupportedApisError
 			returnMessage = fmt.Sprintf("[Azure-CNS] %s", retErr.Error())
 		}
-		if supportedApis == nil {
-			supportedApis = []string{}
-		}
+		supportedApis = apis
 
 	default:
 		returnMessage = "[Azure-CNS] NmAgentSupported API list expects a POST method."

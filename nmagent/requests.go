@@ -282,3 +282,134 @@ func (g GetNetworkConfigRequest) Validate() error {
 	}
 	return err
 }
+
+var _ Request = &SupportedAPIsRequest{}
+
+// SupportedAPIsRequest is a collection of parameters necessary to submit a
+// valid request to retrieve the supported APIs from an NMAgent instance.
+type SupportedAPIsRequest struct{}
+
+// Body is a no-op method to satisfy the Request interface while indicating
+// that there is no body for a SupportedAPIs Request.
+func (s *SupportedAPIsRequest) Body() (io.Reader, error) {
+	return nil, nil
+}
+
+// Method indicates that SupportedAPIs requests are GET requests.
+func (s *SupportedAPIsRequest) Method() string {
+	return http.MethodGet
+}
+
+// Path returns the necessary URI path for invoking a supported APIs request.
+func (s *SupportedAPIsRequest) Path() string {
+	return "/GetSupportedApis"
+}
+
+// Validate is a no-op method because SupportedAPIsRequests have no parameters,
+// and therefore can never be invalid.
+func (s *SupportedAPIsRequest) Validate() error {
+	return nil
+}
+
+var _ Request = NCVersionRequest{}
+
+type NCVersionRequest struct {
+	AuthToken          string `json:"-"`
+	NetworkContainerID string `json:"-"`
+	PrimaryAddress     string `json:"-"`
+}
+
+func (n NCVersionRequest) Body() (io.Reader, error) {
+	// there is no body to an NCVersionRequest, so return nil
+	return nil, nil
+}
+
+// Method indicates this request is a GET request
+func (n NCVersionRequest) Method() string {
+	return http.MethodGet
+}
+
+// Path returns the URL Path for the request with parameters interpolated as
+// necessary.
+func (n NCVersionRequest) Path() string {
+	const path = "/NetworkManagement/interfaces/%s/networkContainers/%s/version/authenticationToken/%s/api-version/1"
+	return fmt.Sprintf(path, n.PrimaryAddress, n.NetworkContainerID, n.AuthToken)
+}
+
+// Validate ensures the presence of all parameters of the NCVersionRequest, as
+// none are optional.
+func (n NCVersionRequest) Validate() error {
+	err := internal.ValidationError{}
+
+	if n.AuthToken == "" {
+		err.MissingFields = append(err.MissingFields, "AuthToken")
+	}
+
+	if n.NetworkContainerID == "" {
+		err.MissingFields = append(err.MissingFields, "NetworkContainerID")
+	}
+
+	if n.PrimaryAddress == "" {
+		err.MissingFields = append(err.MissingFields, "PrimaryAddress")
+	}
+
+	if err.IsEmpty() {
+		return nil
+	}
+
+	return err
+}
+
+var _ Request = NCVersionListRequest{}
+
+// NCVersionListRequest is a collection of parameters necessary to submit a
+// request to receive a list of NCVersions available from the NMAgent instance.
+type NCVersionListRequest struct{}
+
+func (NCVersionListRequest) Body() (io.Reader, error) {
+	// there is no body for this request so...
+	return nil, nil
+}
+
+// Method returns the HTTP method required for the request.
+func (NCVersionListRequest) Method() string {
+	return http.MethodGet
+}
+
+// Path returns the path required to issue the request.
+func (NCVersionListRequest) Path() string {
+	return "/NetworkManagement/interfaces/api-version/1"
+}
+
+// Validate performs any necessary validations for the request.
+func (NCVersionListRequest) Validate() error {
+	// there are no parameters, thus nothing to validate. Since the request
+	// cannot be made invalid it's fine for this to simply...
+	return nil
+}
+
+var _ Request = &GetHomeAzRequest{}
+
+type GetHomeAzRequest struct{}
+
+// Body is a no-op method to satisfy the Request interface while indicating
+// that there is no body for a GetHomeAz Request.
+func (g *GetHomeAzRequest) Body() (io.Reader, error) {
+	return nil, nil
+}
+
+// Method indicates that GetHomeAz requests are GET requests.
+func (g *GetHomeAzRequest) Method() string {
+	return http.MethodGet
+}
+
+// Path returns the necessary URI path for invoking a GetHomeAz request.
+func (g *GetHomeAzRequest) Path() string {
+	return "/GetHomeAz"
+}
+
+// Validate is a no-op method because GetHomeAzRequest have no parameters,
+// and therefore can never be invalid.
+func (g *GetHomeAzRequest) Validate() error {
+	return nil
+}

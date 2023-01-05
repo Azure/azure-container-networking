@@ -36,7 +36,7 @@ import (
 
 const (
 	dockerNetworkOption = "com.docker.network.generic"
-	opModeTransparent   = "transparent"
+	OpModeTransparent   = "transparent"
 	// Supported IP version. Currently support only IPv4
 	ipamV6                = "azure-vnet-ipamv6"
 	defaultRequestTimeout = 15 * time.Second
@@ -479,7 +479,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 	 */
 	if nwInfoErr == nil {
 		log.Printf("[cni-net] Found network %v with subnet %v.", networkID, nwInfo.Subnets[0].Prefix.String())
-		nwInfo.IPAMType = nwCfg.Ipam.Type
+		nwInfo.IPAMType = nwCfg.IPAM.Type
 		options = nwInfo.Options
 
 		var resultSecondAdd *cniTypesCurr.Result
@@ -497,9 +497,9 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 
 	// Initialize azureipam/cns ipam
 	if plugin.ipamInvoker == nil {
-		switch nwCfg.Ipam.Type {
+		switch nwCfg.IPAM.Type {
 		case network.AzureCNS:
-			plugin.ipamInvoker = NewCNSInvoker(k8sPodName, k8sNamespace, cnsClient, util.ExecutionMode(nwCfg.ExecutionMode), util.IpamMode(nwCfg.Ipam.Mode))
+			plugin.ipamInvoker = NewCNSInvoker(k8sPodName, k8sNamespace, cnsClient, util.ExecutionMode(nwCfg.ExecutionMode), util.IpamMode(nwCfg.IPAM.Mode))
 
 		default:
 			plugin.ipamInvoker = NewAzureIpamInvoker(plugin, &nwInfo)
@@ -592,7 +592,7 @@ func (plugin *NetPlugin) createNetworkInternal(
 ) (network.NetworkInfo, error) {
 	nwInfo := network.NetworkInfo{}
 	ipamAddResult.hostSubnetPrefix.IP = ipamAddResult.hostSubnetPrefix.IP.Mask(ipamAddResult.hostSubnetPrefix.Mask)
-	ipamAddConfig.nwCfg.Ipam.Subnet = ipamAddResult.hostSubnetPrefix.String()
+	ipamAddConfig.nwCfg.IPAM.Subnet = ipamAddResult.hostSubnetPrefix.String()
 	// Find the master interface.
 	masterIfName := plugin.findMasterInterface(ipamAddConfig.nwCfg, &ipamAddResult.hostSubnetPrefix)
 	if masterIfName == "" {
@@ -643,7 +643,7 @@ func (plugin *NetPlugin) createNetworkInternal(
 		Options:                       ipamAddConfig.options,
 		DisableHairpinOnHostInterface: ipamAddConfig.nwCfg.DisableHairpinOnHostInterface,
 		IPV6Mode:                      ipamAddConfig.nwCfg.IPV6Mode,
-		IPAMType:                      ipamAddConfig.nwCfg.Ipam.Type,
+		IPAMType:                      ipamAddConfig.nwCfg.IPAM.Type,
 		ServiceCidrs:                  ipamAddConfig.nwCfg.ServiceCidrs,
 	}
 
@@ -698,7 +698,7 @@ func (plugin *NetPlugin) createEndpointInternal(opt *createEndpointInternalOpt) 
 	opt.policies = append(opt.policies, endpointPolicies...)
 
 	vethName := fmt.Sprintf("%s.%s", opt.k8sNamespace, opt.k8sPodName)
-	if opt.nwCfg.Mode != opModeTransparent {
+	if opt.nwCfg.Mode != OpModeTransparent {
 		// this mechanism of using only namespace and name is not unique for different incarnations of POD/container.
 		// IT will result in unpredictable behavior if API server decides to
 		// reorder DELETE and ADD call for new incarnation of same POD.
@@ -927,14 +927,14 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 	}
 
 	if plugin.ipamInvoker == nil {
-		switch nwCfg.Ipam.Type {
+		switch nwCfg.IPAM.Type {
 		case network.AzureCNS:
 			cnsClient, cnsErr := cnscli.New("", defaultRequestTimeout)
 			if cnsErr != nil {
 				log.Printf("[cni-net] failed to create cns client:%v", cnsErr)
 				return errors.Wrap(cnsErr, "failed to create cns client")
 			}
-			plugin.ipamInvoker = NewCNSInvoker(k8sPodName, k8sNamespace, cnsClient, util.ExecutionMode(nwCfg.ExecutionMode), util.IpamMode(nwCfg.Ipam.Mode))
+			plugin.ipamInvoker = NewCNSInvoker(k8sPodName, k8sNamespace, cnsClient, util.ExecutionMode(nwCfg.ExecutionMode), util.IpamMode(nwCfg.IPAM.Mode))
 
 		default:
 			plugin.ipamInvoker = NewAzureIpamInvoker(plugin, &nwInfo)
@@ -1004,15 +1004,15 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 			}
 		}
 	} else if epInfo.EnableInfraVnet {
-		nwCfg.Ipam.Subnet = nwInfo.Subnets[0].Prefix.String()
-		nwCfg.Ipam.Address = epInfo.InfraVnetIP.IP.String()
+		nwCfg.IPAM.Subnet = nwInfo.Subnets[0].Prefix.String()
+		nwCfg.IPAM.Address = epInfo.InfraVnetIP.IP.String()
 		err = plugin.ipamInvoker.Delete(nil, nwCfg, args, nwInfo.Options)
 		if err != nil {
 			return plugin.RetriableError(fmt.Errorf("failed to release address: %w", err))
 		}
 	}
 
-	sendEvent(plugin, fmt.Sprintf("CNI DEL succeeded : Released ip %+v podname %v namespace %v", nwCfg.Ipam.Address, k8sPodName, k8sNamespace))
+	sendEvent(plugin, fmt.Sprintf("CNI DEL succeeded : Released ip %+v podname %v namespace %v", nwCfg.IPAM.Address, k8sPodName, k8sNamespace))
 
 	return err
 }

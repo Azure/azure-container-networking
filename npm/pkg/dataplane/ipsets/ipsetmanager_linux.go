@@ -50,7 +50,7 @@ const (
 	ipsetIPPortHashString = ipsetIPPortHashFlag
 
 	// creator constants
-	maxTryCount                    = 3
+	maxTryCount                    = 5
 	destroySectionPrefix           = "delete"
 	addOrUpdateSectionPrefix       = "add/update"
 	ipsetRestoreLineFailurePattern = "Error in line (\\d+):"
@@ -201,7 +201,7 @@ func (iMgr *IPSetManager) fileCreatorForFlushAll(ipsetListOutput []byte) (creato
 				Definition: ioutil.AlwaysMatchDefinition,
 				Method:     ioutil.Continue,
 				Callback: func() {
-					klog.Errorf("[RESET-IPSETS] marking flush and upcoming destroy for set %s as a failure due to unknown error", hashedSetName)
+					metrics.SendErrorLogAndMetric(util.IpsmID, "[RESET-IPSETS] marking flush and upcoming destroy for set %s as a failure due to unknown error", hashedSetName)
 					destroyFailureCount++
 					failedNames[hashedSetName] = struct{}{}
 					// TODO mark as a failure
@@ -259,7 +259,7 @@ func (iMgr *IPSetManager) fileCreatorForDestroyAll(names []string, failedNames, 
 				Definition: setInUseByKernelDefinition,
 				Method:     ioutil.Continue,
 				Callback: func() {
-					klog.Errorf("[RESET-IPSETS] marking destroy for set %s as a failure since the set is in use by a kernel component", hashedSetName)
+					metrics.SendErrorLogAndMetric(util.IpsmID, "[RESET-IPSETS] marking destroy for set %s as a failure since the set is in use by a kernel component", hashedSetName)
 					failureCountVal++
 					// TODO mark the set as a failure and reconcile what iptables rule or ipset is referring to it
 				},
@@ -275,7 +275,7 @@ func (iMgr *IPSetManager) fileCreatorForDestroyAll(names []string, failedNames, 
 				Definition: ioutil.AlwaysMatchDefinition,
 				Method:     ioutil.Continue,
 				Callback: func() {
-					klog.Errorf("[RESET-IPSETS] marking destroy for set %s as a failure due to unknown error", hashedSetName)
+					metrics.SendErrorLogAndMetric(util.IpsmID, "[RESET-IPSETS] marking destroy for set %s as a failure due to unknown error", hashedSetName)
 					failureCountVal++
 					// TODO mark the set as a failure and reconcile what iptables rule or ipset is referring to it
 				},
@@ -539,7 +539,7 @@ func (iMgr *IPSetManager) updateDirtyKernelSets(setsToAddOrUpdate map[string]str
 	if readIndex < len(saveFile) {
 		line, readIndex = parse.Line(readIndex, saveFile)
 		if !hasPrefix(line, createStringWithSpace) {
-			klog.Errorf("expected a create line in ipset save file, but got the following line: %s", string(line))
+			metrics.SendErrorLogAndMetric(util.IpsmID, "expected a create line in ipset save file, but got the following line: %s", string(line))
 			// TODO send error snapshot
 			line, readIndex = nextCreateLine(readIndex, saveFile)
 		}
@@ -595,7 +595,7 @@ func (iMgr *IPSetManager) updateDirtyKernelSets(setsToAddOrUpdate map[string]str
 				break
 			}
 			if !hasPrefix(line, addStringWithSpace) {
-				klog.Errorf("expected an add line, but got the following line: %s", string(line))
+				metrics.SendErrorLogAndMetric(util.IpsmID, "expected an add line, but got the following line: %s", string(line))
 				// TODO send error snapshot
 				line, readIndex = nextCreateLine(readIndex, saveFile)
 				break
@@ -604,7 +604,7 @@ func (iMgr *IPSetManager) updateDirtyKernelSets(setsToAddOrUpdate map[string]str
 			spaceSplitLineAfterAdd := strings.Split(lineAfterAdd, space)
 			parent := spaceSplitLineAfterAdd[0]
 			if len(spaceSplitLineAfterAdd) != 2 || parent != hashedName {
-				klog.Errorf("expected an add line for set %s in ipset save file, but got the following line: %s", hashedName, string(line))
+				metrics.SendErrorLogAndMetric(util.IpsmID, "expected an add line for set %s in ipset save file, but got the following line: %s", hashedName, string(line))
 				// TODO send error snapshot
 				line, readIndex = nextCreateLine(readIndex, saveFile)
 				break
@@ -655,23 +655,23 @@ func haveTypeProblem(set *IPSet, restOfSpaceSplitCreateLine []string) bool {
 	case ipsetSetListString:
 		if set.Kind != ListSet {
 			lineString := fmt.Sprintf("create %s %s", set.HashedName, strings.Join(restOfSpaceSplitCreateLine, " "))
-			klog.Errorf("expected to find a ListSet but have the line: %s", lineString)
+			metrics.SendErrorLogAndMetric(util.IpsmID, "expected to find a ListSet but have the line: %s", lineString)
 			return true
 		}
 	case ipsetNetHashString:
 		if set.Kind != HashSet || set.Type == NamedPorts {
 			lineString := fmt.Sprintf("create %s %s", set.HashedName, strings.Join(restOfSpaceSplitCreateLine, " "))
-			klog.Errorf("expected to find a non-NamedPorts HashSet but have the following line: %s", lineString)
+			metrics.SendErrorLogAndMetric(util.IpsmID, "expected to find a non-NamedPorts HashSet but have the following line: %s", lineString)
 			return true
 		}
 	case ipsetIPPortHashString:
 		if set.Type != NamedPorts {
 			lineString := fmt.Sprintf("create %s %s", set.HashedName, strings.Join(restOfSpaceSplitCreateLine, " "))
-			klog.Errorf("expected to find a NamedPorts set but have the following line: %s", lineString)
+			metrics.SendErrorLogAndMetric(util.IpsmID, "expected to find a NamedPorts set but have the following line: %s", lineString)
 			return true
 		}
 	default:
-		klog.Errorf("unknown type string [%s] in line: %s", typeString, strings.Join(restOfSpaceSplitCreateLine, " "))
+		metrics.SendErrorLogAndMetric(util.IpsmID, "unknown type string [%s] in line: %s", typeString, strings.Join(restOfSpaceSplitCreateLine, " "))
 		return true
 	}
 	return false
@@ -694,7 +694,7 @@ func (iMgr *IPSetManager) flushSetForApply(creator *ioutil.FileCreator, prefixed
 			Definition: ioutil.AlwaysMatchDefinition,
 			Method:     ioutil.ContinueAndAbortSection,
 			Callback: func() {
-				klog.Errorf("skipping flush and upcoming destroy for set %s due to unknown error", prefixedName)
+				metrics.SendErrorLogAndMetric(util.IpsmID, "skipping flush and upcoming destroy for set %s due to unknown error", prefixedName)
 				// TODO mark as a failure
 				// would this ever happen?
 			},
@@ -711,7 +711,7 @@ func (iMgr *IPSetManager) destroySetForApply(creator *ioutil.FileCreator, prefix
 			Definition: setInUseByKernelDefinition,
 			Method:     ioutil.Continue,
 			Callback: func() {
-				klog.Errorf("skipping destroy line for set %s since the set is in use by a kernel component", prefixedName)
+				metrics.SendErrorLogAndMetric(util.IpsmID, "skipping destroy line for set %s since the set is in use by a kernel component", prefixedName)
 				// TODO mark the set as a failure and reconcile what iptables rule or ipset is referring to it
 			},
 		},
@@ -719,7 +719,7 @@ func (iMgr *IPSetManager) destroySetForApply(creator *ioutil.FileCreator, prefix
 			Definition: ioutil.AlwaysMatchDefinition,
 			Method:     ioutil.Continue,
 			Callback: func() {
-				klog.Errorf("skipping destroy line for set %s due to unknown error", prefixedName)
+				metrics.SendErrorLogAndMetric(util.IpsmID, "skipping destroy line for set %s due to unknown error", prefixedName)
 			},
 		},
 	}
@@ -747,7 +747,7 @@ func (iMgr *IPSetManager) createSetForApply(creator *ioutil.FileCreator, set *IP
 			Definition: setAlreadyExistsDefinition,
 			Method:     ioutil.ContinueAndAbortSection,
 			Callback: func() {
-				klog.Errorf("skipping create and any following adds/deletes for set %s since the set already exists with different specs", prefixedName)
+				metrics.SendErrorLogAndMetric(util.IpsmID, "skipping create and any following adds/deletes for set %s since the set already exists with different specs", prefixedName)
 				// TODO mark the set as a failure and handle this
 			},
 		},
@@ -755,7 +755,7 @@ func (iMgr *IPSetManager) createSetForApply(creator *ioutil.FileCreator, set *IP
 			Definition: ioutil.AlwaysMatchDefinition,
 			Method:     ioutil.ContinueAndAbortSection,
 			Callback: func() {
-				klog.Errorf("skipping create and any following adds/deletes for set %s due to unknown error", prefixedName)
+				metrics.SendErrorLogAndMetric(util.IpsmID, "skipping create and any following adds/deletes for set %s due to unknown error", prefixedName)
 				// TODO same as above error handler
 			},
 		},
@@ -770,7 +770,7 @@ func (iMgr *IPSetManager) deleteMemberForApply(creator *ioutil.FileCreator, set 
 			Definition: ioutil.AlwaysMatchDefinition,
 			Method:     ioutil.Continue,
 			Callback: func() {
-				klog.Errorf("skipping delete line for set %s due to unknown error", set.Name)
+				metrics.SendErrorLogAndMetric(util.IpsmID, "skipping delete line for set %s due to unknown error", set.Name)
 			},
 		},
 	}
@@ -785,7 +785,7 @@ func (iMgr *IPSetManager) addMemberForApply(creator *ioutil.FileCreator, set *IP
 				Definition: memberSetDoesntExistDefinition,
 				Method:     ioutil.Continue,
 				Callback: func() {
-					klog.Errorf("skipping add of %s to list %s since the member doesn't exist", member, set.Name)
+					metrics.SendErrorLogAndMetric(util.IpsmID, "skipping add of %s to list %s since the member doesn't exist", member, set.Name)
 					// TODO reconcile
 				},
 			},
@@ -793,7 +793,7 @@ func (iMgr *IPSetManager) addMemberForApply(creator *ioutil.FileCreator, set *IP
 				Definition: ioutil.AlwaysMatchDefinition,
 				Method:     ioutil.Continue,
 				Callback: func() {
-					klog.Errorf("skipping add of %s to list %s due to unknown error", member, set.Name)
+					metrics.SendErrorLogAndMetric(util.IpsmID, "skipping add of %s to list %s due to unknown error", member, set.Name)
 				},
 			},
 		}
@@ -803,7 +803,7 @@ func (iMgr *IPSetManager) addMemberForApply(creator *ioutil.FileCreator, set *IP
 				Definition: ioutil.AlwaysMatchDefinition,
 				Method:     ioutil.Continue,
 				Callback: func() {
-					klog.Errorf("skipping add line for hash set %s due to unknown error", set.Name)
+					metrics.SendErrorLogAndMetric(util.IpsmID, "skipping add line for hash set %s due to unknown error", set.Name)
 				},
 			},
 		}

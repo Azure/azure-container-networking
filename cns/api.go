@@ -65,6 +65,7 @@ type IPConfigurationStatus struct {
 // Equals compares a subset of the IPConfigurationStatus fields since a direct
 // DeepEquals or otherwise complete comparison of two IPConfigurationStatus objects
 // compares internal state details that don't impact their functional equality.
+//
 //nolint:gocritic // it's safer to pass this by value
 func (i *IPConfigurationStatus) Equals(o IPConfigurationStatus) bool {
 	if i.PodInfo != nil && o.PodInfo != nil {
@@ -107,6 +108,7 @@ func (i *IPConfigurationStatus) String() string {
 // a struct that has public fields for the original struct's private fields,
 // embed the original struct in an anonymous struct as the alias type, and then
 // let the default marshaller do its magic.
+//
 //nolint:gocritic // ignore hugeParam it's a value receiver on purpose
 func (i IPConfigurationStatus) MarshalJSON() ([]byte, error) {
 	type alias IPConfigurationStatus
@@ -334,4 +336,14 @@ type NmAgentSupportedApisRequest struct {
 type NmAgentSupportedApisResponse struct {
 	Response      Response
 	SupportedApis []string
+}
+
+type HomeAzResponse struct {
+	IsSupported bool `json:"isSupported"`
+	HomeAz      uint `json:"homeAz"`
+}
+
+type GetHomeAzResponse struct {
+	Response       Response       `json:"response"`
+	HomeAzResponse HomeAzResponse `json:"homeAzResponse"`
 }

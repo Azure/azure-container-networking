@@ -1,5 +1,7 @@
 parameters:
   name: ""
+  testDropgz: ""
+  clusterName: ""
 
 steps:
   - bash: |
@@ -29,8 +31,8 @@ steps:
       inlineScript: |
         mkdir -p ~/.kube/
         echo "Create AKS cluster"
-        make -C ./hack/swift azcfg AZCLI=az
-        make -C ./hack/swift byocni-up SUB=$(SUB_AZURE_NETWORK_AGENT_TEST) AZCLI=az CLUSTER=ciliume2e-$(make revision)
+        make -C ./hack/swift azcfg AZCLI=az REGION=$(REGION_AKS_CLUSTER_TEST)
+        make -C ./hack/swift byocni-up AZCLI=az REGION=$(REGION_AKS_CLUSTER_TEST) SUB=$(SUB_AZURE_NETWORK_AGENT_TEST) CLUSTER=${{ parameters.clusterName }}-$(make revision)
         echo "Cluster successfully created"
     displayName: Create test cluster
     condition: succeeded()
@@ -84,7 +86,7 @@ steps:
   - script: |
       echo "Start Azilium E2E Tests"
       kubectl get po -owide -A
-      sudo -E env "PATH=$PATH" make test-integration CNS_VERSION=$(make cns-version) CNI_DROPGZ_VERSION=$(make cni-dropgz-version) INSTALL_CNS=true INSTALL_AZILIUM=true
+      sudo -E env "PATH=$PATH" make test-integration CNS_VERSION=$(make cns-version) CNI_DROPGZ_VERSION=$(make cni-dropgz-version) INSTALL_CNS=true INSTALL_AZILIUM=true TEST_DROPGZ=${{ parameters.testDropgz }}
     retryCountOnTaskFailure: 3
     name: "aziliumTest"
     displayName: "Run Azilium E2E"
@@ -119,6 +121,7 @@ steps:
       echo "Run Cilium Connectivity Tests"
       cilium status
       cilium connectivity test
+    retryCountOnTaskFailure: 3
     name: "ciliumConnectivityTests"
     displayName: "Run Cilium Connectivity Tests"
   
@@ -139,8 +142,8 @@ steps:
       addSpnToEnvironment: true
       inlineScript: |
         echo "Deleting cluster"
-        make -C ./hack/swift azcfg AZCLI=az
-        make -C ./hack/swift down SUB=$(SUB_AZURE_NETWORK_AGENT_TEST) AZCLI=az CLUSTER=ciliume2e-$(make revision)
+        make -C ./hack/swift azcfg AZCLI=az REGION=$(REGION_AKS_CLUSTER_TEST)
+        make -C ./hack/swift down AZCLI=az REGION=$(REGION_AKS_CLUSTER_TEST) SUB=$(SUB_AZURE_NETWORK_AGENT_TEST) CLUSTER=${{ parameters.clusterName }}-$(make revision)
         echo "Cluster and resources down"
     name: "Cleanupcluster"
     displayName: "Cleanup cluster"

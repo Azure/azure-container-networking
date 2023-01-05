@@ -2,6 +2,7 @@ package internal
 
 import (
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -220,12 +221,16 @@ func TestWireserverTransportPostBody(t *testing.T) {
 	// all PUT and POST requests must have an empty string body
 	t.Parallel()
 
-	bodyIsNil := false
+	var gotBody []byte
 	client := &http.Client{
 		Transport: &WireserverTransport{
 			Transport: &TestTripper{
 				RoundTripF: func(req *http.Request) (*http.Response, error) {
-					bodyIsNil = req.Body == nil
+					body, err := io.ReadAll(req.Body)
+					if err != nil {
+						t.Fatal("unexpected error reading request body: err:", err)
+					}
+					gotBody = body
 					rr := httptest.NewRecorder()
 					_, _ = rr.WriteString(`{"httpStatusCode": "200"}`)
 					rr.WriteHeader(http.StatusOK)
@@ -247,8 +252,9 @@ func TestWireserverTransportPostBody(t *testing.T) {
 	}
 	defer resp.Body.Close()
 
-	if bodyIsNil {
-		t.Error("downstream request body to wireserver was nil, but not expected to be")
+	exp := `""` // an empty JSON string
+	if got := string(gotBody); got != exp {
+		t.Errorf("unexpected body received: got: %q, exp: %q\n", got, exp)
 	}
 
 	// POST request
@@ -264,8 +270,8 @@ func TestWireserverTransportPostBody(t *testing.T) {
 	}
 	defer resp.Body.Close()
 
-	if bodyIsNil {
-		t.Error("downstream request body to wireserver was nil, but not expected to be")
+	if got := string(gotBody); got != exp {
+		t.Errorf("unexpected body received: got: %q, exp: %q\n", got, exp)
 	}
 }
 
