@@ -36,13 +36,13 @@ func executePlugin() error {
 	defer cleanup()
 
 	// Create CNS client
-	client, err := cnsclient.New(pluginLogger, cnsBaseURL, cnsReqTimeout)
+	client, err := cnsclient.New(cnsBaseURL, cnsReqTimeout)
 	if err != nil {
 		return errors.Wrapf(err, "failed to initialize CNS client")
 	}
 
 	// Create IPAM plugin
-	plugin, err := NewPlugin(pluginLogger, client, os.Stdout)
+	plugin, err := NewPlugin(client, os.Stdout)
 	if err != nil {
 		pluginLogger.Error("Failed to create IPAM plugin")
 		return errors.Wrapf(err, "failed to create IPAM plugin")

@@ -107,8 +107,6 @@ func (p *IPAMPlugin) CmdAdd(args *cniSkel.CmdArgs) error {
 		},
 	}
 
-	p.logger.Debug("unversioned cni result", zap.Any("CNIresult", cniResult))
-
 	// Get versioned result
 	versionedCniResult, err := cniResult.GetAsVersion(nwCfg.CNIVersion)
 	if err != nil {
