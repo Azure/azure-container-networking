@@ -42,7 +42,7 @@ const (
 	NilEndpointStateStore                  ResponseCode = 40
 	NmAgentInternalServerError             ResponseCode = 41
 	StatusUnauthorized                     ResponseCode = 42
-	UnSupportedAPI                         ResponseCode = 43
+	UnsupportedAPI                         ResponseCode = 43
 	UnexpectedError                        ResponseCode = 99
 )
 

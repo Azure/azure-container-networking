@@ -120,14 +120,15 @@ func (c *Client) GetAllNetworkContainers(ctx context.Context, orchestratorContex
 	}
 	defer res.Body.Close()
 
-	// investigate 404 orchestratorContext which is invalid and make sure this is addressed
+	//  investigate 404 orchestratorContext which is invalid and make sure this is addressed
 	if res.StatusCode == http.StatusNotFound {
 		return nil, &CNSClientError{
-			Code: types.UnSupportedAPI,
+			Code: types.UnsupportedAPI,
 			Err:  errors.Errorf("Unsupported API"),
 		}
 	}
 
+	// TODO: CNS should return 405 if client is trying to call API that CNS doesn't support
 	if res.StatusCode != http.StatusOK {
 		return nil, &CNSClientError{
 			Code: types.UnexpectedError,

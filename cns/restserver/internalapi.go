@@ -301,7 +301,7 @@ func (service *HTTPRestService) ReconcileNCState(ncRequest *cns.CreateNetworkCon
 func (service *HTTPRestService) GetNetworkContainerInternal(
 	req cns.GetNetworkContainerRequest,
 ) (cns.GetNetworkContainerResponse, types.ResponseCode) {
-	getNetworkContainerResponse := service.getNetworkContainerResponse(req)
+	getNetworkContainerResponse := service.getAllNetworkContainerResponses(req)[0]
 	returnCode := getNetworkContainerResponse.Response.ReturnCode
 	return getNetworkContainerResponse, returnCode
 }

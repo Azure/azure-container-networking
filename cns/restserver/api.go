@@ -928,7 +928,7 @@ func (service *HTTPRestService) getNetworkContainerByOrchestratorContext(w http.
 		return
 	}
 
-	getNetworkContainerResponse := service.getNetworkContainerResponse(req)
+	getNetworkContainerResponse := service.getAllNetworkContainerResponses(req)[0]
 	returnCode := getNetworkContainerResponse.Response.ReturnCode
 	err = service.Listener.Encode(w, &getNetworkContainerResponse)
 	logger.Response(service.Name, getNetworkContainerResponse, returnCode, err)

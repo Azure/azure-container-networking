@@ -364,6 +364,7 @@ func (service *HTTPRestService) getAllNetworkContainerResponses(
 	var (
 		networkContainerIDs         string
 		getNetworkContainerResponse cns.GetNetworkContainerResponse
+		waitingForUpdate            bool
 	)
 
 	service.Lock()
@@ -379,19 +380,13 @@ func (service *HTTPRestService) getAllNetworkContainerResponses(
 			getNetworkContainersResponse = append(getNetworkContainersResponse, getNetworkContainerResponse)
 		}
 
-		exists := false
-		waitingForUpdate := false
-
 		// get networkContainerIDs as string, "nc1, nc2"
-		ncSet := service.state.ContainerIDByOrchestratorContext[podInfo.Name()+podInfo.Namespace()]
+		orchestratorContext := podInfo.Name() + podInfo.Namespace()
+		ncSet := service.state.ContainerIDByOrchestratorContext[orchestratorContext]
 		ncList := ncSet.GetData()
 		networkContainerIDs = strings.Join(ncList, ",")
 
-		if networkContainerIDs != "" {
-			exists = true
-		}
-
-		if exists {
+		if len(ncList) > 0 {
 			for _, ncid := range ncList {
 				// If the goal state is available with CNS, check if the NC is pending VFP programming
 				waitingForUpdate, getNetworkContainerResponse.Response.ReturnCode, getNetworkContainerResponse.Response.Message = service.isNCWaitingForUpdate(service.state.ContainerStatus[ncid].CreateNetworkContainerRequest.Version, networkContainerIDs) //nolint:lll // bad code
@@ -418,6 +413,11 @@ func (service *HTTPRestService) getAllNetworkContainerResponses(
 					}
 				}
 			}
+		} else if len(ncList) == 0 {
+			getNetworkContainerResponse.Response.ReturnCode = types.UnknownContainerID
+			getNetworkContainerResponse.Response.Message = fmt.Sprintf("Failed to find networkID for orchestratorContext %s", orchestratorContext)
+			getNetworkContainersResponse = append(getNetworkContainersResponse, getNetworkContainerResponse)
+			return getNetworkContainersResponse
 		} else if service.ChannelMode == cns.Managed {
 			// If the NC goal state doesn't exist in CNS running in managed mode, call DNC to retrieve the goal state
 			var (
@@ -475,118 +475,6 @@ func (service *HTTPRestService) getAllNetworkContainerResponses(
 	}
 
 	return getNetworkContainersResponse
-}
-
-func (service *HTTPRestService) getNetworkContainerResponse(
-	req cns.GetNetworkContainerRequest,
-) cns.GetNetworkContainerResponse {
-	var (
-		networkContainerIDs         []string
-		getNetworkContainerResponse cns.GetNetworkContainerResponse
-		waitingForUpdate            bool
-	)
-
-	service.Lock()
-	defer service.Unlock()
-
-	switch service.state.OrchestratorType {
-	case cns.Kubernetes:
-		fallthrough
-	case cns.ServiceFabric:
-		fallthrough
-	case cns.Batch:
-		fallthrough
-	case cns.DBforPostgreSQL:
-		fallthrough
-	case cns.AzureFirstParty:
-		podInfo, err := cns.UnmarshalPodInfo(req.OrchestratorContext)
-		if err != nil {
-			getNetworkContainerResponse.Response.ReturnCode = types.UnexpectedError
-			getNetworkContainerResponse.Response.Message = fmt.Sprintf("Unmarshalling orchestrator context failed with error %v", err)
-			return getNetworkContainerResponse
-		}
-
-		orchestratorContext := podInfo.Name() + podInfo.Namespace()
-		ncSet := service.state.ContainerIDByOrchestratorContext[orchestratorContext]
-
-		networkContainerIDs = ncSet.GetData()
-		if len(networkContainerIDs) == 0 {
-			getNetworkContainerResponse.Response.ReturnCode = types.UnknownContainerID
-			getNetworkContainerResponse.Response.Message = fmt.Sprintf("Failed to find networkID for orchestratorContext %s", orchestratorContext)
-			return getNetworkContainerResponse
-		}
-
-		// If the goal state is available with CNS, check if the NC is pending VFP programming
-		waitingForUpdate, getNetworkContainerResponse.Response.ReturnCode, getNetworkContainerResponse.Response.Message = service.isNCWaitingForUpdate(service.state.ContainerStatus[networkContainerIDs[0]].CreateNetworkContainerRequest.Version, networkContainerIDs[0]) //nolint:lll // bad code
-		// If the return code is not success, return the error to the caller
-		if getNetworkContainerResponse.Response.ReturnCode == types.NetworkContainerVfpProgramPending {
-			logger.Errorf("[Azure-CNS] isNCWaitingForUpdate failed for NCID: %s with error: %s",
-				networkContainerIDs[0], getNetworkContainerResponse.Response.Message)
-			return getNetworkContainerResponse
-		}
-
-		vfpUpdateComplete := !waitingForUpdate
-		ncstatus := service.state.ContainerStatus[networkContainerIDs[0]]
-		// Update the container status if-
-		// 1. VfpUpdateCompleted successfully
-		// 2. VfpUpdateComplete changed to false
-		if (getNetworkContainerResponse.Response.ReturnCode == types.NetworkContainerVfpProgramComplete &&
-			vfpUpdateComplete && ncstatus.VfpUpdateComplete != vfpUpdateComplete) ||
-			(!vfpUpdateComplete && ncstatus.VfpUpdateComplete != vfpUpdateComplete) {
-			logger.Printf("[Azure-CNS] Setting VfpUpdateComplete to %t for NCID: %s", vfpUpdateComplete, networkContainerIDs[0])
-			ncstatus.VfpUpdateComplete = vfpUpdateComplete
-			service.state.ContainerStatus[networkContainerIDs[0]] = ncstatus
-			if err = service.saveState(); err != nil {
-				logger.Errorf("Failed to save goal states for nc %+v due to %s", getNetworkContainerResponse, err)
-			}
-		}
-
-		if service.ChannelMode == cns.Managed {
-			// If the NC goal state doesn't exist in CNS running in managed mode, call DNC to retrieve the goal state
-			var (
-				dncEP     = service.GetOption(acn.OptPrivateEndpoint).(string)
-				infraVnet = service.GetOption(acn.OptInfrastructureNetworkID).(string)
-				nodeID    = service.GetOption(acn.OptNodeID).(string)
-			)
-
-			service.Unlock()
-			getNetworkContainerResponse.Response.ReturnCode, getNetworkContainerResponse.Response.Message = service.SyncNodeStatus(dncEP, infraVnet, nodeID, req.OrchestratorContext)
-			service.Lock()
-			if getNetworkContainerResponse.Response.ReturnCode == types.NotFound {
-				return getNetworkContainerResponse
-			}
-		}
-
-		logger.Printf("networkContainerID string %s", networkContainerIDs[0])
-
-	default:
-		getNetworkContainerResponse.Response.ReturnCode = types.UnsupportedOrchestratorType
-		getNetworkContainerResponse.Response.Message = fmt.Sprintf("Invalid orchestrator type %v", service.state.OrchestratorType)
-		return getNetworkContainerResponse
-	}
-
-	containerStatus := service.state.ContainerStatus
-	containerDetails, ok := containerStatus[networkContainerIDs[0]]
-	if !ok {
-		getNetworkContainerResponse.Response.ReturnCode = types.UnknownContainerID
-		getNetworkContainerResponse.Response.Message = "NetworkContainer doesn't exist."
-		return getNetworkContainerResponse
-	}
-
-	savedReq := containerDetails.CreateNetworkContainerRequest
-	getNetworkContainerResponse = cns.GetNetworkContainerResponse{
-		NetworkContainerID:         savedReq.NetworkContainerid,
-		IPConfiguration:            savedReq.IPConfiguration,
-		Routes:                     savedReq.Routes,
-		CnetAddressSpace:           savedReq.CnetAddressSpace,
-		MultiTenancyInfo:           savedReq.MultiTenancyInfo,
-		PrimaryInterfaceIdentifier: savedReq.PrimaryInterfaceIdentifier,
-		LocalIPConfiguration:       savedReq.LocalIPConfiguration,
-		AllowHostToNCCommunication: savedReq.AllowHostToNCCommunication,
-		AllowNCToHostCommunication: savedReq.AllowNCToHostCommunication,
-	}
-
-	return getNetworkContainerResponse
 }
 
 // restoreNetworkState restores Network state that existed before reboot.

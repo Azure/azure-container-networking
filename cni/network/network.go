@@ -447,7 +447,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 
 		ipamAddResults, err = plugin.multitenancyClient.GetAllNetworkContainers(context.TODO(), nwCfg, k8sPodName, k8sNamespace, args.IfName)
 
-		// API call itself gets failed no matter using old or new CNS client API version except errGetNCs
+		// API call itself gets failed no matter using old or new CNS client API version
 		if err != nil {
 			err = errors.Wrapf(err, "GetAllNetworkContainers failed for podname %v namespace %v", k8sPodName, k8sNamespace)
 			log.Printf("%+v", err)
@@ -499,7 +499,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 			}
 		}
 
-		// Initialize azureipam/cns ipam
+		// Initialize azureipam/cnsipam
 		if plugin.ipamInvoker == nil {
 			switch nwCfg.IPAM.Type {
 			case network.AzureCNS:

@@ -35,9 +35,9 @@ func IsNotFound(err error) bool {
 	return errors.As(err, &e) && (e.Code == types.UnknownContainerID)
 }
 
-// IsNotFound tests if the provided error is of type CNSClientError and then
-// further tests if the error code is of type UnSupportedAPI
+// IsUnsupportedAPI tests if the provided error is of type CNSClientError and then
+// further tests if the error code is of type UnsupportedAPI
 func IsUnsupportedAPI(err error) bool {
 	e := &CNSClientError{}
-	return errors.As(err, &e) && (e.Code == types.UnSupportedAPI)
+	return errors.As(err, &e) && (e.Code == types.UnsupportedAPI)
 }
