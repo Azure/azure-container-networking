@@ -42,7 +42,7 @@ func executePlugin() error {
 	}
 
 	// Create IPAM plugin
-	plugin, err := NewPlugin(client, os.Stdout)
+	plugin, err := NewPlugin(pluginLogger, client, os.Stdout)
 	if err != nil {
 		pluginLogger.Error("Failed to create IPAM plugin")
 		return errors.Wrapf(err, "failed to create IPAM plugin")
