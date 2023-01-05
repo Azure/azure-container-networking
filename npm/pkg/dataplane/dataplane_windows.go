@@ -115,6 +115,11 @@ func (dp *DataPlane) shouldUpdatePod() bool {
 // 2. Will check for existing applicable network policies and applies it on endpoint
 func (dp *DataPlane) updatePod(pod *updateNPMPod) error {
 	klog.Infof("[DataPlane] updatePod called for Pod Key %s", pod.PodKey)
+	// Check if pod is part of this node
+	if pod.NodeName != dp.nodeName {
+		klog.Infof("[DataPlane] ignoring update pod as expected Node: [%s] got: [%s]", dp.nodeName, pod.NodeName)
+		return nil
+	}
 
 	// lock the endpoint cache while we read/modify the endpoint with the pod's IP
 	dp.endpointCache.Lock()
