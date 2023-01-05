@@ -301,9 +301,8 @@ func (service *HTTPRestService) ReconcileNCState(ncRequest *cns.CreateNetworkCon
 func (service *HTTPRestService) GetNetworkContainerInternal(
 	req cns.GetNetworkContainerRequest,
 ) (cns.GetNetworkContainerResponse, types.ResponseCode) {
-	getNetworkContainerResponse := service.getAllNetworkContainerResponses(req)[0]
-	returnCode := getNetworkContainerResponse.Response.ReturnCode
-	return getNetworkContainerResponse, returnCode
+	getNetworkContainerResponses := service.getAllNetworkContainerResponses(req)
+	return getNetworkContainerResponses[0], getNetworkContainerResponses[0].Response.ReturnCode
 }
 
 // DeleteNetworkContainerInternal deletes a network container.
