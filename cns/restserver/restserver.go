@@ -61,9 +61,6 @@ type HTTPRestService struct {
 	homeAzMonitor            *HomeAzMonitor
 	networkContainer         *networkcontainers.NetworkContainers
 	PodIPIDByPodInterfaceKey map[string][]string // PodInterfaceId is key and value is Pod IP (SecondaryIP) uuid.
-	/*
-
-	 */
 	PodIPConfigState        map[string]cns.IPConfigurationStatus // Secondary IP ID(uuid) is key
 	IPAMPoolMonitor         cns.IPAMPoolMonitor
 	routingTable            *routes.RoutingTable

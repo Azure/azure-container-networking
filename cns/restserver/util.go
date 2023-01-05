@@ -802,7 +802,6 @@ func (service *HTTPRestService) getPrimaryHostInterface(ctx context.Context) (*w
 	return service.state.primaryInterface, nil
 }
 
-// ryand change once we get labels
 //nolint:gocritic // ignore hugeParam pls
 func (service *HTTPRestService) populateIPConfigInfoUntransacted(ipConfigStatus cns.IPConfigurationStatus, podIPInfo *cns.PodIpInfo) error {
 	ncStatus, exists := service.state.ContainerStatus[ipConfigStatus.NCID]
@@ -826,7 +825,6 @@ func (service *HTTPRestService) populateIPConfigInfoUntransacted(ipConfigStatus 
 	podIPInfo.HostPrimaryIPInfo.PrimaryIP = primaryHostInterface.PrimaryIP
 	podIPInfo.HostPrimaryIPInfo.Subnet = primaryHostInterface.Subnet
 	podIPInfo.HostPrimaryIPInfo.Gateway = primaryHostInterface.Gateway
-	logger.Printf("Populated Pod IP info %+v", podIPInfo)
 	return nil
 }
 

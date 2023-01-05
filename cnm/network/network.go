@@ -242,7 +242,7 @@ func (plugin *netPlugin) createEndpoint(w http.ResponseWriter, r *http.Request) 
 
 	epInfo.Data = make(map[string]interface{})
 
-	cnscli, err := cnsclient.New(nil, "", defaultCNSTimeout)
+	cnscli, err := cnsclient.New("", defaultCNSTimeout)
 	if err != nil {
 		log.Errorf("failed to init CNS client", err)
 	}

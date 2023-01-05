@@ -184,6 +184,7 @@ func (service *HTTPRestService) syncHostNCVersion(ctx context.Context, channelMo
 			continue
 		}
 		dncNCVersion, err := strconv.Atoi(service.state.ContainerStatus[idx].CreateNetworkContainerRequest.Version)
+		// remove once we have NMA changes
 		service.MarkIpsAsAvailableUntransacted(service.state.ContainerStatus[idx].ID, dncNCVersion)
 		continue
 		if err != nil {
@@ -197,6 +198,7 @@ func (service *HTTPRestService) syncHostNCVersion(ctx context.Context, channelMo
 			logger.Errorf("NC version from NMAgent is larger than DNC, NC version from NMAgent is %d, NC version from DNC is %d", localNCVersion, dncNCVersion)
 		}
 	}
+	// remove once we have NMA changes
 	return nil
 	if len(outdatedNCs) == 0 {
 		return nil
