@@ -201,3 +201,25 @@ func (plugin *Plugin) UninitializeKeyValueStore() error {
 
 	return nil
 }
+
+// Lock key-value store. This function is being used for locking access to TelemetryService start for Windows Runtime.
+func (plugin *Plugin) LockKeyValueStore() error {
+	// Acquire store lock.
+	if err := plugin.Store.Lock(store.DefaultLockTimeout); err != nil {
+		log.Printf("[cni] Failed to lock store: %v.", err)
+		return errors.Wrap(err, "error Acquiring store lock")
+	}
+	return nil
+}
+
+// Unlock key-value store
+func (plugin *Plugin) UnLockKeyValueStore() error {
+	if plugin.Store != nil {
+		err := plugin.Store.Unlock()
+		if err != nil {
+			log.Printf("[cni] Failed to unlock store: %v.", err)
+			return errors.Wrap(err, "error unlock store lock")
+		}
+	}
+	return nil
+}
