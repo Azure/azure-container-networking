@@ -134,7 +134,8 @@ func (dp *DataPlane) AddToSets(setNames []*ipsets.IPSetMetadata, podMetadata *Po
 	if err != nil {
 		return fmt.Errorf("[DataPlane] error while adding to set: %w", err)
 	}
-	if dp.shouldUpdatePod() {
+
+	if dp.shouldUpdatePod() && podMetadata.NodeName == dp.nodeName {
 		klog.Infof("[DataPlane] Updating Sets to Add for pod key %s", podMetadata.PodKey)
 
 		// lock updatePodCache while reading/modifying or setting the updatePod in the cache
@@ -162,7 +163,7 @@ func (dp *DataPlane) RemoveFromSets(setNames []*ipsets.IPSetMetadata, podMetadat
 		return fmt.Errorf("[DataPlane] error while removing from set: %w", err)
 	}
 
-	if dp.shouldUpdatePod() {
+	if dp.shouldUpdatePod() && podMetadata.NodeName == dp.nodeName {
 		klog.Infof("[DataPlane] Updating Sets to Remove for pod key %s", podMetadata.PodKey)
 
 		// lock updatePodCache while reading/modifying or setting the updatePod in the cache
@@ -213,6 +214,7 @@ func (dp *DataPlane) ApplyDataPlane() error {
 		return fmt.Errorf("[DataPlane] error while applying IPSets: %w", err)
 	}
 
+	// NOTE: ideally we won't refresh Pod Endpoints if the updatePodCache is empty
 	if dp.shouldUpdatePod() {
 		err := dp.refreshPodEndpoints()
 		if err != nil {
