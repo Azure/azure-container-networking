@@ -832,6 +832,53 @@ func (service *HTTPRestService) isNCWaitingForUpdate(
 	return false, types.NetworkContainerVfpProgramComplete, msg
 }
 
+// isNCWaitingForUpdateV2 :- Determine whether NC version on NMA matches programmed version
+// Return error and waitingForUpdate as true only CNS gets response from NMAgent indicating
+// the VFP programming is pending
+// This returns success / waitingForUpdate as false in all other cases.
+// V2 is using the nmagent get nc version list api v2 which doesn't need authentication token
+func (service *HTTPRestService) isNCWaitingForUpdateV2(
+	ncVersion, ncid string, ncVersionList map[string]string) (waitingForUpdate bool, returnCode types.ResponseCode, message string) {
+	ncStatus, ok := service.state.ContainerStatus[ncid]
+	if ok {
+		if ncStatus.VfpUpdateComplete &&
+			(ncStatus.CreateNetworkContainerRequest.Version == ncVersion) {
+			logger.Printf("[Azure CNS] Network container: %s, version: %s has VFP programming already completed", ncid, ncVersion)
+			return false, types.NetworkContainerVfpProgramCheckSkipped, ""
+		}
+	}
+
+	ncTargetVersion, _ := strconv.Atoi(ncVersion)
+	nmaProgrammedNCVersionStr, ok := ncVersionList[ncid]
+	if !ok {
+		// NMA doesn't have this NC that we need programmed yet, bail out
+		logger.Printf("[Azure CNS] Failed to get NC %s doesn't exist in NMAgent NC version list"+
+			"Skipping GetNCVersionStatus check from NMAgent", ncid)
+		return true, types.NetworkContainerVfpProgramCheckSkipped, ""
+	}
+	nmaProgrammedNCVersion, err := strconv.Atoi(nmaProgrammedNCVersionStr)
+	if err != nil {
+		// it's unclear whether or not this can actually happen. In the NMAgent
+		// documentation, Version is described as a string, but in practice the
+		// values appear to be exclusively integers. Nevertheless, NMAgent is
+		// allowed to make this parameter anything (by contract), so we should
+		// defend against it by erroring appropriately:
+		logger.Printf("[Azure CNS] Failed to get NC version status from NMAgent with error: %+v. "+
+			"Skipping GetNCVersionStatus check from NMAgent", err)
+		return true, types.NetworkContainerVfpProgramCheckSkipped, ""
+	}
+
+	if ncTargetVersion > nmaProgrammedNCVersion {
+		msg := fmt.Sprintf("Network container: %s version: %d is not yet programmed by NMAgent. Programmed version: %d",
+			ncid, ncTargetVersion, nmaProgrammedNCVersion)
+		return false, types.NetworkContainerVfpProgramPending, msg
+	}
+
+	msg := "Vfp programming complete"
+	logger.Printf("[Azure CNS] Vfp programming complete for NC: %s with version: %d", ncid, ncTargetVersion)
+	return false, types.NetworkContainerVfpProgramComplete, msg
+}
+
 // handleGetNetworkContainers returns all NCs in CNS
 func (service *HTTPRestService) handleGetNetworkContainers(w http.ResponseWriter) {
 	logger.Printf("[Azure CNS] handleGetNetworkContainers")

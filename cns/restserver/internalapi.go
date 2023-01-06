@@ -44,8 +44,111 @@ func (service *HTTPRestService) SetNodeOrchestrator(r *cns.SetOrchestratorTypeRe
 }
 
 // SyncNodeStatus :- Retrieve the latest node state from DNC & returns the first occurence of returnCode and error with respect to contextFromCNI
+// func (service *HTTPRestService) SyncNodeStatus(dncEP, infraVnet, nodeID string, contextFromCNI json.RawMessage) (returnCode types.ResponseCode, errStr string) {
+// 	logger.Printf("[Azure CNS] SyncNodeStatus")
+// 	var (
+// 		resp             *http.Response
+// 		nodeInfoResponse cns.NodeInfoResponse
+// 		body             []byte
+// 		httpc            = common.GetHttpClient()
+// 	)
+
+// 	// try to retrieve NodeInfoResponse from mDNC
+// 	url := fmt.Sprintf(common.SyncNodeNetworkContainersURLFmt, dncEP, infraVnet, nodeID, dncApiVersion)
+// 	req, _ := http.NewRequestWithContext(context.TODO(), http.MethodGet, url, nil)
+// 	resp, err := httpc.Do(req)
+// 	if err == nil {
+// 		if resp.StatusCode == http.StatusOK {
+// 			err = json.NewDecoder(resp.Body).Decode(&nodeInfoResponse)
+// 		} else {
+// 			err = errors.Errorf("http err: %d", resp.StatusCode)
+// 		}
+
+// 		resp.Body.Close()
+// 	}
+
+// 	if err != nil {
+// 		returnCode = types.UnexpectedError
+// 		errStr = fmt.Sprintf("[Azure-CNS] Failed to sync node with error: %+v", err)
+// 		logger.Errorf(errStr)
+// 		return
+// 	}
+
+// 	var (
+// 		ncsToBeAdded   = make(map[string]cns.CreateNetworkContainerRequest)
+// 		ncsToBeDeleted = make(map[string]bool)
+// 	)
+
+// 	// determine new NCs and NCs to be deleted
+// 	service.RLock()
+// 	for ncid := range service.state.ContainerStatus {
+// 		ncsToBeDeleted[ncid] = true
+// 	}
+
+// 	for _, nc := range nodeInfoResponse.NetworkContainers {
+// 		ncid := nc.NetworkContainerid
+// 		delete(ncsToBeDeleted, ncid)
+// 		if savedNc, exists := service.state.ContainerStatus[ncid]; !exists || savedNc.CreateNetworkContainerRequest.Version < nc.Version {
+// 			ncsToBeAdded[ncid] = nc
+// 		}
+// 	}
+// 	service.RUnlock()
+
+// 	// check if the version is valid and save it to service state
+// 	for ncid, nc := range ncsToBeAdded {
+// 		nmaReq := nmagent.NCVersionRequest{
+// 			AuthToken:          nc.AuthorizationToken,
+// 			NetworkContainerID: nc.NetworkContainerid,
+// 			PrimaryAddress:     nc.PrimaryInterfaceIdentifier,
+// 		}
+
+// 		ncVersionURLs.Store(nc.NetworkContainerid, nmaReq)
+// 		waitingForUpdate, _, _ := service.isNCWaitingForUpdate(nc.Version, nc.NetworkContainerid)
+
+// 		body, _ = json.Marshal(nc)
+// 		req, _ = http.NewRequest(http.MethodPost, "", bytes.NewBuffer(body))
+// 		req.Header.Set(common.ContentType, common.JsonContent)
+
+// 		w := httptest.NewRecorder()
+// 		service.createOrUpdateNetworkContainer(w, req)
+
+// 		if w.Result().StatusCode == http.StatusOK {
+// 			var resp cns.CreateNetworkContainerResponse
+// 			if err = json.Unmarshal(w.Body.Bytes(), &resp); err == nil && resp.Response.ReturnCode == types.Success {
+// 				service.Lock()
+// 				ncstatus := service.state.ContainerStatus[ncid]
+// 				ncstatus.VfpUpdateComplete = !waitingForUpdate
+// 				service.state.ContainerStatus[ncid] = ncstatus
+// 				service.Unlock()
+// 			}
+// 		}
+// 	}
+
+// 	service.Lock()
+// 	service.saveState()
+// 	service.Unlock()
+
+// 	// delete dangling NCs
+// 	for nc := range ncsToBeDeleted {
+// 		var body bytes.Buffer
+// 		json.NewEncoder(&body).Encode(&cns.DeleteNetworkContainerRequest{NetworkContainerid: nc})
+
+// 		req, err = http.NewRequest(http.MethodPost, "", &body)
+// 		if err == nil {
+// 			req.Header.Set(common.JsonContent, common.JsonContent)
+// 			service.deleteNetworkContainer(httptest.NewRecorder(), req)
+// 		} else {
+// 			logger.Errorf("[Azure-CNS] Failed to delete NC request to sync state: %s", err.Error())
+// 		}
+
+// 		ncVersionURLs.Delete(nc)
+// 	}
+
+// 	return
+// }
+
 func (service *HTTPRestService) SyncNodeStatus(dncEP, infraVnet, nodeID string, contextFromCNI json.RawMessage) (returnCode types.ResponseCode, errStr string) {
-	logger.Printf("[Azure CNS] SyncNodeStatus")
+	logger.Printf("[Azure CNS] SyncNodeStatusV2")
 	var (
 		resp             *http.Response
 		nodeInfoResponse cns.NodeInfoResponse
@@ -103,7 +206,17 @@ func (service *HTTPRestService) SyncNodeStatus(dncEP, infraVnet, nodeID string, 
 		}
 
 		ncVersionURLs.Store(nc.NetworkContainerid, nmaReq)
-		waitingForUpdate, _, _ := service.isNCWaitingForUpdate(nc.Version, nc.NetworkContainerid)
+
+		ncVersionListResp, err := service.nma.GetNCVersionList(context.TODO())
+		if err != nil {
+			logger.Errorf("failed to get nc version list from nmagent")
+		}
+
+		nmaNCs := map[string]string{}
+		for _, nc := range ncVersionListResp.Containers {
+			nmaNCs[nc.NetworkContainerID] = nc.Version
+		}
+		waitingForUpdate, _, _ := service.isNCWaitingForUpdateV2(nc.Version, nc.NetworkContainerid, nmaNCs)
 
 		body, _ = json.Marshal(nc)
 		req, _ = http.NewRequest(http.MethodPost, "", bytes.NewBuffer(body))
@@ -143,7 +256,6 @@ func (service *HTTPRestService) SyncNodeStatus(dncEP, infraVnet, nodeID string, 
 
 		ncVersionURLs.Delete(nc)
 	}
-
 	return
 }
 
