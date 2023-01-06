@@ -85,14 +85,21 @@ func (p *IPAMPlugin) CmdAdd(args *cniSkel.CmdArgs) error {
 		p.logger.Error("Failed to interpret CNS IPConfigResponse", zap.Error(err), zap.Any("response", resp))
 		return cniTypes.NewError(ErrProcessIPConfigResponse, err.Error(), "failed to interpret CNS IPConfigResponse")
 	}
-	p.logger.Debug("Parsed pod IP", zap.String("podIPNet", podIPNet.String()))
+	p.logger.Debug("Parsed pod IP", zap.String("podIPNet", (*podIPNet)[0].String()))
 
+	// ryand hardcoding until we can use labels
 	cniResult := &types100.Result{
 		IPs: []*types100.IPConfig{
 			{
 				Address: net.IPNet{
-					IP:   net.ParseIP(podIPNet.Addr().String()),
-					Mask: net.CIDRMask(podIPNet.Bits(), 32), // nolint
+					IP:   net.ParseIP((*podIPNet)[0].Addr().String()),
+					Mask: net.CIDRMask((*podIPNet)[0].Bits(), 32), // nolint
+				},
+			},
+			{
+				Address: net.IPNet{
+					IP:   net.ParseIP((*podIPNet)[1].Addr().String()),
+					Mask: net.CIDRMask((*podIPNet)[1].Bits(), 128), // nolint
 				},
 			},
 		},

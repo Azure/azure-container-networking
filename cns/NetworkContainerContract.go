@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/Azure/azure-container-networking/cns/types"
+	"github.com/Azure/azure-container-networking/nmagent"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 )
@@ -417,7 +418,7 @@ func (i IPConfigRequest) String() string {
 
 // IPConfigResponse is used in CNS IPAM mode as a response to CNI ADD
 type IPConfigResponse struct {
-	PodIpInfo PodIpInfo
+	PodIPInfo []PodIpInfo
 	Response  Response
 }
 
@@ -497,7 +498,7 @@ type PublishNetworkContainerRequest struct {
 	NetworkContainerID                string
 	JoinNetworkURL                    string
 	CreateNetworkContainerURL         string
-	CreateNetworkContainerRequestBody []byte
+	CreateNetworkContainerRequestBody nmagent.PutNetworkContainerRequest
 }
 
 // NetworkContainerParameters parameters available in network container operations
