@@ -31,13 +31,13 @@ type NodeNetworkConfigStatus struct {
 }
 ```
 
-```
-type IPMode string
-
-const (
-	SingleStack Status = "SingleStack"
-	DualStack   Status = "DualStack"
-)
+```diff
++type IPMode string
++
++const (
++	SingleStack Status = "SingleStack"
++	DualStack   Status = "DualStack"
++)
 ```
 
 In the CNS will flag then be used in the [`AssignAnyAvailableIPConfig`](https://github.com/Azure/azure-container-networking/blob/master/cns/restserver/ipam.go#:~:text=func%20(service%20*HTTPRestService)%20AssignAnyAvailableIPConfig(podInfo%20cns.PodInfo)%20(cns.PodIpInfo%2C%20error)%20%7B) function to determine whether or not are creating a pod in single stack or dual stack. 
