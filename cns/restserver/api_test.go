@@ -25,6 +25,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/types"
 	acncommon "github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/nmagent"
+	nma "github.com/Azure/azure-container-networking/nmagent"
 	"github.com/Azure/azure-container-networking/processlock"
 	"github.com/Azure/azure-container-networking/store"
 	"github.com/stretchr/testify/assert"
@@ -558,6 +559,18 @@ func TestGetNetworkContainerVersionStatus(t *testing.T) {
 	// 	}, nil
 	// }
 
+	//shchen
+	mnma.GetNCVersionListF = func(_ context.Context) (nmagent.NCVersionList, error) {
+		return nma.NCVersionList{
+			Containers: []nma.NCVersion{
+				{
+					NetworkContainerID: params.ncID,
+					Version:            params.ncVersion,
+				},
+			},
+		}, nil
+	}
+
 	resp, err := getNetworkContainerByContext(params)
 	if err != nil {
 		t.Fatal("error getting NC: err:", err)
@@ -597,6 +610,18 @@ func TestGetNetworkContainerVersionStatus(t *testing.T) {
 	// 	}, nil
 	// }
 
+	//shchen
+	mnma.GetNCVersionListF = func(_ context.Context) (nmagent.NCVersionList, error) {
+		return nma.NCVersionList{
+			Containers: []nma.NCVersion{
+				{
+					NetworkContainerID: params.ncID,
+					Version:            "0", // explicitly 1 less than the version above
+				},
+			},
+		}, nil
+	}
+
 	err = createNC(params)
 	if err != nil {
 		t.Fatal("error creating NC: err:", err)
@@ -629,6 +654,15 @@ func TestGetNetworkContainerVersionStatus(t *testing.T) {
 	// mnma.GetNCVersionF = func(_ context.Context, _ nmagent.NCVersionRequest) (nmagent.NCVersion, error) {
 	// 	return nmagent.NCVersion{}, errors.New("boom") //nolint:goerr113 // it's just a test
 	// }
+
+	//shchen
+	mnma.GetNCVersionListF = func(_ context.Context) (nmagent.NCVersionList, error) {
+		resp := nmagent.NCVersionList{
+			Containers: []nmagent.NCVersion{},
+		}
+		return resp, errors.New("boom")
+	}
+
 	mnma.JoinNetworkF = func(_ context.Context, _ nmagent.JoinNetworkRequest) error {
 		return errors.New("boom") //nolint:goerr113 // it's just a test
 	}
@@ -670,6 +704,17 @@ func TestGetNetworkContainerVersionStatus(t *testing.T) {
 	// 		Code: http.StatusUnauthorized,
 	// 	}
 	// }
+
+	//shchen
+	mnma.GetNCVersionListF = func(_ context.Context) (nmagent.NCVersionList, error) {
+		resp := nmagent.NCVersionList{
+			Containers: []nmagent.NCVersion{},
+		}
+		return resp, nmagent.Error{
+			Code: http.StatusUnauthorized,
+		}
+	}
+
 	mnma.JoinNetworkF = func(_ context.Context, _ nmagent.JoinNetworkRequest) error {
 		return nil
 	}
