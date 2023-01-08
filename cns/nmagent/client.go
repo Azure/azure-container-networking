@@ -1,9 +1,5 @@
 package nmagent
 
-import (
-	"fmt"
-)
-
 const (
 	// GetNmAgentSupportedApiURLFmt Api endpoint to get supported Apis of NMAgent
 	GetNmAgentSupportedApiURLFmt       = "http://%s/machine/plugins/?comp=nmagent&type=GetSupportedApis"
@@ -37,19 +33,4 @@ type ContainerInfo struct {
 type NetworkContainerListResponse struct {
 	ResponseCode string          `json:"httpStatusCode"`
 	Containers   []ContainerInfo `json:"networkContainers"`
-}
-
-// Client is client to handle queries to nmagent
-type Client struct {
-	connectionURL string
-}
-
-// NewClient create a new nmagent client.
-func NewClient(url string) (*Client, error) {
-	if url == "" {
-		url = fmt.Sprintf(GetNcVersionListWithOutTokenURLFmt, WireserverIP, getNcVersionListWithOutTokenURLVersion)
-	}
-	return &Client{
-		connectionURL: url,
-	}, nil
 }
