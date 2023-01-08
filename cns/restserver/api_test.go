@@ -550,12 +550,13 @@ func TestGetNetworkContainerVersionStatus(t *testing.T) {
 		t.Fatal("error creating NC: err:", err)
 	}
 
-	mnma.GetNCVersionF = func(_ context.Context, _ nmagent.NCVersionRequest) (nmagent.NCVersion, error) {
-		return nmagent.NCVersion{
-			NetworkContainerID: params.ncID,
-			Version:            params.ncVersion,
-		}, nil
-	}
+	//shchen
+	// mnma.GetNCVersionF = func(_ context.Context, _ nmagent.NCVersionRequest) (nmagent.NCVersion, error) {
+	// 	return nmagent.NCVersion{
+	// 		NetworkContainerID: params.ncID,
+	// 		Version:            params.ncVersion,
+	// 	}, nil
+	// }
 
 	resp, err := getNetworkContainerByContext(params)
 	if err != nil {
@@ -588,12 +589,13 @@ func TestGetNetworkContainerVersionStatus(t *testing.T) {
 		podNamespace: "testpodnamespace",
 	}
 
-	mnma.GetNCVersionF = func(_ context.Context, _ nmagent.NCVersionRequest) (nmagent.NCVersion, error) {
-		return nmagent.NCVersion{
-			NetworkContainerID: params.ncID,
-			Version:            "0", // explicitly 1 less than the version above
-		}, nil
-	}
+	// shchen
+	// mnma.GetNCVersionF = func(_ context.Context, _ nmagent.NCVersionRequest) (nmagent.NCVersion, error) {
+	// 	return nmagent.NCVersion{
+	// 		NetworkContainerID: params.ncID,
+	// 		Version:            "0", // explicitly 1 less than the version above
+	// 	}, nil
+	// }
 
 	err = createNC(params)
 	if err != nil {
@@ -623,9 +625,10 @@ func TestGetNetworkContainerVersionStatus(t *testing.T) {
 		podNamespace: "testpodnamespace",
 	}
 
-	mnma.GetNCVersionF = func(_ context.Context, _ nmagent.NCVersionRequest) (nmagent.NCVersion, error) {
-		return nmagent.NCVersion{}, errors.New("boom") //nolint:goerr113 // it's just a test
-	}
+	//shchen
+	// mnma.GetNCVersionF = func(_ context.Context, _ nmagent.NCVersionRequest) (nmagent.NCVersion, error) {
+	// 	return nmagent.NCVersion{}, errors.New("boom") //nolint:goerr113 // it's just a test
+	// }
 	mnma.JoinNetworkF = func(_ context.Context, _ nmagent.JoinNetworkRequest) error {
 		return errors.New("boom") //nolint:goerr113 // it's just a test
 	}
@@ -660,12 +663,13 @@ func TestGetNetworkContainerVersionStatus(t *testing.T) {
 		podNamespace: "testpodnamespace",
 	}
 
+	//shchen
 	// set the mock NMAgent to be "successful" again
-	mnma.GetNCVersionF = func(_ context.Context, _ nmagent.NCVersionRequest) (nmagent.NCVersion, error) {
-		return nmagent.NCVersion{}, nmagent.Error{
-			Code: http.StatusUnauthorized,
-		}
-	}
+	// mnma.GetNCVersionF = func(_ context.Context, _ nmagent.NCVersionRequest) (nmagent.NCVersion, error) {
+	// 	return nmagent.NCVersion{}, nmagent.Error{
+	// 		Code: http.StatusUnauthorized,
+	// 	}
+	// }
 	mnma.JoinNetworkF = func(_ context.Context, _ nmagent.JoinNetworkRequest) error {
 		return nil
 	}
