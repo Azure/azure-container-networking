@@ -96,15 +96,9 @@ jobs:
     steps:
       - checkout: self
 
-      - script: |
-          echo "cloning vakr"
-          git clone https://github.com/vakalapa/kubernetes.git
-
-        displayName: "Clone Kubernetes Repo"
-
       - bash: |
+          git clone https://github.com/huntergregory/kubernetes.git --depth=1 --branch=linux-sleep-before-probing
           cd kubernetes
-          git checkout vakr/sleepinnpmtests
           export PATH=$PATH:/usr/local/go/bin/
           make WHAT=test/e2e/e2e.test
         displayName: "Build Kubernetes e2e.test"
@@ -288,9 +282,8 @@ jobs:
           }
 
           runConformanceWindows () {
-            git clone https://github.com/huntergregory/kubernetes.git
+            git clone https://github.com/huntergregory/kubernetes.git --depth=1 --branch=sleep-before-probing
             cd kubernetes
-            git checkout sleep-before-probing
             export PATH=$PATH:/usr/local/go/bin/
             make WHAT=test/e2e/e2e.test
             cd ..
