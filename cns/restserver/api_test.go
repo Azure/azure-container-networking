@@ -25,7 +25,6 @@ import (
 	"github.com/Azure/azure-container-networking/cns/types"
 	acncommon "github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/nmagent"
-	nma "github.com/Azure/azure-container-networking/nmagent"
 	"github.com/Azure/azure-container-networking/processlock"
 	"github.com/Azure/azure-container-networking/store"
 	"github.com/stretchr/testify/assert"
@@ -562,7 +561,7 @@ func TestGetNetworkContainerVersionStatus(t *testing.T) {
 	//shchen
 	mnma.GetNCVersionListF = func(_ context.Context) (nmagent.NCVersionList, error) {
 		return nmagent.NCVersionList{
-			Containers: []nma.NCVersion{
+			Containers: []nmagent.NCVersion{
 				{
 					NetworkContainerID: params.ncID,
 					Version:            params.ncVersion,
@@ -613,7 +612,7 @@ func TestGetNetworkContainerVersionStatus(t *testing.T) {
 	//shchen
 	mnma.GetNCVersionListF = func(_ context.Context) (nmagent.NCVersionList, error) {
 		return nmagent.NCVersionList{
-			Containers: []nma.NCVersion{
+			Containers: []nmagent.NCVersion{
 				{
 					NetworkContainerID: params.ncID,
 					Version:            "0", // explicitly 1 less than the version above
