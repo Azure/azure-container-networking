@@ -42,6 +42,7 @@ func (service *HTTPRestService) SetNodeOrchestrator(r *cns.SetOrchestratorTypeRe
 	service.setOrchestratorType(httptest.NewRecorder(), req)
 }
 
+// SyncNodeStatus :- Retrieve the latest node state from DNC & returns the first occurence of returnCode and error with respect to contextFromCNI
 func (service *HTTPRestService) SyncNodeStatus(dncEP, infraVnet, nodeID string, contextFromCNI json.RawMessage) (returnCode types.ResponseCode, errStr string) {
 	logger.Printf("[Azure CNS] SyncNodeStatus")
 	var (
@@ -97,8 +98,8 @@ func (service *HTTPRestService) SyncNodeStatus(dncEP, infraVnet, nodeID string, 
 		logger.Errorf("failed to get nc version list from nmagent")
 	}
 	nmaNCs := map[string]string{}
-	for _, nc := range ncVersionListResp.Containers {
-		nmaNCs[nc.NetworkContainerID] = nc.Version
+	for _, ncFromNma := range ncVersionListResp.Containers {
+		nmaNCs[ncFromNma.NetworkContainerID] = ncFromNma.Version
 	}
 
 	// check if the version is valid and save it to service state

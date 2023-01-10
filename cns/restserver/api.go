@@ -1231,6 +1231,15 @@ func (service *HTTPRestService) publishNetworkContainer(w http.ResponseWriter, r
 			returnMessage, returnCode = service.doPublish(ctx, req, ncParameters)
 		}
 
+		//shchen
+		req := nmagent.NCVersionRequest{
+			AuthToken:          ncParameters.AuthToken,
+			NetworkContainerID: req.NetworkContainerID,
+			PrimaryAddress:     ncParameters.AssociatedInterfaceID,
+		}
+
+		ncVersionURLs.Store(cns.SwiftPrefix+req.NetworkContainerID, req)
+
 	default:
 		returnMessage = "PublishNetworkContainer API expects a POST"
 		returnCode = types.UnsupportedVerb
@@ -1338,6 +1347,14 @@ func (service *HTTPRestService) unpublishNetworkContainer(w http.ResponseWriter,
 				logger.Errorf("[Azure-CNS] %s", returnMessage)
 			}
 		}
+		//shchen
+		req := nmagent.NCVersionRequest{
+			AuthToken:          ncParameters.AuthToken,
+			NetworkContainerID: req.NetworkContainerID,
+			PrimaryAddress:     ncParameters.AssociatedInterfaceID,
+		}
+
+		ncVersionURLs.Store(cns.SwiftPrefix+req.NetworkContainerID, req)
 	default:
 		returnMessage = "UnpublishNetworkContainer API expects a POST"
 		returnCode = types.UnsupportedVerb
