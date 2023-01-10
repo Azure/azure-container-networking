@@ -19,6 +19,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
+	"github.com/Azure/azure-container-networking/nmagent"
 	"github.com/pkg/errors"
 )
 
@@ -104,7 +105,13 @@ func (service *HTTPRestService) SyncNodeStatus(dncEP, infraVnet, nodeID string, 
 
 	// check if the version is valid and save it to service state
 	for ncid, nc := range ncsToBeAdded {
+		nmaReq := nmagent.NCVersionRequest{
+			AuthToken:          nc.AuthorizationToken,
+			NetworkContainerID: nc.NetworkContainerid,
+			PrimaryAddress:     nc.PrimaryInterfaceIdentifier,
+		}
 
+		ncVersionURLs.Store(nc.NetworkContainerid, nmaReq)
 		waitingForUpdate, _, _ := service.isNCWaitingForUpdateV2(nc.Version, nc.NetworkContainerid, nmaNCs)
 
 		body, _ = json.Marshal(nc)
@@ -142,6 +149,8 @@ func (service *HTTPRestService) SyncNodeStatus(dncEP, infraVnet, nodeID string, 
 		} else {
 			logger.Errorf("[Azure-CNS] Failed to delete NC request to sync state: %s", err.Error())
 		}
+
+		ncVersionURLs.Delete(nc)
 	}
 	return
 }
