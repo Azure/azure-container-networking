@@ -94,7 +94,6 @@ func (service *HTTPRestService) requestIPConfigHandler(w http.ResponseWriter, r 
 		},
 		PodIPInfo: podIPInfo,
 	}
-	logger.Printf("reserve response %+v", reserveResp)
 	w.Header().Set(cnsReturnCode, reserveResp.Response.ReturnCode.String())
 	err = service.Listener.Encode(w, &reserveResp)
 	logger.ResponseEx(service.Name+operationName, ipconfigRequest, reserveResp, reserveResp.Response.ReturnCode, err)
@@ -122,7 +121,7 @@ func (service *HTTPRestService) updateEndpointState(ipconfigRequest cns.IPConfig
 			logger.Warnf(string(JsonData))
 			ip := net.ParseIP(podIPInfo[i].PodIPConfig.IPAddress)
 			if ip == nil {
-				logger.Errorf("ryan1 failed to parse pod ip address %s", podIPInfo[i].PodIPConfig.IPAddress)
+				logger.Errorf("failed to parse pod ip address %s", podIPInfo[i].PodIPConfig.IPAddress)
 				return errParsePodIPFailed
 			}
 			if ip.To4() == nil { // is an ipv6 address
@@ -156,7 +155,7 @@ func (service *HTTPRestService) updateEndpointState(ipconfigRequest cns.IPConfig
 			}
 			logger.Warnf(string(JsonData))
 			if ip == nil {
-				logger.Errorf("ryan2 failed to parse pod ip address %s", podIPInfo[i].PodIPConfig.IPAddress)
+				logger.Errorf("failed to parse pod ip address %s", podIPInfo[i].PodIPConfig.IPAddress)
 				return errParsePodIPFailed
 			}
 			ipInfo := &IPInfo{}
@@ -428,14 +427,12 @@ func (service *HTTPRestService) assignIPConfig(ipconfig cns.IPConfigurationStatu
 	}
 
 	if service.PodIPIDByPodInterfaceKey[podInfo.Key()] == nil {
-		logger.Printf("ryand IP config initialized")
+		logger.Printf("IP config initialized")
 		service.PodIPIDByPodInterfaceKey[podInfo.Key()] = make([]string, 0)
 	}
 
 	service.PodIPIDByPodInterfaceKey[podInfo.Key()] = append(service.PodIPIDByPodInterfaceKey[podInfo.Key()], ipconfig.ID)
-	for _, IP := range service.PodIPIDByPodInterfaceKey[podInfo.Key()] {
-		logger.Printf("ryand MAP %s", IP)
-	}
+
 	return nil
 }
 
@@ -577,7 +574,6 @@ func (service *HTTPRestService) AssignAnyAvailableIPConfig(podInfo cns.PodInfo) 
 			}
 
 			if err := service.populateIPConfigInfoUntransacted(ipState, &podIpInfo[0]); err != nil {
-				logger.Warnf("[AssignAnyAvailableIPConfig] ryan01")
 				return []cns.PodIpInfo{}, err
 			}
 			break
@@ -588,24 +584,19 @@ func (service *HTTPRestService) AssignAnyAvailableIPConfig(podInfo cns.PodInfo) 
 		return []cns.PodIpInfo{}, err
 	}
 	logger.Warnf(string(JsonData))
-	logger.Warnf("[AssignAnyAvailableIPConfig] ryan02")
 	// going to change this to be a helper method that passes in Ip rules based on labels, hard coding to test
 	for _, ipState := range service.PodIPConfigState {
 		address, err := netip.ParseAddr(ipState.IPAddress)
 		if err != nil {
-			logger.Warnf("[AssignAnyAvailableIPConfig] ryan03")
 			return []cns.PodIpInfo{}, err
 		}
 		if ipState.GetState() == types.Available && address.Is6() {
 			if err := service.assignIPConfig(ipState, podInfo); err != nil {
-				logger.Warnf("[AssignAnyAvailableIPConfig] ryan04")
 				return []cns.PodIpInfo{}, err
 			}
 			if err := service.populateIPConfigInfoUntransacted(ipState, &podIpInfo[1]); err != nil {
-				logger.Warnf("[AssignAnyAvailableIPConfig] ryan05")
 				return []cns.PodIpInfo{}, err
 			}
-			logger.Warnf("[AssignAnyAvailableIPConfig] ryan06")
 			JsonData, err := json.Marshal(&podIpInfo[1])
 			if err != nil {
 				return []cns.PodIpInfo{}, err
@@ -615,7 +606,6 @@ func (service *HTTPRestService) AssignAnyAvailableIPConfig(podInfo cns.PodInfo) 
 		}
 	}
 	//nolint:goerr113
-	logger.Warnf("[AssignAnyAvailableIPConfig] ryan07")
 	return []cns.PodIpInfo{}, fmt.Errorf("no IPs available, waiting on Azure CNS to allocate more")
 }
 
