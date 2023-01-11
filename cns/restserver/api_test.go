@@ -561,18 +561,6 @@ func TestGetNetworkContainerVersionStatus(t *testing.T) {
 		}, nil
 	}
 
-	//shchen
-	// mnma.GetNCVersionListF = func(_ context.Context) (nmagent.NCVersionList, error) {
-	// 	return nmagent.NCVersionList{
-	// 		Containers: []nmagent.NCVersion{
-	// 			{
-	// 				NetworkContainerID: params.ncID,
-	// 				Version:            params.ncVersion,
-	// 			},
-	// 		},
-	// 	}, nil
-	// }
-
 	resp, err := getNetworkContainerByContext(params)
 	if err != nil {
 		t.Fatal("error getting NC: err:", err)
@@ -614,18 +602,6 @@ func TestGetNetworkContainerVersionStatus(t *testing.T) {
 			},
 		}, nil
 	}
-
-	//shchen
-	// mnma.GetNCVersionListF = func(_ context.Context) (nmagent.NCVersionList, error) {
-	// 	return nmagent.NCVersionList{
-	// 		Containers: []nmagent.NCVersion{
-	// 			{
-	// 				NetworkContainerID: params.ncID,
-	// 				Version:            "0", // explicitly 1 less than the version above
-	// 			},
-	// 		},
-	// 	}, nil
-	// }
 
 	err = createNC(params)
 	if err != nil {
