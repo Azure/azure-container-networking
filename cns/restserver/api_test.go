@@ -826,7 +826,7 @@ func publishNCViaCNS(
 		NetworkContainerID:                networkContainerID,
 		JoinNetworkURL:                    joinNetworkURL,
 		CreateNetworkContainerURL:         createNetworkContainerURL,
-		CreateNetworkContainerRequestBody: []byte("{}"),
+		CreateNetworkContainerRequestBody: []byte("{\"version\":\"0\"}"),
 	}
 
 	json.NewEncoder(&body).Encode(publishNCRequest)
