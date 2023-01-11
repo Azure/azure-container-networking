@@ -197,44 +197,48 @@ func (service *HTTPRestService) SyncNodeStatus(dncEP, infraVnet, nodeID string, 
 	}
 	service.RUnlock()
 
+	skipNCVersionCheck := false
 	ctx, cancel := context.WithTimeout(context.Background(), ContextTimeOut)
 	defer cancel()
 	ncVersionListResp, err := service.nma.GetNCVersionList(ctx)
 	if err != nil {
+		skipNCVersionCheck = true
 		logger.Errorf("failed to get nc version list from nmagent")
 	}
 
-	nmaNCs := map[string]string{}
-	for _, nc := range ncVersionListResp.Containers {
-		nmaNCs[cns.SwiftPrefix+nc.NetworkContainerID] = nc.Version
-	}
-
-	// check if the version is valid and save it to service state
-	for ncid, nc := range ncsToBeAdded {
-		nmaReq := nmagent.NCVersionRequest{
-			AuthToken:          nc.AuthorizationToken,
-			NetworkContainerID: nc.NetworkContainerid,
-			PrimaryAddress:     nc.PrimaryInterfaceIdentifier,
+	if !skipNCVersionCheck {
+		nmaNCs := map[string]string{}
+		for _, nc := range ncVersionListResp.Containers {
+			nmaNCs[cns.SwiftPrefix+nc.NetworkContainerID] = nc.Version
 		}
 
-		ncVersionURLs.Store(nc.NetworkContainerid, nmaReq)
-		waitingForUpdate, _, _ := service.isNCWaitingForUpdateV2(nc.Version, nc.NetworkContainerid, nmaNCs)
+		// check if the version is valid and save it to service state
+		for ncid, nc := range ncsToBeAdded {
+			nmaReq := nmagent.NCVersionRequest{
+				AuthToken:          nc.AuthorizationToken,
+				NetworkContainerID: nc.NetworkContainerid,
+				PrimaryAddress:     nc.PrimaryInterfaceIdentifier,
+			}
 
-		body, _ = json.Marshal(nc)
-		req, _ = http.NewRequest(http.MethodPost, "", bytes.NewBuffer(body))
-		req.Header.Set(common.ContentType, common.JsonContent)
+			ncVersionURLs.Store(nc.NetworkContainerid, nmaReq)
+			waitingForUpdate, _, _ := service.isNCWaitingForUpdateV2(nc.Version, nc.NetworkContainerid, nmaNCs)
 
-		w := httptest.NewRecorder()
-		service.createOrUpdateNetworkContainer(w, req)
+			body, _ = json.Marshal(nc)
+			req, _ = http.NewRequest(http.MethodPost, "", bytes.NewBuffer(body))
+			req.Header.Set(common.ContentType, common.JsonContent)
 
-		if w.Result().StatusCode == http.StatusOK {
-			var resp cns.CreateNetworkContainerResponse
-			if err = json.Unmarshal(w.Body.Bytes(), &resp); err == nil && resp.Response.ReturnCode == types.Success {
-				service.Lock()
-				ncstatus := service.state.ContainerStatus[ncid]
-				ncstatus.VfpUpdateComplete = !waitingForUpdate
-				service.state.ContainerStatus[ncid] = ncstatus
-				service.Unlock()
+			w := httptest.NewRecorder()
+			service.createOrUpdateNetworkContainer(w, req)
+
+			if w.Result().StatusCode == http.StatusOK {
+				var resp cns.CreateNetworkContainerResponse
+				if err = json.Unmarshal(w.Body.Bytes(), &resp); err == nil && resp.Response.ReturnCode == types.Success {
+					service.Lock()
+					ncstatus := service.state.ContainerStatus[ncid]
+					ncstatus.VfpUpdateComplete = !waitingForUpdate
+					service.state.ContainerStatus[ncid] = ncstatus
+					service.Unlock()
+				}
 			}
 		}
 	}
