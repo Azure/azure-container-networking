@@ -69,7 +69,7 @@ func TestCNSIPAMInvoker_Add(t *testing.T) {
 					request: requestIPAddressHandler{
 						ipconfigArgument: getTestIPConfigRequest(),
 						result: &cns.IPConfigResponse{
-							PodIPInfo: []cns.PodIpInfo{
+							PodIpInfo: []cns.PodIpInfo{
 								{
 									PodIPConfig: cns.IPSubnet{
 										IPAddress:    "10.0.1.10",
