@@ -562,7 +562,6 @@ func (service *HTTPRestService) attachOrDetachHelper(req cns.ConfigureContainerN
 				for _, nc := range ncVersionListResp.Containers {
 					nmaNCs[nc.NetworkContainerID] = nc.Version
 				}
-				//_, returnCode, message := service.isNCWaitingForUpdate(existing.CreateNetworkContainerRequest.Version, req.NetworkContainerid)
 				_, returnCode, message := service.isNCWaitingForUpdateV2(existing.CreateNetworkContainerRequest.Version, req.NetworkContainerid, nmaNCs)
 				if returnCode == types.NetworkContainerVfpProgramPending {
 					return cns.Response{
