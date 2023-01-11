@@ -1162,11 +1162,14 @@ func (service *HTTPRestService) publishNetworkContainer(w http.ResponseWriter, r
 		req                 cns.PublishNetworkContainerRequest
 		returnCode          types.ResponseCode
 		returnMessage       string
-		publishStatusCode   int
 		publishResponseBody []byte
 		publishErrorStr     string
 		isNetworkJoined     bool
 	)
+
+	// publishing is assumed to succeed unless some other error handling sets it
+	// otherwise
+	publishStatusCode := http.StatusOK
 
 	err := service.Listener.Decode(w, r, &req)
 

@@ -843,6 +843,12 @@ func publishNCViaCNS(
 		return fmt.Errorf("decoding response: %w", err)
 	}
 
+	expStatus := http.StatusOK
+	gotStatus := resp.PublishStatusCode
+	if gotStatus != expStatus {
+		return fmt.Errorf("unsuccessful request. exp: %d, got: %d", expStatus, gotStatus)
+	}
+
 	fmt.Printf("PublishNetworkContainer succeded with response %+v, raw:%+v\n", resp, w.Body)
 	return nil
 }
