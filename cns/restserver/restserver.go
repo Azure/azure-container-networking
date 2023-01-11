@@ -31,9 +31,6 @@ import (
 var (
 	// Named Lock for accessing different states in httpRestServiceState
 	namedLock = acn.InitNamedLock()
-	// shchen
-	// map of NC to their respective NMA getVersion URLs
-	ncVersionURLs sync.Map
 )
 
 type interfaceGetter interface {
