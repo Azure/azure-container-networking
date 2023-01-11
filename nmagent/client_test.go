@@ -565,7 +565,7 @@ func TestGetNCVersionList(t *testing.T) {
 					},
 				},
 			},
-			"/machine/plugins/?comp=nmagent&type=NetworkManagement/interfaces/api-version/1",
+			"/machine/plugins/?comp=nmagent&type=NetworkManagement/interfaces/api-version/2",
 			nmagent.NCVersionList{
 				Containers: []nmagent.NCVersion{
 					{
@@ -581,7 +581,7 @@ func TestGetNCVersionList(t *testing.T) {
 			map[string]interface{}{
 				"httpStatusCode": "500",
 			},
-			"/machine/plugins/?comp=nmagent&type=NetworkManagement/interfaces/api-version/1",
+			"/machine/plugins/?comp=nmagent&type=NetworkManagement/interfaces/api-version/2",
 			nmagent.NCVersionList{},
 			true,
 		},
