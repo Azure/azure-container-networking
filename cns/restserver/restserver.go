@@ -44,7 +44,6 @@ type nmagentClient interface {
 	DeleteNetworkContainer(context.Context, nma.DeleteContainerRequest) error
 	JoinNetwork(context.Context, nma.JoinNetworkRequest) error
 	SupportedAPIs(context.Context) ([]string, error)
-	GetNCVersion(context.Context, nma.NCVersionRequest) (nma.NCVersion, error)
 	GetNCVersionList(context.Context) (nma.NCVersionList, error)
 	GetHomeAz(context.Context) (nma.AzResponse, error)
 }
