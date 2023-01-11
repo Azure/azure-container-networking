@@ -43,7 +43,7 @@ func (service *HTTPRestService) SetNodeOrchestrator(r *cns.SetOrchestratorTypeRe
 }
 
 func (service *HTTPRestService) SyncNodeStatus(dncEP, infraVnet, nodeID string, contextFromCNI json.RawMessage) (returnCode types.ResponseCode, errStr string) {
-	logger.Printf("[Azure CNS] SyncNodeStatusV2")
+	logger.Printf("[Azure CNS] SyncNodeStatus")
 	var (
 		resp             *http.Response
 		nodeInfoResponse cns.NodeInfoResponse

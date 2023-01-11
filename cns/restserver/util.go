@@ -385,7 +385,6 @@ func (service *HTTPRestService) getNetworkContainerResponse(
 		containerID, exists = service.state.ContainerIDByOrchestratorContext[podInfo.Name()+podInfo.Namespace()]
 
 		skipNCVersionCheck := false
-		vfpUpdateComplete := false
 		ctx, cancel := context.WithTimeout(context.Background(), ContextTimeOut)
 		defer cancel()
 		ncVersionListResp, err := service.nma.GetNCVersionList(ctx)
@@ -409,7 +408,7 @@ func (service *HTTPRestService) getNetworkContainerResponse(
 				return getNetworkContainerResponse
 			}
 
-			vfpUpdateComplete = !waitingForUpdate
+			vfpUpdateComplete := !waitingForUpdate
 			ncstatus := service.state.ContainerStatus[containerID]
 			// Update the container status if-
 			// 1. VfpUpdateCompleted successfully
