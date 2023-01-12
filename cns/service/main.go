@@ -510,13 +510,13 @@ func main() {
 	z, _ := zap.NewProduction()
 	go healthserver.Start(z, cnsconfig.MetricsBindAddress)
 
-	nmaConfig, err := cnsconfig.NMAgentConfig()
+	nmaConfig, err := nmagent.NewConfig(cnsconfig.WireserverIP)
 	if err != nil {
-		logger.Errorf("[Azure CNS] Failed to produce NMAgent config from supplied configuration: %v", err)
+		logger.Errorf("[Azure CNS] Failed to produce NMAgent config from the supplied wireserver ip: %v", err)
 		return
 	}
 
-	nmaClient, err := nmagent.NewClient(nmagent.Config(nmaConfig))
+	nmaClient, err := nmagent.NewClient(nmaConfig)
 	if err != nil {
 		logger.Errorf("[Azure CNS] Failed to start nmagent client due to error: %v", err)
 		return

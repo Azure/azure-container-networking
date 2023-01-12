@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"unicode"
 
@@ -35,36 +36,95 @@ var _ Request = &PutNetworkContainerRequest{}
 // PutNetworkContainerRequest is a collection of parameters necessary to create
 // a new network container
 type PutNetworkContainerRequest struct {
-	ID     string `json:"networkContainerID"` // the id of the network container
-	VNetID string `json:"virtualNetworkID"`   // the id of the customer's vnet
+	// NOTE(traymond): if you are adding a new field to this struct, ensure that it is also added
+	// to the MarshallJSON, UnmarshallJSON and  method as well.
+	ID     string // the id of the network container
+	VNetID string // the id of the customer's vnet
 
 	// Version is the new network container version
-	Version uint64 `json:"version"`
+	Version uint64
 
 	// SubnetName is the name of the delegated subnet. This is used to
 	// authenticate the request. The list of ipv4addresses must be contained in
 	// the subnet's prefix.
-	SubnetName string `json:"subnetName"`
+	SubnetName string
 
 	// IPv4 addresses in the customer virtual network that will be assigned to
 	// the interface.
-	IPv4Addrs []string `json:"ipV4Addresses"`
+	IPv4Addrs []string
 
-	Policies []Policy `json:"policies"` // policies applied to the network container
+	Policies []Policy // policies applied to the network container
 
 	// VlanID is used to distinguish Network Containers with duplicate customer
 	// addresses. "0" is considered a default value by the API.
-	VlanID int `json:"vlanId"`
+	VlanID int
 
-	GREKey uint16 `json:"greKey"`
+	GREKey uint16
 
 	// AuthenticationToken is the base64 security token for the subnet containing
 	// the Network Container addresses
-	AuthenticationToken string `json:"-"`
+	AuthenticationToken string
 
 	// PrimaryAddress is the primary customer address of the interface in the
 	// management VNet
-	PrimaryAddress string `json:"-"`
+	PrimaryAddress string
+}
+
+type internalNC struct {
+	// NMAgent expects this to be a string, except that the contents of that string have to be a uint64.
+	// Therefore, the type we expose to clients uses a uint64 to guarantee that, but we
+	// convert it to a string here.
+	Version string `json:"version"`
+
+	// The rest of these are copied verbatim from the above struct and should be kept in sync.
+	VNetID     string   `json:"virtualNetworkId"`
+	SubnetName string   `json:"subnetName"`
+	IPv4Addrs  []string `json:"ipV4Addresses"`
+	Policies   []Policy `json:"policies"`
+	VlanID     int      `json:"vlanId"`
+	GREKey     uint16   `json:"greKey"`
+}
+
+func (p *PutNetworkContainerRequest) MarshalJSON() ([]byte, error) {
+	pBody := internalNC{
+		Version:    strconv.Itoa(int(p.Version)),
+		VNetID:     p.VNetID,
+		SubnetName: p.SubnetName,
+		IPv4Addrs:  p.IPv4Addrs,
+		Policies:   p.Policies,
+		VlanID:     p.VlanID,
+		GREKey:     p.GREKey,
+	}
+
+	body, err := json.Marshal(pBody)
+	if err != nil {
+		return nil, errors.Wrap(err, "marshaling PutNetworkContainerRequest")
+	}
+	return body, nil
+}
+
+func (p *PutNetworkContainerRequest) UnmarshalJSON(in []byte) error {
+	var req internalNC
+	err := json.Unmarshal(in, &req)
+	if err != nil {
+		return errors.Wrap(err, "unmarshal network container request")
+	}
+
+	//nolint:gomnd // these magic numbers are well-documented in ParseUint
+	version, err := strconv.ParseUint(req.Version, 10, 64)
+	if err != nil {
+		return errors.Wrap(err, "parsing version string as uint64")
+	}
+
+	p.Version = version
+	p.VNetID = req.VNetID
+	p.SubnetName = req.SubnetName
+	p.IPv4Addrs = req.IPv4Addrs
+	p.Policies = req.Policies
+	p.VlanID = req.VlanID
+	p.GREKey = req.GREKey
+
+	return nil
 }
 
 // Body marshals the JSON fields of the request and produces an Reader intended
@@ -94,10 +154,20 @@ func (p *PutNetworkContainerRequest) Path() string {
 func (p *PutNetworkContainerRequest) Validate() error {
 	err := internal.ValidationError{}
 
-	if p.Version == 0 {
-		err.MissingFields = append(err.MissingFields, "Version")
+	// URL requirements:
+	if p.PrimaryAddress == "" {
+		err.MissingFields = append(err.MissingFields, "PrimaryAddress")
 	}
 
+	if p.ID == "" {
+		err.MissingFields = append(err.MissingFields, "ID")
+	}
+
+	if p.AuthenticationToken == "" {
+		err.MissingFields = append(err.MissingFields, "AuthenticationToken")
+	}
+
+	// Documented requirements:
 	if p.SubnetName == "" {
 		err.MissingFields = append(err.MissingFields, "SubnetName")
 	}
