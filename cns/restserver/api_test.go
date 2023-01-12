@@ -849,6 +849,24 @@ func publishNCViaCNS(
 		return fmt.Errorf("unsuccessful request. exp: %d, got: %d", expStatus, gotStatus)
 	}
 
+	// ensure that there is an NMA body for legacy purposes
+	nmaResp := make(map[string]any)
+	err = json.Unmarshal(resp.PublishResponseBody, &nmaResp)
+	if err != nil {
+		return fmt.Errorf("decoding response body from nmagent: %w", err)
+	}
+
+	if statusStr, ok := nmaResp["httpStatusCode"]; ok {
+		bodyStatus, err := strconv.Atoi(statusStr.(string))
+		if err != nil {
+			return fmt.Errorf("parsing http status string from nmagent: %w", err)
+		}
+
+		if bodyStatus != expStatus {
+			return fmt.Errorf("unexpected status in body. exp: %d, got %d", expStatus, bodyStatus)
+		}
+	}
+
 	fmt.Printf("PublishNetworkContainer succeded with response %+v, raw:%+v\n", resp, w.Body)
 	return nil
 }

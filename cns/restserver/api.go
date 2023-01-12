@@ -1159,12 +1159,11 @@ func (service *HTTPRestService) publishNetworkContainer(w http.ResponseWriter, r
 	ctx := r.Context()
 
 	var (
-		req                 cns.PublishNetworkContainerRequest
-		returnCode          types.ResponseCode
-		returnMessage       string
-		publishResponseBody []byte
-		publishErrorStr     string
-		isNetworkJoined     bool
+		req             cns.PublishNetworkContainerRequest
+		returnCode      types.ResponseCode
+		returnMessage   string
+		publishErrorStr string
+		isNetworkJoined bool
 	)
 
 	// publishing is assumed to succeed unless some other error handling sets it
@@ -1248,6 +1247,13 @@ func (service *HTTPRestService) publishNetworkContainer(w http.ResponseWriter, r
 		returnCode = types.UnsupportedVerb
 	}
 
+	// this is an ugly hack because DNC depends on checking this status code,
+	// even though it's no longer necessary for it to do so. It does not need to
+	// handle retries because retries will be handled by the nmagent client in
+	// CNS. However, there are versions of DNC out there that still rely on this
+	// body being present.
+	publishResponseBody := fmt.Sprintf(`{"httpStatusCode":"%d"}`, publishStatusCode)
+
 	response := cns.PublishNetworkContainerResponse{
 		Response: cns.Response{
 			ReturnCode: returnCode,
@@ -1255,7 +1261,7 @@ func (service *HTTPRestService) publishNetworkContainer(w http.ResponseWriter, r
 		},
 		PublishErrorStr:     publishErrorStr,
 		PublishStatusCode:   publishStatusCode,
-		PublishResponseBody: publishResponseBody,
+		PublishResponseBody: []byte(publishResponseBody),
 	}
 
 	err = service.Listener.Encode(w, &response)
