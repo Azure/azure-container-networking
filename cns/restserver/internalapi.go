@@ -123,7 +123,8 @@ func (service *HTTPRestService) SyncNodeStatus(dncEP, infraVnet, nodeID string, 
 
 			w := httptest.NewRecorder()
 			service.createOrUpdateNetworkContainer(w, req)
-			if w.Result().StatusCode == http.StatusOK {
+			result := w.Result()
+			if result.StatusCode == http.StatusOK {
 				var resp cns.CreateNetworkContainerResponse
 				if err = json.Unmarshal(w.Body.Bytes(), &resp); err == nil && resp.Response.ReturnCode == types.Success {
 					service.Lock()
@@ -133,7 +134,7 @@ func (service *HTTPRestService) SyncNodeStatus(dncEP, infraVnet, nodeID string, 
 					service.Unlock()
 				}
 			}
-			w.Result().Body.Close()
+			result.Body.Close()
 		}
 	}
 
@@ -197,8 +198,6 @@ func (service *HTTPRestService) syncHostNCVersion(ctx context.Context, channelMo
 	if len(outdatedNCs) == 0 {
 		return nil
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), nmaAPICallTimeout)
-	defer cancel()
 	ncVersionListResp, err := service.nma.GetNCVersionList(ctx)
 	if err != nil {
 		return errors.Wrap(err, "failed to get nc version list from nmagent")
