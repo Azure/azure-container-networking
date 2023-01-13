@@ -5,6 +5,7 @@ package network
 
 import (
 	"net"
+	"runtime"
 	"sync"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 	"github.com/Azure/azure-container-networking/netlink"
 	"github.com/Azure/azure-container-networking/platform"
 	"github.com/Azure/azure-container-networking/store"
+	"github.com/pkg/errors"
 )
 
 const (
@@ -127,6 +129,22 @@ func (nm *networkManager) restore(isRehydrationRequired bool) error {
 	// After a reboot, all address resources are implicitly released.
 	// Ignore the persisted state if it is older than the last reboot time.
 
+	// Acquiring store lock at this stage for optimization purpuses on Windows
+	if runtime.GOOS == "windows" {
+		// Acquire store lock.
+		if err := nm.store.Lock(store.DefaultLockTimeout); err != nil {
+			log.Printf("[cni] Failed to lock store: %v.", err)
+			return errors.Wrap(err, "error Acquiring store lock")
+		}
+		// Remove the lock on the key-value store
+		defer func() {
+			err := nm.store.Unlock()
+			if err != nil {
+				log.Printf("[cni] Failed to unlock store: %v.", err)
+			}
+		}()
+	}
+
 	// Read any persisted state.
 	err := nm.store.Read(storeKey, nm)
 	if err != nil {
@@ -170,7 +188,6 @@ func (nm *networkManager) restore(isRehydrationRequired bool) error {
 					for extIfName := range nm.ExternalInterfaces {
 						delete(nm.ExternalInterfaces, extIfName)
 					}
-
 					return nil
 				}
 			}
@@ -224,6 +241,22 @@ func (nm *networkManager) save() error {
 
 	// Update time stamp.
 	nm.TimeStamp = time.Now()
+
+	// Acquiring store lock at this stage for optimization purpuses on Windows
+	if runtime.GOOS == "windows" {
+		// Acquire store lock.
+		if err := nm.store.Lock(store.DefaultLockTimeout); err != nil {
+			log.Printf("[cni] Failed to lock store: %v.", err)
+			return errors.Wrap(err, "error Acquiring store lock")
+		}
+		// Remove the lock on the key-value store
+		defer func() {
+			err := nm.store.Unlock()
+			if err != nil {
+				log.Printf("[cni] Failed to unlock store: %v.", err)
+			}
+		}()
+	}
 
 	err := nm.store.Write(storeKey, nm)
 	if err == nil {

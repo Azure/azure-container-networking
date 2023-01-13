@@ -510,13 +510,13 @@ func main() {
 	z, _ := zap.NewProduction()
 	go healthserver.Start(z, cnsconfig.MetricsBindAddress)
 
-	nmaConfig, err := cnsconfig.NMAgentConfig()
+	nmaConfig, err := nmagent.NewConfig(cnsconfig.WireserverIP)
 	if err != nil {
-		logger.Errorf("[Azure CNS] Failed to produce NMAgent config from supplied configuration: %v", err)
+		logger.Errorf("[Azure CNS] Failed to produce NMAgent config from the supplied wireserver ip: %v", err)
 		return
 	}
 
-	nmaClient, err := nmagent.NewClient(nmagent.Config(nmaConfig))
+	nmaClient, err := nmagent.NewClient(nmaConfig)
 	if err != nil {
 		logger.Errorf("[Azure CNS] Failed to start nmagent client due to error: %v", err)
 		return
@@ -660,6 +660,13 @@ func main() {
 		}
 	}
 
+	// Setting the remote ARP MAC address to 12-34-56-78-9a-bc on windows for external traffic
+	err = platform.SetSdnRemoteArpMacAddress()
+	if err != nil {
+		logger.Errorf("Failed to set remote ARP MAC address: %v", err)
+		return
+	}
+
 	// Initialze state in if CNS is running in CRD mode
 	// State must be initialized before we start HTTPRestService
 	if config.ChannelMode == cns.CRD {
@@ -697,12 +704,6 @@ func main() {
 			return
 		}
 
-		// Setting the remote ARP MAC address to 12-34-56-78-9a-bc on windows for external traffic
-		err = platform.SetSdnRemoteArpMacAddress()
-		if err != nil {
-			logger.Errorf("Failed to set remote ARP MAC address: %v", err)
-			return
-		}
 	}
 
 	// Initialize multi-tenant controller if the CNS is running in MultiTenantCRD mode.
@@ -714,12 +715,6 @@ func main() {
 			return
 		}
 
-		// Setting the remote ARP MAC address to 12-34-56-78-9a-bc on windows for external traffic
-		err = platform.SetSdnRemoteArpMacAddress()
-		if err != nil {
-			logger.Errorf("Failed to set remote ARP MAC address: %v", err)
-			return
-		}
 	}
 
 	logger.Printf("[Azure CNS] Start HTTP listener")
