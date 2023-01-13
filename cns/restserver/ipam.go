@@ -54,7 +54,7 @@ func (service *HTTPRestService) requestIPConfigHandler(w http.ResponseWriter, r 
 				ReturnCode: types.FailedToAllocateIPConfig,
 				Message:    fmt.Sprintf("AllocateIPConfig failed: %v, IP config request is %s", err, ipconfigRequest),
 			},
-			PodIPInfo: podIPInfo,
+			PodIpInfo: podIPInfo,
 		}
 		w.Header().Set(cnsReturnCode, reserveResp.Response.ReturnCode.String())
 		err = service.Listener.Encode(w, &reserveResp)
@@ -79,7 +79,7 @@ func (service *HTTPRestService) requestIPConfigHandler(w http.ResponseWriter, r 
 					ReturnCode: types.UnexpectedError,
 					Message:    fmt.Sprintf("Update endpoint state failed: %v ", err),
 				},
-				PodIPInfo: podIPInfo,
+				PodIpInfo: podIPInfo,
 			}
 			w.Header().Set(cnsReturnCode, reserveResp.Response.ReturnCode.String())
 			err = service.Listener.Encode(w, &reserveResp)
@@ -92,7 +92,7 @@ func (service *HTTPRestService) requestIPConfigHandler(w http.ResponseWriter, r 
 		Response: cns.Response{
 			ReturnCode: types.Success,
 		},
-		PodIPInfo: podIPInfo,
+		PodIpInfo: podIPInfo,
 	}
 	w.Header().Set(cnsReturnCode, reserveResp.Response.ReturnCode.String())
 	err = service.Listener.Encode(w, &reserveResp)
