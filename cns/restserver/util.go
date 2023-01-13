@@ -399,8 +399,8 @@ func (service *HTTPRestService) getNetworkContainerResponse(
 
 		if exists && !skipNCVersionCheck {
 			// If the goal state is available with CNS, check if the NC is pending VFP programming
-			waitingForUpdate, getNetworkContainerResponse.Response.ReturnCode, getNetworkContainerResponse.Response.Message =
-				service.isNCWaitingForUpdate(service.state.ContainerStatus[containerID].CreateNetworkContainerRequest.Version, containerID, nmaNCs)
+			waitingForUpdate, getNetworkContainerResponse.Response.ReturnCode, getNetworkContainerResponse.Response.Message = service.isNCWaitingForUpdate(
+				service.state.ContainerStatus[containerID].CreateNetworkContainerRequest.Version, containerID, nmaNCs)
 			// If the return code is not success, return the error to the caller
 			if getNetworkContainerResponse.Response.ReturnCode == types.NetworkContainerVfpProgramPending {
 				logger.Errorf("[Azure-CNS] isNCWaitingForUpdate failed for NC: %s with error: %s",
