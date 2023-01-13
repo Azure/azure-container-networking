@@ -286,6 +286,9 @@ skopeo-export: # util target to copy a container from containers-storage to the 
 acncli-image-name: # util target to print the CNI manager image name.
 	@echo $(ACNCLI_IMAGE)
 
+acncli-image-name-and-tag: # util target to print the CNI manager image name and tag.
+	@echo $(IMAGE_REGISTRY)/$(ACNCLI_IMAGE):$(ACNCLI_PLATFORM_TAG)
+
 acncli-image: ## build cni-manager container image.
 	$(MAKE) container \
 		DOCKERFILE=tools/acncli/Dockerfile \
@@ -310,6 +313,9 @@ acncli-skopeo-export:
 
 cni-dropgz-image-name: # util target to print the CNI dropgz image name.
 	@echo $(CNI_DROPGZ_IMAGE)
+
+cni-dropgz-image-name-and-tag: # util target to print the CNI dropgz image name and tag.
+	@echo $(IMAGE_REGISTRY)/$(CNI_DROPGZ_IMAGE):$(CNI_DROPGZ_PLATFORM_TAG)
 
 cni-dropgz-image: ## build cni-dropgz container image.
 	$(MAKE) container \
@@ -337,6 +343,9 @@ cni-dropgz-skopeo-export:
 cni-dropgz-test-image-name: # util target to print the CNI dropgz test image name.
 	@echo $(CNI_DROPGZ_TEST_IMAGE)
 
+cni-dropgz-test-image-name-and-tag: # util target to print the CNI dropgz test image name and tag.
+	@echo $(IMAGE_REGISTRY)/$(CNI_DROPGZ_TEST_IMAGE):$(CNI_DROPGZ_TEST_PLATFORM_TAG)
+
 cni-dropgz-test-image: ## build cni-dropgz-test container image.
 	$(MAKE) container \
 		DOCKERFILE=dropgz/build/cniTest.Dockerfile \
@@ -363,6 +372,9 @@ cni-dropgz-test-skopeo-export:
 cns-image-name: # util target to print the CNS image name
 	@echo $(CNS_IMAGE)
 
+cns-image-name-and-tag: # util target to print the CNS image name and tag.
+	@echo $(IMAGE_REGISTRY)/$(CNS_IMAGE):$(CNS_PLATFORM_TAG)
+
 cns-image: ## build cns container image.
 	$(MAKE) container \
 		DOCKERFILE=cns/Dockerfile \
@@ -388,6 +400,9 @@ cns-skopeo-export:
 
 npm-image-name: # util target to print the NPM image name
 	@echo $(NPM_IMAGE)
+
+npm-image-name-and-tag: # util target to print the NPM image name and tag.
+	@echo $(IMAGE_REGISTRY)/$(NPM_IMAGE):$(NPM_PLATFORM_TAG)
 
 npm-image: ## build the npm container image.
 	$(MAKE) container-$(CONTAINER_BUILDER) \
