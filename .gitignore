@@ -1,12 +1,4 @@
 # Binaries
-*.txt
-debug/windows/npm/win-debug.sh
-test/mystuff2/*
-e2e-results/*
-debug/windows/npm/old-examples-of-logs/
-npm/pkg/controlplane/controllers/v2/results-for-empty-ip-final-commit/
-npm/pkg/controlplane/controllers/v2/test.sh
-
 out/*
 output/*
 
