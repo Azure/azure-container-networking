@@ -282,8 +282,9 @@ jobs:
           }
 
           runConformanceWindows () {
-            git clone https://github.com/huntergregory/kubernetes.git --depth=1 --branch=sleep-before-probing
+            git clone https://github.com/huntergregory/kubernetes.git
             cd kubernetes
+            git checkout sleep-before-probing
             export PATH=$PATH:/usr/local/go/bin/
             make WHAT=test/e2e/e2e.test
             cd ..
