@@ -53,7 +53,8 @@ func NewCNSInvoker(podName, namespace string, cnsClient cnsclient, executionMode
 	}
 }
 
-// Add uses the requestipconfig API in cns, and returns ipv4 and ipv6
+// ryand IPv6 not currently supported
+// Add uses the requestipconfig API in cns, and returns ipv4 and a nil ipv6 as CNS doesn't support IPv6 yet
 func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, error) {
 	// Parse Pod arguments.
 	podInfo := cns.KubernetesPodInfo{
@@ -86,15 +87,15 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 
 	addResult := IPAMAddResult{}
 
-	for i := 0; i < len(response.PodIPInfo); i++ {
+	for i := 0; i < len(response.PodIpInfo); i++ {
 		info := IPResultInfo{
-			podIPAddress:       response.PodIPInfo[i].PodIPConfig.IPAddress,
-			ncSubnetPrefix:     response.PodIPInfo[i].NetworkContainerPrimaryIPConfig.IPSubnet.PrefixLength,
-			ncPrimaryIP:        response.PodIPInfo[i].NetworkContainerPrimaryIPConfig.IPSubnet.IPAddress,
-			ncGatewayIPAddress: response.PodIPInfo[i].NetworkContainerPrimaryIPConfig.GatewayIPAddress,
-			hostSubnet:         response.PodIPInfo[i].HostPrimaryIPInfo.Subnet,
-			hostPrimaryIP:      response.PodIPInfo[i].HostPrimaryIPInfo.PrimaryIP,
-			hostGateway:        response.PodIPInfo[i].HostPrimaryIPInfo.Gateway,
+			podIPAddress:       response.PodIpInfo[i].PodIPConfig.IPAddress,
+			ncSubnetPrefix:     response.PodIpInfo[i].NetworkContainerPrimaryIPConfig.IPSubnet.PrefixLength,
+			ncPrimaryIP:        response.PodIpInfo[i].NetworkContainerPrimaryIPConfig.IPSubnet.IPAddress,
+			ncGatewayIPAddress: response.PodIpInfo[i].NetworkContainerPrimaryIPConfig.GatewayIPAddress,
+			hostSubnet:         response.PodIpInfo[i].HostPrimaryIPInfo.Subnet,
+			hostPrimaryIP:      response.PodIpInfo[i].HostPrimaryIPInfo.PrimaryIP,
+			hostGateway:        response.PodIpInfo[i].HostPrimaryIPInfo.Gateway,
 		}
 
 		// set the NC Primary IP in options

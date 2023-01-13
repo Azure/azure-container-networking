@@ -67,19 +67,19 @@ func NewPodState(ipaddress string, prefixLength uint8, id, ncid string, state ty
 }
 
 func requestIPAddressAndGetState(t *testing.T, req cns.IPConfigRequest) (cns.IPConfigurationStatus, error) {
-	PodIPInfo, err := requestIPConfigHelper(svc, req)
+	PodIpInfo, err := requestIPConfigHelper(svc, req)
 	if err != nil {
 		return cns.IPConfigurationStatus{}, err
 	}
 
-	for i := range PodIPInfo {
-		assert.Equal(t, primaryIp, PodIPInfo[i].NetworkContainerPrimaryIPConfig.IPSubnet.IPAddress)
-		assert.Equal(t, subnetPrfixLength, int(PodIPInfo[i].NetworkContainerPrimaryIPConfig.IPSubnet.PrefixLength))
-		assert.Equal(t, dnsservers, PodIPInfo[i].NetworkContainerPrimaryIPConfig.DNSServers)
-		assert.Equal(t, gatewayIp, PodIPInfo[i].NetworkContainerPrimaryIPConfig.GatewayIPAddress)
-		assert.Equal(t, subnetPrfixLength, int(PodIPInfo[i].PodIPConfig.PrefixLength))
-		assert.Equal(t, fakes.HostPrimaryIP, PodIPInfo[i].HostPrimaryIPInfo.PrimaryIP)
-		assert.Equal(t, fakes.HostSubnet, PodIPInfo[i].HostPrimaryIPInfo.Subnet)
+	for i := range PodIpInfo {
+		assert.Equal(t, primaryIp, PodIpInfo[i].NetworkContainerPrimaryIPConfig.IPSubnet.IPAddress)
+		assert.Equal(t, subnetPrfixLength, int(PodIpInfo[i].NetworkContainerPrimaryIPConfig.IPSubnet.PrefixLength))
+		assert.Equal(t, dnsservers, PodIpInfo[i].NetworkContainerPrimaryIPConfig.DNSServers)
+		assert.Equal(t, gatewayIp, PodIpInfo[i].NetworkContainerPrimaryIPConfig.GatewayIPAddress)
+		assert.Equal(t, subnetPrfixLength, int(PodIpInfo[i].PodIPConfig.PrefixLength))
+		assert.Equal(t, fakes.HostPrimaryIP, PodIpInfo[i].HostPrimaryIPInfo.PrimaryIP)
+		assert.Equal(t, fakes.HostSubnet, PodIpInfo[i].HostPrimaryIPInfo.Subnet)
 	}
 
 	// retrieve podinfo from orchestrator context
@@ -88,7 +88,7 @@ func requestIPAddressAndGetState(t *testing.T, req cns.IPConfigRequest) (cns.IPC
 		return cns.IPConfigurationStatus{}, errors.Wrap(err, "failed to unmarshal pod info")
 	}
 
-	ipID := svc.PodIPIDByPodInterfaceKey[podInfo.Key()]
+	ipID := svc.PodIPIDByPodInterfaceKey[podInfo.Key()][0]
 	return svc.PodIPConfigState[ipID], nil
 }
 
@@ -123,7 +123,7 @@ func UpdatePodIpConfigState(t *testing.T, svc *HTTPRestService, ipconfigs map[st
 	// update ipconfigs to expected state
 	for ipId, ipconfig := range ipconfigs {
 		if ipconfig.GetState() == types.Assigned {
-			svc.PodIPIDByPodInterfaceKey[ipconfig.PodInfo.Key()] = ipId
+			svc.PodIPIDByPodInterfaceKey[ipconfig.PodInfo.Key()][0] = ipId
 			svc.PodIPConfigState[ipId] = ipconfig
 		}
 	}
@@ -231,7 +231,7 @@ func TestIPAMGetNextAvailableIPConfig(t *testing.T) {
 	svc := getTestService()
 
 	// Add already assigned pod ip to state
-	svc.PodIPIDByPodInterfaceKey[testPod1Info.Key()] = testPod1GUID
+	svc.PodIPIDByPodInterfaceKey[testPod1Info.Key()][0] = testPod1GUID
 	state1, _ := NewPodStateWithOrchestratorContext(testIP1, testPod1GUID, testNCID, types.Assigned, 24, 0, testPod1Info)
 	state2 := NewPodState(testIP2, 24, testPod2GUID, testNCID, types.Available, 0)
 
@@ -747,7 +747,7 @@ func TestIPAMMarkExistingIPConfigAsPending(t *testing.T) {
 	svc := getTestService()
 
 	// Add already assigned pod ip to state
-	svc.PodIPIDByPodInterfaceKey[testPod1Info.Key()] = testPod1GUID
+	svc.PodIPIDByPodInterfaceKey[testPod1Info.Key()][0] = testPod1GUID
 	state1, _ := NewPodStateWithOrchestratorContext(testIP1, testPod1GUID, testNCID, types.Assigned, 24, 0, testPod1Info)
 	state2 := NewPodState(testIP2, 24, testPod2GUID, testNCID, types.Available, 0)
 

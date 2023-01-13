@@ -4,6 +4,7 @@
 package restserver
 
 import (
+	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
@@ -87,7 +88,7 @@ func (service *HTTPRestService) requestIPConfigHandler(w http.ResponseWriter, r 
 		}
 	}
 
-	reserveResp := &cns.IPConfigResponse{
+	reserveResp := cns.IPConfigResponse{
 		Response: cns.Response{
 			ReturnCode: types.Success,
 		},
@@ -113,6 +114,11 @@ func (service *HTTPRestService) updateEndpointState(ipconfigRequest cns.IPConfig
 	for i := range podIPInfo {
 		if endpointInfo, ok := service.EndpointState[ipconfigRequest.InfraContainerID]; ok {
 			logger.Warnf("[updateEndpointState] Found existing endpoint state for infra container %s", ipconfigRequest.InfraContainerID)
+			JsonData, err := json.Marshal(&podIPInfo[i])
+			if err != nil {
+				return err
+			}
+			logger.Warnf(string(JsonData))
 			ip := net.ParseIP(podIPInfo[i].PodIPConfig.IPAddress)
 			if ip == nil {
 				logger.Errorf("failed to parse pod ip address %s", podIPInfo[i].PodIPConfig.IPAddress)
@@ -143,6 +149,11 @@ func (service *HTTPRestService) updateEndpointState(ipconfigRequest cns.IPConfig
 		} else {
 			endpointInfo := &EndpointInfo{PodName: podInfo.Name(), PodNamespace: podInfo.Namespace(), IfnameToIPMap: make(map[string]*IPInfo)}
 			ip := net.ParseIP(podIPInfo[i].PodIPConfig.IPAddress)
+			JsonData, err := json.Marshal(&podIPInfo[i])
+			if err != nil {
+				return err
+			}
+			logger.Warnf(string(JsonData))
 			if ip == nil {
 				logger.Errorf("failed to parse pod ip address %s", podIPInfo[i].PodIPConfig.IPAddress)
 				return errParsePodIPFailed
@@ -415,7 +426,13 @@ func (service *HTTPRestService) assignIPConfig(ipconfig cns.IPConfigurationStatu
 		return err
 	}
 
-	service.PodIPIDByPodInterfaceKey[podInfo.Key()] = ipconfig.ID
+	if service.PodIPIDByPodInterfaceKey[podInfo.Key()] == nil {
+		logger.Printf("IP config initialized")
+		service.PodIPIDByPodInterfaceKey[podInfo.Key()] = make([]string, 0)
+	}
+
+	service.PodIPIDByPodInterfaceKey[podInfo.Key()] = append(service.PodIPIDByPodInterfaceKey[podInfo.Key()], ipconfig.ID)
+
 	return nil
 }
 
@@ -438,24 +455,25 @@ func (service *HTTPRestService) releaseIPConfig(podInfo cns.PodInfo) error {
 	service.Lock()
 	defer service.Unlock()
 
-	ipID := service.PodIPIDByPodInterfaceKey[podInfo.Key()]
-	if ipID != "" {
-		if ipconfig, isExist := service.PodIPConfigState[ipID]; isExist {
-			logger.Printf("[releaseIPConfig] Releasing IP %+v for pod %+v", ipconfig.IPAddress, podInfo)
-			_, err := service.unassignIPConfig(ipconfig, podInfo)
-			if err != nil {
-				return fmt.Errorf("[releaseIPConfig] failed to mark IPConfig [%+v] as Available. err: %v", ipconfig, err)
+	for _, ipID := range service.PodIPIDByPodInterfaceKey[podInfo.Key()] {
+		if ipID != "" {
+			if ipconfig, isExist := service.PodIPConfigState[ipID]; isExist {
+				logger.Printf("[releaseIPConfig] Releasing IP %+v for pod %+v", ipconfig.IPAddress, podInfo)
+				_, err := service.unassignIPConfig(ipconfig, podInfo)
+				if err != nil {
+					return fmt.Errorf("[releaseIPConfig] failed to mark IPConfig [%+v] as Available. err: %v", ipconfig, err)
+				}
+				logger.Printf("[releaseIPConfig] Released IP %+v for pod %+v", ipconfig.IPAddress, podInfo)
+			} else {
+				logger.Errorf("[releaseIPConfig] Failed to get release ipconfig %+v and pod info is %+v. Pod to IPID exists, but IPID to IPConfig doesn't exist, CNS State potentially corrupt",
+					ipconfig.IPAddress, podInfo)
+				return fmt.Errorf("[releaseIPConfig] releaseIPConfig failed. IPconfig %+v and pod info is %+v. Pod to IPID exists, but IPID to IPConfig doesn't exist, CNS State potentially corrupt",
+					ipconfig.IPAddress, podInfo)
 			}
-			logger.Printf("[releaseIPConfig] Released IP %+v for pod %+v", ipconfig.IPAddress, podInfo)
 		} else {
-			logger.Errorf("[releaseIPConfig] Failed to get release ipconfig %+v and pod info is %+v. Pod to IPID exists, but IPID to IPConfig doesn't exist, CNS State potentially corrupt",
-				ipconfig.IPAddress, podInfo)
-			return fmt.Errorf("[releaseIPConfig] releaseIPConfig failed. IPconfig %+v and pod info is %+v. Pod to IPID exists, but IPID to IPConfig doesn't exist, CNS State potentially corrupt",
-				ipconfig.IPAddress, podInfo)
+			logger.Errorf("[releaseIPConfig] SetIPConfigAsAvailable ignoring request to release, no allocation found for pod [%+v]", podInfo)
+			return nil
 		}
-	} else {
-		logger.Errorf("[releaseIPConfig] SetIPConfigAsAvailable ignoring request to release, no allocation found for pod [%+v]", podInfo)
-		return nil
 	}
 	return nil
 }
@@ -490,15 +508,16 @@ func (service *HTTPRestService) GetExistingIPConfig(podInfo cns.PodInfo) ([]cns.
 	service.RLock()
 	defer service.RUnlock()
 
-	ipID := service.PodIPIDByPodInterfaceKey[podInfo.Key()]
-	if ipID != "" {
-		if ipState, isExist := service.PodIPConfigState[ipID]; isExist {
-			err := service.populateIPConfigInfoUntransacted(ipState, &podIpInfo[0])
-			return podIpInfo, isExist, err
-		}
+	for _, ipID := range service.PodIPIDByPodInterfaceKey[podInfo.Key()] {
+		if ipID != "" {
+			if ipState, isExist := service.PodIPConfigState[ipID]; isExist {
+				err := service.populateIPConfigInfoUntransacted(ipState, &podIpInfo[0])
+				return podIpInfo, isExist, err
+			}
 
-		logger.Errorf("Failed to get existing ipconfig. Pod to IPID exists, but IPID to IPConfig doesn't exist, CNS State potentially corrupt")
-		return podIpInfo, isExist, fmt.Errorf("Failed to get existing ipconfig. Pod to IPID exists, but IPID to IPConfig doesn't exist, CNS State potentially corrupt")
+			logger.Errorf("Failed to get existing ipconfig. Pod to IPID exists, but IPID to IPConfig doesn't exist, CNS State potentially corrupt")
+			return podIpInfo, isExist, fmt.Errorf("Failed to get existing ipconfig. Pod to IPID exists, but IPID to IPConfig doesn't exist, CNS State potentially corrupt")
+		}
 	}
 
 	return podIpInfo, isExist, nil
@@ -506,6 +525,7 @@ func (service *HTTPRestService) GetExistingIPConfig(podInfo cns.PodInfo) ([]cns.
 
 func (service *HTTPRestService) AssignDesiredIPConfig(podInfo cns.PodInfo, desiredIPAddress string) ([]cns.PodIpInfo, error) {
 	var podIpInfo []cns.PodIpInfo
+	podIpInfo = make([]cns.PodIpInfo, 2)
 	service.Lock()
 	defer service.Unlock()
 
@@ -540,8 +560,8 @@ func (service *HTTPRestService) AssignDesiredIPConfig(podInfo cns.PodInfo, desir
 func (service *HTTPRestService) AssignAnyAvailableIPConfig(podInfo cns.PodInfo) ([]cns.PodIpInfo, error) {
 	service.Lock()
 	defer service.Unlock()
-
-	var podIPInfo []cns.PodIpInfo
+	var podIpInfo []cns.PodIpInfo
+	podIpInfo = make([]cns.PodIpInfo, 2)
 
 	for _, ipState := range service.PodIPConfigState {
 		address, err := netip.ParseAddr(ipState.IPAddress)
@@ -552,13 +572,18 @@ func (service *HTTPRestService) AssignAnyAvailableIPConfig(podInfo cns.PodInfo) 
 			if err := service.assignIPConfig(ipState, podInfo); err != nil {
 				return []cns.PodIpInfo{}, err
 			}
-			if err := service.populateIPConfigInfoUntransacted(ipState, &podIPInfo[0]); err != nil {
+
+			if err := service.populateIPConfigInfoUntransacted(ipState, &podIpInfo[0]); err != nil {
 				return []cns.PodIpInfo{}, err
 			}
 			break
 		}
 	}
-
+	JsonData, err := json.Marshal(&podIpInfo[0])
+	if err != nil {
+		return []cns.PodIpInfo{}, err
+	}
+	logger.Warnf(string(JsonData))
 	// going to change this to be a helper method that passes in Ip rules based on labels, hard coding to test
 	for _, ipState := range service.PodIPConfigState {
 		address, err := netip.ParseAddr(ipState.IPAddress)
@@ -569,11 +594,15 @@ func (service *HTTPRestService) AssignAnyAvailableIPConfig(podInfo cns.PodInfo) 
 			if err := service.assignIPConfig(ipState, podInfo); err != nil {
 				return []cns.PodIpInfo{}, err
 			}
-			if err := service.populateIPConfigInfoUntransacted(ipState, &podIPInfo[1]); err != nil {
+			if err := service.populateIPConfigInfoUntransacted(ipState, &podIpInfo[1]); err != nil {
 				return []cns.PodIpInfo{}, err
 			}
-
-			return podIPInfo, nil
+			JsonData, err := json.Marshal(&podIpInfo[1])
+			if err != nil {
+				return []cns.PodIpInfo{}, err
+			}
+			logger.Warnf(string(JsonData))
+			return podIpInfo, nil
 		}
 	}
 	//nolint:goerr113

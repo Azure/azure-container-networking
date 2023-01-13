@@ -359,7 +359,7 @@ func (c *Client) GetIPAddressesMatchingStates(ctx context.Context, stateFilter .
 }
 
 // GetPodOrchestratorContext calls GetPodIpOrchestratorContext API on CNS
-func (c *Client) GetPodOrchestratorContext(ctx context.Context) (map[string]string, error) {
+func (c *Client) GetPodOrchestratorContext(ctx context.Context) (map[string][]string, error) {
 	u := c.routes[cns.PathDebugPodContext]
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
 	if err != nil {

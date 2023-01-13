@@ -58,13 +58,13 @@ type HTTPRestService struct {
 	nma                      nmagentClient
 	homeAzMonitor            *HomeAzMonitor
 	networkContainer         *networkcontainers.NetworkContainers
-	PodIPIDByPodInterfaceKey map[string]string                    // PodInterfaceId is key and value is Pod IP (SecondaryIP) uuid.
-	PodIPConfigState         map[string]cns.IPConfigurationStatus // Secondary IP ID(uuid) is key
-	IPAMPoolMonitor          cns.IPAMPoolMonitor
-	routingTable             *routes.RoutingTable
-	store                    store.KeyValueStore
-	state                    *httpRestServiceState
-	podsPendingIPAssignment  *bounded.TimedSet
+	PodIPIDByPodInterfaceKey map[string][]string // PodInterfaceId is key and value is Pod IP (SecondaryIP) uuid.
+	PodIPConfigState        map[string]cns.IPConfigurationStatus // Secondary IP ID(uuid) is key
+	IPAMPoolMonitor         cns.IPAMPoolMonitor
+	routingTable            *routes.RoutingTable
+	store                   store.KeyValueStore
+	state                   *httpRestServiceState
+	podsPendingIPAssignment *bounded.TimedSet
 	sync.RWMutex
 	dncPartitionKey         string
 	EndpointState           map[string]*EndpointInfo // key : container id
@@ -106,7 +106,7 @@ type GetHTTPServiceDataResponse struct {
 
 // HTTPRestServiceData represents in-memory CNS data in the debug API paths.
 type HTTPRestServiceData struct {
-	PodIPIDByPodInterfaceKey map[string]string                    // PodInterfaceId is key and value is Pod IP uuid.
+	PodIPIDByPodInterfaceKey map[string][]string                  // PodInterfaceId is key and value is Pod IP uuid.
 	PodIPConfigState         map[string]cns.IPConfigurationStatus // secondaryipid(uuid) is key
 	IPAMPoolMonitor          cns.IpamPoolMonitorStateSnapshot
 }
@@ -182,7 +182,7 @@ func NewHTTPRestService(config *common.ServiceConfig, wscli interfaceGetter, nma
 		primaryInterface: primaryInterface,
 	}
 
-	podIPIDByPodInterfaceKey := make(map[string]string)
+	podIPIDByPodInterfaceKey := make(map[string][]string)
 	podIPConfigState := make(map[string]cns.IPConfigurationStatus)
 
 	if gen == nil {
