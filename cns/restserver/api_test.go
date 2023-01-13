@@ -630,18 +630,19 @@ func TestGetNetworkContainerVersionStatus(t *testing.T) {
 		podNamespace: "testpodnamespace",
 	}
 
+	errStr := "testError"
 	mnma.GetNCVersionListF = func(_ context.Context) (nmagent.NCVersionList, error) {
 		rsp := nmagent.NCVersionList{
 			Containers: []nmagent.NCVersion{},
 		}
-		return rsp, errors.New("boom")
+		return rsp, errors.New(errStr)
 	}
 
 	mnma.JoinNetworkF = func(_ context.Context, _ nmagent.JoinNetworkRequest) error {
-		return errors.New("boom") //nolint:goerr113 // it's just a test
+		return err
 	}
 	mnma.PutNetworkContainerF = func(_ context.Context, _ *nmagent.PutNetworkContainerRequest) error {
-		return errors.New("boom") //nolint:goerr113 // it's just a test
+		return err
 	}
 
 	err = createNC(params)

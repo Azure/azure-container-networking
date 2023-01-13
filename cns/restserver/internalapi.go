@@ -93,7 +93,7 @@ func (service *HTTPRestService) SyncNodeStatus(dncEP, infraVnet, nodeID string, 
 	service.RUnlock()
 
 	skipNCVersionCheck := false
-	ctx, cancel := context.WithTimeout(context.Background(), ContextTimeOut)
+	ctx, cancel := context.WithTimeout(context.Background(), nmaAPICallTimeout)
 	defer cancel()
 	ncVersionListResp, err := service.nma.GetNCVersionList(ctx)
 	if err != nil {
@@ -108,16 +108,22 @@ func (service *HTTPRestService) SyncNodeStatus(dncEP, infraVnet, nodeID string, 
 		}
 
 		// check if the version is valid and save it to service state
-		for ncid, nc := range ncsToBeAdded {
-			waitingForUpdate, _, _ := service.isNCWaitingForUpdateV2(nc.Version, nc.NetworkContainerid, nmaNCs)
+		for ncid, _ := range ncsToBeAdded {
+			waitingForUpdate, _, _ := service.isNCWaitingForUpdate(ncsToBeAdded[ncid].Version, ncsToBeAdded[ncid].NetworkContainerid, nmaNCs)
 
-			body, _ = json.Marshal(nc)
-			req, _ = http.NewRequest(http.MethodPost, "", bytes.NewBuffer(body))
+			body, err = json.Marshal(ncsToBeAdded[ncid])
+			if err != nil {
+				logger.Errorf("[Azure-CNS] Failed to marshal nc with nc id %s and content %v", ncid, ncsToBeAdded[ncid])
+			}
+			req, err = http.NewRequest(http.MethodPost, "", bytes.NewBuffer(body))
+			if err != nil {
+				logger.Errorf("[Azure CNS] Error received while creating http POST request for nc %v", ncsToBeAdded[ncid])
+			}
 			req.Header.Set(common.ContentType, common.JsonContent)
 
 			w := httptest.NewRecorder()
 			service.createOrUpdateNetworkContainer(w, req)
-
+			defer w.Result().Body.Close()
 			if w.Result().StatusCode == http.StatusOK {
 				var resp cns.CreateNetworkContainerResponse
 				if err = json.Unmarshal(w.Body.Bytes(), &resp); err == nil && resp.Response.ReturnCode == types.Success {
@@ -191,7 +197,7 @@ func (service *HTTPRestService) syncHostNCVersion(ctx context.Context, channelMo
 	if len(outdatedNCs) == 0 {
 		return nil
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), ContextTimeOut)
+	ctx, cancel := context.WithTimeout(context.Background(), nmaAPICallTimeout)
 	defer cancel()
 	ncVersionListResp, err := service.nma.GetNCVersionList(ctx)
 	if err != nil {

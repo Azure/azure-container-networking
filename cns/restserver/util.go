@@ -385,7 +385,7 @@ func (service *HTTPRestService) getNetworkContainerResponse(
 		containerID, exists = service.state.ContainerIDByOrchestratorContext[podInfo.Name()+podInfo.Namespace()]
 
 		skipNCVersionCheck := false
-		ctx, cancel := context.WithTimeout(context.Background(), ContextTimeOut)
+		ctx, cancel := context.WithTimeout(context.Background(), nmaAPICallTimeout)
 		defer cancel()
 		ncVersionListResp, err := service.nma.GetNCVersionList(ctx)
 		if err != nil {
@@ -400,10 +400,10 @@ func (service *HTTPRestService) getNetworkContainerResponse(
 		if exists && !skipNCVersionCheck {
 			// If the goal state is available with CNS, check if the NC is pending VFP programming
 			waitingForUpdate, getNetworkContainerResponse.Response.ReturnCode, getNetworkContainerResponse.Response.Message =
-				service.isNCWaitingForUpdateV2(service.state.ContainerStatus[containerID].CreateNetworkContainerRequest.Version, containerID, nmaNCs)
+				service.isNCWaitingForUpdate(service.state.ContainerStatus[containerID].CreateNetworkContainerRequest.Version, containerID, nmaNCs)
 			// If the return code is not success, return the error to the caller
 			if getNetworkContainerResponse.Response.ReturnCode == types.NetworkContainerVfpProgramPending {
-				logger.Errorf("[Azure-CNS] isNCWaitingForUpdateV2 failed for NC: %s with error: %s",
+				logger.Errorf("[Azure-CNS] isNCWaitingForUpdate failed for NC: %s with error: %s",
 					containerID, getNetworkContainerResponse.Response.Message)
 				return getNetworkContainerResponse
 			}
@@ -548,7 +548,7 @@ func (service *HTTPRestService) attachOrDetachHelper(req cns.ConfigureContainerN
 	if service.ChannelMode == cns.Managed && operation == attach {
 		if ok {
 			if !existing.VfpUpdateComplete {
-				ctx, cancel := context.WithTimeout(context.Background(), ContextTimeOut)
+				ctx, cancel := context.WithTimeout(context.Background(), nmaAPICallTimeout)
 				defer cancel()
 				ncVersionListResp, err := service.nma.GetNCVersionList(ctx)
 				if err != nil {
@@ -562,7 +562,7 @@ func (service *HTTPRestService) attachOrDetachHelper(req cns.ConfigureContainerN
 				for _, nc := range ncVersionListResp.Containers {
 					nmaNCs[nc.NetworkContainerID] = nc.Version
 				}
-				_, returnCode, message := service.isNCWaitingForUpdateV2(existing.CreateNetworkContainerRequest.Version, req.NetworkContainerid, nmaNCs)
+				_, returnCode, message := service.isNCWaitingForUpdate(existing.CreateNetworkContainerRequest.Version, req.NetworkContainerid, nmaNCs)
 				if returnCode == types.NetworkContainerVfpProgramPending {
 					return cns.Response{
 						ReturnCode: returnCode,
@@ -801,13 +801,14 @@ func (service *HTTPRestService) populateIPConfigInfoUntransacted(ipConfigStatus 
 	return nil
 }
 
-// isNCWaitingForUpdateV2 :- Determine whether NC version on NMA matches programmed version
+// isNCWaitingForUpdate :- Determine whether NC version on NMA matches programmed version
 // Return error and waitingForUpdate as true only CNS gets response from NMAgent indicating
 // the VFP programming is pending
 // This returns success / waitingForUpdate as false in all other cases.
 // V2 is using the nmagent get nc version list api v2 which doesn't need authentication token
-func (service *HTTPRestService) isNCWaitingForUpdateV2(
-	ncVersion, ncid string, ncVersionList map[string]string) (waitingForUpdate bool, returnCode types.ResponseCode, message string) {
+func (service *HTTPRestService) isNCWaitingForUpdate(
+	ncVersion, ncid string, ncVersionList map[string]string,
+) (waitingForUpdate bool, returnCode types.ResponseCode, message string) {
 	ncStatus, ok := service.state.ContainerStatus[ncid]
 	if ok {
 		if ncStatus.VfpUpdateComplete &&
