@@ -20,7 +20,6 @@ import (
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/cns/wireserver"
 	"github.com/Azure/azure-container-networking/nmagent"
-	"github.com/Azure/azure-container-networking/platform"
 	"github.com/pkg/errors"
 )
 
@@ -920,6 +919,17 @@ func (service *HTTPRestService) getNetworkContainerByOrchestratorContext(w http.
 		return
 	}
 
+func (service *HTTPRestService) getNetworkContainerByOrchestratorContext(w http.ResponseWriter, r *http.Request) {
+	logger.Printf("[Azure CNS] getNetworkContainerByOrchestratorContext")
+
+	var req cns.GetNetworkContainerRequest
+
+	err := service.Listener.Decode(w, r, &req)
+	logger.Request(service.Name, &req, err)
+	if err != nil {
+		return
+	}
+
 	// getNetworkContainerByOrchestratorContext gets called for multitenancy and
 	// setting the SDNRemoteArpMacAddress regKey is essential for the multitenancy
 	// to work correctly in case of windows platform. Return if there is an error
@@ -927,7 +937,7 @@ func (service *HTTPRestService) getNetworkContainerByOrchestratorContext(w http.
 		logger.Printf("[Azure CNS] SetSdnRemoteArpMacAddress failed with error: %s", err.Error())
 		return
 	}
-
+	
 	getNetworkContainerResponses := service.getAllNetworkContainerResponses(req)
 	err = service.Listener.Encode(w, &getNetworkContainerResponses[0])
 	logger.Response(service.Name, getNetworkContainerResponses[0], getNetworkContainerResponses[0].Response.ReturnCode, err)
@@ -1173,7 +1183,7 @@ func (h *HTTPRestService) doPublish(ctx context.Context, req cns.PublishNetworkC
 	var innerReq nmagent.PutNetworkContainerRequest
 	err := json.Unmarshal(innerReqBytes, &innerReq)
 	if err != nil {
-		returnMessage := fmt.Sprintf("Failed to publish Network Container: %s", req.NetworkContainerID)
+		returnMessage := fmt.Sprintf("Failed to unmarshal embedded NC publish request for NC %s, with err: %v", req.NetworkContainerID, err)
 		returnCode := types.NetworkContainerPublishFailed
 		logger.Errorf("[Azure-CNS] %s", returnMessage)
 		return returnMessage, returnCode
@@ -1181,11 +1191,12 @@ func (h *HTTPRestService) doPublish(ctx context.Context, req cns.PublishNetworkC
 
 	innerReq.AuthenticationToken = ncParameters.AuthToken
 	innerReq.PrimaryAddress = ncParameters.AssociatedInterfaceID
+	innerReq.ID = req.NetworkContainerID
 
 	err = h.nma.PutNetworkContainer(ctx, &innerReq)
 	// nolint:bodyclose // existing code needs refactoring
 	if err != nil {
-		returnMessage := fmt.Sprintf("Failed to publish Network Container: %s", req.NetworkContainerID)
+		returnMessage := fmt.Sprintf("Failed to publish Network Container %s in put Network Container call, with err: %v", req.NetworkContainerID, err)
 		returnCode := types.NetworkContainerPublishFailed
 		logger.Errorf("[Azure-CNS] %s", returnMessage)
 		return returnMessage, returnCode
