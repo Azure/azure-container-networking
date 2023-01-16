@@ -622,6 +622,12 @@ func (plugin *NetPlugin) createNetworkInternal(
 		return nwInfo, fmt.Errorf("Failed to ParseCIDR for pod subnet prefix: %w", err)
 	}
 
+	var podSubnetV6Prefix *net.IPNet
+	_, podSubnetV6Prefix, err = net.ParseCIDR(ipamAddResult.ipv6Result.IPs[0].Address.String())
+	if err != nil {
+		return nwInfo, fmt.Errorf("Failed to ParseCIDR for pod subnet IPv6 prefix: %w", err)
+	}
+
 	// Create the network.
 	nwInfo = network.NetworkInfo{
 		Id:           networkID,
@@ -633,6 +639,11 @@ func (plugin *NetPlugin) createNetworkInternal(
 				Family:  platform.AfINET,
 				Prefix:  *podSubnetPrefix,
 				Gateway: ipamAddResult.ipv4Result.IPs[0].Gateway,
+			},
+			{
+				Family:  platform.AfINET6,
+				Prefix:  *podSubnetV6Prefix,
+				Gateway: ipamAddResult.ipv6Result.IPs[0].Gateway,
 			},
 		},
 		BridgeName:                    ipamAddConfig.nwCfg.Bridge,
