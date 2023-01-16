@@ -418,7 +418,7 @@ func (service *HTTPRestService) getAllNetworkContainerResponses(
 			}
 		}
 
-		for _, getNetworkContainerResponse := range getNetworkContainersResponse {
+		for _, getNetworkContainerResponse := range getNetworkContainersResponse { //nolint:gocritic // ignore copy
 			if getNetworkContainerResponse.Response.ReturnCode != 0 {
 				return getNetworkContainersResponse
 			}
