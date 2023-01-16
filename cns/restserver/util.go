@@ -418,6 +418,12 @@ func (service *HTTPRestService) getAllNetworkContainerResponses(
 			}
 		}
 
+		for _, getNetworkContainerResponse := range getNetworkContainersResponse {
+			if getNetworkContainerResponse.Response.ReturnCode != 0 {
+				return getNetworkContainersResponse
+			}
+		}
+
 		if service.ChannelMode == cns.Managed {
 			// If the NC goal state doesn't exist in CNS running in managed mode, call DNC to retrieve the goal state
 			var (
