@@ -874,14 +874,6 @@ func (service *HTTPRestService) getAllNetworkContainers(w http.ResponseWriter, r
 		return
 	}
 
-	// getAllNetworkContainers gets called for multitenancy and
-	// setting the SDNRemoteArpMacAddress regKey is essential for the multitenancy
-	// to work correctly in case of windows platform. Return if there is an error
-	if err = platform.SetSdnRemoteArpMacAddress(); err != nil {
-		logger.Printf("[Azure CNS] SetSdnRemoteArpMacAddress failed with error: %s", err.Error())
-		return
-	}
-
 	getAllNetworkContainerResponses := service.getAllNetworkContainerResponses(req)
 	logger.Printf("getAllNetworkContainerResponses are %+v", getAllNetworkContainerResponses)
 
@@ -919,25 +911,6 @@ func (service *HTTPRestService) getNetworkContainerByOrchestratorContext(w http.
 		return
 	}
 
-func (service *HTTPRestService) getNetworkContainerByOrchestratorContext(w http.ResponseWriter, r *http.Request) {
-	logger.Printf("[Azure CNS] getNetworkContainerByOrchestratorContext")
-
-	var req cns.GetNetworkContainerRequest
-
-	err := service.Listener.Decode(w, r, &req)
-	logger.Request(service.Name, &req, err)
-	if err != nil {
-		return
-	}
-
-	// getNetworkContainerByOrchestratorContext gets called for multitenancy and
-	// setting the SDNRemoteArpMacAddress regKey is essential for the multitenancy
-	// to work correctly in case of windows platform. Return if there is an error
-	if err = platform.SetSdnRemoteArpMacAddress(); err != nil {
-		logger.Printf("[Azure CNS] SetSdnRemoteArpMacAddress failed with error: %s", err.Error())
-		return
-	}
-	
 	getNetworkContainerResponses := service.getAllNetworkContainerResponses(req)
 	err = service.Listener.Encode(w, &getNetworkContainerResponses[0])
 	logger.Response(service.Name, getNetworkContainerResponses[0], getNetworkContainerResponses[0].Response.ReturnCode, err)
