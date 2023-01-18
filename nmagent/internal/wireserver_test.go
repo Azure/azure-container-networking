@@ -2,6 +2,7 @@ package internal
 
 import (
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -33,19 +34,35 @@ func TestWireserverTransportPathTransform(t *testing.T) {
 			"happy path",
 			http.MethodGet,
 			"/test/path",
-			"/machine/plugins/?comp=nmagent&type=test/path",
+			"/machine/plugins?comp=nmagent&type=test%2Fpath",
 		},
 		{
 			"empty",
 			http.MethodGet,
 			"",
-			"/machine/plugins/?comp=nmagent&type=",
+			"/machine/plugins?comp=nmagent&type=",
 		},
 		{
 			"monopath",
 			http.MethodGet,
 			"/foo",
-			"/machine/plugins/?comp=nmagent&type=foo",
+			"/machine/plugins?comp=nmagent&type=foo",
+		},
+		{
+			"publish",
+			http.MethodPost,
+			//nolint:lll // not a useful linter in a test
+			"/NetworkManagement/interfaces/10.224.0.33/networkContainers/99e8b0e0-3524-490b-b2ca-31928e6d75a3?authenticationToken=6e4f70a6-a379-4f76-8e7a-2ae18392dc07&api-version=1",
+			//nolint:lll // not a useful linter in a test
+			"/machine/plugins?comp=nmagent&type=NetworkManagement%2Finterfaces%2F10.224.0.33%2FnetworkContainers%2F99e8b0e0-3524-490b-b2ca-31928e6d75a3%2FauthenticationToken%2F6e4f70a6-a379-4f76-8e7a-2ae18392dc07%2Fapi-version%2F1",
+		},
+		{
+			"publish with munged uri",
+			http.MethodPost,
+			//nolint:lll // not a useful linter in a test
+			"/NetworkManagement/interfaces/10.224.0.33/networkContainers/99e8b0e0-3524-490b-b2ca-31928e6d75a3/authenticationToken/6e4f70a6-a379-4f76-8e7a-2ae18392dc07/api-version/1",
+			//nolint:lll // not a useful linter in a test
+			"/machine/plugins?comp=nmagent&type=NetworkManagement%2Finterfaces%2F10.224.0.33%2FnetworkContainers%2F99e8b0e0-3524-490b-b2ca-31928e6d75a3%2FauthenticationToken%2F6e4f70a6-a379-4f76-8e7a-2ae18392dc07%2Fapi-version%2F1",
 		},
 	}
 
@@ -59,7 +76,7 @@ func TestWireserverTransportPathTransform(t *testing.T) {
 				Transport: &WireserverTransport{
 					Transport: &TestTripper{
 						RoundTripF: func(r *http.Request) (*http.Response, error) {
-							got = r.URL.Path
+							got = r.URL.RequestURI()
 							rr := httptest.NewRecorder()
 							rr.WriteHeader(http.StatusOK)
 							_, _ = rr.WriteString(`{"httpStatusCode": "200"}`)
@@ -220,12 +237,16 @@ func TestWireserverTransportPostBody(t *testing.T) {
 	// all PUT and POST requests must have an empty string body
 	t.Parallel()
 
-	bodyIsNil := false
+	var gotBody []byte
 	client := &http.Client{
 		Transport: &WireserverTransport{
 			Transport: &TestTripper{
 				RoundTripF: func(req *http.Request) (*http.Response, error) {
-					bodyIsNil = req.Body == nil
+					body, err := io.ReadAll(req.Body)
+					if err != nil {
+						t.Fatal("unexpected error reading request body: err:", err)
+					}
+					gotBody = body
 					rr := httptest.NewRecorder()
 					_, _ = rr.WriteString(`{"httpStatusCode": "200"}`)
 					rr.WriteHeader(http.StatusOK)
@@ -247,8 +268,9 @@ func TestWireserverTransportPostBody(t *testing.T) {
 	}
 	defer resp.Body.Close()
 
-	if bodyIsNil {
-		t.Error("downstream request body to wireserver was nil, but not expected to be")
+	exp := `""` // an empty JSON string
+	if got := string(gotBody); got != exp {
+		t.Errorf("unexpected body received: got: %q, exp: %q\n", got, exp)
 	}
 
 	// POST request
@@ -264,8 +286,8 @@ func TestWireserverTransportPostBody(t *testing.T) {
 	}
 	defer resp.Body.Close()
 
-	if bodyIsNil {
-		t.Error("downstream request body to wireserver was nil, but not expected to be")
+	if got := string(gotBody); got != exp {
+		t.Errorf("unexpected body received: got: %q, exp: %q\n", got, exp)
 	}
 }
 
@@ -279,7 +301,7 @@ func TestWireserverTransportQuery(t *testing.T) {
 		Transport: &WireserverTransport{
 			Transport: &TestTripper{
 				RoundTripF: func(req *http.Request) (*http.Response, error) {
-					got = req.URL.Path
+					got = req.URL.RequestURI()
 					rr := httptest.NewRecorder()
 					_, _ = rr.WriteString(`{"httpStatusCode": "200"}`)
 					rr.WriteHeader(http.StatusOK)
@@ -301,7 +323,7 @@ func TestWireserverTransportQuery(t *testing.T) {
 	}
 	defer resp.Body.Close()
 
-	exp := "/machine/plugins/?comp=nmagent&type=test/path/api-version/1234/foo/bar"
+	exp := "/machine/plugins?comp=nmagent&type=test%2Fpath%2Fapi-version%2F1234%2Ffoo%2Fbar"
 	if got != exp {
 		t.Error("received request differs from expectation: got:", got, "want:", exp)
 	}

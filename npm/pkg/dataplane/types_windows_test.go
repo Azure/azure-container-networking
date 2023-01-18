@@ -47,22 +47,40 @@ type HNSAction interface {
 }
 
 type EndpointCreateAction struct {
-	ID string
-	IP string
+	ID       string
+	IP       string
+	IsRemote bool
 }
 
 func CreateEndpoint(id, ip string) *Action {
 	return &Action{
 		HNSAction: &EndpointCreateAction{
-			ID: id,
-			IP: ip,
+			ID:       id,
+			IP:       ip,
+			IsRemote: false,
+		},
+	}
+}
+
+func CreateRemoteEndpoint(id, ip string) *Action {
+	return &Action{
+		HNSAction: &EndpointCreateAction{
+			ID:       id,
+			IP:       ip,
+			IsRemote: true,
 		},
 	}
 }
 
 // Do models endpoint creation in HNS
 func (e *EndpointCreateAction) Do(hns *hnswrapper.Hnsv2wrapperFake) error {
-	ep := dptestutils.Endpoint(e.ID, e.IP)
+	var ep *hcn.HostComputeEndpoint
+	if e.IsRemote {
+		ep = dptestutils.RemoteEndpoint(e.ID, e.IP)
+	} else {
+		ep = dptestutils.Endpoint(e.ID, e.IP)
+	}
+
 	_, err := hns.CreateEndpoint(ep)
 	if err != nil {
 		return errors.Wrapf(err, "[EndpointCreateAction] failed to create endpoint. ep: [%+v]", ep)

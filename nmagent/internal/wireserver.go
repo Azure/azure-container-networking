@@ -6,6 +6,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -20,7 +21,7 @@ const (
 )
 
 const (
-	WirePrefix string = "/machine/plugins/?comp=nmagent&type="
+	WirePluginPath string = "/machine/plugins"
 
 	// DefaultBufferSize is the maximum number of bytes read from Wireserver in
 	// the event that no Content-Length is provided. The responses are relatively
@@ -60,6 +61,28 @@ type WireserverTransport struct {
 	Transport http.RoundTripper
 }
 
+// WireserverPluginQuery is a construct for executing queries against plugins
+// of Wireserver
+type WireserverPluginQuery struct {
+	Component string
+	Type      string
+}
+
+func (w WireserverPluginQuery) String() string {
+	vals := url.Values{}
+
+	// the query string from the request must have its constituent parts (?,=,&)
+	// transformed to slashes and appended to the query
+	path := w.Type[1:]
+	path = strings.ReplaceAll(path, "?", "/")
+	path = strings.ReplaceAll(path, "=", "/")
+	path = strings.ReplaceAll(path, "&", "/")
+
+	vals["comp"] = []string{w.Component}
+	vals["type"] = []string{path}
+	return vals.Encode()
+}
+
 // RoundTrip executes arbitrary HTTP requests against Wireserver while applying
 // the necessary transformation rules to make such requests acceptable to
 // Wireserver.
@@ -71,23 +94,13 @@ func (w *WireserverTransport) RoundTrip(inReq *http.Request) (*http.Response, er
 	ctx := inReq.Context()
 	req := inReq.Clone(ctx)
 
-	// the original path of the request must be prefixed with wireserver's path
-	path := WirePrefix
-	if req.URL.Path != "" {
-		path += req.URL.Path[1:]
+	// requests to NMAgent occur through wireserver's plugin path
+	req.URL.Path = WirePluginPath
+	q := WireserverPluginQuery{
+		Component: "nmagent",
+		Type:      inReq.URL.RequestURI(),
 	}
-
-	// the query string from the request must have its constituent parts (?,=,&)
-	// transformed to slashes and appended to the query
-	if req.URL.RawQuery != "" {
-		query := req.URL.RawQuery
-		query = strings.ReplaceAll(query, "?", "/")
-		query = strings.ReplaceAll(query, "=", "/")
-		query = strings.ReplaceAll(query, "&", "/")
-		path += "/" + query
-	}
-
-	req.URL.Path = path
+	req.URL.RawQuery = q.String()
 
 	// wireserver cannot tolerate PUT requests, so it's necessary to transform
 	// those to POSTs
@@ -96,8 +109,32 @@ func (w *WireserverTransport) RoundTrip(inReq *http.Request) (*http.Response, er
 	}
 
 	// all POST requests (and by extension, PUT) must have a non-nil body
-	if req.Method == http.MethodPost && req.Body == nil {
-		req.Body = io.NopCloser(strings.NewReader(""))
+	if req.Method == http.MethodPost {
+		if req.Body == nil || req.Body == http.NoBody {
+			// the non-nil body that Wireserver expects is an empty JSON string. This
+			// is not the same as an empty Go string. The equivalent Go string is one
+			// with two quote characters:
+			emptyJSONString := `""`
+
+			// Body is expected to be an io.ReadCloser of some type, so this string
+			// needs to be dressed in appropriate wrapping types before it can be
+			// assigned:
+			req.Body = io.NopCloser(strings.NewReader(emptyJSONString))
+
+			// also, because the Body is a Reader, its length cannot be known apriori.
+			// Thus, we need to manually set this length, otherwise it will be sent
+			// with no Content-Length header (and Transfer-Encoding: chunked instead).
+			// Wireserver gets angry when there's no Content-Length header, and returns
+			// a 411 status code:
+			req.ContentLength = int64(len(emptyJSONString))
+		}
+
+		// the Content-Type must also be manually set, because the net/http
+		// Content-Type detection can't be run without draining the Reader set
+		// for the Request Body. This is a good idea anyway, because the
+		// detection uses heuristic methods to figure out the Content-Type, which
+		// may not necessarily be correct for a short JSON string like this:
+		req.Header.Set(HeaderContentType, MimeJSON)
 	}
 
 	// execute the request to the downstream transport

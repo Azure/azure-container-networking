@@ -22,6 +22,7 @@ type InstallerConfig struct {
 	CNIMode                    string
 	CNSURL                     string
 	EnableExactMatchForPodName bool
+	NetworkName                string
 }
 
 func (i *InstallerConfig) SetExempt(exempt []string) {
