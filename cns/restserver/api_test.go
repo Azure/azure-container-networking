@@ -846,6 +846,7 @@ func publishNCViaCNS(
 	expStatus := http.StatusOK
 	gotStatus := resp.PublishStatusCode
 	if gotStatus != expStatus {
+		// nolint:goerr113 // this is okay in a test:
 		return fmt.Errorf("unsuccessful request. exp: %d, got: %d", expStatus, gotStatus)
 	}
 
@@ -863,6 +864,7 @@ func publishNCViaCNS(
 		}
 
 		if bodyStatus != expStatus {
+			// nolint:goerr113 // this is okay in a test:
 			return fmt.Errorf("unexpected status in body. exp: %d, got %d", expStatus, bodyStatus)
 		}
 	}
@@ -1000,11 +1002,13 @@ func unpublishNCViaCNS(networkID, networkContainerID, deleteNetworkContainerURL 
 	}
 
 	if resp.Response.ReturnCode != 0 {
-		return fmt.Errorf("UnpublishNetworkContainer failed with response %+v Err:%+v", resp, err)
+		// nolint:goerr113 // this is okay in a test:
+		return fmt.Errorf("UnpublishNetworkContainer failed with response %+v: err: %w", resp, err)
 	}
 
 	code := resp.UnpublishStatusCode
 	if code != http.StatusOK {
+		// nolint:goerr113 // this is okay in a test:
 		return fmt.Errorf("unsuccessful NMAgent response: status code %d", code)
 	}
 
@@ -1022,6 +1026,7 @@ func unpublishNCViaCNS(networkID, networkContainerID, deleteNetworkContainerURL 
 	}
 
 	if bodyCode != code {
+		// nolint:goerr113 // this is okay in a test:
 		return fmt.Errorf("mismatch between NMAgent status code (%d) and NMAgent body status code (%d)", code, bodyCode)
 	}
 
@@ -1451,13 +1456,13 @@ func startService() error {
 	// Create the service.
 	config := common.ServiceConfig{}
 
-	// Create the key value store.
-	store, err := store.NewJsonFileStore(cnsJsonFileName, processlock.NewMockFileLock(false))
+	// Create the key value fileStore.
+	fileStore, err := store.NewJsonFileStore(cnsJsonFileName, processlock.NewMockFileLock(false))
 	if err != nil {
 		logger.Errorf("Failed to create store file: %s, due to error %v\n", cnsJsonFileName, err)
 		return err
 	}
-	config.Store = store
+	config.Store = fileStore
 
 	nmagentClient := &fakes.NMAgentClientFake{}
 	service, err = NewHTTPRestService(&config, &fakes.WireserverClientFake{}, nmagentClient, nil, nil, nil)
