@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/Azure/azure-container-networking/common"
-	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -259,102 +258,6 @@ func TestSetCNSConfigDefaults(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			SetCNSConfigDefaults(&tt.in)
 			assert.Equal(t, tt.want, tt.in)
-		})
-	}
-}
-
-func TestNMAgentConfig(t *testing.T) {
-	tests := []struct {
-		name      string
-		conf      CNSConfig
-		exp       NMAgentConfig
-		shouldErr bool
-	}{
-		{
-			"empty",
-			CNSConfig{
-				WireserverIP: "",
-			},
-			NMAgentConfig{
-				Host: "168.63.129.16",
-				Port: 80,
-			},
-			false,
-		},
-		{
-			"ip",
-			CNSConfig{
-				WireserverIP: "127.0.0.1",
-			},
-			NMAgentConfig{
-				Host: "127.0.0.1",
-				Port: 80,
-			},
-			false,
-		},
-		{
-			"ipport",
-			CNSConfig{
-				WireserverIP: "127.0.0.1:8080",
-			},
-			NMAgentConfig{
-				Host: "127.0.0.1",
-				Port: 8080,
-			},
-			false,
-		},
-		{
-			"scheme",
-			CNSConfig{
-				WireserverIP: "http://127.0.0.1:8080",
-			},
-			NMAgentConfig{
-				Host: "127.0.0.1",
-				Port: 8080,
-			},
-			false,
-		},
-		{
-			"invalid URL",
-			CNSConfig{
-				WireserverIP: "a string containing \"http\" with an invalid character: \x7F",
-			},
-			NMAgentConfig{},
-			true,
-		},
-		{
-			"invalid host:port",
-			CNSConfig{
-				WireserverIP: "way:too:many:colons",
-			},
-			NMAgentConfig{},
-			true,
-		},
-		{
-			"too big for a uint16 port",
-			CNSConfig{
-				WireserverIP: "127.0.0.1:4815162342",
-			},
-			NMAgentConfig{},
-			true,
-		},
-	}
-
-	for _, test := range tests {
-		test := test
-		t.Run(test.name, func(t *testing.T) {
-			got, err := test.conf.NMAgentConfig()
-			if err != nil && !test.shouldErr {
-				t.Fatal("unexpected error fetching nmagent config: err:", err)
-			}
-
-			if err == nil && test.shouldErr {
-				t.Fatal("expected error fetching nmagent config but received none")
-			}
-
-			if !cmp.Equal(got, test.exp) {
-				t.Error("received config differs from expectation: diff:", cmp.Diff(got, test.exp))
-			}
 		})
 	}
 }

@@ -215,7 +215,7 @@ var _ = Describe("multiTenantCrdReconciler", func() {
 			}
 
 			kubeClient.EXPECT().Get(gomock.Any(), namespacedName, gomock.Any()).SetArg(2, nc)
-			statusWriter := mockclients.NewMockStatusWriter(mockCtl)
+			statusWriter := mockclients.NewMockSubResourceClient(mockCtl) // .NewMockStatusClient(mockCtl)
 			statusWriter.EXPECT().Update(gomock.Any(), gomock.Any()).Return(nil)
 			kubeClient.EXPECT().Status().Return(statusWriter)
 			cnsRestService.EXPECT().GetNetworkContainerInternal(cns.GetNetworkContainerRequest{

@@ -3,12 +3,8 @@ package configuration
 
 import (
 	"encoding/json"
-	"net"
-	"net/url"
 	"os"
 	"path/filepath"
-	"strconv"
-	"strings"
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/logger"
@@ -23,28 +19,28 @@ const (
 )
 
 type CNSConfig struct {
-	ChannelMode                 string
-	EnablePprof                 bool
-	EnableSubnetScarcity        bool
-	InitializeFromCNI           bool
-	ManagedSettings             ManagedSettings
-	MetricsBindAddress          string
-	SyncHostNCTimeoutMs         int
-	SyncHostNCVersionIntervalMs int
-	TLSCertificatePath          string
-	TLSEndpoint                 string
-	TLSPort                     string
-	TLSSubjectName              string
-	TelemetrySettings           TelemetrySettings
-	UseHTTPS                    bool
-	WireserverIP                string
-	KeyVaultSettings            KeyVaultSettings
-	MSISettings                 MSISettings
-	ProgramSNATIPTables         bool
-	ManageEndpointState         bool
-	CNIConflistScenario         string
-	EnableCNIConflistGeneration bool
-	CNIConflistFilepath         string
+	ChannelMode                          string
+	EnablePprof                          bool
+	EnableSubnetScarcity                 bool
+	InitializeFromCNI                    bool
+	ManagedSettings                      ManagedSettings
+	MetricsBindAddress                   string
+	SyncHostNCTimeoutMs                  int
+	SyncHostNCVersionIntervalMs          int
+	TLSCertificatePath                   string
+	TLSEndpoint                          string
+	TLSPort                              string
+	TLSSubjectName                       string
+	TelemetrySettings                    TelemetrySettings
+	UseHTTPS                             bool
+	WireserverIP                         string
+	KeyVaultSettings                     KeyVaultSettings
+	MSISettings                          MSISettings
+	ProgramSNATIPTables                  bool
+	ManageEndpointState                  bool
+	CNIConflistScenario                  string
+	EnableCNIConflistGeneration          bool
+	CNIConflistFilepath                  string
 	PopulateHomeAzCacheRetryIntervalSecs int
 }
 
@@ -108,53 +104,6 @@ func getConfigFilePath(cmdLineConfigPath string) (string, error) {
 		configpath = filepath.Join(dir, defaultConfigName)
 	}
 	return configpath, nil
-}
-
-type NMAgentConfig struct {
-	Host   string
-	Port   uint16
-	UseTLS bool
-}
-
-func (c *CNSConfig) NMAgentConfig() (NMAgentConfig, error) {
-	host := "168.63.129.16" // wireserver's IP
-
-	if c.WireserverIP != "" {
-		host = c.WireserverIP
-	}
-
-	if strings.Contains(host, "http") {
-		parts, err := url.Parse(host)
-		if err != nil {
-			return NMAgentConfig{}, errors.Wrap(err, "parsing WireserverIP as URL")
-		}
-		host = parts.Host
-	}
-
-	// create an NMAgent Client based on provided configuration
-	if strings.Contains(host, ":") {
-		host, prt, err := net.SplitHostPort(host) //nolint:govet // it's fine to shadow err here
-		if err != nil {
-			return NMAgentConfig{}, errors.Wrap(err, "splitting wireserver IP into host port")
-		}
-
-		port, err := strconv.ParseUint(prt, 10, 16) //nolint:gomnd // obvious from ParseUint docs
-		if err != nil {
-			return NMAgentConfig{}, errors.Wrap(err, "parsing wireserver port value as uint16")
-		}
-
-		return NMAgentConfig{
-			Host: host,
-			Port: uint16(port),
-		}, nil
-	}
-
-	return NMAgentConfig{
-		Host: host,
-
-		// nolint:gomnd // there's no benefit to constantizing a well-known port
-		Port: 80,
-	}, nil
 }
 
 // ReadConfig returns a CNS config from file or an error.
