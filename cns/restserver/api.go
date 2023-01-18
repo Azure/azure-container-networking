@@ -1247,11 +1247,8 @@ func (service *HTTPRestService) publishNetworkContainer(w http.ResponseWriter, r
 		returnCode = types.UnsupportedVerb
 	}
 
-	// this is an ugly hack because DNC depends on checking this status code,
-	// even though it's no longer necessary for it to do so. It does not need to
-	// handle retries because retries will be handled by the nmagent client in
-	// CNS. However, there are versions of DNC out there that still rely on this
-	// body being present.
+	// create a synthetic response from NMAgent so that clients that previously
+	// relied on its presence can continue to do so.
 	publishResponseBody := fmt.Sprintf(`{"httpStatusCode":"%d"}`, publishStatusCode)
 
 	response := cns.PublishNetworkContainerResponse{
@@ -1274,14 +1271,14 @@ func (service *HTTPRestService) unpublishNetworkContainer(w http.ResponseWriter,
 	ctx := r.Context()
 
 	var (
-		req                   cns.UnpublishNetworkContainerRequest
-		returnCode            types.ResponseCode
-		returnMessage         string
-		unpublishStatusCode   int
-		unpublishResponseBody []byte
-		unpublishErrorStr     string
-		isNetworkJoined       bool
+		req               cns.UnpublishNetworkContainerRequest
+		returnCode        types.ResponseCode
+		returnMessage     string
+		unpublishErrorStr string
+		isNetworkJoined   bool
 	)
+
+	unpublishStatusCode := http.StatusOK
 
 	err := service.Listener.Decode(w, r, &req)
 
@@ -1364,6 +1361,10 @@ func (service *HTTPRestService) unpublishNetworkContainer(w http.ResponseWriter,
 		returnCode = types.UnsupportedVerb
 	}
 
+	// create a synthetic response from NMAgent so that clients that previously
+	// relied on its presence can continue to do so.
+	unpublishResponseBody := fmt.Sprintf(`{"httpStatusCode":"%d"}`, unpublishStatusCode)
+
 	response := cns.UnpublishNetworkContainerResponse{
 		Response: cns.Response{
 			ReturnCode: returnCode,
@@ -1371,7 +1372,7 @@ func (service *HTTPRestService) unpublishNetworkContainer(w http.ResponseWriter,
 		},
 		UnpublishErrorStr:     unpublishErrorStr,
 		UnpublishStatusCode:   unpublishStatusCode,
-		UnpublishResponseBody: unpublishResponseBody,
+		UnpublishResponseBody: []byte(unpublishResponseBody),
 	}
 
 	err = service.Listener.Encode(w, &response)
