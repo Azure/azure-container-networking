@@ -46,7 +46,7 @@
         "windowsProfile": {
             "adminUsername": "azureuser",
             "adminPassword": "azureTest@!",
-            "enableAutomaticUpdates": false,
+            "enableAutomaticUpdates": true,
             "sshEnabled": false,
             "windowsPauseImageURL": "mcr.microsoft.com/oss/kubernetes/pause:3.6",
             "alwaysPullWindowsPauseImage": true,

@@ -174,12 +174,15 @@ func (plugin *Plugin) InitializeKeyValueStore(config *common.PluginConfig) error
 		}
 	}
 
-	// Acquire store lock.
-	if err := plugin.Store.Lock(store.DefaultLockTimeout); err != nil {
-		log.Printf("[cni] Failed to lock store: %v.", err)
-		return err
+	// Acquiring store lock at this stage only for Linux. For optimization purpuses on Windows, the store lock will take place at later stage.
+	// TODO: The Linux store locking should be removed from here as well after some more validation.
+	if runtime.GOOS != "windows" {
+		// Acquire store lock.
+		if err := plugin.Store.Lock(store.DefaultLockTimeout); err != nil {
+			log.Printf("[cni] Failed to lock store: %v.", err)
+			return errors.Wrap(err, "error Acquiring store lock")
+		}
 	}
-
 	config.Store = plugin.Store
 
 	return nil
@@ -196,5 +199,27 @@ func (plugin *Plugin) UninitializeKeyValueStore() error {
 	}
 	plugin.Store = nil
 
+	return nil
+}
+
+// Lock key-value store. This function is being used for locking access to TelemetryService start for Windows Runtime.
+func (plugin *Plugin) LockKeyValueStore() error {
+	// Acquire store lock.
+	if err := plugin.Store.Lock(store.DefaultLockTimeout); err != nil {
+		log.Printf("[cni] Failed to lock store: %v.", err)
+		return errors.Wrap(err, "error Acquiring store lock")
+	}
+	return nil
+}
+
+// Unlock key-value store
+func (plugin *Plugin) UnLockKeyValueStore() error {
+	if plugin.Store != nil {
+		err := plugin.Store.Unlock()
+		if err != nil {
+			log.Printf("[cni] Failed to unlock store: %v.", err)
+			return errors.Wrap(err, "error unlock store lock")
+		}
+	}
 	return nil
 }

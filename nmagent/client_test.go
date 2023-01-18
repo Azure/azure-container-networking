@@ -37,7 +37,7 @@ func TestNMAgentClientJoinNetwork(t *testing.T) {
 		{
 			"happy path",
 			"00000000-0000-0000-0000-000000000000",
-			"/machine/plugins/?comp=nmagent&type=NetworkManagement/joinedVirtualNetworks/00000000-0000-0000-0000-000000000000/api-version/1",
+			"/machine/plugins?comp=nmagent&type=NetworkManagement%2FjoinedVirtualNetworks%2F00000000-0000-0000-0000-000000000000%2Fapi-version%2F1",
 			http.StatusOK,
 			false,
 		},
@@ -51,7 +51,7 @@ func TestNMAgentClientJoinNetwork(t *testing.T) {
 		{
 			"internal error",
 			"00000000-0000-0000-0000-000000000000",
-			"/machine/plugins/?comp=nmagent&type=NetworkManagement/joinedVirtualNetworks/00000000-0000-0000-0000-000000000000/api-version/1",
+			"/machine/plugins?comp=nmagent&type=NetworkManagement%2FjoinedVirtualNetworks%2F00000000-0000-0000-0000-000000000000%2Fapi-version%2F1",
 			http.StatusInternalServerError,
 			true,
 		},
@@ -66,7 +66,7 @@ func TestNMAgentClientJoinNetwork(t *testing.T) {
 			var got string
 			client := nmagent.NewTestClient(&TestTripper{
 				RoundTripF: func(req *http.Request) (*http.Response, error) {
-					got = req.URL.Path
+					got = req.URL.RequestURI()
 					rr := httptest.NewRecorder()
 					_, _ = fmt.Fprintf(rr, `{"httpStatusCode":"%d"}`, test.respStatus)
 					rr.WriteHeader(http.StatusOK)
@@ -181,7 +181,7 @@ func TestNMAgentGetNetworkConfig(t *testing.T) {
 		{
 			"happy path",
 			"00000000-0000-0000-0000-000000000000",
-			"/machine/plugins/?comp=nmagent&type=NetworkManagement/joinedVirtualNetworks/00000000-0000-0000-0000-000000000000/api-version/1",
+			"/machine/plugins?comp=nmagent&type=NetworkManagement%2FjoinedVirtualNetworks%2F00000000-0000-0000-0000-000000000000%2Fapi-version%2F1",
 			map[string]interface{}{
 				"httpStatusCode": "200",
 				"cnetSpace":      "10.10.1.0/24",
@@ -208,7 +208,7 @@ func TestNMAgentGetNetworkConfig(t *testing.T) {
 			client := nmagent.NewTestClient(&TestTripper{
 				RoundTripF: func(req *http.Request) (*http.Response, error) {
 					rr := httptest.NewRecorder()
-					got = req.URL.Path
+					got = req.URL.RequestURI()
 					rr.WriteHeader(http.StatusOK)
 					err := json.NewEncoder(rr).Encode(&test.expVNet)
 					if err != nil {
@@ -311,6 +311,30 @@ func TestNMAgentPutNetworkContainer(t *testing.T) {
 			true,
 			false,
 		},
+		{
+			"no id",
+			&nmagent.PutNetworkContainerRequest{
+				Version:    uint64(12345),
+				VNetID:     "be3a33e-61e3-42c7-bd23-6b949f57bd36",
+				SubnetName: "TestSubnet",
+				IPv4Addrs:  []string{"10.0.0.43"},
+				Policies: []nmagent.Policy{
+					{
+						ID:   "policyID1",
+						Type: "type1",
+					},
+					{
+						ID:   "policyID2",
+						Type: "type2",
+					},
+				},
+				VlanID:              1234,
+				AuthenticationToken: "swordfish",
+				PrimaryAddress:      "10.0.0.1",
+			},
+			false,
+			true,
+		},
 	}
 
 	for _, test := range putNCTests {
@@ -363,7 +387,8 @@ func TestNMAgentDeleteNC(t *testing.T) {
 				PrimaryAddress:      "10.0.0.1",
 				AuthenticationToken: "swordfish",
 			},
-			"/machine/plugins/?comp=nmagent&type=NetworkManagement/interfaces/10.0.0.1/networkContainers/00000000-0000-0000-0000-000000000000/authenticationToken/swordfish/api-version/1/method/DELETE",
+			//nolint:lll // not a useful linter in a test
+			"/machine/plugins?comp=nmagent&type=NetworkManagement%2Finterfaces%2F10.0.0.1%2FnetworkContainers%2F00000000-0000-0000-0000-000000000000%2FauthenticationToken%2Fswordfish%2Fapi-version%2F1%2Fmethod%2FDELETE",
 			false,
 		},
 	}
@@ -374,7 +399,7 @@ func TestNMAgentDeleteNC(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			client := nmagent.NewTestClient(&TestTripper{
 				RoundTripF: func(req *http.Request) (*http.Response, error) {
-					got = req.URL.Path
+					got = req.URL.RequestURI()
 					rr := httptest.NewRecorder()
 					_, _ = rr.WriteString(`{"httpStatusCode": "200"}`)
 					return rr.Result(), nil
@@ -408,14 +433,14 @@ func TestNMAgentSupportedAPIs(t *testing.T) {
 		{
 			"empty",
 			nil,
-			"/machine/plugins/?comp=nmagent&type=GetSupportedApis",
+			"/machine/plugins?comp=nmagent&type=GetSupportedApis",
 			"<SupportedAPIsResponseXML></SupportedAPIsResponseXML>",
 			false,
 		},
 		{
 			"happy",
 			[]string{"foo"},
-			"/machine/plugins/?comp=nmagent&type=GetSupportedApis",
+			"/machine/plugins?comp=nmagent&type=GetSupportedApis",
 			"<SupportedAPIsResponseXML><type>foo</type></SupportedAPIsResponseXML>",
 			false,
 		},
@@ -429,7 +454,7 @@ func TestNMAgentSupportedAPIs(t *testing.T) {
 			var gotPath string
 			client := nmagent.NewTestClient(&TestTripper{
 				RoundTripF: func(req *http.Request) (*http.Response, error) {
-					gotPath = req.URL.Path
+					gotPath = req.URL.RequestURI()
 					rr := httptest.NewRecorder()
 					_, _ = rr.WriteString(test.resp)
 					return rr.Result(), nil
@@ -478,7 +503,7 @@ func TestGetNCVersion(t *testing.T) {
 				NetworkContainerID: "bar",
 				PrimaryAddress:     "baz",
 			},
-			"/machine/plugins/?comp=nmagent&type=NetworkManagement/interfaces/baz/networkContainers/bar/version/authenticationToken/foo/api-version/1",
+			"/machine/plugins?comp=nmagent&type=NetworkManagement%2Finterfaces%2Fbaz%2FnetworkContainers%2Fbar%2Fversion%2FauthenticationToken%2Ffoo%2Fapi-version%2F1",
 			map[string]interface{}{
 				"httpStatusCode":     "200",
 				"networkContainerId": "bar",
@@ -493,7 +518,7 @@ func TestGetNCVersion(t *testing.T) {
 				NetworkContainerID: "bar",
 				PrimaryAddress:     "baz",
 			},
-			"/machine/plugins/?comp=nmagent&type=NetworkManagement/interfaces/baz/networkContainers/bar/version/authenticationToken/foo/api-version/1",
+			"/machine/plugins?comp=nmagent&type=NetworkManagement%2Finterfaces%2Fbaz%2FnetworkContainers%2Fbar%2Fversion%2FauthenticationToken%2Ffoo%2Fapi-version%2F1",
 			map[string]interface{}{
 				"httpStatusCode": "500",
 			},
@@ -509,7 +534,7 @@ func TestGetNCVersion(t *testing.T) {
 			var gotURL string
 			client := nmagent.NewTestClient(&TestTripper{
 				RoundTripF: func(req *http.Request) (*http.Response, error) {
-					gotURL = req.URL.Path
+					gotURL = req.URL.RequestURI()
 					rr := httptest.NewRecorder()
 					err := json.NewEncoder(rr).Encode(test.resp)
 					if err != nil {
@@ -565,7 +590,7 @@ func TestGetNCVersionList(t *testing.T) {
 					},
 				},
 			},
-			"/machine/plugins/?comp=nmagent&type=NetworkManagement/interfaces/api-version/1",
+			"/machine/plugins?comp=nmagent&type=NetworkManagement%2Finterfaces%2Fapi-version%2F1",
 			nmagent.NCVersionList{
 				Containers: []nmagent.NCVersion{
 					{
@@ -581,7 +606,7 @@ func TestGetNCVersionList(t *testing.T) {
 			map[string]interface{}{
 				"httpStatusCode": "500",
 			},
-			"/machine/plugins/?comp=nmagent&type=NetworkManagement/interfaces/api-version/1",
+			"/machine/plugins?comp=nmagent&type=NetworkManagement%2Finterfaces%2Fapi-version%2F1",
 			nmagent.NCVersionList{},
 			true,
 		},
@@ -595,7 +620,7 @@ func TestGetNCVersionList(t *testing.T) {
 			var gotURL string
 			client := nmagent.NewTestClient(&TestTripper{
 				RoundTripF: func(req *http.Request) (*http.Response, error) {
-					gotURL = req.URL.Path
+					gotURL = req.URL.RequestURI()
 					rr := httptest.NewRecorder()
 					rr.WriteHeader(http.StatusOK)
 					err := json.NewEncoder(rr).Encode(test.resp)
@@ -634,7 +659,7 @@ func TestGetHomeAz(t *testing.T) {
 		{
 			"happy path",
 			nmagent.AzResponse{HomeAz: uint(1)},
-			"/machine/plugins/?comp=nmagent&type=GetHomeAz",
+			"/machine/plugins?comp=nmagent&type=GetHomeAz",
 			map[string]interface{}{
 				"httpStatusCode": "200",
 				"HomeAz":         1,
@@ -644,7 +669,7 @@ func TestGetHomeAz(t *testing.T) {
 		{
 			"empty response",
 			nmagent.AzResponse{},
-			"/machine/plugins/?comp=nmagent&type=GetHomeAz",
+			"/machine/plugins?comp=nmagent&type=GetHomeAz",
 			map[string]interface{}{
 				"httpStatusCode": "500",
 			},
@@ -660,7 +685,7 @@ func TestGetHomeAz(t *testing.T) {
 			var gotPath string
 			client := nmagent.NewTestClient(&TestTripper{
 				RoundTripF: func(req *http.Request) (*http.Response, error) {
-					gotPath = req.URL.Path
+					gotPath = req.URL.RequestURI()
 					rr := httptest.NewRecorder()
 					err := json.NewEncoder(rr).Encode(test.resp)
 					if err != nil {

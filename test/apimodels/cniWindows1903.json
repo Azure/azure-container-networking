@@ -39,7 +39,7 @@
       "windowsProfile": {
          "adminUsername": "azureuser",
          "adminPassword": "azureTest@!",
-         "enableAutomaticUpdates": false,
+         "enableAutomaticUpdates": true,
          "sshEnabled": true,
          "windowsPublisher": "MicrosoftWindowsServer",
          "windowsOffer": "WindowsServer",
