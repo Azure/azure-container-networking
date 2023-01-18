@@ -4,7 +4,6 @@
 package restserver
 
 import (
-	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
@@ -114,11 +113,6 @@ func (service *HTTPRestService) updateEndpointState(ipconfigRequest cns.IPConfig
 	for i := range podIPInfo {
 		if endpointInfo, ok := service.EndpointState[ipconfigRequest.InfraContainerID]; ok {
 			logger.Warnf("[updateEndpointState] Found existing endpoint state for infra container %s", ipconfigRequest.InfraContainerID)
-			JsonData, err := json.Marshal(&podIPInfo[i])
-			if err != nil {
-				return err
-			}
-			logger.Warnf(string(JsonData))
 			ip := net.ParseIP(podIPInfo[i].PodIPConfig.IPAddress)
 			if ip == nil {
 				logger.Errorf("failed to parse pod ip address %s", podIPInfo[i].PodIPConfig.IPAddress)
@@ -149,11 +143,6 @@ func (service *HTTPRestService) updateEndpointState(ipconfigRequest cns.IPConfig
 		} else {
 			endpointInfo := &EndpointInfo{PodName: podInfo.Name(), PodNamespace: podInfo.Namespace(), IfnameToIPMap: make(map[string]*IPInfo)}
 			ip := net.ParseIP(podIPInfo[i].PodIPConfig.IPAddress)
-			JsonData, err := json.Marshal(&podIPInfo[i])
-			if err != nil {
-				return err
-			}
-			logger.Warnf(string(JsonData))
 			if ip == nil {
 				logger.Errorf("failed to parse pod ip address %s", podIPInfo[i].PodIPConfig.IPAddress)
 				return errParsePodIPFailed
@@ -579,11 +568,6 @@ func (service *HTTPRestService) AssignAnyAvailableIPConfig(podInfo cns.PodInfo) 
 			break
 		}
 	}
-	JsonData, err := json.Marshal(&podIpInfo[0])
-	if err != nil {
-		return []cns.PodIpInfo{}, err
-	}
-	logger.Warnf(string(JsonData))
 	// going to change this to be a helper method that passes in Ip rules based on labels, hard coding to test
 	for _, ipState := range service.PodIPConfigState {
 		address, err := netip.ParseAddr(ipState.IPAddress)
@@ -597,11 +581,9 @@ func (service *HTTPRestService) AssignAnyAvailableIPConfig(podInfo cns.PodInfo) 
 			if err := service.populateIPConfigInfoUntransacted(ipState, &podIpInfo[1]); err != nil {
 				return []cns.PodIpInfo{}, err
 			}
-			JsonData, err := json.Marshal(&podIpInfo[1])
 			if err != nil {
 				return []cns.PodIpInfo{}, err
 			}
-			logger.Warnf(string(JsonData))
 			return podIpInfo, nil
 		}
 	}

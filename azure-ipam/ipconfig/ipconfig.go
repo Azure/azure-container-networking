@@ -40,8 +40,7 @@ func CreateIPConfigReq(args *cniSkel.CmdArgs) (cns.IPConfigRequest, error) {
 
 // ProcessIPConfigResp processes the IPConfigResponse from the CNS.
 func ProcessIPConfigResp(resp *cns.IPConfigResponse) (*[]netip.Prefix, error) {
-	var podIPNets []netip.Prefix
-	podIPNets = make([]netip.Prefix, len(resp.PodIpInfo))
+	podIPNets := make([]netip.Prefix, len(resp.PodIpInfo))
 
 	for i := range resp.PodIpInfo {
 		podCIDR := fmt.Sprintf(
@@ -50,10 +49,10 @@ func ProcessIPConfigResp(resp *cns.IPConfigResponse) (*[]netip.Prefix, error) {
 			resp.PodIpInfo[i].NetworkContainerPrimaryIPConfig.IPSubnet.PrefixLength,
 		)
 		podIPNet, err := netip.ParsePrefix(podCIDR)
-		podIPNets[i] = podIPNet
 		if err != nil {
 			return nil, errors.Wrapf(err, "cns returned invalid pod CIDR %q", podCIDR)
 		}
+		podIPNets[i] = podIPNet
 	}
 
 	return &podIPNets, nil
