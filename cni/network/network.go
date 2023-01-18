@@ -373,6 +373,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 		}
 
 		addSnatInterface(nwCfg, ipamAddResult.ipv4Result)
+
 		// Convert result to the requested CNI version.
 		res, vererr := ipamAddResult.ipv4Result.GetAsVersion(nwCfg.CNIVersion)
 		if vererr != nil {
@@ -385,7 +386,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 			res.Print()
 		}
 
-		log.Printf("[cni-net] ADD command completed for pod %v with IPs:%+v err:%v.", k8sPodName, ipamAddResult.ipv4Result.IPs, err)
+		log.Printf("[cni-net] ADD command completed for pod %v with ip IPs:%+v  err:%v.", k8sPodName, ipamAddResult.ipv4Result.IPs, err)
 	}()
 
 	// Parse Pod arguments.
@@ -477,6 +478,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 	 * We can delete this if statement once they fix it.
 	 * Issue link: https://github.com/kubernetes/kubernetes/issues/57253
 	 */
+
 	if nwInfoErr == nil {
 		log.Printf("[cni-net] Found network %v with subnet %v.", networkID, nwInfo.Subnets[0].Prefix.String())
 		nwInfo.IPAMType = nwCfg.IPAM.Type

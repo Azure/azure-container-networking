@@ -20,9 +20,10 @@ import (
 )
 
 var (
-	errEmptyCNIArgs  = errors.New("empty CNI cmd args not allowed")
-	errInvalidArgs   = errors.New("invalid arg(s)")
-	overlayGatewayIP = "169.254.1.1"
+	errEmptyCNIArgs    = errors.New("empty CNI cmd args not allowed")
+	errInvalidArgs     = errors.New("invalid arg(s)")
+	overlayGatewayv4IP = "169.254.1.1"
+	overlayGatewayv6IP = "fe80::1234:5678:9abc"
 )
 
 type CNSIPAMInvoker struct {
@@ -109,7 +110,11 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 				return IPAMAddResult{}, errors.Wrap(errInvalidArgs, "%w: Gateway address "+info.ncGatewayIPAddress+" from response is invalid")
 			}
 
-			ncgw = net.ParseIP(overlayGatewayIP)
+			if net.ParseIP(info.podIPAddress).To4() != nil {
+				ncgw = net.ParseIP(overlayGatewayv4IP)
+			} else {
+				ncgw = net.ParseIP(overlayGatewayv6IP)
+			}
 		}
 
 		// set result ipconfigArgument from CNS Response Body
@@ -149,7 +154,7 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 				},
 				Routes: []*cniTypes.Route{
 					{
-						Dst: network.Ipv4DefaultRouteDstPrefix,
+						Dst: network.Ipv6DefaultRouteDstPrefix,
 						GW:  ncgw,
 					},
 				},
