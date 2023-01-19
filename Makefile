@@ -139,7 +139,7 @@ azure-ipam: azure-ipam-binary azure-ipam-archive
 
 revision: ## print the current git revision
 	@echo $(REVISION)
-	
+
 version: ## prints the root version
 	@echo $(ACN_VERSION)
 
@@ -158,52 +158,61 @@ cni-dropgz-test-version: ## prints the cni-dropgz version
 	@echo $(CNI_DROPGZ_TEST_VERSION)
 
 cns-version:
-	@echo $(CNS_VERSION) 
+	@echo $(CNS_VERSION)
 
 npm-version:
-	@echo $(NPM_VERSION) 
+	@echo $(NPM_VERSION)
 
 zapai-version: ## prints the zapai version
 	@echo $(ZAPAI_VERSION)
 
-##@ Binaries 
+##@ Binaries
 
 # Build the delegated IPAM plugin binary.
+azure-ipam-binary: export CGO_ENABLED = 0
 azure-ipam-binary:
-	cd $(AZURE_IPAM_DIR) && CGO_ENABLED=0 go build -v -o $(AZURE_IPAM_BUILD_DIR)/azure-ipam$(EXE_EXT) -ldflags "-X main.version=$(AZURE_IPAM_VERSION)" -gcflags="-dwarflocationlists=true"
+	cd $(AZURE_IPAM_DIR) && go build -v -o $(AZURE_IPAM_BUILD_DIR)/azure-ipam$(EXE_EXT) -ldflags "-X main.version=$(AZURE_IPAM_VERSION)" -gcflags="-dwarflocationlists=true"
 
 # Build the Azure CNM binary.
+cnm-binary: export CGO_ENABLED = 0
 cnm-binary:
-	cd $(CNM_DIR) && CGO_ENABLED=0 go build -v -o $(CNM_BUILD_DIR)/azure-vnet-plugin$(EXE_EXT) -ldflags "-X main.version=$(ACN_VERSION)" -gcflags="-dwarflocationlists=true"
+	cd $(CNM_DIR) && go build -v -o $(CNM_BUILD_DIR)/azure-vnet-plugin$(EXE_EXT) -ldflags "-X main.version=$(ACN_VERSION)" -gcflags="-dwarflocationlists=true"
 
 # Build the Azure CNI network binary.
+azure-vnet-binary: export CGO_ENABLED = 0
 azure-vnet-binary:
-	cd $(CNI_NET_DIR) && CGO_ENABLED=0 go build -v -o $(CNI_BUILD_DIR)/azure-vnet$(EXE_EXT) -ldflags "-X main.version=$(CNI_VERSION)" -gcflags="-dwarflocationlists=true"
+	cd $(CNI_NET_DIR) && go build -v -o $(CNI_BUILD_DIR)/azure-vnet$(EXE_EXT) -ldflags "-X main.version=$(CNI_VERSION)" -gcflags="-dwarflocationlists=true"
 
 # Build the Azure CNI IPAM binary.
+azure-vnet-ipam-binary: export CGO_ENABLED = 0
 azure-vnet-ipam-binary:
-	cd $(CNI_IPAM_DIR) && CGO_ENABLED=0 go build -v -o $(CNI_BUILD_DIR)/azure-vnet-ipam$(EXE_EXT) -ldflags "-X main.version=$(CNI_VERSION)" -gcflags="-dwarflocationlists=true"
+	cd $(CNI_IPAM_DIR) && go build -v -o $(CNI_BUILD_DIR)/azure-vnet-ipam$(EXE_EXT) -ldflags "-X main.version=$(CNI_VERSION)" -gcflags="-dwarflocationlists=true"
 
 # Build the Azure CNI IPAMV6 binary.
+azure-vnet-ipamv6-binary: export CGO_ENABLED = 0
 azure-vnet-ipamv6-binary:
-	cd $(CNI_IPAMV6_DIR) && CGO_ENABLED=0 go build -v -o $(CNI_BUILD_DIR)/azure-vnet-ipamv6$(EXE_EXT) -ldflags "-X main.version=$(CNI_VERSION)" -gcflags="-dwarflocationlists=true"
+	cd $(CNI_IPAMV6_DIR) && go build -v -o $(CNI_BUILD_DIR)/azure-vnet-ipamv6$(EXE_EXT) -ldflags "-X main.version=$(CNI_VERSION)" -gcflags="-dwarflocationlists=true"
 
 # Build the Azure CNI telemetry binary.
+azure-vnet-telemetry-binary: export CGO_ENABLED = 0
 azure-vnet-telemetry-binary:
-	cd $(CNI_TELEMETRY_DIR) && CGO_ENABLED=0 go build -v -o $(CNI_BUILD_DIR)/azure-vnet-telemetry$(EXE_EXT) -ldflags "-X main.version=$(CNI_VERSION) -X $(CNI_AI_PATH)=$(CNI_AI_ID)" -gcflags="-dwarflocationlists=true"
+	cd $(CNI_TELEMETRY_DIR) && go build -v -o $(CNI_BUILD_DIR)/azure-vnet-telemetry$(EXE_EXT) -ldflags "-X main.version=$(CNI_VERSION) -X $(CNI_AI_PATH)=$(CNI_AI_ID)" -gcflags="-dwarflocationlists=true"
 
 # Build the Azure CLI network binary.
+acncli-binary: export CGO_ENABLED = 0
 acncli-binary:
-	cd $(ACNCLI_DIR) && CGO_ENABLED=0 go build -v -o $(ACNCLI_BUILD_DIR)/acn$(EXE_EXT) -ldflags "-X main.version=$(ACN_VERSION)" -gcflags="-dwarflocationlists=true"
+	cd $(ACNCLI_DIR) && go build -v -o $(ACNCLI_BUILD_DIR)/acn$(EXE_EXT) -ldflags "-X main.version=$(ACN_VERSION)" -gcflags="-dwarflocationlists=true"
 
 # Build the Azure CNS binary.
+azure-cns-binary: export CGO_ENABLED = 0
 azure-cns-binary:
-	cd $(CNS_DIR) && CGO_ENABLED=0 go build -v -o $(CNS_BUILD_DIR)/azure-cns$(EXE_EXT) -ldflags "-X main.version=$(CNS_VERSION) -X $(CNS_AI_PATH)=$(CNS_AI_ID) -X $(CNI_AI_PATH)=$(CNI_AI_ID)" -gcflags="-dwarflocationlists=true"
+	cd $(CNS_DIR) && go build -v -o $(CNS_BUILD_DIR)/azure-cns$(EXE_EXT) -ldflags "-X main.version=$(CNS_VERSION) -X $(CNS_AI_PATH)=$(CNS_AI_ID) -X $(CNI_AI_PATH)=$(CNI_AI_ID)" -gcflags="-dwarflocationlists=true"
 
 # Build the Azure NPM binary.
+azure-npm-binary: export CGO_ENABLED = 0
 azure-npm-binary:
-	cd $(CNI_TELEMETRY_DIR) && CGO_ENABLED=0 go build -v -o $(NPM_BUILD_DIR)/azure-vnet-telemetry$(EXE_EXT) -ldflags "-X main.version=$(NPM_VERSION)" -gcflags="-dwarflocationlists=true"
-	cd $(NPM_DIR) && CGO_ENABLED=0 go build -v -o $(NPM_BUILD_DIR)/azure-npm$(EXE_EXT) -ldflags "-X main.version=$(NPM_VERSION) -X $(NPM_AI_PATH)=$(NPM_AI_ID)" -gcflags="-dwarflocationlists=true"
+	cd $(CNI_TELEMETRY_DIR) && go build -v -o $(NPM_BUILD_DIR)/azure-vnet-telemetry$(EXE_EXT) -ldflags "-X main.version=$(NPM_VERSION)" -gcflags="-dwarflocationlists=true"
+	cd $(NPM_DIR) && go build -v -o $(NPM_BUILD_DIR)/azure-npm$(EXE_EXT) -ldflags "-X main.version=$(NPM_VERSION) -X $(NPM_AI_PATH)=$(NPM_AI_ID)" -gcflags="-dwarflocationlists=true"
 
 ##@ Containers
 
@@ -305,7 +314,7 @@ acncli-image-pull: ## pull cni-manager container image.
 		IMAGE=$(ACNCLI_IMAGE) \
 		TAG=$(ACNCLI_PLATFORM_TAG)
 
-acncli-skopeo-export: 
+acncli-skopeo-export:
 	$(MAKE) skopeo-export \
 		REF=$(IMAGE_REGISTRY)/$(ACNCLI_IMAGE):$(ACNCLI_PLATFORM_TAG)
 
@@ -334,7 +343,7 @@ cni-dropgz-image-pull: ## pull cni-dropgz container image.
 		IMAGE=$(CNI_DROPGZ_IMAGE) \
 		TAG=$(CNI_DROPGZ_PLATFORM_TAG)
 
-cni-dropgz-skopeo-export: 
+cni-dropgz-skopeo-export:
 	$(MAKE) skopeo-export \
 		REF=$(IMAGE_REGISTRY)/$(CNI_DROPGZ_IMAGE):$(CNI_DROPGZ_PLATFORM_TAG)
 
@@ -363,7 +372,7 @@ cni-dropgz-test-image-pull: ## pull cni-dropgz-test container image.
 		IMAGE=$(CNI_DROPGZ_TEST_IMAGE) \
 		TAG=$(CNI_DROPGZ_TEST_PLATFORM_TAG)
 
-cni-dropgz-test-skopeo-export: 
+cni-dropgz-test-skopeo-export:
 	$(MAKE) skopeo-export \
 		REF=$(IMAGE_REGISTRY)/$(CNI_DROPGZ_TEST_IMAGE):$(CNI_DROPGZ_TEST_PLATFORM_TAG)
 
@@ -411,8 +420,8 @@ npm-image: ## build the npm container image.
 			EXTRA_BUILD_ARGS='--build-arg NPM_AI_PATH=$(NPM_AI_PATH) --build-arg NPM_AI_ID=$(NPM_AI_ID)' \
 			TAG=$(NPM_PLATFORM_TAG)
 
-npm-image-windows: ## build the npm container windows image.	
-	$(MKDIR) $(IMAGE_DIR); 
+npm-image-windows: ## build the npm container windows image.
+	$(MKDIR) $(IMAGE_DIR);
 	docker build \
 	--no-cache \
 	-f npm/windows.Dockerfile \
@@ -442,7 +451,7 @@ npm-skopeo-export:
 ## can probably be combined with above with a GOOS.Dockerfile change?
 # Build the windows cns image
 cns-image-windows:
-	$(MKDIR) $(IMAGE_DIR); 
+	$(MKDIR) $(IMAGE_DIR);
 	docker build \
 	--no-cache \
 	-f cns/windows.Dockerfile \
@@ -522,7 +531,7 @@ acncli-manifest-push: ## push acncli multiplat container manifest
 acncli-skopeo-archive: ## export tar archive of acncli multiplat container manifest.
 	$(MAKE) manifest-skopeo-archive \
 		IMAGE=$(ACNCLI_IMAGE) \
-		TAG=$(ACN_VERSION) 
+		TAG=$(ACN_VERSION)
 
 cni-dropgz-manifest-create: ## build cni-dropgz multiplat container manifest.
 	$(MAKE) manifest-create \
@@ -672,7 +681,7 @@ ifeq ($(GOOS),linux)
 endif
 
 
-##@ Utils 
+##@ Utils
 
 clean: ## Clean build artifacts.
 	$(RMDIR) $(OUTPUT_DIR)
@@ -703,7 +712,7 @@ workspace: ## Set up the Go workspace.
 	go work use ./dropgz
 	go work use ./zapai
 
-##@ Test 
+##@ Test
 
 COVER_PKG ?= .
 
@@ -755,7 +764,7 @@ gitconfig: ## configure the local git repository
 setup: tools install-hooks gitconfig ## performs common required repo setup
 
 
-##@ Tools 
+##@ Tools
 
 $(TOOLS_DIR)/go.mod:
 	cd $(TOOLS_DIR); go mod init && go mod tidy
@@ -765,7 +774,7 @@ $(CONTROLLER_GEN): $(TOOLS_DIR)/go.mod
 
 controller-gen: $(CONTROLLER_GEN) ## Build controller-gen
 
-protoc: 
+protoc:
 	source ${REPO_ROOT}/scripts/install-protoc.sh
 
 $(GOCOV): $(TOOLS_DIR)/go.mod
@@ -798,13 +807,13 @@ $(MOCKGEN): $(TOOLS_DIR)/go.mod
 
 mockgen: $(MOCKGEN) ## Build mockgen
 
-clean-tools: 
+clean-tools:
 	rm -r build/tools/bin
 
 tools: acncli gocov gocov-xml go-junit-report golangci-lint gofumpt protoc ## Build bins for build tools
 
 
-##@ Help 
+##@ Help
 
 help: ## Display this help
 	@awk 'BEGIN {FS = ":.*##"; printf "\nUsage:\n  make \033[36m<target>\033[0m\n"} /^[a-zA-Z_-]+:.*?##/ { printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2 } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
