@@ -1,67 +1,74 @@
-# Cilium Azure-ipam Dual Stack Overlay Proposal 
+# Cilium Azure-ipam dualstack Overlay Proposal 
 
 ## Purpose 
 
-This document proposes changes to the azure-ipam contract so that we can work with dual stack clusters between Cilium and Azure CNS. 
+This document proposes changes to the azure-ipam contract and implement a new API so that we can work with dualstack clusters between Cilium and Azure CNS. 
 
 ## Overview 
 
-With the current CNS solution for dual stack we are setting the nnc to pass multiple NCs with CIDR to be unrolled and added to a pool that contains both v6 and v4 ips. Since we are planning to use Cilium CNI for the linux dual stack solution we need to make changes to azure-ipam to allow for a dual stack cluster to get multiple IPs. Currently azure-Ipam handles the [`CmdAdd`](https://github.com/Azure/azure-container-networking/blob/master/azure-ipam/ipam.go#:~:text=func%20(p%20*IPAMPlugin)%20CmdAdd(args%20*cniSkel.CmdArgs)%20error%20%7B) command from Cilium CNI and sends an IP request to the CNS. The CNS then in overlay then looks through the pool and picks the first IP found that isn’t used. For dual stack we need to change two things:
-1. Azure-ipam needs to be able to assign multiple IPs
-2. CNS needs to be able to determine what type of IP it is returning so that we can have one IPv4 and one IPv6. 
+With the current CNS solution for dualstack we are setting the NNC to pass multiple NCs with CIDR to be unrolled and added to a pool that contains both v6 and v4 IPs. Since we are planning to use Cilium CNI for the Linux dualstack solution we need to make add and additional CNS API to allow for a dualstack cluster to get multiple IPs. Currently azure-ipam handles the [`CmdAdd`](https://github.com/Azure/azure-container-networking/blob/master/azure-ipam/ipam.go#:~:text=func%20(p%20*IPAMPlugin)%20CmdAdd(args%20*cniSkel.CmdArgs)%20error%20%7B) command from Cilium CNI and sends an IP request to CNS. In Overlay, CNS then looks through the pool and picks the first IP found that isn’t used. For dualstack we need to change three things:
+1. A new contract type to allow for a slice of IPs to be returned
+2. A new API that acts similar to the current API but expects uses new contract as a return type
+3. Changes need to be made in CNS ipam so that we return an IP for each NC 
 
 ## Current Implementation
 
-When we use Cilium CNI with Azure CNS we use an Azure-ipam plugin to communicate from the Cilium CNI and CNS. This plugin takes in add commands from the Cilium CNI and reads the CNI network config from stdin. The data from stdin then gets parsed into an [`IPConfigRequest`](https://github.com/Azure/azure-container-networking/blob/master/cns/NetworkContainerContract.go) object and is passed to [`RequestIPAddress`](https://github.com/Azure/azure-container-networking/blob/master/cns/client/client.go). From here we call the [`requestIPConfigHandler`](https://github.com/Azure/azure-container-networking/blob/master/cns/restserver/ipam.go#:~:text=func%20(service%20*HTTPRestService)%20requestIPConfigHandler(w%20http.ResponseWriter%2C%20r%20*http.Request)%20%7B) in ipam using which then retrieves and validates the `IPConfigRequest` and then calls the [`requestIPConfigHelper`](https://github.com/Azure/azure-container-networking/blob/master/cns/restserver/ipam.go#:~:text=func%20requestIPConfigHelper(service%20*HTTPRestService%2C%20req%20cns.IPConfigRequest)%20(cns.PodIpInfo%2C%20error)%20%7B). The helper function first checks to see if the `IPConfigRequest` already belongs to a pod and returns the existing pod's information. If it doesn't already exist than it checks if there is a desiredIPaddress or not. If there is a desired IP address than we search for that specific IP and if not it calls 
-[`AssignAnyAvailableIPConfig`](https://github.com/Azure/azure-container-networking/blob/master/cns/restserver/ipam.go#:~:text=func%20(service%20*HTTPRestService)%20AssignAnyAvailableIPConfig(podInfo%20cns.PodInfo)%20(cns.PodIpInfo%2C%20error)%20%7B)
+To communicate to Cilium CNI from Azure CNS we use the azure-ipam plugin. This plugin takes in add commands from the Cilium CNI and reads the CNI network config from stdin. The data from stdin then gets parsed into an [`IPConfigRequest`](https://github.com/Azure/azure-container-networking/blob/master/cns/NetworkContainerContract.go) object and is passed to [`RequestIPAddress`](https://github.com/Azure/azure-container-networking/blob/master/cns/client/client.go). From here we call the [`requestIPConfigHandler`](https://github.com/Azure/azure-container-networking/blob/master/cns/restserver/ipam.go#:~:text=func%20(service%20*HTTPRestService)%20requestIPConfigHandler(w%20http.ResponseWriter%2C%20r%20*http.Request)%20%7B) in ipam which then retrieves and validates the [`IPConfigRequest`](https://github.com/Azure/azure-container-networking/blob/master/cns/NetworkContainerContract.go) and then calls the [`requestIPConfigHelper`](https://github.com/Azure/azure-container-networking/blob/master/cns/restserver/ipam.go#:~:text=func%20requestIPConfigHelper(service%20*HTTPRestService%2C%20req%20cns.IPConfigRequest)%20(cns.PodIpInfo%2C%20error)%20%7B). The helper function first checks to see if the `IPConfigRequest` already belongs to a pod and returns the existing pod's information. If it doesn't already exist than it checks if there is a desired IP address or not. If there is a desired IP address than we search for that specific IP and if not we call 
+[`AssignAnyAvailableIPConfig`](https://github.com/Azure/azure-container-networking/blob/master/cns/restserver/ipam.go#:~:text=func%20(service%20*HTTPRestService)%20AssignAnyAvailableIPConfig(podInfo%20cns.PodInfo)%20(cns.PodIpInfo%2C%20error)%20%7B). This function then searches for the first available IP and returns it back up to the handler. The handler then packages the IP into a [`IPConfigResponse`](https://github.com/Azure/azure-container-networking/blob/bd299fe7271a7a23b3d0268d8e14ad812181e076/cns/NetworkContainerContract.go#L419) which gets returned to the client.
 ## New Implementation
 
-### NNC change
+### New Contract Type
 
-For the CNS to know that we are in dual stack we will use a flag that will be passed in using the NNC. This will be filled in from the DNC-RC side and then sent to the CNS over the CRD in a flag called `IPMode`. The IPMode flag will be of type IPMode and will have two options "SingleStack" which when passed in will have the CNS work as it currently does and "Dual Stack" which tell the CNS to look for two IPs instead of one.
-
-```diff
-// NodeNetworkConfigStatus defines the observed state of NetworkConfig
-type NodeNetworkConfigStatus struct {
-	AssignedIPCount   int                `json:"assignedIPCount,omitempty"`
-	Scaler            Scaler             `json:"scaler,omitempty"`
-	Status            Status             `json:"status,omitempty"`
-+   IPMode            IPMode             `json:"IPmode,omitempty"`
-	NetworkContainers []NetworkContainer `json:"networkContainers,omitempty"`
-}
-```
+To preserve the current contract type but also to allow for the new functionality we will add a new type, `IPConfigsResponse` to the contract. This new type will be similar to the prexisting [`IPConfigResponse`](https://github.com/Azure/azure-container-networking/blob/bd299fe7271a7a23b3d0268d8e14ad812181e076/cns/NetworkContainerContract.go#L419) but replacing the single `PodIpInfo` with a slice. This will allow for a single call to the API to return one IP per NC.
 
 ```diff
-+type IPMode string
-+
-+const (
-+	SingleStack Status = "SingleStack"
-+	DualStack   Status = "DualStack"
-+)
-```
-
-In the CNS will flag then be used in the [`AssignAnyAvailableIPConfig`](https://github.com/Azure/azure-container-networking/blob/master/cns/restserver/ipam.go#:~:text=func%20(service%20*HTTPRestService)%20AssignAnyAvailableIPConfig(podInfo%20cns.PodInfo)%20(cns.PodIpInfo%2C%20error)%20%7B) function to determine whether or not are creating a pod in single stack or dual stack. 
-
-### Contract IP change
-
-We will continue to send only one `IPConfigRequest` when we are running in dual stack but when in dual stack we will expect the repsonse to include a slice of `PodIpInfo`. When running the [`AssignAnyAvailableIPConfig`](https://github.com/Azure/azure-container-networking/blob/master/cns/restserver/ipam.go#:~:text=func%20(service%20*HTTPRestService)%20AssignAnyAvailableIPConfig(podInfo%20cns.PodInfo)%20(cns.PodIpInfo%2C%20error)%20%7B) function with the new flag for dual stack if we are running in dual stack we will have the function pick the first availabe IPv6 and first available IPv4 IP that it can find. These IPs will now be returned as a slice from `AssignAnyAvailableIPConfig` and used to populate the `IPConfigResponse` struct and returned back to the azure-ipam. The azure-ipam will then cycle the length of the slice to populate the message the is sent to the Cilium-CNI.
-
-```
-type IPConfigRequest struct {
-    DesiredIPAddress    string
-    PodInterfaceID      string
-    InfraContainerID    string
-    OrchestratorContext json.RawMessage
-    Ifname              string // Used by delegated IPAM
-}
-```
-
-```diff
+// IPConfigResponse is used in CNS IPAM mode as a response to CNI ADD
 type IPConfigResponse struct {
--   PodIpInfo PodIpInfo 
-+   PodIpInfo []PodIpInfo 
-    Response  Response
+	PodIpInfo PodIpInfo
+	Response  Response
+}
+
++// IPConfigsResponse is used in CNS IPAM mode to return a slice of IP configs as a response to CNI ADD
++type IPConfigsResponse struct {
++	PodIpInfo []PodIpInfo
++	Response  Response
++}
+```
+
+### New API
+
+A new API will called `RequestAllIPAddresses` be created for requesting IPs when running in Overlay. This will work similar to the current [`RequestIPAddress`](https://github.com/Azure/azure-container-networking/blob/master/cns/client/client.go) and will accept the same [`IPConfigRequest`](https://github.com/Azure/azure-container-networking/blob/master/cns/NetworkContainerContract.go), the main difference will be that it will return the new contract type `IPConfigsResponse` with the slice of `PodIpInfo`. 
+
+```diff
++// RequestAllIPAddresses calls the RequestAllIPConfigs in CNS
++func (c *Client) RequestAllIPAddresses(ctx context.Context, ipconfig cns.IPConfigRequest) (*cns.IPConfigsResponse, error)
 }
 ```
 
+If for some reason this function returns a 404 error we will then try again but use the original [`RequestIPAddress`](https://github.com/Azure/azure-container-networking/blob/master/cns/client/client.go) API instead. The swift case will not use the new API and will continue to use the current one.
 
+### IPAM Changes
+
+In IPAM we will need to have a new handler that is called by the new API called `RequestAllIpConfigsHandler`. This new handler will act similarly as the current [`requestIPConfigHandler`](https://github.com/Azure/azure-container-networking/blob/master/cns/restserver/ipam.go#:~:text=func%20(service%20*HTTPRestService)%20requestIPConfigHandler(w%20http.ResponseWriter%2C%20r%20*http.Request)%20%7B) handler with the exception of using the new contract `IPConfigsResponse`. This new function will also call [`requestIPConfigHelper`](https://github.com/Azure/azure-container-networking/blob/master/cns/restserver/ipam.go#:~:text=func%20requestIPConfigHelper(service%20*HTTPRestService%2C%20req%20cns.IPConfigRequest)%20(cns.PodIpInfo%2C%20error)%20%7B) to retrieve an IP however the return type will be changed from a single `PodIpInfo` to a slice so that we can get all IPs needed with one call. [`requestIPConfigHelper`](https://github.com/Azure/azure-container-networking/blob/master/cns/restserver/ipam.go#:~:text=func%20requestIPConfigHelper(service%20*HTTPRestService%2C%20req%20cns.IPConfigRequest)%20(cns.PodIpInfo%2C%20error)%20%7B) will still call [`AssignAnyAvailableIPConfig`](https://github.com/Azure/azure-container-networking/blob/master/cns/restserver/ipam.go#:~:text=func%20(service%20*HTTPRestService)%20AssignAnyAvailableIPConfig(podInfo%20cns.PodInfo)%20(cns.PodIpInfo%2C%20error)%20%7B) but will now be expecting for a slice of IPs to be returned. Within [`AssignAnyAvailableIPConfig`](https://github.com/Azure/azure-container-networking/blob/master/cns/restserver/ipam.go#:~:text=func%20(service%20*HTTPRestService)%20AssignAnyAvailableIPConfig(podInfo%20cns.PodInfo)%20(cns.PodIpInfo%2C%20error)%20%7B) instead of just getting the first available IP, it will now fill a slice with one IP from each NC provided on the NNC. This will then get returned back up to the handler function and then sent back to the client.
+
+```diff
++// used to request an IPConfig for each NC from the CNS state
++func (service *HTTPRestService) RequestAllIpConfigsHandler(w http.ResponseWriter, r *http.Request)
+```
+
+```diff
+-func requestIPConfigHelper(service *HTTPRestService, req cns.IPConfigRequest) (cns.PodIpInfo, error) 
++func requestIPConfigHelper(service *HTTPRestService, req cns.IPConfigRequest) ([]cns.PodIpInfo, error) 
+```
+
+```diff
+-func (service *HTTPRestService) AssignAnyAvailableIPConfig(podInfo cns.PodInfo) (cns.PodIpInfo, error) 
++func (service *HTTPRestService) AssignAnyAvailableIPConfig(podInfo cns.PodInfo) ([]cns.PodIpInfo, error) 
+```
+
+To keep backwards compatibility the current handler, [`requestIPConfigHandler`](https://github.com/Azure/azure-container-networking/blob/master/cns/restserver/ipam.go#:~:text=func%20(service%20*HTTPRestService)%20requestIPConfigHandler(w%20http.ResponseWriter%2C%20r%20*http.Request)%20%7B) will still accept the slice from [`requestIPConfigHelper`](https://github.com/Azure/azure-container-networking/blob/master/cns/restserver/ipam.go#:~:text=func%20requestIPConfigHelper(service%20*HTTPRestService%2C%20req%20cns.IPConfigRequest)%20(cns.PodIpInfo%2C%20error)%20%7B) but will then have to retrieve the first index of the slice so that it can be used in the old version of the contract, [`IPConfigResponse`](https://github.com/Azure/azure-container-networking/blob/bd299fe7271a7a23b3d0268d8e14ad812181e076/cns/NetworkContainerContract.go#L419).
+
+
+### Questions
+
+When searching for one IP per NC is there some where that we save all of the NC names. If I don't know the names ahead of time I will probably need to search through all of the IPs to get all of the NC names at one point and I could save it.
