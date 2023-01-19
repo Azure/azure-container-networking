@@ -102,7 +102,6 @@ var (
 	}
 	ncParams         = []createOrUpdateNetworkContainerParams{nc1, nc2}
 	errMismatchedNCs = errors.New("GetNetworkContainers failed because NCs not matched")
-	errTest          = errors.New("testError")
 )
 
 const (
@@ -635,14 +634,14 @@ func TestGetNetworkContainerVersionStatus(t *testing.T) {
 		rsp := nmagent.NCVersionList{
 			Containers: []nmagent.NCVersion{},
 		}
-		return rsp, errTest
+		return rsp, errors.New("boom") //nolint:goerr113 // it's just a test
 	}
 
 	mnma.JoinNetworkF = func(_ context.Context, _ nmagent.JoinNetworkRequest) error {
-		return errTest
+		return errors.New("boom") //nolint:goerr113 // it's just a test
 	}
 	mnma.PutNetworkContainerF = func(_ context.Context, _ *nmagent.PutNetworkContainerRequest) error {
-		return errTest
+		return errors.New("boom") //nolint:goerr113 // it's just a test
 	}
 
 	err = createNC(params)
