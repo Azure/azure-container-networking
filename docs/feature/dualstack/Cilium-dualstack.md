@@ -6,10 +6,10 @@ This document proposes changes to the azure-ipam contract and implement a new AP
 
 ## Overview 
 
-With the current CNS solution for dualstack we are setting the NNC to pass multiple NCs with CIDR to be unrolled and added to a pool that contains both v6 and v4 IPs. Since we are planning to use Cilium CNI for the Linux dualstack solution we need to make add and additional CNS API to allow for a dualstack cluster to get multiple IPs. Currently azure-ipam handles the [`CmdAdd`](https://github.com/Azure/azure-container-networking/blob/master/azure-ipam/ipam.go#:~:text=func%20(p%20*IPAMPlugin)%20CmdAdd(args%20*cniSkel.CmdArgs)%20error%20%7B) command from Cilium CNI and sends an IP request to CNS. In Overlay, CNS then looks through the pool and picks the first IP found that isn’t used. For dualstack we need to change three things:
-1. A new contract type to allow for a slice of IPs to be returned
-2. A new API that acts similar to the current API but expects uses new contract as a return type
-3. Changes need to be made in CNS ipam so that we return an IP for each NC 
+With the current DNC/DNC-RC solution for dualstack we are setting the NNC to pass multiple NCs with a CIDR to be unrolled and added to a pool that contains both v6 and v4 IPs. For CNI/CNS we need to be able to ensure that we are able to assign an IP from both of these NCs when creating pods and will do so using the following changes:
+1. Create a new contract type to allow for a slice of IPs to be returned
+2. Create a new API that acts similar to the current API but uses the new contract as a return type to return multiple IPs
+3. Make changes to existing functions in ipam so that one IP is assigned per NC to a pod
 
 ## Current Implementation
 
@@ -71,4 +71,4 @@ To keep backwards compatibility the current handler, [`requestIPConfigHandler`](
 
 ### Questions
 
-When searching for one IP per NC is there some where that we save all of the NC names. If I don't know the names ahead of time I will probably need to search through all of the IPs to get all of the NC names at one point and I could save it.
+When searching for one IP per NC is there some where that we save all of the NC names? If we don't know the names ahead of time I will probably need to search through all of the IPs to get all of the NC names at one point and I could save it.
