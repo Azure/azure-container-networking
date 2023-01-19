@@ -31,8 +31,6 @@ import (
 var (
 	// Named Lock for accessing different states in httpRestServiceState
 	namedLock = acn.InitNamedLock()
-	// map of NC to their respective NMA getVersion URLs
-	ncVersionURLs sync.Map
 )
 
 type interfaceGetter interface {
@@ -44,7 +42,6 @@ type nmagentClient interface {
 	DeleteNetworkContainer(context.Context, nma.DeleteContainerRequest) error
 	JoinNetwork(context.Context, nma.JoinNetworkRequest) error
 	SupportedAPIs(context.Context) ([]string, error)
-	GetNCVersion(context.Context, nma.NCVersionRequest) (nma.NCVersion, error)
 	GetNCVersionList(context.Context) (nma.NCVersionList, error)
 	GetHomeAz(context.Context) (nma.AzResponse, error)
 }

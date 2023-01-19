@@ -448,7 +448,7 @@ func (NCVersionListRequest) Method() string {
 
 // Path returns the path required to issue the request.
 func (NCVersionListRequest) Path() string {
-	return "/NetworkManagement/interfaces/api-version/1"
+	return "/NetworkManagement/interfaces/api-version/2"
 }
 
 // Validate performs any necessary validations for the request.
