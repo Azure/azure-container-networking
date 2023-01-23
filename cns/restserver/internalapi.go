@@ -104,7 +104,7 @@ func (service *HTTPRestService) SyncNodeStatus(dncEP, infraVnet, nodeID string, 
 	if !skipNCVersionCheck {
 		nmaNCs := map[string]string{}
 		for _, nc := range ncVersionListResp.Containers {
-			nmaNCs[cns.SwiftPrefix+nc.NetworkContainerID] = nc.Version
+			nmaNCs[nc.NetworkContainerID] = nc.Version
 		}
 
 		// check if the version is valid and save it to service state
