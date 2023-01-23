@@ -124,8 +124,8 @@ func getIPNetFromResponse(resp *cns.IPConfigResponse) (net.IPNet, error) {
 	)
 
 	// set result ipconfig from CNS Response Body
-	prefix := strconv.Itoa(int(resp.PodIpInfo[0].PodIPConfig.PrefixLength))
-	ip, ipnet, err := net.ParseCIDR(resp.PodIpInfo[0].PodIPConfig.IPAddress + "/" + prefix)
+	prefix := strconv.Itoa(int(resp.PodIpInfo.PodIPConfig.PrefixLength))
+	ip, ipnet, err := net.ParseCIDR(resp.PodIpInfo.PodIPConfig.IPAddress + "/" + prefix)
 	if err != nil {
 		return resultIPnet, err
 	}
@@ -265,14 +265,14 @@ func TestCNSClientRequestAndRelease(t *testing.T) {
 	assert.NoError(t, err)
 
 	// no IP reservation found with that context, expect no failure.
-	err = cnsClient.ReleaseIPAddress(context.TODO(), cns.IPConfigRequest{OrchestratorContext: orchestratorContext})
+	err = cnsClient.ReleaseIPs(context.TODO(), cns.IPConfigRequest{OrchestratorContext: orchestratorContext})
 	assert.NoError(t, err, "Release ip idempotent call failed")
 
 	// request IP address
 	resp, err := cnsClient.RequestIPAddress(context.TODO(), cns.IPConfigRequest{OrchestratorContext: orchestratorContext})
 	assert.NoError(t, err, "get IP from CNS failed")
 
-	podIPInfo := resp.PodIpInfo[0]
+	podIPInfo := resp.PodIpInfo
 	assert.Equal(t, primaryIp, podIPInfo.NetworkContainerPrimaryIPConfig.IPSubnet.IPAddress, "PrimaryIP is not added as epected ipConfig")
 	assert.EqualValues(t, podIPInfo.NetworkContainerPrimaryIPConfig.IPSubnet.PrefixLength, subnetPrfixLength, "Primary IP Prefix length is not added as expected ipConfig")
 
@@ -284,7 +284,7 @@ func TestCNSClientRequestAndRelease(t *testing.T) {
 
 	assert.Equal(t, desired, resultIPnet, "Desired result not matching actual result")
 
-	// checking for assigned IP address and pod context printing before ReleaseIPAddress is called
+	// checking for assigned IP address and pod context printing before ReleaseIPs is called
 	ipaddresses, err := cnsClient.GetIPAddressesMatchingStates(context.TODO(), types.Assigned)
 	assert.NoError(t, err, "Get assigned IP addresses failed")
 
@@ -295,7 +295,7 @@ func TestCNSClientRequestAndRelease(t *testing.T) {
 	t.Log(ipaddresses)
 
 	// release requested IP address, expect success
-	err = cnsClient.ReleaseIPAddress(context.TODO(), cns.IPConfigRequest{DesiredIPAddress: ipaddresses[0].IPAddress, OrchestratorContext: orchestratorContext})
+	err = cnsClient.ReleaseIPs(context.TODO(), cns.IPConfigRequest{DesiredIPAddress: ipaddresses[0].IPAddress, OrchestratorContext: orchestratorContext})
 	assert.NoError(t, err, "Expected to not fail when releasing IP reservation found with context")
 }
 
@@ -325,7 +325,7 @@ func TestCNSClientPodContextApi(t *testing.T) {
 	t.Log(podcontext)
 
 	// release requested IP address, expect success
-	err = cnsClient.ReleaseIPAddress(context.TODO(), cns.IPConfigRequest{OrchestratorContext: orchestratorContext})
+	err = cnsClient.ReleaseIPs(context.TODO(), cns.IPConfigRequest{OrchestratorContext: orchestratorContext})
 	assert.NoError(t, err, "Expected to not fail when releasing IP reservation found with context")
 }
 
@@ -1811,7 +1811,7 @@ func TestReleaseIPAddress(t *testing.T) {
 				client: tt.mockdo,
 				routes: tt.routes,
 			}
-			err := client.ReleaseIPAddress(tt.ctx, tt.ipconfig)
+			err := client.ReleaseIPs(tt.ctx, tt.ipconfig)
 			if tt.wantErr {
 				assert.Error(t, err)
 			} else {

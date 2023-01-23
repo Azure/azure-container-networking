@@ -583,7 +583,7 @@ func validateNCStateAfterReconcile(t *testing.T, ncRequest *cns.CreateNetworkCon
 
 	for ipaddress, podInfo := range expectedAssignedPods {
 		ipId := svc.PodIPIDByPodInterfaceKey[podInfo.Key()]
-		ipConfigstate := svc.PodIPConfigState[ipId[0]]
+		ipConfigstate := svc.PodIPConfigState[ipId]
 
 		if ipConfigstate.GetState() != types.Assigned {
 			t.Fatalf("IpAddress %s is not marked as assigned to Pod: %+v, ipState: %+v", ipaddress, podInfo, ipConfigstate)

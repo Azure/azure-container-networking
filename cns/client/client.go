@@ -294,7 +294,7 @@ func (c *Client) RequestIPAddress(ctx context.Context, ipconfig cns.IPConfigRequ
 	var err error
 	defer func() {
 		if err != nil {
-			if e := c.ReleaseIPAddress(ctx, ipconfig); e != nil {
+			if e := c.ReleaseIPs(ctx, ipconfig); e != nil {
 				err = errors.Wrap(e, err.Error())
 			}
 		}
@@ -323,7 +323,7 @@ func (c *Client) RequestIPAddress(ctx context.Context, ipconfig cns.IPConfigRequ
 		return nil, errors.Errorf("http response %d", res.StatusCode)
 	}
 
-	var response cns.IPConfigResponse
+	var response cns.IPConfigResponse 
 	err = json.NewDecoder(res.Body).Decode(&response)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to decode IPConfigResponse")
@@ -336,8 +336,8 @@ func (c *Client) RequestIPAddress(ctx context.Context, ipconfig cns.IPConfigRequ
 	return &response, nil
 }
 
-// ReleaseIPAddress calls releaseIPAddress on CNS, ipaddress ex: (10.0.0.1)
-func (c *Client) ReleaseIPAddress(ctx context.Context, ipconfig cns.IPConfigRequest) error {
+// ReleaseIPs calls releaseIPAddress on CNS, ipaddress ex: (10.0.0.1)
+func (c *Client) ReleaseIPs(ctx context.Context, ipconfig cns.IPConfigRequest) error {
 	var body bytes.Buffer
 	err := json.NewEncoder(&body).Encode(ipconfig)
 	if err != nil {
@@ -372,6 +372,54 @@ func (c *Client) ReleaseIPAddress(ctx context.Context, ipconfig cns.IPConfigRequ
 	}
 
 	return nil
+}
+
+
+// RequestIPs calls the RequestIPConfigs in CNS
+func (c *Client) RequestIPs(ctx context.Context, ipconfig cns.IPConfigRequest) (*cns.IPConfigsResponse, error) {
+	var err error
+	defer func() {
+		if err != nil {
+			if e := c.ReleaseIPs(ctx, ipconfig); e != nil {
+				err = errors.Wrap(e, err.Error())
+			}
+		}
+	}()
+
+	var body bytes.Buffer
+	err = json.NewEncoder(&body).Encode(ipconfig)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to encode IPConfigRequest")
+	}
+
+	u := c.routes[cns.RequestIPConfig]
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, u.String(), &body)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to build request")
+	}
+	req.Header.Set(headerContentType, contentTypeJSON)
+	res, err := c.client.Do(req)
+	if err != nil {
+		return nil, errors.Wrap(err, "http request failed")
+	}
+
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return nil, errors.Errorf("http response %d", res.StatusCode)
+	}
+
+	var response cns.IPConfigsResponse
+	err = json.NewDecoder(res.Body).Decode(&response)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to decode IPConfigsResponse")
+	}
+
+	if response.Response.ReturnCode != 0 {
+		return nil, errors.New(response.Response.Message)
+	}
+
+	return &response, nil
 }
 
 // GetIPAddressesMatchingStates takes a variadic number of string parameters, to get all IP Addresses matching a number of states

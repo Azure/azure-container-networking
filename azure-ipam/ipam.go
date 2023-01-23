@@ -29,7 +29,8 @@ type IPAMPlugin struct {
 
 type cnsClient interface {
 	RequestIPAddress(context.Context, cns.IPConfigRequest) (*cns.IPConfigResponse, error)
-	ReleaseIPAddress(context.Context, cns.IPConfigRequest) error
+	RequestAllIPAddresses(context.Context, cns.IPConfigRequest) (*cns.IPConfigsResponse, error)
+	ReleaseIPs(context.Context, cns.IPConfigRequest) error
 }
 
 // NewPlugin constructs a new IPAM plugin instance with given logger and CNS client
@@ -72,7 +73,7 @@ func (p *IPAMPlugin) CmdAdd(args *cniSkel.CmdArgs) error {
 	p.logger.Debug("Making request to CNS")
 	// if this fails, the caller plugin should execute again with cmdDel before returning error.
 	// https://www.cni.dev/docs/spec/#delegated-plugin-execution-procedure
-	resp, err := p.cnsClient.RequestIPAddress(context.TODO(), req)
+	resp, err := p.cnsClient.RequestIPs(context.TODO(), req)
 	if err != nil {
 		p.logger.Error("Failed to request IP address from CNS", zap.Error(err), zap.Any("request", req))
 		return cniTypes.NewError(ErrRequestIPConfigFromCNS, err.Error(), "failed to request IP address from CNS")
@@ -157,7 +158,7 @@ func (p *IPAMPlugin) CmdDel(args *cniSkel.CmdArgs) error {
 
 	p.logger.Debug("Making request to CNS")
 	// cnsClient enforces it own timeout
-	if err := p.cnsClient.ReleaseIPAddress(context.TODO(), req); err != nil {
+	if err := p.cnsClient.ReleaseIPs(context.TODO(), req); err != nil {
 		p.logger.Error("Failed to release IP address from CNS", zap.Error(err), zap.Any("request", req))
 		return cniTypes.NewError(cniTypes.ErrTryAgainLater, err.Error(), "failed to release IP address from CNS")
 	}

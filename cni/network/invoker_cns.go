@@ -84,13 +84,13 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 	}
 
 	info := IPv4ResultInfo{
-		podIPAddress:       response.PodIpInfo[0].PodIPConfig.IPAddress,
-		ncSubnetPrefix:     response.PodIpInfo[0].NetworkContainerPrimaryIPConfig.IPSubnet.PrefixLength,
-		ncPrimaryIP:        response.PodIpInfo[0].NetworkContainerPrimaryIPConfig.IPSubnet.IPAddress,
-		ncGatewayIPAddress: response.PodIpInfo[0].NetworkContainerPrimaryIPConfig.GatewayIPAddress,
-		hostSubnet:         response.PodIpInfo[0].HostPrimaryIPInfo.Subnet,
-		hostPrimaryIP:      response.PodIpInfo[0].HostPrimaryIPInfo.PrimaryIP,
-		hostGateway:        response.PodIpInfo[0].HostPrimaryIPInfo.Gateway,
+		podIPAddress:       response.PodIpInfo.PodIPConfig.IPAddress,
+		ncSubnetPrefix:     response.PodIpInfo.NetworkContainerPrimaryIPConfig.IPSubnet.PrefixLength,
+		ncPrimaryIP:        response.PodIpInfo.NetworkContainerPrimaryIPConfig.IPSubnet.IPAddress,
+		ncGatewayIPAddress: response.PodIpInfo.NetworkContainerPrimaryIPConfig.GatewayIPAddress,
+		hostSubnet:         response.PodIpInfo.HostPrimaryIPInfo.Subnet,
+		hostPrimaryIP:      response.PodIpInfo.HostPrimaryIPInfo.PrimaryIP,
+		hostGateway:        response.PodIpInfo.HostPrimaryIPInfo.Gateway,
 	}
 
 	// set the NC Primary IP in options
@@ -241,7 +241,7 @@ func (invoker *CNSIPAMInvoker) Delete(address *net.IPNet, nwCfg *cni.NetworkConf
 		log.Printf("CNS invoker called with empty IP address")
 	}
 
-	if err := invoker.cnsClient.ReleaseIPAddress(context.TODO(), req); err != nil {
+	if err := invoker.cnsClient.ReleaseIPs(context.TODO(), req); err != nil {
 		return errors.Wrap(err, fmt.Sprintf("failed to release IP %v with err ", address)+"%w")
 	}
 

@@ -1776,11 +1776,11 @@ func TestCreateNetwork(t *testing.T) {
 
 	err = json.NewDecoder(res.Body).Decode(&resp)
 	if err != nil {
-		t.Errorf("[Azure cnsclient] Error received while parsing ReleaseIPAddress response resp:%v err:%v", res.Body, err.Error())
+		t.Errorf("[Azure cnsclient] Error received while parsing ReleaseIPs response resp:%v err:%v", res.Body, err.Error())
 	}
 
 	if resp.ReturnCode != 0 {
-		t.Errorf("[Azure cnsclient] ReleaseIPAddress received error response :%v", resp.Message)
+		t.Errorf("[Azure cnsclient] ReleaseIPs received error response :%v", resp.Message)
 		// return fmt.Errorf(resp.Message)
 	}
 }
@@ -1841,7 +1841,7 @@ func TestReserveIPAddress(t *testing.T) {
 }
 
 func TestReleaseIPAddress(t *testing.T) {
-	fmt.Println("Test: ReleaseIPAddress")
+	fmt.Println("Test: ReleaseIPs")
 
 	releaseIPRequest := cns.ReleaseIPAddressRequest{ReservationID: "ip01"}
 	releaseIPAddressRequestJSON := new(bytes.Buffer)

@@ -60,7 +60,7 @@ type HTTPRestService struct {
 	wsproxy                  wireserverProxy
 	homeAzMonitor            *HomeAzMonitor
 	networkContainer         *networkcontainers.NetworkContainers
-	PodIPIDByPodInterfaceKey map[string][]string // PodInterfaceId is key and value is Pod IP (SecondaryIP) uuid.
+	PodIPIDByPodInterfaceKey map[string][]string // PodInterfaceId is key and value is slice of Pod IP (SecondaryIP) uuids.
 	PodIPConfigState        map[string]cns.IPConfigurationStatus // Secondary IP ID(uuid) is key
 	IPAMPoolMonitor         cns.IPAMPoolMonitor
 	routingTable            *routes.RoutingTable
@@ -108,7 +108,7 @@ type GetHTTPServiceDataResponse struct {
 
 // HTTPRestServiceData represents in-memory CNS data in the debug API paths.
 type HTTPRestServiceData struct {
-	PodIPIDByPodInterfaceKey map[string][]string                  // PodInterfaceId is key and value is Pod IP uuid.
+	PodIPIDByPodInterfaceKey map[string][]string                  // PodInterfaceId is key and value is slice of Pod IP uuids.
 	PodIPConfigState         map[string]cns.IPConfigurationStatus // secondaryipid(uuid) is key
 	IPAMPoolMonitor          cns.IpamPoolMonitorStateSnapshot
 }
@@ -254,6 +254,7 @@ func (service *HTTPRestService) Init(config *common.ServiceConfig) error {
 	listener.AddHandler(cns.PublishNetworkContainer, service.publishNetworkContainer)
 	listener.AddHandler(cns.UnpublishNetworkContainer, service.unpublishNetworkContainer)
 	listener.AddHandler(cns.RequestIPConfig, newHandlerFuncWithHistogram(service.requestIPConfigHandler, httpRequestLatency))
+	listener.AddHandler(cns.RequestIPConfig, newHandlerFuncWithHistogram(service.requestIPConfigsHandler, httpRequestLatency))
 	listener.AddHandler(cns.ReleaseIPConfig, newHandlerFuncWithHistogram(service.releaseIPConfigHandler, httpRequestLatency))
 	listener.AddHandler(cns.NmAgentSupportedApisPath, service.nmAgentSupportedApisHandler)
 	listener.AddHandler(cns.PathDebugIPAddresses, service.handleDebugIPAddresses)

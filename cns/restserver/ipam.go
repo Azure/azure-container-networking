@@ -87,7 +87,88 @@ func (service *HTTPRestService) requestIPConfigHandler(w http.ResponseWriter, r 
 		}
 	}
 
-	reserveResp := cns.IPConfigResponse{
+	reserveResp := &cns.IPConfigResponse{
+		Response: cns.Response{
+			ReturnCode: types.Success,
+		},
+		PodIpInfo: podIPInfo,
+	}
+	w.Header().Set(cnsReturnCode, reserveResp.Response.ReturnCode.String())
+	err = service.Listener.Encode(w, &reserveResp)
+	logger.ResponseEx(service.Name+operationName, ipconfigRequest, reserveResp, reserveResp.Response.ReturnCode, err)
+}
+
+
+// used to request IPConfigs from the CNS state
+func (service *HTTPRestService) requestIPConfigsHandler(w http.ResponseWriter, r *http.Request) {
+	var ipconfigRequest cns.IPConfigRequest
+	err := service.Listener.Decode(w, r, &ipconfigRequest)
+	operationName := "requestIPConfigsHandler"
+	logger.Request(service.Name+operationName, ipconfigRequest, err)
+	if err != nil {
+		return
+	}
+
+	// retrieve ipconfig from nc
+	podInfo, returnCode, returnMessage := service.validateIPConfigRequest(ipconfigRequest)
+	if returnCode != types.Success {
+		reserveResp := &cns.IPConfigsResponse{
+			Response: cns.Response{
+				ReturnCode: returnCode,
+				Message:    returnMessage,
+			},
+		}
+		w.Header().Set(cnsReturnCode, reserveResp.Response.ReturnCode.String())
+		err = service.Listener.Encode(w, &reserveResp)
+		logger.ResponseEx(service.Name+operationName, ipconfigRequest, reserveResp, reserveResp.Response.ReturnCode, err)
+		return
+	}
+
+	// record a pod requesting an IP
+	service.podsPendingIPAssignment.Push(podInfo.Key())
+
+	podIPInfo, err := requestIPConfigHelper(service, ipconfigRequest)
+	if err != nil {
+		reserveResp := &cns.IPConfigsResponse{
+			Response: cns.Response{
+				ReturnCode: types.FailedToAllocateIPConfig,
+				Message:    fmt.Sprintf("AllocateIPConfig failed: %v, IP config request is %s", err, ipconfigRequest),
+			},
+			PodIpInfo: podIPInfo,
+		}
+		w.Header().Set(cnsReturnCode, reserveResp.Response.ReturnCode.String())
+		err = service.Listener.Encode(w, &reserveResp)
+		logger.ResponseEx(service.Name+operationName, ipconfigRequest, reserveResp, reserveResp.Response.ReturnCode, err)
+		return
+	}
+
+	// record a pod assigned an IP
+	defer func() {
+		// observe IP assignment wait time
+		if since := service.podsPendingIPAssignment.Pop(podInfo.Key()); since > 0 {
+			ipAssignmentLatency.Observe(since.Seconds())
+		}
+	}()
+
+	// Check if http rest service managed endpoint state is set
+	if service.Options[common.OptManageEndpointState] == true {
+		err = service.updateEndpointState(ipconfigRequest, podInfo, podIPInfo)
+		if err != nil {
+			reserveResp := &cns.IPConfigsResponse{
+				Response: cns.Response{
+					ReturnCode: types.UnexpectedError,
+					Message:    fmt.Sprintf("Update endpoint state failed: %v ", err),
+				},
+				PodIpInfo: podIPInfo,
+			}
+			w.Header().Set(cnsReturnCode, reserveResp.Response.ReturnCode.String())
+			err = service.Listener.Encode(w, &reserveResp)
+			logger.ResponseEx(service.Name+operationName, ipconfigRequest, reserveResp, reserveResp.Response.ReturnCode, err)
+			return
+		}
+	}
+
+	reserveResp := &cns.IPConfigsResponse{
 		Response: cns.Response{
 			ReturnCode: types.Success,
 		},
@@ -137,9 +218,7 @@ func (service *HTTPRestService) updateEndpointState(ipconfigRequest cns.IPConfig
 				}
 				endpointInfo.IfnameToIPMap[ipconfigRequest.Ifname].IPv4 = append(endpointInfo.IfnameToIPMap[ipconfigRequest.Ifname].IPv4, ipconfig)
 			}
-
 			service.EndpointState[ipconfigRequest.InfraContainerID] = endpointInfo
-
 		} else {
 			endpointInfo := &EndpointInfo{PodName: podInfo.Name(), PodNamespace: podInfo.Namespace(), IfnameToIPMap: make(map[string]*IPInfo)}
 			ip := net.ParseIP(podIPInfo[i].PodIPConfig.IPAddress)
@@ -489,7 +568,10 @@ func (service *HTTPRestService) MarkExistingIPsAsPendingRelease(pendingIPIDs []s
 }
 
 func (service *HTTPRestService) GetExistingIPConfig(podInfo cns.PodInfo) ([]cns.PodIpInfo, bool, error) {
-	podIpInfo := make([]cns.PodIpInfo, 0)
+	var (
+		podIpInfo []cns.PodIpInfo
+		isExist   bool
+	)
 
 	service.RLock()
 	defer service.RUnlock()
@@ -502,16 +584,16 @@ func (service *HTTPRestService) GetExistingIPConfig(podInfo cns.PodInfo) ([]cns.
 			}
 
 			logger.Errorf("Failed to get existing ipconfig. Pod to IPID exists, but IPID to IPConfig doesn't exist, CNS State potentially corrupt")
-			return podIpInfo, false, fmt.Errorf("Failed to get existing ipconfig. Pod to IPID exists, but IPID to IPConfig doesn't exist, CNS State potentially corrupt")
+			return podIpInfo, isExist, fmt.Errorf("Failed to get existing ipconfig. Pod to IPID exists, but IPID to IPConfig doesn't exist, CNS State potentially corrupt")
 		}
 	}
 
-	return podIpInfo, false, nil
+	return podIpInfo, isExist, nil
 }
 
 func (service *HTTPRestService) AssignDesiredIPConfig(podInfo cns.PodInfo, desiredIPAddress string) ([]cns.PodIpInfo, error) {
 	var podIpInfo []cns.PodIpInfo
-	podIpInfo = make([]cns.PodIpInfo, 2)
+	podIpInfo = make([]cns.PodIpInfo, 1)
 	service.Lock()
 	defer service.Unlock()
 
@@ -535,36 +617,37 @@ func (service *HTTPRestService) AssignDesiredIPConfig(podInfo cns.PodInfo, desir
 			default:
 				return podIpInfo, errors.Errorf("[AllocateDesiredIPConfig] Desired IP is not available %+v", ipConfig)
 			}
-			err := service.populateIPConfigInfoUntransacted(ipConfig, &podIpInfo[0])
+			err := service.populateIPConfigInfoUntransacted(ipConfig, &podIpInfo)
 			return podIpInfo, err
 		}
 	}
 	return podIpInfo, fmt.Errorf("Requested IP not found in pool")
 }
 
-// ryand setting to default dualstack mode for testing while waiting to get pod labels - will change
 func (service *HTTPRestService) AssignAnyAvailableIPConfig(podInfo cns.PodInfo) ([]cns.PodIpInfo, error) {
 	service.Lock()
 	defer service.Unlock()
 	var podIpInfo []cns.PodIpInfo
-	podIpInfo = make([]cns.PodIpInfo, 2)
+	numOfNCs = 
+	podIpInfo = make([]cns.PodIpInfo, numOfNCs)
 
-	for _, ipState := range service.PodIPConfigState {
-		address, err := netip.ParseAddr(ipState.IPAddress)
-		if err != nil {
-			return []cns.PodIpInfo{}, err
-		}
-		if ipState.GetState() == types.Available && address.Is4() {
-			if err := service.assignIPConfig(ipState, podInfo); err != nil {
+	for _, NC := {
+		for _, ipState := range service.PodIPConfigState {
+			address, err := netip.ParseAddr(ipState.IPAddress)
+			if err != nil {
 				return []cns.PodIpInfo{}, err
 			}
+			if ipState.GetState() == types.Available && ipState.NCID = NC {
+				if err := service.assignIPConfig(ipState, podInfo); err != nil {
+					return []cns.PodIpInfo{}, err
+				}
 
-			if err := service.populateIPConfigInfoUntransacted(ipState, &podIpInfo[0]); err != nil {
-				return []cns.PodIpInfo{}, err
+				if err := service.populateIPConfigInfoUntransacted(ipState, &podIpInfo[0]); err != nil {
+					return []cns.PodIpInfo{}, err
+				}
+				break
 			}
-			break
 		}
-	}
 	// going to change this to be a helper method that passes in Ip rules based on labels, hard coding to test
 	for _, ipState := range service.PodIPConfigState {
 		address, err := netip.ParseAddr(ipState.IPAddress)
