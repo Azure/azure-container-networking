@@ -27,6 +27,7 @@ const (
 	AttachContainerToNetwork                 = "/network/attachcontainertonetwork"
 	DetachContainerFromNetwork               = "/network/detachcontainerfromnetwork"
 	RequestIPConfig                          = "/network/requestipconfig"
+	RequestIPConfigs                         = "/network/requestipconfigs"
 	ReleaseIPConfig                          = "/network/releaseipconfig"
 	PathDebugIPAddresses                     = "/debug/ipaddresses"
 	PathDebugPodContext                      = "/debug/podcontext"
@@ -418,7 +419,7 @@ func (i IPConfigRequest) String() string {
 
 // IPConfigResponse is used in CNS IPAM mode as a response to CNI ADD
 type IPConfigResponse struct {
-	PodIpInfo []PodIpInfo
+	PodIpInfo PodIpInfo
 	Response  Response
 }
 

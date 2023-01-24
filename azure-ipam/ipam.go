@@ -29,7 +29,7 @@ type IPAMPlugin struct {
 
 type cnsClient interface {
 	RequestIPAddress(context.Context, cns.IPConfigRequest) (*cns.IPConfigResponse, error)
-	RequestAllIPAddresses(context.Context, cns.IPConfigRequest) (*cns.IPConfigsResponse, error)
+	RequestIPs(context.Context, cns.IPConfigRequest) (*cns.IPConfigsResponse, error)
 	ReleaseIPs(context.Context, cns.IPConfigRequest) error
 }
 

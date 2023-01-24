@@ -39,7 +39,7 @@ func CreateIPConfigReq(args *cniSkel.CmdArgs) (cns.IPConfigRequest, error) {
 }
 
 // ProcessIPConfigResp processes the IPConfigResponse from the CNS.
-func ProcessIPConfigResp(resp *cns.IPConfigResponse) (*[]netip.Prefix, error) {
+func ProcessIPConfigResp(resp *cns.IPConfigsResponse) (*[]netip.Prefix, error) {
 	podIPNets := make([]netip.Prefix, len(resp.PodIpInfo))
 
 	for i := range resp.PodIpInfo {

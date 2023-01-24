@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"net/netip"
 	"strconv"
 
 	"github.com/Azure/azure-container-networking/cns"
@@ -53,7 +52,7 @@ func (service *HTTPRestService) requestIPConfigHandler(w http.ResponseWriter, r 
 				ReturnCode: types.FailedToAllocateIPConfig,
 				Message:    fmt.Sprintf("AllocateIPConfig failed: %v, IP config request is %s", err, ipconfigRequest),
 			},
-			PodIpInfo: podIPInfo,
+			PodIpInfo: podIPInfo[0],
 		}
 		w.Header().Set(cnsReturnCode, reserveResp.Response.ReturnCode.String())
 		err = service.Listener.Encode(w, &reserveResp)
@@ -78,7 +77,7 @@ func (service *HTTPRestService) requestIPConfigHandler(w http.ResponseWriter, r 
 					ReturnCode: types.UnexpectedError,
 					Message:    fmt.Sprintf("Update endpoint state failed: %v ", err),
 				},
-				PodIpInfo: podIPInfo,
+				PodIpInfo: podIPInfo[0],
 			}
 			w.Header().Set(cnsReturnCode, reserveResp.Response.ReturnCode.String())
 			err = service.Listener.Encode(w, &reserveResp)
@@ -91,7 +90,7 @@ func (service *HTTPRestService) requestIPConfigHandler(w http.ResponseWriter, r 
 		Response: cns.Response{
 			ReturnCode: types.Success,
 		},
-		PodIpInfo: podIPInfo,
+		PodIpInfo: podIPInfo[0],
 	}
 	w.Header().Set(cnsReturnCode, reserveResp.Response.ReturnCode.String())
 	err = service.Listener.Encode(w, &reserveResp)
@@ -568,10 +567,7 @@ func (service *HTTPRestService) MarkExistingIPsAsPendingRelease(pendingIPIDs []s
 }
 
 func (service *HTTPRestService) GetExistingIPConfig(podInfo cns.PodInfo) ([]cns.PodIpInfo, bool, error) {
-	var (
-		podIpInfo []cns.PodIpInfo
-		isExist   bool
-	)
+	podIpInfo := make([]cns.PodIpInfo, 1)
 
 	service.RLock()
 	defer service.RUnlock()
@@ -584,11 +580,11 @@ func (service *HTTPRestService) GetExistingIPConfig(podInfo cns.PodInfo) ([]cns.
 			}
 
 			logger.Errorf("Failed to get existing ipconfig. Pod to IPID exists, but IPID to IPConfig doesn't exist, CNS State potentially corrupt")
-			return podIpInfo, isExist, fmt.Errorf("Failed to get existing ipconfig. Pod to IPID exists, but IPID to IPConfig doesn't exist, CNS State potentially corrupt")
+			return podIpInfo, false, fmt.Errorf("Failed to get existing ipconfig. Pod to IPID exists, but IPID to IPConfig doesn't exist, CNS State potentially corrupt")
 		}
 	}
 
-	return podIpInfo, isExist, nil
+	return podIpInfo, false, nil
 }
 
 func (service *HTTPRestService) AssignDesiredIPConfig(podInfo cns.PodInfo, desiredIPAddress string) ([]cns.PodIpInfo, error) {
@@ -617,7 +613,7 @@ func (service *HTTPRestService) AssignDesiredIPConfig(podInfo cns.PodInfo, desir
 			default:
 				return podIpInfo, errors.Errorf("[AllocateDesiredIPConfig] Desired IP is not available %+v", ipConfig)
 			}
-			err := service.populateIPConfigInfoUntransacted(ipConfig, &podIpInfo)
+			err := service.populateIPConfigInfoUntransacted(ipConfig, &podIpInfo[0])
 			return podIpInfo, err
 		}
 	}
@@ -627,46 +623,24 @@ func (service *HTTPRestService) AssignDesiredIPConfig(podInfo cns.PodInfo, desir
 func (service *HTTPRestService) AssignAnyAvailableIPConfig(podInfo cns.PodInfo) ([]cns.PodIpInfo, error) {
 	service.Lock()
 	defer service.Unlock()
-	var podIpInfo []cns.PodIpInfo
-	numOfNCs = 
-	podIpInfo = make([]cns.PodIpInfo, numOfNCs)
+	NNC := service.IPAMPoolMonitor.GetStateSnapshot().CachedNNC
+	podIpInfo := make([]cns.PodIpInfo, len(NNC.Status.NetworkContainers))
 
-	for _, NC := {
+	for i, NC := range NNC.Status.NetworkContainers {
 		for _, ipState := range service.PodIPConfigState {
-			address, err := netip.ParseAddr(ipState.IPAddress)
-			if err != nil {
-				return []cns.PodIpInfo{}, err
-			}
-			if ipState.GetState() == types.Available && ipState.NCID = NC {
+			if ipState.GetState() == types.Available && ipState.NCID == NC.ID {
 				if err := service.assignIPConfig(ipState, podInfo); err != nil {
 					return []cns.PodIpInfo{}, err
 				}
 
-				if err := service.populateIPConfigInfoUntransacted(ipState, &podIpInfo[0]); err != nil {
+				if err := service.populateIPConfigInfoUntransacted(ipState, &podIpInfo[i]); err != nil {
 					return []cns.PodIpInfo{}, err
 				}
 				break
 			}
 		}
-	// going to change this to be a helper method that passes in Ip rules based on labels, hard coding to test
-	for _, ipState := range service.PodIPConfigState {
-		address, err := netip.ParseAddr(ipState.IPAddress)
-		if err != nil {
-			return []cns.PodIpInfo{}, err
-		}
-		if ipState.GetState() == types.Available && address.Is6() {
-			if err := service.assignIPConfig(ipState, podInfo); err != nil {
-				return []cns.PodIpInfo{}, err
-			}
-			if err := service.populateIPConfigInfoUntransacted(ipState, &podIpInfo[1]); err != nil {
-				return []cns.PodIpInfo{}, err
-			}
-			if err != nil {
-				return []cns.PodIpInfo{}, err
-			}
-			return podIpInfo, nil
-		}
 	}
+
 	//nolint:goerr113
 	return []cns.PodIpInfo{}, fmt.Errorf("no IPs available, waiting on Azure CNS to allocate more")
 }
