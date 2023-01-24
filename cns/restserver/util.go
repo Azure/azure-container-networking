@@ -372,9 +372,14 @@ func (service *HTTPRestService) getAllNetworkContainerResponses(
 	case cns.Kubernetes, cns.ServiceFabric, cns.Batch, cns.DBforPostgreSQL, cns.AzureFirstParty:
 		podInfo, err := cns.UnmarshalPodInfo(req.OrchestratorContext)
 		getNetworkContainersResponse := []cns.GetNetworkContainerResponse{}
+
 		if err != nil {
-			getNetworkContainerResponse.Response.ReturnCode = types.UnexpectedError
-			getNetworkContainerResponse.Response.Message = fmt.Sprintf("Unmarshalling orchestrator context failed with error %v", err)
+			response := cns.Response{
+				ReturnCode: types.UnexpectedError,
+				Message:    fmt.Sprintf("Unmarshalling orchestrator context failed with error %v", err),
+			}
+
+			getNetworkContainerResponse.Response = response
 			getNetworkContainersResponse = append(getNetworkContainersResponse, getNetworkContainerResponse)
 		}
 
@@ -384,8 +389,12 @@ func (service *HTTPRestService) getAllNetworkContainerResponses(
 		ncList = ncSet.GetData()
 
 		if len(ncList) == 0 {
-			getNetworkContainerResponse.Response.ReturnCode = types.UnknownContainerID
-			getNetworkContainerResponse.Response.Message = fmt.Sprintf("Failed to find networkID for orchestratorContext %s", orchestratorContext)
+			response := cns.Response{
+				ReturnCode: types.UnknownContainerID,
+				Message:    fmt.Sprintf("Failed to find networkID for orchestratorContext %s", orchestratorContext),
+			}
+
+			getNetworkContainerResponse.Response = response
 			getNetworkContainersResponse = append(getNetworkContainersResponse, getNetworkContainerResponse)
 			return getNetworkContainersResponse
 		}
@@ -442,8 +451,12 @@ func (service *HTTPRestService) getAllNetworkContainerResponses(
 		}
 	default:
 		getNetworkContainersResponse := []cns.GetNetworkContainerResponse{}
-		getNetworkContainerResponse.Response.ReturnCode = types.UnsupportedOrchestratorType
-		getNetworkContainerResponse.Response.Message = fmt.Sprintf("Invalid orchestrator type %v", service.state.OrchestratorType)
+		response := cns.Response{
+			ReturnCode: types.UnsupportedOrchestratorType,
+			Message:    fmt.Sprintf("Invalid orchestrator type %v", service.state.OrchestratorType),
+		}
+
+		getNetworkContainerResponse.Response = response
 		getNetworkContainersResponse = append(getNetworkContainersResponse, getNetworkContainerResponse)
 		return getNetworkContainersResponse
 	}
@@ -454,8 +467,12 @@ func (service *HTTPRestService) getAllNetworkContainerResponses(
 		containerStatus := service.state.ContainerStatus
 		containerDetails, ok := containerStatus[ncid]
 		if !ok {
-			getNetworkContainerResponse.Response.ReturnCode = types.UnknownContainerID
-			getNetworkContainerResponse.Response.Message = "NetworkContainer doesn't exist."
+			response := cns.Response{
+				ReturnCode: types.UnknownContainerID,
+				Message:    "NetworkContainer doesn't exist.",
+			}
+
+			getNetworkContainerResponse.Response = response
 			getNetworkContainersResponse = append(getNetworkContainersResponse, getNetworkContainerResponse)
 			continue
 		}

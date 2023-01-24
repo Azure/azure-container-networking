@@ -464,10 +464,6 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 
 		options := make(map[string]any)
 		networkID, err := plugin.getNetworkName(args.Netns, &ipamAddResult, nwCfg)
-		if err != nil {
-			plugin.cleanupAllocationOnError(ipamAddResult.ipv4Result, ipamAddResult.ipv6Result, nwCfg, args, options)
-			return fmt.Errorf("Failed to get networkID due to %w", err)
-		}
 
 		endpointID := GetEndpointID(args)
 		policies := cni.GetPoliciesFromNwCfg(nwCfg.AdditionalArgs)
@@ -516,6 +512,12 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 			}
 			sendEvent(plugin, fmt.Sprintf("Allocated IPAddress from ipam:%+v v6:%+v", ipamAddResult.ipv4Result, ipamAddResult.ipv6Result))
 		}
+
+		defer func() {
+			if err != nil {
+				plugin.cleanupAllocationOnError(ipamAddResult.ipv4Result, ipamAddResult.ipv6Result, nwCfg, args, options)
+			}
+		}()
 
 		// Create network
 		if nwInfoErr != nil {

@@ -323,8 +323,8 @@ func (service *HTTPRestService) DeleteNetworkContainerInternal(
 	}
 
 	if service.state.ContainerIDByOrchestratorContext != nil {
-		for oc := range service.state.ContainerIDByOrchestratorContext {
-			if err := service.state.ContainerIDByOrchestratorContext[oc].Delete(ncid); err != nil {
+		for _, ncSet := range service.state.ContainerIDByOrchestratorContext { //nolint:gocritic // copy is ok
+			if err := ncSet.Delete(ncid); err != nil {
 				logger.Printf("Not able to delete networkContainerId %s due to %+v", ncid, err)
 			}
 		}
