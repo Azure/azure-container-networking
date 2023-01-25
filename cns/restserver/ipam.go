@@ -446,7 +446,6 @@ func (service *HTTPRestService) assignIPConfig(ipconfig cns.IPConfigurationStatu
 	}
 
 	service.PodIPIDByPodInterfaceKey[podInfo.Key()] = append(service.PodIPIDByPodInterfaceKey[podInfo.Key()], ipconfig.ID)
-	logger.Printf("Pod IPs %+v", service.PodIPIDByPodInterfaceKey[podInfo.Key()])
 	return nil
 }
 
@@ -576,7 +575,6 @@ func (service *HTTPRestService) AssignAvailableIPConfigs(podInfo cns.PodInfo) ([
 	for _, ipState := range service.PodIPConfigState {
 		_, found := ncMap[ipState.NCID]
 		if !found && ipState.GetState() == types.Available {
-			logger.Printf("Found IP [%+v]", ipState)
 			if err := service.assignIPConfig(ipState, podInfo); err != nil {
 				break
 			}
@@ -586,7 +584,6 @@ func (service *HTTPRestService) AssignAvailableIPConfigs(podInfo cns.PodInfo) ([
 			}
 			ncMap[ipState.NCID] = ipState
 			if len(ncMap) == len(service.state.ContainerStatus) {
-				logger.Printf("Have enough IPs")
 				return podIpInfo, nil				
 			}
 		}
