@@ -18,7 +18,7 @@ github.com/Azure/azure-sdk-for-go/sdk/azcore/policy
 github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime
 github.com/Azure/azure-sdk-for-go/sdk/azcore/streaming
 github.com/Azure/azure-sdk-for-go/sdk/azcore/to
-# github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.1.0
+# github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.2.0
 ## explicit; go 1.18
 github.com/Azure/azure-sdk-for-go/sdk/azidentity
 # github.com/Azure/azure-sdk-for-go/sdk/internal v1.0.0
@@ -35,13 +35,14 @@ github.com/Azure/azure-sdk-for-go/sdk/keyvault/azsecrets/internal
 # github.com/Azure/azure-sdk-for-go/sdk/keyvault/internal v0.5.0
 ## explicit; go 1.18
 github.com/Azure/azure-sdk-for-go/sdk/keyvault/internal
-# github.com/AzureAD/microsoft-authentication-library-for-go v0.5.1
-## explicit; go 1.14
+# github.com/AzureAD/microsoft-authentication-library-for-go v0.7.0
+## explicit; go 1.17
 github.com/AzureAD/microsoft-authentication-library-for-go/apps/cache
 github.com/AzureAD/microsoft-authentication-library-for-go/apps/confidential
 github.com/AzureAD/microsoft-authentication-library-for-go/apps/errors
 github.com/AzureAD/microsoft-authentication-library-for-go/apps/internal/base
 github.com/AzureAD/microsoft-authentication-library-for-go/apps/internal/base/internal/storage
+github.com/AzureAD/microsoft-authentication-library-for-go/apps/internal/exported
 github.com/AzureAD/microsoft-authentication-library-for-go/apps/internal/json
 github.com/AzureAD/microsoft-authentication-library-for-go/apps/internal/json/types/time
 github.com/AzureAD/microsoft-authentication-library-for-go/apps/internal/local
@@ -177,9 +178,9 @@ github.com/gogo/protobuf/gogoproto
 github.com/gogo/protobuf/proto
 github.com/gogo/protobuf/protoc-gen-gogo/descriptor
 github.com/gogo/protobuf/sortkeys
-# github.com/golang-jwt/jwt v3.2.2+incompatible
-## explicit
-github.com/golang-jwt/jwt
+# github.com/golang-jwt/jwt/v4 v4.4.2
+## explicit; go 1.16
+github.com/golang-jwt/jwt/v4
 # github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da
 ## explicit
 github.com/golang/groupcache/lru
