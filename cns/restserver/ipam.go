@@ -537,8 +537,7 @@ func (service *HTTPRestService) GetExistingIPConfig(podInfo cns.PodInfo) ([]cns.
 }
 
 func (service *HTTPRestService) AssignDesiredIPConfig(podInfo cns.PodInfo, desiredIPAddress string) ([]cns.PodIpInfo, error) {
-	var podIPInfo []cns.PodIpInfo
-	podIPInfo = make([]cns.PodIpInfo, 1)
+	podIPInfo := make([]cns.PodIpInfo, 1)
 	service.Lock()
 	defer service.Unlock()
 
@@ -572,7 +571,7 @@ func (service *HTTPRestService) AssignDesiredIPConfig(podInfo cns.PodInfo, desir
 func (service *HTTPRestService) AssignAvailableIPConfigs(podInfo cns.PodInfo) ([]cns.PodIpInfo, error) {
 	service.Lock()
 	defer service.Unlock()
-	podIpInfo := make([]cns.PodIpInfo, len(service.state.ContainerStatus))
+	podIPInfo := make([]cns.PodIpInfo, len(service.state.ContainerStatus))
 	ncMap := make(map[string]any)
 
 	for _, ipState := range service.PodIPConfigState {
@@ -582,18 +581,18 @@ func (service *HTTPRestService) AssignAvailableIPConfigs(podInfo cns.PodInfo) ([
 				break
 			}
 
-			if err := service.populateIPConfigInfoUntransacted(ipState, &podIpInfo[len(ncMap)]); err != nil {
+			if err := service.populateIPConfigInfoUntransacted(ipState, &podIPInfo[len(ncMap)]); err != nil {
 				break
 			}
 			ncMap[ipState.NCID] = ipState
 			if len(ncMap) == len(service.state.ContainerStatus) {
-				return podIpInfo, nil
+				return podIPInfo, nil
 			}
 		}
 	}
 
 	//nolint:goerr113
-	return podIpInfo, fmt.Errorf("not enough IPs available, waiting on Azure CNS to allocate more")
+	return podIPInfo, fmt.Errorf("not enough IPs available, waiting on Azure CNS to allocate more")
 }
 
 // If IPConfig is already assigned to pod, it returns that else it returns one of the available ipconfigs.
