@@ -28,6 +28,10 @@ var (
 	ErrUnsupportedExceptCIDR = errors.New("unsupported Except CIDR block translation features used on windows")
 	// ErrUnsupportedSCTP is returned when SCTP protocol is used in windows.
 	ErrUnsupportedSCTP = errors.New("unsupported SCTP protocol used on windows")
+	// ErrInvalidMatchExpressionValues ensures proper matchExpression label values since k8s doesn't perform this check.
+	ErrInvalidMatchExpressionValues = errors.New(
+		"matchExpression label values must be an empty string or consist of alphanumeric characters, '-', '_' or '.', and must start and end with an alphanumeric character",
+	)
 )
 
 type podSelectorResult struct {
@@ -407,7 +411,11 @@ func translateRule(npmNetPol *policies.NPMNetworkPolicy, netPolName string, dire
 		if peer.PodSelector == nil && peer.NamespaceSelector != nil {
 			// Before translating NamespaceSelector, flattenNameSpaceSelector function call should be called
 			// to handle multiple values in matchExpressions spec.
-			flattenNSSelector := flattenNameSpaceSelector(peer.NamespaceSelector)
+			flattenNSSelector, err := flattenNameSpaceSelector(peer.NamespaceSelector)
+			if err != nil {
+				return err
+			}
+
 			for i := range flattenNSSelector {
 				nsSelectorIPSets, nsSelectorList := nameSpaceSelector(matchType, &flattenNSSelector[i])
 				npmNetPol.RuleIPSets = append(npmNetPol.RuleIPSets, nsSelectorIPSets...)
@@ -444,7 +452,11 @@ func translateRule(npmNetPol *policies.NPMNetworkPolicy, netPolName string, dire
 
 		// Before translating NamespaceSelector, flattenNameSpaceSelector function call should be called
 		// to handle multiple values in matchExpressions spec.
-		flattenNSSelector := flattenNameSpaceSelector(peer.NamespaceSelector)
+		flattenNSSelector, err := flattenNameSpaceSelector(peer.NamespaceSelector)
+		if err != nil {
+			return err
+		}
+
 		for i := range flattenNSSelector {
 			nsSelectorIPSets, nsSelectorList := nameSpaceSelector(matchType, &flattenNSSelector[i])
 			npmNetPol.RuleIPSets = append(npmNetPol.RuleIPSets, nsSelectorIPSets...)
