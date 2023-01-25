@@ -483,6 +483,7 @@ func (service *HTTPRestService) releaseIPConfig(podInfo cns.PodInfo) error {
 			} else {
 				logger.Errorf("[releaseIPConfig] Failed to get release ipconfig %+v and pod info is %+v. Pod to IPID exists, but IPID to IPConfig doesn't exist, CNS State potentially corrupt",
 					ipconfig.IPAddress, podInfo)
+				//nolint:goerr113	
 				return fmt.Errorf("[releaseIPConfig] releaseIPConfig failed. IPconfig %+v and pod info is %+v. Pod to IPID exists, but IPID to IPConfig doesn't exist, CNS State potentially corrupt",
 					ipconfig.IPAddress, podInfo)
 			}
@@ -516,7 +517,7 @@ func (service *HTTPRestService) MarkExistingIPsAsPendingRelease(pendingIPIDs []s
 }
 
 func (service *HTTPRestService) GetExistingIPConfig(podInfo cns.PodInfo) ([]cns.PodIpInfo, bool, error) {
-	podIPInfo  := make([]cns.PodIpInfo, 1)
+	podIPInfo := make([]cns.PodIpInfo, 1)
 
 	service.RLock()
 	defer service.RUnlock()
@@ -529,6 +530,7 @@ func (service *HTTPRestService) GetExistingIPConfig(podInfo cns.PodInfo) ([]cns.
 			}
 
 			logger.Errorf("Failed to get existing ipconfig. Pod to IPID exists, but IPID to IPConfig doesn't exist, CNS State potentially corrupt")
+			//nolint:goerr113
 			return podIPInfo, false, fmt.Errorf("Failed to get existing ipconfig. Pod to IPID exists, but IPID to IPConfig doesn't exist, CNS State potentially corrupt")
 		}
 	}
@@ -565,6 +567,7 @@ func (service *HTTPRestService) AssignDesiredIPConfig(podInfo cns.PodInfo, desir
 			return podIPInfo, err
 		}
 	}
+	//nolint:goerr113
 	return podIPInfo, fmt.Errorf("Requested IP not found in pool")
 }
 
