@@ -399,30 +399,45 @@ func (service *HTTPRestService) getAllNetworkContainerResponses(
 			return getNetworkContainersResponse
 		}
 
-		for _, ncid := range ncList {
-			waitingForUpdate := false
-			// If the goal state is available with CNS, check if the NC is pending VFP programming
-			waitingForUpdate, getNetworkContainerResponse.Response.ReturnCode, getNetworkContainerResponse.Response.Message = service.isNCWaitingForUpdate(service.state.ContainerStatus[ncid].CreateNetworkContainerRequest.Version, ncid) //nolint:lll // bad code
-			// If the return code is not success, return the error to the caller
-			if getNetworkContainerResponse.Response.ReturnCode == types.NetworkContainerVfpProgramPending {
-				logger.Errorf("[Azure-CNS] isNCWaitingForUpdate failed for NCID: %s with error: %s",
-					ncid, getNetworkContainerResponse.Response.Message)
-				getNetworkContainersResponse = append(getNetworkContainersResponse, getNetworkContainerResponse)
-			}
+		skipNCVersionCheck := false
+		ctx, cancel := context.WithTimeout(context.Background(), nmaAPICallTimeout)
+		defer cancel()
+		ncVersionListResp, err := service.nma.GetNCVersionList(ctx)
+		if err != nil {
+			skipNCVersionCheck = true
+			logger.Errorf("failed to get nc version list from nmagent")
+		}
+		nmaNCs := map[string]string{}
+		for _, nc := range ncVersionListResp.Containers {
+			nmaNCs[nc.NetworkContainerID] = nc.Version
+		}
 
-			vfpUpdateComplete := !waitingForUpdate
-			ncstatus := service.state.ContainerStatus[ncid]
-			// Update the container status if-
-			// 1. VfpUpdateCompleted successfully
-			// 2. VfpUpdateComplete changed to false
-			if (getNetworkContainerResponse.Response.ReturnCode == types.NetworkContainerVfpProgramComplete &&
-				vfpUpdateComplete && ncstatus.VfpUpdateComplete != vfpUpdateComplete) ||
-				(!vfpUpdateComplete && ncstatus.VfpUpdateComplete != vfpUpdateComplete) {
-				logger.Printf("[Azure-CNS] Setting VfpUpdateComplete to %t for NCID: %s", vfpUpdateComplete, ncid)
-				ncstatus.VfpUpdateComplete = vfpUpdateComplete
-				service.state.ContainerStatus[ncid] = ncstatus
-				if err = service.saveState(); err != nil {
-					logger.Errorf("Failed to save goal states for nc %+v due to %s", getNetworkContainerResponse, err)
+		if !skipNCVersionCheck {
+			for _, ncid := range ncList {
+				waitingForUpdate := false
+				// If the goal state is available with CNS, check if the NC is pending VFP programming
+				waitingForUpdate, getNetworkContainerResponse.Response.ReturnCode, getNetworkContainerResponse.Response.Message = service.isNCWaitingForUpdate(service.state.ContainerStatus[ncid].CreateNetworkContainerRequest.Version, ncid, nmaNCs) //nolint:lll // bad code
+				// If the return code is not success, return the error to the caller
+				if getNetworkContainerResponse.Response.ReturnCode == types.NetworkContainerVfpProgramPending {
+					logger.Errorf("[Azure-CNS] isNCWaitingForUpdate failed for NCID: %s with error: %s",
+						ncid, getNetworkContainerResponse.Response.Message)
+					getNetworkContainersResponse = append(getNetworkContainersResponse, getNetworkContainerResponse)
+				}
+
+				vfpUpdateComplete := !waitingForUpdate
+				ncstatus := service.state.ContainerStatus[ncid]
+				// Update the container status if-
+				// 1. VfpUpdateCompleted successfully
+				// 2. VfpUpdateComplete changed to false
+				if (getNetworkContainerResponse.Response.ReturnCode == types.NetworkContainerVfpProgramComplete &&
+					vfpUpdateComplete && ncstatus.VfpUpdateComplete != vfpUpdateComplete) ||
+					(!vfpUpdateComplete && ncstatus.VfpUpdateComplete != vfpUpdateComplete) {
+					logger.Printf("[Azure-CNS] Setting VfpUpdateComplete to %t for NCID: %s", vfpUpdateComplete, ncid)
+					ncstatus.VfpUpdateComplete = vfpUpdateComplete
+					service.state.ContainerStatus[ncid] = ncstatus
+					if err = service.saveState(); err != nil {
+						logger.Errorf("Failed to save goal states for nc %+v due to %s", getNetworkContainerResponse, err)
+					}
 				}
 			}
 		}
