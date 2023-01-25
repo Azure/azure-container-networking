@@ -20,9 +20,10 @@ import (
 )
 
 var (
-	errEmptyCNIArgs  = errors.New("empty CNI cmd args not allowed")
-	errInvalidArgs   = errors.New("invalid arg(s)")
-	overlayGatewayIP = "169.254.1.1"
+	errEmptyCNIArgs    = errors.New("empty CNI cmd args not allowed")
+	errInvalidArgs     = errors.New("invalid arg(s)")
+	overlayGatewayv4IP = "169.254.1.1"
+	overlayGatewayv6IP = "fe80::1234:5678:9abc"
 )
 
 type CNSIPAMInvoker struct {
@@ -33,7 +34,7 @@ type CNSIPAMInvoker struct {
 	ipamMode      util.IpamMode
 }
 
-type IPv4ResultInfo struct {
+type IPResultInfo struct {
 	podIPAddress       string
 	ncSubnetPrefix     uint8
 	ncPrimaryIP        string
@@ -53,6 +54,7 @@ func NewCNSInvoker(podName, namespace string, cnsClient cnsclient, executionMode
 	}
 }
 
+// ryand IPv6 not currently supported
 // Add uses the requestipconfig API in cns, and returns ipv4 and a nil ipv6 as CNS doesn't support IPv6 yet
 func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, error) {
 	// Parse Pod arguments.
@@ -84,78 +86,102 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 		return IPAMAddResult{}, errors.Wrap(err, "Failed to get IP address from CNS with error: %w")
 	}
 
-	info := IPv4ResultInfo{
-		podIPAddress:       response.PodIpInfo.PodIPConfig.IPAddress,
-		ncSubnetPrefix:     response.PodIpInfo.NetworkContainerPrimaryIPConfig.IPSubnet.PrefixLength,
-		ncPrimaryIP:        response.PodIpInfo.NetworkContainerPrimaryIPConfig.IPSubnet.IPAddress,
-		ncGatewayIPAddress: response.PodIpInfo.NetworkContainerPrimaryIPConfig.GatewayIPAddress,
-		hostSubnet:         response.PodIpInfo.HostPrimaryIPInfo.Subnet,
-		hostPrimaryIP:      response.PodIpInfo.HostPrimaryIPInfo.PrimaryIP,
-		hostGateway:        response.PodIpInfo.HostPrimaryIPInfo.Gateway,
-	}
+	addResult := IPAMAddResult{}
 
-	// set the NC Primary IP in options
-	addConfig.options[network.SNATIPKey] = info.ncPrimaryIP
-
-	log.Printf("[cni-invoker-cns] Received info %+v for pod %v", info, podInfo)
-
-	ncgw := net.ParseIP(info.ncGatewayIPAddress)
-	if ncgw == nil {
-		if invoker.ipamMode != util.V4Overlay {
-			return IPAMAddResult{}, errors.Wrap(errInvalidArgs, "%w: Gateway address "+info.ncGatewayIPAddress+" from response is invalid")
+	for i := 0; i < len(response.PodIpInfo); i++ {
+		info := IPResultInfo{
+			podIPAddress:       response.PodIpInfo[i].PodIPConfig.IPAddress,
+			ncSubnetPrefix:     response.PodIpInfo[i].NetworkContainerPrimaryIPConfig.IPSubnet.PrefixLength,
+			ncPrimaryIP:        response.PodIpInfo[i].NetworkContainerPrimaryIPConfig.IPSubnet.IPAddress,
+			ncGatewayIPAddress: response.PodIpInfo[i].NetworkContainerPrimaryIPConfig.GatewayIPAddress,
+			hostSubnet:         response.PodIpInfo[i].HostPrimaryIPInfo.Subnet,
+			hostPrimaryIP:      response.PodIpInfo[i].HostPrimaryIPInfo.PrimaryIP,
+			hostGateway:        response.PodIpInfo[i].HostPrimaryIPInfo.Gateway,
 		}
 
-		ncgw = net.ParseIP(overlayGatewayIP)
-	}
+		// set the NC Primary IP in options
+		addConfig.options[network.SNATIPKey] = info.ncPrimaryIP
 
-	// set result ipconfigArgument from CNS Response Body
-	ip, ncipnet, err := net.ParseCIDR(info.podIPAddress + "/" + fmt.Sprint(info.ncSubnetPrefix))
-	if ip == nil {
-		return IPAMAddResult{}, errors.Wrap(err, "Unable to parse IP from response: "+info.podIPAddress+" with err %w")
-	}
+		log.Printf("[cni-invoker-cns] Received info %+v for pod %v", info, podInfo)
 
-	// construct ipnet for result
-	resultIPnet := net.IPNet{
-		IP:   ip,
-		Mask: ncipnet.Mask,
-	}
+		ncgw := net.ParseIP(info.ncGatewayIPAddress)
+		if ncgw == nil {
+			if (invoker.ipamMode != util.V4Overlay) && (invoker.ipamMode != util.DualModeOverlay) {
+				return IPAMAddResult{}, errors.Wrap(errInvalidArgs, "%w: Gateway address "+info.ncGatewayIPAddress+" from response is invalid")
+			}
 
-	addResult := IPAMAddResult{}
-	addResult.ipv4Result = &cniTypesCurr.Result{
-		IPs: []*cniTypesCurr.IPConfig{
-			{
-				Address: resultIPnet,
-				Gateway: ncgw,
-			},
-		},
-		Routes: []*cniTypes.Route{
-			{
-				Dst: network.Ipv4DefaultRouteDstPrefix,
-				GW:  ncgw,
-			},
-		},
-	}
+			if net.ParseIP(info.podIPAddress).To4() != nil {
+				ncgw = net.ParseIP(overlayGatewayv4IP)
+			} else {
+				ncgw = net.ParseIP(overlayGatewayv6IP)
+			}
+		}
 
-	// get the name of the primary IP address
-	_, hostIPNet, err := net.ParseCIDR(info.hostSubnet)
-	if err != nil {
-		return IPAMAddResult{}, fmt.Errorf("unable to parse hostSubnet: %w", err)
-	}
+		// set result ipconfigArgument from CNS Response Body
+		ip, ncipnet, err := net.ParseCIDR(info.podIPAddress + "/" + fmt.Sprint(info.ncSubnetPrefix))
+		if ip == nil {
+			return IPAMAddResult{}, errors.Wrap(err, "Unable to parse IP from response: "+info.podIPAddress+" with err %w")
+		}
 
-	addResult.hostSubnetPrefix = *hostIPNet
+		// construct ipnet for result
+		resultIPnet := net.IPNet{
+			IP:   ip,
+			Mask: ncipnet.Mask,
+		}
 
-	// set subnet prefix for host vm
-	// setHostOptions will execute if IPAM mode is not v4 overlay
-	if invoker.ipamMode != util.V4Overlay {
-		if err := setHostOptions(ncipnet, addConfig.options, &info); err != nil {
-			return IPAMAddResult{}, err
+		if net.ParseIP(info.podIPAddress).To4() != nil {
+			addResult.ipv4Result = &cniTypesCurr.Result{
+				IPs: []*cniTypesCurr.IPConfig{
+					{
+						Address: resultIPnet,
+						Gateway: ncgw,
+					},
+				},
+				Routes: []*cniTypes.Route{
+					{
+						Dst: network.Ipv4DefaultRouteDstPrefix,
+						GW:  ncgw,
+					},
+				},
+			}
+		} else {
+			addResult.ipv6Result = &cniTypesCurr.Result{
+				IPs: []*cniTypesCurr.IPConfig{
+					{
+						Address: resultIPnet,
+						Gateway: ncgw,
+					},
+				},
+				Routes: []*cniTypes.Route{
+					{
+						Dst: network.Ipv6DefaultRouteDstPrefix,
+						GW:  ncgw,
+					},
+				},
+			}
+		}
+
+		// get the name of the primary IP address
+		_, hostIPNet, err := net.ParseCIDR(info.hostSubnet)
+		if err != nil {
+			return IPAMAddResult{}, fmt.Errorf("unable to parse hostSubnet: %w", err)
+		}
+
+		addResult.hostSubnetPrefix = *hostIPNet
+
+		// set subnet prefix for host vm
+		// setHostOptions will execute if IPAM mode is not v4 overlay
+		if (invoker.ipamMode != util.V4Overlay) && (invoker.ipamMode != util.DualModeOverlay) {
+			if err := setHostOptions(ncipnet, addConfig.options, &info); err != nil {
+				return IPAMAddResult{}, err
+			}
 		}
 	}
 
 	return addResult, nil
 }
 
-func setHostOptions(ncSubnetPrefix *net.IPNet, options map[string]interface{}, info *IPv4ResultInfo) error {
+func setHostOptions(ncSubnetPrefix *net.IPNet, options map[string]interface{}, info *IPResultInfo) error {
 	// get the host ip
 	hostIP := net.ParseIP(info.hostPrimaryIP)
 	if hostIP == nil {
@@ -183,14 +209,27 @@ func setHostOptions(ncSubnetPrefix *net.IPNet, options map[string]interface{}, i
 	snatPrimaryIPJump := fmt.Sprintf("%s --to %s", iptables.Snat, info.ncPrimaryIP)
 	// we need to snat IMDS traffic to node IP, this sets up snat '--to'
 	snatHostIPJump := fmt.Sprintf("%s --to %s", iptables.Snat, info.hostPrimaryIP)
-	options[network.IPTablesKey] = []iptables.IPTableEntry{
-		iptables.GetCreateChainCmd(iptables.V4, iptables.Nat, iptables.Swift),
-		iptables.GetAppendIptableRuleCmd(iptables.V4, iptables.Nat, iptables.Postrouting, "", iptables.Swift),
-		// add a snat rules to primary NC IP for DNS
-		iptables.GetInsertIptableRuleCmd(iptables.V4, iptables.Nat, iptables.Swift, azureDNSUDPMatch, snatPrimaryIPJump),
-		iptables.GetInsertIptableRuleCmd(iptables.V4, iptables.Nat, iptables.Swift, azureDNSTCPMatch, snatPrimaryIPJump),
-		// add a snat rule to node IP for IMDS http traffic
-		iptables.GetInsertIptableRuleCmd(iptables.V4, iptables.Nat, iptables.Swift, azureIMDSMatch, snatHostIPJump),
+
+	if hostIP.To4() != nil {
+		options[network.IPTablesKey] = []iptables.IPTableEntry{
+			iptables.GetCreateChainCmd(iptables.V4, iptables.Nat, iptables.Swift),
+			iptables.GetAppendIptableRuleCmd(iptables.V4, iptables.Nat, iptables.Postrouting, "", iptables.Swift),
+			// add a snat rules to primary NC IP for DNS
+			iptables.GetInsertIptableRuleCmd(iptables.V4, iptables.Nat, iptables.Swift, azureDNSUDPMatch, snatPrimaryIPJump),
+			iptables.GetInsertIptableRuleCmd(iptables.V4, iptables.Nat, iptables.Swift, azureDNSTCPMatch, snatPrimaryIPJump),
+			// add a snat rule to node IP for IMDS http traffic
+			iptables.GetInsertIptableRuleCmd(iptables.V4, iptables.Nat, iptables.Swift, azureIMDSMatch, snatHostIPJump),
+		}
+	} else {
+		options[network.IPTablesKey] = []iptables.IPTableEntry{
+			iptables.GetCreateChainCmd(iptables.V6, iptables.Nat, iptables.Swift),
+			iptables.GetAppendIptableRuleCmd(iptables.V6, iptables.Nat, iptables.Postrouting, "", iptables.Swift),
+			// add a snat rules to primary NC IPv6 for DNS
+			iptables.GetInsertIptableRuleCmd(iptables.V6, iptables.Nat, iptables.Swift, azureDNSUDPMatch, snatPrimaryIPJump),
+			iptables.GetInsertIptableRuleCmd(iptables.V6, iptables.Nat, iptables.Swift, azureDNSTCPMatch, snatPrimaryIPJump),
+			// add a snat rule to node IPv6 for IMDS http traffic
+			iptables.GetInsertIptableRuleCmd(iptables.V6, iptables.Nat, iptables.Swift, azureIMDSMatch, snatHostIPJump),
+		}
 	}
 
 	return nil

@@ -373,6 +373,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 		}
 
 		addSnatInterface(nwCfg, ipamAddResult.ipv4Result)
+
 		// Convert result to the requested CNI version.
 		res, vererr := ipamAddResult.ipv4Result.GetAsVersion(nwCfg.CNIVersion)
 		if vererr != nil {
@@ -385,7 +386,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 			res.Print()
 		}
 
-		log.Printf("[cni-net] ADD command completed for pod %v with IPs:%+v err:%v.", k8sPodName, ipamAddResult.ipv4Result.IPs, err)
+		log.Printf("[cni-net] ADD command completed for pod %v with ip IPs:%+v  err:%v.", k8sPodName, ipamAddResult.ipv4Result.IPs, err)
 	}()
 
 	// Parse Pod arguments.
@@ -477,6 +478,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 	 * We can delete this if statement once they fix it.
 	 * Issue link: https://github.com/kubernetes/kubernetes/issues/57253
 	 */
+
 	if nwInfoErr == nil {
 		log.Printf("[cni-net] Found network %v with subnet %v.", networkID, nwInfo.Subnets[0].Prefix.String())
 		nwInfo.IPAMType = nwCfg.IPAM.Type
@@ -560,8 +562,8 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 		return err
 	}
 
-	sendEvent(plugin, fmt.Sprintf("CNI ADD succeeded : IP:%+v, VlanID: %v, podname %v, namespace %v numendpoints:%d",
-		ipamAddResult.ipv4Result.IPs, epInfo.Data[network.VlanIDKey], k8sPodName, k8sNamespace, plugin.nm.GetNumberOfEndpoints("", nwCfg.Name)))
+	sendEvent(plugin, fmt.Sprintf("CNI ADD succeeded : ipv4 IP:%+v, ipv6 IP:%+v:,VlanID: %v, podname %v, namespace %v numendpoints:%d",
+		ipamAddResult.ipv4Result.IPs, ipamAddResult.ipv6Result.IPs, epInfo.Data[network.VlanIDKey], k8sPodName, k8sNamespace, plugin.nm.GetNumberOfEndpoints("", nwCfg.Name)))
 
 	return nil
 }
@@ -622,19 +624,21 @@ func (plugin *NetPlugin) createNetworkInternal(
 		return nwInfo, fmt.Errorf("Failed to ParseCIDR for pod subnet prefix: %w", err)
 	}
 
+	// only parse the ipv6 address and add it to nwInfo if it's dual stack mode
+	var podSubnetV6Prefix *net.IPNet
+	if len(ipamAddResult.ipv6Result.IPs) > 0 {
+		_, podSubnetV6Prefix, err = net.ParseCIDR(ipamAddResult.ipv6Result.IPs[0].Address.String())
+		if err != nil {
+			return nwInfo, fmt.Errorf("Failed to ParseCIDR for pod subnet IPv6 prefix: %w", err)
+		}
+	}
+
 	// Create the network.
 	nwInfo = network.NetworkInfo{
-		Id:           networkID,
-		Mode:         ipamAddConfig.nwCfg.Mode,
-		MasterIfName: masterIfName,
-		AdapterName:  ipamAddConfig.nwCfg.AdapterName,
-		Subnets: []network.SubnetInfo{
-			{
-				Family:  platform.AfINET,
-				Prefix:  *podSubnetPrefix,
-				Gateway: ipamAddResult.ipv4Result.IPs[0].Gateway,
-			},
-		},
+		Id:                            networkID,
+		Mode:                          ipamAddConfig.nwCfg.Mode,
+		MasterIfName:                  masterIfName,
+		AdapterName:                   ipamAddConfig.nwCfg.AdapterName,
 		BridgeName:                    ipamAddConfig.nwCfg.Bridge,
 		EnableSnatOnHost:              ipamAddConfig.nwCfg.EnableSnatOnHost,
 		DNS:                           nwDNSInfo,
@@ -647,6 +651,22 @@ func (plugin *NetPlugin) createNetworkInternal(
 		ServiceCidrs:                  ipamAddConfig.nwCfg.ServiceCidrs,
 	}
 
+	ipv4Subnet := network.SubnetInfo{
+		Family:  platform.AfINET,
+		Prefix:  *podSubnetPrefix,
+		Gateway: ipamAddResult.ipv4Result.IPs[0].Gateway,
+	}
+	nwInfo.Subnets = append(nwInfo.Subnets, ipv4Subnet)
+
+	if len(ipamAddResult.ipv6Result.IPs) > 0 {
+		ipv6Subnet := network.SubnetInfo{
+			Family:  platform.AfINET6,
+			Prefix:  *podSubnetV6Prefix,
+			Gateway: ipamAddResult.ipv6Result.IPs[0].Gateway,
+		}
+		nwInfo.Subnets = append(nwInfo.Subnets, ipv6Subnet)
+	}
+
 	setNetworkOptions(ipamAddResult.ncResponse, &nwInfo)
 
 	addNatIPV6SubnetInfo(ipamAddConfig.nwCfg, ipamAddResult.ipv6Result, &nwInfo)
@@ -655,6 +675,8 @@ func (plugin *NetPlugin) createNetworkInternal(
 	if err != nil {
 		err = plugin.Errorf("createNetworkInternal: Failed to create network: %v", err)
 	}
+
+	// TODO: run powershell commands for ipv4 and ipv6 rules after network is created successfully
 
 	return nwInfo, err
 }
