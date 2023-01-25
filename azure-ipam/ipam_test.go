@@ -31,12 +31,10 @@ func (c *MockCNSClient) RequestIPAddress(ctx context.Context, ipconfig cns.IPCon
 	case "failProcessCNSResp":
 		result := &cns.IPConfigResponse{
 			PodIpInfo: cns.PodIpInfo{
-				{
-					PodIPConfig: cns.IPSubnet{
-						IPAddress:    "10.0.1.10.2", // invalid ip address
-						PrefixLength: 24,
-					},
-				}
+				PodIPConfig: cns.IPSubnet{
+					IPAddress:    "10.0.1.10.2", // invalid ip address
+					PrefixLength: 24,
+				},
 				NetworkContainerPrimaryIPConfig: cns.IPConfiguration{
 					IPSubnet: cns.IPSubnet{
 						IPAddress:    "10.0.1.0",
@@ -59,12 +57,10 @@ func (c *MockCNSClient) RequestIPAddress(ctx context.Context, ipconfig cns.IPCon
 		return result, nil
 	default:
 		result := &cns.IPConfigResponse{
-			PodIpInfo: []cns.PodIpInfo{
-				{
-					PodIPConfig: cns.IPSubnet{
-						IPAddress:    "10.0.1.10",
-						PrefixLength: 24,
-					},
+			PodIpInfo: cns.PodIpInfo{
+				PodIPConfig: cns.IPSubnet{
+					IPAddress:    "10.0.1.10",
+					PrefixLength: 24,
 				},
 				NetworkContainerPrimaryIPConfig: cns.IPConfiguration{
 					IPSubnet: cns.IPSubnet{
@@ -89,121 +85,7 @@ func (c *MockCNSClient) RequestIPAddress(ctx context.Context, ipconfig cns.IPCon
 	}
 }
 
-func (c *MockCNSClient) RequestIPs(ctx context.Context, ipconfig cns.IPConfigRequest) (*cns.IPConfigsResponse, error) {
-	switch ipconfig.InfraContainerID {
-	case "failRequestCNSArgs":
-		return nil, errFoo
-	case "failProcessCNSResp":
-		result := &cns.IPConfigsResponse{
-			PodIPInfo: []cns.PodIpInfo{
-				{
-					{
-						PodIPConfig: cns.IPSubnet{
-							IPAddress:    "10.0.1.10.2", // invalid ip address
-							PrefixLength: 24,
-						},
-
-					},
-					NetworkContainerPrimaryIPConfig: cns.IPConfiguration{
-						IPSubnet: cns.IPSubnet{
-							IPAddress:    "10.0.1.0",
-							PrefixLength: 24,
-						},
-						DNSServers:       nil,
-						GatewayIPAddress: "10.0.0.1",
-					},
-					HostPrimaryIPInfo: cns.HostIPInfo{
-						Gateway:   "10.0.0.1",
-						PrimaryIP: "10.0.0.1",
-						Subnet:    "10.0.0.0/24",
-					},
-				},
-				{
-					{
-						PodIPConfig: cns.IPSubnet{
-							IPAddress:    "2001:db8:abcd:0015::10A::0", // invalid ip address
-							PrefixLength: 120,
-						},
-
-					},
-					NetworkContainerPrimaryIPConfig: cns.IPConfiguration{
-						IPSubnet: cns.IPSubnet{
-							IPAddress:    "2001:db8:abcd:0015::100",
-							PrefixLength: 8,
-						},
-						DNSServers:       nil,
-						GatewayIPAddress: "2001:db8:abcd:0015::1",
-					},
-					HostPrimaryIPInfo: cns.HostIPInfo{
-						Gateway:   "2001:db8:abcd:0015::1",
-						PrimaryIP: "2001:db8:abcd:0015::1",
-						Subnet:    "2001:db8:abcd:0015::0/120",
-					},
-				}
-			},
-			Response: cns.Response{
-				ReturnCode: 0,
-				Message:    "",
-			},
-		}
-		return result, nil
-	default:
-		result := &cns.IPConfigResponse{
-			PodIPInfo: []cns.PodIpInfo{
-				{
-					{
-						PodIPConfig: cns.IPSubnet{
-							IPAddress:    "10.0.1.10",
-							PrefixLength: 24,
-						},
-					},
-					NetworkContainerPrimaryIPConfig: cns.IPConfiguration{
-						IPSubnet: cns.IPSubnet{
-							IPAddress:    "10.0.1.0",
-							PrefixLength: 24,
-						},
-						DNSServers:       nil,
-						GatewayIPAddress: "10.0.0.1",
-					},
-					HostPrimaryIPInfo: cns.HostIPInfo{
-						Gateway:   "10.0.0.1",
-						PrimaryIP: "10.0.0.1",
-						Subnet:    "10.0.0.0/24",
-					},
-				},
-				{
-					{
-						PodIPConfig: cns.IPSubnet{
-							IPAddress:    "2001:db8:abcd:0015::10A", // invalid ip address
-							PrefixLength: 120,
-						},
-
-					},
-					NetworkContainerPrimaryIPConfig: cns.IPConfiguration{
-						IPSubnet: cns.IPSubnet{
-							IPAddress:    "2001:db8:abcd:0015::100",
-							PrefixLength: 8,
-						},
-						DNSServers:       nil,
-						GatewayIPAddress: "2001:db8:abcd:0015::1",
-					},
-					HostPrimaryIPInfo: cns.HostIPInfo{
-						Gateway:   "2001:db8:abcd:0015::1",
-						PrimaryIP: "2001:db8:abcd:0015::1",
-						Subnet:    "2001:db8:abcd:0015::0/120",
-					},
-				}
-			},
-			Response: cns.Response{
-				ReturnCode: 0,
-				Message:    "",
-			},
-		}
-		return result, nil
-	}
-}
-
-func (c *MockCNSClient) ReleaseIPs(ctx context.Context, ipconfig cns.IPConfigRequest) error {
+func (c *MockCNSClient) ReleaseIPAddress(ctx context.Context, ipconfig cns.IPConfigRequest) error {
 	switch ipconfig.InfraContainerID {
 	case "failRequestCNSReleaseIPArgs":
 		return errFoo

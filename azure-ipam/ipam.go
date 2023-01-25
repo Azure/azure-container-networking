@@ -29,8 +29,7 @@ type IPAMPlugin struct {
 
 type cnsClient interface {
 	RequestIPAddress(context.Context, cns.IPConfigRequest) (*cns.IPConfigResponse, error)
-	RequestIPs(context.Context, cns.IPConfigRequest) (*cns.IPConfigsResponse, error)
-	ReleaseIPs(context.Context, cns.IPConfigRequest) error
+	ReleaseIPAddress(context.Context, cns.IPConfigRequest) error
 }
 
 // NewPlugin constructs a new IPAM plugin instance with given logger and CNS client
@@ -73,7 +72,7 @@ func (p *IPAMPlugin) CmdAdd(args *cniSkel.CmdArgs) error {
 	p.logger.Debug("Making request to CNS")
 	// if this fails, the caller plugin should execute again with cmdDel before returning error.
 	// https://www.cni.dev/docs/spec/#delegated-plugin-execution-procedure
-	resp, err := p.cnsClient.RequestIPs(context.TODO(), req)
+	resp, err := p.cnsClient.RequestIPAddress(context.TODO(), req)
 	if err != nil {
 		p.logger.Error("Failed to request IP address from CNS", zap.Error(err), zap.Any("request", req))
 		return cniTypes.NewError(ErrRequestIPConfigFromCNS, err.Error(), "failed to request IP address from CNS")
@@ -86,25 +85,17 @@ func (p *IPAMPlugin) CmdAdd(args *cniSkel.CmdArgs) error {
 		p.logger.Error("Failed to interpret CNS IPConfigResponse", zap.Error(err), zap.Any("response", resp))
 		return cniTypes.NewError(ErrProcessIPConfigResponse, err.Error(), "failed to interpret CNS IPConfigResponse")
 	}
-	for _, IPNet := range *podIPNet {
-		p.logger.Debug("Parsed pod IP", zap.String("podIPNet", IPNet.String()))
-	}
+	p.logger.Debug("Parsed pod IP", zap.String("podIPNet", podIPNet.String()))
 
-	cniResult := &types100.Result{}
-	for _, IPNet := range *podIPNet {
-		ipConfig := &types100.IPConfig{}
-		if net.ParseIP(IPNet.Addr().String()).To4() != nil {
-			ipConfig.Address = net.IPNet{
-				IP:   net.ParseIP(IPNet.Addr().String()),
-				Mask: net.CIDRMask(IPNet.Bits(), 32), // nolint
-			}
-		} else {
-			ipConfig.Address = net.IPNet{
-				IP:   net.ParseIP(IPNet.Addr().String()),
-				Mask: net.CIDRMask(IPNet.Bits(), 128), // nolint
-			}
-		}
-		cniResult.IPs = append(cniResult.IPs, ipConfig)
+	cniResult := &types100.Result{
+		IPs: []*types100.IPConfig{
+			{
+				Address: net.IPNet{
+					IP:   net.ParseIP(podIPNet.Addr().String()),
+					Mask: net.CIDRMask(podIPNet.Bits(), 32), // nolint
+				},
+			},
+		},
 	}
 
 	// Get versioned result
@@ -140,7 +131,7 @@ func (p *IPAMPlugin) CmdDel(args *cniSkel.CmdArgs) error {
 
 	p.logger.Debug("Making request to CNS")
 	// cnsClient enforces it own timeout
-	if err := p.cnsClient.ReleaseIPs(context.TODO(), req); err != nil {
+	if err := p.cnsClient.ReleaseIPAddress(context.TODO(), req); err != nil {
 		p.logger.Error("Failed to release IP address from CNS", zap.Error(err), zap.Any("request", req))
 		return cniTypes.NewError(cniTypes.ErrTryAgainLater, err.Error(), "failed to release IP address from CNS")
 	}
