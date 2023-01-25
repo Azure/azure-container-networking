@@ -453,7 +453,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 		}
 	} else {
 		// TODO: refactor this code for simplification
-		// Add empty ipamAddResult object for single tenancy mode
+		// Add dummy ipamAddResult nil object for single tenancy mode
 		// this will be used for: ipamAddResult, err = plugin.ipamInvoker.Add(ipamAddConfig)
 		ipamAddResults = append(ipamAddResults, ipamAddResult)
 	}
@@ -513,7 +513,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 			sendEvent(plugin, fmt.Sprintf("Allocated IPAddress from ipam:%+v v6:%+v", ipamAddResult.ipv4Result, ipamAddResult.ipv6Result))
 		}
 
-		defer func() {
+		defer func() { //nolint:gocritic
 			if err != nil {
 				plugin.cleanupAllocationOnError(ipamAddResult.ipv4Result, ipamAddResult.ipv6Result, nwCfg, args, options)
 			}
