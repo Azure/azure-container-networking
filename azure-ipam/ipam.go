@@ -90,39 +90,21 @@ func (p *IPAMPlugin) CmdAdd(args *cniSkel.CmdArgs) error {
 		p.logger.Debug("Parsed pod IP", zap.String("podIPNet", IPNet.String()))
 	}
 
-	if len(*podIPNet) > 2 {
-		p.logger.Error("Returned an invalid number of IPs in IPConfigResponse", zap.Error(err), zap.Any("pod IPs", podIPNet))
-		return cniTypes.NewError(ErrProcessIPConfigResponse, err.Error(), "Returned an invalid number of IPs in IPConfigResponse")
-	}
-
-	cniResult := &types100.Result{
-		IPs: []*types100.IPConfig{
-			{
-				Address: net.IPNet{
-					IP:   net.ParseIP((*podIPNet)[0].Addr().String()),
-					Mask: net.CIDRMask((*podIPNet)[0].Bits(), 32), // nolint
-				},
-			},
-		},
-	}
-
-	if len(*podIPNet) == 2 { 
-		cniResult = &types100.Result{
-			IPs: []*types100.IPConfig{
-				{
-					Address: net.IPNet{
-						IP:   net.ParseIP((*podIPNet)[0].Addr().String()),
-						Mask: net.CIDRMask((*podIPNet)[0].Bits(), 32), // nolint
-					},
-				},
-				{
-					Address: net.IPNet{
-						IP:   net.ParseIP((*podIPNet)[1].Addr().String()),
-						Mask: net.CIDRMask((*podIPNet)[1].Bits(), 128), // nolint
-					},
-				},
-			},
+	cniResult := &types100.Result{}
+	for _, IPNet := range *podIPNet {
+		ipConfig := &types100.IPConfig{}
+		if net.ParseIP(IPNet.Addr().String()).To4() != nil {
+			ipConfig.Address = net.IPNet{
+				IP:   net.ParseIP(IPNet.Addr().String()),
+				Mask: net.CIDRMask(IPNet.Bits(), 32), // nolint
+			}
+		} else {
+			ipConfig.Address = net.IPNet{
+				IP:   net.ParseIP(IPNet.Addr().String()),
+				Mask: net.CIDRMask(IPNet.Bits(), 128), // nolint
+			}
 		}
+		cniResult.IPs = append(cniResult.IPs, ipConfig)
 	}
 
 	// Get versioned result
