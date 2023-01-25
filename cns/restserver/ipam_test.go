@@ -67,18 +67,20 @@ func NewPodState(ipaddress string, prefixLength uint8, id, ncid string, state ty
 }
 
 func requestIPAddressAndGetState(t *testing.T, req cns.IPConfigRequest) (cns.IPConfigurationStatus, error) {
-	PodIpInfo, err := requestIPConfigHelper(svc, req)
+	PodIPInfo, err := requestIPConfigHelper(svc, req)
 	if err != nil {
 		return cns.IPConfigurationStatus{}, err
 	}
 
-	assert.Equal(t, primaryIp, PodIpInfo.NetworkContainerPrimaryIPConfig.IPSubnet.IPAddress)
-	assert.Equal(t, subnetPrfixLength, int(PodIpInfo.NetworkContainerPrimaryIPConfig.IPSubnet.PrefixLength))
-	assert.Equal(t, dnsservers, PodIpInfo.NetworkContainerPrimaryIPConfig.DNSServers)
-	assert.Equal(t, gatewayIp, PodIpInfo.NetworkContainerPrimaryIPConfig.GatewayIPAddress)
-	assert.Equal(t, subnetPrfixLength, int(PodIpInfo.PodIPConfig.PrefixLength))
-	assert.Equal(t, fakes.HostPrimaryIP, PodIpInfo.HostPrimaryIPInfo.PrimaryIP)
-	assert.Equal(t, fakes.HostSubnet, PodIpInfo.HostPrimaryIPInfo.Subnet)
+	for i := range PodIPInfo {
+		assert.Equal(t, primaryIp, PodIPInfo[i].NetworkContainerPrimaryIPConfig.IPSubnet.IPAddress)
+		assert.Equal(t, subnetPrfixLength, int(PodIPInfo[i].NetworkContainerPrimaryIPConfig.IPSubnet.PrefixLength))
+		assert.Equal(t, dnsservers, PodIPInfo[i].NetworkContainerPrimaryIPConfig.DNSServers)
+		assert.Equal(t, gatewayIp, PodIPInfo[i].NetworkContainerPrimaryIPConfig.GatewayIPAddress)
+		assert.Equal(t, subnetPrfixLength, int(PodIPInfo[i].PodIPConfig.PrefixLength))
+		assert.Equal(t, fakes.HostPrimaryIP, PodIPInfo[i].HostPrimaryIPInfo.PrimaryIP)
+		assert.Equal(t, fakes.HostSubnet, PodIPInfo[i].HostPrimaryIPInfo.Subnet)
+	}
 
 	// retrieve podinfo from orchestrator context
 	podInfo, err := cns.UnmarshalPodInfo(req.OrchestratorContext)

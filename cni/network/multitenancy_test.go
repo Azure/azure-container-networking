@@ -66,8 +66,8 @@ func (c *MockCNSClient) RequestIPAddress(_ context.Context, ipconfig cns.IPConfi
 }
 
 func (c *MockCNSClient) RequestIPs(_ context.Context, ipconfig cns.IPConfigRequest) (*cns.IPConfigsResponse, error) {
-	c.require.Exactly(c.request.ipconfigArgument, ipconfig)
-	return c.requestIPs.result, c.request.err
+	c.require.Exactly(c.requestIPs.ipconfigArgument, ipconfig)
+	return c.requestIPs.result, c.requestIPs.err
 }
 
 func (c *MockCNSClient) ReleaseIPs(_ context.Context, ipconfig cns.IPConfigRequest) error {
