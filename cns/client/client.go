@@ -324,7 +324,7 @@ func (c *Client) RequestIPAddress(ctx context.Context, ipconfig cns.IPConfigRequ
 		return nil, errors.Errorf("http response %d", res.StatusCode)
 	}
 
-	var response cns.IPConfigResponse 
+	var response cns.IPConfigResponse
 	err = json.NewDecoder(res.Body).Decode(&response)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to decode IPConfigResponse")

@@ -425,7 +425,7 @@ type IPConfigResponse struct {
 
 // IPConfigsResponse is used in CNS IPAM mode to return a slice of IP configs as a response to CNI ADD
 type IPConfigsResponse struct {
-	PodIpInfo []PodIpInfo
+	PodIPInfo []PodIpInfo
 	Response  Response
 }
 
@@ -449,7 +449,7 @@ type GetIPAddressStatusResponse struct {
 
 // GetPodContextResponse is used in CNS Client debug mode to get mapping of Orchestrator Context to Pod IP UUIDs
 type GetPodContextResponse struct {
-	PodContext map[string][]string //can have multiple Pod IP UUIDs in the case of dualstack 
+	PodContext map[string][]string // can have multiple Pod IP UUIDs in the case of dualstack 
 	Response   Response
 }
 

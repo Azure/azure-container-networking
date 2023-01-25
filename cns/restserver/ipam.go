@@ -38,7 +38,7 @@ func (service *HTTPRestService) requestIPConfigHandlerHelper(ipconfigRequest cns
 				ReturnCode: types.FailedToAllocateIPConfig,
 				Message:    fmt.Sprintf("AllocateIPConfig failed: %v, IP config request is %s", err, ipconfigRequest),
 			},
-			PodIpInfo: podIPInfo}, err
+			PodIPInfo: podIPInfo}, err
 	}
 
 	// record a pod assigned an IP
@@ -58,7 +58,7 @@ func (service *HTTPRestService) requestIPConfigHandlerHelper(ipconfigRequest cns
 					ReturnCode: types.UnexpectedError,
 					Message:    fmt.Sprintf("Update endpoint state failed: %v ", err),
 				},
-				PodIpInfo: podIPInfo}, err
+				PodIPInfo: podIPInfo}, err
 		}
 	}
 
@@ -66,7 +66,7 @@ func (service *HTTPRestService) requestIPConfigHandlerHelper(ipconfigRequest cns
 		Response: cns.Response{
 			ReturnCode: types.Success,
 		},
-		PodIpInfo: podIPInfo}, nil
+		PodIPInfo: podIPInfo}, nil
 }
 
 // requestIPConfigHandler requests an IPConfig from the CNS state
@@ -95,7 +95,7 @@ func (service *HTTPRestService) requestIPConfigHandler(w http.ResponseWriter, r 
 	// Only single value of PodIpInfo is expected to be returned
 	reserveResp := &cns.IPConfigResponse{
 		Response:  ipConfigsResp.Response,
-		PodIpInfo: ipConfigsResp.PodIpInfo[0],
+		PodIpInfo: ipConfigsResp.PodIPInfo[0],
 	}
 	w.Header().Set(cnsReturnCode, reserveResp.Response.ReturnCode.String())
 	err = service.Listener.Encode(w, &reserveResp)

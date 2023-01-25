@@ -162,7 +162,7 @@ func (ic *IpamClient) ReserveIPAddress(poolID string, reservationID string) (str
 }
 
 // ReleaseIPs release an Ip address for the reservation id.
-func (ic *IpamClient) ReleaseIPs(poolID string, reservationID string) error {
+func (ic *IpamClient) ReleaseIPs(poolID, reservationID string) error {
 	var body bytes.Buffer
 	log.Printf("[Azure CNS] ReleaseIpAddress")
 

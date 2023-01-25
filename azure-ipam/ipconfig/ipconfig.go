@@ -40,13 +40,13 @@ func CreateIPConfigReq(args *cniSkel.CmdArgs) (cns.IPConfigRequest, error) {
 
 // ProcessIPConfigResp processes the IPConfigResponse from the CNS.
 func ProcessIPConfigResp(resp *cns.IPConfigsResponse) (*[]netip.Prefix, error) {
-	podIPNets := make([]netip.Prefix, len(resp.PodIpInfo))
+	podIPNets := make([]netip.Prefix, len(resp.PodIPInfo))
 
-	for i := range resp.PodIpInfo {
+	for i := range resp.PodIPInfo {
 		podCIDR := fmt.Sprintf(
 			"%s/%d",
-			resp.PodIpInfo[i].PodIPConfig.IPAddress,
-			resp.PodIpInfo[i].NetworkContainerPrimaryIPConfig.IPSubnet.PrefixLength,
+			resp.PodIPInfo[i].PodIPConfig.IPAddress,
+			resp.PodIPInfo[i].NetworkContainerPrimaryIPConfig.IPSubnet.PrefixLength,
 		)
 		podIPNet, err := netip.ParsePrefix(podCIDR)
 		if err != nil {

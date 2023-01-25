@@ -95,7 +95,7 @@ func (c *MockCNSClient) RequestIPs(ctx context.Context, ipconfig cns.IPConfigReq
 		return nil, errFoo
 	case "failProcessCNSResp":
 		result := &cns.IPConfigsResponse{
-			PodIpInfo: []cns.PodIpInfo{
+			PodIPInfo: []cns.PodIpInfo{
 				{
 					PodIPConfig: cns.IPSubnet{
 						IPAddress:    "10.0.1.10.2", // invalid ip address
