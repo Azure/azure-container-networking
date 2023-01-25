@@ -449,7 +449,7 @@ type GetIPAddressStatusResponse struct {
 
 // GetPodContextResponse is used in CNS Client debug mode to get mapping of Orchestrator Context to Pod IP UUIDs
 type GetPodContextResponse struct {
-	PodContext map[string][]string // can have multiple Pod IP UUIDs in the case of dualstack 
+	PodContext map[string][]string // Can have multiple Pod IP UUIDs in the case of dualstack
 	Response   Response
 }
 

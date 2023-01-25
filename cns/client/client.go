@@ -375,7 +375,6 @@ func (c *Client) ReleaseIPs(ctx context.Context, ipconfig cns.IPConfigRequest) e
 	return nil
 }
 
-
 // RequestIPs calls the RequestIPConfigs in CNS
 func (c *Client) RequestIPs(ctx context.Context, ipconfig cns.IPConfigRequest) (*cns.IPConfigsResponse, error) {
 	var err error

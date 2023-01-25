@@ -70,24 +70,22 @@ func TestCNSIPAMInvoker_Add(t *testing.T) {
 						ipconfigArgument: getTestIPConfigRequest(),
 						result: &cns.IPConfigResponse{
 							PodIpInfo: cns.PodIpInfo{
-								{
-									PodIPConfig: cns.IPSubnet{
-										IPAddress:    "10.0.1.10",
+								PodIPConfig: cns.IPSubnet{
+									IPAddress:    "10.0.1.10",
+									PrefixLength: 24,
+								},
+								NetworkContainerPrimaryIPConfig: cns.IPConfiguration{
+									IPSubnet: cns.IPSubnet{
+										IPAddress:    "10.0.1.0",
 										PrefixLength: 24,
 									},
-									NetworkContainerPrimaryIPConfig: cns.IPConfiguration{
-										IPSubnet: cns.IPSubnet{
-											IPAddress:    "10.0.1.0",
-											PrefixLength: 24,
-										},
-										DNSServers:       nil,
-										GatewayIPAddress: "10.0.0.1",
-									},
-									HostPrimaryIPInfo: cns.HostIPInfo{
-										Gateway:   "10.0.0.1",
-										PrimaryIP: "10.0.0.1",
-										Subnet:    "10.0.0.0/24",
-									},
+									DNSServers:       nil,
+									GatewayIPAddress: "10.0.0.1",
+								},
+								HostPrimaryIPInfo: cns.HostIPInfo{
+									Gateway:   "10.0.0.1",
+									PrimaryIP: "10.0.0.1",
+									Subnet:    "10.0.0.0/24",
 								},
 							},
 							Response: cns.Response{
