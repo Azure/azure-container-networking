@@ -385,8 +385,10 @@ func getNATInfo(nwCfg *cni.NetworkConfig, ncPrimaryIPIface interface{}, enableSn
 			ncPrimaryIP = ncPrimaryIPIface.(string)
 		}
 
-		natInfo = append(natInfo, []policy.NATInfo{{VirtualIP: ncPrimaryIP, Destinations: []string{networkutils.AzureDNS}}, {Destinations: []string{networkutils.AzureIMDS}}}...)
-	} else if nwCfg.MultiTenancy && enableSnatForDNS {
+		if net.ParseIP(ncPrimaryIP).To4() != nil {
+			natInfo = append(natInfo, []policy.NATInfo{{VirtualIP: ncPrimaryIP, Destinations: []string{networkutils.AzureDNS}}, {Destinations: []string{networkutils.AzureIMDS}}}...)
+		}
+	} else if multitenancy && enableSnatForDNS {
 		natInfo = append(natInfo, policy.NATInfo{Destinations: []string{networkutils.AzureDNS}})
 	}
 

@@ -372,6 +372,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 		}
 
 		addSnatInterface(nwCfg, ipamAddResult.ipv4Result)
+
 		// Convert result to the requested CNI version.
 		res, vererr := ipamAddResult.ipv4Result.GetAsVersion(nwCfg.CNIVersion)
 		if vererr != nil {
@@ -384,7 +385,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 			res.Print()
 		}
 
-		log.Printf("[cni-net] ADD command completed for pod %v with IPs:%+v err:%v.", k8sPodName, ipamAddResult.ipv4Result.IPs, err)
+		log.Printf("[cni-net] ADD command completed for pod %v with ip IPs:%+v  err:%v.", k8sPodName, ipamAddResult.ipv4Result.IPs, err)
 	}()
 
 	// Parse Pod arguments.
@@ -445,7 +446,49 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 			return fmt.Errorf("%w", err)
 		}
 
+<<<<<<< HEAD
 		ipamAddResults, err = plugin.multitenancyClient.GetAllNetworkContainers(context.TODO(), nwCfg, k8sPodName, k8sNamespace, args.IfName)
+=======
+		ipamAddResult.ncResponse, ipamAddResult.hostSubnetPrefix, er = plugin.multitenancyClient.GetContainerNetworkConfiguration(
+			context.TODO(), nwCfg, k8sPodName, k8sNamespace)
+		if er != nil {
+			er = errors.Wrapf(er, "GetContainerNetworkConfiguration failed for podname %v namespace %v", k8sPodName, k8sNamespace)
+			log.Printf("%+v", er)
+			return er
+		}
+
+		ipamAddResult.ipv4Result = convertToCniResult(ipamAddResult.ncResponse, args.IfName)
+
+		log.Printf("PrimaryInterfaceIdentifier: %v", ipamAddResult.hostSubnetPrefix.IP.String())
+	}
+
+	// Initialize values from network config.
+	networkID, err := plugin.getNetworkName(args.Netns, &ipamAddResult, nwCfg)
+	if err != nil {
+		log.Printf("[cni-net] Failed to extract network name from network config. error: %v", err)
+		return err
+	}
+
+	endpointID := GetEndpointID(args)
+	policies := cni.GetPoliciesFromNwCfg(nwCfg.AdditionalArgs)
+
+	options := make(map[string]interface{})
+	// Check whether the network already exists.
+	nwInfo, nwInfoErr := plugin.nm.GetNetworkInfo(networkID)
+	/* Handle consecutive ADD calls for infrastructure containers.
+	 * This is a temporary work around for issue #57253 of Kubernetes.
+	 * We can delete this if statement once they fix it.
+	 * Issue link: https://github.com/kubernetes/kubernetes/issues/57253
+	 */
+
+	if nwInfoErr == nil {
+		log.Printf("[cni-net] Found network %v with subnet %v.", networkID, nwInfo.Subnets[0].Prefix.String())
+		nwInfo.IPAMType = nwCfg.IPAM.Type
+		options = nwInfo.Options
+
+		var resultSecondAdd *cniTypesCurr.Result
+		resultSecondAdd, err = plugin.handleConsecutiveAdd(args, endpointID, networkID, &nwInfo, nwCfg)
+>>>>>>> 2b954714 (windows CNI dual stack)
 		if err != nil {
 			err = fmt.Errorf("GetAllNetworkContainers failed for podname %s namespace %s. error: %w", k8sPodName, k8sNamespace, err)
 			log.Printf("%+v", err)
@@ -567,6 +610,33 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 			ipamAddResult.ipv4Result.IPs, epInfo.Data[network.VlanIDKey], k8sPodName, k8sNamespace, plugin.nm.GetNumberOfEndpoints("", nwCfg.Name)))
 	}
 
+	natInfo := getNATInfo(nwCfg.ExecutionMode, options[network.SNATIPKey], nwCfg.MultiTenancy, enableSnatForDNS)
+
+	createEndpointInternalOpt := createEndpointInternalOpt{
+		nwCfg:            nwCfg,
+		cnsNetworkConfig: ipamAddResult.ncResponse,
+		result:           ipamAddResult.ipv4Result,
+		resultV6:         ipamAddResult.ipv6Result,
+		azIpamResult:     azIpamResult,
+		args:             args,
+		nwInfo:           &nwInfo,
+		policies:         policies,
+		endpointID:       endpointID,
+		k8sPodName:       k8sPodName,
+		k8sNamespace:     k8sNamespace,
+		enableInfraVnet:  enableInfraVnet,
+		enableSnatForDNS: enableSnatForDNS,
+		natInfo:          natInfo,
+	}
+	epInfo, err := plugin.createEndpointInternal(&createEndpointInternalOpt)
+	if err != nil {
+		log.Errorf("Endpoint creation failed:%w", err)
+		return err
+	}
+
+	sendEvent(plugin, fmt.Sprintf("CNI ADD succeeded : ipv4 IP:%+v, ipv6 IP:%+v:,VlanID: %v, podname %v, namespace %v numendpoints:%d",
+		ipamAddResult.ipv4Result.IPs, ipamAddResult.ipv6Result.IPs, epInfo.Data[network.VlanIDKey], k8sPodName, k8sNamespace, plugin.nm.GetNumberOfEndpoints("", nwCfg.Name)))
+
 	return nil
 }
 
@@ -626,19 +696,21 @@ func (plugin *NetPlugin) createNetworkInternal(
 		return nwInfo, fmt.Errorf("Failed to ParseCIDR for pod subnet prefix: %w", err)
 	}
 
+	// only parse the ipv6 address and add it to nwInfo if it's dual stack mode
+	var podSubnetV6Prefix *net.IPNet
+	if len(ipamAddResult.ipv6Result.IPs) > 0 {
+		_, podSubnetV6Prefix, err = net.ParseCIDR(ipamAddResult.ipv6Result.IPs[0].Address.String())
+		if err != nil {
+			return nwInfo, fmt.Errorf("Failed to ParseCIDR for pod subnet IPv6 prefix: %w", err)
+		}
+	}
+
 	// Create the network.
 	nwInfo = network.NetworkInfo{
-		Id:           networkID,
-		Mode:         ipamAddConfig.nwCfg.Mode,
-		MasterIfName: masterIfName,
-		AdapterName:  ipamAddConfig.nwCfg.AdapterName,
-		Subnets: []network.SubnetInfo{
-			{
-				Family:  platform.AfINET,
-				Prefix:  *podSubnetPrefix,
-				Gateway: ipamAddResult.ipv4Result.IPs[0].Gateway,
-			},
-		},
+		Id:                            networkID,
+		Mode:                          ipamAddConfig.nwCfg.Mode,
+		MasterIfName:                  masterIfName,
+		AdapterName:                   ipamAddConfig.nwCfg.AdapterName,
 		BridgeName:                    ipamAddConfig.nwCfg.Bridge,
 		EnableSnatOnHost:              ipamAddConfig.nwCfg.EnableSnatOnHost,
 		DNS:                           nwDNSInfo,
@@ -651,6 +723,22 @@ func (plugin *NetPlugin) createNetworkInternal(
 		ServiceCidrs:                  ipamAddConfig.nwCfg.ServiceCidrs,
 	}
 
+	ipv4Subnet := network.SubnetInfo{
+		Family:  platform.AfINET,
+		Prefix:  *podSubnetPrefix,
+		Gateway: ipamAddResult.ipv4Result.IPs[0].Gateway,
+	}
+	nwInfo.Subnets = append(nwInfo.Subnets, ipv4Subnet)
+
+	if len(ipamAddResult.ipv6Result.IPs) > 0 {
+		ipv6Subnet := network.SubnetInfo{
+			Family:  platform.AfINET6,
+			Prefix:  *podSubnetV6Prefix,
+			Gateway: ipamAddResult.ipv6Result.IPs[0].Gateway,
+		}
+		nwInfo.Subnets = append(nwInfo.Subnets, ipv6Subnet)
+	}
+
 	setNetworkOptions(ipamAddResult.ncResponse, &nwInfo)
 
 	addNatIPV6SubnetInfo(ipamAddConfig.nwCfg, ipamAddResult.ipv6Result, &nwInfo)
@@ -659,6 +747,8 @@ func (plugin *NetPlugin) createNetworkInternal(
 	if err != nil {
 		err = plugin.Errorf("createNetworkInternal: Failed to create network: %v", err)
 	}
+
+	// TODO: run powershell commands for ipv4 and ipv6 rules after network is created successfully
 
 	return nwInfo, err
 }

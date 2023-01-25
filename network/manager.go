@@ -33,6 +33,12 @@ var Ipv4DefaultRouteDstPrefix = net.IPNet{
 	Mask: net.IPv4Mask(0, 0, 0, 0),
 }
 
+var Ipv6DefaultRouteDstPrefix = net.IPNet{
+	IP: net.IPv6zero,
+	// This mask corresponds to a /0 subnet for IPv6
+	Mask: net.CIDRMask(0, 128),
+}
+
 type NetworkClient interface {
 	CreateBridge() error
 	DeleteBridge() error

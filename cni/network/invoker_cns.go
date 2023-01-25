@@ -20,8 +20,10 @@ import (
 )
 
 var (
-	errEmptyCNIArgs = errors.New("empty CNI cmd args not allowed")
-	errInvalidArgs  = errors.New("invalid arg(s)")
+	errEmptyCNIArgs    = errors.New("empty CNI cmd args not allowed")
+	errInvalidArgs     = errors.New("invalid arg(s)")
+	overlayGatewayv4IP = "169.254.1.1"
+	overlayGatewayv6IP = "fe80::1234:5678:9abc"
 )
 
 type CNSIPAMInvoker struct {
@@ -32,7 +34,7 @@ type CNSIPAMInvoker struct {
 	ipamMode      util.IpamMode
 }
 
-type IPv4ResultInfo struct {
+type IPResultInfo struct {
 	podIPAddress       string
 	ncSubnetPrefix     uint8
 	ncPrimaryIP        string
@@ -52,6 +54,7 @@ func NewCNSInvoker(podName, namespace string, cnsClient cnsclient, executionMode
 	}
 }
 
+// ryand IPv6 not currently supported
 // Add uses the requestipconfig API in cns, and returns ipv4 and a nil ipv6 as CNS doesn't support IPv6 yet
 func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, error) {
 	// Parse Pod arguments.
@@ -83,16 +86,9 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 		return IPAMAddResult{}, errors.Wrap(err, "Failed to get IP address from CNS with error: %w")
 	}
 
-	info := IPv4ResultInfo{
-		podIPAddress:       response.PodIpInfo.PodIPConfig.IPAddress,
-		ncSubnetPrefix:     response.PodIpInfo.NetworkContainerPrimaryIPConfig.IPSubnet.PrefixLength,
-		ncPrimaryIP:        response.PodIpInfo.NetworkContainerPrimaryIPConfig.IPSubnet.IPAddress,
-		ncGatewayIPAddress: response.PodIpInfo.NetworkContainerPrimaryIPConfig.GatewayIPAddress,
-		hostSubnet:         response.PodIpInfo.HostPrimaryIPInfo.Subnet,
-		hostPrimaryIP:      response.PodIpInfo.HostPrimaryIPInfo.PrimaryIP,
-		hostGateway:        response.PodIpInfo.HostPrimaryIPInfo.Gateway,
-	}
+	addResult := IPAMAddResult{}
 
+<<<<<<< HEAD
 	// set the NC Primary IP in options
 	addConfig.options[network.SNATIPKey] = info.ncPrimaryIP
 
@@ -115,49 +111,102 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 			return IPAMAddResult{}, err
 		}
 	}
+=======
+	for i := 0; i < len(response.PodIpInfo); i++ {
+		info := IPResultInfo{
+			podIPAddress:       response.PodIpInfo[i].PodIPConfig.IPAddress,
+			ncSubnetPrefix:     response.PodIpInfo[i].NetworkContainerPrimaryIPConfig.IPSubnet.PrefixLength,
+			ncPrimaryIP:        response.PodIpInfo[i].NetworkContainerPrimaryIPConfig.IPSubnet.IPAddress,
+			ncGatewayIPAddress: response.PodIpInfo[i].NetworkContainerPrimaryIPConfig.GatewayIPAddress,
+			hostSubnet:         response.PodIpInfo[i].HostPrimaryIPInfo.Subnet,
+			hostPrimaryIP:      response.PodIpInfo[i].HostPrimaryIPInfo.PrimaryIP,
+			hostGateway:        response.PodIpInfo[i].HostPrimaryIPInfo.Gateway,
+		}
 
-	// construct ipnet for result
-	resultIPnet := net.IPNet{
-		IP:   ip,
-		Mask: ncipnet.Mask,
-	}
+		// set the NC Primary IP in options
+		addConfig.options[network.SNATIPKey] = info.ncPrimaryIP
 
-	addResult := IPAMAddResult{}
-	addResult.ipv4Result = &cniTypesCurr.Result{
-		IPs: []*cniTypesCurr.IPConfig{
-			{
-				Address: resultIPnet,
-				Gateway: ncgw,
-			},
-		},
-		Routes: []*cniTypes.Route{
-			{
-				Dst: network.Ipv4DefaultRouteDstPrefix,
-				GW:  ncgw,
-			},
-		},
-	}
+		log.Printf("[cni-invoker-cns] Received info %+v for pod %v", info, podInfo)
+>>>>>>> 8df6eaec (windows CNI dual stack)
 
-	// get the name of the primary IP address
-	_, hostIPNet, err := net.ParseCIDR(info.hostSubnet)
-	if err != nil {
-		return IPAMAddResult{}, fmt.Errorf("unable to parse hostSubnet: %w", err)
-	}
+		ncgw := net.ParseIP(info.ncGatewayIPAddress)
+		if ncgw == nil {
+			if (invoker.ipamMode != util.V4Overlay) && (invoker.ipamMode != util.DualModeOverlay) {
+				return IPAMAddResult{}, errors.Wrap(errInvalidArgs, "%w: Gateway address "+info.ncGatewayIPAddress+" from response is invalid")
+			}
 
-	addResult.hostSubnetPrefix = *hostIPNet
+			if net.ParseIP(info.podIPAddress).To4() != nil {
+				ncgw = net.ParseIP(overlayGatewayv4IP)
+			} else {
+				ncgw = net.ParseIP(overlayGatewayv6IP)
+			}
+		}
 
-	// set subnet prefix for host vm
-	// setHostOptions will execute if IPAM mode is not v4 overlay
-	if invoker.ipamMode != util.V4Overlay {
-		if err := setHostOptions(ncipnet, addConfig.options, &info); err != nil {
-			return IPAMAddResult{}, err
+		// set result ipconfigArgument from CNS Response Body
+		ip, ncipnet, err := net.ParseCIDR(info.podIPAddress + "/" + fmt.Sprint(info.ncSubnetPrefix))
+		if ip == nil {
+			return IPAMAddResult{}, errors.Wrap(err, "Unable to parse IP from response: "+info.podIPAddress+" with err %w")
+		}
+
+		// construct ipnet for result
+		resultIPnet := net.IPNet{
+			IP:   ip,
+			Mask: ncipnet.Mask,
+		}
+
+		if net.ParseIP(info.podIPAddress).To4() != nil {
+			addResult.ipv4Result = &cniTypesCurr.Result{
+				IPs: []*cniTypesCurr.IPConfig{
+					{
+						Address: resultIPnet,
+						Gateway: ncgw,
+					},
+				},
+				Routes: []*cniTypes.Route{
+					{
+						Dst: network.Ipv4DefaultRouteDstPrefix,
+						GW:  ncgw,
+					},
+				},
+			}
+		} else {
+			addResult.ipv6Result = &cniTypesCurr.Result{
+				IPs: []*cniTypesCurr.IPConfig{
+					{
+						Address: resultIPnet,
+						Gateway: ncgw,
+					},
+				},
+				Routes: []*cniTypes.Route{
+					{
+						Dst: network.Ipv6DefaultRouteDstPrefix,
+						GW:  ncgw,
+					},
+				},
+			}
+		}
+
+		// get the name of the primary IP address
+		_, hostIPNet, err := net.ParseCIDR(info.hostSubnet)
+		if err != nil {
+			return IPAMAddResult{}, fmt.Errorf("unable to parse hostSubnet: %w", err)
+		}
+
+		addResult.hostSubnetPrefix = *hostIPNet
+
+		// set subnet prefix for host vm
+		// setHostOptions will execute if IPAM mode is not v4 overlay
+		if (invoker.ipamMode != util.V4Overlay) && (invoker.ipamMode != util.DualModeOverlay) {
+			if err := setHostOptions(ncipnet, addConfig.options, &info); err != nil {
+				return IPAMAddResult{}, err
+			}
 		}
 	}
 
 	return addResult, nil
 }
 
-func setHostOptions(ncSubnetPrefix *net.IPNet, options map[string]interface{}, info *IPv4ResultInfo) error {
+func setHostOptions(ncSubnetPrefix *net.IPNet, options map[string]interface{}, info *IPResultInfo) error {
 	// get the host ip
 	hostIP := net.ParseIP(info.hostPrimaryIP)
 	if hostIP == nil {

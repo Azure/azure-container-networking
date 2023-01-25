@@ -300,30 +300,6 @@ func convertToCniResult(networkConfig *cns.GetNetworkContainerResponse, ifName s
 	return result
 }
 
-func getInfraVnetIP(
-	enableInfraVnet bool,
-	infraSubnet string,
-	nwCfg *cni.NetworkConfig,
-	plugin *NetPlugin,
-) (*cniTypesCurr.Result, error) {
-	if enableInfraVnet {
-		_, ipNet, _ := net.ParseCIDR(infraSubnet)
-		nwCfg.IPAM.Subnet = ipNet.String()
-
-		log.Printf("call ipam to allocate ip from subnet %v", nwCfg.IPAM.Subnet)
-		ipamAddOpt := IPAMAddConfig{nwCfg: nwCfg, options: make(map[string]interface{})}
-		ipamAddResult, err := plugin.ipamInvoker.Add(ipamAddOpt)
-		if err != nil {
-			err = plugin.Errorf("Failed to allocate address: %v", err)
-			return nil, err
-		}
-
-		return ipamAddResult.ipv4Result, nil
-	}
-
-	return nil, nil
-}
-
 func checkIfSubnetOverlaps(enableInfraVnet bool, nwCfg *cni.NetworkConfig, cnsNetworkConfig *cns.GetNetworkContainerResponse) bool {
 	if enableInfraVnet {
 		if cnsNetworkConfig != nil {
