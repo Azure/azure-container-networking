@@ -97,25 +97,49 @@ func (c *MockCNSClient) RequestIPs(ctx context.Context, ipconfig cns.IPConfigReq
 		result := &cns.IPConfigsResponse{
 			PodIPInfo: []cns.PodIpInfo{
 				{
-					PodIPConfig: cns.IPSubnet{
-						IPAddress:    "10.0.1.10.2", // invalid ip address
-						PrefixLength: 24,
-					},
+					{
+						PodIPConfig: cns.IPSubnet{
+							IPAddress:    "10.0.1.10.2", // invalid ip address
+							PrefixLength: 24,
+						},
 
-				},
-				NetworkContainerPrimaryIPConfig: cns.IPConfiguration{
-					IPSubnet: cns.IPSubnet{
-						IPAddress:    "10.0.1.0",
-						PrefixLength: 24,
 					},
-					DNSServers:       nil,
-					GatewayIPAddress: "10.0.0.1",
+					NetworkContainerPrimaryIPConfig: cns.IPConfiguration{
+						IPSubnet: cns.IPSubnet{
+							IPAddress:    "10.0.1.0",
+							PrefixLength: 24,
+						},
+						DNSServers:       nil,
+						GatewayIPAddress: "10.0.0.1",
+					},
+					HostPrimaryIPInfo: cns.HostIPInfo{
+						Gateway:   "10.0.0.1",
+						PrimaryIP: "10.0.0.1",
+						Subnet:    "10.0.0.0/24",
+					},
 				},
-				HostPrimaryIPInfo: cns.HostIPInfo{
-					Gateway:   "10.0.0.1",
-					PrimaryIP: "10.0.0.1",
-					Subnet:    "10.0.0.0/24",
-				},
+				{
+					{
+						PodIPConfig: cns.IPSubnet{
+							IPAddress:    "2001:db8:abcd:0015::10A::0", // invalid ip address
+							PrefixLength: 120,
+						},
+
+					},
+					NetworkContainerPrimaryIPConfig: cns.IPConfiguration{
+						IPSubnet: cns.IPSubnet{
+							IPAddress:    "2001:db8:abcd:0015::100",
+							PrefixLength: 8,
+						},
+						DNSServers:       nil,
+						GatewayIPAddress: "2001:db8:abcd:0015::1",
+					},
+					HostPrimaryIPInfo: cns.HostIPInfo{
+						Gateway:   "2001:db8:abcd:0015::1",
+						PrimaryIP: "2001:db8:abcd:0015::1",
+						Subnet:    "2001:db8:abcd:0015::0/120",
+					},
+				}
 			},
 			Response: cns.Response{
 				ReturnCode: 0,
@@ -127,24 +151,48 @@ func (c *MockCNSClient) RequestIPs(ctx context.Context, ipconfig cns.IPConfigReq
 		result := &cns.IPConfigResponse{
 			PodIPInfo: []cns.PodIpInfo{
 				{
-					PodIPConfig: cns.IPSubnet{
-						IPAddress:    "10.0.1.10",
-						PrefixLength: 24,
+					{
+						PodIPConfig: cns.IPSubnet{
+							IPAddress:    "10.0.1.10",
+							PrefixLength: 24,
+						},
+					},
+					NetworkContainerPrimaryIPConfig: cns.IPConfiguration{
+						IPSubnet: cns.IPSubnet{
+							IPAddress:    "10.0.1.0",
+							PrefixLength: 24,
+						},
+						DNSServers:       nil,
+						GatewayIPAddress: "10.0.0.1",
+					},
+					HostPrimaryIPInfo: cns.HostIPInfo{
+						Gateway:   "10.0.0.1",
+						PrimaryIP: "10.0.0.1",
+						Subnet:    "10.0.0.0/24",
 					},
 				},
-				NetworkContainerPrimaryIPConfig: cns.IPConfiguration{
-					IPSubnet: cns.IPSubnet{
-						IPAddress:    "10.0.1.0",
-						PrefixLength: 24,
+				{
+					{
+						PodIPConfig: cns.IPSubnet{
+							IPAddress:    "2001:db8:abcd:0015::10A", // invalid ip address
+							PrefixLength: 120,
+						},
+
 					},
-					DNSServers:       nil,
-					GatewayIPAddress: "10.0.0.1",
-				},
-				HostPrimaryIPInfo: cns.HostIPInfo{
-					Gateway:   "10.0.0.1",
-					PrimaryIP: "10.0.0.1",
-					Subnet:    "10.0.0.0/24",
-				},
+					NetworkContainerPrimaryIPConfig: cns.IPConfiguration{
+						IPSubnet: cns.IPSubnet{
+							IPAddress:    "2001:db8:abcd:0015::100",
+							PrefixLength: 8,
+						},
+						DNSServers:       nil,
+						GatewayIPAddress: "2001:db8:abcd:0015::1",
+					},
+					HostPrimaryIPInfo: cns.HostIPInfo{
+						Gateway:   "2001:db8:abcd:0015::1",
+						PrimaryIP: "2001:db8:abcd:0015::1",
+						Subnet:    "2001:db8:abcd:0015::0/120",
+					},
+				}
 			},
 			Response: cns.Response{
 				ReturnCode: 0,
