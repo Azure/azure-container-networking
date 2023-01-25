@@ -125,7 +125,7 @@ func (c *MockCNSClient) RequestIPs(ctx context.Context, ipconfig cns.IPConfigReq
 		return result, nil
 	default:
 		result := &cns.IPConfigResponse{
-			PodIpInfo: []cns.PodIpInfo{
+			PodIPInfo: []cns.PodIpInfo{
 				{
 					PodIPConfig: cns.IPSubnet{
 						IPAddress:    "10.0.1.10",
