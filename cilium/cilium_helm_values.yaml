@@ -22,7 +22,6 @@ endpointRoutes:
 
 extraArgs:
   - --local-router-ipv4=169.254.23.0
-  - --local-router-ipv6=fe80::1
 
 # kubenet pod CIDR
 ipv4NativeRoutingCIDR: 10.241.0.0/16

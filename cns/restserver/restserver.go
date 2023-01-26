@@ -60,13 +60,13 @@ type HTTPRestService struct {
 	wsproxy                  wireserverProxy
 	homeAzMonitor            *HomeAzMonitor
 	networkContainer         *networkcontainers.NetworkContainers
-	PodIPIDByPodInterfaceKey map[string][]string // PodInterfaceId is key and value is slice of Pod IP (SecondaryIP) uuids.
-	PodIPConfigState        map[string]cns.IPConfigurationStatus // Secondary IP ID(uuid) is key
-	IPAMPoolMonitor         cns.IPAMPoolMonitor
-	routingTable            *routes.RoutingTable
-	store                   store.KeyValueStore
-	state                   *httpRestServiceState
-	podsPendingIPAssignment *bounded.TimedSet
+	PodIPIDByPodInterfaceKey map[string][]string                  // PodInterfaceId is key and value is slice of Pod IP (SecondaryIP) uuids.
+	PodIPConfigState         map[string]cns.IPConfigurationStatus // Secondary IP ID(uuid) is key
+	IPAMPoolMonitor          cns.IPAMPoolMonitor
+	routingTable             *routes.RoutingTable
+	store                    store.KeyValueStore
+	state                    *httpRestServiceState
+	podsPendingIPAssignment  *bounded.TimedSet
 	sync.RWMutex
 	dncPartitionKey         string
 	EndpointState           map[string]*EndpointInfo // key : container id

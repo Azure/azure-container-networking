@@ -571,14 +571,18 @@ func (service *HTTPRestService) AssignDesiredIPConfig(podInfo cns.PodInfo, desir
 	return podIPInfo, fmt.Errorf("Requested IP not found in pool")
 }
 
+// Assigns an IP from each NC on the NNC
 func (service *HTTPRestService) AssignAvailableIPConfigs(podInfo cns.PodInfo) ([]cns.PodIpInfo, error) {
 	service.Lock()
 	defer service.Unlock()
+	// Creates a slice of PoPodIpInfo with the size of number of NCs
 	podIPInfo := make([]cns.PodIpInfo, len(service.state.ContainerStatus))
+	// This map is used to store whether or not we have found an available IP from an NC when looping through the pool
 	ncMap := make(map[string]any)
 
 	for _, ipState := range service.PodIPConfigState {
 		_, found := ncMap[ipState.NCID]
+		// Checks if the current IP is available and if we haven't already found an IP from that NC
 		if !found && ipState.GetState() == types.Available {
 			if err := service.assignIPConfig(ipState, podInfo); err != nil {
 				break
@@ -618,9 +622,5 @@ func requestIPConfigHelper(service *HTTPRestService, req cns.IPConfigRequest) ([
 
 	// return any free IPConfig
 	return service.AssignAvailableIPConfigs(podInfo)
-	// podIpInfo, err := service.AssignAvailableIPConfigs(podInfo)
-	// if err != nil && {
-	// 	releaseIPConfig(podInfo)
-	// }
-	// return podIpInfo
+	// TODO: create a check for returning a slice of PodIpInfo that is not full (i.e. slice of size two with only 1 IP)
 }

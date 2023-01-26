@@ -29,11 +29,11 @@ type requestIPsHandler struct {
 	ipconfigArgument cns.IPConfigRequest
 
 	// results
-	result *cns.IPConfigsResponse
+	result *cns.IPConfigsResponse // this will return the IPConfigsResponse which contains a slice of IPs as opposed to one IP
 	err    error
 }
 
-type releaseIPAddressHandler struct {
+type releaseIPsHandler struct {
 	ipconfigArgument cns.IPConfigRequest
 	err              error
 }
