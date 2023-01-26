@@ -79,7 +79,8 @@ const (
 	maxRetryNodeRegister = 720
 	initCNSInitalDelay   = 10 * time.Second
 
-	envVarDisableCNIConflistGeneration = "CNS_DISABLE_CNI_CONFLIST_GENERATION"
+	// envVarEnableCNIConflistGeneration enables cni conflist generation if set (value doesn't matter)
+	envVarEnableCNIConflistGeneration = "CNS_ENABLE_CNI_CONFLIST_GENERATION"
 )
 
 type cniConflistScenario string
@@ -507,13 +508,13 @@ func main() {
 	configuration.SetCNSConfigDefaults(cnsconfig)
 	logger.Printf("[Azure CNS] Read config :%+v", cnsconfig)
 
-	envDisableConflistGeneration := os.Getenv(envVarDisableCNIConflistGeneration)
+	_, envEnableConflistGeneration := os.LookupEnv(envVarEnableCNIConflistGeneration)
 
 	var conflistGenerator restserver.CNIConflistGenerator
-	if cnsconfig.EnableCNIConflistGeneration && envDisableConflistGeneration != "true" {
+	if cnsconfig.EnableCNIConflistGeneration || envEnableConflistGeneration {
 		conflistFilepath := cnsconfig.CNIConflistFilepath
 		if cniConflistFilepathArg != "" {
-			// allow the filepath to get overriden by command line arg
+			// allow the filepath to get overidden by command line arg
 			conflistFilepath = cniConflistFilepathArg
 		}
 		writer, newWriterErr := fs.NewAtomicWriter(conflistFilepath)
