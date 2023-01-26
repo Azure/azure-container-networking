@@ -319,7 +319,7 @@ func TestIPAMAttemptToRequestIPNotFoundInPool(t *testing.T) {
 	}
 	b, _ := testPod2Info.OrchestratorContext()
 	req.OrchestratorContext = b
-	req.DesiredIPAddress = testIP2
+	req.DesiredIPAddresses = []string{testIP2}
 
 	_, err = requestIPAddressAndGetState(t, req)
 	if err == nil {
@@ -347,7 +347,7 @@ func TestIPAMGetDesiredIPConfigWithSpecfiedIP(t *testing.T) {
 	}
 	b, _ := testPod1Info.OrchestratorContext()
 	req.OrchestratorContext = b
-	req.DesiredIPAddress = testIP1
+	req.DesiredIPAddresses = []string{testIP1}
 
 	actualstate, err := requestIPAddressAndGetState(t, req)
 	if err != nil {
@@ -384,7 +384,7 @@ func TestIPAMFailToGetDesiredIPConfigWithAlreadyAssignedSpecfiedIP(t *testing.T)
 	}
 	b, _ := testPod2Info.OrchestratorContext()
 	req.OrchestratorContext = b
-	req.DesiredIPAddress = testIP1
+	req.DesiredIPAddresses = []string{testIP1}
 
 	_, err = requestIPAddressAndGetState(t, req)
 	if err == nil {
@@ -446,7 +446,7 @@ func TestIPAMRequestThenReleaseThenRequestAgain(t *testing.T) {
 	}
 	b, _ := testPod2Info.OrchestratorContext()
 	req.OrchestratorContext = b
-	req.DesiredIPAddress = desiredIpAddress
+	req.DesiredIPAddresses = []string{desiredIpAddress}
 
 	_, err = requestIPAddressAndGetState(t, req)
 	if err == nil {
@@ -466,7 +466,7 @@ func TestIPAMRequestThenReleaseThenRequestAgain(t *testing.T) {
 	}
 	b, _ = testPod2Info.OrchestratorContext()
 	req.OrchestratorContext = b
-	req.DesiredIPAddress = desiredIpAddress
+	req.DesiredIPAddresses = []string{desiredIpAddress}
 
 	actualstate, err := requestIPAddressAndGetState(t, req)
 	if err != nil {
@@ -563,7 +563,7 @@ func TestAvailableIPConfigs(t *testing.T) {
 	}
 	b, _ := testPod1Info.OrchestratorContext()
 	req.OrchestratorContext = b
-	req.DesiredIPAddress = state1.IPAddress
+	req.DesiredIPAddresses = []string{state1.IPAddress}
 
 	_, err := requestIPAddressAndGetState(t, req)
 	if err != nil {

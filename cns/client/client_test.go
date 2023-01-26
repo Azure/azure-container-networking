@@ -295,7 +295,7 @@ func TestCNSClientRequestAndRelease(t *testing.T) {
 	t.Log(ipaddresses)
 
 	// release requested IP address, expect success
-	err = cnsClient.ReleaseIPs(context.TODO(), cns.IPConfigRequest{DesiredIPAddress: ipaddresses[0].IPAddress, OrchestratorContext: orchestratorContext})
+	err = cnsClient.ReleaseIPs(context.TODO(), cns.IPConfigRequest{DesiredIPAddresses: ipaddresses[0].IPAddress, OrchestratorContext: orchestratorContext})
 	assert.NoError(t, err, "Expected to not fail when releasing IP reservation found with context")
 }
 

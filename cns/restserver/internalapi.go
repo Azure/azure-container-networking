@@ -284,7 +284,7 @@ func (service *HTTPRestService) ReconcileNCState(ncRequest *cns.CreateNetworkCon
 			}
 
 			ipconfigRequest := cns.IPConfigRequest{
-				DesiredIPAddress:    secIpConfig.IPAddress,
+				DesiredIPAddresses:  []string{secIpConfig.IPAddress},
 				OrchestratorContext: jsonContext,
 				InfraContainerID:    podInfo.InfraContainerID(),
 				PodInterfaceID:      podInfo.InterfaceID(),

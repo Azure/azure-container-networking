@@ -405,7 +405,7 @@ type HostIPInfo struct {
 }
 
 type IPConfigRequest struct {
-	DesiredIPAddress    string
+	DesiredIPAddresses  []string
 	PodInterfaceID      string
 	InfraContainerID    string
 	OrchestratorContext json.RawMessage
@@ -413,8 +413,8 @@ type IPConfigRequest struct {
 }
 
 func (i IPConfigRequest) String() string {
-	return fmt.Sprintf("[IPConfigRequest: DesiredIPAddress %s, PodInterfaceID %s, InfraContainerID %s, OrchestratorContext %s]",
-		i.DesiredIPAddress, i.PodInterfaceID, i.InfraContainerID, string(i.OrchestratorContext))
+	return fmt.Sprintf("[IPConfigRequest: DesiredIPAddresses %s, PodInterfaceID %s, InfraContainerID %s, OrchestratorContext %s]",
+		i.DesiredIPAddresses, i.PodInterfaceID, i.InfraContainerID, string(i.OrchestratorContext))
 }
 
 // IPConfigResponse is used in CNS IPAM mode as a response to CNI ADD

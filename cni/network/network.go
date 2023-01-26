@@ -577,12 +577,20 @@ func (plugin *NetPlugin) cleanupAllocationOnError(
 	options map[string]interface{},
 ) {
 	if result != nil && len(result.IPs) > 0 {
-		if er := plugin.ipamInvoker.Delete(&result.IPs[0].Address, nwCfg, args, options); er != nil {
+		addresses := []*net.IPNet{}
+		for _, IP := range result.IPs {
+			addresses = append(addresses, &IP.Address)
+		}
+		if er := plugin.ipamInvoker.Delete(addresses, nwCfg, args, options); er != nil {
 			log.Errorf("Failed to cleanup ip allocation on failure: %v", er)
 		}
 	}
 	if resultV6 != nil && len(resultV6.IPs) > 0 {
-		if er := plugin.ipamInvoker.Delete(&resultV6.IPs[0].Address, nwCfg, args, options); er != nil {
+		addressesV6 := []*net.IPNet{}
+		for _, IP := range resultV6.IPs {
+			addressesV6 = append(addressesV6, &IP.Address)
+		}
+		if er := plugin.ipamInvoker.Delete(addressesV6, nwCfg, args, options); er != nil {
 			log.Errorf("Failed to cleanup ipv6 allocation on failure: %v", er)
 		}
 	}
