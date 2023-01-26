@@ -391,7 +391,7 @@ func (service *HTTPRestService) getAllNetworkContainerResponses(
 		if len(ncList) == 0 {
 			response := cns.Response{
 				ReturnCode: types.UnknownContainerID,
-				Message:    fmt.Sprintf("Failed to find networkID for orchestratorContext %s", orchestratorContext),
+				Message:    fmt.Sprintf("Failed to find networkContainerID for orchestratorContext %s", orchestratorContext),
 			}
 
 			getNetworkContainerResponse.Response = response
@@ -409,7 +409,7 @@ func (service *HTTPRestService) getAllNetworkContainerResponses(
 		}
 		nmaNCs := map[string]string{}
 		for _, nc := range ncVersionListResp.Containers {
-			nmaNCs[nc.NetworkContainerID] = nc.Version
+			nmaNCs[cns.SwiftPrefix+nc.NetworkContainerID] = nc.Version
 		}
 
 		if !skipNCVersionCheck {
@@ -996,12 +996,16 @@ func (service *HTTPRestService) setResponse(w http.ResponseWriter, returnCode ty
 // set key is data, value is empty structure
 type Set map[string]struct{}
 
+// use dataList to keep order of data added to map
+var dataList []string
+
 func (s Set) Add(data string) {
 	if s == nil {
 		s = make(map[string]struct{})
 	}
 
 	s[data] = struct{}{}
+	dataList = append(dataList, data)
 }
 
 func (s Set) Contains(data string) bool {
@@ -1018,13 +1022,14 @@ func (s Set) Delete(data string) error {
 	}
 
 	delete(s, data)
+	dataList = nil
 	return nil
 }
 
 func (s Set) GetData() []string {
-	data := make([]string, 0)
-	for d := range s {
-		data = append(data, d)
+	if s == nil {
+		return nil
 	}
-	return data
+
+	return dataList
 }
