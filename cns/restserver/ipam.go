@@ -550,7 +550,7 @@ func (service *HTTPRestService) AssignDesiredIPConfigs(podInfo cns.PodInfo, desi
 	}
 	numOfIPs := 0
 
-	for _, ipConfig := range service.PodIPConfigState {
+	forLoop:for _, ipConfig := range service.PodIPConfigState {
 		if _, found := IPMap[ipConfig.IPAddress]; found {
 			switch ipConfig.GetState() { //nolint:exhaustive // ignoring PendingRelease case intentionally
 			case types.Assigned:
@@ -560,18 +560,18 @@ func (service *HTTPRestService) AssignDesiredIPConfigs(podInfo cns.PodInfo, desi
 					logger.Printf("[AssignDesiredIPConfigs]: IP Config [%+v] is already assigned to this Pod [%+v]", ipConfig, podInfo)
 				} else {
 					logger.Errorf("[AssignDesiredIPConfigs] Desired IP is already assigned %+v, requested for pod %+v", ipConfig, podInfo)
-					break
+					break forLoop
 				}
 			case types.Available, types.PendingProgramming:
 				// This race can happen during restart, where CNS state is lost and thus we have lost the NC programmed version
 				// As part of reconcile, we mark IPs as Assigned which are already assigned to Pods (listed from APIServer)
 				if err := service.assignIPConfig(ipConfig, podInfo); err != nil {
 					logger.Errorf(err.Error())
-					break
+					break forLoop
 				}
 			default:
 				logger.Errorf("[AllocateDesiredIPConfig] Desired IP is not available %+v", ipConfig)
-				break
+				break forLoop
 			}
 			err := service.populateIPConfigInfoUntransacted(ipConfig, &podIPInfo[numOfIPs])
 			numOfIPs++
