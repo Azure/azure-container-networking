@@ -581,28 +581,28 @@ func validateNCStateAfterReconcile(t *testing.T, ncRequest *cns.CreateNetworkCon
 		t.Fatalf("Unexpected assigned pods, actual: %d, expected: %d", len(svc.PodIPIDByPodInterfaceKey), len(expectedAssignedPods))
 	}
 
-	for ipaddress, podInfo := range expectedAssignedPods {
-		ipId := svc.PodIPIDByPodInterfaceKey[podInfo.Key()]
-		ipConfigstate := svc.PodIPConfigState[ipId[0]]
+	for ipaddress, podInfo := range expectedAssignedPods {	
+		for _, IPId := range svc.PodIPIDByPodInterfaceKey[podInfo.Key()] {
+			ipConfigstate := svc.PodIPConfigState[ipId]
+			if ipConfigstate.GetState() != types.Assigned {
+				t.Fatalf("IpAddress %s is not marked as assigned to Pod: %+v, ipState: %+v", ipaddress, podInfo, ipConfigstate)
+			}
 
-		if ipConfigstate.GetState() != types.Assigned {
-			t.Fatalf("IpAddress %s is not marked as assigned to Pod: %+v, ipState: %+v", ipaddress, podInfo, ipConfigstate)
-		}
+			// Validate if IPAddress matches
+			if ipConfigstate.IPAddress != ipaddress {
+				t.Fatalf("IpAddress %s is not same, for Pod: %+v, actual ipState: %+v", ipaddress, podInfo, ipConfigstate)
+			}
 
-		// Validate if IPAddress matches
-		if ipConfigstate.IPAddress != ipaddress {
-			t.Fatalf("IpAddress %s is not same, for Pod: %+v, actual ipState: %+v", ipaddress, podInfo, ipConfigstate)
-		}
+			// Valdate pod context
+			if reflect.DeepEqual(ipConfigstate.PodInfo, podInfo) != true {
+				t.Fatalf("OrchestrationContext: is not same, expected: %+v, actual %+v", ipConfigstate.PodInfo, podInfo)
+			}
 
-		// Valdate pod context
-		if reflect.DeepEqual(ipConfigstate.PodInfo, podInfo) != true {
-			t.Fatalf("OrchestrationContext: is not same, expected: %+v, actual %+v", ipConfigstate.PodInfo, podInfo)
-		}
-
-		// Validate this IP belongs to a valid NCRequest
-		nc := svc.state.ContainerStatus[ipConfigstate.NCID]
-		if _, exists := nc.CreateNetworkContainerRequest.SecondaryIPConfigs[ipConfigstate.ID]; !exists {
-			t.Fatalf("Secondary IP config doest exist in NC, ncid: %s, ipId %s", ipConfigstate.NCID, ipConfigstate.ID)
+			// Validate this IP belongs to a valid NCRequest
+			nc := svc.state.ContainerStatus[ipConfigstate.NCID]
+			if _, exists := nc.CreateNetworkContainerRequest.SecondaryIPConfigs[ipConfigstate.ID]; !exists {
+				t.Fatalf("Secondary IP config doest exist in NC, ncid: %s, ipId %s", ipConfigstate.NCID, ipConfigstate.ID)
+			}
 		}
 	}
 

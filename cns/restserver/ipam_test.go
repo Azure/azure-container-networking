@@ -23,10 +23,12 @@ var (
 	testNCID = "06867cf3-332d-409d-8819-ed70d2c116b0"
 
 	testIP1      = "10.0.0.1"
+	testIP1v6	 = "fd12:1234::1"
 	testPod1GUID = "898fb8f1-f93e-4c96-9c31-6b89098949a3"
 	testPod1Info = cns.NewPodInfo("898fb8-eth0", testPod1GUID, "testpod1", "testpod1namespace")
 
 	testIP2      = "10.0.0.2"
+	testIP2v6	 = "fd12:1234::2"
 	testPod2GUID = "b21e1ee1-fb7e-4e6d-8c68-22ee5049944e"
 	testPod2Info = cns.NewPodInfo("b21e1e-eth0", testPod2GUID, "testpod2", "testpod2namespace")
 
@@ -36,6 +38,8 @@ var (
 
 	testIP4      = "10.0.0.4"
 	testPod4GUID = "718e04ac-5a13-4dce-84b3-040accaa9b42"
+
+	test
 )
 
 func getTestService() *HTTPRestService {
@@ -66,30 +70,33 @@ func NewPodState(ipaddress string, prefixLength uint8, id, ncid string, state ty
 	return *status
 }
 
-func requestIPAddressAndGetState(t *testing.T, req cns.IPConfigRequest) (cns.IPConfigurationStatus, error) {
+func requestIPAddressAndGetState(t *testing.T, req cns.IPConfigRequest) ([]cns.IPConfigurationStatus, error) {
 	PodIPInfo, err := requestIPConfigHelper(svc, req)
+	var IPConfigStatus []cns.IPConfigurationStatus
 	if err != nil {
-		return cns.IPConfigurationStatus{}, err
+		return IPConfigStatus, err
 	}
 
-	for i := range PodIPInfo {
-		assert.Equal(t, primaryIp, PodIPInfo[i].NetworkContainerPrimaryIPConfig.IPSubnet.IPAddress)
-		assert.Equal(t, subnetPrfixLength, int(PodIPInfo[i].NetworkContainerPrimaryIPConfig.IPSubnet.PrefixLength))
-		assert.Equal(t, dnsservers, PodIPInfo[i].NetworkContainerPrimaryIPConfig.DNSServers)
-		assert.Equal(t, gatewayIp, PodIPInfo[i].NetworkContainerPrimaryIPConfig.GatewayIPAddress)
-		assert.Equal(t, subnetPrfixLength, int(PodIPInfo[i].PodIPConfig.PrefixLength))
-		assert.Equal(t, fakes.HostPrimaryIP, PodIPInfo[i].HostPrimaryIPInfo.PrimaryIP)
-		assert.Equal(t, fakes.HostSubnet, PodIPInfo[i].HostPrimaryIPInfo.Subnet)
+	for _, IPInfo := range PodIPInfo {
+		assert.Equal(t, primaryIp, IPInfo.NetworkContainerPrimaryIPConfig.IPSubnet.IPAddress)
+		assert.Equal(t, subnetPrfixLength, int(IPInfo.NetworkContainerPrimaryIPConfig.IPSubnet.PrefixLength))
+		assert.Equal(t, dnsservers, IPInfo.NetworkContainerPrimaryIPConfig.DNSServers)
+		assert.Equal(t, gatewayIp, IPInfo.NetworkContainerPrimaryIPConfig.GatewayIPAddress)
+		assert.Equal(t, subnetPrfixLength, int(IPInfo.PodIPConfig.PrefixLength))
+		assert.Equal(t, fakes.HostPrimaryIP, IPInfo.HostPrimaryIPInfo.PrimaryIP)
+		assert.Equal(t, fakes.HostSubnet, IPInfo.HostPrimaryIPInfo.Subnet)
 	}
 
 	// retrieve podinfo from orchestrator context
 	podInfo, err := cns.UnmarshalPodInfo(req.OrchestratorContext)
 	if err != nil {
-		return cns.IPConfigurationStatus{}, errors.Wrap(err, "failed to unmarshal pod info")
+		return IPConfigStatus, errors.Wrap(err, "failed to unmarshal pod info")
 	}
 
-	ipID := svc.PodIPIDByPodInterfaceKey[podInfo.Key()][0]
-	return svc.PodIPConfigState[ipID], nil
+	for _, ipID := range svc.PodIPIDByPodInterfaceKey[podInfo.Key()] {
+		IPConfigStatus = append(IPConfigStatus, ipID)
+	}
+	return IPConfigStatus, nil
 }
 
 func NewPodStateWithOrchestratorContext(ipaddress, id, ncid string, state types.IPState, prefixLength uint8, ncVersion int, podInfo cns.PodInfo) (cns.IPConfigurationStatus, error) {
@@ -123,7 +130,7 @@ func UpdatePodIpConfigState(t *testing.T, svc *HTTPRestService, ipconfigs map[st
 	// update ipconfigs to expected state
 	for ipId, ipconfig := range ipconfigs {
 		if ipconfig.GetState() == types.Assigned {
-			svc.PodIPIDByPodInterfaceKey[ipconfig.PodInfo.Key()][0] = ipId
+			svc.PodIPIDByPodInterfaceKey[ipconfig.PodInfo.Key()] = append(svc.PodIPIDByPodInterfaceKey[ipconfig.PodInfo.Key()], ipId)
 			svc.PodIPConfigState[ipId] = ipconfig
 		}
 	}
@@ -219,11 +226,13 @@ func TestIPAMGetAvailableIPConfig(t *testing.T) {
 	desiredState := NewPodState(testIP1, 24, testPod1GUID, testNCID, types.Assigned, 0)
 	desiredState.PodInfo = testPod1Info
 
-	assert.Equal(t, desiredState.GetState(), actualstate.GetState())
-	assert.Equal(t, desiredState.ID, actualstate.ID)
-	assert.Equal(t, desiredState.IPAddress, actualstate.IPAddress)
-	assert.Equal(t, desiredState.NCID, actualstate.NCID)
-	assert.Equal(t, desiredState.PodInfo, actualstate.PodInfo)
+	for _, state := range actualstate {
+		assert.Equal(t, desiredState.GetState(), state.GetState())
+		assert.Equal(t, desiredState.ID, state.ID)
+		assert.Equal(t, desiredState.IPAddress, state.IPAddress)
+		assert.Equal(t, desiredState.NCID, state.NCID)
+		assert.Equal(t, desiredState.PodInfo, state.PodInfo)
+	}
 }
 
 // First IP is already assigned to a pod, want second IP
@@ -258,11 +267,13 @@ func TestIPAMGetNextAvailableIPConfig(t *testing.T) {
 	// want second available Pod IP State as first has been assigned
 	desiredState, _ := NewPodStateWithOrchestratorContext(testIP2, testPod2GUID, testNCID, types.Assigned, 24, 0, testPod2Info)
 
-	assert.Equal(t, desiredState.GetState(), actualstate.GetState())
-	assert.Equal(t, desiredState.ID, actualstate.ID)
-	assert.Equal(t, desiredState.IPAddress, actualstate.IPAddress)
-	assert.Equal(t, desiredState.NCID, actualstate.NCID)
-	assert.Equal(t, desiredState.PodInfo, actualstate.PodInfo)
+	for _, state := range actualstate {
+		assert.Equal(t, desiredState.GetState(), state.GetState())
+		assert.Equal(t, desiredState.ID, state.ID)
+		assert.Equal(t, desiredState.IPAddress, state.IPAddress)
+		assert.Equal(t, desiredState.NCID, state.NCID)
+		assert.Equal(t, desiredState.PodInfo, state.PodInfo)
+	}
 }
 
 func TestIPAMGetAlreadyAssignedIPConfigForSamePod(t *testing.T) {
@@ -292,11 +303,13 @@ func TestIPAMGetAlreadyAssignedIPConfigForSamePod(t *testing.T) {
 
 	desiredState, _ := NewPodStateWithOrchestratorContext(testIP1, testPod1GUID, testNCID, types.Assigned, 24, 0, testPod1Info)
 
-	assert.Equal(t, desiredState.GetState(), actualstate.GetState())
-	assert.Equal(t, desiredState.ID, actualstate.ID)
-	assert.Equal(t, desiredState.IPAddress, actualstate.IPAddress)
-	assert.Equal(t, desiredState.NCID, actualstate.NCID)
-	assert.Equal(t, desiredState.PodInfo, actualstate.PodInfo)
+	for _, state := range actualstate {
+		assert.Equal(t, desiredState.GetState(), state.GetState())
+		assert.Equal(t, desiredState.ID, state.ID)
+		assert.Equal(t, desiredState.IPAddress, state.IPAddress)
+		assert.Equal(t, desiredState.NCID, state.NCID)
+		assert.Equal(t, desiredState.PodInfo, state.PodInfo)
+	}
 }
 
 func TestIPAMAttemptToRequestIPNotFoundInPool(t *testing.T) {
@@ -357,11 +370,13 @@ func TestIPAMGetDesiredIPConfigWithSpecfiedIP(t *testing.T) {
 	desiredState := NewPodState(testIP1, 24, testPod1GUID, testNCID, types.Assigned, 0)
 	desiredState.PodInfo = testPod1Info
 
-	assert.Equal(t, desiredState.GetState(), actualstate.GetState())
-	assert.Equal(t, desiredState.ID, actualstate.ID)
-	assert.Equal(t, desiredState.IPAddress, actualstate.IPAddress)
-	assert.Equal(t, desiredState.NCID, actualstate.NCID)
-	assert.Equal(t, desiredState.PodInfo, actualstate.PodInfo)
+	for _, state := range actualstate {
+		assert.Equal(t, desiredState.GetState(), state.GetState())
+		assert.Equal(t, desiredState.ID, state.ID)
+		assert.Equal(t, desiredState.IPAddress, state.IPAddress)
+		assert.Equal(t, desiredState.NCID, state.NCID)
+		assert.Equal(t, desiredState.PodInfo, state.PodInfo)
+	}
 }
 
 func TestIPAMFailToGetDesiredIPConfigWithAlreadyAssignedSpecfiedIP(t *testing.T) {
@@ -478,11 +493,13 @@ func TestIPAMRequestThenReleaseThenRequestAgain(t *testing.T) {
 	desiredState.IPAddress = desiredIpAddress
 	desiredState.PodInfo = testPod2Info
 
-	assert.Equal(t, desiredState.GetState(), actualstate.GetState())
-	assert.Equal(t, desiredState.ID, actualstate.ID)
-	assert.Equal(t, desiredState.IPAddress, actualstate.IPAddress)
-	assert.Equal(t, desiredState.NCID, actualstate.NCID)
-	assert.Equal(t, desiredState.PodInfo, actualstate.PodInfo)
+	for _, state := range actualstate {
+		assert.Equal(t, desiredState.GetState(), state.GetState())
+		assert.Equal(t, desiredState.ID, state.ID)
+		assert.Equal(t, desiredState.IPAddress, state.IPAddress)
+		assert.Equal(t, desiredState.NCID, state.NCID)
+		assert.Equal(t, desiredState.PodInfo, state.PodInfo)
+	}
 }
 
 func TestIPAMReleaseIPIdempotency(t *testing.T) {
