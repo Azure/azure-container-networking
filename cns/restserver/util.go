@@ -390,7 +390,6 @@ func (service *HTTPRestService) getAllNetworkContainerResponses(
 		ncs := *service.state.ContainerIDByOrchestratorContext[orchestratorContext]
 		ncList = strings.Split(string(ncs), ",")
 
-		logger.Printf("ncList currently is %+v", ncList)
 		if len(ncList) == 0 {
 			response := cns.Response{
 				ReturnCode: types.UnknownContainerID,
