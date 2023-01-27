@@ -246,8 +246,8 @@ func TestSetOrchestratorType_NCsPresent(t *testing.T) {
 					ContainerStatus: map[string]containerstatus{
 						"nc1": {},
 					},
-					ContainerIDByOrchestratorContext: map[string]Set{
-						"nc1": {"present": {}},
+					ContainerIDByOrchestratorContext: map[string]*ncList{
+						"nc1": "present",
 					},
 				},
 			},

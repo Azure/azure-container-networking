@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/Azure/azure-container-networking/aitelemetry"
@@ -187,15 +188,15 @@ func (service *HTTPRestService) saveNetworkContainerGoalState(
 			orchestratorContext := podInfo.Name() + podInfo.Namespace()
 
 			if service.state.ContainerIDByOrchestratorContext == nil {
-				service.state.ContainerIDByOrchestratorContext = make(map[string]Set)
+				service.state.ContainerIDByOrchestratorContext = make(map[string]*ncList)
 			}
 
-			if service.state.ContainerIDByOrchestratorContext[orchestratorContext] == nil {
-				service.state.ContainerIDByOrchestratorContext[orchestratorContext] = Set{}
+			if _, ok := service.state.ContainerIDByOrchestratorContext[orchestratorContext]; !ok {
+				service.state.ContainerIDByOrchestratorContext[orchestratorContext] = new(ncList)
 			}
 
-			ncSet := service.state.ContainerIDByOrchestratorContext[orchestratorContext]
-			ncSet.Add(req.NetworkContainerid)
+			ncs := service.state.ContainerIDByOrchestratorContext[orchestratorContext]
+			ncs.Add(req.NetworkContainerid)
 
 			logger.Printf("service.state.ContainerIDByOrchestratorContext[%s] is %+v", orchestratorContext, service.state.ContainerIDByOrchestratorContext)
 
@@ -385,9 +386,11 @@ func (service *HTTPRestService) getAllNetworkContainerResponses(
 
 		// get networkContainerIDs as string, "nc1, nc2"
 		orchestratorContext := podInfo.Name() + podInfo.Namespace()
-		ncSet := service.state.ContainerIDByOrchestratorContext[orchestratorContext]
-		ncList = ncSet.GetData()
+		//strings.Split(string(n), ",")
+		ncs := *service.state.ContainerIDByOrchestratorContext[orchestratorContext]
+		ncList = strings.Split(string(ncs), ",")
 
+		logger.Printf("ncList currently is %+v", ncList)
 		if len(ncList) == 0 {
 			response := cns.Response{
 				ReturnCode: types.UnknownContainerID,
@@ -993,43 +996,34 @@ func (service *HTTPRestService) setResponse(w http.ResponseWriter, returnCode ty
 	logger.Response(service.Name, response, returnCode, serviceErr)
 }
 
-// set key is data, value is empty structure
-type Set map[string]struct{}
+// ncList contains comma-separated list of unique NCs
+type ncList string
 
-// use dataList to keep order of data added to map
-var dataList []string
-
-func (s Set) Add(data string) {
-	if s == nil {
-		s = make(map[string]struct{})
+// only add unique NC to ncList
+func (n *ncList) Add(nc string) {
+	var ncs []string
+	if len(*n) > 0 {
+		ncs = strings.Split(string(*n), ",")
+	}
+	for _, v := range ncs {
+		// if NC is already present in ncList, do not add it
+		if nc == v {
+			return
+		}
 	}
 
-	s[data] = struct{}{}
-	dataList = append(dataList, data)
+	ncs = append(ncs, nc)
+	*n = ncList(strings.Join(ncs, ","))
 }
 
-func (s Set) Contains(data string) bool {
-	if s == nil {
-		return false
+// delete nc from ncList
+func (n *ncList) Delete(nc string) {
+	ncs := strings.Split(string(*n), ",")
+	for i, v := range ncs {
+		if nc == v {
+			ncs = append((ncs)[:i], (ncs)[i+1:]...)
+			break
+		}
 	}
-	_, ok := s[data]
-	return ok
-}
-
-func (s Set) Delete(data string) error {
-	if !s.Contains(data) {
-		return errors.New("no data is found to be deleted")
-	}
-
-	delete(s, data)
-	dataList = nil
-	return nil
-}
-
-func (s Set) GetData() []string {
-	if s == nil {
-		return nil
-	}
-
-	return dataList
+	*n = ncList(strings.Join(ncs, ","))
 }
