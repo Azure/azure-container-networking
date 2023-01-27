@@ -125,7 +125,7 @@ func TestCNSIPAMInvoker_Add(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "fail to request IP address from cns",
+			name: "fail to request IP addresses from cns",
 			fields: fields{
 				podName:      testPodInfo.PodName,
 				podNamespace: testPodInfo.PodNamespace,
@@ -244,10 +244,10 @@ func TestCNSIPAMInvoker_Delete(t *testing.T) {
 		cnsClient    cnsclient
 	}
 	type args struct {
-		address *net.IPNet
-		nwCfg   *cni.NetworkConfig
-		args    *cniSkel.CmdArgs
-		options map[string]interface{}
+		addresses []*net.IPNet
+		nwCfg     *cni.NetworkConfig
+		args      *cniSkel.CmdArgs
+		options   map[string]interface{}
 	}
 	tests := []struct {
 		name    string
@@ -300,7 +300,7 @@ func TestCNSIPAMInvoker_Delete(t *testing.T) {
 				podNamespace: tt.fields.podNamespace,
 				cnsClient:    tt.fields.cnsClient,
 			}
-			err := invoker.Delete(tt.args.address, tt.args.nwCfg, tt.args.args, tt.args.options)
+			err := invoker.Delete(tt.args.addresses, tt.args.nwCfg, tt.args.args, tt.args.options)
 			if tt.wantErr {
 				require.Error(err)
 			} else {

@@ -79,18 +79,20 @@ func (invoker *MockIpamInvoker) Add(opt IPAMAddConfig) (ipamAddResult IPAMAddRes
 	return ipamAddResult, nil
 }
 
-func (invoker *MockIpamInvoker) Delete(address *net.IPNet, nwCfg *cni.NetworkConfig, _ *skel.CmdArgs, options map[string]interface{}) error {
+func (invoker *MockIpamInvoker) Delete(addresses []*net.IPNet, nwCfg *cni.NetworkConfig, _ *skel.CmdArgs, options map[string]interface{}) error {
 	if invoker.v4Fail || invoker.v6Fail {
 		return errDeleteIpam
 	}
 
-	if address == nil || invoker.ipMap == nil {
+	if addresses == nil || invoker.ipMap == nil {
 		return nil
 	}
 
-	if _, ok := invoker.ipMap[address.String()]; !ok {
-		return errDeleteIpam
+	for _, address := range addresses {
+		if _, ok := invoker.ipMap[address.String()]; !ok {
+			return errDeleteIpam
+		}
+		delete(invoker.ipMap, address.String())
 	}
-	delete(invoker.ipMap, address.String())
 	return nil
 }
