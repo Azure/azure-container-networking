@@ -208,27 +208,28 @@ func (nm *networkManager) addNewNetRulesToWindowsNode(nwInfo *NetworkInfo) error
 		prefix := subnet.Prefix.String()
 		gateway := subnet.Gateway.String()
 
-		if net.ParseIP(prefix).To4() != nil {
+		ip, _, _ := net.ParseCIDR(prefix)
+		if ip.To4() != nil {
 			// netsh interface ipv4 add route $subnetV4 $hostInterfaceAlias "0.0.0.0" metric=270
-			netshV4DefaultRoute := fmt.Sprintf(netRouteCmd, "add", prefix, ifName, ipv4DefaultHop)
+			netshV4DefaultRoute := fmt.Sprintf(netRouteCmd, "ipv4", prefix, ifName, ipv4DefaultHop, "270")
 			if out, err = nm.plClient.ExecuteCommand(netshV4DefaultRoute); err != nil {
 				log.Printf("[net] Adding ipv4 default route failed: %v:%v", out, err)
 			}
 
 			// netsh interface ipv4 add route $subnetV4 $hostInterfaceAlias $gatewayV4 metric=300
-			netshV4GatewayRoute := fmt.Sprintf(netRouteCmd, "add", prefix, ifName, gateway)
+			netshV4GatewayRoute := fmt.Sprintf(netRouteCmd, "ipv4", prefix, ifName, gateway, "300")
 			if out, err = nm.plClient.ExecuteCommand(netshV4GatewayRoute); err != nil {
 				log.Printf("[net] Adding ipv4 gateway route failed: %v:%v", out, err)
 			}
 		} else {
 			// netsh interface ipv6 add route $subnetV6 $hostInterfaceAlias "::" metric=270
-			netshV6DefaultRoute := fmt.Sprintf(netRouteCmd, "add", prefix, ifName, ipv6DefaultHop)
+			netshV6DefaultRoute := fmt.Sprintf(netRouteCmd, "ipv6", prefix, ifName, ipv6DefaultHop, "270")
 			if out, err = nm.plClient.ExecuteCommand(netshV6DefaultRoute); err != nil {
 				log.Printf("[net] Adding ipv6 default route failed: %v:%v", out, err)
 			}
 
 			// netsh interface ipv6 add route $subnetV6 $hostInterfaceAlias $gatewayV6 metric=300
-			netshV6GatewayRoute := fmt.Sprintf(netRouteCmd, "add", prefix, ifName, gateway)
+			netshV6GatewayRoute := fmt.Sprintf(netRouteCmd, "ipv6", prefix, ifName, gateway, "300")
 			if out, err = nm.plClient.ExecuteCommand(netshV6GatewayRoute); err != nil {
 				log.Printf("[net] Adding ipv6 gateway route failed: %v:%v", out, err)
 			}
