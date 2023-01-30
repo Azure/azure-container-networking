@@ -676,8 +676,6 @@ func (plugin *NetPlugin) createNetworkInternal(
 		err = plugin.Errorf("createNetworkInternal: Failed to create network: %v", err)
 	}
 
-	// TODO: run powershell commands for ipv4 and ipv6 rules after network is created successfully
-
 	return nwInfo, err
 }
 
