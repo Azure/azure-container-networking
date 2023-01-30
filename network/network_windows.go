@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"strconv"
 	"strings"
 	"time"
@@ -31,10 +32,14 @@ const (
 	defaultRouteCIDR       = "0.0.0.0/0"
 	// prefix for interface name created by azure network
 	ifNamePrefix = "vEthernet"
+	// ipv4 default hop
+	ipv4DefaultHop = "0.0.0.0"
 	// ipv6 default hop
 	ipv6DefaultHop = "::"
 	// ipv6 route cmd
 	routeCmd = "netsh interface ipv6 %s route \"%s\" \"%s\" \"%s\" store=persistent"
+	// add ipv4 and ipv6 route rules to windows node
+	netRouteCmd = "netsh interface %s add route \"%s\" \"%s\" \"%s\" metric=%s"
 )
 
 // Windows implementation of route.
@@ -183,6 +188,55 @@ func (nm *networkManager) newNetworkImplHnsV1(nwInfo *NetworkInfo, extIf *extern
 	}
 
 	return nw, nil
+}
+
+// add ipv4 and ipv6 (if dual stack mode) to windows Node
+func (nm *networkManager) addNewNetRulesToWindowsNode(nwInfo *NetworkInfo) error {
+	var (
+		err error
+		out string
+	)
+
+	// get interface name of VM adapter
+	ifName := nwInfo.MasterIfName
+	if !strings.Contains(nwInfo.MasterIfName, ifNamePrefix) {
+		ifName = fmt.Sprintf("%s (%s)", ifNamePrefix, nwInfo.MasterIfName)
+	}
+
+	// add ipv4 and ipv6 new net rules to windows node
+	for _, subnet := range nwInfo.Subnets {
+		prefix := subnet.Prefix.String()
+		gateway := subnet.Gateway.String()
+
+		ip, _, _ := net.ParseCIDR(prefix)
+		if ip.To4() != nil {
+			// netsh interface ipv4 add route $subnetV4 $hostInterfaceAlias "0.0.0.0" metric=270
+			netshV4DefaultRoute := fmt.Sprintf(netRouteCmd, "ipv4", prefix, ifName, ipv4DefaultHop, "270")
+			if out, err = nm.plClient.ExecuteCommand(netshV4DefaultRoute); err != nil {
+				log.Printf("[net] Adding ipv4 default route failed: %v:%v", out, err)
+			}
+
+			// netsh interface ipv4 add route $subnetV4 $hostInterfaceAlias $gatewayV4 metric=300
+			netshV4GatewayRoute := fmt.Sprintf(netRouteCmd, "ipv4", prefix, ifName, gateway, "300")
+			if out, err = nm.plClient.ExecuteCommand(netshV4GatewayRoute); err != nil {
+				log.Printf("[net] Adding ipv4 gateway route failed: %v:%v", out, err)
+			}
+		} else {
+			// netsh interface ipv6 add route $subnetV6 $hostInterfaceAlias "::" metric=270
+			netshV6DefaultRoute := fmt.Sprintf(netRouteCmd, "ipv6", prefix, ifName, ipv6DefaultHop, "270")
+			if out, err = nm.plClient.ExecuteCommand(netshV6DefaultRoute); err != nil {
+				log.Printf("[net] Adding ipv6 default route failed: %v:%v", out, err)
+			}
+
+			// netsh interface ipv6 add route $subnetV6 $hostInterfaceAlias $gatewayV6 metric=300
+			netshV6GatewayRoute := fmt.Sprintf(netRouteCmd, "ipv6", prefix, ifName, gateway, "300")
+			if out, err = nm.plClient.ExecuteCommand(netshV6GatewayRoute); err != nil {
+				log.Printf("[net] Adding ipv6 gateway route failed: %v:%v", out, err)
+			}
+		}
+	}
+
+	return nil
 }
 
 func (nm *networkManager) appIPV6RouteEntry(nwInfo *NetworkInfo) error {
@@ -350,6 +404,10 @@ func (nm *networkManager) newNetworkImplHnsV2(nwInfo *NetworkInfo, extIf *extern
 	if opt != nil && opt[VlanIDKey] != nil {
 		vlanID, _ := strconv.ParseInt(opt[VlanIDKey].(string), baseDecimal, bitSize)
 		vlanid = (int)(vlanID)
+	}
+
+	if err = nm.addNewNetRulesToWindowsNode(nwInfo); err != nil {
+		return nil, err
 	}
 
 	// Create the network object.
