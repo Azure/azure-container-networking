@@ -61,6 +61,8 @@ spec:
           volumeMounts:
             - name: cni-bin
               mountPath: /opt/cni/bin
+            - name: cni-conflist
+              mountPath: /etc/cni/net.d
       containers:
         - name: pause
           image: k8s.gcr.io/pause:2.0
