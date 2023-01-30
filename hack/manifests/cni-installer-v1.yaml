@@ -65,7 +65,7 @@ spec:
               mountPath: /etc/cni/net.d
       containers:
         - name: pause
-          image: k8s.gcr.io/pause:2.0
+          image: mcr.microsoft.com/oss/kubernetes/pause:3.6
       hostNetwork: true
       volumes:
         - name: cni-conflist
