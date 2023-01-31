@@ -195,10 +195,10 @@ func (service *HTTPRestService) saveNetworkContainerGoalState(
 				service.state.ContainerIDByOrchestratorContext[orchestratorContext] = new(ncList)
 			}
 
-			ncs := *service.state.ContainerIDByOrchestratorContext[orchestratorContext]
+			ncs := service.state.ContainerIDByOrchestratorContext[orchestratorContext]
 			ncs.Add(req.NetworkContainerid)
 
-			logger.Printf("service.state.ContainerIDByOrchestratorContext[%s] is %+v", orchestratorContext, ncs)
+			logger.Printf("service.state.ContainerIDByOrchestratorContext[%s] is %+v", orchestratorContext, *service.state.ContainerIDByOrchestratorContext[orchestratorContext])
 
 		case cns.KubernetesCRD:
 			// Validate and Update the SecondaryIpConfig state
