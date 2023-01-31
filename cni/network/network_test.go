@@ -73,7 +73,11 @@ func GetTestResources() *NetPlugin {
 	plugin.report = &telemetry.CNIReport{}
 	mockNetworkManager := acnnetwork.NewMockNetworkmanager()
 	plugin.nm = mockNetworkManager
+<<<<<<< HEAD
 	plugin.ipamInvoker = NewMockIpamInvoker(true, false, false) // enable ipv6 flag for TestAddDualStack test case
+=======
+	plugin.ipamInvoker = NewMockIpamInvoker(true, false, false)
+>>>>>>> c4dd0309 (enable ipamInoker ipv6)
 	return plugin
 }
 
