@@ -550,7 +550,8 @@ func (service *HTTPRestService) AssignDesiredIPConfigs(podInfo cns.PodInfo, desi
 	}
 	numOfIPs := 0
 
-	forLoop:for _, ipConfig := range service.PodIPConfigState { //nolint:gocritic // ignore copy
+forLoop:
+	for _, ipConfig := range service.PodIPConfigState { //nolint:gocritic // ignore copy
 		if _, found := IPMap[ipConfig.IPAddress]; found {
 			switch ipConfig.GetState() { //nolint:exhaustive // ignoring PendingRelease case intentionally
 			case types.Assigned:
