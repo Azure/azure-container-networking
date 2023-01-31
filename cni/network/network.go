@@ -386,7 +386,10 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 			res.Print()
 		}
 
-		log.Printf("[cni-net] ADD command completed for pod %v with ip IPs:%+v  err:%v.", k8sPodName, ipamAddResult.ipv4Result.IPs, err)
+		log.Printf("[cni-net] ADD command completed for pod %v with ip IPv4s:%+v  err:%v.", k8sPodName, ipamAddResult.ipv4Result.IPs, err)
+		if ipamAddResult.ipv6Result != nil && len(ipamAddResult.ipv6Result.IPs) > 0 {
+			log.Printf("[cni-net] ADD command completed for pod %v with ip IPv6s:%+v  err:%v.", k8sPodName, ipamAddResult.ipv6Result.IPs, err)
+		}
 	}()
 
 	// Parse Pod arguments.
@@ -562,8 +565,13 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 		return err
 	}
 
-	sendEvent(plugin, fmt.Sprintf("CNI ADD succeeded : ipv4 IP:%+v, ipv6 IP:%+v:,VlanID: %v, podname %v, namespace %v numendpoints:%d",
-		ipamAddResult.ipv4Result.IPs, ipamAddResult.ipv6Result.IPs, epInfo.Data[network.VlanIDKey], k8sPodName, k8sNamespace, plugin.nm.GetNumberOfEndpoints("", nwCfg.Name)))
+	sendEvent(plugin, fmt.Sprintf("CNI ADD succeeded : ipv4 IP:%+v,VlanID: %v, podname %v, namespace %v numendpoints:%d",
+		ipamAddResult.ipv4Result.IPs, epInfo.Data[network.VlanIDKey], k8sPodName, k8sNamespace, plugin.nm.GetNumberOfEndpoints("", nwCfg.Name)))
+
+	if ipamAddResult.ipv6Result != nil && len(ipamAddResult.ipv6Result.IPs) > 0 {
+		sendEvent(plugin, fmt.Sprintf("CNI ADD succeeded : ipv6 IP:%+v:,VlanID: %v, podname %v, namespace %v numendpoints:%d",
+			ipamAddResult.ipv6Result.IPs, epInfo.Data[network.VlanIDKey], k8sPodName, k8sNamespace, plugin.nm.GetNumberOfEndpoints("", nwCfg.Name)))
+	}
 
 	return nil
 }
@@ -626,7 +634,7 @@ func (plugin *NetPlugin) createNetworkInternal(
 
 	// only parse the ipv6 address and add it to nwInfo if it's dual stack mode
 	var podSubnetV6Prefix *net.IPNet
-	if len(ipamAddResult.ipv6Result.IPs) > 0 {
+	if ipamAddResult.ipv6Result != nil && len(ipamAddResult.ipv6Result.IPs) > 0 {
 		_, podSubnetV6Prefix, err = net.ParseCIDR(ipamAddResult.ipv6Result.IPs[0].Address.String())
 		if err != nil {
 			return nwInfo, fmt.Errorf("Failed to ParseCIDR for pod subnet IPv6 prefix: %w", err)
@@ -658,7 +666,7 @@ func (plugin *NetPlugin) createNetworkInternal(
 	}
 	nwInfo.Subnets = append(nwInfo.Subnets, ipv4Subnet)
 
-	if len(ipamAddResult.ipv6Result.IPs) > 0 {
+	if ipamAddResult.ipv6Result != nil && len(ipamAddResult.ipv6Result.IPs) > 0 {
 		ipv6Subnet := network.SubnetInfo{
 			Family:  platform.AfINET6,
 			Prefix:  *podSubnetV6Prefix,

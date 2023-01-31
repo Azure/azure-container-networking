@@ -76,6 +76,25 @@ func TestCNSIPAMInvoker_Add(t *testing.T) {
 										Subnet:    "10.0.0.0/24",
 									},
 								},
+								{
+									PodIPConfig: cns.IPSubnet{
+										IPAddress:    "fd11:1234::1",
+										PrefixLength: 24,
+									},
+									NetworkContainerPrimaryIPConfig: cns.IPConfiguration{
+										IPSubnet: cns.IPSubnet{
+											IPAddress:    "fd11:1234::",
+											PrefixLength: 112,
+										},
+										DNSServers:       nil,
+										GatewayIPAddress: "fe80::1234:5678:9abc",
+									},
+									HostPrimaryIPInfo: cns.HostIPInfo{
+										Gateway:   "fe80::1234:5678:9abc",
+										PrimaryIP: "fe80::1234:5678:9abc",
+										Subnet:    "fd11:1234::/112",
+									},
+								},
 							},
 							Response: cns.Response{
 								ReturnCode: 0,
@@ -110,7 +129,20 @@ func TestCNSIPAMInvoker_Add(t *testing.T) {
 					},
 				},
 			},
-			want1:   nil,
+			want1: &cniTypesCurr.Result{
+				IPs: []*cniTypesCurr.IPConfig{
+					{
+						Address: *getCIDRNotationForAddress("fd11:1234::1/112"),
+						Gateway: net.ParseIP("fe80::1234:5678:9abc"),
+					},
+				},
+				Routes: []*cniTypes.Route{
+					{
+						Dst: network.Ipv6DefaultRouteDstPrefix,
+						GW:  net.ParseIP("fe80::1234:5678:9abc"),
+					},
+				},
+			},
 			wantErr: false,
 		},
 		{
