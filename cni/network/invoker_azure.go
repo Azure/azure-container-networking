@@ -127,6 +127,8 @@ func (invoker *AzureIPAMInvoker) deleteIpamState() {
 }
 
 func (invoker *AzureIPAMInvoker) Delete(addresses []*net.IPNet, nwCfg *cni.NetworkConfig, _ *cniSkel.CmdArgs, options map[string]interface{}) error {
+	const bytesSize4 = 4
+	const bytesSize16 = 16
 	for _, address := range addresses {
 		if nwCfg == nil {
 			return invoker.plugin.Errorf("nil nwCfg passed to CNI ADD, stack: %+v", string(debug.Stack()))
@@ -136,11 +138,11 @@ func (invoker *AzureIPAMInvoker) Delete(addresses []*net.IPNet, nwCfg *cni.Netwo
 			nwCfg.IPAM.Subnet = invoker.nwInfo.Subnets[0].Prefix.String()
 		}
 
-		if address == nil {
+		if address == nil { //nolint:gocritic // keep as if
 			if err := invoker.plugin.DelegateDel(nwCfg.IPAM.Type, nwCfg); err != nil {
 				return invoker.plugin.Errorf("Attempted to release address with error:  %v", err)
 			}
-		} else if len(address.IP.To4()) == 4 {
+		} else if len(address.IP.To4()) == bytesSize4 {
 			nwCfg.IPAM.Address = address.IP.String()
 			log.Printf("Releasing ipv4 address :%s pool: %s",
 				nwCfg.IPAM.Address, nwCfg.IPAM.Subnet)
@@ -148,7 +150,7 @@ func (invoker *AzureIPAMInvoker) Delete(addresses []*net.IPNet, nwCfg *cni.Netwo
 				log.Printf("Failed to release ipv4 address: %v", err)
 				return invoker.plugin.Errorf("Failed to release ipv4 address: %v", err)
 			}
-		} else if len(address.IP.To16()) == 16 {
+		} else if len(address.IP.To16()) == bytesSize16 {
 			nwCfgIpv6 := *nwCfg
 			nwCfgIpv6.IPAM.Environment = common.OptEnvironmentIPv6NodeIpam
 			nwCfgIpv6.IPAM.Type = ipamV6

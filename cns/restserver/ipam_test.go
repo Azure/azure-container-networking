@@ -284,7 +284,7 @@ func TestIPAMGetAvailableIPConfig(t *testing.T, ncIDs []string, newPodIPs []stri
 
 func TestIPAMGetNextAvailableIPConfigSingleNC(t *testing.T) {
 	ncIDs := []string{testNCID}
-	IPs := [][]string{{testIP1}, {testIP2}}}
+	IPs := [][]string{{testIP1}, {testIP2}}
 	prefixes := []int{24}
 	TestIPAMGetNextAvailableIPConfig(t, ipconfigs, ncIDs, IPs, prefixes)
 }
@@ -381,7 +381,7 @@ func TestIPAMGetAlreadyAssignedIPConfigForSamePod(t *testing.T, ncIDs []string, 
 	}
 	desiredState := make([]cns.IPConfigurationStatus, len(ncIDs))
 	for i := range ncIDs {
-		desiredState[i] = NewPodStateWithOrchestratorContext(newPodIPs[i], testPod1GUID, ncIDs[i], types.Assigned, prefixes[i], 0, testPod1Info))
+		desiredState[i] = NewPodStateWithOrchestratorContext(newPodIPs[i], testPod1GUID, ncIDs[i], types.Assigned, prefixes[i], 0, testPod1Info)
 	}
 
 	for i, state := range actualstate {
@@ -395,7 +395,7 @@ func TestIPAMGetAlreadyAssignedIPConfigForSamePod(t *testing.T, ncIDs []string, 
 
 func TestIPAMAttemptToRequestIPNotFoundInPoolSingleNC(t *testing.T) {
 	ncIDs := []string{testNCID}
-	IPs := [][]string{{testIP1}, {testIP2}}}
+	IPs := [][]string{{testIP1}, {testIP2}}
 	prefixes := []int{24}
 	TestIPAMAttemptToRequestIPNotFoundInPool(t, ipconfigs, ncIDs, IPs, prefixes)
 }
@@ -480,7 +480,7 @@ func TestIPAMGetDesiredIPConfigWithSpecfiedIP(t *testing.T, ncIDs []string, newP
 
 	desiredState := make([]cns.IPConfigurationStatus, len(ncIDs))
 	for i := range ncIDs {
-		desiredState[i] = NewPodState(newPodIPs[i], prefixes[i], testPod1GUID, ncIDs[i], types.Assigned, 0))
+		desiredState[i] = NewPodState(newPodIPs[i], prefixes[i], testPod1GUID, ncIDs[i], types.Assigned, 0)
 		desiredState[i].PodInfo = testPod1Info
 	}
 
@@ -538,7 +538,7 @@ func TestIPAMFailToGetDesiredIPConfigWithAlreadyAssignedSpecfiedIP(t *testing.T,
 
 func TestIPAMFailToGetIPWhenAllIPsAreAssignedSingleNC(t *testing.T) {
 	ncIDs := []string{testNCID}
-	IPs := [][]string{{testIP1}, {testIP2}}}
+	IPs := [][]string{{testIP1}, {testIP2}}
 	prefixes := []int{24}
 	TestIPAMFailToGetIPWhenAllIPsAreAssigned(t, ipconfigs, ncIDs, IPs, prefixes)
 }
@@ -645,7 +645,7 @@ func TestIPAMRequestThenReleaseThenRequestAgain(t *testing.T, ncIDs []string, ne
 
 	desiredState := make([]cns.IPConfigurationStatus, len(ncIDs))
 	for i := range ncIDs {
-		desiredState[i] = NewPodStateWithOrchestratorContext(newPodIPs[i], testPod1GUID, ncIDs[i], types.Assigned, prefixes[i], 0, testPod1Info))
+		desiredState[i] = NewPodStateWithOrchestratorContext(newPodIPs[i], testPod1GUID, ncIDs[i], types.Assigned, prefixes[i], 0, testPod1Info)
 		// want first available Pod IP State
 		desiredState[i].IPAddress = newPodIPs[i]
 		desiredState[i].PodInfo = testPod2Info
@@ -735,7 +735,7 @@ func TestIPAMAllocateIPIdempotency(t *testing.T, ncIDs []string, newPodIPs []str
 
 func TestIPAMGetNextAvailableIPConfigSingleNC(t *testing.T) {
 	ncIDs := []string{testNCID}
-	IPs := [][]string{{testIP1}, {testIP2}, {testIP3}}}
+	IPs := [][]string{{testIP1}, {testIP2}, {testIP3}}
 	prefixes := []int{24}
 	TestIPAMGetNextAvailableIPConfig(t, ipconfigs, ncIDs, IPs, prefixes)
 }
@@ -799,7 +799,7 @@ func TestAvailableIPConfigs(t *testing.T,  ncIDs []string, newPodIPs [][]string,
 	validateIpState(t, availableIps, desiredAvailableIps)
 
 	for i := range ncIDs {
-		desiredState = NewPodState(newPodIPs[i], prefixes[i], testPod1GUID, ncIDs[i], types.Assigned, 0))
+		desiredState = NewPodState(newPodIPs[i], prefixes[i], testPod1GUID, ncIDs[i], types.Assigned, 0)
 		desiredState.PodInfo = testPod1Info
 		desiredAssignedIPConfigs[desiredState.ID] = desiredState
 	}
@@ -994,7 +994,7 @@ func TestIPAMMarkExistingIPConfigAsPendingMultipleNCs(t *testing.T) {
 
 func TestIPAMMarkExistingIPConfigAsPendingSingleNC(t *testing.T) {
 	ncIDs := []string{testNCID}
-	IPs := [][]string{{testIP1}, {testIP2}}}
+	IPs := [][]string{{testIP1}, {testIP2}}
 	prefixes := []int{24}
 	TestIPAMMarkExistingIPConfigAsPending(t, ipconfigs, ncIDs, IPs, prefixes)
 }

@@ -235,7 +235,7 @@ func (invoker *CNSIPAMInvoker) Delete(addresses []*net.IPNet, nwCfg *cni.Network
 		InfraContainerID:    args.ContainerID,
 	}
 
-	if addresses != nil && len(addresses) > 0 {
+	if len(addresses) > 0 {
 		for i, IPaddress := range addresses {
 			req.DesiredIPAddresses[i] = IPaddress.IP.String()
 		}
