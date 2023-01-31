@@ -568,6 +568,41 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 			ipamAddResult.ipv4Result.IPs, epInfo.Data[network.VlanIDKey], k8sPodName, k8sNamespace, plugin.nm.GetNumberOfEndpoints("", nwCfg.Name)))
 	}
 
+<<<<<<< HEAD
+=======
+	natInfo := getNATInfo(nwCfg.ExecutionMode, options[network.SNATIPKey], nwCfg.MultiTenancy, enableSnatForDNS)
+
+	createEndpointInternalOpt := createEndpointInternalOpt{
+		nwCfg:            nwCfg,
+		cnsNetworkConfig: ipamAddResult.ncResponse,
+		result:           ipamAddResult.ipv4Result,
+		resultV6:         ipamAddResult.ipv6Result,
+		azIpamResult:     azIpamResult,
+		args:             args,
+		nwInfo:           &nwInfo,
+		policies:         policies,
+		endpointID:       endpointID,
+		k8sPodName:       k8sPodName,
+		k8sNamespace:     k8sNamespace,
+		enableInfraVnet:  enableInfraVnet,
+		enableSnatForDNS: enableSnatForDNS,
+		natInfo:          natInfo,
+	}
+	epInfo, err := plugin.createEndpointInternal(&createEndpointInternalOpt)
+	if err != nil {
+		log.Errorf("Endpoint creation failed:%w", err)
+		return err
+	}
+
+	sendEvent(plugin, fmt.Sprintf("CNI ADD succeeded : ipv4 IP:%+v,VlanID: %v, podname %v, namespace %v numendpoints:%d",
+		ipamAddResult.ipv4Result.IPs, epInfo.Data[network.VlanIDKey], k8sPodName, k8sNamespace, plugin.nm.GetNumberOfEndpoints("", nwCfg.Name)))
+
+	if ipamAddResult.ipv6Result != nil && len(ipamAddResult.ipv6Result.IPs) > 0 {
+		sendEvent(plugin, fmt.Sprintf("CNI ADD succeeded : ipv6 IP:%+v:,VlanID: %v, podname %v, namespace %v numendpoints:%d",
+			ipamAddResult.ipv6Result.IPs, epInfo.Data[network.VlanIDKey], k8sPodName, k8sNamespace, plugin.nm.GetNumberOfEndpoints("", nwCfg.Name)))
+	}
+
+>>>>>>> 66e983c3 (add UT test)
 	return nil
 }
 
