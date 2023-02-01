@@ -23,6 +23,9 @@ var (
 	testNCID   = "06867cf3-332d-409d-8819-ed70d2c116b0"
 	testNCIDv6 = "a69b9217-3d89-4b73-a052-1e8baa453cb0"
 
+	IpPrefixBitsv4 = 24
+	IpPrefixBitsv6 = 120
+
 	testIP1      = "10.0.0.1"
 	testIP1v6    = "fd12:1234::1"
 	testPod1GUID = "898fb8f1-f93e-4c96-9c31-6b89098949a3"
@@ -40,6 +43,7 @@ var (
 
 	testIP4      = "10.0.0.4"
 	testPod4GUID = "718e04ac-5a13-4dce-84b3-040accaa9b42"
+
 )
 
 func getTestService() *HTTPRestService {
@@ -72,9 +76,8 @@ func NewPodState(ipaddress string, prefixLength uint8, id, ncid string, state ty
 
 func requestIPAddressAndGetState(t *testing.T, req cns.IPConfigRequest) ([]cns.IPConfigurationStatus, error) {
 	PodIPInfo, err := requestIPConfigHelper(svc, req)
-	IPConfigStatus := make([]cns.IPConfigurationStatus, 0)
 	if err != nil {
-		return IPConfigStatus, err
+		return cns.IPConfigurationStatus{}, err
 	}
 
 	for i := range PodIPInfo {
@@ -90,9 +93,10 @@ func requestIPAddressAndGetState(t *testing.T, req cns.IPConfigRequest) ([]cns.I
 	// retrieve podinfo from orchestrator context
 	podInfo, err := cns.UnmarshalPodInfo(req.OrchestratorContext)
 	if err != nil {
-		return IPConfigStatus, errors.Wrap(err, "failed to unmarshal pod info")
+		return cns.IPConfigurationStatus{}, errors.Wrap(err, "failed to unmarshal pod info")
 	}
-
+	
+	IPConfigStatus := make([]cns.IPConfigurationStatus, 0)
 	for _, ipID := range svc.PodIPIDByPodInterfaceKey[podInfo.Key()] {
 		IPConfigStatus = append(IPConfigStatus, svc.PodIPConfigState[ipID])
 	}
@@ -116,6 +120,7 @@ func UpdatePodIPConfigState(t *testing.T, svc *HTTPRestService, ipconfigs map[st
 	// Create each NC
 	for _, NCID := range ncIDs {
 		secondaryIPConfigs := make(map[string]cns.SecondaryIPConfig)
+		// Get each of the ipconfigs associated with that NC
 		for _, ipconfig := range ipconfigs { //nolint:gocritic // ignore copy
 			if ipconfig.NCID == NCID {
 				secIPConfig := cns.SecondaryIPConfig{
@@ -145,7 +150,7 @@ func UpdatePodIPConfigState(t *testing.T, svc *HTTPRestService, ipconfigs map[st
 func TestEndpointStateReadAndWriteSingleNC(t *testing.T) {
 	ncIDs := []string{testNCID}
 	IPs := []string{testIP1}
-	prefixes := []uint8{24}
+	prefixes := []uint8{IpPrefixBitsv4}
 	TestEndpointStateReadAndWrite(t, ncIDs, IPs, prefixes)
 }
 
@@ -153,7 +158,7 @@ func TestEndpointStateReadAndWriteSingleNC(t *testing.T) {
 func TestEndpointStateReadAndWriteMultipleNCs(t *testing.T) {
 	ncIDs := []string{testNCID, testNCIDv6}
 	IPs := []string{testIP1, testIP1v6}
-	prefixes := []uint8{24, 120}
+	prefixes := []uint8{IpPrefixBitsv4, IpPrefixBitsv6}
 	TestEndpointStateReadAndWrite(t, ncIDs, IPs, prefixes)
 }
 
@@ -229,7 +234,7 @@ func TestEndpointStateReadAndWrite(t *testing.T, ncIDs, newPodIPs []string, pref
 func TestIPAMGetAvailableIPConfigSingleNC(t *testing.T) {
 	ncIDs := []string{testNCID}
 	IPs := []string{testIP1}
-	prefixes := []uint8{24}
+	prefixes := []uint8{IpPrefixBitsv4}
 	TestIPAMGetAvailableIPConfig(t, ncIDs, IPs, prefixes)
 }
 
@@ -237,7 +242,7 @@ func TestIPAMGetAvailableIPConfigSingleNC(t *testing.T) {
 func TestIPAMGetAvailableIPConfigMultipleNCs(t *testing.T) {
 	ncIDs := []string{testNCID, testNCIDv6}
 	IPs := []string{testIP1, testIP1v6}
-	prefixes := []uint8{24, 120}
+	prefixes := []uint8{IpPrefixBitsv4, IpPrefixBitsv6}
 	TestIPAMGetAvailableIPConfig(t, ncIDs, IPs, prefixes)
 }
 
@@ -284,14 +289,14 @@ func TestIPAMGetAvailableIPConfig(t *testing.T, ncIDs, newPodIPs []string, prefi
 func TestIPAMGetNextAvailableIPConfigSingleNC(t *testing.T) {
 	ncIDs := []string{testNCID}
 	IPs := [][]string{{testIP1}, {testIP2}}
-	prefixes := []uint8{24}
+	prefixes := []uint8{IpPrefixBitsv4}
 	TestIPAMGetNextAvailableIPConfig(t, ncIDs, IPs, prefixes)
 }
 
 func TestIPAMGetNextAvailableIPConfigMultipleNCs(t *testing.T) {
 	ncIDs := []string{testNCID, testNCIDv6}
 	IPs := [][]string{{testIP1, testIP1v6}, {testIP2, testIP2v6}}
-	prefixes := []uint8{24, 120}
+	prefixes := []uint8{IpPrefixBitsv4, IpPrefixBitsv6}
 	TestIPAMGetNextAvailableIPConfig(t, ncIDs, IPs, prefixes)
 }
 
@@ -343,14 +348,14 @@ func TestIPAMGetNextAvailableIPConfig(t *testing.T, ncIDs []string, newPodIPs []
 func TestIPAMGetAlreadyAssignedIPConfigForSamePodSingleNC(t *testing.T) {
 	ncIDs := []string{testNCID}
 	IPs := []string{testIP1}
-	prefixes := []uint8{24}
+	prefixes := []uint8{IpPrefixBitsv4}
 	TestIPAMGetAlreadyAssignedIPConfigForSamePod(t, ncIDs, IPs, prefixes)
 }
 
 func TestIPAMGetAlreadyAssignedIPConfigForSamePodMultipleNCs(t *testing.T) {
 	ncIDs := []string{testNCID, testNCIDv6}
 	IPs := []string{testIP1, testIP1v6}
-	prefixes := []uint8{24, 120}
+	prefixes := []uint8{IpPrefixBitsv4, IpPrefixBitsv6}
 	TestIPAMGetAlreadyAssignedIPConfigForSamePod(t, ncIDs, IPs, prefixes)
 }
 
@@ -397,14 +402,14 @@ func TestIPAMGetAlreadyAssignedIPConfigForSamePod(t *testing.T, ncIDs, newPodIPs
 func TestIPAMAttemptToRequestIPNotFoundInPoolSingleNC(t *testing.T) {
 	ncIDs := []string{testNCID}
 	IPs := [][]string{{testIP1}, {testIP2}}
-	prefixes := []uint8{24}
+	prefixes := []uint8{IpPrefixBitsv4}
 	TestIPAMAttemptToRequestIPNotFoundInPool(t, ncIDs, IPs, prefixes)
 }
 
 func TestIPAMAttemptToRequestIPNotFoundInPoolMultipleNCs(t *testing.T) {
 	ncIDs := []string{testNCID, testNCIDv6}
 	IPs := [][]string{{testIP1, testIP1v6}, {testIP2, testIP2v6}}
-	prefixes := []uint8{24, 120}
+	prefixes := []uint8{IpPrefixBitsv4, IpPrefixBitsv6}
 	TestIPAMAttemptToRequestIPNotFoundInPool(t, ncIDs, IPs, prefixes)
 }
 
@@ -440,14 +445,14 @@ func TestIPAMAttemptToRequestIPNotFoundInPool(t *testing.T, ncIDs []string, newP
 func TestIPAMGetDesiredIPConfigWithSpecfiedIPSingleNC(t *testing.T) {
 	ncIDs := []string{testNCID}
 	IPs := []string{testIP1}
-	prefixes := []uint8{24}
+	prefixes := []uint8{IpPrefixBitsv4}
 	TestIPAMGetDesiredIPConfigWithSpecfiedIP(t, ncIDs, IPs, prefixes)
 }
 
 func TestIPAMGetDesiredIPConfigWithSpecfiedIPMultipleNCs(t *testing.T) {
 	ncIDs := []string{testNCID, testNCIDv6}
 	IPs := []string{testIP1, testIP1v6}
-	prefixes := []uint8{24, 120}
+	prefixes := []uint8{IpPrefixBitsv4, IpPrefixBitsv6}
 	TestIPAMGetDesiredIPConfigWithSpecfiedIP(t, ncIDs, IPs, prefixes)
 }
 
@@ -497,14 +502,14 @@ func TestIPAMGetDesiredIPConfigWithSpecfiedIP(t *testing.T, ncIDs, newPodIPs []s
 func TestIPAMFailToGetDesiredIPConfigWithAlreadyAssignedSpecfiedIPSingleNC(t *testing.T) {
 	ncIDs := []string{testNCID}
 	IPs := []string{testIP1}
-	prefixes := []uint8{24}
+	prefixes := []uint8{IpPrefixBitsv4}
 	TestIPAMFailToGetDesiredIPConfigWithAlreadyAssignedSpecfiedIP(t, ncIDs, IPs, prefixes)
 }
 
 func TestIPAMFailToGetDesiredIPConfigWithAlreadyAssignedSpecfiedIPMultipleNCs(t *testing.T) {
 	ncIDs := []string{testNCID, testNCIDv6}
 	IPs := []string{testIP1, testIP1v6}
-	prefixes := []uint8{24, 120}
+	prefixes := []uint8{IpPrefixBitsv4, IpPrefixBitsv6}
 	TestIPAMFailToGetDesiredIPConfigWithAlreadyAssignedSpecfiedIP(t, ncIDs, IPs, prefixes)
 }
 
@@ -540,14 +545,14 @@ func TestIPAMFailToGetDesiredIPConfigWithAlreadyAssignedSpecfiedIP(t *testing.T,
 func TestIPAMFailToGetIPWhenAllIPsAreAssignedSingleNC(t *testing.T) {
 	ncIDs := []string{testNCID}
 	IPs := [][]string{{testIP1}, {testIP2}}
-	prefixes := []uint8{24}
+	prefixes := []uint8{IpPrefixBitsv4}
 	TestIPAMFailToGetIPWhenAllIPsAreAssigned(t, ncIDs, IPs, prefixes)
 }
 
 func TestIPAMFailToGetIPWhenAllIPsAreAssignedMultipleNCs(t *testing.T) {
 	ncIDs := []string{testNCID, testNCIDv6}
 	IPs := [][]string{{testIP1, testIP1v6}, {testIP2, testIP2v6}}
-	prefixes := []uint8{24, 120}
+	prefixes := []uint8{IpPrefixBitsv4, IpPrefixBitsv6}
 	TestIPAMFailToGetIPWhenAllIPsAreAssigned(t, ncIDs, IPs, prefixes)
 }
 
@@ -581,14 +586,14 @@ func TestIPAMFailToGetIPWhenAllIPsAreAssigned(t *testing.T, ncIDs []string, newP
 func TestIPAMRequestThenReleaseThenRequestAgainSingleNC(t *testing.T) {
 	ncIDs := []string{testNCID}
 	IPs := []string{testIP1}
-	prefixes := []uint8{24}
+	prefixes := []uint8{IpPrefixBitsv4}
 	TestIPAMRequestThenReleaseThenRequestAgain(t, ncIDs, IPs, prefixes)
 }
 
 func TestIPAMRequestThenReleaseThenRequestAgainMultipleNCs(t *testing.T) {
 	ncIDs := []string{testNCID, testNCIDv6}
 	IPs := []string{testIP1, testIP1v6}
-	prefixes := []uint8{24, 120}
+	prefixes := []uint8{IpPrefixBitsv4, IpPrefixBitsv6}
 	TestIPAMRequestThenReleaseThenRequestAgain(t, ncIDs, IPs, prefixes)
 }
 
@@ -665,14 +670,14 @@ func TestIPAMRequestThenReleaseThenRequestAgain(t *testing.T, ncIDs, newPodIPs [
 func TestIPAMReleaseIPIdempotencySingleNC(t *testing.T) {
 	ncIDs := []string{testNCID}
 	IPs := []string{testIP1}
-	prefixes := []uint8{24}
+	prefixes := []uint8{IpPrefixBitsv4}
 	TestIPAMReleaseIPIdempotency(t, ncIDs, IPs, prefixes)
 }
 
 func TestIPAMReleaseIPIdempotencyMultipleNCs(t *testing.T) {
 	ncIDs := []string{testNCID, testNCIDv6}
 	IPs := []string{testIP1, testIP1v6}
-	prefixes := []uint8{24, 120}
+	prefixes := []uint8{IpPrefixBitsv4, IpPrefixBitsv6}
 	TestIPAMReleaseIPIdempotency(t, ncIDs, IPs, prefixes)
 }
 
@@ -705,14 +710,14 @@ func TestIPAMReleaseIPIdempotency(t *testing.T, ncIDs, newPodIPs []string, prefi
 func TestIPAMAllocateIPIdempotencySingleNC(t *testing.T) {
 	ncIDs := []string{testNCID}
 	IPs := []string{testIP1}
-	prefixes := []uint8{24}
+	prefixes := []uint8{IpPrefixBitsv4}
 	TestIPAMAllocateIPIdempotency(t, ncIDs, IPs, prefixes)
 }
 
 func TestIPAMAllocateIPIdempotencyMultipleNCs(t *testing.T) {
 	ncIDs := []string{testNCID, testNCIDv6}
 	IPs := []string{testIP1, testIP1v6}
-	prefixes := []uint8{24, 120}
+	prefixes := []uint8{IpPrefixBitsv4, IpPrefixBitsv6}
 	TestIPAMAllocateIPIdempotency(t, ncIDs, IPs, prefixes)
 }
 
@@ -738,14 +743,14 @@ func TestIPAMAllocateIPIdempotency(t *testing.T, ncIDs, newPodIPs []string, pref
 func TestAvailableIPConfigsSingleNC(t *testing.T) {
 	ncIDs := []string{testNCID}
 	IPs := [][]string{{testIP1}, {testIP2}, {testIP3}}
-	prefixes := []uint8{24}
+	prefixes := []uint8{IpPrefixBitsv4}
 	TestAvailableIPConfigs(t, ncIDs, IPs, prefixes)
 }
 
 func TestAvailableIPConfigsMultipleNCs(t *testing.T) {
 	ncIDs := []string{testNCID, testNCIDv6}
 	IPs := [][]string{{testIP1, testIP1v6}, {testIP2, testIP2v6}, {testIP3, testIP3v6}}
-	prefixes := []uint8{24, 120}
+	prefixes := []uint8{IpPrefixBitsv4, IpPrefixBitsv6}
 	TestAvailableIPConfigs(t, ncIDs, IPs, prefixes)
 }
 
@@ -834,14 +839,14 @@ func validateIpState(t *testing.T, actualIps []cns.IPConfigurationStatus, expect
 func TestIPAMMarkIPCountAsPendingSingleNC(t *testing.T) {
 	ncIDs := []string{testNCID}
 	IPs := []string{testIP1}
-	prefixes := []uint8{24}
+	prefixes := []uint8{IpPrefixBitsv4}
 	TestIPAMMarkIPCountAsPending(t, ncIDs, IPs, prefixes)
 }
 
 func TestIPAMMarkIPCountAsPendingMultipleNCs(t *testing.T) {
 	ncIDs := []string{testNCID, testNCIDv6}
 	IPs := []string{testIP1, testIP1v6}
-	prefixes := []uint8{24, 120}
+	prefixes := []uint8{IpPrefixBitsv4, IpPrefixBitsv6}
 	TestIPAMMarkIPCountAsPending(t, ncIDs, IPs, prefixes)
 }
 
@@ -990,14 +995,14 @@ func constructSecondaryIPConfigs(ipAddress, uuid string, ncVersion int, secondar
 func TestIPAMMarkExistingIPConfigAsPendingMultipleNCs(t *testing.T) {
 	ncIDs := []string{testNCID, testNCIDv6}
 	IPs := [][]string{{testIP1, testIP1v6}, {testIP2, testIP2v6}}
-	prefixes := []uint8{24, 120}
+	prefixes := []uint8{IpPrefixBitsv4, IpPrefixBitsv6}
 	TestIPAMMarkExistingIPConfigAsPending(t, ncIDs, IPs, prefixes)
 }
 
 func TestIPAMMarkExistingIPConfigAsPendingSingleNC(t *testing.T) {
 	ncIDs := []string{testNCID}
 	IPs := [][]string{{testIP1}, {testIP2}}
-	prefixes := []uint8{24}
+	prefixes := []uint8{IpPrefixBitsv4}
 	TestIPAMMarkExistingIPConfigAsPending(t, ncIDs, IPs, prefixes)
 }
 

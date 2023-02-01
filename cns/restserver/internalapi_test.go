@@ -593,7 +593,7 @@ func validateNCStateAfterReconcile(t *testing.T, ncRequest *cns.CreateNetworkCon
 				t.Fatalf("IpAddress %s is not same, for Pod: %+v, actual ipState: %+v", ipaddress, podInfo, ipConfigstate)
 			}
 
-			// Valdate pod context
+			// Validate pod context
 			if reflect.DeepEqual(ipConfigstate.PodInfo, podInfo) != true {
 				t.Fatalf("OrchestrationContext: is not same, expected: %+v, actual %+v", ipConfigstate.PodInfo, podInfo)
 			}
