@@ -11,7 +11,7 @@ require (
 	google.golang.org/grpc/cmd/protoc-gen-go-grpc v1.2.0
 	google.golang.org/protobuf v1.28.1
 	mvdan.cc/gofumpt v0.4.0
-	sigs.k8s.io/controller-tools v0.11.1
+	sigs.k8s.io/controller-tools v0.11.2
 )
 
 require (
@@ -191,9 +191,9 @@ require (
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	honnef.co/go/tools v0.4.0-0.dev.0.20221209223220-58c4d7e4b720 // indirect
-	k8s.io/api v0.26.0 // indirect
-	k8s.io/apiextensions-apiserver v0.26.0 // indirect
-	k8s.io/apimachinery v0.26.0 // indirect
+	k8s.io/api v0.26.1 // indirect
+	k8s.io/apiextensions-apiserver v0.26.1 // indirect
+	k8s.io/apimachinery v0.26.1 // indirect
 	k8s.io/klog/v2 v2.80.1 // indirect
 	k8s.io/utils v0.0.0-20221107191617-1a15be271d1d // indirect
 	mvdan.cc/interfacer v0.0.0-20180901003855-c20040233aed // indirect
