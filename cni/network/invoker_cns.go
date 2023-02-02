@@ -220,16 +220,6 @@ func setHostOptions(ncSubnetPrefix *net.IPNet, options map[string]interface{}, i
 			// add a snat rule to node IP for IMDS http traffic
 			iptables.GetInsertIptableRuleCmd(iptables.V4, iptables.Nat, iptables.Swift, azureIMDSMatch, snatHostIPJump),
 		}
-	} else {
-		options[network.IPTablesKey] = []iptables.IPTableEntry{
-			iptables.GetCreateChainCmd(iptables.V6, iptables.Nat, iptables.Swift),
-			iptables.GetAppendIptableRuleCmd(iptables.V6, iptables.Nat, iptables.Postrouting, "", iptables.Swift),
-			// add a snat rules to primary NC IPv6 for DNS
-			iptables.GetInsertIptableRuleCmd(iptables.V6, iptables.Nat, iptables.Swift, azureDNSUDPMatch, snatPrimaryIPJump),
-			iptables.GetInsertIptableRuleCmd(iptables.V6, iptables.Nat, iptables.Swift, azureDNSTCPMatch, snatPrimaryIPJump),
-			// add a snat rule to node IPv6 for IMDS http traffic
-			iptables.GetInsertIptableRuleCmd(iptables.V6, iptables.Nat, iptables.Swift, azureIMDSMatch, snatHostIPJump),
-		}
 	}
 
 	return nil
