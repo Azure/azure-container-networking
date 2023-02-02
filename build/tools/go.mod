@@ -1,6 +1,6 @@
 module github.com/Azure/azure-container-networking/build/tools
 
-go 1.19
+go 1.20
 
 require (
 	github.com/AlekSi/gocov-xml v1.1.0

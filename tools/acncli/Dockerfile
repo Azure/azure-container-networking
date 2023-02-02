@@ -1,4 +1,4 @@
-FROM mcr.microsoft.com/oss/go/microsoft/golang:1.19 as build
+FROM mcr.microsoft.com/oss/go/microsoft/golang:1.20 as build
 WORKDIR /go/src/github.com/Azure/azure-container-networking/
 ARG VERSION
 ADD . . 
