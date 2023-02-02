@@ -210,9 +210,22 @@ func setHostOptions(ncSubnetPrefix *net.IPNet, options map[string]interface{}, i
 	// we need to snat IMDS traffic to node IP, this sets up snat '--to'
 	snatHostIPJump := fmt.Sprintf("%s --to %s", iptables.Snat, info.hostPrimaryIP)
 
+<<<<<<< HEAD
 	var iptableCmds []iptables.IPTableEntry
 	if !iptables.ChainExists(iptables.V4, iptables.Nat, iptables.Swift) {
 		iptableCmds = append(iptableCmds, iptables.GetCreateChainCmd(iptables.V4, iptables.Nat, iptables.Swift))
+=======
+	if hostIP.To4() != nil {
+		options[network.IPTablesKey] = []iptables.IPTableEntry{
+			iptables.GetCreateChainCmd(iptables.V4, iptables.Nat, iptables.Swift),
+			iptables.GetAppendIptableRuleCmd(iptables.V4, iptables.Nat, iptables.Postrouting, "", iptables.Swift),
+			// add a snat rules to primary NC IP for DNS
+			iptables.GetInsertIptableRuleCmd(iptables.V4, iptables.Nat, iptables.Swift, azureDNSUDPMatch, snatPrimaryIPJump),
+			iptables.GetInsertIptableRuleCmd(iptables.V4, iptables.Nat, iptables.Swift, azureDNSTCPMatch, snatPrimaryIPJump),
+			// add a snat rule to node IP for IMDS http traffic
+			iptables.GetInsertIptableRuleCmd(iptables.V4, iptables.Nat, iptables.Swift, azureIMDSMatch, snatHostIPJump),
+		}
+>>>>>>> 4472e895 (remove ipv6 nat)
 	}
 
 	if !iptables.RuleExists(iptables.V4, iptables.Nat, iptables.Postrouting, "", iptables.Swift) {
