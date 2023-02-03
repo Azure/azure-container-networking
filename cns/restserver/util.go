@@ -363,7 +363,7 @@ func (service *HTTPRestService) getAllNetworkContainerResponses(
 ) []cns.GetNetworkContainerResponse {
 	var (
 		getNetworkContainerResponse cns.GetNetworkContainerResponse
-		ncList                      []string
+		ncs                         []string
 	)
 
 	service.Lock()
@@ -386,11 +386,11 @@ func (service *HTTPRestService) getAllNetworkContainerResponses(
 
 		// get networkContainerIDs as string, "nc1, nc2"
 		orchestratorContext := podInfo.Name() + podInfo.Namespace()
-		//strings.Split(string(n), ",")
-		ncs := *service.state.ContainerIDByOrchestratorContext[orchestratorContext]
-		ncList = strings.Split(string(ncs), ",")
+		if service.state.ContainerIDByOrchestratorContext[orchestratorContext] != nil {
+			ncs = strings.Split(string(*service.state.ContainerIDByOrchestratorContext[orchestratorContext]), ",")
+		}
 
-		if len(ncList) == 0 {
+		if len(ncs) == 0 {
 			response := cns.Response{
 				ReturnCode: types.UnknownContainerID,
 				Message:    fmt.Sprintf("Failed to find networkContainerID for orchestratorContext %s", orchestratorContext),
@@ -415,7 +415,7 @@ func (service *HTTPRestService) getAllNetworkContainerResponses(
 		}
 
 		if !skipNCVersionCheck {
-			for _, ncid := range ncList {
+			for _, ncid := range ncs {
 				waitingForUpdate := false
 				// If the goal state is available with CNS, check if the NC is pending VFP programming
 				waitingForUpdate, getNetworkContainerResponse.Response.ReturnCode, getNetworkContainerResponse.Response.Message = service.isNCWaitingForUpdate(service.state.ContainerStatus[ncid].CreateNetworkContainerRequest.Version, ncid, nmaNCs) //nolint:lll // bad code
@@ -480,7 +480,7 @@ func (service *HTTPRestService) getAllNetworkContainerResponses(
 
 	getNetworkContainersResponse := []cns.GetNetworkContainerResponse{}
 
-	for _, ncid := range ncList {
+	for _, ncid := range ncs {
 		containerStatus := service.state.ContainerStatus
 		containerDetails, ok := containerStatus[ncid]
 		if !ok {
@@ -1025,4 +1025,9 @@ func (n *ncList) Delete(nc string) {
 		}
 	}
 	*n = ncList(strings.Join(ncs, ","))
+}
+
+// check if ncList contains NC
+func (n *ncList) Contains(nc string) bool {
+	return strings.Contains(string(*n), nc)
 }

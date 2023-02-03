@@ -984,9 +984,12 @@ func (service *HTTPRestService) deleteNetworkContainer(w http.ResponseWriter, r 
 
 		if service.state.ContainerIDByOrchestratorContext != nil {
 			for orchestratorContext, networkContainerIDs := range service.state.ContainerIDByOrchestratorContext { //nolint:gocritic // copy is ok
-				networkContainerIDs.Delete(ncid)
-				if *networkContainerIDs == "" {
-					delete(service.state.ContainerIDByOrchestratorContext, orchestratorContext)
+				if networkContainerIDs.Contains(ncid) {
+					networkContainerIDs.Delete(ncid)
+					if *networkContainerIDs == "" {
+						delete(service.state.ContainerIDByOrchestratorContext, orchestratorContext)
+						break
+					}
 				}
 			}
 		}
