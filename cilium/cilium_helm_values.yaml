@@ -1,13 +1,13 @@
 image:
   repository: mcr.microsoft.com/oss/cilium/cilium
-  tag: 1.12.1.1
+  tag: 1.12.5
   digest: ""
   useDigest: false
 
 operator:
   image:
     repository: mcr.microsoft.com/oss/cilium/operator
-    tag: 1.12.1
+    tag: 1.12.5
     suffix: ""
     digest: ""
     useDigest: false
@@ -28,7 +28,7 @@ ipv4NativeRoutingCIDR: 10.241.0.0/16
 enableIPv4Masquerade: false
 install-no-conntrack-iptables-rules: false
 installIptablesRules: true
-l7Proxy: false
+l7Proxy: true
 hubble:
   enabled: false
 kubeProxyReplacement: strict

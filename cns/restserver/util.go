@@ -384,9 +384,23 @@ func (service *HTTPRestService) getNetworkContainerResponse(
 
 		containerID, exists = service.state.ContainerIDByOrchestratorContext[podInfo.Name()+podInfo.Namespace()]
 
-		if exists {
+		skipNCVersionCheck := false
+		ctx, cancel := context.WithTimeout(context.Background(), nmaAPICallTimeout)
+		defer cancel()
+		ncVersionListResp, err := service.nma.GetNCVersionList(ctx)
+		if err != nil {
+			skipNCVersionCheck = true
+			logger.Errorf("failed to get nc version list from nmagent")
+		}
+		nmaNCs := map[string]string{}
+		for _, nc := range ncVersionListResp.Containers {
+			nmaNCs[nc.NetworkContainerID] = nc.Version
+		}
+
+		if exists && !skipNCVersionCheck {
 			// If the goal state is available with CNS, check if the NC is pending VFP programming
-			waitingForUpdate, getNetworkContainerResponse.Response.ReturnCode, getNetworkContainerResponse.Response.Message = service.isNCWaitingForUpdate(service.state.ContainerStatus[containerID].CreateNetworkContainerRequest.Version, containerID) //nolint:lll // bad code
+			waitingForUpdate, getNetworkContainerResponse.Response.ReturnCode, getNetworkContainerResponse.Response.Message = service.isNCWaitingForUpdate(
+				service.state.ContainerStatus[containerID].CreateNetworkContainerRequest.Version, containerID, nmaNCs)
 			// If the return code is not success, return the error to the caller
 			if getNetworkContainerResponse.Response.ReturnCode == types.NetworkContainerVfpProgramPending {
 				logger.Errorf("[Azure-CNS] isNCWaitingForUpdate failed for NC: %s with error: %s",
@@ -534,7 +548,21 @@ func (service *HTTPRestService) attachOrDetachHelper(req cns.ConfigureContainerN
 	if service.ChannelMode == cns.Managed && operation == attach {
 		if ok {
 			if !existing.VfpUpdateComplete {
-				_, returnCode, message := service.isNCWaitingForUpdate(existing.CreateNetworkContainerRequest.Version, req.NetworkContainerid)
+				ctx, cancel := context.WithTimeout(context.Background(), nmaAPICallTimeout)
+				defer cancel()
+				ncVersionListResp, err := service.nma.GetNCVersionList(ctx)
+				if err != nil {
+					logger.Errorf("failed to get nc version list from nmagent")
+					return cns.Response{
+						ReturnCode: types.NmAgentInternalServerError,
+						Message:    err.Error(),
+					}
+				}
+				nmaNCs := map[string]string{}
+				for _, nc := range ncVersionListResp.Containers {
+					nmaNCs[nc.NetworkContainerID] = nc.Version
+				}
+				_, returnCode, message := service.isNCWaitingForUpdate(existing.CreateNetworkContainerRequest.Version, req.NetworkContainerid, nmaNCs)
 				if returnCode == types.NetworkContainerVfpProgramPending {
 					return cns.Response{
 						ReturnCode: returnCode,
@@ -777,8 +805,9 @@ func (service *HTTPRestService) populateIPConfigInfoUntransacted(ipConfigStatus 
 // Return error and waitingForUpdate as true only CNS gets response from NMAgent indicating
 // the VFP programming is pending
 // This returns success / waitingForUpdate as false in all other cases.
+// V2 is using the nmagent get nc version list api v2 which doesn't need authentication token
 func (service *HTTPRestService) isNCWaitingForUpdate(
-	ncVersion, ncid string,
+	ncVersion, ncid string, ncVersionList map[string]string,
 ) (waitingForUpdate bool, returnCode types.ResponseCode, message string) {
 	ncStatus, ok := service.state.ContainerStatus[ncid]
 	if ok {
@@ -789,27 +818,21 @@ func (service *HTTPRestService) isNCWaitingForUpdate(
 		}
 	}
 
-	getNCVersionURL, ok := ncVersionURLs.Load(ncid)
-	if !ok {
-		logger.Printf("[Azure CNS] getNCVersionURL for Network container %s not found. Skipping GetNCVersionStatus check from NMAgent",
-			ncid)
-		return true, types.NetworkContainerVfpProgramCheckSkipped, ""
-	}
-
-	resp, err := service.nma.GetNCVersion(context.TODO(), getNCVersionURL.(nmagent.NCVersionRequest))
-	var nmaErr nmagent.Error
-	if errors.As(err, &nmaErr) && nmaErr.Unauthorized() {
+	ncTargetVersion, err := strconv.Atoi(ncVersion)
+	if err != nil {
+		// NMA doesn't have this NC version in string type, bail out
+		logger.Printf("[Azure CNS] NC %s version %v from NMAgent NC version list is not string "+
+			"Skipping GetNCVersionStatus check from NMAgent", ncVersion, ncid)
 		return true, types.NetworkContainerVfpProgramPending, ""
 	}
-
-	if err != nil {
-		logger.Printf("[Azure CNS] Failed to get NC version status from NMAgent with error: %+v. "+
-			"Skipping GetNCVersionStatus check from NMAgent", err)
-		return true, types.NetworkContainerVfpProgramCheckSkipped, ""
+	nmaProgrammedNCVersionStr, ok := ncVersionList[ncid]
+	if !ok {
+		// NMA doesn't have this NC that we need programmed yet, bail out
+		logger.Printf("[Azure CNS] Failed to get NC %s doesn't exist in NMAgent NC version list "+
+			"Skipping GetNCVersionStatus check from NMAgent", ncid)
+		return true, types.NetworkContainerVfpProgramPending, ""
 	}
-
-	ncTargetVersion, _ := strconv.Atoi(ncVersion)
-	nmaProgrammedNCVersion, err := strconv.Atoi(resp.Version)
+	nmaProgrammedNCVersion, err := strconv.Atoi(nmaProgrammedNCVersionStr)
 	if err != nil {
 		// it's unclear whether or not this can actually happen. In the NMAgent
 		// documentation, Version is described as a string, but in practice the

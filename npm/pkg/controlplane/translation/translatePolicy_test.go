@@ -590,14 +590,15 @@ func TestPodSelector(t *testing.T) {
 	policyKey := "test-ns/test-policy"
 	policyKeyWithDash := policyKey + "-"
 	tests := []struct {
-		name                   string
-		namespace              string
-		matchType              policies.MatchType
-		labelSelector          *metav1.LabelSelector
-		podSelectorIPSets      []*ipsets.TranslatedIPSet
-		childPodSelectorIPSets []*ipsets.TranslatedIPSet
-		podSelectorList        []policies.SetInfo
-		skipWindows            bool
+		name                    string
+		namespace               string
+		matchType               policies.MatchType
+		labelSelector           *metav1.LabelSelector
+		podSelectorIPSets       []*ipsets.TranslatedIPSet
+		childPodSelectorIPSets  []*ipsets.TranslatedIPSet
+		podSelectorList         []policies.SetInfo
+		skipWindows             bool
+		wantExpressionValuesErr bool
 	}{
 		{
 			name:      "all pods selector in default namespace in ingress",
@@ -805,6 +806,47 @@ func TestPodSelector(t *testing.T) {
 			},
 			skipWindows: true,
 		},
+		{
+			name:      "bad in expression",
+			namespace: defaultNS,
+			matchType: matchType,
+			labelSelector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"k0": "v0",
+				},
+				MatchExpressions: []metav1.LabelSelectorRequirement{
+					{
+						Key:      "k1",
+						Operator: metav1.LabelSelectorOpIn,
+						Values: []string{
+							"bad space",
+							"v11",
+						},
+					},
+				},
+			},
+			wantExpressionValuesErr: true,
+		},
+		{
+			name:      "bad notIn expression",
+			namespace: defaultNS,
+			matchType: matchType,
+			labelSelector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"k0": "v0",
+				},
+				MatchExpressions: []metav1.LabelSelectorRequirement{
+					{
+						Key:      "k1",
+						Operator: metav1.LabelSelectorOpNotIn,
+						Values: []string{
+							"bad-char$",
+						},
+					},
+				},
+			},
+			wantExpressionValuesErr: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -822,7 +864,7 @@ func TestPodSelector(t *testing.T) {
 			if psResult == nil {
 				psResult = &podSelectorResult{}
 			}
-			if tt.skipWindows && util.IsWindowsDP() {
+			if tt.wantExpressionValuesErr || (tt.skipWindows && util.IsWindowsDP()) {
 				require.Error(t, err)
 			} else {
 				require.NoError(t, err)
@@ -842,6 +884,7 @@ func TestNameSpaceSelector(t *testing.T) {
 		labelSelector    *metav1.LabelSelector
 		nsSelectorIPSets []*ipsets.TranslatedIPSet
 		nsSelectorList   []policies.SetInfo
+		wantErr          bool
 	}{
 		{
 			name:      "namespaceSelector for all namespaces in ingress",
@@ -1421,13 +1464,14 @@ func TestIngressPolicy(t *testing.T) {
 	emptyString := intstr.FromString("")
 	// TODO(jungukcho): add test cases with more complex rules
 	tests := []struct {
-		name           string
-		targetSelector *metav1.LabelSelector
-		rules          []networkingv1.NetworkPolicyIngressRule
-		npmNetPol      *policies.NPMNetworkPolicy
-		wantErr        bool
-		skipWindows    bool
-		windowsNil     bool
+		name                  string
+		targetSelector        *metav1.LabelSelector
+		rules                 []networkingv1.NetworkPolicyIngressRule
+		npmNetPol             *policies.NPMNetworkPolicy
+		wantErr               bool
+		skipWindows           bool
+		windowsNil            bool
+		wantTargetSelectorErr bool
 	}{
 		{
 			name: "only port in ingress rules",
@@ -1976,6 +2020,98 @@ func TestIngressPolicy(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "bad target selector expression",
+			targetSelector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"k0": "v0",
+				},
+				MatchExpressions: []metav1.LabelSelectorRequirement{
+					{
+						Key:      "k1",
+						Operator: metav1.LabelSelectorOpIn,
+						Values: []string{
+							"bad space",
+						},
+					},
+				},
+			},
+			rules: []networkingv1.NetworkPolicyIngressRule{
+				{},
+			},
+			npmNetPol: &policies.NPMNetworkPolicy{
+				Namespace:   "default",
+				PolicyKey:   "default/serve-tcp",
+				ACLPolicyID: "azure-acl-default-serve-tcp",
+			},
+			wantTargetSelectorErr: true,
+		},
+		{
+			name: "bad pod selector expression",
+			targetSelector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"k0": "v0",
+				},
+			},
+			rules: []networkingv1.NetworkPolicyIngressRule{
+				{
+					From: []networkingv1.NetworkPolicyPeer{
+						{
+							PodSelector: &metav1.LabelSelector{
+								MatchExpressions: []metav1.LabelSelectorRequirement{
+									{
+										Key:      "k1",
+										Operator: metav1.LabelSelectorOpIn,
+										Values: []string{
+											"bad space",
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			npmNetPol: &policies.NPMNetworkPolicy{
+				Namespace:   "default",
+				PolicyKey:   "default/serve-tcp",
+				ACLPolicyID: "azure-acl-default-serve-tcp",
+			},
+			wantErr: true,
+		},
+		{
+			name: "bad ns selector expression",
+			targetSelector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"k0": "v0",
+				},
+			},
+			rules: []networkingv1.NetworkPolicyIngressRule{
+				{
+					From: []networkingv1.NetworkPolicyPeer{
+						{
+							NamespaceSelector: &metav1.LabelSelector{
+								MatchExpressions: []metav1.LabelSelectorRequirement{
+									{
+										Key:      "k1",
+										Operator: metav1.LabelSelectorOpIn,
+										Values: []string{
+											"bad space",
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			npmNetPol: &policies.NPMNetworkPolicy{
+				Namespace:   "default",
+				PolicyKey:   "default/serve-tcp",
+				ACLPolicyID: "azure-acl-default-serve-tcp",
+			},
+			wantErr: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -1991,6 +2127,11 @@ func TestIngressPolicy(t *testing.T) {
 				require.Error(t, err)
 				return
 			}
+			if tt.wantTargetSelectorErr {
+				require.Error(t, err)
+				return
+			}
+
 			require.NoError(t, err)
 			npmNetPol.PodSelectorIPSets = psResult.psSets
 			npmNetPol.ChildPodSelectorIPSets = psResult.childPSSets
@@ -2014,13 +2155,14 @@ func TestEgressPolicy(t *testing.T) {
 	targetPodMatchType := policies.EitherMatch
 	peerMatchType := policies.DstMatch
 	tests := []struct {
-		name           string
-		targetSelector *metav1.LabelSelector
-		rules          []networkingv1.NetworkPolicyEgressRule
-		npmNetPol      *policies.NPMNetworkPolicy
-		wantErr        bool
-		skipWindows    bool
-		windowsNil     bool
+		name                  string
+		targetSelector        *metav1.LabelSelector
+		rules                 []networkingv1.NetworkPolicyEgressRule
+		npmNetPol             *policies.NPMNetworkPolicy
+		wantErr               bool
+		skipWindows           bool
+		windowsNil            bool
+		wantTargetSelectorErr bool
 	}{
 		{
 			name: "only port in egress rules",
@@ -2569,6 +2711,98 @@ func TestEgressPolicy(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "bad target selector expression",
+			targetSelector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"k0": "v0",
+				},
+				MatchExpressions: []metav1.LabelSelectorRequirement{
+					{
+						Key:      "k1",
+						Operator: metav1.LabelSelectorOpIn,
+						Values: []string{
+							"bad space",
+						},
+					},
+				},
+			},
+			rules: []networkingv1.NetworkPolicyEgressRule{
+				{},
+			},
+			npmNetPol: &policies.NPMNetworkPolicy{
+				Namespace:   "default",
+				PolicyKey:   "default/serve-tcp",
+				ACLPolicyID: "azure-acl-default-serve-tcp",
+			},
+			wantTargetSelectorErr: true,
+		},
+		{
+			name: "bad pod selector expression",
+			targetSelector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"k0": "v0",
+				},
+			},
+			rules: []networkingv1.NetworkPolicyEgressRule{
+				{
+					To: []networkingv1.NetworkPolicyPeer{
+						{
+							PodSelector: &metav1.LabelSelector{
+								MatchExpressions: []metav1.LabelSelectorRequirement{
+									{
+										Key:      "k1",
+										Operator: metav1.LabelSelectorOpIn,
+										Values: []string{
+											"bad space",
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			npmNetPol: &policies.NPMNetworkPolicy{
+				Namespace:   "default",
+				PolicyKey:   "default/serve-tcp",
+				ACLPolicyID: "azure-acl-default-serve-tcp",
+			},
+			wantErr: true,
+		},
+		{
+			name: "bad ns selector expression",
+			targetSelector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"k0": "v0",
+				},
+			},
+			rules: []networkingv1.NetworkPolicyEgressRule{
+				{
+					To: []networkingv1.NetworkPolicyPeer{
+						{
+							NamespaceSelector: &metav1.LabelSelector{
+								MatchExpressions: []metav1.LabelSelectorRequirement{
+									{
+										Key:      "k1",
+										Operator: metav1.LabelSelectorOpIn,
+										Values: []string{
+											"bad space",
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			npmNetPol: &policies.NPMNetworkPolicy{
+				Namespace:   "default",
+				PolicyKey:   "default/serve-tcp",
+				ACLPolicyID: "azure-acl-default-serve-tcp",
+			},
+			wantErr: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -2584,6 +2818,11 @@ func TestEgressPolicy(t *testing.T) {
 				require.Error(t, err)
 				return
 			}
+			if tt.wantTargetSelectorErr {
+				require.Error(t, err)
+				return
+			}
+
 			require.NoError(t, err)
 			npmNetPol.PodSelectorIPSets = psResult.psSets
 			npmNetPol.ChildPodSelectorIPSets = psResult.childPSSets

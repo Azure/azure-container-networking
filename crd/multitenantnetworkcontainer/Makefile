@@ -10,6 +10,7 @@ all: generate manifests
 generate: $(CONTROLLER_GEN)
 	$(CONTROLLER_GEN) object paths="./..."
 
+.PHONY: manifests
 manifests: $(CONTROLLER_GEN)
 	mkdir -p manifests
 	$(CONTROLLER_GEN) crd paths="./..." output:crd:artifacts:config=manifests/
