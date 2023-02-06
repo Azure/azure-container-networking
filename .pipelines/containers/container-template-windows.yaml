@@ -15,29 +15,23 @@ steps:
     command: 'login'
     addPipelineData: false
 
-- task: Docker@2
+- script: |
+    set -x
+    docker version
+    echo tag: $TAG
+    docker buildx create --name winbuilder --use --platform windows/amd64
+    echo pwd: $(pwd)
+    docker buildx build \
+      --push \
+      --platform windows/amd64  \
+      -f ${{ parameters.name }}/windows.buildx.Dockerfile \
+      --build-arg VERSION=windows-${{ parameters.arch }}-${{ parameters.tag }} \
+      --build-arg ${{ parameters.ai_path_var }}=${{ parameters.ai_path }} \
+      --build-arg ${{ parameters.ai_id_var }}=${{ parameters.ai_id }} \
+      -t acnpublic.azurecr.io/azure-${{ parameters.name }}:windows-${{ parameters.arch }}-${{ parameters.tag }} \
+      .
+  name: image_build
   displayName: Image Build
-  retryCountOnTaskFailure: 3
-  inputs:
-    command: 'build'
-    containerRegistry: $(ACR_SERVICE_CONNECTION)
-    repository: 'azure-${{ parameters.name }}'
-    tags: 'windows-${{ parameters.arch }}-${{ parameters.tag }}'
-    Dockerfile: '${{ parameters.name }}/windows.Dockerfile'
-    arguments: '
-    --build-arg VERSION=windows-${{ parameters.arch }}-${{ parameters.tag }} 
-    --build-arg ${{ parameters.ai_path_var }}=${{ parameters.ai_path }} 
-    --build-arg ${{ parameters.ai_id_var }}=${{ parameters.ai_id }}'
-    buildContext: '**/..'
-
-- task: Docker@2
-  displayName: Image Push
-  retryCountOnTaskFailure: 3
-  inputs:
-    command: 'push'
-    containerRegistry: $(ACR_SERVICE_CONNECTION)
-    repository: 'azure-${{ parameters.name }}'
-    tags: 'windows-${{ parameters.arch }}-${{ parameters.tag }}'
 
 - task: Docker@2
   displayName: Logout

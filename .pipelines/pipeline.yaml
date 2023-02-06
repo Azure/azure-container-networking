@@ -224,7 +224,7 @@ stages:
         variables:
           TAG: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
         pool:
-          name: "$(BUILD_POOL_NAME_WINDOWS_AMD64)"
+          name: "$(BUILD_POOL_NAME_LINUX_AMD64)"
         strategy:
           matrix:
             cns_windows_amd64:
