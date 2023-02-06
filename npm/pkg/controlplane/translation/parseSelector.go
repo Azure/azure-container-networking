@@ -3,15 +3,22 @@ package translation
 import (
 	"fmt"
 
+	"regexp"
+
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/ipsets"
 	"github.com/Azure/azure-container-networking/npm/util"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+// validLabelRegex is defined from the result of kubectl (this includes empty string matches):
+// a valid label must be an empty string or consist of alphanumeric characters, '-', '_' or '.', and must start and end with
+// an alphanumeric character (e.g. 'MyValue',  or 'my_value',  or '12345', regex used for validation is '(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])?'
+var validLabelRegex = regexp.MustCompile("(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])?")
+
 // flattenNameSpaceSelector will help flatten multiple nameSpace selector match Expressions values
 // into multiple label selectors helping with the OR condition.
-func flattenNameSpaceSelector(nsSelector *metav1.LabelSelector) []metav1.LabelSelector {
+func flattenNameSpaceSelector(nsSelector *metav1.LabelSelector) ([]metav1.LabelSelector, error) {
 	/*
 			This function helps to create multiple labelSelectors when given a single multivalue nsSelector
 			Take below example: this nsSelector has 2 values in a matchSelector.
@@ -48,11 +55,11 @@ func flattenNameSpaceSelector(nsSelector *metav1.LabelSelector) []metav1.LabelSe
 	// To avoid any additional length checks, just return a slice of labelSelectors
 	// with original nsSelector
 	if nsSelector == nil {
-		return []metav1.LabelSelector{}
+		return []metav1.LabelSelector{}, nil
 	}
 
 	if len(nsSelector.MatchExpressions) == 0 {
-		return []metav1.LabelSelector{*nsSelector}
+		return []metav1.LabelSelector{*nsSelector}, nil
 	}
 
 	// create a baseSelector which needs to be same across all
@@ -71,6 +78,12 @@ func flattenNameSpaceSelector(nsSelector *metav1.LabelSelector) []metav1.LabelSe
 		// to create multiple nsSelectors to preserve OR condition across all labels and expressions
 		switch {
 		case (req.Operator == metav1.LabelSelectorOpIn) || (req.Operator == metav1.LabelSelectorOpNotIn):
+			for _, v := range req.Values {
+				if !isValidLabelValue(v) {
+					return nil, ErrInvalidMatchExpressionValues
+				}
+			}
+
 			if len(req.Values) == 1 {
 				// for length 1, add the matchExpr to baseSelector
 				baseSelector.MatchExpressions = append(baseSelector.MatchExpressions, req)
@@ -89,7 +102,7 @@ func flattenNameSpaceSelector(nsSelector *metav1.LabelSelector) []metav1.LabelSe
 	// If there are no multiValue NS selector match expressions
 	// return the original NsSelector
 	if !multiValuePresent {
-		return []metav1.LabelSelector{*nsSelector}
+		return []metav1.LabelSelector{*nsSelector}, nil
 	}
 
 	// Now use the baseSelector and loop over multiValueMatchExprs to create all
@@ -101,7 +114,7 @@ func flattenNameSpaceSelector(nsSelector *metav1.LabelSelector) []metav1.LabelSe
 		flatNsSelectors = zipMatchExprs(flatNsSelectors, req)
 	}
 
-	return flatNsSelectors
+	return flatNsSelectors, nil
 }
 
 // zipMatchExprs helps with zipping a given matchExpr with given baseLabelSelectors
@@ -253,6 +266,12 @@ func parsePodSelector(policyKey string, selector *metav1.LabelSelector) ([]label
 		}
 		switch op {
 		case metav1.LabelSelectorOpIn, metav1.LabelSelectorOpNotIn:
+			for _, v := range req.Values {
+				if !isValidLabelValue(v) {
+					return nil, ErrInvalidMatchExpressionValues
+				}
+			}
+
 			// "(!) + matchKey + : + matchVal" case
 			if len(req.Values) == 1 {
 				setName = util.GetIpSetFromLabelKV(req.Key, req.Values[0])
@@ -283,4 +302,15 @@ func parsePodSelector(policyKey string, selector *metav1.LabelSelector) ([]label
 func unsupportedOpsInWindows(op metav1.LabelSelectorOperator) bool {
 	return util.IsWindowsDP() &&
 		(op == metav1.LabelSelectorOpNotIn || op == metav1.LabelSelectorOpDoesNotExist)
+}
+
+// isValidLabelValue ensures the string is empty or satisfies validLabelRegex.
+// Given that v != "", ReplaceAllString() would yield "" when v matches this regex exactly once.
+func isValidLabelValue(v string) bool {
+	matches := validLabelRegex.FindAllStringIndex(v, -1)
+	// v = "abc-123" would produce [[0 7]], which satisfies the below
+	// v = "" will produce [[0 0]], which satisfies the below
+	// v = "$" would produce [[0 0] [1 1]], which would fail the below
+	// v = "abc$" would produce [[0 3] [4 4]], which would fail the below
+	return len(matches) == 1 && matches[0][0] == 0 && matches[0][1] == len(v)
 }

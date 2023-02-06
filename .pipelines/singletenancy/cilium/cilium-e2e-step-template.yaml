@@ -52,7 +52,7 @@ steps:
       kubectl apply -f cilium/configmap.yaml
       echo "install Cilium"
       helm repo add cilium https://helm.cilium.io/
-      helm install cilium cilium/cilium --version 1.12.1.1 --namespace kube-system -f cilium/cilium_helm_values.yaml
+      helm install cilium cilium/cilium --version 1.12.5 --namespace kube-system -f cilium/cilium_helm_values.yaml
     name: "installCilium"
     displayName: "Install Cilium"
 

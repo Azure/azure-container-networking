@@ -3,20 +3,22 @@ RUN tdnf install -y tar
 RUN tdnf upgrade -y && tdnf install -y ca-certificates
 
 FROM tar AS azure-ipam
+ARG AZIPAM_VERSION=v0.0.3
 ARG VERSION
 ARG OS
 ARG ARCH
 WORKDIR /azure-ipam
 COPY ./azure-ipam .
-RUN curl -LO --cacert /etc/ssl/certs/ca-certificates.crt https://github.com/Azure/azure-container-networking/releases/download/azure-ipam%2Fv0.0.3/azure-ipam-$OS-$ARCH-v0.0.3.tgz && tar -xvf azure-ipam-$OS-$ARCH-v0.0.3.tgz
+RUN curl -LO --cacert /etc/ssl/certs/ca-certificates.crt https://github.com/Azure/azure-container-networking/releases/download/azure-ipam%2F$AZIPAM_VERSION/azure-ipam-$OS-$ARCH-$AZIPAM_VERSION.tgz && tar -xvf azure-ipam-$OS-$ARCH-$AZIPAM_VERSION.tgz
 
 FROM tar AS azure-vnet
+ARG AZCNI_VERSION=v1.4.39
 ARG VERSION
 ARG OS
 ARG ARCH
 WORKDIR /azure-container-networking
 COPY . .
-RUN curl -LO --cacert /etc/ssl/certs/ca-certificates.crt https://github.com/Azure/azure-container-networking/releases/download/v1.4.29/azure-vnet-cni-swift-$OS-$ARCH-v1.4.29.tgz && tar -xvf azure-vnet-cni-swift-$OS-$ARCH-v1.4.29.tgz
+RUN curl -LO --cacert /etc/ssl/certs/ca-certificates.crt https://github.com/Azure/azure-container-networking/releases/download/$AZCNI_VERSION/azure-vnet-cni-swift-$OS-$ARCH-$AZCNI_VERSION.tgz && tar -xvf azure-vnet-cni-swift-$OS-$ARCH-$AZCNI_VERSION.tgz
 
 FROM mcr.microsoft.com/cbl-mariner/base/core:2.0 AS compressor
 ARG OS
