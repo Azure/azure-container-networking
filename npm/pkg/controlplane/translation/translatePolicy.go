@@ -32,8 +32,8 @@ var (
 	ErrInvalidMatchExpressionValues = errors.New(
 		"matchExpression label values must be an empty string or consist of alphanumeric characters, '-', '_' or '.', and must start and end with an alphanumeric character",
 	)
-  // ErrUnsupportedIPAddress is returned when an unsupported IP address, such as IPV6, is used
-  ErrUnsupportedIPAddress = errors.New("unsupported IP address")
+	// ErrUnsupportedIPAddress is returned when an unsupported IP address, such as IPV6, is used
+	ErrUnsupportedIPAddress = errors.New("unsupported IP address")
 )
 
 type podSelectorResult struct {
