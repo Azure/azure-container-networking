@@ -136,4 +136,14 @@ const (
 	// CNS config path
 	OptCNSConfigPath      = "config-path"
 	OptCNSConfigPathAlias = "cp"
+
+	// OptCNIConflistFilepath
+	OptCNIConflistFilepath = "cni-conflist-filepath"
+	// OptCNIConflistFilepathAlias TODO: a "shorthand" is required for the acn args package but this isn't helpful
+	OptCNIConflistFilepathAlias = "cniconflist"
+
+	// OptCNIConflistFilepath
+	OptCNIConflistScenario = "cni-conflist-scenario"
+	// OptCNIConflistScenarioAlias "shorthand" for the cni conflist scenairo, see above
+	OptCNIConflistScenarioAlias = "cniconflistscenario"
 )
