@@ -295,6 +295,15 @@ acncli-image: ## build cni-manager container image.
 		IMAGE=$(ACNCLI_IMAGE) \
 		TAG=$(ACNCLI_PLATFORM_TAG)
 
+acncli-image-windows: ## build the cni image for windows
+	$(MKDIR) $(IMAGE_DIR);
+	docker build \
+	--no-cache \
+	-f cni/build/cni.windows.Dockerfile \
+	-t $(IMAGE_REGISTRY)/$(ACNCLI_IMAGE)-win:$(ACNCLI_PLATFORM_TAG) \
+	--build-arg VERSION=$(CNI_VERSION) \
+	.
+	
 acncli-image-push: ## push cni-manager container image.
 	$(MAKE) container-push \
 		IMAGE=$(ACNCLI_IMAGE) \
