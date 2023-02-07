@@ -54,7 +54,6 @@ func NewCNSInvoker(podName, namespace string, cnsClient cnsclient, executionMode
 	}
 }
 
-// ryand IPv6 not currently supported
 // Add uses the requestipconfig API in cns, and returns ipv4 and a nil ipv6 as CNS doesn't support IPv6 yet
 func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, error) {
 	// Parse Pod arguments.
