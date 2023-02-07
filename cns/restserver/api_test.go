@@ -230,6 +230,7 @@ func FirstRequest(req *http.Request, err error) *http.Request {
 }
 
 func TestSetOrchestratorType_NCsPresent(t *testing.T) {
+	present := ncList("present")
 	tests := []struct {
 		name          string
 		service       *HTTPRestService
@@ -247,7 +248,7 @@ func TestSetOrchestratorType_NCsPresent(t *testing.T) {
 						"nc1": {},
 					},
 					ContainerIDByOrchestratorContext: map[string]*ncList{
-						"nc1": "present",
+						"nc1": &present,
 					},
 				},
 			},
