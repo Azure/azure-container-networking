@@ -19,7 +19,6 @@ import (
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
-	"github.com/Azure/azure-container-networking/nmagent"
 	"github.com/pkg/errors"
 )
 
@@ -43,7 +42,6 @@ func (service *HTTPRestService) SetNodeOrchestrator(r *cns.SetOrchestratorTypeRe
 	service.setOrchestratorType(httptest.NewRecorder(), req)
 }
 
-// SyncNodeStatus :- Retrieve the latest node state from DNC & returns the first occurence of returnCode and error with respect to contextFromCNI
 func (service *HTTPRestService) SyncNodeStatus(dncEP, infraVnet, nodeID string, contextFromCNI json.RawMessage) (returnCode types.ResponseCode, errStr string) {
 	logger.Printf("[Azure CNS] SyncNodeStatus")
 	var (
@@ -94,33 +92,49 @@ func (service *HTTPRestService) SyncNodeStatus(dncEP, infraVnet, nodeID string, 
 	}
 	service.RUnlock()
 
-	// check if the version is valid and save it to service state
-	for ncid, nc := range ncsToBeAdded {
-		nmaReq := nmagent.NCVersionRequest{
-			AuthToken:          nc.AuthorizationToken,
-			NetworkContainerID: nc.NetworkContainerid,
-			PrimaryAddress:     nc.PrimaryInterfaceIdentifier,
+	skipNCVersionCheck := false
+	ctx, cancel := context.WithTimeout(context.Background(), nmaAPICallTimeout)
+	defer cancel()
+	ncVersionListResp, err := service.nma.GetNCVersionList(ctx)
+	if err != nil {
+		skipNCVersionCheck = true
+		logger.Errorf("failed to get nc version list from nmagent")
+	}
+
+	if !skipNCVersionCheck {
+		nmaNCs := map[string]string{}
+		for _, nc := range ncVersionListResp.Containers {
+			nmaNCs[cns.SwiftPrefix+nc.NetworkContainerID] = nc.Version
 		}
 
-		ncVersionURLs.Store(nc.NetworkContainerid, nmaReq)
-		waitingForUpdate, _, _ := service.isNCWaitingForUpdate(nc.Version, nc.NetworkContainerid)
+		// check if the version is valid and save it to service state
+		for ncid := range ncsToBeAdded {
+			waitingForUpdate, _, _ := service.isNCWaitingForUpdate(ncsToBeAdded[ncid].Version, ncsToBeAdded[ncid].NetworkContainerid, nmaNCs)
 
-		body, _ = json.Marshal(nc)
-		req, _ = http.NewRequest(http.MethodPost, "", bytes.NewBuffer(body))
-		req.Header.Set(common.ContentType, common.JsonContent)
-
-		w := httptest.NewRecorder()
-		service.createOrUpdateNetworkContainer(w, req)
-
-		if w.Result().StatusCode == http.StatusOK {
-			var resp cns.CreateNetworkContainerResponse
-			if err = json.Unmarshal(w.Body.Bytes(), &resp); err == nil && resp.Response.ReturnCode == types.Success {
-				service.Lock()
-				ncstatus := service.state.ContainerStatus[ncid]
-				ncstatus.VfpUpdateComplete = !waitingForUpdate
-				service.state.ContainerStatus[ncid] = ncstatus
-				service.Unlock()
+			body, err = json.Marshal(ncsToBeAdded[ncid])
+			if err != nil {
+				logger.Errorf("[Azure-CNS] Failed to marshal nc with nc id %s and content %v", ncid, ncsToBeAdded[ncid])
 			}
+			req, err = http.NewRequestWithContext(ctx, http.MethodPost, "", bytes.NewBuffer(body))
+			if err != nil {
+				logger.Errorf("[Azure CNS] Error received while creating http POST request for nc %v", ncsToBeAdded[ncid])
+			}
+			req.Header.Set(common.ContentType, common.JsonContent)
+
+			w := httptest.NewRecorder()
+			service.createOrUpdateNetworkContainer(w, req)
+			result := w.Result()
+			if result.StatusCode == http.StatusOK {
+				var resp cns.CreateNetworkContainerResponse
+				if err = json.Unmarshal(w.Body.Bytes(), &resp); err == nil && resp.Response.ReturnCode == types.Success {
+					service.Lock()
+					ncstatus := service.state.ContainerStatus[ncid]
+					ncstatus.VfpUpdateComplete = !waitingForUpdate
+					service.state.ContainerStatus[ncid] = ncstatus
+					service.Unlock()
+				}
+			}
+			result.Body.Close()
 		}
 	}
 
@@ -140,10 +154,7 @@ func (service *HTTPRestService) SyncNodeStatus(dncEP, infraVnet, nodeID string, 
 		} else {
 			logger.Errorf("[Azure-CNS] Failed to delete NC request to sync state: %s", err.Error())
 		}
-
-		ncVersionURLs.Delete(nc)
 	}
-
 	return
 }
 

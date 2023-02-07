@@ -78,6 +78,9 @@ const (
 	// 720 * acn.FiveSeconds sec sleeps = 1Hr
 	maxRetryNodeRegister = 720
 	initCNSInitalDelay   = 10 * time.Second
+
+	// envVarEnableCNIConflistGeneration enables cni conflist generation if set (value doesn't matter)
+	envVarEnableCNIConflistGeneration = "CNS_ENABLE_CNI_CONFLIST_GENERATION"
 )
 
 type cniConflistScenario string
@@ -287,6 +290,20 @@ var args = acn.ArgumentList{
 		Type:         "bool",
 		DefaultValue: false,
 	},
+	{
+		Name:         acn.OptCNIConflistFilepath,
+		Shorthand:    acn.OptCNIConflistFilepathAlias,
+		Description:  "Filepath to write CNI conflist when CNI conflist generation is enabled",
+		Type:         "string",
+		DefaultValue: "",
+	},
+	{
+		Name:         acn.OptCNIConflistScenario,
+		Shorthand:    acn.OptCNIConflistScenarioAlias,
+		Description:  "Scenario to generate CNI conflist for",
+		Type:         "string",
+		DefaultValue: "",
+	},
 }
 
 // init() is executed before main() whenever this package is imported
@@ -446,6 +463,8 @@ func main() {
 	clientDebugArg := acn.GetArg(acn.OptDebugArg).(string)
 	cmdLineConfigPath := acn.GetArg(acn.OptCNSConfigPath).(string)
 	telemetryDaemonEnabled := acn.GetArg(acn.OptTelemetryService).(bool)
+	cniConflistFilepathArg := acn.GetArg(acn.OptCNIConflistFilepath).(string)
+	cniConflistScenarioArg := acn.GetArg(acn.OptCNIConflistScenario).(string)
 
 	if vers {
 		printVersion()
@@ -489,15 +508,28 @@ func main() {
 	configuration.SetCNSConfigDefaults(cnsconfig)
 	logger.Printf("[Azure CNS] Read config :%+v", cnsconfig)
 
+	_, envEnableConflistGeneration := os.LookupEnv(envVarEnableCNIConflistGeneration)
+
 	var conflistGenerator restserver.CNIConflistGenerator
-	if cnsconfig.EnableCNIConflistGeneration {
-		writer, newWriterErr := fs.NewAtomicWriter(cnsconfig.CNIConflistFilepath)
+	if cnsconfig.EnableCNIConflistGeneration || envEnableConflistGeneration {
+		conflistFilepath := cnsconfig.CNIConflistFilepath
+		if cniConflistFilepathArg != "" {
+			// allow the filepath to get overidden by command line arg
+			conflistFilepath = cniConflistFilepathArg
+		}
+		writer, newWriterErr := fs.NewAtomicWriter(conflistFilepath)
 		if newWriterErr != nil {
 			logger.Errorf("unable to create atomic writer to generate cni conflist: %v", newWriterErr)
 			os.Exit(1)
 		}
 
-		switch scenario := cniConflistScenario(cnsconfig.CNIConflistScenario); scenario {
+		// allow the scenario to get overridden by command line arg
+		scenarioString := cnsconfig.CNIConflistScenario
+		if cniConflistScenarioArg != "" {
+			scenarioString = cniConflistScenarioArg
+		}
+
+		switch scenario := cniConflistScenario(scenarioString); scenario {
 		case scenarioV4Overlay:
 			conflistGenerator = &cniconflist.V4OverlayGenerator{Writer: writer}
 		default:
