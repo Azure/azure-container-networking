@@ -1,19 +1,11 @@
-pr:
-  branches:
-    include:
-      - master
-  paths:
-    exclude:
-    - ".devcontainer"
-    - ".hooks"
-    - ".vscode"
-    - ".github"
-    - docs
+pr: none
 
 trigger:
+  branches:
+    include:
+    - "gh-readonly-queue/*"
   paths:
     exclude:
-    - docs
     - "zapai/*"
     - "azure-ipam/*"
     - "dropgz/*"

@@ -1,6 +1,7 @@
 name: "CodeQL"
 on:
-  workflow_dispatch:
+  merge_group:
+    types: [ checks_requested ]
   push:
     branches: [ master ]
   pull_request:
@@ -10,6 +11,7 @@ on:
       - reopened
       - synchronize
       - ready_for_review
+  workflow_dispatch:
 jobs:
   analyze:
     name: Analyze

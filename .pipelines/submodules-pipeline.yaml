@@ -1,16 +1,9 @@
-pr:
-  branches:
-    include:
-      - master
-  paths:
-    include:
-    - "zapai/*"
-    - "azure-ipam/*"
-    - "dropgz/*"
-    exclude:
-    - "*"
+pr: none
 
 trigger:
+  branches:
+    include:
+    - "gh-readonly-queue/*"
   paths:
     include:
     - "zapai/*"
