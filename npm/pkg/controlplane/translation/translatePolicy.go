@@ -32,6 +32,8 @@ var (
 	ErrInvalidMatchExpressionValues = errors.New(
 		"matchExpression label values must be an empty string or consist of alphanumeric characters, '-', '_' or '.', and must start and end with an alphanumeric character",
 	)
+	// ErrUnsupportedIPAddress is returned when an unsupported IP address, such as IPV6, is used
+	ErrUnsupportedIPAddress = errors.New("unsupported IP address")
 )
 
 type podSelectorResult struct {
@@ -223,6 +225,10 @@ func ipBlockRule(policyName, ns string, direction policies.Direction, matchType 
 	ipBlockRule *networkingv1.IPBlock) (*ipsets.TranslatedIPSet, policies.SetInfo, error) { //nolint // gofumpt
 	if ipBlockRule == nil || ipBlockRule.CIDR == "" {
 		return nil, policies.SetInfo{}, nil
+	}
+
+	if !util.IsIPV4(ipBlockRule.CIDR) {
+		return nil, policies.SetInfo{}, ErrUnsupportedIPAddress
 	}
 
 	ipBlockIPSet, err := ipBlockIPSet(policyName, ns, direction, ipBlockSetIndex, ipBlockPeerIndex, ipBlockRule)
@@ -563,8 +569,8 @@ func egressPolicy(npmNetPol *policies.NPMNetworkPolicy, netPolName string, egres
 	return nil
 }
 
-// TranslatePolicy traslates networkpolicy object to NPMNetworkPolicy object
-// and return the NPMNetworkPolicy object.
+// TranslatePolicy translates networkpolicy object to NPMNetworkPolicy object
+// and returns the NPMNetworkPolicy object.
 func TranslatePolicy(npObj *networkingv1.NetworkPolicy) (*policies.NPMNetworkPolicy, error) {
 	netPolName := npObj.Name
 	npmNetPol := policies.NewNPMNetworkPolicy(netPolName, npObj.Namespace)
