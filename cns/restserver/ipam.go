@@ -608,6 +608,7 @@ func (service *HTTPRestService) AssignAvailableIPConfigs(podInfo cns.PodInfo) ([
 				break
 			}
 			ncMap[ipState.NCID] = ipState
+			// return once we have found one IP per NC
 			if len(ncMap) == len(service.state.ContainerStatus) {
 				return podIPInfo, nil
 			}
@@ -639,4 +640,5 @@ func requestIPConfigHelper(service *HTTPRestService, req cns.IPConfigRequest) ([
 	// return any free IPConfig
 	return service.AssignAvailableIPConfigs(podInfo)
 	// TODO: create a check for returning a slice of PodIpInfo that is not full (i.e. slice of size two with only 1 IP)
+	// This is to ensure that we don't end up having IPs listed as assigned in IPAM that aren't actually being used by the container.
 }

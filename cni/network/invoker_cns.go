@@ -236,8 +236,9 @@ func (invoker *CNSIPAMInvoker) Delete(addresses []*net.IPNet, nwCfg *cni.Network
 	}
 
 	if len(addresses) > 0 {
-		for i, IPaddress := range addresses {
-			req.DesiredIPAddresses[i] = IPaddress.IP.String()
+		req.DesiredIPAddresses = make([]string, 0)
+		for _, IPaddress := range addresses {
+			req.DesiredIPAddresses = append(req.DesiredIPAddresses, IPaddress.IP.String())
 		}
 	} else {
 		log.Printf("CNS invoker called with empty IP address")
