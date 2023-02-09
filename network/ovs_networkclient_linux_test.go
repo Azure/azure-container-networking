@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/Azure/azure-container-networking/netlink"
+	"github.com/Azure/azure-container-networking/network/networkutils"
 	"github.com/Azure/azure-container-networking/ovsctl"
 	"github.com/Azure/azure-container-networking/platform"
 )
@@ -30,23 +31,35 @@ func TestAddRoutes(t *testing.T) {
 
 func TestCreateBridge(t *testing.T) {
 	ovsctlClient := ovsctl.NewMockOvsctl(false, "", "")
+	ovsConfigFile := "ovsconfigfile"
 	f, err := os.Create(ovsConfigFile)
 	if err != nil {
 		t.Errorf("Unable to create %v before test: %v", ovsConfigFile, err)
 		return
 	}
+	defer os.Remove(ovsConfigFile)
 	defer f.Close()
+
 	if _, err := f.WriteString("FORCE_COREFILES=yes"); err != nil {
 		t.Errorf("Unable to write to file %v: %v", ovsConfigFile, err)
 	}
 
-	ovsClient := NewOVSClient(bridgeName, hostIntf, ovsctlClient,
-		netlink.NewMockNetlink(false, ""), platform.NewMockExecClient(false))
+	nl := netlink.NewMockNetlink(false, "")
+	pl := platform.NewMockExecClient(false)
+
+	ovsClient := &OVSNetworkClient{
+		configFile:        ovsConfigFile,
+		bridgeName:        bridgeName,
+		hostInterfaceName: hostIntf,
+		ovsctlClient:      ovsctlClient,
+		netlink:           nl,
+		plClient:          pl,
+		nuClient:          networkutils.NewNetworkUtils(nl, pl),
+	}
+
 	if err := ovsClient.CreateBridge(); err != nil {
 		t.Errorf("Error creating OVS bridge: %v", err)
 	}
-
-	os.Remove(ovsConfigFile)
 }
 
 func TestDeleteBridge(t *testing.T) {

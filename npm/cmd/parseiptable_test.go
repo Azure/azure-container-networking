@@ -1,3 +1,6 @@
+//go:build linux && integration
+// +build linux,integration
+
 package main
 
 import "testing"

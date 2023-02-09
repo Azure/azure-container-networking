@@ -10,11 +10,12 @@ import (
 )
 
 const (
-	fdTemplate                  = "/var/run/%s.sock"
 	TelemetryServiceProcessName = "azure-vnet-telemetry"
 	CniInstallDir               = "/opt/cni/bin"
 	metadataFile                = "/tmp/azuremetadata.json"
 )
+
+var fdTemplate = "/var/run/%s.sock"
 
 // Dial - try to connect to/create a socket with 'name'
 func (tb *TelemetryBuffer) Dial(name string) (err error) {

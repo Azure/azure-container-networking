@@ -24,6 +24,7 @@ func newErrorOVSNetworkClient(errStr string) error {
 }
 
 type OVSNetworkClient struct {
+	configFile        string
 	bridgeName        string
 	hostInterfaceName string
 	ovsctlClient      ovsctl.OvsInterface
@@ -33,12 +34,12 @@ type OVSNetworkClient struct {
 }
 
 const (
-	ovsConfigFile = "/etc/default/openvswitch-switch"
-	ovsOpt        = "OVS_CTL_OPTS='--delete-bridges'"
+	defaultOVSConfigFile = "/etc/default/openvswitch-switch"
+	ovsOpt               = "OVS_CTL_OPTS='--delete-bridges'"
 )
 
-func updateOVSConfig(option string) error {
-	f, err := os.OpenFile(ovsConfigFile, os.O_APPEND|os.O_RDWR, 0o666)
+func (client OVSNetworkClient) updateOVSConfig(option string) error {
+	f, err := os.OpenFile(client.configFile, os.O_APPEND|os.O_RDWR, 0o666)
 	if err != nil {
 		log.Printf("Error while opening ovs config %v", err)
 		return err
@@ -76,6 +77,7 @@ func NewOVSClient(bridgeName, hostInterfaceName string, ovsctlClient ovsctl.OvsI
 	nl netlink.NetlinkInterface, plc platform.ExecClient,
 ) *OVSNetworkClient {
 	ovsClient := &OVSNetworkClient{
+		configFile:        defaultOVSConfigFile,
 		bridgeName:        bridgeName,
 		hostInterfaceName: hostInterfaceName,
 		ovsctlClient:      ovsctlClient,
@@ -104,7 +106,7 @@ func (client *OVSNetworkClient) CreateBridge() error {
 		return err
 	}
 
-	return updateOVSConfig(ovsOpt)
+	return client.updateOVSConfig(ovsOpt)
 }
 
 func (client *OVSNetworkClient) DeleteBridge() error {

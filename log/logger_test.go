@@ -44,7 +44,7 @@ func TestNewLoggerError(t *testing.T) {
 
 // Tests that the log file rotates when size limit is reached.
 func TestLogFileRotatesWhenSizeLimitIsReached(t *testing.T) {
-	logDirectory := "" // This sets the current location for logs
+	logDirectory := "./" // This sets the current location for logs
 	l := NewLogger(logName, LevelInfo, TargetLogfile, logDirectory)
 	if l == nil {
 		t.Fatalf("Failed to create logger.\n")
@@ -81,7 +81,7 @@ func TestLogFileRotatesWhenSizeLimitIsReached(t *testing.T) {
 }
 
 func TestPid(t *testing.T) {
-	logDirectory := "" // This sets the current location for logs
+	logDirectory := "./" // This sets the current location for logs
 	l := NewLogger(logName, LevelInfo, TargetLogfile, logDirectory)
 	if l == nil {
 		t.Fatalf("Failed to create logger.")

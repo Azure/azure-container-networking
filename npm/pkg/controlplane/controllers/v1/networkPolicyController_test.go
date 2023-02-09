@@ -1,5 +1,6 @@
-// Copyright 2018 Microsoft. All rights reserved.
-// MIT License
+//go:build integration
+// +build integration
+
 package controllers
 
 import (

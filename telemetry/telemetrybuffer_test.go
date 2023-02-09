@@ -11,6 +11,7 @@ const telemetryConfig = "azure-vnet-telemetry.config"
 
 func createTBServer(t *testing.T) (*TelemetryBuffer, func()) {
 	tbServer := NewTelemetryBuffer()
+	fdTemplate = "%s"
 	err := tbServer.StartServer()
 	require.NoError(t, err)
 

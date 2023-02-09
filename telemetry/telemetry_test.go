@@ -1,5 +1,5 @@
-// Copyright 2017 Microsoft. All rights reserved.
-// MIT License
+//go:build integration
+// +build integration
 
 package telemetry
 
