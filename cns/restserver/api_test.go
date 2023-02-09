@@ -431,6 +431,30 @@ func TestGetNetworkContainerByOrchestratorContext(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	mnma := &fakes.NMAgentClientFake{
+		PutNetworkContainerF: func(_ context.Context, _ *nmagent.PutNetworkContainerRequest) error {
+			return nil
+		},
+		JoinNetworkF: func(_ context.Context, _ nmagent.JoinNetworkRequest) error {
+			return nil
+		},
+	}
+
+	cleanup := setMockNMAgent(svc, mnma)
+	defer cleanup()
+
+	mnma.GetNCVersionListF = func(_ context.Context) (nmagent.NCVersionList, error) {
+		return nmagent.NCVersionList{
+			Containers: []nmagent.NCVersion{
+				{
+					// Must set it as params.ncID without cns.SwiftPrefix to mock real nmagent nc format.
+					NetworkContainerID: params.ncID,
+					Version:            params.ncVersion,
+				},
+			},
+		}, nil
+	}
+
 	fmt.Println("Now calling getNetworkContainerByContext")
 	resp, err := getNetworkContainerByContext(params)
 	if err != nil {
@@ -554,7 +578,8 @@ func TestGetNetworkContainerVersionStatus(t *testing.T) {
 		return nmagent.NCVersionList{
 			Containers: []nmagent.NCVersion{
 				{
-					NetworkContainerID: cns.SwiftPrefix + params.ncID,
+					// Must set it as params.ncID without cns.SwiftPrefix to mock real nmagent nc format.
+					NetworkContainerID: params.ncID,
 					Version:            params.ncVersion,
 				},
 			},
@@ -596,7 +621,8 @@ func TestGetNetworkContainerVersionStatus(t *testing.T) {
 		return nmagent.NCVersionList{
 			Containers: []nmagent.NCVersion{
 				{
-					NetworkContainerID: cns.SwiftPrefix + params.ncID,
+					// Must set it as params.ncID without cns.SwiftPrefix to mock real nmagent nc format.
+					NetworkContainerID: params.ncID,
 					Version:            "0",
 				},
 			},

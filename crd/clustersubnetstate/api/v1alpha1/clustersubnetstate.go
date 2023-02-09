@@ -16,7 +16,7 @@ import (
 // +kubebuilder:resource:scope=Namespaced
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="Exhausted",type=string,JSONPath=`.status.exhausted`
-// +kubebuilder:printcolumn:name="Updated",type=string,JSONPath=`.spec.timestamp`
+// +kubebuilder:printcolumn:name="Updated",type=string,JSONPath=`.status.timestamp`
 type ClusterSubnetState struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
