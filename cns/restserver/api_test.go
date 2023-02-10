@@ -847,6 +847,75 @@ func TestPublishNCBadBody(t *testing.T) {
 	}
 }
 
+func TestPublishNC401(t *testing.T) {
+	mnma := &fakes.NMAgentClientFake{
+		PutNetworkContainerF: func(_ context.Context, _ *nmagent.PutNetworkContainerRequest) error {
+			return nmagent.Error{
+				Code:   http.StatusUnauthorized,
+				Source: "nmagent",
+			}
+		},
+		JoinNetworkF: func(_ context.Context, _ nmagent.JoinNetworkRequest) error {
+			return nil
+		},
+	}
+
+	cleanup := setMockNMAgent(svc, mnma)
+	t.Cleanup(cleanup)
+
+	joinNetworkURL := "http://" + nmagentEndpoint + "/dummyVnetURL"
+
+	createNetworkContainerURL := "http://" + nmagentEndpoint +
+		"/machine/plugins/?comp=nmagent&type=NetworkManagement/interfaces/dummyIntf/networkContainers/dummyNCURL/authenticationToken/dummyT/api-version/1"
+	publishNCRequest := &cns.PublishNetworkContainerRequest{
+		NetworkID:                         "foo",
+		NetworkContainerID:                "bar",
+		JoinNetworkURL:                    joinNetworkURL,
+		CreateNetworkContainerURL:         createNetworkContainerURL,
+		CreateNetworkContainerRequestBody: []byte("{\"version\":\"0\"}"),
+	}
+
+	var body bytes.Buffer
+	err := json.NewEncoder(&body).Encode(publishNCRequest)
+	if err != nil {
+		t.Fatal("error encoding json: err:", err)
+	}
+
+	//nolint:noctx // also just a test
+	req, err := http.NewRequest(http.MethodPost, cns.PublishNetworkContainer, &body)
+	if err != nil {
+		t.Fatal("error creating new HTTP request: err:", err)
+	}
+
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	expStatus := http.StatusOK
+	gotStatus := w.Code
+	if expStatus != gotStatus {
+		t.Error("unexpected http status code: exp:", expStatus, "got:", gotStatus)
+	}
+
+	var resp cns.PublishNetworkContainerResponse
+	//nolint:bodyclose // unnnecessary in a test
+	err = json.NewDecoder(w.Result().Body).Decode(&resp)
+	if err != nil {
+		t.Fatal("unexpected error decoding JSON: err:", err)
+	}
+
+	expCode := types.NetworkContainerPublishFailed
+	gotCode := resp.Response.ReturnCode
+	if expCode != gotCode {
+		t.Error("unexpected return code: exp:", expCode, "got:", gotCode)
+	}
+
+	expBodyStatus := http.StatusUnauthorized
+	gotBodyStatus := resp.PublishStatusCode
+	if expBodyStatus != gotBodyStatus {
+		t.Error("unexpected publish body status: exp:", expBodyStatus, "got:", gotBodyStatus)
+	}
+}
+
 func publishNCViaCNS(
 	networkID,
 	networkContainerID,
