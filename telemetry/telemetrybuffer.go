@@ -328,32 +328,42 @@ func (tb *TelemetryBuffer) ConnectCNIToTelemetryService(telemetryNumRetries, tel
 	path, dir := getTelemetryServiceDirectory()
 	args := []string{"-d", dir}
 	for attempt := 0; attempt < 2; attempt++ {
-		if err := tb.Connect(); err != nil {
-			log.Logf("Connection to telemetry socket failed: %v", err)
-			if runtime.GOOS == "windows" {
-				if err = netPlugin.LockKeyValueStore(); err != nil {
-					log.Logf("lock acquire error: %v", err)
-					return errors.Wrap(err, "lock acquire error")
-				}
+		if err := tb.ConnectCNIToTelemetryServiceAttempt(telemetryNumRetries, telemetryWaitTimeInMilliseconds, netPlugin, path, args); err != nil {
+			return errors.Wrap(err, "lock acquire error")
+		}
+	}
+	return nil
+}
+
+// This function is getting called from ConnectCNIToTelemetryService() in each attempt inside for loop
+// This function has been created to be able to add defer within the for loop
+func (tb *TelemetryBuffer) ConnectCNIToTelemetryServiceAttempt(telemetryNumRetries, telemetryWaitTimeInMilliseconds int, netPlugin *cni.Plugin, path string, args []string) error {
+	if err := tb.Connect(); err != nil {
+		log.Logf("Connection to telemetry socket failed: %v", err)
+		if runtime.GOOS == "windows" {
+			if err = netPlugin.LockKeyValueStore(); err != nil {
+				log.Logf("lock acquire error: %v", err)
+				return errors.Wrap(err, "lock acquire error")
 			}
-			if err = tb.Cleanup(FdName); err != nil {
-				return errors.Wrap(err, "cleanup failed")
-			}
-			if err = StartTelemetryService(path, args); err != nil {
-				return errors.Wrap(err, "StartTelemetryService failed")
-			}
-			WaitForTelemetrySocket(telemetryNumRetries, time.Duration(telemetryWaitTimeInMilliseconds))
+		}
+		defer func() {
 			if runtime.GOOS == "windows" {
 				if err = netPlugin.UnLockKeyValueStore(); err != nil {
 					log.Logf("failed to relinquish lock error: %v", err)
-					return errors.Wrap(err, "failed to relinquish lock error")
 				}
 			}
-		} else {
-			tb.Connected = true
-			log.Logf("Connected to telemetry service")
-			return nil
+		}()
+		if err = tb.Cleanup(FdName); err != nil {
+			return errors.Wrap(err, "cleanup failed")
 		}
+		if err = StartTelemetryService(path, args); err != nil {
+			return errors.Wrap(err, "StartTelemetryService failed")
+		}
+		WaitForTelemetrySocket(telemetryNumRetries, time.Duration(telemetryWaitTimeInMilliseconds))
+	} else {
+		tb.Connected = true
+		log.Logf("Connected to telemetry service")
+		return nil
 	}
 	return nil
 }
