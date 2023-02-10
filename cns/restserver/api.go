@@ -1124,7 +1124,7 @@ func getAuthTokenAndInterfaceIDFromNcURL(networkContainerURL string) (*cns.Netwo
 }
 
 //nolint:revive // the previous receiver naming "service" is bad, this is correct:
-func (h *HTTPRestService) doPublish(ctx context.Context, req cns.PublishNetworkContainerRequest, ncParameters *cns.NetworkContainerParameters) (string, types.ResponseCode, int) {
+func (h *HTTPRestService) doPublish(ctx context.Context, req cns.PublishNetworkContainerRequest, ncParameters *cns.NetworkContainerParameters) (msg string, code types.ResponseCode, status int) {
 	innerReqBytes := req.CreateNetworkContainerRequestBody
 
 	var innerReq nmagent.PutNetworkContainerRequest
