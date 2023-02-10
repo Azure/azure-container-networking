@@ -328,7 +328,7 @@ func (tb *TelemetryBuffer) ConnectCNIToTelemetryService(telemetryNumRetries, tel
 	path, dir := getTelemetryServiceDirectory()
 	args := []string{"-d", dir}
 	for attempt := 0; attempt < 2; attempt++ {
-		if err := tb.ConnectCNIToTelemetryServiceAttempt(telemetryNumRetries, telemetryWaitTimeInMilliseconds, netPlugin, path, args); err != nil {
+		if err := tb.startAndConnectTelemetryService(telemetryNumRetries, telemetryWaitTimeInMilliseconds, netPlugin, path, args); err != nil {
 			return errors.Wrap(err, "lock acquire error")
 		}
 	}
@@ -337,7 +337,7 @@ func (tb *TelemetryBuffer) ConnectCNIToTelemetryService(telemetryNumRetries, tel
 
 // This function is getting called from ConnectCNIToTelemetryService() in each attempt inside for loop
 // This function has been created to be able to add defer within the for loop
-func (tb *TelemetryBuffer) ConnectCNIToTelemetryServiceAttempt(telemetryNumRetries, telemetryWaitTimeInMilliseconds int, netPlugin *cni.Plugin, path string, args []string) error {
+func (tb *TelemetryBuffer) startAndConnectTelemetryService(telemetryNumRetries, telemetryWaitTimeInMilliseconds int, netPlugin *cni.Plugin, path string, args []string) error {
 	if err := tb.Connect(); err != nil {
 		log.Logf("Connection to telemetry socket failed: %v", err)
 		if runtime.GOOS == "windows" {
@@ -345,14 +345,12 @@ func (tb *TelemetryBuffer) ConnectCNIToTelemetryServiceAttempt(telemetryNumRetri
 				log.Logf("lock acquire error: %v", err)
 				return errors.Wrap(err, "lock acquire error")
 			}
-		}
-		defer func() {
-			if runtime.GOOS == "windows" {
+			defer func() {
 				if err = netPlugin.UnLockKeyValueStore(); err != nil {
 					log.Logf("failed to relinquish lock error: %v", err)
 				}
-			}
-		}()
+			}()
+		}
 		if err = tb.Cleanup(FdName); err != nil {
 			return errors.Wrap(err, "cleanup failed")
 		}
