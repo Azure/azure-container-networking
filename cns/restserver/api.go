@@ -1346,6 +1346,10 @@ func (service *HTTPRestService) unpublishNetworkContainer(w http.ResponseWriter,
 			if err != nil {
 				returnMessage = fmt.Sprintf("Failed to unpublish Network Container: %s", req.NetworkContainerID)
 				returnCode = types.NetworkContainerUnpublishFailed
+				var nmaErr nmagent.Error
+				if errors.As(err, &nmaErr) {
+					unpublishStatusCode = nmaErr.StatusCode()
+				}
 				logger.Errorf("[Azure-CNS] %s", returnMessage)
 			}
 		}

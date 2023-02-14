@@ -1100,6 +1100,84 @@ func TestUnpublishNCViaCNS(t *testing.T) {
 	}
 }
 
+func TestUnpublishNCViaCNS401(t *testing.T) {
+	mnma := &fakes.NMAgentClientFake{
+		DeleteNetworkContainerF: func(_ context.Context, _ nmagent.DeleteContainerRequest) error {
+			// simulate a 401 from just Delete
+			return nmagent.Error{
+				Code:   http.StatusUnauthorized,
+				Source: "nmagent",
+			}
+		},
+		JoinNetworkF: func(_ context.Context, _ nmagent.JoinNetworkRequest) error {
+			return nil
+		},
+	}
+
+	cleanup := setMockNMAgent(svc, mnma)
+	t.Cleanup(cleanup)
+
+	deleteNetworkContainerURL := "http://" + nmagentEndpoint +
+		"/machine/plugins/?comp=nmagent&type=NetworkManagement/interfaces/dummyIntf/networkContainers/dummyNCURL/authenticationToken/dummyT/api-version/1/method/DELETE"
+
+	networkContainerID := "ethWebApp"
+	networkID := "vnet1"
+
+	joinNetworkURL := "http://" + nmagentEndpoint + "/dummyVnetURL"
+
+	unpublishNCRequest := &cns.UnpublishNetworkContainerRequest{
+		NetworkID:                 networkID,
+		NetworkContainerID:        networkContainerID,
+		JoinNetworkURL:            joinNetworkURL,
+		DeleteNetworkContainerURL: deleteNetworkContainerURL,
+	}
+
+	var body bytes.Buffer
+	json.NewEncoder(&body).Encode(unpublishNCRequest)
+	req, err := http.NewRequest(http.MethodPost, cns.UnpublishNetworkContainer, &body)
+	if err != nil {
+		t.Fatal("error submitting unpublish request: err:", err)
+	}
+
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	var resp cns.UnpublishNetworkContainerResponse
+	err = decodeResponse(w, &resp)
+	if err != nil {
+		t.Fatal("error decoding json: err:", err)
+	}
+
+	expCode := types.NetworkContainerUnpublishFailed
+	if gotCode := resp.Response.ReturnCode; gotCode != expCode {
+		t.Error("unexpected return code: got:", gotCode, "exp:", expCode)
+	}
+
+	gotStatus := resp.UnpublishStatusCode
+	expStatus := http.StatusUnauthorized
+	if gotStatus != expStatus {
+		t.Error("unexpected http status during unpublish: got:", gotStatus, "exp:", expStatus)
+	}
+
+	nmaBody := struct {
+		StatusCode string `json:"httpStatusCode"`
+	}{}
+	err = json.Unmarshal(resp.UnpublishResponseBody, &nmaBody)
+	if err != nil {
+		t.Fatal("error decoding UnpublishResponseBody as JSON: err:", err)
+	}
+
+	gotBodyStatus, err := strconv.Atoi(nmaBody.StatusCode)
+	if err != nil {
+		t.Fatal("error parsing NMAgent body status code as an integer: err:", err)
+	}
+
+	expBodyStatus := http.StatusUnauthorized
+	if gotBodyStatus != expBodyStatus {
+		t.Errorf("mismatch between expected NMAgent status code (%d) and NMAgent body status code (%d)\n", expBodyStatus, gotBodyStatus)
+	}
+}
+
 func unpublishNCViaCNS(networkID, networkContainerID, deleteNetworkContainerURL string) error {
 	joinNetworkURL := "http://" + nmagentEndpoint + "/dummyVnetURL"
 
