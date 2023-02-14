@@ -1133,7 +1133,12 @@ func TestUnpublishNCViaCNS401(t *testing.T) {
 	}
 
 	var body bytes.Buffer
-	json.NewEncoder(&body).Encode(unpublishNCRequest)
+	err := json.NewEncoder(&body).Encode(unpublishNCRequest)
+	if err != nil {
+		t.Fatal("error encoding unpublish request: err:", err)
+	}
+
+	//nolint:noctx // not important in a test
 	req, err := http.NewRequest(http.MethodPost, cns.UnpublishNetworkContainer, &body)
 	if err != nil {
 		t.Fatal("error submitting unpublish request: err:", err)
