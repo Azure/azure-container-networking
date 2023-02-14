@@ -475,7 +475,7 @@ func (g *GetHomeAzRequest) Method() string {
 
 // Path returns the necessary URI path for invoking a GetHomeAz request.
 func (g *GetHomeAzRequest) Path() string {
-	return "/GetHomeAz"
+	return "/GetHomeAz/api-version/1"
 }
 
 // Validate is a no-op method because GetHomeAzRequest have no parameters,
