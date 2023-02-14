@@ -914,6 +914,24 @@ func TestPublishNC401(t *testing.T) {
 	if expBodyStatus != gotBodyStatus {
 		t.Error("unexpected publish body status: exp:", expBodyStatus, "got:", gotBodyStatus)
 	}
+
+	// ensure that the PublishResponseBody is JSON
+	pubResp := make(map[string]any)
+	err = json.Unmarshal(resp.PublishResponseBody, &pubResp)
+	if err != nil {
+		t.Fatal("unexpected error unmarshaling PublishResponseBody: err:", err)
+	}
+
+	// ensure that the PublishResponseBody also contains the embedded status from
+	// NMAgent
+	expStatusStr := strconv.Itoa(expBodyStatus)
+	if gotStatusStr, ok := pubResp["httpStatusCode"]; ok {
+		if gotStatusStr != expStatusStr {
+			t.Fatalf("expected PublishResponseBody's httpStatusCode to be %q, but was %q\n", expStatusStr, gotStatusStr)
+		}
+	} else {
+		t.Fatal("PublishResponseBody did not contain httpStatusCode")
+	}
 }
 
 func publishNCViaCNS(
