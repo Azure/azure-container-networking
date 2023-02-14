@@ -20,7 +20,6 @@ import (
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/platform"
-	"github.com/pkg/errors"
 )
 
 // TelemetryConfig - telemetry config read by telemetry service
@@ -328,34 +327,37 @@ func (tb *TelemetryBuffer) ConnectCNIToTelemetryService(telemetryNumRetries, tel
 	path, dir := getTelemetryServiceDirectory()
 	args := []string{"-d", dir}
 	for attempt := 0; attempt < 2; attempt++ {
-		if err := tb.Connect(); err != nil {
-			log.Logf("Connection to telemetry socket failed: %v", err)
-			if runtime.GOOS == "windows" {
-				if err = netPlugin.LockKeyValueStore(); err != nil {
-					log.Logf("lock acquire error: %v", err)
-					return errors.Wrap(err, "lock acquire error")
-				}
-			}
-			if err = tb.Cleanup(FdName); err != nil {
-				return errors.Wrap(err, "cleanup failed")
-			}
-			if err = StartTelemetryService(path, args); err != nil {
-				return errors.Wrap(err, "StartTelemetryService failed")
-			}
-			WaitForTelemetrySocket(telemetryNumRetries, time.Duration(telemetryWaitTimeInMilliseconds))
-			if runtime.GOOS == "windows" {
-				if err = netPlugin.UnLockKeyValueStore(); err != nil {
-					log.Logf("failed to relinquish lock error: %v", err)
-					return errors.Wrap(err, "failed to relinquish lock error")
-				}
-			}
-		} else {
-			tb.Connected = true
-			log.Logf("Connected to telemetry service")
-			return nil
-		}
+		tb.startAndConnectTelemetryService(telemetryNumRetries, telemetryWaitTimeInMilliseconds, netPlugin, path, args)
 	}
 	return nil
+}
+
+// This function is getting called from ConnectCNIToTelemetryService() in each attempt inside for loop
+// This function has been created to be able to add defer within the for loop
+func (tb *TelemetryBuffer) startAndConnectTelemetryService(telemetryNumRetries, telemetryWaitTimeInMilliseconds int, netPlugin *cni.Plugin, path string, args []string) {
+	if err := tb.Connect(); err != nil {
+		log.Logf("Connection to telemetry socket failed: %v", err)
+		if runtime.GOOS == "windows" {
+			if err = netPlugin.LockKeyValueStore(); err != nil {
+				log.Logf("lock acquire error: %v", err)
+			}
+			defer func() {
+				if err = netPlugin.UnLockKeyValueStore(); err != nil {
+					log.Logf("failed to relinquish lock error: %v", err)
+				}
+			}()
+		}
+		if err = tb.Cleanup(FdName); err != nil {
+			log.Logf("cleanup failed: %v", err)
+		}
+		if err = StartTelemetryService(path, args); err != nil {
+			log.Logf("StartTelemetryService failed: %v", err)
+		}
+		WaitForTelemetrySocket(telemetryNumRetries, time.Duration(telemetryWaitTimeInMilliseconds))
+	} else {
+		tb.Connected = true
+		log.Logf("Connected to telemetry service")
+	}
 }
 
 func getTelemetryServiceDirectory() (path string, dir string) {
