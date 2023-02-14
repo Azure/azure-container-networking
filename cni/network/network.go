@@ -987,7 +987,7 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 		}
 
 		// schedule send metric before attempting delete
-		defer sendMetricFunc()
+		defer sendMetricFunc() //nolint:gocritic
 		logAndSendEvent(plugin, fmt.Sprintf("Deleting endpoint:%v", endpointID))
 		// Delete the endpoint.
 		if err = plugin.nm.DeleteEndpoint(networkID, endpointID); err != nil {
