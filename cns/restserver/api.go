@@ -1124,7 +1124,7 @@ func getAuthTokenAndInterfaceIDFromNcURL(networkContainerURL string) (*cns.Netwo
 }
 
 //nolint:revive // the previous receiver naming "service" is bad, this is correct:
-func (h *HTTPRestService) doPublish(ctx context.Context, req cns.PublishNetworkContainerRequest, ncParameters *cns.NetworkContainerParameters) (string, types.ResponseCode) {
+func (h *HTTPRestService) doPublish(ctx context.Context, req cns.PublishNetworkContainerRequest, ncParameters *cns.NetworkContainerParameters) (msg string, code types.ResponseCode, status int) {
 	innerReqBytes := req.CreateNetworkContainerRequestBody
 
 	var innerReq nmagent.PutNetworkContainerRequest
@@ -1133,7 +1133,7 @@ func (h *HTTPRestService) doPublish(ctx context.Context, req cns.PublishNetworkC
 		returnMessage := fmt.Sprintf("Failed to unmarshal embedded NC publish request for NC %s, with err: %v", req.NetworkContainerID, err)
 		returnCode := types.NetworkContainerPublishFailed
 		logger.Errorf("[Azure-CNS] %s", returnMessage)
-		return returnMessage, returnCode
+		return returnMessage, returnCode, http.StatusInternalServerError
 	}
 
 	innerReq.AuthenticationToken = ncParameters.AuthToken
@@ -1146,10 +1146,14 @@ func (h *HTTPRestService) doPublish(ctx context.Context, req cns.PublishNetworkC
 		returnMessage := fmt.Sprintf("Failed to publish Network Container %s in put Network Container call, with err: %v", req.NetworkContainerID, err)
 		returnCode := types.NetworkContainerPublishFailed
 		logger.Errorf("[Azure-CNS] %s", returnMessage)
-		return returnMessage, returnCode
+		var nmaErr nmagent.Error
+		if errors.As(err, &nmaErr) {
+			return returnMessage, returnCode, nmaErr.StatusCode()
+		}
+		return returnMessage, returnCode, http.StatusInternalServerError
 	}
 
-	return "", types.Success
+	return "", types.Success, http.StatusOK
 }
 
 // Publish Network Container by calling nmagent
@@ -1231,7 +1235,7 @@ func (service *HTTPRestService) publishNetworkContainer(w http.ResponseWriter, r
 
 		if isNetworkJoined {
 			// Publish Network Container
-			returnMessage, returnCode = service.doPublish(ctx, req, ncParameters)
+			returnMessage, returnCode, publishStatusCode = service.doPublish(ctx, req, ncParameters)
 		}
 
 	default:
@@ -1342,6 +1346,10 @@ func (service *HTTPRestService) unpublishNetworkContainer(w http.ResponseWriter,
 			if err != nil {
 				returnMessage = fmt.Sprintf("Failed to unpublish Network Container: %s", req.NetworkContainerID)
 				returnCode = types.NetworkContainerUnpublishFailed
+				var nmaErr nmagent.Error
+				if errors.As(err, &nmaErr) {
+					unpublishStatusCode = nmaErr.StatusCode()
+				}
 				logger.Errorf("[Azure-CNS] %s", returnMessage)
 			}
 		}
