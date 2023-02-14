@@ -249,6 +249,8 @@ func (m *Multitenancy) getNetworkContainersInternal(
 		return nil, []net.IPNet{}, fmt.Errorf("%w", err)
 	}
 
+	log.Printf("Network config received from cns %+v", ncConfigs)
+
 	subnetPrefixes := []net.IPNet{}
 	for i := 0; i < len(ncConfigs); i++ {
 		subnetPrefix := m.netioshim.GetInterfaceSubnetWithSpecificIP(ncConfigs[i].PrimaryInterfaceIdentifier)

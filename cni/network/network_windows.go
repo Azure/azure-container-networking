@@ -171,8 +171,8 @@ func (plugin *NetPlugin) getNetworkName(netNs string, ipamAddResult *IPAMAddResu
 	// This will happen during DEL call
 	networkName, err := plugin.nm.FindNetworkIDFromNetNs(netNs)
 	if err != nil {
-		log.Printf("Error getting network name from state: %v.", err)
-		return "", fmt.Errorf("error getting network name from state: %w", err)
+		log.Printf("No endpoint available with netNs: %s: %v.", netNs, err)
+		return "", fmt.Errorf("No endpoint available with netNs: %s: %w", netNs, err)
 	}
 
 	return networkName, nil
