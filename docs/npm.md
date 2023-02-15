@@ -4,7 +4,7 @@
 
 `azure-npm` Network Policy plugin implements the [Kubernetes Network Policy](https://kubernetes.io/docs/concepts/services-networking/network-policies/)
 
-The plugin is available on Linux and Windows Server 2022 (Public Preview).
+The plugin is available on Linux and (preview) Windows Server 2022.
 
 Azure-NPM serves as a distributed firewall for the Kubernetes cluster, and it can be easily controlled by `kubectl`.
 
