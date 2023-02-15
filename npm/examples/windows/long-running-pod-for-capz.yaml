@@ -1,0 +1,30 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: long-runner
+  namespace: npm-e2e-longrunner
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: long-runner
+  template:
+    metadata:
+      labels:
+        app: long-runner
+    spec:
+      containers:
+      - command:
+        - /agnhost
+        - serve-hostname
+        - --tcp
+        - --http=false
+        - --port
+        - "80"
+        image: k8s.gcr.io/e2e-test-images/agnhost:2.33
+        imagePullPolicy: IfNotPresent
+        name: cont-80-tcp
+        ports:
+        - containerPort: 80
+          name: serve-80-tcp
+          protocol: TCP
