@@ -425,8 +425,8 @@ type IPConfigResponse struct {
 
 // IPConfigsResponse is used in CNS IPAM mode to return a slice of IP configs as a response to CNI ADD
 type IPConfigsResponse struct {
-	PodIPInfo []PodIpInfo
-	Response  Response
+	PodIPInfo []PodIpInfo `json:"podIpInfo"`
+	Response  Response    `json:"response"`
 }
 
 // GetIPAddressesRequest is used in CNS IPAM mode to get the states of IPConfigs

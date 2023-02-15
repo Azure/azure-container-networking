@@ -115,7 +115,7 @@ func NewPodStateWithOrchestratorContext(ipaddress, id, ncid string, state types.
 }
 
 // Test function to populate the IPConfigState
-func UpdatePodIPConfigState(t *testing.T, svc *HTTPRestService, ipconfigs map[string]cns.IPConfigurationStatus, NCID string) error {
+func UpdatePodIPConfigState(t *testing.T, svc *HTTPRestService, ipconfigs map[string]cns.IPConfigurationStatus, ncID string) error {
 	// Create the NC
 	secondaryIPConfigs := make(map[string]cns.SecondaryIPConfig)
 	// Get each of the ipconfigs associated with that NC
@@ -129,7 +129,7 @@ func UpdatePodIPConfigState(t *testing.T, svc *HTTPRestService, ipconfigs map[st
 		secondaryIPConfigs[ipID] = secIPConfig
 	}
 
-	createAndValidateNCRequest(t, secondaryIPConfigs, NCID, "-1")
+	createAndValidateNCRequest(t, secondaryIPConfigs, ncID, "-1")
 
 	// update ipconfigs to expected state
 	for ipID, ipconfig := range ipconfigs { //nolint:gocritic // ignore copy
@@ -364,10 +364,10 @@ func IPAMGetAlreadyAssignedIPConfigForSamePod(t *testing.T, ncIDs, newPodIPs []s
 	for i := range ncIDs {
 		state, _ := NewPodStateWithOrchestratorContext(newPodIPs[i], newPodIPs[i], ncIDs[i], types.Assigned, prefixes[i], 0, testPod1Info)
 		ipconfigs[state.ID] = state
-		err := UpdatePodIPConfigState(t, svc, ipconfigs, ncIDs[i])
-		if err != nil {
-			t.Fatalf("Expected to not fail adding IPs to state: %+v", err)
-		}
+	}
+	err := UpdatePodIPConfigState(t, svc, ipconfigs, ncIDs[0])
+	if err != nil {
+		t.Fatalf("Expected to not fail adding IPs to state: %+v", err)
 	}
 
 	req := cns.IPConfigRequest{
@@ -850,7 +850,7 @@ func IPAMMarkIPCountAsPending(t *testing.T, ncIDs, newPodIPs []string, prefixes 
 	// set state as already assigned
 	ipconfigs := make(map[string]cns.IPConfigurationStatus, 0)
 	for i := range ncIDs {
-		state, _ := NewPodStateWithOrchestratorContext(newPodIPs[i], newPodIPs[i], ncIDs[i], types.Assigned, prefixes[i], 0, testPod1Info)
+		state, _ := NewPodStateWithOrchestratorContext(newPodIPs[i], newPodIPs[i], ncIDs[i], types.Available, prefixes[i], 0, testPod1Info)
 		ipconfigs[state.ID] = state
 		err := UpdatePodIPConfigState(t, svc, ipconfigs, ncIDs[i])
 		if err != nil {
@@ -859,7 +859,7 @@ func IPAMMarkIPCountAsPending(t *testing.T, ncIDs, newPodIPs []string, prefixes 
 	}
 
 	// Release Test Pod 1
-	ips, err := svc.MarkIPAsPendingRelease(1)
+	ips, err := svc.MarkIPAsPendingRelease(len(newPodIPs))
 	if err != nil {
 		t.Fatalf("Unexpected failure releasing IP: %+v", err)
 	}
@@ -872,7 +872,7 @@ func IPAMMarkIPCountAsPending(t *testing.T, ncIDs, newPodIPs []string, prefixes 
 
 	// Release Test Pod 1
 	pendingrelease := svc.GetPendingReleaseIPConfigs()
-	if len(pendingrelease) != 1 {
+	if len(pendingrelease) != len(newPodIPs) {
 		t.Fatal("Expected pending release slice to be nonzero after pending release")
 	}
 
@@ -1009,7 +1009,7 @@ func IPAMMarkExistingIPConfigAsPending(t *testing.T, ncIDs []string, newPodIPs [
 	ipconfigs := make(map[string]cns.IPConfigurationStatus, 0)
 	// Add already assigned pod ip to state
 	for i := range ncIDs {
-		svc.PodIPIDByPodInterfaceKey[testPod1Info.Key()][i] = testPod1GUID
+		svc.PodIPIDByPodInterfaceKey[testPod1Info.Key()] = append(svc.PodIPIDByPodInterfaceKey[testPod1Info.Key()], newPodIPs[0][i])
 		state1, _ := NewPodStateWithOrchestratorContext(newPodIPs[0][i], newPodIPs[0][i], ncIDs[i], types.Assigned, prefixes[i], 0, testPod1Info)
 		state2 := NewPodState(newPodIPs[1][i], prefixes[i], newPodIPs[1][i], ncIDs[i], types.Available, 0)
 		ipconfigs[state1.ID] = state1
@@ -1021,15 +1021,17 @@ func IPAMMarkExistingIPConfigAsPending(t *testing.T, ncIDs []string, newPodIPs [
 	}
 
 	// mark available ip as as pending
-	pendingIPIDs := []string{testPod2GUID}
+	pendingIPIDs := newPodIPs[1]
 	err := svc.MarkExistingIPsAsPendingRelease(pendingIPIDs)
 	if err != nil {
 		t.Fatalf("Expected to successfully mark available ip as pending")
 	}
 
 	pendingIPConfigs := svc.GetPendingReleaseIPConfigs()
-	if pendingIPConfigs[0].ID != testPod2GUID {
-		t.Fatalf("Expected to see ID %v in pending release ipconfigs, actual %+v", testPod2GUID, pendingIPConfigs)
+	for i := range newPodIPs[1] {
+		if pendingIPConfigs[i].ID != newPodIPs[1][i] {
+			t.Fatalf("Expected to see ID %v in pending release ipconfigs, actual %+v", newPodIPs[1][i], pendingIPConfigs)
+		}
 	}
 
 	// attempt to mark assigned ipconfig as pending, expect fail
