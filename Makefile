@@ -757,11 +757,13 @@ setup: tools install-hooks gitconfig ## performs common required repo setup
 
 ##@ Tools 
 
+TOOL_TAG = azure-container-netwokring/build/tools
+
 $(TOOLS_DIR)/go.mod:
 	cd $(TOOLS_DIR); go mod init && go mod tidy
 
 $(CONTROLLER_GEN): $(TOOLS_DIR)/go.mod
-	cd $(TOOLS_DIR); go mod download; go build -tags=tools -o bin/controller-gen sigs.k8s.io/controller-tools/cmd/controller-gen
+	cd $(TOOLS_DIR); go mod download; go build -tags=$(TOOL_TAG) -o bin/controller-gen sigs.k8s.io/controller-tools/cmd/controller-gen
 
 controller-gen: $(CONTROLLER_GEN) ## Build controller-gen
 
@@ -769,32 +771,32 @@ protoc:
 	source ${REPO_ROOT}/scripts/install-protoc.sh
 
 $(GOCOV): $(TOOLS_DIR)/go.mod
-	cd $(TOOLS_DIR); go mod download; go build -tags=tools -o bin/gocov github.com/axw/gocov/gocov
+	cd $(TOOLS_DIR); go mod download; go build -tags=$(TOOL_TAG) -o bin/gocov github.com/axw/gocov/gocov
 
 gocov: $(GOCOV) ## Build gocov
 
 $(GOCOV_XML): $(TOOLS_DIR)/go.mod
-	cd $(TOOLS_DIR); go mod download; go build -tags=tools -o bin/gocov-xml github.com/AlekSi/gocov-xml
+	cd $(TOOLS_DIR); go mod download; go build -tags=$(TOOL_TAG) -o bin/gocov-xml github.com/AlekSi/gocov-xml
 
 gocov-xml: $(GOCOV_XML) ## Build gocov-xml
 
 $(GOFUMPT): $(TOOLS_DIR)/go.mod
-	cd $(TOOLS_DIR); go mod download; go build -tags=tools -o bin/gofumpt mvdan.cc/gofumpt
+	cd $(TOOLS_DIR); go mod download; go build -tags=$(TOOL_TAG) -o bin/gofumpt mvdan.cc/gofumpt
 
 gofumpt: $(GOFUMPT) ## Build gofumpt
 
 $(GOLANGCI_LINT): $(TOOLS_DIR)/go.mod
-	cd $(TOOLS_DIR); go mod download; go build -tags=tools -o bin/golangci-lint github.com/golangci/golangci-lint/cmd/golangci-lint
+	cd $(TOOLS_DIR); go mod download; go build -tags=$(TOOL_TAG) -o bin/golangci-lint github.com/golangci/golangci-lint/cmd/golangci-lint
 
 golangci-lint: $(GOLANGCI_LINT) ## Build golangci-lint
 
 $(GO_JUNIT_REPORT): $(TOOLS_DIR)/go.mod
-	cd $(TOOLS_DIR); go mod download; go build -tags=tools -o bin/go-junit-report github.com/jstemmer/go-junit-report
+	cd $(TOOLS_DIR); go mod download; go build -tags=$(TOOL_TAG) -o bin/go-junit-report github.com/jstemmer/go-junit-report
 
 go-junit-report: $(GO_JUNIT_REPORT) ## Build go-junit-report
 
 $(MOCKGEN): $(TOOLS_DIR)/go.mod
-	cd $(TOOLS_DIR); go mod download; go build -tags=tools -o bin/mockgen github.com/golang/mock/mockgen
+	cd $(TOOLS_DIR); go mod download; go build -tags=$(TOOL_TAG) -o bin/mockgen github.com/golang/mock/mockgen
 
 mockgen: $(MOCKGEN) ## Build mockgen
 
