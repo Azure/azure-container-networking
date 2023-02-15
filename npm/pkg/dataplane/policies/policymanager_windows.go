@@ -12,6 +12,12 @@ import (
 	"k8s.io/klog"
 )
 
+const (
+	// for lints
+	priority200   = 200
+	priority65499 = 65499
+)
+
 var (
 	ErrFailedMarshalACLSettings                      = errors.New("failed to marshal ACL settings")
 	ErrFailedUnMarshalACLSettings                    = errors.New("failed to unmarshal ACL settings")
@@ -24,30 +30,30 @@ var (
 var baseACLsForCalicoCNI = []*NPMACLPolSettings{
 	{
 		Id:              fmt.Sprintf("%s-baseazurewireserver", policyIDPrefix),
-		Action:          "Block",
-		Direction:       "Out",
-		Priority:        200,
+		Action:          hcn.ActionTypeBlock,
+		Direction:       hcn.DirectionTypeOut,
+		Priority:        priority200,
 		RemoteAddresses: "168.63.129.16/32",
 		RemotePorts:     "80",
 		Protocols:       "6",
-		RuleType:        "Switch",
+		RuleType:        hcn.RuleTypeSwitch,
 	},
 	{
 		Id:        fmt.Sprintf("%s-baseallowinswitch", policyIDPrefix),
-		Action:    "Allow",
-		Direction: "In",
-		Priority:  65499,
+		Action:    hcn.ActionTypeAllow,
+		Direction: hcn.DirectionTypeIn,
+		Priority:  priority65499,
 	},
 	{
 		Id:        fmt.Sprintf("%s-baseallowoutswitch", policyIDPrefix),
-		Action:    "Allow",
-		Direction: "Out",
-		Priority:  65499,
+		Action:    hcn.ActionTypeAllow,
+		Direction: hcn.DirectionTypeOut,
+		Priority:  priority65499,
 	},
 	{
 		Id:        fmt.Sprintf("%s-baseallowinhost", policyIDPrefix),
-		Action:    "Allow",
-		Direction: "In",
+		Action:    hcn.ActionTypeAllow,
+		Direction: hcn.DirectionTypeIn,
 		// unsupported for NPMACLPolSettings
 		// InternalPort:  0,
 		LocalAddresses: "",
@@ -59,12 +65,12 @@ var baseACLsForCalicoCNI = []*NPMACLPolSettings{
 		RemoteAddresses: "",
 		// unsupported for NPMACLPolSettings (note no 's')
 		// RemotePort: "0",
-		RuleType: "Host",
+		RuleType: hcn.RuleTypeHost,
 	},
 	{
 		Id:        fmt.Sprintf("%s-baseallowouthost", policyIDPrefix),
-		Action:    "Allow",
-		Direction: "Out",
+		Action:    hcn.ActionTypeAllow,
+		Direction: hcn.DirectionTypeOut,
 		// unsupported for NPMACLPolSettings
 		// InternalPort:  0,
 		LocalAddresses: "",
@@ -76,7 +82,7 @@ var baseACLsForCalicoCNI = []*NPMACLPolSettings{
 		RemoteAddresses: "",
 		// unsupported for NPMACLPolSettings (note no 's')
 		// RemotePort: "0",
-		RuleType: "Host",
+		RuleType: hcn.RuleTypeHost,
 	},
 }
 

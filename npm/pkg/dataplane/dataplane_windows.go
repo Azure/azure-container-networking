@@ -443,6 +443,6 @@ func (dp *DataPlane) setNetworkIDByName(networkName string) error {
 }
 
 func isNetworkNotFoundErr(err error) bool {
-	return strings.Contains(err.Error(), fmt.Sprintf("Network name \"%s\" not found", util.AzureNetworkName)) ||
-		strings.Contains(err.Error(), fmt.Sprintf("Network name \"%s\" not found", util.CalicoNetworkName))
+	return strings.Contains(err.Error(), fmt.Sprintf("Network name %q not found", util.AzureNetworkName)) ||
+		strings.Contains(err.Error(), fmt.Sprintf("Network name %q not found", util.CalicoNetworkName))
 }
