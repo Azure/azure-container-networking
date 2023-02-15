@@ -23,7 +23,7 @@ const (
 
 var (
 	errPolicyModeUnsupported = errors.New("only IPSet policy mode is supported")
-	errMismanagedPodKey      = errors.New("the pod key was not managed correctly when refreshing pod endpoints")
+	errMismanagedPodKey      = errors.New("the endpoint corresponds to a different pod")
 )
 
 // initializeDataPlane will help gather network and endpoint details
@@ -112,12 +112,16 @@ func (dp *DataPlane) shouldUpdatePod() bool {
 
 // updatePod has two responsibilities in windows
 // 1. Will call into dataplane and updates endpoint references of this pod.
-// 2. Will check for existing applicable network policies and applies it on endpoint
+// 2. Will check for existing applicable network policies and applies it on endpoint.
+/*
+	FIXME: see https://github.com/Azure/azure-container-networking/issues/1729
+	TODO: it would be good to replace stalePodKey behavior since it is complex.
+*/
 func (dp *DataPlane) updatePod(pod *updateNPMPod) error {
 	klog.Infof("[DataPlane] updatePod called for Pod Key %s", pod.PodKey)
-	// Check if pod is part of this node
 	if pod.NodeName != dp.nodeName {
-		klog.Infof("[DataPlane] ignoring update pod as expected Node: [%s] got: [%s]", dp.nodeName, pod.NodeName)
+		// Ignore updates if the pod is not part of this node.
+		klog.Infof("[DataPlane] ignoring update pod as expected Node: [%s] got: [%s]. pod: [%s]", dp.nodeName, pod.NodeName, pod.PodKey)
 		return nil
 	}
 
@@ -130,7 +134,7 @@ func (dp *DataPlane) updatePod(pod *updateNPMPod) error {
 	if !ok {
 		// ignore this err and pod endpoint will be deleted in ApplyDP
 		// if the endpoint is not found, it means the pod is not part of this node or pod got deleted.
-		klog.Warningf("[DataPlane] did not find endpoint with IPaddress %s", pod.PodIP)
+		klog.Warningf("[DataPlane] did not find endpoint with IPaddress %s for pod %s", pod.PodIP, pod.PodKey)
 		return nil
 	}
 
