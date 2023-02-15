@@ -135,7 +135,12 @@ func (dp *DataPlane) AddToSets(setNames []*ipsets.IPSetMetadata, podMetadata *Po
 		return fmt.Errorf("[DataPlane] error while adding to set: %w", err)
 	}
 
-	if dp.shouldUpdatePod() && podMetadata.NodeName == dp.nodeName {
+	if dp.shouldUpdatePod() && (podMetadata.NodeName == dp.nodeName || podMetadata.isMarkedForDelete()) {
+		if podMetadata.isMarkedForDelete() {
+			metrics.SendErrorLogAndMetric(util.DaemonDataplaneID, "[DataPlane] pod key %s is unexpectedly marked for delete in AddToSets", podMetadata.PodKey)
+			return nil
+		}
+
 		klog.Infof("[DataPlane] Updating Sets to Add for pod key %s", podMetadata.PodKey)
 
 		// lock updatePodCache while reading/modifying or setting the updatePod in the cache
@@ -163,8 +168,12 @@ func (dp *DataPlane) RemoveFromSets(setNames []*ipsets.IPSetMetadata, podMetadat
 		return fmt.Errorf("[DataPlane] error while removing from set: %w", err)
 	}
 
-	if dp.shouldUpdatePod() && podMetadata.NodeName == dp.nodeName {
-		klog.Infof("[DataPlane] Updating Sets to Remove for pod key %s", podMetadata.PodKey)
+	if dp.shouldUpdatePod() && (podMetadata.NodeName == dp.nodeName || podMetadata.isMarkedForDelete()) {
+		if podMetadata.isMarkedForDelete() {
+			klog.Infof("[DataPlane] pod key %s marked for delete in RemoveFromSets", podMetadata.PodKey)
+		} else {
+			klog.Infof("[DataPlane] Updating Sets to Remove for pod key %s", podMetadata.PodKey)
+		}
 
 		// lock updatePodCache while reading/modifying or setting the updatePod in the cache
 		dp.updatePodCache.Lock()
@@ -177,7 +186,19 @@ func (dp *DataPlane) RemoveFromSets(setNames []*ipsets.IPSetMetadata, podMetadat
 			dp.updatePodCache.cache[podMetadata.PodKey] = updatePod
 		}
 
-		updatePod.updateIPSetsToRemove(setNames)
+		if podMetadata.isMarkedForDelete() {
+			// mark IP for delete
+			if updatePod.ipsMarkedForDelete == nil {
+				updatePod.ipsMarkedForDelete = make(map[string]struct{}, 1)
+			}
+			updatePod.ipsMarkedForDelete[podMetadata.PodIP] = struct{}{}
+
+			// discard all previous IPSet updates, and disregard all IPSet updates for this pod marked for delete
+			updatePod.IPSetsToAdd = nil
+			updatePod.IPSetsToRemove = nil
+		} else {
+			updatePod.updateIPSetsToRemove(setNames)
+		}
 	}
 
 	return nil

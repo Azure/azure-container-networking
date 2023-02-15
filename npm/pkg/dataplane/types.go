@@ -31,20 +31,27 @@ type GenericDataplane interface {
 // to update the dataplane with the latest pod information
 // this helps in calculating if any update needs to have policies applied or removed
 type updateNPMPod struct {
-	*PodMetadata
-	IPSetsToAdd    []string
-	IPSetsToRemove []string
+	PodKey   string
+	PodIP    string
+	NodeName string
+	// ipsMarkedForDelete tracks IPs that this pod key was associated with before
+	// it would rare for this to be more than one IP, but possible if ApplyDataPlane fails several times or ApplyDataPlane is asynchronous
+	ipsMarkedForDelete map[string]struct{}
+	IPSetsToAdd        []string
+	IPSetsToRemove     []string
 }
 
 // PodMetadata is what is passed to dataplane to specify pod ipset
 // todo definitely requires further optimization between the intersection
 // of types, PodMetadata, NpmPod and corev1.pod
 type PodMetadata struct {
-	PodKey   string
-	PodIP    string
-	NodeName string
+	PodKey          string
+	PodIP           string
+	NodeName        string
+	markedForDelete bool
 }
 
+// NewPodMetadata is for Pods that were created or have updated labels/namedports
 func NewPodMetadata(podKey, podIP, nodeName string) *PodMetadata {
 	return &PodMetadata{
 		PodKey:   podKey,
@@ -53,15 +60,27 @@ func NewPodMetadata(podKey, podIP, nodeName string) *PodMetadata {
 	}
 }
 
+// NewPodMetadataMarkedForDelete is for Pods that were deleted (e.g. Pod IP has changed)
+func NewPodMetadataMarkedForDelete(podKey, podIP string) *PodMetadata {
+	pm := NewPodMetadata(podKey, podIP, "")
+	pm.markedForDelete = true
+	return pm
+}
+
+func (pm *PodMetadata) isMarkedForDelete() bool {
+	return pm.markedForDelete
+}
+
 func (p *PodMetadata) Namespace() string {
 	return strings.Split(p.PodKey, "/")[0]
 }
 
 func newUpdateNPMPod(podMetadata *PodMetadata) *updateNPMPod {
 	return &updateNPMPod{
-		PodMetadata:    podMetadata,
-		IPSetsToAdd:    make([]string, 0),
-		IPSetsToRemove: make([]string, 0),
+		PodKey:   podMetadata.PodKey,
+		PodIP:    podMetadata.PodIP,
+		NodeName: podMetadata.NodeName,
+		// can leave all slices as nil since len() and append() work on nil slices
 	}
 }
 

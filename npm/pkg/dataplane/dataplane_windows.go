@@ -113,41 +113,56 @@ func (dp *DataPlane) shouldUpdatePod() bool {
 // updatePod has two responsibilities in windows
 // 1. Will call into dataplane and updates endpoint references of this pod.
 // 2. Will check for existing applicable network policies and applies it on endpoint.
-/*
-	FIXME: see https://github.com/Azure/azure-container-networking/issues/1729
-	TODO: it would be good to replace stalePodKey behavior since it is complex.
-*/
+// Assumptions:
+// - We will receive a cleanup event for a Pod in the correct order (i.e. after a create event for the same Pod)
 func (dp *DataPlane) updatePod(pod *updateNPMPod) error {
 	klog.Infof("[DataPlane] updatePod called for Pod Key %s", pod.PodKey)
-	if pod.NodeName != dp.nodeName {
-		// Ignore updates if the pod is not part of this node.
-		klog.Infof("[DataPlane] ignoring update pod as expected Node: [%s] got: [%s]. pod: [%s]", dp.nodeName, pod.NodeName, pod.PodKey)
-		return nil
-	}
 
 	// lock the endpoint cache while we read/modify the endpoint with the pod's IP
 	dp.endpointCache.Lock()
 	defer dp.endpointCache.Unlock()
+
+	// reset ACLs for any Pod that was wrongly assigned to an endpoint (fixes #1729)
+	for ip := range pod.ipsMarkedForDelete {
+		endpoint, ok := dp.endpointCache.cache[ip]
+		if !ok {
+			// this branch will be taken often for the typical flow. 1) Endpoint deleted, 2) Pod delete event
+			// additionally, this branch will be always be taken for an IP on a different node
+			klog.Infof("[DataPlane] ignoring IP marked for delete since there is no corresponding endpoint. IP: %s. podKey: %s", ip, pod.PodKey)
+			continue
+		}
+
+		if endpoint.podKey != pod.PodKey {
+			klog.Infof("[DataPlane] ignoring IP marked for delete since it is not associated with this endpoint. podKey: %s. endpoint: %+v", pod.PodKey, endpoint)
+			continue
+		}
+
+		// this Pod was incorrectly assigned to the Endpoint (see issue #1729)
+		if err := dp.policyMgr.ResetEndpoint(endpoint.id); err != nil {
+			return fmt.Errorf("failed to reset endpoint. endpoint: %+v. err: %w", endpoint, err)
+		}
+
+		// mark the Endpoint as unassigned
+		endpoint.podKey = unspecifiedPodKey
+		delete(pod.ipsMarkedForDelete, ip)
+	}
+
+	if len(pod.IPSetsToAdd) == 0 && len(pod.IPSetsToRemove) == 0 {
+		// nothing more to do
+		return nil
+	}
 
 	// Check if pod is already present in cache
 	endpoint, ok := dp.endpointCache.cache[pod.PodIP]
 	if !ok {
 		// ignore this err and pod endpoint will be deleted in ApplyDP
 		// if the endpoint is not found, it means the pod is not part of this node or pod got deleted.
-		klog.Warningf("[DataPlane] did not find endpoint with IPaddress %s for pod %s", pod.PodIP, pod.PodKey)
+		klog.Warningf("[DataPlane] ignoring pod update since there is no corresponding endpoint. IP: %s. podKey: %s", pod.PodIP, pod.PodKey)
 		return nil
 	}
 
 	if endpoint.podKey == unspecifiedPodKey {
 		// while refreshing pod endpoints, newly discovered endpoints are given an unspecified pod key
-		if endpoint.isStalePodKey(pod.PodKey) {
-			// NOTE: if a pod restarts and takes up its previous IP, then its endpoint would be new and this branch would be taken.
-			// Updates to this pod would not occur. Pod IPs are expected to change on restart though.
-			// See: https://stackoverflow.com/questions/52362514/when-will-the-kubernetes-pod-ip-change
-			// If a pod does restart and take up its previous IP, then the pod can be deleted/restarted to mitigate this problem.
-			klog.Infof("[DataPlane] ignoring pod update since pod with key %s is stale and likely was deleted", pod.PodKey)
-			return nil
-		}
 		endpoint.podKey = pod.PodKey
 	} else if pod.PodKey != endpoint.podKey {
 		return fmt.Errorf("pod key mismatch. Expected: %s, Actual: %s. Error: [%w]", pod.PodKey, endpoint.podKey, errMismanagedPodKey)
@@ -286,15 +301,13 @@ func (dp *DataPlane) getEndpointsToApplyPolicy(policy *policies.NPMNetworkPolicy
 	for ip, podKey := range netpolSelectorIPs {
 		endpoint, ok := dp.endpointCache.cache[ip]
 		if !ok {
-			klog.Infof("[DataPlane] Ignoring endpoint with IP %s since it was not found in the endpoint cache. This IP might not be in the HNS network", ip)
+			klog.Infof("[DataPlane] ignoring selector IP since it was not found in the endpoint cache and might not be in the HNS network. ip: %s. podKey: %s", ip, podKey)
 			continue
 		}
 
 		if endpoint.podKey != podKey {
 			// in case the pod controller hasn't updated the dp yet that the IP's pod owner has changed
-			klog.Infof(
-				"[DataPlane] ignoring endpoint with IP %s since the pod keys are different. podKey: [%s], endpoint: [%+v], endpoint stale pod key: [%+v]",
-				ip, podKey, endpoint, endpoint.stalePodKey)
+			klog.Infof("[DataPlane] ignoring selector IP since the endpoint is assigned to a different podKey. ip: %s. podKey: %s. endpoint: %+v", ip, podKey, endpoint)
 			continue
 		}
 
