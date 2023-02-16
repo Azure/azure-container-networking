@@ -18,8 +18,15 @@ const (
 	threadedHNSLatency = time.Duration(50 * time.Millisecond)
 )
 
-func TestAllSerialCases(t *testing.T) {
-	tests := getAllSerialTests()
+func TestBasics(t *testing.T) {
+	testSerialCases(t, basicTests())
+}
+
+func TestAllMultiJobCases(t *testing.T) {
+	testMultiJobCases(t, getAllMultiJobTests())
+}
+
+func testSerialCases(t *testing.T, tests []*SerialTestCase) {
 	for i, tt := range tests {
 		i := i
 		tt := tt
@@ -53,8 +60,7 @@ func TestAllSerialCases(t *testing.T) {
 	}
 }
 
-func TestAllMultiJobCases(t *testing.T) {
-	tests := getAllMultiJobTests()
+func testMultiJobCases(t *testing.T, tests []*MultiJobTestCase) {
 	for i, tt := range tests {
 		i := i
 		tt := tt

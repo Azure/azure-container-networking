@@ -88,7 +88,33 @@ func policyXBaseOnK1V1() *networkingv1.NetworkPolicy {
 	}
 }
 
-func getAllSerialTests() []*SerialTestCase {
+func policyXBase2OnK2V2() *networkingv1.NetworkPolicy {
+	return &networkingv1.NetworkPolicy{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "base2",
+			Namespace: "x",
+		},
+		Spec: networkingv1.NetworkPolicySpec{
+			PodSelector: metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"k2": "v2",
+				},
+			},
+			Ingress: []networkingv1.NetworkPolicyIngressRule{
+				{},
+			},
+			Egress: []networkingv1.NetworkPolicyEgressRule{
+				{},
+			},
+			PolicyTypes: []networkingv1.PolicyType{
+				networkingv1.PolicyTypeIngress,
+				networkingv1.PolicyTypeEgress,
+			},
+		},
+	}
+}
+
+func basicTests() []*SerialTestCase {
 	return []*SerialTestCase{
 		{
 			Description: "pod created",
