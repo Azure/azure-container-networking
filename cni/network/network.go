@@ -451,6 +451,12 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 			log.Printf("%+v", err)
 			return err
 		}
+
+		if len(ipamAddResults) > 1 && !plugin.isDualNicFeatureSupported(args.Netns) {
+			err = fmt.Errorf("received multiple NC results from CNS while dualnic feature is not supported")
+			log.Errorf("%+v", err)
+			return err
+		}
 	} else {
 		// TODO: refactor this code for simplification
 		// Add dummy ipamAddResult nil object for single tenancy mode

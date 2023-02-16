@@ -508,8 +508,9 @@ func (service *HTTPRestService) getAllNetworkContainerResponses(
 		}
 
 		getNetworkContainersResponse = append(getNetworkContainersResponse, getNetworkContainerResponse)
-		logger.Printf("getNetworkContainersResponses are %+v", getNetworkContainersResponse)
 	}
+
+	logger.Printf("getNetworkContainersResponses are %+v", getNetworkContainersResponse)
 
 	return getNetworkContainersResponse
 }
