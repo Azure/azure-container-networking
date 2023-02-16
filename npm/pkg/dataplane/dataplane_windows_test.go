@@ -22,6 +22,10 @@ func TestBasics(t *testing.T) {
 	testSerialCases(t, basicTests())
 }
 
+func TestPodEndpointAssignment(t *testing.T) {
+	testSerialCases(t, podEndpointAssignmentTests())
+}
+
 func TestAllMultiJobCases(t *testing.T) {
 	testMultiJobCases(t, getAllMultiJobTests())
 }
