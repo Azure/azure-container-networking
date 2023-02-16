@@ -129,20 +129,23 @@ func (invoker *AzureIPAMInvoker) deleteIpamState() {
 func (invoker *AzureIPAMInvoker) Delete(addresses []*net.IPNet, nwCfg *cni.NetworkConfig, _ *cniSkel.CmdArgs, options map[string]interface{}) error {
 	const bytesSize4 = 4
 	const bytesSize16 = 16
+
+	if nwCfg == nil {
+		return invoker.plugin.Errorf("nil nwCfg passed to CNI ADD, stack: %+v", string(debug.Stack()))
+	}
+
+	if len(invoker.nwInfo.Subnets) > 0 {
+		nwCfg.IPAM.Subnet = invoker.nwInfo.Subnets[0].Prefix.String()
+	}
+
+	if len(addresses) == 0 {
+		if err := invoker.plugin.DelegateDel(nwCfg.IPAM.Type, nwCfg); err != nil {
+			return invoker.plugin.Errorf("Attempted to release address with error:  %v", err)
+		}
+	}
+
 	for _, address := range addresses {
-		if nwCfg == nil {
-			return invoker.plugin.Errorf("nil nwCfg passed to CNI ADD, stack: %+v", string(debug.Stack()))
-		}
-
-		if len(invoker.nwInfo.Subnets) > 0 {
-			nwCfg.IPAM.Subnet = invoker.nwInfo.Subnets[0].Prefix.String()
-		}
-
-		if address == nil { //nolint:gocritic // keep as if
-			if err := invoker.plugin.DelegateDel(nwCfg.IPAM.Type, nwCfg); err != nil {
-				return invoker.plugin.Errorf("Attempted to release address with error:  %v", err)
-			}
-		} else if len(address.IP.To4()) == bytesSize4 {
+		if len(address.IP.To4()) == bytesSize4 {
 			nwCfg.IPAM.Address = address.IP.String()
 			log.Printf("Releasing ipv4 address :%s pool: %s",
 				nwCfg.IPAM.Address, nwCfg.IPAM.Subnet)
