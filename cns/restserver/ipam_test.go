@@ -73,7 +73,7 @@ func NewPodState(ipaddress string, prefixLength uint8, id, ncid string, state ty
 	return *status
 }
 
-func requestIPAddressAndGetState(t *testing.T, req cns.IPConfigRequest) ([]cns.IPConfigurationStatus, error) {
+func requestIPAddressAndGetState(t *testing.T, req cns.IPConfigsRequest) ([]cns.IPConfigurationStatus, error) {
 	PodIPInfo, err := requestIPConfigHelper(svc, req)
 	if err != nil {
 		return []cns.IPConfigurationStatus{}, err
@@ -170,7 +170,7 @@ func EndpointStateReadAndWrite(t *testing.T, ncIDs, newPodIPs []string, prefixes
 	}
 	t.Log(ipconfigs)
 
-	req := cns.IPConfigRequest{
+	req := cns.IPConfigsRequest{
 		PodInterfaceID:   testPod1Info.InterfaceID(),
 		InfraContainerID: testPod1Info.InfraContainerID(),
 	}
@@ -256,7 +256,7 @@ func IPAMGetAvailableIPConfig(t *testing.T, ncIDs, newPodIPs []string, prefixes 
 		}
 	}
 
-	req := cns.IPConfigRequest{
+	req := cns.IPConfigsRequest{
 		PodInterfaceID:   testPod1Info.InterfaceID(),
 		InfraContainerID: testPod1Info.InfraContainerID(),
 	}
@@ -315,7 +315,7 @@ func IPAMGetNextAvailableIPConfig(t *testing.T, ncIDs []string, newPodIPs [][]st
 		}
 	}
 
-	req := cns.IPConfigRequest{
+	req := cns.IPConfigsRequest{
 		PodInterfaceID:   testPod2Info.InterfaceID(),
 		InfraContainerID: testPod2Info.InfraContainerID(),
 	}
@@ -364,13 +364,13 @@ func IPAMGetAlreadyAssignedIPConfigForSamePod(t *testing.T, ncIDs, newPodIPs []s
 	for i := range ncIDs {
 		state, _ := NewPodStateWithOrchestratorContext(newPodIPs[i], newPodIPs[i], ncIDs[i], types.Assigned, prefixes[i], 0, testPod1Info)
 		ipconfigs[state.ID] = state
-	}
-	err := UpdatePodIPConfigState(t, svc, ipconfigs, ncIDs[0])
-	if err != nil {
-		t.Fatalf("Expected to not fail adding IPs to state: %+v", err)
+		err := UpdatePodIPConfigState(t, svc, ipconfigs, ncIDs[i])
+		if err != nil {
+			t.Fatalf("Expected to not fail adding IPs to state: %+v", err)
+		}
 	}
 
-	req := cns.IPConfigRequest{
+	req := cns.IPConfigsRequest{
 		PodInterfaceID:   testPod1Info.InterfaceID(),
 		InfraContainerID: testPod1Info.InfraContainerID(),
 	}
@@ -424,7 +424,7 @@ func IPAMAttemptToRequestIPNotFoundInPool(t *testing.T, ncIDs []string, newPodIP
 		}
 	}
 
-	req := cns.IPConfigRequest{
+	req := cns.IPConfigsRequest{
 		PodInterfaceID:   testPod2Info.InterfaceID(),
 		InfraContainerID: testPod2Info.InfraContainerID(),
 	}
@@ -466,7 +466,7 @@ func IPAMGetDesiredIPConfigWithSpecfiedIP(t *testing.T, ncIDs, newPodIPs []strin
 		}
 	}
 
-	req := cns.IPConfigRequest{
+	req := cns.IPConfigsRequest{
 		PodInterfaceID:   testPod1Info.InterfaceID(),
 		InfraContainerID: testPod1Info.InfraContainerID(),
 	}
@@ -523,7 +523,7 @@ func IPAMFailToGetDesiredIPConfigWithAlreadyAssignedSpecfiedIP(t *testing.T, ncI
 	}
 
 	// request the already assigned ip with a new context
-	req := cns.IPConfigRequest{
+	req := cns.IPConfigsRequest{
 		PodInterfaceID:   testPod2Info.InterfaceID(),
 		InfraContainerID: testPod2Info.InfraContainerID(),
 	}
@@ -568,7 +568,7 @@ func IPAMFailToGetIPWhenAllIPsAreAssigned(t *testing.T, ncIDs []string, newPodIP
 	}
 
 	// request the already assigned ip with a new context
-	req := cns.IPConfigRequest{}
+	req := cns.IPConfigsRequest{}
 	b, _ := testPod3Info.OrchestratorContext()
 	req.OrchestratorContext = b
 
@@ -611,7 +611,7 @@ func IPAMRequestThenReleaseThenRequestAgain(t *testing.T, ncIDs, newPodIPs []str
 	}
 
 	// Use TestPodInfo2 to request TestIP1, which has already been assigned
-	req := cns.IPConfigRequest{
+	req := cns.IPConfigsRequest{
 		PodInterfaceID:   testPod2Info.InterfaceID(),
 		InfraContainerID: testPod2Info.InfraContainerID(),
 	}
@@ -631,7 +631,7 @@ func IPAMRequestThenReleaseThenRequestAgain(t *testing.T, ncIDs, newPodIPs []str
 	}
 
 	// Rerequest
-	req = cns.IPConfigRequest{
+	req = cns.IPConfigsRequest{
 		PodInterfaceID:   testPod2Info.InterfaceID(),
 		InfraContainerID: testPod2Info.InfraContainerID(),
 	}
@@ -782,7 +782,7 @@ func AvailableIPConfigs(t *testing.T, ncIDs []string, newPodIPs [][]string, pref
 	assignedIPs := svc.GetAssignedIPConfigs()
 	validateIpState(t, assignedIPs, desiredAssignedIPConfigs)
 
-	req := cns.IPConfigRequest{
+	req := cns.IPConfigsRequest{
 		PodInterfaceID:   testPod1Info.InterfaceID(),
 		InfraContainerID: testPod1Info.InfraContainerID(),
 	}

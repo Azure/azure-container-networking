@@ -257,8 +257,8 @@ func UnmarshalPodInfo(b []byte) (PodInfo, error) {
 }
 
 // NewPodInfoFromIPConfigRequest builds and returns an implementation of
-// PodInfo from the provided IPConfigRequest.
-func NewPodInfoFromIPConfigRequest(req IPConfigRequest) (PodInfo, error) {
+// PodInfo from the provided IPConfigsRequest.
+func NewPodInfoFromIPConfigRequest(req IPConfigsRequest) (PodInfo, error) {
 	p, err := UnmarshalPodInfo(req.OrchestratorContext)
 	if err != nil {
 		return nil, err
@@ -405,7 +405,7 @@ type HostIPInfo struct {
 }
 
 type IPConfigRequest struct {
-	DesiredIPAddresses  []string
+	DesiredIPAddress    string
 	PodInterfaceID      string
 	InfraContainerID    string
 	OrchestratorContext json.RawMessage
@@ -413,7 +413,20 @@ type IPConfigRequest struct {
 }
 
 func (i IPConfigRequest) String() string {
-	return fmt.Sprintf("[IPConfigRequest: DesiredIPAddresses %s, PodInterfaceID %s, InfraContainerID %s, OrchestratorContext %s]",
+	return fmt.Sprintf("[IPConfigRequest: DesiredIPAddress %s, PodInterfaceID %s, InfraContainerID %s, OrchestratorContext %s]",
+		i.DesiredIPAddress, i.PodInterfaceID, i.InfraContainerID, string(i.OrchestratorContext))
+}
+
+type IPConfigsRequest struct {
+	DesiredIPAddresses  []string
+	PodInterfaceID      string
+	InfraContainerID    string
+	OrchestratorContext json.RawMessage
+	Ifname              string // Used by delegated IPAM
+}
+
+func (i IPConfigsRequest) String() string {
+	return fmt.Sprintf("[IPConfigsRequest: DesiredIPAddresses %s, PodInterfaceID %s, InfraContainerID %s, OrchestratorContext %s]",
 		i.DesiredIPAddresses, i.PodInterfaceID, i.InfraContainerID, string(i.OrchestratorContext))
 }
 

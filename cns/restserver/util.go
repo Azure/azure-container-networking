@@ -763,21 +763,21 @@ func (service *HTTPRestService) SendNCSnapShotPeriodically(ctx context.Context, 
 	}
 }
 
-func (service *HTTPRestService) validateIPConfigRequest(
-	ipConfigRequest cns.IPConfigRequest,
+func (service *HTTPRestService) validateIPConfigsRequest(
+	ipConfigsRequest cns.IPConfigsRequest,
 ) (cns.PodInfo, types.ResponseCode, string) {
 	if service.state.OrchestratorType != cns.KubernetesCRD && service.state.OrchestratorType != cns.Kubernetes {
 		return nil, types.UnsupportedOrchestratorType, "ReleaseIPConfig API supported only for kubernetes orchestrator"
 	}
 
-	if ipConfigRequest.OrchestratorContext == nil {
+	if ipConfigsRequest.OrchestratorContext == nil {
 		return nil,
 			types.EmptyOrchestratorContext,
-			fmt.Sprintf("OrchastratorContext is not set in the req: %+v", ipConfigRequest)
+			fmt.Sprintf("OrchastratorContext is not set in the req: %+v", ipConfigsRequest)
 	}
 
 	// retrieve podinfo from orchestrator context
-	podInfo, err := cns.NewPodInfoFromIPConfigRequest(ipConfigRequest)
+	podInfo, err := cns.NewPodInfoFromIPConfigRequest(ipConfigsRequest)
 	if err != nil {
 		return podInfo, types.UnsupportedOrchestratorContext, err.Error()
 	}

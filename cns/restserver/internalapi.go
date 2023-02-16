@@ -283,14 +283,14 @@ func (service *HTTPRestService) ReconcileNCState(ncRequest *cns.CreateNetworkCon
 				return types.UnexpectedError
 			}
 
-			ipconfigRequest := cns.IPConfigRequest{
+			ipconfigsRequest := cns.IPConfigsRequest{
 				DesiredIPAddresses:  []string{secIPConfig.IPAddress},
 				OrchestratorContext: jsonContext,
 				InfraContainerID:    podInfo.InfraContainerID(),
 				PodInterfaceID:      podInfo.InterfaceID(),
 			}
 
-			if _, err := requestIPConfigHelper(service, ipconfigRequest); err != nil {
+			if _, err := requestIPConfigHelper(service, ipconfigsRequest); err != nil {
 				logger.Errorf("AllocateIPConfig failed for SecondaryIP %+v, podInfo %+v, ncId %s, error: %v", secIPConfig, podInfo, ncRequest.NetworkContainerid, err)
 				return types.FailedToAllocateIPConfig
 			}

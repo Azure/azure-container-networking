@@ -295,7 +295,7 @@ func (c *Client) RequestIPAddress(ctx context.Context, ipconfig cns.IPConfigRequ
 	var err error
 	defer func() {
 		if err != nil {
-			if e := c.ReleaseIPs(ctx, ipconfig); e != nil {
+			if e := c.ReleaseIPAddress(ctx, ipconfig); e != nil {
 				err = errors.Wrap(e, err.Error())
 			}
 		}
@@ -337,8 +337,8 @@ func (c *Client) RequestIPAddress(ctx context.Context, ipconfig cns.IPConfigRequ
 	return &response, nil
 }
 
-// ReleaseIPs calls releaseIPAddress on CNS, ipaddress ex: (10.0.0.1)
-func (c *Client) ReleaseIPs(ctx context.Context, ipconfig cns.IPConfigRequest) error {
+// ReleaseIPAddress calls releaseIPAddress on CNS, ipaddress ex: (10.0.0.1)
+func (c *Client) ReleaseIPAddress(ctx context.Context, ipconfig cns.IPConfigRequest) error {
 	var body bytes.Buffer
 	err := json.NewEncoder(&body).Encode(ipconfig)
 	if err != nil {
@@ -375,8 +375,46 @@ func (c *Client) ReleaseIPs(ctx context.Context, ipconfig cns.IPConfigRequest) e
 	return nil
 }
 
+// ReleaseIPs calls releaseIPAddress on CNS, ipaddress ex: (10.0.0.1)
+func (c *Client) ReleaseIPs(ctx context.Context, ipconfig cns.IPConfigsRequest) error {
+	var body bytes.Buffer
+	err := json.NewEncoder(&body).Encode(ipconfig)
+	if err != nil {
+		return errors.Wrap(err, "failed to encode IPConfigsRequest")
+	}
+
+	u := c.routes[cns.ReleaseIPConfig]
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, u.String(), &body)
+	if err != nil {
+		return errors.Wrap(err, "failed to build request")
+	}
+	req.Header.Set(headerContentType, contentTypeJSON)
+	res, err := c.client.Do(req)
+	if err != nil {
+		return errors.Wrap(err, "http request failed")
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return errors.Errorf("http response %d", res.StatusCode)
+	}
+
+	var resp cns.Response
+
+	err = json.NewDecoder(res.Body).Decode(&resp)
+	if err != nil {
+		return errors.Wrap(err, "failed to decode Response")
+	}
+
+	if resp.ReturnCode != 0 {
+		return errors.New(resp.Message)
+	}
+
+	return nil
+}
+
 // RequestIPs calls the RequestIPConfigs in CNS
-func (c *Client) RequestIPs(ctx context.Context, ipconfig cns.IPConfigRequest) (*cns.IPConfigsResponse, error) {
+func (c *Client) RequestIPs(ctx context.Context, ipconfig cns.IPConfigsRequest) (*cns.IPConfigsResponse, error) {
 	var err error
 	defer func() {
 		if err != nil {
@@ -389,7 +427,7 @@ func (c *Client) RequestIPs(ctx context.Context, ipconfig cns.IPConfigRequest) (
 	var body bytes.Buffer
 	err = json.NewEncoder(&body).Encode(ipconfig)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to encode IPConfigRequest")
+		return nil, errors.Wrap(err, "failed to encode IPConfigsRequest")
 	}
 
 	u := c.routes[cns.RequestIPConfigs]

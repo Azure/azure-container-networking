@@ -61,13 +61,13 @@ func TestNewPodInfoFromIPConfigRequest(t *testing.T) {
 	defer func() { GlobalPodInfoScheme = KubernetesPodInfoScheme }()
 	tests := []struct {
 		name    string
-		req     IPConfigRequest
+		req     IPConfigsRequest
 		want    PodInfo
 		wantErr bool
 	}{
 		{
 			name: "full req",
-			req: IPConfigRequest{
+			req: IPConfigsRequest{
 				PodInterfaceID:      "abcdef-eth0",
 				InfraContainerID:    "abcdef",
 				OrchestratorContext: []byte(`{"PodName":"pod","PodNamespace":"namespace"}`),
@@ -84,7 +84,7 @@ func TestNewPodInfoFromIPConfigRequest(t *testing.T) {
 		},
 		{
 			name: "empty interface id",
-			req: IPConfigRequest{
+			req: IPConfigsRequest{
 				InfraContainerID:    "abcdef",
 				OrchestratorContext: []byte(`{"PodName":"pod","PodNamespace":"namespace"}`),
 			},

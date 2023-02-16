@@ -265,7 +265,7 @@ func TestCNSClientRequestAndRelease(t *testing.T) {
 	assert.NoError(t, err)
 
 	// no IP reservation found with that context, expect no failure.
-	err = cnsClient.ReleaseIPs(context.TODO(), cns.IPConfigRequest{OrchestratorContext: orchestratorContext})
+	err = cnsClient.ReleaseIPs(context.TODO(), cns.IPConfigsRequest{OrchestratorContext: orchestratorContext})
 	assert.NoError(t, err, "Release ip idempotent call failed")
 
 	// request IP address
@@ -300,7 +300,7 @@ func TestCNSClientRequestAndRelease(t *testing.T) {
 	}
 
 	// release requested IP address, expect success
-	err = cnsClient.ReleaseIPs(context.TODO(), cns.IPConfigRequest{DesiredIPAddresses: addresses, OrchestratorContext: orchestratorContext})
+	err = cnsClient.ReleaseIPs(context.TODO(), cns.IPConfigsRequest{DesiredIPAddresses: addresses, OrchestratorContext: orchestratorContext})
 	assert.NoError(t, err, "Expected to not fail when releasing IP reservation found with context")
 }
 
@@ -330,7 +330,7 @@ func TestCNSClientPodContextApi(t *testing.T) {
 	t.Log(podcontext)
 
 	// release requested IP address, expect success
-	err = cnsClient.ReleaseIPs(context.TODO(), cns.IPConfigRequest{OrchestratorContext: orchestratorContext})
+	err = cnsClient.ReleaseIPs(context.TODO(), cns.IPConfigsRequest{OrchestratorContext: orchestratorContext})
 	assert.NoError(t, err, "Expected to not fail when releasing IP reservation found with context")
 }
 
@@ -1595,9 +1595,7 @@ func TestRequestIPAddress(t *testing.T) {
 			name: "happy case",
 			ctx:  context.TODO(),
 			ipconfig: cns.IPConfigRequest{
-				DesiredIPAddresses: []string{
-					"testipaddress",
-				},
+				DesiredIPAddress: "testipaddress",
 				PodInterfaceID:   "testpodinterfaceid",
 				InfraContainerID: "testcontainerid",
 			},
@@ -1614,9 +1612,7 @@ func TestRequestIPAddress(t *testing.T) {
 			name: "bad request",
 			ctx:  context.TODO(),
 			ipconfig: cns.IPConfigRequest{
-				DesiredIPAddresses: []string{
-					"testipaddress",
-				},
+				DesiredIPAddress: "testipaddress",
 				PodInterfaceID:   "testpodinterfaceid",
 				InfraContainerID: "testcontainerid",
 			},
@@ -1633,9 +1629,7 @@ func TestRequestIPAddress(t *testing.T) {
 			name: "bad decoding",
 			ctx:  context.TODO(),
 			ipconfig: cns.IPConfigRequest{
-				DesiredIPAddresses: []string{
-					"testipaddress",
-				},
+				DesiredIPAddress: "testipaddress",
 				PodInterfaceID:   "testpodinterfaceid",
 				InfraContainerID: "testcontainerid",
 			},
@@ -1665,9 +1659,7 @@ func TestRequestIPAddress(t *testing.T) {
 			name: "cns return code not zero",
 			ctx:  context.TODO(),
 			ipconfig: cns.IPConfigRequest{
-				DesiredIPAddresses: []string{
-					"testipaddress",
-				},
+				DesiredIPAddress: "testipaddress",
 				PodInterfaceID:   "testpodinterfaceid",
 				InfraContainerID: "testcontainerid",
 			},
@@ -1688,9 +1680,7 @@ func TestRequestIPAddress(t *testing.T) {
 			name: "nil context",
 			ctx:  nil,
 			ipconfig: cns.IPConfigRequest{
-				DesiredIPAddresses: []string{
-					"testipaddress",
-				},
+				DesiredIPAddress: "testipaddress",
 				PodInterfaceID:   "testpodinterfaceid",
 				InfraContainerID: "testcontainerid",
 			},
@@ -1723,7 +1713,7 @@ func TestReleaseIPAddress(t *testing.T) {
 	tests := []struct {
 		name     string
 		ctx      context.Context
-		ipconfig cns.IPConfigRequest
+		ipconfig cns.IPConfigsRequest
 		mockdo   *mockdo
 		routes   map[string]url.URL
 		wantErr  bool
@@ -1731,7 +1721,7 @@ func TestReleaseIPAddress(t *testing.T) {
 		{
 			name: "happy case",
 			ctx:  context.TODO(),
-			ipconfig: cns.IPConfigRequest{
+			ipconfig: cns.IPConfigsRequest{
 				DesiredIPAddresses: []string{
 					"testipaddress",
 				},
@@ -1749,7 +1739,7 @@ func TestReleaseIPAddress(t *testing.T) {
 		{
 			name: "bad request",
 			ctx:  context.TODO(),
-			ipconfig: cns.IPConfigRequest{
+			ipconfig: cns.IPConfigsRequest{
 				DesiredIPAddresses: []string{
 					"testipaddress",
 				},
@@ -1767,7 +1757,7 @@ func TestReleaseIPAddress(t *testing.T) {
 		{
 			name: "bad decoding",
 			ctx:  context.TODO(),
-			ipconfig: cns.IPConfigRequest{
+			ipconfig: cns.IPConfigsRequest{
 				DesiredIPAddresses: []string{
 					"testipaddress",
 				},
@@ -1785,7 +1775,7 @@ func TestReleaseIPAddress(t *testing.T) {
 		{
 			name:     "http status not ok",
 			ctx:      context.TODO(),
-			ipconfig: cns.IPConfigRequest{},
+			ipconfig: cns.IPConfigsRequest{},
 			mockdo: &mockdo{
 				errToReturn:            nil,
 				objToReturn:            nil,
@@ -1797,7 +1787,7 @@ func TestReleaseIPAddress(t *testing.T) {
 		{
 			name: "cns return code not zero",
 			ctx:  context.TODO(),
-			ipconfig: cns.IPConfigRequest{
+			ipconfig: cns.IPConfigsRequest{
 				DesiredIPAddresses: []string{
 					"testipaddress",
 				},
@@ -1817,7 +1807,7 @@ func TestReleaseIPAddress(t *testing.T) {
 		{
 			name: "nil context",
 			ctx:  nil,
-			ipconfig: cns.IPConfigRequest{
+			ipconfig: cns.IPConfigsRequest{
 				DesiredIPAddresses: []string{
 					"testipaddress",
 				},
