@@ -260,8 +260,7 @@ func DeletePod(namespace, name, ip string, labels map[string]string) *Action {
 	podKey := fmt.Sprintf("%s/%s", namespace, name)
 	return &Action{
 		DPAction: &PodDeleteAction{
-			// currently, the PodController doesn't share the node name
-			Pod:    NewPodMetadata(podKey, ip, ""),
+			Pod:    NewPodMetadataMarkedForDelete(podKey, ip),
 			Labels: labels,
 		},
 	}
