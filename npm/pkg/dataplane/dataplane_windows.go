@@ -163,6 +163,7 @@ func (dp *DataPlane) updatePod(pod *updateNPMPod) error {
 
 	if endpoint.podKey == unspecifiedPodKey {
 		// while refreshing pod endpoints, newly discovered endpoints are given an unspecified pod key
+		klog.Infof("[DataPlane] associating pod with endpoint. podKey: %s. endpoint: %+v", pod.PodKey, endpoint)
 		endpoint.podKey = pod.PodKey
 	} else if pod.PodKey != endpoint.podKey {
 		return fmt.Errorf("pod key mismatch. Expected: %s, Actual: %s. Error: [%w]", pod.PodKey, endpoint.podKey, errMismanagedPodKey)
