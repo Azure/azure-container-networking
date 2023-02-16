@@ -365,7 +365,6 @@ func (dp *DataPlane) refreshPodEndpoints() error {
 	dp.endpointCache.Lock()
 	defer dp.endpointCache.Unlock()
 
-	currentTime := time.Now().Unix()
 	existingIPs := make(map[string]struct{})
 	for _, endpoint := range endpoints {
 		if len(endpoint.IpConfigurations) == 0 {
@@ -392,40 +391,16 @@ func (dp *DataPlane) refreshPodEndpoints() error {
 			// throw away old endpoints that have the same IP as a current endpoint (the old endpoint is getting deleted)
 			// we don't have to worry about cleaning up network policies on endpoints that are getting deleted
 			npmEP := newNPMEndpoint(endpoint)
-			if oldNPMEP.podKey == unspecifiedPodKey {
-				klog.Infof("updating endpoint cache since endpoint changed for IP which never had a pod key. new endpoint: %s, old endpoint: %s, ip: %s", npmEP.id, oldNPMEP.id, npmEP.ip)
-				dp.endpointCache.cache[ip] = npmEP
-			} else {
-				npmEP.stalePodKey = &staleKey{
-					key:       oldNPMEP.podKey,
-					timestamp: currentTime,
-				}
-				dp.endpointCache.cache[ip] = npmEP
-				// NOTE: TSGs rely on this log line
-				klog.Infof("updating endpoint cache for previously cached IP %s: %+v with stalePodKey %+v", npmEP.ip, npmEP, npmEP.stalePodKey)
-			}
+			klog.Infof("[DataPlane] updating endpoint cache for IP with a new endpoint. old endpoint: %+v. new endpoint: %+v", oldNPMEP, npmEP)
+			dp.endpointCache.cache[ip] = npmEP
 		}
 	}
 
 	// garbage collection for the endpoint cache
 	for ip, ep := range dp.endpointCache.cache {
 		if _, ok := existingIPs[ip]; !ok {
-			if ep.podKey == unspecifiedPodKey {
-				if ep.stalePodKey == nil {
-					klog.Infof("deleting old endpoint which never had a pod key. ID: %s, IP: %s", ep.id, ip)
-					delete(dp.endpointCache.cache, ip)
-				} else if int(currentTime-ep.stalePodKey.timestamp)/60 > minutesToKeepStalePodKey {
-					klog.Infof("deleting old endpoint which had a stale pod key. ID: %s, IP: %s, stalePodKey: %+v", ep.id, ip, ep.stalePodKey)
-					delete(dp.endpointCache.cache, ip)
-				}
-			} else {
-				ep.stalePodKey = &staleKey{
-					key:       ep.podKey,
-					timestamp: currentTime,
-				}
-				ep.podKey = unspecifiedPodKey
-				klog.Infof("marking endpoint stale for at least %d minutes. ID: %s, IP: %s, new stalePodKey: %+v", minutesToKeepStalePodKey, ep.id, ip, ep.stalePodKey)
-			}
+			klog.Infof("[DataPlane] deleting endpoint from cache. endpoint: %+v", ep)
+			delete(dp.endpointCache.cache, ip)
 		}
 	}
 
