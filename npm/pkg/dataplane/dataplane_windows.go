@@ -317,9 +317,6 @@ func (dp *DataPlane) getPodEndpoints(includeRemoteEndpoints bool) ([]*hcn.HostCo
 		if includeRemoteEndpoints || e.Flags == hcn.EndpointFlagsNone {
 			// having EndpointFlagsNone means it is a local endpoint
 			localEndpoints = append(localEndpoints, e)
-		} else {
-			// TODO remove for GA
-			klog.Infof("ignoring remote endpoint. ID: %s, IP configs: %+v", e.Id, e.IpConfigurations)
 		}
 	}
 	return localEndpoints, nil
