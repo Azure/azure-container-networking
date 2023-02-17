@@ -447,14 +447,14 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 
 		ipamAddResults, err = plugin.multitenancyClient.GetAllNetworkContainers(context.TODO(), nwCfg, k8sPodName, k8sNamespace, args.IfName)
 		if err != nil {
-			err = fmt.Errorf("GetAllNetworkContainers failed for podname %v namespace %v. error: %+v", k8sPodName, k8sNamespace, err)
+			err = fmt.Errorf("GetAllNetworkContainers failed for podname %s namespace %s. error: %+v", k8sPodName, k8sNamespace, err)
 			log.Printf("%+v", err)
 			return err
 		}
 
 		if len(ipamAddResults) > 1 && !plugin.isDualNicFeatureSupported(args.Netns) {
-			err = fmt.Errorf("received multiple NC results from CNS while dualnic feature is not supported")
-			log.Errorf("%+v", err)
+			err = fmt.Error("received multiple NC results from CNS while dualnic feature is not supported")
+			log.Printf("%+v", err)
 			return err
 		}
 	} else {
@@ -1005,7 +1005,7 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 
 		if !nwCfg.MultiTenancy {
 			// Call into IPAM plugin to release the endpoint's addresses.
-			for _, address := range epInfo.IPAddresses {
+			for _, address := range epInfo.IPAddresses { //nolint:gocritic // copy is ok
 				logAndSendEvent(plugin, fmt.Sprintf("Release ip:%s", address.IP.String()))
 				err = plugin.ipamInvoker.Delete(&address, nwCfg, args, nwInfo.Options)
 				if err != nil {
