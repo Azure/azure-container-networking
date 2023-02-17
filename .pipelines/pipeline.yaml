@@ -227,20 +227,30 @@ stages:
           name: "$(BUILD_POOL_NAME_WINDOWS_AMD64)"
         strategy:
           matrix:
-            cns_windows_amd64:
+            cns_windows2022_amd64:
               arch: amd64
               name: cns
               ai_path: github.com/Azure/azure-container-networking/cns/logger.aiMetadata
               ai_path_var: CNS_AI_PATH
               ai_id: ce672799-8f08-4235-8c12-08563dc2acef
               ai_id_var: CNS_AI_ID
-            npm_windows_amd64:
+              os_sku: ltsc2022
+            cns_windows2019_amd64:
+              arch: amd64
+              name: cns
+              ai_path: github.com/Azure/azure-container-networking/cns/logger.aiMetadata
+              ai_path_var: CNS_AI_PATH
+              ai_id: ce672799-8f08-4235-8c12-08563dc2acef
+              ai_id_var: CNS_AI_ID
+              os_sku: "1809"
+            npm_windows2022_amd64:
               arch: amd64
               name: npm
               ai_path: github.com/Azure/azure-container-networking/npm.aiMetadata
               ai_path_var: NPM_AI_PATH
               ai_id: 014c22bd-4107-459e-8475-67909e96edcb
               ai_id_var: NPM_AI_ID
+              os_sku: ltsc2022
         steps:
           - template: containers/container-template-windows.yaml
             parameters:
@@ -251,6 +261,7 @@ stages:
               ai_id: $(ai_id)
               ai_id_var: $(ai_id_var)
               tag: $(TAG)
+              os_sku: "$(os_sku)"
       - job: check_tag
         displayName: Check Tag
         pool:

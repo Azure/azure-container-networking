@@ -20,7 +20,8 @@ GOOS 	 ?= $(shell go env GOOS)
 GOARCH   ?= $(shell go env GOARCH)
 GOOSES   ?= "linux windows" # To override at the cli do: GOOSES="\"darwin bsd\""
 GOARCHES ?= "amd64 arm64" # To override at the cli do: GOARCHES="\"ppc64 mips\""
-WINVER   ?= "10.0.20348.643"
+WINVER2022 := "10.0.20348.643"
+WINVER2019 := "10.0.17763.4010"
 
 # Windows specific extensions
 # set these based on the GOOS, not the OS
@@ -236,6 +237,7 @@ ACNCLI_PLATFORM_TAG     ?= $(subst /,-,$(PLATFORM))-$(ACN_VERSION)
 CNI_DROPGZ_PLATFORM_TAG ?= $(subst /,-,$(PLATFORM))-$(CNI_DROPGZ_VERSION)
 CNI_DROPGZ_TEST_PLATFORM_TAG ?= $(subst /,-,$(PLATFORM))-$(CNI_DROPGZ_TEST_VERSION)
 CNS_PLATFORM_TAG        ?= $(subst /,-,$(PLATFORM))-$(CNS_VERSION)
+CNS_WINDOWS_PLATFORM_TAG ?= $(subst /,-,$(PLATFORM))-$(CNS_VERSION)-$(WINDOWS_OS_SKU)
 NPM_PLATFORM_TAG        ?= $(subst /,-,$(PLATFORM))-$(NPM_VERSION)
 
 
@@ -441,15 +443,31 @@ npm-skopeo-export:
 
 ## can probably be combined with above with a GOOS.Dockerfile change?
 # Build the windows cns image
-cns-image-windows:
+cns-image-windows: cns-image-windows-ws2022 cns-image-windows-ws2019
+
+cns-image-windows-ws2022:
 	$(MKDIR) $(IMAGE_DIR); 
 	docker build \
 	--no-cache \
 	-f cns/windows.Dockerfile \
-	-t $(IMAGE_REGISTRY)/$(CNS_IMAGE)-win:$(CNS_PLATFORM_TAG) \
+	-t $(IMAGE_REGISTRY)/$(CNS_IMAGE)-win:$(CNS_PLATFORM_TAG)-2022 \
 	--build-arg VERSION=$(CNS_VERSION) \
 	--build-arg CNS_AI_PATH=$(CNS_AI_PATH) \
 	--build-arg CNS_AI_ID=$(CNS_AI_ID) \
+	.
+
+	echo $(CNS_IMAGE)-win:$(CNS_VERSION) > $(IMAGE_DIR)/$(CNS_IMAGE_INFO_FILE)
+
+cns-image-windows-ws2019:
+	$(MKDIR) $(IMAGE_DIR); 
+	docker build \
+	--no-cache \
+	-f cns/windows.Dockerfile \
+	-t $(IMAGE_REGISTRY)/$(CNS_IMAGE)-win:$(CNS_PLATFORM_TAG)-2019 \
+	--build-arg VERSION=$(CNS_VERSION) \
+	--build-arg CNS_AI_PATH=$(CNS_AI_PATH) \
+	--build-arg CNS_AI_ID=$(CNS_AI_ID) \
+	--build-arg OS_SKU=1809 \
 	.
 
 	echo $(CNS_IMAGE)-win:$(CNS_VERSION) > $(IMAGE_DIR)/$(CNS_IMAGE_INFO_FILE)
@@ -494,10 +512,14 @@ IMAGE_ARCHIVE_DIR ?= $(shell pwd)
 
 manifest-create: # util target to compose multiarch container manifests from platform specific images.
 	$(CONTAINER_BUILDER) manifest create $(IMAGE_REGISTRY)/$(IMAGE):$(TAG)
-	$(foreach PLATFORM,$(PLATFORMS),                                                                                                                                        \
-		$(if $(filter $(PLATFORM),windows/amd64),                                                                                                                           \
-			$(CONTAINER_BUILDER) manifest add --os-version=$(WINVER) $(IMAGE_REGISTRY)/$(IMAGE):$(TAG) docker://$(IMAGE_REGISTRY)/$(IMAGE):$(subst /,-,$(PLATFORM))-$(TAG); \
-		,                                                                                                                                                                   \
+	$(foreach PLATFORM,$(PLATFORMS), \
+		$(if $(filter $(PLATFORM),windows/amd64), \
+			$(foreach WINDOWS_OS_SKU,$(WINDOWS_OS_SKUS), \
+				$(if $(filter $(WINDOWS_OS_SKU),ltsc2022), \
+					$(CONTAINER_BUILDER) manifest add --os-version=$(WINVER2022) $(IMAGE_REGISTRY)/$(IMAGE):$(TAG) docker://$(IMAGE_REGISTRY)/$(IMAGE):$(subst /,-,$(PLATFORM))-$(TAG)-$(WINDOWS_OS_SKU); \
+				, \
+					$(CONTAINER_BUILDER) manifest add --os-version=$(WINVER2019) $(IMAGE_REGISTRY)/$(IMAGE):$(TAG) docker://$(IMAGE_REGISTRY)/$(IMAGE):$(subst /,-,$(PLATFORM))-$(TAG)-$(WINDOWS_OS_SKU);)) \
+		, \
 			$(CONTAINER_BUILDER) manifest add $(IMAGE_REGISTRY)/$(IMAGE):$(TAG) docker://$(IMAGE_REGISTRY)/$(IMAGE):$(subst /,-,$(PLATFORM))-$(TAG);))
 
 manifest-push: # util target to push multiarch container manifest.
@@ -560,7 +582,8 @@ cns-manifest-create: ## build azure-cns multiplat container manifest.
 	$(MAKE) manifest-create \
 		PLATFORMS="$(PLATFORMS)" \
 		IMAGE=$(CNS_IMAGE) \
-		TAG=$(CNS_VERSION)
+		TAG=$(CNS_VERSION) \
+		WINDOWS_OS_SKUS="ltsc2022 1809"
 
 cns-manifest-push: ## push cns multiplat container manifest
 	$(MAKE) manifest-push \
@@ -576,7 +599,8 @@ npm-manifest-create: ## build azure-npm multiplat container manifest.
 	$(MAKE) manifest-create \
 		PLATFORMS="$(PLATFORMS)" \
 		IMAGE=$(NPM_IMAGE) \
-		TAG=$(NPM_VERSION)
+		TAG=$(NPM_VERSION) \
+		WINDOWS_OS_SKUS="ltsc2022"
 
 npm-manifest-push: ## push multiplat container manifest
 	$(MAKE) manifest-push \
