@@ -29,6 +29,9 @@ type delegatePlugin interface {
 	Errorf(format string, args ...interface{}) *cniTypes.Error
 }
 
+const bytesSize4 = 4
+const bytesSize16 = 16
+
 // Create an IPAM instance every time a CNI action is called.
 func NewAzureIpamInvoker(plugin *NetPlugin, nwInfo *network.NetworkInfo) *AzureIPAMInvoker {
 	return &AzureIPAMInvoker{
@@ -66,8 +69,8 @@ func (invoker *AzureIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, er
 		if err != nil {
 			if len(addResult.ipv4Result.IPs) > 0 {
 				addresses := []*net.IPNet{}
-				for _, IP := range addResult.ipv4Result.IPs {
-					addresses = append(addresses, &IP.Address)
+				for _, ip := range addResult.ipv4Result.IPs {
+					addresses = append(addresses, &ip.Address)
 				}
 				if er := invoker.Delete(addresses, addConfig.nwCfg, nil, addConfig.options); er != nil {
 					err = invoker.plugin.Errorf("Failed to clean up IP's during Delete with error %v, after Add failed with error %w", er, err)
@@ -127,8 +130,6 @@ func (invoker *AzureIPAMInvoker) deleteIpamState() {
 }
 
 func (invoker *AzureIPAMInvoker) Delete(addresses []*net.IPNet, nwCfg *cni.NetworkConfig, _ *cniSkel.CmdArgs, options map[string]interface{}) error {
-	const bytesSize4 = 4
-	const bytesSize16 = 16
 
 	if nwCfg == nil {
 		return invoker.plugin.Errorf("nil nwCfg passed to CNI ADD, stack: %+v", string(debug.Stack()))
@@ -147,11 +148,10 @@ func (invoker *AzureIPAMInvoker) Delete(addresses []*net.IPNet, nwCfg *cni.Netwo
 	for _, address := range addresses {
 		if len(address.IP.To4()) == bytesSize4 {
 			nwCfg.IPAM.Address = address.IP.String()
-			log.Printf("Releasing ipv4 address :%s pool: %s",
-				nwCfg.IPAM.Address, nwCfg.IPAM.Subnet)
+			log.Printf("Releasing ipv4 address :%s pool: %s", nwCfg.IPAM.Address, nwCfg.IPAM.Subnet)
 			if err := invoker.plugin.DelegateDel(nwCfg.IPAM.Type, nwCfg); err != nil {
 				log.Printf("Failed to release ipv4 address: %v", err)
-				return invoker.plugin.Errorf("Failed to release ipv4 address: %v", err)
+				return invoker.plugin.Errorf("Failed to release ipv4 address: %v with error: ", nwCfg.IPAM.Address, err)
 			}
 		} else if len(address.IP.To16()) == bytesSize16 {
 			nwCfgIpv6 := *nwCfg

@@ -29,6 +29,7 @@ const (
 	RequestIPConfig                          = "/network/requestipconfig"
 	RequestIPConfigs                         = "/network/requestipconfigs"
 	ReleaseIPConfig                          = "/network/releaseipconfig"
+	ReleaseIPConfigs                         = "/network/releaseipconfigs"
 	PathDebugIPAddresses                     = "/debug/ipaddresses"
 	PathDebugPodContext                      = "/debug/podcontext"
 	PathDebugRestData                        = "/debug/restdata"

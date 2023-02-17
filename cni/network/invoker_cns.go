@@ -9,6 +9,7 @@ import (
 	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/cni/util"
 	"github.com/Azure/azure-container-networking/cns"
+	cnscli "github.com/Azure/azure-container-networking/cns/client"
 	"github.com/Azure/azure-container-networking/iptables"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/network"
@@ -245,7 +246,26 @@ func (invoker *CNSIPAMInvoker) Delete(addresses []*net.IPNet, nwCfg *cni.Network
 	}
 
 	if err := invoker.cnsClient.ReleaseIPs(context.TODO(), req); err != nil {
-		return errors.Wrap(err, fmt.Sprintf("failed to release IP %v with err ", addresses)+"%w")
+		// if we fail a release with a 404 error try using the old API
+		if errors.Is(err, cnscli.ErrAPINotFound) {
+			ipconfigRequest := cns.IPConfigRequest{
+				OrchestratorContext: orchestratorContext,
+				PodInterfaceID:      GetEndpointID(args),
+				InfraContainerID:    args.ContainerID,
+				DesiredIPAddress:    req.DesiredIPAddresses[0],
+			}
+			log.Errorf("Failed to release IPs using ReleaseIPs from CNS, going to try ReleaseIPAddress. error: %v request: %v", err, req)
+
+			if err := invoker.cnsClient.ReleaseIPAddress(context.TODO(), ipconfigRequest); err != nil {
+				// if the old API fails as well then we just return the error
+				log.Errorf("Failed to release IP address from CNS using ReleaseIPAddress. error: %v request: %v", err, req)
+				return errors.Wrap(err, fmt.Sprintf("failed to release IP %v using ReleaseIPAddress with err ", addresses)+"%w")
+			}
+		} else {
+			log.Errorf("Failed to release IP address from CNS error: %v request: %v", err, req)
+			return errors.Wrap(err, fmt.Sprintf("failed to release IP %v using ReleaseIPs with err ", addresses)+"%w")
+		}
+
 	}
 
 	return nil

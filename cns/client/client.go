@@ -32,6 +32,7 @@ var clientPaths = []string{
 	cns.RequestIPConfig,
 	cns.RequestIPConfigs,
 	cns.ReleaseIPConfig,
+	cns.ReleaseIPConfigs,
 	cns.PathDebugIPAddresses,
 	cns.PathDebugPodContext,
 	cns.PathDebugRestData,
@@ -375,44 +376,6 @@ func (c *Client) ReleaseIPAddress(ctx context.Context, ipconfig cns.IPConfigRequ
 	return nil
 }
 
-// ReleaseIPs calls releaseIPAddress on CNS, ipaddress ex: (10.0.0.1)
-func (c *Client) ReleaseIPs(ctx context.Context, ipconfig cns.IPConfigsRequest) error {
-	var body bytes.Buffer
-	err := json.NewEncoder(&body).Encode(ipconfig)
-	if err != nil {
-		return errors.Wrap(err, "failed to encode IPConfigsRequest")
-	}
-
-	u := c.routes[cns.ReleaseIPConfig]
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, u.String(), &body)
-	if err != nil {
-		return errors.Wrap(err, "failed to build request")
-	}
-	req.Header.Set(headerContentType, contentTypeJSON)
-	res, err := c.client.Do(req)
-	if err != nil {
-		return errors.Wrap(err, "http request failed")
-	}
-	defer res.Body.Close()
-
-	if res.StatusCode != http.StatusOK {
-		return errors.Errorf("http response %d", res.StatusCode)
-	}
-
-	var resp cns.Response
-
-	err = json.NewDecoder(res.Body).Decode(&resp)
-	if err != nil {
-		return errors.Wrap(err, "failed to decode Response")
-	}
-
-	if resp.ReturnCode != 0 {
-		return errors.New(resp.Message)
-	}
-
-	return nil
-}
-
 // RequestIPs calls the RequestIPConfigs in CNS
 func (c *Client) RequestIPs(ctx context.Context, ipconfig cns.IPConfigsRequest) (*cns.IPConfigsResponse, error) {
 	var err error
@@ -458,6 +421,47 @@ func (c *Client) RequestIPs(ctx context.Context, ipconfig cns.IPConfigsRequest) 
 	}
 
 	return &response, nil
+}
+
+// ReleaseIPs calls releaseIPs on CNS, ipaddress ex: (10.0.0.1)
+func (c *Client) ReleaseIPs(ctx context.Context, ipconfig cns.IPConfigsRequest) error {
+	var body bytes.Buffer
+	err := json.NewEncoder(&body).Encode(ipconfig)
+	if err != nil {
+		return errors.Wrap(err, "failed to encode IPConfigsRequest")
+	}
+
+	u := c.routes[cns.ReleaseIPConfigs]
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, u.String(), &body)
+	if err != nil {
+		return errors.Wrap(err, "failed to build request")
+	}
+	req.Header.Set(headerContentType, contentTypeJSON)
+	res, err := c.client.Do(req)
+
+	defer res.Body.Close()
+
+	// if we get a 404 error
+	if res.StatusCode != http.StatusOK {
+		return ErrAPINotFound
+	}
+
+	if err != nil {
+		return errors.Wrap(err, "http request failed")
+	}
+
+	var resp cns.Response
+
+	err = json.NewDecoder(res.Body).Decode(&resp)
+	if err != nil {
+		return errors.Wrap(err, "failed to decode Response")
+	}
+
+	if resp.ReturnCode != 0 {
+		return errors.New(resp.Message)
+	}
+
+	return nil
 }
 
 // GetIPAddressesMatchingStates takes a variadic number of string parameters, to get all IP Addresses matching a number of states

@@ -205,145 +205,102 @@ func (service *HTTPRestService) updateEndpointState(ipconfigsRequest cns.IPConfi
 	return nil
 }
 
-func (service *HTTPRestService) releaseIPConfigHandlerHelper(ipconfigsRequest cns.IPConfigsRequest) {
-	var req cns.IPConfigsRequest
-	err := service.Listener.Decode(w, r, &req)
-	logger.Request(service.Name+"releaseIPConfigHandler", req, err)
-	if err != nil {
-		resp := cns.Response{
-			ReturnCode: types.UnexpectedError,
-			Message:    err.Error(),
-		}
-		logger.Errorf("releaseIPConfigHandler decode failed becase %v, release IP config info %s", resp.Message, req)
-		w.Header().Set(cnsReturnCode, resp.ReturnCode.String())
-		err = service.Listener.Encode(w, &resp)
-		logger.ResponseEx(service.Name, req, resp, resp.ReturnCode, err)
-		return
+func (service *HTTPRestService) releaseIPConfigHandlerHelper(ipconfigsRequest cns.IPConfigsRequest) (*cns.Response, error) {
+	podInfo, returnCode, returnMessage := service.validateIPConfigsRequest(ipconfigsRequest)
+	if returnCode != types.Success {
+		return &cns.Response{
+			ReturnCode: returnCode,
+			Message:    returnMessage,
+		}, fmt.Errorf("failed to validate ip config request")
 	}
-
-	podInfo, returnCode, message := service.validateIPConfigsRequest(req)
-
 	// Check if http rest service managed endpoint state is set
 	if service.Options[common.OptManageEndpointState] == true {
-		if err = service.removeEndpointState(podInfo); err != nil {
-			resp := cns.Response{
+		if err := service.removeEndpointState(podInfo); err != nil {
+			resp := &cns.Response{
 				ReturnCode: types.UnexpectedError,
 				Message:    err.Error(),
 			}
-			logger.Errorf("releaseIPConfigHandler remove endpoint state failed because %v, release IP config info %s", resp.Message, req)
-			w.Header().Set(cnsReturnCode, resp.ReturnCode.String())
-			err = service.Listener.Encode(w, &resp)
-			logger.ResponseEx(service.Name, req, resp, resp.ReturnCode, err)
-			return
+			return resp, fmt.Errorf("releaseIPConfigHandlerHelper remove endpoint state failed because %v, release IP config info %s", resp.Message, ipconfigsRequest)
 		}
 	}
 
-	if err = service.releaseIPConfig(podInfo); err != nil {
-		returnCode = types.UnexpectedError
-		message = err.Error()
-		logger.Errorf("releaseIPConfigHandler releaseIPConfig failed because %v, release IP config info %s", message, req)
+	if err := service.releaseIPConfig(podInfo); err != nil {
+		return &cns.Response{
+			ReturnCode: types.UnexpectedError,
+			Message:    err.Error(),
+		}, fmt.Errorf("releaseIPConfigHandler releaseIPConfig failed because %v, release IP config info %s", returnMessage, ipconfigsRequest)
 	}
-	resp := cns.Response{
-		ReturnCode: returnCode,
-		Message:    message,
-	}
-	w.Header().Set(cnsReturnCode, resp.ReturnCode.String())
-	err = service.Listener.Encode(w, &resp)
-	logger.ResponseEx(service.Name, req, resp, resp.ReturnCode, err)
+
+	return &cns.Response{
+		ReturnCode: types.Success,
+		Message:    "",
+	}, nil
 }
 
 func (service *HTTPRestService) releaseIPConfigHandler(w http.ResponseWriter, r *http.Request) {
-	var req cns.IPConfigRequest
-	err := service.Listener.Decode(w, r, &req)
-	logger.Request(service.Name+"releaseIPConfigHandler", req, err)
+	var ipconfigRequest cns.IPConfigRequest
+	err := service.Listener.Decode(w, r, &ipconfigRequest)
+	logger.Request(service.Name+"releaseIPConfigHandler", ipconfigRequest, err)
 	if err != nil {
 		resp := cns.Response{
 			ReturnCode: types.UnexpectedError,
 			Message:    err.Error(),
 		}
-		logger.Errorf("releaseIPConfigHandler decode failed becase %v, release IP config info %s", resp.Message, req)
+		logger.Errorf("releaseIPConfigHandler decode failed becase %v, release IP config info %s", resp.Message, ipconfigRequest)
 		w.Header().Set(cnsReturnCode, resp.ReturnCode.String())
 		err = service.Listener.Encode(w, &resp)
-		logger.ResponseEx(service.Name, req, resp, resp.ReturnCode, err)
+		logger.ResponseEx(service.Name, ipconfigRequest, resp, resp.ReturnCode, err)
 		return
 	}
 
-	podInfo, returnCode, message := service.validateIPConfigsRequest(req)
-
-	// Check if http rest service managed endpoint state is set
-	if service.Options[common.OptManageEndpointState] == true {
-		if err = service.removeEndpointState(podInfo); err != nil {
-			resp := cns.Response{
-				ReturnCode: types.UnexpectedError,
-				Message:    err.Error(),
-			}
-			logger.Errorf("releaseIPConfigHandler remove endpoint state failed because %v, release IP config info %s", resp.Message, req)
-			w.Header().Set(cnsReturnCode, resp.ReturnCode.String())
-			err = service.Listener.Encode(w, &resp)
-			logger.ResponseEx(service.Name, req, resp, resp.ReturnCode, err)
-			return
-		}
+	ipconfigsRequest := cns.IPConfigsRequest{
+		DesiredIPAddresses: []string{
+			ipconfigRequest.DesiredIPAddress,
+		},
+		PodInterfaceID:      ipconfigRequest.PodInterfaceID,
+		InfraContainerID:    ipconfigRequest.InfraContainerID,
+		OrchestratorContext: ipconfigRequest.OrchestratorContext,
+		Ifname:              ipconfigRequest.Ifname,
 	}
 
-	if err = service.releaseIPConfig(podInfo); err != nil {
-		returnCode = types.UnexpectedError
-		message = err.Error()
-		logger.Errorf("releaseIPConfigHandler releaseIPConfig failed because %v, release IP config info %s", message, req)
+	resp, err := service.releaseIPConfigHandlerHelper(ipconfigsRequest)
+	if err != nil {
+		w.Header().Set(cnsReturnCode, resp.ReturnCode.String())
+		err = service.Listener.Encode(w, &resp)
+		logger.ResponseEx(service.Name, ipconfigRequest, resp, resp.ReturnCode, err)
 	}
-	resp := cns.Response{
-		ReturnCode: returnCode,
-		Message:    message,
-	}
+
 	w.Header().Set(cnsReturnCode, resp.ReturnCode.String())
 	err = service.Listener.Encode(w, &resp)
-	logger.ResponseEx(service.Name, req, resp, resp.ReturnCode, err)
+	logger.ResponseEx(service.Name, ipconfigRequest, resp, resp.ReturnCode, err)
 }
 
 func (service *HTTPRestService) releaseIPConfigsHandler(w http.ResponseWriter, r *http.Request) {
-	var req cns.IPConfigsRequest
-	err := service.Listener.Decode(w, r, &req)
-	logger.Request(service.Name+"releaseIPConfigHandler", req, err)
+	var ipconfigsRequest cns.IPConfigsRequest
+	err := service.Listener.Decode(w, r, &ipconfigsRequest)
+	logger.Request(service.Name+"releaseIPConfigsHandler", ipconfigsRequest, err)
 	if err != nil {
 		resp := cns.Response{
 			ReturnCode: types.UnexpectedError,
 			Message:    err.Error(),
 		}
-		logger.Errorf("releaseIPConfigHandler decode failed becase %v, release IP config info %s", resp.Message, req)
+		logger.Errorf("releaseIPConfigsHandler decode failed because %v, release IP config info %s", resp.Message, ipconfigsRequest)
 		w.Header().Set(cnsReturnCode, resp.ReturnCode.String())
 		err = service.Listener.Encode(w, &resp)
-		logger.ResponseEx(service.Name, req, resp, resp.ReturnCode, err)
+		logger.ResponseEx(service.Name, ipconfigsRequest, resp, resp.ReturnCode, err)
 		return
 	}
 
-	podInfo, returnCode, message := service.validateIPConfigsRequest(req)
-
-	// Check if http rest service managed endpoint state is set
-	if service.Options[common.OptManageEndpointState] == true {
-		if err = service.removeEndpointState(podInfo); err != nil {
-			resp := cns.Response{
-				ReturnCode: types.UnexpectedError,
-				Message:    err.Error(),
-			}
-			logger.Errorf("releaseIPConfigHandler remove endpoint state failed because %v, release IP config info %s", resp.Message, req)
-			w.Header().Set(cnsReturnCode, resp.ReturnCode.String())
-			err = service.Listener.Encode(w, &resp)
-			logger.ResponseEx(service.Name, req, resp, resp.ReturnCode, err)
-			return
-		}
+	resp, err := service.releaseIPConfigHandlerHelper(ipconfigsRequest)
+	if err != nil {
+		w.Header().Set(cnsReturnCode, resp.ReturnCode.String())
+		err = service.Listener.Encode(w, &resp)
+		logger.ResponseEx(service.Name, ipconfigsRequest, resp, resp.ReturnCode, err)
 	}
 
-	if err = service.releaseIPConfig(podInfo); err != nil {
-		returnCode = types.UnexpectedError
-		message = err.Error()
-		logger.Errorf("releaseIPConfigHandler releaseIPConfig failed because %v, release IP config info %s", message, req)
-	}
-	resp := cns.Response{
-		ReturnCode: returnCode,
-		Message:    message,
-	}
 	w.Header().Set(cnsReturnCode, resp.ReturnCode.String())
 	err = service.Listener.Encode(w, &resp)
-	logger.ResponseEx(service.Name, req, resp, resp.ReturnCode, err)
+	logger.ResponseEx(service.Name, ipconfigsRequest, resp, resp.ReturnCode, err)
 }
 
 func (service *HTTPRestService) removeEndpointState(podInfo cns.PodInfo) error {
