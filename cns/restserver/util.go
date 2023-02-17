@@ -364,7 +364,7 @@ func (service *HTTPRestService) getAllNetworkContainerResponses(
 	var (
 		getNetworkContainerResponse cns.GetNetworkContainerResponse
 		ncs                         []string
-		skipNCVersionCheck          bool
+		skipNCVersionCheck          = false
 	)
 
 	service.Lock()

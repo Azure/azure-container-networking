@@ -453,7 +453,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 		}
 
 		if len(ipamAddResults) > 1 && !plugin.isDualNicFeatureSupported(args.Netns) {
-			err = fmt.Error("received multiple NC results from CNS while dualnic feature is not supported")
+			err = fmt.Errorf("received multiple NC results %+v from CNS while dualnic feature is not supported", ipamAddResults)
 			log.Printf("%+v", err)
 			return err
 		}

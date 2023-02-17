@@ -875,7 +875,6 @@ func (service *HTTPRestService) getAllNetworkContainers(w http.ResponseWriter, r
 	}
 
 	getAllNetworkContainerResponses := service.getAllNetworkContainerResponses(req) // nolint
-	logger.Printf("getAllNetworkContainerResponses are %+v", getAllNetworkContainerResponses)
 
 	var resp cns.GetAllNetworkContainersResponse
 
