@@ -728,6 +728,13 @@ func main() {
 				cns.GlobalPodInfoScheme = cns.InterfaceIDPodInfoScheme
 			}
 		}
+		// If cns manageendpointstate is true, then cns maintains its own state and reconciles from it.
+		// in this case, cns maintains state with containerid as key and so in-memory cache can lookup
+		// and update based on container id.
+		if cnsconfig.ManageEndpointState {
+			cns.GlobalPodInfoScheme = cns.InterfaceIDPodInfoScheme
+		}
+
 		logger.Printf("Set GlobalPodInfoScheme %v (InitializeFromCNI=%t)", cns.GlobalPodInfoScheme, cnsconfig.InitializeFromCNI)
 
 		err = InitializeCRDState(rootCtx, httpRestService, cnsconfig)
@@ -735,7 +742,6 @@ func main() {
 			logger.Errorf("Failed to start CRD Controller, err:%v.\n", err)
 			return
 		}
-
 	}
 
 	// Initialize multi-tenant controller if the CNS is running in MultiTenantCRD mode.
