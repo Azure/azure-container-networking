@@ -620,6 +620,99 @@ func TestLabelUpdatePod(t *testing.T) {
 	checkNpmPodWithInput("TestLabelUpdatePod", f, newPodObj)
 }
 
+func TestEmptyIPUpdate(t *testing.T) {
+	labels := map[string]string{
+		"app": "test-pod",
+	}
+	oldPodObj := createPod("test-pod", "test-namespace", "0", "1.2.3.4", labels, NonHostNetwork, corev1.PodRunning)
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	dp := dpmocks.NewMockGenericDataplane(ctrl)
+	f := newFixture(t, dp)
+	f.podLister = append(f.podLister, oldPodObj)
+	f.kubeobjects = append(f.kubeobjects, oldPodObj)
+	stopCh := make(chan struct{})
+	defer close(stopCh)
+	f.newPodController(stopCh)
+
+	newPodObj := oldPodObj.DeepCopy()
+	// oldPodObj.ResourceVersion value is "0"
+	newRV, _ := strconv.Atoi(oldPodObj.ResourceVersion)
+	newPodObj.ResourceVersion = fmt.Sprintf("%d", newRV+1)
+	// oldPodObj PodIP is "1.2.3.4"
+	newPodObj.Status.PodIP = ""
+	// Add pod section
+	mockIPSets := []*ipsets.IPSetMetadata{
+		ipsets.NewIPSetMetadata("test-namespace", ipsets.Namespace),
+		ipsets.NewIPSetMetadata("app", ipsets.KeyLabelOfPod),
+		ipsets.NewIPSetMetadata("app:test-pod", ipsets.KeyValueLabelOfPod),
+	}
+	podMetadata1 := dataplane.NewPodMetadata("test-namespace/test-pod", "1.2.3.4", "")
+
+	dp.EXPECT().AddToLists([]*ipsets.IPSetMetadata{kubeAllNamespaces}, mockIPSets[:1]).Return(nil).Times(1)
+	dp.EXPECT().AddToSets(mockIPSets[:1], podMetadata1).Return(nil).Times(1)
+	dp.EXPECT().AddToSets(mockIPSets[1:], podMetadata1).Return(nil).Times(1)
+	if !util.IsWindowsDP() {
+		dp.EXPECT().
+			AddToSets(
+				[]*ipsets.IPSetMetadata{ipsets.NewIPSetMetadata("app:test-pod", ipsets.NamedPorts)},
+				dataplane.NewPodMetadata("test-namespace/test-pod", "1.2.3.4,8080", ""),
+			).
+			Return(nil).Times(1)
+	}
+	dp.EXPECT().ApplyDataPlane().Return(nil).Times(2)
+	// Delete pod section
+	dp.EXPECT().RemoveFromSets(mockIPSets[:1], podMetadata1).Return(nil).Times(1)
+	dp.EXPECT().RemoveFromSets(mockIPSets[1:], podMetadata1).Return(nil).Times(1)
+	if !util.IsWindowsDP() {
+		dp.EXPECT().
+			RemoveFromSets(
+				[]*ipsets.IPSetMetadata{ipsets.NewIPSetMetadata("app:test-pod", ipsets.NamedPorts)},
+				dataplane.NewPodMetadata("test-namespace/test-pod", "1.2.3.4,8080", ""),
+			).
+			Return(nil).Times(1)
+	}
+	// since the new IP is invalid, adding the new Pod object is ignored
+
+	updatePod(t, f, oldPodObj, newPodObj)
+
+	testCases := []expectedValues{
+		{0, 1, 0, podPromVals{1, 1, 0}},
+	}
+	checkPodTestResult("TestEmptyIPUpdate", f, testCases)
+}
+
+func TestEmptyIPAdd(t *testing.T) {
+	labels := map[string]string{
+		"app": "test-pod",
+	}
+	podObj := createPod("test-pod", "test-namespace", "0", "", labels, NonHostNetwork, corev1.PodRunning)
+	podKey := getKey(podObj, t)
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	dp := dpmocks.NewMockGenericDataplane(ctrl)
+	f := newFixture(t, dp)
+	f.podLister = append(f.podLister, podObj)
+	f.kubeobjects = append(f.kubeobjects, podObj)
+	stopCh := make(chan struct{})
+	defer close(stopCh)
+	f.newPodController(stopCh)
+
+	addPod(t, f, podObj)
+	testCases := []expectedValues{
+		{0, 0, 0, podPromVals{0, 0, 0}},
+	}
+	checkPodTestResult("TestEmptyIPAdd", f, testCases)
+
+	if _, exists := f.podController.podMap[podKey]; exists {
+		t.Error("TestEmptyIPAdd failed @ cached pod obj exists check")
+	}
+}
+
 func TestIPAddressUpdatePod(t *testing.T) {
 	labels := map[string]string{
 		"app": "test-pod",
@@ -797,6 +890,14 @@ func TestHasValidPodIP(t *testing.T) {
 	if ok := hasValidPodIP(podObj); !ok {
 		t.Errorf("TestisValidPod failed @ isValidPod")
 	}
+
+	podObj = &corev1.Pod{
+		Status: corev1.PodStatus{
+			Phase: "Running",
+			PodIP: "",
+		},
+	}
+	require.False(t, hasValidPodIP(podObj))
 }
 
 func TestIsCompletePod(t *testing.T) {
