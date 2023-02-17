@@ -135,8 +135,8 @@ func (dp *DataPlane) AddToSets(setNames []*ipsets.IPSetMetadata, podMetadata *Po
 		return fmt.Errorf("[DataPlane] error while adding to set: %w", err)
 	}
 
-	if dp.shouldUpdatePod() && (podMetadata.NodeName == dp.nodeName || podMetadata.isMarkedForDelete()) {
-		if podMetadata.isMarkedForDelete() {
+	if dp.shouldUpdatePod() && (podMetadata.NodeName == dp.nodeName || podMetadata.wasDeleted()) {
+		if podMetadata.wasDeleted() {
 			metrics.SendErrorLogAndMetric(util.DaemonDataplaneID, "[DataPlane] pod key %s is unexpectedly marked for delete in AddToSets", podMetadata.PodKey)
 			return nil
 		}
@@ -168,8 +168,8 @@ func (dp *DataPlane) RemoveFromSets(setNames []*ipsets.IPSetMetadata, podMetadat
 		return fmt.Errorf("[DataPlane] error while removing from set: %w", err)
 	}
 
-	if dp.shouldUpdatePod() && (podMetadata.NodeName == dp.nodeName || podMetadata.isMarkedForDelete()) {
-		if podMetadata.isMarkedForDelete() {
+	if dp.shouldUpdatePod() && (podMetadata.NodeName == dp.nodeName || podMetadata.wasDeleted()) {
+		if podMetadata.wasDeleted() {
 			klog.Infof("[DataPlane] pod key %s marked for delete in RemoveFromSets", podMetadata.PodKey)
 		} else {
 			klog.Infof("[DataPlane] Updating Sets to Remove for pod key %s", podMetadata.PodKey)
@@ -186,7 +186,7 @@ func (dp *DataPlane) RemoveFromSets(setNames []*ipsets.IPSetMetadata, podMetadat
 			dp.updatePodCache.cache[podMetadata.PodKey] = updatePod
 		}
 
-		if podMetadata.isMarkedForDelete() {
+		if podMetadata.wasDeleted() {
 			// mark IP for delete
 			if updatePod.ipsMarkedForDelete == nil {
 				updatePod.ipsMarkedForDelete = make(map[string]struct{}, 1)

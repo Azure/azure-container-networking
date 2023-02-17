@@ -543,7 +543,7 @@ func (c *PodController) cleanUpDeletedPod(cachedNpmPodKey string) error {
 	}
 
 	var err error
-	cachedPodMetadata := dataplane.NewPodMetadataMarkedForDelete(cachedNpmPodKey, cachedNpmPod.PodIP)
+	cachedPodMetadata := dataplane.NewDeletedPodMetadata(cachedNpmPodKey, cachedNpmPod.PodIP)
 	// Delete the pod from its namespace's ipset.
 	if err = c.dp.RemoveFromSets(
 		[]*ipsets.IPSetMetadata{ipsets.NewIPSetMetadata(cachedNpmPod.Namespace, ipsets.Namespace)},
@@ -613,7 +613,7 @@ func (c *PodController) manageNamedPortIpsets(portList []corev1.ContainerPort, p
 				return fmt.Errorf("failed to add to set when deleting named port with err %w", err)
 			}
 		case deletePodAndNamedPort:
-			podMetadata := dataplane.NewPodMetadataMarkedForDelete(podKey, namedPortIpsetEntry)
+			podMetadata := dataplane.NewDeletedPodMetadata(podKey, namedPortIpsetEntry)
 			if err := c.dp.RemoveFromSets([]*ipsets.IPSetMetadata{ipsets.NewIPSetMetadata(port.Name, ipsets.NamedPorts)}, podMetadata); err != nil {
 				return fmt.Errorf("failed to remove from set when deleting pod and named port with err %w", err)
 			}

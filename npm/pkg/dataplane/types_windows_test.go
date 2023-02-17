@@ -260,7 +260,7 @@ func DeletePod(namespace, name, ip string, labels map[string]string) *Action {
 	podKey := fmt.Sprintf("%s/%s", namespace, name)
 	return &Action{
 		DPAction: &PodDeleteAction{
-			Pod:    NewPodMetadataMarkedForDelete(podKey, ip),
+			Pod:    NewDeletedPodMetadata(podKey, ip),
 			Labels: labels,
 		},
 	}
