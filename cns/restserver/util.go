@@ -364,6 +364,7 @@ func (service *HTTPRestService) getAllNetworkContainerResponses(
 	var (
 		getNetworkContainerResponse cns.GetNetworkContainerResponse
 		ncs                         []string
+		skipNCVersionCheck          bool
 	)
 
 	service.Lock()
@@ -382,6 +383,7 @@ func (service *HTTPRestService) getAllNetworkContainerResponses(
 
 			getNetworkContainerResponse.Response = response
 			getNetworkContainersResponse = append(getNetworkContainersResponse, getNetworkContainerResponse)
+			return getNetworkContainersResponse
 		}
 
 		// get networkContainerIDs as string, "nc1, nc2"
@@ -390,6 +392,7 @@ func (service *HTTPRestService) getAllNetworkContainerResponses(
 			ncs = strings.Split(string(*service.state.ContainerIDByOrchestratorContext[orchestratorContext]), ",")
 		}
 
+		// This indicates that there are no ncs for the given orchestrator context
 		if len(ncs) == 0 {
 			response := cns.Response{
 				ReturnCode: types.UnknownContainerID,
@@ -401,13 +404,13 @@ func (service *HTTPRestService) getAllNetworkContainerResponses(
 			return getNetworkContainersResponse
 		}
 
-		skipNCVersionCheck := false
 		ctx, cancel := context.WithTimeout(context.Background(), nmaAPICallTimeout)
 		defer cancel()
 		ncVersionListResp, err := service.nma.GetNCVersionList(ctx)
 		if err != nil {
 			skipNCVersionCheck = true
 			logger.Errorf("failed to get nc version list from nmagent")
+			// TODO: Add telemetry as this has potential to have containers in the running state w/o datapath working
 		}
 		nmaNCs := map[string]string{}
 		for _, nc := range ncVersionListResp.Containers {
@@ -421,9 +424,7 @@ func (service *HTTPRestService) getAllNetworkContainerResponses(
 				waitingForUpdate, getNetworkContainerResponse.Response.ReturnCode, getNetworkContainerResponse.Response.Message = service.isNCWaitingForUpdate(service.state.ContainerStatus[ncid].CreateNetworkContainerRequest.Version, ncid, nmaNCs) //nolint:lll // bad code
 				// If the return code is not success, return the error to the caller
 				if getNetworkContainerResponse.Response.ReturnCode == types.NetworkContainerVfpProgramPending {
-					logger.Errorf("[Azure-CNS] isNCWaitingForUpdate failed for NCID: %s with error: %s",
-						ncid, getNetworkContainerResponse.Response.Message)
-					getNetworkContainersResponse = append(getNetworkContainersResponse, getNetworkContainerResponse)
+					logger.Errorf("[Azure-CNS] isNCWaitingForUpdate failed for NCID: %s", ncid)
 				}
 
 				vfpUpdateComplete := !waitingForUpdate
@@ -441,12 +442,6 @@ func (service *HTTPRestService) getAllNetworkContainerResponses(
 						logger.Errorf("Failed to save goal states for nc %+v due to %s", getNetworkContainerResponse, err)
 					}
 				}
-			}
-		}
-
-		for _, getNetworkContainerResponse := range getNetworkContainersResponse { //nolint:gocritic // ignore copy
-			if getNetworkContainerResponse.Response.ReturnCode != 0 {
-				return getNetworkContainersResponse
 			}
 		}
 
@@ -507,6 +502,15 @@ func (service *HTTPRestService) getAllNetworkContainerResponses(
 			AllowNCToHostCommunication: savedReq.AllowNCToHostCommunication,
 		}
 
+		// If the NC version check wasn't skipped, take into account the VFP programming status when returning the response
+		if !skipNCVersionCheck {
+			if !containerDetails.VfpUpdateComplete {
+				getNetworkContainerResponse.Response = cns.Response{
+					ReturnCode: types.NetworkContainerVfpProgramPending,
+					Message:    "NetworkContainer VFP programming is pending",
+				}
+			}
+		}
 		getNetworkContainersResponse = append(getNetworkContainersResponse, getNetworkContainerResponse)
 	}
 

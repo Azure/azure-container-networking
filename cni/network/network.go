@@ -447,7 +447,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 
 		ipamAddResults, err = plugin.multitenancyClient.GetAllNetworkContainers(context.TODO(), nwCfg, k8sPodName, k8sNamespace, args.IfName)
 		if err != nil {
-			err = errors.Wrapf(err, "GetAllNetworkContainers failed for podname %v namespace %v", k8sPodName, k8sNamespace)
+			err = fmt.Errorf("GetAllNetworkContainers failed for podname %v namespace %v. error: %+v", k8sPodName, k8sNamespace, err)
 			log.Printf("%+v", err)
 			return err
 		}
