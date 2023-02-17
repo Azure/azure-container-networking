@@ -32,6 +32,9 @@ type NamedPortOperation string
 const (
 	deleteNamedPort NamedPortOperation = "del"
 	addNamedPort    NamedPortOperation = "add"
+
+	addEvent    string = "ADD"
+	updateEvent string = "UPDATE"
 )
 
 var kubeAllNamespaces = &ipsets.IPSetMetadata{Name: util.KubeAllNamespacesFlag, Type: ipsets.KeyLabelOfNamespace}
@@ -91,7 +94,8 @@ func (c *PodController) needSync(eventType string, obj interface{}) (string, boo
 		return key, needSync
 	}
 
-	if !hasValidPodIP(podObj) {
+	// should enqueue updates for Pods with an empty IP if they are also Running
+	if !hasValidPodIP(podObj) && (eventType == addEvent || podObj.Status.Phase != corev1.PodRunning) {
 		return key, needSync
 	}
 
@@ -112,7 +116,7 @@ func (c *PodController) needSync(eventType string, obj interface{}) (string, boo
 }
 
 func (c *PodController) addPod(obj interface{}) {
-	key, needSync := c.needSync("ADD", obj)
+	key, needSync := c.needSync(addEvent, obj)
 	if !needSync {
 		return
 	}
@@ -128,7 +132,7 @@ func (c *PodController) addPod(obj interface{}) {
 }
 
 func (c *PodController) updatePod(old, newp interface{}) {
-	key, needSync := c.needSync("UPDATE", newp)
+	key, needSync := c.needSync(updateEvent, newp)
 	if !needSync {
 		return
 	}
