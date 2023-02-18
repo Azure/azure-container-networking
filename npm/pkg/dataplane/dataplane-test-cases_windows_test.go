@@ -35,6 +35,8 @@ var (
 	podK1V1Set = ipsets.NewIPSetMetadata("k1:v1", ipsets.KeyValueLabelOfPod)
 	podK2Set   = ipsets.NewIPSetMetadata("k2", ipsets.KeyLabelOfPod)
 	podK2V2Set = ipsets.NewIPSetMetadata("k2:v2", ipsets.KeyValueLabelOfPod)
+	podK3Set   = ipsets.NewIPSetMetadata("k3", ipsets.KeyLabelOfPod)
+	podK3V3Set = ipsets.NewIPSetMetadata("k3:v3", ipsets.KeyValueLabelOfPod)
 
 	// emptySet is a member of a list if enabled in the dp Config
 	// in Windows, this Config option is actually forced to be enabled in NewDataPlane()
@@ -98,6 +100,32 @@ func policyXBase2OnK2V2() *networkingv1.NetworkPolicy {
 			PodSelector: metav1.LabelSelector{
 				MatchLabels: map[string]string{
 					"k2": "v2",
+				},
+			},
+			Ingress: []networkingv1.NetworkPolicyIngressRule{
+				{},
+			},
+			Egress: []networkingv1.NetworkPolicyEgressRule{
+				{},
+			},
+			PolicyTypes: []networkingv1.PolicyType{
+				networkingv1.PolicyTypeIngress,
+				networkingv1.PolicyTypeEgress,
+			},
+		},
+	}
+}
+
+func policyXBase3OnK3V3() *networkingv1.NetworkPolicy {
+	return &networkingv1.NetworkPolicy{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "base3",
+			Namespace: "x",
+		},
+		Spec: networkingv1.NetworkPolicySpec{
+			PodSelector: metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"k3": "v3",
 				},
 			},
 			Ingress: []networkingv1.NetworkPolicyIngressRule{
@@ -540,9 +568,8 @@ func basicTests() []*SerialTestCase {
 	}
 }
 
-// see issue #1729
-// TODO: other orders
-func podEndpointAssignmentTests() []*SerialTestCase {
+// see issue #1729 for context on sequences 1, 2, 3
+func updatePodTests() []*SerialTestCase {
 	sequence1Tests := []*SerialTestCase{
 		{
 			Description: "Sequence 1: Pod A create --> Policy create --> Pod A cleanup --> Pod B create",
@@ -785,7 +812,7 @@ func podEndpointAssignmentTests() []*SerialTestCase {
 
 	sequence2Tests := []*SerialTestCase{
 		{
-			Description: "Sequence 2: Policy create --> Pod A Create --> Pod B create",
+			Description: "Sequence 2: Policy create --> Pod A Create --> Pod B create (Pod A has appropriate ACLs)",
 			Actions: []*Action{
 				UpdatePolicy(policyXBaseOnK1V1()),
 				UpdatePolicy(policyXBase2OnK2V2()),
@@ -855,8 +882,103 @@ func podEndpointAssignmentTests() []*SerialTestCase {
 				ApplyDP(),
 				DeletePod("x", "a", ip1, map[string]string{"k1": "v1"}),
 				ApplyDP(),
-				// NOTE: it may take two ApplyDP() calls if UpdatePod() is called on x/b before x/a
-				// ApplyDP(),
+			},
+			TestCaseMetadata: &TestCaseMetadata{
+				Tags: []Tag{
+					podCrudTag,
+					netpolCrudTag,
+				},
+				DpCfg: defaultWindowsDPCfg,
+				InitialEndpoints: []*hcn.HostComputeEndpoint{
+					dptestutils.Endpoint(endpoint1, ip1),
+				},
+				ExpectedSetPolicies: []*hcn.SetPolicySetting{
+					dptestutils.SetPolicy(emptySet),
+					dptestutils.SetPolicy(allNamespaces, emptySet.GetHashedName(), nsXSet.GetHashedName()),
+					dptestutils.SetPolicy(nsXSet, ip1),
+					// old labels (not yet garbage collected)
+					dptestutils.SetPolicy(podK1Set),
+					dptestutils.SetPolicy(podK1V1Set),
+					// new labels
+					dptestutils.SetPolicy(podK2Set, ip1),
+					dptestutils.SetPolicy(podK2V2Set, ip1),
+				},
+				ExpectedEnpdointACLs: map[string][]*hnswrapper.FakeEndpointPolicy{
+					endpoint1: {
+						{
+							ID:              "azure-acl-x-base2",
+							Protocols:       "",
+							Action:          "Allow",
+							Direction:       "In",
+							LocalAddresses:  "",
+							RemoteAddresses: "",
+							LocalPorts:      "",
+							RemotePorts:     "",
+							Priority:        222,
+						},
+						{
+							ID:              "azure-acl-x-base2",
+							Protocols:       "",
+							Action:          "Allow",
+							Direction:       "Out",
+							LocalAddresses:  "",
+							RemoteAddresses: "",
+							LocalPorts:      "",
+							RemotePorts:     "",
+							Priority:        222,
+						},
+					},
+				},
+			},
+		},
+		{
+			// error like:
+			// "failed to update dirty IP while applying the dataplane. dirty IP object: &{ip:10.0.0.1 pods:map[x/a:0xc00048b0c0 x/b:0xc00048b280]},
+			// err: [error: updatePod called for multiple Running Pods. dirty IP object: &{ip:10.0.0.1 pods:map[x/a:0xc00048b0c0 x/b:0xc00048b280]}]"
+			Description: "Sequence 2: Policy create --> Pod A Create --> Pod B create (skip first ApplyDP(), no ACLs due to error)",
+			Actions: []*Action{
+				UpdatePolicy(policyXBaseOnK1V1()),
+				UpdatePolicy(policyXBase2OnK2V2()),
+				CreatePod("x", "a", ip1, thisNode, map[string]string{"k1": "v1"}),
+				CreatePod("x", "b", ip1, thisNode, map[string]string{"k2": "v2"}),
+				ApplyDP(),
+			},
+			TestCaseMetadata: &TestCaseMetadata{
+				Tags: []Tag{
+					podCrudTag,
+					netpolCrudTag,
+				},
+				DpCfg: defaultWindowsDPCfg,
+				InitialEndpoints: []*hcn.HostComputeEndpoint{
+					dptestutils.Endpoint(endpoint1, ip1),
+				},
+				ExpectedSetPolicies: []*hcn.SetPolicySetting{
+					dptestutils.SetPolicy(emptySet),
+					dptestutils.SetPolicy(allNamespaces, emptySet.GetHashedName(), nsXSet.GetHashedName()),
+					dptestutils.SetPolicy(nsXSet, ip1),
+					// IP temporarily associated with IPSets of both pod A and pod B
+					// Pod A sets
+					dptestutils.SetPolicy(podK1Set, ip1),
+					dptestutils.SetPolicy(podK1V1Set, ip1),
+					// Pod B sets
+					dptestutils.SetPolicy(podK2Set, ip1),
+					dptestutils.SetPolicy(podK2V2Set, ip1),
+				},
+				ExpectedEnpdointACLs: map[string][]*hnswrapper.FakeEndpointPolicy{
+					endpoint1: {},
+				},
+			},
+		},
+		{
+			Description: "Sequence 2: Policy create --> Pod A Create --> Pod B create --> Pod A cleanup (skip first two ApplyDP())",
+			Actions: []*Action{
+				UpdatePolicy(policyXBaseOnK1V1()),
+				UpdatePolicy(policyXBase2OnK2V2()),
+				CreatePod("x", "a", ip1, thisNode, map[string]string{"k1": "v1"}),
+				// UpdatePod() will fail for x/b since x/a is associated with the IP/Endpoint
+				CreatePod("x", "b", ip1, thisNode, map[string]string{"k2": "v2"}),
+				DeletePod("x", "a", ip1, map[string]string{"k1": "v1"}),
+				ApplyDP(),
 			},
 			TestCaseMetadata: &TestCaseMetadata{
 				Tags: []Tag{
@@ -908,15 +1030,502 @@ func podEndpointAssignmentTests() []*SerialTestCase {
 		},
 	}
 
-	// TODO
 	sequence3Tests := []*SerialTestCase{
-		// {
-		// 	Description: "Sequence 3: Policy create --> Pod B Create --> Pod A create --> Pod A cleanup",
-		// },
+		{
+			Description: "Sequence 3: Pod B Create --> Pod A create --> Pod A Cleanup (ensure correct IPSets)",
+			Actions: []*Action{
+				CreatePod("x", "b", ip1, thisNode, map[string]string{"k2": "v2"}),
+				ApplyDP(),
+				CreatePod("x", "a", ip1, thisNode, map[string]string{"k1": "v1"}),
+				// UpdatePod() will fail for both x/a and x/b
+				ApplyDP(),
+				DeletePod("x", "a", ip1, map[string]string{"k1": "v1"}),
+				ApplyDP(),
+			},
+			TestCaseMetadata: &TestCaseMetadata{
+				Tags: []Tag{
+					podCrudTag,
+					netpolCrudTag,
+				},
+				DpCfg: defaultWindowsDPCfg,
+				InitialEndpoints: []*hcn.HostComputeEndpoint{
+					dptestutils.Endpoint(endpoint1, ip1),
+				},
+				ExpectedSetPolicies: []*hcn.SetPolicySetting{
+					dptestutils.SetPolicy(emptySet),
+					dptestutils.SetPolicy(allNamespaces, emptySet.GetHashedName(), nsXSet.GetHashedName()),
+					dptestutils.SetPolicy(nsXSet, ip1),
+					dptestutils.SetPolicy(podK2Set, ip1),
+					dptestutils.SetPolicy(podK2V2Set, ip1),
+					// not yet garbage-collected
+					dptestutils.SetPolicy(podK1Set),
+					dptestutils.SetPolicy(podK1V1Set),
+				},
+				ExpectedEnpdointACLs: map[string][]*hnswrapper.FakeEndpointPolicy{
+					endpoint1: {},
+				},
+			},
+		},
+		{
+			Description: "Sequence 3: Policy create --> Pod B Create --> Pod A create",
+			Actions: []*Action{
+				UpdatePolicy(policyXBaseOnK1V1()),
+				UpdatePolicy(policyXBase2OnK2V2()),
+				CreatePod("x", "b", ip1, thisNode, map[string]string{"k2": "v2"}),
+				ApplyDP(),
+				// UpdatePod() will fail for x/a since x/b is associated with the IP/Endpoint
+				CreatePod("x", "a", ip1, thisNode, map[string]string{"k1": "v1"}),
+				ApplyDP(),
+			},
+			TestCaseMetadata: &TestCaseMetadata{
+				Tags: []Tag{
+					podCrudTag,
+					netpolCrudTag,
+				},
+				DpCfg: defaultWindowsDPCfg,
+				InitialEndpoints: []*hcn.HostComputeEndpoint{
+					dptestutils.Endpoint(endpoint1, ip1),
+				},
+				ExpectedSetPolicies: []*hcn.SetPolicySetting{
+					dptestutils.SetPolicy(emptySet),
+					dptestutils.SetPolicy(allNamespaces, emptySet.GetHashedName(), nsXSet.GetHashedName()),
+					dptestutils.SetPolicy(nsXSet, ip1),
+					dptestutils.SetPolicy(podK1Set, ip1),
+					dptestutils.SetPolicy(podK1V1Set, ip1),
+					dptestutils.SetPolicy(podK2Set, ip1),
+					dptestutils.SetPolicy(podK2V2Set, ip1),
+				},
+				ExpectedEnpdointACLs: map[string][]*hnswrapper.FakeEndpointPolicy{
+					endpoint1: {
+						{
+							ID:              "azure-acl-x-base2",
+							Protocols:       "",
+							Action:          "Allow",
+							Direction:       "In",
+							LocalAddresses:  "",
+							RemoteAddresses: "",
+							LocalPorts:      "",
+							RemotePorts:     "",
+							Priority:        222,
+						},
+						{
+							ID:              "azure-acl-x-base2",
+							Protocols:       "",
+							Action:          "Allow",
+							Direction:       "Out",
+							LocalAddresses:  "",
+							RemoteAddresses: "",
+							LocalPorts:      "",
+							RemotePorts:     "",
+							Priority:        222,
+						},
+					},
+				},
+			},
+		},
+		{
+			Description: "Sequence 3: Policy create --> Pod B Create --> Pod A create (skip first ApplyDP())",
+			Actions: []*Action{
+				UpdatePolicy(policyXBaseOnK1V1()),
+				UpdatePolicy(policyXBase2OnK2V2()),
+				CreatePod("x", "b", ip1, thisNode, map[string]string{"k2": "v2"}),
+				CreatePod("x", "a", ip1, thisNode, map[string]string{"k1": "v1"}),
+				// UpdatePod() will fail for both x/a and x/b
+				ApplyDP(),
+			},
+			TestCaseMetadata: &TestCaseMetadata{
+				Tags: []Tag{
+					podCrudTag,
+					netpolCrudTag,
+				},
+				DpCfg: defaultWindowsDPCfg,
+				InitialEndpoints: []*hcn.HostComputeEndpoint{
+					dptestutils.Endpoint(endpoint1, ip1),
+				},
+				ExpectedSetPolicies: []*hcn.SetPolicySetting{
+					dptestutils.SetPolicy(emptySet),
+					dptestutils.SetPolicy(allNamespaces, emptySet.GetHashedName(), nsXSet.GetHashedName()),
+					dptestutils.SetPolicy(nsXSet, ip1),
+					dptestutils.SetPolicy(podK1Set, ip1),
+					dptestutils.SetPolicy(podK1V1Set, ip1),
+					dptestutils.SetPolicy(podK2Set, ip1),
+					dptestutils.SetPolicy(podK2V2Set, ip1),
+				},
+				ExpectedEnpdointACLs: map[string][]*hnswrapper.FakeEndpointPolicy{
+					endpoint1: {},
+				},
+			},
+		},
+		{
+			Description: "Sequence 3: Policy create --> Pod B Create --> Pod A create --> Pod A Cleanup",
+			Actions: []*Action{
+				UpdatePolicy(policyXBaseOnK1V1()),
+				UpdatePolicy(policyXBase2OnK2V2()),
+				CreatePod("x", "b", ip1, thisNode, map[string]string{"k2": "v2"}),
+				CreatePod("x", "a", ip1, thisNode, map[string]string{"k1": "v1"}),
+				// UpdatePod() will fail for both x/a and x/b
+				ApplyDP(),
+				DeletePod("x", "a", ip1, map[string]string{"k1": "v1"}),
+				ApplyDP(),
+			},
+			TestCaseMetadata: &TestCaseMetadata{
+				Tags: []Tag{
+					podCrudTag,
+					netpolCrudTag,
+				},
+				DpCfg: defaultWindowsDPCfg,
+				InitialEndpoints: []*hcn.HostComputeEndpoint{
+					dptestutils.Endpoint(endpoint1, ip1),
+				},
+				ExpectedSetPolicies: []*hcn.SetPolicySetting{
+					dptestutils.SetPolicy(emptySet),
+					dptestutils.SetPolicy(allNamespaces, emptySet.GetHashedName(), nsXSet.GetHashedName()),
+					dptestutils.SetPolicy(nsXSet, ip1),
+					dptestutils.SetPolicy(podK2Set, ip1),
+					dptestutils.SetPolicy(podK2V2Set, ip1),
+					// not yet garbage-collected
+					dptestutils.SetPolicy(podK1Set),
+					dptestutils.SetPolicy(podK1V1Set),
+				},
+				ExpectedEnpdointACLs: map[string][]*hnswrapper.FakeEndpointPolicy{
+					endpoint1: {},
+				},
+			},
+		},
+		{
+			Description: "Sequence 3: Policy create --> Pod B Create --> Pod A create --> Pod B Update (unable to add second policy to endpoint until A cleanup)",
+			Actions: []*Action{
+				UpdatePolicy(policyXBaseOnK1V1()),
+				UpdatePolicy(policyXBase2OnK2V2()),
+				UpdatePolicy(policyXBase3OnK3V3()),
+				CreatePod("x", "b", ip1, thisNode, map[string]string{"k2": "v2"}),
+				ApplyDP(),
+				// UpdatePod() will fail for x/a since x/b is associated with the IP/Endpoint
+				CreatePod("x", "a", ip1, thisNode, map[string]string{"k1": "v1"}),
+				ApplyDP(),
+				UpdatePodLabels("x", "b", ip1, thisNode, nil, map[string]string{"k3": "v3"}),
+				ApplyDP(),
+			},
+			TestCaseMetadata: &TestCaseMetadata{
+				Tags: []Tag{
+					podCrudTag,
+					netpolCrudTag,
+				},
+				DpCfg: defaultWindowsDPCfg,
+				InitialEndpoints: []*hcn.HostComputeEndpoint{
+					dptestutils.Endpoint(endpoint1, ip1),
+				},
+				ExpectedSetPolicies: []*hcn.SetPolicySetting{
+					dptestutils.SetPolicy(emptySet),
+					dptestutils.SetPolicy(allNamespaces, emptySet.GetHashedName(), nsXSet.GetHashedName()),
+					dptestutils.SetPolicy(nsXSet, ip1),
+					dptestutils.SetPolicy(podK1Set, ip1),
+					dptestutils.SetPolicy(podK1V1Set, ip1),
+					dptestutils.SetPolicy(podK2Set, ip1),
+					dptestutils.SetPolicy(podK2V2Set, ip1),
+					dptestutils.SetPolicy(podK3Set, ip1),
+					dptestutils.SetPolicy(podK3V3Set, ip1),
+				},
+				ExpectedEnpdointACLs: map[string][]*hnswrapper.FakeEndpointPolicy{
+					endpoint1: {
+						{
+							ID:              "azure-acl-x-base2",
+							Protocols:       "",
+							Action:          "Allow",
+							Direction:       "In",
+							LocalAddresses:  "",
+							RemoteAddresses: "",
+							LocalPorts:      "",
+							RemotePorts:     "",
+							Priority:        222,
+						},
+						{
+							ID:              "azure-acl-x-base2",
+							Protocols:       "",
+							Action:          "Allow",
+							Direction:       "Out",
+							LocalAddresses:  "",
+							RemoteAddresses: "",
+							LocalPorts:      "",
+							RemotePorts:     "",
+							Priority:        222,
+						},
+					},
+				},
+			},
+		},
+		{
+			Description: "Sequence 3: Policy create --> Pod B Create --> Pod A create --> Pod B Update --> Pod A cleanup (able to add second policy)",
+			Actions: []*Action{
+				UpdatePolicy(policyXBaseOnK1V1()),
+				UpdatePolicy(policyXBase2OnK2V2()),
+				UpdatePolicy(policyXBase3OnK3V3()),
+				CreatePod("x", "b", ip1, thisNode, map[string]string{"k2": "v2"}),
+				ApplyDP(),
+				// UpdatePod() will fail for x/a since x/b is associated with the IP/Endpoint
+				CreatePod("x", "a", ip1, thisNode, map[string]string{"k1": "v1"}),
+				ApplyDP(),
+				UpdatePodLabels("x", "b", ip1, thisNode, nil, map[string]string{"k3": "v3"}),
+				ApplyDP(),
+				DeletePod("x", "a", ip1, map[string]string{"k1": "v1"}),
+				ApplyDP(),
+			},
+			TestCaseMetadata: &TestCaseMetadata{
+				Tags: []Tag{
+					podCrudTag,
+					netpolCrudTag,
+				},
+				DpCfg: defaultWindowsDPCfg,
+				InitialEndpoints: []*hcn.HostComputeEndpoint{
+					dptestutils.Endpoint(endpoint1, ip1),
+				},
+				ExpectedSetPolicies: []*hcn.SetPolicySetting{
+					dptestutils.SetPolicy(emptySet),
+					dptestutils.SetPolicy(allNamespaces, emptySet.GetHashedName(), nsXSet.GetHashedName()),
+					dptestutils.SetPolicy(nsXSet, ip1),
+					dptestutils.SetPolicy(podK2Set, ip1),
+					dptestutils.SetPolicy(podK2V2Set, ip1),
+					dptestutils.SetPolicy(podK3Set, ip1),
+					dptestutils.SetPolicy(podK3V3Set, ip1),
+					// not garbage-collected yet
+					dptestutils.SetPolicy(podK1Set),
+					dptestutils.SetPolicy(podK1V1Set),
+				},
+				ExpectedEnpdointACLs: map[string][]*hnswrapper.FakeEndpointPolicy{
+					endpoint1: {
+						{
+							ID:              "azure-acl-x-base2",
+							Protocols:       "",
+							Action:          "Allow",
+							Direction:       "In",
+							LocalAddresses:  "",
+							RemoteAddresses: "",
+							LocalPorts:      "",
+							RemotePorts:     "",
+							Priority:        222,
+						},
+						{
+							ID:              "azure-acl-x-base2",
+							Protocols:       "",
+							Action:          "Allow",
+							Direction:       "Out",
+							LocalAddresses:  "",
+							RemoteAddresses: "",
+							LocalPorts:      "",
+							RemotePorts:     "",
+							Priority:        222,
+						},
+						{
+							ID:              "azure-acl-x-base3",
+							Protocols:       "",
+							Action:          "Allow",
+							Direction:       "In",
+							LocalAddresses:  "",
+							RemoteAddresses: "",
+							LocalPorts:      "",
+							RemotePorts:     "",
+							Priority:        222,
+						},
+						{
+							ID:              "azure-acl-x-base3",
+							Protocols:       "",
+							Action:          "Allow",
+							Direction:       "Out",
+							LocalAddresses:  "",
+							RemoteAddresses: "",
+							LocalPorts:      "",
+							RemotePorts:     "",
+							Priority:        222,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	otherTests := []*SerialTestCase{
+		{
+			// doesn't really enforce behavior in DP, but one could look at logs to make sure we don't make any add/reset ACL SysCall into HNS
+			// log/codepath: "ignoring pod deletion on IP since the pod is not associated with the current endpoint"
+			Description: "ignore Pod update if added then deleted before ApplyDP()",
+			Actions: []*Action{
+				UpdatePolicy(policyXBaseOnK1V1()),
+				CreatePod("x", "a", ip1, thisNode, map[string]string{"k1": "v1"}),
+				DeletePod("x", "a", ip1, map[string]string{"k1": "v1"}),
+				ApplyDP(),
+			},
+			TestCaseMetadata: &TestCaseMetadata{
+				Tags: []Tag{
+					podCrudTag,
+					netpolCrudTag,
+				},
+				DpCfg: defaultWindowsDPCfg,
+				InitialEndpoints: []*hcn.HostComputeEndpoint{
+					dptestutils.Endpoint(endpoint1, ip1),
+				},
+				ExpectedSetPolicies: []*hcn.SetPolicySetting{
+					dptestutils.SetPolicy(emptySet),
+					dptestutils.SetPolicy(allNamespaces, emptySet.GetHashedName(), nsXSet.GetHashedName()),
+					dptestutils.SetPolicy(nsXSet),
+					dptestutils.SetPolicy(podK1Set),
+					dptestutils.SetPolicy(podK1V1Set),
+				},
+				ExpectedEnpdointACLs: map[string][]*hnswrapper.FakeEndpointPolicy{
+					endpoint1: {},
+				},
+			},
+		},
+		{
+			// doesn't really enforce behavior in DP, but one could look at logs to make sure we don't make a reset ACL SysCall into HNS
+			// log/codepath: "ignoring pod deletion on IP since there is no corresponding endpoint"
+			Description: "ignore Pod delete for deleted endpoint",
+			Actions: []*Action{
+				UpdatePolicy(policyXBaseOnK1V1()),
+				CreatePod("x", "a", ip1, thisNode, map[string]string{"k1": "v1"}),
+				ApplyDP(),
+				DeleteEndpoint(endpoint1),
+				DeletePod("x", "a", ip1, map[string]string{"k1": "v1"}),
+				ApplyDP(),
+			},
+			TestCaseMetadata: &TestCaseMetadata{
+				Tags: []Tag{
+					podCrudTag,
+					netpolCrudTag,
+				},
+				DpCfg: defaultWindowsDPCfg,
+				InitialEndpoints: []*hcn.HostComputeEndpoint{
+					dptestutils.Endpoint(endpoint1, ip1),
+				},
+				ExpectedSetPolicies: []*hcn.SetPolicySetting{
+					dptestutils.SetPolicy(emptySet),
+					dptestutils.SetPolicy(allNamespaces, emptySet.GetHashedName(), nsXSet.GetHashedName()),
+					dptestutils.SetPolicy(nsXSet),
+					dptestutils.SetPolicy(podK1Set),
+					dptestutils.SetPolicy(podK1V1Set),
+				},
+				ExpectedEnpdointACLs: map[string][]*hnswrapper.FakeEndpointPolicy{},
+			},
+		},
+		{
+			// doesn't really enforce behavior in DP, but one could look at logs to make sure we don't make a reset ACL SysCall into HNS
+			// log/codepath: "ignoring pod deletion on IP since there is no corresponding endpoint"
+			Description: "ignore Pod delete for deleted endpoint (skip first ApplyDP())",
+			Actions: []*Action{
+				UpdatePolicy(policyXBaseOnK1V1()),
+				CreatePod("x", "a", ip1, thisNode, map[string]string{"k1": "v1"}),
+				DeleteEndpoint(endpoint1),
+				DeletePod("x", "a", ip1, map[string]string{"k1": "v1"}),
+				ApplyDP(),
+			},
+			TestCaseMetadata: &TestCaseMetadata{
+				Tags: []Tag{
+					podCrudTag,
+					netpolCrudTag,
+				},
+				DpCfg: defaultWindowsDPCfg,
+				InitialEndpoints: []*hcn.HostComputeEndpoint{
+					dptestutils.Endpoint(endpoint1, ip1),
+				},
+				ExpectedSetPolicies: []*hcn.SetPolicySetting{
+					dptestutils.SetPolicy(emptySet),
+					dptestutils.SetPolicy(allNamespaces, emptySet.GetHashedName(), nsXSet.GetHashedName()),
+					dptestutils.SetPolicy(nsXSet),
+					dptestutils.SetPolicy(podK1Set),
+					dptestutils.SetPolicy(podK1V1Set),
+				},
+				ExpectedEnpdointACLs: map[string][]*hnswrapper.FakeEndpointPolicy{},
+			},
+		},
+		{
+			// doesn't really enforce behavior in DP, but one could look at logs to make sure we don't make an add ACL SysCall into HNS
+			// log/codepath: "ignoring pod update since there is no corresponding endpoint"
+			Description: "ignore Pod update for deleted endpoint",
+			Actions: []*Action{
+				UpdatePolicy(policyXBaseOnK1V1()),
+				CreatePod("x", "a", ip1, thisNode, map[string]string{"k1": "v1"}),
+				DeleteEndpoint(endpoint1),
+				ApplyDP(),
+			},
+			TestCaseMetadata: &TestCaseMetadata{
+				Tags: []Tag{
+					podCrudTag,
+					netpolCrudTag,
+				},
+				DpCfg: defaultWindowsDPCfg,
+				InitialEndpoints: []*hcn.HostComputeEndpoint{
+					dptestutils.Endpoint(endpoint1, ip1),
+				},
+				ExpectedSetPolicies: []*hcn.SetPolicySetting{
+					dptestutils.SetPolicy(emptySet),
+					dptestutils.SetPolicy(allNamespaces, emptySet.GetHashedName(), nsXSet.GetHashedName()),
+					dptestutils.SetPolicy(nsXSet, ip1),
+					dptestutils.SetPolicy(podK1Set, ip1),
+					dptestutils.SetPolicy(podK1V1Set, ip1),
+				},
+				ExpectedEnpdointACLs: map[string][]*hnswrapper.FakeEndpointPolicy{},
+			},
+		},
+		{
+			Description: "still apply Policy to new Pod IP even when original Pod delete event hasn't happened yet",
+			Actions: []*Action{
+				UpdatePolicy(policyXBase2OnK2V2()),
+				CreatePod("x", "a", ip1, thisNode, map[string]string{"k1": "v1"}),
+				CreateEndpoint(endpoint2, ip2),
+				CreatePod("x", "b", ip2, thisNode, map[string]string{"k2": "v2"}),
+				ApplyDP(),
+			},
+			TestCaseMetadata: &TestCaseMetadata{
+				Tags: []Tag{
+					podCrudTag,
+					netpolCrudTag,
+				},
+				DpCfg: defaultWindowsDPCfg,
+				InitialEndpoints: []*hcn.HostComputeEndpoint{
+					dptestutils.Endpoint(endpoint1, ip1),
+				},
+				ExpectedSetPolicies: []*hcn.SetPolicySetting{
+					dptestutils.SetPolicy(emptySet),
+					dptestutils.SetPolicy(allNamespaces, emptySet.GetHashedName(), nsXSet.GetHashedName()),
+					dptestutils.SetPolicy(nsXSet, ip1, ip2),
+					dptestutils.SetPolicy(podK1Set, ip1),
+					dptestutils.SetPolicy(podK1V1Set, ip1),
+					dptestutils.SetPolicy(podK2Set, ip2),
+					dptestutils.SetPolicy(podK2V2Set, ip2),
+				},
+				ExpectedEnpdointACLs: map[string][]*hnswrapper.FakeEndpointPolicy{
+					endpoint1: {},
+					endpoint2: {
+						{
+							ID:              "azure-acl-x-base2",
+							Protocols:       "",
+							Action:          "Allow",
+							Direction:       "In",
+							LocalAddresses:  "",
+							RemoteAddresses: "",
+							LocalPorts:      "",
+							RemotePorts:     "",
+							Priority:        222,
+						},
+						{
+							ID:              "azure-acl-x-base2",
+							Protocols:       "",
+							Action:          "Allow",
+							Direction:       "Out",
+							LocalAddresses:  "",
+							RemoteAddresses: "",
+							LocalPorts:      "",
+							RemotePorts:     "",
+							Priority:        222,
+						},
+					},
+				},
+			},
+		},
 	}
 
 	allTests := append(sequence1Tests, sequence2Tests...)
 	allTests = append(allTests, sequence3Tests...)
+	allTests = append(allTests, otherTests...)
 	return allTests
 }
 

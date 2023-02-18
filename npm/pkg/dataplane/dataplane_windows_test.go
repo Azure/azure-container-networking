@@ -23,7 +23,7 @@ func TestBasics(t *testing.T) {
 }
 
 func TestPodEndpointAssignment(t *testing.T) {
-	testSerialCases(t, podEndpointAssignmentTests())
+	testSerialCases(t, updatePodTests())
 }
 
 func TestAllMultiJobCases(t *testing.T) {
