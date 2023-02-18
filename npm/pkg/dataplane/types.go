@@ -27,18 +27,38 @@ type GenericDataplane interface {
 	UpdatePolicy(policies *policies.NPMNetworkPolicy) error
 }
 
+// dirtyIP represents an IP and all of its updateNPMPod events.
+// there should be only one updateNPMPod such that updateNPMPod.wasDeleted() == false
+type dirtyIP struct {
+	ip string
+	// states maps pod key to its updateNPMPod
+	pods map[string]*updateNPMPod
+}
+
+func newDirtyIP(ip string) *dirtyIP {
+	return &dirtyIP{
+		ip:   ip,
+		pods: make(map[string]*updateNPMPod),
+	}
+}
+
+func (d *dirtyIP) getOrCreateUpdatePod(podMetadata *PodMetadata) *updateNPMPod {
+	uPod, ok := d.pods[podMetadata.PodKey]
+	if !ok {
+		uPod = newUpdateNPMPod(podMetadata)
+		d.pods[podMetadata.PodKey] = uPod
+	}
+
+	return uPod
+}
+
 // UpdateNPMPod pod controller will populate and send this datastructure to dataplane
 // to update the dataplane with the latest pod information
 // this helps in calculating if any update needs to have policies applied or removed
 type updateNPMPod struct {
-	PodKey   string
-	PodIP    string
-	NodeName string
-	// ipsMarkedForDelete tracks IPs that this pod key was associated with before
-	// it would rare for this to be more than one IP, but possible if ApplyDataPlane fails several times or ApplyDataPlane is asynchronous
-	ipsMarkedForDelete map[string]struct{}
-	IPSetsToAdd        []string
-	IPSetsToRemove     []string
+	*PodMetadata
+	IPSetsToAdd    []string
+	IPSetsToRemove []string
 }
 
 // PodMetadata is what is passed to dataplane to specify pod ipset
@@ -71,16 +91,19 @@ func (pm *PodMetadata) wasDeleted() bool {
 	return pm.deleted
 }
 
+func (pm *PodMetadata) markDeleted() {
+	pm.deleted = true
+}
+
 func (p *PodMetadata) Namespace() string {
 	return strings.Split(p.PodKey, "/")[0]
 }
 
 func newUpdateNPMPod(podMetadata *PodMetadata) *updateNPMPod {
 	return &updateNPMPod{
-		PodKey:   podMetadata.PodKey,
-		PodIP:    podMetadata.PodIP,
-		NodeName: podMetadata.NodeName,
-		// can leave all slices as nil since len() and append() work on nil slices
+		PodMetadata:    podMetadata,
+		IPSetsToAdd:    make([]string, 0),
+		IPSetsToRemove: make([]string, 0),
 	}
 }
 

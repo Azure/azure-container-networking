@@ -115,36 +115,57 @@ func (dp *DataPlane) shouldUpdatePod() bool {
 // 2. Will check for existing applicable network policies and applies it on endpoint.
 // Assumptions:
 // - We will receive a cleanup event for a Pod in the correct order (i.e. after a create event for the same Pod)
-func (dp *DataPlane) updatePod(pod *updateNPMPod) error {
-	klog.Infof("[DataPlane] updatePod called for Pod Key %s", pod.PodKey)
+func (dp *DataPlane) updatePod(dIP *dirtyIP) error {
+	klog.Infof("[DataPlane] updatePod called for dirty IP object: %+v", dIP)
 
 	// lock the endpoint cache while we read/modify the endpoint with the pod's IP
 	dp.endpointCache.Lock()
 	defer dp.endpointCache.Unlock()
 
-	// reset ACLs for any Pod that was wrongly assigned to an endpoint (fixes #1729)
-	for ip := range pod.ipsMarkedForDelete {
-		endpoint, ok := dp.endpointCache.cache[ip]
-		if !ok {
-			// this branch will be taken often for the typical flow. 1) Endpoint deleted, 2) Pod delete event
-			// additionally, this branch will be always be taken for an IP on a different node
-			klog.Infof("[DataPlane] ignoring IP marked for delete since there is no corresponding endpoint. IP: %s. podKey: %s", ip, pod.PodKey)
+	// reset ACLs for any deleted Pod that was wrongly assigned to an endpoint (fixes #1729)
+	for podKey, pod := range dIP.pods {
+		if !pod.wasDeleted() {
 			continue
 		}
 
-		if endpoint.podKey != pod.PodKey {
-			klog.Infof("[DataPlane] ignoring IP marked for delete since it is not associated with this endpoint. podKey: %s. endpoint: %+v", pod.PodKey, endpoint)
+		endpoint, ok := dp.endpointCache.cache[dIP.ip]
+		if !ok {
+			// this branch will be taken often for the typical flow. 1) Endpoint deleted, 2) Pod delete event
+			// additionally, this branch will be always be taken for an IP on a different node
+			klog.Infof("[DataPlane] ignoring pod deletion on IP since there is no corresponding endpoint. IP: %s. podKey: %s", dIP.ip, podKey)
+			delete(dIP.pods, podKey)
+			continue
+		}
+
+		if endpoint.podKey != podKey {
+			klog.Infof("[DataPlane] ignoring pod deletion on IP since the pod is not associated with the current endpoint. IP: %s. podKey: %s. endpoint: %+v", dIP.ip, podKey, endpoint)
+			delete(dIP.pods, podKey)
 			continue
 		}
 
 		// this Pod was incorrectly assigned to the Endpoint (see issue #1729)
 		if err := dp.policyMgr.ResetEndpoint(endpoint.id); err != nil {
-			return fmt.Errorf("failed to reset endpoint. endpoint: %+v. err: %w", endpoint, err)
+			return fmt.Errorf("failed to reset endpoint for deleted pod. IP: %s. podKey: %s. endpoint: %+v. err: %w", dIP.ip, podKey, endpoint, err)
 		}
 
 		// mark the Endpoint as unassigned
 		endpoint.podKey = unspecifiedPodKey
-		delete(pod.ipsMarkedForDelete, ip)
+		delete(dIP.pods, podKey)
+	}
+
+	if len(dIP.pods) == 0 {
+		// no running pod to update
+		return nil
+	}
+
+	if len(dIP.pods) > 1 {
+		return fmt.Errorf("error: updatePod called for multiple Running Pods. dirty IP object: %+v", dIP)
+	}
+
+	// there is only one pod in the map
+	var pod *updateNPMPod
+	for _, pod = range dIP.pods {
+		break
 	}
 
 	if len(pod.IPSetsToAdd) == 0 && len(pod.IPSetsToRemove) == 0 {
