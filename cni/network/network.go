@@ -453,7 +453,9 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 		}
 
 		if len(ipamAddResults) > 1 && !plugin.isDualNicFeatureSupported(args.Netns) {
-			return fmt.Errorf("received multiple NC results %+v from CNS while dualnic feature is not supported", ipamAddResults)
+			errMsg := fmt.Sprintf("received multiple NC results %+v from CNS while dualnic feature is not supported", ipamAddResults)
+			log.Printf(errMsg)
+			return plugin.Errorf(errMsg)
 		}
 	} else {
 		// TODO: refactor this code for simplification
@@ -1003,9 +1005,9 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 
 		if !nwCfg.MultiTenancy {
 			// Call into IPAM plugin to release the endpoint's addresses.
-			for _, address := range epInfo.IPAddresses { //nolint:gocritic
-				logAndSendEvent(plugin, fmt.Sprintf("Release ip:%s", address.IP.String()))
-				err = plugin.ipamInvoker.Delete(&address, nwCfg, args, nwInfo.Options)
+			for i := range epInfo.IPAddresses {
+				logAndSendEvent(plugin, fmt.Sprintf("Release ip:%s", epInfo.IPAddresses[i].IP.String()))
+				err = plugin.ipamInvoker.Delete(&epInfo.IPAddresses[i], nwCfg, args, nwInfo.Options)
 				if err != nil {
 					return plugin.RetriableError(fmt.Errorf("failed to release address: %w", err))
 				}
