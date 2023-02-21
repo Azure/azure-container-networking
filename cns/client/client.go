@@ -403,8 +403,6 @@ func (c *Client) RequestIPs(ctx context.Context, ipconfig cns.IPConfigsRequest) 
 	req.Header.Set(headerContentType, contentTypeJSON)
 	res, err := c.client.Do(req)
 
-	defer res.Body.Close()
-
 	// if we get a 404 error
 	if res.StatusCode != http.StatusOK {
 		return nil, ErrAPINotFound
@@ -413,6 +411,7 @@ func (c *Client) RequestIPs(ctx context.Context, ipconfig cns.IPConfigsRequest) 
 	if err != nil {
 		return nil, errors.Wrap(err, "http request failed")
 	}
+	defer res.Body.Close()
 
 	var response cns.IPConfigsResponse
 	err = json.NewDecoder(res.Body).Decode(&response)
@@ -443,8 +442,6 @@ func (c *Client) ReleaseIPs(ctx context.Context, ipconfig cns.IPConfigsRequest) 
 	req.Header.Set(headerContentType, contentTypeJSON)
 	res, err := c.client.Do(req)
 
-	defer res.Body.Close()
-
 	// if we get a 404 error
 	if res.StatusCode != http.StatusOK {
 		return ErrAPINotFound
@@ -453,6 +450,7 @@ func (c *Client) ReleaseIPs(ctx context.Context, ipconfig cns.IPConfigsRequest) 
 	if err != nil {
 		return errors.Wrap(err, "http request failed")
 	}
+	defer res.Body.Close()
 
 	var resp cns.Response
 
