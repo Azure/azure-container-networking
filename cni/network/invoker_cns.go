@@ -9,7 +9,6 @@ import (
 	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/cni/util"
 	"github.com/Azure/azure-container-networking/cns"
-	cnscli "github.com/Azure/azure-container-networking/cns/client"
 	"github.com/Azure/azure-container-networking/iptables"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/network"
@@ -71,7 +70,7 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 		return IPAMAddResult{}, errEmptyCNIArgs
 	}
 
-	ipconfig := cns.IPConfigsRequest{
+	ipconfig := cns.IPConfigRequest{
 		OrchestratorContext: orchestratorContext,
 		PodInterfaceID:      GetEndpointID(addConfig.args),
 		InfraContainerID:    addConfig.args.ContainerID,
@@ -214,7 +213,7 @@ func setHostOptions(ncSubnetPrefix *net.IPNet, options map[string]interface{}, i
 }
 
 // Delete calls into the releaseipconfiguration API in CNS
-func (invoker *CNSIPAMInvoker) Delete(addresses []*net.IPNet, nwCfg *cni.NetworkConfig, args *cniSkel.CmdArgs, _ map[string]interface{}) error {
+func (invoker *CNSIPAMInvoker) Delete(address *net.IPNet, nwCfg *cni.NetworkConfig, args *cniSkel.CmdArgs, _ map[string]interface{}) error {
 	// Parse Pod arguments.
 	podInfo := cns.KubernetesPodInfo{
 		PodName:      invoker.podName,
@@ -230,42 +229,20 @@ func (invoker *CNSIPAMInvoker) Delete(addresses []*net.IPNet, nwCfg *cni.Network
 		return errEmptyCNIArgs
 	}
 
-	req := cns.IPConfigsRequest{
+	req := cns.IPConfigRequest{
 		OrchestratorContext: orchestratorContext,
 		PodInterfaceID:      GetEndpointID(args),
 		InfraContainerID:    args.ContainerID,
 	}
 
-	if len(addresses) > 0 {
-		req.DesiredIPAddresses = make([]string, len(addresses))
-		for i, IPaddress := range addresses {
-			req.DesiredIPAddresses[i] = IPaddress.IP.String()
-		}
+	if address != nil {
+		req.DesiredIPAddress = address.IP.String()
 	} else {
 		log.Printf("CNS invoker called with empty IP address")
 	}
 
-	if err := invoker.cnsClient.ReleaseIPs(context.TODO(), req); err != nil {
-		// if we fail a release with a 404 error try using the old API
-		if errors.Is(err, cnscli.ErrAPINotFound) {
-			ipconfigRequest := cns.IPConfigRequest{
-				OrchestratorContext: orchestratorContext,
-				PodInterfaceID:      GetEndpointID(args),
-				InfraContainerID:    args.ContainerID,
-				DesiredIPAddress:    req.DesiredIPAddresses[0],
-			}
-			log.Errorf("Failed to release IPs using ReleaseIPs from CNS, going to try ReleaseIPAddress. error: %v request: %v", err, req)
-
-			if err := invoker.cnsClient.ReleaseIPAddress(context.TODO(), ipconfigRequest); err != nil {
-				// if the old API fails as well then we just return the error
-				log.Errorf("Failed to release IP address from CNS using ReleaseIPAddress. error: %v request: %v", err, req)
-				return errors.Wrap(err, fmt.Sprintf("failed to release IP %v using ReleaseIPAddress with err ", addresses)+"%w")
-			}
-		} else {
-			log.Errorf("Failed to release IP address from CNS error: %v request: %v", err, req)
-			return errors.Wrap(err, fmt.Sprintf("failed to release IP %v using ReleaseIPs with err ", addresses)+"%w")
-		}
-
+	if err := invoker.cnsClient.ReleaseIPAddress(context.TODO(), req); err != nil {
+		return errors.Wrap(err, fmt.Sprintf("failed to release IP %v with err ", address)+"%w")
 	}
 
 	return nil
