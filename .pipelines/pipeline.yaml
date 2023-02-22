@@ -235,14 +235,6 @@ stages:
               ai_id: ce672799-8f08-4235-8c12-08563dc2acef
               ai_id_var: CNS_AI_ID
               os_sku: ltsc2022
-            cns_windows2019_amd64:
-              arch: amd64
-              name: cns
-              ai_path: github.com/Azure/azure-container-networking/cns/logger.aiMetadata
-              ai_path_var: CNS_AI_PATH
-              ai_id: ce672799-8f08-4235-8c12-08563dc2acef
-              ai_id_var: CNS_AI_ID
-              os_sku: "1809"
             npm_windows2022_amd64:
               arch: amd64
               name: npm
@@ -251,6 +243,34 @@ stages:
               ai_id: 014c22bd-4107-459e-8475-67909e96edcb
               ai_id_var: NPM_AI_ID
               os_sku: ltsc2022
+        steps:
+          - template: containers/container-template-windows.yaml
+            parameters:
+              name: $(name)
+              arch: $(arch)
+              ai_path: $(ai_path)
+              ai_path_var: $(ai_path_var)
+              ai_id: $(ai_id)
+              ai_id_var: $(ai_id_var)
+              tag: $(TAG)
+              os_sku: "$(os_sku)"
+      - job: containerize_windows2019_amd64
+        timeoutInMinutes: 120
+        displayName: Build Images
+        variables:
+          TAG: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
+        pool:
+          name: "$(BUILD_POOL_NAME_WINDOWS_AMD64_WS2019)"
+        strategy:
+          matrix:
+            cns_windows2019_amd64:
+              arch: amd64
+              name: cns
+              ai_path: github.com/Azure/azure-container-networking/cns/logger.aiMetadata
+              ai_path_var: CNS_AI_PATH
+              ai_id: ce672799-8f08-4235-8c12-08563dc2acef
+              ai_id_var: CNS_AI_ID
+              os_sku: "1809"
         steps:
           - template: containers/container-template-windows.yaml
             parameters:
