@@ -17,7 +17,7 @@ type IPAMInvoker interface {
 	Add(IPAMAddConfig) (IPAMAddResult, error)
 
 	// Delete calls to the invoker source, and returns error. Returning an error here will fail the CNI Delete call.
-	Delete(address *net.IPNet, nwCfg *cni.NetworkConfig, args *cniSkel.CmdArgs, options map[string]interface{}) error
+	Delete(addresses []*net.IPNet, nwCfg *cni.NetworkConfig, args *cniSkel.CmdArgs, options map[string]interface{}) error
 }
 
 type IPAMAddConfig struct {

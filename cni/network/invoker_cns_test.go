@@ -20,8 +20,8 @@ import (
 
 var testPodInfo cns.KubernetesPodInfo
 
-func getTestIPConfigRequest() cns.IPConfigRequest {
-	return cns.IPConfigRequest{
+func getTestIPConfigsRequest() cns.IPConfigsRequest {
+	return cns.IPConfigsRequest{
 		PodInterfaceID:      "testcont-testifname",
 		InfraContainerID:    "testcontainerid",
 		OrchestratorContext: marshallPodInfo(testPodInfo),
@@ -66,10 +66,10 @@ func TestCNSIPAMInvoker_Add(t *testing.T) {
 				podNamespace: testPodInfo.PodNamespace,
 				cnsClient: &MockCNSClient{
 					require: require,
-					request: requestIPAddressHandler{
-						ipconfigArgument: getTestIPConfigRequest(),
-						result: &cns.IPConfigResponse{
-							PodIpInfo: []cns.PodIpInfo{
+					requestIPs: requestIPsHandler{
+						ipconfigArgument: getTestIPConfigsRequest(),
+						result: &cns.IPConfigsResponse{
+							PodIPInfo: []cns.PodIpInfo{
 								{
 									PodIPConfig: cns.IPSubnet{
 										IPAddress:    "10.0.1.10",
@@ -159,14 +159,14 @@ func TestCNSIPAMInvoker_Add(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "fail to request IP address from cns",
+			name: "fail to request IP addresses from cns",
 			fields: fields{
 				podName:      testPodInfo.PodName,
 				podNamespace: testPodInfo.PodNamespace,
 				cnsClient: &MockCNSClient{
 					require: require,
-					request: requestIPAddressHandler{
-						ipconfigArgument: getTestIPConfigRequest(),
+					requestIPs: requestIPsHandler{
+						ipconfigArgument: getTestIPConfigsRequest(),
 						result:           nil,
 						err:              errors.New("failed error from CNS"), //nolint "error for ut"
 					},
@@ -278,10 +278,10 @@ func TestCNSIPAMInvoker_Delete(t *testing.T) {
 		cnsClient    cnsclient
 	}
 	type args struct {
-		address *net.IPNet
-		nwCfg   *cni.NetworkConfig
-		args    *cniSkel.CmdArgs
-		options map[string]interface{}
+		addresses []*net.IPNet
+		nwCfg     *cni.NetworkConfig
+		args      *cniSkel.CmdArgs
+		options   map[string]interface{}
 	}
 	tests := []struct {
 		name    string
@@ -296,8 +296,8 @@ func TestCNSIPAMInvoker_Delete(t *testing.T) {
 				podNamespace: testPodInfo.PodNamespace,
 				cnsClient: &MockCNSClient{
 					require: require,
-					release: releaseIPAddressHandler{
-						ipconfigArgument: getTestIPConfigRequest(),
+					release: releaseIPsHandler{
+						ipconfigArgument: getTestIPConfigsRequest(),
 					},
 				},
 			},
@@ -317,8 +317,8 @@ func TestCNSIPAMInvoker_Delete(t *testing.T) {
 				podName:      testPodInfo.PodName,
 				podNamespace: testPodInfo.PodNamespace,
 				cnsClient: &MockCNSClient{
-					release: releaseIPAddressHandler{
-						ipconfigArgument: getTestIPConfigRequest(),
+					release: releaseIPsHandler{
+						ipconfigArgument: getTestIPConfigsRequest(),
 						err:              errors.New("handle CNS delete error"), //nolint ut error
 					},
 				},
@@ -334,7 +334,7 @@ func TestCNSIPAMInvoker_Delete(t *testing.T) {
 				podNamespace: tt.fields.podNamespace,
 				cnsClient:    tt.fields.cnsClient,
 			}
-			err := invoker.Delete(tt.args.address, tt.args.nwCfg, tt.args.args, tt.args.options)
+			err := invoker.Delete(tt.args.addresses, tt.args.nwCfg, tt.args.args, tt.args.options)
 			if tt.wantErr {
 				require.Error(err)
 			} else {

@@ -8,6 +8,7 @@ import (
 
 type cnsclient interface {
 	RequestIPAddress(ctx context.Context, ipconfig cns.IPConfigRequest) (*cns.IPConfigResponse, error)
+	RequestIPs(ctx context.Context, ipconfig cns.IPConfigsRequest) (*cns.IPConfigsResponse, error)
 	ReleaseIPAddress(ctx context.Context, ipconfig cns.IPConfigRequest) error
 	RequestIPs(ctx context.Context, ipconfig cns.IPConfigsRequest) (*cns.IPConfigsResponse, error)
 	ReleaseIPs(ctx context.Context, ipconfig cns.IPConfigsRequest) error

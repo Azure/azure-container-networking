@@ -385,7 +385,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 			res.Print()
 		}
 
-		log.Printf("[cni-net] ADD command completed for pod %v with ip IPs:%+v  err:%v.", k8sPodName, ipamAddResult.ipv4Result.IPs, err)
+		log.Printf("[cni-net] ADD command completed for pod %v with IPs:%+v  err:%v.", k8sPodName, ipamAddResult.ipv4Result.IPs, err)
 	}()
 
 	// Parse Pod arguments.
@@ -446,49 +446,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 			return fmt.Errorf("%w", err)
 		}
 
-<<<<<<< HEAD
 		ipamAddResults, err = plugin.multitenancyClient.GetAllNetworkContainers(context.TODO(), nwCfg, k8sPodName, k8sNamespace, args.IfName)
-=======
-		ipamAddResult.ncResponse, ipamAddResult.hostSubnetPrefix, er = plugin.multitenancyClient.GetContainerNetworkConfiguration(
-			context.TODO(), nwCfg, k8sPodName, k8sNamespace)
-		if er != nil {
-			er = errors.Wrapf(er, "GetContainerNetworkConfiguration failed for podname %v namespace %v", k8sPodName, k8sNamespace)
-			log.Printf("%+v", er)
-			return er
-		}
-
-		ipamAddResult.ipv4Result = convertToCniResult(ipamAddResult.ncResponse, args.IfName)
-
-		log.Printf("PrimaryInterfaceIdentifier: %v", ipamAddResult.hostSubnetPrefix.IP.String())
-	}
-
-	// Initialize values from network config.
-	networkID, err := plugin.getNetworkName(args.Netns, &ipamAddResult, nwCfg)
-	if err != nil {
-		log.Printf("[cni-net] Failed to extract network name from network config. error: %v", err)
-		return err
-	}
-
-	endpointID := GetEndpointID(args)
-	policies := cni.GetPoliciesFromNwCfg(nwCfg.AdditionalArgs)
-
-	options := make(map[string]interface{})
-	// Check whether the network already exists.
-	nwInfo, nwInfoErr := plugin.nm.GetNetworkInfo(networkID)
-	/* Handle consecutive ADD calls for infrastructure containers.
-	 * This is a temporary work around for issue #57253 of Kubernetes.
-	 * We can delete this if statement once they fix it.
-	 * Issue link: https://github.com/kubernetes/kubernetes/issues/57253
-	 */
-
-	if nwInfoErr == nil {
-		log.Printf("[cni-net] Found network %v with subnet %v.", networkID, nwInfo.Subnets[0].Prefix.String())
-		nwInfo.IPAMType = nwCfg.IPAM.Type
-		options = nwInfo.Options
-
-		var resultSecondAdd *cniTypesCurr.Result
-		resultSecondAdd, err = plugin.handleConsecutiveAdd(args, endpointID, networkID, &nwInfo, nwCfg)
->>>>>>> 2b954714 (windows CNI dual stack)
 		if err != nil {
 			err = fmt.Errorf("GetAllNetworkContainers failed for podname %s namespace %s. error: %w", k8sPodName, k8sNamespace, err)
 			log.Printf("%+v", err)
@@ -652,12 +610,20 @@ func (plugin *NetPlugin) cleanupAllocationOnError(
 	options map[string]interface{},
 ) {
 	if result != nil && len(result.IPs) > 0 {
-		if er := plugin.ipamInvoker.Delete(&result.IPs[0].Address, nwCfg, args, options); er != nil {
+		addresses := make([]*net.IPNet, len(result.IPs))
+		for i, ip := range result.IPs {
+			addresses[i] = &ip.Address
+		}
+		if er := plugin.ipamInvoker.Delete(addresses, nwCfg, args, options); er != nil {
 			log.Errorf("Failed to cleanup ip allocation on failure: %v", er)
 		}
 	}
 	if resultV6 != nil && len(resultV6.IPs) > 0 {
-		if er := plugin.ipamInvoker.Delete(&resultV6.IPs[0].Address, nwCfg, args, options); er != nil {
+		addressesV6 := make([]*net.IPNet, len(resultV6.IPs))
+		for i, ip := range resultV6.IPs {
+			addressesV6[i] = &ip.Address
+		}
+		if er := plugin.ipamInvoker.Delete(addressesV6, nwCfg, args, options); er != nil {
 			log.Errorf("Failed to cleanup ipv6 allocation on failure: %v", er)
 		}
 	}
