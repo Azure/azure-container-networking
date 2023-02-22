@@ -285,6 +285,7 @@ func TestAzureIPAMInvoker_Delete(t *testing.T) {
 			},
 		},
 		{
+<<<<<<< HEAD
 			name: "delete happy path ipv4+ipv6",
 			fields: fields{
 				plugin: &mockDelegatePlugin{
@@ -305,6 +306,8 @@ func TestAzureIPAMInvoker_Delete(t *testing.T) {
 			},
 		},
 		{
+=======
+>>>>>>> 9f2dbb1e (get latest fixes from full integration branch)
 			name: "error addresses is nil",
 			fields: fields{
 				plugin: &mockDelegatePlugin{
