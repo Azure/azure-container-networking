@@ -386,7 +386,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 			res.Print()
 		}
 
-		log.Printf("[cni-net] ADD command completed for pod %v with ip IPs:%+v  err:%v.", k8sPodName, ipamAddResult.ipv4Result.IPs, err)
+		log.Printf("[cni-net] ADD command completed for pod %v with IPs:%+v  err:%v.", k8sPodName, ipamAddResult.ipv4Result.IPs, err)
 	}()
 
 	// Parse Pod arguments.
@@ -580,12 +580,20 @@ func (plugin *NetPlugin) cleanupAllocationOnError(
 	options map[string]interface{},
 ) {
 	if result != nil && len(result.IPs) > 0 {
-		if er := plugin.ipamInvoker.Delete(&result.IPs[0].Address, nwCfg, args, options); er != nil {
+		addresses := make([]*net.IPNet, len(result.IPs))
+		for i, ip := range result.IPs {
+			addresses[i] = &ip.Address
+		}
+		if er := plugin.ipamInvoker.Delete(addresses, nwCfg, args, options); er != nil {
 			log.Errorf("Failed to cleanup ip allocation on failure: %v", er)
 		}
 	}
 	if resultV6 != nil && len(resultV6.IPs) > 0 {
-		if er := plugin.ipamInvoker.Delete(&resultV6.IPs[0].Address, nwCfg, args, options); er != nil {
+		addressesV6 := make([]*net.IPNet, len(resultV6.IPs))
+		for i, ip := range resultV6.IPs {
+			addressesV6[i] = &ip.Address
+		}
+		if er := plugin.ipamInvoker.Delete(addressesV6, nwCfg, args, options); er != nil {
 			log.Errorf("Failed to cleanup ipv6 allocation on failure: %v", er)
 		}
 	}
@@ -1021,13 +1029,16 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 
 	if !nwCfg.MultiTenancy {
 		// Call into IPAM plugin to release the endpoint's addresses.
-		for _, address := range epInfo.IPAddresses {
-			logAndSendEvent(plugin, fmt.Sprintf("Release ip:%s", address.IP.String()))
-			err = plugin.ipamInvoker.Delete(&address, nwCfg, args, nwInfo.Options)
-			if err != nil {
-				return plugin.RetriableError(fmt.Errorf("failed to release address: %w", err))
-			}
+		addresses := make([]*net.IPNet, len(epInfo.IPAddresses))
+		for i := range epInfo.IPAddresses {
+			addresses[i] = &epInfo.IPAddresses[i]
+			logAndSendEvent(plugin, fmt.Sprintf("Release ip:%s", epInfo.IPAddresses[i].IP.String()))
 		}
+		err = plugin.ipamInvoker.Delete(addresses, nwCfg, args, nwInfo.Options)
+		if err != nil {
+			return plugin.RetriableError(fmt.Errorf("failed to release address: %w", err))
+		}
+
 	} else if epInfo.EnableInfraVnet {
 		nwCfg.IPAM.Subnet = nwInfo.Subnets[0].Prefix.String()
 		nwCfg.IPAM.Address = epInfo.InfraVnetIP.IP.String()
