@@ -75,6 +75,7 @@ jobs:
           ai_path_var: NPM_AI_PATH
           ai_id: 014c22bd-4107-459e-8475-67909e96edcb
           ai_id_var: NPM_AI_ID
+          os_sku: ltsc2022
     steps:
       - template: ../containers/container-template-windows.yaml
         parameters:
@@ -85,6 +86,7 @@ jobs:
           ai_path_var: $(ai_path_var)
           ai_id: $(ai_id)
           ai_id_var: $(ai_id_var)
+          os_sku: "$(os_sku)"
 
   - job: k8se2e
     displayName: "Build Kubernetes Test Suite"
