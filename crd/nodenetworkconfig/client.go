@@ -129,7 +129,7 @@ func (c *Client) UpdateSpec(ctx context.Context, key types.NamespacedName, spec 
 	return nnc, nil
 }
 
-// SetControllerRef sets the controller of the NodeNetworkConfig to the given object atomically, using HTTP Patch.
+// SetOwnerRef sets the controller of the NodeNetworkConfig to the given object atomically, using HTTP Patch.
 // Deprecated: SetOwnerRef is deprecated, use the more correctly named SetControllerRef.
 func (c *Client) SetOwnerRef(ctx context.Context, key types.NamespacedName, owner metav1.Object, fieldManager string) (*v1alpha.NodeNetworkConfig, error) {
 	return c.SetControllerRef(ctx, key, owner, fieldManager)
