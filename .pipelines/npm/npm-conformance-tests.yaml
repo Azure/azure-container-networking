@@ -222,7 +222,7 @@ jobs:
 
               az aks get-credentials -n $(AZURE_CLUSTER) -g $(RESOURCE_GROUP) --file ./kubeconfig
               ./kubectl --kubeconfig=./kubeconfig apply -f https://raw.githubusercontent.com/Azure/azure-container-networking/master/npm/examples/windows/azure-npm.yaml
-              ./kubectl --kubeconfig=./kubeconfig set image daemonset/azure-npm-win -n kube-system azure-npm=$IMAGE_REGISTRY/azure-npm:windows-amd64-$(TAG)
+              ./kubectl --kubeconfig=./kubeconfig set image daemonset/azure-npm-win -n kube-system azure-npm=$IMAGE_REGISTRY/azure-npm:windows-amd64-$(TAG)-ltsc2022
 
             else
               echo "Creating Linux Cluster"; 
@@ -462,7 +462,7 @@ jobs:
             ./kubectl --kubeconfig=./kubeconfig apply -f https://raw.githubusercontent.com/Azure/azure-container-networking/master/npm/examples/windows/azure-npm.yaml
 
             # swap azure-npm image with one built during run
-            ./kubectl --kubeconfig=./kubeconfig set image daemonset/azure-npm-win -n kube-system azure-npm=$IMAGE_REGISTRY/azure-npm:windows-amd64-$(TAG)
+            ./kubectl --kubeconfig=./kubeconfig set image daemonset/azure-npm-win -n kube-system azure-npm=$IMAGE_REGISTRY/azure-npm:windows-amd64-$(TAG)-ltsc2022
 
             echo "sleeping 3 minutes to allow NPM pods to restart"
             sleep 180
