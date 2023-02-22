@@ -286,8 +286,8 @@ func (dp *DataPlane) RemovePolicy(policyKey string) error {
 	policy, ok := dp.policyMgr.GetPolicy(policyKey)
 	endpoints := make(map[string]string, len(policy.PodEndpoints))
 
-	for podIP, endpointId := range policy.PodEndpoints {
-		endpoints[podIP] = endpointId
+	for podIP, endpointID := range policy.PodEndpoints {
+		endpoints[podIP] = endpointID
 	}
 
 	if !ok {
@@ -305,7 +305,7 @@ func (dp *DataPlane) RemovePolicy(policyKey string) error {
 	for podIP := range endpoints {
 		// if the endpoint is not in the policy's endpoint list, delete policy reference from cache
 		if _, ok := policy.PodEndpoints[podIP]; !ok {
-			//check if the endpoint is in the cache
+			// check if the endpoint is in the cache
 			if endpoint, ok := dp.endpointCache.cache[podIP]; ok {
 				delete(endpoint.netPolReference, policyKey)
 			}
