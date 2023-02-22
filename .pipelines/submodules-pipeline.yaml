@@ -210,6 +210,7 @@ stages:
               ai_path_var: NPM_AI_PATH
               ai_id: 014c22bd-4107-459e-8475-67909e96edcb
               ai_id_var: NPM_AI_ID
+              os_sku: ltsc2022
         steps:
           - template: containers/container-template-windows.yaml
             parameters:
@@ -220,6 +221,7 @@ stages:
               ai_path_var: $(ai_path_var)
               ai_id: $(ai_id)
               ai_id_var: $(ai_id_var)
+              os_sku: "$(os_sku)"
 
   - stage: publish
     displayName: Publish Multiarch Manifests
