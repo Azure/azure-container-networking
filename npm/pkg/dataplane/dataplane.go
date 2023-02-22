@@ -294,7 +294,7 @@ func (dp *DataPlane) RemovePolicy(policyKey string) error {
 		klog.Infof("[DataPlane] Policy %s is not found. Might been deleted already", policyKey)
 		return nil
 	}
-	dp.updatePodCache.Lock()
+	dp.endpointCache.Lock()
 
 	// Use the endpoint list saved in cache for this network policy to remove
 	err := dp.policyMgr.RemovePolicy(policy.PolicyKey)
@@ -312,7 +312,7 @@ func (dp *DataPlane) RemovePolicy(policyKey string) error {
 		}
 	}
 
-	dp.updatePodCache.Unlock()
+	dp.endpointCache.Unlock()
 
 	// Remove references for Rule IPSets first
 	err = dp.deleteIPSetsAndReferences(policy.RuleIPSets, policy.PolicyKey, ipsets.NetPolType)
