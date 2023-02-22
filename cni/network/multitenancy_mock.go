@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net"
+	"runtime"
 
 	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/cns"
@@ -92,6 +93,9 @@ func (m *MockMultitenancy) GetAllNetworkContainers(
 		return nil, errMockMulAdd
 	}
 
+	var cnsResponses []cns.GetNetworkContainerResponse
+	var ipNets []net.IPNet
+
 	cnsResponseOne := &cns.GetNetworkContainerResponse{
 		IPConfiguration: cns.IPConfiguration{
 			IPSubnet: cns.IPSubnet{
@@ -115,37 +119,39 @@ func (m *MockMultitenancy) GetAllNetworkContainers(
 		},
 	}
 
-	cnsResponseTwo := &cns.GetNetworkContainerResponse{
-		IPConfiguration: cns.IPConfiguration{
-			IPSubnet: cns.IPSubnet{
-				IPAddress:    "10.0.0.10",
-				PrefixLength: ipPrefixLen,
+	if runtime.GOOS == "windows" {
+		cnsResponseTwo := &cns.GetNetworkContainerResponse{
+			IPConfiguration: cns.IPConfiguration{
+				IPSubnet: cns.IPSubnet{
+					IPAddress:    "10.0.0.10",
+					PrefixLength: ipPrefixLen,
+				},
+				GatewayIPAddress: "10.0.0.1",
 			},
-			GatewayIPAddress: "10.0.0.1",
-		},
-		LocalIPConfiguration: cns.IPConfiguration{
-			IPSubnet: cns.IPSubnet{
-				IPAddress:    "169.254.0.4",
-				PrefixLength: localIPPrefixLen,
+			LocalIPConfiguration: cns.IPConfiguration{
+				IPSubnet: cns.IPSubnet{
+					IPAddress:    "169.254.0.4",
+					PrefixLength: localIPPrefixLen,
+				},
+				GatewayIPAddress: "169.254.0.1",
 			},
-			GatewayIPAddress: "169.254.0.1",
-		},
 
-		PrimaryInterfaceIdentifier: "10.240.0.4/24",
-		MultiTenancyInfo: cns.MultiTenancyInfo{
-			EncapType: cns.Vlan,
-			ID:        multiTenancyVlan2,
-		},
+			PrimaryInterfaceIdentifier: "10.240.0.4/24",
+			MultiTenancyInfo: cns.MultiTenancyInfo{
+				EncapType: cns.Vlan,
+				ID:        multiTenancyVlan2,
+			},
+		}
+
+		_, secondIPnet, _ := net.ParseCIDR(cnsResponseTwo.PrimaryInterfaceIdentifier)
+		ipNets = append(ipNets, *secondIPnet)
+		cnsResponses = append(cnsResponses, *cnsResponseTwo)
 	}
 
 	_, firstIPnet, _ := net.ParseCIDR(cnsResponseOne.PrimaryInterfaceIdentifier)
-	_, secondIPnet, _ := net.ParseCIDR(cnsResponseTwo.PrimaryInterfaceIdentifier)
 
-	var cnsResponses []cns.GetNetworkContainerResponse
-	var ipNets []net.IPNet
-
-	ipNets = append(ipNets, *firstIPnet, *secondIPnet)
-	cnsResponses = append(cnsResponses, *cnsResponseOne, *cnsResponseTwo)
+	ipNets = append(ipNets, *firstIPnet)
+	cnsResponses = append(cnsResponses, *cnsResponseOne)
 
 	ipamResults := make([]IPAMAddResult, len(cnsResponses))
 	for i := 0; i < len(cnsResponses); i++ {
