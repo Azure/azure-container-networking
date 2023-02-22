@@ -119,6 +119,7 @@ func (m *MockMultitenancy) GetAllNetworkContainers(
 		},
 	}
 
+	// TODO: add dual nic test cases for windows
 	if runtime.GOOS == "windows" {
 		cnsResponseTwo := &cns.GetNetworkContainerResponse{
 			IPConfiguration: cns.IPConfiguration{
