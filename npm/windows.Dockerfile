@@ -1,20 +1,14 @@
-FROM mcr.microsoft.com/oss/go/microsoft/golang:1.19-windowsservercore-ltsc2022 AS builder
-# Build args
+ARG OS_VERSION
+FROM --platform=linux/amd64 mcr.microsoft.com/oss/go/microsoft/golang:1.19 AS builder
 ARG VERSION
 ARG NPM_AI_PATH
 ARG NPM_AI_ID
-
-WORKDIR /usr/src/npm
-RUN mkdir /usr/bin/
-# Copy the source
+WORKDIR /usr/local/src
 COPY . .
+RUN GOOS=windows CGO_ENABLED=1 go build -v -o /usr/local/bin/azure-npm.exe -ldflags "-X main.version="$VERSION" -X "$NPM_AI_PATH"="$NPM_AI_ID"" -gcflags="-dwarflocationlists=true" npm/cmd/*.go
 
-RUN $Env:CGO_ENABLED=0; go build -mod vendor -v -o /usr/bin/npm.exe -ldflags """-X main.version=${env:VERSION} -X ${env:NPM_AI_PATH}=${env:NPM_AI_ID}""" -gcflags="-dwarflocationlists=true" ./npm/cmd/
-
-# Copy into final image
-FROM mcr.microsoft.com/windows/servercore:ltsc2022
-COPY --from=builder /usr/src/npm/npm/examples/windows/kubeconfigtemplate.yaml kubeconfigtemplate.yaml
-COPY --from=builder /usr/src/npm/npm/examples/windows/setkubeconfigpath.ps1 setkubeconfigpath.ps1
-COPY --from=builder /usr/bin/npm.exe npm.exe
-
-CMD ["npm.exe", "start" "--kubeconfig=.\\kubeconfig"]
+FROM mcr.microsoft.com/windows/servercore:${OS_VERSION}
+COPY --from=builder /usr/local/src/npm/examples/windows/kubeconfigtemplate.yaml kubeconfigtemplate.yaml
+COPY --from=builder /usr/local/src/npm/examples/windows/setkubeconfigpath.ps1 setkubeconfigpath.ps1
+COPY --from=builder /usr/local/bin/azure-npm.exe azure-npm.exe
+CMD ["azure-npm.exe", "start" "--kubeconfig=.\\kubeconfig"]
