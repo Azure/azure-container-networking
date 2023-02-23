@@ -295,15 +295,6 @@ acncli-image: ## build cni-manager container image.
 		IMAGE=$(ACNCLI_IMAGE) \
 		TAG=$(ACNCLI_PLATFORM_TAG)
 
-acncli-image-windows: ## build the cni image for windows
-	$(MKDIR) $(IMAGE_DIR);
-	docker build \
-	--no-cache \
-	-f cni/build/cni.windows.Dockerfile \
-	-t $(IMAGE_REGISTRY)/$(ACNCLI_IMAGE)-win:$(ACNCLI_PLATFORM_TAG) \
-	--build-arg VERSION=$(CNI_VERSION) \
-	.
-	
 acncli-image-push: ## push cni-manager container image.
 	$(MAKE) container-push \
 		IMAGE=$(ACNCLI_IMAGE) \
@@ -346,6 +337,21 @@ cni-dropgz-image-pull: ## pull cni-dropgz container image.
 cni-dropgz-skopeo-export: 
 	$(MAKE) skopeo-export \
 		REF=$(IMAGE_REGISTRY)/$(CNI_DROPGZ_IMAGE):$(CNI_DROPGZ_PLATFORM_TAG)
+
+cni-dropgz-image-windows: ## build cni-dropgz container image for windows
+	$(MKDIR) $(IMAGE_DIR);
+	docker build \
+	--no-cache \
+	-f dropgz/build/cni.windows.Dockerfile \
+	-t $(IMAGE_REGISTRY)/$(ACNCLI_IMAGE)-win:$(ACNCLI_PLATFORM_TAG) \
+	--build-arg VERSION=$(CNI_VERSION) \
+	.
+
+# $(MAKE) container \
+	# 	DOCKERFILE=dropgz/build/cni.windows.Dockerfile \
+	# 	EXTRA_BUILD_ARGS='--build-arg OS=$(OS) --build-arg ARCH=$(ARCH)' \
+	# 	IMAGE=$(CNI_DROPGZ_IMAGE) \
+	# 	TAG=$(CNI_DROPGZ_PLATFORM_TAG)
 
 # cni-dropgz-test
 
