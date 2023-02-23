@@ -491,6 +491,7 @@ func TestIPBlockRule(t *testing.T) {
 		translatedIPSet *ipsets.TranslatedIPSet
 		setInfo         policies.SetInfo
 		skipWindows     bool
+		wantErr         bool
 	}{
 		{
 			name:            "empty ipblock rule ",
@@ -540,6 +541,26 @@ func TestIPBlockRule(t *testing.T) {
 			setInfo:         policies.NewSetInfo("test-network-policy-in-ns-default-0-0IN", ipsets.CIDRBlocks, included, policies.SrcMatch),
 			skipWindows:     true,
 		},
+		{
+			name:        "invalid ipv6",
+			ipBlockInfo: createIPBlockInfo("test", defaultNS, policies.Ingress, policies.SrcMatch, 0, 0),
+			ipBlockRule: &networkingv1.IPBlock{
+				CIDR: "2002::1234:abcd:ffff:c0a8:101/64",
+			},
+			translatedIPSet: nil,
+			setInfo:         policies.SetInfo{},
+			wantErr:         true,
+		},
+		{
+			name:        "invalid cidr",
+			ipBlockInfo: createIPBlockInfo("test", defaultNS, policies.Ingress, policies.SrcMatch, 0, 0),
+			ipBlockRule: &networkingv1.IPBlock{
+				CIDR: "10.0.0.1/33",
+			},
+			translatedIPSet: nil,
+			setInfo:         policies.SetInfo{},
+			wantErr:         true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -550,9 +571,15 @@ func TestIPBlockRule(t *testing.T) {
 			if tt.skipWindows && util.IsWindowsDP() {
 				require.Error(t, err)
 			} else {
-				require.NoError(t, err)
-				require.Equal(t, tt.translatedIPSet, translatedIPSet)
-				require.Equal(t, tt.setInfo, setInfo)
+				if tt.wantErr {
+					require.Error(t, err)
+					require.Equal(t, tt.translatedIPSet, translatedIPSet)
+					require.Equal(t, tt.setInfo, setInfo)
+				} else {
+					require.NoError(t, err)
+					require.Equal(t, tt.translatedIPSet, translatedIPSet)
+					require.Equal(t, tt.setInfo, setInfo)
+				}
 			}
 		})
 	}
