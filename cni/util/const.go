@@ -14,5 +14,5 @@ type IpamMode string
 // IPAM modes
 const (
 	V4Overlay       IpamMode = "v4overlay"
-	DualModeOverlay IpamMode = "dualModeOverlay"
+	DualModeOverlay IpamMode = "dualStackOverlay"
 )
