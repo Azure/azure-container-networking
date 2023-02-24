@@ -3,6 +3,7 @@ package multitenantoperator
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net"
 	"reflect"
 	"strings"
@@ -112,7 +113,11 @@ func (r *multiTenantCrdReconciler) Reconcile(ctx context.Context, request reconc
 	if err == nil {
 		logger.Printf("NC %s (UUID: %s) has already been created in CNS", request.NamespacedName.String(), nc.Spec.UUID)
 		return ctrl.Result{}, nil
-	} else if !strings.EqualFold(err.Error(), types.UnknownContainerID.String()) {
+	}
+
+	// return any error except UnknownContainerID
+	var cnsRESTErr *restserver.CNSRESTError
+	if !errors.As(err, &cnsRESTErr) || cnsRESTErr.ResponseCode != types.UnknownContainerID {
 		logger.Errorf("Failed to fetch NC %s (UUID: %s) from CNS: %v", request.NamespacedName.String(), nc.Spec.UUID, err)
 		return ctrl.Result{}, err
 	}

@@ -39,6 +39,14 @@ spec:
               value: "0.0.0.0"
             - name: PORT
               value: "8080"
+            - name: PING_TIMEOUT
+              value: "10s"
+            - name: CHECK_TIMEOUT
+              value: "20s"
+            - name: CHECK_ALL_TIMEOUT
+              value: "20s"
+            - name: DNS_TARGETS_TIMEOUT
+              value: "10s"
             - name: HOSTNAME
               valueFrom:
                 fieldRef:
@@ -49,7 +57,7 @@ spec:
                   fieldPath: status.podIP
             - name: HOSTS_TO_RESOLVE
               value: "1.1.1.1 8.8.8.8 www.bing.com"
-          image: "docker.io/bloomberg/goldpinger:v3.3.0"
+          image: "docker.io/bloomberg/goldpinger:v3.7.0"
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true

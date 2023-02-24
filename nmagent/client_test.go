@@ -659,7 +659,7 @@ func TestGetHomeAz(t *testing.T) {
 		{
 			"happy path",
 			nmagent.AzResponse{HomeAz: uint(1)},
-			"/machine/plugins?comp=nmagent&type=GetHomeAz",
+			"/machine/plugins?comp=nmagent&type=GetHomeAz%2Fapi-version%2F1",
 			map[string]interface{}{
 				"httpStatusCode": "200",
 				"HomeAz":         1,
@@ -669,7 +669,7 @@ func TestGetHomeAz(t *testing.T) {
 		{
 			"empty response",
 			nmagent.AzResponse{},
-			"/machine/plugins?comp=nmagent&type=GetHomeAz",
+			"/machine/plugins?comp=nmagent&type=GetHomeAz%2Fapi-version%2F1",
 			map[string]interface{}{
 				"httpStatusCode": "500",
 			},
