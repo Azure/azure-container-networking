@@ -47,8 +47,4 @@
             ]
         }
     ]
-<<<<<<< HEAD
 }
-=======
-}
->>>>>>> 3821605d (add cni build in make file dor dualstack mode)
