@@ -177,7 +177,7 @@ func (plugin *Plugin) InitializeKeyValueStore(config *common.PluginConfig) error
 	// Acquire store lock.
 	if err := plugin.Store.Lock(store.DefaultLockTimeout); err != nil {
 		log.Printf("[cni] Failed to lock store: %v.", err)
-		return err
+		return errors.Wrap(err, "error Acquiring store lock")
 	}
 
 	config.Store = plugin.Store
