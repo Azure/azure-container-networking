@@ -11,16 +11,13 @@ import (
 	"net"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/platform"
-	"github.com/pkg/errors"
 )
 
 // TelemetryConfig - telemetry config read by telemetry service
@@ -320,42 +317,6 @@ func (tb *TelemetryBuffer) ConnectToTelemetryService(telemetryNumRetries, teleme
 			return
 		}
 	}
-}
-
-// ConnectToTelemetryService for CNI - Attempt to spawn telemetry process if it's not already running. This function will have store lock for CNI.
-// TODO: This function should eventually get removed when stateless CNI is developed.
-func (tb *TelemetryBuffer) ConnectCNIToTelemetryService(telemetryNumRetries, telemetryWaitTimeInMilliseconds int, netPlugin *cni.Plugin) error {
-	path, dir := getTelemetryServiceDirectory()
-	args := []string{"-d", dir}
-	for attempt := 0; attempt < 2; attempt++ {
-		if err := tb.Connect(); err != nil {
-			log.Logf("Connection to telemetry socket failed: %v", err)
-			if runtime.GOOS == "windows" {
-				if err = netPlugin.LockKeyValueStore(); err != nil {
-					log.Logf("lock acquire error: %v", err)
-					return errors.Wrap(err, "lock acquire error")
-				}
-			}
-			if err = tb.Cleanup(FdName); err != nil {
-				return errors.Wrap(err, "cleanup failed")
-			}
-			if err = StartTelemetryService(path, args); err != nil {
-				return errors.Wrap(err, "StartTelemetryService failed")
-			}
-			WaitForTelemetrySocket(telemetryNumRetries, time.Duration(telemetryWaitTimeInMilliseconds))
-			if runtime.GOOS == "windows" {
-				if err = netPlugin.UnLockKeyValueStore(); err != nil {
-					log.Logf("failed to relinquish lock error: %v", err)
-					return errors.Wrap(err, "failed to relinquish lock error")
-				}
-			}
-		} else {
-			tb.Connected = true
-			log.Logf("Connected to telemetry service")
-			return nil
-		}
-	}
-	return nil
 }
 
 func getTelemetryServiceDirectory() (path string, dir string) {

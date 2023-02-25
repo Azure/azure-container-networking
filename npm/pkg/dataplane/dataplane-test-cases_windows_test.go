@@ -15,8 +15,8 @@ const (
 	podCrudTag    Tag = "pod-crud"
 	nsCrudTag     Tag = "namespace-crud"
 	netpolCrudTag Tag = "netpol-crud"
-	calicoTag     Tag = "calico"
 	reconcileTag  Tag = "reconcile"
+	calicoTag     Tag = "calico"
 )
 
 const (
@@ -101,7 +101,7 @@ func policyXBaseOnK1V1() *networkingv1.NetworkPolicy {
 	}
 }
 
-func getAllSerialTests() []*SerialTestCase {
+func basicTests() []*SerialTestCase {
 	return []*SerialTestCase{
 		{
 			Description: "pod created",
@@ -524,6 +524,70 @@ func getAllSerialTests() []*SerialTestCase {
 				},
 			},
 		},
+		{
+			Description: "pod created to satisfy policy, then policy deleted, then pod relabeled to no longer satisfy policy, then policy re-created and pod relabeled to satisfy policy",
+			Actions: []*Action{
+				CreateEndpoint(endpoint1, ip1),
+				CreatePod("x", "a", ip1, thisNode, map[string]string{"k1": "v1"}),
+				// will apply dirty ipsets from CreatePod
+				UpdatePolicy(policyXBaseOnK1V1()),
+				DeletePolicyByObject(policyXBaseOnK1V1()),
+				UpdatePodLabels("x", "a", ip1, thisNode, map[string]string{"k1": "v1"}, map[string]string{"k2": "v2"}),
+				ApplyDP(),
+				UpdatePolicy(policyXBaseOnK1V1()),
+				ApplyDP(),
+				UpdatePodLabels("x", "a", ip1, thisNode, map[string]string{"k2": "v2"}, map[string]string{"k1": "v1"}),
+				ApplyDP(),
+			},
+			TestCaseMetadata: &TestCaseMetadata{
+				Tags: []Tag{
+					podCrudTag,
+					netpolCrudTag,
+				},
+				DpCfg:            defaultWindowsDPCfg,
+				InitialEndpoints: nil,
+				ExpectedSetPolicies: []*hcn.SetPolicySetting{
+					dptestutils.SetPolicy(emptySet),
+					dptestutils.SetPolicy(allNamespaces, emptySet.GetHashedName(), nsXSet.GetHashedName()),
+					dptestutils.SetPolicy(nsXSet, ip1),
+					dptestutils.SetPolicy(podK1Set, ip1),
+					dptestutils.SetPolicy(podK1V1Set, ip1),
+					dptestutils.SetPolicy(podK2Set),
+					dptestutils.SetPolicy(podK2V2Set),
+				},
+				ExpectedEnpdointACLs: map[string][]*hnswrapper.FakeEndpointPolicy{
+					endpoint1: {
+						{
+							ID:              "azure-acl-x-base",
+							Protocols:       "",
+							Action:          "Allow",
+							Direction:       "In",
+							LocalAddresses:  "",
+							RemoteAddresses: "",
+							LocalPorts:      "",
+							RemotePorts:     "",
+							Priority:        222,
+						},
+						{
+							ID:              "azure-acl-x-base",
+							Protocols:       "",
+							Action:          "Allow",
+							Direction:       "Out",
+							LocalAddresses:  "",
+							RemoteAddresses: "",
+							LocalPorts:      "",
+							RemotePorts:     "",
+							Priority:        222,
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+func capzCalicoTests() []*SerialTestCase {
+	return []*SerialTestCase{
 		{
 			Description: "Calico Network: base ACLs",
 			Actions: []*Action{

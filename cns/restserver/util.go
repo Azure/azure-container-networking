@@ -394,9 +394,8 @@ func (service *HTTPRestService) getNetworkContainerResponse(
 		}
 		nmaNCs := map[string]string{}
 		for _, nc := range ncVersionListResp.Containers {
-			nmaNCs[nc.NetworkContainerID] = nc.Version
+			nmaNCs[cns.SwiftPrefix+nc.NetworkContainerID] = nc.Version
 		}
-
 		if exists && !skipNCVersionCheck {
 			// If the goal state is available with CNS, check if the NC is pending VFP programming
 			waitingForUpdate, getNetworkContainerResponse.Response.ReturnCode, getNetworkContainerResponse.Response.Message = service.isNCWaitingForUpdate(
