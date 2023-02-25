@@ -1120,7 +1120,11 @@ func getAuthTokenAndInterfaceIDFromNcURL(networkContainerURL string) (*cns.Netwo
 		return nil, fmt.Errorf("unexpected number of matches in url, %w", ErrInvalidNcURLFormat)
 	}
 
-	return &cns.NetworkContainerParameters{AssociatedInterfaceID: matches[1], AuthToken: matches[3]}, nil
+	return &cns.NetworkContainerParameters{
+		AssociatedInterfaceID: matches[1],
+		NCID:                  matches[2],
+		AuthToken:             matches[3],
+	}, nil
 }
 
 //nolint:revive // the previous receiver naming "service" is bad, this is correct:
