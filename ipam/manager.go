@@ -4,7 +4,6 @@
 package ipam
 
 import (
-	"runtime"
 	"sync"
 	"time"
 
@@ -12,7 +11,6 @@ import (
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/platform"
 	"github.com/Azure/azure-container-networking/store"
-	"github.com/pkg/errors"
 )
 
 const (
@@ -102,22 +100,6 @@ func (am *addressManager) restore(rehydrateIpamInfoOnReboot bool) error {
 		return nil
 	}
 
-	// Acquiring store lock at this stage for optimization purpuses on Windows
-	if runtime.GOOS == "windows" {
-		// Acquire store lock.
-		if err := am.store.Lock(store.DefaultLockTimeout); err != nil {
-			log.Printf("[ipam] Failed to lock store: %v.", err)
-			return errors.Wrap(err, "error Acquiring store lock")
-		}
-		// Remove the lock on the key-value store
-		defer func() {
-			err := am.store.Unlock()
-			if err != nil {
-				log.Printf("[ipam] Failed to unlock store: %v.", err)
-			}
-		}()
-	}
-
 	// Read any persisted state.
 	err := am.store.Read(storeKey, am)
 	if err != nil {
@@ -186,22 +168,6 @@ func (am *addressManager) save() error {
 
 	// Update time stamp.
 	am.TimeStamp = time.Now()
-
-	// Acquiring store lock at this stage for optimization purpuses on Windows
-	if runtime.GOOS == "windows" {
-		// Acquire store lock.
-		if err := am.store.Lock(store.DefaultLockTimeout); err != nil {
-			log.Printf("[ipam] Failed to lock store: %v.", err)
-			return errors.Wrap(err, "error Acquiring store lock")
-		}
-		// Remove the lock on the key-value store
-		defer func() {
-			err := am.store.Unlock()
-			if err != nil {
-				log.Printf("[ipam] Failed to unlock store: %v.", err)
-			}
-		}()
-	}
 
 	log.Printf("[ipam] saving ipam state.\n")
 	err := am.store.Write(storeKey, am)

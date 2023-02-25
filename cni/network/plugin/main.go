@@ -225,10 +225,9 @@ func rootExecute() error {
 		// Start telemetry process if not already started. This should be done inside lock, otherwise multiple process
 		// end up creating/killing telemetry process results in undesired state.
 		tb = telemetry.NewTelemetryBuffer()
-		if err = tb.ConnectCNIToTelemetryService(telemetryNumRetries, telemetryWaitTimeInMilliseconds, netPlugin.Plugin); err != nil {
-			log.Errorf("connection to telemetry service failed.")
-		}
+		tb.ConnectToTelemetryService(telemetryNumRetries, telemetryWaitTimeInMilliseconds)
 		defer tb.Close()
+
 		netPlugin.SetCNIReport(cniReport, tb)
 
 		t := time.Now()

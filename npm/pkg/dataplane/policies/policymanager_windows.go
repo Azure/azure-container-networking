@@ -35,7 +35,8 @@ func newStaleChains() *staleChains {
 func (pMgr *PolicyManager) bootup(epIDs []string) error {
 	var aggregateErr error
 	for _, epID := range epIDs {
-		err := pMgr.removePolicyByEndpointID("", epID, 0, resetAllACLs)
+		// ruleID="RESET-ALL" is only used for logging when specifying shouldResetACLs=resestAllACLs
+		err := pMgr.removePolicyByEndpointID("RESET-ALL", epID, 0, resetAllACLs)
 		if err != nil {
 			if aggregateErr == nil {
 				aggregateErr = fmt.Errorf("skipping resetting policies on %s ID Endpoint with err: %w", epID, err)
@@ -178,7 +179,7 @@ func (pMgr *PolicyManager) removePolicyByEndpointID(ruleID, epID string, noOfRul
 	if err != nil {
 		// IsNotFound check is being skipped at times. So adding a redundant check here.
 		if isNotFoundErr(err) || strings.Contains(err.Error(), "endpoint was not found") {
-			klog.Infof("[PolicyManagerWindows] ignoring remove policy since the endpoint wasn't found. the corresponding pod might be deleted. policy: %s, endpoint: %s, err: %s", ruleID, epID, err.Error())
+			klog.Infof("[PolicyManagerWindows] ignoring remove policy since the endpoint wasn't found. the corresponding pod might be deleted. policy: %s, endpoint: %s, HNS response: %s", ruleID, epID, err.Error())
 			return nil
 		}
 		return fmt.Errorf("[PolicyManagerWindows] failed to remove policy while getting the endpoint. policy: %s, endpoint: %s, err: %w", ruleID, epID, err)

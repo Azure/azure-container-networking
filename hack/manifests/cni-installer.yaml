@@ -20,17 +20,17 @@ spec:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
             nodeSelectorTerms:
-            - matchExpressions:
-              - key: kubernetes.azure.com/cluster
-                operator: Exists
-              - key: type
-                operator: NotIn
-                values:
-                - virtual-kubelet
-              - key: beta.kubernetes.io/os
-                operator: In
-                values:
-                - linux
+              - matchExpressions:
+                  - key: kubernetes.azure.com/cluster
+                    operator: Exists
+                  - key: type
+                    operator: NotIn
+                    values:
+                      - virtual-kubelet
+                  - key: beta.kubernetes.io/os
+                    operator: In
+                    values:
+                      - linux
       priorityClassName: system-node-critical
       tolerations:
         - key: CriticalAddonsOnly
@@ -50,7 +50,7 @@ spec:
             - -o
             - /opt/cni/bin/azure-vnet
             - azure-linux-swift.conflist
-            - -o 
+            - -o
             - /etc/cni/net.d/10-azure.conflist
           volumeMounts:
             - name: cni-bin
@@ -59,7 +59,7 @@ spec:
               mountPath: /etc/cni/net.d
       containers:
         - name: pause
-          image: k8s.gcr.io/pause:2.0
+          image: registry.k8s.io/pause:2.0
       hostNetwork: true
       volumes:
         - name: cni-conflist

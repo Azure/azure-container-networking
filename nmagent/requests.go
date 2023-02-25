@@ -68,6 +68,12 @@ type PutNetworkContainerRequest struct {
 	// PrimaryAddress is the primary customer address of the interface in the
 	// management VNet
 	PrimaryAddress string
+
+	// AzID is the home AZ ID of the network container
+	AzID uint
+
+	// EnableAZR denotes whether AZR is enabled for network container or not
+	EnableAZR bool
 }
 
 type internalNC struct {
@@ -83,6 +89,8 @@ type internalNC struct {
 	Policies   []Policy `json:"policies"`
 	VlanID     int      `json:"vlanId"`
 	GREKey     uint16   `json:"greKey"`
+	AzID       uint     `json:"azID"`
+	EnableAZR  bool     `json:"enableAZR"`
 }
 
 func (p *PutNetworkContainerRequest) MarshalJSON() ([]byte, error) {
@@ -94,6 +102,8 @@ func (p *PutNetworkContainerRequest) MarshalJSON() ([]byte, error) {
 		Policies:   p.Policies,
 		VlanID:     p.VlanID,
 		GREKey:     p.GREKey,
+		AzID:       p.AzID,
+		EnableAZR:  p.EnableAZR,
 	}
 
 	body, err := json.Marshal(pBody)
@@ -123,6 +133,8 @@ func (p *PutNetworkContainerRequest) UnmarshalJSON(in []byte) error {
 	p.Policies = req.Policies
 	p.VlanID = req.VlanID
 	p.GREKey = req.GREKey
+	p.AzID = req.AzID
+	p.EnableAZR = req.EnableAZR
 
 	return nil
 }
