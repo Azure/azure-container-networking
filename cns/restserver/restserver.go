@@ -20,6 +20,7 @@ import (
 	nma "github.com/Azure/azure-container-networking/nmagent"
 	"github.com/Azure/azure-container-networking/store"
 	"github.com/pkg/errors"
+	"net/http"
 )
 
 // This file contains the initialization of RestServer.
@@ -46,6 +47,12 @@ type nmagentClient interface {
 	GetHomeAz(context.Context) (nma.AzResponse, error)
 }
 
+type wireserverProxy interface {
+	JoinNetwork(ctx context.Context, vnetID string) (*http.Response, error)
+	PublishNC(ctx context.Context, ncParams cns.NetworkContainerParameters, payload []byte) (*http.Response, error)
+	UnpublishNC(ctx context.Context, ncParams cns.NetworkContainerParameters) (*http.Response, error)
+}
+
 // HTTPRestService represents http listener for CNS - Container Networking Service.
 type HTTPRestService struct {
 	*cns.Service
@@ -53,6 +60,7 @@ type HTTPRestService struct {
 	wscli                    interfaceGetter
 	ipamClient               *ipamclient.IpamClient
 	nma                      nmagentClient
+	wsproxy                  wireserverProxy
 	homeAzMonitor            *HomeAzMonitor
 	networkContainer         *networkcontainers.NetworkContainers
 	PodIPIDByPodInterfaceKey map[string]string                    // PodInterfaceId is key and value is Pod IP (SecondaryIP) uuid.
@@ -193,6 +201,7 @@ func NewHTTPRestService(config *common.ServiceConfig, wscli interfaceGetter, nma
 		wscli:                    wscli,
 		ipamClient:               ic,
 		nma:                      nmagentClient,
+		wsproxy:                  nil, // todo: inject
 		networkContainer:         nc,
 		PodIPIDByPodInterfaceKey: podIPIDByPodInterfaceKey,
 		PodIPConfigState:         podIPConfigState,
