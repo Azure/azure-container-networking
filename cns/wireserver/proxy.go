@@ -4,9 +4,10 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"net/http"
+
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/pkg/errors"
-	"net/http"
 )
 
 const (
@@ -28,6 +29,8 @@ func (p *Proxy) JoinNetwork(ctx context.Context, vnetID string) (*http.Response,
 		return nil, errors.Wrap(err, "wireserver proxy: join network: could not build http request")
 	}
 
+	req.Header.Set("Content-Type", "application/json")
+
 	resp, err := p.HTTPClient.Do(req)
 	if err != nil {
 		return nil, errors.Wrap(err, "wireserver proxy: join network: could not perform http request")
@@ -44,6 +47,8 @@ func (p *Proxy) PublishNC(ctx context.Context, ncParams cns.NetworkContainerPara
 		return nil, errors.Wrap(err, "wireserver proxy: publish nc: could not build http request")
 	}
 
+	req.Header.Set("Content-Type", "application/json")
+
 	resp, err := p.HTTPClient.Do(req)
 	if err != nil {
 		return nil, errors.Wrap(err, "wireserver proxy: publish nc: could not perform http request")
@@ -59,6 +64,8 @@ func (p *Proxy) UnpublishNC(ctx context.Context, ncParams cns.NetworkContainerPa
 	if err != nil {
 		return nil, errors.Wrap(err, "wireserver proxy: unpublish nc: could not build http request")
 	}
+
+	req.Header.Set("Content-Type", "application/json")
 
 	resp, err := p.HTTPClient.Do(req)
 	if err != nil {

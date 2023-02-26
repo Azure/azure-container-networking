@@ -7,18 +7,19 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/Azure/azure-container-networking/cns"
-	"github.com/Azure/azure-container-networking/cns/hnsclient"
-	"github.com/Azure/azure-container-networking/cns/logger"
-	"github.com/Azure/azure-container-networking/cns/types"
-	"github.com/Azure/azure-container-networking/cns/wireserver"
-	"github.com/pkg/errors"
 	"io"
 	"net"
 	"net/http"
 	"net/url"
 	"regexp"
 	"runtime"
+
+	"github.com/Azure/azure-container-networking/cns"
+	"github.com/Azure/azure-container-networking/cns/hnsclient"
+	"github.com/Azure/azure-container-networking/cns/logger"
+	"github.com/Azure/azure-container-networking/cns/types"
+	"github.com/Azure/azure-container-networking/cns/wireserver"
+	"github.com/pkg/errors"
 )
 
 var (
@@ -1125,16 +1126,12 @@ func extractNCParamsFromURL(networkContainerURL string) (cns.NetworkContainerPar
 	}, nil
 }
 
-func respondError(w http.ResponseWriter, statusCode int, body any) {
+func respondJSON(w http.ResponseWriter, statusCode int, body any) {
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 	w.WriteHeader(statusCode)
-	_ = json.NewEncoder(w).Encode(body)
-}
-
-func respondOK(w http.ResponseWriter, body any) {
-	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
-	w.WriteHeader(http.StatusOK)
-	_ = json.NewEncoder(w).Encode(body)
+	if err := json.NewEncoder(w).Encode(body); err != nil {
+		logger.Printf("could not write json response: %v", err)
+	}
 }
 
 // Publish Network Container by calling nmagent
@@ -1160,7 +1157,7 @@ func (service *HTTPRestService) publishNetworkContainer(w http.ResponseWriter, r
 				Message:    fmt.Sprintf("unexpected create nc url format. url %s: %v ", req.CreateNetworkContainerURL, err),
 			},
 		}
-		respondError(w, http.StatusBadRequest, resp)
+		respondJSON(w, http.StatusBadRequest, resp)
 		logger.Response(service.Name, resp, resp.Response.ReturnCode, err)
 		return
 	}
@@ -1168,7 +1165,7 @@ func (service *HTTPRestService) publishNetworkContainer(w http.ResponseWriter, r
 	ctx := r.Context()
 
 	if !service.isNetworkJoined(req.NetworkID) {
-		joinResp, err := service.wsproxy.JoinNetwork(ctx, req.NetworkID)
+		joinResp, err := service.wsproxy.JoinNetwork(ctx, req.NetworkID) //nolint:govet // ok to shadow
 		if err != nil {
 			resp := cns.PublishNetworkContainerResponse{
 				Response: cns.Response{
@@ -1177,7 +1174,7 @@ func (service *HTTPRestService) publishNetworkContainer(w http.ResponseWriter, r
 				},
 				PublishErrorStr: err.Error(),
 			}
-			respondOK(w, resp) // legacy behavior
+			respondJSON(w, http.StatusOK, resp) // legacy behavior
 			logger.Response(service.Name, resp, resp.Response.ReturnCode, err)
 			return
 		}
@@ -1194,7 +1191,7 @@ func (service *HTTPRestService) publishNetworkContainer(w http.ResponseWriter, r
 				PublishStatusCode:   joinResp.StatusCode,
 				PublishResponseBody: joinBytes,
 			}
-			respondOK(w, resp) // legacy behavior
+			respondJSON(w, http.StatusOK, resp) // legacy behavior
 			logger.Response(service.Name, resp, resp.Response.ReturnCode, nil)
 			return
 		}
@@ -1212,7 +1209,7 @@ func (service *HTTPRestService) publishNetworkContainer(w http.ResponseWriter, r
 			},
 			PublishErrorStr: err.Error(),
 		}
-		respondOK(w, resp) // legacy behavior
+		respondJSON(w, http.StatusOK, resp) // legacy behavior
 		logger.Response(service.Name, resp, resp.Response.ReturnCode, err)
 		return
 	}
@@ -1232,7 +1229,7 @@ func (service *HTTPRestService) publishNetworkContainer(w http.ResponseWriter, r
 		}
 	}
 
-	respondOK(w, resp)
+	respondJSON(w, http.StatusOK, resp)
 	logger.Response(service.Name, resp, resp.Response.ReturnCode, nil)
 }
 
@@ -1258,7 +1255,7 @@ func (service *HTTPRestService) unpublishNetworkContainer(w http.ResponseWriter,
 				Message:    fmt.Sprintf("unexpected delete nc url format. url %s: %v ", req.DeleteNetworkContainerURL, err),
 			},
 		}
-		respondError(w, http.StatusBadRequest, resp)
+		respondJSON(w, http.StatusBadRequest, resp)
 		logger.Response(service.Name, resp, resp.Response.ReturnCode, err)
 		return
 	}
@@ -1266,7 +1263,7 @@ func (service *HTTPRestService) unpublishNetworkContainer(w http.ResponseWriter,
 	ctx := r.Context()
 
 	if !service.isNetworkJoined(req.NetworkID) {
-		joinResp, err := service.wsproxy.JoinNetwork(ctx, req.NetworkID)
+		joinResp, err := service.wsproxy.JoinNetwork(ctx, req.NetworkID) //nolint:govet // ok to shadow
 		if err != nil {
 			resp := cns.UnpublishNetworkContainerResponse{
 				Response: cns.Response{
@@ -1275,7 +1272,7 @@ func (service *HTTPRestService) unpublishNetworkContainer(w http.ResponseWriter,
 				},
 				UnpublishErrorStr: err.Error(),
 			}
-			respondOK(w, resp) // legacy behavior
+			respondJSON(w, http.StatusOK, resp) // legacy behavior
 			logger.Response(service.Name, resp, resp.Response.ReturnCode, err)
 			return
 		}
@@ -1292,7 +1289,7 @@ func (service *HTTPRestService) unpublishNetworkContainer(w http.ResponseWriter,
 				UnpublishStatusCode:   joinResp.StatusCode,
 				UnpublishResponseBody: joinBytes,
 			}
-			respondOK(w, resp) // legacy behavior
+			respondJSON(w, http.StatusOK, resp) // legacy behavior
 			logger.Response(service.Name, resp, resp.Response.ReturnCode, nil)
 			return
 		}
@@ -1310,7 +1307,7 @@ func (service *HTTPRestService) unpublishNetworkContainer(w http.ResponseWriter,
 			},
 			UnpublishErrorStr: err.Error(),
 		}
-		respondOK(w, resp) // legacy behavior
+		respondJSON(w, http.StatusOK, resp) // legacy behavior
 		logger.Response(service.Name, resp, resp.Response.ReturnCode, err)
 		return
 	}
@@ -1330,7 +1327,7 @@ func (service *HTTPRestService) unpublishNetworkContainer(w http.ResponseWriter,
 		}
 	}
 
-	respondOK(w, resp)
+	respondJSON(w, http.StatusOK, resp)
 	logger.Response(service.Name, resp, resp.Response.ReturnCode, nil)
 }
 

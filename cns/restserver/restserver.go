@@ -3,6 +3,7 @@ package restserver
 import (
 	"context"
 	"net"
+	"net/http"
 	"sync"
 	"time"
 
@@ -20,7 +21,6 @@ import (
 	nma "github.com/Azure/azure-container-networking/nmagent"
 	"github.com/Azure/azure-container-networking/store"
 	"github.com/pkg/errors"
-	"net/http"
 )
 
 // This file contains the initialization of RestServer.

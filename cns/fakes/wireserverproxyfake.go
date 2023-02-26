@@ -32,6 +32,7 @@ func (w *WireserverProxyFake) JoinNetwork(ctx context.Context, vnetID string) (*
 
 	return defaultResponse(), nil
 }
+
 func (w *WireserverProxyFake) PublishNC(ctx context.Context, ncParams cns.NetworkContainerParameters, payload []byte) (*http.Response, error) {
 	if w.PublishNCFunc != nil {
 		return w.PublishNCFunc(ctx, ncParams, payload)
@@ -39,6 +40,7 @@ func (w *WireserverProxyFake) PublishNC(ctx context.Context, ncParams cns.Networ
 
 	return defaultResponse(), nil
 }
+
 func (w *WireserverProxyFake) UnpublishNC(ctx context.Context, ncParams cns.NetworkContainerParameters) (*http.Response, error) {
 	if w.UnpublishNCFunc != nil {
 		return w.UnpublishNCFunc(ctx, ncParams)
