@@ -7,21 +7,18 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net"
-	"net/http"
-	"net/url"
-	"regexp"
-	"runtime"
-	"strings"
-
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/hnsclient"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/cns/wireserver"
-	"github.com/Azure/azure-container-networking/nmagent"
 	"github.com/pkg/errors"
 	"io"
+	"net"
+	"net/http"
+	"net/url"
+	"regexp"
+	"runtime"
 )
 
 var (
@@ -1128,39 +1125,6 @@ func extractNCParamsFromURL(networkContainerURL string) (cns.NetworkContainerPar
 	}, nil
 }
 
-//nolint:revive // the previous receiver naming "service" is bad, this is correct:
-func (h *HTTPRestService) doPublish(ctx context.Context, req cns.PublishNetworkContainerRequest, ncParameters *cns.NetworkContainerParameters) (msg string, code types.ResponseCode, status int) {
-	innerReqBytes := req.CreateNetworkContainerRequestBody
-
-	var innerReq nmagent.PutNetworkContainerRequest
-	err := json.Unmarshal(innerReqBytes, &innerReq)
-	if err != nil {
-		returnMessage := fmt.Sprintf("Failed to unmarshal embedded NC publish request for NC %s, with err: %v", req.NetworkContainerID, err)
-		returnCode := types.NetworkContainerPublishFailed
-		logger.Errorf("[Azure-CNS] %s", returnMessage)
-		return returnMessage, returnCode, http.StatusInternalServerError
-	}
-
-	innerReq.AuthenticationToken = ncParameters.AuthToken
-	innerReq.PrimaryAddress = ncParameters.AssociatedInterfaceID
-	innerReq.ID = req.NetworkContainerID
-
-	err = h.nma.PutNetworkContainer(ctx, &innerReq)
-	// nolint:bodyclose // existing code needs refactoring
-	if err != nil {
-		returnMessage := fmt.Sprintf("Failed to publish Network Container %s in put Network Container call, with err: %v", req.NetworkContainerID, err)
-		returnCode := types.NetworkContainerPublishFailed
-		logger.Errorf("[Azure-CNS] %s", returnMessage)
-		var nmaErr nmagent.Error
-		if errors.As(err, &nmaErr) {
-			return returnMessage, returnCode, nmaErr.StatusCode()
-		}
-		return returnMessage, returnCode, http.StatusInternalServerError
-	}
-
-	return "", types.Success, http.StatusOK
-}
-
 func respondError(w http.ResponseWriter, statusCode int, body any) {
 	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
 	w.WriteHeader(statusCode)
@@ -1203,38 +1167,41 @@ func (service *HTTPRestService) publishNetworkContainer(w http.ResponseWriter, r
 
 	ctx := r.Context()
 
-	joinResp, err := service.wsproxy.JoinNetwork(ctx, req.NetworkID)
-	if err != nil {
-		resp := cns.PublishNetworkContainerResponse{
-			Response: cns.Response{
-				ReturnCode: types.NetworkJoinFailed,
-				Message:    fmt.Sprintf("failed to join network %s: %v", req.NetworkID, err),
-			},
-			PublishErrorStr: err.Error(),
+	if !service.isNetworkJoined(req.NetworkID) {
+		joinResp, err := service.wsproxy.JoinNetwork(ctx, req.NetworkID)
+		if err != nil {
+			resp := cns.PublishNetworkContainerResponse{
+				Response: cns.Response{
+					ReturnCode: types.NetworkJoinFailed,
+					Message:    fmt.Sprintf("failed to join network %s: %v", req.NetworkID, err),
+				},
+				PublishErrorStr: err.Error(),
+			}
+			respondOK(w, resp) // legacy behavior
+			logger.Response(service.Name, resp, resp.Response.ReturnCode, err)
+			return
 		}
-		respondOK(w, resp) // legacy behavior
-		logger.Response(service.Name, resp, resp.Response.ReturnCode, err)
-		return
-	}
 
-	joinBytes, _ := io.ReadAll(joinResp.Body)
-	_ = joinResp.Body.Close()
+		joinBytes, _ := io.ReadAll(joinResp.Body)
+		_ = joinResp.Body.Close()
 
-	if joinResp.StatusCode != http.StatusOK {
-		resp := cns.PublishNetworkContainerResponse{
-			Response: cns.Response{
-				ReturnCode: types.NetworkJoinFailed,
-				Message:    fmt.Sprintf("failed to join network %s. did not get 200 from wireserver", req.NetworkID),
-			},
-			PublishStatusCode:   joinResp.StatusCode,
-			PublishResponseBody: joinBytes,
+		if joinResp.StatusCode != http.StatusOK {
+			resp := cns.PublishNetworkContainerResponse{
+				Response: cns.Response{
+					ReturnCode: types.NetworkJoinFailed,
+					Message:    fmt.Sprintf("failed to join network %s. did not get 200 from wireserver", req.NetworkID),
+				},
+				PublishStatusCode:   joinResp.StatusCode,
+				PublishResponseBody: joinBytes,
+			}
+			respondOK(w, resp) // legacy behavior
+			logger.Response(service.Name, resp, resp.Response.ReturnCode, nil)
+			return
 		}
-		respondOK(w, resp) // legacy behavior
-		logger.Response(service.Name, resp, resp.Response.ReturnCode, nil)
-		return
-	}
 
-	logger.Printf("[Azure-CNS] joined vnet %s during nc %s publish. wireserver response: %v", req.NetworkID, req.NetworkContainerID, string(joinBytes))
+		service.setNetworkStateJoined(req.NetworkID)
+		logger.Printf("[Azure-CNS] joined vnet %s during nc %s publish. wireserver response: %v", req.NetworkID, req.NetworkContainerID, string(joinBytes))
+	}
 
 	publishResp, err := service.wsproxy.PublishNC(ctx, ncParams, req.CreateNetworkContainerRequestBody)
 	if err != nil {
@@ -1253,141 +1220,118 @@ func (service *HTTPRestService) publishNetworkContainer(w http.ResponseWriter, r
 	publishBytes, _ := io.ReadAll(publishResp.Body)
 	_ = publishResp.Body.Close()
 
-	if publishResp.StatusCode != http.StatusOK {
-		resp := cns.PublishNetworkContainerResponse{
-			Response: cns.Response{
-				ReturnCode: types.NetworkContainerPublishFailed,
-				Message:    fmt.Sprintf("failed to publish nc %s. did not get 200 from wireserver", req.NetworkContainerID),
-			},
-			PublishStatusCode:   publishResp.StatusCode,
-			PublishResponseBody: publishBytes,
-		}
-		respondOK(w, resp) // legacy behavior
-		logger.Response(service.Name, resp, resp.Response.ReturnCode, nil)
-		return
-	}
-
 	resp := cns.PublishNetworkContainerResponse{
 		PublishStatusCode:   publishResp.StatusCode,
 		PublishResponseBody: publishBytes,
+	}
+
+	if publishResp.StatusCode != http.StatusOK {
+		resp.Response = cns.Response{
+			ReturnCode: types.NetworkContainerPublishFailed,
+			Message:    fmt.Sprintf("failed to publish nc %s. did not get 200 from wireserver", req.NetworkContainerID),
+		}
 	}
 
 	respondOK(w, resp)
 	logger.Response(service.Name, resp, resp.Response.ReturnCode, nil)
 }
 
-// Unpublish Network Container by calling nmagent
 func (service *HTTPRestService) unpublishNetworkContainer(w http.ResponseWriter, r *http.Request) {
-	logger.Printf("[Azure-CNS] UnpublishNetworkContainer")
-	ctx := r.Context()
-
-	var (
-		req               cns.UnpublishNetworkContainerRequest
-		returnCode        types.ResponseCode
-		returnMessage     string
-		unpublishErrorStr string
-		isNetworkJoined   bool
-	)
-
-	unpublishStatusCode := http.StatusOK
-
-	err := service.Listener.Decode(w, r, &req)
-
-	deleteNcURLCopy := req.DeleteNetworkContainerURL
-
-	// reqCopy creates a copy of incoming request. It doesn't copy the authentication token info
-	// to avoid logging it.
-	reqCopy := cns.UnpublishNetworkContainerRequest{
-		NetworkID:                 req.NetworkID,
-		NetworkContainerID:        req.NetworkContainerID,
-		JoinNetworkURL:            req.JoinNetworkURL,
-		DeleteNetworkContainerURL: strings.Split(req.DeleteNetworkContainerURL, "authenticationToken")[0],
-	}
-
-	logger.Request(service.Name, &reqCopy, err)
-	if err != nil {
+	if r.Method != http.MethodPost {
+		http.Error(w, "UnpublishNetworkContainer expects a POST", http.StatusBadRequest)
 		return
 	}
 
-	ncParameters, err := extractNCParamsFromURL(deleteNcURLCopy)
-	if err != nil {
-		logger.Errorf("[Azure-CNS] nc parameters validation failed with %+v", err)
-		w.WriteHeader(http.StatusBadRequest)
+	var req cns.UnpublishNetworkContainerRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, fmt.Sprintf("could not decode request body: %v", err), http.StatusBadRequest)
+		return
+	}
 
-		badRequestResponse := &cns.UnpublishNetworkContainerResponse{
+	logger.Request(service.Name, req, nil)
+
+	ncParams, err := extractNCParamsFromURL(req.DeleteNetworkContainerURL)
+	if err != nil {
+		resp := cns.UnpublishNetworkContainerResponse{
 			Response: cns.Response{
 				ReturnCode: http.StatusBadRequest,
-				Message:    fmt.Sprintf("Request contains a unexpected delete url format in request body: %v", reqCopy.DeleteNetworkContainerURL),
+				Message:    fmt.Sprintf("unexpected delete nc url format. url %s: %v ", req.DeleteNetworkContainerURL, err),
 			},
-			UnpublishErrorStr:   fmt.Sprintf("Bad request: Request contains a unexpected delete url format in request body: %v", reqCopy.DeleteNetworkContainerURL),
-			UnpublishStatusCode: http.StatusBadRequest,
 		}
-		err = service.Listener.Encode(w, &badRequestResponse)
-		logger.Response(service.Name, badRequestResponse, badRequestResponse.Response.ReturnCode, err)
+		respondError(w, http.StatusBadRequest, resp)
+		logger.Response(service.Name, resp, resp.Response.ReturnCode, err)
 		return
 	}
 
-	switch r.Method {
-	case http.MethodPost:
-		// Join Network if not joined already
-		isNetworkJoined = service.isNetworkJoined(req.NetworkID)
-		if !isNetworkJoined {
-			// nolint:bodyclose // existing code needs refactoring
-			err = service.joinNetwork(ctx, req.NetworkID)
-			if err != nil {
-				returnMessage = err.Error()
-				returnCode = types.NetworkJoinFailed
-				unpublishErrorStr = err.Error()
+	ctx := r.Context()
 
-				var nmaErr nmagent.Error
-				if errors.As(err, &nmaErr) {
-					unpublishStatusCode = nmaErr.StatusCode()
-				}
-
-			} else {
-				isNetworkJoined = true
+	if !service.isNetworkJoined(req.NetworkID) {
+		joinResp, err := service.wsproxy.JoinNetwork(ctx, req.NetworkID)
+		if err != nil {
+			resp := cns.UnpublishNetworkContainerResponse{
+				Response: cns.Response{
+					ReturnCode: types.NetworkJoinFailed,
+					Message:    fmt.Sprintf("failed to join network %s: %v", req.NetworkID, err),
+				},
+				UnpublishErrorStr: err.Error(),
 			}
+			respondOK(w, resp) // legacy behavior
+			logger.Response(service.Name, resp, resp.Response.ReturnCode, err)
+			return
 		}
 
-		if isNetworkJoined {
-			dcr := nmagent.DeleteContainerRequest{
-				NCID:                req.NetworkContainerID,
-				PrimaryAddress:      ncParameters.AssociatedInterfaceID,
-				AuthenticationToken: ncParameters.AuthToken,
-			}
+		joinBytes, _ := io.ReadAll(joinResp.Body)
+		_ = joinResp.Body.Close()
 
-			err = service.nma.DeleteNetworkContainer(ctx, dcr)
-			if err != nil {
-				returnMessage = fmt.Sprintf("Failed to unpublish Network Container: %s", req.NetworkContainerID)
-				returnCode = types.NetworkContainerUnpublishFailed
-				var nmaErr nmagent.Error
-				if errors.As(err, &nmaErr) {
-					unpublishStatusCode = nmaErr.StatusCode()
-				}
-				logger.Errorf("[Azure-CNS] %s", returnMessage)
+		if joinResp.StatusCode != http.StatusOK {
+			resp := cns.UnpublishNetworkContainerResponse{
+				Response: cns.Response{
+					ReturnCode: types.NetworkJoinFailed,
+					Message:    fmt.Sprintf("failed to join network %s. did not get 200 from wireserver", req.NetworkID),
+				},
+				UnpublishStatusCode:   joinResp.StatusCode,
+				UnpublishResponseBody: joinBytes,
 			}
+			respondOK(w, resp) // legacy behavior
+			logger.Response(service.Name, resp, resp.Response.ReturnCode, nil)
+			return
 		}
-	default:
-		returnMessage = "UnpublishNetworkContainer API expects a POST"
-		returnCode = types.UnsupportedVerb
+
+		service.setNetworkStateJoined(req.NetworkID)
+		logger.Printf("[Azure-CNS] joined vnet %s during nc %s unpublish. wireserver response: %v", req.NetworkID, req.NetworkContainerID, string(joinBytes))
 	}
 
-	// create a synthetic response from NMAgent so that clients that previously
-	// relied on its presence can continue to do so.
-	unpublishResponseBody := fmt.Sprintf(`{"httpStatusCode":"%d"}`, unpublishStatusCode)
-
-	response := cns.UnpublishNetworkContainerResponse{
-		Response: cns.Response{
-			ReturnCode: returnCode,
-			Message:    returnMessage,
-		},
-		UnpublishErrorStr:     unpublishErrorStr,
-		UnpublishStatusCode:   unpublishStatusCode,
-		UnpublishResponseBody: []byte(unpublishResponseBody),
+	publishResp, err := service.wsproxy.UnpublishNC(ctx, ncParams)
+	if err != nil {
+		resp := cns.UnpublishNetworkContainerResponse{
+			Response: cns.Response{
+				ReturnCode: types.NetworkContainerUnpublishFailed,
+				Message:    fmt.Sprintf("failed to publish nc %s: %v", req.NetworkContainerID, err),
+			},
+			UnpublishErrorStr: err.Error(),
+		}
+		respondOK(w, resp) // legacy behavior
+		logger.Response(service.Name, resp, resp.Response.ReturnCode, err)
+		return
 	}
 
-	err = service.Listener.Encode(w, &response)
-	logger.Response(service.Name, response, response.Response.ReturnCode, err)
+	publishBytes, _ := io.ReadAll(publishResp.Body)
+	_ = publishResp.Body.Close()
+
+	resp := cns.UnpublishNetworkContainerResponse{
+		UnpublishStatusCode:   publishResp.StatusCode,
+		UnpublishResponseBody: publishBytes,
+	}
+
+	if publishResp.StatusCode != http.StatusOK {
+		resp.Response = cns.Response{
+			ReturnCode: types.NetworkContainerUnpublishFailed,
+			Message:    fmt.Sprintf("failed to unpublish nc %s. did not get 200 from wireserver", req.NetworkContainerID),
+		}
+	}
+
+	respondOK(w, resp)
+	logger.Response(service.Name, resp, resp.Response.ReturnCode, nil)
 }
 
 func (service *HTTPRestService) createHostNCApipaEndpoint(w http.ResponseWriter, r *http.Request) {
