@@ -1,11 +1,12 @@
 package fakes
 
 import (
-	"context"
-	"github.com/Azure/azure-container-networking/cns"
-	"net/http"
 	"bytes"
+	"context"
 	"io"
+	"net/http"
+
+	"github.com/Azure/azure-container-networking/cns"
 )
 
 type WireserverProxyFake struct {
