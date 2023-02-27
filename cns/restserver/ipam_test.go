@@ -1056,9 +1056,3 @@ func IPAMMarkExistingIPConfigAsPending(t *testing.T, ncIDs []string, newPodIPs [
 		}
 	}
 }
-
-func TestIPAMMarkExistingIPConfigAsPendingMultipleNCs(t *testing.T) {
-	ncIDs := []string{testNCID, testNCIDv6}
-	IPs := [][]string{{testIP1, testIP1v6}, {testIP2, testIP2v6}}
-	prefixes := []uint8{IPPrefixBitsv4, IPPrefixBitsv6}
-}
