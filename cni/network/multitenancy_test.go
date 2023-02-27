@@ -468,8 +468,7 @@ func TestGetMultiTenancyCNIResult(t *testing.T) {
 			require.Exactly(tt.want3, got[0].hostSubnetPrefix)
 
 			// check multiple responses
-			tt.want5 = append(tt.want5, *tt.want1)
-			tt.want5 = append(tt.want5, *tt.want2)
+			tt.want5 = append(tt.want5, *tt.want1, *tt.want2)
 			require.Exactly(tt.want5, ncResponses)
 		})
 	}
