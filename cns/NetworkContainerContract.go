@@ -501,8 +501,8 @@ type PublishNetworkContainerRequest struct {
 }
 
 func (p PublishNetworkContainerRequest) String() string {
-	// %s as a verb on a byte slice prints text instead of individual bytes
-	return fmt.Sprintf("{NetworkID:%s NetworkContainerID:%s JoinNetworkURL:%s CreateNetworkContainerURL:%s CreateNetworkContainerRequestBody:%s}",
+	// %q as a verb on a byte slice prints safely escaped text instead of individual bytes
+	return fmt.Sprintf("{NetworkID:%s NetworkContainerID:%s JoinNetworkURL:%s CreateNetworkContainerURL:%s CreateNetworkContainerRequestBody:%q}",
 		p.NetworkID, p.NetworkContainerID, p.JoinNetworkURL, p.CreateNetworkContainerURL, p.CreateNetworkContainerRequestBody)
 }
 
@@ -522,8 +522,8 @@ type PublishNetworkContainerResponse struct {
 }
 
 func (p PublishNetworkContainerResponse) String() string {
-	// %s as a verb on a byte slice prints text instead of individual bytes
-	return fmt.Sprintf("{Response:%+v PublishErrStr:%s PublishStatusCode:%d PublishResponseBody:%s}",
+	// %q as a verb on a byte slice prints safely escaped text instead of individual bytes
+	return fmt.Sprintf("{Response:%+v PublishErrStr:%s PublishStatusCode:%d PublishResponseBody:%q}",
 		p.Response, p.PublishErrorStr, p.PublishStatusCode, p.PublishResponseBody)
 }
 
@@ -544,8 +544,8 @@ type UnpublishNetworkContainerResponse struct {
 }
 
 func (u UnpublishNetworkContainerResponse) String() string {
-	// %s as a verb on a byte slice prints text instead of individual bytes
-	return fmt.Sprintf("{Response:%+v UnpublishErrorStr:%s UnpublishStatusCode:%d UnpublishResponseBody:%s}",
+	// %q as a verb on a byte slice prints safely escaped text instead of individual bytes
+	return fmt.Sprintf("{Response:%+v UnpublishErrorStr:%s UnpublishStatusCode:%d UnpublishResponseBody:%q}",
 		u.Response, u.UnpublishErrorStr, u.UnpublishStatusCode, u.UnpublishResponseBody)
 }
 
