@@ -14,6 +14,7 @@ steps:
 
 - script: |
     set -e
+    if [ ${{ parameters.os }} = 'windows' ]; then export BUILDX_ACTION='--push'; fi
     make ${{ parameters.name }}-image OS=${{ parameters.os }} ARCH=${{ parameters.arch }} OS_VERSION=${{ parameters.os_version }}
   name: image_build
   displayName: Image Build

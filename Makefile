@@ -277,7 +277,7 @@ container-buildah: # util target to build container images using buildah. do not
 container-docker: # util target to build container images using docker buildx. do not invoke directly.
 	docker buildx create --use --platform $(PLATFORM)
 	docker buildx build \
-		--push \
+		$(BUILDX_ACTION) \
 		--platform $(PLATFORM) \
 		-f $(DOCKERFILE) \
 		--build-arg VERSION=$(TAG) $(EXTRA_BUILD_ARGS) \
