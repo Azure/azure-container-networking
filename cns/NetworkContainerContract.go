@@ -500,6 +500,12 @@ type PublishNetworkContainerRequest struct {
 	CreateNetworkContainerRequestBody []byte
 }
 
+func (p PublishNetworkContainerRequest) String() string {
+	// %s as a verb on a byte slice prints text instead of individual bytes
+	return fmt.Sprintf("{NetworkID:%s NetworkContainerID:%s JoinNetworkURL:%s CreateNetworkContainerURL:%s CreateNetworkContainerRequestBody:%s}",
+		p.NetworkID, p.NetworkContainerID, p.JoinNetworkURL, p.CreateNetworkContainerURL, p.CreateNetworkContainerRequestBody)
+}
+
 // NetworkContainerParameters parameters available in network container operations
 type NetworkContainerParameters struct {
 	NCID                  string
@@ -513,6 +519,12 @@ type PublishNetworkContainerResponse struct {
 	PublishErrorStr     string
 	PublishStatusCode   int
 	PublishResponseBody []byte
+}
+
+func (p PublishNetworkContainerResponse) String() string {
+	// %s as a verb on a byte slice prints text instead of individual bytes
+	return fmt.Sprintf("{Response:%+v PublishErrStr:%s PublishStatusCode:%d PublishResponseBody:%s}",
+		p.Response, p.PublishErrorStr, p.PublishStatusCode, p.PublishResponseBody)
 }
 
 // UnpublishNetworkContainerRequest specifies request to unpublish network container via NMAgent.
@@ -529,6 +541,12 @@ type UnpublishNetworkContainerResponse struct {
 	UnpublishErrorStr     string
 	UnpublishStatusCode   int
 	UnpublishResponseBody []byte
+}
+
+func (u UnpublishNetworkContainerResponse) String() string {
+	// %s as a verb on a byte slice prints text instead of individual bytes
+	return fmt.Sprintf("{Response:%+v UnpublishErrorStr:%s UnpublishStatusCode:%d UnpublishResponseBody:%s}",
+		u.Response, u.UnpublishErrorStr, u.UnpublishStatusCode, u.UnpublishResponseBody)
 }
 
 // ValidAclPolicySetting - Used to validate ACL policy
