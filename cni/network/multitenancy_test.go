@@ -232,7 +232,7 @@ func TestGetMultiTenancyCNIResult(t *testing.T) {
 	require := require.New(t) //nolint:gocritic
 
 	var ncResponses []cns.GetNetworkContainerResponse
-	ncResponse := cns.GetNetworkContainerResponse{
+	ncResponseOne := cns.GetNetworkContainerResponse{
 		PrimaryInterfaceIdentifier: "10.0.0.0/16",
 		LocalIPConfiguration: cns.IPConfiguration{
 			IPSubnet: cns.IPSubnet{
@@ -262,7 +262,38 @@ func TestGetMultiTenancyCNIResult(t *testing.T) {
 			},
 		},
 	}
-	ncResponses = append(ncResponses, ncResponse)
+
+	ncResponseTwo := cns.GetNetworkContainerResponse{
+		PrimaryInterfaceIdentifier: "20.0.0.0/16",
+		LocalIPConfiguration: cns.IPConfiguration{
+			IPSubnet: cns.IPSubnet{
+				IPAddress:    "20.0.0.5",
+				PrefixLength: 16,
+			},
+			GatewayIPAddress: "",
+		},
+		CnetAddressSpace: []cns.IPSubnet{
+			{
+				IPAddress:    "20.1.0.0",
+				PrefixLength: 16,
+			},
+		},
+		IPConfiguration: cns.IPConfiguration{
+			IPSubnet: cns.IPSubnet{
+				IPAddress:    "20.1.0.5",
+				PrefixLength: 16,
+			},
+			DNSServers:       nil,
+			GatewayIPAddress: "20.1.0.1",
+		},
+		Routes: []cns.Route{
+			{
+				IPAddress:        "20.1.0.0/16",
+				GatewayIPAddress: "20.1.0.1",
+			},
+		},
+	}
+	ncResponses = append(ncResponses, ncResponseOne, ncResponseTwo)
 
 	type args struct {
 		ctx             context.Context
@@ -279,8 +310,10 @@ func TestGetMultiTenancyCNIResult(t *testing.T) {
 		args    args
 		want    *cniTypesCurr.Result
 		want1   *cns.GetNetworkContainerResponse
-		want2   net.IPNet
-		want3   *cniTypesCurr.Result
+		want2   *cns.GetNetworkContainerResponse
+		want3   net.IPNet
+		want4   *cniTypesCurr.Result
+		want5   []cns.GetNetworkContainerResponse
 		wantErr bool
 	}{
 		{
@@ -314,7 +347,6 @@ func TestGetMultiTenancyCNIResult(t *testing.T) {
 				k8sNamespace: "testnamespace",
 				ifName:       "eth0",
 			},
-
 			want: &cniTypesCurr.Result{
 				Interfaces: []*cniTypesCurr.Interface{
 					{
@@ -368,8 +400,38 @@ func TestGetMultiTenancyCNIResult(t *testing.T) {
 					},
 				},
 			},
-			want2: *getCIDRNotationForAddress("10.0.0.0/16"),
-			want3: &cniTypesCurr.Result{
+			want2: &cns.GetNetworkContainerResponse{
+				PrimaryInterfaceIdentifier: "20.0.0.0/16",
+				LocalIPConfiguration: cns.IPConfiguration{
+					IPSubnet: cns.IPSubnet{
+						IPAddress:    "20.0.0.5",
+						PrefixLength: 16,
+					},
+					GatewayIPAddress: "",
+				},
+				CnetAddressSpace: []cns.IPSubnet{
+					{
+						IPAddress:    "20.1.0.0",
+						PrefixLength: 16,
+					},
+				},
+				IPConfiguration: cns.IPConfiguration{
+					IPSubnet: cns.IPSubnet{
+						IPAddress:    "20.1.0.5",
+						PrefixLength: 16,
+					},
+					DNSServers:       nil,
+					GatewayIPAddress: "20.1.0.1",
+				},
+				Routes: []cns.Route{
+					{
+						IPAddress:        "20.1.0.0/16",
+						GatewayIPAddress: "20.1.0.1",
+					},
+				},
+			},
+			want3: *getCIDRNotationForAddress("10.0.0.0/16"),
+			want4: &cniTypesCurr.Result{
 				IPs: []*cniTypesCurr.IPConfig{
 					{
 						Address: net.IPNet{
@@ -402,7 +464,13 @@ func TestGetMultiTenancyCNIResult(t *testing.T) {
 			}
 			require.NoError(err)
 			require.Exactly(tt.want1, got[0].ncResponse)
-			require.Exactly(tt.want2, got[0].hostSubnetPrefix)
+			require.Exactly(tt.want2, got[1].ncResponse)
+			require.Exactly(tt.want3, got[0].hostSubnetPrefix)
+
+			// check multiple responses
+			tt.want5 = append(tt.want5, *tt.want1)
+			tt.want5 = append(tt.want5, *tt.want2)
+			require.Exactly(tt.want5, ncResponses)
 		})
 	}
 }
