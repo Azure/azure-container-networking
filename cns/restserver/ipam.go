@@ -73,7 +73,7 @@ func (service *HTTPRestService) requestIPConfigHandlerHelper(ipconfigsRequest cn
 }
 
 // requestIPConfigHandler requests an IPConfig from the CNS state
-func (service *HTTPRestService) requestIPConfigHandler(w http.ResponseWriter, r *http.Request) { 
+func (service *HTTPRestService) requestIPConfigHandler(w http.ResponseWriter, r *http.Request) {
 
 	var ipconfigRequest cns.IPConfigRequest
 	err := service.Listener.Decode(w, r, &ipconfigRequest)
@@ -83,7 +83,7 @@ func (service *HTTPRestService) requestIPConfigHandler(w http.ResponseWriter, r 
 		return
 	}
 
-	// check to make sure there aren't muliple NCs 
+	// check to make sure there aren't muliple NCs
 	if len(service.state.ContainerStatus) > 1 {
 		reserveResp := &cns.IPConfigResponse{
 			Response: cns.Response{
@@ -269,7 +269,7 @@ func (service *HTTPRestService) releaseIPConfigHandler(w http.ResponseWriter, r 
 		return
 	}
 
-	// check to make sure there aren't muliple NCs 
+	// check to make sure there aren't muliple NCs
 	if len(service.state.ContainerStatus) > 1 {
 		reserveResp := &cns.IPConfigResponse{
 			Response: cns.Response{
@@ -561,7 +561,8 @@ func (service *HTTPRestService) unassignIPConfig(ipconfig cns.IPConfigurationSta
 func (service *HTTPRestService) releaseIPConfig(podInfo cns.PodInfo) error {
 	service.Lock()
 	defer service.Unlock()
-	ipsReleased := make([]cns.IPConfigurationStatus, len(service.state.ContainerStatus))
+	ipsReleased := make([]cns.IPConfigurationStatus, 0)
+	numIPsToRelease := len(service.PodIPIDByPodInterfaceKey[podInfo.Key()])
 
 	for i, ipID := range service.PodIPIDByPodInterfaceKey[podInfo.Key()] {
 		if ipID != "" {
@@ -571,9 +572,9 @@ func (service *HTTPRestService) releaseIPConfig(podInfo cns.PodInfo) error {
 				if err != nil {
 					return fmt.Errorf("[releaseIPConfig] failed to mark IPConfig [%+v] as Available. err: %w", ipconfig, err)
 				}
-				ipsReleased[i] = ipconfig
+				ipsReleased = append(ipsReleased, ipconfig)
 				logger.Printf("[releaseIPConfig] Released IP %+v for pod %+v", ipconfig.IPAddress, podInfo)
-				if i == len(ipsReleased)-1 {
+				if i == len(service.state.ContainerStatus)-1 {
 					return nil
 				}
 			} else {
@@ -590,7 +591,8 @@ func (service *HTTPRestService) releaseIPConfig(podInfo cns.PodInfo) error {
 	}
 
 	// if we were able to get at least one IP but not all of the desired IPs
-	if len(ipsReleased) > 0 {
+	logger.Printf("[releaseIPConfig] Released IP %+v for pod %+v", len(ipsReleased), podInfo)
+	if len(ipsReleased) < numIPsToRelease || (numIPsToRelease < len(service.state.ContainerStatus) && numIPsToRelease != 0) {
 		for i := range ipsReleased {
 			if ipsReleased[i].ID != "" {
 				err := service.assignIPConfig(ipsReleased[i], podInfo)

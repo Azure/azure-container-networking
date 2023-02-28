@@ -602,8 +602,8 @@ func IPAMRequestThenReleaseThenRequestAgain(t *testing.T, ncIDs, newPodIPs []str
 	svc := getTestService()
 
 	// set state as already assigned
-	ipconfigs := make(map[string]cns.IPConfigurationStatus, 0)
 	for i := range ncIDs {
+		ipconfigs := make(map[string]cns.IPConfigurationStatus, 0)
 		state, _ := NewPodStateWithOrchestratorContext(newPodIPs[i], newPodIPs[i], ncIDs[i], types.Assigned, prefixes[i], 0, testPod1Info)
 		ipconfigs[state.ID] = state
 		err := UpdatePodIPConfigState(t, svc, ipconfigs, ncIDs[i])
@@ -1066,6 +1066,7 @@ func TestIPAMFailToReleaseOneIPWhenExpectedToHaveTwo(t *testing.T) {
 		testState.ID: testState,
 	}
 	emptyIpconfigs := map[string]cns.IPConfigurationStatus{}
+
 	err := UpdatePodIPConfigState(t, svc, ipconfigs, testNCID)
 	if err != nil {
 		t.Fatalf("Expected to not fail adding IPs to state: %+v", err)
@@ -1096,10 +1097,12 @@ func TestIPAMFailToRequestOneIPWhenExpectedToHaveTwo(t *testing.T) {
 		testState.ID: testState,
 	}
 	emptyIpconfigs := map[string]cns.IPConfigurationStatus{}
+
 	err := UpdatePodIPConfigState(t, svc, ipconfigs, testNCID)
 	if err != nil {
 		t.Fatalf("Expected to not fail adding IPs to state: %+v", err)
 	}
+
 	err = UpdatePodIPConfigState(t, svc, emptyIpconfigs, testNCIDv6)
 	if err != nil {
 		t.Fatalf("Expected to not fail adding empty NC to state: %+v", err)
