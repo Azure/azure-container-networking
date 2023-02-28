@@ -3,6 +3,7 @@ package restserver
 import (
 	"context"
 	"net"
+	"net/http"
 	"sync"
 	"time"
 
@@ -38,12 +39,15 @@ type interfaceGetter interface {
 }
 
 type nmagentClient interface {
-	PutNetworkContainer(context.Context, *nma.PutNetworkContainerRequest) error
-	DeleteNetworkContainer(context.Context, nma.DeleteContainerRequest) error
-	JoinNetwork(context.Context, nma.JoinNetworkRequest) error
 	SupportedAPIs(context.Context) ([]string, error)
 	GetNCVersionList(context.Context) (nma.NCVersionList, error)
 	GetHomeAz(context.Context) (nma.AzResponse, error)
+}
+
+type wireserverProxy interface {
+	JoinNetwork(ctx context.Context, vnetID string) (*http.Response, error)
+	PublishNC(ctx context.Context, ncParams cns.NetworkContainerParameters, payload []byte) (*http.Response, error)
+	UnpublishNC(ctx context.Context, ncParams cns.NetworkContainerParameters) (*http.Response, error)
 }
 
 // HTTPRestService represents http listener for CNS - Container Networking Service.
@@ -53,6 +57,7 @@ type HTTPRestService struct {
 	wscli                    interfaceGetter
 	ipamClient               *ipamclient.IpamClient
 	nma                      nmagentClient
+	wsproxy                  wireserverProxy
 	homeAzMonitor            *HomeAzMonitor
 	networkContainer         *networkcontainers.NetworkContainers
 	PodIPIDByPodInterfaceKey map[string]string                    // PodInterfaceId is key and value is Pod IP (SecondaryIP) uuid.
@@ -144,7 +149,7 @@ type networkInfo struct {
 }
 
 // NewHTTPRestService creates a new HTTP Service object.
-func NewHTTPRestService(config *common.ServiceConfig, wscli interfaceGetter, nmagentClient nmagentClient,
+func NewHTTPRestService(config *common.ServiceConfig, wscli interfaceGetter, wsproxy wireserverProxy, nmagentClient nmagentClient,
 	endpointStateStore store.KeyValueStore, gen CNIConflistGenerator, homeAzMonitor *HomeAzMonitor,
 ) (cns.HTTPService, error) {
 	service, err := cns.NewService(config.Name, config.Version, config.ChannelMode, config.Store)
@@ -193,6 +198,7 @@ func NewHTTPRestService(config *common.ServiceConfig, wscli interfaceGetter, nma
 		wscli:                    wscli,
 		ipamClient:               ic,
 		nma:                      nmagentClient,
+		wsproxy:                  wsproxy,
 		networkContainer:         nc,
 		PodIPIDByPodInterfaceKey: podIPIDByPodInterfaceKey,
 		PodIPConfigState:         podIPConfigState,

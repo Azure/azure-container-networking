@@ -20,3 +20,11 @@ func setMockNMAgent(h *HTTPRestService, m *fakes.NMAgentClientFake) func() {
 		h.nma = prev
 	}
 }
+
+func setWireserverProxy(h *HTTPRestService, w *fakes.WireserverProxyFake) func() {
+	prev := h.wsproxy
+	h.wsproxy = w
+	return func() {
+		h.wsproxy = prev
+	}
+}

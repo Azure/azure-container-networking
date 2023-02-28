@@ -642,9 +642,12 @@ func main() {
 		}
 	}
 
-	// Create CNS object.
+	wsProxy := wireserver.Proxy{
+		Host:       cnsconfig.WireserverIP,
+		HTTPClient: &http.Client{},
+	}
 
-	httpRestService, err := restserver.NewHTTPRestService(&config, &wireserver.Client{HTTPClient: &http.Client{}}, nmaClient,
+	httpRestService, err := restserver.NewHTTPRestService(&config, &wireserver.Client{HTTPClient: &http.Client{}}, &wsProxy, nmaClient,
 		endpointStateStore, conflistGenerator, homeAzMonitor)
 	if err != nil {
 		logger.Errorf("Failed to create CNS object, err:%v.\n", err)

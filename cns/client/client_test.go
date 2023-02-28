@@ -169,7 +169,7 @@ func TestMain(m *testing.M) {
 	logger.InitLogger(logName, 0, 0, tmpLogDir+"/")
 	config := common.ServiceConfig{}
 
-	httpRestService, err := restserver.NewHTTPRestService(&config, &fakes.WireserverClientFake{}, &fakes.NMAgentClientFake{}, nil, nil, nil)
+	httpRestService, err := restserver.NewHTTPRestService(&config, &fakes.WireserverClientFake{}, &fakes.WireserverProxyFake{}, &fakes.NMAgentClientFake{}, nil, nil, nil)
 	svc = httpRestService.(*restserver.HTTPRestService)
 	svc.Name = "cns-test-server"
 	fakeNNC := v1alpha.NodeNetworkConfig{
