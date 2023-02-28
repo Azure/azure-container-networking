@@ -73,12 +73,27 @@ func (service *HTTPRestService) requestIPConfigHandlerHelper(ipconfigsRequest cn
 }
 
 // requestIPConfigHandler requests an IPConfig from the CNS state
-func (service *HTTPRestService) requestIPConfigHandler(w http.ResponseWriter, r *http.Request) {
+func (service *HTTPRestService) requestIPConfigHandler(w http.ResponseWriter, r *http.Request) { 
+
 	var ipconfigRequest cns.IPConfigRequest
 	err := service.Listener.Decode(w, r, &ipconfigRequest)
 	operationName := "requestIPConfigHandler"
 	logger.Request(service.Name+operationName, ipconfigRequest, err)
 	if err != nil {
+		return
+	}
+
+	// check to make sure there aren't muliple NCs 
+	if len(service.state.ContainerStatus) > 1 {
+		reserveResp := &cns.IPConfigResponse{
+			Response: cns.Response{
+				ReturnCode: types.InvalidAPIWithMultipleNCs,
+				Message:    fmt.Sprintf("Called API that can only return 1 IP when expecting 2"),
+			},
+		}
+		w.Header().Set(cnsReturnCode, reserveResp.Response.ReturnCode.String())
+		err := service.Listener.Encode(w, &reserveResp)
+		logger.ResponseEx(service.Name+operationName, ipconfigRequest, reserveResp, reserveResp.Response.ReturnCode, err)
 		return
 	}
 
@@ -238,6 +253,7 @@ func (service *HTTPRestService) releaseIPConfigHandlerHelper(ipconfigsRequest cn
 }
 
 func (service *HTTPRestService) releaseIPConfigHandler(w http.ResponseWriter, r *http.Request) {
+
 	var ipconfigRequest cns.IPConfigRequest
 	err := service.Listener.Decode(w, r, &ipconfigRequest)
 	logger.Request(service.Name+"releaseIPConfigHandler", ipconfigRequest, err)
@@ -250,6 +266,20 @@ func (service *HTTPRestService) releaseIPConfigHandler(w http.ResponseWriter, r 
 		w.Header().Set(cnsReturnCode, resp.ReturnCode.String())
 		err = service.Listener.Encode(w, &resp)
 		logger.ResponseEx(service.Name, ipconfigRequest, resp, resp.ReturnCode, err)
+		return
+	}
+
+	// check to make sure there aren't muliple NCs 
+	if len(service.state.ContainerStatus) > 1 {
+		reserveResp := &cns.IPConfigResponse{
+			Response: cns.Response{
+				ReturnCode: types.InvalidAPIWithMultipleNCs,
+				Message:    fmt.Sprintf("Called API that can only return 1 IP when expecting 2"),
+			},
+		}
+		w.Header().Set(cnsReturnCode, reserveResp.Response.ReturnCode.String())
+		err := service.Listener.Encode(w, &reserveResp)
+		logger.ResponseEx(service.Name, ipconfigRequest, reserveResp, reserveResp.Response.ReturnCode, err)
 		return
 	}
 

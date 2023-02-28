@@ -43,6 +43,7 @@ const (
 	NmAgentInternalServerError             ResponseCode = 41
 	StatusUnauthorized                     ResponseCode = 42
 	UnsupportedAPI                         ResponseCode = 43
+	InvalidAPIWithMultipleNCs              ResponseCode = 44
 	UnexpectedError                        ResponseCode = 99
 )
 
@@ -61,6 +62,8 @@ func (c ResponseCode) String() string {
 		return "FailedToAllocateIpConfig"
 	case InconsistentIPConfigState:
 		return "InconsistentIPConfigState"
+	case InvalidAPIWithMultipleNCs:
+		return "InvalidAPIWithMultipleNCs"
 	case InvalidParameter:
 		return "InvalidParameter"
 	case InvalidPrimaryIPConfig:
