@@ -1056,3 +1056,68 @@ func IPAMMarkExistingIPConfigAsPending(t *testing.T, ncIDs []string, newPodIPs [
 		}
 	}
 }
+
+func TestIPAMFailToReleaseOneIPWhenExpectedToHaveTwo(t *testing.T) {
+	svc := getTestService()
+
+	// set state as already assigned
+	testState, _ := NewPodStateWithOrchestratorContext(testIP1, testPod1GUID, testNCID, types.Assigned, 24, 0, testPod1Info)
+	ipconfigs := map[string]cns.IPConfigurationStatus{
+		testState.ID: testState,
+	}
+	emptyIpconfigs := map[string]cns.IPConfigurationStatus{}
+	err := UpdatePodIPConfigState(t, svc, ipconfigs, testNCID)
+	if err != nil {
+		t.Fatalf("Expected to not fail adding IPs to state: %+v", err)
+	}
+	err = UpdatePodIPConfigState(t, svc, emptyIpconfigs, testNCIDv6)
+	if err != nil {
+		t.Fatalf("Expected to not fail adding empty NC to state: %+v", err)
+	}
+
+	err = svc.releaseIPConfig(testPod1Info)
+	if err == nil {
+		t.Fatalf("Expected failure releasing IP")
+	}
+
+	available := svc.GetAvailableIPConfigs()
+	if len(available) != 0 {
+		t.Fatal("Expected available ips to be zero since we expect the IP to still be assigned")
+	}
+
+}
+
+func TestIPAMFailToRequestOneIPWhenExpectedToHaveTwo(t *testing.T) {
+	svc := getTestService()
+
+	// set state as already assigned
+	testState := NewPodState(testIP1, IPPrefixBitsv4, testIP1, testNCID, types.Available, 0)
+	ipconfigs := map[string]cns.IPConfigurationStatus{
+		testState.ID: testState,
+	}
+	emptyIpconfigs := map[string]cns.IPConfigurationStatus{}
+	err := UpdatePodIPConfigState(t, svc, ipconfigs, testNCID)
+	if err != nil {
+		t.Fatalf("Expected to not fail adding IPs to state: %+v", err)
+	}
+	err = UpdatePodIPConfigState(t, svc, emptyIpconfigs, testNCIDv6)
+	if err != nil {
+		t.Fatalf("Expected to not fail adding empty NC to state: %+v", err)
+	}
+
+	// request should expect 2 IPs but there is only 1 in the pool
+	req := cns.IPConfigsRequest{}
+	b, _ := testPod1Info.OrchestratorContext()
+	req.OrchestratorContext = b
+
+	_, err = requestIPAddressAndGetState(t, req)
+	if err == nil {
+		t.Fatalf("Expected failure requesting IP when there are not enough IPs: %+v", err)
+	}
+
+	available := svc.GetAvailableIPConfigs()
+	if len(available) != 1 {
+		t.Fatal("Expected available ips to be one since we expect the IP to not be assigned")
+	}
+
+}

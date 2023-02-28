@@ -531,7 +531,7 @@ func (service *HTTPRestService) unassignIPConfig(ipconfig cns.IPConfigurationSta
 func (service *HTTPRestService) releaseIPConfig(podInfo cns.PodInfo) error {
 	service.Lock()
 	defer service.Unlock()
-	ipsReleased := make([]cns.IPConfigurationStatus, len(service.PodIPIDByPodInterfaceKey[podInfo.Key()]))
+	ipsReleased := make([]cns.IPConfigurationStatus, len(service.state.ContainerStatus))
 
 	for i, ipID := range service.PodIPIDByPodInterfaceKey[podInfo.Key()] {
 		if ipID != "" {
@@ -561,13 +561,15 @@ func (service *HTTPRestService) releaseIPConfig(podInfo cns.PodInfo) error {
 
 	// if we were able to get at least one IP but not all of the desired IPs
 	if len(ipsReleased) > 0 {
-		logger.Printf("[releaseIPConfig] Failed to release all desired IPs. Reassigning all IPs that weren't released")
 		for i := range ipsReleased {
-			err := service.assignIPConfig(ipsReleased[i], podInfo)
-			if err != nil {
-				return fmt.Errorf("[releaseIPConfig] failed to mark IPConfig [%+v] back to Assigned. err: %w", ipsReleased[i], err)
+			if ipsReleased[i].ID != "" {
+				err := service.assignIPConfig(ipsReleased[i], podInfo)
+				if err != nil {
+					return fmt.Errorf("[releaseIPConfig] failed to mark IPConfig [%+v] back to Assigned. err: %w", ipsReleased[i], err)
+				}
 			}
 		}
+		return fmt.Errorf("[releaseIPConfig] Failed to release all desired IPs. Reassigning all IPs that weren't released")
 	}
 
 	return nil
@@ -741,7 +743,9 @@ func requestIPConfigHelper(service *HTTPRestService, req cns.IPConfigsRequest) (
 
 	// return desired IPConfig
 	if req.DesiredIPAddresses != nil && len(req.DesiredIPAddresses) != 0 {
-		return service.AssignDesiredIPConfigs(podInfo, req.DesiredIPAddresses)
+		if req.DesiredIPAddresses[0] != "" {
+			return service.AssignDesiredIPConfigs(podInfo, req.DesiredIPAddresses)
+		}
 	}
 
 	// return any free IPConfig

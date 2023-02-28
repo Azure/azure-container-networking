@@ -265,7 +265,7 @@ func TestCNSClientRequestAndRelease(t *testing.T) {
 	assert.NoError(t, err)
 
 	// no IP reservation found with that context, expect no failure.
-	err = cnsClient.ReleaseIPs(context.TODO(), cns.IPConfigsRequest{OrchestratorContext: orchestratorContext})
+	err = cnsClient.ReleaseIPAddress(context.TODO(), cns.IPConfigRequest{OrchestratorContext: orchestratorContext})
 	assert.NoError(t, err, "Release ip idempotent call failed")
 
 	// request IP address
@@ -284,7 +284,7 @@ func TestCNSClientRequestAndRelease(t *testing.T) {
 
 	assert.Equal(t, desired, resultIPnet, "Desired result not matching actual result")
 
-	// checking for assigned IP address and pod context printing before ReleaseIPs is called
+	// checking for assigned IP address and pod context printing before ReleaseIPAddress is called
 	ipaddresses, err := cnsClient.GetIPAddressesMatchingStates(context.TODO(), types.Assigned)
 	assert.NoError(t, err, "Get assigned IP addresses failed")
 
@@ -300,7 +300,7 @@ func TestCNSClientRequestAndRelease(t *testing.T) {
 	}
 
 	// release requested IP address, expect success
-	err = cnsClient.ReleaseIPs(context.TODO(), cns.IPConfigsRequest{DesiredIPAddresses: addresses, OrchestratorContext: orchestratorContext})
+	err = cnsClient.ReleaseIPAddress(context.TODO(), cns.IPConfigRequest{DesiredIPAddress: ipaddresses[0].IPAddress, OrchestratorContext: orchestratorContext})
 	assert.NoError(t, err, "Expected to not fail when releasing IP reservation found with context")
 }
 
@@ -330,7 +330,7 @@ func TestCNSClientPodContextApi(t *testing.T) {
 	t.Log(podcontext)
 
 	// release requested IP address, expect success
-	err = cnsClient.ReleaseIPs(context.TODO(), cns.IPConfigsRequest{OrchestratorContext: orchestratorContext})
+	err = cnsClient.ReleaseIPAddress(context.TODO(), cns.IPConfigRequest{OrchestratorContext: orchestratorContext})
 	assert.NoError(t, err, "Expected to not fail when releasing IP reservation found with context")
 }
 
@@ -383,7 +383,9 @@ func TestCNSClientDebugAPI(t *testing.T) {
 	assert.Len(t, testIpamPoolMonitor.CachedNNC.Status.NetworkContainers, 1, "Expected only one Network Container in the list")
 
 	t.Logf("In-memory Data: ")
-	t.Logf("PodIPIDByOrchestratorContext: %+v", inmemory.HTTPRestServiceData.PodIPIDByPodInterfaceKey)
+	for i := range inmemory.HTTPRestServiceData.PodIPIDByPodInterfaceKey {
+		t.Logf("PodIPIDByOrchestratorContext: %+v", inmemory.HTTPRestServiceData.PodIPIDByPodInterfaceKey[i])
+	}
 	t.Logf("PodIPConfigState: %+v", inmemory.HTTPRestServiceData.PodIPConfigState)
 	t.Logf("IPAMPoolMonitor: %+v", inmemory.HTTPRestServiceData.IPAMPoolMonitor)
 }
