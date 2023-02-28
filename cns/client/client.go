@@ -128,7 +128,6 @@ func (c *Client) GetAllNetworkContainers(ctx context.Context, orchestratorContex
 		}
 	}
 
-	// TODO: CNS should return 405 if client is trying to call API that CNS doesn't support
 	if res.StatusCode != http.StatusOK {
 		return nil, &CNSClientError{
 			Code: types.UnexpectedError,

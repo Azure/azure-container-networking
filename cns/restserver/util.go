@@ -1021,6 +1021,8 @@ func (n *ncList) Add(nc string) {
 }
 
 // delete nc from ncList
+// split the slice around the index that contains the NC to delete so that neigher of two resulting nc slices cotnains this NC
+// use append menthod to join the new NC slices
 func (n *ncList) Delete(nc string) {
 	ncs := strings.Split(string(*n), ",")
 	for i, v := range ncs {

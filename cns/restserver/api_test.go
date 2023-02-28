@@ -102,6 +102,24 @@ var (
 	}
 	ncParams         = []createOrUpdateNetworkContainerParams{nc1, nc2}
 	errMismatchedNCs = errors.New("GetNetworkContainers failed because NCs not matched")
+
+	nc3 = createOrUpdateNetworkContainerParams{
+		ncID:         "1abc",
+		ncIP:         "10.0.0.5",
+		ncType:       cns.AzureContainerInstance,
+		ncVersion:    "0",
+		podName:      "testpod",
+		podNamespace: "testpodnamespace",
+	}
+	nc4 = createOrUpdateNetworkContainerParams{
+		ncID:         "2abc",
+		ncIP:         "20.0.0.5",
+		ncType:       cns.AzureContainerInstance,
+		ncVersion:    "0",
+		podName:      "testpod",
+		podNamespace: "testpodnamespace",
+	}
+	ncDualNicParams = []createOrUpdateNetworkContainerParams{nc3, nc4}
 )
 
 const (
@@ -309,6 +327,112 @@ func TestSetOrchestratorType_NCsPresent(t *testing.T) {
 			}
 			assert.Equal(t, tt.response, resp)
 		})
+	}
+}
+
+func TestDeleteContainerIDByOrchestratorContext(t *testing.T) {
+	fmt.Println("Test: TestDeleteContainerIDByOrchestratorContext")
+
+	setEnv(t)
+	err := setOrchestratorType(t, cns.Kubernetes)
+	if err != nil {
+		t.Fatalf("TestDeleteContainerIDByOrchestratorContext failed with error:%+v", err)
+	}
+
+	// create two network containers
+	for i := 0; i < len(ncDualNicParams); i++ {
+		err = createOrUpdateNetworkContainerWithParams(ncDualNicParams[i])
+		if err != nil {
+			t.Fatalf("createOrUpdateNetworkContainerWithParams failed with error:%+v", err)
+		}
+	}
+
+	_, err = getAllNetworkContainers(t, ncDualNicParams)
+	if err != nil {
+		t.Fatalf("TestGetAllNetworkContainers failed with error:%+v", err)
+	}
+
+	svc = service.(*HTTPRestService)
+
+	// get ncList based on orchestratorContext
+	orchestratorContext := ncDualNicParams[0].podName + ncDualNicParams[0].podNamespace
+	// i.e, ncs is {"testpodtestpodnamespace": "Swift_1abc,Swift_2abc"}
+	ncs := svc.state.ContainerIDByOrchestratorContext[orchestratorContext]
+
+	// delete "Swift_1abc" NC first:
+	err = deleteNetworkContainerWithParams(ncDualNicParams[0])
+	if err != nil {
+		t.Fatalf("createOrUpdateNetworkContainerWithParams failed with error:%+v", err)
+	}
+
+	expectedNC := "Swift_" + ncDualNicParams[1].ncID
+	if ncList(expectedNC) != *ncs {
+		t.Fatalf("failed to delete first NCID %s", ncDualNicParams[0].ncID)
+	}
+
+	// delete second NC "Swift_2abc", the svc.state.ContainerIDByOrchestratorContext map should be empty
+	err = deleteNetworkContainerWithParams(ncDualNicParams[1])
+	if err != nil {
+		t.Fatalf("createOrUpdateNetworkContainerWithParams failed with error:%+v", err)
+	}
+
+	if *ncs != "" || len(svc.state.ContainerIDByOrchestratorContext) != 0 {
+		t.Fatal("failed to delete all NCs and ContainerIDByOrchestratorContext object")
+	}
+}
+
+func TestDeleteNetworkContainers(t *testing.T) {
+	fmt.Println("Test: TestDeleteNetworkContainers")
+
+	setEnv(t)
+	err := setOrchestratorType(t, cns.Kubernetes)
+	if err != nil {
+		t.Fatalf("TestDeleteNetworkContainer failed with error:%+v", err)
+	}
+
+	// create two network containers
+	for i := 0; i < len(ncDualNicParams); i++ {
+		err = createOrUpdateNetworkContainerWithParams(ncDualNicParams[i])
+		if err != nil {
+			t.Fatalf("createOrUpdateNetworkContainerWithParams failed with error:%+v", err)
+		}
+	}
+
+	ncResponses, err := getAllNetworkContainers(t, ncDualNicParams)
+	if err != nil {
+		t.Fatalf("TestGetAllNetworkContainers failed with error:%+v", err)
+	}
+
+	if len(ncResponses.NetworkContainers) != 2 {
+		t.Fatalf("TestGetAllNetworkContainers failed to create dual network containers")
+	}
+
+	// delete one NC(nc3, 10.0.0.5)
+	err = deleteNetworkContainerWithParams(ncDualNicParams[0])
+	if err != nil {
+		t.Fatalf("createOrUpdateNetworkContainerWithParams failed with error:%+v", err)
+	}
+
+	// get second NC info and check if it's equal to "Swift" + NCID
+	ncResponse, err := getNetworkContainerByContext(ncDualNicParams[1])
+	if err != nil {
+		t.Errorf("TestGetNetworkContainerByOrchestratorContext failed Err:%+v", err)
+		t.Fatal(err)
+	}
+
+	if ncResponse.NetworkContainerID != "Swift_2abc" {
+		t.Fatal("failed to check second nc")
+	}
+
+	// delete second one
+	err = deleteNetworkContainerWithParams(ncDualNicParams[1])
+	if err != nil {
+		t.Fatalf("createOrUpdateNetworkContainerWithParams failed with error:%+v", err)
+	}
+
+	ncResponses, err = getAllNetworkContainers(t, ncDualNicParams)
+	if len(ncResponses.NetworkContainers) != 0 && err != nil {
+		t.Fatalf("failed to remove all network containers")
 	}
 }
 
@@ -1332,7 +1456,7 @@ func TestGetAllNetworkContainers(t *testing.T) {
 		}
 	}
 
-	err = getAllNetworkContainers(t, ncParams)
+	_, err = getAllNetworkContainers(t, ncParams)
 	if err != nil {
 		t.Fatalf("TestGetAllNetworkContainers failed with error:%+v", err)
 	}
@@ -1345,10 +1469,10 @@ func TestGetAllNetworkContainers(t *testing.T) {
 	}
 }
 
-func getAllNetworkContainers(t *testing.T, ncParams []createOrUpdateNetworkContainerParams) error {
+func getAllNetworkContainers(t *testing.T, ncParams []createOrUpdateNetworkContainerParams) (ncResponses cns.GetAllNetworkContainersResponse, err error) {
 	req, err := http.NewRequestWithContext(context.TODO(), http.MethodGet, cns.NetworkContainersURLPath, http.NoBody)
 	if err != nil {
-		return fmt.Errorf("GetNetworkContainers failed with error: %w", err)
+		return cns.GetAllNetworkContainersResponse{}, fmt.Errorf("GetNetworkContainers failed with error: %w", err)
 	}
 
 	w := httptest.NewRecorder()
@@ -1357,18 +1481,18 @@ func getAllNetworkContainers(t *testing.T, ncParams []createOrUpdateNetworkConta
 	var resp cns.GetAllNetworkContainersResponse
 	err = decodeResponse(w, &resp)
 	if err != nil || resp.Response.ReturnCode != types.Success || len(resp.NetworkContainers) != len(ncParams) {
-		return fmt.Errorf("GetNetworkContainers failed with response %+v Err: %w", resp, err)
+		return cns.GetAllNetworkContainersResponse{}, fmt.Errorf("GetNetworkContainers failed with response %+v Err: %w", resp, err)
 	}
 
 	// If any NC in response is not found in ncParams, it means get all NCs failed
 	for i := 0; i < len(ncParams); i++ {
 		if !contains(resp.NetworkContainers, cns.SwiftPrefix+ncParams[i].ncID) {
-			return errMismatchedNCs
+			return cns.GetAllNetworkContainersResponse{}, errMismatchedNCs
 		}
 	}
 
 	t.Logf("GetNetworkContainers succeeded with response: %+v", resp)
-	return nil
+	return resp, nil
 }
 
 func TestPostNetworkContainers(t *testing.T) {
@@ -1383,7 +1507,7 @@ func TestPostNetworkContainers(t *testing.T) {
 		t.Fatalf("Failed to save all network containers due to error: %+v", err)
 	}
 
-	err = getAllNetworkContainers(t, ncParams)
+	_, err = getAllNetworkContainers(t, ncParams)
 	if err != nil {
 		t.Fatalf("TestPostNetworkContainers failed with error:%+v", err)
 	}
