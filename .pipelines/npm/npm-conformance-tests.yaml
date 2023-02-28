@@ -55,8 +55,8 @@ jobs:
         npm_windows2022_amd64:
           arch: amd64
           name: npm
-          os: linux
-          os_version: $(os_version)
+          os: windows
+          os_version: ltsc2022
     steps:
       - template: ../containers/container-template.yaml
         parameters:

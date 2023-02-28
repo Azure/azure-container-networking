@@ -152,7 +152,7 @@ stages:
       - setup
       - test
     jobs:
-      - job: containerize_linux_amd64
+      - job: containerize_amd64
         displayName: Build Images
         pool:
           name: "$(BUILD_POOL_NAME_LINUX_AMD64)"

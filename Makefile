@@ -213,6 +213,7 @@ IMAGE_REGISTRY      ?= acnpublic.azurecr.io
 OS                  ?= $(GOOS)
 ARCH                ?= $(GOARCH)
 PLATFORM            ?= $(OS)/$(ARCH)
+BUILDX_ACTION  		?= --load
 CONTAINER_BUILDER   ?= buildah
 CONTAINER_RUNTIME   ?= podman
 CONTAINER_TRANSPORT ?= skopeo
