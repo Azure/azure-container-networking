@@ -207,6 +207,7 @@ func TestSetCNSConfigDefaults(t *testing.T) {
 					RefreshIntervalInHrs: 12,
 				},
 				PopulateHomeAzCacheRetryIntervalSecs: 15,
+				WireserverIP:                         "168.63.129.16",
 			},
 		},
 		{
@@ -250,6 +251,7 @@ func TestSetCNSConfigDefaults(t *testing.T) {
 					RefreshIntervalInHrs: 3,
 				},
 				PopulateHomeAzCacheRetryIntervalSecs: 10,
+				WireserverIP:                         "168.63.129.16",
 			},
 		},
 	}
