@@ -503,6 +503,7 @@ func main() {
 	cnsconfig, err := configuration.ReadConfig(cmdLineConfigPath)
 	if err != nil {
 		logger.Errorf("[Azure CNS] Error reading cns config: %v", err)
+		cnsconfig = &configuration.CNSConfig{}
 	}
 
 	configuration.SetCNSConfigDefaults(cnsconfig)
