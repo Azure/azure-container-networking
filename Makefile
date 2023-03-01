@@ -288,7 +288,7 @@ container-docker: # util target to build container images using docker buildx. d
 container: # util target to build container images. do not invoke directly.
 	$(MAKE) container-$(CONTAINER_BUILDER) \
 		PLATFORM=$(PLATFORM) \
-		TAG=$(CNS_PLATFORM_TAG) \
+		TAG=$(TAG) \
 		OS=$(OS) \
 		ARCH=$(ARCH) \
 		OS_VERSION=$(OS_VERSION)
