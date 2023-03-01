@@ -12,7 +12,7 @@ import (
 type WireserverProxyFake struct {
 	JoinNetworkFunc func(context.Context, string) (*http.Response, error)
 	PublishNCFunc   func(context.Context, cns.NetworkContainerParameters, []byte) (*http.Response, error)
-	UnpublishNCFunc func(context.Context, cns.NetworkContainerParameters) (*http.Response, error)
+	UnpublishNCFunc func(context.Context, cns.NetworkContainerParameters, []byte) (*http.Response, error)
 }
 
 const defaultResponseBody = `{"httpStatusCode":"200"}`
@@ -41,9 +41,9 @@ func (w *WireserverProxyFake) PublishNC(ctx context.Context, ncParams cns.Networ
 	return defaultResponse(), nil
 }
 
-func (w *WireserverProxyFake) UnpublishNC(ctx context.Context, ncParams cns.NetworkContainerParameters) (*http.Response, error) {
+func (w *WireserverProxyFake) UnpublishNC(ctx context.Context, ncParams cns.NetworkContainerParameters, payload []byte) (*http.Response, error) {
 	if w.UnpublishNCFunc != nil {
-		return w.UnpublishNCFunc(ctx, ncParams)
+		return w.UnpublishNCFunc(ctx, ncParams, payload)
 	}
 
 	return defaultResponse(), nil
