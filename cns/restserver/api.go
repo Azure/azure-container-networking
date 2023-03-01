@@ -13,6 +13,7 @@ import (
 	"net/url"
 	"regexp"
 	"runtime"
+	"strings"
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/hnsclient"
