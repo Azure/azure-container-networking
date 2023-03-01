@@ -259,7 +259,7 @@ var _ = Describe("Test Network", func() {
 	})
 
 	Describe("Test GetNumEndpointsInNetNs", func() {
-		Context("When network exists", func() {
+		Context("When one network with two endpoints", func() {
 			It("Should return two endpoints", func() {
 				netNs := "989c079b-45a6-485f-8f9e-88b05d6c55c5"
 				networkID := "byovnetbridge-vlan1-10-128-8-0_23"
@@ -287,6 +287,50 @@ var _ = Describe("Test Network", func() {
 					},
 				}
 
+				got := nm.GetNumEndpointsInNetNs(netNs)
+				Expect(got).To(Equal(2))
+			})
+		})
+
+		Context("When two networks have each endpoint", func() {
+			It("Should return two endpoints", func() {
+				netNs := "989c079b-45a6-485f-8f9e-88b05d6c55c5"
+				networkOneID := "byovnetbridge-vlan1-10-128-8-0_23"
+				nm := &networkManager{
+					ExternalInterfaces: map[string]*externalInterface{
+						networkOneID: {
+							Name: networkOneID,
+							Networks: map[string]*network{
+								"byovnetbridge-vlan1-10-128-8-0_23": {
+									Id: "byovnetbridge-vlan1-10-128-8-0_23",
+									Endpoints: map[string]*endpoint{
+										"a591be2a-eth0": {
+											Id:    "a591be2a-eth0",
+											NetNs: netNs,
+										},
+									},
+									NetNs: "aaac079b-45a6-485f-8f9e-88b05d6c55c5",
+								},
+							},
+						},
+					},
+				}
+				networkTwoID := "byovnetbridge-vlan2-20-128-8-0_23"
+				nm.ExternalInterfaces[networkTwoID] = &externalInterface{
+					Name: networkTwoID,
+					Networks: map[string]*network{
+						"byovnetbridge-vlan2-20-128-8-0_23": {
+							Id: "byovnetbridge-vlan2-20-128-8-0_23",
+							Endpoints: map[string]*endpoint{
+								"a591be2b-eth0": {
+									Id:    "a591be2b-eth0",
+									NetNs: netNs,
+								},
+							},
+							NetNs: "aaac079b-45a6-485f-8f9e-88b05d6c55c5",
+						},
+					},
+				}
 				got := nm.GetNumEndpointsInNetNs(netNs)
 				Expect(got).To(Equal(2))
 			})

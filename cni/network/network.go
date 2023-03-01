@@ -946,7 +946,11 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 	// deleted, getNetworkName will return error of the type NetworkNotFoundError which will result in nil error as compliance
 	// with CNI SPEC as mentioned below.
 
-	numEndpointsToDelete := plugin.nm.GetNumEndpointsInNetNs(args.Netns)
+	numEndpointsToDelete := 1
+	if nwCfg.MultiTenancy {
+		numEndpointsToDelete = plugin.nm.GetNumEndpointsInNetNs(args.Netns)
+	}
+
 	log.Printf("[cni-net] number of endpoints to be deleted %d", numEndpointsToDelete)
 	for i := 0; i < numEndpointsToDelete; i++ {
 		// Initialize values from network config.
