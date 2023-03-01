@@ -47,7 +47,7 @@ type nmagentClient interface {
 type wireserverProxy interface {
 	JoinNetwork(ctx context.Context, vnetID string) (*http.Response, error)
 	PublishNC(ctx context.Context, ncParams cns.NetworkContainerParameters, payload []byte) (*http.Response, error)
-	UnpublishNC(ctx context.Context, ncParams cns.NetworkContainerParameters) (*http.Response, error)
+	UnpublishNC(ctx context.Context, ncParams cns.NetworkContainerParameters, payload []byte) (*http.Response, error)
 }
 
 // HTTPRestService represents http listener for CNS - Container Networking Service.

@@ -1080,7 +1080,7 @@ func TestUnpublishNCViaCNS(t *testing.T) {
 
 func TestUnpublishNCViaCNS401(t *testing.T) {
 	wsproxy := fakes.WireserverProxyFake{
-		UnpublishNCFunc: func(_ context.Context, _ cns.NetworkContainerParameters) (*http.Response, error) {
+		UnpublishNCFunc: func(_ context.Context, _ cns.NetworkContainerParameters, i []byte) (*http.Response, error) {
 			return &http.Response{
 				StatusCode: http.StatusOK,
 				Body:       io.NopCloser(bytes.NewBufferString(`{"httpStatusCode":"401"}`)),
@@ -1099,10 +1099,11 @@ func TestUnpublishNCViaCNS401(t *testing.T) {
 	joinNetworkURL := "http://" + nmagentEndpoint + "/dummyVnetURL"
 
 	unpublishNCRequest := &cns.UnpublishNetworkContainerRequest{
-		NetworkID:                 networkID,
-		NetworkContainerID:        networkContainerID,
-		JoinNetworkURL:            joinNetworkURL,
-		DeleteNetworkContainerURL: deleteNetworkContainerURL,
+		NetworkID:                         networkID,
+		NetworkContainerID:                networkContainerID,
+		JoinNetworkURL:                    joinNetworkURL,
+		DeleteNetworkContainerURL:         deleteNetworkContainerURL,
+		DeleteNetworkContainerRequestBody: []byte("{}"),
 	}
 
 	var body bytes.Buffer
@@ -1160,10 +1161,11 @@ func unpublishNCViaCNS(networkID, networkContainerID, deleteNetworkContainerURL 
 	joinNetworkURL := "http://" + nmagentEndpoint + "/dummyVnetURL"
 
 	unpublishNCRequest := &cns.UnpublishNetworkContainerRequest{
-		NetworkID:                 networkID,
-		NetworkContainerID:        networkContainerID,
-		JoinNetworkURL:            joinNetworkURL,
-		DeleteNetworkContainerURL: deleteNetworkContainerURL,
+		NetworkID:                         networkID,
+		NetworkContainerID:                networkContainerID,
+		JoinNetworkURL:                    joinNetworkURL,
+		DeleteNetworkContainerURL:         deleteNetworkContainerURL,
+		DeleteNetworkContainerRequestBody: []byte("{}"),
 	}
 
 	var body bytes.Buffer

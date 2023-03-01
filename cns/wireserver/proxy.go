@@ -57,10 +57,17 @@ func (p *Proxy) PublishNC(ctx context.Context, ncParams cns.NetworkContainerPara
 	return resp, nil
 }
 
-func (p *Proxy) UnpublishNC(ctx context.Context, ncParams cns.NetworkContainerParameters) (*http.Response, error) {
+func (p *Proxy) UnpublishNC(ctx context.Context, ncParams cns.NetworkContainerParameters, payload []byte) (*http.Response, error) {
 	reqURL := fmt.Sprintf(unpublishNCURLFmt, p.Host, ncParams.AssociatedInterfaceID, ncParams.NCID, ncParams.AuthToken)
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, reqURL, bytes.NewBufferString(`""`))
+	// a POST to wireserver must contain a body. For legacy purposes,
+	// an empty json string (two quote characters) should be sent by default.
+	body := []byte(`""`)
+	if len(payload) > 0 {
+		body = payload
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, reqURL, bytes.NewBuffer(body))
 	if err != nil {
 		return nil, errors.Wrap(err, "wireserver proxy: unpublish nc: could not build http request")
 	}
