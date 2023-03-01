@@ -1298,7 +1298,7 @@ func (service *HTTPRestService) unpublishNetworkContainer(w http.ResponseWriter,
 		logger.Printf("[Azure-CNS] joined vnet %s during nc %s unpublish. wireserver response: %v", req.NetworkID, req.NetworkContainerID, string(joinBytes))
 	}
 
-	publishResp, err := service.wsproxy.UnpublishNC(ctx, ncParams)
+	publishResp, err := service.wsproxy.UnpublishNC(ctx, ncParams, req.DeleteNetworkContainerRequestBody)
 	if err != nil {
 		resp := cns.UnpublishNetworkContainerResponse{
 			Response: cns.Response{

@@ -529,10 +529,11 @@ func (p PublishNetworkContainerResponse) String() string {
 
 // UnpublishNetworkContainerRequest specifies request to unpublish network container via NMAgent.
 type UnpublishNetworkContainerRequest struct {
-	NetworkID                 string
-	NetworkContainerID        string
-	JoinNetworkURL            string
-	DeleteNetworkContainerURL string
+	NetworkID                         string
+	NetworkContainerID                string
+	JoinNetworkURL                    string
+	DeleteNetworkContainerURL         string
+	DeleteNetworkContainerRequestBody []byte
 }
 
 // UnpublishNetworkContainerResponse specifies the response to unpublish network container request.
