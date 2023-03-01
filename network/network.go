@@ -273,7 +273,6 @@ func (nm *networkManager) FindNetworkIDFromNetNs(netNs string) (string, error) {
 	}
 
 	return "", errNetworkNotFound
-
 }
 
 // GetNumEndpointsInNetNs returns number of endpoints
