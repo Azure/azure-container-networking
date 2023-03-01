@@ -949,7 +949,10 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 	// scenario is dual-nic ), single container may have endpoints created in multiple networks. As all the endpoints are
 	// deleted, getNetworkName will return error of the type NetworkNotFoundError which will result in nil error as compliance
 	// with CNI SPEC as mentioned below.
-	for {
+
+	numEndpointsToDelete := plugin.nm.GetNumEndpointsInNetNs(args.Netns)
+	log.Printf("[cni-net] number of endpoints to be deleted %d", numEndpointsToDelete)
+	for i := 0; i < numEndpointsToDelete; i++ {
 		// Initialize values from network config.
 		networkID, err = plugin.getNetworkName(args.Netns, nil, nwCfg)
 		if err != nil {
@@ -1021,6 +1024,9 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 			}
 		}
 	}
+	sendEvent(plugin, fmt.Sprintf("CNI DEL succeeded : Released ip %+v podname %v namespace %v", nwCfg.IPAM.Address, k8sPodName, k8sNamespace))
+
+	return err
 }
 
 // Update handles CNI update commands.
