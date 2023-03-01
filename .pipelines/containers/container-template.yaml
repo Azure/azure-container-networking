@@ -1,7 +1,8 @@
 parameters:
+  arch: ""
   name: ""
   os: ""
-  arch: ""
+  os_version: ""
 
 steps:
 - task: Docker@2
@@ -13,28 +14,11 @@ steps:
 
 - script: |
     set -e
-    make ${{ parameters.name }}-image OS=${{ parameters.os }} ARCH=${{ parameters.arch }}
+    if [ ${{ parameters.os }} = 'windows' ]; then export BUILDX_ACTION='--push'; fi
+    make ${{ parameters.name }}-image OS=${{ parameters.os }} ARCH=${{ parameters.arch }} OS_VERSION=${{ parameters.os_version }}
   name: image_build
   displayName: Image Build
   retryCountOnTaskFailure: 3
-
-- script: |
-    set -e
-    make ${{ parameters.name }}-skopeo-export OS=${{ parameters.os }} ARCH=${{ parameters.arch }}
-    wget https://github.com/aquasecurity/trivy/releases/download/v0.18.1/trivy_0.18.1_Linux-64bit.tar.gz
-    tar -zxvf trivy*.tar.gz
-    mkdir -p ./trivy-cache
-    sudo ./trivy --exit-code 1 --cache-dir ./trivy-cache --severity HIGH,CRITICAL $REF
-  name: trivy
-  displayName: Vulnerability Scan
-  retryCountOnTaskFailure: 3
-
-- script: |
-    set -e
-    make ${{ parameters.name }}-image-push OS=${{ parameters.os }} ARCH=${{ parameters.arch }}
-  retryCountOnTaskFailure: 3
-  name: image_push
-  displayName: Push Images
 
 - task: Docker@2
   displayName: Logout
