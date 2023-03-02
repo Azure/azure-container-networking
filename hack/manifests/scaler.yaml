@@ -16,14 +16,14 @@ spec:
       affinity:
         podAntiAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
-          - labelSelector:
-              matchExpressions:
-              - key: app
-                operator: In
-                values:
-                - node-scaler
-            topologyKey: "kubernetes.io/hostname"
+            - labelSelector:
+                matchExpressions:
+                  - key: app
+                    operator: In
+                    values:
+                      - node-scaler
+              topologyKey: "kubernetes.io/hostname"
       containers:
-      - name: anti-affinity
-        image: k8s.gcr.io/pause:2.0
+        - name: anti-affinity
+          image: registry.k8s.io/pause:2.0
       hostNetwork: true

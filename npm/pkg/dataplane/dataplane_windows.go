@@ -53,7 +53,7 @@ func (dp *DataPlane) getNetworkInfo() error {
 
 	var err error
 	for ; true; <-ticker.C {
-		err = dp.setNetworkIDByName(util.AzureNetworkName)
+		err = dp.setNetworkIDByName(dp.NetworkName)
 		if err == nil || !isNetworkNotFoundErr(err) {
 			return err
 		}
@@ -62,7 +62,7 @@ func (dp *DataPlane) getNetworkInfo() error {
 			break
 		}
 		klog.Infof("[DataPlane Windows] Network with name %s not found. Retrying in %d seconds, Current retry number %d, max retries: %d",
-			util.AzureNetworkName,
+			dp.NetworkName,
 			maxNoNetSleepTime,
 			retryNumber,
 			maxNoNetRetryCount,
@@ -151,6 +151,11 @@ func (dp *DataPlane) updatePod(pod *updateNPMPod) error {
 
 		// all ACLs were removed, so in case there were ipsets to remove, there's no need to look for policies to delete
 		pod.IPSetsToRemove = nil
+
+		if dp.NetworkName == util.CalicoNetworkName {
+			klog.Infof("adding back base ACLs for calico CNI endpoint after resetting ACLs. endpoint: %+v", endpoint)
+			dp.policyMgr.AddBaseACLsForCalicoCNI(endpoint.id)
+		}
 	}
 
 	// for every ipset we're removing from the endpoint, remove from the endpoint any policy that requires the set
@@ -315,9 +320,6 @@ func (dp *DataPlane) getPodEndpoints(includeRemoteEndpoints bool) ([]*hcn.HostCo
 		if includeRemoteEndpoints || e.Flags == hcn.EndpointFlagsNone {
 			// having EndpointFlagsNone means it is a local endpoint
 			localEndpoints = append(localEndpoints, e)
-		} else {
-			// TODO remove for GA
-			klog.Infof("ignoring remote endpoint. ID: %s, IP configs: %+v", e.Id, e.IpConfigurations)
 		}
 	}
 	return localEndpoints, nil
@@ -371,6 +373,14 @@ func (dp *DataPlane) refreshPodEndpoints() error {
 			dp.endpointCache.cache[ip] = npmEP
 			// NOTE: TSGs rely on this log line
 			klog.Infof("updating endpoint cache to include %s: %+v", npmEP.ip, npmEP)
+
+			if dp.NetworkName == util.CalicoNetworkName {
+				// NOTE 1: connectivity may be broken for an endpoint until this method is called
+				// NOTE 2: if NPM restarted, technically we could call into HNS to add the base ACLs even if they already exist on the Endpoint.
+				// It doesn't seem worthwhile to account for these edge-cases since using calico network is currently intended just for testing
+				klog.Infof("adding base ACLs for calico CNI endpoint. IP: %s. ID: %s", ip, npmEP.id)
+				dp.policyMgr.AddBaseACLsForCalicoCNI(npmEP.id)
+			}
 		} else if oldNPMEP.id != endpoint.Id {
 			// multiple endpoints can have the same IP address, but there should be one endpoint ID per pod
 			// throw away old endpoints that have the same IP as a current endpoint (the old endpoint is getting deleted)
@@ -378,6 +388,14 @@ func (dp *DataPlane) refreshPodEndpoints() error {
 			npmEP := newNPMEndpoint(endpoint)
 			klog.Infof("[DataPlane] updating endpoint cache for IP with a new endpoint. old endpoint: %+v. new endpoint: %+v", oldNPMEP, npmEP)
 			dp.endpointCache.cache[ip] = npmEP
+
+			if dp.NetworkName == util.CalicoNetworkName {
+				// NOTE 1: connectivity may be broken for an endpoint until this method is called
+				// NOTE 2: if NPM restarted, technically we could call into HNS to add the base ACLs even if they already exist on the Endpoint.
+				// It doesn't seem worthwhile to account for these edge-cases since using calico network is currently intended just for testing
+				klog.Infof("adding base ACLs for calico CNI endpoint. IP: %s. ID: %s", ip, npmEP.id)
+				dp.policyMgr.AddBaseACLsForCalicoCNI(npmEP.id)
+			}
 		}
 	}
 
@@ -404,5 +422,6 @@ func (dp *DataPlane) setNetworkIDByName(networkName string) error {
 }
 
 func isNetworkNotFoundErr(err error) bool {
-	return strings.Contains(err.Error(), fmt.Sprintf("Network name \"%s\" not found", util.AzureNetworkName))
+	return strings.Contains(err.Error(), fmt.Sprintf("Network name %q not found", util.AzureNetworkName)) ||
+		strings.Contains(err.Error(), fmt.Sprintf("Network name %q not found", util.CalicoNetworkName))
 }

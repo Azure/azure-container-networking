@@ -1,4 +1,6 @@
 package dataplane
 
 // npmEndpoint holds info relevant for endpoints in windows
-type npmEndpoint struct{}
+type npmEndpoint struct {
+	netPolReference map[string]struct{}
+}

@@ -32,8 +32,7 @@ import (
 
 var npmV2DataplaneCfg = &dataplane.Config{
 	IPSetManagerCfg: &ipsets.IPSetManagerCfg{
-		NetworkName: "azure", // FIXME  should be specified in DP config instead
-		// NOTE: IPSetMode must be set later by the npm ConfigMap or default config
+		// NOTE: NetworkName and IPSetMode must be set later by the npm ConfigMap or default config
 	},
 	PolicyManagerCfg: &policies.PolicyManagerCfg{
 		PolicyMode: policies.IPSetPolicyMode,
@@ -124,6 +123,12 @@ func start(config npmconfig.Config, flags npmconfig.Flags) error {
 	stopChannel := wait.NeverStop
 	if config.Toggles.EnableV2NPM {
 		// update the dataplane config
+		if config.WindowsNetworkName == "" {
+			npmV2DataplaneCfg.NetworkName = util.AzureNetworkName
+		} else {
+			npmV2DataplaneCfg.NetworkName = config.WindowsNetworkName
+		}
+
 		npmV2DataplaneCfg.PlaceAzureChainFirst = config.Toggles.PlaceAzureChainFirst
 		if config.Toggles.ApplyIPSetsOnNeed {
 			npmV2DataplaneCfg.IPSetMode = ipsets.ApplyOnNeed

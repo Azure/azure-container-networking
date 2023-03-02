@@ -1,6 +1,7 @@
 parameters:
   name: ""
   platforms: ""
+  os_versions: ""
 
 steps:
   - task: Docker@2
@@ -12,9 +13,10 @@ steps:
 
   - script: |
       set -e
-      make ${{ parameters.name }}-manifest-create PLATFORMS="${{ parameters.platforms }}"
+      make ${{ parameters.name }}-manifest-build PLATFORMS="${{ parameters.platforms }}" OS_VERSIONS="${{ parameters.os_versions }}"
     name: manifest_build
     displayName: Manifest Build
+    retryCountOnTaskFailure: 3
 
   - script: |
       set -e
@@ -23,6 +25,7 @@ steps:
       make ${{ parameters.name }}-skopeo-archive IMAGE_ARCHIVE_DIR=$(Build.ArtifactStagingDirectory)/images
     name: manifest_push
     displayName: Manifest Push
+    retryCountOnTaskFailure: 3
 
   - task: Docker@2
     displayName: Logout

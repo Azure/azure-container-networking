@@ -5,7 +5,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/Azure/azure-container-networking/fs"
+	"github.com/Azure/azure-container-networking/internal/fs"
 	"github.com/stretchr/testify/require"
 )
 

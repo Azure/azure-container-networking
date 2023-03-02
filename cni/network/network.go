@@ -941,77 +941,89 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 		}
 	}
 
-	// Initialize values from network config.
-	networkID, err = plugin.getNetworkName(args.Netns, nil, nwCfg)
-	if err != nil {
-		log.Printf("[cni-net] Failed to extract network name from network config. error: %v", err)
-		// If error is not found error, then we ignore it, to comply with CNI SPEC.
-		if !network.IsNetworkNotFoundError(err) {
+	// Loop through all the networks that are created for the given Netns. In case of multi-nic scenario ( currently supported
+	// scenario is dual-nic ), single container may have endpoints created in multiple networks. As all the endpoints are
+	// deleted, getNetworkName will return error of the type NetworkNotFoundError which will result in nil error as compliance
+	// with CNI SPEC as mentioned below.
+
+	numEndpointsToDelete := 1
+	if nwCfg.MultiTenancy {
+		numEndpointsToDelete = plugin.nm.GetNumEndpointsInNetNs(args.Netns)
+	}
+
+	log.Printf("[cni-net] number of endpoints to be deleted %d", numEndpointsToDelete)
+	for i := 0; i < numEndpointsToDelete; i++ {
+		// Initialize values from network config.
+		networkID, err = plugin.getNetworkName(args.Netns, nil, nwCfg)
+		if err != nil {
+			// If error is not found error, then we ignore it, to comply with CNI SPEC.
+			if network.IsNetworkNotFoundError(err) {
+				err = nil
+				return err
+			}
+
+			log.Printf("[cni-net] Failed to extract network name from network config. error: %v", err)
 			err = plugin.Errorf("Failed to extract network name from network config. error: %v", err)
 			return err
 		}
-	}
-
-	// Query the network.
-	if nwInfo, err = plugin.nm.GetNetworkInfo(networkID); err != nil {
-		if !nwCfg.MultiTenancy {
-			log.Printf("[cni-net] Failed to query network:%s: %v", networkID, err)
-			// Log the error but return success if the network is not found.
-			// if cni hits this, mostly state file would be missing and it can be reboot scenario where
-			// container runtime tries to delete and create pods which existed before reboot.
-			err = nil
-			return err
-		}
-	}
-
-	endpointID := GetEndpointID(args)
-	// Query the endpoint.
-	if epInfo, err = plugin.nm.GetEndpointInfo(networkID, endpointID); err != nil {
-
-		if !nwCfg.MultiTenancy {
-			// attempt to release address associated with this Endpoint id
-			// This is to ensure clean up is done even in failure cases
-			log.Printf("[cni-net] Failed to query endpoint %s: %v", endpointID, err)
-			logAndSendEvent(plugin, fmt.Sprintf("Release ip by ContainerID (endpoint not found):%v", args.ContainerID))
-			if err = plugin.ipamInvoker.Delete(nil, nwCfg, args, nwInfo.Options); err != nil {
-				return plugin.RetriableError(fmt.Errorf("failed to release address(no endpoint): %w", err))
+		// Query the network.
+		if nwInfo, err = plugin.nm.GetNetworkInfo(networkID); err != nil {
+			if !nwCfg.MultiTenancy {
+				log.Printf("[cni-net] Failed to query network:%s: %v", networkID, err)
+				// Log the error but return success if the network is not found.
+				// if cni hits this, mostly state file would be missing and it can be reboot scenario where
+				// container runtime tries to delete and create pods which existed before reboot.
+				err = nil
+				return err
 			}
 		}
 
-		// Log the error but return success if the endpoint being deleted is not found.
-		err = nil
-		return err
-	}
+		endpointID := GetEndpointID(args)
+		// Query the endpoint.
+		if epInfo, err = plugin.nm.GetEndpointInfo(networkID, endpointID); err != nil {
+			if !nwCfg.MultiTenancy {
+				// attempt to release address associated with this Endpoint id
+				// This is to ensure clean up is done even in failure cases
+				log.Printf("[cni-net] Failed to query endpoint %s: %v", endpointID, err)
+				logAndSendEvent(plugin, fmt.Sprintf("Release ip by ContainerID (endpoint not found):%v", args.ContainerID))
+				if err = plugin.ipamInvoker.Delete(nil, nwCfg, args, nwInfo.Options); err != nil {
+					return plugin.RetriableError(fmt.Errorf("failed to release address(no endpoint): %w", err))
+				}
+			}
+			// Log the error but return success if the endpoint being deleted is not found.
+			err = nil
+			return err
+		}
 
-	// schedule send metric before attempting delete
-	defer sendMetricFunc()
-	logAndSendEvent(plugin, fmt.Sprintf("Deleting endpoint:%v", endpointID))
-	// Delete the endpoint.
-	if err = plugin.nm.DeleteEndpoint(networkID, endpointID); err != nil {
-		// return a retriable error so the container runtime will retry this DEL later
-		// the implementation of this function returns nil if the endpoint doens't exist, so
-		// we don't have to check that here
-		return plugin.RetriableError(fmt.Errorf("failed to delete endpoint: %w", err))
-	}
+		// schedule send metric before attempting delete
+		defer sendMetricFunc() //nolint:gocritic
+		logAndSendEvent(plugin, fmt.Sprintf("Deleting endpoint:%v", endpointID))
+		// Delete the endpoint.
+		if err = plugin.nm.DeleteEndpoint(networkID, endpointID); err != nil {
+			// return a retriable error so the container runtime will retry this DEL later
+			// the implementation of this function returns nil if the endpoint doens't exist, so
+			// we don't have to check that here
+			return plugin.RetriableError(fmt.Errorf("failed to delete endpoint: %w", err))
+		}
 
-	if !nwCfg.MultiTenancy {
-		// Call into IPAM plugin to release the endpoint's addresses.
-		for _, address := range epInfo.IPAddresses {
-			logAndSendEvent(plugin, fmt.Sprintf("Release ip:%s", address.IP.String()))
-			err = plugin.ipamInvoker.Delete(&address, nwCfg, args, nwInfo.Options)
+		if !nwCfg.MultiTenancy {
+			// Call into IPAM plugin to release the endpoint's addresses.
+			for i := range epInfo.IPAddresses {
+				logAndSendEvent(plugin, fmt.Sprintf("Release ip:%s", epInfo.IPAddresses[i].IP.String()))
+				err = plugin.ipamInvoker.Delete(&epInfo.IPAddresses[i], nwCfg, args, nwInfo.Options)
+				if err != nil {
+					return plugin.RetriableError(fmt.Errorf("failed to release address: %w", err))
+				}
+			}
+		} else if epInfo.EnableInfraVnet {
+			nwCfg.IPAM.Subnet = nwInfo.Subnets[0].Prefix.String()
+			nwCfg.IPAM.Address = epInfo.InfraVnetIP.IP.String()
+			err = plugin.ipamInvoker.Delete(nil, nwCfg, args, nwInfo.Options)
 			if err != nil {
 				return plugin.RetriableError(fmt.Errorf("failed to release address: %w", err))
 			}
 		}
-	} else if epInfo.EnableInfraVnet {
-		nwCfg.IPAM.Subnet = nwInfo.Subnets[0].Prefix.String()
-		nwCfg.IPAM.Address = epInfo.InfraVnetIP.IP.String()
-		err = plugin.ipamInvoker.Delete(nil, nwCfg, args, nwInfo.Options)
-		if err != nil {
-			return plugin.RetriableError(fmt.Errorf("failed to release address: %w", err))
-		}
 	}
-
 	sendEvent(plugin, fmt.Sprintf("CNI DEL succeeded : Released ip %+v podname %v namespace %v", nwCfg.IPAM.Address, k8sPodName, k8sNamespace))
 
 	return err

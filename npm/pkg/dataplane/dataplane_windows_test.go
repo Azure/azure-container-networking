@@ -11,6 +11,7 @@ import (
 	dptestutils "github.com/Azure/azure-container-networking/npm/pkg/dataplane/testutils"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
+	"k8s.io/klog"
 )
 
 const (
@@ -26,6 +27,10 @@ func TestPodEndpointAssignment(t *testing.T) {
 	testSerialCases(t, updatePodTests())
 }
 
+func TestCapzCalico(t *testing.T) {
+	testSerialCases(t, capzCalicoTests())
+}
+
 func TestAllMultiJobCases(t *testing.T) {
 	testMultiJobCases(t, getAllMultiJobTests())
 }
@@ -34,13 +39,11 @@ func testSerialCases(t *testing.T, tests []*SerialTestCase) {
 	for i, tt := range tests {
 		i := i
 		tt := tt
-		if tt.Description != "ignore Pod update if added then deleted before ApplyDP()" {
-			continue
-		}
 		t.Run(tt.Description, func(t *testing.T) {
+			klog.Infof("tt in: %+v", tt)
 			t.Logf("beginning test #%d. Description: [%s]. Tags: %+v", i, tt.Description, tt.Tags)
 
-			hns := ipsets.GetHNSFake(t)
+			hns := ipsets.GetHNSFake(t, tt.DpCfg.NetworkName)
 			hns.Delay = defaultHNSLatency
 			io := common.NewMockIOShimWithFakeHNS(hns)
 			for _, ep := range tt.InitialEndpoints {
@@ -50,6 +53,7 @@ func testSerialCases(t *testing.T, tests []*SerialTestCase) {
 
 			dp, err := NewDataPlane(thisNode, io, tt.DpCfg, nil)
 			require.NoError(t, err, "failed to initialize dp")
+			require.NotNil(t, dp, "failed to initialize dp (nil)")
 
 			for j, a := range tt.Actions {
 				var err error
@@ -63,7 +67,6 @@ func testSerialCases(t *testing.T, tests []*SerialTestCase) {
 			}
 
 			dptestutils.VerifyHNSCache(t, hns, tt.ExpectedSetPolicies, tt.ExpectedEnpdointACLs)
-			require.FailNow(t, "done")
 		})
 	}
 }
@@ -75,7 +78,7 @@ func testMultiJobCases(t *testing.T, tests []*MultiJobTestCase) {
 		t.Run(tt.Description, func(t *testing.T) {
 			t.Logf("beginning test #%d. Description: [%s]. Tags: %+v", i, tt.Description, tt.Tags)
 
-			hns := ipsets.GetHNSFake(t)
+			hns := ipsets.GetHNSFake(t, tt.DpCfg.NetworkName)
 			hns.Delay = threadedHNSLatency
 			io := common.NewMockIOShimWithFakeHNS(hns)
 			for _, ep := range tt.InitialEndpoints {

@@ -129,34 +129,55 @@ stages:
       - setup
       - test
     jobs:
-      - job: containerize_linux_amd64
+      - job: containerize_amd64
         displayName: Build Images
         pool:
           name: "$(BUILD_POOL_NAME_LINUX_AMD64)"
         strategy:
           matrix:
-            acncli_linux_amd64:
+            cni_dropgz_linux_amd64:
               arch: amd64
+              name: cni-dropgz
               os: linux
-              name: acncli
             cni_dropgz_test_linux_amd64:
               arch: amd64
-              os: linux
               name: cni-dropgz-test
+              os: linux
             cns_linux_amd64:
               arch: amd64
-              os: linux
               name: cns
+              os: linux
+            cns_windows2019_amd64:
+              arch: amd64
+              name: cns
+              os: windows
+              os_version: ltsc2019
+            cns_windows2022_amd64:
+              arch: amd64
+              name: cns
+              os: windows
+              os_version: ltsc2022
             npm_linux_amd64:
               arch: amd64
-              os: linux
               name: npm
+              os: linux
+            npm_windows2019_amd64:
+              arch: amd64
+              name: npm
+              os: windows
+              os_version: ltsc2019
+            npm_windows2022_amd64:
+              arch: amd64
+              name: npm
+              os: windows
+              os_version: ltsc2022
         steps:
           - template: containers/container-template.yaml
             parameters:
+              arch: $(arch)
               name: $(name)
               os: $(os)
-              arch: $(arch)
+              os_version: $(os_version)
       - job: containerize_linux_arm64
         displayName: Build Images
         variables:
@@ -165,61 +186,28 @@ stages:
           name: "$(BUILD_POOL_NAME_LINUX_ARM64)"
         strategy:
           matrix:
-            acncli_linux_arm64:
+            cni_dropgz_linux_arm64:
               arch: arm64
+              name: cni-dropgz
               os: linux
-              name: acncli
             cni_dropgz_test_linux_arm64:
               arch: arm64
-              os: linux
               name: cni-dropgz-test
+              os: linux
             cns_linux_arm64:
               arch: arm64
-              os: linux
               name: cns
+              os: linux
             npm_linux_arm64:
               arch: arm64
-              os: linux
               name: npm
+              os: linux
         steps:
           - template: containers/container-template.yaml
             parameters:
+              arch: $(arch)
               name: $(name)
               os: $(os)
-              arch: $(arch)
-      - job: containerize_windows_amd64
-        timeoutInMinutes: 120
-        displayName: Build Images
-        variables:
-          TAG: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
-        pool:
-          name: "$(BUILD_POOL_NAME_WINDOWS_AMD64)"
-        strategy:
-          matrix:
-            cns_windows_amd64:
-              arch: amd64
-              name: cns
-              ai_path: github.com/Azure/azure-container-networking/cns/logger.aiMetadata
-              ai_path_var: CNS_AI_PATH
-              ai_id: ce672799-8f08-4235-8c12-08563dc2acef
-              ai_id_var: CNS_AI_ID
-            npm_windows_amd64:
-              arch: amd64
-              name: npm
-              ai_path: github.com/Azure/azure-container-networking/npm.aiMetadata
-              ai_path_var: NPM_AI_PATH
-              ai_id: 014c22bd-4107-459e-8475-67909e96edcb
-              ai_id_var: NPM_AI_ID
-        steps:
-          - template: containers/container-template-windows.yaml
-            parameters:
-              name: $(name)
-              arch: $(arch)
-              tag: $(TAG)
-              ai_path: $(ai_path)
-              ai_path_var: $(ai_path_var)
-              ai_id: $(ai_id)
-              ai_id_var: $(ai_id_var)
 
   - stage: publish
     displayName: Publish Multiarch Manifests
@@ -232,23 +220,27 @@ stages:
           name: "$(BUILD_POOL_NAME_DEFAULT)"
         strategy:
           matrix:
-            acncli:
-              name: acncli 
+            cni_dropgz:
+              name: cni-dropgz
               platforms: linux/amd64 linux/arm64
             cni_dropgz_test:
               name: cni-dropgz-test
               platforms: linux/amd64 linux/arm64
             cns:
               name: cns
+              os_versions: ltsc2019 ltsc2022
               platforms: linux/amd64 linux/arm64 windows/amd64
             npm:
               name: npm
+              os_versions: ltsc2019 ltsc2022
               platforms: linux/amd64 linux/arm64 windows/amd64
         steps:
           - template: containers/manifest-template.yaml
             parameters:
               name: $(name)
+              os_versions: $(os_versions)
               platforms: $(platforms)
+              tag: $(TAG)
 
   - template: singletenancy/cilium/cilium-e2e-job-template.yaml
     parameters:
