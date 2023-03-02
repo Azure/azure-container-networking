@@ -120,6 +120,7 @@ func (nm *MockNetworkManager) GetNumEndpointsInNetNs(netNs string) int {
 	// based on the GetAllEndpoints func above, it seems that this mock is only intended to be used with
 	// one network, so just return the number of endpoints if network exists
 	numEndpoints := 0
+
 	for _, network := range nm.TestNetworkInfoMap {
 		if _, err := nm.GetAllEndpoints(network.Id); err == nil {
 			numEndpoints++
