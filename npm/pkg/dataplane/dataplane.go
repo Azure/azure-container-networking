@@ -216,6 +216,11 @@ func (dp *DataPlane) ApplyDataPlane() error {
 
 	// NOTE: ideally we won't refresh Pod Endpoints if the updatePodCache is empty
 	if dp.shouldUpdatePod() {
+		// do not refresh endpoints if the updatePodCache is empty
+		if len(dp.updatePodCache.cache) == 0 {
+			return nil
+		}
+
 		err := dp.refreshPodEndpoints()
 		if err != nil {
 			metrics.SendErrorLogAndMetric(util.DaemonDataplaneID, "[DataPlane] failed to refresh endpoints while updating pods. err: [%s]", err.Error())
