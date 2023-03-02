@@ -129,4 +129,3 @@ func (nm *MockNetworkManager) GetNumEndpointsInNetNs(netNs string) int {
 
 	return numEndpoints
 }
-
