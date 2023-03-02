@@ -216,6 +216,11 @@ func (dp *DataPlane) ApplyDataPlane() error {
 
 	// NOTE: ideally we won't refresh Pod Endpoints if the updatePodCache is empty
 	if dp.shouldUpdatePod() {
+		// lock updatePodCache while driving goal state to kernel
+		// prevents another ApplyDataplane call from updating the same pods
+		dp.updatePodCache.Lock()
+		defer dp.updatePodCache.Unlock()
+
 		// do not refresh endpoints if the updatePodCache is empty
 		if len(dp.updatePodCache.cache) == 0 {
 			return nil
@@ -227,11 +232,6 @@ func (dp *DataPlane) ApplyDataPlane() error {
 			// return as success since this can be retried irrespective of other operations
 			return nil
 		}
-
-		// lock updatePodCache while driving goal state to kernel
-		// prevents another ApplyDataplane call from updating the same pods
-		dp.updatePodCache.Lock()
-		defer dp.updatePodCache.Unlock()
 
 		for podKey, pod := range dp.updatePodCache.cache {
 			err := dp.updatePod(pod)
