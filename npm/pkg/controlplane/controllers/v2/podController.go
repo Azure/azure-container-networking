@@ -30,9 +30,8 @@ import (
 type NamedPortOperation string
 
 const (
-	deleteNamedPort       NamedPortOperation = "del"
-	addNamedPort          NamedPortOperation = "add"
-	deletePodAndNamedPort NamedPortOperation = "del-pod-and-namedport"
+	deleteNamedPort NamedPortOperation = "del"
+	addNamedPort    NamedPortOperation = "add"
 
 	addEvent    string = "ADD"
 	updateEvent string = "UPDATE"
@@ -456,8 +455,7 @@ func (c *PodController) syncAddAndUpdatePod(newPodObj *corev1.Pod) (metrics.Oper
 	addToIPSets, deleteFromIPSets := util.GetIPSetListCompareLabels(cachedNpmPod.Labels, newPodObj.Labels)
 
 	newPodMetadata := dataplane.NewPodMetadata(podKey, newPodObj.Status.PodIP, newPodObj.Spec.NodeName)
-	// todo: verify pulling nodename from newpod,
-	// if a pod is getting deleted, we do not have to cleanup policies, so it is okay to pass in wrong nodename
+	// should have newPodMetadata == cachedPodMetadata since from branch above, we have cachedNpmPod.PodIP == newPodObj.Status.PodIP
 	cachedPodMetadata := dataplane.NewPodMetadata(podKey, cachedNpmPod.PodIP, newPodMetadata.NodeName)
 	// Delete the pod from its label's ipset.
 	for _, removeIPSetName := range deleteFromIPSets {
@@ -515,8 +513,10 @@ func (c *PodController) syncAddAndUpdatePod(newPodObj *corev1.Pod) (metrics.Oper
 	newPodPorts := common.GetContainerPortList(newPodObj)
 	if !reflect.DeepEqual(cachedNpmPod.ContainerPorts, newPodPorts) {
 		// Delete cached pod's named ports from its ipset.
+		// Node name is only used in Windows. Keep consistency with above RemoveFromSets() calls by using the Pod's node name.
+		// manageNamedPortIpsets() also does nothing for Windows currently.
 		if err = c.manageNamedPortIpsets(
-			cachedNpmPod.ContainerPorts, podKey, cachedNpmPod.PodIP, "", deleteNamedPort); err != nil {
+			cachedNpmPod.ContainerPorts, podKey, cachedNpmPod.PodIP, newPodMetadata.NodeName, deleteNamedPort); err != nil {
 			return metrics.UpdateOp, fmt.Errorf("[syncAddAndUpdatePod] Error: failed to delete pod from named port ipset with err: %w", err)
 		}
 		// Since portList ipset deletion is successful, NPM can remove cachedContainerPorts
@@ -543,8 +543,9 @@ func (c *PodController) cleanUpDeletedPod(cachedNpmPodKey string) error {
 	}
 
 	var err error
-	cachedPodMetadata := dataplane.NewDeletedPodMetadata(cachedNpmPodKey, cachedNpmPod.PodIP)
+	cachedPodMetadata := dataplane.NewPodMetadata(cachedNpmPodKey, cachedNpmPod.PodIP, dataplane.NodePlaceholderForDeletedPod)
 	// Delete the pod from its namespace's ipset.
+	// note: NodeName empty is not going to call update pod
 	if err = c.dp.RemoveFromSets(
 		[]*ipsets.IPSetMetadata{ipsets.NewIPSetMetadata(cachedNpmPod.Namespace, ipsets.Namespace)},
 		cachedPodMetadata); err != nil {
@@ -568,7 +569,7 @@ func (c *PodController) cleanUpDeletedPod(cachedNpmPodKey string) error {
 
 	// Delete pod's named ports from its ipset. Need to pass true in the manageNamedPortIpsets function call
 	if err = c.manageNamedPortIpsets(
-		cachedNpmPod.ContainerPorts, cachedNpmPodKey, cachedNpmPod.PodIP, "", deletePodAndNamedPort); err != nil {
+		cachedNpmPod.ContainerPorts, cachedNpmPodKey, cachedNpmPod.PodIP, dataplane.NodePlaceholderForDeletedPod, deleteNamedPort); err != nil {
 		return fmt.Errorf("[cleanUpDeletedPod] Error: failed to delete pod from named port ipset with err: %w", err)
 	}
 
@@ -601,21 +602,15 @@ func (c *PodController) manageNamedPortIpsets(portList []corev1.ContainerPort, p
 		namedPortIpsetEntry := fmt.Sprintf("%s,%s%d", podIP, protocol, port.ContainerPort)
 
 		// nodename in NewPodMetadata is nil so UpdatePod is ignored
+		podMetadata := dataplane.NewPodMetadata(podKey, namedPortIpsetEntry, nodeName)
 		switch namedPortOperation {
 		case deleteNamedPort:
-			podMetadata := dataplane.NewPodMetadata(podKey, namedPortIpsetEntry, nodeName)
 			if err := c.dp.RemoveFromSets([]*ipsets.IPSetMetadata{ipsets.NewIPSetMetadata(port.Name, ipsets.NamedPorts)}, podMetadata); err != nil {
 				return fmt.Errorf("failed to remove from set when deleting named port with err %w", err)
 			}
 		case addNamedPort:
-			podMetadata := dataplane.NewPodMetadata(podKey, namedPortIpsetEntry, nodeName)
 			if err := c.dp.AddToSets([]*ipsets.IPSetMetadata{ipsets.NewIPSetMetadata(port.Name, ipsets.NamedPorts)}, podMetadata); err != nil {
 				return fmt.Errorf("failed to add to set when deleting named port with err %w", err)
-			}
-		case deletePodAndNamedPort:
-			podMetadata := dataplane.NewDeletedPodMetadata(podKey, namedPortIpsetEntry)
-			if err := c.dp.RemoveFromSets([]*ipsets.IPSetMetadata{ipsets.NewIPSetMetadata(port.Name, ipsets.NamedPorts)}, podMetadata); err != nil {
-				return fmt.Errorf("failed to remove from set when deleting pod and named port with err %w", err)
 			}
 		}
 	}

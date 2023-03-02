@@ -24,30 +24,14 @@ type Config struct {
 	*policies.PolicyManagerCfg
 }
 
-// dirtyIPCache tracks dirty IPs and Pod updates for those IPs.
-// It tracks IPSets a Running Pod was recently added to or removed from, and which deleted Pods were just deleted from an IP.
-// assumption: a Pod won't take up its previously used IP when restarting (see https://stackoverflow.com/questions/52362514/when-will-the-kubernetes-pod-ip-change)
-// A Pod may be associated with more than one dirtyIP after Pod restarts. The number  some ApplyDataPlane fails several times or ApplyDataPlane is asynchronous.
-type dirtyIPCache struct {
+type updatePodCache struct {
 	sync.Mutex
-	// cache maps IP to dirtyIP
-	cache map[string]*dirtyIP
+	// cache maps Pod Key to its updateNPMPod
+	cache map[string]*updateNPMPod
 }
 
-func newDirtyIPCache() *dirtyIPCache {
-	return &dirtyIPCache{cache: make(map[string]*dirtyIP)}
-}
-
-// getOrCreateDirtyIP returns the dirtyIP for the given PodMetadata. If it doesn't exist, it creates a new one.
-// Caller should lock the dirtyIPCache before calling this function.
-func (d *dirtyIPCache) getOrCreateDirtyIP(ip string) *dirtyIP {
-	dIP, ok := d.cache[ip]
-	if !ok {
-		dIP = newDirtyIP(ip)
-		d.cache[ip] = dIP
-	}
-
-	return dIP
+func newUpdatePodCache() *updatePodCache {
+	return &updatePodCache{cache: make(map[string]*updateNPMPod)}
 }
 
 type endpointCache struct {
@@ -67,10 +51,10 @@ type DataPlane struct {
 	nodeName  string
 	// endpointCache stores all endpoints of the network (including off-node)
 	// Key is PodIP
-	endpointCache *endpointCache
-	ioShim        *common.IOShim
-	dirtyIPCache  *dirtyIPCache
-	stopChannel   <-chan struct{}
+	endpointCache  *endpointCache
+	ioShim         *common.IOShim
+	updatePodCache *updatePodCache
+	stopChannel    <-chan struct{}
 }
 
 func NewDataPlane(nodeName string, ioShim *common.IOShim, cfg *Config, stopChannel <-chan struct{}) (*DataPlane, error) {
@@ -80,14 +64,14 @@ func NewDataPlane(nodeName string, ioShim *common.IOShim, cfg *Config, stopChann
 		cfg.IPSetManagerCfg.AddEmptySetToLists = true
 	}
 	dp := &DataPlane{
-		Config:        cfg,
-		policyMgr:     policies.NewPolicyManager(ioShim, cfg.PolicyManagerCfg),
-		ipsetMgr:      ipsets.NewIPSetManager(cfg.IPSetManagerCfg, ioShim),
-		endpointCache: newEndpointCache(),
-		nodeName:      nodeName,
-		ioShim:        ioShim,
-		dirtyIPCache:  newDirtyIPCache(),
-		stopChannel:   stopChannel,
+		Config:         cfg,
+		policyMgr:      policies.NewPolicyManager(ioShim, cfg.PolicyManagerCfg),
+		ipsetMgr:       ipsets.NewIPSetManager(cfg.IPSetManagerCfg, ioShim),
+		endpointCache:  newEndpointCache(),
+		nodeName:       nodeName,
+		ioShim:         ioShim,
+		updatePodCache: newUpdatePodCache(),
+		stopChannel:    stopChannel,
 	}
 
 	err := dp.BootupDataplane()
@@ -159,12 +143,16 @@ func (dp *DataPlane) AddToSets(setNames []*ipsets.IPSetMetadata, podMetadata *Po
 			return fmt.Errorf("error: unexpectedly found deleted pod in AddToSets. podMetadata: %+v", podMetadata)
 		}
 
-		// lock dirtyIPCache while reading/modifying
-		dp.dirtyIPCache.Lock()
-		defer dp.dirtyIPCache.Unlock()
+		// lock updatePodCache while reading/modifying
+		dp.updatePodCache.Lock()
+		defer dp.updatePodCache.Unlock()
 
-		dIP := dp.dirtyIPCache.getOrCreateDirtyIP(podMetadata.PodIP)
-		updatePod := dIP.getOrCreateUpdatePod(podMetadata)
+		updatePod, ok := dp.updatePodCache.cache[podMetadata.PodKey]
+		if !ok {
+			updatePod = newUpdateNPMPod(podMetadata)
+			dp.updatePodCache.cache[podMetadata.PodKey] = updatePod
+		}
+
 		updatePod.updateIPSetsToAdd(setNames)
 	}
 
@@ -182,20 +170,23 @@ func (dp *DataPlane) RemoveFromSets(setNames []*ipsets.IPSetMetadata, podMetadat
 	if dp.shouldUpdatePod() && (podMetadata.NodeName == dp.nodeName || podMetadata.wasDeleted()) {
 		klog.Infof("[DataPlane] processing RemoveFromSets updatePod. podMetadata: %+v", podMetadata)
 
-		// lock dirtyIPCache while reading/modifying
-		dp.dirtyIPCache.Lock()
-		defer dp.dirtyIPCache.Unlock()
+		// lock updatePodCache while reading/modifying
+		dp.updatePodCache.Lock()
+		defer dp.updatePodCache.Unlock()
 
-		dIP := dp.dirtyIPCache.getOrCreateDirtyIP(podMetadata.PodIP)
-		updatePod := dIP.getOrCreateUpdatePod(podMetadata)
 		if podMetadata.wasDeleted() {
-			updatePod.markDeleted()
-			// can discard IPSet updates
-			updatePod.IPSetsToAdd = nil
-			updatePod.IPSetsToRemove = nil
-		} else {
-			updatePod.updateIPSetsToRemove(setNames)
+			klog.Infof("[DataPlane] removing deleted pod from updatePodCache. podMetadata: %+v", podMetadata)
+			delete(dp.updatePodCache.cache, podMetadata.PodKey)
+			return nil
 		}
+
+		updatePod, ok := dp.updatePodCache.cache[podMetadata.PodKey]
+		if !ok {
+			updatePod = newUpdateNPMPod(podMetadata)
+			dp.updatePodCache.cache[podMetadata.PodKey] = updatePod
+		}
+
+		updatePod.updateIPSetsToRemove(setNames)
 	}
 
 	return nil
@@ -241,20 +232,20 @@ func (dp *DataPlane) ApplyDataPlane() error {
 			return nil
 		}
 
-		// lock dirtyIPCache while driving goal state to kernel
+		// lock updatePodCache while driving goal state to kernel
 		// prevents another ApplyDataplane call from updating the same pods
-		dp.dirtyIPCache.Lock()
-		defer dp.dirtyIPCache.Unlock()
+		dp.updatePodCache.Lock()
+		defer dp.updatePodCache.Unlock()
 
-		for _, dIP := range dp.dirtyIPCache.cache {
-			err := dp.updatePod(dIP)
+		for podKey, pod := range dp.updatePodCache.cache {
+			err := dp.updatePod(pod)
 			if err != nil {
 				// move on to the next and later return as success since this can be retried irrespective of other operations
-				metrics.SendErrorLogAndMetric(util.DaemonDataplaneID, "failed to update dirty IP while applying the dataplane. dirty IP object: %+v, err: [%s]", dIP, err.Error())
+				metrics.SendErrorLogAndMetric(util.DaemonDataplaneID, "failed to update pod while applying the dataplane. podKey: [%s], err: [%s]", podKey, err.Error())
 				continue
 			}
 
-			delete(dp.dirtyIPCache.cache, dIP.ip)
+			delete(dp.updatePodCache.cache, podKey)
 		}
 	}
 	return nil

@@ -21,10 +21,7 @@ const (
 	refreshLocalEndpoints bool = false
 )
 
-var (
-	errPolicyModeUnsupported = errors.New("only IPSet policy mode is supported")
-	errMismanagedPodKey      = errors.New("the endpoint corresponds to a different pod")
-)
+var errPolicyModeUnsupported = errors.New("only IPSet policy mode is supported")
 
 // initializeDataPlane will help gather network and endpoint details
 func (dp *DataPlane) initializeDataPlane() error {
@@ -113,65 +110,17 @@ func (dp *DataPlane) shouldUpdatePod() bool {
 // updatePod has two responsibilities in windows
 // 1. Will call into dataplane and updates endpoint references of this pod.
 // 2. Will check for existing applicable network policies and applies it on endpoint.
-// Assumptions:
-// - We will receive a cleanup event for a Pod in the correct order (i.e. after a create event for the same Pod)
-func (dp *DataPlane) updatePod(dIP *dirtyIP) error {
-	klog.Infof("[DataPlane] updatePod called for dirty IP object: %+v", dIP)
+// Assumption: a Pod won't take up its previously used IP when restarting (see https://stackoverflow.com/questions/52362514/when-will-the-kubernetes-pod-ip-change)
+func (dp *DataPlane) updatePod(pod *updateNPMPod) error {
+	klog.Infof("[DataPlane] updatePod called. podKey: %s", pod.PodKey)
+	if len(pod.IPSetsToAdd) == 0 && len(pod.IPSetsToRemove) == 0 {
+		// nothing to do
+		return nil
+	}
 
 	// lock the endpoint cache while we read/modify the endpoint with the pod's IP
 	dp.endpointCache.Lock()
 	defer dp.endpointCache.Unlock()
-
-	// reset ACLs for any deleted Pod that was wrongly assigned to an endpoint (fixes #1729)
-	for podKey, pod := range dIP.pods {
-		if !pod.wasDeleted() {
-			continue
-		}
-
-		endpoint, ok := dp.endpointCache.cache[dIP.ip]
-		if !ok {
-			// this branch will be taken often for the typical flow. 1) Endpoint deleted, 2) Pod delete event
-			// additionally, this branch will be always be taken for an IP on a different node
-			klog.Infof("[DataPlane] ignoring pod deletion on IP since there is no corresponding endpoint. IP: %s. podKey: %s", dIP.ip, podKey)
-			delete(dIP.pods, podKey)
-			continue
-		}
-
-		if endpoint.podKey != podKey {
-			klog.Infof("[DataPlane] ignoring pod deletion on IP since the pod is not associated with the current endpoint. IP: %s. podKey: %s. endpoint: %+v", dIP.ip, podKey, endpoint)
-			delete(dIP.pods, podKey)
-			continue
-		}
-
-		// this Pod was incorrectly assigned to the Endpoint (see issue #1729)
-		if err := dp.policyMgr.ResetEndpoint(endpoint.id); err != nil {
-			return fmt.Errorf("failed to reset endpoint for deleted pod. IP: %s. podKey: %s. endpoint: %+v. err: %w", dIP.ip, podKey, endpoint, err)
-		}
-
-		// mark the Endpoint as unassigned
-		endpoint.podKey = unspecifiedPodKey
-		delete(dIP.pods, podKey)
-	}
-
-	if len(dIP.pods) == 0 {
-		// no running pod to update
-		return nil
-	}
-
-	if len(dIP.pods) > 1 {
-		return fmt.Errorf("error: updatePod called for multiple Running Pods. dirty IP object: %+v", dIP)
-	}
-
-	// there is only one pod in the map
-	var pod *updateNPMPod
-	for _, pod = range dIP.pods {
-		break
-	}
-
-	if len(pod.IPSetsToAdd) == 0 && len(pod.IPSetsToRemove) == 0 {
-		// nothing more to do
-		return nil
-	}
 
 	// Check if pod is already present in cache
 	endpoint, ok := dp.endpointCache.cache[pod.PodIP]
@@ -186,8 +135,22 @@ func (dp *DataPlane) updatePod(dIP *dirtyIP) error {
 		// while refreshing pod endpoints, newly discovered endpoints are given an unspecified pod key
 		klog.Infof("[DataPlane] associating pod with endpoint. podKey: %s. endpoint: %+v", pod.PodKey, endpoint)
 		endpoint.podKey = pod.PodKey
+	} else if pod.PodKey == endpoint.previousIncorrectPodKey {
+		klog.Infof("[DataPlane] ignoring pod update since this pod was previously and incorrectly assigned to this endpoint. endpoint: %+v", endpoint)
+		return nil
 	} else if pod.PodKey != endpoint.podKey {
-		return fmt.Errorf("pod key mismatch. Expected: %s, Actual: %s. Error: [%w]", pod.PodKey, endpoint.podKey, errMismanagedPodKey)
+		// solves issue 1729
+		klog.Infof("[DataPlane] pod key has changed. will reset endpoint acls and skip looking ipsets to remove. new podKey: %s. previous endpoint: %+v", pod.PodKey, endpoint)
+		if err := dp.policyMgr.ResetEndpoint(endpoint.id); err != nil {
+			return fmt.Errorf("failed to reset endpoint for pod with incorrect pod key. new podKey: %s. previous endpoint: %+v. err: %w", pod.PodKey, endpoint, err)
+		}
+
+		// mark this after successful reset. If before reset, we would not retry on failure
+		endpoint.previousIncorrectPodKey = endpoint.podKey
+		endpoint.podKey = pod.PodKey
+
+		// all ACLs were removed, so in case there were ipsets to remove, there's no need to look for policies to delete
+		pod.IPSetsToRemove = nil
 	}
 
 	// for every ipset we're removing from the endpoint, remove from the endpoint any policy that requires the set

@@ -10,6 +10,8 @@ type npmEndpoint struct {
 	id     string
 	ip     string
 	podKey string
+	// previousIncorrectPodKey represents a Pod that was previously and incorrectly assigned to this endpoint (see issue 1729)
+	previousIncorrectPodKey string
 	// Map with Key as Network Policy name to to emulate set
 	// and value as struct{} for minimal memory consumption
 	netPolReference map[string]struct{}

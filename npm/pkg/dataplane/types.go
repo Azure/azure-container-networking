@@ -8,6 +8,8 @@ import (
 	"github.com/Azure/azure-container-networking/npm/util"
 )
 
+const NodePlaceholderForDeletedPod = "DELETED_POD_INDICATOR"
+
 type GenericDataplane interface {
 	BootupDataplane() error
 	RunPeriodicTasks()
@@ -27,31 +29,6 @@ type GenericDataplane interface {
 	UpdatePolicy(policies *policies.NPMNetworkPolicy) error
 }
 
-// dirtyIP represents an IP and all of its updateNPMPod events.
-// there should be only one updateNPMPod such that updateNPMPod.wasDeleted() == false
-type dirtyIP struct {
-	ip string
-	// states maps pod key to its updateNPMPod
-	pods map[string]*updateNPMPod
-}
-
-func newDirtyIP(ip string) *dirtyIP {
-	return &dirtyIP{
-		ip:   ip,
-		pods: make(map[string]*updateNPMPod),
-	}
-}
-
-func (d *dirtyIP) getOrCreateUpdatePod(podMetadata *PodMetadata) *updateNPMPod {
-	uPod, ok := d.pods[podMetadata.PodKey]
-	if !ok {
-		uPod = newUpdateNPMPod(podMetadata)
-		d.pods[podMetadata.PodKey] = uPod
-	}
-
-	return uPod
-}
-
 // UpdateNPMPod pod controller will populate and send this datastructure to dataplane
 // to update the dataplane with the latest pod information
 // this helps in calculating if any update needs to have policies applied or removed
@@ -68,7 +45,6 @@ type PodMetadata struct {
 	PodKey   string
 	PodIP    string
 	NodeName string
-	deleted  bool
 }
 
 // NewPodMetadata is for Pods that were created or have updated labels/namedports
@@ -80,19 +56,8 @@ func NewPodMetadata(podKey, podIP, nodeName string) *PodMetadata {
 	}
 }
 
-// NewDeletedPodMetadata is for Pods that were deleted (e.g. Pod IP has changed)
-func NewDeletedPodMetadata(podKey, podIP string) *PodMetadata {
-	pm := NewPodMetadata(podKey, podIP, "")
-	pm.deleted = true
-	return pm
-}
-
-func (pm *PodMetadata) wasDeleted() bool {
-	return pm.deleted
-}
-
-func (pm *PodMetadata) markDeleted() {
-	pm.deleted = true
+func (p *PodMetadata) wasDeleted() bool {
+	return p.NodeName == NodePlaceholderForDeletedPod
 }
 
 func (p *PodMetadata) Namespace() string {

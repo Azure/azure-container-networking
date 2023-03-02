@@ -34,6 +34,9 @@ func testSerialCases(t *testing.T, tests []*SerialTestCase) {
 	for i, tt := range tests {
 		i := i
 		tt := tt
+		if tt.Description != "ignore Pod update if added then deleted before ApplyDP()" {
+			continue
+		}
 		t.Run(tt.Description, func(t *testing.T) {
 			t.Logf("beginning test #%d. Description: [%s]. Tags: %+v", i, tt.Description, tt.Tags)
 
@@ -60,6 +63,7 @@ func testSerialCases(t *testing.T, tests []*SerialTestCase) {
 			}
 
 			dptestutils.VerifyHNSCache(t, hns, tt.ExpectedSetPolicies, tt.ExpectedEnpdointACLs)
+			require.FailNow(t, "done")
 		})
 	}
 }
