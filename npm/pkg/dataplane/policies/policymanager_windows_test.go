@@ -183,7 +183,7 @@ func TestRemovePoliciesEndpointNotFound(t *testing.T) {
 // Helper functions for UTS
 
 func getPMgr(t *testing.T) (*PolicyManager, *hnswrapper.Hnsv2wrapperFake) {
-	hns := ipsets.GetHNSFake(t)
+	hns := ipsets.GetHNSFake(t, "azure")
 	io := common.NewMockIOShimWithFakeHNS(hns)
 
 	dptestutils.AddIPsToHNS(t, hns, endPointIDList)

@@ -12,12 +12,79 @@ import (
 	"k8s.io/klog"
 )
 
+const (
+	// for lints
+	priority200   = 200
+	priority65499 = 65499
+)
+
 var (
 	ErrFailedMarshalACLSettings                      = errors.New("failed to marshal ACL settings")
 	ErrFailedUnMarshalACLSettings                    = errors.New("failed to unmarshal ACL settings")
 	resetAllACLs                  shouldResetAllACLs = true
 	removeOnlyGivenPolicy         shouldResetAllACLs = false
 )
+
+// baseACLsForCalicoCNI is a list of base ACLs that are required for connectivity on Calico CNI.
+// Note: these ACLs have an ID with only one dash after the prefix so that they can't conflict with ACLs of a policy (see aclPolicyID()).
+var baseACLsForCalicoCNI = []*NPMACLPolSettings{
+	{
+		Id:              fmt.Sprintf("%s-baseazurewireserver", policyIDPrefix),
+		Action:          hcn.ActionTypeBlock,
+		Direction:       hcn.DirectionTypeOut,
+		Priority:        priority200,
+		RemoteAddresses: "168.63.129.16/32",
+		RemotePorts:     "80",
+		Protocols:       "6",
+		RuleType:        hcn.RuleTypeSwitch,
+	},
+	{
+		Id:        fmt.Sprintf("%s-baseallowinswitch", policyIDPrefix),
+		Action:    hcn.ActionTypeAllow,
+		Direction: hcn.DirectionTypeIn,
+		Priority:  priority65499,
+	},
+	{
+		Id:        fmt.Sprintf("%s-baseallowoutswitch", policyIDPrefix),
+		Action:    hcn.ActionTypeAllow,
+		Direction: hcn.DirectionTypeOut,
+		Priority:  priority65499,
+	},
+	{
+		Id:        fmt.Sprintf("%s-baseallowinhost", policyIDPrefix),
+		Action:    hcn.ActionTypeAllow,
+		Direction: hcn.DirectionTypeIn,
+		// unsupported for NPMACLPolSettings
+		// InternalPort:  0,
+		LocalAddresses: "",
+		// unsupported for NPMACLPolSettings (note no 's')
+		// LocalPort: "0",
+		Priority: 0,
+		// unsupported for NPMACLPolSettings (note no 's')
+		// Protocol:       "256",
+		RemoteAddresses: "",
+		// unsupported for NPMACLPolSettings (note no 's')
+		// RemotePort: "0",
+		RuleType: hcn.RuleTypeHost,
+	},
+	{
+		Id:        fmt.Sprintf("%s-baseallowouthost", policyIDPrefix),
+		Action:    hcn.ActionTypeAllow,
+		Direction: hcn.DirectionTypeOut,
+		// unsupported for NPMACLPolSettings
+		// InternalPort:  0,
+		LocalAddresses: "",
+		// unsupported for NPMACLPolSettings (note no 's')
+		// LocalPort: "0",
+		Priority: 0,
+		// unsupported for NPMACLPolSettings (note no 's')
+		// Protocol:       "256",
+		RemoteAddresses: "",
+		// unsupported for NPMACLPolSettings (note no 's')
+		// RemotePort: "0",
+		RuleType: hcn.RuleTypeHost,
+	},
+}
 
 type staleChains struct{} // unused in Windows
 
@@ -55,6 +122,19 @@ func (pMgr *PolicyManager) bootup(epIDs []string) error {
 
 func (pMgr *PolicyManager) reconcile() {
 	// not implemented
+}
+
+// AddBaseACLsForCalicoCNI attempts to add base ACLs for Calico CNI.
+func (pMgr *PolicyManager) AddBaseACLsForCalicoCNI(epID string) {
+	epPolicyRequest, err := getEPPolicyReqFromACLSettings(baseACLsForCalicoCNI)
+	if err != nil {
+		klog.Errorf("failed to get policy request for base ACLs for Calico CNI. endpoint: %s. err: %v", epID, err)
+		return
+	}
+
+	if err := pMgr.applyPoliciesToEndpointID(epID, epPolicyRequest); err != nil {
+		klog.Errorf("failed to apply base ACLs for Calico CNI. endpoint: %s. err: %v", epID, err)
+	}
 }
 
 // addPolicy will add the policy for each specified endpoint if the policy doesn't exist on the endpoint yet,

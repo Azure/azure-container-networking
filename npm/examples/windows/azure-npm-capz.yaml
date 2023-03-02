@@ -1,0 +1,162 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: azure-npm
+  namespace: kube-system
+  labels:
+    addonmanager.kubernetes.io/mode: EnsureExists
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: azure-npm
+  namespace: kube-system
+  labels:
+    addonmanager.kubernetes.io/mode: EnsureExists
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - pods
+      - nodes
+      - namespaces
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - networking.k8s.io
+    resources:
+      - networkpolicies
+    verbs:
+      - get
+      - list
+      - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: azure-npm-binding
+  namespace: kube-system
+  labels:
+    addonmanager.kubernetes.io/mode: EnsureExists
+subjects:
+  - kind: ServiceAccount
+    name: azure-npm
+    namespace: kube-system
+roleRef:
+  kind: ClusterRole
+  name: azure-npm
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: azure-npm-win
+  namespace: kube-system
+  labels:
+    app: azure-npm
+    addonmanager.kubernetes.io/mode: EnsureExists
+spec:
+  selector:
+    matchLabels:
+      k8s-app: azure-npm
+  template:
+    metadata:
+      labels:
+        k8s-app: azure-npm
+      annotations:
+        azure.npm/scrapeable: ""
+    spec:
+      priorityClassName: system-node-critical
+      tolerations:
+        - operator: "Exists"
+          effect: NoExecute
+        - operator: "Exists"
+          effect: NoSchedule
+        - key: CriticalAddonsOnly
+          operator: Exists
+      securityContext:
+        windowsOptions:
+          hostProcess: true
+          runAsUserName: "NT AUTHORITY\\SYSTEM"
+      hostNetwork: true
+      containers:
+        - name: azure-npm
+          # setting to future version since it will use the updated Dockerfile
+          image: mcr.microsoft.com/containernetworking/azure-npm:v1.4.42
+          command: ["powershell.exe"]
+          args:
+            [
+              '.\setkubeconfigpath-capz.ps1',
+              ";",
+              "powershell.exe",
+              '.\npm.exe',
+              "start",
+              '--kubeconfig=.\kubeconfig',
+            ]
+          resources:
+            limits:
+              cpu: 250m
+              memory: 300Mi
+            requests:
+              cpu: 250m
+          env:
+            - name: HOSTNAME
+              valueFrom:
+                fieldRef:
+                  apiVersion: v1
+                  fieldPath: spec.nodeName
+            - name: NPM_CONFIG
+              value: .\\etc\\azure-npm\\azure-npm.json
+          volumeMounts:
+            - name: azure-npm-config
+              mountPath: .\\etc\\azure-npm
+      nodeSelector:
+        kubernetes.io/os: windows
+      volumes:
+        - name: azure-npm-config
+          configMap:
+            name: azure-npm-config
+      serviceAccountName: azure-npm
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: npm-metrics-cluster-service
+  namespace: kube-system
+  labels:
+    app: npm-metrics
+spec:
+  selector:
+    k8s-app: azure-npm
+  ports:
+    - port: 9000
+      targetPort: 10091
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: azure-npm-config
+  namespace: kube-system
+data:
+  azure-npm.json: |
+    {
+        "WindowsNetworkName": "Calico",
+        "ResyncPeriodInMinutes": 15,
+        "ListeningPort":         10091,
+        "ListeningAddress":      "0.0.0.0",
+        "Toggles": {
+            "EnablePrometheusMetrics": true,
+            "EnablePprof":             true,
+            "EnableHTTPDebugAPI":      true,
+            "EnableV2NPM":             true,
+            "PlaceAzureChainFirst":    true,
+            "ApplyIPSetsOnNeed":       false
+        },
+        "Transport": {
+          "Address": "azure-npm.kube-system.svc.cluster.local",
+          "Port": 10092,
+          "ServicePort": 9001
+        }
+    }

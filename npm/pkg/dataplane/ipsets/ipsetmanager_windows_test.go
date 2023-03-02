@@ -68,7 +68,7 @@ func TestGetIPsFromSelectorIPSets(t *testing.T) {
 }
 
 func TestAddToSetWindows(t *testing.T) {
-	hns := GetHNSFake(t)
+	hns := GetHNSFake(t, "azure")
 	io := common.NewMockIOShimWithFakeHNS(hns)
 	iMgr := NewIPSetManager(applyAlwaysCfg, io)
 
@@ -102,7 +102,7 @@ func TestDestroyNPMIPSets(t *testing.T) {
 // create all possible SetTypes
 // FIXME because this can flake, commenting this out until we refactor with new windows testing framework
 // func TestApplyCreationsAndAdds(t *testing.T) {
-// 	hns := GetHNSFake(t)
+// 	hns := GetHNSFake(t, "azure")
 // 	io := common.NewMockIOShimWithFakeHNS(hns)
 // 	iMgr := NewIPSetManager(applyAlwaysCfg, io)
 
@@ -182,7 +182,7 @@ func TestDestroyNPMIPSets(t *testing.T) {
 // }
 
 func TestApplyDeletions(t *testing.T) {
-	hns := GetHNSFake(t)
+	hns := GetHNSFake(t, "azure")
 	io := common.NewMockIOShimWithFakeHNS(hns)
 	iMgr := NewIPSetManager(applyAlwaysCfg, io)
 
@@ -230,7 +230,7 @@ func TestApplyDeletions(t *testing.T) {
 
 // TODO test that a reconcile list is updated
 func TestFailureOnCreation(t *testing.T) {
-	hns := GetHNSFake(t)
+	hns := GetHNSFake(t, "azure")
 	io := common.NewMockIOShimWithFakeHNS(hns)
 	iMgr := NewIPSetManager(applyAlwaysCfg, io)
 
@@ -268,7 +268,7 @@ func TestFailureOnCreation(t *testing.T) {
 // FIXME commenting this out until we refactor with new windows testing framework
 // func TestFailureOnAddToList(t *testing.T) {
 // 	// This exact scenario wouldn't occur. This error happens when the cache is out of date with the kernel.
-// 	hns := GetHNSFake(t)
+// 	hns := GetHNSFake(t, "azure")
 // 	io := common.NewMockIOShimWithFakeHNS(hns)
 // 	iMgr := NewIPSetManager(applyAlwaysCfg, io)
 
@@ -319,7 +319,7 @@ func TestFailureOnCreation(t *testing.T) {
 // TODO test that a reconcile list is updated
 func TestFailureOnFlush(t *testing.T) {
 	// This exact scenario wouldn't occur. This error happens when the cache is out of date with the kernel.
-	hns := GetHNSFake(t)
+	hns := GetHNSFake(t, "azure")
 	io := common.NewMockIOShimWithFakeHNS(hns)
 	iMgr := NewIPSetManager(applyAlwaysCfg, io)
 
@@ -348,7 +348,7 @@ func TestFailureOnFlush(t *testing.T) {
 
 // TODO test that a reconcile list is updated
 func TestFailureOnDeletion(t *testing.T) {
-	hns := GetHNSFake(t)
+	hns := GetHNSFake(t, "azure")
 	io := common.NewMockIOShimWithFakeHNS(hns)
 	iMgr := NewIPSetManager(applyAlwaysCfg, io)
 
