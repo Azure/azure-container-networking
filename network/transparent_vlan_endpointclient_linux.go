@@ -513,15 +513,17 @@ func (client *TransparentVlanEndpointClient) DeleteEndpointsImpl(ep *endpoint, g
 
 	log.Printf("[transparent vlan] There are %d routes remaining after deletion", routesLeft)
 
-	if routesLeft <= numDefaultRoutes {
-		// Deletes default arp, default routes, vlan veth; there are two default routes
-		// so when we have <= numDefaultRoutes routes left, no containers use this namespace
-		log.Printf("[transparent vlan] Deleting namespace %s as no containers occupy it", client.vnetNSName)
-		delErr := client.netnsClient.DeleteNamed(client.vnetNSName)
-		if delErr != nil {
-			return errors.Wrap(delErr, "failed to delete namespace")
+	// TODO: revist if this require in future.
+	/*	if routesLeft <= numDefaultRoutes {
+			// Deletes default arp, default routes, vlan veth; there are two default routes
+			// so when we have <= numDefaultRoutes routes left, no containers use this namespace
+			log.Printf("[transparent vlan] Deleting namespace %s as no containers occupy it", client.vnetNSName)
+			delErr := client.netnsClient.DeleteNamed(client.vnetNSName)
+			if delErr != nil {
+				return errors.Wrap(delErr, "failed to delete namespace")
+			}
 		}
-	}
+	*/
 	return nil
 }
 
