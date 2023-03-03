@@ -531,6 +531,22 @@ func TestGetAllNetworkContainers(t *testing.T) {
 		wantErr bool
 	}{
 		{
+			name: "bad request 404",
+			ctx:  context.TODO(),
+			podInfo: cns.KubernetesPodInfo{
+				PodName:      "testpodname",
+				PodNamespace: "podNamespace",
+			},
+			mockdo: &mockdo{
+				errToReturn:            nil,
+				objToReturn:            cns.GetNetworkContainerResponse{},
+				httpStatusCodeToReturn: http.StatusNotFound,
+			},
+			routes:  emptyRoutes,
+			want:    nil,
+			wantErr: true,
+		},
+		{
 			name: "bad request",
 			ctx:  context.TODO(),
 			podInfo: cns.KubernetesPodInfo{
