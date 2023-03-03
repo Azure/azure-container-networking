@@ -20,7 +20,7 @@ const (
 	donotResetIPSets                           = false
 )
 
-var errUnsupportedNetwork = errors.New("only 'azure' network is supported")
+var errUnsupportedNetwork = errors.New("only 'azure' and 'Calico' networks are supported")
 
 type networkPolicyBuilder struct {
 	toAddSets    map[string]*hcn.SetPolicySetting
@@ -242,12 +242,17 @@ func (iMgr *IPSetManager) applyIPSets() error {
 // networkPolicyBuild which contains the new setPolicies to be added, updated and deleted
 // Assumes that the dirty cache is locked (or equivalently, the ipsetmanager itself).
 // toAddSets:
-//      this function will loop through the dirty cache and adds non-existing sets to toAddSets
+//
+//	this function will loop through the dirty cache and adds non-existing sets to toAddSets
+//
 // toUpdateSets:
-//      this function will loop through the dirty cache and adds existing sets in HNS to toUpdateSets
-//      this function will update all existing sets in HNS with their latest goal state irrespective of any change to the object
+//
+//	this function will loop through the dirty cache and adds existing sets in HNS to toUpdateSets
+//	this function will update all existing sets in HNS with their latest goal state irrespective of any change to the object
+//
 // toDeleteSets:
-//      this function will loop through the dirty delete cache and adds existing set obj in HNS to toDeleteSets
+//
+//	this function will loop through the dirty delete cache and adds existing set obj in HNS to toDeleteSets
 func (iMgr *IPSetManager) calculateNewSetPolicies(networkPolicies []hcn.NetworkPolicy) (*networkPolicyBuilder, error) {
 	setPolicyBuilder := &networkPolicyBuilder{
 		toAddSets:    map[string]*hcn.SetPolicySetting{},
@@ -307,7 +312,7 @@ func (iMgr *IPSetManager) getHCnNetwork() (*hcn.HostComputeNetwork, error) {
 	if iMgr.iMgrCfg.NetworkName == "" {
 		iMgr.iMgrCfg.NetworkName = util.AzureNetworkName
 	}
-	if iMgr.iMgrCfg.NetworkName != util.AzureNetworkName {
+	if iMgr.iMgrCfg.NetworkName != util.AzureNetworkName && iMgr.iMgrCfg.NetworkName != util.CalicoNetworkName {
 		return nil, errUnsupportedNetwork
 	}
 	network, err := iMgr.ioShim.Hns.GetNetworkByName(iMgr.iMgrCfg.NetworkName)

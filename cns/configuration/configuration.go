@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/logger"
@@ -88,22 +89,22 @@ type KeyVaultSettings struct {
 	RefreshIntervalInHrs int
 }
 
-func getConfigFilePath(cmdLineConfigPath string) (string, error) {
-	// If config path is set from cmd line, return that
-	if cmdLineConfigPath != "" {
-		return cmdLineConfigPath, nil
+func getConfigFilePath(cmdPath string) (string, error) {
+	// If config path is set from cmd line, return that.
+	if strings.TrimSpace(cmdPath) != "" {
+		return cmdPath, nil
 	}
-
-	// Check if env set for config path otherwise use default path
-	configpath, found := os.LookupEnv(EnvCNSConfig)
-	if !found {
-		dir, err := common.GetExecutableDirectory()
-		if err != nil {
-			return "", errors.Wrap(err, "failed to discover exec dir for config")
-		}
-		configpath = filepath.Join(dir, defaultConfigName)
+	// If config path is set from env, return that.
+	if envPath := os.Getenv(EnvCNSConfig); strings.TrimSpace(envPath) != "" {
+		return envPath, nil
 	}
-	return configpath, nil
+	// otherwise compose the default config path and return that.
+	dir, err := common.GetExecutableDirectory()
+	if err != nil {
+		return "", errors.Wrap(err, "failed to discover exec dir for config")
+	}
+	defaultPath := filepath.Join(dir, defaultConfigName)
+	return defaultPath, nil
 }
 
 // ReadConfig returns a CNS config from file or an error.
@@ -112,18 +113,16 @@ func ReadConfig(cmdLineConfigPath string) (*CNSConfig, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	logger.Printf("[Configuration] Config path:%s", configpath)
-
+	logger.Printf("[Configuration] Using config path: %s", configpath)
 	return readConfigFromFile(configpath)
 }
 
+// readConfigFromFile attempts to read the file and unmarshal it in to a CNSConfig.
 func readConfigFromFile(f string) (*CNSConfig, error) {
 	content, err := os.ReadFile(f)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to read config file %s", f)
 	}
-
 	var config CNSConfig
 	if err := json.Unmarshal(content, &config); err != nil {
 		return nil, errors.Wrap(err, "failed to unmarshal config")
