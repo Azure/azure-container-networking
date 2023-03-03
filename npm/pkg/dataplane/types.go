@@ -45,7 +45,6 @@ type PodMetadata struct {
 	NodeName string
 }
 
-// NewPodMetadata is for Pods that were created or have updated labels/namedports
 func NewPodMetadata(podKey, podIP, nodeName string) *PodMetadata {
 	return &PodMetadata{
 		PodKey:   podKey,
