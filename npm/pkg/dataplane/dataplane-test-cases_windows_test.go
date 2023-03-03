@@ -1632,8 +1632,11 @@ func updatePodTests() []*SerialTestCase {
 		},
 	}
 
-	allTests := append(sequence1Tests, sequence2Tests...)
+	allTests := sequence1Tests
+	allTests = append(allTests, sequence2Tests...)
 	// allTests = append(allTests, podAssignmentSequence3Tests()...)
+	// make golint happy
+	_ = podAssignmentSequence3Tests()
 	allTests = append(allTests, otherTests...)
 	return allTests
 }
