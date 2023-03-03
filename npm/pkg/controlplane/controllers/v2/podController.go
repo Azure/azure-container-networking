@@ -513,10 +513,8 @@ func (c *PodController) syncAddAndUpdatePod(newPodObj *corev1.Pod) (metrics.Oper
 	newPodPorts := common.GetContainerPortList(newPodObj)
 	if !reflect.DeepEqual(cachedNpmPod.ContainerPorts, newPodPorts) {
 		// Delete cached pod's named ports from its ipset.
-		// Node name is only used in Windows. Keep consistency with above RemoveFromSets() calls by using the Pod's node name.
-		// manageNamedPortIpsets() also does nothing for Windows currently.
 		if err = c.manageNamedPortIpsets(
-			cachedNpmPod.ContainerPorts, podKey, cachedNpmPod.PodIP, newPodMetadata.NodeName, deleteNamedPort); err != nil {
+			cachedNpmPod.ContainerPorts, podKey, cachedNpmPod.PodIP, "", deleteNamedPort); err != nil {
 			return metrics.UpdateOp, fmt.Errorf("[syncAddAndUpdatePod] Error: failed to delete pod from named port ipset with err: %w", err)
 		}
 		// Since portList ipset deletion is successful, NPM can remove cachedContainerPorts
@@ -543,7 +541,7 @@ func (c *PodController) cleanUpDeletedPod(cachedNpmPodKey string) error {
 	}
 
 	var err error
-	cachedPodMetadata := dataplane.NewPodMetadata(cachedNpmPodKey, cachedNpmPod.PodIP, dataplane.NodePlaceholderForDeletedPod)
+	cachedPodMetadata := dataplane.NewPodMetadata(cachedNpmPodKey, cachedNpmPod.PodIP, "")
 	// Delete the pod from its namespace's ipset.
 	// note: NodeName empty is not going to call update pod
 	if err = c.dp.RemoveFromSets(
@@ -569,7 +567,7 @@ func (c *PodController) cleanUpDeletedPod(cachedNpmPodKey string) error {
 
 	// Delete pod's named ports from its ipset. Need to pass true in the manageNamedPortIpsets function call
 	if err = c.manageNamedPortIpsets(
-		cachedNpmPod.ContainerPorts, cachedNpmPodKey, cachedNpmPod.PodIP, dataplane.NodePlaceholderForDeletedPod, deleteNamedPort); err != nil {
+		cachedNpmPod.ContainerPorts, cachedNpmPodKey, cachedNpmPod.PodIP, "", deleteNamedPort); err != nil {
 		return fmt.Errorf("[cleanUpDeletedPod] Error: failed to delete pod from named port ipset with err: %w", err)
 	}
 

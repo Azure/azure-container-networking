@@ -136,12 +136,8 @@ func (dp *DataPlane) AddToSets(setNames []*ipsets.IPSetMetadata, podMetadata *Po
 		return fmt.Errorf("[DataPlane] error while adding to set: %w", err)
 	}
 
-	if dp.shouldUpdatePod() && (podMetadata.NodeName == dp.nodeName || podMetadata.wasDeleted()) {
+	if dp.shouldUpdatePod() && podMetadata.NodeName == dp.nodeName {
 		klog.Infof("[DataPlane] processing AddToSets updatePod. podMetadata: %+v", podMetadata)
-
-		if podMetadata.wasDeleted() {
-			return fmt.Errorf("error: unexpectedly found deleted pod in AddToSets. podMetadata: %+v", podMetadata)
-		}
 
 		// lock updatePodCache while reading/modifying
 		dp.updatePodCache.Lock()
@@ -167,18 +163,12 @@ func (dp *DataPlane) RemoveFromSets(setNames []*ipsets.IPSetMetadata, podMetadat
 		return fmt.Errorf("[DataPlane] error while removing from set: %w", err)
 	}
 
-	if dp.shouldUpdatePod() && (podMetadata.NodeName == dp.nodeName || podMetadata.wasDeleted()) {
+	if dp.shouldUpdatePod() && podMetadata.NodeName == dp.nodeName {
 		klog.Infof("[DataPlane] processing RemoveFromSets updatePod. podMetadata: %+v", podMetadata)
 
 		// lock updatePodCache while reading/modifying
 		dp.updatePodCache.Lock()
 		defer dp.updatePodCache.Unlock()
-
-		if podMetadata.wasDeleted() {
-			klog.Infof("[DataPlane] removing deleted pod from updatePodCache. podMetadata: %+v", podMetadata)
-			delete(dp.updatePodCache.cache, podMetadata.PodKey)
-			return nil
-		}
 
 		updatePod, ok := dp.updatePodCache.cache[podMetadata.PodKey]
 		if !ok {

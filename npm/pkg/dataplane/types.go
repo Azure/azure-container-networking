@@ -8,8 +8,6 @@ import (
 	"github.com/Azure/azure-container-networking/npm/util"
 )
 
-const NodePlaceholderForDeletedPod = "DELETED_POD_INDICATOR"
-
 type GenericDataplane interface {
 	BootupDataplane() error
 	RunPeriodicTasks()
@@ -54,10 +52,6 @@ func NewPodMetadata(podKey, podIP, nodeName string) *PodMetadata {
 		PodIP:    podIP,
 		NodeName: nodeName,
 	}
-}
-
-func (p *PodMetadata) wasDeleted() bool {
-	return p.NodeName == NodePlaceholderForDeletedPod
 }
 
 func (p *PodMetadata) Namespace() string {

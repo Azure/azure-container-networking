@@ -429,14 +429,13 @@ func TestDeletePod(t *testing.T) {
 	}
 	dp.EXPECT().ApplyDataPlane().Return(nil).Times(2)
 	// Delete pod section
-	deleteMetadata := dataplane.NewPodMetadata("test-namespace/test-pod", "1.2.3.4", dataplane.NodePlaceholderForDeletedPod)
-	dp.EXPECT().RemoveFromSets(mockIPSets[:1], deleteMetadata).Return(nil).Times(1)
-	dp.EXPECT().RemoveFromSets(mockIPSets[1:], deleteMetadata).Return(nil).Times(1)
+	dp.EXPECT().RemoveFromSets(mockIPSets[:1], podMetadata1).Return(nil).Times(1)
+	dp.EXPECT().RemoveFromSets(mockIPSets[1:], podMetadata1).Return(nil).Times(1)
 	if !util.IsWindowsDP() {
 		dp.EXPECT().
 			RemoveFromSets(
 				[]*ipsets.IPSetMetadata{ipsets.NewIPSetMetadata("app:test-pod", ipsets.NamedPorts)},
-				dataplane.NewPodMetadata("test-namespace/test-pod", "1.2.3.4,8080", dataplane.NodePlaceholderForDeletedPod),
+				dataplane.NewPodMetadata("test-namespace/test-pod", "1.2.3.4,8080", ""),
 			).
 			Return(nil).Times(1)
 	}
@@ -546,14 +545,13 @@ func TestDeletePodWithTombstoneAfterAddingPod(t *testing.T) {
 	}
 	dp.EXPECT().ApplyDataPlane().Return(nil).Times(2)
 	// Delete pod section
-	deleteMetadata := dataplane.NewPodMetadata("test-namespace/test-pod", "1.2.3.4", dataplane.NodePlaceholderForDeletedPod)
-	dp.EXPECT().RemoveFromSets(mockIPSets[:1], deleteMetadata).Return(nil).Times(1)
-	dp.EXPECT().RemoveFromSets(mockIPSets[1:], deleteMetadata).Return(nil).Times(1)
+	dp.EXPECT().RemoveFromSets(mockIPSets[:1], podMetadata1).Return(nil).Times(1)
+	dp.EXPECT().RemoveFromSets(mockIPSets[1:], podMetadata1).Return(nil).Times(1)
 	if !util.IsWindowsDP() {
 		dp.EXPECT().
 			RemoveFromSets(
 				[]*ipsets.IPSetMetadata{ipsets.NewIPSetMetadata("app:test-pod", ipsets.NamedPorts)},
-				dataplane.NewPodMetadata("test-namespace/test-pod", "1.2.3.4,8080", dataplane.NodePlaceholderForDeletedPod),
+				dataplane.NewPodMetadata("test-namespace/test-pod", "1.2.3.4,8080", ""),
 			).
 			Return(nil).Times(1)
 	}
@@ -666,14 +664,13 @@ func TestEmptyIPUpdate(t *testing.T) {
 	}
 	dp.EXPECT().ApplyDataPlane().Return(nil).Times(2)
 	// Delete pod section
-	deleteMetadata := dataplane.NewPodMetadata("test-namespace/test-pod", "1.2.3.4", dataplane.NodePlaceholderForDeletedPod)
-	dp.EXPECT().RemoveFromSets(mockIPSets[:1], deleteMetadata).Return(nil).Times(1)
-	dp.EXPECT().RemoveFromSets(mockIPSets[1:], deleteMetadata).Return(nil).Times(1)
+	dp.EXPECT().RemoveFromSets(mockIPSets[:1], podMetadata1).Return(nil).Times(1)
+	dp.EXPECT().RemoveFromSets(mockIPSets[1:], podMetadata1).Return(nil).Times(1)
 	if !util.IsWindowsDP() {
 		dp.EXPECT().
 			RemoveFromSets(
 				[]*ipsets.IPSetMetadata{ipsets.NewIPSetMetadata("app:test-pod", ipsets.NamedPorts)},
-				dataplane.NewPodMetadata("test-namespace/test-pod", "1.2.3.4,8080", dataplane.NodePlaceholderForDeletedPod),
+				dataplane.NewPodMetadata("test-namespace/test-pod", "1.2.3.4,8080", ""),
 			).
 			Return(nil).Times(1)
 	}
@@ -760,14 +757,13 @@ func TestIPAddressUpdatePod(t *testing.T) {
 	}
 	dp.EXPECT().ApplyDataPlane().Return(nil).Times(2)
 	// Delete pod section
-	deleteMetadata := dataplane.NewPodMetadata("test-namespace/test-pod", "1.2.3.4", dataplane.NodePlaceholderForDeletedPod)
-	dp.EXPECT().RemoveFromSets(mockIPSets[:1], deleteMetadata).Return(nil).Times(1)
-	dp.EXPECT().RemoveFromSets(mockIPSets[1:], deleteMetadata).Return(nil).Times(1)
+	dp.EXPECT().RemoveFromSets(mockIPSets[:1], podMetadata1).Return(nil).Times(1)
+	dp.EXPECT().RemoveFromSets(mockIPSets[1:], podMetadata1).Return(nil).Times(1)
 	if !util.IsWindowsDP() {
 		dp.EXPECT().
 			RemoveFromSets(
 				[]*ipsets.IPSetMetadata{ipsets.NewIPSetMetadata("app:test-pod", ipsets.NamedPorts)},
-				dataplane.NewPodMetadata("test-namespace/test-pod", "1.2.3.4,8080", dataplane.NodePlaceholderForDeletedPod),
+				dataplane.NewPodMetadata("test-namespace/test-pod", "1.2.3.4,8080", ""),
 			).
 			Return(nil).Times(1)
 	}
@@ -835,14 +831,13 @@ func TestPodStatusUpdatePod(t *testing.T) {
 	}
 	dp.EXPECT().ApplyDataPlane().Return(nil).Times(2)
 	// Delete pod section
-	deleteMetadata := dataplane.NewPodMetadata("test-namespace/test-pod", "1.2.3.4", dataplane.NodePlaceholderForDeletedPod)
-	dp.EXPECT().RemoveFromSets(mockIPSets[:1], deleteMetadata).Return(nil).Times(1)
-	dp.EXPECT().RemoveFromSets(mockIPSets[1:], deleteMetadata).Return(nil).Times(1)
+	dp.EXPECT().RemoveFromSets(mockIPSets[:1], podMetadata1).Return(nil).Times(1)
+	dp.EXPECT().RemoveFromSets(mockIPSets[1:], podMetadata1).Return(nil).Times(1)
 	if !util.IsWindowsDP() {
 		dp.EXPECT().
 			RemoveFromSets(
 				[]*ipsets.IPSetMetadata{ipsets.NewIPSetMetadata("app:test-pod", ipsets.NamedPorts)},
-				dataplane.NewPodMetadata("test-namespace/test-pod", "1.2.3.4,8080", dataplane.NodePlaceholderForDeletedPod),
+				dataplane.NewPodMetadata("test-namespace/test-pod", "1.2.3.4,8080", ""),
 			).
 			Return(nil).Times(1)
 	}

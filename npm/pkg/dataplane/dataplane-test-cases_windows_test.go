@@ -1459,7 +1459,6 @@ func updatePodTests() []*SerialTestCase {
 
 	otherTests := []*SerialTestCase{
 		{
-			// log: "[DataPlane] removing deleted pod from updatePodCache. podMetadata: &{PodKey:x/a PodIP:10.0.0.1 NodeName:DELETED_POD_INDICATOR}"
 			Description: "ignore Pod update if added then deleted before ApplyDP()",
 			Actions: []*Action{
 				UpdatePolicy(policyXBaseOnK1V1()),
