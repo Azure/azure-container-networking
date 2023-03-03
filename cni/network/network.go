@@ -951,6 +951,7 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 	// with CNI SPEC as mentioned below.
 
 	numEndpointsToDelete := 1
+	// only get number of endpoints if it's multitenancy mode
 	if nwCfg.MultiTenancy {
 		numEndpointsToDelete = plugin.nm.GetNumEndpointsInNetNs(args.Netns)
 	}
