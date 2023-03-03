@@ -218,7 +218,7 @@ func (dp *DataPlane) ApplyDataPlane() error {
 	if dp.shouldUpdatePod() {
 		// do not refresh endpoints if the updatePodCache is empty
 		dp.updatePodCache.Lock()
-		if len(dp.updatePodCache.cache) != 0 {
+		if len(dp.updatePodCache.cache) == 0 {
 			dp.updatePodCache.Unlock()
 			return nil
 		}
