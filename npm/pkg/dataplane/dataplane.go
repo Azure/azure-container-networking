@@ -26,7 +26,6 @@ type Config struct {
 
 type updatePodCache struct {
 	sync.Mutex
-	// cache maps Pod Key to its updateNPMPod
 	cache map[string]*updateNPMPod
 }
 
@@ -137,14 +136,15 @@ func (dp *DataPlane) AddToSets(setNames []*ipsets.IPSetMetadata, podMetadata *Po
 	}
 
 	if dp.shouldUpdatePod() && podMetadata.NodeName == dp.nodeName {
-		klog.Infof("[DataPlane] processing AddToSets updatePod. podMetadata: %+v", podMetadata)
+		klog.Infof("[DataPlane] Updating Sets to Add for pod key %s", podMetadata.PodKey)
 
-		// lock updatePodCache while reading/modifying
+		// lock updatePodCache while reading/modifying or setting the updatePod in the cache
 		dp.updatePodCache.Lock()
 		defer dp.updatePodCache.Unlock()
 
 		updatePod, ok := dp.updatePodCache.cache[podMetadata.PodKey]
 		if !ok {
+			klog.Infof("[DataPlane] {AddToSet} pod key %s not found in updatePodCache. creating a new obj", podMetadata.PodKey)
 			updatePod = newUpdateNPMPod(podMetadata)
 			dp.updatePodCache.cache[podMetadata.PodKey] = updatePod
 		}
@@ -164,14 +164,15 @@ func (dp *DataPlane) RemoveFromSets(setNames []*ipsets.IPSetMetadata, podMetadat
 	}
 
 	if dp.shouldUpdatePod() && podMetadata.NodeName == dp.nodeName {
-		klog.Infof("[DataPlane] processing RemoveFromSets updatePod. podMetadata: %+v", podMetadata)
+		klog.Infof("[DataPlane] Updating Sets to Remove for pod key %s", podMetadata.PodKey)
 
-		// lock updatePodCache while reading/modifying
+		// lock updatePodCache while reading/modifying or setting the updatePod in the cache
 		dp.updatePodCache.Lock()
 		defer dp.updatePodCache.Unlock()
 
 		updatePod, ok := dp.updatePodCache.cache[podMetadata.PodKey]
 		if !ok {
+			klog.Infof("[DataPlane] {RemoveFromSet} pod key %s not found in updatePodCache. creating a new obj", podMetadata.PodKey)
 			updatePod = newUpdateNPMPod(podMetadata)
 			dp.updatePodCache.cache[podMetadata.PodKey] = updatePod
 		}
@@ -231,7 +232,7 @@ func (dp *DataPlane) ApplyDataPlane() error {
 			err := dp.updatePod(pod)
 			if err != nil {
 				// move on to the next and later return as success since this can be retried irrespective of other operations
-				metrics.SendErrorLogAndMetric(util.DaemonDataplaneID, "failed to update pod while applying the dataplane. podKey: [%s], err: [%s]", podKey, err.Error())
+				metrics.SendErrorLogAndMetric(util.DaemonDataplaneID, "failed to update pod while applying the dataplane. key: [%s], err: [%s]", podKey, err.Error())
 				continue
 			}
 
