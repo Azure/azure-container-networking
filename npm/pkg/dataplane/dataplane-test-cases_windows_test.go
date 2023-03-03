@@ -1957,7 +1957,6 @@ func podAssignmentSequence3Tests() []*SerialTestCase {
 			},
 		},
 	}
-
 }
 
 func getAllMultiJobTests() []*MultiJobTestCase {
