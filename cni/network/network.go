@@ -769,6 +769,8 @@ func (plugin *NetPlugin) createEndpointInternal(opt *createEndpointInternalOpt) 
 	}
 
 	if opt.resultV6 != nil {
+		// inject ipv6 routes to container if it's dualstack
+		epInfo.IPV6Mode = "dualstack"
 		for _, ipconfig := range opt.resultV6.IPs {
 			epInfo.IPAddresses = append(epInfo.IPAddresses, ipconfig.Address)
 		}
