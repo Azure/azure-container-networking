@@ -92,6 +92,20 @@ overlay-byocni-up: rg-up overlay-net-up ## Brings up an Overlay BYO CNI cluster
 		--yes
 	@$(MAKE) set-kubeconf
 
+overlay-cilium-up: rg-up overlay-net-up ## Brings up an Overlay AzCNI cluster
+	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
+		--node-count 2 \
+		--node-vm-size $(VM_SIZE) \
+		--load-balancer-sku basic \
+		--network-plugin azure \
+		--enable-cilium-dataplane \
+		--network-plugin-mode overlay \
+		--pod-cidr 192.168.0.0/16 \
+		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
+		--no-ssh-key \
+		--yes
+	@$(MAKE) set-kubeconf
+
 overlay-up: rg-up overlay-net-up ## Brings up an Overlay AzCNI cluster
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
 		--node-count 2 \
