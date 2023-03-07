@@ -1,5 +1,3 @@
-//go:build integration
-
 package k8s
 
 import (
@@ -16,25 +14,45 @@ import (
 	"k8s.io/client-go/transport/spdy"
 )
 
+// PortForwarder can initiate port forwarding to a k8s pod.
 type PortForwarder struct {
 	clientset *kubernetes.Clientset
 	transport http.RoundTripper
 	upgrader  spdy.Upgrader
 }
 
+// PortForwardStreamHandle contains information about the port forwarding session and can terminate it.
 type PortForwardStreamHandle struct {
 	url      string
 	stopChan chan struct{}
+	errChan  chan error
 }
 
+// Stop terminates a port forwarding session.
 func (p *PortForwardStreamHandle) Stop() {
 	p.stopChan <- struct{}{}
 }
 
+// Error returns a channel where any port forwarding errors during runtime are sent.
+// Receiving from this channel generally indicates that the port forwarding session
+// should be stopped.
+//
+// as of client-go v0.26.1, if the connection is successful at first but then fails,
+// an error is logged but not sent to this channel. this will be fixed in v0.27.x,
+// which at the time of writing has not been released.
+//
+// see https://github.com/kubernetes/client-go/commit/d0842249d3b92ea67c446fe273f84fe74ebaed9f
+// for the relevant change.
+func (p *PortForwardStreamHandle) Error() chan error {
+	return p.errChan
+}
+
+// Url returns a url for communicating with the pod.
 func (p *PortForwardStreamHandle) Url() string {
 	return p.url
 }
 
+// NewPortForwarder creates a PortForwarder.
 func NewPortForwarder(restConfig *rest.Config) (*PortForwarder, error) {
 	clientset, err := kubernetes.NewForConfig(restConfig)
 	if err != nil {
@@ -52,6 +70,8 @@ func NewPortForwarder(restConfig *rest.Config) (*PortForwarder, error) {
 }
 
 // todo: can be made more flexible to allow a service to be specified
+
+// Forward attempts to initiate port forwarding to the specified pod and port using labels.
 func (p *PortForwarder) Forward(ctx context.Context, namespace, labelSelector string, localPort, destPort int) (PortForwardStreamHandle, error) {
 	pods, err := p.clientset.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{LabelSelector: labelSelector, FieldSelector: "status.phase=Running"})
 	if err != nil {
@@ -80,6 +100,11 @@ func (p *PortForwarder) Forward(ctx context.Context, namespace, labelSelector st
 	}
 
 	go func() {
+		// ForwardPorts is a blocking function thus it has to be invoked in a goroutine to allow callers to do
+		// other things, but it can return 2 kinds of errors: initial dial errors that will be caught in the select
+		// block below (Ready should not fire in these cases) and later errors if the connection is dropped.
+		// this is why we propagate the error channel to PortForwardStreamHandle: to allow callers to handle
+		// cases of eventual errors.
 		errChan <- pf.ForwardPorts()
 	}()
 
@@ -106,5 +131,6 @@ func (p *PortForwarder) Forward(ctx context.Context, namespace, labelSelector st
 	return PortForwardStreamHandle{
 		url:      fmt.Sprintf("http://localhost:%d", portForwardPort),
 		stopChan: stopChan,
+		errChan:  errChan,
 	}, nil
 }
