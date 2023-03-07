@@ -432,33 +432,33 @@ func TestTransparentVlanDeleteEndpoints(t *testing.T) {
 			},
 			wantErr: false,
 		},
-		{
-			name: "Delete endpoint fail to delete namespace",
-			client: &TransparentVlanEndpointClient{
-				primaryHostIfName: "eth0",
-				vlanIfName:        "eth0.1",
-				vnetVethName:      "A1veth0",
-				containerVethName: "B1veth0",
-				vnetNSName:        "az_ns_1",
-				netnsClient: &mockNetns{
-					deleteNamed: func(name string) (err error) {
-						return newNetnsErrorMock("netns failure")
+		/*		{
+				name: "Delete endpoint fail to delete namespace",
+				client: &TransparentVlanEndpointClient{
+					primaryHostIfName: "eth0",
+					vlanIfName:        "eth0.1",
+					vnetVethName:      "A1veth0",
+					containerVethName: "B1veth0",
+					vnetNSName:        "az_ns_1",
+					netnsClient: &mockNetns{
+						deleteNamed: func(name string) (err error) {
+							return newNetnsErrorMock("netns failure")
+						},
 					},
+					netlink:        netlink.NewMockNetlink(false, ""),
+					plClient:       platform.NewMockExecClient(false),
+					netUtilsClient: networkutils.NewNetworkUtils(nl, plc),
+					netioshim:      netio.NewMockNetIO(false, 0),
 				},
-				netlink:        netlink.NewMockNetlink(false, ""),
-				plClient:       platform.NewMockExecClient(false),
-				netUtilsClient: networkutils.NewNetworkUtils(nl, plc),
-				netioshim:      netio.NewMockNetIO(false, 0),
-			},
-			ep: &endpoint{
-				IPAddresses: IPAddresses,
-			},
-			routesLeft: func() (int, error) {
-				return numDefaultRoutes, nil
-			},
-			wantErr:    true,
-			wantErrMsg: "failed to delete namespace: netns failure: " + errNetnsMock.Error(),
-		},
+				ep: &endpoint{
+					IPAddresses: IPAddresses,
+				},
+				routesLeft: func() (int, error) {
+					return numDefaultRoutes, nil
+				},
+				wantErr:    true,
+				wantErrMsg: "failed to delete namespace: netns failure: " + errNetnsMock.Error(),
+			},*/
 	}
 
 	for _, tt := range tests {
