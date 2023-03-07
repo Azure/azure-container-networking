@@ -432,6 +432,7 @@ func TestTransparentVlanDeleteEndpoints(t *testing.T) {
 			},
 			wantErr: false,
 		},
+		//nolint gocritic
 		/*		{
 				name: "Delete endpoint fail to delete namespace",
 				client: &TransparentVlanEndpointClient{
