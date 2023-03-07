@@ -11,6 +11,7 @@ import (
 	dptestutils "github.com/Azure/azure-container-networking/npm/pkg/dataplane/testutils"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
+	"k8s.io/klog"
 )
 
 const (
@@ -18,15 +19,29 @@ const (
 	threadedHNSLatency = time.Duration(50 * time.Millisecond)
 )
 
-func TestAllSerialCases(t *testing.T) {
-	tests := getAllSerialTests()
+func TestBasics(t *testing.T) {
+	testSerialCases(t, basicTests())
+}
+
+func TestCapzCalico(t *testing.T) {
+	testSerialCases(t, capzCalicoTests())
+}
+
+func TestAllMultiJobCases(t *testing.T) {
+	testMultiJobCases(t, getAllMultiJobTests())
+}
+
+func testSerialCases(t *testing.T, tests []*SerialTestCase) {
+	fmt.Printf("tests: %+v\n", tests)
 	for i, tt := range tests {
 		i := i
 		tt := tt
+		klog.Infof("tt: %+v", tt)
 		t.Run(tt.Description, func(t *testing.T) {
+			klog.Infof("tt in: %+v", tt)
 			t.Logf("beginning test #%d. Description: [%s]. Tags: %+v", i, tt.Description, tt.Tags)
 
-			hns := ipsets.GetHNSFake(t)
+			hns := ipsets.GetHNSFake(t, tt.DpCfg.NetworkName)
 			hns.Delay = defaultHNSLatency
 			io := common.NewMockIOShimWithFakeHNS(hns)
 			for _, ep := range tt.InitialEndpoints {
@@ -36,6 +51,7 @@ func TestAllSerialCases(t *testing.T) {
 
 			dp, err := NewDataPlane(thisNode, io, tt.DpCfg, nil)
 			require.NoError(t, err, "failed to initialize dp")
+			require.NotNil(t, dp, "failed to initialize dp (nil)")
 
 			for j, a := range tt.Actions {
 				var err error
@@ -53,15 +69,14 @@ func TestAllSerialCases(t *testing.T) {
 	}
 }
 
-func TestAllMultiJobCases(t *testing.T) {
-	tests := getAllMultiJobTests()
+func testMultiJobCases(t *testing.T, tests []*MultiJobTestCase) {
 	for i, tt := range tests {
 		i := i
 		tt := tt
 		t.Run(tt.Description, func(t *testing.T) {
 			t.Logf("beginning test #%d. Description: [%s]. Tags: %+v", i, tt.Description, tt.Tags)
 
-			hns := ipsets.GetHNSFake(t)
+			hns := ipsets.GetHNSFake(t, tt.DpCfg.NetworkName)
 			hns.Delay = threadedHNSLatency
 			io := common.NewMockIOShimWithFakeHNS(hns)
 			for _, ep := range tt.InitialEndpoints {

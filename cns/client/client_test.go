@@ -519,6 +519,137 @@ func TestBuildRoutes(t *testing.T) {
 	}
 }
 
+func TestGetAllNetworkContainers(t *testing.T) {
+	emptyRoutes, _ := buildRoutes(defaultBaseURL, clientPaths)
+	tests := []struct {
+		name    string
+		ctx     context.Context
+		podInfo cns.KubernetesPodInfo
+		mockdo  *mockdo
+		routes  map[string]url.URL
+		want    []cns.GetNetworkContainerResponse
+		wantErr bool
+	}{
+		{
+			name: "bad request 404",
+			ctx:  context.TODO(),
+			podInfo: cns.KubernetesPodInfo{
+				PodName:      "testpodname",
+				PodNamespace: "podNamespace",
+			},
+			mockdo: &mockdo{
+				errToReturn:            nil,
+				objToReturn:            cns.GetNetworkContainerResponse{},
+				httpStatusCodeToReturn: http.StatusNotFound,
+			},
+			routes:  emptyRoutes,
+			want:    nil,
+			wantErr: true,
+		},
+		{
+			name: "bad request",
+			ctx:  context.TODO(),
+			podInfo: cns.KubernetesPodInfo{
+				PodName:      "testpodname",
+				PodNamespace: "podNamespace",
+			},
+			mockdo: &mockdo{
+				errToReturn:            errBadRequest,
+				objToReturn:            nil,
+				httpStatusCodeToReturn: http.StatusBadRequest,
+			},
+			routes:  emptyRoutes,
+			want:    nil,
+			wantErr: true,
+		},
+		{
+			name: "bad decoding",
+			ctx:  context.TODO(),
+			podInfo: cns.KubernetesPodInfo{
+				PodName:      "testpodname",
+				PodNamespace: "podNamespace",
+			},
+			mockdo: &mockdo{
+				errToReturn:            nil,
+				objToReturn:            []cns.GetNetworkContainerResponse{},
+				httpStatusCodeToReturn: http.StatusOK,
+			},
+			routes:  emptyRoutes,
+			want:    nil,
+			wantErr: true,
+		},
+		{
+			name: "http status not ok",
+			ctx:  context.TODO(),
+			podInfo: cns.KubernetesPodInfo{
+				PodName:      "testpodname",
+				PodNamespace: "podNamespace",
+			},
+			mockdo: &mockdo{
+				errToReturn:            nil,
+				objToReturn:            nil,
+				httpStatusCodeToReturn: http.StatusInternalServerError,
+			},
+			routes:  emptyRoutes,
+			want:    nil,
+			wantErr: true,
+		},
+		{
+			name: "cns return code not zero",
+			ctx:  context.TODO(),
+			podInfo: cns.KubernetesPodInfo{
+				PodName:      "testpodname",
+				PodNamespace: "podNamespace",
+			},
+			mockdo: &mockdo{
+				errToReturn: nil,
+				objToReturn: &cns.GetNetworkContainerResponse{
+					Response: cns.Response{
+						ReturnCode: types.UnsupportedNetworkType,
+					},
+				},
+				httpStatusCodeToReturn: http.StatusOK,
+			},
+			routes:  emptyRoutes,
+			want:    nil,
+			wantErr: true,
+		},
+		{
+			name: "nil context",
+			ctx:  nil,
+			podInfo: cns.KubernetesPodInfo{
+				PodName:      "testpodname",
+				PodNamespace: "podNamespace",
+			},
+			mockdo:  &mockdo{},
+			routes:  emptyRoutes,
+			want:    nil,
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			client := Client{
+				client: tt.mockdo,
+				routes: tt.routes,
+			}
+
+			orchestratorContext, err := json.Marshal(tt.podInfo)
+			assert.NoError(t, err, "marshaling orchestrator context failed")
+
+			got, err := client.GetAllNetworkContainers(tt.ctx, orchestratorContext)
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
 func TestGetNetworkConfiguration(t *testing.T) {
 	emptyRoutes, _ := buildRoutes(defaultBaseURL, clientPaths)
 	tests := []struct {
@@ -639,7 +770,7 @@ func TestGetNetworkConfiguration(t *testing.T) {
 			orchestratorContext, err := json.Marshal(tt.podInfo)
 			assert.NoError(t, err, "marshaling orchestrator context failed")
 
-			got, err := client.GetNetworkConfiguration(tt.ctx, orchestratorContext)
+			got, err := client.GetNetworkContainer(tt.ctx, orchestratorContext)
 			if tt.wantErr {
 				assert.Error(t, err)
 			} else {

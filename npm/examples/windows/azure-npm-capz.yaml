@@ -83,14 +83,15 @@ spec:
       hostNetwork: true
       containers:
         - name: azure-npm
-          image: mcr.microsoft.com/containernetworking/azure-npm:v1.4.29
+          # setting to future version since it will use the updated Dockerfile
+          image: mcr.microsoft.com/containernetworking/azure-npm:v1.4.42
           command: ["powershell.exe"]
           args:
             [
-              '.\setkubeconfigpath.ps1',
+              '.\setkubeconfigpath-capz.ps1',
               ";",
               "powershell.exe",
-              '.\azure-npm.exe',
+              '.\npm.exe',
               "start",
               '--kubeconfig=.\kubeconfig',
             ]
@@ -108,8 +109,6 @@ spec:
                   fieldPath: spec.nodeName
             - name: NPM_CONFIG
               value: .\\etc\\azure-npm\\azure-npm.json
-            - name: PATH
-              value: '%CONTAINER_SANDBOX_MOUNT_POINT%\Windows\System32\WindowsPowershell\v1.0\'
           volumeMounts:
             - name: azure-npm-config
               mountPath: .\\etc\\azure-npm
@@ -143,6 +142,7 @@ metadata:
 data:
   azure-npm.json: |
     {
+        "WindowsNetworkName": "Calico",
         "ResyncPeriodInMinutes": 15,
         "ListeningPort":         10091,
         "ListeningAddress":      "0.0.0.0",

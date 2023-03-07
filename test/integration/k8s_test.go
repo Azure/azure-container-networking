@@ -4,8 +4,6 @@ package k8s
 
 import (
 	"context"
-	"log"
-
 	//"dnc/test/integration/goldpinger"
 	"errors"
 	"flag"
@@ -43,7 +41,6 @@ var (
 	kubeconfig          = flag.String("test-kubeconfig", filepath.Join(homedir.HomeDir(), ".kube", "config"), "(optional) absolute path to the kubeconfig file")
 	delegatedSubnetID   = flag.String("delegated-subnet-id", "", "delegated subnet id for node labeling")
 	delegatedSubnetName = flag.String("subnet-name", "", "subnet name for node labeling")
-	gpPodScaleCounts    = []int{2, 10, 100, 2}
 )
 
 func shouldLabelNodes() bool {
@@ -141,8 +138,12 @@ func TestPodScaling(t *testing.T) {
 		}
 	})
 
+	podsClient := clientset.CoreV1().Pods(deployment.Namespace)
+
+	gpPodScaleCounts := []int{2, 10, 100, 2}
 	for _, c := range gpPodScaleCounts {
 		count := c
+
 		t.Run(fmt.Sprintf("replica count %d", count), func(t *testing.T) {
 			replicaCtx, cancel := context.WithTimeout(ctx, (retryAttempts+1)*retryDelaySec)
 			defer cancel()
@@ -151,93 +152,98 @@ func TestPodScaling(t *testing.T) {
 				t.Fatalf("could not scale deployment: %v", err)
 			}
 
-			if !t.Run("all pods have IPs assigned", func(t *testing.T) {
-				podsClient := clientset.CoreV1().Pods(deployment.Namespace)
+			t.Log("checking that all pods have IPs assigned")
 
-				checkPodIPsFn := func() error {
-					podList, err := podsClient.List(ctx, metav1.ListOptions{LabelSelector: "app=goldpinger"})
-					if err != nil {
-						return err
+			checkPodIPsFn := func() error {
+				podList, err := podsClient.List(ctx, metav1.ListOptions{LabelSelector: "app=goldpinger"})
+				if err != nil {
+					return err
+				}
+
+				if len(podList.Items) == 0 {
+					return errors.New("no pods scheduled")
+				}
+
+				for _, pod := range podList.Items {
+					if pod.Status.Phase == apiv1.PodPending {
+						return errors.New("some pods still pending")
 					}
+				}
 
-					if len(podList.Items) == 0 {
-						return errors.New("no pods scheduled")
+				for _, pod := range podList.Items {
+					if pod.Status.PodIP == "" {
+						return errors.New("a pod has not been allocated an IP")
 					}
+				}
 
-					for _, pod := range podList.Items {
-						if pod.Status.Phase == apiv1.PodPending {
-							return errors.New("some pods still pending")
-						}
-					}
+				return nil
+			}
 
-					for _, pod := range podList.Items {
-						if pod.Status.PodIP == "" {
-							return errors.New("a pod has not been allocated an IP")
-						}
+			if err := defaultRetrier.Do(ctx, checkPodIPsFn); err != nil {
+				t.Fatalf("not all pods were allocated IPs: %v", err)
+			}
+
+			t.Log("all pods have been allocated IPs")
+			t.Log("checking that all pods can ping each other")
+
+			clusterCheckCtx, cancel := context.WithTimeout(ctx, 20*time.Minute)
+			defer cancel()
+
+			pfOpts := PortForwardingOpts{
+				Namespace:     "default",
+				LabelSelector: "type=goldpinger-pod",
+				LocalPort:     9090,
+				DestPort:      8080,
+			}
+
+			pingCheckFn := func() error {
+				pf, err := NewPortForwarder(restConfig, t, pfOpts)
+				if err != nil {
+					t.Fatalf("could not build port forwarder: %v", err)
+				}
+
+				portForwardCtx, cancel := context.WithTimeout(ctx, (retryAttempts+1)*retryDelaySec)
+				defer cancel()
+
+				portForwardFn := func() error {
+					t.Log("attempting port forward")
+
+					if err := pf.Forward(portForwardCtx); err != nil {
+						return fmt.Errorf("could not start port forward: %w", err)
 					}
 
 					return nil
 				}
-				err := defaultRetrier.Do(ctx, checkPodIPsFn)
-				if err != nil {
-					t.Fatalf("not all pods were allocated IPs: %v", err)
+
+				if err := defaultRetrier.Do(portForwardCtx, portForwardFn); err != nil {
+					t.Fatalf("could not start port forward within %v: %v", retryDelaySec.String(), err)
 				}
-				t.Log("all pods have been allocated IPs")
-			}) {
-				errors.New("Pods don't have IP's")
-				return
+
+				go pf.KeepAlive(clusterCheckCtx)
+
+				defer pf.Stop()
+
+				gpClient := goldpinger.Client{Host: pf.Address()}
+
+				clusterState, err := gpClient.CheckAll(clusterCheckCtx)
+				if err != nil {
+					return fmt.Errorf("could not check all goldpinger pods: %w", err)
+				}
+
+				stats := goldpinger.ClusterStats(clusterState)
+				stats.PrintStats()
+				if stats.AllPingsHealthy() {
+					return nil
+				}
+
+				return errors.New("not all pings are healthy")
 			}
 
-			t.Run("all pods can ping each other", func(t *testing.T) {
-				clusterCheckCtx, cancel := context.WithTimeout(ctx, 20*time.Minute)
-				defer cancel()
-				clusterCheckFn := func() error {
-					pf, err := NewPortForwarder(restConfig)
-					if err != nil {
-						t.Fatal(err)
-					}
+			if err := defaultRetrier.Do(clusterCheckCtx, pingCheckFn); err != nil {
+				t.Fatalf("cluster could not reach healthy state: %v", err)
+			}
 
-					portForwardCtx, cancel := context.WithTimeout(ctx, (retryAttempts+1)*retryDelaySec)
-					defer cancel()
-
-					var streamHandle PortForwardStreamHandle
-					portForwardFn := func() error {
-						log.Printf("attempting port forward")
-						handle, err := pf.Forward(ctx, "default", "type=goldpinger-pod", 9090, 8080)
-						if err != nil {
-							return err
-						}
-
-						streamHandle = handle
-						return nil
-					}
-					if err := defaultRetrier.Do(portForwardCtx, portForwardFn); err != nil {
-						t.Fatalf("could not start port forward within %v: %v", retryDelaySec.String(), err)
-					}
-					defer streamHandle.Stop()
-
-					gpClient := goldpinger.Client{Host: streamHandle.Url()}
-
-					clusterState, err := gpClient.CheckAll(clusterCheckCtx)
-					if err != nil {
-						return err
-					}
-
-					stats := goldpinger.ClusterStats(clusterState)
-					stats.PrintStats()
-					if stats.AllPingsHealthy() {
-						return nil
-					}
-
-					return errors.New("not all pings are healthy")
-				}
-
-				if err := defaultRetrier.Do(clusterCheckCtx, clusterCheckFn); err != nil {
-					t.Fatalf("cluster could not reach healthy state: %v", err)
-				}
-
-				t.Log("all pings successful!")
-			})
+			t.Log("all pings successful!")
 		})
 	}
 }

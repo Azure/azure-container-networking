@@ -605,6 +605,7 @@ func TestPluginMultitenancyAdd(t *testing.T) {
 				report:             &telemetry.CNIReport{},
 				multitenancyClient: NewMockMultitenancy(false),
 			},
+
 			args: &cniSkel.CmdArgs{
 				StdinData:   localNwCfg.Serialize(),
 				ContainerID: "test-container",
@@ -706,7 +707,7 @@ func TestPluginMultitenancyDelete(t *testing.T) {
 }
 
 /*
-	Baremetal scenarios
+Baremetal scenarios
 */
 func TestPluginBaremetalAdd(t *testing.T) {
 	plugin, _ := cni.NewPlugin("test", "0.3.0")
@@ -835,7 +836,7 @@ func TestPluginBaremetalDelete(t *testing.T) {
 }
 
 /*
-	AKS-Swift scenario
+AKS-Swift scenario
 */
 func TestPluginAKSSwiftAdd(t *testing.T) {
 	plugin := GetTestResources()
