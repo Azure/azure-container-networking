@@ -13,6 +13,7 @@ import (
 	"net/url"
 	"regexp"
 	"runtime"
+	"strings"
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/hnsclient"
@@ -727,19 +728,7 @@ func (service *HTTPRestService) setOrchestratorType(w http.ResponseWriter, r *ht
 
 	if nodeID == "" || nodeID == req.NodeID || !service.areNCsPresent() {
 		switch req.OrchestratorType {
-		case cns.ServiceFabric:
-			fallthrough
-		case cns.Kubernetes:
-			fallthrough
-		case cns.KubernetesCRD:
-			fallthrough
-		case cns.WebApps:
-			fallthrough
-		case cns.Batch:
-			fallthrough
-		case cns.DBforPostgreSQL:
-			fallthrough
-		case cns.AzureFirstParty:
+		case cns.ServiceFabric, cns.Kubernetes, cns.KubernetesCRD, cns.WebApps, cns.Batch, cns.DBforPostgreSQL, cns.AzureFirstParty:
 			service.state.OrchestratorType = req.OrchestratorType
 			service.state.NodeID = req.NodeID
 			logger.SetContextDetails(req.OrchestratorType, req.NodeID)
@@ -872,6 +861,44 @@ func (service *HTTPRestService) getNetworkContainerByID(w http.ResponseWriter, r
 	logger.Response(service.Name, reserveResp, resp.ReturnCode, err)
 }
 
+// the function is to get all network containers based on given OrchestratorContext
+func (service *HTTPRestService) getAllNetworkContainers(w http.ResponseWriter, r *http.Request) {
+	logger.Printf("[Azure CNS] getAllNetworkContainers")
+
+	var req cns.GetNetworkContainerRequest
+
+	err := service.Listener.Decode(w, r, &req)
+	logger.Request(service.Name, &req, err)
+	if err != nil {
+		logger.Errorf("[Azure CNS] failed to decode cns request with req %+v due to %+v", req, err)
+		return
+	}
+
+	getAllNetworkContainerResponses := service.getAllNetworkContainerResponses(req) // nolint
+
+	var resp cns.GetAllNetworkContainersResponse
+
+	failedNCs := make([]string, 0)
+	for i := 0; i < len(getAllNetworkContainerResponses); i++ {
+		if getAllNetworkContainerResponses[i].Response.ReturnCode != types.Success {
+			failedNCs = append(failedNCs, getAllNetworkContainerResponses[i].NetworkContainerID)
+		}
+	}
+
+	resp.NetworkContainers = getAllNetworkContainerResponses
+
+	if len(failedNCs) > 0 {
+		resp.Response.ReturnCode = types.UnexpectedError
+		resp.Response.Message = fmt.Sprintf("Failed to get NCs %s", strings.Join(failedNCs, ","))
+	} else {
+		resp.Response.ReturnCode = types.Success
+		resp.Response.Message = "Successfully retrieved NCs"
+	}
+
+	err = service.Listener.Encode(w, &resp)
+	logger.Response(service.Name, resp, resp.Response.ReturnCode, err)
+}
+
 func (service *HTTPRestService) getNetworkContainerByOrchestratorContext(w http.ResponseWriter, r *http.Request) {
 	logger.Printf("[Azure CNS] getNetworkContainerByOrchestratorContext")
 
@@ -883,10 +910,9 @@ func (service *HTTPRestService) getNetworkContainerByOrchestratorContext(w http.
 		return
 	}
 
-	getNetworkContainerResponse := service.getNetworkContainerResponse(req)
-	returnCode := getNetworkContainerResponse.Response.ReturnCode
-	err = service.Listener.Encode(w, &getNetworkContainerResponse)
-	logger.Response(service.Name, getNetworkContainerResponse, returnCode, err)
+	getNetworkContainerResponses := service.getAllNetworkContainerResponses(req) // nolint
+	err = service.Listener.Encode(w, &getNetworkContainerResponses[0])
+	logger.Response(service.Name, getNetworkContainerResponses[0], getNetworkContainerResponses[0].Response.ReturnCode, err)
 }
 
 // getOrRefreshNetworkContainers is to check whether refresh association is needed.
@@ -921,7 +947,8 @@ func (service *HTTPRestService) deleteNetworkContainer(w http.ResponseWriter, r 
 		return
 	}
 
-	if req.NetworkContainerid == "" {
+	ncid := req.NetworkContainerid
+	if ncid == "" {
 		returnCode = types.NetworkContainerNotSpecified
 		returnMessage = "[Azure CNS] Error. NetworkContainerid is empty"
 	}
@@ -931,17 +958,17 @@ func (service *HTTPRestService) deleteNetworkContainer(w http.ResponseWriter, r 
 		var containerStatus containerstatus
 		var ok bool
 
-		containerStatus, ok = service.getNetworkContainerDetails(req.NetworkContainerid)
+		containerStatus, ok = service.getNetworkContainerDetails(ncid)
 
 		if !ok {
-			logger.Printf("Not able to retrieve network container details for this container id %v", req.NetworkContainerid)
+			logger.Printf("Not able to retrieve network container details for this container id %v", ncid)
 			break
 		}
 
 		if containerStatus.CreateNetworkContainerRequest.NetworkContainerType == cns.WebApps {
 			nc := service.networkContainer
-			if err := nc.Delete(req.NetworkContainerid); err != nil {
-				returnMessage = fmt.Sprintf("[Azure CNS] Error. DeleteNetworkContainer failed %v", err.Error())
+			if deleteErr := nc.Delete(ncid); deleteErr != nil { // nolint:gocritic
+				returnMessage = fmt.Sprintf("[Azure CNS] Error. DeleteNetworkContainer failed %v", deleteErr.Error())
 				returnCode = types.UnexpectedError
 				break
 			}
@@ -951,14 +978,17 @@ func (service *HTTPRestService) deleteNetworkContainer(w http.ResponseWriter, r 
 		defer service.Unlock()
 
 		if service.state.ContainerStatus != nil {
-			delete(service.state.ContainerStatus, req.NetworkContainerid)
+			delete(service.state.ContainerStatus, ncid)
 		}
 
 		if service.state.ContainerIDByOrchestratorContext != nil {
-			for orchestratorContext, networkContainerID := range service.state.ContainerIDByOrchestratorContext {
-				if networkContainerID == req.NetworkContainerid {
-					delete(service.state.ContainerIDByOrchestratorContext, orchestratorContext)
-					break
+			for orchestratorContext, networkContainerIDs := range service.state.ContainerIDByOrchestratorContext { //nolint:gocritic // copy is ok
+				if networkContainerIDs.Contains(ncid) {
+					networkContainerIDs.Delete(ncid)
+					if *networkContainerIDs == "" {
+						delete(service.state.ContainerIDByOrchestratorContext, orchestratorContext)
+						break
+					}
 				}
 			}
 		}

@@ -26,6 +26,7 @@ const (
 
 var clientPaths = []string{
 	cns.GetNetworkContainerByOrchestratorContext,
+	cns.GetAllNetworkContainers,
 	cns.CreateHostNCApipaEndpointPath,
 	cns.DeleteHostNCApipaEndpointPath,
 	cns.RequestIPConfig,
@@ -93,8 +94,68 @@ func buildRoutes(baseURL string, paths []string) (map[string]url.URL, error) {
 	return routes, nil
 }
 
-// GetNetworkConfiguration Request to get network config.
-func (c *Client) GetNetworkConfiguration(ctx context.Context, orchestratorContext []byte) (*cns.GetNetworkContainerResponse, error) {
+// GetAllNetworkContainers Request to get network container configs.
+func (c *Client) GetAllNetworkContainers(ctx context.Context, orchestratorContext []byte) ([]cns.GetNetworkContainerResponse, error) {
+	payload := cns.GetNetworkContainerRequest{
+		OrchestratorContext: orchestratorContext,
+	}
+
+	var body bytes.Buffer
+	if err := json.NewEncoder(&body).Encode(payload); err != nil {
+		return nil, &CNSClientError{
+			Code: types.UnexpectedError,
+			Err:  err,
+		}
+	}
+
+	u := c.routes[cns.GetAllNetworkContainers]
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, u.String(), &body)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to build request")
+	}
+	req.Header.Set(headerContentType, contentTypeJSON)
+	res, err := c.client.Do(req)
+	if err != nil {
+		return nil, errors.Wrap(err, "http request failed")
+	}
+	defer res.Body.Close()
+
+	//  investigate 404 orchestratorContext which is invalid and make sure this is addressed
+	if res.StatusCode == http.StatusNotFound {
+		return nil, &CNSClientError{
+			Code: types.UnsupportedAPI,
+			Err:  errors.Errorf("Unsupported API"),
+		}
+	}
+
+	if res.StatusCode != http.StatusOK {
+		return nil, &CNSClientError{
+			Code: types.UnexpectedError,
+			Err:  errors.Errorf("http response %d", res.StatusCode),
+		}
+	}
+
+	var resp cns.GetAllNetworkContainersResponse
+	err = json.NewDecoder(res.Body).Decode(&resp)
+	if err != nil {
+		return nil, &CNSClientError{
+			Code: types.UnexpectedError,
+			Err:  err,
+		}
+	}
+
+	if resp.Response.ReturnCode != 0 {
+		return nil, &CNSClientError{
+			Code: resp.Response.ReturnCode,
+			Err:  errors.New(resp.Response.Message),
+		}
+	}
+
+	return resp.NetworkContainers, nil
+}
+
+// GetNetworkContainer Request to get network container config.
+func (c *Client) GetNetworkContainer(ctx context.Context, orchestratorContext []byte) (*cns.GetNetworkContainerResponse, error) {
 	payload := cns.GetNetworkContainerRequest{
 		OrchestratorContext: orchestratorContext,
 	}

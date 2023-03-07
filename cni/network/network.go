@@ -316,15 +316,14 @@ func addNatIPV6SubnetInfo(nwCfg *cni.NetworkConfig,
 	}
 }
 
-//
 // CNI implementation
 // https://github.com/containernetworking/cni/blob/master/SPEC.md
-//
 
 // Add handles CNI add commands.
 func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 	var (
 		ipamAddResult    IPAMAddResult
+		ipamAddResults   []IPAMAddResult
 		azIpamResult     *cniTypesCurr.Result
 		enableInfraVnet  bool
 		enableSnatForDNS bool
@@ -431,9 +430,9 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 		}
 	}
 
-	cnsClient, er := cnscli.New(nwCfg.CNSUrl, defaultRequestTimeout)
-	if er != nil {
-		return fmt.Errorf("failed to create cns client with error: %w", er)
+	cnsClient, err := cnscli.New(nwCfg.CNSUrl, defaultRequestTimeout)
+	if err != nil {
+		return fmt.Errorf("failed to create cns client with error: %w", err)
 	}
 
 	if nwCfg.MultiTenancy {
@@ -446,122 +445,127 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 			return fmt.Errorf("%w", err)
 		}
 
-		ipamAddResult.ncResponse, ipamAddResult.hostSubnetPrefix, er = plugin.multitenancyClient.GetContainerNetworkConfiguration(
-			context.TODO(), nwCfg, k8sPodName, k8sNamespace)
-		if er != nil {
-			er = errors.Wrapf(er, "GetContainerNetworkConfiguration failed for podname %v namespace %v", k8sPodName, k8sNamespace)
-			log.Printf("%+v", er)
-			return er
-		}
-
-		ipamAddResult.ipv4Result = convertToCniResult(ipamAddResult.ncResponse, args.IfName)
-
-		log.Printf("PrimaryInterfaceIdentifier: %v", ipamAddResult.hostSubnetPrefix.IP.String())
-	}
-
-	// Initialize values from network config.
-	networkID, err := plugin.getNetworkName(args.Netns, &ipamAddResult, nwCfg)
-	if err != nil {
-		log.Printf("[cni-net] Failed to extract network name from network config. error: %v", err)
-		return err
-	}
-
-	endpointID := GetEndpointID(args)
-	policies := cni.GetPoliciesFromNwCfg(nwCfg.AdditionalArgs)
-
-	options := make(map[string]interface{})
-	// Check whether the network already exists.
-	nwInfo, nwInfoErr := plugin.nm.GetNetworkInfo(networkID)
-	/* Handle consecutive ADD calls for infrastructure containers.
-	 * This is a temporary work around for issue #57253 of Kubernetes.
-	 * We can delete this if statement once they fix it.
-	 * Issue link: https://github.com/kubernetes/kubernetes/issues/57253
-	 */
-	if nwInfoErr == nil {
-		log.Printf("[cni-net] Found network %v with subnet %v.", networkID, nwInfo.Subnets[0].Prefix.String())
-		nwInfo.IPAMType = nwCfg.IPAM.Type
-		options = nwInfo.Options
-
-		var resultSecondAdd *cniTypesCurr.Result
-		resultSecondAdd, err = plugin.handleConsecutiveAdd(args, endpointID, networkID, &nwInfo, nwCfg)
+		ipamAddResults, err = plugin.multitenancyClient.GetAllNetworkContainers(context.TODO(), nwCfg, k8sPodName, k8sNamespace, args.IfName)
 		if err != nil {
-			log.Printf("handleConsecutiveAdd failed with error %v", err)
+			err = fmt.Errorf("GetAllNetworkContainers failed for podname %s namespace %s. error: %w", k8sPodName, k8sNamespace, err)
+			log.Printf("%+v", err)
 			return err
 		}
 
-		if resultSecondAdd != nil {
-			ipamAddResult.ipv4Result = resultSecondAdd
-			return nil
+		if len(ipamAddResults) > 1 && !plugin.isDualNicFeatureSupported(args.Netns) {
+			errMsg := fmt.Sprintf("received multiple NC results %+v from CNS while dualnic feature is not supported", ipamAddResults)
+			log.Printf(errMsg)
+			return plugin.Errorf(errMsg)
 		}
+	} else {
+		// TODO: refactor this code for simplification
+		// Add dummy ipamAddResult nil object for single tenancy mode
+		// this will be used for: ipamAddResult, err = plugin.ipamInvoker.Add(ipamAddConfig)
+		ipamAddResults = append(ipamAddResults, ipamAddResult)
 	}
 
-	// Initialize azureipam/cns ipam
-	if plugin.ipamInvoker == nil {
-		switch nwCfg.IPAM.Type {
-		case network.AzureCNS:
-			plugin.ipamInvoker = NewCNSInvoker(k8sPodName, k8sNamespace, cnsClient, util.ExecutionMode(nwCfg.ExecutionMode), util.IpamMode(nwCfg.IPAM.Mode))
+	// iterate ipamAddResults and program the endpoint
+	for i := 0; i < len(ipamAddResults); i++ {
+		ipamAddResult = ipamAddResults[i]
 
-		default:
-			plugin.ipamInvoker = NewAzureIpamInvoker(plugin, &nwInfo)
+		options := make(map[string]any)
+		networkID, err := plugin.getNetworkName(args.Netns, &ipamAddResult, nwCfg)
+
+		endpointID := GetEndpointID(args)
+		policies := cni.GetPoliciesFromNwCfg(nwCfg.AdditionalArgs)
+
+		// Check whether the network already exists.
+		nwInfo, nwInfoErr := plugin.nm.GetNetworkInfo(networkID)
+		// Handle consecutive ADD calls for infrastructure containers.
+		// This is a temporary work around for issue #57253 of Kubernetes.
+		// We can delete this if statement once they fix it.
+		// Issue link: https://github.com/kubernetes/kubernetes/issues/57253
+
+		if nwInfoErr == nil {
+			log.Printf("[cni-net] Found network %v with subnet %v.", networkID, nwInfo.Subnets[0].Prefix.String())
+			nwInfo.IPAMType = nwCfg.IPAM.Type
+			options = nwInfo.Options
+
+			var resultSecondAdd *cniTypesCurr.Result
+			resultSecondAdd, err = plugin.handleConsecutiveAdd(args, endpointID, networkID, &nwInfo, nwCfg)
+			if err != nil {
+				log.Printf("handleConsecutiveAdd failed with error %v", err)
+				return err
+			}
+
+			if resultSecondAdd != nil {
+				ipamAddResult.ipv4Result = resultSecondAdd
+				return nil
+			}
 		}
-	}
 
-	ipamAddConfig := IPAMAddConfig{nwCfg: nwCfg, args: args, options: options}
-	// No need to call Add if we already got IPAMAddResult in multitenancy section via GetContainerNetworkConfiguration
-	if !nwCfg.MultiTenancy {
-		ipamAddResult, err = plugin.ipamInvoker.Add(ipamAddConfig)
+		// Initialize azureipam/cns ipam
+		if plugin.ipamInvoker == nil {
+			switch nwCfg.IPAM.Type {
+			case network.AzureCNS:
+				plugin.ipamInvoker = NewCNSInvoker(k8sPodName, k8sNamespace, cnsClient, util.ExecutionMode(nwCfg.ExecutionMode), util.IpamMode(nwCfg.IPAM.Mode))
+
+			default:
+				plugin.ipamInvoker = NewAzureIpamInvoker(plugin, &nwInfo)
+			}
+		}
+
+		ipamAddConfig := IPAMAddConfig{nwCfg: nwCfg, args: args, options: options}
+		if !nwCfg.MultiTenancy {
+			ipamAddResult, err = plugin.ipamInvoker.Add(ipamAddConfig)
+			if err != nil {
+				return fmt.Errorf("IPAM Invoker Add failed with error: %w", err)
+			}
+			sendEvent(plugin, fmt.Sprintf("Allocated IPAddress from ipam:%+v v6:%+v", ipamAddResult.ipv4Result, ipamAddResult.ipv6Result))
+		}
+
+		defer func() { //nolint:gocritic
+			if err != nil {
+				plugin.cleanupAllocationOnError(ipamAddResult.ipv4Result, ipamAddResult.ipv6Result, nwCfg, args, options)
+			}
+		}()
+
+		// Create network
+		if nwInfoErr != nil {
+			// Network does not exist.
+			logAndSendEvent(plugin, fmt.Sprintf("[cni-net] Creating network %v.", networkID))
+			// opts map needs to get passed in here
+			if nwInfo, err = plugin.createNetworkInternal(networkID, policies, ipamAddConfig, ipamAddResult); err != nil {
+				log.Errorf("Create network failed: %w", err)
+				return err
+			}
+
+			logAndSendEvent(plugin, fmt.Sprintf("[cni-net] Created network %v with subnet %v.", networkID, ipamAddResult.hostSubnetPrefix.String()))
+		}
+
+		natInfo := getNATInfo(nwCfg.ExecutionMode, options[network.SNATIPKey], nwCfg.MultiTenancy, enableSnatForDNS)
+
+		createEndpointInternalOpt := createEndpointInternalOpt{
+			nwCfg:            nwCfg,
+			cnsNetworkConfig: ipamAddResult.ncResponse,
+			result:           ipamAddResult.ipv4Result,
+			resultV6:         ipamAddResult.ipv6Result,
+			azIpamResult:     azIpamResult,
+			args:             args,
+			nwInfo:           &nwInfo,
+			policies:         policies,
+			endpointID:       endpointID,
+			k8sPodName:       k8sPodName,
+			k8sNamespace:     k8sNamespace,
+			enableInfraVnet:  enableInfraVnet,
+			enableSnatForDNS: enableSnatForDNS,
+			natInfo:          natInfo,
+		}
+
+		epInfo, err := plugin.createEndpointInternal(&createEndpointInternalOpt)
 		if err != nil {
-			return fmt.Errorf("IPAM Invoker Add failed with error: %w", err)
-		}
-	}
-
-	sendEvent(plugin, fmt.Sprintf("Allocated IPAddress from ipam:%+v v6:%+v", ipamAddResult.ipv4Result, ipamAddResult.ipv6Result))
-
-	defer func() {
-		if err != nil {
-			plugin.cleanupAllocationOnError(ipamAddResult.ipv4Result, ipamAddResult.ipv6Result, nwCfg, args, options)
-		}
-	}()
-
-	// Create network
-	if nwInfoErr != nil {
-		// Network does not exist.
-		logAndSendEvent(plugin, fmt.Sprintf("[cni-net] Creating network %v.", networkID))
-		// opts map needs to get passed in here
-		if nwInfo, err = plugin.createNetworkInternal(networkID, policies, ipamAddConfig, ipamAddResult); err != nil {
-			log.Errorf("Create network failed: %w", err)
+			log.Errorf("Endpoint creation failed:%w", err)
 			return err
 		}
 
-		logAndSendEvent(plugin, fmt.Sprintf("[cni-net] Created network %v with subnet %v.", networkID, ipamAddResult.hostSubnetPrefix.String()))
+		sendEvent(plugin, fmt.Sprintf("CNI ADD succeeded : IP:%+v, VlanID: %v, podname %v, namespace %v numendpoints:%d",
+			ipamAddResult.ipv4Result.IPs, epInfo.Data[network.VlanIDKey], k8sPodName, k8sNamespace, plugin.nm.GetNumberOfEndpoints("", nwCfg.Name)))
 	}
-
-	natInfo := getNATInfo(nwCfg.ExecutionMode, options[network.SNATIPKey], nwCfg.MultiTenancy, enableSnatForDNS)
-
-	createEndpointInternalOpt := createEndpointInternalOpt{
-		nwCfg:            nwCfg,
-		cnsNetworkConfig: ipamAddResult.ncResponse,
-		result:           ipamAddResult.ipv4Result,
-		resultV6:         ipamAddResult.ipv6Result,
-		azIpamResult:     azIpamResult,
-		args:             args,
-		nwInfo:           &nwInfo,
-		policies:         policies,
-		endpointID:       endpointID,
-		k8sPodName:       k8sPodName,
-		k8sNamespace:     k8sNamespace,
-		enableInfraVnet:  enableInfraVnet,
-		enableSnatForDNS: enableSnatForDNS,
-		natInfo:          natInfo,
-	}
-	epInfo, err := plugin.createEndpointInternal(&createEndpointInternalOpt)
-	if err != nil {
-		log.Errorf("Endpoint creation failed:%w", err)
-		return err
-	}
-
-	sendEvent(plugin, fmt.Sprintf("CNI ADD succeeded : IP:%+v, VlanID: %v, podname %v, namespace %v numendpoints:%d",
-		ipamAddResult.ipv4Result.IPs, epInfo.Data[network.VlanIDKey], k8sPodName, k8sNamespace, plugin.nm.GetNumberOfEndpoints("", nwCfg.Name)))
 
 	return nil
 }
@@ -947,6 +951,7 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 	// with CNI SPEC as mentioned below.
 
 	numEndpointsToDelete := 1
+	// only get number of endpoints if it's multitenancy mode
 	if nwCfg.MultiTenancy {
 		numEndpointsToDelete = plugin.nm.GetNumEndpointsInNetNs(args.Netns)
 	}
@@ -1148,8 +1153,8 @@ func (plugin *NetPlugin) Update(args *cniSkel.CmdArgs) error {
 		return plugin.Errorf(err.Error())
 	}
 
-	if targetNetworkConfig, err = cnsclient.GetNetworkConfiguration(context.TODO(), orchestratorContext); err != nil {
-		log.Printf("GetNetworkConfiguration failed with %v", err)
+	if targetNetworkConfig, err = cnsclient.GetNetworkContainer(context.TODO(), orchestratorContext); err != nil {
+		log.Printf("GetNetworkContainer failed with %v", err)
 		return plugin.Errorf(err.Error())
 	}
 

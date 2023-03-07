@@ -171,8 +171,8 @@ func (plugin *NetPlugin) getNetworkName(netNs string, ipamAddResult *IPAMAddResu
 	// This will happen during DEL call
 	networkName, err := plugin.nm.FindNetworkIDFromNetNs(netNs)
 	if err != nil {
-		log.Printf("Error getting network name from state: %v.", err)
-		return "", fmt.Errorf("error getting network name from state: %w", err)
+		log.Printf("No endpoint available with netNs: %s: %v.", netNs, err)
+		return "", fmt.Errorf("No endpoint available with netNs: %s: %w", netNs, err)
 	}
 
 	return networkName, nil
@@ -399,4 +399,14 @@ func platformInit(cniConfig *cni.NetworkConfig) {
 		network.EnableHnsV1Timeout(cniConfig.WindowsSettings.HnsTimeoutDurationInSeconds)
 		network.EnableHnsV2Timeout(cniConfig.WindowsSettings.HnsTimeoutDurationInSeconds)
 	}
+}
+
+// isDualNicFeatureSupported returns if the dual nic feature is supported. Currently it's only supported for windows hnsv2 path
+func (plugin *NetPlugin) isDualNicFeatureSupported(netNs string) bool {
+	useHnsV2, err := network.UseHnsV2(netNs)
+	if useHnsV2 && err == nil {
+		return true
+	}
+	log.Errorf("DualNicFeature is not supported")
+	return false
 }
