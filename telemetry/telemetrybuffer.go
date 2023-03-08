@@ -11,12 +11,10 @@ import (
 	"net"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/platform"
@@ -318,45 +316,6 @@ func (tb *TelemetryBuffer) ConnectToTelemetryService(telemetryNumRetries, teleme
 			log.Logf("Connected to telemetry service")
 			return
 		}
-	}
-}
-
-// ConnectToTelemetryService for CNI - Attempt to spawn telemetry process if it's not already running. This function will have store lock for CNI.
-// TODO: This function should eventually get removed when stateless CNI is developed.
-func (tb *TelemetryBuffer) ConnectCNIToTelemetryService(telemetryNumRetries, telemetryWaitTimeInMilliseconds int, netPlugin *cni.Plugin) error {
-	path, dir := getTelemetryServiceDirectory()
-	args := []string{"-d", dir}
-	for attempt := 0; attempt < 2; attempt++ {
-		tb.startAndConnectTelemetryService(telemetryNumRetries, telemetryWaitTimeInMilliseconds, netPlugin, path, args)
-	}
-	return nil
-}
-
-// This function is getting called from ConnectCNIToTelemetryService() in each attempt inside for loop
-// This function has been created to be able to add defer within the for loop
-func (tb *TelemetryBuffer) startAndConnectTelemetryService(telemetryNumRetries, telemetryWaitTimeInMilliseconds int, netPlugin *cni.Plugin, path string, args []string) {
-	if err := tb.Connect(); err != nil {
-		log.Logf("Connection to telemetry socket failed: %v", err)
-		if runtime.GOOS == "windows" {
-			if err = netPlugin.LockKeyValueStore(); err != nil {
-				log.Logf("lock acquire error: %v", err)
-			}
-			defer func() {
-				if err = netPlugin.UnLockKeyValueStore(); err != nil {
-					log.Logf("failed to relinquish lock error: %v", err)
-				}
-			}()
-		}
-		if err = tb.Cleanup(FdName); err != nil {
-			log.Logf("cleanup failed: %v", err)
-		}
-		if err = StartTelemetryService(path, args); err != nil {
-			log.Logf("StartTelemetryService failed: %v", err)
-		}
-		WaitForTelemetrySocket(telemetryNumRetries, time.Duration(telemetryWaitTimeInMilliseconds))
-	} else {
-		tb.Connected = true
-		log.Logf("Connected to telemetry service")
 	}
 }
 

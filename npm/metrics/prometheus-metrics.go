@@ -54,8 +54,6 @@ const (
 	namespaceExecTimeName           = "namespace_exec_time"
 	controllerNamespaceExecTimeHelp = "Execution time in milliseconds for adding/updating/deleting a namespace"
 
-	// TODO add health metrics
-
 	quantileMedian float64 = 0.5
 	deltaMedian    float64 = 0.05
 	quantile90th   float64 = 0.9
@@ -67,7 +65,7 @@ const (
 // Gauge metrics have the methods Inc(), Dec(), and Set(float64)
 // Summary metrics have the method Observe(float64)
 // For any Vector metric, you can call With(prometheus.Labels) before the above methods
-//   e.g. SomeGaugeVec.With(prometheus.Labels{label1: val1, label2: val2, ...).Dec()
+// e.g. SomeGaugeVec.With(prometheus.Labels{label1: val1, label2: val2, ...).Dec()
 var (
 	nodeRegistry    = prometheus.NewRegistry()
 	clusterRegistry = prometheus.NewRegistry()
@@ -94,8 +92,6 @@ var (
 	controllerPodExecTime       *prometheus.SummaryVec
 	controllerNamespaceExecTime *prometheus.SummaryVec
 	controllerExecTimeLabels    = []string{operationLabel, hadErrorLabel}
-
-	// TODO add health metrics
 )
 
 type RegistryType string
@@ -128,14 +124,11 @@ func (op OperationKind) isValid() bool {
 // TODO consider refactoring the functionality of the metrics package into a "Metrics" struct with methods (this would require code changes throughout npm).
 // Would need to consider how it seems like you can't register a metric twice, even in a separate registry, so you couldn't throw away the Metrics struct and create a new one.
 func InitializeAll() {
-	// TODO introduce isFanOut parameter to determine when to create fan-out controller/daemon metrics
 	if haveInitialized {
 		klog.Infof("metrics have already been initialized")
 	} else {
 		initializeDaemonMetrics()
 		initializeControllerMetrics()
-		// TODO include dataplane health metrics:
-		// num failures for apply ipsets, updating policies, deleting policies, and running periodic policy tasks, etc.
 		log.Logf("Finished initializing all Prometheus metrics")
 		haveInitialized = true
 	}
@@ -177,7 +170,6 @@ func initializeDaemonMetrics() {
 func initializeControllerMetrics() {
 	// CLUSTER METRICS
 	numPolicies = createClusterGauge(numPoliciesName, numPoliciesHelp)
-	// TODO include health metrics: num failures for validating policies & ipsets
 
 	// NODE METRICS
 	addPolicyExecTime = createNodeSummaryVec(addPolicyExecTimeName, "", addPolicyExecTimeHelp, addPolicyExecTimeLabels)

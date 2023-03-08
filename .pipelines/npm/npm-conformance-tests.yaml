@@ -50,41 +50,20 @@ jobs:
       matrix:
         npm_linux_amd64:
           arch: amd64
-          os: linux
           name: npm
+          os: linux
+        npm_windows2022_amd64:
+          arch: amd64
+          name: npm
+          os: windows
+          os_version: ltsc2022
     steps:
       - template: ../containers/container-template.yaml
         parameters:
+          arch: $(arch)
           name: $(name)
           os: $(os)
-          arch: $(arch)
-
-  - job: containerize_windows
-    dependsOn: [setup]
-    displayName: Build Images
-    variables:
-      TAG: $[ dependencies.setup.outputs['EnvironmentalVariables.TAG'] ]
-    pool:
-      name: "$(BUILD_POOL_NAME_DEFAULT_WINDOWS)"
-    strategy:
-      matrix:
-        npm_windows_amd64:
-          arch: amd64
-          name: npm
-          ai_path: github.com/Azure/azure-container-networking/npm.aiMetadata
-          ai_path_var: NPM_AI_PATH
-          ai_id: 014c22bd-4107-459e-8475-67909e96edcb
-          ai_id_var: NPM_AI_ID
-    steps:
-      - template: ../containers/container-template-windows.yaml
-        parameters:
-          name: $(name)
-          arch: $(arch)
-          tag: $(TAG)
-          ai_path: $(ai_path)
-          ai_path_var: $(ai_path_var)
-          ai_id: $(ai_id)
-          ai_id_var: $(ai_id_var)
+          os_version: $(os_version)
 
   - job: k8se2e
     displayName: "Build Kubernetes Test Suite"
@@ -132,7 +111,7 @@ jobs:
       demands:
         - agent.os -equals Linux
         - Role -equals Build
-    dependsOn: [setup, k8se2e, containerize, containerize_windows]
+    dependsOn: [setup, k8se2e, containerize]
     variables:
       RESOURCE_GROUP: $[ dependencies.setup.outputs['EnvironmentalVariables.RESOURCE_GROUP'] ]
       TAG: $[ dependencies.setup.outputs['EnvironmentalVariables.TAG'] ]
@@ -222,7 +201,7 @@ jobs:
 
               az aks get-credentials -n $(AZURE_CLUSTER) -g $(RESOURCE_GROUP) --file ./kubeconfig
               ./kubectl --kubeconfig=./kubeconfig apply -f https://raw.githubusercontent.com/Azure/azure-container-networking/master/npm/examples/windows/azure-npm.yaml
-              ./kubectl --kubeconfig=./kubeconfig set image daemonset/azure-npm-win -n kube-system azure-npm=$IMAGE_REGISTRY/azure-npm:windows-amd64-$(TAG)
+              ./kubectl --kubeconfig=./kubeconfig set image daemonset/azure-npm-win -n kube-system azure-npm=$IMAGE_REGISTRY/azure-npm:windows-amd64-ltsc2022-$(TAG)
 
             else
               echo "Creating Linux Cluster"; 
@@ -381,7 +360,7 @@ jobs:
       demands:
         - agent.os -equals Linux
         - Role -equals Build
-    dependsOn: [containerize_windows, setup]
+    dependsOn: [containerize, setup]
     variables:
       RESOURCE_GROUP: $[ dependencies.setup.outputs['EnvironmentalVariables.RESOURCE_GROUP'] ]
       TAG: $[ dependencies.setup.outputs['EnvironmentalVariables.TAG'] ]
@@ -462,7 +441,7 @@ jobs:
             ./kubectl --kubeconfig=./kubeconfig apply -f https://raw.githubusercontent.com/Azure/azure-container-networking/master/npm/examples/windows/azure-npm.yaml
 
             # swap azure-npm image with one built during run
-            ./kubectl --kubeconfig=./kubeconfig set image daemonset/azure-npm-win -n kube-system azure-npm=$IMAGE_REGISTRY/azure-npm:windows-amd64-$(TAG)
+            ./kubectl --kubeconfig=./kubeconfig set image daemonset/azure-npm-win -n kube-system azure-npm=$IMAGE_REGISTRY/azure-npm:windows-amd64-ltsc2022-$(TAG)
 
             echo "sleeping 3 minutes to allow NPM pods to restart"
             sleep 180

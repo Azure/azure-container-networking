@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"net/http"
 	"net/http/pprof"
 	"os"
@@ -43,7 +44,7 @@ import (
 	"github.com/Azure/azure-container-networking/crd/clustersubnetstate/api/v1alpha1"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
-	"github.com/Azure/azure-container-networking/fs"
+	acnfs "github.com/Azure/azure-container-networking/internal/fs"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/nmagent"
 	"github.com/Azure/azure-container-networking/platform"
@@ -499,17 +500,20 @@ func main() {
 		logger.Errorf("[Azure CNS] Cannot disable telemetry via cmdline. Update cns_config.json to disable telemetry.")
 	}
 
-	logger.Printf("[Azure CNS] cmdLineConfigPath: %s", cmdLineConfigPath)
 	cnsconfig, err := configuration.ReadConfig(cmdLineConfigPath)
 	if err != nil {
-		logger.Errorf("[Azure CNS] Error reading cns config: %v", err)
+		if errors.Is(err, fs.ErrNotExist) {
+			logger.Warnf("config file does not exist, using default")
+			cnsconfig = &configuration.CNSConfig{}
+		} else {
+			logger.Errorf("fatal: failed to read cns config: %v", err)
+			os.Exit(1)
+		}
 	}
-
 	configuration.SetCNSConfigDefaults(cnsconfig)
-	logger.Printf("[Azure CNS] Read config :%+v", cnsconfig)
+	logger.Printf("[Azure CNS] Using config: %+v", cnsconfig)
 
 	_, envEnableConflistGeneration := os.LookupEnv(envVarEnableCNIConflistGeneration)
-
 	var conflistGenerator restserver.CNIConflistGenerator
 	if cnsconfig.EnableCNIConflistGeneration || envEnableConflistGeneration {
 		conflistFilepath := cnsconfig.CNIConflistFilepath
@@ -517,7 +521,7 @@ func main() {
 			// allow the filepath to get overidden by command line arg
 			conflistFilepath = cniConflistFilepathArg
 		}
-		writer, newWriterErr := fs.NewAtomicWriter(conflistFilepath)
+		writer, newWriterErr := acnfs.NewAtomicWriter(conflistFilepath)
 		if newWriterErr != nil {
 			logger.Errorf("unable to create atomic writer to generate cni conflist: %v", newWriterErr)
 			os.Exit(1)
@@ -642,9 +646,12 @@ func main() {
 		}
 	}
 
-	// Create CNS object.
+	wsProxy := wireserver.Proxy{
+		Host:       cnsconfig.WireserverIP,
+		HTTPClient: &http.Client{},
+	}
 
-	httpRestService, err := restserver.NewHTTPRestService(&config, &wireserver.Client{HTTPClient: &http.Client{}}, nmaClient,
+	httpRestService, err := restserver.NewHTTPRestService(&config, &wireserver.Client{HTTPClient: &http.Client{}}, &wsProxy, nmaClient,
 		endpointStateStore, conflistGenerator, homeAzMonitor)
 	if err != nil {
 		logger.Errorf("Failed to create CNS object, err:%v.\n", err)
@@ -728,6 +735,13 @@ func main() {
 				cns.GlobalPodInfoScheme = cns.InterfaceIDPodInfoScheme
 			}
 		}
+		// If cns manageendpointstate is true, then cns maintains its own state and reconciles from it.
+		// in this case, cns maintains state with containerid as key and so in-memory cache can lookup
+		// and update based on container id.
+		if cnsconfig.ManageEndpointState {
+			cns.GlobalPodInfoScheme = cns.InterfaceIDPodInfoScheme
+		}
+
 		logger.Printf("Set GlobalPodInfoScheme %v (InitializeFromCNI=%t)", cns.GlobalPodInfoScheme, cnsconfig.InitializeFromCNI)
 
 		err = InitializeCRDState(rootCtx, httpRestService, cnsconfig)
@@ -735,7 +749,6 @@ func main() {
 			logger.Errorf("Failed to start CRD Controller, err:%v.\n", err)
 			return
 		}
-
 	}
 
 	// Initialize multi-tenant controller if the CNS is running in MultiTenantCRD mode.

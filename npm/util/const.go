@@ -230,8 +230,12 @@ const (
 	ErrorValue float64 = 1
 )
 
-// AzureNetworkName is the default network Azure CNI creates
-const AzureNetworkName = "azure"
+const (
+	// AzureNetworkName is the default network Azure CNI creates
+	AzureNetworkName = "azure"
+	// CalicoNetworkName is the default network Calico CNI creates
+	CalicoNetworkName = "Calico"
+)
 
 // These ID represents where did the error log generate from.
 // It's for better query purpose. In Kusto these value are used in

@@ -15,18 +15,18 @@ import (
 type IPSetMode string
 
 /*
-	IPSet Modes
+IPSet Modes
 
-	- ApplyAllIPSets:
-		- all ipsets are added to the kernel
-		- ipsets are removed from the kernel when they are deleted from the cache
-		- creates empty ipsets
-		- adds empty/unreferenced ipsets to the toDelete cache periodically
+- ApplyAllIPSets:
+  - all ipsets are added to the kernel
+  - ipsets are removed from the kernel when they are deleted from the cache
+  - creates empty ipsets
+  - adds empty/unreferenced ipsets to the toDelete cache periodically
 
-	- ApplyOnNeed:
-		- ipsets are added to the kernel when they are referenced by network policies or lists in the kernel
-		- ipsets are removed from the kernel when they no longer have a reference
-		- removes empty/unreferenced ipsets from the cache periodically
+- ApplyOnNeed:
+  - ipsets are added to the kernel when they are referenced by network policies or lists in the kernel
+  - ipsets are removed from the kernel when they no longer have a reference
+  - removes empty/unreferenced ipsets from the cache periodically
 */
 const (
 	ApplyAllIPSets IPSetMode = "all"
@@ -56,7 +56,7 @@ type IPSetManager struct {
 
 type IPSetManagerCfg struct {
 	IPSetMode IPSetMode
-	// NetworkName can be left empty or set to 'azure' (the only supported network)
+	// NetworkName can be left empty or set to 'azure' or 'Calico' (case sensitive)
 	NetworkName string
 	// AddEmptySetToLists determines whether all lists should have an empty set as a member.
 	// This is necessary for HNS (Windows); otherwise, an allow ACL with a list condition
@@ -75,9 +75,9 @@ func NewIPSetManager(iMgrCfg *IPSetManagerCfg, ioShim *common.IOShim) *IPSetMana
 }
 
 /*
-	Reconcile removes empty/unreferenced sets from the cache.
-	For ApplyAllIPSets mode, those sets are added to the toDeleteCache.
-	We can't delete from kernel immediately unless we lock iMgr during policy CRUD.
+Reconcile removes empty/unreferenced sets from the cache.
+For ApplyAllIPSets mode, those sets are added to the toDeleteCache.
+We can't delete from kernel immediately unless we lock iMgr during policy CRUD.
 */
 func (iMgr *IPSetManager) Reconcile() {
 	iMgr.Lock()
