@@ -23,6 +23,10 @@ func TestBasics(t *testing.T) {
 	testSerialCases(t, basicTests())
 }
 
+func TestPodEndpointAssignment(t *testing.T) {
+	testSerialCases(t, updatePodTests())
+}
+
 func TestCapzCalico(t *testing.T) {
 	testSerialCases(t, capzCalicoTests())
 }
@@ -32,11 +36,9 @@ func TestAllMultiJobCases(t *testing.T) {
 }
 
 func testSerialCases(t *testing.T, tests []*SerialTestCase) {
-	fmt.Printf("tests: %+v\n", tests)
 	for i, tt := range tests {
 		i := i
 		tt := tt
-		klog.Infof("tt: %+v", tt)
 		t.Run(tt.Description, func(t *testing.T) {
 			klog.Infof("tt in: %+v", tt)
 			t.Logf("beginning test #%d. Description: [%s]. Tags: %+v", i, tt.Description, tt.Tags)

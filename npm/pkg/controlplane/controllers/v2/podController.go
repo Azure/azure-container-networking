@@ -455,8 +455,7 @@ func (c *PodController) syncAddAndUpdatePod(newPodObj *corev1.Pod) (metrics.Oper
 	addToIPSets, deleteFromIPSets := util.GetIPSetListCompareLabels(cachedNpmPod.Labels, newPodObj.Labels)
 
 	newPodMetadata := dataplane.NewPodMetadata(podKey, newPodObj.Status.PodIP, newPodObj.Spec.NodeName)
-	// todo: verify pulling nodename from newpod,
-	// if a pod is getting deleted, we do not have to cleanup policies, so it is okay to pass in wrong nodename
+	// should have newPodMetadata == cachedPodMetadata since from branch above, we have cachedNpmPod.PodIP == newPodObj.Status.PodIP
 	cachedPodMetadata := dataplane.NewPodMetadata(podKey, cachedNpmPod.PodIP, newPodMetadata.NodeName)
 	// Delete the pod from its label's ipset.
 	for _, removeIPSetName := range deleteFromIPSets {

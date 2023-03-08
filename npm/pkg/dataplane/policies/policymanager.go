@@ -73,6 +73,13 @@ func NewPolicyManager(ioShim *common.IOShim, cfg *PolicyManagerCfg) *PolicyManag
 	}
 }
 
+func (pMgr *PolicyManager) ResetEndpoint(epID string) error {
+	if util.IsWindowsDP() {
+		return pMgr.bootup([]string{epID})
+	}
+	return nil
+}
+
 func (pMgr *PolicyManager) Bootup(epIDs []string) error {
 	metrics.ResetNumACLRules()
 	if err := pMgr.bootup(epIDs); err != nil {

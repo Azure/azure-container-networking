@@ -21,10 +21,7 @@ const (
 	refreshLocalEndpoints bool = false
 )
 
-var (
-	errPolicyModeUnsupported = errors.New("only IPSet policy mode is supported")
-	errMismanagedPodKey      = errors.New("the endpoint corresponds to a different pod")
-)
+var errPolicyModeUnsupported = errors.New("only IPSet policy mode is supported")
 
 // initializeDataPlane will help gather network and endpoint details
 func (dp *DataPlane) initializeDataPlane() error {
@@ -113,15 +110,11 @@ func (dp *DataPlane) shouldUpdatePod() bool {
 // updatePod has two responsibilities in windows
 // 1. Will call into dataplane and updates endpoint references of this pod.
 // 2. Will check for existing applicable network policies and applies it on endpoint.
-/*
-	FIXME: see https://github.com/Azure/azure-container-networking/issues/1729
-	TODO: it would be good to replace stalePodKey behavior since it is complex.
-*/
+// Assumption: a Pod won't take up its previously used IP when restarting (see https://stackoverflow.com/questions/52362514/when-will-the-kubernetes-pod-ip-change)
 func (dp *DataPlane) updatePod(pod *updateNPMPod) error {
-	klog.Infof("[DataPlane] updatePod called for Pod Key %s", pod.PodKey)
-	if pod.NodeName != dp.nodeName {
-		// Ignore updates if the pod is not part of this node.
-		klog.Infof("[DataPlane] ignoring update pod as expected Node: [%s] got: [%s]. pod: [%s]", dp.nodeName, pod.NodeName, pod.PodKey)
+	klog.Infof("[DataPlane] updatePod called. podKey: %s", pod.PodKey)
+	if len(pod.IPSetsToAdd) == 0 && len(pod.IPSetsToRemove) == 0 {
+		// nothing to do
 		return nil
 	}
 
@@ -134,23 +127,35 @@ func (dp *DataPlane) updatePod(pod *updateNPMPod) error {
 	if !ok {
 		// ignore this err and pod endpoint will be deleted in ApplyDP
 		// if the endpoint is not found, it means the pod is not part of this node or pod got deleted.
-		klog.Warningf("[DataPlane] did not find endpoint with IPaddress %s for pod %s", pod.PodIP, pod.PodKey)
+		klog.Warningf("[DataPlane] ignoring pod update since there is no corresponding endpoint. IP: %s. podKey: %s", pod.PodIP, pod.PodKey)
 		return nil
 	}
 
 	if endpoint.podKey == unspecifiedPodKey {
 		// while refreshing pod endpoints, newly discovered endpoints are given an unspecified pod key
-		if endpoint.isStalePodKey(pod.PodKey) {
-			// NOTE: if a pod restarts and takes up its previous IP, then its endpoint would be new and this branch would be taken.
-			// Updates to this pod would not occur. Pod IPs are expected to change on restart though.
-			// See: https://stackoverflow.com/questions/52362514/when-will-the-kubernetes-pod-ip-change
-			// If a pod does restart and take up its previous IP, then the pod can be deleted/restarted to mitigate this problem.
-			klog.Infof("[DataPlane] ignoring pod update since pod with key %s is stale and likely was deleted", pod.PodKey)
-			return nil
-		}
+		klog.Infof("[DataPlane] associating pod with endpoint. podKey: %s. endpoint: %+v", pod.PodKey, endpoint)
 		endpoint.podKey = pod.PodKey
+	} else if pod.PodKey == endpoint.previousIncorrectPodKey {
+		klog.Infof("[DataPlane] ignoring pod update since this pod was previously and incorrectly assigned to this endpoint. endpoint: %+v", endpoint)
+		return nil
 	} else if pod.PodKey != endpoint.podKey {
-		return fmt.Errorf("pod key mismatch. Expected: %s, Actual: %s. Error: [%w]", pod.PodKey, endpoint.podKey, errMismanagedPodKey)
+		// solves issue 1729
+		klog.Infof("[DataPlane] pod key has changed. will reset endpoint acls and skip looking ipsets to remove. new podKey: %s. previous endpoint: %+v", pod.PodKey, endpoint)
+		if err := dp.policyMgr.ResetEndpoint(endpoint.id); err != nil {
+			return fmt.Errorf("failed to reset endpoint for pod with incorrect pod key. new podKey: %s. previous endpoint: %+v. err: %w", pod.PodKey, endpoint, err)
+		}
+
+		// mark this after successful reset. If before reset, we would not retry on failure
+		endpoint.previousIncorrectPodKey = endpoint.podKey
+		endpoint.podKey = pod.PodKey
+
+		// all ACLs were removed, so in case there were ipsets to remove, there's no need to look for policies to delete
+		pod.IPSetsToRemove = nil
+
+		if dp.NetworkName == util.CalicoNetworkName {
+			klog.Infof("adding back base ACLs for calico CNI endpoint after resetting ACLs. endpoint: %+v", endpoint)
+			dp.policyMgr.AddBaseACLsForCalicoCNI(endpoint.id)
+		}
 	}
 
 	// for every ipset we're removing from the endpoint, remove from the endpoint any policy that requires the set
@@ -286,15 +291,13 @@ func (dp *DataPlane) getEndpointsToApplyPolicy(policy *policies.NPMNetworkPolicy
 	for ip, podKey := range netpolSelectorIPs {
 		endpoint, ok := dp.endpointCache.cache[ip]
 		if !ok {
-			klog.Infof("[DataPlane] Ignoring endpoint with IP %s since it was not found in the endpoint cache. This IP might not be in the HNS network", ip)
+			klog.Infof("[DataPlane] ignoring selector IP since it was not found in the endpoint cache and might not be in the HNS network. ip: %s. podKey: %s", ip, podKey)
 			continue
 		}
 
 		if endpoint.podKey != podKey {
 			// in case the pod controller hasn't updated the dp yet that the IP's pod owner has changed
-			klog.Infof(
-				"[DataPlane] ignoring endpoint with IP %s since the pod keys are different. podKey: [%s], endpoint: [%+v], endpoint stale pod key: [%+v]",
-				ip, podKey, endpoint, endpoint.stalePodKey)
+			klog.Infof("[DataPlane] ignoring selector IP since the endpoint is assigned to a different podKey. ip: %s. podKey: %s. endpoint: %+v", ip, podKey, endpoint)
 			continue
 		}
 
@@ -349,7 +352,6 @@ func (dp *DataPlane) refreshPodEndpoints() error {
 	dp.endpointCache.Lock()
 	defer dp.endpointCache.Unlock()
 
-	currentTime := time.Now().Unix()
 	existingIPs := make(map[string]struct{})
 	for _, endpoint := range endpoints {
 		if len(endpoint.IpConfigurations) == 0 {
@@ -384,18 +386,8 @@ func (dp *DataPlane) refreshPodEndpoints() error {
 			// throw away old endpoints that have the same IP as a current endpoint (the old endpoint is getting deleted)
 			// we don't have to worry about cleaning up network policies on endpoints that are getting deleted
 			npmEP := newNPMEndpoint(endpoint)
-			if oldNPMEP.podKey == unspecifiedPodKey {
-				klog.Infof("updating endpoint cache since endpoint changed for IP which never had a pod key. new endpoint: %s, old endpoint: %s, ip: %s", npmEP.id, oldNPMEP.id, npmEP.ip)
-				dp.endpointCache.cache[ip] = npmEP
-			} else {
-				npmEP.stalePodKey = &staleKey{
-					key:       oldNPMEP.podKey,
-					timestamp: currentTime,
-				}
-				dp.endpointCache.cache[ip] = npmEP
-				// NOTE: TSGs rely on this log line
-				klog.Infof("updating endpoint cache for previously cached IP %s: %+v with stalePodKey %+v", npmEP.ip, npmEP, npmEP.stalePodKey)
-			}
+			klog.Infof("[DataPlane] updating endpoint cache for IP with a new endpoint. old endpoint: %+v. new endpoint: %+v", oldNPMEP, npmEP)
+			dp.endpointCache.cache[ip] = npmEP
 
 			if dp.NetworkName == util.CalicoNetworkName {
 				// NOTE 1: connectivity may be broken for an endpoint until this method is called
@@ -410,22 +402,8 @@ func (dp *DataPlane) refreshPodEndpoints() error {
 	// garbage collection for the endpoint cache
 	for ip, ep := range dp.endpointCache.cache {
 		if _, ok := existingIPs[ip]; !ok {
-			if ep.podKey == unspecifiedPodKey {
-				if ep.stalePodKey == nil {
-					klog.Infof("deleting old endpoint which never had a pod key. ID: %s, IP: %s", ep.id, ip)
-					delete(dp.endpointCache.cache, ip)
-				} else if int(currentTime-ep.stalePodKey.timestamp)/60 > minutesToKeepStalePodKey {
-					klog.Infof("deleting old endpoint which had a stale pod key. ID: %s, IP: %s, stalePodKey: %+v", ep.id, ip, ep.stalePodKey)
-					delete(dp.endpointCache.cache, ip)
-				}
-			} else {
-				ep.stalePodKey = &staleKey{
-					key:       ep.podKey,
-					timestamp: currentTime,
-				}
-				ep.podKey = unspecifiedPodKey
-				klog.Infof("marking endpoint stale for at least %d minutes. ID: %s, IP: %s, new stalePodKey: %+v", minutesToKeepStalePodKey, ep.id, ip, ep.stalePodKey)
-			}
+			klog.Infof("[DataPlane] deleting endpoint from cache. endpoint: %+v", ep)
+			delete(dp.endpointCache.cache, ip)
 		}
 	}
 
