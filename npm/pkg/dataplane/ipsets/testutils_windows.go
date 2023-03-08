@@ -10,11 +10,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func GetHNSFake(t *testing.T) *hnswrapper.Hnsv2wrapperFake {
+func GetHNSFake(t *testing.T, networkName string) *hnswrapper.Hnsv2wrapperFake {
 	hns := hnswrapper.NewHnsv2wrapperFake()
 	network := &hcn.HostComputeNetwork{
 		Id:   common.FakeHNSNetworkID,
-		Name: "azure",
+		Name: networkName,
 	}
 
 	_, err := hns.CreateNetwork(network)

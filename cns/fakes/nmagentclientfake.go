@@ -14,24 +14,9 @@ import (
 
 // NMAgentClientFake can be used to query to VM Host info.
 type NMAgentClientFake struct {
-	PutNetworkContainerF    func(context.Context, *nmagent.PutNetworkContainerRequest) error
-	DeleteNetworkContainerF func(context.Context, nmagent.DeleteContainerRequest) error
-	JoinNetworkF            func(context.Context, nmagent.JoinNetworkRequest) error
-	SupportedAPIsF          func(context.Context) ([]string, error)
-	GetNCVersionListF       func(context.Context) (nmagent.NCVersionList, error)
-	GetHomeAzF              func(context.Context) (nmagent.AzResponse, error)
-}
-
-func (n *NMAgentClientFake) PutNetworkContainer(ctx context.Context, req *nmagent.PutNetworkContainerRequest) error {
-	return n.PutNetworkContainerF(ctx, req)
-}
-
-func (n *NMAgentClientFake) DeleteNetworkContainer(ctx context.Context, req nmagent.DeleteContainerRequest) error {
-	return n.DeleteNetworkContainerF(ctx, req)
-}
-
-func (n *NMAgentClientFake) JoinNetwork(ctx context.Context, req nmagent.JoinNetworkRequest) error {
-	return n.JoinNetworkF(ctx, req)
+	SupportedAPIsF    func(context.Context) ([]string, error)
+	GetNCVersionListF func(context.Context) (nmagent.NCVersionList, error)
+	GetHomeAzF        func(context.Context) (nmagent.AzResponse, error)
 }
 
 func (n *NMAgentClientFake) SupportedAPIs(ctx context.Context) ([]string, error) {

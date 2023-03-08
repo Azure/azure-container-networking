@@ -10,6 +10,7 @@ import (
 	"encoding/xml"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -102,6 +103,24 @@ var (
 	}
 	ncParams         = []createOrUpdateNetworkContainerParams{nc1, nc2}
 	errMismatchedNCs = errors.New("GetNetworkContainers failed because NCs not matched")
+
+	nc3 = createOrUpdateNetworkContainerParams{
+		ncID:         "1abc",
+		ncIP:         "10.0.0.5",
+		ncType:       cns.AzureContainerInstance,
+		ncVersion:    "0",
+		podName:      "testpod",
+		podNamespace: "testpodnamespace",
+	}
+	nc4 = createOrUpdateNetworkContainerParams{
+		ncID:         "2abc",
+		ncIP:         "20.0.0.5",
+		ncType:       cns.AzureContainerInstance,
+		ncVersion:    "0",
+		podName:      "testpod",
+		podNamespace: "testpodnamespace",
+	}
+	ncDualNicParams = []createOrUpdateNetworkContainerParams{nc3, nc4}
 )
 
 const (
@@ -230,6 +249,7 @@ func FirstRequest(req *http.Request, err error) *http.Request {
 }
 
 func TestSetOrchestratorType_NCsPresent(t *testing.T) {
+	present := ncList("present")
 	tests := []struct {
 		name          string
 		service       *HTTPRestService
@@ -246,8 +266,8 @@ func TestSetOrchestratorType_NCsPresent(t *testing.T) {
 					ContainerStatus: map[string]containerstatus{
 						"nc1": {},
 					},
-					ContainerIDByOrchestratorContext: map[string]string{
-						"nc1": "present",
+					ContainerIDByOrchestratorContext: map[string]*ncList{
+						"nc1": &present,
 					},
 				},
 			},
@@ -308,6 +328,112 @@ func TestSetOrchestratorType_NCsPresent(t *testing.T) {
 			}
 			assert.Equal(t, tt.response, resp)
 		})
+	}
+}
+
+func TestDeleteContainerIDByOrchestratorContext(t *testing.T) {
+	fmt.Println("Test: TestDeleteContainerIDByOrchestratorContext")
+
+	setEnv(t)
+	err := setOrchestratorType(t, cns.Kubernetes)
+	if err != nil {
+		t.Fatalf("TestDeleteContainerIDByOrchestratorContext failed with error:%+v", err)
+	}
+
+	// create two network containers
+	for i := 0; i < len(ncDualNicParams); i++ {
+		err = createOrUpdateNetworkContainerWithParams(ncDualNicParams[i])
+		if err != nil {
+			t.Fatalf("createOrUpdateNetworkContainerWithParams failed with error:%+v", err)
+		}
+	}
+
+	_, err = getAllNetworkContainers(t, ncDualNicParams)
+	if err != nil {
+		t.Fatalf("TestGetAllNetworkContainers failed with error:%+v", err)
+	}
+
+	svc = service.(*HTTPRestService)
+
+	// get ncList based on orchestratorContext
+	orchestratorContext := ncDualNicParams[0].podName + ncDualNicParams[0].podNamespace
+	// i.e, ncs is {"testpodtestpodnamespace": "Swift_1abc,Swift_2abc"}
+	ncs := svc.state.ContainerIDByOrchestratorContext[orchestratorContext]
+
+	// delete "Swift_1abc" NC first:
+	err = deleteNetworkContainerWithParams(ncDualNicParams[0])
+	if err != nil {
+		t.Fatalf("createOrUpdateNetworkContainerWithParams failed with error:%+v", err)
+	}
+
+	expectedNC := "Swift_" + ncDualNicParams[1].ncID
+	if ncList(expectedNC) != *ncs {
+		t.Fatalf("failed to delete first NCID %s", ncDualNicParams[0].ncID)
+	}
+
+	// delete second NC "Swift_2abc", the svc.state.ContainerIDByOrchestratorContext map should be empty
+	err = deleteNetworkContainerWithParams(ncDualNicParams[1])
+	if err != nil {
+		t.Fatalf("createOrUpdateNetworkContainerWithParams failed with error:%+v", err)
+	}
+
+	if *ncs != "" || len(svc.state.ContainerIDByOrchestratorContext) != 0 {
+		t.Fatal("failed to delete all NCs and ContainerIDByOrchestratorContext object")
+	}
+}
+
+func TestDeleteNetworkContainers(t *testing.T) {
+	fmt.Println("Test: TestDeleteNetworkContainers")
+
+	setEnv(t)
+	err := setOrchestratorType(t, cns.Kubernetes)
+	if err != nil {
+		t.Fatalf("TestDeleteNetworkContainer failed with error:%+v", err)
+	}
+
+	// create two network containers
+	for i := 0; i < len(ncDualNicParams); i++ {
+		err = createOrUpdateNetworkContainerWithParams(ncDualNicParams[i])
+		if err != nil {
+			t.Fatalf("createOrUpdateNetworkContainerWithParams failed with error:%+v", err)
+		}
+	}
+
+	ncResponses, err := getAllNetworkContainers(t, ncDualNicParams)
+	if err != nil {
+		t.Fatalf("TestGetAllNetworkContainers failed with error:%+v", err)
+	}
+
+	if len(ncResponses.NetworkContainers) != 2 {
+		t.Fatalf("TestGetAllNetworkContainers failed to create dual network containers")
+	}
+
+	// delete one NC(nc3, 10.0.0.5)
+	err = deleteNetworkContainerWithParams(ncDualNicParams[0])
+	if err != nil {
+		t.Fatalf("createOrUpdateNetworkContainerWithParams failed with error:%+v", err)
+	}
+
+	// get second NC info and check if it's equal to "Swift" + NCID
+	ncResponse, err := getNetworkContainerByContext(ncDualNicParams[1])
+	if err != nil {
+		t.Errorf("TestGetNetworkContainerByOrchestratorContext failed Err:%+v", err)
+		t.Fatal(err)
+	}
+
+	if ncResponse.NetworkContainerID != "Swift_2abc" {
+		t.Fatal("failed to check second nc")
+	}
+
+	// delete second one
+	err = deleteNetworkContainerWithParams(ncDualNicParams[1])
+	if err != nil {
+		t.Fatalf("createOrUpdateNetworkContainerWithParams failed with error:%+v", err)
+	}
+
+	ncResponses, err = getAllNetworkContainers(t, ncDualNicParams)
+	if len(ncResponses.NetworkContainers) != 0 && err != nil {
+		t.Fatalf("failed to remove all network containers")
 	}
 }
 
@@ -432,28 +558,21 @@ func TestGetNetworkContainerByOrchestratorContext(t *testing.T) {
 	}
 
 	mnma := &fakes.NMAgentClientFake{
-		PutNetworkContainerF: func(_ context.Context, _ *nmagent.PutNetworkContainerRequest) error {
-			return nil
-		},
-		JoinNetworkF: func(_ context.Context, _ nmagent.JoinNetworkRequest) error {
-			return nil
+		GetNCVersionListF: func(_ context.Context) (nmagent.NCVersionList, error) {
+			return nmagent.NCVersionList{
+				Containers: []nmagent.NCVersion{
+					{
+						// Must set it as params.ncID without cns.SwiftPrefix to mock real nmagent nc format.
+						NetworkContainerID: params.ncID,
+						Version:            params.ncVersion,
+					},
+				},
+			}, nil
 		},
 	}
 
 	cleanup := setMockNMAgent(svc, mnma)
 	defer cleanup()
-
-	mnma.GetNCVersionListF = func(_ context.Context) (nmagent.NCVersionList, error) {
-		return nmagent.NCVersionList{
-			Containers: []nmagent.NCVersion{
-				{
-					// Must set it as params.ncID without cns.SwiftPrefix to mock real nmagent nc format.
-					NetworkContainerID: params.ncID,
-					Version:            params.ncVersion,
-				},
-			},
-		}, nil
-	}
 
 	fmt.Println("Now calling getNetworkContainerByContext")
 	resp, err := getNetworkContainerByContext(params)
@@ -545,19 +664,13 @@ func TestGetNetworkContainerVersionStatus(t *testing.T) {
 	setEnv(t)
 	setOrchestratorType(t, cns.Kubernetes)
 
-	// set up a mock NMAgent with some "successful" functionality so that
-	// creating things will work as expected
-	mnma := &fakes.NMAgentClientFake{
-		PutNetworkContainerF: func(_ context.Context, _ *nmagent.PutNetworkContainerRequest) error {
-			return nil
-		},
-		JoinNetworkF: func(_ context.Context, _ nmagent.JoinNetworkRequest) error {
-			return nil
-		},
-	}
+	mnma := &fakes.NMAgentClientFake{}
+	cleanupNMA := setMockNMAgent(svc, mnma)
+	defer cleanupNMA()
 
-	cleanup := setMockNMAgent(svc, mnma)
-	defer cleanup()
+	wsproxy := fakes.WireserverProxyFake{}
+	cleanupWSP := setWireserverProxy(svc, &wsproxy)
+	defer cleanupWSP()
 
 	params := createOrUpdateNetworkContainerParams{
 		ncID:         "nc-nma-success",
@@ -663,11 +776,12 @@ func TestGetNetworkContainerVersionStatus(t *testing.T) {
 		return rsp, errors.New("boom") //nolint:goerr113 // it's just a test
 	}
 
-	mnma.JoinNetworkF = func(_ context.Context, _ nmagent.JoinNetworkRequest) error {
-		return errors.New("boom") //nolint:goerr113 // it's just a test
+	wsproxy.JoinNetworkFunc = func(ctx context.Context, s string) (*http.Response, error) {
+		return nil, errors.New("boom") //nolint:goerr113 // it's just a test
 	}
-	mnma.PutNetworkContainerF = func(_ context.Context, _ *nmagent.PutNetworkContainerRequest) error {
-		return errors.New("boom") //nolint:goerr113 // it's just a test
+
+	wsproxy.PublishNCFunc = func(ctx context.Context, parameters cns.NetworkContainerParameters, i []byte) (*http.Response, error) {
+		return nil, errors.New("boom") //nolint:goerr113 // it's just a test
 	}
 
 	err = createNC(params)
@@ -704,12 +818,8 @@ func TestGetNetworkContainerVersionStatus(t *testing.T) {
 		return rsp, nil
 	}
 
-	mnma.JoinNetworkF = func(_ context.Context, _ nmagent.JoinNetworkRequest) error {
-		return nil
-	}
-	mnma.PutNetworkContainerF = func(_ context.Context, _ *nmagent.PutNetworkContainerRequest) error {
-		return nil
-	}
+	wsproxy.JoinNetworkFunc = nil
+	wsproxy.PublishNCFunc = nil
 
 	err = createNC(params)
 	if err != nil {
@@ -745,16 +855,8 @@ func createNC(params createOrUpdateNetworkContainerParams) error {
 func TestPublishNCViaCNS(t *testing.T) {
 	fmt.Println("Test: publishNetworkContainer")
 
-	mnma := &fakes.NMAgentClientFake{
-		PutNetworkContainerF: func(_ context.Context, _ *nmagent.PutNetworkContainerRequest) error {
-			return nil
-		},
-		JoinNetworkF: func(_ context.Context, _ nmagent.JoinNetworkRequest) error {
-			return nil
-		},
-	}
-
-	cleanup := setMockNMAgent(svc, mnma)
+	wsproxy := fakes.WireserverProxyFake{}
+	cleanup := setWireserverProxy(svc, &wsproxy)
 	defer cleanup()
 
 	createNetworkContainerURL := "http://" + nmagentEndpoint +
@@ -785,82 +887,23 @@ func TestPublishNCViaCNS(t *testing.T) {
 	}
 }
 
-func TestPublishNCBadBody(t *testing.T) {
-	mnma := &fakes.NMAgentClientFake{
-		PutNetworkContainerF: func(_ context.Context, _ *nmagent.PutNetworkContainerRequest) error {
-			return nil
-		},
-		JoinNetworkF: func(_ context.Context, _ nmagent.JoinNetworkRequest) error {
-			return nil
-		},
-	}
+func TestPublishNC_NMAgentApplicationErrors(t *testing.T) {
+	// wireserver may respond with a 200 OK header, but contain a non-200 httpStatusCode in the body,
+	// corresponding to an application level error from nmagent. clients expect 200 success from cns
+	// as well, and need to parse the embedded bytes for further handling.
 
-	cleanup := setMockNMAgent(svc, mnma)
-	t.Cleanup(cleanup)
+	wireserverBody := `{"httpStatusCode":"401"}`
 
-	joinNetworkURL := "http://" + nmagentEndpoint + "/dummyVnetURL"
-
-	createNetworkContainerURL := "http://" + nmagentEndpoint +
-		"/machine/plugins/?comp=nmagent&type=NetworkManagement/interfaces/dummyIntf/networkContainers/dummyNCURL/authenticationToken/dummyT/api-version/1"
-	publishNCRequest := &cns.PublishNetworkContainerRequest{
-		NetworkID:                         "foo",
-		NetworkContainerID:                "bar",
-		JoinNetworkURL:                    joinNetworkURL,
-		CreateNetworkContainerURL:         createNetworkContainerURL,
-		CreateNetworkContainerRequestBody: []byte("this is not even remotely JSON"),
-	}
-
-	var body bytes.Buffer
-	err := json.NewEncoder(&body).Encode(publishNCRequest)
-	if err != nil {
-		t.Fatal("error encoding json: err:", err)
-	}
-
-	//nolint:noctx // also just a test
-	req, err := http.NewRequest(http.MethodPost, cns.PublishNetworkContainer, &body)
-	if err != nil {
-		t.Fatal("error creating new HTTP request: err:", err)
-	}
-
-	w := httptest.NewRecorder()
-	mux.ServeHTTP(w, req)
-
-	// the request should fail because the inner request body was incorrectly
-	// formatted
-	expStatus := http.StatusOK
-	gotStatus := w.Code
-	if expStatus != gotStatus {
-		t.Error("unexpected http status code: exp:", expStatus, "got:", gotStatus)
-	}
-
-	var resp cns.PublishNetworkContainerResponse
-	//nolint:bodyclose // unnnecessary in a test
-	err = json.NewDecoder(w.Result().Body).Decode(&resp)
-	if err != nil {
-		t.Fatal("unexpected error decoding JSON: err:", err)
-	}
-
-	expCode := types.NetworkContainerPublishFailed
-	gotCode := resp.Response.ReturnCode
-	if expCode != gotCode {
-		t.Error("unexpected return code: exp:", expCode, "got:", gotCode)
-	}
-}
-
-func TestPublishNC401(t *testing.T) {
-	mnma := &fakes.NMAgentClientFake{
-		PutNetworkContainerF: func(_ context.Context, _ *nmagent.PutNetworkContainerRequest) error {
-			return nmagent.Error{
-				Code:   http.StatusUnauthorized,
-				Source: "nmagent",
-			}
-		},
-		JoinNetworkF: func(_ context.Context, _ nmagent.JoinNetworkRequest) error {
-			return nil
+	wsproxy := fakes.WireserverProxyFake{
+		PublishNCFunc: func(_ context.Context, _ cns.NetworkContainerParameters, _ []byte) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(bytes.NewBufferString(wireserverBody)),
+			}, nil
 		},
 	}
 
-	cleanup := setMockNMAgent(svc, mnma)
+	cleanup := setWireserverProxy(svc, &wsproxy)
 	t.Cleanup(cleanup)
 
 	joinNetworkURL := "http://" + nmagentEndpoint + "/dummyVnetURL"
@@ -903,34 +946,27 @@ func TestPublishNC401(t *testing.T) {
 		t.Fatal("unexpected error decoding JSON: err:", err)
 	}
 
-	expCode := types.NetworkContainerPublishFailed
-	gotCode := resp.Response.ReturnCode
-	if expCode != gotCode {
-		t.Error("unexpected return code: exp:", expCode, "got:", gotCode)
+	expResponse := cns.PublishNetworkContainerResponse{
+		Response:            cns.Response{ReturnCode: types.Success, Message: ""},
+		PublishErrorStr:     "",
+		PublishStatusCode:   http.StatusOK,
+		PublishResponseBody: []byte(wireserverBody),
 	}
 
-	expBodyStatus := http.StatusUnauthorized
-	gotBodyStatus := resp.PublishStatusCode
-	if expBodyStatus != gotBodyStatus {
-		t.Error("unexpected publish body status: exp:", expBodyStatus, "got:", gotBodyStatus)
+	if expResponse.Response != resp.Response {
+		t.Errorf("unexpected cns.Response: exp: %+v, got %+v", expResponse.Response, resp.Response)
 	}
 
-	// ensure that the PublishResponseBody is JSON
-	pubResp := make(map[string]any)
-	err = json.Unmarshal(resp.PublishResponseBody, &pubResp)
-	if err != nil {
-		t.Fatal("unexpected error unmarshaling PublishResponseBody: err:", err)
+	if expResponse.PublishErrorStr != resp.PublishErrorStr {
+		t.Errorf("unexpected PublishErrorStr: exp: %v, got %v", expResponse.PublishErrorStr, resp.PublishErrorStr)
 	}
 
-	// ensure that the PublishResponseBody also contains the embedded status from
-	// NMAgent
-	expStatusStr := strconv.Itoa(expBodyStatus)
-	if gotStatusStr, ok := pubResp["httpStatusCode"]; ok {
-		if gotStatusStr != expStatusStr {
-			t.Fatalf("expected PublishResponseBody's httpStatusCode to be %q, but was %q\n", expStatusStr, gotStatusStr)
-		}
-	} else {
-		t.Fatal("PublishResponseBody did not contain httpStatusCode")
+	if expResponse.PublishStatusCode != resp.PublishStatusCode {
+		t.Errorf("unexpected PublishStatusCode: exp: %v, got %v", expResponse.PublishStatusCode, resp.PublishStatusCode)
+	}
+
+	if !bytes.Equal(expResponse.PublishResponseBody, resp.PublishResponseBody) {
+		t.Errorf("unexpected PublishStatusCode: exp: %q, got %q", expResponse.PublishResponseBody, resp.PublishResponseBody)
 	}
 }
 
@@ -999,37 +1035,8 @@ func publishNCViaCNS(
 }
 
 func TestUnpublishNCViaCNS(t *testing.T) {
-	// Publishing and Unpublishing via CNS effectively uses CNS as a proxy to
-	// NMAgent. This test asserts that the correct methods are invoked on the
-	// NMAgent client in the correct order based on a sequence of creating and
-	// destroying an example NC.
-
-	// create a mock NMAgent that allows assertions on the methods called. There
-	// should be a certain sequence of invocations based on the high-level
-	// actions that are taken here.
-	const (
-		joinNetwork            = "JoinNetwork"
-		deleteNetworkContainer = "DeleteNetworkContainer"
-		putNetworkContainer    = "PutNetworkContainer"
-	)
-
-	got := []string{}
-	mnma := &fakes.NMAgentClientFake{
-		JoinNetworkF: func(_ context.Context, _ nmagent.JoinNetworkRequest) error {
-			got = append(got, joinNetwork)
-			return nil
-		},
-		DeleteNetworkContainerF: func(_ context.Context, _ nmagent.DeleteContainerRequest) error {
-			got = append(got, deleteNetworkContainer)
-			return nil
-		},
-		PutNetworkContainerF: func(_ context.Context, _ *nmagent.PutNetworkContainerRequest) error {
-			got = append(got, putNetworkContainer)
-			return nil
-		},
-	}
-
-	cleanup := setMockNMAgent(svc, mnma)
+	wsProxy := fakes.WireserverProxyFake{}
+	cleanup := setWireserverProxy(svc, &wsProxy)
 	defer cleanup()
 
 	// create a network container as the subject of this test.
@@ -1069,53 +1076,19 @@ func TestUnpublishNCViaCNS(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	// Assert the correct sequence of invocations on the NMAgent client. Creating
-	// a network container involves first joining the network and then creating a
-	// network container. Deleting the network container only involved the Delete
-	// call. Even though there were two other invalid Delete calls, we do not
-	// expect them to generate invocations of methods on the NMAgent
-	// client--these should be captured by CNS.
-	exp := []string{
-		// These two methods in the sequence are from the NC creation:
-		joinNetwork,
-		putNetworkContainer,
-
-		// This one is from the delete. There is technically one code path where a
-		// "JoinNetwork" can appear here, but we don't expect it because
-		// "JoinNetwork" appeared as part of the NC creation.
-		deleteNetworkContainer,
-	}
-
-	// with the expectation set, match up expectations with the method calls
-	// received:
-	if len(exp) != len(got) {
-		t.Fatal("unexpected sequence of methods invoked on NMAgent client: exp:", exp, "got:", got)
-	}
-
-	for idx := range exp {
-		if got[idx] != exp[idx] {
-			t.Error("unexpected sequence of methods invoked on NMAgent client: exp:", exp, "got:", got)
-		}
-	}
 }
 
 func TestUnpublishNCViaCNS401(t *testing.T) {
-	mnma := &fakes.NMAgentClientFake{
-		DeleteNetworkContainerF: func(_ context.Context, _ nmagent.DeleteContainerRequest) error {
-			// simulate a 401 from just Delete
-			return nmagent.Error{
-				Code:   http.StatusUnauthorized,
-				Source: "nmagent",
-			}
-		},
-		JoinNetworkF: func(_ context.Context, _ nmagent.JoinNetworkRequest) error {
-			return nil
+	wsproxy := fakes.WireserverProxyFake{
+		UnpublishNCFunc: func(_ context.Context, _ cns.NetworkContainerParameters, i []byte) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusOK,
+				Body:       io.NopCloser(bytes.NewBufferString(`{"httpStatusCode":"401"}`)),
+			}, nil
 		},
 	}
-
-	cleanup := setMockNMAgent(svc, mnma)
-	t.Cleanup(cleanup)
+	cleanup := setWireserverProxy(svc, &wsproxy)
+	defer cleanup()
 
 	deleteNetworkContainerURL := "http://" + nmagentEndpoint +
 		"/machine/plugins/?comp=nmagent&type=NetworkManagement/interfaces/dummyIntf/networkContainers/dummyNCURL/authenticationToken/dummyT/api-version/1/method/DELETE"
@@ -1126,10 +1099,11 @@ func TestUnpublishNCViaCNS401(t *testing.T) {
 	joinNetworkURL := "http://" + nmagentEndpoint + "/dummyVnetURL"
 
 	unpublishNCRequest := &cns.UnpublishNetworkContainerRequest{
-		NetworkID:                 networkID,
-		NetworkContainerID:        networkContainerID,
-		JoinNetworkURL:            joinNetworkURL,
-		DeleteNetworkContainerURL: deleteNetworkContainerURL,
+		NetworkID:                         networkID,
+		NetworkContainerID:                networkContainerID,
+		JoinNetworkURL:                    joinNetworkURL,
+		DeleteNetworkContainerURL:         deleteNetworkContainerURL,
+		DeleteNetworkContainerRequestBody: []byte("{}"),
 	}
 
 	var body bytes.Buffer
@@ -1153,13 +1127,13 @@ func TestUnpublishNCViaCNS401(t *testing.T) {
 		t.Fatal("error decoding json: err:", err)
 	}
 
-	expCode := types.NetworkContainerUnpublishFailed
+	expCode := types.Success
 	if gotCode := resp.Response.ReturnCode; gotCode != expCode {
 		t.Error("unexpected return code: got:", gotCode, "exp:", expCode)
 	}
 
 	gotStatus := resp.UnpublishStatusCode
-	expStatus := http.StatusUnauthorized
+	expStatus := http.StatusOK
 	if gotStatus != expStatus {
 		t.Error("unexpected http status during unpublish: got:", gotStatus, "exp:", expStatus)
 	}
@@ -1187,10 +1161,11 @@ func unpublishNCViaCNS(networkID, networkContainerID, deleteNetworkContainerURL 
 	joinNetworkURL := "http://" + nmagentEndpoint + "/dummyVnetURL"
 
 	unpublishNCRequest := &cns.UnpublishNetworkContainerRequest{
-		NetworkID:                 networkID,
-		NetworkContainerID:        networkContainerID,
-		JoinNetworkURL:            joinNetworkURL,
-		DeleteNetworkContainerURL: deleteNetworkContainerURL,
+		NetworkID:                         networkID,
+		NetworkContainerID:                networkContainerID,
+		JoinNetworkURL:                    joinNetworkURL,
+		DeleteNetworkContainerURL:         deleteNetworkContainerURL,
+		DeleteNetworkContainerRequestBody: []byte("{}"),
 	}
 
 	var body bytes.Buffer
@@ -1317,11 +1292,11 @@ func TestCreateHostNCApipaEndpoint(t *testing.T) {
 	fmt.Printf("createHostNCApipaEndpoint Responded with %+v\n", createHostNCApipaEndpointResponse)
 }
 
-func TestGetNetworkContainers(t *testing.T) {
+func TestGetAllNetworkContainers(t *testing.T) {
 	setEnv(t)
 	err := setOrchestratorType(t, cns.Kubernetes)
 	if err != nil {
-		t.Fatalf("TestGetNetworkContainers failed with error:%+v", err)
+		t.Fatalf("TestGetAllNetworkContainers failed with error:%+v", err)
 	}
 
 	for i := 0; i < len(ncParams); i++ {
@@ -1331,9 +1306,9 @@ func TestGetNetworkContainers(t *testing.T) {
 		}
 	}
 
-	err = getAllNetworkContainers(t, ncParams)
+	_, err = getAllNetworkContainers(t, ncParams)
 	if err != nil {
-		t.Fatalf("TestGetNetworkContainers failed with error:%+v", err)
+		t.Fatalf("TestGetAllNetworkContainers failed with error:%+v", err)
 	}
 
 	for i := 0; i < len(ncParams); i++ {
@@ -1344,10 +1319,10 @@ func TestGetNetworkContainers(t *testing.T) {
 	}
 }
 
-func getAllNetworkContainers(t *testing.T, ncParams []createOrUpdateNetworkContainerParams) error {
+func getAllNetworkContainers(t *testing.T, ncParams []createOrUpdateNetworkContainerParams) (ncResponses cns.GetAllNetworkContainersResponse, err error) {
 	req, err := http.NewRequestWithContext(context.TODO(), http.MethodGet, cns.NetworkContainersURLPath, http.NoBody)
 	if err != nil {
-		return fmt.Errorf("GetNetworkContainers failed with error: %w", err)
+		return cns.GetAllNetworkContainersResponse{}, fmt.Errorf("GetNetworkContainers failed with error: %w", err)
 	}
 
 	w := httptest.NewRecorder()
@@ -1356,18 +1331,18 @@ func getAllNetworkContainers(t *testing.T, ncParams []createOrUpdateNetworkConta
 	var resp cns.GetAllNetworkContainersResponse
 	err = decodeResponse(w, &resp)
 	if err != nil || resp.Response.ReturnCode != types.Success || len(resp.NetworkContainers) != len(ncParams) {
-		return fmt.Errorf("GetNetworkContainers failed with response %+v Err: %w", resp, err)
+		return cns.GetAllNetworkContainersResponse{}, fmt.Errorf("GetNetworkContainers failed with response %+v Err: %w", resp, err)
 	}
 
 	// If any NC in response is not found in ncParams, it means get all NCs failed
 	for i := 0; i < len(ncParams); i++ {
 		if !contains(resp.NetworkContainers, cns.SwiftPrefix+ncParams[i].ncID) {
-			return errMismatchedNCs
+			return cns.GetAllNetworkContainersResponse{}, errMismatchedNCs
 		}
 	}
 
 	t.Logf("GetNetworkContainers succeeded with response: %+v", resp)
-	return nil
+	return resp, nil
 }
 
 func TestPostNetworkContainers(t *testing.T) {
@@ -1382,7 +1357,7 @@ func TestPostNetworkContainers(t *testing.T) {
 		t.Fatalf("Failed to save all network containers due to error: %+v", err)
 	}
 
-	err = getAllNetworkContainers(t, ncParams)
+	_, err = getAllNetworkContainers(t, ncParams)
 	if err != nil {
 		t.Fatalf("TestPostNetworkContainers failed with error:%+v", err)
 	}
@@ -1673,7 +1648,7 @@ func startService() error {
 	config.Store = fileStore
 
 	nmagentClient := &fakes.NMAgentClientFake{}
-	service, err = NewHTTPRestService(&config, &fakes.WireserverClientFake{}, nmagentClient, nil, nil, nil)
+	service, err = NewHTTPRestService(&config, &fakes.WireserverClientFake{}, &fakes.WireserverProxyFake{}, nmagentClient, nil, nil, nil)
 	if err != nil {
 		return err
 	}

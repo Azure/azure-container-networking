@@ -3,6 +3,7 @@ package restserver
 import (
 	"context"
 	"net"
+	"net/http"
 	"sync"
 	"time"
 
@@ -38,12 +39,15 @@ type interfaceGetter interface {
 }
 
 type nmagentClient interface {
-	PutNetworkContainer(context.Context, *nma.PutNetworkContainerRequest) error
-	DeleteNetworkContainer(context.Context, nma.DeleteContainerRequest) error
-	JoinNetwork(context.Context, nma.JoinNetworkRequest) error
 	SupportedAPIs(context.Context) ([]string, error)
 	GetNCVersionList(context.Context) (nma.NCVersionList, error)
 	GetHomeAz(context.Context) (nma.AzResponse, error)
+}
+
+type wireserverProxy interface {
+	JoinNetwork(ctx context.Context, vnetID string) (*http.Response, error)
+	PublishNC(ctx context.Context, ncParams cns.NetworkContainerParameters, payload []byte) (*http.Response, error)
+	UnpublishNC(ctx context.Context, ncParams cns.NetworkContainerParameters, payload []byte) (*http.Response, error)
 }
 
 // HTTPRestService represents http listener for CNS - Container Networking Service.
@@ -53,6 +57,7 @@ type HTTPRestService struct {
 	wscli                    interfaceGetter
 	ipamClient               *ipamclient.IpamClient
 	nma                      nmagentClient
+	wsproxy                  wireserverProxy
 	homeAzMonitor            *HomeAzMonitor
 	networkContainer         *networkcontainers.NetworkContainers
 	PodIPIDByPodInterfaceKey map[string]string                    // PodInterfaceId is key and value is Pod IP (SecondaryIP) uuid.
@@ -129,7 +134,7 @@ type httpRestServiceState struct {
 	OrchestratorType                 string
 	NodeID                           string
 	Initialized                      bool
-	ContainerIDByOrchestratorContext map[string]string          // OrchestratorContext is key and value is NetworkContainerID.
+	ContainerIDByOrchestratorContext map[string]*ncList         // OrchestratorContext is the key and value is a list of NetworkContainerIDs separated by comma
 	ContainerStatus                  map[string]containerstatus // NetworkContainerID is key.
 	Networks                         map[string]*networkInfo
 	TimeStamp                        time.Time
@@ -144,7 +149,7 @@ type networkInfo struct {
 }
 
 // NewHTTPRestService creates a new HTTP Service object.
-func NewHTTPRestService(config *common.ServiceConfig, wscli interfaceGetter, nmagentClient nmagentClient,
+func NewHTTPRestService(config *common.ServiceConfig, wscli interfaceGetter, wsproxy wireserverProxy, nmagentClient nmagentClient,
 	endpointStateStore store.KeyValueStore, gen CNIConflistGenerator, homeAzMonitor *HomeAzMonitor,
 ) (cns.HTTPService, error) {
 	service, err := cns.NewService(config.Name, config.Version, config.ChannelMode, config.Store)
@@ -193,6 +198,7 @@ func NewHTTPRestService(config *common.ServiceConfig, wscli interfaceGetter, nma
 		wscli:                    wscli,
 		ipamClient:               ic,
 		nma:                      nmagentClient,
+		wsproxy:                  wsproxy,
 		networkContainer:         nc,
 		PodIPIDByPodInterfaceKey: podIPIDByPodInterfaceKey,
 		PodIPConfigState:         podIPConfigState,
@@ -237,6 +243,7 @@ func (service *HTTPRestService) Init(config *common.ServiceConfig) error {
 	listener.AddHandler(cns.GetInterfaceForContainer, service.getInterfaceForContainer)
 	listener.AddHandler(cns.SetOrchestratorType, service.setOrchestratorType)
 	listener.AddHandler(cns.GetNetworkContainerByOrchestratorContext, service.getNetworkContainerByOrchestratorContext)
+	listener.AddHandler(cns.GetAllNetworkContainers, service.getAllNetworkContainers)
 	listener.AddHandler(cns.AttachContainerToNetwork, service.attachNetworkContainerToNetwork)
 	listener.AddHandler(cns.DetachContainerFromNetwork, service.detachNetworkContainerFromNetwork)
 	listener.AddHandler(cns.CreateHnsNetworkPath, service.createHnsNetwork)
@@ -269,6 +276,7 @@ func (service *HTTPRestService) Init(config *common.ServiceConfig) error {
 	listener.AddHandler(cns.V2Prefix+cns.GetInterfaceForContainer, service.getInterfaceForContainer)
 	listener.AddHandler(cns.V2Prefix+cns.SetOrchestratorType, service.setOrchestratorType)
 	listener.AddHandler(cns.V2Prefix+cns.GetNetworkContainerByOrchestratorContext, service.getNetworkContainerByOrchestratorContext)
+	listener.AddHandler(cns.V2Prefix+cns.GetAllNetworkContainers, service.getAllNetworkContainers)
 	listener.AddHandler(cns.V2Prefix+cns.AttachContainerToNetwork, service.attachNetworkContainerToNetwork)
 	listener.AddHandler(cns.V2Prefix+cns.DetachContainerFromNetwork, service.detachNetworkContainerFromNetwork)
 	listener.AddHandler(cns.V2Prefix+cns.CreateHnsNetworkPath, service.createHnsNetwork)

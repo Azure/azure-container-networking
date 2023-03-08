@@ -312,32 +312,35 @@ func (service *HTTPRestService) ReconcileNCState(ncRequest *cns.CreateNetworkCon
 func (service *HTTPRestService) GetNetworkContainerInternal(
 	req cns.GetNetworkContainerRequest,
 ) (cns.GetNetworkContainerResponse, types.ResponseCode) {
-	getNetworkContainerResponse := service.getNetworkContainerResponse(req)
-	returnCode := getNetworkContainerResponse.Response.ReturnCode
-	return getNetworkContainerResponse, returnCode
+	getNetworkContainerResponses := service.getAllNetworkContainerResponses(req)
+	return getNetworkContainerResponses[0], getNetworkContainerResponses[0].Response.ReturnCode
 }
 
 // DeleteNetworkContainerInternal deletes a network container.
 func (service *HTTPRestService) DeleteNetworkContainerInternal(
 	req cns.DeleteNetworkContainerRequest,
 ) types.ResponseCode {
-	_, exist := service.getNetworkContainerDetails(req.NetworkContainerid)
+	ncid := req.NetworkContainerid
+	_, exist := service.getNetworkContainerDetails(ncid)
 	if !exist {
-		logger.Printf("network container for id %v doesn't exist", req.NetworkContainerid)
+		logger.Printf("network container for id %v doesn't exist", ncid)
 		return types.Success
 	}
 
 	service.Lock()
 	defer service.Unlock()
 	if service.state.ContainerStatus != nil {
-		delete(service.state.ContainerStatus, req.NetworkContainerid)
+		delete(service.state.ContainerStatus, ncid)
 	}
 
 	if service.state.ContainerIDByOrchestratorContext != nil {
-		for orchestratorContext, networkContainerID := range service.state.ContainerIDByOrchestratorContext {
-			if networkContainerID == req.NetworkContainerid {
-				delete(service.state.ContainerIDByOrchestratorContext, orchestratorContext)
-				break
+		for orchestratorContext, networkContainerIDs := range service.state.ContainerIDByOrchestratorContext { //nolint:gocritic // copy is ok
+			if networkContainerIDs.Contains(ncid) {
+				networkContainerIDs.Delete(ncid)
+				if *networkContainerIDs == "" {
+					delete(service.state.ContainerIDByOrchestratorContext, orchestratorContext)
+					break
+				}
 			}
 		}
 	}

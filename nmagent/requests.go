@@ -278,7 +278,9 @@ var _ Request = DeleteContainerRequest{}
 // DeleteContainerRequest represents all information necessary to request that
 // NMAgent delete a particular network container
 type DeleteContainerRequest struct {
-	NCID string `json:"-"` // the Network Container ID
+	NCID      string `json:"-"`         // the Network Container ID
+	AzID      uint   `json:"azID"`      // home AZ of the Network Container
+	EnableAZR bool   `json:"enableAZR"` // whether AZR is enabled or not
 
 	// PrimaryAddress is the primary customer address of the interface in the
 	// management VNET
