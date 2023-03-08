@@ -83,14 +83,14 @@ spec:
       hostNetwork: true
       containers:
         - name: azure-npm
-          image: mcr.microsoft.com/containernetworking/azure-npm:v1.4.29
+          image: mcr.microsoft.com/containernetworking/azure-npm:v1.4.45
           command: ["powershell.exe"]
           args:
             [
               '.\setkubeconfigpath.ps1',
               ";",
               "powershell.exe",
-              '.\azure-npm.exe',
+              '.\npm.exe',
               "start",
               '--kubeconfig=.\kubeconfig',
             ]
