@@ -9,6 +9,8 @@ ARG VERSION
 WORKDIR /azure-container-networking
 COPY . .
 RUN CGO_ENABLED=0 go build -a -o bin/azure-vnet -trimpath -ldflags "-X main.version="$VERSION"" -gcflags="-dwarflocationlists=true" cni/network/plugin/main.go
+RUN CGO_ENABLED=0 go build -a -o bin/azure-vnet-telemetry -trimpath -ldflags "-X main.version="$VERSION"" -gcflags="-dwarflocationlists=true" cni/telemetry/service/telemetrymain.go
+RUN CGO_ENABLED=0 go build -a -o bin/azure-vnet-ipam -trimpath -ldflags "-X main.version="$VERSION"" -gcflags="-dwarflocationlists=true" cni/ipam/plugin/main.go
 
 FROM mcr.microsoft.com/cbl-mariner/base/core:2.0 AS compressor
 ARG OS
