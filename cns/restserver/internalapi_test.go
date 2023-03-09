@@ -417,7 +417,7 @@ func validateCreateOrUpdateNCInternal(t *testing.T, secondaryIpCount int, ncVers
 
 	createAndValidateNCRequest(t, secondaryIPConfigs, ncId, ncVersion)
 
-	// now Validate Update, add more secondaryIpConfig and it should handle the update
+	// now Validate Update, add more secondaryIPConfig and it should handle the update
 	fmt.Println("Validate Scaleup")
 	for i := 0; i < secondaryIpCount; i++ {
 		ipaddress := "10.0.0." + strconv.Itoa(startingIndex)
@@ -429,7 +429,7 @@ func validateCreateOrUpdateNCInternal(t *testing.T, secondaryIpCount int, ncVers
 
 	createAndValidateNCRequest(t, secondaryIPConfigs, ncId, ncVersion)
 
-	// now Scale down, delete 3 ipaddresses from secondaryIpConfig req
+	// now Scale down, delete 3 ipaddresses from secondaryIPConfig req
 	fmt.Println("Validate Scale down")
 	count := 0
 	for ipid := range secondaryIPConfigs {
@@ -509,11 +509,11 @@ func validateNetworkRequest(t *testing.T, req cns.CreateNetworkContainerRequest)
 		ncCount++
 		if ncCount > (len(svc.state.ContainerStatus) * len(svc.PodIPConfigState)) {
 			if ipaddress, found := alreadyValidated[ipid]; !found {
-				if secondaryIpConfig, ok := req.SecondaryIPConfigs[ipid]; !ok {
+				if secondaryIPConfig, ok := req.SecondaryIPConfigs[ipid]; !ok {
 					t.Fatalf("PodIpConfigState has stale ipId: %s, config: %+v", ipid, ipStatus)
 				} else {
-					if ipStatus.IPAddress != secondaryIpConfig.IPAddress {
-						t.Fatalf("IPId: %s IPSubnet doesnt match: expected %+v, actual: %+v", ipid, secondaryIpConfig.IPAddress, ipStatus.IPAddress)
+					if ipStatus.IPAddress != secondaryIPConfig.IPAddress {
+						t.Fatalf("IPId: %s IPSubnet doesnt match: expected %+v, actual: %+v", ipid, secondaryIPConfig.IPAddress, ipStatus.IPAddress)
 					}
 
 					// Validate IP state

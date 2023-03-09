@@ -419,11 +419,11 @@ func (i IPConfigRequest) String() string {
 }
 
 type IPConfigsRequest struct {
-	DesiredIPAddresses  []string `json:"desiredIPAddress"`
-	PodInterfaceID      string `json:"podInterfaceID"`
-	InfraContainerID    string `json:"infraContainerID"`
+	DesiredIPAddresses  []string        `json:"desiredIPAddress"`
+	PodInterfaceID      string          `json:"podInterfaceID"`
+	InfraContainerID    string          `json:"infraContainerID"`
 	OrchestratorContext json.RawMessage `json:"orchestratorContext"`
-	Ifname              string `json:"ifname"` // Used by delegated IPAM
+	Ifname              string          `json:"ifname"` // Used by delegated IPAM
 }
 
 func (i IPConfigsRequest) String() string {

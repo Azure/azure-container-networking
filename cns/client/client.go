@@ -22,7 +22,7 @@ const (
 	// DefaultTimeout default timeout duration for CNS Client.
 	DefaultTimeout    = 5 * time.Second
 	headerContentType = "Content-Type"
-	pathNotFound	  = 404
+	pathNotFound      = 404
 )
 
 var clientPaths = []string{
@@ -49,7 +49,6 @@ var clientPaths = []string{
 }
 
 var ErrAPINotFound error = errors.New("api not found")
-
 
 type do interface {
 	Do(*http.Request) (*http.Response, error)

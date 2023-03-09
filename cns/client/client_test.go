@@ -294,9 +294,9 @@ func TestCNSClientRequestAndRelease(t *testing.T) {
 
 	t.Log(ipaddresses)
 
-	addresses := []string{}
-	for _, address := range ipaddresses {
-		addresses = append(addresses, address.IPAddress)
+	addresses := make([]string, len(ipaddresses))
+	for i := range ipaddresses {
+		addresses[i] = ipaddresses[i].IPAddress
 	}
 
 	// release requested IP address, expect success

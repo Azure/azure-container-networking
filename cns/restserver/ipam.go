@@ -83,12 +83,12 @@ func (service *HTTPRestService) requestIPConfigHandler(w http.ResponseWriter, r 
 		return
 	}
 
-	// check to make sure there aren't muliple NCs
+	// check to make sure there aren't multiple NCs
 	if len(service.state.ContainerStatus) > 1 {
 		reserveResp := &cns.IPConfigResponse{
 			Response: cns.Response{
 				ReturnCode: types.InvalidAPIWithMultipleNCs,
-				Message:    fmt.Sprintf("Called API that can only return 1 IP when expecting 2"),
+				Message:    "Called API that can only return 1 IP when expecting 2",
 			},
 		}
 		w.Header().Set(cnsReturnCode, reserveResp.Response.ReturnCode.String())
@@ -107,8 +107,8 @@ func (service *HTTPRestService) requestIPConfigHandler(w http.ResponseWriter, r 
 		Ifname:              ipconfigRequest.Ifname,
 	}
 
-	ipConfigsResp, err := service.requestIPConfigHandlerHelper(ipconfigsRequest) //nolint:contextcheck // appease linter
-	if err != nil {
+	ipConfigsResp, errResp := service.requestIPConfigHandlerHelper(ipconfigsRequest) //nolint:contextcheck // appease linter
+	if errResp != nil {
 		// As this API is expected to return IPConfigResponse, generate it from the IPConfigsResponse returned above
 		reserveResp := &cns.IPConfigResponse{
 			Response: ipConfigsResp.Response,
@@ -269,16 +269,16 @@ func (service *HTTPRestService) releaseIPConfigHandler(w http.ResponseWriter, r 
 		return
 	}
 
-	// check to make sure there aren't muliple NCs
+	// check to make sure there aren't multiple NCs
 	if len(service.state.ContainerStatus) > 1 {
 		reserveResp := &cns.IPConfigResponse{
 			Response: cns.Response{
 				ReturnCode: types.InvalidAPIWithMultipleNCs,
-				Message:    fmt.Sprintf("Called API that can only return 1 IP when expecting 2"),
+				Message:    "Called API that can only return 1 IP when expecting 2",
 			},
 		}
 		w.Header().Set(cnsReturnCode, reserveResp.Response.ReturnCode.String())
-		err := service.Listener.Encode(w, &reserveResp)
+		err = service.Listener.Encode(w, &reserveResp)
 		logger.ResponseEx(service.Name, ipconfigRequest, reserveResp, reserveResp.Response.ReturnCode, err)
 		return
 	}
@@ -601,6 +601,7 @@ func (service *HTTPRestService) releaseIPConfig(podInfo cns.PodInfo) error {
 				}
 			}
 		}
+		//nolint:goerr113 // return error
 		return fmt.Errorf("[releaseIPConfig] Failed to release all desired IPs. Reassigning all IPs that weren't released")
 	}
 
@@ -705,7 +706,7 @@ forLoop:
 	// if we were able to get at least one IP but not all of the desired IPs
 	if len(ncMap) > 0 {
 		logger.Printf("[AssignDesiredIPConfigs] Failed to retrieve all desired IPs. Releasing all IPs that were found")
-		for _, ipState := range ncMap {
+		for _, ipState := range ncMap { //nolint:gocritic // ignore copy
 			_, err := service.unassignIPConfig(ipState, podInfo)
 			if err != nil {
 				return podIPInfo, fmt.Errorf("[AssignDesiredIPConfigs] failed to mark IPConfig [%+v] back to Available. err: %w", ipState, err)
@@ -749,7 +750,7 @@ func (service *HTTPRestService) AssignAvailableIPConfigs(podInfo cns.PodInfo) ([
 	// if we were able to find at least one IP but not enough
 	if len(ncMap) > 0 {
 		logger.Printf("[AssignAvailableIPConfigs] Failed to retrieve enough IPs. Releasing all IPs that were found")
-		for _, ipState := range ncMap {
+		for _, ipState := range ncMap { //nolint:gocritic // ignore copy
 			_, err := service.unassignIPConfig(ipState, podInfo)
 			if err != nil {
 				return podIPInfo, fmt.Errorf("[AssignAvailableIPConfigs] failed to mark IPConfig [%+v] back to Available. err: %w", ipState, err)
