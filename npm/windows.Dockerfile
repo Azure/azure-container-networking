@@ -11,5 +11,5 @@ FROM mcr.microsoft.com/windows/servercore:${OS_VERSION}
 COPY --from=builder /usr/local/src/npm/examples/windows/kubeconfigtemplate.yaml kubeconfigtemplate.yaml
 COPY --from=builder /usr/local/src/npm/examples/windows/setkubeconfigpath.ps1 setkubeconfigpath.ps1
 COPY --from=builder /usr/local/src/npm/examples/windows/setkubeconfigpath-capz.ps1 setkubeconfigpath-capz.ps1
-COPY --from=builder /usr/local/bin/azure-npm.exe azure-npm.exe
-CMD ["azure-npm.exe", "start" "--kubeconfig=.\\kubeconfig"]
+COPY --from=builder /usr/local/bin/azure-npm.exe npm.exe
+CMD ["npm.exe", "start" "--kubeconfig=.\\kubeconfig"]
