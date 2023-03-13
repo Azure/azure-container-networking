@@ -6,6 +6,7 @@ package restserver
 import (
 	"fmt"
 	"net"
+	"net/netip"
 	"strconv"
 	"testing"
 
@@ -275,6 +276,10 @@ func IPAMGetAvailableIPConfig(t *testing.T, ncIDs, newPodIPs []string, prefixes 
 		desiredState[i].PodInfo = testPod1Info
 	}
 
+	firstAddress, _ := netip.ParseAddr(actualstate[0].IPAddress)
+	if firstAddress.Is4() == false && len(actualstate) > 1 {
+		actualstate[0], actualstate[1] = actualstate[1], actualstate[0]
+	}
 	for i := range actualstate {
 		assert.Equal(t, desiredState[i].GetState(), actualstate[i].GetState())
 		assert.Equal(t, desiredState[i].ID, actualstate[i].ID)
@@ -334,6 +339,10 @@ func IPAMGetNextAvailableIPConfig(t *testing.T, ncIDs []string, newPodIPs [][]st
 		desiredState[i] = state
 	}
 
+	firstAddress, _ := netip.ParseAddr(actualstate[0].IPAddress)
+	if firstAddress.Is4() == false && len(actualstate) > 1 {
+		actualstate[0], actualstate[1] = actualstate[1], actualstate[0]
+	}
 	for i := range actualstate {
 		assert.Equal(t, desiredState[i].GetState(), actualstate[i].GetState())
 		assert.Equal(t, desiredState[i].ID, actualstate[i].ID)
@@ -389,6 +398,10 @@ func IPAMGetAlreadyAssignedIPConfigForSamePod(t *testing.T, ncIDs, newPodIPs []s
 		desiredState[i] = state
 	}
 
+	firstAddress, _ := netip.ParseAddr(actualstate[0].IPAddress)
+	if firstAddress.Is4() == false && len(actualstate) > 1 {
+		actualstate[0], actualstate[1] = actualstate[1], actualstate[0]
+	}
 	for i := range actualstate {
 		assert.Equal(t, desiredState[i].GetState(), actualstate[i].GetState())
 		assert.Equal(t, desiredState[i].ID, actualstate[i].ID)
@@ -487,6 +500,10 @@ func IPAMGetDesiredIPConfigWithSpecfiedIP(t *testing.T, ncIDs, newPodIPs []strin
 		desiredState[i].PodInfo = testPod1Info
 	}
 
+	firstAddress, _ := netip.ParseAddr(actualstate[0].IPAddress)
+	if firstAddress.Is4() == false && len(actualstate) > 1 {
+		actualstate[0], actualstate[1] = actualstate[1], actualstate[0]
+	}
 	for i := range actualstate {
 		assert.Equal(t, desiredState[i].GetState(), actualstate[i].GetState())
 		assert.Equal(t, desiredState[i].ID, actualstate[i].ID)
@@ -655,6 +672,10 @@ func IPAMRequestThenReleaseThenRequestAgain(t *testing.T, ncIDs, newPodIPs []str
 		desiredState[i].PodInfo = testPod2Info
 	}
 
+	firstAddress, _ := netip.ParseAddr(actualstate[0].IPAddress)
+	if firstAddress.Is4() == false && len(actualstate) > 1 {
+		actualstate[0], actualstate[1] = actualstate[1], actualstate[0]
+	}
 	for i := range actualstate {
 		assert.Equal(t, desiredState[i].GetState(), actualstate[i].GetState())
 		assert.Equal(t, desiredState[i].ID, actualstate[i].ID)
@@ -1028,6 +1049,10 @@ func IPAMMarkExistingIPConfigAsPending(t *testing.T, ncIDs []string, newPodIPs [
 	}
 
 	pendingIPConfigs := svc.GetPendingReleaseIPConfigs()
+	firstAddress, _ := netip.ParseAddr(pendingIPConfigs[0].IPAddress)
+	if firstAddress.Is4() == false && len(pendingIPConfigs) > 1 {
+		pendingIPConfigs[0], pendingIPConfigs[1] = pendingIPConfigs[1], pendingIPConfigs[0]
+	}
 	for i := range newPodIPs[1] {
 		if pendingIPConfigs[i].ID != newPodIPs[1][i] {
 			t.Fatalf("Expected to see ID %v in pending release ipconfigs, actual %+v", newPodIPs[1][i], pendingIPConfigs)
