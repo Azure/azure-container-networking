@@ -122,6 +122,7 @@ func TestSyncHostNCVersion(t *testing.T) {
 	// cns.KubernetesCRD has one more logic compared to other orchestrator type, so test both of them
 	orchestratorTypes := []string{cns.Kubernetes, cns.KubernetesCRD}
 	for _, orchestratorType := range orchestratorTypes {
+		orchestratorType := orchestratorType
 		t.Run(orchestratorType, func(t *testing.T) {
 			req := createNCReqeustForSyncHostNCVersion(t)
 			containerStatus := svc.state.ContainerStatus[req.NetworkContainerid]
