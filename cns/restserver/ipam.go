@@ -74,7 +74,6 @@ func (service *HTTPRestService) requestIPConfigHandlerHelper(ipconfigsRequest cn
 
 // requestIPConfigHandler requests an IPConfig from the CNS state
 func (service *HTTPRestService) requestIPConfigHandler(w http.ResponseWriter, r *http.Request) {
-
 	var ipconfigRequest cns.IPConfigRequest
 	err := service.Listener.Decode(w, r, &ipconfigRequest)
 	operationName := "requestIPConfigHandler"
@@ -92,7 +91,7 @@ func (service *HTTPRestService) requestIPConfigHandler(w http.ResponseWriter, r 
 			},
 		}
 		w.Header().Set(cnsReturnCode, reserveResp.Response.ReturnCode.String())
-		err := service.Listener.Encode(w, &reserveResp)
+		err = service.Listener.Encode(w, &reserveResp)
 		logger.ResponseEx(service.Name+operationName, ipconfigRequest, reserveResp, reserveResp.Response.ReturnCode, err)
 		return
 	}
@@ -253,7 +252,6 @@ func (service *HTTPRestService) releaseIPConfigHandlerHelper(ipconfigsRequest cn
 }
 
 func (service *HTTPRestService) releaseIPConfigHandler(w http.ResponseWriter, r *http.Request) {
-
 	var ipconfigRequest cns.IPConfigRequest
 	err := service.Listener.Decode(w, r, &ipconfigRequest)
 	logger.Request(service.Name+"releaseIPConfigHandler", ipconfigRequest, err)

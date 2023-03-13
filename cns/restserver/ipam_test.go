@@ -735,7 +735,6 @@ func IPAMAllocateIPIdempotency(t *testing.T, ncIDs, newPodIPs []string, prefixes
 			t.Fatalf("Expected to not fail adding IPs to state: %+v", err)
 		}
 	}
-
 }
 
 func TestAvailableIPConfigsSingleNC(t *testing.T) {
@@ -1085,7 +1084,6 @@ func TestIPAMFailToReleaseOneIPWhenExpectedToHaveTwo(t *testing.T) {
 	if len(available) != 0 {
 		t.Fatal("Expected available ips to be zero since we expect the IP to still be assigned")
 	}
-
 }
 
 func TestIPAMFailToRequestOneIPWhenExpectedToHaveTwo(t *testing.T) {
@@ -1122,5 +1120,4 @@ func TestIPAMFailToRequestOneIPWhenExpectedToHaveTwo(t *testing.T) {
 	if len(available) != 1 {
 		t.Fatal("Expected available ips to be one since we expect the IP to not be assigned")
 	}
-
 }
