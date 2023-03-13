@@ -255,6 +255,22 @@ func (f Hnsv2wrapperFake) ListEndpointsOfNetwork(networkId string) ([]hcn.HostCo
 	return endpoints, nil
 }
 
+// NOTE: hard assumption that the query just filters for local endpoints via hcn.EndpointFlagsNone
+func (f Hnsv2wrapperFake) ListEndpointsQuery(_ hcn.HostComputeQuery) ([]hcn.HostComputeEndpoint, error) {
+	f.Lock()
+	defer f.Unlock()
+	delayHnsCall(f.Delay)
+	endpoints := make([]hcn.HostComputeEndpoint, 0)
+	for _, endpoint := range f.Cache.endpoints {
+		e := *endpoint.GetHCNObj()
+		if e.Flags == hcn.EndpointFlagsNone {
+			// only get local endpoints
+			endpoints = append(endpoints, e)
+		}
+	}
+	return endpoints, nil
+}
+
 func (f Hnsv2wrapperFake) ApplyEndpointPolicy(endpoint *hcn.HostComputeEndpoint, requestType hcn.RequestType, endpointPolicy hcn.PolicyEndpointRequest) error {
 	f.Lock()
 	defer f.Unlock()
