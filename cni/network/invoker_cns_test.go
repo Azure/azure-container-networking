@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/Azure/azure-container-networking/cni"
+	"github.com/Azure/azure-container-networking/cni/util"
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/iptables"
 	"github.com/Azure/azure-container-networking/network"
@@ -126,6 +127,76 @@ func TestCNSIPAMInvoker_Add(t *testing.T) {
 				},
 			},
 			wantErr: true,
+		},
+		{
+			name: "Test happy CNI Overlay add",
+			fields: fields{
+				podName:      testPodInfo.PodName,
+				podNamespace: testPodInfo.PodNamespace,
+				ipamMode:     util.V4Overlay,
+				cnsClient: &MockCNSClient{
+					require: require,
+					request: requestIPAddressHandler{
+						ipconfigArgument: cns.IPConfigRequest{
+							PodInterfaceID:      "testcont-testifname3",
+							InfraContainerID:    "testcontainerid3",
+							OrchestratorContext: marshallPodInfo(testPodInfo),
+						},
+						result: &cns.IPConfigResponse{
+							PodIpInfo: cns.PodIpInfo{
+								PodIPConfig: cns.IPSubnet{
+									IPAddress:    "10.240.1.242",
+									PrefixLength: 16,
+								},
+								NetworkContainerPrimaryIPConfig: cns.IPConfiguration{
+									IPSubnet: cns.IPSubnet{
+										IPAddress:    "10.240.1.0",
+										PrefixLength: 16,
+									},
+									DNSServers:       nil,
+									GatewayIPAddress: "",
+								},
+								HostPrimaryIPInfo: cns.HostIPInfo{
+									Gateway:   "10.224.0.1",
+									PrimaryIP: "10.224.0.5",
+									Subnet:    "10.224.0.0/16",
+								},
+							},
+							Response: cns.Response{
+								ReturnCode: 0,
+								Message:    "",
+							},
+						},
+						err: nil,
+					},
+				},
+			},
+			args: args{
+				nwCfg: &cni.NetworkConfig{},
+				args: &cniSkel.CmdArgs{
+					ContainerID: "testcontainerid3",
+					Netns:       "testnetns3",
+					IfName:      "testifname3",
+				},
+				hostSubnetPrefix: getCIDRNotationForAddress("10.224.0.0/16"),
+				options:          map[string]interface{}{},
+			},
+			want: &cniTypesCurr.Result{
+				IPs: []*cniTypesCurr.IPConfig{
+					{
+						Address: *getCIDRNotationForAddress("10.240.1.242/16"),
+						Gateway: net.ParseIP("10.240.0.1"),
+					},
+				},
+				Routes: []*cniTypes.Route{
+					{
+						Dst: network.Ipv4DefaultRouteDstPrefix,
+						GW:  net.ParseIP("10.240.0.1"),
+					},
+				},
+			},
+			want1:   nil,
+			wantErr: false,
 		},
 	}
 	for _, tt := range tests {

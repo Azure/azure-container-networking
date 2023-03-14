@@ -110,9 +110,10 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 			return IPAMAddResult{}, errors.Wrap(errInvalidArgs, "%w: Gateway address "+info.ncGatewayIPAddress+" from response is invalid")
 		}
 
-		ncgw = ncipnet.IP.Mask(ncipnet.Mask)
+		ncgw = ncipnet.IP
 		ncgw[3]++
-		if !ncipnet.Contains(ncgw) {
+		ncgw = net.ParseIP(ncgw.String())
+		if ncgw == nil || !ncipnet.Contains(ncgw) {
 			return IPAMAddResult{}, errors.Wrap(errInvalidArgs, "%w: Invalid gateway address "+ncgw.String())
 		}
 	}
