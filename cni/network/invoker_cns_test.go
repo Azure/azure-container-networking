@@ -2,7 +2,9 @@ package network
 
 import (
 	"errors"
+	"fmt"
 	"net"
+	"runtime"
 	"testing"
 
 	"github.com/Azure/azure-container-networking/cni"
@@ -24,6 +26,14 @@ func getTestIPConfigRequest() cns.IPConfigRequest {
 		InfraContainerID:    "testcontainerid",
 		OrchestratorContext: marshallPodInfo(testPodInfo),
 	}
+}
+
+func getTestOverlayGateway() net.IP {
+	if runtime.GOOS == "windows" {
+		return net.ParseIP("10.240.0.1")
+	}
+
+	return net.ParseIP("169.254.1.1")
 }
 
 func TestCNSIPAMInvoker_Add(t *testing.T) {
@@ -185,13 +195,13 @@ func TestCNSIPAMInvoker_Add(t *testing.T) {
 				IPs: []*cniTypesCurr.IPConfig{
 					{
 						Address: *getCIDRNotationForAddress("10.240.1.242/16"),
-						Gateway: net.ParseIP("10.240.0.1"),
+						Gateway: getTestOverlayGateway(),
 					},
 				},
 				Routes: []*cniTypes.Route{
 					{
 						Dst: network.Ipv4DefaultRouteDstPrefix,
-						GW:  net.ParseIP("10.240.0.1"),
+						GW:  getTestOverlayGateway(),
 					},
 				},
 			},
@@ -214,6 +224,7 @@ func TestCNSIPAMInvoker_Add(t *testing.T) {
 				require.NoError(err)
 			}
 
+			fmt.Printf("want:%+v\nrest:%+v\n", tt.want, ipamAddResult.ipv4Result)
 			require.Equalf(tt.want, ipamAddResult.ipv4Result, "incorrect ipv4 response")
 			require.Equalf(tt.want1, ipamAddResult.ipv6Result, "incorrect ipv6 response")
 		})
