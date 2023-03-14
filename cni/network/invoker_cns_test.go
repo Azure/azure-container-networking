@@ -2,7 +2,6 @@ package network
 
 import (
 	"errors"
-	"fmt"
 	"net"
 	"testing"
 
@@ -41,12 +40,6 @@ func TestCNSIPAMInvoker_Add(t *testing.T) {
 		hostSubnetPrefix *net.IPNet
 		options          map[string]interface{}
 	}
-
-	overlayPodIP := "10.240.1.242"
-	var overlayNcSubnetPrefix uint8 = 16
-	_, ncipnet, _ := net.ParseCIDR(fmt.Sprintf("%s/%d", overlayPodIP, overlayNcSubnetPrefix))
-	overlayGateway := ncipnet.IP.Mask(ncipnet.Mask)
-	overlayGateway[3]++
 
 	tests := []struct {
 		name    string
@@ -154,13 +147,13 @@ func TestCNSIPAMInvoker_Add(t *testing.T) {
 						result: &cns.IPConfigResponse{
 							PodIpInfo: cns.PodIpInfo{
 								PodIPConfig: cns.IPSubnet{
-									IPAddress:    overlayPodIP,
-									PrefixLength: overlayNcSubnetPrefix,
+									IPAddress:    "10.240.1.242",
+									PrefixLength: 16,
 								},
 								NetworkContainerPrimaryIPConfig: cns.IPConfiguration{
 									IPSubnet: cns.IPSubnet{
 										IPAddress:    "10.240.1.0",
-										PrefixLength: overlayNcSubnetPrefix,
+										PrefixLength: 16,
 									},
 									DNSServers:       nil,
 									GatewayIPAddress: "",
@@ -194,13 +187,13 @@ func TestCNSIPAMInvoker_Add(t *testing.T) {
 				IPs: []*cniTypesCurr.IPConfig{
 					{
 						Address: *getCIDRNotationForAddress("10.240.1.242/16"),
-						Gateway: overlayGateway,
+						Gateway: net.ParseIP("10.240.0.1"),
 					},
 				},
 				Routes: []*cniTypes.Route{
 					{
 						Dst: network.Ipv4DefaultRouteDstPrefix,
-						GW:  overlayGateway,
+						GW:  net.ParseIP("10.240.0.1"),
 					},
 				},
 			},
