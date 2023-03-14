@@ -378,8 +378,8 @@ func determineWinVer() {
 	}
 }
 
-func getNATInfo(executionMode string, ncPrimaryIPIface interface{}, multitenancy, enableSnatForDNS bool) (natInfo []policy.NATInfo) {
-	if executionMode == string(util.V4Swift) {
+func getNATInfo(executionMode, ipamMode string, ncPrimaryIPIface interface{}, multitenancy, enableSnatForDNS bool) (natInfo []policy.NATInfo) {
+	if executionMode == string(util.V4Swift) && ipamMode != string(util.V4Overlay) {
 		ncPrimaryIP := ""
 		if ncPrimaryIPIface != nil {
 			ncPrimaryIP = ncPrimaryIPIface.(string)
@@ -399,4 +399,15 @@ func platformInit(cniConfig *cni.NetworkConfig) {
 		network.EnableHnsV1Timeout(cniConfig.WindowsSettings.HnsTimeoutDurationInSeconds)
 		network.EnableHnsV2Timeout(cniConfig.WindowsSettings.HnsTimeoutDurationInSeconds)
 	}
+}
+
+func getOverlayGateway(podsubnet *net.IPNet) (net.IP, error) {
+	ncgw := podsubnet.IP
+	ncgw[3]++
+	ncgw = net.ParseIP(ncgw.String())
+	if ncgw == nil || !podsubnet.Contains(ncgw) {
+		return nil, errors.Wrap(errInvalidArgs, "%w: Failed to retrieve overlay gateway from podsubnet"+podsubnet.IP.String())
+	}
+
+	return ncgw, nil
 }

@@ -136,8 +136,12 @@ func (plugin *NetPlugin) getNetworkName(_ string, _ *IPAMAddResult, nwCfg *cni.N
 	return nwCfg.Name, nil
 }
 
-func getNATInfo(_ string, _ interface{}, _, _ bool) (natInfo []policy.NATInfo) {
+func getNATInfo(_, _ string, _ interface{}, _, _ bool) (natInfo []policy.NATInfo) {
 	return natInfo
 }
 
 func platformInit(cniConfig *cni.NetworkConfig) {}
+
+func getOverlayGateway(_ *net.IPNet) (net.IP, error) {
+	return net.ParseIP("169.254.1.1"), nil
+}
