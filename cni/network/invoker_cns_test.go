@@ -2,10 +2,12 @@ package network
 
 import (
 	"errors"
+	"fmt"
 	"net"
 	"testing"
 
 	"github.com/Azure/azure-container-networking/cni"
+	"github.com/Azure/azure-container-networking/cni/util"
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/iptables"
 	"github.com/Azure/azure-container-networking/network"
@@ -31,6 +33,7 @@ func TestCNSIPAMInvoker_Add(t *testing.T) {
 		podName      string
 		podNamespace string
 		cnsClient    cnsclient
+		ipamMode     util.IpamMode
 	}
 	type args struct {
 		nwCfg            *cni.NetworkConfig
@@ -38,6 +41,13 @@ func TestCNSIPAMInvoker_Add(t *testing.T) {
 		hostSubnetPrefix *net.IPNet
 		options          map[string]interface{}
 	}
+
+	overlayPodIP := "10.240.1.242"
+	var overlayNcSubnetPrefix uint8 = 16
+	_, ncipnet, _ := net.ParseCIDR(fmt.Sprintf("%s/%d", overlayPodIP, overlayNcSubnetPrefix))
+	overlayGateway := ncipnet.IP.Mask(ncipnet.Mask)
+	overlayGateway[3]++
+
 	tests := []struct {
 		name    string
 		fields  fields
@@ -127,6 +137,76 @@ func TestCNSIPAMInvoker_Add(t *testing.T) {
 			},
 			wantErr: true,
 		},
+		{
+			name: "Test happy CNI Overlay add",
+			fields: fields{
+				podName:      testPodInfo.PodName,
+				podNamespace: testPodInfo.PodNamespace,
+				ipamMode:     util.V4Overlay,
+				cnsClient: &MockCNSClient{
+					require: require,
+					request: requestIPAddressHandler{
+						ipconfigArgument: cns.IPConfigRequest{
+							PodInterfaceID:      "testcont-testifname3",
+							InfraContainerID:    "testcontainerid3",
+							OrchestratorContext: marshallPodInfo(testPodInfo),
+						},
+						result: &cns.IPConfigResponse{
+							PodIpInfo: cns.PodIpInfo{
+								PodIPConfig: cns.IPSubnet{
+									IPAddress:    overlayPodIP,
+									PrefixLength: overlayNcSubnetPrefix,
+								},
+								NetworkContainerPrimaryIPConfig: cns.IPConfiguration{
+									IPSubnet: cns.IPSubnet{
+										IPAddress:    "10.240.1.0",
+										PrefixLength: overlayNcSubnetPrefix,
+									},
+									DNSServers:       nil,
+									GatewayIPAddress: "",
+								},
+								HostPrimaryIPInfo: cns.HostIPInfo{
+									Gateway:   "10.224.0.1",
+									PrimaryIP: "10.224.0.5",
+									Subnet:    "10.224.0.0/16",
+								},
+							},
+							Response: cns.Response{
+								ReturnCode: 0,
+								Message:    "",
+							},
+						},
+						err: nil,
+					},
+				},
+			},
+			args: args{
+				nwCfg: &cni.NetworkConfig{},
+				args: &cniSkel.CmdArgs{
+					ContainerID: "testcontainerid3",
+					Netns:       "testnetns3",
+					IfName:      "testifname3",
+				},
+				hostSubnetPrefix: getCIDRNotationForAddress("10.224.0.0/16"),
+				options:          map[string]interface{}{},
+			},
+			want: &cniTypesCurr.Result{
+				IPs: []*cniTypesCurr.IPConfig{
+					{
+						Address: *getCIDRNotationForAddress("10.240.1.242/16"),
+						Gateway: overlayGateway,
+					},
+				},
+				Routes: []*cniTypes.Route{
+					{
+						Dst: network.Ipv4DefaultRouteDstPrefix,
+						GW:  overlayGateway,
+					},
+				},
+			},
+			want1:   nil,
+			wantErr: false,
+		},
 	}
 	for _, tt := range tests {
 		tt := tt
@@ -135,6 +215,9 @@ func TestCNSIPAMInvoker_Add(t *testing.T) {
 				podName:      tt.fields.podName,
 				podNamespace: tt.fields.podNamespace,
 				cnsClient:    tt.fields.cnsClient,
+			}
+			if tt.fields.ipamMode != "" {
+				invoker.ipamMode = tt.fields.ipamMode
 			}
 			ipamAddResult, err := invoker.Add(IPAMAddConfig{nwCfg: tt.args.nwCfg, args: tt.args.args, options: tt.args.options})
 			if tt.wantErr {

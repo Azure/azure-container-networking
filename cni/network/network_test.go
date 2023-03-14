@@ -1007,11 +1007,15 @@ func TestGetAllEndpointState(t *testing.T) {
 
 	ep1 := getTestEndpoint("podname1", "podnamespace1", "10.0.0.1/24", "podinterfaceid1", "testcontainerid1")
 	ep2 := getTestEndpoint("podname2", "podnamespace2", "10.0.0.2/24", "podinterfaceid2", "testcontainerid2")
+	ep3 := getTestEndpoint("podname3", "podnamespace3", "10.240.1.242/16", "podinterfaceid3", "testcontainerid3")
 
 	err := plugin.nm.CreateEndpoint(nil, networkid, ep1)
 	require.NoError(t, err)
 
 	err = plugin.nm.CreateEndpoint(nil, networkid, ep2)
+	require.NoError(t, err)
+
+	err = plugin.nm.CreateEndpoint(nil, networkid, ep3)
 	require.NoError(t, err)
 
 	state, err := plugin.GetAllEndpointState(networkid)
@@ -1032,6 +1036,13 @@ func TestGetAllEndpointState(t *testing.T) {
 				PodNamespace:  ep2.PODNameSpace,
 				ContainerID:   ep2.ContainerID,
 				IPAddresses:   ep2.IPAddresses,
+			},
+			ep3.Id: {
+				PodEndpointId: ep3.Id,
+				PodName:       ep3.PODName,
+				PodNamespace:  ep3.PODNameSpace,
+				ContainerID:   ep3.ContainerID,
+				IPAddresses:   ep3.IPAddresses,
 			},
 		},
 	}
