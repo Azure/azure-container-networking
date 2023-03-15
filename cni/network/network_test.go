@@ -1067,3 +1067,9 @@ func TestGetNetworkName(t *testing.T) {
 		})
 	}
 }
+
+func TestGetOverlayNatInfo(t *testing.T) {
+	nwCfg := &cni.NetworkConfig{ExecutionMode: string(util.V4Swift), IPAM: cni.IPAM{Mode: string(util.V4Overlay)}}
+	natInfo := getNATInfo(nwCfg, nil, false)
+	require.Empty(t, natInfo, "overlay natInfo should be empty")
+}
