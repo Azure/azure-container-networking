@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"runtime"
 	"testing"
 
 	"github.com/Azure/azure-container-networking/cni"
@@ -11,6 +12,8 @@ import (
 	"github.com/Azure/azure-container-networking/cni/util"
 	"github.com/Azure/azure-container-networking/common"
 	acnnetwork "github.com/Azure/azure-container-networking/network"
+	"github.com/Azure/azure-container-networking/network/networkutils"
+	"github.com/Azure/azure-container-networking/network/policy"
 	"github.com/Azure/azure-container-networking/nns"
 	"github.com/Azure/azure-container-networking/telemetry"
 	cniSkel "github.com/containernetworking/cni/pkg/skel"
@@ -1084,4 +1087,18 @@ func TestGetOverlayNatInfo(t *testing.T) {
 	nwCfg := &cni.NetworkConfig{ExecutionMode: string(util.V4Swift), IPAM: cni.IPAM{Mode: string(util.V4Overlay)}}
 	natInfo := getNATInfo(nwCfg, nil, false)
 	require.Empty(t, natInfo, "overlay natInfo should be empty")
+}
+
+func TestGetPodSubnetNatInfo(t *testing.T) {
+	ncPrimaryIP := "10.241.0.4"
+	nwCfg := &cni.NetworkConfig{ExecutionMode: string(util.V4Swift)}
+	natInfo := getNATInfo(nwCfg, ncPrimaryIP, false)
+	if runtime.GOOS == "windows" {
+		require.Equalf(t, natInfo, []policy.NATInfo{
+			{VirtualIP: ncPrimaryIP, Destinations: []string{networkutils.AzureDNS}},
+			{Destinations: []string{networkutils.AzureIMDS}},
+		}, "invalid windows podsubnet natInfo")
+	} else {
+		require.Empty(t, natInfo, "linux podsubnet natInfo should be empty")
+	}
 }
