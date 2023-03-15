@@ -136,7 +136,7 @@ func (plugin *NetPlugin) getNetworkName(_ string, _ *IPAMAddResult, nwCfg *cni.N
 	return nwCfg.Name, nil
 }
 
-func getNATInfo(_, _ string, _ interface{}, _, _ bool) (natInfo []policy.NATInfo) {
+func getNATInfo(_ *cni.NetworkConfig, _ interface{}, _ bool) (natInfo []policy.NATInfo) {
 	return natInfo
 }
 
