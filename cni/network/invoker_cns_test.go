@@ -42,6 +42,7 @@ func TestCNSIPAMInvoker_Add(t *testing.T) {
 		podName      string
 		podNamespace string
 		cnsClient    cnsclient
+		ipamMode     util.IpamMode
 	}
 	type args struct {
 		nwCfg            *cni.NetworkConfig
@@ -216,6 +217,9 @@ func TestCNSIPAMInvoker_Add(t *testing.T) {
 				podName:      tt.fields.podName,
 				podNamespace: tt.fields.podNamespace,
 				cnsClient:    tt.fields.cnsClient,
+			}
+			if tt.fields.ipamMode != "" {
+				invoker.ipamMode = tt.fields.ipamMode
 			}
 			ipamAddResult, err := invoker.Add(IPAMAddConfig{nwCfg: tt.args.nwCfg, args: tt.args.args, options: tt.args.options})
 			if tt.wantErr {

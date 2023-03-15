@@ -709,7 +709,7 @@ func TestPluginMultitenancyDelete(t *testing.T) {
 }
 
 /*
-	Baremetal scenarios
+Baremetal scenarios
 */
 func TestPluginBaremetalAdd(t *testing.T) {
 	plugin, _ := cni.NewPlugin("test", "0.3.0")
@@ -838,7 +838,7 @@ func TestPluginBaremetalDelete(t *testing.T) {
 }
 
 /*
-	AKS-Swift scenario
+AKS-Swift scenario
 */
 func TestPluginAKSSwiftAdd(t *testing.T) {
 	plugin := GetTestResources()
@@ -1072,7 +1072,8 @@ func TestGetNetworkName(t *testing.T) {
 }
 
 func TestGetOverlayNatInfo(t *testing.T) {
-	nwCfg := &cni.NetworkConfig{ExecutionMode: string(util.V4Swift), IPAM: cni.IPAM{Mode: string(util.V4Overlay)}}
+	nwCfg := &cni.NetworkConfig{ExecutionMode: string(util.V4Swift)}
+	nwCfg.Ipam.Mode = string(util.V4Overlay)
 	natInfo := getNATInfo(nwCfg, nil, false)
 	require.Empty(t, natInfo, "overlay natInfo should be empty")
 }
