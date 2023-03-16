@@ -88,31 +88,7 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 
 	addResult := IPAMAddResult{}
 
-<<<<<<< HEAD
-	// set the NC Primary IP in options
-	addConfig.options[network.SNATIPKey] = info.ncPrimaryIP
-
-	log.Printf("[cni-invoker-cns] Received info %+v for pod %v", info, podInfo)
-
-	// set result ipconfigArgument from CNS Response Body
-	ip, ncipnet, err := net.ParseCIDR(info.podIPAddress + "/" + fmt.Sprint(info.ncSubnetPrefix))
-	if ip == nil {
-		return IPAMAddResult{}, errors.Wrap(err, "Unable to parse IP from response: "+info.podIPAddress+" with err %w")
-	}
-
-	ncgw := net.ParseIP(info.ncGatewayIPAddress)
-	if ncgw == nil {
-		if invoker.ipamMode != util.V4Overlay {
-			return IPAMAddResult{}, errors.Wrap(errInvalidArgs, "%w: Gateway address "+info.ncGatewayIPAddress+" from response is invalid")
-		}
-
-		ncgw, err = getOverlayGateway(ncipnet)
-		if err != nil {
-			return IPAMAddResult{}, err
-		}
-	}
-=======
-	for i := 0; i < len(response.PodIpInfo); i++ {
+	for i := 0; i < len(response.PodIPInfo); i++ {
 		info := IPResultInfo{
 			podIPAddress:       response.PodIPInfo[i].PodIPConfig.IPAddress,
 			ncSubnetPrefix:     response.PodIPInfo[i].NetworkContainerPrimaryIPConfig.IPSubnet.PrefixLength,
@@ -127,7 +103,6 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 		addConfig.options[network.SNATIPKey] = info.ncPrimaryIP
 
 		log.Printf("[cni-invoker-cns] Received info %+v for pod %v", info, podInfo)
->>>>>>> 8df6eaec (windows CNI dual stack)
 
 		ncgw := net.ParseIP(info.ncGatewayIPAddress)
 		if ncgw == nil {
