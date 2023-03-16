@@ -285,6 +285,26 @@ func TestAzureIPAMInvoker_Delete(t *testing.T) {
 			},
 		},
 		{
+			name: "delete happy path ipv4+ipv6",
+			fields: fields{
+				plugin: &mockDelegatePlugin{
+					del: del{},
+				},
+				nwInfo: getNwInfo("10.0.0.0/24", "2001:db8:abcd:0012::0/64"),
+			},
+			args: args{
+				addresses: []*net.IPNet{
+					getCIDRNotationForAddress("10.0.0.4/24"),
+					getCIDRNotationForAddress("2001:db8:abcd:0015::0/64"),
+				},
+				nwCfg: &cni.NetworkConfig{
+					IPAM: cni.IPAM{
+						Address: "2001:db8:abcd:0015::0/64",
+					},
+				},
+			},
+		},
+		{
 			name: "error addresses is nil",
 			fields: fields{
 				plugin: &mockDelegatePlugin{
