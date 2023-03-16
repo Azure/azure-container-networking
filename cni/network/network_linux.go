@@ -136,7 +136,7 @@ func (plugin *NetPlugin) getNetworkName(_ string, _ *IPAMAddResult, nwCfg *cni.N
 	return nwCfg.Name, nil
 }
 
-func getNATInfo(_ string, _ interface{}, _, _ bool) (natInfo []policy.NATInfo) {
+func getNATInfo(_ *cni.NetworkConfig, _ interface{}, _ bool) (natInfo []policy.NATInfo) {
 	return natInfo
 }
 
@@ -145,4 +145,8 @@ func platformInit(cniConfig *cni.NetworkConfig) {}
 // isDualNicFeatureSupported returns if the dual nic feature is supported. Currently it's only supported for windows hnsv2 path
 func (plugin *NetPlugin) isDualNicFeatureSupported(netNs string) bool {
 	return false
+}
+
+func getOverlayGateway(_ *net.IPNet) (net.IP, error) {
+	return net.ParseIP("169.254.1.1"), nil
 }
