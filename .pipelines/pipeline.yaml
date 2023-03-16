@@ -4,22 +4,22 @@ pr:
       - master
   paths:
     exclude:
-    - ".devcontainer"
-    - ".hooks"
-    - ".vscode"
-    - ".github"
-    - docs
+      - ".devcontainer"
+      - ".hooks"
+      - ".vscode"
+      - ".github"
+      - docs
 
 trigger:
   paths:
     exclude:
-    - docs
-    - "zapai/*"
-    - "azure-ipam/*"
-    - "dropgz/*"
+      - docs
+      - "zapai/*"
+      - "azure-ipam/*"
+      - "dropgz/*"
   tags:
     include:
-    - "*"
+      - "*"
 
 stages:
   - stage: setup
@@ -261,7 +261,7 @@ stages:
               echo $TAG
               echo $CURRENT_VERSION
               echo "Checking if branch up to date with master"
-  
+
   - stage: publish
     displayName: Publish Multiarch Manifests
     dependsOn:
@@ -289,7 +289,7 @@ stages:
               platforms: linux/amd64 linux/arm64 windows/amd64
             npm:
               name: npm
-              os_versions: ltsc2019 ltsc2022
+              os_versions: 1809 ltsc2022
               platforms: linux/amd64 linux/arm64 windows/amd64
         steps:
           - template: containers/manifest-template.yaml
@@ -373,7 +373,7 @@ stages:
               echo $TAG
               echo $CURRENT_VERSION
               echo "Checking if branch is up to date with master"
-  
+
   - stage: cleanup
     displayName: Cleanup
     dependsOn:

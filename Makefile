@@ -571,7 +571,7 @@ npm-manifest-build: ## build azure-npm multiplat container manifest.
 		PLATFORMS="$(PLATFORMS)" \
 		IMAGE=$(NPM_IMAGE) \
 		TAG=$(NPM_VERSION) \
-		OS_VERSIONS="ltsc2022 ltsc2019"
+		OS_VERSIONS="ltsc2022 1809"
 
 npm-manifest-push: ## push multiplat container manifest
 	$(MAKE) manifest-push \
