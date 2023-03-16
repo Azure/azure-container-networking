@@ -1,0 +1,118 @@
+pr: none
+trigger: none
+
+stages:
+  - stage: creating_aks_cluster
+    displayName: "Create AKS Cluster with Cilium"
+    jobs:
+      - job: create_aks_cluster_with_cilium
+        steps:
+          - task: AzureCLI@1
+            inputs:
+              azureSubscription: $(TEST_SUB_SERVICE_CONNECTION)
+              scriptLocation: "inlineScript"
+              scriptType: "bash"
+              addSpnToEnvironment: true
+              inlineScript: |
+                set -ex
+                make -C ./hack/swift azcfg AZCLI=az REGION=$(LOCATION)
+                make -C ./hack/swift overlay-cilium-up AZCLI=az REGION=$(LOCATION) SUB=$(SUBSCRIPTION_ID) CLUSTER=${RESOURCE_GROUP} NODE_COUNT=10 VM_SIZE=Standard_DS4_v2
+            name: "CreateAksCluster"
+            displayName: "Create AKS Cluster"
+  - stage: pod_deployment
+    dependsOn: creating_aks_cluster
+    displayName: "Pod Deployment"
+    jobs:
+      - job: deploy_pods
+        steps:
+          - task: AzureCLI@1
+            displayName: "Pod Deployment"
+            inputs:
+              azureSubscription: $(TEST_SUB_SERVICE_CONNECTION)
+              scriptLocation: "inlineScript"
+              scriptType: "bash"
+              addSpnToEnvironment: true
+              inlineScript: |
+                set -ex
+                az extension add --name aks-preview
+                make -C ./hack/swift set-kubeconf AZCLI=az CLUSTER=${RESOURCE_GROUP}
+                bash hack/scripts/scale_deployment.sh
+  - stage: validate_state
+    dependsOn: pod_deployment
+    displayName: "Validate State"
+    jobs:
+      - job: validate_state
+        steps:
+          - task: AzureCLI@1
+            inputs:
+              azureSubscription: $(TEST_SUB_SERVICE_CONNECTION)
+              scriptLocation: "inlineScript"
+              scriptType: "bash"
+              addSpnToEnvironment: true
+              inlineScript: |
+                make -C ./hack/swift set-kubeconf AZCLI=az CLUSTER=${RESOURCE_GROUP}
+                kubectl get pods -A
+                bash hack/scripts/validate_state.sh
+            name: "ValidateState"
+            displayName: "Validate State"
+            retryCountOnTaskFailure: 3
+  - stage: connectivity_tests
+    dependsOn: validate_state
+    displayName: "Connectivity Tests"
+    jobs:
+      - job: cni_tests
+        steps:
+          - script: |
+              echo "install cilium CLI"
+              CILIUM_CLI_VERSION=v0.13.2
+              CLI_ARCH=amd64
+              curl -L --fail --remote-name-all https://github.com/cilium/cilium-cli/releases/download/${CILIUM_CLI_VERSION}/cilium-linux-${CLI_ARCH}.tar.gz{,.sha256sum}
+              sha256sum --check cilium-linux-${CLI_ARCH}.tar.gz.sha256sum
+              sudo tar xzvfC cilium-linux-${CLI_ARCH}.tar.gz /usr/local/bin
+              rm cilium-linux-${CLI_ARCH}.tar.gz{,.sha256sum}
+            name: "InstallCiliumCli"
+            displayName: "Install Cilium CLI"
+          - task: AzureCLI@1
+            inputs:
+              azureSubscription: $(TEST_SUB_SERVICE_CONNECTION)
+              scriptLocation: "inlineScript"
+              scriptType: "bash"
+              addSpnToEnvironment: true
+              inlineScript: |
+                set -ex
+                make -C ./hack/swift set-kubeconf AZCLI=az CLUSTER=${RESOURCE_GROUP}
+            name: "GetCluster"
+            displayName: "Get AKS Cluster"
+          - script: |
+              cilium connectivity test
+            retryCountOnTaskFailure: 6
+            name: "CiliumConnectivityTests"
+            displayName: "Run Cilium Connectivity Tests"
+  - stage: delete
+    displayName: "Delete Resources"
+    dependsOn:
+      - connectivity_tests
+    jobs:
+      - job: delete_resources
+        steps:
+          - task: AzureCLI@1
+            inputs:
+              azureSubscription: $(TEST_SUB_SERVICE_CONNECTION)
+              scriptLocation: "inlineScript"
+              scriptType: "bash"
+              addSpnToEnvironment: true
+              inlineScript: |
+                set -ex
+                if [ "$(DELETE_RESOURCES)" ]
+                then
+                  echo "Deleting Cluster and resource group"
+                  make -C ./hack/swift set-kubeconf AZCLI=az CLUSTER=${RESOURCE_GROUP}
+                  make -C ./hack/swift azcfg AZCLI=az REGION=$(LOCATION)
+                  make -C ./hack/swift down AZCLI=az REGION=$(LOCATION) SUB=$(SUBSCRIPTION_ID) CLUSTER=${RESOURCE_GROUP}
+                  echo "Cluster and resources down"
+                else
+                  echo "Deletion of resources is False"
+                fi
+            name: "CleanUpCluster"
+            displayName: "Cleanup cluster"
+    condition: always()
