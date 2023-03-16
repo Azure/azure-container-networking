@@ -667,7 +667,7 @@ func (plugin *NetPlugin) createNetworkInternal(
 		return nwInfo, fmt.Errorf("Failed to ParseCIDR for pod subnet prefix: %w", err)
 	}
 
-	// only parse the ipv6 address and add it to nwInfo if it's dual stack mode
+	// parse the ipv6 address and only add it to nwInfo if it's dual stack mode
 	var podSubnetV6Prefix *net.IPNet
 	if ipamAddResult.ipv6Result != nil && len(ipamAddResult.ipv6Result.IPs) > 0 {
 		_, podSubnetV6Prefix, err = net.ParseCIDR(ipamAddResult.ipv6Result.IPs[0].Address.String())
@@ -799,7 +799,7 @@ func (plugin *NetPlugin) createEndpointInternal(opt *createEndpointInternalOpt) 
 	}
 
 	if opt.resultV6 != nil {
-		// inject ipv6 routes to container if it's dualstack
+		// inject routes to linux pod
 		epInfo.IPV6Mode = "dualstack"
 		for _, ipconfig := range opt.resultV6.IPs {
 			epInfo.IPAddresses = append(epInfo.IPAddresses, ipconfig.Address)
