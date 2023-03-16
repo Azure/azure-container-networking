@@ -63,15 +63,9 @@ CNI_MULTITENANCY_BUILD_DIR = $(BUILD_DIR)/cni-multitenancy
 CNI_MULTITENANCY_TRANSPARENT_VLAN_BUILD_DIR = $(BUILD_DIR)/cni-multitenancy-transparent-vlan
 CNI_SWIFT_BUILD_DIR = $(BUILD_DIR)/cni-swift
 CNI_OVERLAY_BUILD_DIR = $(BUILD_DIR)/cni-overlay
-<<<<<<< HEAD
-<<<<<<< HEAD
 CNI_DUALSTACK_OVERLAY_BUILD_DIR = $(BUILD_DIR)/cni-dualstack
-=======
 CNI_DUALSTACK_BUILD_DIR = $(BUILD_DIR)/cni-dualstack
->>>>>>> 3821605d (add cni build in make file dor dualstack mode)
-=======
 CNI_DUALSTACK_OVERLAY_BUILD_DIR = $(BUILD_DIR)/cni-dualstack
->>>>>>> 81de99b6 (fix PJ comment)
 CNI_BAREMETAL_BUILD_DIR = $(BUILD_DIR)/cni-baremetal
 CNS_BUILD_DIR = $(BUILD_DIR)/cns
 NPM_BUILD_DIR = $(BUILD_DIR)/npm
