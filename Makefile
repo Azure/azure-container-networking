@@ -633,25 +633,12 @@ endif
 	cp $(CNI_BUILD_DIR)/azure-vnet$(EXE_EXT) $(CNI_BUILD_DIR)/azure-vnet-ipam$(EXE_EXT) $(CNI_BUILD_DIR)/azure-vnet-telemetry$(EXE_EXT) $(CNI_OVERLAY_BUILD_DIR)
 	cd $(CNI_OVERLAY_BUILD_DIR) && $(ARCHIVE_CMD) $(CNI_OVERLAY_ARCHIVE_NAME) azure-vnet$(EXE_EXT) azure-vnet-ipam$(EXE_EXT) azure-vnet-telemetry$(EXE_EXT) 10-azure.conflist azure-vnet-telemetry.config
 	
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
->>>>>>> 81de99b6 (fix PJ comment)
+
 	$(MKDIR) $(CNI_DUALSTACK_OVERLAY_BUILD_DIR)
 	cp cni/azure-$(GOOS)-dualstack-overlay.conflist $(CNI_DUALSTACK_OVERLAY_BUILD_DIR)/10-azure.conflist
 	cp telemetry/azure-vnet-telemetry.config $(CNI_DUALSTACK_OVERLAY_BUILD_DIR)/azure-vnet-telemetry.config
 	cp $(CNI_BUILD_DIR)/azure-vnet$(EXE_EXT) $(CNI_BUILD_DIR)/azure-vnet-ipam$(EXE_EXT) $(CNI_BUILD_DIR)/azure-vnet-telemetry$(EXE_EXT) $(CNI_DUALSTACK_OVERLAY_BUILD_DIR)
 	cd $(CNI_DUALSTACK_OVERLAY_BUILD_DIR) && $(ARCHIVE_CMD) $(CNI_DUALSTACK_ARCHIVE_NAME) azure-vnet$(EXE_EXT) azure-vnet-ipam$(EXE_EXT) azure-vnet-telemetry$(EXE_EXT) 10-azure.conflist azure-vnet-telemetry.config
-<<<<<<< HEAD
-=======
-	$(MKDIR) $(CNI_DUALSTACK_BUILD_DIR)
-	cp cni/azure-$(GOOS)-dualstack-overlay.conflist $(CNI_DUALSTACK_BUILD_DIR)/10-azure.conflist
-	cp telemetry/azure-vnet-telemetry.config $(CNI_DUALSTACK_BUILD_DIR)/azure-vnet-telemetry.config
-	cp $(CNI_BUILD_DIR)/azure-vnet$(EXE_EXT) $(CNI_BUILD_DIR)/azure-vnet-ipam$(EXE_EXT) $(CNI_BUILD_DIR)/azure-vnet-telemetry$(EXE_EXT) $(CNI_DUALSTACK_BUILD_DIR)
-	cd $(CNI_DUALSTACK_BUILD_DIR) && $(ARCHIVE_CMD) $(CNI_DUALSTACK_ARCHIVE_NAME) azure-vnet$(EXE_EXT) azure-vnet-ipam$(EXE_EXT) azure-vnet-telemetry$(EXE_EXT) 10-azure.conflist azure-vnet-telemetry.config
->>>>>>> 3821605d (add cni build in make file dor dualstack mode)
-=======
->>>>>>> 81de99b6 (fix PJ comment)
 
 #baremetal mode is windows only (at least for now)
 ifeq ($(GOOS),windows)
