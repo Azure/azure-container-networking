@@ -344,7 +344,8 @@ func (h Hnsv2wrapperwithtimeout) ListEndpointsOfNetwork(networkId string) ([]hcn
 
 // NOTE see assumptions of hnsv2wrapperfake.ListEndpointsQuery
 func (h Hnsv2wrapperwithtimeout) ListEndpointsQuery(query hcn.HostComputeQuery) ([]hcn.HostComputeEndpoint, error) {
-	r := make(chan ListEndpointsFuncResult)
+	// must be a buffered chan of size 1, otherwise it leaks goroutines when trying to send to the channel after the timeout has fired
+	r := make(chan ListEndpointsFuncResult, 1)
 	ctx, cancel := context.WithTimeout(context.TODO(), h.HnsCallTimeout)
 	defer cancel()
 	go func() {
@@ -361,7 +362,7 @@ func (h Hnsv2wrapperwithtimeout) ListEndpointsQuery(query hcn.HostComputeQuery) 
 	case res := <-r:
 		return res.endpoints, res.Err
 	case <-ctx.Done():
-		return nil, errors.Wrapf(ErrHNSCallTimeout, "ListEndpointsOfNetwork %w , timeout value is %s seconds", h.HnsCallTimeout.String())
+		return nil, errors.Wrapf(ErrHNSCallTimeout, "ListEndpointsOfNetwork, timeout value is %s seconds", h.HnsCallTimeout.String())
 	}
 }
 

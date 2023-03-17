@@ -69,7 +69,7 @@ func (f Hnsv2wrapper) ListEndpointsOfNetwork(networkId string) ([]hcn.HostComput
 }
 
 func (f Hnsv2wrapper) ListEndpointsQuery(query hcn.HostComputeQuery) ([]hcn.HostComputeEndpoint, error) {
-	return hcn.ListEndpointsQuery(query)
+	return hcn.ListEndpointsQuery(query) // nolint:wrapcheck // no need to wrap check for this wrapper
 }
 
 func (f Hnsv2wrapper) ApplyEndpointPolicy(endpoint *hcn.HostComputeEndpoint, requestType hcn.RequestType, endpointPolicy hcn.PolicyEndpointRequest) error {

@@ -17,6 +17,10 @@ import (
 const (
 	maxNoNetRetryCount int = 240 // max wait time 240*5 == 20 mins
 	maxNoNetSleepTime  int = 5   // in seconds
+
+	// used for lints
+	hcnSchemaMajorVersion = 2
+	hcnSchemaMinorVersion = 0
 )
 
 var errPolicyModeUnsupported = errors.New("only IPSet policy mode is supported")
@@ -40,8 +44,8 @@ func (dp *DataPlane) initializeDataPlane() error {
 	// Initialize Endpoint query used to filter healthy endpoints (vNIC) of Windows pods
 	dp.endpointQuery.query = hcn.HostComputeQuery{
 		SchemaVersion: hcn.SchemaVersion{
-			Major: 2,
-			Minor: 0,
+			Major: hcnSchemaMajorVersion,
+			Minor: hcnSchemaMinorVersion,
 		},
 		Flags: hcn.HostComputeQueryFlagsNone,
 	}
@@ -95,7 +99,7 @@ func (dp *DataPlane) bootupDataPlane() error {
 	// for backwards compatibility, get remote allEndpoints to delete as well
 	allEndpoints, err := dp.getAllPodEndpoints()
 	if err != nil {
-		return npmerrors.SimpleErrorWrapper("failed to get all pod endpoints", err)
+		return err
 	}
 
 	// TODO once we make endpoint refreshing smarter, it would be most efficient to use allEndpoints to refreshPodEndpoints here.
@@ -325,7 +329,7 @@ func (dp *DataPlane) getAllPodEndpoints() ([]*hcn.HostComputeEndpoint, error) {
 	klog.Infof("getting all endpoints for network ID %s", dp.networkID)
 	endpoints, err := dp.ioShim.Hns.ListEndpointsOfNetwork(dp.networkID)
 	if err != nil {
-		return nil, err
+		return nil, npmerrors.SimpleErrorWrapper("failed to get all pod endpoints", err)
 	}
 
 	epPointers := make([]*hcn.HostComputeEndpoint, 0, len(endpoints))
@@ -339,7 +343,7 @@ func (dp *DataPlane) getLocalPodEndpoints() ([]*hcn.HostComputeEndpoint, error) 
 	klog.Info("getting local endpoints")
 	endpoints, err := dp.ioShim.Hns.ListEndpointsQuery(dp.endpointQuery.query)
 	if err != nil {
-		return nil, err
+		return nil, npmerrors.SimpleErrorWrapper("failed to get local pod endpoints", err)
 	}
 
 	epPointers := make([]*hcn.HostComputeEndpoint, 0, len(endpoints))
