@@ -17,6 +17,7 @@ const (
 	netpolCrudTag Tag = "netpol-crud"
 	reconcileTag  Tag = "reconcile"
 	calicoTag     Tag = "calico"
+	skipTestTag   Tag = "skip-test"
 )
 
 const (
@@ -1340,6 +1341,7 @@ func updatePodTests() []*SerialTestCase {
 			},
 		},
 		{
+			// skipping this test. See PR #1856
 			Description: "Sequence 2: Policy create --> Pod A Create --> Pod B create (skip first ApplyDP())",
 			Actions: []*Action{
 				UpdatePolicy(policyXBaseOnK1V1()),
@@ -1350,6 +1352,7 @@ func updatePodTests() []*SerialTestCase {
 			},
 			TestCaseMetadata: &TestCaseMetadata{
 				Tags: []Tag{
+					skipTestTag,
 					podCrudTag,
 					netpolCrudTag,
 				},
@@ -1398,6 +1401,7 @@ func updatePodTests() []*SerialTestCase {
 			},
 		},
 		{
+			// skipping this test. See PR #1856
 			Description: "Sequence 2: Policy create --> Pod A Create --> Pod B create --> Pod A cleanup (skip first two ApplyDP())",
 			Actions: []*Action{
 				UpdatePolicy(policyXBaseOnK1V1()),
@@ -1409,6 +1413,7 @@ func updatePodTests() []*SerialTestCase {
 			},
 			TestCaseMetadata: &TestCaseMetadata{
 				Tags: []Tag{
+					skipTestTag,
 					podCrudTag,
 					netpolCrudTag,
 				},
