@@ -50,7 +50,7 @@ func (dp *DataPlane) initializeDataPlane() error {
 		Flags: hcn.HostComputeQueryFlagsNone,
 	}
 	// Filter out any endpoints that are not in "AttachedShared" State. All running Windows pods with networking must be in this state.
-	filterMap := map[string]uint16{"State": HCN_ENDPOINT_STATE_ATTACHED_SHARING}
+	filterMap := map[string]uint16{"State": hcnEndpointStateAttachedSharing}
 	filter, err := json.Marshal(filterMap)
 	if err != nil {
 		return npmerrors.SimpleErrorWrapper("failed to marshal endpoint filter map", err)

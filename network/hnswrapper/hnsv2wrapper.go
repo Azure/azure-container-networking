@@ -40,23 +40,23 @@ func (Hnsv2wrapper) RemoveNetworkPolicy(network *hcn.HostComputeNetwork, network
 	return network.RemovePolicy(networkPolicy)
 }
 
-func (w Hnsv2wrapper) GetNamespaceByID(netNamespacePath string) (*hcn.HostComputeNamespace, error) {
+func (Hnsv2wrapper) GetNamespaceByID(netNamespacePath string) (*hcn.HostComputeNamespace, error) {
 	return hcn.GetNamespaceByID(netNamespacePath)
 }
 
-func (w Hnsv2wrapper) AddNamespaceEndpoint(namespaceId string, endpointId string) error {
+func (Hnsv2wrapper) AddNamespaceEndpoint(namespaceId string, endpointId string) error {
 	return hcn.AddNamespaceEndpoint(namespaceId, endpointId)
 }
 
-func (w Hnsv2wrapper) RemoveNamespaceEndpoint(namespaceId string, endpointId string) error {
+func (Hnsv2wrapper) RemoveNamespaceEndpoint(namespaceId string, endpointId string) error {
 	return hcn.RemoveNamespaceEndpoint(namespaceId, endpointId)
 }
 
-func (w Hnsv2wrapper) GetNetworkByName(networkName string) (*hcn.HostComputeNetwork, error) {
+func (Hnsv2wrapper) GetNetworkByName(networkName string) (*hcn.HostComputeNetwork, error) {
 	return hcn.GetNetworkByName(networkName)
 }
 
-func (w Hnsv2wrapper) GetNetworkByID(networkId string) (*hcn.HostComputeNetwork, error) {
+func (Hnsv2wrapper) GetNetworkByID(networkId string) (*hcn.HostComputeNetwork, error) {
 	return hcn.GetNetworkByID(networkId)
 }
 
