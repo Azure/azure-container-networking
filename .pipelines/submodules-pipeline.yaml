@@ -4,27 +4,27 @@ pr:
       - master
   paths:
     include:
-    - "zapai/*"
-    - "azure-ipam/*"
-    - "dropgz/*"
+      - "zapai/*"
+      - "azure-ipam/*"
+      - "dropgz/*"
     exclude:
-    - "*"
+      - "*"
 
 trigger:
   paths:
     include:
-    - "zapai/*"
-    - "azure-ipam/*"
-    - "dropgz/*"
+      - "zapai/*"
+      - "azure-ipam/*"
+      - "dropgz/*"
     exclude:
-    - "*"
+      - "*"
   tags:
     include:
-    - "zapai/*"
-    - "azure-ipam/*"
-    - "dropgz/*"
+      - "zapai/*"
+      - "azure-ipam/*"
+      - "dropgz/*"
     exclude:
-    - "v*"
+      - "v*"
 
 stages:
   - stage: setup
@@ -83,7 +83,7 @@ stages:
           name: "$(BUILD_POOL_NAME_DEFAULT)"
         steps:
           - script: |
-              make all-binaries-platforms 
+              make all-binaries-platforms
             name: "BuildAllPlatformBinaries"
             displayName: "Build all platform binaries"
 
@@ -165,7 +165,7 @@ stages:
               arch: amd64
               name: npm
               os: windows
-              os_version: ltsc2019
+              os_version: "1809"
             npm_windows2022_amd64:
               arch: amd64
               name: npm
@@ -232,7 +232,7 @@ stages:
               platforms: linux/amd64 linux/arm64 windows/amd64
             npm:
               name: npm
-              os_versions: ltsc2019 ltsc2022
+              os_versions: 1809 ltsc2022
               platforms: linux/amd64 linux/arm64 windows/amd64
         steps:
           - template: containers/manifest-template.yaml
@@ -249,7 +249,7 @@ stages:
       pipelineBuildImage: "$(BUILD_IMAGE)"
       testDropgz: true
       clusterName: "submodules-ciliume2e"
-    
+
   - template: singletenancy/overlay/overlay-e2e-job-template.yaml
     parameters:
       name: "overlay_e2e"

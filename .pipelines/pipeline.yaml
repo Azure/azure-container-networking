@@ -188,7 +188,7 @@ stages:
               arch: amd64
               name: npm
               os: windows
-              os_version: ltsc2019
+              os_version: "1809"
             npm_windows2022_amd64:
               arch: amd64
               name: npm
