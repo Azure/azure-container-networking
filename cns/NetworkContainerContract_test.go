@@ -56,7 +56,7 @@ func TestUnmarshalPodInfo(t *testing.T) {
 	}
 }
 
-func TestNewPodInfoFromIPConfigRequest(t *testing.T) {
+func TestNewPodInfoFromIPConfigsRequest(t *testing.T) {
 	GlobalPodInfoScheme = InterfaceIDPodInfoScheme
 	defer func() { GlobalPodInfoScheme = KubernetesPodInfoScheme }()
 	tests := []struct {
@@ -94,7 +94,7 @@ func TestNewPodInfoFromIPConfigRequest(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := NewPodInfoFromIPConfigRequest(tt.req)
+			got, err := NewPodInfoFromIPConfigsRequest(tt.req)
 			if tt.wantErr {
 				assert.Error(t, err)
 				return

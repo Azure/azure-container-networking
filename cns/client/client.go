@@ -22,7 +22,6 @@ const (
 	// DefaultTimeout default timeout duration for CNS Client.
 	DefaultTimeout    = 5 * time.Second
 	headerContentType = "Content-Type"
-	pathNotFound      = 404
 )
 
 var clientPaths = []string{
@@ -405,8 +404,8 @@ func (c *Client) RequestIPs(ctx context.Context, ipconfig cns.IPConfigsRequest) 
 	res, err := c.client.Do(req)
 
 	// if we get a 404 error
-	if res.StatusCode == pathNotFound {
-		return nil, ErrAPINotFound
+	if res.StatusCode == http.StatusNotFound {
+		return nil, fmt.Errorf("Cannot find API RequestIPs %s: %s", ErrAPINotFound, err)
 	}
 
 	if err != nil {
@@ -431,7 +430,7 @@ func (c *Client) RequestIPs(ctx context.Context, ipconfig cns.IPConfigsRequest) 
 	return &response, nil
 }
 
-// ReleaseIPs calls releaseIPs on CNS, ipaddress ex: (10.0.0.1)
+// ReleaseIPs calls releaseIPs on which releases the IPs on the pod
 func (c *Client) ReleaseIPs(ctx context.Context, ipconfig cns.IPConfigsRequest) error {
 	var body bytes.Buffer
 	err := json.NewEncoder(&body).Encode(ipconfig)
@@ -448,8 +447,8 @@ func (c *Client) ReleaseIPs(ctx context.Context, ipconfig cns.IPConfigsRequest) 
 	res, err := c.client.Do(req)
 
 	// if we get a 404 error
-	if res.StatusCode == pathNotFound {
-		return ErrAPINotFound
+	if res.StatusCode == http.StatusNotFound {
+		return fmt.Errorf("Cannot find API ReleaseIPs %s: %s", ErrAPINotFound, err)
 	}
 
 	if err != nil {

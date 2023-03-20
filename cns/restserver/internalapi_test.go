@@ -503,6 +503,7 @@ func validateNetworkRequest(t *testing.T, req cns.CreateNetworkContainerRequest)
 	ncCount := 0
 	for ipid, ipStatus := range svc.PodIPConfigState {
 		ncCount++
+		// ignore any IPs that were added from a previous NC
 		if ncCount > (len(svc.state.ContainerStatus) * len(svc.PodIPConfigState)) {
 			if ipaddress, found := alreadyValidated[ipid]; !found {
 				if secondaryIPConfig, ok := req.SecondaryIPConfigs[ipid]; !ok {

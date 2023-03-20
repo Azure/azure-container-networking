@@ -777,7 +777,7 @@ func (service *HTTPRestService) validateIPConfigsRequest(
 	}
 
 	// retrieve podinfo from orchestrator context
-	podInfo, err := cns.NewPodInfoFromIPConfigRequest(ipConfigsRequest)
+	podInfo, err := cns.NewPodInfoFromIPConfigsRequest(ipConfigsRequest)
 	if err != nil {
 		return podInfo, types.UnsupportedOrchestratorContext, err.Error()
 	}

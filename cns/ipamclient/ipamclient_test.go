@@ -68,7 +68,7 @@ func handleReserveIPQuery(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(reserveIPResp))
 }
 
-// Handles queries from ReleaseIPs.
+// Handles queries from ReleaseIPAddress.
 func handleReleaseIPQuery(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("{}"))
 }
@@ -149,7 +149,7 @@ func TestReserveIP(t *testing.T) {
 	}
 }
 
-// Tests IpamClient ReleaseIPs function to release IP associated with ID.
+// Tests IpamClient ReleaseIPAddress function to release IP associated with ID.
 func TestReleaseIP(t *testing.T) {
 	subnet := "10.0.0.0/16"
 
@@ -175,7 +175,7 @@ func TestReleaseIP(t *testing.T) {
 		return
 	}
 
-	err = ic.ReleaseIPs(poolID, "id1")
+	err = ic.ReleaseIPAddress(poolID, "id1")
 	if err != nil {
 		t.Errorf("Release reservation failed with %v\n", err)
 		return

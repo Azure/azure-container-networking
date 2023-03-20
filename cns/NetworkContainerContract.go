@@ -257,9 +257,9 @@ func UnmarshalPodInfo(b []byte) (PodInfo, error) {
 	return p, nil
 }
 
-// NewPodInfoFromIPConfigRequest builds and returns an implementation of
+// NewPodInfoFromIPConfigsRequest builds and returns an implementation of
 // PodInfo from the provided IPConfigsRequest.
-func NewPodInfoFromIPConfigRequest(req IPConfigsRequest) (PodInfo, error) {
+func NewPodInfoFromIPConfigsRequest(req IPConfigsRequest) (PodInfo, error) {
 	p, err := UnmarshalPodInfo(req.OrchestratorContext)
 	if err != nil {
 		return nil, err
@@ -418,8 +418,9 @@ func (i IPConfigRequest) String() string {
 		i.DesiredIPAddress, i.PodInterfaceID, i.InfraContainerID, string(i.OrchestratorContext))
 }
 
+// Same as IPConfigRequest except that DesiredIPAddresses is passed in as a slice
 type IPConfigsRequest struct {
-	DesiredIPAddresses  []string        `json:"desiredIPAddress"`
+	DesiredIPAddresses  []string        `json:"desiredIPAddresses"`
 	PodInterfaceID      string          `json:"podInterfaceID"`
 	InfraContainerID    string          `json:"infraContainerID"`
 	OrchestratorContext json.RawMessage `json:"orchestratorContext"`
@@ -427,7 +428,7 @@ type IPConfigsRequest struct {
 }
 
 func (i IPConfigsRequest) String() string {
-	return fmt.Sprintf("[IPConfigsRequest: DesiredIPAddresses %s, PodInterfaceID %s, InfraContainerID %s, OrchestratorContext %s]",
+	return fmt.Sprintf("[IPConfigsRequest: DesiredIPAddresses %v, PodInterfaceID %s, InfraContainerID %s, OrchestratorContext %s]",
 		i.DesiredIPAddresses, i.PodInterfaceID, i.InfraContainerID, string(i.OrchestratorContext))
 }
 
@@ -439,7 +440,7 @@ type IPConfigResponse struct {
 
 // IPConfigsResponse is used in CNS IPAM mode to return a slice of IP configs as a response to CNI ADD
 type IPConfigsResponse struct {
-	PodIPInfo []PodIpInfo `json:"podIpInfo"`
+	PodIPInfo []PodIpInfo `json:"podIPInfo"`
 	Response  Response    `json:"response"`
 }
 

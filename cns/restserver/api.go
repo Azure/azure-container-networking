@@ -459,7 +459,7 @@ func (service *HTTPRestService) releaseIPAddress(w http.ResponseWriter, r *http.
 			break
 		}
 
-		err = ic.ReleaseIPs(poolID, req.ReservationID)
+		err = ic.ReleaseIPAddress(poolID, req.ReservationID)
 		if err != nil {
 			returnMessage = fmt.Sprintf("[Azure CNS] ReleaseIpAddress failed with %+v", err.Error())
 			returnCode = types.ReservationNotFound

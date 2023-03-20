@@ -17,6 +17,7 @@ import (
 	"github.com/pkg/errors"
 )
 
+// requestIPConfigHandlerHelper validates the request, assigns IPs, and returns a response
 func (service *HTTPRestService) requestIPConfigHandlerHelper(ipconfigsRequest cns.IPConfigsRequest) (*cns.IPConfigsResponse, error) {
 	podInfo, returnCode, returnMessage := service.validateIPConfigsRequest(ipconfigsRequest)
 	if returnCode != types.Success {
@@ -219,6 +220,7 @@ func (service *HTTPRestService) updateEndpointState(ipconfigsRequest cns.IPConfi
 	return nil
 }
 
+// releaseIPConfigHandlerHelper validates the request and removes the endpoint associated with the pod
 func (service *HTTPRestService) releaseIPConfigHandlerHelper(ipconfigsRequest cns.IPConfigsRequest) (*cns.Response, error) {
 	podInfo, returnCode, returnMessage := service.validateIPConfigsRequest(ipconfigsRequest)
 	if returnCode != types.Success {
@@ -251,6 +253,7 @@ func (service *HTTPRestService) releaseIPConfigHandlerHelper(ipconfigsRequest cn
 	}, nil
 }
 
+// releaseIPConfigHandler frees the IP assigned to a pod from CNS
 func (service *HTTPRestService) releaseIPConfigHandler(w http.ResponseWriter, r *http.Request) {
 	var ipconfigRequest cns.IPConfigRequest
 	err := service.Listener.Decode(w, r, &ipconfigRequest)
@@ -303,6 +306,7 @@ func (service *HTTPRestService) releaseIPConfigHandler(w http.ResponseWriter, r 
 	logger.ResponseEx(service.Name, ipconfigRequest, resp, resp.ReturnCode, err)
 }
 
+// releaseIPConfigsHandler frees multiple IPConfigs from the CNS state
 func (service *HTTPRestService) releaseIPConfigsHandler(w http.ResponseWriter, r *http.Request) {
 	var ipconfigsRequest cns.IPConfigsRequest
 	err := service.Listener.Decode(w, r, &ipconfigsRequest)
@@ -719,7 +723,7 @@ forLoop:
 func (service *HTTPRestService) AssignAvailableIPConfigs(podInfo cns.PodInfo) ([]cns.PodIpInfo, error) {
 	service.Lock()
 	defer service.Unlock()
-	// Creates a slice of PoPodIpInfo with the size of number of NCs
+	// Creates a slice of PodIpInfo with the size of number of NCs
 	podIPInfo := make([]cns.PodIpInfo, len(service.state.ContainerStatus))
 	// This map is used to store whether or not we have found an available IP from an NC when looping through the pool
 	ncMap := make(map[string]cns.IPConfigurationStatus)
@@ -763,7 +767,7 @@ func (service *HTTPRestService) AssignAvailableIPConfigs(podInfo cns.PodInfo) ([
 func requestIPConfigHelper(service *HTTPRestService, req cns.IPConfigsRequest) ([]cns.PodIpInfo, error) {
 	// check if ipconfig already assigned tothis pod and return if exists or error
 	// if error, ipstate is nil, if exists, ipstate is not nil and error is nil
-	podInfo, err := cns.NewPodInfoFromIPConfigRequest(req)
+	podInfo, err := cns.NewPodInfoFromIPConfigsRequest(req)
 	if err != nil {
 		return []cns.PodIpInfo{}, errors.Wrapf(err, "failed to parse IPConfigsRequest %v", req)
 	}
@@ -773,7 +777,7 @@ func requestIPConfigHelper(service *HTTPRestService, req cns.IPConfigsRequest) (
 	}
 
 	// return desired IPConfig
-	if req.DesiredIPAddresses != nil && len(req.DesiredIPAddresses) != 0 {
+	if len(req.DesiredIPAddresses) != 0 {
 		if req.DesiredIPAddresses[0] != "" {
 			return service.AssignDesiredIPConfigs(podInfo, req.DesiredIPAddresses)
 		}
