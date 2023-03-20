@@ -44,11 +44,11 @@ func (Hnsv2wrapper) GetNamespaceByID(netNamespacePath string) (*hcn.HostComputeN
 	return hcn.GetNamespaceByID(netNamespacePath)
 }
 
-func (Hnsv2wrapper) AddNamespaceEndpoint(namespaceId string, endpointId string) error {
+func (Hnsv2wrapper) AddNamespaceEndpoint(namespaceId, endpointId string) error {
 	return hcn.AddNamespaceEndpoint(namespaceId, endpointId)
 }
 
-func (Hnsv2wrapper) RemoveNamespaceEndpoint(namespaceId string, endpointId string) error {
+func (Hnsv2wrapper) RemoveNamespaceEndpoint(namespaceId, endpointId string) error {
 	return hcn.RemoveNamespaceEndpoint(namespaceId, endpointId)
 }
 
