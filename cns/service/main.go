@@ -1260,7 +1260,8 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 			if err := manager.Start(ctx); err != nil {
 				logger.Errorf("[Azure CNS] Failed to start request controller: %v", err)
 				// retry to start the request controller
-				// todo: add a CNS metric to count # of failures
+				// inc the managerStartFailures metric for failure tracking
+				managerStartFailures.Inc()
 			} else {
 				logger.Printf("exiting NodeNetworkConfig reconciler")
 				return
