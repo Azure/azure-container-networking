@@ -385,6 +385,7 @@ func getNATInfo(nwCfg *cni.NetworkConfig, ncPrimaryIPIface interface{}, enableSn
 			ncPrimaryIP = ncPrimaryIPIface.(string)
 		}
 
+		// only append natInfo if ncPrimaryIP is ipv4
 		if net.ParseIP(ncPrimaryIP).To4() != nil {
 			natInfo = append(natInfo, []policy.NATInfo{{VirtualIP: ncPrimaryIP, Destinations: []string{networkutils.AzureDNS}}, {Destinations: []string{networkutils.AzureIMDS}}}...)
 		}
