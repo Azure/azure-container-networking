@@ -24,7 +24,7 @@ const (
 )
 
 type secretFetcher interface {
-	GetSecret(ctx context.Context, secretName string, opts *azsecrets.GetSecretOptions) (azsecrets.GetSecretResponse, error)
+	GetSecret(ctx context.Context, secretName, version string, opts *azsecrets.GetSecretOptions) (azsecrets.GetSecretResponse, error)
 }
 
 // Shim provides convenience methods for working with KeyVault.
@@ -45,12 +45,12 @@ func NewShim(vaultURL string, cred azcore.TokenCredential) (*Shim, error) {
 
 // GetLatestTLSCertificate fetches the latest version of a keyvault certificate and transforms it into a usable tls.Certificate.
 func (s *Shim) GetLatestTLSCertificate(ctx context.Context, certName string) (tls.Certificate, error) {
-	resp, err := s.sf.GetSecret(ctx, certName, nil)
+	resp, err := s.sf.GetSecret(ctx, certName, "", nil)
 	if err != nil {
 		return tls.Certificate{}, errors.Wrap(err, "could not get secret")
 	}
 
-	pemBlocks, err := getPEMBlocks(*resp.Properties.ContentType, *resp.Value)
+	pemBlocks, err := getPEMBlocks(*resp.ContentType, *resp.Value)
 	if err != nil {
 		return tls.Certificate{}, errors.Wrap(err, "could not get pem blocks")
 	}
