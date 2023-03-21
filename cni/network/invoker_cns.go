@@ -23,8 +23,8 @@ import (
 var (
 	errEmptyCNIArgs    = errors.New("empty CNI cmd args not allowed")
 	errInvalidArgs     = errors.New("invalid arg(s)")
-	overlayGatewayv4IP = "169.254.1.1"
-	overlayGatewayv6IP = "fe80::1234:5678:9abc"
+	overlayGatewayV4IP = "169.254.1.1"
+	overlayGatewayV6IP = "fe80::1234:5678:9abc"
 )
 
 type CNSIPAMInvoker struct {
@@ -111,9 +111,9 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 			}
 
 			if net.ParseIP(info.podIPAddress).To4() != nil {
-				ncgw = net.ParseIP(overlayGatewayv4IP)
+				ncgw = net.ParseIP(overlayGatewayV4IP)
 			} else {
-				ncgw = net.ParseIP(overlayGatewayv6IP)
+				ncgw = net.ParseIP(overlayGatewayV6IP)
 			}
 		}
 

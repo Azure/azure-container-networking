@@ -385,7 +385,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 			res.Print()
 		}
 
-		log.Printf("[cni-net] ADD command completed for pod %v with ip IPs:%+v  err:%v.", k8sPodName, ipamAddResult.ipv4Result.IPs, err)
+		log.Printf("[cni-net] ADD command completed for pod %v with IPs:%+v  err:%v.", k8sPodName, ipamAddResult.ipv4Result.IPs, err)
 	}()
 
 	// Parse Pod arguments.
@@ -766,11 +766,9 @@ func (plugin *NetPlugin) createEndpointInternal(opt *createEndpointInternalOpt) 
 		epInfo.IPAddresses = append(epInfo.IPAddresses, ipconfig.Address)
 	}
 
-	log.Printf("epInfo.IPV6Mode is %s", epInfo.IPV6Mode)
-
 	if opt.resultV6 != nil {
 		// inject routes to linux pod
-		epInfo.IPV6Mode = "dualstack"
+		epInfo.IPV6Mode = DualStack
 		for _, ipconfig := range opt.resultV6.IPs {
 			epInfo.IPAddresses = append(epInfo.IPAddresses, ipconfig.Address)
 		}

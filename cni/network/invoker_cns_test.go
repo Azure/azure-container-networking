@@ -2,10 +2,13 @@ package network
 
 import (
 	"errors"
+	"fmt"
 	"net"
+	"runtime"
 	"testing"
 
 	"github.com/Azure/azure-container-networking/cni"
+	"github.com/Azure/azure-container-networking/cni/util"
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/iptables"
 	"github.com/Azure/azure-container-networking/network"
@@ -23,6 +26,14 @@ func getTestIPConfigsRequest() cns.IPConfigsRequest {
 		InfraContainerID:    "testcontainerid",
 		OrchestratorContext: marshallPodInfo(testPodInfo),
 	}
+}
+
+func getTestOverlayGateway() net.IP {
+	if runtime.GOOS == "windows" {
+		return net.ParseIP("10.240.0.1")
+	}
+
+	return net.ParseIP("169.254.1.1")
 }
 
 func TestCNSIPAMInvoker_Add(t *testing.T) {

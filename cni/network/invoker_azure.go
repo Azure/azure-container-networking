@@ -18,6 +18,11 @@ import (
 	cniTypesCurr "github.com/containernetworking/cni/pkg/types/100"
 )
 
+const (
+	bytesSize4  = 4
+	bytesSize16 = 16
+)
+
 type AzureIPAMInvoker struct {
 	plugin delegatePlugin
 	nwInfo *network.NetworkInfo
@@ -28,9 +33,6 @@ type delegatePlugin interface {
 	DelegateDel(pluginName string, nwCfg *cni.NetworkConfig) error
 	Errorf(format string, args ...interface{}) *cniTypes.Error
 }
-
-const bytesSize4 = 4
-const bytesSize16 = 16
 
 // Create an IPAM instance every time a CNI action is called.
 func NewAzureIpamInvoker(plugin *NetPlugin, nwInfo *network.NetworkInfo) *AzureIPAMInvoker {
