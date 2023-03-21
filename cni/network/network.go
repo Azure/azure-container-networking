@@ -372,6 +372,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 		}
 
 		addSnatInterface(nwCfg, ipamAddResult.ipv4Result)
+
 		// Convert result to the requested CNI version.
 		res, vererr := ipamAddResult.ipv4Result.GetAsVersion(nwCfg.CNIVersion)
 		if vererr != nil {
@@ -384,7 +385,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 			res.Print()
 		}
 
-		log.Printf("[cni-net] ADD command completed for pod %v with IPs:%+v err:%v.", k8sPodName, ipamAddResult.ipv4Result.IPs, err)
+		log.Printf("[cni-net] ADD command completed for pod %v with ip IPs:%+v  err:%v.", k8sPodName, ipamAddResult.ipv4Result.IPs, err)
 	}()
 
 	// Parse Pod arguments.
@@ -538,7 +539,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 			logAndSendEvent(plugin, fmt.Sprintf("[cni-net] Created network %v with subnet %v.", networkID, ipamAddResult.hostSubnetPrefix.String()))
 		}
 
-		natInfo := getNATInfo(nwCfg, options[network.SNATIPKey], enableSnatForDNS)
+		natInfo := getNATInfo(nwCfg.ExecutionMode, options[network.SNATIPKey], nwCfg.MultiTenancy, enableSnatForDNS)
 
 		createEndpointInternalOpt := createEndpointInternalOpt{
 			nwCfg:            nwCfg,
@@ -577,12 +578,20 @@ func (plugin *NetPlugin) cleanupAllocationOnError(
 	options map[string]interface{},
 ) {
 	if result != nil && len(result.IPs) > 0 {
-		if er := plugin.ipamInvoker.Delete(&result.IPs[0].Address, nwCfg, args, options); er != nil {
+		addresses := make([]*net.IPNet, len(result.IPs))
+		for i, ip := range result.IPs {
+			addresses[i] = &ip.Address
+		}
+		if er := plugin.ipamInvoker.Delete(addresses, nwCfg, args, options); er != nil {
 			log.Errorf("Failed to cleanup ip allocation on failure: %v", er)
 		}
 	}
 	if resultV6 != nil && len(resultV6.IPs) > 0 {
-		if er := plugin.ipamInvoker.Delete(&resultV6.IPs[0].Address, nwCfg, args, options); er != nil {
+		addressesV6 := make([]*net.IPNet, len(resultV6.IPs))
+		for i, ip := range resultV6.IPs {
+			addressesV6[i] = &ip.Address
+		}
+		if er := plugin.ipamInvoker.Delete(addressesV6, nwCfg, args, options); er != nil {
 			log.Errorf("Failed to cleanup ipv6 allocation on failure: %v", er)
 		}
 	}
@@ -626,19 +635,21 @@ func (plugin *NetPlugin) createNetworkInternal(
 		return nwInfo, fmt.Errorf("Failed to ParseCIDR for pod subnet prefix: %w", err)
 	}
 
+	// parse the ipv6 address and only add it to nwInfo if it's dual stack mode
+	var podSubnetV6Prefix *net.IPNet
+	if ipamAddResult.ipv6Result != nil && len(ipamAddResult.ipv6Result.IPs) > 0 {
+		_, podSubnetV6Prefix, err = net.ParseCIDR(ipamAddResult.ipv6Result.IPs[0].Address.String())
+		if err != nil {
+			return nwInfo, fmt.Errorf("Failed to ParseCIDR for pod subnet IPv6 prefix: %w", err)
+		}
+	}
+
 	// Create the network.
 	nwInfo = network.NetworkInfo{
-		Id:           networkID,
-		Mode:         ipamAddConfig.nwCfg.Mode,
-		MasterIfName: masterIfName,
-		AdapterName:  ipamAddConfig.nwCfg.AdapterName,
-		Subnets: []network.SubnetInfo{
-			{
-				Family:  platform.AfINET,
-				Prefix:  *podSubnetPrefix,
-				Gateway: ipamAddResult.ipv4Result.IPs[0].Gateway,
-			},
-		},
+		Id:                            networkID,
+		Mode:                          ipamAddConfig.nwCfg.Mode,
+		MasterIfName:                  masterIfName,
+		AdapterName:                   ipamAddConfig.nwCfg.AdapterName,
 		BridgeName:                    ipamAddConfig.nwCfg.Bridge,
 		EnableSnatOnHost:              ipamAddConfig.nwCfg.EnableSnatOnHost,
 		DNS:                           nwDNSInfo,
@@ -649,6 +660,22 @@ func (plugin *NetPlugin) createNetworkInternal(
 		IPV6Mode:                      ipamAddConfig.nwCfg.IPV6Mode,
 		IPAMType:                      ipamAddConfig.nwCfg.IPAM.Type,
 		ServiceCidrs:                  ipamAddConfig.nwCfg.ServiceCidrs,
+	}
+
+	ipv4Subnet := network.SubnetInfo{
+		Family:  platform.AfINET,
+		Prefix:  *podSubnetPrefix,
+		Gateway: ipamAddResult.ipv4Result.IPs[0].Gateway,
+	}
+	nwInfo.Subnets = append(nwInfo.Subnets, ipv4Subnet)
+
+	if ipamAddResult.ipv6Result != nil && len(ipamAddResult.ipv6Result.IPs) > 0 {
+		ipv6Subnet := network.SubnetInfo{
+			Family:  platform.AfINET6,
+			Prefix:  *podSubnetV6Prefix,
+			Gateway: ipamAddResult.ipv6Result.IPs[0].Gateway,
+		}
+		nwInfo.Subnets = append(nwInfo.Subnets, ipv6Subnet)
 	}
 
 	setNetworkOptions(ipamAddResult.ncResponse, &nwInfo)
@@ -739,7 +766,11 @@ func (plugin *NetPlugin) createEndpointInternal(opt *createEndpointInternalOpt) 
 		epInfo.IPAddresses = append(epInfo.IPAddresses, ipconfig.Address)
 	}
 
+	log.Printf("epInfo.IPV6Mode is %s", epInfo.IPV6Mode)
+
 	if opt.resultV6 != nil {
+		// inject routes to linux pod
+		epInfo.IPV6Mode = "dualstack"
 		for _, ipconfig := range opt.resultV6.IPs {
 			epInfo.IPAddresses = append(epInfo.IPAddresses, ipconfig.Address)
 		}
@@ -1013,12 +1044,14 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 
 		if !nwCfg.MultiTenancy {
 			// Call into IPAM plugin to release the endpoint's addresses.
+			addresses := make([]*net.IPNet, len(epInfo.IPAddresses))
 			for i := range epInfo.IPAddresses {
-				logAndSendEvent(plugin, fmt.Sprintf("Release ip:%s", epInfo.IPAddresses[i].IP.String()))
-				err = plugin.ipamInvoker.Delete(&epInfo.IPAddresses[i], nwCfg, args, nwInfo.Options)
-				if err != nil {
-					return plugin.RetriableError(fmt.Errorf("failed to release address: %w", err))
-				}
+				addresses[i] = &epInfo.IPAddresses[i]
+			}
+			logAndSendEvent(plugin, fmt.Sprintf("Releasing ips:%+v", epInfo.IPAddresses))
+			err = plugin.ipamInvoker.Delete(addresses, nwCfg, args, nwInfo.Options)
+			if err != nil {
+				return plugin.RetriableError(fmt.Errorf("failed to release address: %w", err))
 			}
 		} else if epInfo.EnableInfraVnet {
 			nwCfg.IPAM.Subnet = nwInfo.Subnets[0].Prefix.String()

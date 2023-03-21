@@ -3,348 +3,493 @@ package network
 import (
 	"context"
 	"encoding/json"
-	"errors"
-	"fmt"
-	"io"
 	"net"
-	"net/http"
-	"os"
-	"strings"
-	"time"
+	"testing"
 
 	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/cns"
-	"github.com/Azure/azure-container-networking/cns/client"
-	"github.com/Azure/azure-container-networking/common"
-	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/network"
 	cniTypes "github.com/containernetworking/cni/pkg/types"
 	cniTypesCurr "github.com/containernetworking/cni/pkg/types/100"
+	"github.com/stretchr/testify/require"
 )
 
-const (
-	filePerm    = 0o664
-	httpTimeout = 5
-)
+// Handler structs
+type requestIPAddressHandler struct {
+	// arguments
+	ipconfigArgument cns.IPConfigRequest
 
-// MultitenancyClient interface
-type MultitenancyClient interface {
-	SetupRoutingForMultitenancy(
-		nwCfg *cni.NetworkConfig,
-		cnsNetworkConfig *cns.GetNetworkContainerResponse,
-		azIpamResult *cniTypesCurr.Result,
-		epInfo *network.EndpointInfo,
-		result *cniTypesCurr.Result)
-	DetermineSnatFeatureOnHost(
-		snatFile string,
-		nmAgentSupportedApisURL string) (bool, bool, error)
-	GetAllNetworkContainers(
-		ctx context.Context,
-		nwCfg *cni.NetworkConfig,
-		podName string,
-		podNamespace string,
-		ifName string) ([]IPAMAddResult, error)
-	Init(cnsclient cnsclient, netioshim netioshim)
+	// results
+	result *cns.IPConfigResponse
+	err    error
 }
 
-type Multitenancy struct {
-	// cnsclient is used to communicate with CNS
-	cnsclient cnsclient
+type requestIPsHandler struct {
+	// arguments
+	ipconfigArgument cns.IPConfigsRequest
 
-	// netioshim is used to interact with networking syscalls
-	netioshim netioshim
+	// results
+	result *cns.IPConfigsResponse // this will return the IPConfigsResponse which contains a slice of IPs as opposed to one IP
+	err    error
 }
 
-type netioshim interface {
-	GetInterfaceSubnetWithSpecificIP(ipAddr string) *net.IPNet
+type releaseIPsHandler struct {
+	ipconfigArgument cns.IPConfigsRequest
+	err              error
 }
 
-type AzureNetIOShim struct{}
-
-func (a AzureNetIOShim) GetInterfaceSubnetWithSpecificIP(ipAddr string) *net.IPNet {
-	return common.GetInterfaceSubnetWithSpecificIP(ipAddr)
+type getNetworkContainerConfigurationHandler struct {
+	orchestratorContext []byte
+	returnResponse      *cns.GetNetworkContainerResponse
+	err                 error
 }
 
-var errNmaResponse = errors.New("nmagent request status code")
-
-func (m *Multitenancy) Init(cnsclient cnsclient, netioshim netioshim) {
-	m.cnsclient = cnsclient
-	m.netioshim = netioshim
+// this is to get all the NCs for testing with given orchestratorContext
+type getAllNetworkContainersConfigurationHandler struct {
+	orchestratorContext []byte
+	returnResponse      []cns.GetNetworkContainerResponse
+	err                 error
 }
 
-// DetermineSnatFeatureOnHost - Temporary function to determine whether we need to disable SNAT due to NMAgent support
-func (m *Multitenancy) DetermineSnatFeatureOnHost(snatFile, nmAgentSupportedApisURL string) (snatForDNS, snatOnHost bool, err error) {
-	var (
-		snatConfig            snatConfiguration
-		retrieveSnatConfigErr error
-		jsonFile              *os.File
-		httpClient            = &http.Client{Timeout: time.Second * httpTimeout}
-		snatConfigFile        = snatConfigFileName + jsonFileExtension
-	)
-
-	// Check if we've already retrieved NMAgent version and determined whether to disable snat on host
-	if jsonFile, retrieveSnatConfigErr = os.Open(snatFile); retrieveSnatConfigErr == nil {
-		bytes, _ := io.ReadAll(jsonFile)
-		jsonFile.Close()
-		if retrieveSnatConfigErr = json.Unmarshal(bytes, &snatConfig); retrieveSnatConfigErr != nil {
-			log.Errorf("[cni-net] failed to unmarshal to snatConfig with error %v",
-				retrieveSnatConfigErr)
-		}
-	}
-
-	// If we weren't able to retrieve snatConfiguration, query NMAgent
-	if retrieveSnatConfigErr != nil {
-		var resp *http.Response
-		req, err := http.NewRequestWithContext(context.TODO(), http.MethodGet, nmAgentSupportedApisURL, nil)
-		if err != nil {
-			log.Errorf("failed creating http request:%+v", err)
-			return false, false, fmt.Errorf("%w", err)
-		}
-		log.Printf("Query nma for dns snat support: %s", nmAgentSupportedApisURL)
-		resp, retrieveSnatConfigErr = httpClient.Do(req)
-		if retrieveSnatConfigErr == nil {
-			defer resp.Body.Close()
-
-			if resp.StatusCode == http.StatusOK {
-				var bodyBytes []byte
-				// if the list of APIs (strings) contains the nmAgentSnatSupportAPI we will disable snat on host
-				if bodyBytes, retrieveSnatConfigErr = io.ReadAll(resp.Body); retrieveSnatConfigErr == nil {
-					bodyStr := string(bodyBytes)
-					if !strings.Contains(bodyStr, nmAgentSnatAndDnsSupportAPI) {
-						snatConfig.EnableSnatForDns = true
-						snatConfig.EnableSnatOnHost = !strings.Contains(bodyStr, nmAgentSnatSupportAPI)
-					}
-
-					jsonStr, _ := json.Marshal(snatConfig)
-					fp, err := os.OpenFile(snatConfigFile, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, os.FileMode(filePerm))
-					if err == nil {
-						_, err = fp.Write(jsonStr)
-						if err != nil {
-							log.Errorf("DetermineSnatFeatureOnHost: Write to json failed:%+v", err)
-						}
-						fp.Close()
-					} else {
-						log.Errorf("[cni-net] failed to save snat settings to %s with error: %+v", snatConfigFile, err)
-					}
-				}
-			} else {
-				retrieveSnatConfigErr = fmt.Errorf("%w:%d", errNmaResponse, resp.StatusCode)
-			}
-		}
-	}
-
-	// Log and return the error when we fail acquire snat configuration for host and dns
-	if retrieveSnatConfigErr != nil {
-		log.Errorf("[cni-net] failed to acquire SNAT configuration with error %v",
-			retrieveSnatConfigErr)
-		return snatConfig.EnableSnatForDns, snatConfig.EnableSnatOnHost, retrieveSnatConfigErr
-	}
-
-	log.Printf("[cni-net] saved snat settings %+v to %s", snatConfig, snatConfigFile)
-	if snatConfig.EnableSnatOnHost {
-		log.Printf("[cni-net] enabling SNAT on container host for outbound connectivity")
-	}
-	if snatConfig.EnableSnatForDns {
-		log.Printf("[cni-net] enabling SNAT on container host for DNS traffic")
-	}
-	if !snatConfig.EnableSnatForDns && !snatConfig.EnableSnatOnHost {
-		log.Printf("[cni-net] disabling SNAT on container host")
-	}
-
-	return snatConfig.EnableSnatForDns, snatConfig.EnableSnatOnHost, nil
+type MockCNSClient struct {
+	require                              *require.Assertions
+	request                              requestIPAddressHandler
+	requestIPs                           requestIPsHandler
+	release                              releaseIPsHandler
+	getNetworkContainerConfiguration     getNetworkContainerConfigurationHandler
+	getAllNetworkContainersConfiguration getAllNetworkContainersConfigurationHandler
 }
 
-func (m *Multitenancy) SetupRoutingForMultitenancy(
-	nwCfg *cni.NetworkConfig,
-	cnsNetworkConfig *cns.GetNetworkContainerResponse,
-	azIpamResult *cniTypesCurr.Result,
-	epInfo *network.EndpointInfo,
-	result *cniTypesCurr.Result,
-) {
-	// Adding default gateway
-	// if snat enabled, add 169.254.128.1 as default gateway
-	if nwCfg.EnableSnatOnHost {
-		log.Printf("add default route for multitenancy.snat on host enabled")
-		addDefaultRoute(cnsNetworkConfig.LocalIPConfiguration.GatewayIPAddress, epInfo, result)
-	} else {
-		_, defaultIPNet, _ := net.ParseCIDR("0.0.0.0/0")
-		dstIP := net.IPNet{IP: net.ParseIP("0.0.0.0"), Mask: defaultIPNet.Mask}
-		gwIP := net.ParseIP(cnsNetworkConfig.IPConfiguration.GatewayIPAddress)
-		epInfo.Routes = append(epInfo.Routes, network.RouteInfo{Dst: dstIP, Gw: gwIP})
-		result.Routes = append(result.Routes, &cniTypes.Route{Dst: dstIP, GW: gwIP})
-
-		if epInfo.EnableSnatForDns {
-			log.Printf("add SNAT for DNS enabled")
-			addSnatForDNS(cnsNetworkConfig.LocalIPConfiguration.GatewayIPAddress, epInfo, result)
-		}
-	}
-
-	setupInfraVnetRoutingForMultitenancy(nwCfg, azIpamResult, epInfo, result)
+func (c *MockCNSClient) RequestIPAddress(_ context.Context, ipconfig cns.IPConfigRequest) (*cns.IPConfigResponse, error) {
+	c.require.Exactly(c.request.ipconfigArgument, ipconfig)
+	return c.request.result, c.request.err
 }
 
-// get all network container configuration(s) for given orchestratorContext
-func (m *Multitenancy) GetAllNetworkContainers(
-	ctx context.Context, nwCfg *cni.NetworkConfig, podName, podNamespace, ifName string,
-) ([]IPAMAddResult, error) {
-	var podNameWithoutSuffix string
+func (c *MockCNSClient) RequestIPs(_ context.Context, ipconfig cns.IPConfigsRequest) (*cns.IPConfigsResponse, error) {
+	c.require.Exactly(c.requestIPs.ipconfigArgument, ipconfig)
+	return c.requestIPs.result, c.requestIPs.err
+}
 
-	if !nwCfg.EnableExactMatchForPodName {
-		podNameWithoutSuffix = network.GetPodNameWithoutSuffix(podName)
-	} else {
-		podNameWithoutSuffix = podName
+func (c *MockCNSClient) ReleaseIPs(_ context.Context, ipconfig cns.IPConfigsRequest) error {
+	c.require.Exactly(c.release.ipconfigArgument, ipconfig)
+	return c.release.err
+}
+
+func (c *MockCNSClient) ReleaseIPAddress(_ context.Context, ipconfig cns.IPConfigRequest) error {
+	c.require.Exactly(c.release.ipconfigArgument, ipconfig)
+	return c.release.err
+}
+
+func (c *MockCNSClient) GetNetworkContainer(ctx context.Context, orchestratorContext []byte) (*cns.GetNetworkContainerResponse, error) {
+	c.require.Exactly(c.getNetworkContainerConfiguration.orchestratorContext, orchestratorContext)
+	return c.getNetworkContainerConfiguration.returnResponse, c.getNetworkContainerConfiguration.err
+}
+
+func (c *MockCNSClient) GetAllNetworkContainers(ctx context.Context, orchestratorContext []byte) ([]cns.GetNetworkContainerResponse, error) {
+	c.require.Exactly(c.getAllNetworkContainersConfiguration.orchestratorContext, orchestratorContext)
+	return c.getAllNetworkContainersConfiguration.returnResponse, c.getAllNetworkContainersConfiguration.err
+}
+
+func defaultIPNet() *net.IPNet {
+	_, defaultIPNet, _ := net.ParseCIDR("0.0.0.0/0")
+	return defaultIPNet
+}
+
+func marshallPodInfo(podInfo cns.KubernetesPodInfo) []byte {
+	orchestratorContext, _ := json.Marshal(podInfo)
+	return orchestratorContext
+}
+
+type mockNetIOShim struct{}
+
+func (a *mockNetIOShim) GetInterfaceSubnetWithSpecificIP(ipAddr string) *net.IPNet {
+	return getCIDRNotationForAddress(ipAddr)
+}
+
+func getIPNet(ipaddr net.IP, mask net.IPMask) net.IPNet {
+	return net.IPNet{
+		IP:   ipaddr,
+		Mask: mask,
 	}
+}
 
-	log.Printf("Podname without suffix %v", podNameWithoutSuffix)
-
-	ncResponses, hostSubnetPrefixes, err := m.getNetworkContainersInternal(ctx, podNamespace, podNameWithoutSuffix)
+func getIPNetWithString(ipaddrwithcidr string) *net.IPNet {
+	_, ipnet, err := net.ParseCIDR(ipaddrwithcidr)
 	if err != nil {
-		return []IPAMAddResult{}, fmt.Errorf("%w", err)
+		panic(err)
 	}
 
-	for i := 0; i < len(ncResponses); i++ {
-		if nwCfg.EnableSnatOnHost {
-			if ncResponses[i].LocalIPConfiguration.IPSubnet.IPAddress == "" {
-				log.Printf("Snat IP is not populated for ncs %+v. Got empty string", ncResponses)
-				return []IPAMAddResult{}, errSnatIP
+	return ipnet
+}
+
+func TestSetupRoutingForMultitenancy(t *testing.T) {
+	require := require.New(t) //nolint:gocritic
+	type args struct {
+		nwCfg            *cni.NetworkConfig
+		cnsNetworkConfig *cns.GetNetworkContainerResponse
+		azIpamResult     *cniTypesCurr.Result
+		epInfo           *network.EndpointInfo
+		result           *cniTypesCurr.Result
+	}
+
+	tests := []struct {
+		name               string
+		args               args
+		multitenancyClient *Multitenancy
+		expected           args
+	}{
+		{
+			name: "test happy path",
+			args: args{
+				nwCfg: &cni.NetworkConfig{
+					MultiTenancy:     true,
+					EnableSnatOnHost: false,
+				},
+				cnsNetworkConfig: &cns.GetNetworkContainerResponse{
+					IPConfiguration: cns.IPConfiguration{
+						IPSubnet:         cns.IPSubnet{},
+						DNSServers:       nil,
+						GatewayIPAddress: "10.0.0.1",
+					},
+				},
+				epInfo: &network.EndpointInfo{},
+				result: &cniTypesCurr.Result{},
+			},
+			expected: args{
+				nwCfg: &cni.NetworkConfig{
+					MultiTenancy:     true,
+					EnableSnatOnHost: false,
+				},
+				cnsNetworkConfig: &cns.GetNetworkContainerResponse{
+					IPConfiguration: cns.IPConfiguration{
+						IPSubnet:         cns.IPSubnet{},
+						DNSServers:       nil,
+						GatewayIPAddress: "10.0.0.1",
+					},
+				},
+				epInfo: &network.EndpointInfo{
+					Routes: []network.RouteInfo{
+						{
+							Dst: net.IPNet{IP: net.ParseIP("0.0.0.0"), Mask: defaultIPNet().Mask},
+							Gw:  net.ParseIP("10.0.0.1"),
+						},
+					},
+				},
+				result: &cniTypesCurr.Result{
+					Routes: []*cniTypes.Route{
+						{
+							Dst: net.IPNet{IP: net.ParseIP("0.0.0.0"), Mask: defaultIPNet().Mask},
+							GW:  net.ParseIP("10.0.0.1"),
+						},
+					},
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			tt.multitenancyClient.SetupRoutingForMultitenancy(tt.args.nwCfg, tt.args.cnsNetworkConfig, tt.args.azIpamResult, tt.args.epInfo, tt.args.result)
+			require.Exactly(tt.expected.nwCfg, tt.args.nwCfg)
+			require.Exactly(tt.expected.cnsNetworkConfig, tt.args.cnsNetworkConfig)
+			require.Exactly(tt.expected.azIpamResult, tt.args.azIpamResult)
+			require.Exactly(tt.expected.epInfo, tt.args.epInfo)
+			require.Exactly(tt.expected.result, tt.args.result)
+		})
+	}
+}
+
+func TestCleanupMultitenancyResources(t *testing.T) {
+	require := require.New(t) //nolint:gocritic
+	type args struct {
+		enableInfraVnet bool
+		nwCfg           *cni.NetworkConfig
+		infraIPNet      *cniTypesCurr.Result
+		plugin          *NetPlugin
+	}
+	tests := []struct {
+		name               string
+		args               args
+		multitenancyClient *Multitenancy
+		expected           args
+	}{
+		{
+			name: "test happy path",
+			args: args{
+				enableInfraVnet: true,
+				nwCfg: &cni.NetworkConfig{
+					MultiTenancy: true,
+				},
+				infraIPNet: &cniTypesCurr.Result{},
+				plugin: &NetPlugin{
+					ipamInvoker: NewMockIpamInvoker(false, false, false),
+				},
+			},
+			expected: args{
+				nwCfg: &cni.NetworkConfig{
+					MultiTenancy:     true,
+					EnableSnatOnHost: false,
+					IPAM:             cni.IPAM{},
+				},
+				infraIPNet: &cniTypesCurr.Result{},
+				plugin: &NetPlugin{
+					ipamInvoker: NewMockIpamInvoker(false, false, false),
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			require.Exactly(tt.expected.nwCfg, tt.args.nwCfg)
+			require.Exactly(tt.expected.infraIPNet, tt.args.infraIPNet)
+			require.Exactly(tt.expected.plugin, tt.args.plugin)
+		})
+	}
+}
+
+func TestGetMultiTenancyCNIResult(t *testing.T) {
+	require := require.New(t) //nolint:gocritic
+
+	var ncResponses []cns.GetNetworkContainerResponse
+	ncResponseOne := cns.GetNetworkContainerResponse{
+		PrimaryInterfaceIdentifier: "10.0.0.0/16",
+		LocalIPConfiguration: cns.IPConfiguration{
+			IPSubnet: cns.IPSubnet{
+				IPAddress:    "10.0.0.5",
+				PrefixLength: 16,
+			},
+			GatewayIPAddress: "",
+		},
+		CnetAddressSpace: []cns.IPSubnet{
+			{
+				IPAddress:    "10.1.0.0",
+				PrefixLength: 16,
+			},
+		},
+		IPConfiguration: cns.IPConfiguration{
+			IPSubnet: cns.IPSubnet{
+				IPAddress:    "10.1.0.5",
+				PrefixLength: 16,
+			},
+			DNSServers:       nil,
+			GatewayIPAddress: "10.1.0.1",
+		},
+		Routes: []cns.Route{
+			{
+				IPAddress:        "10.1.0.0/16",
+				GatewayIPAddress: "10.1.0.1",
+			},
+		},
+	}
+
+	ncResponseTwo := cns.GetNetworkContainerResponse{
+		PrimaryInterfaceIdentifier: "20.0.0.0/16",
+		LocalIPConfiguration: cns.IPConfiguration{
+			IPSubnet: cns.IPSubnet{
+				IPAddress:    "20.0.0.5",
+				PrefixLength: 16,
+			},
+			GatewayIPAddress: "",
+		},
+		CnetAddressSpace: []cns.IPSubnet{
+			{
+				IPAddress:    "20.1.0.0",
+				PrefixLength: 16,
+			},
+		},
+		IPConfiguration: cns.IPConfiguration{
+			IPSubnet: cns.IPSubnet{
+				IPAddress:    "20.1.0.5",
+				PrefixLength: 16,
+			},
+			DNSServers:       nil,
+			GatewayIPAddress: "20.1.0.1",
+		},
+		Routes: []cns.Route{
+			{
+				IPAddress:        "20.1.0.0/16",
+				GatewayIPAddress: "20.1.0.1",
+			},
+		},
+	}
+	ncResponses = append(ncResponses, ncResponseOne, ncResponseTwo)
+
+	type args struct {
+		ctx             context.Context
+		enableInfraVnet bool
+		nwCfg           *cni.NetworkConfig
+		plugin          *NetPlugin
+		k8sPodName      string
+		k8sNamespace    string
+		ifName          string
+	}
+
+	tests := []struct {
+		name    string
+		args    args
+		want    *cniTypesCurr.Result
+		want1   *cns.GetNetworkContainerResponse
+		want2   *cns.GetNetworkContainerResponse
+		want3   net.IPNet
+		want4   *cniTypesCurr.Result
+		want5   []cns.GetNetworkContainerResponse
+		wantErr bool
+	}{
+		{
+			name: "test happy path",
+			args: args{
+				enableInfraVnet: true,
+				nwCfg: &cni.NetworkConfig{
+					MultiTenancy:               true,
+					EnableSnatOnHost:           true,
+					EnableExactMatchForPodName: true,
+					InfraVnetAddressSpace:      "10.0.0.0/16",
+					IPAM:                       cni.IPAM{Type: "azure-vnet-ipam"},
+				},
+				plugin: &NetPlugin{
+					ipamInvoker: NewMockIpamInvoker(false, false, false),
+					multitenancyClient: &Multitenancy{
+						netioshim: &mockNetIOShim{},
+						cnsclient: &MockCNSClient{
+							require: require,
+							getAllNetworkContainersConfiguration: getAllNetworkContainersConfigurationHandler{
+								orchestratorContext: marshallPodInfo(cns.KubernetesPodInfo{
+									PodName:      "testpod",
+									PodNamespace: "testnamespace",
+								}),
+								returnResponse: ncResponses,
+							},
+						},
+					},
+				},
+				k8sPodName:   "testpod",
+				k8sNamespace: "testnamespace",
+				ifName:       "eth0",
+			},
+			want: &cniTypesCurr.Result{
+				Interfaces: []*cniTypesCurr.Interface{
+					{
+						Name: "eth0",
+					},
+				},
+				IPs: []*cniTypesCurr.IPConfig{
+					{
+						Address: getIPNet(net.IPv4(10, 1, 0, 5), net.CIDRMask(16, 32)),
+						Gateway: net.ParseIP("10.1.0.1"),
+					},
+				},
+				Routes: []*cniTypes.Route{
+					{
+						Dst: *getIPNetWithString("10.1.0.0/16"),
+						GW:  net.ParseIP("10.1.0.1"),
+					},
+					{
+						Dst: net.IPNet{IP: net.ParseIP("10.1.0.0"), Mask: net.CIDRMask(16, 32)},
+						GW:  net.ParseIP("10.1.0.1"),
+					},
+				},
+			},
+			want1: &cns.GetNetworkContainerResponse{
+				PrimaryInterfaceIdentifier: "10.0.0.0/16",
+				LocalIPConfiguration: cns.IPConfiguration{
+					IPSubnet: cns.IPSubnet{
+						IPAddress:    "10.0.0.5",
+						PrefixLength: 16,
+					},
+					GatewayIPAddress: "",
+				},
+				CnetAddressSpace: []cns.IPSubnet{
+					{
+						IPAddress:    "10.1.0.0",
+						PrefixLength: 16,
+					},
+				},
+				IPConfiguration: cns.IPConfiguration{
+					IPSubnet: cns.IPSubnet{
+						IPAddress:    "10.1.0.5",
+						PrefixLength: 16,
+					},
+					DNSServers:       nil,
+					GatewayIPAddress: "10.1.0.1",
+				},
+				Routes: []cns.Route{
+					{
+						IPAddress:        "10.1.0.0/16",
+						GatewayIPAddress: "10.1.0.1",
+					},
+				},
+			},
+			want2: &cns.GetNetworkContainerResponse{
+				PrimaryInterfaceIdentifier: "20.0.0.0/16",
+				LocalIPConfiguration: cns.IPConfiguration{
+					IPSubnet: cns.IPSubnet{
+						IPAddress:    "20.0.0.5",
+						PrefixLength: 16,
+					},
+					GatewayIPAddress: "",
+				},
+				CnetAddressSpace: []cns.IPSubnet{
+					{
+						IPAddress:    "20.1.0.0",
+						PrefixLength: 16,
+					},
+				},
+				IPConfiguration: cns.IPConfiguration{
+					IPSubnet: cns.IPSubnet{
+						IPAddress:    "20.1.0.5",
+						PrefixLength: 16,
+					},
+					DNSServers:       nil,
+					GatewayIPAddress: "20.1.0.1",
+				},
+				Routes: []cns.Route{
+					{
+						IPAddress:        "20.1.0.0/16",
+						GatewayIPAddress: "20.1.0.1",
+					},
+				},
+			},
+			want3: *getCIDRNotationForAddress("10.0.0.0/16"),
+			want4: &cniTypesCurr.Result{
+				IPs: []*cniTypesCurr.IPConfig{
+					{
+						Address: net.IPNet{
+							IP:   net.ParseIP("10.240.0.5"),
+							Mask: net.CIDRMask(24, 32),
+						},
+						Gateway: net.ParseIP("10.240.0.1"),
+					},
+				},
+				Routes: nil,
+				DNS:    cniTypes.DNS{},
+			},
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := tt.args.plugin.multitenancyClient.GetAllNetworkContainers(
+				tt.args.ctx,
+				tt.args.nwCfg,
+				tt.args.k8sPodName,
+				tt.args.k8sNamespace,
+				tt.args.ifName)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("GetContainerNetworkConfiguration() error = %v, wantErr %v", err, tt.wantErr)
+				return
 			}
-		}
-	}
-
-	ipamResults := make([]IPAMAddResult, len(ncResponses))
-
-	for i := 0; i < len(ncResponses); i++ {
-		ipamResults[i].ncResponse = &ncResponses[i]
-		ipamResults[i].hostSubnetPrefix = hostSubnetPrefixes[i]
-		ipamResults[i].ipv4Result = convertToCniResult(ipamResults[i].ncResponse, ifName)
-	}
-
-	return ipamResults, err
-}
-
-// get all network containers configuration for given orchestratorContext
-func (m *Multitenancy) getNetworkContainersInternal(
-	ctx context.Context, namespace, podName string,
-) ([]cns.GetNetworkContainerResponse, []net.IPNet, error) {
-	podInfo := cns.KubernetesPodInfo{
-		PodName:      podName,
-		PodNamespace: namespace,
-	}
-
-	orchestratorContext, err := json.Marshal(podInfo)
-	if err != nil {
-		log.Printf("Marshalling KubernetesPodInfo failed with %v", err)
-		return nil, []net.IPNet{}, fmt.Errorf("%w", err)
-	}
-
-	// First try the new CNS API that returns slice of nc responses. If CNS doesn't support the new API, an error will be returned and as a result
-	// try using the old CNS API that returns single nc response.
-	ncConfigs, err := m.cnsclient.GetAllNetworkContainers(ctx, orchestratorContext)
-	if err != nil && client.IsUnsupportedAPI(err) {
-		ncConfig, errGetNC := m.cnsclient.GetNetworkContainer(ctx, orchestratorContext)
-		if errGetNC != nil {
-			return nil, []net.IPNet{}, fmt.Errorf("%w", err)
-		}
-		ncConfigs = append(ncConfigs, *ncConfig)
-	} else if err != nil {
-		return nil, []net.IPNet{}, fmt.Errorf("%w", err)
-	}
-
-	log.Printf("Network config received from cns %+v", ncConfigs)
-
-	subnetPrefixes := []net.IPNet{}
-	for i := 0; i < len(ncConfigs); i++ {
-		subnetPrefix := m.netioshim.GetInterfaceSubnetWithSpecificIP(ncConfigs[i].PrimaryInterfaceIdentifier)
-		if subnetPrefix == nil {
-			log.Printf("%w %s", errIfaceNotFound, ncConfigs[i].PrimaryInterfaceIdentifier)
-			return nil, []net.IPNet{}, errIfaceNotFound
-		}
-		subnetPrefixes = append(subnetPrefixes, *subnetPrefix)
-	}
-
-	return ncConfigs, subnetPrefixes, nil
-}
-
-func convertToCniResult(networkConfig *cns.GetNetworkContainerResponse, ifName string) *cniTypesCurr.Result {
-	result := &cniTypesCurr.Result{}
-	resultIpconfig := &cniTypesCurr.IPConfig{}
-
-	ipconfig := networkConfig.IPConfiguration
-	ipAddr := net.ParseIP(ipconfig.IPSubnet.IPAddress)
-
-	if ipAddr.To4() != nil {
-		resultIpconfig.Address = net.IPNet{IP: ipAddr, Mask: net.CIDRMask(int(ipconfig.IPSubnet.PrefixLength), 32)}
-	} else {
-		resultIpconfig.Address = net.IPNet{IP: ipAddr, Mask: net.CIDRMask(int(ipconfig.IPSubnet.PrefixLength), 128)}
-	}
-
-	resultIpconfig.Gateway = net.ParseIP(ipconfig.GatewayIPAddress)
-	result.IPs = append(result.IPs, resultIpconfig)
-
-	if networkConfig.Routes != nil && len(networkConfig.Routes) > 0 {
-		for _, route := range networkConfig.Routes {
-			_, routeIPnet, _ := net.ParseCIDR(route.IPAddress)
-			gwIP := net.ParseIP(route.GatewayIPAddress)
-			result.Routes = append(result.Routes, &cniTypes.Route{Dst: *routeIPnet, GW: gwIP})
-		}
-	}
-
-	for _, ipRouteSubnet := range networkConfig.CnetAddressSpace {
-		routeIPnet := net.IPNet{IP: net.ParseIP(ipRouteSubnet.IPAddress), Mask: net.CIDRMask(int(ipRouteSubnet.PrefixLength), 32)}
-		gwIP := net.ParseIP(ipconfig.GatewayIPAddress)
-		result.Routes = append(result.Routes, &cniTypes.Route{Dst: routeIPnet, GW: gwIP})
-	}
-
-	iface := &cniTypesCurr.Interface{Name: ifName}
-	result.Interfaces = append(result.Interfaces, iface)
-
-	return result
-}
-
-func getInfraVnetIP(
-	enableInfraVnet bool,
-	infraSubnet string,
-	nwCfg *cni.NetworkConfig,
-	plugin *NetPlugin,
-) (*cniTypesCurr.Result, error) {
-	if enableInfraVnet {
-		_, ipNet, _ := net.ParseCIDR(infraSubnet)
-		nwCfg.IPAM.Subnet = ipNet.String()
-
-		log.Printf("call ipam to allocate ip from subnet %v", nwCfg.IPAM.Subnet)
-		ipamAddOpt := IPAMAddConfig{nwCfg: nwCfg, options: make(map[string]interface{})}
-		ipamAddResult, err := plugin.ipamInvoker.Add(ipamAddOpt)
-		if err != nil {
-			err = plugin.Errorf("Failed to allocate address: %v", err)
-			return nil, err
-		}
-
-		return ipamAddResult.ipv4Result, nil
-	}
-
-	return nil, nil
-}
-
-func checkIfSubnetOverlaps(enableInfraVnet bool, nwCfg *cni.NetworkConfig, cnsNetworkConfig *cns.GetNetworkContainerResponse) bool {
-	if enableInfraVnet {
-		if cnsNetworkConfig != nil {
-			_, infraNet, _ := net.ParseCIDR(nwCfg.InfraVnetAddressSpace)
-			for _, cnetSpace := range cnsNetworkConfig.CnetAddressSpace {
-				cnetSpaceIPNet := &net.IPNet{
-					IP:   net.ParseIP(cnetSpace.IPAddress),
-					Mask: net.CIDRMask(int(cnetSpace.PrefixLength), 32),
-				}
-
-				return infraNet.Contains(cnetSpaceIPNet.IP) || cnetSpaceIPNet.Contains(infraNet.IP)
+			if tt.wantErr {
+				require.Error(err)
 			}
-		}
+			require.NoError(err)
+			require.Exactly(tt.want1, got[0].ncResponse)
+			require.Exactly(tt.want2, got[1].ncResponse)
+			require.Exactly(tt.want3, got[0].hostSubnetPrefix)
+
+			// check multiple responses
+			tt.want5 = append(tt.want5, *tt.want1, *tt.want2)
+			require.Exactly(tt.want5, ncResponses)
+		})
 	}
-
-	return false
 }
-
-var (
-	errSnatIP        = errors.New("Snat IP not populated")
-	errInfraVnet     = errors.New("infravnet not populated")
-	errSubnetOverlap = errors.New("subnet overlap error")
-	errIfaceNotFound = errors.New("Interface not found for this ip")
-)

@@ -24,8 +24,17 @@ type requestIPAddressHandler struct {
 	err    error
 }
 
-type releaseIPAddressHandler struct {
-	ipconfigArgument cns.IPConfigRequest
+type requestIPsHandler struct {
+	// arguments
+	ipconfigArgument cns.IPConfigsRequest
+
+	// results
+	result *cns.IPConfigsResponse // this will return the IPConfigsResponse which contains a slice of IPs as opposed to one IP
+	err    error
+}
+
+type releaseIPsHandler struct {
+	ipconfigArgument cns.IPConfigsRequest
 	err              error
 }
 
@@ -45,7 +54,8 @@ type getAllNetworkContainersConfigurationHandler struct {
 type MockCNSClient struct {
 	require                              *require.Assertions
 	request                              requestIPAddressHandler
-	release                              releaseIPAddressHandler
+	requestIPs                           requestIPsHandler
+	release                              releaseIPsHandler
 	getNetworkContainerConfiguration     getNetworkContainerConfigurationHandler
 	getAllNetworkContainersConfiguration getAllNetworkContainersConfigurationHandler
 }
@@ -53,6 +63,16 @@ type MockCNSClient struct {
 func (c *MockCNSClient) RequestIPAddress(_ context.Context, ipconfig cns.IPConfigRequest) (*cns.IPConfigResponse, error) {
 	c.require.Exactly(c.request.ipconfigArgument, ipconfig)
 	return c.request.result, c.request.err
+}
+
+func (c *MockCNSClient) RequestIPs(_ context.Context, ipconfig cns.IPConfigsRequest) (*cns.IPConfigsResponse, error) {
+	c.require.Exactly(c.requestIPs.ipconfigArgument, ipconfig)
+	return c.requestIPs.result, c.requestIPs.err
+}
+
+func (c *MockCNSClient) ReleaseIPs(_ context.Context, ipconfig cns.IPConfigsRequest) error {
+	c.require.Exactly(c.release.ipconfigArgument, ipconfig)
+	return c.release.err
 }
 
 func (c *MockCNSClient) ReleaseIPAddress(_ context.Context, ipconfig cns.IPConfigRequest) error {
