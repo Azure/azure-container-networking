@@ -1272,14 +1272,19 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 		}
 	}()
 	logger.Printf("initialized NodeNetworkConfig reconciler")
-	// wait for the Reconciler to run once on a NNC that was made for this Node.
-	// the nncReadyCtx has a timeout of 15 minutes, after which we will consider
-	// this false and the NNC Reconciler stuck/failed.
-	nncReadyCtx, _ := context.WithTimeout(ctx, 15*time.Minute) //nolint // it will time out and not leak
-	if started, err := nncReconciler.Started(nncReadyCtx); !started {
-		return errors.Wrapf(err, "context cancelled while waiting for reconciler start")
+	for {
+		logger.Printf("waiting for NodeNetworkConfig reconciler to start")
+		// wait for the Reconciler to run once on a NNC that was made for this Node.
+		// the nncReadyCtx has a timeout of 15 minutes, after which we will consider
+		// this false and the NNC Reconciler stuck/failed, log and retry.
+		nncReadyCtx, _ := context.WithTimeout(ctx, 15*time.Minute) //nolint // it will time out and not leak
+		if started, err := nncReconciler.Started(nncReadyCtx); !started {
+			log.Errorf("context cancelled while waiting for reconciler start, does the NNC exist? err: %v", err)
+			continue
+		}
+		logger.Printf("NodeNetworkConfig reconciler has started")
+		break
 	}
-	logger.Printf("started NodeNetworkConfig reconciler")
 
 	go func() {
 		logger.Printf("starting SyncHostNCVersion loop")
@@ -1298,6 +1303,5 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 		}
 	}()
 	logger.Printf("initialized and started SyncHostNCVersion loop")
-
 	return nil
 }
