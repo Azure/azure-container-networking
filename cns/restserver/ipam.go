@@ -563,22 +563,13 @@ func (service *HTTPRestService) unassignIPConfig(ipconfig cns.IPConfigurationSta
 func (service *HTTPRestService) releaseIPConfig(podInfo cns.PodInfo) error {
 	service.Lock()
 	defer service.Unlock()
-	ipsReleased := make([]cns.IPConfigurationStatus, 0)
+	ipsToBeReleased := make([]cns.IPConfigurationStatus, len(service.PodIPIDByPodInterfaceKey[podInfo.Key()]))
 	numIPsToRelease := len(service.PodIPIDByPodInterfaceKey[podInfo.Key()])
 
 	for i, ipID := range service.PodIPIDByPodInterfaceKey[podInfo.Key()] {
 		if ipID != "" {
 			if ipconfig, isExist := service.PodIPConfigState[ipID]; isExist {
-				logger.Printf("[releaseIPConfig] Releasing IP %+v for pod %+v", ipconfig.IPAddress, podInfo)
-				_, err := service.unassignIPConfig(ipconfig, podInfo)
-				if err != nil {
-					return fmt.Errorf("[releaseIPConfig] failed to mark IPConfig [%+v] as Available. err: %w", ipconfig, err)
-				}
-				ipsReleased = append(ipsReleased, ipconfig)
-				logger.Printf("[releaseIPConfig] Released IP %+v for pod %+v", ipconfig.IPAddress, podInfo)
-				if i == len(service.state.ContainerStatus)-1 {
-					return nil
-				}
+				ipsToBeReleased[i] = ipconfig
 			} else {
 				logger.Errorf("[releaseIPConfig] Failed to get release ipconfig %+v and pod info is %+v. Pod to IPID exists, but IPID to IPConfig doesn't exist, CNS State potentially corrupt",
 					ipconfig.IPAddress, podInfo)
@@ -592,14 +583,26 @@ func (service *HTTPRestService) releaseIPConfig(podInfo cns.PodInfo) error {
 		}
 	}
 
+	for i, ipconfig := range ipsToBeReleased {
+		logger.Printf("[releaseIPConfig] Releasing IP %+v for pod %+v", ipconfig.IPAddress, podInfo)
+		_, err := service.unassignIPConfig(ipconfig, podInfo)
+		if err != nil {
+			return fmt.Errorf("[releaseIPConfig] failed to mark IPConfig [%+v] as Available. err: %w", ipconfig, err)
+		}
+		logger.Printf("[releaseIPConfig] Released IP %+v for pod %+v", ipconfig.IPAddress, podInfo)
+		if i == len(service.state.ContainerStatus)-1 {
+			return nil
+		}
+	}
+
 	// if we were able to get at least one IP but not all of the desired IPs
-	logger.Printf("[releaseIPConfig] Released IP %+v for pod %+v", len(ipsReleased), podInfo)
-	if len(ipsReleased) < numIPsToRelease || (numIPsToRelease < len(service.state.ContainerStatus) && numIPsToRelease != 0) {
-		for i := range ipsReleased {
-			if ipsReleased[i].ID != "" {
-				err := service.assignIPConfig(ipsReleased[i], podInfo)
+	logger.Printf("[releaseIPConfig] Released IP %+v for pod %+v", len(ipsToBeReleased), podInfo)
+	if len(ipsToBeReleased) < numIPsToRelease || (numIPsToRelease < len(service.state.ContainerStatus) && numIPsToRelease != 0) {
+		for i := range ipsToBeReleased {
+			if ipsToBeReleased[i].ID != "" {
+				err := service.assignIPConfig(ipsToBeReleased[i], podInfo)
 				if err != nil {
-					return fmt.Errorf("[releaseIPConfig] failed to mark IPConfig [%+v] back to Assigned. err: %w", ipsReleased[i], err)
+					return fmt.Errorf("[releaseIPConfig] failed to mark IPConfig [%+v] back to Assigned. err: %w", ipsToBeReleased[i], err)
 				}
 			}
 		}
@@ -668,40 +671,57 @@ func (service *HTTPRestService) AssignDesiredIPConfigs(podInfo cns.PodInfo, desi
 	ncMap := make(map[string]cns.IPConfigurationStatus)
 	assignedMap := make(map[string]cns.IPConfigurationStatus)
 
-forLoop:
 	for _, ipConfig := range service.PodIPConfigState { //nolint:gocritic // ignore copy
-		if _, found := IPMap[ipConfig.IPAddress]; found {
-			switch ipConfig.GetState() { //nolint:exhaustive // ignoring PendingRelease case intentionally
-			case types.Assigned:
-				// This IP has already been assigned, if it is assigned to same pod, then return the same
-				// IPconfiguration
-				if ipConfig.PodInfo.Key() == podInfo.Key() {
-					logger.Printf("[AssignDesiredIPConfigs]: IP Config [%+v] is already assigned to this Pod [%+v]", ipConfig, podInfo)
-					assignedMap[ipConfig.NCID] = ipConfig
-					err := service.populateIPConfigInfoUntransacted(ipConfig, &podIPInfo[len(assignedMap)])
-					if len(assignedMap) == len(desiredIPAddresses) {
-						return podIPInfo, err
-					}
-				} else {
-					logger.Errorf("[AssignDesiredIPConfigs] Desired IP is already assigned %+v, requested for pod %+v", ipConfig, podInfo)
-					break forLoop
+		_, found := IPMap[ipConfig.IPAddress]
+		// keep searching until the all desired IPs are found
+		if !found {
+			continue
+		}
+		switch ipConfig.GetState() { //nolint:exhaustive // ignoring PendingRelease case intentionally
+		case types.Assigned:
+			// This IP has already been assigned, if it is assigned to same pod, then return the same
+			// IPconfiguration
+			if ipConfig.PodInfo.Key() == podInfo.Key() {
+				logger.Printf("[AssignDesiredIPConfigs]: IP Config [%+v] is already assigned to this Pod [%+v]", ipConfig, podInfo)
+				assignedMap[ipConfig.NCID] = ipConfig
+				err := service.populateIPConfigInfoUntransacted(ipConfig, &podIPInfo[len(assignedMap)])
+				if len(assignedMap) == len(desiredIPAddresses) {
+					return podIPInfo, err
 				}
-			case types.Available, types.PendingProgramming:
-				// This race can happen during restart, where CNS state is lost and thus we have lost the NC programmed version
-				// As part of reconcile, we mark IPs as Assigned which are already assigned to Pods (listed from APIServer)
-				if err := service.assignIPConfig(ipConfig, podInfo); err != nil {
-					logger.Errorf(err.Error())
-					break forLoop
-				}
-			default:
-				logger.Errorf("[AssignDesiredIPConfigs] Desired IP is not available %+v", ipConfig)
-				break forLoop
+			} else {
+				logger.Errorf("[AssignDesiredIPConfigs] Desired IP is already assigned %+v, requested for pod %+v", ipConfig, podInfo)
+				return podIPInfo, fmt.Errorf("IP already assigned to another pod")
 			}
-			err := service.populateIPConfigInfoUntransacted(ipConfig, &podIPInfo[len(ncMap)])
+		case types.Available, types.PendingProgramming:
+			// This race can happen during restart, where CNS state is lost and thus we have lost the NC programmed version
 			ncMap[ipConfig.NCID] = ipConfig
-			if len(ncMap) == len(desiredIPAddresses) {
-				return podIPInfo, err
-			}
+		default:
+			logger.Errorf("[AssignDesiredIPConfigs] Desired IP is not available %+v", ipConfig)
+			return podIPInfo, fmt.Errorf("IO not available")
+		}
+		if len(ncMap) == len(desiredIPAddresses) {
+			break
+		}
+	}
+
+	podIPctr := 0
+	// assigns all IPs in the map to the pod
+	for _, ipConfig := range ncMap {
+
+		// As part of reconcile, we mark IPs as Assigned which are already assigned to Pods (listed from APIServer)
+		if err := service.assignIPConfig(ipConfig, podInfo); err != nil {
+			logger.Errorf(err.Error())
+			break
+		}
+
+		if err := service.populateIPConfigInfoUntransacted(ipConfig, &podIPInfo[podIPctr]); err != nil {
+			logger.Errorf(err.Error())
+			break
+		}
+		podIPctr++
+		// Checks if we no longer have any IPs to be added and returns if we don't
+		if podIPctr == len(service.state.ContainerStatus) {
+			return podIPInfo, nil
 		}
 	}
 
@@ -728,24 +748,41 @@ func (service *HTTPRestService) AssignAvailableIPConfigs(podInfo cns.PodInfo) ([
 	// This map is used to store whether or not we have found an available IP from an NC when looping through the pool
 	ncMap := make(map[string]cns.IPConfigurationStatus)
 
+	// Searches
 	for _, ipState := range service.PodIPConfigState {
 		_, found := ncMap[ipState.NCID]
-		// Checks if the current IP is available and if we haven't already found an IP from that NC
-		if !found && ipState.GetState() == types.Available {
-			if err := service.assignIPConfig(ipState, podInfo); err != nil {
-				logger.Errorf(err.Error())
-				break
-			}
+		// Checks if we haven't already found an IP from that NC
+		if found {
+			continue
+		}
+		// Checks if the current IP is available
+		if ipState.GetState() != types.Available {
+			continue
+		}
+		ncMap[ipState.NCID] = ipState
+		// Once one IP per container is found break out of the loop and stop searching
+		if len(ncMap) == len(service.state.ContainerStatus) {
+			break
+		}
+	}
 
-			if err := service.populateIPConfigInfoUntransacted(ipState, &podIPInfo[len(ncMap)]); err != nil {
-				logger.Errorf(err.Error())
-				break
-			}
-			ncMap[ipState.NCID] = ipState
-			// return once we have found one IP per NC
-			if len(ncMap) == len(service.state.ContainerStatus) {
-				return podIPInfo, nil
-			}
+	podIPctr := 0
+	// assigns all IPs in the map to the pod
+	for _, ipState := range ncMap {
+
+		if err := service.assignIPConfig(ipState, podInfo); err != nil {
+			logger.Errorf(err.Error())
+			break
+		}
+
+		if err := service.populateIPConfigInfoUntransacted(ipState, &podIPInfo[podIPctr]); err != nil {
+			logger.Errorf(err.Error())
+			break
+		}
+		podIPctr++
+		// Checks if we no longer have any IPs to be added and returns if we don't
+		if podIPctr == len(service.state.ContainerStatus) {
+			return podIPInfo, nil
 		}
 	}
 
