@@ -571,6 +571,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 	return nil
 }
 
+// cleanup allocated ipv4 and ipv6 addresses if they exist
 func (plugin *NetPlugin) cleanupAllocationOnError(
 	result, resultV6 *cniTypesCurr.Result,
 	nwCfg *cni.NetworkConfig,

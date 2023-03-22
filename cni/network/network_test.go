@@ -1102,3 +1102,15 @@ func TestGetPodSubnetNatInfo(t *testing.T) {
 		require.Empty(t, natInfo, "linux podsubnet natInfo should be empty")
 	}
 }
+
+func TestGetPodSubnetNatInfoV6(t *testing.T) {
+	ncPrimaryIP := "2001:2002:2003::1"
+	nwCfg := &cni.NetworkConfig{ExecutionMode: string(util.V4Swift)}
+	natInfo := getNATInfo(nwCfg, ncPrimaryIP, false)
+	// should not add any natInfo to policy if ncPrimaryIP is ipv6
+	if runtime.GOOS == "windows" {
+		require.Equalf(t, natInfo, []policy.NATInfo{
+			{},
+		}, "no ipv6 natInfo is added")
+	}
+}
