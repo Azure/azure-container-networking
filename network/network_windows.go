@@ -208,7 +208,10 @@ func (nm *networkManager) addNewNetRules(nwInfo *NetworkInfo) error {
 		prefix := subnet.Prefix.String()
 		gateway := subnet.Gateway.String()
 
-		ip, _, _ := net.ParseCIDR(prefix)
+		ip, _, er := net.ParseCIDR(prefix)
+		if er !- nil {
+			return fmt.Errorf("[net] failed to parse prefix %s", prefix)
+		}
 		if ip.To4() != nil {
 			// netsh interface ipv4 add route $subnetV4 $hostInterfaceAlias "0.0.0.0" metric=270
 			netshV4DefaultRoute := fmt.Sprintf(netRouteCmd, "ipv4", prefix, ifName, ipv4DefaultHop, "270")

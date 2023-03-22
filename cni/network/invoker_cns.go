@@ -170,7 +170,7 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 		addResult.hostSubnetPrefix = *hostIPNet
 
 		// set subnet prefix for host vm
-		// setHostOptions will execute if IPAM mode is not v4 overlay
+		// setHostOptions will execute if IPAM mode is not v4 overlay and not dualStackOverlay mode
 		if (invoker.ipamMode != util.V4Overlay) && (invoker.ipamMode != util.DualStackOverlay) {
 			if err := setHostOptions(ncIPNet, addConfig.options, &info); err != nil {
 				return IPAMAddResult{}, err
