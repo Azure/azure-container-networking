@@ -89,7 +89,6 @@ spec:
             [
               '.\setkubeconfigpath.ps1',
               ";",
-              "powershell.exe",
               '.\npm.exe',
               "start",
               '--kubeconfig=.\kubeconfig',
@@ -108,8 +107,6 @@ spec:
                   fieldPath: spec.nodeName
             - name: NPM_CONFIG
               value: .\\etc\\azure-npm\\azure-npm.json
-            - name: PATH
-              value: 'C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Windows\System32\OpenSSH\;C:\Program Files\dotnet\;c:\program files\containerd;C:\Windows\system32\config\systemprofile\AppData\Local\Microsoft\WindowsApps'
           volumeMounts:
             - name: azure-npm-config
               mountPath: .\\etc\\azure-npm

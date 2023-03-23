@@ -1,7 +1,3 @@
-# add powershell.exe to the path
-$pwshPath = "C:\" + $env:CONTAINER_SANDBOX_MOUNT_POINT +  "\Windows\System32\WindowsPowershell\v1.0\"
-$env:PATH += ";" + $pwshPath
-
 # pull the server value from the kubeconfig on host to construct our own kubeconfig, but using service principal settings
 # this is required to build a kubeconfig using the kubeconfig on disk in c:\k, and the service principle granted in the container mount, to generate clientset
 $cpEndpoint = Get-Content C:\k\config | ForEach-Object -Process {if($_.Contains("server:")) {$_.Trim().Split()[1]}}
