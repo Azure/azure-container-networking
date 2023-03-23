@@ -378,15 +378,15 @@ func determineWinVer() {
 	}
 }
 
-func getNATInfo(executionMode string, ncPrimaryIPIface interface{}, multitenancy, enableSnatForDNS bool) (natInfo []policy.NATInfo) {
-	if executionMode == string(util.V4Swift) {
+func getNATInfo(nwCfg *cni.NetworkConfig, ncPrimaryIPIface interface{}, enableSnatForDNS bool) (natInfo []policy.NATInfo) {
+	if nwCfg.ExecutionMode == string(util.V4Swift) && nwCfg.IPAM.Mode != string(util.V4Overlay) {
 		ncPrimaryIP := ""
 		if ncPrimaryIPIface != nil {
 			ncPrimaryIP = ncPrimaryIPIface.(string)
 		}
 
 		natInfo = append(natInfo, []policy.NATInfo{{VirtualIP: ncPrimaryIP, Destinations: []string{networkutils.AzureDNS}}, {Destinations: []string{networkutils.AzureIMDS}}}...)
-	} else if multitenancy && enableSnatForDNS {
+	} else if nwCfg.MultiTenancy && enableSnatForDNS {
 		natInfo = append(natInfo, policy.NATInfo{Destinations: []string{networkutils.AzureDNS}})
 	}
 
@@ -409,4 +409,15 @@ func (plugin *NetPlugin) isDualNicFeatureSupported(netNs string) bool {
 	}
 	log.Errorf("DualNicFeature is not supported")
 	return false
+}
+
+func getOverlayGateway(podsubnet *net.IPNet) (net.IP, error) {
+	ncgw := podsubnet.IP
+	ncgw[3]++
+	ncgw = net.ParseIP(ncgw.String())
+	if ncgw == nil || !podsubnet.Contains(ncgw) {
+		return nil, errors.Wrap(errInvalidArgs, "%w: Failed to retrieve overlay gateway from podsubnet"+podsubnet.IP.String())
+	}
+
+	return ncgw, nil
 }
