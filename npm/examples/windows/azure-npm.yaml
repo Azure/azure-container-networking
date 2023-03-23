@@ -109,7 +109,7 @@ spec:
             - name: NPM_CONFIG
               value: .\\etc\\azure-npm\\azure-npm.json
             - name: PATH
-              value: '%PATH%;%CONTAINER_SANDBOX_MOUNT_POINT%\Windows\System32\WindowsPowershell\v1.0\;C:\Windows\System32\'
+              value: 'C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Windows\System32\OpenSSH\;C:\Program Files\dotnet\;c:\program files\containerd;C:\Windows\system32\config\systemprofile\AppData\Local\Microsoft\WindowsApps'
           volumeMounts:
             - name: azure-npm-config
               mountPath: .\\etc\\azure-npm
