@@ -104,6 +104,12 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 
 		log.Printf("[cni-invoker-cns] Received info %+v for pod %v", info, podInfo)
 
+		// set result ipconfigArgument from CNS Response Body
+		ip, ncIPNet, err := net.ParseCIDR(info.podIPAddress + "/" + fmt.Sprint(info.ncSubnetPrefix))
+		if ip == nil {
+			return IPAMAddResult{}, errors.Wrap(err, "Unable to parse IP from response: "+info.podIPAddress+" with err %w")
+		}
+
 		ncgw := net.ParseIP(info.ncGatewayIPAddress)
 		if ncgw == nil {
 			if (invoker.ipamMode != util.V4Overlay) && (invoker.ipamMode != util.DualStackOverlay) {
@@ -111,16 +117,13 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 			}
 
 			if net.ParseIP(info.podIPAddress).To4() != nil {
-				ncgw = net.ParseIP(overlayGatewayV4IP)
+				ncgw, err = getOverlayGateway(ncIPNet)
+				if err != nil {
+					return IPAMAddResult{}, err
+				}
 			} else {
 				ncgw = net.ParseIP(overlayGatewayV6IP)
 			}
-		}
-
-		// set result ipconfigArgument from CNS Response Body
-		ip, ncIPNet, err := net.ParseCIDR(info.podIPAddress + "/" + fmt.Sprint(info.ncSubnetPrefix))
-		if ip == nil {
-			return IPAMAddResult{}, errors.Wrap(err, "Unable to parse IP from response: "+info.podIPAddress+" with err %w")
 		}
 
 		// construct ipnet for result
