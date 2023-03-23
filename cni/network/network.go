@@ -539,7 +539,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 			logAndSendEvent(plugin, fmt.Sprintf("[cni-net] Created network %v with subnet %v.", networkID, ipamAddResult.hostSubnetPrefix.String()))
 		}
 
-		natInfo := getNATInfo(nwCfg.ExecutionMode, options[network.SNATIPKey], nwCfg.MultiTenancy, enableSnatForDNS)
+		natInfo := getNATInfo(nwCfg, options[network.SNATIPKey], enableSnatForDNS)
 
 		createEndpointInternalOpt := createEndpointInternalOpt{
 			nwCfg:            nwCfg,

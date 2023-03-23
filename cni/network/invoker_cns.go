@@ -23,7 +23,6 @@ import (
 var (
 	errEmptyCNIArgs    = errors.New("empty CNI cmd args not allowed")
 	errInvalidArgs     = errors.New("invalid arg(s)")
-	overlayGatewayV4IP = "169.254.1.1"
 	overlayGatewayV6IP = "fe80::1234:5678:9abc"
 )
 
