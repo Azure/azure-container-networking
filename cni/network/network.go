@@ -385,7 +385,11 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 			res.Print()
 		}
 
-		log.Printf("[cni-net] ADD command completed for pod %v with IPs:%+v err:%v.", k8sPodName, ipamAddResult.ipv4Result.IPs, err)
+		if ipamAddResult.ipv4Result.IPs != nil {
+			log.Printf("[cni-net] ADD command completed for pod %v with IPs:%+v err:%v.", k8sPodName, ipamAddResult.ipv4Result.IPs, err)
+		} else {
+			log.Printf("[cni-net] no IPs will be allocated for pod %v", k8sPodName)
+		}
 	}()
 
 	// Parse Pod arguments.
