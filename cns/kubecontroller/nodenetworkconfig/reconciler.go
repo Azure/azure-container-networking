@@ -134,7 +134,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 // then, and any time that it is called after that, it immediately returns true.
 // It accepts a cancellable Context and if the context is closed
 // before Start it will return false. Passing a closed Context after the
-// Reconciler is started is indeterminate and the response is psuedorandom.
+// Reconciler is started is indeterminate.
 func (r *Reconciler) Started(ctx context.Context) (bool, error) {
 	select {
 	case <-r.started:
