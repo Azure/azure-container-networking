@@ -413,11 +413,6 @@ type IPConfigRequest struct {
 	Ifname              string // Used by delegated IPAM
 }
 
-func (i IPConfigRequest) String() string {
-	return fmt.Sprintf("[IPConfigRequest: DesiredIPAddress %s, PodInterfaceID %s, InfraContainerID %s, OrchestratorContext %s]",
-		i.DesiredIPAddress, i.PodInterfaceID, i.InfraContainerID, string(i.OrchestratorContext))
-}
-
 // Same as IPConfigRequest except that DesiredIPAddresses is passed in as a slice
 type IPConfigsRequest struct {
 	DesiredIPAddresses  []string        `json:"desiredIPAddresses"`
@@ -425,11 +420,6 @@ type IPConfigsRequest struct {
 	InfraContainerID    string          `json:"infraContainerID"`
 	OrchestratorContext json.RawMessage `json:"orchestratorContext"`
 	Ifname              string          `json:"ifname"` // Used by delegated IPAM
-}
-
-func (i IPConfigsRequest) String() string {
-	return fmt.Sprintf("[IPConfigsRequest: DesiredIPAddresses %v, PodInterfaceID %s, InfraContainerID %s, OrchestratorContext %s]",
-		i.DesiredIPAddresses, i.PodInterfaceID, i.InfraContainerID, string(i.OrchestratorContext))
 }
 
 // IPConfigResponse is used in CNS IPAM mode as a response to CNI ADD
