@@ -24,8 +24,9 @@ var (
 	testNCID   = "06867cf3-332d-409d-8819-ed70d2c116b0"
 	testNCIDv6 = "a69b9217-3d89-4b73-a052-1e8baa453cb0"
 
-	IPPrefixBitsv4 = uint8(24)
-	IPPrefixBitsv6 = uint8(120)
+	ipPrefixBitsv4 = uint8(24)
+	ipPrefixBitsv6 = uint8(120)
+	prefixes       = []uint8{ipPrefixBitsv4, ipPrefixBitsv6}
 
 	testIP1      = "10.0.0.1"
 	testIP1v6    = "fd12:1234::1"
@@ -46,6 +47,12 @@ var (
 	testPod4GUID = "718e04ac-5a13-4dce-84b3-040accaa9b42"
 )
 
+// Struct that holds information for NCs that will be used in tests
+type ncState struct {
+	ncID string
+	ips  []string
+}
+
 func getTestService() *HTTPRestService {
 	var config common.ServiceConfig
 	httpsvc, _ := NewHTTPRestService(&config, &fakes.WireserverClientFake{}, &fakes.WireserverProxyFake{}, &fakes.NMAgentClientFake{}, store.NewMockStore(""), nil, nil)
@@ -63,7 +70,7 @@ func newSecondaryIPConfig(ipAddress string, ncVersion int) cns.SecondaryIPConfig
 	}
 }
 
-func NewPodState(ipaddress string, prefixLength uint8, id, ncid string, state types.IPState, ncVersion int) cns.IPConfigurationStatus {
+func NewPodState(ipaddress string, id, ncid string, state types.IPState, ncVersion int) cns.IPConfigurationStatus {
 	ipconfig := newSecondaryIPConfig(ipaddress, ncVersion)
 	status := &cns.IPConfigurationStatus{
 		IPAddress: ipconfig.IPAddress,
@@ -75,19 +82,19 @@ func NewPodState(ipaddress string, prefixLength uint8, id, ncid string, state ty
 }
 
 func requestIPAddressAndGetState(t *testing.T, req cns.IPConfigsRequest) ([]cns.IPConfigurationStatus, error) {
-	PodIPInfo, err := requestIPConfigsHelper(svc, req)
+	podIPInfo, err := requestIPConfigsHelper(svc, req)
 	if err != nil {
 		return []cns.IPConfigurationStatus{}, err
 	}
 
-	for i := range PodIPInfo {
-		assert.Equal(t, primaryIp, PodIPInfo[i].NetworkContainerPrimaryIPConfig.IPSubnet.IPAddress)
-		assert.Equal(t, subnetPrfixLength, int(PodIPInfo[i].NetworkContainerPrimaryIPConfig.IPSubnet.PrefixLength))
-		assert.Equal(t, dnsservers, PodIPInfo[i].NetworkContainerPrimaryIPConfig.DNSServers)
-		assert.Equal(t, gatewayIp, PodIPInfo[i].NetworkContainerPrimaryIPConfig.GatewayIPAddress)
-		assert.Equal(t, subnetPrfixLength, int(PodIPInfo[i].PodIPConfig.PrefixLength))
-		assert.Equal(t, fakes.HostPrimaryIP, PodIPInfo[i].HostPrimaryIPInfo.PrimaryIP)
-		assert.Equal(t, fakes.HostSubnet, PodIPInfo[i].HostPrimaryIPInfo.Subnet)
+	for i := range podIPInfo {
+		assert.Equal(t, primaryIp, podIPInfo[i].NetworkContainerPrimaryIPConfig.IPSubnet.IPAddress)
+		assert.Equal(t, subnetPrfixLength, int(podIPInfo[i].NetworkContainerPrimaryIPConfig.IPSubnet.PrefixLength))
+		assert.Equal(t, dnsservers, podIPInfo[i].NetworkContainerPrimaryIPConfig.DNSServers)
+		assert.Equal(t, gatewayIp, podIPInfo[i].NetworkContainerPrimaryIPConfig.GatewayIPAddress)
+		assert.Equal(t, subnetPrfixLength, int(podIPInfo[i].PodIPConfig.PrefixLength))
+		assert.Equal(t, fakes.HostPrimaryIP, podIPInfo[i].HostPrimaryIPInfo.PrimaryIP)
+		assert.Equal(t, fakes.HostSubnet, podIPInfo[i].HostPrimaryIPInfo.Subnet)
 	}
 
 	// retrieve podinfo from orchestrator context
@@ -96,11 +103,11 @@ func requestIPAddressAndGetState(t *testing.T, req cns.IPConfigsRequest) ([]cns.
 		return []cns.IPConfigurationStatus{}, errors.Wrap(err, "failed to unmarshal pod info")
 	}
 
-	IPConfigStatus := make([]cns.IPConfigurationStatus, 0)
+	ipConfigStatus := make([]cns.IPConfigurationStatus, 0)
 	for _, ipID := range svc.PodIPIDByPodInterfaceKey[podInfo.Key()] {
-		IPConfigStatus = append(IPConfigStatus, svc.PodIPConfigState[ipID])
+		ipConfigStatus = append(ipConfigStatus, svc.PodIPConfigState[ipID])
 	}
-	return IPConfigStatus, nil
+	return ipConfigStatus, nil
 }
 
 func NewPodStateWithOrchestratorContext(ipaddress, id, ncid string, state types.IPState, prefixLength uint8, ncVersion int, podInfo cns.PodInfo) (cns.IPConfigurationStatus, error) {
@@ -144,27 +151,44 @@ func UpdatePodIPConfigState(t *testing.T, svc *HTTPRestService, ipconfigs map[st
 
 // create an endpoint with only one IP
 func TestEndpointStateReadAndWriteSingleNC(t *testing.T) {
-	ncIDs := []string{testNCID}
-	IPs := []string{testIP1}
-	prefixes := []uint8{IPPrefixBitsv4}
-	EndpointStateReadAndWrite(t, ncIDs, IPs, prefixes)
+	ncStates := []ncState{
+		{
+			ncID: testNCID,
+			ips: []string{
+				testIP1,
+			},
+		},
+	}
+	EndpointStateReadAndWrite(t, ncStates)
 }
 
 // create an endpoint with one IP from each NC
 func TestEndpointStateReadAndWriteMultipleNCs(t *testing.T) {
-	ncIDs := []string{testNCID, testNCIDv6}
-	IPs := []string{testIP1, testIP1v6}
-	prefixes := []uint8{IPPrefixBitsv4, IPPrefixBitsv6}
-	EndpointStateReadAndWrite(t, ncIDs, IPs, prefixes)
+	ncStates := []ncState{
+		{
+			ncID: testNCID,
+			ips: []string{
+				testIP1,
+			},
+		},
+		{
+			ncID: testNCIDv6,
+			ips: []string{
+				testIP1v6,
+			},
+		},
+	}
+	EndpointStateReadAndWrite(t, ncStates)
 }
 
-func EndpointStateReadAndWrite(t *testing.T, ncIDs, newPodIPs []string, prefixes []uint8) {
+// Tests the creation of an endpoint using the NCs and IPs as input and then tests the deletion of that endpoint
+func EndpointStateReadAndWrite(t *testing.T, ncStates []ncState) {
 	svc := getTestService()
 	ipconfigs := make(map[string]cns.IPConfigurationStatus, 0)
-	for i := range ncIDs {
-		state := NewPodState(newPodIPs[i], prefixes[i], newPodIPs[i], ncIDs[i], types.Available, 0)
+	for i := range ncStates {
+		state := NewPodState(ncStates[i].ips[0], ncStates[i].ips[0], ncStates[i].ncID, types.Available, 0)
 		ipconfigs[state.ID] = state
-		err := UpdatePodIPConfigState(t, svc, ipconfigs, ncIDs[i])
+		err := UpdatePodIPConfigState(t, svc, ipconfigs, ncStates[i].ncID)
 		if err != nil {
 			t.Fatalf("Expected to not fail update service with config: %+v", err)
 		}
@@ -230,29 +254,45 @@ func EndpointStateReadAndWrite(t *testing.T, ncIDs, newPodIPs []string, prefixes
 
 // assign the available IP to the new pod
 func TestIPAMGetAvailableIPConfigSingleNC(t *testing.T) {
-	ncIDs := []string{testNCID}
-	IPs := []string{testIP1}
-	prefixes := []uint8{IPPrefixBitsv4}
-	IPAMGetAvailableIPConfig(t, ncIDs, IPs, prefixes)
+	ncStates := []ncState{
+		{
+			ncID: testNCID,
+			ips: []string{
+				testIP1,
+			},
+		},
+	}
+	IPAMGetAvailableIPConfig(t, ncStates)
 }
 
 // assign one IP per NC to the pod
 func TestIPAMGetAvailableIPConfigMultipleNCs(t *testing.T) {
-	ncIDs := []string{testNCID, testNCIDv6}
-	IPs := []string{testIP1, testIP1v6}
-	prefixes := []uint8{IPPrefixBitsv4, IPPrefixBitsv6}
-	IPAMGetAvailableIPConfig(t, ncIDs, IPs, prefixes)
+	nsStates := []ncState{
+		{
+			ncID: testNCID,
+			ips: []string{
+				testIP1,
+			},
+		},
+		{
+			ncID: testNCIDv6,
+			ips: []string{
+				testIP1v6,
+			},
+		},
+	}
+	IPAMGetAvailableIPConfig(t, nsStates)
 }
 
-// Want first IP
-func IPAMGetAvailableIPConfig(t *testing.T, ncIDs, newPodIPs []string, prefixes []uint8) {
+// Add one IP per NC to the pool and request those IPs
+func IPAMGetAvailableIPConfig(t *testing.T, ncStates []ncState) {
 	svc := getTestService()
 
-	for i := range ncIDs {
+	for i := range ncStates {
 		ipconfigs := make(map[string]cns.IPConfigurationStatus, 0)
-		state := NewPodState(newPodIPs[i], prefixes[i], newPodIPs[i], ncIDs[i], types.Available, 0)
+		state := NewPodState(ncStates[i].ips[0], ncStates[i].ips[0], ncStates[i].ncID, types.Available, 0)
 		ipconfigs[state.ID] = state
-		err := UpdatePodIPConfigState(t, svc, ipconfigs, ncIDs[i])
+		err := UpdatePodIPConfigState(t, svc, ipconfigs, ncStates[i].ncID)
 		if err != nil {
 			t.Fatalf("Expected to not fail adding IPs to state: %+v", err)
 		}
@@ -265,57 +305,77 @@ func IPAMGetAvailableIPConfig(t *testing.T, ncIDs, newPodIPs []string, prefixes 
 	b, _ := testPod1Info.OrchestratorContext()
 	req.OrchestratorContext = b
 
-	actualstate, err := requestIPAddressAndGetState(t, req)
+	actualState, err := requestIPAddressAndGetState(t, req)
 	if err != nil {
-		t.Fatal("Expected IP retrieval to be nil")
+		t.Fatal("Expected IP retrieval error to be nil")
 	}
 
-	desiredState := make([]cns.IPConfigurationStatus, len(ncIDs))
-	for i := range ncIDs {
-		desiredState[i] = NewPodState(newPodIPs[i], prefixes[i], newPodIPs[i], ncIDs[i], types.Assigned, 0)
+	desiredState := make([]cns.IPConfigurationStatus, len(ncStates))
+	for i := range ncStates {
+		desiredState[i] = NewPodState(ncStates[i].ips[0], ncStates[i].ips[0], ncStates[i].ncID, types.Assigned, 0)
 		desiredState[i].PodInfo = testPod1Info
 	}
 
-	firstAddress, _ := netip.ParseAddr(actualstate[0].IPAddress)
-	if firstAddress.Is4() == false && len(actualstate) > 1 {
-		actualstate[0], actualstate[1] = actualstate[1], actualstate[0]
+	// desiredState is expecting IPv4 to be first so if we get IPv6 first then we need to switch them
+	firstAddress, _ := netip.ParseAddr(actualState[0].IPAddress)
+	if firstAddress.Is4() == false && len(actualState) > 1 {
+		actualState[0], actualState[1] = actualState[1], actualState[0]
 	}
-	for i := range actualstate {
-		assert.Equal(t, desiredState[i].GetState(), actualstate[i].GetState())
-		assert.Equal(t, desiredState[i].ID, actualstate[i].ID)
-		assert.Equal(t, desiredState[i].IPAddress, actualstate[i].IPAddress)
-		assert.Equal(t, desiredState[i].NCID, actualstate[i].NCID)
-		assert.Equal(t, desiredState[i].PodInfo, actualstate[i].PodInfo)
+	for i := range actualState {
+		assert.Equal(t, desiredState[i].GetState(), actualState[i].GetState())
+		assert.Equal(t, desiredState[i].ID, actualState[i].ID)
+		assert.Equal(t, desiredState[i].IPAddress, actualState[i].IPAddress)
+		assert.Equal(t, desiredState[i].NCID, actualState[i].NCID)
+		assert.Equal(t, desiredState[i].PodInfo, actualState[i].PodInfo)
 	}
 }
 
 func TestIPAMGetNextAvailableIPConfigSingleNC(t *testing.T) {
-	ncIDs := []string{testNCID}
-	IPs := [][]string{{testIP1}, {testIP2}}
-	prefixes := []uint8{IPPrefixBitsv4}
-	IPAMGetNextAvailableIPConfig(t, ncIDs, IPs, prefixes)
+	ncStates := []ncState{
+		{
+			ncID: testNCID,
+			ips: []string{
+				testIP1,
+				testIP2,
+			},
+		},
+	}
+	IPAMGetNextAvailableIPConfig(t, ncStates)
 }
 
 func TestIPAMGetNextAvailableIPConfigMultipleNCs(t *testing.T) {
-	ncIDs := []string{testNCID, testNCIDv6}
-	IPs := [][]string{{testIP1, testIP1v6}, {testIP2, testIP2v6}}
-	prefixes := []uint8{IPPrefixBitsv4, IPPrefixBitsv6}
-	IPAMGetNextAvailableIPConfig(t, ncIDs, IPs, prefixes)
+	ncStates := []ncState{
+		{
+			ncID: testNCID,
+			ips: []string{
+				testIP1,
+				testIP2,
+			},
+		},
+		{
+			ncID: testNCIDv6,
+			ips: []string{
+				testIP1v6,
+				testIP2v6,
+			},
+		},
+	}
+	IPAMGetNextAvailableIPConfig(t, ncStates)
 }
 
 // First IP is already assigned to a pod, want second IP
-func IPAMGetNextAvailableIPConfig(t *testing.T, ncIDs []string, newPodIPs [][]string, prefixes []uint8) {
+func IPAMGetNextAvailableIPConfig(t *testing.T, ncStates []ncState) {
 	svc := getTestService()
 
 	// Add already assigned pod ip to state
-	for i := range ncIDs {
+	for i := range ncStates {
 		ipconfigs := make(map[string]cns.IPConfigurationStatus, 0)
-		svc.PodIPIDByPodInterfaceKey[testPod1Info.Key()] = append(svc.PodIPIDByPodInterfaceKey[testPod1Info.Key()], newPodIPs[0][i])
-		state1, _ := NewPodStateWithOrchestratorContext(newPodIPs[0][i], newPodIPs[0][i], ncIDs[i], types.Assigned, prefixes[i], 0, testPod1Info)
-		state2 := NewPodState(newPodIPs[1][i], prefixes[i], newPodIPs[1][i], ncIDs[i], types.Available, 0)
+		svc.PodIPIDByPodInterfaceKey[testPod1Info.Key()] = append(svc.PodIPIDByPodInterfaceKey[testPod1Info.Key()], ncStates[i].ips[0])
+		state1, _ := NewPodStateWithOrchestratorContext(ncStates[i].ips[0], ncStates[i].ips[0], ncStates[i].ncID, types.Assigned, prefixes[i], 0, testPod1Info)
+		state2 := NewPodState(ncStates[i].ips[1], ncStates[i].ips[1], ncStates[i].ncID, types.Available, 0)
 		ipconfigs[state1.ID] = state1
 		ipconfigs[state2.ID] = state2
-		err := UpdatePodIPConfigState(t, svc, ipconfigs, ncIDs[i])
+		err := UpdatePodIPConfigState(t, svc, ipconfigs, ncStates[i].ncID)
 		if err != nil {
 			t.Fatalf("Expected to not fail adding IPs to state: %+v", err)
 		}
@@ -328,54 +388,70 @@ func IPAMGetNextAvailableIPConfig(t *testing.T, ncIDs []string, newPodIPs [][]st
 	b, _ := testPod2Info.OrchestratorContext()
 	req.OrchestratorContext = b
 
-	actualstate, err := requestIPAddressAndGetState(t, req)
+	actualState, err := requestIPAddressAndGetState(t, req)
 	if err != nil {
 		t.Fatalf("Expected IP retrieval to be nil: %+v", err)
 	}
 	// want second available Pod IP State as first has been assigned
-	desiredState := make([]cns.IPConfigurationStatus, len(ncIDs))
-	for i := range ncIDs {
-		state, _ := NewPodStateWithOrchestratorContext(newPodIPs[1][i], newPodIPs[1][i], ncIDs[i], types.Assigned, prefixes[i], 0, testPod2Info)
+	desiredState := make([]cns.IPConfigurationStatus, len(ncStates))
+	for i := range ncStates {
+		state, _ := NewPodStateWithOrchestratorContext(ncStates[i].ips[1], ncStates[i].ips[1], ncStates[i].ncID, types.Assigned, prefixes[i], 0, testPod2Info)
 		desiredState[i] = state
 	}
 
-	firstAddress, _ := netip.ParseAddr(actualstate[0].IPAddress)
-	if firstAddress.Is4() == false && len(actualstate) > 1 {
-		actualstate[0], actualstate[1] = actualstate[1], actualstate[0]
+	// desiredState is expecting IPv4 to be first so if we get IPv6 first then we need to switch them
+	firstAddress, _ := netip.ParseAddr(actualState[0].IPAddress)
+	if firstAddress.Is4() == false && len(actualState) > 1 {
+		actualState[0], actualState[1] = actualState[1], actualState[0]
 	}
-	for i := range actualstate {
-		assert.Equal(t, desiredState[i].GetState(), actualstate[i].GetState())
-		assert.Equal(t, desiredState[i].ID, actualstate[i].ID)
-		assert.Equal(t, desiredState[i].IPAddress, actualstate[i].IPAddress)
-		assert.Equal(t, desiredState[i].NCID, actualstate[i].NCID)
-		assert.Equal(t, desiredState[i].PodInfo, actualstate[i].PodInfo)
+	for i := range actualState {
+		assert.Equal(t, desiredState[i].GetState(), actualState[i].GetState())
+		assert.Equal(t, desiredState[i].ID, actualState[i].ID)
+		assert.Equal(t, desiredState[i].IPAddress, actualState[i].IPAddress)
+		assert.Equal(t, desiredState[i].NCID, actualState[i].NCID)
+		assert.Equal(t, desiredState[i].PodInfo, actualState[i].PodInfo)
 	}
 }
 
 func TestIPAMGetAlreadyAssignedIPConfigForSamePodSingleNC(t *testing.T) {
-	ncIDs := []string{testNCID}
-	IPs := []string{testIP1}
-	prefixes := []uint8{IPPrefixBitsv4}
-	IPAMGetAlreadyAssignedIPConfigForSamePod(t, ncIDs, IPs, prefixes)
+	ncStates := []ncState{
+		{
+			ncID: testNCID,
+			ips: []string{
+				testIP1,
+			},
+		},
+	}
+	IPAMGetAlreadyAssignedIPConfigForSamePod(t, ncStates)
 }
 
 func TestIPAMGetAlreadyAssignedIPConfigForSamePodMultipleNCs(t *testing.T) {
-	ncIDs := []string{testNCID, testNCIDv6}
-	IPs := []string{testIP1, testIP1v6}
-	prefixes := []uint8{IPPrefixBitsv4, IPPrefixBitsv6}
-	IPAMGetAlreadyAssignedIPConfigForSamePod(t, ncIDs, IPs, prefixes)
+	ncStates := []ncState{
+		{
+			ncID: testNCID,
+			ips: []string{
+				testIP1,
+			},
+		},
+		{
+			ncID: testNCIDv6,
+			ips: []string{
+				testIP1v6,
+			},
+		},
+	}
+	IPAMGetAlreadyAssignedIPConfigForSamePod(t, ncStates)
 }
 
-func IPAMGetAlreadyAssignedIPConfigForSamePod(t *testing.T, ncIDs, newPodIPs []string, prefixes []uint8) {
+func IPAMGetAlreadyAssignedIPConfigForSamePod(t *testing.T, ncStates []ncState) {
 	svc := getTestService()
 
 	// Add Assigned Pod IP to state
-
-	for i := range ncIDs {
+	for i := range ncStates {
 		ipconfigs := make(map[string]cns.IPConfigurationStatus, 0)
-		state, _ := NewPodStateWithOrchestratorContext(newPodIPs[i], newPodIPs[i], ncIDs[i], types.Assigned, prefixes[i], 0, testPod1Info)
+		state, _ := NewPodStateWithOrchestratorContext(ncStates[i].ips[0], ncStates[i].ips[0], ncStates[i].ncID, types.Assigned, prefixes[i], 0, testPod1Info)
 		ipconfigs[state.ID] = state
-		err := UpdatePodIPConfigState(t, svc, ipconfigs, ncIDs[i])
+		err := UpdatePodIPConfigState(t, svc, ipconfigs, ncStates[i].ncID)
 		if err != nil {
 			t.Fatalf("Expected to not fail adding IPs to state: %+v", err)
 		}
@@ -388,52 +464,72 @@ func IPAMGetAlreadyAssignedIPConfigForSamePod(t *testing.T, ncIDs, newPodIPs []s
 	b, _ := testPod1Info.OrchestratorContext()
 	req.OrchestratorContext = b
 
-	actualstate, err := requestIPAddressAndGetState(t, req)
+	actualState, err := requestIPAddressAndGetState(t, req)
 	if err != nil {
 		t.Fatalf("Expected not error: %+v", err)
 	}
-	desiredState := make([]cns.IPConfigurationStatus, len(ncIDs))
-	for i := range ncIDs {
-		state, _ := NewPodStateWithOrchestratorContext(newPodIPs[i], newPodIPs[i], ncIDs[i], types.Assigned, prefixes[i], 0, testPod1Info)
+	desiredState := make([]cns.IPConfigurationStatus, len(ncStates))
+	for i := range ncStates {
+		state, _ := NewPodStateWithOrchestratorContext(ncStates[i].ips[0], ncStates[i].ips[0], ncStates[i].ncID, types.Assigned, prefixes[i], 0, testPod1Info)
 		desiredState[i] = state
 	}
 
-	firstAddress, _ := netip.ParseAddr(actualstate[0].IPAddress)
-	if firstAddress.Is4() == false && len(actualstate) > 1 {
-		actualstate[0], actualstate[1] = actualstate[1], actualstate[0]
+	// desiredState is expecting IPv4 to be first so if we get IPv6 first then we need to switch them
+	firstAddress, _ := netip.ParseAddr(actualState[0].IPAddress)
+	if firstAddress.Is4() == false && len(actualState) > 1 {
+		actualState[0], actualState[1] = actualState[1], actualState[0]
 	}
-	for i := range actualstate {
-		assert.Equal(t, desiredState[i].GetState(), actualstate[i].GetState())
-		assert.Equal(t, desiredState[i].ID, actualstate[i].ID)
-		assert.Equal(t, desiredState[i].IPAddress, actualstate[i].IPAddress)
-		assert.Equal(t, desiredState[i].NCID, actualstate[i].NCID)
-		assert.Equal(t, desiredState[i].PodInfo, actualstate[i].PodInfo)
+	for i := range actualState {
+		assert.Equal(t, desiredState[i].GetState(), actualState[i].GetState())
+		assert.Equal(t, desiredState[i].ID, actualState[i].ID)
+		assert.Equal(t, desiredState[i].IPAddress, actualState[i].IPAddress)
+		assert.Equal(t, desiredState[i].NCID, actualState[i].NCID)
+		assert.Equal(t, desiredState[i].PodInfo, actualState[i].PodInfo)
 	}
 }
 
 func TestIPAMAttemptToRequestIPNotFoundInPoolSingleNC(t *testing.T) {
-	ncIDs := []string{testNCID}
-	IPs := [][]string{{testIP1}, {testIP2}}
-	prefixes := []uint8{IPPrefixBitsv4}
-	IPAMAttemptToRequestIPNotFoundInPool(t, ncIDs, IPs, prefixes)
+	ncStates := []ncState{
+		{
+			ncID: testNCID,
+			ips: []string{
+				testIP1,
+				testIP2,
+			},
+		},
+	}
+	IPAMAttemptToRequestIPNotFoundInPool(t, ncStates)
 }
 
 func TestIPAMAttemptToRequestIPNotFoundInPoolMultipleNCs(t *testing.T) {
-	ncIDs := []string{testNCID, testNCIDv6}
-	IPs := [][]string{{testIP1, testIP1v6}, {testIP2, testIP2v6}}
-	prefixes := []uint8{IPPrefixBitsv4, IPPrefixBitsv6}
-	IPAMAttemptToRequestIPNotFoundInPool(t, ncIDs, IPs, prefixes)
+	ncStates := []ncState{
+		{
+			ncID: testNCID,
+			ips: []string{
+				testIP1,
+				testIP2,
+			},
+		},
+		{
+			ncID: testNCIDv6,
+			ips: []string{
+				testIP1v6,
+				testIP2v6,
+			},
+		},
+	}
+	IPAMAttemptToRequestIPNotFoundInPool(t, ncStates)
 }
 
-func IPAMAttemptToRequestIPNotFoundInPool(t *testing.T, ncIDs []string, newPodIPs [][]string, prefixes []uint8) {
+func IPAMAttemptToRequestIPNotFoundInPool(t *testing.T, ncStates []ncState) {
 	svc := getTestService()
 
 	// Add Available Pod IP to state
-	for i := range ncIDs {
+	for i := range ncStates {
 		ipconfigs := make(map[string]cns.IPConfigurationStatus, 0)
-		state := NewPodState(newPodIPs[0][i], prefixes[i], newPodIPs[0][i], ncIDs[i], types.Available, 0)
+		state := NewPodState(ncStates[i].ips[0], ncStates[i].ips[0], ncStates[i].ncID, types.Available, 0)
 		ipconfigs[state.ID] = state
-		err := UpdatePodIPConfigState(t, svc, ipconfigs, ncIDs[i])
+		err := UpdatePodIPConfigState(t, svc, ipconfigs, ncStates[i].ncID)
 		if err != nil {
 			t.Fatalf("Expected to not fail adding IPs to state: %+v", err)
 		}
@@ -445,7 +541,9 @@ func IPAMAttemptToRequestIPNotFoundInPool(t *testing.T, ncIDs []string, newPodIP
 	}
 	b, _ := testPod2Info.OrchestratorContext()
 	req.OrchestratorContext = b
-	req.DesiredIPAddresses = newPodIPs[1]
+	for i := range ncStates {
+		req.DesiredIPAddresses = append(req.DesiredIPAddresses, ncStates[i].ips[1])
+	}
 
 	_, err := requestIPAddressAndGetState(t, req)
 	if err == nil {
@@ -454,28 +552,44 @@ func IPAMAttemptToRequestIPNotFoundInPool(t *testing.T, ncIDs []string, newPodIP
 }
 
 func TestIPAMGetDesiredIPConfigWithSpecfiedIPSingleNC(t *testing.T) {
-	ncIDs := []string{testNCID}
-	IPs := []string{testIP1}
-	prefixes := []uint8{IPPrefixBitsv4}
-	IPAMGetDesiredIPConfigWithSpecfiedIP(t, ncIDs, IPs, prefixes)
+	ncStates := []ncState{
+		{
+			ncID: testNCID,
+			ips: []string{
+				testIP1,
+			},
+		},
+	}
+	IPAMGetDesiredIPConfigWithSpecfiedIP(t, ncStates)
 }
 
 func TestIPAMGetDesiredIPConfigWithSpecfiedIPMultipleNCs(t *testing.T) {
-	ncIDs := []string{testNCID, testNCIDv6}
-	IPs := []string{testIP1, testIP1v6}
-	prefixes := []uint8{IPPrefixBitsv4, IPPrefixBitsv6}
-	IPAMGetDesiredIPConfigWithSpecfiedIP(t, ncIDs, IPs, prefixes)
+	ncStates := []ncState{
+		{
+			ncID: testNCID,
+			ips: []string{
+				testIP1,
+			},
+		},
+		{
+			ncID: testNCIDv6,
+			ips: []string{
+				testIP1v6,
+			},
+		},
+	}
+	IPAMGetDesiredIPConfigWithSpecfiedIP(t, ncStates)
 }
 
-func IPAMGetDesiredIPConfigWithSpecfiedIP(t *testing.T, ncIDs, newPodIPs []string, prefixes []uint8) {
+func IPAMGetDesiredIPConfigWithSpecfiedIP(t *testing.T, ncStates []ncState) {
 	svc := getTestService()
 
 	// Add Available Pod IP to state
-	for i := range ncIDs {
+	for i := range ncStates {
 		ipconfigs := make(map[string]cns.IPConfigurationStatus, 0)
-		state := NewPodState(newPodIPs[i], prefixes[i], newPodIPs[i], ncIDs[i], types.Available, 0)
+		state := NewPodState(ncStates[i].ips[0], ncStates[i].ips[0], ncStates[i].ncID, types.Available, 0)
 		ipconfigs[state.ID] = state
-		err := UpdatePodIPConfigState(t, svc, ipconfigs, ncIDs[i])
+		err := UpdatePodIPConfigState(t, svc, ipconfigs, ncStates[i].ncID)
 		if err != nil {
 			t.Fatalf("Expected to not fail adding IPs to state: %+v", err)
 		}
@@ -487,55 +601,74 @@ func IPAMGetDesiredIPConfigWithSpecfiedIP(t *testing.T, ncIDs, newPodIPs []strin
 	}
 	b, _ := testPod1Info.OrchestratorContext()
 	req.OrchestratorContext = b
-	req.DesiredIPAddresses = newPodIPs
+	for i := range ncStates {
+		req.DesiredIPAddresses = append(req.DesiredIPAddresses, ncStates[i].ips[0])
+	}
 
-	actualstate, err := requestIPAddressAndGetState(t, req)
+	actualState, err := requestIPAddressAndGetState(t, req)
 	if err != nil {
 		t.Fatalf("Expected IP retrieval to be nil: %+v", err)
 	}
 
-	desiredState := make([]cns.IPConfigurationStatus, len(ncIDs))
-	for i := range ncIDs {
-		desiredState[i] = NewPodState(newPodIPs[i], prefixes[i], newPodIPs[i], ncIDs[i], types.Assigned, 0)
+	desiredState := make([]cns.IPConfigurationStatus, len(ncStates))
+	for i := range ncStates {
+		desiredState[i] = NewPodState(ncStates[i].ips[0], ncStates[i].ips[0], ncStates[i].ncID, types.Assigned, 0)
 		desiredState[i].PodInfo = testPod1Info
 	}
 
-	firstAddress, _ := netip.ParseAddr(actualstate[0].IPAddress)
-	if firstAddress.Is4() == false && len(actualstate) > 1 {
-		actualstate[0], actualstate[1] = actualstate[1], actualstate[0]
+	// desiredState is expecting IPv4 to be first so if we get IPv6 first then we need to switch them
+	firstAddress, _ := netip.ParseAddr(actualState[0].IPAddress)
+	if firstAddress.Is4() == false && len(actualState) > 1 {
+		actualState[0], actualState[1] = actualState[1], actualState[0]
 	}
-	for i := range actualstate {
-		assert.Equal(t, desiredState[i].GetState(), actualstate[i].GetState())
-		assert.Equal(t, desiredState[i].ID, actualstate[i].ID)
-		assert.Equal(t, desiredState[i].IPAddress, actualstate[i].IPAddress)
-		assert.Equal(t, desiredState[i].NCID, actualstate[i].NCID)
-		assert.Equal(t, desiredState[i].PodInfo, actualstate[i].PodInfo)
+	for i := range actualState {
+		assert.Equal(t, desiredState[i].GetState(), actualState[i].GetState())
+		assert.Equal(t, desiredState[i].ID, actualState[i].ID)
+		assert.Equal(t, desiredState[i].IPAddress, actualState[i].IPAddress)
+		assert.Equal(t, desiredState[i].NCID, actualState[i].NCID)
+		assert.Equal(t, desiredState[i].PodInfo, actualState[i].PodInfo)
 	}
 }
 
 func TestIPAMFailToGetDesiredIPConfigWithAlreadyAssignedSpecfiedIPSingleNC(t *testing.T) {
-	ncIDs := []string{testNCID}
-	IPs := []string{testIP1}
-	prefixes := []uint8{IPPrefixBitsv4}
-	IPAMFailToGetDesiredIPConfigWithAlreadyAssignedSpecfiedIP(t, ncIDs, IPs, prefixes)
+	ncStates := []ncState{
+		{
+			ncID: testNCID,
+			ips: []string{
+				testIP1,
+			},
+		},
+	}
+	IPAMFailToGetDesiredIPConfigWithAlreadyAssignedSpecfiedIP(t, ncStates)
 }
 
 func TestIPAMFailToGetDesiredIPConfigWithAlreadyAssignedSpecfiedIPMultipleNCs(t *testing.T) {
-	ncIDs := []string{testNCID, testNCIDv6}
-	IPs := []string{testIP1, testIP1v6}
-	prefixes := []uint8{IPPrefixBitsv4, IPPrefixBitsv6}
-	IPAMFailToGetDesiredIPConfigWithAlreadyAssignedSpecfiedIP(t, ncIDs, IPs, prefixes)
+	ncStates := []ncState{
+		{
+			ncID: testNCID,
+			ips: []string{
+				testIP1,
+			},
+		},
+		{
+			ncID: testNCIDv6,
+			ips: []string{
+				testIP1v6,
+			},
+		},
+	}
+	IPAMFailToGetDesiredIPConfigWithAlreadyAssignedSpecfiedIP(t, ncStates)
 }
 
-func IPAMFailToGetDesiredIPConfigWithAlreadyAssignedSpecfiedIP(t *testing.T, ncIDs, newPodIPs []string, prefixes []uint8) {
+func IPAMFailToGetDesiredIPConfigWithAlreadyAssignedSpecfiedIP(t *testing.T, ncStates []ncState) {
 	svc := getTestService()
 
 	// set state as already assigned
 	ipconfigs := make(map[string]cns.IPConfigurationStatus, 0)
-	for i := range ncIDs {
-		state, _ := NewPodStateWithOrchestratorContext(newPodIPs[i], newPodIPs[i], ncIDs[i], types.Assigned, prefixes[i], 0, testPod1Info)
+	for i := range ncStates {
+		state, _ := NewPodStateWithOrchestratorContext(ncStates[i].ips[0], ncStates[i].ips[0], ncStates[i].ncID, types.Assigned, prefixes[i], 0, testPod1Info)
 		ipconfigs[state.ID] = state
-		err := UpdatePodIPConfigState(t, svc, ipconfigs, ncIDs[i])
+		err := UpdatePodIPConfigState(t, svc, ipconfigs, ncStates[i].ncID)
 		if err != nil {
 			t.Fatalf("Expected to not fail adding IPs to state: %+v", err)
 		}
@@ -548,7 +681,9 @@ func IPAMFailToGetDesiredIPConfigWithAlreadyAssignedSpecfiedIP(t *testing.T, ncI
 	}
 	b, _ := testPod2Info.OrchestratorContext()
 	req.OrchestratorContext = b
-	req.DesiredIPAddresses = newPodIPs
+	for i := range ncStates {
+		req.DesiredIPAddresses = append(req.DesiredIPAddresses, ncStates[i].ips[0])
+	}
 
 	_, err := requestIPAddressAndGetState(t, req)
 	if err == nil {
@@ -557,30 +692,49 @@ func IPAMFailToGetDesiredIPConfigWithAlreadyAssignedSpecfiedIP(t *testing.T, ncI
 }
 
 func TestIPAMFailToGetIPWhenAllIPsAreAssignedSingleNC(t *testing.T) {
-	ncIDs := []string{testNCID}
-	IPs := [][]string{{testIP1}, {testIP2}}
-	prefixes := []uint8{IPPrefixBitsv4}
-	IPAMFailToGetIPWhenAllIPsAreAssigned(t, ncIDs, IPs, prefixes)
+	ncStates := []ncState{
+		{
+			ncID: testNCID,
+			ips: []string{
+				testIP1,
+				testIP2,
+			},
+		},
+	}
+	IPAMFailToGetIPWhenAllIPsAreAssigned(t, ncStates)
 }
 
 func TestIPAMFailToGetIPWhenAllIPsAreAssignedMultipleNCs(t *testing.T) {
-	ncIDs := []string{testNCID, testNCIDv6}
-	IPs := [][]string{{testIP1, testIP1v6}, {testIP2, testIP2v6}}
-	prefixes := []uint8{IPPrefixBitsv4, IPPrefixBitsv6}
-	IPAMFailToGetIPWhenAllIPsAreAssigned(t, ncIDs, IPs, prefixes)
+	ncStates := []ncState{
+		{
+			ncID: testNCID,
+			ips: []string{
+				testIP1,
+				testIP2,
+			},
+		},
+		{
+			ncID: testNCIDv6,
+			ips: []string{
+				testIP1v6,
+				testIP2v6,
+			},
+		},
+	}
+	IPAMFailToGetIPWhenAllIPsAreAssigned(t, ncStates)
 }
 
-func IPAMFailToGetIPWhenAllIPsAreAssigned(t *testing.T, ncIDs []string, newPodIPs [][]string, prefixes []uint8) {
+func IPAMFailToGetIPWhenAllIPsAreAssigned(t *testing.T, ncStates []ncState) {
 	svc := getTestService()
 
 	ipconfigs := make(map[string]cns.IPConfigurationStatus, 0)
 	// Add already assigned pod ip to state
-	for i := range ncIDs {
-		state1, _ := NewPodStateWithOrchestratorContext(newPodIPs[0][i], newPodIPs[0][i], ncIDs[i], types.Assigned, prefixes[i], 0, testPod1Info)
-		state2, _ := NewPodStateWithOrchestratorContext(newPodIPs[1][i], newPodIPs[1][i], ncIDs[i], types.Assigned, prefixes[i], 0, testPod2Info)
+	for i := range ncStates {
+		state1, _ := NewPodStateWithOrchestratorContext(ncStates[i].ips[0], ncStates[i].ips[0], ncStates[i].ncID, types.Assigned, prefixes[i], 0, testPod1Info)
+		state2, _ := NewPodStateWithOrchestratorContext(ncStates[i].ips[0], ncStates[i].ips[0], ncStates[i].ncID, types.Assigned, prefixes[i], 0, testPod2Info)
 		ipconfigs[state1.ID] = state1
 		ipconfigs[state2.ID] = state2
-		err := UpdatePodIPConfigState(t, svc, ipconfigs, ncIDs[i])
+		err := UpdatePodIPConfigState(t, svc, ipconfigs, ncStates[i].ncID)
 		if err != nil {
 			t.Fatalf("Expected to not fail adding IPs to state: %+v", err)
 		}
@@ -598,32 +752,48 @@ func IPAMFailToGetIPWhenAllIPsAreAssigned(t *testing.T, ncIDs []string, newPodIP
 }
 
 func TestIPAMRequestThenReleaseThenRequestAgainSingleNC(t *testing.T) {
-	ncIDs := []string{testNCID}
-	IPs := []string{testIP1}
-	prefixes := []uint8{IPPrefixBitsv4}
-	IPAMRequestThenReleaseThenRequestAgain(t, ncIDs, IPs, prefixes)
+	ncStates := []ncState{
+		{
+			ncID: testNCID,
+			ips: []string{
+				testIP1,
+			},
+		},
+	}
+	IPAMRequestThenReleaseThenRequestAgain(t, ncStates)
 }
 
 func TestIPAMRequestThenReleaseThenRequestAgainMultipleNCs(t *testing.T) {
-	ncIDs := []string{testNCID, testNCIDv6}
-	IPs := []string{testIP1, testIP1v6}
-	prefixes := []uint8{IPPrefixBitsv4, IPPrefixBitsv6}
-	IPAMRequestThenReleaseThenRequestAgain(t, ncIDs, IPs, prefixes)
+	ncStates := []ncState{
+		{
+			ncID: testNCID,
+			ips: []string{
+				testIP1,
+			},
+		},
+		{
+			ncID: testNCIDv6,
+			ips: []string{
+				testIP1v6,
+			},
+		},
+	}
+	IPAMRequestThenReleaseThenRequestAgain(t, ncStates)
 }
 
 // 10.0.0.1 = PodInfo1
 // Request 10.0.0.1 with PodInfo2 (Fail)
 // Release PodInfo1
 // Request 10.0.0.1 with PodInfo2 (Success)
-func IPAMRequestThenReleaseThenRequestAgain(t *testing.T, ncIDs, newPodIPs []string, prefixes []uint8) {
+func IPAMRequestThenReleaseThenRequestAgain(t *testing.T, ncStates []ncState) {
 	svc := getTestService()
 
 	// set state as already assigned
-	for i := range ncIDs {
+	for i := range ncStates {
 		ipconfigs := make(map[string]cns.IPConfigurationStatus, 0)
-		state, _ := NewPodStateWithOrchestratorContext(newPodIPs[i], newPodIPs[i], ncIDs[i], types.Assigned, prefixes[i], 0, testPod1Info)
+		state, _ := NewPodStateWithOrchestratorContext(ncStates[i].ips[0], ncStates[i].ips[0], ncStates[i].ncID, types.Assigned, prefixes[i], 0, testPod1Info)
 		ipconfigs[state.ID] = state
-		err := UpdatePodIPConfigState(t, svc, ipconfigs, ncIDs[i])
+		err := UpdatePodIPConfigState(t, svc, ipconfigs, ncStates[i].ncID)
 		if err != nil {
 			t.Fatalf("Expected to not fail adding IPs to state: %+v", err)
 		}
@@ -636,7 +806,9 @@ func IPAMRequestThenReleaseThenRequestAgain(t *testing.T, ncIDs, newPodIPs []str
 	}
 	b, _ := testPod2Info.OrchestratorContext()
 	req.OrchestratorContext = b
-	req.DesiredIPAddresses = newPodIPs
+	for i := range ncStates {
+		req.DesiredIPAddresses = append(req.DesiredIPAddresses, ncStates[i].ips[0])
+	}
 
 	_, err := requestIPAddressAndGetState(t, req)
 	if err == nil {
@@ -656,57 +828,76 @@ func IPAMRequestThenReleaseThenRequestAgain(t *testing.T, ncIDs, newPodIPs []str
 	}
 	b, _ = testPod2Info.OrchestratorContext()
 	req.OrchestratorContext = b
-	req.DesiredIPAddresses = newPodIPs
+	for i := range ncStates {
+		req.DesiredIPAddresses = append(req.DesiredIPAddresses, ncStates[i].ips[0])
+	}
 
-	actualstate, err := requestIPAddressAndGetState(t, req)
+	actualState, err := requestIPAddressAndGetState(t, req)
 	if err != nil {
 		t.Fatalf("Expected IP retrieval to be nil: %+v", err)
 	}
 
-	desiredState := make([]cns.IPConfigurationStatus, len(ncIDs))
-	for i := range ncIDs {
-		state, _ := NewPodStateWithOrchestratorContext(newPodIPs[i], newPodIPs[i], ncIDs[i], types.Assigned, prefixes[i], 0, testPod1Info)
+	desiredState := make([]cns.IPConfigurationStatus, len(ncStates))
+	for i := range ncStates {
+		state, _ := NewPodStateWithOrchestratorContext(ncStates[i].ips[0], ncStates[i].ips[0], ncStates[i].ncID, types.Assigned, prefixes[i], 0, testPod1Info)
 		// want first available Pod IP State
 		desiredState[i] = state
-		desiredState[i].IPAddress = newPodIPs[i]
+		desiredState[i].IPAddress = ncStates[i].ips[0]
 		desiredState[i].PodInfo = testPod2Info
 	}
 
-	firstAddress, _ := netip.ParseAddr(actualstate[0].IPAddress)
-	if firstAddress.Is4() == false && len(actualstate) > 1 {
-		actualstate[0], actualstate[1] = actualstate[1], actualstate[0]
+	// desiredState is expecting IPv4 to be first so if we get IPv6 first then we need to switch them
+	firstAddress, _ := netip.ParseAddr(actualState[0].IPAddress)
+	if firstAddress.Is4() == false && len(actualState) > 1 {
+		actualState[0], actualState[1] = actualState[1], actualState[0]
 	}
-	for i := range actualstate {
-		assert.Equal(t, desiredState[i].GetState(), actualstate[i].GetState())
-		assert.Equal(t, desiredState[i].ID, actualstate[i].ID)
-		assert.Equal(t, desiredState[i].IPAddress, actualstate[i].IPAddress)
-		assert.Equal(t, desiredState[i].NCID, actualstate[i].NCID)
-		assert.Equal(t, desiredState[i].PodInfo, actualstate[i].PodInfo)
+	for i := range actualState {
+		assert.Equal(t, desiredState[i].GetState(), actualState[i].GetState())
+		assert.Equal(t, desiredState[i].ID, actualState[i].ID)
+		assert.Equal(t, desiredState[i].IPAddress, actualState[i].IPAddress)
+		assert.Equal(t, desiredState[i].NCID, actualState[i].NCID)
+		assert.Equal(t, desiredState[i].PodInfo, actualState[i].PodInfo)
 	}
 }
 
 func TestIPAMReleaseIPIdempotencySingleNC(t *testing.T) {
-	ncIDs := []string{testNCID}
-	IPs := []string{testIP1}
-	prefixes := []uint8{IPPrefixBitsv4}
-	IPAMReleaseIPIdempotency(t, ncIDs, IPs, prefixes)
+	ncStates := []ncState{
+		{
+			ncID: testNCID,
+			ips: []string{
+				testIP1,
+			},
+		},
+	}
+	IPAMReleaseIPIdempotency(t, ncStates)
 }
 
 func TestIPAMReleaseIPIdempotencyMultipleNCs(t *testing.T) {
-	ncIDs := []string{testNCID, testNCIDv6}
-	IPs := []string{testIP1, testIP1v6}
-	prefixes := []uint8{IPPrefixBitsv4, IPPrefixBitsv6}
-	IPAMReleaseIPIdempotency(t, ncIDs, IPs, prefixes)
+	ncStates := []ncState{
+		{
+			ncID: testNCID,
+			ips: []string{
+				testIP1,
+			},
+		},
+		{
+			ncID: testNCIDv6,
+			ips: []string{
+				testIP1v6,
+			},
+		},
+	}
+	IPAMReleaseIPIdempotency(t, ncStates)
 }
 
-func IPAMReleaseIPIdempotency(t *testing.T, ncIDs, newPodIPs []string, prefixes []uint8) {
+func IPAMReleaseIPIdempotency(t *testing.T, ncStates []ncState) {
 	svc := getTestService()
 	// set state as already assigned
 	ipconfigs := make(map[string]cns.IPConfigurationStatus, 0)
-	for i := range ncIDs {
-		state, _ := NewPodStateWithOrchestratorContext(newPodIPs[i], newPodIPs[i], ncIDs[i], types.Assigned, prefixes[i], 0, testPod1Info)
+	for i := range ncStates {
+		state, _ := NewPodStateWithOrchestratorContext(ncStates[i].ips[0], ncStates[i].ips[0], ncStates[i].ncID, types.Assigned, prefixes[i], 0, testPod1Info)
 		ipconfigs[state.ID] = state
-		err := UpdatePodIPConfigState(t, svc, ipconfigs, ncIDs[i])
+		err := UpdatePodIPConfigState(t, svc, ipconfigs, ncStates[i].ncID)
 		if err != nil {
 			t.Fatalf("Expected to not fail adding IPs to state: %+v", err)
 		}
@@ -726,32 +917,48 @@ func IPAMReleaseIPIdempotency(t *testing.T, ncIDs, newPodIPs []string, prefixes 
 }
 
 func TestIPAMAllocateIPIdempotencySingleNC(t *testing.T) {
-	ncIDs := []string{testNCID}
-	IPs := []string{testIP1}
-	prefixes := []uint8{IPPrefixBitsv4}
-	IPAMAllocateIPIdempotency(t, ncIDs, IPs, prefixes)
+	ncStates := []ncState{
+		{
+			ncID: testNCID,
+			ips: []string{
+				testIP1,
+			},
+		},
+	}
+	IPAMAllocateIPIdempotency(t, ncStates)
 }
 
 func TestIPAMAllocateIPIdempotencyMultipleNCs(t *testing.T) {
-	ncIDs := []string{testNCID, testNCIDv6}
-	IPs := []string{testIP1, testIP1v6}
-	prefixes := []uint8{IPPrefixBitsv4, IPPrefixBitsv6}
-	IPAMAllocateIPIdempotency(t, ncIDs, IPs, prefixes)
+	ncStates := []ncState{
+		{
+			ncID: testNCID,
+			ips: []string{
+				testIP1,
+			},
+		},
+		{
+			ncID: testNCIDv6,
+			ips: []string{
+				testIP1v6,
+			},
+		},
+	}
+	IPAMAllocateIPIdempotency(t, ncStates)
 }
 
-func IPAMAllocateIPIdempotency(t *testing.T, ncIDs, newPodIPs []string, prefixes []uint8) {
+func IPAMAllocateIPIdempotency(t *testing.T, ncStates []ncState) {
 	svc := getTestService()
 	// set state as already assigned
 	ipconfigs := make(map[string]cns.IPConfigurationStatus, 0)
-	for i := range ncIDs {
-		state, _ := NewPodStateWithOrchestratorContext(newPodIPs[i], newPodIPs[i], ncIDs[i], types.Assigned, prefixes[i], 0, testPod1Info)
+	for i := range ncStates {
+		state, _ := NewPodStateWithOrchestratorContext(ncStates[i].ips[0], ncStates[i].ips[0], ncStates[i].ncID, types.Assigned, prefixes[i], 0, testPod1Info)
 		ipconfigs[state.ID] = state
-		err := UpdatePodIPConfigState(t, svc, ipconfigs, ncIDs[i])
+		err := UpdatePodIPConfigState(t, svc, ipconfigs, ncStates[i].ncID)
 		if err != nil {
 			t.Fatalf("Expected to not fail adding IPs to state: %+v", err)
 		}
 
-		err = UpdatePodIPConfigState(t, svc, ipconfigs, ncIDs[i])
+		err = UpdatePodIPConfigState(t, svc, ipconfigs, ncStates[i].ncID)
 		if err != nil {
 			t.Fatalf("Expected to not fail adding IPs to state: %+v", err)
 		}
@@ -759,34 +966,56 @@ func IPAMAllocateIPIdempotency(t *testing.T, ncIDs, newPodIPs []string, prefixes
 }
 
 func TestAvailableIPConfigsSingleNC(t *testing.T) {
-	ncIDs := []string{testNCID}
-	IPs := [][]string{{testIP1}, {testIP2}, {testIP3}}
-	prefixes := []uint8{IPPrefixBitsv4}
-	AvailableIPConfigs(t, ncIDs, IPs, prefixes)
+	ncStates := []ncState{
+		{
+			ncID: testNCID,
+			ips: []string{
+				testIP1,
+				testIP2,
+				testIP3,
+			},
+		},
+	}
+	AvailableIPConfigs(t, ncStates)
 }
 
 func TestAvailableIPConfigsMultipleNCs(t *testing.T) {
-	ncIDs := []string{testNCID, testNCIDv6}
-	IPs := [][]string{{testIP1, testIP1v6}, {testIP2, testIP2v6}, {testIP3, testIP3v6}}
-	prefixes := []uint8{IPPrefixBitsv4, IPPrefixBitsv6}
-	AvailableIPConfigs(t, ncIDs, IPs, prefixes)
+	ncStates := []ncState{
+		{
+			ncID: testNCID,
+			ips: []string{
+				testIP1,
+				testIP2,
+				testIP3,
+			},
+		},
+		{
+			ncID: testNCIDv6,
+			ips: []string{
+				testIP1v6,
+				testIP2v6,
+				testIP3v6,
+			},
+		},
+	}
+	AvailableIPConfigs(t, ncStates)
 }
 
-func AvailableIPConfigs(t *testing.T, ncIDs []string, newPodIPs [][]string, prefixes []uint8) {
+func AvailableIPConfigs(t *testing.T, ncStates []ncState) {
 	svc := getTestService()
 
-	IDsToBeDeleted := make([]string, len(ncIDs))
+	IDsToBeDeleted := make([]string, len(ncStates))
 	ipconfigs := make(map[string]cns.IPConfigurationStatus, 0)
 	// Add already assigned pod ip to state
-	for i := range ncIDs {
-		state1 := NewPodState(newPodIPs[0][i], prefixes[i], newPodIPs[0][i], ncIDs[i], types.Available, 0)
-		state2 := NewPodState(newPodIPs[1][i], prefixes[i], newPodIPs[1][i], ncIDs[i], types.Available, 0)
-		state3 := NewPodState(newPodIPs[2][i], prefixes[i], newPodIPs[2][i], ncIDs[i], types.Available, 0)
+	for i := range ncStates {
+		state1 := NewPodState(ncStates[i].ips[0], ncStates[i].ips[0], ncStates[i].ncID, types.Available, 0)
+		state2 := NewPodState(ncStates[i].ips[1], ncStates[i].ips[1], ncStates[i].ncID, types.Available, 0)
+		state3 := NewPodState(ncStates[i].ips[2], ncStates[i].ips[2], ncStates[i].ncID, types.Available, 0)
 		IDsToBeDeleted[i] = state1.ID
 		ipconfigs[state1.ID] = state1
 		ipconfigs[state2.ID] = state2
 		ipconfigs[state3.ID] = state3
-		err := UpdatePodIPConfigState(t, svc, ipconfigs, ncIDs[i])
+		err := UpdatePodIPConfigState(t, svc, ipconfigs, ncStates[i].ncID)
 		if err != nil {
 			t.Fatalf("Expected to not fail adding IPs to state: %+v", err)
 		}
@@ -810,7 +1039,9 @@ func AvailableIPConfigs(t *testing.T, ncIDs []string, newPodIPs [][]string, pref
 	}
 	b, _ := testPod1Info.OrchestratorContext()
 	req.OrchestratorContext = b
-	req.DesiredIPAddresses = newPodIPs[0]
+	for i := range ncStates {
+		req.DesiredIPAddresses = append(req.DesiredIPAddresses, ncStates[i].ips[0])
+	}
 
 	_, err := requestIPAddressAndGetState(t, req)
 	if err != nil {
@@ -822,8 +1053,8 @@ func AvailableIPConfigs(t *testing.T, ncIDs []string, newPodIPs [][]string, pref
 	availableIps = svc.GetAvailableIPConfigs()
 	validateIpState(t, availableIps, desiredAvailableIps)
 
-	for i := range ncIDs {
-		desiredState := NewPodState(newPodIPs[0][i], prefixes[i], newPodIPs[0][i], ncIDs[i], types.Assigned, 0)
+	for i := range ncStates {
+		desiredState := NewPodState(ncStates[i].ips[0], ncStates[i].ips[0], ncStates[i].ncID, types.Assigned, 0)
 		desiredState.PodInfo = testPod1Info
 		desiredAssignedIPConfigs[desiredState.ID] = desiredState
 	}
@@ -854,47 +1085,63 @@ func validateIpState(t *testing.T, actualIps []cns.IPConfigurationStatus, expect
 }
 
 func TestIPAMMarkIPCountAsPendingSingleNC(t *testing.T) {
-	ncIDs := []string{testNCID}
-	IPs := []string{testIP1}
-	prefixes := []uint8{IPPrefixBitsv4}
-	IPAMMarkIPCountAsPending(t, ncIDs, IPs, prefixes)
+	ncStates := []ncState{
+		{
+			ncID: testNCID,
+			ips: []string{
+				testIP1,
+			},
+		},
+	}
+	IPAMMarkIPCountAsPending(t, ncStates)
 }
 
 func TestIPAMMarkIPCountAsPendingMultipleNCs(t *testing.T) {
-	ncIDs := []string{testNCID, testNCIDv6}
-	IPs := []string{testIP1, testIP1v6}
-	prefixes := []uint8{IPPrefixBitsv4, IPPrefixBitsv6}
-	IPAMMarkIPCountAsPending(t, ncIDs, IPs, prefixes)
+	ncStates := []ncState{
+		{
+			ncID: testNCID,
+			ips: []string{
+				testIP1,
+			},
+		},
+		{
+			ncID: testNCIDv6,
+			ips: []string{
+				testIP1v6,
+			},
+		},
+	}
+	IPAMMarkIPCountAsPending(t, ncStates)
 }
 
-func IPAMMarkIPCountAsPending(t *testing.T, ncIDs, newPodIPs []string, prefixes []uint8) {
+func IPAMMarkIPCountAsPending(t *testing.T, ncStates []ncState) {
 	svc := getTestService()
 	// set state as already assigned
 	ipconfigs := make(map[string]cns.IPConfigurationStatus, 0)
-	for i := range ncIDs {
-		state, _ := NewPodStateWithOrchestratorContext(newPodIPs[i], newPodIPs[i], ncIDs[i], types.Available, prefixes[i], 0, testPod1Info)
+	for i := range ncStates {
+		state, _ := NewPodStateWithOrchestratorContext(ncStates[i].ips[0], ncStates[i].ips[0], ncStates[i].ncID, types.Available, prefixes[i], 0, testPod1Info)
 		ipconfigs[state.ID] = state
-		err := UpdatePodIPConfigState(t, svc, ipconfigs, ncIDs[i])
+		err := UpdatePodIPConfigState(t, svc, ipconfigs, ncStates[i].ncID)
 		if err != nil {
 			t.Fatalf("Expected to not fail adding IPs to state: %+v", err)
 		}
 	}
 
 	// Release Test Pod 1
-	ips, err := svc.MarkIPAsPendingRelease(len(newPodIPs))
+	ips, err := svc.MarkIPAsPendingRelease(len(ncStates))
 	if err != nil {
 		t.Fatalf("Unexpected failure releasing IP: %+v", err)
 	}
 
-	for i := range newPodIPs {
-		if _, exists := ips[newPodIPs[i]]; !exists {
+	for i := range ncStates {
+		if _, exists := ips[ncStates[i].ips[0]]; !exists {
 			t.Fatalf("Expected ID not marked as pending: %+v", err)
 		}
 	}
 
 	// Release Test Pod 1
 	pendingrelease := svc.GetPendingReleaseIPConfigs()
-	if len(pendingrelease) != len(newPodIPs) {
+	if len(pendingrelease) != len(ncStates) {
 		t.Fatal("Expected pending release slice to be nonzero after pending release")
 	}
 
@@ -1011,38 +1258,60 @@ func constructSecondaryIPConfigs(ipAddress, uuid string, ncVersion int, secondar
 }
 
 func TestIPAMMarkExistingIPConfigAsPendingSingleNC(t *testing.T) {
-	ncIDs := []string{testNCID}
-	IPs := [][]string{{testIP1}, {testIP2}}
-	prefixes := []uint8{IPPrefixBitsv4}
-	IPAMMarkExistingIPConfigAsPending(t, ncIDs, IPs, prefixes)
+	ncStates := []ncState{
+		{
+			ncID: testNCID,
+			ips: []string{
+				testIP1,
+				testIP2,
+			},
+		},
+	}
+	IPAMMarkExistingIPConfigAsPending(t, ncStates)
 }
 
 func TestIPAMMarkExistingIPConfigAsPendingMultipleNCs(t *testing.T) {
-	ncIDs := []string{testNCID, testNCIDv6}
-	IPs := [][]string{{testIP1, testIP1v6}, {testIP2, testIP2v6}}
-	prefixes := []uint8{IPPrefixBitsv4, IPPrefixBitsv6}
-	IPAMMarkExistingIPConfigAsPending(t, ncIDs, IPs, prefixes)
+	ncStates := []ncState{
+		{
+			ncID: testNCID,
+			ips: []string{
+				testIP1,
+				testIP2,
+			},
+		},
+		{
+			ncID: testNCIDv6,
+			ips: []string{
+				testIP1v6,
+				testIP2v6,
+			},
+		},
+	}
+	IPAMMarkExistingIPConfigAsPending(t, ncStates)
 }
 
-func IPAMMarkExistingIPConfigAsPending(t *testing.T, ncIDs []string, newPodIPs [][]string, prefixes []uint8) {
+func IPAMMarkExistingIPConfigAsPending(t *testing.T, ncStates []ncState) {
 	svc := getTestService()
 
 	// Add already assigned pod ip to state
-	for i := range ncIDs {
+	for i := range ncStates {
 		ipconfigs := make(map[string]cns.IPConfigurationStatus, 0)
-		svc.PodIPIDByPodInterfaceKey[testPod1Info.Key()] = append(svc.PodIPIDByPodInterfaceKey[testPod1Info.Key()], newPodIPs[0][i])
-		state1, _ := NewPodStateWithOrchestratorContext(newPodIPs[0][i], newPodIPs[0][i], ncIDs[i], types.Assigned, prefixes[i], 0, testPod1Info)
-		state2 := NewPodState(newPodIPs[1][i], prefixes[i], newPodIPs[1][i], ncIDs[i], types.Available, 0)
+		svc.PodIPIDByPodInterfaceKey[testPod1Info.Key()] = append(svc.PodIPIDByPodInterfaceKey[testPod1Info.Key()], ncStates[i].ips[0])
+		state1, _ := NewPodStateWithOrchestratorContext(ncStates[i].ips[0], ncStates[i].ips[0], ncStates[i].ncID, types.Assigned, prefixes[i], 0, testPod1Info)
+		state2 := NewPodState(ncStates[i].ips[1], ncStates[i].ips[1], ncStates[i].ncID, types.Available, 0)
 		ipconfigs[state1.ID] = state1
 		ipconfigs[state2.ID] = state2
-		err := UpdatePodIPConfigState(t, svc, ipconfigs, ncIDs[i])
+		err := UpdatePodIPConfigState(t, svc, ipconfigs, ncStates[i].ncID)
 		if err != nil {
 			t.Fatalf("Expected to not fail adding IPs to state: %+v", err)
 		}
 	}
 
+	pendingIPIDs := make([]string, len(ncStates))
 	// mark available ip as as pending
-	pendingIPIDs := newPodIPs[1]
+	for i := range ncStates {
+		pendingIPIDs[i] = ncStates[i].ips[1]
+	}
 	err := svc.MarkExistingIPsAsPendingRelease(pendingIPIDs)
 	if err != nil {
 		t.Fatalf("Expected to successfully mark available ip as pending")
@@ -1053,30 +1322,32 @@ func IPAMMarkExistingIPConfigAsPending(t *testing.T, ncIDs []string, newPodIPs [
 	if firstAddress.Is4() == false && len(pendingIPConfigs) > 1 {
 		pendingIPConfigs[0], pendingIPConfigs[1] = pendingIPConfigs[1], pendingIPConfigs[0]
 	}
-	for i := range newPodIPs[1] {
-		if pendingIPConfigs[i].ID != newPodIPs[1][i] {
-			t.Fatalf("Expected to see ID %v in pending release ipconfigs, actual %+v", newPodIPs[1][i], pendingIPConfigs)
+	for i := range ncStates {
+		if pendingIPConfigs[i].ID != ncStates[i].ips[1] {
+			t.Fatalf("Expected to see ID %v in pending release ipconfigs, actual %+v", ncStates[i].ips[1], pendingIPConfigs)
 		}
 	}
 
 	// attempt to mark assigned ipconfig as pending, expect fail
-	pendingIPIDs = newPodIPs[0]
+	for i := range ncStates {
+		pendingIPIDs[i] = ncStates[i].ips[0]
+	}
 	err = svc.MarkExistingIPsAsPendingRelease(pendingIPIDs)
 	if err == nil {
 		t.Fatalf("Expected to fail when marking assigned ip as pending")
 	}
 
 	assignedIPConfigs := svc.GetAssignedIPConfigs()
-	for i := range newPodIPs[0] {
+	for i := range ncStates {
 		found := false
 		for j := range assignedIPConfigs {
-			if assignedIPConfigs[j].ID == newPodIPs[0][i] {
+			if assignedIPConfigs[j].ID == ncStates[i].ips[0] {
 				found = true
 				break
 			}
 		}
 		if !found {
-			t.Fatalf("Expected to see ID %v in pending release ipconfigs, actual %+v", newPodIPs[0][i], assignedIPConfigs)
+			t.Fatalf("Expected to see ID %v in pending release ipconfigs, actual %+v", ncStates[i].ips[0], assignedIPConfigs)
 		}
 	}
 }
@@ -1115,7 +1386,7 @@ func TestIPAMFailToRequestOneIPWhenExpectedToHaveTwo(t *testing.T) {
 	svc := getTestService()
 
 	// set state as already assigned
-	testState := NewPodState(testIP1, IPPrefixBitsv4, testIP1, testNCID, types.Available, 0)
+	testState := NewPodState(testIP1, testIP1, testNCID, types.Available, 0)
 	ipconfigs := map[string]cns.IPConfigurationStatus{
 		testState.ID: testState,
 	}
