@@ -596,7 +596,6 @@ func (service *HTTPRestService) releaseIPConfig(podInfo cns.PodInfo) error {
 		for i := range ipsToBeReleased {
 			if err := service.assignIPConfig(ipsToBeReleased[i], podInfo); err != nil {
 				logger.Errorf("[releaseIPConfig] failed to mark IPConfig [%+v] back to Assigned. err: %v", ipsToBeReleased[i], err)
-				//TODO: Add alerts
 			}
 		}
 		//nolint:goerr113 // return error
