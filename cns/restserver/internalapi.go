@@ -290,7 +290,7 @@ func (service *HTTPRestService) ReconcileNCState(ncRequest *cns.CreateNetworkCon
 				PodInterfaceID:      podInfo.InterfaceID(),
 			}
 
-			if _, err := requestIPConfigHelper(service, ipconfigsRequest); err != nil {
+			if _, err := requestIPConfigsHelper(service, ipconfigsRequest); err != nil {
 				logger.Errorf("AllocateIPConfig failed for SecondaryIP %+v, podInfo %+v, ncId %s, error: %v", secIPConfig, podInfo, ncRequest.NetworkContainerid, err)
 				return types.FailedToAllocateIPConfig
 			}
