@@ -829,11 +829,10 @@ func requestIPConfigsHelper(service *HTTPRestService, req cns.IPConfigsRequest) 
 		return podIPInfo, err
 	}
 
-	// return desired IPConfig
-	if len(req.DesiredIPAddresses) != 0 {
-		if err := validateDesiredIPAddresses(req.DesiredIPAddresses); err != nil {
-			return []cns.PodIpInfo{}, err
-		}
+	// checks if the list of IPs is valid and if
+	if notEmpty, err := validateDesiredIPAddresses(req.DesiredIPAddresses); err != nil {
+		return []cns.PodIpInfo{}, err
+	} else if notEmpty {
 		return service.AssignDesiredIPConfigs(podInfo, req.DesiredIPAddresses)
 	}
 
@@ -842,12 +841,17 @@ func requestIPConfigsHelper(service *HTTPRestService, req cns.IPConfigsRequest) 
 }
 
 // checks all desired IPs for a request to make sure they are all valid
-func validateDesiredIPAddresses(desiredIPs []string) error {
+func validateDesiredIPAddresses(desiredIPs []string) (bool, error) {
+	notEmpty := false
 	for i := range desiredIPs {
 		if desiredIPs[i] == "" {
-			//nolint:goerr113 // return error
-			return fmt.Errorf("[validateDesiredIPAddresses] invalid ip %s at index %d of desired IPs", desiredIPs[i], i)
+			if notEmpty {
+				//nolint:goerr113 // return error
+				return notEmpty, fmt.Errorf("[validateDesiredIPAddresses] invalid ip %s at index %d of desired IPs", desiredIPs[i], i)
+			}
+		} else {
+			notEmpty = true
 		}
 	}
-	return nil
+	return notEmpty, nil
 }
