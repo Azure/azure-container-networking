@@ -1,5 +1,5 @@
 # Build cns
-FROM mcr.microsoft.com/oss/go/microsoft/golang:1.19 AS builder
+FROM mcr.microsoft.com/oss/go/microsoft/golang:1.20 AS builder
 # Build args
 ARG VERSION
 ARG CNS_AI_PATH

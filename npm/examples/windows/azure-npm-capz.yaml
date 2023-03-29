@@ -90,7 +90,6 @@ spec:
             [
               '.\setkubeconfigpath-capz.ps1',
               ";",
-              "powershell.exe",
               '.\npm.exe',
               "start",
               '--kubeconfig=.\kubeconfig',
