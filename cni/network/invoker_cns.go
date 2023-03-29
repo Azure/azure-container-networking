@@ -81,8 +81,33 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 	log.Printf("Requesting IP for pod %+v using ipconfig %+v", podInfo, ipconfig)
 	response, err := invoker.cnsClient.RequestIPs(context.TODO(), ipconfig)
 	if err != nil {
-		log.Printf("Failed to get IP address from CNS with error %v, response: %v", err, response)
-		return IPAMAddResult{}, errors.Wrap(err, "Failed to get IP address from CNS with error: %w")
+		// checks for 404 error
+		if errors.Is(err, cnscli.ErrAPINotFound) {
+			ipconfigRequest := cns.IPConfigRequest{
+				OrchestratorContext: orchestratorContext,
+				PodInterfaceID:      GetEndpointID(addConfig.args),
+				InfraContainerID:    addConfig.args.ContainerID,
+			}
+			log.Errorf("Failed to request IPs using RequestIPs from CNS, going to try RequestIPAddress. error: %v request: %v", err, ipconfig)
+
+			res, err := invoker.cnsClient.RequestIPAddress(context.TODO(), ipconfigRequest)
+			if err != nil {
+				// if the old API fails as well then we just return the error
+				log.Errorf("Failed to release IP address from CNS using ReleaseIPAddress. error: %v request: %v", err, ipconfigRequest)
+				return IPAMAddResult{}, errors.Wrap(err, fmt.Sprintf("failed to request IPs for pod %v with error ", GetEndpointID(addConfig.args))+"%w")
+			}
+			// sets the response to the new contract
+			response = &cns.IPConfigsResponse{
+				Response: res.Response,
+				PodIPInfo: []cns.PodIpInfo{
+					res.PodIpInfo,
+				},
+			}
+
+		} else {
+			log.Printf("Failed to get IP address from CNS with error %v, response: %v", err, response)
+			return IPAMAddResult{}, errors.Wrap(err, "Failed to get IP address from CNS with error: %w")
+		}
 	}
 
 	addResult := IPAMAddResult{}
@@ -281,7 +306,7 @@ func (invoker *CNSIPAMInvoker) Delete(addresses []*net.IPNet, nwCfg *cni.Network
 			}
 			log.Errorf("Failed to release IPs using ReleaseIPs from CNS, going to try ReleaseIPAddress. error: %v request: %v", err, req)
 
-			if err := invoker.cnsClient.ReleaseIPAddress(context.TODO(), ipconfigRequest); err != nil {
+			if err = invoker.cnsClient.ReleaseIPAddress(context.TODO(), ipconfigRequest); err != nil {
 				// if the old API fails as well then we just return the error
 				log.Errorf("Failed to release IP address from CNS using ReleaseIPAddress. error: %v request: %v", err, req)
 				return errors.Wrap(err, fmt.Sprintf("failed to release IP %v using ReleaseIPAddress with err ", addresses)+"%w")
