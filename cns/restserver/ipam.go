@@ -17,6 +17,11 @@ import (
 	"github.com/pkg/errors"
 )
 
+var (
+	errStoreEmpty       = errors.New("empty endpoint state store")
+	errParsePodIPFailed = errors.New("failed to parse pod's ip")
+)
+
 // requestIPConfigHandlerHelper validates the request, assigns IPs, and returns a response
 func (service *HTTPRestService) requestIPConfigHandlerHelper(ipconfigsRequest cns.IPConfigsRequest) (*cns.IPConfigsResponse, error) {
 	podInfo, returnCode, returnMessage := service.validateIPConfigsRequest(ipconfigsRequest)
@@ -98,14 +103,25 @@ func (service *HTTPRestService) requestIPConfigHandler(w http.ResponseWriter, r 
 		return
 	}
 
-	ipconfigsRequest := cns.IPConfigsRequest{
-		DesiredIPAddresses: []string{
-			ipconfigRequest.DesiredIPAddress,
-		},
-		PodInterfaceID:      ipconfigRequest.PodInterfaceID,
-		InfraContainerID:    ipconfigRequest.InfraContainerID,
-		OrchestratorContext: ipconfigRequest.OrchestratorContext,
-		Ifname:              ipconfigRequest.Ifname,
+	var ipconfigsRequest cns.IPConfigsRequest
+	// doesn't fill in DesiredIPAddresses if empty in the original request
+	if ipconfigRequest.DesiredIPAddress != "" { 
+		ipconfigsRequest = cns.IPConfigsRequest{
+			DesiredIPAddresses: []string{
+				ipconfigRequest.DesiredIPAddress,
+			},
+			PodInterfaceID:      ipconfigRequest.PodInterfaceID,
+			InfraContainerID:    ipconfigRequest.InfraContainerID,
+			OrchestratorContext: ipconfigRequest.OrchestratorContext,
+			Ifname:              ipconfigRequest.Ifname,
+		}
+	} else {
+		ipconfigsRequest = cns.IPConfigsRequest{
+			PodInterfaceID:      ipconfigRequest.PodInterfaceID,
+			InfraContainerID:    ipconfigRequest.InfraContainerID,
+			OrchestratorContext: ipconfigRequest.OrchestratorContext,
+			Ifname:              ipconfigRequest.Ifname,
+		}
 	}
 
 	ipConfigsResp, errResp := service.requestIPConfigHandlerHelper(ipconfigsRequest) //nolint:contextcheck // appease linter
@@ -152,11 +168,6 @@ func (service *HTTPRestService) requestIPConfigsHandler(w http.ResponseWriter, r
 	err = service.Listener.Encode(w, &ipConfigsResp)
 	logger.ResponseEx(service.Name+operationName, ipconfigsRequest, ipConfigsResp, ipConfigsResp.Response.ReturnCode, err)
 }
-
-var (
-	errStoreEmpty       = errors.New("empty endpoint state store")
-	errParsePodIPFailed = errors.New("failed to parse pod's ip")
-)
 
 func (service *HTTPRestService) updateEndpointState(ipconfigsRequest cns.IPConfigsRequest, podInfo cns.PodInfo, podIPInfo []cns.PodIpInfo) error {
 	if service.EndpointStateStore == nil {
@@ -627,7 +638,7 @@ func (service *HTTPRestService) MarkExistingIPsAsPendingRelease(pendingIPIDs []s
 	return nil
 }
 
-// Returns the current config if one exists and the status that one exists.
+// Returns the current IP configs for a pod if they exist
 func (service *HTTPRestService) GetExistingIPConfig(podInfo cns.PodInfo) ([]cns.PodIpInfo, bool, error) {
 	service.RLock()
 	defer service.RUnlock()
@@ -673,19 +684,19 @@ func (service *HTTPRestService) AssignDesiredIPConfigs(podInfo cns.PodInfo, desi
 	numIPConfigsAssigned := 0
 	for _, ipConfig := range service.PodIPConfigState { //nolint:gocritic // ignore copy
 		_, found := desiredIPMap[ipConfig.IPAddress]
-		// keep searching until the all desired IPs are found
+		// keep searching until the all the desired IPs are found
 		if !found {
 			continue
 		}
+
 		switch ipConfig.GetState() { //nolint:exhaustive // ignoring PendingRelease case intentionally
 		case types.Assigned:
 			// This IP has already been assigned, if it is assigned to same pod add the IP to podIPInfo
 			if ipConfig.PodInfo.Key() == podInfo.Key() {
 				logger.Printf("[AssignDesiredIPConfigs]: IP Config [%+v] is already assigned to this Pod [%+v]", ipConfig, podInfo)
-
 				if err := service.populateIPConfigInfoUntransacted(ipConfig, &podIPInfo[numIPConfigsAssigned]); err != nil {
 					//nolint:goerr113 // return error
-					return []cns.PodIpInfo{}, fmt.Errorf("[AssignDesiredIPConfigs] Failed to assign IP %+v requested for pod %+v", ipConfig, podInfo)
+					return []cns.PodIpInfo{}, fmt.Errorf("[AssignDesiredIPConfigs] Failed to assign IP %+v requested for pod %+v since the IP is already assigned to %+v", ipConfig, podInfo, ipConfig.PodInfo)
 				}
 				numIPConfigsAssigned++
 			} else {
@@ -701,6 +712,7 @@ func (service *HTTPRestService) AssignDesiredIPConfigs(podInfo cns.PodInfo, desi
 			//nolint:goerr113 // return error
 			return podIPInfo, fmt.Errorf("IP not available")
 		}
+
 		// checks if found all of the desired IPs either as an available IP or already assigned to the pod
 		if len(ipConfigsToAssign)+numIPConfigsAssigned == numDesiredIPAddresses {
 			break
@@ -753,58 +765,59 @@ func (service *HTTPRestService) AssignAvailableIPConfigs(podInfo cns.PodInfo) ([
 	service.Lock()
 	defer service.Unlock()
 	// Sets the number of IPs needed equal to the number of NCs so that we can get one IP per NC
-	numOfIPsNeeded := len(service.state.ContainerStatus)
+	numIPsNeeded := len(service.state.ContainerStatus)
 	// Creates a slice of PodIpInfo with the size as number of NCs to hold the result for assigned IP configs
-	podIPInfo := make([]cns.PodIpInfo, numOfIPsNeeded)
+	podIPInfo := make([]cns.PodIpInfo, numIPsNeeded)
 	// This map is used to store whether or not we have found an available IP from an NC when looping through the pool
-	availableIPs := make(map[string]cns.IPConfigurationStatus)
+	ipsToAssign := make(map[string]cns.IPConfigurationStatus)
 
 	// Searches for available IPs in the pool
 	for _, ipState := range service.PodIPConfigState {
-		_, found := availableIPs[ipState.NCID]
+		// check if an IP from this NC is already set side for assignment.
+		_, ncAlreadyMarkedForAssignment := ipsToAssign[ipState.NCID]
 		// Checks if we haven't already found an IP from that NC and checks if the current IP is available
-		if found || ipState.GetState() != types.Available {
+		if ncAlreadyMarkedForAssignment || ipState.GetState() != types.Available {
 			continue
 		}
-		availableIPs[ipState.NCID] = ipState
+		ipsToAssign[ipState.NCID] = ipState
 		// Once one IP per container is found break out of the loop and stop searching
-		if len(availableIPs) == numOfIPsNeeded {
+		if len(ipsToAssign) == numIPsNeeded {
 			break
 		}
 	}
 
 	// Checks to make sure we found one IP for each NC
-	if len(availableIPs) != numOfIPsNeeded {
+	if len(ipsToAssign) != numIPsNeeded {
 		//nolint:goerr113 // return error
-		return podIPInfo, fmt.Errorf("not able to find one available IP per NC in IP pool")
+		return podIPInfo, fmt.Errorf("not enough IPs available, waiting on Azure CNS to allocate more")
 	}
 
 	failedToAssignIP := false
 	numIPConfigsAssigned := 0
 	// assigns all IPs in the map to the pod
-	for id := range availableIPs {
-		if err := service.assignIPConfig(availableIPs[id], podInfo); err != nil {
+	for id := range ipsToAssign {
+		if err := service.assignIPConfig(ipsToAssign[id], podInfo); err != nil {
 			logger.Errorf(err.Error())
 			failedToAssignIP = true
 			break
 		}
 
-		if err := service.populateIPConfigInfoUntransacted(availableIPs[id], &podIPInfo[numIPConfigsAssigned]); err != nil {
+		if err := service.populateIPConfigInfoUntransacted(ipsToAssign[id], &podIPInfo[numIPConfigsAssigned]); err != nil {
 			logger.Errorf(err.Error())
 			failedToAssignIP = true
 			break
 		}
 		numIPConfigsAssigned++
 		// Checks if we no longer have any IPs to be added and returns if we don't
-		if numIPConfigsAssigned == numOfIPsNeeded {
+		if numIPConfigsAssigned == numIPsNeeded {
 			return podIPInfo, nil
 		}
 	}
 
 	// if we were able to find at least one IP but not enough
 	if failedToAssignIP {
-		logger.Printf("[AssignAvailableIPConfigs] failed to retrieve enough IPs. Releasing all IPs that were found")
-		for _, ipState := range availableIPs { //nolint:gocritic // ignore copy
+		logger.Printf("[AssignAvailableIPConfigs] failed to assign enough IPs. Releasing all IPs that were found")
+		for _, ipState := range ipsToAssign { //nolint:gocritic // ignore copy
 			_, err := service.unassignIPConfig(ipState, podInfo)
 			if err != nil {
 				return podIPInfo, fmt.Errorf("[AssignAvailableIPConfigs] failed to mark IPConfig [%+v] back to Available. err: %w", ipState, err)
@@ -828,29 +841,25 @@ func requestIPConfigsHelper(service *HTTPRestService, req cns.IPConfigsRequest) 
 		return podIPInfo, err
 	}
 
-	// checks if the list of IPs is valid and if
-	if notEmpty, err := validateDesiredIPAddresses(req.DesiredIPAddresses); err != nil {
-		return []cns.PodIpInfo{}, err
-	} else if notEmpty {
-		return service.AssignDesiredIPConfigs(podInfo, req.DesiredIPAddresses)
+	// if the desired IP configs are not specified, assign any free IPConfigs
+	if len(req.DesiredIPAddresses) == 0 {
+		return service.AssignAvailableIPConfigs(podInfo)
 	}
-
-	// return any free IPConfig
-	return service.AssignAvailableIPConfigs(podInfo)
+	
+	if err := validateDesiredIPAddresses(req.DesiredIPAddresses); err != nil {
+		return []cns.PodIpInfo{}, err
+	}
+	
+	return service.AssignDesiredIPConfigs(podInfo, req.DesiredIPAddresses)
 }
 
 // checks all desired IPs for a request to make sure they are all valid
-func validateDesiredIPAddresses(desiredIPs []string) (bool, error) {
-	notEmpty := false
-	for i := range desiredIPs {
-		if desiredIPs[i] == "" {
-			if notEmpty {
-				//nolint:goerr113 // return error
-				return notEmpty, fmt.Errorf("[validateDesiredIPAddresses] invalid ip %s at index %d of desired IPs", desiredIPs[i], i)
-			}
-		} else {
-			notEmpty = true
+func validateDesiredIPAddresses(desiredIPs []string) error {
+	for _, desiredIP := range desiredIPs {
+		ip := net.ParseIP(desiredIP)
+		if ip.To4() == nil && ip.To16() == nil {
+			return fmt.Errorf("[validateDesiredIPAddresses] invalid ip %s specified as desired IP", desiredIP)
 		}
 	}
-	return notEmpty, nil
+	return nil
 }
