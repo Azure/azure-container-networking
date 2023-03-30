@@ -32,3 +32,6 @@ npm/debug/http
 *.srl
 
 go.work*
+
+# scale-test
+test/scale/generated/*
