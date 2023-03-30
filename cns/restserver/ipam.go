@@ -582,6 +582,7 @@ func (service *HTTPRestService) releaseIPConfigs(podInfo cns.PodInfo) error {
 			if ipconfig, isExist := service.PodIPConfigState[ipID]; isExist {
 				ipsToBeReleased = append(ipsToBeReleased, ipconfig)
 			} else {
+				//nolint:goerr113 // return error
 				return fmt.Errorf("[releaseIPConfigs] Failed to get ipconfig %+v and pod info is %+v. Pod to IPID exists, but IPID to IPConfig doesn't exist, CNS State potentially corrupt",
 					ipconfig.IPAddress, podInfo)
 			}
@@ -591,7 +592,7 @@ func (service *HTTPRestService) releaseIPConfigs(podInfo cns.PodInfo) error {
 	}
 
 	failedToReleaseIP := false
-	for _, ip := range ipsToBeReleased {
+	for _, ip := range ipsToBeReleased { //nolint:gocritic // ignore copy
 		logger.Printf("[releaseIPConfigs] Releasing IP %s for pod %+v", ip.IPAddress, podInfo)
 		if _, err := service.unassignIPConfig(ip, podInfo); err != nil {
 			logger.Errorf("[releaseIPConfigs] Failed to release IP %s for pod %+v error: %+v", ip.IPAddress, podInfo, err)
@@ -604,7 +605,7 @@ func (service *HTTPRestService) releaseIPConfigs(podInfo cns.PodInfo) error {
 
 	if failedToReleaseIP {
 		// reassigns all of the released IPs if we aren't able to release all of them
-		for _, ip := range ipsToBeReleased {
+		for _, ip := range ipsToBeReleased { //nolint:gocritic // ignore copy
 			if err := service.assignIPConfig(ip, podInfo); err != nil {
 				logger.Errorf("[releaseIPConfigs] failed to mark IPConfig [%+v] back to Assigned. err: %v", ip, err)
 			}
@@ -816,10 +817,10 @@ func (service *HTTPRestService) AssignAvailableIPConfigs(podInfo cns.PodInfo) ([
 		for _, ipState := range ipsToAssign { //nolint:gocritic // ignore copy
 			_, err := service.unassignIPConfig(ipState, podInfo)
 			if err != nil {
-				logger.Errorf("[AssignAvailableIPConfigs] failed to mark IPConfig [%+v] back to Available. err: %w", ipState, err)
+				logger.Errorf("[AssignAvailableIPConfigs] failed to mark IPConfig [%+v] back to Available. err: %v", ipState, err)
 			}
 		}
-		//nolint:goerr113
+		//nolint:goerr113 // return error
 		return podIPInfo, fmt.Errorf("not enough IPs available, waiting on Azure CNS to allocate more")
 	}
 
