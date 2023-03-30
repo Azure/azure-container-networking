@@ -133,13 +133,16 @@ for j in $(seq 1 $numNetworkPolicies); do
     if [[ $valNum -ge $(( numSharedLabelsPerPod - 2 )) ]]; then
         valNum=$(( $numSharedLabelsPerPod - 2 ))
     fi
-    sed -i "s/TEMP_LABEL_NAME/shared-lab-$valNum/g" generated/networkpolicies/policy-$i.yaml
+    k=`printf "%05d" $valNum`
+    sed -i "s/TEMP_LABEL_NAME/shared-lab-$k/g" generated/networkpolicies/policy-$i.yaml
 
     ingressNum=$(( $valNum + 1 ))
-    sed -i "s/TEMP_INGRESS_NAME/shared-lab-$ingressNum/g" generated/networkpolicies/policy-$i.yaml
+    k=`printf "%05d" $ingressNum`
+    sed -i "s/TEMP_INGRESS_NAME/shared-lab-$k/g" generated/networkpolicies/policy-$i.yaml
 
     egressNum=$(( $valNum + 2 ))
-    sed -i "s/TEMP_EGRESS_NAME/shared-lab-$egressNum/g" generated/networkpolicies/policy-$i.yaml
+    k=`printf "%05d" $ingressNum`
+    sed -i "s/TEMP_EGRESS_NAME/shared-lab-$k/g" generated/networkpolicies/policy-$i.yaml
 done
 
 for i in $(seq -f "%05g" 1 $numKwokNodes); do

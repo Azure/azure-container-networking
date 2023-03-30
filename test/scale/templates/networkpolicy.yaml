@@ -6,17 +6,17 @@ metadata:
 spec:
   podSelector:
     matchLabels:
-      TEMP_LABEL_NAME: "true"
+      TEMP_LABEL_NAME: val
   ingress:
   - from:
     - podSelector:
         matchLabels:
-          TEMP_INGRESS_NAME: "true"
+          TEMP_INGRESS_NAME: val
   egress:
   - to:
     - podSelector:
         matchLabels:
-          TEMP_EGRESS_NAME: "true"
+          TEMP_EGRESS_NAME: val
   policyTypes:
   - Ingress
   - Egress
