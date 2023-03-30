@@ -70,12 +70,12 @@ func (c *MockCNSClient) RequestIPs(_ context.Context, ipconfig cns.IPConfigsRequ
 	return c.requestIPs.result, c.requestIPs.err
 }
 
-func (c *MockCNSClient) ReleaseIPs(_ context.Context, ipconfig cns.IPConfigsRequest) error {
+func (c *MockCNSClient) ReleaseIPAddress(_ context.Context, ipconfig cns.IPConfigRequest) error {
 	c.require.Exactly(c.release.ipconfigArgument, ipconfig)
 	return c.release.err
 }
 
-func (c *MockCNSClient) ReleaseIPAddress(_ context.Context, ipconfig cns.IPConfigRequest) error {
+func (c *MockCNSClient) ReleaseIPs(_ context.Context, ipconfig cns.IPConfigsRequest) error {
 	c.require.Exactly(c.release.ipconfigArgument, ipconfig)
 	return c.release.err
 }
