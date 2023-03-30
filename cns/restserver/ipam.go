@@ -104,8 +104,8 @@ func (service *HTTPRestService) requestIPConfigHandler(w http.ResponseWriter, r 
 	}
 
 	var ipconfigsRequest cns.IPConfigsRequest
-	// doesn't fill in DesiredIPAddresses if empty in the original request
-	if ipconfigRequest.DesiredIPAddress != "" { 
+	// doesn't fill in DesiredIPAddresses if it is empty in the original request
+	if ipconfigRequest.DesiredIPAddress != "" {
 		ipconfigsRequest = cns.IPConfigsRequest{
 			DesiredIPAddresses: []string{
 				ipconfigRequest.DesiredIPAddress,
@@ -251,11 +251,11 @@ func (service *HTTPRestService) releaseIPConfigHandlerHelper(ipconfigsRequest cn
 		}
 	}
 
-	if err := service.releaseIPConfig(podInfo); err != nil {
+	if err := service.releaseIPConfigs(podInfo); err != nil {
 		return &cns.Response{
 			ReturnCode: types.UnexpectedError,
 			Message:    err.Error(),
-		}, fmt.Errorf("releaseIPConfigHandlerHelper releaseIPConfig failed because %v, release IP config info %s", returnMessage, ipconfigsRequest) //nolint:goerr113 // return error
+		}, fmt.Errorf("releaseIPConfigHandlerHelper releaseIPConfigs failed because %v, release IP config info %s", returnMessage, ipconfigsRequest) //nolint:goerr113 // return error
 	}
 
 	return &cns.Response{
@@ -406,6 +406,7 @@ func (service *HTTPRestService) MarkIPAsPendingRelease(totalIpsToRelease int) (m
 	return pendingReleasedIps, nil
 }
 
+// TODO: Add a change so that we should only update the current state if it is different than the new state
 func (service *HTTPRestService) updateIPConfigState(ipID string, updatedState types.IPState, podInfo cns.PodInfo) (cns.IPConfigurationStatus, error) {
 	if ipConfig, found := service.PodIPConfigState[ipID]; found {
 		logger.Printf("[updateIPConfigState] Changing IpId [%s] state to [%s], podInfo [%+v]. Current config [%+v]", ipID, updatedState, podInfo, ipConfig)
@@ -571,49 +572,48 @@ func (service *HTTPRestService) unassignIPConfig(ipconfig cns.IPConfigurationSta
 
 // Todo - CNI should also pass the IPAddress which needs to be released to validate if that is the right IP allcoated
 // in the first place.
-func (service *HTTPRestService) releaseIPConfig(podInfo cns.PodInfo) error {
+func (service *HTTPRestService) releaseIPConfigs(podInfo cns.PodInfo) error {
 	service.Lock()
 	defer service.Unlock()
-	numIPsToBeReleased := len(service.PodIPIDByPodInterfaceKey[podInfo.Key()])
-	ipsToBeReleased := make([]cns.IPConfigurationStatus, numIPsToBeReleased)
+	ipsToBeReleased := make([]cns.IPConfigurationStatus, 0)
 
 	for i, ipID := range service.PodIPIDByPodInterfaceKey[podInfo.Key()] {
 		if ipID != "" {
 			if ipconfig, isExist := service.PodIPConfigState[ipID]; isExist {
-				ipsToBeReleased[i] = ipconfig
+				ipsToBeReleased = append(ipsToBeReleased, ipconfig)
 			} else {
-				logger.Errorf("[releaseIPConfig] Failed to get ipconfig %+v and pod info is %+v. Pod to IPID exists, but IPID to IPConfig doesn't exist, CNS State potentially corrupt",
+				return fmt.Errorf("[releaseIPConfigs] Failed to get ipconfig %+v and pod info is %+v. Pod to IPID exists, but IPID to IPConfig doesn't exist, CNS State potentially corrupt",
 					ipconfig.IPAddress, podInfo)
 			}
 		} else {
-			logger.Errorf("[releaseIPConfig] releaseIPConfig could not find ipID at index %d for pod [%+v]", i, podInfo)
+			logger.Errorf("[releaseIPConfigs] releaseIPConfigs could not find ipID at index %d for pod [%+v]", i, podInfo)
 		}
 	}
 
 	failedToReleaseIP := false
-	for i := range ipsToBeReleased {
-		logger.Printf("[releaseIPConfig] Releasing IP %s for pod %+v", ipsToBeReleased[i].IPAddress, podInfo)
-		if _, err := service.unassignIPConfig(ipsToBeReleased[i], podInfo); err != nil {
-			logger.Errorf("[releaseIPConfig] Failed to release IP %s for pod %+v error: %+v", ipsToBeReleased[i].IPAddress, podInfo, err)
+	for _, ip := range ipsToBeReleased {
+		logger.Printf("[releaseIPConfigs] Releasing IP %s for pod %+v", ip.IPAddress, podInfo)
+		if _, err := service.unassignIPConfig(ip, podInfo); err != nil {
+			logger.Errorf("[releaseIPConfigs] Failed to release IP %s for pod %+v error: %+v", ip.IPAddress, podInfo, err)
 			failedToReleaseIP = true
 			break
 		}
 
-		logger.Printf("[releaseIPConfig] Released IP %s for pod %+v", ipsToBeReleased[i].IPAddress, podInfo)
+		logger.Printf("[releaseIPConfigs] Released IP %s for pod %+v", ip.IPAddress, podInfo)
 	}
 
 	if failedToReleaseIP {
 		// reassigns all of the released IPs if we aren't able to release all of them
-		for i := range ipsToBeReleased {
-			if err := service.assignIPConfig(ipsToBeReleased[i], podInfo); err != nil {
-				logger.Errorf("[releaseIPConfig] failed to mark IPConfig [%+v] back to Assigned. err: %v", ipsToBeReleased[i], err)
+		for _, ip := range ipsToBeReleased {
+			if err := service.assignIPConfig(ip, podInfo); err != nil {
+				logger.Errorf("[releaseIPConfigs] failed to mark IPConfig [%+v] back to Assigned. err: %v", ip, err)
 			}
 		}
 		//nolint:goerr113 // return error
-		return fmt.Errorf("[releaseIPConfig] Failed to release one or more IPs. Not releasing any IPs for pod %+v", podInfo)
+		return fmt.Errorf("[releaseIPConfigs] Failed to release one or more IPs. Not releasing any IPs for pod %+v", podInfo)
 	}
 
-	logger.Printf("[releaseIPConfig] Successfully released all IPs for pod %+v", podInfo)
+	logger.Printf("[releaseIPConfigs] Successfully released all IPs for pod %+v", podInfo)
 	return nil
 }
 
@@ -795,23 +795,19 @@ func (service *HTTPRestService) AssignAvailableIPConfigs(podInfo cns.PodInfo) ([
 	failedToAssignIP := false
 	numIPConfigsAssigned := 0
 	// assigns all IPs in the map to the pod
-	for id := range ipsToAssign {
-		if err := service.assignIPConfig(ipsToAssign[id], podInfo); err != nil {
+	for _, ip := range ipsToAssign { //nolint:gocritic // ignore copy
+		if err := service.assignIPConfig(ip, podInfo); err != nil {
 			logger.Errorf(err.Error())
 			failedToAssignIP = true
 			break
 		}
 
-		if err := service.populateIPConfigInfoUntransacted(ipsToAssign[id], &podIPInfo[numIPConfigsAssigned]); err != nil {
+		if err := service.populateIPConfigInfoUntransacted(ip, &podIPInfo[numIPConfigsAssigned]); err != nil {
 			logger.Errorf(err.Error())
 			failedToAssignIP = true
 			break
 		}
 		numIPConfigsAssigned++
-		// Checks if we no longer have any IPs to be added and returns if we don't
-		if numIPConfigsAssigned == numIPsNeeded {
-			return podIPInfo, nil
-		}
 	}
 
 	// if we were able to find at least one IP but not enough
@@ -820,12 +816,15 @@ func (service *HTTPRestService) AssignAvailableIPConfigs(podInfo cns.PodInfo) ([
 		for _, ipState := range ipsToAssign { //nolint:gocritic // ignore copy
 			_, err := service.unassignIPConfig(ipState, podInfo)
 			if err != nil {
-				return podIPInfo, fmt.Errorf("[AssignAvailableIPConfigs] failed to mark IPConfig [%+v] back to Available. err: %w", ipState, err)
+				logger.Errorf("[AssignAvailableIPConfigs] failed to mark IPConfig [%+v] back to Available. err: %w", ipState, err)
 			}
 		}
+		//nolint:goerr113
+		return podIPInfo, fmt.Errorf("not enough IPs available, waiting on Azure CNS to allocate more")
 	}
-	//nolint:goerr113
-	return podIPInfo, fmt.Errorf("not enough IPs available, waiting on Azure CNS to allocate more")
+
+	logger.Printf("[AssignDesiredIPConfigs] Successfully assigned IPs for pod %+v", podInfo)
+	return podIPInfo, nil
 }
 
 // If IPConfigs are already assigned to the pod, it returns that else it returns the available ipconfigs.
@@ -845,11 +844,11 @@ func requestIPConfigsHelper(service *HTTPRestService, req cns.IPConfigsRequest) 
 	if len(req.DesiredIPAddresses) == 0 {
 		return service.AssignAvailableIPConfigs(podInfo)
 	}
-	
+
 	if err := validateDesiredIPAddresses(req.DesiredIPAddresses); err != nil {
 		return []cns.PodIpInfo{}, err
 	}
-	
+
 	return service.AssignDesiredIPConfigs(podInfo, req.DesiredIPAddresses)
 }
 
@@ -858,6 +857,7 @@ func validateDesiredIPAddresses(desiredIPs []string) error {
 	for _, desiredIP := range desiredIPs {
 		ip := net.ParseIP(desiredIP)
 		if ip.To4() == nil && ip.To16() == nil {
+			//nolint:goerr113 // return error
 			return fmt.Errorf("[validateDesiredIPAddresses] invalid ip %s specified as desired IP", desiredIP)
 		}
 	}

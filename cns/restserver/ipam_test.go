@@ -824,7 +824,7 @@ func IPAMRequestThenReleaseThenRequestAgain(t *testing.T, ncStates []ncState) {
 	}
 
 	// Release Test Pod 1
-	err = svc.releaseIPConfig(testPod1Info)
+	err = svc.releaseIPConfigs(testPod1Info)
 	if err != nil {
 		t.Fatalf("Unexpected failure releasing IP: %+v", err)
 	}
@@ -912,13 +912,13 @@ func IPAMReleaseIPIdempotency(t *testing.T, ncStates []ncState) {
 	}
 
 	// Release Test Pod 1
-	err := svc.releaseIPConfig(testPod1Info)
+	err := svc.releaseIPConfigs(testPod1Info)
 	if err != nil {
 		t.Fatalf("Unexpected failure releasing IP: %+v", err)
 	}
 
 	// Call release again, should be fine
-	err = svc.releaseIPConfig(testPod1Info)
+	err = svc.releaseIPConfigs(testPod1Info)
 	if err != nil {
 		t.Fatalf("Unexpected failure releasing IP: %+v", err)
 	}
@@ -1159,7 +1159,7 @@ func IPAMMarkIPCountAsPending(t *testing.T, ncStates []ncState) {
 	}
 
 	// Call release again, should be fine
-	err = svc.releaseIPConfig(testPod1Info)
+	err = svc.releaseIPConfigs(testPod1Info)
 	if err != nil {
 		t.Fatalf("Unexpected failure releasing IP: %+v", err)
 	}
@@ -1232,7 +1232,7 @@ func TestIPAMMarkIPAsPendingWithPendingProgrammingIPs(t *testing.T) {
 	}
 
 	// Call release again, should be fine
-	err = svc.releaseIPConfig(testPod1Info)
+	err = svc.releaseIPConfigs(testPod1Info)
 	if err != nil {
 		t.Fatalf("Unexpected failure releasing IP: %+v", err)
 	}
@@ -1379,7 +1379,7 @@ func TestIPAMReleaseOneIPWhenExpectedToHaveTwo(t *testing.T) {
 		t.Fatalf("Expected to not fail adding empty NC to state: %+v", err)
 	}
 
-	err = svc.releaseIPConfig(testPod1Info)
+	err = svc.releaseIPConfigs(testPod1Info)
 	if err != nil {
 		t.Fatalf("Expected success releasing IP")
 	}
