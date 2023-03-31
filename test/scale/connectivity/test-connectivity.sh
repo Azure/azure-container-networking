@@ -4,12 +4,13 @@ set -e
 ## CONSTANTS
 # agnhost timeout in seconds
 TIMEOUT=5
+CONNECTIVITY_SLEEP=60
 # seconds to wait between failed connectivity checks after adding allow-pinger NetworkPolicy
 NETPOL_SLEEP=5
 
 printHelp() {
     cat <<EOF
-./test-connectivity.sh --num-scale-pods-to-verify=<int> --max-wait-after-adding-netpol=<int> [--kubeconfig=<path>]
+./test-connectivity.sh --num-scale-pods-to-verify=<int> --max-wait-for-initial-connectivity=<int> --max-wait-after-adding-netpol=<int> [--kubeconfig=<path>]
 
 Verifies that scale test Pods can connect to each other, but cannot connect to a new "pinger" Pod.
 Then, adds a NetworkPolicy to allow traffic between the scale test Pods and the "pinger" Pod, and verifies connectivity.
@@ -28,8 +29,9 @@ EXIT CODES:
 other - script exited from an unhandled error
 
 REQUIRED PARAMETERS:
-    --num-scale-pods-to-verify=<int>        number of scale Pods to test. Will verify that each scale Pod can connect to each other [(N-1)^2 connections] and that each Scale Pod cannot connect to a "pinger" Pod [2N connection attempts with a 3-second timeout]
-    --max-wait-after-adding-netpol=<int>    maximum time in seconds to wait for allowed connections after adding the allow-pinger NetworkPolicy
+    --num-scale-pods-to-verify=<int>             number of scale Pods to test. Will verify that each scale Pod can connect to each other [(N-1)^2 connections] and that each Scale Pod cannot connect to a "pinger" Pod [2N connection attempts with a 3-second timeout]
+    --max-wait-for-initial-connectivity=<int>    maximum time in seconds to wait for initial connectivity after Pinger Pods are running
+    --max-wait-after-adding-netpol=<int>         maximum time in seconds to wait for allowed connections after adding the allow-pinger NetworkPolicy
 
 OPTIONAL PARAMETERS:
     --kubeconfig=<path>                 path to kubeconfig file
@@ -45,6 +47,9 @@ while [[ $# -gt 0 ]]; do
             ;;
         --num-scale-pods-to-verify=*)
             numScalePodsToVerify="${1#*=}"
+            ;;
+        --max-wait-for-initial-connectivity=*)
+            maxWaitForInitialConnectivity="${1#*=}"
             ;;
         --max-wait-after-adding-netpol=*)
             maxWaitAfterAddingNetpol="${1#*=}"
@@ -80,6 +85,7 @@ maxWaitAfterAddingNetpol: $maxWaitAfterAddingNetpol
 
 TIMEOUT: $TIMEOUT
 NETPOL_SLEEP: $NETPOL_SLEEP
+
 EOF
 
 ## HELPER FUNCTIONS
@@ -177,101 +183,131 @@ if [[ -z $pinger1 || -z $pinger1IP || -z $pinger2 || -z $pinger2IP ]]; then
 fi
 
 ## VERIFY CONNECTIVITY
-echo "verifying connectivity at $(date)..."
-connectFromPinger $pinger1 $pinger2IP || {
-    echo "ERROR: expected pinger1 to be able to connect to pinger2. Pods may need more time to bootup"
-    exit 8
-}
+verifyInitialConnectivity() {
+    connectFromPinger $pinger1 $pinger2IP || {
+        echo "ERROR: expected pinger1 to be able to connect to pinger2. Pods may need more time to bootup"
+        return 8
+    }
 
-connectFromPinger $pinger2 $pinger2 || {
-    echo "ERROR: expected pinger2 to be able to connect to pinger1. Pods may need more time to bootup"
-    exit 8
-}
+    connectFromPinger $pinger2 $pinger2 || {
+        echo "ERROR: expected pinger2 to be able to connect to pinger1. Pods may need more time to bootup"
+        return 8
+    }
 
-for i in $(seq 0 $(( ${#scalePods[@]} - 1 ))); do
-    scalePod=${scalePods[$i]}
-    for j in $(seq 0 $(( ${#scalePods[@]} - 1 ))); do
-        if [[ $i == $j ]]; then
-            continue
-        fi
+    for i in $(seq 0 $(( ${#scalePods[@]} - 1 ))); do
+        scalePod=${scalePods[$i]}
+        for j in $(seq 0 $(( ${#scalePods[@]} - 1 ))); do
+            if [[ $i == $j ]]; then
+                continue
+            fi
 
-        dstPod=${scalePods[$j]}
-        dstIP=${scalePodIPs[$j]}
-        connectFromScalePod $scalePod $dstIP || {
-            echo "ERROR: expected scale Pod $scalePod to be able to connect to scale Pod $dstPod"
-            exit 8
+            dstPod=${scalePods[$j]}
+            dstIP=${scalePodIPs[$j]}
+            connectFromScalePod $scalePod $dstIP || {
+                echo "ERROR: expected scale Pod $scalePod to be able to connect to scale Pod $dstPod"
+                return 8
+            }
+        done
+    done
+
+    for i in $(seq 0 $(( ${#scalePods[@]} - 1 ))); do
+        scalePod=${scalePods[$i]}
+        scalePodIP=${scalePodIPs[$i]}
+
+        connectFromScalePod $scalePod $pinger1IP && {
+            echo "ERROR: expected scale Pod $scalePod to NOT be able to connect to pinger1"
+            return 8
+        }
+
+        connectFromPinger $pinger1 $scalePodIP && {
+            echo "ERROR: expected pinger1 to NOT be able to connect to scale Pod $scalePod"
+            return 8
         }
     done
+}
+
+echo "verifying initial connectivity at $(date)..."
+connectivityStartDate=`date +%s`
+maxWaitDate=$(( $connectivityStartDate + $maxWaitForInitialConnectivity ))
+prevTryDate=$connectivityStartDate
+while : ; do
+    verifyInitialConnectivity && break
+
+    echo "WARNING: initial connectivity test failed. Retrying in $CONNECTIVITY_SLEEP seconds..."
+    sleep $CONNECTIVITY_SLEEP
+
+    # if reached max wait time, try once more. If that try fails, then quit
+    currDate=`date +%s`
+    if [[ $currDate -gt $maxWaitDate ]]; then
+        if [[ $prevTryDate -gt $maxWaitDate ]]; then
+            echo "ERROR: initial connectivity test timed out. Last try was at least $(( $prevTryDate - $connectivityStartDate )) seconds after pinger Pods began running"
+            exit 8
+        fi
+
+        echo "WARNING: reached max wait time of $maxWaitForInitialConnectivity seconds after pinger Pods began running. Will try one more time"
+    fi
+
+    prevTryDate=$currDate
 done
 
-for i in $(seq 0 $(( ${#scalePods[@]} - 1 ))); do
-    scalePod=${scalePods[$i]}
-    scalePodIP=${scalePodIPs[$i]}
-
-    connectFromScalePod $scalePod $pinger1IP && {
-        echo "ERROR: expected scale Pod $scalePod to NOT be able to connect to pinger1"
-        exit 8
-    }
-
-    connectFromPinger $pinger1 $scalePodIP && {
-        echo "ERROR: expected pinger1 to NOT be able to connect to scale Pod $scalePod"
-        exit 8
-    }
-done
-
-echo "SUCCESS: all connectivity tests passed"
+low=$connectivityStartDate
+if [[ $prevTryDate -gt $connectivityStartDate ]]; then
+    low=$(( $prevTryDate - $CONNECTIVITY_SLEEP ))
+fi
+high=$(( `date +%s` - $connectivityStartDate ))
+echo "SUCCESS: all initial connectivity tests passed. Took between $low and $high seconds to succeed"
 
 ## ADD NETWORK POLICY AND VERIFY CONNECTIVITY
-set -x
-echo "adding new NetworkPolicy to allow pingers at $(date)..."
+echo "adding allow-pinger NetworkPolicy at $(date)..."
 kubectl $KUBECONFIG_ARG apply -f allow-pinger.yaml
 
-netpolStart=`date +%s`
-lastTry=false
-while : ; do
-    success=true
-    for i in $(seq 0 $(( ${#scalePods[@]} - 1 ))); do
+verifyNetPol() {
+        for i in $(seq 0 $(( ${#scalePods[@]} - 1 ))); do
         scalePod=${scalePods[$i]}
         scalePodIP=${scalePodIPs[$i]}
 
         connectFromScalePod $scalePod $pinger1IP || {
             echo "WARNING: expected scale Pod $scalePod to be able to connect to pinger1 after adding NetworkPolicy"
-            success=false
-            break
+            return 9
         }
 
         connectFromPinger $pinger1 $scalePodIP || {
             echo "WARNING: expected pinger1 to be able to connect to scale Pod $scalePod after adding NetworkPolicy"
-            success=false
-            break
+            return 9
         }
     done
+}
 
-    if [[ $success == true ]]; then
-        break
-    else
-        echo "will retry in ${NETPOL_SLEEP} seconds..."
-        sleep $NETPOL_SLEEP
-    fi
+echo "verifying allow-pinger NetworkPolicy at $(date)..."
+netpolStartDate=`date +%s`
+maxWaitDate=$(( $netpolStartDate + $maxWaitAfterAddingNetpol ))
+prevTryDate=$netpolStartDate
+while : ; do
+    verifyNetPol && break
+
+    echo "WARNING: verifying allow-pinger NetworkPolicy failed. Retrying in $NETPOL_SLEEP seconds..."
+    sleep $NETPOL_SLEEP
 
     # if reached max wait time, try once more. If that try fails, then quit
-    if [[ `date +%s` -gt $(( $netpolStart + $maxWaitAfterAddingNetpol )) ]]; then
-        if [[ $lastTry == true ]]; then
-            break
+    currDate=`date +%s`
+    if [[ $currDate -gt $maxWaitDate ]]; then
+        if [[ $prevTryDate -gt $maxWaitDate ]]; then
+            echo "ERROR: allow-pinger NetworkPolicy has not taken effact. Last try was at least $(( $prevTryDate - $netpolStartDate )) seconds after creating allow-pinger NetworkPolicy"
+            exit 9
         fi
 
         echo "WARNING: reached max wait time of $maxWaitAfterAddingNetpol seconds after adding allow-pinger NetworkPolicy. Will try one more time"
-        lastTry=true
     fi
+
+    prevTryDate=$currDate
 done
 
-if [[ $success == false ]]; then
-    echo "ERROR: timed out after waiting $maxWaitAfterAddingNetpol seconds for allow-pinger NetworkPolicy to take effect"
-    exit 9
+low=$netpolStartDate
+if [[ $prevTryDate -gt $netpolStartDate ]]; then
+    low=$(( $prevTryDate - $NETPOL_SLEEP ))
 fi
-
-timeDiff=$(( `date +%s` - $netpolStart ))
-echo "SUCCESS: all connectivity tests passed after adding allow-pinger NetworkPolicy. Took between $(( $timeDiff - $NETPOL_SLEEP )) to $(( $timeDiff + $TIMEOUT )) seconds to take effect"
+high=$(( `date +%s` - $netpolStartDate ))
+echo "SUCCESS: all connectivity tests passed after adding allow-pinger NetworkPolicy. Took between $low and $high seconds to take effect"
 
 echo
 echo "FINISHED at $(date -u). Had started at $startDate."
