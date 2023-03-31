@@ -9,14 +9,20 @@ spec:
       shared-lab-00001: val
   ingress:
   - from:
-    - namespaceSelector:
+    - podSelector:
         matchLabels:
           app: pinger
+      namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: connectivity-test
   egress:
   - to:
     - podSelector:
         matchLabels:
           app: pinger
+      namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: connectivity-test
   policyTypes:
   - Ingress
   - Egress

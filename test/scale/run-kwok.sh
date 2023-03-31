@@ -1,6 +1,6 @@
-#####################################################################################
-# This script is used to schedule kwok nodes/pods and maintain kwok node heartbeats.
-#####################################################################################
+######################################################################################
+# This script is used to schedule kwok nodes/pods and maintain kwok node heartbeats. #
+######################################################################################
 
 INSTALL_KWOK=false
 # KWOK_LATEST_RELEASE=$(curl "https://api.github.com/repos/${KWOK_REPO}/releases/latest" | jq -r '.tag_name')

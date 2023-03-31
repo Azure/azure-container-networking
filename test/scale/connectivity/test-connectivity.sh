@@ -20,14 +20,6 @@ USAGE:
 2. Label a node to schedule "pinger" Pods: kubectl label node <name> connectivity-test=true
 3. Run this script
 
-EXIT CODES:
-0 - success
-6 - non-retriable error
-7 - potentially retriable error
-8 - retriable connectivity error
-9 - connectivity failed after adding allow-pinger NetworkPolicy
-other - script exited from an unhandled error
-
 REQUIRED PARAMETERS:
     --num-scale-pods-to-verify=<int>             number of scale Pods to test. Will verify that each scale Pod can connect to each other [(N-1)^2 connections] and that each Scale Pod cannot connect to a "pinger" Pod [2N connection attempts with a 3-second timeout]
     --max-wait-for-initial-connectivity=<int>    maximum time in seconds to wait for initial connectivity after Pinger Pods are running
@@ -35,6 +27,15 @@ REQUIRED PARAMETERS:
 
 OPTIONAL PARAMETERS:
     --kubeconfig=<path>                 path to kubeconfig file
+
+EXIT CODES:
+0 - success
+6 - non-retriable error
+7 - potentially retriable error while getting Pods/IPs
+8 - failed on initial connectivity test
+9 - failed after adding allow-pinger NetworkPolicy
+other - script exited from an unhandled error
+
 EOF
 }
 
@@ -152,7 +153,7 @@ if [[ $numScalePodsFound == 0 ]]; then
     echo "ERROR: expected namespace scale-test to exist with real (non-kwok) Pods. Run test/scale/test-scale.sh with real Pods first."
     exit 7
 elif [[ $numScalePodsFound -lt $numScalePodsToVerify ]]; then
-    echo "WARNING: there are only $numScalePodsFound real scale Pods running which is less than numScalePodsToVerify. Will verify just these $numScalePodsFound Pods"
+    echo "WARNING: there are only $numScalePodsFound real scale Pods running which is less than numScalePodsToVerify=$numScalePodsToVerify. Will verify just these $numScalePodsFound Pods"
     numScalePodsToVerify=$numScalePodsFound
 else
     echo "will verify connectivity to $numScalePodsToVerify scale Pods"
@@ -224,6 +225,8 @@ verifyInitialConnectivity() {
             return 8
         }
     done
+
+    return 0
 }
 
 echo "verifying initial connectivity at $(date)..."
@@ -250,9 +253,9 @@ while : ; do
     prevTryDate=$currDate
 done
 
-low=$connectivityStartDate
+low=0
 if [[ $prevTryDate -gt $connectivityStartDate ]]; then
-    low=$(( $prevTryDate - $CONNECTIVITY_SLEEP ))
+    low=$(( `date +%s` - $prevTryDate - $CONNECTIVITY_SLEEP ))
 fi
 high=$(( `date +%s` - $connectivityStartDate ))
 echo "SUCCESS: all initial connectivity tests passed. Took between $low and $high seconds to succeed"
@@ -276,6 +279,8 @@ verifyNetPol() {
             return 9
         }
     done
+
+    return 0
 }
 
 echo "verifying allow-pinger NetworkPolicy at $(date)..."
@@ -302,9 +307,9 @@ while : ; do
     prevTryDate=$currDate
 done
 
-low=$netpolStartDate
+low=0
 if [[ $prevTryDate -gt $netpolStartDate ]]; then
-    low=$(( $prevTryDate - $NETPOL_SLEEP ))
+    low=$(( `date +%s` - $prevTryDate - $NETPOL_SLEEP ))
 fi
 high=$(( `date +%s` - $netpolStartDate ))
 echo "SUCCESS: all connectivity tests passed after adding allow-pinger NetworkPolicy. Took between $low and $high seconds to take effect"

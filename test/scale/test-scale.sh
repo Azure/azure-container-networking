@@ -241,7 +241,7 @@ echo "checking if there are enough real nodes..."
 numRealNodes=$(kubectl $KUBECONFIG_ARG get nodes -l scale-test=true | grep -v NAME | wc -l)
 if [[ $numRealNodes -lt $numRealNodesRequired ]]; then
     kubectl $KUBECONFIG_ARG get nodes
-    echo "ERROR: need $numRealNodesRequired real nodes to achieve a scale of $numRealPods real Pods. Make sure to label nodes with: kubectl label node <name> scale-test=true."
+    echo "ERROR: need $numRealNodesRequired real nodes to achieve a scale of $numRealPods real Pods. Make sure to label nodes with: kubectl label node <name> scale-test=true"
     exit 1
 fi
 
