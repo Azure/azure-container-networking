@@ -84,6 +84,7 @@ while [[ $# -gt 0 ]]; do
                 echo "ERROR: kubeconfig not found: [$file]"
                 exit 1
             }
+            echo "using kubeconfig: $file"
             ;;
         --restart-npm)
             USING_NPM=true
@@ -246,7 +247,7 @@ fi
 
 ## DELETE PRIOR STATE
 echo "cleaning up previous scale test state..."
-kubectl $KUBECONFIG_ARG delete ns scale-test --ignore-not-found
+kubectl $KUBECONFIG_ARG delete ns scale-test connectivity-test --ignore-not-found
 kubectl $KUBECONFIG_ARG delete node -l type=kwok
 
 if [[ $USING_NPM == true ]]; then
