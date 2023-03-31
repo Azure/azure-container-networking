@@ -1,8 +1,12 @@
 ## Overview
-Scripts for scale testing our components with both real resources and fake resources via [KWOK](https://github.com/kubernetes-sigs/kwok).
+Scripts for scale testing our components in AKS with fake and/or real resources.
 
-### Why KWOK?
-KWOK saves time/resources, especially in Windows.
+### Fake Resources
+Scripts can use [KWOK](https://github.com/kubernetes-sigs/kwok) to simulate running Pods. KWOK can instantly run thousands of fake VMs and Pods.
+
+This saves us from:
+1. Large resource costs.
+2. Hours waiting for VMs and Pods to bootup.
 
 ## Usage
 1. Create AKS cluster with `--uptime-sla` and create any nodepools.
