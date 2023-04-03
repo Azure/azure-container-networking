@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"io/fs"
 	"net/http"
-	"net/http/pprof"
 	"os"
 	"os/signal"
 	"runtime"
@@ -764,6 +763,10 @@ func main() {
 
 	logger.Printf("[Azure CNS] Start HTTP listener")
 	if httpRestService != nil {
+		if cnsconfig.EnablePprof {
+			httpRestService.RegisterPProfEndpoints()
+		}
+
 		err = httpRestService.Start(&config)
 		if err != nil {
 			logger.Errorf("Failed to start CNS, err:%v.\n", err)
@@ -1237,18 +1240,7 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 	mux := httpRestServiceImplementation.Listener.GetMux()
 	mux.Handle("/readyz", http.StripPrefix("/readyz", &healthz.Handler{}))
 	if cnsconfig.EnablePprof {
-		// add pprof endpoints
-		mux.Handle("/debug/pprof/allocs", pprof.Handler("allocs"))
-		mux.Handle("/debug/pprof/block", pprof.Handler("block"))
-		mux.Handle("/debug/pprof/goroutine", pprof.Handler("goroutine"))
-		mux.Handle("/debug/pprof/heap", pprof.Handler("heap"))
-		mux.Handle("/debug/pprof/mutex", pprof.Handler("mutex"))
-		mux.Handle("/debug/pprof/threadcreate", pprof.Handler("threadcreate"))
-		mux.HandleFunc("/debug/pprof/", pprof.Index)
-		mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
-		mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
-		mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
-		mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
+		httpRestServiceImplementation.RegisterPProfEndpoints()
 	}
 
 	// Start the Manager which starts the reconcile loop.
