@@ -209,7 +209,7 @@ func (nm *networkManager) addNewNetRules(nwInfo *NetworkInfo) error {
 		gateway := subnet.Gateway.String()
 
 		ip, _, er := net.ParseCIDR(prefix)
-		if er !- nil {
+		if er != nil {
 			return fmt.Errorf("[net] failed to parse prefix %s", prefix)
 		}
 		if ip.To4() != nil {
