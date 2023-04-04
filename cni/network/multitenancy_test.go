@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"net"
-	"reflect"
 	"testing"
 
 	"github.com/Azure/azure-container-networking/cni"
@@ -47,6 +46,7 @@ type getAllNetworkContainersConfigurationHandler struct {
 }
 
 type MockCNSClient struct {
+	isCNSSupportingGetAllNcConfigsAPI    bool
 	require                              *require.Assertions
 	request                              requestIPAddressHandler
 	release                              releaseIPAddressHandler
@@ -70,18 +70,13 @@ func (c *MockCNSClient) GetNetworkContainer(ctx context.Context, orchestratorCon
 }
 
 func (c *MockCNSClient) GetAllNetworkContainers(ctx context.Context, orchestratorContext []byte) ([]cns.GetNetworkContainerResponse, error) {
-	// check if getAllNetworkContainersConfiguration orchestratorContext is nil using GetAllNetworkContainers()
-	if c.getAllNetworkContainersConfiguration.orchestratorContext == nil {
-		// if orchestratorContext is same, attach CNSClientError code and error with Unsupported API and try old CNS API GetNetworkContainer() later
-		if reflect.DeepEqual(c.getNetworkContainerConfiguration.orchestratorContext, orchestratorContext) {
-			e := &client.CNSClientError{}
-			e.Code = types.UnsupportedAPI
-			e.Err = errors.New("Unsupported API")
-			return nil, e
-		} else {
-			return nil, errors.New("Failed to use GetNetworkContainer()")
-		}
+	if !c.isCNSSupportingGetAllNcConfigsAPI {
+		e := &client.CNSClientError{}
+		e.Code = types.UnsupportedAPI
+		e.Err = errors.New("Unsupported API")
+		return nil, e
 	}
+
 	c.require.Exactly(c.getAllNetworkContainersConfiguration.orchestratorContext, orchestratorContext)
 	return c.getAllNetworkContainersConfiguration.returnResponse, c.getAllNetworkContainersConfiguration.err
 }
@@ -348,7 +343,8 @@ func TestGetMultiTenancyCNIResult(t *testing.T) {
 					multitenancyClient: &Multitenancy{
 						netioshim: &mockNetIOShim{},
 						cnsclient: &MockCNSClient{
-							require: require,
+							isCNSSupportingGetAllNcConfigsAPI: true,
+							require:                           require,
 							getAllNetworkContainersConfiguration: getAllNetworkContainersConfigurationHandler{
 								orchestratorContext: marshallPodInfo(cns.KubernetesPodInfo{
 									PodName:      "testpod",
@@ -490,6 +486,7 @@ func TestGetMultiTenancyCNIResult(t *testing.T) {
 	}
 }
 
+// this will test if new CNS API is not supported and old CNS API can handle to get ncConfig with "Unsupported API" error
 func TestGetMultiTenancyCNIResultUnsupportedAPI(t *testing.T) {
 	require := require.New(t) //nolint:gocritic
 
@@ -556,7 +553,8 @@ func TestGetMultiTenancyCNIResultUnsupportedAPI(t *testing.T) {
 					multitenancyClient: &Multitenancy{
 						netioshim: &mockNetIOShim{},
 						cnsclient: &MockCNSClient{
-							require: require,
+							isCNSSupportingGetAllNcConfigsAPI: false,
+							require:                           require,
 							getNetworkContainerConfiguration: getNetworkContainerConfigurationHandler{
 								orchestratorContext: marshallPodInfo(cns.KubernetesPodInfo{
 									PodName:      "testpod",
@@ -625,7 +623,10 @@ func TestGetMultiTenancyCNIResultUnsupportedAPI(t *testing.T) {
 	}
 }
 
-func TestGetMultiTenancyCNIResultNotUnsupportedAPIError(t *testing.T) {
+// this test case includes two sub test cases:
+// 1. CNS supports new API and it does not have orchestratorContext info
+// 2. CNS does not support new API and it does not have orchestratorContext info
+func TestGetMultiTenancyCNIResultNotFound(t *testing.T) {
 	require := require.New(t) //nolint:gocritic
 
 	ncResponse := cns.GetNetworkContainerResponse{
@@ -676,7 +677,7 @@ func TestGetMultiTenancyCNIResultNotUnsupportedAPIError(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			name: "test happy path for non Unsupported API error",
+			name: "test happy path, CNS does support new API",
 			args: args{
 				enableInfraVnet: true,
 				nwCfg: &cni.NetworkConfig{
@@ -691,7 +692,8 @@ func TestGetMultiTenancyCNIResultNotUnsupportedAPIError(t *testing.T) {
 					multitenancyClient: &Multitenancy{
 						netioshim: &mockNetIOShim{},
 						cnsclient: &MockCNSClient{
-							require: require,
+							isCNSSupportingGetAllNcConfigsAPI: true,
+							require:                           require,
 							getNetworkContainerConfiguration: getNetworkContainerConfigurationHandler{
 								orchestratorContext: marshallPodInfo(cns.KubernetesPodInfo{
 									PodName:      "testpod",
