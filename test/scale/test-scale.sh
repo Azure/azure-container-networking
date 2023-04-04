@@ -3,7 +3,7 @@ set -e
 
 printHelp() {
     cat <<EOF
-./test-scale.sh --max-kwok-pods-per-node=<int> --num-kwok-deployments=<int> --num-kwok-replicas=<int> --max-real-pods-per-node=<int> --num-real-deployments=<int> --num-real-replicas=<int> --num-network-policies=<int> --num-unique-labels-per-pod=<int> --num-unique-labels-per-deployment=<int> --num-shared-labels-per-pod=<int> [--kubeconfig=<path>] [--using-npm] [--debug-exit-after-print-counts] [--debug-exit-after-generation]
+./test-scale.sh --max-kwok-pods-per-node=<int> --num-kwok-deployments=<int> --num-kwok-replicas=<int> --max-real-pods-per-node=<int> --num-real-deployments=<int> --num-real-replicas=<int> --num-network-policies=<int> --num-unique-labels-per-pod=<int> --num-unique-labels-per-deployment=<int> --num-shared-labels-per-pod=<int> [--kubeconfig=<path>] [--restart-npm] [--debug-exit-after-print-counts] [--debug-exit-after-generation]
 
 Scales the number of Pods, Pod labels, and NetworkPolicies in a cluster.
 Uses KWOK to create fake nodes and fake pods as needed.
