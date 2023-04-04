@@ -1,5 +1,5 @@
 ARG OS_VERSION
-FROM --platform=linux/amd64 mcr.microsoft.com/oss/go/microsoft/golang:1.19 AS builder
+FROM --platform=linux/amd64 mcr.microsoft.com/oss/go/microsoft/golang:1.20 AS builder
 ARG VERSION
 ARG NPM_AI_PATH
 ARG NPM_AI_ID

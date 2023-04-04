@@ -161,10 +161,10 @@ func (ic *IpamClient) ReserveIPAddress(poolID string, reservationID string) (str
 	return "", err
 }
 
-// ReleaseIPAddress release an Ip address for the reservation id.
+// ReleaseIPAddress release an IP address for the reservation id.
 func (ic *IpamClient) ReleaseIPAddress(poolID string, reservationID string) error {
 	var body bytes.Buffer
-	log.Printf("[Azure CNS] ReleaseIpAddress")
+	log.Printf("[Azure CNS] ReleaseIPAddress")
 
 	client, err := getClient(ic.connectionURL)
 	if err != nil {

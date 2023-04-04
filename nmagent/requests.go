@@ -72,8 +72,8 @@ type PutNetworkContainerRequest struct {
 	// AzID is the home AZ ID of the network container
 	AzID uint
 
-	// EnableAZR denotes whether AZR is enabled for network container or not
-	EnableAZR bool
+	// AZREnabled denotes whether AZR is enabled for network container or not
+	AZREnabled bool
 }
 
 type internalNC struct {
@@ -90,7 +90,7 @@ type internalNC struct {
 	VlanID     int      `json:"vlanId"`
 	GREKey     uint16   `json:"greKey"`
 	AzID       uint     `json:"azID"`
-	EnableAZR  bool     `json:"enableAZR"`
+	AZREnabled bool     `json:"azrEnabled"`
 }
 
 func (p *PutNetworkContainerRequest) MarshalJSON() ([]byte, error) {
@@ -103,7 +103,7 @@ func (p *PutNetworkContainerRequest) MarshalJSON() ([]byte, error) {
 		VlanID:     p.VlanID,
 		GREKey:     p.GREKey,
 		AzID:       p.AzID,
-		EnableAZR:  p.EnableAZR,
+		AZREnabled: p.AZREnabled,
 	}
 
 	body, err := json.Marshal(pBody)
@@ -134,7 +134,7 @@ func (p *PutNetworkContainerRequest) UnmarshalJSON(in []byte) error {
 	p.VlanID = req.VlanID
 	p.GREKey = req.GREKey
 	p.AzID = req.AzID
-	p.EnableAZR = req.EnableAZR
+	p.AZREnabled = req.AZREnabled
 
 	return nil
 }
@@ -278,9 +278,9 @@ var _ Request = DeleteContainerRequest{}
 // DeleteContainerRequest represents all information necessary to request that
 // NMAgent delete a particular network container
 type DeleteContainerRequest struct {
-	NCID      string `json:"-"`         // the Network Container ID
-	AzID      uint   `json:"azID"`      // home AZ of the Network Container
-	EnableAZR bool   `json:"enableAZR"` // whether AZR is enabled or not
+	NCID       string `json:"-"`          // the Network Container ID
+	AzID       uint   `json:"azID"`       // home AZ of the Network Container
+	AZREnabled bool   `json:"azrEnabled"` // whether AZR is enabled or not
 
 	// PrimaryAddress is the primary customer address of the interface in the
 	// management VNET

@@ -50,19 +50,17 @@ func newFakeSecretFetcher(certPath, contentType string) *fakeSecretFetcher {
 	return &fakeSecretFetcher{certPath: certPath, contentType: contentType}
 }
 
-func (f *fakeSecretFetcher) GetSecret(_ context.Context, _ string, _ *azsecrets.GetSecretOptions) (azsecrets.GetSecretResponse, error) {
+func (f *fakeSecretFetcher) GetSecret(_ context.Context, _, _ string, _ *azsecrets.GetSecretOptions) (azsecrets.GetSecretResponse, error) {
 	bs, err := os.ReadFile(f.certPath)
 	if err != nil {
 		return azsecrets.GetSecretResponse{}, errors.Wrap(err, "could not read file")
 	}
-
 	v := string(bs)
 	resp := azsecrets.GetSecretResponse{
-		Secret: azsecrets.Secret{
-			Properties: &azsecrets.Properties{ContentType: &f.contentType},
-			Value:      &v,
+		SecretBundle: azsecrets.SecretBundle{
+			ContentType: &f.contentType,
+			Value:       &v,
 		},
 	}
-
 	return resp, nil
 }

@@ -1,6 +1,6 @@
 module github.com/Azure/azure-container-networking/zapai
 
-go 1.19
+go 1.20
 
 require (
 	github.com/jsternberg/zap-logfmt v1.3.0
@@ -11,8 +11,8 @@ require (
 
 require (
 	code.cloudfoundry.org/clock v1.0.0 // indirect
-	github.com/gofrs/uuid v4.2.0+incompatible // indirect
-	go.uber.org/atomic v1.9.0 // indirect
+	github.com/gofrs/uuid v4.4.0+incompatible // indirect
+	go.uber.org/atomic v1.10.0 // indirect
 	go.uber.org/goleak v1.1.12 // indirect
-	go.uber.org/multierr v1.8.0 // indirect
+	go.uber.org/multierr v1.10.0 // indirect
 )
