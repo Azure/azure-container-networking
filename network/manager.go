@@ -19,13 +19,14 @@ import (
 
 const (
 	// Network store key.
-	storeKey    = "Network"
-	VlanIDKey   = "VlanID"
-	AzureCNS    = "azure-cns"
-	SNATIPKey   = "NCPrimaryIPKey"
-	RoutesKey   = "RoutesKey"
-	IPTablesKey = "IPTablesKey"
-	genericData = "com.docker.network.generic"
+	storeKey        = "Network"
+	VlanIDKey       = "VlanID"
+	AzureCNS        = "azure-cns"
+	SNATIPKey       = "NCPrimaryIPKey"
+	RoutesKey       = "RoutesKey"
+	IPTablesKey     = "IPTablesKey"
+	genericData     = "com.docker.network.generic"
+	ipv6AddressMask = 128
 )
 
 var Ipv4DefaultRouteDstPrefix = net.IPNet{
@@ -36,7 +37,7 @@ var Ipv4DefaultRouteDstPrefix = net.IPNet{
 var Ipv6DefaultRouteDstPrefix = net.IPNet{
 	IP: net.IPv6zero,
 	// This mask corresponds to a /0 subnet for IPv6
-	Mask: net.CIDRMask(0, 128),
+	Mask: net.CIDRMask(0, ipv6AddressMask),
 }
 
 type NetworkClient interface {
