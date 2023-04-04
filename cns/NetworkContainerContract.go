@@ -27,7 +27,9 @@ const (
 	AttachContainerToNetwork                 = "/network/attachcontainertonetwork"
 	DetachContainerFromNetwork               = "/network/detachcontainerfromnetwork"
 	RequestIPConfig                          = "/network/requestipconfig"
+	RequestIPConfigs                         = "/network/requestipconfigs"
 	ReleaseIPConfig                          = "/network/releaseipconfig"
+	ReleaseIPConfigs                         = "/network/releaseipconfigs"
 	PathDebugIPAddresses                     = "/debug/ipaddresses"
 	PathDebugPodContext                      = "/debug/podcontext"
 	PathDebugRestData                        = "/debug/restdata"
@@ -255,9 +257,9 @@ func UnmarshalPodInfo(b []byte) (PodInfo, error) {
 	return p, nil
 }
 
-// NewPodInfoFromIPConfigRequest builds and returns an implementation of
-// PodInfo from the provided IPConfigRequest.
-func NewPodInfoFromIPConfigRequest(req IPConfigRequest) (PodInfo, error) {
+// NewPodInfoFromIPConfigsRequest builds and returns an implementation of
+// PodInfo from the provided IPConfigsRequest.
+func NewPodInfoFromIPConfigsRequest(req IPConfigsRequest) (PodInfo, error) {
 	p, err := UnmarshalPodInfo(req.OrchestratorContext)
 	if err != nil {
 		return nil, err
@@ -411,15 +413,25 @@ type IPConfigRequest struct {
 	Ifname              string // Used by delegated IPAM
 }
 
-func (i IPConfigRequest) String() string {
-	return fmt.Sprintf("[IPConfigRequest: DesiredIPAddress %s, PodInterfaceID %s, InfraContainerID %s, OrchestratorContext %s]",
-		i.DesiredIPAddress, i.PodInterfaceID, i.InfraContainerID, string(i.OrchestratorContext))
+// Same as IPConfigRequest except that DesiredIPAddresses is passed in as a slice
+type IPConfigsRequest struct {
+	DesiredIPAddresses  []string        `json:"desiredIPAddresses"`
+	PodInterfaceID      string          `json:"podInterfaceID"`
+	InfraContainerID    string          `json:"infraContainerID"`
+	OrchestratorContext json.RawMessage `json:"orchestratorContext"`
+	Ifname              string          `json:"ifname"` // Used by delegated IPAM
 }
 
 // IPConfigResponse is used in CNS IPAM mode as a response to CNI ADD
 type IPConfigResponse struct {
 	PodIpInfo PodIpInfo
 	Response  Response
+}
+
+// IPConfigsResponse is used in CNS IPAM mode to return a slice of IP configs as a response to CNI ADD
+type IPConfigsResponse struct {
+	PodIPInfo []PodIpInfo `json:"podIPInfo"`
+	Response  Response    `json:"response"`
 }
 
 // GetIPAddressesRequest is used in CNS IPAM mode to get the states of IPConfigs
@@ -440,9 +452,9 @@ type GetIPAddressStatusResponse struct {
 	Response              Response
 }
 
-// GetPodContextResponse is used in CNS Client debug mode to get mapping of Orchestrator Context to Pod IP UUID
+// GetPodContextResponse is used in CNS Client debug mode to get mapping of Orchestrator Context to Pod IP UUIDs
 type GetPodContextResponse struct {
-	PodContext map[string]string
+	PodContext map[string][]string // Can have multiple Pod IP UUIDs in the case of dualstack
 	Response   Response
 }
 
