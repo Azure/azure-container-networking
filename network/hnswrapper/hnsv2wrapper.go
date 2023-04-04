@@ -44,12 +44,12 @@ func (Hnsv2wrapper) GetNamespaceByID(netNamespacePath string) (*hcn.HostComputeN
 	return hcn.GetNamespaceByID(netNamespacePath)
 }
 
-func (Hnsv2wrapper) AddNamespaceEndpoint(namespaceId, endpointId string) error {
-	return hcn.AddNamespaceEndpoint(namespaceId, endpointId)
+func (Hnsv2wrapper) AddNamespaceEndpoint(namespaceID, endpointID string) error {
+	return hcn.AddNamespaceEndpoint(namespaceID, endpointID)
 }
 
-func (Hnsv2wrapper) RemoveNamespaceEndpoint(namespaceId, endpointId string) error {
-	return hcn.RemoveNamespaceEndpoint(namespaceId, endpointId)
+func (Hnsv2wrapper) RemoveNamespaceEndpoint(namespaceID, endpointID string) error {
+	return hcn.RemoveNamespaceEndpoint(namespaceID, endpointID)
 }
 
 func (Hnsv2wrapper) GetNetworkByName(networkName string) (*hcn.HostComputeNetwork, error) {
@@ -60,22 +60,22 @@ func (Hnsv2wrapper) GetNetworkByID(networkId string) (*hcn.HostComputeNetwork, e
 	return hcn.GetNetworkByID(networkId)
 }
 
-func (f Hnsv2wrapper) GetEndpointByID(endpointId string) (*hcn.HostComputeEndpoint, error) {
-	return hcn.GetEndpointByID(endpointId)
+func (Hnsv2wrapper) GetEndpointByID(endpointID string) (*hcn.HostComputeEndpoint, error) {
+	return hcn.GetEndpointByID(endpointID)
 }
 
-func (f Hnsv2wrapper) ListEndpointsOfNetwork(networkId string) ([]hcn.HostComputeEndpoint, error) {
+func (Hnsv2wrapper) ListEndpointsOfNetwork(networkId string) ([]hcn.HostComputeEndpoint, error) {
 	return hcn.ListEndpointsOfNetwork(networkId)
 }
 
-func (f Hnsv2wrapper) ListEndpointsQuery(query hcn.HostComputeQuery) ([]hcn.HostComputeEndpoint, error) {
+func (Hnsv2wrapper) ListEndpointsQuery(query hcn.HostComputeQuery) ([]hcn.HostComputeEndpoint, error) {
 	return hcn.ListEndpointsQuery(query) // nolint:wrapcheck // no need to wrap check for this wrapper
 }
 
-func (f Hnsv2wrapper) ApplyEndpointPolicy(endpoint *hcn.HostComputeEndpoint, requestType hcn.RequestType, endpointPolicy hcn.PolicyEndpointRequest) error {
+func (Hnsv2wrapper) ApplyEndpointPolicy(endpoint *hcn.HostComputeEndpoint, requestType hcn.RequestType, endpointPolicy hcn.PolicyEndpointRequest) error {
 	return endpoint.ApplyPolicy(requestType, endpointPolicy)
 }
 
-func (f Hnsv2wrapper) GetEndpointByName(endpointName string) (*hcn.HostComputeEndpoint, error) {
+func (Hnsv2wrapper) GetEndpointByName(endpointName string) (*hcn.HostComputeEndpoint, error) {
 	return hcn.GetEndpointByName(endpointName)
 }
