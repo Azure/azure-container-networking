@@ -45,8 +45,14 @@ type getAllNetworkContainersConfigurationHandler struct {
 	err                 error
 }
 
+type cnsAPIName string
+
+const (
+	GetAllNetworkContainers cnsAPIName = "GetAllNetworkContainers"
+)
+
 type MockCNSClient struct {
-	isCNSSupportingGetAllNcConfigsAPI    bool
+	unsupportedAPIs                      map[cnsApiName]struct{}
 	require                              *require.Assertions
 	request                              requestIPAddressHandler
 	release                              releaseIPAddressHandler
@@ -70,7 +76,7 @@ func (c *MockCNSClient) GetNetworkContainer(ctx context.Context, orchestratorCon
 }
 
 func (c *MockCNSClient) GetAllNetworkContainers(ctx context.Context, orchestratorContext []byte) ([]cns.GetNetworkContainerResponse, error) {
-	if !c.isCNSSupportingGetAllNcConfigsAPI {
+	if _, isUnsupported := c.unsupportedAPIs[GetAllNetworkContainers]; isUnsupported {
 		e := &client.CNSClientError{}
 		e.Code = types.UnsupportedAPI
 		e.Err = errors.New("Unsupported API")
