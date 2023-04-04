@@ -61,7 +61,7 @@ require (
 	github.com/containerd/cgroups v1.0.1 // indirect
 	github.com/coreos/go-iptables v0.6.0
 	github.com/davecgh/go-spew v1.1.1 // indirect
-	github.com/docker/docker v20.10.8+incompatible // indirect
+	github.com/docker/docker v20.10.24+incompatible // indirect
 	github.com/docker/go-connections v0.4.0 // indirect
 	github.com/evanphx/json-patch v4.12.0+incompatible // indirect
 	github.com/fsnotify/fsnotify v1.6.0 // indirect
