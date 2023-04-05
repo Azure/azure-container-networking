@@ -58,7 +58,7 @@ var (
 )
 
 type MockCNSClient struct {
-	unsupportedAPIs                      map[cnsAPIName]bool
+	unsupportedAPIs                      map[cnsAPIName]struct{}
 	require                              *require.Assertions
 	request                              requestIPAddressHandler
 	release                              releaseIPAddressHandler
@@ -501,7 +501,7 @@ func TestGetMultiTenancyCNIResult(t *testing.T) {
 	}
 }
 
-// this will test if new CNS API is not supported and old CNS API can handle to get ncConfig with "Unsupported API" error
+// TestGetMultiTenancyCNIResultUnsupportedAPI tests if new CNS API is not supported and old CNS API can handle to get ncConfig with "Unsupported API" error
 func TestGetMultiTenancyCNIResultUnsupportedAPI(t *testing.T) {
 	require := require.New(t) //nolint:gocritic
 
@@ -537,8 +537,8 @@ func TestGetMultiTenancyCNIResultUnsupportedAPI(t *testing.T) {
 	}
 
 	// set new CNS API is not supported
-	unsupportedAPIs := make(map[cnsAPIName]bool)
-	unsupportedAPIs["GetAllNetworkContainers"] = true
+	unsupportedAPIs := make(map[cnsAPIName]struct{})
+	unsupportedAPIs["GetAllNetworkContainers"] = struct{}{}
 
 	type args struct {
 		ctx             context.Context
@@ -630,6 +630,7 @@ func TestGetMultiTenancyCNIResultUnsupportedAPI(t *testing.T) {
 				tt.args.k8sNamespace,
 				tt.args.ifName)
 			if (err != nil) != tt.wantErr {
+				// expect an error that GetAllNetworkContainers() fails to get all network containers
 				t.Errorf("GetAllNetworkContainers() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
@@ -642,7 +643,7 @@ func TestGetMultiTenancyCNIResultUnsupportedAPI(t *testing.T) {
 	}
 }
 
-// this test case includes two sub test cases:
+// TestGetMultiTenancyCNIResultNotFound test includes two sub test cases:
 // 1. CNS supports new API and it does not have orchestratorContext info
 // 2. CNS does not support new API and it does not have orchestratorContext info
 func TestGetMultiTenancyCNIResultNotFound(t *testing.T) {
@@ -680,8 +681,8 @@ func TestGetMultiTenancyCNIResultNotFound(t *testing.T) {
 	}
 
 	// set new CNS API is not supported
-	unsupportedAPIs := make(map[cnsAPIName]bool)
-	unsupportedAPIs["GetAllNetworkContainers"] = true
+	unsupportedAPIs := make(map[cnsAPIName]struct{})
+	unsupportedAPIs["GetAllNetworkContainers"] = struct{}{}
 
 	type args struct {
 		ctx             context.Context
