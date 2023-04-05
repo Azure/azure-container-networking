@@ -147,7 +147,7 @@ func (invoker *AzureIPAMInvoker) Delete(addresses []*net.IPNet, nwCfg *cni.Netwo
 	}
 
 	for _, address := range addresses {
-		if len(address.IP.To4()) == bytesSize4 {
+		if len(address.IP.To4()) == bytesSize4 { //nolint:gocritic
 			nwCfg.IPAM.Address = address.IP.String()
 			log.Printf("Releasing ipv4 address :%s pool: %s", nwCfg.IPAM.Address, nwCfg.IPAM.Subnet)
 			if err := invoker.plugin.DelegateDel(nwCfg.IPAM.Type, nwCfg); err != nil {

@@ -773,7 +773,7 @@ func (plugin *NetPlugin) createEndpointInternal(opt *createEndpointInternalOpt) 
 
 	if opt.resultV6 != nil {
 		// inject routes to linux pod
-		epInfo.IPV6Mode = DualStack
+		epInfo.IPV6Mode = network.DualStack
 		for _, ipconfig := range opt.resultV6.IPs {
 			epInfo.IPAddresses = append(epInfo.IPAddresses, ipconfig.Address)
 		}

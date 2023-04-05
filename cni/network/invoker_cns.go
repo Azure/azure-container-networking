@@ -90,8 +90,8 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 				InfraContainerID:    addConfig.args.ContainerID,
 			}
 
-			res, err := invoker.cnsClient.RequestIPAddress(context.TODO(), ipconfigRequest)
-			if err != nil {
+			res, errRequestIP := invoker.cnsClient.RequestIPAddress(context.TODO(), ipconfigRequest)
+			if errRequestIP != nil {
 				// if the old API fails as well then we just return the error
 				log.Errorf("Failed to request IP address from CNS using RequestIPAddress. error: %v request: %v", err, ipconfigRequest)
 				return IPAMAddResult{}, errors.Wrap(err, "Failed to get IP address from CNS with error: %w")
@@ -138,7 +138,7 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 				return IPAMAddResult{}, errors.Wrap(errInvalidArgs, "%w: Gateway address "+info.ncGatewayIPAddress+" from response is invalid")
 			}
 
-			if net.ParseIP(info.podIPAddress).To4() != nil {
+			if net.ParseIP(info.podIPAddress).To4() != nil { //nolint:gocritic
 				ncgw, err = getOverlayGateway(ncIPNet)
 				if err != nil {
 					return IPAMAddResult{}, err
@@ -264,7 +264,7 @@ func setHostOptions(ncSubnetPrefix *net.IPNet, options map[string]interface{}, i
 }
 
 // Delete calls into the releaseipconfiguration API in CNS
-func (invoker *CNSIPAMInvoker) Delete(addresses []*net.IPNet, nwCfg *cni.NetworkConfig, args *cniSkel.CmdArgs, _ map[string]interface{}) error {
+func (invoker *CNSIPAMInvoker) Delete(addresses []*net.IPNet, nwCfg *cni.NetworkConfig, args *cniSkel.CmdArgs, _ map[string]interface{}) error { //nolint:gocritic // nwCfg will be used for future
 	// Parse Pod arguments.
 	podInfo := cns.KubernetesPodInfo{
 		PodName:      invoker.podName,

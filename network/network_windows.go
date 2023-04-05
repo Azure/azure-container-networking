@@ -410,7 +410,7 @@ func (nm *networkManager) newNetworkImplHnsV2(nwInfo *NetworkInfo, extIf *extern
 	}
 
 	if util.DualStackOverlay == DualStack {
-		if err = nm.addNewNetRules(nwInfo); err != nil {
+		if err := nm.addNewNetRules(nwInfo); err != nil {
 			return nil, err
 		}
 	}
