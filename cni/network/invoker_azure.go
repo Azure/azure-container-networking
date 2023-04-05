@@ -131,7 +131,7 @@ func (invoker *AzureIPAMInvoker) deleteIpamState() {
 	}
 }
 
-func (invoker *AzureIPAMInvoker) Delete(addresses []*net.IPNet, nwCfg *cni.NetworkConfig, _ *cniSkel.CmdArgs, options map[string]interface{}) error {
+func (invoker *AzureIPAMInvoker) Delete(addresses []*net.IPNet, nwCfg *cni.NetworkConfig, _ *cniSkel.CmdArgs, options map[string]interface{}) error { //nolint
 	if nwCfg == nil {
 		return invoker.plugin.Errorf("nil nwCfg passed to CNI ADD, stack: %+v", string(debug.Stack()))
 	}

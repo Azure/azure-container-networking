@@ -264,7 +264,7 @@ func setHostOptions(ncSubnetPrefix *net.IPNet, options map[string]interface{}, i
 }
 
 // Delete calls into the releaseipconfiguration API in CNS
-func (invoker *CNSIPAMInvoker) Delete(addresses []*net.IPNet, nwCfg *cni.NetworkConfig, args *cniSkel.CmdArgs, _ map[string]interface{}) error { //nolint:gocritic // nwCfg will be used for future
+func (invoker *CNSIPAMInvoker) Delete(addresses []*net.IPNet, nwCfg *cni.NetworkConfig, args *cniSkel.CmdArgs, _ map[string]interface{}) error { //nolint
 	// Parse Pod arguments.
 	podInfo := cns.KubernetesPodInfo{
 		PodName:      invoker.podName,

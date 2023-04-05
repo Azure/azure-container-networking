@@ -79,7 +79,7 @@ func (invoker *MockIpamInvoker) Add(opt IPAMAddConfig) (ipamAddResult IPAMAddRes
 	return ipamAddResult, nil
 }
 
-func (invoker *MockIpamInvoker) Delete(addresses []*net.IPNet, nwCfg *cni.NetworkConfig, _ *skel.CmdArgs, options map[string]interface{}) error {
+func (invoker *MockIpamInvoker) Delete(addresses []*net.IPNet, nwCfg *cni.NetworkConfig, _ *skel.CmdArgs, options map[string]interface{}) error { //nolint
 	if invoker.v4Fail || invoker.v6Fail {
 		return errDeleteIpam
 	}
