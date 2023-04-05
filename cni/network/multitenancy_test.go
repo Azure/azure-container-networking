@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net"
+	"reflect"
 	"testing"
 
 	"github.com/Azure/azure-container-networking/cni"
@@ -52,7 +53,7 @@ const (
 )
 
 type MockCNSClient struct {
-	unsupportedAPIs                      map[cnsApiName]struct{}
+	unsupportedAPIs                      map[cnsAPIName]bool
 	require                              *require.Assertions
 	request                              requestIPAddressHandler
 	release                              releaseIPAddressHandler
@@ -71,7 +72,9 @@ func (c *MockCNSClient) ReleaseIPAddress(_ context.Context, ipconfig cns.IPConfi
 }
 
 func (c *MockCNSClient) GetNetworkContainer(ctx context.Context, orchestratorContext []byte) (*cns.GetNetworkContainerResponse, error) {
-	c.require.Exactly(c.getNetworkContainerConfiguration.orchestratorContext, orchestratorContext)
+	if !reflect.DeepEqual(c.getNetworkContainerConfiguration.orchestratorContext, orchestratorContext) {
+		return nil, errors.New("No CNI OrchestratorContext Found")
+	}
 	return c.getNetworkContainerConfiguration.returnResponse, c.getNetworkContainerConfiguration.err
 }
 
@@ -83,7 +86,9 @@ func (c *MockCNSClient) GetAllNetworkContainers(ctx context.Context, orchestrato
 		return nil, e
 	}
 
-	c.require.Exactly(c.getAllNetworkContainersConfiguration.orchestratorContext, orchestratorContext)
+	if !reflect.DeepEqual(c.getAllNetworkContainersConfiguration.orchestratorContext, orchestratorContext) {
+		return nil, errors.New("No CNI OrchestratorContext Found")
+	}
 	return c.getAllNetworkContainersConfiguration.returnResponse, c.getAllNetworkContainersConfiguration.err
 }
 
@@ -349,8 +354,7 @@ func TestGetMultiTenancyCNIResult(t *testing.T) {
 					multitenancyClient: &Multitenancy{
 						netioshim: &mockNetIOShim{},
 						cnsclient: &MockCNSClient{
-							isCNSSupportingGetAllNcConfigsAPI: true,
-							require:                           require,
+							require: require,
 							getAllNetworkContainersConfiguration: getAllNetworkContainersConfigurationHandler{
 								orchestratorContext: marshallPodInfo(cns.KubernetesPodInfo{
 									PodName:      "testpod",
@@ -527,6 +531,10 @@ func TestGetMultiTenancyCNIResultUnsupportedAPI(t *testing.T) {
 		},
 	}
 
+	// set new CNS API is not supported
+	unsupportedAPIs := make(map[cnsAPIName]bool)
+	unsupportedAPIs["GetAllNetworkContainers"] = true
+
 	type args struct {
 		ctx             context.Context
 		enableInfraVnet bool
@@ -559,8 +567,8 @@ func TestGetMultiTenancyCNIResultUnsupportedAPI(t *testing.T) {
 					multitenancyClient: &Multitenancy{
 						netioshim: &mockNetIOShim{},
 						cnsclient: &MockCNSClient{
-							isCNSSupportingGetAllNcConfigsAPI: false,
-							require:                           require,
+							unsupportedAPIs: unsupportedAPIs,
+							require:         require,
 							getNetworkContainerConfiguration: getNetworkContainerConfigurationHandler{
 								orchestratorContext: marshallPodInfo(cns.KubernetesPodInfo{
 									PodName:      "testpod",
@@ -666,6 +674,10 @@ func TestGetMultiTenancyCNIResultNotFound(t *testing.T) {
 		},
 	}
 
+	// set new CNS API is not supported
+	unsupportedAPIs := make(map[cnsAPIName]bool)
+	unsupportedAPIs["GetAllNetworkContainers"] = true
+
 	type args struct {
 		ctx             context.Context
 		enableInfraVnet bool
@@ -683,7 +695,7 @@ func TestGetMultiTenancyCNIResultNotFound(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			name: "test happy path, CNS does support new API",
+			name: "test happy path, CNS does not support new API without orchestratorContext found",
 			args: args{
 				enableInfraVnet: true,
 				nwCfg: &cni.NetworkConfig{
@@ -698,8 +710,8 @@ func TestGetMultiTenancyCNIResultNotFound(t *testing.T) {
 					multitenancyClient: &Multitenancy{
 						netioshim: &mockNetIOShim{},
 						cnsclient: &MockCNSClient{
-							isCNSSupportingGetAllNcConfigsAPI: true,
-							require:                           require,
+							unsupportedAPIs: unsupportedAPIs,
+							require:         require,
 							getNetworkContainerConfiguration: getNetworkContainerConfigurationHandler{
 								orchestratorContext: marshallPodInfo(cns.KubernetesPodInfo{
 									PodName:      "testpod",
@@ -710,39 +722,44 @@ func TestGetMultiTenancyCNIResultNotFound(t *testing.T) {
 						},
 					},
 				},
+				// use mismatched k8sPodName and k8sNamespace
 				k8sPodName:   "testpod1",
 				k8sNamespace: "testnamespace1",
 				ifName:       "eth0",
 			},
-			want: &cns.GetNetworkContainerResponse{
-				PrimaryInterfaceIdentifier: "10.0.0.0/16",
-				LocalIPConfiguration: cns.IPConfiguration{
-					IPSubnet: cns.IPSubnet{
-						IPAddress:    "10.0.0.5",
-						PrefixLength: 16,
-					},
-					GatewayIPAddress: "",
+			wantErr: true,
+		},
+		{
+			name: "test happy path, CNS does support new API without orchestratorContext found",
+			args: args{
+				enableInfraVnet: true,
+				nwCfg: &cni.NetworkConfig{
+					MultiTenancy:               true,
+					EnableSnatOnHost:           true,
+					EnableExactMatchForPodName: true,
+					InfraVnetAddressSpace:      "10.0.0.0/16",
+					IPAM:                       cni.IPAM{Type: "azure-vnet-ipam"},
 				},
-				CnetAddressSpace: []cns.IPSubnet{
-					{
-						IPAddress:    "10.1.0.0",
-						PrefixLength: 16,
+				plugin: &NetPlugin{
+					ipamInvoker: NewMockIpamInvoker(false, false, false),
+					multitenancyClient: &Multitenancy{
+						netioshim: &mockNetIOShim{},
+						cnsclient: &MockCNSClient{
+							require: require,
+							getNetworkContainerConfiguration: getNetworkContainerConfigurationHandler{
+								orchestratorContext: marshallPodInfo(cns.KubernetesPodInfo{
+									PodName:      "testpod",
+									PodNamespace: "testnamespace",
+								}),
+								returnResponse: &ncResponse,
+							},
+						},
 					},
 				},
-				IPConfiguration: cns.IPConfiguration{
-					IPSubnet: cns.IPSubnet{
-						IPAddress:    "10.1.0.5",
-						PrefixLength: 16,
-					},
-					DNSServers:       nil,
-					GatewayIPAddress: "10.1.0.1",
-				},
-				Routes: []cns.Route{
-					{
-						IPAddress:        "10.1.0.0/16",
-						GatewayIPAddress: "10.1.0.1",
-					},
-				},
+				// use mismatched k8sPodName and k8sNamespace
+				k8sPodName:   "testpod1",
+				k8sNamespace: "testnamespace1",
+				ifName:       "eth0",
 			},
 			wantErr: true,
 		},
@@ -759,9 +776,6 @@ func TestGetMultiTenancyCNIResultNotFound(t *testing.T) {
 			if (err != nil) != tt.wantErr {
 				t.Errorf("GetAllNetworkContainers() error = %v, wantErr %v", err, tt.wantErr)
 				return
-			}
-			if !tt.wantErr && err != errors.New("Failed to use GetNetworkContainer()") {
-				require.Error(err)
 			}
 		})
 	}
