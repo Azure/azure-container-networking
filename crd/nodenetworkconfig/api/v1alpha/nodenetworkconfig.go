@@ -84,8 +84,9 @@ const (
 type NCType string
 
 const (
-	VNET    NCType = "vnet"
-	Overlay NCType = "overlay"
+	VNET      NCType = "vnet"
+	VNETBlock NCType = "vnetblock"
+	Overlay   NCType = "overlay"
 )
 
 // NetworkContainer defines the structure of a Network Container as found in NetworkConfigStatus
