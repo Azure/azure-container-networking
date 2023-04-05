@@ -782,6 +782,9 @@ func TestGetMultiTenancyCNIResultNotFound(t *testing.T) {
 				t.Errorf("GetAllNetworkContainers() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
+			if err != errNoOrchestratorContextFound {
+				require.Error(err)
+			}
 		})
 	}
 }
