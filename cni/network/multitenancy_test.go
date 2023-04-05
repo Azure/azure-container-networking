@@ -52,6 +52,11 @@ const (
 	GetAllNetworkContainers cnsAPIName = "GetAllNetworkContainers"
 )
 
+var (
+	errUnsupportedAPI             = errors.New("Unsupported API")
+	errNoOrchestratorContextFound = errors.New("No CNI OrchestratorContext Found")
+)
+
 type MockCNSClient struct {
 	unsupportedAPIs                      map[cnsAPIName]bool
 	require                              *require.Assertions
@@ -73,7 +78,7 @@ func (c *MockCNSClient) ReleaseIPAddress(_ context.Context, ipconfig cns.IPConfi
 
 func (c *MockCNSClient) GetNetworkContainer(ctx context.Context, orchestratorContext []byte) (*cns.GetNetworkContainerResponse, error) {
 	if !reflect.DeepEqual(c.getNetworkContainerConfiguration.orchestratorContext, orchestratorContext) {
-		return nil, errors.New("No CNI OrchestratorContext Found")
+		return nil, errNoOrchestratorContextFound
 	}
 	return c.getNetworkContainerConfiguration.returnResponse, c.getNetworkContainerConfiguration.err
 }
@@ -82,12 +87,12 @@ func (c *MockCNSClient) GetAllNetworkContainers(ctx context.Context, orchestrato
 	if _, isUnsupported := c.unsupportedAPIs[GetAllNetworkContainers]; isUnsupported {
 		e := &client.CNSClientError{}
 		e.Code = types.UnsupportedAPI
-		e.Err = errors.New("Unsupported API")
+		e.Err = errUnsupportedAPI
 		return nil, e
 	}
 
 	if !reflect.DeepEqual(c.getAllNetworkContainersConfiguration.orchestratorContext, orchestratorContext) {
-		return nil, errors.New("No CNI OrchestratorContext Found")
+		return nil, errNoOrchestratorContextFound
 	}
 	return c.getAllNetworkContainersConfiguration.returnResponse, c.getAllNetworkContainersConfiguration.err
 }
