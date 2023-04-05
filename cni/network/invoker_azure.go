@@ -163,8 +163,7 @@ func (invoker *AzureIPAMInvoker) Delete(addresses []*net.IPNet, nwCfg *cni.Netwo
 				nwCfgIpv6.IPAM.Subnet = invoker.nwInfo.Subnets[1].Prefix.String()
 			}
 
-			log.Printf("Releasing ipv6 address :%s pool: %s",
-				nwCfgIpv6.IPAM.Address, nwCfgIpv6.IPAM.Subnet)
+			log.Printf("Releasing ipv6 address :%s pool: %s", nwCfgIpv6.IPAM.Address, nwCfgIpv6.IPAM.Subnet)
 			if err := invoker.plugin.DelegateDel(nwCfgIpv6.IPAM.Type, &nwCfgIpv6); err != nil {
 				log.Printf("Failed to release ipv6 address: %v", err)
 				return invoker.plugin.Errorf("Failed to release ipv6 address: %v", err)
