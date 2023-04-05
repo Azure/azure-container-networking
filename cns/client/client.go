@@ -30,7 +30,9 @@ var clientPaths = []string{
 	cns.CreateHostNCApipaEndpointPath,
 	cns.DeleteHostNCApipaEndpointPath,
 	cns.RequestIPConfig,
+	cns.RequestIPConfigs,
 	cns.ReleaseIPConfig,
+	cns.ReleaseIPConfigs,
 	cns.PathDebugIPAddresses,
 	cns.PathDebugPodContext,
 	cns.PathDebugRestData,
@@ -44,6 +46,8 @@ var clientPaths = []string{
 	cns.NetworkContainersURLPath,
 	cns.GetHomeAz,
 }
+
+var errAPINotFound error = errors.New("api not found")
 
 type do interface {
 	Do(*http.Request) (*http.Response, error)
@@ -374,6 +378,102 @@ func (c *Client) ReleaseIPAddress(ctx context.Context, ipconfig cns.IPConfigRequ
 	return nil
 }
 
+// RequestIPs calls the RequestIPConfigs in CNS
+func (c *Client) RequestIPs(ctx context.Context, ipconfig cns.IPConfigsRequest) (*cns.IPConfigsResponse, error) {
+	var err error
+	defer func() {
+		if err != nil {
+			if e := c.ReleaseIPs(ctx, ipconfig); e != nil {
+				err = errors.Wrap(e, err.Error())
+			}
+		}
+	}()
+
+	var body bytes.Buffer
+	err = json.NewEncoder(&body).Encode(ipconfig)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to encode IPConfigsRequest")
+	}
+
+	u := c.routes[cns.RequestIPConfigs]
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, u.String(), &body)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to build request")
+	}
+	req.Header.Set(headerContentType, contentTypeJSON)
+	res, err := c.client.Do(req)
+
+	// if we get a 404 error
+	if res.StatusCode == http.StatusNotFound {
+		return nil, fmt.Errorf("cannot find API RequestIPs %w: %v", errAPINotFound, err) //nolint:errorlint // multiple %w not supported in 1.19
+	}
+
+	if err != nil {
+		return nil, errors.Wrap(err, "http request failed")
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return nil, errors.Errorf("http response %d", res.StatusCode)
+	}
+
+	var response cns.IPConfigsResponse
+	err = json.NewDecoder(res.Body).Decode(&response)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to decode IPConfigsResponse")
+	}
+
+	if response.Response.ReturnCode != 0 {
+		return nil, errors.New(response.Response.Message)
+	}
+
+	return &response, nil
+}
+
+// ReleaseIPs calls releaseIPs on which releases the IPs on the pod
+func (c *Client) ReleaseIPs(ctx context.Context, ipconfig cns.IPConfigsRequest) error {
+	var body bytes.Buffer
+	err := json.NewEncoder(&body).Encode(ipconfig)
+	if err != nil {
+		return errors.Wrap(err, "failed to encode IPConfigsRequest")
+	}
+
+	u := c.routes[cns.ReleaseIPConfigs]
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, u.String(), &body)
+	if err != nil {
+		return errors.Wrap(err, "failed to build request")
+	}
+	req.Header.Set(headerContentType, contentTypeJSON)
+	res, err := c.client.Do(req)
+
+	// if we get a 404 error
+	if res.StatusCode == http.StatusNotFound {
+		return fmt.Errorf("cannot find API ReleaseIPs %w: %v", errAPINotFound, err) //nolint:errorlint // multiple %w not supported in 1.19
+	}
+
+	if err != nil {
+		return errors.Wrap(err, "http request failed")
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return errors.Errorf("http response %d", res.StatusCode)
+	}
+
+	var resp cns.Response
+
+	err = json.NewDecoder(res.Body).Decode(&resp)
+	if err != nil {
+		return errors.Wrap(err, "failed to decode Response")
+	}
+
+	if resp.ReturnCode != 0 {
+		return errors.New(resp.Message)
+	}
+
+	return nil
+}
+
 // GetIPAddressesMatchingStates takes a variadic number of string parameters, to get all IP Addresses matching a number of states
 // usage GetIPAddressesWithStates(ctx, types.Available...)
 func (c *Client) GetIPAddressesMatchingStates(ctx context.Context, stateFilter ...types.IPState) ([]cns.IPConfigurationStatus, error) {
@@ -420,7 +520,7 @@ func (c *Client) GetIPAddressesMatchingStates(ctx context.Context, stateFilter .
 }
 
 // GetPodOrchestratorContext calls GetPodIpOrchestratorContext API on CNS
-func (c *Client) GetPodOrchestratorContext(ctx context.Context) (map[string]string, error) {
+func (c *Client) GetPodOrchestratorContext(ctx context.Context) (map[string][]string, error) {
 	u := c.routes[cns.PathDebugPodContext]
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
 	if err != nil {
