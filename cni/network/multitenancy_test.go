@@ -4,8 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/google/go-cmp/cmp"
 	"net"
-	"reflect"
 	"testing"
 
 	"github.com/Azure/azure-container-networking/cni"
@@ -77,7 +77,7 @@ func (c *MockCNSClient) ReleaseIPAddress(_ context.Context, ipconfig cns.IPConfi
 }
 
 func (c *MockCNSClient) GetNetworkContainer(ctx context.Context, orchestratorContext []byte) (*cns.GetNetworkContainerResponse, error) {
-	if !reflect.DeepEqual(c.getNetworkContainerConfiguration.orchestratorContext, orchestratorContext) {
+	if !cmp.Equal(c.getNetworkContainerConfiguration.orchestratorContext, orchestratorContext) {
 		return nil, errNoOrchestratorContextFound
 	}
 	return c.getNetworkContainerConfiguration.returnResponse, c.getNetworkContainerConfiguration.err
@@ -91,7 +91,7 @@ func (c *MockCNSClient) GetAllNetworkContainers(ctx context.Context, orchestrato
 		return nil, e
 	}
 
-	if !reflect.DeepEqual(c.getAllNetworkContainersConfiguration.orchestratorContext, orchestratorContext) {
+	if !cmp.Equal(c.getAllNetworkContainersConfiguration.orchestratorContext, orchestratorContext) {
 		return nil, errNoOrchestratorContextFound
 	}
 	return c.getAllNetworkContainersConfiguration.returnResponse, c.getAllNetworkContainersConfiguration.err
@@ -629,13 +629,8 @@ func TestGetMultiTenancyCNIResultUnsupportedAPI(t *testing.T) {
 				tt.args.k8sPodName,
 				tt.args.k8sNamespace,
 				tt.args.ifName)
-			if (err != nil) != tt.wantErr {
-				// expect an error that GetAllNetworkContainers() fails to get all network containers
-				t.Errorf("GetAllNetworkContainers() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if tt.wantErr {
-				require.Error(err)
+			if err != nil && tt.wantErr {
+				t.Fatalf("expected an error %+v but none received", err)
 			}
 			require.NoError(err)
 			require.Exactly(tt.want, got[0].ncResponse)
@@ -779,13 +774,12 @@ func TestGetMultiTenancyCNIResultNotFound(t *testing.T) {
 				tt.args.k8sPodName,
 				tt.args.k8sNamespace,
 				tt.args.ifName)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("GetAllNetworkContainers() error = %v, wantErr %v", err, tt.wantErr)
-				return
+			if err != nil && !tt.wantErr {
+				t.Fatalf("expected an error %+v but none received", err)
 			}
 
-			if errors.Is(err, errNoOrchestratorContextFound) {
-				require.Error(err)
+			if !errors.Is(err, errNoOrchestratorContextFound) {
+				t.Fatalf("expected an error %s but %v received", errNoOrchestratorContextFound, err)
 			}
 		})
 	}
