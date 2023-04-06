@@ -774,7 +774,7 @@ func TestGetMultiTenancyCNIResultNotFound(t *testing.T) {
 				tt.args.k8sPodName,
 				tt.args.k8sNamespace,
 				tt.args.ifName)
-			if err != nil && !tt.wantErr {
+			if err == nil && tt.wantErr {
 				t.Fatalf("expected an error %+v but none received", err)
 			}
 
