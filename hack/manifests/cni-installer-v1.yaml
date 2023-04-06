@@ -21,13 +21,11 @@ spec:
           requiredDuringSchedulingIgnoredDuringExecution:
             nodeSelectorTerms:
             - matchExpressions:
-              - key: kubernetes.azure.com/cluster
-                operator: Exists
               - key: type
                 operator: NotIn
                 values:
                 - virtual-kubelet
-              - key: beta.kubernetes.io/os
+              - key: kubernetes.io/os
                 operator: In
                 values:
                 - linux
