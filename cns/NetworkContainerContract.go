@@ -550,7 +550,7 @@ type UnpublishNetworkContainerRequest struct {
 }
 
 func (u UnpublishNetworkContainerRequest) String() string {
-	return fmt.Sprintf("NetworkId: %s, NetworkContainerID:%s, JoinNetworkURL:%s, DeleteNetworkContainerURL:%s, DeleteNetworkContainerRequestBody:%q",
+	return fmt.Sprintf("{NetworkID:%s NetworkContainerID:%s JoinNetworkURL:%s DeleteNetworkContainerURL:%s DeleteNetworkContainerRequestBody:%q}",
 		u.NetworkID, u.NetworkContainerID, u.JoinNetworkURL, u.DeleteNetworkContainerURL, u.DeleteNetworkContainerRequestBody)
 }
 
