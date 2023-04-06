@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/Azure/azure-container-networking/cns"
+	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/types"
-	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/nmagent"
 	"github.com/patrickmn/go-cache"
 	"github.com/pkg/errors"
@@ -53,7 +53,7 @@ func (h *HomeAzMonitor) readCacheValue() cns.GetHomeAzResponse {
 	cachedResp, found := h.values.Get(homeAzCacheKey)
 	if !found {
 		return cns.GetHomeAzResponse{Response: cns.Response{
-			ReturnCode: types.UnexpectedError,
+			ReturnCode: types.NotFound,
 			Message:    "HomeAz Cache is unavailable",
 		}, HomeAzResponse: cns.HomeAzResponse{IsSupported: false}}
 	}
@@ -144,7 +144,6 @@ func (h *HomeAzMonitor) Populate(ctx context.Context) {
 
 // update constructs a GetHomeAzResponse entity and update its cache
 func (h *HomeAzMonitor) update(code types.ResponseCode, msg string, homeAzResponse cns.HomeAzResponse) {
-	log.Debugf(msg)
 	resp := cns.GetHomeAzResponse{
 		Response: cns.Response{
 			ReturnCode: code,
@@ -152,7 +151,24 @@ func (h *HomeAzMonitor) update(code types.ResponseCode, msg string, homeAzRespon
 		},
 		HomeAzResponse: homeAzResponse,
 	}
+	h.logHomeAzResponse(resp)
 	h.updateCacheValue(resp)
+}
+
+// logHomeAzResponse logs HomeAz Response
+func (h *HomeAzMonitor) logHomeAzResponse(resp cns.GetHomeAzResponse) {
+	cacheItem := h.readCacheValue()
+	switch {
+	case cacheItem.Response.ReturnCode == types.NotFound:
+		// log the initial GetHomeAzResponse
+		logger.Printf("initial home az response from nmagent %+v", resp)
+	case resp.Response.ReturnCode != types.Success:
+		// log when there is an error in GetHomeAzResponse
+		logger.Errorf("error in refreshing home az, response %+v", resp)
+	case cacheItem.HomeAzResponse.HomeAz != resp.HomeAzResponse.HomeAz:
+		// log when cache value changed
+		logger.Printf("home az cache value changed. Old cache value: %+v. New cache value: %+v", cacheItem, resp)
+	}
 }
 
 // isAPISupportedByNMAgent checks if a nmagent client api slice contains a given api
