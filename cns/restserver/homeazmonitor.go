@@ -161,13 +161,15 @@ func (h *HomeAzMonitor) logHomeAzResponse(resp cns.GetHomeAzResponse) {
 	switch {
 	case cacheItem.Response.ReturnCode == types.NotFound:
 		// log the initial GetHomeAzResponse
-		logger.Printf("initial home az response from nmagent %+v", resp)
+		logger.Printf("[HomeAzMonitor] initial home az response from nmagent %+v", resp)
 	case resp.Response.ReturnCode != types.Success:
 		// log when there is an error in GetHomeAzResponse
-		logger.Errorf("error in refreshing home az, response %+v", resp)
+		logger.Errorf("[HomeAzMonitor] error in refreshing home az, response %+v", resp)
 	case cacheItem.HomeAzResponse.HomeAz != resp.HomeAzResponse.HomeAz:
 		// log when cache value changed
-		logger.Printf("home az cache value changed. Old cache value: %+v. New cache value: %+v", cacheItem, resp)
+		logger.Printf("[HomeAzMonitor] home az cache value changed. Old cache value: %+v. New cache value: %+v", cacheItem, resp)
+	default:
+		logger.Printf("[HomeAzMonitor] home az response: %+v", resp)
 	}
 }
 
