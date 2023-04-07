@@ -206,7 +206,7 @@ func TestSetCNSConfigDefaults(t *testing.T) {
 				KeyVaultSettings: KeyVaultSettings{
 					RefreshIntervalInHrs: 12,
 				},
-				PopulateHomeAzCacheRetryIntervalSecs: 15,
+				PopulateHomeAzCacheRetryIntervalSecs: 30,
 				WireserverIP:                         "168.63.129.16",
 			},
 		},

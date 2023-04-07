@@ -48,6 +48,19 @@ func TestHomeAzMonitor(t *testing.T) {
 			false,
 		},
 		{
+			"api supported but home az value is not valid",
+			&fakes.NMAgentClientFake{
+				SupportedAPIsF: func(ctx context.Context) ([]string, error) {
+					return []string{GetHomeAzAPIName}, nil
+				},
+				GetHomeAzF: func(ctx context.Context) (nmagent.AzResponse, error) {
+					return nmagent.AzResponse{HomeAz: 0}, nil
+				},
+			},
+			cns.HomeAzResponse{IsSupported: true},
+			true,
+		},
+		{
 			"api supported but got unexpected errors",
 			&fakes.NMAgentClientFake{
 				SupportedAPIsF: func(ctx context.Context) ([]string, error) {

@@ -189,8 +189,8 @@ func SetCNSConfigDefaults(config *CNSConfig) {
 		config.SyncHostNCTimeoutMs = 500 //nolint:gomnd // default times
 	}
 	if config.PopulateHomeAzCacheRetryIntervalSecs == 0 {
-		// set the default PopulateHomeAzCache retry interval to 15 seconds
-		config.PopulateHomeAzCacheRetryIntervalSecs = 15
+		// set the default PopulateHomeAzCache retry interval to 30 seconds
+		config.PopulateHomeAzCacheRetryIntervalSecs = 30
 	}
 	if config.WireserverIP == "" {
 		config.WireserverIP = "168.63.129.16"
