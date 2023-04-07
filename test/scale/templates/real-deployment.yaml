@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: TEMP_NAME
+  namespace: scale-test
+  labels:
+    app: scale-test
+spec:
+  replicas: TEMP_REPLICAS
+  selector:
+    matchLabels:
+      app: scale-testOTHER_LABELS_6_SPACES
+  template:
+    metadata:
+      labels:
+        app: scale-testOTHER_LABELS_8_SPACES
+    spec:
+      nodeSelector:
+        scale-test: "true"
+      containers:
+      - command:
+        - /agnhost
+        - serve-hostname
+        - --tcp
+        - --http=false
+        - --port
+        - "80"
+        image: k8s.gcr.io/e2e-test-images/agnhost:2.33
+        imagePullPolicy: IfNotPresent
+        name: cont-80-tcp
+        ports:
+        - containerPort: 80
+          protocol: TCP

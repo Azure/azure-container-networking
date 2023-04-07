@@ -4,6 +4,15 @@ import "github.com/Microsoft/hcsshim/hcn"
 
 const unspecifiedPodKey = ""
 
+const (
+	hcnEndpointStateCreated = iota + 1
+	hcnEndpointStateAttached
+	hcnEndpointStateAttachedSharing
+	hcnEndpointStateDetached
+	hcnEndpointStateDegraded
+	hcnEndpointStateDestroyed
+)
+
 // npmEndpoint holds info relevant for endpoints in windows
 type npmEndpoint struct {
 	name   string
@@ -27,4 +36,8 @@ func newNPMEndpoint(endpoint *hcn.HostComputeEndpoint) *npmEndpoint {
 		netPolReference: make(map[string]struct{}),
 		ip:              endpoint.IpConfigurations[0].IpAddress,
 	}
+}
+
+type endpointQuery struct {
+	query hcn.HostComputeQuery
 }

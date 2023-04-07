@@ -23,6 +23,7 @@ type HnsV2WrapperInterface interface {
 	GetNetworkByID(networkId string) (*hcn.HostComputeNetwork, error)
 	GetEndpointByID(endpointId string) (*hcn.HostComputeEndpoint, error)
 	ListEndpointsOfNetwork(networkId string) ([]hcn.HostComputeEndpoint, error)
+	ListEndpointsQuery(query hcn.HostComputeQuery) ([]hcn.HostComputeEndpoint, error)
 	ApplyEndpointPolicy(endpoint *hcn.HostComputeEndpoint, requestType hcn.RequestType, endpointPolicy hcn.PolicyEndpointRequest) error
 	GetEndpointByName(endpointName string) (*hcn.HostComputeEndpoint, error)
 }

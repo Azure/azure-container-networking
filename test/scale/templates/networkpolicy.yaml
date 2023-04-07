@@ -1,0 +1,22 @@
+kind: NetworkPolicy
+apiVersion: networking.k8s.io/v1
+metadata:
+  name: TEMP_NAME
+  namespace: scale-test
+spec:
+  podSelector:
+    matchLabels:
+      TEMP_LABEL_NAME: val
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          TEMP_INGRESS_NAME: val
+  egress:
+  - to:
+    - podSelector:
+        matchLabels:
+          TEMP_EGRESS_NAME: val
+  policyTypes:
+  - Ingress
+  - Egress
