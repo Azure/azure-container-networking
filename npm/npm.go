@@ -14,7 +14,6 @@ import (
 	controllersv2 "github.com/Azure/azure-container-networking/npm/pkg/controlplane/controllers/v2"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane"
 	"github.com/Azure/azure-container-networking/npm/pkg/models"
-	"github.com/Azure/azure-container-networking/npm/util"
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/version"
 	"k8s.io/client-go/informers"
@@ -202,20 +201,9 @@ func (npMgr *NetworkPolicyManager) Start(config npmconfig.Config, stopCh <-chan 
 
 	// start v2 NPM controllers after synced
 	if config.Toggles.EnableV2NPM {
-		if util.IsWindowsDP() && config.ApplyInBackground {
-			go npMgr.NetPolControllerV2.Run(stopCh)
-
-			klog.Infof("optimizing NPM bootup by letting NetPol controller process changes first. waiting %v before starting pod and namespace controllers", waitDurationAfterStartingNetPolController)
-			time.Sleep(waitDurationAfterStartingNetPolController)
-
-			npMgr.Dataplane.FinishBootupPhase()
-			go npMgr.PodControllerV2.Run(stopCh)
-			go npMgr.NamespaceControllerV2.Run(stopCh)
-		} else {
-			go npMgr.PodControllerV2.Run(stopCh)
-			go npMgr.NamespaceControllerV2.Run(stopCh)
-			go npMgr.NetPolControllerV2.Run(stopCh)
-		}
+		go npMgr.PodControllerV2.Run(stopCh)
+		go npMgr.NamespaceControllerV2.Run(stopCh)
+		go npMgr.NetPolControllerV2.Run(stopCh)
 
 		return nil
 	}

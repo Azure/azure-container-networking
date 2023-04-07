@@ -164,7 +164,6 @@ func basicTests() []*SerialTestCase {
 		{
 			Description: "pod created",
 			Actions: []*Action{
-				FinishBootupPhase(),
 				CreateEndpoint(endpoint1, ip1),
 				CreatePod("x", "a", ip1, thisNode, map[string]string{"k1": "v1"}),
 				ApplyDP(),
@@ -190,7 +189,6 @@ func basicTests() []*SerialTestCase {
 		{
 			Description: "pod created, then pod deleted",
 			Actions: []*Action{
-				FinishBootupPhase(),
 				CreateEndpoint(endpoint1, ip1),
 				CreatePod("x", "a", ip1, thisNode, map[string]string{"k1": "v1"}),
 				ApplyDP(),
@@ -217,7 +215,6 @@ func basicTests() []*SerialTestCase {
 		{
 			Description: "pod created, then pod deleted, then ipsets garbage collected",
 			Actions: []*Action{
-				FinishBootupPhase(),
 				CreateEndpoint(endpoint1, ip1),
 				CreatePod("x", "a", ip1, thisNode, map[string]string{"k1": "v1"}),
 				ApplyDP(),
@@ -245,7 +242,6 @@ func basicTests() []*SerialTestCase {
 		{
 			Description: "policy created with no pods",
 			Actions: []*Action{
-				FinishBootupPhase(),
 				UpdatePolicy(policyXBaseOnK1V1()),
 			},
 			TestCaseMetadata: &TestCaseMetadata{
@@ -265,7 +261,6 @@ func basicTests() []*SerialTestCase {
 		{
 			Description: "pod created on node, then relevant policy created",
 			Actions: []*Action{
-				FinishBootupPhase(),
 				CreateEndpoint(endpoint1, ip1),
 				CreatePod("x", "a", ip1, thisNode, map[string]string{"k1": "v1"}),
 				// will apply dirty ipsets from CreatePod
@@ -316,7 +311,6 @@ func basicTests() []*SerialTestCase {
 		{
 			Description: "pod created on node, then relevant policy created, then policy deleted",
 			Actions: []*Action{
-				FinishBootupPhase(),
 				CreateEndpoint(endpoint1, ip1),
 				CreatePod("x", "a", ip1, thisNode, map[string]string{"k1": "v1"}),
 				// will apply dirty ipsets from CreatePod
@@ -345,7 +339,6 @@ func basicTests() []*SerialTestCase {
 		{
 			Description: "pod created off node (no endpoint), then relevant policy created",
 			Actions: []*Action{
-				FinishBootupPhase(),
 				CreatePod("x", "a", ip1, otherNode, map[string]string{"k1": "v1"}),
 				// will apply dirty ipsets from CreatePod
 				UpdatePolicy(policyXBaseOnK1V1()),
@@ -370,7 +363,6 @@ func basicTests() []*SerialTestCase {
 		{
 			Description: "pod created off node (remote endpoint), then relevant policy created",
 			Actions: []*Action{
-				FinishBootupPhase(),
 				CreateRemoteEndpoint(endpoint1, ip1),
 				CreatePod("x", "a", ip1, otherNode, map[string]string{"k1": "v1"}),
 				// will apply dirty ipsets from CreatePod
@@ -398,7 +390,6 @@ func basicTests() []*SerialTestCase {
 		{
 			Description: "policy created, then pod created which satisfies policy",
 			Actions: []*Action{
-				FinishBootupPhase(),
 				UpdatePolicy(policyXBaseOnK1V1()),
 				CreateEndpoint(endpoint1, ip1),
 				CreatePod("x", "a", ip1, thisNode, map[string]string{"k1": "v1"}),
@@ -449,7 +440,6 @@ func basicTests() []*SerialTestCase {
 		{
 			Description: "policy created, then pod created off node (no endpoint) which satisfies policy",
 			Actions: []*Action{
-				FinishBootupPhase(),
 				UpdatePolicy(policyXBaseOnK1V1()),
 				CreatePod("x", "a", ip1, otherNode, map[string]string{"k1": "v1"}),
 				ApplyDP(),
@@ -474,7 +464,6 @@ func basicTests() []*SerialTestCase {
 		{
 			Description: "policy created, then pod created off node (remote endpoint) which satisfies policy",
 			Actions: []*Action{
-				FinishBootupPhase(),
 				UpdatePolicy(policyXBaseOnK1V1()),
 				CreateRemoteEndpoint(endpoint1, ip1),
 				CreatePod("x", "a", ip1, otherNode, map[string]string{"k1": "v1"}),
@@ -502,7 +491,6 @@ func basicTests() []*SerialTestCase {
 		{
 			Description: "policy created, then pod created which satisfies policy, then pod relabeled and no longer satisfies policy",
 			Actions: []*Action{
-				FinishBootupPhase(),
 				UpdatePolicy(policyXBaseOnK1V1()),
 				CreateEndpoint(endpoint1, ip1),
 				CreatePod("x", "a", ip1, thisNode, map[string]string{"k1": "v1"}),
@@ -536,7 +524,6 @@ func basicTests() []*SerialTestCase {
 		{
 			Description: "Pod B replaces Pod A with same IP",
 			Actions: []*Action{
-				FinishBootupPhase(),
 				CreateEndpoint(endpoint1, ip1),
 				CreatePod("x", "a", ip1, thisNode, map[string]string{"k1": "v1"}),
 				ApplyDP(),
@@ -571,7 +558,6 @@ func basicTests() []*SerialTestCase {
 		{
 			Description: "issue 1613: remove last instance of label, then reconcile IPSets, then apply DP",
 			Actions: []*Action{
-				FinishBootupPhase(),
 				CreateEndpoint(endpoint1, ip1),
 				CreatePod("x", "a", ip1, thisNode, map[string]string{"k1": "v1"}),
 				ApplyDP(),
@@ -599,7 +585,6 @@ func basicTests() []*SerialTestCase {
 		{
 			Description: "pod created to satisfy policy, then policy deleted, then pod relabeled to no longer satisfy policy, then policy re-created and pod relabeled to satisfy policy",
 			Actions: []*Action{
-				FinishBootupPhase(),
 				CreateEndpoint(endpoint1, ip1),
 				CreatePod("x", "a", ip1, thisNode, map[string]string{"k1": "v1"}),
 				// will apply dirty ipsets from CreatePod
@@ -664,7 +649,6 @@ func capzCalicoTests() []*SerialTestCase {
 		{
 			Description: "Calico Network: base ACLs",
 			Actions: []*Action{
-				FinishBootupPhase(),
 				CreateEndpoint(endpoint1, ip1),
 				CreatePod("x", "a", ip1, thisNode, map[string]string{"k1": "v1"}),
 				ApplyDP(),
@@ -733,7 +717,6 @@ func capzCalicoTests() []*SerialTestCase {
 		{
 			Description: "Calico Network: add netpol",
 			Actions: []*Action{
-				FinishBootupPhase(),
 				CreateEndpoint(endpoint1, ip1),
 				CreatePod("x", "a", ip1, thisNode, map[string]string{"k1": "v1"}),
 				ApplyDP(),
@@ -826,7 +809,6 @@ func capzCalicoTests() []*SerialTestCase {
 		{
 			Description: "Calico Network: add then remove netpol",
 			Actions: []*Action{
-				FinishBootupPhase(),
 				CreateEndpoint(endpoint1, ip1),
 				CreatePod("x", "a", ip1, thisNode, map[string]string{"k1": "v1"}),
 				ApplyDP(),
@@ -905,7 +887,6 @@ func updatePodTests() []*SerialTestCase {
 		{
 			Description: "Sequence 1: Pod A create --> Policy create --> Pod A cleanup --> Pod B create",
 			Actions: []*Action{
-				FinishBootupPhase(),
 				CreatePod("x", "a", ip1, thisNode, map[string]string{"k1": "v1"}),
 				ApplyDP(),
 				UpdatePolicy(policyXBaseOnK1V1()),
@@ -966,7 +947,6 @@ func updatePodTests() []*SerialTestCase {
 		{
 			Description: "Sequence 1: Policy create --> Pod A create --> Pod A cleanup --> Pod B create",
 			Actions: []*Action{
-				FinishBootupPhase(),
 				UpdatePolicy(policyXBaseOnK1V1()),
 				UpdatePolicy(policyXBase2OnK2V2()),
 				CreatePod("x", "a", ip1, thisNode, map[string]string{"k1": "v1"}),
@@ -1027,7 +1007,6 @@ func updatePodTests() []*SerialTestCase {
 		{
 			Description: "Sequence 1: Policy create --> Pod A create --> Pod A cleanup --> Pod B create (skip first apply DP)",
 			Actions: []*Action{
-				FinishBootupPhase(),
 				UpdatePolicy(policyXBaseOnK1V1()),
 				UpdatePolicy(policyXBase2OnK2V2()),
 				CreatePod("x", "a", ip1, thisNode, map[string]string{"k1": "v1"}),
@@ -1087,7 +1066,6 @@ func updatePodTests() []*SerialTestCase {
 		{
 			Description: "Sequence 1: Policy create --> Pod A create --> Pod A cleanup --> Pod B create (skip first two apply DP)",
 			Actions: []*Action{
-				FinishBootupPhase(),
 				UpdatePolicy(policyXBaseOnK1V1()),
 				UpdatePolicy(policyXBase2OnK2V2()),
 				CreatePod("x", "a", ip1, thisNode, map[string]string{"k1": "v1"}),
@@ -1149,7 +1127,6 @@ func updatePodTests() []*SerialTestCase {
 		{
 			Description: "Sequence 2 with Calico network",
 			Actions: []*Action{
-				FinishBootupPhase(),
 				UpdatePolicy(policyXBaseOnK1V1()),
 				UpdatePolicy(policyXBase2OnK2V2()),
 				CreatePod("x", "a", ip1, thisNode, map[string]string{"k1": "v1"}),
@@ -1250,7 +1227,6 @@ func updatePodTests() []*SerialTestCase {
 		{
 			Description: "Sequence 2: Policy create --> Pod A Create --> Pod B create",
 			Actions: []*Action{
-				FinishBootupPhase(),
 				UpdatePolicy(policyXBaseOnK1V1()),
 				UpdatePolicy(policyXBase2OnK2V2()),
 				CreatePod("x", "a", ip1, thisNode, map[string]string{"k1": "v1"}),
@@ -1310,7 +1286,6 @@ func updatePodTests() []*SerialTestCase {
 		{
 			Description: "Sequence 2: Policy create --> Pod A Create --> Pod B create --> Pod A cleanup",
 			Actions: []*Action{
-				FinishBootupPhase(),
 				UpdatePolicy(policyXBaseOnK1V1()),
 				UpdatePolicy(policyXBase2OnK2V2()),
 				CreatePod("x", "a", ip1, thisNode, map[string]string{"k1": "v1"}),
@@ -1372,7 +1347,6 @@ func updatePodTests() []*SerialTestCase {
 			// skipping this test. See PR #1856
 			Description: "Sequence 2: Policy create --> Pod A Create --> Pod B create (skip first ApplyDP())",
 			Actions: []*Action{
-				FinishBootupPhase(),
 				UpdatePolicy(policyXBaseOnK1V1()),
 				UpdatePolicy(policyXBase2OnK2V2()),
 				CreatePod("x", "a", ip1, thisNode, map[string]string{"k1": "v1"}),
@@ -1433,7 +1407,6 @@ func updatePodTests() []*SerialTestCase {
 			// skipping this test. See PR #1856
 			Description: "Sequence 2: Policy create --> Pod A Create --> Pod B create --> Pod A cleanup (skip first two ApplyDP())",
 			Actions: []*Action{
-				FinishBootupPhase(),
 				UpdatePolicy(policyXBaseOnK1V1()),
 				UpdatePolicy(policyXBase2OnK2V2()),
 				CreatePod("x", "a", ip1, thisNode, map[string]string{"k1": "v1"}),
@@ -1496,7 +1469,6 @@ func updatePodTests() []*SerialTestCase {
 		{
 			Description: "ignore Pod update if added then deleted before ApplyDP()",
 			Actions: []*Action{
-				FinishBootupPhase(),
 				UpdatePolicy(policyXBaseOnK1V1()),
 				CreatePod("x", "a", ip1, thisNode, map[string]string{"k1": "v1"}),
 				DeletePod("x", "a", ip1, map[string]string{"k1": "v1"}),
@@ -1527,7 +1499,6 @@ func updatePodTests() []*SerialTestCase {
 			// doesn't really enforce behavior in DP, but one could look at logs to make sure we don't make a reset ACL SysCall into HNS
 			Description: "ignore Pod delete for deleted endpoint",
 			Actions: []*Action{
-				FinishBootupPhase(),
 				UpdatePolicy(policyXBaseOnK1V1()),
 				CreatePod("x", "a", ip1, thisNode, map[string]string{"k1": "v1"}),
 				ApplyDP(),
@@ -1558,7 +1529,6 @@ func updatePodTests() []*SerialTestCase {
 			// doesn't really enforce behavior in DP, but one could look at logs to make sure we don't make a reset ACL SysCall into HNS
 			Description: "ignore Pod delete for deleted endpoint (skip first ApplyDP())",
 			Actions: []*Action{
-				FinishBootupPhase(),
 				UpdatePolicy(policyXBaseOnK1V1()),
 				CreatePod("x", "a", ip1, thisNode, map[string]string{"k1": "v1"}),
 				DeleteEndpoint(endpoint1),
@@ -1588,7 +1558,6 @@ func updatePodTests() []*SerialTestCase {
 			// doesn't really enforce behavior in DP, but one could look at logs to make sure we don't make an add ACL SysCall into HNS"
 			Description: "ignore Pod update when there's no corresponding endpoint",
 			Actions: []*Action{
-				FinishBootupPhase(),
 				UpdatePolicy(policyXBaseOnK1V1()),
 				CreatePod("x", "a", ip1, thisNode, map[string]string{"k1": "v1"}),
 				DeleteEndpoint(endpoint1),
@@ -1616,7 +1585,6 @@ func updatePodTests() []*SerialTestCase {
 		{
 			Description: "two endpoints, one with policy, one without",
 			Actions: []*Action{
-				FinishBootupPhase(),
 				UpdatePolicy(policyXBase2OnK2V2()),
 				CreatePod("x", "a", ip1, thisNode, map[string]string{"k1": "v1"}),
 				CreateEndpoint(endpoint2, ip2),
@@ -1689,7 +1657,6 @@ func podAssignmentSequence3Tests() []*SerialTestCase {
 		{
 			Description: "Sequence 3: Pod B Create --> Pod A create --> Pod A Cleanup (ensure correct IPSets)",
 			Actions: []*Action{
-				FinishBootupPhase(),
 				CreatePod("x", "b", ip1, thisNode, map[string]string{"k2": "v2"}),
 				ApplyDP(),
 				CreatePod("x", "a", ip1, thisNode, map[string]string{"k1": "v1"}),
@@ -1725,7 +1692,6 @@ func podAssignmentSequence3Tests() []*SerialTestCase {
 		{
 			Description: "Sequence 3: Policy create --> Pod B Create --> Pod A create",
 			Actions: []*Action{
-				FinishBootupPhase(),
 				UpdatePolicy(policyXBaseOnK1V1()),
 				UpdatePolicy(policyXBase2OnK2V2()),
 				CreatePod("x", "b", ip1, thisNode, map[string]string{"k2": "v2"}),
@@ -1783,7 +1749,6 @@ func podAssignmentSequence3Tests() []*SerialTestCase {
 		{
 			Description: "Sequence 3: Policy create --> Pod B Create --> Pod A create (skip first ApplyDP())",
 			Actions: []*Action{
-				FinishBootupPhase(),
 				UpdatePolicy(policyXBaseOnK1V1()),
 				UpdatePolicy(policyXBase2OnK2V2()),
 				CreatePod("x", "b", ip1, thisNode, map[string]string{"k2": "v2"}),
@@ -1817,7 +1782,6 @@ func podAssignmentSequence3Tests() []*SerialTestCase {
 		{
 			Description: "Sequence 3: Policy create --> Pod B Create --> Pod A create --> Pod A Cleanup",
 			Actions: []*Action{
-				FinishBootupPhase(),
 				UpdatePolicy(policyXBaseOnK1V1()),
 				UpdatePolicy(policyXBase2OnK2V2()),
 				CreatePod("x", "b", ip1, thisNode, map[string]string{"k2": "v2"}),
@@ -1854,7 +1818,6 @@ func podAssignmentSequence3Tests() []*SerialTestCase {
 		{
 			Description: "Sequence 3: Policy create --> Pod B Create --> Pod A create --> Pod B Update (unable to add second policy to endpoint until A cleanup)",
 			Actions: []*Action{
-				FinishBootupPhase(),
 				UpdatePolicy(policyXBaseOnK1V1()),
 				UpdatePolicy(policyXBase2OnK2V2()),
 				UpdatePolicy(policyXBase3OnK3V3()),
@@ -1917,7 +1880,6 @@ func podAssignmentSequence3Tests() []*SerialTestCase {
 		{
 			Description: "Sequence 3: Policy create --> Pod B Create --> Pod A create --> Pod B Update --> Pod A cleanup (able to add second policy)",
 			Actions: []*Action{
-				FinishBootupPhase(),
 				UpdatePolicy(policyXBaseOnK1V1()),
 				UpdatePolicy(policyXBase2OnK2V2()),
 				UpdatePolicy(policyXBase3OnK3V3()),
@@ -2112,178 +2074,4 @@ func multiJobApplyInBackgroundTests() []*MultiJobTestCase {
 	}
 
 	return allTests
-}
-
-func applyInBackgroundBootupPhaseTests() []*SerialTestCase {
-	cfg := *defaultWindowsDPCfg
-	cfg.ApplyInBackground = true
-	cfg.ApplyMaxBatches = 3
-	cfg.ApplyInterval = time.Duration(50 * time.Millisecond)
-
-	policy4 := policyXBaseOnK1V1()
-	policy4.Name = "base4"
-
-	return []*SerialTestCase{
-		{
-			Description: "single policy",
-			Actions: []*Action{
-				UpdatePolicy(policyXBaseOnK1V1()),
-			},
-			TestCaseMetadata: &TestCaseMetadata{
-				Tags: []Tag{
-					netpolCrudTag,
-				},
-				DpCfg:            &cfg,
-				InitialEndpoints: nil,
-				ExpectedSetPolicies: []*hcn.SetPolicySetting{
-					// will not be an all-namespaces IPSet unless there's a Pod/Namespace event
-					dptestutils.SetPolicy(nsXSet),
-					// Policies do not create the KeyLabelOfPod type IPSet if the selector has a key-value requirement
-					dptestutils.SetPolicy(podK1V1Set),
-				},
-			},
-		},
-		{
-			Description: "three policies",
-			Actions: []*Action{
-				UpdatePolicy(policyXBaseOnK1V1()),
-				UpdatePolicy(policyXBase2OnK2V2()),
-				UpdatePolicy(policyXBase3OnK3V3()),
-			},
-			TestCaseMetadata: &TestCaseMetadata{
-				Tags: []Tag{
-					netpolCrudTag,
-				},
-				DpCfg:            &cfg,
-				InitialEndpoints: nil,
-				ExpectedSetPolicies: []*hcn.SetPolicySetting{
-					// will not be an all-namespaces IPSet unless there's a Pod/Namespace event
-					dptestutils.SetPolicy(nsXSet),
-					// Policies do not create the KeyLabelOfPod type IPSet if the selector has a key-value requirement
-					dptestutils.SetPolicy(podK1V1Set),
-					dptestutils.SetPolicy(podK2V2Set),
-					dptestutils.SetPolicy(podK3V3Set),
-				},
-			},
-		},
-		{
-			Description: "four policies",
-			Actions: []*Action{
-				UpdatePolicy(policyXBaseOnK1V1()),
-				UpdatePolicy(policyXBase2OnK2V2()),
-				UpdatePolicy(policyXBase3OnK3V3()),
-				UpdatePolicy(policy4),
-			},
-			TestCaseMetadata: &TestCaseMetadata{
-				Tags: []Tag{
-					netpolCrudTag,
-				},
-				DpCfg:            &cfg,
-				InitialEndpoints: nil,
-				ExpectedSetPolicies: []*hcn.SetPolicySetting{
-					// will not be an all-namespaces IPSet unless there's a Pod/Namespace event
-					dptestutils.SetPolicy(nsXSet),
-					// Policies do not create the KeyLabelOfPod type IPSet if the selector has a key-value requirement
-					dptestutils.SetPolicy(podK1V1Set),
-					dptestutils.SetPolicy(podK2V2Set),
-					dptestutils.SetPolicy(podK3V3Set),
-				},
-			},
-		},
-		{
-			Description: "single policy. finish bootup phase and add pod",
-			Actions: []*Action{
-				UpdatePolicy(policyXBaseOnK1V1()),
-				FinishBootupPhase(),
-				CreatePod("x", "a", ip1, thisNode, map[string]string{"k1": "v1"}),
-			},
-			TestCaseMetadata: &TestCaseMetadata{
-				Tags: []Tag{
-					netpolCrudTag,
-				},
-				DpCfg: &cfg,
-				InitialEndpoints: []*hcn.HostComputeEndpoint{
-					dptestutils.Endpoint(endpoint1, ip1),
-				},
-				ExpectedSetPolicies: []*hcn.SetPolicySetting{
-					dptestutils.SetPolicy(emptySet),
-					dptestutils.SetPolicy(allNamespaces, emptySet.GetHashedName(), nsXSet.GetHashedName()),
-					dptestutils.SetPolicy(nsXSet, ip1),
-					dptestutils.SetPolicy(podK1Set, ip1),
-					dptestutils.SetPolicy(podK1V1Set, ip1),
-				},
-				ExpectedEnpdointACLs: map[string][]*hnswrapper.FakeEndpointPolicy{
-					endpoint1: {
-						{
-							ID:        "azure-acl-x-base",
-							Action:    "Allow",
-							Direction: "In",
-							Priority:  222,
-						},
-						{
-							ID:        "azure-acl-x-base",
-							Action:    "Allow",
-							Direction: "Out",
-							Priority:  222,
-						},
-					},
-				},
-			},
-		},
-		{
-			Description: "single policy. finish bootup phase, add pod, add second policy",
-			Actions: []*Action{
-				UpdatePolicy(policyXBaseOnK1V1()),
-				FinishBootupPhase(),
-				CreatePod("x", "a", ip1, thisNode, map[string]string{"k1": "v1", "k2": "v2"}),
-				UpdatePolicy(policyXBase2OnK2V2()),
-			},
-			TestCaseMetadata: &TestCaseMetadata{
-				Tags: []Tag{
-					netpolCrudTag,
-				},
-				DpCfg: &cfg,
-				InitialEndpoints: []*hcn.HostComputeEndpoint{
-					dptestutils.Endpoint(endpoint1, ip1),
-				},
-				ExpectedSetPolicies: []*hcn.SetPolicySetting{
-					dptestutils.SetPolicy(emptySet),
-					dptestutils.SetPolicy(allNamespaces, emptySet.GetHashedName(), nsXSet.GetHashedName()),
-					dptestutils.SetPolicy(nsXSet, ip1),
-					dptestutils.SetPolicy(podK1Set, ip1),
-					dptestutils.SetPolicy(podK1V1Set, ip1),
-					dptestutils.SetPolicy(podK2Set, ip1),
-					dptestutils.SetPolicy(podK2V2Set, ip1),
-				},
-				ExpectedEnpdointACLs: map[string][]*hnswrapper.FakeEndpointPolicy{
-					endpoint1: {
-						{
-							ID:        "azure-acl-x-base",
-							Action:    "Allow",
-							Direction: "In",
-							Priority:  222,
-						},
-						{
-							ID:        "azure-acl-x-base",
-							Action:    "Allow",
-							Direction: "Out",
-							Priority:  222,
-						},
-						{
-							ID:        "azure-acl-x-base2",
-							Action:    "Allow",
-							Direction: "In",
-							Priority:  222,
-						},
-						{
-							ID:        "azure-acl-x-base2",
-							Action:    "Allow",
-							Direction: "Out",
-							Priority:  222,
-						},
-					},
-				},
-			},
-		},
-	}
 }

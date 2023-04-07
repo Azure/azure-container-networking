@@ -35,10 +35,6 @@ func TestApplyInBackground(t *testing.T) {
 	testSerialCases(t, applyInBackgroundTests(), time.Duration(100*time.Millisecond))
 }
 
-func TestApplyInBackgroundBootupPhase(t *testing.T) {
-	testSerialCases(t, applyInBackgroundBootupPhaseTests(), time.Duration(100*time.Millisecond))
-}
-
 func TestAllMultiJobCases(t *testing.T) {
 	testMultiJobCases(t, getAllMultiJobTests(), 0)
 }
