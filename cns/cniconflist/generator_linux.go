@@ -51,3 +51,29 @@ func (v *V4OverlayGenerator) Generate() error {
 
 	return nil
 }
+
+// Generate writes the CNI conflist to the Generator's output stream
+func (v *CiliumGenerator) Generate() error {
+	conflist := cniConflist{
+		CNIVersion: "0.3.1",
+		Name:       "cilium",
+		Plugins: []any{
+			NetConf{
+				Type:        "cilium-cni",
+				LogFile:     "/var/log/cilium-cni.log",
+				EnableDebug: true,
+				IPAM: IPAM{
+					Type: "azure-ipam",
+				},
+			},
+		},
+	}
+
+	enc := json.NewEncoder(v.Writer)
+	enc.SetIndent("", "\t")
+	if err := enc.Encode(conflist); err != nil {
+		return errors.Wrap(err, "error encoding conflist to json")
+	}
+
+	return nil
+}
