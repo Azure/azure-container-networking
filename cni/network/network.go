@@ -386,9 +386,9 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 		}
 
 		if ipamAddResult.ipv4Result.IPs != nil {
-			log.Printf("[cni-net] ADD command completed for pod %v with IPs:%+v err:%v.", k8sPodName, ipamAddResult.ipv4Result.IPs, err)
+			log.Printf("[cni-net] ADD command completed for pod %s with IPs:%v err:%v.", k8sPodName, ipamAddResult.ipv4Result.IPs, err)
 		} else {
-			log.Printf("[cni-net] no IPs will be allocated for pod %v", k8sPodName)
+			log.Printf("[cni-net] no IPs will be allocated for pod %s", k8sPodName)
 		}
 	}()
 
@@ -773,7 +773,7 @@ func (plugin *NetPlugin) createEndpointInternal(opt *createEndpointInternalOpt) 
 
 	if opt.resultV6 != nil {
 		// inject routes to linux pod
-		epInfo.IPV6Mode = network.DualStack
+		epInfo.IPV6Mode = network.DualStackOverlay
 		for _, ipconfig := range opt.resultV6.IPs {
 			epInfo.IPAddresses = append(epInfo.IPAddresses, ipconfig.Address)
 		}

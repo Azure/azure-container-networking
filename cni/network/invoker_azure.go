@@ -75,7 +75,15 @@ func (invoker *AzureIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, er
 					addresses = append(addresses, &ip.Address)
 				}
 				if er := invoker.Delete(addresses, addConfig.nwCfg, nil, addConfig.options); er != nil {
-					err = invoker.plugin.Errorf("Failed to clean up IP's during Delete with error %v, after Add failed with error %w", er, err)
+					err = invoker.plugin.Errorf("Failed to clean up IPv4's during Delete with error %v, after Add failed with error %w", er, err)
+				}
+			} else if len(addResult.ipv6Result.IPs) > 0 {
+				ipv6Addresses := []*net.IPNet{}
+				for _, ip := range addResult.ipv6Result.IPs {
+					ipv6Addresses = append(ipv6Addresses, &ip.Address)
+				}
+				if er := invoker.Delete(ipv6Addresses, addConfig.nwCfg, nil, addConfig.options); er != nil {
+					err = invoker.plugin.Errorf("Failed to clean up IPv6's during Delete with error %v, after Add failed with error %w", er, err)
 				}
 			} else {
 				err = fmt.Errorf("No IP's to delete on error: %v", err)

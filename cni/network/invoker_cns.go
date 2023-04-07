@@ -82,18 +82,18 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 	response, err := invoker.cnsClient.RequestIPs(context.TODO(), ipconfig)
 	if err != nil {
 		// if RequestIPs call fails, we may receive API not Found error as new CNS is not supported, then try old API RequestIPAddress
-		log.Errorf("RequestIPs not supported by CNS. Invoking RequestIPAddress API. Request: %v", ipconfig)
+		log.Errorf("RequestIPs not supported by CNS. Invoking RequestIPAddress API with infracontainerid %s", ipconfig.InfraContainerID)
 		if errors.Is(err, cnscli.ErrAPINotFound) {
-			ipconfigRequest := cns.IPConfigRequest{
+			ipconfigs := cns.IPConfigRequest{
 				OrchestratorContext: orchestratorContext,
 				PodInterfaceID:      GetEndpointID(addConfig.args),
 				InfraContainerID:    addConfig.args.ContainerID,
 			}
 
-			res, errRequestIP := invoker.cnsClient.RequestIPAddress(context.TODO(), ipconfigRequest)
+			res, errRequestIP := invoker.cnsClient.RequestIPAddress(context.TODO(), ipconfigs)
 			if errRequestIP != nil {
 				// if the old API fails as well then we just return the error
-				log.Errorf("Failed to request IP address from CNS using RequestIPAddress. error: %v request: %v", err, ipconfigRequest)
+				log.Errorf("Failed to request IP address from CNS using RequestIPAddress with infracontainerid %s. error: %v", ipconfigs.InfraContainerID, errRequestIP)
 				return IPAMAddResult{}, errors.Wrap(err, "Failed to get IP address from CNS with error: %w")
 			}
 			response = &cns.IPConfigsResponse{
@@ -280,41 +280,40 @@ func (invoker *CNSIPAMInvoker) Delete(addresses []*net.IPNet, nwCfg *cni.Network
 		return errEmptyCNIArgs
 	}
 
-	req := cns.IPConfigsRequest{
+	ipConfig := cns.IPConfigsRequest{
 		OrchestratorContext: orchestratorContext,
 		PodInterfaceID:      GetEndpointID(args),
 		InfraContainerID:    args.ContainerID,
 	}
 
 	if len(addresses) > 0 {
-		req.DesiredIPAddresses = make([]string, len(addresses))
+		ipConfig.DesiredIPAddresses = make([]string, len(addresses))
 		for i, ipAddress := range addresses {
-			req.DesiredIPAddresses[i] = ipAddress.IP.String()
+			ipConfig.DesiredIPAddresses[i] = ipAddress.IP.String()
 		}
 	} else {
 		log.Printf("CNS invoker called with empty IP address")
 	}
 
-	if err := invoker.cnsClient.ReleaseIPs(context.TODO(), req); err != nil {
+	if err := invoker.cnsClient.ReleaseIPs(context.TODO(), ipConfig); err != nil {
 		// if ReleaseIPs call fails, we may receive API not Found error as new CNS is not supported, then try old API ReleaseIPAddress
-		log.Errorf("ReleaseIPs not supported by CNS. Invoking ReleaseIPAddress API. Request: %v", req)
+		log.Errorf("ReleaseIPs not supported by CNS. Invoking ReleaseIPAddress API. Request: %v", ipConfig)
 		if errors.Is(err, cnscli.ErrAPINotFound) {
-			ipconfigRequest := cns.IPConfigRequest{
+			ipConfigs := cns.IPConfigRequest{
 				OrchestratorContext: orchestratorContext,
 				PodInterfaceID:      GetEndpointID(args),
 				InfraContainerID:    args.ContainerID,
 			}
 
-			if err = invoker.cnsClient.ReleaseIPAddress(context.TODO(), ipconfigRequest); err != nil {
+			if err = invoker.cnsClient.ReleaseIPAddress(context.TODO(), ipConfigs); err != nil {
 				// if the old API fails as well then we just return the error
-				log.Errorf("Failed to release IP address from CNS using ReleaseIPAddress. error: %v request: %v", err, req)
+				log.Errorf("Failed to release IP address from CNS using ReleaseIPAddress with infracontainerid %s. error: %v", ipConfigs.InfraContainerID, err)
 				return errors.Wrap(err, fmt.Sprintf("failed to release IP %v using ReleaseIPAddress with err ", addresses)+"%w")
 			}
 		} else {
-			log.Errorf("Failed to release IP address from CNS error: %v request: %v", err, req)
+			log.Errorf("Failed to release IP address with infracontainerid %s from CNS error: %v", ipConfig.InfraContainerID, err)
 			return errors.Wrap(err, fmt.Sprintf("failed to release IP %v using ReleaseIPs with err ", addresses)+"%w")
 		}
-
 	}
 
 	return nil

@@ -409,7 +409,7 @@ func (nm *networkManager) newNetworkImplHnsV2(nwInfo *NetworkInfo, extIf *extern
 		vlanid = (int)(vlanID)
 	}
 
-	if util.DualStackOverlay == DualStack {
+	if util.DualStackOverlay == DualStackOverlay {
 		if err := nm.addNewNetRules(nwInfo); err != nil {
 			return nil, err
 		}

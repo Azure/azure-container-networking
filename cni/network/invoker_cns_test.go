@@ -135,7 +135,7 @@ func TestCNSIPAMInvoker_Add(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "Test happy CNI add",
+			name: "Test happy CNI add for dualstack mode",
 			fields: fields{
 				podName:      testPodInfo.PodName,
 				podNamespace: testPodInfo.PodNamespace,
