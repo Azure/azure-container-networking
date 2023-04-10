@@ -151,26 +151,8 @@ func (h *HomeAzMonitor) update(code types.ResponseCode, msg string, homeAzRespon
 		},
 		HomeAzResponse: homeAzResponse,
 	}
-	h.logHomeAzResponse(resp)
+	logger.Printf("[HomeAzMonitor] updating home az cache value: %+v", resp)
 	h.updateCacheValue(resp)
-}
-
-// logHomeAzResponse logs HomeAz Response
-func (h *HomeAzMonitor) logHomeAzResponse(resp cns.GetHomeAzResponse) {
-	cacheItem := h.readCacheValue()
-	switch {
-	case cacheItem.Response.ReturnCode == types.NotFound:
-		// log the initial GetHomeAzResponse
-		logger.Printf("[HomeAzMonitor] initial home az response from nmagent %+v", resp)
-	case resp.Response.ReturnCode != types.Success:
-		// log when there is an error in GetHomeAzResponse
-		logger.Errorf("[HomeAzMonitor] error in refreshing home az, response %+v", resp)
-	case cacheItem.HomeAzResponse.HomeAz != resp.HomeAzResponse.HomeAz:
-		// log when cache value changed
-		logger.Printf("[HomeAzMonitor] home az cache value changed. Old cache value: %+v. New cache value: %+v", cacheItem, resp)
-	default:
-		logger.Printf("[HomeAzMonitor] home az response: %+v", resp)
-	}
 }
 
 // isAPISupportedByNMAgent checks if a nmagent client api slice contains a given api
