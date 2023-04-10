@@ -53,6 +53,7 @@ type DataPlane struct {
 	endpointCache  *endpointCache
 	ioShim         *common.IOShim
 	updatePodCache *updatePodCache
+	endpointQuery  *endpointQuery
 	stopChannel    <-chan struct{}
 }
 
@@ -70,6 +71,7 @@ func NewDataPlane(nodeName string, ioShim *common.IOShim, cfg *Config, stopChann
 		nodeName:       nodeName,
 		ioShim:         ioShim,
 		updatePodCache: newUpdatePodCache(),
+		endpointQuery:  new(endpointQuery),
 		stopChannel:    stopChannel,
 	}
 

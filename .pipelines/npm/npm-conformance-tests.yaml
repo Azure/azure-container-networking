@@ -371,8 +371,6 @@ jobs:
           PROFILE: "cyc-ws22"
     steps:
       - checkout: self
-      - download: current
-        artifact: Test
       - task: AzureCLI@2
         displayName: "Create AKS Cluster"
         inputs:

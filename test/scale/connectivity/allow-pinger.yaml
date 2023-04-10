@@ -1,0 +1,28 @@
+kind: NetworkPolicy
+apiVersion: networking.k8s.io/v1
+metadata:
+  name: allow-pinger
+  namespace: scale-test
+spec:
+  podSelector:
+    matchLabels:
+      shared-lab-00001: val
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          app: pinger
+      namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: connectivity-test
+  egress:
+  - to:
+    - podSelector:
+        matchLabels:
+          app: pinger
+      namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: connectivity-test
+  policyTypes:
+  - Ingress
+  - Egress
