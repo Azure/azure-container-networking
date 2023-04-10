@@ -139,6 +139,13 @@ func (h *HomeAzMonitor) Populate(ctx context.Context) {
 		return
 	}
 
+	// validate home az value, HomeAz is a uint, so it's value >=0
+	if azResponse.HomeAz == 0 {
+		returnMessage := fmt.Sprintf("[HomeAzMonitor] invalid home az value from nmagent: %d", azResponse.HomeAz)
+		returnCode := types.UnexpectedError
+		h.update(returnCode, returnMessage, cns.HomeAzResponse{IsSupported: true})
+		return
+	}
 	h.update(types.Success, "Get Home Az succeeded", cns.HomeAzResponse{IsSupported: true, HomeAz: azResponse.HomeAz})
 }
 
