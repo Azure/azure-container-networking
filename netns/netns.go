@@ -36,3 +36,11 @@ func (f *Netns) NewNamed(name string) (int, error) {
 func (f *Netns) DeleteNamed(name string) error {
 	return errors.Wrap(netns.DeleteNamed(name), "netns impl")
 }
+
+func (f *Netns) IsNamespaceEqual(fd1, fd2 int) bool {
+	return netns.NsHandle(fd1).Equal(netns.NsHandle(fd2))
+}
+
+func (f *Netns) NamespaceUniqueID(fd int) string {
+	return netns.NsHandle(fd).UniqueId()
+}

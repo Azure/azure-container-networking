@@ -32,6 +32,8 @@ type netnsClient interface {
 	Set(fileDescriptor int) (err error)
 	NewNamed(name string) (fileDescriptor int, err error)
 	DeleteNamed(name string) (err error)
+	IsNamespaceEqual(fd1, fd2 int) bool
+	NamespaceUniqueID(fd int) string
 }
 type TransparentVlanEndpointClient struct {
 	primaryHostIfName string // So like eth0
@@ -130,6 +132,8 @@ func (client *TransparentVlanEndpointClient) PopulateVM(epInfo *EndpointInfo) er
 		if err != nil {
 			return errors.Wrap(err, "failed to create vnet ns")
 		}
+		log.Printf("Vnet Namespace created: %s", client.netnsClient.NamespaceUniqueID(vnetNS))
+
 		client.vnetNSFileDescriptor = vnetNS
 		deleteNSIfNotNilErr := client.netnsClient.Set(vmNS)
 		// Any failure will trigger removing the namespace created
@@ -144,6 +148,12 @@ func (client *TransparentVlanEndpointClient) PopulateVM(epInfo *EndpointInfo) er
 		}()
 		if deleteNSIfNotNilErr != nil {
 			return errors.Wrap(deleteNSIfNotNilErr, "failed to set current ns to vm")
+		}
+
+		if client.netnsClient.IsNamespaceEqual(vnetNS, vmNS) {
+			deleteNSIfNotNilErr = fmt.Errorf("vnet ns:%d and vm ns:%d are the same. deleting vnet namespace created", vnetNS, vmNS)
+			log.Errorf(deleteNSIfNotNilErr.Error())
+			return deleteNSIfNotNilErr
 		}
 
 		// Now create vlan veth
