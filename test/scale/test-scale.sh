@@ -122,7 +122,7 @@ numTotalPods=$(( $numKwokPods + $numRealPods ))
 
 ## NPM CALCULATIONS
 # unique to templates/networkpolicy.yaml
-numACLsAddedByNPM=$(( 4 * $numNetworkPolicies ))
+numACLsAddedByNPM=$(( 6 * $numNetworkPolicies ))
 # IPSet/member counts can be slight underestimates if there are more than one template-hash labels
 # 4 basic IPSets are [ns-scale-test,kubernetes.io/metadata.name:scale-test,template-hash:xxxx,app:scale-test]
 numIPSetsAddedByNPM=$(( 4 + 2*$numTotalPods*$numUniqueLabelsPerPod + 2*$numSharedLabelsPerPod + 2*($numKwokDeployments+$numRealDeployments)*$numUniqueLabelsPerDeployment ))
