@@ -136,13 +136,7 @@ func (client *Client) BlockIPAddressesOnSnatBridge() error {
 	return nil
 }
 
-/*
-*
-
-	Move container veth inside container network namespace
-
-*
-*/
+// Move container veth inside container network namespace
 func (client *Client) MoveSnatEndpointToContainerNS(netnsPath string, nsID uintptr) error {
 	log.Printf("[snat] Setting link %v netns %v.", client.containerSnatVethName, netnsPath)
 	err := client.netlink.SetLinkNetNs(client.containerSnatVethName, nsID)
@@ -152,13 +146,7 @@ func (client *Client) MoveSnatEndpointToContainerNS(netnsPath string, nsID uintp
 	return nil
 }
 
-/*
-*
-
-	Configure Routes and setup name for container veth
-
-*
-*/
+// Configure Routes and setup name for container veth
 func (client *Client) SetupSnatContainerInterface() error {
 	epc := networkutils.NewNetworkUtils(client.netlink, client.plClient)
 	if err := epc.SetupContainerInterface(client.containerSnatVethName, azureSnatIfName); err != nil {
@@ -176,13 +164,7 @@ func getNCLocalAndGatewayIP(client *Client) (brIP, contIP net.IP) {
 	return bridgeIP, containerIP
 }
 
-/*
-*
-
-	This function adds iptables rules that allows only host to NC communication and not the other way
-
-*
-*/
+// This function adds iptables rules that allows only host to NC communication and not the other way
 func (client *Client) AllowInboundFromHostToNC() error {
 	bridgeIP, containerIP := getNCLocalAndGatewayIP(client)
 
@@ -271,13 +253,7 @@ func (client *Client) DeleteInboundFromHostToNC() error {
 	return err
 }
 
-/*
-*
-
-	This function adds iptables rules that allows only NC to Host communication and not the other way
-
-*
-*/
+// This function adds iptables rules that allows only NC to Host communication and not the other way
 func (client *Client) AllowInboundFromNCToHost() error {
 	bridgeIP, containerIP := getNCLocalAndGatewayIP(client)
 
@@ -365,10 +341,7 @@ func (client *Client) DeleteInboundFromNCToHost() error {
 	return err
 }
 
-/**
-	Configures Local IP Address for container Veth
-**/
-
+// Configures Local IP Address for container Veth
 func (client *Client) ConfigureSnatContainerInterface() error {
 	log.Printf("[snat] Adding IP address %v to link %v.", client.localIP, client.containerSnatVethName)
 	ip, intIpAddr, _ := net.ParseCIDR(client.localIP)
@@ -413,13 +386,7 @@ func (client *Client) DropArpForSnatBridgeApipaRange(snatBridgeIP, azSnatVethIfN
 	return err
 }
 
-/*
-*
-
-	This function creates linux bridge which will be used for outbound connectivity by NCs
-
-*
-*/
+// This function creates linux bridge which will be used for outbound connectivity by NCs
 func (client *Client) createSnatBridge(snatBridgeIP, hostPrimaryMac string) error {
 	_, err := net.InterfaceByName(SnatBridgeName)
 	if err == nil {
@@ -466,26 +433,14 @@ func (client *Client) createSnatBridge(snatBridgeIP, hostPrimaryMac string) erro
 	return nil
 }
 
-/*
-*
-
-	This function adds iptable rules that will snat all traffic that has source ip in apipa range and coming via linux bridge
-
-*
-*/
+// This function adds iptable rules that will snat all traffic that has source ip in apipa range and coming via linux bridge
 func (client *Client) addMasqueradeRule(snatBridgeIPWithPrefix string) error {
 	_, ipNet, _ := net.ParseCIDR(snatBridgeIPWithPrefix)
 	matchCondition := fmt.Sprintf("-s %s", ipNet.String())
 	return iptables.InsertIptableRule(iptables.V4, iptables.Nat, iptables.Postrouting, matchCondition, iptables.Masquerade)
 }
 
-/*
-*
-
-	Drop all vlan traffic on linux bridge
-
-*
-*/
+// Drop all vlan traffic on linux bridge
 func (client *Client) addVlanDropRule() error {
 	out, err := client.plClient.ExecuteCommand(l2PreroutingEntries)
 	if err != nil {

@@ -195,7 +195,7 @@ func (client *LinuxBridgeEndpointClient) ConfigureContainerInterfacesAndRoutes(e
 		return err
 	}
 
-	if err := addRoutes(client.netlink, client.netioshim, client.containerVethName, epInfo.Routes, false); err != nil {
+	if err := addRoutes(client.netlink, client.netioshim, client.containerVethName, epInfo.Routes); err != nil {
 		return err
 	}
 
@@ -288,7 +288,7 @@ func (client *LinuxBridgeEndpointClient) setupIPV6Routes(epInfo *EndpointInfo) e
 		routes = append(routes, defaultV6Route)
 
 		log.Printf("[net] Adding ipv6 routes in container %+v", routes)
-		if err := addRoutes(client.netlink, client.netioshim, client.containerVethName, routes, false); err != nil {
+		if err := addRoutes(client.netlink, client.netioshim, client.containerVethName, routes); err != nil {
 			return nil
 		}
 	}

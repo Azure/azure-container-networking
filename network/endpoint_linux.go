@@ -270,7 +270,7 @@ func (nw *network) deleteEndpointImpl(nl netlink.NetlinkInterface, plc platform.
 func (ep *endpoint) getInfoImpl(epInfo *EndpointInfo) {
 }
 
-func addRoutes(nl netlink.NetlinkInterface, netioshim netio.NetIOInterface, interfaceName string, routes []RouteInfo, removeRouteBeforeAdd bool) error {
+func addRoutes(nl netlink.NetlinkInterface, netioshim netio.NetIOInterface, interfaceName string, routes []RouteInfo) error {
 	ifIndex := 0
 
 	for _, route := range routes {
@@ -302,22 +302,6 @@ func addRoutes(nl netlink.NetlinkInterface, netioshim netio.NetIOInterface, inte
 			Table:     route.Table,
 		}
 
-		if removeRouteBeforeAdd {
-			delNlRoute := &netlink.Route{
-				Family:   family,
-				Dst:      &route.Dst,
-				Gw:       route.Gw,
-				Priority: route.Priority,
-				Protocol: route.Protocol,
-				Scope:    route.Scope,
-				Table:    route.Table,
-			}
-			log.Printf("[net] Deleting old IP route before add:%+v.", route)
-			if err := nl.DeleteIPRoute(delNlRoute); err != nil {
-				log.Printf("[net] Try to remove route if exists before add returns: %v", err)
-			}
-		}
-
 		log.Printf("[net] Adding IP route %+v to link %v.", route, interfaceName)
 		if err := nl.AddIPRoute(nlRoute); err != nil {
 			if !strings.Contains(strings.ToLower(err.Error()), "file exists") {
@@ -335,8 +319,6 @@ func deleteRoutes(nl netlink.NetlinkInterface, netioshim netio.NetIOInterface, i
 	ifIndex := 0
 
 	for _, route := range routes {
-		log.Printf("[net] Deleting IP route %+v from link %v.", route, interfaceName)
-
 		if route.DevName != "" {
 			devIf, _ := netioshim.GetNetworkInterfaceByName(route.DevName)
 			if devIf == nil {
@@ -345,15 +327,15 @@ func deleteRoutes(nl netlink.NetlinkInterface, netioshim netio.NetIOInterface, i
 			}
 
 			ifIndex = devIf.Index
-		} else {
+		} else if interfaceName != "" {
 			interfaceIf, _ := netioshim.GetNetworkInterfaceByName(interfaceName)
 			if interfaceIf == nil {
 				log.Printf("[net] Not deleting route. Interface %v doesn't exist", interfaceName)
 				continue
 			}
-
 			ifIndex = interfaceIf.Index
 		}
+
 		family := netlink.GetIPAddressFamily(route.Gw)
 		if route.Gw == nil {
 			family = netlink.GetIPAddressFamily(route.Dst.IP)
@@ -362,12 +344,13 @@ func deleteRoutes(nl netlink.NetlinkInterface, netioshim netio.NetIOInterface, i
 		nlRoute := &netlink.Route{
 			Family:    family,
 			Dst:       &route.Dst,
-			Gw:        route.Gw,
 			LinkIndex: ifIndex,
+			Gw:        route.Gw,
 			Protocol:  route.Protocol,
 			Scope:     route.Scope,
 		}
 
+		log.Printf("[net] Deleting IP route %+v from link %v.", route, interfaceName)
 		if err := nl.DeleteIPRoute(nlRoute); err != nil {
 			return err
 		}
@@ -498,7 +481,7 @@ func (nm *networkManager) updateRoutes(existingEp *EndpointInfo, targetEp *Endpo
 		return err
 	}
 
-	err = addRoutes(nm.netlink, &netio.NetIO{}, existingEp.IfName, tobeAddedRoutes, false)
+	err = addRoutes(nm.netlink, &netio.NetIO{}, existingEp.IfName, tobeAddedRoutes)
 	if err != nil {
 		return err
 	}

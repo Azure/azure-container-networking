@@ -5,6 +5,7 @@ import (
 	"net"
 	"strings"
 
+	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/iptables"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/netio"
@@ -402,7 +403,14 @@ func (client *TransparentVlanEndpointClient) ConfigureVnetInterfacesAndRoutesImp
 	if err = client.AddDefaultArp(client.vlanIfName, azureMac); err != nil {
 		return errors.Wrap(err, "failed vnet ns add default arp entry (idempotent)")
 	}
-	if err = addRoutes(client.netlink, client.netioshim, client.vnetVethName, routeInfoList, true); err != nil {
+
+	// Delete old route if any for this IP
+	logger.Printf("[transparent-vlan] Deleting old route if any.")
+	if err = deleteRoutes(client.netlink, client.netioshim, "", routeInfoList); err != nil {
+		return errors.Wrap(err, "failed deleting routes to vnet specific to this container")
+	}
+
+	if err = addRoutes(client.netlink, client.netioshim, client.vnetVethName, routeInfoList); err != nil {
 		return errors.Wrap(err, "failed adding routes to vnet specific to this container")
 	}
 	if err = client.addDefaultRoutes(client.vlanIfName, tunnelingTable); err != nil {
@@ -449,7 +457,7 @@ func (client *TransparentVlanEndpointClient) addDefaultRoutes(linkToName string,
 		Table: table,
 	}
 	// Difference between interface name in addRoutes and DevName: in RouteInfo?
-	if err := addRoutes(client.netlink, client.netioshim, linkToName, []RouteInfo{routeInfo}, false); err != nil {
+	if err := addRoutes(client.netlink, client.netioshim, linkToName, []RouteInfo{routeInfo}); err != nil {
 		return err
 	}
 
@@ -462,7 +470,7 @@ func (client *TransparentVlanEndpointClient) addDefaultRoutes(linkToName string,
 		Table: table,
 	}
 
-	if err := addRoutes(client.netlink, client.netioshim, linkToName, []RouteInfo{routeInfo}, false); err != nil {
+	if err := addRoutes(client.netlink, client.netioshim, linkToName, []RouteInfo{routeInfo}); err != nil {
 		return err
 	}
 	return nil

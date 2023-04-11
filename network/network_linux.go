@@ -118,7 +118,7 @@ func (nm *networkManager) newNetworkImpl(nwInfo *NetworkInfo, extIf *externalInt
 func (nm *networkManager) handleCommonOptions(ifName string, nwInfo *NetworkInfo) error {
 	var err error
 	if routes, exists := nwInfo.Options[RoutesKey]; exists {
-		err = addRoutes(nm.netlink, nm.netio, ifName, routes.([]RouteInfo), false)
+		err = addRoutes(nm.netlink, nm.netio, ifName, routes.([]RouteInfo))
 		if err != nil {
 			return err
 		}
@@ -649,7 +649,7 @@ func AddStaticRoute(nl netlink.NetlinkInterface, netioshim netio.NetIOInterface,
 	gwIP := net.ParseIP("0.0.0.0")
 	route := RouteInfo{Dst: *ipNet, Gw: gwIP}
 	routes = append(routes, route)
-	if err := addRoutes(nl, netioshim, interfaceName, routes, false); err != nil {
+	if err := addRoutes(nl, netioshim, interfaceName, routes); err != nil {
 		if err != nil && !strings.Contains(strings.ToLower(err.Error()), "file exists") {
 			log.Printf("addroutes failed with error %v", err)
 			return err

@@ -230,7 +230,7 @@ func (client *OVSEndpointClient) ConfigureContainerInterfacesAndRoutes(epInfo *E
 		return err
 	}
 
-	return addRoutes(client.netlink, client.netioshim, client.containerVethName, epInfo.Routes, false)
+	return addRoutes(client.netlink, client.netioshim, client.containerVethName, epInfo.Routes)
 }
 
 func (client *OVSEndpointClient) DeleteEndpoints(ep *endpoint) error {
