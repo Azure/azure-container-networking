@@ -138,9 +138,12 @@ func (c *updatePodCache) enqueue(m *PodMetadata) *updateNPMPod {
 }
 
 // dequeue returns the first pod in the queue and removes it from the queue.
-// Caller should ensure the queue is not empty.
-// Otherwise, the following will occur: "panic: runtime error: index out of range [0] with length 0"
 func (c *updatePodCache) dequeue() *updateNPMPod {
+	if c.isEmpty() {
+		klog.Infof("[DataPlane] updatePodCache is empty. returning nil for dequeue()")
+		return nil
+	}
+
 	pod := c.cache[c.queue[0]]
 	c.queue = c.queue[1:]
 	delete(c.cache, pod.PodKey)

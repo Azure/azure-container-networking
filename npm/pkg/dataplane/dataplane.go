@@ -219,6 +219,13 @@ func (dp *DataPlane) ApplyDataPlane() error {
 
 		for !dp.updatePodCache.isEmpty() {
 			pod := dp.updatePodCache.dequeue()
+			if pod == nil {
+				// should never happen because of isEmpty check above and lock on updatePodCache
+				metrics.SendErrorLogAndMetric(util.DaemonDataplaneID, "[DataPlane] failed to dequeue pod while applying the dataplane")
+				// break to avoid infinite loop (something weird happened since isEmpty returned false above)
+				break
+			}
+
 			if err := dp.updatePod(pod); err != nil {
 				// move on to the next and later return as success since this can be retried irrespective of other operations
 				metrics.SendErrorLogAndMetric(util.DaemonDataplaneID, "failed to update pod while applying the dataplane. key: [%s], err: [%s]", pod.PodKey, err.Error())
