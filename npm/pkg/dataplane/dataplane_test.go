@@ -348,6 +348,11 @@ func TestUpdatePodCache(t *testing.T) {
 	require.Equal(t, c.queue, []string{})
 	require.Equal(t, c.cache, map[string]*updateNPMPod{})
 
+	// test nil result on empty queue
+	p = c.dequeue()
+	require.True(t, c.isEmpty())
+	require.Nil(t, p)
+
 	// test enqueue on empty queue
 	p = c.enqueue(m3)
 	require.False(t, c.isEmpty())
