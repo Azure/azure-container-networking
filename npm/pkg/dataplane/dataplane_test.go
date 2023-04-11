@@ -354,6 +354,36 @@ func TestUpdatePodCache(t *testing.T) {
 	require.Equal(t, *p3, *p)
 	require.Equal(t, c.queue, []string{m3.PodKey})
 	require.Equal(t, c.cache, map[string]*updateNPMPod{m3.PodKey: p})
+
+	// test enqueue with different node on only item in queue
+	m3Node2 := *m3
+	m3Node2.NodeName = "node2"
+	p3Node2 := *newUpdateNPMPod(&m3Node2)
+	p = c.enqueue(&m3Node2)
+	require.False(t, c.isEmpty())
+	require.Equal(t, p3Node2, *p)
+	require.Equal(t, c.queue, []string{m3Node2.PodKey})
+	require.Equal(t, c.cache, map[string]*updateNPMPod{m3Node2.PodKey: p})
+
+	// test enqueue with different node on first item in queue
+	p = c.enqueue(m1)
+	require.False(t, c.isEmpty())
+	require.Equal(t, *p1, *p)
+	require.Equal(t, c.queue, []string{m3Node2.PodKey, m1.PodKey})
+	require.Equal(t, c.cache, map[string]*updateNPMPod{m3Node2.PodKey: &p3Node2, m1.PodKey: p1})
+
+	p = c.enqueue(m3)
+	require.False(t, c.isEmpty())
+	require.Equal(t, *p3, *p)
+	require.Equal(t, c.queue, []string{m1.PodKey, m3.PodKey})
+	require.Equal(t, c.cache, map[string]*updateNPMPod{m1.PodKey: p1, m3.PodKey: p})
+
+	// test enqueue with different node on last item in queue
+	p = c.enqueue(&m3Node2)
+	require.False(t, c.isEmpty())
+	require.Equal(t, p3Node2, *p)
+	require.Equal(t, c.queue, []string{m1.PodKey, m3Node2.PodKey})
+	require.Equal(t, c.cache, map[string]*updateNPMPod{m1.PodKey: p1, m3Node2.PodKey: p})
 }
 
 func getBootupTestCalls() []testutils.TestCmd {

@@ -102,6 +102,30 @@ func newUpdatePodCache(initialCapacity int) *updatePodCache {
 // enqueue adds a pod to the queue if necessary and returns the pod object used
 func (c *updatePodCache) enqueue(m *PodMetadata) *updateNPMPod {
 	pod, ok := c.cache[m.PodKey]
+
+	if ok && pod.NodeName != m.NodeName {
+		// Currently, don't expect this path to be taken because dataplane makes sure to only enqueue on-node Pods.
+		// If the pod is already in the cache but the node name has changed, we need to requeue it.
+		// Can discard the old Pod info since the Pod must have been deleted and brought back up on a different node.
+		klog.Infof("[DataPlane] pod already in cache but node name has changed. deleting the old pod object from the queue. podKey: %s", m.PodKey)
+
+		// remove the old pod from the cache and queue
+		delete(c.cache, m.PodKey)
+		i := 0
+		for i = 0; i < len(c.queue); i++ {
+			if c.queue[i] == m.PodKey {
+				break
+			}
+		}
+
+		if i < len(c.queue) {
+			// this should always be true since we should always find the item in the queue
+			c.queue = append(c.queue[:i], c.queue[i+1:]...)
+		}
+
+		ok = false
+	}
+
 	if !ok {
 		klog.Infof("[DataPlane] pod key %s not found in updatePodCache. creating a new obj", m.PodKey)
 
