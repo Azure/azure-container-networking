@@ -92,16 +92,19 @@ func (invoker *AzureIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, er
 	}()
 
 	if addConfig.nwCfg.IPV6Mode != "" {
-		nwCfg6 := *addConfig.nwCfg
-		nwCfg6.IPAM.Environment = common.OptEnvironmentIPv6NodeIpam
-		nwCfg6.IPAM.Type = ipamV6
+		nwCfgIpv6 := *addConfig.nwCfg
+		nwCfgIpv6.IPAM.Environment = common.OptEnvironmentIPv6NodeIpam
+		nwCfgIpv6.IPAM.Type = ipamV6
 
 		if len(invoker.nwInfo.Subnets) > 1 {
-			// ipv6 is the second subnet of the slice
-			nwCfg6.IPAM.Subnet = invoker.nwInfo.Subnets[1].Prefix.String()
+			for _, subnet := range invoker.nwInfo.Subnets {
+				if subnet.Prefix.IP.To16() != nil {
+					nwCfgIpv6.IPAM.Subnet = subnet.Prefix.String()
+				}
+			}
 		}
 
-		addResult.ipv6Result, err = invoker.plugin.DelegateAdd(nwCfg6.IPAM.Type, &nwCfg6)
+		addResult.ipv6Result, err = invoker.plugin.DelegateAdd(nwCfgIpv6.IPAM.Type, &nwCfgIpv6)
 		if err != nil {
 			err = invoker.plugin.Errorf("Failed to allocate v6 pool: %v", err)
 		}
@@ -168,7 +171,11 @@ func (invoker *AzureIPAMInvoker) Delete(addresses []*net.IPNet, nwCfg *cni.Netwo
 			nwCfgIpv6.IPAM.Type = ipamV6
 			nwCfgIpv6.IPAM.Address = address.IP.String()
 			if len(invoker.nwInfo.Subnets) > 1 {
-				nwCfgIpv6.IPAM.Subnet = invoker.nwInfo.Subnets[1].Prefix.String()
+				for _, subnet := range invoker.nwInfo.Subnets {
+					if subnet.Prefix.IP.To16() != nil {
+						nwCfgIpv6.IPAM.Subnet = subnet.Prefix.String()
+					}
+				}
 			}
 
 			log.Printf("Releasing ipv6 address :%s pool: %s", nwCfgIpv6.IPAM.Address, nwCfgIpv6.IPAM.Subnet)
