@@ -256,7 +256,7 @@ done
 
 low=0
 if [[ $prevTryDate -gt $connectivityStartDate ]]; then
-    low=$(( `date +%s` - $prevTryDate - $CONNECTIVITY_SLEEP ))
+    low=$(( $prevTryDate - $connectivityStartDate - $CONNECTIVITY_SLEEP ))
 fi
 high=$(( `date +%s` - $connectivityStartDate ))
 echo "SUCCESS: all initial connectivity tests passed. Took between $low and $high seconds to succeed"
@@ -310,7 +310,7 @@ done
 
 low=0
 if [[ $prevTryDate -gt $netpolStartDate ]]; then
-    low=$(( `date +%s` - $prevTryDate - $NETPOL_SLEEP ))
+    low=$(( $prevTryDate - $connectivityStartDate - $NETPOL_SLEEP ))
 fi
 high=$(( `date +%s` - $netpolStartDate ))
 echo "SUCCESS: all connectivity tests passed after adding allow-pinger NetworkPolicy. Took between $low and $high seconds to take effect"
