@@ -217,6 +217,9 @@ run_npm_conformance () {
     namedPorts="named port"
     wrongK8sVersion="Netpol API"
     toSkip="\[LinuxOnly\]|$nomatch1|$nomatch2|$nomatch3|$nomatch4|$cidrExcept1|$cidrExcept2|$namedPorts|$wrongK8sVersion|SCTP"
+    
+    # to debug with one test case, uncomment this
+    # toRun="NetworkPolicy API should support creating NetworkPolicy API operations"
 
     echo "" > conformance.ran
     KUBERNETES_SERVICE_PORT=443 ./npm-e2e.test \
@@ -268,8 +271,8 @@ run_npm_cyclonus () {
         --server-protocol=TCP,UDP \
         --exclude sctp,named-port,ip-block-with-except,multi-peer,upstream-e2e,example,end-port,namespaces-by-default-label,update-policy | tee npm-cyclonus.log || true
 
-    # for debugging with a smaller set of tests, use:
-        # --exclude sctp,named-port,ip-block-with-except,multi-peer,upstream-e2e,example,end-port,namespaces-by-default-label,update-policy,all-namespaces,all-pods,allow-all,any-peer,any-port,any-port-protocol,deny-all,ip-block-no-except,multi-port/protocol,namespaces-by-label,numbered-port,pathological,peer-ipblock,peer-pods,pods-by-label,policy-namespace,port,protocol,rule,tcp,udp --include conflict,direction,egress,ingress,miscellaneous
+    # for debugging with a smaller set of tests, use this as the last line instead
+        # --exclude sctp,named-port,ip-block-with-except,multi-peer,upstream-e2e,example,end-port,namespaces-by-default-label,update-policy,all-namespaces,all-pods,allow-all,any-peer,any-port,any-port-protocol,deny-all,ip-block-no-except,multi-port/protocol,namespaces-by-label,numbered-port,pathological,peer-ipblock,peer-pods,pods-by-label,policy-namespace,port,protocol,rule,tcp,udp --include conflict,direction,egress,ingress,miscellaneous  | tee npm-cyclonus.log || true
 
     rc=0; cat npm-cyclonus.log | grep "failed" > /dev/null 2>&1 || rc=$?
     if [[ $rc == 0 ]]; then
