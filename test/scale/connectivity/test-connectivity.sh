@@ -151,6 +151,7 @@ done
 numScalePodsFound=${#scalePods[@]}
 if [[ $numScalePodsFound == 0 ]]; then
     echo "ERROR: expected namespace scale-test to exist with real (non-kwok) Pods. Run test/scale/test-scale.sh with real Pods first."
+    kubectl get pod -n scale-test -owide
     exit 7
 elif [[ $numScalePodsFound -lt $numScalePodsToVerify ]]; then
     echo "WARNING: there are only $numScalePodsFound real scale Pods running which is less than numScalePodsToVerify=$numScalePodsToVerify. Will verify just these $numScalePodsFound Pods"
