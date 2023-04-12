@@ -5,6 +5,7 @@ metadata:
   namespace: scale-test
   labels:
     app: scale-test
+    is-real: "true"
 spec:
   replicas: TEMP_REPLICAS
   selector:

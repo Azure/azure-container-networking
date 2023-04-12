@@ -123,15 +123,13 @@ echo "STARTING CONNECTIVITY TEST at $startDate"
 
 ## GET SCALE PODS
 echo "getting scale Pods..."
-scalePodNameIPs=(`kubectl $KUBECONFIG_ARG get pods -n scale-test --field-selector=status.phase==Running -o jsonpath='{range .items[*]}{@.metadata.name}{","}{@.status.podIP}{" "}{end}'`)
+scalePodNameIPs=(`kubectl $KUBECONFIG_ARG get pods -n scale-test --field-selector=status.phase==Running -l is-real="true" -o jsonpath='{range .items[*]}{@.metadata.name}{","}{@.status.podIP}{" "}{end}'`)
 scalePods=()
 scalePodIPs=()
 for nameIP in "${scalePodNameIPs[@]}"; do
     nameIP=(`echo $nameIP | tr ',' ' '`)
     name=${nameIP[0]}
     ip=${nameIP[1]}
-
-    echo $name | grep real-dep || continue
 
     echo "scale Pod: $name, IP: $ip"
 
