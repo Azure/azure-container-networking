@@ -405,7 +405,7 @@ func (c *Client) RequestIPs(ctx context.Context, ipconfig cns.IPConfigsRequest) 
 
 	// if we get a 404 error
 	if res.StatusCode == http.StatusNotFound {
-		return nil, fmt.Errorf("cannot find API RequestIPs %w: %w", ErrAPINotFound, err) //nolint:errorlint // multiple %w not supported in 1.19
+		return nil, fmt.Errorf("cannot find API RequestIPs %w: %v", ErrAPINotFound, err) //nolint:errorlint // multiple %w not supported in 1.19
 	}
 
 	if err != nil {
@@ -448,7 +448,7 @@ func (c *Client) ReleaseIPs(ctx context.Context, ipconfig cns.IPConfigsRequest) 
 
 	// if we get a 404 error
 	if res.StatusCode == http.StatusNotFound {
-		return fmt.Errorf("cannot find API ReleaseIPs %w: %w", ErrAPINotFound, err) //nolint:errorlint // multiple %w not supported in 1.19
+		return fmt.Errorf("cannot find API ReleaseIPs %w: %v", ErrAPINotFound, err) //nolint:errorlint // multiple %w not supported in 1.19
 	}
 
 	if err != nil {

@@ -1454,7 +1454,6 @@ func TestIPAMFailToReleasePartialIPsInPool(t *testing.T) {
 	if err == nil {
 		t.Fatalf("Expected fail releasing IP due to only having one in the ipconfig map, IPs will be reassigned back to the pod")
 	}
-
 }
 
 func TestIPAMFailToRequestPartialIPsInPool(t *testing.T) {

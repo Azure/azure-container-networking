@@ -109,10 +109,10 @@ func (service *HTTPRestService) requestIPConfigHandler(w http.ResponseWriter, r 
 		InfraContainerID:    ipconfigRequest.InfraContainerID,
 		OrchestratorContext: ipconfigRequest.OrchestratorContext,
 		Ifname:              ipconfigRequest.Ifname,
-    }
+	}
 	if ipconfigRequest.DesiredIPAddress != "" {
 		ipconfigsRequest.DesiredIPAddresses = []string{
-				ipconfigRequest.DesiredIPAddress,
+			ipconfigRequest.DesiredIPAddress,
 		}
 	}
 
