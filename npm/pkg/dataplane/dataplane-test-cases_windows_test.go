@@ -19,13 +19,13 @@ const (
 	netpolCrudTag        Tag = "netpol-crud"
 	reconcileTag         Tag = "reconcile"
 	calicoTag            Tag = "calico"
-	skipTestTag          Tag = "skip-test"
 	applyInBackgroundTag Tag = "apply-in-background"
 )
 
 const (
-	thisNode  = "this-node"
-	otherNode = "other-node"
+	testNodeIP = "6.7.8.9"
+	thisNode   = "this-node"
+	otherNode  = "other-node"
 
 	ip1 = "10.0.0.1"
 	ip2 = "10.0.0.2"
@@ -65,6 +65,7 @@ var (
 			AddEmptySetToLists: true,
 		},
 		PolicyManagerCfg: &policies.PolicyManagerCfg{
+			NodeIP:     testNodeIP,
 			PolicyMode: policies.IPSetPolicyMode,
 		},
 	}
@@ -76,6 +77,7 @@ var (
 			AddEmptySetToLists: true,
 		},
 		PolicyManagerCfg: &policies.PolicyManagerCfg{
+			NodeIP:     testNodeIP,
 			PolicyMode: policies.IPSetPolicyMode,
 		},
 	}
@@ -304,6 +306,13 @@ func basicTests() []*SerialTestCase {
 							RemotePorts:     "",
 							Priority:        222,
 						},
+						{
+							ID:              "azure-acl-x-base",
+							Action:          "Allow",
+							Direction:       "In",
+							RemoteAddresses: testNodeIP,
+							Priority:        201,
+						},
 					},
 				},
 			},
@@ -361,33 +370,6 @@ func basicTests() []*SerialTestCase {
 			},
 		},
 		{
-			Description: "pod created off node (remote endpoint), then relevant policy created",
-			Actions: []*Action{
-				CreateRemoteEndpoint(endpoint1, ip1),
-				CreatePod("x", "a", ip1, otherNode, map[string]string{"k1": "v1"}),
-				// will apply dirty ipsets from CreatePod
-				UpdatePolicy(policyXBaseOnK1V1()),
-			},
-			TestCaseMetadata: &TestCaseMetadata{
-				Tags: []Tag{
-					podCrudTag,
-					netpolCrudTag,
-				},
-				DpCfg:            defaultWindowsDPCfg,
-				InitialEndpoints: nil,
-				ExpectedSetPolicies: []*hcn.SetPolicySetting{
-					dptestutils.SetPolicy(emptySet),
-					dptestutils.SetPolicy(allNamespaces, emptySet.GetHashedName(), nsXSet.GetHashedName()),
-					dptestutils.SetPolicy(nsXSet, ip1),
-					dptestutils.SetPolicy(podK1Set, ip1),
-					dptestutils.SetPolicy(podK1V1Set, ip1),
-				},
-				ExpectedEnpdointACLs: map[string][]*hnswrapper.FakeEndpointPolicy{
-					endpoint1: {},
-				},
-			},
-		},
-		{
 			Description: "policy created, then pod created which satisfies policy",
 			Actions: []*Action{
 				UpdatePolicy(policyXBaseOnK1V1()),
@@ -433,6 +415,13 @@ func basicTests() []*SerialTestCase {
 							RemotePorts:     "",
 							Priority:        222,
 						},
+						{
+							ID:              "azure-acl-x-base",
+							Action:          "Allow",
+							Direction:       "In",
+							RemoteAddresses: testNodeIP,
+							Priority:        201,
+						},
 					},
 				},
 			},
@@ -459,33 +448,6 @@ func basicTests() []*SerialTestCase {
 					dptestutils.SetPolicy(podK1V1Set, ip1),
 				},
 				ExpectedEnpdointACLs: nil,
-			},
-		},
-		{
-			Description: "policy created, then pod created off node (remote endpoint) which satisfies policy",
-			Actions: []*Action{
-				UpdatePolicy(policyXBaseOnK1V1()),
-				CreateRemoteEndpoint(endpoint1, ip1),
-				CreatePod("x", "a", ip1, otherNode, map[string]string{"k1": "v1"}),
-				ApplyDP(),
-			},
-			TestCaseMetadata: &TestCaseMetadata{
-				Tags: []Tag{
-					podCrudTag,
-					netpolCrudTag,
-				},
-				DpCfg:            defaultWindowsDPCfg,
-				InitialEndpoints: nil,
-				ExpectedSetPolicies: []*hcn.SetPolicySetting{
-					dptestutils.SetPolicy(emptySet),
-					dptestutils.SetPolicy(allNamespaces, emptySet.GetHashedName(), nsXSet.GetHashedName()),
-					dptestutils.SetPolicy(nsXSet, ip1),
-					dptestutils.SetPolicy(podK1Set, ip1),
-					dptestutils.SetPolicy(podK1V1Set, ip1),
-				},
-				ExpectedEnpdointACLs: map[string][]*hnswrapper.FakeEndpointPolicy{
-					endpoint1: {},
-				},
 			},
 		},
 		{
@@ -636,6 +598,13 @@ func basicTests() []*SerialTestCase {
 							LocalPorts:      "",
 							RemotePorts:     "",
 							Priority:        222,
+						},
+						{
+							ID:              "azure-acl-x-base",
+							Action:          "Allow",
+							Direction:       "In",
+							RemoteAddresses: testNodeIP,
+							Priority:        201,
 						},
 					},
 				},
@@ -802,6 +771,13 @@ func capzCalicoTests() []*SerialTestCase {
 							RemotePorts:     "",
 							Priority:        222,
 						},
+						{
+							ID:              "azure-acl-x-base",
+							Action:          "Allow",
+							Direction:       "In",
+							RemoteAddresses: testNodeIP,
+							Priority:        201,
+						},
 					},
 				},
 			},
@@ -940,6 +916,13 @@ func updatePodTests() []*SerialTestCase {
 							RemotePorts:     "",
 							Priority:        222,
 						},
+						{
+							ID:              "azure-acl-x-base2",
+							Action:          "Allow",
+							Direction:       "In",
+							RemoteAddresses: testNodeIP,
+							Priority:        201,
+						},
 					},
 				},
 			},
@@ -1000,6 +983,13 @@ func updatePodTests() []*SerialTestCase {
 							RemotePorts:     "",
 							Priority:        222,
 						},
+						{
+							ID:              "azure-acl-x-base2",
+							Action:          "Allow",
+							Direction:       "In",
+							RemoteAddresses: testNodeIP,
+							Priority:        201,
+						},
 					},
 				},
 			},
@@ -1059,6 +1049,13 @@ func updatePodTests() []*SerialTestCase {
 							RemotePorts:     "",
 							Priority:        222,
 						},
+						{
+							ID:              "azure-acl-x-base2",
+							Action:          "Allow",
+							Direction:       "In",
+							RemoteAddresses: testNodeIP,
+							Priority:        201,
+						},
 					},
 				},
 			},
@@ -1116,6 +1113,13 @@ func updatePodTests() []*SerialTestCase {
 							LocalPorts:      "",
 							RemotePorts:     "",
 							Priority:        222,
+						},
+						{
+							ID:              "azure-acl-x-base2",
+							Action:          "Allow",
+							Direction:       "In",
+							RemoteAddresses: testNodeIP,
+							Priority:        201,
 						},
 					},
 				},
@@ -1178,6 +1182,13 @@ func updatePodTests() []*SerialTestCase {
 							LocalPorts:      "",
 							RemotePorts:     "",
 							Priority:        222,
+						},
+						{
+							ID:              "azure-acl-x-base2",
+							Action:          "Allow",
+							Direction:       "In",
+							RemoteAddresses: testNodeIP,
+							Priority:        201,
 						},
 						{
 							ID:              "azure-acl-baseazurewireserver",
@@ -1279,6 +1290,13 @@ func updatePodTests() []*SerialTestCase {
 							RemotePorts:     "",
 							Priority:        222,
 						},
+						{
+							ID:              "azure-acl-x-base2",
+							Action:          "Allow",
+							Direction:       "In",
+							RemoteAddresses: testNodeIP,
+							Priority:        201,
+						},
 					},
 				},
 			},
@@ -1339,6 +1357,13 @@ func updatePodTests() []*SerialTestCase {
 							RemotePorts:     "",
 							Priority:        222,
 						},
+						{
+							ID:              "azure-acl-x-base2",
+							Action:          "Allow",
+							Direction:       "In",
+							RemoteAddresses: testNodeIP,
+							Priority:        201,
+						},
 					},
 				},
 			},
@@ -1355,7 +1380,6 @@ func updatePodTests() []*SerialTestCase {
 			},
 			TestCaseMetadata: &TestCaseMetadata{
 				Tags: []Tag{
-					skipTestTag,
 					podCrudTag,
 					netpolCrudTag,
 				},
@@ -1399,6 +1423,13 @@ func updatePodTests() []*SerialTestCase {
 							RemotePorts:     "",
 							Priority:        222,
 						},
+						{
+							ID:              "azure-acl-x-base2",
+							Action:          "Allow",
+							Direction:       "In",
+							RemoteAddresses: testNodeIP,
+							Priority:        201,
+						},
 					},
 				},
 			},
@@ -1416,7 +1447,6 @@ func updatePodTests() []*SerialTestCase {
 			},
 			TestCaseMetadata: &TestCaseMetadata{
 				Tags: []Tag{
-					skipTestTag,
 					podCrudTag,
 					netpolCrudTag,
 				},
@@ -1458,6 +1488,13 @@ func updatePodTests() []*SerialTestCase {
 							LocalPorts:      "",
 							RemotePorts:     "",
 							Priority:        222,
+						},
+						{
+							ID:              "azure-acl-x-base2",
+							Action:          "Allow",
+							Direction:       "In",
+							RemoteAddresses: testNodeIP,
+							Priority:        201,
 						},
 					},
 				},
@@ -1522,7 +1559,7 @@ func updatePodTests() []*SerialTestCase {
 					dptestutils.SetPolicy(podK1Set),
 					dptestutils.SetPolicy(podK1V1Set),
 				},
-				ExpectedEnpdointACLs: map[string][]*hnswrapper.FakeEndpointPolicy{},
+				ExpectedEnpdointACLs: nil,
 			},
 		},
 		{
@@ -1551,7 +1588,7 @@ func updatePodTests() []*SerialTestCase {
 					dptestutils.SetPolicy(podK1Set),
 					dptestutils.SetPolicy(podK1V1Set),
 				},
-				ExpectedEnpdointACLs: map[string][]*hnswrapper.FakeEndpointPolicy{},
+				ExpectedEnpdointACLs: nil,
 			},
 		},
 		{
@@ -1579,7 +1616,7 @@ func updatePodTests() []*SerialTestCase {
 					dptestutils.SetPolicy(podK1Set, ip1),
 					dptestutils.SetPolicy(podK1V1Set, ip1),
 				},
-				ExpectedEnpdointACLs: map[string][]*hnswrapper.FakeEndpointPolicy{},
+				ExpectedEnpdointACLs: nil,
 			},
 		},
 		{
@@ -1633,6 +1670,13 @@ func updatePodTests() []*SerialTestCase {
 							LocalPorts:      "",
 							RemotePorts:     "",
 							Priority:        222,
+						},
+						{
+							ID:              "azure-acl-x-base2",
+							Action:          "Allow",
+							Direction:       "In",
+							RemoteAddresses: testNodeIP,
+							Priority:        201,
 						},
 					},
 				},
@@ -1741,6 +1785,13 @@ func podAssignmentSequence3Tests() []*SerialTestCase {
 							LocalPorts:      "",
 							RemotePorts:     "",
 							Priority:        222,
+						},
+						{
+							ID:              "azure-acl-x-base2",
+							Action:          "Allow",
+							Direction:       "In",
+							RemoteAddresses: testNodeIP,
+							Priority:        201,
 						},
 					},
 				},
@@ -1873,6 +1924,13 @@ func podAssignmentSequence3Tests() []*SerialTestCase {
 							RemotePorts:     "",
 							Priority:        222,
 						},
+						{
+							ID:              "azure-acl-x-base2",
+							Action:          "Allow",
+							Direction:       "In",
+							RemoteAddresses: testNodeIP,
+							Priority:        201,
+						},
 					},
 				},
 			},
@@ -1939,6 +1997,13 @@ func podAssignmentSequence3Tests() []*SerialTestCase {
 							Priority:        222,
 						},
 						{
+							ID:              "azure-acl-x-base2",
+							Action:          "Allow",
+							Direction:       "In",
+							RemoteAddresses: testNodeIP,
+							Priority:        201,
+						},
+						{
 							ID:              "azure-acl-x-base3",
 							Protocols:       "",
 							Action:          "Allow",
@@ -1959,6 +2024,153 @@ func podAssignmentSequence3Tests() []*SerialTestCase {
 							LocalPorts:      "",
 							RemotePorts:     "",
 							Priority:        222,
+						},
+						{
+							ID:              "azure-acl-x-base3",
+							Action:          "Allow",
+							Direction:       "In",
+							RemoteAddresses: testNodeIP,
+							Priority:        201,
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+func remoteEndpointTests() []*SerialTestCase {
+	return []*SerialTestCase{
+		{
+			// updatePod cache will not be updated for a Pod off-node
+			Description: "policy created, then pod created off node (remote endpoint) which satisfies policy",
+			Actions: []*Action{
+				UpdatePolicy(policyXBaseOnK1V1()),
+				CreateRemoteEndpoint(endpoint1, ip1),
+				CreatePod("x", "a", ip1, otherNode, map[string]string{"k1": "v1"}),
+				ApplyDP(),
+			},
+			TestCaseMetadata: &TestCaseMetadata{
+				Tags: []Tag{
+					podCrudTag,
+					netpolCrudTag,
+				},
+				DpCfg:            defaultWindowsDPCfg,
+				InitialEndpoints: nil,
+				ExpectedSetPolicies: []*hcn.SetPolicySetting{
+					dptestutils.SetPolicy(emptySet),
+					dptestutils.SetPolicy(allNamespaces, emptySet.GetHashedName(), nsXSet.GetHashedName()),
+					dptestutils.SetPolicy(nsXSet, ip1),
+					dptestutils.SetPolicy(podK1Set, ip1),
+					dptestutils.SetPolicy(podK1V1Set, ip1),
+				},
+				ExpectedEnpdointACLs: nil,
+			},
+		},
+		{
+			// updatePod cache will not be updated for a Pod off-node
+			Description: "pod created off node (remote endpoint), then relevant policy created",
+			Actions: []*Action{
+				CreateRemoteEndpoint(endpoint1, ip1),
+				CreatePod("x", "a", ip1, otherNode, map[string]string{"k1": "v1"}),
+				// will apply dirty ipsets from CreatePod
+				UpdatePolicy(policyXBaseOnK1V1()),
+			},
+			TestCaseMetadata: &TestCaseMetadata{
+				Tags: []Tag{
+					podCrudTag,
+					netpolCrudTag,
+				},
+				DpCfg:            defaultWindowsDPCfg,
+				InitialEndpoints: nil,
+				ExpectedSetPolicies: []*hcn.SetPolicySetting{
+					dptestutils.SetPolicy(emptySet),
+					dptestutils.SetPolicy(allNamespaces, emptySet.GetHashedName(), nsXSet.GetHashedName()),
+					dptestutils.SetPolicy(nsXSet, ip1),
+					dptestutils.SetPolicy(podK1Set, ip1),
+					dptestutils.SetPolicy(podK1V1Set, ip1),
+				},
+				ExpectedEnpdointACLs: nil,
+			},
+		},
+		{
+			Description: "don't track remote endpoint",
+			Actions: []*Action{
+				CreatePod("x", "a", ip1, thisNode, map[string]string{"k1": "v1"}),
+				UpdatePolicy(policyXBaseOnK1V1()),
+			},
+			TestCaseMetadata: &TestCaseMetadata{
+				Tags: []Tag{
+					podCrudTag,
+					netpolCrudTag,
+				},
+				DpCfg: defaultWindowsDPCfg,
+				InitialEndpoints: []*hcn.HostComputeEndpoint{
+					dptestutils.RemoteEndpoint(endpoint1, ip1),
+				},
+				ExpectedSetPolicies: []*hcn.SetPolicySetting{
+					dptestutils.SetPolicy(emptySet),
+					dptestutils.SetPolicy(allNamespaces, emptySet.GetHashedName(), nsXSet.GetHashedName()),
+					dptestutils.SetPolicy(nsXSet, ip1),
+					dptestutils.SetPolicy(podK1Set, ip1),
+					dptestutils.SetPolicy(podK1V1Set, ip1),
+				},
+				ExpectedEnpdointACLs: nil,
+			},
+		},
+		{
+			Description: "add policy to correct endpoint e.g. when an old endpoint isn't deleted",
+			Actions: []*Action{
+				CreatePod("x", "a", ip1, thisNode, map[string]string{"k1": "v1"}),
+				UpdatePolicy(policyXBaseOnK1V1()),
+			},
+			TestCaseMetadata: &TestCaseMetadata{
+				Tags: []Tag{
+					podCrudTag,
+					netpolCrudTag,
+				},
+				DpCfg: defaultWindowsDPCfg,
+				InitialEndpoints: []*hcn.HostComputeEndpoint{
+					dptestutils.RemoteEndpoint(endpoint1, ip1),
+					dptestutils.Endpoint(endpoint2, ip1),
+				},
+				ExpectedSetPolicies: []*hcn.SetPolicySetting{
+					dptestutils.SetPolicy(emptySet),
+					dptestutils.SetPolicy(allNamespaces, emptySet.GetHashedName(), nsXSet.GetHashedName()),
+					dptestutils.SetPolicy(nsXSet, ip1),
+					dptestutils.SetPolicy(podK1Set, ip1),
+					dptestutils.SetPolicy(podK1V1Set, ip1),
+				},
+				ExpectedEnpdointACLs: map[string][]*hnswrapper.FakeEndpointPolicy{
+					endpoint2: {
+						{
+							ID:              "azure-acl-x-base",
+							Protocols:       "",
+							Action:          "Allow",
+							Direction:       "In",
+							LocalAddresses:  "",
+							RemoteAddresses: "",
+							LocalPorts:      "",
+							RemotePorts:     "",
+							Priority:        222,
+						},
+						{
+							ID:              "azure-acl-x-base",
+							Protocols:       "",
+							Action:          "Allow",
+							Direction:       "Out",
+							LocalAddresses:  "",
+							RemoteAddresses: "",
+							LocalPorts:      "",
+							RemotePorts:     "",
+							Priority:        222,
+						},
+						{
+							ID:              "azure-acl-x-base",
+							Action:          "Allow",
+							Direction:       "In",
+							RemoteAddresses: testNodeIP,
+							Priority:        201,
 						},
 					},
 				},
@@ -1994,7 +2206,6 @@ func getAllMultiJobTests() []*MultiJobTestCase {
 				},
 				DpCfg: defaultWindowsDPCfg,
 				InitialEndpoints: []*hcn.HostComputeEndpoint{
-					// ends up being 2 identical endpoints (test2)??
 					dptestutils.Endpoint(endpoint1, ip1),
 					dptestutils.RemoteEndpoint(endpoint2, ip2),
 				},
@@ -2034,8 +2245,14 @@ func getAllMultiJobTests() []*MultiJobTestCase {
 							RemotePorts:     "",
 							Priority:        222,
 						},
+						{
+							ID:              "azure-acl-x-base",
+							Action:          "Allow",
+							Direction:       "In",
+							RemoteAddresses: testNodeIP,
+							Priority:        201,
+						},
 					},
-					endpoint2: {},
 				},
 			},
 		},

@@ -273,9 +273,9 @@ func (service *HTTPRestService) ReconcileNCState(ncRequest *cns.CreateNetworkCon
 	}
 
 	// now parse the secondaryIP list, if it exists in PodInfo list, then assign that ip.
-	for _, secIpConfig := range ncRequest.SecondaryIPConfigs {
-		if podInfo, exists := podInfoByIP[secIpConfig.IPAddress]; exists {
-			logger.Printf("SecondaryIP %+v is assigned to Pod. %+v, ncId: %s", secIpConfig, podInfo, ncRequest.NetworkContainerid)
+	for _, secIPConfig := range ncRequest.SecondaryIPConfigs {
+		if podInfo, exists := podInfoByIP[secIPConfig.IPAddress]; exists {
+			logger.Printf("SecondaryIP %+v is assigned to Pod. %+v, ncId: %s", secIPConfig, podInfo, ncRequest.NetworkContainerid)
 
 			jsonContext, err := podInfo.OrchestratorContext()
 			if err != nil {
@@ -283,19 +283,19 @@ func (service *HTTPRestService) ReconcileNCState(ncRequest *cns.CreateNetworkCon
 				return types.UnexpectedError
 			}
 
-			ipconfigRequest := cns.IPConfigRequest{
-				DesiredIPAddress:    secIpConfig.IPAddress,
+			ipconfigsRequest := cns.IPConfigsRequest{
+				DesiredIPAddresses:  []string{secIPConfig.IPAddress},
 				OrchestratorContext: jsonContext,
 				InfraContainerID:    podInfo.InfraContainerID(),
 				PodInterfaceID:      podInfo.InterfaceID(),
 			}
 
-			if _, err := requestIPConfigHelper(service, ipconfigRequest); err != nil {
-				logger.Errorf("AllocateIPConfig failed for SecondaryIP %+v, podInfo %+v, ncId %s, error: %v", secIpConfig, podInfo, ncRequest.NetworkContainerid, err)
+			if _, err := requestIPConfigsHelper(service, ipconfigsRequest); err != nil {
+				logger.Errorf("AllocateIPConfig failed for SecondaryIP %+v, podInfo %+v, ncId %s, error: %v", secIPConfig, podInfo, ncRequest.NetworkContainerid, err)
 				return types.FailedToAllocateIPConfig
 			}
 		} else {
-			logger.Printf("SecondaryIP %+v is not assigned. ncId: %s", secIpConfig, ncRequest.NetworkContainerid)
+			logger.Printf("SecondaryIP %+v is not assigned. ncId: %s", secIPConfig, ncRequest.NetworkContainerid)
 		}
 	}
 
@@ -371,10 +371,10 @@ func (service *HTTPRestService) CreateOrUpdateNetworkContainerInternal(req *cns.
 	}
 
 	// Validate SecondaryIPConfig
-	for _, secIpconfig := range req.SecondaryIPConfigs {
+	for _, secIPConfig := range req.SecondaryIPConfigs {
 		// Validate Ipconfig
-		if secIpconfig.IPAddress == "" {
-			logger.Errorf("Failed to add IPConfig to state: %+v, empty IPSubnet.IPAddress", secIpconfig)
+		if secIPConfig.IPAddress == "" {
+			logger.Errorf("Failed to add IPConfig to state: %+v, empty IPSubnet.IPAddress", secIPConfig)
 			return types.InvalidSecondaryIPConfig
 		}
 	}

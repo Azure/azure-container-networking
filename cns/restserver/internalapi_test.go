@@ -122,6 +122,7 @@ func TestSyncHostNCVersion(t *testing.T) {
 	// cns.KubernetesCRD has one more logic compared to other orchestrator type, so test both of them
 	orchestratorTypes := []string{cns.Kubernetes, cns.KubernetesCRD}
 	for _, orchestratorType := range orchestratorTypes {
+		orchestratorType := orchestratorType
 		t.Run(orchestratorType, func(t *testing.T) {
 			req := createNCReqeustForSyncHostNCVersion(t)
 			containerStatus := svc.state.ContainerStatus[req.NetworkContainerid]
@@ -417,7 +418,7 @@ func validateCreateOrUpdateNCInternal(t *testing.T, secondaryIpCount int, ncVers
 
 	createAndValidateNCRequest(t, secondaryIPConfigs, ncId, ncVersion)
 
-	// now Validate Update, add more secondaryIpConfig and it should handle the update
+	// now Validate Update, add more secondaryIPConfig and it should handle the update
 	fmt.Println("Validate Scaleup")
 	for i := 0; i < secondaryIpCount; i++ {
 		ipaddress := "10.0.0." + strconv.Itoa(startingIndex)
@@ -429,7 +430,7 @@ func validateCreateOrUpdateNCInternal(t *testing.T, secondaryIpCount int, ncVers
 
 	createAndValidateNCRequest(t, secondaryIPConfigs, ncId, ncVersion)
 
-	// now Scale down, delete 3 ipaddresses from secondaryIpConfig req
+	// now Scale down, delete 3 ipaddresses from secondaryIPConfig req
 	fmt.Println("Validate Scale down")
 	count := 0
 	for ipid := range secondaryIPConfigs {
@@ -490,11 +491,6 @@ func validateNetworkRequest(t *testing.T, req cns.CreateNetworkContainerRequest)
 		t.Fatalf("Failed as Primary IPAddress doesnt match, expected:%s, actual %s", req.IPConfiguration.IPSubnet.IPAddress, actualReq.IPConfiguration.IPSubnet.IPAddress)
 	}
 
-	// Validate Secondary ips are added in the PodMap
-	if len(svc.PodIPConfigState) != len(req.SecondaryIPConfigs) {
-		t.Fatalf("Failed as Secondary IP count doesnt match in PodIpConfig state, expected:%d, actual %d", len(req.SecondaryIPConfigs), len(svc.PodIPConfigState))
-	}
-
 	var expectedIPStatus types.IPState
 	// 0 is the default NMAgent version return from fake GetNetworkContainerInfoFromHost
 	if containerStatus.CreateNetworkContainerRequest.Version > "0" {
@@ -504,35 +500,40 @@ func validateNetworkRequest(t *testing.T, req cns.CreateNetworkContainerRequest)
 	}
 	t.Logf("NC version in container status is %s, HostVersion is %s", containerStatus.CreateNetworkContainerRequest.Version, containerStatus.HostVersion)
 	alreadyValidated := make(map[string]string)
+	ncCount := 0
 	for ipid, ipStatus := range svc.PodIPConfigState {
-		if ipaddress, found := alreadyValidated[ipid]; !found {
-			if secondaryIpConfig, ok := req.SecondaryIPConfigs[ipid]; !ok {
-				t.Fatalf("PodIpConfigState has stale ipId: %s, config: %+v", ipid, ipStatus)
-			} else {
-				if ipStatus.IPAddress != secondaryIpConfig.IPAddress {
-					t.Fatalf("IPId: %s IPSubnet doesnt match: expected %+v, actual: %+v", ipid, secondaryIpConfig.IPAddress, ipStatus.IPAddress)
-				}
-
-				// Validate IP state
-				if ipStatus.PodInfo != nil {
-					if _, exists := svc.PodIPIDByPodInterfaceKey[ipStatus.PodInfo.Key()]; exists {
-						if ipStatus.GetState() != types.Assigned {
-							t.Fatalf("IPId: %s State is not Assigned, ipStatus: %+v", ipid, ipStatus)
-						}
-					} else {
-						t.Fatalf("Failed to find podContext for assigned ip: %+v, podinfo :%+v", ipStatus, ipStatus.PodInfo)
+		ncCount++
+		// ignore any IPs that were added from a previous NC
+		if ncCount > (len(svc.state.ContainerStatus) * len(svc.PodIPConfigState)) {
+			if ipaddress, found := alreadyValidated[ipid]; !found {
+				if secondaryIPConfig, ok := req.SecondaryIPConfigs[ipid]; !ok {
+					t.Fatalf("PodIpConfigState has stale ipId: %s, config: %+v", ipid, ipStatus)
+				} else {
+					if ipStatus.IPAddress != secondaryIPConfig.IPAddress {
+						t.Fatalf("IPId: %s IPSubnet doesnt match: expected %+v, actual: %+v", ipid, secondaryIPConfig.IPAddress, ipStatus.IPAddress)
 					}
-				} else if ipStatus.GetState() != expectedIPStatus {
-					// Todo: Validate for pendingRelease as well
-					t.Fatalf("IPId: %s State is not as expected, ipStatus is : %+v, expected status is %+v", ipid, ipStatus.GetState(), expectedIPStatus)
-				}
 
-				alreadyValidated[ipid] = ipStatus.IPAddress
-			}
-		} else {
-			// if ipaddress is not same, then fail
-			if ipaddress != ipStatus.IPAddress {
-				t.Fatalf("Added the same IP guid :%s with different ipaddress, expected:%s, actual %s", ipid, ipStatus.IPAddress, ipaddress)
+					// Validate IP state
+					if ipStatus.PodInfo != nil {
+						if _, exists := svc.PodIPIDByPodInterfaceKey[ipStatus.PodInfo.Key()]; exists {
+							if ipStatus.GetState() != types.Assigned {
+								t.Fatalf("IPId: %s State is not Assigned, ipStatus: %+v", ipid, ipStatus)
+							}
+						} else {
+							t.Fatalf("Failed to find podContext for assigned ip: %+v, podinfo :%+v", ipStatus, ipStatus.PodInfo)
+						}
+					} else if ipStatus.GetState() != expectedIPStatus {
+						// Todo: Validate for pendingRelease as well
+						t.Fatalf("IPId: %s State is not as expected, ipStatus is : %+v, expected status is %+v", ipid, ipStatus.GetState(), expectedIPStatus)
+					}
+
+					alreadyValidated[ipid] = ipStatus.IPAddress
+				}
+			} else {
+				// if ipaddress is not same, then fail
+				if ipaddress != ipStatus.IPAddress {
+					t.Fatalf("Added the same IP guid :%s with different ipaddress, expected:%s, actual %s", ipid, ipStatus.IPAddress, ipaddress)
+				}
 			}
 		}
 	}
@@ -582,27 +583,27 @@ func validateNCStateAfterReconcile(t *testing.T, ncRequest *cns.CreateNetworkCon
 	}
 
 	for ipaddress, podInfo := range expectedAssignedPods {
-		ipId := svc.PodIPIDByPodInterfaceKey[podInfo.Key()]
-		ipConfigstate := svc.PodIPConfigState[ipId]
+		for _, ipID := range svc.PodIPIDByPodInterfaceKey[podInfo.Key()] {
+			ipConfigstate := svc.PodIPConfigState[ipID]
+			if ipConfigstate.GetState() != types.Assigned {
+				t.Fatalf("IpAddress %s is not marked as assigned to Pod: %+v, ipState: %+v", ipaddress, podInfo, ipConfigstate)
+			}
 
-		if ipConfigstate.GetState() != types.Assigned {
-			t.Fatalf("IpAddress %s is not marked as assigned to Pod: %+v, ipState: %+v", ipaddress, podInfo, ipConfigstate)
-		}
+			// Validate if IPAddress matches
+			if ipConfigstate.IPAddress != ipaddress {
+				t.Fatalf("IpAddress %s is not same, for Pod: %+v, actual ipState: %+v", ipaddress, podInfo, ipConfigstate)
+			}
 
-		// Validate if IPAddress matches
-		if ipConfigstate.IPAddress != ipaddress {
-			t.Fatalf("IpAddress %s is not same, for Pod: %+v, actual ipState: %+v", ipaddress, podInfo, ipConfigstate)
-		}
+			// Validate pod context
+			if reflect.DeepEqual(ipConfigstate.PodInfo, podInfo) != true {
+				t.Fatalf("OrchestrationContext: is not same, expected: %+v, actual %+v", ipConfigstate.PodInfo, podInfo)
+			}
 
-		// Valdate pod context
-		if reflect.DeepEqual(ipConfigstate.PodInfo, podInfo) != true {
-			t.Fatalf("OrchestrationContext: is not same, expected: %+v, actual %+v", ipConfigstate.PodInfo, podInfo)
-		}
-
-		// Validate this IP belongs to a valid NCRequest
-		nc := svc.state.ContainerStatus[ipConfigstate.NCID]
-		if _, exists := nc.CreateNetworkContainerRequest.SecondaryIPConfigs[ipConfigstate.ID]; !exists {
-			t.Fatalf("Secondary IP config doest exist in NC, ncid: %s, ipId %s", ipConfigstate.NCID, ipConfigstate.ID)
+			// Validate this IP belongs to a valid NCRequest
+			nc := svc.state.ContainerStatus[ipConfigstate.NCID]
+			if _, exists := nc.CreateNetworkContainerRequest.SecondaryIPConfigs[ipConfigstate.ID]; !exists {
+				t.Fatalf("Secondary IP config doest exist in NC, ncid: %s, ipId %s", ipConfigstate.NCID, ipConfigstate.ID)
+			}
 		}
 	}
 

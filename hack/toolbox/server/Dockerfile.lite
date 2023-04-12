@@ -1,4 +1,4 @@
-FROM mcr.microsoft.com/oss/go/microsoft/golang:1.19 as build
+FROM mcr.microsoft.com/oss/go/microsoft/golang:1.20 as build
 ADD ./server/server.go /
 WORKDIR /
 RUN CGO_ENABLED=0 GOOS=linux go build -o server .

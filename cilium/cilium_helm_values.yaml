@@ -28,7 +28,7 @@ ipv4NativeRoutingCIDR: 10.241.0.0/16
 enableIPv4Masquerade: false
 install-no-conntrack-iptables-rules: false
 installIptablesRules: true
-l7Proxy: true
+l7Proxy: false
 hubble:
   enabled: false
 kubeProxyReplacement: strict

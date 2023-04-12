@@ -184,11 +184,6 @@ stages:
               arch: amd64
               name: npm
               os: linux
-            npm_windows2019_amd64:
-              arch: amd64
-              name: npm
-              os: windows
-              os_version: ltsc2019
             npm_windows2022_amd64:
               arch: amd64
               name: npm
@@ -289,7 +284,7 @@ stages:
               platforms: linux/amd64 linux/arm64 windows/amd64
             npm:
               name: npm
-              os_versions: ltsc2019 ltsc2022
+              os_versions: ltsc2022
               platforms: linux/amd64 linux/arm64 windows/amd64
         steps:
           - template: containers/manifest-template.yaml

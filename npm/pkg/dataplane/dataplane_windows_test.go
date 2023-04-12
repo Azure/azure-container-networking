@@ -11,7 +11,6 @@ import (
 	dptestutils "github.com/Azure/azure-container-networking/npm/pkg/dataplane/testutils"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
-	"k8s.io/klog"
 )
 
 const (
@@ -35,12 +34,16 @@ func TestApplyInBackground(t *testing.T) {
 	testSerialCases(t, applyInBackgroundTests(), time.Duration(100*time.Millisecond))
 }
 
+func TestRemoteEndpoints(t *testing.T) {
+	testSerialCases(t, remoteEndpointTests(), 0)
+}
+
 func TestAllMultiJobCases(t *testing.T) {
 	testMultiJobCases(t, getAllMultiJobTests(), 0)
 }
 
 func TestMultiJobApplyInBackground(t *testing.T) {
-	testMultiJobCases(t, multiJobApplyInBackgroundTests(), time.Duration(100*time.Millisecond))
+	testMultiJobCases(t, multiJobApplyInBackgroundTests(), time.Duration(1*time.Second))
 }
 
 func testSerialCases(t *testing.T, tests []*SerialTestCase, finalSleep time.Duration) {
@@ -48,14 +51,7 @@ func testSerialCases(t *testing.T, tests []*SerialTestCase, finalSleep time.Dura
 		i := i
 		tt := tt
 
-		for _, tag := range tt.Tags {
-			if tag == skipTestTag {
-				continue
-			}
-		}
-
 		t.Run(tt.Description, func(t *testing.T) {
-			klog.Infof("tt in: %+v", tt)
 			t.Logf("beginning test #%d. Description: [%s]. Tags: %+v", i, tt.Description, tt.Tags)
 
 			hns := ipsets.GetHNSFake(t, tt.DpCfg.NetworkName)
@@ -95,12 +91,6 @@ func testMultiJobCases(t *testing.T, tests []*MultiJobTestCase, finalSleep time.
 	for i, tt := range tests {
 		i := i
 		tt := tt
-
-		for _, tag := range tt.Tags {
-			if tag == skipTestTag {
-				continue
-			}
-		}
 
 		t.Run(tt.Description, func(t *testing.T) {
 			t.Logf("beginning test #%d. Description: [%s]. Tags: %+v", i, tt.Description, tt.Tags)

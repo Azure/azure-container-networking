@@ -60,6 +60,14 @@ var (
 			RemotePorts:     "",
 			Priority:        allowRulePriotity,
 		},
+		// readiness probe ACL
+		{
+			ID:              TestNetworkPolicies[0].ACLPolicyID,
+			Direction:       "In",
+			Action:          "Allow",
+			RemoteAddresses: "6.7.8.9",
+			Priority:        201,
+		},
 	}
 
 	endPointIDList = map[string]string{

@@ -170,8 +170,8 @@ func TestMain(m *testing.M) {
 	config := common.ServiceConfig{}
 
 	httpRestService, err := restserver.NewHTTPRestService(&config, &fakes.WireserverClientFake{}, &fakes.WireserverProxyFake{}, &fakes.NMAgentClientFake{}, nil, nil, nil)
-	svc = httpRestService.(*restserver.HTTPRestService)
-	svc.Name = "cns-test-server"
+	svc = httpRestService
+	httpRestService.Name = "cns-test-server"
 	fakeNNC := v1alpha.NodeNetworkConfig{
 		TypeMeta:   metav1.TypeMeta{},
 		ObjectMeta: metav1.ObjectMeta{},
@@ -204,7 +204,7 @@ func TestMain(m *testing.M) {
 			},
 		},
 	}
-	svc.IPAMPoolMonitor = &fakes.MonitorFake{IPsNotInUseCount: 13, NodeNetworkConfig: &fakeNNC}
+	httpRestService.IPAMPoolMonitor = &fakes.MonitorFake{IPsNotInUseCount: 13, NodeNetworkConfig: &fakeNNC}
 
 	if err != nil {
 		logger.Errorf("Failed to create CNS object, err:%v.\n", err)
@@ -294,6 +294,11 @@ func TestCNSClientRequestAndRelease(t *testing.T) {
 
 	t.Log(ipaddresses)
 
+	addresses := make([]string, len(ipaddresses))
+	for i := range ipaddresses {
+		addresses[i] = ipaddresses[i].IPAddress
+	}
+
 	// release requested IP address, expect success
 	err = cnsClient.ReleaseIPAddress(context.TODO(), cns.IPConfigRequest{DesiredIPAddress: ipaddresses[0].IPAddress, OrchestratorContext: orchestratorContext})
 	assert.NoError(t, err, "Expected to not fail when releasing IP reservation found with context")
@@ -378,7 +383,9 @@ func TestCNSClientDebugAPI(t *testing.T) {
 	assert.Len(t, testIpamPoolMonitor.CachedNNC.Status.NetworkContainers, 1, "Expected only one Network Container in the list")
 
 	t.Logf("In-memory Data: ")
-	t.Logf("PodIPIDByOrchestratorContext: %+v", inmemory.HTTPRestServiceData.PodIPIDByPodInterfaceKey)
+	for i := range inmemory.HTTPRestServiceData.PodIPIDByPodInterfaceKey {
+		t.Logf("PodIPIDByOrchestratorContext: %+v", inmemory.HTTPRestServiceData.PodIPIDByPodInterfaceKey[i])
+	}
 	t.Logf("PodIPConfigState: %+v", inmemory.HTTPRestServiceData.PodIPConfigState)
 	t.Logf("IPAMPoolMonitor: %+v", inmemory.HTTPRestServiceData.IPAMPoolMonitor)
 }
@@ -1821,6 +1828,310 @@ func TestReleaseIPAddress(t *testing.T) {
 	}
 }
 
+func TestRequestIPs(t *testing.T) {
+	emptyRoutes, _ := buildRoutes(defaultBaseURL, clientPaths)
+	tests := []struct {
+		name     string
+		ctx      context.Context
+		ipconfig cns.IPConfigsRequest
+		mockdo   *mockdo
+		routes   map[string]url.URL
+		want     *cns.IPConfigsResponse
+		wantErr  bool
+	}{
+		{
+			name: "happy case 1 IP",
+			ctx:  context.TODO(),
+			ipconfig: cns.IPConfigsRequest{
+				DesiredIPAddresses: []string{
+					"testipaddress",
+				},
+				PodInterfaceID:   "testpodinterfaceid",
+				InfraContainerID: "testcontainerid",
+			},
+			mockdo: &mockdo{
+				errToReturn:            nil,
+				objToReturn:            &cns.IPConfigsResponse{},
+				httpStatusCodeToReturn: http.StatusOK,
+			},
+			routes:  emptyRoutes,
+			want:    &cns.IPConfigsResponse{},
+			wantErr: false,
+		},
+		{
+			name: "happy case 2 IPs",
+			ctx:  context.TODO(),
+			ipconfig: cns.IPConfigsRequest{
+				DesiredIPAddresses: []string{
+					"testipaddress1",
+					"testipaddress2",
+				},
+				PodInterfaceID:   "testpodinterfaceid",
+				InfraContainerID: "testcontainerid",
+			},
+			mockdo: &mockdo{
+				errToReturn:            nil,
+				objToReturn:            &cns.IPConfigsResponse{},
+				httpStatusCodeToReturn: http.StatusOK,
+			},
+			routes:  emptyRoutes,
+			want:    &cns.IPConfigsResponse{},
+			wantErr: false,
+		},
+		{
+			name: "bad request",
+			ctx:  context.TODO(),
+			ipconfig: cns.IPConfigsRequest{
+				DesiredIPAddresses: []string{
+					"testipaddress",
+				},
+				PodInterfaceID:   "testpodinterfaceid",
+				InfraContainerID: "testcontainerid",
+			},
+			mockdo: &mockdo{
+				errToReturn:            errBadRequest,
+				objToReturn:            nil,
+				httpStatusCodeToReturn: http.StatusBadRequest,
+			},
+			routes:  emptyRoutes,
+			want:    nil,
+			wantErr: true,
+		},
+		{
+			name: "bad decoding",
+			ctx:  context.TODO(),
+			ipconfig: cns.IPConfigsRequest{
+				DesiredIPAddresses: []string{
+					"testipaddress",
+				},
+				PodInterfaceID:   "testpodinterfaceid",
+				InfraContainerID: "testcontainerid",
+			},
+			mockdo: &mockdo{
+				errToReturn:            nil,
+				objToReturn:            []cns.IPConfigsResponse{},
+				httpStatusCodeToReturn: http.StatusOK,
+			},
+			routes:  emptyRoutes,
+			want:    nil,
+			wantErr: true,
+		},
+		{
+			name:     "http status not ok",
+			ctx:      context.TODO(),
+			ipconfig: cns.IPConfigsRequest{},
+			mockdo: &mockdo{
+				errToReturn:            nil,
+				objToReturn:            nil,
+				httpStatusCodeToReturn: http.StatusInternalServerError,
+			},
+			routes:  emptyRoutes,
+			want:    nil,
+			wantErr: true,
+		},
+		{
+			name: "cns return code not zero",
+			ctx:  context.TODO(),
+			ipconfig: cns.IPConfigsRequest{
+				DesiredIPAddresses: []string{
+					"testipaddress",
+				},
+				PodInterfaceID:   "testpodinterfaceid",
+				InfraContainerID: "testcontainerid",
+			},
+			mockdo: &mockdo{
+				errToReturn: nil,
+				objToReturn: &cns.IPConfigResponse{
+					Response: cns.Response{
+						ReturnCode: types.UnsupportedNetworkType,
+					},
+				},
+				httpStatusCodeToReturn: http.StatusOK,
+			},
+			routes:  emptyRoutes,
+			want:    nil,
+			wantErr: true,
+		},
+		{
+			name: "nil context",
+			ctx:  nil,
+			ipconfig: cns.IPConfigsRequest{
+				DesiredIPAddresses: []string{
+					"testipaddress",
+				},
+				PodInterfaceID:   "testpodinterfaceid",
+				InfraContainerID: "testcontainerid",
+			},
+			mockdo:  &mockdo{},
+			routes:  emptyRoutes,
+			want:    nil,
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			client := &Client{
+				client: tt.mockdo,
+				routes: tt.routes,
+			}
+			got, err := client.RequestIPs(tt.ctx, tt.ipconfig)
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestReleaseIPs(t *testing.T) {
+	emptyRoutes, _ := buildRoutes(defaultBaseURL, clientPaths)
+	tests := []struct {
+		name     string
+		ctx      context.Context
+		ipconfig cns.IPConfigsRequest
+		mockdo   *mockdo
+		routes   map[string]url.URL
+		wantErr  bool
+	}{
+		{
+			name: "happy case 1 IP",
+			ctx:  context.TODO(),
+			ipconfig: cns.IPConfigsRequest{
+				DesiredIPAddresses: []string{
+					"testipaddress",
+				},
+				PodInterfaceID:   "testpodinterfaceid",
+				InfraContainerID: "testcontainerid",
+			},
+			mockdo: &mockdo{
+				errToReturn:            nil,
+				objToReturn:            &cns.Response{},
+				httpStatusCodeToReturn: http.StatusOK,
+			},
+			routes:  emptyRoutes,
+			wantErr: false,
+		},
+		{
+			name: "happy case 2 IPs",
+			ctx:  context.TODO(),
+			ipconfig: cns.IPConfigsRequest{
+				DesiredIPAddresses: []string{
+					"testipaddress",
+				},
+				PodInterfaceID:   "testpodinterfaceid",
+				InfraContainerID: "testcontainerid",
+			},
+			mockdo: &mockdo{
+				errToReturn:            nil,
+				objToReturn:            &cns.Response{},
+				httpStatusCodeToReturn: http.StatusOK,
+			},
+			routes:  emptyRoutes,
+			wantErr: false,
+		},
+		{
+			name: "bad request",
+			ctx:  context.TODO(),
+			ipconfig: cns.IPConfigsRequest{
+				DesiredIPAddresses: []string{
+					"testipaddress",
+				},
+				PodInterfaceID:   "testpodinterfaceid",
+				InfraContainerID: "testcontainerid",
+			},
+			mockdo: &mockdo{
+				errToReturn:            errBadRequest,
+				objToReturn:            nil,
+				httpStatusCodeToReturn: http.StatusBadRequest,
+			},
+			routes:  emptyRoutes,
+			wantErr: true,
+		},
+		{
+			name: "bad decoding",
+			ctx:  context.TODO(),
+			ipconfig: cns.IPConfigsRequest{
+				DesiredIPAddresses: []string{
+					"testipaddress",
+				},
+				PodInterfaceID:   "testpodinterfaceid",
+				InfraContainerID: "testcontainerid",
+			},
+			mockdo: &mockdo{
+				errToReturn:            nil,
+				objToReturn:            []cns.Response{},
+				httpStatusCodeToReturn: http.StatusOK,
+			},
+			routes:  emptyRoutes,
+			wantErr: true,
+		},
+		{
+			name:     "http status not ok",
+			ctx:      context.TODO(),
+			ipconfig: cns.IPConfigsRequest{},
+			mockdo: &mockdo{
+				errToReturn:            nil,
+				objToReturn:            nil,
+				httpStatusCodeToReturn: http.StatusInternalServerError,
+			},
+			routes:  emptyRoutes,
+			wantErr: true,
+		},
+		{
+			name: "cns return code not zero",
+			ctx:  context.TODO(),
+			ipconfig: cns.IPConfigsRequest{
+				DesiredIPAddresses: []string{
+					"testipaddress",
+				},
+				PodInterfaceID:   "testpodinterfaceid",
+				InfraContainerID: "testcontainerid",
+			},
+			mockdo: &mockdo{
+				errToReturn: nil,
+				objToReturn: &cns.Response{
+					ReturnCode: types.UnsupportedNetworkType,
+				},
+				httpStatusCodeToReturn: http.StatusOK,
+			},
+			routes:  emptyRoutes,
+			wantErr: true,
+		},
+		{
+			name: "nil context",
+			ctx:  nil,
+			ipconfig: cns.IPConfigsRequest{
+				DesiredIPAddresses: []string{
+					"testipaddress",
+				},
+				PodInterfaceID:   "testpodinterfaceid",
+				InfraContainerID: "testcontainerid",
+			},
+			mockdo:  &mockdo{},
+			routes:  emptyRoutes,
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			client := &Client{
+				client: tt.mockdo,
+				routes: tt.routes,
+			}
+			err := client.ReleaseIPs(tt.ctx, tt.ipconfig)
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
 func TestGetIPAddressesMatchingStates(t *testing.T) {
 	emptyRoutes, _ := buildRoutes(defaultBaseURL, clientPaths)
 	tests := []struct {
@@ -1946,7 +2257,7 @@ func TestGetPodOrchestratorContext(t *testing.T) {
 		ctx     context.Context
 		mockdo  *mockdo
 		routes  map[string]url.URL
-		want    map[string]string
+		want    map[string][]string
 		wantErr bool
 	}{
 		{
@@ -1955,12 +2266,12 @@ func TestGetPodOrchestratorContext(t *testing.T) {
 			mockdo: &mockdo{
 				errToReturn: nil,
 				objToReturn: &cns.GetPodContextResponse{
-					PodContext: map[string]string{},
+					PodContext: map[string][]string{},
 				},
 				httpStatusCodeToReturn: http.StatusOK,
 			},
 			routes:  emptyRoutes,
-			want:    map[string]string{},
+			want:    map[string][]string{},
 			wantErr: false,
 		},
 		{

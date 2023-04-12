@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"io/fs"
 	"net/http"
-	"net/http/pprof"
 	"os"
 	"os/signal"
 	"runtime"
@@ -88,6 +87,7 @@ type cniConflistScenario string
 
 const (
 	scenarioV4Overlay cniConflistScenario = "v4overlay"
+	scenarioCilium    cniConflistScenario = "cilium"
 )
 
 var (
@@ -536,6 +536,8 @@ func main() {
 		switch scenario := cniConflistScenario(scenarioString); scenario {
 		case scenarioV4Overlay:
 			conflistGenerator = &cniconflist.V4OverlayGenerator{Writer: writer}
+		case scenarioCilium:
+			conflistGenerator = &cniconflist.CiliumGenerator{Writer: writer}
 		default:
 			logger.Errorf("unable to generate cni conflist for unknown scenario: %s", scenario)
 			os.Exit(1)
@@ -764,6 +766,10 @@ func main() {
 
 	logger.Printf("[Azure CNS] Start HTTP listener")
 	if httpRestService != nil {
+		if cnsconfig.EnablePprof {
+			httpRestService.RegisterPProfEndpoints()
+		}
+
 		err = httpRestService.Start(&config)
 		if err != nil {
 			logger.Errorf("Failed to start CNS, err:%v.\n", err)
@@ -1237,49 +1243,45 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 	mux := httpRestServiceImplementation.Listener.GetMux()
 	mux.Handle("/readyz", http.StripPrefix("/readyz", &healthz.Handler{}))
 	if cnsconfig.EnablePprof {
-		// add pprof endpoints
-		mux.Handle("/debug/pprof/allocs", pprof.Handler("allocs"))
-		mux.Handle("/debug/pprof/block", pprof.Handler("block"))
-		mux.Handle("/debug/pprof/goroutine", pprof.Handler("goroutine"))
-		mux.Handle("/debug/pprof/heap", pprof.Handler("heap"))
-		mux.Handle("/debug/pprof/mutex", pprof.Handler("mutex"))
-		mux.Handle("/debug/pprof/threadcreate", pprof.Handler("threadcreate"))
-		mux.HandleFunc("/debug/pprof/", pprof.Index)
-		mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
-		mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
-		mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
-		mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
+		httpRestServiceImplementation.RegisterPProfEndpoints()
 	}
 
 	// Start the Manager which starts the reconcile loop.
 	// The Reconciler will send an initial NodeNetworkConfig update to the PoolMonitor, starting the
 	// Monitor's internal loop.
 	go func() {
-		logger.Printf("Starting NodeNetworkConfig reconciler.")
+		logger.Printf("Starting controller-manager.")
 		for {
 			if err := manager.Start(ctx); err != nil {
-				logger.Errorf("[Azure CNS] Failed to start request controller: %v", err)
+				logger.Errorf("Failed to start controller-manager: %v", err)
 				// retry to start the request controller
 				// inc the managerStartFailures metric for failure tracking
 				managerStartFailures.Inc()
 			} else {
-				logger.Printf("exiting NodeNetworkConfig reconciler")
+				logger.Printf("Stopped controller-manager.")
 				return
 			}
-
-			// Retry after 1sec
-			time.Sleep(time.Second)
+			time.Sleep(time.Second) // TODO(rbtr): make this exponential backoff
 		}
 	}()
-	logger.Printf("initialized NodeNetworkConfig reconciler")
-	// wait for the Reconciler to run once on a NNC that was made for this Node
-	if started := nncReconciler.Started(ctx); !started {
-		return errors.Errorf("context cancelled while waiting for reconciler start")
+	logger.Printf("Initialized controller-manager.")
+	for {
+		logger.Printf("Waiting for NodeNetworkConfig reconciler to start.")
+		// wait for the Reconciler to run once on a NNC that was made for this Node.
+		// the nncReadyCtx has a timeout of 15 minutes, after which we will consider
+		// this false and the NNC Reconciler stuck/failed, log and retry.
+		nncReadyCtx, _ := context.WithTimeout(ctx, 15*time.Minute) //nolint // it will time out and not leak
+		if started, err := nncReconciler.Started(nncReadyCtx); !started {
+			log.Errorf("NNC reconciler has not started, does the NNC exist? err: %v", err)
+			nncReconcilerStartFailures.Inc()
+			continue
+		}
+		logger.Printf("NodeNetworkConfig reconciler has started.")
+		break
 	}
-	logger.Printf("started NodeNetworkConfig reconciler")
 
 	go func() {
-		logger.Printf("starting SyncHostNCVersion loop")
+		logger.Printf("Starting SyncHostNCVersion loop.")
 		// Periodically poll vfp programmed NC version from NMAgent
 		tickerChannel := time.Tick(time.Duration(cnsconfig.SyncHostNCVersionIntervalMs) * time.Millisecond)
 		for {
@@ -1289,12 +1291,11 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 				httpRestServiceImplementation.SyncHostNCVersion(timedCtx, cnsconfig.ChannelMode)
 				cancel()
 			case <-ctx.Done():
-				logger.Printf("exiting SyncHostNCVersion")
+				logger.Printf("Stopping SyncHostNCVersion loop.")
 				return
 			}
 		}
 	}()
-	logger.Printf("initialized and started SyncHostNCVersion loop")
-
+	logger.Printf("Initialized SyncHostNCVersion loop.")
 	return nil
 }

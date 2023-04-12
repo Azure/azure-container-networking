@@ -14,6 +14,7 @@ import (
 
 var (
 	ipsetConfig = &PolicyManagerCfg{
+		NodeIP:               "6.7.8.9",
 		PolicyMode:           IPSetPolicyMode,
 		PlaceAzureChainFirst: util.PlaceAzureChainFirst,
 	}
@@ -132,6 +133,7 @@ func TestAddPolicy(t *testing.T) {
 	numTestNetPolACLRulesProducedInKernel := 3
 	if util.IsWindowsDP() {
 		numEndpoints := 2
+		numTestNetPolACLRulesProducedInKernel++
 		numTestNetPolACLRulesProducedInKernel *= numEndpoints
 	}
 	promVals{numTestNetPolACLRulesProducedInKernel, 1}.testPrometheusMetrics(t)
