@@ -583,20 +583,12 @@ func (plugin *NetPlugin) cleanupAllocationOnError(
 	options map[string]interface{},
 ) {
 	if result != nil && len(result.IPs) > 0 {
-		addresses := make([]*net.IPNet, len(result.IPs))
-		for i, ip := range result.IPs {
-			addresses[i] = &ip.Address
-		}
-		if er := plugin.ipamInvoker.Delete(addresses, nwCfg, args, options); er != nil {
+		if er := plugin.ipamInvoker.Delete(&result.IPs[0].Address, nwCfg, args, options); er != nil {
 			log.Errorf("Failed to cleanup ip allocation on failure: %v", er)
 		}
 	}
 	if resultV6 != nil && len(resultV6.IPs) > 0 {
-		addressesV6 := make([]*net.IPNet, len(resultV6.IPs))
-		for i, ip := range resultV6.IPs {
-			addressesV6[i] = &ip.Address
-		}
-		if er := plugin.ipamInvoker.Delete(addressesV6, nwCfg, args, options); er != nil {
+		if er := plugin.ipamInvoker.Delete(&resultV6.IPs[0].Address, nwCfg, args, options); er != nil {
 			log.Errorf("Failed to cleanup ipv6 allocation on failure: %v", er)
 		}
 	}
@@ -1047,14 +1039,12 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 
 		if !nwCfg.MultiTenancy {
 			// Call into IPAM plugin to release the endpoint's addresses.
-			addresses := make([]*net.IPNet, len(epInfo.IPAddresses))
-			for i := range epInfo.IPAddresses {
-				addresses[i] = &epInfo.IPAddresses[i]
-			}
 			logAndSendEvent(plugin, fmt.Sprintf("Releasing ips:%+v", epInfo.IPAddresses))
-			err = plugin.ipamInvoker.Delete(addresses, nwCfg, args, nwInfo.Options)
-			if err != nil {
-				return plugin.RetriableError(fmt.Errorf("failed to release address: %w", err))
+			for i := range epInfo.IPAddresses {
+				err = plugin.ipamInvoker.Delete(&epInfo.IPAddresses[i], nwCfg, args, nwInfo.Options)
+				if err != nil {
+					return plugin.RetriableError(fmt.Errorf("failed to release address: %w", err))
+				}
 			}
 		} else if epInfo.EnableInfraVnet {
 			nwCfg.IPAM.Subnet = nwInfo.Subnets[0].Prefix.String()

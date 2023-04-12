@@ -122,7 +122,10 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 		}
 
 		// set the NC Primary IP in options
-		addConfig.options[network.SNATIPKey] = info.ncPrimaryIP
+		// SNATIPKey set is not for ipv6
+		if net.ParseIP(info.ncPrimaryIP).To4() != nil {
+			addConfig.options[network.SNATIPKey] = info.ncPrimaryIP
+		}
 
 		log.Printf("[cni-invoker-cns] Received info %+v for pod %v", info, podInfo)
 
@@ -264,7 +267,7 @@ func setHostOptions(ncSubnetPrefix *net.IPNet, options map[string]interface{}, i
 }
 
 // Delete calls into the releaseipconfiguration API in CNS
-func (invoker *CNSIPAMInvoker) Delete(addresses []*net.IPNet, nwCfg *cni.NetworkConfig, args *cniSkel.CmdArgs, _ map[string]interface{}) error { //nolint
+func (invoker *CNSIPAMInvoker) Delete(address *net.IPNet, nwCfg *cni.NetworkConfig, args *cniSkel.CmdArgs, _ map[string]interface{}) error { //nolint
 	// Parse Pod arguments.
 	podInfo := cns.KubernetesPodInfo{
 		PodName:      invoker.podName,
@@ -286,11 +289,8 @@ func (invoker *CNSIPAMInvoker) Delete(addresses []*net.IPNet, nwCfg *cni.Network
 		InfraContainerID:    args.ContainerID,
 	}
 
-	if len(addresses) > 0 {
-		ipConfig.DesiredIPAddresses = make([]string, len(addresses))
-		for i, ipAddress := range addresses {
-			ipConfig.DesiredIPAddresses[i] = ipAddress.IP.String()
-		}
+	if address != nil {
+		ipConfig.DesiredIPAddresses = append(ipConfig.DesiredIPAddresses, address.IP.String())
 	} else {
 		log.Printf("CNS invoker called with empty IP address")
 	}
@@ -308,11 +308,11 @@ func (invoker *CNSIPAMInvoker) Delete(addresses []*net.IPNet, nwCfg *cni.Network
 			if err = invoker.cnsClient.ReleaseIPAddress(context.TODO(), ipConfigs); err != nil {
 				// if the old API fails as well then we just return the error
 				log.Errorf("Failed to release IP address from CNS using ReleaseIPAddress with infracontainerid %s. error: %v", ipConfigs.InfraContainerID, err)
-				return errors.Wrap(err, fmt.Sprintf("failed to release IP %v using ReleaseIPAddress with err ", addresses)+"%w")
+				return errors.Wrap(err, fmt.Sprintf("failed to release IP %v using ReleaseIPAddress with err ", ipConfigs.DesiredIPAddress)+"%w")
 			}
 		} else {
 			log.Errorf("Failed to release IP address with infracontainerid %s from CNS error: %v", ipConfig.InfraContainerID, err)
-			return errors.Wrap(err, fmt.Sprintf("failed to release IP %v using ReleaseIPs with err ", addresses)+"%w")
+			return errors.Wrap(err, fmt.Sprintf("failed to release IP %v using ReleaseIPs with err ", ipConfig.DesiredIPAddresses)+"%w")
 		}
 	}
 

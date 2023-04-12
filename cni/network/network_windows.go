@@ -379,16 +379,13 @@ func determineWinVer() {
 }
 
 func getNATInfo(nwCfg *cni.NetworkConfig, ncPrimaryIPIface interface{}, enableSnatForDNS bool) (natInfo []policy.NATInfo) {
-	if nwCfg.ExecutionMode == string(util.V4Swift) && nwCfg.IPAM.Mode != string(util.V4Overlay) {
+	if nwCfg.ExecutionMode == string(util.V4Swift) && nwCfg.IPAM.Mode != string(util.V4Overlay) && nwCfg.IPAM.Mode != string(util.DualStackOverlay) {
 		ncPrimaryIP := ""
 		if ncPrimaryIPIface != nil {
 			ncPrimaryIP = ncPrimaryIPIface.(string)
 		}
 
-		// only append natInfo if ncPrimaryIP is ipv4
-		if net.ParseIP(ncPrimaryIP).To4() != nil {
-			natInfo = append(natInfo, []policy.NATInfo{{VirtualIP: ncPrimaryIP, Destinations: []string{networkutils.AzureDNS}}, {Destinations: []string{networkutils.AzureIMDS}}}...)
-		}
+		natInfo = append(natInfo, []policy.NATInfo{{VirtualIP: ncPrimaryIP, Destinations: []string{networkutils.AzureDNS}}, {Destinations: []string{networkutils.AzureIMDS}}}...)
 	} else if nwCfg.MultiTenancy && enableSnatForDNS {
 		natInfo = append(natInfo, policy.NATInfo{Destinations: []string{networkutils.AzureDNS}})
 	}

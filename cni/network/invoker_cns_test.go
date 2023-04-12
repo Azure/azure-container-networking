@@ -283,10 +283,10 @@ func TestCNSIPAMInvoker_Delete(t *testing.T) {
 		cnsClient    cnsclient
 	}
 	type args struct {
-		addresses []*net.IPNet
-		nwCfg     *cni.NetworkConfig
-		args      *cniSkel.CmdArgs
-		options   map[string]interface{}
+		address *net.IPNet
+		nwCfg   *cni.NetworkConfig
+		args    *cniSkel.CmdArgs
+		options map[string]interface{}
 	}
 	tests := []struct {
 		name    string
@@ -339,7 +339,7 @@ func TestCNSIPAMInvoker_Delete(t *testing.T) {
 				podNamespace: tt.fields.podNamespace,
 				cnsClient:    tt.fields.cnsClient,
 			}
-			err := invoker.Delete(tt.args.addresses, tt.args.nwCfg, tt.args.args, tt.args.options)
+			err := invoker.Delete(tt.args.address, tt.args.nwCfg, tt.args.args, tt.args.options)
 			if tt.wantErr {
 				require.Error(err)
 			} else {

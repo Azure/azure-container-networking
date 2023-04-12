@@ -235,10 +235,10 @@ func TestAzureIPAMInvoker_Delete(t *testing.T) {
 		nwInfo *network.NetworkInfo
 	}
 	type args struct {
-		addresses []*net.IPNet
-		nwCfg     *cni.NetworkConfig
-		in2       *cniSkel.CmdArgs
-		options   map[string]interface{}
+		address *net.IPNet
+		nwCfg   *cni.NetworkConfig
+		in2     *cniSkel.CmdArgs
+		options map[string]interface{}
 	}
 	tests := []struct {
 		name    string
@@ -255,9 +255,7 @@ func TestAzureIPAMInvoker_Delete(t *testing.T) {
 				nwInfo: getNwInfo("10.0.0.0/24", ""),
 			},
 			args: args{
-				addresses: []*net.IPNet{
-					getCIDRNotationForAddress("10.0.0.4/24"),
-				},
+				address: getCIDRNotationForAddress("10.0.0.4/24"),
 				nwCfg: &cni.NetworkConfig{
 					IPAM: cni.IPAM{
 						Address: "10.0.0.4",
@@ -274,29 +272,7 @@ func TestAzureIPAMInvoker_Delete(t *testing.T) {
 				nwInfo: getNwInfo("10.0.0.0/24", "2001:db8:abcd:0012::0/64"),
 			},
 			args: args{
-				addresses: []*net.IPNet{
-					getCIDRNotationForAddress("2001:db8:abcd:0015::0/64"),
-				},
-				nwCfg: &cni.NetworkConfig{
-					IPAM: cni.IPAM{
-						Address: "2001:db8:abcd:0015::0/64",
-					},
-				},
-			},
-		},
-		{
-			name: "delete happy path ipv4+ipv6",
-			fields: fields{
-				plugin: &mockDelegatePlugin{
-					del: del{},
-				},
-				nwInfo: getNwInfo("10.0.0.0/24", "2001:db8:abcd:0012::0/64"),
-			},
-			args: args{
-				addresses: []*net.IPNet{
-					getCIDRNotationForAddress("10.0.0.4/24"),
-					getCIDRNotationForAddress("2001:db8:abcd:0015::0/64"),
-				},
+				address: getCIDRNotationForAddress("2001:db8:abcd:0015::0/64"),
 				nwCfg: &cni.NetworkConfig{
 					IPAM: cni.IPAM{
 						Address: "2001:db8:abcd:0015::0/64",
@@ -315,7 +291,7 @@ func TestAzureIPAMInvoker_Delete(t *testing.T) {
 				nwInfo: getNwInfo("", "2001:db8:abcd:0012::0/64"),
 			},
 			args: args{
-				addresses: nil,
+				address: nil,
 				nwCfg: &cni.NetworkConfig{
 					IPAM: cni.IPAM{
 						Address: "2001:db8:abcd:0015::0/64",
@@ -335,9 +311,7 @@ func TestAzureIPAMInvoker_Delete(t *testing.T) {
 				nwInfo: getNwInfo("10.0.0.0/24", ""),
 			},
 			args: args{
-				addresses: []*net.IPNet{
-					getCIDRNotationForAddress("10.0.0.4/24"),
-				},
+				address: getCIDRNotationForAddress("10.0.0.4/24"),
 				nwCfg: &cni.NetworkConfig{
 					IPAM: cni.IPAM{
 						Address: "10.0.0.4/24",
@@ -357,9 +331,7 @@ func TestAzureIPAMInvoker_Delete(t *testing.T) {
 				nwInfo: getNwInfo("10.0.0.0/24", "2001:db8:abcd:0012::0/64"),
 			},
 			args: args{
-				addresses: []*net.IPNet{
-					getCIDRNotationForAddress("2001:db8:abcd:0015::0/64"),
-				},
+				address: getCIDRNotationForAddress("2001:db8:abcd:0015::0/64"),
 				nwCfg: &cni.NetworkConfig{
 					IPAM: cni.IPAM{
 						Address: "10.0.0.4/24",
@@ -377,7 +349,7 @@ func TestAzureIPAMInvoker_Delete(t *testing.T) {
 				plugin: tt.fields.plugin,
 				nwInfo: tt.fields.nwInfo,
 			}
-			err := invoker.Delete(tt.args.addresses, tt.args.nwCfg, tt.args.in2, tt.args.options)
+			err := invoker.Delete(tt.args.address, tt.args.nwCfg, tt.args.in2, tt.args.options)
 			if tt.wantErr {
 				require.NotNil(err)
 				return
