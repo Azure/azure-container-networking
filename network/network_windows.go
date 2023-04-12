@@ -39,7 +39,7 @@ const (
 	// ipv6 route cmd
 	routeCmd = "netsh interface ipv6 %s route \"%s\" \"%s\" \"%s\" store=persistent"
 	// add ipv4 and ipv6 route rules to windows node
-	netRouteCmd = "netsh interface %s add route \"%s\" \"%s\" \"%s\" metric=%s"
+	netRouteCmd = "netsh interface %s add route \"%s\" \"%s\" \"%s\""
 )
 
 // Windows implementation of route.
@@ -191,6 +191,8 @@ func (nm *networkManager) newNetworkImplHnsV1(nwInfo *NetworkInfo, extIf *extern
 }
 
 // add ipv4 and ipv6 routes (if dual stack mode) to windows Node
+// in dualstack mode, pods are created from different subnets on different nodes, gateway has to be node ip if pods want to communicate with each other
+// add routes to make node understand pod IPs come from different subnets and VFP will take decisions based on these routes to forward traffic and avoid Natting
 func (nm *networkManager) addNewNetRules(nwInfo *NetworkInfo) error {
 	var (
 		err error
@@ -213,33 +215,33 @@ func (nm *networkManager) addNewNetRules(nwInfo *NetworkInfo) error {
 			return fmt.Errorf("[net] failed to parse prefix %s", prefix)
 		}
 		if ip.To4() != nil {
-			// netsh interface ipv4 add route $subnetV4 $hostInterfaceAlias "0.0.0.0" metric=270
-			netshV4DefaultRoute := fmt.Sprintf(netRouteCmd, "ipv4", prefix, ifName, ipv4DefaultHop, "270")
+			// netsh interface ipv4 add route $subnetV4 $hostInterfaceAlias "0.0.0.0"
+			netshV4DefaultRoute := fmt.Sprintf(netRouteCmd, "ipv4", prefix, ifName, ipv4DefaultHop)
 			if out, err = nm.plClient.ExecuteCommand(netshV4DefaultRoute); err != nil {
-				return fmt.Errorf("[net] Adding ipv4 default route failed: %v:%v", out, err)
+				log.Printf("[net] Adding ipv4 default route failed: %v:%v", out, err)
 			}
 
-			// netsh interface ipv4 add route $subnetV4 $hostInterfaceAlias $gatewayV4 metric=300
-			netshV4GatewayRoute := fmt.Sprintf(netRouteCmd, "ipv4", prefix, ifName, gateway, "300")
+			// netsh interface ipv4 add route $subnetV4 $hostInterfaceAlias $gatewayV4
+			netshV4GatewayRoute := fmt.Sprintf(netRouteCmd, "ipv4", prefix, ifName, gateway)
 			if out, err = nm.plClient.ExecuteCommand(netshV4GatewayRoute); err != nil {
-				return fmt.Errorf("[net] Adding ipv4 gateway route failed: %v:%v", out, err)
+				log.Printf("[net] Adding ipv4 gateway route failed: %v:%v", out, err)
 			}
 		} else {
-			// netsh interface ipv6 add route $subnetV6 $hostInterfaceAlias "::" metric=270
-			netshV6DefaultRoute := fmt.Sprintf(netRouteCmd, "ipv6", prefix, ifName, ipv6DefaultHop, "270")
+			// netsh interface ipv6 add route $subnetV6 $hostInterfaceAlias "::"
+			netshV6DefaultRoute := fmt.Sprintf(netRouteCmd, "ipv6", prefix, ifName, ipv6DefaultHop)
 			if out, err = nm.plClient.ExecuteCommand(netshV6DefaultRoute); err != nil {
-				return fmt.Errorf("[net] Adding ipv6 default route failed: %v:%v", out, err)
+				log.Printf("[net] Adding ipv6 default route failed: %v:%v", out, err)
 			}
 
-			// netsh interface ipv6 add route $subnetV6 $hostInterfaceAlias $gatewayV6 metric=300
-			netshV6GatewayRoute := fmt.Sprintf(netRouteCmd, "ipv6", prefix, ifName, gateway, "300")
+			// netsh interface ipv6 add route $subnetV6 $hostInterfaceAlias $gatewayV6
+			netshV6GatewayRoute := fmt.Sprintf(netRouteCmd, "ipv6", prefix, ifName, gateway)
 			if out, err = nm.plClient.ExecuteCommand(netshV6GatewayRoute); err != nil {
-				return fmt.Errorf("[net] Adding ipv6 gateway route failed: %v:%v", out, err)
+				log.Printf("[net] Adding ipv6 gateway route failed: %v:%v", out, err)
 			}
 		}
 	}
 
-	return nil
+	return err
 }
 
 func (nm *networkManager) appIPV6RouteEntry(nwInfo *NetworkInfo) error {
