@@ -33,9 +33,7 @@ npm_e2e () {
 
     # make sure there are no previous results
     log "cleaning up previous npm e2e results..."
-    rm npm-e2e.log npm-cyclonus.log npm-scale.log npm-scale-connectivity.log kwok.log || true
-    rm *.ran || true
-    rm *.success || true
+    rm *.log *.ran *.success || true
 
     echo "" > npm-e2e.ran
 
@@ -299,12 +297,19 @@ run_npm_scale () {
     cd azure-container-networking/test/scale/
 
     chmod u+x test-scale.sh
-    chmod u+x run-kwok.sh
     cd connectivity/
     chmod u+x test-connectivity.sh
     cd ../
 
-    ./run-kwok.sh $kubeconfigFile > ../../../kwok.log &
+    # run kwok
+    kwok --kubeconfig=$kubeconfigFile \
+        --cidr=155.0.0.0/16 \
+        --node-ip=155.0.0.1 \
+        --manage-all-nodes=false \
+        --manage-nodes-with-annotation-selector=kwok.x-k8s.io/node=fake \
+        --manage-nodes-with-label-selector= \
+        --disregard-status-with-annotation-selector=kwok.x-k8s.io/status=custom \
+        --disregard-status-with-label-selector= > ../../../kwok.log &
     kwok_pid=$!
 
     # exact counts output from script
@@ -317,8 +322,7 @@ run_npm_scale () {
     # - max IPs per SetPolicy: number of total Pods
 
     # NOTE: if editing real pod counts, should update --num-scale-pods-to-verify in test-connectivity.sh to test all those Pods
-    ./test-scale.sh \
-        --max-kwok-pods-per-node=50 \
+    ./test-scale.sh --max-kwok-pods-per-node=50 \
         --num-kwok-deployments=10 \
         --num-kwok-replicas=1 \
         --max-real-pods-per-node=30 \
@@ -336,6 +340,14 @@ run_npm_scale () {
         cd ../../../
         return 1
     fi
+
+    log "waiting up to 10m for all Pods to be running..."
+    kubectl wait --for=condition=Ready -n scale-test --all pods --timeout=10m > ../../../waiting-for-pods.log  || {
+        log "ERROR: not all scale Pods are running"
+        kill $kwok_pid
+        cd ../../../
+        return 1
+    }
 
     log "beginning npm scale connectivity test..."
 
