@@ -87,6 +87,7 @@ type cniConflistScenario string
 
 const (
 	scenarioV4Overlay cniConflistScenario = "v4overlay"
+	scenarioCilium    cniConflistScenario = "cilium"
 )
 
 var (
@@ -535,6 +536,8 @@ func main() {
 		switch scenario := cniConflistScenario(scenarioString); scenario {
 		case scenarioV4Overlay:
 			conflistGenerator = &cniconflist.V4OverlayGenerator{Writer: writer}
+		case scenarioCilium:
+			conflistGenerator = &cniconflist.CiliumGenerator{Writer: writer}
 		default:
 			logger.Errorf("unable to generate cni conflist for unknown scenario: %s", scenario)
 			os.Exit(1)

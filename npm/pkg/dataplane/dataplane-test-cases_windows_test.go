@@ -17,12 +17,12 @@ const (
 	netpolCrudTag Tag = "netpol-crud"
 	reconcileTag  Tag = "reconcile"
 	calicoTag     Tag = "calico"
-	skipTestTag   Tag = "skip-test"
 )
 
 const (
-	thisNode  = "this-node"
-	otherNode = "other-node"
+	testNodeIP = "6.7.8.9"
+	thisNode   = "this-node"
+	otherNode  = "other-node"
 
 	ip1 = "10.0.0.1"
 	ip2 = "10.0.0.2"
@@ -62,6 +62,7 @@ var (
 			AddEmptySetToLists: true,
 		},
 		PolicyManagerCfg: &policies.PolicyManagerCfg{
+			NodeIP:     testNodeIP,
 			PolicyMode: policies.IPSetPolicyMode,
 		},
 	}
@@ -73,6 +74,7 @@ var (
 			AddEmptySetToLists: true,
 		},
 		PolicyManagerCfg: &policies.PolicyManagerCfg{
+			NodeIP:     testNodeIP,
 			PolicyMode: policies.IPSetPolicyMode,
 		},
 	}
@@ -301,6 +303,13 @@ func basicTests() []*SerialTestCase {
 							RemotePorts:     "",
 							Priority:        222,
 						},
+						{
+							ID:              "azure-acl-x-base",
+							Action:          "Allow",
+							Direction:       "In",
+							RemoteAddresses: testNodeIP,
+							Priority:        201,
+						},
 					},
 				},
 			},
@@ -402,6 +411,13 @@ func basicTests() []*SerialTestCase {
 							LocalPorts:      "",
 							RemotePorts:     "",
 							Priority:        222,
+						},
+						{
+							ID:              "azure-acl-x-base",
+							Action:          "Allow",
+							Direction:       "In",
+							RemoteAddresses: testNodeIP,
+							Priority:        201,
 						},
 					},
 				},
@@ -580,6 +596,13 @@ func basicTests() []*SerialTestCase {
 							RemotePorts:     "",
 							Priority:        222,
 						},
+						{
+							ID:              "azure-acl-x-base",
+							Action:          "Allow",
+							Direction:       "In",
+							RemoteAddresses: testNodeIP,
+							Priority:        201,
+						},
 					},
 				},
 			},
@@ -745,6 +768,13 @@ func capzCalicoTests() []*SerialTestCase {
 							RemotePorts:     "",
 							Priority:        222,
 						},
+						{
+							ID:              "azure-acl-x-base",
+							Action:          "Allow",
+							Direction:       "In",
+							RemoteAddresses: testNodeIP,
+							Priority:        201,
+						},
 					},
 				},
 			},
@@ -883,6 +913,13 @@ func updatePodTests() []*SerialTestCase {
 							RemotePorts:     "",
 							Priority:        222,
 						},
+						{
+							ID:              "azure-acl-x-base2",
+							Action:          "Allow",
+							Direction:       "In",
+							RemoteAddresses: testNodeIP,
+							Priority:        201,
+						},
 					},
 				},
 			},
@@ -943,6 +980,13 @@ func updatePodTests() []*SerialTestCase {
 							RemotePorts:     "",
 							Priority:        222,
 						},
+						{
+							ID:              "azure-acl-x-base2",
+							Action:          "Allow",
+							Direction:       "In",
+							RemoteAddresses: testNodeIP,
+							Priority:        201,
+						},
 					},
 				},
 			},
@@ -1002,6 +1046,13 @@ func updatePodTests() []*SerialTestCase {
 							RemotePorts:     "",
 							Priority:        222,
 						},
+						{
+							ID:              "azure-acl-x-base2",
+							Action:          "Allow",
+							Direction:       "In",
+							RemoteAddresses: testNodeIP,
+							Priority:        201,
+						},
 					},
 				},
 			},
@@ -1059,6 +1110,13 @@ func updatePodTests() []*SerialTestCase {
 							LocalPorts:      "",
 							RemotePorts:     "",
 							Priority:        222,
+						},
+						{
+							ID:              "azure-acl-x-base2",
+							Action:          "Allow",
+							Direction:       "In",
+							RemoteAddresses: testNodeIP,
+							Priority:        201,
 						},
 					},
 				},
@@ -1121,6 +1179,13 @@ func updatePodTests() []*SerialTestCase {
 							LocalPorts:      "",
 							RemotePorts:     "",
 							Priority:        222,
+						},
+						{
+							ID:              "azure-acl-x-base2",
+							Action:          "Allow",
+							Direction:       "In",
+							RemoteAddresses: testNodeIP,
+							Priority:        201,
 						},
 						{
 							ID:              "azure-acl-baseazurewireserver",
@@ -1222,6 +1287,13 @@ func updatePodTests() []*SerialTestCase {
 							RemotePorts:     "",
 							Priority:        222,
 						},
+						{
+							ID:              "azure-acl-x-base2",
+							Action:          "Allow",
+							Direction:       "In",
+							RemoteAddresses: testNodeIP,
+							Priority:        201,
+						},
 					},
 				},
 			},
@@ -1282,6 +1354,13 @@ func updatePodTests() []*SerialTestCase {
 							RemotePorts:     "",
 							Priority:        222,
 						},
+						{
+							ID:              "azure-acl-x-base2",
+							Action:          "Allow",
+							Direction:       "In",
+							RemoteAddresses: testNodeIP,
+							Priority:        201,
+						},
 					},
 				},
 			},
@@ -1298,7 +1377,6 @@ func updatePodTests() []*SerialTestCase {
 			},
 			TestCaseMetadata: &TestCaseMetadata{
 				Tags: []Tag{
-					skipTestTag,
 					podCrudTag,
 					netpolCrudTag,
 				},
@@ -1342,6 +1420,13 @@ func updatePodTests() []*SerialTestCase {
 							RemotePorts:     "",
 							Priority:        222,
 						},
+						{
+							ID:              "azure-acl-x-base2",
+							Action:          "Allow",
+							Direction:       "In",
+							RemoteAddresses: testNodeIP,
+							Priority:        201,
+						},
 					},
 				},
 			},
@@ -1359,7 +1444,6 @@ func updatePodTests() []*SerialTestCase {
 			},
 			TestCaseMetadata: &TestCaseMetadata{
 				Tags: []Tag{
-					skipTestTag,
 					podCrudTag,
 					netpolCrudTag,
 				},
@@ -1401,6 +1485,13 @@ func updatePodTests() []*SerialTestCase {
 							LocalPorts:      "",
 							RemotePorts:     "",
 							Priority:        222,
+						},
+						{
+							ID:              "azure-acl-x-base2",
+							Action:          "Allow",
+							Direction:       "In",
+							RemoteAddresses: testNodeIP,
+							Priority:        201,
 						},
 					},
 				},
@@ -1577,6 +1668,13 @@ func updatePodTests() []*SerialTestCase {
 							RemotePorts:     "",
 							Priority:        222,
 						},
+						{
+							ID:              "azure-acl-x-base2",
+							Action:          "Allow",
+							Direction:       "In",
+							RemoteAddresses: testNodeIP,
+							Priority:        201,
+						},
 					},
 				},
 			},
@@ -1684,6 +1782,13 @@ func podAssignmentSequence3Tests() []*SerialTestCase {
 							LocalPorts:      "",
 							RemotePorts:     "",
 							Priority:        222,
+						},
+						{
+							ID:              "azure-acl-x-base2",
+							Action:          "Allow",
+							Direction:       "In",
+							RemoteAddresses: testNodeIP,
+							Priority:        201,
 						},
 					},
 				},
@@ -1816,6 +1921,13 @@ func podAssignmentSequence3Tests() []*SerialTestCase {
 							RemotePorts:     "",
 							Priority:        222,
 						},
+						{
+							ID:              "azure-acl-x-base2",
+							Action:          "Allow",
+							Direction:       "In",
+							RemoteAddresses: testNodeIP,
+							Priority:        201,
+						},
 					},
 				},
 			},
@@ -1882,6 +1994,13 @@ func podAssignmentSequence3Tests() []*SerialTestCase {
 							Priority:        222,
 						},
 						{
+							ID:              "azure-acl-x-base2",
+							Action:          "Allow",
+							Direction:       "In",
+							RemoteAddresses: testNodeIP,
+							Priority:        201,
+						},
+						{
 							ID:              "azure-acl-x-base3",
 							Protocols:       "",
 							Action:          "Allow",
@@ -1902,6 +2021,13 @@ func podAssignmentSequence3Tests() []*SerialTestCase {
 							LocalPorts:      "",
 							RemotePorts:     "",
 							Priority:        222,
+						},
+						{
+							ID:              "azure-acl-x-base3",
+							Action:          "Allow",
+							Direction:       "In",
+							RemoteAddresses: testNodeIP,
+							Priority:        201,
 						},
 					},
 				},
@@ -2036,6 +2162,13 @@ func remoteEndpointTests() []*SerialTestCase {
 							RemotePorts:     "",
 							Priority:        222,
 						},
+						{
+							ID:              "azure-acl-x-base",
+							Action:          "Allow",
+							Direction:       "In",
+							RemoteAddresses: testNodeIP,
+							Priority:        201,
+						},
 					},
 				},
 			},
@@ -2108,6 +2241,13 @@ func getAllMultiJobTests() []*MultiJobTestCase {
 							LocalPorts:      "",
 							RemotePorts:     "",
 							Priority:        222,
+						},
+						{
+							ID:              "azure-acl-x-base",
+							Action:          "Allow",
+							Direction:       "In",
+							RemoteAddresses: testNodeIP,
+							Priority:        201,
 						},
 					},
 				},

@@ -19,7 +19,7 @@ Specify `--network-policy=azure` when creating an AKS cluster. For more informat
 Running the command below will bring up one azure-npm instance on each Kubernetes node.
 ```
 # linux
-kubectl apply -f https://raw.githubusercontent.com/Azure/azure-container-networking/master/npm/deploy/npm/azure-npm.yaml
+kubectl apply -f https://raw.githubusercontent.com/Azure/azure-container-networking/master/npm/azure-npm.yaml
 # windows
 kubectl apply -f https://raw.githubusercontent.com/Azure/azure-container-networking/master/npm/examples/windows/azure-npm.yaml
 ```
