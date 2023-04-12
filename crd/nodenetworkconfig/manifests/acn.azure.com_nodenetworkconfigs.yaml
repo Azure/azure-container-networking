@@ -75,6 +75,8 @@ spec:
               requestedIPCount:
                 format: int64
                 type: integer
+            required:
+            - requestedIPCount
             type: object
           status:
             description: NodeNetworkConfigStatus defines the observed state of NetworkConfig
@@ -124,6 +126,7 @@ spec:
                     subnetName:
                       type: string
                     type:
+                      default: vnet
                       description: NCType is the specific type of network this NC
                         represents.
                       type: string
@@ -132,6 +135,8 @@ spec:
                       type: integer
                     vnetID:
                       type: string
+                  required:
+                  - version
                   type: object
                 type: array
               scaler:
@@ -157,6 +162,8 @@ spec:
                 - Updated
                 - Error
                 type: string
+            required:
+            - assignedIPCount
             type: object
         type: object
     served: true

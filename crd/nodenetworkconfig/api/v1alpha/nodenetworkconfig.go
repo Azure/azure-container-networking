@@ -42,7 +42,7 @@ type NodeNetworkConfigList struct {
 
 // NodeNetworkConfigSpec defines the desired state of NetworkConfig
 type NodeNetworkConfigSpec struct {
-	RequestedIPCount int64    `json:"requestedIPCount,omitempty"`
+	RequestedIPCount int64    `json:"requestedIPCount"`
 	IPsNotInUse      []string `json:"ipsNotInUse,omitempty"`
 }
 
@@ -58,7 +58,7 @@ const (
 
 // NodeNetworkConfigStatus defines the observed state of NetworkConfig
 type NodeNetworkConfigStatus struct {
-	AssignedIPCount   int                `json:"assignedIPCount,omitempty"`
+	AssignedIPCount   int                `json:"assignedIPCount"`
 	Scaler            Scaler             `json:"scaler,omitempty"`
 	Status            Status             `json:"status,omitempty"`
 	NetworkContainers []NetworkContainer `json:"networkContainers,omitempty"`
@@ -94,14 +94,15 @@ const (
 type NetworkContainer struct {
 	ID string `json:"id,omitempty"`
 	// +kubebuilder:default=dynamic
-	AssignmentMode     AssignmentMode `json:"assignmentMode,omitempty"`
+	AssignmentMode AssignmentMode `json:"assignmentMode,omitempty"`
+	// +kubebuilder:default=vnet
 	Type               NCType         `json:"type,omitempty"`
 	PrimaryIP          string         `json:"primaryIP,omitempty"`
 	SubnetName         string         `json:"subnetName,omitempty"`
 	IPAssignments      []IPAssignment `json:"ipAssignments,omitempty"`
 	DefaultGateway     string         `json:"defaultGateway,omitempty"`
 	SubnetAddressSpace string         `json:"subnetAddressSpace,omitempty"`
-	Version            int64          `json:"version,omitempty"`
+	Version            int64          `json:"version"`
 	NodeIP             string         `json:"nodeIP,omitempty"`
 	SubscriptionID     string         `json:"subcriptionID,omitempty"`
 	ResourceGroupID    string         `json:"resourceGroupID,omitempty"`
