@@ -465,7 +465,7 @@ if [[ ($deleteKwokPods != "" && $deleteKwokPods -gt 0) || ($deleteRealPods != ""
             set +x
         fi
 
-        if [[ $deleteRealPods != "" &&  && $deleteRealPods -gt 0 && $numRealPods -gt 0 ]]; then
+        if [[ $deleteRealPods != "" && $deleteRealPods -gt 0 && $numRealPods -gt 0 ]]; then
             echo "deleting real pods. round $i/$deletePodsTimes..."
             pods=`kubectl $KUBECONFIG_ARG get pods -n scale-test -l is-real="true" | shuf -n $deleteRealPods | | awk '{print $1}' | tr '\n' ' '`
             set -x
