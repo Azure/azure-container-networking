@@ -20,6 +20,7 @@ var (
 	errMultipleEndpointsFound = fmt.Errorf("Multiple endpoints found")
 	errEndpointInUse          = fmt.Errorf("Endpoint is already joined to a sandbox")
 	errEndpointNotInUse       = fmt.Errorf("Endpoint is not joined to a sandbox")
+	errNamespaceCreation      = fmt.Errorf("Network namespace creation error")
 )
 
 type networkNotFoundError struct{}

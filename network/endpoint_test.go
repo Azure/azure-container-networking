@@ -4,7 +4,6 @@
 package network
 
 import (
-	"errors"
 	"net"
 	"testing"
 
@@ -12,6 +11,7 @@ import (
 	"github.com/Azure/azure-container-networking/netlink"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/pkg/errors"
 )
 
 func TestEndpoint(t *testing.T) {
@@ -298,6 +298,7 @@ var _ = Describe("Test Endpoint", func() {
 			nlc := netlink.NewMockNetlink(false, "")
 			nlc.SetAddRouteValidationFn(func(r *netlink.Route) error {
 				Expect(r.LinkIndex).To(Equal(0))
+				//nolint:goerr113
 				return errors.New("Cannot add route")
 			})
 
@@ -306,7 +307,7 @@ var _ = Describe("Test Endpoint", func() {
 				Expect(ifName).To(Equal(""))
 				return &net.Interface{
 					Index: 0,
-				}, errors.New("interface not found")
+				}, errors.Wrapf(netio.ErrInterfaceNil, "Cannot get interface")
 			})
 
 			err := addRoutes(nlc, netiocl, "", []RouteInfo{{Dst: *dst, DevName: ""}})

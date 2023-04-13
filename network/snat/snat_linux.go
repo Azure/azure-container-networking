@@ -4,7 +4,6 @@
 package snat
 
 import (
-	"errors"
 	"fmt"
 	"net"
 	"strings"
@@ -15,6 +14,7 @@ import (
 	"github.com/Azure/azure-container-networking/netlink"
 	"github.com/Azure/azure-container-networking/network/networkutils"
 	"github.com/Azure/azure-container-networking/platform"
+	"github.com/pkg/errors"
 )
 
 const (
@@ -87,7 +87,7 @@ func (client *Client) CreateSnatEndpoint() error {
 		// Enable proxy arp on bridge
 		if err := nuc.SetProxyArp(SnatBridgeName); err != nil {
 			log.Printf("Enabling proxy arp failed with error %v", err)
-			return err
+			return errors.Wrap(err, "")
 		}
 	}
 

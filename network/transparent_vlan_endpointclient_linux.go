@@ -151,7 +151,7 @@ func (client *TransparentVlanEndpointClient) PopulateVM(epInfo *EndpointInfo) er
 		}
 
 		if client.netnsClient.IsNamespaceEqual(vnetNS, vmNS) {
-			deleteNSIfNotNilErr = fmt.Errorf("vnet ns:%d and vm ns:%d are the same. deleting vnet namespace created", vnetNS, vmNS)
+			deleteNSIfNotNilErr = errors.Wrap(errNamespaceCreation, "vnet ns:%d and vm ns:%d are the same. deleting vnet namespace created", vnetNS, vmNS)
 			log.Errorf(deleteNSIfNotNilErr.Error())
 			return deleteNSIfNotNilErr
 		}
