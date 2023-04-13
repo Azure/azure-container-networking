@@ -16,7 +16,7 @@ set -o errexit
 # - A .ran file that is created if the step is run
 # - A .success file that is created if the step succeeds
 #
-# There is also a npm-e2e.ran file that indicates that the npm e2e was run at all
+# There is also a npm-e2e.ran file that indicates that the npm e2e was run at all, and npm-e2e.success that indicates that all steps succeeded
 npm_e2e () {
     local kubeconfigFile=$1
     if [ -z "$kubeconfigFile" ]; then
@@ -55,7 +55,7 @@ npm_e2e () {
 
     ## disable scheduling for all but one node for NPM tests, since intra-node connectivity is broken after disabling Calico NetPol
     kubectl get node -o wide | grep "Windows Server 2022 Datacenter" | awk '{print $1}' | tail -n +2 | xargs kubectl cordon
-    kubectl get node -o wide | grep "Windows Server 2022 Datacenter" | grep -v SchedulingDisabled | awk '{print $1}' | xargs -I {} bash -c "kubectl label {} scale-test=true && kubectl label {} connectivity-test=true"
+    kubectl get node -o wide | grep "Windows Server 2022 Datacenter" | grep -v SchedulingDisabled | awk '{print $1}' | xargs -I {} bash -c "kubectl label node {} scale-test=true && kubectl label node {} connectivity-test=true"
 
     # sleep for some time to let Calico CNI restart
     sleep 3m
@@ -104,11 +104,14 @@ npm_e2e () {
 
     ## NPM scale
     run_npm_scale $kubeconfigFile
-    echo "" > scale.success
+    echo "" > scale-connectivity.success
     log "sleeping 3m to allow VFP to update tags after scale test..."
     sleep 3m
     log "verifying VFP tags after scale test..."
     verify_vfp_tags_using_npm vfp-state-after-scale.ran
+    echo "" > vfp-state-after-scale.success
+
+    echo "" > npm-e2e.success
 }
 
 verify_vfp_tags_using_npm () {
@@ -132,14 +135,14 @@ verify_vfp_tags_using_npm () {
         return 1
     fi
 
-    onNodeIPs=() ; for ip in `kubectl get pod -owide $kc -A  | grep $npmNode | grep -oP "\d+\.\d+\.\d+\.\d+" | sort | uniq`; do onNodeIPs+=($ip); done
+    onNodeIPs=() ; for ip in `kubectl get pod -owide -A  | grep $npmNode | grep -oP "\d+\.\d+\.\d+\.\d+" | sort | uniq`; do onNodeIPs+=($ip); done
     matchString="" ; for ip in ${onNodeIPs[@]}; do matchString+=" \"${ip}\""; done
     matchString=`echo $matchString | tr ' ' ','`
     log "using matchString: $matchString"
-    ipsetCount=`kubectl exec -n kube-system $npmPod $kc -- powershell.exe "(Get-HNSNetwork | ? Name -Like Calico).Policies | convertto-json  > setpols.txt ; (type .\setpols.txt | select-string '\"PolicyType\":  \"IPSET\"').count" | tr -d '\r'`
+    ipsetCount=`kubectl exec -n kube-system $npmPod -- powershell.exe "(Get-HNSNetwork | ? Name -Like Calico).Policies | convertto-json  > setpols.txt ; (type .\setpols.txt | select-string '\"PolicyType\":  \"IPSET\"').count" | tr -d '\r'`
     log "HNS IPSET count: $ipsetCount"
-    kubectl exec -n kube-system $npmPod $kc -- powershell.exe 'echo "attempting to delete previous results if they exist" ; Remove-Item -path vfptags -recurse ; mkdir vfptags'
-    kubectl exec -n kube-system $npmPod $kc -- powershell.exe '$endpoints = (Get-HnsEndpoint | ? IPAddress -In '"$matchString"').Id ; foreach ($port in $endpoints) { vfpctrl /port $port /list-tag > vfptags\$port.txt ; (type vfptags\$port.txt | select-string -context 2 "TAG :").count }' > vfp-tag-counts.txt
+    kubectl exec -n kube-system $npmPod -- powershell.exe 'echo "attempting to delete previous results if they exist" ; Remove-Item -path vfptags -recurse ; mkdir vfptags'
+    kubectl exec -n kube-system $npmPod -- powershell.exe '$endpoints = (Get-HnsEndpoint | ? IPAddress -In '"$matchString"').Id ; foreach ($port in $endpoints) { vfpctrl /port $port /list-tag > vfptags\$port.txt ; (type vfptags\$port.txt | select-string -context 2 "TAG :").count }' > vfp-tag-counts.txt
 
     hadEndpoints=false
     hadFailure=false
