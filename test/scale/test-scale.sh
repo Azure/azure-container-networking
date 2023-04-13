@@ -201,6 +201,19 @@ numSharedLabelsPerPod=$numSharedLabelsPerPod
 numUniqueLabelsPerPod=$numUniqueLabelsPerPod
 numUniqueLabelsPerDeployment=$numUniqueLabelsPerDeployment
 numNetworkPolicies=$numNetworkPolicies
+numUnappliedNetworkPolicies=$numUnappliedNetworkPolicies
+
+Delete arguments (optional):
+deleteKwokPods=$deleteKwokPods
+deleteRealPods=$deleteRealPods
+deletePodsInterval=$deletePodsInterval
+deletePodsTimes=$deletePodsTimes
+deleteLabels=$deleteLabels
+deleteLabelsInterval=$deleteLabelsInterval
+deleteLabelsTimes=$deleteLabelsTimes
+deleteNetpols=$deleteNetpols
+deleteNetpolsInterval=$deleteNetpolsInterval
+deleteNetpolsTimes=$deleteNetpolsTimes
 
 The following will be created:
 kwok Nodes: $numKwokNodes
