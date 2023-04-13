@@ -453,16 +453,16 @@ if [[ $deleteNetpols == true ]]; then
         set -x
         kubectl $KUBECONFIG_ARG delete netpol -n scale-test --all
         set +x
-        echo "sleeping $deleteNetpolsSleep seconds after deleting network policies (round $i/$deleteNetpolsTimes)..."
-        sleep $deleteNetpolsSleep
+        echo "sleeping $deleteNetpolsInterval seconds after deleting network policies (round $i/$deleteNetpolsTimes)..."
+        sleep $deleteNetpolsInterval
         
         echo "re-adding network policies. round $i/$deleteNetpolsTimes..."
         set -x
         kubectl $KUBECONFIG_ARG apply -f generated/networkpolicies/unapplied
         kubectl $KUBECONFIG_ARG apply -f generated/networkpolicies/applied
         set +x
-        echo "sleeping $deleteNetpolsSleep seconds after readding network policies (end of round $i/$deleteNetpolsTimes)..."
-        sleep $deleteNetpolsSleep
+        echo "sleeping $deleteNetpolsInterval seconds after readding network policies (end of round $i/$deleteNetpolsTimes)..."
+        sleep $deleteNetpolsInterval
     done
 fi
 
@@ -484,6 +484,7 @@ if [[ ($deleteKwokPods != "" && $deleteKwokPods -gt 0) || ($deleteRealPods != ""
             set +x
         fi
 
-        echo "sleeping $deletePodsSleep seconds after deleting pods (end of round $i/$deletePodsTimes)..."
+        echo "sleeping $deletePodsInterval seconds after deleting pods (end of round $i/$deletePodsTimes)..."
+        sleep $deletePodsInterval
     done
 fi
