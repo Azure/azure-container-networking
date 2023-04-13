@@ -17,6 +17,9 @@ do
     echo "Node internal ip: $node_ip"
     privileged_pod=$(kubectl get pods -n kube-system -l app=privileged-daemonset -o wide | grep "$node_name" | awk '{print $1}')
     echo "privileged pod : $privileged_pod"
+    if [ "$privileged_pod" == '' ]; then
+        exit 1
+    fi
     while ! [ -s "azure_endpoints.json" ]
     do
         echo "trying to get the azure_endpoints"
