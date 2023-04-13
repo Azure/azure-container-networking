@@ -1,9 +1,21 @@
 ###############################################################
 # Schedule kwok nodes/pods and maintain kwok node heartbeats. #
-# Install kwok via ./install-kwok.sh                          #
 ###############################################################
+# can pass kubeconfig as first arg
+if [[ -z $1 ]]; then
+    kubeconfigFile=$1
+else
+    kubeconfigFile=~/.kube/config
+fi
+echo "using kubeconfig $kubeconfigFile"
 
-kwok --kubeconfig ~/.kube/config \
+which kwok || {
+    echo "ERROR: kwok not found. Install via ./install-kwok.sh"
+    exit 1
+}
+
+set -x
+kwok --kubeconfig $kubeconfigFile \
     --cidr=155.0.0.0/16 \
     --node-ip=155.0.0.1 \
     --manage-all-nodes=false \
