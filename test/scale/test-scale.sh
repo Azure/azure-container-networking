@@ -470,7 +470,7 @@ if [[ ($deleteKwokPods != "" && $deleteKwokPods -gt 0) || ($deleteRealPods != ""
     for i in $(seq 1 $deletePodsTimes); do
         if [[ $deleteKwokPods != "" && $deleteKwokPods -gt 0 && $numKwokPods -gt 0 ]]; then
             echo "deleting kwok pods. round $i/$deletePodsTimes..."
-            pods=`kubectl $KUBECONFIG_ARG get pods -n scale-test -l is-kwok="true" | shuf -n $deleteKwokPods | | awk '{print $1}' | tr '\n' ' '`
+            pods=`kubectl $KUBECONFIG_ARG get pods -n scale-test -l is-kwok="true" | shuf -n $deleteKwokPods | awk '{print $1}' | tr '\n' ' '`
             set -x
             kubectl $KUBECONFIG_ARG delete pods -n scale-test $pods
             set +x
@@ -478,7 +478,7 @@ if [[ ($deleteKwokPods != "" && $deleteKwokPods -gt 0) || ($deleteRealPods != ""
 
         if [[ $deleteRealPods != "" && $deleteRealPods -gt 0 && $numRealPods -gt 0 ]]; then
             echo "deleting real pods. round $i/$deletePodsTimes..."
-            pods=`kubectl $KUBECONFIG_ARG get pods -n scale-test -l is-real="true" | shuf -n $deleteRealPods | | awk '{print $1}' | tr '\n' ' '`
+            pods=`kubectl $KUBECONFIG_ARG get pods -n scale-test -l is-real="true" | shuf -n $deleteRealPods | awk '{print $1}' | tr '\n' ' '`
             set -x
             kubectl $KUBECONFIG_ARG delete pods -n scale-test $pods
             set +x
