@@ -3,6 +3,7 @@ package nodenetworkconfig
 import (
 	"context"
 	"reflect"
+	"strings"
 
 	"github.com/Azure/azure-container-networking/crd"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
@@ -65,9 +66,14 @@ func (i *Installer) InstallOrUpdate(ctx context.Context) (*v1.CustomResourceDefi
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get embedded nnc crd")
 	}
+
+	failedToCallWebhook := false
 	current, err := i.create(ctx, nnc)
 	if !apierrors.IsAlreadyExists(err) {
-		return current, err
+		if !strings.Contains(err.Error(), "failed to call webhook") {
+			return current, err
+		}
+		failedToCallWebhook = true
 	}
 	if current == nil {
 		current, err = i.cli.Get(ctx, nnc.Name, metav1.GetOptions{})
@@ -75,7 +81,7 @@ func (i *Installer) InstallOrUpdate(ctx context.Context) (*v1.CustomResourceDefi
 			return nil, errors.Wrap(err, "failed to get existing nnc crd")
 		}
 	}
-	if !reflect.DeepEqual(nnc.Spec.Versions, current.Spec.Versions) {
+	if !failedToCallWebhook && !reflect.DeepEqual(nnc.Spec.Versions, current.Spec.Versions) {
 		nnc.SetResourceVersion(current.GetResourceVersion())
 		previous := *current
 		current, err = i.cli.Update(ctx, nnc, metav1.UpdateOptions{})
@@ -83,6 +89,7 @@ func (i *Installer) InstallOrUpdate(ctx context.Context) (*v1.CustomResourceDefi
 			return &previous, errors.Wrap(err, "failed to update existing nnc crd")
 		}
 	}
+
 	return current, nil
 }
 

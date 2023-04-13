@@ -3,6 +3,7 @@ package clustersubnetstate
 import (
 	"context"
 	"reflect"
+	"strings"
 
 	"github.com/Azure/azure-container-networking/crd"
 	"github.com/Azure/azure-container-networking/crd/clustersubnetstate/api/v1alpha1"
@@ -64,9 +65,14 @@ func (i *Installer) InstallOrUpdate(ctx context.Context) (*v1.CustomResourceDefi
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get embedded css crd")
 	}
+
+	failedToCallWebhook := false
 	current, err := i.create(ctx, css)
 	if !apierrors.IsAlreadyExists(err) {
-		return current, err
+		if !strings.Contains(err.Error(), "failed to call webhook") {
+			return current, err
+		}
+		failedToCallWebhook = true
 	}
 	if current == nil {
 		current, err = i.cli.Get(ctx, css.Name, metav1.GetOptions{})
@@ -74,7 +80,7 @@ func (i *Installer) InstallOrUpdate(ctx context.Context) (*v1.CustomResourceDefi
 			return nil, errors.Wrap(err, "failed to get existing css crd")
 		}
 	}
-	if !reflect.DeepEqual(css.Spec.Versions, current.Spec.Versions) {
+	if !failedToCallWebhook && !reflect.DeepEqual(css.Spec.Versions, current.Spec.Versions) {
 		css.SetResourceVersion(current.GetResourceVersion())
 		previous := *current
 		current, err = i.cli.Update(ctx, css, metav1.UpdateOptions{})
