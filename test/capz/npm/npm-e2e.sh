@@ -300,7 +300,7 @@ run_npm_scale () {
     log "beginning npm scale test with kubeconfig [$kubeconfigFile]..."
 
     rm -rf azure-container-networking/ || true
-    git clone --depth=1 --branch=master https://github.com/Azure/azure-container-networking.git
+    git clone https://github.com/Azure/azure-container-networking.git --depth=1 --branch=hgregory/edit-scale
 
     cd azure-container-networking/test/scale/
 
@@ -337,9 +337,20 @@ run_npm_scale () {
         --num-real-deployments=5 \
         --num-real-replicas=2 \
         --num-network-policies=1 \
+        --num-unapplied-network-policies=10 \
         --num-unique-labels-per-pod=2 \
         --num-unique-labels-per-deployment=2 \
-        --num-shared-labels-per-pod=10 | tee ../../../npm-scale.log || true
+        --num-shared-labels-per-pod=10 \
+        --delete-kwok-pods=10 \
+        --delete-real-pods=5 \
+        --delete-pods-interval=120 \
+        --delete-pods-times=2 \
+        --delete-labels \
+        --delete-labels-interval=60 \
+        --delete-labels-times=1 \
+        --delete-netpols \
+        --delete-netpols-interval=60 \
+        --delete-netpols-times=1 | tee ../../../npm-scale.log || true
 
     rc=0; cat ../../../npm-scale.log | grep "FINISHED" > /dev/null 2>&1 || rc=$?
     if [[ $rc != 0 ]]; then
@@ -356,7 +367,7 @@ run_npm_scale () {
     minutesToWaitForInitialConnectivity=30
     minutesToWaitAfterAddingNetPol=10
     echo "" > ../../../../scale-connectivity.ran
-    ./test-connectivity.sh --num-scale-pods-to-verify=10 --max-wait-for-initial-connectivity=$((60*minutesToWaitForInitialConnectivity)) --max-wait-after-adding-netpol=$((60*minutesToWaitAfterAddingNetPol)) | tee ../../../../npm-scale-connectivity.log || true
+    ./test-connectivity.sh --num-scale-pods-to-verify=all --max-wait-for-initial-connectivity=$((60*minutesToWaitForInitialConnectivity)) --max-wait-after-adding-netpol=$((60*minutesToWaitAfterAddingNetPol)) | tee ../../../../npm-scale-connectivity.log || true
 
     cd ../../../../
     rc=0; cat npm-scale-connectivity.log | grep "FINISHED" > /dev/null 2>&1 || rc=$?
