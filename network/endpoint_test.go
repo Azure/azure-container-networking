@@ -4,10 +4,15 @@
 package network
 
 import (
+	"net"
 	"testing"
 
+	"github.com/Azure/azure-container-networking/netio"
+	"github.com/Azure/azure-container-networking/netlink"
+	"github.com/Azure/azure-container-networking/platform"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestEndpoint(t *testing.T) {
@@ -162,6 +167,93 @@ var _ = Describe("Test Endpoint", func() {
 		})
 	})
 
+	Describe("Test endpointImpl", func() {
+		Context("When endpoint add/delete succeed", func() {
+			nw := &network{
+				Endpoints: map[string]*endpoint{},
+			}
+			epInfo := &EndpointInfo{
+				Id:   "768e8deb-eth1",
+				Data: make(map[string]interface{}),
+			}
+			epInfo.Data[VlanIDKey] = 100
+
+			It("Should be added", func() {
+				// Add endpoint with valid id
+				ep, err := nw.newEndpointImpl(nil, netlink.NewMockNetlink(false, ""), platform.NewMockExecClient(false),
+					netio.NewMockNetIO(false, 0), NewMockEndpointClient(false), epInfo)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(ep).NotTo(BeNil())
+				Expect(ep.Id).To(Equal(epInfo.Id))
+				Expect(ep.Gateways).To(BeEmpty())
+			})
+			It("should have fields set", func() {
+				nw2 := &network{
+					Endpoints: map[string]*endpoint{},
+					extIf:     &externalInterface{IPv4Gateway: net.ParseIP("192.168.0.1")},
+				}
+				ep, err := nw2.newEndpointImpl(nil, netlink.NewMockNetlink(false, ""), platform.NewMockExecClient(false),
+					netio.NewMockNetIO(false, 0), NewMockEndpointClient(false), epInfo)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(ep).NotTo(BeNil())
+				Expect(ep.Id).To(Equal(epInfo.Id))
+				Expect(ep.Gateways).NotTo(BeNil())
+				Expect(len(ep.Gateways)).To(Equal(1))
+				Expect(ep.Gateways[0].String()).To(Equal("192.168.0.1"))
+				Expect(ep.VlanID).To(Equal(epInfo.Data[VlanIDKey].(int)))
+			})
+			It("Should be not added", func() {
+				// Adding an endpoint with an id.
+				mockCli := NewMockEndpointClient(false)
+				err := mockCli.AddEndpoints(epInfo)
+				Expect(err).ToNot(HaveOccurred())
+				// Adding endpoint with same id should fail and delete should cleanup the state
+				ep2, err := nw.newEndpointImpl(nil, netlink.NewMockNetlink(false, ""), platform.NewMockExecClient(false),
+					netio.NewMockNetIO(false, 0), mockCli, epInfo)
+				Expect(err).To(HaveOccurred())
+				Expect(ep2).To(BeNil())
+				assert.Contains(GinkgoT(), err.Error(), "Endpoint already exists")
+				Expect(len(mockCli.endpoints)).To(Equal(0))
+			})
+			It("Should be deleted", func() {
+				// Adding an endpoint with an id.
+				mockCli := NewMockEndpointClient(false)
+				ep2, err := nw.newEndpointImpl(nil, netlink.NewMockNetlink(false, ""), platform.NewMockExecClient(false),
+					netio.NewMockNetIO(false, 0), mockCli, epInfo)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(ep2).ToNot(BeNil())
+				Expect(len(mockCli.endpoints)).To(Equal(1))
+				// Deleting the endpoint
+				//nolint:errcheck // ignore error
+				nw.deleteEndpointImpl(netlink.NewMockNetlink(false, ""), platform.NewMockExecClient(false), mockCli, ep2)
+				Expect(len(mockCli.endpoints)).To(Equal(0))
+				// Deleting same endpoint with same id should not fail
+				//nolint:errcheck // ignore error
+				nw.deleteEndpointImpl(netlink.NewMockNetlink(false, ""), platform.NewMockExecClient(false), mockCli, ep2)
+				Expect(len(mockCli.endpoints)).To(Equal(0))
+			})
+		})
+		Context("When endpoint add failed", func() {
+			It("Should not be added to the network", func() {
+				nw := &network{
+					Endpoints: map[string]*endpoint{},
+				}
+				epInfo := &EndpointInfo{
+					Id: "768e8deb-eth1",
+				}
+				ep, err := nw.newEndpointImpl(nil, netlink.NewMockNetlink(false, ""), platform.NewMockExecClient(false),
+					netio.NewMockNetIO(false, 0), NewMockEndpointClient(true), epInfo)
+				Expect(err).To(HaveOccurred())
+				Expect(ep).To(BeNil())
+				ep, err = nw.newEndpointImpl(nil, netlink.NewMockNetlink(false, ""), platform.NewMockExecClient(false),
+					netio.NewMockNetIO(false, 0), NewMockEndpointClient(false), epInfo)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(ep).NotTo(BeNil())
+				Expect(ep.Id).To(Equal(epInfo.Id))
+			})
+		})
+	})
+
 	Describe("Test updateEndpoint", func() {
 		Context("When endpoint not found", func() {
 			It("Should raise errEndpointNotFound", func() {
@@ -169,7 +261,7 @@ var _ = Describe("Test Endpoint", func() {
 
 				nw := &network{}
 				existingEpInfo := &EndpointInfo{
-					Id: "test",
+					Id: "768e8deb-eth1",
 				}
 				targetEpInfo := &EndpointInfo{}
 				err := nm.updateEndpoint(nw, existingEpInfo, targetEpInfo)
