@@ -14,7 +14,7 @@ This saves us from:
 3. Scale with `test-scale.sh`. Specify number of Deployments, Pod replicas, NetworkPolicies, and labels for Pods.
 4. Test connectivity with `connectivity/test-connectivity.sh`.
 
-### Example Run
+### Example Runs
 ```
 ./test-scale.sh --max-kwok-pods-per-node=50 \
     --num-kwok-deployments=10 \
@@ -36,5 +36,11 @@ This saves us from:
     --delete-labels-times=2 \
     --delete-netpols \
     --delete-netpols-interval=0 \
-    --delete-netpols-times=1 | tee scale.out
+    --delete-netpols-times=1
+```
+
+```
+./test-connectivity --num-scale-pods-to-verify=10 \
+    --max-wait-for-initial-connectivity=600 \
+    --max-wait-after-adding-netpol=120
 ```
