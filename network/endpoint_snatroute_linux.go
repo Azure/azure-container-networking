@@ -57,7 +57,10 @@ func AddSnatEndpointRules(snatClient *snat.Client, hostToNC, ncToHost bool, nl n
 
 func MoveSnatEndpointToContainerNS(snatClient *snat.Client, netnsPath string, nsID uintptr) error {
 	if err := snatClient.MoveSnatEndpointToContainerNS(netnsPath, nsID); err != nil {
-		return errors.Wrap(err, "failed to move snat endpoint to container ns")
+		if delErr := snatClient.DeleteSnatEndpoint(); delErr != nil {
+			log.Errorf("failed to delete snat endpoint on error(moving to container ns): %v", delErr)
+		}
+		return errors.Wrap(err, "failed to move snat endpoint to container ns. deleted snat endpoint")
 	}
 	return nil
 }

@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/Azure/azure-container-networking/cns"
+	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/types"
-	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/nmagent"
 	"github.com/patrickmn/go-cache"
 	"github.com/pkg/errors"
@@ -53,7 +53,7 @@ func (h *HomeAzMonitor) readCacheValue() cns.GetHomeAzResponse {
 	cachedResp, found := h.values.Get(homeAzCacheKey)
 	if !found {
 		return cns.GetHomeAzResponse{Response: cns.Response{
-			ReturnCode: types.UnexpectedError,
+			ReturnCode: types.NotFound,
 			Message:    "HomeAz Cache is unavailable",
 		}, HomeAzResponse: cns.HomeAzResponse{IsSupported: false}}
 	}
@@ -139,12 +139,18 @@ func (h *HomeAzMonitor) Populate(ctx context.Context) {
 		return
 	}
 
+	// validate home az value, HomeAz is a uint, so it's value >=0
+	if azResponse.HomeAz == 0 {
+		returnMessage := fmt.Sprintf("[HomeAzMonitor] invalid home az value from nmagent: %d", azResponse.HomeAz)
+		returnCode := types.UnexpectedError
+		h.update(returnCode, returnMessage, cns.HomeAzResponse{IsSupported: true})
+		return
+	}
 	h.update(types.Success, "Get Home Az succeeded", cns.HomeAzResponse{IsSupported: true, HomeAz: azResponse.HomeAz})
 }
 
 // update constructs a GetHomeAzResponse entity and update its cache
 func (h *HomeAzMonitor) update(code types.ResponseCode, msg string, homeAzResponse cns.HomeAzResponse) {
-	log.Debugf(msg)
 	resp := cns.GetHomeAzResponse{
 		Response: cns.Response{
 			ReturnCode: code,
@@ -152,6 +158,7 @@ func (h *HomeAzMonitor) update(code types.ResponseCode, msg string, homeAzRespon
 		},
 		HomeAzResponse: homeAzResponse,
 	}
+	logger.Printf("[HomeAzMonitor] updating home az cache value: %+v", resp)
 	h.updateCacheValue(resp)
 }
 

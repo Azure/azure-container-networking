@@ -4,6 +4,7 @@ import (
 	"context"
 	"net"
 	"net/http"
+	"net/http/pprof"
 	"sync"
 	"time"
 
@@ -151,7 +152,7 @@ type networkInfo struct {
 // NewHTTPRestService creates a new HTTP Service object.
 func NewHTTPRestService(config *common.ServiceConfig, wscli interfaceGetter, wsproxy wireserverProxy, nmagentClient nmagentClient,
 	endpointStateStore store.KeyValueStore, gen CNIConflistGenerator, homeAzMonitor *HomeAzMonitor,
-) (cns.HTTPService, error) {
+) (*HTTPRestService, error) {
 	service, err := cns.NewService(config.Name, config.Version, config.ChannelMode, config.Store)
 	if err != nil {
 		return nil, err
@@ -298,6 +299,23 @@ func (service *HTTPRestService) Init(config *common.ServiceConfig) error {
 	logger.Printf("[Azure CNS]  Listening.")
 
 	return nil
+}
+
+func (service *HTTPRestService) RegisterPProfEndpoints() {
+	if service.Listener != nil {
+		mux := service.Listener.GetMux()
+		mux.Handle("/debug/pprof/allocs", pprof.Handler("allocs"))
+		mux.Handle("/debug/pprof/block", pprof.Handler("block"))
+		mux.Handle("/debug/pprof/goroutine", pprof.Handler("goroutine"))
+		mux.Handle("/debug/pprof/heap", pprof.Handler("heap"))
+		mux.Handle("/debug/pprof/mutex", pprof.Handler("mutex"))
+		mux.Handle("/debug/pprof/threadcreate", pprof.Handler("threadcreate"))
+		mux.HandleFunc("/debug/pprof/", pprof.Index)
+		mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+		mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
+		mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+		mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
+	}
 }
 
 // Start starts the CNS listener.

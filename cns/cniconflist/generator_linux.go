@@ -26,11 +26,11 @@ var portmapConfig any = struct {
 // Generate writes the CNI conflist to the Generator's output stream
 func (v *V4OverlayGenerator) Generate() error {
 	conflist := cniConflist{
-		CNIVersion: cniVersion,
-		Name:       cniName,
+		CNIVersion: overlaycniVersion,
+		Name:       overlaycniName,
 		Plugins: []any{
 			cni.NetworkConfig{
-				Type:              cniType,
+				Type:              overlaycniType,
 				Mode:              cninet.OpModeTransparent,
 				ExecutionMode:     string(util.V4Swift),
 				IPsToRouteViaHost: []string{nodeLocalDNSIP},
@@ -40,6 +40,32 @@ func (v *V4OverlayGenerator) Generate() error {
 				},
 			},
 			portmapConfig,
+		},
+	}
+
+	enc := json.NewEncoder(v.Writer)
+	enc.SetIndent("", "\t")
+	if err := enc.Encode(conflist); err != nil {
+		return errors.Wrap(err, "error encoding conflist to json")
+	}
+
+	return nil
+}
+
+// Generate writes the CNI conflist to the Generator's output stream
+func (v *CiliumGenerator) Generate() error {
+	conflist := cniConflist{
+		CNIVersion: ciliumcniVersion,
+		Name:       ciliumcniName,
+		Plugins: []any{
+			NetConf{
+				Type:        ciliumcniType,
+				LogFile:     ciliumLogFile,
+				EnableDebug: true,
+				IPAM: IPAM{
+					Type: ciliumIPAM,
+				},
+			},
 		},
 	}
 

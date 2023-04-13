@@ -1,6 +1,7 @@
 package dataplane
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -17,8 +18,9 @@ const (
 	maxNoNetRetryCount int = 240 // max wait time 240*5 == 20 mins
 	maxNoNetSleepTime  int = 5   // in seconds
 
-	refreshAllEndpoints   bool = true
-	refreshLocalEndpoints bool = false
+	// used for lints
+	hcnSchemaMajorVersion = 2
+	hcnSchemaMinorVersion = 0
 )
 
 var errPolicyModeUnsupported = errors.New("only IPSet policy mode is supported")
@@ -36,8 +38,24 @@ func (dp *DataPlane) initializeDataPlane() error {
 
 	err := dp.getNetworkInfo()
 	if err != nil {
-		return err
+		return npmerrors.SimpleErrorWrapper("failed to get network info", err)
 	}
+
+	// Initialize Endpoint query used to filter healthy endpoints (vNIC) of Windows pods
+	dp.endpointQuery.query = hcn.HostComputeQuery{
+		SchemaVersion: hcn.SchemaVersion{
+			Major: hcnSchemaMajorVersion,
+			Minor: hcnSchemaMinorVersion,
+		},
+		Flags: hcn.HostComputeQueryFlagsNone,
+	}
+	// Filter out any endpoints that are not in "AttachedShared" State. All running Windows pods with networking must be in this state.
+	filterMap := map[string]uint16{"State": hcnEndpointStateAttachedSharing}
+	filter, err := json.Marshal(filterMap)
+	if err != nil {
+		return npmerrors.SimpleErrorWrapper("failed to marshal endpoint filter map", err)
+	}
+	dp.endpointQuery.query.Filter = string(filter)
 
 	// reset endpoint cache so that netpol references are removed for all endpoints while refreshing pod endpoints
 	// no need to lock endpointCache at boot up
@@ -79,9 +97,9 @@ func (dp *DataPlane) bootupDataPlane() error {
 	}
 
 	// for backwards compatibility, get remote allEndpoints to delete as well
-	allEndpoints, err := dp.getPodEndpoints(refreshAllEndpoints)
+	allEndpoints, err := dp.getAllPodEndpoints()
 	if err != nil {
-		return npmerrors.SimpleErrorWrapper("failed to get all pod endpoints", err)
+		return err
 	}
 
 	// TODO once we make endpoint refreshing smarter, it would be most efficient to use allEndpoints to refreshPodEndpoints here.
@@ -307,22 +325,32 @@ func (dp *DataPlane) getEndpointsToApplyPolicy(policy *policies.NPMNetworkPolicy
 	return endpointList, nil
 }
 
-func (dp *DataPlane) getPodEndpoints(includeRemoteEndpoints bool) ([]*hcn.HostComputeEndpoint, error) {
-	klog.Infof("Getting all endpoints for Network ID %s", dp.networkID)
+func (dp *DataPlane) getAllPodEndpoints() ([]*hcn.HostComputeEndpoint, error) {
+	klog.Infof("getting all endpoints for network ID %s", dp.networkID)
 	endpoints, err := dp.ioShim.Hns.ListEndpointsOfNetwork(dp.networkID)
 	if err != nil {
-		return nil, err
+		return nil, npmerrors.SimpleErrorWrapper("failed to get all pod endpoints", err)
 	}
 
-	localEndpoints := make([]*hcn.HostComputeEndpoint, 0)
+	epPointers := make([]*hcn.HostComputeEndpoint, 0, len(endpoints))
 	for k := range endpoints {
-		e := &endpoints[k]
-		if includeRemoteEndpoints || e.Flags == hcn.EndpointFlagsNone {
-			// having EndpointFlagsNone means it is a local endpoint
-			localEndpoints = append(localEndpoints, e)
-		}
+		epPointers = append(epPointers, &endpoints[k])
 	}
-	return localEndpoints, nil
+	return epPointers, nil
+}
+
+func (dp *DataPlane) getLocalPodEndpoints() ([]*hcn.HostComputeEndpoint, error) {
+	klog.Info("getting local endpoints")
+	endpoints, err := dp.ioShim.Hns.ListEndpointsQuery(dp.endpointQuery.query)
+	if err != nil {
+		return nil, npmerrors.SimpleErrorWrapper("failed to get local pod endpoints", err)
+	}
+
+	epPointers := make([]*hcn.HostComputeEndpoint, 0, len(endpoints))
+	for k := range endpoints {
+		epPointers = append(epPointers, &endpoints[k])
+	}
+	return epPointers, nil
 }
 
 // refreshPodEndpoints will refresh all the pod endpoints and create empty netpol references for new endpoints
@@ -343,7 +371,7 @@ Why can we refresh only once before updating all pods in the updatePodCache (see
 - We won't miss the endpoint (see the assumption). At the time the pod event came in (when AddToSets/RemoveFromSets were called), HNS already knew about the endpoint.
 */
 func (dp *DataPlane) refreshPodEndpoints() error {
-	endpoints, err := dp.getPodEndpoints(refreshLocalEndpoints)
+	endpoints, err := dp.getLocalPodEndpoints()
 	if err != nil {
 		return err
 	}

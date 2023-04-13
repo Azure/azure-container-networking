@@ -549,6 +549,11 @@ type UnpublishNetworkContainerRequest struct {
 	DeleteNetworkContainerRequestBody []byte
 }
 
+func (u UnpublishNetworkContainerRequest) String() string {
+	return fmt.Sprintf("{NetworkID:%s NetworkContainerID:%s JoinNetworkURL:%s DeleteNetworkContainerURL:%s DeleteNetworkContainerRequestBody:%q}",
+		u.NetworkID, u.NetworkContainerID, u.JoinNetworkURL, u.DeleteNetworkContainerURL, u.DeleteNetworkContainerRequestBody)
+}
+
 // UnpublishNetworkContainerResponse specifies the response to unpublish network container request.
 type UnpublishNetworkContainerResponse struct {
 	Response              Response

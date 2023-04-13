@@ -11,6 +11,8 @@ AZCLI   ?= docker run --rm -v $(AZCFG):/root/.azure -v $(KUBECFG):/root/.kube -v
 REGION     ?= westus2
 OS_SKU     ?= Ubuntu
 VM_SIZE	   ?= Standard_B2s
+NODE_COUNT ?= 2
+
 # overrideable variables
 SUB        ?= $(AZURE_SUBSCRIPTION)
 CLUSTER    ?= $(USER)-$(REGION)
@@ -53,6 +55,7 @@ vars: ## Show the input vars configured for the cluster commands
 	@echo VNET=$(VNET)
 	@echo OS_SKU=$(OS_SKU)
 	@echo VM_SIZE=$(VM_SIZE)
+	@echo NODE_COUNT=$(NODE_COUNT)
 
 
 ##@ SWIFT Infra
@@ -81,8 +84,8 @@ up: swift-up ## Alias to swift-up
 
 overlay-byocni-up: rg-up overlay-net-up ## Brings up an Overlay BYO CNI cluster
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
-		--node-count 2 \
-		--node-vm-size Standard_B2s \
+		--node-count $(NODE_COUNT) \
+		--node-vm-size $(VM_SIZE) \
 		--load-balancer-sku basic \
 		--network-plugin none \
 		--network-plugin-mode overlay \
@@ -94,11 +97,11 @@ overlay-byocni-up: rg-up overlay-net-up ## Brings up an Overlay BYO CNI cluster
 
 overlay-cilium-up: rg-up overlay-net-up ## Brings up an Overlay AzCNI cluster
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
-		--node-count 2 \
+		--node-count $(NODE_COUNT) \
 		--node-vm-size $(VM_SIZE) \
 		--load-balancer-sku basic \
 		--network-plugin azure \
-		--enable-cilium-dataplane \
+		--network-dataplane cilium \
 		--network-plugin-mode overlay \
 		--pod-cidr 192.168.0.0/16 \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
@@ -108,7 +111,7 @@ overlay-cilium-up: rg-up overlay-net-up ## Brings up an Overlay AzCNI cluster
 
 overlay-up: rg-up overlay-net-up ## Brings up an Overlay AzCNI cluster
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
-		--node-count 2 \
+		--node-count $(NODE_COUNT) \
 		--node-vm-size $(VM_SIZE) \
 		--load-balancer-sku basic \
 		--network-plugin azure \
@@ -121,7 +124,7 @@ overlay-up: rg-up overlay-net-up ## Brings up an Overlay AzCNI cluster
 
 swift-byocni-up: rg-up swift-net-up ## Bring up a SWIFT BYO CNI cluster
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
-		--node-count 2 \
+		--node-count $(NODE_COUNT) \
 		--node-vm-size $(VM_SIZE) \
 		--load-balancer-sku basic \
 		--network-plugin none \
@@ -134,11 +137,11 @@ swift-byocni-up: rg-up swift-net-up ## Bring up a SWIFT BYO CNI cluster
 
 swift-cilium-up: rg-up swift-net-up ## Bring up a SWIFT Cilium cluster
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
-		--node-count 2 \
+		--node-count $(NODE_COUNT) \
 		--node-vm-size $(VM_SIZE) \
 		--load-balancer-sku basic \
 		--network-plugin azure \
-		--enable-cilium-dataplane \
+		--network-dataplane cilium \
 		--aks-custom-headers AKSHTTPCustomFeatures=Microsoft.ContainerService/CiliumDataplanePreview \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
 		--pod-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/podnet \
@@ -148,7 +151,7 @@ swift-cilium-up: rg-up swift-net-up ## Bring up a SWIFT Cilium cluster
 
 swift-up: rg-up swift-net-up ## Bring up a SWIFT AzCNI cluster
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
-		--node-count 2 \
+		--node-count $(NODE_COUNT) \
 		--node-vm-size $(VM_SIZE) \
 		--load-balancer-sku basic \
 		--network-plugin azure \

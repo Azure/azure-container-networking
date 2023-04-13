@@ -29,6 +29,8 @@ const (
 )
 
 type PolicyManagerCfg struct {
+	// NodeIP is only used in Windows
+	NodeIP string
 	// PolicyMode only affects Windows
 	PolicyMode PolicyManagerMode
 	// PlaceAzureChainFirst only affects Linux
@@ -92,6 +94,11 @@ func (pMgr *PolicyManager) Bootup(epIDs []string) error {
 		// update Prometheus metrics on success
 		metrics.IncNumACLRulesBy(numLinuxBaseACLRules)
 	}
+
+	if util.IsWindowsDP() && pMgr.NodeIP == "" {
+		return npmerrors.Errorf(npmerrors.BootupPolicyMgr, false, "policy manager must have a configured nodeIP in Windows")
+	}
+
 	return nil
 }
 
@@ -144,11 +151,11 @@ func (pMgr *PolicyManager) AddPolicy(policy *NPMNetworkPolicy, endpointList map[
 	}
 
 	// update Prometheus metrics on success
-	numEndpoints := 1
 	if util.IsWindowsDP() {
-		numEndpoints = len(endpointList)
+		metrics.IncNumACLRulesBy((1 + policy.numACLRulesProducedInKernel()) * len(endpointList))
+	} else {
+		metrics.IncNumACLRulesBy(policy.numACLRulesProducedInKernel())
 	}
-	metrics.IncNumACLRulesBy(policy.numACLRulesProducedInKernel() * numEndpoints)
 
 	pMgr.policyMap.cache[policy.PolicyKey] = policy
 	return nil
@@ -188,11 +195,12 @@ func (pMgr *PolicyManager) RemovePolicy(policyKey string) error {
 	}
 
 	// update Prometheus metrics on success
-	numEndpointsRemoved := 1
 	if util.IsWindowsDP() {
-		numEndpointsRemoved = numEndpointsBefore - len(policy.PodEndpoints)
+		numEndpointsRemoved := numEndpointsBefore - len(policy.PodEndpoints)
+		metrics.DecNumACLRulesBy((1 + policy.numACLRulesProducedInKernel()) * numEndpointsRemoved)
+	} else {
+		metrics.DecNumACLRulesBy(policy.numACLRulesProducedInKernel())
 	}
-	metrics.DecNumACLRulesBy(policy.numACLRulesProducedInKernel() * numEndpointsRemoved)
 
 	// remove policy from cache
 	delete(pMgr.policyMap.cache, policyKey)
@@ -223,7 +231,7 @@ func (pMgr *PolicyManager) RemovePolicyForEndpoints(policyKey string, endpointLi
 	}
 
 	// update Prometheus metrics on success
-	metrics.DecNumACLRulesBy(policy.numACLRulesProducedInKernel() * len(endpointList))
+	metrics.DecNumACLRulesBy((1 + policy.numACLRulesProducedInKernel()) * len(endpointList))
 
 	return nil
 }

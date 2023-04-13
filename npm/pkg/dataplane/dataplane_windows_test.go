@@ -11,7 +11,6 @@ import (
 	dptestutils "github.com/Azure/azure-container-networking/npm/pkg/dataplane/testutils"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
-	"k8s.io/klog"
 )
 
 const (
@@ -31,6 +30,10 @@ func TestCapzCalico(t *testing.T) {
 	testSerialCases(t, capzCalicoTests())
 }
 
+func TestRemoteEndpoints(t *testing.T) {
+	testSerialCases(t, remoteEndpointTests())
+}
+
 func TestAllMultiJobCases(t *testing.T) {
 	testMultiJobCases(t, getAllMultiJobTests())
 }
@@ -40,14 +43,7 @@ func testSerialCases(t *testing.T, tests []*SerialTestCase) {
 		i := i
 		tt := tt
 
-		for _, tag := range tt.Tags {
-			if tag == skipTestTag {
-				continue
-			}
-		}
-
 		t.Run(tt.Description, func(t *testing.T) {
-			klog.Infof("tt in: %+v", tt)
 			t.Logf("beginning test #%d. Description: [%s]. Tags: %+v", i, tt.Description, tt.Tags)
 
 			hns := ipsets.GetHNSFake(t, tt.DpCfg.NetworkName)
@@ -82,12 +78,6 @@ func testMultiJobCases(t *testing.T, tests []*MultiJobTestCase) {
 	for i, tt := range tests {
 		i := i
 		tt := tt
-
-		for _, tag := range tt.Tags {
-			if tag == skipTestTag {
-				continue
-			}
-		}
 
 		t.Run(tt.Description, func(t *testing.T) {
 			t.Logf("beginning test #%d. Description: [%s]. Tags: %+v", i, tt.Description, tt.Tags)

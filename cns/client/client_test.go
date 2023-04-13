@@ -170,8 +170,8 @@ func TestMain(m *testing.M) {
 	config := common.ServiceConfig{}
 
 	httpRestService, err := restserver.NewHTTPRestService(&config, &fakes.WireserverClientFake{}, &fakes.WireserverProxyFake{}, &fakes.NMAgentClientFake{}, nil, nil, nil)
-	svc = httpRestService.(*restserver.HTTPRestService)
-	svc.Name = "cns-test-server"
+	svc = httpRestService
+	httpRestService.Name = "cns-test-server"
 	fakeNNC := v1alpha.NodeNetworkConfig{
 		TypeMeta:   metav1.TypeMeta{},
 		ObjectMeta: metav1.ObjectMeta{},
@@ -204,7 +204,7 @@ func TestMain(m *testing.M) {
 			},
 		},
 	}
-	svc.IPAMPoolMonitor = &fakes.MonitorFake{IPsNotInUseCount: 13, NodeNetworkConfig: &fakeNNC}
+	httpRestService.IPAMPoolMonitor = &fakes.MonitorFake{IPsNotInUseCount: 13, NodeNetworkConfig: &fakeNNC}
 
 	if err != nil {
 		logger.Errorf("Failed to create CNS object, err:%v.\n", err)

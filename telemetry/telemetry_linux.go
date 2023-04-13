@@ -4,13 +4,13 @@
 package telemetry
 
 import (
-	"fmt"
 	"os/exec"
 	"runtime"
 	"strings"
 	"syscall"
 
 	"github.com/Azure/azure-container-networking/platform"
+	"github.com/pkg/errors"
 )
 
 // Memory Info structure.
@@ -36,7 +36,7 @@ func getMemInfo() (*MemInfo, error) {
 
 	err := syscall.Sysinfo(info)
 	if err != nil {
-		return nil, fmt.Errorf("Sysinfo failed due to %v", err)
+		return nil, errors.Wrapf(err, "Sysinfo failed due to ")
 	}
 
 	unit := uint64(info.Unit) * MB // MB
@@ -51,7 +51,7 @@ func getDiskInfo(path string) (*DiskInfo, error) {
 
 	err := syscall.Statfs(path, &fs)
 	if err != nil {
-		return nil, fmt.Errorf("Statfs call failed with error %v", err)
+		return nil, errors.Wrapf(err, "Statfs call failed with error ")
 	}
 
 	total := fs.Blocks * uint64(fs.Bsize) / MB

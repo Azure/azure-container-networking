@@ -9,3 +9,7 @@ var errNotImplemented = errors.New("cni conflist generator not implemented on Wi
 func (v *V4OverlayGenerator) Generate() error {
 	return errNotImplemented
 }
+
+func (v *CiliumGenerator) Generate() error {
+	return errNotImplemented
+}
