@@ -465,7 +465,7 @@ func TestTransparentVlanDeleteEndpoints(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			err := tt.client.DeleteEndpointsImpl(tt.ep, tt.routesLeft)
+			err := tt.client.DeleteEndpointsImpl(tt.ep, tt.routesLeft, false)
 			if tt.wantErr {
 				require.Error(t, err)
 				require.Contains(t, err.Error(), tt.wantErrMsg, "Expected:%v actual:%v", tt.wantErrMsg, err.Error())
