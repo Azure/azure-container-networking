@@ -86,8 +86,8 @@ npm_e2e () {
     run_npm_cyclonus
     echo "" > cyclonus.success
 
-    log "sleeping 3m to allow VFP to update tags after cyclonus..."
-    sleep 3m
+    log "sleeping 5m to allow VFP to update tags after cyclonus..."
+    sleep 5m
     log "verifying VFP tags after cyclonus..."
     verify_vfp_tags_using_npm vfp-state-after-cyclonus.ran
     echo "" > vfp-state-after-cyclonus.success
@@ -96,8 +96,8 @@ npm_e2e () {
     run_npm_conformance
     echo "" > conformance.success
 
-    log "sleeping 3m to allow VFP to update tags after conformance..."
-    sleep 3m
+    log "sleeping 5m to allow VFP to update tags after conformance..."
+    sleep 5m
     log "verifying VFP tags after conformance..."
     verify_vfp_tags_using_npm vfp-state-after-conformance.ran
     echo "" > vfp-state-after-conformance.success
@@ -105,8 +105,8 @@ npm_e2e () {
     ## NPM scale
     run_npm_scale $kubeconfigFile
     echo "" > scale-connectivity.success
-    log "sleeping 3m to allow VFP to update tags after scale test..."
-    sleep 3m
+    log "sleeping 5m to allow VFP to update tags after scale test..."
+    sleep 5m
     log "verifying VFP tags after scale test..."
     verify_vfp_tags_using_npm vfp-state-after-scale.ran
     echo "" > vfp-state-after-scale.success
