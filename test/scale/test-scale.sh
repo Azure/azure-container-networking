@@ -183,8 +183,19 @@ numTotalPods=$(( $numKwokPods + $numRealPods ))
 numACLsAddedByNPM=$(( 6 * $numNetworkPolicies ))
 # IPSet/member counts can be slight underestimates if there are more than one template-hash labels
 # 4 basic IPSets are [ns-scale-test,kubernetes.io/metadata.name:scale-test,template-hash:xxxx,app:scale-test]
-# also have [is-real, is-real:true, is-kwok, is-kwok:true]
-numIPSetsAddedByNPM=$(( 4 + 2*$numTotalPods*($numUniqueLabelsPerPod+1) + 2*$numSharedLabelsPerPod + 2*($numKwokDeployments+$numRealDeployments)*$numUniqueLabelsPerDeployment ))
+# for deployments, have [is-real, is-real:true, is-kwok, is-kwok:true]
+# for unapplied netpols, have [non-existent-key, non-existent-key:val]
+extraIPSets=0
+if [[ $numUnappliedNetworkPolicies -gt 0 ]]; then
+    extraIPSets=$(( $extraIPSets + 2 ))
+fi
+if [[ $numKwokPods -gt 0 ]]; then
+    extraIPSets=$(( $extraIPSets + 2 ))
+fi
+if [[ $numRealPods -gt 0 ]]; then
+    extraIPSets=$(( $extraIPSets + 2 ))
+fi
+numIPSetsAddedByNPM=$(( 4 + 2*$numTotalPods*$numUniqueLabelsPerPod + 2*$numSharedLabelsPerPod + 2*($numKwokDeployments+$numRealDeployments)*$numUniqueLabelsPerDeployment + $extraIPSets ))
 # 3 basic members are [all-ns,kubernetes.io/metadata.name,kubernetes.io/metadata.name:scale-test]
 # 5*pods members go to [ns-scale-test,kubernetes.io/metadata.name:scale-test,template-hash:xxxx,app:scale-test]
 numIPSetMembersAddedByNPM=$(( 3 + $numTotalPods*(5 + 2*$numUniqueLabelsPerPod + 2*$numSharedLabelsPerPod) + 2*($numKwokPods+$numRealPods)*$numUniqueLabelsPerDeployment + 2*$numKwokPods + 2*$numRealPods ))
@@ -423,15 +434,15 @@ if [[ $deleteLabels == true && $numSharedLabelsPerPod -gt 2 ]]; then
         set -x
         kubectl $KUBECONFIG_ARG label pods -n scale-test --all shared-lab-00001- shared-lab-00002- shared-lab-00003-
         set +x
-        echo "sleeping $deleteLabelsSleep seconds after deleting label (round $i/$deleteLabelsTimes)..."
-        sleep $deleteLabelsSleep
+        echo "sleeping $deleteLabelsInterval seconds after deleting label (round $i/$deleteLabelsTimes)..."
+        sleep $deleteLabelsInterval
         
         echo "re-adding labels. round $i/$deleteLabelsTimes..."
         set -x
         kubectl $KUBECONFIG_ARG label pods -n scale-test --all shared-lab-00001=val shared-lab-00002=val shared-lab-00003=val
         set +x
-        echo "sleeping $deleteLabelsSleep seconds after readding label (end of round $i/$deleteLabelsTimes)..."
-        sleep $deleteLabelsSleep
+        echo "sleeping $deleteLabelsInterval seconds after readding label (end of round $i/$deleteLabelsTimes)..."
+        sleep $deleteLabelsInterval
     done
 fi
 
