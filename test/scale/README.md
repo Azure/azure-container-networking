@@ -11,7 +11,7 @@ This saves us from:
 ## Usage
 1. Create AKS cluster with `--uptime-sla` and create any nodepools.
 2. If making KWOK Pods, run `run-kwok.sh` in the background.
-3. Scale with `test-scale.sh`. Specify number of Deployments, Pod replicas, NetworkPolicies, and labels for Pods.
+3. Scale with `test-scale.sh`. Specify number of Deployments, Pod replicas, NetworkPolicies, and labels for Pods. Can also delete/re-add objects to cause churn.
 4. Test connectivity with `connectivity/test-connectivity.sh`.
 
 ### Example Runs
