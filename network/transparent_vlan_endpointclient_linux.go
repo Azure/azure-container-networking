@@ -5,7 +5,6 @@ import (
 	"net"
 	"strings"
 
-	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/iptables"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/netio"
@@ -405,10 +404,8 @@ func (client *TransparentVlanEndpointClient) ConfigureVnetInterfacesAndRoutesImp
 	}
 
 	// Delete old route if any for this IP
-	logger.Printf("[transparent-vlan] Deleting old route if any.")
-	if err = deleteRoutes(client.netlink, client.netioshim, "", routeInfoList); err != nil {
-		return errors.Wrap(err, "failed deleting routes to vnet specific to this container")
-	}
+	err = deleteRoutes(client.netlink, client.netioshim, "", routeInfoList)
+	log.Printf("[transparent-vlan] Deleting old routes returned:%v", err)
 
 	if err = addRoutes(client.netlink, client.netioshim, client.vnetVethName, routeInfoList); err != nil {
 		return errors.Wrap(err, "failed adding routes to vnet specific to this container")

@@ -953,7 +953,7 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 	numEndpointsToDelete := 1
 	// only get number of endpoints if it's multitenancy mode
 	if nwCfg.MultiTenancy {
-		numEndpointsToDelete = plugin.nm.GetNumEndpointsInNetNs(args.Netns)
+		numEndpointsToDelete = plugin.nm.GetNumEndpointsByContainerID(args.ContainerID)
 	}
 
 	log.Printf("[cni-net] number of endpoints to be deleted %d", numEndpointsToDelete)
@@ -973,23 +973,21 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 		}
 		// Query the network.
 		if nwInfo, err = plugin.nm.GetNetworkInfo(networkID); err != nil {
-			if !nwCfg.MultiTenancy {
-				log.Printf("[cni-net] Failed to query network:%s: %v", networkID, err)
-				// Log the error but return success if the network is not found.
-				// if cni hits this, mostly state file would be missing and it can be reboot scenario where
-				// container runtime tries to delete and create pods which existed before reboot.
-				err = nil
-				return err
-			}
+			// Log the error but return success if the network is not found.
+			// if cni hits this, mostly state file would be missing and it can be reboot scenario where
+			// container runtime tries to delete and create pods which existed before reboot.
+			log.Printf("[cni-net] Failed to query network:%s: %v", networkID, err)
+			err = nil
+			return err
 		}
 
 		endpointID := GetEndpointID(args)
 		// Query the endpoint.
 		if epInfo, err = plugin.nm.GetEndpointInfo(networkID, endpointID); err != nil {
+			log.Printf("[cni-net] GetEndpoint for endpointID: %s returns: %v", endpointID, err)
 			if !nwCfg.MultiTenancy {
 				// attempt to release address associated with this Endpoint id
 				// This is to ensure clean up is done even in failure cases
-				log.Printf("[cni-net] Failed to query endpoint %s: %v", endpointID, err)
 				logAndSendEvent(plugin, fmt.Sprintf("Release ip by ContainerID (endpoint not found):%v", args.ContainerID))
 				if err = plugin.ipamInvoker.Delete(nil, nwCfg, args, nwInfo.Options); err != nil {
 					return plugin.RetriableError(fmt.Errorf("failed to release address(no endpoint): %w", err))
