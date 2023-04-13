@@ -13,3 +13,28 @@ This saves us from:
 2. If making KWOK Pods, run `run-kwok.sh` in the background.
 3. Scale with `test-scale.sh`. Specify number of Deployments, Pod replicas, NetworkPolicies, and labels for Pods.
 4. Test connectivity with `connectivity/test-connectivity.sh`.
+
+### Example Run
+```
+./test-scale.sh --max-kwok-pods-per-node=50 \
+    --num-kwok-deployments=10 \
+    --num-kwok-replicas=1 \
+    --max-real-pods-per-node=30 \
+    --num-real-deployments=5 \
+    --num-real-replicas=2 \
+    --num-network-policies=1 \
+    --num-unapplied-network-policies=10 \
+    --num-unique-labels-per-pod=2 \
+    --num-unique-labels-per-deployment=2 \
+    --num-shared-labels-per-pod=10 \
+    --delete-kwok-pods=10 \
+    --delete-real-pods=5 \
+    --delete-pods-interval=120 \
+    --delete-pods-times=2 \
+    --delete-labels \
+    --delete-labels-interval=30 \
+    --delete-labels-times=2 \
+    --delete-netpols \
+    --delete-netpols-interval=0 \
+    --delete-netpols-times=1 | tee scale.out
+```
