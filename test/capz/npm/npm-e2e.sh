@@ -91,6 +91,8 @@ npm_e2e () {
     log "verifying VFP tags after cyclonus..."
     verify_vfp_tags_using_npm vfp-state-after-cyclonus.ran
     echo "" > vfp-state-after-cyclonus.success
+    log "deleting cyclonus pods..."
+    kubectl delete ns x y z
 
     ## NPM conformance
     run_npm_conformance
@@ -346,14 +348,6 @@ run_npm_scale () {
         cd ../../../
         return 1
     fi
-
-    log "waiting up to 10m for all Pods to be running..."
-    kubectl wait --for=condition=Ready -n scale-test --all pods --timeout=10m > ../../../waiting-for-pods.log  || {
-        log "ERROR: not all scale Pods are running"
-        kill $kwok_pid
-        cd ../../../
-        return 1
-    }
 
     log "beginning npm scale connectivity test..."
 
