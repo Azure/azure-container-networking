@@ -417,7 +417,7 @@ kubectl wait --for=condition=Ready pods -n scale-test --all --timeout=15m
 set +x
 
 echo
-echo "FINISHED at $(date -u). Had started at $startDate."
+echo "done scaling at $(date -u). Had started at $startDate."
 echo
 
 echo "performing deletions if configured..."
@@ -434,14 +434,14 @@ if [[ $deleteLabels == true && $numSharedLabelsPerPod -gt 2 ]]; then
         set -x
         kubectl $KUBECONFIG_ARG label pods -n scale-test --all shared-lab-00001- shared-lab-00002- shared-lab-00003-
         set +x
-        echo "sleeping $deleteLabelsInterval seconds after deleting label (round $i/$deleteLabelsTimes)..."
+        echo "sleeping $deleteLabelsInterval seconds after deleting labels (round $i/$deleteLabelsTimes)..."
         sleep $deleteLabelsInterval
         
         echo "re-adding labels. round $i/$deleteLabelsTimes..."
         set -x
         kubectl $KUBECONFIG_ARG label pods -n scale-test --all shared-lab-00001=val shared-lab-00002=val shared-lab-00003=val
         set +x
-        echo "sleeping $deleteLabelsInterval seconds after readding label (end of round $i/$deleteLabelsTimes)..."
+        echo "sleeping $deleteLabelsInterval seconds after readding labels (end of round $i/$deleteLabelsTimes)..."
         sleep $deleteLabelsInterval
     done
 fi
@@ -484,7 +484,14 @@ if [[ ($deleteKwokPods != "" && $deleteKwokPods -gt 0) || ($deleteRealPods != ""
             set +x
         fi
 
+        if [[ $i == $deletePodsTimes ]]; then
+            break
+        fi
         echo "sleeping $deletePodsInterval seconds after deleting pods (end of round $i/$deletePodsTimes)..."
         sleep $deletePodsInterval
     done
 fi
+
+echo
+echo "FINISHED at $(date -u). Had started at $startDate."
+echo
