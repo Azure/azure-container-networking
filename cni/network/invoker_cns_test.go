@@ -533,7 +533,7 @@ func TestCNSIPAMInvoker_Delete(t *testing.T) {
 				podNamespace: testPodInfo.PodNamespace,
 				cnsClient: &MockCNSClient{
 					require: require,
-					release: releaseIPsHandler{
+					releaseIPs: releaseIPsHandler{
 						ipconfigArgument: getTestIPConfigsRequest(),
 					},
 				},
@@ -554,7 +554,7 @@ func TestCNSIPAMInvoker_Delete(t *testing.T) {
 				podName:      testPodInfo.PodName,
 				podNamespace: testPodInfo.PodNamespace,
 				cnsClient: &MockCNSClient{
-					release: releaseIPsHandler{
+					releaseIPs: releaseIPsHandler{
 						ipconfigArgument: getTestIPConfigsRequest(),
 						err:              errors.New("handle CNS delete error"), //nolint ut error
 					},
@@ -576,6 +576,129 @@ func TestCNSIPAMInvoker_Delete(t *testing.T) {
 				require.Error(err)
 			} else {
 				require.NoError(err)
+			}
+		})
+	}
+}
+
+func TestCNSIPAMInvoker_Delete_NotSupportedAPI(t *testing.T) {
+	require := require.New(t) //nolint further usage of require without passing t
+	// set new CNS API is not supported
+	unsupportedAPIs := make(map[cnsAPIName]struct{})
+	unsupportedAPIs["ReleaseIPs"] = struct{}{}
+
+	type fields struct {
+		podName      string
+		podNamespace string
+		cnsClient    cnsclient
+	}
+	type args struct {
+		address *net.IPNet
+		nwCfg   *cni.NetworkConfig
+		args    *cniSkel.CmdArgs
+		options map[string]interface{}
+	}
+	tests := []struct {
+		name    string
+		fields  fields
+		args    args
+		wantErr bool
+	}{
+		{
+			name: "test delete happy path with unsupportedAPI",
+			fields: fields{
+				podName:      testPodInfo.PodName,
+				podNamespace: testPodInfo.PodNamespace,
+				cnsClient: &MockCNSClient{
+					unsupportedAPIs: unsupportedAPIs,
+					require:         require,
+					releaseIP: releaseIPHandler{
+						ipconfigArgument: getTestIPConfigRequest(),
+					},
+				},
+			},
+			args: args{
+				nwCfg: nil,
+				args: &cniSkel.CmdArgs{
+					ContainerID: "testcontainerid",
+					Netns:       "testnetns",
+					IfName:      "testifname",
+				},
+				options: map[string]interface{}{},
+			},
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			invoker := &CNSIPAMInvoker{
+				podName:      tt.fields.podName,
+				podNamespace: tt.fields.podNamespace,
+				cnsClient:    tt.fields.cnsClient,
+			}
+			err := invoker.Delete(tt.args.address, tt.args.nwCfg, tt.args.args, tt.args.options)
+			if tt.wantErr {
+				require.Error(err)
+			} else {
+				require.NoError(err)
+			}
+		})
+	}
+}
+
+func TestCNSIPAMInvoker_Delete_NotFound(t *testing.T) {
+	require := require.New(t) //nolint further usage of require without passing t
+	type fields struct {
+		podName      string
+		podNamespace string
+		cnsClient    cnsclient
+	}
+	type args struct {
+		address *net.IPNet
+		nwCfg   *cni.NetworkConfig
+		args    *cniSkel.CmdArgs
+		options map[string]interface{}
+	}
+	tests := []struct {
+		name    string
+		fields  fields
+		args    args
+		wantErr bool
+	}{
+		{
+			name: "test delete happy path with both ReleaseIPs and ReleassIP not working",
+			fields: fields{
+				podName:      testPodInfo.PodName,
+				podNamespace: testPodInfo.PodNamespace,
+				cnsClient: &MockCNSClient{
+					require: require,
+					releaseIPs: releaseIPsHandler{
+						ipconfigArgument: getTestIPConfigsRequest(),
+					},
+				},
+			},
+			args: args{
+				nwCfg: nil,
+				args: &cniSkel.CmdArgs{
+					ContainerID: "testcontainerid",
+					Netns:       "testnetns1",
+					IfName:      "testifname1",
+				},
+				options: map[string]interface{}{},
+			},
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			invoker := &CNSIPAMInvoker{
+				podName:      tt.fields.podName,
+				podNamespace: tt.fields.podNamespace,
+				cnsClient:    tt.fields.cnsClient,
+			}
+			err := invoker.Delete(tt.args.address, tt.args.nwCfg, tt.args.args, tt.args.options)
+			if !errors.Is(err, errNoReleaseIPFound) {
+				t.Fatalf("expected an error %s but %v received", errNoReleaseIPFound, err)
 			}
 		})
 	}

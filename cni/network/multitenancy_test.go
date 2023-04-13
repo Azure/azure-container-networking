@@ -37,6 +37,14 @@ type requestIPsHandler struct {
 	err    error
 }
 
+type releaseIPHandler struct {
+	// arguments
+	ipconfigArgument cns.IPConfigRequest
+
+	// results
+	err error
+}
+
 type releaseIPsHandler struct {
 	// arguments
 	ipconfigArgument cns.IPConfigsRequest
@@ -78,7 +86,8 @@ type MockCNSClient struct {
 	require                              *require.Assertions
 	requestIP                            requestIPAddressHandler
 	requestIPs                           requestIPsHandler
-	release                              releaseIPsHandler
+	releaseIP                            releaseIPHandler
+	releaseIPs                           releaseIPsHandler
 	getNetworkContainerConfiguration     getNetworkContainerConfigurationHandler
 	getAllNetworkContainersConfiguration getAllNetworkContainersConfigurationHandler
 }
@@ -105,10 +114,10 @@ func (c *MockCNSClient) RequestIPs(_ context.Context, ipconfig cns.IPConfigsRequ
 }
 
 func (c *MockCNSClient) ReleaseIPAddress(_ context.Context, ipconfig cns.IPConfigRequest) error {
-	if !cmp.Equal(c.release.ipconfigArgument, ipconfig) {
+	if !cmp.Equal(c.releaseIP.ipconfigArgument, ipconfig) {
 		return errNoReleaseIPFound
 	}
-	return c.release.err
+	return c.releaseIP.err
 }
 
 func (c *MockCNSClient) ReleaseIPs(_ context.Context, ipconfig cns.IPConfigsRequest) error {
@@ -119,10 +128,10 @@ func (c *MockCNSClient) ReleaseIPs(_ context.Context, ipconfig cns.IPConfigsRequ
 		return e
 	}
 
-	if !cmp.Equal(c.requestIPs.ipconfigArgument, ipconfig) {
+	if !cmp.Equal(c.releaseIPs.ipconfigArgument, ipconfig) {
 		return errNoReleaseIPFound
 	}
-	return c.release.err
+	return c.releaseIPs.err
 }
 
 func (c *MockCNSClient) GetNetworkContainer(ctx context.Context, orchestratorContext []byte) (*cns.GetNetworkContainerResponse, error) {
