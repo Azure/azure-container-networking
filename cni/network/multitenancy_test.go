@@ -3,11 +3,14 @@ package network
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net"
 	"testing"
 
 	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/cns"
+	"github.com/Azure/azure-container-networking/cns/client"
+	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/network"
 	cniTypes "github.com/containernetworking/cni/pkg/types"
 	cniTypesCurr "github.com/containernetworking/cni/pkg/types/100"
@@ -35,8 +38,11 @@ type requestIPsHandler struct {
 }
 
 type releaseIPsHandler struct {
+	// arguments
 	ipconfigArgument cns.IPConfigsRequest
-	err              error
+
+	// results
+	err error
 }
 
 type getNetworkContainerConfigurationHandler struct {
@@ -56,6 +62,8 @@ type cnsAPIName string
 
 const (
 	GetAllNetworkContainers cnsAPIName = "GetAllNetworkContainers"
+	RequestIPs              cnsAPIName = "RequestIPs"
+	ReleaseIPs              cnsAPIName = "ReleaseIPs"
 )
 
 var (
@@ -68,7 +76,7 @@ var (
 type MockCNSClient struct {
 	unsupportedAPIs                      map[cnsAPIName]struct{}
 	require                              *require.Assertions
-	request                              requestIPAddressHandler
+	requestIP                            requestIPAddressHandler
 	requestIPs                           requestIPsHandler
 	release                              releaseIPsHandler
 	getNetworkContainerConfiguration     getNetworkContainerConfigurationHandler
@@ -76,10 +84,10 @@ type MockCNSClient struct {
 }
 
 func (c *MockCNSClient) RequestIPAddress(_ context.Context, ipconfig cns.IPConfigRequest) (*cns.IPConfigResponse, error) {
-	if !cmp.Equal(c.request.ipconfigArgument, ipconfig) {
+	if !cmp.Equal(c.requestIP.ipconfigArgument, ipconfig) {
 		return nil, errNoRequestIPFound
 	}
-	return c.request.result, c.request.err
+	return c.requestIP.result, c.requestIP.err
 }
 
 func (c *MockCNSClient) RequestIPs(_ context.Context, ipconfig cns.IPConfigsRequest) (*cns.IPConfigsResponse, error) {
@@ -91,7 +99,7 @@ func (c *MockCNSClient) RequestIPs(_ context.Context, ipconfig cns.IPConfigsRequ
 	}
 
 	if !cmp.Equal(c.requestIPs.ipconfigArgument, ipconfig) {
-		return nil, errUnsupportedAPI
+		return nil, errNoRequestIPFound
 	}
 	return c.requestIPs.result, c.requestIPs.err
 }
@@ -108,11 +116,11 @@ func (c *MockCNSClient) ReleaseIPs(_ context.Context, ipconfig cns.IPConfigsRequ
 		e := &client.CNSClientError{}
 		e.Code = types.UnsupportedAPI
 		e.Err = errUnsupportedAPI
-		return nil, e
+		return e
 	}
 
 	if !cmp.Equal(c.requestIPs.ipconfigArgument, ipconfig) {
-		return errUnsupportedAPI
+		return errNoReleaseIPFound
 	}
 	return c.release.err
 }

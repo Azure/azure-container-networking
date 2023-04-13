@@ -275,6 +275,238 @@ func TestCNSIPAMInvoker_Add(t *testing.T) {
 	}
 }
 
+func TestCNSIPAMInvoker_Add_UnsupportedAPI(t *testing.T) {
+	require := require.New(t) //nolint further usage of require without passing t
+
+	// set new CNS API is not supported
+	unsupportedAPIs := make(map[cnsAPIName]struct{})
+	unsupportedAPIs["RequestIPs"] = struct{}{}
+
+	type fields struct {
+		podName      string
+		podNamespace string
+		cnsClient    cnsclient
+		ipamMode     util.IpamMode
+	}
+	type args struct {
+		nwCfg            *cni.NetworkConfig
+		args             *cniSkel.CmdArgs
+		hostSubnetPrefix *net.IPNet
+		options          map[string]interface{}
+	}
+
+	tests := []struct {
+		name    string
+		fields  fields
+		args    args
+		want    *cniTypesCurr.Result
+		want1   *cniTypesCurr.Result
+		wantErr bool
+	}{
+		{
+			name: "Test happy CNI add for IPv4 without RequestIPs supported",
+			fields: fields{
+				podName:      testPodInfo.PodName,
+				podNamespace: testPodInfo.PodNamespace,
+				cnsClient: &MockCNSClient{
+					unsupportedAPIs: unsupportedAPIs,
+					require:         require,
+					requestIP: requestIPAddressHandler{
+						ipconfigArgument: getTestIPConfigRequest(),
+						result: &cns.IPConfigResponse{
+							PodIpInfo: cns.PodIpInfo{
+								PodIPConfig: cns.IPSubnet{
+									IPAddress:    "10.0.1.10",
+									PrefixLength: 24,
+								},
+								NetworkContainerPrimaryIPConfig: cns.IPConfiguration{
+									IPSubnet: cns.IPSubnet{
+										IPAddress:    "10.0.1.0",
+										PrefixLength: 24,
+									},
+									DNSServers:       nil,
+									GatewayIPAddress: "10.0.0.1",
+								},
+								HostPrimaryIPInfo: cns.HostIPInfo{
+									Gateway:   "10.0.0.1",
+									PrimaryIP: "10.0.0.1",
+									Subnet:    "10.0.0.0/24",
+								},
+							},
+							Response: cns.Response{
+								ReturnCode: 0,
+								Message:    "",
+							},
+						},
+						err: nil,
+					},
+				},
+			},
+			args: args{
+				nwCfg: &cni.NetworkConfig{},
+				args: &cniSkel.CmdArgs{
+					ContainerID: "testcontainerid",
+					Netns:       "testnetns",
+					IfName:      "testifname",
+				},
+				hostSubnetPrefix: getCIDRNotationForAddress("10.0.0.1/24"),
+				options:          map[string]interface{}{},
+			},
+			want: &cniTypesCurr.Result{
+				IPs: []*cniTypesCurr.IPConfig{
+					{
+						Address: *getCIDRNotationForAddress("10.0.1.10/24"),
+						Gateway: net.ParseIP("10.0.0.1"),
+					},
+				},
+				Routes: []*cniTypes.Route{
+					{
+						Dst: network.Ipv4DefaultRouteDstPrefix,
+						GW:  net.ParseIP("10.0.0.1"),
+					},
+				},
+			},
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			invoker := &CNSIPAMInvoker{
+				podName:      tt.fields.podName,
+				podNamespace: tt.fields.podNamespace,
+				cnsClient:    tt.fields.cnsClient,
+			}
+			if tt.fields.ipamMode != "" {
+				invoker.ipamMode = tt.fields.ipamMode
+			}
+			ipamAddResult, err := invoker.Add(IPAMAddConfig{nwCfg: tt.args.nwCfg, args: tt.args.args, options: tt.args.options})
+			if err != nil && tt.wantErr {
+				t.Fatalf("expected an error %+v but none received", err)
+			}
+			require.NoError(err)
+			require.Equalf(tt.want, ipamAddResult.ipv4Result, "incorrect ipv4 response")
+		})
+	}
+}
+
+func TestCNSIPAMInvoker_Add_NotFound(t *testing.T) {
+	require := require.New(t) //nolint further usage of require without passing t
+
+	type fields struct {
+		podName      string
+		podNamespace string
+		cnsClient    cnsclient
+		ipamMode     util.IpamMode
+	}
+	type args struct {
+		nwCfg            *cni.NetworkConfig
+		args             *cniSkel.CmdArgs
+		hostSubnetPrefix *net.IPNet
+		options          map[string]interface{}
+	}
+
+	tests := []struct {
+		name    string
+		fields  fields
+		args    args
+		want    *cniTypesCurr.Result
+		want1   *cniTypesCurr.Result
+		wantErr bool
+	}{
+		{
+			name: "Test happy CNI add for dualstack mode with both requestIP and requestIPs not working",
+			fields: fields{
+				podName:      testPodInfo.PodName,
+				podNamespace: testPodInfo.PodNamespace,
+				cnsClient: &MockCNSClient{
+					require: require,
+					requestIPs: requestIPsHandler{
+						ipconfigArgument: getTestIPConfigsRequest(),
+						result: &cns.IPConfigsResponse{
+							PodIPInfo: []cns.PodIpInfo{
+								{
+									PodIPConfig: cns.IPSubnet{
+										IPAddress:    "10.0.1.10",
+										PrefixLength: 24,
+									},
+									NetworkContainerPrimaryIPConfig: cns.IPConfiguration{
+										IPSubnet: cns.IPSubnet{
+											IPAddress:    "10.0.1.0",
+											PrefixLength: 24,
+										},
+										DNSServers:       nil,
+										GatewayIPAddress: "10.0.0.1",
+									},
+									HostPrimaryIPInfo: cns.HostIPInfo{
+										Gateway:   "10.0.0.1",
+										PrimaryIP: "10.0.0.1",
+										Subnet:    "10.0.0.0/24",
+									},
+								},
+								{
+									PodIPConfig: cns.IPSubnet{
+										IPAddress:    "fd11:1234::1",
+										PrefixLength: 24,
+									},
+									NetworkContainerPrimaryIPConfig: cns.IPConfiguration{
+										IPSubnet: cns.IPSubnet{
+											IPAddress:    "fd11:1234::",
+											PrefixLength: 112,
+										},
+										DNSServers:       nil,
+										GatewayIPAddress: "fe80::1234:5678:9abc",
+									},
+									HostPrimaryIPInfo: cns.HostIPInfo{
+										Gateway:   "fe80::1234:5678:9abc",
+										PrimaryIP: "fe80::1234:5678:9abc",
+										Subnet:    "fd11:1234::/112",
+									},
+								},
+							},
+							Response: cns.Response{
+								ReturnCode: 0,
+								Message:    "",
+							},
+						},
+						err: nil,
+					},
+				},
+			},
+			args: args{
+				nwCfg: &cni.NetworkConfig{},
+				args: &cniSkel.CmdArgs{
+					ContainerID: "testcontainerid",
+					Netns:       "testnetns1",
+					IfName:      "testifname1",
+				},
+				hostSubnetPrefix: getCIDRNotationForAddress("10.0.0.1/24"),
+				options:          map[string]interface{}{},
+			},
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			invoker := &CNSIPAMInvoker{
+				podName:      tt.fields.podName,
+				podNamespace: tt.fields.podNamespace,
+				cnsClient:    tt.fields.cnsClient,
+			}
+			if tt.fields.ipamMode != "" {
+				invoker.ipamMode = tt.fields.ipamMode
+			}
+			_, err := invoker.Add(IPAMAddConfig{nwCfg: tt.args.nwCfg, args: tt.args.args, options: tt.args.options})
+			if err == nil && tt.wantErr {
+				t.Fatalf("expected an error %+v but none received", err)
+			}
+			if !errors.Is(err, errNoRequestIPFound) {
+				t.Fatalf("expected an error %s but %v received", errNoRequestIPFound, err)
+			}
+		})
+	}
+}
+
 func TestCNSIPAMInvoker_Delete(t *testing.T) {
 	require := require.New(t) //nolint further usage of require without passing t
 	type fields struct {

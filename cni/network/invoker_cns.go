@@ -83,7 +83,7 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 	if err != nil {
 		// if RequestIPs call fails, we may receive API not Found error as new CNS is not supported, then try old API RequestIPAddress
 		log.Errorf("RequestIPs not supported by CNS. Invoking RequestIPAddress API with infracontainerid %s", ipconfig.InfraContainerID)
-		if errors.Is(err, cnscli.ErrAPINotFound) {
+		if cnscli.IsUnsupportedAPI(err) {
 			ipconfigs := cns.IPConfigRequest{
 				OrchestratorContext: orchestratorContext,
 				PodInterfaceID:      GetEndpointID(addConfig.args),
@@ -298,7 +298,7 @@ func (invoker *CNSIPAMInvoker) Delete(address *net.IPNet, nwCfg *cni.NetworkConf
 	if err := invoker.cnsClient.ReleaseIPs(context.TODO(), ipConfig); err != nil {
 		// if ReleaseIPs call fails, we may receive API not Found error as new CNS is not supported, then try old API ReleaseIPAddress
 		log.Errorf("ReleaseIPs not supported by CNS. Invoking ReleaseIPAddress API. Request: %v", ipConfig)
-		if errors.Is(err, cnscli.ErrAPINotFound) {
+		if cnscli.IsUnsupportedAPI(err) {
 			ipConfigs := cns.IPConfigRequest{
 				OrchestratorContext: orchestratorContext,
 				PodInterfaceID:      GetEndpointID(args),
