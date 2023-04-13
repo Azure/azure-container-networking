@@ -413,7 +413,7 @@ set -x
 kubectl $KUBECONFIG_ARG apply -f generated/networkpolicies/unapplied
 kubectl $KUBECONFIG_ARG apply -f generated/networkpolicies/applied
 # wait for all pods to run
-kubectl wait --for=condition=Ready pods -n scale-test --all --timeout=15m
+kubectl $KUBECONFIG_ARG wait --for=condition=Ready pods -n scale-test --all --timeout=15m
 set +x
 
 echo
@@ -483,6 +483,11 @@ if [[ ($deleteKwokPods != "" && $deleteKwokPods -gt 0) || ($deleteRealPods != ""
             kubectl $KUBECONFIG_ARG delete pods -n scale-test $pods
             set +x
         fi
+
+        sleep 5s
+        set -x
+        kubectl $KUBECONFIG_ARG wait --for=condition=Ready pods -n scale-test --all --timeout=15m
+        set +x
 
         if [[ $i == $deletePodsTimes ]]; then
             break
