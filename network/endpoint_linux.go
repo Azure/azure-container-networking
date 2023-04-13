@@ -48,7 +48,14 @@ func ConstructEndpointID(containerID string, _ string, ifName string) (string, s
 }
 
 // newEndpointImpl creates a new endpoint in the network.
-func (nw *network) newEndpointImpl(_ apipaClient, nl netlink.NetlinkInterface, plc platform.ExecClient, epInfo *EndpointInfo) (*endpoint, error) {
+func (nw *network) newEndpointImpl(
+	_ apipaClient,
+	nl netlink.NetlinkInterface,
+	plc platform.ExecClient,
+	netioCli netio.NetIOInterface,
+	epClient EndpointClient,
+	epInfo *EndpointInfo,
+) (*endpoint, error) {
 	var containerIf *net.Interface
 	var ns *Namespace
 	var ep *endpoint
@@ -56,7 +63,6 @@ func (nw *network) newEndpointImpl(_ apipaClient, nl netlink.NetlinkInterface, p
 	var hostIfName string
 	var contIfName string
 	var localIP string
-	var epClient EndpointClient
 	var vlanid int = 0
 
 	if nw.Endpoints[epInfo.Id] != nil {
@@ -88,49 +94,52 @@ func (nw *network) newEndpointImpl(_ apipaClient, nl netlink.NetlinkInterface, p
 		contIfName = fmt.Sprintf("%s%s-2", hostVEthInterfacePrefix, epInfo.Id[:7])
 	}
 
-	if vlanid != 0 {
-		if nw.Mode == opModeTransparentVlan {
-			log.Printf("Transparent vlan client")
-			if _, ok := epInfo.Data[SnatBridgeIPKey]; ok {
-				nw.SnatBridgeIP = epInfo.Data[SnatBridgeIPKey].(string)
-			}
-			epClient = NewTransparentVlanEndpointClient(nw, epInfo, hostIfName, contIfName, vlanid, localIP, nl, plc)
-		} else {
-			log.Printf("OVS client")
-			if _, ok := epInfo.Data[SnatBridgeIPKey]; ok {
-				nw.SnatBridgeIP = epInfo.Data[SnatBridgeIPKey].(string)
-			}
+	// epClient is non-nil only when the endpoint is created for the unit test.
+	if epClient == nil {
+		//nolint:gocritic
+		if vlanid != 0 {
+			if nw.Mode == opModeTransparentVlan {
+				log.Printf("Transparent vlan client")
+				if _, ok := epInfo.Data[SnatBridgeIPKey]; ok {
+					nw.SnatBridgeIP = epInfo.Data[SnatBridgeIPKey].(string)
+				}
+				epClient = NewTransparentVlanEndpointClient(nw, epInfo, hostIfName, contIfName, vlanid, localIP, nl, plc)
+			} else {
+				log.Printf("OVS client")
+				if _, ok := epInfo.Data[SnatBridgeIPKey]; ok {
+					nw.SnatBridgeIP = epInfo.Data[SnatBridgeIPKey].(string)
+				}
 
-			epClient = NewOVSEndpointClient(
-				nw,
-				epInfo,
-				hostIfName,
-				contIfName,
-				vlanid,
-				localIP,
-				nl,
-				ovsctl.NewOvsctl(),
-				plc)
+				epClient = NewOVSEndpointClient(
+					nw,
+					epInfo,
+					hostIfName,
+					contIfName,
+					vlanid,
+					localIP,
+					nl,
+					ovsctl.NewOvsctl(),
+					plc)
+			}
+		} else if nw.Mode != opModeTransparent {
+			log.Printf("Bridge client")
+			epClient = NewLinuxBridgeEndpointClient(nw.extIf, hostIfName, contIfName, nw.Mode, nl, plc)
+		} else {
+			log.Printf("Transparent client")
+			epClient = NewTransparentEndpointClient(nw.extIf, hostIfName, contIfName, nw.Mode, nl, plc)
 		}
-	} else if nw.Mode != opModeTransparent {
-		log.Printf("Bridge client")
-		epClient = NewLinuxBridgeEndpointClient(nw.extIf, hostIfName, contIfName, nw.Mode, nl, plc)
-	} else {
-		log.Printf("Transparent client")
-		epClient = NewTransparentEndpointClient(nw.extIf, hostIfName, contIfName, nw.Mode, nl, plc)
 	}
 
 	// Cleanup on failure.
 	defer func() {
 		if err != nil {
-			log.Printf("CNI error. Delete Endpoint %v and rules that are created.", contIfName)
+			log.Printf("CNI error:%v. Delete Endpoint %v and rules that are created.", err, contIfName)
 			endpt := &endpoint{
 				Id:                       epInfo.Id,
 				IfName:                   contIfName,
 				HostIfName:               hostIfName,
 				LocalIP:                  localIP,
 				IPAddresses:              epInfo.IPAddresses,
-				Gateways:                 []net.IP{nw.extIf.IPv4Gateway},
 				DNS:                      epInfo.DNS,
 				VlanID:                   vlanid,
 				EnableSnatOnHost:         epInfo.EnableSnatOnHost,
@@ -144,7 +153,12 @@ func (nw *network) newEndpointImpl(_ apipaClient, nl netlink.NetlinkInterface, p
 				epClient.DeleteEndpointRules(endpt)
 			}
 
-			epClient.DeleteEndpoints(endpt)
+			if nw.extIf != nil {
+				endpt.Gateways = []net.IP{nw.extIf.IPv4Gateway}
+			}
+			// set deleteHostVeth to true to cleanup host veth interface if created
+			//nolint:errcheck // ignore error
+			epClient.DeleteEndpoints(endpt, true)
 		}
 	}()
 
@@ -152,7 +166,7 @@ func (nw *network) newEndpointImpl(_ apipaClient, nl netlink.NetlinkInterface, p
 		return nil, err
 	}
 
-	containerIf, err = net.InterfaceByName(contIfName)
+	containerIf, err = netioCli.GetNetworkInterfaceByName(contIfName)
 	if err != nil {
 		return nil, err
 	}
@@ -220,7 +234,6 @@ func (nw *network) newEndpointImpl(_ apipaClient, nl netlink.NetlinkInterface, p
 		InfraVnetIP:              epInfo.InfraVnetIP,
 		LocalIP:                  localIP,
 		IPAddresses:              epInfo.IPAddresses,
-		Gateways:                 []net.IP{nw.extIf.IPv4Gateway},
 		DNS:                      epInfo.DNS,
 		VlanID:                   vlanid,
 		EnableSnatOnHost:         epInfo.EnableSnatOnHost,
@@ -234,34 +247,44 @@ func (nw *network) newEndpointImpl(_ apipaClient, nl netlink.NetlinkInterface, p
 		PODNameSpace:             epInfo.PODNameSpace,
 	}
 
+	if nw.extIf != nil {
+		ep.Gateways = []net.IP{nw.extIf.IPv4Gateway}
+	}
+
 	ep.Routes = append(ep.Routes, epInfo.Routes...)
 	return ep, nil
 }
 
 // deleteEndpointImpl deletes an existing endpoint from the network.
-func (nw *network) deleteEndpointImpl(nl netlink.NetlinkInterface, plc platform.ExecClient, ep *endpoint) error {
-	var epClient EndpointClient
-
+func (nw *network) deleteEndpointImpl(nl netlink.NetlinkInterface, plc platform.ExecClient, epClient EndpointClient, ep *endpoint) error {
 	// Delete the veth pair by deleting one of the peer interfaces.
 	// Deleting the host interface is more convenient since it does not require
 	// entering the container netns and hence works both for CNI and CNM.
-	if ep.VlanID != 0 {
-		epInfo := ep.getInfo()
-		if nw.Mode == opModeTransparentVlan {
-			log.Printf("Transparent vlan client")
-			epClient = NewTransparentVlanEndpointClient(nw, epInfo, ep.HostIfName, "", ep.VlanID, ep.LocalIP, nl, plc)
 
+	// epClient is nil only for unit test.
+	if epClient == nil {
+		//nolint:gocritic
+		if ep.VlanID != 0 {
+			epInfo := ep.getInfo()
+			if nw.Mode == opModeTransparentVlan {
+				log.Printf("Transparent vlan client")
+				epClient = NewTransparentVlanEndpointClient(nw, epInfo, ep.HostIfName, "", ep.VlanID, ep.LocalIP, nl, plc)
+
+			} else {
+				epClient = NewOVSEndpointClient(nw, epInfo, ep.HostIfName, "", ep.VlanID, ep.LocalIP, nl, ovsctl.NewOvsctl(), plc)
+			}
+		} else if nw.Mode != opModeTransparent {
+			epClient = NewLinuxBridgeEndpointClient(nw.extIf, ep.HostIfName, "", nw.Mode, nl, plc)
 		} else {
-			epClient = NewOVSEndpointClient(nw, epInfo, ep.HostIfName, "", ep.VlanID, ep.LocalIP, nl, ovsctl.NewOvsctl(), plc)
+			epClient = NewTransparentEndpointClient(nw.extIf, ep.HostIfName, "", nw.Mode, nl, plc)
 		}
-	} else if nw.Mode != opModeTransparent {
-		epClient = NewLinuxBridgeEndpointClient(nw.extIf, ep.HostIfName, "", nw.Mode, nl, plc)
-	} else {
-		epClient = NewTransparentEndpointClient(nw.extIf, ep.HostIfName, "", nw.Mode, nl, plc)
 	}
 
 	epClient.DeleteEndpointRules(ep)
-	epClient.DeleteEndpoints(ep)
+	// deleteHostVeth set to false not to delete veth as CRI will remove network namespace and
+	// veth will get removed as part of that.
+	//nolint:errcheck // ignore error
+	epClient.DeleteEndpoints(ep, false)
 
 	return nil
 }
