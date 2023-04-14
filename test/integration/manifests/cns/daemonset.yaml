@@ -89,8 +89,6 @@ spec:
           volumeMounts:
             - name: cni-bin
               mountPath: /opt/cni/bin
-            - name: cni-conflist
-              mountPath: /etc/cni/net.d
       hostNetwork: true
       volumes:
         - name: cni-conflist
