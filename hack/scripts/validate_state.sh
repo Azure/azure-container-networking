@@ -16,9 +16,9 @@ do
     node_ip=$(kubectl get "$node"  -o jsonpath='{$.status.addresses[?(@.type=="InternalIP")].address}')
     echo "Node internal ip: $node_ip"
     privileged_pod=$(kubectl get pods -n kube-system -l app=privileged-daemonset -o wide | grep "$node_name" | awk '{print $1}')
-    kubectl describe daemonset privileged-daemonset -n kube-system
     echo "privileged pod : $privileged_pod"
     if [ "$privileged_pod" == '' ]; then
+        kubectl describe daemonset privileged-daemonset -n kube-system
         exit 1
     fi
     while ! [ -s "azure_endpoints.json" ]
