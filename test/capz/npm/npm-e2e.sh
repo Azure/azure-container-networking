@@ -124,6 +124,33 @@ install_npm () {
     sleep 3m
     kubectl wait --for=condition=Ready pod -l k8s-app=azure-npm -n kube-system --timeout=15m
     kubectl wait --for=condition=Ready pod -l app=long-runner -n npm-e2e-longrunner --timeout=15m
+
+    ## set registry keys for NPM fixes
+    log "updating registry keys and restarting HNS for NPM fixes..."
+    npmNode=`kubectl get node -owide | grep "Windows Server 2022 Datacenter" | grep -v SchedulingDisabled | grep -v kwok-node | awk '{print $1}' | tail -n 1` || true
+    if [[ -z $npmNode ]]; then
+        log "ERROR: unable to find uncordoned node for NPM"
+        return 1
+    fi
+    npmPod=`kubectl get pod -n kube-system -o wide | grep azure-npm-win | grep $npmNode | grep Running | awk '{print $1}'` || true
+    if [[ -z "$npmPod" ]]; then
+        log "ERROR: unable to find running azure-npm-win pod on node $npmNode"
+        kubectl get pod -n kube-system -o wide
+        kubectl logs -n kube-system -l k8s-app=azure-npm
+        return 1
+    fi
+    cmd="reg add HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\hns\State /v HnsAclUpdateChange /t REG_DWORD /d 1 /f"
+    cmd="$cmd ; reg query HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\hns\State /v HnsAclUpdateChange"
+    cmd="$cmd ; reg add HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\hns\State /v HnsNpmRefresh /t REG_DWORD /d 1 /f"
+    cmd="$cmd ; reg query HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\hns\State /v HnsNpmRefresh"
+    cmd="$cmd ; Restart-Service HNS"
+    cmd="$cmd ; sleep 10"
+    kubectl exec -it -n kube-system $npmPod -- powershell.exe "$cmd"
+    log "sleeping 3m to let HNS restart..."
+    sleep 3m
+    log "making sure NPM and long-runner are running..."
+    kubectl wait --for=condition=Ready pod -l k8s-app=azure-npm -n kube-system --timeout=15m
+    kubectl wait --for=condition=Ready pod -l app=long-runner -n npm-e2e-longrunner --timeout=15m
 }
 
 verify_vfp_tags_using_npm () {
