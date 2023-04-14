@@ -200,7 +200,7 @@ jobs:
               fi
 
               az aks get-credentials -n $(AZURE_CLUSTER) -g $(RESOURCE_GROUP) --file ./kubeconfig
-              ./kubectl --kubeconfig=./kubeconfig apply -f ./npm/examples/windows/azure-npm.yaml
+              ./kubectl --kubeconfig=./kubeconfig apply -f https://raw.githubusercontent.com/Azure/azure-container-networking/master/examples/windows/azure-npm.yaml
               ./kubectl --kubeconfig=./kubeconfig set image daemonset/azure-npm-win -n kube-system azure-npm=$IMAGE_REGISTRY/azure-npm:windows-amd64-ltsc2022-$(TAG)
 
             else
@@ -219,13 +219,13 @@ jobs:
               az aks get-credentials -n $(AZURE_CLUSTER) -g $(RESOURCE_GROUP) --file ./kubeconfig
 
               # deploy azure-npm
-              ./kubectl --kubeconfig=./kubeconfig apply -f ./npm/azure-npm.yaml
+              ./kubectl --kubeconfig=./kubeconfig apply -f https://raw.githubusercontent.com/Azure/azure-container-networking/master/azure-npm.yaml
 
               # swap azure-npm image with one built during run
               ./kubectl --kubeconfig=./kubeconfig set image daemonset/azure-npm -n kube-system azure-npm=$IMAGE_REGISTRY/azure-npm:linux-amd64-$(TAG)
 
               # swap NPM profile with one specified as parameter
-              ./kubectl --kubeconfig=./kubeconfig apply -f ./npm/profiles/$(PROFILE).yaml
+              ./kubectl --kubeconfig=./kubeconfig apply -f https://raw.githubusercontent.com/Azure/azure-container-networking/master/profiles/$(PROFILE).yaml
               ./kubectl --kubeconfig=./kubeconfig rollout restart ds azure-npm -n kube-system
             fi
 
@@ -436,7 +436,7 @@ jobs:
             chmod +x kubectl
 
             # deploy azure-npm
-            ./kubectl --kubeconfig=./kubeconfig apply -f ./npm/examples/windows/azure-npm.yaml
+            ./kubectl --kubeconfig=./kubeconfig apply -f https://raw.githubusercontent.com/Azure/azure-container-networking/master/examples/windows/azure-npm.yaml
 
             # swap azure-npm image with one built during run
             ./kubectl --kubeconfig=./kubeconfig set image daemonset/azure-npm-win -n kube-system azure-npm=$IMAGE_REGISTRY/azure-npm:windows-amd64-ltsc2022-$(TAG)
@@ -489,7 +489,6 @@ jobs:
         condition: always()
         artifact: NpmLogs-$(RESOURCE_GROUP)-$(PROFILE)
 
-  
   - job: Create_Windows_Scale_Cluster_and_Run_Test
     timeoutInMinutes: 360
     displayName: "Run Windows Scale Test"
@@ -574,7 +573,7 @@ jobs:
             chmod +x kubectl
 
             # deploy azure-npm
-            ./kubectl --kubeconfig=./kubeconfig apply -f ./npm/examples/windows/azure-npm.yaml
+            ./kubectl --kubeconfig=./kubeconfig apply -f /npm/examples/windows/azure-npm.yaml
 
             # swap azure-npm image with one built during run
             ./kubectl --kubeconfig=./kubeconfig set image daemonset/azure-npm-win -n kube-system azure-npm=$IMAGE_REGISTRY/azure-npm:windows-amd64-ltsc2022-$(TAG)
@@ -588,8 +587,10 @@ jobs:
             FQDN=`az aks show -n $CLUSTER_NAME -g $CLUSTER_NAME --query fqdn -o tsv`
             echo "##vso[task.setvariable variable=FQDN]$FQDN"
 
-      - script: |
-          cd test/scale/
+      - inlineScript: |
+          # can't find a way to reference files, so have to clone the repo
+          git clone https://github.com/Azure/azure-container-networking.git --depth=1 --branch=$(Build.SourceBranchName)
+          cd azure-container-networking/test/scale/
           ./test-scale.sh --max-kwok-pods-per-node=50 \
               --num-kwok-deployments=10 \
               --num-kwok-replicas=1 \
@@ -643,7 +644,6 @@ jobs:
       - publish: $(System.DefaultWorkingDirectory)/$(RESOURCE_GROUP)-$(PROFILE)
         condition: always()
         artifact: NpmLogs-$(RESOURCE_GROUP)-$(PROFILE)
-
 
   - job: clean_up
     displayName: "Cleanup"
