@@ -571,17 +571,18 @@ jobs:
 
             curl -LO https://dl.k8s.io/release/v1.23.0/bin/linux/amd64/kubectl
             chmod +x kubectl
+            mv kubectl /usr/local/bin/kubectl
 
             # deploy azure-npm
-            ./kubectl apply -f https://raw.githubusercontent.com/Azure/azure-container-networking/master/npm/examples/windows/azure-npm.yaml
+            kubectl apply -f https://raw.githubusercontent.com/Azure/azure-container-networking/master/npm/examples/windows/azure-npm.yaml
 
             # swap azure-npm image with one built during run
-            ./kubectl set image daemonset/azure-npm-win -n kube-system azure-npm=$IMAGE_REGISTRY/azure-npm:windows-amd64-ltsc2022-$(TAG)
+            kubectl set image daemonset/azure-npm-win -n kube-system azure-npm=$IMAGE_REGISTRY/azure-npm:windows-amd64-ltsc2022-$(TAG)
 
             echo "sleeping 3 minutes to allow NPM pods to restart"
             sleep 180
 
-            ./kubectl get po -n kube-system -owide -A
+            kubectl get po -n kube-system -owide -A
 
             echo "Showing cluster status for $CLUSTER_NAME"
             FQDN=`az aks show -n $CLUSTER_NAME -g $CLUSTER_NAME --query fqdn -o tsv`
@@ -596,8 +597,8 @@ jobs:
           failOnStderr: true
           condition: succeeded()
           inlineScript: |
-            mv kubectl /usr/local/bin/kubectl
             # can't find a way to reference files, so have to clone the repo
+            kubectl get node -o wide | grep "Windows Server 2022 Datacenter" | awk '{print $1}' | xargs -I {} kubectl label node {} scale-test=true connectivity-test=true
             git clone https://github.com/Azure/azure-container-networking.git --depth=1 --branch=master
             cd azure-container-networking/test/scale/
             ./test-scale.sh --max-kwok-pods-per-node=50 \
