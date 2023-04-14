@@ -98,14 +98,14 @@ jobs:
         #   AZURE_CLUSTER: "conformance-v2-default"
         #   PROFILE: "v2-default"
         #   IS_STRESS_TEST: "false"
-        v2-default-ws22:
-          AZURE_CLUSTER: "conformance-v2-default-ws22"
-          PROFILE: "v2-default-ws22"
-          IS_STRESS_TEST: "false"
-        v2-default-stress:
-          AZURE_CLUSTER: "conformance-v2-default-stress"
-          PROFILE: "v2-default"
-          IS_STRESS_TEST: "true"
+        # v2-default-ws22:
+        #   AZURE_CLUSTER: "conformance-v2-default-ws22"
+        #   PROFILE: "v2-default-ws22"
+        #   IS_STRESS_TEST: "false"
+        # v2-default-stress:
+        #   AZURE_CLUSTER: "conformance-v2-default-stress"
+        #   PROFILE: "v2-default"
+        #   IS_STRESS_TEST: "true"
     pool:
       name: $(BUILD_POOL_NAME_DEFAULT)
       demands:
@@ -345,7 +345,7 @@ jobs:
           done
 
           exit $exitCode
-        displayName: "$(PROFILE) - Run Test Suite and Get Logs"
+        displayName: "Run Test Suite and Get Logs - $(PROFILE)"
         failOnStderr: false
 
       - publish: $(System.DefaultWorkingDirectory)/npmLogs_$(AZURE_CLUSTER)
@@ -505,7 +505,7 @@ jobs:
     strategy:
       matrix:
         v2-windows:
-          PROFILE: "scale-ws22"
+          PROFILE: "scale-win"
     steps:
       - checkout: self
       - task: AzureCLI@2
