@@ -27,8 +27,11 @@ const (
 	DisableRPFilterCmd = "sysctl -w net.ipv4.conf.all.rp_filter=0" // Command to disable the rp filter for tunneling
 )
 
+var errNamespaceCreation = fmt.Errorf("Network namespace creation error")
+
 var (
-	errNamespaceCreation = fmt.Errorf("Network namespace creation error")
+	numRetries = 5
+	sleepInMs  = 100
 )
 
 type netnsClient interface {
@@ -138,7 +141,7 @@ func (client *TransparentVlanEndpointClient) createNetworkNamespace(vmNS, numRet
 		if delErr != nil {
 			log.Errorf("failed to cleanup/delete ns after failing to create vlan veth:%v", delErr)
 		}
-		time.Sleep(100 * time.Millisecond)
+		time.Sleep(time.Duration(sleepInMs) * time.Millisecond)
 	}
 
 	if !isNamespaceUnique {
@@ -164,7 +167,7 @@ func (client *TransparentVlanEndpointClient) PopulateVM(epInfo *EndpointInfo) er
 		// We assume the only possible error is that the namespace doesn't exist
 		log.Printf("[transparent vlan] No existing NS detected. Creating the vnet namespace and switching to it")
 
-		if err := client.createNetworkNamespace(vmNS, 5); err != nil {
+		if err = client.createNetworkNamespace(vmNS, numRetries); err != nil {
 			return errors.Wrap(err, "")
 		}
 
@@ -218,11 +221,11 @@ func (client *TransparentVlanEndpointClient) PopulateVM(epInfo *EndpointInfo) er
 		}()
 
 		// sometimes there is slight delay in interface creation. check if it exists
-		for i := 0; i < 10; i++ {
+		for i := 0; i < numRetries; i++ {
 			if _, err = client.netioshim.GetNetworkInterfaceByName(client.vlanIfName); err == nil {
 				break
 			}
-			time.Sleep(100 * time.Millisecond)
+			time.Sleep(time.Duration(sleepInMs) * time.Millisecond)
 		}
 		if err != nil {
 			deleteNSIfNotNilErr = errors.Wrapf(err, "failed to get vlan veth interface:%s", client.vlanIfName)
@@ -564,7 +567,7 @@ func (client *TransparentVlanEndpointClient) DeleteEndpoints(ep *endpoint) error
 }
 
 // getNumRoutesLeft is a function which gets the current number of routes in the namespace. Namespace: Vnet
-func (client *TransparentVlanEndpointClient) DeleteEndpointsImpl(ep *endpoint, getNumRoutesLeft func() (int, error)) error {
+func (client *TransparentVlanEndpointClient) DeleteEndpointsImpl(ep *endpoint, _ func() (int, error)) error {
 	routeInfoList := client.GetVnetRoutes(ep.IPAddresses)
 	if err := deleteRoutes(client.netlink, client.netioshim, client.vnetVethName, routeInfoList); err != nil {
 		return errors.Wrap(err, "failed to remove routes")
@@ -573,7 +576,7 @@ func (client *TransparentVlanEndpointClient) DeleteEndpointsImpl(ep *endpoint, g
 	log.Printf("Deleting host veth %v", client.vnetVethName)
 	// Delete Host Veth
 	if err := client.netlink.DeleteLink(client.vnetVethName); err != nil {
-		return errors.Wrapf(err, "DeleteLink for %v failed: %v", client.vnetVethName)
+		return errors.Wrapf(err, "deleteLink for %v failed", client.vnetVethName)
 	}
 
 	// TODO: revist if this require in future.
