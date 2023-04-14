@@ -53,10 +53,11 @@ type applyInfo struct {
 
 type DataPlane struct {
 	*Config
-	policyMgr *policies.PolicyManager
-	ipsetMgr  *ipsets.IPSetManager
-	networkID string
-	nodeName  string
+	applyInBackground bool
+	policyMgr         *policies.PolicyManager
+	ipsetMgr          *ipsets.IPSetManager
+	networkID         string
+	nodeName          string
 	// endpointCache stores all endpoints of the network (including off-node)
 	// Key is PodIP
 	endpointCache  *endpointCache
@@ -74,9 +75,6 @@ func NewDataPlane(nodeName string, ioShim *common.IOShim, cfg *Config, stopChann
 		cfg.IPSetManagerCfg.AddEmptySetToLists = true
 	}
 
-	// do not let Linux apply in background
-	cfg.ApplyInBackground = cfg.ApplyInBackground && util.IsWindowsDP()
-
 	dp := &DataPlane{
 		Config:        cfg,
 		policyMgr:     policies.NewPolicyManager(ioShim, cfg.PolicyManagerCfg),
@@ -89,13 +87,16 @@ func NewDataPlane(nodeName string, ioShim *common.IOShim, cfg *Config, stopChann
 		stopChannel:   stopChannel,
 	}
 
-	if dp.ApplyInBackground {
+	// do not let Linux apply in background
+	dp.applyInBackground = cfg.ApplyInBackground && util.IsWindowsDP()
+
+	if dp.applyInBackground {
 		dp.updatePodCache = newUpdatePodCache(cfg.ApplyMaxBatches)
 	} else {
 		dp.updatePodCache = newUpdatePodCache(1)
 	}
 
-	if dp.ApplyInBackground {
+	if dp.applyInBackground {
 		klog.Infof("[DataPlane] dataplane configured to apply in background every %v or every %d calls to ApplyDataPlane()", dp.ApplyInterval, dp.ApplyMaxBatches)
 		if dp.ApplyMaxBatches <= 0 || dp.ApplyInterval == 0 {
 			return nil, ErrInvalidApplyConfig
@@ -142,7 +143,7 @@ func (dp *DataPlane) RunPeriodicTasks() {
 		}
 	}()
 
-	if !dp.ApplyInBackground {
+	if !dp.applyInBackground {
 		return
 	}
 
@@ -256,7 +257,7 @@ func (dp *DataPlane) RemoveFromList(listName *ipsets.IPSetMetadata, setNames []*
 // and accordingly makes changes in dataplane. This function helps emulate a single call to
 // dataplane instead of multiple ipset operations calls ipset operations calls to dataplane
 func (dp *DataPlane) ApplyDataPlane() error {
-	if dp.ApplyInBackground {
+	if dp.applyInBackground {
 		return dp.incrementBatchAndApplyIfNeeded(contextApplyDP)
 	}
 
@@ -287,7 +288,7 @@ func (dp *DataPlane) applyDataPlaneNow(context string) error {
 	}
 	klog.Infof("[DataPlane] [ApplyDataPlane] [%s] finished applying ipsets", context)
 
-	if dp.ApplyInBackground {
+	if dp.applyInBackground {
 		dp.applyInfo.Lock()
 		dp.applyInfo.numBatches = 0
 		dp.applyInfo.Unlock()
