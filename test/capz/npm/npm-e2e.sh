@@ -300,7 +300,7 @@ run_npm_scale () {
     log "beginning npm scale test with kubeconfig [$kubeconfigFile]..."
 
     rm -rf azure-container-networking/ || true
-    git clone https://github.com/Azure/azure-container-networking.git --depth=1 --branch=hgregory/edit-scale
+    git clone https://github.com/Azure/azure-container-networking.git --depth=1 --branch=master
 
     cd azure-container-networking/test/scale/
 
