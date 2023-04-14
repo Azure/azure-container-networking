@@ -24,15 +24,6 @@ type Config struct {
 	*policies.PolicyManagerCfg
 }
 
-type updatePodCache struct {
-	sync.Mutex
-	cache map[string]*updateNPMPod
-}
-
-func newUpdatePodCache() *updatePodCache {
-	return &updatePodCache{cache: make(map[string]*updateNPMPod)}
-}
-
 type endpointCache struct {
 	sync.Mutex
 	cache map[string]*npmEndpoint
@@ -70,7 +61,7 @@ func NewDataPlane(nodeName string, ioShim *common.IOShim, cfg *Config, stopChann
 		endpointCache:  newEndpointCache(),
 		nodeName:       nodeName,
 		ioShim:         ioShim,
-		updatePodCache: newUpdatePodCache(),
+		updatePodCache: newUpdatePodCache(1),
 		endpointQuery:  new(endpointQuery),
 		stopChannel:    stopChannel,
 	}
@@ -144,13 +135,7 @@ func (dp *DataPlane) AddToSets(setNames []*ipsets.IPSetMetadata, podMetadata *Po
 		dp.updatePodCache.Lock()
 		defer dp.updatePodCache.Unlock()
 
-		updatePod, ok := dp.updatePodCache.cache[podMetadata.PodKey]
-		if !ok {
-			klog.Infof("[DataPlane] {AddToSet} pod key %s not found in updatePodCache. creating a new obj", podMetadata.PodKey)
-			updatePod = newUpdateNPMPod(podMetadata)
-			dp.updatePodCache.cache[podMetadata.PodKey] = updatePod
-		}
-
+		updatePod := dp.updatePodCache.enqueue(podMetadata)
 		updatePod.updateIPSetsToAdd(setNames)
 	}
 
@@ -172,13 +157,7 @@ func (dp *DataPlane) RemoveFromSets(setNames []*ipsets.IPSetMetadata, podMetadat
 		dp.updatePodCache.Lock()
 		defer dp.updatePodCache.Unlock()
 
-		updatePod, ok := dp.updatePodCache.cache[podMetadata.PodKey]
-		if !ok {
-			klog.Infof("[DataPlane] {RemoveFromSet} pod key %s not found in updatePodCache. creating a new obj", podMetadata.PodKey)
-			updatePod = newUpdateNPMPod(podMetadata)
-			dp.updatePodCache.cache[podMetadata.PodKey] = updatePod
-		}
-
+		updatePod := dp.updatePodCache.enqueue(podMetadata)
 		updatePod.updateIPSetsToRemove(setNames)
 	}
 
@@ -220,7 +199,7 @@ func (dp *DataPlane) ApplyDataPlane() error {
 	if dp.shouldUpdatePod() {
 		// do not refresh endpoints if the updatePodCache is empty
 		dp.updatePodCache.Lock()
-		if len(dp.updatePodCache.cache) == 0 {
+		if dp.updatePodCache.isEmpty() {
 			dp.updatePodCache.Unlock()
 			return nil
 		}
@@ -238,15 +217,21 @@ func (dp *DataPlane) ApplyDataPlane() error {
 		dp.updatePodCache.Lock()
 		defer dp.updatePodCache.Unlock()
 
-		for podKey, pod := range dp.updatePodCache.cache {
-			err := dp.updatePod(pod)
-			if err != nil {
-				// move on to the next and later return as success since this can be retried irrespective of other operations
-				metrics.SendErrorLogAndMetric(util.DaemonDataplaneID, "failed to update pod while applying the dataplane. key: [%s], err: [%s]", podKey, err.Error())
-				continue
+		for !dp.updatePodCache.isEmpty() {
+			pod := dp.updatePodCache.dequeue()
+			if pod == nil {
+				// should never happen because of isEmpty check above and lock on updatePodCache
+				metrics.SendErrorLogAndMetric(util.DaemonDataplaneID, "[DataPlane] failed to dequeue pod while applying the dataplane")
+				// break to avoid infinite loop (something weird happened since isEmpty returned false above)
+				break
 			}
 
-			delete(dp.updatePodCache.cache, podKey)
+			if err := dp.updatePod(pod); err != nil {
+				// move on to the next and later return as success since this can be retried irrespective of other operations
+				metrics.SendErrorLogAndMetric(util.DaemonDataplaneID, "failed to update pod while applying the dataplane. key: [%s], err: [%s]", pod.PodKey, err.Error())
+				dp.updatePodCache.requeue(pod)
+				continue
+			}
 		}
 	}
 	return nil

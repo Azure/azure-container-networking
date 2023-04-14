@@ -49,7 +49,7 @@ type EndpointClient interface {
 	MoveEndpointsToContainerNS(epInfo *EndpointInfo, nsID uintptr) error
 	SetupContainerInterfaces(epInfo *EndpointInfo) error
 	ConfigureContainerInterfacesAndRoutes(epInfo *EndpointInfo) error
-	DeleteEndpoints(ep *endpoint) error
+	DeleteEndpoints(ep *endpoint, deleteHostVeth bool) error
 }
 
 // NetworkManager manages the set of container networking resources.
@@ -340,7 +340,7 @@ func (nm *networkManager) CreateEndpoint(cli apipaClient, networkID string, epIn
 		}
 	}
 
-	_, err = nw.newEndpoint(cli, nm.netlink, nm.plClient, epInfo)
+	_, err = nw.newEndpoint(cli, nm.netlink, nm.plClient, nm.netio, epInfo)
 	if err != nil {
 		return err
 	}

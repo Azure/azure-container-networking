@@ -43,12 +43,6 @@ func testSerialCases(t *testing.T, tests []*SerialTestCase) {
 		i := i
 		tt := tt
 
-		for _, tag := range tt.Tags {
-			if tag == skipTestTag {
-				continue
-			}
-		}
-
 		t.Run(tt.Description, func(t *testing.T) {
 			t.Logf("beginning test #%d. Description: [%s]. Tags: %+v", i, tt.Description, tt.Tags)
 
@@ -84,12 +78,6 @@ func testMultiJobCases(t *testing.T, tests []*MultiJobTestCase) {
 	for i, tt := range tests {
 		i := i
 		tt := tt
-
-		for _, tag := range tt.Tags {
-			if tag == skipTestTag {
-				continue
-			}
-		}
 
 		t.Run(tt.Description, func(t *testing.T) {
 			t.Logf("beginning test #%d. Description: [%s]. Tags: %+v", i, tt.Description, tt.Tags)

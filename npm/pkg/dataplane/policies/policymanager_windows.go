@@ -15,6 +15,7 @@ import (
 const (
 	// for lints
 	priority200   = 200
+	priority201   = 201
 	priority65499 = 65499
 )
 
@@ -178,7 +179,7 @@ func (pMgr *PolicyManager) addPolicy(policy *NPMNetworkPolicy, endpointList map[
 	}
 
 	// 2. apply the policy to all the endpoints via HNS
-	rulesToAdd, err := getSettingsFromACL(policy)
+	rulesToAdd, err := pMgr.getSettingsFromACL(policy)
 	if err != nil {
 		return err
 	}
@@ -222,7 +223,7 @@ func (pMgr *PolicyManager) removePolicy(policy *NPMNetworkPolicy, endpointList m
 		endpointList = policy.PodEndpoints
 	}
 
-	rulesToRemove, err := getSettingsFromACL(policy)
+	rulesToRemove, err := pMgr.getSettingsFromACL(policy)
 	if err != nil {
 		return err
 	}
@@ -347,8 +348,9 @@ func getEPPolicyReqFromACLSettings(settings []*NPMACLPolSettings) (hcn.PolicyEnd
 	return policyToAdd, nil
 }
 
-func getSettingsFromACL(policy *NPMNetworkPolicy) ([]*NPMACLPolSettings, error) {
-	hnsRules := make([]*NPMACLPolSettings, len(policy.ACLs))
+func (pMgr *PolicyManager) getSettingsFromACL(policy *NPMNetworkPolicy) ([]*NPMACLPolSettings, error) {
+	// +1 for readiness probe ACL
+	hnsRules := make([]*NPMACLPolSettings, len(policy.ACLs)+1)
 	for i, acl := range policy.ACLs {
 		rule, err := acl.convertToAclSettings(policy.ACLPolicyID)
 		if err != nil {
@@ -356,6 +358,18 @@ func getSettingsFromACL(policy *NPMNetworkPolicy) ([]*NPMACLPolSettings, error) 
 			return hnsRules, err
 		}
 		hnsRules[i] = rule
+	}
+
+	// fixes #1881
+	// readiness probe ACL. allows ingress from host to pod
+	hnsRules[len(policy.ACLs)] = &NPMACLPolSettings{
+		Id:              policy.ACLPolicyID,
+		Action:          hcn.ActionTypeAllow,
+		Direction:       hcn.DirectionTypeIn,
+		RemoteAddresses: pMgr.NodeIP,
+		Protocols:       "", // any protocol
+		Priority:        priority201,
+		RuleType:        hcn.RuleTypeSwitch,
 	}
 	return hnsRules, nil
 }

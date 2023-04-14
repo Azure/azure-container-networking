@@ -538,7 +538,7 @@ func (client *TransparentVlanEndpointClient) AddDefaultArp(interfaceName, destMa
 	return nil
 }
 
-func (client *TransparentVlanEndpointClient) DeleteEndpoints(ep *endpoint) error {
+func (client *TransparentVlanEndpointClient) DeleteEndpoints(ep *endpoint, deleteHosVeth bool) error {
 	// Vnet NS
 	err := ExecuteInNS(client.vnetNSName, func() error {
 		// Passing in functionality to get number of routes after deletion
@@ -550,7 +550,7 @@ func (client *TransparentVlanEndpointClient) DeleteEndpoints(ep *endpoint) error
 			return len(routes), nil
 		}
 
-		return client.DeleteEndpointsImpl(ep, getNumRoutesLeft)
+		return client.DeleteEndpointsImpl(ep, getNumRoutesLeft, deleteHosVeth)
 	})
 	if err != nil {
 		return err
@@ -564,7 +564,7 @@ func (client *TransparentVlanEndpointClient) DeleteEndpoints(ep *endpoint) error
 }
 
 // getNumRoutesLeft is a function which gets the current number of routes in the namespace. Namespace: Vnet
-func (client *TransparentVlanEndpointClient) DeleteEndpointsImpl(ep *endpoint, getNumRoutesLeft func() (int, error)) error {
+func (client *TransparentVlanEndpointClient) DeleteEndpointsImpl(ep *endpoint, getNumRoutesLeft func() (int, error), deleteHostVeth bool) error {
 	routeInfoList := client.GetVnetRoutes(ep.IPAddresses)
 	if err := deleteRoutes(client.netlink, client.netioshim, client.vnetVethName, routeInfoList); err != nil {
 		return errors.Wrap(err, "failed to remove routes")
@@ -580,6 +580,13 @@ func (client *TransparentVlanEndpointClient) DeleteEndpointsImpl(ep *endpoint, g
 	}
 
 	log.Printf("[transparent vlan] There are %d routes remaining after deletion", routesLeft)
+
+	// Delete Host Veth
+	if deleteHostVeth {
+		if err := client.netlink.DeleteLink(client.vnetVethName); err != nil {
+			return errors.Wrap(err, "failed to delete host veth")
+		}
+	}
 
 	// TODO: revist if this require in future.
 	//nolint gocritic
