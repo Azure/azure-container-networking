@@ -466,10 +466,11 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 
 	// iterate ipamAddResults and program the endpoint
 	for i := 0; i < len(ipamAddResults); i++ {
+		var networkID string
 		ipamAddResult = ipamAddResults[i]
 
 		options := make(map[string]any)
-		networkID, err := plugin.getNetworkName(args.Netns, &ipamAddResult, nwCfg)
+		networkID, err = plugin.getNetworkName(args.Netns, &ipamAddResult, nwCfg)
 
 		endpointID := GetEndpointID(args)
 		policies := cni.GetPoliciesFromNwCfg(nwCfg.AdditionalArgs)
@@ -557,7 +558,8 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 			natInfo:          natInfo,
 		}
 
-		epInfo, err := plugin.createEndpointInternal(&createEndpointInternalOpt)
+		var epInfo network.EndpointInfo
+		epInfo, err = plugin.createEndpointInternal(&createEndpointInternalOpt)
 		if err != nil {
 			log.Errorf("Endpoint creation failed:%w", err)
 			return err

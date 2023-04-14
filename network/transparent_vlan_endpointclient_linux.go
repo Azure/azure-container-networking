@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net"
 	"strings"
+	"time"
 
 	"github.com/Azure/azure-container-networking/iptables"
 	"github.com/Azure/azure-container-networking/log"
@@ -118,6 +119,35 @@ func (client *TransparentVlanEndpointClient) AddEndpoints(epInfo *EndpointInfo) 
 	})
 }
 
+func (client *TransparentVlanEndpointClient) createNetworkNamespace(vmNS, numRetries int) error {
+	var isNamespaceUnique bool
+
+	for i := 0; i < numRetries; i++ {
+		vnetNS, err := client.netnsClient.NewNamed(client.vnetNSName)
+		if err != nil {
+			return errors.Wrap(err, "failed to create vnet ns")
+		}
+		log.Printf("Vnet Namespace created: %s", client.netnsClient.NamespaceUniqueID(vnetNS))
+		if !client.netnsClient.IsNamespaceEqual(vnetNS, vmNS) {
+			client.vnetNSFileDescriptor = vnetNS
+			isNamespaceUnique = true
+			break
+		}
+		log.Printf("Vnet Namespace is the same as VM namespace. Deleting and retrying...")
+		delErr := client.netnsClient.DeleteNamed(client.vnetNSName)
+		if delErr != nil {
+			log.Errorf("failed to cleanup/delete ns after failing to create vlan veth:%v", delErr)
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	if !isNamespaceUnique {
+		return errors.Wrap(errNamespaceCreation, "vnet and vm namespace are same")
+	}
+
+	return nil
+}
+
 // Called from AddEndpoints, Namespace: VM
 func (client *TransparentVlanEndpointClient) PopulateVM(epInfo *EndpointInfo) error {
 	vmNS, err := client.netnsClient.Get()
@@ -126,19 +156,18 @@ func (client *TransparentVlanEndpointClient) PopulateVM(epInfo *EndpointInfo) er
 	}
 
 	log.Printf("[transparent vlan] Checking if NS exists...")
-	vnetNS, existingErr := client.netnsClient.GetFromName(client.vnetNSName)
+	var existingErr error
+	client.vnetNSFileDescriptor, existingErr = client.netnsClient.GetFromName(client.vnetNSName)
 	// If the ns does not exist, the below code will trigger to create it
 	// This will also (we assume) mean the vlan veth does not exist
 	if existingErr != nil {
 		// We assume the only possible error is that the namespace doesn't exist
 		log.Printf("[transparent vlan] No existing NS detected. Creating the vnet namespace and switching to it")
-		vnetNS, err = client.netnsClient.NewNamed(client.vnetNSName)
-		if err != nil {
-			return errors.Wrap(err, "failed to create vnet ns")
-		}
-		log.Printf("Vnet Namespace created: %s", client.netnsClient.NamespaceUniqueID(vnetNS))
 
-		client.vnetNSFileDescriptor = vnetNS
+		if err := client.createNetworkNamespace(vmNS, 5); err != nil {
+			return errors.Wrap(err, "")
+		}
+
 		deleteNSIfNotNilErr := client.netnsClient.Set(vmNS)
 		// Any failure will trigger removing the namespace created
 		defer func() {
@@ -152,12 +181,6 @@ func (client *TransparentVlanEndpointClient) PopulateVM(epInfo *EndpointInfo) er
 		}()
 		if deleteNSIfNotNilErr != nil {
 			return errors.Wrap(deleteNSIfNotNilErr, "failed to set current ns to vm")
-		}
-
-		if client.netnsClient.IsNamespaceEqual(vnetNS, vmNS) {
-			deleteNSIfNotNilErr = errors.Wrapf(errNamespaceCreation, "vnet ns:%d and vm ns:%d are the same. deleting vnet namespace created", vnetNS, vmNS)
-			log.Errorf(deleteNSIfNotNilErr.Error())
-			return deleteNSIfNotNilErr
 		}
 
 		// Now create vlan veth
@@ -179,8 +202,11 @@ func (client *TransparentVlanEndpointClient) PopulateVM(epInfo *EndpointInfo) er
 		// Create vlan veth
 		deleteNSIfNotNilErr = vishnetlink.LinkAdd(link)
 		if deleteNSIfNotNilErr != nil {
-			// Any failure to add the link should error (auto delete NS)
-			return errors.Wrap(deleteNSIfNotNilErr, "failed to create vlan vnet link after making new ns")
+			// ignore link already exists error
+			if !strings.Contains(deleteNSIfNotNilErr.Error(), "file exists") {
+				// Any failure to add the link should error (auto delete NS)
+				return errors.Wrap(deleteNSIfNotNilErr, "failed to create vlan vnet link after making new ns")
+			}
 		}
 		defer func() {
 			if deleteNSIfNotNilErr != nil {
@@ -190,6 +216,19 @@ func (client *TransparentVlanEndpointClient) PopulateVM(epInfo *EndpointInfo) er
 				}
 			}
 		}()
+
+		// sometimes there is slight delay in interface creation. check if it exists
+		for i := 0; i < 10; i++ {
+			if _, err = client.netioshim.GetNetworkInterfaceByName(client.vlanIfName); err == nil {
+				break
+			}
+			time.Sleep(100 * time.Millisecond)
+		}
+		if err != nil {
+			deleteNSIfNotNilErr = errors.Wrapf(err, "failed to get vlan veth interface:%s", client.vlanIfName)
+			return deleteNSIfNotNilErr
+		}
+
 		deleteNSIfNotNilErr = client.netUtilsClient.DisableRAForInterface(client.vlanIfName)
 		if deleteNSIfNotNilErr != nil {
 			return errors.Wrap(deleteNSIfNotNilErr, "failed to disable router advertisements for vlan vnet link")
@@ -203,7 +242,6 @@ func (client *TransparentVlanEndpointClient) PopulateVM(epInfo *EndpointInfo) er
 	} else {
 		log.Printf("[transparent vlan] Existing NS (%s) detected. Assuming %s exists too", client.vnetNSName, client.vlanIfName)
 	}
-	client.vnetNSFileDescriptor = vnetNS
 
 	// Get the default constant host veth mac
 	mac, err := net.ParseMAC(defaultHostVethHwAddr)
@@ -437,7 +475,7 @@ func (client *TransparentVlanEndpointClient) GetVnetRoutes(ipAddresses []net.IPN
 		} else {
 			ipNet = net.IPNet{IP: ipAddr.IP, Mask: net.CIDRMask(ipv6FullMask, ipv6Bits)}
 		}
-		log.Printf("[net] transparent vlan client adding route for the ip %v", ipNet.String())
+		log.Printf("[net] Getting route for this ip %v", ipNet.String())
 		routeInfo.Dst = ipNet
 		routeInfoList = append(routeInfoList, routeInfo)
 
@@ -530,6 +568,10 @@ func (client *TransparentVlanEndpointClient) DeleteEndpointsImpl(ep *endpoint, g
 	routeInfoList := client.GetVnetRoutes(ep.IPAddresses)
 	if err := deleteRoutes(client.netlink, client.netioshim, client.vnetVethName, routeInfoList); err != nil {
 		return errors.Wrap(err, "failed to remove routes")
+	}
+
+	if err := client.netlink.DeleteLink(client.vnetVethName); err != nil {
+		return errors.Wrapf(err, "DeleteLink for %v failed: %v", client.vnetVethName)
 	}
 
 	routesLeft, err := getNumRoutesLeft()
