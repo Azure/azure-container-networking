@@ -1,6 +1,11 @@
 # this is required so that if a step fails, following steps are not run
 set -o errexit
 
+log() {
+	local msg=$1
+	echo "$(date -R): $msg"
+}
+
 # Installs NPM + a long-running Pod and does the following tests:
 # 1. Check VFP is in sync with HNS (filename: vfp-state-prior.ran)
 # 2. Run Cyclonus (filename: cyclonus.ran)
