@@ -285,7 +285,7 @@ func TestAzureIPAMInvoker_Delete(t *testing.T) {
 			fields: fields{
 				plugin: &mockDelegatePlugin{
 					del: del{
-						err: errors.New("error when address is nil"), //nolint:goerr113 // error
+						err: errors.New("error when address is nil"), //nolint:goerr113
 					},
 				},
 				nwInfo: getNwInfo("", "2001:db8:abcd:0012::0/64"),

@@ -75,10 +75,9 @@ const (
 )
 
 var (
-	errUnsupportedAPI             = errors.New("Unsupported API")
-	errNoOrchestratorContextFound = errors.New("No CNI OrchestratorContext Found")
-	errNoRequestIPFound           = errors.New("No Request IP Found")
-	errNoReleaseIPFound           = errors.New("No Release IP Found")
+	errUnsupportedAPI   = errors.New("Unsupported API")
+	errNoRequestIPFound = errors.New("No Request IP Found")
+	errNoReleaseIPFound = errors.New("No Release IP Found")
 )
 
 type MockCNSClient struct {
