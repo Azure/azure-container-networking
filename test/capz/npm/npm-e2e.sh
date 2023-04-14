@@ -42,6 +42,48 @@ npm_e2e () {
 
     echo "" > npm-e2e.ran
 
+    install_npm
+
+    log "sleeping 8m for NPM to bootup, then verifying VFP tags after bootup..."
+    sleep 8m
+    verify_vfp_tags_using_npm vfp-state-prior.ran
+    echo "" > vfp-state-prior.success
+
+    ## NPM cyclonus
+    run_npm_cyclonus
+    echo "" > cyclonus.success
+
+    log "sleeping 5m to allow VFP to update tags after cyclonus..."
+    sleep 5m
+    log "verifying VFP tags after cyclonus..."
+    verify_vfp_tags_using_npm vfp-state-after-cyclonus.ran
+    echo "" > vfp-state-after-cyclonus.success
+    log "deleting cyclonus pods..."
+    kubectl delete ns x y z
+
+    ## NPM conformance
+    run_npm_conformance
+    echo "" > conformance.success
+
+    log "sleeping 5m to allow VFP to update tags after conformance..."
+    sleep 5m
+    log "verifying VFP tags after conformance..."
+    verify_vfp_tags_using_npm vfp-state-after-conformance.ran
+    echo "" > vfp-state-after-conformance.success
+
+    ## NPM scale
+    run_npm_scale $kubeconfigFile
+    echo "" > scale-connectivity.success
+    log "sleeping 5m to allow VFP to update tags after scale test..."
+    sleep 5m
+    log "verifying VFP tags after scale test..."
+    verify_vfp_tags_using_npm vfp-state-after-scale.ran
+    echo "" > vfp-state-after-scale.success
+
+    echo "" > npm-e2e.success
+}
+
+install_npm () {
     ## disable Calico NetPol
     log "running helm uninstall on calico (this will remove the tigera-operator and prevent reconciling of the calico-node ClusterRole)..."
     helm uninstall calico -n tigera-operator
@@ -82,43 +124,6 @@ npm_e2e () {
     sleep 3m
     kubectl wait --for=condition=Ready pod -l k8s-app=azure-npm -n kube-system --timeout=15m
     kubectl wait --for=condition=Ready pod -l app=long-runner -n npm-e2e-longrunner --timeout=15m
-    log "sleeping 8m for NPM to bootup, then verifying VFP tags after bootup..."
-    sleep 8m
-    verify_vfp_tags_using_npm vfp-state-prior.ran
-    echo "" > vfp-state-prior.success
-
-    ## NPM cyclonus
-    run_npm_cyclonus
-    echo "" > cyclonus.success
-
-    log "sleeping 5m to allow VFP to update tags after cyclonus..."
-    sleep 5m
-    log "verifying VFP tags after cyclonus..."
-    verify_vfp_tags_using_npm vfp-state-after-cyclonus.ran
-    echo "" > vfp-state-after-cyclonus.success
-    log "deleting cyclonus pods..."
-    kubectl delete ns x y z
-
-    ## NPM conformance
-    run_npm_conformance
-    echo "" > conformance.success
-
-    log "sleeping 5m to allow VFP to update tags after conformance..."
-    sleep 5m
-    log "verifying VFP tags after conformance..."
-    verify_vfp_tags_using_npm vfp-state-after-conformance.ran
-    echo "" > vfp-state-after-conformance.success
-
-    ## NPM scale
-    run_npm_scale $kubeconfigFile
-    echo "" > scale-connectivity.success
-    log "sleeping 5m to allow VFP to update tags after scale test..."
-    sleep 5m
-    log "verifying VFP tags after scale test..."
-    verify_vfp_tags_using_npm vfp-state-after-scale.ran
-    echo "" > vfp-state-after-scale.success
-
-    echo "" > npm-e2e.success
 }
 
 verify_vfp_tags_using_npm () {
