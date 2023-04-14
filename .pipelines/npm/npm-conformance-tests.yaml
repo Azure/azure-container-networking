@@ -596,8 +596,9 @@ jobs:
           failOnStderr: true
           condition: succeeded()
           inlineScript: |
+            mv kubectl /usr/local/bin/kubectl
             # can't find a way to reference files, so have to clone the repo
-            git clone https://github.com/Azure/azure-container-networking.git --depth=1 --branch=$(Build.SourceBranchName)
+            git clone https://github.com/Azure/azure-container-networking.git --depth=1 --branch=master
             cd azure-container-networking/test/scale/
             ./test-scale.sh --max-kwok-pods-per-node=50 \
                 --num-kwok-deployments=10 \
