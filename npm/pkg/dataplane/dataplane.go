@@ -74,6 +74,9 @@ func NewDataPlane(nodeName string, ioShim *common.IOShim, cfg *Config, stopChann
 		cfg.IPSetManagerCfg.AddEmptySetToLists = true
 	}
 
+	// do not let Linux apply in background
+	cfg.ApplyInBackground = cfg.ApplyInBackground && util.IsWindowsDP()
+
 	dp := &DataPlane{
 		Config:        cfg,
 		policyMgr:     policies.NewPolicyManager(ioShim, cfg.PolicyManagerCfg),
@@ -86,13 +89,13 @@ func NewDataPlane(nodeName string, ioShim *common.IOShim, cfg *Config, stopChann
 		stopChannel:   stopChannel,
 	}
 
-	if dp.configuredToApplyInBackground() {
+	if dp.ApplyInBackground {
 		dp.updatePodCache = newUpdatePodCache(cfg.ApplyMaxBatches)
 	} else {
 		dp.updatePodCache = newUpdatePodCache(1)
 	}
 
-	if dp.configuredToApplyInBackground() {
+	if dp.ApplyInBackground {
 		klog.Infof("[DataPlane] dataplane configured to apply in background every %v or every %d calls to ApplyDataPlane()", dp.ApplyInterval, dp.ApplyMaxBatches)
 		if dp.ApplyMaxBatches <= 0 || dp.ApplyInterval == 0 {
 			return nil, ErrInvalidApplyConfig
@@ -139,7 +142,7 @@ func (dp *DataPlane) RunPeriodicTasks() {
 		}
 	}()
 
-	if !dp.configuredToApplyInBackground() {
+	if !dp.ApplyInBackground {
 		return
 	}
 
@@ -253,7 +256,7 @@ func (dp *DataPlane) RemoveFromList(listName *ipsets.IPSetMetadata, setNames []*
 // and accordingly makes changes in dataplane. This function helps emulate a single call to
 // dataplane instead of multiple ipset operations calls ipset operations calls to dataplane
 func (dp *DataPlane) ApplyDataPlane() error {
-	if dp.configuredToApplyInBackground() {
+	if dp.ApplyInBackground {
 		return dp.incrementBatchAndApplyIfNeeded(contextApplyDP)
 	}
 
@@ -284,7 +287,7 @@ func (dp *DataPlane) applyDataPlaneNow(context string) error {
 	}
 	klog.Infof("[DataPlane] [ApplyDataPlane] [%s] finished applying ipsets", context)
 
-	if dp.configuredToApplyInBackground() {
+	if dp.ApplyInBackground {
 		dp.applyInfo.Lock()
 		dp.applyInfo.numBatches = 0
 		dp.applyInfo.Unlock()
@@ -546,8 +549,4 @@ func (dp *DataPlane) deleteIPSetsAndReferences(sets []*ipsets.TranslatedIPSet, n
 		dp.ipsetMgr.DeleteIPSet(set.Metadata.GetPrefixName(), false)
 	}
 	return nil
-}
-
-func (dp *DataPlane) configuredToApplyInBackground() bool {
-	return util.IsWindowsDP() && dp.ApplyInBackground
 }
