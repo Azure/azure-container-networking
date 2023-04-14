@@ -49,7 +49,7 @@ type EndpointClient interface {
 	MoveEndpointsToContainerNS(epInfo *EndpointInfo, nsID uintptr) error
 	SetupContainerInterfaces(epInfo *EndpointInfo) error
 	ConfigureContainerInterfacesAndRoutes(epInfo *EndpointInfo) error
-	DeleteEndpoints(ep *endpoint, deleteHostVeth bool) error
+	DeleteEndpoints(ep *endpoint) error
 }
 
 // NetworkManager manages the set of container networking resources.

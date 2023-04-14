@@ -158,7 +158,7 @@ func (nw *network) newEndpointImpl(
 			}
 			// set deleteHostVeth to true to cleanup host veth interface if created
 			//nolint:errcheck // ignore error
-			epClient.DeleteEndpoints(endpt, true)
+			epClient.DeleteEndpoints(endpt)
 		}
 	}()
 
@@ -284,7 +284,7 @@ func (nw *network) deleteEndpointImpl(nl netlink.NetlinkInterface, plc platform.
 	// deleteHostVeth set to false not to delete veth as CRI will remove network namespace and
 	// veth will get removed as part of that.
 	//nolint:errcheck // ignore error
-	epClient.DeleteEndpoints(ep, false)
+	epClient.DeleteEndpoints(ep)
 
 	return nil
 }

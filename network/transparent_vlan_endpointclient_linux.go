@@ -538,7 +538,7 @@ func (client *TransparentVlanEndpointClient) AddDefaultArp(interfaceName, destMa
 	return nil
 }
 
-func (client *TransparentVlanEndpointClient) DeleteEndpoints(ep *endpoint, deleteHosVeth bool) error {
+func (client *TransparentVlanEndpointClient) DeleteEndpoints(ep *endpoint) error {
 	// Vnet NS
 	err := ExecuteInNS(client.vnetNSName, func() error {
 		// Passing in functionality to get number of routes after deletion
@@ -550,7 +550,7 @@ func (client *TransparentVlanEndpointClient) DeleteEndpoints(ep *endpoint, delet
 			return len(routes), nil
 		}
 
-		return client.DeleteEndpointsImpl(ep, getNumRoutesLeft, deleteHosVeth)
+		return client.DeleteEndpointsImpl(ep, getNumRoutesLeft)
 	})
 	if err != nil {
 		return err
@@ -564,28 +564,16 @@ func (client *TransparentVlanEndpointClient) DeleteEndpoints(ep *endpoint, delet
 }
 
 // getNumRoutesLeft is a function which gets the current number of routes in the namespace. Namespace: Vnet
-func (client *TransparentVlanEndpointClient) DeleteEndpointsImpl(ep *endpoint, getNumRoutesLeft func() (int, error), deleteHostVeth bool) error {
+func (client *TransparentVlanEndpointClient) DeleteEndpointsImpl(ep *endpoint, getNumRoutesLeft func() (int, error)) error {
 	routeInfoList := client.GetVnetRoutes(ep.IPAddresses)
 	if err := deleteRoutes(client.netlink, client.netioshim, client.vnetVethName, routeInfoList); err != nil {
 		return errors.Wrap(err, "failed to remove routes")
 	}
 
+	log.Printf("Deleting host veth %v", client.vnetVethName)
+	// Delete Host Veth
 	if err := client.netlink.DeleteLink(client.vnetVethName); err != nil {
 		return errors.Wrapf(err, "DeleteLink for %v failed: %v", client.vnetVethName)
-	}
-
-	routesLeft, err := getNumRoutesLeft()
-	if err != nil {
-		return err
-	}
-
-	log.Printf("[transparent vlan] There are %d routes remaining after deletion", routesLeft)
-
-	// Delete Host Veth
-	if deleteHostVeth {
-		if err := client.netlink.DeleteLink(client.vnetVethName); err != nil {
-			return errors.Wrap(err, "failed to delete host veth")
-		}
 	}
 
 	// TODO: revist if this require in future.
