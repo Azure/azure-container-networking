@@ -463,7 +463,7 @@ jobs:
         name: cyclonus
         displayName: "Run Cyclonus Test"
         failOnStderr: false
-        condition: always()
+        condition: succeeded()
 
       - bash: |
           export CLUSTER_NAME=$(RESOURCE_GROUP)-$(PROFILE)
@@ -552,7 +552,7 @@ jobs:
                 --os-type Windows \
                 --os-sku Windows2022 \
                 --node-vm-size Standard_D4s_v3 \
-                --node-count 3
+                --node-count 1
 
             echo "Getting credentials to $CLUSTER_NAME"
             az aks get-credentials -g $CLUSTER_NAME -n $CLUSTER_NAME --overwrite-existing --file ./kubeconfig
@@ -573,53 +573,57 @@ jobs:
             chmod +x kubectl
 
             # deploy azure-npm
-            ./kubectl --kubeconfig=./kubeconfig apply -f /npm/examples/windows/azure-npm.yaml
+            ./kubectl apply -f https://raw.githubusercontent.com/Azure/azure-container-networking/master/npm/examples/windows/azure-npm.yaml
 
             # swap azure-npm image with one built during run
-            ./kubectl --kubeconfig=./kubeconfig set image daemonset/azure-npm-win -n kube-system azure-npm=$IMAGE_REGISTRY/azure-npm:windows-amd64-ltsc2022-$(TAG)
+            ./kubectl set image daemonset/azure-npm-win -n kube-system azure-npm=$IMAGE_REGISTRY/azure-npm:windows-amd64-ltsc2022-$(TAG)
 
             echo "sleeping 3 minutes to allow NPM pods to restart"
             sleep 180
 
-            ./kubectl --kubeconfig=./kubeconfig get po -n kube-system -owide -A
+            ./kubectl get po -n kube-system -owide -A
 
             echo "Showing cluster status for $CLUSTER_NAME"
             FQDN=`az aks show -n $CLUSTER_NAME -g $CLUSTER_NAME --query fqdn -o tsv`
             echo "##vso[task.setvariable variable=FQDN]$FQDN"
 
-      - inlineScript: |
-          # can't find a way to reference files, so have to clone the repo
-          git clone https://github.com/Azure/azure-container-networking.git --depth=1 --branch=$(Build.SourceBranchName)
-          cd azure-container-networking/test/scale/
-          ./test-scale.sh --max-kwok-pods-per-node=50 \
-              --num-kwok-deployments=10 \
-              --num-kwok-replicas=1 \
-              --max-real-pods-per-node=30 \
-              --num-real-deployments=3 \
-              --num-real-replicas=4 \
-              --num-network-policies=1 \
-              --num-unapplied-network-policies=10 \
-              --num-unique-labels-per-pod=2 \
-              --num-unique-labels-per-deployment=2 \
-              --num-shared-labels-per-pod=10 \
-              --delete-labels \
-              --delete-labels-interval=30 \
-              --delete-labels-times=2 \
-              --delete-netpols \
-              --delete-netpols-interval=0 \
-              --delete-netpols-times=1 \
-              --delete-kwok-pods=10 \
-              --delete-real-pods=6 \
-              --delete-pods-interval=120 \
-              --delete-pods-times=2
-          cd connectivity/
-          ./test-connectivity.sh --num-scale-pods-to-verify=all \
-              --max-wait-for-initial-connectivity=600 \
-              --max-wait-after-adding-netpol=120
-        name: scaletest
-        displayName: "Run Scale Test"
-        failOnStderr: true
-        condition: always()
+      - task: AzureCLI@2
+        displayName: "Scale Test"
+        inputs:
+          azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+          scriptType: "bash"
+          scriptLocation: "inlineScript"
+          failOnStderr: true
+          condition: succeeded()
+          inlineScript: |
+            # can't find a way to reference files, so have to clone the repo
+            git clone https://github.com/Azure/azure-container-networking.git --depth=1 --branch=$(Build.SourceBranchName)
+            cd azure-container-networking/test/scale/
+            ./test-scale.sh --max-kwok-pods-per-node=50 \
+                --num-kwok-deployments=10 \
+                --num-kwok-replicas=1 \
+                --max-real-pods-per-node=30 \
+                --num-real-deployments=3 \
+                --num-real-replicas=4 \
+                --num-network-policies=1 \
+                --num-unapplied-network-policies=10 \
+                --num-unique-labels-per-pod=2 \
+                --num-unique-labels-per-deployment=2 \
+                --num-shared-labels-per-pod=10 \
+                --delete-labels \
+                --delete-labels-interval=30 \
+                --delete-labels-times=2 \
+                --delete-netpols \
+                --delete-netpols-interval=0 \
+                --delete-netpols-times=1 \
+                --delete-kwok-pods=10 \
+                --delete-real-pods=6 \
+                --delete-pods-interval=120 \
+                --delete-pods-times=2
+            cd connectivity/
+            ./test-connectivity.sh --num-scale-pods-to-verify=all \
+                --max-wait-for-initial-connectivity=600 \
+                --max-wait-after-adding-netpol=120
 
       - bash: |
           export CLUSTER_NAME=$(RESOURCE_GROUP)-$(PROFILE)
