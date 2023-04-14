@@ -102,7 +102,7 @@ install_npm () {
 
     ## disable scheduling for all but one node for NPM tests, since intra-node connectivity is broken after disabling Calico NetPol
     kubectl get node -o wide | grep "Windows Server 2022 Datacenter" | awk '{print $1}' | tail -n +2 | xargs kubectl cordon
-    kubectl get node -o wide | grep "Windows Server 2022 Datacenter" | grep -v SchedulingDisabled | awk '{print $1}' | xargs -I {} bash -c "kubectl label node {} scale-test=true && kubectl label node {} connectivity-test=true"
+    kubectl get node -o wide | grep "Windows Server 2022 Datacenter" | grep -v SchedulingDisabled | awk '{print $1}' | xargs -I {} kubectl label node {} scale-test=true connectivity-test=true
 
     # sleep for some time to let Calico CNI restart
     sleep 3m
