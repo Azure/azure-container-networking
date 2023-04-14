@@ -18,8 +18,8 @@ import (
 )
 
 var (
-	errStoreEmpty       = errors.New("empty endpoint state store")
-	errParsePodIPFailed = errors.New("failed to parse pod's ip")
+	ErrStoreEmpty       = errors.New("empty endpoint state store")
+	ErrParsePodIPFailed = errors.New("failed to parse pod's ip")
 )
 
 // requestIPConfigHandlerHelper validates the request, assigns IPs, and returns a response
@@ -103,24 +103,16 @@ func (service *HTTPRestService) requestIPConfigHandler(w http.ResponseWriter, r 
 		return
 	}
 
-	var ipconfigsRequest cns.IPConfigsRequest
 	// doesn't fill in DesiredIPAddresses if it is empty in the original request
+	ipconfigsRequest := cns.IPConfigsRequest{
+		PodInterfaceID:      ipconfigRequest.PodInterfaceID,
+		InfraContainerID:    ipconfigRequest.InfraContainerID,
+		OrchestratorContext: ipconfigRequest.OrchestratorContext,
+		Ifname:              ipconfigRequest.Ifname,
+	}
 	if ipconfigRequest.DesiredIPAddress != "" {
-		ipconfigsRequest = cns.IPConfigsRequest{
-			DesiredIPAddresses: []string{
-				ipconfigRequest.DesiredIPAddress,
-			},
-			PodInterfaceID:      ipconfigRequest.PodInterfaceID,
-			InfraContainerID:    ipconfigRequest.InfraContainerID,
-			OrchestratorContext: ipconfigRequest.OrchestratorContext,
-			Ifname:              ipconfigRequest.Ifname,
-		}
-	} else {
-		ipconfigsRequest = cns.IPConfigsRequest{
-			PodInterfaceID:      ipconfigRequest.PodInterfaceID,
-			InfraContainerID:    ipconfigRequest.InfraContainerID,
-			OrchestratorContext: ipconfigRequest.OrchestratorContext,
-			Ifname:              ipconfigRequest.Ifname,
+		ipconfigsRequest.DesiredIPAddresses = []string{
+			ipconfigRequest.DesiredIPAddress,
 		}
 	}
 
@@ -171,7 +163,7 @@ func (service *HTTPRestService) requestIPConfigsHandler(w http.ResponseWriter, r
 
 func (service *HTTPRestService) updateEndpointState(ipconfigsRequest cns.IPConfigsRequest, podInfo cns.PodInfo, podIPInfo []cns.PodIpInfo) error {
 	if service.EndpointStateStore == nil {
-		return errStoreEmpty
+		return ErrStoreEmpty
 	}
 	service.Lock()
 	defer service.Unlock()
@@ -182,7 +174,7 @@ func (service *HTTPRestService) updateEndpointState(ipconfigsRequest cns.IPConfi
 			ip := net.ParseIP(podIPInfo[i].PodIPConfig.IPAddress)
 			if ip == nil {
 				logger.Errorf("failed to parse pod ip address %s", podIPInfo[i].PodIPConfig.IPAddress)
-				return errParsePodIPFailed
+				return ErrParsePodIPFailed
 			}
 			if ip.To4() == nil { // is an ipv6 address
 				ipconfig := net.IPNet{IP: ip, Mask: net.CIDRMask(int(podIPInfo[i].PodIPConfig.PrefixLength), 128)} // nolint
@@ -209,7 +201,7 @@ func (service *HTTPRestService) updateEndpointState(ipconfigsRequest cns.IPConfi
 			ip := net.ParseIP(podIPInfo[i].PodIPConfig.IPAddress)
 			if ip == nil {
 				logger.Errorf("failed to parse pod ip address %s", podIPInfo[i].PodIPConfig.IPAddress)
-				return errParsePodIPFailed
+				return ErrParsePodIPFailed
 			}
 			ipInfo := &IPInfo{}
 			if ip.To4() == nil { // is an ipv6 address
@@ -348,7 +340,7 @@ func (service *HTTPRestService) releaseIPConfigsHandler(w http.ResponseWriter, r
 
 func (service *HTTPRestService) removeEndpointState(podInfo cns.PodInfo) error {
 	if service.EndpointStateStore == nil {
-		return errStoreEmpty
+		return ErrStoreEmpty
 	}
 	service.Lock()
 	defer service.Unlock()
@@ -775,9 +767,11 @@ func (service *HTTPRestService) AssignAvailableIPConfigs(podInfo cns.PodInfo) ([
 	// Searches for available IPs in the pool
 	for _, ipState := range service.PodIPConfigState {
 		// check if an IP from this NC is already set side for assignment.
-		_, ncAlreadyMarkedForAssignment := ipsToAssign[ipState.NCID]
-		// Checks if we haven't already found an IP from that NC and checks if the current IP is available
-		if ncAlreadyMarkedForAssignment || ipState.GetState() != types.Available {
+		if _, ncAlreadyMarkedForAssignment := ipsToAssign[ipState.NCID]; ncAlreadyMarkedForAssignment {
+			continue
+		}
+		// Checks if the current IP is available
+		if ipState.GetState() != types.Available {
 			continue
 		}
 		ipsToAssign[ipState.NCID] = ipState
