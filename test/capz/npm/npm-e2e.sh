@@ -112,18 +112,12 @@ install_npm () {
     npmURL=https://raw.githubusercontent.com/Azure/azure-container-networking/0ea4e9ac3d287f7abb15a34a88beb87697fbbcdd/npm/examples/windows/azure-npm-capz.yaml #https://raw.githubusercontent.com/Azure/azure-container-networking/master/npm/examples/windows/azure-npm-capz.yaml
     kubectl apply -f $npmURL
 
-    ## install long-running pod
-    log "creating long-runner pod to ensure there's an endpoint for verifying VFP tags..."
-    kubectl create ns npm-e2e-longrunner
-    kubectl apply -f https://raw.githubusercontent.com/Azure/azure-container-networking/master/npm/examples/windows/long-running-pod-for-capz.yaml
-
     # verify VFP tags after NPM boots up
     # seems like the initial NPM Pods are always deleted and new ones are created (within the first minute of being applied it seems)
     # sleep for some time to avoid running kubectl wait on pods that get deleted
-    log "waiting for NPM and long-runner to start running..."
+    log "waiting for NPM to start running..."
     sleep 3m
     kubectl wait --for=condition=Ready pod -l k8s-app=azure-npm -n kube-system --timeout=15m
-    kubectl wait --for=condition=Ready pod -l app=long-runner -n npm-e2e-longrunner --timeout=15m
 
     ## set registry keys for NPM fixes
     log "updating registry keys and restarting HNS for NPM fixes..."
@@ -148,6 +142,21 @@ install_npm () {
     kubectl exec -n kube-system $npmPod -- powershell.exe "$cmd"
     log "sleeping 3m to let HNS restart..."
     sleep 3m
+
+    ## install long-running pod and restart HNS again (must install after restarting HNS because of a fix in rehydrating Endpoints in one of the registry keys)
+    log "creating long-runner pod to ensure there's an endpoint for verifying VFP tags..."
+    kubectl create ns npm-e2e-longrunner
+    kubectl apply -f https://raw.githubusercontent.com/Azure/azure-container-networking/master/npm/examples/windows/long-running-pod-for-capz.yaml
+    sleep 10s
+    log "making sure long-runner is running"
+    kubectl wait --for=condition=Ready pod -l app=long-runner -n npm-e2e-longrunner --timeout=15m
+
+    log "restarting HNS again to make sure Endpoints rehydrate correctly"
+    kubectl exec -n kube-system $npmPod -- powershell.exe "Restart-Service HNS"
+
+    log "sleeping 3m to let HNS restart..."
+    sleep 3m
+
     log "making sure NPM and long-runner are running..."
     kubectl wait --for=condition=Ready pod -l k8s-app=azure-npm -n kube-system --timeout=15m
     kubectl wait --for=condition=Ready pod -l app=long-runner -n npm-e2e-longrunner --timeout=15m
@@ -197,7 +206,8 @@ verify_vfp_tags_using_npm () {
 
     echo "" > $ranFilename
     if [[ $hadEndpoints == false ]]; then
-        log "WARNING: VFP tags not validated for NPM since no endpoints found on node $npmNode"
+        log "ERROR: no Endpoints found in HNS for node IPs $matchString on node $npmNode. Rehydration of Endpoints likely failed"
+        return 1
     fi
 
     if [[ $hadFailure == true ]]; then
