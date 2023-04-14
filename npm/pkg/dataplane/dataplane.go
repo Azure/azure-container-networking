@@ -357,7 +357,7 @@ func (dp *DataPlane) AddPolicy(policy *policies.NPMNetworkPolicy) error {
 		return fmt.Errorf("[DataPlane] error while adding Rule IPSet references: %w", err)
 	}
 
-	if err = dp.applyDataPlaneNow(contextAddNetPol); err != nil {
+	if err := dp.applyDataPlaneNow(contextAddNetPol); err != nil {
 		return err
 	}
 

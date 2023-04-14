@@ -123,8 +123,7 @@ func start(config npmconfig.Config, flags npmconfig.Flags) error {
 	stopChannel := wait.NeverStop
 	if config.Toggles.EnableV2NPM {
 		// update the dataplane config
-		// FIXME remove override
-		npmV2DataplaneCfg.ApplyInBackground = true // config.ApplyInBackground
+		npmV2DataplaneCfg.ApplyInBackground = config.Toggles.ApplyInBackground
 		if config.ApplyMaxBatches > 0 {
 			npmV2DataplaneCfg.ApplyMaxBatches = config.ApplyMaxBatches
 		} else {

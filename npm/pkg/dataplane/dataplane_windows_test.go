@@ -81,8 +81,6 @@ func testSerialCases(t *testing.T, tests []*SerialTestCase, finalSleep time.Dura
 
 			time.Sleep(finalSleep)
 			dptestutils.VerifyHNSCache(t, hns, tt.ExpectedSetPolicies, tt.ExpectedEnpdointACLs)
-
-			// require.FailNow(t, "test failed")
 		})
 	}
 }

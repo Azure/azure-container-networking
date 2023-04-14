@@ -5,7 +5,6 @@ package npm
 import (
 	"encoding/json"
 	"fmt"
-	"time"
 
 	npmconfig "github.com/Azure/azure-container-networking/npm/config"
 	"github.com/Azure/azure-container-networking/npm/ipsm"
@@ -23,11 +22,6 @@ import (
 )
 
 var aiMetadata string //nolint // aiMetadata is set in Makefile
-
-// waitDurationAfterStartingNetPolController is used when configured to apply dataplane in the background
-// Worst case, SetPolicy SysCalls take ~30 seconds.
-// So with a 3 minute wait, the dataplane can process about 600 (6*maxBatches) NetworkPolicies before starting the Pod controller
-var waitDurationAfterStartingNetPolController = 3 * time.Minute
 
 // NetworkPolicyManager contains informers for pod, namespace and networkpolicy.
 type NetworkPolicyManager struct {

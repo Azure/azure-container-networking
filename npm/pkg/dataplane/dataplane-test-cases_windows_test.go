@@ -2263,7 +2263,7 @@ func applyInBackgroundTests() []*SerialTestCase {
 	allTests := make([]*SerialTestCase, 0)
 	allTests = append(allTests, basicTests()...)
 	allTests = append(allTests, capzCalicoTests()...)
-	// allTests = append(allTests, updatePodTests()...)
+	allTests = append(allTests, updatePodTests()...)
 
 	for _, test := range allTests {
 		test.TestCaseMetadata.Tags = append(test.TestCaseMetadata.Tags, applyInBackgroundTag)
