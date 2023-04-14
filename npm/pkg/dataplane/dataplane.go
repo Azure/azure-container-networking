@@ -76,9 +76,11 @@ func NewDataPlane(nodeName string, ioShim *common.IOShim, cfg *Config, stopChann
 	}
 
 	dp := &DataPlane{
-		Config:        cfg,
-		policyMgr:     policies.NewPolicyManager(ioShim, cfg.PolicyManagerCfg),
-		ipsetMgr:      ipsets.NewIPSetManager(cfg.IPSetManagerCfg, ioShim),
+		Config:    cfg,
+		policyMgr: policies.NewPolicyManager(ioShim, cfg.PolicyManagerCfg),
+		ipsetMgr:  ipsets.NewIPSetManager(cfg.IPSetManagerCfg, ioShim),
+		// networkID is set when initializing Windows dataplane
+		networkID:     "",
 		endpointCache: newEndpointCache(),
 		nodeName:      nodeName,
 		ioShim:        ioShim,
