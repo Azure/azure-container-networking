@@ -26,6 +26,10 @@ const (
 	DisableRPFilterCmd = "sysctl -w net.ipv4.conf.all.rp_filter=0" // Command to disable the rp filter for tunneling
 )
 
+var (
+	errNamespaceCreation = fmt.Errorf("Network namespace creation error")
+)
+
 type netnsClient interface {
 	Get() (fileDescriptor int, err error)
 	GetFromName(name string) (fileDescriptor int, err error)

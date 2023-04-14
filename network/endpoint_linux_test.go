@@ -118,7 +118,7 @@ var _ = Describe("Test TestEndpointLinux", func() {
 			nlc := netlink.NewMockNetlink(false, "")
 			nlc.SetAddRouteValidationFn(func(r *netlink.Route) error {
 				Expect(r.LinkIndex).To(Equal(0))
-				//nolint:goerr113
+				//nolint:goerr113 // for testing
 				return errors.New("Cannot add route")
 			})
 
