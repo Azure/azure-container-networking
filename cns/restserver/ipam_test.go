@@ -1425,3 +1425,73 @@ func TestIPAMFailToRequestOneIPWhenExpectedToHaveTwo(t *testing.T) {
 		t.Fatal("Expected available ips to be one since we expect the IP to not be assigned")
 	}
 }
+
+func TestIPAMFailToReleasePartialIPsInPool(t *testing.T) {
+	svc := getTestService()
+
+	// set state as already assigned
+	testState, _ := NewPodStateWithOrchestratorContext(testIP1, testIPID1, testNCID, types.Assigned, 24, 0, testPod1Info)
+	ipconfigs := map[string]cns.IPConfigurationStatus{
+		testState.ID: testState,
+	}
+	testStatev6, _ := NewPodStateWithOrchestratorContext(testIP1v6, testIPID1v6, testNCIDv6, types.Assigned, 120, 0, testPod1Info)
+	ipconfigsv6 := map[string]cns.IPConfigurationStatus{
+		testStatev6.ID: testStatev6,
+	}
+
+	err := UpdatePodIPConfigState(t, svc, ipconfigs, testNCID)
+	if err != nil {
+		t.Fatalf("Expected to not fail adding IPs to state: %+v", err)
+	}
+	err = UpdatePodIPConfigState(t, svc, ipconfigsv6, testNCIDv6)
+	if err != nil {
+		t.Fatalf("Expected to not fail adding empty NC to state: %+v", err)
+	}
+	// remove the IP from the from the ipconfig map so that it throws an error when trying to release one of the IPs
+	delete(svc.PodIPConfigState, testStatev6.ID)
+
+	err = svc.releaseIPConfigs(testPod1Info)
+	if err == nil {
+		t.Fatalf("Expected fail releasing IP due to only having one in the ipconfig map, IPs will be reassigned back to the pod")
+	}
+}
+
+func TestIPAMFailToRequestPartialIPsInPool(t *testing.T) {
+	svc := getTestService()
+
+	// set state as already assigned
+	testState := NewPodState(testIP1, testIPID1, testNCID, types.Available, 0)
+	ipconfigs := map[string]cns.IPConfigurationStatus{
+		testState.ID: testState,
+	}
+	testStatev6 := NewPodState(testIP1v6, testIPID1v6, testNCIDv6, types.Available, 0)
+	ipconfigsv6 := map[string]cns.IPConfigurationStatus{
+		testStatev6.ID: testStatev6,
+	}
+
+	err := UpdatePodIPConfigState(t, svc, ipconfigs, testNCID)
+	if err != nil {
+		t.Fatalf("Expected to not fail adding IPs to state: %+v", err)
+	}
+	err = UpdatePodIPConfigState(t, svc, ipconfigsv6, testNCIDv6)
+	if err != nil {
+		t.Fatalf("Expected to not fail adding empty NC to state: %+v", err)
+	}
+	// remove the IP from the from the ipconfig map so that it throws an error when trying to release one of the IPs
+	delete(svc.PodIPConfigState, testStatev6.ID)
+
+	req := cns.IPConfigsRequest{
+		PodInterfaceID:   testPod1Info.InterfaceID(),
+		InfraContainerID: testPod1Info.InfraContainerID(),
+	}
+	b, _ := testPod1Info.OrchestratorContext()
+	req.OrchestratorContext = b
+	req.DesiredIPAddresses = make([]string, 2)
+	req.DesiredIPAddresses[0] = testIP1
+	req.DesiredIPAddresses[1] = testIP1v6
+
+	_, err = requestIPAddressAndGetState(t, req)
+	if err == nil {
+		t.Fatalf("Expected fail requesting IPs due to only having one in the ipconfig map, IPs in the pool will not be assigned")
+	}
+}
