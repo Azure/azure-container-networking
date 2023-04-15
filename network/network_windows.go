@@ -211,27 +211,27 @@ func (nm *networkManager) addNewNetRules(nwInfo *NetworkInfo) error {
 		gateway := subnet.Gateway.String()
 
 		ip, _, er := net.ParseCIDR(prefix)
-		if er != nil { //nolint
-			return fmt.Errorf("[net] failed to parse prefix %s", prefix)
+		if er != nil {
+			return fmt.Errorf("[net] failed to parse prefix %s", prefix) //nolint
 		}
 		if ip.To4() != nil {
 			// netsh interface ipv4 add route $subnetV4 $hostInterfaceAlias "0.0.0.0"
 			netshV4DefaultRoute := fmt.Sprintf(netRouteCmd, "ipv4", prefix, ifName, ipv4DefaultHop)
-			if out, err = nm.plClient.ExecuteCommand(netshV4DefaultRoute); err != nil { //nolint
-				log.Printf("[net] Adding ipv4 default route failed: %v:%v", out, err)
+			if out, err = nm.plClient.ExecuteCommand(netshV4DefaultRoute); err != nil {
+				log.Printf("[net] Adding ipv4 default route failed: %v:%v", out, err) //nolint
 			}
 
 			// netsh interface ipv4 add route $subnetV4 $hostInterfaceAlias $gatewayV4
 			netshV4GatewayRoute := fmt.Sprintf(netRouteCmd, "ipv4", prefix, ifName, gateway)
 			log.Printf("[net] Adding ipv4 gateway route failed: %v:%v", out, err)
-			if out, err = nm.plClient.ExecuteCommand(netshV4GatewayRoute); err != nil { //nolint
-				log.Printf("[net] Adding ipv4 gateway route failed: %v:%v", out, err)
+			if out, err = nm.plClient.ExecuteCommand(netshV4GatewayRoute); err != nil {
+				log.Printf("[net] Adding ipv4 gateway route failed: %v:%v", out, err) //nolint
 			}
 		} else {
 			// netsh interface ipv6 add route $subnetV6 $hostInterfaceAlias "::"
 			netshV6DefaultRoute := fmt.Sprintf(netRouteCmd, "ipv6", prefix, ifName, ipv6DefaultHop)
-			if out, err = nm.plClient.ExecuteCommand(netshV6DefaultRoute); err != nil { //nolint
-				log.Printf("[net] Adding ipv6 default route failed: %v:%v", out, err)
+			if out, err = nm.plClient.ExecuteCommand(netshV6DefaultRoute); err != nil {
+				log.Printf("[net] Adding ipv6 default route failed: %v:%v", out, err) //nolint
 			}
 
 			// netsh interface ipv6 add route $subnetV6 $hostInterfaceAlias $gatewayV6
