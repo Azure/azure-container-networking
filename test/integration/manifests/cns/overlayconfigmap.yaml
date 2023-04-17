@@ -24,7 +24,7 @@ data:
       "ChannelMode": "CRD",
       "InitializeFromCNI": false,
       "ManageEndpointState": true,
-      "ProgramSNATIPTables" : false
+      "ProgramSNATIPTables" : false,
       "EnableCNIConflistGeneration": true,
       "CNIConflistFilepath": "/etc/cni/net.d/cilium.conflist",
       "CNIConflistScenario": "cilium"
