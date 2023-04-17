@@ -397,6 +397,13 @@ func (nm *networkManager) newNetworkImplHnsV2(nwInfo *NetworkInfo, extIf *extern
 			}
 
 			log.Printf("[net] Successfully created hcn network with response: %+v", hnsResponse)
+
+			// only add net rules if it's dualStackOverlay mode and hnsNetwork is created at first time
+			if util.DualStackOverlay == DualStackOverlay {
+				if err := nm.addNewNetRules(nwInfo); err != nil {
+					return nil, err
+				}
+			}
 		} else {
 			// we can't validate if the network already exists, don't continue
 			return nil, fmt.Errorf("Failed to create hcn network: %s, failed to query for existing network with error: %v", hcnNetwork.Name, err)
@@ -410,12 +417,6 @@ func (nm *networkManager) newNetworkImplHnsV2(nwInfo *NetworkInfo, extIf *extern
 	if opt != nil && opt[VlanIDKey] != nil {
 		vlanID, _ := strconv.ParseInt(opt[VlanIDKey].(string), baseDecimal, bitSize)
 		vlanid = (int)(vlanID)
-	}
-
-	if util.DualStackOverlay == DualStackOverlay {
-		if err := nm.addNewNetRules(nwInfo); err != nil {
-			return nil, err
-		}
 	}
 
 	// Create the network object.
