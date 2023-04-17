@@ -18,8 +18,8 @@ type routeValidateFn func(route *Route) error
 type MockNetlink struct {
 	returnError   bool
 	errorString   string
-	deleteRouteFn func(route *Route) error
-	addRouteFn    func(route *Route) error
+	deleteRouteFn routeValidateFn
+	addRouteFn    routeValidateFn
 }
 
 func NewMockNetlink(returnError bool, errorString string) *MockNetlink {
