@@ -657,6 +657,19 @@ func (plugin *NetPlugin) createNetworkInternal(
 		ServiceCidrs:                  ipamAddConfig.nwCfg.ServiceCidrs,
 	}
 
+	constructNetworkInfo(ipamAddResult, podSubnetPrefix, podSubnetV6Prefix, nwInfo)
+	setNetworkOptions(ipamAddResult.ncResponse, &nwInfo)
+
+	err = plugin.nm.CreateNetwork(&nwInfo)
+	if err != nil {
+		err = plugin.Errorf("createNetworkInternal: Failed to create network: %v", err)
+	}
+
+	return nwInfo, err
+}
+
+// construct network info with ipv4/ipv6 subnets
+func constructNetworkInfo(ipamAddResult IPAMAddResult, podSubnetPrefix, podSubnetV6Prefix *net.IPNet, nwInfo network.NetworkInfo) {
 	ipv4Subnet := network.SubnetInfo{
 		Family:  platform.AfINET,
 		Prefix:  *podSubnetPrefix,
@@ -672,15 +685,6 @@ func (plugin *NetPlugin) createNetworkInternal(
 		}
 		nwInfo.Subnets = append(nwInfo.Subnets, ipv6Subnet)
 	}
-
-	setNetworkOptions(ipamAddResult.ncResponse, &nwInfo)
-
-	err = plugin.nm.CreateNetwork(&nwInfo)
-	if err != nil {
-		err = plugin.Errorf("createNetworkInternal: Failed to create network: %v", err)
-	}
-
-	return nwInfo, err
 }
 
 type createEndpointInternalOpt struct {
