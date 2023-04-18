@@ -49,6 +49,14 @@ func (netns *mockNetns) DeleteNamed(name string) (err error) {
 	return netns.deleteNamed(name)
 }
 
+func (netns *mockNetns) IsNamespaceEqual(_, _ int) bool {
+	return false
+}
+
+func (netns *mockNetns) NamespaceUniqueID(_ int) string {
+	return "nsid"
+}
+
 func defaultGet() (int, error) {
 	return 1, nil
 }
@@ -465,7 +473,7 @@ func TestTransparentVlanDeleteEndpoints(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			err := tt.client.DeleteEndpointsImpl(tt.ep, tt.routesLeft, false)
+			err := tt.client.DeleteEndpointsImpl(tt.ep, tt.routesLeft)
 			if tt.wantErr {
 				require.Error(t, err)
 				require.Contains(t, err.Error(), tt.wantErrMsg, "Expected:%v actual:%v", tt.wantErrMsg, err.Error())

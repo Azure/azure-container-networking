@@ -58,7 +58,7 @@ func (client *MockEndpointClient) ConfigureContainerInterfacesAndRoutes(_ *Endpo
 	return nil
 }
 
-func (client *MockEndpointClient) DeleteEndpoints(ep *endpoint, _ bool) error {
+func (client *MockEndpointClient) DeleteEndpoints(ep *endpoint) error {
 	delete(client.endpoints, ep.Id)
 	return nil
 }

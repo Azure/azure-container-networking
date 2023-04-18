@@ -210,7 +210,7 @@ func (client *LinuxBridgeEndpointClient) ConfigureContainerInterfacesAndRoutes(e
 	return nil
 }
 
-func (client *LinuxBridgeEndpointClient) DeleteEndpoints(ep *endpoint, _ bool) error {
+func (client *LinuxBridgeEndpointClient) DeleteEndpoints(ep *endpoint) error {
 	log.Printf("[net] Deleting veth pair %v %v.", ep.HostIfName, ep.IfName)
 	err := client.netlink.DeleteLink(ep.HostIfName)
 	if err != nil {

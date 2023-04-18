@@ -314,6 +314,6 @@ func (client *TransparentEndpointClient) setIPV6NeighEntry() error {
 	return nil
 }
 
-func (client *TransparentEndpointClient) DeleteEndpoints(_ *endpoint, _ bool) error {
+func (client *TransparentEndpointClient) DeleteEndpoints(_ *endpoint) error {
 	return nil
 }

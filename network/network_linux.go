@@ -152,7 +152,7 @@ func (nm *networkManager) deleteNetworkImpl(nw *network) error {
 	return nil
 }
 
-//  SaveIPConfig saves the IP configuration of an interface.
+// SaveIPConfig saves the IP configuration of an interface.
 func (nm *networkManager) saveIPConfig(hostIf *net.Interface, extIf *externalInterface) error {
 	// Save the default routes on the interface.
 	routes, err := nm.netlink.GetIPRoute(&netlink.Route{Dst: &net.IPNet{}, LinkIndex: hostIf.Index})
