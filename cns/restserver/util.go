@@ -853,7 +853,6 @@ func (service *HTTPRestService) isNCWaitingForUpdate(
 			"Skipping GetNCVersionStatus check from NMAgent", ncVersion, ncid)
 		return true, types.NetworkContainerVfpProgramPending, ""
 	}
-
 	nmaProgrammedNCVersionStr, ok := ncVersionList[ncid]
 	if !ok {
 		// NMA doesn't have this NC that we need programmed yet, bail out
