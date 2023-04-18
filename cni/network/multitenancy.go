@@ -242,7 +242,7 @@ func (m *Multitenancy) getNetworkContainersInternal(
 	if err != nil && client.IsUnsupportedAPI(err) {
 		ncConfig, errGetNC := m.cnsclient.GetNetworkContainer(ctx, orchestratorContext)
 		if errGetNC != nil {
-			return nil, []net.IPNet{}, fmt.Errorf("%w", err)
+			return nil, []net.IPNet{}, fmt.Errorf("%w", errGetNC)
 		}
 		ncConfigs = append(ncConfigs, *ncConfig)
 	} else if err != nil {

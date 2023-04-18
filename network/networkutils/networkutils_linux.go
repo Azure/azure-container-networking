@@ -4,7 +4,6 @@
 package networkutils
 
 import (
-	"errors"
 	"fmt"
 	"net"
 
@@ -12,6 +11,7 @@ import (
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/netlink"
 	"github.com/Azure/azure-container-networking/platform"
+	"github.com/pkg/errors"
 )
 
 /*RFC For Private Address Space: https://tools.ietf.org/html/rfc1918
@@ -265,6 +265,12 @@ func (nu NetworkUtils) DisableRAForInterface(ifName string) error {
 	}
 
 	return err
+}
+
+func (nu NetworkUtils) SetProxyArp(ifName string) error {
+	cmd := fmt.Sprintf("echo 1 > /proc/sys/net/ipv4/conf/%v/proxy_arp", ifName)
+	_, err := nu.plClient.ExecuteCommand(cmd)
+	return errors.Wrapf(err, "failed to set proxy arp for interface %v", ifName)
 }
 
 func getPrivateIPSpace() []string {

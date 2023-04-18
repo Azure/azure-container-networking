@@ -276,7 +276,7 @@ func (nm *networkManager) FindNetworkIDFromNetNs(netNs string) (string, error) {
 }
 
 // GetNumEndpointsInNetNs returns number of endpoints
-func (nm *networkManager) GetNumEndpointsInNetNs(netNs string) int {
+func (nm *networkManager) GetNumEndpointsByContainerID(containerID string) int {
 	numEndpoints := 0
 	// Look through the external interfaces
 	for _, iface := range nm.ExternalInterfaces {
@@ -285,8 +285,8 @@ func (nm *networkManager) GetNumEndpointsInNetNs(netNs string) int {
 			// Network may have multiple endpoints, so look through all of them
 			for _, endpoint := range network.Endpoints {
 				// If the netNs matches for this endpoint, return the network ID (which is the name)
-				if endpoint.NetNs == netNs {
-					log.Printf("Found endpoint [%s] for NetNS [%s]", endpoint.Id, netNs)
+				if endpoint.ContainerID == containerID {
+					log.Printf("Found endpoint [%s] for containerID [%s]", endpoint.Id, containerID)
 					numEndpoints++
 				}
 			}
