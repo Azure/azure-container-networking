@@ -25,8 +25,6 @@ const (
 const (
 	// ipv6 modes
 	IPV6Nat = "ipv6nat"
-	// dual stack mode
-	DualStackOverlay = "dualStackOverlay"
 )
 
 // externalInterface is a host network interface that bridges containers to external networks.

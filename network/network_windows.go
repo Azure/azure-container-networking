@@ -205,7 +205,7 @@ func (nm *networkManager) addNewNetRules(nwInfo *NetworkInfo) error {
 		ifName = fmt.Sprintf("%s (%s)", ifNamePrefix, nwInfo.MasterIfName)
 	}
 
-	// add ipv4 and ipv6 new net rules to windows node
+	// iterate subnet and add ipv4 and ipv6 default route and gateway
 	for _, subnet := range nwInfo.Subnets {
 		prefix := subnet.Prefix.String()
 		gateway := subnet.Gateway.String()
@@ -399,7 +399,7 @@ func (nm *networkManager) newNetworkImplHnsV2(nwInfo *NetworkInfo, extIf *extern
 			log.Printf("[net] Successfully created hcn network with response: %+v", hnsResponse)
 
 			// only add net rules if it's dualStackOverlay mode and hnsNetwork is created at first time
-			if util.DualStackOverlay == DualStackOverlay {
+			if string(util.DualStackOverlay) != "" {
 				if err := nm.addNewNetRules(nwInfo); err != nil {
 					return nil, err
 				}

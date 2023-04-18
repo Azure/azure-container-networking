@@ -400,6 +400,10 @@ func (c *Client) RequestIPs(ctx context.Context, ipconfig cns.IPConfigsRequest) 
 	}
 	req.Header.Set(headerContentType, contentTypeJSON)
 	res, err := c.client.Do(req)
+	if err != nil {
+		return nil, errors.Wrap(err, "http request failed")
+	}
+	defer res.Body.Close()
 
 	if res.StatusCode == http.StatusNotFound {
 		return nil, &CNSClientError{
@@ -407,11 +411,6 @@ func (c *Client) RequestIPs(ctx context.Context, ipconfig cns.IPConfigsRequest) 
 			Err:  errors.Errorf("Unsupported API"),
 		}
 	}
-
-	if err != nil {
-		return nil, errors.Wrap(err, "http request failed")
-	}
-	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
 		return nil, errors.Errorf("http response %d", res.StatusCode)
@@ -445,6 +444,10 @@ func (c *Client) ReleaseIPs(ctx context.Context, ipconfig cns.IPConfigsRequest) 
 	}
 	req.Header.Set(headerContentType, contentTypeJSON)
 	res, err := c.client.Do(req)
+	if err != nil {
+		return errors.Wrap(err, "http request failed")
+	}
+	defer res.Body.Close()
 
 	// if we get a 404 error
 	if res.StatusCode == http.StatusNotFound {
@@ -453,11 +456,6 @@ func (c *Client) ReleaseIPs(ctx context.Context, ipconfig cns.IPConfigsRequest) 
 			Err:  errors.Errorf("Unsupported API"),
 		}
 	}
-
-	if err != nil {
-		return errors.Wrap(err, "http request failed")
-	}
-	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
 		return errors.Errorf("http response %d", res.StatusCode)

@@ -385,11 +385,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 			res.Print()
 		}
 
-		if ipamAddResult.ipv4Result.IPs != nil {
-			log.Printf("[cni-net] ADD command completed for pod %s with IPs:%v err:%v.", k8sPodName, ipamAddResult.ipv4Result.IPs, err)
-		} else {
-			log.Printf("[cni-net] no IPs will be allocated for pod %s", k8sPodName)
-		}
+		log.Printf("[cni-net] ADD command completed for pod %v with IPs:%+v err:%v.", k8sPodName, ipamAddResult.ipv4Result.IPs, err)
 	}()
 
 	// Parse Pod arguments.
@@ -677,8 +673,6 @@ func (plugin *NetPlugin) createNetworkInternal(
 
 	setNetworkOptions(ipamAddResult.ncResponse, &nwInfo)
 
-	addNatIPV6SubnetInfo(ipamAddConfig.nwCfg, ipamAddResult.ipv6Result, &nwInfo)
-
 	err = plugin.nm.CreateNetwork(&nwInfo)
 	if err != nil {
 		err = plugin.Errorf("createNetworkInternal: Failed to create network: %v", err)
@@ -764,8 +758,8 @@ func (plugin *NetPlugin) createEndpointInternal(opt *createEndpointInternalOpt) 
 	}
 
 	if opt.resultV6 != nil {
-		// inject routes to linux pod
-		epInfo.IPV6Mode = network.DualStackOverlay
+		// inject routes to linux pod in ipam dualStackOverlay mode when IPv6Mode
+		epInfo.IPV6Mode = string(util.DualStackOverlay)
 		for _, ipconfig := range opt.resultV6.IPs {
 			epInfo.IPAddresses = append(epInfo.IPAddresses, ipconfig.Address)
 		}
