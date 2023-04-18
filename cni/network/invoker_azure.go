@@ -71,11 +71,7 @@ func (invoker *AzureIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, er
 		if err != nil {
 			if len(addResult.ipv4Result.IPs) > 0 {
 				if er := invoker.Delete(&addResult.ipv4Result.IPs[0].Address, addConfig.nwCfg, nil, addConfig.options); er != nil {
-					err = invoker.plugin.Errorf("Failed to clean up IPv4 during Delete with error %v, after Add failed with error %w", er, err)
-				}
-			} else if len(addResult.ipv6Result.IPs) > 0 {
-				if er := invoker.Delete(&addResult.ipv6Result.IPs[0].Address, addConfig.nwCfg, nil, addConfig.options); er != nil {
-					err = invoker.plugin.Errorf("Failed to clean up IPv6 during Delete with error %v, after Add failed with error %w", er, err)
+					err = invoker.plugin.Errorf("Failed to clean up IP's during Delete with error %v, after Add failed with error %w", er, err)
 				}
 			} else {
 				err = fmt.Errorf("No IP's to delete on error: %v", err)
@@ -84,19 +80,16 @@ func (invoker *AzureIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, er
 	}()
 
 	if addConfig.nwCfg.IPV6Mode != "" {
-		nwCfgIpv6 := *addConfig.nwCfg
-		nwCfgIpv6.IPAM.Environment = common.OptEnvironmentIPv6NodeIpam
-		nwCfgIpv6.IPAM.Type = ipamV6
+		nwCfg6 := *addConfig.nwCfg
+		nwCfg6.IPAM.Environment = common.OptEnvironmentIPv6NodeIpam
+		nwCfg6.IPAM.Type = ipamV6
 
 		if len(invoker.nwInfo.Subnets) > 1 {
-			for _, subnet := range invoker.nwInfo.Subnets {
-				if subnet.Prefix.IP.To16() != nil {
-					nwCfgIpv6.IPAM.Subnet = subnet.Prefix.String()
-				}
-			}
+			// ipv6 is the second subnet of the slice
+			nwCfg6.IPAM.Subnet = invoker.nwInfo.Subnets[1].Prefix.String()
 		}
 
-		addResult.ipv6Result, err = invoker.plugin.DelegateAdd(nwCfgIpv6.IPAM.Type, &nwCfgIpv6)
+		addResult.ipv6Result, err = invoker.plugin.DelegateAdd(nwCfg6.IPAM.Type, &nwCfg6)
 		if err != nil {
 			err = invoker.plugin.Errorf("Failed to allocate v6 pool: %v", err)
 		}
