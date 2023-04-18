@@ -6,8 +6,6 @@ metadata:
     meta.helm.sh/release-namespace: kube-system
   labels:
     app.kubernetes.io/managed-by: Helm
-    helm.toolkit.fluxcd.io/name: cilium-adapter-helmrelease
-    helm.toolkit.fluxcd.io/namespace: 643dcea81aff3b00014098f5
     k8s-app: cilium
   name: cilium
   namespace: kube-system

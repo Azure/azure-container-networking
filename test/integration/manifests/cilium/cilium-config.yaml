@@ -82,12 +82,7 @@ metadata:
   annotations:
     meta.helm.sh/release-name: cilium
     meta.helm.sh/release-namespace: kube-system
-  creationTimestamp: "2023-04-17T23:00:12Z"
   labels:
     app.kubernetes.io/managed-by: Helm
-    helm.toolkit.fluxcd.io/name: cilium-adapter-helmrelease
-    helm.toolkit.fluxcd.io/namespace: 643dcea81aff3b00014098f5
   name: cilium-config
   namespace: kube-system
-  resourceVersion: "993"
-  uid: 31ccec09-0511-4f18-b21a-10cf4033ce06

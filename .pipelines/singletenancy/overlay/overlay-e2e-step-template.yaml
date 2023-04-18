@@ -49,14 +49,8 @@ steps:
       kubectl apply -f cilium/configmap.yaml
       kubectl apply -f test/integration/manifests/cilium/cilium-config.yaml
       echo "install Cilium onto Overlay Cluster"
-      kubectl apply -f test/integration/manifests/cilium/cilium-agent/daemonset.yaml
-      kubectl apply -f test/integration/manifests/cilium/cilium-agent/clusterrole.yaml
-      kubectl apply -f test/integration/manifests/cilium/cilium-agent/clusterrolebinding.yaml
-      kubectl apply -f test/integration/manifests/cilium/cilium-agent/serviceaccount.yaml
-      kubectl apply -f test/integration/manifests/cilium/cilium-operator/deployment.yaml
-      kubectl apply -f test/integration/manifests/cilium/cilium-operator/serviceaccount.yaml
-      kubectl apply -f test/integration/manifests/cilium/cilium-operator/clusterrole.yaml
-      kubectl apply -f test/integration/manifests/cilium/cilium-operator/clusterrolebinding.yaml
+      kubectl apply -f test/integration/manifests/cilium/cilium-agent
+      kubectl apply -f test/integration/manifests/cilium/cilium-operator
       kubectl get po -owide -A
     name: "installCilium"
     displayName: "Install Cilium on AKS Overlay"
