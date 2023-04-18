@@ -764,8 +764,10 @@ func (plugin *NetPlugin) createEndpointInternal(opt *createEndpointInternalOpt) 
 	}
 
 	if opt.resultV6 != nil {
-		// inject routes to linux pod in ipam dualStackOverlay mode when IPv6Mode
-		epInfo.IPV6Mode = string(util.DualStackOverlay)
+		// get IPAM mode from conflist file and add ipv6 routes to linux pod if needed
+		epInfo.IPV6Mode = string(util.IpamMode(opt.nwCfg.IPAM.Mode))
+		log.Printf("current ipv6 mode is %s", epInfo.IPV6Mode)
+
 		for _, ipconfig := range opt.resultV6.IPs {
 			epInfo.IPAddresses = append(epInfo.IPAddresses, ipconfig.Address)
 		}
@@ -1037,8 +1039,8 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 
 		if !nwCfg.MultiTenancy {
 			// Call into IPAM plugin to release the endpoint's addresses.
-			logAndSendEvent(plugin, fmt.Sprintf("Releasing ips:%+v", epInfo.IPAddresses))
 			for i := range epInfo.IPAddresses {
+				logAndSendEvent(plugin, fmt.Sprintf("Release ip:%s", epInfo.IPAddresses[i].IP.String()))
 				err = plugin.ipamInvoker.Delete(&epInfo.IPAddresses[i], nwCfg, args, nwInfo.Options)
 				if err != nil {
 					return plugin.RetriableError(fmt.Errorf("failed to release address: %w", err))
