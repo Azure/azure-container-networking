@@ -233,7 +233,7 @@ func (client *OVSEndpointClient) ConfigureContainerInterfacesAndRoutes(epInfo *E
 	return addRoutes(client.netlink, client.netioshim, client.containerVethName, epInfo.Routes)
 }
 
-func (client *OVSEndpointClient) DeleteEndpoints(ep *endpoint, _ bool) error {
+func (client *OVSEndpointClient) DeleteEndpoints(ep *endpoint) error {
 	log.Printf("[ovs] Deleting veth pair %v %v.", ep.HostIfName, ep.IfName)
 	err := client.netlink.DeleteLink(ep.HostIfName)
 	if err != nil {

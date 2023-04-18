@@ -135,7 +135,7 @@ func installCNSDaemonset(ctx context.Context, clientset *kubernetes.Clientset, l
 	if installBool2 := os.Getenv(envInstallAzilium); installBool2 != "" {
 		if aziliumScenario, err := strconv.ParseBool(installBool2); err == nil && aziliumScenario == true {
 			log.Printf("Env %v set to true, deploy azure-ipam and cilium-cni", envInstallAzilium)
-			cns.Spec.Template.Spec.InitContainers[0].Args = []string{"deploy", "azure-ipam", "-o", "/opt/cni/bin/azure-ipam", "azilium.conflist", "-o", "/etc/cni/net.d/05-cilium.conflist"}
+			cns.Spec.Template.Spec.InitContainers[0].Args = []string{"deploy", "azure-ipam", "-o", "/opt/cni/bin/azure-ipam"}
 		}
 		// setup the CNS ciliumconfigmap
 		if err := mustSetupConfigMap(ctx, clientset, cnsCiliumConfigMapPath); err != nil {
@@ -148,7 +148,7 @@ func installCNSDaemonset(ctx context.Context, clientset *kubernetes.Clientset, l
 	if installBool3 := os.Getenv(envInstallOverlay); installBool3 != "" {
 		if overlayScenario, err := strconv.ParseBool(installBool3); err == nil && overlayScenario == true {
 			log.Printf("Env %v set to true, deploy azure-ipam and cilium-cni", envInstallOverlay)
-			cns.Spec.Template.Spec.InitContainers[0].Args = []string{"deploy", "azure-ipam", "-o", "/opt/cni/bin/azure-ipam", "azilium.conflist", "-o", "/etc/cni/net.d/05-cilium.conflist"}
+			cns.Spec.Template.Spec.InitContainers[0].Args = []string{"deploy", "azure-ipam", "-o", "/opt/cni/bin/azure-ipam"}
 		}
 		// setup the CNS ciliumconfigmap
 		if err := mustSetupConfigMap(ctx, clientset, cnsOverlayConfigMapPath); err != nil {
