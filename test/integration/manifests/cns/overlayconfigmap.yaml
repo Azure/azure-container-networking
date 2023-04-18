@@ -26,6 +26,6 @@ data:
       "ManageEndpointState": true,
       "ProgramSNATIPTables" : false,
       "EnableCNIConflistGeneration": true,
-      "CNIConflistFilepath": "/etc/cni/net.d/cilium.conflist",
+      "CNIConflistFilepath": "/etc/cni/net.d/05-cilium.conflist",
       "CNIConflistScenario": "cilium"
     }
