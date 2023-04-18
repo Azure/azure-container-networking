@@ -2,11 +2,8 @@ apiVersion: apps/v1
 kind: DaemonSet
 metadata:
   annotations:
-    deprecated.daemonset.template.generation: "1"
     meta.helm.sh/release-name: cilium
     meta.helm.sh/release-namespace: kube-system
-  creationTimestamp: "2023-04-17T23:00:12Z"
-  generation: 1
   labels:
     app.kubernetes.io/managed-by: Helm
     helm.toolkit.fluxcd.io/name: cilium-adapter-helmrelease
@@ -14,10 +11,7 @@ metadata:
     k8s-app: cilium
   name: cilium
   namespace: kube-system
-  resourceVersion: "1243"
-  uid: e78a081c-9eba-497c-a482-7e9a9c0631ef
 spec:
-  revisionHistoryLimit: 10
   selector:
     matchLabels:
       k8s-app: cilium
