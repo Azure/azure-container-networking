@@ -534,7 +534,7 @@ jobs:
                 --network-plugin azure \
                 --vm-set-type VirtualMachineScaleSets \
                 --node-vm-size Standard_D4s_v3 \
-                --node-count 1
+                --node-count 2
 
             # don't schedule anything on the linux system pool
             echo "Updating $CLUSTER_NAME to not schedule anything on linux pool..."
@@ -598,7 +598,7 @@ jobs:
           condition: succeeded()
           inlineScript: |
             # can't find a way to reference files, so have to clone the repo
-            kubectl get node -o wide | grep "Windows Server 2022 Datacenter" | awk '{print $1}' | xargs -I {} kubectl label node {} scale-test=true connectivity-test=true
+            kubectl get node -o wide | grep "Windows Server 2022 Datacenter" | awk '{print $1}' | xargs -n 1 -I {} kubectl label node {} scale-test=true connectivity-test=true
             git clone https://github.com/Azure/azure-container-networking.git --depth=1 --branch=master
             cd azure-container-networking/test/scale/
             ./test-scale.sh --max-kwok-pods-per-node=50 \
