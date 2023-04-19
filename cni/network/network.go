@@ -484,7 +484,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 		// Issue link: https://github.com/kubernetes/kubernetes/issues/57253
 
 		if nwInfoErr == nil {
-			log.Printf("[cni-net] Found network %v with subnet %v.", networkID, nwInfo.Subnets[0].Prefix.String())
+			log.Printf("[cni-net] Found network %v.", networkID)
 			nwInfo.IPAMType = nwCfg.IPAM.Type
 			options = nwInfo.Options
 
