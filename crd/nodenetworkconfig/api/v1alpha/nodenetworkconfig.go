@@ -22,7 +22,7 @@ import (
 // +kubebuilder:printcolumn:name="NC ID",type=string,priority=1,JSONPath=`.status.networkContainers[*].id`
 // +kubebuilder:printcolumn:name="NC Mode",type=string,priority=0,JSONPath=`.status.networkContainers[*].assignmentMode`
 // +kubebuilder:printcolumn:name="NC Type",type=string,priority=1,JSONPath=`.status.networkContainers[*].type`
-// +kubebuilder:printcolumn:name="NC Version",type=integer,priority=1,JSONPath=`.status.networkContainers[*].version`
+// +kubebuilder:printcolumn:name="NC Version",type=integer,priority=0,JSONPath=`.status.networkContainers[*].version`
 type NodeNetworkConfig struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -42,6 +42,8 @@ type NodeNetworkConfigList struct {
 
 // NodeNetworkConfigSpec defines the desired state of NetworkConfig
 type NodeNetworkConfigSpec struct {
+	// +kubebuilder:default=0
+	// +kubebuilder:validation:Optional
 	RequestedIPCount int64    `json:"requestedIPCount"`
 	IPsNotInUse      []string `json:"ipsNotInUse,omitempty"`
 }
@@ -58,6 +60,8 @@ const (
 
 // NodeNetworkConfigStatus defines the observed state of NetworkConfig
 type NodeNetworkConfigStatus struct {
+	// +kubebuilder:default=0
+	// +kubebuilder:validation:Optional
 	AssignedIPCount   int                `json:"assignedIPCount"`
 	Scaler            Scaler             `json:"scaler,omitempty"`
 	Status            Status             `json:"status,omitempty"`
@@ -102,12 +106,14 @@ type NetworkContainer struct {
 	IPAssignments      []IPAssignment `json:"ipAssignments,omitempty"`
 	DefaultGateway     string         `json:"defaultGateway,omitempty"`
 	SubnetAddressSpace string         `json:"subnetAddressSpace,omitempty"`
-	Version            int64          `json:"version"`
-	NodeIP             string         `json:"nodeIP,omitempty"`
-	SubscriptionID     string         `json:"subcriptionID,omitempty"`
-	ResourceGroupID    string         `json:"resourceGroupID,omitempty"`
-	VNETID             string         `json:"vnetID,omitempty"`
-	SubnetID           string         `json:"subnetID,omitempty"`
+	// +kubebuilder:default=0
+	// +kubebuilder:validation:Optional
+	Version         int64  `json:"version"`
+	NodeIP          string `json:"nodeIP,omitempty"`
+	SubscriptionID  string `json:"subcriptionID,omitempty"`
+	ResourceGroupID string `json:"resourceGroupID,omitempty"`
+	VNETID          string `json:"vnetID,omitempty"`
+	SubnetID        string `json:"subnetID,omitempty"`
 }
 
 // IPAssignment groups an IP address and Name. Name is a UUID set by the the IP address assigner.

@@ -46,7 +46,6 @@ spec:
       type: string
     - jsonPath: .status.networkContainers[*].version
       name: NC Version
-      priority: 1
       type: integer
     name: v1alpha
     schema:
@@ -73,15 +72,15 @@ spec:
                   type: string
                 type: array
               requestedIPCount:
+                default: 0
                 format: int64
                 type: integer
-            required:
-            - requestedIPCount
             type: object
           status:
             description: NodeNetworkConfigStatus defines the observed state of NetworkConfig
             properties:
               assignedIPCount:
+                default: 0
                 type: integer
               networkContainers:
                 items:
@@ -131,12 +130,11 @@ spec:
                         represents.
                       type: string
                     version:
+                      default: 0
                       format: int64
                       type: integer
                     vnetID:
                       type: string
-                  required:
-                  - version
                   type: object
                 type: array
               scaler:
@@ -162,8 +160,6 @@ spec:
                 - Updated
                 - Error
                 type: string
-            required:
-            - assignedIPCount
             type: object
         type: object
     served: true
