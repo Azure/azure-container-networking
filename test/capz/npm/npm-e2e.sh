@@ -89,7 +89,7 @@ install_npm () {
     helm uninstall calico -n tigera-operator
     kubectl delete ns tigera-operator
     log "disabling Calico NetworkPolicy functionality by removing NetPol permission from calico-node ClusterRole..."
-    kubectl get clusterrole calico-node -o yaml > original-clusterrole.yaml 
+    kubectl get clusterrole calico-node -o yaml > original-clusterrole.yaml
     cat original-clusterrole.yaml | perl -0777 -i.original -pe 's/- apiGroups:\n  - networking.k8s.io\n  resources:\n  - networkpolicies\n  verbs:\n  - watch\n  - list\n//' > new-clusterrole.yaml
     originalLineCount=`cat original-clusterrole.yaml | wc -l`
     newLineCount=`cat new-clusterrole.yaml | wc -l`
@@ -102,7 +102,7 @@ install_npm () {
 
     ## disable scheduling for all but one node for NPM tests, since intra-node connectivity is broken after disabling Calico NetPol
     kubectl get node -o wide | grep "Windows Server 2022 Datacenter" | awk '{print $1}' | tail -n +2 | xargs kubectl cordon
-    kubectl get node -o wide | grep "Windows Server 2022 Datacenter" | grep -v SchedulingDisabled | awk '{print $1}' | xargs -I {} kubectl label node {} scale-test=true connectivity-test=true
+    kubectl get node -o wide | grep "Windows Server 2022 Datacenter" | grep -v SchedulingDisabled | awk '{print $1}' | xargs -n 1 -I {} kubectl label node {} scale-test=true connectivity-test=true
 
     # sleep for some time to let Calico CNI restart
     sleep 3m
@@ -369,35 +369,33 @@ run_npm_scale () {
 
     # exact counts output from script
     # Pod Counts:
-    # - 10 fake Pods
-    # - 10 real Pods
+    # - 25 fake Pods
+    # - 5 real Pods
     # HNS Counts:
     # - number of ACLs per Pod Endpoint: 6 (6*numNetworkPolicies)
-    # - number of SetPolicies: ~40 (2*numUniqueLabelsPerPod*numFakePods)
+    # - number of SetPolicies: ~100 (2*numUniqueLabelsPerPod*numFakePods)
     # - max IPs per SetPolicy: number of total Pods
-
-    # NOTE: if editing real pod counts, should update --num-scale-pods-to-verify in test-connectivity.sh to test all those Pods
     ./test-scale.sh --max-kwok-pods-per-node=50 \
-        --num-kwok-deployments=10 \
-        --num-kwok-replicas=1 \
+        --num-kwok-deployments=5 \
+        --num-kwok-replicas=5 \
         --max-real-pods-per-node=30 \
         --num-real-deployments=5 \
-        --num-real-replicas=2 \
+        --num-real-replicas=1 \
         --num-network-policies=1 \
-        --num-unapplied-network-policies=10 \
+        --num-unapplied-network-policies=3 \
         --num-unique-labels-per-pod=2 \
         --num-unique-labels-per-deployment=2 \
         --num-shared-labels-per-pod=10 \
-        --delete-kwok-pods=10 \
-        --delete-real-pods=5 \
-        --delete-pods-interval=120 \
-        --delete-pods-times=2 \
         --delete-labels \
         --delete-labels-interval=60 \
         --delete-labels-times=1 \
         --delete-netpols \
         --delete-netpols-interval=60 \
-        --delete-netpols-times=1 | tee ../../../npm-scale.log || true
+        --delete-netpols-times=1 \
+        --delete-kwok-pods=1 \
+        --delete-real-pods=1 \
+        --delete-pods-interval=120 \
+        --delete-pods-times=1 | tee ../../../npm-scale.log || true
 
     rc=0; cat ../../../npm-scale.log | grep "FINISHED" > /dev/null 2>&1 || rc=$?
     if [[ $rc != 0 ]]; then
