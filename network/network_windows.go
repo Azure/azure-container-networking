@@ -400,7 +400,7 @@ func (nm *networkManager) newNetworkImplHnsV2(nwInfo *NetworkInfo, extIf *extern
 
 			// only add net rules if it's dualStackOverlay mode and hnsNetwork is created at first time
 			if string(util.DualStackOverlay) != "" {
-				if err = nm.addNewNetRules(nwInfo); err != nil {
+				if err := nm.addNewNetRules(nwInfo); err != nil { // nolint
 					return nil, err
 				}
 			}
