@@ -139,6 +139,7 @@ install_npm () {
     cmd="$cmd ; reg query HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\hns\State /v HnsNpmRefresh"
     cmd="$cmd ; Restart-Service HNS"
     cmd="$cmd ; sleep 10"
+    cmd="$cmd ; Restart-Computer"
     kubectl exec -n kube-system $npmPod -- powershell.exe "$cmd"
     log "sleeping 3m to let HNS restart..."
     sleep 3m
