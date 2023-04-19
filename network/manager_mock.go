@@ -115,8 +115,8 @@ func (nm *MockNetworkManager) FindNetworkIDFromNetNs(netNs string) (string, erro
 	return "", errNetworkNotFound
 }
 
-// GetNumEndpointsInNetNs mock
-func (nm *MockNetworkManager) GetNumEndpointsInNetNs(netNs string) int {
+// GetNumEndpointsByContainerID mock
+func (nm *MockNetworkManager) GetNumEndpointsByContainerID(_ string) int {
 	// based on the GetAllEndpoints func above, it seems that this mock is only intended to be used with
 	// one network, so just return the number of endpoints if network exists
 	numEndpoints := 0

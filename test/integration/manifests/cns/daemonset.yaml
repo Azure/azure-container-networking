@@ -65,6 +65,8 @@ spec:
               mountPath: /var/run/azure-vnet.json
             - name: xtables-lock
               mountPath: /run/xtables.lock
+            - name: cni-conflist
+              mountPath: /etc/cni/net.d
           ports:
             - containerPort: 10090
           env:

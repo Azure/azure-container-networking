@@ -6,10 +6,13 @@ import (
 	"net"
 )
 
+type getInterfaceValidationFn func(name string) (*net.Interface, error)
+
 type MockNetIO struct {
 	fail           bool
 	failAttempt    int
 	numTimesCalled int
+	getInterfaceFn getInterfaceValidationFn
 }
 
 // ErrMockNetIOFail - mock netio error
@@ -22,11 +25,19 @@ func NewMockNetIO(fail bool, failAttempt int) *MockNetIO {
 	}
 }
 
+func (netshim *MockNetIO) SetGetInterfaceValidatonFn(fn getInterfaceValidationFn) {
+	netshim.getInterfaceFn = fn
+}
+
 func (netshim *MockNetIO) GetNetworkInterfaceByName(name string) (*net.Interface, error) {
 	netshim.numTimesCalled++
 
 	if netshim.fail && netshim.failAttempt == netshim.numTimesCalled {
 		return nil, fmt.Errorf("%w:%s", ErrMockNetIOFail, name)
+	}
+
+	if netshim.getInterfaceFn != nil {
+		return netshim.getInterfaceFn(name)
 	}
 
 	hwAddr, _ := net.ParseMAC("ab:cd:ef:12:34:56")
