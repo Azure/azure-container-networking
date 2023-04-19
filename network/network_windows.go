@@ -212,7 +212,7 @@ func (nm *networkManager) addNewNetRules(nwInfo *NetworkInfo) error {
 
 		ip, _, er := net.ParseCIDR(prefix)
 		if er != nil {
-			return fmt.Errorf("[net] failed to parse prefix %s", prefix)
+			return fmt.Errorf("[net] failed to parse prefix %s", prefix) // nolint
 		}
 		if ip.To4() != nil {
 			// netsh interface ipv4 add route $subnetV4 $hostInterfaceAlias "0.0.0.0"
@@ -242,7 +242,7 @@ func (nm *networkManager) addNewNetRules(nwInfo *NetworkInfo) error {
 		}
 	}
 
-	return err
+	return err // nolint
 }
 
 func (nm *networkManager) appIPV6RouteEntry(nwInfo *NetworkInfo) error {
@@ -400,7 +400,7 @@ func (nm *networkManager) newNetworkImplHnsV2(nwInfo *NetworkInfo, extIf *extern
 
 			// only add net rules if it's dualStackOverlay mode and hnsNetwork is created at first time
 			if string(util.DualStackOverlay) != "" {
-				if err := nm.addNewNetRules(nwInfo); err != nil {
+				if err = nm.addNewNetRules(nwInfo); err != nil {
 					return nil, err
 				}
 			}
