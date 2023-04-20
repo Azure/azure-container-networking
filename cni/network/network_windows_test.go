@@ -245,10 +245,10 @@ func TestSetPoliciesFromNwCfg(t *testing.T) {
 							HostPort:      44000,
 							ContainerPort: 80,
 						},
-				    },
-			    },
-		    },
-	    }
+					},
+				},
+			},
+		},
 	}
 	for _, tt := range tests {
 		tt := tt
