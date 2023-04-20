@@ -137,21 +137,17 @@ func SerializeNATPolicy(policy Policy) (json.RawMessage, error) {
 	if err := json.Unmarshal(endpointPolicy.Settings, &portMappingPolicy); err != nil {
 		return nil, err
 	}
-	natPolicy := hcn.PortMappingPolicySetting{
-		Flags:        hcn.NatFlagsLocalRoutedVip,
-		Protocol:     portMappingPolicy.Protocol,
+	natPolicy := hcsshim.NatPolicy{
+		Type:         "NAT",
 		InternalPort: portMappingPolicy.InternalPort,
 		ExternalPort: portMappingPolicy.ExternalPort,
 	}
-	// Code is no longer relevant as switch from v1 -> v2 uses int32 not string
-	/*
-		switch portMappingPolicy.Protocol {
-		case ProtocolTcp:
-			natPolicy.Protocol = "TCP"
-		case ProtocolUdp:
-			natPolicy.Protocol = "UDP"
-		}
-	*/
+	switch portMappingPolicy.Protocol {
+	case ProtocolTcp:
+		natPolicy.Protocol = "TCP"
+	case ProtocolUdp:
+		natPolicy.Protocol = "UDP"
+	}
 	return json.Marshal(natPolicy)
 }
 

@@ -242,6 +242,7 @@ func getPoliciesFromRuntimeCfg(nwCfg *cni.NetworkConfig) []policy.Policy {
 	log.Printf("[net] RuntimeConfigs: %+v", nwCfg.RuntimeConfig)
 	var policies []policy.Policy
 	var protocol uint32
+	var portMPTest hnsv2.PortMappingPolicySetting
 	for _, mapping := range nwCfg.RuntimeConfig.PortMappings {
 
 		cfgProto := strings.ToUpper(strings.TrimSpace(mapping.Protocol))
@@ -257,7 +258,10 @@ func getPoliciesFromRuntimeCfg(nwCfg *cni.NetworkConfig) []policy.Policy {
 			InternalPort: uint16(mapping.ContainerPort),
 			VIP:          mapping.HostIp,
 			Protocol:     protocol,
+			Flags:        hnsv2.NatFlagsLocalRoutedVip, // iota'd, = 1, uint32
 		})
+		json.Unmarshal(rawPolicy, &portMPTest)
+		log.Printf("[test] rawPolicy unmarshal: %+v", portMPTest)
 
 		hnsv2Policy, _ := json.Marshal(&hnsv2.EndpointPolicy{
 			Type:     hnsv2.PortMapping,
