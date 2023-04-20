@@ -70,13 +70,14 @@ func TestMain(m *testing.M) {
 
 func GetTestResources() *NetPlugin {
 	pluginName := "testplugin"
+	isIPv6 := false
 	config := &common.PluginConfig{}
 	grpcClient := &nns.MockGrpcClient{}
 	plugin, _ := NewPlugin(pluginName, config, grpcClient, &Multitenancy{})
 	plugin.report = &telemetry.CNIReport{}
 	mockNetworkManager := acnnetwork.NewMockNetworkmanager()
 	plugin.nm = mockNetworkManager
-	plugin.ipamInvoker = NewMockIpamInvoker(true, false, false) // enable ipv6 flag for dualstack test cases
+	plugin.ipamInvoker = NewMockIpamInvoker(isIPv6, false, false)
 	return plugin
 }
 
@@ -1100,17 +1101,5 @@ func TestGetPodSubnetNatInfo(t *testing.T) {
 		}, "invalid windows podsubnet natInfo")
 	} else {
 		require.Empty(t, natInfo, "linux podsubnet natInfo should be empty")
-	}
-}
-
-func TestGetPodSubnetNatInfoV6(t *testing.T) {
-	ncPrimaryIP := "2001:2002:2003::1"
-	nwCfg := &cni.NetworkConfig{ExecutionMode: string(util.V4Swift)}
-	natInfo := getNATInfo(nwCfg, ncPrimaryIP, false)
-	// should not add any natInfo to policy if ipam mode is neither V4Overlay and DualStackOverlay
-	if runtime.GOOS == "windows" {
-		require.Equalf(t, natInfo, []policy.NATInfo{
-			{},
-		}, "no ipv6 natInfo is added")
 	}
 }

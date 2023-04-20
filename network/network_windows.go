@@ -388,6 +388,14 @@ func (nm *networkManager) newNetworkImplHnsV2(nwInfo *NetworkInfo, extIf *extern
 	if err != nil {
 		// if network not found, create the HNS network.
 		if errors.As(err, &hcn.NetworkNotFoundError{}) {
+			// in dualStackOverlay mode, need to add net routes to windows node
+			// check if it is dualStackOverlay mode and net routes are not existing
+			if string(util.DualStackOverlay) {
+				if err := nm.addNewNetRules(nwInfo); err != nil { // nolint
+					log.Printf("[net] Failed to add net rules due to %+v", err)
+					return nil, err
+				}
+			}
 			log.Printf("[net] Creating hcn network: %+v", hcnNetwork)
 			hnsResponse, err = Hnsv2.CreateNetwork(hcnNetwork)
 
@@ -396,13 +404,6 @@ func (nm *networkManager) newNetworkImplHnsV2(nwInfo *NetworkInfo, extIf *extern
 			}
 
 			log.Printf("[net] Successfully created hcn network with response: %+v", hnsResponse)
-			// only add net rules if it's dualStackOverlay mode and hnsNetwork is created at first time
-			if string(util.DualStackOverlay) != "" {
-				if err := nm.addNewNetRules(nwInfo); err != nil { // nolint
-					log.Printf("[net] Failed to add net rules due to %+v", err)
-					return nil, err
-				}
-			}
 		} else {
 			// we can't validate if the network already exists, don't continue
 			return nil, fmt.Errorf("Failed to create hcn network: %s, failed to query for existing network with error: %v", hcnNetwork.Name, err)
