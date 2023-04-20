@@ -154,7 +154,7 @@ func (invoker *AzureIPAMInvoker) Delete(address *net.IPNet, nwCfg *cni.NetworkCo
 		nwCfgIpv6.IPAM.Address = address.IP.String()
 		if len(invoker.nwInfo.Subnets) > 1 {
 			for _, subnet := range invoker.nwInfo.Subnets {
-				if subnet.Prefix.IP.To16() != nil {
+				if subnet.Prefix.IP.To4() == nil {
 					nwCfgIpv6.IPAM.Subnet = subnet.Prefix.String()
 				}
 			}

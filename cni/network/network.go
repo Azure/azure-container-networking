@@ -484,7 +484,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 		// Issue link: https://github.com/kubernetes/kubernetes/issues/57253
 
 		if nwInfoErr == nil {
-			log.Printf("[cni-net] Found network %v.", networkID)
+			log.Printf("[cni-net] Found network %v with subnet %v.", networkID, nwInfo.Subnets[0].Prefix.String())
 			nwInfo.IPAMType = nwCfg.IPAM.Type
 			options = nwInfo.Options
 
@@ -657,7 +657,7 @@ func (plugin *NetPlugin) createNetworkInternal(
 		ServiceCidrs:                  ipamAddConfig.nwCfg.ServiceCidrs,
 	}
 
-	constructNetworkInfo(ipamAddResult, podSubnetPrefix, podSubnetV6Prefix, nwInfo)
+	addSubnetToNetworkInfo(ipamAddResult, podSubnetPrefix, podSubnetV6Prefix, nwInfo)
 	setNetworkOptions(ipamAddResult.ncResponse, &nwInfo)
 
 	err = plugin.nm.CreateNetwork(&nwInfo)
@@ -669,7 +669,7 @@ func (plugin *NetPlugin) createNetworkInternal(
 }
 
 // construct network info with ipv4/ipv6 subnets
-func constructNetworkInfo(ipamAddResult IPAMAddResult, podSubnetPrefix, podSubnetV6Prefix *net.IPNet, nwInfo network.NetworkInfo) {
+func addSubnetToNetworkInfo(ipamAddResult IPAMAddResult, podSubnetPrefix, podSubnetV6Prefix *net.IPNet, nwInfo network.NetworkInfo) {
 	ipv4Subnet := network.SubnetInfo{
 		Family:  platform.AfINET,
 		Prefix:  *podSubnetPrefix,
@@ -764,8 +764,11 @@ func (plugin *NetPlugin) createEndpointInternal(opt *createEndpointInternalOpt) 
 	}
 
 	if opt.resultV6 != nil {
-		// get IPAM mode from conflist file and add ipv6 routes to linux pod if needed
-		epInfo.IPV6Mode = string(util.IpamMode(opt.nwCfg.IPAM.Mode))
+		// inject ipv6 routes to Linux pod
+		ipamMode := string(util.IpamMode(opt.nwCfg.IPAM.Mode))
+		if ipamMode == "dualStackOverlay" {
+			epInfo.IPV6Mode = ipamMode
+		}
 		log.Printf("current ipv6 mode is %s", epInfo.IPV6Mode)
 
 		for _, ipconfig := range opt.resultV6.IPs {

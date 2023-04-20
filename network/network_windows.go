@@ -210,9 +210,9 @@ func (nm *networkManager) addNewNetRules(nwInfo *NetworkInfo) error {
 		prefix := subnet.Prefix.String()
 		gateway := subnet.Gateway.String()
 
-		ip, _, er := net.ParseCIDR(prefix)
-		if er != nil {
-			return fmt.Errorf("[net] failed to parse prefix %s", prefix) // nolint
+		ip, _, err = net.ParseCIDR(prefix)
+		if err != nil {
+			return fmt.Errorf("[net] failed to parse prefix %s due to %+v", prefix, err) // nolint
 		}
 		if ip.To4() != nil {
 			// netsh interface ipv4 add route $subnetV4 $hostInterfaceAlias "0.0.0.0"
@@ -223,7 +223,6 @@ func (nm *networkManager) addNewNetRules(nwInfo *NetworkInfo) error {
 
 			// netsh interface ipv4 add route $subnetV4 $hostInterfaceAlias $gatewayV4
 			netshV4GatewayRoute := fmt.Sprintf(netRouteCmd, "ipv4", prefix, ifName, gateway)
-			log.Printf("[net] Adding ipv4 gateway route failed: %v:%v", out, err)
 			if out, err = nm.plClient.ExecuteCommand(netshV4GatewayRoute); err != nil {
 				log.Printf("[net] Adding ipv4 gateway route failed: %v:%v", out, err)
 			}
@@ -397,10 +396,10 @@ func (nm *networkManager) newNetworkImplHnsV2(nwInfo *NetworkInfo, extIf *extern
 			}
 
 			log.Printf("[net] Successfully created hcn network with response: %+v", hnsResponse)
-
 			// only add net rules if it's dualStackOverlay mode and hnsNetwork is created at first time
 			if string(util.DualStackOverlay) != "" {
 				if err := nm.addNewNetRules(nwInfo); err != nil { // nolint
+					log.Printf("[net] Failed to add net rules due to %+v", err)
 					return nil, err
 				}
 			}

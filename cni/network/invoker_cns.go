@@ -81,9 +81,9 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 	log.Printf("Requesting IP for pod %+v using ipconfigs %+v", podInfo, ipconfigs)
 	response, err := invoker.cnsClient.RequestIPs(context.TODO(), ipconfigs)
 	if err != nil {
-		// if RequestIPs call fails, we may receive API not Found error as new CNS is not supported, then try old API RequestIPAddress
-		log.Errorf("RequestIPs not supported by CNS. Invoking RequestIPAddress API with infracontainerid %s", ipconfigs.InfraContainerID)
 		if cnscli.IsUnsupportedAPI(err) {
+			// If RequestIPs is not supported by CNS, use RequestIPAddress API
+			log.Errorf("RequestIPs not supported by CNS. Invoking RequestIPAddress API with infracontainerid %s", ipconfigs.InfraContainerID)
 			ipconfig := cns.IPConfigRequest{
 				OrchestratorContext: orchestratorContext,
 				PodInterfaceID:      GetEndpointID(addConfig.args),
@@ -122,14 +122,12 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 		}
 
 		// set the NC Primary IP in options
-		// SNATIPKey set is not for ipv6
+		// SNATIPKey is not set for ipv6
 		if net.ParseIP(info.ncPrimaryIP).To4() != nil {
 			addConfig.options[network.SNATIPKey] = info.ncPrimaryIP
 		}
 
 		log.Printf("[cni-invoker-cns] Received info %+v for pod %v", info, podInfo)
-
-		// set result ipconfigArgument from CNS Response Body
 		ip, ncIPNet, err := net.ParseCIDR(info.podIPAddress + "/" + fmt.Sprint(info.ncSubnetPrefix))
 		if ip == nil {
 			return IPAMAddResult{}, errors.Wrap(err, "Unable to parse IP from response: "+info.podIPAddress+" with err %w")
@@ -296,9 +294,9 @@ func (invoker *CNSIPAMInvoker) Delete(address *net.IPNet, nwCfg *cni.NetworkConf
 	}
 
 	if err := invoker.cnsClient.ReleaseIPs(context.TODO(), ipConfigs); err != nil {
-		// if ReleaseIPs call fails, we may receive API not Found error as new CNS is not supported, then try old API ReleaseIPAddress
-		log.Errorf("ReleaseIPs not supported by CNS. Invoking ReleaseIPAddress API. Request: %v", ipConfigs)
 		if cnscli.IsUnsupportedAPI(err) {
+			// If ReleaseIPs is not supported by CNS, use ReleaseIPAddress API
+			log.Errorf("ReleaseIPs not supported by CNS. Invoking ReleaseIPAddress API. Request: %v", ipConfigs)
 			ipConfig := cns.IPConfigRequest{
 				OrchestratorContext: orchestratorContext,
 				PodInterfaceID:      GetEndpointID(args),

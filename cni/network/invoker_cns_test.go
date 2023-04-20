@@ -68,7 +68,7 @@ func TestCNSIPAMInvoker_Add(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			name: "Test happy CNI add for IPv4",
+			name: "Test happy CNI add",
 			fields: fields{
 				podName:      testPodInfo.PodName,
 				podNamespace: testPodInfo.PodNamespace,
@@ -135,7 +135,7 @@ func TestCNSIPAMInvoker_Add(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "Test happy CNI add ipv4 + ipv6 as dualstack mode",
+			name: "Test happy CNI add ipv4 and ipv6",
 			fields: fields{
 				podName:      testPodInfo.PodName,
 				podNamespace: testPodInfo.PodNamespace,
