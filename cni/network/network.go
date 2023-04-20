@@ -642,7 +642,7 @@ func (plugin *NetPlugin) createNetworkInternal(
 		ServiceCidrs:                  ipamAddConfig.nwCfg.ServiceCidrs,
 	}
 
-	if err := addSubnetToNetworkInfo(ipamAddResult, nwInfo); err != nil {
+	if err = addSubnetToNetworkInfo(ipamAddResult, nwInfo); err != nil {
 		log.Printf("[cni-net] Failed to add subnets to networkInfo due to %+v", err)
 		return nwInfo, err
 	}

@@ -390,7 +390,8 @@ func (nm *networkManager) newNetworkImplHnsV2(nwInfo *NetworkInfo, extIf *extern
 		if errors.As(err, &hcn.NetworkNotFoundError{}) {
 			// in dualStackOverlay mode, need to add net routes to windows node
 			// check if it is dualStackOverlay mode and net routes are not existing
-			if string(util.DualStackOverlay) {
+
+			if string(util.DualStackOverlay) != "" {
 				if err := nm.addNewNetRules(nwInfo); err != nil { // nolint
 					log.Printf("[net] Failed to add net rules due to %+v", err)
 					return nil, err
