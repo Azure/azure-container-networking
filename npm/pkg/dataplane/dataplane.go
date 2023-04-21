@@ -384,7 +384,7 @@ func (dp *DataPlane) AddPolicy(policy *policies.NPMNetworkPolicy) error {
 		// During bootup phase, the Pod controller will not be running.
 		// We don't need to worry about adding Policies to Endpoints, so we don't need IPSets in the kernel yet.
 		// Ideally, we get all NetworkPolicies in the cache before the Pod controller starts
-		if err = dp.applyDataPlaneNow(contextAddNetPol); err != nil {
+		if err = dp.incrementBatchAndApplyIfNeeded(contextAddNetPol); err != nil {
 			return err
 		}
 	} else {
