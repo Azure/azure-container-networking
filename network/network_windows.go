@@ -411,7 +411,6 @@ func (nm *networkManager) newNetworkImplHnsV2(nwInfo *NetworkInfo, extIf *extern
 					return nil, err
 				}
 			}
-
 			log.Printf("[net] Creating hcn network: %+v", hcnNetwork)
 			hnsResponse, err = Hnsv2.CreateNetwork(hcnNetwork)
 
