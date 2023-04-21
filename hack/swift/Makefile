@@ -56,6 +56,7 @@ vars: ## Show the input vars configured for the cluster commands
 	@echo OS_SKU=$(OS_SKU)
 	@echo VM_SIZE=$(VM_SIZE)
 	@echo NODE_COUNT=$(NODE_COUNT)
+	@echo VMSS_NAME=$(VMSS_NAME)
 
 
 ##@ SWIFT Infra
@@ -165,3 +166,6 @@ down: ## Delete the cluster
 	$(AZCLI) aks delete -g $(GROUP) -n $(CLUSTER) --yes
 	@$(MAKE) unset-kubeconf
 	@$(MAKE) rg-down
+
+restart-vmss: ## Restarts the nodes in the cluster
+	$(AZCLI) vmss restart -g MC_${GROUP}_${CLUSTER}_${REGION} --name $(VMSS_NAME)
