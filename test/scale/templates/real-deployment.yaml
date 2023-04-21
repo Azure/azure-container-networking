@@ -5,15 +5,18 @@ metadata:
   namespace: scale-test
   labels:
     app: scale-test
+    is-real: "true"
 spec:
   replicas: TEMP_REPLICAS
   selector:
     matchLabels:
-      app: scale-testOTHER_LABELS_6_SPACES
+      app: scale-test
+      is-real: "true"OTHER_LABELS_6_SPACES
   template:
     metadata:
       labels:
-        app: scale-testOTHER_LABELS_8_SPACES
+        app: scale-test
+        is-real: "true"OTHER_LABELS_8_SPACES
     spec:
       nodeSelector:
         scale-test: "true"

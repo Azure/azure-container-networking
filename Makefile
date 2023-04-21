@@ -554,7 +554,7 @@ cns-manifest-build: ## build azure-cns multiplat container manifest.
 		PLATFORMS="$(PLATFORMS)" \
 		IMAGE=$(CNS_IMAGE) \
 		TAG=$(CNS_VERSION) \
-		OS_VERSIONS=$(OS_VERSIONS)
+		OS_VERSIONS="$(OS_VERSIONS)"
 
 cns-manifest-push: ## push cns multiplat container manifest
 	$(MAKE) manifest-push \
@@ -571,7 +571,7 @@ npm-manifest-build: ## build azure-npm multiplat container manifest.
 		PLATFORMS="$(PLATFORMS)" \
 		IMAGE=$(NPM_IMAGE) \
 		TAG=$(NPM_VERSION) \
-		OS_VERSIONS=$(OS_VERSIONS)
+		OS_VERSIONS="$(OS_VERSIONS)"
 
 npm-manifest-push: ## push multiplat container manifest
 	$(MAKE) manifest-push \

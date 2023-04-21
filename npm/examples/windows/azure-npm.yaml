@@ -143,17 +143,15 @@ data:
         "ResyncPeriodInMinutes": 15,
         "ListeningPort":         10091,
         "ListeningAddress":      "0.0.0.0",
+        "ApplyMaxBatches": 100,
+        "ApplyIntervalInMilliseconds": 500,
         "Toggles": {
             "EnablePrometheusMetrics": true,
             "EnablePprof":             true,
             "EnableHTTPDebugAPI":      true,
             "EnableV2NPM":             true,
             "PlaceAzureChainFirst":    true,
-            "ApplyIPSetsOnNeed":       false
-        },
-        "Transport": {
-          "Address": "azure-npm.kube-system.svc.cluster.local",
-          "Port": 10092,
-          "ServicePort": 9001
+            "ApplyIPSetsOnNeed":       false,
+            "ApplyInBackground": true
         }
     }

@@ -49,6 +49,14 @@ func (netns *mockNetns) DeleteNamed(name string) (err error) {
 	return netns.deleteNamed(name)
 }
 
+func (netns *mockNetns) IsNamespaceEqual(_, _ int) bool {
+	return false
+}
+
+func (netns *mockNetns) NamespaceUniqueID(_ int) string {
+	return "nsid"
+}
+
 func defaultGet() (int, error) {
 	return 1, nil
 }

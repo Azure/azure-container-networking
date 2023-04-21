@@ -45,14 +45,13 @@ steps:
       sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
       kubectl cluster-info
       kubectl get po -owide -A
-      curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
-      chmod 700 get_helm.sh
-      ./get_helm.sh
       echo "deploy Cilium ConfigMap"
       kubectl apply -f cilium/configmap.yaml
+      kubectl apply -f test/integration/manifests/cilium/cilium-config.yaml
       echo "install Cilium"
-      helm repo add cilium https://helm.cilium.io/
-      helm install cilium cilium/cilium --version 1.12.5 --namespace kube-system -f cilium/cilium_helm_values.yaml
+      kubectl apply -f test/integration/manifests/cilium/cilium-agent
+      kubectl apply -f test/integration/manifests/cilium/cilium-operator
+      kubectl get po -owide -A
     name: "installCilium"
     displayName: "Install Cilium"
 
@@ -107,6 +106,14 @@ steps:
       artifactName: test-output
       pathtoPublish: "$(Build.ArtifactStagingDirectory)/test-output"
     condition: always()
+
+  - script: |
+      echo "validate pod IP assignment and check systemd-networkd restart"
+      kubectl apply -f hack/manifests/hostprocess.yaml
+      kubectl get pod -owide -A
+      bash hack/scripts/validate_state.sh
+    name: "validatePods"
+    displayName: "Validate Pods"
 
   - script: |
       echo "Run Service Conformance E2E"

@@ -198,6 +198,7 @@ func (npMgr *NetworkPolicyManager) Start(config npmconfig.Config, stopCh <-chan 
 		go npMgr.PodControllerV2.Run(stopCh)
 		go npMgr.NamespaceControllerV2.Run(stopCh)
 		go npMgr.NetPolControllerV2.Run(stopCh)
+
 		return nil
 	}
 

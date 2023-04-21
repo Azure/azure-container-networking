@@ -10,7 +10,7 @@ NETPOL_SLEEP=5
 
 printHelp() {
     cat <<EOF
-./test-connectivity.sh --num-scale-pods-to-verify=<int> --max-wait-for-initial-connectivity=<int> --max-wait-after-adding-netpol=<int> [--kubeconfig=<path>]
+./test-connectivity.sh --num-scale-pods-to-verify=all|<int> --max-wait-for-initial-connectivity=<int> --max-wait-after-adding-netpol=<int> [--kubeconfig=<path>]
 
 Verifies that scale test Pods can connect to each other, but cannot connect to a new "pinger" Pod.
 Then, adds a NetworkPolicy to allow traffic between the scale test Pods and the "pinger" Pod, and verifies connectivity.
@@ -21,7 +21,7 @@ USAGE:
 3. Run this script
 
 REQUIRED PARAMETERS:
-    --num-scale-pods-to-verify=<int>             number of scale Pods to test. Will verify that each scale Pod can connect to each other [(N-1)^2 connections] and that each Scale Pod cannot connect to a "pinger" Pod [2N connection attempts with a 3-second timeout]
+    --num-scale-pods-to-verify=all|<int>         number of scale Pods to test. Will verify that each scale Pod can connect to each other [(N-1)^2 connections] and that each Scale Pod cannot connect to a "pinger" Pod [2N connection attempts with a 3-second timeout]
     --max-wait-for-initial-connectivity=<int>    maximum time in seconds to wait for initial connectivity after Pinger Pods are running
     --max-wait-after-adding-netpol=<int>         maximum time in seconds to wait for allowed connections after adding the allow-pinger NetworkPolicy
 
@@ -72,7 +72,7 @@ while [[ $# -gt 0 ]]; do
     shift
 done
 
-if [[ -z $numScalePodsToVerify || -z $maxWaitAfterAddingNetpol ]]; then
+if [[ -z $numScalePodsToVerify || -z $maxWaitForInitialConnectivity || -z $maxWaitAfterAddingNetpol ]]; then
     echo "ERROR: missing required parameter. Check --help for usage"
     exit 6
 fi
@@ -122,16 +122,19 @@ startDate=`date -u`
 echo "STARTING CONNECTIVITY TEST at $startDate"
 
 ## GET SCALE PODS
+if [[ $numScalePodsToVerify == "all" ]]; then
+    echo "setting numScalePodsToVerify=9999 since 'all' was passed in"
+    numScalePodsToVerify=9999
+fi
+
 echo "getting scale Pods..."
-scalePodNameIPs=(`kubectl $KUBECONFIG_ARG get pods -n scale-test --field-selector=status.phase==Running -o jsonpath='{range .items[*]}{@.metadata.name}{","}{@.status.podIP}{" "}{end}'`)
+scalePodNameIPs=(`kubectl $KUBECONFIG_ARG get pods -n scale-test --field-selector=status.phase==Running -l is-real="true" -o jsonpath='{range .items[*]}{@.metadata.name}{","}{@.status.podIP}{" "}{end}'`)
 scalePods=()
 scalePodIPs=()
 for nameIP in "${scalePodNameIPs[@]}"; do
     nameIP=(`echo $nameIP | tr ',' ' '`)
     name=${nameIP[0]}
     ip=${nameIP[1]}
-
-    echo $name | grep real-dep || continue
 
     echo "scale Pod: $name, IP: $ip"
 
@@ -151,6 +154,7 @@ done
 numScalePodsFound=${#scalePods[@]}
 if [[ $numScalePodsFound == 0 ]]; then
     echo "ERROR: expected namespace scale-test to exist with real (non-kwok) Pods. Run test/scale/test-scale.sh with real Pods first."
+    kubectl get pod -n scale-test -owide
     exit 7
 elif [[ $numScalePodsFound -lt $numScalePodsToVerify ]]; then
     echo "WARNING: there are only $numScalePodsFound real scale Pods running which is less than numScalePodsToVerify=$numScalePodsToVerify. Will verify just these $numScalePodsFound Pods"
@@ -255,7 +259,7 @@ done
 
 low=0
 if [[ $prevTryDate -gt $connectivityStartDate ]]; then
-    low=$(( `date +%s` - $prevTryDate - $CONNECTIVITY_SLEEP ))
+    low=$(( $prevTryDate - $connectivityStartDate - $CONNECTIVITY_SLEEP ))
 fi
 high=$(( `date +%s` - $connectivityStartDate ))
 echo "SUCCESS: all initial connectivity tests passed. Took between $low and $high seconds to succeed"
@@ -309,7 +313,7 @@ done
 
 low=0
 if [[ $prevTryDate -gt $netpolStartDate ]]; then
-    low=$(( `date +%s` - $prevTryDate - $NETPOL_SLEEP ))
+    low=$(( $prevTryDate - $connectivityStartDate - $NETPOL_SLEEP ))
 fi
 high=$(( `date +%s` - $netpolStartDate ))
 echo "SUCCESS: all connectivity tests passed after adding allow-pinger NetworkPolicy. Took between $low and $high seconds to take effect"
