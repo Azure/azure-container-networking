@@ -639,6 +639,7 @@ func (plugin *NetPlugin) createNetworkInternal(
 		DisableHairpinOnHostInterface: ipamAddConfig.nwCfg.DisableHairpinOnHostInterface,
 		IPV6Mode:                      ipamAddConfig.nwCfg.IPV6Mode,
 		IPAMType:                      ipamAddConfig.nwCfg.IPAM.Type,
+		IPAMMode:                      ipamAddConfig.nwCfg.IPAM.Mode,
 		ServiceCidrs:                  ipamAddConfig.nwCfg.ServiceCidrs,
 	}
 

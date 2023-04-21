@@ -39,7 +39,7 @@ const (
 	// ipv6 route cmd
 	routeCmd = "netsh interface ipv6 %s route \"%s\" \"%s\" \"%s\" store=persistent"
 	// add ipv4 and ipv6 route rules to windows node
-	netRouteCmd = "netsh interface %s add route \"%s\" \"%s\" \"%s\""
+	netRouteCmd = "netsh interface %s %s route \"%s\" \"%s\" \"%s\""
 )
 
 // Windows implementation of route.
@@ -214,28 +214,44 @@ func (nm *networkManager) addNewNetRules(nwInfo *NetworkInfo) error {
 		if errParseCIDR != nil {
 			return fmt.Errorf("[net] failed to parse prefix %s due to %+v", prefix, errParseCIDR) // nolint
 		}
+		log.Printf("[net] Adding ipv4 and ipv6 net rules to windows node")
+
+		// delete existing net rules before adding new rules to windows node in case:
+		// if hnsNetwork is not existing and new pod is creating, existing rules will be applied twice that will cause the pod creation failure
 		if ip.To4() != nil {
+			deleteNetshV4DefaultRoute := fmt.Sprintf(netRouteCmd, "ipv4", "delete", prefix, ifName, ipv4DefaultHop)
+			nm.plClient.ExecuteCommand(deleteNetshV4DefaultRoute)
+
 			// netsh interface ipv4 add route $subnetV4 $hostInterfaceAlias "0.0.0.0"
-			netshV4DefaultRoute := fmt.Sprintf(netRouteCmd, "ipv4", prefix, ifName, ipv4DefaultHop)
-			if out, err = nm.plClient.ExecuteCommand(netshV4DefaultRoute); err != nil {
+			addNetshV4DefaultRoute := fmt.Sprintf(netRouteCmd, "ipv4", "add", prefix, ifName, ipv4DefaultHop)
+			if out, err = nm.plClient.ExecuteCommand(addNetshV4DefaultRoute); err != nil {
 				log.Printf("[net] Adding ipv4 default route failed: %v:%v", out, err)
 			}
 
+			deleteNetshV4GatewayRoute := fmt.Sprintf(netRouteCmd, "ipv4", "delete", prefix, ifName, gateway)
+			nm.plClient.ExecuteCommand(deleteNetshV4GatewayRoute)
+
 			// netsh interface ipv4 add route $subnetV4 $hostInterfaceAlias $gatewayV4
-			netshV4GatewayRoute := fmt.Sprintf(netRouteCmd, "ipv4", prefix, ifName, gateway)
-			if out, err = nm.plClient.ExecuteCommand(netshV4GatewayRoute); err != nil {
+			addNetshV4GatewayRoute := fmt.Sprintf(netRouteCmd, "ipv4", "add", prefix, ifName, gateway)
+			if out, err = nm.plClient.ExecuteCommand(addNetshV4GatewayRoute); err != nil {
 				log.Printf("[net] Adding ipv4 gateway route failed: %v:%v", out, err)
 			}
 		} else {
+			deleteNetshV6DefaultRoute := fmt.Sprintf(netRouteCmd, "ipv6", "delete", prefix, ifName, ipv6DefaultHop)
+			nm.plClient.ExecuteCommand(deleteNetshV6DefaultRoute)
+
 			// netsh interface ipv6 add route $subnetV6 $hostInterfaceAlias "::"
-			netshV6DefaultRoute := fmt.Sprintf(netRouteCmd, "ipv6", prefix, ifName, ipv6DefaultHop)
-			if out, err = nm.plClient.ExecuteCommand(netshV6DefaultRoute); err != nil {
+			addNetshV6DefaultRoute := fmt.Sprintf(netRouteCmd, "ipv6", "add", prefix, ifName, ipv6DefaultHop)
+			if out, err = nm.plClient.ExecuteCommand(addNetshV6DefaultRoute); err != nil {
 				log.Printf("[net] Adding ipv6 default route failed: %v:%v", out, err)
 			}
 
+			deleteNetshV6GatewayRoute := fmt.Sprintf(netRouteCmd, "ipv6", "delete", prefix, ifName, gateway)
+			nm.plClient.ExecuteCommand(deleteNetshV6GatewayRoute)
+
 			// netsh interface ipv6 add route $subnetV6 $hostInterfaceAlias $gatewayV6
-			netshV6GatewayRoute := fmt.Sprintf(netRouteCmd, "ipv6", prefix, ifName, gateway)
-			if out, err = nm.plClient.ExecuteCommand(netshV6GatewayRoute); err != nil {
+			addNetshV6GatewayRoute := fmt.Sprintf(netRouteCmd, "ipv6", "add", prefix, ifName, gateway)
+			if out, err = nm.plClient.ExecuteCommand(addNetshV6GatewayRoute); err != nil {
 				log.Printf("[net] Adding ipv6 gateway route failed: %v:%v", out, err)
 			}
 		}
@@ -389,13 +405,13 @@ func (nm *networkManager) newNetworkImplHnsV2(nwInfo *NetworkInfo, extIf *extern
 		// if network not found, create the HNS network.
 		if errors.As(err, &hcn.NetworkNotFoundError{}) {
 			// in dualStackOverlay mode, need to add net routes to windows node
-			// check if it is dualStackOverlay mode
-			if nwInfo.IPV6Mode == string(util.DualStackOverlay) {
+			if nwInfo.IPAMMode == string(util.DualStackOverlay) {
 				if err := nm.addNewNetRules(nwInfo); err != nil { // nolint
 					log.Printf("[net] Failed to add net rules due to %+v", err)
 					return nil, err
 				}
 			}
+
 			log.Printf("[net] Creating hcn network: %+v", hcnNetwork)
 			hnsResponse, err = Hnsv2.CreateNetwork(hcnNetwork)
 

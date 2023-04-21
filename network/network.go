@@ -73,6 +73,7 @@ type NetworkInfo struct {
 	DisableHairpinOnHostInterface bool
 	IPV6Mode                      string
 	IPAMType                      string
+	IPAMMode                      string
 	ServiceCidrs                  string
 }
 
