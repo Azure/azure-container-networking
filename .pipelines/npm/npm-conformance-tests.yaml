@@ -601,6 +601,8 @@ jobs:
             kubectl get node -o wide | grep "Windows Server 2022 Datacenter" | awk '{print $1}' | xargs -n 1 -I {} kubectl label node {} scale-test=true connectivity-test=true
             git clone https://github.com/Azure/azure-container-networking.git --depth=1 --branch=master
             cd azure-container-networking/test/scale/
+            ./run-kwok.sh > $(System.DefaultWorkingDirectory)/$(RESOURCE_GROUP)-$(PROFILE)/kwok.log &
+            kwok_pid=$!
             ./test-scale.sh --max-kwok-pods-per-node=50 \
                 --num-kwok-deployments=10 \
                 --num-kwok-replicas=1 \
@@ -622,10 +624,19 @@ jobs:
                 --delete-real-pods=6 \
                 --delete-pods-interval=120 \
                 --delete-pods-times=2
+            rc=$?
+            if [[ $? != 0 ]]; then
+              kill $kwok_pid
+              exit $rc
+            fi
+
             cd connectivity/
             ./test-connectivity.sh --num-scale-pods-to-verify=all \
                 --max-wait-for-initial-connectivity=600 \
                 --max-wait-after-adding-netpol=120
+            rc=$?
+            kill $kwok_pid
+            exit $rc
 
       - bash: |
           export CLUSTER_NAME=$(RESOURCE_GROUP)-$(PROFILE)
