@@ -4,6 +4,8 @@ import "github.com/Azure/azure-container-networking/npm/util"
 
 const (
 	defaultResyncPeriod    = 15
+	defaultApplyMaxBatches = 100
+	defaultApplyInterval   = 500
 	defaultListeningPort   = 10091
 	defaultGrpcPort        = 10092
 	defaultGrpcServicePort = 9002
@@ -16,7 +18,6 @@ const (
 
 // DefaultConfig is the guaranteed configuration NPM can run in out of the box
 var DefaultConfig = Config{
-	WindowsNetworkName:    util.AzureNetworkName,
 	ResyncPeriodInMinutes: defaultResyncPeriod,
 
 	ListeningPort:    defaultListeningPort,
@@ -28,6 +29,10 @@ var DefaultConfig = Config{
 		ServicePort: defaultGrpcServicePort,
 	},
 
+	WindowsNetworkName:          util.AzureNetworkName,
+	ApplyMaxBatches:             defaultApplyMaxBatches,
+	ApplyIntervalInMilliseconds: defaultApplyInterval,
+
 	Toggles: Toggles{
 		EnablePrometheusMetrics: true,
 		EnablePprof:             true,
@@ -35,6 +40,7 @@ var DefaultConfig = Config{
 		EnableV2NPM:             true,
 		PlaceAzureChainFirst:    util.PlaceAzureChainFirst,
 		ApplyIPSetsOnNeed:       false,
+		ApplyInBackground:       true,
 	},
 }
 
@@ -48,14 +54,17 @@ type GrpcServerConfig struct {
 }
 
 type Config struct {
-	// WindowsNetworkName can be either 'azure' or 'Calico' (case sensitive).
-	// It can also be the empty string, which results in the default value of 'azure'.
-	WindowsNetworkName    string           `json:"WindowsNetworkName,omitempty"`
 	ResyncPeriodInMinutes int              `json:"ResyncPeriodInMinutes,omitempty"`
 	ListeningPort         int              `json:"ListeningPort,omitempty"`
 	ListeningAddress      string           `json:"ListeningAddress,omitempty"`
 	Transport             GrpcServerConfig `json:"Transport,omitempty"`
-	Toggles               Toggles          `json:"Toggles,omitempty"`
+	// WindowsNetworkName can be either 'azure' or 'Calico' (case sensitive).
+	// It can also be the empty string, which results in the default value of 'azure'.
+	WindowsNetworkName string `json:"WindowsNetworkName,omitempty"`
+	// Apply options for Windows only. Relevant when ApplyInBackground is true.
+	ApplyMaxBatches             int     `json:"ApplyDataPlaneMaxBatches,omitempty"`
+	ApplyIntervalInMilliseconds int     `json:"ApplyDataPlaneMaxWaitInMilliseconds,omitempty"`
+	Toggles                     Toggles `json:"Toggles,omitempty"`
 }
 
 type Toggles struct {
@@ -65,6 +74,8 @@ type Toggles struct {
 	EnableV2NPM             bool
 	PlaceAzureChainFirst    bool
 	ApplyIPSetsOnNeed       bool
+	// ApplyInBackground applies for Windows only
+	ApplyInBackground bool
 }
 
 type Flags struct {

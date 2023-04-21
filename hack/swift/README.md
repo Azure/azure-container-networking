@@ -29,4 +29,5 @@ AKS Clusters
   swift-cilium-up  Bring up a SWIFT Cilium cluster
   swift-up         Bring up a SWIFT AzCNI cluster
   down             Delete the cluster
+  vmss-restart     Restart the nodes of the cluster
 ```
