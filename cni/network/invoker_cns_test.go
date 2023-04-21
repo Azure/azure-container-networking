@@ -614,7 +614,7 @@ func TestCNSIPAMInvoker_Add_UnsupportedAPI(t *testing.T) {
 	}
 }
 
-func TestAddAPIFail(t *testing.T) {
+func TestRequestIPAPIsFail(t *testing.T) {
 	require := require.New(t) //nolint further usage of require without passing t
 
 	type fields struct {
@@ -961,7 +961,7 @@ func TestCNSIPAMInvoker_Delete_NotSupportedAPI(t *testing.T) {
 	}
 }
 
-func TestDeleteAPIFail(t *testing.T) {
+func TestReleaseIPAPIsFail(t *testing.T) {
 	require := require.New(t) //nolint further usage of require without passing t
 	type fields struct {
 		podName      string

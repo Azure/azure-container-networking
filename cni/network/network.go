@@ -668,14 +668,6 @@ func addSubnetToNetworkInfo(ipamAddResult IPAMAddResult, nwInfo network.NetworkI
 		return fmt.Errorf("Failed to ParseCIDR for pod subnet prefix: %w", err)
 	}
 
-	// parse the ipv6 address and only add it to nwInfo if it's dual stack mode
-	if ipamAddResult.ipv6Result != nil && len(ipamAddResult.ipv6Result.IPs) > 0 {
-		_, podSubnetV6Prefix, err = net.ParseCIDR(ipamAddResult.ipv6Result.IPs[0].Address.String())
-		if err != nil {
-			return fmt.Errorf("Failed to ParseCIDR for pod subnet IPv6 prefix: %w", err)
-		}
-	}
-
 	ipv4Subnet := network.SubnetInfo{
 		Family:  platform.AfINET,
 		Prefix:  *podSubnetPrefix,
@@ -683,7 +675,13 @@ func addSubnetToNetworkInfo(ipamAddResult IPAMAddResult, nwInfo network.NetworkI
 	}
 	nwInfo.Subnets = append(nwInfo.Subnets, ipv4Subnet)
 
+	// parse the ipv6 address and only add it to nwInfo if it's dual stack mode
 	if ipamAddResult.ipv6Result != nil && len(ipamAddResult.ipv6Result.IPs) > 0 {
+		_, podSubnetV6Prefix, err = net.ParseCIDR(ipamAddResult.ipv6Result.IPs[0].Address.String())
+		if err != nil {
+			return fmt.Errorf("Failed to ParseCIDR for pod subnet IPv6 prefix: %w", err)
+		}
+
 		ipv6Subnet := network.SubnetInfo{
 			Family:  platform.AfINET6,
 			Prefix:  *podSubnetV6Prefix,
@@ -774,7 +772,7 @@ func (plugin *NetPlugin) createEndpointInternal(opt *createEndpointInternalOpt) 
 	if opt.resultV6 != nil {
 		// inject ipv6 routes to Linux pod if ipamMode is dual stack overlay
 		ipamMode := string(util.IpamMode(opt.nwCfg.IPAM.Mode))
-		if ipamMode == "dualStackOverlay" {
+		if ipamMode == string(util.DualStackOverlay) {
 			epInfo.IPV6Mode = ipamMode
 		}
 		log.Printf("current ipv6 mode is %s", epInfo.IPV6Mode)
