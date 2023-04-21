@@ -601,6 +601,7 @@ jobs:
             kubectl get node -o wide | grep "Windows Server 2022 Datacenter" | awk '{print $1}' | xargs -n 1 -I {} kubectl label node {} scale-test=true connectivity-test=true
             git clone https://github.com/Azure/azure-container-networking.git --depth=1 --branch=master
             cd azure-container-networking/test/scale/
+            mkdir -p $(System.DefaultWorkingDirectory)/$(RESOURCE_GROUP)-$(PROFILE)
             ./run-kwok.sh > $(System.DefaultWorkingDirectory)/$(RESOURCE_GROUP)-$(PROFILE)/kwok.log &
             kwok_pid=$!
             ./test-scale.sh --max-kwok-pods-per-node=50 \
