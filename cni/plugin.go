@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"runtime"
+	"time"
 
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/log"
@@ -174,8 +175,12 @@ func (plugin *Plugin) InitializeKeyValueStore(config *common.PluginConfig) error
 		}
 	}
 
-	// Acquire store lock.
-	if err := plugin.Store.Lock(store.DefaultLockTimeout); err != nil {
+	// Acquire store lock. For windows 1m timeout is used while for Linux 10s timeout is assigned.
+	var lockTimeoutValue time.Duration = store.DefaultLockTimeout
+	if runtime.GOOS == "windows" {
+		lockTimeoutValue = store.DefaultLockTimeoutWindows
+	}
+	if err := plugin.Store.Lock(lockTimeoutValue); err != nil {
 		log.Printf("[cni] Failed to lock store: %v.", err)
 		return errors.Wrap(err, "error Acquiring store lock")
 	}
