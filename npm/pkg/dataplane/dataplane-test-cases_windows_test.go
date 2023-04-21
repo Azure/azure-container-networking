@@ -1,6 +1,8 @@
 package dataplane
 
 import (
+	"time"
+
 	"github.com/Azure/azure-container-networking/network/hnswrapper"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/ipsets"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/policies"
@@ -12,11 +14,12 @@ import (
 
 // tags
 const (
-	podCrudTag    Tag = "pod-crud"
-	nsCrudTag     Tag = "namespace-crud"
-	netpolCrudTag Tag = "netpol-crud"
-	reconcileTag  Tag = "reconcile"
-	calicoTag     Tag = "calico"
+	podCrudTag           Tag = "pod-crud"
+	nsCrudTag            Tag = "namespace-crud"
+	netpolCrudTag        Tag = "netpol-crud"
+	reconcileTag         Tag = "reconcile"
+	calicoTag            Tag = "calico"
+	applyInBackgroundTag Tag = "apply-in-background"
 )
 
 const (
@@ -2254,4 +2257,38 @@ func getAllMultiJobTests() []*MultiJobTestCase {
 			},
 		},
 	}
+}
+
+func applyInBackgroundTests() []*SerialTestCase {
+	allTests := make([]*SerialTestCase, 0)
+	allTests = append(allTests, basicTests()...)
+	allTests = append(allTests, capzCalicoTests()...)
+	allTests = append(allTests, updatePodTests()...)
+
+	for _, test := range allTests {
+		test.TestCaseMetadata.Tags = append(test.TestCaseMetadata.Tags, applyInBackgroundTag)
+		cfg := *test.DpCfg
+		cfg.ApplyInBackground = true
+		cfg.ApplyMaxBatches = 3
+		cfg.ApplyInterval = time.Duration(50 * time.Millisecond)
+		test.DpCfg = &cfg
+	}
+
+	return allTests
+}
+
+func multiJobApplyInBackgroundTests() []*MultiJobTestCase {
+	allTests := make([]*MultiJobTestCase, 0)
+	allTests = append(allTests, getAllMultiJobTests()...)
+
+	for _, test := range allTests {
+		test.TestCaseMetadata.Tags = append(test.TestCaseMetadata.Tags, applyInBackgroundTag)
+		cfg := *test.DpCfg
+		cfg.ApplyInBackground = true
+		cfg.ApplyMaxBatches = 3
+		cfg.ApplyInterval = time.Duration(50 * time.Millisecond)
+		test.DpCfg = &cfg
+	}
+
+	return allTests
 }

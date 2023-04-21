@@ -19,26 +19,34 @@ const (
 )
 
 func TestBasics(t *testing.T) {
-	testSerialCases(t, basicTests())
+	testSerialCases(t, basicTests(), 0)
 }
 
 func TestPodEndpointAssignment(t *testing.T) {
-	testSerialCases(t, updatePodTests())
+	testSerialCases(t, updatePodTests(), 0)
 }
 
 func TestCapzCalico(t *testing.T) {
-	testSerialCases(t, capzCalicoTests())
+	testSerialCases(t, capzCalicoTests(), 0)
+}
+
+func TestApplyInBackground(t *testing.T) {
+	testSerialCases(t, applyInBackgroundTests(), time.Duration(100*time.Millisecond))
 }
 
 func TestRemoteEndpoints(t *testing.T) {
-	testSerialCases(t, remoteEndpointTests())
+	testSerialCases(t, remoteEndpointTests(), 0)
 }
 
 func TestAllMultiJobCases(t *testing.T) {
-	testMultiJobCases(t, getAllMultiJobTests())
+	testMultiJobCases(t, getAllMultiJobTests(), 0)
 }
 
-func testSerialCases(t *testing.T, tests []*SerialTestCase) {
+func TestMultiJobApplyInBackground(t *testing.T) {
+	testMultiJobCases(t, multiJobApplyInBackgroundTests(), time.Duration(1*time.Second))
+}
+
+func testSerialCases(t *testing.T, tests []*SerialTestCase, finalSleep time.Duration) {
 	for i, tt := range tests {
 		i := i
 		tt := tt
@@ -58,6 +66,8 @@ func testSerialCases(t *testing.T, tests []*SerialTestCase) {
 			require.NoError(t, err, "failed to initialize dp")
 			require.NotNil(t, dp, "failed to initialize dp (nil)")
 
+			dp.RunPeriodicTasks()
+
 			for j, a := range tt.Actions {
 				var err error
 				if a.HNSAction != nil {
@@ -69,12 +79,13 @@ func testSerialCases(t *testing.T, tests []*SerialTestCase) {
 				require.Nil(t, err, "failed to run action %d", j)
 			}
 
+			time.Sleep(finalSleep)
 			dptestutils.VerifyHNSCache(t, hns, tt.ExpectedSetPolicies, tt.ExpectedEnpdointACLs)
 		})
 	}
 }
 
-func testMultiJobCases(t *testing.T, tests []*MultiJobTestCase) {
+func testMultiJobCases(t *testing.T, tests []*MultiJobTestCase, finalSleep time.Duration) {
 	for i, tt := range tests {
 		i := i
 		tt := tt
@@ -93,6 +104,8 @@ func testMultiJobCases(t *testing.T, tests []*MultiJobTestCase) {
 			// the dp is necessary for NPM tests
 			dp, err := NewDataPlane(thisNode, io, tt.DpCfg, nil)
 			require.NoError(t, err, "failed to initialize dp")
+
+			dp.RunPeriodicTasks()
 
 			backgroundErrors := make(chan error, len(tt.Jobs))
 			wg := new(sync.WaitGroup)
@@ -118,6 +131,7 @@ func testMultiJobCases(t *testing.T, tests []*MultiJobTestCase) {
 				}()
 			}
 
+			time.Sleep(finalSleep)
 			wg.Wait()
 			close(backgroundErrors)
 			if len(backgroundErrors) > 0 {
