@@ -121,6 +121,7 @@ stages:
             name: "GetCluster"
             displayName: "Get AKS Cluster"
           - script: |
+              k delete deployment container -n default
               cilium connectivity test
             retryCountOnTaskFailure: 6
             name: "CiliumConnectivityTests"
