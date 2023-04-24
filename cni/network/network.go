@@ -775,13 +775,8 @@ func (plugin *NetPlugin) createEndpointInternal(opt *createEndpointInternalOpt) 
 	}
 
 	if opt.resultV6 != nil {
-		// inject ipv6 routes to Linux pod if ipamMode is dual stack overlay
-		ipamMode := string(util.IpamMode(opt.nwCfg.IPAM.Mode))
-		if ipamMode == string(util.DualStackOverlay) {
-			epInfo.IPV6Mode = ipamMode
-		}
-		log.Printf("current ipv6 mode is %s", epInfo.IPV6Mode)
-
+		// inject ipv6 routes to Linux pod
+		epInfo.IPV6Mode = string(util.IpamMode(opt.nwCfg.IPAM.Mode))
 		for _, ipconfig := range opt.resultV6.IPs {
 			epInfo.IPAddresses = append(epInfo.IPAddresses, ipconfig.Address)
 		}

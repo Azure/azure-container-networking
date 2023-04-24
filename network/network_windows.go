@@ -38,7 +38,7 @@ const (
 	ipv6DefaultHop = "::"
 	// ipv6 route cmd
 	routeCmd = "netsh interface ipv6 %s route \"%s\" \"%s\" \"%s\" store=persistent"
-	// add ipv4 and ipv6 route rules to windows node
+	// add/delete ipv4 and ipv6 route rules to/from windows node
 	netRouteCmd = "netsh interface %s %s route \"%s\" \"%s\" \"%s\""
 )
 
@@ -205,6 +205,16 @@ func (nm *networkManager) addNewNetRules(nwInfo *NetworkInfo) error {
 		ifName = fmt.Sprintf("%s (%s)", ifNamePrefix, nwInfo.MasterIfName)
 	}
 
+	// check if external interface name is empty
+	if ifName == "" {
+		return fmt.Errorf("[net] external interface name is empty") // nolint
+	}
+
+	// check whether nwInfo subnets exist
+	if nwInfo.Subnets == nil {
+		return fmt.Errorf("[net] nwInfo subnets are not found") // nolint
+	}
+
 	// iterate subnet and add ipv4 and ipv6 default route and gateway only if it is not existing
 	for _, subnet := range nwInfo.Subnets {
 		prefix := subnet.Prefix.String()
@@ -214,6 +224,7 @@ func (nm *networkManager) addNewNetRules(nwInfo *NetworkInfo) error {
 		if errParseCIDR != nil {
 			return fmt.Errorf("[net] failed to parse prefix %s due to %+v", prefix, errParseCIDR) // nolint
 		}
+
 		log.Printf("[net] Adding ipv4 and ipv6 net rules to windows node")
 
 		// delete existing net rules before adding new rules to windows node in case:
