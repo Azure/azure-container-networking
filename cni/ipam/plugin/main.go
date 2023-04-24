@@ -5,12 +5,12 @@ package main
 
 import (
 	"fmt"
+	"github.com/Azure/azure-container-networking/cni/log"
 	"os"
 
 	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/cni/ipam"
 	"github.com/Azure/azure-container-networking/common"
-	"github.com/Azure/azure-container-networking/log"
 )
 
 const (
@@ -24,16 +24,20 @@ var version string
 func main() {
 	var config common.PluginConfig
 	config.Version = version
-	logDirectory := "" // Sets the current location as log directory
 
-	log.SetName(name)
-	log.SetLevel(log.LevelInfo)
-	if err := log.SetTargetLogDirectory(log.TargetLogfile, logDirectory); err != nil {
+	loggerCfg := &log.Config{
+		Level:       "info",
+		Filepath:    log.LogPath + "azure-ipam.log",
+		MaxSizeInMB: 5,
+		MaxBackups:  8,
+		Name:        name,
+	}
+	cleanup, err := log.New(loggerCfg)
+	if err != nil {
 		fmt.Printf("Failed to setup cni logging: %v\n", err)
 		return
 	}
-
-	defer log.Close()
+	defer cleanup()
 
 	ipamPlugin, err := ipam.NewPlugin(name, &config)
 	if err != nil {

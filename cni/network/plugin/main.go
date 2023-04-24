@@ -6,6 +6,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	cniLog "github.com/Azure/azure-container-networking/cni/log"
 	"io"
 	"os"
 	"reflect"
@@ -289,17 +290,21 @@ func main() {
 		os.Exit(0)
 	}
 
-	log.SetName(name)
-	log.SetLevel(log.LevelInfo)
-	if err := log.SetTargetLogDirectory(log.TargetLogfile, ""); err != nil {
+	loggerCfg := &cniLog.Config{
+		Level:       "info",
+		Filepath:    log.LogPath + "azure-vnet.log",
+		MaxSizeInMB: 5,
+		MaxBackups:  8,
+		Name:        name,
+	}
+	cleanup, err := cniLog.New(loggerCfg)
+	if err != nil {
 		fmt.Printf("Failed to setup cni logging: %v\n", err)
 		return
 	}
+	defer cleanup()
 
-	err := rootExecute()
-
-	log.Close()
-	if err != nil {
+	if rootExecute() != nil {
 		os.Exit(1)
 	}
 }

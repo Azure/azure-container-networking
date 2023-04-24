@@ -32,7 +32,7 @@ type cnsClient interface {
 	ReleaseIPAddress(context.Context, cns.IPConfigRequest) error
 }
 
-// NewPlugin constructs a new IPAM plugin instance with given logger and CNS client
+// NewPlugin constructs a new IPAM plugin instance with given log and CNS client
 func NewPlugin(logger *zap.Logger, c cnsClient, out io.Writer) (*IPAMPlugin, error) {
 	plugin := &IPAMPlugin{
 		Name:      pluginName,

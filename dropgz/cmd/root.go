@@ -41,7 +41,7 @@ func init() {
 		os.Exit(1)
 	}()
 
-	// build root logger
+	// build root log
 	zcfg := zap.NewProductionEncoderConfig()
 	z = zap.New(zapcore.NewCore(
 		zaplogfmt.NewEncoder(zcfg),
