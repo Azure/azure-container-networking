@@ -220,7 +220,9 @@ func (nm *networkManager) addNewNetRules(nwInfo *NetworkInfo) error {
 		// if hnsNetwork is not existing and new pod is creating, existing rules will be applied twice that will cause the pod creation failure
 		if ip.To4() != nil {
 			deleteNetshV4DefaultRoute := fmt.Sprintf(netRouteCmd, "ipv4", "delete", prefix, ifName, ipv4DefaultHop)
-			nm.plClient.ExecuteCommand(deleteNetshV4DefaultRoute)
+			if _, delErr := nm.plClient.ExecuteCommand(deleteNetshV4DefaultRoute); delErr != nil {
+				log.Printf("[net] Deleting ipv4 default route failed: %v", err)
+			}
 
 			// netsh interface ipv4 add route $subnetV4 $hostInterfaceAlias "0.0.0.0"
 			addNetshV4DefaultRoute := fmt.Sprintf(netRouteCmd, "ipv4", "add", prefix, ifName, ipv4DefaultHop)
@@ -229,7 +231,9 @@ func (nm *networkManager) addNewNetRules(nwInfo *NetworkInfo) error {
 			}
 
 			deleteNetshV4GatewayRoute := fmt.Sprintf(netRouteCmd, "ipv4", "delete", prefix, ifName, gateway)
-			nm.plClient.ExecuteCommand(deleteNetshV4GatewayRoute)
+			if _, delErr := nm.plClient.ExecuteCommand(deleteNetshV4GatewayRoute); delErr != nil {
+				log.Printf("[net] Deleting ipv4 gateway route failed: %v", delErr)
+			}
 
 			// netsh interface ipv4 add route $subnetV4 $hostInterfaceAlias $gatewayV4
 			addNetshV4GatewayRoute := fmt.Sprintf(netRouteCmd, "ipv4", "add", prefix, ifName, gateway)
@@ -238,7 +242,9 @@ func (nm *networkManager) addNewNetRules(nwInfo *NetworkInfo) error {
 			}
 		} else {
 			deleteNetshV6DefaultRoute := fmt.Sprintf(netRouteCmd, "ipv6", "delete", prefix, ifName, ipv6DefaultHop)
-			nm.plClient.ExecuteCommand(deleteNetshV6DefaultRoute)
+			if _, delErr := nm.plClient.ExecuteCommand(deleteNetshV6DefaultRoute); delErr != nil {
+				log.Printf("[net] Deleting ipv6 default route failed: %v", delErr)
+			}
 
 			// netsh interface ipv6 add route $subnetV6 $hostInterfaceAlias "::"
 			addNetshV6DefaultRoute := fmt.Sprintf(netRouteCmd, "ipv6", "add", prefix, ifName, ipv6DefaultHop)
@@ -247,7 +253,9 @@ func (nm *networkManager) addNewNetRules(nwInfo *NetworkInfo) error {
 			}
 
 			deleteNetshV6GatewayRoute := fmt.Sprintf(netRouteCmd, "ipv6", "delete", prefix, ifName, gateway)
-			nm.plClient.ExecuteCommand(deleteNetshV6GatewayRoute)
+			if _, delErr := nm.plClient.ExecuteCommand(deleteNetshV6GatewayRoute); delErr != nil {
+				log.Printf("[net] Deleting ipv6 gateway route failed: %v", delErr)
+			}
 
 			// netsh interface ipv6 add route $subnetV6 $hostInterfaceAlias $gatewayV6
 			addNetshV6GatewayRoute := fmt.Sprintf(netRouteCmd, "ipv6", "add", prefix, ifName, gateway)
@@ -404,8 +412,8 @@ func (nm *networkManager) newNetworkImplHnsV2(nwInfo *NetworkInfo, extIf *extern
 	if err != nil {
 		// if network not found, create the HNS network.
 		if errors.As(err, &hcn.NetworkNotFoundError{}) {
-			// in dualStackOverlay mode, need to add net routes to windows node
-			if nwInfo.IPAMMode == string(util.DualStackOverlay) {
+			// in dualStackOverlay mode, add net routes to windows node
+			if nwInfo.IPV6Mode == string(util.DualStackOverlay) {
 				if err := nm.addNewNetRules(nwInfo); err != nil { // nolint
 					log.Printf("[net] Failed to add net rules due to %+v", err)
 					return nil, err

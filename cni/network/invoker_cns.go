@@ -94,7 +94,7 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 			if errRequestIP != nil {
 				// if the old API fails as well then we just return the error
 				log.Errorf("Failed to request IP address from CNS using RequestIPAddress with infracontainerid %s. error: %v", ipconfig.InfraContainerID, errRequestIP)
-				return IPAMAddResult{}, errors.Wrap(errRequestIP, "Failed to get IP address from CNS with error: %w")
+				return IPAMAddResult{}, errors.Wrap(errRequestIP, "Failed to get IP address from CNS")
 			}
 			response = &cns.IPConfigsResponse{
 				Response: res.Response,
@@ -104,7 +104,7 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 			}
 		} else {
 			log.Printf("Failed to get IP address from CNS with error %v, response: %v", err, response)
-			return IPAMAddResult{}, errors.Wrap(err, "Failed to get IP address from CNS with error: %w")
+			return IPAMAddResult{}, errors.Wrap(err, "Failed to get IP address from CNS")
 		}
 	}
 

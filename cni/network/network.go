@@ -639,11 +639,15 @@ func (plugin *NetPlugin) createNetworkInternal(
 		DisableHairpinOnHostInterface: ipamAddConfig.nwCfg.DisableHairpinOnHostInterface,
 		IPV6Mode:                      ipamAddConfig.nwCfg.IPV6Mode,
 		IPAMType:                      ipamAddConfig.nwCfg.IPAM.Type,
-		IPAMMode:                      ipamAddConfig.nwCfg.IPAM.Mode,
 		ServiceCidrs:                  ipamAddConfig.nwCfg.ServiceCidrs,
 	}
 
-	if nwInfo, err = addSubnetToNetworkInfo(ipamAddResult, nwInfo); err != nil {
+	// check if ipamMode is dualStackOverlay mode, then set IPv6Mode to dualStackOverlay mode
+	if ipamAddConfig.nwCfg.IPAM.Mode == string(util.DualStackOverlay) {
+		nwInfo.IPV6Mode = ipamAddConfig.nwCfg.IPAM.Mode
+	}
+
+	if err = addSubnetToNetworkInfo(ipamAddResult, &nwInfo); err != nil {
 		log.Printf("[cni-net] Failed to add subnets to networkInfo due to %+v", err)
 		return nwInfo, err
 	}
@@ -658,7 +662,7 @@ func (plugin *NetPlugin) createNetworkInternal(
 }
 
 // construct network info with ipv4/ipv6 subnets
-func addSubnetToNetworkInfo(ipamAddResult IPAMAddResult, nwInfo network.NetworkInfo) (network.NetworkInfo, error) {
+func addSubnetToNetworkInfo(ipamAddResult IPAMAddResult, nwInfo *network.NetworkInfo) error {
 	var (
 		podSubnetPrefix   *net.IPNet
 		podSubnetV6Prefix *net.IPNet
@@ -666,7 +670,7 @@ func addSubnetToNetworkInfo(ipamAddResult IPAMAddResult, nwInfo network.NetworkI
 
 	_, podSubnetPrefix, err := net.ParseCIDR(ipamAddResult.ipv4Result.IPs[0].Address.String())
 	if err != nil {
-		return network.NetworkInfo{}, fmt.Errorf("Failed to ParseCIDR for pod subnet prefix: %w", err)
+		return fmt.Errorf("Failed to ParseCIDR for pod subnet prefix: %w", err)
 	}
 
 	ipv4Subnet := network.SubnetInfo{
@@ -680,7 +684,7 @@ func addSubnetToNetworkInfo(ipamAddResult IPAMAddResult, nwInfo network.NetworkI
 	if ipamAddResult.ipv6Result != nil && len(ipamAddResult.ipv6Result.IPs) > 0 {
 		_, podSubnetV6Prefix, err = net.ParseCIDR(ipamAddResult.ipv6Result.IPs[0].Address.String())
 		if err != nil {
-			return network.NetworkInfo{}, fmt.Errorf("Failed to ParseCIDR for pod subnet IPv6 prefix: %w", err)
+			return fmt.Errorf("Failed to ParseCIDR for pod subnet IPv6 prefix: %w", err)
 		}
 
 		ipv6Subnet := network.SubnetInfo{
@@ -691,7 +695,7 @@ func addSubnetToNetworkInfo(ipamAddResult IPAMAddResult, nwInfo network.NetworkI
 		nwInfo.Subnets = append(nwInfo.Subnets, ipv6Subnet)
 	}
 
-	return nwInfo, nil
+	return nil
 }
 
 type createEndpointInternalOpt struct {
