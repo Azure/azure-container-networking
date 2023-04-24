@@ -7,21 +7,20 @@ log() {
 }
 
 # Installs NPM + a long-running Pod and does the following tests:
-# 1. Check VFP is in sync with HNS (filename: vfp-state-prior.ran)
-# 2. Run Cyclonus (filename: cyclonus.ran)
-# 3. Check VFP is in sync with HNS (filename: vfp-state-after-cyclonus.ran)
-# 4. Run Conformance (filename: conformance.ran)
-# 5. Check VFP is in sync with HNS (filename: vfp-state-after-conformance.ran)
-# 6. Run scale + connectivity test (filename: scale-connectivity.ran)
-# 7. Check VFP is in sync with HNS (filename: vfp-state-after-scale.ran)
+# 1.1. Check if HNS rehydration of endpoints works (filename: rehydration.failed)
+# 1.2. Check VFP is in sync with HNS (filename: vfp-state-prior.success)
+# 2. Run Cyclonus (filename: cyclonus.success)
+# 3. Check VFP is in sync with HNS (filename: vfp-state-after-cyclonus.success)
+# 4. Run Conformance (filename: conformance.success)
+# 5. Check VFP is in sync with HNS (filename: vfp-state-after-conformance.success)
+# 6. Run scale + connectivity test (filename: scale-connectivity.success)
+# 7. Check VFP is in sync with HNS (filename: vfp-state-after-scale.success)
 #
-# If any step fails, the script will exit and remaining tests won't be run (because of `set -o errexit`)
+# NOTE: each step also has a .ran file that is created if the step is run.
 #
-# NOTE: each step has both:
-# - A .ran file that is created if the step is run
-# - A .success file that is created if the step succeeds
-#
-# There is also a npm-e2e.ran file that indicates that the npm e2e was run at all, and npm-e2e.success that indicates that all steps succeeded
+# There is also:
+# - A npm-e2e.ran file that indicates that the npm e2e was run at all
+# - A npm-e2e.success that indicates that all steps succeeded
 npm_e2e () {
     local kubeconfigFile=$1
     if [ -z "$kubeconfigFile" ]; then
@@ -35,10 +34,11 @@ npm_e2e () {
     }
 
     log "setting up npm e2e test"
+    anyStepFailed=false
 
     # make sure there are no previous results
     log "cleaning up previous npm e2e results..."
-    rm *.log *.ran *.success || true
+    rm *.log *.ran *.success *.failed || true
 
     echo "" > npm-e2e.ran
 
@@ -46,41 +46,36 @@ npm_e2e () {
 
     log "sleeping 8m for NPM to bootup, then verifying VFP tags after bootup..."
     sleep 8m
-    verify_vfp_tags_using_npm vfp-state-prior.ran
-    echo "" > vfp-state-prior.success
+    verify_vfp_tags_using_npm vfp-state-prior || anyStepFailed=true
 
     ## NPM cyclonus
-    run_npm_cyclonus
-    echo "" > cyclonus.success
+    run_npm_cyclonus && echo "" > cyclonus.success || anyStepFailed=true
 
     log "sleeping 5m to allow VFP to update tags after cyclonus..."
     sleep 5m
     log "verifying VFP tags after cyclonus..."
-    verify_vfp_tags_using_npm vfp-state-after-cyclonus.ran
-    echo "" > vfp-state-after-cyclonus.success
+    verify_vfp_tags_using_npm vfp-state-after-cyclonus || anyStepFailed=true
     log "deleting cyclonus pods..."
     kubectl delete ns x y z
 
     ## NPM conformance
-    run_npm_conformance
-    echo "" > conformance.success
+    run_npm_conformance && echo "" > conformance.success || anyStepFailed=true
 
     log "sleeping 5m to allow VFP to update tags after conformance..."
     sleep 5m
     log "verifying VFP tags after conformance..."
-    verify_vfp_tags_using_npm vfp-state-after-conformance.ran
-    echo "" > vfp-state-after-conformance.success
+    verify_vfp_tags_using_npm vfp-state-after-conformance || anyStepFailed=true
 
     ## NPM scale
-    run_npm_scale $kubeconfigFile
-    echo "" > scale-connectivity.success
+    run_npm_scale $kubeconfigFile && echo "" > scale-connectivity.success ||  anyStepFailed=true
     log "sleeping 5m to allow VFP to update tags after scale test..."
     sleep 5m
     log "verifying VFP tags after scale test..."
-    verify_vfp_tags_using_npm vfp-state-after-scale.ran
-    echo "" > vfp-state-after-scale.success
+    verify_vfp_tags_using_npm vfp-state-after-scale || anyStepFailed=true
 
-    echo "" > npm-e2e.success
+    if [[ $anyStepFailed == false ]]; then
+    	echo "" > npm-e2e.success
+    fi
 }
 
 install_npm () {
@@ -165,8 +160,8 @@ install_npm () {
 
 verify_vfp_tags_using_npm () {
     local ranFilename=$1
-    if [[ $ranFilename != *.ran ]]; then
-        log "ERROR: need a filename that ends in .ran passed as an argument to verify_vfp_tags_using_npm"
+    if [[ -z $ranFilename ]]; then
+        log "ERROR: need a filename passed as an argument to verify_vfp_tags_using_npm"
         return 1
     fi
 
@@ -205,17 +200,21 @@ verify_vfp_tags_using_npm () {
         fi
     done
 
-    echo "" > $ranFilename
+    echo "" > rehydration.ran
     if [[ $hadEndpoints == false ]]; then
         log "ERROR: no Endpoints found in HNS for node IPs $matchString on node $npmNode. Rehydration of Endpoints likely failed"
+	echo "" > rehydration.failed
         return 1
     fi
-
+    
+    echo "" > $ranFilename.ran
     if [[ $hadFailure == true ]]; then
         log "ERROR: VFP tags are inconsistent with HNS SetPolicies"
         capture_npm_hns_state
         return 1
     fi
+
+    echo "" > $ranFilename.success
 }
 
 # results in a file called npm-hns-state.zip
