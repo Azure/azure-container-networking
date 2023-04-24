@@ -218,12 +218,16 @@ func (nm *networkManager) addNewNetRules(nwInfo *NetworkInfo) error {
 	// iterate subnet and add ipv4 and ipv6 default route and gateway only if it is not existing
 	for _, subnet := range nwInfo.Subnets {
 		prefix := subnet.Prefix.String()
-		gateway := subnet.Gateway.String()
 
 		ip, _, errParseCIDR := net.ParseCIDR(prefix)
 		if errParseCIDR != nil {
 			return fmt.Errorf("[net] failed to parse prefix %s due to %+v", prefix, errParseCIDR) // nolint
 		}
+
+		if subnet.Gateway == nil {
+			return fmt.Errorf("[net] failed to get subnet gateway") // nolint
+		}
+		gateway := subnet.Gateway.String()
 
 		log.Printf("[net] Adding ipv4 and ipv6 net rules to windows node")
 
