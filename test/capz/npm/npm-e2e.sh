@@ -39,6 +39,7 @@ npm_e2e () {
     # make sure there are no previous results
     log "cleaning up previous npm e2e results..."
     rm *.log *.ran *.success *.failed || true
+    rm -rf npm-hns-state/ || true
 
     echo "" > npm-e2e.ran
 
@@ -219,9 +220,13 @@ verify_vfp_tags_using_npm () {
 
 # results in a file called npm-hns-state.zip
 capture_npm_hns_state () {
+    if [[ -f npm-hns-state.zip ]]; then
+        log "WARNING: not capturing NPM HNS state since state was previously captured"	
+        return 0	
+    fi
+
     log "capturing NPM HNS state..."
     kubectl get pod -owide -A
-    test -d npm-hns-state/ && rm -rf npm-hns-state/ || true
     mkdir npm-hns-state
     cd npm-hns-state
     curl -LO https://raw.githubusercontent.com/Azure/azure-container-networking/master/debug/windows/npm/win-debug.sh
@@ -313,6 +318,7 @@ run_npm_cyclonus () {
     log "beginning npm cyclonus test..."
     echo "" > cyclonus.ran
     ./cyclonus_linux_amd64/cyclonus generate \
+        --junit-results-file=cyclonus.xml \
         --fail-fast \
         --noisy=true \
         --retries=7 \
