@@ -57,7 +57,7 @@ npm_e2e () {
     log "verifying VFP tags after cyclonus..."
     verify_vfp_tags_using_npm vfp-state-after-cyclonus || anyStepFailed=true
     log "deleting cyclonus pods..."
-    kubectl delete ns x y z
+    kubectl delete ns x y z || true
 
     ## NPM conformance
     run_npm_conformance && echo "" > conformance.success || anyStepFailed=true
@@ -66,6 +66,8 @@ npm_e2e () {
     sleep 5m
     log "verifying VFP tags after conformance..."
     verify_vfp_tags_using_npm vfp-state-after-conformance || anyStepFailed=true
+    log "deleting NPM conformance namespaces if they were leftover from a failure..."
+    kubectl delete ns -l pod-security.kubernetes.io/enforce=baseline || true
 
     ## NPM scale
     run_npm_scale $kubeconfigFile && echo "" > scale-connectivity.success ||  anyStepFailed=true
