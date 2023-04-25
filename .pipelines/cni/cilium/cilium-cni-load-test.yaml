@@ -26,7 +26,7 @@ stages:
       - job: deploy_cilium_components
         steps:
           - task: AzureCLI@1
-            displayName: "Install Cilium CNS and ip-masq-agent"
+            displayName: "Install Cilium, CNS, and ip-masq-agent"
             inputs:
               azureSubscription: $(TEST_SUB_SERVICE_CONNECTION)
               scriptLocation: "inlineScript"
@@ -41,7 +41,8 @@ stages:
                 kubectl cluster-info
                 kubectl get po -owide -A
                 echo "Deploy Azure-CNS"
-                kubectl apply -f test/integration/manifests/cilium/cns-write-ovly.yaml
+                kubectl apply -f test/integration/manifests/cnsconfig/overlayconfigmap.yaml
+                kubectl apply -f test/integration/manifests/cns
                 echo "deploy Cilium ConfigMap"
                 kubectl apply -f cilium/configmap.yaml
                 kubectl apply -f test/integration/manifests/cilium/cilium-config.yaml

@@ -26,12 +26,13 @@ const (
 
 	// relative cns manifest paths
 	cnsManifestFolder         = "manifests/cns"
+	cnsConfigFolder           = "manifests/cnsconfig"
 	cnsDaemonSetPath          = cnsManifestFolder + "/daemonset.yaml"
 	cnsClusterRolePath        = cnsManifestFolder + "/clusterrole.yaml"
 	cnsClusterRoleBindingPath = cnsManifestFolder + "/clusterrolebinding.yaml"
-	cnsSwiftConfigMapPath     = cnsManifestFolder + "/swiftconfigmap.yaml"
-	cnsCiliumConfigMapPath    = cnsManifestFolder + "/ciliumconfigmap.yaml"
-	cnsOverlayConfigMapPath   = cnsManifestFolder + "/overlayconfigmap.yaml"
+	cnsSwiftConfigMapPath     = cnsConfigFolder + "/swiftconfigmap.yaml"
+	cnsCiliumConfigMapPath    = cnsConfigFolder + "/ciliumconfigmap.yaml"
+	cnsOverlayConfigMapPath   = cnsConfigFolder + "/overlayconfigmap.yaml"
 	cnsRolePath               = cnsManifestFolder + "/role.yaml"
 	cnsRoleBindingPath        = cnsManifestFolder + "/rolebinding.yaml"
 	cnsServiceAccountPath     = cnsManifestFolder + "/serviceaccount.yaml"
