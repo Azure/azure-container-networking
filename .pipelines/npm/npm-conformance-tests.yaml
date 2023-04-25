@@ -508,7 +508,7 @@ jobs:
           PROFILE: "scale-win"
     steps:
       - checkout: self
-      - task: AzureCLI@1
+      - task: AzureCLI@2
         displayName: "Create AKS Cluster"
         inputs:
           azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
@@ -559,7 +559,7 @@ jobs:
             mkdir -p ~/.kube/
             cp ./kubeconfig ~/.kube/config
 
-      - task: AzureCLI@1
+      - task: AzureCLI@2
         displayName: "Deploy NPM to Test Cluster"
         inputs:
           azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
@@ -588,7 +588,7 @@ jobs:
             FQDN=`az aks show -n $CLUSTER_NAME -g $CLUSTER_NAME --query fqdn -o tsv`
             echo "##vso[task.setvariable variable=FQDN]$FQDN"
 
-      - task: AzureCLI@1
+      - task: AzureCLI@2
         displayName: "Scale Test"
         inputs:
           azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
