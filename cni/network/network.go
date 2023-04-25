@@ -642,10 +642,8 @@ func (plugin *NetPlugin) createNetworkInternal(
 		ServiceCidrs:                  ipamAddConfig.nwCfg.ServiceCidrs,
 	}
 
-	// check if ipamMode is dualStackOverlay mode, then set IPv6Mode to dualStackOverlay mode
-	if ipamAddConfig.nwCfg.IPAM.Mode == string(util.DualStackOverlay) {
-		nwInfo.IPV6Mode = ipamAddConfig.nwCfg.IPAM.Mode
-	}
+	// set IPv6Mode to dualStackOverlay mode
+	nwInfo.IPV6Mode = ipamAddConfig.nwCfg.IPAM.Mode
 
 	if err = addSubnetToNetworkInfo(ipamAddResult, &nwInfo); err != nil {
 		log.Printf("[cni-net] Failed to add subnets to networkInfo due to %+v", err)
