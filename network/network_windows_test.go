@@ -298,7 +298,7 @@ func TestAddNewNetRules(t *testing.T) {
 		t.Fatal("Failed to add/delete a new network rule")
 	}
 
-	if cnt != 8 {
+	if cnt != expectedNumRules {
 		t.Fatalf("Failed to add/delete expected number %d of new network rules", expectedNumRules)
 	}
 }
