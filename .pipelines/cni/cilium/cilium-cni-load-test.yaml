@@ -36,6 +36,8 @@ stages:
                 set -ex
                 az extension add --name aks-preview
                 make -C ./hack/swift set-kubeconf AZCLI=az CLUSTER=${RESOURCE_GROUP}
+                kubectl apply -f hack/manifests/pod.yaml
+                kubectl apply -f hack/manifests/hostprocess.yaml
                 bash hack/scripts/scale_deployment.sh
   - stage: validate_state
     dependsOn: pod_deployment
@@ -56,8 +58,37 @@ stages:
             name: "ValidateState"
             displayName: "Validate State"
             retryCountOnTaskFailure: 3
-  - stage: connectivity_tests
+  - stage: restart_nodes
     dependsOn: validate_state
+    displayName: "Restart Node"
+    jobs:
+      - job: restart_nodes
+        steps:
+          - task: AzureCLI@1
+            inputs:
+              azureSubscription: $(TEST_SUB_SERVICE_CONNECTION)
+              scriptLocation: "inlineScript"
+              scriptType: "bash"
+              addSpnToEnvironment: true
+              inlineScript: |
+                echo "Scale up the pods and immediated restart the nodes"
+                make -C ./hack/swift set-kubeconf AZCLI=az CLUSTER=${RESOURCE_GROUP}
+                make -C ./hack/swift azcfg AZCLI=az REGION=$(LOCATION)
+                echo "Scaling the pods down to 100 per node"
+                bash ./hack/scripts/scale_deployment.sh -n 0 -u 1000 -s
+                echo "Restarting the nodes"
+                vmss_name=$(az vmss list -g MC_${RESOURCE_GROUP}_${RESOURCE_GROUP}_$(LOCATION) --query "[].name" -o tsv)
+                make -C ./hack/swift restart-vmss AZCLI=az CLUSTER=${RESOURCE_GROUP} REGION=$(LOCATION) VMSS_NAME=$vmss_name
+                bash ./hack/scripts/scale_deployment.sh -n 0 -u 1000 -c
+            name: "RestartNodes"
+            displayName: "Restart Nodes"
+          - script: |
+              bash hack/scripts/validate_state.sh
+            name: "ValidateState"
+            displayName: "Validate State"
+            retryCountOnTaskFailure: 3
+  - stage: connectivity_tests
+    dependsOn: restart_nodes
     displayName: "Connectivity Tests"
     jobs:
       - job: cni_tests

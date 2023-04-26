@@ -18,27 +18,35 @@ spec:
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
-    - jsonPath: .status.status
-      name: Status
-      type: string
     - jsonPath: .spec.requestedIPCount
       name: Requested IPs
-      type: string
+      priority: 1
+      type: integer
     - jsonPath: .status.assignedIPCount
-      name: Assigned IPs
-      type: string
+      name: Allocated IPs
+      type: integer
     - jsonPath: .status.networkContainers[*].subnetName
       name: Subnet
+      priority: 1
       type: string
     - jsonPath: .status.networkContainers[*].subnetAddressSpace
       name: Subnet CIDR
+      priority: 1
       type: string
     - jsonPath: .status.networkContainers[*].id
       name: NC ID
+      priority: 1
+      type: string
+    - jsonPath: .status.networkContainers[*].assignmentMode
+      name: NC Mode
+      type: string
+    - jsonPath: .status.networkContainers[*].type
+      name: NC Type
+      priority: 1
       type: string
     - jsonPath: .status.networkContainers[*].version
       name: NC Version
-      type: string
+      type: integer
     name: v1alpha
     schema:
       openAPIV3Schema:
@@ -64,6 +72,7 @@ spec:
                   type: string
                 type: array
               requestedIPCount:
+                default: 0
                 format: int64
                 type: integer
             type: object
@@ -71,6 +80,7 @@ spec:
             description: NodeNetworkConfigStatus defines the observed state of NetworkConfig
             properties:
               assignedIPCount:
+                default: 0
                 type: integer
               networkContainers:
                 items:
@@ -115,10 +125,12 @@ spec:
                     subnetName:
                       type: string
                     type:
+                      default: vnet
                       description: NCType is the specific type of network this NC
                         represents.
                       type: string
                     version:
+                      default: 0
                       format: int64
                       type: integer
                     vnetID:
