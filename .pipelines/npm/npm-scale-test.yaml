@@ -16,6 +16,13 @@ jobs:
     steps:
       - checkout: self
 
+      - bash: |
+          echo "looking at workspacec dir"
+          ls $(Pipeline.Workspace)
+          echo "looking at S directory"
+          ls $(Pipeline.Workspace)/s
+          exit 1
+
       - script: |
           go version
           go env
