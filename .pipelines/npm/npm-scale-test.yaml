@@ -79,8 +79,8 @@ jobs:
     steps:
       - checkout: self
       - bash: |
-          test -d $(Pipeline.Workspace)/s/azure-container-networking/test/scale/ || {
-              echo "##vso[task.logissue type=error]$(Pipeline.Workspace)/s/azure-container-networking/test/scale/ does not exist"
+          test -d $(Pipeline.Workspace)/s/test/scale/ || {
+              echo "##vso[task.logissue type=error]$(Pipeline.Workspace)/s/test/scale/ does not exist"
               exit 1
           }
         displayName: "Verify Directory Exists"
@@ -183,7 +183,7 @@ jobs:
           failOnStderr: true
           condition: succeeded()
           inlineScript: |
-            cd $(Pipeline.Workspace)/s/azure-container-networking/test/scale/
+            cd $(Pipeline.Workspace)/s/test/scale/
             mkdir -p $(System.DefaultWorkingDirectory)/$(RESOURCE_GROUP)-$(PROFILE)
             ./run-kwok.sh > $(System.DefaultWorkingDirectory)/$(RESOURCE_GROUP)-$(PROFILE)/kwok-latency.log &
             kwok_pid=$!
@@ -233,7 +233,7 @@ jobs:
           failOnStderr: true
           condition: succeeded()
           inlineScript: |
-            cd $(Pipeline.Workspace)/s/azure-container-networking/test/scale/
+            cd $(Pipeline.Workspace)/s/test/scale/
             mkdir -p $(System.DefaultWorkingDirectory)/$(RESOURCE_GROUP)-$(PROFILE)
             ./run-kwok.sh > $(System.DefaultWorkingDirectory)/$(RESOURCE_GROUP)-$(PROFILE)/kwok-crud.log &
             kwok_pid=$!
