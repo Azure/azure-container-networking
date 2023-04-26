@@ -153,12 +153,14 @@ jobs:
             # swap azure-npm image with one built during run
             kubectl set image daemonset/azure-npm-win -n kube-system azure-npm=$IMAGE_REGISTRY/azure-npm:windows-amd64-ltsc2022-$(TAG)
 
-            kubectl get node -o wide | grep "Windows Server 2022 Datacenter" | awk '{print $1}' | xargs -n 1 -I {} kubectl label node {} scale-test=true connectivity-test=true
-
-            echo "sleeping 3 minutes to allow NPM pods to restart"
-            sleep 180
+            sleep 5s
+            echo "waiting for NPM to start running..."
+            kubectl wait --for=condition=Ready pod -l app=azure-npm -n kube-system --timeout=20m
 
             kubectl get po -n kube-system -owide -A
+
+            echo "labeling Windows nodes for scale test"
+            kubectl get node -o wide | grep "Windows Server 2022 Datacenter" | awk '{print $1}' | xargs -n 1 -I {} kubectl label node {} scale-test=true connectivity-test=true
 
             echo "Showing cluster status for $CLUSTER_NAME"
             FQDN=`az aks show -n $CLUSTER_NAME -g $CLUSTER_NAME --query fqdn -o tsv`
@@ -208,8 +210,8 @@ jobs:
             fi
 
             kubectl rollout restart -n kube-system ds azure-npm-win
-            echo "sleeping 3 minutes to allow NPM pods to restart after scale-up"
-            sleep 180
+            echo "sleeping 3 minutes to allow NPM pods to restart after scale-up..."
+            sleep 3m
 
             cd connectivity/
             # initial connectivity should be established within 15 minutes of NPM restart (12 minute timeout since we already waited 3 minutes above)
