@@ -85,13 +85,6 @@ jobs:
           }
         displayName: "Verify Directory Exists"
         failOnStderr: true
-      - bash: |
-            curl -LO https://dl.k8s.io/release/v1.23.0/bin/linux/amd64/kubectl
-            chmod +x kubectl
-            cp kubectl /usr/local/bin/kubectl
-        displayName: "Install kubectl"
-        failOnStderr: true
-        condition: succeeded()
       - task: AzureCLI@2
         displayName: "Create AKS Cluster"
         inputs:
@@ -156,7 +149,9 @@ jobs:
           condition: succeeded()
           inlineScript: |
             set -e
-            export CLUSTER_NAME=$(RESOURCE_GROUP)-$(PROFILE)
+            curl -LO https://dl.k8s.io/release/v1.23.0/bin/linux/amd64/kubectl
+            chmod +x kubectl
+            cp kubectl ~/.kube/kubectl
 
             # deploy azure-npm
             kubectl apply -f https://raw.githubusercontent.com/Azure/azure-container-networking/master/npm/examples/windows/azure-npm.yaml
@@ -173,6 +168,7 @@ jobs:
             echo "labeling Windows nodes for scale test"
             kubectl get node -o wide | grep "Windows Server 2022 Datacenter" | awk '{print $1}' | xargs -n 1 -I {} kubectl label node {} scale-test=true connectivity-test=true
 
+            export CLUSTER_NAME=$(RESOURCE_GROUP)-$(PROFILE)
             echo "Showing cluster status for $CLUSTER_NAME"
             FQDN=`az aks show -n $CLUSTER_NAME -g $CLUSTER_NAME --query fqdn -o tsv`
             echo "##vso[task.setvariable variable=FQDN]$FQDN"
@@ -196,7 +192,8 @@ jobs:
             # 300 ACLs per endpoint
             # ~4K IPSets
             # ~36K IPSet members
-            ./test-scale.sh --max-kwok-pods-per-node=50 \
+            ./test-scale.sh --kubectl-binary=~/.kube/kubectl \
+                --max-kwok-pods-per-node=50 \
                 --num-kwok-deployments=10 \
                 --num-kwok-replicas=100 \
                 --max-real-pods-per-node=30 \
@@ -220,7 +217,8 @@ jobs:
             cd connectivity/
             # initial connectivity should be established within 15 minutes of NPM restart (12 minute timeout since we already waited 3 minutes above)
             # adding new network policy to all 30 Pods should take no more than 1 minute
-            ./test-connectivity.sh --num-scale-pods-to-verify=all \
+            ./test-connectivity.sh --kubectl-binary=~/.kube/kubectl \
+                --num-scale-pods-to-verify=all \
                 --max-wait-for-initial-connectivity=$((12*60)) \
                 --max-wait-after-adding-netpol=60
             rc=$?
@@ -241,7 +239,8 @@ jobs:
             ./run-kwok.sh > $(System.DefaultWorkingDirectory)/$(RESOURCE_GROUP)-$(PROFILE)/kwok-crud.log &
             kwok_pid=$!
             # will delete scale-test and connectivity-test namespaces from previous run
-            ./test-scale.sh --max-kwok-pods-per-node=50 \
+            ./test-scale.sh --kubectl-binary=~/.kube/kubectl \
+                --max-kwok-pods-per-node=50 \
                 --num-kwok-deployments=10 \
                 --num-kwok-replicas=1 \
                 --max-real-pods-per-node=30 \
@@ -269,7 +268,8 @@ jobs:
             fi
 
             cd connectivity/
-            ./test-connectivity.sh --num-scale-pods-to-verify=all \
+            ./test-connectivity.sh --kubectl-binary=~/.kube/kubectl \
+                --num-scale-pods-to-verify=all \
                 --max-wait-for-initial-connectivity=600 \
                 --max-wait-after-adding-netpol=120
             rc=$?
