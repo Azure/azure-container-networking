@@ -352,7 +352,7 @@ jobs:
         condition: always()
         artifact: NpmLogs_$(AZURE_CLUSTER)
 
-  - job: Create_Windows_Cyclonus_Cluster_and_Run_Test
+  - job: Create_Windows_Cluster_and_Run_Test
     timeoutInMinutes: 360
     displayName: "Run Windows Cyclonus"
     pool:
@@ -497,7 +497,7 @@ jobs:
         - agent.os -equals Linux
         - Role -equals Build
     dependsOn:
-      [Create_Cluster_and_Run_Test, Create_Windows_Cyclonus_Cluster_and_Run_Test, setup]
+      [Create_Cluster_and_Run_Test, Create_Windows_Cluster_and_Run_Test, setup]
     variables:
       RESOURCE_GROUP: $[ dependencies.setup.outputs['EnvironmentalVariables.RESOURCE_GROUP'] ]
     steps:
