@@ -202,20 +202,16 @@ func (npMgr *NetworkPolicyManager) Start(config npmconfig.Config, stopCh <-chan 
 
 	// start v2 NPM controllers after synced
 	if config.Toggles.EnableV2NPM {
-		if util.IsWindowsDP() && config.Toggles.ApplyInBackground {
-			go npMgr.NetPolControllerV2.Run(stopCh)
+		go npMgr.NetPolControllerV2.Run(stopCh)
 
+		if util.IsWindowsDP() && config.Toggles.ApplyInBackground {
 			klog.Infof("optimizing NPM bootup by letting NetPol controller process changes first. waiting %v before starting pod and namespace controllers", waitDurationAfterStartingNetPolController)
 			time.Sleep(waitDurationAfterStartingNetPolController)
-
 			npMgr.Dataplane.FinishBootupPhase()
-			go npMgr.PodControllerV2.Run(stopCh)
-			go npMgr.NamespaceControllerV2.Run(stopCh)
-		} else {
-			go npMgr.PodControllerV2.Run(stopCh)
-			go npMgr.NamespaceControllerV2.Run(stopCh)
-			go npMgr.NetPolControllerV2.Run(stopCh)
 		}
+
+		go npMgr.PodControllerV2.Run(stopCh)
+		go npMgr.NamespaceControllerV2.Run(stopCh)
 
 		return nil
 	}
