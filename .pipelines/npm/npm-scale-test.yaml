@@ -4,8 +4,6 @@ trigger:
 variables:
   - name: VNET_NAME
     value: npm-vnet
-  - name: NUM_PARALLEL_JOBS_FOR_STRESS_TEST
-    value: "3"
 
 jobs:
   - job: setup
@@ -48,10 +46,6 @@ jobs:
       name: "$(BUILD_POOL_NAME_DEFAULT)"
     strategy:
       matrix:
-        npm_linux_amd64:
-          arch: amd64
-          name: npm
-          os: linux
         npm_windows2022_amd64:
           arch: amd64
           name: npm
