@@ -10,7 +10,7 @@ NETPOL_SLEEP=5
 
 printHelp() {
     cat <<EOF
-./test-connectivity.sh --num-scale-pods-to-verify=all|<int> --max-wait-for-initial-connectivity=<int> --max-wait-after-adding-netpol=<int> [--kubeconfig=<path>]
+./test-connectivity.sh --num-scale-pods-to-verify=all|<int> --max-wait-for-initial-connectivity=<int> --max-wait-after-adding-netpol=<int> [--kubeconfig=<path>] [--kubectl-binary=<path>]
 
 Verifies that scale test Pods can connect to each other, but cannot connect to a new "pinger" Pod.
 Then, adds a NetworkPolicy to allow traffic between the scale test Pods and the "pinger" Pod, and verifies connectivity.
@@ -27,6 +27,7 @@ REQUIRED PARAMETERS:
 
 OPTIONAL PARAMETERS:
     --kubeconfig=<path>                 path to kubeconfig file
+    --kubectl-binary=<path>               path to kubectl binary. Default is kubectl
 
 EXIT CODES:
 0 - success
@@ -64,6 +65,15 @@ while [[ $# -gt 0 ]]; do
             }
             echo "using kubeconfig: $file"
             ;;
+        --kubectl-binary=*)
+            file=${1#*=}
+            KUBECTL="--kubectl-binary $file"
+            test -f $file || { 
+                echo "ERROR: kubectl binary not found: [$file]"
+                exit 1
+            }
+            echo "using kubectl binary: $file"
+            ;;
         *)
             echo "ERROR: unknown parameter $1. Make sure you're using '--key=value' for parameters with values"
             exit 6
@@ -75,6 +85,10 @@ done
 if [[ -z $numScalePodsToVerify || -z $maxWaitForInitialConnectivity || -z $maxWaitAfterAddingNetpol ]]; then
     echo "ERROR: missing required parameter. Check --help for usage"
     exit 6
+fi
+
+if [[ -z $KUBECTL ]]; then
+    KUBECTL="kubectl"
 fi
 
 ## PRINT OUT ARGS
