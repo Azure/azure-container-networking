@@ -86,6 +86,7 @@ jobs:
           scriptLocation: "inlineScript"
           failOnStderr: true
           inlineScript: |
+            set -e
             az extension add --name aks-preview
             az extension update --name aks-preview
 
@@ -137,7 +138,9 @@ jobs:
           scriptType: "bash"
           scriptLocation: "inlineScript"
           failOnStderr: true
+          condition: succeeded()
           inlineScript: |
+            set -e
             export CLUSTER_NAME=$(RESOURCE_GROUP)-$(PROFILE)
 
             curl -LO https://dl.k8s.io/release/v1.23.0/bin/linux/amd64/kubectl
@@ -164,8 +167,9 @@ jobs:
       - bash: |
             # can't find a way to reference files, so have to clone the repo
             git clone https://github.com/Azure/azure-container-networking.git --depth=1 --branch=master
-        displayName: "clone repo"
+        displayName: "Clone Repo"
         failOnStderr: true
+        condition: succeeded()
 
       - task: AzureCLI@2
         displayName: "Test Latency at Scale"
@@ -285,6 +289,7 @@ jobs:
           done
           cp ./kubeconfig $(System.DefaultWorkingDirectory)/$CLUSTER_NAME/.kubeconfig
         condition: always()
+        displayName: "Get Logs"
 
       - publish: $(System.DefaultWorkingDirectory)/$(RESOURCE_GROUP)-$(PROFILE)
         condition: always()
