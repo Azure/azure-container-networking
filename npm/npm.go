@@ -207,8 +207,9 @@ func (npMgr *NetworkPolicyManager) Start(config npmconfig.Config, stopCh <-chan 
 		if util.IsWindowsDP() && config.Toggles.ApplyInBackground {
 			klog.Infof("optimizing NPM bootup by letting NetPol controller process changes first. waiting %v before starting pod and namespace controllers", waitDurationAfterStartingNetPolController)
 			time.Sleep(waitDurationAfterStartingNetPolController)
-			npMgr.Dataplane.FinishBootupPhase()
 		}
+
+		npMgr.Dataplane.FinishBootupPhase()
 
 		go npMgr.PodControllerV2.Run(stopCh)
 		go npMgr.NamespaceControllerV2.Run(stopCh)
