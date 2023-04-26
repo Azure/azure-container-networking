@@ -234,7 +234,7 @@ jobs:
           scriptType: "bash"
           scriptLocation: "inlineScript"
           failOnStderr: true
-          condition: succeeded()
+          # condition: succeeded()
           inlineScript: |
             cd $(Pipeline.Workspace)/s/test/scale/
             mkdir -p $(System.DefaultWorkingDirectory)/$(RESOURCE_GROUP)-$(PROFILE)
