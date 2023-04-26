@@ -289,7 +289,7 @@ func TestAddNewNetRules(t *testing.T) {
 
 	plc.SetExecCommand(func(cmd string) (string, error) {
 		assert.Equal(t, expectedCmds[cnt], cmd)
-		cnt += 1
+		cnt++
 		return "", nil
 	})
 
