@@ -16,13 +16,6 @@ jobs:
     steps:
       - checkout: self
 
-      - bash: |
-          echo "looking at workspacec dir"
-          ls $(Pipeline.Workspace)
-          echo "looking at S directory"
-          ls $(Pipeline.Workspace)/s
-          exit 1
-
       - script: |
           go version
           go env
@@ -85,6 +78,13 @@ jobs:
           PROFILE: "scale-win"
     steps:
       - checkout: self
+      - bash: |
+          test -d $(Pipeline.Workspace)/s/azure-container-networking/test/scale/ || {
+              echo "##vso[task.logissue type=error]$(Pipeline.Workspace)/s/azure-container-networking/test/scale/ does not exist"
+              exit 1
+          }
+        displayName: "Verify Directory Exists"
+        failOnStderr: true
       - task: AzureCLI@2
         displayName: "Create AKS Cluster"
         inputs:
@@ -92,6 +92,7 @@ jobs:
           scriptType: "bash"
           scriptLocation: "inlineScript"
           failOnStderr: true
+          condition: succeeded()
           inlineScript: |
             set -e
             az extension add --name aks-preview
@@ -173,13 +174,6 @@ jobs:
             FQDN=`az aks show -n $CLUSTER_NAME -g $CLUSTER_NAME --query fqdn -o tsv`
             echo "##vso[task.setvariable variable=FQDN]$FQDN"
 
-      - bash: |
-            # can't find a way to reference files, so have to clone the repo
-            git clone https://github.com/Azure/azure-container-networking.git --depth=1 --branch=master
-        displayName: "Clone Repo"
-        failOnStderr: true
-        condition: succeeded()
-
       - task: AzureCLI@2
         displayName: "Test Latency at Scale"
         inputs:
@@ -189,7 +183,7 @@ jobs:
           failOnStderr: true
           condition: succeeded()
           inlineScript: |
-            cd azure-container-networking/test/scale/
+            cd $(Pipeline.Workspace)/s/azure-container-networking/test/scale/
             mkdir -p $(System.DefaultWorkingDirectory)/$(RESOURCE_GROUP)-$(PROFILE)
             ./run-kwok.sh > $(System.DefaultWorkingDirectory)/$(RESOURCE_GROUP)-$(PROFILE)/kwok-latency.log &
             kwok_pid=$!
@@ -239,7 +233,7 @@ jobs:
           failOnStderr: true
           condition: succeeded()
           inlineScript: |
-            cd azure-container-networking/test/scale/
+            cd $(Pipeline.Workspace)/s/azure-container-networking/test/scale/
             mkdir -p $(System.DefaultWorkingDirectory)/$(RESOURCE_GROUP)-$(PROFILE)
             ./run-kwok.sh > $(System.DefaultWorkingDirectory)/$(RESOURCE_GROUP)-$(PROFILE)/kwok-crud.log &
             kwok_pid=$!
