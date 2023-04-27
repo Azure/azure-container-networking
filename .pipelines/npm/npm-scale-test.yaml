@@ -60,7 +60,7 @@ jobs:
           os_version: $(os_version)
 
   - job: Create_Cluster_and_Run_Test
-    timeoutInMinutes: 180
+    timeoutInMinutes: 120
     displayName: "Run Scale Test"
     pool:
       name: $(BUILD_POOL_NAME_DEFAULT)
@@ -85,6 +85,23 @@ jobs:
           }
         displayName: "Verify Directory Exists"
         failOnStderr: true
+      - task: AzureCLI@2
+        displayName: "Download Kubectl and Kwok"
+        inputs:
+          azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+          scriptType: "bash"
+          scriptLocation: "inlineScript"
+          failOnStderr: true
+          condition: succeeded()
+          inlineScript: |
+            set -e
+            curl -LO https://dl.k8s.io/release/v1.23.0/bin/linux/amd64/kubectl
+            chmod +x kubectl
+
+            KWOK_REPO=kubernetes-sigs/kwok
+            KWOK_LATEST_RELEASE=$(curl "https://api.github.com/repos/${KWOK_REPO}/releases/latest" | jq -r '.tag_name')
+            wget -O kwok -c "https://github.com/kubernetes-sigs/kwok/releases/download/${KWOK_LATEST_RELEASE}/kwok-$(go env GOOS)-$(go env GOARCH)"
+            chmod +x kwok
       - task: AzureCLI@2
         displayName: "Create AKS Cluster"
         inputs:
@@ -149,8 +166,6 @@ jobs:
           condition: succeeded()
           inlineScript: |
             set -e
-            curl -LO https://dl.k8s.io/release/v1.23.0/bin/linux/amd64/kubectl
-            chmod +x kubectl
 
             # deploy azure-npm
             kubectl apply -f https://raw.githubusercontent.com/Azure/azure-container-networking/master/npm/examples/windows/azure-npm.yaml
@@ -173,7 +188,7 @@ jobs:
             echo "##vso[task.setvariable variable=FQDN]$FQDN"
 
       - task: AzureCLI@2
-        displayName: "Test Latency at Scale"
+        displayName: "Scale Up Large"
         inputs:
           azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
           scriptType: "bash"
@@ -181,17 +196,25 @@ jobs:
           failOnStderr: true
           condition: succeeded()
           inlineScript: |
-            kubectlPath=`pwd`/kubectl
-            cd $(Pipeline.Workspace)/s/test/scale/
             mkdir -p $(System.DefaultWorkingDirectory)/$(RESOURCE_GROUP)-$(PROFILE)
-            ./run-kwok.sh > $(System.DefaultWorkingDirectory)/$(RESOURCE_GROUP)-$(PROFILE)/kwok-latency.log &
+            kwok --kubeconfig ~/.kube/config \
+              --cidr=155.0.0.0/16 \
+              --node-ip=155.0.0.1 \
+              --manage-all-nodes=false \
+              --manage-nodes-with-annotation-selector=kwok.x-k8s.io/node=fake \
+              --manage-nodes-with-label-selector= \
+              --disregard-status-with-annotation-selector=kwok.x-k8s.io/status=custom \
+              --disregard-status-with-label-selector= > $(System.DefaultWorkingDirectory)/$(RESOURCE_GROUP)-$(PROFILE)/kwok-scale-up.log &
             kwok_pid=$!
+
             # 20 kwok nodes
             # 1000 kwok Pods
             # 30 real Pods
             # 300 ACLs per endpoint
             # ~4K IPSets
             # ~36K IPSet members
+            kubectlPath=`pwd`/kubectl
+            cd $(Pipeline.Workspace)/s/test/scale/
             ./test-scale.sh --kubectl-binary=$kubectlPath \
                 --max-kwok-pods-per-node=50 \
                 --num-kwok-deployments=10 \
@@ -205,16 +228,34 @@ jobs:
                 --num-unique-labels-per-deployment=2 \
                 --num-shared-labels-per-pod=10
             rc=$?
-            if [[ $? != 0 ]]; then
-              kill $kwok_pid
-              exit $rc
-            fi
+            kill $kwok_pid
+            exit $rc
+
+      - task: AzureCLI@2
+        displayName: "Test NPM Bootup Latency and Connectivity"
+        inputs:
+          azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+          scriptType: "bash"
+          scriptLocation: "inlineScript"
+          failOnStderr: true
+          condition: succeeded()
+          inlineScript: |
+            mkdir -p $(System.DefaultWorkingDirectory)/$(RESOURCE_GROUP)-$(PROFILE)
+            kwok --kubeconfig ~/.kube/config \
+              --cidr=155.0.0.0/16 \
+              --node-ip=155.0.0.1 \
+              --manage-all-nodes=false \
+              --manage-nodes-with-annotation-selector=kwok.x-k8s.io/node=fake \
+              --manage-nodes-with-label-selector= \
+              --disregard-status-with-annotation-selector=kwok.x-k8s.io/status=custom \
+              --disregard-status-with-label-selector= > $(System.DefaultWorkingDirectory)/$(RESOURCE_GROUP)-$(PROFILE)/kwok-bootup-latency.log &
+            kwok_pid=$!
 
             kubectl rollout restart -n kube-system ds azure-npm-win
             echo "sleeping 3 minutes to allow NPM pods to restart after scale-up..."
             sleep 3m
 
-            cd connectivity/
+            cd $(Pipeline.Workspace)/s/test/scale/connectivity/
             # initial connectivity should be established within 15 minutes of NPM restart (12 minute timeout since we already waited 3 minutes above)
             # adding new network policy to all 30 Pods should take no more than 1 minute
             ./test-connectivity.sh --kubectl-binary=$kubectlPath \
@@ -226,7 +267,7 @@ jobs:
             exit $rc
 
       - task: AzureCLI@2
-        displayName: "Test CRUD at Scale"
+        displayName: "General CRUD at Medium Scale"
         inputs:
           azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
           scriptType: "bash"
@@ -234,10 +275,19 @@ jobs:
           failOnStderr: true
           # condition: succeeded()
           inlineScript: |
+            mkdir -p $(System.DefaultWorkingDirectory)/$(RESOURCE_GROUP)-$(PROFILE)
+            kwok --kubeconfig ~/.kube/config \
+              --cidr=155.0.0.0/16 \
+              --node-ip=155.0.0.1 \
+              --manage-all-nodes=false \
+              --manage-nodes-with-annotation-selector=kwok.x-k8s.io/node=fake \
+              --manage-nodes-with-label-selector= \
+              --disregard-status-with-annotation-selector=kwok.x-k8s.io/status=custom \
+              --disregard-status-with-label-selector= > $(System.DefaultWorkingDirectory)/$(RESOURCE_GROUP)-$(PROFILE)/kwok-crud.log &
+            kwok_pid=$!
+
             kubectlPath=`pwd`/kubectl
             cd $(Pipeline.Workspace)/s/test/scale/
-            mkdir -p $(System.DefaultWorkingDirectory)/$(RESOURCE_GROUP)-$(PROFILE)
-            ./run-kwok.sh > $(System.DefaultWorkingDirectory)/$(RESOURCE_GROUP)-$(PROFILE)/kwok-crud.log &
             kwok_pid=$!
             # will delete scale-test and connectivity-test namespaces from previous run
             ./test-scale.sh --kubectl-binary=$kubectlPath \
@@ -263,16 +313,36 @@ jobs:
                 --delete-pods-interval=120 \
                 --delete-pods-times=2
             rc=$?
-            if [[ $? != 0 ]]; then
-              kill $kwok_pid
-              exit $rc
-            fi
+            kill $kwok_pid
+            exit $rc
 
-            cd connectivity/
+      - task: AzureCLI@2
+        displayName: "Test Connectivity after CRUD"
+        inputs:
+          azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+          scriptType: "bash"
+          scriptLocation: "inlineScript"
+          failOnStderr: true
+          condition: succeeded()
+          inlineScript: |
+            mkdir -p $(System.DefaultWorkingDirectory)/$(RESOURCE_GROUP)-$(PROFILE)
+            kwok --kubeconfig ~/.kube/config \
+              --cidr=155.0.0.0/16 \
+              --node-ip=155.0.0.1 \
+              --manage-all-nodes=false \
+              --manage-nodes-with-annotation-selector=kwok.x-k8s.io/node=fake \
+              --manage-nodes-with-label-selector= \
+              --disregard-status-with-annotation-selector=kwok.x-k8s.io/status=custom \
+              --disregard-status-with-label-selector= > $(System.DefaultWorkingDirectory)/$(RESOURCE_GROUP)-$(PROFILE)/kwok-crud-connectivity.log &
+            kwok_pid=$!
+
+            cd $(Pipeline.Workspace)/s/test/scale/connectivity/
+            # initial connectivity should be established within 15 minutes of NPM restart (12 minute timeout since we already waited 3 minutes above)
+            # adding new network policy to all 30 Pods should take no more than 1 minute
             ./test-connectivity.sh --kubectl-binary=$kubectlPath \
                 --num-scale-pods-to-verify=all \
-                --max-wait-for-initial-connectivity=600 \
-                --max-wait-after-adding-netpol=120
+                --max-wait-for-initial-connectivity=$((12*60)) \
+                --max-wait-after-adding-netpol=60
             rc=$?
             kill $kwok_pid
             exit $rc
