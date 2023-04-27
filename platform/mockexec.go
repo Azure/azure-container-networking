@@ -22,6 +22,7 @@ func (e *MockExecClient) ExecuteCommand(cmd string) (string, error) {
 	if e.setExecCommand != nil {
 		return e.setExecCommand(cmd)
 	}
+
 	if e.returnError {
 		return "", ErrMockExec
 	}
