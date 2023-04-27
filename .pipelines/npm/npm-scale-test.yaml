@@ -338,11 +338,11 @@ jobs:
             kwok_pid=$!
 
             cd $(Pipeline.Workspace)/s/test/scale/connectivity/
-            # initial connectivity should be established within 15 minutes of NPM restart (12 minute timeout since we already waited 3 minutes above)
+            # initial connectivity should be established within 10 minutes
             # adding new network policy to all 30 Pods should take no more than 1 minute
             ./test-connectivity.sh --kubectl-binary=$kubectlPath \
                 --num-scale-pods-to-verify=all \
-                --max-wait-for-initial-connectivity=$((12*60)) \
+                --max-wait-for-initial-connectivity=$((10*60)) \
                 --max-wait-after-adding-netpol=60
             rc=$?
             kill $kwok_pid
