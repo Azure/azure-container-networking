@@ -161,7 +161,7 @@ jobs:
 
             sleep 5s
             echo "waiting for NPM to start running..."
-            kubectl wait --for=condition=Ready pod -l app=azure-npm -n kube-system --timeout=20m
+            kubectl wait --for=condition=Ready pod -l k8s-app=azure-npm -n kube-system --timeout=20m
 
             kubectl get po -n kube-system -owide -A
 
