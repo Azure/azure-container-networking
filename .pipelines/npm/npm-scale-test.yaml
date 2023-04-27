@@ -286,10 +286,11 @@ jobs:
               --disregard-status-with-label-selector= > $(System.DefaultWorkingDirectory)/$(RESOURCE_GROUP)-$(PROFILE)/kwok-crud.log &
             kwok_pid=$!
 
+            # will delete scale-test and connectivity-test namespaces from previous run
+            # 10 kwok Pods
+            # 30 real Pods
             kubectlPath=`pwd`/kubectl
             cd $(Pipeline.Workspace)/s/test/scale/
-            kwok_pid=$!
-            # will delete scale-test and connectivity-test namespaces from previous run
             ./test-scale.sh --kubectl-binary=$kubectlPath \
                 --max-kwok-pods-per-node=50 \
                 --num-kwok-deployments=10 \
