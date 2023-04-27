@@ -3,12 +3,13 @@ package client
 import (
 	"encoding/json"
 	"fmt"
+	"go.uber.org/zap"
 	"os"
 	"strings"
 
 	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/cni/api"
-	"github.com/Azure/azure-container-networking/log"
+	"github.com/Azure/azure-container-networking/cni/log"
 	"github.com/Azure/azure-container-networking/platform"
 	semver "github.com/hashicorp/go-version"
 	utilexec "k8s.io/utils/exec"
@@ -27,7 +28,7 @@ func (c *client) GetEndpointState() (*api.AzureCNIState, error) {
 	cmd.SetDir(CNIExecDir)
 	envs := os.Environ()
 	cmdenv := fmt.Sprintf("%s=%s", cni.Cmd, cni.CmdGetEndpointsState)
-	log.Printf("Setting cmd to %s", cmdenv)
+	log.Logger.Info("Setting cmd", zap.String("command", cmdenv))
 	envs = append(envs, cmdenv)
 	cmd.SetEnv(envs)
 

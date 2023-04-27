@@ -2,10 +2,10 @@ package api
 
 import (
 	"encoding/json"
+	"github.com/Azure/azure-container-networking/cni/log"
+	"go.uber.org/zap"
 	"net"
 	"os"
-
-	"github.com/Azure/azure-container-networking/log"
 )
 
 type PodNetworkInterfaceInfo struct {
@@ -23,13 +23,13 @@ type AzureCNIState struct {
 func (a *AzureCNIState) PrintResult() error {
 	b, err := json.MarshalIndent(a, "", "    ")
 	if err != nil {
-		log.Errorf("Failed to unmarshall Azure CNI state, err:%v.\n", err)
+		log.Logger.Error("Failed to unmarshall Azure CNI state", zap.Any("error", err))
 	}
 
 	// write result to stdout to be captured by caller
 	_, err = os.Stdout.Write(b)
 	if err != nil {
-		log.Printf("Failed to write response to stdout %v", err)
+		log.Logger.Error("Failed to write response to stdout", zap.Any("error", err))
 		return err
 	}
 

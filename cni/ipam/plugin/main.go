@@ -6,6 +6,7 @@ package main
 import (
 	"fmt"
 	"github.com/Azure/azure-container-networking/cni/log"
+	"go.uber.org/zap/zapcore"
 	"os"
 
 	"github.com/Azure/azure-container-networking/cni"
@@ -26,8 +27,8 @@ func main() {
 	config.Version = version
 
 	loggerCfg := &log.Config{
-		Level:       "info",
-		Filepath:    log.LogPath + "azure-ipam.log",
+		Level:       zapcore.DebugLevel,
+		LogPath:     log.LogPath + "azure-ipam.log",
 		MaxSizeInMB: 5,
 		MaxBackups:  8,
 		Name:        name,

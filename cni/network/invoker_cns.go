@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/Azure/azure-container-networking/cni/log"
+	"go.uber.org/zap"
 	"net"
 
 	"github.com/Azure/azure-container-networking/cni"
@@ -62,7 +64,7 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 		PodNamespace: invoker.podNamespace,
 	}
 
-	log.Printf(podInfo.PodName)
+	log.Logger.Info(podInfo.PodName)
 	orchestratorContext, err := json.Marshal(podInfo)
 	if err != nil {
 		return IPAMAddResult{}, errors.Wrap(err, "Failed to unmarshal orchestrator context during add: %w")
@@ -78,8 +80,9 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 		InfraContainerID:    addConfig.args.ContainerID,
 	}
 
-	log.Printf("Requesting IP for pod %+v using ipconfigs %+v", podInfo, ipconfigs)
-	response, err := invoker.cnsClient.RequestIPs(context.TODO(), ipconfigs)
+	log.Logger.Info("Requesting IP for pod using ipconfig",
+		zap.Any("pod", podInfo),
+		zap.Any("ipconfig", ipconfig))
 	if err != nil {
 		if cnscli.IsUnsupportedAPI(err) {
 			// If RequestIPs is not supported by CNS, use RequestIPAddress API
@@ -127,7 +130,7 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 			addConfig.options[network.SNATIPKey] = info.ncPrimaryIP
 		}
 
-		log.Printf("[cni-invoker-cns] Received info %+v for pod %v", info, podInfo)
+		log.Logger.Info("[cni-invoker-cns] Received info for pod", zap.Any("ipv4info", info), zap.Any("podInfo", podInfo))
 		ip, ncIPNet, err := net.ParseCIDR(info.podIPAddress + "/" + fmt.Sprint(info.ncSubnetPrefix))
 		if ip == nil {
 			return IPAMAddResult{}, errors.Wrap(err, "Unable to parse IP from response: "+info.podIPAddress+" with err %w")
@@ -292,7 +295,7 @@ func (invoker *CNSIPAMInvoker) Delete(address *net.IPNet, nwCfg *cni.NetworkConf
 	if address != nil {
 		ipConfigs.DesiredIPAddresses = append(ipConfigs.DesiredIPAddresses, address.IP.String())
 	} else {
-		log.Printf("CNS invoker called with empty IP address")
+		log.Logger.Info("CNS invoker called with empty IP address")
 	}
 
 	if err := invoker.cnsClient.ReleaseIPs(context.TODO(), ipConfigs); err != nil {
