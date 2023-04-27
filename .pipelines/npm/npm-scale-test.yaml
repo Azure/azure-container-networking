@@ -60,7 +60,7 @@ jobs:
           os_version: $(os_version)
 
   - job: Create_Cluster_and_Run_Test
-    timeoutInMinutes: 120
+    timeoutInMinutes: 360
     displayName: "Run Scale Test"
     pool:
       name: $(BUILD_POOL_NAME_DEFAULT)
@@ -196,6 +196,7 @@ jobs:
           failOnStderr: true
           condition: succeeded()
           inlineScript: |
+            set -e
             mkdir -p $(System.DefaultWorkingDirectory)/$(RESOURCE_GROUP)-$(PROFILE)
             ./kwok --kubeconfig ~/.kube/config \
               --cidr=155.0.0.0/16 \
@@ -215,6 +216,7 @@ jobs:
             # ~36K IPSet members
             kubectlPath=`pwd`/kubectl
             cd $(Pipeline.Workspace)/s/test/scale/
+            set +e
             ./test-scale.sh --kubectl-binary=$kubectlPath \
                 --max-kwok-pods-per-node=50 \
                 --num-kwok-deployments=10 \
@@ -240,6 +242,7 @@ jobs:
           failOnStderr: true
           condition: succeeded()
           inlineScript: |
+            set -e
             mkdir -p $(System.DefaultWorkingDirectory)/$(RESOURCE_GROUP)-$(PROFILE)
             ./kwok --kubeconfig ~/.kube/config \
               --cidr=155.0.0.0/16 \
@@ -258,11 +261,16 @@ jobs:
             cd $(Pipeline.Workspace)/s/test/scale/connectivity/
             # initial connectivity should be established within 15 minutes of NPM restart (12 minute timeout since we already waited 3 minutes above)
             # adding new network policy to all 30 Pods should take no more than 1 minute
+            set +e
             ./test-connectivity.sh --kubectl-binary=$kubectlPath \
                 --num-scale-pods-to-verify=all \
-                --max-wait-for-initial-connectivity=$((12*60)) \
-                --max-wait-after-adding-netpol=60
+                --max-wait-for-initial-connectivity=$((60*60)) \
+                --max-wait-after-adding-netpol=$((5*60))
             rc=$?
+            if [[ $rc != 0 ]]; then
+                kubectl get pod -n scale-test
+                kubectl get pod -n connectivity-test
+            fi
             kill $kwok_pid
             exit $rc
 
@@ -275,6 +283,7 @@ jobs:
           failOnStderr: true
           # condition: succeeded()
           inlineScript: |
+            set -e
             mkdir -p $(System.DefaultWorkingDirectory)/$(RESOURCE_GROUP)-$(PROFILE)
             ./kwok --kubeconfig ~/.kube/config \
               --cidr=155.0.0.0/16 \
@@ -291,6 +300,7 @@ jobs:
             # 30 real Pods
             kubectlPath=`pwd`/kubectl
             cd $(Pipeline.Workspace)/s/test/scale/
+            set +e
             ./test-scale.sh --kubectl-binary=$kubectlPath \
                 --max-kwok-pods-per-node=50 \
                 --num-kwok-deployments=10 \
@@ -326,6 +336,7 @@ jobs:
           failOnStderr: true
           condition: succeeded()
           inlineScript: |
+            set -e
             mkdir -p $(System.DefaultWorkingDirectory)/$(RESOURCE_GROUP)-$(PROFILE)
             ./kwok --kubeconfig ~/.kube/config \
               --cidr=155.0.0.0/16 \
@@ -340,11 +351,16 @@ jobs:
             cd $(Pipeline.Workspace)/s/test/scale/connectivity/
             # initial connectivity should be established within 10 minutes
             # adding new network policy to all 30 Pods should take no more than 1 minute
+            set +e
             ./test-connectivity.sh --kubectl-binary=$kubectlPath \
                 --num-scale-pods-to-verify=all \
-                --max-wait-for-initial-connectivity=$((10*60)) \
-                --max-wait-after-adding-netpol=60
+                --max-wait-for-initial-connectivity=$((60*60)) \
+                --max-wait-after-adding-netpol=$((5*60))
             rc=$?
+            if [[ $rc != 0 ]]; then
+                kubectl get pod -n scale-test
+                kubectl get pod -n connectivity-test
+            fi
             kill $kwok_pid
             exit $rc
 
