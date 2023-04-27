@@ -197,7 +197,7 @@ jobs:
           condition: succeeded()
           inlineScript: |
             mkdir -p $(System.DefaultWorkingDirectory)/$(RESOURCE_GROUP)-$(PROFILE)
-            kwok --kubeconfig ~/.kube/config \
+            ./kwok --kubeconfig ~/.kube/config \
               --cidr=155.0.0.0/16 \
               --node-ip=155.0.0.1 \
               --manage-all-nodes=false \
@@ -241,7 +241,7 @@ jobs:
           condition: succeeded()
           inlineScript: |
             mkdir -p $(System.DefaultWorkingDirectory)/$(RESOURCE_GROUP)-$(PROFILE)
-            kwok --kubeconfig ~/.kube/config \
+            ./kwok --kubeconfig ~/.kube/config \
               --cidr=155.0.0.0/16 \
               --node-ip=155.0.0.1 \
               --manage-all-nodes=false \
@@ -276,7 +276,7 @@ jobs:
           # condition: succeeded()
           inlineScript: |
             mkdir -p $(System.DefaultWorkingDirectory)/$(RESOURCE_GROUP)-$(PROFILE)
-            kwok --kubeconfig ~/.kube/config \
+            ./kwok --kubeconfig ~/.kube/config \
               --cidr=155.0.0.0/16 \
               --node-ip=155.0.0.1 \
               --manage-all-nodes=false \
@@ -327,7 +327,7 @@ jobs:
           condition: succeeded()
           inlineScript: |
             mkdir -p $(System.DefaultWorkingDirectory)/$(RESOURCE_GROUP)-$(PROFILE)
-            kwok --kubeconfig ~/.kube/config \
+            ./kwok --kubeconfig ~/.kube/config \
               --cidr=155.0.0.0/16 \
               --node-ip=155.0.0.1 \
               --manage-all-nodes=false \
