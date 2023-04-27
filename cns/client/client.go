@@ -400,6 +400,7 @@ func (c *Client) RequestIPs(ctx context.Context, ipconfig cns.IPConfigsRequest) 
 	}
 	req.Header.Set(headerContentType, contentTypeJSON)
 	res, err := c.client.Do(req)
+
 	if err != nil {
 		return nil, errors.Wrap(err, "http request failed")
 	}
