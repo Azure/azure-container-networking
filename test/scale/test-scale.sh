@@ -106,13 +106,12 @@ while [[ $# -gt 0 ]]; do
             echo "using kubeconfig: $file"
             ;;
         --kubectl-binary=*)
-            file=${1#*=}
-            KUBECTL="--kubectl-binary $file"
-            test -f $file || { 
-                echo "ERROR: kubectl binary not found: [$file]"
+            KUBECTL=${1#*=}
+            test -f $KUBECTL || { 
+                echo "ERROR: kubectl binary not found: [$KUBECTL]"
                 exit 1
             }
-            echo "using kubectl binary: $file"
+            echo "using kubectl binary: $KUBECTL"
             ;;
         --restart-npm)
             USING_NPM=true

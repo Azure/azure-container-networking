@@ -66,13 +66,12 @@ while [[ $# -gt 0 ]]; do
             echo "using kubeconfig: $file"
             ;;
         --kubectl-binary=*)
-            file=${1#*=}
-            KUBECTL="--kubectl-binary $file"
-            test -f $file || { 
-                echo "ERROR: kubectl binary not found: [$file]"
+            KUBECTL=${1#*=}
+            test -f $KUBECTL || { 
+                echo "ERROR: kubectl binary not found: [$KUBECTL]"
                 exit 1
             }
-            echo "using kubectl binary: $file"
+            echo "using kubectl binary: $KUBECTL"
             ;;
         *)
             echo "ERROR: unknown parameter $1. Make sure you're using '--key=value' for parameters with values"
@@ -108,14 +107,14 @@ connectFromPinger() {
     local from=$1
     local dstIP=$2
     echo "checking connectivity from $from to $dstIP"
-    kubectl $KUBECONFIG_ARG exec -n connectivity-test $from -- /agnhost connect --timeout=${TIMEOUT}s $dstIP:80
+    $KUBECTL $KUBECONFIG_ARG exec -n connectivity-test $from -- /agnhost connect --timeout=${TIMEOUT}s $dstIP:80
 }
 
 connectFromScalePod() {
     local from=$1
     local dstIP=$2
     echo "checking connectivity from $from to $dstIP"
-    kubectl $KUBECONFIG_ARG exec -n scale-test $from -- /agnhost connect --timeout=${TIMEOUT}s $dstIP:80
+    $KUBECTL $KUBECONFIG_ARG exec -n scale-test $from -- /agnhost connect --timeout=${TIMEOUT}s $dstIP:80
 }
 
 ## VALIDATE
@@ -124,8 +123,8 @@ test -f pinger.yaml || {
     exit 6
 }
 
-if [[ -z `kubectl $KUBECONFIG_ARG get nodes -l connectivity-test=true | grep -v NAME` ]]; then
-    kubectl $KUBECONFIG_ARG get node
+if [[ -z `$KUBECTL $KUBECONFIG_ARG get nodes -l connectivity-test=true | grep -v NAME` ]]; then
+    $KUBECTL $KUBECONFIG_ARG get node
     echo "ERROR: label a node with: kubectl label node <name> connectivity-test=true"
     exit 6
 fi
@@ -142,7 +141,7 @@ if [[ $numScalePodsToVerify == "all" ]]; then
 fi
 
 echo "getting scale Pods..."
-scalePodNameIPs=(`kubectl $KUBECONFIG_ARG get pods -n scale-test --field-selector=status.phase==Running -l is-real="true" -o jsonpath='{range .items[*]}{@.metadata.name}{","}{@.status.podIP}{" "}{end}'`)
+scalePodNameIPs=(`$KUBECTL $KUBECONFIG_ARG get pods -n scale-test --field-selector=status.phase==Running -l is-real="true" -o jsonpath='{range .items[*]}{@.metadata.name}{","}{@.status.podIP}{" "}{end}'`)
 scalePods=()
 scalePodIPs=()
 for nameIP in "${scalePodNameIPs[@]}"; do
@@ -178,16 +177,16 @@ else
 fi
 
 ## CREATE PINGERS
-kubectl $KUBECONFIG_ARG create ns connectivity-test || true
-kubectl $KUBECONFIG_ARG apply -f pinger.yaml
+$KUBECTL $KUBECONFIG_ARG create ns connectivity-test || true
+$KUBECTL $KUBECONFIG_ARG apply -f pinger.yaml
 sleep 5s
 echo "waiting for pingers to be ready..."
-kubectl $KUBECONFIG_ARG wait --for=condition=Ready pod -n connectivity-test -l app=pinger --timeout=60s || {
+$KUBECTL $KUBECONFIG_ARG wait --for=condition=Ready pod -n connectivity-test -l app=pinger --timeout=60s || {
     echo "ERROR: pingers never ran"
     exit 7
 }
 
-pingerNameIPs=(`kubectl $KUBECONFIG_ARG get pod -n connectivity-test -l app=pinger --field-selector=status.phase==Running -o jsonpath='{range .items[*]}{@.metadata.name}{","}{@.status.podIP}{" "}{end}'`)
+pingerNameIPs=(`$KUBECTL $KUBECONFIG_ARG get pod -n connectivity-test -l app=pinger --field-selector=status.phase==Running -o jsonpath='{range .items[*]}{@.metadata.name}{","}{@.status.podIP}{" "}{end}'`)
 pinger1NameIP=(`echo "${pingerNameIPs[0]}" | tr ',' ' '`)
 pinger1=${pinger1NameIP[0]}
 pinger1IP=${pinger1NameIP[1]}
@@ -280,7 +279,7 @@ echo "SUCCESS: all initial connectivity tests passed. Took between $low and $hig
 
 ## ADD NETWORK POLICY AND VERIFY CONNECTIVITY
 echo "adding allow-pinger NetworkPolicy at $(date)..."
-kubectl $KUBECONFIG_ARG apply -f allow-pinger.yaml
+$KUBECTL $KUBECONFIG_ARG apply -f allow-pinger.yaml
 
 verifyNetPol() {
         for i in $(seq 0 $(( ${#scalePods[@]} - 1 ))); do
