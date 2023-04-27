@@ -151,7 +151,6 @@ jobs:
             set -e
             curl -LO https://dl.k8s.io/release/v1.23.0/bin/linux/amd64/kubectl
             chmod +x kubectl
-            cp kubectl ~/.kube/kubectl
 
             # deploy azure-npm
             kubectl apply -f https://raw.githubusercontent.com/Azure/azure-container-networking/master/npm/examples/windows/azure-npm.yaml
@@ -182,6 +181,7 @@ jobs:
           failOnStderr: true
           condition: succeeded()
           inlineScript: |
+            kubectlPath=`pwd`/kubectl
             cd $(Pipeline.Workspace)/s/test/scale/
             mkdir -p $(System.DefaultWorkingDirectory)/$(RESOURCE_GROUP)-$(PROFILE)
             ./run-kwok.sh > $(System.DefaultWorkingDirectory)/$(RESOURCE_GROUP)-$(PROFILE)/kwok-latency.log &
@@ -192,7 +192,7 @@ jobs:
             # 300 ACLs per endpoint
             # ~4K IPSets
             # ~36K IPSet members
-            ./test-scale.sh --kubectl-binary=~/.kube/kubectl \
+            ./test-scale.sh --kubectl-binary=$kubectlPath \
                 --max-kwok-pods-per-node=50 \
                 --num-kwok-deployments=10 \
                 --num-kwok-replicas=100 \
@@ -217,7 +217,7 @@ jobs:
             cd connectivity/
             # initial connectivity should be established within 15 minutes of NPM restart (12 minute timeout since we already waited 3 minutes above)
             # adding new network policy to all 30 Pods should take no more than 1 minute
-            ./test-connectivity.sh --kubectl-binary=~/.kube/kubectl \
+            ./test-connectivity.sh --kubectl-binary=$kubectlPath \
                 --num-scale-pods-to-verify=all \
                 --max-wait-for-initial-connectivity=$((12*60)) \
                 --max-wait-after-adding-netpol=60
@@ -234,12 +234,13 @@ jobs:
           failOnStderr: true
           # condition: succeeded()
           inlineScript: |
+            kubectlPath=`pwd`/kubectl
             cd $(Pipeline.Workspace)/s/test/scale/
             mkdir -p $(System.DefaultWorkingDirectory)/$(RESOURCE_GROUP)-$(PROFILE)
             ./run-kwok.sh > $(System.DefaultWorkingDirectory)/$(RESOURCE_GROUP)-$(PROFILE)/kwok-crud.log &
             kwok_pid=$!
             # will delete scale-test and connectivity-test namespaces from previous run
-            ./test-scale.sh --kubectl-binary=~/.kube/kubectl \
+            ./test-scale.sh --kubectl-binary=$kubectlPath \
                 --max-kwok-pods-per-node=50 \
                 --num-kwok-deployments=10 \
                 --num-kwok-replicas=1 \
@@ -268,7 +269,7 @@ jobs:
             fi
 
             cd connectivity/
-            ./test-connectivity.sh --kubectl-binary=~/.kube/kubectl \
+            ./test-connectivity.sh --kubectl-binary=$kubectlPath \
                 --num-scale-pods-to-verify=all \
                 --max-wait-for-initial-connectivity=600 \
                 --max-wait-after-adding-netpol=120
