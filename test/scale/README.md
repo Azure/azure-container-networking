@@ -39,6 +39,7 @@ This saves us from:
     --delete-pods-times=2
 ```
 
+Note: you must run `./test-scale.sh` first with `--num-network-policies=1` or more, and `--num-shared-labels-per-pod=3` or more.
 ```
 ./test-connectivity --num-scale-pods-to-verify=all \
     --max-wait-for-initial-connectivity=600 \

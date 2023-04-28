@@ -15,6 +15,8 @@ printHelp() {
 Verifies that scale test Pods can connect to each other, but cannot connect to a new "pinger" Pod.
 Then, adds a NetworkPolicy to allow traffic between the scale test Pods and the "pinger" Pod, and verifies connectivity.
 
+NOTE: You must run ./test-scale.sh first with --num-network-policies=1 or more, and --num-shared-labels-per-pod=3 or more.
+
 USAGE:
 1. Follow steps for test-scale.sh
 2. Label a node to schedule "pinger" Pods: kubectl label node <name> connectivity-test=true
