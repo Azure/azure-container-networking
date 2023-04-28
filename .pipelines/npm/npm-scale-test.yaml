@@ -168,7 +168,10 @@ jobs:
             set -e
 
             # deploy azure-npm
-            kubectl apply -f https://raw.githubusercontent.com/Azure/azure-container-networking/master/npm/examples/windows/azure-npm.yaml
+            curl -LO https://raw.githubusercontent.com/Azure/azure-container-networking/master/npm/examples/windows/azure-npm.yaml
+            # set higher memory limit
+            sed -i azure-npm.yaml 's/memory: 300Mi/memory: 1000Mi/g'
+            kubectl apply -f azure-npm.yaml
 
             # swap azure-npm image with one built during run
             kubectl set image daemonset/azure-npm-win -n kube-system azure-npm=acnpublic.azurecr.io/azure-npm:94f159bc # $IMAGE_REGISTRY/azure-npm:windows-amd64-ltsc2022-$(TAG)
