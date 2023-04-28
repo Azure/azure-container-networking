@@ -170,7 +170,7 @@ jobs:
             # deploy azure-npm
             curl -LO https://raw.githubusercontent.com/Azure/azure-container-networking/master/npm/examples/windows/azure-npm.yaml
             # set higher memory limit
-            sed -i azure-npm.yaml 's/memory: 300Mi/memory: 1000Mi/g'
+            sed -i 's/memory: 300Mi/memory: 1000Mi/g' azure-npm.yaml
             kubectl apply -f azure-npm.yaml
 
             # swap azure-npm image with one built during run
