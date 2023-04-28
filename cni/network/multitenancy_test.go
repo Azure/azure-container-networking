@@ -47,7 +47,7 @@ type releaseIPHandler struct {
 
 type releaseIPsHandler struct {
 	// arguments
-	ipconfigArgument cns.IPConfigsRequest
+	ipconfigArgument cns.IPConfigsRequest // this will return the IPConfigsResponse which contains a slice of IPs as opposed to one IP
 
 	// results
 	err error
