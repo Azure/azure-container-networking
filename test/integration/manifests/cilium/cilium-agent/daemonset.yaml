@@ -180,7 +180,6 @@ spec:
         volumeMounts:
           - name: cni-path
             mountPath: /host/opt/cni/bin
-        restartPolicy: Always
       - command:
         - sh
         - -ec
