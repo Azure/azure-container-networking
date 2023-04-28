@@ -199,7 +199,7 @@ func (nm *networkManager) addNewNetRules(nwInfo *NetworkInfo) error {
 		out string
 	)
 
-	// get interface name of VM adapter
+	// get interface name of the VM adapter
 	ifName := nwInfo.MasterIfName
 	if !strings.Contains(nwInfo.MasterIfName, ifNamePrefix) {
 		ifName = fmt.Sprintf("%s (%s)", ifNamePrefix, nwInfo.MasterIfName)
