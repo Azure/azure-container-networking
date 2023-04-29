@@ -191,7 +191,7 @@ func (nm *networkManager) newNetworkImplHnsV1(nwInfo *NetworkInfo, extIf *extern
 }
 
 // add ipv4 and ipv6 routes in dualstack overlay mode to windows Node
-// in dualstack mode, pods are created from different subnets on different nodes, gateway has to be node ip if pods want to communicate with each other
+// in dualstack overlay mode, pods are created from different subnets on different nodes, gateway has to be node ip if pods want to communicate with each other
 // add routes to make node understand pod IPs come from different subnets and VFP will take decisions based on these routes to forward traffic and avoid Natting
 func (nm *networkManager) addNewNetRules(nwInfo *NetworkInfo) error {
 	var (
