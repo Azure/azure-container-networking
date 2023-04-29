@@ -231,6 +231,7 @@ func TestDeleteNetworkImplHnsV1WithTimeout(t *testing.T) {
 	}
 }
 
+// test addNewNetRules to add net rules from NetworkInfo
 func TestAddNewNetRules(t *testing.T) {
 	cnt := 0
 	plc := platform.NewMockExecClient(false)
