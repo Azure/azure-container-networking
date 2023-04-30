@@ -18,6 +18,11 @@ import (
 	cniTypesCurr "github.com/containernetworking/cni/pkg/types/100"
 )
 
+const (
+	bytesSize4  = 4
+	bytesSize16 = 16
+)
+
 type AzureIPAMInvoker struct {
 	plugin delegatePlugin
 	nwInfo *network.NetworkInfo
@@ -122,7 +127,7 @@ func (invoker *AzureIPAMInvoker) deleteIpamState() {
 	}
 }
 
-func (invoker *AzureIPAMInvoker) Delete(address *net.IPNet, nwCfg *cni.NetworkConfig, _ *cniSkel.CmdArgs, options map[string]interface{}) error {
+func (invoker *AzureIPAMInvoker) Delete(address *net.IPNet, nwCfg *cni.NetworkConfig, _ *cniSkel.CmdArgs, options map[string]interface{}) error { //nolint
 	if nwCfg == nil {
 		return invoker.plugin.Errorf("nil nwCfg passed to CNI ADD, stack: %+v", string(debug.Stack()))
 	}
@@ -135,25 +140,28 @@ func (invoker *AzureIPAMInvoker) Delete(address *net.IPNet, nwCfg *cni.NetworkCo
 		if err := invoker.plugin.DelegateDel(nwCfg.IPAM.Type, nwCfg); err != nil {
 			return invoker.plugin.Errorf("Attempted to release address with error:  %v", err)
 		}
-	} else if len(address.IP.To4()) == 4 {
+	} else if len(address.IP.To4()) == bytesSize4 { //nolint:gocritic
 		nwCfg.IPAM.Address = address.IP.String()
-		log.Printf("Releasing ipv4 address :%s pool: %s",
-			nwCfg.IPAM.Address, nwCfg.IPAM.Subnet)
+		log.Printf("Releasing ipv4 address :%s pool: %s", nwCfg.IPAM.Address, nwCfg.IPAM.Subnet)
 		if err := invoker.plugin.DelegateDel(nwCfg.IPAM.Type, nwCfg); err != nil {
 			log.Printf("Failed to release ipv4 address: %v", err)
-			return invoker.plugin.Errorf("Failed to release ipv4 address: %v", err)
+			return invoker.plugin.Errorf("Failed to release ipv4 address: %v with error: ", nwCfg.IPAM.Address, err)
 		}
-	} else if len(address.IP.To16()) == 16 {
+	} else if len(address.IP.To16()) == bytesSize16 {
 		nwCfgIpv6 := *nwCfg
 		nwCfgIpv6.IPAM.Environment = common.OptEnvironmentIPv6NodeIpam
 		nwCfgIpv6.IPAM.Type = ipamV6
 		nwCfgIpv6.IPAM.Address = address.IP.String()
 		if len(invoker.nwInfo.Subnets) > 1 {
-			nwCfgIpv6.IPAM.Subnet = invoker.nwInfo.Subnets[1].Prefix.String()
+			for _, subnet := range invoker.nwInfo.Subnets {
+				if subnet.Prefix.IP.To4() == nil {
+					nwCfgIpv6.IPAM.Subnet = subnet.Prefix.String()
+					break
+				}
+			}
 		}
 
-		log.Printf("Releasing ipv6 address :%s pool: %s",
-			nwCfgIpv6.IPAM.Address, nwCfgIpv6.IPAM.Subnet)
+		log.Printf("Releasing ipv6 address :%s pool: %s", nwCfgIpv6.IPAM.Address, nwCfgIpv6.IPAM.Subnet)
 		if err := invoker.plugin.DelegateDel(nwCfgIpv6.IPAM.Type, &nwCfgIpv6); err != nil {
 			log.Printf("Failed to release ipv6 address: %v", err)
 			return invoker.plugin.Errorf("Failed to release ipv6 address: %v", err)
