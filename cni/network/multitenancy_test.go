@@ -28,9 +28,29 @@ type requestIPAddressHandler struct {
 	err    error
 }
 
-type releaseIPAddressHandler struct {
+type requestIPsHandler struct {
+	// arguments
+	ipconfigArgument cns.IPConfigsRequest
+
+	// results
+	result *cns.IPConfigsResponse // this will return the IPConfigsResponse which contains a slice of IPs as opposed to one IP
+	err    error
+}
+
+type releaseIPHandler struct {
+	// arguments
 	ipconfigArgument cns.IPConfigRequest
-	err              error
+
+	// results
+	err error
+}
+
+type releaseIPsHandler struct {
+	// arguments
+	ipconfigArgument cns.IPConfigsRequest // this will return the IPConfigsResponse which contains a slice of IPs as opposed to one IP
+
+	// results
+	err error
 }
 
 type getNetworkContainerConfigurationHandler struct {
@@ -50,30 +70,68 @@ type cnsAPIName string
 
 const (
 	GetAllNetworkContainers cnsAPIName = "GetAllNetworkContainers"
+	RequestIPs              cnsAPIName = "RequestIPs"
+	ReleaseIPs              cnsAPIName = "ReleaseIPs"
 )
 
 var (
 	errUnsupportedAPI             = errors.New("Unsupported API")
+	errNoRequestIPFound           = errors.New("No Request IP Found")
+	errNoReleaseIPFound           = errors.New("No Release IP Found")
 	errNoOrchestratorContextFound = errors.New("No CNI OrchestratorContext Found")
 )
 
 type MockCNSClient struct {
 	unsupportedAPIs                      map[cnsAPIName]struct{}
 	require                              *require.Assertions
-	request                              requestIPAddressHandler
-	release                              releaseIPAddressHandler
+	requestIP                            requestIPAddressHandler
+	requestIPs                           requestIPsHandler
+	releaseIP                            releaseIPHandler
+	releaseIPs                           releaseIPsHandler
 	getNetworkContainerConfiguration     getNetworkContainerConfigurationHandler
 	getAllNetworkContainersConfiguration getAllNetworkContainersConfigurationHandler
 }
 
 func (c *MockCNSClient) RequestIPAddress(_ context.Context, ipconfig cns.IPConfigRequest) (*cns.IPConfigResponse, error) {
-	c.require.Exactly(c.request.ipconfigArgument, ipconfig)
-	return c.request.result, c.request.err
+	if !cmp.Equal(c.requestIP.ipconfigArgument, ipconfig) {
+		return nil, errNoRequestIPFound
+	}
+	return c.requestIP.result, c.requestIP.err
+}
+
+func (c *MockCNSClient) RequestIPs(_ context.Context, ipconfig cns.IPConfigsRequest) (*cns.IPConfigsResponse, error) {
+	if _, isUnsupported := c.unsupportedAPIs[RequestIPs]; isUnsupported {
+		e := &client.CNSClientError{}
+		e.Code = types.UnsupportedAPI
+		e.Err = errUnsupportedAPI
+		return nil, e
+	}
+
+	if !cmp.Equal(c.requestIPs.ipconfigArgument, ipconfig) {
+		return nil, errNoRequestIPFound
+	}
+	return c.requestIPs.result, c.requestIPs.err
 }
 
 func (c *MockCNSClient) ReleaseIPAddress(_ context.Context, ipconfig cns.IPConfigRequest) error {
-	c.require.Exactly(c.release.ipconfigArgument, ipconfig)
-	return c.release.err
+	if !cmp.Equal(c.releaseIP.ipconfigArgument, ipconfig) {
+		return errNoReleaseIPFound
+	}
+	return c.releaseIP.err
+}
+
+func (c *MockCNSClient) ReleaseIPs(_ context.Context, ipconfig cns.IPConfigsRequest) error {
+	if _, isUnsupported := c.unsupportedAPIs[ReleaseIPs]; isUnsupported {
+		e := &client.CNSClientError{}
+		e.Code = types.UnsupportedAPI
+		e.Err = errUnsupportedAPI
+		return e
+	}
+
+	if !cmp.Equal(c.releaseIPs.ipconfigArgument, ipconfig) {
+		return errNoReleaseIPFound
+	}
+	return c.releaseIPs.err
 }
 
 func (c *MockCNSClient) GetNetworkContainer(ctx context.Context, orchestratorContext []byte) (*cns.GetNetworkContainerResponse, error) {

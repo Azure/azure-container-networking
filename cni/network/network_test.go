@@ -70,13 +70,14 @@ func TestMain(m *testing.M) {
 
 func GetTestResources() *NetPlugin {
 	pluginName := "testplugin"
+	isIPv6 := false
 	config := &common.PluginConfig{}
 	grpcClient := &nns.MockGrpcClient{}
 	plugin, _ := NewPlugin(pluginName, config, grpcClient, &Multitenancy{})
 	plugin.report = &telemetry.CNIReport{}
 	mockNetworkManager := acnnetwork.NewMockNetworkmanager()
 	plugin.nm = mockNetworkManager
-	plugin.ipamInvoker = NewMockIpamInvoker(false, false, false)
+	plugin.ipamInvoker = NewMockIpamInvoker(isIPv6, false, false)
 	return plugin
 }
 

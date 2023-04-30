@@ -35,6 +35,10 @@ type PolicyManagerCfg struct {
 	PolicyMode PolicyManagerMode
 	// PlaceAzureChainFirst only affects Linux
 	PlaceAzureChainFirst bool
+	// MaxBatchedACLsPerPod is the maximum number of ACLs that can be added to a Pod at once in Windows.
+	// The zero value is valid.
+	// A NetworkPolicy's ACLs are always in the same batch, and there will be at least one NetworkPolicy per batch.
+	MaxBatchedACLsPerPod int
 }
 
 type PolicyMap struct {
