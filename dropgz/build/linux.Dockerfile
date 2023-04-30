@@ -29,6 +29,7 @@ COPY --from=azure-ipam /azure-ipam/azure-ipam pkg/embed/fs
 COPY --from=azure-vnet /azure-container-networking/cni/azure-$OS.conflist pkg/embed/fs/azure.conflist
 COPY --from=azure-vnet /azure-container-networking/cni/azure-$OS-swift.conflist pkg/embed/fs/azure-swift.conflist
 COPY --from=azure-vnet /azure-container-networking/cni/azure-$OS-swift-overlay.conflist pkg/embed/fs/azure-swift-overlay.conflist
+COPY --from=azure-vnet /azure-container-networking/cni/azure-$OS-swift-overlay-dualstack.conflist pkg/embed/fs/azure-swift-overlay-dualstack.conflist
 COPY --from=azure-vnet /azure-container-networking/azure-vnet pkg/embed/fs
 COPY --from=azure-vnet /azure-container-networking/azure-vnet-telemetry pkg/embed/fs
 COPY --from=azure-vnet /azure-container-networking/azure-vnet-ipam pkg/embed/fs

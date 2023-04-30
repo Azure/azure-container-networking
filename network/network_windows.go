@@ -7,13 +7,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/Azure/azure-container-networking/network/hnswrapper"
-
+	"github.com/Azure/azure-container-networking/cni/util"
 	"github.com/Azure/azure-container-networking/log"
+	"github.com/Azure/azure-container-networking/network/hnswrapper"
 	"github.com/Azure/azure-container-networking/network/policy"
 	"github.com/Microsoft/hcsshim"
 	"github.com/Microsoft/hcsshim/hcn"
@@ -31,10 +32,14 @@ const (
 	defaultRouteCIDR       = "0.0.0.0/0"
 	// prefix for interface name created by azure network
 	ifNamePrefix = "vEthernet"
+	// ipv4 default hop
+	ipv4DefaultHop = "0.0.0.0"
 	// ipv6 default hop
 	ipv6DefaultHop = "::"
 	// ipv6 route cmd
 	routeCmd = "netsh interface ipv6 %s route \"%s\" \"%s\" \"%s\" store=persistent"
+	// add/delete ipv4 and ipv6 route rules to/from windows node
+	netRouteCmd = "netsh interface %s %s route \"%s\" \"%s\" \"%s\""
 )
 
 // Windows implementation of route.
@@ -185,6 +190,99 @@ func (nm *networkManager) newNetworkImplHnsV1(nwInfo *NetworkInfo, extIf *extern
 	return nw, nil
 }
 
+// add ipv4 and ipv6 routes in dualstack overlay mode to windows Node
+// in dualstack overlay mode, pods are created from different subnets on different nodes, gateway has to be node ip if pods want to communicate with each other
+// add routes to make node understand pod IPs come from different subnets and VFP will take decisions based on these routes to forward traffic and avoid Natting
+func (nm *networkManager) addNewNetRules(nwInfo *NetworkInfo) error {
+	var (
+		err error
+		out string
+	)
+
+	// get interface name of the VM adapter
+	ifName := nwInfo.MasterIfName
+	if !strings.Contains(nwInfo.MasterIfName, ifNamePrefix) {
+		ifName = fmt.Sprintf("%s (%s)", ifNamePrefix, nwInfo.MasterIfName)
+	}
+
+	// check if external interface name is empty
+	if ifName == "" {
+		return fmt.Errorf("[net] external interface name is empty") // nolint
+	}
+
+	// check whether nwInfo subnets exist
+	if nwInfo.Subnets == nil {
+		return fmt.Errorf("[net] nwInfo subnets are not found") // nolint
+	}
+
+	// iterate subnet and add ipv4 and ipv6 default route and gateway only if it is not existing
+	for _, subnet := range nwInfo.Subnets {
+		prefix := subnet.Prefix.String()
+
+		ip, _, errParseCIDR := net.ParseCIDR(prefix)
+		if errParseCIDR != nil {
+			return fmt.Errorf("[net] failed to parse prefix %s due to %+v", prefix, errParseCIDR) // nolint
+		}
+
+		if subnet.Gateway == nil {
+			return fmt.Errorf("[net] failed to get subnet gateway") // nolint
+		}
+		gateway := subnet.Gateway.String()
+
+		log.Printf("[net] Adding ipv4 and ipv6 net rules to windows node")
+
+		// delete existing net rules before adding new rules to windows node in case:
+		// if hnsNetwork is not existing and new pod is creating, existing rules will be applied twice that will cause the pod creation failure
+		if ip.To4() != nil {
+			deleteNetshV4DefaultRoute := fmt.Sprintf(netRouteCmd, "ipv4", "delete", prefix, ifName, ipv4DefaultHop)
+			if _, delErr := nm.plClient.ExecuteCommand(deleteNetshV4DefaultRoute); delErr != nil {
+				log.Printf("[net] Deleting ipv4 default route failed: %v", err)
+			}
+
+			// netsh interface ipv4 add route $subnetV4 $hostInterfaceAlias "0.0.0.0"
+			addNetshV4DefaultRoute := fmt.Sprintf(netRouteCmd, "ipv4", "add", prefix, ifName, ipv4DefaultHop)
+			if out, err = nm.plClient.ExecuteCommand(addNetshV4DefaultRoute); err != nil {
+				log.Printf("[net] Adding ipv4 default route failed: %v:%v", out, err)
+			}
+
+			deleteNetshV4GatewayRoute := fmt.Sprintf(netRouteCmd, "ipv4", "delete", prefix, ifName, gateway)
+			if _, delErr := nm.plClient.ExecuteCommand(deleteNetshV4GatewayRoute); delErr != nil {
+				log.Printf("[net] Deleting ipv4 gateway route failed: %v", delErr)
+			}
+
+			// netsh interface ipv4 add route $subnetV4 $hostInterfaceAlias $gatewayV4
+			addNetshV4GatewayRoute := fmt.Sprintf(netRouteCmd, "ipv4", "add", prefix, ifName, gateway)
+			if out, err = nm.plClient.ExecuteCommand(addNetshV4GatewayRoute); err != nil {
+				log.Printf("[net] Adding ipv4 gateway route failed: %v:%v", out, err)
+			}
+		} else {
+			deleteNetshV6DefaultRoute := fmt.Sprintf(netRouteCmd, "ipv6", "delete", prefix, ifName, ipv6DefaultHop)
+			if _, delErr := nm.plClient.ExecuteCommand(deleteNetshV6DefaultRoute); delErr != nil {
+				log.Printf("[net] Deleting ipv6 default route failed: %v", delErr)
+			}
+
+			// netsh interface ipv6 add route $subnetV6 $hostInterfaceAlias "::"
+			addNetshV6DefaultRoute := fmt.Sprintf(netRouteCmd, "ipv6", "add", prefix, ifName, ipv6DefaultHop)
+			if out, err = nm.plClient.ExecuteCommand(addNetshV6DefaultRoute); err != nil {
+				log.Printf("[net] Adding ipv6 default route failed: %v:%v", out, err)
+			}
+
+			deleteNetshV6GatewayRoute := fmt.Sprintf(netRouteCmd, "ipv6", "delete", prefix, ifName, gateway)
+			if _, delErr := nm.plClient.ExecuteCommand(deleteNetshV6GatewayRoute); delErr != nil {
+				log.Printf("[net] Deleting ipv6 gateway route failed: %v", delErr)
+			}
+
+			// netsh interface ipv6 add route $subnetV6 $hostInterfaceAlias $gatewayV6
+			addNetshV6GatewayRoute := fmt.Sprintf(netRouteCmd, "ipv6", "add", prefix, ifName, gateway)
+			if out, err = nm.plClient.ExecuteCommand(addNetshV6GatewayRoute); err != nil {
+				log.Printf("[net] Adding ipv6 gateway route failed: %v:%v", out, err)
+			}
+		}
+	}
+
+	return err // nolint
+}
+
 func (nm *networkManager) appIPV6RouteEntry(nwInfo *NetworkInfo) error {
 	var (
 		err error
@@ -329,6 +427,13 @@ func (nm *networkManager) newNetworkImplHnsV2(nwInfo *NetworkInfo, extIf *extern
 	if err != nil {
 		// if network not found, create the HNS network.
 		if errors.As(err, &hcn.NetworkNotFoundError{}) {
+			// in dualStackOverlay mode, add net routes to windows node
+			if nwInfo.IPV6Mode == string(util.DualStackOverlay) {
+				if err := nm.addNewNetRules(nwInfo); err != nil { // nolint
+					log.Printf("[net] Failed to add net rules due to %+v", err)
+					return nil, err
+				}
+			}
 			log.Printf("[net] Creating hcn network: %+v", hcnNetwork)
 			hnsResponse, err = Hnsv2.CreateNetwork(hcnNetwork)
 

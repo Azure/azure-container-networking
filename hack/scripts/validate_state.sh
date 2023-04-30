@@ -15,6 +15,11 @@ do
     node_name="${node##*/}"
     node_ip=$(kubectl get "$node"  -o jsonpath='{$.status.addresses[?(@.type=="InternalIP")].address}')
     echo "Node internal ip: $node_ip"
+    echo "checking whether the node has any pods deployed to it or not"
+    pod_count=$(kubectl get pods -o wide | grep "$node_name" -c)
+    if [[ $pod_count -eq 0 ]]; then
+        continue
+    fi
     privileged_pod=$(kubectl get pods -n kube-system -l app=privileged-daemonset -o wide | grep "$node_name" | awk '{print $1}')
     echo "privileged pod : $privileged_pod"
     if [ "$privileged_pod" == '' ]; then
@@ -57,7 +62,8 @@ do
         kubectl get pods -A -o wide
         exit 1
     fi
-    total_pods_ips=$(echo "$total_pods" | jq -r '(.items[] | .status.podIP)')
+
+    total_pods_ips=$(echo "$total_pods" | jq -r '(.items[] | select(.status.podIP != "" and .status.podIP != null)) | .status.podIP')
     pod_ips=()
     num_of_pod_ips=0
     for ip in $total_pods_ips

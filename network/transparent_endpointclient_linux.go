@@ -262,6 +262,8 @@ func (client *TransparentEndpointClient) ConfigureContainerInterfacesAndRoutes(e
 		return fmt.Errorf("Adding arp in container failed: %w", err)
 	}
 
+	// IPv6Mode can be ipv6NAT or dual stack overlay
+	// set epInfo ipv6Mode to 'dualStackOverlay' to set ipv6Routes and ipv6NeighborEntries for Linux pod in dualStackOverlay ipam mode
 	if epInfo.IPV6Mode != "" {
 		if err := client.setupIPV6Routes(); err != nil {
 			return err

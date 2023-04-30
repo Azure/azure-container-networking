@@ -148,7 +148,7 @@ steps:
 
   - task: AzureCLI@2
     inputs:
-      azureSubscription: "Azure Container Networking - Test"
+      azureSubscription: $(AZURE_TEST_AGENT_SERVICE_CONNECTION)
       scriptLocation: "inlineScript"
       scriptType: "bash"
       addSpnToEnvironment: true

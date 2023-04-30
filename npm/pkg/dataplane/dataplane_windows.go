@@ -217,6 +217,9 @@ func (dp *DataPlane) updatePod(pod *updateNPMPod) error {
 	}
 
 	// for every ipset we're adding to the endpoint, consider adding to the endpoint every policy that the set touches
+	// add policy if:
+	// 1. it's not already there
+	// 2. the pod IP is part of every set that the policy requires (every set in the pod selector)
 	toAddPolicies := make(map[string]struct{})
 	for _, setName := range pod.IPSetsToAdd {
 		/*
@@ -239,48 +242,42 @@ func (dp *DataPlane) updatePod(pod *updateNPMPod) error {
 		}
 
 		for policyKey := range selectorReference {
-			if dp.policyMgr.PolicyExists(policyKey) {
-				toAddPolicies[policyKey] = struct{}{}
-			} else {
-				klog.Infof("[DataPlane] while updating pod, policy is referenced but does not exist. pod: [%s], policy: [%s], set [%s]", pod.PodKey, policyKey, setName)
+			if _, ok := endpoint.netPolReference[policyKey]; ok {
+				continue
 			}
+
+			policy, ok := dp.policyMgr.GetPolicy(policyKey)
+			if !ok {
+				klog.Infof("[DataPlane] while updating pod, policy is referenced but does not exist. pod: [%s], policy: [%s], set [%s]", pod.PodKey, policyKey, setName)
+				continue
+			}
+
+			selectorIPSets := dp.getSelectorIPSets(policy)
+			ok, err := dp.ipsetMgr.DoesIPSatisfySelectorIPSets(pod.PodIP, pod.PodKey, selectorIPSets)
+			if err != nil {
+				return fmt.Errorf("[DataPlane] error getting IPs satisfying selector ipsets: %w", err)
+			}
+			if !ok {
+				continue
+			}
+
+			toAddPolicies[policyKey] = struct{}{}
 		}
 	}
 
-	// for all of these policies, add the policy to the endpoint if:
-	// 1. it's not already there
-	// 2. the pod IP is part of every set that the policy requires (every set in the pod selector)
-	for policyKey := range toAddPolicies {
-		if _, ok := endpoint.netPolReference[policyKey]; ok {
-			continue
-		}
+	if len(toAddPolicies) == 0 {
+		return nil
+	}
 
-		// TODO Also check if the endpoint reference in policy for this Ip is right
-		policy, ok := dp.policyMgr.GetPolicy(policyKey)
-		if !ok {
-			return fmt.Errorf("policy with name %s does not exist", policyKey)
-		}
-
-		selectorIPSets := dp.getSelectorIPSets(policy)
-		ok, err := dp.ipsetMgr.DoesIPSatisfySelectorIPSets(pod.PodIP, pod.PodKey, selectorIPSets)
-		if err != nil {
-			return err
-		}
-		if !ok {
-			continue
-		}
-
-		// Apply the network policy
-		endpointList := map[string]string{
-			endpoint.ip: endpoint.id,
-		}
-		err = dp.policyMgr.AddPolicy(policy, endpointList)
-		if err != nil {
-			return err
-		}
-
+	successfulPolicies, err := dp.policyMgr.AddAllPolicies(toAddPolicies, endpoint.id, endpoint.ip)
+	for policyKey := range successfulPolicies {
 		endpoint.netPolReference[policyKey] = struct{}{}
 	}
+	if err != nil {
+		return fmt.Errorf("failed to add all policies while updating pod. endpoint: %+v. policies: %+v. err: %w", endpoint, toAddPolicies, err)
+	}
+
+	klog.Infof("[DataPlane] updatedPod complete. podKey: %s. endpoint: %+v", pod.PodKey, endpoint)
 
 	return nil
 }
