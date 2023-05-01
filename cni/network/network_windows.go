@@ -252,11 +252,14 @@ func getPoliciesFromRuntimeCfg(nwCfg *cni.NetworkConfig) []policy.Policy {
 			protocol = policy.ProtocolUdp
 		}
 
+		// To support hostport policy mapping
+		// uint32 NatFlagsLocalRoutedVip = 1
 		rawPolicy, _ := json.Marshal(&hnsv2.PortMappingPolicySetting{
 			ExternalPort: uint16(mapping.HostPort),
 			InternalPort: uint16(mapping.ContainerPort),
 			VIP:          mapping.HostIp,
 			Protocol:     protocol,
+			Flags:        hnsv2.NatFlagsLocalRoutedVip,
 		})
 
 		hnsv2Policy, _ := json.Marshal(&hnsv2.EndpointPolicy{
