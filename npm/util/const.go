@@ -24,10 +24,10 @@ const (
 	PlaceAzureChainAfterKubeServices = false
 	PlaceAzureChainFirst             = true
 
-	Iptables                   string = "iptables"
+	Iptables                   string = "iptables-nft"
 	Ip6tables                  string = "ip6tables" //nolint (avoid warning to capitalize this p)
-	IptablesSave               string = "iptables-save"
-	IptablesRestore            string = "iptables-restore"
+	IptablesSave               string = "iptables-nft-save"
+	IptablesRestore            string = "iptables-nft-restore"
 	IptablesRestoreNoFlushFlag string = "--noflush"
 	IptablesRestoreTableFlag   string = "-T"
 	IptablesRestoreCommit      string = "COMMIT"
