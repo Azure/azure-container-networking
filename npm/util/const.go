@@ -282,7 +282,7 @@ func DetectIptablesVersion(ioShim *common.IOShim) {
 	}
 
 	if strings.Contains(string(output), "KUBE-IPTABLES-HINT") || strings.Contains(string(output), "KUBE-KUBELET-CANARY") {
-		Iptables = IptablesSaveNft
+		Iptables = IptablesNft
 		IptablesSave = IptablesSaveNft
 		IptablesRestore = IptablesRestoreNft
 	} else {
