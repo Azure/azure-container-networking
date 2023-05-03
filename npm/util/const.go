@@ -295,7 +295,7 @@ func DetectIptablesVersion(ioShim *common.IOShim) {
 		}
 
 		if strings.Contains(string(loutput), "KUBE-IPTABLES-HINT") || strings.Contains(string(loutput), "KUBE-KUBELET-CANARY") {
-			Iptables = IptablesSaveLegacy
+			Iptables = IptablesLegacy
 			IptablesSave = IptablesSaveLegacy
 			IptablesRestore = IptablesRestoreLegacy
 		} else {
@@ -318,11 +318,11 @@ func DetectIptablesVersion(ioShim *common.IOShim) {
 			count := countLines(saveoutput)
 
 			if lcount > count {
-				Iptables = IptablesSaveLegacy
+				Iptables = IptablesLegacy
 				IptablesSave = IptablesSaveLegacy
 				IptablesRestore = IptablesRestoreLegacy
 			} else {
-				Iptables = IptablesSaveNft
+				Iptables = IptablesNft
 				IptablesSave = IptablesSaveNft
 				IptablesRestore = IptablesRestoreNft
 			}
