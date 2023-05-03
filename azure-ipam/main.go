@@ -20,14 +20,14 @@ func main() {
 }
 
 func executePlugin() error {
-	// log config
+	// logger config
 	loggerCfg := &logger.Config{
 		Level:       "debug",
 		Filepath:    "/var/log/azure-ipam.log",
 		MaxSizeInMB: 5, // MegaBytes
 		MaxBackups:  8,
 	}
-	// Create log
+	// Create logger
 	pluginLogger, cleanup, err := logger.New(loggerCfg)
 	if err != nil {
 		return errors.Wrapf(err, "failed to setup IPAM logging")

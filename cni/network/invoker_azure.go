@@ -2,14 +2,13 @@ package network
 
 import (
 	"fmt"
-	"github.com/Azure/azure-container-networking/cni/log"
-	"go.uber.org/zap"
 	"net"
 	"os"
 	"runtime/debug"
 	"strings"
 
 	"github.com/Azure/azure-container-networking/cni"
+	"github.com/Azure/azure-container-networking/cni/log"
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/ipam"
 	"github.com/Azure/azure-container-networking/network"
@@ -17,6 +16,7 @@ import (
 	cniSkel "github.com/containernetworking/cni/pkg/skel"
 	cniTypes "github.com/containernetworking/cni/pkg/types"
 	cniTypesCurr "github.com/containernetworking/cni/pkg/types/100"
+	"go.uber.org/zap"
 )
 
 const (

@@ -4,6 +4,7 @@ import (
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+	"gopkg.in/natefinch/lumberjack.v2"
 )
 
 const (
@@ -17,7 +18,7 @@ type Config struct {
 	MaxBackups  int    // # of backups, no limitation by default
 }
 
-// NewLogger creates and returns a zap log and a clean up function
+// NewLogger creates and returns a zap logger and a clean up function
 func New(cfg *Config) (*zap.Logger, func(), error) {
 	logLevel, err := zapcore.ParseLevel(cfg.Level)
 	if err != nil {
@@ -45,7 +46,7 @@ func newFileLogger(cfg *Config, logLevel zapcore.Level) *zap.Logger {
 	encoderConfig := zap.NewProductionEncoderConfig()
 	encoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
 	jsonEncoder := zapcore.NewJSONEncoder(encoderConfig)
-	// create a new zap log
+	// create a new zap logger
 	core := zapcore.NewCore(jsonEncoder, logFileWriter, logLevel)
 	logger := zap.New(core)
 	return logger

@@ -5,16 +5,16 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/Azure/azure-container-networking/cni/log"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 	"os"
 	"runtime"
 	"time"
 
 	"github.com/Azure/azure-container-networking/aitelemetry"
+	"github.com/Azure/azure-container-networking/cni/log"
 	acn "github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/telemetry"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 const (
@@ -27,6 +27,8 @@ const (
 	pluginName                        = "AzureCNI"
 	azureVnetTelemetry                = "azure-vnet-telemetry"
 	configExtension                   = ".config"
+	maxLogFileSizeInMb                = 5
+	maxLogFileCount                   = 8
 )
 
 var version string
@@ -117,8 +119,8 @@ func main() {
 	loggerCfg := &log.Config{
 		Level:       logLevel,
 		LogPath:     log.LogPath + azureVnetTelemetry + ".log",
-		MaxSizeInMB: 5,
-		MaxBackups:  8,
+		MaxSizeInMB: maxLogFileSizeInMb,
+		MaxBackups:  maxLogFileCount,
 		Name:        azureVnetTelemetry,
 	}
 	cleanup, err := log.New(loggerCfg)

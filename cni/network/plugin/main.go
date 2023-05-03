@@ -6,9 +6,6 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/Azure/azure-container-networking/cni/log"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 	"io"
 	"os"
 	"reflect"
@@ -17,6 +14,7 @@ import (
 	"github.com/Azure/azure-container-networking/aitelemetry"
 	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/cni/api"
+	"github.com/Azure/azure-container-networking/cni/log"
 	"github.com/Azure/azure-container-networking/cni/network"
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/nns"
@@ -26,6 +24,8 @@ import (
 	"github.com/containernetworking/cni/pkg/skel"
 	cniTypes "github.com/containernetworking/cni/pkg/types"
 	"github.com/pkg/errors"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 const (
@@ -35,6 +35,8 @@ const (
 	telemetryNumRetries             = 5
 	telemetryWaitTimeInMilliseconds = 200
 	name                            = "azure-vnet"
+	maxLogFileSizeInMb              = 5
+	maxLogFileCount                 = 8
 )
 
 // Version is populated by make during build.
@@ -294,8 +296,8 @@ func main() {
 	loggerCfg := &log.Config{
 		Level:       zapcore.DebugLevel,
 		LogPath:     log.LogPath + "azure-vnet.log",
-		MaxSizeInMB: 5,
-		MaxBackups:  8,
+		MaxSizeInMB: maxLogFileSizeInMb,
+		MaxBackups:  maxLogFileCount,
 		Name:        name,
 	}
 	cleanup, err := log.New(loggerCfg)

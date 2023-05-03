@@ -38,7 +38,7 @@ type requestController struct {
 
 // New creates a new multi-tenant CRD operator.
 func New(restService *restserver.HTTPRestService, kubeconfig *rest.Config) (*requestController, error) {
-	// Check that log package has been initialized.
+	// Check that logger package has been initialized.
 	if logger.Log == nil {
 		return nil, errors.New("Must initialize logger before calling")
 	}

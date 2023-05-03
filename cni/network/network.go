@@ -7,8 +7,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/Azure/azure-container-networking/cni/log"
-	"go.uber.org/zap"
 	"net"
 	"os"
 	"time"
@@ -16,6 +14,7 @@ import (
 	"github.com/Azure/azure-container-networking/aitelemetry"
 	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/cni/api"
+	"github.com/Azure/azure-container-networking/cni/log"
 	"github.com/Azure/azure-container-networking/cni/util"
 	"github.com/Azure/azure-container-networking/cns"
 	cnscli "github.com/Azure/azure-container-networking/cns/client"
@@ -33,6 +32,7 @@ import (
 	cniTypes "github.com/containernetworking/cni/pkg/types"
 	cniTypesCurr "github.com/containernetworking/cni/pkg/types/100"
 	"github.com/pkg/errors"
+	"go.uber.org/zap"
 )
 
 const (
@@ -659,7 +659,8 @@ func (plugin *NetPlugin) createNetworkInternal(
 	}
 
 	if err = addSubnetToNetworkInfo(ipamAddResult, &nwInfo); err != nil {
-		log.Printf("[cni-net] Failed to add subnets to networkInfo due to %+v", err)
+		log.Logger.Info("[cni-net] Failed to add subnets to networkInfo",
+			zap.Any("error", err))
 		return nwInfo, err
 	}
 	setNetworkOptions(ipamAddResult.ncResponse, &nwInfo)
@@ -1031,7 +1032,6 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 		}
 		// Query the network.
 		if nwInfo, err = plugin.nm.GetNetworkInfo(networkID); err != nil {
-
 			if !nwCfg.MultiTenancy {
 				log.Logger.Error("[cni-net] Failed to query network",
 					zap.String("network", networkID),

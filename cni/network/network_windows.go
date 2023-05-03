@@ -3,8 +3,6 @@ package network
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/Azure/azure-container-networking/cni/log"
-	"go.uber.org/zap"
 	"net"
 	"net/netip"
 	"os"
@@ -13,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/Azure/azure-container-networking/cni"
+	"github.com/Azure/azure-container-networking/cni/log"
 	"github.com/Azure/azure-container-networking/cni/util"
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/network"
@@ -24,6 +23,7 @@ import (
 	cniTypes "github.com/containernetworking/cni/pkg/types"
 	cniTypesCurr "github.com/containernetworking/cni/pkg/types/100"
 	"github.com/pkg/errors"
+	"go.uber.org/zap"
 	"golang.org/x/sys/windows/registry"
 )
 

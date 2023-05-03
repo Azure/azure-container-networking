@@ -2,10 +2,11 @@ package api
 
 import (
 	"encoding/json"
-	"github.com/Azure/azure-container-networking/cni/log"
-	"go.uber.org/zap"
 	"net"
 	"os"
+
+	"github.com/Azure/azure-container-networking/cni/log"
+	"go.uber.org/zap"
 )
 
 type PodNetworkInterfaceInfo struct {

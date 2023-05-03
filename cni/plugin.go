@@ -6,12 +6,11 @@ package cni
 import (
 	"context"
 	"fmt"
-	"github.com/Azure/azure-container-networking/cni/log"
-	"go.uber.org/zap"
 	"os"
 	"runtime"
 	"time"
 
+	"github.com/Azure/azure-container-networking/cni/log"
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/platform"
 	"github.com/Azure/azure-container-networking/processlock"
@@ -22,6 +21,7 @@ import (
 	cniTypesCurr "github.com/containernetworking/cni/pkg/types/100"
 	cniVers "github.com/containernetworking/cni/pkg/version"
 	"github.com/pkg/errors"
+	"go.uber.org/zap"
 )
 
 var errEmptyContent = errors.New("read content is zero bytes")

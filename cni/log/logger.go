@@ -17,7 +17,6 @@ type Config struct {
 var Logger *zap.Logger
 
 func New(cfg *Config) (func(), error) {
-
 	Logger = newFileLogger(cfg)
 	cleanup := func() {
 		_ = Logger.Sync()
@@ -27,7 +26,6 @@ func New(cfg *Config) (func(), error) {
 }
 
 func newFileLogger(cfg *Config) *zap.Logger {
-
 	logFileWriter := zapcore.AddSync(&lumberjack.Logger{
 		Filename:   cfg.LogPath,
 		MaxSize:    cfg.MaxSizeInMB,

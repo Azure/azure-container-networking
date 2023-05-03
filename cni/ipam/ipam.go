@@ -5,7 +5,6 @@ package ipam
 
 import (
 	"encoding/json"
-	"go.uber.org/zap"
 	"net"
 	"strconv"
 
@@ -17,6 +16,7 @@ import (
 	cniSkel "github.com/containernetworking/cni/pkg/skel"
 	cniTypes "github.com/containernetworking/cni/pkg/types"
 	cniTypesCurr "github.com/containernetworking/cni/pkg/types/100"
+	"go.uber.org/zap"
 )
 
 const ipamV6 = "azure-vnet-ipamv6"

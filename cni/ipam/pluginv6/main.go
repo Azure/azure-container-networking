@@ -5,17 +5,19 @@ package main
 
 import (
 	"fmt"
-	"github.com/Azure/azure-container-networking/cni/log"
-	"go.uber.org/zap/zapcore"
 	"os"
 
 	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/cni/ipam"
+	"github.com/Azure/azure-container-networking/cni/log"
 	"github.com/Azure/azure-container-networking/common"
+	"go.uber.org/zap/zapcore"
 )
 
 const (
-	name = "azure-vnet-ipamv6"
+	name               = "azure-vnet-ipamv6"
+	maxLogFileSizeInMb = 5
+	maxLogFileCount    = 8
 )
 
 // Version is populated by make during build.
@@ -29,8 +31,8 @@ func main() {
 	loggerCfg := &log.Config{
 		Level:       zapcore.DebugLevel,
 		LogPath:     log.LogPath + "azure-ipam.log",
-		MaxSizeInMB: 5,
-		MaxBackups:  8,
+		MaxSizeInMB: maxLogFileSizeInMb,
+		MaxBackups:  maxLogFileCount,
 		Name:        name,
 	}
 	cleanup, err := log.New(loggerCfg)
