@@ -167,7 +167,7 @@ func (service *HTTPRestService) SyncHostNCVersion(ctx context.Context, channelMo
 	programmedNCCount, err := service.syncHostNCVersion(ctx, channelMode)
 	// even if we get an error, we want to write the CNI conflist if we have any NC programmed to any version
 	if programmedNCCount > 0 {
-		//This will only be done once per lifetime of the CNS process. This function is threadsafe and will panic
+		// This will only be done once per lifetime of the CNS process. This function is threadsafe and will panic
 		// if it fails, so it is safe to call in a non-preemptable goroutine.
 		go service.MustGenerateCNIConflistOnce()
 	}

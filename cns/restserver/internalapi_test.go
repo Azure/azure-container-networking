@@ -672,7 +672,7 @@ func (m *mockCNIConflistGenerator) Generate() error {
 
 // TestCNIConflistGenerationNewNC tests that discovering a new programmed NC in CNS state will trigger CNI conflist generation
 func TestCNIConflistGenerationNewNC(t *testing.T) {
-	ncID := "some-new-nc"
+	ncID := "some-new-nc" //nolint:goconst // value not shared across tests, can change without issue
 	mockgen := &mockCNIConflistGenerator{}
 	service := &HTTPRestService{
 		cniConflistGenerator: mockgen,
@@ -709,7 +709,7 @@ func TestCNIConflistGenerationNewNC(t *testing.T) {
 
 // TestCNIConflistGenerationExistingNC tests that if the CNS starts up with a NC already in its state, it will still generate the conflist
 func TestCNIConflistGenerationExistingNC(t *testing.T) {
-	ncID := "some-existing-nc"
+	ncID := "some-existing-nc" //nolint:goconst // value not shared across tests, can change without issue
 	mockgen := &mockCNIConflistGenerator{}
 	service := &HTTPRestService{
 		cniConflistGenerator: mockgen,
@@ -735,7 +735,7 @@ func TestCNIConflistGenerationExistingNC(t *testing.T) {
 // TestCNIConflistGenerationNewNCTwice tests that discovering a new programmed NC in CNS state will trigger CNI conflist generation, but syncing
 // the host NC version a second time does not regenerate the conflist (conflist should only get generated once per binary lifetime)
 func TestCNIConflistGenerationNewNCTwice(t *testing.T) {
-	ncID := "some-new-nc"
+	ncID := "some-new-nc" //nolint:goconst // value not shared across tests, can change without issue
 	mockgen := &mockCNIConflistGenerator{}
 	service := &HTTPRestService{
 		cniConflistGenerator: mockgen,
@@ -764,12 +764,12 @@ func TestCNIConflistGenerationNewNCTwice(t *testing.T) {
 		},
 	}
 
-	service.syncHostNCVersion(context.Background(), cns.CRD)
+	service.SyncHostNCVersion(context.Background(), cns.CRD)
 	// CNI conflist gen happens in goroutine so sleep for a second to let it run
 	time.Sleep(time.Second)
 	assert.Equal(t, 1, mockgen.generatedCount)
 
-	service.syncHostNCVersion(context.Background(), cns.CRD)
+	service.SyncHostNCVersion(context.Background(), cns.CRD)
 	// CNI conflist gen happens in goroutine so sleep for a second to let it run
 	time.Sleep(time.Second)
 	assert.Equal(t, 1, mockgen.generatedCount) // should still be one
@@ -777,7 +777,7 @@ func TestCNIConflistGenerationNewNCTwice(t *testing.T) {
 
 // TestCNIConflistNotGenerated tests that the cni conflist is not generated if no NCs are programmed
 func TestCNIConflistNotGenerated(t *testing.T) {
-	newNCID := "some-new-nc"
+	newNCID := "some-new-nc" //nolint:goconst // value not shared across tests, can change without issue
 	mockgen := &mockCNIConflistGenerator{}
 	service := &HTTPRestService{
 		cniConflistGenerator: mockgen,
@@ -808,8 +808,8 @@ func TestCNIConflistNotGenerated(t *testing.T) {
 // TestCNIConflistGenerationOnNMAError tests that the cni conflist is generated as long as we have at least one programmed NC even if
 // the call to NMA to list NCs fails
 func TestCNIConflistGenerationOnNMAError(t *testing.T) {
-	newNCID := "some-new-nc"
-	existingNCID := "some-existing-nc"
+	newNCID := "some-new-nc"           //nolint:goconst // value not shared across tests, can change without issue
+	existingNCID := "some-existing-nc" //nolint:goconst // value not shared across tests, can change without issue
 	mockgen := &mockCNIConflistGenerator{}
 	service := &HTTPRestService{
 		cniConflistGenerator: mockgen,
