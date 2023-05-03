@@ -33,7 +33,7 @@ func New(cfg *Config) (*zap.Logger, func(), error) {
 	return logger, cleanup, nil
 }
 
-// create and return a zap log via lumbejack with rotation
+// create and return a zap logger via lumberjack with rotation
 func newFileLogger(cfg *Config, logLevel zapcore.Level) *zap.Logger {
 	// define a lumberjack fileWriter
 	logFileWriter := zapcore.AddSync(&lumberjack.Logger{
