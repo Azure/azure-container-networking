@@ -29,7 +29,7 @@ const (
 
 var (
 	Iptables        = IptablesLegacy
-	Ip6tables       = Ip6tablesLegacy
+	Ip6tables       = Ip6tablesLegacy //nolint (avoid warning to capitalize this p)
 	IptablesSave    = IptablesSaveLegacy
 	IptablesRestore = IptablesRestoreLegacy
 )
