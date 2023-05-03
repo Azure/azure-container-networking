@@ -10,6 +10,7 @@ import (
 	"reflect"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/fakes"
@@ -17,6 +18,8 @@ import (
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 	nma "github.com/Azure/azure-container-networking/nmagent"
 	"github.com/google/uuid"
+	"github.com/pkg/errors"
+	"github.com/stretchr/testify/assert"
 )
 
 const (
@@ -655,4 +658,188 @@ func restartService() {
 		fmt.Printf("Failed to restart CNS Service. Error: %v", err)
 		os.Exit(1)
 	}
+}
+
+type mockCNIConflistGenerator struct {
+	generatedCount int
+}
+
+func (*mockCNIConflistGenerator) Close() error { return nil }
+func (m *mockCNIConflistGenerator) Generate() error {
+	m.generatedCount++
+	return nil
+}
+
+// TestCNIConflistGenerationNewNC tests that discovering a new programmed NC in CNS state will trigger CNI conflist generation
+func TestCNIConflistGenerationNewNC(t *testing.T) {
+	ncID := "some-new-nc"
+	mockgen := &mockCNIConflistGenerator{}
+	service := &HTTPRestService{
+		cniConflistGenerator: mockgen,
+		state: &httpRestServiceState{
+			ContainerStatus: map[string]containerstatus{
+				ncID: {
+					ID:          ncID,
+					HostVersion: "-1",
+					CreateNetworkContainerRequest: cns.CreateNetworkContainerRequest{
+						Version: "0",
+					},
+				},
+			},
+		},
+		nma: &fakes.NMAgentClientFake{
+			GetNCVersionListF: func(_ context.Context) (nma.NCVersionList, error) {
+				return nma.NCVersionList{
+					Containers: []nma.NCVersion{
+						{
+							NetworkContainerID: ncID,
+							Version:            "0",
+						},
+					},
+				}, nil
+			},
+		},
+	}
+
+	service.SyncHostNCVersion(context.Background(), cns.CRD)
+	// CNI conflist gen happens in goroutine so sleep for a second to let it run
+	time.Sleep(time.Second)
+	assert.Equal(t, 1, mockgen.generatedCount)
+}
+
+// TestCNIConflistGenerationExistingNC tests that if the CNS starts up with a NC already in its state, it will still generate the conflist
+func TestCNIConflistGenerationExistingNC(t *testing.T) {
+	ncID := "some-existing-nc"
+	mockgen := &mockCNIConflistGenerator{}
+	service := &HTTPRestService{
+		cniConflistGenerator: mockgen,
+		state: &httpRestServiceState{
+			ContainerStatus: map[string]containerstatus{
+				ncID: {
+					ID:          ncID,
+					HostVersion: "0",
+					CreateNetworkContainerRequest: cns.CreateNetworkContainerRequest{
+						Version: "0",
+					},
+				},
+			},
+		},
+	}
+
+	service.SyncHostNCVersion(context.Background(), cns.CRD)
+	// CNI conflist gen happens in goroutine so sleep for a second to let it run
+	time.Sleep(time.Second)
+	assert.Equal(t, 1, mockgen.generatedCount)
+}
+
+// TestCNIConflistGenerationNewNCTwice tests that discovering a new programmed NC in CNS state will trigger CNI conflist generation, but syncing
+// the host NC version a second time does not regenerate the conflist (conflist should only get generated once per binary lifetime)
+func TestCNIConflistGenerationNewNCTwice(t *testing.T) {
+	ncID := "some-new-nc"
+	mockgen := &mockCNIConflistGenerator{}
+	service := &HTTPRestService{
+		cniConflistGenerator: mockgen,
+		state: &httpRestServiceState{
+			ContainerStatus: map[string]containerstatus{
+				ncID: {
+					ID:          ncID,
+					HostVersion: "-1",
+					CreateNetworkContainerRequest: cns.CreateNetworkContainerRequest{
+						Version: "0",
+					},
+				},
+			},
+		},
+		nma: &fakes.NMAgentClientFake{
+			GetNCVersionListF: func(_ context.Context) (nma.NCVersionList, error) {
+				return nma.NCVersionList{
+					Containers: []nma.NCVersion{
+						{
+							NetworkContainerID: ncID,
+							Version:            "0",
+						},
+					},
+				}, nil
+			},
+		},
+	}
+
+	service.syncHostNCVersion(context.Background(), cns.CRD)
+	// CNI conflist gen happens in goroutine so sleep for a second to let it run
+	time.Sleep(time.Second)
+	assert.Equal(t, 1, mockgen.generatedCount)
+
+	service.syncHostNCVersion(context.Background(), cns.CRD)
+	// CNI conflist gen happens in goroutine so sleep for a second to let it run
+	time.Sleep(time.Second)
+	assert.Equal(t, 1, mockgen.generatedCount) // should still be one
+}
+
+// TestCNIConflistNotGenerated tests that the cni conflist is not generated if no NCs are programmed
+func TestCNIConflistNotGenerated(t *testing.T) {
+	newNCID := "some-new-nc"
+	mockgen := &mockCNIConflistGenerator{}
+	service := &HTTPRestService{
+		cniConflistGenerator: mockgen,
+		state: &httpRestServiceState{
+			ContainerStatus: map[string]containerstatus{
+				newNCID: {
+					ID:          newNCID,
+					HostVersion: "-1",
+					CreateNetworkContainerRequest: cns.CreateNetworkContainerRequest{
+						Version: "0",
+					},
+				},
+			},
+		},
+		nma: &fakes.NMAgentClientFake{
+			GetNCVersionListF: func(_ context.Context) (nma.NCVersionList, error) {
+				return nma.NCVersionList{}, nil
+			},
+		},
+	}
+
+	service.SyncHostNCVersion(context.Background(), cns.CRD)
+	// CNI conflist gen happens in goroutine so sleep for a second to let it run
+	time.Sleep(time.Second)
+	assert.Equal(t, 0, mockgen.generatedCount)
+}
+
+// TestCNIConflistGenerationOnNMAError tests that the cni conflist is generated as long as we have at least one programmed NC even if
+// the call to NMA to list NCs fails
+func TestCNIConflistGenerationOnNMAError(t *testing.T) {
+	newNCID := "some-new-nc"
+	existingNCID := "some-existing-nc"
+	mockgen := &mockCNIConflistGenerator{}
+	service := &HTTPRestService{
+		cniConflistGenerator: mockgen,
+		state: &httpRestServiceState{
+			ContainerStatus: map[string]containerstatus{
+				newNCID: {
+					ID:          newNCID,
+					HostVersion: "-1",
+					CreateNetworkContainerRequest: cns.CreateNetworkContainerRequest{
+						Version: "0",
+					},
+				},
+				existingNCID: {
+					ID:          existingNCID,
+					HostVersion: "0",
+					CreateNetworkContainerRequest: cns.CreateNetworkContainerRequest{
+						Version: "0",
+					},
+				},
+			},
+		},
+		nma: &fakes.NMAgentClientFake{
+			GetNCVersionListF: func(_ context.Context) (nma.NCVersionList, error) {
+				return nma.NCVersionList{}, errors.New("some nma error")
+			},
+		},
+	}
+
+	service.SyncHostNCVersion(context.Background(), cns.CRD)
+	// CNI conflist gen happens in goroutine so sleep for a second to let it run
+	time.Sleep(time.Second)
+	assert.Equal(t, 1, mockgen.generatedCount)
 }
