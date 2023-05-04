@@ -1206,41 +1206,39 @@ func (service *HTTPRestService) publishNetworkContainer(w http.ResponseWriter, r
 
 	ctx := r.Context()
 
-	if !service.isNetworkJoined(req.NetworkID) {
-		joinResp, err := service.wsproxy.JoinNetwork(ctx, req.NetworkID) //nolint:govet // ok to shadow
-		if err != nil {
-			resp := cns.PublishNetworkContainerResponse{
-				Response: cns.Response{
-					ReturnCode: types.NetworkJoinFailed,
-					Message:    fmt.Sprintf("failed to join network %s: %v", req.NetworkID, err),
-				},
-				PublishErrorStr: err.Error(),
-			}
-			respondJSON(w, http.StatusOK, resp) // legacy behavior
-			logger.Response(service.Name, resp, resp.Response.ReturnCode, err)
-			return
+	joinResp, err := service.wsproxy.JoinNetwork(ctx, req.NetworkID) //nolint:govet // ok to shadow
+	if err != nil {
+		resp := cns.PublishNetworkContainerResponse{
+			Response: cns.Response{
+				ReturnCode: types.NetworkJoinFailed,
+				Message:    fmt.Sprintf("failed to join network %s: %v", req.NetworkID, err),
+			},
+			PublishErrorStr: err.Error(),
 		}
-
-		joinBytes, _ := io.ReadAll(joinResp.Body)
-		_ = joinResp.Body.Close()
-
-		if joinResp.StatusCode != http.StatusOK {
-			resp := cns.PublishNetworkContainerResponse{
-				Response: cns.Response{
-					ReturnCode: types.NetworkJoinFailed,
-					Message:    fmt.Sprintf("failed to join network %s. did not get 200 from wireserver", req.NetworkID),
-				},
-				PublishStatusCode:   joinResp.StatusCode,
-				PublishResponseBody: joinBytes,
-			}
-			respondJSON(w, http.StatusOK, resp) // legacy behavior
-			logger.Response(service.Name, resp, resp.Response.ReturnCode, nil)
-			return
-		}
-
-		service.setNetworkStateJoined(req.NetworkID)
-		logger.Printf("[Azure-CNS] joined vnet %s during nc %s publish. wireserver response: %v", req.NetworkID, req.NetworkContainerID, string(joinBytes))
+		respondJSON(w, http.StatusOK, resp) // legacy behavior
+		logger.Response(service.Name, resp, resp.Response.ReturnCode, err)
+		return
 	}
+
+	joinBytes, _ := io.ReadAll(joinResp.Body)
+	_ = joinResp.Body.Close()
+
+	if joinResp.StatusCode != http.StatusOK {
+		resp := cns.PublishNetworkContainerResponse{
+			Response: cns.Response{
+				ReturnCode: types.NetworkJoinFailed,
+				Message:    fmt.Sprintf("failed to join network %s. did not get 200 from wireserver", req.NetworkID),
+			},
+			PublishStatusCode:   joinResp.StatusCode,
+			PublishResponseBody: joinBytes,
+		}
+		respondJSON(w, http.StatusOK, resp) // legacy behavior
+		logger.Response(service.Name, resp, resp.Response.ReturnCode, nil)
+		return
+	}
+
+	service.setNetworkStateJoined(req.NetworkID)
+	logger.Printf("[Azure-CNS] joined vnet %s during nc %s publish. wireserver response: %v", req.NetworkID, req.NetworkContainerID, string(joinBytes))
 
 	publishResp, err := service.wsproxy.PublishNC(ctx, ncParams, req.CreateNetworkContainerRequestBody)
 	if err != nil {
