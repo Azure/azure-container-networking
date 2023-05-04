@@ -833,14 +833,14 @@ func (service *HTTPRestService) populateIPConfigInfoUntransacted(ipConfigStatus 
 	return nil
 }
 
-// lowerCaseNCGuid func splits incoming NCID by "Swift_" and lowercase NC GUID; i.e,"Swift_ABCD-CD" -> "Swift_abcd-cd"
+// lowerCaseNCGuid() splits incoming NCID by "Swift_" and lowercase NC GUID; i.e,"Swift_ABCD-CD" -> "Swift_abcd-cd"
 func lowerCaseNCGuid(ncid string) string {
 	ncidHasSwiftPrefix := strings.HasPrefix(ncid, cns.SwiftPrefix)
 	if ncidHasSwiftPrefix {
 		return cns.SwiftPrefix + strings.ToLower(strings.Split(ncid, cns.SwiftPrefix)[1])
 	}
 
-	return strings.ToLower(cns.SwiftPrefix)
+	return strings.ToLower(ncid)
 }
 
 // isNCWaitingForUpdate :- Determine whether NC version on NMA matches programmed version

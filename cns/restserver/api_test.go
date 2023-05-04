@@ -1293,6 +1293,9 @@ func TestCreateHostNCApipaEndpoint(t *testing.T) {
 	fmt.Printf("createHostNCApipaEndpoint Responded with %+v\n", createHostNCApipaEndpointResponse)
 }
 
+// TestNCIDCaseInSensitive() tests NCID case insensitive that either uppercase or lowercase NCID should be accepted
+// get the ncVersionList with nc GUID as lower case and when looking up if the ncid is present in ncVersionList,
+// convert it to lowercase and then check if Vfp programming completes
 func TestNCIDCaseInSensitive(t *testing.T) {
 	setEnv(t)
 	err := setOrchestratorType(t, cns.Kubernetes)
@@ -1300,10 +1303,10 @@ func TestNCIDCaseInSensitive(t *testing.T) {
 		t.Fatalf("TestNCIDCaseSensitive failed with error:%+v", err)
 	}
 
-	// add a list of NCIDs with upper-case NCIDs, lower-case NCIDs, upper-case cns-managed mode NCID and lower-case cns-managed mode NCID
+	// add a list of NCIDs with upper-case NCID, lower-case NCID, upper-case cns-managed mode NCID and lower-case cns-managed mode NCID
 	ncids := []string{
-		strings.ToUpper("Swift_" + uuid.New().String()), strings.ToUpper("Swift_" + uuid.New().String()), "Swift_" + uuid.New().String(),
-		"Swift_" + uuid.New().String(), strings.ToUpper(uuid.New().String()), uuid.New().String(),
+		"Swift_89063DBF-AA31-4BFC-9663-3842A361F189", "Swift_f5750a6e-f05a-11ed-a05b-0242ac120003",
+		"17289C8E-F05B-11ED-A05B-0242AC120003", "0f6d764a-f05b-11ed-a05b-0242ac120003",
 	}
 
 	ncVersionList := map[string]string{}
@@ -1314,7 +1317,7 @@ func TestNCIDCaseInSensitive(t *testing.T) {
 
 	for _, ncid := range ncids {
 		_, returnCode, errMsg := svc.isNCWaitingForUpdate("0", ncid, ncVersionList)
-		// verify if Vfp programming completes with all types of incoming NCID
+		// verify if Vfp programming completes with all types of incoming NCIDs
 		if returnCode != types.NetworkContainerVfpProgramComplete {
 			t.Fatalf("failed to verify TestNCIDCaseInSensitive for ncid %s due to %s", ncid, errMsg)
 		}
