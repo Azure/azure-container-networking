@@ -9,6 +9,7 @@ import (
 	"os"
 	"reflect"
 	"strconv"
+	"sync"
 	"testing"
 	"time"
 
@@ -662,12 +663,20 @@ func restartService() {
 
 type mockCNIConflistGenerator struct {
 	generatedCount int
+	mutex          sync.Mutex
 }
 
 func (*mockCNIConflistGenerator) Close() error { return nil }
 func (m *mockCNIConflistGenerator) Generate() error {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
 	m.generatedCount++
 	return nil
+}
+func (m *mockCNIConflistGenerator) getGeneratedCount() int {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+	return m.generatedCount
 }
 
 // TestCNIConflistGenerationNewNC tests that discovering a new programmed NC in CNS state will trigger CNI conflist generation
@@ -704,7 +713,7 @@ func TestCNIConflistGenerationNewNC(t *testing.T) {
 	service.SyncHostNCVersion(context.Background(), cns.CRD)
 	// CNI conflist gen happens in goroutine so sleep for a second to let it run
 	time.Sleep(time.Second)
-	assert.Equal(t, 1, mockgen.generatedCount)
+	assert.Equal(t, 1, mockgen.getGeneratedCount())
 }
 
 // TestCNIConflistGenerationExistingNC tests that if the CNS starts up with a NC already in its state, it will still generate the conflist
@@ -729,7 +738,7 @@ func TestCNIConflistGenerationExistingNC(t *testing.T) {
 	service.SyncHostNCVersion(context.Background(), cns.CRD)
 	// CNI conflist gen happens in goroutine so sleep for a second to let it run
 	time.Sleep(time.Second)
-	assert.Equal(t, 1, mockgen.generatedCount)
+	assert.Equal(t, 1, mockgen.getGeneratedCount())
 }
 
 // TestCNIConflistGenerationNewNCTwice tests that discovering a new programmed NC in CNS state will trigger CNI conflist generation, but syncing
@@ -767,12 +776,12 @@ func TestCNIConflistGenerationNewNCTwice(t *testing.T) {
 	service.SyncHostNCVersion(context.Background(), cns.CRD)
 	// CNI conflist gen happens in goroutine so sleep for a second to let it run
 	time.Sleep(time.Second)
-	assert.Equal(t, 1, mockgen.generatedCount)
+	assert.Equal(t, 1, mockgen.getGeneratedCount())
 
 	service.SyncHostNCVersion(context.Background(), cns.CRD)
 	// CNI conflist gen happens in goroutine so sleep for a second to let it run
 	time.Sleep(time.Second)
-	assert.Equal(t, 1, mockgen.generatedCount) // should still be one
+	assert.Equal(t, 1, mockgen.getGeneratedCount()) // should still be one
 }
 
 // TestCNIConflistNotGenerated tests that the cni conflist is not generated if no NCs are programmed
@@ -802,7 +811,7 @@ func TestCNIConflistNotGenerated(t *testing.T) {
 	service.SyncHostNCVersion(context.Background(), cns.CRD)
 	// CNI conflist gen happens in goroutine so sleep for a second to let it run
 	time.Sleep(time.Second)
-	assert.Equal(t, 0, mockgen.generatedCount)
+	assert.Equal(t, 0, mockgen.getGeneratedCount())
 }
 
 // TestCNIConflistGenerationOnNMAError tests that the cni conflist is generated as long as we have at least one programmed NC even if
@@ -841,5 +850,5 @@ func TestCNIConflistGenerationOnNMAError(t *testing.T) {
 	service.SyncHostNCVersion(context.Background(), cns.CRD)
 	// CNI conflist gen happens in goroutine so sleep for a second to let it run
 	time.Sleep(time.Second)
-	assert.Equal(t, 1, mockgen.generatedCount)
+	assert.Equal(t, 1, mockgen.getGeneratedCount())
 }
