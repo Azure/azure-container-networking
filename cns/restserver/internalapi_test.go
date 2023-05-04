@@ -673,6 +673,7 @@ func (m *mockCNIConflistGenerator) Generate() error {
 	m.generatedCount++
 	return nil
 }
+
 func (m *mockCNIConflistGenerator) getGeneratedCount() int {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
