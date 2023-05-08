@@ -236,46 +236,46 @@ jobs:
             kill $kwok_pid
             exit $rc
 
-      # - task: AzureCLI@2
-      #   displayName: "Test NPM Bootup Latency and Connectivity"
-      #   inputs:
-      #     azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
-      #     scriptType: "bash"
-      #     scriptLocation: "inlineScript"
-      #     failOnStderr: true
-      #     condition: succeeded()
-      #     inlineScript: |
-      #       set -e
-      #       mkdir -p $(System.DefaultWorkingDirectory)/$(RESOURCE_GROUP)-$(PROFILE)
-      #       ./kwok --kubeconfig ~/.kube/config \
-      #         --cidr=155.0.0.0/16 \
-      #         --node-ip=155.0.0.1 \
-      #         --manage-all-nodes=false \
-      #         --manage-nodes-with-annotation-selector=kwok.x-k8s.io/node=fake \
-      #         --manage-nodes-with-label-selector= \
-      #         --disregard-status-with-annotation-selector=kwok.x-k8s.io/status=custom \
-      #         --disregard-status-with-label-selector= > $(System.DefaultWorkingDirectory)/$(RESOURCE_GROUP)-$(PROFILE)/kwok-bootup-latency.log &
-      #       kwok_pid=$!
+      - task: AzureCLI@2
+        displayName: "Test NPM Bootup Latency and Connectivity"
+        inputs:
+          azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+          scriptType: "bash"
+          scriptLocation: "inlineScript"
+          failOnStderr: true
+          condition: succeeded()
+          inlineScript: |
+            set -e
+            mkdir -p $(System.DefaultWorkingDirectory)/$(RESOURCE_GROUP)-$(PROFILE)
+            ./kwok --kubeconfig ~/.kube/config \
+              --cidr=155.0.0.0/16 \
+              --node-ip=155.0.0.1 \
+              --manage-all-nodes=false \
+              --manage-nodes-with-annotation-selector=kwok.x-k8s.io/node=fake \
+              --manage-nodes-with-label-selector= \
+              --disregard-status-with-annotation-selector=kwok.x-k8s.io/status=custom \
+              --disregard-status-with-label-selector= > $(System.DefaultWorkingDirectory)/$(RESOURCE_GROUP)-$(PROFILE)/kwok-bootup-latency.log &
+            kwok_pid=$!
 
-      #       kubectl rollout restart -n kube-system ds azure-npm-win
-      #       echo "sleeping 3 minutes to allow NPM pods to restart after scale-up..."
-      #       sleep 3m
+            kubectl rollout restart -n kube-system ds azure-npm-win
+            echo "sleeping 3 minutes to allow NPM pods to restart after scale-up..."
+            sleep 3m
 
-      #       cd $(Pipeline.Workspace)/s/test/scale/connectivity/
-      #       # initial connectivity should be established within 15 minutes of NPM restart (12 minute timeout since we already waited 3 minutes above)
-      #       # adding new network policy to all 30 Pods should take no more than 1 minute
-      #       set +e
-      #       ./test-connectivity.sh --kubectl-binary=$kubectlPath \
-      #           --num-scale-pods-to-verify=all \
-      #           --max-wait-for-initial-connectivity=$((60*60)) \
-      #           --max-wait-after-adding-netpol=$((5*60))
-      #       rc=$?
-      #       if [[ $rc != 0 ]]; then
-      #           kubectl get pod -n scale-test
-      #           kubectl get pod -n connectivity-test
-      #       fi
-      #       kill $kwok_pid
-      #       exit $rc
+            cd $(Pipeline.Workspace)/s/test/scale/connectivity/
+            # initial connectivity should be established within 15 minutes of NPM restart (12 minute timeout since we already waited 3 minutes above)
+            # adding new network policy to all 30 Pods should take no more than 1 minute
+            set +e
+            ./test-connectivity.sh --kubectl-binary=$kubectlPath \
+                --num-scale-pods-to-verify=all \
+                --max-wait-for-initial-connectivity=$((60*60)) \
+                --max-wait-after-adding-netpol=$((5*60))
+            rc=$?
+            if [[ $rc != 0 ]]; then
+                kubectl get pod -n scale-test
+                kubectl get pod -n connectivity-test
+            fi
+            kill $kwok_pid
+            exit $rc
 
       - task: AzureCLI@2
         displayName: "General CRUD at Medium Scale"
@@ -284,7 +284,7 @@ jobs:
           scriptType: "bash"
           scriptLocation: "inlineScript"
           failOnStderr: true
-          condition: succeeded()
+          # condition: succeeded()
           inlineScript: |
             set -e
             mkdir -p $(System.DefaultWorkingDirectory)/$(RESOURCE_GROUP)-$(PROFILE)
