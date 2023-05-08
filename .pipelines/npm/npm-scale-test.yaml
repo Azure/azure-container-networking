@@ -191,6 +191,32 @@ jobs:
             echo "##vso[task.setvariable variable=FQDN]$FQDN"
 
       - task: AzureCLI@2
+        displayName: "Update Registry Keys"
+        inputs:
+          azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+          scriptType: "bash"
+          scriptLocation: "inlineScript"
+          failOnStderr: true
+          condition: succeeded()
+          inlineScript: |
+            set -e
+            npmPods=`kubectl get pod -n kube-system -l k8s-app=azure-npm -o jsonpath='{.items[0].metadata.name}'`
+            hadPod=false
+            for pod in $npmPods; do
+                echo $pod | grep "npm-win" || continue
+                hadPod=true
+                kubectl exec -n kube-system $pod -- powershell.exe "reg add HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\hns\State /v HnsAclUpdateChange /t REG_DWORD /d 1 /f"
+                kubectl exec -n kube-system $pod -- powershell.exe "reg add HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\hns\State /v HnsNpmRefresh /t REG_DWORD /d 1 /f"
+                kubectl exec -n kube-system $pod -- powershell.exe "Restart-Service Hns"
+            done
+            if [[ $hadPod == false ]]; then
+                echo "##vso[task.logissue type=error]No NPM pods found"
+                exit 1
+            fi
+            echo "sleeping 2m after updating registry keys..."
+            sleep 2m
+
+      - task: AzureCLI@2
         displayName: "Scale Up Large"
         inputs:
           azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
