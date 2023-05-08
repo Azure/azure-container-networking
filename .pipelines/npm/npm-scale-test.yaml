@@ -200,11 +200,12 @@ jobs:
           condition: succeeded()
           inlineScript: |
             set -e
-            npmPods=`kubectl get pod -n kube-system -l k8s-app=azure-npm -o jsonpath='{.items[0].metadata.name}'`
+            npmPods=`kubectl get pod -n kube-system -l k8s-app=azure-npm -o jsonpath='{.items[*].metadata.name}'`
             hadPod=false
             for pod in $npmPods; do
-                echo $pod | grep "npm-win" || continue
+                echo $pod | grep -q "npm-win" || continue
                 hadPod=true
+                echo "updating registry keys for pod: $pod"
                 kubectl exec -n kube-system $pod -- powershell.exe "reg add HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\hns\State /v HnsAclUpdateChange /t REG_DWORD /d 1 /f"
                 kubectl exec -n kube-system $pod -- powershell.exe "reg add HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\hns\State /v HnsNpmRefresh /t REG_DWORD /d 1 /f"
                 kubectl exec -n kube-system $pod -- powershell.exe "Restart-Service Hns"
