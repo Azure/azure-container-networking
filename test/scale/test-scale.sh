@@ -425,7 +425,9 @@ set -x
 $KUBECTL $KUBECONFIG_ARG apply -f generated/networkpolicies/unapplied
 $KUBECTL $KUBECONFIG_ARG apply -f generated/networkpolicies/applied
 # wait for all pods to run
-$KUBECTL $KUBECONFIG_ARG wait --for=condition=Ready pods -n scale-test --all --timeout=15m
+$KUBECTL $KUBECONFIG_ARG wait --for=condition=Ready pods -n scale-test -l is-real=true --all --timeout=15m
+# just make sure kwok pods are Running, not necessarily Ready (sometimes kwok pods have NodeNotReady even though the node is ready)
+$KUBECTL $KUBECONFIG_ARG wait --for=condition=Initialized pods -n scale-test -l is-kwok=true --all --timeout=5m
 set +x
 
 echo
@@ -498,7 +500,9 @@ if [[ ($deleteKwokPods != "" && $deleteKwokPods -gt 0) || ($deleteRealPods != ""
 
         sleep 5s
         set -x
-        $KUBECTL $KUBECONFIG_ARG wait --for=condition=Ready pods -n scale-test --all --timeout=15m
+        $KUBECTL $KUBECONFIG_ARG wait --for=condition=Ready pods -n scale-test -l is-real=true --all --timeout=15m
+        # just make sure kwok pods are Running, not necessarily Ready (sometimes kwok pods have NodeNotReady even though the node is ready)
+        $KUBECTL $KUBECONFIG_ARG wait --for=condition=Initialized pods -n scale-test -l is-kwok=true --all --timeout=5m
         set +x
 
         if [[ $i == $deletePodsTimes ]]; then
