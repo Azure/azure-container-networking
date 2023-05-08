@@ -256,6 +256,21 @@ if [[ $DEBUG_EXIT_AFTER_PRINT_COUNTS == true ]]; then
     exit 0
 fi
 
+## HELPER FUNCTIONS
+wait_for_pods() {
+    # wait for all pods to run
+    minutesToWaitForRealPods=$(( 10 + $numRealPods / 250 ))
+    set -x
+    $KUBECTL $KUBECONFIG_ARG wait --for=condition=Ready pods -n scale-test -l is-real=true --all --timeout="${minutesToWaitForRealPods}m"
+    set +x
+
+    # just make sure kwok pods are Running, not necessarily Ready (sometimes kwok pods have NodeNotReady even though the node is ready)
+    minutesToWaitForKwokPods=$(( 1 + $numKwokPods / 500 ))
+    set -x
+    $KUBECTL $KUBECONFIG_ARG wait --for=condition=Initialized pods -n scale-test -l is-kwok=true --all --timeout="${minutesToWaitForKwokPods}m"
+    set +x
+}
+
 ## FILE SETUP
 echo "Cleaning up generated/ directory..."
 test -d generated && rm -rf generated/
@@ -424,11 +439,9 @@ fi
 set -x
 $KUBECTL $KUBECONFIG_ARG apply -f generated/networkpolicies/unapplied
 $KUBECTL $KUBECONFIG_ARG apply -f generated/networkpolicies/applied
-# wait for all pods to run
-$KUBECTL $KUBECONFIG_ARG wait --for=condition=Ready pods -n scale-test -l is-real=true --all --timeout=15m
-# just make sure kwok pods are Running, not necessarily Ready (sometimes kwok pods have NodeNotReady even though the node is ready)
-$KUBECTL $KUBECONFIG_ARG wait --for=condition=Initialized pods -n scale-test -l is-kwok=true --all --timeout=5m
 set +x
+
+wait_for_pods
 
 echo
 echo "done scaling at $(date -u). Had started at $startDate."
@@ -499,11 +512,7 @@ if [[ ($deleteKwokPods != "" && $deleteKwokPods -gt 0) || ($deleteRealPods != ""
         fi
 
         sleep 5s
-        set -x
-        $KUBECTL $KUBECONFIG_ARG wait --for=condition=Ready pods -n scale-test -l is-real=true --all --timeout=15m
-        # just make sure kwok pods are Running, not necessarily Ready (sometimes kwok pods have NodeNotReady even though the node is ready)
-        $KUBECTL $KUBECONFIG_ARG wait --for=condition=Initialized pods -n scale-test -l is-kwok=true --all --timeout=5m
-        set +x
+        wait_for_pods
 
         if [[ $i == $deletePodsTimes ]]; then
             break
