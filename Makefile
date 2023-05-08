@@ -65,6 +65,7 @@ CNI_MULTITENANCY_TRANSPARENT_VLAN_BUILD_DIR = $(BUILD_DIR)/cni-multitenancy-tran
 CNI_SWIFT_BUILD_DIR = $(BUILD_DIR)/cni-swift
 CNI_OVERLAY_BUILD_DIR = $(BUILD_DIR)/cni-overlay
 CNI_BAREMETAL_BUILD_DIR = $(BUILD_DIR)/cni-baremetal
+CNI_DUALSTACK_BUILD_DIR = $(BUILD_DIR)/cni-dualstack
 CNS_BUILD_DIR = $(BUILD_DIR)/cns
 NPM_BUILD_DIR = $(BUILD_DIR)/npm
 TOOLS_DIR = $(REPO_ROOT)/build/tools
@@ -94,6 +95,7 @@ CNI_MULTITENANCY_TRANSPARENT_VLAN_ARCHIVE_NAME = azure-vnet-cni-multitenancy-tra
 CNI_SWIFT_ARCHIVE_NAME = azure-vnet-cni-swift-$(GOOS)-$(GOARCH)-$(CNI_VERSION).$(ARCHIVE_EXT)
 CNI_OVERLAY_ARCHIVE_NAME = azure-vnet-cni-overlay-$(GOOS)-$(GOARCH)-$(CNI_VERSION).$(ARCHIVE_EXT)
 CNI_BAREMETAL_ARCHIVE_NAME = azure-vnet-cni-baremetal-$(GOOS)-$(GOARCH)-$(CNI_VERSION).$(ARCHIVE_EXT)
+CNI_DUALSTACK_ARCHIVE_NAME = azure-vnet-cni-overlay-dualstack-$(GOOS)-$(GOARCH)-$(CNI_VERSION).$(ARCHIVE_EXT)
 CNM_ARCHIVE_NAME = azure-vnet-cnm-$(GOOS)-$(GOARCH)-$(ACN_VERSION).$(ARCHIVE_EXT)
 CNS_ARCHIVE_NAME = azure-cns-$(GOOS)-$(GOARCH)-$(CNS_VERSION).$(ARCHIVE_EXT)
 NPM_ARCHIVE_NAME = azure-npm-$(GOOS)-$(GOARCH)-$(NPM_VERSION).$(ARCHIVE_EXT)
@@ -624,6 +626,12 @@ endif
 	cp $(CNI_BUILD_DIR)/azure-vnet$(EXE_EXT) $(CNI_BUILD_DIR)/azure-vnet-ipam$(EXE_EXT) $(CNI_BUILD_DIR)/azure-vnet-telemetry$(EXE_EXT) $(CNI_OVERLAY_BUILD_DIR)
 	cd $(CNI_OVERLAY_BUILD_DIR) && $(ARCHIVE_CMD) $(CNI_OVERLAY_ARCHIVE_NAME) azure-vnet$(EXE_EXT) azure-vnet-ipam$(EXE_EXT) azure-vnet-telemetry$(EXE_EXT) 10-azure.conflist azure-vnet-telemetry.config
 
+	$(MKDIR) $(CNI_DUALSTACK_BUILD_DIR)
+	cp cni/azure-$(GOOS)-swift-overlay-dualstack.conflist $(CNI_DUALSTACK_BUILD_DIR)/10-azure.conflist
+	cp telemetry/azure-vnet-telemetry.config $(CNI_DUALSTACK_BUILD_DIR)/azure-vnet-telemetry.config
+	cp $(CNI_BUILD_DIR)/azure-vnet$(EXE_EXT) $(CNI_BUILD_DIR)/azure-vnet-telemetry$(EXE_EXT) $(CNI_DUALSTACK_BUILD_DIR)
+	cd $(CNI_DUALSTACK_BUILD_DIR) && $(ARCHIVE_CMD) $(CNI_DUALSTACK_ARCHIVE_NAME) azure-vnet$(EXE_EXT) azure-vnet-telemetry$(EXE_EXT) 10-azure.conflist azure-vnet-telemetry.config
+
 #baremetal mode is windows only (at least for now)
 ifeq ($(GOOS),windows)
 	$(MKDIR) $(CNI_BAREMETAL_BUILD_DIR)
@@ -752,13 +760,11 @@ setup: tools install-hooks gitconfig ## performs common required repo setup
 
 ##@ Tools 
 
-TOOL_TAG = azure-container-netwokring/build/tools
-
 $(TOOLS_DIR)/go.mod:
 	cd $(TOOLS_DIR); go mod init && go mod tidy
 
 $(CONTROLLER_GEN): $(TOOLS_DIR)/go.mod
-	cd $(TOOLS_DIR); go mod download; go build -tags=$(TOOL_TAG) -o bin/controller-gen sigs.k8s.io/controller-tools/cmd/controller-gen
+	cd $(TOOLS_DIR); go mod download; go build -o bin/controller-gen sigs.k8s.io/controller-tools/cmd/controller-gen
 
 controller-gen: $(CONTROLLER_GEN) ## Build controller-gen
 
@@ -766,32 +772,32 @@ protoc:
 	source ${REPO_ROOT}/scripts/install-protoc.sh
 
 $(GOCOV): $(TOOLS_DIR)/go.mod
-	cd $(TOOLS_DIR); go mod download; go build -tags=$(TOOL_TAG) -o bin/gocov github.com/axw/gocov/gocov
+	cd $(TOOLS_DIR); go mod download; go build -o bin/gocov github.com/axw/gocov/gocov
 
 gocov: $(GOCOV) ## Build gocov
 
 $(GOCOV_XML): $(TOOLS_DIR)/go.mod
-	cd $(TOOLS_DIR); go mod download; go build -tags=$(TOOL_TAG) -o bin/gocov-xml github.com/AlekSi/gocov-xml
+	cd $(TOOLS_DIR); go mod download; go build -o bin/gocov-xml github.com/AlekSi/gocov-xml
 
 gocov-xml: $(GOCOV_XML) ## Build gocov-xml
 
 $(GOFUMPT): $(TOOLS_DIR)/go.mod
-	cd $(TOOLS_DIR); go mod download; go build -tags=$(TOOL_TAG) -o bin/gofumpt mvdan.cc/gofumpt
+	cd $(TOOLS_DIR); go mod download; go build -o bin/gofumpt mvdan.cc/gofumpt
 
 gofumpt: $(GOFUMPT) ## Build gofumpt
 
 $(GOLANGCI_LINT): $(TOOLS_DIR)/go.mod
-	cd $(TOOLS_DIR); go mod download; go build -tags=$(TOOL_TAG) -o bin/golangci-lint github.com/golangci/golangci-lint/cmd/golangci-lint
+	cd $(TOOLS_DIR); go mod download; go build -o bin/golangci-lint github.com/golangci/golangci-lint/cmd/golangci-lint
 
 golangci-lint: $(GOLANGCI_LINT) ## Build golangci-lint
 
 $(GO_JUNIT_REPORT): $(TOOLS_DIR)/go.mod
-	cd $(TOOLS_DIR); go mod download; go build -tags=$(TOOL_TAG) -o bin/go-junit-report github.com/jstemmer/go-junit-report
+	cd $(TOOLS_DIR); go mod download; go build -o bin/go-junit-report github.com/jstemmer/go-junit-report
 
 go-junit-report: $(GO_JUNIT_REPORT) ## Build go-junit-report
 
 $(MOCKGEN): $(TOOLS_DIR)/go.mod
-	cd $(TOOLS_DIR); go mod download; go build -tags=$(TOOL_TAG) -o bin/mockgen github.com/golang/mock/mockgen
+	cd $(TOOLS_DIR); go mod download; go build -o bin/mockgen github.com/golang/mock/mockgen
 
 mockgen: $(MOCKGEN) ## Build mockgen
 

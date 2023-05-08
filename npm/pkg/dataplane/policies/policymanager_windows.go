@@ -87,6 +87,11 @@ var baseACLsForCalicoCNI = []*NPMACLPolSettings{
 	},
 }
 
+type aclBatch struct {
+	rules    []*NPMACLPolSettings
+	policies []string
+}
+
 type staleChains struct{} // unused in Windows
 
 type shouldResetAllACLs bool
@@ -123,6 +128,114 @@ func (pMgr *PolicyManager) bootup(epIDs []string) error {
 
 func (pMgr *PolicyManager) reconcile() {
 	// not implemented
+}
+
+// AddAllPolicies is used in Windows to add all NetworkPolicies to an endpoint.
+// Will make a series of sequential HNS ADD calls based on MaxBatchedACLsPerPod.
+// A NetworkPolicy's ACLs are always in the same batch, and there will be at least one NetworkPolicy per batch.
+func (pMgr *PolicyManager) AddAllPolicies(policyKeys map[string]struct{}, epToModifyID, epToModifyIP string) (map[string]struct{}, error) {
+	pMgr.policyMap.Lock()
+	defer pMgr.policyMap.Unlock()
+
+	klog.Infof("[PolicyManagerWindows] adding all policies. epID: %s. epIP: %s. policyKeys: %+v", epToModifyID, epToModifyIP, policyKeys)
+
+	batches, err := pMgr.batchPolicies(policyKeys, epToModifyID, epToModifyIP)
+	if err != nil {
+		return nil, fmt.Errorf("error while batching policies for endpoint. err: %w", err)
+	}
+
+	successfulPolicies := make(map[string]struct{})
+
+	for i, batch := range batches {
+		klog.Infof("[PolicyManagerWindows] processing batch %d out of %d for adding all policies to endpoint. endpoint ID: %s. policyBatch: %+v", i+1, len(batches), epToModifyID, batch.policies)
+
+		epPolicyRequest, err := getEPPolicyReqFromACLSettings(batch.rules)
+		if err != nil {
+			return successfulPolicies, fmt.Errorf("error while applying all policies for batch %d out of %d. ruleBatch: %+v. err: %w", i+1, len(batches), batch, err)
+		}
+
+		klog.Infof("[PolicyManager] applying all rules to endpoint for batch %d out of %d. endpoint ID: %s", i+1, len(batches), epToModifyID)
+		err = pMgr.applyPoliciesToEndpointID(epToModifyID, epPolicyRequest)
+		if err != nil {
+			return successfulPolicies, fmt.Errorf("failed to add all policies on endpoint for batch %d out of %d. ruleBatch: %+v. err: %w", i+1, len(batches), batch, err)
+		}
+
+		klog.Infof("[PolicyManager] finished applying all rules to endpoint for batch %d out of %d. endpoint ID: %s, policyBatch: %+v", i+1, len(batches), epToModifyID, batch.policies)
+		for _, policyKey := range batch.policies {
+			policy, ok := pMgr.policyMap.cache[policyKey]
+			if ok {
+				policy.PodEndpoints[epToModifyIP] = epToModifyID
+				successfulPolicies[policyKey] = struct{}{}
+			} else {
+				klog.Errorf("[PolicyManagerWindows] unexpected error: policy not found after adding all policies for batch %d out of %d. policyKey: %s. epID: %s",
+					i+1, len(batches), policyKey, epToModifyID)
+				metrics.SendErrorLogAndMetric(util.IptmID, "[PolicyManagerWindows] unexpected error: policy not found after adding all policies for batch %d out of %d. policyKey: %s. epID: %s",
+					i+1, len(batches), policyKey, epToModifyID)
+			}
+		}
+	}
+
+	return successfulPolicies, nil
+}
+
+// batchPolicies returns a list of batches
+func (pMgr *PolicyManager) batchPolicies(policyKeys map[string]struct{}, epToModifyID, epToModifyIP string) ([]*aclBatch, error) {
+	batches := make([]*aclBatch, 0)
+	for policyKey := range policyKeys {
+		policy, ok := pMgr.policyMap.cache[policyKey]
+		if !ok {
+			klog.Infof("[PolicyManagerWindows] policy not found while adding all policies. policyKey: %s. epID: %s", policyKey, epToModifyID)
+			delete(policyKeys, policyKey)
+			continue
+		}
+
+		// 1. remove stale endpoints from policy.PodEndpoints and skip adding to endpoints that already have the policy
+		if policy.PodEndpoints == nil {
+			policy.PodEndpoints = make(map[string]string)
+		}
+
+		epID, ok := policy.PodEndpoints[epToModifyIP]
+		if ok {
+			if epID == epToModifyID {
+				klog.Infof("[PolicyManagerWindows] while adding all policies, will not add policy %s to endpoint since it already exists there. endpoint IP: %s, endpoint ID: %s",
+					policy.PolicyKey, epToModifyIP, epToModifyID)
+				delete(policyKeys, policyKey)
+				continue
+			}
+
+			// If the expected ID is not same as epID, there is a chance that old pod got deleted
+			// and same IP is used by new pod with new endpoint.
+			// so we should delete the non-existent endpoint from policy reference
+			klog.Infof("[PolicyManagerWindows] while adding all policies, removing deleted endpoint from policy's current endpoints. policy: %s, endpoint IP: %s, new ID: %s, previous ID: %s",
+				policy.PolicyKey, epToModifyIP, epToModifyID, epID)
+			delete(policy.PodEndpoints, epToModifyIP)
+		}
+
+		// 2. add this policy's rules to a batch
+		policyRules, err := pMgr.getSettingsFromACL(policy)
+		if err != nil {
+			return batches, fmt.Errorf("error while getting settings while applying all policies. err: %w", err)
+		}
+
+		if len(batches) > 0 {
+			batch := batches[len(batches)-1]
+			if len(batch.rules)+len(policyRules) <= pMgr.MaxBatchedACLsPerPod {
+				batch.rules = append(batch.rules, policyRules...)
+				batch.policies = append(batch.policies, policy.PolicyKey)
+				continue
+			}
+		}
+
+		// create a new batch
+		// either this is the first NetPol we've seen, or adding this NetPol's rules to the previous batch would exceed the max rules per batch
+		batch := &aclBatch{
+			rules:    policyRules,
+			policies: []string{policy.PolicyKey},
+		}
+		batches = append(batches, batch)
+	}
+
+	return batches, nil
 }
 
 // AddBaseACLsForCalicoCNI attempts to add base ACLs for Calico CNI.

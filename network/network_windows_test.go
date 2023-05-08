@@ -8,12 +8,14 @@ package network
 
 import (
 	"fmt"
+	"net"
 	"testing"
 	"time"
 
 	"github.com/Azure/azure-container-networking/network/hnswrapper"
-
+	"github.com/Azure/azure-container-networking/platform"
 	"github.com/Microsoft/hcsshim/hcn"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestNewAndDeleteNetworkImplHnsV2(t *testing.T) {
@@ -226,5 +228,78 @@ func TestDeleteNetworkImplHnsV1WithTimeout(t *testing.T) {
 
 	if err == nil {
 		t.Fatal("Failed to timeout HNS calls for deleting network")
+	}
+}
+
+// test addNewNetRules to add net rules from NetworkInfo
+func TestAddNewNetRules(t *testing.T) {
+	cnt := 0
+	plc := platform.NewMockExecClient(false)
+	nm := &networkManager{
+		ExternalInterfaces: map[string]*externalInterface{},
+		plClient:           plc,
+	}
+
+	nwInfo := &NetworkInfo{
+		Id:           "d3e97a83-ba4c-45d5-ba88-dc56757ece28",
+		MasterIfName: "eth0",
+		Mode:         "bridge",
+		Subnets: []SubnetInfo{
+			{
+				Prefix: net.IPNet{
+					IP:   net.IPv4(10, 0, 0, 1),
+					Mask: net.IPv4Mask(255, 255, 0, 0),
+				},
+				Gateway: net.ParseIP("0.0.0.0"),
+			},
+			{
+				Prefix: net.IPNet{
+					IP:   net.ParseIP("ff02::fb"),
+					Mask: net.CIDRMask(128, 128),
+				},
+				Gateway: net.ParseIP("::"),
+			},
+		},
+	}
+
+	// get each delete and add new rule entry
+	ifName := "vEthernet (eth0)"
+	var ipType, defaultHop string
+	expectedCmds := make([]string, 0)
+	expectedNumRules := 8
+	for _, subnet := range nwInfo.Subnets {
+		prefix := subnet.Prefix.String()
+		ip, _, _ := net.ParseCIDR(prefix)
+		if ip.To4() != nil {
+			ipType = "ipv4"
+			defaultHop = ipv4DefaultHop
+		} else {
+			ipType = "ipv6"
+			defaultHop = ipv6DefaultHop
+		}
+		gateway := subnet.Gateway.String()
+		netRouteCmd1 := fmt.Sprintf(netRouteCmd, ipType, "delete", prefix, ifName, defaultHop)
+		expectedCmds = append(expectedCmds, netRouteCmd1)
+		netRouteCmd2 := fmt.Sprintf(netRouteCmd, ipType, "add", prefix, ifName, defaultHop)
+		expectedCmds = append(expectedCmds, netRouteCmd2)
+		netRouteCmd3 := fmt.Sprintf(netRouteCmd, ipType, "delete", prefix, ifName, gateway)
+		expectedCmds = append(expectedCmds, netRouteCmd3)
+		netRouteCmd4 := fmt.Sprintf(netRouteCmd, ipType, "add", prefix, ifName, gateway)
+		expectedCmds = append(expectedCmds, netRouteCmd4)
+	}
+
+	plc.SetExecCommand(func(cmd string) (string, error) {
+		assert.Equal(t, expectedCmds[cnt], cmd)
+		cnt++
+		return "", nil
+	})
+
+	err := nm.addNewNetRules(nwInfo)
+	if err != nil {
+		t.Fatal("Failed to add/delete a new network rule")
+	}
+
+	if cnt != expectedNumRules {
+		t.Fatalf("Failed to add/delete expected number %d of new network rules", expectedNumRules)
 	}
 }

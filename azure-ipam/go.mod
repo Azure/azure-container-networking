@@ -3,7 +3,7 @@ module github.com/Azure/azure-container-networking/azure-ipam
 go 1.20
 
 require (
-	github.com/Azure/azure-container-networking v1.4.46
+	github.com/Azure/azure-container-networking v1.5.0
 	github.com/containernetworking/cni v1.1.2
 	github.com/containernetworking/plugins v1.2.0
 	github.com/pkg/errors v0.9.1
