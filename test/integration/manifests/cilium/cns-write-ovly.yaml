@@ -1,0 +1,228 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: azure-cns
+  namespace: kube-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  namespace: kube-system
+  name: nodeNetConfigEditor
+rules:
+- apiGroups: ["acn.azure.com"]
+  resources: ["nodenetworkconfigs"]
+  verbs: ["get", "list", "watch", "patch", "update"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: pod-reader-all-namespaces
+rules:
+- apiGroups: [""]
+  resources: ["pods"]
+  verbs: ["get", "watch", "list"]
+- apiGroups: [""]
+  resources: ["nodes"]
+  verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: nodeNetConfigEditorRoleBinding
+  namespace: kube-system
+subjects:
+- kind: ServiceAccount
+  name: azure-cns
+  namespace: kube-system
+roleRef:
+  kind: Role
+  name: nodeNetConfigEditor
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: pod-reader-all-namespaces-binding
+subjects:
+- kind: ServiceAccount
+  name: azure-cns
+  namespace: kube-system
+roleRef:
+  kind: ClusterRole
+  name: pod-reader-all-namespaces
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: azure-cns
+  namespace: kube-system
+  labels:
+    app: azure-cns
+spec:
+  selector:
+    matchLabels:
+      k8s-app: azure-cns
+  template:
+    metadata:
+      labels:
+        k8s-app: azure-cns
+      annotations:
+        cluster-autoscaler.kubernetes.io/daemonset-pod: "true"
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: kubernetes.azure.com/cluster
+                operator: Exists
+              - key: type
+                operator: NotIn
+                values:
+                - virtual-kubelet
+              - key: beta.kubernetes.io/os
+                operator: In
+                values:
+                - linux
+      priorityClassName: system-node-critical
+      tolerations:
+        - key: CriticalAddonsOnly
+          operator: Exists
+        - operator: "Exists"
+          effect: NoExecute
+        - operator: "Exists"
+          effect: NoSchedule
+      containers:
+        - name: cns-container
+          image: acnpublic.azurecr.io/azure-cns:write-cilium-conf2
+          imagePullPolicy: IfNotPresent
+          args: [ "-c", "tcp://$(CNSIpAddress):$(CNSPort)", "-t", "$(CNSLogTarget)"]
+          securityContext:
+            capabilities:
+              add:
+                - NET_ADMIN
+          volumeMounts:
+            - name: log
+              mountPath: /var/log
+            - name: cns-state
+              mountPath: /var/lib/azure-network
+            - name: cns-config
+              mountPath: /etc/azure-cns
+            - name: cni-bin
+              mountPath: /opt/cni/bin
+            - name: azure-vnet
+              mountPath: /var/run/azure-vnet
+            - name: legacy-cni-state
+              mountPath: /var/run/azure-vnet.json
+            - name: xtables-lock
+              mountPath: /run/xtables.lock
+            - name: cni-ipam-state
+              mountPath: /var/run/azure-cns
+            - name: cni-conflist
+              mountPath: /etc/cni/net.d
+          ports:
+            - containerPort: 10090
+          env:
+            - name: CNSIpAddress
+              value: "127.0.0.1"
+            - name: CNSPort
+              value: "10090"
+            - name: CNSLogTarget
+              value: "stdoutfile"
+            - name: CNS_CONFIGURATION_PATH
+              value: /etc/azure-cns/cns_config.json
+            - name: NODENAME
+              valueFrom:
+                  fieldRef:
+                    apiVersion: v1
+                    fieldPath: spec.nodeName 
+      initContainers:
+        - name: init-cni-dropgz
+          image: acnpublic.azurecr.io/cni-dropgz:v0.0.4
+          imagePullPolicy: Always
+          command: ["/dropgz"]
+          args:
+            - deploy
+            - azure-ipam
+            - -o
+            - /opt/cni/bin/azure-ipam
+            # - azilium.conflist
+            # - -o 
+            # - /etc/cni/net.d/05-cilium.conflist
+          volumeMounts:
+            - name: cni-bin
+              mountPath: /opt/cni/bin
+            # - name: cni-conflist
+            #   mountPath: /etc/cni/net.d
+      hostNetwork: true
+      volumes:
+        - name: cni-conflist
+          hostPath:
+            path: /etc/cni/net.d
+            type: Directory
+        - name: log
+          hostPath:
+            path: /var/log
+            type: Directory
+        - name: cns-state
+          hostPath:
+            path: /var/lib/azure-network
+            type: DirectoryOrCreate
+        - name: cni-bin
+          hostPath:
+            path: /opt/cni/bin
+            type: Directory
+        - name: azure-vnet
+          hostPath:
+            path: /var/run/azure-vnet
+            type: DirectoryOrCreate
+        - name: legacy-cni-state
+          hostPath:
+            path: /var/run/azure-vnet.json
+            type: FileOrCreate
+        - name: cns-config
+          configMap:
+            name: cns-config
+        - name: xtables-lock
+          hostPath:
+            path: /run/xtables.lock
+            type: File
+        - name: cni-ipam-state
+          hostPath:
+            path: /var/run/azure-cns
+            type: DirectoryOrCreate
+      serviceAccountName: azure-cns
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cns-config
+  namespace: kube-system
+data:
+  cns_config.json: |
+    {
+      "TelemetrySettings": {
+          "TelemetryBatchSizeBytes": 16384,
+          "TelemetryBatchIntervalInSecs": 15,
+          "RefreshIntervalInSecs": 15,
+          "DisableAll": false,
+          "HeartBeatIntervalInMins": 30,
+          "DebugMode": false,
+          "SnapshotIntervalInMins": 60
+      },
+      "ManagedSettings": {
+          "PrivateEndpoint": "",
+          "InfrastructureNetworkID": "",
+          "NodeID": "",
+          "NodeSyncIntervalInSeconds": 30
+      },
+      "ChannelMode": "CRD",
+      "InitializeFromCNI": false,
+      "ManageEndpointState": true,
+      "ProgramSNATIPTables": false,
+      "EnableCNIConflistGeneration": true,
+      "CNIConflistFilepath": "/etc/cni/net.d/05-cilium.conflist",
+      "CNIConflistScenario": "cilium"
+    }

@@ -101,7 +101,7 @@ func (p promVals) testPrometheusMetrics(t *testing.T) {
 // see chain-management_linux_test.go for testing when an error occurs
 func TestBootup(t *testing.T) {
 	metrics.ReinitializeAll()
-	calls := GetBootupTestCalls()
+	calls := GetBootupTestCalls(false)
 	ioshim := common.NewMockIOShim(calls)
 	defer ioshim.VerifyCalls(t, calls)
 	pMgr := NewPolicyManager(ioshim, ipsetConfig)

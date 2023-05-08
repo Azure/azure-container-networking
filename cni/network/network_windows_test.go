@@ -235,8 +235,21 @@ func TestSetPoliciesFromNwCfg(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "Runtime hostPort mapping polices",
+			nwCfg: cni.NetworkConfig{
+				RuntimeConfig: cni.RuntimeConfig{
+					PortMappings: []cni.PortMapping{
+						{
+							Protocol:      "tcp",
+							HostPort:      44000,
+							ContainerPort: 80,
+						},
+					},
+				},
+			},
+		},
 	}
-
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {

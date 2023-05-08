@@ -1,13 +1,13 @@
 image:
   repository: mcr.microsoft.com/oss/cilium/cilium
-  tag: 1.12.5
+  tag: 1.12.8
   digest: ""
   useDigest: false
 
 operator:
   image:
     repository: mcr.microsoft.com/oss/cilium/operator
-    tag: 1.12.5
+    tag: 1.12.8
     suffix: ""
     digest: ""
     useDigest: false

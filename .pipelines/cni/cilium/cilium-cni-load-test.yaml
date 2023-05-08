@@ -16,11 +16,48 @@ stages:
               inlineScript: |
                 set -ex
                 make -C ./hack/swift azcfg AZCLI=az REGION=$(LOCATION)
-                make -C ./hack/swift overlay-cilium-up AZCLI=az REGION=$(LOCATION) SUB=$(SUBSCRIPTION_ID) CLUSTER=${RESOURCE_GROUP} NODE_COUNT=10 VM_SIZE=Standard_DS4_v2
+                make -C ./hack/swift overlay-byocni-up AZCLI=az REGION=$(LOCATION) SUB=$(SUBSCRIPTION_ID) CLUSTER=${RESOURCE_GROUP} NODE_COUNT=10 VM_SIZE=Standard_DS4_v2
             name: "CreateAksCluster"
             displayName: "Create AKS Cluster"
-  - stage: pod_deployment
+  - stage: install_cilium
     dependsOn: creating_aks_cluster
+    displayName: "Install Cilium on AKS Overlay"
+    jobs:
+      - job: deploy_cilium_components
+        steps:
+          - task: AzureCLI@1
+            displayName: "Install Cilium, CNS, and ip-masq-agent"
+            inputs:
+              azureSubscription: $(TEST_SUB_SERVICE_CONNECTION)
+              scriptLocation: "inlineScript"
+              scriptType: "bash"
+              addSpnToEnvironment: true
+              inlineScript: |
+                set -ex
+                az extension add --name aks-preview
+                make -C ./hack/swift set-kubeconf AZCLI=az CLUSTER=${RESOURCE_GROUP}
+                ls -lah
+                pwd
+                kubectl cluster-info
+                kubectl get po -owide -A
+                echo "Deploy Azure-CNS"
+                kubectl apply -f test/integration/manifests/cilium/cns-write-ovly.yaml
+                echo "deploy Cilium ConfigMap"
+                kubectl apply -f cilium/configmap.yaml
+                kubectl apply -f test/integration/manifests/cilium/cilium-config.yaml
+                echo "install Cilium onto Overlay Cluster"
+                kubectl apply -f test/integration/manifests/cilium/cilium-agent
+                kubectl apply -f test/integration/manifests/cilium/cilium-operator
+                kubectl get po -owide -A
+                echo "deploy ip-masq-agent for overlay"
+                kubectl create -f test/integration/manifests/ip-masq-agent/ip-masq-agent.yaml --validate=false
+                cd test/integration/manifests/ip-masq-agent/
+                kubectl create configmap config-custom.yaml
+                kubectl create configmap config-reconcile.yaml
+                cd ../../../..
+                kubectl get po -owide -A
+  - stage: pod_deployment
+    dependsOn: install_cilium
     displayName: "Pod Deployment"
     jobs:
       - job: deploy_pods
@@ -115,6 +152,7 @@ stages:
             name: "GetCluster"
             displayName: "Get AKS Cluster"
           - script: |
+              k delete deployment container -n default
               cilium connectivity test
             retryCountOnTaskFailure: 6
             name: "CiliumConnectivityTests"

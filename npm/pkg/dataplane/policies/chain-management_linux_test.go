@@ -365,7 +365,7 @@ func TestBootupLinux(t *testing.T) {
 		// but the fake command exit codes and stdouts are in line with having no NPM prior
 		{
 			name:    "success (no NPM prior)",
-			calls:   GetBootupTestCalls(),
+			calls:   GetBootupTestCalls(false),
 			wantErr: false,
 		},
 		{

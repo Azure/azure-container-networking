@@ -9,6 +9,7 @@ import (
 	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/cni/util"
 	"github.com/Azure/azure-container-networking/cns"
+	cnscli "github.com/Azure/azure-container-networking/cns/client"
 	"github.com/Azure/azure-container-networking/iptables"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/network"
@@ -20,8 +21,9 @@ import (
 )
 
 var (
-	errEmptyCNIArgs = errors.New("empty CNI cmd args not allowed")
-	errInvalidArgs  = errors.New("invalid arg(s)")
+	errEmptyCNIArgs    = errors.New("empty CNI cmd args not allowed")
+	errInvalidArgs     = errors.New("invalid arg(s)")
+	overlayGatewayV6IP = "fe80::1234:5678:9abc"
 )
 
 type CNSIPAMInvoker struct {
@@ -32,7 +34,7 @@ type CNSIPAMInvoker struct {
 	ipamMode      util.IpamMode
 }
 
-type IPv4ResultInfo struct {
+type IPResultInfo struct {
 	podIPAddress       string
 	ncSubnetPrefix     uint8
 	ncPrimaryIP        string
@@ -70,94 +72,144 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 		return IPAMAddResult{}, errEmptyCNIArgs
 	}
 
-	ipconfig := cns.IPConfigRequest{
+	ipconfigs := cns.IPConfigsRequest{
 		OrchestratorContext: orchestratorContext,
 		PodInterfaceID:      GetEndpointID(addConfig.args),
 		InfraContainerID:    addConfig.args.ContainerID,
 	}
 
-	log.Printf("Requesting IP for pod %+v using ipconfig %+v", podInfo, ipconfig)
-	response, err := invoker.cnsClient.RequestIPAddress(context.TODO(), ipconfig)
+	log.Printf("Requesting IP for pod %+v using ipconfigs %+v", podInfo, ipconfigs)
+	response, err := invoker.cnsClient.RequestIPs(context.TODO(), ipconfigs)
 	if err != nil {
-		log.Printf("Failed to get IP address from CNS with error %v, response: %v", err, response)
-		return IPAMAddResult{}, errors.Wrap(err, "Failed to get IP address from CNS with error: %w")
-	}
+		if cnscli.IsUnsupportedAPI(err) {
+			// If RequestIPs is not supported by CNS, use RequestIPAddress API
+			log.Errorf("RequestIPs not supported by CNS. Invoking RequestIPAddress API with infracontainerid %s", ipconfigs.InfraContainerID)
+			ipconfig := cns.IPConfigRequest{
+				OrchestratorContext: orchestratorContext,
+				PodInterfaceID:      GetEndpointID(addConfig.args),
+				InfraContainerID:    addConfig.args.ContainerID,
+			}
 
-	info := IPv4ResultInfo{
-		podIPAddress:       response.PodIpInfo.PodIPConfig.IPAddress,
-		ncSubnetPrefix:     response.PodIpInfo.NetworkContainerPrimaryIPConfig.IPSubnet.PrefixLength,
-		ncPrimaryIP:        response.PodIpInfo.NetworkContainerPrimaryIPConfig.IPSubnet.IPAddress,
-		ncGatewayIPAddress: response.PodIpInfo.NetworkContainerPrimaryIPConfig.GatewayIPAddress,
-		hostSubnet:         response.PodIpInfo.HostPrimaryIPInfo.Subnet,
-		hostPrimaryIP:      response.PodIpInfo.HostPrimaryIPInfo.PrimaryIP,
-		hostGateway:        response.PodIpInfo.HostPrimaryIPInfo.Gateway,
-	}
-
-	// set the NC Primary IP in options
-	addConfig.options[network.SNATIPKey] = info.ncPrimaryIP
-
-	log.Printf("[cni-invoker-cns] Received info %+v for pod %v", info, podInfo)
-
-	// set result ipconfigArgument from CNS Response Body
-	ip, ncipnet, err := net.ParseCIDR(info.podIPAddress + "/" + fmt.Sprint(info.ncSubnetPrefix))
-	if ip == nil {
-		return IPAMAddResult{}, errors.Wrap(err, "Unable to parse IP from response: "+info.podIPAddress+" with err %w")
-	}
-
-	ncgw := net.ParseIP(info.ncGatewayIPAddress)
-	if ncgw == nil {
-		if invoker.ipamMode != util.V4Overlay {
-			return IPAMAddResult{}, errors.Wrap(errInvalidArgs, "%w: Gateway address "+info.ncGatewayIPAddress+" from response is invalid")
+			res, errRequestIP := invoker.cnsClient.RequestIPAddress(context.TODO(), ipconfig)
+			if errRequestIP != nil {
+				// if the old API fails as well then we just return the error
+				log.Errorf("Failed to request IP address from CNS using RequestIPAddress with infracontainerid %s. error: %v", ipconfig.InfraContainerID, errRequestIP)
+				return IPAMAddResult{}, errors.Wrap(errRequestIP, "Failed to get IP address from CNS")
+			}
+			response = &cns.IPConfigsResponse{
+				Response: res.Response,
+				PodIPInfo: []cns.PodIpInfo{
+					res.PodIpInfo,
+				},
+			}
+		} else {
+			log.Printf("Failed to get IP address from CNS with error %v, response: %v", err, response)
+			return IPAMAddResult{}, errors.Wrap(err, "Failed to get IP address from CNS")
 		}
-
-		ncgw, err = getOverlayGateway(ncipnet)
-		if err != nil {
-			return IPAMAddResult{}, err
-		}
-	}
-
-	// construct ipnet for result
-	resultIPnet := net.IPNet{
-		IP:   ip,
-		Mask: ncipnet.Mask,
 	}
 
 	addResult := IPAMAddResult{}
-	addResult.ipv4Result = &cniTypesCurr.Result{
-		IPs: []*cniTypesCurr.IPConfig{
-			{
-				Address: resultIPnet,
-				Gateway: ncgw,
-			},
-		},
-		Routes: []*cniTypes.Route{
-			{
-				Dst: network.Ipv4DefaultRouteDstPrefix,
-				GW:  ncgw,
-			},
-		},
-	}
 
-	// get the name of the primary IP address
-	_, hostIPNet, err := net.ParseCIDR(info.hostSubnet)
-	if err != nil {
-		return IPAMAddResult{}, fmt.Errorf("unable to parse hostSubnet: %w", err)
-	}
+	for i := 0; i < len(response.PodIPInfo); i++ {
+		info := IPResultInfo{
+			podIPAddress:       response.PodIPInfo[i].PodIPConfig.IPAddress,
+			ncSubnetPrefix:     response.PodIPInfo[i].NetworkContainerPrimaryIPConfig.IPSubnet.PrefixLength,
+			ncPrimaryIP:        response.PodIPInfo[i].NetworkContainerPrimaryIPConfig.IPSubnet.IPAddress,
+			ncGatewayIPAddress: response.PodIPInfo[i].NetworkContainerPrimaryIPConfig.GatewayIPAddress,
+			hostSubnet:         response.PodIPInfo[i].HostPrimaryIPInfo.Subnet,
+			hostPrimaryIP:      response.PodIPInfo[i].HostPrimaryIPInfo.PrimaryIP,
+			hostGateway:        response.PodIPInfo[i].HostPrimaryIPInfo.Gateway,
+		}
 
-	addResult.hostSubnetPrefix = *hostIPNet
+		// set the NC Primary IP in options
+		// SNATIPKey is not set for ipv6
+		if net.ParseIP(info.ncPrimaryIP).To4() != nil {
+			addConfig.options[network.SNATIPKey] = info.ncPrimaryIP
+		}
 
-	// set subnet prefix for host vm
-	// setHostOptions will execute if IPAM mode is not v4 overlay
-	if invoker.ipamMode != util.V4Overlay {
-		if err := setHostOptions(ncipnet, addConfig.options, &info); err != nil {
-			return IPAMAddResult{}, err
+		log.Printf("[cni-invoker-cns] Received info %+v for pod %v", info, podInfo)
+		ip, ncIPNet, err := net.ParseCIDR(info.podIPAddress + "/" + fmt.Sprint(info.ncSubnetPrefix))
+		if ip == nil {
+			return IPAMAddResult{}, errors.Wrap(err, "Unable to parse IP from response: "+info.podIPAddress+" with err %w")
+		}
+
+		ncgw := net.ParseIP(info.ncGatewayIPAddress)
+		if ncgw == nil {
+			if (invoker.ipamMode != util.V4Overlay) && (invoker.ipamMode != util.DualStackOverlay) {
+				return IPAMAddResult{}, errors.Wrap(errInvalidArgs, "%w: Gateway address "+info.ncGatewayIPAddress+" from response is invalid")
+			}
+
+			if net.ParseIP(info.podIPAddress).To4() != nil { //nolint:gocritic
+				ncgw, err = getOverlayGateway(ncIPNet)
+				if err != nil {
+					return IPAMAddResult{}, err
+				}
+			} else if net.ParseIP(info.podIPAddress).To16() != nil {
+				ncgw = net.ParseIP(overlayGatewayV6IP)
+			} else {
+				return IPAMAddResult{}, errors.Wrap(err, "No podIPAddress is found: %w")
+			}
+		}
+
+		// construct ipnet for result
+		resultIPnet := net.IPNet{
+			IP:   ip,
+			Mask: ncIPNet.Mask,
+		}
+
+		if net.ParseIP(info.podIPAddress).To4() != nil {
+			addResult.ipv4Result = &cniTypesCurr.Result{
+				IPs: []*cniTypesCurr.IPConfig{
+					{
+						Address: resultIPnet,
+						Gateway: ncgw,
+					},
+				},
+				Routes: []*cniTypes.Route{
+					{
+						Dst: network.Ipv4DefaultRouteDstPrefix,
+						GW:  ncgw,
+					},
+				},
+			}
+		} else if net.ParseIP(info.podIPAddress).To16() != nil {
+			addResult.ipv6Result = &cniTypesCurr.Result{
+				IPs: []*cniTypesCurr.IPConfig{
+					{
+						Address: resultIPnet,
+						Gateway: ncgw,
+					},
+				},
+				Routes: []*cniTypes.Route{
+					{
+						Dst: network.Ipv6DefaultRouteDstPrefix,
+						GW:  ncgw,
+					},
+				},
+			}
+		}
+
+		// get the name of the primary IP address
+		_, hostIPNet, err := net.ParseCIDR(info.hostSubnet)
+		if err != nil {
+			return IPAMAddResult{}, fmt.Errorf("unable to parse hostSubnet: %w", err)
+		}
+
+		addResult.hostSubnetPrefix = *hostIPNet
+
+		// set subnet prefix for host vm
+		// setHostOptions will execute if IPAM mode is not v4 overlay and not dualStackOverlay mode
+		if (invoker.ipamMode != util.V4Overlay) && (invoker.ipamMode != util.DualStackOverlay) {
+			if err := setHostOptions(ncIPNet, addConfig.options, &info); err != nil {
+				return IPAMAddResult{}, err
+			}
 		}
 	}
 
 	return addResult, nil
 }
 
-func setHostOptions(ncSubnetPrefix *net.IPNet, options map[string]interface{}, info *IPv4ResultInfo) error {
+func setHostOptions(ncSubnetPrefix *net.IPNet, options map[string]interface{}, info *IPResultInfo) error {
 	// get the host ip
 	hostIP := net.ParseIP(info.hostPrimaryIP)
 	if hostIP == nil {
@@ -213,7 +265,7 @@ func setHostOptions(ncSubnetPrefix *net.IPNet, options map[string]interface{}, i
 }
 
 // Delete calls into the releaseipconfiguration API in CNS
-func (invoker *CNSIPAMInvoker) Delete(address *net.IPNet, nwCfg *cni.NetworkConfig, args *cniSkel.CmdArgs, _ map[string]interface{}) error {
+func (invoker *CNSIPAMInvoker) Delete(address *net.IPNet, nwCfg *cni.NetworkConfig, args *cniSkel.CmdArgs, _ map[string]interface{}) error { //nolint
 	// Parse Pod arguments.
 	podInfo := cns.KubernetesPodInfo{
 		PodName:      invoker.podName,
@@ -229,20 +281,37 @@ func (invoker *CNSIPAMInvoker) Delete(address *net.IPNet, nwCfg *cni.NetworkConf
 		return errEmptyCNIArgs
 	}
 
-	req := cns.IPConfigRequest{
+	ipConfigs := cns.IPConfigsRequest{
 		OrchestratorContext: orchestratorContext,
 		PodInterfaceID:      GetEndpointID(args),
 		InfraContainerID:    args.ContainerID,
 	}
 
 	if address != nil {
-		req.DesiredIPAddress = address.IP.String()
+		ipConfigs.DesiredIPAddresses = append(ipConfigs.DesiredIPAddresses, address.IP.String())
 	} else {
 		log.Printf("CNS invoker called with empty IP address")
 	}
 
-	if err := invoker.cnsClient.ReleaseIPAddress(context.TODO(), req); err != nil {
-		return errors.Wrap(err, fmt.Sprintf("failed to release IP %v with err ", address)+"%w")
+	if err := invoker.cnsClient.ReleaseIPs(context.TODO(), ipConfigs); err != nil {
+		if cnscli.IsUnsupportedAPI(err) {
+			// If ReleaseIPs is not supported by CNS, use ReleaseIPAddress API
+			log.Errorf("ReleaseIPs not supported by CNS. Invoking ReleaseIPAddress API. Request: %v", ipConfigs)
+			ipConfig := cns.IPConfigRequest{
+				OrchestratorContext: orchestratorContext,
+				PodInterfaceID:      GetEndpointID(args),
+				InfraContainerID:    args.ContainerID,
+			}
+
+			if err = invoker.cnsClient.ReleaseIPAddress(context.TODO(), ipConfig); err != nil {
+				// if the old API fails as well then we just return the error
+				log.Errorf("Failed to release IP address from CNS using ReleaseIPAddress with infracontainerid %s. error: %v", ipConfigs.InfraContainerID, err)
+				return errors.Wrap(err, fmt.Sprintf("failed to release IP %v using ReleaseIPAddress with err ", ipConfig.DesiredIPAddress)+"%w")
+			}
+		} else {
+			log.Errorf("Failed to release IP address with infracontainerid %s from CNS error: %v", ipConfigs.InfraContainerID, err)
+			return errors.Wrap(err, fmt.Sprintf("failed to release IP %v using ReleaseIPs with err ", ipConfigs.DesiredIPAddresses)+"%w")
+		}
 	}
 
 	return nil
