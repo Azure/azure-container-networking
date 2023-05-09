@@ -417,7 +417,7 @@ add_shared_labels() {
         done
 
         set -x
-        $KUBECTL $KUBECONFIG_ARG label pods -n scale-test --all $sharedLabels --overwrite-existing
+        $KUBECTL $KUBECONFIG_ARG label pods -n scale-test --all $sharedLabels --overwrite
         set +x
     fi
 }
