@@ -409,16 +409,20 @@ $KUBECTL $KUBECONFIG_ARG apply -f generated/deployments/real/
 $KUBECTL $KUBECONFIG_ARG apply -f generated/deployments/kwok/
 set +x
 
-if [[ $numSharedLabelsPerPod -gt 0 ]]; then
-    sharedLabels=""
-    for i in $(seq -f "%05g" 1 $numSharedLabelsPerPod); do
-        sharedLabels="$sharedLabels shared-lab-$i=val"
-    done
+add_shared_labels() {
+    if [[ $numSharedLabelsPerPod -gt 0 ]]; then
+        sharedLabels=""
+        for i in $(seq -f "%05g" 1 $numSharedLabelsPerPod); do
+            sharedLabels="$sharedLabels shared-lab-$i=val"
+        done
 
-    set -x
-    $KUBECTL $KUBECONFIG_ARG label pods -n scale-test --all $sharedLabels
-    set +x
-fi
+        set -x
+        $KUBECTL $KUBECONFIG_ARG label pods -n scale-test --all $sharedLabels --overwrite-existing
+        set +x
+    fi
+}
+
+add_shared_labels
 
 if [[ $numUniqueLabelsPerPod -gt 0 ]]; then
     count=1
@@ -520,6 +524,9 @@ if [[ ($deleteKwokPods != "" && $deleteKwokPods -gt 0) || ($deleteRealPods != ""
         echo "sleeping $deletePodsInterval seconds after deleting pods (end of round $i/$deletePodsTimes)..."
         sleep $deletePodsInterval
     done
+
+    # make sure all Pods have shared labels
+    add_shared_labels
 fi
 
 echo
