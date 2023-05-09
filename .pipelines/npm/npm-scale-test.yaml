@@ -179,8 +179,8 @@ jobs:
             sleep 5s
             echo "waiting for NPM to start running..."
             kubectl wait --for=condition=Ready pod -l k8s-app=azure-npm -n kube-system --timeout=20m
-            echo "sleep 1m to let NPM restart in case of bootup failure due to HNS errors"
-            sleep 1m
+            echo "sleep 3m to let NPM restart in case of bootup failure due to HNS errors"
+            sleep 3m
 
             kubectl get po -n kube-system -owide -A
 
