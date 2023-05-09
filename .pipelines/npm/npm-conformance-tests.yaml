@@ -345,7 +345,7 @@ jobs:
           done
 
           exit $exitCode
-        displayName: "Run Test Suite and Get Logs - $(PROFILE)"
+        displayName: "Run Test Suite and Get Logs ($(PROFILE))"
         failOnStderr: false
 
       - publish: $(System.DefaultWorkingDirectory)/npmLogs_$(AZURE_CLUSTER)
