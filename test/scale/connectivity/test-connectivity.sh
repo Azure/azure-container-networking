@@ -261,19 +261,14 @@ prevTryDate=$connectivityStartDate
 while : ; do
     verifyInitialConnectivity && break
 
-    log "WARNING: initial connectivity test failed. Retrying in $CONNECTIVITY_SLEEP seconds..."
-    sleep $CONNECTIVITY_SLEEP
-
-    # if reached max wait time, try once more. If that try fails, then quit
     currDate=`date +%s`
     if [[ $currDate -gt $maxWaitDate ]]; then
-        if [[ $prevTryDate -gt $maxWaitDate ]]; then
-            log "ERROR: initial connectivity test timed out. Last try was at least $(( $prevTryDate - $connectivityStartDate )) seconds after pinger Pods began running"
-            exit 8
-        fi
-
-        log "WARNING: reached max wait time of $maxWaitForInitialConnectivity seconds after pinger Pods began running. Will try one more time"
+        log "ERROR: initial connectivity test timed out. Last try was about $(( $currDate - $connectivityStartDate )) seconds after pinger Pods began running"
+        exit 8
     fi
+
+    log "WARNING: initial connectivity test failed. Retrying in $CONNECTIVITY_SLEEP seconds..."
+    sleep $CONNECTIVITY_SLEEP
 
     prevTryDate=$currDate
 done
@@ -314,20 +309,15 @@ maxWaitDate=$(( $netpolStartDate + $maxWaitAfterAddingNetpol ))
 prevTryDate=$netpolStartDate
 while : ; do
     verifyNetPol && break
+        
+    currDate=`date +%s`
+    if [[ $currDate -gt $maxWaitDate ]]; then
+        log "ERROR: allow-pinger NetworkPolicy has not taken effact. Last try was at least $(( $prevTryDate - $netpolStartDate )) seconds after creating allow-pinger NetworkPolicy"
+        exit 9
+    fi
 
     log "WARNING: verifying allow-pinger NetworkPolicy failed. Current time: $(date). Retrying in $NETPOL_SLEEP seconds..."
     sleep $NETPOL_SLEEP
-
-    # if reached max wait time, try once more. If that try fails, then quit
-    currDate=`date +%s`
-    if [[ $currDate -gt $maxWaitDate ]]; then
-        if [[ $prevTryDate -gt $maxWaitDate ]]; then
-            log "ERROR: allow-pinger NetworkPolicy has not taken effact. Last try was at least $(( $prevTryDate - $netpolStartDate )) seconds after creating allow-pinger NetworkPolicy"
-            exit 9
-        fi
-
-        log "WARNING: reached max wait time of $maxWaitAfterAddingNetpol seconds after adding allow-pinger NetworkPolicy. Will try one more time"
-    fi
 
     prevTryDate=$currDate
 done
