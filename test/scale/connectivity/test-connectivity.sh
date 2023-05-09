@@ -205,12 +205,12 @@ fi
 ## VERIFY CONNECTIVITY
 verifyInitialConnectivity() {
     connectFromPinger $pinger1 $pinger2IP || {
-        echo "ERROR: expected pinger1 to be able to connect to pinger2. Pods may need more time to bootup"
+        echo "WARNING: expected pinger1 to be able to connect to pinger2. Pods may need more time to bootup"
         return 8
     }
 
     connectFromPinger $pinger2 $pinger2 || {
-        echo "ERROR: expected pinger2 to be able to connect to pinger1. Pods may need more time to bootup"
+        echo "WARNING: expected pinger2 to be able to connect to pinger1. Pods may need more time to bootup"
         return 8
     }
 
@@ -224,7 +224,7 @@ verifyInitialConnectivity() {
             dstPod=${scalePods[$j]}
             dstIP=${scalePodIPs[$j]}
             connectFromScalePod $scalePod $dstIP || {
-                echo "ERROR: expected scale Pod $scalePod to be able to connect to scale Pod $dstPod"
+                echo "WARNING: expected scale Pod $scalePod to be able to connect to scale Pod $dstPod"
                 return 8
             }
         done
@@ -235,12 +235,12 @@ verifyInitialConnectivity() {
         scalePodIP=${scalePodIPs[$i]}
 
         connectFromScalePod $scalePod $pinger1IP && {
-            echo "ERROR: expected scale Pod $scalePod to NOT be able to connect to pinger1"
+            echo "WARNING: expected scale Pod $scalePod to NOT be able to connect to pinger1"
             return 8
         }
 
         connectFromPinger $pinger1 $scalePodIP && {
-            echo "ERROR: expected pinger1 to NOT be able to connect to scale Pod $scalePod"
+            echo "WARNING: expected pinger1 to NOT be able to connect to scale Pod $scalePod"
             return 8
         }
     done
