@@ -273,7 +273,7 @@ func (pm *Monitor) increasePoolSize(ctx context.Context, meta metaState, state i
 
 	if _, err := pm.nnccli.UpdateSpec(ctx, &tempNNCSpec); err != nil {
 		// caller will retry to update the CRD again
-		return errors.Wrap(err, "executing UpdateSpec with NNC CLI")
+		return errors.Wrap(err, "executing UpdateSpec with NNC client")
 	}
 
 	logger.Printf("[ipam-pool-monitor] Increasing pool size: UpdateCRDSpec succeeded for spec %+v", tempNNCSpec)
@@ -337,7 +337,7 @@ func (pm *Monitor) decreasePoolSize(ctx context.Context, meta metaState, state i
 	_, err := pm.nnccli.UpdateSpec(ctx, &tempNNCSpec)
 	if err != nil {
 		// caller will retry to update the CRD again
-		return errors.Wrap(err, "executing UpdateSpec with NNC CLI")
+		return errors.Wrap(err, "executing UpdateSpec with NNC client")
 	}
 
 	logger.Printf("[ipam-pool-monitor] Decreasing pool size: UpdateCRDSpec succeeded for spec %+v", tempNNCSpec)
@@ -362,7 +362,7 @@ func (pm *Monitor) cleanPendingRelease(ctx context.Context) error {
 	_, err := pm.nnccli.UpdateSpec(ctx, &tempNNCSpec)
 	if err != nil {
 		// caller will retry to update the CRD again
-		return errors.Wrap(err, "executing UpdateSpec with NNC CLI")
+		return errors.Wrap(err, "executing UpdateSpec with NNC client")
 	}
 
 	logger.Printf("[ipam-pool-monitor] cleanPendingRelease: UpdateCRDSpec succeeded for spec %+v", tempNNCSpec)
