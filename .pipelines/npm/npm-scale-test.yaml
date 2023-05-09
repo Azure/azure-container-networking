@@ -208,8 +208,8 @@ jobs:
                 echo $pod | grep -q "npm-win" || continue
                 hadPod=true
                 echo "updating registry keys for pod: $pod"
-                kubectl exec -n kube-system $pod -- powershell.exe "reg add HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\hns\State /v HnsAclUpdateChange /t REG_DWORD /d 1 /f"
-                kubectl exec -n kube-system $pod -- powershell.exe "reg add HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\hns\State /v HnsNpmRefresh /t REG_DWORD /d 1 /f"
+                kubectl exec -n kube-system $pod -- powershell.exe "Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\hns\State" -Name HnsAclUpdateChange -Value 1 -Type DWORD"
+                kubectl exec -n kube-system $pod -- powershell.exe "Set-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\hns\State" -Name HnsNpmRefresh -Value 1 -Type DWORD"
                 kubectl exec -n kube-system $pod -- powershell.exe "Restart-Service Hns"
             done
             if [[ $hadPod == false ]]; then
