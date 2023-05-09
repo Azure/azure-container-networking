@@ -458,25 +458,6 @@ if [[ $sleepAfterCreation != "" ]]; then
     sleep $sleepAfterCreation
 fi
 
-if [[ $deleteLabels == true && $numSharedLabelsPerPod -gt 2 ]]; then
-    echo "deleting labels..."
-    for i in $(seq 1 $deleteLabelsTimes); do
-        echo "deleting labels. round $i/$deleteLabelsTimes..."
-        set -x
-        $KUBECTL $KUBECONFIG_ARG label pods -n scale-test --all shared-lab-00001- shared-lab-00002- shared-lab-00003-
-        set +x
-        echo "sleeping $deleteLabelsInterval seconds after deleting labels (round $i/$deleteLabelsTimes)..."
-        sleep $deleteLabelsInterval
-        
-        echo "re-adding labels. round $i/$deleteLabelsTimes..."
-        set -x
-        $KUBECTL $KUBECONFIG_ARG label pods -n scale-test --all shared-lab-00001=val shared-lab-00002=val shared-lab-00003=val
-        set +x
-        echo "sleeping $deleteLabelsInterval seconds after readding labels (end of round $i/$deleteLabelsTimes)..."
-        sleep $deleteLabelsInterval
-    done
-fi
-
 if [[ $deleteNetpols == true ]]; then
     echo "deleting network policies..."
     for i in $(seq 1 $deleteNetpolsTimes); do
@@ -527,6 +508,26 @@ if [[ ($deleteKwokPods != "" && $deleteKwokPods -gt 0) || ($deleteRealPods != ""
 
     # make sure all Pods have shared labels
     add_shared_labels
+fi
+
+
+if [[ $deleteLabels == true && $numSharedLabelsPerPod -gt 2 ]]; then
+    echo "deleting labels..."
+    for i in $(seq 1 $deleteLabelsTimes); do
+        echo "deleting labels. round $i/$deleteLabelsTimes..."
+        set -x
+        $KUBECTL $KUBECONFIG_ARG label pods -n scale-test --all shared-lab-00001- shared-lab-00002- shared-lab-00003-
+        set +x
+        echo "sleeping $deleteLabelsInterval seconds after deleting labels (round $i/$deleteLabelsTimes)..."
+        sleep $deleteLabelsInterval
+        
+        echo "re-adding labels. round $i/$deleteLabelsTimes..."
+        set -x
+        $KUBECTL $KUBECONFIG_ARG label pods -n scale-test --all shared-lab-00001=val shared-lab-00002=val shared-lab-00003=val
+        set +x
+        echo "sleeping $deleteLabelsInterval seconds after readding labels (end of round $i/$deleteLabelsTimes)..."
+        sleep $deleteLabelsInterval
+    done
 fi
 
 echo
