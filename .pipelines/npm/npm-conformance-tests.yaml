@@ -414,7 +414,7 @@ jobs:
                 --name awin22 \
                 --os-type Windows \
                 --os-sku Windows2022 \
-                --node-vm-size Standard_D4s_v3 \
+                --node-vm-size Standard_D8s_v3 \
                 --node-count 3
 
             echo "Getting credentials to $CLUSTER_NAME"
