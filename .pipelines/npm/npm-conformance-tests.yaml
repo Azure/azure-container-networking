@@ -397,6 +397,7 @@ jobs:
                 --network-plugin azure \
                 --vm-set-type VirtualMachineScaleSets \
                 --node-vm-size Standard_D4s_v3 \
+                --kubernetes-version 1.26 \
                 --node-count 1
 
             # don't schedule anything on the linux system pool
