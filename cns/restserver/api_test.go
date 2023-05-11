@@ -28,6 +28,7 @@ import (
 	"github.com/Azure/azure-container-networking/nmagent"
 	"github.com/Azure/azure-container-networking/processlock"
 	"github.com/Azure/azure-container-networking/store"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -1292,33 +1293,29 @@ func TestCreateHostNCApipaEndpoint(t *testing.T) {
 	fmt.Printf("createHostNCApipaEndpoint Responded with %+v\n", createHostNCApipaEndpointResponse)
 }
 
-func TestNCIDCaseSensitive(t *testing.T) {
+func TestNCIDCaseInSensitive(t *testing.T) {
 	setEnv(t)
 	err := setOrchestratorType(t, cns.Kubernetes)
 	if err != nil {
 		t.Fatalf("TestNCIDCaseSensitive failed with error:%+v", err)
 	}
 
-	// test both upper-case NCIDs and cns-managed mode NCID
-	upperCaseNCID1 := "Swift_89063DBF-AA31-4BFC-9663-3842A361F188"
-	upperCaseNCID2 := "Swift_89063DBF-AA31-4BFC-9663-3842A361F189"
-	managedModeNCID := "89063DBF-AA31-4BFC-9663-3842A361F188"
-	upperCaseNCIDs := []string{upperCaseNCID1, upperCaseNCID2, managedModeNCID}
-	nmaProgrammedNCVersionStr1 := "1"
-	nmaProgrammedNCVersionStr2 := "2"
-	nmaProgrammedNCVersionStr3 := "3"
+	// add a list of NCIDs with upper-case NCIDs, lower-case NCIDs, upper-case cns-managed mode NCID and lower-case cns-managed mode NCID
+	ncids := []string{strings.ToUpper("Swift_" + uuid.New().String()), strings.ToUpper("Swift_" + uuid.New().String()), "Swift_" + uuid.New().String(),
+		"Swift_" + uuid.New().String(), strings.ToUpper(uuid.New().String()), uuid.New().String()}
+	nmaProgrammedNCVersionStr := "1"
 	ncVersionList := map[string]string{}
 
 	// add lower-case NCIDs to ncVersionList
-	ncVersionList["Swift_89063dbf-aa31-4bfc-9663-3842a361f188"] = nmaProgrammedNCVersionStr1
-	ncVersionList["Swift_89063dbf-aa31-4bfc-9663-3842a361f189"] = nmaProgrammedNCVersionStr2
-	ncVersionList["89063dbf-aa31-4bfc-9663-3842a361f188"] = nmaProgrammedNCVersionStr3
+	for _, ncid := range ncids {
+		ncVersionList[lowerCaseNCGuid(ncid)] = nmaProgrammedNCVersionStr
+	}
 
-	for _, ncid := range upperCaseNCIDs {
+	for _, ncid := range ncids {
 		_, returnCode, errMsg := svc.isNCWaitingForUpdate("0", ncid, ncVersionList)
-		// verify if Vfp programming completes
+		// verify if Vfp programming completes with all types of incoming NCID
 		if returnCode != types.NetworkContainerVfpProgramComplete {
-			t.Fatalf("failed to verify TestNCIDCaseSensitive for ncid %s due to %s", ncid, errMsg)
+			t.Fatalf("failed to verify TestNCIDCaseInSensitive for ncid %s due to %s", ncid, errMsg)
 		}
 	}
 }

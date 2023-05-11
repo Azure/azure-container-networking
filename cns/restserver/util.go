@@ -608,7 +608,9 @@ func (service *HTTPRestService) attachOrDetachHelper(req cns.ConfigureContainerN
 				}
 				nmaNCs := map[string]string{}
 				for _, nc := range ncVersionListResp.Containers {
-					nmaNCs[nc.NetworkContainerID] = nc.Version
+					// store nmaNCID as lower case to allow case insensitive comparison with nc stored in CNS
+					nmaNCID := cns.SwiftPrefix + strings.ToLower(nc.NetworkContainerID)
+					nmaNCs[nmaNCID] = nc.Version
 				}
 				_, returnCode, message := service.isNCWaitingForUpdate(existing.CreateNetworkContainerRequest.Version, req.NetworkContainerid, nmaNCs)
 				if returnCode == types.NetworkContainerVfpProgramPending {
@@ -831,16 +833,14 @@ func (service *HTTPRestService) populateIPConfigInfoUntransacted(ipConfigStatus 
 	return nil
 }
 
-// lowerCaseNCGuid func splits NCID by "_" and lowercase NC GUID; i.e,"Swift_ABCD-CD" -> "Swift_abcd-cd"
-// Check if NCID starts with "Swift_"; if not, it is in CNS managed mode; i.e, "ABCDCD"-> "abcdcd"
+// lowerCaseNCGuid func splits incoming NCID by "Swift_" and lowercase NC GUID; i.e,"Swift_ABCD-CD" -> "Swift_abcd-cd"
 func lowerCaseNCGuid(ncid string) string {
 	ncidHasSwiftPrefix := strings.HasPrefix(ncid, cns.SwiftPrefix)
-
 	if ncidHasSwiftPrefix {
 		return cns.SwiftPrefix + strings.ToLower(strings.Split(ncid, cns.SwiftPrefix)[1])
 	}
 
-	return strings.ToLower(strings.Split(ncid, cns.SwiftPrefix)[0])
+	return strings.ToLower(cns.SwiftPrefix)
 }
 
 // isNCWaitingForUpdate :- Determine whether NC version on NMA matches programmed version
@@ -868,16 +868,14 @@ func (service *HTTPRestService) isNCWaitingForUpdate(
 		return true, types.NetworkContainerVfpProgramPending, ""
 	}
 
-	// accept both upper and lower GUID from ncid(Swift_ncGUID) and store lowercase GUID at ncVersionList
-	// Split ncid by 'Swift_' and lower-case ncGUID(i.e, 89063DBF-AA31) and check if each ncid(Swift_ncGUID, i.e, Swift_89063dbf-aa31) is in ncVersionList
-	lowerCaseNCGUID := lowerCaseNCGuid(ncid)
-	nmaProgrammedNCVersionStr, ok := ncVersionList[lowerCaseNCGUID]
+	// get the ncVersionList with nc GUID as lower case
+	// when looking up if the ncid is present in ncVersionList, convert it to lowercase and then look up
+	nmaProgrammedNCVersionStr, ok := ncVersionList[lowerCaseNCGuid(ncid)]
 	if !ok {
 		// NMA doesn't have this NC that we need programmed yet, bail out
 		logger.Printf("[Azure CNS] Failed to get NC %s doesn't exist in NMAgent NC version list "+
 			"Skipping GetNCVersionStatus check from NMAgent", ncid)
 		return true, types.NetworkContainerVfpProgramPending, ""
-
 	}
 
 	nmaProgrammedNCVersion, err := strconv.Atoi(nmaProgrammedNCVersionStr)
