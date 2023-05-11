@@ -28,7 +28,6 @@ import (
 	"github.com/Azure/azure-container-networking/nmagent"
 	"github.com/Azure/azure-container-networking/processlock"
 	"github.com/Azure/azure-container-networking/store"
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 )
 
