@@ -876,7 +876,6 @@ func (service *HTTPRestService) isNCWaitingForUpdate(
 		logger.Printf("[Azure CNS] Failed to get NC %s doesn't exist in NMAgent NC version list "+
 			"Skipping GetNCVersionStatus check from NMAgent", ncid)
 		return true, types.NetworkContainerVfpProgramPending, ""
-
 	}
 
 	nmaProgrammedNCVersion, err := strconv.Atoi(nmaProgrammedNCVersionStr)
