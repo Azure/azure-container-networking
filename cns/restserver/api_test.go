@@ -1301,8 +1301,10 @@ func TestNCIDCaseInSensitive(t *testing.T) {
 	}
 
 	// add a list of NCIDs with upper-case NCIDs, lower-case NCIDs, upper-case cns-managed mode NCID and lower-case cns-managed mode NCID
-	ncids := []string{strings.ToUpper("Swift_" + uuid.New().String()), strings.ToUpper("Swift_" + uuid.New().String()), "Swift_" + uuid.New().String(),
-		"Swift_" + uuid.New().String(), strings.ToUpper(uuid.New().String()), uuid.New().String()}
+	ncids := []string{
+		strings.ToUpper("Swift_" + uuid.New().String()), strings.ToUpper("Swift_" + uuid.New().String()), "Swift_" + uuid.New().String(),
+		"Swift_" + uuid.New().String(), strings.ToUpper(uuid.New().String()), uuid.New().String(),
+	}
 
 	ncVersionList := map[string]string{}
 	// add lower-case NCIDs to ncVersionList

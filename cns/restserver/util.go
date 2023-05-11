@@ -877,7 +877,6 @@ func (service *HTTPRestService) isNCWaitingForUpdate(
 			"Skipping GetNCVersionStatus check from NMAgent", ncid)
 		return true, types.NetworkContainerVfpProgramPending, ""
 	}
-
 	nmaProgrammedNCVersion, err := strconv.Atoi(nmaProgrammedNCVersionStr)
 	if err != nil {
 		// it's unclear whether or not this can actually happen. In the NMAgent
