@@ -19,6 +19,10 @@ CLUSTER    ?= $(USER)-$(REGION)
 GROUP      ?= $(CLUSTER)
 VNET       ?= $(CLUSTER)
 
+
+KUBE_PROXY_CONFIG = $(kube-proxy.json)
+
+
 ##@ Help
 
 help:  ## Display this help
@@ -133,6 +137,7 @@ swift-byocni-up: rg-up swift-net-up ## Bring up a SWIFT BYO CNI cluster
 		--pod-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/podnet \
 		--no-ssh-key \
 		--os-sku $(OS_SKU) \
+		--kube-proxy-config kube-proxy.json
 		--yes
 	@$(MAKE) set-kubeconf
 
@@ -169,3 +174,6 @@ down: ## Delete the cluster
 
 restart-vmss: ## Restarts the nodes in the cluster
 	$(AZCLI) vmss restart -g MC_${GROUP}_${CLUSTER}_${REGION} --name $(VMSS_NAME)
+
+disable-kube-proxy: ## Updates cluster to remove kube-proxy
+	$(AZCLI) aks update -g ${GROUP} -n ${CLUSTER} --kube-proxy-config /kube-proxy.json

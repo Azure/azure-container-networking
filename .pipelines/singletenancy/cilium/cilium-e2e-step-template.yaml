@@ -108,14 +108,6 @@ steps:
     condition: always()
 
   - script: |
-      echo "validate pod IP assignment and check systemd-networkd restart"
-      kubectl apply -f hack/manifests/hostprocess.yaml
-      kubectl get pod -owide -A
-      bash hack/scripts/validate_state.sh
-    name: "validatePods"
-    displayName: "Validate Pods"
-
-  - script: |
       echo "Run Service Conformance E2E"
       export PATH=${PATH}:/usr/local/bin/gsutil
       KUBECONFIG=~/.kube/config kubetest2 noop \
@@ -131,6 +123,18 @@ steps:
     retryCountOnTaskFailure: 3
     name: "ciliumConnectivityTests"
     displayName: "Run Cilium Connectivity Tests"
+
+  - script: |
+      echo "validate pod IP assignment and check systemd-networkd restart"
+      kubectl apply -f hack/manifests/hostprocess.yaml
+      kubectl get pod -owide -A
+      bash hack/scripts/validate_state.sh
+      echo "delete cilium connectivity test resources and re-validate state"
+      kubectl delete ns cilium-test
+      kubectl get pod -owide -A
+      bash hack/scripts/validate_state.sh
+    name: "validatePods"
+    displayName: "Validate Pods"
   
   - script: |
       ARTIFACT_DIR=$(Build.ArtifactStagingDirectory)/test-output/

@@ -15,9 +15,11 @@ do
     node_name="${node##*/}"
     node_ip=$(kubectl get "$node"  -o jsonpath='{$.status.addresses[?(@.type=="InternalIP")].address}')
     echo "Node internal ip: $node_ip"
+    # Check pod count after restarting nodes, statefile does not exist after restart
     echo "checking whether the node has any pods deployed to it or not"
-    pod_count=$(kubectl get pods -o wide | grep "$node_name" -c)
+    pod_count=$(kubectl get pods -A -o wide | grep "$node_name" -c)
     if [[ $pod_count -eq 0 ]]; then
+        echo "Skipping validation for this node. No pods were deployed after the restart, so no statefile exists"
         continue
     fi
     privileged_pod=$(kubectl get pods -n kube-system -l app=privileged-daemonset -o wide | grep "$node_name" | awk '{print $1}')
