@@ -609,8 +609,7 @@ func (service *HTTPRestService) attachOrDetachHelper(req cns.ConfigureContainerN
 				nmaNCs := map[string]string{}
 				for _, nc := range ncVersionListResp.Containers {
 					// store nmaNCID as lower case to allow case insensitive comparison with nc stored in CNS
-					nmaNCID := cns.SwiftPrefix + strings.ToLower(nc.NetworkContainerID)
-					nmaNCs[nmaNCID] = nc.Version
+					nmaNCs[strings.ToLower(nc.NetworkContainerID)] = nc.Version
 				}
 				_, returnCode, message := service.isNCWaitingForUpdate(existing.CreateNetworkContainerRequest.Version, req.NetworkContainerid, nmaNCs)
 				if returnCode == types.NetworkContainerVfpProgramPending {
