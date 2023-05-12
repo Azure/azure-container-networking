@@ -398,7 +398,8 @@ jobs:
                 --vm-set-type VirtualMachineScaleSets \
                 --node-vm-size Standard_D4s_v3 \
                 --node-count 1 \
-                --uptime-sla
+                --uptime-sla \
+                --max-pods 200
 
             # don't schedule anything on the linux system pool
             echo "Updating $CLUSTER_NAME to not schedule anything on linux pool..."
