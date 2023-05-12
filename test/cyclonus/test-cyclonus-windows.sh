@@ -7,7 +7,7 @@ LOG_FILE=cyclonus-$CLUSTER_NAME
     --cleanup-namespaces=true \
     --perturbation-wait-seconds=20 \
     --pod-creation-timeout-seconds=480 \
-    --job-timeout-seconds=15 \
+    --job-timeout-seconds=5 \
     --server-protocol=TCP,UDP \
     --exclude sctp,named-port,ip-block-with-except,multi-peer,upstream-e2e,example,end-port,namespaces-by-default-label,update-policy | tee $LOG_FILE
 
