@@ -1,0 +1,14 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: wireserver-test
+spec:
+  backoffLimit: 3
+  activeDeadlineSeconds: 30
+  template:
+    spec:
+      containers:
+        - name: wireserver-test
+          image: busybox
+          command: ["wget", "--timeout=3", "http://168.63.129.16"]
+      restartPolicy: Never

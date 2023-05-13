@@ -57,7 +57,7 @@ steps:
     name: "installCilium"
     displayName: "Install Cilium"
 
-  - script: | 
+  - script: |
       echo "install cilium CLI"
       CILIUM_CLI_VERSION=$(curl -s https://raw.githubusercontent.com/cilium/cilium-cli/master/stable.txt)
       CLI_ARCH=amd64
@@ -149,6 +149,26 @@ steps:
     name: "validatePods"
     displayName: "Validate Pods"
   
+  - script: |
+      echo "Run wireserver and metadata connectivity Tests"
+      kubectl create -f test/integration/manifests/jobs/wireserver-job.yaml
+      kubectl wait --for=condition=complete --timeout=6s job  wireserver-test
+      if [ $? -eq 0 ]; then
+        echo "wireserver connectivity test succeeded instead of failing as expected"
+        kubectl logs job.batch/wireserver-test
+        exit 1
+      fi
+      kubectl create -f test/integration/manifests/jobs/metadata-job.yaml
+      kubectl wait --for=condition=complete --timeout=6s job  metadata-test
+      if [ $? -ne 0 ]; then
+        echo "metadata connectivity test failed"
+        kubectl logs job.batch/metadata-test
+        exit 1
+      fi
+    retryCountOnTaskFailure: 3
+    name: "WireserverMetadataConnectivityTests"
+    displayName: "Run Wireserver and Metadata Connectivity Tests"
+
   - script: |
       ARTIFACT_DIR=$(Build.ArtifactStagingDirectory)/test-output/
       echo $ARTIFACT_DIR
