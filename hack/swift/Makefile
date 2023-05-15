@@ -19,8 +19,6 @@ CLUSTER    ?= $(USER)-$(REGION)
 GROUP      ?= $(CLUSTER)
 VNET       ?= $(CLUSTER)
 
-
-
 ##@ Help
 
 help:  ## Display this help
@@ -171,4 +169,3 @@ down: ## Delete the cluster
 
 restart-vmss: ## Restarts the nodes in the cluster
 	$(AZCLI) vmss restart -g MC_${GROUP}_${CLUSTER}_${REGION} --name $(VMSS_NAME)
-
