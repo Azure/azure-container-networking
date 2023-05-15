@@ -1,11 +1,12 @@
 curl -fsSL github.com/mattfenwick/cyclonus/releases/latest/download/cyclonus_linux_amd64.tar.gz | tar -zxv
 LOG_FILE=cyclonus-$CLUSTER_NAME
 ./cyclonus_linux_amd64/cyclonus generate \
+    --fail-fast \
     --noisy=true \
     --retries=7 \
     --ignore-loopback=true \
     --cleanup-namespaces=true \
-    --perturbation-wait-seconds=10 \
+    --perturbation-wait-seconds=17 \
     --pod-creation-timeout-seconds=480 \
     --job-timeout-seconds=5 \
     --server-protocol=TCP,UDP \
