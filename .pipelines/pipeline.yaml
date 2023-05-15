@@ -196,36 +196,36 @@ stages:
               name: $(name)
               os: $(os)
               os_version: $(os_version)
-      # - job: containerize_linux_arm64
-      #   displayName: Build Images
-      #   variables:
-      #     TAG: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
-      #   pool:
-      #     name: "$(BUILD_POOL_NAME_LINUX_ARM64)"
-      #   strategy:
-      #     matrix:
-      #       cni_dropgz_linux_arm64:
-      #         arch: arm64
-      #         name: cni-dropgz
-      #         os: linux
-      #       cni_dropgz_test_linux_arm64:
-      #         arch: arm64
-      #         name: cni-dropgz-test
-      #         os: linux
-      #       cns_linux_arm64:
-      #         arch: arm64
-      #         name: cns
-      #         os: linux
-      #       npm_linux_arm64:
-      #         arch: arm64
-      #         name: npm
-      #         os: linux
-      #   steps:
-      #     - template: containers/container-template.yaml
-      #       parameters:
-      #         arch: $(arch)
-      #         name: $(name)
-      #         os: $(os)
+      - job: containerize_linux_arm64
+        displayName: Build Images
+        variables:
+          TAG: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
+        pool:
+          name: "$(BUILD_POOL_NAME_LINUX_ARM64)"
+        strategy:
+          matrix:
+            cni_dropgz_linux_arm64:
+              arch: arm64
+              name: cni-dropgz
+              os: linux
+            cni_dropgz_test_linux_arm64:
+              arch: arm64
+              name: cni-dropgz-test
+              os: linux
+            cns_linux_arm64:
+              arch: arm64
+              name: cns
+              os: linux
+            npm_linux_arm64:
+              arch: arm64
+              name: npm
+              os: linux
+        steps:
+          - template: containers/container-template.yaml
+            parameters:
+              arch: $(arch)
+              name: $(name)
+              os: $(os)
       - job: check_tag
         displayName: Check Tag
         pool:
