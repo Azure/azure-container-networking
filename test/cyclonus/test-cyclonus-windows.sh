@@ -1,6 +1,15 @@
-curl -fsSL github.com/mattfenwick/cyclonus/releases/latest/download/cyclonus_linux_amd64.tar.gz | tar -zxv
+# curl -fsSL github.com/mattfenwick/cyclonus/releases/latest/download/cyclonus_linux_amd64.tar.gz | tar -zxv
 LOG_FILE=cyclonus-$CLUSTER_NAME
-./cyclonus_linux_amd64/cyclonus generate \
+
+git clone https://github.com/huntergregory/cyclonus.git --branch=slowness --depth=2
+# logging commit
+git checkout "5f8a027e197a6098d761e97559852524271c5303"
+cd cyclonus
+make cyclonus
+cmd/cyclonus/cyclonus
+
+# ./cyclonus_linux_amd64/cyclonus generate \
+cmd/cyclonus/cyclonus generate \
     --fail-fast \
     --noisy=true \
     --retries=7 \
