@@ -1,10 +1,10 @@
 # curl -fsSL github.com/mattfenwick/cyclonus/releases/latest/download/cyclonus_linux_amd64.tar.gz | tar -zxv
 LOG_FILE=cyclonus-$CLUSTER_NAME
 
-git clone https://github.com/huntergregory/cyclonus.git --branch=slowness --depth=2
+git clone https://github.com/huntergregory/cyclonus.git --branch=slowness --depth=3
 cd cyclonus
-# logging commit
-git checkout "5f8a027e197a6098d761e97559852524271c5303"
+# no logs. double worker
+git checkout "fe347e353fc46eabe2d23f077c4fa48a3a18337c"
 make cyclonus
 cmd/cyclonus/cyclonus
 

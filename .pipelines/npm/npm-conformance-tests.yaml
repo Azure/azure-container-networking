@@ -396,7 +396,7 @@ jobs:
                 --windows-admin-password alpha@numeric!password2 \
                 --network-plugin azure \
                 --vm-set-type VirtualMachineScaleSets \
-                --node-vm-size Standard_D4s_v3 \
+                --node-vm-size Standard_D8s_v3 \
                 --node-count 1 \
                 --uptime-sla
 
