@@ -2,8 +2,8 @@
 LOG_FILE=cyclonus-$CLUSTER_NAME
 
 git clone https://github.com/huntergregory/cyclonus.git --branch=slowness --depth=2
-# logging commit
-git checkout "5f8a027e197a6098d761e97559852524271c5303"
+# double worker count commit
+git checkout "92c8551c6c55127a7cb5024c908b03f45f599bb7"
 cd cyclonus
 make cyclonus
 cmd/cyclonus/cyclonus
