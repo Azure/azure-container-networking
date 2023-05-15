@@ -12,6 +12,7 @@ import (
 	"net/http/httptest"
 	"reflect"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/Azure/azure-container-networking/cns"
@@ -104,7 +105,7 @@ func (service *HTTPRestService) SyncNodeStatus(dncEP, infraVnet, nodeID string, 
 	if !skipNCVersionCheck {
 		nmaNCs := map[string]string{}
 		for _, nc := range ncVersionListResp.Containers {
-			nmaNCs[cns.SwiftPrefix+nc.NetworkContainerID] = nc.Version
+			nmaNCs[cns.SwiftPrefix+strings.ToLower(nc.NetworkContainerID)] = nc.Version
 		}
 
 		// check if the version is valid and save it to service state
@@ -220,7 +221,7 @@ func (service *HTTPRestService) syncHostNCVersion(ctx context.Context, channelMo
 
 	nmaNCs := map[string]string{}
 	for _, nc := range ncVersionListResp.Containers {
-		nmaNCs[nc.NetworkContainerID] = nc.Version
+		nmaNCs[strings.ToLower(nc.NetworkContainerID)] = nc.Version
 	}
 	for ncID := range outdatedNCs {
 		nmaNCVersionStr, ok := nmaNCs[ncID]

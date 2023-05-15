@@ -61,7 +61,7 @@ func TestCreateAndUpdateNCWithSecondaryIPNCVersion(t *testing.T) {
 	// NC version set as 0 which is the default initial value.
 	ncVersion := 0
 	secondaryIPConfigs := make(map[string]cns.SecondaryIPConfig)
-	ncID := "testNc1"
+	ncID := "6a07155a-32d7-49af-872f-1e70ee366dc0"
 
 	// Build secondaryIPConfig, it will have one item as {IPAddress:"10.0.0.16", NCVersion: 0}
 	ipAddress := "10.0.0.16"
@@ -219,7 +219,7 @@ func createNCReqeustForSyncHostNCVersion(t *testing.T) cns.CreateNetworkContaine
 	// NC version set as 0 which is the default initial value.
 	ncVersion := 0
 	secondaryIPConfigs := make(map[string]cns.SecondaryIPConfig)
-	ncID := "testNc1"
+	ncID := "6a07155a-32d7-49af-872f-1e70ee366dc0"
 
 	// Build secondaryIPConfig, it will have one item as {IPAddress:"10.0.0.16", NCVersion: 0}
 	ipAddress := "10.0.0.16"
@@ -393,7 +393,7 @@ func setOrchestratorTypeInternal(orchestratorType string) {
 
 func validateCreateNCInternal(t *testing.T, secondaryIpCount int, ncVersion string) {
 	secondaryIPConfigs := make(map[string]cns.SecondaryIPConfig)
-	ncId := "testNc1"
+	ncId := "6a07155a-32d7-49af-872f-1e70ee366dc0"
 	ncVersionInInt, _ := strconv.Atoi(ncVersion)
 	startingIndex := 6
 	for i := 0; i < secondaryIpCount; i++ {
@@ -409,7 +409,7 @@ func validateCreateNCInternal(t *testing.T, secondaryIpCount int, ncVersion stri
 
 func validateCreateOrUpdateNCInternal(t *testing.T, secondaryIpCount int, ncVersion string) {
 	secondaryIPConfigs := make(map[string]cns.SecondaryIPConfig)
-	ncId := "testNc1"
+	ncId := "6a07155a-32d7-49af-872f-1e70ee366dc0"
 	ncVersionInInt, _ := strconv.Atoi(ncVersion)
 	startingIndex := 6
 	for i := 0; i < secondaryIpCount; i++ {
