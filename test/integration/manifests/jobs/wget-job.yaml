@@ -10,5 +10,11 @@ spec:
       containers:
         - name: wget-test
           image: busybox
-          command: ["wget", "--timeout=3", "http://{test-address}"]
+          command:
+            [
+              "wget",
+              "--timeout=3",
+              "--header=Metadata:true",
+              "http://{test-address}",
+            ]
       restartPolicy: Never
