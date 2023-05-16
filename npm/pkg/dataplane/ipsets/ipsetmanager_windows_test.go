@@ -520,6 +520,9 @@ func TestFailureOnDeletion(t *testing.T) {
 }
 
 func TestMetrics(t *testing.T) {
+	metrics.InitializeWindowsMetrics()
+	metrics.ResetIPSetEntries()
+
 	hns := GetHNSFake(t, "azure")
 	io := common.NewMockIOShimWithFakeHNS(hns)
 	iMgr := NewIPSetManager(applyAlwaysCfg, io)
@@ -566,6 +569,9 @@ func TestMetrics(t *testing.T) {
 }
 
 func TestMetricsMaxMember(t *testing.T) {
+	metrics.InitializeWindowsMetrics()
+	metrics.ResetIPSetEntries()
+
 	hns := GetHNSFake(t, "azure")
 	io := common.NewMockIOShimWithFakeHNS(hns)
 	iMgr := NewIPSetManager(applyAlwaysCfg, io)
