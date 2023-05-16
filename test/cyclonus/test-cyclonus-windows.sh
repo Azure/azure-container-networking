@@ -8,7 +8,6 @@ git clone https://github.com/huntergregory/cyclonus.git --branch=slowness --dept
 cd cyclonus
 make cyclonus
 cmd/cyclonus/cyclonus generate \
-    --fail-fast \
     --noisy=true \
     --retries=7 \
     --ignore-loopback=true \
