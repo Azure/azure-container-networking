@@ -1,14 +1,12 @@
-# curl -fsSL github.com/mattfenwick/cyclonus/releases/latest/download/cyclonus_linux_amd64.tar.gz | tar -zxv
 LOG_FILE=cyclonus-$CLUSTER_NAME
 
-git clone https://github.com/huntergregory/cyclonus.git --branch=slowness --depth=3
-cd cyclonus
-# no logs. double worker
-git checkout "fe347e353fc46eabe2d23f077c4fa48a3a18337c"
-make cyclonus
-cmd/cyclonus/cyclonus
-
+# curl -fsSL github.com/mattfenwick/cyclonus/releases/latest/download/cyclonus_linux_amd64.tar.gz | tar -zxv
 # ./cyclonus_linux_amd64/cyclonus generate \
+
+# this branch has double the amount of workers
+git clone https://github.com/huntergregory/cyclonus.git --branch=slowness --depth=1
+cd cyclonus
+make cyclonus
 cmd/cyclonus/cyclonus generate \
     --fail-fast \
     --noisy=true \
