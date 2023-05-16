@@ -902,6 +902,7 @@ func (service *HTTPRestService) getAllNetworkContainers(w http.ResponseWriter, r
 		for _, failedNetworkContainerResponse := range failedNetworkContainerResponses { // nolint
 			failedToGetNCErrMsg = append(failedToGetNCErrMsg, fmt.Sprintf("Failed to get NC %s due to %s", failedNetworkContainerResponse.NetworkContainerID, failedNetworkContainerResponse.Response.Message))
 		}
+
 		resp.Response.ReturnCode = types.UnexpectedError
 		resp.Response.Message = strings.Join(failedToGetNCErrMsg, "\n")
 	} else {
