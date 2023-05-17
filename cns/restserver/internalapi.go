@@ -164,7 +164,13 @@ func (service *HTTPRestService) SyncHostNCVersion(ctx context.Context, channelMo
 	service.Lock()
 	defer service.Unlock()
 	start := time.Now()
-	err := service.syncHostNCVersion(ctx, channelMode)
+	programmedNCCount, err := service.syncHostNCVersion(ctx, channelMode)
+	// even if we get an error, we want to write the CNI conflist if we have any NC programmed to any version
+	if programmedNCCount > 0 {
+		// This will only be done once per lifetime of the CNS process. This function is threadsafe and will panic
+		// if it fails, so it is safe to call in a non-preemptable goroutine.
+		go service.MustGenerateCNIConflistOnce()
+	}
 	if err != nil {
 		logger.Errorf("sync host error %v", err)
 	}
@@ -174,8 +180,13 @@ func (service *HTTPRestService) SyncHostNCVersion(ctx context.Context, channelMo
 
 var errNonExistentContainerStatus = errors.New("nonExistantContainerstatus")
 
-func (service *HTTPRestService) syncHostNCVersion(ctx context.Context, channelMode string) error {
+// syncHostVersion updates the CNS state with the latest programmed versions of NCs attached to the VM. If any NC in local CNS state
+// does not match the version that DNC claims to have published, this function will call NMAgent and list the latest programmed versions of
+// all NCs and update the CNS state accordingly. This function returns the the total number of NCs on this VM that have been programmed to
+// some version, NOT the number of NCs that are up-to-date.
+func (service *HTTPRestService) syncHostNCVersion(ctx context.Context, channelMode string) (int, error) {
 	outdatedNCs := map[string]struct{}{}
+	programmedNCs := map[string]struct{}{}
 	for idx := range service.state.ContainerStatus {
 		// Will open a separate PR to convert all the NC version related variable to int. Change from string to int is a pain.
 		localNCVersion, err := strconv.Atoi(service.state.ContainerStatus[idx].HostVersion)
@@ -194,13 +205,17 @@ func (service *HTTPRestService) syncHostNCVersion(ctx context.Context, channelMo
 		} else if localNCVersion > dncNCVersion {
 			logger.Errorf("NC version from NMAgent is larger than DNC, NC version from NMAgent is %d, NC version from DNC is %d", localNCVersion, dncNCVersion)
 		}
+
+		if localNCVersion > -1 {
+			programmedNCs[service.state.ContainerStatus[idx].ID] = struct{}{}
+		}
 	}
 	if len(outdatedNCs) == 0 {
-		return nil
+		return len(programmedNCs), nil
 	}
 	ncVersionListResp, err := service.nma.GetNCVersionList(ctx)
 	if err != nil {
-		return errors.Wrap(err, "failed to get nc version list from nmagent")
+		return len(programmedNCs), errors.Wrap(err, "failed to get nc version list from nmagent")
 	}
 
 	nmaNCs := map[string]string{}
@@ -223,8 +238,13 @@ func (service *HTTPRestService) syncHostNCVersion(ctx context.Context, channelMo
 		if !exist {
 			// if we marked this NC as needs update, but it no longer exists in internal state when we reach
 			// this point, our internal state has changed unexpectedly and we should bail out and try again.
-			return errors.Wrapf(errNonExistentContainerStatus, "can't find NC with ID %s in service state, stop updating this host NC version", ncID)
+			return len(programmedNCs), errors.Wrapf(errNonExistentContainerStatus, "can't find NC with ID %s in service state, stop updating this host NC version", ncID)
 		}
+		// if the NC still exists in state and is programmed to some version (doesn't have to be latest), add it to our set of NCs that have been programmed
+		if nmaNCVersion > -1 {
+			programmedNCs[ncID] = struct{}{}
+		}
+
 		localNCVersion, err := strconv.Atoi(ncInfo.HostVersion)
 		if err != nil {
 			logger.Errorf("failed to parse host nc version string %s: %s", ncInfo.HostVersion, err)
@@ -247,14 +267,10 @@ func (service *HTTPRestService) syncHostNCVersion(ctx context.Context, channelMo
 	// if we didn't empty out the needs update set, NMA has not programmed all the NCs we are expecting, and we
 	// need to return an error indicating that
 	if len(outdatedNCs) > 0 {
-		return errors.Errorf("unabled to update some NCs: %v, missing or bad response from NMA", outdatedNCs)
+		return len(programmedNCs), errors.Errorf("unabled to update some NCs: %v, missing or bad response from NMA", outdatedNCs)
 	}
 
-	// if NMA has programmed all the NCs that we expect, we should write the CNI conflist. This will only be done
-	// once per lifetime of the CNS process. This function is threadsafe and will panic if it fails, so it is safe
-	// to call in a non-preemptable goroutine.
-	go service.MustGenerateCNIConflistOnce()
-	return nil
+	return len(programmedNCs), nil
 }
 
 // This API will be called by CNS RequestController on CRD update.
@@ -395,6 +411,8 @@ func (service *HTTPRestService) CreateOrUpdateNetworkContainerInternal(req *cns.
 	// If the NC was created successfully, log NC snapshot.
 	if returnCode == 0 {
 		logNCSnapshot(*req)
+
+		publishIPStateMetrics(service.buildIPState())
 	} else {
 		logger.Errorf(returnMessage)
 	}

@@ -1,13 +1,20 @@
-curl -fsSL github.com/mattfenwick/cyclonus/releases/latest/download/cyclonus_linux_amd64.tar.gz | tar -zxv
 LOG_FILE=cyclonus-$CLUSTER_NAME
-./cyclonus_linux_amd64/cyclonus generate \
+
+# curl -fsSL github.com/mattfenwick/cyclonus/releases/latest/download/cyclonus_linux_amd64.tar.gz | tar -zxv
+# ./cyclonus_linux_amd64/cyclonus generate \
+
+# this branch has double the amount of workers
+git clone https://github.com/huntergregory/cyclonus.git --branch=slowness --depth=1
+cd cyclonus
+make cyclonus
+cmd/cyclonus/cyclonus generate \
     --noisy=true \
     --retries=7 \
     --ignore-loopback=true \
     --cleanup-namespaces=true \
-    --perturbation-wait-seconds=20 \
+    --perturbation-wait-seconds=17 \
     --pod-creation-timeout-seconds=480 \
-    --job-timeout-seconds=15 \
+    --job-timeout-seconds=5 \
     --server-protocol=TCP,UDP \
     --exclude sctp,named-port,ip-block-with-except,multi-peer,upstream-e2e,example,end-port,namespaces-by-default-label,update-policy | tee $LOG_FILE
 

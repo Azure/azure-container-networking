@@ -66,19 +66,8 @@ spec:
               fieldPath: metadata.namespace
         - name: CILIUM_CLUSTERMESH_CONFIG
           value: /var/lib/cilium/clustermesh/
-        - name: CILIUM_CUSTOM_CNI_CONF
-          value: "true"
-        image: mcr.microsoft.com/oss/cilium/cilium:1.12.5.1
+        image: mcr.microsoft.com/oss/cilium/cilium:1.12.8
         imagePullPolicy: IfNotPresent
-        lifecycle:
-          postStart:
-            exec:
-              command:
-              - /cni-install.sh
-          preStop:
-            exec:
-              command:
-              - /cni-uninstall.sh
         livenessProbe:
           failureThreshold: 10
           httpGet:
@@ -157,8 +146,6 @@ spec:
           name: bpf-maps
         - mountPath: /var/run/cilium
           name: cilium-run
-        - mountPath: /host/opt/cni/bin
-          name: cni-path
         - mountPath: /host/etc/cni/net.d
           name: etc-cni-netd
         - mountPath: /var/lib/cilium/clustermesh
@@ -175,6 +162,24 @@ spec:
       dnsPolicy: ClusterFirst
       hostNetwork: true
       initContainers:
+      - name: install-cni-binaries
+        image: mcr.microsoft.com/oss/cilium/cilium:1.12.8
+        imagePullPolicy: IfNotPresent
+        command:
+          - "/install-plugin.sh"
+        securityContext:
+          seLinuxOptions:
+            level: 's0'
+            # Running with spc_t since we have removed the privileged mode.
+            # Users can change it to a different type as long as they have the
+            # type available on the system.
+            type: 'spc_t'
+          capabilities:
+            drop:
+              - ALL
+        volumeMounts:
+          - name: cni-path
+            mountPath: /host/opt/cni/bin
       - command:
         - sh
         - -ec
@@ -187,7 +192,7 @@ spec:
           value: /run/cilium/cgroupv2
         - name: BIN_PATH
           value: /opt/cni/bin
-        image: mcr.microsoft.com/oss/cilium/cilium:1.12.5.1
+        image: mcr.microsoft.com/oss/cilium/cilium:1.12.8
         imagePullPolicy: IfNotPresent
         name: mount-cgroup
         resources: {}
@@ -219,7 +224,7 @@ spec:
         env:
         - name: BIN_PATH
           value: /opt/cni/bin
-        image: mcr.microsoft.com/oss/cilium/cilium:1.12.5.1
+        image: mcr.microsoft.com/oss/cilium/cilium:1.12.8
         imagePullPolicy: IfNotPresent
         name: apply-sysctl-overwrites
         resources: {}
@@ -247,7 +252,7 @@ spec:
         - /bin/bash
         - -c
         - --
-        image: mcr.microsoft.com/oss/cilium/cilium:1.12.5.1
+        image: mcr.microsoft.com/oss/cilium/cilium:1.12.8
         imagePullPolicy: IfNotPresent
         name: mount-bpf-fs
         resources: {}
@@ -274,7 +279,7 @@ spec:
               key: clean-cilium-bpf-state
               name: cilium-config
               optional: true
-        image: mcr.microsoft.com/oss/cilium/cilium:1.12.5.1
+        image: mcr.microsoft.com/oss/cilium/cilium:1.12.8
         imagePullPolicy: IfNotPresent
         name: clean-cilium-state
         resources:

@@ -2,6 +2,7 @@ package dataplane
 
 import (
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/policies"
+	"github.com/Azure/azure-container-networking/npm/util"
 	npmerrors "github.com/Azure/azure-container-networking/npm/util/errors"
 )
 
@@ -20,6 +21,8 @@ func (dp *DataPlane) updatePod(pod *updateNPMPod) error {
 }
 
 func (dp *DataPlane) bootupDataPlane() error {
+	util.DetectIptablesVersion(dp.ioShim)
+
 	// It is important to keep order to clean-up ACLs before ipsets. Otherwise we won't be able to delete ipsets referenced by ACLs
 	if err := dp.policyMgr.Bootup(nil); err != nil {
 		return npmerrors.ErrorWrapper(npmerrors.BootupDataplane, false, "failed to reset policy dataplane", err)
