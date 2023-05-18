@@ -42,9 +42,25 @@ Known errors that we should retry on:
     Another app is currently holding the xtables lock. Stopped waiting after 60s.
 */
 
+/*
+Remove all NetworkPolicies that had a RemovePolicy() call.
+Add all NetworkPolicies which had an AddPolicy() call as the most recent call.
+
+Process removals first (e.g. in case a NetPol is updated)
+
+Examples:
+1. NetPol is updated. First there will be RemovePolicy() and then AddPolicy(). We will remove the Policy, then add it.
+2. NetPol is added, then removed before we reconcile. We will NOT add the Policy. We will try removing the Policy, but it will not be there.
+
+TODO: handle #2 above. Make sure we don't error out when failing to delete a NetPol that was never in the kernel
+*/
 func (pMgr *PolicyManager) reconcileDirtyNetPols() error {
 	pMgr.policyMap.Lock()
 	defer pMgr.policyMap.Unlock()
+
+	if len(pMgr.policyMap.linuxDirtyCache) == 0 {
+		return nil
+	}
 
 	toRemove := make([]*NPMNetworkPolicy, 0)
 	toAdd := make([]*NPMNetworkPolicy, 0)
@@ -67,8 +83,15 @@ func (pMgr *PolicyManager) reconcileDirtyNetPols() error {
 		}
 	}
 
-	if err := pMgr.removeAllPolicies(toRemove); err != nil {
-		return npmerrors.SimpleErrorWrapper("failed to remove dirty policies", err)
+	if len(toRemove) > 0 {
+		if err := pMgr.removeAllPolicies(toRemove); err != nil {
+			return npmerrors.SimpleErrorWrapper("failed to remove dirty policies", err)
+		}
+	}
+
+	if len(toAdd) == 0 {
+		pMgr.policyMap.linuxDirtyCache = make(map[string][]operation)
+		return nil
 	}
 
 	newDirtyCache := make(map[string][]operation, len(toAdd))
@@ -89,7 +112,6 @@ func (pMgr *PolicyManager) reconcileDirtyNetPols() error {
 	}
 
 	pMgr.policyMap.linuxDirtyCache = make(map[string][]operation)
-
 	return nil
 }
 
