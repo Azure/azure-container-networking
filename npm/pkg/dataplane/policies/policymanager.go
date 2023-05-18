@@ -41,9 +41,17 @@ type PolicyManagerCfg struct {
 	MaxBatchedACLsPerPod int
 }
 
+type operation string
+
+const (
+	add    operation = "add"
+	remove operation = "remove"
+)
+
 type PolicyMap struct {
 	sync.RWMutex
-	cache map[string]*NPMNetworkPolicy
+	cache           map[string]*NPMNetworkPolicy
+	linuxDirtyCache map[string][]operation
 }
 
 type reconcileManager struct {
@@ -68,7 +76,8 @@ type PolicyManager struct {
 func NewPolicyManager(ioShim *common.IOShim, cfg *PolicyManagerCfg) *PolicyManager {
 	return &PolicyManager{
 		policyMap: &PolicyMap{
-			cache: make(map[string]*NPMNetworkPolicy),
+			cache:           make(map[string]*NPMNetworkPolicy),
+			linuxDirtyCache: make(map[string][]operation),
 		},
 		ioShim:      ioShim,
 		staleChains: newStaleChains(),
@@ -108,6 +117,14 @@ func (pMgr *PolicyManager) Bootup(epIDs []string) error {
 
 func (pMgr *PolicyManager) Reconcile() {
 	pMgr.reconcile()
+}
+
+func (pMgr *PolicyManager) ReconcileDirtyNetPols() {
+	if err := pMgr.reconcileDirtyNetPols(); err != nil {
+		msg := fmt.Sprintf("failed to reconcile dirty network policies due to %s", err.Error())
+		metrics.SendErrorLogAndMetric(util.IptmID, "error: %s", msg)
+		klog.Error(msg)
+	}
 }
 
 func (pMgr *PolicyManager) PolicyExists(policyKey string) bool {
@@ -207,7 +224,9 @@ func (pMgr *PolicyManager) RemovePolicy(policyKey string) error {
 	}
 
 	// remove policy from cache
-	delete(pMgr.policyMap.cache, policyKey)
+	if util.IsWindowsDP() {
+		delete(pMgr.policyMap.cache, policyKey)
+	}
 	return nil
 }
 

@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/Azure/azure-container-networking/log"
+	"github.com/Azure/azure-container-networking/npm/metrics"
 	"github.com/Azure/azure-container-networking/npm/util"
 	npmerrors "github.com/Azure/azure-container-networking/npm/util/errors"
 	"github.com/Azure/azure-container-networking/npm/util/ioutil"
@@ -41,10 +42,70 @@ Known errors that we should retry on:
     Another app is currently holding the xtables lock. Stopped waiting after 60s.
 */
 
+func (pMgr *PolicyManager) reconcileDirtyNetPols() error {
+	pMgr.policyMap.Lock()
+	defer pMgr.policyMap.Unlock()
+
+	toRemove := make([]*NPMNetworkPolicy, 0)
+	toAdd := make([]*NPMNetworkPolicy, 0)
+	for key, ops := range pMgr.policyMap.linuxDirtyCache {
+		policy, ok := pMgr.policyMap.cache[key]
+		if !ok {
+			metrics.SendErrorLogAndMetric(util.IptmID, "error: failed to find dirty policy in cache. key: %s", key)
+			continue
+		}
+
+		for _, op := range ops {
+			if op == remove {
+				toRemove = append(toRemove, policy)
+				break
+			}
+		}
+
+		if ops[len(ops)-1] == add {
+			toAdd = append(toAdd, policy)
+		}
+	}
+
+	if err := pMgr.removeAllPolicies(toRemove); err != nil {
+		return npmerrors.SimpleErrorWrapper("failed to remove dirty policies", err)
+	}
+
+	newDirtyCache := make(map[string][]operation, len(toAdd))
+	for _, policy := range toAdd {
+		newDirtyCache[policy.PolicyKey] = []operation{add}
+	}
+
+	for _, policy := range toRemove {
+		if _, ok := newDirtyCache[policy.PolicyKey]; !ok {
+			delete(pMgr.policyMap.cache, policy.PolicyKey)
+		}
+	}
+
+	pMgr.policyMap.linuxDirtyCache = newDirtyCache
+
+	if err := pMgr.addAllPolicies(toAdd); err != nil {
+		return npmerrors.SimpleErrorWrapper("failed to add dirty policies", err)
+	}
+
+	pMgr.policyMap.linuxDirtyCache = make(map[string][]operation)
+
+	return nil
+}
+
 func (pMgr *PolicyManager) addPolicy(networkPolicy *NPMNetworkPolicy, _ map[string]string) error {
+	if _, ok := pMgr.policyMap.linuxDirtyCache[networkPolicy.PolicyKey]; !ok {
+		pMgr.policyMap.linuxDirtyCache[networkPolicy.PolicyKey] = make([]operation, 0, 1)
+	}
+	pMgr.policyMap.linuxDirtyCache[networkPolicy.PolicyKey] = append(pMgr.policyMap.linuxDirtyCache[networkPolicy.PolicyKey], add)
+
+	return nil
+}
+
+func (pMgr *PolicyManager) addAllPolicies(networkPolicies []*NPMNetworkPolicy) error {
 	// 1. Add rules for the network policies and activate NPM (if necessary).
-	chainsToCreate := chainNames([]*NPMNetworkPolicy{networkPolicy})
-	creator := pMgr.creatorForNewNetworkPolicies(chainsToCreate, []*NPMNetworkPolicy{networkPolicy})
+	chainsToCreate := chainNames(networkPolicies)
+	creator := pMgr.creatorForNewNetworkPolicies(chainsToCreate, networkPolicies)
 
 	// Stop reconciling so we don't contend for iptables, and so reconcile doesn't delete chainsToCreate.
 	pMgr.reconcileManager.forceLock()
@@ -63,18 +124,28 @@ func (pMgr *PolicyManager) addPolicy(networkPolicy *NPMNetworkPolicy, _ map[stri
 }
 
 func (pMgr *PolicyManager) removePolicy(networkPolicy *NPMNetworkPolicy, _ map[string]string) error {
-	chainsToDelete := chainNames([]*NPMNetworkPolicy{networkPolicy})
+	if _, ok := pMgr.policyMap.linuxDirtyCache[networkPolicy.PolicyKey]; !ok {
+		pMgr.policyMap.linuxDirtyCache[networkPolicy.PolicyKey] = make([]operation, 0, 1)
+	}
+	pMgr.policyMap.linuxDirtyCache[networkPolicy.PolicyKey] = append(pMgr.policyMap.linuxDirtyCache[networkPolicy.PolicyKey], remove)
+	return nil
+}
+
+func (pMgr *PolicyManager) removeAllPolicies(networkPolicies []*NPMNetworkPolicy) error {
+	chainsToDelete := chainNames(networkPolicies)
 	creator := pMgr.creatorForRemovingPolicies(chainsToDelete)
 
 	// Stop reconciling so we don't contend for iptables, and so we don't update the staleChains at the same time as reconcile()
 	pMgr.reconcileManager.forceLock()
 	defer pMgr.reconcileManager.forceUnlock()
 
-	// 1. Delete jump rules from ingress/egress chains to ingress/egress policy chains.
-	// We ought to delete these jump rules here in the foreground since if we add an NP back after deleting, iptables-restore --noflush can add duplicate jump rules.
-	deleteErr := pMgr.deleteOldJumpRulesOnRemove(networkPolicy)
-	if deleteErr != nil {
-		return npmerrors.SimpleErrorWrapper("failed to delete jumps to policy chains", deleteErr)
+	for _, networkPolicy := range networkPolicies {
+		// 1. Delete jump rules from ingress/egress chains to ingress/egress policy chains.
+		// We ought to delete these jump rules here in the foreground since if we add an NP back after deleting, iptables-restore --noflush can add duplicate jump rules.
+		deleteErr := pMgr.deleteOldJumpRulesOnRemove(networkPolicy)
+		if deleteErr != nil {
+			return npmerrors.SimpleErrorWrapper("failed to delete jumps to policy chains", deleteErr)
+		}
 	}
 
 	// 2. Flush the policy chains and deactivate NPM (if necessary).

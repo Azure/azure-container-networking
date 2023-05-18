@@ -16,7 +16,8 @@ import (
 )
 
 const (
-	reconcileDuration = time.Duration(5 * time.Minute)
+	reconcileDuration             = time.Duration(5 * time.Minute)
+	reconcileDirtyNetPolsDuration = time.Duration(500 * time.Millisecond)
 
 	contextBackground = "BACKGROUND"
 	contextApplyDP    = "APPLY-DP"
@@ -141,6 +142,21 @@ func (dp *DataPlane) RunPeriodicTasks() {
 				// in Windows, does nothing
 				// in Linux, locks policy manager but can be interrupted
 				dp.policyMgr.Reconcile()
+			}
+		}
+	}()
+
+	go func() {
+		ticker := time.NewTicker(reconcileDirtyNetPolsDuration)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-dp.stopChannel:
+				return
+			case <-ticker.C:
+				// locks policy manager but can be interrupted
+				dp.policyMgr.ReconcileDirtyNetPols()
 			}
 		}
 	}()
