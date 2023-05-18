@@ -131,6 +131,12 @@ func start(config npmconfig.Config, flags npmconfig.Flags) error {
 			npmV2DataplaneCfg.NetPolInterval = time.Duration(npmconfig.DefaultConfig.NetPolIntervalInMilliseconds * int(time.Millisecond))
 		}
 
+		if config.NetPolMaxBatches > 0 {
+			npmV2DataplaneCfg.NetPolMaxBatches = config.NetPolMaxBatches
+		} else {
+			npmV2DataplaneCfg.NetPolMaxBatches = npmconfig.DefaultConfig.NetPolMaxBatches
+		}
+
 		npmV2DataplaneCfg.ApplyInBackground = config.Toggles.ApplyInBackground
 		if config.ApplyMaxBatches > 0 {
 			npmV2DataplaneCfg.ApplyMaxBatches = config.ApplyMaxBatches

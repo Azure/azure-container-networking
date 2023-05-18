@@ -30,6 +30,7 @@ type PolicyMode string
 
 // TODO put NodeName in Config?
 type Config struct {
+	NetPolMaxBatches  int
 	NetPolInterval    time.Duration
 	ApplyInBackground bool
 	ApplyMaxBatches   int
@@ -52,6 +53,11 @@ type applyInfo struct {
 	numBatches int
 }
 
+type netPolInfo struct {
+	sync.Mutex
+	numBatches int
+}
+
 type DataPlane struct {
 	*Config
 	applyInBackground bool
@@ -66,6 +72,7 @@ type DataPlane struct {
 	updatePodCache *updatePodCache
 	endpointQuery  *endpointQuery
 	applyInfo      *applyInfo
+	netPolInfo     *netPolInfo
 	stopChannel    <-chan struct{}
 }
 
@@ -87,6 +94,7 @@ func NewDataPlane(nodeName string, ioShim *common.IOShim, cfg *Config, stopChann
 		ioShim:        ioShim,
 		endpointQuery: new(endpointQuery),
 		applyInfo:     &applyInfo{},
+		netPolInfo:    &netPolInfo{},
 		stopChannel:   stopChannel,
 	}
 
@@ -156,6 +164,14 @@ func (dp *DataPlane) RunPeriodicTasks() {
 				return
 			case <-ticker.C:
 				// locks policy manager but can be interrupted
+				dp.netPolInfo.Lock()
+				if dp.netPolInfo.numBatches == 0 {
+					dp.netPolInfo.Unlock()
+					return
+				}
+				dp.netPolInfo.numBatches = 0
+				dp.netPolInfo.Unlock()
+
 				dp.policyMgr.ReconcileDirtyNetPols()
 			}
 		}
@@ -393,6 +409,18 @@ func (dp *DataPlane) AddPolicy(policy *policies.NPMNetworkPolicy) error {
 	if err != nil {
 		return fmt.Errorf("[DataPlane] error while adding policy: %w", err)
 	}
+
+	dp.netPolInfo.Lock()
+	dp.netPolInfo.numBatches++
+	if dp.netPolInfo.numBatches < dp.NetPolMaxBatches {
+		dp.netPolInfo.Unlock()
+		return nil
+	}
+
+	dp.netPolInfo.numBatches = 0
+	dp.netPolInfo.Unlock()
+	dp.policyMgr.ReconcileDirtyNetPols()
+
 	return nil
 }
 

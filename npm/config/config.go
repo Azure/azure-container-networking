@@ -4,6 +4,7 @@ import "github.com/Azure/azure-container-networking/npm/util"
 
 const (
 	defaultResyncPeriod         = 15
+	defaultNetPolMaxBatches     = 100
 	defaultNetPolInterval       = 500
 	defaultApplyMaxBatches      = 100
 	defaultApplyInterval        = 500
@@ -31,6 +32,7 @@ var DefaultConfig = Config{
 		ServicePort: defaultGrpcServicePort,
 	},
 
+	NetPolMaxBatches:             defaultNetPolMaxBatches,
 	NetPolIntervalInMilliseconds: defaultNetPolInterval,
 
 	WindowsNetworkName:          util.AzureNetworkName,
@@ -63,6 +65,7 @@ type Config struct {
 	ListeningPort                int              `json:"ListeningPort,omitempty"`
 	ListeningAddress             string           `json:"ListeningAddress,omitempty"`
 	Transport                    GrpcServerConfig `json:"Transport,omitempty"`
+	NetPolMaxBatches             int              `json:"NetPolMaxBatches,omitempty"`
 	NetPolIntervalInMilliseconds int              `json:"NetPolIntervalInMilliseconds,omitempty"`
 	// WindowsNetworkName can be either 'azure' or 'Calico' (case sensitive).
 	// It can also be the empty string, which results in the default value of 'azure'.
