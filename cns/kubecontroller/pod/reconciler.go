@@ -2,10 +2,11 @@ package pod
 
 import (
 	"context"
+	"strconv"
 
 	"github.com/pkg/errors"
+	"go.uber.org/zap"
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/fields"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/event"
@@ -13,68 +14,87 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
-type podcli interface {
+type cli interface {
 	List(ctx context.Context, list client.ObjectList, opts ...client.ListOption) error
 }
 
-type podListener interface {
-	Update([]v1.Pod)
+// watcher watches Pods on the current Node and notifies listeners of changes.
+type watcher struct {
+	z              *zap.Logger
+	cli            cli
+	reconcileFuncs []reconcile.Func
 }
 
-type PodWatcher struct {
-	cli            podcli
-	listOpt        client.ListOption
-	ReconcileFuncs []reconcile.Func
-}
-
-func New(nodename string) *PodWatcher { //nolint:revive // private struct to force constructor
-	return &PodWatcher{
-		listOpt: &client.ListOptions{FieldSelector: fields.SelectorFromSet(fields.Set{"spec.nodeName": nodename})},
+func New(z *zap.Logger) *watcher { //nolint:revive // force usage of new by keeping the struct private
+	return &watcher{
+		z: z.With(zap.String("component", "pod-watcher")),
 	}
 }
 
-func (p *PodWatcher) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	for _, f := range p.ReconcileFuncs {
-		if _, err := f(ctx, req); err != nil {
-			return reconcile.Result{}, errors.Wrap(err, "failed to reconcile")
+// With adds reconcile.Funcs to the Watcher.
+func (p *watcher) With(fs ...reconcile.Func) *watcher {
+	p.reconcileFuncs = append(p.reconcileFuncs, fs...)
+	return p
+}
+
+func (p *watcher) Reconcile(ctx context.Context, req reconcile.Request) (ctrl.Result, error) {
+	for _, f := range p.reconcileFuncs {
+		if res, err := f(ctx, req); !res.IsZero() || err != nil {
+			return res, errors.Wrap(err, "failed to reconcile")
 		}
 	}
-	return reconcile.Result{}, nil
+	return ctrl.Result{}, nil
 }
 
-type PodFilter func([]v1.Pod) []v1.Pod
-
-var PodNetworkFilter PodFilter = func(pods []v1.Pod) []v1.Pod {
-	var filtered []v1.Pod
-	for _, pod := range pods {
-		if !pod.Spec.HostNetwork {
-			filtered = append(filtered, pod)
-		}
-	}
-	return filtered
+type limiter interface {
+	Allow() bool
 }
 
-func (p *PodWatcher) PodNotifierFunc(f PodFilter, listeners ...podListener) reconcile.Func {
+// NotifierFunc returns a reconcile.Func that lists Pods to get the latest
+// state and notifies listeners of the resulting Pods.
+// listOpts are passed to the client.List call to filter the Pod list.
+// limiter is an optional rate limiter which may be used to limit the
+// rate at which listeners are notified of list changes. This guarantees
+// that all Pod events will eventually be processed, but allows the listeners
+// to react to less (but more complete) changes. If we rate limit events, we
+// end up sending a version of the Pod list that is newer, without missing
+// any events.
+// listeners are called with the new Pod list.
+func (p *watcher) NewNotifierFunc(listOpts *client.ListOptions, limiter limiter, listeners ...func([]v1.Pod)) reconcile.Func {
+	p.z.Debug("adding notified for listeners", zap.Int("listeners", len(listeners)))
 	return func(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+		if !limiter.Allow() {
+			// rate limit exceeded, requeue
+			p.z.Debug("rate limit exceeded")
+			return ctrl.Result{Requeue: true}, nil
+		}
 		podList := &v1.PodList{}
-		if err := p.cli.List(ctx, podList, p.listOpt); err != nil {
-			return reconcile.Result{}, errors.Wrap(err, "failed to list pods")
+		if err := p.cli.List(ctx, podList, listOpts); err != nil {
+			return ctrl.Result{}, errors.Wrap(err, "failed to list pods")
 		}
 		pods := podList.Items
-		if f != nil {
-			pods = f(pods)
-		}
 		for _, l := range listeners {
-			l.Update(pods)
+			l(pods)
 		}
-		return reconcile.Result{}, nil
+		return ctrl.Result{}, nil
 	}
 }
 
+var hostNetworkIndexer = client.IndexerFunc(func(o client.Object) []string {
+	pod, ok := o.(*v1.Pod)
+	if !ok {
+		return nil
+	}
+	return []string{strconv.FormatBool(pod.Spec.HostNetwork)}
+})
+
 // SetupWithManager Sets up the reconciler with a new manager, filtering using NodeNetworkConfigFilter on nodeName.
-func (p *PodWatcher) SetupWithManager(mgr ctrl.Manager) error {
+func (p *watcher) SetupWithManager(ctx context.Context, mgr ctrl.Manager) error {
 	p.cli = mgr.GetClient()
-	err := ctrl.NewControllerManagedBy(mgr).
+	if err := mgr.GetFieldIndexer().IndexField(ctx, &v1.Pod{}, "spec.hostNetwork", hostNetworkIndexer); err != nil {
+		return errors.Wrap(err, "failed to set up hostNetwork indexer")
+	}
+	if err := ctrl.NewControllerManagedBy(mgr).
 		For(&v1.Pod{}).
 		WithEventFilter(predicate.Funcs{ // we only want create/delete events
 			UpdateFunc: func(event.UpdateEvent) bool {
@@ -84,6 +104,8 @@ func (p *PodWatcher) SetupWithManager(mgr ctrl.Manager) error {
 				return false
 			},
 		}).
-		Complete(p)
-	return errors.Wrap(err, "failed to set up pod watcher with manager")
+		Complete(p); err != nil {
+		return errors.Wrap(err, "failed to set up pod watcher with manager")
+	}
+	return nil
 }

@@ -21,10 +21,11 @@ data:
           "NodeID": "",
           "NodeSyncIntervalInSeconds": 30
       },
+      "AsyncPodDeletePath": "/var/run/azure-vnet/deleteIDs",
       "ChannelMode": "CRD",
+      "EnableAsyncPodDelete": true,
+      "EnableIPAMv2": true,
       "InitializeFromCNI": true,
       "ManageEndpointState": false,
-      "ProgramSNATIPTables" : false,
-      "EnableAsyncPodDelete": true,
-      "AsyncPodDeletePath": "/var/run/azure-vnet/deleteIDs"
+      "ProgramSNATIPTables" : false
     }
