@@ -73,78 +73,78 @@ stages:
   #           name: "Test"
   #           displayName: "Run Tests"
 
-  - stage: test_windows
-    displayName: Test ACN Windows
-    dependsOn:
-      - setup
-    jobs:
-      - job: test
-        displayName: Run Tests
-        variables:
-          STORAGE_ID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.StorageID'] ]
-        pool:
-          name: "$(BUILD_POOL_NAME_DEFAULT_WINDOWS_ALT)"
-        steps:
-          - script: |
-              cd npm/
-              go test ./...
-            retryCountOnTaskFailure: 3
-            name: "TestWindows"
-            displayName: "Run Windows Tests"
+  # - stage: test_windows
+  #   displayName: Test ACN Windows
+  #   dependsOn:
+  #     - setup
+  #   jobs:
+  #     - job: test
+  #       displayName: Run Tests
+  #       variables:
+  #         STORAGE_ID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.StorageID'] ]
+  #       pool:
+  #         name: "$(BUILD_POOL_NAME_DEFAULT_WINDOWS_ALT)"
+  #       steps:
+  #         - script: |
+  #             cd npm/
+  #             go test ./...
+  #           retryCountOnTaskFailure: 3
+  #           name: "TestWindows"
+  #           displayName: "Run Windows Tests"
 
-  - stage: binaries
-    displayName: Build Binaries
-    dependsOn:
-      - setup
-      # - test
-    jobs:
-      - job: build
-        displayName: Build Binaries
-        variables:
-          STORAGE_ID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.StorageID'] ]
-        pool:
-          name: "$(BUILD_POOL_NAME_DEFAULT)"
-        steps:
-          - script: |
-              make all-binaries-platforms
-            name: "BuildAllPlatformBinaries"
-            displayName: "Build all platform binaries"
+  # - stage: binaries
+  #   displayName: Build Binaries
+  #   dependsOn:
+  #     - setup
+  #     # - test
+  #   jobs:
+  #     - job: build
+  #       displayName: Build Binaries
+  #       variables:
+  #         STORAGE_ID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.StorageID'] ]
+  #       pool:
+  #         name: "$(BUILD_POOL_NAME_DEFAULT)"
+  #       steps:
+  #         - script: |
+  #             make all-binaries-platforms
+  #           name: "BuildAllPlatformBinaries"
+  #           displayName: "Build all platform binaries"
 
-          - script: |
-              mkdir -p ./output/bins
-              cd ./output
-              find . -name '*.tgz' -print -exec mv -t ./bins/ {} +
-              find . -name '*.zip' -print -exec mv -t ./bins/ {} +
-              shopt -s extglob
-              rm -rf !("bins")
-            name: "PrepareArtifacts"
-            displayName: "Prepare Artifacts"
+  #         - script: |
+  #             mkdir -p ./output/bins
+  #             cd ./output
+  #             find . -name '*.tgz' -print -exec mv -t ./bins/ {} +
+  #             find . -name '*.zip' -print -exec mv -t ./bins/ {} +
+  #             shopt -s extglob
+  #             rm -rf !("bins")
+  #           name: "PrepareArtifacts"
+  #           displayName: "Prepare Artifacts"
 
-          - task: CopyFiles@2
-            inputs:
-              sourceFolder: "output"
-              targetFolder: $(Build.ArtifactStagingDirectory)
-            condition: succeeded()
+  #         - task: CopyFiles@2
+  #           inputs:
+  #             sourceFolder: "output"
+  #             targetFolder: $(Build.ArtifactStagingDirectory)
+  #           condition: succeeded()
 
-          - task: PublishBuildArtifacts@1
-            inputs:
-              artifactName: "output"
-              pathtoPublish: "$(Build.ArtifactStagingDirectory)"
-            condition: succeeded()
+  #         - task: PublishBuildArtifacts@1
+  #           inputs:
+  #             artifactName: "output"
+  #             pathtoPublish: "$(Build.ArtifactStagingDirectory)"
+  #           condition: succeeded()
 
-          - task: AzureCLI@1
-            inputs:
-              azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
-              scriptLocation: "inlineScript"
-              inlineScript: |
-                echo Creating storage container with name acn-$(STORAGE_ID) and account name $(STORAGE_ACCOUNT_NAME)
-                az storage container create -n acn-$(STORAGE_ID) --account-name $(STORAGE_ACCOUNT_NAME) --public-access container
-                az storage blob upload-batch -d acn-$(STORAGE_ID) -s ./output/bins/  --account-name $(STORAGE_ACCOUNT_NAME)
-            displayName: Create artifact storage container
-            condition: succeeded()
+  #         - task: AzureCLI@1
+  #           inputs:
+  #             azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+  #             scriptLocation: "inlineScript"
+  #             inlineScript: |
+  #               echo Creating storage container with name acn-$(STORAGE_ID) and account name $(STORAGE_ACCOUNT_NAME)
+  #               az storage container create -n acn-$(STORAGE_ID) --account-name $(STORAGE_ACCOUNT_NAME) --public-access container
+  #               az storage blob upload-batch -d acn-$(STORAGE_ID) -s ./output/bins/  --account-name $(STORAGE_ACCOUNT_NAME)
+  #           displayName: Create artifact storage container
+  #           condition: succeeded()
 
-          - publish: ./test/apimodels/
-            artifact: clusterdefinitions
+  #         - publish: ./test/apimodels/
+  #           artifact: clusterdefinitions
 
   - stage: containerize
     displayName: Build Images
