@@ -13,6 +13,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/crd/clustersubnetstate/api/v1alpha1"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
+	"github.com/avast/retry-go/v4"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -334,10 +335,20 @@ func (pm *Monitor) decreasePoolSize(ctx context.Context, meta metaState, state i
 	tempNNCSpec.RequestedIPCount -= int64(len(pendingIPAddresses))
 	logger.Printf("[ipam-pool-monitor] Decreasing pool size, pool %+v, spec %+v", state, tempNNCSpec)
 
-	_, err := pm.nnccli.UpdateSpec(ctx, &tempNNCSpec)
-	if err != nil {
-		// caller will retry to update the CRD again
-		return errors.Wrap(err, "executing UpdateSpec with NNC client")
+	attempts := 0
+	if err := retry.Do(func() error {
+		attempts++
+		_, err := pm.nnccli.UpdateSpec(ctx, &tempNNCSpec)
+		if err != nil {
+			// caller will retry to update the CRD again
+			logger.Printf("failed to update NNC spec attempt #%d, err: %v", attempts, err)
+			return errors.Wrap(err, "executing UpdateSpec with NNC client")
+		}
+		logger.Printf("successfully updated NNC spec attempt #%d", attempts)
+		return nil
+	}, retry.Attempts(5), retry.DelayType(retry.BackOffDelay)); err != nil { //nolint:gomnd // ignore retry magic number
+		logger.Errorf("all attempts failed to update NNC during scale-down, state is corrupt: %v", err)
+		panic(err)
 	}
 
 	logger.Printf("[ipam-pool-monitor] Decreasing pool size: UpdateCRDSpec succeeded for spec %+v", tempNNCSpec)
@@ -350,7 +361,6 @@ func (pm *Monitor) decreasePoolSize(ctx context.Context, meta metaState, state i
 	// clear the updatingPendingIpsNotInUse, as we have Updated the CRD
 	logger.Printf("[ipam-pool-monitor] cleaning the updatingPendingIpsNotInUse, existing length %d", pm.metastate.notInUseCount)
 	pm.metastate.notInUseCount = 0
-
 	return nil
 }
 
