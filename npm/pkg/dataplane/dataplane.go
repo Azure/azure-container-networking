@@ -16,8 +16,7 @@ import (
 )
 
 const (
-	reconcileDuration             = time.Duration(5 * time.Minute)
-	reconcileDirtyNetPolsDuration = time.Duration(500 * time.Millisecond)
+	reconcileDuration = time.Duration(5 * time.Minute)
 
 	contextBackground = "BACKGROUND"
 	contextApplyDP    = "APPLY-DP"
@@ -31,6 +30,7 @@ type PolicyMode string
 
 // TODO put NodeName in Config?
 type Config struct {
+	NetPolInterval    time.Duration
 	ApplyInBackground bool
 	ApplyMaxBatches   int
 	ApplyInterval     time.Duration
@@ -147,7 +147,7 @@ func (dp *DataPlane) RunPeriodicTasks() {
 	}()
 
 	go func() {
-		ticker := time.NewTicker(reconcileDirtyNetPolsDuration)
+		ticker := time.NewTicker(dp.NetPolInterval)
 		defer ticker.Stop()
 
 		for {
