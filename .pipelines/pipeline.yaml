@@ -285,7 +285,7 @@ stages:
             npm:
               name: npm
               os_versions: ltsc2022
-              platforms: linux/amd64 linux/arm64 windows/amd64
+              platforms: linux/amd64 linux/arm64 # windows/amd64
         steps:
           - template: containers/manifest-template.yaml
             parameters:
