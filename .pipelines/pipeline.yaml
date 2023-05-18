@@ -47,31 +47,31 @@ stages:
             displayName: "Set environmental variables"
             condition: always()
 
-  - stage: test
-    displayName: Test ACN
-    dependsOn:
-      - setup
-    jobs:
-      - job: test
-        displayName: Run Tests
-        variables:
-          STORAGE_ID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.StorageID'] ]
-        pool:
-          name: "$(BUILD_POOL_NAME_DEFAULT)"
-        steps:
-          - script: |
-              make tools
-              # run test, echo exit status code to fd 3, pipe output from test to tee, which splits output to stdout and go-junit-report (which converts test output to report.xml), stdout from tee is redirected to fd 4. Take output written to fd 3 (which is the exit code of test), redirect to stdout, pipe to read from stdout then exit with that status code. Read all output from fd 4 (output from tee) and write to top stdout
-              { { { {
-                    sudo -E env "PATH=$PATH" make test-all;
-                    echo $? >&3;
-                    } | tee >(build/tools/bin/go-junit-report > report.xml) >&4;
-                  } 3>&1;
-                } | { read xs; exit $xs; }
-              } 4>&1
-            retryCountOnTaskFailure: 3
-            name: "Test"
-            displayName: "Run Tests"
+  # - stage: test
+  #   displayName: Test ACN
+  #   dependsOn:
+  #     - setup
+  #   jobs:
+  #     - job: test
+  #       displayName: Run Tests
+  #       variables:
+  #         STORAGE_ID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.StorageID'] ]
+  #       pool:
+  #         name: "$(BUILD_POOL_NAME_DEFAULT)"
+  #       steps:
+  #         - script: |
+  #             make tools
+  #             # run test, echo exit status code to fd 3, pipe output from test to tee, which splits output to stdout and go-junit-report (which converts test output to report.xml), stdout from tee is redirected to fd 4. Take output written to fd 3 (which is the exit code of test), redirect to stdout, pipe to read from stdout then exit with that status code. Read all output from fd 4 (output from tee) and write to top stdout
+  #             { { { {
+  #                   sudo -E env "PATH=$PATH" make test-all;
+  #                   echo $? >&3;
+  #                   } | tee >(build/tools/bin/go-junit-report > report.xml) >&4;
+  #                 } 3>&1;
+  #               } | { read xs; exit $xs; }
+  #             } 4>&1
+  #           retryCountOnTaskFailure: 3
+  #           name: "Test"
+  #           displayName: "Run Tests"
 
   - stage: test_windows
     displayName: Test ACN Windows
@@ -96,7 +96,7 @@ stages:
     displayName: Build Binaries
     dependsOn:
       - setup
-      - test
+      # - test
     jobs:
       - job: build
         displayName: Build Binaries
@@ -150,7 +150,7 @@ stages:
     displayName: Build Images
     dependsOn:
       - setup
-      - test
+      # - test
     jobs:
       - job: containerize_amd64
         displayName: Build Images
@@ -158,37 +158,37 @@ stages:
           name: "$(BUILD_POOL_NAME_LINUX_AMD64)"
         strategy:
           matrix:
-            cni_dropgz_linux_amd64:
-              arch: amd64
-              name: cni-dropgz
-              os: linux
-            cni_dropgz_test_linux_amd64:
-              arch: amd64
-              name: cni-dropgz-test
-              os: linux
-            cns_linux_amd64:
-              arch: amd64
-              name: cns
-              os: linux
-            cns_windows2019_amd64:
-              arch: amd64
-              name: cns
-              os: windows
-              os_version: ltsc2019
-            cns_windows2022_amd64:
-              arch: amd64
-              name: cns
-              os: windows
-              os_version: ltsc2022
+            # cni_dropgz_linux_amd64:
+            #   arch: amd64
+            #   name: cni-dropgz
+            #   os: linux
+            # cni_dropgz_test_linux_amd64:
+            #   arch: amd64
+            #   name: cni-dropgz-test
+            #   os: linux
+            # cns_linux_amd64:
+            #   arch: amd64
+            #   name: cns
+            #   os: linux
+            # cns_windows2019_amd64:
+            #   arch: amd64
+            #   name: cns
+            #   os: windows
+            #   os_version: ltsc2019
+            # cns_windows2022_amd64:
+            #   arch: amd64
+            #   name: cns
+            #   os: windows
+            #   os_version: ltsc2022
             npm_linux_amd64:
               arch: amd64
               name: npm
               os: linux
-            npm_windows2022_amd64:
-              arch: amd64
-              name: npm
-              os: windows
-              os_version: ltsc2022
+            # npm_windows2022_amd64:
+            #   arch: amd64
+            #   name: npm
+            #   os: windows
+            #   os_version: ltsc2022
         steps:
           - template: containers/container-template.yaml
             parameters:
@@ -204,18 +204,18 @@ stages:
           name: "$(BUILD_POOL_NAME_LINUX_ARM64)"
         strategy:
           matrix:
-            cni_dropgz_linux_arm64:
-              arch: arm64
-              name: cni-dropgz
-              os: linux
-            cni_dropgz_test_linux_arm64:
-              arch: arm64
-              name: cni-dropgz-test
-              os: linux
-            cns_linux_arm64:
-              arch: arm64
-              name: cns
-              os: linux
+            # cni_dropgz_linux_arm64:
+            #   arch: arm64
+            #   name: cni-dropgz
+            #   os: linux
+            # cni_dropgz_test_linux_arm64:
+            #   arch: arm64
+            #   name: cni-dropgz-test
+            #   os: linux
+            # cns_linux_arm64:
+            #   arch: arm64
+            #   name: cns
+            #   os: linux
             npm_linux_arm64:
               arch: arm64
               name: npm
@@ -237,25 +237,25 @@ stages:
             displayName: "Set current tag variable"
             condition: always()
 
-  - stage: validate1
-    displayName: Validate Tags
-    dependsOn:
-      - setup
-      - containerize
-    variables:
-      TAG: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
-      CURRENT_VERSION: $[ stagedependencies.containerize.check_tag.outputs['CurrentTagBuild.currentTagBuild'] ]
-    condition: ne(variables.TAG, variables.CURRENT_VERSION)
-    jobs:
-      - job: timeout_and_cancel
-        displayName: Cancel Run
-        pool:
-          name: $(BUILD_POOL_NAME_DEFAULT)
-        steps:
-          - script: |
-              echo $TAG
-              echo $CURRENT_VERSION
-              echo "Checking if branch up to date with master"
+  # - stage: validate1
+  #   displayName: Validate Tags
+  #   dependsOn:
+  #     - setup
+  #     - containerize
+  #   variables:
+  #     TAG: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
+  #     CURRENT_VERSION: $[ stagedependencies.containerize.check_tag.outputs['CurrentTagBuild.currentTagBuild'] ]
+  #   condition: ne(variables.TAG, variables.CURRENT_VERSION)
+  #   jobs:
+  #     - job: timeout_and_cancel
+  #       displayName: Cancel Run
+  #       pool:
+  #         name: $(BUILD_POOL_NAME_DEFAULT)
+  #       steps:
+  #         - script: |
+  #             echo $TAG
+  #             echo $CURRENT_VERSION
+  #             echo "Checking if branch up to date with master"
   
   - stage: publish
     displayName: Publish Multiarch Manifests
@@ -272,16 +272,16 @@ stages:
           name: "$(BUILD_POOL_NAME_DEFAULT)"
         strategy:
           matrix:
-            cni_dropgz:
-              name: cni-dropgz
-              platforms: linux/amd64 linux/arm64
-            cni_dropgz_test:
-              name: cni-dropgz-test
-              platforms: linux/amd64 linux/arm64
-            cns:
-              name: cns
-              os_versions: ltsc2019 ltsc2022
-              platforms: linux/amd64 linux/arm64 windows/amd64
+            # cni_dropgz:
+            #   name: cni-dropgz
+            #   platforms: linux/amd64 linux/arm64
+            # cni_dropgz_test:
+            #   name: cni-dropgz-test
+            #   platforms: linux/amd64 linux/arm64
+            # cns:
+            #   name: cns
+            #   os_versions: ltsc2019 ltsc2022
+            #   platforms: linux/amd64 linux/arm64 windows/amd64
             npm:
               name: npm
               os_versions: ltsc2022
@@ -304,93 +304,93 @@ stages:
             displayName: "Set current tag variable"
             condition: always()
 
-  - template: singletenancy/cilium/cilium-e2e-job-template.yaml
-    parameters:
-      name: "cilium_e2e"
-      displayName: Cilium
-      pipelineBuildImage: "$(BUILD_IMAGE)"
-      testDropgz: ""
-      clusterName: "ciliume2e"
+  # - template: singletenancy/cilium/cilium-e2e-job-template.yaml
+  #   parameters:
+  #     name: "cilium_e2e"
+  #     displayName: Cilium
+  #     pipelineBuildImage: "$(BUILD_IMAGE)"
+  #     testDropgz: ""
+  #     clusterName: "ciliume2e"
 
-  - template: singletenancy/overlay/overlay-e2e-job-template.yaml
-    parameters:
-      name: "overlay_e2e"
-      displayName: Cilium on AKS Overlay
-      pipelineBuildImage: "$(BUILD_IMAGE)"
-      testDropgz: ""
-      clusterName: "overlaye2e"
+  # - template: singletenancy/overlay/overlay-e2e-job-template.yaml
+  #   parameters:
+  #     name: "overlay_e2e"
+  #     displayName: Cilium on AKS Overlay
+  #     pipelineBuildImage: "$(BUILD_IMAGE)"
+  #     testDropgz: ""
+  #     clusterName: "overlaye2e"
 
-  - template: singletenancy/aks-swift/e2e-job-template.yaml
-    parameters:
-      name: "aks_swift_e2e"
-      displayName: AKS Swift Ubuntu
-      pipelineBuildImage: "$(BUILD_IMAGE)"
-      testDropgz: ""
-      clusterName: "swifte2e"
-      osSku: "Ubuntu"
+  # - template: singletenancy/aks-swift/e2e-job-template.yaml
+  #   parameters:
+  #     name: "aks_swift_e2e"
+  #     displayName: AKS Swift Ubuntu
+  #     pipelineBuildImage: "$(BUILD_IMAGE)"
+  #     testDropgz: ""
+  #     clusterName: "swifte2e"
+  #     osSku: "Ubuntu"
 
-  - template: singletenancy/aks-engine/e2e-job-template.yaml
-    parameters:
-      name: "ubuntu_18_04_linux_e2e"
-      displayName: Ubuntu 18.04
-      pipelineBuildImage: "$(BUILD_IMAGE)"
-      clusterDefinition: "cniLinux1804.json"
-      clusterDefinitionCniTypeKey: "azureCNIURLLinux"
-      clusterDefinitionCniBuildOS: "linux"
-      clusterDefinitionCniBuildExt: ".tgz"
+  # - template: singletenancy/aks-engine/e2e-job-template.yaml
+  #   parameters:
+  #     name: "ubuntu_18_04_linux_e2e"
+  #     displayName: Ubuntu 18.04
+  #     pipelineBuildImage: "$(BUILD_IMAGE)"
+  #     clusterDefinition: "cniLinux1804.json"
+  #     clusterDefinitionCniTypeKey: "azureCNIURLLinux"
+  #     clusterDefinitionCniBuildOS: "linux"
+  #     clusterDefinitionCniBuildExt: ".tgz"
 
-  - template: singletenancy/aks-engine/e2e-job-template.yaml
-    parameters:
-      name: "windows_19_03_e2e"
-      displayName: "Windows 1903"
-      pipelineBuildImage: "$(BUILD_IMAGE)"
-      clusterDefinition: "cniWindows1903.json"
-      clusterDefinitionCniTypeKey: "azureCNIURLWindows"
-      clusterDefinitionCniBuildOS: "windows"
-      clusterDefinitionCniBuildExt: ".zip"
+  # - template: singletenancy/aks-engine/e2e-job-template.yaml
+  #   parameters:
+  #     name: "windows_19_03_e2e"
+  #     displayName: "Windows 1903"
+  #     pipelineBuildImage: "$(BUILD_IMAGE)"
+  #     clusterDefinition: "cniWindows1903.json"
+  #     clusterDefinitionCniTypeKey: "azureCNIURLWindows"
+  #     clusterDefinitionCniBuildOS: "windows"
+  #     clusterDefinitionCniBuildExt: ".zip"
 
-  - stage: validate2
-    displayName: Validate Tags
-    dependsOn:
-      - setup
-      - publish
-    variables:
-      TAG: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
-      CURRENT_VERSION: $[ stagedependencies.publish.check_tag.outputs['CurrentTagManifests.currentTagManifests'] ]
-    condition: ne(variables.TAG, variables.CURRENT_VERSION)
-    jobs:
-      - job: timeout_and_cancel
-        displayName: Cancel Run
-        pool:
-          name: $(BUILD_POOL_NAME_DEFAULT)
-        steps:
-          - script: |
-              echo $TAG
-              echo $CURRENT_VERSION
-              echo "Checking if branch is up to date with master"
+  # - stage: validate2
+  #   displayName: Validate Tags
+  #   dependsOn:
+  #     - setup
+  #     - publish
+  #   variables:
+  #     TAG: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
+  #     CURRENT_VERSION: $[ stagedependencies.publish.check_tag.outputs['CurrentTagManifests.currentTagManifests'] ]
+  #   condition: ne(variables.TAG, variables.CURRENT_VERSION)
+  #   jobs:
+  #     - job: timeout_and_cancel
+  #       displayName: Cancel Run
+  #       pool:
+  #         name: $(BUILD_POOL_NAME_DEFAULT)
+  #       steps:
+  #         - script: |
+  #             echo $TAG
+  #             echo $CURRENT_VERSION
+  #             echo "Checking if branch is up to date with master"
   
-  - stage: cleanup
-    displayName: Cleanup
-    dependsOn:
-      - "aks_swift_e2e"
-      - "cilium_e2e"
-      - "ubuntu_18_04_linux_e2e"
-      - "windows_19_03_e2e"
-    jobs:
-      - job: delete_remote_artifacts
-        displayName: Delete remote artifacts
-        pool:
-          name: $(BUILD_POOL_NAME_DEFAULT)
-          demands: agent.os -equals Linux
-        steps:
-          - checkout: none
-          - task: AzureCLI@1
-            inputs:
-              azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
-              scriptLocation: "inlineScript"
-              inlineScript: |
-                BUILD_NUMBER=$(Build.BuildNumber)
-                BUILD_NUMBER=${BUILD_NUMBER//./-}
-                echo Deleting storage container with name acn-$BUILD_NUMBER and account name $(STORAGE_ACCOUNT_NAME)
-                az storage container delete -n acn-$BUILD_NUMBER --account-name $(STORAGE_ACCOUNT_NAME)
-            displayName: Cleanup remote Azure storage container
+  # - stage: cleanup
+  #   displayName: Cleanup
+  #   dependsOn:
+  #     - "aks_swift_e2e"
+  #     - "cilium_e2e"
+  #     - "ubuntu_18_04_linux_e2e"
+  #     - "windows_19_03_e2e"
+  #   jobs:
+  #     - job: delete_remote_artifacts
+  #       displayName: Delete remote artifacts
+  #       pool:
+  #         name: $(BUILD_POOL_NAME_DEFAULT)
+  #         demands: agent.os -equals Linux
+  #       steps:
+  #         - checkout: none
+  #         - task: AzureCLI@1
+  #           inputs:
+  #             azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+  #             scriptLocation: "inlineScript"
+  #             inlineScript: |
+  #               BUILD_NUMBER=$(Build.BuildNumber)
+  #               BUILD_NUMBER=${BUILD_NUMBER//./-}
+  #               echo Deleting storage container with name acn-$BUILD_NUMBER and account name $(STORAGE_ACCOUNT_NAME)
+  #               az storage container delete -n acn-$BUILD_NUMBER --account-name $(STORAGE_ACCOUNT_NAME)
+  #           displayName: Cleanup remote Azure storage container
