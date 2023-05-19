@@ -46,6 +46,90 @@ func TestCreateOrUpdateNetworkContainerInternal(t *testing.T) {
 	validateCreateOrUpdateNCInternal(t, 2, "-1")
 }
 
+// TestReconcileNCStatePrimaryIPChangeShouldFail tests that reconciling NC state with
+// a NC whose IP has changed should fail
+func TestReconcileNCStatePrimaryIPChangeShouldFail(t *testing.T) {
+	restartService()
+	setEnv(t)
+	setOrchestratorTypeInternal(cns.KubernetesCRD)
+	svc.state.ContainerStatus = make(map[string]containerstatus)
+
+	// start with a NC in state
+	ncID := "555ac5c9-89f2-4b5d-b8d0-616894d6d151"
+	svc.state.ContainerStatus[ncID] = containerstatus{
+		ID:          ncID,
+		VMVersion:   "0",
+		HostVersion: "0",
+		CreateNetworkContainerRequest: cns.CreateNetworkContainerRequest{
+			NetworkContainerid: ncID,
+			IPConfiguration: cns.IPConfiguration{
+				IPSubnet: cns.IPSubnet{
+					IPAddress:    "10.0.1.0",
+					PrefixLength: 24,
+				},
+			},
+		},
+	}
+
+	// now try to reconcile the state where the NC primary IP has changed
+	resp := svc.ReconcileNCState(&cns.CreateNetworkContainerRequest{
+		NetworkContainerid: ncID,
+		IPConfiguration: cns.IPConfiguration{
+			IPSubnet: cns.IPSubnet{
+				IPAddress:    "10.0.2.0", // note this IP has changed
+				PrefixLength: 24,
+			},
+		},
+	}, map[string]cns.PodInfo{}, &v1alpha.NodeNetworkConfig{})
+
+	assert.Equal(t, types.PrimaryCANotSame, resp)
+}
+
+// TestReconcileNCStateGatewayChange tests that NC state gets updated when reconciled
+// if the NC's gateway IP has changed
+func TestReconcileNCStateGatewayChange(t *testing.T) {
+	restartService()
+	setEnv(t)
+	setOrchestratorTypeInternal(cns.KubernetesCRD)
+	svc.state.ContainerStatus = make(map[string]containerstatus)
+
+	// start with a NC in state
+	ncID := "555ac5c9-89f2-4b5d-b8d0-616894d6d151"
+	oldGW := "10.0.0.0"
+	newGW := "10.0.1.0"
+	ncPrimaryIP := cns.IPSubnet{
+		IPAddress:    "10.0.1.1",
+		PrefixLength: 24,
+	}
+	svc.state.ContainerStatus[ncID] = containerstatus{
+		ID:          ncID,
+		VMVersion:   "0",
+		HostVersion: "0",
+		CreateNetworkContainerRequest: cns.CreateNetworkContainerRequest{
+			NetworkContainerid:   ncID,
+			NetworkContainerType: cns.Kubernetes,
+			IPConfiguration: cns.IPConfiguration{
+				IPSubnet:         ncPrimaryIP,
+				GatewayIPAddress: oldGW,
+			},
+		},
+	}
+
+	// now try to reconcile the state where the NC gateway has changed
+	resp := svc.ReconcileNCState(&cns.CreateNetworkContainerRequest{
+		NetworkContainerid:   ncID,
+		NetworkContainerType: cns.Kubernetes,
+		IPConfiguration: cns.IPConfiguration{
+			IPSubnet:         ncPrimaryIP,
+			GatewayIPAddress: newGW, // note this IP has changed
+		},
+	}, map[string]cns.PodInfo{}, &v1alpha.NodeNetworkConfig{})
+
+	assert.Equal(t, types.Success, resp)
+	// assert the new state reflects the gateway update
+	assert.Equal(t, newGW, svc.state.ContainerStatus[ncID].CreateNetworkContainerRequest.IPConfiguration.GatewayIPAddress)
+}
+
 func TestCreateOrUpdateNCWithLargerVersionComparedToNMAgent(t *testing.T) {
 	restartService()
 

@@ -10,10 +10,10 @@ var validOverlayRequest = &cns.CreateNetworkContainerRequest{
 	Version: strconv.FormatInt(version, 10),
 	IPConfiguration: cns.IPConfiguration{
 		IPSubnet: cns.IPSubnet{
-			PrefixLength:     uint8(subnetPrefixLen),
-			IPAddress:        primaryIP,
-			GatewayIPAddress: "10.0.0.0",
+			PrefixLength: uint8(subnetPrefixLen),
+			IPAddress:    primaryIP,
 		},
+		GatewayIPAddress: "10.0.0.0",
 	},
 	NetworkContainerid:   ncID,
 	NetworkContainerType: cns.Docker,
