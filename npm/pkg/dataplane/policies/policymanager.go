@@ -41,6 +41,12 @@ type PolicyManagerCfg struct {
 	MaxBatchedACLsPerPod int
 }
 
+type opInfo struct {
+	op operation
+	// direction is used for remove operation
+	direction Direction
+}
+
 type operation string
 
 const (
@@ -51,7 +57,7 @@ const (
 type PolicyMap struct {
 	sync.RWMutex
 	cache           map[string]*NPMNetworkPolicy
-	linuxDirtyCache map[string][]operation
+	linuxDirtyCache map[string][]*opInfo
 }
 
 type reconcileManager struct {
@@ -77,7 +83,7 @@ func NewPolicyManager(ioShim *common.IOShim, cfg *PolicyManagerCfg) *PolicyManag
 	return &PolicyManager{
 		policyMap: &PolicyMap{
 			cache:           make(map[string]*NPMNetworkPolicy),
-			linuxDirtyCache: make(map[string][]operation),
+			linuxDirtyCache: make(map[string][]*opInfo),
 		},
 		ioShim:      ioShim,
 		staleChains: newStaleChains(),
@@ -220,9 +226,7 @@ func (pMgr *PolicyManager) RemovePolicy(policyKey string) error {
 	}
 
 	// remove policy from cache
-	if util.IsWindowsDP() {
-		delete(pMgr.policyMap.cache, policyKey)
-	}
+	delete(pMgr.policyMap.cache, policyKey)
 	return nil
 }
 

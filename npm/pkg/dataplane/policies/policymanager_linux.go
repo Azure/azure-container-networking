@@ -10,6 +10,7 @@ import (
 	"github.com/Azure/azure-container-networking/npm/util"
 	npmerrors "github.com/Azure/azure-container-networking/npm/util/errors"
 	"github.com/Azure/azure-container-networking/npm/util/ioutil"
+	"k8s.io/klog"
 )
 
 const (
@@ -62,64 +63,73 @@ func (pMgr *PolicyManager) reconcileDirtyNetPols() error {
 		return nil
 	}
 
+	klog.Infof("[PolicyManager] reconciling dirty NetPols")
+
 	toRemove := make([]*NPMNetworkPolicy, 0)
 	toAdd := make([]*NPMNetworkPolicy, 0)
 	for key, ops := range pMgr.policyMap.linuxDirtyCache {
-		policy, ok := pMgr.policyMap.cache[key]
-		if !ok {
-			metrics.SendErrorLogAndMetric(util.IptmID, "error: failed to find dirty policy in cache. key: %s", key)
-			continue
-		}
-
 		for _, op := range ops {
-			if op == remove {
-				toRemove = append(toRemove, policy)
+			if op.op == remove {
+				fakeNetPol := &NPMNetworkPolicy{
+					PolicyKey: key,
+					ACLs: []*ACLPolicy{
+						{
+							Direction: op.direction,
+						},
+					},
+				}
+				klog.Infof("[PolicyManager] will remove dirty NetPol. key: %s. direction: %s", key, op.direction)
+				toRemove = append(toRemove, fakeNetPol)
 				break
 			}
 		}
 
-		if ops[len(ops)-1] == add {
+		if ops[len(ops)-1].op == add {
+			policy, ok := pMgr.policyMap.cache[key]
+			if !ok {
+				metrics.SendErrorLogAndMetric(util.IptmID, "error: failed to find dirty policy to add in cache. key: %s", key)
+				continue
+			}
+			klog.Infof("[PolicyManager] will add dirty NetPol. key: %s.", key)
 			toAdd = append(toAdd, policy)
 		}
 	}
 
 	if len(toRemove) > 0 {
+		klog.Infof("[PolicyManager] starting to remove all dirty NetPols")
 		if err := pMgr.removeAllPolicies(toRemove); err != nil {
-			return npmerrors.SimpleErrorWrapper("failed to remove dirty policies", err)
+			return npmerrors.SimpleErrorWrapper("failed to remove dirty NetPols", err)
 		}
+		klog.Info("[PolicyManager] finished removing all dirty NetPols")
 	}
 
 	if len(toAdd) == 0 {
-		pMgr.policyMap.linuxDirtyCache = make(map[string][]operation)
+		pMgr.policyMap.linuxDirtyCache = make(map[string][]*opInfo)
 		return nil
 	}
 
-	newDirtyCache := make(map[string][]operation, len(toAdd))
+	newDirtyCache := make(map[string][]*opInfo, len(toAdd))
 	for _, policy := range toAdd {
-		newDirtyCache[policy.PolicyKey] = []operation{add}
-	}
-
-	for _, policy := range toRemove {
-		if _, ok := newDirtyCache[policy.PolicyKey]; !ok {
-			delete(pMgr.policyMap.cache, policy.PolicyKey)
-		}
+		oi := &opInfo{op: add}
+		newDirtyCache[policy.PolicyKey] = []*opInfo{oi}
 	}
 
 	pMgr.policyMap.linuxDirtyCache = newDirtyCache
 
+	klog.Infof("[PolicyManager] starting to add all dirty NetPols")
 	if err := pMgr.addAllPolicies(toAdd); err != nil {
-		return npmerrors.SimpleErrorWrapper("failed to add dirty policies", err)
+		return npmerrors.SimpleErrorWrapper("failed to add dirty NetPols", err)
 	}
 
-	pMgr.policyMap.linuxDirtyCache = make(map[string][]operation)
+	pMgr.policyMap.linuxDirtyCache = make(map[string][]*opInfo)
+
+	klog.Info("[PolicyManager] finished adding all dirty NetPols")
 	return nil
 }
 
 func (pMgr *PolicyManager) addPolicy(networkPolicy *NPMNetworkPolicy, _ map[string]string) error {
-	if _, ok := pMgr.policyMap.linuxDirtyCache[networkPolicy.PolicyKey]; !ok {
-		pMgr.policyMap.linuxDirtyCache[networkPolicy.PolicyKey] = make([]operation, 0, 1)
-	}
-	pMgr.policyMap.linuxDirtyCache[networkPolicy.PolicyKey] = append(pMgr.policyMap.linuxDirtyCache[networkPolicy.PolicyKey], add)
+	oi := &opInfo{op: add}
+	pMgr.policyMap.linuxDirtyCache[networkPolicy.PolicyKey] = append(pMgr.policyMap.linuxDirtyCache[networkPolicy.PolicyKey], oi)
 
 	return nil
 }
@@ -146,10 +156,20 @@ func (pMgr *PolicyManager) addAllPolicies(networkPolicies []*NPMNetworkPolicy) e
 }
 
 func (pMgr *PolicyManager) removePolicy(networkPolicy *NPMNetworkPolicy, _ map[string]string) error {
-	if _, ok := pMgr.policyMap.linuxDirtyCache[networkPolicy.PolicyKey]; !ok {
-		pMgr.policyMap.linuxDirtyCache[networkPolicy.PolicyKey] = make([]operation, 0, 1)
+	hasIngress, hasEgress := networkPolicy.hasIngressAndEgress()
+	d := Ingress
+	if hasIngress && hasEgress {
+		d = Both
+	} else if hasEgress {
+		d = Egress
 	}
-	pMgr.policyMap.linuxDirtyCache[networkPolicy.PolicyKey] = append(pMgr.policyMap.linuxDirtyCache[networkPolicy.PolicyKey], remove)
+
+	oi := &opInfo{
+		op:        remove,
+		direction: d,
+	}
+
+	pMgr.policyMap.linuxDirtyCache[networkPolicy.PolicyKey] = append(pMgr.policyMap.linuxDirtyCache[networkPolicy.PolicyKey], oi)
 	return nil
 }
 
