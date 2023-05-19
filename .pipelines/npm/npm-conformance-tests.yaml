@@ -117,7 +117,7 @@ jobs:
       TAG: $[ dependencies.setup.outputs['EnvironmentalVariables.TAG'] ]
       FQDN: empty
     steps:
-      - checkout: none
+      - checkout: self
       - download: current
         artifact: Test
 
@@ -200,7 +200,7 @@ jobs:
               fi
 
               az aks get-credentials -n $(AZURE_CLUSTER) -g $(RESOURCE_GROUP) --file ./kubeconfig
-              ./kubectl --kubeconfig=./kubeconfig apply -f https://raw.githubusercontent.com/Azure/azure-container-networking/master/npm/examples/windows/azure-npm.yaml
+              ./kubectl --kubeconfig=./kubeconfig apply -f $(Pipeline.Workspace)/s/npm/examples/windows/azure-npm.yaml
               ./kubectl --kubeconfig=./kubeconfig set image daemonset/azure-npm-win -n kube-system azure-npm=$IMAGE_REGISTRY/azure-npm:windows-amd64-ltsc2022-$(TAG)
 
             else
@@ -219,13 +219,13 @@ jobs:
               az aks get-credentials -n $(AZURE_CLUSTER) -g $(RESOURCE_GROUP) --file ./kubeconfig
 
               # deploy azure-npm
-              ./kubectl --kubeconfig=./kubeconfig apply -f https://raw.githubusercontent.com/Azure/azure-container-networking/master/npm/azure-npm.yaml
+              ./kubectl --kubeconfig=./kubeconfig apply -f $(Pipeline.Workspace)/s/npm/azure-npm.yaml
 
               # swap azure-npm image with one built during run
               ./kubectl --kubeconfig=./kubeconfig set image daemonset/azure-npm -n kube-system azure-npm=$IMAGE_REGISTRY/azure-npm:linux-amd64-$(TAG)
 
               # swap NPM profile with one specified as parameter
-              ./kubectl --kubeconfig=./kubeconfig apply -f https://raw.githubusercontent.com/Azure/azure-container-networking/master/npm/profiles/$(PROFILE).yaml
+              ./kubectl --kubeconfig=./kubeconfig apply -f $(Pipeline.Workspace)/s/npm/profiles/$(PROFILE).yaml
               ./kubectl --kubeconfig=./kubeconfig rollout restart ds azure-npm -n kube-system
             fi
 
@@ -437,7 +437,7 @@ jobs:
             chmod +x kubectl
 
             # deploy azure-npm
-            ./kubectl --kubeconfig=./kubeconfig apply -f https://raw.githubusercontent.com/Azure/azure-container-networking/master/npm/examples/windows/azure-npm.yaml
+            ./kubectl --kubeconfig=./kubeconfig apply -f $(Pipeline.Workspace)/s/npm/examples/windows/azure-npm.yaml
 
             # swap azure-npm image with one built during run
             ./kubectl --kubeconfig=./kubeconfig set image daemonset/azure-npm-win -n kube-system azure-npm=$IMAGE_REGISTRY/azure-npm:windows-amd64-ltsc2022-$(TAG)
