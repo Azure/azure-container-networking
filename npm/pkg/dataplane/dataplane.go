@@ -59,11 +59,12 @@ type netPolInfo struct {
 
 type DataPlane struct {
 	*Config
-	applyInBackground bool
-	policyMgr         *policies.PolicyManager
-	ipsetMgr          *ipsets.IPSetManager
-	networkID         string
-	nodeName          string
+	applyInBackground    bool
+	iptablesInBackground bool
+	policyMgr            *policies.PolicyManager
+	ipsetMgr             *ipsets.IPSetManager
+	networkID            string
+	nodeName             string
 	// endpointCache stores all endpoints of the network (including off-node)
 	// Key is PodIP
 	endpointCache  *endpointCache
@@ -97,6 +98,11 @@ func NewDataPlane(nodeName string, ioShim *common.IOShim, cfg *Config, stopChann
 			toDeleteNetPolReferences: make(map[string][]string),
 		},
 		stopChannel: stopChannel,
+	}
+
+	dp.iptablesInBackground = cfg.IPTablesInBackground && !util.IsWindowsDP()
+	if dp.iptablesInBackground {
+		klog.Infof("[DataPlane] dataplane configured to run iptables in background every %v or every %d calls to AddPolicy() or RemovePolicy", dp.IPTablesInterval, dp.IPTablesMaxBatches)
 	}
 
 	// do not let Linux apply in background
@@ -155,25 +161,27 @@ func (dp *DataPlane) RunPeriodicTasks() {
 		}
 	}()
 
-	go func() {
-		ticker := time.NewTicker(dp.IPTablesInterval)
-		defer ticker.Stop()
+	if dp.iptablesInBackground {
+		go func() {
+			ticker := time.NewTicker(dp.IPTablesInterval)
+			defer ticker.Stop()
 
-		for {
-			select {
-			case <-dp.stopChannel:
-				return
-			case <-ticker.C:
-				dp.netPolInfo.Lock()
-				if dp.netPolInfo.numBatches == 0 {
-					dp.netPolInfo.Unlock()
+			for {
+				select {
+				case <-dp.stopChannel:
 					return
+				case <-ticker.C:
+					dp.netPolInfo.Lock()
+					if dp.netPolInfo.numBatches == 0 {
+						dp.netPolInfo.Unlock()
+						return
+					}
+					_ = dp.reconcileDirtyNetPolsNow(contextBackground)
+					dp.netPolInfo.Unlock()
 				}
-				_ = dp.reconcileDirtyNetPolsNow(contextBackground)
-				dp.netPolInfo.Unlock()
 			}
-		}
-	}()
+		}()
+	}
 
 	if !dp.applyInBackground {
 		return
@@ -623,6 +631,10 @@ func (dp *DataPlane) reconcileDirtyNetPolsNow(context string) error {
 }
 
 func (dp *DataPlane) incrementBatchAndReconcileDirtyNetPolsIfNeeded(context string) error {
+	if !dp.iptablesInBackground {
+		return nil
+	}
+
 	dp.netPolInfo.Lock()
 	defer dp.applyInfo.Unlock()
 	dp.netPolInfo.numBatches++
