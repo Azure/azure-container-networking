@@ -148,10 +148,14 @@ func (pMgr *PolicyManager) reconcileDirtyNetPols() error {
 }
 
 func (pMgr *PolicyManager) addPolicy(networkPolicy *NPMNetworkPolicy, _ map[string]string) error {
+	if !pMgr.IPTablesInBackground {
+		return pMgr.addAllPolicies([]*NPMNetworkPolicy{networkPolicy})
+	}
+
 	oi := &opInfo{op: add}
 	pMgr.policyMap.linuxDirtyCache[networkPolicy.PolicyKey] = append(pMgr.policyMap.linuxDirtyCache[networkPolicy.PolicyKey], oi)
-
 	return nil
+
 }
 
 func (pMgr *PolicyManager) addAllPolicies(networkPolicies []*NPMNetworkPolicy) error {
@@ -176,6 +180,10 @@ func (pMgr *PolicyManager) addAllPolicies(networkPolicies []*NPMNetworkPolicy) e
 }
 
 func (pMgr *PolicyManager) removePolicy(networkPolicy *NPMNetworkPolicy, _ map[string]string) error {
+	if !pMgr.IPTablesInBackground {
+		return pMgr.removeAllPolicies([]*NPMNetworkPolicy{networkPolicy})
+	}
+
 	hasIngress, hasEgress := networkPolicy.hasIngressAndEgress()
 	d := Ingress
 	if hasIngress && hasEgress {

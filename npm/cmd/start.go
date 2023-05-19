@@ -125,16 +125,17 @@ func start(config npmconfig.Config, flags npmconfig.Flags) error {
 		// update the dataplane config
 		npmV2DataplaneCfg.MaxBatchedACLsPerPod = config.MaxBatchedACLsPerPod
 
-		if config.NetPolIntervalInMilliseconds > 0 {
-			npmV2DataplaneCfg.NetPolInterval = time.Duration(config.NetPolIntervalInMilliseconds * int(time.Millisecond))
+		npmV2DataplaneCfg.IPTablesInBackground = config.Toggles.IPTablesInBackground
+		if config.IPTablesIntervalInMilliseconds > 0 {
+			npmV2DataplaneCfg.IPTablesInterval = time.Duration(config.IPTablesIntervalInMilliseconds * int(time.Millisecond))
 		} else {
-			npmV2DataplaneCfg.NetPolInterval = time.Duration(npmconfig.DefaultConfig.NetPolIntervalInMilliseconds * int(time.Millisecond))
+			npmV2DataplaneCfg.IPTablesInterval = time.Duration(npmconfig.DefaultConfig.IPTablesIntervalInMilliseconds * int(time.Millisecond))
 		}
 
-		if config.NetPolMaxBatches > 0 {
-			npmV2DataplaneCfg.NetPolMaxBatches = config.NetPolMaxBatches
+		if config.IPTablesMaxBatches > 0 {
+			npmV2DataplaneCfg.IPTablesMaxBatches = config.IPTablesMaxBatches
 		} else {
-			npmV2DataplaneCfg.NetPolMaxBatches = npmconfig.DefaultConfig.NetPolMaxBatches
+			npmV2DataplaneCfg.IPTablesMaxBatches = npmconfig.DefaultConfig.IPTablesMaxBatches
 		}
 
 		npmV2DataplaneCfg.ApplyInBackground = config.Toggles.ApplyInBackground

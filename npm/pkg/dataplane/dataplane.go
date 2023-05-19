@@ -30,8 +30,6 @@ type PolicyMode string
 
 // TODO put NodeName in Config?
 type Config struct {
-	NetPolMaxBatches  int
-	NetPolInterval    time.Duration
 	ApplyInBackground bool
 	ApplyMaxBatches   int
 	ApplyInterval     time.Duration
@@ -158,7 +156,7 @@ func (dp *DataPlane) RunPeriodicTasks() {
 	}()
 
 	go func() {
-		ticker := time.NewTicker(dp.NetPolInterval)
+		ticker := time.NewTicker(dp.IPTablesInterval)
 		defer ticker.Stop()
 
 		for {
@@ -634,7 +632,7 @@ func (dp *DataPlane) incrementBatchAndReconcileDirtyNetPolsIfNeeded(context stri
 
 	klog.Infof("[DataPlane] [%s] new netpol batch count: %d", context, newCount)
 
-	if newCount >= dp.NetPolMaxBatches {
+	if newCount >= dp.IPTablesMaxBatches {
 		klog.Infof("[DataPlane] [%s] applying now since reached maximum batch count: %d", context, newCount)
 		return dp.reconcileDirtyNetPolsNow(context)
 	}

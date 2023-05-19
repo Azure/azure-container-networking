@@ -3,6 +3,7 @@ package policies
 import (
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/npm/metrics"
@@ -39,6 +40,11 @@ type PolicyManagerCfg struct {
 	// The zero value is valid.
 	// A NetworkPolicy's ACLs are always in the same batch, and there will be at least one NetworkPolicy per batch.
 	MaxBatchedACLsPerPod int
+
+	// Linux parameters to apply NetPols in background
+	IPTablesMaxBatches   int
+	IPTablesInterval     time.Duration
+	IPTablesInBackground bool
 }
 
 // opInfo is used in Linux to process NetPols in background

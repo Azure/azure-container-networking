@@ -4,11 +4,11 @@ import "github.com/Azure/azure-container-networking/npm/util"
 
 const (
 	defaultResyncPeriod         = 15
-	defaultNetPolMaxBatches     = 100
-	defaultNetPolInterval       = 500
 	defaultApplyMaxBatches      = 100
 	defaultApplyInterval        = 500
 	defaultMaxBatchedACLsPerPod = 30
+	defaultIPTablesMaxBatches   = 100
+	defaultIPTablesInterval     = 500
 	defaultListeningPort        = 10091
 	defaultGrpcPort             = 10092
 	defaultGrpcServicePort      = 9002
@@ -32,13 +32,13 @@ var DefaultConfig = Config{
 		ServicePort: defaultGrpcServicePort,
 	},
 
-	NetPolMaxBatches:             defaultNetPolMaxBatches,
-	NetPolIntervalInMilliseconds: defaultNetPolInterval,
-
 	WindowsNetworkName:          util.AzureNetworkName,
 	ApplyMaxBatches:             defaultApplyMaxBatches,
 	ApplyIntervalInMilliseconds: defaultApplyInterval,
 	MaxBatchedACLsPerPod:        defaultMaxBatchedACLsPerPod,
+
+	IPTablesMaxBatches:             defaultIPTablesMaxBatches,
+	IPTablesIntervalInMilliseconds: defaultIPTablesInterval,
 
 	Toggles: Toggles{
 		EnablePrometheusMetrics: true,
@@ -48,6 +48,7 @@ var DefaultConfig = Config{
 		PlaceAzureChainFirst:    util.PlaceAzureChainFirst,
 		ApplyIPSetsOnNeed:       false,
 		ApplyInBackground:       true,
+		IPTablesInBackground:    true,
 	},
 }
 
@@ -61,12 +62,10 @@ type GrpcServerConfig struct {
 }
 
 type Config struct {
-	ResyncPeriodInMinutes        int              `json:"ResyncPeriodInMinutes,omitempty"`
-	ListeningPort                int              `json:"ListeningPort,omitempty"`
-	ListeningAddress             string           `json:"ListeningAddress,omitempty"`
-	Transport                    GrpcServerConfig `json:"Transport,omitempty"`
-	NetPolMaxBatches             int              `json:"NetPolMaxBatches,omitempty"`
-	NetPolIntervalInMilliseconds int              `json:"NetPolIntervalInMilliseconds,omitempty"`
+	ResyncPeriodInMinutes int              `json:"ResyncPeriodInMinutes,omitempty"`
+	ListeningPort         int              `json:"ListeningPort,omitempty"`
+	ListeningAddress      string           `json:"ListeningAddress,omitempty"`
+	Transport             GrpcServerConfig `json:"Transport,omitempty"`
 	// WindowsNetworkName can be either 'azure' or 'Calico' (case sensitive).
 	// It can also be the empty string, which results in the default value of 'azure'.
 	WindowsNetworkName string `json:"WindowsNetworkName,omitempty"`
@@ -76,8 +75,10 @@ type Config struct {
 	// MaxBatchedACLsPerPod is the maximum number of ACLs that can be added to a Pod at once in Windows.
 	// The zero value is valid.
 	// A NetworkPolicy's ACLs are always in the same batch, and there will be at least one NetworkPolicy per batch.
-	MaxBatchedACLsPerPod int     `json:"MaxBatchedACLsPerPod,omitempty"`
-	Toggles              Toggles `json:"Toggles,omitempty"`
+	MaxBatchedACLsPerPod           int     `json:"MaxBatchedACLsPerPod,omitempty"`
+	IPTablesMaxBatches             int     `json:"IPTablesMaxBatches,omitempty"`
+	IPTablesIntervalInMilliseconds int     `json:"IPTablesIntervalInMilliseconds,omitempty"`
+	Toggles                        Toggles `json:"Toggles,omitempty"`
 }
 
 type Toggles struct {
@@ -89,6 +90,8 @@ type Toggles struct {
 	ApplyIPSetsOnNeed       bool
 	// ApplyInBackground applies for Windows only
 	ApplyInBackground bool
+	// IPTablesInBackground
+	IPTablesInBackground bool
 }
 
 type Flags struct {
