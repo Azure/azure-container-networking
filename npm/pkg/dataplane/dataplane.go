@@ -164,15 +164,13 @@ func (dp *DataPlane) RunPeriodicTasks() {
 			case <-dp.stopChannel:
 				return
 			case <-ticker.C:
-				// locks policy manager but can be interrupted
 				dp.netPolInfo.Lock()
-				defer dp.netPolInfo.Unlock()
-
 				if dp.netPolInfo.numBatches == 0 {
+					dp.netPolInfo.Unlock()
 					return
 				}
-
 				_ = dp.reconcileDirtyNetPolsNow(contextBackground)
+				dp.netPolInfo.Unlock()
 			}
 		}
 	}()
@@ -602,7 +600,7 @@ func (dp *DataPlane) reconcileDirtyNetPolsNow(context string) error {
 	klog.Infof("[DataPlane] [%s] reconciling dirty NetPols", context)
 	if err := dp.policyMgr.ReconcileDirtyNetPols(); err != nil {
 		metrics.SendErrorLogAndMetric(util.IptmID, "[DataPlane] [%s] failed to reconcile dirty network policies due to %s", context, err.Error())
-		klog.Error("[DataPlane] [%s] failed to reconcile dirty network policies. err: %s", context)
+		klog.Error("[DataPlane] [%s] failed to reconcile dirty network policies. err: %s", context, err.Error)
 		return fmt.Errorf("[DataPlane] [%s] failed to reconcile dirty network policies. err: %w", context, err)
 	}
 
