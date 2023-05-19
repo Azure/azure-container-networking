@@ -2,6 +2,7 @@ package ipampool
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -19,6 +20,12 @@ type fakeNodeNetworkConfigUpdater struct {
 func (f *fakeNodeNetworkConfigUpdater) UpdateSpec(ctx context.Context, spec *v1alpha.NodeNetworkConfigSpec) (*v1alpha.NodeNetworkConfig, error) {
 	f.nnc.Spec = *spec
 	return f.nnc, nil
+}
+
+type fakeNodeNetworkConfigUpdaterFunc func(ctx context.Context, spec *v1alpha.NodeNetworkConfigSpec) (*v1alpha.NodeNetworkConfig, error)
+
+func (f fakeNodeNetworkConfigUpdaterFunc) UpdateSpec(ctx context.Context, spec *v1alpha.NodeNetworkConfigSpec) (*v1alpha.NodeNetworkConfig, error) {
+	return f(ctx, spec)
 }
 
 type directUpdatePoolMonitor struct {
@@ -45,7 +52,7 @@ type testState struct {
 	totalIPs                int64
 }
 
-func initFakes(state testState) (*fakes.HTTPServiceFake, *fakes.RequestControllerFake, *Monitor) {
+func initFakes(state testState, nnccli nodeNetworkConfigSpecUpdater) (*fakes.HTTPServiceFake, *fakes.RequestControllerFake, *Monitor) {
 	logger.InitLogger("testlogs", 0, 0, "./")
 
 	scalarUnits := v1alpha.Scaler{
@@ -61,8 +68,11 @@ func initFakes(state testState) (*fakes.HTTPServiceFake, *fakes.RequestControlle
 	}
 	fakecns := fakes.NewHTTPServiceFake()
 	fakerc := fakes.NewRequestControllerFake(fakecns, scalarUnits, subnetaddresspace, state.totalIPs)
+	if nnccli == nil {
+		nnccli = &fakeNodeNetworkConfigUpdater{fakerc.NNC}
+	}
 
-	poolmonitor := NewMonitor(fakecns, &fakeNodeNetworkConfigUpdater{fakerc.NNC}, nil, &Options{RefreshDelay: 100 * time.Second})
+	poolmonitor := NewMonitor(fakecns, nnccli, nil, &Options{RefreshDelay: 100 * time.Second})
 	poolmonitor.metastate = metaState{
 		batch:     state.batch,
 		max:       state.max,
@@ -127,7 +137,7 @@ func TestPoolSizeIncrease(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			fakecns, fakerc, poolmonitor := initFakes(tt.in)
+			fakecns, fakerc, poolmonitor := initFakes(tt.in, nil)
 			assert.NoError(t, fakerc.Reconcile(true))
 
 			// When poolmonitor reconcile is called, trigger increase and cache goal state
@@ -162,7 +172,7 @@ func TestPoolIncreaseDoesntChangeWhenIncreaseIsAlreadyInProgress(t *testing.T) {
 		max:                     30,
 	}
 
-	fakecns, fakerc, poolmonitor := initFakes(initState)
+	fakecns, fakerc, poolmonitor := initFakes(initState, nil)
 	assert.NoError(t, fakerc.Reconcile(true))
 
 	// When poolmonitor reconcile is called, trigger increase and cache goal state
@@ -201,7 +211,7 @@ func TestPoolSizeIncreaseIdempotency(t *testing.T) {
 		max:                     30,
 	}
 
-	_, fakerc, poolmonitor := initFakes(initState)
+	_, fakerc, poolmonitor := initFakes(initState, nil)
 	assert.NoError(t, fakerc.Reconcile(true))
 
 	// When poolmonitor reconcile is called, trigger increase and cache goal state
@@ -227,7 +237,7 @@ func TestPoolIncreasePastNodeLimit(t *testing.T) {
 		max:                     30,
 	}
 
-	_, fakerc, poolmonitor := initFakes(initState)
+	_, fakerc, poolmonitor := initFakes(initState, nil)
 	assert.NoError(t, fakerc.Reconcile(true))
 
 	// When poolmonitor reconcile is called, trigger increase and cache goal state
@@ -247,7 +257,7 @@ func TestPoolIncreaseBatchSizeGreaterThanMaxPodIPCount(t *testing.T) {
 		max:                     30,
 	}
 
-	_, fakerc, poolmonitor := initFakes(initState)
+	_, fakerc, poolmonitor := initFakes(initState, nil)
 	assert.NoError(t, fakerc.Reconcile(true))
 
 	// When poolmonitor reconcile is called, trigger increase and cache goal state
@@ -267,7 +277,7 @@ func TestIncreaseWithPendingRelease(t *testing.T) {
 		max:                     250,
 		pendingRelease:          16,
 	}
-	_, rc, mon := initFakes(initState)
+	_, rc, mon := initFakes(initState, nil)
 	assert.NoError(t, rc.Reconcile(true))
 	assert.NoError(t, mon.reconcile(context.Background()))
 	assert.Equal(t, int64(32), mon.spec.RequestedIPCount)
@@ -333,7 +343,7 @@ func TestPoolDecrease(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			fakecns, fakerc, poolmonitor := initFakes(tt.in)
+			fakecns, fakerc, poolmonitor := initFakes(tt.in, nil)
 			assert.NoError(t, fakerc.Reconcile(true))
 
 			// Decrease the number of allocated IPs down to target. This may trigger a scale down.
@@ -374,7 +384,7 @@ func TestPoolSizeDecreaseWhenDecreaseHasAlreadyBeenRequested(t *testing.T) {
 		max:                     30,
 	}
 
-	fakecns, fakerc, poolmonitor := initFakes(initState)
+	fakecns, fakerc, poolmonitor := initFakes(initState, nil)
 	assert.NoError(t, fakerc.Reconcile(true))
 
 	// Pool monitor does nothing, as the current number of IPs falls in the threshold
@@ -413,7 +423,7 @@ func TestDecreaseAndIncreaseToSameCount(t *testing.T) {
 		max:                     30,
 	}
 
-	fakecns, fakerc, poolmonitor := initFakes(initState)
+	fakecns, fakerc, poolmonitor := initFakes(initState, nil)
 	assert.NoError(t, fakerc.Reconcile(true))
 	assert.NoError(t, poolmonitor.reconcile(context.Background()))
 	assert.EqualValues(t, 20, poolmonitor.spec.RequestedIPCount)
@@ -458,7 +468,7 @@ func TestPoolSizeDecreaseToReallyLow(t *testing.T) {
 		max:                     30,
 	}
 
-	fakecns, fakerc, poolmonitor := initFakes(initState)
+	fakecns, fakerc, poolmonitor := initFakes(initState, nil)
 	assert.NoError(t, fakerc.Reconcile(true))
 
 	// Pool monitor does nothing, as the current number of IPs falls in the threshold
@@ -499,7 +509,7 @@ func TestDecreaseAfterNodeLimitReached(t *testing.T) {
 		releaseThresholdPercent: 150,
 		max:                     30,
 	}
-	fakecns, fakerc, poolmonitor := initFakes(initState)
+	fakecns, fakerc, poolmonitor := initFakes(initState, nil)
 	assert.NoError(t, fakerc.Reconcile(true))
 
 	assert.NoError(t, poolmonitor.reconcile(context.Background()))
@@ -524,7 +534,7 @@ func TestDecreaseWithPendingRelease(t *testing.T) {
 		totalIPs:                64,
 		max:                     250,
 	}
-	fakecns, fakerc, poolmonitor := initFakes(initState)
+	fakecns, fakerc, poolmonitor := initFakes(initState, nil)
 	fakerc.NNC.Spec.RequestedIPCount = 48
 	assert.NoError(t, fakerc.Reconcile(true))
 
@@ -547,6 +557,35 @@ func TestDecreaseWithPendingRelease(t *testing.T) {
 	assert.Len(t, poolmonitor.spec.IPsNotInUse, int(initState.batch)+int(initState.pendingRelease))
 }
 
+func TestDecreaseWithAPIServerFailure(t *testing.T) {
+	initState := testState{
+		batch:                   16,
+		assigned:                46,
+		allocated:               64,
+		pendingRelease:          0,
+		requestThresholdPercent: 50,
+		releaseThresholdPercent: 150,
+		totalIPs:                64,
+		max:                     250,
+	}
+	var errNNCCLi fakeNodeNetworkConfigUpdaterFunc = func(ctx context.Context, spec *v1alpha.NodeNetworkConfigSpec) (*v1alpha.NodeNetworkConfig, error) {
+		return nil, errors.New("fake APIServer failure") //nolint:goerr113 // this is a fake error
+	}
+
+	fakecns, fakerc, poolmonitor := initFakes(initState, errNNCCLi)
+	fakerc.NNC.Spec.RequestedIPCount = initState.totalIPs
+	assert.NoError(t, fakerc.Reconcile(true))
+
+	assert.NoError(t, poolmonitor.reconcile(context.Background()))
+
+	// release some IPs
+	assert.NoError(t, fakecns.SetNumberOfAssignedIPs(40))
+	// check that the pool monitor panics if it is not able to publish the updated NNC
+	assert.Panics(t, func() {
+		_ = poolmonitor.reconcile(context.Background())
+	})
+}
+
 func TestPoolDecreaseBatchSizeGreaterThanMaxPodIPCount(t *testing.T) {
 	initState := testState{
 		batch:                   31,
@@ -557,7 +596,7 @@ func TestPoolDecreaseBatchSizeGreaterThanMaxPodIPCount(t *testing.T) {
 		max:                     30,
 	}
 
-	fakecns, fakerc, poolmonitor := initFakes(initState)
+	fakecns, fakerc, poolmonitor := initFakes(initState, nil)
 	assert.NoError(t, fakerc.Reconcile(true))
 
 	// When poolmonitor reconcile is called, trigger increase and cache goal state
