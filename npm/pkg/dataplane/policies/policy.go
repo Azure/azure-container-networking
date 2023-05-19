@@ -32,6 +32,8 @@ type NPMNetworkPolicy struct {
 	// podIP is key and endpoint ID as value
 	// Will be populated by dataplane and policy manager
 	PodEndpoints map[string]string
+	// inLinuxKernel is used in Linux when NetPolInBackground is true
+	inLinuxKernel bool
 }
 
 func NewNPMNetworkPolicy(netPolName, netPolNamespace string) *NPMNetworkPolicy {

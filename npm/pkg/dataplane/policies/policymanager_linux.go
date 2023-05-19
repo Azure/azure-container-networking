@@ -69,7 +69,10 @@ func (pMgr *PolicyManager) reconcileDirtyNetPols() error {
 	toAdd := make([]*NPMNetworkPolicy, 0)
 	for key, ops := range pMgr.policyMap.linuxDirtyCache {
 		for _, op := range ops {
-			if op.op == remove {
+			if op.op == remove && op.wasInKernel {
+				// Remove the NetPol if it was in the kernel when RemovePolicy() was called.
+				// This fakeNetPol will provide all info needed to create the iptables restore file for the original NetPol that was deleted,
+				// indifferent to any NetPol in the PolicyMap with the same name
 				fakeNetPol := &NPMNetworkPolicy{
 					PolicyKey: key,
 					ACLs: []*ACLPolicy{
@@ -103,17 +106,28 @@ func (pMgr *PolicyManager) reconcileDirtyNetPols() error {
 		klog.Info("[PolicyManager] finished removing all dirty NetPols")
 	}
 
+	// TODO resiliency to errors: retry one at a time
+
+	// in case the removed NetPol is in the cache, mark it as not the kernel
+	for _, fakePolicy := range toRemove {
+		if policy, ok := pMgr.policyMap.cache[fakePolicy.PolicyKey]; ok {
+			policy.inLinuxKernel = false
+		}
+	}
+
 	if len(toAdd) == 0 {
+		// nothing left to do
+		// empty the dirty cache
 		pMgr.policyMap.linuxDirtyCache = make(map[string][]*opInfo)
 		return nil
 	}
 
+	// update dirty cache to only have the remaining add operations
 	newDirtyCache := make(map[string][]*opInfo, len(toAdd))
 	for _, policy := range toAdd {
 		oi := &opInfo{op: add}
 		newDirtyCache[policy.PolicyKey] = []*opInfo{oi}
 	}
-
 	pMgr.policyMap.linuxDirtyCache = newDirtyCache
 
 	klog.Infof("[PolicyManager] starting to add all dirty NetPols")
@@ -121,6 +135,12 @@ func (pMgr *PolicyManager) reconcileDirtyNetPols() error {
 		return npmerrors.SimpleErrorWrapper("failed to add dirty NetPols", err)
 	}
 
+	// mark all added NetPols as in the kernel
+	for _, policy := range toAdd {
+		policy.inLinuxKernel = true
+	}
+
+	// empty the dirty cache
 	pMgr.policyMap.linuxDirtyCache = make(map[string][]*opInfo)
 
 	klog.Info("[PolicyManager] finished adding all dirty NetPols")
@@ -165,8 +185,9 @@ func (pMgr *PolicyManager) removePolicy(networkPolicy *NPMNetworkPolicy, _ map[s
 	}
 
 	oi := &opInfo{
-		op:        remove,
-		direction: d,
+		op:          remove,
+		direction:   d,
+		wasInKernel: networkPolicy.inLinuxKernel,
 	}
 
 	pMgr.policyMap.linuxDirtyCache[networkPolicy.PolicyKey] = append(pMgr.policyMap.linuxDirtyCache[networkPolicy.PolicyKey], oi)

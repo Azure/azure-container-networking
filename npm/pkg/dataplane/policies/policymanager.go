@@ -41,10 +41,13 @@ type PolicyManagerCfg struct {
 	MaxBatchedACLsPerPod int
 }
 
+// opInfo is used in Linux to process NetPols in background
 type opInfo struct {
 	op operation
 	// direction is used for remove operation
 	direction Direction
+	// wasInKernel is used for remove operation
+	wasInKernel bool
 }
 
 type operation string
