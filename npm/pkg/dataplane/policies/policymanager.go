@@ -119,12 +119,8 @@ func (pMgr *PolicyManager) Reconcile() {
 	pMgr.reconcile()
 }
 
-func (pMgr *PolicyManager) ReconcileDirtyNetPols() {
-	if err := pMgr.reconcileDirtyNetPols(); err != nil {
-		msg := fmt.Sprintf("failed to reconcile dirty network policies due to %s", err.Error())
-		metrics.SendErrorLogAndMetric(util.IptmID, "error: %s", msg)
-		klog.Error(msg)
-	}
+func (pMgr *PolicyManager) ReconcileDirtyNetPols() error {
+	return pMgr.reconcileDirtyNetPols()
 }
 
 func (pMgr *PolicyManager) PolicyExists(policyKey string) bool {

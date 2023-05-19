@@ -55,7 +55,8 @@ type applyInfo struct {
 
 type netPolInfo struct {
 	sync.Mutex
-	numBatches int
+	numBatches               int
+	toDeleteNetPolReferences map[string][]string
 }
 
 type DataPlane struct {
@@ -94,8 +95,10 @@ func NewDataPlane(nodeName string, ioShim *common.IOShim, cfg *Config, stopChann
 		ioShim:        ioShim,
 		endpointQuery: new(endpointQuery),
 		applyInfo:     &applyInfo{},
-		netPolInfo:    &netPolInfo{},
-		stopChannel:   stopChannel,
+		netPolInfo: &netPolInfo{
+			toDeleteNetPolReferences: make(map[string][]string),
+		},
+		stopChannel: stopChannel,
 	}
 
 	// do not let Linux apply in background
@@ -165,14 +168,13 @@ func (dp *DataPlane) RunPeriodicTasks() {
 			case <-ticker.C:
 				// locks policy manager but can be interrupted
 				dp.netPolInfo.Lock()
+				defer dp.netPolInfo.Unlock()
+
 				if dp.netPolInfo.numBatches == 0 {
-					dp.netPolInfo.Unlock()
 					return
 				}
-				dp.netPolInfo.numBatches = 0
-				dp.netPolInfo.Unlock()
 
-				dp.policyMgr.ReconcileDirtyNetPols()
+				_ = dp.reconcileDirtyNetPolsNow(contextBackground)
 			}
 		}
 	}()
@@ -410,18 +412,7 @@ func (dp *DataPlane) AddPolicy(policy *policies.NPMNetworkPolicy) error {
 		return fmt.Errorf("[DataPlane] error while adding policy: %w", err)
 	}
 
-	dp.netPolInfo.Lock()
-	dp.netPolInfo.numBatches++
-	if dp.netPolInfo.numBatches < dp.NetPolMaxBatches {
-		dp.netPolInfo.Unlock()
-		return nil
-	}
-
-	dp.netPolInfo.numBatches = 0
-	dp.netPolInfo.Unlock()
-	dp.policyMgr.ReconcileDirtyNetPols()
-
-	return nil
+	return dp.incrementBatchAndReconcileDirtyNetPolsIfNeeded(contextAddNetPol)
 }
 
 // RemovePolicy takes in network policyKey (namespace/name of network policy) and removes it from dataplane and cache
@@ -477,7 +468,11 @@ func (dp *DataPlane) RemovePolicy(policyKey string) error {
 		return err
 	}
 
-	return dp.applyDataPlaneNow(contextApplyDP)
+	if err := dp.applyDataPlaneNow(contextApplyDP); err != nil {
+		return err
+	}
+
+	return dp.incrementBatchAndReconcileDirtyNetPolsIfNeeded(contextDelNetPol)
 }
 
 // UpdatePolicy takes in updated policy object, calculates the delta and applies changes
@@ -556,13 +551,22 @@ func (dp *DataPlane) createIPSetsAndReferences(sets []*ipsets.TranslatedIPSet, n
 }
 
 func (dp *DataPlane) deleteIPSetsAndReferences(sets []*ipsets.TranslatedIPSet, netpolName string, referenceType ipsets.ReferenceType) error {
+	dp.netPolInfo.Lock()
+	tmp := "TMP" + netpolName
 	for _, set := range sets {
 		prefixName := set.Metadata.GetPrefixName()
+		if err := dp.ipsetMgr.AddReference(set.Metadata, tmp, referenceType); err != nil {
+			klog.Infof("[DataPlane] ignoring add temporary reference on non-existent set. ipset: %s. netpol: %s. referenceType: %s", prefixName, netpolName, referenceType)
+			continue
+		}
+		dp.netPolInfo.toDeleteNetPolReferences[prefixName] = append(dp.netPolInfo.toDeleteNetPolReferences[prefixName], netpolName)
+
 		if err := dp.ipsetMgr.DeleteReference(prefixName, netpolName, referenceType); err != nil {
 			// with current implementation of DeleteReference(), err will be ipsets.ErrSetDoesNotExist
 			klog.Infof("[DataPlane] ignoring delete reference on non-existent set. ipset: %s. netpol: %s. referenceType: %s", prefixName, netpolName, referenceType)
 		}
 	}
+	dp.netPolInfo.Unlock()
 
 	npmErrorString := npmerrors.DeleteSelectorReference
 	if referenceType == ipsets.NetPolType {
@@ -591,9 +595,49 @@ func (dp *DataPlane) deleteIPSetsAndReferences(sets []*ipsets.TranslatedIPSet, n
 				return npmerrors.Errorf(npmErrorString, false, fmt.Sprintf("[DataPlane] failed to RemoveFromList in deleteIPSetReferences with err: %s", err.Error()))
 			}
 		}
-
-		// Try to delete these IPSets
-		dp.ipsetMgr.DeleteIPSet(set.Metadata.GetPrefixName(), false)
 	}
+	return nil
+}
+
+// reconcileDirtyNetPolsNow must be called while holding the netPolInfo Lock
+func (dp *DataPlane) reconcileDirtyNetPolsNow(context string) error {
+	klog.Infof("[DataPlane] [%s] reconciling dirty NetPols", context)
+	if err := dp.policyMgr.ReconcileDirtyNetPols(); err != nil {
+		metrics.SendErrorLogAndMetric(util.IptmID, "[DataPlane] [%s] failed to reconcile dirty network policies due to %s", context, err.Error())
+		klog.Error("[DataPlane] [%s] failed to reconcile dirty network policies. err: %s", context)
+		return fmt.Errorf("[DataPlane] [%s] failed to reconcile dirty network policies. err: %w", context, err)
+	}
+
+	dp.netPolInfo.numBatches = 0
+
+	// remove all temporary references after successfully reconciling dirty netpols
+	for policyKey, ipsetNames := range dp.netPolInfo.toDeleteNetPolReferences {
+		tmp := "TMP" + policyKey
+		for _, ipsetName := range ipsetNames {
+			if err := dp.ipsetMgr.DeleteReference(ipsetName, tmp, ipsets.NetPolType); err != nil {
+				// with current implementation of DeleteReference(), err will be ipsets.ErrSetDoesNotExist
+				klog.Infof("[DataPlane] [%s] ignoring delete reference on non-existent set. ipset: %s. netpol: %s. referenceType: %s", context, ipsetName, policyKey, ipsets.NetPolType)
+			}
+		}
+	}
+
+	dp.netPolInfo.toDeleteNetPolReferences = make(map[string][]string)
+
+	return nil
+}
+
+func (dp *DataPlane) incrementBatchAndReconcileDirtyNetPolsIfNeeded(context string) error {
+	dp.netPolInfo.Lock()
+	defer dp.applyInfo.Unlock()
+	dp.netPolInfo.numBatches++
+	newCount := dp.netPolInfo.numBatches
+
+	klog.Infof("[DataPlane] [%s] new netpol batch count: %d", context, newCount)
+
+	if newCount >= dp.NetPolMaxBatches {
+		klog.Infof("[DataPlane] [%s] applying now since reached maximum batch count: %d", context, newCount)
+		return dp.reconcileDirtyNetPolsNow(context)
+	}
+
 	return nil
 }
