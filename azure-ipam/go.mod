@@ -5,7 +5,7 @@ go 1.20
 require (
 	github.com/Azure/azure-container-networking v1.5.0
 	github.com/containernetworking/cni v1.1.2
-	github.com/containernetworking/plugins v1.2.0
+	github.com/containernetworking/plugins v1.3.0
 	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.8.2
 	go.uber.org/zap v1.24.0
@@ -22,7 +22,7 @@ require (
 	github.com/AzureAD/microsoft-authentication-library-for-go v0.9.0 // indirect
 	github.com/Masterminds/semver v1.5.0 // indirect
 	github.com/Microsoft/go-winio v0.6.0 // indirect
-	github.com/Microsoft/hcsshim v0.9.8 // indirect
+	github.com/Microsoft/hcsshim v0.9.9 // indirect
 	github.com/avast/retry-go/v3 v3.1.1 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/billgraziano/dpapi v0.4.0 // indirect
