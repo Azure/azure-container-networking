@@ -52,6 +52,8 @@ type opInfo struct {
 	op operation
 	// direction is used for remove operation
 	direction Direction
+	// podSelectorList is a copy of the original NetworkPolicy's PodSelectorList
+	podSelectorList []SetInfo
 	// wasInKernel is used for remove operation
 	wasInKernel bool
 }

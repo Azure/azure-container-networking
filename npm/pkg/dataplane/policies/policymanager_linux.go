@@ -192,10 +192,14 @@ func (pMgr *PolicyManager) removePolicy(networkPolicy *NPMNetworkPolicy, _ map[s
 		d = Egress
 	}
 
+	selectorCopy := make([]SetInfo, len(networkPolicy.PodSelectorList))
+	copy(selectorCopy, networkPolicy.PodSelectorList)
+
 	oi := &opInfo{
-		op:          remove,
-		direction:   d,
-		wasInKernel: networkPolicy.inLinuxKernel,
+		op:              remove,
+		direction:       d,
+		podSelectorList: selectorCopy,
+		wasInKernel:     networkPolicy.inLinuxKernel,
 	}
 
 	pMgr.policyMap.linuxDirtyCache[networkPolicy.PolicyKey] = append(pMgr.policyMap.linuxDirtyCache[networkPolicy.PolicyKey], oi)
