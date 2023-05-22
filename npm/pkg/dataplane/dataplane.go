@@ -681,14 +681,14 @@ func (dp *DataPlane) addTemporaryIPSetReferences(sets []*ipsets.TranslatedIPSet,
 			continue
 		}
 
+		m := dp.netPolInfo.toDeleteSelectorReferences
 		if referenceType == ipsets.NetPolType {
-			dp.netPolInfo.toDeleteNetPolReferences[prefixName] = append(dp.netPolInfo.toDeleteNetPolReferences[prefixName], policyKey)
-		} else {
-			dp.netPolInfo.toDeleteSelectorReferences[prefixName] = append(dp.netPolInfo.toDeleteSelectorReferences[prefixName], policyKey)
+			m = dp.netPolInfo.toDeleteNetPolReferences
 		}
+		m[policyKey] = append(m[policyKey], prefixName)
 	}
 }
 
 func temporaryReference(policyKey string) string {
-	return "TMP" + policyKey
+	return "TMP-" + policyKey
 }
