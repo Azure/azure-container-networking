@@ -7,6 +7,7 @@ import (
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/npm/metrics"
 	"github.com/Azure/azure-container-networking/npm/util"
+	"k8s.io/klog"
 )
 
 type IPSetMetadata struct {
@@ -324,6 +325,7 @@ func (set *IPSet) decKernelReferCount() {
 }
 
 func (set *IPSet) addReference(referenceName string, referenceType ReferenceType) {
+	klog.Infof("adding ref. set: %s. refName: %s. type: %s", set.Name, referenceName, referenceType)
 	switch referenceType {
 	case SelectorType:
 		set.SelectorReference[referenceName] = struct{}{}
@@ -335,6 +337,7 @@ func (set *IPSet) addReference(referenceName string, referenceType ReferenceType
 }
 
 func (set *IPSet) deleteReference(referenceName string, referenceType ReferenceType) {
+	klog.Infof("deleting ref. set: %s. refName: %s. type: %s", set.Name, referenceName, referenceType)
 	switch referenceType {
 	case SelectorType:
 		delete(set.SelectorReference, referenceName)

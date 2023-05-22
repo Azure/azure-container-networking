@@ -461,6 +461,8 @@ func (iMgr *IPSetManager) ApplyIPSets() error {
 	// Call the appropriate apply ipsets
 	prometheusTimer := metrics.StartNewTimer()
 	defer metrics.RecordIPSetExecTime(prometheusTimer) // record execution time regardless of failure
+	iMgr.dirtyCache.printAddOrUpdateCache()
+	iMgr.dirtyCache.printDeleteCache()
 	err := iMgr.applyIPSets()
 	if err != nil {
 		metrics.SendErrorLogAndMetric(util.IpsmID, "error: failed to apply ipsets: %s", err.Error())
@@ -469,6 +471,9 @@ func (iMgr *IPSetManager) ApplyIPSets() error {
 
 	iMgr.clearDirtyCache()
 	// TODO could also set the number of ipsets in NPM (not necessarily in kernel) here using len(iMgr.setMap)
+
+	klog.Infof("[IPSetManager] Successfully applied ipsets. Full cache: %+v", iMgr.setMap)
+
 	return nil
 }
 
