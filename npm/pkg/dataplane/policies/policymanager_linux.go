@@ -67,28 +67,28 @@ func (pMgr *PolicyManager) reconcileDirtyNetPols() error {
 
 	toRemove := make([]*NPMNetworkPolicy, 0)
 	toAdd := make([]*NPMNetworkPolicy, 0)
-	for key, ops := range pMgr.policyMap.linuxDirtyCache {
-		for _, op := range ops {
-			if op.op == remove && op.deletedState.wasInKernel {
+	for key, events := range pMgr.policyMap.linuxDirtyCache {
+		for _, e := range events {
+			if e.op == remove && e.deletedState.wasInKernel {
 				// Remove the NetPol if it was in the kernel when RemovePolicy() was called.
 				// This fakeNetPol will provide all info needed to create the iptables restore file for the original NetPol that was deleted,
 				// indifferent to any NetPol in the PolicyMap with the same name
 				fakeNetPol := &NPMNetworkPolicy{
-					Namespace: op.deletedState.namespace,
+					Namespace: e.deletedState.namespace,
 					PolicyKey: key,
 					ACLs: []*ACLPolicy{
 						{
-							Direction: op.deletedState.direction,
+							Direction: e.deletedState.direction,
 						},
 					},
 				}
-				klog.Infof("[PolicyManager] will remove dirty NetPol. key: %s. direction: %s", key, op.deletedState.direction)
+				klog.Infof("[PolicyManager] will remove dirty NetPol. key: %s. direction: %s", key, e.deletedState.direction)
 				toRemove = append(toRemove, fakeNetPol)
 				break
 			}
 		}
 
-		if ops[len(ops)-1].op == add {
+		if events[len(events)-1].op == add {
 			policy, ok := pMgr.policyMap.cache[key]
 			if !ok {
 				metrics.SendErrorLogAndMetric(util.IptmID, "error: failed to find dirty policy to add in cache. key: %s", key)
@@ -119,15 +119,15 @@ func (pMgr *PolicyManager) reconcileDirtyNetPols() error {
 	if len(toAdd) == 0 {
 		// nothing left to do
 		// empty the dirty cache
-		pMgr.policyMap.linuxDirtyCache = make(map[string][]*opInfo)
+		pMgr.policyMap.linuxDirtyCache = make(map[string][]*event)
 		return nil
 	}
 
 	// update dirty cache to only have the remaining add operations
-	newDirtyCache := make(map[string][]*opInfo, len(toAdd))
+	newDirtyCache := make(map[string][]*event, len(toAdd))
 	for _, policy := range toAdd {
-		oi := &opInfo{op: add}
-		newDirtyCache[policy.PolicyKey] = []*opInfo{oi}
+		e := &event{op: add}
+		newDirtyCache[policy.PolicyKey] = []*event{e}
 	}
 	pMgr.policyMap.linuxDirtyCache = newDirtyCache
 
@@ -142,7 +142,7 @@ func (pMgr *PolicyManager) reconcileDirtyNetPols() error {
 	}
 
 	// empty the dirty cache
-	pMgr.policyMap.linuxDirtyCache = make(map[string][]*opInfo)
+	pMgr.policyMap.linuxDirtyCache = make(map[string][]*event)
 
 	klog.Info("[PolicyManager] finished adding all dirty NetPols")
 	return nil
@@ -153,8 +153,8 @@ func (pMgr *PolicyManager) addPolicy(networkPolicy *NPMNetworkPolicy, _ map[stri
 		return pMgr.addAllPolicies([]*NPMNetworkPolicy{networkPolicy})
 	}
 
-	oi := &opInfo{op: add}
-	pMgr.policyMap.linuxDirtyCache[networkPolicy.PolicyKey] = append(pMgr.policyMap.linuxDirtyCache[networkPolicy.PolicyKey], oi)
+	e := &event{op: add}
+	pMgr.policyMap.linuxDirtyCache[networkPolicy.PolicyKey] = append(pMgr.policyMap.linuxDirtyCache[networkPolicy.PolicyKey], e)
 	return nil
 
 }
@@ -196,7 +196,7 @@ func (pMgr *PolicyManager) removePolicy(networkPolicy *NPMNetworkPolicy, _ map[s
 	selectorCopy := make([]SetInfo, len(networkPolicy.PodSelectorList))
 	copy(selectorCopy, networkPolicy.PodSelectorList)
 
-	oi := &opInfo{
+	e := &event{
 		op: remove,
 		deletedState: &deletedState{
 			namespace:       networkPolicy.Namespace,
@@ -206,7 +206,7 @@ func (pMgr *PolicyManager) removePolicy(networkPolicy *NPMNetworkPolicy, _ map[s
 		},
 	}
 
-	pMgr.policyMap.linuxDirtyCache[networkPolicy.PolicyKey] = append(pMgr.policyMap.linuxDirtyCache[networkPolicy.PolicyKey], oi)
+	pMgr.policyMap.linuxDirtyCache[networkPolicy.PolicyKey] = append(pMgr.policyMap.linuxDirtyCache[networkPolicy.PolicyKey], e)
 	return nil
 }
 

@@ -47,9 +47,9 @@ type PolicyManagerCfg struct {
 	IPTablesInBackground bool
 }
 
-// opInfo is used in Linux to process NetPols in background
-type opInfo struct {
-	op operation
+// event is used in Linux to process NetPols in background
+type event struct {
+	op           operation
 	deletedState *deletedState
 }
 
@@ -61,19 +61,16 @@ const (
 )
 
 type deletedState struct {
-	namespace string
-	// direction is used for remove operation
-	direction Direction
-	// podSelectorList is a copy of the original NetworkPolicy's PodSelectorList
+	namespace       string
+	direction       Direction
 	podSelectorList []SetInfo
-	// wasInKernel is used for remove operation
-	wasInKernel bool
+	wasInKernel     bool
 }
 
 type PolicyMap struct {
 	sync.RWMutex
 	cache           map[string]*NPMNetworkPolicy
-	linuxDirtyCache map[string][]*opInfo
+	linuxDirtyCache map[string][]*event
 }
 
 type reconcileManager struct {
@@ -99,7 +96,7 @@ func NewPolicyManager(ioShim *common.IOShim, cfg *PolicyManagerCfg) *PolicyManag
 	return &PolicyManager{
 		policyMap: &PolicyMap{
 			cache:           make(map[string]*NPMNetworkPolicy),
-			linuxDirtyCache: make(map[string][]*opInfo),
+			linuxDirtyCache: make(map[string][]*event),
 		},
 		ioShim:      ioShim,
 		staleChains: newStaleChains(),
