@@ -69,19 +69,20 @@ func (pMgr *PolicyManager) reconcileDirtyNetPols() error {
 	toAdd := make([]*NPMNetworkPolicy, 0)
 	for key, ops := range pMgr.policyMap.linuxDirtyCache {
 		for _, op := range ops {
-			if op.op == remove && op.wasInKernel {
+			if op.op == remove && op.deletedState.wasInKernel {
 				// Remove the NetPol if it was in the kernel when RemovePolicy() was called.
 				// This fakeNetPol will provide all info needed to create the iptables restore file for the original NetPol that was deleted,
 				// indifferent to any NetPol in the PolicyMap with the same name
 				fakeNetPol := &NPMNetworkPolicy{
+					Namespace: op.deletedState.namespace,
 					PolicyKey: key,
 					ACLs: []*ACLPolicy{
 						{
-							Direction: op.direction,
+							Direction: op.deletedState.direction,
 						},
 					},
 				}
-				klog.Infof("[PolicyManager] will remove dirty NetPol. key: %s. direction: %s", key, op.direction)
+				klog.Infof("[PolicyManager] will remove dirty NetPol. key: %s. direction: %s", key, op.deletedState.direction)
 				toRemove = append(toRemove, fakeNetPol)
 				break
 			}
@@ -196,10 +197,13 @@ func (pMgr *PolicyManager) removePolicy(networkPolicy *NPMNetworkPolicy, _ map[s
 	copy(selectorCopy, networkPolicy.PodSelectorList)
 
 	oi := &opInfo{
-		op:              remove,
-		direction:       d,
-		podSelectorList: selectorCopy,
-		wasInKernel:     networkPolicy.inLinuxKernel,
+		op: remove,
+		deletedState: &deletedState{
+			namespace:       networkPolicy.Namespace,
+			direction:       d,
+			podSelectorList: selectorCopy,
+			wasInKernel:     networkPolicy.inLinuxKernel,
+		},
 	}
 
 	pMgr.policyMap.linuxDirtyCache[networkPolicy.PolicyKey] = append(pMgr.policyMap.linuxDirtyCache[networkPolicy.PolicyKey], oi)

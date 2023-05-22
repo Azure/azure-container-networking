@@ -50,12 +50,7 @@ type PolicyManagerCfg struct {
 // opInfo is used in Linux to process NetPols in background
 type opInfo struct {
 	op operation
-	// direction is used for remove operation
-	direction Direction
-	// podSelectorList is a copy of the original NetworkPolicy's PodSelectorList
-	podSelectorList []SetInfo
-	// wasInKernel is used for remove operation
-	wasInKernel bool
+	deletedState *deletedState
 }
 
 type operation string
@@ -64,6 +59,16 @@ const (
 	add    operation = "add"
 	remove operation = "remove"
 )
+
+type deletedState struct {
+	namespace string
+	// direction is used for remove operation
+	direction Direction
+	// podSelectorList is a copy of the original NetworkPolicy's PodSelectorList
+	podSelectorList []SetInfo
+	// wasInKernel is used for remove operation
+	wasInKernel bool
+}
 
 type PolicyMap struct {
 	sync.RWMutex
