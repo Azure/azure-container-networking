@@ -74,8 +74,9 @@ func (pMgr *PolicyManager) reconcileDirtyNetPols() error {
 				// This fakeNetPol will provide all info needed to create the iptables restore file for the original NetPol that was deleted,
 				// indifferent to any NetPol in the PolicyMap with the same name
 				fakeNetPol := &NPMNetworkPolicy{
-					Namespace: e.deletedState.namespace,
-					PolicyKey: key,
+					Namespace:       e.deletedState.namespace,
+					PolicyKey:       key,
+					PodSelectorList: e.deletedState.podSelectorList,
 					ACLs: []*ACLPolicy{
 						{
 							Direction: e.deletedState.direction,
