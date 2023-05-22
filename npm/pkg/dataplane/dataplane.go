@@ -103,6 +103,8 @@ func NewDataPlane(nodeName string, ioShim *common.IOShim, cfg *Config, stopChann
 	dp.iptablesInBackground = cfg.IPTablesInBackground && !util.IsWindowsDP()
 	if dp.iptablesInBackground {
 		klog.Infof("[DataPlane] dataplane configured to run iptables in background every %v or every %d calls to AddPolicy() or RemovePolicy", dp.IPTablesInterval, dp.IPTablesMaxBatches)
+	} else {
+		klog.Info("[DataPlane] dataplane configured to NOT run iptables in background")
 	}
 
 	// do not let Linux apply in background
@@ -636,7 +638,7 @@ func (dp *DataPlane) incrementBatchAndReconcileDirtyNetPolsIfNeeded(context stri
 	}
 
 	dp.netPolInfo.Lock()
-	defer dp.applyInfo.Unlock()
+	defer dp.netPolInfo.Unlock()
 	dp.netPolInfo.numBatches++
 	newCount := dp.netPolInfo.numBatches
 
