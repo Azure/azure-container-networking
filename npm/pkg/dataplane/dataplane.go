@@ -53,8 +53,9 @@ type applyInfo struct {
 
 type netPolInfo struct {
 	sync.Mutex
-	numBatches               int
-	toDeleteNetPolReferences map[string][]string
+	numBatches                 int
+	toDeleteNetPolReferences   map[string][]string
+	toDeleteSelectorReferences map[string][]string
 }
 
 type DataPlane struct {
@@ -467,12 +468,14 @@ func (dp *DataPlane) RemovePolicy(policyKey string) error {
 	}
 
 	// Remove references for Rule IPSets first
+	dp.addTemporaryIPSetReferences(policy.RuleIPSets, policy.PolicyKey, ipsets.NetPolType)
 	err = dp.deleteIPSetsAndReferences(policy.RuleIPSets, policy.PolicyKey, ipsets.NetPolType)
 	if err != nil {
 		return err
 	}
 
 	// Remove references for Selector IPSets
+	dp.addTemporaryIPSetReferences(policy.AllPodSelectorIPSets(), policy.PolicyKey, ipsets.SelectorType)
 	err = dp.deleteIPSetsAndReferences(policy.AllPodSelectorIPSets(), policy.PolicyKey, ipsets.SelectorType)
 	if err != nil {
 		return err
@@ -561,19 +564,8 @@ func (dp *DataPlane) createIPSetsAndReferences(sets []*ipsets.TranslatedIPSet, n
 }
 
 func (dp *DataPlane) deleteIPSetsAndReferences(sets []*ipsets.TranslatedIPSet, netpolName string, referenceType ipsets.ReferenceType) error {
-	tmp := "TMP" + netpolName
 	for _, set := range sets {
 		prefixName := set.Metadata.GetPrefixName()
-
-		if dp.iptablesInBackground {
-			// add temporary reference so that we don't delete the IPSet while it's in an iptables rule
-			if err := dp.ipsetMgr.AddReference(set.Metadata, tmp, referenceType); err != nil {
-				klog.Infof("[DataPlane] ignoring add temporary reference on non-existent set. ipset: %s. netpol: %s. referenceType: %s", prefixName, netpolName, referenceType)
-				continue
-			}
-			dp.netPolInfo.toDeleteNetPolReferences[prefixName] = append(dp.netPolInfo.toDeleteNetPolReferences[prefixName], netpolName)
-		}
-
 		if err := dp.ipsetMgr.DeleteReference(prefixName, netpolName, referenceType); err != nil {
 			// with current implementation of DeleteReference(), err will be ipsets.ErrSetDoesNotExist
 			klog.Infof("[DataPlane] ignoring delete reference on non-existent set. ipset: %s. netpol: %s. referenceType: %s", prefixName, netpolName, referenceType)
@@ -624,16 +616,26 @@ func (dp *DataPlane) reconcileDirtyNetPolsNow(context string) error {
 
 	// remove all temporary references after successfully reconciling dirty netpols
 	for policyKey, ipsetNames := range dp.netPolInfo.toDeleteNetPolReferences {
-		tmp := "TMP" + policyKey
+		ref := temporaryReference(policyKey)
 		for _, ipsetName := range ipsetNames {
-			if err := dp.ipsetMgr.DeleteReference(ipsetName, tmp, ipsets.NetPolType); err != nil {
+			if err := dp.ipsetMgr.DeleteReference(ipsetName, ref, ipsets.NetPolType); err != nil {
 				// with current implementation of DeleteReference(), err will be ipsets.ErrSetDoesNotExist
-				klog.Infof("[DataPlane] [%s] ignoring delete reference on non-existent set. ipset: %s. netpol: %s. referenceType: %s", context, ipsetName, policyKey, ipsets.NetPolType)
+				klog.Infof("[DataPlane] [%s] ignoring delete reference on non-existent set/reference. ipset: %s. netpol: %s. referenceType: %s", context, ipsetName, policyKey, ipsets.NetPolType)
 			}
 		}
 	}
-
 	dp.netPolInfo.toDeleteNetPolReferences = make(map[string][]string)
+
+	for policyKey, ipsetNames := range dp.netPolInfo.toDeleteSelectorReferences {
+		ref := temporaryReference(policyKey)
+		for _, ipsetName := range ipsetNames {
+			if err := dp.ipsetMgr.DeleteReference(ipsetName, ref, ipsets.SelectorType); err != nil {
+				// with current implementation of DeleteReference(), err will be ipsets.ErrSetDoesNotExist
+				klog.Infof("[DataPlane] [%s] ignoring delete reference on non-existent set/reference. ipset: %s. netpol: %s. referenceType: %s", context, ipsetName, policyKey, ipsets.SelectorType)
+			}
+		}
+	}
+	dp.netPolInfo.toDeleteSelectorReferences = make(map[string][]string)
 
 	return nil
 }
@@ -658,4 +660,35 @@ func (dp *DataPlane) incrementBatchAndReconcileDirtyNetPolsIfNeeded(context stri
 	}
 
 	return nil
+}
+
+// adds temporary references so that we don't delete the IPSet while it's in an iptables rule.
+func (dp *DataPlane) addTemporaryIPSetReferences(sets []*ipsets.TranslatedIPSet, policyKey string, referenceType ipsets.ReferenceType) {
+	if !dp.iptablesInBackground {
+		return
+	}
+
+	// Lock since we're modifying maps
+	dp.netPolInfo.Lock()
+	defer dp.netPolInfo.Unlock()
+
+	tmp := temporaryReference(policyKey)
+	for _, set := range sets {
+		prefixName := set.Metadata.GetPrefixName()
+
+		if err := dp.ipsetMgr.AddReference(set.Metadata, tmp, referenceType); err != nil {
+			klog.Infof("[DataPlane] ignoring add temporary reference on non-existent set. ipset: %s. netpol: %s. referenceType: %s", prefixName, policyKey, referenceType)
+			continue
+		}
+
+		if referenceType == ipsets.NetPolType {
+			dp.netPolInfo.toDeleteNetPolReferences[prefixName] = append(dp.netPolInfo.toDeleteNetPolReferences[prefixName], policyKey)
+		} else {
+			dp.netPolInfo.toDeleteSelectorReferences[prefixName] = append(dp.netPolInfo.toDeleteSelectorReferences[prefixName], policyKey)
+		}
+	}
+}
+
+func temporaryReference(policyKey string) string {
+	return "TMP" + policyKey
 }
