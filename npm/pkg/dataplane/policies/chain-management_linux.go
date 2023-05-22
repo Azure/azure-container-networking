@@ -60,6 +60,11 @@ var (
 			stdErr:       "Couldn't load target `AZURE-NPM':No such file or directory",
 			messageToLog: "didn't delete deprecated jump rule from FORWARD chain to AZURE-NPM chain likely because AZURE-NPM chain doesn't exist",
 		},
+		{
+			exitCode:     doesNotExistErrorCode,
+			stdErr:       "Bad rule (does a matching rule exist in that chain?)",
+			messageToLog: "probably tried to delete a jump rule that didn't exist in nft tables",
+		},
 	}
 
 	listForwardEntriesArgs = []string{
