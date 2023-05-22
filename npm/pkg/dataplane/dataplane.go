@@ -173,10 +173,14 @@ func (dp *DataPlane) RunPeriodicTasks() {
 				case <-dp.stopChannel:
 					return
 				case <-ticker.C:
+					// Choose to keep netPolInfo locked while running iptables-restore within reconcileDirtyNetPolsNow.
+					// We are only blocking the NetPol controller, which wouldn't be able to use the PolicyManager while it's reconciling.
+					// Technically, NetPol controller could be adding IPSets during this lock, but this is very fast.
+					// Prefering thread safety over optimized performance.
 					dp.netPolInfo.Lock()
 					if dp.netPolInfo.numBatches == 0 {
 						dp.netPolInfo.Unlock()
-						return
+						continue
 					}
 					_ = dp.reconcileDirtyNetPolsNow(contextBackground)
 					dp.netPolInfo.Unlock()
@@ -557,22 +561,24 @@ func (dp *DataPlane) createIPSetsAndReferences(sets []*ipsets.TranslatedIPSet, n
 }
 
 func (dp *DataPlane) deleteIPSetsAndReferences(sets []*ipsets.TranslatedIPSet, netpolName string, referenceType ipsets.ReferenceType) error {
-	dp.netPolInfo.Lock()
 	tmp := "TMP" + netpolName
 	for _, set := range sets {
 		prefixName := set.Metadata.GetPrefixName()
-		if err := dp.ipsetMgr.AddReference(set.Metadata, tmp, referenceType); err != nil {
-			klog.Infof("[DataPlane] ignoring add temporary reference on non-existent set. ipset: %s. netpol: %s. referenceType: %s", prefixName, netpolName, referenceType)
-			continue
+
+		if dp.iptablesInBackground {
+			// add temporary reference so that we don't delete the IPSet while it's in an iptables rule
+			if err := dp.ipsetMgr.AddReference(set.Metadata, tmp, referenceType); err != nil {
+				klog.Infof("[DataPlane] ignoring add temporary reference on non-existent set. ipset: %s. netpol: %s. referenceType: %s", prefixName, netpolName, referenceType)
+				continue
+			}
+			dp.netPolInfo.toDeleteNetPolReferences[prefixName] = append(dp.netPolInfo.toDeleteNetPolReferences[prefixName], netpolName)
 		}
-		dp.netPolInfo.toDeleteNetPolReferences[prefixName] = append(dp.netPolInfo.toDeleteNetPolReferences[prefixName], netpolName)
 
 		if err := dp.ipsetMgr.DeleteReference(prefixName, netpolName, referenceType); err != nil {
 			// with current implementation of DeleteReference(), err will be ipsets.ErrSetDoesNotExist
 			klog.Infof("[DataPlane] ignoring delete reference on non-existent set. ipset: %s. netpol: %s. referenceType: %s", prefixName, netpolName, referenceType)
 		}
 	}
-	dp.netPolInfo.Unlock()
 
 	npmErrorString := npmerrors.DeleteSelectorReference
 	if referenceType == ipsets.NetPolType {
@@ -637,6 +643,8 @@ func (dp *DataPlane) incrementBatchAndReconcileDirtyNetPolsIfNeeded(context stri
 		return nil
 	}
 
+	// Choose to keep netPolInfo locked while running iptables-restore within reconcileDirtyNetPolsNow.
+	// We are not blocking any thread but the background iptables thread, which would run the same command anyways
 	dp.netPolInfo.Lock()
 	defer dp.netPolInfo.Unlock()
 	dp.netPolInfo.numBatches++
