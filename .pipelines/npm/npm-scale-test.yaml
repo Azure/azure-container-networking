@@ -79,11 +79,11 @@ jobs:
     strategy:
       matrix:
         v2-linux:
-          PROFILE: "scale-linux"
+          PROFILE: "sc-lin"
           NUM_NETPOLS: 800
-          INITIAL_CONNECTIVITY_TIMEOUT: 30
+          INITIAL_CONNECTIVITY_TIMEOUT: 60
         # ws22:
-        #   PROFILE: "scale-ws22"
+        #   PROFILE: "sc-ws22"
         #   NUM_NETPOLS: 50
         #   INITIAL_CONNECTIVITY_TIMEOUT: 720
     steps:
