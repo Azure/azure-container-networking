@@ -42,9 +42,9 @@ type PolicyManagerCfg struct {
 	MaxBatchedACLsPerPod int
 
 	// Linux parameters to apply NetPols in background
-	IPTablesMaxBatches   int
-	IPTablesInterval     time.Duration
-	IPTablesInBackground bool
+	IPTablesMaxPendingPolicies int
+	IPTablesInterval           time.Duration
+	IPTablesInBackground       bool
 }
 
 // event is used in Linux to process NetPols in background

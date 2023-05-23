@@ -53,7 +53,7 @@ type applyInfo struct {
 
 type netPolInfo struct {
 	sync.Mutex
-	numBatches                 int
+	pendingPolicies            int
 	toDeleteNetPolReferences   map[string][]string
 	toDeleteSelectorReferences map[string][]string
 }
@@ -103,7 +103,7 @@ func NewDataPlane(nodeName string, ioShim *common.IOShim, cfg *Config, stopChann
 
 	dp.iptablesInBackground = cfg.IPTablesInBackground && !util.IsWindowsDP()
 	if dp.iptablesInBackground {
-		klog.Infof("[DataPlane] dataplane configured to run iptables in background every %v or every %d calls to AddPolicy() or RemovePolicy()", dp.IPTablesInterval, dp.IPTablesMaxBatches)
+		klog.Infof("[DataPlane] dataplane configured to run iptables in background every %v or every %d calls to AddPolicy() or RemovePolicy()", dp.IPTablesInterval, dp.IPTablesMaxPendingPolicies)
 	} else {
 		klog.Info("[DataPlane] dataplane configured to NOT run iptables in background")
 	}
@@ -179,7 +179,7 @@ func (dp *DataPlane) RunPeriodicTasks() {
 					// Technically, NetPol controller could be adding IPSets during this lock, but this is very fast.
 					// Preferring thread safety over optimized performance.
 					dp.netPolInfo.Lock()
-					if dp.netPolInfo.numBatches == 0 {
+					if dp.netPolInfo.pendingPolicies == 0 {
 						dp.netPolInfo.Unlock()
 						continue
 					}
@@ -423,7 +423,7 @@ func (dp *DataPlane) AddPolicy(policy *policies.NPMNetworkPolicy) error {
 		return fmt.Errorf("[DataPlane] error while adding policy: %w", err)
 	}
 
-	dp.incrementBatchAndReconcileDirtyNetPolsIfNeeded(contextAddNetPol)
+	dp.incrementPendingPoliciesAndReconcileDirtyNetPolsIfNeeded(contextAddNetPol)
 	return nil
 }
 
@@ -486,7 +486,7 @@ func (dp *DataPlane) RemovePolicy(policyKey string) error {
 		return err
 	}
 
-	dp.incrementBatchAndReconcileDirtyNetPolsIfNeeded(contextDelNetPol)
+	dp.incrementPendingPoliciesAndReconcileDirtyNetPolsIfNeeded(contextDelNetPol)
 	return nil
 }
 
@@ -614,7 +614,7 @@ func (dp *DataPlane) reconcileDirtyNetPolsNow(context string) {
 		return
 	}
 
-	dp.netPolInfo.numBatches = 0
+	dp.netPolInfo.pendingPolicies = 0
 
 	// remove all temporary references after successfully reconciling dirty netpols
 	for policyKey, ipsetNames := range dp.netPolInfo.toDeleteNetPolReferences {
@@ -640,7 +640,7 @@ func (dp *DataPlane) reconcileDirtyNetPolsNow(context string) {
 	dp.netPolInfo.toDeleteSelectorReferences = make(map[string][]string)
 }
 
-func (dp *DataPlane) incrementBatchAndReconcileDirtyNetPolsIfNeeded(context string) {
+func (dp *DataPlane) incrementPendingPoliciesAndReconcileDirtyNetPolsIfNeeded(context string) {
 	if !dp.iptablesInBackground {
 		return
 	}
@@ -649,12 +649,12 @@ func (dp *DataPlane) incrementBatchAndReconcileDirtyNetPolsIfNeeded(context stri
 	// We are not blocking any thread but the background iptables thread, which would run the same command anyways
 	dp.netPolInfo.Lock()
 	defer dp.netPolInfo.Unlock()
-	dp.netPolInfo.numBatches++
-	newCount := dp.netPolInfo.numBatches
+	dp.netPolInfo.pendingPolicies++
+	newCount := dp.netPolInfo.pendingPolicies
 
 	klog.Infof("[DataPlane] [%s] new netpol batch count: %d", context, newCount)
 
-	if newCount >= dp.IPTablesMaxBatches {
+	if newCount >= dp.IPTablesMaxPendingPolicies {
 		klog.Infof("[DataPlane] [%s] applying now since reached maximum batch count: %d", context, newCount)
 		dp.reconcileDirtyNetPolsNow(context)
 	}

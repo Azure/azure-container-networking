@@ -132,10 +132,10 @@ func start(config npmconfig.Config, flags npmconfig.Flags) error {
 			npmV2DataplaneCfg.IPTablesInterval = time.Duration(npmconfig.DefaultConfig.IPTablesIntervalInMilliseconds * int(time.Millisecond))
 		}
 
-		if config.IPTablesMaxBatches > 0 {
-			npmV2DataplaneCfg.IPTablesMaxBatches = config.IPTablesMaxBatches
+		if config.IPTablesMaxPendingPolicies > 0 {
+			npmV2DataplaneCfg.IPTablesMaxPendingPolicies = config.IPTablesMaxPendingPolicies
 		} else {
-			npmV2DataplaneCfg.IPTablesMaxBatches = npmconfig.DefaultConfig.IPTablesMaxBatches
+			npmV2DataplaneCfg.IPTablesMaxPendingPolicies = npmconfig.DefaultConfig.IPTablesMaxPendingPolicies
 		}
 
 		npmV2DataplaneCfg.ApplyInBackground = config.Toggles.ApplyInBackground

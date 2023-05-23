@@ -3,15 +3,15 @@ package npmconfig
 import "github.com/Azure/azure-container-networking/npm/util"
 
 const (
-	defaultResyncPeriod         = 15
-	defaultApplyMaxBatches      = 100
-	defaultApplyInterval        = 500
-	defaultMaxBatchedACLsPerPod = 30
-	defaultIPTablesMaxBatches   = 100
-	defaultIPTablesInterval     = 500
-	defaultListeningPort        = 10091
-	defaultGrpcPort             = 10092
-	defaultGrpcServicePort      = 9002
+	defaultResyncPeriod               = 15
+	defaultApplyMaxBatches            = 100
+	defaultApplyInterval              = 500
+	defaultMaxBatchedACLsPerPod       = 30
+	defaultIPTablesMaxPendingPolicies = 100
+	defaultIPTablesInterval           = 500
+	defaultListeningPort              = 10091
+	defaultGrpcPort                   = 10092
+	defaultGrpcServicePort            = 9002
 	// ConfigEnvPath is what's used by viper to load config path
 	ConfigEnvPath = "NPM_CONFIG"
 
@@ -37,7 +37,7 @@ var DefaultConfig = Config{
 	ApplyIntervalInMilliseconds: defaultApplyInterval,
 	MaxBatchedACLsPerPod:        defaultMaxBatchedACLsPerPod,
 
-	IPTablesMaxBatches:             defaultIPTablesMaxBatches,
+	IPTablesMaxPendingPolicies:     defaultIPTablesMaxPendingPolicies,
 	IPTablesIntervalInMilliseconds: defaultIPTablesInterval,
 
 	Toggles: Toggles{
@@ -76,7 +76,7 @@ type Config struct {
 	// The zero value is valid.
 	// A NetworkPolicy's ACLs are always in the same batch, and there will be at least one NetworkPolicy per batch.
 	MaxBatchedACLsPerPod           int     `json:"MaxBatchedACLsPerPod,omitempty"`
-	IPTablesMaxBatches             int     `json:"IPTablesMaxBatches,omitempty"`
+	IPTablesMaxPendingPolicies     int     `json:"IPTablesMaxPendingPolicies,omitempty"`
 	IPTablesIntervalInMilliseconds int     `json:"IPTablesIntervalInMilliseconds,omitempty"`
 	Toggles                        Toggles `json:"Toggles,omitempty"`
 }
