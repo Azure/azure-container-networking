@@ -16,7 +16,7 @@ var (
 	defaultCfg = &PolicyManagerCfg{
 		NodeIP:               "6.7.8.9",
 		PolicyMode:           IPSetPolicyMode,
-		PlaceAzureChainFirst: util.PlaceAzureChainAfterKubeServices,
+		PlaceAzureChainFirst: util.PlaceAzureChainFirst,
 	}
 
 	// below epList is no-op for linux
