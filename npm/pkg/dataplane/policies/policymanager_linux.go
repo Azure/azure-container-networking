@@ -112,9 +112,9 @@ func (pMgr *PolicyManager) reconcileDirtyNetPols() error {
 
 	// in case the removed NetPol is in the cache, mark it as not the kernel
 	for _, fakePolicy := range toRemove {
+		pMgr.policyMap.numInKernel--
 		if policy, ok := pMgr.policyMap.cache[fakePolicy.PolicyKey]; ok {
 			policy.inLinuxKernel = false
-			pMgr.policyMap.numInKernel--
 		}
 	}
 
