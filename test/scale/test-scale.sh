@@ -404,9 +404,15 @@ echo
 
 set -x
 $KUBECTL $KUBECONFIG_ARG create ns scale-test
-$KUBECTL $KUBECONFIG_ARG apply -f generated/kwok-nodes/
-$KUBECTL $KUBECONFIG_ARG apply -f generated/deployments/real/
-$KUBECTL $KUBECONFIG_ARG apply -f generated/deployments/kwok/
+if [[ $numKwokNodes -gt 0 ]]; then
+    $KUBECTL $KUBECONFIG_ARG apply -f generated/kwok-nodes/
+fi
+if [[ $numRealPods -gt 0 ]]; then
+    $KUBECTL $KUBECONFIG_ARG apply -f generated/deployments/real/
+fi
+if [[ $numKwokDeployments -gt 0 ]]; then
+    $KUBECTL $KUBECONFIG_ARG apply -f generated/deployments/kwok/
+fi
 set +x
 
 add_shared_labels() {
@@ -441,8 +447,12 @@ if [[ $numUniqueLabelsPerPod -gt 0 ]]; then
 fi
 
 set -x
-$KUBECTL $KUBECONFIG_ARG apply -f generated/networkpolicies/unapplied
-$KUBECTL $KUBECONFIG_ARG apply -f generated/networkpolicies/applied
+if [[ $numNetworkPolicies -gt 0 ]]; then
+    $KUBECTL $KUBECONFIG_ARG apply -f generated/networkpolicies/unapplied
+fi
+if [[ $numUnappliedNetworkPolicies -gt 0 ]]; then
+    $KUBECTL $KUBECONFIG_ARG apply -f generated/networkpolicies/applied
+fi
 set +x
 
 wait_for_pods
@@ -470,8 +480,12 @@ if [[ $deleteNetpols == true ]]; then
         
         echo "re-adding network policies. round $i/$deleteNetpolsTimes..."
         set -x
-        $KUBECTL $KUBECONFIG_ARG apply -f generated/networkpolicies/unapplied
-        $KUBECTL $KUBECONFIG_ARG apply -f generated/networkpolicies/applied
+        if [[ $numNetworkPolicies -gt 0 ]]; then
+            $KUBECTL $KUBECONFIG_ARG apply -f generated/networkpolicies/unapplied
+        fi
+        if [[ $numUnappliedNetworkPolicies -gt 0 ]]; then
+            $KUBECTL $KUBECONFIG_ARG apply -f generated/networkpolicies/applied
+        fi
         set +x
         echo "sleeping $deleteNetpolsInterval seconds after readding network policies (end of round $i/$deleteNetpolsTimes)..."
         sleep $deleteNetpolsInterval
