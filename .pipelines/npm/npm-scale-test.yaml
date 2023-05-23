@@ -80,8 +80,12 @@ jobs:
       matrix:
         v2-linux:
           PROFILE: "scale-linux"
+          NUM_NETPOLS: 800
+          INITIAL_CONNECTIVITY_TIMEOUT: 30
         # ws22:
         #   PROFILE: "scale-ws22"
+        #   NUM_NETPOLS: 50
+        #   INITIAL_CONNECTIVITY_TIMEOUT: 720
     steps:
       - checkout: self
       - bash: |
@@ -247,8 +251,8 @@ jobs:
                 --max-real-pods-per-node=30 \
                 --num-real-deployments=10 \
                 --num-real-replicas=3 \
-                --num-network-policies=50 \
-                --num-unapplied-network-policies=50 \
+                --num-network-policies=$(NUM_NETPOLS) \
+                --num-unapplied-network-policies=$(NUM_NETPOLS) \
                 --num-unique-labels-per-pod=2 \
                 --num-unique-labels-per-deployment=2 \
                 --num-shared-labels-per-pod=10
@@ -282,12 +286,13 @@ jobs:
             sleep 3m
 
             cd $(Pipeline.Workspace)/s/test/scale/connectivity/
+            # notes for Windows:
             # initial connectivity should be established within 15 minutes of NPM restart (12 minute timeout since we already waited 3 minutes above)
             # adding new network policy to all 30 Pods should happen within 30 seconds
             set +e
             ./test-connectivity.sh --kubectl-binary=$kubectlPath \
                 --num-scale-pods-to-verify=all \
-                --max-wait-for-initial-connectivity=$((12*60)) \
+                --max-wait-for-initial-connectivity=$(INITIAL_CONNECTIVITY_TIMEOUT) \
                 --max-wait-after-adding-netpol=30
             rc=$?
             if [[ $rc != 0 ]]; then
