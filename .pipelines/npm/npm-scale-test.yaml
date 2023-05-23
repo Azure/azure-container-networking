@@ -46,11 +46,15 @@ jobs:
       name: "$(BUILD_POOL_NAME_DEFAULT)"
     strategy:
       matrix:
-        npm_windows2022_amd64:
-          arch: amd64
-          name: npm
-          os: windows
-          os_version: ltsc2022
+        npm_linux_amd64:
+            arch: amd64
+            name: npm
+            os: linux
+        # npm_windows2022_amd64:
+        #   arch: amd64
+        #   name: npm
+        #   os: windows
+        #   os_version: ltsc2022
     steps:
       - template: ../containers/container-template.yaml
         parameters:
@@ -74,8 +78,10 @@ jobs:
       FQDN: empty
     strategy:
       matrix:
-        v2-windows:
-          PROFILE: "scale-win"
+        v2-linux:
+          PROFILE: "scale-linux"
+        # ws22:
+        #   PROFILE: "scale-ws22"
     steps:
       - checkout: self
       - bash: |
@@ -132,24 +138,26 @@ jobs:
                 --node-vm-size Standard_D4s_v3 \
                 --node-count 1
 
-            # don't schedule anything on the linux system pool
-            echo "Updating $CLUSTER_NAME to not schedule anything on linux pool..."
-            az aks nodepool update \
-              --cluster-name $CLUSTER_NAME \
-              -g $CLUSTER_NAME \
-              -n nodepool1 \
-              --node-taints CriticalAddonsOnly=true:NoSchedule
-
-            echo "Adding Windows nodepool to $CLUSTER_NAME"
-            az aks nodepool add \
-                --resource-group $CLUSTER_NAME \
+            if [[ $(PROFILE) == *ws22 ]]; fi
+              # don't schedule anything on the linux system pool
+              echo "Updating $CLUSTER_NAME to not schedule anything on linux pool..."
+              az aks nodepool update \
                 --cluster-name $CLUSTER_NAME \
-                --name awin22 \
-                --os-type Windows \
-                --os-sku Windows2022 \
-                --node-vm-size Standard_D4s_v3 \
-                --node-count 1 \
-                --max-pods 100
+                -g $CLUSTER_NAME \
+                -n nodepool1 \
+                --node-taints CriticalAddonsOnly=true:NoSchedule
+
+              echo "Adding Windows nodepool to $CLUSTER_NAME"
+              az aks nodepool add \
+                  --resource-group $CLUSTER_NAME \
+                  --cluster-name $CLUSTER_NAME \
+                  --name awin22 \
+                  --os-type Windows \
+                  --os-sku Windows2022 \
+                  --node-vm-size Standard_D4s_v3 \
+                  --node-count 1 \
+                  --max-pods 100
+            fi
 
             echo "Getting credentials to $CLUSTER_NAME"
             az aks get-credentials -g $CLUSTER_NAME -n $CLUSTER_NAME --overwrite-existing --file ./kubeconfig
@@ -168,13 +176,18 @@ jobs:
             set -e
 
             # deploy azure-npm
-            cp $(Pipeline.Workspace)/s/npm/examples/windows/azure-npm.yaml azure-npm.yaml
-            # set higher memory limit
+            cp $(Pipeline.Workspace)/s/npm/examples/windows/azure-npm.yaml
             sed -i 's/memory: 300Mi/memory: 1000Mi/g' azure-npm.yaml
             kubectl apply -f azure-npm.yaml
 
+            cp $(Pipeline.Workspace)/s/npm/examples/windows/azure-npm.yaml azure-npm-win.yaml
+            # set higher memory limit
+            sed -i 's/memory: 300Mi/memory: 1000Mi/g' azure-npm-win.yaml
+            kubectl apply -f azure-npm-win.yaml
+
             # swap azure-npm image with one built during run
-            kubectl set image daemonset/azure-npm-win -n kube-system azure-npm=$IMAGE_REGISTRY/azure-npm:windows-amd64-ltsc2022-$(TAG)
+            kubectl set image daemonset/azure-npm -n kube-system azure-npm=$IMAGE_REGISTRY/azure-npm:linux-amd64-$(TAG)
+            # kubectl set image daemonset/azure-npm-win -n kube-system azure-npm=$IMAGE_REGISTRY/azure-npm:windows-amd64-ltsc2022-$(TAG)
 
             sleep 5s
             echo "waiting for NPM to start running..."
@@ -184,8 +197,13 @@ jobs:
 
             kubectl get po -n kube-system -owide -A
 
-            echo "labeling Windows nodes for scale test"
-            kubectl get node -o wide | grep "Windows Server 2022 Datacenter" | awk '{print $1}' | xargs -n 1 -I {} kubectl label node {} scale-test=true connectivity-test=true
+            if [[ $(PROFILE) == *ws22 ]]; fi
+              echo "labeling Windows nodes for scale test"
+              kubectl get node -o wide | grep "Windows Server 2022 Datacenter" | awk '{print $1}' | xargs -n 1 -I {} kubectl label node {} scale-test=true connectivity-test=true
+            else
+              echo "labeling Linux nodes for scale test"
+              kubectl get node -o wide | grep "Ubuntu" | awk '{print $1}' | xargs -n 1 -I {} kubectl label node {} scale-test=true connectivity-test=true
+            fi
 
             export CLUSTER_NAME=$(RESOURCE_GROUP)-$(PROFILE)
             echo "Showing cluster status for $CLUSTER_NAME"
