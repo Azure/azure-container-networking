@@ -177,13 +177,13 @@ func (dp *DataPlane) RunPeriodicTasks() {
 					// Choose to keep netPolInfo locked while running iptables-restore within reconcileDirtyNetPolsNow.
 					// We are only blocking the NetPol controller, which wouldn't be able to use the PolicyManager while it's reconciling.
 					// Technically, NetPol controller could be adding IPSets during this lock, but this is very fast.
-					// Prefering thread safety over optimized performance.
+					// Preferring thread safety over optimized performance.
 					dp.netPolInfo.Lock()
 					if dp.netPolInfo.numBatches == 0 {
 						dp.netPolInfo.Unlock()
 						continue
 					}
-					_ = dp.reconcileDirtyNetPolsNow(contextBackground)
+					dp.reconcileDirtyNetPolsNow(contextBackground)
 					dp.netPolInfo.Unlock()
 				}
 			}
@@ -423,7 +423,8 @@ func (dp *DataPlane) AddPolicy(policy *policies.NPMNetworkPolicy) error {
 		return fmt.Errorf("[DataPlane] error while adding policy: %w", err)
 	}
 
-	return dp.incrementBatchAndReconcileDirtyNetPolsIfNeeded(contextAddNetPol)
+	dp.incrementBatchAndReconcileDirtyNetPolsIfNeeded(contextAddNetPol)
+	return nil
 }
 
 // RemovePolicy takes in network policyKey (namespace/name of network policy) and removes it from dataplane and cache
@@ -485,7 +486,8 @@ func (dp *DataPlane) RemovePolicy(policyKey string) error {
 		return err
 	}
 
-	return dp.incrementBatchAndReconcileDirtyNetPolsIfNeeded(contextDelNetPol)
+	dp.incrementBatchAndReconcileDirtyNetPolsIfNeeded(contextDelNetPol)
+	return nil
 }
 
 // UpdatePolicy takes in updated policy object, calculates the delta and applies changes
@@ -604,12 +606,12 @@ func (dp *DataPlane) deleteIPSetsAndReferences(sets []*ipsets.TranslatedIPSet, n
 }
 
 // reconcileDirtyNetPolsNow must be called while holding the netPolInfo Lock
-func (dp *DataPlane) reconcileDirtyNetPolsNow(context string) error {
+func (dp *DataPlane) reconcileDirtyNetPolsNow(context string) {
 	klog.Infof("[DataPlane] [%s] reconciling dirty NetPols", context)
 	if err := dp.policyMgr.ReconcileDirtyNetPols(); err != nil {
 		metrics.SendErrorLogAndMetric(util.IptmID, "[DataPlane] [%s] failed to reconcile dirty network policies due to %s", context, err.Error())
-		klog.Error("[DataPlane] [%s] failed to reconcile dirty network policies. err: %s", context, err.Error)
-		return fmt.Errorf("[DataPlane] [%s] failed to reconcile dirty network policies. err: %w", context, err)
+		klog.Errorf("[DataPlane] [%s] failed to reconcile dirty network policies. err: %s", context, err.Error())
+		return
 	}
 
 	dp.netPolInfo.numBatches = 0
@@ -636,13 +638,11 @@ func (dp *DataPlane) reconcileDirtyNetPolsNow(context string) error {
 		}
 	}
 	dp.netPolInfo.toDeleteSelectorReferences = make(map[string][]string)
-
-	return nil
 }
 
-func (dp *DataPlane) incrementBatchAndReconcileDirtyNetPolsIfNeeded(context string) error {
+func (dp *DataPlane) incrementBatchAndReconcileDirtyNetPolsIfNeeded(context string) {
 	if !dp.iptablesInBackground {
-		return nil
+		return
 	}
 
 	// Choose to keep netPolInfo locked while running iptables-restore within reconcileDirtyNetPolsNow.
@@ -656,10 +656,8 @@ func (dp *DataPlane) incrementBatchAndReconcileDirtyNetPolsIfNeeded(context stri
 
 	if newCount >= dp.IPTablesMaxBatches {
 		klog.Infof("[DataPlane] [%s] applying now since reached maximum batch count: %d", context, newCount)
-		return dp.reconcileDirtyNetPolsNow(context)
+		dp.reconcileDirtyNetPolsNow(context)
 	}
-
-	return nil
 }
 
 // adds temporary references so that we don't delete the IPSet while it's in an iptables rule.
