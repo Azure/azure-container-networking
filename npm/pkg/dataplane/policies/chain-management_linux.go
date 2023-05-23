@@ -180,6 +180,7 @@ func (pMgr *PolicyManager) bootup(_ []string) error {
 	defer pMgr.reconcileManager.forceUnlock()
 
 	if strings.Contains(util.Iptables, "nft") {
+		klog.Info("detected nft iptables. cleaning up legacy iptables")
 		util.Iptables = util.IptablesLegacy
 		util.IptablesSave = util.IptablesSaveLegacy
 		util.IptablesRestore = util.IptablesRestoreLegacy
@@ -252,6 +253,8 @@ func (pMgr *PolicyManager) bootup(_ []string) error {
 		util.IptablesRestore = util.IptablesRestoreNft
 	}
 
+	klog.Info("cleaning up default iptables")
+
 	// 1. delete the deprecated jump to AZURE-NPM
 	deprecatedErrCode, deprecatedErr := pMgr.ignoreErrorsAndRunIPTablesCommand(removeDeprecatedJumpIgnoredErrors, util.IptablesDeletionFlag, deprecatedJumpFromForwardToAzureChainArgs...)
 	if deprecatedErrCode == 0 {
@@ -266,6 +269,8 @@ func (pMgr *PolicyManager) bootup(_ []string) error {
 	if err != nil {
 		return npmerrors.SimpleErrorWrapper("failed to get current chains for bootup", err)
 	}
+
+	klog.Infof("found %d current chains in the default iptables", len(currentChains))
 
 	// 2. cleanup old NPM chains, and configure base chains and their rules.
 	creator := pMgr.creatorForBootup(currentChains)
@@ -389,6 +394,7 @@ func (pMgr *PolicyManager) creatorForBootup(currentChains map[string]struct{}) *
 	// Step 2.1 in bootup() comment: cleanup old NPM chains, and configure base chains and their rules
 	// To leave NPM deactivated, don't specify any rules for AZURE-NPM chain.
 	creator := pMgr.newCreatorWithChains(chainsToCreate)
+	creator.Verbose()
 	pMgr.staleChains.empty()
 	for chain := range currentChains {
 		creator.AddLine("", nil, fmt.Sprintf("-F %s", chain))
