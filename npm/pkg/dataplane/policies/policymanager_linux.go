@@ -24,6 +24,37 @@ const (
 	chainSectionPrefix = "chain"
 )
 
+type dirtyCache struct {
+	// key is policyKey
+	queue map[string][]*event
+}
+
+func newDirtyCache() *dirtyCache {
+	return &dirtyCache{
+		queue: make(map[string][]*event),
+	}
+}
+
+// event is used in Linux to process NetPols in background
+type event struct {
+	op           operation
+	deletedState *deletedState
+}
+
+type operation string
+
+const (
+	add    operation = "add"
+	remove operation = "remove"
+)
+
+type deletedState struct {
+	namespace       string
+	direction       Direction
+	podSelectorList []SetInfo
+	wasInKernel     bool
+}
+
 /*
 Error handling for iptables-restore:
 Currently we retry on any error and will make two tries max.
@@ -52,14 +83,12 @@ Process removals first (e.g. in case a NetPol is updated)
 Examples:
 1. NetPol is updated. First there will be RemovePolicy() and then AddPolicy(). We will remove the Policy, then add it.
 2. NetPol is added, then removed before we reconcile. We will NOT add the Policy. We will try removing the Policy, but it will not be there.
-
-TODO: handle #2 above. Make sure we don't error out when failing to delete a NetPol that was never in the kernel
 */
 func (pMgr *PolicyManager) reconcileDirtyNetPols() error {
 	pMgr.policyMap.Lock()
 	defer pMgr.policyMap.Unlock()
 
-	if len(pMgr.policyMap.linuxDirtyCache) == 0 {
+	if len(pMgr.policyMap.dirtyCache.queue) == 0 {
 		return nil
 	}
 
@@ -67,7 +96,7 @@ func (pMgr *PolicyManager) reconcileDirtyNetPols() error {
 
 	toRemove := make([]*NPMNetworkPolicy, 0)
 	toAdd := make([]*NPMNetworkPolicy, 0)
-	for key, events := range pMgr.policyMap.linuxDirtyCache {
+	for key, events := range pMgr.policyMap.dirtyCache.queue {
 		for _, e := range events {
 			if e.op == remove && e.deletedState.wasInKernel {
 				// Remove the NetPol if it was in the kernel when RemovePolicy() was called.
@@ -121,7 +150,7 @@ func (pMgr *PolicyManager) reconcileDirtyNetPols() error {
 	if len(toAdd) == 0 {
 		// nothing left to do
 		// empty the dirty cache
-		pMgr.policyMap.linuxDirtyCache = make(map[string][]*event)
+		pMgr.policyMap.dirtyCache.queue = make(map[string][]*event)
 		return nil
 	}
 
@@ -131,7 +160,7 @@ func (pMgr *PolicyManager) reconcileDirtyNetPols() error {
 		e := &event{op: add}
 		newDirtyCache[policy.PolicyKey] = []*event{e}
 	}
-	pMgr.policyMap.linuxDirtyCache = newDirtyCache
+	pMgr.policyMap.dirtyCache.queue = newDirtyCache
 
 	klog.Infof("[PolicyManager] starting to add all dirty NetPols")
 	if err := pMgr.addAllPolicies(toAdd); err != nil {
@@ -145,7 +174,7 @@ func (pMgr *PolicyManager) reconcileDirtyNetPols() error {
 	}
 
 	// empty the dirty cache
-	pMgr.policyMap.linuxDirtyCache = make(map[string][]*event)
+	pMgr.policyMap.dirtyCache.queue = make(map[string][]*event)
 
 	klog.Info("[PolicyManager] finished adding all dirty NetPols")
 	return nil
@@ -157,7 +186,7 @@ func (pMgr *PolicyManager) addPolicy(networkPolicy *NPMNetworkPolicy, _ map[stri
 	}
 
 	e := &event{op: add}
-	pMgr.policyMap.linuxDirtyCache[networkPolicy.PolicyKey] = append(pMgr.policyMap.linuxDirtyCache[networkPolicy.PolicyKey], e)
+	pMgr.policyMap.dirtyCache.queue[networkPolicy.PolicyKey] = append(pMgr.policyMap.dirtyCache.queue[networkPolicy.PolicyKey], e)
 	return nil
 
 }
@@ -209,7 +238,7 @@ func (pMgr *PolicyManager) removePolicy(networkPolicy *NPMNetworkPolicy, _ map[s
 		},
 	}
 
-	pMgr.policyMap.linuxDirtyCache[networkPolicy.PolicyKey] = append(pMgr.policyMap.linuxDirtyCache[networkPolicy.PolicyKey], e)
+	pMgr.policyMap.dirtyCache.queue[networkPolicy.PolicyKey] = append(pMgr.policyMap.dirtyCache.queue[networkPolicy.PolicyKey], e)
 	return nil
 }
 

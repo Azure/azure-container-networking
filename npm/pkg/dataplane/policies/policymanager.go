@@ -47,31 +47,11 @@ type PolicyManagerCfg struct {
 	IPTablesInBackground       bool
 }
 
-// event is used in Linux to process NetPols in background
-type event struct {
-	op           operation
-	deletedState *deletedState
-}
-
-type operation string
-
-const (
-	add    operation = "add"
-	remove operation = "remove"
-)
-
-type deletedState struct {
-	namespace       string
-	direction       Direction
-	podSelectorList []SetInfo
-	wasInKernel     bool
-}
-
 type PolicyMap struct {
 	sync.RWMutex
-	cache           map[string]*NPMNetworkPolicy
-	linuxDirtyCache map[string][]*event
-	numInKernel     int
+	cache       map[string]*NPMNetworkPolicy
+	dirtyCache  *dirtyCache
+	numInKernel int
 }
 
 type reconcileManager struct {
@@ -96,8 +76,8 @@ type PolicyManager struct {
 func NewPolicyManager(ioShim *common.IOShim, cfg *PolicyManagerCfg) *PolicyManager {
 	return &PolicyManager{
 		policyMap: &PolicyMap{
-			cache:           make(map[string]*NPMNetworkPolicy),
-			linuxDirtyCache: make(map[string][]*event),
+			cache:      make(map[string]*NPMNetworkPolicy),
+			dirtyCache: newDirtyCache(),
 		},
 		ioShim:      ioShim,
 		staleChains: newStaleChains(),

@@ -87,6 +87,12 @@ var baseACLsForCalicoCNI = []*NPMACLPolSettings{
 	},
 }
 
+type dirtyCache struct{} // unused in Windows
+
+func newDirtyCache() *dirtyCache {
+	return &dirtyCache{}
+}
+
 type aclBatch struct {
 	rules    []*NPMACLPolSettings
 	policies []string
