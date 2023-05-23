@@ -375,7 +375,7 @@ func (pMgr *PolicyManager) ignoreErrorsAndRunIPTablesCommand(ignored []*exitErro
 		if errCode > 0 {
 			metrics.SendErrorLogAndMetric(util.IptmID, "error: There was an error running command: [%s %s] Stderr: [%v, %s]", util.Iptables, allArgsString, exitError, outputString)
 		}
-		return errCode, npmerrors.SimpleErrorWrapper(fmt.Sprintf("failed to run iptables command [%s %s] Stderr: [%s]", util.Iptables, allArgsString, outputString), exitError)
+		return errCode, fmt.Errorf("failed to run iptables command [%s %s] Stderr: [%s]. err: [%w]", util.Iptables, allArgsString, outputString, exitError)
 	}
 	return 0, nil
 }
