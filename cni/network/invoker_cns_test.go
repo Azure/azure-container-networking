@@ -148,6 +148,107 @@ func TestCNSIPAMInvoker_Add_Overlay(t *testing.T) {
 			fields: fields{
 				podName:      testPodInfo.PodName,
 				podNamespace: testPodInfo.PodNamespace,
+				ipamMode:     util.DualStackOverlay,
+				cnsClient: &MockCNSClient{
+					require: require,
+					requestIPs: requestIPsHandler{
+						ipconfigArgument: getTestIPConfigsRequest(),
+						result: &cns.IPConfigsResponse{
+							PodIPInfo: []cns.PodIpInfo{
+								{
+									PodIPConfig: cns.IPSubnet{
+										IPAddress:    "10.0.1.10",
+										PrefixLength: 24,
+									},
+									NetworkContainerPrimaryIPConfig: cns.IPConfiguration{
+										IPSubnet: cns.IPSubnet{
+											IPAddress:    "10.0.1.0",
+											PrefixLength: 24,
+										},
+										DNSServers:       nil,
+										GatewayIPAddress: "10.0.0.1",
+									},
+									HostPrimaryIPInfo: cns.HostIPInfo{
+										Gateway:   "10.0.0.1",
+										PrimaryIP: "10.0.0.1",
+										Subnet:    "10.0.0.0/24",
+									},
+								},
+								{
+									PodIPConfig: cns.IPSubnet{
+										IPAddress:    "fd11:1234::1",
+										PrefixLength: 24,
+									},
+									NetworkContainerPrimaryIPConfig: cns.IPConfiguration{
+										IPSubnet: cns.IPSubnet{
+											IPAddress:    "fd11:1234::",
+											PrefixLength: 112,
+										},
+										DNSServers:       nil,
+										GatewayIPAddress: "fe80::1234:5678:9abc",
+									},
+									HostPrimaryIPInfo: cns.HostIPInfo{
+										Gateway:   "fe80::1234:5678:9abc",
+										PrimaryIP: "fe80::1234:5678:9abc",
+										Subnet:    "fd11:1234::/112",
+									},
+								},
+							},
+							Response: cns.Response{
+								ReturnCode: 0,
+								Message:    "",
+							},
+						},
+						err: nil,
+					},
+				},
+			},
+			args: args{
+				nwCfg: &cni.NetworkConfig{},
+				args: &cniSkel.CmdArgs{
+					ContainerID: "testcontainerid",
+					Netns:       "testnetns",
+					IfName:      "testifname",
+				},
+				hostSubnetPrefix: getCIDRNotationForAddress("10.0.0.1/24"),
+				options:          map[string]interface{}{},
+			},
+			wantIpv4Result: &cniTypesCurr.Result{
+				IPs: []*cniTypesCurr.IPConfig{
+					{
+						Address: *getCIDRNotationForAddress("10.0.1.10/24"),
+						Gateway: net.ParseIP("10.0.0.1"),
+					},
+				},
+				Routes: []*cniTypes.Route{
+					{
+						Dst: network.Ipv4DefaultRouteDstPrefix,
+						GW:  net.ParseIP("10.0.0.1"),
+					},
+				},
+			},
+			wantIpv6Result: &cniTypesCurr.Result{
+				IPs: []*cniTypesCurr.IPConfig{
+					{
+						Address: *getCIDRNotationForAddress("fd11:1234::1/112"),
+						Gateway: net.ParseIP("fe80::1234:5678:9abc"),
+					},
+				},
+				Routes: []*cniTypes.Route{
+					{
+						Dst: network.Ipv6DefaultRouteDstPrefix,
+						GW:  net.ParseIP("fe80::1234:5678:9abc"),
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "Test happy CNI Overlay add in consolidated overlay ipamMode",
+			fields: fields{
+				podName:      testPodInfo.PodName,
+				podNamespace: testPodInfo.PodNamespace,
+				ipamMode:     util.Overlay,
 				cnsClient: &MockCNSClient{
 					require: require,
 					requestIPs: requestIPsHandler{
@@ -860,6 +961,29 @@ func TestCNSIPAMInvoker_Delete_Overlay(t *testing.T) {
 				podName:      testPodInfo.PodName,
 				podNamespace: testPodInfo.PodNamespace,
 				ipamMode:     util.DualStackOverlay,
+				cnsClient: &MockCNSClient{
+					require: require,
+					releaseIPs: releaseIPsHandler{
+						ipconfigArgument: getTestIPConfigsRequest(),
+					},
+				},
+			},
+			args: args{
+				nwCfg: nil,
+				args: &cniSkel.CmdArgs{
+					ContainerID: "testcontainerid",
+					Netns:       "testnetns",
+					IfName:      "testifname",
+				},
+				options: map[string]interface{}{},
+			},
+		},
+		{
+			name: "test delete happy path in consolidated overlay ipamMode",
+			fields: fields{
+				podName:      testPodInfo.PodName,
+				podNamespace: testPodInfo.PodNamespace,
+				ipamMode:     util.Overlay,
 				cnsClient: &MockCNSClient{
 					require: require,
 					releaseIPs: releaseIPsHandler{
