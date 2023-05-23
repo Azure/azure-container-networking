@@ -487,7 +487,7 @@ func TestBackgroundQueue(t *testing.T) {
 	ioshim := common.NewMockIOShim(calls)
 	defer ioshim.VerifyCalls(t, calls)
 	pMgr := NewPolicyManager(ioshim, backgroundCfg)
-	require.Equal(t, pMgr.policyMap.numInKernel, 0)
+	require.Equal(t, pMgr.policyMap.policiesInKernel, 0)
 
 	// add two NetPols, but never add one NetPol because it was removed early
 	require.NoError(t, pMgr.AddPolicy(bothDirectionsNetPol(), nil))
@@ -500,7 +500,7 @@ func TestBackgroundQueue(t *testing.T) {
 	require.Equal(t, map[string]*NPMNetworkPolicy{
 		bothDirectionsNetPol().PolicyKey: bothDirectionsNetPol(),
 	}, pMgr.policyMap.cache)
-	require.Equal(t, pMgr.policyMap.numInKernel, 0)
+	require.Equal(t, pMgr.policyMap.policiesInKernel, 0)
 
 	require.NoError(t, pMgr.AddPolicy(ingressNetPol(), nil))
 	promVals{8, 2}.testPrometheusMetrics(t)
@@ -516,7 +516,7 @@ func TestBackgroundQueue(t *testing.T) {
 		bothDirectionsNetPol().PolicyKey: bothDirectionsNetPol(),
 		ingressNetPol().PolicyKey:        ingressNetPol(),
 	}, pMgr.policyMap.cache)
-	require.Equal(t, pMgr.policyMap.numInKernel, 0)
+	require.Equal(t, pMgr.policyMap.policiesInKernel, 0)
 
 	require.NoError(t, pMgr.AddPolicy(egressNetPol(), nil))
 	promVals{10, 3}.testPrometheusMetrics(t)
@@ -536,7 +536,7 @@ func TestBackgroundQueue(t *testing.T) {
 		ingressNetPol().PolicyKey:        ingressNetPol(),
 		egressNetPol().PolicyKey:         egressNetPol(),
 	}, pMgr.policyMap.cache)
-	require.Equal(t, pMgr.policyMap.numInKernel, 0)
+	require.Equal(t, pMgr.policyMap.policiesInKernel, 0)
 
 	require.NoError(t, pMgr.RemovePolicy(bothDirectionsNetPol().PolicyKey))
 	promVals{4, 3}.testPrometheusMetrics(t)
@@ -564,7 +564,7 @@ func TestBackgroundQueue(t *testing.T) {
 		ingressNetPol().PolicyKey: ingressNetPol(),
 		egressNetPol().PolicyKey:  egressNetPol(),
 	}, pMgr.policyMap.cache)
-	require.Equal(t, pMgr.policyMap.numInKernel, 0)
+	require.Equal(t, pMgr.policyMap.policiesInKernel, 0)
 
 	require.NoError(t, pMgr.RemovePolicy(ingressNetPol().PolicyKey))
 	promVals{2, 3}.testPrometheusMetrics(t)
@@ -600,7 +600,7 @@ func TestBackgroundQueue(t *testing.T) {
 	require.Equal(t, map[string]*NPMNetworkPolicy{
 		egressNetPol().PolicyKey: egressNetPol(),
 	}, pMgr.policyMap.cache)
-	require.Equal(t, pMgr.policyMap.numInKernel, 0)
+	require.Equal(t, pMgr.policyMap.policiesInKernel, 0)
 
 	require.NoError(t, pMgr.AddPolicy(ingressNetPol(), nil))
 	promVals{4, 4}.testPrometheusMetrics(t)
@@ -638,7 +638,7 @@ func TestBackgroundQueue(t *testing.T) {
 		ingressNetPol().PolicyKey: ingressNetPol(),
 		egressNetPol().PolicyKey:  egressNetPol(),
 	}, pMgr.policyMap.cache)
-	require.Equal(t, pMgr.policyMap.numInKernel, 0)
+	require.Equal(t, pMgr.policyMap.policiesInKernel, 0)
 
 	require.Nil(t, pMgr.ReconcileDirtyNetPols())
 	promVals{4, 4}.testPrometheusMetrics(t)
@@ -647,7 +647,7 @@ func TestBackgroundQueue(t *testing.T) {
 		ingressNetPol().PolicyKey: inKernel(ingressNetPol()),
 		egressNetPol().PolicyKey:  inKernel(egressNetPol()),
 	}, pMgr.policyMap.cache)
-	require.Equal(t, pMgr.policyMap.numInKernel, 2)
+	require.Equal(t, pMgr.policyMap.policiesInKernel, 2)
 
 	// delete NetPol
 	require.NoError(t, pMgr.RemovePolicy(egressNetPol().PolicyKey))
@@ -668,7 +668,7 @@ func TestBackgroundQueue(t *testing.T) {
 	require.Equal(t, map[string]*NPMNetworkPolicy{
 		ingressNetPol().PolicyKey: inKernel(ingressNetPol()),
 	}, pMgr.policyMap.cache)
-	require.Equal(t, pMgr.policyMap.numInKernel, 2)
+	require.Equal(t, pMgr.policyMap.policiesInKernel, 2)
 
 	require.NoError(t, pMgr.ReconcileDirtyNetPols())
 	promVals{2, 4}.testPrometheusMetrics(t)
@@ -676,7 +676,7 @@ func TestBackgroundQueue(t *testing.T) {
 	require.Equal(t, map[string]*NPMNetworkPolicy{
 		ingressNetPol().PolicyKey: inKernel(ingressNetPol()),
 	}, pMgr.policyMap.cache)
-	require.Equal(t, pMgr.policyMap.numInKernel, 1)
+	require.Equal(t, pMgr.policyMap.policiesInKernel, 1)
 
 	// update NetPol to have new PodSelector
 	require.NoError(t, pMgr.RemovePolicy(ingressNetPol().PolicyKey))
@@ -695,7 +695,7 @@ func TestBackgroundQueue(t *testing.T) {
 		},
 	}, pMgr.policyMap.dirtyCache.queue)
 	require.Equal(t, map[string]*NPMNetworkPolicy{}, pMgr.policyMap.cache)
-	require.Equal(t, pMgr.policyMap.numInKernel, 1)
+	require.Equal(t, pMgr.policyMap.policiesInKernel, 1)
 
 	ingressNetPolWithUpdatedPodSelector()
 	require.NoError(t, pMgr.AddPolicy(ingressNetPolWithUpdatedPodSelector(), nil))
@@ -724,7 +724,7 @@ func TestBackgroundQueue(t *testing.T) {
 	require.Equal(t, map[string]*NPMNetworkPolicy{
 		ingressNetPol().PolicyKey: inKernel(ingressNetPolWithUpdatedPodSelector()),
 	}, pMgr.policyMap.cache)
-	require.Equal(t, pMgr.policyMap.numInKernel, 1)
+	require.Equal(t, pMgr.policyMap.policiesInKernel, 1)
 
 	// be sure to delete NetPol even if recent delete is not inKernel
 	require.NoError(t, pMgr.RemovePolicy(ingressNetPol().PolicyKey))
@@ -743,7 +743,7 @@ func TestBackgroundQueue(t *testing.T) {
 		},
 	}, pMgr.policyMap.dirtyCache.queue)
 	require.Equal(t, map[string]*NPMNetworkPolicy{}, pMgr.policyMap.cache)
-	require.Equal(t, pMgr.policyMap.numInKernel, 1)
+	require.Equal(t, pMgr.policyMap.policiesInKernel, 1)
 
 	require.NoError(t, pMgr.AddPolicy(ingressNetPol(), nil))
 	promVals{2, 6}.testPrometheusMetrics(t)
@@ -764,7 +764,7 @@ func TestBackgroundQueue(t *testing.T) {
 	require.Equal(t, map[string]*NPMNetworkPolicy{
 		ingressNetPol().PolicyKey: ingressNetPol(),
 	}, pMgr.policyMap.cache)
-	require.Equal(t, pMgr.policyMap.numInKernel, 1)
+	require.Equal(t, pMgr.policyMap.policiesInKernel, 1)
 
 	require.NoError(t, pMgr.RemovePolicy(ingressNetPol().PolicyKey))
 	promVals{0, 6}.testPrometheusMetrics(t)
@@ -792,13 +792,13 @@ func TestBackgroundQueue(t *testing.T) {
 		},
 	}, pMgr.policyMap.dirtyCache.queue)
 	require.Equal(t, map[string]*NPMNetworkPolicy{}, pMgr.policyMap.cache)
-	require.Equal(t, pMgr.policyMap.numInKernel, 1)
+	require.Equal(t, pMgr.policyMap.policiesInKernel, 1)
 
 	require.NoError(t, pMgr.ReconcileDirtyNetPols())
 	promVals{0, 6}.testPrometheusMetrics(t)
 	require.Equal(t, map[string][]*event{}, pMgr.policyMap.dirtyCache.queue)
 	require.Equal(t, map[string]*NPMNetworkPolicy{}, pMgr.policyMap.cache)
-	require.Equal(t, pMgr.policyMap.numInKernel, 0)
+	require.Equal(t, pMgr.policyMap.policiesInKernel, 0)
 }
 
 func inKernel(p *NPMNetworkPolicy) *NPMNetworkPolicy {
