@@ -288,9 +288,9 @@ func TestCreatorForRemovePolicies(t *testing.T) {
 	defer ioshim.VerifyCalls(t, calls)
 	pMgr := NewPolicyManager(ioshim, ipsetConfig)
 
-	// 1. test without deactivation
+	// 1. test without deactivation (i.e. flushing azure chain when removing the last policy)
 	// hack: the cache is empty (and len(cache) != len(allTestNetworkPolicies)), so shouldDeactivate will be false
-	creator := pMgr.creatorForRemovingPolicies(chainNames(allTestNetworkPolicies))
+	creator := pMgr.creatorForRemovingPolicies(chainNames(allTestNetworkPolicies), false)
 	actualLines := strings.Split(creator.ToString(), "\n")
 	expectedLines := []string{
 		"*filter",
@@ -303,11 +303,11 @@ func TestCreatorForRemovePolicies(t *testing.T) {
 	}
 	dptestutils.AssertEqualLines(t, expectedLines, actualLines)
 
-	// 2. test with deactivation
+	// 2. test with deactivation (i.e. flushing azure chain when removing the last policy)
 	// add to the cache so that we deactivate
 	policy := TestNetworkPolicies[0]
 	require.NoError(t, pMgr.AddPolicy(policy, nil))
-	creator = pMgr.creatorForRemovingPolicies(chainNames([]*NPMNetworkPolicy{policy}))
+	creator = pMgr.creatorForRemovingPolicies(chainNames([]*NPMNetworkPolicy{policy}), true)
 	actualLines = strings.Split(creator.ToString(), "\n")
 	expectedLines = []string{
 		"*filter",

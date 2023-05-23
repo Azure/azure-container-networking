@@ -114,6 +114,7 @@ func (pMgr *PolicyManager) reconcileDirtyNetPols() error {
 	for _, fakePolicy := range toRemove {
 		if policy, ok := pMgr.policyMap.cache[fakePolicy.PolicyKey]; ok {
 			policy.inLinuxKernel = false
+			pMgr.policyMap.numInKernel--
 		}
 	}
 
@@ -140,6 +141,7 @@ func (pMgr *PolicyManager) reconcileDirtyNetPols() error {
 	// mark all added NetPols as in the kernel
 	for _, policy := range toAdd {
 		policy.inLinuxKernel = true
+		pMgr.policyMap.numInKernel++
 	}
 
 	// empty the dirty cache
@@ -213,7 +215,8 @@ func (pMgr *PolicyManager) removePolicy(networkPolicy *NPMNetworkPolicy, _ map[s
 
 func (pMgr *PolicyManager) removeAllPolicies(networkPolicies []*NPMNetworkPolicy) error {
 	chainsToDelete := chainNames(networkPolicies)
-	creator := pMgr.creatorForRemovingPolicies(chainsToDelete)
+	isLastPolicy := pMgr.isLastPolicy(len(networkPolicies))
+	creator := pMgr.creatorForRemovingPolicies(chainsToDelete, isLastPolicy)
 
 	// Stop reconciling so we don't contend for iptables, and so we don't update the staleChains at the same time as reconcile()
 	pMgr.reconcileManager.forceLock()
@@ -249,10 +252,10 @@ func restore(creator *ioutil.FileCreator) error {
 	return nil
 }
 
-func (pMgr *PolicyManager) creatorForRemovingPolicies(allChainNames []string) *ioutil.FileCreator {
+func (pMgr *PolicyManager) creatorForRemovingPolicies(allChainNames []string, isLastPolicy bool) *ioutil.FileCreator {
 	creator := pMgr.newCreatorWithChains(nil)
 	// 1. Deactivate NPM (if necessary).
-	if pMgr.isLastPolicy() {
+	if isLastPolicy {
 		creator.AddLine("", nil, util.IptablesFlushFlag, util.IptablesAzureChain)
 	}
 

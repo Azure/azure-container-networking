@@ -71,6 +71,7 @@ type PolicyMap struct {
 	sync.RWMutex
 	cache           map[string]*NPMNetworkPolicy
 	linuxDirtyCache map[string][]*event
+	numInKernel     int
 }
 
 type reconcileManager struct {
@@ -198,6 +199,9 @@ func (pMgr *PolicyManager) AddPolicy(policy *NPMNetworkPolicy, endpointList map[
 }
 
 func (pMgr *PolicyManager) isFirstPolicy() bool {
+	if pMgr.IPTablesInBackground {
+		return pMgr.policyMap.numInKernel == 0
+	}
 	return len(pMgr.policyMap.cache) == 0
 }
 
@@ -272,8 +276,11 @@ func (pMgr *PolicyManager) RemovePolicyForEndpoints(policyKey string, endpointLi
 	return nil
 }
 
-func (pMgr *PolicyManager) isLastPolicy() bool {
-	// if we change our code to delete more than one policy at once, we can specify numPoliciesToDelete as an argument
+func (pMgr *PolicyManager) isLastPolicy(toDelete int) bool {
+	if pMgr.IPTablesInBackground {
+		return pMgr.policyMap.numInKernel == toDelete
+	}
+
 	numPoliciesToDelete := 1
 	return len(pMgr.policyMap.cache) == numPoliciesToDelete
 }
