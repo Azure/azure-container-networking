@@ -261,13 +261,17 @@ wait_for_pods() {
     # wait for all pods to run
     minutesToWaitForRealPods=$(( 10 + $numRealPods / 250 ))
     set -x
-    $KUBECTL $KUBECONFIG_ARG wait --for=condition=Ready pods -n scale-test -l is-real=true --all --timeout="${minutesToWaitForRealPods}m"
+    if [[ $numRealPods -gt 0 ]]; then
+        $KUBECTL $KUBECONFIG_ARG wait --for=condition=Ready pods -n scale-test -l is-real=true --all --timeout="${minutesToWaitForRealPods}m"
+    fi
     set +x
 
     # just make sure kwok pods are Running, not necessarily Ready (sometimes kwok pods have NodeNotReady even though the node is ready)
     minutesToWaitForKwokPods=$(( 1 + $numKwokPods / 500 ))
     set -x
-    $KUBECTL $KUBECONFIG_ARG wait --for=condition=Initialized pods -n scale-test -l is-kwok=true --all --timeout="${minutesToWaitForKwokPods}m"
+    if [[ $numKwokPods -gt 0 ]]; then
+        $KUBECTL $KUBECONFIG_ARG wait --for=condition=Initialized pods -n scale-test -l is-kwok=true --all --timeout="${minutesToWaitForKwokPods}m"
+    fi
     set +x
 }
 
