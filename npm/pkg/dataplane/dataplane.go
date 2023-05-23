@@ -386,15 +386,15 @@ func (dp *DataPlane) RemovePolicy(policyKey string) error {
 	// because policy Manager will remove from policy from cache
 	// keep a local copy to remove references for ipsets
 	policy, ok := dp.policyMgr.GetPolicy(policyKey)
+	if !ok {
+		klog.Infof("[DataPlane] Policy %s is not found. Might been deleted already", policyKey)
+		return nil
+	}
+
 	endpoints := make(map[string]string, len(policy.PodEndpoints))
 
 	for podIP, endpointID := range policy.PodEndpoints {
 		endpoints[podIP] = endpointID
-	}
-
-	if !ok {
-		klog.Infof("[DataPlane] Policy %s is not found. Might been deleted already", policyKey)
-		return nil
 	}
 
 	// Use the endpoint list saved in cache for this network policy to remove
