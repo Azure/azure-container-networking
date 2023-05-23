@@ -147,7 +147,7 @@ data:
         "ApplyIntervalInMilliseconds":    500,
         "MaxBatchedACLsPerPod":           30,
         "IPTablesIntervalInMilliseconds": 500,
-        "IPTablesMaxPendingPolicies":             100,
+        "IPTablesMaxPendingPolicies":     100,
         "Toggles": {
             "EnablePrometheusMetrics": true,
             "EnablePprof":             true,

@@ -688,5 +688,5 @@ func (dp *DataPlane) addTemporaryIPSetReferences(sets []*ipsets.TranslatedIPSet,
 }
 
 func temporaryReference(policyKey string) string {
-	return "TMP-" + policyKey
+	return util.TmpIPSetReferenceDelimiter + policyKey
 }

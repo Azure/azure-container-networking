@@ -188,7 +188,6 @@ func (pMgr *PolicyManager) addPolicy(networkPolicy *NPMNetworkPolicy, _ map[stri
 	e := &event{op: add}
 	pMgr.policyMap.dirtyCache.queue[networkPolicy.PolicyKey] = append(pMgr.policyMap.dirtyCache.queue[networkPolicy.PolicyKey], e)
 	return nil
-
 }
 
 func (pMgr *PolicyManager) addAllPolicies(networkPolicies []*NPMNetworkPolicy) error {
