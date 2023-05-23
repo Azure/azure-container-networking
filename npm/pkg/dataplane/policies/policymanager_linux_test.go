@@ -14,6 +14,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var backgroundCfg = &PolicyManagerCfg{
+	NodeIP:               "6.7.8.9",
+	PolicyMode:           IPSetPolicyMode,
+	PlaceAzureChainFirst: util.PlaceAzureChainAfterKubeServices,
+	IPTablesInBackground: true,
+}
+
 // ACLs
 var (
 	ingressDeniedACL = &ACLPolicy{
@@ -102,8 +109,8 @@ var (
 )
 
 // NetworkPolicies
-var (
-	bothDirectionsNetPol = &NPMNetworkPolicy{
+func bothDirectionsNetPol() *NPMNetworkPolicy {
+	return &NPMNetworkPolicy{
 		Namespace:   "x",
 		PolicyKey:   "x/test1",
 		ACLPolicyID: "azure-acl-x-test1",
@@ -124,7 +131,10 @@ var (
 			egressAllowedACL,
 		},
 	}
-	ingressNetPol = &NPMNetworkPolicy{
+}
+
+func ingressNetPol() *NPMNetworkPolicy {
+	return &NPMNetworkPolicy{
 		Namespace:   "y",
 		PolicyKey:   "y/test2",
 		ACLPolicyID: "azure-acl-y-test2",
@@ -148,15 +158,29 @@ var (
 			ingressDeniedACL,
 		},
 	}
-	egressNetPol = &NPMNetworkPolicy{
-		Namespace:   "z",
-		PolicyKey:   "z/test3",
-		ACLPolicyID: "azure-acl-z-test3",
+}
+
+func ingressNetPolWithUpdatedPodSelector() *NPMNetworkPolicy {
+	p := ingressNetPol()
+	p.PodSelectorList = append(p.PodSelectorList, SetInfo{
+		IPSet:     ipsets.NewIPSetMetadata("test-abc", ipsets.Namespace),
+		Included:  false,
+		MatchType: EitherMatch,
+	})
+	return p
+}
+
+func egressNetPol() *NPMNetworkPolicy {
+	return &NPMNetworkPolicy{
+		Namespace:       "z",
+		PolicyKey:       "z/test3",
+		ACLPolicyID:     "azure-acl-z-test3",
+		PodSelectorList: []SetInfo{},
 		ACLs: []*ACLPolicy{
 			egressAllowedACL,
 		},
 	}
-)
+}
 
 // iptables rule constants for NetworkPolicies
 const (
@@ -168,10 +192,10 @@ const (
 
 // iptable rule variables for NetworkPolicies
 var (
-	bothDirectionsNetPolIngressChain = bothDirectionsNetPol.ingressChainName()
-	bothDirectionsNetPolEgressChain  = bothDirectionsNetPol.egressChainName()
-	ingressNetPolChain               = ingressNetPol.ingressChainName()
-	egressNetPolChain                = egressNetPol.egressChainName()
+	bothDirectionsNetPolIngressChain = bothDirectionsNetPol().ingressChainName()
+	bothDirectionsNetPolEgressChain  = bothDirectionsNetPol().egressChainName()
+	ingressNetPolChain               = ingressNetPol().ingressChainName()
+	egressNetPolChain                = egressNetPol().egressChainName()
 
 	ingressEgressNetPolIngressJump = fmt.Sprintf(
 		"-j %s -m set --match-set %s dst -m comment --comment %s",
@@ -192,16 +216,24 @@ var (
 		ipsets.TestNSSet.HashedName,
 		ingressNetPolJumpComment,
 	)
+	ingressNetPolJumpUpdatedPodSelector = fmt.Sprintf(
+		"-j %s -m set --match-set %s dst -m set --match-set %s dst -m set ! --match-set %s dst -m comment --comment %s",
+		ingressNetPolChain,
+		ipsets.TestKeyPodSet.HashedName,
+		ipsets.TestNSSet.HashedName,
+		ipsets.NewIPSetMetadata("test-abc", ipsets.Namespace).GetHashedName(),
+		"INGRESS-POLICY-y/test2-TO-podlabel-test-keyPod-set-AND-ns-test-ns-set-AND-!ns-test-abc-IN-ns-y",
+	)
 	egressNetPolJump = fmt.Sprintf("-j %s -m comment --comment %s", egressNetPolChain, egressNetPolJumpComment)
 )
 
-var allTestNetworkPolicies = []*NPMNetworkPolicy{bothDirectionsNetPol, ingressNetPol, egressNetPol}
+var allTestNetworkPolicies = []*NPMNetworkPolicy{bothDirectionsNetPol(), ingressNetPol(), egressNetPol()}
 
 func TestChainNames(t *testing.T) {
-	expectedName := fmt.Sprintf("AZURE-NPM-INGRESS-%s", util.Hash(bothDirectionsNetPol.PolicyKey))
-	require.Equal(t, expectedName, bothDirectionsNetPol.ingressChainName())
-	expectedName = fmt.Sprintf("AZURE-NPM-EGRESS-%s", util.Hash(bothDirectionsNetPol.PolicyKey))
-	require.Equal(t, expectedName, bothDirectionsNetPol.egressChainName())
+	expectedName := fmt.Sprintf("AZURE-NPM-INGRESS-%s", util.Hash(bothDirectionsNetPol().PolicyKey))
+	require.Equal(t, expectedName, bothDirectionsNetPol().ingressChainName())
+	expectedName = fmt.Sprintf("AZURE-NPM-EGRESS-%s", util.Hash(bothDirectionsNetPol().PolicyKey))
+	require.Equal(t, expectedName, bothDirectionsNetPol().egressChainName())
 }
 
 // similar to TestAddPolicy in policymanager.go except an error occurs
@@ -211,7 +243,7 @@ func TestAddPolicyFailure(t *testing.T) {
 	calls := GetAddPolicyFailureTestCalls(testNetPol)
 	ioshim := common.NewMockIOShim(calls)
 	defer ioshim.VerifyCalls(t, calls)
-	pMgr := NewPolicyManager(ioshim, ipsetConfig)
+	pMgr := NewPolicyManager(ioshim, defaultCfg)
 
 	require.Error(t, pMgr.AddPolicy(testNetPol, nil))
 	_, ok := pMgr.GetPolicy(testNetPol.PolicyKey)
@@ -223,7 +255,7 @@ func TestCreatorForAddPolicies(t *testing.T) {
 	calls := []testutils.TestCmd{fakeIPTablesRestoreCommand}
 	ioshim := common.NewMockIOShim(calls)
 	defer ioshim.VerifyCalls(t, calls)
-	pMgr := NewPolicyManager(ioshim, ipsetConfig)
+	pMgr := NewPolicyManager(ioshim, defaultCfg)
 
 	// 1. test with activation
 	policies := []*NPMNetworkPolicy{allTestNetworkPolicies[0]}
@@ -286,7 +318,7 @@ func TestCreatorForRemovePolicies(t *testing.T) {
 	calls := []testutils.TestCmd{fakeIPTablesRestoreCommand}
 	ioshim := common.NewMockIOShim(calls)
 	defer ioshim.VerifyCalls(t, calls)
-	pMgr := NewPolicyManager(ioshim, ipsetConfig)
+	pMgr := NewPolicyManager(ioshim, defaultCfg)
 
 	// 1. test without deactivation (i.e. flushing azure chain when removing the last policy)
 	// hack: the cache is empty (and len(cache) != len(allTestNetworkPolicies)), so shouldDeactivate will be false
@@ -333,10 +365,10 @@ func TestRemovePoliciesAcceptableError(t *testing.T) {
 	}
 	ioshim := common.NewMockIOShim(calls)
 	defer ioshim.VerifyCalls(t, calls)
-	pMgr := NewPolicyManager(ioshim, ipsetConfig)
-	require.NoError(t, pMgr.AddPolicy(bothDirectionsNetPol, epList))
-	require.NoError(t, pMgr.RemovePolicy(bothDirectionsNetPol.PolicyKey))
-	_, ok := pMgr.GetPolicy(bothDirectionsNetPol.PolicyKey)
+	pMgr := NewPolicyManager(ioshim, defaultCfg)
+	require.NoError(t, pMgr.AddPolicy(bothDirectionsNetPol(), epList))
+	require.NoError(t, pMgr.RemovePolicy(bothDirectionsNetPol().PolicyKey))
+	_, ok := pMgr.GetPolicy(bothDirectionsNetPol().PolicyKey)
 	require.False(t, ok)
 	promVals{0, 1}.testPrometheusMetrics(t)
 }
@@ -379,10 +411,10 @@ func TestRemovePoliciesError(t *testing.T) {
 			metrics.ReinitializeAll()
 			ioshim := common.NewMockIOShim(tt.calls)
 			defer ioshim.VerifyCalls(t, tt.calls)
-			pMgr := NewPolicyManager(ioshim, ipsetConfig)
-			err := pMgr.AddPolicy(bothDirectionsNetPol, nil)
+			pMgr := NewPolicyManager(ioshim, defaultCfg)
+			err := pMgr.AddPolicy(bothDirectionsNetPol(), nil)
 			require.NoError(t, err)
-			err = pMgr.RemovePolicy(bothDirectionsNetPol.PolicyKey)
+			err = pMgr.RemovePolicy(bothDirectionsNetPol().PolicyKey)
 			require.Error(t, err)
 
 			promVals{6, 1}.testPrometheusMetrics(t)
@@ -391,47 +423,385 @@ func TestRemovePoliciesError(t *testing.T) {
 }
 
 func TestUpdatingStaleChains(t *testing.T) {
-	calls := GetAddPolicyTestCalls(bothDirectionsNetPol)
-	calls = append(calls, GetRemovePolicyTestCalls(bothDirectionsNetPol)...)
-	calls = append(calls, GetAddPolicyTestCalls(ingressNetPol)...)
-	calls = append(calls, GetRemovePolicyFailureTestCalls(ingressNetPol)...)
-	calls = append(calls, GetAddPolicyTestCalls(egressNetPol)...)
-	calls = append(calls, GetRemovePolicyTestCalls(egressNetPol)...)
-	calls = append(calls, GetAddPolicyFailureTestCalls(bothDirectionsNetPol)...)
-	calls = append(calls, GetAddPolicyTestCalls(bothDirectionsNetPol)...)
+	calls := GetAddPolicyTestCalls(bothDirectionsNetPol())
+	calls = append(calls, GetRemovePolicyTestCalls(bothDirectionsNetPol())...)
+	calls = append(calls, GetAddPolicyTestCalls(ingressNetPol())...)
+	calls = append(calls, GetRemovePolicyFailureTestCalls(ingressNetPol())...)
+	calls = append(calls, GetAddPolicyTestCalls(egressNetPol())...)
+	calls = append(calls, GetRemovePolicyTestCalls(egressNetPol())...)
+	calls = append(calls, GetAddPolicyFailureTestCalls(bothDirectionsNetPol())...)
+	calls = append(calls, GetAddPolicyTestCalls(bothDirectionsNetPol())...)
 	ioshim := common.NewMockIOShim(calls)
 	defer ioshim.VerifyCalls(t, calls)
-	pMgr := NewPolicyManager(ioshim, ipsetConfig)
+	pMgr := NewPolicyManager(ioshim, defaultCfg)
 
 	// add so we can remove. no stale chains to start
-	require.NoError(t, pMgr.AddPolicy(bothDirectionsNetPol, nil))
+	require.NoError(t, pMgr.AddPolicy(bothDirectionsNetPol(), nil))
 	assertStaleChainsContain(t, pMgr.staleChains)
 
 	// successful removal, so mark the policy's chains as stale
-	require.NoError(t, pMgr.RemovePolicy(bothDirectionsNetPol.PolicyKey))
+	require.NoError(t, pMgr.RemovePolicy(bothDirectionsNetPol().PolicyKey))
 	assertStaleChainsContain(t, pMgr.staleChains, bothDirectionsNetPolIngressChain, bothDirectionsNetPolEgressChain)
 
 	// successful add, so keep the same stale chains
-	require.NoError(t, pMgr.AddPolicy(ingressNetPol, nil))
+	require.NoError(t, pMgr.AddPolicy(ingressNetPol(), nil))
 	assertStaleChainsContain(t, pMgr.staleChains, bothDirectionsNetPolIngressChain, bothDirectionsNetPolEgressChain)
 
 	// failure to remove, so keep the same stale chains
-	require.Error(t, pMgr.RemovePolicy(ingressNetPol.PolicyKey))
+	require.Error(t, pMgr.RemovePolicy(ingressNetPol().PolicyKey))
 	assertStaleChainsContain(t, pMgr.staleChains, bothDirectionsNetPolIngressChain, bothDirectionsNetPolEgressChain)
 
 	// successfully add a new policy. keep the same stale chains
-	require.NoError(t, pMgr.AddPolicy(egressNetPol, nil))
+	require.NoError(t, pMgr.AddPolicy(egressNetPol(), nil))
 	assertStaleChainsContain(t, pMgr.staleChains, bothDirectionsNetPolIngressChain, bothDirectionsNetPolEgressChain)
 
 	// successful removal, so mark the policy's chains as stale
-	require.NoError(t, pMgr.RemovePolicy(egressNetPol.PolicyKey))
+	require.NoError(t, pMgr.RemovePolicy(egressNetPol().PolicyKey))
 	assertStaleChainsContain(t, pMgr.staleChains, bothDirectionsNetPolIngressChain, bothDirectionsNetPolEgressChain, egressNetPolChain)
 
 	// failure to add, so keep the same stale chains the same
-	require.Error(t, pMgr.AddPolicy(bothDirectionsNetPol, nil))
+	require.Error(t, pMgr.AddPolicy(bothDirectionsNetPol(), nil))
 	assertStaleChainsContain(t, pMgr.staleChains, bothDirectionsNetPolIngressChain, bothDirectionsNetPolEgressChain, egressNetPolChain)
 
 	// successful add, so remove the policy's chains from the stale chains
-	require.NoError(t, pMgr.AddPolicy(bothDirectionsNetPol, nil))
+	require.NoError(t, pMgr.AddPolicy(bothDirectionsNetPol(), nil))
 	assertStaleChainsContain(t, pMgr.staleChains, egressNetPolChain)
+}
+
+func TestBackgroundQueue(t *testing.T) {
+	metrics.ReinitializeAll()
+	calls := []testutils.TestCmd{
+		// add two NetPols, but never add one NetPol because it was removed early
+		fakeIPTablesRestoreCommand,
+		// delete NetPol
+		getFakeDeleteJumpCommand("AZURE-NPM-EGRESS", egressNetPolJump),
+		fakeIPTablesRestoreCommand,
+		// update NetPol to have new PodSelector
+		getFakeDeleteJumpCommand("AZURE-NPM-INGRESS", ingressNetPolJump),
+		fakeIPTablesRestoreCommand,
+		fakeIPTablesRestoreCommand,
+		// be sure to delete NetPol even if recent delete is not inKernel
+		getFakeDeleteJumpCommand("AZURE-NPM-INGRESS", ingressNetPolJumpUpdatedPodSelector),
+		fakeIPTablesRestoreCommand,
+	}
+	ioshim := common.NewMockIOShim(calls)
+	defer ioshim.VerifyCalls(t, calls)
+	pMgr := NewPolicyManager(ioshim, backgroundCfg)
+	require.Equal(t, pMgr.policyMap.numInKernel, 0)
+
+	// add two NetPols, but never add one NetPol because it was removed early
+	require.NoError(t, pMgr.AddPolicy(bothDirectionsNetPol(), nil))
+	promVals{6, 1}.testPrometheusMetrics(t)
+	require.Equal(t, map[string][]*event{
+		bothDirectionsNetPol().PolicyKey: {
+			{op: add},
+		},
+	}, pMgr.policyMap.dirtyCache.queue)
+	require.Equal(t, map[string]*NPMNetworkPolicy{
+		bothDirectionsNetPol().PolicyKey: bothDirectionsNetPol(),
+	}, pMgr.policyMap.cache)
+	require.Equal(t, pMgr.policyMap.numInKernel, 0)
+
+	require.NoError(t, pMgr.AddPolicy(ingressNetPol(), nil))
+	promVals{8, 2}.testPrometheusMetrics(t)
+	require.Equal(t, map[string][]*event{
+		bothDirectionsNetPol().PolicyKey: {
+			{op: add},
+		},
+		ingressNetPol().PolicyKey: {
+			{op: add},
+		},
+	}, pMgr.policyMap.dirtyCache.queue)
+	require.Equal(t, map[string]*NPMNetworkPolicy{
+		bothDirectionsNetPol().PolicyKey: bothDirectionsNetPol(),
+		ingressNetPol().PolicyKey:        ingressNetPol(),
+	}, pMgr.policyMap.cache)
+	require.Equal(t, pMgr.policyMap.numInKernel, 0)
+
+	require.NoError(t, pMgr.AddPolicy(egressNetPol(), nil))
+	promVals{10, 3}.testPrometheusMetrics(t)
+	require.Equal(t, map[string][]*event{
+		bothDirectionsNetPol().PolicyKey: {
+			{op: add},
+		},
+		ingressNetPol().PolicyKey: {
+			{op: add},
+		},
+		egressNetPol().PolicyKey: {
+			{op: add},
+		},
+	}, pMgr.policyMap.dirtyCache.queue)
+	require.Equal(t, map[string]*NPMNetworkPolicy{
+		bothDirectionsNetPol().PolicyKey: bothDirectionsNetPol(),
+		ingressNetPol().PolicyKey:        ingressNetPol(),
+		egressNetPol().PolicyKey:         egressNetPol(),
+	}, pMgr.policyMap.cache)
+	require.Equal(t, pMgr.policyMap.numInKernel, 0)
+
+	require.NoError(t, pMgr.RemovePolicy(bothDirectionsNetPol().PolicyKey))
+	promVals{4, 3}.testPrometheusMetrics(t)
+	require.Equal(t, map[string][]*event{
+		bothDirectionsNetPol().PolicyKey: {
+			{op: add},
+			{
+				op: remove,
+				deletedState: &deletedState{
+					namespace:       bothDirectionsNetPol().Namespace,
+					direction:       Both,
+					podSelectorList: bothDirectionsNetPol().PodSelectorList,
+					wasInKernel:     false,
+				},
+			},
+		},
+		ingressNetPol().PolicyKey: {
+			{op: add},
+		},
+		egressNetPol().PolicyKey: {
+			{op: add},
+		},
+	}, pMgr.policyMap.dirtyCache.queue)
+	require.Equal(t, map[string]*NPMNetworkPolicy{
+		ingressNetPol().PolicyKey: ingressNetPol(),
+		egressNetPol().PolicyKey:  egressNetPol(),
+	}, pMgr.policyMap.cache)
+	require.Equal(t, pMgr.policyMap.numInKernel, 0)
+
+	require.NoError(t, pMgr.RemovePolicy(ingressNetPol().PolicyKey))
+	promVals{2, 3}.testPrometheusMetrics(t)
+	require.Equal(t, map[string][]*event{
+		bothDirectionsNetPol().PolicyKey: {
+			{op: add},
+			{
+				op: remove,
+				deletedState: &deletedState{
+					namespace:       bothDirectionsNetPol().Namespace,
+					direction:       Both,
+					podSelectorList: bothDirectionsNetPol().PodSelectorList,
+					wasInKernel:     false,
+				},
+			},
+		},
+		ingressNetPol().PolicyKey: {
+			{op: add},
+			{
+				op: remove,
+				deletedState: &deletedState{
+					namespace:       ingressNetPol().Namespace,
+					direction:       Ingress,
+					podSelectorList: ingressNetPol().PodSelectorList,
+					wasInKernel:     false,
+				},
+			},
+		},
+		egressNetPol().PolicyKey: {
+			{op: add},
+		},
+	}, pMgr.policyMap.dirtyCache.queue)
+	require.Equal(t, map[string]*NPMNetworkPolicy{
+		egressNetPol().PolicyKey: egressNetPol(),
+	}, pMgr.policyMap.cache)
+	require.Equal(t, pMgr.policyMap.numInKernel, 0)
+
+	require.NoError(t, pMgr.AddPolicy(ingressNetPol(), nil))
+	promVals{4, 4}.testPrometheusMetrics(t)
+	require.Equal(t, map[string][]*event{
+		bothDirectionsNetPol().PolicyKey: {
+			{op: add},
+			{
+				op: remove,
+				deletedState: &deletedState{
+					namespace:       bothDirectionsNetPol().Namespace,
+					direction:       Both,
+					podSelectorList: bothDirectionsNetPol().PodSelectorList,
+					wasInKernel:     false,
+				},
+			},
+		},
+		ingressNetPol().PolicyKey: {
+			{op: add},
+			{
+				op: remove,
+				deletedState: &deletedState{
+					namespace:       ingressNetPol().Namespace,
+					direction:       Ingress,
+					podSelectorList: ingressNetPol().PodSelectorList,
+					wasInKernel:     false,
+				},
+			},
+			{op: add},
+		},
+		egressNetPol().PolicyKey: {
+			{op: add},
+		},
+	}, pMgr.policyMap.dirtyCache.queue)
+	require.Equal(t, map[string]*NPMNetworkPolicy{
+		ingressNetPol().PolicyKey: ingressNetPol(),
+		egressNetPol().PolicyKey:  egressNetPol(),
+	}, pMgr.policyMap.cache)
+	require.Equal(t, pMgr.policyMap.numInKernel, 0)
+
+	require.Nil(t, pMgr.ReconcileDirtyNetPols())
+	promVals{4, 4}.testPrometheusMetrics(t)
+	require.Equal(t, map[string][]*event{}, pMgr.policyMap.dirtyCache.queue)
+	require.Equal(t, map[string]*NPMNetworkPolicy{
+		ingressNetPol().PolicyKey: inKernel(ingressNetPol()),
+		egressNetPol().PolicyKey:  inKernel(egressNetPol()),
+	}, pMgr.policyMap.cache)
+	require.Equal(t, pMgr.policyMap.numInKernel, 2)
+
+	// delete NetPol
+	require.NoError(t, pMgr.RemovePolicy(egressNetPol().PolicyKey))
+	promVals{2, 4}.testPrometheusMetrics(t)
+	require.Equal(t, map[string][]*event{
+		egressNetPol().PolicyKey: {
+			{
+				op: remove,
+				deletedState: &deletedState{
+					namespace:       egressNetPol().Namespace,
+					direction:       Egress,
+					podSelectorList: egressNetPol().PodSelectorList,
+					wasInKernel:     true,
+				},
+			},
+		},
+	}, pMgr.policyMap.dirtyCache.queue)
+	require.Equal(t, map[string]*NPMNetworkPolicy{
+		ingressNetPol().PolicyKey: inKernel(ingressNetPol()),
+	}, pMgr.policyMap.cache)
+	require.Equal(t, pMgr.policyMap.numInKernel, 2)
+
+	require.NoError(t, pMgr.ReconcileDirtyNetPols())
+	promVals{2, 4}.testPrometheusMetrics(t)
+	require.Equal(t, map[string][]*event{}, pMgr.policyMap.dirtyCache.queue)
+	require.Equal(t, map[string]*NPMNetworkPolicy{
+		ingressNetPol().PolicyKey: inKernel(ingressNetPol()),
+	}, pMgr.policyMap.cache)
+	require.Equal(t, pMgr.policyMap.numInKernel, 1)
+
+	// update NetPol to have new PodSelector
+	require.NoError(t, pMgr.RemovePolicy(ingressNetPol().PolicyKey))
+	promVals{0, 4}.testPrometheusMetrics(t)
+	require.Equal(t, map[string][]*event{
+		ingressNetPol().PolicyKey: {
+			{
+				op: remove,
+				deletedState: &deletedState{
+					namespace:       ingressNetPol().Namespace,
+					direction:       Ingress,
+					podSelectorList: ingressNetPol().PodSelectorList,
+					wasInKernel:     true,
+				},
+			},
+		},
+	}, pMgr.policyMap.dirtyCache.queue)
+	require.Equal(t, map[string]*NPMNetworkPolicy{}, pMgr.policyMap.cache)
+	require.Equal(t, pMgr.policyMap.numInKernel, 1)
+
+	ingressNetPolWithUpdatedPodSelector()
+	require.NoError(t, pMgr.AddPolicy(ingressNetPolWithUpdatedPodSelector(), nil))
+	promVals{2, 5}.testPrometheusMetrics(t)
+	require.Equal(t, map[string][]*event{
+		ingressNetPol().PolicyKey: {
+			{
+				op: remove,
+				deletedState: &deletedState{
+					namespace:       ingressNetPol().Namespace,
+					direction:       Ingress,
+					podSelectorList: ingressNetPol().PodSelectorList,
+					wasInKernel:     true,
+				},
+			},
+			{op: add},
+		},
+	}, pMgr.policyMap.dirtyCache.queue)
+	require.Equal(t, map[string]*NPMNetworkPolicy{
+		ingressNetPol().PolicyKey: ingressNetPolWithUpdatedPodSelector(),
+	}, pMgr.policyMap.cache)
+
+	require.NoError(t, pMgr.ReconcileDirtyNetPols())
+	promVals{2, 5}.testPrometheusMetrics(t)
+	require.Equal(t, map[string][]*event{}, pMgr.policyMap.dirtyCache.queue)
+	require.Equal(t, map[string]*NPMNetworkPolicy{
+		ingressNetPol().PolicyKey: inKernel(ingressNetPolWithUpdatedPodSelector()),
+	}, pMgr.policyMap.cache)
+	require.Equal(t, pMgr.policyMap.numInKernel, 1)
+
+	// be sure to delete NetPol even if recent delete is not inKernel
+	require.NoError(t, pMgr.RemovePolicy(ingressNetPol().PolicyKey))
+	promVals{0, 5}.testPrometheusMetrics(t)
+	require.Equal(t, map[string][]*event{
+		ingressNetPol().PolicyKey: {
+			{
+				op: remove,
+				deletedState: &deletedState{
+					namespace:       ingressNetPol().Namespace,
+					direction:       Ingress,
+					podSelectorList: ingressNetPolWithUpdatedPodSelector().PodSelectorList,
+					wasInKernel:     true,
+				},
+			},
+		},
+	}, pMgr.policyMap.dirtyCache.queue)
+	require.Equal(t, map[string]*NPMNetworkPolicy{}, pMgr.policyMap.cache)
+	require.Equal(t, pMgr.policyMap.numInKernel, 1)
+
+	require.NoError(t, pMgr.AddPolicy(ingressNetPol(), nil))
+	promVals{2, 6}.testPrometheusMetrics(t)
+	require.Equal(t, map[string][]*event{
+		ingressNetPol().PolicyKey: {
+			{
+				op: remove,
+				deletedState: &deletedState{
+					namespace:       ingressNetPol().Namespace,
+					direction:       Ingress,
+					podSelectorList: ingressNetPolWithUpdatedPodSelector().PodSelectorList,
+					wasInKernel:     true,
+				},
+			},
+			{op: add},
+		},
+	}, pMgr.policyMap.dirtyCache.queue)
+	require.Equal(t, map[string]*NPMNetworkPolicy{
+		ingressNetPol().PolicyKey: ingressNetPol(),
+	}, pMgr.policyMap.cache)
+	require.Equal(t, pMgr.policyMap.numInKernel, 1)
+
+	require.NoError(t, pMgr.RemovePolicy(ingressNetPol().PolicyKey))
+	promVals{0, 6}.testPrometheusMetrics(t)
+	require.Equal(t, map[string][]*event{
+		ingressNetPol().PolicyKey: {
+			{
+				op: remove,
+				deletedState: &deletedState{
+					namespace:       ingressNetPol().Namespace,
+					direction:       Ingress,
+					podSelectorList: ingressNetPolWithUpdatedPodSelector().PodSelectorList,
+					wasInKernel:     true,
+				},
+			},
+			{op: add},
+			{
+				op: remove,
+				deletedState: &deletedState{
+					namespace:       ingressNetPol().Namespace,
+					direction:       Ingress,
+					podSelectorList: ingressNetPol().PodSelectorList,
+					wasInKernel:     false,
+				},
+			},
+		},
+	}, pMgr.policyMap.dirtyCache.queue)
+	require.Equal(t, map[string]*NPMNetworkPolicy{}, pMgr.policyMap.cache)
+	require.Equal(t, pMgr.policyMap.numInKernel, 1)
+
+	require.NoError(t, pMgr.ReconcileDirtyNetPols())
+	promVals{0, 6}.testPrometheusMetrics(t)
+	require.Equal(t, map[string][]*event{}, pMgr.policyMap.dirtyCache.queue)
+	require.Equal(t, map[string]*NPMNetworkPolicy{}, pMgr.policyMap.cache)
+	require.Equal(t, pMgr.policyMap.numInKernel, 0)
+}
+
+func inKernel(p *NPMNetworkPolicy) *NPMNetworkPolicy {
+	p.inLinuxKernel = true
+	return p
 }
