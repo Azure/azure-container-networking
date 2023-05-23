@@ -155,12 +155,13 @@ data:
         "ApplyIntervalInMilliseconds":    500,
         "MaxBatchedACLsPerPod":           30,
         "IPTablesIntervalInMilliseconds": 500,
+        "IPTablesMaxBatches":             100,
         "Toggles": {
             "EnablePrometheusMetrics": true,
             "EnablePprof":             true,
             "EnableHTTPDebugAPI":      true,
             "EnableV2NPM":             true,
-            "PlaceAzureChainFirst":    true,
+            "PlaceAzureChainFirst":    false,
             "ApplyIPSetsOnNeed":       false,
             "ApplyInBackground":       true,
             "IPTablesInBackground":    true

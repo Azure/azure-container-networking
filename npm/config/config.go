@@ -45,7 +45,7 @@ var DefaultConfig = Config{
 		EnablePprof:             true,
 		EnableHTTPDebugAPI:      true,
 		EnableV2NPM:             true,
-		PlaceAzureChainFirst:    util.PlaceAzureChainFirst,
+		PlaceAzureChainFirst:    util.PlaceAzureChainAfterKubeServices,
 		ApplyIPSetsOnNeed:       false,
 		ApplyInBackground:       true,
 		IPTablesInBackground:    true,

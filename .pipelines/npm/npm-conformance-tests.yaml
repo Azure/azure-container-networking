@@ -94,17 +94,21 @@ jobs:
           AZURE_CLUSTER: "conformance-v1-default"
           PROFILE: "v1-default"
           IS_STRESS_TEST: "false"
-        v2-default:
-          AZURE_CLUSTER: "conformance-v2-default"
-          PROFILE: "v2-default"
+        v2-foreground:
+          AZURE_CLUSTER: "conformance-v2-foreground"
+          PROFILE: "v2-foreground"
           IS_STRESS_TEST: "false"
-        v2-default-ws22:
-          AZURE_CLUSTER: "conformance-v2-default-ws22"
+        v2-background:
+          AZURE_CLUSTER: "conformance-v2-background"
+          PROFILE: "v2-background"
+          IS_STRESS_TEST: "false"
+        v2-ws22:
+          AZURE_CLUSTER: "conformance-v2-ws22"
           PROFILE: "v2-default-ws22"
           IS_STRESS_TEST: "false"
-        v2-default-stress:
-          AZURE_CLUSTER: "conformance-v2-default-stress"
-          PROFILE: "v2-default"
+        v2-linux-stress:
+          AZURE_CLUSTER: "conformance-v2-linux-stress"
+          PROFILE: "v2-background"
           IS_STRESS_TEST: "true"
     pool:
       name: $(BUILD_POOL_NAME_DEFAULT)
