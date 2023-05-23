@@ -17,9 +17,9 @@ func createNCRequestFromStaticNCHelper(nc v1alpha.NetworkContainer, primaryIPPre
 	secondaryIPConfigs := map[string]cns.SecondaryIPConfig{}
 
 	// if NC DefaultGateway is empty, set the 0th IP to the gateway and add the rest of the IPs
-	// as secondary IPs
+	// as secondary IPs (for ipv4 only)
 	startingAddr := primaryIPPrefix.Masked().Addr() // the masked address is the 0th IP in the subnet
-	if nc.DefaultGateway == "" {
+	if nc.DefaultGateway == "" && startingAddr.Is4() {
 		nc.DefaultGateway = startingAddr.String()
 		startingAddr = startingAddr.Next()
 	}

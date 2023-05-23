@@ -2,6 +2,7 @@ package nodenetworkconfig
 
 import (
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/Azure/azure-container-networking/cns"
@@ -10,19 +11,23 @@ import (
 )
 
 const (
-	uuid               = "539970a2-c2dd-11ea-b3de-0242ac130004"
-	defaultGateway     = "10.0.0.2"
-	ipIsCIDR           = "10.0.0.1/32"
-	ipMalformed        = "10.0.0.0.0"
-	ncID               = "160005ba-cd02-11ea-87d0-0242ac130003"
-	primaryIP          = "10.0.0.1"
-	overlayPrimaryIP   = "10.0.0.1/30"
-	subnetAddressSpace = "10.0.0.0/24"
-	subnetName         = "subnet1"
-	subnetPrefixLen    = 24
-	testSecIP          = "10.0.0.2"
-	version            = 1
-	nodeIP             = "10.1.0.5"
+	uuid                   = "539970a2-c2dd-11ea-b3de-0242ac130004"
+	defaultGateway         = "10.0.0.2"
+	ipIsCIDR               = "10.0.0.1/32"
+	ipMalformed            = "10.0.0.0.0"
+	ncID                   = "160005ba-cd02-11ea-87d0-0242ac130003"
+	primaryIP              = "10.0.0.1"
+	overlayPrimaryIP       = "10.0.0.1/30"
+	overlayPrimaryIPv6     = "fd04:d27:ea49::/126"
+	subnetAddressSpace     = "10.0.0.0/24"
+	subnetIPv6AddressSpace = "fd04:d27:ea49::/120"
+	subnetName             = "subnet1"
+	subnetPrefixLen        = 24
+	subnetIPv6PrefixLen    = 120
+	testSecIP              = "10.0.0.2"
+	version                = 1
+	nodeIP                 = "10.1.0.5"
+	nodeIPv6               = "fd04:d27:ea49:ffff:ffff:ffff:ffff:ffff"
 )
 
 var invalidStatusMultiNC = v1alpha.NodeNetworkConfigStatus{
@@ -85,6 +90,47 @@ var validOverlayNC = v1alpha.NetworkContainer{
 	SubnetName:         subnetName,
 	SubnetAddressSpace: subnetAddressSpace,
 	Version:            version,
+}
+
+var validIPv6OverlayNC = v1alpha.NetworkContainer{
+	ID:                 ncID,
+	AssignmentMode:     v1alpha.Static,
+	Type:               v1alpha.Overlay,
+	PrimaryIP:          overlayPrimaryIPv6,
+	NodeIP:             nodeIPv6,
+	SubnetName:         subnetName,
+	SubnetAddressSpace: subnetIPv6AddressSpace,
+	Version:            version,
+}
+
+var validIPv6OverlayRequest = &cns.CreateNetworkContainerRequest{
+	Version: strconv.FormatInt(version, 10),
+	IPConfiguration: cns.IPConfiguration{
+		IPSubnet: cns.IPSubnet{
+			PrefixLength: uint8(subnetIPv6PrefixLen),
+			IPAddress:    strings.Split(overlayPrimaryIPv6, "/")[0],
+		},
+	},
+	NetworkContainerid:   ncID,
+	NetworkContainerType: cns.Docker,
+	SecondaryIPConfigs: map[string]cns.SecondaryIPConfig{
+		"fd04:d27:ea49::": {
+			IPAddress: "fd04:d27:ea49::",
+			NCVersion: version,
+		},
+		"fd04:d27:ea49::1": {
+			IPAddress: "fd04:d27:ea49::1",
+			NCVersion: version,
+		},
+		"fd04:d27:ea49::2": {
+			IPAddress: "fd04:d27:ea49::2",
+			NCVersion: version,
+		},
+		"fd04:d27:ea49::3": {
+			IPAddress: "fd04:d27:ea49::3",
+			NCVersion: version,
+		},
+	},
 }
 
 func TestCreateNCRequestFromDynamicNC(t *testing.T) {
@@ -208,6 +254,12 @@ func TestCreateNCRequestFromStaticNC(t *testing.T) {
 			input:   validOverlayNC,
 			wantErr: false,
 			want:    validOverlayRequest,
+		},
+		{
+			name:    "valid IPv6 overlay",
+			input:   validIPv6OverlayNC,
+			wantErr: false,
+			want:    validIPv6OverlayRequest,
 		},
 		{
 			name: "malformed primary IP",
