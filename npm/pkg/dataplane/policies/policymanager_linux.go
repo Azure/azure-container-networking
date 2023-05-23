@@ -5,10 +5,8 @@ package policies
 import (
 	"fmt"
 
-	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/npm/metrics"
 	"github.com/Azure/azure-container-networking/npm/util"
-	npmerrors "github.com/Azure/azure-container-networking/npm/util/errors"
 	"github.com/Azure/azure-container-networking/npm/util/ioutil"
 	"k8s.io/klog"
 )
@@ -132,7 +130,7 @@ func (pMgr *PolicyManager) reconcileDirtyNetPols() error {
 	if len(toRemove) > 0 {
 		klog.Infof("[PolicyManager] starting to remove all dirty NetPols")
 		if err := pMgr.removeAllPolicies(toRemove); err != nil {
-			return npmerrors.SimpleErrorWrapper("failed to remove dirty NetPols", err)
+			return fmt.Errorf("failed to remove dirty NetPols. err: %w", err)
 		}
 		klog.Info("[PolicyManager] finished removing all dirty NetPols")
 	}
@@ -164,7 +162,7 @@ func (pMgr *PolicyManager) reconcileDirtyNetPols() error {
 
 	klog.Infof("[PolicyManager] starting to add all dirty NetPols")
 	if err := pMgr.addAllPolicies(toAdd); err != nil {
-		return npmerrors.SimpleErrorWrapper("failed to add dirty NetPols", err)
+		return fmt.Errorf("failed to add dirty NetPols. err: %w", err)
 	}
 
 	// mark all added NetPols as in the kernel
@@ -201,7 +199,7 @@ func (pMgr *PolicyManager) addAllPolicies(networkPolicies []*NPMNetworkPolicy) e
 
 	err := restore(creator)
 	if err != nil {
-		return npmerrors.SimpleErrorWrapper("failed to restore iptables with updated policies", err)
+		return fmt.Errorf("failed to restore iptables with updated policies. err: %w", err)
 	}
 
 	// 2. Make sure the new chains don't get deleted in the background
@@ -255,14 +253,14 @@ func (pMgr *PolicyManager) removeAllPolicies(networkPolicies []*NPMNetworkPolicy
 		// We ought to delete these jump rules here in the foreground since if we add an NP back after deleting, iptables-restore --noflush can add duplicate jump rules.
 		deleteErr := pMgr.deleteOldJumpRulesOnRemove(networkPolicy)
 		if deleteErr != nil {
-			return npmerrors.SimpleErrorWrapper("failed to delete jumps to policy chains", deleteErr)
+			return fmt.Errorf("failed to delete jumps to policy chains. err: %w", deleteErr)
 		}
 	}
 
 	// 2. Flush the policy chains and deactivate NPM (if necessary).
 	restoreErr := restore(creator)
 	if restoreErr != nil {
-		return npmerrors.SimpleErrorWrapper("failed to flush policies", restoreErr)
+		return fmt.Errorf("failed to flush policies. err: %w", restoreErr)
 	}
 
 	// 3. Delete policy chains in the background.
@@ -275,7 +273,7 @@ func (pMgr *PolicyManager) removeAllPolicies(networkPolicies []*NPMNetworkPolicy
 func restore(creator *ioutil.FileCreator) error {
 	err := creator.RunCommandWithFile(util.IptablesRestore, util.IptablesWaitFlag, util.IptablesDefaultWaitTime, util.IptablesRestoreTableFlag, util.IptablesFilterTable, util.IptablesRestoreNoFlushFlag)
 	if err != nil {
-		return npmerrors.SimpleErrorWrapper("failed to restore iptables file", err)
+		return fmt.Errorf("failed to restore iptables file. err: %w", err)
 	}
 	return nil
 }
@@ -360,8 +358,8 @@ func (pMgr *PolicyManager) deleteJumpRule(policy *NPMNetworkPolicy, direction Un
 	// if this actually happens (don't think it should), could use ignoreErrorsAndRunIPTablesCommand instead with: "Bad rule (does a matching rule exist in that chain?)"
 	if err != nil && errCode != doesNotExistErrorCode {
 		errorString := fmt.Sprintf("failed to delete jump from %s chain to %s chain for policy %s with exit code %d", baseChainName, chainName, policy.PolicyKey, errCode)
-		log.Errorf("%s: %w", errorString, err)
-		return npmerrors.SimpleErrorWrapper(errorString, err)
+		klog.Errorf("%s. err: %s", errorString, err.Error())
+		return fmt.Errorf("%s. err: %w", errorString, err)
 	}
 	return nil
 }
