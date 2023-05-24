@@ -7,7 +7,7 @@ import (
 )
 
 var validOverlayRequest = &cns.CreateNetworkContainerRequest{
-	Version: strconv.FormatInt(version, 10),
+	Version: strconv.FormatInt(0, 10),
 	IPConfiguration: cns.IPConfiguration{
 		IPSubnet: cns.IPSubnet{
 			PrefixLength: uint8(subnetPrefixLen),
