@@ -3,6 +3,7 @@ package policies
 // This file contains code for the iptables implementation of adding/removing policies.
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/Azure/azure-container-networking/npm/metrics"
@@ -21,6 +22,8 @@ const (
 
 	chainSectionPrefix = "chain"
 )
+
+var ErrReconcileDirtyNetPols = errors.New("failed to reconcile some dirty netpols")
 
 type dirtyCache struct {
 	// key is policyKey
@@ -73,14 +76,14 @@ Known errors that we should retry on:
 */
 
 /*
-Remove all NetworkPolicies that had a RemovePolicy() call.
+Remove all NetworkPolicies that had a RemovePolicy() call and are in the kernel.
 Add all NetworkPolicies which had an AddPolicy() call as the most recent call.
 
 Process removals first (e.g. in case a NetPol is updated)
 
 Examples:
 1. NetPol is updated. First there will be RemovePolicy() and then AddPolicy(). We will remove the Policy, then add it.
-2. NetPol is added, then removed before we reconcile. We will NOT add the Policy. We will try removing the Policy, but it will not be there.
+2. NetPol is added, then removed before we reconcile. We will do nothing since the NetPol was never in the kernel.
 */
 func (pMgr *PolicyManager) reconcileDirtyNetPols() error {
 	pMgr.policyMap.Lock()
@@ -92,9 +95,12 @@ func (pMgr *PolicyManager) reconcileDirtyNetPols() error {
 
 	klog.Infof("[PolicyManager] reconciling dirty NetPols")
 
+	// 1. Determine all NetPols to remove and add. Clean up dirty cache for NetPols that don't need to be added or removed.
 	toRemove := make([]*NPMNetworkPolicy, 0)
-	toAdd := make([]*NPMNetworkPolicy, 0)
+	// key is policyKey
+	toAdd := make(map[string]*NPMNetworkPolicy)
 	for key, events := range pMgr.policyMap.dirtyCache.queue {
+		willAddOrRemove := false
 		for _, e := range events {
 			if e.op == remove && e.deletedState.wasInKernel {
 				// Remove the NetPol if it was in the kernel when RemovePolicy() was called.
@@ -112,6 +118,7 @@ func (pMgr *PolicyManager) reconcileDirtyNetPols() error {
 				}
 				klog.Infof("[PolicyManager] will remove dirty NetPol. key: %s. direction: %s", key, e.deletedState.direction)
 				toRemove = append(toRemove, fakeNetPol)
+				willAddOrRemove = true
 				break
 			}
 		}
@@ -120,61 +127,124 @@ func (pMgr *PolicyManager) reconcileDirtyNetPols() error {
 			policy, ok := pMgr.policyMap.cache[key]
 			if !ok {
 				metrics.SendErrorLogAndMetric(util.IptmID, "error: failed to find dirty policy to add in cache. key: %s", key)
-				continue
+			} else {
+				klog.Infof("[PolicyManager] will add dirty NetPol. key: %s.", key)
+				toAdd[key] = policy
+				willAddOrRemove = true
 			}
-			klog.Infof("[PolicyManager] will add dirty NetPol. key: %s.", key)
-			toAdd = append(toAdd, policy)
+		}
+
+		if !willAddOrRemove {
+			klog.Infof("[PolicyManager] ignoring dirty NetPol with no actions needed. key: %s.", key)
+
+			// remove from dirty cache
+			delete(pMgr.policyMap.dirtyCache.queue, key)
 		}
 	}
 
+	// 2. Remove dirty NetPols
+	// key is policyKey
+	failedToRemove := make(map[string]struct{})
 	if len(toRemove) > 0 {
 		klog.Infof("[PolicyManager] starting to remove all dirty NetPols")
 		if err := pMgr.removeAllPolicies(toRemove); err != nil {
-			return fmt.Errorf("failed to remove dirty NetPols. err: %w", err)
+			metrics.SendErrorLogAndMetric(util.IptmID, "error: failed to remove dirty NetPols via restore file. err: %s", err.Error())
+			klog.Errorf("failed to remove dirty NetPols via restore file. err: %s", err.Error())
+
+			// remove each NetPol one at a time in case one is failing perpetually
+			for _, p := range toRemove {
+				if err := pMgr.removeAllPolicies([]*NPMNetworkPolicy{p}); err != nil {
+					metrics.SendErrorLogAndMetric(util.IptmID, "error: failed to remove dirty NetPol. key: %s. err: %s", p.PolicyKey, err.Error())
+					klog.Errorf("failed to remove dirty NetPol. key: %s. err: %s", p.PolicyKey, err.Error())
+					failedToRemove[p.PolicyKey] = struct{}{}
+				}
+			}
 		}
-		klog.Info("[PolicyManager] finished removing all dirty NetPols")
-	}
 
-	// TODO resiliency to errors: retry one at a time
+		for _, p := range toRemove {
+			if _, ok := failedToRemove[p.PolicyKey]; ok {
+				// leave dirty cache as is for a failed NetPol
+				continue
+			}
 
-	// in case the removed NetPol is in the cache, mark it as not the kernel
-	for _, fakePolicy := range toRemove {
-		pMgr.policyMap.policiesInKernel--
-		if policy, ok := pMgr.policyMap.cache[fakePolicy.PolicyKey]; ok {
-			policy.inLinuxKernel = false
+			// in case the removed NetPol is in the cache, mark it as not in the kernel
+			pMgr.policyMap.policiesInKernel--
+			if policy, ok := pMgr.policyMap.cache[p.PolicyKey]; ok {
+				policy.inLinuxKernel = false
+			}
+
+			if _, ok := toAdd[p.PolicyKey]; ok {
+				// update dirty cache to only have the remaining add operation
+				pMgr.policyMap.dirtyCache.queue[p.PolicyKey] = []*event{{op: add}}
+			} else {
+				// remove the NetPol from the dirty cache
+				delete(pMgr.policyMap.dirtyCache.queue, p.PolicyKey)
+			}
+		}
+
+		if len(failedToRemove) > 0 {
+			klog.Infof("[PolicyManager] finished removing dirty NetPols. successfully removed: %d. failed to remove %d", len(toRemove)-len(failedToRemove), len(failedToRemove))
+		} else {
+			klog.Info("[PolicyManager] finished removing all dirty NetPols")
 		}
 	}
 
-	if len(toAdd) == 0 {
-		// nothing left to do
-		// empty the dirty cache
-		pMgr.policyMap.dirtyCache.queue = make(map[string][]*event)
-		return nil
+	// 3. Add dirty NetPols
+	// do not add a NetPol that failed to be removed
+	for key := range failedToRemove {
+		if _, ok := toAdd[key]; ok {
+			klog.Infof("ignoring add for dirty NetPol that failed to be removed. key: %s", key)
+			delete(toAdd, key)
+		}
 	}
 
-	// update dirty cache to only have the remaining add operations
-	newDirtyCache := make(map[string][]*event, len(toAdd))
-	for _, policy := range toAdd {
-		e := &event{op: add}
-		newDirtyCache[policy.PolicyKey] = []*event{e}
+	// key is policyKey
+	failedToAdd := make(map[string]struct{})
+	if len(toAdd) > 0 {
+		klog.Infof("[PolicyManager] starting to add all dirty NetPols")
+		toAddList := make([]*NPMNetworkPolicy, 0, len(toAdd))
+		for _, policy := range toAdd {
+			toAddList = append(toAddList, policy)
+		}
+
+		if err := pMgr.addAllPolicies(toAddList); err != nil {
+			metrics.SendErrorLogAndMetric(util.IptmID, "error: failed to add dirty NetPols via restore file. err: %s", err.Error())
+			klog.Errorf("failed to add dirty NetPols via restore file. err: %s", err.Error())
+
+			// add each NetPol one at a time in case one is failing perpetually
+			for _, p := range toAdd {
+				if err := pMgr.addAllPolicies([]*NPMNetworkPolicy{p}); err != nil {
+					metrics.SendErrorLogAndMetric(util.IptmID, "error: failed to add dirty NetPol. key: %s. err: %s", p.PolicyKey, err.Error())
+					klog.Errorf("failed to add dirty NetPol. key: %s. err: %s", p.PolicyKey, err.Error())
+					failedToAdd[p.PolicyKey] = struct{}{}
+				}
+			}
+		}
+
+		for _, policy := range toAdd {
+			if _, ok := failedToAdd[policy.PolicyKey]; ok {
+				// leave dirty cache as is for a failed NetPol
+				continue
+			}
+
+			// mark NetPol as in the kernel
+			policy.inLinuxKernel = true
+			pMgr.policyMap.policiesInKernel++
+
+			// remove NetPol from dirty cache
+			delete(pMgr.policyMap.dirtyCache.queue, policy.PolicyKey)
+		}
+
+		if len(failedToAdd) > 0 {
+			klog.Infof("[PolicyManager] finished adding dirty NetPols. successfully added: %d. failed to add %d", len(toAdd)-len(failedToAdd), len(failedToAdd))
+		} else {
+			klog.Info("[PolicyManager] finished adding all dirty NetPols")
+		}
 	}
-	pMgr.policyMap.dirtyCache.queue = newDirtyCache
 
-	klog.Infof("[PolicyManager] starting to add all dirty NetPols")
-	if err := pMgr.addAllPolicies(toAdd); err != nil {
-		return fmt.Errorf("failed to add dirty NetPols. err: %w", err)
+	if len(failedToRemove) > 0 || len(failedToAdd) > 0 {
+		return ErrReconcileDirtyNetPols
 	}
-
-	// mark all added NetPols as in the kernel
-	for _, policy := range toAdd {
-		policy.inLinuxKernel = true
-		pMgr.policyMap.policiesInKernel++
-	}
-
-	// empty the dirty cache
-	pMgr.policyMap.dirtyCache.queue = make(map[string][]*event)
-
-	klog.Info("[PolicyManager] finished adding all dirty NetPols")
 	return nil
 }
 
