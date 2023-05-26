@@ -6,6 +6,7 @@ import (
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
+	"github.com/pkg/errors"
 )
 
 // createNCRequestFromStaticNCHelper generates a CreateNetworkContainerRequest from a static NetworkContainer.
