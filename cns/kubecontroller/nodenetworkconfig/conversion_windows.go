@@ -20,8 +20,14 @@ func createNCRequestFromStaticNCHelper(nc v1alpha.NetworkContainer, primaryIPPre
 	// if NC DefaultGateway is empty, set the 0th IP to the gateway and add the rest of the IPs
 	// as secondary IPs
 	startingAddr := primaryIPPrefix.Masked().Addr() // the masked address is the 0th IP in the subnet
-	if nc.DefaultGateway == "" {
+	if nc.DefaultGateway == "" && nc.Type == v1alpha.Overlay {
 		nc.DefaultGateway = startingAddr.String()
+		startingAddr = startingAddr.Next()
+	} else if nc.DefaultGateway == "" && nc.Type == v1alpha.VNETBlock {
+		startingAddr = startingAddr.Next()
+		nc.DefaultGateway = startingAddr.String()
+		startingAddr = startingAddr.Next()
+	} else if nc.Type == v1alpha.VNETBlock {
 		startingAddr = startingAddr.Next()
 	}
 
@@ -35,17 +41,6 @@ func createNCRequestFromStaticNCHelper(nc v1alpha.NetworkContainer, primaryIPPre
 	}
 
 	if nc.Type == v1alpha.VNETBlock {
-		startingAddr := primaryIPPrefix.Addr()
-		// 0th IP reserved for Primary IP of NC
-		// Assign next IP for default gateway instead
-		if nc.DefaultGateway == startingAddr.String() {
-			startingAddr = startingAddr.Next()
-			nc.DefaultGateway = startingAddr.String()
-		}
-
-		// delete gateway IP from the secondary IPs
-		delete(secondaryIPConfigs, startingAddr.String())
-
 		// Add IPs from CIDR block to the secondary IPConfigs
 		for _, ipAssignment := range nc.IPAssignments {
 			cidrPrefix, err := netip.ParsePrefix(ipAssignment.IP)
