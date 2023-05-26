@@ -88,6 +88,6 @@ func CreateNCRequestFromStaticNC(nc v1alpha.NetworkContainer) (*cns.CreateNetwor
 		PrefixLength: uint8(subnetPrefix.Bits()),
 	}
 
-	req := createNCRequestFromStaticNCHelper(nc, primaryPrefix, subnet)
-	return req, nil
+	req, err := createNCRequestFromStaticNCHelper(nc, primaryPrefix, subnet)
+	return req, err
 }
