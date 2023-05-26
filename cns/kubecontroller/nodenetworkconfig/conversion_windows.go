@@ -13,7 +13,7 @@ import (
 // secondary IPs. If the gateway is not empty, it will not reserve the 0th IP and add it as a secondary IP.
 //
 //nolint:gocritic //ignore hugeparam
-func createNCRequestFromStaticNCHelper(nc v1alpha.NetworkContainer, primaryIPPrefix netip.Prefix, subnet cns.IPSubnet) *cns.CreateNetworkContainerRequest {
+func createNCRequestFromStaticNCHelper(nc v1alpha.NetworkContainer, primaryIPPrefix netip.Prefix, subnet cns.IPSubnet) (*cns.CreateNetworkContainerRequest, error) {
 	secondaryIPConfigs := map[string]cns.SecondaryIPConfig{}
 
 	// if NC DefaultGateway is empty, set the 0th IP to the gateway and add the rest of the IPs
@@ -32,6 +32,37 @@ func createNCRequestFromStaticNCHelper(nc v1alpha.NetworkContainer, primaryIPPre
 			NCVersion: int(nc.Version),
 		}
 	}
+
+	if nc.Type == v1alpha.VNETBlock {
+		startingAddr := primaryIPPrefix.Addr()
+		// 0th IP reserved for Primary IP of NC
+		// Assign next IP for default gateway instead
+		if nc.DefaultGateway == startingAddr.String() {
+			startingAddr = startingAddr.Next()
+			nc.DefaultGateway = startingAddr.String()
+		}
+
+		// delete gateway IP from the secondary IPs
+		delete(secondaryIPConfigs, startingAddr.String())
+
+		// Add IPs from CIDR block to the secondary IPConfigs
+		for _, ipAssignment := range nc.IPAssignments {
+			cidrPrefix, err := netip.ParsePrefix(ipAssignment.IP)
+			if err != nil {
+				return nil, errors.Wrapf(err, "invalid CIDR block: %s", ipAssignment.IP)
+			}
+
+			// iterate through all IP addresses in the CIDR block described by cidrPrefix and
+			// add them to the request as secondary IPConfigs.
+			for addr := cidrPrefix.Masked().Addr(); cidrPrefix.Contains(addr); addr = addr.Next() {
+				secondaryIPConfigs[addr.String()] = cns.SecondaryIPConfig{
+					IPAddress: addr.String(),
+					NCVersion: int(nc.Version),
+				}
+			}
+		}
+	}
+
 	return &cns.CreateNetworkContainerRequest{
 		SecondaryIPConfigs:   secondaryIPConfigs,
 		NetworkContainerid:   nc.ID,
@@ -41,5 +72,5 @@ func createNCRequestFromStaticNCHelper(nc v1alpha.NetworkContainer, primaryIPPre
 			IPSubnet:         subnet,
 			GatewayIPAddress: nc.DefaultGateway,
 		},
-	}
+	}, nil
 }
