@@ -133,7 +133,7 @@ func (pm *Monitor) Start(ctx context.Context) error {
 				if nc.Type == v1alpha.VNETBlock {
 					primaryPrefix, err := netip.ParsePrefix(nc.PrimaryIP)
 					if err != nil {
-						return errors.Wrapf(err, "IP: %s", nc.PrimaryIP)
+						return errors.Wrapf(err, "unable to parse ip prefix: %s", nc.PrimaryIP)
 					}
 					pm.metastate.primaryIPAddresses[primaryPrefix.Addr().String()] = struct{}{}
 				}

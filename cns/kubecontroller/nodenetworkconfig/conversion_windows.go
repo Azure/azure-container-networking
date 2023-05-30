@@ -24,12 +24,6 @@ func createNCRequestFromStaticNCHelper(nc v1alpha.NetworkContainer, primaryIPPre
 		// assign 0th IP to the default gateway
 		nc.DefaultGateway = startingAddr.String()
 		startingAddr = startingAddr.Next()
-	} else if nc.DefaultGateway == "" && nc.Type == v1alpha.VNETBlock {
-		// skipping 0th IP for the Primary IP of NC
-		startingAddr = startingAddr.Next()
-		// assign next IP to default gateway
-		nc.DefaultGateway = startingAddr.String()
-		startingAddr = startingAddr.Next()
 	} else if nc.Type == v1alpha.VNETBlock {
 		// skipping 0th IP for the Primary IP of NC
 		startingAddr = startingAddr.Next()
