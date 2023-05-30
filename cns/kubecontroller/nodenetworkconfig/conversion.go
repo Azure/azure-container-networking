@@ -89,5 +89,8 @@ func CreateNCRequestFromStaticNC(nc v1alpha.NetworkContainer) (*cns.CreateNetwor
 	}
 
 	req, err := createNCRequestFromStaticNCHelper(nc, primaryPrefix, subnet)
+	if err != nil {
+		return nil, errors.Wrapf(err, "error while creatng NC request from static NC")
+	}
 	return req, err
 }
