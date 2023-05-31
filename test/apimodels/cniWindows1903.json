@@ -8,6 +8,7 @@
          "kubernetesConfig": {
             "networkPlugin": "azure",
             "networkPolicy": "azure",
+            "containerRuntime": "containerd",
             "azureCNIVersion": "",
             "azureCNIURLWindows": "",
             "apiServerConfig": {
