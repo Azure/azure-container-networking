@@ -242,6 +242,7 @@ func getPoliciesFromRuntimeCfg(nwCfg *cni.NetworkConfig) []policy.Policy {
 	log.Printf("[net] RuntimeConfigs: %+v", nwCfg.RuntimeConfig)
 	var policies []policy.Policy
 	var protocol uint32
+
 	for _, mapping := range nwCfg.RuntimeConfig.PortMappings {
 
 		cfgProto := strings.ToUpper(strings.TrimSpace(mapping.Protocol))
@@ -267,13 +268,39 @@ func getPoliciesFromRuntimeCfg(nwCfg *cni.NetworkConfig) []policy.Policy {
 			Settings: rawPolicy,
 		})
 
-		policy := policy.Policy{
+		policyv4 := policy.Policy{
 			Type: policy.EndpointPolicy,
 			Data: hnsv2Policy,
 		}
-		log.Printf("[net] Creating port mapping policy: %+v", policy)
 
-		policies = append(policies, policy)
+		log.Printf("[net] Creating port mapping policy: %+v", policyv4)
+		policies = append(policies, policyv4)
+
+		// add port mapping policy for v6 if it's dualstack overlay mode
+		if nwCfg.IPV6Mode == string(util.DualStackOverlay) {
+			// To support hostport policy mapping for ipv6 in dualstack overlay mode
+			// uint32 NatFlagsIPv6 = 2
+			rawPolicyv6, _ := json.Marshal(&hnsv2.PortMappingPolicySetting{
+				ExternalPort: uint16(mapping.HostPort),
+				InternalPort: uint16(mapping.ContainerPort),
+				VIP:          mapping.HostIp,
+				Protocol:     protocol,
+				Flags:        hnsv2.NatFlagsIPv6,
+			})
+
+			hnsv2Policyv6, _ := json.Marshal(&hnsv2.EndpointPolicy{
+				Type:     hnsv2.PortMapping,
+				Settings: rawPolicyv6,
+			})
+
+			policyv6 := policy.Policy{
+				Type: policy.EndpointPolicy,
+				Data: hnsv2Policyv6,
+			}
+
+			log.Printf("[net] Creating port mapping policy v6: %+v", policyv6)
+			policies = append(policies, policyv6)
+		}
 	}
 
 	return policies

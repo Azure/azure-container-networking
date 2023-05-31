@@ -764,6 +764,8 @@ func (plugin *NetPlugin) createEndpointInternal(opt *createEndpointInternalOpt) 
 		NATInfo:            opt.natInfo,
 	}
 
+	opt.nwCfg.IPV6Mode = opt.nwInfo.IPV6Mode
+
 	epPolicies := getPoliciesFromRuntimeCfg(opt.nwCfg)
 	epInfo.Policies = append(epInfo.Policies, epPolicies...)
 
