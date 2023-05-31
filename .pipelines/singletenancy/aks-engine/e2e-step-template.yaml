@@ -31,23 +31,23 @@ steps:
       echo Using AKS-Engine version $aksEVersion
 
       #download source
-      wget https://github.com/csfmomo/aks-engine/archive/v1.0.9.1.tar.gz
+      wget https://github.com/csfmomo/aks-engine/archive/v1.0.9.2.tar.gz
 
       # extract source
       #tar -zxf $aksEVersion.tar.gz
-      tar -zxf v1.0.9.1.tar.gz
+      tar -zxf v1.0.9.2.tar.gz
 
       # move source to current directory
       mv aks-engine-*/* .
 
       # download binary
-      wget https://github.com/csfmomo/aks-engine/releases/download/v1.0.9.1/aks-engine-v1.0.9.1-linux-amd64.tar.gz
+      wget https://github.com/csfmomo/aks-engine/releases/download/v1.0.9.2/aks-engine-v1.0.9.2-linux-amd64.tar.gz
 
       rm -rf ./bin
       mkdir ./bin
 
       # extract binary
-      tar -zxvf aks-engine-v1.0.9.1-linux-amd64.tar.gz -C bin
+      tar -zxvf aks-engine-v1.0.9.2-linux-amd64.tar.gz -C bin
       mv ./bin/aks-engine-*/* ./bin/
       ls -l ./bin
       ./bin/aks-engine version
@@ -110,6 +110,7 @@ steps:
         export CLEANUP_IF_FAIL=false
         export REGIONS=$(AKS_ENGINE_REGION) 
         export IS_JENKINS=false 
+        export BLOCK_SSH=true
         export DEBUG_CRASHING_PODS=true
         export AZURE_CORE_ONLY_SHOW_ERRORS=True
         RGNAME="kubernetes"$RANDOM
