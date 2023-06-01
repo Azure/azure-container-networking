@@ -180,7 +180,7 @@ jobs:
             set -e
 
             # deploy azure-npm
-            cp $(Pipeline.Workspace)/s/npm/examples/windows/azure-npm.yaml azure-npm.yaml
+            cp $(Pipeline.Workspace)/s/npm/azure-npm.yaml azure-npm.yaml
             sed -i 's/memory: 300Mi/memory: 1000Mi/g' azure-npm.yaml
             kubectl apply -f azure-npm.yaml
 
