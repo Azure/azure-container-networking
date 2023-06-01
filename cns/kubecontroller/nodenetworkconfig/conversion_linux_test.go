@@ -7,7 +7,7 @@ import (
 )
 
 var validOverlayRequest = &cns.CreateNetworkContainerRequest{
-	Version: strconv.FormatInt(version, 10),
+	Version: strconv.FormatInt(0, 10),
 	IPConfiguration: cns.IPConfiguration{
 		IPSubnet: cns.IPSubnet{
 			PrefixLength: uint8(subnetPrefixLen),
@@ -19,19 +19,19 @@ var validOverlayRequest = &cns.CreateNetworkContainerRequest{
 	SecondaryIPConfigs: map[string]cns.SecondaryIPConfig{
 		"10.0.0.0": {
 			IPAddress: "10.0.0.0",
-			NCVersion: version,
+			NCVersion: 0,
 		},
 		"10.0.0.1": {
 			IPAddress: "10.0.0.1",
-			NCVersion: version,
+			NCVersion: 0,
 		},
 		"10.0.0.2": {
 			IPAddress: "10.0.0.2",
-			NCVersion: version,
+			NCVersion: 0,
 		},
 		"10.0.0.3": {
 			IPAddress: "10.0.0.3",
-			NCVersion: version,
+			NCVersion: 0,
 		},
 	},
 }
