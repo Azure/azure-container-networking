@@ -8,20 +8,25 @@
          "kubernetesConfig": {
             "networkPlugin": "azure",
             "networkPolicy": "azure",
+            "containerRuntime": "containerd",
             "azureCNIVersion": "",
             "azureCNIURLWindows": "",
             "apiServerConfig": {
                "--tls-min-version": "VersionTLS12",
                "--tls-cipher-suites": "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256"
             },
-            "addons": [{
-               "name": "azure-npm-daemonset",
-               "enabled": true,
-               "containers": [{
+            "addons": [
+               {
                   "name": "azure-npm-daemonset",
-                  "image": ""
-               }]
-            }]
+                  "enabled": true,
+                  "containers": [
+                     {
+                        "name": "azure-npm-daemonset",
+                        "image": ""
+                     }
+                  ]
+               }
+            ]
          }
       },
       "masterProfile": {
@@ -29,29 +34,36 @@
          "dnsPrefix": "cniWindows",
          "vmSize": "Standard_D2_v2"
       },
-      "agentPoolProfiles": [{
-         "name": "windowspool2",
-         "count": 2,
-         "vmSize": "Standard_D2_v2",
-        "availabilityProfile": "VirtualMachineScaleSets",
-        "osType": "Windows"
-      }],
+      "agentPoolProfiles": [
+         {
+            "name": "windowspool2",
+            "count": 2,
+            "vmSize": "Standard_D2_v2",
+            "availabilityProfile": "VirtualMachineScaleSets",
+            "osType": "Windows"
+         }
+      ],
       "windowsProfile": {
          "adminUsername": "azureuser",
          "adminPassword": "azureTest@!",
          "enableAutomaticUpdates": true,
          "sshEnabled": true,
-         "windowsPublisher": "MicrosoftWindowsServer",
-         "windowsOffer": "WindowsServer",
-         "windowsSku": "Datacenter-Core-1903-with-Containers-smalldisk",
-         "imageVersion": "latest"
+         "imageReference": {
+            "name": "containerVMImageDefinition",
+            "resourceGroup": "container-images-rg",
+            "subscriptionId": "d9eabe18-12f6-4421-934a-d7e2327585f5",
+            "gallery": "containerImageComputeGallery",
+            "version": "latest"
+         }
       },
       "linuxProfile": {
          "adminUsername": "azureuser",
          "ssh": {
-            "publicKeys": [{
-               "keyData": ""
-            }]
+            "publicKeys": [
+               {
+                  "keyData": ""
+               }
+            ]
          }
       },
       "servicePrincipalProfile": {
