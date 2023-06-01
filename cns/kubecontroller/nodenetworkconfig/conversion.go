@@ -21,6 +21,7 @@ var (
 )
 
 // CreateNCRequestFromDynamicNC generates a CreateNetworkContainerRequest from a dynamic NetworkContainer.
+//
 //nolint:gocritic //ignore hugeparam
 func CreateNCRequestFromDynamicNC(nc v1alpha.NetworkContainer) (*cns.CreateNetworkContainerRequest, error) {
 	primaryIP := nc.PrimaryIP
@@ -69,6 +70,7 @@ func CreateNCRequestFromDynamicNC(nc v1alpha.NetworkContainer) (*cns.CreateNetwo
 }
 
 // CreateNCRequestFromStaticNC generates a CreateNetworkContainerRequest from a static NetworkContainer.
+//
 //nolint:gocritic //ignore hugeparam
 func CreateNCRequestFromStaticNC(nc v1alpha.NetworkContainer) (*cns.CreateNetworkContainerRequest, error) {
 	primaryPrefix, err := netip.ParsePrefix(nc.PrimaryIP)
@@ -85,24 +87,6 @@ func CreateNCRequestFromStaticNC(nc v1alpha.NetworkContainer) (*cns.CreateNetwor
 		PrefixLength: uint8(subnetPrefix.Bits()),
 	}
 
-	secondaryIPConfigs := map[string]cns.SecondaryIPConfig{}
-
-	// iterate through all IP addresses in the subnet described by primaryPrefix and
-	// add them to the request as secondary IPConfigs.
-	for addr := primaryPrefix.Masked().Addr(); primaryPrefix.Contains(addr); addr = addr.Next() {
-		secondaryIPConfigs[addr.String()] = cns.SecondaryIPConfig{
-			IPAddress: addr.String(),
-			NCVersion: int(nc.Version),
-		}
-	}
-	return &cns.CreateNetworkContainerRequest{
-		SecondaryIPConfigs:   secondaryIPConfigs,
-		NetworkContainerid:   nc.ID,
-		NetworkContainerType: cns.Docker,
-		Version:              strconv.FormatInt(nc.Version, 10), //nolint:gomnd // it's decimal
-		IPConfiguration: cns.IPConfiguration{
-			IPSubnet:         subnet,
-			GatewayIPAddress: nc.DefaultGateway,
-		},
-	}, nil
+	req := createNCRequestFromStaticNCHelper(nc, primaryPrefix, subnet)
+	return req, nil
 }
