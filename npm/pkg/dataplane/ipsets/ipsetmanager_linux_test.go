@@ -844,6 +844,8 @@ func TestCreateForAllSetTypes(t *testing.T) {
 			iMgr.CreateIPSets([]*IPSetMetadata{TestKVPodSet.Metadata})
 			iMgr.CreateIPSets([]*IPSetMetadata{TestNamedportSet.Metadata})
 			iMgr.CreateIPSets([]*IPSetMetadata{TestCIDRSet.Metadata})
+			require.NoError(t, iMgr.AddToSets([]*IPSetMetadata{TestCIDRSet.Metadata}, "4.4.4.4/30", ""))
+			require.NoError(t, iMgr.AddToSets([]*IPSetMetadata{TestCIDRSet.Metadata}, "5.5.5.5/30 nomatch", ""))
 			require.NoError(t, iMgr.AddToLists([]*IPSetMetadata{TestKeyNSList.Metadata}, []*IPSetMetadata{TestNSSet.Metadata, TestKeyPodSet.Metadata}))
 			require.NoError(t, iMgr.AddToLists([]*IPSetMetadata{TestKVNSList.Metadata}, []*IPSetMetadata{TestKVPodSet.Metadata}))
 			iMgr.CreateIPSets([]*IPSetMetadata{TestNestedLabelList.Metadata})
@@ -868,6 +870,8 @@ func TestCreateForAllSetTypes(t *testing.T) {
 				fmt.Sprintf("-A %s 10.0.0.0", TestNSSet.HashedName),
 				fmt.Sprintf("-A %s 10.0.0.1", TestNSSet.HashedName),
 				fmt.Sprintf("-A %s 10.0.0.5", TestKeyPodSet.HashedName),
+				fmt.Sprintf("-A %s 4.4.4.4/30", TestCIDRSet.HashedName),
+				fmt.Sprintf("-A %s 5.5.5.5/30 nomatch", TestCIDRSet.HashedName),
 				fmt.Sprintf("-A %s %s", TestKeyNSList.HashedName, TestNSSet.HashedName),
 				fmt.Sprintf("-A %s %s", TestKeyNSList.HashedName, TestKeyPodSet.HashedName),
 				fmt.Sprintf("-A %s %s", TestKVNSList.HashedName, TestKVPodSet.HashedName),
@@ -954,9 +958,13 @@ func TestDeleteMembers(t *testing.T) {
 	ioshim := common.NewMockIOShim(calls)
 	defer ioshim.VerifyCalls(t, calls)
 	iMgr := NewIPSetManager(applyAlwaysCfg, ioshim)
+
+	cidr2 := NewIPSetMetadata("cidr2", CIDRBlocks)
 	require.NoError(t, iMgr.AddToSets([]*IPSetMetadata{TestNSSet.Metadata}, "1.1.1.1", "a"))
 	require.NoError(t, iMgr.AddToSets([]*IPSetMetadata{TestNSSet.Metadata}, "2.2.2.2", "b"))
 	require.NoError(t, iMgr.AddToSets([]*IPSetMetadata{TestNSSet.Metadata}, "3.3.3.3", "c"))
+	require.NoError(t, iMgr.AddToSets([]*IPSetMetadata{cidr2}, "4.4.4.4/30", ""))
+	require.NoError(t, iMgr.AddToSets([]*IPSetMetadata{cidr2}, "5.5.5.5/30 nomatch", ""))
 	// create to destroy later
 	iMgr.CreateIPSets([]*IPSetMetadata{TestCIDRSet.Metadata})
 	// clear dirty cache, otherwise a set deletion will be a no-op
@@ -972,12 +980,18 @@ func TestDeleteMembers(t *testing.T) {
 	// won't add/remove this member since the next two calls cancel each other out
 	require.NoError(t, iMgr.RemoveFromSets([]*IPSetMetadata{TestNSSet.Metadata}, "2.2.2.2", "b"))
 	require.NoError(t, iMgr.AddToSets([]*IPSetMetadata{TestNSSet.Metadata}, "2.2.2.2", "b"))
+	// do not include nomatch in deletion
+	require.NoError(t, iMgr.RemoveFromSets([]*IPSetMetadata{cidr2}, "4.4.4.4/30", ""))
+	require.NoError(t, iMgr.RemoveFromSets([]*IPSetMetadata{cidr2}, "5.5.5.5/30 nomatch", ""))
 	// destroy extra set
 	iMgr.DeleteIPSet(TestCIDRSet.PrefixName, util.SoftDelete)
 
 	expectedLines := []string{
 		fmt.Sprintf("-N %s --exist nethash", TestNSSet.HashedName),
+		fmt.Sprintf("-N %s --exist nethash maxelem 4294967295", cidr2.GetHashedName()),
 		fmt.Sprintf("-D %s 1.1.1.1", TestNSSet.HashedName),
+		fmt.Sprintf("-D %s 4.4.4.4/30", cidr2.GetHashedName()),
+		fmt.Sprintf("-D %s 5.5.5.5/30", cidr2.GetHashedName()),
 		fmt.Sprintf("-A %s 5.5.5.5", TestNSSet.HashedName),
 		fmt.Sprintf("-F %s", TestCIDRSet.HashedName),
 		fmt.Sprintf("-X %s", TestCIDRSet.HashedName),

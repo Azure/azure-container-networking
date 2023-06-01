@@ -778,6 +778,13 @@ func (iMgr *IPSetManager) deleteMemberForApply(creator *ioutil.FileCreator, set 
 			},
 		},
 	}
+
+	nomatchWithSpace := " " + util.IpsetNomatch
+	if len(member) > len(nomatchWithSpace) && member[len(member)-len(nomatchWithSpace):] == nomatchWithSpace {
+		// remove the nomatch suffix from the member (ipset syntax doesn't allow it for deletion)
+		member = member[:len(member)-len(nomatchWithSpace)]
+	}
+
 	creator.AddLine(sectionID, errorHandlers, ipsetDeleteFlag, set.HashedName, member) // delete member
 }
 
