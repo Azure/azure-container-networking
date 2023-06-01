@@ -675,6 +675,15 @@ func TestGetHomeAz(t *testing.T) {
 			},
 			true,
 		},
+		{
+			"404 from NMA",
+			nmagent.AzResponse{},
+			"/machine/plugins?comp=nmagent&type=GetHomeAz%2Fapi-version%2F1",
+			map[string]interface{}{
+				"httpStatusCode": "404",
+			},
+			true,
+		},
 	}
 
 	for _, test := range tests {
