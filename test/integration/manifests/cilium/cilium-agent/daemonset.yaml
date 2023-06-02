@@ -66,7 +66,7 @@ spec:
               fieldPath: metadata.namespace
         - name: CILIUM_CLUSTERMESH_CONFIG
           value: /var/lib/cilium/clustermesh/
-        image: mcr.microsoft.com/oss/cilium/cilium:1.12.8
+        image: mcr.microsoft.com/oss/cilium/cilium:1.12.10
         imagePullPolicy: IfNotPresent
         livenessProbe:
           failureThreshold: 10
@@ -163,7 +163,7 @@ spec:
       hostNetwork: true
       initContainers:
       - name: install-cni-binaries
-        image: mcr.microsoft.com/oss/cilium/cilium:1.12.8
+        image: mcr.microsoft.com/oss/cilium/cilium:1.12.10
         imagePullPolicy: IfNotPresent
         command:
           - "/install-plugin.sh"
@@ -192,7 +192,7 @@ spec:
           value: /run/cilium/cgroupv2
         - name: BIN_PATH
           value: /opt/cni/bin
-        image: mcr.microsoft.com/oss/cilium/cilium:1.12.8
+        image: mcr.microsoft.com/oss/cilium/cilium:1.12.10
         imagePullPolicy: IfNotPresent
         name: mount-cgroup
         resources: {}
@@ -252,7 +252,7 @@ spec:
         - /bin/bash
         - -c
         - --
-        image: mcr.microsoft.com/oss/cilium/cilium:1.12.8
+        image: mcr.microsoft.com/oss/cilium/cilium:1.12.10
         imagePullPolicy: IfNotPresent
         name: mount-bpf-fs
         resources: {}
@@ -279,7 +279,7 @@ spec:
               key: clean-cilium-bpf-state
               name: cilium-config
               optional: true
-        image: mcr.microsoft.com/oss/cilium/cilium:1.12.8
+        image: mcr.microsoft.com/oss/cilium/cilium:1.12.10
         imagePullPolicy: IfNotPresent
         name: clean-cilium-state
         resources:
