@@ -774,7 +774,7 @@ func (plugin *NetPlugin) createEndpointInternal(opt *createEndpointInternalOpt) 
 
 	if opt.resultV6 != nil {
 		// inject ipv6 routes to Linux pod
-		epInfo.IPV6Mode = dualStackOverlay
+		epInfo.IPV6Mode = dualStackOverlay // TODO: can this IPV6Mode be deprecated and can we add IsIPv6Enabled flag for generic working
 		for _, ipconfig := range opt.resultV6.IPs {
 			epInfo.IPAddresses = append(epInfo.IPAddresses, ipconfig.Address)
 		}
