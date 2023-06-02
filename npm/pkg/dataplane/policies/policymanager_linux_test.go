@@ -393,7 +393,7 @@ func TestRemovePoliciesError(t *testing.T) {
 			name: "error on delete for ingress",
 			calls: []testutils.TestCmd{
 				fakeIPTablesRestoreCommand,
-				getFakeDeleteJumpCommandWithCode("AZURE-NPM-INGRESS", ingressEgressNetPolIngressJump, 2), // anything but 0 or 1
+				getFakeDeleteJumpCommandWithCode("AZURE-NPM-INGRESS", ingressEgressNetPolIngressJump, 3), // anything but 0, 1, or 2
 			},
 		},
 		{
@@ -401,7 +401,7 @@ func TestRemovePoliciesError(t *testing.T) {
 			calls: []testutils.TestCmd{
 				fakeIPTablesRestoreCommand,
 				getFakeDeleteJumpCommand("AZURE-NPM-INGRESS", ingressEgressNetPolIngressJump),
-				getFakeDeleteJumpCommandWithCode("AZURE-NPM-EGRESS", ingressEgressNetPolEgressJump, 2), // anything but 0 or 1
+				getFakeDeleteJumpCommandWithCode("AZURE-NPM-EGRESS", ingressEgressNetPolEgressJump, 3), // anything but 0, 1, or 2
 			},
 		},
 	}
