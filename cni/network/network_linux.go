@@ -124,7 +124,7 @@ func getEndpointPolicies(PolicyArgs) ([]policy.Policy, error) {
 
 // getPoliciesFromRuntimeCfg returns network policies from network config.
 // getPoliciesFromRuntimeCfg is a dummy function for Linux platform.
-func getPoliciesFromRuntimeCfg(nwCfg *cni.NetworkConfig, isIPv6Enabled bool) []policy.Policy {
+func getPoliciesFromRuntimeCfg(_ *cni.NetworkConfig, isIPv6Enabled bool) []policy.Policy {
 	return nil
 }
 

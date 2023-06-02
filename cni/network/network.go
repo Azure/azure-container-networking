@@ -637,7 +637,7 @@ func (plugin *NetPlugin) createNetworkInternal(
 		NetNs:                         ipamAddConfig.args.Netns,
 		Options:                       ipamAddConfig.options,
 		DisableHairpinOnHostInterface: ipamAddConfig.nwCfg.DisableHairpinOnHostInterface,
-		IPV6Mode:                      ipamAddConfig.nwCfg.IPV6Mode, //TODO: check if IPV6Mode field can be deprecated
+		IPV6Mode:                      ipamAddConfig.nwCfg.IPV6Mode, // TODO: check if IPV6Mode field can be deprecated
 		IPAMType:                      ipamAddConfig.nwCfg.IPAM.Type,
 		ServiceCidrs:                  ipamAddConfig.nwCfg.ServiceCidrs,
 		IsIPv6Enabled:                 ipamAddResult.ipv6Result != nil,
