@@ -128,6 +128,7 @@ func (h *HomeAzMonitor) Populate(ctx context.Context) {
 
 			case http.StatusNotFound:
 				returnMessage := fmt.Sprintf("[HomeAzMonitor] region does not support AZs, NMAgent returned StatusCode: %d, error: %v", apiError.StatusCode(), err)
+				// Marking this as success since we don't want to enter the retry loop on DNC side.
 				returnCode := types.Success
 				h.update(returnCode, returnMessage, cns.HomeAzResponse{IsSupported: false})
 				return

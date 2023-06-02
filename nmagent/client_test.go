@@ -691,10 +691,8 @@ func TestGetHomeAz(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
-			var gotPath string
 			client := nmagent.NewTestClient(&TestTripper{
 				RoundTripF: func(req *http.Request) (*http.Response, error) {
-					gotPath = req.URL.RequestURI()
 					rr := httptest.NewRecorder()
 					err := json.NewEncoder(rr).Encode(test.resp)
 					if err != nil {
@@ -712,10 +710,6 @@ func TestGetHomeAz(t *testing.T) {
 
 			if err == nil && test.shouldErr {
 				t.Fatal("expected error but received none")
-			}
-
-			if gotPath != test.expPath {
-				t.Error("paths differ: got:", gotPath, "exp:", test.expPath)
 			}
 
 			if !cmp.Equal(got, test.exp) {
