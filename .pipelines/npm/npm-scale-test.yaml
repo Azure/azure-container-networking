@@ -181,20 +181,17 @@ jobs:
             set -e
 
             # deploy azure-npm
-            curl -LO https://raw.githubusercontent.com/Azure/azure-container-networking/416d98151032df10fce9372018fc3cc8304ce4f5/npm/azure-npm.yaml
-            # cp $(Pipeline.Workspace)/s/npm/azure-npm.yaml azure-npm.yaml
+            cp $(Pipeline.Workspace)/s/npm/azure-npm.yaml azure-npm.yaml
             sed -i 's/memory: 300Mi/memory: 1000Mi/g' azure-npm.yaml
             kubectl apply -f azure-npm.yaml
 
-            curl -LO https://raw.githubusercontent.com/Azure/azure-container-networking/416d98151032df10fce9372018fc3cc8304ce4f5/npm/examples/windows/azure-npm.yaml
-            mv azure-npm.yaml azure-npm-win.yaml
-            # cp $(Pipeline.Workspace)/s/npm/examples/windows/azure-npm.yaml azure-npm-win.yaml
+            cp $(Pipeline.Workspace)/s/npm/examples/windows/azure-npm.yaml azure-npm-win.yaml
             # set higher memory limit
             sed -i 's/memory: 300Mi/memory: 1000Mi/g' azure-npm-win.yaml
             kubectl apply -f azure-npm-win.yaml
 
             # swap azure-npm image with one built during run
-            kubectl set image daemonset/azure-npm -n kube-system azure-npm=$IMAGE_REGISTRY/azure-npm:56aeb02a # linux-amd64-$(TAG)
+            kubectl set image daemonset/azure-npm -n kube-system azure-npm=$IMAGE_REGISTRY/azure-npm:linux-amd64-$(TAG)
             kubectl set image daemonset/azure-npm-win -n kube-system azure-npm=$IMAGE_REGISTRY/azure-npm:windows-amd64-ltsc2022-$(TAG)
 
             sleep 5s
