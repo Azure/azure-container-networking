@@ -20,6 +20,8 @@ const (
 )
 
 func TestMetrics(t *testing.T) {
+	metrics.InitializeWindowsMetrics()
+
 	cfg := defaultWindowsDPCfg
 	hns := ipsets.GetHNSFake(t, cfg.NetworkName)
 	hns.Delay = defaultHNSLatency
