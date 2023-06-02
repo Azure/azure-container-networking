@@ -264,6 +264,7 @@ stages:
     variables:
       TAG: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
       CURRENT_VERSION: $[ stagedependencies.containerize.check_tag.outputs['CurrentTagBuild.currentTagBuild'] ]
+      Packaging.EnableSBOMSigning: false
     condition: and(succeeded(), eq(variables.TAG, variables.CURRENT_VERSION))
     jobs:
       - job: manifest

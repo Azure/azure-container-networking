@@ -16,7 +16,7 @@ stages:
               inlineScript: |
                 set -ex
                 make -C ./hack/swift azcfg AZCLI=az REGION=$(LOCATION)
-                make -C ./hack/swift overlay-byocni-up AZCLI=az REGION=$(LOCATION) SUB=$(SUBSCRIPTION_ID) CLUSTER=${RESOURCE_GROUP} NODE_COUNT=10 VM_SIZE=Standard_DS4_v2
+                make -C ./hack/swift overlay-no-kube-proxy-up AZCLI=az REGION=$(LOCATION) SUB=$(SUBSCRIPTION_ID) CLUSTER=${RESOURCE_GROUP} NODE_COUNT=10 VM_SIZE=Standard_DS4_v2
             name: "CreateAksCluster"
             displayName: "Create AKS Cluster"
   - stage: install_cilium
@@ -120,7 +120,7 @@ stages:
             name: "RestartNodes"
             displayName: "Restart Nodes"
           - script: |
-              bash hack/scripts/validate_state.sh
+              bash hack/scripts/validate_state.sh -r true
             name: "ValidateState"
             displayName: "Validate State"
             retryCountOnTaskFailure: 3
@@ -152,7 +152,7 @@ stages:
             name: "GetCluster"
             displayName: "Get AKS Cluster"
           - script: |
-              k delete deployment container -n default
+              kubectl delete deployment container -n default
               cilium connectivity test
             retryCountOnTaskFailure: 6
             name: "CiliumConnectivityTests"
