@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/Azure/azure-container-networking/log"
+	"github.com/Azure/azure-container-networking/npm/util"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"k8s.io/klog"
@@ -94,6 +95,15 @@ var (
 	controllerExecTimeLabels    = []string{operationLabel, hadErrorLabel}
 )
 
+const linuxPrefix = "linux"
+
+// linux metrics added after v1.5.2
+var (
+	iptablesBackgroundRestoreLatency  *prometheus.HistogramVec
+	iptablesDeleteLatency             prometheus.Histogram
+	iptablesBackgroundRestoreFailures *prometheus.CounterVec
+)
+
 type RegistryType string
 
 const (
@@ -129,6 +139,16 @@ func InitializeAll() {
 	} else {
 		initializeDaemonMetrics()
 		initializeControllerMetrics()
+
+		if !util.IsWindowsDP() {
+			InitializeLinuxMetrics()
+
+			klog.Infof("registering linux metrics")
+			register(iptablesBackgroundRestoreLatency, "iptables_background_restore_latency_seconds", ClusterMetrics)
+			register(iptablesDeleteLatency, "iptables_background_delete_latency_seconds", ClusterMetrics)
+			register(iptablesBackgroundRestoreFailures, "iptables_background_restore_failure_total", ClusterMetrics)
+		}
+
 		log.Logf("Finished initializing all Prometheus metrics")
 		haveInitialized = true
 	}
@@ -140,6 +160,43 @@ func ReinitializeAll() {
 	klog.Infof("reinitializing Prometheus metrics. This may cause error messages of the form: 'error creating metric' from trying to re-register each metric")
 	haveInitialized = false
 	InitializeAll()
+}
+
+func InitializeLinuxMetrics() {
+	klog.Infof("initializing Linux metrics. will not register the newly created metrics in this function")
+
+	iptablesBackgroundRestoreLatency = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Namespace: namespace,
+			Name:      "iptables_background_restore_latency_seconds",
+			Subsystem: linuxPrefix,
+			Help:      "Latency in seconds to restore iptables rules in the background by operation label (add/delete NetPol)",
+			//nolint:gomnd // default bucket consts
+			Buckets: prometheus.ExponentialBuckets(0.016, 2, 14), // upper bounds of 16 ms to ~2 minutes
+		},
+		[]string{operationLabel},
+	)
+
+	iptablesDeleteLatency = prometheus.NewHistogram(
+		prometheus.HistogramOpts{
+			Namespace: namespace,
+			Name:      "iptables_background_delete_latency_seconds",
+			Subsystem: linuxPrefix,
+			Help:      "Latency in seconds to delete an iptables rule in the background by operation label (delete NetPol)",
+			//nolint:gomnd // default bucket consts
+			Buckets: prometheus.ExponentialBuckets(0.016, 2, 14), // upper bounds of 16 ms to ~2 minutes
+		},
+	)
+
+	iptablesBackgroundRestoreFailures = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: namespace,
+			Name:      "iptables_background_restore_failure_total",
+			Subsystem: linuxPrefix,
+			Help:      "Number of failures while adding/updating ACLs by operation label",
+		},
+		[]string{operationLabel},
+	)
 }
 
 // GetHandler returns the HTTP handler for the metrics endpoint

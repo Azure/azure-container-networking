@@ -279,8 +279,11 @@ func (pMgr *PolicyManager) addAllPolicies(networkPolicies []*NPMNetworkPolicy) e
 	pMgr.reconcileManager.forceLock()
 	defer pMgr.reconcileManager.forceUnlock()
 
+	timer := metrics.StartNewTimer()
 	err := restore(creator)
+	metrics.RecordIPTablesBackgroundRestoreLatency(timer, metrics.CreateOp)
 	if err != nil {
+		metrics.IncIPTablesBackgroundRestoreFailures(metrics.CreateOp)
 		return fmt.Errorf("failed to restore iptables with updated policies. err: %w", err)
 	}
 
@@ -340,8 +343,11 @@ func (pMgr *PolicyManager) removeAllPolicies(networkPolicies []*NPMNetworkPolicy
 	}
 
 	// 2. Flush the policy chains and deactivate NPM (if necessary).
+	timer := metrics.StartNewTimer()
 	restoreErr := restore(creator)
+	metrics.RecordIPTablesBackgroundRestoreLatency(timer, metrics.DeleteOp)
 	if restoreErr != nil {
+		metrics.IncIPTablesBackgroundRestoreFailures(metrics.DeleteOp)
 		return fmt.Errorf("failed to flush policies. err: %w", restoreErr)
 	}
 
@@ -436,7 +442,9 @@ func (pMgr *PolicyManager) deleteJumpRule(policy *NPMNetworkPolicy, direction Un
 	}
 
 	specs = append([]string{baseChainName}, specs...)
+	timer := metrics.StartNewTimer()
 	errCode, err := pMgr.runIPTablesCommand(util.IptablesDeletionFlag, specs...)
+	metrics.RecordIPTablesDeleteLatency(timer)
 	// if this actually happens (don't think it should), could use ignoreErrorsAndRunIPTablesCommand instead with: "Bad rule (does a matching rule exist in that chain?)"
 	if err != nil && errCode != doesNotExistErrorCode && errCode != couldntLoadTargetErrorCode {
 		errorString := fmt.Sprintf("failed to delete jump from %s chain to %s chain for policy %s with exit code %d", baseChainName, chainName, policy.PolicyKey, errCode)
