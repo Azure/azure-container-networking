@@ -7,22 +7,18 @@ import (
 
 // RecordACLLatency should be used in Windows DP to record the latency of individual ACL operations.
 func RecordACLLatency(timer *Timer, op OperationKind) {
-	if util.IsWindowsDP() {
-		labels := prometheus.Labels{
-			operationLabel: string(op),
-		}
-		aclLatency.With(labels).Observe(timer.timeElapsed())
+	labels := prometheus.Labels{
+		operationLabel: string(op),
 	}
+	aclLatency.With(labels).Observe(timer.timeElapsed())
 }
 
 // IncACLFailures should be used in Windows DP to record the number of failures for individual ACL operations.
 func IncACLFailures(op OperationKind) {
-	if util.IsWindowsDP() {
-		labels := prometheus.Labels{
-			operationLabel: string(op),
-		}
-		aclFailures.With(labels).Inc()
+	labels := prometheus.Labels{
+		operationLabel: string(op),
 	}
+	aclFailures.With(labels).Inc()
 }
 
 func TotalACLLatencyCalls(op OperationKind) (int, error) {

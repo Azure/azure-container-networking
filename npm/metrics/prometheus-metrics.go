@@ -153,7 +153,6 @@ func InitializeAll() {
 		initializeControllerMetrics()
 
 		if util.IsWindowsDP() {
-			// do not add windows metrics for linux
 			InitializeWindowsMetrics()
 
 			klog.Infof("registering windows metrics")
@@ -184,7 +183,7 @@ func ReinitializeAll() {
 	InitializeAll()
 }
 
-// InitializeWindowsMetrics should NOT be externally except for resetting metrics for UTs.
+// InitializeWindowsMetrics should NOT be called externally except for resetting metrics for UTs.
 func InitializeWindowsMetrics() {
 	klog.Infof("initializing Windows metrics. will not register the newly created metrics in this function")
 
