@@ -40,6 +40,7 @@ const (
 	// Supported IP version. Currently support only IPv4
 	ipamV6                = "azure-vnet-ipamv6"
 	defaultRequestTimeout = 15 * time.Second
+	dualStackOverlay      = "dualStackOverlay"
 )
 
 // CNI Operation Types
@@ -637,13 +638,11 @@ func (plugin *NetPlugin) createNetworkInternal(
 		NetNs:                         ipamAddConfig.args.Netns,
 		Options:                       ipamAddConfig.options,
 		DisableHairpinOnHostInterface: ipamAddConfig.nwCfg.DisableHairpinOnHostInterface,
-		IPV6Mode:                      ipamAddConfig.nwCfg.IPV6Mode,
+		IPV6Mode:                      ipamAddConfig.nwCfg.IPV6Mode, //TODO: check if this can be removed.
 		IPAMType:                      ipamAddConfig.nwCfg.IPAM.Type,
 		ServiceCidrs:                  ipamAddConfig.nwCfg.ServiceCidrs,
+		IsIPv6Enabled:                 ipamAddResult.ipv6Result != nil,
 	}
-
-	// set IPv6Mode to dualStackOverlay mode
-	nwInfo.IPV6Mode = ipamAddConfig.nwCfg.IPAM.Mode
 
 	if err = addSubnetToNetworkInfo(ipamAddResult, &nwInfo); err != nil {
 		log.Printf("[cni-net] Failed to add subnets to networkInfo due to %+v", err)
@@ -764,9 +763,8 @@ func (plugin *NetPlugin) createEndpointInternal(opt *createEndpointInternalOpt) 
 		NATInfo:            opt.natInfo,
 	}
 
-	opt.nwCfg.IPV6Mode = opt.nwInfo.IPV6Mode
-
-	epPolicies := getPoliciesFromRuntimeCfg(opt.nwCfg)
+	isIPv6Enabled := opt.resultV6 != nil
+	epPolicies := getPoliciesFromRuntimeCfg(opt.nwCfg, isIPv6Enabled)
 	epInfo.Policies = append(epInfo.Policies, epPolicies...)
 
 	// Populate addresses.
@@ -776,7 +774,7 @@ func (plugin *NetPlugin) createEndpointInternal(opt *createEndpointInternalOpt) 
 
 	if opt.resultV6 != nil {
 		// inject ipv6 routes to Linux pod
-		epInfo.IPV6Mode = string(util.IpamMode(opt.nwCfg.IPAM.Mode))
+		epInfo.IPV6Mode = dualStackOverlay
 		for _, ipconfig := range opt.resultV6.IPs {
 			epInfo.IPAddresses = append(epInfo.IPAddresses, ipconfig.Address)
 		}

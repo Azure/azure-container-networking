@@ -238,7 +238,7 @@ func getEndpointDNSSettings(nwCfg *cni.NetworkConfig, result *cniTypesCurr.Resul
 }
 
 // getPoliciesFromRuntimeCfg returns network policies from network config.
-func getPoliciesFromRuntimeCfg(nwCfg *cni.NetworkConfig) []policy.Policy {
+func getPoliciesFromRuntimeCfg(nwCfg *cni.NetworkConfig, isIPv6Enabled bool) []policy.Policy {
 	log.Printf("[net] RuntimeConfigs: %+v", nwCfg.RuntimeConfig)
 	var policies []policy.Policy
 	var protocol uint32
@@ -277,7 +277,7 @@ func getPoliciesFromRuntimeCfg(nwCfg *cni.NetworkConfig) []policy.Policy {
 		policies = append(policies, policyv4)
 
 		// add port mapping policy for v6 if it's dualstack overlay mode
-		if nwCfg.IPV6Mode == string(util.DualStackOverlay) {
+		if isIPv6Enabled {
 			// To support hostport policy mapping for ipv6 in dualstack overlay mode
 			// uint32 NatFlagsIPv6 = 2
 			rawPolicyv6, _ := json.Marshal(&hnsv2.PortMappingPolicySetting{
