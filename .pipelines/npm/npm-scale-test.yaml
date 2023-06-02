@@ -125,14 +125,13 @@ jobs:
             az extension add --name aks-preview
             az extension update --name aks-preview
 
+            echo "Creating resource group named $(RESOURCE_GROUP)"
+            az group create --name $(RESOURCE_GROUP) -l $(LOCATION) -o table
+
             export CLUSTER_NAME=$(RESOURCE_GROUP)-$(PROFILE)
-
-            echo "Creating resource group named $CLUSTER_NAME"
-            az group create --name $CLUSTER_NAME -l $(LOCATION) -o table
-
-            echo "Creating resource group named $CLUSTER_NAME"
+            echo "Creating cluster named $CLUSTER_NAME"
             az aks create \
-                --resource-group $CLUSTER_NAME \
+                --resource-group $(RESOURCE_GROUP) \
                 --name $CLUSTER_NAME \
                 --generate-ssh-keys \
                 --windows-admin-username e2eadmin \
@@ -148,13 +147,13 @@ jobs:
               echo "Updating $CLUSTER_NAME to not schedule anything on linux pool..."
               az aks nodepool update \
                 --cluster-name $CLUSTER_NAME \
-                -g $CLUSTER_NAME \
+                -g $(RESOURCE_GROUP) \
                 -n nodepool1 \
                 --node-taints CriticalAddonsOnly=true:NoSchedule
 
               echo "Adding Windows nodepool to $CLUSTER_NAME"
               az aks nodepool add \
-                  --resource-group $CLUSTER_NAME \
+                  --resource-group $(RESOURCE_GROUP) \
                   --cluster-name $CLUSTER_NAME \
                   --name awin22 \
                   --os-type Windows \
@@ -165,7 +164,7 @@ jobs:
             fi
 
             echo "Getting credentials to $CLUSTER_NAME"
-            az aks get-credentials -g $CLUSTER_NAME -n $CLUSTER_NAME --overwrite-existing --file ./kubeconfig
+            az aks get-credentials -g $(RESOURCE_GROUP) -n $CLUSTER_NAME --overwrite-existing --file ./kubeconfig
             mkdir -p ~/.kube/
             cp ./kubeconfig ~/.kube/config
 
@@ -212,7 +211,7 @@ jobs:
 
             export CLUSTER_NAME=$(RESOURCE_GROUP)-$(PROFILE)
             echo "Showing cluster status for $CLUSTER_NAME"
-            FQDN=`az aks show -n $CLUSTER_NAME -g $CLUSTER_NAME --query fqdn -o tsv`
+            FQDN=`az aks show -n $CLUSTER_NAME -g $(RESOURCE_GROUP) --query fqdn -o tsv`
             echo "##vso[task.setvariable variable=FQDN]$FQDN"
 
       - task: AzureCLI@2
@@ -225,7 +224,8 @@ jobs:
           condition: succeeded()
           inlineScript: |
             set -e
-            mkdir -p $(System.DefaultWorkingDirectory)/$(RESOURCE_GROUP)-$(PROFILE)
+            export CLUSTER_NAME=$(RESOURCE_GROUP)-$(PROFILE)
+            mkdir -p $(System.DefaultWorkingDirectory)/$CLUSTER_NAME
             ./kwok --kubeconfig ~/.kube/config \
               --cidr=155.0.0.0/16 \
               --node-ip=155.0.0.1 \
@@ -233,7 +233,7 @@ jobs:
               --manage-nodes-with-annotation-selector=kwok.x-k8s.io/node=fake \
               --manage-nodes-with-label-selector= \
               --disregard-status-with-annotation-selector=kwok.x-k8s.io/status=custom \
-              --disregard-status-with-label-selector= > $(System.DefaultWorkingDirectory)/$(RESOURCE_GROUP)-$(PROFILE)/kwok-scale-up.log &
+              --disregard-status-with-label-selector= > $(System.DefaultWorkingDirectory)/$CLUSTER_NAME/kwok-scale-up.log &
             kwok_pid=$!
 
             # 20 kwok nodes
@@ -271,7 +271,8 @@ jobs:
           condition: succeeded()
           inlineScript: |
             set -e
-            mkdir -p $(System.DefaultWorkingDirectory)/$(RESOURCE_GROUP)-$(PROFILE)
+            export CLUSTER_NAME=$(RESOURCE_GROUP)-$(PROFILE)
+            mkdir -p $(System.DefaultWorkingDirectory)/$CLUSTER_NAME
             ./kwok --kubeconfig ~/.kube/config \
               --cidr=155.0.0.0/16 \
               --node-ip=155.0.0.1 \
@@ -279,7 +280,7 @@ jobs:
               --manage-nodes-with-annotation-selector=kwok.x-k8s.io/node=fake \
               --manage-nodes-with-label-selector= \
               --disregard-status-with-annotation-selector=kwok.x-k8s.io/status=custom \
-              --disregard-status-with-label-selector= > $(System.DefaultWorkingDirectory)/$(RESOURCE_GROUP)-$(PROFILE)/kwok-bootup-latency.log &
+              --disregard-status-with-label-selector= > $(System.DefaultWorkingDirectory)/$CLUSTER_NAME/kwok-bootup-latency.log &
             kwok_pid=$!
 
             kubectl rollout restart -n kube-system ds azure-npm-win
@@ -313,7 +314,8 @@ jobs:
           # condition: succeeded()
           inlineScript: |
             set -e
-            mkdir -p $(System.DefaultWorkingDirectory)/$(RESOURCE_GROUP)-$(PROFILE)
+            export CLUSTER_NAME=$(RESOURCE_GROUP)-$(PROFILE)
+            mkdir -p $(System.DefaultWorkingDirectory)/$CLUSTER_NAME
             ./kwok --kubeconfig ~/.kube/config \
               --cidr=155.0.0.0/16 \
               --node-ip=155.0.0.1 \
@@ -321,7 +323,7 @@ jobs:
               --manage-nodes-with-annotation-selector=kwok.x-k8s.io/node=fake \
               --manage-nodes-with-label-selector= \
               --disregard-status-with-annotation-selector=kwok.x-k8s.io/status=custom \
-              --disregard-status-with-label-selector= > $(System.DefaultWorkingDirectory)/$(RESOURCE_GROUP)-$(PROFILE)/kwok-crud.log &
+              --disregard-status-with-label-selector= > $(System.DefaultWorkingDirectory)/$CLUSTER_NAME/kwok-crud.log &
             kwok_pid=$!
 
             # will delete scale-test and connectivity-test namespaces from previous run
@@ -366,7 +368,8 @@ jobs:
           condition: succeeded()
           inlineScript: |
             set -e
-            mkdir -p $(System.DefaultWorkingDirectory)/$(RESOURCE_GROUP)-$(PROFILE)
+            export CLUSTER_NAME=$(RESOURCE_GROUP)-$(PROFILE)
+            mkdir -p $(System.DefaultWorkingDirectory)/$CLUSTER_NAME
             ./kwok --kubeconfig ~/.kube/config \
               --cidr=155.0.0.0/16 \
               --node-ip=155.0.0.1 \
@@ -374,7 +377,7 @@ jobs:
               --manage-nodes-with-annotation-selector=kwok.x-k8s.io/node=fake \
               --manage-nodes-with-label-selector= \
               --disregard-status-with-annotation-selector=kwok.x-k8s.io/status=custom \
-              --disregard-status-with-label-selector= > $(System.DefaultWorkingDirectory)/$(RESOURCE_GROUP)-$(PROFILE)/kwok-crud-connectivity.log &
+              --disregard-status-with-label-selector= > $(System.DefaultWorkingDirectory)/$CLUSTER_NAME/kwok-crud-connectivity.log &
             kwok_pid=$!
 
             cd $(Pipeline.Workspace)/s/test/scale/connectivity/
