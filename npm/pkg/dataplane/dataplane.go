@@ -601,6 +601,12 @@ func (dp *DataPlane) deleteIPSetsAndReferences(sets []*ipsets.TranslatedIPSet, n
 				return npmerrors.Errorf(npmErrorString, false, fmt.Sprintf("[DataPlane] failed to RemoveFromList in deleteIPSetReferences with err: %s", err.Error()))
 			}
 		}
+
+		if !dp.iptablesInBackground {
+			// Try to delete these IPSets
+			dp.ipsetMgr.DeleteIPSet(set.Metadata.GetPrefixName(), false)
+		}
+
 	}
 	return nil
 }
