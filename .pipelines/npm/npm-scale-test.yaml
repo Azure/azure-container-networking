@@ -311,7 +311,7 @@ jobs:
           scriptType: "bash"
           scriptLocation: "inlineScript"
           failOnStderr: true
-          # condition: succeeded()
+          condition: succeeded()
           inlineScript: |
             set -e
             export CLUSTER_NAME=$(RESOURCE_GROUP)-$(PROFILE)
@@ -440,6 +440,7 @@ jobs:
           azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
           scriptType: "bash"
           scriptLocation: "inlineScript"
+          condition: succeeded()
           inlineScript: |
             echo Deleting $(RESOURCE_GROUP)
             az group delete -n $(RESOURCE_GROUP) --yes
