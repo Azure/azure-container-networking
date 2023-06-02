@@ -40,7 +40,6 @@ const (
 	// Supported IP version. Currently support only IPv4
 	ipamV6                = "azure-vnet-ipamv6"
 	defaultRequestTimeout = 15 * time.Second
-	dualStackOverlay      = "dualStackOverlay"
 )
 
 // CNI Operation Types
@@ -638,7 +637,7 @@ func (plugin *NetPlugin) createNetworkInternal(
 		NetNs:                         ipamAddConfig.args.Netns,
 		Options:                       ipamAddConfig.options,
 		DisableHairpinOnHostInterface: ipamAddConfig.nwCfg.DisableHairpinOnHostInterface,
-		IPV6Mode:                      ipamAddConfig.nwCfg.IPV6Mode, //TODO: check if this can be removed.
+		IPV6Mode:                      ipamAddConfig.nwCfg.IPV6Mode, //TODO: check if IPV6Mode field can be deprecated
 		IPAMType:                      ipamAddConfig.nwCfg.IPAM.Type,
 		ServiceCidrs:                  ipamAddConfig.nwCfg.ServiceCidrs,
 		IsIPv6Enabled:                 ipamAddResult.ipv6Result != nil,
@@ -774,7 +773,7 @@ func (plugin *NetPlugin) createEndpointInternal(opt *createEndpointInternalOpt) 
 
 	if opt.resultV6 != nil {
 		// inject ipv6 routes to Linux pod
-		epInfo.IPV6Mode = dualStackOverlay // TODO: can this IPV6Mode be deprecated and can we add IsIPv6Enabled flag for generic working
+		epInfo.IPV6Mode = string(util.IpamMode(opt.nwCfg.IPAM.Mode)) // TODO: check IPV6Mode field can be deprecated and can we add IsIPv6Enabled flag for generic working
 		for _, ipconfig := range opt.resultV6.IPs {
 			epInfo.IPAddresses = append(epInfo.IPAddresses, ipconfig.Address)
 		}

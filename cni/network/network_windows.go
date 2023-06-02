@@ -276,7 +276,7 @@ func getPoliciesFromRuntimeCfg(nwCfg *cni.NetworkConfig, isIPv6Enabled bool) []p
 		log.Printf("[net] Creating port mapping policy: %+v", policyv4)
 		policies = append(policies, policyv4)
 
-		// add port mapping policy for v6 if it's dualstack overlay mode
+		// add port mapping policy for v6 if we have IPV6 enabled
 		if isIPv6Enabled {
 			// To support hostport policy mapping for ipv6 in dualstack overlay mode
 			// uint32 NatFlagsIPv6 = 2

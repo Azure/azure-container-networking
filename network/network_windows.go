@@ -403,7 +403,7 @@ func (nm *networkManager) newNetworkImplHnsV2(nwInfo *NetworkInfo, extIf *extern
 	if err != nil {
 		// if network not found, create the HNS network.
 		if errors.As(err, &hcn.NetworkNotFoundError{}) {
-			// add net routes to windows node in dualStackOverlay mode
+			// add net routes to windows node if we have IPv6 enabled
 			if nwInfo.IsIPv6Enabled {
 				if err := nm.addNewNetRules(nwInfo); err != nil { // nolint
 					log.Printf("[net] Failed to add net rules due to %+v", err)
