@@ -888,18 +888,23 @@ func (service *HTTPRestService) getAllNetworkContainers(w http.ResponseWriter, r
 
 	var resp cns.GetAllNetworkContainersResponse
 
-	failedNCs := make([]string, 0)
+	failedNetworkContainerResponses := make([]cns.GetNetworkContainerResponse, 0)
 	for i := 0; i < len(getAllNetworkContainerResponses); i++ {
 		if getAllNetworkContainerResponses[i].Response.ReturnCode != types.Success {
-			failedNCs = append(failedNCs, getAllNetworkContainerResponses[i].NetworkContainerID)
+			failedNetworkContainerResponses = append(failedNetworkContainerResponses, getAllNetworkContainerResponses[i])
 		}
 	}
 
 	resp.NetworkContainers = getAllNetworkContainerResponses
 
-	if len(failedNCs) > 0 {
+	if len(failedNetworkContainerResponses) > 0 {
+		failedToGetNCErrMsg := make([]string, 0)
+		for _, failedNetworkContainerResponse := range failedNetworkContainerResponses { // nolint
+			failedToGetNCErrMsg = append(failedToGetNCErrMsg, fmt.Sprintf("Failed to get NC %s due to %s", failedNetworkContainerResponse.NetworkContainerID, failedNetworkContainerResponse.Response.Message))
+		}
+
 		resp.Response.ReturnCode = types.UnexpectedError
-		resp.Response.Message = fmt.Sprintf("Failed to get NCs %s", strings.Join(failedNCs, ","))
+		resp.Response.Message = strings.Join(failedToGetNCErrMsg, "\n")
 	} else {
 		resp.Response.ReturnCode = types.Success
 		resp.Response.Message = "Successfully retrieved NCs"

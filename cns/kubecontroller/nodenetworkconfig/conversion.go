@@ -21,6 +21,7 @@ var (
 )
 
 // CreateNCRequestFromDynamicNC generates a CreateNetworkContainerRequest from a dynamic NetworkContainer.
+//
 //nolint:gocritic //ignore hugeparam
 func CreateNCRequestFromDynamicNC(nc v1alpha.NetworkContainer) (*cns.CreateNetworkContainerRequest, error) {
 	primaryIP := nc.PrimaryIP
@@ -69,8 +70,13 @@ func CreateNCRequestFromDynamicNC(nc v1alpha.NetworkContainer) (*cns.CreateNetwo
 }
 
 // CreateNCRequestFromStaticNC generates a CreateNetworkContainerRequest from a static NetworkContainer.
+//
 //nolint:gocritic //ignore hugeparam
 func CreateNCRequestFromStaticNC(nc v1alpha.NetworkContainer) (*cns.CreateNetworkContainerRequest, error) {
+	if nc.Type == v1alpha.Overlay {
+		nc.Version = 0 // fix for NMA always giving us version 0 for Overlay NCs
+	}
+
 	primaryPrefix, err := netip.ParsePrefix(nc.PrimaryIP)
 	if err != nil {
 		return nil, errors.Wrapf(err, "IP: %s", nc.PrimaryIP)
@@ -85,24 +91,9 @@ func CreateNCRequestFromStaticNC(nc v1alpha.NetworkContainer) (*cns.CreateNetwor
 		PrefixLength: uint8(subnetPrefix.Bits()),
 	}
 
-	secondaryIPConfigs := map[string]cns.SecondaryIPConfig{}
-
-	// iterate through all IP addresses in the subnet described by primaryPrefix and
-	// add them to the request as secondary IPConfigs.
-	for addr := primaryPrefix.Masked().Addr(); primaryPrefix.Contains(addr); addr = addr.Next() {
-		secondaryIPConfigs[addr.String()] = cns.SecondaryIPConfig{
-			IPAddress: addr.String(),
-			NCVersion: int(nc.Version),
-		}
+	req, err := createNCRequestFromStaticNCHelper(nc, primaryPrefix, subnet)
+	if err != nil {
+		return nil, errors.Wrapf(err, "error while creating NC request from static NC")
 	}
-	return &cns.CreateNetworkContainerRequest{
-		SecondaryIPConfigs:   secondaryIPConfigs,
-		NetworkContainerid:   nc.ID,
-		NetworkContainerType: cns.Docker,
-		Version:              strconv.FormatInt(nc.Version, 10), //nolint:gomnd // it's decimal
-		IPConfiguration: cns.IPConfiguration{
-			IPSubnet:         subnet,
-			GatewayIPAddress: nc.DefaultGateway,
-		},
-	}, nil
+	return req, err
 }

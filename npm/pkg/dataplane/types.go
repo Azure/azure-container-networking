@@ -12,6 +12,7 @@ import (
 
 type GenericDataplane interface {
 	BootupDataplane() error
+	FinishBootupPhase()
 	RunPeriodicTasks()
 	GetAllIPSets() map[string]string
 	GetIPSet(setName string) *ipsets.IPSet

@@ -345,7 +345,7 @@ jobs:
           done
 
           exit $exitCode
-        displayName: "Run Test Suite and Get Logs"
+        displayName: "Run Test Suite and Get Logs ($(PROFILE))"
         failOnStderr: false
 
       - publish: $(System.DefaultWorkingDirectory)/npmLogs_$(AZURE_CLUSTER)
@@ -464,7 +464,7 @@ jobs:
         name: cyclonus
         displayName: "Run Cyclonus Test"
         failOnStderr: false
-        condition: always()
+        condition: succeeded()
 
       - bash: |
           export CLUSTER_NAME=$(RESOURCE_GROUP)-$(PROFILE)

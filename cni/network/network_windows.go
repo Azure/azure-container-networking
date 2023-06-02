@@ -415,6 +415,7 @@ func (plugin *NetPlugin) isDualNicFeatureSupported(netNs string) bool {
 }
 
 func getOverlayGateway(podsubnet *net.IPNet) (net.IP, error) {
+	log.Printf("WARN: No gateway specified for Overlay NC. CNI will choose one, but connectivity may break.")
 	ncgw := podsubnet.IP
 	ncgw[3]++
 	ncgw = net.ParseIP(ncgw.String())

@@ -32,6 +32,7 @@ const (
 	requestPercent      = 100
 	batchSize           = 10
 	initPoolSize        = 10
+	ncID                = "6a07155a-32d7-49af-872f-1e70ee366dc0"
 )
 
 var dnsservers = []string{"8.8.8.8", "8.8.4.4"}
@@ -43,6 +44,90 @@ func TestCreateOrUpdateNetworkContainerInternal(t *testing.T) {
 	setOrchestratorTypeInternal(cns.KubernetesCRD)
 	// NC version set as -1 which is the same as default host version value.
 	validateCreateOrUpdateNCInternal(t, 2, "-1")
+}
+
+// TestReconcileNCStatePrimaryIPChangeShouldFail tests that reconciling NC state with
+// a NC whose IP has changed should fail
+func TestReconcileNCStatePrimaryIPChangeShouldFail(t *testing.T) {
+	restartService()
+	setEnv(t)
+	setOrchestratorTypeInternal(cns.KubernetesCRD)
+	svc.state.ContainerStatus = make(map[string]containerstatus)
+
+	// start with a NC in state
+	ncID := "555ac5c9-89f2-4b5d-b8d0-616894d6d151"
+	svc.state.ContainerStatus[ncID] = containerstatus{
+		ID:          ncID,
+		VMVersion:   "0",
+		HostVersion: "0",
+		CreateNetworkContainerRequest: cns.CreateNetworkContainerRequest{
+			NetworkContainerid: ncID,
+			IPConfiguration: cns.IPConfiguration{
+				IPSubnet: cns.IPSubnet{
+					IPAddress:    "10.0.1.0",
+					PrefixLength: 24,
+				},
+			},
+		},
+	}
+
+	// now try to reconcile the state where the NC primary IP has changed
+	resp := svc.ReconcileNCState(&cns.CreateNetworkContainerRequest{
+		NetworkContainerid: ncID,
+		IPConfiguration: cns.IPConfiguration{
+			IPSubnet: cns.IPSubnet{
+				IPAddress:    "10.0.2.0", // note this IP has changed
+				PrefixLength: 24,
+			},
+		},
+	}, map[string]cns.PodInfo{}, &v1alpha.NodeNetworkConfig{})
+
+	assert.Equal(t, types.PrimaryCANotSame, resp)
+}
+
+// TestReconcileNCStateGatewayChange tests that NC state gets updated when reconciled
+// if the NC's gateway IP has changed
+func TestReconcileNCStateGatewayChange(t *testing.T) {
+	restartService()
+	setEnv(t)
+	setOrchestratorTypeInternal(cns.KubernetesCRD)
+	svc.state.ContainerStatus = make(map[string]containerstatus)
+
+	// start with a NC in state
+	ncID := "555ac5c9-89f2-4b5d-b8d0-616894d6d151"
+	oldGW := "10.0.0.0"
+	newGW := "10.0.1.0"
+	ncPrimaryIP := cns.IPSubnet{
+		IPAddress:    "10.0.1.1",
+		PrefixLength: 24,
+	}
+	svc.state.ContainerStatus[ncID] = containerstatus{
+		ID:          ncID,
+		VMVersion:   "0",
+		HostVersion: "0",
+		CreateNetworkContainerRequest: cns.CreateNetworkContainerRequest{
+			NetworkContainerid:   ncID,
+			NetworkContainerType: cns.Kubernetes,
+			IPConfiguration: cns.IPConfiguration{
+				IPSubnet:         ncPrimaryIP,
+				GatewayIPAddress: oldGW,
+			},
+		},
+	}
+
+	// now try to reconcile the state where the NC gateway has changed
+	resp := svc.ReconcileNCState(&cns.CreateNetworkContainerRequest{
+		NetworkContainerid:   ncID,
+		NetworkContainerType: cns.Kubernetes,
+		IPConfiguration: cns.IPConfiguration{
+			IPSubnet:         ncPrimaryIP,
+			GatewayIPAddress: newGW, // note this IP has changed
+		},
+	}, map[string]cns.PodInfo{}, &v1alpha.NodeNetworkConfig{})
+
+	assert.Equal(t, types.Success, resp)
+	// assert the new state reflects the gateway update
+	assert.Equal(t, newGW, svc.state.ContainerStatus[ncID].CreateNetworkContainerRequest.IPConfiguration.GatewayIPAddress)
 }
 
 func TestCreateOrUpdateNCWithLargerVersionComparedToNMAgent(t *testing.T) {
@@ -61,7 +146,6 @@ func TestCreateAndUpdateNCWithSecondaryIPNCVersion(t *testing.T) {
 	// NC version set as 0 which is the default initial value.
 	ncVersion := 0
 	secondaryIPConfigs := make(map[string]cns.SecondaryIPConfig)
-	ncID := "testNc1"
 
 	// Build secondaryIPConfig, it will have one item as {IPAddress:"10.0.0.16", NCVersion: 0}
 	ipAddress := "10.0.0.16"
@@ -219,7 +303,6 @@ func createNCReqeustForSyncHostNCVersion(t *testing.T) cns.CreateNetworkContaine
 	// NC version set as 0 which is the default initial value.
 	ncVersion := 0
 	secondaryIPConfigs := make(map[string]cns.SecondaryIPConfig)
-	ncID := "testNc1"
 
 	// Build secondaryIPConfig, it will have one item as {IPAddress:"10.0.0.16", NCVersion: 0}
 	ipAddress := "10.0.0.16"
@@ -393,7 +476,6 @@ func setOrchestratorTypeInternal(orchestratorType string) {
 
 func validateCreateNCInternal(t *testing.T, secondaryIpCount int, ncVersion string) {
 	secondaryIPConfigs := make(map[string]cns.SecondaryIPConfig)
-	ncId := "testNc1"
 	ncVersionInInt, _ := strconv.Atoi(ncVersion)
 	startingIndex := 6
 	for i := 0; i < secondaryIpCount; i++ {
@@ -404,12 +486,11 @@ func validateCreateNCInternal(t *testing.T, secondaryIpCount int, ncVersion stri
 		startingIndex++
 	}
 
-	createAndValidateNCRequest(t, secondaryIPConfigs, ncId, ncVersion)
+	createAndValidateNCRequest(t, secondaryIPConfigs, ncID, ncVersion)
 }
 
 func validateCreateOrUpdateNCInternal(t *testing.T, secondaryIpCount int, ncVersion string) {
 	secondaryIPConfigs := make(map[string]cns.SecondaryIPConfig)
-	ncId := "testNc1"
 	ncVersionInInt, _ := strconv.Atoi(ncVersion)
 	startingIndex := 6
 	for i := 0; i < secondaryIpCount; i++ {
@@ -420,7 +501,7 @@ func validateCreateOrUpdateNCInternal(t *testing.T, secondaryIpCount int, ncVers
 		startingIndex++
 	}
 
-	createAndValidateNCRequest(t, secondaryIPConfigs, ncId, ncVersion)
+	createAndValidateNCRequest(t, secondaryIPConfigs, ncID, ncVersion)
 
 	// now Validate Update, add more secondaryIPConfig and it should handle the update
 	fmt.Println("Validate Scaleup")
@@ -432,7 +513,7 @@ func validateCreateOrUpdateNCInternal(t *testing.T, secondaryIpCount int, ncVers
 		startingIndex++
 	}
 
-	createAndValidateNCRequest(t, secondaryIPConfigs, ncId, ncVersion)
+	createAndValidateNCRequest(t, secondaryIPConfigs, ncID, ncVersion)
 
 	// now Scale down, delete 3 ipaddresses from secondaryIPConfig req
 	fmt.Println("Validate Scale down")
@@ -446,7 +527,7 @@ func validateCreateOrUpdateNCInternal(t *testing.T, secondaryIpCount int, ncVers
 		}
 	}
 
-	createAndValidateNCRequest(t, secondaryIPConfigs, ncId, ncVersion)
+	createAndValidateNCRequest(t, secondaryIPConfigs, ncID, ncVersion)
 
 	// Cleanup all SecondaryIps
 	fmt.Println("Validate no SecondaryIpconfigs")
@@ -454,7 +535,7 @@ func validateCreateOrUpdateNCInternal(t *testing.T, secondaryIpCount int, ncVers
 		delete(secondaryIPConfigs, ipid)
 	}
 
-	createAndValidateNCRequest(t, secondaryIPConfigs, ncId, ncVersion)
+	createAndValidateNCRequest(t, secondaryIPConfigs, ncID, ncVersion)
 }
 
 func createAndValidateNCRequest(t *testing.T, secondaryIPConfigs map[string]cns.SecondaryIPConfig, ncId, ncVersion string) {

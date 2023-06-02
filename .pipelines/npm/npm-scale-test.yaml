@@ -1,0 +1,418 @@
+trigger:
+  - master
+
+variables:
+  - name: VNET_NAME
+    value: npm-vnet
+
+jobs:
+  - job: setup
+    displayName: "Configure Test Environment"
+    pool:
+      name: $(BUILD_POOL_NAME_DEFAULT)
+      demands:
+        - agent.os -equals Linux
+        - Role -equals Build
+    steps:
+      - checkout: self
+
+      - script: |
+          go version
+          go env
+          which go
+          echo $PATH
+          mkdir -p '$(GOBIN)'
+          mkdir -p '$(GOPATH)/pkg'
+          BUILD_NUMBER=$(Build.BuildNumber)
+          # format: npm-<year>-<month>-<day>-<minute>-<second>
+          RG=e2e-$(echo "npm-`date "+%Y-%m-%d-%M-%S"`")
+          TAG=$(make npm-version)
+          echo "Resource group: $RG"
+          echo "Image tag: $TAG"
+
+          echo "##vso[task.setvariable variable=RESOURCE_GROUP;isOutput=true;]$RG"
+          echo "##vso[task.setvariable variable=TAG;isOutput=true;]$TAG"
+
+        name: "EnvironmentalVariables"
+        displayName: "Set environmental variables"
+        condition: always()
+
+  - job: containerize
+    dependsOn: [setup]
+    displayName: Build Images
+    variables:
+      TAG: $[ dependencies.setup.outputs['EnvironmentalVariables.TAG'] ]
+    pool:
+      name: "$(BUILD_POOL_NAME_DEFAULT)"
+    strategy:
+      matrix:
+        npm_windows2022_amd64:
+          arch: amd64
+          name: npm
+          os: windows
+          os_version: ltsc2022
+    steps:
+      - template: ../containers/container-template.yaml
+        parameters:
+          arch: $(arch)
+          name: $(name)
+          os: $(os)
+          os_version: $(os_version)
+
+  - job: Create_Cluster_and_Run_Test
+    timeoutInMinutes: 360
+    displayName: "Run Scale Test"
+    pool:
+      name: $(BUILD_POOL_NAME_DEFAULT)
+      demands:
+        - agent.os -equals Linux
+        - Role -equals Build
+    dependsOn: [containerize, setup]
+    variables:
+      RESOURCE_GROUP: $[ dependencies.setup.outputs['EnvironmentalVariables.RESOURCE_GROUP'] ]
+      TAG: $[ dependencies.setup.outputs['EnvironmentalVariables.TAG'] ]
+      FQDN: empty
+    strategy:
+      matrix:
+        v2-windows:
+          PROFILE: "scale-win"
+    steps:
+      - checkout: self
+      - bash: |
+          test -d $(Pipeline.Workspace)/s/test/scale/ || {
+              echo "##vso[task.logissue type=error]$(Pipeline.Workspace)/s/test/scale/ does not exist"
+              exit 1
+          }
+        displayName: "Verify Directory Exists"
+        failOnStderr: true
+      - task: AzureCLI@2
+        displayName: "Download Kubectl and Kwok"
+        inputs:
+          azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+          scriptType: "bash"
+          scriptLocation: "inlineScript"
+          failOnStderr: true
+          condition: succeeded()
+          inlineScript: |
+            set -e
+            curl -LO https://dl.k8s.io/release/v1.23.0/bin/linux/amd64/kubectl
+            chmod +x kubectl
+
+            KWOK_REPO=kubernetes-sigs/kwok
+            KWOK_LATEST_RELEASE=$(curl "https://api.github.com/repos/${KWOK_REPO}/releases/latest" | jq -r '.tag_name')
+            wget -O kwok -c "https://github.com/kubernetes-sigs/kwok/releases/download/${KWOK_LATEST_RELEASE}/kwok-$(go env GOOS)-$(go env GOARCH)"
+            chmod +x kwok
+      - task: AzureCLI@2
+        displayName: "Create AKS Cluster"
+        inputs:
+          azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+          scriptType: "bash"
+          scriptLocation: "inlineScript"
+          failOnStderr: true
+          condition: succeeded()
+          inlineScript: |
+            set -e
+            az extension add --name aks-preview
+            az extension update --name aks-preview
+
+            export CLUSTER_NAME=$(RESOURCE_GROUP)-$(PROFILE)
+
+            echo "Creating resource group named $CLUSTER_NAME"
+            az group create --name $CLUSTER_NAME -l $(LOCATION) -o table
+
+            echo "Creating resource group named $CLUSTER_NAME"
+            az aks create \
+                --resource-group $CLUSTER_NAME \
+                --name $CLUSTER_NAME \
+                --generate-ssh-keys \
+                --windows-admin-username e2eadmin \
+                --windows-admin-password alpha@numeric!password2 \
+                --network-plugin azure \
+                --vm-set-type VirtualMachineScaleSets \
+                --node-vm-size Standard_D4s_v3 \
+                --node-count 1
+
+            # don't schedule anything on the linux system pool
+            echo "Updating $CLUSTER_NAME to not schedule anything on linux pool..."
+            az aks nodepool update \
+              --cluster-name $CLUSTER_NAME \
+              -g $CLUSTER_NAME \
+              -n nodepool1 \
+              --node-taints CriticalAddonsOnly=true:NoSchedule
+
+            echo "Adding Windows nodepool to $CLUSTER_NAME"
+            az aks nodepool add \
+                --resource-group $CLUSTER_NAME \
+                --cluster-name $CLUSTER_NAME \
+                --name awin22 \
+                --os-type Windows \
+                --os-sku Windows2022 \
+                --node-vm-size Standard_D4s_v3 \
+                --node-count 1 \
+                --max-pods 100
+
+            echo "Getting credentials to $CLUSTER_NAME"
+            az aks get-credentials -g $CLUSTER_NAME -n $CLUSTER_NAME --overwrite-existing --file ./kubeconfig
+            mkdir -p ~/.kube/
+            cp ./kubeconfig ~/.kube/config
+
+      - task: AzureCLI@2
+        displayName: "Deploy NPM to Test Cluster"
+        inputs:
+          azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+          scriptType: "bash"
+          scriptLocation: "inlineScript"
+          failOnStderr: true
+          condition: succeeded()
+          inlineScript: |
+            set -e
+
+            # deploy azure-npm
+            cp $(Pipeline.Workspace)/s/npm/examples/windows/azure-npm.yaml azure-npm.yaml
+            # set higher memory limit
+            sed -i 's/memory: 300Mi/memory: 1000Mi/g' azure-npm.yaml
+            kubectl apply -f azure-npm.yaml
+
+            # swap azure-npm image with one built during run
+            kubectl set image daemonset/azure-npm-win -n kube-system azure-npm=$IMAGE_REGISTRY/azure-npm:windows-amd64-ltsc2022-$(TAG)
+
+            sleep 5s
+            echo "waiting for NPM to start running..."
+            kubectl wait --for=condition=Ready pod -l k8s-app=azure-npm -n kube-system --timeout=20m
+            echo "sleep 3m to let NPM restart in case of bootup failure due to HNS errors"
+            sleep 3m
+
+            kubectl get po -n kube-system -owide -A
+
+            echo "labeling Windows nodes for scale test"
+            kubectl get node -o wide | grep "Windows Server 2022 Datacenter" | awk '{print $1}' | xargs -n 1 -I {} kubectl label node {} scale-test=true connectivity-test=true
+
+            export CLUSTER_NAME=$(RESOURCE_GROUP)-$(PROFILE)
+            echo "Showing cluster status for $CLUSTER_NAME"
+            FQDN=`az aks show -n $CLUSTER_NAME -g $CLUSTER_NAME --query fqdn -o tsv`
+            echo "##vso[task.setvariable variable=FQDN]$FQDN"
+
+      - task: AzureCLI@2
+        displayName: "Scale Up Large"
+        inputs:
+          azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+          scriptType: "bash"
+          scriptLocation: "inlineScript"
+          failOnStderr: true
+          condition: succeeded()
+          inlineScript: |
+            set -e
+            mkdir -p $(System.DefaultWorkingDirectory)/$(RESOURCE_GROUP)-$(PROFILE)
+            ./kwok --kubeconfig ~/.kube/config \
+              --cidr=155.0.0.0/16 \
+              --node-ip=155.0.0.1 \
+              --manage-all-nodes=false \
+              --manage-nodes-with-annotation-selector=kwok.x-k8s.io/node=fake \
+              --manage-nodes-with-label-selector= \
+              --disregard-status-with-annotation-selector=kwok.x-k8s.io/status=custom \
+              --disregard-status-with-label-selector= > $(System.DefaultWorkingDirectory)/$(RESOURCE_GROUP)-$(PROFILE)/kwok-scale-up.log &
+            kwok_pid=$!
+
+            # 20 kwok nodes
+            # 1000 kwok Pods
+            # 30 real Pods
+            # 300 ACLs per endpoint
+            # ~4K IPSets
+            # ~36K IPSet members
+            kubectlPath=`pwd`/kubectl
+            cd $(Pipeline.Workspace)/s/test/scale/
+            set +e
+            ./test-scale.sh --kubectl-binary=$kubectlPath \
+                --max-kwok-pods-per-node=50 \
+                --num-kwok-deployments=10 \
+                --num-kwok-replicas=100 \
+                --max-real-pods-per-node=30 \
+                --num-real-deployments=10 \
+                --num-real-replicas=3 \
+                --num-network-policies=50 \
+                --num-unapplied-network-policies=50 \
+                --num-unique-labels-per-pod=2 \
+                --num-unique-labels-per-deployment=2 \
+                --num-shared-labels-per-pod=10
+            rc=$?
+            kill $kwok_pid
+            exit $rc
+
+      - task: AzureCLI@2
+        displayName: "Test NPM Bootup Latency and Connectivity ($(PROFILE))"
+        inputs:
+          azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+          scriptType: "bash"
+          scriptLocation: "inlineScript"
+          failOnStderr: true
+          condition: succeeded()
+          inlineScript: |
+            set -e
+            mkdir -p $(System.DefaultWorkingDirectory)/$(RESOURCE_GROUP)-$(PROFILE)
+            ./kwok --kubeconfig ~/.kube/config \
+              --cidr=155.0.0.0/16 \
+              --node-ip=155.0.0.1 \
+              --manage-all-nodes=false \
+              --manage-nodes-with-annotation-selector=kwok.x-k8s.io/node=fake \
+              --manage-nodes-with-label-selector= \
+              --disregard-status-with-annotation-selector=kwok.x-k8s.io/status=custom \
+              --disregard-status-with-label-selector= > $(System.DefaultWorkingDirectory)/$(RESOURCE_GROUP)-$(PROFILE)/kwok-bootup-latency.log &
+            kwok_pid=$!
+
+            kubectl rollout restart -n kube-system ds azure-npm-win
+            echo "sleeping 3 minutes to allow NPM pods to restart after scale-up..."
+            sleep 3m
+
+            cd $(Pipeline.Workspace)/s/test/scale/connectivity/
+            # initial connectivity should be established within 15 minutes of NPM restart (12 minute timeout since we already waited 3 minutes above)
+            # adding new network policy to all 30 Pods should happen within 30 seconds
+            set +e
+            ./test-connectivity.sh --kubectl-binary=$kubectlPath \
+                --num-scale-pods-to-verify=all \
+                --max-wait-for-initial-connectivity=$((12*60)) \
+                --max-wait-after-adding-netpol=30
+            rc=$?
+            if [[ $rc != 0 ]]; then
+                kubectl get pod -n scale-test
+                kubectl get pod -n connectivity-test
+            fi
+            kill $kwok_pid
+            exit $rc
+
+      - task: AzureCLI@2
+        displayName: "CRUD at Medium Scale"
+        inputs:
+          azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+          scriptType: "bash"
+          scriptLocation: "inlineScript"
+          failOnStderr: true
+          # condition: succeeded()
+          inlineScript: |
+            set -e
+            mkdir -p $(System.DefaultWorkingDirectory)/$(RESOURCE_GROUP)-$(PROFILE)
+            ./kwok --kubeconfig ~/.kube/config \
+              --cidr=155.0.0.0/16 \
+              --node-ip=155.0.0.1 \
+              --manage-all-nodes=false \
+              --manage-nodes-with-annotation-selector=kwok.x-k8s.io/node=fake \
+              --manage-nodes-with-label-selector= \
+              --disregard-status-with-annotation-selector=kwok.x-k8s.io/status=custom \
+              --disregard-status-with-label-selector= > $(System.DefaultWorkingDirectory)/$(RESOURCE_GROUP)-$(PROFILE)/kwok-crud.log &
+            kwok_pid=$!
+
+            # will delete scale-test and connectivity-test namespaces from previous run
+            # 10 kwok Pods
+            # 30 real Pods
+            kubectlPath=`pwd`/kubectl
+            cd $(Pipeline.Workspace)/s/test/scale/
+            set +e
+            ./test-scale.sh --kubectl-binary=$kubectlPath \
+                --max-kwok-pods-per-node=50 \
+                --num-kwok-deployments=10 \
+                --num-kwok-replicas=1 \
+                --max-real-pods-per-node=30 \
+                --num-real-deployments=3 \
+                --num-real-replicas=4 \
+                --num-network-policies=1 \
+                --num-unapplied-network-policies=10 \
+                --num-unique-labels-per-pod=2 \
+                --num-unique-labels-per-deployment=2 \
+                --num-shared-labels-per-pod=10 \
+                --delete-labels \
+                --delete-labels-interval=30 \
+                --delete-labels-times=2 \
+                --delete-netpols \
+                --delete-netpols-interval=0 \
+                --delete-netpols-times=1 \
+                --delete-kwok-pods=10 \
+                --delete-real-pods=6 \
+                --delete-pods-interval=120 \
+                --delete-pods-times=2
+            rc=$?
+            kill $kwok_pid
+            exit $rc
+
+      - task: AzureCLI@2
+        displayName: "Test Connectivity after CRUD ($(PROFILE))"
+        inputs:
+          azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+          scriptType: "bash"
+          scriptLocation: "inlineScript"
+          failOnStderr: true
+          condition: succeeded()
+          inlineScript: |
+            set -e
+            mkdir -p $(System.DefaultWorkingDirectory)/$(RESOURCE_GROUP)-$(PROFILE)
+            ./kwok --kubeconfig ~/.kube/config \
+              --cidr=155.0.0.0/16 \
+              --node-ip=155.0.0.1 \
+              --manage-all-nodes=false \
+              --manage-nodes-with-annotation-selector=kwok.x-k8s.io/node=fake \
+              --manage-nodes-with-label-selector= \
+              --disregard-status-with-annotation-selector=kwok.x-k8s.io/status=custom \
+              --disregard-status-with-label-selector= > $(System.DefaultWorkingDirectory)/$(RESOURCE_GROUP)-$(PROFILE)/kwok-crud-connectivity.log &
+            kwok_pid=$!
+
+            cd $(Pipeline.Workspace)/s/test/scale/connectivity/
+            # initial connectivity should be established within 10 minutes
+            # adding new network policy to all 12 Pods should happen within 20 seconds
+            set +e
+            ./test-connectivity.sh --kubectl-binary=$kubectlPath \
+                --num-scale-pods-to-verify=all \
+                --max-wait-for-initial-connectivity=$((10*60)) \
+                --max-wait-after-adding-netpol=20
+            rc=$?
+            if [[ $rc != 0 ]]; then
+                kubectl get pod -n scale-test
+                kubectl get pod -n connectivity-test
+            fi
+            kill $kwok_pid
+            exit $rc
+
+      - bash: |
+          export CLUSTER_NAME=$(RESOURCE_GROUP)-$(PROFILE)
+          cp cyclonus-$CLUSTER_NAME $(System.DefaultWorkingDirectory)/$CLUSTER_NAME/cyclonus-$CLUSTER_NAME
+          echo "Getting cluster state for $CLUSTER_NAME"
+          mkdir -p $(System.DefaultWorkingDirectory)/$CLUSTER_NAME
+          kubectl get pods -n kube-system | grep npm
+          kubectl logs -n kube-system -l k8s-app=azure-npm --tail -1 --prefix > $(System.DefaultWorkingDirectory)/$CLUSTER_NAME/npm-logs_$(PROFILE).txt
+          # capture any previous logs in case there was a crash
+          npmPodList=`kubectl get pods -n kube-system | grep npm | awk '{print $1}'`
+          for npmPod in $npmPodList; do
+              previousLogFile=$(System.DefaultWorkingDirectory)/$CLUSTER_NAME/previous-npm-logs_$(PROFILE).txt
+              kubectl logs -n kube-system $npmPod -p > $previousLogFile
+              if [[ $? -ne 0 ]]; then
+                  # remove the empty file if kubectl logs failed (e.g. there was no previous terminated container)
+                  rm $previousLogFile
+              fi
+          done
+          cp ./kubeconfig $(System.DefaultWorkingDirectory)/$CLUSTER_NAME/.kubeconfig
+        condition: always()
+        displayName: "Get Logs"
+
+      - publish: $(System.DefaultWorkingDirectory)/$(RESOURCE_GROUP)-$(PROFILE)
+        condition: always()
+        artifact: NpmLogs-$(RESOURCE_GROUP)-$(PROFILE)
+
+  - job: clean_up
+    displayName: "Cleanup"
+    pool:
+      name: $(BUILD_POOL_NAME_DEFAULT)
+      demands:
+        - agent.os -equals Linux
+        - Role -equals Build
+    dependsOn:
+      [Create_Cluster_and_Run_Test, setup]
+    variables:
+      RESOURCE_GROUP: $[ dependencies.setup.outputs['EnvironmentalVariables.RESOURCE_GROUP'] ]
+    steps:
+      - checkout: none
+      - task: AzureCLI@2
+        displayName: "Delete Test Cluster Resource Group"
+        inputs:
+          azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+          scriptType: "bash"
+          scriptLocation: "inlineScript"
+          inlineScript: |
+            echo Deleting $(RESOURCE_GROUP)
+            az group delete -n $(RESOURCE_GROUP) --yes
