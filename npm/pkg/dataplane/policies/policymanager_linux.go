@@ -438,7 +438,7 @@ func (pMgr *PolicyManager) deleteJumpRule(policy *NPMNetworkPolicy, direction Un
 	specs = append([]string{baseChainName}, specs...)
 	errCode, err := pMgr.runIPTablesCommand(util.IptablesDeletionFlag, specs...)
 	// if this actually happens (don't think it should), could use ignoreErrorsAndRunIPTablesCommand instead with: "Bad rule (does a matching rule exist in that chain?)"
-	if err != nil && errCode != doesNotExistErrorCode {
+	if err != nil && errCode != doesNotExistErrorCode && errCode != couldntLoadTargetErrorCode {
 		errorString := fmt.Sprintf("failed to delete jump from %s chain to %s chain for policy %s with exit code %d", baseChainName, chainName, policy.PolicyKey, errCode)
 		klog.Errorf("%s. err: %s", errorString, err.Error())
 		return fmt.Errorf("%s. err: %w", errorString, err)
