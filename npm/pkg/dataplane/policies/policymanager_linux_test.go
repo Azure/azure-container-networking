@@ -469,6 +469,279 @@ func TestUpdatingStaleChains(t *testing.T) {
 }
 
 func TestBackgroundQueue(t *testing.T) {
+	type args struct {
+		policyMap map[string]*NPMNetworkPolicy
+		queue     map[string][]*event
+	}
+
+	tests := []struct {
+		name             string
+		args             *args
+		toRemove         []*NPMNetworkPolicy
+		toAdd            map[string]*NPMNetworkPolicy
+		finalQueueIsSame bool
+		// use if finalQueueIsSame == false
+		finalQueue map[string][]*event
+	}{
+		{
+			// can have multiple adds per policy
+			name: "add two",
+			args: &args{
+				queue: map[string][]*event{
+					egressNetPol().PolicyKey: {
+						{op: add},
+					},
+					ingressNetPol().PolicyKey: {
+						{op: add},
+						{op: add},
+					},
+				},
+				policyMap: map[string]*NPMNetworkPolicy{
+					egressNetPol().PolicyKey:  egressNetPol(),
+					ingressNetPol().PolicyKey: ingressNetPol(),
+				},
+			},
+			toRemove: []*NPMNetworkPolicy{},
+			toAdd: map[string]*NPMNetworkPolicy{
+				egressNetPol().PolicyKey:  egressNetPol(),
+				ingressNetPol().PolicyKey: ingressNetPol(),
+			},
+			finalQueueIsSame: true,
+		},
+		{
+			name: "ignore add if not in policyMap",
+			args: &args{
+				queue: map[string][]*event{
+					ingressNetPol().PolicyKey: {
+						{op: add},
+						{op: add},
+					},
+				},
+				policyMap: map[string]*NPMNetworkPolicy{
+					egressNetPol().PolicyKey: egressNetPol(),
+				},
+			},
+			toRemove:   []*NPMNetworkPolicy{},
+			toAdd:      map[string]*NPMNetworkPolicy{},
+			finalQueue: map[string][]*event{},
+		},
+		{
+			name: "ignore remove not in kernel",
+			args: &args{
+				queue: map[string][]*event{
+					egressNetPol().PolicyKey: {
+						{
+							op: remove,
+							deletedState: &deletedState{
+								namespace:       egressNetPol().Namespace,
+								direction:       Egress,
+								podSelectorList: egressNetPol().PodSelectorList,
+								wasInKernel:     false,
+							},
+						},
+					},
+					ingressNetPol().PolicyKey: {
+						{op: add},
+						{
+							op: remove,
+							deletedState: &deletedState{
+								namespace:       ingressNetPol().Namespace,
+								direction:       Egress,
+								podSelectorList: ingressNetPol().PodSelectorList,
+								wasInKernel:     false,
+							},
+						},
+					},
+					bothDirectionsNetPol().PolicyKey: {
+						{
+							op: remove,
+							deletedState: &deletedState{
+								namespace:       bothDirectionsNetPol().Namespace,
+								direction:       Both,
+								podSelectorList: bothDirectionsNetPol().PodSelectorList,
+								wasInKernel:     false,
+							},
+						},
+					},
+				},
+				policyMap: map[string]*NPMNetworkPolicy{},
+			},
+			toRemove:   []*NPMNetworkPolicy{},
+			toAdd:      map[string]*NPMNetworkPolicy{},
+			finalQueue: map[string][]*event{},
+		},
+		{
+			// can have multiple removes per policy
+			name: "remove all direction types",
+			args: &args{
+				queue: map[string][]*event{
+					egressNetPol().PolicyKey: {
+						{
+							op: remove,
+							deletedState: &deletedState{
+								namespace:       egressNetPol().Namespace,
+								direction:       Egress,
+								podSelectorList: egressNetPol().PodSelectorList,
+								wasInKernel:     true,
+							},
+						},
+					},
+					ingressNetPol().PolicyKey: {
+						{op: add},
+						{
+							op: remove,
+							deletedState: &deletedState{
+								namespace:       ingressNetPol().Namespace,
+								direction:       Ingress,
+								podSelectorList: ingressNetPol().PodSelectorList,
+								wasInKernel:     false,
+							},
+						},
+						// unexpected to have this sequence, but the second remove should be noticed since it is in kernel
+						{
+							op: remove,
+							deletedState: &deletedState{
+								namespace:       ingressNetPol().Namespace,
+								direction:       Ingress,
+								podSelectorList: ingressNetPol().PodSelectorList,
+								wasInKernel:     true,
+							},
+						},
+					},
+					bothDirectionsNetPol().PolicyKey: {
+						{
+							op: remove,
+							deletedState: &deletedState{
+								namespace:       bothDirectionsNetPol().Namespace,
+								direction:       Both,
+								podSelectorList: bothDirectionsNetPol().PodSelectorList,
+								wasInKernel:     true,
+							},
+						},
+						// second one should not be noticed
+						{
+							op: remove,
+							deletedState: &deletedState{
+								namespace:       bothDirectionsNetPol().Namespace,
+								direction:       Both,
+								podSelectorList: bothDirectionsNetPol().PodSelectorList,
+								wasInKernel:     false,
+							},
+						},
+					},
+				},
+				policyMap: map[string]*NPMNetworkPolicy{},
+			},
+			toRemove: []*NPMNetworkPolicy{
+				{
+					Namespace:       egressNetPol().Namespace,
+					PolicyKey:       egressNetPol().PolicyKey,
+					PodSelectorList: egressNetPol().PodSelectorList,
+					ACLs: []*ACLPolicy{
+						{
+							Direction: Egress,
+						},
+					},
+				},
+				{
+					Namespace:       ingressNetPol().Namespace,
+					PolicyKey:       ingressNetPol().PolicyKey,
+					PodSelectorList: ingressNetPol().PodSelectorList,
+					ACLs: []*ACLPolicy{
+						{
+							Direction: Ingress,
+						},
+					},
+				},
+				{
+					Namespace:       bothDirectionsNetPol().Namespace,
+					PolicyKey:       bothDirectionsNetPol().PolicyKey,
+					PodSelectorList: bothDirectionsNetPol().PodSelectorList,
+					ACLs: []*ACLPolicy{
+						{
+							Direction: Both,
+						},
+					},
+				},
+			},
+			toAdd:            map[string]*NPMNetworkPolicy{},
+			finalQueueIsSame: true,
+		},
+		{
+			name: "update",
+			args: &args{
+				queue: map[string][]*event{
+					egressNetPol().PolicyKey: {
+						{
+							op: remove,
+							deletedState: &deletedState{
+								namespace:       egressNetPol().Namespace,
+								direction:       Egress,
+								podSelectorList: egressNetPol().PodSelectorList,
+								wasInKernel:     true,
+							},
+						},
+						{op: add},
+					},
+				},
+				policyMap: map[string]*NPMNetworkPolicy{
+					egressNetPol().PolicyKey: egressNetPol(),
+				},
+			},
+			toRemove: []*NPMNetworkPolicy{
+				{
+					Namespace:       egressNetPol().Namespace,
+					PolicyKey:       egressNetPol().PolicyKey,
+					PodSelectorList: egressNetPol().PodSelectorList,
+					ACLs: []*ACLPolicy{
+						{
+							Direction: Egress,
+						},
+					},
+				},
+			},
+			toAdd: map[string]*NPMNetworkPolicy{
+				egressNetPol().PolicyKey: egressNetPol(),
+			},
+			finalQueueIsSame: true,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			var calls []testutils.TestCmd
+			ioshim := common.NewMockIOShim(calls)
+			defer ioshim.VerifyCalls(t, calls)
+			pMgr := NewPolicyManager(ioshim, backgroundCfg)
+
+			pMgr.policyMap.cache = tt.args.policyMap
+			copiedQueue := make(map[string][]*event, len(tt.args.queue))
+			for k, v := range tt.args.queue {
+				copiedQueue[k] = v
+			}
+			pMgr.policyMap.dirtyCache.queue = copiedQueue
+
+			toRemove, toAdd := pMgr.dirtyNetPols()
+
+			// assert to remove
+			for _, v := range tt.toRemove {
+				require.Contains(t, toRemove, v, "expected: %+v. actual: %+v", tt.toRemove, toRemove)
+			}
+			require.Len(t, toRemove, len(tt.toRemove), "expected: %+v. actual: %+v", tt.toRemove, toRemove)
+
+			// assert to add and final queue
+			require.Equal(t, tt.toAdd, toAdd)
+			if tt.finalQueueIsSame {
+				require.Equal(t, tt.args.queue, pMgr.policyMap.dirtyCache.queue)
+			} else {
+				require.Equal(t, tt.finalQueue, pMgr.policyMap.dirtyCache.queue)
+			}
+		})
+	}
+}
+
+func TestBackgroundE2E(t *testing.T) {
 	metrics.ReinitializeAll()
 	calls := []testutils.TestCmd{
 		// add two NetPols, but never add one NetPol because it was removed early
@@ -804,4 +1077,166 @@ func TestBackgroundQueue(t *testing.T) {
 func inKernel(p *NPMNetworkPolicy) *NPMNetworkPolicy {
 	p.inLinuxKernel = true
 	return p
+}
+
+func TestBackgroundFailures(t *testing.T) {
+	metrics.ReinitializeAll()
+	calls := []testutils.TestCmd{
+		// add both NetPols
+		fakeIPTablesRestoreCommand,
+		// update both NetPols
+		// the first delete jump call fails for unknown reason
+		getFakeDeleteJumpCommandWithCode("AZURE-NPM-EGRESS", egressNetPolJump, 9),
+		// remove policies one by one
+		// fail on first
+		getFakeDeleteJumpCommandWithCode("AZURE-NPM-EGRESS", egressNetPolJump, 9),
+		// success on second, even with error code 1
+		getFakeDeleteJumpCommandWithCode("AZURE-NPM-INGRESS", ingressNetPolJump, 1),
+		fakeIPTablesRestoreCommand,
+		// add policy fails at first (includes a retry)
+		fakeIPTablesRestoreFailureCommand,
+		fakeIPTablesRestoreFailureCommand,
+		// add policy fails again for the only policy (includes a retry)
+		fakeIPTablesRestoreFailureCommand,
+		fakeIPTablesRestoreFailureCommand,
+	}
+	ioshim := common.NewMockIOShim(calls)
+	defer ioshim.VerifyCalls(t, calls)
+	pMgr := NewPolicyManager(ioshim, backgroundCfg)
+	require.Equal(t, pMgr.policyMap.policiesInKernel, 0)
+	promVals{0, 0}.testPrometheusMetrics(t)
+
+	require.Nil(t, pMgr.AddPolicy(egressNetPol(), nil))
+	require.Nil(t, pMgr.AddPolicy(ingressNetPol(), nil))
+
+	toAdd := map[string]*NPMNetworkPolicy{
+		egressNetPol().PolicyKey:  egressNetPol(),
+		ingressNetPol().PolicyKey: ingressNetPol(),
+	}
+	originalQueue := map[string][]*event{
+		egressNetPol().PolicyKey: {
+			{op: add},
+		},
+		ingressNetPol().PolicyKey: {
+			{op: add},
+		},
+	}
+
+	require.Equal(t, originalQueue, pMgr.policyMap.dirtyCache.queue)
+	require.Equal(t, map[string]*NPMNetworkPolicy{
+		egressNetPol().PolicyKey:  egressNetPol(),
+		ingressNetPol().PolicyKey: ingressNetPol(),
+	}, pMgr.policyMap.cache)
+	require.Equal(t, pMgr.policyMap.policiesInKernel, 0)
+	promVals{4, 2}.testPrometheusMetrics(t)
+
+	toRemoveActual, toAddActual := pMgr.dirtyNetPols()
+	require.Len(t, toRemoveActual, 0)
+	require.Equal(t, toAdd, toAddActual)
+	require.Equal(t, originalQueue, pMgr.policyMap.dirtyCache.queue)
+
+	require.NoError(t, pMgr.reconcileDirtyNetPolsInKernel(toRemoveActual, toAddActual))
+	require.Equal(t, map[string][]*event{}, pMgr.policyMap.dirtyCache.queue)
+	require.Equal(t, map[string]*NPMNetworkPolicy{
+		egressNetPol().PolicyKey:  inKernel(egressNetPol()),
+		ingressNetPol().PolicyKey: inKernel(ingressNetPol()),
+	}, pMgr.policyMap.cache)
+	require.Equal(t, pMgr.policyMap.policiesInKernel, 2)
+	promVals{4, 2}.testPrometheusMetrics(t)
+
+	// update NetPols
+	require.Nil(t, pMgr.RemovePolicy(egressNetPol().PolicyKey))
+	require.Nil(t, pMgr.AddPolicy(egressNetPol(), nil))
+	require.Nil(t, pMgr.RemovePolicy(ingressNetPol().PolicyKey))
+	require.Nil(t, pMgr.AddPolicy(ingressNetPol(), nil))
+
+	// toAdd is the same
+	toRemove := []*NPMNetworkPolicy{
+		{
+			Namespace:       egressNetPol().Namespace,
+			PolicyKey:       egressNetPol().PolicyKey,
+			PodSelectorList: egressNetPol().PodSelectorList,
+			ACLs: []*ACLPolicy{
+				{
+					Direction: Egress,
+				},
+			},
+		},
+		{
+			Namespace:       ingressNetPol().Namespace,
+			PolicyKey:       ingressNetPol().PolicyKey,
+			PodSelectorList: ingressNetPol().PodSelectorList,
+			ACLs: []*ACLPolicy{
+				{
+					Direction: Ingress,
+				},
+			},
+		},
+	}
+	updateQueue := map[string][]*event{
+		egressNetPol().PolicyKey: {
+			{
+				op: remove,
+				deletedState: &deletedState{
+					namespace:       egressNetPol().Namespace,
+					direction:       Egress,
+					podSelectorList: egressNetPol().PodSelectorList,
+					wasInKernel:     true,
+				},
+			},
+			{op: add},
+		},
+		ingressNetPol().PolicyKey: {
+			{
+				op: remove,
+				deletedState: &deletedState{
+					namespace:       ingressNetPol().Namespace,
+					direction:       Ingress,
+					podSelectorList: ingressNetPol().PodSelectorList,
+					wasInKernel:     true,
+				},
+			},
+			{op: add},
+		},
+	}
+
+	require.Equal(t, updateQueue, pMgr.policyMap.dirtyCache.queue)
+	require.Equal(t, map[string]*NPMNetworkPolicy{
+		egressNetPol().PolicyKey:  egressNetPol(),
+		ingressNetPol().PolicyKey: ingressNetPol(),
+	}, pMgr.policyMap.cache)
+	require.Equal(t, pMgr.policyMap.policiesInKernel, 2)
+	promVals{4, 4}.testPrometheusMetrics(t)
+
+	toRemoveActual, toAddActual = pMgr.dirtyNetPols()
+	for _, v := range toRemove {
+		require.Contains(t, toRemoveActual, v, "expected: %+v. actual: %+v", toRemove, toRemoveActual)
+	}
+	require.Len(t, toRemoveActual, len(toRemove), "expected: %+v. actual: %+v", toRemove, toRemoveActual)
+	require.Equal(t, toAdd, toAddActual)
+	require.Equal(t, updateQueue, pMgr.policyMap.dirtyCache.queue)
+
+	require.Error(t, pMgr.reconcileDirtyNetPolsInKernel(toRemove, toAdd))
+	require.Equal(t, map[string]*NPMNetworkPolicy{
+		egressNetPol().PolicyKey:  egressNetPol(),
+		ingressNetPol().PolicyKey: ingressNetPol(),
+	}, pMgr.policyMap.cache)
+	require.Equal(t, map[string][]*event{
+		egressNetPol().PolicyKey: {
+			{
+				op: remove,
+				deletedState: &deletedState{
+					namespace:       egressNetPol().Namespace,
+					direction:       Egress,
+					podSelectorList: egressNetPol().PodSelectorList,
+					wasInKernel:     true,
+				},
+			},
+			{op: add},
+		},
+		ingressNetPol().PolicyKey: {
+			{op: add},
+		},
+	}, pMgr.policyMap.dirtyCache.queue)
+	require.Equal(t, 1, pMgr.policyMap.policiesInKernel)
 }

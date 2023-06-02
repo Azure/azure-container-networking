@@ -95,35 +95,43 @@ func (pMgr *PolicyManager) reconcileDirtyNetPols() error {
 
 	klog.Infof("[PolicyManager] reconciling dirty NetPols")
 
-	// 1. Determine all NetPols to remove and add. Clean up dirty cache for NetPols that don't need to be added or removed.
-	toRemove := make([]*NPMNetworkPolicy, 0)
+	toRemove, toAdd := pMgr.dirtyNetPols()
+	return pMgr.reconcileDirtyNetPolsInKernel(toRemove, toAdd)
+}
+
+// dirtyNetPols determines all NetPols to remove and add.
+// It cleans up the dirty cache for NetPols that don't need to be added or removed.
+func (pMgr *PolicyManager) dirtyNetPols() (toRemove []*NPMNetworkPolicy, toAdd map[string]*NPMNetworkPolicy) {
+	toRemove = make([]*NPMNetworkPolicy, 0)
 	// key is policyKey
-	toAdd := make(map[string]*NPMNetworkPolicy)
+	toAdd = make(map[string]*NPMNetworkPolicy)
 	for key, events := range pMgr.policyMap.dirtyCache.queue {
 		willAddOrRemove := false
 		for _, e := range events {
-			if e.op == remove && e.deletedState.wasInKernel {
-				// Remove the NetPol if it was in the kernel when RemovePolicy() was called.
-				// This fakeNetPol will provide all info needed to create the iptables restore file for the original NetPol that was deleted,
-				// indifferent to any NetPol in the PolicyMap with the same name
-				fakeNetPol := &NPMNetworkPolicy{
-					Namespace:       e.deletedState.namespace,
-					PolicyKey:       key,
-					PodSelectorList: e.deletedState.podSelectorList,
-					ACLs: []*ACLPolicy{
-						{
-							Direction: e.deletedState.direction,
-						},
-					},
-				}
-				klog.Infof("[PolicyManager] will remove dirty NetPol. key: %s. direction: %s", key, e.deletedState.direction)
-				toRemove = append(toRemove, fakeNetPol)
-				willAddOrRemove = true
-				break
+			// Remove the NetPol if it was in the kernel when RemovePolicy() was called.
+			if !(e.op == remove && e.deletedState.wasInKernel) {
+				continue
 			}
+
+			// This fakeNetPol will provide all info needed to create the iptables restore file for the original NetPol that was deleted,
+			// indifferent to any NetPol in the PolicyMap with the same name
+			fakeNetPol := &NPMNetworkPolicy{
+				Namespace:       e.deletedState.namespace,
+				PolicyKey:       key,
+				PodSelectorList: e.deletedState.podSelectorList,
+				ACLs: []*ACLPolicy{
+					{
+						Direction: e.deletedState.direction,
+					},
+				},
+			}
+			klog.Infof("[PolicyManager] will remove dirty NetPol. key: %s. direction: %s", key, e.deletedState.direction)
+			toRemove = append(toRemove, fakeNetPol)
+			willAddOrRemove = true
+			break
 		}
 
-		if events[len(events)-1].op == add {
+		if len(events) > 0 && events[len(events)-1].op == add {
 			policy, ok := pMgr.policyMap.cache[key]
 			if !ok {
 				metrics.SendErrorLogAndMetric(util.IptmID, "error: failed to find dirty policy to add in cache. key: %s", key)
@@ -142,7 +150,11 @@ func (pMgr *PolicyManager) reconcileDirtyNetPols() error {
 		}
 	}
 
-	// 2. Remove dirty NetPols
+	return toRemove, toAdd
+}
+
+func (pMgr *PolicyManager) reconcileDirtyNetPolsInKernel(toRemove []*NPMNetworkPolicy, toAdd map[string]*NPMNetworkPolicy) error {
+	// 1. Remove dirty NetPols
 	// key is policyKey
 	failedToRemove := make(map[string]struct{})
 	if len(toRemove) > 0 {
@@ -189,7 +201,7 @@ func (pMgr *PolicyManager) reconcileDirtyNetPols() error {
 		}
 	}
 
-	// 3. Add dirty NetPols
+	// 2. Add dirty NetPols
 	// do not add a NetPol that failed to be removed
 	for key := range failedToRemove {
 		if _, ok := toAdd[key]; ok {
