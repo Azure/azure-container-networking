@@ -1,7 +1,5 @@
 package metrics
 
-import "github.com/Azure/azure-container-networking/npm/util"
-
 func RecordListEndpointsLatency(timer *Timer) {
 	listEndpointsLatency.Observe(timer.timeElapsed())
 }

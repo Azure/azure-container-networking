@@ -1,9 +1,6 @@
 package metrics
 
-import (
-	"github.com/Azure/azure-container-networking/npm/util"
-	"github.com/prometheus/client_golang/prometheus"
-)
+import "github.com/prometheus/client_golang/prometheus"
 
 // RecordACLLatency should be used in Windows DP to record the latency of individual ACL operations.
 func RecordACLLatency(timer *Timer, op OperationKind) {
