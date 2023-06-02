@@ -127,8 +127,8 @@ func (h *HomeAzMonitor) Populate(ctx context.Context) {
 				return
 
 			case http.StatusNotFound:
-				returnMessage := fmt.Sprintf("[HomeAzMonitor] region does not support AZs probably, failed with StatusCode: %d, error: %v", apiError.StatusCode(), err)
-				returnCode := types.NotFound
+				returnMessage := fmt.Sprintf("[HomeAzMonitor] region does not support AZs, NMAgent returned StatusCode: %d, error: %v", apiError.StatusCode(), err)
+				returnCode := types.Success
 				h.update(returnCode, returnMessage, cns.HomeAzResponse{IsSupported: false})
 				return
 
