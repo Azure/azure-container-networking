@@ -414,7 +414,7 @@ fi
 if [[ $numRealPods -gt 0 ]]; then
     $KUBECTL $KUBECONFIG_ARG apply -f generated/deployments/real/
 fi
-if [[ $numKwokDeployments -gt 0 ]]; then
+if [[ $numKwokPods -gt 0 ]]; then
     $KUBECTL $KUBECONFIG_ARG apply -f generated/deployments/kwok/
 fi
 set +x
@@ -451,10 +451,10 @@ if [[ $numUniqueLabelsPerPod -gt 0 ]]; then
 fi
 
 set -x
-if [[ $numNetworkPolicies -gt 0 ]]; then
+if [[ $numUnappliedNetworkPolicies -gt 0 ]]; then
     $KUBECTL $KUBECONFIG_ARG apply -f generated/networkpolicies/unapplied
 fi
-if [[ $numUnappliedNetworkPolicies -gt 0 ]]; then
+if [[ $numNetworkPolicies -gt 0 ]]; then
     $KUBECTL $KUBECONFIG_ARG apply -f generated/networkpolicies/applied
 fi
 set +x
@@ -484,10 +484,10 @@ if [[ $deleteNetpols == true ]]; then
         
         echo "re-adding network policies. round $i/$deleteNetpolsTimes..."
         set -x
-        if [[ $numNetworkPolicies -gt 0 ]]; then
+        if [[ $numUnappliedNetworkPolicies -gt 0 ]]; then
             $KUBECTL $KUBECONFIG_ARG apply -f generated/networkpolicies/unapplied
         fi
-        if [[ $numUnappliedNetworkPolicies -gt 0 ]]; then
+        if [[ $numNetworkPolicies -gt 0 ]]; then
             $KUBECTL $KUBECONFIG_ARG apply -f generated/networkpolicies/applied
         fi
         set +x
