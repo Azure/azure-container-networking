@@ -280,7 +280,7 @@ func getPoliciesFromRuntimeCfg(nwCfg *cni.NetworkConfig, isIPv6Enabled bool) []p
 		if isIPv6Enabled {
 			// To support hostport policy mapping for ipv6 in dualstack overlay mode
 			// uint32 NatFlagsIPv6 = 2
-			rawPolicyv6, _ := json.Marshal(&hnsv2.PortMappingPolicySetting{
+			rawPolicyv6, _ := json.Marshal(&hnsv2.PortMappingPolicySetting{ // nolint
 				ExternalPort: uint16(mapping.HostPort),
 				InternalPort: uint16(mapping.ContainerPort),
 				VIP:          mapping.HostIp,
@@ -288,7 +288,7 @@ func getPoliciesFromRuntimeCfg(nwCfg *cni.NetworkConfig, isIPv6Enabled bool) []p
 				Flags:        hnsv2.NatFlagsIPv6,
 			})
 
-			hnsv2Policyv6, _ := json.Marshal(&hnsv2.EndpointPolicy{
+			hnsv2Policyv6, _ := json.Marshal(&hnsv2.EndpointPolicy{ // nolint
 				Type:     hnsv2.PortMapping,
 				Settings: rawPolicyv6,
 			})
