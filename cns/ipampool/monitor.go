@@ -3,6 +3,7 @@ package ipampool
 import (
 	"context"
 	"fmt"
+	"net/netip"
 	"strconv"
 	"sync"
 	"time"
@@ -124,9 +125,17 @@ func (pm *Monitor) Start(ctx context.Context) error {
 			// Add Primary IP to Map, if not present.
 			// This is only for Swift i.e. if NC Type is vnet.
 			for i := 0; i < len(nnc.Status.NetworkContainers); i++ {
-				if nnc.Status.NetworkContainers[i].Type == "" ||
-					nnc.Status.NetworkContainers[i].Type == v1alpha.VNET {
-					pm.metastate.primaryIPAddresses[nnc.Status.NetworkContainers[i].PrimaryIP] = struct{}{}
+				nc := nnc.Status.NetworkContainers[i]
+				if nc.Type == "" || nc.Type == v1alpha.VNET {
+					pm.metastate.primaryIPAddresses[nc.PrimaryIP] = struct{}{}
+				}
+
+				if nc.Type == v1alpha.VNETBlock {
+					primaryPrefix, err := netip.ParsePrefix(nc.PrimaryIP)
+					if err != nil {
+						return errors.Wrapf(err, "unable to parse ip prefix: %s", nc.PrimaryIP)
+					}
+					pm.metastate.primaryIPAddresses[primaryPrefix.Addr().String()] = struct{}{}
 				}
 			}
 

@@ -31,11 +31,15 @@ func TestCapzCalico(t *testing.T) {
 }
 
 func TestApplyInBackground(t *testing.T) {
-	testSerialCases(t, applyInBackgroundTests(), time.Duration(100*time.Millisecond))
+	testSerialCases(t, applyInBackgroundTests(), time.Duration(200*time.Millisecond))
 }
 
 func TestRemoteEndpoints(t *testing.T) {
 	testSerialCases(t, remoteEndpointTests(), 0)
+}
+
+func TestApplyInBackgroundBootupPhase(t *testing.T) {
+	testSerialCases(t, applyInBackgroundBootupPhaseTests(), time.Duration(200*time.Millisecond))
 }
 
 func TestAllMultiJobCases(t *testing.T) {

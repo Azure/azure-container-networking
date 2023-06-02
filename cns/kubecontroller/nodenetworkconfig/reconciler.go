@@ -89,8 +89,10 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 		var req *cns.CreateNetworkContainerRequest
 		var err error
 		switch nnc.Status.NetworkContainers[i].AssignmentMode { //nolint:exhaustive // skipping dynamic case
+		// For Overlay and Vnet Scale Scenarios
 		case v1alpha.Static:
 			req, err = CreateNCRequestFromStaticNC(nnc.Status.NetworkContainers[i])
+		// For Pod Subnet scenario
 		default: // For backward compatibility, default will be treated as Dynamic too.
 			req, err = CreateNCRequestFromDynamicNC(nnc.Status.NetworkContainers[i])
 			// in dynamic, we will also push this NNC to the IPAM Pool Monitor when we're done.
