@@ -51,7 +51,7 @@ type PolicyMap struct {
 	sync.RWMutex
 	cache            map[string]*NPMNetworkPolicy
 	dirtyCache       *dirtyCache
-	policiesInKernel int
+	policiesInKernel int //nolint:unused,deadcode,varcheck // ignore unused check for windows
 }
 
 type reconcileManager struct {
@@ -178,7 +178,7 @@ func (pMgr *PolicyManager) AddPolicy(policy *NPMNetworkPolicy, endpointList map[
 	return nil
 }
 
-func (pMgr *PolicyManager) isFirstPolicy() bool {
+func (pMgr *PolicyManager) isFirstPolicy() bool { //nolint:unused,deadcode,varcheck // ignore unused check for windows
 	if pMgr.IPTablesInBackground {
 		return pMgr.policyMap.policiesInKernel == 0
 	}
@@ -256,7 +256,7 @@ func (pMgr *PolicyManager) RemovePolicyForEndpoints(policyKey string, endpointLi
 	return nil
 }
 
-func (pMgr *PolicyManager) isLastPolicy(toDelete int) bool {
+func (pMgr *PolicyManager) isLastPolicy(toDelete int) bool { //nolint:unused,deadcode,varcheck // ignore unused check for windows
 	if pMgr.IPTablesInBackground {
 		return pMgr.policyMap.policiesInKernel == toDelete
 	}

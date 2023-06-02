@@ -33,7 +33,7 @@ type NPMNetworkPolicy struct {
 	// Will be populated by dataplane and policy manager
 	PodEndpoints map[string]string
 	// inLinuxKernel is used in Linux when NetPolInBackground is true
-	inLinuxKernel bool
+	inLinuxKernel bool //nolint:unused,deadcode,varcheck // ignore unused check for windows
 }
 
 func NewNPMNetworkPolicy(netPolName, netPolNamespace string) *NPMNetworkPolicy {
@@ -275,7 +275,9 @@ func translatedIPSetsToString(items []*ipsets.TranslatedIPSet) string {
 // Included is false when match set have "!".
 // MatchType captures match direction flags.
 // For example match set in linux:
-//             ! azure-npm-123 src
+//
+//	! azure-npm-123 src
+//
 // "!" this indicates a negative match (Included is false) of an azure-npm-123
 // MatchType is "src"
 type SetInfo struct {
