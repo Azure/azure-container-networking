@@ -150,10 +150,12 @@ func (f Hnsv2wrapperFake) ModifyNetworkSettings(network *hcn.HostComputeNetwork,
 			if setpol.PolicyType != hcn.SetPolicyTypeIpSet {
 				// Check Nested SetPolicy members
 				members := strings.Split(setpol.Values, ",")
-				for _, memberID := range members {
-					_, ok := networkCache.Policies[memberID]
-					if !ok {
-						return newErrorFakeHNS(fmt.Sprintf("Member Policy %s not found", memberID))
+				if setpol.Values != "" {
+					for _, memberID := range members {
+						_, ok := networkCache.Policies[memberID]
+						if !ok {
+							return newErrorFakeHNS(fmt.Sprintf("Member Policy %s not found", memberID))
+						}
 					}
 				}
 			}
