@@ -144,9 +144,9 @@ func InitializeAll() {
 			InitializeLinuxMetrics()
 
 			klog.Infof("registering linux metrics")
-			register(iptablesBackgroundRestoreLatency, "iptables_background_restore_latency_seconds", ClusterMetrics)
-			register(iptablesDeleteLatency, "iptables_background_delete_latency_seconds", ClusterMetrics)
-			register(iptablesBackgroundRestoreFailures, "iptables_background_restore_failure_total", ClusterMetrics)
+			register(iptablesBackgroundRestoreLatency, "iptables_background_restore_latency_seconds", NodeMetrics)
+			register(iptablesDeleteLatency, "iptables_background_delete_latency_seconds", NodeMetrics)
+			register(iptablesBackgroundRestoreFailures, "iptables_background_restore_failure_total", NodeMetrics)
 		}
 
 		log.Logf("Finished initializing all Prometheus metrics")
