@@ -16,7 +16,8 @@ type Config struct {
 
 var Logger *zap.Logger
 
-func New(cfg *Config) (func(), error) {
+// Initializes a Zap logger and returns a cleanup function so logger can be cleaned up from caller
+func Initialize(cfg *Config) (func(), error) {
 	Logger = newFileLogger(cfg)
 	cleanup := func() {
 		_ = Logger.Sync()
