@@ -165,12 +165,6 @@ func (plugin *NetPlugin) Start(config *common.PluginConfig) error {
 	return nil
 }
 
-// This function for sending CNI metrics to telemetry service
-func logAndSendEvent(plugin *NetPlugin, msg string) {
-	log.Logger.Info(msg)
-	sendEvent(plugin, msg)
-}
-
 func sendEvent(plugin *NetPlugin, msg string) {
 	eventMsg := fmt.Sprintf("[%d] %s", os.Getpid(), msg)
 	plugin.report.Version = plugin.Version
@@ -337,7 +331,14 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 
 	startTime := time.Now()
 
-	logAndSendEvent(plugin, fmt.Sprintf("[cni-net] Processing ADD command with args {ContainerID:%v Netns:%v IfName:%v Args:%v Path:%v StdinData:%s}.",
+	log.Logger.Info("[cni-net] Processing ADD command",
+		zap.String("containerId", args.ContainerID),
+		zap.String("netNS", args.Netns),
+		zap.String("ifName", args.IfName),
+		zap.Any("args", args.Args),
+		zap.String("path", args.Path),
+		zap.ByteString("stdinData", args.StdinData))
+	sendEvent(plugin, fmt.Sprintf("[cni-net] Processing ADD command with args {ContainerID:%v Netns:%v IfName:%v Args:%v Path:%v StdinData:%s}.",
 		args.ContainerID, args.Netns, args.IfName, args.Args, args.Path, args.StdinData))
 
 	// Parse network configuration from stdin.
@@ -545,14 +546,17 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 		// Create network
 		if nwInfoErr != nil {
 			// Network does not exist.
-			logAndSendEvent(plugin, fmt.Sprintf("[cni-net] Creating network %v.", networkID))
+			log.Logger.Info("[cni-net] Creating network", zap.String("networkID", networkID))
+			sendEvent(plugin, fmt.Sprintf("[cni-net] Creating network %v.", networkID))
 			// opts map needs to get passed in here
 			if nwInfo, err = plugin.createNetworkInternal(networkID, policies, ipamAddConfig, ipamAddResult); err != nil {
 				log.Logger.Error("Create network failed", zap.Any("error", err))
 				return err
 			}
-
-			logAndSendEvent(plugin, fmt.Sprintf("[cni-net] Created network %v with subnet %v.", networkID, ipamAddResult.hostSubnetPrefix.String()))
+			log.Logger.Info("[cni-net] Created network",
+				zap.String("networkId", networkID),
+				zap.String("subnet", ipamAddResult.hostSubnetPrefix.String()))
+			sendEvent(plugin, fmt.Sprintf("[cni-net] Created network %v with subnet %v.", networkID, ipamAddResult.hostSubnetPrefix.String()))
 		}
 
 		natInfo := getNATInfo(nwCfg, options[network.SNATIPKey], enableSnatForDNS)
@@ -818,7 +822,8 @@ func (plugin *NetPlugin) createEndpointInternal(opt *createEndpointInternalOpt) 
 	}
 
 	// Create the endpoint.
-	logAndSendEvent(plugin, fmt.Sprintf("[cni-net] Creating endpoint %s.", epInfo.PrettyString()))
+	log.Logger.Info("[cni-net] Creating endpoint", zap.String("endpointInfo", epInfo.PrettyString()))
+	sendEvent(plugin, fmt.Sprintf("[cni-net] Creating endpoint %s.", epInfo.PrettyString()))
 	err = plugin.nm.CreateEndpoint(cnsclient, opt.nwInfo.Id, &epInfo)
 	if err != nil {
 		err = plugin.Errorf("Failed to create endpoint: %v", err)
@@ -937,7 +942,14 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 
 	startTime := time.Now()
 
-	logAndSendEvent(plugin, fmt.Sprintf("[cni-net] Processing DEL command with args {ContainerID:%v Netns:%v IfName:%v Args:%v Path:%v, StdinData:%s}.",
+	log.Logger.Info("[cni-net] Processing DEL command",
+		zap.String("containerId", args.ContainerID),
+		zap.String("netNS", args.Netns),
+		zap.String("ifName", args.IfName),
+		zap.Any("args", args.Args),
+		zap.String("path", args.Path),
+		zap.ByteString("stdinData", args.StdinData))
+	sendEvent(plugin, fmt.Sprintf("[cni-net] Processing DEL command with args {ContainerID:%v Netns:%v IfName:%v Args:%v Path:%v, StdinData:%s}.",
 		args.ContainerID, args.Netns, args.IfName, args.Args, args.Path, args.StdinData))
 
 	defer func() {
@@ -1057,7 +1069,9 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 				log.Logger.Error("[cni-net] Failed to query endpoint",
 					zap.String("endpoint", endpointID),
 					zap.Any("error", err))
-				logAndSendEvent(plugin, fmt.Sprintf("Release ip by ContainerID (endpoint not found):%v", args.ContainerID))
+				log.Logger.Error("Release ip by ContainerID (endpoint not found)",
+					zap.String("containerID", args.ContainerID))
+				sendEvent(plugin, fmt.Sprintf("Release ip by ContainerID (endpoint not found):%v", args.ContainerID))
 				if err = plugin.ipamInvoker.Delete(nil, nwCfg, args, nwInfo.Options); err != nil {
 					return plugin.RetriableError(fmt.Errorf("failed to release address(no endpoint): %w", err))
 				}
@@ -1069,7 +1083,9 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 
 		// schedule send metric before attempting delete
 		defer sendMetricFunc() //nolint:gocritic
-		logAndSendEvent(plugin, fmt.Sprintf("Deleting endpoint:%v", endpointID))
+		log.Logger.Info("Deleting endpoint",
+			zap.String("endpointID", endpointID))
+		sendEvent(plugin, fmt.Sprintf("Deleting endpoint:%v", endpointID))
 		// Delete the endpoint.
 		if err = plugin.nm.DeleteEndpoint(networkID, endpointID); err != nil {
 			// return a retriable error so the container runtime will retry this DEL later
@@ -1081,7 +1097,8 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 		if !nwCfg.MultiTenancy {
 			// Call into IPAM plugin to release the endpoint's addresses.
 			for i := range epInfo.IPAddresses {
-				logAndSendEvent(plugin, fmt.Sprintf("Release ip:%s", epInfo.IPAddresses[i].IP.String()))
+				log.Logger.Info("Release ip", zap.String("ip", epInfo.IPAddresses[i].IP.String()))
+				sendEvent(plugin, fmt.Sprintf("Release ip:%s", epInfo.IPAddresses[i].IP.String()))
 				err = plugin.ipamInvoker.Delete(&epInfo.IPAddresses[i], nwCfg, args, nwInfo.Options)
 				if err != nil {
 					return plugin.RetriableError(fmt.Errorf("failed to release address: %w", err))

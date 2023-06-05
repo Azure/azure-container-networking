@@ -262,7 +262,7 @@ func (m *Multitenancy) getNetworkContainersInternal(
 		subnetPrefix := m.netioshim.GetInterfaceSubnetWithSpecificIP(ncConfigs[i].PrimaryInterfaceIdentifier)
 		if subnetPrefix == nil {
 			log.Logger.Error(errIfaceNotFound.Error(),
-				zap.String("interface", ncConfigs[i].PrimaryInterfaceIdentifier))
+				zap.String("nodeIP", ncConfigs[i].PrimaryInterfaceIdentifier))
 			return nil, []net.IPNet{}, errIfaceNotFound
 		}
 		subnetPrefixes = append(subnetPrefixes, *subnetPrefix)

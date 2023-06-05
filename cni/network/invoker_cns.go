@@ -318,13 +318,13 @@ func (invoker *CNSIPAMInvoker) Delete(address *net.IPNet, nwCfg *cni.NetworkConf
 			if err = invoker.cnsClient.ReleaseIPAddress(context.TODO(), ipConfig); err != nil {
 				// if the old API fails as well then we just return the error
 				log.Logger.Error("Failed to release IP address from CNS using ReleaseIPAddress ",
-					zap.Any("infracontainerid", ipConfigs.InfraContainerID),
+					zap.String("infracontainerid", ipConfigs.InfraContainerID),
 					zap.Any("error", err))
 				return errors.Wrap(err, fmt.Sprintf("failed to release IP %v using ReleaseIPAddress with err ", ipConfig.DesiredIPAddress)+"%w")
 			}
 		} else {
 			log.Logger.Error("Failed to release IP address",
-				zap.Any("infracontainerid", ipConfigs.InfraContainerID),
+				zap.String("infracontainerid", ipConfigs.InfraContainerID),
 				zap.Any("error", err))
 			return errors.Wrap(err, fmt.Sprintf("failed to release IP %v using ReleaseIPs with err ", ipConfigs.DesiredIPAddresses)+"%w")
 		}
