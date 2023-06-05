@@ -113,7 +113,7 @@ var (
 	getNetworkFailures    prometheus.Counter
 	aclFailures           *prometheus.CounterVec
 	setPolicyFailures     *prometheus.CounterVec
-	maxIPSetMembers       prometheus.Gauge
+	podIPTotal            prometheus.Gauge
 )
 
 type RegistryType string
@@ -152,6 +152,15 @@ func InitializeAll() {
 		initializeDaemonMetrics()
 		initializeControllerMetrics()
 
+		podIPTotal = prometheus.NewGauge(
+			prometheus.GaugeOpts{
+				Namespace: namespace,
+				Name:      "pod_ip_total",
+				Subsystem: "",
+				Help:      "Total number of Pod IPs across the cluster in Linux or Windows nodes",
+			},
+		)
+
 		if util.IsWindowsDP() {
 			InitializeWindowsMetrics()
 
@@ -167,7 +176,7 @@ func InitializeAll() {
 			register(aclFailures, "acl_failure_total", NodeMetrics)
 			register(setPolicyFailures, "setpolicy_failure_total", NodeMetrics)
 			// all new metrics should go on the node metrics URL
-			register(maxIPSetMembers, "ipset_members_max", NodeMetrics)
+			register(podIPTotal, "ipset_members_max", NodeMetrics)
 		}
 
 		log.Logf("Finished initializing all Prometheus metrics")
@@ -289,15 +298,6 @@ func InitializeWindowsMetrics() {
 			Help:      "Number of failures while adding/updating/deleting SetPolicies by operation & is_nested label",
 		},
 		[]string{operationLabel, isNestedLabel},
-	)
-
-	maxIPSetMembers = prometheus.NewGauge(
-		prometheus.GaugeOpts{
-			Namespace: namespace,
-			Name:      "ipset_members_max",
-			Subsystem: windowsPrefix,
-			Help:      "Maximum number of members in a single IPSet",
-		},
 	)
 }
 
