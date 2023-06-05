@@ -13,7 +13,7 @@ stages:
     - publish
     jobs:
       - job: ${{ parameters.name }}
-        displayName: Overlay Test Suite - (${{ parameters.name }})
+        displayName: Cilium Overlay Test Suite - (${{ parameters.name }})
         timeoutInMinutes: 120
         pool:
           name: $(BUILD_POOL_NAME_DEFAULT)

@@ -252,7 +252,7 @@ stages:
     
   - template: singletenancy/cilium-overlay/cilium-overlay-e2e-job-template.yaml
     parameters:
-      name: "overlay_e2e"
+      name: "cilium_overlay_e2e"
       displayName: Cilium on AKS Overlay
       pipelineBuildImage: "$(BUILD_IMAGE)"
       testDropgz: true
