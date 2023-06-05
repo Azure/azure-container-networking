@@ -369,6 +369,7 @@ func (c *PodController) syncAddedPod(podObj *corev1.Pod) error {
 	// Create npmPod and add it to the podMap
 	npmPodObj := common.NewNpmPod(podObj)
 	c.podMap[podKey] = npmPodObj
+	metrics.AddPod()
 
 	// Get lists of podLabelKey and podLabelKey + podLavelValue ,and then start adding them to ipsets.
 	for labelKey, labelVal := range podObj.Labels {
@@ -571,6 +572,7 @@ func (c *PodController) cleanUpDeletedPod(cachedNpmPodKey string) error {
 		return fmt.Errorf("[cleanUpDeletedPod] Error: failed to delete pod from named port ipset with err: %w", err)
 	}
 
+	metrics.RemovePod()
 	delete(c.podMap, cachedNpmPodKey)
 	return nil
 }
