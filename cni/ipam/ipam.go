@@ -62,7 +62,7 @@ func (plugin *ipamPlugin) Start(config *common.PluginConfig) error {
 	// Initialize base plugin.
 	err := plugin.Initialize(config)
 	if err != nil {
-		log.Logger.Error("[cni-ipam] Failed to initialize base plugin.", zap.String("error", err.Error()))
+		log.Logger.Error("[cni-ipam] Failed to initialize base plugin.", zap.Any("error", err))
 		return err
 	}
 

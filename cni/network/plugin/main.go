@@ -295,7 +295,7 @@ func main() {
 
 	loggerCfg := &log.Config{
 		Level:       zapcore.DebugLevel,
-		LogPath:     log.LogPath + "azure-vnet.log",
+		LogPath:     log.LogPath + name + ".log",
 		MaxSizeInMB: maxLogFileSizeInMb,
 		MaxBackups:  maxLogFileCount,
 		Name:        name,
