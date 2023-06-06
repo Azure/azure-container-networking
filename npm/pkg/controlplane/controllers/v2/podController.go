@@ -273,6 +273,14 @@ func (c *PodController) syncPod(key string) error {
 		metrics.RecordControllerPodExecTime(timer, operationKind, err != nil && dperr != nil)
 
 		if dperr != nil {
+			klog.Errorf("failed to apply dataplane changes while syncing pod. err: %s", dperr.Error())
+			metrics.SendErrorLogAndMetric(util.PodID, "[syncPod] failed to apply dataplane changes while syncing pod. err: %s", dperr.Error())
+
+			// Seems like setting err below does nothing.
+			// The return value of syncPod is fixed before this deferred func is called,
+			// so modifications to err here do nothing.
+			// As a result, the controller will not requeue if there is an error applying the dataplane.
+			// However, a subsequent controller event should Apply Dataplane soon after.
 			if err == nil {
 				err = fmt.Errorf("failed to apply dataplane changes while syncing pod. err: %w", dperr)
 			} else {
