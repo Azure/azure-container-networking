@@ -31,7 +31,7 @@ const (
 	HostNetwork    = true
 	NonHostNetwork = false
 
-	sleepDurationForRateLimiter = time.Duration(10 * time.Millisecond)
+	sleepDurationForRateLimiter = time.Duration(100 * time.Millisecond)
 )
 
 // To indicate the object is needed to be DeletedFinalStateUnknown Object
