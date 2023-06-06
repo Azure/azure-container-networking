@@ -29,7 +29,7 @@ spec:
     spec:
       containers:
       - name: cilium-operator
-        image: acnpublic.azurecr.io/cilium/operator-generic:$CILIUM_VERSION_TAG
+        image: $CILIUM_IMAGE_REGISTRY/cilium/operator-generic:$CILIUM_VERSION_TAG
         imagePullPolicy: IfNotPresent
         command:
         - cilium-operator-generic

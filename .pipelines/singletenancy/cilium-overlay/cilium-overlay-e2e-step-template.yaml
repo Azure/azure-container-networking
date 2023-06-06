@@ -51,8 +51,8 @@ steps:
       kubectl apply -f test/integration/manifests/cilium/cilium${FILE_PATH}-config.yaml
       echo "install Cilium ${CILIUM_VERSION_TAG}"
       # Passes Cilium image version to daemonset and deployment
-      envsubst '${CILIUM_VERSION_TAG}' < test/integration/manifests/cilium/daemonset.yaml | kubectl apply -f -
-      envsubst '${CILIUM_VERSION_TAG}' < test/integration/manifests/cilium/deployment.yaml | kubectl apply -f -
+      envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/daemonset.yaml | kubectl apply -f -
+      envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/deployment.yaml | kubectl apply -f -
       # Use different file directories for nightly and current cilium version
       kubectl apply -f test/integration/manifests/cilium/cilium${FILE_PATH}-agent
       kubectl apply -f test/integration/manifests/cilium/cilium${FILE_PATH}-operator
