@@ -126,13 +126,12 @@ steps:
 
   - script: |
       echo "validate pod IP assignment and check systemd-networkd restart"
-      kubectl apply -f hack/manifests/hostprocess.yaml
       kubectl get pod -owide -A
-      bash hack/scripts/validate_state.sh
+      make test-validate-state
       echo "delete cilium connectivity test resources and re-validate state"
       kubectl delete ns cilium-test
       kubectl get pod -owide -A
-      bash hack/scripts/validate_state.sh
+      make test-validate-state
     name: "validatePods"
     displayName: "Validate Pods"
   

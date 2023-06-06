@@ -9,17 +9,16 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/Azure/azure-container-networking/test/integration/goldpinger"
-	"github.com/Azure/azure-container-networking/test/integration/retry"
+	k8sutils "github.com/Azure/azure-container-networking/test/internal/k8sutils"
+	"github.com/Azure/azure-container-networking/test/internal/retry"
 	v1 "k8s.io/client-go/kubernetes/typed/apps/v1"
 
 	apiv1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/util/homedir"
 )
 
 const (
@@ -38,7 +37,6 @@ const (
 
 var (
 	defaultRetrier      = retry.Retrier{Attempts: retryAttempts, Delay: retryDelaySec}
-	kubeconfig          = flag.String("test-kubeconfig", filepath.Join(homedir.HomeDir(), ".kube", "config"), "(optional) absolute path to the kubeconfig file")
 	delegatedSubnetID   = flag.String("delegated-subnet-id", "", "delegated subnet id for node labeling")
 	delegatedSubnetName = flag.String("subnet-name", "", "subnet name for node labeling")
 )
@@ -83,18 +81,18 @@ todo:
 */
 
 func TestPodScaling(t *testing.T) {
-	clientset, err := mustGetClientset()
+	clientset, err := k8sutils.MustGetClientset()
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	restConfig := mustGetRestConfig(t)
-	deployment, err := mustParseDeployment(gpDeployment)
+	restConfig := k8sutils.MustGetRestConfig(t)
+	deployment, err := k8sutils.MustParseDeployment(gpDeployment)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	daemonset, err := mustParseDaemonSet(gpDaemonset)
+	daemonset, err := k8sutils.MustParseDaemonSet(gpDaemonset)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -102,25 +100,25 @@ func TestPodScaling(t *testing.T) {
 	ctx := context.Background()
 
 	if shouldLabelNodes() {
-		mustLabelSwiftNodes(t, ctx, clientset, *delegatedSubnetID, *delegatedSubnetName)
+		k8sutils.MustLabelSwiftNodes(ctx, t, clientset, *delegatedSubnetID, *delegatedSubnetName)
 	} else {
 		t.Log("swift node labels not passed or set. skipping labeling")
 	}
 
-	rbacCleanUpFn, err := mustSetUpClusterRBAC(ctx, clientset, gpClusterRolePath, gpClusterRoleBindingPath, gpServiceAccountPath)
+	rbacCleanUpFn, err := k8sutils.MustSetUpClusterRBAC(ctx, clientset, gpClusterRolePath, gpClusterRoleBindingPath, gpServiceAccountPath)
 	if err != nil {
 		t.Log(os.Getwd())
 		t.Fatal(err)
 	}
 
 	deploymentsClient := clientset.AppsV1().Deployments(deployment.Namespace)
-	err = mustCreateDeployment(ctx, deploymentsClient, deployment)
+	err = k8sutils.MustCreateDeployment(ctx, deploymentsClient, deployment)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	daemonsetClient := clientset.AppsV1().DaemonSets(daemonset.Namespace)
-	err = mustCreateDaemonset(ctx, daemonsetClient, daemonset)
+	err = k8sutils.MustCreateDaemonset(ctx, daemonsetClient, daemonset)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -256,7 +254,7 @@ func updateReplicaCount(t *testing.T, ctx context.Context, deployments v1.Deploy
 		}
 
 		t.Logf("setting deployment %s to %d replicas", name, replicas)
-		res.Spec.Replicas = int32ptr(int32(replicas))
+		res.Spec.Replicas = k8sutils.Int32ToPtr(int32(replicas))
 		_, err = deployments.Update(ctx, res, metav1.UpdateOptions{})
 		return err
 	})
