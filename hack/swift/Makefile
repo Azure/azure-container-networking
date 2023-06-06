@@ -5,7 +5,7 @@ KUBECFG = $(HOME)/.kube
 SSH     = $(HOME)/.ssh
 AZCFG   = $(HOME)/.azure
 AZIMG   = mcr.microsoft.com/azure-cli
-AZCLI   ?= docker run --rm -v $(AZCFG):/root/.azure -v $(KUBECFG):/root/.kube -v $(SSH):/root/.ssh $(AZIMG) az
+AZCLI   ?= docker run --rm -v $(AZCFG):/root/.azure -v $(KUBECFG):/root/.kube -v $(SSH):/root/.ssh -v $(PWD):/root/tmpsrc $(AZIMG) az
 
 # overrideable defaults
 REGION     ?= westus2
@@ -96,6 +96,20 @@ overlay-byocni-up: rg-up overlay-net-up ## Brings up an Overlay BYO CNI cluster
 		--yes
 	@$(MAKE) set-kubeconf
 
+overlay-no-kube-proxy-up: rg-up overlay-net-up ## Brings up an Overlay BYO CNI cluster without kube-proxy for Cilium
+	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
+		--node-count $(NODE_COUNT) \
+		--node-vm-size $(VM_SIZE) \
+		--load-balancer-sku basic \
+		--network-plugin none \
+		--network-plugin-mode overlay \
+		--pod-cidr 192.168.0.0/16 \
+		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
+		--no-ssh-key \
+		--kube-proxy-config ./kube-proxy.json \
+		--yes
+	@$(MAKE) set-kubeconf
+
 overlay-cilium-up: rg-up overlay-net-up ## Brings up an Overlay AzCNI cluster
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
 		--node-count $(NODE_COUNT) \
@@ -133,6 +147,20 @@ swift-byocni-up: rg-up swift-net-up ## Bring up a SWIFT BYO CNI cluster
 		--pod-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/podnet \
 		--no-ssh-key \
 		--os-sku $(OS_SKU) \
+		--yes
+	@$(MAKE) set-kubeconf
+
+swift-no-kube-proxy-up: rg-up swift-net-up ## Bring up a SWIFT BYO CNI cluster without kube-proxy for Cilium
+	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
+		--node-count $(NODE_COUNT) \
+		--node-vm-size $(VM_SIZE) \
+		--load-balancer-sku basic \
+		--network-plugin none \
+		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
+		--pod-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/podnet \
+		--no-ssh-key \
+		--os-sku $(OS_SKU) \
+		--kube-proxy-config ./kube-proxy.json \
 		--yes
 	@$(MAKE) set-kubeconf
 

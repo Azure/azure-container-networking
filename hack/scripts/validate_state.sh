@@ -1,4 +1,7 @@
 #!/bin/bash
+restart=false
+skipNode=false
+
 function find_in_array() {
     for i in $1
     do
@@ -11,33 +14,53 @@ function find_in_array() {
 
 for node in $(kubectl get nodes -o name);
 do
+    while getopts ":r" opt; do
+        case $opt in
+            r ) restart=true
+                echo "getting restart flag";;
+        esac
+    done 
+    
     echo "Current : $node"
     node_name="${node##*/}"
     node_ip=$(kubectl get "$node"  -o jsonpath='{$.status.addresses[?(@.type=="InternalIP")].address}')
     echo "Node internal ip: $node_ip"
-    # Check pod count after restarting nodes, statefile does not exist after restart
-    echo "checking whether the node has any pods deployed to it or not"
-    pod_count=$(kubectl get pods -A -o wide | grep "$node_name" -c)
-    if [[ $pod_count -eq 0 ]]; then
-        echo "Skipping validation for this node. No pods were deployed after the restart, so no statefile exists"
-        continue
-    fi
+
     privileged_pod=$(kubectl get pods -n kube-system -l app=privileged-daemonset -o wide | grep "$node_name" | awk '{print $1}')
     echo "privileged pod : $privileged_pod"
     if [ "$privileged_pod" == '' ]; then
         kubectl describe daemonset privileged-daemonset -n kube-system
         exit 1
     fi
-    while ! [ -s "azure_endpoints.json" ]
+    for i in {1..5};
     do
-        echo "trying to get the azure_endpoints"
-        kubectl exec -i "$privileged_pod" -n kube-system -- bash -c "cat /var/run/azure-cns/azure-endpoints.json" > azure_endpoints.json
-        sleep 10
+        if ! [ -s "azure_endpoints.json" ]; then
+            echo "trying to get the azure_endpoints"
+            kubectl exec -i "$privileged_pod" -n kube-system -- bash -c "cat /var/run/azure-cns/azure-endpoints.json" > azure_endpoints.json
+            sleep 10
+            if [ "$i" == "5" ]; then
+                if [ $restart == true ]; then
+                    echo "node was restarted, no statefile exists"
+                    skipNode=true
+                else
+                    printf "Error: Failed to get azure_endpoints.json"
+                    exit 1
+                fi
+            fi
+        fi
     done
+
+    if [ $skipNode == true ]; then
+        echo $skipNode
+        echo "node was restarted, skip validate state for this node"
+        # reset skipNode to false
+        skipNode=false
+        continue
+    fi
 
     cilium_agent=$(kubectl get pod -l k8s-app=cilium -n kube-system -o wide | grep "$node_name" | awk '{print $1}')
     echo "cilium agent : $cilium_agent"
-    
+        
     while ! [ -s "cilium_endpoints.json" ]
     do
         echo "trying to get the cilium_endpoints"

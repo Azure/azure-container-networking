@@ -369,13 +369,17 @@ func (pMgr *PolicyManager) removePolicy(policy *NPMNetworkPolicy, endpointList m
 }
 
 func (pMgr *PolicyManager) removePolicyByEndpointID(ruleID, epID string, noOfRulesToRemove int, resetAllACL shouldResetAllACLs) error {
+	timer := metrics.StartNewTimer()
 	epObj, err := pMgr.ioShim.Hns.GetEndpointByID(epID)
+	metrics.RecordGetEndpointLatency(timer)
 	if err != nil {
 		// IsNotFound check is being skipped at times. So adding a redundant check here.
 		if isNotFoundErr(err) || strings.Contains(err.Error(), "endpoint was not found") {
 			klog.Infof("[PolicyManagerWindows] ignoring remove policy since the endpoint wasn't found. the corresponding pod might be deleted. policy: %s, endpoint: %s, HNS response: %s", ruleID, epID, err.Error())
 			return nil
 		}
+
+		metrics.IncGetEndpointFailures()
 		return fmt.Errorf("[PolicyManagerWindows] failed to remove policy while getting the endpoint. policy: %s, endpoint: %s, err: %w", ruleID, epID, err)
 	}
 
@@ -409,8 +413,11 @@ func (pMgr *PolicyManager) removePolicyByEndpointID(ruleID, epID string, noOfRul
 		return fmt.Errorf("unable to get HCN policy request while trying to remove policy. policy: %s, endpoint: %s, err: %s", ruleID, epID, err.Error())
 	}
 
+	timer = metrics.StartNewTimer()
 	err = pMgr.ioShim.Hns.ApplyEndpointPolicy(epObj, hcn.RequestTypeUpdate, epPolicies)
+	metrics.RecordACLLatency(timer, metrics.UpdateOp)
 	if err != nil {
+		metrics.IncACLFailures(metrics.UpdateOp)
 		return fmt.Errorf("unable to apply changes when removing policy. policy: %s, endpoint: %s, err: %w", ruleID, epID, err)
 	}
 	return nil
@@ -418,7 +425,9 @@ func (pMgr *PolicyManager) removePolicyByEndpointID(ruleID, epID string, noOfRul
 
 // addEPPolicyWithEpID given an EP ID and a list of policies, add the policies to the endpoint
 func (pMgr *PolicyManager) applyPoliciesToEndpointID(epID string, policies hcn.PolicyEndpointRequest) error {
+	timer := metrics.StartNewTimer()
 	epObj, err := pMgr.ioShim.Hns.GetEndpointByID(epID)
+	metrics.RecordGetEndpointLatency(timer)
 	if err != nil {
 		// IsNotFound check is being skipped at times. So adding a redundant check here.
 		if isNotFoundErr(err) || strings.Contains(err.Error(), "endpoint was not found") {
@@ -426,11 +435,16 @@ func (pMgr *PolicyManager) applyPoliciesToEndpointID(epID string, policies hcn.P
 			metrics.SendErrorLogAndMetric(util.IptmID, "[PolicyManagerWindows] ignoring apply policies to endpoint since the endpoint wasn't found. endpoint: %s, err: %s", epID, err.Error())
 			return nil
 		}
+
+		metrics.IncGetEndpointFailures()
 		return fmt.Errorf("[PolicyManagerWindows] to apply policies while getting the endpoint. endpoint: %s, err: %w", epID, err)
 	}
 
+	timer = metrics.StartNewTimer()
 	err = pMgr.ioShim.Hns.ApplyEndpointPolicy(epObj, hcn.RequestTypeAdd, policies)
+	metrics.RecordACLLatency(timer, metrics.CreateOp)
 	if err != nil {
+		metrics.IncACLFailures(metrics.CreateOp)
 		klog.Errorf("[PolicyManagerWindows] failed to apply policies. endpoint: %s, err: %s", epID, err.Error())
 		return err
 	}

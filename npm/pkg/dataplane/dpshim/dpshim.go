@@ -48,6 +48,10 @@ func (dp *DPShim) BootupDataplane() error {
 	return nil
 }
 
+func (dp *DPShim) FinishBootupPhase() {
+	// No-op
+}
+
 // HydrateClients is used in DPShim to hydrate a restarted Daemon Client
 func (dp *DPShim) HydrateClients() (*protos.Events, error) {
 	dp.lock()

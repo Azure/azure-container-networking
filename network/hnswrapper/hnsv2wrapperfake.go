@@ -91,7 +91,7 @@ func (f Hnsv2wrapperFake) ModifyNetworkSettings(network *hcn.HostComputeNetwork,
 						for _, memberID := range members {
 							_, ok := networkCache.Policies[memberID]
 							if !ok {
-								return newErrorFakeHNS(fmt.Sprintf("Member Policy %s not found", memberID))
+								return newErrorFakeHNS(fmt.Sprintf("Member Policy %s not found for hcn.RequestTypeAdd", memberID))
 							}
 						}
 					}
@@ -147,13 +147,13 @@ func (f Hnsv2wrapperFake) ModifyNetworkSettings(network *hcn.HostComputeNetwork,
 				// Replicating HNS behavior, we will not update non-existent set policy
 				continue
 			}
-			if setpol.PolicyType != hcn.SetPolicyTypeIpSet {
+			if setpol.PolicyType != hcn.SetPolicyTypeIpSet && setpol.Values != "" {
 				// Check Nested SetPolicy members
 				members := strings.Split(setpol.Values, ",")
 				for _, memberID := range members {
 					_, ok := networkCache.Policies[memberID]
 					if !ok {
-						return newErrorFakeHNS(fmt.Sprintf("Member Policy %s not found", memberID))
+						return newErrorFakeHNS(fmt.Sprintf("Member Policy %s not found for hcn.RequestTypeUpdate", memberID))
 					}
 				}
 			}
