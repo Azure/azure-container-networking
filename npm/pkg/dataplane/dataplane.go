@@ -134,6 +134,7 @@ func (dp *DataPlane) FinishBootupPhase() {
 	dp.applyInfo.Lock()
 	defer dp.applyInfo.Unlock()
 
+	klog.Infof("[DataPlane] finished bootup phase")
 	dp.applyInfo.inBootupPhase = false
 }
 
