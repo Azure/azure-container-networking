@@ -6,89 +6,11 @@ import (
 
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/network/hnswrapper"
-	"github.com/Azure/azure-container-networking/npm/metrics"
 	"github.com/Azure/azure-container-networking/npm/util"
 	testutils "github.com/Azure/azure-container-networking/test/utils"
 	"github.com/Microsoft/hcsshim/hcn"
 	"github.com/stretchr/testify/require"
 )
-
-type winPromVals struct {
-	getNetworkLatencyCalls   int
-	getNetworkFailures       int
-	createIPSetLatencyCalls  int
-	createIPSetFailures      int
-	createNestedLatencyCalls int
-	createNestedFailures     int
-	updateIPSetLatencyCalls  int
-	updateIPSetFailures      int
-	updateNestedLatencyCalls int
-	updateNestedFailures     int
-	deleteIPSetLatencyCalls  int
-	deleteIPSetFailures      int
-	deleteNestedLatencyCalls int
-	deleteNestedFailures     int
-}
-
-func (w winPromVals) test(t *testing.T) {
-	t.Helper()
-
-	count, err := metrics.TotalGetNetworkLatencyCalls()
-	require.NoError(t, err, "failed to get metric")
-	require.Equal(t, w.getNetworkLatencyCalls, count, "incorrect list network latency calls")
-
-	count, err = metrics.TotalGetNetworkFailures()
-	require.NoError(t, err, "failed to get metric")
-	require.Equal(t, w.getNetworkFailures, count, "incorrect list network failures")
-
-	count, err = metrics.TotalSetPolicyLatencyCalls(metrics.CreateOp, false)
-	require.NoError(t, err, "failed to get metric")
-	require.Equal(t, w.createIPSetLatencyCalls, count, "incorrect create ipset latency calls")
-
-	count, err = metrics.TotalSetPolicyFailures(metrics.CreateOp, false)
-	require.NoError(t, err, "failed to get metric")
-	require.Equal(t, w.createIPSetFailures, count, "incorrect create ipset failures")
-
-	count, err = metrics.TotalSetPolicyLatencyCalls(metrics.CreateOp, true)
-	require.NoError(t, err, "failed to get metric")
-	require.Equal(t, w.createNestedLatencyCalls, count, "incorrect create nested ipset latency calls")
-
-	count, err = metrics.TotalSetPolicyFailures(metrics.CreateOp, true)
-	require.NoError(t, err, "failed to get metric")
-	require.Equal(t, w.createNestedFailures, count, "incorrect create nested ipset failures")
-
-	count, err = metrics.TotalSetPolicyLatencyCalls(metrics.UpdateOp, false)
-	require.NoError(t, err, "failed to get metric")
-	require.Equal(t, w.updateIPSetLatencyCalls, count, "incorrect update ipset latency calls")
-
-	count, err = metrics.TotalSetPolicyFailures(metrics.UpdateOp, false)
-	require.NoError(t, err, "failed to get metric")
-	require.Equal(t, w.updateIPSetFailures, count, "incorrect update ipset failures")
-
-	count, err = metrics.TotalSetPolicyLatencyCalls(metrics.UpdateOp, true)
-	require.NoError(t, err, "failed to get metric")
-	require.Equal(t, w.updateNestedLatencyCalls, count, "incorrect update nested ipset latency calls")
-
-	count, err = metrics.TotalSetPolicyFailures(metrics.UpdateOp, true)
-	require.NoError(t, err, "failed to get metric")
-	require.Equal(t, w.updateNestedFailures, count, "incorrect update nested ipset failures")
-
-	count, err = metrics.TotalSetPolicyLatencyCalls(metrics.DeleteOp, false)
-	require.NoError(t, err, "failed to get metric")
-	require.Equal(t, w.deleteIPSetLatencyCalls, count, "incorrect delete ipset latency calls")
-
-	count, err = metrics.TotalSetPolicyFailures(metrics.DeleteOp, false)
-	require.NoError(t, err, "failed to get metric")
-	require.Equal(t, w.deleteIPSetFailures, count, "incorrect delete ipset failures")
-
-	count, err = metrics.TotalSetPolicyLatencyCalls(metrics.DeleteOp, true)
-	require.NoError(t, err, "failed to get metric")
-	require.Equal(t, w.deleteNestedLatencyCalls, count, "incorrect delete nested ipset latency calls")
-
-	count, err = metrics.TotalSetPolicyFailures(metrics.DeleteOp, true)
-	require.NoError(t, err, "failed to get metric")
-	require.Equal(t, w.deleteNestedFailures, count, "incorrect delete nested ipset failures")
-}
 
 func TestGetIPsFromSelectorIPSets(t *testing.T) {
 	iMgr := NewIPSetManager(applyOnNeedCfg, common.NewMockIOShim([]testutils.TestCmd{}))
@@ -146,8 +68,6 @@ func TestGetIPsFromSelectorIPSets(t *testing.T) {
 }
 
 func TestAddToSetWindows(t *testing.T) {
-	metrics.InitializeWindowsMetrics()
-
 	hns := GetHNSFake(t, "azure")
 	io := common.NewMockIOShimWithFakeHNS(hns)
 	iMgr := NewIPSetManager(applyAlwaysCfg, io)
@@ -172,46 +92,11 @@ func TestAddToSetWindows(t *testing.T) {
 
 	err = iMgr.ApplyIPSets()
 	require.NoError(t, err)
-
-	winPromVals{
-		getNetworkLatencyCalls:   1,
-		createIPSetLatencyCalls:  1,
-		createNestedLatencyCalls: 1,
-	}.test(t)
 }
 
 func TestDestroyNPMIPSets(t *testing.T) {
-	metrics.InitializeWindowsMetrics()
-
-	hns := GetHNSFake(t, "azure")
-	io := common.NewMockIOShimWithFakeHNS(hns)
-	iMgr := NewIPSetManager(applyAlwaysCfg, io)
-
+	iMgr := NewIPSetManager(applyAlwaysCfg, common.NewMockIOShim([]testutils.TestCmd{}))
 	require.NoError(t, iMgr.resetIPSets())
-	winPromVals{
-		getNetworkLatencyCalls: 1,
-	}.test(t)
-
-	setMetadata := NewIPSetMetadata(testSetName, Namespace)
-	iMgr.CreateIPSets([]*IPSetMetadata{setMetadata})
-
-	err := iMgr.AddToSets([]*IPSetMetadata{setMetadata}, testPodIP, testPodKey)
-	require.NoError(t, err)
-
-	err = iMgr.ApplyIPSets()
-	require.NoError(t, err)
-
-	winPromVals{
-		getNetworkLatencyCalls:  2,
-		createIPSetLatencyCalls: 1,
-	}.test(t)
-
-	require.NoError(t, iMgr.resetIPSets())
-	winPromVals{
-		getNetworkLatencyCalls:  3,
-		createIPSetLatencyCalls: 1,
-		deleteIPSetLatencyCalls: 1,
-	}.test(t)
 }
 
 // create all possible SetTypes
@@ -297,8 +182,6 @@ func TestDestroyNPMIPSets(t *testing.T) {
 // }
 
 func TestApplyDeletions(t *testing.T) {
-	metrics.InitializeWindowsMetrics()
-
 	hns := GetHNSFake(t, "azure")
 	io := common.NewMockIOShimWithFakeHNS(hns)
 	iMgr := NewIPSetManager(applyAlwaysCfg, io)
@@ -343,18 +226,10 @@ func TestApplyDeletions(t *testing.T) {
 	require.NoError(t, err)
 	verifyHNSCache(t, toAddOrUpdateSetMap, hns)
 	verifyDeletedHNSCache(t, toDeleteSetNames, hns)
-
-	winPromVals{
-		getNetworkLatencyCalls:   1,
-		createIPSetLatencyCalls:  1,
-		createNestedLatencyCalls: 1,
-	}.test(t)
 }
 
 // TODO test that a reconcile list is updated
 func TestFailureOnCreation(t *testing.T) {
-	metrics.InitializeWindowsMetrics()
-
 	hns := GetHNSFake(t, "azure")
 	io := common.NewMockIOShimWithFakeHNS(hns)
 	iMgr := NewIPSetManager(applyAlwaysCfg, io)
@@ -387,11 +262,6 @@ func TestFailureOnCreation(t *testing.T) {
 	require.NoError(t, err)
 	verifyHNSCache(t, toAddOrUpdateSetMap, hns)
 	verifyDeletedHNSCache(t, toDeleteSetNames, hns)
-
-	winPromVals{
-		getNetworkLatencyCalls:  1,
-		createIPSetLatencyCalls: 1,
-	}.test(t)
 }
 
 // TODO test that a reconcile list is updated
@@ -448,8 +318,6 @@ func TestFailureOnCreation(t *testing.T) {
 
 // TODO test that a reconcile list is updated
 func TestFailureOnFlush(t *testing.T) {
-	metrics.InitializeWindowsMetrics()
-
 	// This exact scenario wouldn't occur. This error happens when the cache is out of date with the kernel.
 	hns := GetHNSFake(t, "azure")
 	io := common.NewMockIOShimWithFakeHNS(hns)
@@ -476,17 +344,10 @@ func TestFailureOnFlush(t *testing.T) {
 	require.NoError(t, err)
 	verifyHNSCache(t, toAddOrUpdateSetMap, hns)
 	verifyDeletedHNSCache(t, toDeleteSetNames, hns)
-
-	winPromVals{
-		getNetworkLatencyCalls:  1,
-		createIPSetLatencyCalls: 1,
-	}.test(t)
 }
 
 // TODO test that a reconcile list is updated
 func TestFailureOnDeletion(t *testing.T) {
-	metrics.InitializeWindowsMetrics()
-
 	hns := GetHNSFake(t, "azure")
 	io := common.NewMockIOShimWithFakeHNS(hns)
 	iMgr := NewIPSetManager(applyAlwaysCfg, io)
@@ -512,140 +373,6 @@ func TestFailureOnDeletion(t *testing.T) {
 	require.NoError(t, err)
 	verifyHNSCache(t, toAddOrUpdateSetMap, hns)
 	verifyDeletedHNSCache(t, toDeleteSetNames, hns)
-
-	winPromVals{
-		getNetworkLatencyCalls:  1,
-		createIPSetLatencyCalls: 1,
-	}.test(t)
-}
-
-func TestMetrics(t *testing.T) {
-	metrics.InitializeWindowsMetrics()
-	metrics.ResetIPSetEntries()
-
-	hns := GetHNSFake(t, "azure")
-	io := common.NewMockIOShimWithFakeHNS(hns)
-	iMgr := NewIPSetManager(applyAlwaysCfg, io)
-
-	nsW := NewIPSetMetadata("w", Namespace)
-	nsX := NewIPSetMetadata("x", Namespace)
-	nsY := NewIPSetMetadata("y", Namespace)
-	nsZ := NewIPSetMetadata("z", Namespace)
-	nsList1 := NewIPSetMetadata("list1", KeyLabelOfNamespace)
-	nsList2 := NewIPSetMetadata("list2", KeyLabelOfNamespace)
-	nsList3 := NewIPSetMetadata("list3", KeyLabelOfNamespace)
-	nsList4 := NewIPSetMetadata("list4", KeyLabelOfNamespace)
-
-	iMgr.CreateIPSets([]*IPSetMetadata{nsW, nsX, nsY, nsList1, nsList2, nsList3})
-	require.NoError(t, iMgr.AddToSets([]*IPSetMetadata{nsW, nsX}, "1.2.3.4", "pod1"))
-	require.NoError(t, iMgr.AddToLists([]*IPSetMetadata{nsList1, nsList2}, []*IPSetMetadata{nsW}))
-	require.Nil(t, iMgr.ApplyIPSets())
-
-	winPromVals{
-		getNetworkLatencyCalls:   1,
-		createIPSetLatencyCalls:  1,
-		createNestedLatencyCalls: 1,
-	}.test(t)
-
-	iMgr.CreateIPSets([]*IPSetMetadata{nsZ, nsList4})
-	require.Nil(t, iMgr.AddToSets([]*IPSetMetadata{nsY}, "5.6.7.8", "pod2"))
-	require.Nil(t, iMgr.AddToLists([]*IPSetMetadata{nsList3}, []*IPSetMetadata{nsX}))
-	require.Nil(t, iMgr.RemoveFromSets([]*IPSetMetadata{nsW, nsX}, "1.2.3.4", "pod1"))
-	require.Nil(t, iMgr.RemoveFromList(nsList1, []*IPSetMetadata{nsW}))
-	require.Nil(t, iMgr.RemoveFromList(nsList2, []*IPSetMetadata{nsW}))
-	iMgr.DeleteIPSet(nsW.GetPrefixName(), util.SoftDelete)
-	iMgr.DeleteIPSet(nsList1.GetPrefixName(), util.SoftDelete)
-	require.Nil(t, iMgr.ApplyIPSets())
-
-	winPromVals{
-		getNetworkLatencyCalls:   2,
-		createIPSetLatencyCalls:  2,
-		createNestedLatencyCalls: 2,
-		updateIPSetLatencyCalls:  1,
-		updateNestedLatencyCalls: 1,
-		deleteIPSetLatencyCalls:  1,
-		deleteNestedLatencyCalls: 1,
-	}.test(t)
-}
-
-func TestMetricsMaxMember(t *testing.T) {
-	metrics.InitializeWindowsMetrics()
-	metrics.ResetIPSetEntries()
-
-	hns := GetHNSFake(t, "azure")
-	io := common.NewMockIOShimWithFakeHNS(hns)
-	iMgr := NewIPSetManager(applyAlwaysCfg, io)
-
-	nsW := NewIPSetMetadata("w", Namespace)
-	nsX := NewIPSetMetadata("x", Namespace)
-	nsY := NewIPSetMetadata("y", Namespace)
-	nsList1 := NewIPSetMetadata("list1", KeyLabelOfNamespace)
-
-	iMgr.CreateIPSets([]*IPSetMetadata{nsW, nsX, nsY, nsList1})
-	count, err := metrics.MaxIPSetMembers()
-	require.Nil(t, err, "failed to get metric")
-	require.Equal(t, 0, count)
-
-	require.Nil(t, iMgr.AddToSets([]*IPSetMetadata{nsW, nsX}, "1.1.1.1", "pod1"))
-	count, err = metrics.MaxIPSetMembers()
-	require.Nil(t, err, "failed to get metric")
-	require.Equal(t, 1, count)
-
-	require.Nil(t, iMgr.AddToLists([]*IPSetMetadata{nsList1}, []*IPSetMetadata{nsW}))
-	count, err = metrics.MaxIPSetMembers()
-	require.Nil(t, err, "failed to get metric")
-	require.Equal(t, 1, count)
-
-	require.Nil(t, iMgr.AddToLists([]*IPSetMetadata{nsList1}, []*IPSetMetadata{nsX, nsY}))
-	count, err = metrics.MaxIPSetMembers()
-	require.Nil(t, err, "failed to get metric")
-	require.Equal(t, 3, count)
-
-	require.Nil(t, iMgr.AddToSets([]*IPSetMetadata{nsX}, "2.2.2.2", "pod2"))
-	count, err = metrics.MaxIPSetMembers()
-	require.Nil(t, err, "failed to get metric")
-	require.Equal(t, 3, count)
-
-	require.Nil(t, iMgr.RemoveFromList(nsList1, []*IPSetMetadata{nsX, nsY}))
-	count, err = metrics.MaxIPSetMembers()
-	require.Nil(t, err, "failed to get metric")
-	require.Equal(t, 2, count)
-
-	require.Nil(t, iMgr.AddToSets([]*IPSetMetadata{nsX}, "3.3.3.3", "pod3"))
-	count, err = metrics.MaxIPSetMembers()
-	require.Nil(t, err, "failed to get metric")
-	require.Equal(t, 3, count)
-
-	require.Nil(t, iMgr.AddToSets([]*IPSetMetadata{nsX}, "3.3.3.3", "pod3-changed"))
-	count, err = metrics.MaxIPSetMembers()
-	require.Nil(t, err, "failed to get metric")
-	require.Equal(t, 3, count)
-
-	require.Nil(t, iMgr.AddToSets([]*IPSetMetadata{nsX}, "4.4.4.4", "pod4"))
-	count, err = metrics.MaxIPSetMembers()
-	require.Nil(t, err, "failed to get metric")
-	require.Equal(t, 4, count)
-
-	require.Nil(t, iMgr.RemoveFromSets([]*IPSetMetadata{nsX}, "4.4.4.4", "pod4"))
-	count, err = metrics.MaxIPSetMembers()
-	require.Nil(t, err, "failed to get metric")
-	require.Equal(t, 3, count)
-
-	require.Nil(t, iMgr.RemoveFromSets([]*IPSetMetadata{nsX}, "3.3.3.3", "wrong-pod"))
-	count, err = metrics.MaxIPSetMembers()
-	require.Nil(t, err, "failed to get metric")
-	require.Equal(t, 3, count)
-
-	// can't delete this set
-	iMgr.DeleteIPSet(nsX.GetPrefixName(), util.SoftDelete)
-	count, err = metrics.MaxIPSetMembers()
-	require.Nil(t, err, "failed to get metric")
-	require.Equal(t, 3, count)
-
-	iMgr.DeleteIPSet(nsX.GetPrefixName(), util.ForceDelete)
-	count, err = metrics.MaxIPSetMembers()
-	require.Nil(t, err, "failed to get metric")
-	require.Equal(t, 1, count)
 }
 
 func verifyHNSCache(t *testing.T, expected map[string]hcn.SetPolicySetting, hns *hnswrapper.Hnsv2wrapperFake) {
