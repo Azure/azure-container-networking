@@ -113,7 +113,7 @@ var (
 	getNetworkFailures    prometheus.Counter
 	aclFailures           *prometheus.CounterVec
 	setPolicyFailures     *prometheus.CounterVec
-	podIPTotal            prometheus.Gauge
+	customerPodCount      prometheus.Gauge
 )
 
 type RegistryType string
@@ -152,12 +152,12 @@ func InitializeAll() {
 		initializeDaemonMetrics()
 		initializeControllerMetrics()
 
-		podIPTotal = prometheus.NewGauge(
+		customerPodCount = prometheus.NewGauge(
 			prometheus.GaugeOpts{
 				Namespace: namespace,
-				Name:      "pod_ip_total",
+				Name:      "customer_pods",
 				Subsystem: "",
-				Help:      "Total number of Pod IPs across the cluster in Linux or Windows nodes",
+				Help:      "Number of Pods NPM tracks across the cluster including Linux and Windows nodes",
 			},
 		)
 
@@ -176,7 +176,7 @@ func InitializeAll() {
 			register(aclFailures, "acl_failure_total", NodeMetrics)
 			register(setPolicyFailures, "setpolicy_failure_total", NodeMetrics)
 			// all new metrics should go on the node metrics URL
-			register(podIPTotal, "ipset_members_max", NodeMetrics)
+			register(customerPodCount, "ipset_members_max", NodeMetrics)
 		}
 
 		log.Logf("Finished initializing all Prometheus metrics")

@@ -23,7 +23,7 @@ type testSet struct {
 }
 
 func TestAddPod(t *testing.T) {
-	podIPTotal.Set(0)
+	customerPodCount.Set(0)
 	AddPod()
 	AddPod()
 	AddPod()

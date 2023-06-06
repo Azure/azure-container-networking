@@ -9,18 +9,18 @@ var ipsetInventoryMap map[string]int
 
 // AddPod increments the number of Pod IPs.
 func AddPod() {
-	podIPTotal.Inc()
+	customerPodCount.Inc()
 }
 
 // RemovePod decrements the number of Pod IPs.
 func RemovePod() {
-	podIPTotal.Dec()
+	customerPodCount.Dec()
 }
 
 // PodCount gets the current number of Pod IPs.
 // This function is slow.
 func PodCount() (int, error) {
-	return getValue(podIPTotal)
+	return getValue(customerPodCount)
 }
 
 // IncNumIPSets increments the number of IPSets.
