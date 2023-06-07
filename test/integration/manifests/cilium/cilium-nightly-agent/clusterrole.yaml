@@ -45,12 +45,12 @@ rules:
 - apiGroups:
   - cilium.io
   resources:
-  - ciliumbgploadbalancerippools
+  #Naming changed from ciliumbgploadbalancerippools
+  - ciliumloadbalancerippools
   - ciliumbgppeeringpolicies
   - ciliumclusterwideenvoyconfigs
   - ciliumclusterwidenetworkpolicies
   - ciliumegressgatewaypolicies
-  - ciliumegressnatpolicies
   - ciliumendpoints
   - ciliumendpointslices
   - ciliumenvoyconfigs
@@ -58,6 +58,9 @@ rules:
   - ciliumlocalredirectpolicies
   - ciliumnetworkpolicies
   - ciliumnodes
+  - ciliumnodeconfigs
+  #Added in 1.14.0 snapshot 2
+  - ciliumcidrgroups
   verbs:
   - list
   - watch
@@ -71,13 +74,12 @@ rules:
   - create
 - apiGroups:
   - cilium.io
-  # To synchronize garbage collection of such resources
   resources:
   - ciliumidentities
   verbs:
   - update
 - apiGroups:
-  - cilium.io  
+  - cilium.io
   resources:
   - ciliumendpoints
   verbs:

@@ -48,7 +48,9 @@ steps:
       echo "deploy Cilium ConfigMap"
       kubectl apply -f cilium/configmap.yaml
       kubectl apply -f test/integration/manifests/cilium/cilium-config.yaml
-      echo "install Cilium"
+      echo "install Cilium ${CILIUM_VERSION_TAG}"
+      envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/daemonset.yaml | kubectl apply -f -
+      envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/deployment.yaml | kubectl apply -f -
       kubectl apply -f test/integration/manifests/cilium/cilium-agent
       kubectl apply -f test/integration/manifests/cilium/cilium-operator
       kubectl get po -owide -A
@@ -107,6 +109,15 @@ steps:
       pathtoPublish: "$(Build.ArtifactStagingDirectory)/test-output"
     condition: always()
 
+  - script: |              
+      kubectl get pods -A
+      echo "Waiting < 2 minutes for cilium to be ready"
+      # Ensure Cilium is ready Xm\Xs
+      cilium status --wait --wait-duration 2m
+    retryCountOnTaskFailure: 3
+    name: "CiliumStatus"
+    displayName: "Cilium Status" 
+    
   - script: |
       echo "Run Service Conformance E2E"
       export PATH=${PATH}:/usr/local/bin/gsutil
