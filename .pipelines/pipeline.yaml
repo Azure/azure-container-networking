@@ -313,9 +313,9 @@ stages:
       testDropgz: ""
       clusterName: "ciliume2e"
 
-  - template: singletenancy/overlay/overlay-e2e-job-template.yaml
+  - template: singletenancy/cilium-overlay/cilium-overlay-e2e-job-template.yaml
     parameters:
-      name: "overlay_e2e"
+      name: "cilium_overlay_cilium_e2e"
       displayName: Cilium on AKS Overlay
       pipelineBuildImage: "$(BUILD_IMAGE)"
       testDropgz: ""
