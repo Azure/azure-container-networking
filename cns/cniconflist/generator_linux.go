@@ -53,6 +53,34 @@ func (v *V4OverlayGenerator) Generate() error {
 }
 
 // Generate writes the CNI conflist to the Generator's output stream
+func (v *DualStackOverlayGenerator) Generate() error {
+	conflist := cniConflist{
+		CNIVersion: overlaycniVersion,
+		Name:       overlaycniName,
+		Plugins: []any{
+			cni.NetworkConfig{
+				Type:              overlaycniType,
+				Mode:              cninet.OpModeTransparent,
+				IPsToRouteViaHost: []string{nodeLocalDNSIP},
+				IPAM: cni.IPAM{
+					Type: network.AzureCNS,
+					Mode: string(util.DualStackOverlay),
+				},
+			},
+			portmapConfig,
+		},
+	}
+
+	enc := json.NewEncoder(v.Writer)
+	enc.SetIndent("", "\t")
+	if err := enc.Encode(conflist); err != nil {
+		return errors.Wrap(err, "error encoding conflist to json")
+	}
+
+	return nil
+}
+
+// Generate writes the CNI conflist to the Generator's output stream
 func (v *CiliumGenerator) Generate() error {
 	conflist := cniConflist{
 		CNIVersion: ciliumcniVersion,

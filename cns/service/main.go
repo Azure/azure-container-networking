@@ -86,8 +86,9 @@ const (
 type cniConflistScenario string
 
 const (
-	scenarioV4Overlay cniConflistScenario = "v4overlay"
-	scenarioCilium    cniConflistScenario = "cilium"
+	scenarioV4Overlay        cniConflistScenario = "v4overlay"
+	scenarioDualStackOverlay cniConflistScenario = "dualStackOverlay"
+	scenarioCilium           cniConflistScenario = "cilium"
 )
 
 var (
@@ -536,6 +537,8 @@ func main() {
 		switch scenario := cniConflistScenario(scenarioString); scenario {
 		case scenarioV4Overlay:
 			conflistGenerator = &cniconflist.V4OverlayGenerator{Writer: writer}
+		case scenarioDualStackOverlay:
+			conflistGenerator = &cniconflist.DualStackOverlayGenerator{Writer: writer}
 		case scenarioCilium:
 			conflistGenerator = &cniconflist.CiliumGenerator{Writer: writer}
 		default:

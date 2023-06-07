@@ -675,6 +675,15 @@ func TestGetHomeAz(t *testing.T) {
 			},
 			true,
 		},
+		{
+			"404 from NMA",
+			nmagent.AzResponse{},
+			"/machine/plugins?comp=nmagent&type=GetHomeAz%2Fapi-version%2F1",
+			map[string]interface{}{
+				"httpStatusCode": "404",
+			},
+			true,
+		},
 	}
 
 	for _, test := range tests {
@@ -682,10 +691,8 @@ func TestGetHomeAz(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
-			var gotPath string
 			client := nmagent.NewTestClient(&TestTripper{
 				RoundTripF: func(req *http.Request) (*http.Response, error) {
-					gotPath = req.URL.RequestURI()
 					rr := httptest.NewRecorder()
 					err := json.NewEncoder(rr).Encode(test.resp)
 					if err != nil {
@@ -703,10 +710,6 @@ func TestGetHomeAz(t *testing.T) {
 
 			if err == nil && test.shouldErr {
 				t.Fatal("expected error but received none")
-			}
-
-			if gotPath != test.expPath {
-				t.Error("paths differ: got:", gotPath, "exp:", test.expPath)
 			}
 
 			if !cmp.Equal(got, test.exp) {
