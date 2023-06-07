@@ -113,7 +113,7 @@ var (
 	getNetworkFailures    prometheus.Counter
 	aclFailures           *prometheus.CounterVec
 	setPolicyFailures     *prometheus.CounterVec
-	podsWatched      prometheus.Gauge
+	podsWatched           prometheus.Gauge
 )
 
 type RegistryType string
