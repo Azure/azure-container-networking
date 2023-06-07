@@ -47,7 +47,7 @@ stages:
     jobs:
       - job: cilium_nightly
         steps:
-        - template: ../../singletenancy/overlay/overlay-e2e-step-template.yaml
+        - template: ../../singletenancy/cilium-overlay/cilium-overlay-e2e-step-template.yaml
           parameters:
             name: "cilium_nightly"
             testDropgz: ""
