@@ -183,7 +183,7 @@ func testMultiJobCases(t *testing.T, tests []*MultiJobTestCase, finalSleep time.
 			}
 
 			// just care about eventual consistency, so add extra applyDP e.g. in case finishBootupPhase() runs last
-			dp.applyDataPlaneNow("FINAL APPLY FOR UT")
+			require.NoError(t, dp.applyDataPlaneNow("UT FINAL APPLY"))
 			dptestutils.VerifyHNSCache(t, hns, tt.ExpectedSetPolicies, tt.ExpectedEnpdointACLs)
 		})
 	}
