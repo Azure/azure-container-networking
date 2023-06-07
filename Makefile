@@ -66,6 +66,7 @@ CNI_SWIFT_BUILD_DIR = $(BUILD_DIR)/cni-swift
 CNI_OVERLAY_BUILD_DIR = $(BUILD_DIR)/cni-overlay
 CNI_BAREMETAL_BUILD_DIR = $(BUILD_DIR)/cni-baremetal
 CNI_DUALSTACK_BUILD_DIR = $(BUILD_DIR)/cni-dualstack
+CNI_OVERLAY_CONSOLIDATED_BUILD_DIR = $(BUILD_DIR)/cni-overlay-consolidated
 CNS_BUILD_DIR = $(BUILD_DIR)/cns
 NPM_BUILD_DIR = $(BUILD_DIR)/npm
 TOOLS_DIR = $(REPO_ROOT)/build/tools
@@ -631,6 +632,12 @@ endif
 	cp telemetry/azure-vnet-telemetry.config $(CNI_DUALSTACK_BUILD_DIR)/azure-vnet-telemetry.config
 	cp $(CNI_BUILD_DIR)/azure-vnet$(EXE_EXT) $(CNI_BUILD_DIR)/azure-vnet-telemetry$(EXE_EXT) $(CNI_DUALSTACK_BUILD_DIR)
 	cd $(CNI_DUALSTACK_BUILD_DIR) && $(ARCHIVE_CMD) $(CNI_DUALSTACK_ARCHIVE_NAME) azure-vnet$(EXE_EXT) azure-vnet-telemetry$(EXE_EXT) 10-azure.conflist azure-vnet-telemetry.config
+
+	$(MKDIR) $(CNI_OVERLAY_CONSOLIDATED_BUILD_DIR)
+	cp cni/azure-$(GOOS)-swift-overlay-consolidated.conflist $(CNI_OVERLAY_CONSOLIDATED_BUILD_DIR)/10-azure.conflist
+	cp telemetry/azure-vnet-telemetry.config $(CNI_OVERLAY_CONSOLIDATED_BUILD_DIR)/azure-vnet-telemetry.config
+	cp $(CNI_BUILD_DIR)/azure-vnet$(EXE_EXT) $(CNI_BUILD_DIR)/azure-vnet-telemetry$(EXE_EXT) $(CNI_OVERLAY_CONSOLIDATED_BUILD_DIR)
+	cd $(CNI_OVERLAY_CONSOLIDATED_BUILD_DIR) && $(ARCHIVE_CMD) $(CNI_OVERLAY_CONSOLIDATED_ARCHIVE_NAME) azure-vnet$(EXE_EXT) azure-vnet-telemetry$(EXE_EXT) 10-azure.conflist azure-vnet-telemetry.config
 
 #baremetal mode is windows only (at least for now)
 ifeq ($(GOOS),windows)
