@@ -378,7 +378,6 @@ func (c *PodController) syncAddedPod(podObj *corev1.Pod) error {
 	npmPodObj := common.NewNpmPod(podObj)
 	c.podMap[podKey] = npmPodObj
 	metrics.AddPod()
-	klog.Infof("DEBUGME: ADD pod for %s. npmPodObj: %+v", podKey, npmPodObj)
 
 	// Get lists of podLabelKey and podLabelKey + podLavelValue ,and then start adding them to ipsets.
 	for labelKey, labelVal := range podObj.Labels {
@@ -436,9 +435,6 @@ func (c *PodController) syncAddAndUpdatePod(newPodObj *corev1.Pod) (metrics.Oper
 	if !exists {
 		return metrics.CreateOp, c.syncAddedPod(newPodObj)
 	}
-
-	klog.Infof("DEBUGME: UPDATE pod for %s. npmPodObj: %+v. cached obj: %+v", podKey, newPodObj, cachedNpmPod)
-
 	// now we know this is an update event, and we'll return metrics.UpdateOp
 
 	// Dealing with "updatePod" event - Compare last applied states against current Pod states
@@ -585,7 +581,6 @@ func (c *PodController) cleanUpDeletedPod(cachedNpmPodKey string) error {
 	}
 
 	metrics.RemovePod()
-	klog.Infof("DEBUGME: REMOVE pod for %s. npmPodObj: %+v", cachedNpmPodKey, cachedNpmPod)
 	delete(c.podMap, cachedNpmPodKey)
 	return nil
 }
