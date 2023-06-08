@@ -16,6 +16,7 @@ spec:
     metadata:
       labels:
         app: scale-test
+        name: TEMP_NAME
         is-real: "true"OTHER_LABELS_8_SPACES
     spec:
       nodeSelector:
