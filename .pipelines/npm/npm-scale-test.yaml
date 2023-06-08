@@ -404,13 +404,13 @@ jobs:
           export CLUSTER_NAME=$(RESOURCE_GROUP)-$(PROFILE)
           echo "Getting cluster state for $CLUSTER_NAME"
           mkdir -p $(System.DefaultWorkingDirectory)/$CLUSTER_NAME
-          kubectl get pods -n kube-system -owide | grep npm
-          kubectl logs -n kube-system -l k8s-app=azure-npm --tail -1 --prefix > $(System.DefaultWorkingDirectory)/$CLUSTER_NAME/npm-logs_$(PROFILE).txt
-          # capture any previous logs in case there was a crash
-          npmPodList=`kubectl get pods -n kube-system | grep npm | awk '{print $1}'`
+          kubectl get pods -n kube-system -owide | grep npm | grep -v kwok
+          npmPodList=`kubectl get pods -n kube-system | grep npm | grep -v kwok | awk '{print $1}'`
           for npmPod in $npmPodList; do
               logFile=$(System.DefaultWorkingDirectory)/$CLUSTER_NAME/npm-logs_$(PROFILE)-$npmPod.txt
               kubectl logs -n kube-system $npmPod > $logFile
+
+              # capture any previous logs in case there was a crash
               previousLogFile=$(System.DefaultWorkingDirectory)/$CLUSTER_NAME/previous-npm-logs_$(PROFILE).txt
               kubectl logs -n kube-system $npmPod -p > $previousLogFile
               if [[ $? -ne 0 ]]; then
