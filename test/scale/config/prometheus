@@ -1,0 +1,13 @@
+#Prometheus config for cilium for azure managed Prometheus
+global:
+  scrape_interval: 30s
+scrape_configs:
+  - job_name: "testnode"
+    scrape_interval: 30s
+    scheme: http
+    metrics_path: /metrics
+    static_configs:
+      # - targets: ["$NODE_IP:9962", "$NODE_IP:9963"] If you want to have cilium-operator metrics too
+      - targets: ["$NODE_IP:9962"]
+        labels:
+          hostname: "$NODE_NAME"
