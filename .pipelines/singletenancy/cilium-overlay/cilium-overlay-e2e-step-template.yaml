@@ -45,12 +45,12 @@ steps:
       sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
       kubectl cluster-info
       kubectl get po -owide -A
-      if [ "$CILIUM_VERSION_TAG" = "cilium-nightly-pipeline" ]; then FILE_PATH=-nightly && echo "Running nightly"; fi 
+      if [ "$CILIUM_VERSION_TAG" = "cilium-nightly-pipeline" ]; then FILE_PATH=-nightly && echo "Running nightly"; fi
       echo "deploy Cilium ConfigMap"
       kubectl apply -f cilium/configmap.yaml      
       kubectl apply -f test/integration/manifests/cilium/cilium${FILE_PATH}-config.yaml
       echo "install Cilium ${CILIUM_VERSION_TAG}"
-      # Passes Cilium image version to daemonset and deployment
+      # Passes Cilium image to daemonset and deployment
       envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/daemonset.yaml | kubectl apply -f -
       envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/deployment.yaml | kubectl apply -f -
       # Use different file directories for nightly and current cilium version
@@ -132,7 +132,7 @@ steps:
       cilium status --wait --wait-duration 2m
     retryCountOnTaskFailure: 3
     name: "CiliumStatus"
-    displayName: "Cilium Status"    
+    displayName: "Cilium Status"
 
   - script: |
       echo "Run Service Conformance E2E"
