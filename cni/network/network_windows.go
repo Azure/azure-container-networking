@@ -409,7 +409,7 @@ func determineWinVer() {
 }
 
 func getNATInfo(nwCfg *cni.NetworkConfig, ncPrimaryIPIface interface{}, enableSnatForDNS bool) (natInfo []policy.NATInfo) {
-	if nwCfg.ExecutionMode == string(util.V4Swift) && nwCfg.IPAM.Mode != string(util.V4Overlay) && nwCfg.IPAM.Mode != string(util.DualStackOverlay) {
+	if nwCfg.ExecutionMode == string(util.V4Swift) && nwCfg.IPAM.Mode != string(util.V4Overlay) && nwCfg.IPAM.Mode != string(util.DualStackOverlay) && nwCfg.IPAM.Mode != string(util.Overlay) {
 		ncPrimaryIP := ""
 		if ncPrimaryIPIface != nil {
 			ncPrimaryIP = ncPrimaryIPIface.(string)

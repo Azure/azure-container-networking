@@ -77,7 +77,7 @@ func TestCNSIPAMInvoker_Add_Overlay(t *testing.T) {
 			fields: fields{
 				podName:      testPodInfo.PodName,
 				podNamespace: testPodInfo.PodNamespace,
-				ipamMode:     util.V4Overlay,
+				ipamMode:     util.Overlay,
 				cnsClient: &MockCNSClient{
 					unsupportedAPIs: unsupportedAPIs,
 					require:         require,
@@ -148,6 +148,7 @@ func TestCNSIPAMInvoker_Add_Overlay(t *testing.T) {
 			fields: fields{
 				podName:      testPodInfo.PodName,
 				podNamespace: testPodInfo.PodNamespace,
+				ipamMode:     util.Overlay,
 				cnsClient: &MockCNSClient{
 					require: require,
 					requestIPs: requestIPsHandler{

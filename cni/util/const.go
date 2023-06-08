@@ -15,4 +15,13 @@ type IpamMode string
 const (
 	V4Overlay        IpamMode = "v4overlay"
 	DualStackOverlay IpamMode = "dualStackOverlay"
+	Overlay          IpamMode = "overlay" // Nothing changes between 'v4overlay' and 'dualStackOverlay' mode, so consolidating to one
 )
+
+// Overlay consolidation plan
+// First, we have v4overlay and dualstackoverlay conflists both have just 'overlay' in them
+// Test it, make sure it doesn't break v4overlay and dualstackoverlay
+// Next, we release this CNI and conflist in AKS
+// Add a third 'overlay' conflist generator in CNS
+// Release this CNS image
+// Change AKS RP to use 'overlay' option for CNS configmap, for both v4overlay and dualstackoverlay

@@ -7,14 +7,13 @@
             "type": "azure-vnet",
             "mode": "bridge",
             "bridge": "azure0",
-            "executionMode": "v4swift",
             "capabilities": {
                 "portMappings": true,
                 "dns": true
             },
             "ipam": {
                 "type": "azure-cns",
-                "mode": "v4overlay"
+                "mode": "overlay"
             },
             "dns": {
                 "Nameservers": [
