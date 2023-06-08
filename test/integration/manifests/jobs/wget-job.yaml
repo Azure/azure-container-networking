@@ -15,6 +15,6 @@ spec:
               "wget",
               "--timeout=3",
               "--header=Metadata:true",
-              "http://{test-address}/{path}",
+              "http://{address}/{path}",
             ]
       restartPolicy: Never
