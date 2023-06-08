@@ -193,9 +193,13 @@ jobs:
             kubectl set image daemonset/azure-npm -n kube-system azure-npm=$IMAGE_REGISTRY/azure-npm:linux-amd64-$(TAG)
             kubectl set image daemonset/azure-npm-win -n kube-system azure-npm=$IMAGE_REGISTRY/azure-npm:windows-amd64-ltsc2022-$(TAG)
 
-            sleep 5s
+            sleep 30s
             echo "waiting for NPM to start running..."
-            kubectl wait --for=condition=Ready pod -l k8s-app=azure-npm -n kube-system --timeout=20m
+            kubectl wait --for=condition=Ready pod -l k8s-app=azure-npm -n kube-system --timeout=15m || {
+                kubectl describe pod -n kube-system -l k8s-app=azure-npm
+                echo "##vso[task.logissue type=error]NPM failed to start running"
+                exit 1
+            }
             echo "sleep 3m to let NPM restart in case of bootup failure due to HNS errors"
             sleep 3m
 
