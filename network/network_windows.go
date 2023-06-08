@@ -12,7 +12,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Azure/azure-container-networking/cni/util"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/network/hnswrapper"
 	"github.com/Azure/azure-container-networking/network/policy"
@@ -404,8 +403,8 @@ func (nm *networkManager) newNetworkImplHnsV2(nwInfo *NetworkInfo, extIf *extern
 	if err != nil {
 		// if network not found, create the HNS network.
 		if errors.As(err, &hcn.NetworkNotFoundError{}) {
-			// in dualStackOverlay mode, add net routes to windows node
-			if nwInfo.IPV6Mode == string(util.DualStackOverlay) {
+			// add net routes to windows node if we have IPv6 enabled
+			if nwInfo.IsIPv6Enabled {
 				if err := nm.addNewNetRules(nwInfo); err != nil { // nolint
 					log.Printf("[net] Failed to add net rules due to %+v", err)
 					return nil, err
