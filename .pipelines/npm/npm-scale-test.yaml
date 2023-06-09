@@ -405,7 +405,7 @@ jobs:
           echo "Getting cluster state for $CLUSTER_NAME"
           mkdir -p $(System.DefaultWorkingDirectory)/$CLUSTER_NAME
           kubectl get pods -n kube-system -owide | grep npm | grep -v kwok
-          npmPodList=`kubectl get pods -n kube-system | grep npm | grep -v kwok | awk '{print $1}'`
+          npmPodList=`kubectl get pods -n kube-system -owide | grep npm | grep -v kwok | awk '{print $1}'`
           for npmPod in $npmPodList; do
               logFile=$(System.DefaultWorkingDirectory)/$CLUSTER_NAME/npm-logs_$(PROFILE)-$npmPod.txt
               kubectl logs -n kube-system $npmPod > $logFile
