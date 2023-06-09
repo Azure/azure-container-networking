@@ -1,0 +1,54 @@
+pr: none
+trigger: none
+
+stages:
+  - stage: init
+    displayName: "Build and Push Cilium Image"
+    jobs:
+      - job: build_and_push_cilium_image
+        steps:
+          - bash: |
+              set -ex
+              cd .pipelines/
+              git clone https://github.com/cilium/cilium.git
+              cd cilium
+              make docker-cilium-image
+              make docker-operator-generic-image
+            name: BuildCiliumImage
+            displayName: "Build Cilium Image"
+          - task: Docker@2
+            displayName: Login
+            inputs:
+              containerRegistry: $(CONTAINER_REGISTRY)
+              command: "login"
+          - task: AzureCLI@1
+            inputs:
+              azureSubscription: $(TEST_SUB_SERVICE_CONNECTION)
+              scriptLocation: "inlineScript"
+              inlineScript: |
+                set -ex
+                docker tag quay.io/cilium/cilium:$(DOCKER_IMAGE_TAG) $(ACR).azurecr.io/cilium/cilium:$(DOCKER_IMAGE_TAG)
+                docker tag quay.io/cilium/operator-generic:$(DOCKER_IMAGE_TAG) $(ACR).azurecr.io/cilium/operator-generic:$(DOCKER_IMAGE_TAG)
+                docker push $(ACR).azurecr.io/cilium/cilium:$(DOCKER_IMAGE_TAG)
+                docker push $(ACR).azurecr.io/cilium/operator-generic:$(DOCKER_IMAGE_TAG)
+            name: "PushCiliumImage"
+            displayName: "Push Cilium Image"
+          - task: Docker@2
+            displayName: Logout
+            inputs:
+              containerRegistry: $(CONTAINER_REGISTRY)
+              command: "logout"
+  - stage: cilium_nightly
+    displayName: E2E - Cilium Nightly
+    variables:
+      GOPATH: "$(Agent.TempDirectory)/go" # Go workspace path
+      GOBIN: "$(GOPATH)/bin" # Go binaries path
+      modulePath: "$(GOPATH)/src/github.com/Azure/azure-container-networking"
+    jobs:
+      - job: cilium_nightly
+        steps:
+        - template: ../../singletenancy/cilium-overlay/cilium-overlay-e2e-step-template.yaml
+          parameters:
+            name: "cilium_nightly"
+            testDropgz: ""
+            clusterName: "ciliumnightly"
