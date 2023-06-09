@@ -50,7 +50,7 @@ func TestBootupFailure(t *testing.T) {
 	}
 	ioshim := common.NewMockIOShim(calls)
 	defer ioshim.VerifyCalls(t, calls)
-	pMgr := NewPolicyManager(ioshim, defaultCfg)
+	pMgr := NewPolicyManager(ioshim, ipsetConfig)
 
 	metrics.IncNumACLRules()
 	metrics.IncNumACLRules()
@@ -72,7 +72,7 @@ func TestStaleChainsForceLock(t *testing.T) {
 	}
 	ioshim := common.NewMockIOShim(calls)
 	// don't verify calls because there shouldn't be as many commands as we create if forceLock works properly
-	pMgr := NewPolicyManager(ioshim, defaultCfg)
+	pMgr := NewPolicyManager(ioshim, ipsetConfig)
 
 	start := make(chan struct{}, 1)
 	done := make(chan struct{}, 1)
@@ -96,7 +96,7 @@ func TestStaleChainsForceLock(t *testing.T) {
 func TestStaleChainsForceUnlock(t *testing.T) {
 	ioshim := common.NewMockIOShim(nil)
 	defer ioshim.VerifyCalls(t, nil)
-	pMgr := NewPolicyManager(ioshim, defaultCfg)
+	pMgr := NewPolicyManager(ioshim, ipsetConfig)
 	pMgr.reconcileManager.forceLock()
 	require.Equal(t, 1, len(pMgr.reconcileManager.releaseLockSignal), "releaseLockSignal should be non-empty")
 	pMgr.reconcileManager.forceUnlock()
@@ -108,7 +108,7 @@ func TestStaleChainsForceUnlock(t *testing.T) {
 func TestStaleChainsAddAndRemove(t *testing.T) {
 	ioshim := common.NewMockIOShim(nil)
 	defer ioshim.VerifyCalls(t, nil)
-	pMgr := NewPolicyManager(ioshim, defaultCfg)
+	pMgr := NewPolicyManager(ioshim, ipsetConfig)
 
 	pMgr.staleChains.add(testChain1)
 	assertStaleChainsContain(t, pMgr.staleChains, testChain1)
@@ -133,7 +133,7 @@ func TestStaleChainsAddAndRemove(t *testing.T) {
 func TestStaleChainsEmptyAndGetAll(t *testing.T) {
 	ioshim := common.NewMockIOShim(nil)
 	defer ioshim.VerifyCalls(t, nil)
-	pMgr := NewPolicyManager(ioshim, defaultCfg)
+	pMgr := NewPolicyManager(ioshim, ipsetConfig)
 	pMgr.staleChains.add(testChain1)
 	pMgr.staleChains.add(testChain2)
 	chainsToCleanup := pMgr.staleChains.emptyAndGetAll()
@@ -158,7 +158,7 @@ func TestCleanupChainsSuccess(t *testing.T) {
 	}
 	ioshim := common.NewMockIOShim(calls)
 	defer ioshim.VerifyCalls(t, calls)
-	pMgr := NewPolicyManager(ioshim, defaultCfg)
+	pMgr := NewPolicyManager(ioshim, ipsetConfig)
 
 	pMgr.staleChains.add(testChain1)
 	pMgr.staleChains.add(testChain2)
@@ -176,7 +176,7 @@ func TestCleanupChainsFailure(t *testing.T) {
 	}
 	ioshim := common.NewMockIOShim(calls)
 	defer ioshim.VerifyCalls(t, calls)
-	pMgr := NewPolicyManager(ioshim, defaultCfg)
+	pMgr := NewPolicyManager(ioshim, ipsetConfig)
 
 	pMgr.staleChains.add(testChain1)
 	pMgr.staleChains.add(testChain2)
@@ -319,7 +319,7 @@ func TestCreatorForBootup(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ioshim := common.NewMockIOShim(nil)
 			defer ioshim.VerifyCalls(t, nil)
-			pMgr := NewPolicyManager(ioshim, defaultCfg)
+			pMgr := NewPolicyManager(ioshim, ipsetConfig)
 			creator := pMgr.creatorForBootup(stringsToMap(tt.currentChains))
 			actualLines := strings.Split(creator.ToString(), "\n")
 			sortedActualLines := sortFlushes(actualLines)
@@ -483,7 +483,7 @@ func TestBootupLinux(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ioshim := common.NewMockIOShim(tt.calls)
 			defer ioshim.VerifyCalls(t, tt.calls)
-			pMgr := NewPolicyManager(ioshim, defaultCfg)
+			pMgr := NewPolicyManager(ioshim, ipsetConfig)
 			err := pMgr.bootup(nil)
 			if tt.wantErr {
 				require.Error(t, err)
@@ -862,7 +862,7 @@ func TestChainLineNumber(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			ioshim := common.NewMockIOShim(tt.calls)
 			defer ioshim.VerifyCalls(t, tt.calls)
-			pMgr := NewPolicyManager(ioshim, defaultCfg)
+			pMgr := NewPolicyManager(ioshim, ipsetConfig)
 			lineNum, err := pMgr.chainLineNumber(testChainName)
 			if tt.wantErr {
 				require.Error(t, err)

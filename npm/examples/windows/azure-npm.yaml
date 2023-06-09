@@ -146,8 +146,8 @@ data:
         "ApplyMaxBatches":                100,
         "ApplyIntervalInMilliseconds":    500,
         "MaxBatchedACLsPerPod":           30,
-        "IPTablesIntervalInMilliseconds": 500,
-        "IPTablesMaxPendingPolicies":     100,
+        "NetPolInvervalInMilliseconds": 500,
+        "MaxPendingNetPols":     100,
         "Toggles": {
             "EnablePrometheusMetrics": true,
             "EnablePprof":             true,
@@ -156,6 +156,6 @@ data:
             "PlaceAzureChainFirst":    false,
             "ApplyIPSetsOnNeed":       false,
             "ApplyInBackground":       true,
-            "IPTablesInBackground":    true
+            "NetPolInBackground":    true
         }
     }

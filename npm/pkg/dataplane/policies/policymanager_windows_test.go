@@ -283,7 +283,7 @@ func getPMgr(t *testing.T) (*PolicyManager, *hnswrapper.Hnsv2wrapperFake) {
 		TestNetworkPolicies[k].PodEndpoints = nil
 	}
 
-	return NewPolicyManager(io, defaultCfg), hns
+	return NewPolicyManager(io, ipsetConfig), hns
 }
 
 func verifyFakeHNSCacheACLs(t *testing.T, expected, actual []*hnswrapper.FakeEndpointPolicy) bool {

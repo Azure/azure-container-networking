@@ -3,15 +3,15 @@ package npmconfig
 import "github.com/Azure/azure-container-networking/npm/util"
 
 const (
-	defaultResyncPeriod               = 15
-	defaultApplyMaxBatches            = 100
-	defaultApplyInterval              = 500
-	defaultMaxBatchedACLsPerPod       = 30
-	defaultIPTablesMaxPendingPolicies = 100
-	defaultIPTablesInterval           = 500
-	defaultListeningPort              = 10091
-	defaultGrpcPort                   = 10092
-	defaultGrpcServicePort            = 9002
+	defaultResyncPeriod         = 15
+	defaultApplyMaxBatches      = 100
+	defaultApplyInterval        = 500
+	defaultMaxBatchedACLsPerPod = 30
+	defaultMaxPendingNetPols    = 100
+	defaultNetPolInterval       = 500
+	defaultListeningPort        = 10091
+	defaultGrpcPort             = 10092
+	defaultGrpcServicePort      = 9002
 	// ConfigEnvPath is what's used by viper to load config path
 	ConfigEnvPath = "NPM_CONFIG"
 
@@ -37,8 +37,8 @@ var DefaultConfig = Config{
 	ApplyIntervalInMilliseconds: defaultApplyInterval,
 	MaxBatchedACLsPerPod:        defaultMaxBatchedACLsPerPod,
 
-	IPTablesMaxPendingPolicies:     defaultIPTablesMaxPendingPolicies,
-	IPTablesIntervalInMilliseconds: defaultIPTablesInterval,
+	MaxPendingNetPols:            defaultMaxPendingNetPols,
+	NetPolInvervalInMilliseconds: defaultNetPolInterval,
 
 	Toggles: Toggles{
 		EnablePrometheusMetrics: true,
@@ -47,8 +47,11 @@ var DefaultConfig = Config{
 		EnableV2NPM:             true,
 		PlaceAzureChainFirst:    util.PlaceAzureChainAfterKubeServices,
 		ApplyIPSetsOnNeed:       false,
-		ApplyInBackground:       true,
-		IPTablesInBackground:    true,
+		// ApplyInBackground is currently used in Windows to apply the following in background: IPSets and NetPols for new/updated Pods
+		ApplyInBackground: true,
+		// NetPolInBackground is currently used in Linux to apply NetPol controller Add events in the background
+
+		NetPolInBackground: true,
 	},
 }
 
@@ -75,10 +78,10 @@ type Config struct {
 	// MaxBatchedACLsPerPod is the maximum number of ACLs that can be added to a Pod at once in Windows.
 	// The zero value is valid.
 	// A NetworkPolicy's ACLs are always in the same batch, and there will be at least one NetworkPolicy per batch.
-	MaxBatchedACLsPerPod           int     `json:"MaxBatchedACLsPerPod,omitempty"`
-	IPTablesMaxPendingPolicies     int     `json:"IPTablesMaxPendingPolicies,omitempty"`
-	IPTablesIntervalInMilliseconds int     `json:"IPTablesIntervalInMilliseconds,omitempty"`
-	Toggles                        Toggles `json:"Toggles,omitempty"`
+	MaxBatchedACLsPerPod         int     `json:"MaxBatchedACLsPerPod,omitempty"`
+	MaxPendingNetPols            int     `json:"MaxPendingNetPols,omitempty"`
+	NetPolInvervalInMilliseconds int     `json:"NetPolInvervalInMilliseconds,omitempty"`
+	Toggles                      Toggles `json:"Toggles,omitempty"`
 }
 
 type Toggles struct {
@@ -90,8 +93,8 @@ type Toggles struct {
 	ApplyIPSetsOnNeed       bool
 	// ApplyInBackground applies for Windows only
 	ApplyInBackground bool
-	// IPTablesInBackground
-	IPTablesInBackground bool
+	// NetPolInBackground
+	NetPolInBackground bool
 }
 
 type Flags struct {

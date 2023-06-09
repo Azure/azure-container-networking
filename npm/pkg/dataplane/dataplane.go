@@ -3,7 +3,6 @@ package dataplane
 import (
 	"errors"
 	"fmt"
-	"sync"
 	"time"
 
 	"github.com/Azure/azure-container-networking/common"
@@ -24,49 +23,35 @@ const (
 	contextDelNetPol  = "DEL-NETPOL"
 )
 
-var ErrInvalidApplyConfig = errors.New("invalid apply config")
+var (
+	ErrInvalidApplyConfig       = errors.New("invalid apply config")
+	ErrIncorrectNumberOfNetPols = errors.New("expected to have exactly one netpol since dp.netPolInBackground == false")
+)
 
 type PolicyMode string
 
 // TODO put NodeName in Config?
 type Config struct {
+	// ApplyInBackground is currently used in Windows to apply the following in background: IPSets and NetPols for new/updated Pods
 	ApplyInBackground bool
 	ApplyMaxBatches   int
 	ApplyInterval     time.Duration
+	// NetPolInBackground is currently used in Linux to apply NetPol controller Add events in the background
+	NetPolInBackground bool
+	MaxPendingNetPols  int
+	NetPolInterval     time.Duration
 	*ipsets.IPSetManagerCfg
 	*policies.PolicyManagerCfg
 }
 
-type endpointCache struct {
-	sync.Mutex
-	cache map[string]*npmEndpoint
-}
-
-func newEndpointCache() *endpointCache {
-	return &endpointCache{cache: make(map[string]*npmEndpoint)}
-}
-
-type applyInfo struct {
-	sync.Mutex
-	numBatches    int
-	inBootupPhase bool
-}
-
-type netPolInfo struct {
-	sync.Mutex
-	pendingPolicies            int
-	toDeleteNetPolReferences   map[string][]string
-	toDeleteSelectorReferences map[string][]string
-}
-
 type DataPlane struct {
 	*Config
-	applyInBackground    bool
-	iptablesInBackground bool
-	policyMgr            *policies.PolicyManager
-	ipsetMgr             *ipsets.IPSetManager
-	networkID            string
-	nodeName             string
+	applyInBackground  bool
+	netPolInBackground bool
+	policyMgr          *policies.PolicyManager
+	ipsetMgr           *ipsets.IPSetManager
+	networkID          string
+	nodeName           string
 	// endpointCache stores all endpoints of the network (including off-node)
 	// Key is PodIP
 	endpointCache  *endpointCache
@@ -74,7 +59,7 @@ type DataPlane struct {
 	updatePodCache *updatePodCache
 	endpointQuery  *endpointQuery
 	applyInfo      *applyInfo
-	netPolInfo     *netPolInfo
+	netPolQueue    *netPolQueue
 	stopChannel    <-chan struct{}
 }
 
@@ -98,35 +83,29 @@ func NewDataPlane(nodeName string, ioShim *common.IOShim, cfg *Config, stopChann
 		applyInfo: &applyInfo{
 			inBootupPhase: true,
 		},
-		netPolInfo: &netPolInfo{
-			toDeleteNetPolReferences: make(map[string][]string),
-		},
+		netPolQueue: newNetPolQueue(),
 		stopChannel: stopChannel,
-	}
-
-	dp.iptablesInBackground = cfg.IPTablesInBackground && !util.IsWindowsDP()
-	if dp.iptablesInBackground {
-		klog.Infof("[DataPlane] dataplane configured to run iptables in background every %v or every %d calls to AddPolicy() or RemovePolicy()", dp.IPTablesInterval, dp.IPTablesMaxPendingPolicies)
-	} else {
-		klog.Info("[DataPlane] dataplane configured to NOT run iptables in background")
 	}
 
 	// do not let Linux apply in background
 	dp.applyInBackground = cfg.ApplyInBackground && util.IsWindowsDP()
-
-	if dp.applyInBackground {
-		dp.updatePodCache = newUpdatePodCache(cfg.ApplyMaxBatches)
-	} else {
-		dp.updatePodCache = newUpdatePodCache(1)
-	}
-
 	if dp.applyInBackground {
 		klog.Infof("[DataPlane] dataplane configured to apply in background every %v or every %d calls to ApplyDataPlane()", dp.ApplyInterval, dp.ApplyMaxBatches)
+		dp.updatePodCache = newUpdatePodCache(cfg.ApplyMaxBatches)
 		if dp.ApplyMaxBatches <= 0 || dp.ApplyInterval == 0 {
 			return nil, ErrInvalidApplyConfig
 		}
 	} else {
 		klog.Info("[DataPlane] dataplane configured to NOT apply in background")
+		dp.updatePodCache = newUpdatePodCache(1)
+	}
+
+	// do not let Windows netpol in background
+	dp.netPolInBackground = cfg.NetPolInBackground && !util.IsWindowsDP()
+	if dp.netPolInBackground {
+		klog.Infof("[DataPlane] dataplane configured to run iptables in background every %v or every %d calls to AddPolicy() or RemovePolicy()", dp.NetPolInterval, dp.MaxPendingNetPols)
+	} else {
+		klog.Info("[DataPlane] dataplane configured to NOT run iptables in background")
 	}
 
 	err := dp.BootupDataplane()
@@ -181,9 +160,9 @@ func (dp *DataPlane) RunPeriodicTasks() {
 		}
 	}()
 
-	if dp.iptablesInBackground {
+	if dp.netPolInBackground {
 		go func() {
-			ticker := time.NewTicker(dp.IPTablesInterval)
+			ticker := time.NewTicker(dp.NetPolInterval)
 			defer ticker.Stop()
 
 			for {
@@ -191,17 +170,18 @@ func (dp *DataPlane) RunPeriodicTasks() {
 				case <-dp.stopChannel:
 					return
 				case <-ticker.C:
-					// Choose to keep netPolInfo locked while running iptables-restore within reconcileDirtyNetPolsNow.
+					// Choose to keep netPolQueue locked while running iptables-restore within addPoliciesWithRetry.
 					// We are only blocking the NetPol controller, which wouldn't be able to use the PolicyManager while it's reconciling.
 					// Technically, NetPol controller could be adding IPSets during this lock, but this is very fast.
 					// Preferring thread safety over optimized performance.
-					dp.netPolInfo.Lock()
-					if dp.netPolInfo.pendingPolicies == 0 {
-						dp.netPolInfo.Unlock()
+					dp.netPolQueue.Lock()
+					policies := dp.netPolQueue.dump()
+					if len(policies) == 0 {
+						dp.netPolQueue.Unlock()
 						continue
 					}
-					dp.reconcileDirtyNetPolsNow(contextBackground)
-					dp.netPolInfo.Unlock()
+					dp.addPoliciesWithRetry(contextBackground, policies)
+					dp.netPolQueue.Unlock()
 				}
 			}
 		}()
@@ -411,20 +391,90 @@ func (dp *DataPlane) applyDataPlaneNow(context string) error {
 func (dp *DataPlane) AddPolicy(policy *policies.NPMNetworkPolicy) error {
 	klog.Infof("[DataPlane] Add Policy called for %s", policy.PolicyKey)
 
-	// Create and add references for Selector IPSets first
-	err := dp.createIPSetsAndReferences(policy.AllPodSelectorIPSets(), policy.PolicyKey, ipsets.SelectorType)
-	if err != nil {
-		klog.Infof("[DataPlane] error while adding Selector IPSet references: %s", err.Error())
-		return fmt.Errorf("[DataPlane] error while adding Selector IPSet references: %w", err)
+	if !dp.netPolInBackground {
+		return dp.addPolicies([]*policies.NPMNetworkPolicy{policy})
 	}
 
-	// Create and add references for Rule IPSets
-	err = dp.createIPSetsAndReferences(policy.RuleIPSets, policy.PolicyKey, ipsets.NetPolType)
-	if err != nil {
-		klog.Infof("[DataPlane] error while adding Rule IPSet references: %s", err.Error())
-		return fmt.Errorf("[DataPlane] error while adding Rule IPSet references: %w", err)
+	// Choose to keep netPolQueue locked while running iptables-restore within addPoliciesWithRetry.
+	// We are not blocking any thread but the background NetPol thread, which would run the same command anyways
+	dp.netPolQueue.Lock()
+	defer dp.netPolQueue.Unlock()
+
+	dp.netPolQueue.enqueue(policy)
+	policies := dp.netPolQueue.dump()
+	newCount := len(policies)
+
+	klog.Infof("[DataPlane] [%s] new pending netpol count: %d", contextAddNetPol, newCount)
+
+	if newCount >= dp.MaxPendingNetPols {
+		klog.Infof("[DataPlane] [%s] applying now since reached maximum batch count: %d", contextAddNetPol, newCount)
+		dp.addPoliciesWithRetry(contextAddNetPol, policies)
+	}
+	return nil
+}
+
+// addPoliciesWithRetry tries adding all policies. If this fails, it tries adding policies one by one.
+// The caller must lock netPolQueue.
+func (dp *DataPlane) addPoliciesWithRetry(context string, policies []*policies.NPMNetworkPolicy) {
+	klog.Infof("[DataPlane] adding policies %+v", policies)
+
+	err := dp.addPolicies(policies)
+	if err == nil {
+		// clear queue and return on success
+		klog.Infof("[DataPlane] [%s] added policies successfully", context)
+		dp.netPolQueue.clear()
+		return
 	}
 
+	klog.Errorf("[DataPlane] [%s] failed to add policies. will retry one policy at a time. err: %s", context, err.Error())
+	metrics.SendErrorLogAndMetric(util.DaemonDataplaneID, "[DataPlane] [%s] failed to add policies. err: %s", context, err.Error())
+
+	// retry one policy at a time
+	for _, policy := range policies {
+		err = dp.addPolicies([]*policies.NPMNetworkPolicy{policy})
+		if err == nil {
+			// remove from queue on success
+			klog.Infof("[DataPlane] [%s] added policy successfully one at a time. policyKey: %s", context, policy.PolicyKey)
+			dp.netPolQueue.delete(policy.PolicyKey)
+		} else {
+			// keep in queue on failure
+			klog.Errorf("[DataPlane] [%s] failed to add policy one at a time. policyKey: %s. err: %s", context, policy.PolicyKey, err.Error())
+			metrics.SendErrorLogAndMetric(util.DaemonDataplaneID, "[DataPlane] [%s] failed to add policy one at a time. %s. err: %s", context, policy.PolicyKey, err.Error())
+		}
+	}
+}
+
+func (dp *DataPlane) addPolicies(policies []*policies.NPMNetworkPolicy) error {
+	if !dp.netPolInBackground && len(policies) != 1 {
+		klog.Errorf("[DataPlane] expected to have one NetPol in dp.addPolicies() since dp.netPolInBackground == false")
+		metrics.SendErrorLogAndMetric(util.DaemonDataplaneID, "[DataPlane] expected to have one NetPol in dp.addPolicies() since dp.netPolInBackground == false")
+		return ErrIncorrectNumberOfNetPols
+	}
+
+	if len(policies) == 0 {
+		klog.Infof("[DataPlane] expected to have at least one NetPol in dp.addPolicies()")
+		return nil
+	}
+
+	// 1. Add IPSets
+	for _, policy := range policies {
+		// Create and add references for Selector IPSets first
+		err := dp.createIPSetsAndReferences(policy.AllPodSelectorIPSets(), policy.PolicyKey, ipsets.SelectorType)
+		if err != nil {
+			klog.Infof("[DataPlane] error while adding Selector IPSet references: %s", err.Error())
+			return fmt.Errorf("[DataPlane] error while adding Selector IPSet references: %w", err)
+		}
+
+		// Create and add references for Rule IPSets
+		err = dp.createIPSetsAndReferences(policy.RuleIPSets, policy.PolicyKey, ipsets.NetPolType)
+		if err != nil {
+			klog.Infof("[DataPlane] error while adding Rule IPSet references: %s", err.Error())
+			return fmt.Errorf("[DataPlane] error while adding Rule IPSet references: %w", err)
+		}
+	}
+
+	// 2. Apply DataPlane & get endpoints
+	var err error
 	var endpointList map[string]string
 	if dp.inBootupPhase() {
 		// During bootup phase, the Pod controller will not be running.
@@ -440,25 +490,34 @@ func (dp *DataPlane) AddPolicy(policy *policies.NPMNetworkPolicy) error {
 			return err
 		}
 
-		endpointList, err = dp.getEndpointsToApplyPolicy(policy)
+		endpointList, err = dp.getEndpointsToApplyPolicies(policies)
 		if err != nil {
 			return fmt.Errorf("[DataPlane] error while getting endpoints to apply policy after applying dataplane: %w", err)
 		}
 	}
 
 	// endpointList will be empty if in bootup phase
-	err = dp.policyMgr.AddPolicy(policy, endpointList)
+	err = dp.policyMgr.AddPolicies(policies, endpointList)
 	if err != nil {
-		return fmt.Errorf("[DataPlane] error while adding policy: %w", err)
+		return fmt.Errorf("[DataPlane] error while adding policies: %w", err)
 	}
 
-	dp.incrementPendingPoliciesAndReconcileDirtyNetPolsIfNeeded(contextAddNetPol)
 	return nil
 }
 
 // RemovePolicy takes in network policyKey (namespace/name of network policy) and removes it from dataplane and cache
 func (dp *DataPlane) RemovePolicy(policyKey string) error {
 	klog.Infof("[DataPlane] Remove Policy called for %s", policyKey)
+
+	if dp.netPolInBackground {
+		// make sure to not add this NetPol if we're deleting it
+		// hold the lock for the rest of this function so that we don't contend or have races with the background NetPol thread
+		dp.netPolQueue.Lock()
+		defer dp.netPolQueue.Unlock()
+
+		dp.netPolQueue.delete(policyKey)
+	}
+
 	// because policy Manager will remove from policy from cache
 	// keep a local copy to remove references for ipsets
 	policy, ok := dp.policyMgr.GetPolicy(policyKey)
@@ -497,25 +556,10 @@ func (dp *DataPlane) RemovePolicy(policyKey string) error {
 
 	}
 
-	// Remove references for Rule IPSets first
-	dp.addTemporaryIPSetReferences(policy.RuleIPSets, policy.PolicyKey, ipsets.NetPolType)
-	err = dp.deleteIPSetsAndReferences(policy.RuleIPSets, policy.PolicyKey, ipsets.NetPolType)
-	if err != nil {
-		return err
-	}
-
-	// Remove references for Selector IPSets
-	dp.addTemporaryIPSetReferences(policy.AllPodSelectorIPSets(), policy.PolicyKey, ipsets.SelectorType)
-	err = dp.deleteIPSetsAndReferences(policy.AllPodSelectorIPSets(), policy.PolicyKey, ipsets.SelectorType)
-	if err != nil {
-		return err
-	}
-
 	if err := dp.applyDataPlaneNow(contextApplyDP); err != nil {
 		return err
 	}
 
-	dp.incrementPendingPoliciesAndReconcileDirtyNetPolsIfNeeded(contextDelNetPol)
 	return nil
 }
 
@@ -631,99 +675,13 @@ func (dp *DataPlane) deleteIPSetsAndReferences(sets []*ipsets.TranslatedIPSet, n
 			}
 		}
 
-		if !dp.iptablesInBackground {
+		if !dp.netPolInBackground {
 			// Try to delete these IPSets
 			dp.ipsetMgr.DeleteIPSet(set.Metadata.GetPrefixName(), false)
 		}
 
 	}
 	return nil
-}
-
-// reconcileDirtyNetPolsNow must be called while holding the netPolInfo Lock
-func (dp *DataPlane) reconcileDirtyNetPolsNow(context string) {
-	klog.Infof("[DataPlane] [%s] reconciling dirty NetPols", context)
-	if err := dp.policyMgr.ReconcileDirtyNetPols(); err != nil {
-		metrics.SendErrorLogAndMetric(util.IptmID, "[DataPlane] [%s] failed to reconcile dirty network policies due to %s", context, err.Error())
-		klog.Errorf("[DataPlane] [%s] failed to reconcile dirty network policies. err: %s", context, err.Error())
-		return
-	}
-
-	dp.netPolInfo.pendingPolicies = 0
-
-	// remove all temporary references after successfully reconciling dirty netpols
-	for policyKey, ipsetNames := range dp.netPolInfo.toDeleteNetPolReferences {
-		ref := temporaryReference(policyKey)
-		for _, ipsetName := range ipsetNames {
-			if err := dp.ipsetMgr.DeleteReference(ipsetName, ref, ipsets.NetPolType); err != nil {
-				// with current implementation of DeleteReference(), err will be ipsets.ErrSetDoesNotExist
-				klog.Infof("[DataPlane] [%s] ignoring delete reference on non-existent set/reference. ipset: %s. netpol: %s. referenceType: %s", context, ipsetName, policyKey, ipsets.NetPolType)
-			}
-		}
-	}
-	dp.netPolInfo.toDeleteNetPolReferences = make(map[string][]string)
-
-	for policyKey, ipsetNames := range dp.netPolInfo.toDeleteSelectorReferences {
-		ref := temporaryReference(policyKey)
-		for _, ipsetName := range ipsetNames {
-			if err := dp.ipsetMgr.DeleteReference(ipsetName, ref, ipsets.SelectorType); err != nil {
-				// with current implementation of DeleteReference(), err will be ipsets.ErrSetDoesNotExist
-				klog.Infof("[DataPlane] [%s] ignoring delete reference on non-existent set/reference. ipset: %s. netpol: %s. referenceType: %s", context, ipsetName, policyKey, ipsets.SelectorType)
-			}
-		}
-	}
-	dp.netPolInfo.toDeleteSelectorReferences = make(map[string][]string)
-}
-
-func (dp *DataPlane) incrementPendingPoliciesAndReconcileDirtyNetPolsIfNeeded(context string) {
-	if !dp.iptablesInBackground {
-		return
-	}
-
-	// Choose to keep netPolInfo locked while running iptables-restore within reconcileDirtyNetPolsNow.
-	// We are not blocking any thread but the background iptables thread, which would run the same command anyways
-	dp.netPolInfo.Lock()
-	defer dp.netPolInfo.Unlock()
-	dp.netPolInfo.pendingPolicies++
-	newCount := dp.netPolInfo.pendingPolicies
-
-	klog.Infof("[DataPlane] [%s] new netpol batch count: %d", context, newCount)
-
-	if newCount >= dp.IPTablesMaxPendingPolicies {
-		klog.Infof("[DataPlane] [%s] applying now since reached maximum batch count: %d", context, newCount)
-		dp.reconcileDirtyNetPolsNow(context)
-	}
-}
-
-// adds temporary references so that we don't delete the IPSet while it's in an iptables rule.
-func (dp *DataPlane) addTemporaryIPSetReferences(sets []*ipsets.TranslatedIPSet, policyKey string, referenceType ipsets.ReferenceType) {
-	if !dp.iptablesInBackground {
-		return
-	}
-
-	// Lock since we're modifying maps
-	dp.netPolInfo.Lock()
-	defer dp.netPolInfo.Unlock()
-
-	tmp := temporaryReference(policyKey)
-	for _, set := range sets {
-		prefixName := set.Metadata.GetPrefixName()
-
-		if err := dp.ipsetMgr.AddReference(set.Metadata, tmp, referenceType); err != nil {
-			klog.Infof("[DataPlane] ignoring add temporary reference on non-existent set. ipset: %s. netpol: %s. referenceType: %s", prefixName, policyKey, referenceType)
-			continue
-		}
-
-		m := dp.netPolInfo.toDeleteSelectorReferences
-		if referenceType == ipsets.NetPolType {
-			m = dp.netPolInfo.toDeleteNetPolReferences
-		}
-		m[policyKey] = append(m[policyKey], prefixName)
-	}
-}
-
-func temporaryReference(policyKey string) string {
-	return util.TmpIPSetReferenceDelimiter + policyKey
 }
 
 func (dp *DataPlane) inBootupPhase() bool {

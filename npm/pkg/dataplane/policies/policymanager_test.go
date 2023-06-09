@@ -13,7 +13,7 @@ import (
 )
 
 var (
-	defaultCfg = &PolicyManagerCfg{
+	ipsetConfig = &PolicyManagerCfg{
 		NodeIP:               "6.7.8.9",
 		PolicyMode:           IPSetPolicyMode,
 		PlaceAzureChainFirst: util.PlaceAzureChainFirst,
@@ -104,7 +104,7 @@ func TestBootup(t *testing.T) {
 	calls := GetBootupTestCalls(false)
 	ioshim := common.NewMockIOShim(calls)
 	defer ioshim.VerifyCalls(t, calls)
-	pMgr := NewPolicyManager(ioshim, defaultCfg)
+	pMgr := NewPolicyManager(ioshim, ipsetConfig)
 
 	metrics.IncNumACLRules()
 	metrics.IncNumACLRules()
@@ -125,9 +125,9 @@ func TestAddPolicy(t *testing.T) {
 	calls := GetAddPolicyTestCalls(testNetPol)
 	ioshim := common.NewMockIOShim(calls)
 	defer ioshim.VerifyCalls(t, calls)
-	pMgr := NewPolicyManager(ioshim, defaultCfg)
+	pMgr := NewPolicyManager(ioshim, ipsetConfig)
 
-	require.NoError(t, pMgr.AddPolicy(testNetPol, epList))
+	require.NoError(t, pMgr.AddPolicies([]*NPMNetworkPolicy{testNetPol}, epList))
 	_, ok := pMgr.GetPolicy(testNetPol.PolicyKey)
 	require.True(t, ok)
 	numTestNetPolACLRulesProducedInKernel := 3
@@ -143,11 +143,13 @@ func TestAddEmptyPolicy(t *testing.T) {
 	metrics.ReinitializeAll()
 	testNetPol := testNetworkPolicy()
 	ioshim := common.NewMockIOShim(nil)
-	pMgr := NewPolicyManager(ioshim, defaultCfg)
-	require.NoError(t, pMgr.AddPolicy(&NPMNetworkPolicy{
-		Namespace:   "x",
-		PolicyKey:   "x/test-netpol",
-		ACLPolicyID: "azure-acl-x-test-netpol",
+	pMgr := NewPolicyManager(ioshim, ipsetConfig)
+	require.NoError(t, pMgr.AddPolicies([]*NPMNetworkPolicy{
+		{
+			Namespace:   "x",
+			PolicyKey:   "x/test-netpol",
+			ACLPolicyID: "azure-acl-x-test-netpol",
+		},
 	}, nil))
 	_, ok := pMgr.GetPolicy(testNetPol.PolicyKey)
 	require.False(t, ok)
@@ -170,9 +172,9 @@ func TestGetPolicy(t *testing.T) {
 	calls := GetAddPolicyTestCalls(netpol)
 	ioshim := common.NewMockIOShim(calls)
 	defer ioshim.VerifyCalls(t, calls)
-	pMgr := NewPolicyManager(ioshim, defaultCfg)
+	pMgr := NewPolicyManager(ioshim, ipsetConfig)
 
-	require.NoError(t, pMgr.AddPolicy(netpol, epList))
+	require.NoError(t, pMgr.AddPolicies([]*NPMNetworkPolicy{netpol}, epList))
 
 	require.True(t, pMgr.PolicyExists("x/test-netpol"))
 
@@ -187,8 +189,8 @@ func TestRemovePolicy(t *testing.T) {
 	calls := append(GetAddPolicyTestCalls(testNetPol), GetRemovePolicyTestCalls(testNetPol)...)
 	ioshim := common.NewMockIOShim(calls)
 	defer ioshim.VerifyCalls(t, calls)
-	pMgr := NewPolicyManager(ioshim, defaultCfg)
-	require.NoError(t, pMgr.AddPolicy(testNetPol, epList))
+	pMgr := NewPolicyManager(ioshim, ipsetConfig)
+	require.NoError(t, pMgr.AddPolicies([]*NPMNetworkPolicy{testNetPol}, epList))
 	require.NoError(t, pMgr.RemovePolicy(testNetPol.PolicyKey))
 	_, ok := pMgr.GetPolicy(testNetPol.PolicyKey)
 	require.False(t, ok)
@@ -199,7 +201,7 @@ func TestRemovePolicy(t *testing.T) {
 func TestRemoveNonexistentPolicy(t *testing.T) {
 	metrics.ReinitializeAll()
 	ioshim := common.NewMockIOShim(nil)
-	pMgr := NewPolicyManager(ioshim, defaultCfg)
+	pMgr := NewPolicyManager(ioshim, ipsetConfig)
 	require.NoError(t, pMgr.RemovePolicy("wrong-policy-key"))
 	promVals{0, 0}.testPrometheusMetrics(t)
 }

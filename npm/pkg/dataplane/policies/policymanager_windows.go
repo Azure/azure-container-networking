@@ -87,12 +87,6 @@ var baseACLsForCalicoCNI = []*NPMACLPolSettings{
 	},
 }
 
-type dirtyCache struct{} // unused in Windows
-
-func newDirtyCache() *dirtyCache {
-	return &dirtyCache{}
-}
-
 type aclBatch struct {
 	rules    []*NPMACLPolSettings
 	policies []string
@@ -134,11 +128,6 @@ func (pMgr *PolicyManager) bootup(epIDs []string) error {
 
 func (pMgr *PolicyManager) reconcile() {
 	// not implemented
-}
-
-func (pMgr *PolicyManager) reconcileDirtyNetPols() error {
-	// not implemented
-	return nil
 }
 
 // AddAllPolicies is used in Windows to add all NetworkPolicies to an endpoint.
@@ -259,6 +248,16 @@ func (pMgr *PolicyManager) AddBaseACLsForCalicoCNI(epID string) {
 
 	if err := pMgr.applyPoliciesToEndpointID(epID, epPolicyRequest); err != nil {
 		klog.Errorf("failed to apply base ACLs for Calico CNI. endpoint: %s. err: %v", epID, err)
+	}
+}
+
+// NOTE: in Windows, we currently expect exactly one NetworkPolicy
+func (pMgr *PolicyManager) addPolicies(policies []*NPMNetworkPolicy, endpointList map[string]string) error {
+	for _, policy := range policies {
+		err := pMgr.addPolicy(*policy, endpointList)
+		if err != nil {
+			return err
+		}
 	}
 }
 
