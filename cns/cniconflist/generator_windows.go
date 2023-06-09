@@ -14,6 +14,10 @@ func (v *DualStackOverlayGenerator) Generate() error {
 	return errNotImplemented
 }
 
+func (v *OverlayGenerator) Generate() error {
+	return errNotImplemented
+}
+
 func (v *CiliumGenerator) Generate() error {
 	return errNotImplemented
 }

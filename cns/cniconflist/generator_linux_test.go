@@ -47,6 +47,21 @@ func TestGenerateDualStackOverlayConflist(t *testing.T) {
 	assert.Equal(t, removeNewLines(fixtureBytes), removeNewLines(buffer.Bytes()))
 }
 
+func TestGenerateOverlayConflist(t *testing.T) {
+	fixture := "testdata/fixtures/azure-linux-swift-overlay.conflist"
+
+	buffer := new(bytes.Buffer)
+	g := cniconflist.OverlayGenerator{Writer: &bufferWriteCloser{buffer}}
+	err := g.Generate()
+	assert.NoError(t, err)
+
+	fixtureBytes, err := os.ReadFile(fixture)
+	assert.NoError(t, err)
+
+	// remove newlines and carriage returns in case these UTs are running on Windows
+	assert.Equal(t, removeNewLines(fixtureBytes), removeNewLines(buffer.Bytes()))
+}
+
 func TestGenerateCiliumConflist(t *testing.T) {
 	fixture := "testdata/fixtures/cilium.conflist"
 
