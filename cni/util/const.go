@@ -20,8 +20,8 @@ const (
 
 // Overlay consolidation plan
 // First, we have v4overlay and dualstackoverlay conflists both have just 'overlay' in them
-// Test it, make sure it doesn't break v4overlay and dualstackoverlay
 // Next, we release this CNI and conflist in AKS
-// Add a third 'overlay' conflist generator in CNS
+// Next we will add a third 'overlay' conflist generator in CNS
 // Release this CNS image
 // Change AKS RP to use 'overlay' option for CNS configmap, for both v4overlay and dualstackoverlay
+// Remove 'v4overlay' and 'dualstackoverlay' from ACN completely
