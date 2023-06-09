@@ -90,10 +90,6 @@ jobs:
     displayName: "Run Kubernetes Network Policy Test Suite"
     strategy:
       matrix:
-        v1-default:
-          AZURE_CLUSTER: "conformance-v1-default"
-          PROFILE: "v1-default"
-          IS_STRESS_TEST: "false"
         v2-foreground:
           AZURE_CLUSTER: "conformance-v2-foreground"
           PROFILE: "v2-foreground"
