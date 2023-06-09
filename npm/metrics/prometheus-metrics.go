@@ -159,46 +159,47 @@ func (op OperationKind) isValid() bool {
 func InitializeAll() {
 	if haveInitialized {
 		klog.Infof("metrics have already been initialized")
-	} else {
-		initializeDaemonMetrics()
-		initializeControllerMetrics()
-
-		podsWatched = prometheus.NewGauge(
-			prometheus.GaugeOpts{
-				Namespace: namespace,
-				Name:      "pods_watched",
-				Subsystem: "",
-				Help:      "Number of Pods NPM tracks across the cluster including Linux and Windows nodes",
-			},
-		)
-		register(podsWatched, "pods_watched", ClusterMetrics)
-
-		if util.IsWindowsDP() {
-			InitializeWindowsMetrics()
-
-			klog.Infof("registering windows metrics")
-			register(listEndpointsLatency, "list_endpoints_latency_seconds", NodeMetrics)
-			register(getEndpointLatency, "get_endpoint_latency_seconds", NodeMetrics)
-			register(getNetworkLatency, "get_network_latency_seconds", NodeMetrics)
-			register(aclLatency, "acl_latency_seconds", NodeMetrics)
-			register(setPolicyLatency, "setpolicy_latency_seconds", NodeMetrics)
-			register(listEndpointsFailures, "list_endpoints_failure_total", NodeMetrics)
-			register(getEndpointFailures, "get_endpoint_failure_total", NodeMetrics)
-			register(getNetworkFailures, "get_network_failure_total", NodeMetrics)
-			register(aclFailures, "acl_failure_total", NodeMetrics)
-			register(setPolicyFailures, "setpolicy_failure_total", NodeMetrics)
-		} else {
-			InitializeLinuxMetrics()
-
-			klog.Infof("registering linux metrics")
-			register(iptablesBackgroundRestoreLatency, "iptables_background_restore_latency_seconds", NodeMetrics)
-			register(iptablesDeleteLatency, "iptables_background_delete_latency_seconds", NodeMetrics)
-			register(iptablesBackgroundRestoreFailures, "iptables_background_restore_failure_total", NodeMetrics)
-		}
-
-		log.Logf("Finished initializing all Prometheus metrics")
-		haveInitialized = true
+		return
 	}
+
+	initializeDaemonMetrics()
+	initializeControllerMetrics()
+
+	podsWatched = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Namespace: namespace,
+			Name:      "pods_watched",
+			Subsystem: "",
+			Help:      "Number of Pods NPM tracks across the cluster including Linux and Windows nodes",
+		},
+	)
+	register(podsWatched, "pods_watched", ClusterMetrics)
+
+	if util.IsWindowsDP() {
+		InitializeWindowsMetrics()
+
+		klog.Infof("registering windows metrics")
+		register(listEndpointsLatency, "list_endpoints_latency_seconds", NodeMetrics)
+		register(getEndpointLatency, "get_endpoint_latency_seconds", NodeMetrics)
+		register(getNetworkLatency, "get_network_latency_seconds", NodeMetrics)
+		register(aclLatency, "acl_latency_seconds", NodeMetrics)
+		register(setPolicyLatency, "setpolicy_latency_seconds", NodeMetrics)
+		register(listEndpointsFailures, "list_endpoints_failure_total", NodeMetrics)
+		register(getEndpointFailures, "get_endpoint_failure_total", NodeMetrics)
+		register(getNetworkFailures, "get_network_failure_total", NodeMetrics)
+		register(aclFailures, "acl_failure_total", NodeMetrics)
+		register(setPolicyFailures, "setpolicy_failure_total", NodeMetrics)
+	} else {
+		InitializeLinuxMetrics()
+
+		klog.Infof("registering linux metrics")
+		register(iptablesBackgroundRestoreLatency, "iptables_background_restore_latency_seconds", NodeMetrics)
+		register(iptablesDeleteLatency, "iptables_background_delete_latency_seconds", NodeMetrics)
+		register(iptablesBackgroundRestoreFailures, "iptables_background_restore_failure_total", NodeMetrics)
+	}
+
+	log.Logf("Finished initializing all Prometheus metrics")
+	haveInitialized = true
 }
 
 // ReinitializeAll creates/replaces Prometheus metrics.
