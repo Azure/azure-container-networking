@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/Azure/azure-container-networking/npm/metrics"
 	"github.com/Azure/azure-container-networking/npm/metrics/promutil"
@@ -29,6 +30,8 @@ import (
 const (
 	HostNetwork    = true
 	NonHostNetwork = false
+
+	sleepDurationForRateLimiter = time.Duration(100 * time.Millisecond)
 )
 
 // To indicate the object is needed to be DeletedFinalStateUnknown Object
@@ -37,6 +40,11 @@ type IsDeletedFinalStateUnknownObject bool
 const (
 	DeletedFinalStateUnknownObject IsDeletedFinalStateUnknownObject = true
 	DeletedFinalStateknownObject   IsDeletedFinalStateUnknownObject = false
+)
+
+var (
+	errControllerFake = fmt.Errorf("fake error in controller before applying DP")
+	errDPFake         = fmt.Errorf("fake error when applying DP")
 )
 
 type podFixture struct {
@@ -190,12 +198,20 @@ type expectedValues struct {
 }
 
 type podPromVals struct {
+	podCount                int
 	expectedAddExecCount    int
 	expectedUpdateExecCount int
 	expectedDeleteExecCount int
+	addFailures             int
+	updateFailures          int
+	deleteFailures          int
 }
 
 func (p *podPromVals) testPrometheusMetrics(t *testing.T) {
+	podCount, err := metrics.PodCount()
+	promutil.NotifyIfErrors(t, err)
+	require.Equal(t, p.podCount, podCount, "Count for pod count didn't register correctly in Prometheus")
+
 	addExecCount, err := metrics.GetControllerPodExecCount(metrics.CreateOp, false)
 	promutil.NotifyIfErrors(t, err)
 	require.Equal(t, p.expectedAddExecCount, addExecCount, "Count for add execution time didn't register correctly in Prometheus")
@@ -309,8 +325,10 @@ func TestAddMultiplePods(t *testing.T) {
 	addPod(t, f, podObj1)
 
 	testCases := []expectedValues{
-		{2, 1, 0, podPromVals{2, 0, 0}},
+		{2, 1, 0, podPromVals{2, 2, 0, 0, 0, 0, 0}},
 	}
+	// sleep in case rate limiter adds back to workqueue
+	time.Sleep(sleepDurationForRateLimiter)
 	checkPodTestResult("TestAddMultiplePods", f, testCases)
 	checkNpmPodWithInput("TestAddMultiplePods", f, podObj1)
 	checkNpmPodWithInput("TestAddMultiplePods", f, podObj2)
@@ -355,8 +373,10 @@ func TestAddPod(t *testing.T) {
 
 	addPod(t, f, podObj)
 	testCases := []expectedValues{
-		{1, 1, 0, podPromVals{1, 0, 0}},
+		{1, 1, 0, podPromVals{1, 1, 0, 0, 0, 0, 0}},
 	}
+	// sleep in case rate limiter adds back to workqueue
+	time.Sleep(sleepDurationForRateLimiter)
 	checkPodTestResult("TestAddPod", f, testCases)
 	checkNpmPodWithInput("TestAddPod", f, podObj)
 }
@@ -381,8 +401,10 @@ func TestAddHostNetworkPod(t *testing.T) {
 
 	addPod(t, f, podObj)
 	testCases := []expectedValues{
-		{0, 0, 0, podPromVals{0, 0, 0}},
+		{0, 0, 0, podPromVals{0, 0, 0, 0, 0, 0, 0}},
 	}
+	// sleep in case rate limiter adds back to workqueue
+	time.Sleep(sleepDurationForRateLimiter)
 	checkPodTestResult("TestAddHostNetworkPod", f, testCases)
 
 	if _, exists := f.podController.podMap[podKey]; exists {
@@ -441,10 +463,128 @@ func TestDeletePod(t *testing.T) {
 	}
 	deletePod(t, f, podObj, DeletedFinalStateknownObject)
 	testCases := []expectedValues{
-		{0, 1, 0, podPromVals{1, 0, 1}},
+		{0, 1, 0, podPromVals{0, 1, 0, 1, 0, 0, 0}},
 	}
 
+	// sleep in case rate limiter adds back to workqueue
+	time.Sleep(sleepDurationForRateLimiter)
 	checkPodTestResult("TestDeletePod", f, testCases)
+	if _, exists := f.podController.podMap[podKey]; exists {
+		t.Error("TestDeletePod failed @ cached pod obj exists check")
+	}
+}
+
+func TestDeletePodControllerError(t *testing.T) {
+	labels := map[string]string{
+		"app": "test-pod",
+	}
+	podObj := createPod("test-pod", "test-namespace", "0", "1.2.3.4", labels, NonHostNetwork, corev1.PodRunning)
+	podKey := getKey(podObj, t)
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	dp := dpmocks.NewMockGenericDataplane(ctrl)
+	f := newFixture(t, dp)
+	f.podLister = append(f.podLister, podObj)
+	f.kubeobjects = append(f.kubeobjects, podObj)
+	stopCh := make(chan struct{})
+	defer close(stopCh)
+	f.newPodController(stopCh)
+
+	// Add pod section
+	mockIPSets := []*ipsets.IPSetMetadata{
+		ipsets.NewIPSetMetadata("test-namespace", ipsets.Namespace),
+		ipsets.NewIPSetMetadata("app", ipsets.KeyLabelOfPod),
+		ipsets.NewIPSetMetadata("app:test-pod", ipsets.KeyValueLabelOfPod),
+	}
+	podMetadata1 := dataplane.NewPodMetadata("test-namespace/test-pod", "1.2.3.4", "")
+
+	dp.EXPECT().AddToLists([]*ipsets.IPSetMetadata{kubeAllNamespaces}, mockIPSets[:1]).Return(nil).Times(1)
+	dp.EXPECT().AddToSets(mockIPSets[:1], podMetadata1).Return(nil).Times(1)
+	dp.EXPECT().AddToSets(mockIPSets[1:], podMetadata1).Return(nil).Times(1)
+	if !util.IsWindowsDP() {
+		dp.EXPECT().
+			AddToSets(
+				[]*ipsets.IPSetMetadata{ipsets.NewIPSetMetadata("app:test-pod", ipsets.NamedPorts)},
+				dataplane.NewPodMetadata("test-namespace/test-pod", "1.2.3.4,8080", ""),
+			).
+			Return(nil).Times(1)
+	}
+	dp.EXPECT().ApplyDataPlane().Return(nil).Times(2)
+	// Delete pod section
+	dp.EXPECT().RemoveFromSets(mockIPSets[:1], podMetadata1).Return(nil).Times(1)
+	dp.EXPECT().RemoveFromSets(mockIPSets[1:], podMetadata1).Return(errControllerFake).Times(1)
+	deletePod(t, f, podObj, DeletedFinalStateknownObject)
+	testCases := []expectedValues{
+		{1, 1, 1, podPromVals{1, 1, 0, 1, 0, 0, 1}},
+	}
+
+	// sleep in case rate limiter adds back to workqueue
+	time.Sleep(sleepDurationForRateLimiter)
+	checkPodTestResult("TestDeletePodControllerError", f, testCases)
+	_, exists := f.podController.podMap[podKey]
+	require.True(t, exists)
+}
+
+func TestDeletePodDPError(t *testing.T) {
+	labels := map[string]string{
+		"app": "test-pod",
+	}
+	podObj := createPod("test-pod", "test-namespace", "0", "1.2.3.4", labels, NonHostNetwork, corev1.PodRunning)
+	podKey := getKey(podObj, t)
+
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	dp := dpmocks.NewMockGenericDataplane(ctrl)
+	f := newFixture(t, dp)
+	f.podLister = append(f.podLister, podObj)
+	f.kubeobjects = append(f.kubeobjects, podObj)
+	stopCh := make(chan struct{})
+	defer close(stopCh)
+	f.newPodController(stopCh)
+
+	// Add pod section
+	mockIPSets := []*ipsets.IPSetMetadata{
+		ipsets.NewIPSetMetadata("test-namespace", ipsets.Namespace),
+		ipsets.NewIPSetMetadata("app", ipsets.KeyLabelOfPod),
+		ipsets.NewIPSetMetadata("app:test-pod", ipsets.KeyValueLabelOfPod),
+	}
+	podMetadata1 := dataplane.NewPodMetadata("test-namespace/test-pod", "1.2.3.4", "")
+
+	dp.EXPECT().AddToLists([]*ipsets.IPSetMetadata{kubeAllNamespaces}, mockIPSets[:1]).Return(nil).Times(1)
+	dp.EXPECT().AddToSets(mockIPSets[:1], podMetadata1).Return(nil).Times(1)
+	dp.EXPECT().AddToSets(mockIPSets[1:], podMetadata1).Return(nil).Times(1)
+	if !util.IsWindowsDP() {
+		dp.EXPECT().
+			AddToSets(
+				[]*ipsets.IPSetMetadata{ipsets.NewIPSetMetadata("app:test-pod", ipsets.NamedPorts)},
+				dataplane.NewPodMetadata("test-namespace/test-pod", "1.2.3.4,8080", ""),
+			).
+			Return(nil).Times(1)
+	}
+	dp.EXPECT().ApplyDataPlane().Return(nil).Times(1)
+	dp.EXPECT().ApplyDataPlane().Return(errDPFake).Times(1)
+	// Delete pod section
+	dp.EXPECT().RemoveFromSets(mockIPSets[:1], podMetadata1).Return(nil).Times(1)
+	dp.EXPECT().RemoveFromSets(mockIPSets[1:], podMetadata1).Return(nil).Times(1)
+	if !util.IsWindowsDP() {
+		dp.EXPECT().
+			RemoveFromSets(
+				[]*ipsets.IPSetMetadata{ipsets.NewIPSetMetadata("app:test-pod", ipsets.NamedPorts)},
+				dataplane.NewPodMetadata("test-namespace/test-pod", "1.2.3.4,8080", ""),
+			).
+			Return(nil).Times(1)
+	}
+	deletePod(t, f, podObj, DeletedFinalStateknownObject)
+	testCases := []expectedValues{
+		{0, 1, 0, podPromVals{0, 1, 0, 1, 0, 0, 0}},
+	}
+
+	// sleep in case rate limiter adds back to workqueue
+	time.Sleep(sleepDurationForRateLimiter)
+	checkPodTestResult("TestDeletePodDPError", f, testCases)
 	if _, exists := f.podController.podMap[podKey]; exists {
 		t.Error("TestDeletePod failed @ cached pod obj exists check")
 	}
@@ -470,8 +610,10 @@ func TestDeleteHostNetworkPod(t *testing.T) {
 
 	deletePod(t, f, podObj, DeletedFinalStateknownObject)
 	testCases := []expectedValues{
-		{0, 0, 0, podPromVals{0, 0, 0}},
+		{0, 0, 0, podPromVals{0, 0, 0, 0, 0, 0, 0}},
 	}
+	// sleep in case rate limiter adds back to workqueue
+	time.Sleep(sleepDurationForRateLimiter)
 	checkPodTestResult("TestDeleteHostNetworkPod", f, testCases)
 	if _, exists := f.podController.podMap[podKey]; exists {
 		t.Error("TestDeleteHostNetworkPod failed @ cached pod obj exists check")
@@ -502,8 +644,10 @@ func TestDeletePodWithTombstone(t *testing.T) {
 
 	f.podController.deletePod(tombstone)
 	testCases := []expectedValues{
-		{0, 0, 1, podPromVals{0, 0, 0}},
+		{0, 0, 1, podPromVals{0, 0, 0, 0, 0, 0, 0}},
 	}
+	// sleep in case rate limiter adds back to workqueue
+	time.Sleep(sleepDurationForRateLimiter)
 	checkPodTestResult("TestDeletePodWithTombstone", f, testCases)
 }
 
@@ -557,8 +701,10 @@ func TestDeletePodWithTombstoneAfterAddingPod(t *testing.T) {
 	}
 	deletePod(t, f, podObj, DeletedFinalStateUnknownObject)
 	testCases := []expectedValues{
-		{0, 1, 0, podPromVals{1, 0, 1}},
+		{0, 1, 0, podPromVals{0, 1, 0, 1, 0, 0, 0}},
 	}
+	// sleep in case rate limiter adds back to workqueue
+	time.Sleep(sleepDurationForRateLimiter)
 	checkPodTestResult("TestDeletePodWithTombstoneAfterAddingPod", f, testCases)
 }
 
@@ -614,8 +760,10 @@ func TestLabelUpdatePod(t *testing.T) {
 	updatePod(t, f, oldPodObj, newPodObj)
 
 	testCases := []expectedValues{
-		{1, 1, 0, podPromVals{1, 1, 0}},
+		{1, 1, 0, podPromVals{1, 1, 1, 0, 0, 0, 0}},
 	}
+	// sleep in case rate limiter adds back to workqueue
+	time.Sleep(sleepDurationForRateLimiter)
 	checkPodTestResult("TestLabelUpdatePod", f, testCases)
 	checkNpmPodWithInput("TestLabelUpdatePod", f, newPodObj)
 }
@@ -678,9 +826,12 @@ func TestEmptyIPUpdate(t *testing.T) {
 
 	updatePod(t, f, oldPodObj, newPodObj)
 
+	// pod is updated to be have no IP, so it should be cleaned up
 	testCases := []expectedValues{
-		{0, 1, 0, podPromVals{1, 1, 0}},
+		{0, 1, 0, podPromVals{0, 1, 1, 0, 0, 0, 0}},
 	}
+	// sleep in case rate limiter adds back to workqueue
+	time.Sleep(sleepDurationForRateLimiter)
 	checkPodTestResult("TestEmptyIPUpdate", f, testCases)
 }
 
@@ -703,9 +854,12 @@ func TestEmptyIPAdd(t *testing.T) {
 	f.newPodController(stopCh)
 
 	addPod(t, f, podObj)
+	// since the new IP is invalid, adding the new Pod object is ignored
 	testCases := []expectedValues{
-		{0, 0, 0, podPromVals{0, 0, 0}},
+		{0, 0, 0, podPromVals{0, 0, 0, 0, 0, 0, 0}},
 	}
+	// sleep in case rate limiter adds back to workqueue
+	time.Sleep(sleepDurationForRateLimiter)
 	checkPodTestResult("TestEmptyIPAdd", f, testCases)
 
 	if _, exists := f.podController.podMap[podKey]; exists {
@@ -782,8 +936,10 @@ func TestIPAddressUpdatePod(t *testing.T) {
 	updatePod(t, f, oldPodObj, newPodObj)
 
 	testCases := []expectedValues{
-		{1, 1, 0, podPromVals{1, 1, 0}},
+		{1, 1, 0, podPromVals{1, 1, 1, 0, 0, 0, 0}},
 	}
+	// sleep in case rate limiter adds back to workqueue
+	time.Sleep(sleepDurationForRateLimiter)
 	checkPodTestResult("TestIPAddressUpdatePod", f, testCases)
 	checkNpmPodWithInput("TestIPAddressUpdatePod", f, newPodObj)
 }
@@ -843,9 +999,12 @@ func TestPodStatusUpdatePod(t *testing.T) {
 	}
 	updatePod(t, f, oldPodObj, newPodObj)
 
+	// pod is updated to be in Succeeded state, so it should be cleaned up
 	testCases := []expectedValues{
-		{0, 1, 0, podPromVals{1, 0, 1}},
+		{0, 1, 0, podPromVals{0, 1, 0, 1, 0, 0, 0}},
 	}
+	// sleep in case rate limiter adds back to workqueue
+	time.Sleep(sleepDurationForRateLimiter)
 	checkPodTestResult("TestPodStatusUpdatePod", f, testCases)
 	if _, exists := f.podController.podMap[podKey]; exists {
 		t.Error("TestPodStatusUpdatePod failed @ cached pod obj exists check")

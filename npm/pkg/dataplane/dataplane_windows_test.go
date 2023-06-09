@@ -182,6 +182,8 @@ func testMultiJobCases(t *testing.T, tests []*MultiJobTestCase, finalSleep time.
 				require.FailNow(t, "encountered errors in multi-job test: %+v", errStrings)
 			}
 
+			// just care about eventual consistency, so add extra applyDP e.g. in case finishBootupPhase() runs last
+			require.NoError(t, dp.applyDataPlaneNow("UT FINAL APPLY"))
 			dptestutils.VerifyHNSCache(t, hns, tt.ExpectedSetPolicies, tt.ExpectedEnpdointACLs)
 		})
 	}

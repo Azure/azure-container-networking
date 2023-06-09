@@ -261,13 +261,17 @@ wait_for_pods() {
     # wait for all pods to run
     minutesToWaitForRealPods=$(( 10 + $numRealPods / 250 ))
     set -x
-    $KUBECTL $KUBECONFIG_ARG wait --for=condition=Ready pods -n scale-test -l is-real=true --all --timeout="${minutesToWaitForRealPods}m"
+    if [[ $numRealPods -gt 0 ]]; then
+        $KUBECTL $KUBECONFIG_ARG wait --for=condition=Ready pods -n scale-test -l is-real=true --all --timeout="${minutesToWaitForRealPods}m"
+    fi
     set +x
 
     # just make sure kwok pods are Running, not necessarily Ready (sometimes kwok pods have NodeNotReady even though the node is ready)
     minutesToWaitForKwokPods=$(( 1 + $numKwokPods / 500 ))
     set -x
-    $KUBECTL $KUBECONFIG_ARG wait --for=condition=Initialized pods -n scale-test -l is-kwok=true --all --timeout="${minutesToWaitForKwokPods}m"
+    if [[ $numKwokPods -gt 0 ]]; then
+        $KUBECTL $KUBECONFIG_ARG wait --for=condition=Initialized pods -n scale-test -l is-kwok=true --all --timeout="${minutesToWaitForKwokPods}m"
+    fi
     set +x
 }
 
@@ -404,9 +408,15 @@ echo
 
 set -x
 $KUBECTL $KUBECONFIG_ARG create ns scale-test
-$KUBECTL $KUBECONFIG_ARG apply -f generated/kwok-nodes/
-$KUBECTL $KUBECONFIG_ARG apply -f generated/deployments/real/
-$KUBECTL $KUBECONFIG_ARG apply -f generated/deployments/kwok/
+if [[ $numKwokNodes -gt 0 ]]; then
+    $KUBECTL $KUBECONFIG_ARG apply -f generated/kwok-nodes/
+fi
+if [[ $numRealPods -gt 0 ]]; then
+    $KUBECTL $KUBECONFIG_ARG apply -f generated/deployments/real/
+fi
+if [[ $numKwokPods -gt 0 ]]; then
+    $KUBECTL $KUBECONFIG_ARG apply -f generated/deployments/kwok/
+fi
 set +x
 
 add_shared_labels() {
@@ -441,8 +451,12 @@ if [[ $numUniqueLabelsPerPod -gt 0 ]]; then
 fi
 
 set -x
-$KUBECTL $KUBECONFIG_ARG apply -f generated/networkpolicies/unapplied
-$KUBECTL $KUBECONFIG_ARG apply -f generated/networkpolicies/applied
+if [[ $numUnappliedNetworkPolicies -gt 0 ]]; then
+    $KUBECTL $KUBECONFIG_ARG apply -f generated/networkpolicies/unapplied
+fi
+if [[ $numNetworkPolicies -gt 0 ]]; then
+    $KUBECTL $KUBECONFIG_ARG apply -f generated/networkpolicies/applied
+fi
 set +x
 
 wait_for_pods
@@ -470,8 +484,12 @@ if [[ $deleteNetpols == true ]]; then
         
         echo "re-adding network policies. round $i/$deleteNetpolsTimes..."
         set -x
-        $KUBECTL $KUBECONFIG_ARG apply -f generated/networkpolicies/unapplied
-        $KUBECTL $KUBECONFIG_ARG apply -f generated/networkpolicies/applied
+        if [[ $numUnappliedNetworkPolicies -gt 0 ]]; then
+            $KUBECTL $KUBECONFIG_ARG apply -f generated/networkpolicies/unapplied
+        fi
+        if [[ $numNetworkPolicies -gt 0 ]]; then
+            $KUBECTL $KUBECONFIG_ARG apply -f generated/networkpolicies/applied
+        fi
         set +x
         echo "sleeping $deleteNetpolsInterval seconds after readding network policies (end of round $i/$deleteNetpolsTimes)..."
         sleep $deleteNetpolsInterval

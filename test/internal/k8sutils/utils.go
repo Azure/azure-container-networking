@@ -1,38 +1,47 @@
-//go:build integration
-
-package k8s
+package k8sutils
 
 import (
 	"bytes"
 	"context"
-	"errors"
+	"flag"
 	"io"
 	"log"
+	"os"
+	"path/filepath"
 	"strings"
+	"testing"
 	"time"
 
 	// crd "dnc/requestcontroller/kubernetes"
-	"os"
-	"testing"
 
-	"github.com/Azure/azure-container-networking/test/integration/retry"
-	apiv1 "k8s.io/api/core/v1"
+	"github.com/Azure/azure-container-networking/test/internal/retry"
+	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/yaml"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/kubernetes/scheme"
+	typedappsv1 "k8s.io/client-go/kubernetes/typed/apps/v1"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/client-go/tools/remotecommand"
+	"k8s.io/client-go/util/homedir"
 )
 
 const (
 	DelegatedSubnetIDLabel = "kubernetes.azure.com/podnetwork-delegationguid"
 	SubnetNameLabel        = "kubernetes.azure.com/podnetwork-subnet"
+
+	// RetryAttempts is the number of times to retry a test.
+	RetryAttempts = 30
+	RetryDelay    = 30 * time.Second
 )
 
-func mustGetClientset() (*kubernetes.Clientset, error) {
-	config, err := clientcmd.BuildConfigFromFlags("", *kubeconfig)
+var Kubeconfig = flag.String("test-kubeconfig", filepath.Join(homedir.HomeDir(), ".kube", "config"), "(optional) absolute path to the kubeconfig file")
+
+func MustGetClientset() (*kubernetes.Clientset, error) {
+	config, err := clientcmd.BuildConfigFromFlags("", *Kubeconfig)
 	if err != nil {
 		return nil, err
 	}
@@ -43,8 +52,8 @@ func mustGetClientset() (*kubernetes.Clientset, error) {
 	return clientset, nil
 }
 
-func mustGetRestConfig(t *testing.T) *rest.Config {
-	config, err := clientcmd.BuildConfigFromFlags("", *kubeconfig)
+func MustGetRestConfig(t *testing.T) *rest.Config {
+	config, err := clientcmd.BuildConfigFromFlags("", *Kubeconfig)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -65,7 +74,7 @@ func mustParseResource(path string, out interface{}) error {
 	return err
 }
 
-func mustLabelSwiftNodes(t *testing.T, ctx context.Context, clientset *kubernetes.Clientset, delegatedSubnetID, delegatedSubnetName string) {
+func MustLabelSwiftNodes(ctx context.Context, t *testing.T, clientset *kubernetes.Clientset, delegatedSubnetID, delegatedSubnetName string) {
 	swiftNodeLabels := map[string]string{
 		DelegatedSubnetIDLabel: delegatedSubnetID,
 		SubnetNameLabel:        delegatedSubnetName,
@@ -84,7 +93,7 @@ func mustLabelSwiftNodes(t *testing.T, ctx context.Context, clientset *kubernete
 	}
 }
 
-func mustSetUpClusterRBAC(ctx context.Context, clientset *kubernetes.Clientset, clusterRolePath, clusterRoleBindingPath, serviceAccountPath string) (func(), error) {
+func MustSetUpClusterRBAC(ctx context.Context, clientset *kubernetes.Clientset, clusterRolePath, clusterRoleBindingPath, serviceAccountPath string) (func(), error) {
 	var (
 		err                error
 		clusterRole        v1.ClusterRole
@@ -139,7 +148,7 @@ func mustSetUpClusterRBAC(ctx context.Context, clientset *kubernetes.Clientset, 
 	return cleanupFunc, nil
 }
 
-func mustSetUpRBAC(ctx context.Context, clientset *kubernetes.Clientset, rolePath, roleBindingPath string) error {
+func MustSetUpRBAC(ctx context.Context, clientset *kubernetes.Clientset, rolePath, roleBindingPath string) error {
 	var (
 		err         error
 		role        v1.Role
@@ -168,7 +177,7 @@ func mustSetUpRBAC(ctx context.Context, clientset *kubernetes.Clientset, rolePat
 	return nil
 }
 
-func mustSetupConfigMap(ctx context.Context, clientset *kubernetes.Clientset, configMapPath string) error {
+func MustSetupConfigMap(ctx context.Context, clientset *kubernetes.Clientset, configMapPath string) error {
 	var (
 		err error
 		cm  corev1.ConfigMap
@@ -183,24 +192,24 @@ func mustSetupConfigMap(ctx context.Context, clientset *kubernetes.Clientset, co
 	return mustCreateConfigMap(ctx, configmaps, cm)
 }
 
-func int32ptr(i int32) *int32 { return &i }
+func Int32ToPtr(i int32) *int32 { return &i }
 
-func parseImageString(s string) (image, version string) {
+func ParseImageString(s string) (image, version string) {
 	sl := strings.Split(s, ":")
 	return sl[0], sl[1]
 }
 
-func getImageString(image, version string) string {
+func GetImageString(image, version string) string {
 	return image + ":" + version
 }
 
-func waitForPodsRunning(ctx context.Context, clientset *kubernetes.Clientset, namespace, labelselector string) error {
+func WaitForPodsRunning(ctx context.Context, clientset *kubernetes.Clientset, namespace, labelselector string) error {
 	podsClient := clientset.CoreV1().Pods(namespace)
 
 	checkPodIPsFn := func() error {
 		podList, err := podsClient.List(ctx, metav1.ListOptions{LabelSelector: labelselector})
 		if err != nil {
-			return err
+			return errors.Wrapf(err, "could not list pods with label selector %s", labelselector)
 		}
 
 		if len(podList.Items) == 0 {
@@ -208,7 +217,7 @@ func waitForPodsRunning(ctx context.Context, clientset *kubernetes.Clientset, na
 		}
 
 		for _, pod := range podList.Items {
-			if pod.Status.Phase == apiv1.PodPending {
+			if pod.Status.Phase == corev1.PodPending {
 				return errors.New("some pods still pending")
 			}
 		}
@@ -222,11 +231,51 @@ func waitForPodsRunning(ctx context.Context, clientset *kubernetes.Clientset, na
 		return nil
 	}
 
-	retrier := retry.Retrier{Attempts: 10, Delay: 6 * time.Second}
+	retrier := retry.Retrier{Attempts: RetryAttempts, Delay: RetryDelay}
 	return retrier.Do(ctx, checkPodIPsFn)
 }
 
-func exportLogsByLabelSelector(ctx context.Context, clientset *kubernetes.Clientset, namespace, labelselector, logDir string) error {
+func WaitForPodDeployment(ctx context.Context, clientset *kubernetes.Clientset, namespace, deploymentName, podLabelSelector string, replicas int) error {
+	podsClient := clientset.CoreV1().Pods(namespace)
+	deploymentsClient := clientset.AppsV1().Deployments(namespace)
+	checkPodDeploymentFn := func() error {
+		deployment, err := deploymentsClient.Get(ctx, deploymentName, metav1.GetOptions{})
+		if err != nil {
+			return errors.Wrapf(err, "could not get deployment %s", deploymentName)
+		}
+
+		if deployment.Status.AvailableReplicas != int32(replicas) {
+			return errors.New("deployment does not have the expected number of available replicas")
+		}
+
+		podList, err := podsClient.List(ctx, metav1.ListOptions{LabelSelector: podLabelSelector})
+		if err != nil {
+			return errors.Wrapf(err, "could not list pods with label selector %s", podLabelSelector)
+		}
+
+		log.Printf("deployment %s has %d pods, expected %d", deploymentName, len(podList.Items), replicas)
+		if len(podList.Items) != replicas {
+			return errors.New("some pods of the deployment are still not ready")
+		}
+		return nil
+	}
+
+	retrier := retry.Retrier{Attempts: RetryAttempts, Delay: RetryDelay}
+	return errors.Wrapf(retrier.Do(ctx, checkPodDeploymentFn), "could not wait for deployment %s", deploymentName)
+}
+
+func MustUpdateReplica(ctx context.Context, deploymentsClient typedappsv1.DeploymentInterface, deploymentName string, replicas int32) error {
+	deployment, err := deploymentsClient.Get(ctx, deploymentName, metav1.GetOptions{})
+	if err != nil {
+		return errors.Wrapf(err, "could not get deployment %s", deploymentName)
+	}
+
+	deployment.Spec.Replicas = Int32ToPtr(replicas)
+	_, err = deploymentsClient.Update(ctx, deployment, metav1.UpdateOptions{})
+	return errors.Wrapf(err, "could not update deployment %s", deploymentName)
+}
+
+func ExportLogsByLabelSelector(ctx context.Context, clientset *kubernetes.Clientset, namespace, labelselector, logDir string) error {
 	podsClient := clientset.CoreV1().Pods(namespace)
 	podLogOpts := corev1.PodLogOptions{}
 	logExtension := ".log"
@@ -277,4 +326,37 @@ func writeToFile(dir, fileName, str string) error {
 	// If write went ok then err is nil
 	_, err = f.WriteString(str)
 	return err
+}
+
+func ExecCmdOnPod(ctx context.Context, clientset *kubernetes.Clientset, namespace, podName string, cmd []string, config *rest.Config) ([]byte, error) {
+	req := clientset.CoreV1().RESTClient().Post().
+		Resource("pods").
+		Name(podName).
+		Namespace(namespace).
+		SubResource("exec").
+		VersionedParams(&corev1.PodExecOptions{
+			Command: cmd,
+			Stdin:   false,
+			Stdout:  true,
+			Stderr:  true,
+			TTY:     true,
+		}, scheme.ParameterCodec)
+
+	exec, err := remotecommand.NewSPDYExecutor(config, "POST", req.URL())
+	if err != nil {
+		return []byte{}, errors.Wrapf(err, "error in creating executor for req %s", req.URL())
+	}
+
+	var stdout, stderr bytes.Buffer
+	err = exec.StreamWithContext(ctx, remotecommand.StreamOptions{
+		Stdin:  nil,
+		Stdout: &stdout,
+		Stderr: &stderr,
+		Tty:    true,
+	})
+	if err != nil {
+		return []byte{}, errors.Wrapf(err, "error in executing command %s", cmd)
+	}
+
+	return stdout.Bytes(), nil
 }

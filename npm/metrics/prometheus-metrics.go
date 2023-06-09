@@ -113,7 +113,7 @@ var (
 	getNetworkFailures    prometheus.Counter
 	aclFailures           *prometheus.CounterVec
 	setPolicyFailures     *prometheus.CounterVec
-	maxIPSetMembers       prometheus.Gauge
+	podsWatched           prometheus.Gauge
 )
 
 type RegistryType string
@@ -152,6 +152,16 @@ func InitializeAll() {
 		initializeDaemonMetrics()
 		initializeControllerMetrics()
 
+		podsWatched = prometheus.NewGauge(
+			prometheus.GaugeOpts{
+				Namespace: namespace,
+				Name:      "pods_watched",
+				Subsystem: "",
+				Help:      "Number of Pods NPM tracks across the cluster including Linux and Windows nodes",
+			},
+		)
+		register(podsWatched, "pods_watched", ClusterMetrics)
+
 		if util.IsWindowsDP() {
 			InitializeWindowsMetrics()
 
@@ -166,8 +176,6 @@ func InitializeAll() {
 			register(getNetworkFailures, "get_network_failure_total", NodeMetrics)
 			register(aclFailures, "acl_failure_total", NodeMetrics)
 			register(setPolicyFailures, "setpolicy_failure_total", NodeMetrics)
-			// all new metrics should go on the node metrics URL
-			register(maxIPSetMembers, "ipset_members_max", NodeMetrics)
 		}
 
 		log.Logf("Finished initializing all Prometheus metrics")
@@ -290,15 +298,6 @@ func InitializeWindowsMetrics() {
 		},
 		[]string{operationLabel, isNestedLabel},
 	)
-
-	maxIPSetMembers = prometheus.NewGauge(
-		prometheus.GaugeOpts{
-			Namespace: namespace,
-			Name:      "ipset_members_max",
-			Subsystem: windowsPrefix,
-			Help:      "Maximum number of members in a single IPSet",
-		},
-	)
 }
 
 // GetHandler returns the HTTP handler for the metrics endpoint
@@ -344,6 +343,8 @@ func register(collector prometheus.Collector, name string, registryType Registry
 	err := getRegistry(registryType).Register(collector)
 	if err != nil {
 		log.Errorf("Error creating metric %s", name)
+	} else {
+		klog.Infof("registered metric %s to registry %s", name, registryType)
 	}
 }
 

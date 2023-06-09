@@ -5,10 +5,23 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-var (
-	ipsetInventoryMap map[string]int
-	maxMembers        = 0
-)
+var ipsetInventoryMap map[string]int
+
+// AddPod increments the number of Pod IPs.
+func AddPod() {
+	podsWatched.Inc()
+}
+
+// RemovePod decrements the number of Pod IPs.
+func RemovePod() {
+	podsWatched.Dec()
+}
+
+// PodCount gets the current number of Pod IPs.
+// This function is slow.
+func PodCount() (int, error) {
+	return getValue(podsWatched)
+}
 
 // IncNumIPSets increments the number of IPSets.
 func IncNumIPSets() {
@@ -47,13 +60,6 @@ func RecordIPSetExecTime(timer *Timer) {
 // AddEntryToIPSet increments the number of entries for IPSet setName.
 // It doesn't ever update the number of IPSets.
 func AddEntryToIPSet(setName string) {
-	if util.IsWindowsDP() && ipsetInventoryMap[setName] == maxMembers {
-		// ipsetInventoryMap[setName] returns 0 if the set doesn't exist in the map, which is good in case maxMembers is 0
-		// increase maxMembers if this set previously had the max
-		maxMembers++
-		maxIPSetMembers.Set(float64(maxMembers))
-	}
-
 	numIPSetEntries.Inc()
 	ipsetInventoryMap[setName]++ // adds the setName with value 1 if it doesn't exist
 	updateIPSetInventory(setName)
@@ -63,27 +69,6 @@ func AddEntryToIPSet(setName string) {
 func RemoveEntryFromIPSet(setName string) {
 	_, exists := ipsetInventoryMap[setName]
 	if exists {
-		if util.IsWindowsDP() && ipsetInventoryMap[setName] == maxMembers && maxMembers > 0 {
-			// decrease maxMembers if this set previously had the max AND no other set has the max
-			wasUniqueMax := true
-			for s, val := range ipsetInventoryMap {
-				if setName == s {
-					continue
-				}
-
-				if val == maxMembers {
-					wasUniqueMax = false
-					break
-				}
-			}
-
-			if wasUniqueMax {
-				// decrease the maxMembers since no other set has the max
-				maxMembers--
-				maxIPSetMembers.Set(float64(maxMembers))
-			}
-		}
-
 		numIPSetEntries.Dec()
 		ipsetInventoryMap[setName]--
 		if ipsetInventoryMap[setName] == 0 {
@@ -97,32 +82,6 @@ func RemoveEntryFromIPSet(setName string) {
 // RemoveAllEntriesFromIPSet sets the number of entries for ipset setName to 0.
 // It doesn't ever update the number of IPSets.
 func RemoveAllEntriesFromIPSet(setName string) {
-	if util.IsWindowsDP() && ipsetInventoryMap[setName] == maxMembers && maxMembers > 0 {
-		// ipsetInventoryMap[setName] returns 0 if the set doesn't exist in the map
-		// determine the new maxMembers if this set previously had the max
-		oldMaxMembers := maxMembers
-		maxMembers = 0
-		for s, val := range ipsetInventoryMap {
-			if setName == s {
-				continue
-			}
-
-			if val > maxMembers {
-				maxMembers = val
-
-				if val == oldMaxMembers {
-					// the max didn't change
-					break
-				}
-			}
-		}
-
-		if oldMaxMembers != maxMembers {
-			// update max if it changed
-			maxIPSetMembers.Set(float64(maxMembers))
-		}
-	}
-
 	numIPSetEntries.Add(-getEntryCountForIPSet(setName))
 	delete(ipsetInventoryMap, setName)
 	removeFromIPSetInventory(setName)
@@ -137,11 +96,6 @@ func DeleteIPSet(setName string) {
 // ResetIPSetEntries sets the number of entries to 0 for all IPSets.
 // It doesn't ever update the number of IPSets.
 func ResetIPSetEntries() {
-	if util.IsWindowsDP() {
-		maxMembers = 0
-		maxIPSetMembers.Set(float64(maxMembers))
-	}
-
 	numIPSetEntries.Set(0)
 	for setName := range ipsetInventoryMap {
 		removeFromIPSetInventory(setName)
@@ -168,10 +122,6 @@ func GetNumIPSetEntries() (int, error) {
 func GetNumEntriesForIPSet(setName string) (int, error) {
 	labels := getIPSetInventoryLabels(setName)
 	return getVecValue(ipsetInventory, labels)
-}
-
-func MaxIPSetMembers() (int, error) {
-	return getValue(maxIPSetMembers)
 }
 
 // GetIPSetExecCount returns the number of observations for execution time of adding IPSets.

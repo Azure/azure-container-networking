@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"testing"
 
+	k8sutils "github.com/Azure/azure-container-networking/test/internal/k8sutils"
 	"k8s.io/client-go/kubernetes"
 )
 
@@ -71,7 +72,7 @@ func TestMain(m *testing.M) {
 		os.Exit(exitCode)
 	}()
 
-	clientset, err := mustGetClientset()
+	clientset, err := k8sutils.MustGetClientset()
 	if err != nil {
 		return
 	}
@@ -98,26 +99,26 @@ func installCNSDaemonset(ctx context.Context, clientset *kubernetes.Clientset, l
 	cnsVersion := os.Getenv(envCNSVersion)
 
 	// setup daemonset
-	cns, err := mustParseDaemonSet(cnsDaemonSetPath)
+	cns, err := k8sutils.MustParseDaemonSet(cnsDaemonSetPath)
 	if err != nil {
 		return nil, err
 	}
 
-	image, _ := parseImageString(cns.Spec.Template.Spec.Containers[0].Image)
-	cns.Spec.Template.Spec.Containers[0].Image = getImageString(image, cnsVersion)
+	image, _ := k8sutils.ParseImageString(cns.Spec.Template.Spec.Containers[0].Image)
+	cns.Spec.Template.Spec.Containers[0].Image = k8sutils.GetImageString(image, cnsVersion)
 
 	// check environment scenario
 	log.Printf("Checking environment scenario")
 	if installBoolDropgz := os.Getenv(envTestDropgz); installBoolDropgz != "" {
 		if testDropgzScenario, err := strconv.ParseBool(installBoolDropgz); err == nil && testDropgzScenario == true {
 			log.Printf("Env %v set to true, deploy cniTest.Dockerfile", envTestDropgz)
-			initImage, _ := parseImageString("acnpublic.azurecr.io/cni-dropgz-test:latest")
-			cns.Spec.Template.Spec.InitContainers[0].Image = getImageString(initImage, cniDropgzVersion)
+			initImage, _ := k8sutils.ParseImageString("acnpublic.azurecr.io/cni-dropgz-test:latest")
+			cns.Spec.Template.Spec.InitContainers[0].Image = k8sutils.GetImageString(initImage, cniDropgzVersion)
 		}
 	} else {
 		log.Printf("Env %v not set to true, deploying cni.Dockerfile", envTestDropgz)
-		initImage, _ := parseImageString(cns.Spec.Template.Spec.InitContainers[0].Image)
-		cns.Spec.Template.Spec.InitContainers[0].Image = getImageString(initImage, cniDropgzVersion)
+		initImage, _ := k8sutils.ParseImageString(cns.Spec.Template.Spec.InitContainers[0].Image)
+		cns.Spec.Template.Spec.InitContainers[0].Image = k8sutils.GetImageString(initImage, cniDropgzVersion)
 	}
 
 	if installBool1 := os.Getenv(envInstallAzureVnet); installBool1 != "" {
@@ -126,7 +127,7 @@ func installCNSDaemonset(ctx context.Context, clientset *kubernetes.Clientset, l
 			cns.Spec.Template.Spec.InitContainers[0].Args = []string{"deploy", "azure-vnet", "-o", "/opt/cni/bin/azure-vnet", "azure-vnet-telemetry", "-o", "/opt/cni/bin/azure-vnet-telemetry", "azure-vnet-ipam", "-o", "/opt/cni/bin/azure-vnet-ipam", "azure-swift.conflist", "-o", "/etc/cni/net.d/10-azure.conflist"}
 		}
 		// setup the CNS swiftconfigmap
-		if err := mustSetupConfigMap(ctx, clientset, cnsSwiftConfigMapPath); err != nil {
+		if err := k8sutils.MustSetupConfigMap(ctx, clientset, cnsSwiftConfigMapPath); err != nil {
 			return nil, err
 		}
 	} else {
@@ -139,7 +140,7 @@ func installCNSDaemonset(ctx context.Context, clientset *kubernetes.Clientset, l
 			cns.Spec.Template.Spec.InitContainers[0].Args = []string{"deploy", "azure-ipam", "-o", "/opt/cni/bin/azure-ipam"}
 		}
 		// setup the CNS ciliumconfigmap
-		if err := mustSetupConfigMap(ctx, clientset, cnsCiliumConfigMapPath); err != nil {
+		if err := k8sutils.MustSetupConfigMap(ctx, clientset, cnsCiliumConfigMapPath); err != nil {
 			return nil, err
 		}
 	} else {
@@ -152,7 +153,7 @@ func installCNSDaemonset(ctx context.Context, clientset *kubernetes.Clientset, l
 			cns.Spec.Template.Spec.InitContainers[0].Args = []string{"deploy", "azure-ipam", "-o", "/opt/cni/bin/azure-ipam"}
 		}
 		// setup the CNS ciliumconfigmap
-		if err := mustSetupConfigMap(ctx, clientset, cnsOverlayConfigMapPath); err != nil {
+		if err := k8sutils.MustSetupConfigMap(ctx, clientset, cnsOverlayConfigMapPath); err != nil {
 			return nil, err
 		}
 	} else {
@@ -164,25 +165,25 @@ func installCNSDaemonset(ctx context.Context, clientset *kubernetes.Clientset, l
 	log.Printf("Installing CNS with image %s", cns.Spec.Template.Spec.Containers[0].Image)
 
 	// setup common RBAC, ClusteerRole, ClusterRoleBinding, ServiceAccount
-	if _, err := mustSetUpClusterRBAC(ctx, clientset, cnsClusterRolePath, cnsClusterRoleBindingPath, cnsServiceAccountPath); err != nil {
+	if _, err := k8sutils.MustSetUpClusterRBAC(ctx, clientset, cnsClusterRolePath, cnsClusterRoleBindingPath, cnsServiceAccountPath); err != nil {
 		return nil, err
 	}
 
 	// setup RBAC, Role, RoleBinding
-	if err := mustSetUpRBAC(ctx, clientset, cnsRolePath, cnsRoleBindingPath); err != nil {
+	if err := k8sutils.MustSetUpRBAC(ctx, clientset, cnsRolePath, cnsRoleBindingPath); err != nil {
 		return nil, err
 	}
 
-	if err = mustCreateDaemonset(ctx, cnsDaemonsetClient, cns); err != nil {
+	if err = k8sutils.MustCreateDaemonset(ctx, cnsDaemonsetClient, cns); err != nil {
 		return nil, err
 	}
 
-	if err = waitForPodsRunning(ctx, clientset, cns.Namespace, cnsLabelSelector); err != nil {
+	if err = k8sutils.WaitForPodsRunning(ctx, clientset, cns.Namespace, cnsLabelSelector); err != nil {
 		return nil, err
 	}
 
 	cleanupds := func() error {
-		if err := exportLogsByLabelSelector(ctx, clientset, cns.Namespace, cnsLabelSelector, logDir); err != nil {
+		if err := k8sutils.ExportLogsByLabelSelector(ctx, clientset, cns.Namespace, cnsLabelSelector, logDir); err != nil {
 			return err
 		}
 		return nil

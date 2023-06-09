@@ -509,6 +509,7 @@ jobs:
           azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
           scriptType: "bash"
           scriptLocation: "inlineScript"
+          condition: succeeded()
           inlineScript: |
             echo Deleting $(RESOURCE_GROUP)
             az group delete -n $(RESOURCE_GROUP) --yes
