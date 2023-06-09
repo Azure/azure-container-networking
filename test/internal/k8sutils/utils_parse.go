@@ -1,6 +1,4 @@
-//go:build integration
-
-package k8s
+package k8sutils
 
 import (
 	appsv1 "k8s.io/api/apps/v1"
@@ -8,13 +6,13 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 )
 
-func mustParseDaemonSet(path string) (appsv1.DaemonSet, error) {
+func MustParseDaemonSet(path string) (appsv1.DaemonSet, error) {
 	var ds appsv1.DaemonSet
 	err := mustParseResource(path, &ds)
 	return ds, err
 }
 
-func mustParseDeployment(path string) (appsv1.Deployment, error) {
+func MustParseDeployment(path string) (appsv1.Deployment, error) {
 	var depl appsv1.Deployment
 	err := mustParseResource(path, &depl)
 	return depl, err

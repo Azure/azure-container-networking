@@ -1,5 +1,3 @@
-// +build integration
-
 // todo: there are more robust retry packages out there, discuss with team
 package retry
 
