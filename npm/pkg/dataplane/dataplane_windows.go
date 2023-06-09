@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Azure/azure-container-networking/npm/metrics"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/policies"
 	"github.com/Azure/azure-container-networking/npm/util"
 	npmerrors "github.com/Azure/azure-container-networking/npm/util/errors"
@@ -324,8 +325,11 @@ func (dp *DataPlane) getEndpointsToApplyPolicy(policy *policies.NPMNetworkPolicy
 
 func (dp *DataPlane) getAllPodEndpoints() ([]*hcn.HostComputeEndpoint, error) {
 	klog.Infof("getting all endpoints for network ID %s", dp.networkID)
+	timer := metrics.StartNewTimer()
 	endpoints, err := dp.ioShim.Hns.ListEndpointsOfNetwork(dp.networkID)
+	metrics.RecordListEndpointsLatency(timer)
 	if err != nil {
+		metrics.IncListEndpointsFailures()
 		return nil, npmerrors.SimpleErrorWrapper("failed to get all pod endpoints", err)
 	}
 
@@ -338,8 +342,11 @@ func (dp *DataPlane) getAllPodEndpoints() ([]*hcn.HostComputeEndpoint, error) {
 
 func (dp *DataPlane) getLocalPodEndpoints() ([]*hcn.HostComputeEndpoint, error) {
 	klog.Info("getting local endpoints")
+	timer := metrics.StartNewTimer()
 	endpoints, err := dp.ioShim.Hns.ListEndpointsQuery(dp.endpointQuery.query)
+	metrics.RecordListEndpointsLatency(timer)
 	if err != nil {
+		metrics.IncListEndpointsFailures()
 		return nil, npmerrors.SimpleErrorWrapper("failed to get local pod endpoints", err)
 	}
 
@@ -437,8 +444,11 @@ func (dp *DataPlane) refreshPodEndpoints() error {
 
 func (dp *DataPlane) setNetworkIDByName(networkName string) error {
 	// Get Network ID
+	timer := metrics.StartNewTimer()
 	network, err := dp.ioShim.Hns.GetNetworkByName(networkName)
+	metrics.RecordGetNetworkLatency(timer)
 	if err != nil {
+		metrics.IncGetNetworkFailures()
 		return err
 	}
 

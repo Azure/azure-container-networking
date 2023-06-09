@@ -12,7 +12,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Azure/azure-container-networking/cni/util"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/network/hnswrapper"
 	"github.com/Azure/azure-container-networking/network/policy"
@@ -227,7 +226,6 @@ func (nm *networkManager) addNewNetRules(nwInfo *NetworkInfo) error {
 		if subnet.Gateway == nil {
 			return fmt.Errorf("[net] failed to get subnet gateway") // nolint
 		}
-		gateway := subnet.Gateway.String()
 
 		log.Printf("[net] Adding ipv4 and ipv6 net rules to windows node")
 
@@ -244,17 +242,6 @@ func (nm *networkManager) addNewNetRules(nwInfo *NetworkInfo) error {
 			if out, err = nm.plClient.ExecuteCommand(addNetshV4DefaultRoute); err != nil {
 				log.Printf("[net] Adding ipv4 default route failed: %v:%v", out, err)
 			}
-
-			deleteNetshV4GatewayRoute := fmt.Sprintf(netRouteCmd, "ipv4", "delete", prefix, ifName, gateway)
-			if _, delErr := nm.plClient.ExecuteCommand(deleteNetshV4GatewayRoute); delErr != nil {
-				log.Printf("[net] Deleting ipv4 gateway route failed: %v", delErr)
-			}
-
-			// netsh interface ipv4 add route $subnetV4 $hostInterfaceAlias $gatewayV4
-			addNetshV4GatewayRoute := fmt.Sprintf(netRouteCmd, "ipv4", "add", prefix, ifName, gateway)
-			if out, err = nm.plClient.ExecuteCommand(addNetshV4GatewayRoute); err != nil {
-				log.Printf("[net] Adding ipv4 gateway route failed: %v:%v", out, err)
-			}
 		} else {
 			deleteNetshV6DefaultRoute := fmt.Sprintf(netRouteCmd, "ipv6", "delete", prefix, ifName, ipv6DefaultHop)
 			if _, delErr := nm.plClient.ExecuteCommand(deleteNetshV6DefaultRoute); delErr != nil {
@@ -265,17 +252,6 @@ func (nm *networkManager) addNewNetRules(nwInfo *NetworkInfo) error {
 			addNetshV6DefaultRoute := fmt.Sprintf(netRouteCmd, "ipv6", "add", prefix, ifName, ipv6DefaultHop)
 			if out, err = nm.plClient.ExecuteCommand(addNetshV6DefaultRoute); err != nil {
 				log.Printf("[net] Adding ipv6 default route failed: %v:%v", out, err)
-			}
-
-			deleteNetshV6GatewayRoute := fmt.Sprintf(netRouteCmd, "ipv6", "delete", prefix, ifName, gateway)
-			if _, delErr := nm.plClient.ExecuteCommand(deleteNetshV6GatewayRoute); delErr != nil {
-				log.Printf("[net] Deleting ipv6 gateway route failed: %v", delErr)
-			}
-
-			// netsh interface ipv6 add route $subnetV6 $hostInterfaceAlias $gatewayV6
-			addNetshV6GatewayRoute := fmt.Sprintf(netRouteCmd, "ipv6", "add", prefix, ifName, gateway)
-			if out, err = nm.plClient.ExecuteCommand(addNetshV6GatewayRoute); err != nil {
-				log.Printf("[net] Adding ipv6 gateway route failed: %v:%v", out, err)
 			}
 		}
 	}
@@ -427,8 +403,8 @@ func (nm *networkManager) newNetworkImplHnsV2(nwInfo *NetworkInfo, extIf *extern
 	if err != nil {
 		// if network not found, create the HNS network.
 		if errors.As(err, &hcn.NetworkNotFoundError{}) {
-			// in dualStackOverlay mode, add net routes to windows node
-			if nwInfo.IPV6Mode == string(util.DualStackOverlay) {
+			// add net routes to windows node if we have IPv6 enabled
+			if nwInfo.IsIPv6Enabled {
 				if err := nm.addNewNetRules(nwInfo); err != nil { // nolint
 					log.Printf("[net] Failed to add net rules due to %+v", err)
 					return nil, err

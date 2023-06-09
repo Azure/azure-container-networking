@@ -1,24 +1,22 @@
-//go:build integration
-
-package k8s
+package k8sutils
 
 import (
 	"context"
 	"log"
 
-	// crd "dnc/requestcontroller/kubernetes"
-
+	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
 	typedappsv1 "k8s.io/client-go/kubernetes/typed/apps/v1"
 	typedcorev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	typedrbacv1 "k8s.io/client-go/kubernetes/typed/rbac/v1"
 )
 
-func mustCreateDaemonset(ctx context.Context, daemonsets typedappsv1.DaemonSetInterface, ds appsv1.DaemonSet) error {
+func MustCreateDaemonset(ctx context.Context, daemonsets typedappsv1.DaemonSetInterface, ds appsv1.DaemonSet) error {
 	if err := mustDeleteDaemonset(ctx, daemonsets, ds); err != nil {
 		return err
 	}
@@ -30,7 +28,7 @@ func mustCreateDaemonset(ctx context.Context, daemonsets typedappsv1.DaemonSetIn
 	return nil
 }
 
-func mustCreateDeployment(ctx context.Context, deployments typedappsv1.DeploymentInterface, d appsv1.Deployment) error {
+func MustCreateDeployment(ctx context.Context, deployments typedappsv1.DeploymentInterface, d appsv1.Deployment) error {
 	if err := mustDeleteDeployment(ctx, deployments, d); err != nil {
 		return err
 	}
@@ -123,5 +121,43 @@ func mustCreateConfigMap(ctx context.Context, cmi typedcorev1.ConfigMapInterface
 		return err
 	}
 
+	return nil
+}
+
+func MustScaleDeployment(ctx context.Context,
+	deploymentsClient typedappsv1.DeploymentInterface,
+	deployment appsv1.Deployment,
+	clientset *kubernetes.Clientset,
+	namespace,
+	podLabelSelector string,
+	replicas int,
+	skipWait bool,
+) error {
+	log.Printf("Scaling deployment %v to %v replicas", deployment.Name, replicas)
+	err := MustUpdateReplica(ctx, deploymentsClient, deployment.Name, int32(replicas))
+	if err != nil {
+		return err
+	}
+
+	if !skipWait {
+		log.Printf("Waiting for pods to be ready..")
+		err = WaitForPodDeployment(ctx, clientset, namespace, deployment.Name, podLabelSelector, replicas)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func MustCreateNamespace(ctx context.Context, clienset *kubernetes.Clientset, namespace string) error {
+	_, err := clienset.CoreV1().Namespaces().Create(ctx, &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: namespace,
+		},
+	}, metav1.CreateOptions{})
+
+	if !apierrors.IsAlreadyExists(err) {
+		return errors.Wrapf(err, "failed to create namespace %v", namespace)
+	}
 	return nil
 }

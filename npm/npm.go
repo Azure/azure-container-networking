@@ -5,6 +5,7 @@ package npm
 import (
 	"encoding/json"
 	"fmt"
+	"time"
 
 	npmconfig "github.com/Azure/azure-container-networking/npm/config"
 	"github.com/Azure/azure-container-networking/npm/ipsm"
@@ -13,6 +14,7 @@ import (
 	controllersv2 "github.com/Azure/azure-container-networking/npm/pkg/controlplane/controllers/v2"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane"
 	"github.com/Azure/azure-container-networking/npm/pkg/models"
+	"github.com/Azure/azure-container-networking/npm/util"
 	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/version"
 	"k8s.io/client-go/informers"
@@ -22,6 +24,11 @@ import (
 )
 
 var aiMetadata string //nolint // aiMetadata is set in Makefile
+
+// waitDurationAfterStartingNetPolController is used when configured to apply dataplane in the background
+// Worst case, SetPolicy SysCalls take ~30 seconds.
+// So with a 3 minute wait, the dataplane can process about 600 (6*maxBatches) NetworkPolicies before starting the Pod controller
+var waitDurationAfterStartingNetPolController = 3 * time.Minute
 
 // NetworkPolicyManager contains informers for pod, namespace and networkpolicy.
 type NetworkPolicyManager struct {
@@ -195,9 +202,17 @@ func (npMgr *NetworkPolicyManager) Start(config npmconfig.Config, stopCh <-chan 
 
 	// start v2 NPM controllers after synced
 	if config.Toggles.EnableV2NPM {
+		go npMgr.NetPolControllerV2.Run(stopCh)
+
+		if util.IsWindowsDP() && config.Toggles.ApplyInBackground {
+			klog.Infof("optimizing NPM bootup by letting NetPol controller process changes first. waiting %v before starting pod and namespace controllers", waitDurationAfterStartingNetPolController)
+			time.Sleep(waitDurationAfterStartingNetPolController)
+		}
+
+		npMgr.Dataplane.FinishBootupPhase()
+
 		go npMgr.PodControllerV2.Run(stopCh)
 		go npMgr.NamespaceControllerV2.Run(stopCh)
-		go npMgr.NetPolControllerV2.Run(stopCh)
 
 		return nil
 	}

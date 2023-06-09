@@ -45,12 +45,17 @@ steps:
       sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
       kubectl cluster-info
       kubectl get po -owide -A
+      if [ "$CILIUM_VERSION_TAG" = "cilium-nightly-pipeline" ]; then FILE_PATH=-nightly && echo "Running nightly"; fi
       echo "deploy Cilium ConfigMap"
-      kubectl apply -f cilium/configmap.yaml
-      kubectl apply -f test/integration/manifests/cilium/cilium-config.yaml
-      echo "install Cilium onto Overlay Cluster"
-      kubectl apply -f test/integration/manifests/cilium/cilium-agent
-      kubectl apply -f test/integration/manifests/cilium/cilium-operator
+      kubectl apply -f cilium/configmap.yaml      
+      kubectl apply -f test/integration/manifests/cilium/cilium${FILE_PATH}-config.yaml
+      echo "install Cilium ${CILIUM_VERSION_TAG}"
+      # Passes Cilium image to daemonset and deployment
+      envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/daemonset.yaml | kubectl apply -f -
+      envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/deployment.yaml | kubectl apply -f -
+      # Use different file directories for nightly and current cilium version
+      kubectl apply -f test/integration/manifests/cilium/cilium${FILE_PATH}-agent
+      kubectl apply -f test/integration/manifests/cilium/cilium${FILE_PATH}-operator
       kubectl get po -owide -A
     name: "installCilium"
     displayName: "Install Cilium on AKS Overlay"
@@ -91,7 +96,14 @@ steps:
       kubectl create configmap config-reconcile.yaml
       cd ../../../..
       kubectl get po -owide -A
-      sudo -E env "PATH=$PATH" make test-integration CNS_VERSION=$(make cns-version) CNI_DROPGZ_VERSION=$(make cni-dropgz-version) INSTALL_CNS=true INSTALL_OVERLAY=true TEST_DROPGZ=${{ parameters.testDropgz }}
+      # Nightly does not build images per commit. Will use existing image. 
+      if [ "$CILIUM_VERSION_TAG" = "cilium-nightly-pipeline" ] 
+      then 
+          CNS=v1.5.3 DROPGZ=v0.0.4 && echo "Running nightly"
+      else 
+          CNS=$(make cns-version) DROPGZ=$(make cni-dropgz-version) 
+      fi
+      sudo -E env "PATH=$PATH" make test-integration CNS_VERSION=${CNS} CNI_DROPGZ_VERSION=${DROPGZ} INSTALL_CNS=true INSTALL_OVERLAY=true TEST_DROPGZ=${{ parameters.testDropgz }}
     retryCountOnTaskFailure: 3
     name: "aziliumTest"
     displayName: "Run Azilium E2E on AKS Overlay"
@@ -113,6 +125,15 @@ steps:
       pathtoPublish: "$(Build.ArtifactStagingDirectory)/test-output"
     condition: always()
 
+  - script: |              
+      kubectl get pods -A
+      echo "Waiting < 2 minutes for cilium to be ready"
+      # Ensure Cilium is ready Xm\Xs
+      cilium status --wait --wait-duration 2m
+    retryCountOnTaskFailure: 3
+    name: "CiliumStatus"
+    displayName: "Cilium Status"
+
   - script: |
       echo "Run Service Conformance E2E"
       export PATH=${PATH}:/usr/local/bin/gsutil
@@ -131,13 +152,12 @@ steps:
 
   - script: |
       echo "validate pod IP assignment and check systemd-networkd restart"
-      kubectl apply -f hack/manifests/hostprocess.yaml
       kubectl get pod -owide -A
-      bash hack/scripts/validate_state.sh
+      make test-validate-state
       echo "delete cilium connectivity test resources and re-validate state"
       kubectl delete ns cilium-test
       kubectl get pod -owide -A
-      bash hack/scripts/validate_state.sh
+      make test-validate-state
     name: "validatePods"
     displayName: "Validate Pods"
   

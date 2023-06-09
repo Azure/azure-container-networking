@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/Azure/azure-container-networking/npm/metrics"
 	"github.com/Azure/azure-container-networking/npm/util"
 	npmerrors "github.com/Azure/azure-container-networking/npm/util/errors"
 	"github.com/Microsoft/hcsshim/hcn"
@@ -315,8 +316,12 @@ func (iMgr *IPSetManager) getHCnNetwork() (*hcn.HostComputeNetwork, error) {
 	if iMgr.iMgrCfg.NetworkName != util.AzureNetworkName && iMgr.iMgrCfg.NetworkName != util.CalicoNetworkName {
 		return nil, errUnsupportedNetwork
 	}
+
+	timer := metrics.StartNewTimer()
 	network, err := iMgr.ioShim.Hns.GetNetworkByName(iMgr.iMgrCfg.NetworkName)
+	metrics.RecordGetNetworkLatency(timer)
 	if err != nil {
+		metrics.IncGetNetworkFailures()
 		return nil, err
 	}
 	return network, nil
@@ -356,8 +361,24 @@ func (iMgr *IPSetManager) modifySetPolicies(network *hcn.HostComputeNetwork, ope
 		}
 
 		klog.Infof("[IPSetManager Windows] modifying network settings. operation: %s, policyType: %s", operation, policyType)
+
+		// metrics.CreateOp would be for hcn.RequestTypeAdd
+		op := metrics.CreateOp
+		if operation == hcn.RequestTypeRemove {
+			op = metrics.DeleteOp
+		} else if operation == hcn.RequestTypeUpdate {
+			op = metrics.UpdateOp
+		}
+		isNested := false
+		if policyType == SetPolicyTypeNestedIPSet {
+			isNested = true
+		}
+
+		timer := metrics.StartNewTimer()
 		err = iMgr.ioShim.Hns.ModifyNetworkSettings(network, requestMessage)
+		metrics.RecordSetPolicyLatency(timer, op, isNested)
 		if err != nil {
+			metrics.IncSetPolicyFailures(op, isNested)
 			klog.Infof("[IPSetManager Windows] %s operation has failed with error %s", operation, err.Error())
 			return err
 		}

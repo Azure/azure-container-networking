@@ -273,6 +273,14 @@ func (c *PodController) syncPod(key string) error {
 		metrics.RecordControllerPodExecTime(timer, operationKind, err != nil && dperr != nil)
 
 		if dperr != nil {
+			klog.Errorf("failed to apply dataplane changes while syncing pod. err: %s", dperr.Error())
+			metrics.SendErrorLogAndMetric(util.PodID, "[syncPod] failed to apply dataplane changes while syncing pod. err: %s", dperr.Error())
+
+			// Seems like setting err below does nothing.
+			// The return value of syncPod is fixed before this deferred func is called,
+			// so modifications to err here do nothing.
+			// As a result, the controller will not requeue if there is an error applying the dataplane.
+			// However, a subsequent controller event should Apply Dataplane soon after.
 			if err == nil {
 				err = fmt.Errorf("failed to apply dataplane changes while syncing pod. err: %w", dperr)
 			} else {
@@ -369,6 +377,7 @@ func (c *PodController) syncAddedPod(podObj *corev1.Pod) error {
 	// Create npmPod and add it to the podMap
 	npmPodObj := common.NewNpmPod(podObj)
 	c.podMap[podKey] = npmPodObj
+	metrics.AddPod()
 
 	// Get lists of podLabelKey and podLabelKey + podLavelValue ,and then start adding them to ipsets.
 	for labelKey, labelVal := range podObj.Labels {
@@ -571,6 +580,7 @@ func (c *PodController) cleanUpDeletedPod(cachedNpmPodKey string) error {
 		return fmt.Errorf("[cleanUpDeletedPod] Error: failed to delete pod from named port ipset with err: %w", err)
 	}
 
+	metrics.RemovePod()
 	delete(c.podMap, cachedNpmPodKey)
 	return nil
 }

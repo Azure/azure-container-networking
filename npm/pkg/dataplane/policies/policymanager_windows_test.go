@@ -7,11 +7,49 @@ import (
 
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/network/hnswrapper"
+	"github.com/Azure/azure-container-networking/npm/metrics"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/ipsets"
 	dptestutils "github.com/Azure/azure-container-networking/npm/pkg/dataplane/testutils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+type winPromVals struct {
+	getEndpointLatencyCalls int
+	getEndpointFailures     int
+	createLatencyCalls      int
+	createFailures          int
+	updateLatencyCalls      int
+	updateFailures          int
+}
+
+func (w winPromVals) test(t *testing.T) {
+	t.Helper()
+
+	count, err := metrics.TotalGetEndpointLatencyCalls()
+	require.NoError(t, err, "failed to get metric")
+	require.Equal(t, w.getEndpointLatencyCalls, count, "incorrect get endpoint latency calls")
+
+	count, err = metrics.TotalGetEndpointFailures()
+	require.NoError(t, err, "failed to get metric")
+	require.Equal(t, w.getEndpointFailures, count, "incorrect get endpoint failures")
+
+	count, err = metrics.TotalACLLatencyCalls(metrics.CreateOp)
+	require.NoError(t, err, "failed to get metric")
+	require.Equal(t, w.createLatencyCalls, count, "incorrect create latency calls")
+
+	count, err = metrics.TotalACLFailures(metrics.CreateOp)
+	require.NoError(t, err, "failed to get metric")
+	require.Equal(t, w.createFailures, count, "incorrect create failures")
+
+	count, err = metrics.TotalACLLatencyCalls(metrics.UpdateOp)
+	require.NoError(t, err, "failed to get metric")
+	require.Equal(t, w.updateLatencyCalls, count, "incorrect update latency calls")
+
+	count, err = metrics.TotalACLFailures(metrics.UpdateOp)
+	require.NoError(t, err, "failed to get metric")
+	require.Equal(t, w.updateFailures, count, "incorrect update failures")
+}
 
 var (
 	// TODO fix these expected ACLs (e.g. local/remote addresses and ports are off)
@@ -106,6 +144,8 @@ func TestCompareAndRemovePolicies(t *testing.T) {
 }
 
 func TestAddPolicies(t *testing.T) {
+	metrics.InitializeWindowsMetrics()
+
 	pMgr, hns := getPMgr(t)
 
 	// AddPolicy may modify the endpointIDList, so we need to pass a copy
@@ -124,9 +164,20 @@ func TestAddPolicies(t *testing.T) {
 		fmt.Printf("verifying ACLs on endpoint ID %s\n", id)
 		verifyFakeHNSCacheACLs(t, expectedACLs, acls)
 	}
+
+	winPromVals{
+		getEndpointLatencyCalls: 2,
+		getEndpointFailures:     0,
+		createLatencyCalls:      2,
+		createFailures:          0,
+		updateLatencyCalls:      0,
+		updateFailures:          0,
+	}.test(t)
 }
 
 func TestRemovePolicies(t *testing.T) {
+	metrics.InitializeWindowsMetrics()
+
 	pMgr, hns := getPMgr(t)
 
 	// AddPolicy may modify the endpointIDList, so we need to pass a copy
@@ -148,9 +199,20 @@ func TestRemovePolicies(t *testing.T) {
 	err = pMgr.RemovePolicy(TestNetworkPolicies[0].PolicyKey)
 	require.NoError(t, err)
 	verifyACLCacheIsCleaned(t, hns, len(endPointIDList))
+
+	winPromVals{
+		getEndpointLatencyCalls: 4,
+		getEndpointFailures:     0,
+		createLatencyCalls:      2,
+		createFailures:          0,
+		updateLatencyCalls:      2,
+		updateFailures:          0,
+	}.test(t)
 }
 
 func TestApplyPoliciesEndpointNotFound(t *testing.T) {
+	metrics.InitializeWindowsMetrics()
+
 	pMgr, hns := getPMgr(t)
 	testendPointIDList := map[string]string{
 		"10.0.0.5": "test10",
@@ -158,9 +220,20 @@ func TestApplyPoliciesEndpointNotFound(t *testing.T) {
 	err := pMgr.AddPolicy(TestNetworkPolicies[0], testendPointIDList)
 	require.NoError(t, err)
 	verifyACLCacheIsCleaned(t, hns, len(endPointIDList))
+
+	winPromVals{
+		getEndpointLatencyCalls: 1,
+		getEndpointFailures:     0,
+		createLatencyCalls:      0,
+		createFailures:          0,
+		updateLatencyCalls:      0,
+		updateFailures:          0,
+	}.test(t)
 }
 
 func TestRemovePoliciesEndpointNotFound(t *testing.T) {
+	metrics.InitializeWindowsMetrics()
+
 	pMgr, hns := getPMgr(t)
 
 	// AddPolicy may modify the endpointIDList, so we need to pass a copy
@@ -186,6 +259,15 @@ func TestRemovePoliciesEndpointNotFound(t *testing.T) {
 		fmt.Printf("verifying ACLs on endpoint ID %s\n", id)
 		verifyFakeHNSCacheACLs(t, expectedACLs, acls)
 	}
+
+	winPromVals{
+		getEndpointLatencyCalls: 3,
+		getEndpointFailures:     0,
+		createLatencyCalls:      2,
+		createFailures:          0,
+		updateLatencyCalls:      0,
+		updateFailures:          0,
+	}.test(t)
 }
 
 // Helper functions for UTS

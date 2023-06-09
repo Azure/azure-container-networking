@@ -27,6 +27,7 @@ func ResetNumACLRules() {
 
 // RecordACLRuleExecTime adds an observation of execution time for adding an ACL rule.
 // The execution time is from the timer's start until now.
+// NOTE: see acls_windows.go for more precise Windows metrics.
 func RecordACLRuleExecTime(timer *Timer) {
 	timer.stopAndRecord(addACLRuleExecTime)
 }

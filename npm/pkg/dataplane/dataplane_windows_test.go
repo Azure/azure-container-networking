@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/Azure/azure-container-networking/common"
+	"github.com/Azure/azure-container-networking/npm/metrics"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/ipsets"
 	dptestutils "github.com/Azure/azure-container-networking/npm/pkg/dataplane/testutils"
 	"github.com/pkg/errors"
@@ -17,6 +18,41 @@ const (
 	defaultHNSLatency  = time.Duration(0)
 	threadedHNSLatency = time.Duration(50 * time.Millisecond)
 )
+
+func TestMetrics(t *testing.T) {
+	metrics.InitializeWindowsMetrics()
+
+	cfg := defaultWindowsDPCfg
+	hns := ipsets.GetHNSFake(t, cfg.NetworkName)
+	hns.Delay = defaultHNSLatency
+	io := common.NewMockIOShimWithFakeHNS(hns)
+	dp, err := NewDataPlane(thisNode, io, cfg, nil)
+	require.NoError(t, err, "failed to initialize dp")
+	require.NotNil(t, dp, "failed to initialize dp (nil)")
+
+	count, err := metrics.TotalGetNetworkLatencyCalls()
+	require.Nil(t, err, "failed to get metric")
+	require.Equal(t, 2, count, "should have gotten network twice")
+
+	count, err = metrics.TotalGetNetworkFailures()
+	require.Nil(t, err, "failed to get metric")
+	require.Equal(t, 0, count, "should have failed to get network zero times")
+
+	count, err = metrics.TotalListEndpointsLatencyCalls()
+	require.Nil(t, err, "failed to get metric")
+	require.Equal(t, 1, count, "should have listed endpoints once")
+
+	err = dp.refreshPodEndpoints()
+	require.Nil(t, err, "failed to refresh pod endpoints")
+
+	count, err = metrics.TotalListEndpointsLatencyCalls()
+	require.Nil(t, err, "failed to get metric")
+	require.Equal(t, 2, count, "should have listed endpoints twice")
+
+	count, err = metrics.TotalListEndpointsFailures()
+	require.Nil(t, err, "failed to get metric")
+	require.Equal(t, 0, count, "should have failed to list endpoints zero times")
+}
 
 func TestBasics(t *testing.T) {
 	testSerialCases(t, basicTests(), 0)
@@ -31,11 +67,15 @@ func TestCapzCalico(t *testing.T) {
 }
 
 func TestApplyInBackground(t *testing.T) {
-	testSerialCases(t, applyInBackgroundTests(), time.Duration(100*time.Millisecond))
+	testSerialCases(t, applyInBackgroundTests(), time.Duration(200*time.Millisecond))
 }
 
 func TestRemoteEndpoints(t *testing.T) {
 	testSerialCases(t, remoteEndpointTests(), 0)
+}
+
+func TestApplyInBackgroundBootupPhase(t *testing.T) {
+	testSerialCases(t, applyInBackgroundBootupPhaseTests(), time.Duration(200*time.Millisecond))
 }
 
 func TestAllMultiJobCases(t *testing.T) {
@@ -142,6 +182,8 @@ func testMultiJobCases(t *testing.T, tests []*MultiJobTestCase, finalSleep time.
 				require.FailNow(t, "encountered errors in multi-job test: %+v", errStrings)
 			}
 
+			// just care about eventual consistency, so add extra applyDP e.g. in case finishBootupPhase() runs last
+			require.NoError(t, dp.applyDataPlaneNow("UT FINAL APPLY"))
 			dptestutils.VerifyHNSCache(t, hns, tt.ExpectedSetPolicies, tt.ExpectedEnpdointACLs)
 		})
 	}

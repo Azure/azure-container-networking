@@ -13,7 +13,7 @@ stages:
     - publish
     jobs:
       - job: ${{ parameters.name }}
-        displayName: Overlay Test Suite - (${{ parameters.name }})
+        displayName: Cilium Overlay Test Suite - (${{ parameters.name }})
         timeoutInMinutes: 120
         pool:
           name: $(BUILD_POOL_NAME_DEFAULT)
@@ -25,7 +25,7 @@ stages:
           GOBIN: "$(GOPATH)/bin" # Go binaries path
           modulePath: "$(GOPATH)/src/github.com/Azure/azure-container-networking"
         steps:
-          - template: overlay-e2e-step-template.yaml
+          - template: cilium-overlay-e2e-step-template.yaml
             parameters:
               name: ${{ parameters.name }}
               testDropgz: ${{ parameters.testDropgz }}
