@@ -122,9 +122,9 @@ const linuxPrefix = "linux"
 
 // linux metrics added in v1.5.5
 var (
-	iptablesBackgroundRestoreLatency  *prometheus.HistogramVec
-	iptablesDeleteLatency             prometheus.Histogram
-	iptablesBackgroundRestoreFailures *prometheus.CounterVec
+	itpablesRestoreLatency  *prometheus.HistogramVec
+	iptablesDeleteLatency   prometheus.Histogram
+	iptablesRestoreFailures *prometheus.CounterVec
 )
 
 type RegistryType string
@@ -193,9 +193,9 @@ func InitializeAll() {
 		InitializeLinuxMetrics()
 
 		klog.Infof("registering linux metrics")
-		register(iptablesBackgroundRestoreLatency, "iptables_background_restore_latency_seconds", NodeMetrics)
-		register(iptablesDeleteLatency, "iptables_background_delete_latency_seconds", NodeMetrics)
-		register(iptablesBackgroundRestoreFailures, "iptables_background_restore_failure_total", NodeMetrics)
+		register(itpablesRestoreLatency, "iptables_restore_latency_seconds", NodeMetrics)
+		register(iptablesDeleteLatency, "iptables_delete_latency_seconds", NodeMetrics)
+		register(iptablesRestoreFailures, "iptables_restore_failure_total", NodeMetrics)
 	}
 
 	log.Logf("Finished initializing all Prometheus metrics")
@@ -322,12 +322,12 @@ func InitializeWindowsMetrics() {
 func InitializeLinuxMetrics() {
 	klog.Infof("initializing Linux metrics. will not register the newly created metrics in this function")
 
-	iptablesBackgroundRestoreLatency = prometheus.NewHistogramVec(
+	itpablesRestoreLatency = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Namespace: namespace,
-			Name:      "iptables_background_restore_latency_seconds",
+			Name:      "iptables_restore_latency_seconds",
 			Subsystem: linuxPrefix,
-			Help:      "Latency in seconds to restore iptables rules in the background by operation label (add/delete NetPol)",
+			Help:      "Latency in seconds to restore iptables rules by operation label (add/delete NetPol)",
 			//nolint:gomnd // default bucket consts
 			Buckets: prometheus.ExponentialBuckets(0.016, 2, 14), // upper bounds of 16 ms to ~2 minutes
 		},
@@ -337,20 +337,20 @@ func InitializeLinuxMetrics() {
 	iptablesDeleteLatency = prometheus.NewHistogram(
 		prometheus.HistogramOpts{
 			Namespace: namespace,
-			Name:      "iptables_background_delete_latency_seconds",
+			Name:      "iptables_delete_latency_seconds",
 			Subsystem: linuxPrefix,
-			Help:      "Latency in seconds to delete an iptables rule in the background by operation label (delete NetPol)",
+			Help:      "Latency in seconds to delete an iptables rule",
 			//nolint:gomnd // default bucket consts
 			Buckets: prometheus.ExponentialBuckets(0.016, 2, 14), // upper bounds of 16 ms to ~2 minutes
 		},
 	)
 
-	iptablesBackgroundRestoreFailures = prometheus.NewCounterVec(
+	iptablesRestoreFailures = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Namespace: namespace,
-			Name:      "iptables_background_restore_failure_total",
+			Name:      "iptables_restore_failure_total",
 			Subsystem: linuxPrefix,
-			Help:      "Number of failures while adding/updating ACLs by operation label",
+			Help:      "Number of failures while restoring iptable rules by operation label (add/delete NetPol)",
 		},
 		[]string{operationLabel},
 	)

@@ -52,9 +52,9 @@ func (pMgr *PolicyManager) addPolicies(networkPolicies []*NPMNetworkPolicy, _ ma
 
 	timer := metrics.StartNewTimer()
 	err := restore(creator)
-	metrics.RecordIPTablesBackgroundRestoreLatency(timer, metrics.CreateOp)
+	metrics.RecordIPTablesRestoreLatency(timer, metrics.CreateOp)
 	if err != nil {
-		metrics.IncIPTablesBackgroundRestoreFailures(metrics.CreateOp)
+		metrics.IncIPTablesRestoreFailures(metrics.CreateOp)
 		return fmt.Errorf("failed to restore iptables with updated policies. err: %w", err)
 	}
 
@@ -83,9 +83,9 @@ func (pMgr *PolicyManager) removePolicy(networkPolicy *NPMNetworkPolicy, _ map[s
 	// 2. Flush the policy chains and deactivate NPM (if necessary).
 	timer := metrics.StartNewTimer()
 	restoreErr := restore(creator)
-	metrics.RecordIPTablesBackgroundRestoreLatency(timer, metrics.DeleteOp)
+	metrics.RecordIPTablesRestoreLatency(timer, metrics.DeleteOp)
 	if restoreErr != nil {
-		metrics.IncIPTablesBackgroundRestoreFailures(metrics.DeleteOp)
+		metrics.IncIPTablesRestoreFailures(metrics.DeleteOp)
 		return fmt.Errorf("failed to flush policies. err: %w", restoreErr)
 	}
 

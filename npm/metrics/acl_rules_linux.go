@@ -4,26 +4,26 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-func RecordIPTablesBackgroundRestoreLatency(timer *Timer, op OperationKind) {
+func RecordIPTablesRestoreLatency(timer *Timer, op OperationKind) {
 	labels := prometheus.Labels{
 		operationLabel: string(op),
 	}
-	iptablesBackgroundRestoreLatency.With(labels).Observe(timer.timeElapsed())
+	itpablesRestoreLatency.With(labels).Observe(timer.timeElapsed())
 }
 
 func RecordIPTablesDeleteLatency(timer *Timer) {
 	iptablesDeleteLatency.Observe(timer.timeElapsed())
 }
 
-func IncIPTablesBackgroundRestoreFailures(op OperationKind) {
+func IncIPTablesRestoreFailures(op OperationKind) {
 	labels := prometheus.Labels{
 		operationLabel: string(op),
 	}
-	iptablesBackgroundRestoreFailures.With(labels).Inc()
+	iptablesRestoreFailures.With(labels).Inc()
 }
 
-func TotalIPTablesBackgroundRestoreLatencyCalls(op OperationKind) (int, error) {
-	return histogramVecCount(iptablesBackgroundRestoreLatency, prometheus.Labels{
+func TotalIPTablesRestoreLatencyCalls(op OperationKind) (int, error) {
+	return histogramVecCount(itpablesRestoreLatency, prometheus.Labels{
 		operationLabel: string(op),
 	})
 }
@@ -36,8 +36,8 @@ func TotalIPTablesDeleteLatencyCalls() (int, error) {
 	return histogramCount(collector)
 }
 
-func TotalIPTablesBackgroundRestoreFailures(op OperationKind) (int, error) {
-	return counterValue(iptablesBackgroundRestoreFailures.With(prometheus.Labels{
+func TotalIPTablesRestoreFailures(op OperationKind) (int, error) {
+	return counterValue(iptablesRestoreFailures.With(prometheus.Labels{
 		operationLabel: string(op),
 	}))
 }
