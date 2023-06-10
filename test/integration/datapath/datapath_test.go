@@ -1,0 +1,447 @@
+package datapath
+
+import (
+	"context"
+	"fmt"
+	"os"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/Azure/azure-container-networking/test/internal/k8sutils"
+	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/require"
+	"k8s.io/client-go/tools/clientcmd"
+
+	apiv1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
+	restclient "k8s.io/client-go/rest"
+)
+
+var (
+	restConfig *restclient.Config
+	clientset  *kubernetes.Clientset
+	testConfig = &TestConfig{}
+	// Set a env variable for below
+	podCount     = 2
+	podPrefix    = "datapod"
+	podNamespace = "datapath-win" // or something datapath related
+	podLabelKey  = "app"
+	// podLabelSelector   = "app=datapod"
+	podLabelSelector   = fmt.Sprintf("%s=%s", podLabelKey, podPrefix)
+	nodeLabelSelector  = "agentpool=npwin"
+	WindowsPodYamlPath = "../manifests/datapath/windowspod.yaml"
+)
+
+const (
+	defaultAttempts          = 15
+	defaultRetryDelaySeconds = 1
+	maxRetryDelaySeconds     = 10
+)
+
+/*
+	var defaultRetrier = retry.Retrier{
+		Attempts:   defaultAttempts,
+		Delay:      defaultRetryDelaySeconds * time.Second,
+		ExpBackoff: true,
+		MaxDelay:   maxRetryDelaySeconds * time.Second,
+	} // dncDeployedSuccessfully = false
+
+// dncPortForward          = k8s.PortForwardStreamHandle{}
+// dncClient               = &client.DncClient{}
+// dncRetrier              = DNCRetrier{}
+// rbacCleanUpFn = func(t *testing.T) {}
+*/
+type TestConfig struct {
+	/*
+		CNIManagerImage             string `env:"CNI_MANAGER_IMAGE"`
+		CNSImage                    string `env:"CNS_IMAGE"`
+		DNCImage                    string `env:"DNC_IMAGE"`
+		CNIManagerDaemonsetYamlPath string `env:"CNI_MANAGER_DAEMONSET_YAML_PATH"`
+		CNSDaemonsetYamlPath        string `env:"CNS_DAEMONSET_YAML_PATH"`
+		CNSWindowsDaemonsetYamlPath string `env:"CNS_WINDOWS_DAEMONSET_YAML_PATH"`
+		CNSConfigmapYamlPath        string `env:"CNS_CONFIGMAP_YAML_PATH"`
+		DNCDeploymentYamlPath       string `env:"DNC_DEPLOYMENT_YAML_PATH"`
+		DNCConfigmapYamlPath        string `env:"DNC_CONFIGMAP_YAML_PATH"`
+		GoldpingerPodYamlPath       string `env:"GOLDPINGER_POD_YAML_PATH"`
+		HostDaemonsetYamlPath       string `env:"HOST_DAEMONSET_YAML_PATH"`
+		CosmosDbAccountName         string `env:"COSMOS_DB_ACCOUNT_NAME"`
+		CosmosDbResourceId          string `env:"COSMOS_DB_RESOURCE_ID"`
+		PartitionKey                string `env:"PARTITION_KEY"`
+		DesiredNCsPerNode           int    `env:"DESIRED_NCS_PER_NODE"` // we only need 2, dont need any interaction from user
+		InfraVnetGuid               string `env:"INFRA_VNET_GUID"`
+
+
+	*/
+	//Need to set yaml path to better dir
+	// Current is /test/standalone/common/yamls/windows_deployment_pod.yaml
+
+	// DNCRetrier Vars
+	/*
+		CustomerVnetGuid   string `env:"CUSTOMER_VNET_GUID"`
+		CustomerSubnetName string `env:"CUSTOMER_SUBNET_NAME"`
+		DelegationToken    string `env:"DELEGATION_TOKEN"`
+	*/
+}
+
+// Clientset
+// restconfig
+// Pod deployment in correct nodes
+// check that nodes a running/ready
+func TestMain(m *testing.M) {
+	// Dont need everything from testConfig
+	// Running env variables in local go test
+	// .. is very flaky. Changing... Hopefully
+	var err error
+
+	// Gets cluster context
+	// restConfig := MustGetRestConfig()
+	// logrus.Infof("k8s rest config for apiserver %s", restConfig.Host)
+
+	// Creates a new ClientSet
+	if clientset, err = k8sutils.MustGetClientset(); err != nil {
+		logrus.Fatalf("could not get k8s clientset: %v", err)
+	}
+
+	osExitCode := m.Run()
+
+	os.Exit(osExitCode)
+}
+
+func TestDatapathWin(t *testing.T) {
+	// Give these vars a env/flag
+	testTimeout := 30 * time.Minute
+	var err error
+
+	// rest config
+	t.Log("REST config")
+	restConfig := k8sutils.MustGetRestConfig(t)
+
+	// logrus.Infof("k8s rest config for apiserver %s", restConfig.Host)
+
+	// continue
+	ctx, cancel := context.WithTimeout(context.Background(), testTimeout)
+	defer cancel()
+	// Pod Namespace
+	t.Log("Create Namespace")
+	err = k8sutils.MustCreateNamespace(ctx, clientset, podNamespace)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Pod Interface Getter
+	t.Log("Pod Interface")
+	podI := clientset.CoreV1().Pods(podNamespace)
+
+	// Get NodeList WindowsNodePoolName
+	t.Log("Get Nodes")
+	nodes, err := k8sutils.GetNodeListByLabelSelector(ctx, clientset, nodeLabelSelector)
+	if err != nil {
+		logrus.Fatalf("could not get k8s node list: %v", err)
+	}
+	// logrus.Printf("nodes are %+v", nodes)
+	// assign pods to each node with labels
+	t.Log("Creating windows pods")
+	podCounter := 0
+	for _, node := range nodes.Items {
+		for i := 0; i < podCount; i++ {
+			pod, err := k8sutils.MustParsePod(WindowsPodYamlPath)
+			require.NoError(t, err, "Parsing windows pod deployment failed")
+			pod.Spec.NodeSelector = make(map[string]string)
+			pod.Spec.NodeSelector["kubernetes.io/hostname"] = node.ObjectMeta.Name
+			pod.Name = fmt.Sprintf("%s-%d", podPrefix, podCounter)
+			pod.Namespace = podNamespace
+			pod.Labels = make(map[string]string)
+			pod.Labels[podLabelKey] = podPrefix
+			err = k8sutils.MustCreateOrUpdatePod(ctx, podI, pod)
+			require.NoError(t, err, "Creating windows pods failed")
+			err = k8sutils.WaitForPodsRunning(ctx, clientset, pod.Namespace, podLabelSelector)
+			require.NoError(t, err, fmt.Sprintf("Deploying windows Pod: %s failed with error: %v", pod.Name, err))
+			t.Logf("Successfully deployed windows pod: %s", pod.Name)
+			podCounter += 1
+		}
+	}
+	t.Log("successfully created customer windows pods")
+
+	t.Run("Windows ping tests pod -> pod", func(t *testing.T) {
+		// Get NodeList WindowsNodePoolName
+		nodes, err := k8sutils.GetNodeListByLabelSelector(ctx, clientset, nodeLabelSelector)
+		if err != nil {
+			logrus.Fatalf("could not get k8s node list: %v", err)
+		}
+
+		// Windows pod ping tests
+		for _, node := range nodes.Items {
+			if node.Status.NodeInfo.OperatingSystem == string(apiv1.Windows) {
+				// Pod to pod same node
+				// windowsPodToPodPingTestSameNode(ctx context.Context, clientset *kubernetes.Clientset, nodeName string, labelSelector string, rc *restclient.Config)
+				t.Log("Windows ping tests (1)")
+				err := windowsPodToPodPingTestSameNode(ctx, clientset, node.Name, podLabelSelector, restConfig)
+				require.NoError(t, err, "Windows pod to pod same node ping test failed with %+v", err)
+				t.Logf("Windows pod to windows pod, same node passed for node: %s", node.ObjectMeta.Name)
+
+				/*
+					// Pod to pod different node
+					for nodeName2, nodeInfo2 := range nodeNameToNodeInfo {
+						if nodeName == nodeName2 {
+							continue
+						}
+						err := windowsPodToPodPingTestDiffNode(ctx, nodeName, nodeName2, nodeInfo, nodeInfo2, restConfig)
+						require.NoError(t, err, fmt.Sprintf("Windows pod to windows/linux pod diff node ping test failed for node: %s to node: %s with error %+v", nodeName, nodeName2, err))
+						t.Logf("Windows pod to windows/linux pod, diff node passed for node: %s to node: %s", nodeName, nodeName2)
+					}
+				*/
+			}
+		}
+	})
+	/*
+		t.Run("Windows ping tests pod -> node", func(t *testing.T) {
+			// Windows ping tests between pods and node
+			t.Log("Windows Pod to Host Ping tests")
+			for nodeName, nodeInfo := range nodeNameToNodeInfo {
+				if nodeInfo.os == string(apiv1.Windows) {
+					t.Log("Windows ping tests (2)")
+					err := windowsPodToNode(ctx, nodeName, nodeInfo, restConfig)
+					require.NoError(t, err, "Windows pod to node ping test failed with %+v", err)
+					t.Logf("Windows pod to node passed for node: %s", nodeName)
+				}
+			}
+		})
+
+		t.Run("Windows ping tests pod -> internet", func(t *testing.T) {
+			// From windows pod to curl an URL
+			t.Log("Windows Pod to Internet tests")
+			for nodeName, nodeInfo := range nodeNameToNodeInfo {
+				if nodeInfo.os == string(apiv1.Windows) {
+					err := windowsPodToInternet(ctx, nodeName, nodeInfo, restConfig)
+					require.NoError(t, err, "Windows pod to internet %+v", err)
+					t.Logf("Windows pod to Internet tests")
+				}
+			}
+		})
+	*/
+}
+
+func MustGetRestConfig() *restclient.Config {
+	pwd, err := os.Getwd()
+	fmt.Printf("%s envar\n", pwd)
+	temp2, err := os.UserHomeDir()
+	fmt.Printf("%s homeDir\n", temp2)
+	// change directory from src/dnc to home/.kube
+	dir := os.Chdir(temp2)
+	fmt.Printf("%s envar\n", dir)
+
+	pwd, _ = os.Getwd()
+	fmt.Printf("%s envar\n", pwd)
+	// cd home/jpayne/.kube
+	// set var to kubeconfig filepath
+	temp, err := os.Getwd()
+	temp += "/config"
+	fmt.Printf("%s envar\n", temp)
+	os.Chdir(pwd)
+	config, err := clientcmd.BuildConfigFromFlags("", temp)
+	if err != nil {
+		logrus.Fatalf("Buildconfig Error: %v", err)
+	}
+	return config
+}
+
+/*
+	func CreateOrUpdatePod(ctx context.Context, clientset *kubernetes.Clientset, namespace string, pod corev1.Pod) error {
+		if err := DeletePod(ctx, clientset, namespace, pod.Name); err != nil {
+			if !apierrors.IsNotFound(err) {
+				return err
+			}
+		}
+		_, err := clientset.CoreV1().Pods(namespace).Create(ctx, &pod, metav1.CreateOptions{})
+		return err
+	}
+
+	func DeletePod(ctx context.Context, clientset *kubernetes.Clientset, namespace string, name string) error {
+		if err := clientset.CoreV1().Pods(namespace).Delete(ctx, name, metav1.DeleteOptions{}); err != nil {
+			if !apierrors.IsNotFound(err) {
+				return err
+			}
+		}
+		return nil
+	}
+
+	func WaitForPodsRunning(ctx context.Context, clientset *kubernetes.Clientset, namespace, labelselector string) error {
+		podsClient := clientset.CoreV1().Pods(namespace)
+
+		checkPodIPsFn := func() error {
+			podList, err := podsClient.List(ctx, metav1.ListOptions{LabelSelector: labelselector})
+			if err != nil {
+				return errors.Wrapf(err, "could not list pods with label selector %s", labelselector)
+			}
+
+			if len(podList.Items) == 0 {
+				return errors.New("no pods scheduled")
+			}
+
+			for _, pod := range podList.Items {
+				if pod.Status.Phase == corev1.PodPending {
+					return errors.New("some pods still pending")
+				}
+			}
+
+			for _, pod := range podList.Items {
+				if pod.Status.PodIP == "" {
+					return errors.New("a pod has not been allocated an IP")
+				}
+			}
+
+			return nil
+		}
+
+		// retrier := retry.Retrier{Attempts: RetryAttempts, Delay: RetryDelay}
+		return defaultRetrier.Do(ctx, checkPodIPsFn)
+	}
+*/
+func podTest(ctx context.Context, clientset *kubernetes.Clientset, srcPod *apiv1.Pod, cmd []string, rc *restclient.Config, passFunc func(string) error) error {
+	logrus.Infof("podTest() -  %v %v", srcPod.Name, cmd)
+	output, err := k8sutils.ExecCmdOnPod(ctx, clientset, srcPod.Namespace, srcPod.Name, cmd, rc)
+	// output, err := k8sShim.ExecPodsByLabelSelector(ctx, srcPod.Namespace, fmt.Sprintf("app=%s", srcPod.Name), srcPod.Spec.Containers[0].Name, cmd, rc)
+	if err != nil {
+		return err
+	}
+	return passFunc(string(output))
+}
+
+// logrus.Infof("could not get k8s clientset: %v", err)
+func windowsPodToPodPingTestSameNode(ctx context.Context, clientset *kubernetes.Clientset, nodeName string, labelSelector string, rc *restclient.Config) error {
+	logrus.Info("P2P Ping Test - Get Nodes")
+	pods, err := k8sutils.GetPodsByNode(ctx, clientset, podNamespace, labelSelector, nodeName)
+	if err != nil {
+		logrus.Fatalf("could not get k8s clientset: %v", err) // Rename log
+	}
+	if len(pods.Items) < 2 {
+		return fmt.Errorf("Only %d pods on node %s, requires at least 2 pods", len(pods.Items), nodeName)
+	}
+	podMap := make(map[int]string)
+	for i, pod := range pods.Items {
+		podMap[i] = pod.Name
+	}
+
+	// Get first pod on this node
+	// firstPod, err := k8sShim.GetPod(ctx, node.allocatedNCs[0].PodNamespace, node.allocatedNCs[0].PodName)
+
+	firstPod, err := clientset.CoreV1().Pods(podNamespace).Get(ctx, podMap[0], metav1.GetOptions{})
+	if err != nil {
+		return errors.Wrap(err, fmt.Sprintf("Getting pod %s failed with %v", podMap[0], err))
+	}
+	logrus.Infof("P2P Ping Test - First pod: %v", firstPod.Name)
+
+	// Get the second pod on this node
+	// secondPod, err := k8sShim.GetPod(ctx, node.allocatedNCs[1].PodNamespace, node.allocatedNCs[1].PodName)
+	secondPod, err := clientset.CoreV1().Pods(podNamespace).Get(ctx, podMap[1], metav1.GetOptions{})
+	if err != nil {
+		return errors.Wrap(err, fmt.Sprintf("Getting pod %s failed with %v", podMap[1], err))
+	}
+	logrus.Infof("P2P Ping Test - Second pod: %v", secondPod.Name)
+
+	// Ping the second pod from the first pod
+	return podTest(ctx, clientset, firstPod, []string{"ping", secondPod.Status.PodIP}, rc, pingPassedWindows)
+}
+
+/*
+	func windowsPodToPodPingTestDiffNode(ctx context.Context, nodeName1, nodeName2 string, node1, node2 *nodeInfo, rc *restclient.Config) error {
+		// Get first pod on node1
+		// firstPod, err := k8sShim.GetPod(ctx, node1.allocatedNCs[0].PodNamespace, node1.allocatedNCs[0].PodName)
+		firstPod, err := k8sShim.Clientset.CoreV1().Pods(node1.allocatedNCs[0].PodNamespace).Get(ctx, node1.allocatedNCs[0].PodName, metav1.GetOptions{})
+		if err != nil {
+			return errors.Wrap(err, fmt.Sprintf("Getting pod %s failed with %v", node1.allocatedNCs[0].PodName, err))
+		}
+
+		// Get the second pod on node2
+		// secondPod, err := k8sShim.GetPod(ctx, node2.allocatedNCs[0].PodNamespace, node2.allocatedNCs[0].PodName)
+		secondPod, err := k8sShim.Clientset.CoreV1().Pods(node2.allocatedNCs[0].PodNamespace).Get(ctx, node2.allocatedNCs[0].PodName, metav1.GetOptions{})
+		if err != nil {
+			return errors.Wrap(err, fmt.Sprintf("Getting pod %s failed with %v", node2.allocatedNCs[0].PodName, err))
+		}
+
+		// Ping the second pod from the first pod
+		// podTest(ctx context.Context, clientset, srcPod *apiv1.Pod, cmd []string, rc *restclient.Config, passFunc func(string) error)
+		return podTest(ctx, clientset, firstPod, []string{"ping", secondPod.Status.PodIP}, rc, pingPassedWindows)
+	}
+
+	func windowsPodToNode(ctx context.Context, nodeName string, node *nodeInfo, rc *restclient.Config) error {
+		if len(node.allocatedNCs) < 2 {
+			return fmt.Errorf("Only %d pods on node %s, requires at least 2 pods", len(node.allocatedNCs), nodeName)
+		}
+
+		// Get first pod on this node
+		// firstPod, err := k8sShim.GetPod(ctx, node.allocatedNCs[0].PodNamespace, node.allocatedNCs[0].PodName)
+		firstPod, err := k8sShim.Clientset.CoreV1().Pods(node.allocatedNCs[0].PodNamespace).Get(ctx, node.allocatedNCs[0].PodName, metav1.GetOptions{})
+		if err != nil {
+			return errors.Wrap(err, fmt.Sprintf("Getting pod %s failed with %v", node.allocatedNCs[0].PodName, err))
+		}
+
+		// Get the second pod on this node
+		// secondPod, err := k8sShim.GetPod(ctx, node.allocatedNCs[1].PodNamespace, node.allocatedNCs[1].PodName)
+		secondPod, err := k8sShim.Clientset.CoreV1().Pods(node.allocatedNCs[1].PodNamespace).Get(ctx, node.allocatedNCs[1].PodName, metav1.GetOptions{})
+		if err != nil {
+			return errors.Wrap(err, fmt.Sprintf("Getting pod %s failed with %v", node.allocatedNCs[1].PodName, err))
+		}
+
+		// ping from first and second pod to node
+		resultOne := podTest(ctx, clientset, firstPod, []string{"ping", node.ip}, rc, pingPassedWindows)
+		resultTwo := podTest(ctx, clientset, secondPod, []string{"ping", node.ip}, rc, pingPassedWindows)
+
+		if resultOne != nil {
+			return resultOne
+		}
+
+		if resultTwo != nil {
+			return resultTwo
+		}
+
+		return nil
+	}
+
+	func windowsPodToInternet(ctx context.Context, nodeName string, node *nodeInfo, rc *restclient.Config) error {
+		// Get first pod on this node
+		// firstPod, err := k8sShim.GetPod(ctx, node.allocatedNCs[0].PodNamespace, node.allocatedNCs[0].PodName)
+		firstPod, err := k8sShim.Clientset.CoreV1().Pods(node.allocatedNCs[0].PodNamespace).Get(ctx, node.allocatedNCs[0].PodName, metav1.GetOptions{})
+		if err != nil {
+			return errors.Wrap(err, fmt.Sprintf("Getting pod %s failed with %v", node.allocatedNCs[0].PodName, err))
+		}
+
+		// Get the second pod on this node
+		// secondPod, err := GetPod(ctx, node.allocatedNCs[1].PodNamespace, node.allocatedNCs[1].PodName)
+		secondPod, err := k8sShim.Clientset.CoreV1().Pods(node.allocatedNCs[1].PodNamespace).Get(ctx, node.allocatedNCs[1].PodName, metav1.GetOptions{})
+		if err != nil {
+			return errors.Wrap(err, fmt.Sprintf("Getting pod %s failed with %v", node.allocatedNCs[1].PodName, err))
+		}
+
+		resultOne := podTest(ctx, firstPod, []string{"Invoke-RestMethod -Uri", "bing.com"}, rc, invokeWebRequestPassedWindows)
+		resultTwo := podTest(ctx, secondPod, []string{"Invoke-RestMethod -Uri", "bing.com"}, rc, invokeWebRequestPassedWindows)
+
+		if resultOne != nil {
+			return resultOne
+		}
+
+		if resultTwo != nil {
+			return resultTwo
+		}
+
+		return nil
+	}
+*/
+func invokeWebRequestPassedWindows(output string) error {
+	const searchString = "200 OK"
+	if strings.Contains(output, searchString) {
+		return nil
+	}
+	return fmt.Errorf("Output did not contain \"%s\", considered failed, output was: %s", searchString, output)
+}
+
+func pingPassedWindows(output string) error {
+	const searchString = "0% loss"
+	if strings.Contains(output, searchString) {
+		return nil
+	}
+	return fmt.Errorf("Output did not contain \"%s\", considered failed, output was: %s", searchString, output)
+}

@@ -18,6 +18,15 @@ func GetNodeList(ctx context.Context, clientset *kubernetes.Clientset) (*corev1.
 	return nodes, nil
 }
 
+func GetNodeListByLabelSelector(ctx context.Context, clientset *kubernetes.Clientset, labelSelector string) (*corev1.NodeList, error) {
+	nodes, err := clientset.CoreV1().Nodes().List(ctx, metav1.ListOptions{LabelSelector: labelSelector})
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to get nodes with labelselector: %s", labelSelector)
+	}
+
+	return nodes, nil
+}
+
 func GetPodsByNode(ctx context.Context, clientset *kubernetes.Clientset, namespace, labelselector, nodeName string) (*corev1.PodList, error) {
 	pods, err := clientset.CoreV1().Pods(namespace).List(ctx, metav1.ListOptions{
 		FieldSelector: "spec.nodeName=" + nodeName,
