@@ -101,6 +101,13 @@ steps:
     displayName: "Run HostPort Conformance Tests"
 
   - script: |
+      echo "Run wireserver and metadata connectivity Tests"
+      bash test/network/wireserver_metadata_test.sh
+    retryCountOnTaskFailure: 3
+    name: "WireserverMetadataConnectivityTests"
+    displayName: "Run Wireserver and Metadata Connectivity Tests"
+
+  - script: |
       ARTIFACT_DIR=$(Build.ArtifactStagingDirectory)/aks-swift-output/
       echo $ARTIFACT_DIR
       sudo rm -rf $ARTIFACT_DIR

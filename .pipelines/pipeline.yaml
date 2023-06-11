@@ -4,22 +4,22 @@ pr:
       - master
   paths:
     exclude:
-      - ".devcontainer"
-      - ".hooks"
-      - ".vscode"
-      - ".github"
-      - docs
+    - ".devcontainer"
+    - ".hooks"
+    - ".vscode"
+    - ".github"
+    - docs
 
 trigger:
   paths:
     exclude:
-      - docs
-      - "zapai/*"
-      - "azure-ipam/*"
-      - "dropgz/*"
+    - docs
+    - "zapai/*"
+    - "azure-ipam/*"
+    - "dropgz/*"
   tags:
     include:
-      - "*"
+    - "*"
 
 stages:
   - stage: setup
@@ -256,7 +256,7 @@ stages:
               echo $TAG
               echo $CURRENT_VERSION
               echo "Checking if branch up to date with master"
-
+  
   - stage: publish
     displayName: Publish Multiarch Manifests
     dependsOn:
@@ -369,7 +369,7 @@ stages:
               echo $TAG
               echo $CURRENT_VERSION
               echo "Checking if branch is up to date with master"
-
+  
   - stage: cleanup
     displayName: Cleanup
     dependsOn:

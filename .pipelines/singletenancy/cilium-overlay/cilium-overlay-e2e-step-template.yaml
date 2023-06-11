@@ -166,25 +166,7 @@ steps:
 
   - script: |
       echo "Run wireserver and metadata connectivity Tests"
-      cat test/integration/manifests/jobs/wget-job.yaml | sed 's/{address}/168.63.129.16/g; s/{path}/machine\/plugins?comp=nmagent\&type=getinterfaceinfov1/g'|kubectl apply -f -
-      kubectl wait --for=condition=complete --timeout=6s job wget-test
-      if [ $? -eq 0 ]; then
-        echo "wireserver connectivity test succeeded instead of failing as expected"
-        kubectl logs job/wget-test
-        kubectl get job wget-test -o yaml
-        exit 1
-      fi
-      kubectl delete job wget-test
-      sleep 1
-      cat test/integration/manifests/jobs/wget-job.yaml | sed 's/{address}/169.254.169.254/g; s/{path}/metadata\/instance?api-version=2021-02-01/g'| kubectl apply -f -
-      kubectl wait --for=condition=complete --timeout=6s job   wget-test
-      if [ $? -ne 0 ]; then
-        echo "metadata connectivity test failed"
-        kubectl logs job/wget-test
-        kubectl get job wget-test -o yaml
-        exit 1
-      fi
-      kubectl delete job wget-test
+      bash test/network/wireserver_metadata_test.sh
     retryCountOnTaskFailure: 3
     name: "WireserverMetadataConnectivityTests"
     displayName: "Run Wireserver and Metadata Connectivity Tests"
