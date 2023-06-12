@@ -259,6 +259,7 @@ func (pMgr *PolicyManager) addPolicies(policies []*NPMNetworkPolicy, endpointLis
 			return err
 		}
 	}
+	return nil
 }
 
 // addPolicy will add the policy for each specified endpoint if the policy doesn't exist on the endpoint yet,
