@@ -8,8 +8,9 @@
 			"ipsToRouteViaHost": [
 				"169.254.20.10"
 			],
+			"executionMode": "v4swift",
 			"ipam": {
-				"mode": "overlay",
+				"mode": "v4overlay",
 				"type": "azure-cns"
 			},
 			"dns": {},

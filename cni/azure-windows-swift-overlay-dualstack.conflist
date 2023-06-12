@@ -13,7 +13,7 @@
             },
             "ipam": {
                 "type": "azure-cns",
-                "mode": "dualStackOverlay"
+                "mode": "overlay"
             },
             "dns": {
                 "Nameservers": [

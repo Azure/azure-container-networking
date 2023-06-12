@@ -53,6 +53,11 @@ type DualStackOverlayGenerator struct {
 	Writer io.WriteCloser
 }
 
+// OverlayGenerator generates the Azure CNI conflist for all Overlay scenarios
+type OverlayGenerator struct {
+	Writer io.WriteCloser
+}
+
 // CiliumGenerator generates the Azure CNI conflist for the Cilium scenario
 type CiliumGenerator struct {
 	Writer io.WriteCloser
@@ -67,6 +72,14 @@ func (v *V4OverlayGenerator) Close() error {
 }
 
 func (v *DualStackOverlayGenerator) Close() error {
+	if err := v.Writer.Close(); err != nil {
+		return errors.Wrap(err, "error closing generator")
+	}
+
+	return nil
+}
+
+func (v *OverlayGenerator) Close() error {
 	if err := v.Writer.Close(); err != nil {
 		return errors.Wrap(err, "error closing generator")
 	}

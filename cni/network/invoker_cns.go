@@ -135,7 +135,8 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 
 		ncgw := net.ParseIP(info.ncGatewayIPAddress)
 		if ncgw == nil {
-			if (invoker.ipamMode != util.V4Overlay) && (invoker.ipamMode != util.DualStackOverlay) {
+			// TODO: Remove v4overlay and dualstackoverlay options, after 'overlay' rolls out in AKS-RP
+			if (invoker.ipamMode != util.V4Overlay) && (invoker.ipamMode != util.DualStackOverlay) && (invoker.ipamMode != util.Overlay) {
 				return IPAMAddResult{}, errors.Wrap(errInvalidArgs, "%w: Gateway address "+info.ncGatewayIPAddress+" from response is invalid")
 			}
 
@@ -199,7 +200,8 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 
 		// set subnet prefix for host vm
 		// setHostOptions will execute if IPAM mode is not v4 overlay and not dualStackOverlay mode
-		if (invoker.ipamMode != util.V4Overlay) && (invoker.ipamMode != util.DualStackOverlay) {
+		// TODO: Remove v4overlay and dualstackoverlay options, after 'overlay' rolls out in AKS-RP
+		if (invoker.ipamMode != util.V4Overlay) && (invoker.ipamMode != util.DualStackOverlay) && (invoker.ipamMode != util.Overlay) {
 			if err := setHostOptions(ncIPNet, addConfig.options, &info); err != nil {
 				return IPAMAddResult{}, err
 			}
