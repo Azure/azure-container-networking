@@ -18,7 +18,7 @@ func (b *bufferWriteCloser) Close() error {
 }
 
 func TestGenerateV4OverlayConflist(t *testing.T) {
-	fixture := "testdata/fixtures/azure-linux-swift-overlay.conflist"
+	fixture := "testdata/fixtures/azure-linux-swift-v4overlay.conflist"
 
 	buffer := new(bytes.Buffer)
 	g := cniconflist.V4OverlayGenerator{Writer: &bufferWriteCloser{buffer}}

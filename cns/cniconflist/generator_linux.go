@@ -32,10 +32,11 @@ func (v *V4OverlayGenerator) Generate() error {
 			cni.NetworkConfig{
 				Type:              overlaycniType,
 				Mode:              cninet.OpModeTransparent,
+				ExecutionMode:     string(util.V4Swift),
 				IPsToRouteViaHost: []string{nodeLocalDNSIP},
 				IPAM: cni.IPAM{
 					Type: network.AzureCNS,
-					Mode: string(util.Overlay),
+					Mode: string(util.V4Overlay),
 				},
 			},
 			portmapConfig,
