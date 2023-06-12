@@ -414,10 +414,10 @@ func (dp *DataPlane) AddPolicy(policy *policies.NPMNetworkPolicy) error {
 // addPoliciesWithRetry tries adding all policies. If this fails, it tries adding policies one by one.
 // The caller must lock netPolQueue.
 func (dp *DataPlane) addPoliciesWithRetry(context string) {
-	policies := dp.netPolQueue.dump()
-	klog.Infof("[DataPlane] adding policies %+v", policies)
+	netPols := dp.netPolQueue.dump()
+	klog.Infof("[DataPlane] adding policies %+v", netPols)
 
-	err := dp.addPolicies(policies)
+	err := dp.addPolicies(netPols)
 	if err == nil {
 		// clear queue and return on success
 		klog.Infof("[DataPlane] [%s] added policies successfully", context)
@@ -429,16 +429,16 @@ func (dp *DataPlane) addPoliciesWithRetry(context string) {
 	metrics.SendErrorLogAndMetric(util.DaemonDataplaneID, "[DataPlane] [%s] failed to add policies. err: %s", context, err.Error())
 
 	// retry one policy at a time
-	for _, policy := range policies {
-		err = dp.addPolicies([]*policies.NPMNetworkPolicy{policy})
+	for _, netPol := range netPols {
+		err = dp.addPolicies([]*policies.NPMNetworkPolicy{netPol})
 		if err == nil {
 			// remove from queue on success
-			klog.Infof("[DataPlane] [%s] added policy successfully one at a time. policyKey: %s", context, policy.PolicyKey)
-			dp.netPolQueue.delete(policy.PolicyKey)
+			klog.Infof("[DataPlane] [%s] added policy successfully one at a time. policyKey: %s", context, netPol.PolicyKey)
+			dp.netPolQueue.delete(netPol.PolicyKey)
 		} else {
 			// keep in queue on failure
-			klog.Errorf("[DataPlane] [%s] failed to add policy one at a time. policyKey: %s. err: %s", context, policy.PolicyKey, err.Error())
-			metrics.SendErrorLogAndMetric(util.DaemonDataplaneID, "[DataPlane] [%s] failed to add policy one at a time. %s. err: %s", context, policy.PolicyKey, err.Error())
+			klog.Errorf("[DataPlane] [%s] failed to add policy one at a time. policyKey: %s. err: %s", context, netPol.PolicyKey, err.Error())
+			metrics.SendErrorLogAndMetric(util.DaemonDataplaneID, "[DataPlane] [%s] failed to add policy one at a time. %s. err: %s", context, netPol.PolicyKey, err.Error())
 		}
 	}
 }
