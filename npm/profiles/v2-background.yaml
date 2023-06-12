@@ -12,8 +12,8 @@ data:
         "ApplyMaxBatches":                100,
         "ApplyIntervalInMilliseconds":    500,
         "MaxBatchedACLsPerPod":           30,
-        "NetPolInvervalInMilliseconds": 500,
-        "MaxPendingNetPols":     100,
+        "NetPolInvervalInMilliseconds":   500,
+        "MaxPendingNetPols":              100,
         "Toggles": {
             "EnablePrometheusMetrics": true,
             "EnablePprof":             true,
