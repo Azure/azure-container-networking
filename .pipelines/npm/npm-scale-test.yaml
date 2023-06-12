@@ -78,10 +78,10 @@ jobs:
       FQDN: empty
     strategy:
       matrix:
-        # v2-linux:
-        #   PROFILE: "sc-lin"
-        #   NUM_NETPOLS: 800
-        #   INITIAL_CONNECTIVITY_TIMEOUT: 60
+        v2-linux:
+          PROFILE: "sc-lin"
+          NUM_NETPOLS: 800
+          INITIAL_CONNECTIVITY_TIMEOUT: 60
         ws22:
           PROFILE: "sc-ws22"
           NUM_NETPOLS: 50
