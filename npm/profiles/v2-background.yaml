@@ -21,6 +21,6 @@ data:
             "EnableV2NPM":             true,
             "PlaceAzureChainFirst":    true,
             "ApplyIPSetsOnNeed":       false,
-            "NetPolInBackground":    true
+            "NetPolInBackground":      true
         }
     }

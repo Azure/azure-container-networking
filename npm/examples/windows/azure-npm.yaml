@@ -156,6 +156,6 @@ data:
             "PlaceAzureChainFirst":    false,
             "ApplyIPSetsOnNeed":       false,
             "ApplyInBackground":       true,
-            "NetPolInBackground":    true
+            "NetPolInBackground":      true
         }
     }

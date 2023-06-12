@@ -50,7 +50,6 @@ var DefaultConfig = Config{
 		// ApplyInBackground is currently used in Windows to apply the following in background: IPSets and NetPols for new/updated Pods
 		ApplyInBackground: true,
 		// NetPolInBackground is currently used in Linux to apply NetPol controller Add events in the background
-
 		NetPolInBackground: true,
 	},
 }
