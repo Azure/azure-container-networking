@@ -216,7 +216,6 @@ func (q *netPolQueue) enqueue(policy *policies.NPMNetworkPolicy) {
 
 	klog.Infof("[DataPlane] enqueuing policy %s in netPolQueue", policy.PolicyKey)
 	q.toAdd[policy.PolicyKey] = policy
-	return
 }
 
 // delete removes the NetPol from the queue

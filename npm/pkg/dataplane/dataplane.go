@@ -443,29 +443,29 @@ func (dp *DataPlane) addPoliciesWithRetry(context string) {
 	}
 }
 
-func (dp *DataPlane) addPolicies(policies []*policies.NPMNetworkPolicy) error {
-	if !dp.netPolInBackground && len(policies) != 1 {
+func (dp *DataPlane) addPolicies(netPols []*policies.NPMNetworkPolicy) error {
+	if !dp.netPolInBackground && len(netPols) != 1 {
 		klog.Errorf("[DataPlane] expected to have one NetPol in dp.addPolicies() since dp.netPolInBackground == false")
 		metrics.SendErrorLogAndMetric(util.DaemonDataplaneID, "[DataPlane] expected to have one NetPol in dp.addPolicies() since dp.netPolInBackground == false")
 		return ErrIncorrectNumberOfNetPols
 	}
 
-	if len(policies) == 0 {
+	if len(netPols) == 0 {
 		klog.Infof("[DataPlane] expected to have at least one NetPol in dp.addPolicies()")
 		return nil
 	}
 
 	// 1. Add IPSets
-	for _, policy := range policies {
+	for _, netPol := range netPols {
 		// Create and add references for Selector IPSets first
-		err := dp.createIPSetsAndReferences(policy.AllPodSelectorIPSets(), policy.PolicyKey, ipsets.SelectorType)
+		err := dp.createIPSetsAndReferences(netPol.AllPodSelectorIPSets(), netPol.PolicyKey, ipsets.SelectorType)
 		if err != nil {
 			klog.Infof("[DataPlane] error while adding Selector IPSet references: %s", err.Error())
 			return fmt.Errorf("[DataPlane] error while adding Selector IPSet references: %w", err)
 		}
 
 		// Create and add references for Rule IPSets
-		err = dp.createIPSetsAndReferences(policy.RuleIPSets, policy.PolicyKey, ipsets.NetPolType)
+		err = dp.createIPSetsAndReferences(netPol.RuleIPSets, netPol.PolicyKey, ipsets.NetPolType)
 		if err != nil {
 			klog.Infof("[DataPlane] error while adding Rule IPSet references: %s", err.Error())
 			return fmt.Errorf("[DataPlane] error while adding Rule IPSet references: %w", err)
@@ -489,14 +489,14 @@ func (dp *DataPlane) addPolicies(policies []*policies.NPMNetworkPolicy) error {
 			return err
 		}
 
-		endpointList, err = dp.getEndpointsToApplyPolicies(policies)
+		endpointList, err = dp.getEndpointsToApplyPolicies(netPols)
 		if err != nil {
 			return fmt.Errorf("[DataPlane] error while getting endpoints to apply policy after applying dataplane: %w", err)
 		}
 	}
 
 	// endpointList will be empty if in bootup phase
-	err = dp.policyMgr.AddPolicies(policies, endpointList)
+	err = dp.policyMgr.AddPolicies(netPols, endpointList)
 	if err != nil {
 		return fmt.Errorf("[DataPlane] error while adding policies: %w", err)
 	}

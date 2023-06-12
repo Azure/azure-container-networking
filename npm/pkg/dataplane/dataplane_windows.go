@@ -292,17 +292,17 @@ func (dp *DataPlane) getSelectorIPSets(policy *policies.NPMNetworkPolicy) map[st
 	return selectorIpSets
 }
 
-func (dp *DataPlane) getEndpointsToApplyPolicies(policies []*policies.NPMNetworkPolicy) (map[string]string, error) {
-	if len(policies) != 1 {
+func (dp *DataPlane) getEndpointsToApplyPolicies(netPols []*policies.NPMNetworkPolicy) (map[string]string, error) {
+	if len(netPols) != 1 {
 		return nil, ErrIncorrectNumberOfNetPols
 	}
 
-	var policy *policies.NPMNetworkPolicy
-	for _, p := range policies {
-		policy = p
+	var netPol *policies.NPMNetworkPolicy
+	for _, n := range netPols {
+		netPol = n
 	}
 
-	selectorIPSets := dp.getSelectorIPSets(policy)
+	selectorIPSets := dp.getSelectorIPSets(netPol)
 	netpolSelectorIPs, err := dp.ipsetMgr.GetIPsFromSelectorIPSets(selectorIPSets)
 	if err != nil {
 		return nil, err
@@ -327,7 +327,7 @@ func (dp *DataPlane) getEndpointsToApplyPolicies(policies []*policies.NPMNetwork
 		}
 
 		endpointList[ip] = endpoint.id
-		endpoint.netPolReference[policy.PolicyKey] = struct{}{}
+		endpoint.netPolReference[netPol.PolicyKey] = struct{}{}
 	}
 	return endpointList, nil
 }
