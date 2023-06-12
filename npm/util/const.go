@@ -207,8 +207,6 @@ const (
 	NegationPrefix string = "not-"
 
 	SetPolicyDelimiter string = ","
-
-	TmpIPSetReferenceDelimiter string = "TMP-"
 )
 
 const (

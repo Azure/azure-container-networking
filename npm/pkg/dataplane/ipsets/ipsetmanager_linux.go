@@ -65,38 +65,36 @@ var (
 )
 
 /*
-based on ipset list output with azure-npm- prefix, create an ipset restore file where we flush all sets first, then destroy all sets
+	based on ipset list output with azure-npm- prefix, create an ipset restore file where we flush all sets first, then destroy all sets
 
-NOTE: the behavior has changed to run two separate restore files. The first to flush all, the second to destroy all. In between restores,
-we determine if there are any sets with leaked ipset reference counts. We ignore destroys for those sets in-line with v1.
+	NOTE: the behavior has changed to run two separate restore files. The first to flush all, the second to destroy all. In between restores,
+	we determine if there are any sets with leaked ipset reference counts. We ignore destroys for those sets in-line with v1.
 
-overall error handling:
-- if flush fails because the set doesn't exist (should never happen because we're listing sets right before), then ignore it and the destroy
-- if flush fails otherwise, then add to destroyFailureCount and continue (aborting the destroy too)
-- if destroy fails because the set doesn't exist (should never happen since the flush operation would have worked), then ignore it
-- if destroy fails for another reason, then ignore it and add to destroyFailureCount and mark for reconcile (TODO)
+	overall error handling:
+	- if flush fails because the set doesn't exist (should never happen because we're listing sets right before), then ignore it and the destroy
+	- if flush fails otherwise, then add to destroyFailureCount and continue (aborting the destroy too)
+	- if destroy fails because the set doesn't exist (should never happen since the flush operation would have worked), then ignore it
+	- if destroy fails for another reason, then ignore it and add to destroyFailureCount and mark for reconcile (TODO)
 
-example:
+	example:
+		grep output:
+			azure-npm-123456
+			azure-npm-987654
+			azure-npm-777777
 
-	grep output:
-		azure-npm-123456
-		azure-npm-987654
-		azure-npm-777777
+		example restore file [flag meanings: -F (flush), -X (destroy)]:
+			-F azure-npm-123456
+			-F azure-npm-987654
+			-F azure-npm-777777
+			-X azure-npm-123456
+			-X azure-npm-987654
+			-X azure-npm-777777
 
-	example restore file [flag meanings: -F (flush), -X (destroy)]:
-		-F azure-npm-123456
-		-F azure-npm-987654
-		-F azure-npm-777777
-		-X azure-npm-123456
-		-X azure-npm-987654
-		-X azure-npm-777777
-
-prometheus metrics:
-
-	After this function, NumIPSets should be 0 or the number of NPM IPSets that existed and failed to be destroyed.
-	When NPM restarts, Prometheus metrics will initialize at 0, but NPM IPSets may exist.
-	We will reset ipset entry metrics if the restore succeeds whether or not some flushes/destroys failed (NOTE: this is different behavior than v1).
-	If a flush fails, we could update the num entries for that set, but that would be a lot of overhead.
+	prometheus metrics:
+		After this function, NumIPSets should be 0 or the number of NPM IPSets that existed and failed to be destroyed.
+		When NPM restarts, Prometheus metrics will initialize at 0, but NPM IPSets may exist.
+		We will reset ipset entry metrics if the restore succeeds whether or not some flushes/destroys failed (NOTE: this is different behavior than v1).
+		If a flush fails, we could update the num entries for that set, but that would be a lot of overhead.
 */
 func (iMgr *IPSetManager) resetIPSets() error {
 	if success := iMgr.resetWithoutRestore(); success {
@@ -378,7 +376,6 @@ func (iMgr *IPSetManager) applyIPSetsWithSaveFile() error {
 See error handling in applyIPSetsWithSaveFile().
 
 overall format for ipset restore file:
-
 	[creates]  (random order)
 	[deletes and adds] (sets in random order, where each set has deletes first (random order), then adds (random order))
 	[flushes]  (random order)
@@ -481,7 +478,6 @@ func (iMgr *IPSetManager) fileCreatorForApplyWithSaveFile(maxTryCount int, saveF
 // NOTE: duplicate code in the first step in this function and fileCreatorForApplyWithSaveFile
 func (iMgr *IPSetManager) fileCreatorForApply(maxTryCount int) *ioutil.FileCreator {
 	creator := ioutil.NewFileCreator(iMgr.ioShim, maxTryCount, ipsetRestoreLineFailurePattern) // TODO make the line failure pattern into a definition constant eventually
-	creator.Verbose()
 
 	// 1. create all sets first so we don't try to add a member set to a list if it hasn't been created yet
 	setsToAddOrUpdate := iMgr.dirtyCache.setsToAddOrUpdate()
@@ -778,13 +774,6 @@ func (iMgr *IPSetManager) deleteMemberForApply(creator *ioutil.FileCreator, set 
 			},
 		},
 	}
-
-	nomatchWithSpace := " " + util.IpsetNomatch
-	if len(member) > len(nomatchWithSpace) && member[len(member)-len(nomatchWithSpace):] == nomatchWithSpace {
-		// remove the nomatch suffix from the member (ipset syntax doesn't allow it for deletion)
-		member = member[:len(member)-len(nomatchWithSpace)]
-	}
-
 	creator.AddLine(sectionID, errorHandlers, ipsetDeleteFlag, set.HashedName, member) // delete member
 }
 

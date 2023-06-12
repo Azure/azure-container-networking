@@ -556,11 +556,19 @@ func (dp *DataPlane) RemovePolicy(policyKey string) error {
 
 	}
 
-	if err := dp.applyDataPlaneNow(contextApplyDP); err != nil {
+	// Remove references for Rule IPSets first
+	err = dp.deleteIPSetsAndReferences(policy.RuleIPSets, policy.PolicyKey, ipsets.NetPolType)
+	if err != nil {
 		return err
 	}
 
-	return nil
+	// Remove references for Selector IPSets
+	err = dp.deleteIPSetsAndReferences(policy.AllPodSelectorIPSets(), policy.PolicyKey, ipsets.SelectorType)
+	if err != nil {
+		return err
+	}
+
+	return dp.applyDataPlaneNow(contextApplyDP)
 }
 
 // UpdatePolicy takes in updated policy object, calculates the delta and applies changes
@@ -675,11 +683,10 @@ func (dp *DataPlane) deleteIPSetsAndReferences(sets []*ipsets.TranslatedIPSet, n
 			}
 		}
 
-		if !dp.netPolInBackground {
-			// Try to delete these IPSets
-			dp.ipsetMgr.DeleteIPSet(set.Metadata.GetPrefixName(), false)
-		}
-
+		// Try to delete these IPSets
+		// NOTE: if we ever remove destroy line, we must handle ipset -D for CIDR nomatch in Linux
+		// A delete-member call for "1.1.1.1/32 nomatch" would need to be "-D 1.1.1.1" instead of "-D 1.1.1.1/nomatch"
+		dp.ipsetMgr.DeleteIPSet(set.Metadata.GetPrefixName(), false)
 	}
 	return nil
 }
