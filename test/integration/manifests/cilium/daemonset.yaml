@@ -31,23 +31,23 @@ spec:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
             nodeSelectorTerms:
-              - matchExpressions:
-                  - key: kubernetes.azure.com/cluster
-                    operator: Exists
-                  - key: type
-                    operator: NotIn
-                    values:
-                      - virtual-kubelet
-                  - key: kubernetes.io/os
-                    operator: In
-                    values:
-                      - linux
+            - matchExpressions:
+              - key: kubernetes.azure.com/cluster
+                operator: Exists
+              - key: type
+                operator: NotIn
+                values:
+                - virtual-kubelet
+              - key: kubernetes.io/os
+                operator: In
+                values:
+                - linux
         podAntiAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
-            - labelSelector:
-                matchLabels:
-                  k8s-app: cilium
-              topologyKey: kubernetes.io/hostname
+          - labelSelector:
+              matchLabels:
+                k8s-app: cilium
+            topologyKey: kubernetes.io/hostname
       containers:
       - args:
         - --config-dir=/tmp/cilium/config-map
@@ -337,6 +337,27 @@ spec:
         - mountPath: /host/usr/lib
           name: host-usr-lib
           readOnly: true
+      - name: block-wireserver
+        image: $CILIUM_IMAGE_REGISTRY/cilium/cilium:$CILIUM_VERSION_TAG
+        imagePullPolicy: IfNotPresent
+        command:
+        - /bin/bash
+        - -cx
+        - |
+          iptables -t mangle -C FORWARD -d 168.63.129.16 -p tcp --dport 80 -j DROP
+          status=$?
+          set -e
+          if [ $status -eq 0 ]; then
+            echo "Skip adding iptables as it already exists"
+          else
+            iptables -t mangle -I FORWARD -d 168.63.129.16 -p tcp --dport 80 -j DROP
+          fi
+        securityContext:
+          capabilities:
+            add:
+            - NET_ADMIN
+            drop:
+            - ALL
       nodeSelector:
         kubernetes.io/os: linux
       priorityClassName: system-node-critical
@@ -347,74 +368,74 @@ spec:
       serviceAccountName: cilium
       terminationGracePeriodSeconds: 1
       tolerations:
-        - key: CriticalAddonsOnly
-          operator: Exists
-        - effect: NoExecute
-          operator: Exists
-        - effect: NoSchedule
-          operator: Exists
+      - key: CriticalAddonsOnly
+        operator: Exists
+      - effect: NoExecute
+        operator: Exists
+      - effect: NoSchedule
+        operator: Exists
       volumes:
-        - hostPath:
-            path: /etc/systemd
-            type: DirectoryOrCreate
-          name: host-etc-systemd
-        - hostPath:
-            path: /lib/systemd
-            type: DirectoryOrCreate
-          name: host-lib-systemd
-        - hostPath:
-            path: /usr/lib
-            type: DirectoryOrCreate
-          name: host-usr-lib
-        - hostPath:
-            path: /var/run/cilium
-            type: DirectoryOrCreate
-          name: cilium-run
-        - hostPath:
-            path: /sys/fs/bpf
-            type: DirectoryOrCreate
-          name: bpf-maps
-        - hostPath:
-            path: /proc
-            type: Directory
-          name: hostproc
-        - hostPath:
-            path: /run/cilium/cgroupv2
-            type: DirectoryOrCreate
-          name: cilium-cgroup
-        - hostPath:
-            path: /opt/cni/bin
-            type: DirectoryOrCreate
-          name: cni-path
-        - hostPath:
-            path: /etc/cni/net.d
-            type: DirectoryOrCreate
-          name: etc-cni-netd
-        - hostPath:
-            path: /lib/modules
-            type: ""
-          name: lib-modules
-        - hostPath:
-            path: /run/xtables.lock
-            type: FileOrCreate
-          name: xtables-lock
-        - name: clustermesh-secrets
-          secret:
-            defaultMode: 256
-            optional: true
-            secretName: cilium-clustermesh
-        - configMap:
-            defaultMode: 420
-            name: cilium-config
-          name: cilium-config-path
-        - hostPath:
-            path: /proc/sys/net
-            type: Directory
-          name: host-proc-sys-net
-        - hostPath:
-            path: /proc/sys/kernel
-            type: Directory
-          name: host-proc-sys-kernel
+      - hostPath:
+          path: /etc/systemd
+          type: DirectoryOrCreate
+        name: host-etc-systemd
+      - hostPath:
+          path: /lib/systemd
+          type: DirectoryOrCreate
+        name: host-lib-systemd
+      - hostPath:
+          path: /usr/lib
+          type: DirectoryOrCreate
+        name: host-usr-lib
+      - hostPath:
+          path: /var/run/cilium
+          type: DirectoryOrCreate
+        name: cilium-run
+      - hostPath:
+          path: /sys/fs/bpf
+          type: DirectoryOrCreate
+        name: bpf-maps
+      - hostPath:
+          path: /proc
+          type: Directory
+        name: hostproc
+      - hostPath:
+          path: /run/cilium/cgroupv2
+          type: DirectoryOrCreate
+        name: cilium-cgroup
+      - hostPath:
+          path: /opt/cni/bin
+          type: DirectoryOrCreate
+        name: cni-path
+      - hostPath:
+          path: /etc/cni/net.d
+          type: DirectoryOrCreate
+        name: etc-cni-netd
+      - hostPath:
+          path: /lib/modules
+          type: ""
+        name: lib-modules
+      - hostPath:
+          path: /run/xtables.lock
+          type: FileOrCreate
+        name: xtables-lock
+      - name: clustermesh-secrets
+        secret:
+          defaultMode: 256
+          optional: true
+          secretName: cilium-clustermesh
+      - configMap:
+          defaultMode: 420
+          name: cilium-config
+        name: cilium-config-path
+      - hostPath:
+          path: /proc/sys/net
+          type: Directory
+        name: host-proc-sys-net
+      - hostPath:
+          path: /proc/sys/kernel
+          type: Directory
+        name: host-proc-sys-kernel
   updateStrategy:
     rollingUpdate:
       maxSurge: 0
