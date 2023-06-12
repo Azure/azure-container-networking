@@ -394,7 +394,6 @@ func (pMgr *PolicyManager) creatorForBootup(currentChains map[string]struct{}) *
 	// Step 2.1 in bootup() comment: cleanup old NPM chains, and configure base chains and their rules
 	// To leave NPM deactivated, don't specify any rules for AZURE-NPM chain.
 	creator := pMgr.newCreatorWithChains(chainsToCreate)
-	creator.Verbose()
 	pMgr.staleChains.empty()
 	for chain := range currentChains {
 		creator.AddLine("", nil, fmt.Sprintf("-F %s", chain))
