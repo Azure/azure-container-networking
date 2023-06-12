@@ -202,6 +202,10 @@ func newNetPolQueue() *netPolQueue {
 	}
 }
 
+func (q *netPolQueue) len() int {
+	return len(q.toAdd)
+}
+
 // enqueue adds a NetPol to the queue. If the NetPol already exists in the queue, the NetPol object is updated.
 func (q *netPolQueue) enqueue(policy *policies.NPMNetworkPolicy) {
 	if _, ok := q.toAdd[policy.PolicyKey]; ok {

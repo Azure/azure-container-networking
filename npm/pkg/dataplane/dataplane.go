@@ -175,12 +175,11 @@ func (dp *DataPlane) RunPeriodicTasks() {
 					// Technically, NetPol controller could be adding IPSets during this lock, but this is very fast.
 					// Preferring thread safety over optimized performance.
 					dp.netPolQueue.Lock()
-					policies := dp.netPolQueue.dump()
-					if len(policies) == 0 {
+					if dp.netPolQueue.len() == 0 {
 						dp.netPolQueue.Unlock()
 						continue
 					}
-					dp.addPoliciesWithRetry(contextBackground, policies)
+					dp.addPoliciesWithRetry(contextBackground)
 					dp.netPolQueue.Unlock()
 				}
 			}
@@ -401,21 +400,21 @@ func (dp *DataPlane) AddPolicy(policy *policies.NPMNetworkPolicy) error {
 	defer dp.netPolQueue.Unlock()
 
 	dp.netPolQueue.enqueue(policy)
-	policies := dp.netPolQueue.dump()
-	newCount := len(policies)
+	newCount := dp.netPolQueue.len()
 
 	klog.Infof("[DataPlane] [%s] new pending netpol count: %d", contextAddNetPol, newCount)
 
 	if newCount >= dp.MaxPendingNetPols {
 		klog.Infof("[DataPlane] [%s] applying now since reached maximum batch count: %d", contextAddNetPol, newCount)
-		dp.addPoliciesWithRetry(contextAddNetPol, policies)
+		dp.addPoliciesWithRetry(contextAddNetPol)
 	}
 	return nil
 }
 
 // addPoliciesWithRetry tries adding all policies. If this fails, it tries adding policies one by one.
 // The caller must lock netPolQueue.
-func (dp *DataPlane) addPoliciesWithRetry(context string, policies []*policies.NPMNetworkPolicy) {
+func (dp *DataPlane) addPoliciesWithRetry(context string) {
+	policies := dp.netPolQueue.dump()
 	klog.Infof("[DataPlane] adding policies %+v", policies)
 
 	err := dp.addPolicies(policies)
