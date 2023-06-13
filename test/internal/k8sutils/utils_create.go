@@ -22,8 +22,11 @@ func MustCreateOrUpdatePod(ctx context.Context, podI typedcorev1.PodInterface, p
 			return err
 		}
 	}
-	_, err := podI.Create(ctx, &pod, metav1.CreateOptions{})
-	return err
+	if _, err := podI.Create(ctx, &pod, metav1.CreateOptions{}); err != nil {
+		return errors.Wrapf(err, "failed to create pod %v", pod.Name)
+	}
+
+	return nil
 }
 
 func MustCreateDaemonset(ctx context.Context, daemonsets typedappsv1.DaemonSetInterface, ds appsv1.DaemonSet) error {
@@ -170,14 +173,4 @@ func MustCreateNamespace(ctx context.Context, clienset *kubernetes.Clientset, na
 		return errors.Wrapf(err, "failed to create namespace %v", namespace)
 	}
 	return nil
-}
-
-func CreateNamespace(ctx context.Context, clienset *kubernetes.Clientset, namespace string) error {
-	_, err := clienset.CoreV1().Namespaces().Create(ctx, &corev1.Namespace{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: namespace,
-		},
-	}, metav1.CreateOptions{})
-
-	return err
 }

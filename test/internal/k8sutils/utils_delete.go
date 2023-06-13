@@ -16,7 +16,7 @@ import (
 func MustDeletePod(ctx context.Context, podI typedcorev1.PodInterface, pod corev1.Pod) error {
 	if err := podI.Delete(ctx, pod.Name, metav1.DeleteOptions{}); err != nil {
 		if !apierrors.IsNotFound(err) {
-			return err
+			return errors.Wrap(err, "failed to delete pod")
 		}
 	}
 	return nil
