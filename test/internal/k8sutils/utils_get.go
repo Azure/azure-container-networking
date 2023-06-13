@@ -49,12 +49,3 @@ func GetPodsIpsByNode(ctx context.Context, clientset *kubernetes.Clientset, name
 	}
 	return ips, nil
 }
-
-func GetNodesIP(ctx context.Context, clientset *kubernetes.Clientset) (*corev1.NodeList, error) {
-	nodes, err := clientset.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to get nodes")
-	}
-
-	return nodes, nil
-}

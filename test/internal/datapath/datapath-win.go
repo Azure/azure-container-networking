@@ -24,7 +24,7 @@ func podTest(ctx context.Context, clientset *kubernetes.Clientset, srcPod *apiv1
 	return passFunc(string(output))
 }
 
-func windowsPodToPodPingTestSameNode(ctx context.Context, clientset *kubernetes.Clientset, nodeName string, podNamespace string, labelSelector string, rc *restclient.Config) error {
+func WindowsPodToPodPingTestSameNode(ctx context.Context, clientset *kubernetes.Clientset, nodeName string, podNamespace string, labelSelector string, rc *restclient.Config) error {
 	logrus.Info("Get Pods by Node")
 	pods, err := k8sutils.GetPodsByNode(ctx, clientset, podNamespace, labelSelector, nodeName)
 	if err != nil {
@@ -59,7 +59,7 @@ func windowsPodToPodPingTestSameNode(ctx context.Context, clientset *kubernetes.
 	return podTest(ctx, clientset, firstPod, []string{"ping", secondPod.Status.PodIP}, rc, pingPassedWindows)
 }
 
-func windowsPodToPodPingTestDiffNode(ctx context.Context, clientset *kubernetes.Clientset, nodeName1 string, nodeName2 string, podNamespace string, labelSelector string, rc *restclient.Config) error {
+func WindowsPodToPodPingTestDiffNode(ctx context.Context, clientset *kubernetes.Clientset, nodeName1 string, nodeName2 string, podNamespace string, labelSelector string, rc *restclient.Config) error {
 	logrus.Info("Get Pods by Node")
 	// Node 1
 	pods, err := k8sutils.GetPodsByNode(ctx, clientset, podNamespace, labelSelector, nodeName1)
@@ -86,7 +86,7 @@ func windowsPodToPodPingTestDiffNode(ctx context.Context, clientset *kubernetes.
 	return podTest(ctx, clientset, firstPod, []string{"ping", secondPod.Status.PodIP}, rc, pingPassedWindows)
 }
 
-func windowsPodToNode(ctx context.Context, clientset *kubernetes.Clientset, nodeName string, nodeIP string, podNamespace string, labelSelector string, rc *restclient.Config) error {
+func WindowsPodToNode(ctx context.Context, clientset *kubernetes.Clientset, nodeName string, nodeIP string, podNamespace string, labelSelector string, rc *restclient.Config) error {
 	logrus.Info("Get Pods by Node")
 	pods, err := k8sutils.GetPodsByNode(ctx, clientset, podNamespace, labelSelector, nodeName)
 	if err != nil {
@@ -126,7 +126,7 @@ func windowsPodToNode(ctx context.Context, clientset *kubernetes.Clientset, node
 	return nil
 }
 
-func windowsPodToInternet(ctx context.Context, clientset *kubernetes.Clientset, nodeName string, podNamespace string, labelSelector string, rc *restclient.Config) error {
+func WindowsPodToInternet(ctx context.Context, clientset *kubernetes.Clientset, nodeName string, podNamespace string, labelSelector string, rc *restclient.Config) error {
 	logrus.Info("Get Pods by Node")
 	pods, err := k8sutils.GetPodsByNode(ctx, clientset, podNamespace, labelSelector, nodeName)
 	if err != nil {
