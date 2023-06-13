@@ -43,6 +43,7 @@ type CNSConfig struct {
 	EnableCNIConflistGeneration          bool
 	CNIConflistFilepath                  string
 	PopulateHomeAzCacheRetryIntervalSecs int
+	MellanoxMonitorIntervalSecs          int
 }
 
 type TelemetrySettings struct {
