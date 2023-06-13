@@ -5,9 +5,8 @@ metadata:
 spec:
   containers:
     - name: windows-container
-      image: mcr.microsoft.com/oss/kubernetes/pause:3.6
-      # image: mcr.microsoft.com/dotnet/framework/samples:aspnetapp
-      # command: ["powershell"]
-      # args: ["sleep", "5000"]
+      image: mcr.microsoft.com/dotnet/framework/samples:aspnetapp
+      command: ["powershell"]
+      args: ["sleep", "5000"]
   nodeSelector:
     kubernetes.io/os: windows

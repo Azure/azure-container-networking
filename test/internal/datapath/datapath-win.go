@@ -25,7 +25,7 @@ func podTest(ctx context.Context, clientset *kubernetes.Clientset, srcPod *apiv1
 }
 
 func WindowsPodToPodPingTestSameNode(ctx context.Context, clientset *kubernetes.Clientset, nodeName string, podNamespace string, labelSelector string, rc *restclient.Config) error {
-	logrus.Info("Get Pods by Node")
+	logrus.Infof("Get Pods for Node: %s", nodeName)
 	pods, err := k8sutils.GetPodsByNode(ctx, clientset, podNamespace, labelSelector, nodeName)
 	if err != nil {
 		logrus.Fatalf("could not get k8s clientset: %v", err)
@@ -33,25 +33,18 @@ func WindowsPodToPodPingTestSameNode(ctx context.Context, clientset *kubernetes.
 	if len(pods.Items) < 2 {
 		return fmt.Errorf("Only %d pods on node %s, requires at least 2 pods", len(pods.Items), nodeName)
 	}
-	podMap := make(map[int]string)
-	for i, pod := range pods.Items {
-		podMap[i] = pod.Name
-	}
 
 	// Get first pod on this node
-	// firstPod, err := k8sShim.GetPod(ctx, node.allocatedNCs[0].PodNamespace, node.allocatedNCs[0].PodName)
-
-	firstPod, err := clientset.CoreV1().Pods(podNamespace).Get(ctx, podMap[0], metav1.GetOptions{})
+	firstPod, err := clientset.CoreV1().Pods(podNamespace).Get(ctx, pods.Items[0].Name, metav1.GetOptions{})
 	if err != nil {
-		return errors.Wrap(err, fmt.Sprintf("Getting pod %s failed with %v", podMap[0], err))
+		return errors.Wrap(err, fmt.Sprintf("Getting pod %s failed with %v", firstPod.Name, err))
 	}
 	logrus.Infof("First pod: %v", firstPod.Name)
 
 	// Get the second pod on this node
-	// secondPod, err := k8sShim.GetPod(ctx, node.allocatedNCs[1].PodNamespace, node.allocatedNCs[1].PodName)
-	secondPod, err := clientset.CoreV1().Pods(podNamespace).Get(ctx, podMap[1], metav1.GetOptions{})
+	secondPod, err := clientset.CoreV1().Pods(podNamespace).Get(ctx, pods.Items[1].Name, metav1.GetOptions{})
 	if err != nil {
-		return errors.Wrap(err, fmt.Sprintf("Getting pod %s failed with %v", podMap[1], err))
+		return errors.Wrap(err, fmt.Sprintf("Getting pod %s failed with %v", secondPod.Name, err))
 	}
 	logrus.Infof("Second pod: %v %v", secondPod.Name, secondPod.Status.PodIP)
 
@@ -60,7 +53,7 @@ func WindowsPodToPodPingTestSameNode(ctx context.Context, clientset *kubernetes.
 }
 
 func WindowsPodToPodPingTestDiffNode(ctx context.Context, clientset *kubernetes.Clientset, nodeName1 string, nodeName2 string, podNamespace string, labelSelector string, rc *restclient.Config) error {
-	logrus.Info("Get Pods by Node")
+	logrus.Infof("Get Pods for Node 1: %s", nodeName1)
 	// Node 1
 	pods, err := k8sutils.GetPodsByNode(ctx, clientset, podNamespace, labelSelector, nodeName1)
 	if err != nil {
@@ -72,6 +65,7 @@ func WindowsPodToPodPingTestDiffNode(ctx context.Context, clientset *kubernetes.
 	}
 	logrus.Infof("First pod: %v", firstPod.Name)
 
+	logrus.Infof("Get Pods for Node 2: %s", nodeName2)
 	// Node 2
 	pods, err = k8sutils.GetPodsByNode(ctx, clientset, podNamespace, labelSelector, nodeName2)
 	if err != nil {
@@ -83,11 +77,12 @@ func WindowsPodToPodPingTestDiffNode(ctx context.Context, clientset *kubernetes.
 	}
 	logrus.Infof("Second pod: %v %v", secondPod.Name, secondPod.Status.PodIP)
 
+	// Ping the second pod from the first pod located on different nodes
 	return podTest(ctx, clientset, firstPod, []string{"ping", secondPod.Status.PodIP}, rc, pingPassedWindows)
 }
 
 func WindowsPodToNode(ctx context.Context, clientset *kubernetes.Clientset, nodeName string, nodeIP string, podNamespace string, labelSelector string, rc *restclient.Config) error {
-	logrus.Info("Get Pods by Node")
+	logrus.Infof("Get Pods by Node: %s", nodeName)
 	pods, err := k8sutils.GetPodsByNode(ctx, clientset, podNamespace, labelSelector, nodeName)
 	if err != nil {
 		logrus.Fatalf("could not get k8s clientset: %v", err)
@@ -96,7 +91,6 @@ func WindowsPodToNode(ctx context.Context, clientset *kubernetes.Clientset, node
 		return fmt.Errorf("Only %d pods on node %s, requires at least 2 pods", len(pods.Items), nodeName)
 	}
 	// Get first pod on this node
-	// firstPod, err := k8sShim.GetPod(ctx, node.allocatedNCs[0].PodNamespace, node.allocatedNCs[0].PodName)
 	firstPod, err := clientset.CoreV1().Pods(podNamespace).Get(ctx, pods.Items[0].Name, metav1.GetOptions{})
 	if err != nil {
 		return errors.Wrap(err, fmt.Sprintf("Getting pod %s failed with %v", firstPod.Name, err))
@@ -104,14 +98,13 @@ func WindowsPodToNode(ctx context.Context, clientset *kubernetes.Clientset, node
 	logrus.Infof("First pod: %v", firstPod.Name)
 
 	// Get the second pod on this node
-	// secondPod, err := k8sShim.GetPod(ctx, node.allocatedNCs[1].PodNamespace, node.allocatedNCs[1].PodName)
 	secondPod, err := clientset.CoreV1().Pods(podNamespace).Get(ctx, pods.Items[1].Name, metav1.GetOptions{})
 	if err != nil {
 		return errors.Wrap(err, fmt.Sprintf("Getting pod %s failed with %v", secondPod.Name, err))
 	}
 	logrus.Infof("Second pod: %v", secondPod.Name)
 
-	// ping from first and second pod to node
+	// Ping from pod to node
 	resultOne := podTest(ctx, clientset, firstPod, []string{"ping", nodeIP}, rc, pingPassedWindows)
 	resultTwo := podTest(ctx, clientset, secondPod, []string{"ping", nodeIP}, rc, pingPassedWindows)
 
@@ -127,14 +120,13 @@ func WindowsPodToNode(ctx context.Context, clientset *kubernetes.Clientset, node
 }
 
 func WindowsPodToInternet(ctx context.Context, clientset *kubernetes.Clientset, nodeName string, podNamespace string, labelSelector string, rc *restclient.Config) error {
-	logrus.Info("Get Pods by Node")
+	logrus.Infof("Get Pods by Node: %s", nodeName)
 	pods, err := k8sutils.GetPodsByNode(ctx, clientset, podNamespace, labelSelector, nodeName)
 	if err != nil {
 		logrus.Fatalf("could not get k8s clientset: %v", err)
 	}
 
 	// Get first pod on this node
-	// firstPod, err := k8sShim.GetPod(ctx, node.allocatedNCs[0].PodNamespace, node.allocatedNCs[0].PodName)
 	firstPod, err := clientset.CoreV1().Pods(podNamespace).Get(ctx, pods.Items[0].Name, metav1.GetOptions{})
 	if err != nil {
 		return errors.Wrap(err, fmt.Sprintf("Getting pod %s failed with %v", firstPod.Name, err))
@@ -142,7 +134,6 @@ func WindowsPodToInternet(ctx context.Context, clientset *kubernetes.Clientset, 
 	logrus.Infof("First pod: %v", firstPod.Name)
 
 	// Get the second pod on this node
-	// secondPod, err := GetPod(ctx, node.allocatedNCs[1].PodNamespace, node.allocatedNCs[1].PodName)
 	secondPod, err := clientset.CoreV1().Pods(podNamespace).Get(ctx, pods.Items[1].Name, metav1.GetOptions{})
 	if err != nil {
 		return errors.Wrap(err, fmt.Sprintf("Getting pod %s failed with %v", secondPod.Name, err))
@@ -151,7 +142,6 @@ func WindowsPodToInternet(ctx context.Context, clientset *kubernetes.Clientset, 
 	// Can use curl, but need to have a certain version of powershell. Calls IWR by reference so use IWR.
 	resultOne := podTest(ctx, clientset, firstPod, []string{"powershell", "Invoke-WebRequest", "www.bing.com", "-UseBasicParsing"}, rc, invokeWebRequestPassedWindows)
 	resultTwo := podTest(ctx, clientset, secondPod, []string{"powershell", "Invoke-WebRequest", "www.bing.com", "-UseBasicParsing"}, rc, invokeWebRequestPassedWindows)
-	// resultTwo := podTest(ctx, clientset, secondPod, []string{"Invoke-RestMethod -Uri", "bing.com"}, rc, invokeWebRequestPassedWindows)
 
 	if resultOne != nil {
 		return resultOne

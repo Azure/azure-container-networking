@@ -15,15 +15,16 @@ import (
 )
 
 const (
-	WindowsPodYamlPath = "../manifests/datapath/windowspod.yaml"
-	podLabelKey        = "app"
-	podCount           = 2
+	WindowsDeployYamlPath = "../manifests/datapath/windowsdeploy.yaml"
+	podLabelKey           = "app"
+	podCount              = 2
+	nodepoolKey           = "agentpool"
 )
 
 var (
-	podPrefix         = flag.String("podName", "datapod", "Prefix for test pods")
-	podNamespace      = flag.String("namespace", "datapath-win", "Namespace for test pods")
-	nodeLabelSelector = flag.String("nodeLabelSelector", "agentpool=npwin", "Label selector for nodepool, keep under 6 characters")
+	podPrefix            = flag.String("podName", "datapod", "Prefix for test pods")
+	podNamespace         = flag.String("namespace", "datapath-win", "Namespace for test pods")
+	nodepoolNodeSelector = flag.String("nodepoolLabelSelector", "npwin", "Provides nodepool as a Node-Selector for pods")
 )
 
 /*
@@ -31,16 +32,16 @@ This test assumes that you have the current credentials loaded in your kubeconfi
 k8s cluster with a windows nodepool consisting of at least 2 windows nodes.
 
 To run the test use the following command as an example:
-go test -timeout 5m -count=1 test/integration/datapath/datapath-win_test.go -podName=acnpod -nodeLabelSelector="agentpool=npwina" -v
+go test -timeout 3m -count=1 test/integration/datapath/datapath-win_test.go -podName=acnpod -nodepoolLabelSelector=npwina
+
+This test checks pod to pod, pod to node, and pod to internet for datapath connectivity.
 
 Timeout context is controled by the -timeout flag.
-***Using the default a normal test takes
+***Test takes 70s ( 35s for test - 35s for image creation)
 
 */
 
 func TestDatapathWin(t *testing.T) {
-	// var err error
-
 	ctx := context.Background()
 
 	t.Log("Create Clientset")
@@ -51,26 +52,52 @@ func TestDatapathWin(t *testing.T) {
 	t.Log("Get REST config")
 	restConfig := k8sutils.MustGetRestConfig(t)
 
-	// Pod Namespace
-	t.Log("Create Namespace")
-	err = k8sutils.CreateNamespace(ctx, clientset, *podNamespace)
-	createPodFlag := apierrors.IsAlreadyExists(err)
-
-	// Pod Interface Getter
-	t.Log("Pod Interface")
-	podI := clientset.CoreV1().Pods(*podNamespace)
+	t.Log("Create Label Selectors")
+	podLabelSelector := fmt.Sprintf("%s=%s", podLabelKey, *podPrefix)
+	nodeLabelSelector := fmt.Sprintf("%s=%s", nodepoolKey, *nodepoolNodeSelector)
 
 	// Get NodeList WindowsNodePoolName
 	t.Log("Get Nodes")
-	nodes, err := k8sutils.GetNodeListByLabelSelector(ctx, clientset, *nodeLabelSelector)
+	nodes, err := k8sutils.GetNodeListByLabelSelector(ctx, clientset, nodeLabelSelector)
 	if err != nil {
 		require.NoError(t, err, "could not get k8s node list: %v", err)
 	}
 
-	podLabelSelector := fmt.Sprintf("%s=%s", podLabelKey, *podPrefix)
-	// Checks namespace already exists from previous test
-	if createPodFlag {
-		t.Log("Pod namespace already exists")
+	// Test Namespace
+	t.Log("Create Namespace")
+	err = k8sutils.CreateNamespace(ctx, clientset, *podNamespace)
+	createPodFlag := apierrors.IsAlreadyExists(err)
+
+	if !createPodFlag {
+		t.Log("Creating Windows pods through deployment")
+		deployment, err := k8sutils.MustParseDeployment(WindowsDeployYamlPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// Fields for overwritting existing deployment yaml.
+		// Defaults from flags will not change anything
+		deployment.Spec.Selector.MatchLabels[podLabelKey] = *podPrefix
+		deployment.Spec.Template.ObjectMeta.Labels[podLabelKey] = *podPrefix
+		deployment.Spec.Template.Spec.NodeSelector[nodepoolKey] = *nodepoolNodeSelector
+		deployment.Namespace = *podNamespace
+
+		deploymentsClient := clientset.AppsV1().Deployments(*podNamespace)
+		err = k8sutils.MustCreateDeployment(ctx, deploymentsClient, deployment)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		t.Log("Checking pods are running")
+		err = k8sutils.WaitForPodsRunning(ctx, clientset, *podNamespace, podLabelSelector)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Log("Successfully created customer windows pods")
+	} else if createPodFlag {
+		// Checks namespace already exists from previous test
+		t.Log("Namespace already exists")
+
 		t.Log("Checking Windows test environment ")
 		for _, node := range nodes.Items {
 
@@ -84,36 +111,14 @@ func TestDatapathWin(t *testing.T) {
 		}
 		t.Log("Windows test environment ready")
 	} else {
-		t.Log("Creating Windows pods")
-
-		podCounter := 0
-		for _, node := range nodes.Items {
-			for i := 0; i < podCount; i++ {
-				pod, err := k8sutils.MustParsePod(WindowsPodYamlPath)
-				require.NoError(t, err, "Parsing windows pod deployment failed")
-				pod.Spec.NodeSelector = make(map[string]string)
-				pod.Spec.NodeSelector["kubernetes.io/hostname"] = node.ObjectMeta.Name
-				pod.Name = fmt.Sprintf("%s-%d", *podPrefix, podCounter)
-				pod.Namespace = *podNamespace
-				pod.Labels = make(map[string]string)
-				pod.Labels[podLabelKey] = *podPrefix
-				err = k8sutils.MustCreateOrUpdatePod(ctx, podI, pod)
-				require.NoError(t, err, "Creating windows pods failed")
-				err = k8sutils.WaitForPodsRunning(ctx, clientset, pod.Namespace, podLabelSelector)
-				require.NoError(t, err, fmt.Sprintf("Deploying windows Pod: %s failed with error: %v", pod.Name, err))
-				t.Logf("Successfully deployed windows pod: %s", pod.Name)
-				podCounter += 1
-			}
-		}
-		t.Log("Successfully created customer windows pods")
+		t.Fatal("Create test environment skipped. Tearing test down.")
 	}
 
 	t.Run("Windows ping tests pod -> node", func(t *testing.T) {
 		// Windows ping tests between pods and node
 		t.Log("Windows Pod to Host Ping tests")
 		for _, node := range nodes.Items {
-			t.Log("Windows ping tests (2)")
-			// func windowsPodToNode(ctx context.Context, nodeName string, nodeIP string, labelSelector string, rc *restclient.Config) error {
+			t.Log("Windows ping tests (1)")
 			nodeIP := ""
 			for _, address := range node.Status.Addresses {
 				if address.Type == "InternalIP" {
@@ -132,7 +137,7 @@ func TestDatapathWin(t *testing.T) {
 
 	t.Run("Windows ping tests pod -> pod", func(t *testing.T) {
 		// Get NodeList WindowsNodePoolName
-		nodes, err := k8sutils.GetNodeListByLabelSelector(ctx, clientset, *nodeLabelSelector)
+		nodes, err := k8sutils.GetNodeListByLabelSelector(ctx, clientset, nodeLabelSelector)
 		if err != nil {
 			require.NoError(t, err, "could not get k8s node list: %v", err)
 		}
@@ -141,8 +146,7 @@ func TestDatapathWin(t *testing.T) {
 		for _, node := range nodes.Items {
 			if node.Status.NodeInfo.OperatingSystem == string(apiv1.Windows) {
 				// Pod to pod same node
-				// windowsPodToPodPingTestSameNode(ctx context.Context, clientset *kubernetes.Clientset, nodeName string, labelSelector string, rc *restclient.Config)
-				t.Log("Windows ping tests (1) - Same Node")
+				t.Log("Windows ping tests (2) - Same Node")
 				err := datapath.WindowsPodToPodPingTestSameNode(ctx, clientset, node.Name, *podNamespace, podLabelSelector, restConfig)
 				require.NoError(t, err, "Windows pod to pod, same node, ping test failed with %+v", err)
 				t.Logf("Windows pod to windows pod, same node, passed for node: %s", node.ObjectMeta.Name)
@@ -151,7 +155,7 @@ func TestDatapathWin(t *testing.T) {
 
 		// Pod to pod different node
 		for i := 0; i < len(nodes.Items); i++ {
-			t.Log("Windows ping tests (1) - Different Node")
+			t.Log("Windows ping tests (2) - Different Node")
 			firstNode := nodes.Items[i%2].Name
 			secondNode := nodes.Items[(i+1)%2].Name
 			err = datapath.WindowsPodToPodPingTestDiffNode(ctx, clientset, firstNode, secondNode, *podNamespace, podLabelSelector, restConfig)
@@ -162,9 +166,9 @@ func TestDatapathWin(t *testing.T) {
 	})
 
 	t.Run("Windows url tests pod -> internet", func(t *testing.T) {
-		// From windows pod to curl an URL
-		t.Log("Windows Pod to Internet tests")
-		nodes, err := k8sutils.GetNodeListByLabelSelector(ctx, clientset, *nodeLabelSelector)
+		// From windows pod to IWR a URL
+		t.Log("Windows ping tests (3) - Pod to Internet tests")
+		nodes, err := k8sutils.GetNodeListByLabelSelector(ctx, clientset, nodeLabelSelector)
 		if err != nil {
 			require.NoError(t, err, "could not get k8s node list: %v", err)
 		}

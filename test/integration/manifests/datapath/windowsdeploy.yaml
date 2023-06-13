@@ -1,0 +1,22 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: windows-pod
+  namespace: datapath-win
+spec:
+  replicas: 4
+  selector:
+    matchLabels:
+      app: datapod
+  template:
+    metadata:
+      labels:
+        app: datapod
+    spec:
+      containers:
+        - name: windows-container
+          image: mcr.microsoft.com/dotnet/framework/samples:aspnetapp
+          command: ["powershell"]
+          args: ["sleep", "5000"]
+      nodeSelector:
+        kubernetes.io/os: windows
