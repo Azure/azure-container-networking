@@ -455,7 +455,9 @@ func (dp *DataPlane) addPolicies(netPols []*policies.NPMNetworkPolicy) error {
 		return nil
 	}
 
-	// 1. Add IPSets
+	// 1. Add IPSets and apply for each NetPol.
+	// Apply IPSets after each NetworkPolicy unless ApplyInBackground=true and we're in the bootup phase (only happens for Windows currently)
+	wasInBootupPhase := true
 	for _, netPol := range netPols {
 		// Create and add references for Selector IPSets first
 		err := dp.createIPSetsAndReferences(netPol.AllPodSelectorIPSets(), netPol.PolicyKey, ipsets.SelectorType)
@@ -470,20 +472,29 @@ func (dp *DataPlane) addPolicies(netPols []*policies.NPMNetworkPolicy) error {
 			klog.Infof("[DataPlane] error while adding Rule IPSet references: %s", err.Error())
 			return fmt.Errorf("[DataPlane] error while adding Rule IPSet references: %w", err)
 		}
+
+		if dp.inBootupPhase() {
+			// During bootup phase, the Pod controller will not be running.
+			// We don't need to worry about adding Policies to Endpoints, so we don't need IPSets in the kernel yet.
+			// Ideally, we get all NetworkPolicies in the cache before the Pod controller starts
+			err = dp.incrementBatchAndApplyIfNeeded(contextAddNetPol)
+			if err != nil {
+				return err
+			}
+		} else {
+			wasInBootupPhase = false
+			err = dp.applyDataPlaneNow(contextAddNetPol)
+			if err != nil {
+				return err
+			}
+		}
 	}
 
-	// 2. Apply DataPlane & get endpoints
+	// 2. get Endpoints
 	var err error
 	var endpointList map[string]string
-	if dp.inBootupPhase() {
-		// During bootup phase, the Pod controller will not be running.
-		// We don't need to worry about adding Policies to Endpoints, so we don't need IPSets in the kernel yet.
-		// Ideally, we get all NetworkPolicies in the cache before the Pod controller starts
-		err = dp.incrementBatchAndApplyIfNeeded(contextAddNetPol)
-		if err != nil {
-			return err
-		}
-	} else {
+	if !dp.inBootupPhase() && wasInBootupPhase {
+		// for Windows, make sure we apply IPSets now since we're going to apply policies to Endpoints
 		err = dp.applyDataPlaneNow(contextAddNetPol)
 		if err != nil {
 			return err
