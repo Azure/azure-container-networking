@@ -103,9 +103,9 @@ func NewDataPlane(nodeName string, ioShim *common.IOShim, cfg *Config, stopChann
 	// do not let Windows netpol in background
 	dp.netPolInBackground = cfg.NetPolInBackground && !util.IsWindowsDP()
 	if dp.netPolInBackground {
-		klog.Infof("[DataPlane] dataplane configured to run iptables in background every %v or every %d calls to AddPolicy() or RemovePolicy()", dp.NetPolInterval, dp.MaxPendingNetPols)
+		klog.Infof("[DataPlane] dataplane configured to add netpols in background every %v or every %d calls to AddPolicy() or RemovePolicy()", dp.NetPolInterval, dp.MaxPendingNetPols)
 	} else {
-		klog.Info("[DataPlane] dataplane configured to NOT run iptables in background")
+		klog.Info("[DataPlane] dataplane configured to NOT add netpols in background")
 	}
 
 	err := dp.BootupDataplane()
