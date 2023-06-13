@@ -1,0 +1,23 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: win-load-test
+  namespace: load-test
+spec:
+  selector:
+    matchLabels:
+      os: windows
+      load-test: "true"
+  template:
+    metadata:
+      labels:
+        os: windows
+        load-test: "true"
+    spec:
+      containers:
+      - name: noop
+        image: mcr.microsoft.com/windows/nanoserver:ltsc2022
+        ports:
+          - containerPort: 80
+      nodeSelector:
+        "kubernetes.io/os": windows

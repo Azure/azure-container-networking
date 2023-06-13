@@ -1,0 +1,134 @@
+parameters:
+  dependsOn: ""
+  name: ""
+  clusterType: ""
+  clusterName: ""
+  nodeCount: ""
+  vmSize: ""
+  windowsVMSize: ""
+  os: ""
+  cni: ""
+
+stages:
+  - stage: createAKSclusterWindows
+    dependsOn: ${{ parameters.dependsOn }}
+    displayName: "Windows AKS Cluster ${{ parameters.cni }}"
+    jobs:
+      - job: create_aks_cluster_with_${{ parameters.name }}
+        steps:
+          - template: ../load-test-templates/create-cluster-template.yaml
+            parameters:
+              clusterType: ${{ parameters.clusterType }}
+              clusterName: ${{ parameters.clusterName }}
+              nodeCount: ${{ parameters.nodeCount }}
+              vmSize: ${{ parameters.vmSize }}
+              windowsVMSize: ${{ parameters.windowsVMSize }}
+  - stage: build_images
+    dependsOn: ${{ parameters.dependsOn }}
+    displayName: "Build CNI Images"
+    jobs:
+      - job: build_cni_images
+        pool:
+          name: "$(BUILD_POOL_NAME_LINUX_AMD64)"
+        strategy:
+          matrix:
+            windows_cniv1_amd64:
+              os: windows
+              name: cni-plugin
+              arch: amd64
+              os_version: ltsc2022
+        steps:
+          - template: ../../containers/container-template.yaml
+            parameters:
+              arch: $(arch)
+              name: $(name)
+              os: $(os)
+              os_version: $(os_version)
+  - stage:  update_cni
+    dependsOn: 
+      - createAKSclusterWindows
+      - build_images
+    displayName: "Update CNI on Cluster"
+    jobs:
+      - job: deploy_pods
+        strategy:
+          matrix:
+            windows_cniv1_amd64:
+              os: windows
+              arch: amd64
+              os_version: ltsc2022
+        steps:
+          - task: AzureCLI@1
+            inputs:
+              azureSubscription: $(TEST_SUB_SERVICE_CONNECTION)
+              scriptLocation: "inlineScript"
+              scriptType: "bash"
+              addSpnToEnvironment: true
+              inlineScript: |
+                set -ex
+                export CNI_IMAGE=$(make acncli-image-name-and-tag OS=$(os) ARCH=$(arch) OS_VERSION=$(os_version))
+                az extension add --name aks-preview
+                clusterName=${{ parameters.clusterName }}-$(make revision)
+                make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${clusterName}
+                make -C ./hack/aks azcfg AZCLI=az REGION=$(LOCATION)
+                envsubst < ./hack/manifests/windows-update.yaml | kubectl apply -f -
+            name: "UploadCNI"
+            displayName: "Upload CNI"
+          - script: |
+              set -ex
+              kubectl rollout status daemonset/azure-cni-windows -n kube-system
+              kubectl get pods -A
+            name: "WaitForCNI"
+            displayName: "Wait For CNI"
+  - stage: pod_deployment_windows
+    dependsOn: update_cni
+    displayName: "Pod Deployment"
+    jobs:
+      - job: deploy_pods
+        steps:
+          - template: ../load-test-templates/pod-deployment-template.yaml
+            parameters:
+              clusterName: ${{ parameters.clusterName }}
+              scaleup: ${WINDOWS_SCALEUP}
+              os: ${{ parameters.os }}
+              cni: ${{ parameters.cni }}
+              iterations: ${WINDOWS_ITERATIONS}
+  - stage: validate_state_windows
+    dependsOn: pod_deployment_windows
+    displayName: "Validate State"
+    jobs:
+      - job: validate_state
+        steps:
+          - template: ../load-test-templates/validate-state-template.yaml
+            parameters:
+              clusterName: ${{ parameters.clusterName }}
+              os: ${{ parameters.os }}
+              cni: ${{ parameters.cni }}
+  - stage: delete_resources
+    displayName: "Delete Resources"
+    dependsOn:
+      - validate_state_windows
+    jobs:
+      - job: delete_resources
+        steps:
+          - task: AzureCLI@1
+            inputs:
+              azureSubscription: $(TEST_SUB_SERVICE_CONNECTION)
+              scriptLocation: "inlineScript"
+              scriptType: "bash"
+              addSpnToEnvironment: true
+              inlineScript: |
+                set -ex
+                if [ "$(DELETE_RESOURCES)" ]
+                then
+                  echo "Deleting Cluster and resource group"
+                  make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}-$(make revision)
+                  make -C ./hack/aks azcfg AZCLI=az REGION=$(LOCATION)
+                  make -C ./hack/aks down AZCLI=az REGION=$(LOCATION) SUB=$(SUBSCRIPTION_ID) CLUSTER=${{ parameters.clusterName }}-$(make revision)
+                  echo "Cluster and resources down"
+                else
+                  echo "Deletion of resources is False"
+                fi
+            name: "CleanUpCluster"
+            displayName: "Cleanup cluster"
+    condition: always()

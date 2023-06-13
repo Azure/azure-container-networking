@@ -1,5 +1,6 @@
 parameters:
   clusterName: ""
+  os: "linux"
   restartCase: "false"  
 
 steps:
@@ -10,10 +11,9 @@ steps:
       scriptType: "bash"
       addSpnToEnvironment: true
       inlineScript: |
-        export RESTART_CASE=${{ parameters.restartCase }}
-        make -C ./hack/swift set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}-$(make revision)
+        make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}-$(make revision)
         kubectl get pods -A
-        make test-validate-state
+        make test-validate-state OS=${{ parameters.os }} RESTART_CASE=${{ parameters.restartCase }}
     name: "ValidateState"
     displayName: "Validate State"
     retryCountOnTaskFailure: 3

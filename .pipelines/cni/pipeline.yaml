@@ -24,3 +24,14 @@ stages:
       nodeCount: 10
       vmSize: "Standard_DS4_v2"
       dependsOn: setup
+  - template: singletenancy/windows-cni-load-test-template.yaml
+    parameters:
+      name: win_cniv1
+      clusterType: "windows-cniv1-up"
+      clusterName: "win-cniv1"
+      nodeCount: 2
+      vmSize: "Standard_B2s"
+      dependsOn: setup
+      windowsVMSize: ${WINDOWS_VM_SKU}
+      os: windows
+      cni: cniv1

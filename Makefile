@@ -438,6 +438,19 @@ npm-image-pull: ## pull cns container image.
 		IMAGE=$(NPM_IMAGE) \
 		TAG=$(NPM_PLATFORM_TAG)
 
+# cni-plugin 
+
+cni-plugin-image: ## build cni plugin container image.
+	$(MAKE) container \
+		DOCKERFILE=cni/build/$(OS).Dockerfile \
+		IMAGE=$(ACNCLI_IMAGE) \
+		EXTRA_BUILD_ARGS='--build-arg  CNI_AI_PATH=$(CNI_AI_PATH) --build-arg CNI_AI_ID=$(CNI_AI_ID) --build-arg OS_VERSION=$(OS_VERSION)' \
+		PLATFORM=$(PLATFORM) \
+		TAG=$(ACNCLI_PLATFORM_TAG) \
+		OS=$(OS) \
+		ARCH=$(ARCH) \
+		OS_VERSION=$(OS_VERSION)
+
 
 ## Legacy
 
@@ -724,7 +737,7 @@ test-integration: ## run all integration tests.
 		go test -mod=readonly -buildvcs=false -timeout 1h -coverpkg=./... -race -covermode atomic -coverprofile=coverage.out -tags=integration ./test/integration...
 
 test-validate-state:
-	cd test/integration/load && go test -count 1 -timeout 30m -tags load -run ^TestValidateState -tags=load -restart-case=$(RESTART_CASE)
+	cd test/integration/load && go test -count 1 -timeout 30m -tags load -run ^TestValidateState -tags=load -restart-case=$(RESTART_CASE) -os=$(OS)
 	cd ../../..
 
 test-cyclonus: ## run the cyclonus test for npm.
