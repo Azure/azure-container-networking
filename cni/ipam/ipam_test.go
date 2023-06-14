@@ -6,21 +6,20 @@ package ipam
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/Azure/azure-container-networking/cni/log"
-	"go.uber.org/zap/zapcore"
 	"net"
 	"net/http"
 	"net/url"
 	"testing"
 	"time"
 
+	"github.com/Azure/azure-container-networking/cni/log"
+	"github.com/Azure/azure-container-networking/common"
 	cniSkel "github.com/containernetworking/cni/pkg/skel"
 	cniTypesCurr "github.com/containernetworking/cni/pkg/types/100"
 	"github.com/google/uuid"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-
-	"github.com/Azure/azure-container-networking/common"
+	"go.uber.org/zap/zapcore"
 )
 
 var (
