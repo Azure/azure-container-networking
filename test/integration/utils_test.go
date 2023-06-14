@@ -5,15 +5,16 @@ package k8s
 import (
 	"bytes"
 	"context"
-	"errors"
 	"io"
 	"log"
+	"os"
 	"strings"
+	"testing"
 	"time"
 
+	"github.com/pkg/errors"
+
 	// crd "dnc/requestcontroller/kubernetes"
-	"os"
-	"testing"
 
 	"github.com/Azure/azure-container-networking/test/integration/retry"
 	apiv1 "k8s.io/api/core/v1"
@@ -215,7 +216,7 @@ func waitForPodsRunning(ctx context.Context, clientset *kubernetes.Clientset, na
 
 		for _, pod := range podList.Items {
 			if pod.Status.PodIP == "" {
-				return errors.New("a pod has not been allocated an IP")
+				return errors.Wrapf(err, "Pod %s/%s has not been allocated an IP yet with reason %s", pod.Namespace, pod.Name, pod.Status.Message)
 			}
 		}
 
