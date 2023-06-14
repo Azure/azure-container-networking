@@ -217,11 +217,8 @@ func TestAzureIPAMInvoker_Add(t *testing.T) {
 		MaxBackups:  0,
 		Name:        "test",
 	}
-	_, err := log.Initialize(loggerCfg)
-	if err != nil {
-		fmt.Printf("Failed to setup cni logging: %v\n", err)
-		return
-	}
+
+	log.Initialize(loggerCfg)
 
 	for _, tt := range tests {
 		tt := tt
