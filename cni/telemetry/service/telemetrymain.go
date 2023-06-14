@@ -142,7 +142,7 @@ func main() {
 
 	config, err = telemetry.ReadConfigFile(configPath)
 	if err != nil {
-		log.Logger.Error("[Telemetry] Error reading telemetry config", zap.Any("error", err))
+		log.Logger.Error("[Telemetry] Error reading telemetry config", zap.Error(err))
 	}
 
 	log.Logger.Info("read config returned", zap.Any("config", config))
@@ -164,7 +164,7 @@ func main() {
 			break
 		}
 
-		log.Logger.Error("[Telemetry] Telemetry service starting failed", zap.Any("error", err))
+		log.Logger.Error("[Telemetry] Telemetry service starting failed", zap.Error(err))
 		tb.Cleanup(telemetry.FdName)
 		time.Sleep(time.Millisecond * 200)
 	}
@@ -182,7 +182,7 @@ func main() {
 	}
 
 	if telemetry.CreateAITelemetryHandle(aiConfig, config.DisableAll, config.DisableTrace, config.DisableMetric) != nil {
-		log.Logger.Error("[Telemetry] AI Handle creation error", zap.Any("error", err))
+		log.Logger.Error("[Telemetry] AI Handle creation error", zap.Error(err))
 	}
 	log.Logger.Info("[Telemetry] Report to host interval", zap.Duration("seconds", config.ReportToHostIntervalInSeconds))
 	tb.PushData(context.Background())

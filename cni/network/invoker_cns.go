@@ -99,7 +99,7 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 				// if the old API fails as well then we just return the error
 				log.Logger.Error("Failed to request IP address from CNS using RequestIPAddress",
 					zap.Any("infracontainerid", ipconfig.InfraContainerID),
-					zap.Any("error", errRequestIP))
+					zap.Error(errRequestIP))
 				return IPAMAddResult{}, errors.Wrap(errRequestIP, "Failed to get IP address from CNS")
 			}
 			response = &cns.IPConfigsResponse{
@@ -110,7 +110,7 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 			}
 		} else {
 			log.Logger.Info("Failed to get IP address from CNS",
-				zap.Any("error", err),
+				zap.Error(err),
 				zap.Any("response", response))
 			return IPAMAddResult{}, errors.Wrap(err, "Failed to get IP address from CNS")
 		}
@@ -319,13 +319,13 @@ func (invoker *CNSIPAMInvoker) Delete(address *net.IPNet, nwCfg *cni.NetworkConf
 				// if the old API fails as well then we just return the error
 				log.Logger.Error("Failed to release IP address from CNS using ReleaseIPAddress ",
 					zap.String("infracontainerid", ipConfigs.InfraContainerID),
-					zap.Any("error", err))
+					zap.Error(err))
 				return errors.Wrap(err, fmt.Sprintf("failed to release IP %v using ReleaseIPAddress with err ", ipConfig.DesiredIPAddress)+"%w")
 			}
 		} else {
 			log.Logger.Error("Failed to release IP address",
 				zap.String("infracontainerid", ipConfigs.InfraContainerID),
-				zap.Any("error", err))
+				zap.Error(err))
 			return errors.Wrap(err, fmt.Sprintf("failed to release IP %v using ReleaseIPs with err ", ipConfigs.DesiredIPAddresses)+"%w")
 		}
 	}

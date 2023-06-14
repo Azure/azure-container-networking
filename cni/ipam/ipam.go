@@ -62,7 +62,7 @@ func (plugin *ipamPlugin) Start(config *common.PluginConfig) error {
 	// Initialize base plugin.
 	err := plugin.Initialize(config)
 	if err != nil {
-		log.Logger.Error("[cni-ipam] Failed to initialize base plugin.", zap.Any("error", err))
+		log.Logger.Error("[cni-ipam] Failed to initialize base plugin.", zap.Error(err))
 		return err
 	}
 
@@ -285,7 +285,7 @@ func (plugin *ipamPlugin) Delete(args *cniSkel.CmdArgs) error {
 
 	defer func() {
 		log.Logger.Info("[cni-ipam] DEL command completed",
-			zap.Any("error", err))
+			zap.Error(err))
 	}()
 
 	// Parse network configuration from stdin.

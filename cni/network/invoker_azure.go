@@ -104,7 +104,7 @@ func (invoker *AzureIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, er
 func (invoker *AzureIPAMInvoker) deleteIpamState() {
 	cniStateExists, err := platform.CheckIfFileExists(platform.CNIStateFilePath)
 	if err != nil {
-		log.Logger.Error("[cni] Error checking CNI state exist", zap.Any("error", err))
+		log.Logger.Error("[cni] Error checking CNI state exist", zap.Error(err))
 		return
 	}
 
@@ -114,7 +114,7 @@ func (invoker *AzureIPAMInvoker) deleteIpamState() {
 
 	ipamStateExists, err := platform.CheckIfFileExists(platform.CNIIpamStatePath)
 	if err != nil {
-		log.Logger.Error("[cni] Error checking IPAM state exist", zap.Any("error", err))
+		log.Logger.Error("[cni] Error checking IPAM state exist", zap.Error(err))
 		return
 	}
 
@@ -122,7 +122,7 @@ func (invoker *AzureIPAMInvoker) deleteIpamState() {
 		log.Logger.Info("[cni] Deleting IPAM state file")
 		err = os.Remove(platform.CNIIpamStatePath)
 		if err != nil {
-			log.Logger.Error("[cni] Error deleting state file", zap.Any("error", err))
+			log.Logger.Error("[cni] Error deleting state file", zap.Error(err))
 			return
 		}
 	}
@@ -147,7 +147,7 @@ func (invoker *AzureIPAMInvoker) Delete(address *net.IPNet, nwCfg *cni.NetworkCo
 			zap.String("address", nwCfg.IPAM.Address),
 			zap.String("pool", nwCfg.IPAM.Subnet))
 		if err := invoker.plugin.DelegateDel(nwCfg.IPAM.Type, nwCfg); err != nil {
-			log.Logger.Error("Failed to release ipv4 address", zap.Any("error", err))
+			log.Logger.Error("Failed to release ipv4 address", zap.Error(err))
 			return invoker.plugin.Errorf("Failed to release ipv4 address: %v", err)
 		}
 	} else if len(address.IP.To16()) == bytesSize16 {
@@ -168,7 +168,7 @@ func (invoker *AzureIPAMInvoker) Delete(address *net.IPNet, nwCfg *cni.NetworkCo
 			zap.String("address", nwCfgIpv6.IPAM.Address),
 			zap.String("pool", nwCfgIpv6.IPAM.Subnet))
 		if err := invoker.plugin.DelegateDel(nwCfgIpv6.IPAM.Type, &nwCfgIpv6); err != nil {
-			log.Logger.Error("Failed to release ipv6 address", zap.Any("error", err))
+			log.Logger.Error("Failed to release ipv6 address", zap.Error(err))
 			return invoker.plugin.Errorf("Failed to release ipv6 address: %v", err)
 		}
 	} else {

@@ -24,13 +24,13 @@ type AzureCNIState struct {
 func (a *AzureCNIState) PrintResult() error {
 	b, err := json.MarshalIndent(a, "", "    ")
 	if err != nil {
-		log.Logger.Error("Failed to unmarshall Azure CNI state", zap.Any("error", err))
+		log.Logger.Error("Failed to unmarshall Azure CNI state", zap.Error(err))
 	}
 
 	// write result to stdout to be captured by caller
 	_, err = os.Stdout.Write(b)
 	if err != nil {
-		log.Logger.Error("Failed to write response to stdout", zap.Any("error", err))
+		log.Logger.Error("Failed to write response to stdout", zap.Error(err))
 		return err
 	}
 

@@ -66,7 +66,7 @@ func (plugin *NetPlugin) handleConsecutiveAdd(args *cniSkel.CmdArgs, endpointId 
 				log.Logger.Error("[cni-net] Failed to hot attach shared endpoint to container",
 					zap.String("endpoint", hnsEndpoint.Id),
 					zap.String("container", args.ContainerID),
-					zap.Any("error", err))
+					zap.Error(err))
 				return nil, err
 			}
 		}
@@ -166,7 +166,7 @@ func (plugin *NetPlugin) getNetworkName(netNs string, ipamAddResult *IPAMAddResu
 		if err != nil {
 			log.Logger.Error("Error parsing network CIDR",
 				zap.String("cidr", ipAddrNet.String()),
-				zap.Any("error", err))
+				zap.Error(err))
 			return "", errors.Wrapf(err, "cns returned invalid CIDR %s", ipAddrNet.String())
 		}
 		networkName := strings.ReplaceAll(prefix.Masked().String(), ".", "-")
@@ -181,7 +181,7 @@ func (plugin *NetPlugin) getNetworkName(netNs string, ipamAddResult *IPAMAddResu
 	if err != nil {
 		log.Logger.Error("No endpoint available",
 			zap.String("netns", netNs),
-			zap.Any("error", err))
+			zap.Error(err))
 		return "", fmt.Errorf("No endpoint available with netNs: %s: %w", netNs, err)
 	}
 

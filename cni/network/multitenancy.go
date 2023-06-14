@@ -89,7 +89,7 @@ func (m *Multitenancy) DetermineSnatFeatureOnHost(snatFile, nmAgentSupportedApis
 		jsonFile.Close()
 		if retrieveSnatConfigErr = json.Unmarshal(bytes, &snatConfig); retrieveSnatConfigErr != nil {
 			log.Logger.Error("[cni-net] failed to unmarshal to snatConfig with error %v",
-				zap.Any("error", retrieveSnatConfigErr))
+				zap.Error(retrieveSnatConfigErr))
 		}
 	}
 
@@ -98,7 +98,7 @@ func (m *Multitenancy) DetermineSnatFeatureOnHost(snatFile, nmAgentSupportedApis
 		var resp *http.Response
 		req, err := http.NewRequestWithContext(context.TODO(), http.MethodGet, nmAgentSupportedApisURL, nil)
 		if err != nil {
-			log.Logger.Error("failed creating http request", zap.Any("error", err))
+			log.Logger.Error("failed creating http request", zap.Error(err))
 			return false, false, fmt.Errorf("%w", err)
 		}
 		log.Logger.Info("Query nma for dns snat support", zap.String("query", nmAgentSupportedApisURL))
@@ -121,13 +121,13 @@ func (m *Multitenancy) DetermineSnatFeatureOnHost(snatFile, nmAgentSupportedApis
 					if err == nil {
 						_, err = fp.Write(jsonStr)
 						if err != nil {
-							log.Logger.Error("DetermineSnatFeatureOnHost: Write to json failed", zap.Any("error", err))
+							log.Logger.Error("DetermineSnatFeatureOnHost: Write to json failed", zap.Error(err))
 						}
 						fp.Close()
 					} else {
 						log.Logger.Error("[cni-net] failed to save snat settings",
 							zap.String("snatConfgFile", snatConfigFile),
-							zap.Any("error", err))
+							zap.Error(err))
 					}
 				}
 			} else {
@@ -139,7 +139,7 @@ func (m *Multitenancy) DetermineSnatFeatureOnHost(snatFile, nmAgentSupportedApis
 	// Log and return the error when we fail acquire snat configuration for host and dns
 	if retrieveSnatConfigErr != nil {
 		log.Logger.Error("[cni-net] failed to acquire SNAT configuration with error %v",
-			zap.Any("error", retrieveSnatConfigErr))
+			zap.Error(retrieveSnatConfigErr))
 		return snatConfig.EnableSnatForDns, snatConfig.EnableSnatOnHost, retrieveSnatConfigErr
 	}
 
@@ -238,7 +238,7 @@ func (m *Multitenancy) getNetworkContainersInternal(
 
 	orchestratorContext, err := json.Marshal(podInfo)
 	if err != nil {
-		log.Logger.Error("Marshalling KubernetesPodInfo failed", zap.Any("error", err))
+		log.Logger.Error("Marshalling KubernetesPodInfo failed", zap.Error(err))
 		return nil, []net.IPNet{}, fmt.Errorf("%w", err)
 	}
 
