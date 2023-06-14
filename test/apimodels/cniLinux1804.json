@@ -17,7 +17,7 @@
             "addons": [
                {
                   "name": "azure-npm-daemonset",
-                  "enabled": true,
+                  "enabled": false,
                   "containers": [
                      {
                         "name": "azure-npm-daemonset",
