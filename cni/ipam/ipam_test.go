@@ -6,6 +6,8 @@ package ipam
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/Azure/azure-container-networking/cni/log"
+	"go.uber.org/zap/zapcore"
 	"net"
 	"net/http"
 	"net/url"
@@ -97,6 +99,19 @@ var (
 		Expect(err).NotTo(HaveOccurred())
 
 		arg = &cniSkel.CmdArgs{}
+
+		loggerCfg := &log.Config{
+			Level:       zapcore.DebugLevel,
+			LogPath:     log.LogPath + "azure-ipam.log",
+			MaxSizeInMB: 0,
+			MaxBackups:  0,
+			Name:        "test",
+		}
+		_, err := log.Initialize(loggerCfg)
+		if err != nil {
+			fmt.Printf("Failed to setup cni logging: %v\n", err)
+			return
+		}
 	})
 
 	_ = AfterSuite(func() {
