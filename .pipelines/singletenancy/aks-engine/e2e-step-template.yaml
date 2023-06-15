@@ -20,16 +20,27 @@ steps:
 
       cd '$(modulePath)'
 
-      # download binary
-      wget https://paujohnstorage.blob.core.windows.net/publicstorage/aks-engine-8187da5e1-linux-amd64.tar.gz
+      AKS_ENGINE_FORK=csfmomo
+      AKS_ENGINE_VERSION=v1.0.9.4
+
+      # Get source
+      wget https://github.com/$AKS_ENGINE_FORK/aks-engine/archive/$AKS_ENGINE_VERSION.tar.gz
+
+
+      # Extract source (to be able to run `make test-kubernetes` later on)
+      tar -zxf $AKS_ENGINE_VERSION.tar.gz
+      # move source to current directory
+      mv aks-engine-*/* .
+
+      # Download aks-engine binary
+      wget https://github.com/$AKS_ENGINE_FORK/aks-engine/releases/download/$AKS_ENGINE_VERSION/aks-engine-$AKS_ENGINE_VERSION-linux-amd64.tar.gz
 
       rm -rf ./bin
       mkdir ./bin
 
       # extract binary
-      tar -zxvf aks-engine-8187da5e1-linux-amd64.tar.gz -C bin
+      tar -zxvf aks-engine-$AKS_ENGINE_VERSION-linux-amd64.tar.gz -C bin
       mv ./bin/aks-engine-*/* ./bin/
-      chmod 0777 ./bin/aks-engine
       ls -l ./bin
       ./bin/aks-engine version
       echo '##vso[task.prependpath]$(GOBIN)'
