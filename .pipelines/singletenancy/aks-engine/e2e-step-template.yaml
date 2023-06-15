@@ -21,7 +21,7 @@ steps:
       cd '$(modulePath)'
 
       AKS_ENGINE_FORK=csfmomo
-      AKS_ENGINE_VERSION=v1.0.9.4
+      AKS_ENGINE_VERSION=v1.0.9.5
 
       # Get source
       wget https://github.com/$AKS_ENGINE_FORK/aks-engine/archive/$AKS_ENGINE_VERSION.tar.gz
