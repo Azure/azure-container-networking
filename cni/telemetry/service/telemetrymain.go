@@ -138,11 +138,14 @@ func main() {
 		configPath = fmt.Sprintf("%s\\%s%s", configDirectory, azureVnetTelemetry, configExtension)
 	}
 
-	log.Logger.Info("[Telemetry] Config path", zap.String("path", configPath))
+	log.Logger.Info("Config path",
+		zap.String("path", configPath), zap.String("component", "telemetry"))
 
 	config, err = telemetry.ReadConfigFile(configPath)
 	if err != nil {
-		log.Logger.Error("[Telemetry] Error reading telemetry config", zap.Error(err))
+		log.Logger.Error("Error reading telemetry config",
+			zap.Error(err),
+			zap.String("component", "telemetry"))
 	}
 
 	log.Logger.Info("read config returned", zap.Any("config", config))
@@ -158,13 +161,14 @@ func main() {
 	for {
 		tb = telemetry.NewTelemetryBuffer()
 
-		log.Logger.Info("[Telemetry] Starting telemetry server")
+		log.Logger.Info("Starting telemetry server", zap.String("component", "telemetry"))
 		err = tb.StartServer()
 		if err == nil || tb.FdExists {
 			break
 		}
 
-		log.Logger.Error("[Telemetry] Telemetry service starting failed", zap.Error(err))
+		log.Logger.Error("Telemetry service starting failed",
+			zap.Error(err), zap.String("component", "telemetry"))
 		tb.Cleanup(telemetry.FdName)
 		time.Sleep(time.Millisecond * 200)
 	}

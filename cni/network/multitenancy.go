@@ -88,8 +88,9 @@ func (m *Multitenancy) DetermineSnatFeatureOnHost(snatFile, nmAgentSupportedApis
 		bytes, _ := io.ReadAll(jsonFile)
 		jsonFile.Close()
 		if retrieveSnatConfigErr = json.Unmarshal(bytes, &snatConfig); retrieveSnatConfigErr != nil {
-			log.Logger.Error("[cni-net] failed to unmarshal to snatConfig with error %v",
-				zap.Error(retrieveSnatConfigErr))
+			log.Logger.Error("failed to unmarshal to snatConfig with error %v",
+				zap.Error(retrieveSnatConfigErr),
+				zap.String("component", "cni-net"))
 		}
 	}
 
@@ -125,9 +126,10 @@ func (m *Multitenancy) DetermineSnatFeatureOnHost(snatFile, nmAgentSupportedApis
 						}
 						fp.Close()
 					} else {
-						log.Logger.Error("[cni-net] failed to save snat settings",
+						log.Logger.Error("failed to save snat settings",
 							zap.String("snatConfgFile", snatConfigFile),
-							zap.Error(err))
+							zap.Error(err),
+							zap.String("component", "cni-net"))
 					}
 				}
 			} else {
@@ -138,22 +140,27 @@ func (m *Multitenancy) DetermineSnatFeatureOnHost(snatFile, nmAgentSupportedApis
 
 	// Log and return the error when we fail acquire snat configuration for host and dns
 	if retrieveSnatConfigErr != nil {
-		log.Logger.Error("[cni-net] failed to acquire SNAT configuration with error %v",
-			zap.Error(retrieveSnatConfigErr))
+		log.Logger.Error("failed to acquire SNAT configuration with error %v",
+			zap.Error(retrieveSnatConfigErr),
+			zap.String("component", "cni-net"))
 		return snatConfig.EnableSnatForDns, snatConfig.EnableSnatOnHost, retrieveSnatConfigErr
 	}
 
-	log.Logger.Info("[cni-net] saved snat settings",
+	log.Logger.Info("saved snat settings",
 		zap.Any("snatConfig", snatConfig),
-		zap.String("snatConfigfile", snatConfigFile))
+		zap.String("snatConfigfile", snatConfigFile),
+		zap.String("component", "cni-net"))
 	if snatConfig.EnableSnatOnHost {
-		log.Logger.Info("[cni-net] enabling SNAT on container host for outbound connectivity")
+		log.Logger.Info("enabling SNAT on container host for outbound connectivity",
+			zap.String("component", "cni-net"))
 	}
 	if snatConfig.EnableSnatForDns {
-		log.Logger.Info("[cni-net] enabling SNAT on container host for DNS traffic")
+		log.Logger.Info("enabling SNAT on container host for DNS traffic",
+			zap.String("component", "cni-net"))
 	}
 	if !snatConfig.EnableSnatForDns && !snatConfig.EnableSnatOnHost {
-		log.Logger.Info("[cni-net] disabling SNAT on container host")
+		log.Logger.Info("disabling SNAT on container host",
+			zap.String("component", "cni-net"))
 	}
 
 	return snatConfig.EnableSnatForDns, snatConfig.EnableSnatOnHost, nil
