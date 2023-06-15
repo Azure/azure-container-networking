@@ -11,7 +11,7 @@ func RecordSetPolicyLatency(timer *Timer, op OperationKind, isNested bool) {
 		operationLabel: string(op),
 		isNestedLabel:  nested,
 	}
-	setPolicyLatency.With(labels).Observe(timer.timeElapsed())
+	setPolicyLatency.With(labels).Observe(timer.timeElapsedSeconds())
 }
 
 func IncSetPolicyFailures(op OperationKind, isNested bool) {
@@ -27,7 +27,7 @@ func IncSetPolicyFailures(op OperationKind, isNested bool) {
 }
 
 func RecordGetNetworkLatency(timer *Timer) {
-	getNetworkLatency.Observe(timer.timeElapsed())
+	getNetworkLatency.Observe(timer.timeElapsedSeconds())
 }
 
 func IncGetNetworkFailures() {

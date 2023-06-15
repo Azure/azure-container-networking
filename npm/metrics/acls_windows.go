@@ -7,7 +7,7 @@ func RecordACLLatency(timer *Timer, op OperationKind) {
 	labels := prometheus.Labels{
 		operationLabel: string(op),
 	}
-	aclLatency.With(labels).Observe(timer.timeElapsed())
+	aclLatency.With(labels).Observe(timer.timeElapsedSeconds())
 }
 
 // IncACLFailures should be used in Windows DP to record the number of failures for individual ACL operations.
