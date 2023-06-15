@@ -106,8 +106,11 @@ var (
 			MaxBackups:  0,
 			Name:        "test",
 		}
-		log.Initialize(loggerCfg)
-
+		_, logErr := log.Initialize(loggerCfg)
+		if logErr != nil {
+			fmt.Printf("Failed to setup cni logging: %v\n", logErr)
+			return
+		}
 	})
 
 	_ = AfterSuite(func() {
