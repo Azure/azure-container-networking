@@ -1,0 +1,26 @@
+pr: none
+trigger: none
+
+stages:
+  - stage: setup
+    displayName: Setup
+    jobs:
+      - job: env
+        displayName: Setup
+        pool:
+          name: "$(BUILD_POOL_NAME_DEFAULT)"
+        steps:
+          - script: |
+              echo "Setting up environment"
+              go version
+            name: "SetEnvVars"
+            displayName: "Set Environment Variables"
+            condition: always()
+  - template: cilium/cilium-overlay-load-test-template.yaml
+    parameters:
+      name: cilium
+      clusterType: "overlay-no-kube-proxy-up"
+      clusterName: "cilium-overlay"
+      nodeCount: 10
+      vmSize: "Standard_DS4_v2"
+      dependsOn: setup

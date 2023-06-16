@@ -1,0 +1,17 @@
+parameters:
+  clusterName: ""
+      
+steps:
+  - task: AzureCLI@1
+    displayName: "Pod Deployment"
+    inputs:
+      azureSubscription: $(TEST_SUB_SERVICE_CONNECTION)
+      scriptLocation: "inlineScript"
+      scriptType: "bash"
+      addSpnToEnvironment: true
+      inlineScript: |
+        set -ex
+        az extension add --name aks-preview
+        make -C ./hack/swift set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}-$(make revision)
+        cd test/integration/load
+        go test -timeout 30m -tags load -run ^TestLoad$ -tags=load -iterations=4 -scaleup=2400
