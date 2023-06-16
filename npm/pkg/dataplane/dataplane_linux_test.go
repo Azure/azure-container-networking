@@ -15,6 +15,7 @@ import (
 )
 
 var netpolInBackgroundCfg = &Config{
+	debug:              true,
 	NetPolInBackground: true,
 	MaxPendingNetPols:  3,
 	NetPolInterval:     time.Duration(15 * time.Millisecond),

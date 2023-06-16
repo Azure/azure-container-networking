@@ -33,6 +33,7 @@ type PolicyMode string
 
 // TODO put NodeName in Config?
 type Config struct {
+	debug bool
 	// ApplyInBackground is currently used in Windows to apply the following in background: IPSets and NetPols for new/updated Pods
 	ApplyInBackground bool
 	ApplyMaxBatches   int
@@ -109,7 +110,7 @@ func NewDataPlane(nodeName string, ioShim *common.IOShim, cfg *Config, stopChann
 
 	// Prevent netpol in background unless we're in Linux and using nftables.
 	// This step must be performed after bootupDataplane() because it calls util.DetectIptablesVersion(), which sets the proper value for util.Iptables
-	dp.netPolInBackground = cfg.NetPolInBackground && !util.IsWindowsDP() && strings.Contains(util.Iptables, "nft")
+	dp.netPolInBackground = cfg.NetPolInBackground && !util.IsWindowsDP() && (strings.Contains(util.Iptables, "nft") || dp.debug)
 	if dp.netPolInBackground {
 		klog.Infof("[DataPlane] dataplane configured to add netpols in background every %v or every %d calls to AddPolicy()", dp.NetPolInterval, dp.MaxPendingNetPols)
 	} else {
