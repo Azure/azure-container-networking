@@ -3,6 +3,7 @@ package dataplane
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/Azure/azure-container-networking/common"
@@ -100,19 +101,21 @@ func NewDataPlane(nodeName string, ioShim *common.IOShim, cfg *Config, stopChann
 		dp.updatePodCache = newUpdatePodCache(1)
 	}
 
-	// do not let Windows netpol in background
-	dp.netPolInBackground = cfg.NetPolInBackground && !util.IsWindowsDP()
+	err := dp.BootupDataplane()
+	if err != nil {
+		klog.Errorf("Failed to reset dataplane: %v", err)
+		return nil, err
+	}
+
+	// Prevent netpol in background unless we're in Linux and using nftables.
+	// This step must be performed after bootupDataplane() because it calls util.DetectIptablesVersion(), which sets the proper value for util.Iptables
+	dp.netPolInBackground = cfg.NetPolInBackground && !util.IsWindowsDP() && strings.Contains(util.Iptables, "nft")
 	if dp.netPolInBackground {
 		klog.Infof("[DataPlane] dataplane configured to add netpols in background every %v or every %d calls to AddPolicy()", dp.NetPolInterval, dp.MaxPendingNetPols)
 	} else {
 		klog.Info("[DataPlane] dataplane configured to NOT add netpols in background")
 	}
 
-	err := dp.BootupDataplane()
-	if err != nil {
-		klog.Errorf("Failed to reset dataplane: %v", err)
-		return nil, err
-	}
 	return dp, nil
 }
 
