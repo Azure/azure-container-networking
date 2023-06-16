@@ -7,6 +7,8 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
+const billion float64 = 1e+09
+
 // Timer is a one-time-use tool for recording time between a start and end point
 type Timer struct {
 	before int64
@@ -62,5 +64,5 @@ func (timer *Timer) timeElapsedSeconds() float64 {
 	if timer.after == 0 {
 		timer.stop()
 	}
-	return float64(timer.after-timer.before) / 1000000000.0
+	return float64(timer.after-timer.before) / billion
 }
