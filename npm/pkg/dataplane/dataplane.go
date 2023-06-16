@@ -474,6 +474,7 @@ func (dp *DataPlane) addPolicies(netPols []*policies.NPMNetworkPolicy) error {
 		}
 
 		if dp.inBootupPhase() {
+			// This branch can only be taken in Windows.
 			// During bootup phase, the Pod controller will not be running.
 			// We don't need to worry about adding Policies to Endpoints, so we don't need IPSets in the kernel yet.
 			// Ideally, we get all NetworkPolicies in the cache before the Pod controller starts
@@ -482,6 +483,7 @@ func (dp *DataPlane) addPolicies(netPols []*policies.NPMNetworkPolicy) error {
 				return err
 			}
 		} else {
+			// This branch is always taken in Linux.
 			wasInBootupPhase = false
 			err = dp.applyDataPlaneNow(contextAddNetPol)
 			if err != nil {
@@ -493,11 +495,16 @@ func (dp *DataPlane) addPolicies(netPols []*policies.NPMNetworkPolicy) error {
 	// 2. get Endpoints
 	var err error
 	var endpointList map[string]string
-	if !dp.inBootupPhase() && wasInBootupPhase {
-		// for Windows, make sure we apply IPSets now since we're going to apply policies to Endpoints
-		err = dp.applyDataPlaneNow(contextAddNetPol)
-		if err != nil {
-			return err
+	if !dp.inBootupPhase() {
+		if wasInBootupPhase {
+			// This branch can only be taken in Windows.
+			// This check prevents us from calling applyDataPlaneNow() twice for every dp.AddPolicy() call.
+			// If this branch is taken, we have just finished bootup phase, but we haven't called applyDataPlaneNow() yet.
+			// Make sure we apply IPSets now since we're going to apply policies to Endpoints.
+			err = dp.applyDataPlaneNow(contextAddNetPol)
+			if err != nil {
+				return err
+			}
 		}
 
 		endpointList, err = dp.getEndpointsToApplyPolicies(netPols)
