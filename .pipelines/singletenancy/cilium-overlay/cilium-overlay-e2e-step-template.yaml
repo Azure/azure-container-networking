@@ -32,7 +32,7 @@ steps:
         mkdir -p ~/.kube/
         echo "Create AKS Overlay cluster"
         make -C ./hack/swift azcfg AZCLI=az REGION=$(REGION_OVERLAY_CLUSTER_TEST)
-        make -C ./hack/swift overlay-no-kube-proxy-up AZCLI=az REGION=$(REGION_OVERLAY_CLUSTER_TEST) SUB=$(SUB_AZURE_NETWORK_AGENT_TEST) CLUSTER=${{ parameters.clusterName }}-$(make revision)
+        make -C ./hack/swift overlay-no-kube-proxy-up AZCLI=az REGION=$(REGION_OVERLAY_CLUSTER_TEST) SUB=$(SUB_AZURE_NETWORK_AGENT_TEST) CLUSTER=${{ parameters.clusterName }}-$(make revision) VM_SIZE=Standard_B2ms
         echo "Cluster successfully created"
     displayName: Create Overlay cluster
     condition: succeeded()
@@ -109,6 +109,9 @@ steps:
     displayName: "Run Azilium E2E on AKS Overlay"
 
   - script: |
+      echo "Status of the nodes and pods after the test"
+      kubectl get nodes -o wide
+      kubectl get pods -A -o wide
       echo "Logs will be available as a build artifact"
       ARTIFACT_DIR=$(Build.ArtifactStagingDirectory)/test-output/
       echo $ARTIFACT_DIR

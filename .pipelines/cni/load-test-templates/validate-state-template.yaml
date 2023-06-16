@@ -1,0 +1,19 @@
+parameters:
+  clusterName: ""
+  restartCase: "false"  
+
+steps:
+  - task: AzureCLI@1
+    inputs:
+      azureSubscription: $(TEST_SUB_SERVICE_CONNECTION)
+      scriptLocation: "inlineScript"
+      scriptType: "bash"
+      addSpnToEnvironment: true
+      inlineScript: |
+        export RESTART_CASE=${{ parameters.restartCase }}
+        make -C ./hack/swift set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}-$(make revision)
+        kubectl get pods -A
+        make test-validate-state
+    name: "ValidateState"
+    displayName: "Validate State"
+    retryCountOnTaskFailure: 3
