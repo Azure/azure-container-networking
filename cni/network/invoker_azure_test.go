@@ -3,11 +3,11 @@ package network
 import (
 	"errors"
 	"fmt"
-	"github.com/Azure/azure-container-networking/cni/log"
 	"net"
 	"testing"
 
 	"github.com/Azure/azure-container-networking/cni"
+	"github.com/Azure/azure-container-networking/cni/log"
 	"github.com/Azure/azure-container-networking/ipam"
 	"github.com/Azure/azure-container-networking/network"
 	cniSkel "github.com/containernetworking/cni/pkg/skel"
