@@ -26,6 +26,10 @@ func Initialize(cfg *Config) (func(), error) {
 	return cleanup, nil
 }
 
+func InitializeMock() {
+	Logger = zap.NewNop()
+}
+
 func newFileLogger(cfg *Config) *zap.Logger {
 	logFileWriter := zapcore.AddSync(&lumberjack.Logger{
 		Filename:   cfg.LogPath,

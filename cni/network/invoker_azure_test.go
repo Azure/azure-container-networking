@@ -3,18 +3,17 @@ package network
 import (
 	"errors"
 	"fmt"
+	"github.com/Azure/azure-container-networking/cni/log"
 	"net"
 	"testing"
 
 	"github.com/Azure/azure-container-networking/cni"
-	"github.com/Azure/azure-container-networking/cni/log"
 	"github.com/Azure/azure-container-networking/ipam"
 	"github.com/Azure/azure-container-networking/network"
 	cniSkel "github.com/containernetworking/cni/pkg/skel"
 	cniTypes "github.com/containernetworking/cni/pkg/types"
 	cniTypesCurr "github.com/containernetworking/cni/pkg/types/100"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap/zapcore"
 )
 
 type mockDelegatePlugin struct {
@@ -210,19 +209,7 @@ func TestAzureIPAMInvoker_Add(t *testing.T) {
 		},
 	}
 
-	loggerCfg := &log.Config{
-		Level:       zapcore.DebugLevel,
-		LogPath:     log.LogPath + "test.log",
-		MaxSizeInMB: 0,
-		MaxBackups:  0,
-		Name:        "test",
-	}
-
-	_, err := log.Initialize(loggerCfg)
-	if err != nil {
-		fmt.Printf("Failed to setup cni logging: %v\n", err)
-		return
-	}
+	log.InitializeMock()
 
 	for _, tt := range tests {
 		tt := tt
