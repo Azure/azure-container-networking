@@ -21,6 +21,7 @@ This saves us from:
     --num-kwok-replicas=1 \
     --max-real-pods-per-node=30 \
     --num-real-deployments=5 \
+    --num-real-services=4 \
     --num-real-replicas=2 \
     --num-network-policies=1 \
     --num-unapplied-network-policies=10 \
