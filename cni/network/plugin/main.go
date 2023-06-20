@@ -4,6 +4,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -285,6 +286,7 @@ func rootExecute() error {
 // Main is the entry point for CNI network plugin.
 func main() {
 	// Initialize and parse command line arguments.
+	ctx, cancel := context.WithCancel(context.Background())
 	common.ParseArgs(&args, printVersion)
 	vers := common.GetArg(common.OptVersion).(bool)
 
@@ -300,14 +302,11 @@ func main() {
 		MaxBackups:  maxLogFileCount,
 		Name:        name,
 	}
-	cleanup, err := log.Initialize(loggerCfg)
-	if err != nil {
-		fmt.Printf("Failed to setup cni logging: %v\n", err)
-		return
-	}
-	defer cleanup()
+	log.Initialize(loggerCfg, ctx)
 
 	if rootExecute() != nil {
 		os.Exit(1)
 	}
+
+	cancel()
 }

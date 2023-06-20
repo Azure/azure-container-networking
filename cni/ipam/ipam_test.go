@@ -19,7 +19,6 @@ import (
 	"github.com/google/uuid"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"go.uber.org/zap/zapcore"
 )
 
 var (
@@ -99,18 +98,8 @@ var (
 
 		arg = &cniSkel.CmdArgs{}
 
-		loggerCfg := &log.Config{
-			Level:       zapcore.DebugLevel,
-			LogPath:     log.LogPath + "azure-ipam.log",
-			MaxSizeInMB: 0,
-			MaxBackups:  0,
-			Name:        "test",
-		}
-		_, logErr := log.Initialize(loggerCfg)
-		if logErr != nil {
-			fmt.Printf("Failed to setup cni logging: %v\n", logErr)
-			return
-		}
+		log.InitializeMock()
+
 	})
 
 	_ = AfterSuite(func() {

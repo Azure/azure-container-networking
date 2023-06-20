@@ -1,6 +1,8 @@
 package log
 
 import (
+	"context"
+
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"gopkg.in/natefinch/lumberjack.v2"
@@ -17,13 +19,18 @@ type Config struct {
 var Logger *zap.Logger
 
 // Initializes a Zap logger and returns a cleanup function so logger can be cleaned up from caller
-func Initialize(cfg *Config) (func(), error) {
+func Initialize(cfg *Config, ctx context.Context) {
 	Logger = newFileLogger(cfg)
-	cleanup := func() {
-		_ = Logger.Sync()
-	}
 
-	return cleanup, nil
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				Logger.Sync()
+				return
+			}
+		}
+	}()
 }
 
 func InitializeMock() {

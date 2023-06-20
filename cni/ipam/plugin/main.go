@@ -4,6 +4,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 
@@ -25,6 +26,7 @@ var version string
 
 // Main is the entry point for CNI IPAM plugin.
 func main() {
+	ctx, cancel := context.WithCancel(context.Background())
 	var config common.PluginConfig
 	config.Version = version
 
@@ -35,12 +37,7 @@ func main() {
 		MaxBackups:  maxLogFileCount,
 		Name:        name,
 	}
-	cleanup, err := log.Initialize(loggerCfg)
-	if err != nil {
-		fmt.Printf("Failed to setup cni logging: %v\n", err)
-		return
-	}
-	defer cleanup()
+	log.Initialize(loggerCfg, ctx)
 
 	ipamPlugin, err := ipam.NewPlugin(name, &config)
 	if err != nil {
@@ -72,6 +69,7 @@ func main() {
 	err = ipamPlugin.Execute(cni.PluginApi(ipamPlugin))
 
 	ipamPlugin.Stop()
+	cancel()
 
 	if err != nil {
 		panic("ipam plugin fatal error")

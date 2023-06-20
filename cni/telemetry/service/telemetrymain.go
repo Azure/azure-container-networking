@@ -105,6 +105,7 @@ func main() {
 	var config telemetry.TelemetryConfig
 	var configPath string
 	var err error
+	ctx, cancel := context.WithCancel(context.Background())
 
 	acn.ParseArgs(&args, printVersion)
 	logLevel := acn.GetArg(acn.OptLogLevel).(zapcore.Level)
@@ -123,12 +124,7 @@ func main() {
 		MaxBackups:  maxLogFileCount,
 		Name:        azureVnetTelemetry,
 	}
-	cleanup, err := log.Initialize(loggerCfg)
-	if err != nil {
-		fmt.Printf("Failed to setup cni logging: %v\n", err)
-		return
-	}
-	defer cleanup()
+	log.Initialize(loggerCfg, ctx)
 
 	log.Logger.Info("Telemetry invocation info", zap.Any("arguments", os.Args))
 
@@ -191,4 +187,6 @@ func main() {
 	log.Logger.Info("[Telemetry] Report to host interval", zap.Duration("seconds", config.ReportToHostIntervalInSeconds))
 	tb.PushData(context.Background())
 	telemetry.CloseAITelemetryHandle()
+
+	cancel()
 }
