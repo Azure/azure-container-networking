@@ -6,6 +6,7 @@ package restserver
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"os"
 	"reflect"
 	"strconv"
@@ -337,6 +338,49 @@ func TestReconcileNCWithEmptyState(t *testing.T) {
 	}
 
 	validateNCStateAfterReconcile(t, nil, expectedNcCount, expectedAssignedPods)
+}
+
+// TestReconcileNCWithEmptyStateAndPendingRelease tests the case where there is
+// no state (node reboot) and there are pending release IPs in the NNC that
+// may have been deallocated and should not be made available for assignment
+// to pods.
+func TestReconcileNCWithEmptyStateAndPendingRelease(t *testing.T) {
+	restartService()
+	setEnv(t)
+	setOrchestratorTypeInternal(cns.KubernetesCRD)
+
+	expectedAssignedPods := make(map[string]cns.PodInfo)
+
+	secondaryIPConfigs := make(map[string]cns.SecondaryIPConfig)
+	for i := 6; i < 22; i++ {
+		ipaddress := "10.0.0." + strconv.Itoa(i)
+		secIPConfig := newSecondaryIPConfig(ipaddress, -1)
+		ipID := uuid.New()
+		secondaryIPConfigs[ipID.String()] = secIPConfig
+	}
+	pending := func() []string {
+		numPending := rand.Intn(len(secondaryIPConfigs)) + 1 //nolint:gosec // weak rand is sufficient in test
+		pendingIPs := []string{}
+		for k := range secondaryIPConfigs {
+			if numPending == 0 {
+				break
+			}
+			pendingIPs = append(pendingIPs, k)
+		}
+		return pendingIPs
+	}()
+	req := generateNetworkContainerRequest(secondaryIPConfigs, "reconcileNc1", "-1")
+	returnCode := svc.ReconcileNCState(req, expectedAssignedPods, &v1alpha.NodeNetworkConfig{
+		Spec: v1alpha.NodeNetworkConfigSpec{
+			IPsNotInUse: pending,
+		},
+	})
+	if returnCode != types.Success {
+		t.Errorf("Unexpected failure on reconcile with no state %d", returnCode)
+	}
+	validateNetworkRequest(t, *req)
+	// confirm that the correct number of IPs are now PendingRelease
+	assert.EqualValues(t, len(pending), len(svc.GetPendingReleaseIPConfigs()))
 }
 
 func TestReconcileNCWithExistingState(t *testing.T) {
