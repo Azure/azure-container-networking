@@ -290,7 +290,7 @@ func (service *HTTPRestService) addIPConfigStateUntransacted(ncID string, hostVe
 
 		if ipState, exists := service.PodIPConfigState[ipID]; exists {
 			logger.Printf("[Azure-Cns] Set ipId %s, IP %s version to %d, programmed host nc version is %d, "+
-				"ipState: %+v", ipID, ipconfig.IPAddress, ipconfig.NCVersion, hostVersion, ipState)
+				"ipState: %s", ipID, ipconfig.IPAddress, ipconfig.NCVersion, hostVersion, ipState)
 			continue
 		}
 

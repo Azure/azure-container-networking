@@ -5,6 +5,7 @@ package platform
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -13,6 +14,8 @@ import (
 	"time"
 
 	"github.com/Azure/azure-container-networking/log"
+	"github.com/Azure/azure-container-networking/platform/windows/adapter"
+	"github.com/Azure/azure-container-networking/platform/windows/adapter/mellanox"
 	"golang.org/x/sys/windows"
 )
 
@@ -65,6 +68,14 @@ const (
 
 	// Command to restart HNS service
 	RestartHnsServiceCommand = "Restart-Service -Name hns"
+
+	// Interval between successive checks for mellanox adapter's PriorityVLANTag value
+	defaultMellanoxMonitorInterval = 30 * time.Second
+
+	// Value for reg key: PriorityVLANTag for adapter
+	// reg key value for PriorityVLANTag = 3  --> Packet priority and VLAN enabled
+	// for more details goto https://learn.microsoft.com/en-us/windows-hardware/drivers/network/standardized-inf-keywords-for-ndis-qos
+	desiredVLANTagForMellanox = 3
 )
 
 // Flag to check if sdnRemoteArpMacAddress registry key is set
@@ -184,6 +195,68 @@ func SetSdnRemoteArpMacAddress() error {
 		}
 
 		sdnRemoteArpMacAddressSet = true
+	}
+
+	return nil
+}
+
+func HasMellanoxAdapter() bool {
+	m := &mellanox.Mellanox{}
+	return hasNetworkAdapter(m)
+}
+
+func hasNetworkAdapter(na adapter.NetworkAdapter) bool {
+	adapterName, err := na.GetAdapterName()
+	if err != nil {
+		log.Errorf("Error while getting network adapter name: %v", err)
+		return false
+	}
+	log.Printf("Name of the network adapter : %v", adapterName)
+	return true
+}
+
+// Regularly monitors the Mellanox PriorityVLANGTag registry value and sets it to desired value if needed
+func MonitorAndSetMellanoxRegKeyPriorityVLANTag(ctx context.Context, intervalSecs int) {
+	m := &mellanox.Mellanox{}
+	interval := defaultMellanoxMonitorInterval
+	if intervalSecs > 0 {
+		interval = time.Duration(intervalSecs) * time.Second
+	}
+	err := updatePriorityVLANTagIfRequired(m, desiredVLANTagForMellanox)
+	if err != nil {
+		log.Errorf("Error while monitoring mellanox, continuing: %v", err)
+	}
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			log.Printf("context cancelled, stopping Mellanox Monitoring: %v", ctx.Err())
+			return
+		case <-ticker.C:
+			err := updatePriorityVLANTagIfRequired(m, desiredVLANTagForMellanox)
+			if err != nil {
+				log.Errorf("Error while monitoring mellanox, continuing: %v", err)
+			}
+		}
+	}
+}
+
+// Updates the priority VLAN Tag of mellanox adapter if not already set to the desired value
+func updatePriorityVLANTagIfRequired(na adapter.NetworkAdapter, desiredValue int) error {
+	currentVal, err := na.GetPriorityVLANTag()
+	if err != nil {
+		return fmt.Errorf("error while getting Priority VLAN Tag value: %w", err)
+	}
+
+	if currentVal == desiredValue {
+		log.Printf("Adapter's PriorityVLANTag is already set to %v, skipping reset", desiredValue)
+		return nil
+	}
+
+	err = na.SetPriorityVLANTag(desiredValue)
+	if err != nil {
+		return fmt.Errorf("error while setting Priority VLAN Tag value: %w", err)
 	}
 
 	return nil

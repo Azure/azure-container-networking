@@ -29,5 +29,6 @@
     "MSISettings": {
         "ResourceID": ""
     },
-    "PopulateHomeAzCacheRetryIntervalSecs": 15
+    "PopulateHomeAzCacheRetryIntervalSecs": 15,
+    "MellanoxMonitorIntervalSecs": 30
 }

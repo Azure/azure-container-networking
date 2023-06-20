@@ -32,7 +32,7 @@ steps:
         mkdir -p ~/.kube/
         echo "Create AKS Overlay cluster"
         make -C ./hack/swift azcfg AZCLI=az REGION=$(REGION_OVERLAY_CLUSTER_TEST)
-        make -C ./hack/swift overlay-no-kube-proxy-up AZCLI=az REGION=$(REGION_OVERLAY_CLUSTER_TEST) SUB=$(SUB_AZURE_NETWORK_AGENT_TEST) CLUSTER=${{ parameters.clusterName }}-$(make revision)
+        make -C ./hack/swift overlay-no-kube-proxy-up AZCLI=az REGION=$(REGION_OVERLAY_CLUSTER_TEST) SUB=$(SUB_AZURE_NETWORK_AGENT_TEST) CLUSTER=${{ parameters.clusterName }}-$(make revision) VM_SIZE=Standard_B2ms
         echo "Cluster successfully created"
     displayName: Create Overlay cluster
     condition: succeeded()
@@ -60,7 +60,7 @@ steps:
     name: "installCilium"
     displayName: "Install Cilium on AKS Overlay"
 
-  - script: | 
+  - script: |
       echo "install cilium CLI"
       CILIUM_CLI_VERSION=$(curl -s https://raw.githubusercontent.com/cilium/cilium-cli/master/stable.txt)
       CLI_ARCH=amd64
@@ -109,6 +109,9 @@ steps:
     displayName: "Run Azilium E2E on AKS Overlay"
 
   - script: |
+      echo "Status of the nodes and pods after the test"
+      kubectl get nodes -o wide
+      kubectl get pods -A -o wide
       echo "Logs will be available as a build artifact"
       ARTIFACT_DIR=$(Build.ArtifactStagingDirectory)/test-output/
       echo $ARTIFACT_DIR
@@ -147,6 +150,7 @@ steps:
       echo "Run Cilium Connectivity Tests"
       cilium status
       cilium connectivity test
+    retryCountOnTaskFailure: 3
     name: "ciliumConnectivityTests"
     displayName: "Run Cilium Connectivity Tests"
 
@@ -160,7 +164,14 @@ steps:
       make test-validate-state
     name: "validatePods"
     displayName: "Validate Pods"
-  
+
+  - script: |
+      echo "Run wireserver and metadata connectivity Tests"
+      bash test/network/wireserver_metadata_test.sh
+    retryCountOnTaskFailure: 3
+    name: "WireserverMetadataConnectivityTests"
+    displayName: "Run Wireserver and Metadata Connectivity Tests"
+
   - script: |
       ARTIFACT_DIR=$(Build.ArtifactStagingDirectory)/test-output/
       echo $ARTIFACT_DIR

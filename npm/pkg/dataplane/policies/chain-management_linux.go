@@ -60,6 +60,18 @@ var (
 			stdErr:       "Couldn't load target `AZURE-NPM':No such file or directory",
 			messageToLog: "didn't delete deprecated jump rule from FORWARD chain to AZURE-NPM chain likely because AZURE-NPM chain doesn't exist",
 		},
+		{
+			// nft version
+			// couldntLoadTargetErrorCode happens when AZURE-NPM chain doesn't exist (and hence the jump rule doesn't exist too)
+			exitCode:     couldntLoadTargetErrorCode,
+			stdErr:       "Chain 'AZURE-NPM' does not exist",
+			messageToLog: "in nft tables, didn't delete deprecated jump rule from FORWARD chain to AZURE-NPM chain likely because AZURE-NPM chain doesn't exist",
+		},
+		{
+			exitCode:     doesNotExistErrorCode,
+			stdErr:       "Bad rule (does a matching rule exist in that chain?)",
+			messageToLog: "probably tried to delete a jump rule that didn't exist in nft tables",
+		},
 	}
 
 	listForwardEntriesArgs = []string{
@@ -175,6 +187,7 @@ func (pMgr *PolicyManager) bootup(_ []string) error {
 	defer pMgr.reconcileManager.forceUnlock()
 
 	if strings.Contains(util.Iptables, "nft") {
+		klog.Info("detected nft iptables. cleaning up legacy iptables")
 		util.Iptables = util.IptablesLegacy
 		util.IptablesSave = util.IptablesSaveLegacy
 		util.IptablesRestore = util.IptablesRestoreLegacy
@@ -247,6 +260,8 @@ func (pMgr *PolicyManager) bootup(_ []string) error {
 		util.IptablesRestore = util.IptablesRestoreNft
 	}
 
+	klog.Info("cleaning up default iptables")
+
 	// 1. delete the deprecated jump to AZURE-NPM
 	deprecatedErrCode, deprecatedErr := pMgr.ignoreErrorsAndRunIPTablesCommand(removeDeprecatedJumpIgnoredErrors, util.IptablesDeletionFlag, deprecatedJumpFromForwardToAzureChainArgs...)
 	if deprecatedErrCode == 0 {
@@ -261,6 +276,8 @@ func (pMgr *PolicyManager) bootup(_ []string) error {
 	if err != nil {
 		return npmerrors.SimpleErrorWrapper("failed to get current chains for bootup", err)
 	}
+
+	klog.Infof("found %d current chains in the default iptables", len(currentChains))
 
 	// 2. cleanup old NPM chains, and configure base chains and their rules.
 	creator := pMgr.creatorForBootup(currentChains)
@@ -365,7 +382,7 @@ func (pMgr *PolicyManager) ignoreErrorsAndRunIPTablesCommand(ignored []*exitErro
 		if errCode > 0 {
 			metrics.SendErrorLogAndMetric(util.IptmID, "error: There was an error running command: [%s %s] Stderr: [%v, %s]", util.Iptables, allArgsString, exitError, outputString)
 		}
-		return errCode, npmerrors.SimpleErrorWrapper(fmt.Sprintf("failed to run iptables command [%s %s] Stderr: [%s]", util.Iptables, allArgsString, outputString), exitError)
+		return errCode, fmt.Errorf("failed to run iptables command [%s %s] Stderr: [%s]. err: [%w]", util.Iptables, allArgsString, outputString, exitError)
 	}
 	return 0, nil
 }

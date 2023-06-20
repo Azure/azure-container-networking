@@ -221,7 +221,7 @@ func InitializeWindowsMetrics() {
 			Subsystem: windowsPrefix,
 			Help:      "Latency  in seconds to list HNS endpoints latency",
 			//nolint:gomnd // default bucket consts
-			Buckets: prometheus.ExponentialBuckets(0.016, 2, 14), // upper bounds of 16 ms to ~2 minutes
+			Buckets: prometheus.ExponentialBuckets(0.008, 2, 14), // upper bounds of 8 ms to 65 seconds
 		},
 	)
 
@@ -232,7 +232,7 @@ func InitializeWindowsMetrics() {
 			Subsystem: windowsPrefix,
 			Help:      "Latency in seconds to get a single HNS endpoint",
 			//nolint:gomnd // default bucket consts
-			Buckets: prometheus.ExponentialBuckets(0.016, 2, 14), // upper bounds of 16 ms to ~2 minutes
+			Buckets: prometheus.ExponentialBuckets(0.008, 2, 14), // upper bounds of 8 ms to 65 seconds
 		},
 	)
 
@@ -243,7 +243,7 @@ func InitializeWindowsMetrics() {
 			Subsystem: windowsPrefix,
 			Help:      "Latency in seconds to get the HNS network",
 			//nolint:gomnd // default bucket consts
-			Buckets: prometheus.ExponentialBuckets(0.016, 2, 14), // upper bounds of 16 ms to ~2 minutes
+			Buckets: prometheus.ExponentialBuckets(0.008, 2, 14), // upper bounds of 8 ms to 65 seconds
 		},
 	)
 
@@ -254,7 +254,7 @@ func InitializeWindowsMetrics() {
 			Subsystem: windowsPrefix,
 			Help:      "Latency in seconds to add/update ACLs by operation label",
 			//nolint:gomnd // default bucket consts
-			Buckets: prometheus.ExponentialBuckets(0.016, 2, 14), // upper bounds of 16 ms to ~2 minutes
+			Buckets: prometheus.ExponentialBuckets(0.008, 2, 14), // upper bounds of 8 ms to 65 seconds
 		},
 		[]string{operationLabel},
 	)
@@ -266,7 +266,7 @@ func InitializeWindowsMetrics() {
 			Subsystem: windowsPrefix,
 			Help:      "Latency in seconds to add/update/delete SetPolicies by operation & is_nested label",
 			//nolint:gomnd // default bucket consts
-			Buckets: prometheus.ExponentialBuckets(0.016, 2, 14), // upper bounds of 16 ms to ~2 minutes
+			Buckets: prometheus.ExponentialBuckets(0.008, 2, 14), // upper bounds of 8 ms to 65 seconds
 		},
 		[]string{operationLabel, isNestedLabel},
 	)

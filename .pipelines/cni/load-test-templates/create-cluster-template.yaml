@@ -1,0 +1,19 @@
+parameters:
+  clusterType: ""
+  clusterName: ""
+  nodeCount: ""
+  vmSize: ""
+
+steps:
+  - task: AzureCLI@1
+    inputs:
+      azureSubscription: $(TEST_SUB_SERVICE_CONNECTION)
+      scriptLocation: "inlineScript"
+      scriptType: "bash"
+      addSpnToEnvironment: true
+      inlineScript: |
+        set -ex
+        make -C ./hack/swift azcfg AZCLI=az REGION=$(LOCATION)
+        make -C ./hack/swift ${{ parameters.clusterType }} AZCLI=az REGION=$(LOCATION) SUB=$(SUBSCRIPTION_ID) CLUSTER=${{ parameters.clusterName }}-$(make revision) NODE_COUNT=${{ parameters.nodeCount }} VM_SIZE=${{ parameters.vmSize }}
+    name: "CreateAksCluster"
+    displayName: "Create AKS Cluster"

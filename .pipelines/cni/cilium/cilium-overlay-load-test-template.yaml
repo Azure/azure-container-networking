@@ -1,26 +1,28 @@
-pr: none
-trigger: none
+parameters:
+  dependsOn: ""
+  name: "cilium"
+  clusterType: "overlay-no-kube-proxy-up"
+  clusterName: "cilium-overlay"
+  nodeCount: 10
+  vmSize: "Standard_DS4_v2"
+
 
 stages:
-  - stage: creating_aks_cluster
-    displayName: "Create AKS Cluster with Cilium"
+
+  - stage: createAKScluster
+    dependsOn: ${{ parameters.dependsOn }}
+    displayName: "AKS Cluster with Cilium"
     jobs:
-      - job: create_aks_cluster_with_cilium
+      - job: create_aks_cluster_with_${{ parameters.name }}
         steps:
-          - task: AzureCLI@1
-            inputs:
-              azureSubscription: $(TEST_SUB_SERVICE_CONNECTION)
-              scriptLocation: "inlineScript"
-              scriptType: "bash"
-              addSpnToEnvironment: true
-              inlineScript: |
-                set -ex
-                make -C ./hack/swift azcfg AZCLI=az REGION=$(LOCATION)
-                make -C ./hack/swift overlay-no-kube-proxy-up AZCLI=az REGION=$(LOCATION) SUB=$(SUBSCRIPTION_ID) CLUSTER=${RESOURCE_GROUP}-$(make revision) NODE_COUNT=10 VM_SIZE=Standard_DS4_v2
-            name: "CreateAksCluster"
-            displayName: "Create AKS Cluster"
+          - template: ../load-test-templates/create-cluster-template.yaml
+            parameters:
+              clusterType: ${{ parameters.clusterType }}
+              clusterName: ${{ parameters.clusterName }}
+              nodeCount: ${{ parameters.nodeCount }}
+              vmSize: ${{ parameters.vmSize }}
   - stage: install_cilium
-    dependsOn: creating_aks_cluster
+    dependsOn: createAKScluster
     displayName: "Install Cilium on AKS Overlay"
     jobs:
       - job: deploy_cilium_components
@@ -35,7 +37,7 @@ stages:
               inlineScript: |
                 set -ex
                 az extension add --name aks-preview
-                make -C ./hack/swift set-kubeconf AZCLI=az CLUSTER=${RESOURCE_GROUP}-$(make revision)
+                make -C ./hack/swift set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}-$(make revision)
                 ls -lah
                 pwd
                 kubectl cluster-info
@@ -65,73 +67,39 @@ stages:
     jobs:
       - job: deploy_pods
         steps:
-          - task: AzureCLI@1
-            displayName: "Pod Deployment"
-            inputs:
-              azureSubscription: $(TEST_SUB_SERVICE_CONNECTION)
-              scriptLocation: "inlineScript"
-              scriptType: "bash"
-              addSpnToEnvironment: true
-              inlineScript: |
-                set -ex
-                az extension add --name aks-preview
-                make -C ./hack/swift set-kubeconf AZCLI=az CLUSTER=${RESOURCE_GROUP}-$(make revision)
-                cd test/integration/load
-                go test -timeout 30m -tags load -run ^TestLoad$ -tags=load -iterations=4 -scaleup=2400
+          - template: ../load-test-templates/pod-deployment-template.yaml
+            parameters:
+              clusterName: ${{ parameters.clusterName }}
   - stage: validate_state
     dependsOn: pod_deployment
     displayName: "Validate State"
     jobs:
       - job: validate_state
         steps:
-          - task: AzureCLI@1
-            inputs:
-              azureSubscription: $(TEST_SUB_SERVICE_CONNECTION)
-              scriptLocation: "inlineScript"
-              scriptType: "bash"
-              addSpnToEnvironment: true
-              inlineScript: |
-                make -C ./hack/swift set-kubeconf AZCLI=az CLUSTER=${RESOURCE_GROUP}-$(make revision)
-                kubectl get pods -A
-                make test-validate-state
-            name: "ValidateState"
-            displayName: "Validate State"
-            retryCountOnTaskFailure: 3
+          - template: ../load-test-templates/validate-state-template.yaml
+            parameters:
+              clusterName: ${{ parameters.clusterName }}
   - stage: restart_nodes
     dependsOn: validate_state
     displayName: "Restart Node"
     jobs:
       - job: restart_nodes
         steps:
-          - task: AzureCLI@1
-            inputs:
-              azureSubscription: $(TEST_SUB_SERVICE_CONNECTION)
-              scriptLocation: "inlineScript"
-              scriptType: "bash"
-              addSpnToEnvironment: true
-              inlineScript: |
-                echo "Scale up the pods and immediated restart the nodes"
-                make -C ./hack/swift set-kubeconf AZCLI=az CLUSTER=${RESOURCE_GROUP}-$(make revision)
-                make -C ./hack/swift azcfg AZCLI=az REGION=$(LOCATION)
-                cd test/integration/load
-                echo "Scaling the pods down to 100 per node"
-                go test -count 1 -timeout 30m -tags load -run ^TestScaleDeployment$ -tags=load -scaleup=1000 -skip-wait=true
-                cd ../../../
-                echo "Restarting the nodes"
-                vmss_name=$(az vmss list -g MC_${RESOURCE_GROUP}_${RESOURCE_GROUP}_$(LOCATION) --query "[].name" -o tsv)
-                make -C ./hack/swift restart-vmss AZCLI=az CLUSTER=${RESOURCE_GROUP}-$(make revision) REGION=$(LOCATION) VMSS_NAME=$vmss_name
-                cd test/integration/load
-                go test -count 1 -timeout 30m -tags load -run ^TestScaleDeployment$ -tags=load -replicas=1000
-            name: "RestartNodes"
-            displayName: "Restart Nodes"
-          - script: |
-              export RESTART_CASE=true
-              make test-validate-state
-            name: "ValidateState"
-            displayName: "Validate State"
-            retryCountOnTaskFailure: 3
-  - stage: connectivity_tests
+          - template: ../load-test-templates/restart-node-template.yaml
+            parameters:
+              clusterName: ${{ parameters.clusterName }}
+  - stage: validate_restart_state
     dependsOn: restart_nodes
+    displayName: "Validate Restart State"
+    jobs:
+      - job: validate_restart_state
+        steps:
+          - template: ../load-test-templates/validate-state-template.yaml
+            parameters:
+              clusterName: ${{ parameters.clusterName }}
+              restartCase: "true"
+  - stage: connectivity_tests
+    dependsOn: validate_restart_state
     displayName: "Connectivity Tests"
     jobs:
       - job: cni_tests
@@ -154,7 +122,7 @@ stages:
               addSpnToEnvironment: true
               inlineScript: |
                 set -ex
-                make -C ./hack/swift set-kubeconf AZCLI=az CLUSTER=${RESOURCE_GROUP}-$(make revision)
+                make -C ./hack/swift set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}-$(make revision)
             name: "GetCluster"
             displayName: "Get AKS Cluster"
           - script: |
@@ -181,9 +149,9 @@ stages:
                 if [ "$(DELETE_RESOURCES)" ]
                 then
                   echo "Deleting Cluster and resource group"
-                  make -C ./hack/swift set-kubeconf AZCLI=az CLUSTER=${RESOURCE_GROUP}-$(make revision)
+                  make -C ./hack/swift set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}-$(make revision)
                   make -C ./hack/swift azcfg AZCLI=az REGION=$(LOCATION)
-                  make -C ./hack/swift down AZCLI=az REGION=$(LOCATION) SUB=$(SUBSCRIPTION_ID) CLUSTER=${RESOURCE_GROUP}-$(make revision)
+                  make -C ./hack/swift down AZCLI=az REGION=$(LOCATION) SUB=$(SUBSCRIPTION_ID) CLUSTER=${{ parameters.clusterName }}-$(make revision)
                   echo "Cluster and resources down"
                 else
                   echo "Deletion of resources is False"

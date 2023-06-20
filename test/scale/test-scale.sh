@@ -1,4 +1,4 @@
-# exit on error
+#exit on error
 set -e
 
 printHelp() {
@@ -39,6 +39,7 @@ OPTIONAL PARAMETERS:
     --kubectl-binary=<path>               path to kubectl binary. Default is kubectl
     --restart-npm                         make sure NPM exists and restart it before running scale test
     --debug-exit-after-print-counts       skip scale test. Just print out counts of things to be created and counts of IPSets/ACLs that NPM would create
+    --num-real-services                   cluster ip service for the real deployments scheduled. Each svc will point to the respective deployment(having <num-real-replicas> pods) Default is 0
     --debug-exit-after-generation         skip scale test. Exit after generating templates
 
 OPTIONAL PARAMETERS TO TEST DELETION:
@@ -80,6 +81,9 @@ while [[ $# -gt 0 ]]; do
             ;;
         --num-real-replicas=*)
             numRealReplicas="${1#*=}"
+            ;;
+        --num-real-services=*)
+            numRealServices="${1#*=}"
             ;;
         --num-network-policies=*)
             numNetworkPolicies="${1#*=}"
@@ -176,6 +180,7 @@ fi
 if [[ -z $KUBECTL ]]; then
     KUBECTL="kubectl"
 fi
+if [[ -z $numRealServices ]]; then numRealServices=0; fi
 if [[ -z $deletePodsInterval ]]; then deletePodsInterval=60; fi
 if [[ -z $deletePodsTimes ]]; then deletePodsTimes=1; fi
 if [[ -z $deleteLabelsInterval ]]; then deleteLabelsInterval=60; fi
@@ -207,17 +212,23 @@ fi
 if [[ $numRealPods -gt 0 ]]; then
     extraIPSets=$(( $extraIPSets + 2 ))
 fi
+if [[ $numRealServices -gt 0 ]]; then
+    extraIPSets=$(( $extraIPSets + $numRealDeployments ))
+fi
 numIPSetsAddedByNPM=$(( 4 + 2*$numTotalPods*$numUniqueLabelsPerPod + 2*$numSharedLabelsPerPod + 2*($numKwokDeployments+$numRealDeployments)*$numUniqueLabelsPerDeployment + $extraIPSets ))
 # 3 basic members are [all-ns,kubernetes.io/metadata.name,kubernetes.io/metadata.name:scale-test]
 # 5*pods members go to [ns-scale-test,kubernetes.io/metadata.name:scale-test,template-hash:xxxx,app:scale-test]
 numIPSetMembersAddedByNPM=$(( 3 + $numTotalPods*(5 + 2*$numUniqueLabelsPerPod + 2*$numSharedLabelsPerPod) + 2*($numKwokPods+$numRealPods)*$numUniqueLabelsPerDeployment + 2*$numKwokPods + 2*$numRealPods ))
-
+if [[ $numRealServices -gt 0 ]]; then
+    numIPSetMembersAddedByNPM=$(( $numIPSetMembersAddedByNPM + $numRealPods ))
+fi
 ## PRINT OUT COUNTS
 cat <<EOF
 Starting scale script with following arguments:
 maxKwokPodsPerNode=$maxKwokPodsPerNode
 numKwokDeployments=$numKwokDeployments
 numKwokReplicas=$numKwokReplicas
+numRealServices=$numRealServices
 numRealDeployments=$numRealDeployments
 numRealReplicas=$numRealReplicas
 numSharedLabelsPerPod=$numSharedLabelsPerPod
@@ -283,6 +294,7 @@ mkdir -p generated/networkpolicies/unapplied
 mkdir -p generated/kwok-nodes
 mkdir -p generated/deployments/real/
 mkdir -p generated/deployments/kwok/
+mkdir -p generated/services/real/
 
 generateDeployments() {
     local numDeployments=$1
@@ -316,10 +328,25 @@ generateDeployments() {
     done
 }
 
+generateServices() {
+    local numServices=$1
+    local numDeployments=$2
+    local serviceKind=$3
+
+    for i in $(seq -f "%05g" 1 $numServices); do
+        name="$serviceKind-svc-$i"
+        outFile=generated/services/$serviceKind/$name.yaml
+
+        sed "s/TEMP_NAME/$name/g" templates/$serviceKind-service.yaml > $outFile
+        sed -i "s/TEMP_DEPLOYMENT_NAME/$serviceKind-dep-$i/g" $outFile
+    done
+}
+
 echo "Generating yamls..."
 
 generateDeployments $numKwokDeployments $numKwokReplicas kwok
 generateDeployments $numRealDeployments $numRealReplicas real
+generateServices $numRealServices $numRealDeployments real
 
 for j in $(seq 1 $numNetworkPolicies); do
     valNum=$j
@@ -416,6 +443,9 @@ if [[ $numRealPods -gt 0 ]]; then
 fi
 if [[ $numKwokPods -gt 0 ]]; then
     $KUBECTL $KUBECONFIG_ARG apply -f generated/deployments/kwok/
+fi
+if [[ $numServices -gt 0 ]]; then
+    $KUBECTL $KUBECONFIG_ARG apply -f generated/services/real/
 fi
 set +x
 

@@ -1,7 +1,7 @@
 package metrics
 
 func RecordListEndpointsLatency(timer *Timer) {
-	listEndpointsLatency.Observe(timer.timeElapsed())
+	listEndpointsLatency.Observe(timer.timeElapsedSeconds())
 }
 
 func IncListEndpointsFailures() {
@@ -9,7 +9,7 @@ func IncListEndpointsFailures() {
 }
 
 func RecordGetEndpointLatency(timer *Timer) {
-	getEndpointLatency.Observe(timer.timeElapsed())
+	getEndpointLatency.Observe(timer.timeElapsedSeconds())
 }
 
 func IncGetEndpointFailures() {

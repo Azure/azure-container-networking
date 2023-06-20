@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: TEMP_NAME
+  namespace: scale-test
+  labels:
+    app: scale-test
+    is-real: "true"
+spec:
+  selector:
+    app: scale-test
+    is-real: "true"
+    name: TEMP_DEPLOYMENT_NAME
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 80

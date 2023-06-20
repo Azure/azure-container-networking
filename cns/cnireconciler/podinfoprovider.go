@@ -71,14 +71,14 @@ func cniStateToPodInfoByIP(state *api.AzureCNIState) (map[string]cns.PodInfo, er
 func endpointStateToPodInfoByIP(state map[string]*restserver.EndpointInfo) (map[string]cns.PodInfo, error) {
 	podInfoByIP := map[string]cns.PodInfo{}
 	for containerID, endpointInfo := range state { // for each endpoint
-		for ifname, ipinfo := range endpointInfo.IfnameToIPMap { // for each IP info object of the endpoint's interfaces
+		for _, ipinfo := range endpointInfo.IfnameToIPMap { // for each IP info object of the endpoint's interfaces
 			for _, ipv4conf := range ipinfo.IPv4 { // for each IPv4 config of the endpoint's interfaces
 				if _, ok := podInfoByIP[ipv4conf.IP.String()]; ok {
 					return nil, errors.Wrap(cns.ErrDuplicateIP, ipv4conf.IP.String())
 				}
 				podInfoByIP[ipv4conf.IP.String()] = cns.NewPodInfo(
 					containerID,
-					ifname,
+					containerID,
 					endpointInfo.PodName,
 					endpointInfo.PodNamespace,
 				)
@@ -89,7 +89,7 @@ func endpointStateToPodInfoByIP(state map[string]*restserver.EndpointInfo) (map[
 				}
 				podInfoByIP[ipv6conf.IP.String()] = cns.NewPodInfo(
 					containerID,
-					ifname,
+					containerID,
 					endpointInfo.PodName,
 					endpointInfo.PodNamespace,
 				)

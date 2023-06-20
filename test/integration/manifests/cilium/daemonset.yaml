@@ -337,6 +337,27 @@ spec:
         - mountPath: /host/usr/lib
           name: host-usr-lib
           readOnly: true
+      - name: block-wireserver
+        image: $CILIUM_IMAGE_REGISTRY/cilium/cilium:$CILIUM_VERSION_TAG
+        imagePullPolicy: IfNotPresent
+        command:
+        - /bin/bash
+        - -cx
+        - |
+          iptables -t mangle -C FORWARD -d 168.63.129.16 -p tcp --dport 80 -j DROP
+          status=$?
+          set -e
+          if [ $status -eq 0 ]; then
+            echo "Skip adding iptables as it already exists"
+          else
+            iptables -t mangle -I FORWARD -d 168.63.129.16 -p tcp --dport 80 -j DROP
+          fi
+        securityContext:
+          capabilities:
+            add:
+            - NET_ADMIN
+            drop:
+            - ALL
       nodeSelector:
         kubernetes.io/os: linux
       priorityClassName: system-node-critical

@@ -655,6 +655,7 @@ func (service *HTTPRestService) GetExistingIPConfig(podInfo cns.PodInfo) ([]cns.
 		}
 	}
 
+	logger.Printf("[GetExistingIPConfig] IPConfigExists [%t] for pod [%+v]", ipConfigExists, podInfo.Key())
 	return podIPInfo, ipConfigExists, nil
 }
 

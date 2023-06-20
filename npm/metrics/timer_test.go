@@ -19,3 +19,10 @@ func TestTimeElapsed(t *testing.T) {
 		require.FailNowf(t, "", "expected elapsed time for timer to be  %f but got %f", expectedDuration, duration)
 	}
 }
+
+func TestTimeElapsedSeconds(t *testing.T) {
+	timer := StartNewTimer()
+	time.Sleep(time.Millisecond * 1100)
+	require.GreaterOrEqual(t, timer.timeElapsedSeconds(), 1.0)
+	require.LessOrEqual(t, timer.timeElapsedSeconds(), 3.0)
+}

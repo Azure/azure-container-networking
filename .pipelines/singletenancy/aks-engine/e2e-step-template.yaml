@@ -19,35 +19,27 @@ steps:
       go get github.com/onsi/gomega/...
 
       cd '$(modulePath)'
-      echo Currently set AKS-Engine Version '$(AKS_ENGINE_VERSION)'
-      if [ -z '$(AKS_ENGINE_VERSION)' ]
-      then
-        echo No AKS-Engine version set, using latest...
-        export aksEVersion=$(curl -L -s -H 'Accept: application/json' https://github.com/Azure/aks-engine/releases/latest | sed -e 's/.*"tag_name":"\([^"]*\)".*/\1/')
-      else
-        echo Found set AKS-Engine version '$(AKS_ENGINE_VERSION)'...
-        export aksEVersion='$(AKS_ENGINE_VERSION)'
-      fi
-      echo Using AKS-Engine version $aksEVersion
 
-      #download source
-      wget https://github.com/csfmomo/aks-engine/archive/v1.0.9.3.tar.gz
+      AKS_ENGINE_FORK=csfmomo
+      AKS_ENGINE_VERSION=v1.0.9.5
 
-      # extract source
-      #tar -zxf $aksEVersion.tar.gz
-      tar -zxf v1.0.9.3.tar.gz
+      # Get source
+      wget https://github.com/$AKS_ENGINE_FORK/aks-engine/archive/$AKS_ENGINE_VERSION.tar.gz
 
+
+      # Extract source (to be able to run `make test-kubernetes` later on)
+      tar -zxf $AKS_ENGINE_VERSION.tar.gz
       # move source to current directory
       mv aks-engine-*/* .
 
-      # download binary
-      wget https://github.com/csfmomo/aks-engine/releases/download/v1.0.9.3/aks-engine-v1.0.9.3-linux-amd64.tar.gz
+      # Download aks-engine binary
+      wget https://github.com/$AKS_ENGINE_FORK/aks-engine/releases/download/$AKS_ENGINE_VERSION/aks-engine-$AKS_ENGINE_VERSION-linux-amd64.tar.gz
 
       rm -rf ./bin
       mkdir ./bin
 
       # extract binary
-      tar -zxvf aks-engine-v1.0.9.3-linux-amd64.tar.gz -C bin
+      tar -zxvf aks-engine-$AKS_ENGINE_VERSION-linux-amd64.tar.gz -C bin
       mv ./bin/aks-engine-*/* ./bin/
       ls -l ./bin
       ./bin/aks-engine version
