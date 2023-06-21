@@ -23,13 +23,8 @@ func Initialize(cfg *Config, ctx context.Context) {
 	Logger = newFileLogger(cfg)
 
 	go func() {
-		for {
-			select {
-			case <-ctx.Done():
-				Logger.Sync()
-				return
-			}
-		}
+		<-ctx.Done():
+		Logger.Sync()
 	}()
 }
 
