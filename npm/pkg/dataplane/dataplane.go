@@ -112,9 +112,9 @@ func NewDataPlane(nodeName string, ioShim *common.IOShim, cfg *Config, stopChann
 	// This step must be performed after bootupDataplane() because it calls util.DetectIptablesVersion(), which sets the proper value for util.Iptables
 	dp.netPolInBackground = cfg.NetPolInBackground && !util.IsWindowsDP() && (strings.Contains(util.Iptables, "nft") || dp.debug)
 	if dp.netPolInBackground {
-		klog.Infof("[DataPlane] dataplane configured to add netpols in background every %v or every %d calls to AddPolicy()", dp.NetPolInterval, dp.MaxPendingNetPols)
+		metrics.SendLog(util.DaemonDataplaneID, fmt.Sprintf("[DataPlane] dataplane configured to add netpols in background every %v or every %d calls to AddPolicy()", dp.NetPolInterval, dp.MaxPendingNetPols), true)
 	} else {
-		klog.Info("[DataPlane] dataplane configured to NOT add netpols in background")
+		metrics.SendLog(util.DaemonDataplaneID, "[DataPlane] dataplane configured to NOT add netpols in background", true)
 	}
 
 	return dp, nil

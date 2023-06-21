@@ -209,12 +209,10 @@ func (q *netPolQueue) len() int {
 // enqueue adds a NetPol to the queue. If the NetPol already exists in the queue, the NetPol object is updated.
 func (q *netPolQueue) enqueue(policy *policies.NPMNetworkPolicy) {
 	if _, ok := q.toAdd[policy.PolicyKey]; ok {
-		klog.Infof("[DataPlane] policy %s already exists in toAdd map. updating the existing obj", policy.PolicyKey)
-		q.toAdd[policy.PolicyKey] = policy
-		return
+		klog.Infof("[DataPlane] policy %s exists in netPolQueue. updating", policy.PolicyKey)
+	} else {
+		klog.Infof("[DataPlane] enqueuing policy %s in netPolQueue", policy.PolicyKey)
 	}
-
-	klog.Infof("[DataPlane] enqueuing policy %s in netPolQueue", policy.PolicyKey)
 	q.toAdd[policy.PolicyKey] = policy
 }
 
