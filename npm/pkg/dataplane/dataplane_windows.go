@@ -297,11 +297,7 @@ func (dp *DataPlane) getEndpointsToApplyPolicies(netPols []*policies.NPMNetworkP
 		return nil, ErrIncorrectNumberOfNetPols
 	}
 
-	var netPol *policies.NPMNetworkPolicy
-	for _, n := range netPols {
-		netPol = n
-	}
-
+	netPol := netPols[0]
 	selectorIPSets := dp.getSelectorIPSets(netPol)
 	netpolSelectorIPs, err := dp.ipsetMgr.GetIPsFromSelectorIPSets(selectorIPSets)
 	if err != nil {
