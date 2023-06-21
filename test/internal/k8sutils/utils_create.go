@@ -16,6 +16,19 @@ import (
 	typedrbacv1 "k8s.io/client-go/kubernetes/typed/rbac/v1"
 )
 
+func MustCreateOrUpdatePod(ctx context.Context, podI typedcorev1.PodInterface, pod corev1.Pod) error {
+	if err := MustDeletePod(ctx, podI, pod); err != nil {
+		if !apierrors.IsNotFound(err) {
+			return err
+		}
+	}
+	if _, err := podI.Create(ctx, &pod, metav1.CreateOptions{}); err != nil {
+		return errors.Wrapf(err, "failed to create pod %v", pod.Name)
+	}
+
+	return nil
+}
+
 func MustCreateDaemonset(ctx context.Context, daemonsets typedappsv1.DaemonSetInterface, ds appsv1.DaemonSet) error {
 	if err := mustDeleteDaemonset(ctx, daemonsets, ds); err != nil {
 		return err
@@ -156,7 +169,10 @@ func MustCreateNamespace(ctx context.Context, clienset *kubernetes.Clientset, na
 		},
 	}, metav1.CreateOptions{})
 
-	if !apierrors.IsAlreadyExists(err) {
+	if apierrors.IsAlreadyExists(err) {
+		return errors.Wrapf(err, "namespace: %v already exists", namespace)
+	}
+	if err != nil {
 		return errors.Wrapf(err, "failed to create namespace %v", namespace)
 	}
 	return nil
