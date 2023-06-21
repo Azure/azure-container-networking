@@ -23,13 +23,9 @@ func Initialize(cfg *Config, ctx context.Context) {
 	Logger = newFileLogger(cfg)
 
 	go func() {
-		<-ctx.Done():
+		<-ctx.Done()
 		Logger.Sync()
 	}()
-}
-
-func InitializeMock() {
-	Logger = zap.NewNop()
 }
 
 func newFileLogger(cfg *Config) *zap.Logger {
