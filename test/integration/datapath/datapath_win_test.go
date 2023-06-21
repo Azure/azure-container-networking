@@ -32,13 +32,13 @@ var (
 /*
 This test assumes that you have the current credentials loaded in your default kubeconfig for a
 k8s cluster with a windows nodepool consisting of at least 2 windows nodes.
-*** The expected nodepool name is npwin, if the nodepool has a diferent name ensure that you change nodepoolLabelSelector with:
-	-nodepoolLabelSelector="yournodepoolname"
+*** The expected nodepool name is npwin, if the nodepool has a diferent name ensure that you change nodepoolSelector with:
+	-nodepoolSelector="yournodepoolname"
 
 To run the test use one of the following commands:
 go test -count=1 test/integration/datapath/datapath_win_test.go -timeout 3m -tags connection -run ^TestDatapathWin$ -tags=connection
    or
-go test -count=1 test/integration/datapath/datapath_win_test.go -timeout 3m -tags connection -run ^TestDatapathWin$ -podName=acnpod -nodepoolLabelSelector=npwina -tags=connection
+go test -count=1 test/integration/datapath/datapath_win_test.go -timeout 3m -tags connection -run ^TestDatapathWin$ -podName=acnpod -nodepoolSelector=npwina -tags=connection
 
 
 This test checks pod to pod, pod to node, and pod to internet for datapath connectivity.

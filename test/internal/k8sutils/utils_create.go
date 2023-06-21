@@ -170,6 +170,9 @@ func MustCreateNamespace(ctx context.Context, clienset *kubernetes.Clientset, na
 	}, metav1.CreateOptions{})
 
 	if apierrors.IsAlreadyExists(err) {
+		return errors.Wrapf(err, "namespace: %v already exists", namespace)
+	}
+	if err != nil {
 		return errors.Wrapf(err, "failed to create namespace %v", namespace)
 	}
 	return nil

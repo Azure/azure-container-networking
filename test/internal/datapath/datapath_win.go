@@ -127,7 +127,7 @@ func WindowsPodToInternet(ctx context.Context, clientset *kubernetes.Clientset, 
 	pods, err := k8sutils.GetPodsByNode(ctx, clientset, podNamespace, labelSelector, nodeName)
 	if err != nil {
 		logrus.Error(err)
-		errors.Wrap(err, "k8s api call")
+		return errors.Wrap(err, "k8s api call")
 	}
 	if len(pods.Items) <= 1 {
 		return errors.New("Less than 2 pods on node")
