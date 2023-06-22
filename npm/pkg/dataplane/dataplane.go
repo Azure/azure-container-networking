@@ -18,10 +18,11 @@ import (
 const (
 	reconcileDuration = time.Duration(5 * time.Minute)
 
-	contextBackground = "BACKGROUND"
-	contextApplyDP    = "APPLY-DP"
-	contextAddNetPol  = "ADD-NETPOL"
-	contextDelNetPol  = "DEL-NETPOL"
+	contextBackground      = "BACKGROUND"
+	contextApplyDP         = "APPLY-DP"
+	contextAddNetPol       = "ADD-NETPOL"
+	contextAddNetPolBootup = "BOOTUP-ADD-NETPOL"
+	contextDelNetPol       = "DEL-NETPOL"
 )
 
 var ErrInvalidApplyConfig = errors.New("invalid apply config")
@@ -280,7 +281,7 @@ func (dp *DataPlane) ApplyDataPlane() error {
 		return dp.applyDataPlaneNow(contextApplyDP)
 	}
 
-	// increment batch and apply if needed
+	// increment batch and apply dataplane if needed
 	dp.applyInfo.Lock()
 	dp.applyInfo.numBatches++
 	newCount := dp.applyInfo.numBatches
@@ -395,21 +396,25 @@ func (dp *DataPlane) AddPolicy(policy *policies.NPMNetworkPolicy) error {
 		// We don't need to worry about adding Policies to Endpoints, so we don't need IPSets in the kernel yet.
 		// Ideally, we get all NetworkPolicies in the cache before the Pod controller starts
 
-		// increment batch and apply if needed
+		// increment batch and apply IPSets if needed
 		dp.applyInfo.numBatches++
 		newCount := dp.applyInfo.numBatches
-		klog.Infof("[DataPlane] [bootup] [%s] new batch count: %d", contextAddNetPol, newCount)
+		klog.Infof("[DataPlane] [%s] new batch count: %d", contextAddNetPolBootup, newCount)
 		if newCount >= dp.ApplyMaxBatches {
-			klog.Infof("[DataPlane] [bootup] [%s] applying now since reached maximum batch count: %d", contextAddNetPol, newCount)
-			err = dp.applyDataPlaneNow(contextAddNetPol)
+			klog.Infof("[DataPlane] [%s] applying now since reached maximum batch count: %d", contextAddNetPolBootup, newCount)
+			klog.Infof("[DataPlane] [%s] starting to apply ipsets", contextAddNetPolBootup)
+			err := dp.ipsetMgr.ApplyIPSets()
 			if err != nil {
-				return err
+				return fmt.Errorf("[DataPlane] [%s] error while applying IPSets: %w", contextAddNetPolBootup, err)
 			}
+			klog.Infof("[DataPlane] [%s] finished applying ipsets", contextAddNetPolBootup)
+
+			dp.applyInfo.numBatches = 0
 		}
 
 		err = dp.policyMgr.AddPolicy(policy, nil)
 		if err != nil {
-			return fmt.Errorf("[DataPlane] [bootup] error while adding policy: %w", err)
+			return fmt.Errorf("[DataPlane] [%s] error while adding policy: %w", contextAddNetPolBootup, err)
 		}
 
 		return nil
