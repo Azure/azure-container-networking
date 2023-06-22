@@ -71,7 +71,6 @@ func mustParseResource(path string, out interface{}) error {
 	if err := yaml.NewYAMLOrJSONDecoder(f, 0).Decode(out); err != nil {
 		return err
 	}
-
 	return err
 }
 
