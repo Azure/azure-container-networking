@@ -403,7 +403,7 @@ func (dp *DataPlane) AddPolicy(policy *policies.NPMNetworkPolicy) error {
 		if newCount >= dp.ApplyMaxBatches {
 			klog.Infof("[DataPlane] [%s] applying now since reached maximum batch count: %d", contextAddNetPolBootup, newCount)
 			klog.Infof("[DataPlane] [%s] starting to apply ipsets", contextAddNetPolBootup)
-			err := dp.ipsetMgr.ApplyIPSets()
+			err = dp.ipsetMgr.ApplyIPSets()
 			if err != nil {
 				return fmt.Errorf("[DataPlane] [%s] error while applying IPSets: %w", contextAddNetPolBootup, err)
 			}
