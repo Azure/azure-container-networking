@@ -2224,15 +2224,13 @@ func getAllMultiJobTests() []*MultiJobTestCase {
 		{
 			Description: "create namespaces, pods, and a policy which applies to a pod",
 			Jobs: map[string][]*Action{
-				"finish_bootup_phase": {
-					FinishBootupPhase(),
-				},
 				"namespace_controller": {
 					CreateNamespace("x", map[string]string{"k1": "v1"}),
 					CreateNamespace("y", map[string]string{"k2": "v2"}),
 					ApplyDP(),
 				},
 				"pod_controller": {
+					FinishBootupPhase(),
 					CreatePod("x", "a", ip1, thisNode, map[string]string{"k1": "v1"}),
 					CreatePod("y", "a", ip2, otherNode, map[string]string{"k1": "v1"}),
 					ApplyDP(),
