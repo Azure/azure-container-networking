@@ -276,24 +276,21 @@ func (dp *DataPlane) RemoveFromList(listName *ipsets.IPSetMetadata, setNames []*
 // and accordingly makes changes in dataplane. This function helps emulate a single call to
 // dataplane instead of multiple ipset operations calls ipset operations calls to dataplane
 func (dp *DataPlane) ApplyDataPlane() error {
-	if dp.applyInBackground {
-		return dp.incrementBatchAndApplyIfNeeded(contextApplyDP)
+	if !dp.applyInBackground {
+		return dp.applyDataPlaneNow(contextApplyDP)
 	}
 
-	return dp.applyDataPlaneNow(contextApplyDP)
-}
-
-func (dp *DataPlane) incrementBatchAndApplyIfNeeded(context string) error {
+	// increment batch and apply if needed
 	dp.applyInfo.Lock()
 	dp.applyInfo.numBatches++
 	newCount := dp.applyInfo.numBatches
 	dp.applyInfo.Unlock()
 
-	klog.Infof("[DataPlane] [%s] new batch count: %d", context, newCount)
+	klog.Infof("[DataPlane] [%s] new batch count: %d", contextApplyDP, newCount)
 
 	if newCount >= dp.ApplyMaxBatches {
-		klog.Infof("[DataPlane] [%s] applying now since reached maximum batch count: %d", context, newCount)
-		return dp.applyDataPlaneNow(context)
+		klog.Infof("[DataPlane] [%s] applying now since reached maximum batch count: %d", contextApplyDP, newCount)
+		return dp.applyDataPlaneNow(contextApplyDP)
 	}
 
 	return nil
@@ -380,32 +377,61 @@ func (dp *DataPlane) AddPolicy(policy *policies.NPMNetworkPolicy) error {
 		return fmt.Errorf("[DataPlane] error while adding Rule IPSet references: %w", err)
 	}
 
-	var endpointList map[string]string
-	if dp.inBootupPhase() {
-		// During bootup phase, the Pod controller will not be running.
-		// We don't need to worry about adding Policies to Endpoints, so we don't need IPSets in the kernel yet.
-		// Ideally, we get all NetworkPolicies in the cache before the Pod controller starts
-		err = dp.incrementBatchAndApplyIfNeeded(contextAddNetPol)
-		if err != nil {
-			return err
-		}
-	} else {
-		err = dp.applyDataPlaneNow(contextAddNetPol)
-		if err != nil {
-			return err
-		}
-
-		endpointList, err = dp.getEndpointsToApplyPolicy(policy)
-		if err != nil {
-			return fmt.Errorf("[DataPlane] error while getting endpoints to apply policy after applying dataplane: %w", err)
+	inBootupPhase := false
+	if dp.applyInBackground {
+		dp.applyInfo.Lock()
+		inBootupPhase = dp.applyInfo.inBootupPhase
+		if inBootupPhase {
+			// keep holding the lock to block FinishBootupPhase() and prevent PodController from
+			// coming back online and causing race issues from updatePod() within applyDataPlaneNow()
+			defer dp.applyInfo.Unlock()
+		} else {
+			dp.applyInfo.Unlock()
 		}
 	}
 
-	// endpointList will be empty if in bootup phase
+	if inBootupPhase {
+		// During bootup phase, the Pod controller will not be running.
+		// We don't need to worry about adding Policies to Endpoints, so we don't need IPSets in the kernel yet.
+		// Ideally, we get all NetworkPolicies in the cache before the Pod controller starts
+
+		// increment batch and apply if needed
+		dp.applyInfo.numBatches++
+		newCount := dp.applyInfo.numBatches
+		klog.Infof("[DataPlane] [bootup] [%s] new batch count: %d", contextAddNetPol, newCount)
+		if newCount >= dp.ApplyMaxBatches {
+			klog.Infof("[DataPlane] [bootup] [%s] applying now since reached maximum batch count: %d", contextAddNetPol, newCount)
+			err = dp.applyDataPlaneNow(contextAddNetPol)
+			if err != nil {
+				return err
+			}
+		}
+
+		err = dp.policyMgr.AddPolicy(policy, nil)
+		if err != nil {
+			return fmt.Errorf("[DataPlane] [bootup] error while adding policy: %w", err)
+		}
+
+		return nil
+	}
+
+	// standard, non-bootup phase
+	err = dp.applyDataPlaneNow(contextAddNetPol)
+	if err != nil {
+		return err
+	}
+
+	var endpointList map[string]string
+	endpointList, err = dp.getEndpointsToApplyPolicy(policy)
+	if err != nil {
+		return fmt.Errorf("[DataPlane] error while getting endpoints to apply policy after applying dataplane: %w", err)
+	}
+
 	err = dp.policyMgr.AddPolicy(policy, endpointList)
 	if err != nil {
 		return fmt.Errorf("[DataPlane] error while adding policy: %w", err)
 	}
+
 	return nil
 }
 
@@ -581,15 +607,4 @@ func (dp *DataPlane) deleteIPSetsAndReferences(sets []*ipsets.TranslatedIPSet, n
 		dp.ipsetMgr.DeleteIPSet(set.Metadata.GetPrefixName(), false)
 	}
 	return nil
-}
-
-func (dp *DataPlane) inBootupPhase() bool {
-	if !dp.applyInBackground {
-		return false
-	}
-
-	dp.applyInfo.Lock()
-	defer dp.applyInfo.Unlock()
-
-	return dp.applyInfo.inBootupPhase
 }
