@@ -37,7 +37,7 @@ func main() {
 		MaxBackups:  maxLogFileCount,
 		Name:        name,
 	}
-	log.Initialize(loggerCfg, ctx)
+	log.Initialize(ctx, loggerCfg)
 
 	ipamPlugin, err := ipam.NewPlugin(name, &config)
 	if err != nil {

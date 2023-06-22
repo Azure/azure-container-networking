@@ -302,7 +302,7 @@ func main() {
 		MaxBackups:  maxLogFileCount,
 		Name:        name,
 	}
-	log.Initialize(loggerCfg, ctx)
+	log.Initialize(ctx, loggerCfg)
 
 	if rootExecute() != nil {
 		os.Exit(1)

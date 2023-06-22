@@ -124,7 +124,7 @@ func main() {
 		MaxBackups:  maxLogFileCount,
 		Name:        azureVnetTelemetry,
 	}
-	log.Initialize(loggerCfg, ctx)
+	log.Initialize(ctx, loggerCfg)
 
 	log.Logger.Info("Telemetry invocation info", zap.Any("arguments", os.Args))
 

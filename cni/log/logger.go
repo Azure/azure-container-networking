@@ -2,6 +2,7 @@ package log
 
 import (
 	"context"
+	"fmt"
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -19,12 +20,15 @@ type Config struct {
 var Logger *zap.Logger
 
 // Initializes a Zap logger and returns a cleanup function so logger can be cleaned up from caller
-func Initialize(cfg *Config, ctx context.Context) {
+func Initialize(ctx context.Context, cfg *Config) {
 	Logger = newFileLogger(cfg)
 
 	go func() {
 		<-ctx.Done()
-		Logger.Sync()
+		err := Logger.Sync()
+		if err != nil {
+			fmt.Println("failed to sync logger")
+		}
 	}()
 }
 

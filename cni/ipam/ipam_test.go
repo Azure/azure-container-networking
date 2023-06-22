@@ -99,7 +99,6 @@ var (
 		arg = &cniSkel.CmdArgs{}
 
 		log.InitializeMock()
-
 	})
 
 	_ = AfterSuite(func() {
