@@ -66,9 +66,17 @@ func TestLoad(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
 	defer cancel()
 
-	err = k8sutils.MustCreateNamespace(ctx, clientset, namespace)
+	// Create namespace if it doesn't exist
+	namespaceExists, err := k8sutils.NamespaceExists(ctx, clientset, namespace)
 	if err != nil {
 		t.Fatal(err)
+	}
+
+	if !namespaceExists {
+		err = k8sutils.MustCreateNamespace(ctx, clientset, namespace)
+		if err != nil {
+			t.Fatal(err)
+		}
 	}
 
 	deployment, err := k8sutils.MustParseDeployment(noopDeploymentMap[*osType])
@@ -149,10 +157,19 @@ func TestScaleDeployment(t *testing.T) {
 		t.Fatal(err)
 	}
 	ctx := context.Background()
-	err = k8sutils.MustCreateNamespace(ctx, clientset, namespace)
+	// Create namespace if it doesn't exist
+	namespaceExists, err := k8sutils.NamespaceExists(ctx, clientset, namespace)
 	if err != nil {
 		t.Fatal(err)
 	}
+
+	if !namespaceExists {
+		err = k8sutils.MustCreateNamespace(ctx, clientset, namespace)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
 	deployment, err := k8sutils.MustParseDeployment(noopDeploymentMap[*osType])
 	if err != nil {
 		t.Fatal(err)
