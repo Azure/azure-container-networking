@@ -8,8 +8,7 @@
 #
 # Rules are evaluated in this order, and the last match is used for auto-assignment.
 *           @azure/azure-sdn-members
-/**/go.mod  @rbtr @matmerr
-/.github/   @rbtr @matmerr @vakalapa
+/.github/   @azure/acn-admins
 /cns/       @azure/acn-cns-reviewers
 /dropgz/    @rbtr @camrynl @paulyufan2 @ashvindeodhar @thatmattlong
 /npm/       @azure/acn-npm-reviewers

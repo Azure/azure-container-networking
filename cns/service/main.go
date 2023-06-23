@@ -54,6 +54,7 @@ import (
 	"github.com/avast/retry-go/v3"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	kuberuntime "k8s.io/apimachinery/pkg/runtime"
@@ -1022,28 +1023,21 @@ func reconcileInitialCNSState(ctx context.Context, cli nodeNetworkConfigGetter, 
 	// Get nnc using direct client
 	nnc, err := cli.Get(ctx)
 	if err != nil {
-
 		if crd.IsNotDefined(err) {
-			return errors.Wrap(err, "failed to get NNC during init CNS state")
+			return errors.Wrap(err, "failed to init CNS state: NNC CRD is not defined")
 		}
-
-		// If instance of crd is not found, pass nil to CNSClient
-		if client.IgnoreNotFound(err) == nil {
-			err = restserver.ResponseCodeToError(ncReconciler.ReconcileNCState(nil, nil, nnc))
-			return errors.Wrap(err, "failed to reconcile NC state")
+		if apierrors.IsNotFound(err) {
+			return errors.Wrap(err, "failed to init CNS state: NNC not found")
 		}
-
-		// If it's any other error, log it and return
-		return errors.Wrap(err, "error getting NodeNetworkConfig when initializing CNS state")
+		return errors.Wrap(err, "failed to init CNS state: failed to get NNC CRD")
 	}
 
-	// If there are no NCs, pass nil to CNSClient
+	// If there are no NCs, we can't initialize our state and we should fail out.
 	if len(nnc.Status.NetworkContainers) == 0 {
-		err = restserver.ResponseCodeToError(ncReconciler.ReconcileNCState(nil, nil, nnc))
-		return errors.Wrap(err, "failed to reconcile NC state")
+		return errors.Wrap(err, "failed to init CNS state: no NCs found in NNC CRD")
 	}
 
-	// Convert to CreateNetworkContainerRequest
+	// For each NC, we need to create a CreateNetworkContainerRequest and use it to rebuild our state.
 	for i := range nnc.Status.NetworkContainers {
 		var ncRequest *cns.CreateNetworkContainerRequest
 		var err error
@@ -1059,8 +1053,7 @@ func reconcileInitialCNSState(ctx context.Context, cli nodeNetworkConfigGetter, 
 			return errors.Wrapf(err, "failed to convert NNC status to network container request, "+
 				"assignmentMode: %s", nnc.Status.NetworkContainers[i].AssignmentMode)
 		}
-
-		// rebuild CNS state
+		// Get previous PodInfo state from podInfoByIPProvider
 		podInfoByIP, err := podInfoByIPProvider.PodInfoByIP()
 		if err != nil {
 			return errors.Wrap(err, "provider failed to provide PodInfoByIP")
@@ -1163,34 +1156,24 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 	poolMonitor := ipampool.NewMonitor(httpRestServiceImplementation, scopedcli, clusterSubnetStateChan, &poolOpts)
 	httpRestServiceImplementation.IPAMPoolMonitor = poolMonitor
 
-	// reconcile initial CNS state from CNI or apiserver.
-	// Only reconcile if there are any existing Pods using NC ips,
-	// else let the goal state be updated using a regular NNC Reconciler loop
-	podInfoByIP, err := podInfoByIPProvider.PodInfoByIP()
-	if err != nil {
-		return errors.Wrap(err, "failed to provide PodInfoByIP")
-	}
-	if len(podInfoByIP) > 0 {
-		logger.Printf("Reconciling initial CNS state as PodInfoByIP is not empty: %d", len(podInfoByIP))
-
-		// apiserver nnc might not be registered or api server might be down and crashloop backof puts us outside of 5-10 minutes we have for
-		// aks addons to come up so retry a bit more aggresively here.
-		// will retry 10 times maxing out at a minute taking about 8 minutes before it gives up.
-		attempt := 0
-		err = retry.Do(func() error {
-			attempt++
-			logger.Printf("reconciling initial CNS state attempt: %d", attempt)
-			err = reconcileInitialCNSState(ctx, scopedcli, httpRestServiceImplementation, podInfoByIPProvider)
-			if err != nil {
-				logger.Errorf("failed to reconcile initial CNS state, attempt: %d err: %v", attempt, err)
-			}
-			return errors.Wrap(err, "failed to initialize CNS state")
-		}, retry.Context(ctx), retry.Delay(initCNSInitalDelay), retry.MaxDelay(time.Minute))
+	logger.Printf("Reconciling initial CNS state")
+	// apiserver nnc might not be registered or api server might be down and crashloop backof puts us outside of 5-10 minutes we have for
+	// aks addons to come up so retry a bit more aggresively here.
+	// will retry 10 times maxing out at a minute taking about 8 minutes before it gives up.
+	attempt := 0
+	err = retry.Do(func() error {
+		attempt++
+		logger.Printf("reconciling initial CNS state attempt: %d", attempt)
+		err = reconcileInitialCNSState(ctx, scopedcli, httpRestServiceImplementation, podInfoByIPProvider)
 		if err != nil {
-			return err
+			logger.Errorf("failed to reconcile initial CNS state, attempt: %d err: %v", attempt, err)
 		}
-		logger.Printf("reconciled initial CNS state after %d attempts", attempt)
+		return errors.Wrap(err, "failed to initialize CNS state")
+	}, retry.Context(ctx), retry.Delay(initCNSInitalDelay), retry.MaxDelay(time.Minute))
+	if err != nil {
+		return err
 	}
+	logger.Printf("reconciled initial CNS state after %d attempts", attempt)
 
 	// start the pool Monitor before the Reconciler, since it needs to be ready to receive an
 	// NodeNetworkConfig update by the time the Reconciler tries to send it.

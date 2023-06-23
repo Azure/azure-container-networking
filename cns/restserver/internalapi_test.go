@@ -6,6 +6,7 @@ package restserver
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"os"
 	"reflect"
 	"strconv"
@@ -21,6 +22,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
+	"golang.org/x/exp/maps"
 )
 
 const (
@@ -336,7 +338,99 @@ func TestReconcileNCWithEmptyState(t *testing.T) {
 		t.Errorf("Unexpected failure on reconcile with no state %d", returnCode)
 	}
 
-	validateNCStateAfterReconcile(t, nil, expectedNcCount, expectedAssignedPods)
+	validateNCStateAfterReconcile(t, nil, expectedNcCount, expectedAssignedPods, nil)
+}
+
+// TestReconcileNCWithEmptyStateAndPendingRelease tests the case where there is
+// no state (node reboot) and there are pending release IPs in the NNC that
+// may have been deallocated and should not be made available for assignment
+// to pods.
+func TestReconcileNCWithEmptyStateAndPendingRelease(t *testing.T) {
+	restartService()
+	setEnv(t)
+	setOrchestratorTypeInternal(cns.KubernetesCRD)
+
+	expectedAssignedPods := make(map[string]cns.PodInfo)
+
+	secondaryIPConfigs := make(map[string]cns.SecondaryIPConfig)
+	for i := 6; i < 22; i++ {
+		ipaddress := "10.0.0." + strconv.Itoa(i)
+		secIPConfig := newSecondaryIPConfig(ipaddress, -1)
+		ipID := uuid.New()
+		secondaryIPConfigs[ipID.String()] = secIPConfig
+	}
+	pending := func() []string {
+		numPending := rand.Intn(len(secondaryIPConfigs)) + 1 //nolint:gosec // weak rand is sufficient in test
+		pendingIPs := []string{}
+		for k := range secondaryIPConfigs {
+			if numPending == 0 {
+				break
+			}
+			pendingIPs = append(pendingIPs, k)
+			numPending--
+		}
+		return pendingIPs
+	}()
+	req := generateNetworkContainerRequest(secondaryIPConfigs, "reconcileNc1", "-1")
+	returnCode := svc.ReconcileNCState(req, expectedAssignedPods, &v1alpha.NodeNetworkConfig{
+		Spec: v1alpha.NodeNetworkConfigSpec{
+			IPsNotInUse: pending,
+		},
+	})
+	if returnCode != types.Success {
+		t.Errorf("Unexpected failure on reconcile with no state %d", returnCode)
+	}
+	validateNetworkRequest(t, *req)
+	// confirm that the correct number of IPs are now PendingRelease
+	assert.EqualValues(t, len(pending), len(svc.GetPendingReleaseIPConfigs()))
+}
+
+func TestReconcileNCWithExistingStateAndPendingRelease(t *testing.T) {
+	restartService()
+	setEnv(t)
+	setOrchestratorTypeInternal(cns.KubernetesCRD)
+
+	secondaryIPConfigs := make(map[string]cns.SecondaryIPConfig)
+	for i := 6; i < 22; i++ {
+		ipaddress := "10.0.0." + strconv.Itoa(i)
+		secIPConfig := newSecondaryIPConfig(ipaddress, -1)
+		ipID := uuid.New()
+		secondaryIPConfigs[ipID.String()] = secIPConfig
+	}
+	expectedAssignedPods := map[string]cns.PodInfo{
+		"10.0.0.6": cns.NewPodInfo("", "", "reconcilePod1", "PodNS1"),
+		"10.0.0.7": cns.NewPodInfo("", "", "reconcilePod2", "PodNS1"),
+	}
+	pendingIPIDs := func() map[string]cns.PodInfo {
+		numPending := rand.Intn(len(secondaryIPConfigs)) + 1 //nolint:gosec // weak rand is sufficient in test
+		pendingIPs := map[string]cns.PodInfo{}
+		for k := range secondaryIPConfigs {
+			if numPending == 0 {
+				break
+			}
+			if _, ok := expectedAssignedPods[secondaryIPConfigs[k].IPAddress]; ok {
+				continue
+			}
+			pendingIPs[k] = nil
+			numPending--
+		}
+		return pendingIPs
+	}()
+	req := generateNetworkContainerRequest(secondaryIPConfigs, "reconcileNc1", "-1")
+
+	expectedNcCount := len(svc.state.ContainerStatus)
+	returnCode := svc.ReconcileNCState(req, expectedAssignedPods, &v1alpha.NodeNetworkConfig{
+		Spec: v1alpha.NodeNetworkConfigSpec{
+			IPsNotInUse: maps.Keys(pendingIPIDs),
+		},
+	})
+	if returnCode != types.Success {
+		t.Errorf("Unexpected failure on reconcile with no state %d", returnCode)
+	}
+	validateNetworkRequest(t, *req)
+	// confirm that the correct number of IPs are now PendingRelease
+	assert.EqualValues(t, len(pendingIPIDs), len(svc.GetPendingReleaseIPConfigs()))
+	validateNCStateAfterReconcile(t, req, expectedNcCount+1, expectedAssignedPods, pendingIPIDs)
 }
 
 func TestReconcileNCWithExistingState(t *testing.T) {
@@ -378,7 +472,7 @@ func TestReconcileNCWithExistingState(t *testing.T) {
 		t.Errorf("Unexpected failure on reconcile with no state %d", returnCode)
 	}
 
-	validateNCStateAfterReconcile(t, req, expectedNcCount+1, expectedAssignedPods)
+	validateNCStateAfterReconcile(t, req, expectedNcCount+1, expectedAssignedPods, nil)
 }
 
 func TestReconcileNCWithExistingStateFromInterfaceID(t *testing.T) {
@@ -422,7 +516,7 @@ func TestReconcileNCWithExistingStateFromInterfaceID(t *testing.T) {
 		t.Errorf("Unexpected failure on reconcile with no state %d", returnCode)
 	}
 
-	validateNCStateAfterReconcile(t, req, expectedNcCount+1, expectedAssignedPods)
+	validateNCStateAfterReconcile(t, req, expectedNcCount+1, expectedAssignedPods, nil)
 }
 
 func TestReconcileNCWithSystemPods(t *testing.T) {
@@ -466,7 +560,7 @@ func TestReconcileNCWithSystemPods(t *testing.T) {
 	}
 
 	delete(expectedAssignedPods, "192.168.0.1")
-	validateNCStateAfterReconcile(t, req, expectedNcCount, expectedAssignedPods)
+	validateNCStateAfterReconcile(t, req, expectedNcCount, expectedAssignedPods, nil)
 }
 
 func setOrchestratorTypeInternal(orchestratorType string) {
@@ -653,21 +747,21 @@ func generateNetworkContainerRequest(secondaryIps map[string]cns.SecondaryIPConf
 	return &req
 }
 
-func validateNCStateAfterReconcile(t *testing.T, ncRequest *cns.CreateNetworkContainerRequest, expectedNcCount int, expectedAssignedPods map[string]cns.PodInfo) {
+func validateNCStateAfterReconcile(t *testing.T, ncRequest *cns.CreateNetworkContainerRequest, expectedNCCount int, expectedAssignedIPs, expectedPendingIPs map[string]cns.PodInfo) {
 	if ncRequest == nil {
 		// check svc ContainerStatus will be empty
-		if len(svc.state.ContainerStatus) != expectedNcCount {
+		if len(svc.state.ContainerStatus) != expectedNCCount {
 			t.Fatalf("CNS has some stale ContainerStatus, count: %d, state: %+v", len(svc.state.ContainerStatus), svc.state.ContainerStatus)
 		}
 	} else {
 		validateNetworkRequest(t, *ncRequest)
 	}
 
-	if len(expectedAssignedPods) != len(svc.PodIPIDByPodInterfaceKey) {
-		t.Fatalf("Unexpected assigned pods, actual: %d, expected: %d", len(svc.PodIPIDByPodInterfaceKey), len(expectedAssignedPods))
+	if len(expectedAssignedIPs) != len(svc.PodIPIDByPodInterfaceKey) {
+		t.Fatalf("Unexpected assigned pods, actual: %d, expected: %d", len(svc.PodIPIDByPodInterfaceKey), len(expectedAssignedIPs))
 	}
 
-	for ipaddress, podInfo := range expectedAssignedPods {
+	for ipaddress, podInfo := range expectedAssignedIPs {
 		for _, ipID := range svc.PodIPIDByPodInterfaceKey[podInfo.Key()] {
 			ipConfigstate := svc.PodIPConfigState[ipID]
 			if ipConfigstate.GetState() != types.Assigned {
@@ -694,18 +788,26 @@ func validateNCStateAfterReconcile(t *testing.T, ncRequest *cns.CreateNetworkCon
 
 	// validate rest of Secondary IPs in Available state
 	if ncRequest != nil {
-		for secIpId, secIpConfig := range ncRequest.SecondaryIPConfigs {
-			if _, exists := expectedAssignedPods[secIpConfig.IPAddress]; exists {
-				continue
-			}
-
+		for secIPID, secIPConfig := range ncRequest.SecondaryIPConfigs {
 			// Validate IP state
-			if secIpConfigState, found := svc.PodIPConfigState[secIpId]; found {
-				if secIpConfigState.GetState() != types.Available {
-					t.Fatalf("IPId: %s State is not Available, ipStatus: %+v", secIpId, secIpConfigState)
+			if secIPConfigState, found := svc.PodIPConfigState[secIPID]; found {
+				if _, exists := expectedAssignedIPs[secIPConfig.IPAddress]; exists {
+					if secIPConfigState.GetState() != types.Assigned {
+						t.Fatalf("IPId: %s State is not Assigned, ipStatus: %+v", secIPID, secIPConfigState)
+					}
+					continue
+				}
+				if _, exists := expectedPendingIPs[secIPID]; exists {
+					if secIPConfigState.GetState() != types.PendingRelease {
+						t.Fatalf("IPId: %s State is not PendingRelease, ipStatus: %+v", secIPID, secIPConfigState)
+					}
+					continue
+				}
+				if secIPConfigState.GetState() != types.Available {
+					t.Fatalf("IPId: %s State is not Available, ipStatus: %+v", secIPID, secIPConfigState)
 				}
 			} else {
-				t.Fatalf("IPId: %s, IpAddress: %+v State doesnt exists in PodIp Map", secIpId, secIpConfig)
+				t.Fatalf("IPId: %s, IpAddress: %+v State doesnt exists in PodIp Map", secIPID, secIPConfig)
 			}
 		}
 	}

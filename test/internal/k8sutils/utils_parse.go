@@ -6,6 +6,13 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 )
 
+// ParsePod parses a corev1.Pod from the provided yaml or json file path.
+func MustParsePod(path string) (corev1.Pod, error) {
+	var pod corev1.Pod
+	err := mustParseResource(path, &pod)
+	return pod, err
+}
+
 func MustParseDaemonSet(path string) (appsv1.DaemonSet, error) {
 	var ds appsv1.DaemonSet
 	err := mustParseResource(path, &ds)

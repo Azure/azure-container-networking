@@ -14,12 +14,6 @@ import (
 	utilexec "k8s.io/utils/exec"
 )
 
-type Client interface {
-	GetEndpointState() (*api.AzureCNIState, error)
-}
-
-var _ (Client) = (*client)(nil)
-
 type client struct {
 	exec utilexec.Interface
 }
@@ -30,7 +24,7 @@ func New(exec utilexec.Interface) *client {
 
 func (c *client) GetEndpointState() (*api.AzureCNIState, error) {
 	cmd := c.exec.Command(platform.CNIBinaryPath)
-
+	cmd.SetDir(CNIExecDir)
 	envs := os.Environ()
 	cmdenv := fmt.Sprintf("%s=%s", cni.Cmd, cni.CmdGetEndpointsState)
 	log.Printf("Setting cmd to %s", cmdenv)
@@ -52,7 +46,7 @@ func (c *client) GetEndpointState() (*api.AzureCNIState, error) {
 
 func (c *client) GetVersion() (*semver.Version, error) {
 	cmd := c.exec.Command(platform.CNIBinaryPath, "-v")
-
+	cmd.SetDir(CNIExecDir)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get Azure CNI version with err: [%w], output: [%s]", err, string(output))
