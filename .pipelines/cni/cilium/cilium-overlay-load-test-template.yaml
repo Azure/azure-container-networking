@@ -14,6 +14,8 @@ stages:
     displayName: "AKS Cluster with Cilium"
     jobs:
       - job: create_aks_cluster_with_${{ parameters.name }}
+        pool:
+          name: "$(BUILD_POOL_NAME_DEFAULT)"
         steps:
           - template: ../load-test-templates/create-cluster-template.yaml
             parameters:
@@ -26,6 +28,8 @@ stages:
     displayName: "Install Cilium on AKS Overlay"
     jobs:
       - job: deploy_cilium_components
+        pool:
+          name: "$(BUILD_POOL_NAME_DEFAULT)"
         steps:
           - task: AzureCLI@1
             displayName: "Install Cilium, CNS, and ip-masq-agent"
@@ -66,6 +70,8 @@ stages:
     displayName: "Pod Deployment"
     jobs:
       - job: deploy_pods
+        pool:
+          name: "$(BUILD_POOL_NAME_DEFAULT)"
         steps:
           - template: ../load-test-templates/pod-deployment-template.yaml
             parameters:
@@ -77,6 +83,8 @@ stages:
     displayName: "Validate State"
     jobs:
       - job: validate_state
+        pool:
+          name: "$(BUILD_POOL_NAME_DEFAULT)"
         steps:
           - template: ../load-test-templates/validate-state-template.yaml
             parameters:
@@ -86,6 +94,8 @@ stages:
     displayName: "Restart Node"
     jobs:
       - job: restart_nodes
+        pool:
+          name: "$(BUILD_POOL_NAME_DEFAULT)"
         steps:
           - template: ../load-test-templates/restart-node-template.yaml
             parameters:
@@ -95,6 +105,8 @@ stages:
     displayName: "Validate Restart State"
     jobs:
       - job: validate_restart_state
+        pool:
+          name: "$(BUILD_POOL_NAME_DEFAULT)"
         steps:
           - template: ../load-test-templates/validate-state-template.yaml
             parameters:
@@ -105,6 +117,8 @@ stages:
     displayName: "Connectivity Tests"
     jobs:
       - job: cni_tests
+        pool:
+          name: "$(BUILD_POOL_NAME_DEFAULT)"
         steps:
           - script: |
               echo "install cilium CLI"
@@ -139,6 +153,8 @@ stages:
       - connectivity_tests
     jobs:
       - job: delete_resources
+        pool:
+          name: "$(BUILD_POOL_NAME_DEFAULT)"
         steps:
           - task: AzureCLI@1
             inputs:
