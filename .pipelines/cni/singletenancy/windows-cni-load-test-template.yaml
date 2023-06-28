@@ -80,8 +80,17 @@ stages:
               kubectl get pods -A
             name: "WaitForCNI"
             displayName: "Wait For CNI"
-  - stage: pod_deployment_windows
+  - stage: datapath_tests
     dependsOn: update_cni
+    displayName: "Datapath Test - Windows"
+    jobs:
+      - job: windows_datapath
+        steps:
+          - template: ../datapath-test-templates/windows-datapath-template.yaml
+            parameters:
+              clusterName: ${{ parameters.clusterName }}
+  - stage: pod_deployment_windows
+    dependsOn: datapath_tests
     displayName: "Pod Deployment"
     jobs:
       - job: deploy_pods
