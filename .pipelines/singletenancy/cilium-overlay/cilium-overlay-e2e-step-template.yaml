@@ -31,8 +31,8 @@ steps:
       inlineScript: |
         mkdir -p ~/.kube/
         echo "Create AKS Overlay cluster"
-        make -C ./hack/swift azcfg AZCLI=az REGION=$(REGION_OVERLAY_CLUSTER_TEST)
-        make -C ./hack/swift overlay-no-kube-proxy-up AZCLI=az REGION=$(REGION_OVERLAY_CLUSTER_TEST) SUB=$(SUB_AZURE_NETWORK_AGENT_TEST) CLUSTER=${{ parameters.clusterName }}-$(make revision)
+        make -C ./hack/aks azcfg AZCLI=az REGION=$(REGION_OVERLAY_CLUSTER_TEST)
+        make -C ./hack/aks overlay-no-kube-proxy-up AZCLI=az REGION=$(REGION_OVERLAY_CLUSTER_TEST) SUB=$(SUB_AZURE_NETWORK_AGENT_TEST) CLUSTER=${{ parameters.clusterName }}-$(make revision) VM_SIZE=Standard_B2ms
         echo "Cluster successfully created"
     displayName: Create Overlay cluster
     condition: succeeded()
@@ -47,7 +47,7 @@ steps:
       kubectl get po -owide -A
       if [ "$CILIUM_VERSION_TAG" = "cilium-nightly-pipeline" ]; then FILE_PATH=-nightly && echo "Running nightly"; fi
       echo "deploy Cilium ConfigMap"
-      kubectl apply -f cilium/configmap.yaml      
+      kubectl apply -f cilium/configmap.yaml
       kubectl apply -f test/integration/manifests/cilium/cilium${FILE_PATH}-config.yaml
       echo "install Cilium ${CILIUM_VERSION_TAG}"
       # Passes Cilium image to daemonset and deployment
@@ -96,12 +96,12 @@ steps:
       kubectl create configmap config-reconcile.yaml
       cd ../../../..
       kubectl get po -owide -A
-      # Nightly does not build images per commit. Will use existing image. 
-      if [ "$CILIUM_VERSION_TAG" = "cilium-nightly-pipeline" ] 
-      then 
+      # Nightly does not build images per commit. Will use existing image.
+      if [ "$CILIUM_VERSION_TAG" = "cilium-nightly-pipeline" ]
+      then
           CNS=v1.5.3 DROPGZ=v0.0.4 && echo "Running nightly"
-      else 
-          CNS=$(make cns-version) DROPGZ=$(make cni-dropgz-version) 
+      else
+          CNS=$(make cns-version) DROPGZ=$(make cni-dropgz-version)
       fi
       sudo -E env "PATH=$PATH" make test-integration CNS_VERSION=${CNS} CNI_DROPGZ_VERSION=${DROPGZ} INSTALL_CNS=true INSTALL_OVERLAY=true TEST_DROPGZ=${{ parameters.testDropgz }}
     retryCountOnTaskFailure: 3
@@ -128,7 +128,7 @@ steps:
       pathtoPublish: "$(Build.ArtifactStagingDirectory)/test-output"
     condition: always()
 
-  - script: |              
+  - script: |
       kubectl get pods -A
       echo "Waiting < 2 minutes for cilium to be ready"
       # Ensure Cilium is ready Xm\Xs
@@ -201,8 +201,8 @@ steps:
       addSpnToEnvironment: true
       inlineScript: |
         echo "Deleting cluster"
-        make -C ./hack/swift azcfg AZCLI=az
-        make -C ./hack/swift down SUB=$(SUB_AZURE_NETWORK_AGENT_TEST) AZCLI=az CLUSTER=${{ parameters.clusterName }}-$(make revision)
+        make -C ./hack/aks azcfg AZCLI=az
+        make -C ./hack/aks down SUB=$(SUB_AZURE_NETWORK_AGENT_TEST) AZCLI=az CLUSTER=${{ parameters.clusterName }}-$(make revision)
         echo "Cluster and resources down"
     name: "Cleanupcluster"
     displayName: "Cleanup cluster"

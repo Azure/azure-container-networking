@@ -28,6 +28,7 @@ AKS Clusters
   swift-byocni-up  Bring up a SWIFT BYO CNI cluster
   swift-cilium-up  Bring up a SWIFT Cilium cluster
   swift-up         Bring up a SWIFT AzCNI cluster
+  windows-cniv1-up Bring up a Windows AzCNIv1 cluster
   down             Delete the cluster
   vmss-restart     Restart the nodes of the cluster
 ```

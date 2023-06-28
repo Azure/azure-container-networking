@@ -14,7 +14,6 @@ import (
 
 const (
 	manifestDir      = "../manifests"
-	noopdeployment   = manifestDir + "/load/noop-deployment.yaml"
 	podLabelSelector = "load-test=true"
 )
 
@@ -30,6 +29,11 @@ var (
 	restartCase       = flag.Bool("restart-case", false, "In restart case, skip if we don't find state file")
 	namespace         = "load-test"
 )
+
+var noopDeploymentMap = map[string]string{
+	"windows": manifestDir + "/noop-deployment-windows.yaml",
+	"linux":   manifestDir + "/noop-deployment-linux.yaml",
+}
 
 /*
 In order to run the scale tests, you need a k8s cluster and its kubeconfig.

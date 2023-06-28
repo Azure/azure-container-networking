@@ -190,6 +190,27 @@ swift-up: rg-up swift-net-up ## Bring up a SWIFT AzCNI cluster
 		--yes
 	@$(MAKE) set-kubeconf
 
+windows-cniv1-up: rg-up overlay-net-up ## Bring up a Windows CNIv1 cluster
+	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
+		--node-count $(NODE_COUNT) \
+		--node-vm-size $(VM_SIZE) \
+		--network-plugin azure \
+		--windows-admin-password $(WINDOWS_PASSWORD) \
+		--windows-admin-username $(WINDOWS_USERNAME) \
+		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
+		--no-ssh-key \
+		--yes
+
+	$(AZCLI) aks nodepool add --resource-group $(GROUP) --cluster-name $(CLUSTER) \
+		--os-type Windows \
+		--os-sku Windows2022 \
+		--max-pods 250 \
+		--name npwin \
+		--node-count $(NODE_COUNT) \
+		-s $(WINDOWS_VM_SKU)
+
+	@$(MAKE) set-kubeconf
+
 down: ## Delete the cluster
 	$(AZCLI) aks delete -g $(GROUP) -n $(CLUSTER) --yes
 	@$(MAKE) unset-kubeconf
