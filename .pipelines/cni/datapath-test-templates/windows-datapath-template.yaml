@@ -11,7 +11,6 @@ steps:
       set -ex
       cd kubernetes
       ./build/run.sh make WHAT=test/e2e/e2e.test
-      find -name "e2e.test"
       echo "##vso[task.setvariable variable=E2E;]$(pwd)/_output/dockerized/bin/linux/amd64/"
       # Windows e2e tests require the use of unique images
       curl https://raw.githubusercontent.com/kubernetes-sigs/windows-testing/master/images/image-repo-list-private-registry -o repo_list
@@ -28,16 +27,17 @@ steps:
       scriptType: "bash"
       addSpnToEnvironment: true
       inlineScript: |
+        # hostNetwork | SCTP Connectivity - Not supported
+        # Networking Granular - Datapath testing
+        # kubernetes api - Tests k8s api calls
         set -ex
-        echo $(pwd)
-        find -name "e2e.test"
         make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}-$(make revision)
         kubectl get pods -A
         $(GINKGODIR)/ginkgo --procs=4 \
         $(E2E)/e2e.test -- \
         --provider=skeleton \
         --ginkgo.focus="\[sig-network\].Networking.Granular|\[sig-network\](.*)kubernetes.api" \
-        --ginkgo.skip="Feature:SCTPConnectivity|LinuxOnly" \
+        --ginkgo.skip="Feature:SCTPConnectivity|LinuxOnly|\[sig-network\](.*)hostNetwork" \
         --ginkgo.v \
         --node-os-distro="windows" \
         --kubeconfig=$HOME/.kube/config
