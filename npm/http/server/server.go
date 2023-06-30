@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/pprof"
-	_ "net/http/pprof"
 
 	"github.com/Azure/azure-container-networking/log"
 	npmconfig "github.com/Azure/azure-container-networking/npm/config"
