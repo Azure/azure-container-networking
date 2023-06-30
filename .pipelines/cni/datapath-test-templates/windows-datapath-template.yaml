@@ -2,22 +2,23 @@ parameters:
   clusterName: ""
 
 steps:
-  - script: |
-      # Forked to ensure that testing is consistent and does not break d/t k8s's CI
-      git clone https://github.com/jpayne3506/kubernetes.git
-    name: "Checkout_k8s"
-    displayName: "Checkout Kubernetes"
-  - script: |
-      set -ex
-      cd kubernetes
-      ./build/run.sh make WHAT=test/e2e/e2e.test
-      echo "##vso[task.setvariable variable=E2E;]$(pwd)/_output/dockerized/bin/linux/amd64/"
-      # Windows e2e tests require the use of unique images
-      curl https://raw.githubusercontent.com/kubernetes-sigs/windows-testing/master/images/image-repo-list-private-registry -o repo_list
-      echo "##vso[task.setvariable variable=KUBE_TEST_REPO_LIST;]$(pwd)/repo_list"
-      # We need Ginkgo CLI for e2e testing. k8s has make command for that
-      make ginkgo
-      echo "##vso[task.setvariable variable=GINKGODIR;]$(pwd)/_output/bin"
+  - task: AzureCLI@1
+    inputs:
+      azureSubscription: $(TEST_SUB_SERVICE_CONNECTION)
+      scriptLocation: "inlineScript"
+      scriptType: "bash"
+      addSpnToEnvironment: true
+      inlineScript: |
+        set -ex
+        // pulls k8s version from current cluster context
+        eval k8sVersion="v"$( az aks show -g ${{ parameters.clusterName }}-$(make revision) -n ${{ parameters.clusterName }}-$(make revision) --query "currentKubernetesVersion")
+        curl -L https://dl.k8s.io/$k8sVersion/kubernetes-test-linux-amd64.tar.gz -o ./kubernetes-test-linux-amd64.tar.gz
+
+        # https://github.com/kubernetes/sig-release/blob/master/release-engineering/artifacts.md#content-of-kubernetes-test-system-archtargz-on-example-of-kubernetes-test-linux-amd64targz-directories-removed-from-list
+        # explictly unzip and strip directories from ginkgo and e2e.test
+        # can be cp into usr/local/bin + chmod +x /usr/local/bin/* to complete an install.
+        # This is a template and as such will be treated a a standalone command, so no need to install on VM
+        tar -xvzf kubernetes-test-linux-amd64.tar.gz --strip-components=3 kubernetes/test/bin/ginkgo kubernetes/test/bin/e2e.test
     name: "setup"
     displayName: "Setup Environment"
   - task: AzureCLI@1
@@ -27,14 +28,18 @@ steps:
       scriptType: "bash"
       addSpnToEnvironment: true
       inlineScript: |
+        # ginkgo.skip
         # hostNetwork | SCTP Connectivity - Not supported
-        # Networking Granular - Datapath testing
-        # kubernetes api - Tests k8s api calls
+
+        # ginkgo.focus
+        # Networking Granular             - Datapath testing with netcat and curl
+        # kubernetes api                  - Tests k8s api calls
+
         set -ex
         make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}-$(make revision)
         kubectl get pods -A
-        $(GINKGODIR)/ginkgo --procs=4 \
-        $(E2E)/e2e.test -- \
+        ./ginkgo --procs=4 \
+        ./e2e.test -- \
         --provider=skeleton \
         --ginkgo.focus="\[sig-network\].Networking.Granular|\[sig-network\](.*)kubernetes.api" \
         --ginkgo.skip="Feature:SCTPConnectivity|LinuxOnly|\[sig-network\](.*)hostNetwork" \
