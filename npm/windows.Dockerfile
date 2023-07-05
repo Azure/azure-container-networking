@@ -5,7 +5,7 @@ ARG NPM_AI_PATH
 ARG NPM_AI_ID
 WORKDIR /usr/local/src
 COPY . .
-RUN GOOS=windows CGO_ENABLED=1 go build -v -o /usr/local/bin/azure-npm.exe -ldflags "-X main.version="$VERSION" -X "$NPM_AI_PATH"="$NPM_AI_ID"" -gcflags="-dwarflocationlists=true" npm/cmd/*.go
+RUN GOOS=windows CGO_ENABLED=0 go build -v -o /usr/local/bin/azure-npm.exe -ldflags "-X main.version="$VERSION" -X "$NPM_AI_PATH"="$NPM_AI_ID"" -gcflags="-dwarflocationlists=true" npm/cmd/*.go
 
 FROM mcr.microsoft.com/windows/servercore:${OS_VERSION}
 COPY --from=builder /usr/local/src/npm/examples/windows/kubeconfigtemplate.yaml kubeconfigtemplate.yaml
