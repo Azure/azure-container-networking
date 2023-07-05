@@ -1143,20 +1143,12 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 	if err != nil {
 		return errors.Wrap(err, "failed to create ctrl client")
 	}
-	nnccli := nodenetworkconfig.NewClient(directcli)
+	directnnccli := nodenetworkconfig.NewClient(directcli)
 	if err != nil {
 		return errors.Wrap(err, "failed to create NNC client")
 	}
 	// TODO(rbtr): nodename and namespace should be in the cns config
-	scopedcli := nncctrl.NewScopedClient(nnccli, types.NamespacedName{Namespace: "kube-system", Name: nodeName})
-
-	clusterSubnetStateChan := make(chan v1alpha1.ClusterSubnetState)
-	// initialize the ipam pool monitor
-	poolOpts := ipampool.Options{
-		RefreshDelay: poolIPAMRefreshRateInMilliseconds * time.Millisecond,
-	}
-	poolMonitor := ipampool.NewMonitor(httpRestServiceImplementation, scopedcli, clusterSubnetStateChan, &poolOpts)
-	httpRestServiceImplementation.IPAMPoolMonitor = poolMonitor
+	directscopedcli := nncctrl.NewScopedClient(directnnccli, types.NamespacedName{Namespace: "kube-system", Name: nodeName})
 
 	logger.Printf("Reconciling initial CNS state")
 	// apiserver nnc might not be registered or api server might be down and crashloop backof puts us outside of 5-10 minutes we have for
@@ -1166,7 +1158,7 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 	err = retry.Do(func() error {
 		attempt++
 		logger.Printf("reconciling initial CNS state attempt: %d", attempt)
-		err = reconcileInitialCNSState(ctx, scopedcli, httpRestServiceImplementation, podInfoByIPProvider)
+		err = reconcileInitialCNSState(ctx, directscopedcli, httpRestServiceImplementation, podInfoByIPProvider)
 		if err != nil {
 			logger.Errorf("failed to reconcile initial CNS state, attempt: %d err: %v", attempt, err)
 		}
@@ -1176,16 +1168,6 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 		return err
 	}
 	logger.Printf("reconciled initial CNS state after %d attempts", attempt)
-
-	// start the pool Monitor before the Reconciler, since it needs to be ready to receive an
-	// NodeNetworkConfig update by the time the Reconciler tries to send it.
-	go func() {
-		logger.Printf("Starting IPAM Pool Monitor")
-		if e := poolMonitor.Start(ctx); e != nil {
-			logger.Errorf("[Azure CNS] Failed to start pool monitor with err: %v", e)
-		}
-	}()
-	logger.Printf("initialized and started IPAM pool monitor")
 
 	// the nodeScopedCache sets Selector options on the Manager cache which are used
 	// to perform *server-side* filtering of the cached objects. This is very important
@@ -1215,6 +1197,25 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 	if err != nil {
 		return errors.Wrap(err, "failed to create manager")
 	}
+
+	// Build the IPAM Pool monitor
+	clusterSubnetStateChan := make(chan v1alpha1.ClusterSubnetState)
+
+	// this cachedscopedclient is built using the Manager's cached client, which is
+	// NOT SAFE TO USE UNTIL THE MANAGER IS STARTED!
+	// This is okay because it is only used to build the IPAMPoolMonitor, which does not
+	// attempt to use the client until it has received a NodeNetworkConfig to update, and
+	// that can only happen once the Manager has started and the NodeNetworkConfig
+	// reconciler has pushed the Monitor a NodeNetworkConfig.
+	cachedscopedcli := nncctrl.NewScopedClient(nodenetworkconfig.NewClient(manager.GetClient()), types.NamespacedName{Namespace: "kube-system", Name: nodeName})
+
+	poolOpts := ipampool.Options{
+		RefreshDelay: poolIPAMRefreshRateInMilliseconds * time.Millisecond,
+	}
+	poolMonitor := ipampool.NewMonitor(httpRestServiceImplementation, cachedscopedcli, clusterSubnetStateChan, &poolOpts)
+	httpRestServiceImplementation.IPAMPoolMonitor = poolMonitor
+
+	// Start building the NNC Reconciler
 
 	// get our Node so that we can xref it against the NodeNetworkConfig's to make sure that the
 	// NNC is not stale and represents the Node we're running on.
@@ -1247,6 +1248,16 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 	if cnsconfig.EnablePprof {
 		httpRestServiceImplementation.RegisterPProfEndpoints()
 	}
+
+	// start the pool Monitor before the Reconciler, since it needs to be ready to receive an
+	// NodeNetworkConfig update by the time the Reconciler tries to send it.
+	go func() {
+		logger.Printf("Starting IPAM Pool Monitor")
+		if e := poolMonitor.Start(ctx); e != nil {
+			logger.Errorf("[Azure CNS] Failed to start pool monitor with err: %v", e)
+		}
+	}()
+	logger.Printf("initialized and started IPAM pool monitor")
 
 	// Start the Manager which starts the reconcile loop.
 	// The Reconciler will send an initial NodeNetworkConfig update to the PoolMonitor, starting the
