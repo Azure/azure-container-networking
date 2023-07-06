@@ -5,7 +5,6 @@ package load
 import (
 	"context"
 	"flag"
-	"fmt"
 	"testing"
 	"time"
 
@@ -36,13 +35,6 @@ var noopDeploymentMap = map[string]string{
 	"linux":   manifestDir + "/noop-deployment-linux.yaml",
 }
 
-// Todo: Add the validation for the data path function for the linux/windows client.
-type stateValidator interface {
-	ValidateStateFile(context.Context) error
-	ValidateRestartNetwork(context.Context) error
-	// ValidateDataPath() error
-}
-
 /*
 In order to run the scale tests, you need a k8s cluster and its kubeconfig.
 If no kubeconfig is passed, the test will attempt to find one in the default location for kubectl config.
@@ -60,10 +52,10 @@ todo: consider adding the following scenarios
 - [x] Test the CNS Local cache.
 - [x] Test the Cilium state file.
 - [x] Test the Node restart.
-- [ ] Test based on operating system.
-- [ ] Test the HNS state file.
-- [ ] Parameterize the os, cni and number of iterations.
-- [ ] Add deployment yaml for windows.
+- [x] Test based on operating system.
+- [x] Test the HNS state file.
+- [x] Parameterize the os, cni and number of iterations.
+- [x] Add deployment yaml for windows.
 */
 func TestLoad(t *testing.T) {
 	clientset, err := k8sutils.MustGetClientset()
@@ -139,39 +131,13 @@ func TestValidateState(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
 	defer cancel()
 
-	var validator stateValidator
-
-	t.Log("Validating the state file")
-	switch *osType {
-	case "linux":
-		validator, err = validate.CreateLinuxValidator(ctx, clientset, config, namespace, *cniType, *restartCase)
-		if err != nil {
-			t.Fatal(err)
-		}
-	case "windows":
-		validator, err = validate.CreateWindowsValidator(ctx, clientset, config, namespace, *cniType, *restartCase)
-		if err != nil {
-			t.Fatal(err)
-		}
-	default:
-		t.Fatalf("unknown os type %s", *osType)
-	}
-
-	err = validator.ValidateStateFile(ctx)
+	validator, err := validate.CreateValidator(ctx, clientset, config, namespace, *cniType, *restartCase, *osType)
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	// We are restarting the systmemd network and checking that the connectivity works after the restart. For more details: https://github.com/cilium/cilium/issues/18706
-	t.Log("Validating the restart network scenario")
-	t.Run(fmt.Sprintf("validate network restart - %s", *osType), func(t *testing.T) {
-		if *osType == "windows" {
-			t.Skip("validate network restart not implemented on Windows")
-		}
-		if err := validator.ValidateRestartNetwork(ctx); err != nil {
-			t.Fatal(err)
-		}
-	})
+	if err := validator.Validate(ctx); err != nil {
+		t.Fatal(err)
+	}
 }
 
 // TestScaleDeployment scales the deployment up/down based on the replicas passed.
