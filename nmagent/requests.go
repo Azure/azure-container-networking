@@ -273,6 +273,45 @@ func (j JoinNetworkRequest) Validate() error {
 	return err
 }
 
+var _ Request = DeleteNetworkRequest{}
+
+// DeleteNetworkRequest represents all information necessary to request that
+// NMAgent delete a particular network
+type DeleteNetworkRequest struct {
+	NetworkID string `validate:"presence" json:"-"` // the customer's VNet ID
+}
+
+// Path constructs a URL path for invoking a DeleteNetworkRequest using the
+// provided parameters
+func (d DeleteNetworkRequest) Path() string {
+	const DeleteNetworkPath = "/NetworkManagement/joinedVirtualNetworks/%s/api-version/1/method/DELETE"
+	return fmt.Sprintf(DeleteNetworkPath, d.NetworkID)
+}
+
+// Body returns nothing, because DeleteNetworkRequest has no request body
+func (d DeleteNetworkRequest) Body() (io.Reader, error) {
+	return nil, nil
+}
+
+// Method returns the HTTP request method to submit a DeleteNetworkRequest
+func (d DeleteNetworkRequest) Method() string {
+	return http.MethodPost
+}
+
+// Validate ensures that the provided parameters of the request are valid
+func (d DeleteNetworkRequest) Validate() error {
+	err := internal.ValidationError{}
+
+	if d.NetworkID == "" {
+		err.MissingFields = append(err.MissingFields, "NetworkID")
+	}
+
+	if err.IsEmpty() {
+		return nil
+	}
+	return err
+}
+
 var _ Request = DeleteContainerRequest{}
 
 // DeleteContainerRequest represents all information necessary to request that
