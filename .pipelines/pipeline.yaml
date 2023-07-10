@@ -36,6 +36,7 @@ stages:
               echo "##vso[task.setvariable variable=Tag;isOutput=true]$(make version)"
               echo "##vso[task.setvariable variable=cniVersion;isOutput=true]$(make cni-version)"
               echo "##vso[task.setvariable variable=npmVersion;isOutput=true]$(make npm-version)"
+              echo "##vso[task.setvariable variable=dropgzVersion;isOutput=true]$(make cni-dropgz-version)"
               cat /etc/os-release
               uname -a
               sudo chown -R $(whoami):$(whoami) .
@@ -166,6 +167,11 @@ stages:
               arch: amd64
               name: cni-dropgz-test
               os: linux
+            cni_plugin_windows2019_amd64:
+              os: windows
+              name: cni-plugin
+              arch: amd64
+              os_version: ltsc2019
             cns_linux_amd64:
               arch: amd64
               name: cns
@@ -329,6 +335,27 @@ stages:
       testDropgz: ""
       clusterName: "swifte2e"
       osSku: "Ubuntu"
+
+  - template: singletenancy/aks/e2e-job-template.yaml
+    parameters:
+      name: "aks_ubuntu_18_04_linux_e2e"
+      displayName: AKS Ubuntu 18.04
+      arch: amd64
+      os: linux
+      clusterType: linux-cniv1-up
+      clusterName: "ubuntu18e2e"
+      k8sVersion: 1.24.9
+
+  - template: singletenancy/aks/e2e-job-template.yaml
+    parameters:
+      name: "aks_windows_19_03_e2e"
+      displayName: AKS Windows 1903
+      arch: amd64
+      os: windows
+      clusterType: windows-cniv1-up
+      clusterName: "win19e2e"
+      windowsOsSku: Windows2019
+      os_version: ltsc2019
 
   - template: singletenancy/aks-engine/e2e-job-template.yaml
     parameters:
