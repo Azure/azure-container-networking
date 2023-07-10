@@ -149,7 +149,7 @@ steps:
     name: "validatePods"
     displayName: "Validate Pods"
 
-    - script: |
+  - script: |
       echo "validate pod IP assignment and check systemd-networkd restart"
       kubectl get pod -owide -A
       make test-validate-state
