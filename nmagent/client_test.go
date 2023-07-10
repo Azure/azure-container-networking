@@ -78,7 +78,6 @@ func TestNMAgentClientJoinNetwork(t *testing.T) {
 			defer cancel()
 
 			// attempt to join network
-			// TODO(timraymond): need a more realistic network ID, I think
 			err := client.JoinNetwork(ctx, nmagent.JoinNetworkRequest{test.id})
 			checkErr(t, err, test.shouldErr)
 
@@ -175,7 +174,6 @@ func TestNMAgentClientDeleteNetwork(t *testing.T) {
 			defer cancel()
 
 			// attempt to delete network
-			// TODO(timraymond/diegobecerra): need a more realistic network ID, I think
 			err := client.DeleteNetwork(ctx, nmagent.DeleteNetworkRequest{test.id})
 			checkErr(t, err, test.shouldErr)
 

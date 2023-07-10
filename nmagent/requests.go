@@ -239,7 +239,7 @@ func (p *Policy) UnmarshalJSON(in []byte) error {
 var _ Request = JoinNetworkRequest{}
 
 type JoinNetworkRequest struct {
-	NetworkID string `validate:"presence" json:"-"` // the customer's VNet ID
+	NetworkID string `json:"-"` // the customer's VNet ID
 }
 
 // Path constructs a URL path for invoking a JoinNetworkRequest using the
@@ -278,7 +278,7 @@ var _ Request = DeleteNetworkRequest{}
 // DeleteNetworkRequest represents all information necessary to request that
 // NMAgent delete a particular network
 type DeleteNetworkRequest struct {
-	NetworkID string `validate:"presence" json:"-"` // the customer's VNet ID
+	NetworkID string `json:"-"` // the customer's VNet ID
 }
 
 // Path constructs a URL path for invoking a DeleteNetworkRequest using the
