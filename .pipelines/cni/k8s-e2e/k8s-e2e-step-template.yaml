@@ -1,0 +1,34 @@
+parameters:
+  testName: ""
+  name: ""
+  clusterName: ""
+  ginkgoFocus: ""
+  ginkgoSkip: ""
+  os: ""
+  processes: ""
+
+
+steps:
+  - script: |
+      set -ex
+
+      # ginkgoSkip cant handle only |LinuxOnly. Need to have check
+      if ${{ lower(and(ge(length(parameters.ginkgoSkip), 1), eq(parameters.os, 'windows'))) }}
+      then
+        SKIP="|LinuxOnly"
+      elif ${{ lower(eq(parameters.os, 'windows')) }}
+      then
+        SKIP="LinuxOnly"
+      fi
+
+      ./ginkgo --procs=${{ parameters.processes }} \
+      ./e2e.test -- \
+      --provider=skeleton \
+      --ginkgo.focus='${{ parameters.ginkgoFocus }}' \
+      --ginkgo.skip="${{ parameters.ginkgoSkip }}$SKIP" \
+      --ginkgo.v \
+      --node-os-distro=${{ parameters.os }} \
+      --kubeconfig=$HOME/.kube/config
+    name: ${{ parameters.name }}
+    displayName: k8s E2E - ${{ parameters.testName }}
+    continueOnError: true

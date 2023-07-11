@@ -1,0 +1,150 @@
+parameters:
+  clusterName: ""
+  os: ""
+  datapath: ""
+  netpol: ""
+
+
+jobs:
+  - job: k8s_e2e
+    timeoutInMinutes: 180 # Change to 120 later. Need to see the cap. length of these tests.
+    steps:
+      - task: AzureCLI@1
+        inputs:
+          azureSubscription: $(TEST_SUB_SERVICE_CONNECTION)
+          scriptLocation: "inlineScript"
+          scriptType: "bash"
+          addSpnToEnvironment: true
+          inlineScript: |
+            set -ex
+            make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}-$(make revision)
+
+            # sig-release provides test suite tarball(s) per k8s release. Just need to provide k8s version "v1.xx.xx"
+            # pulling k8s version from AKS.
+            eval k8sVersion="v"$( az aks show -g ${{ parameters.clusterName }}-$(make revision) -n ${{ parameters.clusterName }}-$(make revision) --query "currentKubernetesVersion")
+            curl -L https://dl.k8s.io/$k8sVersion/kubernetes-test-linux-amd64.tar.gz -o ./kubernetes-test-linux-amd64.tar.gz
+
+            # https://github.com/kubernetes/sig-release/blob/master/release-engineering/artifacts.md#content-of-kubernetes-test-system-archtargz-on-example-of-kubernetes-test-linux-amd64targz-directories-removed-from-list
+            # explictly unzip and strip directories from ginkgo and e2e.test
+            tar -xvzf kubernetes-test-linux-amd64.tar.gz --strip-components=3 kubernetes/test/bin/ginkgo kubernetes/test/bin/e2e.test
+        displayName: "Setup Environment"
+      - ${{ if eq(parameters.datapath, true) }}:
+        - template: ../k8s-e2e/k8s-e2e-step-template.yaml
+          parameters:
+            testName: Datapath
+            name: datapath
+            clusterName: ${{ parameters.clusterName }}
+            ginkgoFocus: '(.*).Networking.Granular|(.*)kubernetes.api'
+            ginkgoSkip: 'SCTP|hostNetwork'
+            os: ${{ parameters.os }}
+            processes: 4
+      - ${{ if eq(parameters.netpol, true) }}:
+        - template: ../k8s-e2e/k8s-e2e-step-template.yaml
+          parameters:
+            testName: Network Policy
+            name: netpol
+            clusterName: ${{ parameters.clusterName }}
+            ginkgoFocus: '(.*).Netpol'
+            ginkgoSkip: 'SCTP'
+            os: ${{ parameters.os }}
+            processes: 1 # Currently over commits B2 nodes, Need to run on bigger VM with 8+ process. 1 process take 1hr+
+      - ${{ if eq(parameters.dns, true) }}:
+        - template: ../k8s-e2e/k8s-e2e-step-template.yaml
+          parameters:
+            testName: DNS
+            name: dns
+            clusterName: ${{ parameters.clusterName }}
+            ginkgoFocus: '\[sig-network\].DNS.should'
+            ginkgoSkip: 'Serial' #4 Serial tests????
+            os: ${{ parameters.os }}
+            processes: 4
+      - ${{ if eq(parameters.container, true) }}:
+        - template: ../k8s-e2e/k8s-e2e-step-template.yaml
+          parameters:
+            testName: Container Conformance
+            name: container
+            clusterName: ${{ parameters.clusterName }}
+            ginkgoFocus: '\[sig-node\].Pods'
+            ginkgoSkip: 'Slow'
+            os: ${{ parameters.os }}
+            processes: 4
+      - ${{ if eq(parameters.discovery, true) }}:
+        - template: ../k8s-e2e/k8s-e2e-step-template.yaml
+          parameters:
+            testName: Resource Discovery
+            name: discovery
+            clusterName: ${{ parameters.clusterName }}
+            ginkgoFocus: '\[sig-api-machinery\].Discovery'
+            ginkgoSkip: ''
+            os: ${{ parameters.os }}
+            processes: 4 #check if this broke the test, only 3 tests. Did not break
+      - ${{ if eq(parameters.liveness, true) }}:
+        - template: ../k8s-e2e/k8s-e2e-step-template.yaml
+          parameters:
+            testName: Liveness Probes
+            name: liveness
+            clusterName: ${{ parameters.clusterName }}
+            ginkgoFocus: '\[sig-node\].Probing'
+            ginkgoSkip: ''
+            os: ${{ parameters.os }}
+            processes: 4
+      - ${{ if eq(parameters.portforward, true) }}:
+        - template: ../k8s-e2e/k8s-e2e-step-template.yaml
+          parameters:
+            testName: Kubectl Portforward
+            name: portforward
+            clusterName: ${{ parameters.clusterName }}
+            ginkgoFocus: '\[sig-cli\].Kubectl.Port'
+            ginkgoSkip: ''
+            os: ${{ parameters.os }}
+            processes: 4
+      - ${{ if eq(parameters.dsNodeRestart, true) }}:
+        - template: ../k8s-e2e/k8s-e2e-step-template.yaml
+          parameters:
+            testName: Node Restart
+            name: restart
+            clusterName: ${{ parameters.clusterName }}
+            ginkgoFocus: '\[sig-apps\].DaemonRestart'
+            ginkgoSkip: ''
+            os: ${{ parameters.os }}
+            processes: 4 # This test is disruptive, need to test with/w.o./1 proc/4 proc
+      - ${{ if eq(parameters.token, true) }}:
+        - template: ../k8s-e2e/k8s-e2e-step-template.yaml
+          parameters:
+            testName: Service Account # Has 1 linux test
+            name: token
+            clusterName: ${{ parameters.clusterName }}
+            ginkgoFocus: '\[sig-auth\].ServiceAccounts'
+            ginkgoSkip: ''
+            os: ${{ parameters.os }}
+            processes: 4
+      - ${{ if eq(parameters.loadBalancer, true) }}:
+        - template: ../k8s-e2e/k8s-e2e-step-template.yaml
+          parameters:
+            testName: Load Balancers # Has 1 serial test
+            name: load
+            clusterName: ${{ parameters.clusterName }}
+            ginkgoFocus: '\[sig-network\].LoadBalancers'
+            ginkgoSkip: 'ESIPP|Serial'
+            os: ${{ parameters.os }}
+            processes: 4
+      - ${{ if eq(parameters.metrics, true) }}:
+        - template: ../k8s-e2e/k8s-e2e-step-template.yaml
+          parameters:
+            testName: Metrics Server
+            name: metrics
+            clusterName: ${{ parameters.clusterName }}
+            ginkgoFocus: '\[sig-instrumentation\].MetricsGrabber'
+            ginkgoSkip: ''
+            os: ${{ parameters.os }}
+            processes: 4
+      - ${{ if eq(parameters.hybridWin, true) }}:
+        - template: ../k8s-e2e/k8s-e2e-step-template.yaml
+          parameters:
+            testName: Hybrid Network
+            name: hybrid
+            clusterName: ${{ parameters.clusterName }}
+            ginkgoFocus: '\[sig-windows\].Hybrid'
+            ginkgoSkip: ''
+            os: ${{ parameters.os }}
+            processes: 4
