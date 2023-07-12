@@ -167,6 +167,10 @@ spec:
           hostPath:
             path: /var/run/azure-vnet.json
             type: FileOrCreate
+        - name: cni-conflist
+          hostPath:
+            path: /etc/cni/net.d
+            type: Directory
         - name: cns-config
           configMap:
             name: cns-config
