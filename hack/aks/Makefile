@@ -13,7 +13,7 @@ OS_SKU          ?= Ubuntu
 WINDOWS_OS_SKU  ?= Windows2022
 VM_SIZE	        ?= Standard_B2s
 NODE_COUNT      ?= 2
-K8S_VER         ?= 1.24.9 # Used only for ubuntu 18, as K8S > 1.25 have Ubuntu 22
+K8S_VER         ?= 1.25 # Used only for ubuntu 18 as K8S 1.24.9, as K8S > 1.25 have Ubuntu 22
 WINDOWS_VM_SKU  ?= Standard_B2s
 
 # overrideable variables
@@ -224,7 +224,7 @@ linux-cniv1-up: rg-up overlay-net-up
 		--os-sku $(OS_SKU) \
 		--no-ssh-key \
 		--yes
-		
+
 	@$(MAKE) set-kubeconf
 
 down: ## Delete the cluster

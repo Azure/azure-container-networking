@@ -41,4 +41,4 @@ stages:
               windowsOsSku: ${{ parameters.windowsOsSku }}
               os_version: ${{ parameters.os_version }}
               version: $(dropgzVersion)
-              cniVersion: $(cniVersion)        
+              cniVersion: $(cniVersion)
