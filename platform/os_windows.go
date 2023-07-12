@@ -16,6 +16,7 @@ import (
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/platform/windows/adapter"
 	"github.com/Azure/azure-container-networking/platform/windows/adapter/mellanox"
+	"github.com/pkg/errors"
 	"golang.org/x/sys/windows"
 )
 
@@ -108,20 +109,19 @@ func GetLastRebootTime() (time.Time, error) {
 }
 
 func (p *execClient) ExecuteCommand(command string) (string, error) {
-	log.Printf("[Azure-Utils] %s", command)
+	log.Printf("[Azure-Utils] ExecuteCommand: %q", command)
 
-	var stderr bytes.Buffer
-	var out bytes.Buffer
+	var stderr, stdout bytes.Buffer
+
 	cmd := exec.Command("cmd", "/c", command)
 	cmd.Stderr = &stderr
-	cmd.Stdout = &out
+	cmd.Stdout = &stdout
 
-	err := cmd.Run()
-	if err != nil {
-		return "", fmt.Errorf("%s:%s", err.Error(), stderr.String())
+	if err := cmd.Run(); err != nil {
+		return "", errors.Wrapf(err, "ExecuteCommand failed. stdout: %q, stderr: %q", stdout.String(), stderr.String())
 	}
 
-	return out.String(), nil
+	return stdout.String(), nil
 }
 
 func SetOutboundSNAT(subnet string) error {
