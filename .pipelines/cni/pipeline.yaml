@@ -3,12 +3,12 @@ trigger: none
 
 stages:
   - stage: setup
+    pool:
+      name: "$(BUILD_POOL_NAME_DEFAULT)"
     displayName: Setup
     jobs:
       - job: env
         displayName: Setup
-        pool:
-          name: "$(BUILD_POOL_NAME_DEFAULT)"
         steps:
           - script: |
               echo "Setting up environment"
