@@ -94,6 +94,17 @@ spec:
           effect: NoExecute
         - operator: "Exists"
           effect: NoSchedule
+      initContainers:
+        - name: init-cni-dropgz
+          image: "acnpublic.azurecr.io/containernetworking/mdnc-cni-dropgz"
+          imagePullPolicy: IfNotPresent
+          command: ["/dropgz"]
+          args: ["deploy" , "azure-vnet", "-o", "/opt/cni/bin/azure-vnet", "azure-vnet-telemetry", "-o", "/opt/cni/bin/azure-vnet-telemetry", "azure-swift-overlay.conflist", "-o", "/etc/cni/net.d/15-azure-swift-overlay.conflist"]
+          volumeMounts:
+            - name: cni-bin
+              mountPath: /opt/cni/bin
+            - name: cni-conflist
+              mountPath: /etc/cni/net.d
       containers:
         - name: cns-container
           image: mcr.microsoft.com/containernetworking/azure-cns:v1.4.32
