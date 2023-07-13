@@ -10,7 +10,7 @@ AZCLI   ?= docker run --rm -v $(AZCFG):/root/.azure -v $(KUBECFG):/root/.kube -v
 # overrideable defaults
 REGION     ?= westus2
 OS_SKU     ?= Ubuntu
-VM_SIZE	   ?= Standard_B2s
+VM_SIZE	   ?= Standard_DS3_v2
 NODE_COUNT ?= 2
 
 # overrideable variables
