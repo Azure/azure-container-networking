@@ -166,7 +166,7 @@ steps:
     displayName: "Validate Pods"
 
   - script: |
-      echo "validate pod IP assignment"
+      echo "validate pod IP assignment before CNS restart"
       kubectl get pod -owide -A
       make test-validate-state
       echo "restart CNS"
