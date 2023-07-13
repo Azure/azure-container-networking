@@ -40,14 +40,14 @@ steps:
   - script: |
       echo "Upload CNI"
       if [ "${{parameters.os}}" == "windows" ]; then
-        export DROP_GZ_URL=$( make cni-dropgz-image-name-and-tag OS='linux' ARCH=${{ parameters.arch }} CNI_DROPGZ_VERSION=${{ parameters.version }})
+        export DROP_GZ_URL=$( make cni-dropgz-test-image-name-and-tag OS='linux' ARCH=${{ parameters.arch }} CNI_DROPGZ_VERSION=${{ parameters.version }})
         envsubst < ./test/integration/manifests/cni/cni-installer-v1.yaml | kubectl apply -f -
         kubectl rollout status daemonset/azure-cni -n kube-system
         export CNI_IMAGE=$(make cni-plugin-image-name-and-tag OS=${{ parameters.os }} ARCH=${{ parameters.arch }} OS_VERSION=${{ parameters.os_version }} CNI_VERSION=${{ parameters.cniVersion }})
         envsubst < ./hack/manifests/windows-update.yaml | kubectl apply -f -
         kubectl rollout status daemonset/azure-cni-windows -n kube-system
       else
-        export DROP_GZ_URL=$( make cni-dropgz-image-name-and-tag OS=${{ parameters.os }} ARCH=${{ parameters.arch }} CNI_DROPGZ_VERSION=${{ parameters.version }})
+        export DROP_GZ_URL=$( make cni-dropgz-test-image-name-and-tag OS=${{ parameters.os }} ARCH=${{ parameters.arch }} CNI_DROPGZ_VERSION=${{ parameters.version }})
         envsubst < ./test/integration/manifests/cni/cni-installer-v1.yaml | kubectl apply -f -
         kubectl rollout status daemonset/azure-cni -n kube-system
       fi
@@ -68,6 +68,10 @@ steps:
     displayName: "Restart Nodes"
   - script: |
       kubectl get pods -A -o wide
+      echo "Deploying test pods"
+      cd test/integration/load
+      go test -count 1 -timeout 30m -tags load -run ^TestLoad$ -tags=load -iterations=2 -scaleup=40 -os=${{ parameters.os }}
+      cd ../../..
       # Remove this once we have cniv1 support for validating the test cluster
       echo "Validate State skipped for linux cniv1 for now"
       if [ "${{parameters.os}}" == "windows" ]; then
