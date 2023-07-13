@@ -99,7 +99,7 @@ spec:
           image: "acnpublic.azurecr.io/containernetworking/mdnc-cni-dropgz"
           imagePullPolicy: IfNotPresent
           command: ["/dropgz"]
-          args: ["deploy" , "azure-vnet", "-o", "/opt/cni/bin/azure-vnet", "azure-vnet-telemetry", "-o", "/opt/cni/bin/azure-vnet-telemetry", "azure-swift-overlay.conflist", "-o", "/etc/cni/net.d/15-azure-swift-overlay.conflist"]
+          args: ["deploy" , "azure-vnet", "-o", "/opt/cni/bin/azure-vnet", "azure-vnet-telemetry", "-o", "/opt/cni/bin/azure-vnet-telemetry", "azure-swift.conflist", "-o", "/etc/cni/net.d/10-azure.conflist"]
           volumeMounts:
             - name: cni-bin
               mountPath: /opt/cni/bin
