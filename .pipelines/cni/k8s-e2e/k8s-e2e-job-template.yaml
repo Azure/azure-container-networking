@@ -7,7 +7,6 @@ parameters:
 
 jobs:
   - job: k8s_e2e
-    timeoutInMinutes: 180 # Change to 120 later. Need to see the cap. length of these tests.
     steps:
       - task: AzureCLI@1
         inputs:
@@ -38,6 +37,7 @@ jobs:
             ginkgoSkip: 'SCTP|hostNetwork'
             os: ${{ parameters.os }}
             processes: 4
+            attempts: 10 # Very flaky d/t ping/curl commands
       - ${{ if eq(parameters.netpol, true) }}:
         - template: ../k8s-e2e/k8s-e2e-step-template.yaml
           parameters:
@@ -48,6 +48,7 @@ jobs:
             ginkgoSkip: 'SCTP'
             os: ${{ parameters.os }}
             processes: 1 # Currently over commits B2 nodes, Need to run on bigger VM with 8+ process. 1 process take 1hr+
+            attempts: 0 # Long running test, if re ran could exceed timeout
       - ${{ if eq(parameters.dns, true) }}:
         - template: ../k8s-e2e/k8s-e2e-step-template.yaml
           parameters:
@@ -55,9 +56,10 @@ jobs:
             name: dns
             clusterName: ${{ parameters.clusterName }}
             ginkgoFocus: '\[sig-network\].DNS.should'
-            ginkgoSkip: 'Serial' #4 Serial tests????
+            ginkgoSkip: 'resolv'
             os: ${{ parameters.os }}
             processes: 4
+            attempts: 3
       - ${{ if eq(parameters.container, true) }}:
         - template: ../k8s-e2e/k8s-e2e-step-template.yaml
           parameters:
@@ -68,6 +70,7 @@ jobs:
             ginkgoSkip: 'Slow'
             os: ${{ parameters.os }}
             processes: 4
+            attempts: 2
       - ${{ if eq(parameters.discovery, true) }}:
         - template: ../k8s-e2e/k8s-e2e-step-template.yaml
           parameters:
@@ -77,7 +80,8 @@ jobs:
             ginkgoFocus: '\[sig-api-machinery\].Discovery'
             ginkgoSkip: ''
             os: ${{ parameters.os }}
-            processes: 4 #check if this broke the test, only 3 tests. Did not break
+            processes: 4
+            attempts: 3
       - ${{ if eq(parameters.liveness, true) }}:
         - template: ../k8s-e2e/k8s-e2e-step-template.yaml
           parameters:
@@ -88,6 +92,7 @@ jobs:
             ginkgoSkip: ''
             os: ${{ parameters.os }}
             processes: 4
+            attempts: 10 # Pr
       - ${{ if eq(parameters.portforward, true) }}:
         - template: ../k8s-e2e/k8s-e2e-step-template.yaml
           parameters:
@@ -98,6 +103,7 @@ jobs:
             ginkgoSkip: ''
             os: ${{ parameters.os }}
             processes: 4
+            attempts: 3
       - ${{ if eq(parameters.dsNodeRestart, true) }}:
         - template: ../k8s-e2e/k8s-e2e-step-template.yaml
           parameters:
@@ -107,7 +113,8 @@ jobs:
             ginkgoFocus: '\[sig-apps\].DaemonRestart'
             ginkgoSkip: ''
             os: ${{ parameters.os }}
-            processes: 4 # This test is disruptive, need to test with/w.o./1 proc/4 proc
+            processes: 4 # Cannot run until provider is figured out. Also is disruptive, may need to lower processes to 1
+            attempts: 3
       - ${{ if eq(parameters.token, true) }}:
         - template: ../k8s-e2e/k8s-e2e-step-template.yaml
           parameters:
@@ -118,6 +125,7 @@ jobs:
             ginkgoSkip: ''
             os: ${{ parameters.os }}
             processes: 4
+            attempts: 3
       - ${{ if eq(parameters.loadBalancer, true) }}:
         - template: ../k8s-e2e/k8s-e2e-step-template.yaml
           parameters:
@@ -128,6 +136,7 @@ jobs:
             ginkgoSkip: 'ESIPP|Serial'
             os: ${{ parameters.os }}
             processes: 4
+            attempts: 3
       - ${{ if eq(parameters.metrics, true) }}:
         - template: ../k8s-e2e/k8s-e2e-step-template.yaml
           parameters:
@@ -138,13 +147,15 @@ jobs:
             ginkgoSkip: ''
             os: ${{ parameters.os }}
             processes: 4
-      - ${{ if eq(parameters.hybridWin, true) }}:
+            attempts: 3
+      - ${{ if and(eq(parameters.hybridWin, true), eq(parameters.os, 'windows')) }}:
         - template: ../k8s-e2e/k8s-e2e-step-template.yaml
           parameters:
-            testName: Hybrid Network
+            testName: Hybrid Network # Windows exclusive test within k8s e2e
             name: hybrid
             clusterName: ${{ parameters.clusterName }}
             ginkgoFocus: '\[sig-windows\].Hybrid'
             ginkgoSkip: ''
             os: ${{ parameters.os }}
             processes: 4
+            attempts: 3

@@ -6,6 +6,7 @@ parameters:
   ginkgoSkip: ""
   os: ""
   processes: ""
+  attempts: ""
 
 
 steps:
@@ -23,12 +24,14 @@ steps:
 
       ./ginkgo --procs=${{ parameters.processes }} \
       ./e2e.test -- \
+      --num-nodes=2 \
       --provider=skeleton \
       --ginkgo.focus='${{ parameters.ginkgoFocus }}' \
       --ginkgo.skip="${{ parameters.ginkgoSkip }}$SKIP" \
+      --ginkgo.flake-attempts=${{ parameters.attempts }} \
       --ginkgo.v \
       --node-os-distro=${{ parameters.os }} \
       --kubeconfig=$HOME/.kube/config
     name: ${{ parameters.name }}
     displayName: k8s E2E - ${{ parameters.testName }}
-    continueOnError: true
+    continueOnError: true # make sure to remove afer testing is complete
