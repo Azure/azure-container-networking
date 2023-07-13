@@ -99,12 +99,30 @@ stages:
           datapath: true
           dns: true
           portforward: true
-          loadBalancer: true # Req azure provider. Has a single test running that does not have this req.
-          hybridWin: true # Part of sig-windows, may want to add more. Only flag as true if you want to test on Windows cluster, will catch if mistake made
-  - stage: pod_deployment_windows
+          loadBalancer: true
+          hybridWin: true
+
+  - stage: npm_tests
     pool:
       name: "$(BUILD_POOL_NAME_DEFAULT)"
     dependsOn: datapath_tests
+    displayName: "NPM Test - Windows"
+    jobs:
+      # - template: ../k8s-e2e/k8s-e2e-job-template.yaml
+      #   parameters:
+      #     clusterName: ${{ parameters.clusterName }}
+      #     os: ${{ parameters.os }}
+      #     netpol: true
+      # Will use once properly running
+      - template: ../k8s-e2e/npm.yaml
+        parameters:
+          clusterName: ${{ parameters.clusterName }}
+          os: ${{ parameters.os }}
+
+  - stage: pod_deployment_windows
+    pool:
+      name: "$(BUILD_POOL_NAME_DEFAULT)"
+    dependsOn: npm_tests
     displayName: "Pod Deployment"
     jobs:
       - job: deploy_pods

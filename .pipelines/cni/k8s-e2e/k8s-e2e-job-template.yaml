@@ -1,8 +1,6 @@
 parameters:
   clusterName: ""
   os: ""
-  datapath: ""
-  netpol: ""
 
 
 jobs:
@@ -26,6 +24,7 @@ jobs:
             # https://github.com/kubernetes/sig-release/blob/master/release-engineering/artifacts.md#content-of-kubernetes-test-system-archtargz-on-example-of-kubernetes-test-linux-amd64targz-directories-removed-from-list
             # explictly unzip and strip directories from ginkgo and e2e.test
             tar -xvzf kubernetes-test-linux-amd64.tar.gz --strip-components=3 kubernetes/test/bin/ginkgo kubernetes/test/bin/e2e.test
+
         displayName: "Setup Environment"
       - ${{ if eq(parameters.datapath, true) }}:
         - template: ../k8s-e2e/k8s-e2e-step-template.yaml
@@ -37,8 +36,10 @@ jobs:
             ginkgoSkip: 'SCTP|hostNetwork'
             os: ${{ parameters.os }}
             processes: 4
-            attempts: 10 # Very flaky d/t ping/curl commands
+            attempts: 10
       - ${{ if eq(parameters.netpol, true) }}:
+        - script: |
+
         - template: ../k8s-e2e/k8s-e2e-step-template.yaml
           parameters:
             testName: Network Policy
@@ -47,8 +48,8 @@ jobs:
             ginkgoFocus: '(.*).Netpol'
             ginkgoSkip: 'SCTP'
             os: ${{ parameters.os }}
-            processes: 1 # Currently over commits B2 nodes, Need to run on bigger VM with 8+ process. 1 process take 1hr+
-            attempts: 0 # Long running test, if re ran could exceed timeout
+            processes: 1
+            attempts: 0
       - ${{ if eq(parameters.dns, true) }}:
         - template: ../k8s-e2e/k8s-e2e-step-template.yaml
           parameters:
@@ -92,7 +93,7 @@ jobs:
             ginkgoSkip: ''
             os: ${{ parameters.os }}
             processes: 4
-            attempts: 10 # Pr
+            attempts: 10 #
       - ${{ if eq(parameters.portforward, true) }}:
         - template: ../k8s-e2e/k8s-e2e-step-template.yaml
           parameters:
@@ -113,12 +114,12 @@ jobs:
             ginkgoFocus: '\[sig-apps\].DaemonRestart'
             ginkgoSkip: ''
             os: ${{ parameters.os }}
-            processes: 4 # Cannot run until provider is figured out. Also is disruptive, may need to lower processes to 1
+            processes: 4
             attempts: 3
       - ${{ if eq(parameters.token, true) }}:
         - template: ../k8s-e2e/k8s-e2e-step-template.yaml
           parameters:
-            testName: Service Account # Has 1 linux test
+            testName: Service Account
             name: token
             clusterName: ${{ parameters.clusterName }}
             ginkgoFocus: '\[sig-auth\].ServiceAccounts'
@@ -129,7 +130,7 @@ jobs:
       - ${{ if eq(parameters.loadBalancer, true) }}:
         - template: ../k8s-e2e/k8s-e2e-step-template.yaml
           parameters:
-            testName: Load Balancers # Has 1 serial test
+            testName: Load Balancers
             name: load
             clusterName: ${{ parameters.clusterName }}
             ginkgoFocus: '\[sig-network\].LoadBalancers'
@@ -151,7 +152,7 @@ jobs:
       - ${{ if and(eq(parameters.hybridWin, true), eq(parameters.os, 'windows')) }}:
         - template: ../k8s-e2e/k8s-e2e-step-template.yaml
           parameters:
-            testName: Hybrid Network # Windows exclusive test within k8s e2e
+            testName: Hybrid Network
             name: hybrid
             clusterName: ${{ parameters.clusterName }}
             ginkgoFocus: '\[sig-windows\].Hybrid'
@@ -159,3 +160,6 @@ jobs:
             os: ${{ parameters.os }}
             processes: 4
             attempts: 3
+      - ${{ if eq(parameters.os, 'windows') }}:
+        - script: |
+

@@ -22,6 +22,14 @@ steps:
         SKIP="LinuxOnly"
       fi
 
+      # Taint Linux nodes so that windows tests do not run on them
+      if ${{ lower(eq(parameters.os, 'windows')) }}
+      then
+        kubectl taint node $(kubectl get nodes -owide \
+        | grep Ubuntu | awk '{print$1}') \
+        node-role.kubernetes.io/control-plane:NoSchedule
+      fi
+
       ./ginkgo --procs=${{ parameters.processes }} \
       ./e2e.test -- \
       --num-nodes=2 \
@@ -32,6 +40,14 @@ steps:
       --ginkgo.v \
       --node-os-distro=${{ parameters.os }} \
       --kubeconfig=$HOME/.kube/config
+
+      # Untaint Linux nodes once testing is complete
+      if ${{ lower(eq(parameters.os, 'windows')) }}
+      then
+        kubectl taint node $(kubectl get nodes -owide \
+        | grep Ubuntu | awk '{print$1}') \
+        node-role.kubernetes.io/control-plane:NoSchedule-
+      fi
     name: ${{ parameters.name }}
     displayName: k8s E2E - ${{ parameters.testName }}
-    continueOnError: true # make sure to remove afer testing is complete
+    continueOnError: true # make sure to remove after testing is complete
