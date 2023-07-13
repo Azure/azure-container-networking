@@ -87,7 +87,7 @@ overlay-byocni-up: rg-up overlay-net-up ## Brings up an Overlay BYO CNI cluster
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
 		--node-count $(NODE_COUNT) \
 		--node-vm-size $(VM_SIZE) \
-		--load-balancer-sku basic \
+		--load-balancer-sku standard \
 		--network-plugin none \
 		--network-plugin-mode overlay \
 		--pod-cidr 192.168.0.0/16 \
@@ -100,7 +100,7 @@ overlay-no-kube-proxy-up: rg-up overlay-net-up ## Brings up an Overlay BYO CNI c
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
 		--node-count $(NODE_COUNT) \
 		--node-vm-size $(VM_SIZE) \
-		--load-balancer-sku basic \
+		--load-balancer-sku standard \
 		--network-plugin none \
 		--network-plugin-mode overlay \
 		--pod-cidr 192.168.0.0/16 \
@@ -114,7 +114,7 @@ overlay-cilium-up: rg-up overlay-net-up ## Brings up an Overlay AzCNI cluster
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
 		--node-count $(NODE_COUNT) \
 		--node-vm-size $(VM_SIZE) \
-		--load-balancer-sku basic \
+		--load-balancer-sku standard \
 		--network-plugin azure \
 		--network-dataplane cilium \
 		--network-plugin-mode overlay \
@@ -128,7 +128,7 @@ overlay-up: rg-up overlay-net-up ## Brings up an Overlay AzCNI cluster
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
 		--node-count $(NODE_COUNT) \
 		--node-vm-size $(VM_SIZE) \
-		--load-balancer-sku basic \
+		--load-balancer-sku standard \
 		--network-plugin azure \
 		--network-plugin-mode overlay \
 		--pod-cidr 192.168.0.0/16 \
@@ -141,7 +141,7 @@ swift-byocni-up: rg-up swift-net-up ## Bring up a SWIFT BYO CNI cluster
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
 		--node-count $(NODE_COUNT) \
 		--node-vm-size $(VM_SIZE) \
-		--load-balancer-sku basic \
+		--load-balancer-sku standard \
 		--network-plugin none \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
 		--pod-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/podnet \
