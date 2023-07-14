@@ -76,8 +76,8 @@ swift-net-up: ## Create vnet, nodenet and podnet subnets
 	$(AZCLI) network vnet subnet create -g $(GROUP) --vnet-name $(VNET) --name podnet --address-prefixes 10.241.0.0/16 -o none
 
 overlay-net-up: ## Create vnet, nodenet subnets
-	$(AZCLI) network vnet create -g $(GROUP) -l $(REGION) --name $(VNET) --address-prefixes 10.0.0.0/8 -o none
-	$(AZCLI) network vnet subnet create -g $(GROUP) --vnet-name $(VNET) --name nodenet --address-prefix 10.0.0.0/9 -o none
+	$(AZCLI) network vnet create -g $(GROUP) -l $(REGION) --name $(VNET) --address-prefixes 10.0.0.0/9 -o none
+	$(AZCLI) network vnet subnet create -g $(GROUP) --vnet-name $(VNET) --name nodenet --address-prefix 10.0.0.0/12 -o none
 
 
 ##@ AKS Clusters
@@ -94,6 +94,8 @@ overlay-byocni-up: rg-up overlay-net-up ## Brings up an Overlay BYO CNI cluster
 		--network-plugin none \
 		--network-plugin-mode overlay \
 		--pod-cidr 10.128.0.0/9 \
+		--dns-service-ip 192.168.0.10 \
+    	--service-cidr 192.168.0.0/24 \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
 		--no-ssh-key \
 		--yes
@@ -107,6 +109,8 @@ overlay-no-kube-proxy-up: rg-up overlay-net-up ## Brings up an Overlay BYO CNI c
 		--network-plugin none \
 		--network-plugin-mode overlay \
 		--pod-cidr 10.128.0.0/9  \
+		--dns-service-ip 192.168.0.10 \
+    	--service-cidr 192.168.0.0/24 \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
 		--no-ssh-key \
 		--kube-proxy-config ./kube-proxy.json \
@@ -122,6 +126,8 @@ overlay-cilium-up: rg-up overlay-net-up ## Brings up an Overlay AzCNI cluster
 		--network-dataplane cilium \
 		--network-plugin-mode overlay \
 		--pod-cidr 10.128.0.0/9  \
+		--dns-service-ip 192.168.0.10 \
+    	--service-cidr 192.168.0.0/24 \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
 		--no-ssh-key \
 		--yes
@@ -135,6 +141,8 @@ overlay-up: rg-up overlay-net-up ## Brings up an Overlay AzCNI cluster
 		--network-plugin azure \
 		--network-plugin-mode overlay \
 		--pod-cidr 10.128.0.0/9  \
+		--dns-service-ip 192.168.0.10 \
+    	--service-cidr 192.168.0.0/24 \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
 		--no-ssh-key \
 		--yes
