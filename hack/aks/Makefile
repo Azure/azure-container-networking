@@ -8,10 +8,13 @@ AZIMG   = mcr.microsoft.com/azure-cli
 AZCLI   ?= docker run --rm -v $(AZCFG):/root/.azure -v $(KUBECFG):/root/.kube -v $(SSH):/root/.ssh -v $(PWD):/root/tmpsrc $(AZIMG) az
 
 # overrideable defaults
-REGION     ?= westus2
-OS_SKU     ?= Ubuntu
-VM_SIZE	   ?= Standard_DS3_v2
-NODE_COUNT ?= 2
+REGION          ?= westus2
+OS_SKU          ?= Ubuntu
+WINDOWS_OS_SKU  ?= Windows2022
+VM_SIZE	        = Standard_DS3_v2
+NODE_COUNT      ?= 2
+K8S_VER         ?= 1.25 # Used only for ubuntu 18 as K8S 1.24.9, as K8S > 1.25 have Ubuntu 22
+WINDOWS_VM_SKU  = Standard_DS3_v2
 
 # overrideable variables
 SUB        ?= $(AZURE_SUBSCRIPTION)
@@ -68,13 +71,13 @@ rg-down: ## Delete resource group
 	$(AZCLI) group delete -g $(GROUP) --yes
 
 swift-net-up: ## Create vnet, nodenet and podnet subnets
-	$(AZCLI) network vnet create -g $(GROUP) -l $(REGION) --name $(VNET) --address-prefixes 10.0.0.0/8 -o none
+	$(AZCLI) network vnet create -g $(GROUP) -l $(REGION) --name $(VNET) --address-prefixes 192.168.0.0/16 -o none
 	$(AZCLI) network vnet subnet create -g $(GROUP) --vnet-name $(VNET) --name nodenet --address-prefixes 10.240.0.0/16 -o none
 	$(AZCLI) network vnet subnet create -g $(GROUP) --vnet-name $(VNET) --name podnet --address-prefixes 10.241.0.0/16 -o none
 
 overlay-net-up: ## Create vnet, nodenet subnets
 	$(AZCLI) network vnet create -g $(GROUP) -l $(REGION) --name $(VNET) --address-prefixes 10.0.0.0/8 -o none
-	$(AZCLI) network vnet subnet create -g $(GROUP) --vnet-name $(VNET) --name nodenet --address-prefix 10.10.0.0/16 -o none
+	$(AZCLI) network vnet subnet create -g $(GROUP) --vnet-name $(VNET) --name nodenet --address-prefix 10.0.0.0/9 -o none
 
 
 ##@ AKS Clusters
@@ -90,7 +93,7 @@ overlay-byocni-up: rg-up overlay-net-up ## Brings up an Overlay BYO CNI cluster
 		--load-balancer-sku standard \
 		--network-plugin none \
 		--network-plugin-mode overlay \
-		--pod-cidr 10.0.0.0/8 \
+		--pod-cidr 10.128.0.0/9 \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
 		--no-ssh-key \
 		--yes
@@ -103,7 +106,7 @@ overlay-no-kube-proxy-up: rg-up overlay-net-up ## Brings up an Overlay BYO CNI c
 		--load-balancer-sku standard \
 		--network-plugin none \
 		--network-plugin-mode overlay \
-		--pod-cidr 10.0.0.0/8  \
+		--pod-cidr 10.128.0.0/9  \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
 		--no-ssh-key \
 		--kube-proxy-config ./kube-proxy.json \
@@ -118,7 +121,7 @@ overlay-cilium-up: rg-up overlay-net-up ## Brings up an Overlay AzCNI cluster
 		--network-plugin azure \
 		--network-dataplane cilium \
 		--network-plugin-mode overlay \
-		--pod-cidr 10.0.0.0/8  \
+		--pod-cidr 10.128.0.0/9  \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
 		--no-ssh-key \
 		--yes
@@ -131,7 +134,7 @@ overlay-up: rg-up overlay-net-up ## Brings up an Overlay AzCNI cluster
 		--load-balancer-sku standard \
 		--network-plugin azure \
 		--network-plugin-mode overlay \
-		--pod-cidr 10.0.0.0/8  \
+		--pod-cidr 10.128.0.0/9  \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
 		--no-ssh-key \
 		--yes
@@ -203,11 +206,24 @@ windows-cniv1-up: rg-up overlay-net-up ## Bring up a Windows CNIv1 cluster
 
 	$(AZCLI) aks nodepool add --resource-group $(GROUP) --cluster-name $(CLUSTER) \
 		--os-type Windows \
-		--os-sku Windows2022 \
+		--os-sku $(WINDOWS_OS_SKU) \
 		--max-pods 250 \
 		--name npwin \
 		--node-count $(NODE_COUNT) \
 		-s $(WINDOWS_VM_SKU)
+
+	@$(MAKE) set-kubeconf
+
+linux-cniv1-up: rg-up overlay-net-up 
+	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
+		--node-count $(NODE_COUNT) \
+		--node-vm-size $(VM_SIZE) \
+		--network-plugin azure \
+		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
+		--kubernetes-version $(K8S_VER) \
+		--os-sku $(OS_SKU) \
+		--no-ssh-key \
+		--yes
 
 	@$(MAKE) set-kubeconf
 

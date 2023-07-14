@@ -66,7 +66,7 @@ stages:
               addSpnToEnvironment: true
               inlineScript: |
                 set -ex
-                export CNI_IMAGE=$(make acncli-image-name-and-tag OS=$(os) ARCH=$(arch) OS_VERSION=$(os_version))
+                export CNI_IMAGE=$(make cni-plugin-image-name-and-tag OS=$(os) ARCH=$(arch) OS_VERSION=$(os_version))
                 az extension add --name aks-preview
                 clusterName=${{ parameters.clusterName }}-$(make revision)
                 make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${clusterName}
