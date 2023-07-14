@@ -166,6 +166,19 @@ steps:
     displayName: "Validate Pods"
 
   - script: |
+      echo "validate pod IP assignment before CNS restart"
+      kubectl get pod -owide -A
+      make test-validate-state
+      echo "restart CNS"
+      kubectl rollout restart ds azure-cns -n kube-system
+      kubectl rollout status ds azure-cns -n kube-system
+      kubectl get pod -owide -A
+      echo "validate pods after CNS restart"
+      make test-validate-state
+    name: "restartCNS"
+    displayName: "Restart CNS and validate pods"
+
+  - script: |
       echo "Run wireserver and metadata connectivity Tests"
       bash test/network/wireserver_metadata_test.sh
     retryCountOnTaskFailure: 3

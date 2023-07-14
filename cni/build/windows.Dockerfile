@@ -13,6 +13,7 @@ FROM mcr.microsoft.com/windows/servercore:${OS_VERSION}
 SHELL ["powershell", "-command"]
 COPY --from=builder /azure-container-networking/azure-vnet.exe azure-vnet.exe
 COPY --from=builder /azure-container-networking/azure-vnet-telemetry.exe azure-vnet-telemetry.exe
+COPY --from=builder /azure-container-networking/telemetry/azure-vnet-telemetry.config azure-vnet-telemetry.config
 COPY --from=builder /azure-container-networking/azure-vnet-ipam.exe azure-vnet-ipam.exe
 
 # This would be replaced with dropgz version of windows.

@@ -2,6 +2,7 @@ Write-Host $env:CONTAINER_SANDBOX_MOUNT_POINT
 $sourceCNI = $env:CONTAINER_SANDBOX_MOUNT_POINT + "azure-vnet.exe"
 $sourceIpam = $env:CONTAINER_SANDBOX_MOUNT_POINT + "azure-vnet-ipam.exe"
 $sourceTelemetry = $env:CONTAINER_SANDBOX_MOUNT_POINT + "azure-vnet-telemetry.exe"
+$sourceTelemetryConfig = $env:CONTAINER_SANDBOX_MOUNT_POINT + "azure-vnet-telemetry.config"
 
 $sourceCNIVersion = & "$sourceCNI" -v
 $currentVersion = ""
@@ -36,6 +37,10 @@ if ($currentTelemetryVersion -ne $sourceTelemetryVersion){
     Write-Host "copying azure-vnet-telemetry to windows node..."
     Remove-Item "C:\k\azurecni\bin\azure-vnet-telemetry.exe"
     Copy-Item $sourceTelemetry -Destination "C:\k\azurecni\bin"
+
+    Write-Host "copying azure-vnet-telemetry.config to windows node..."
+    Remove-Item "C:\k\azurecni\bin\azure-vnet-telemetry.config"
+    Copy-Item $sourceTelemetryConfig -Destination "C:\k\azurecni\bin"
 }
 
 ## check CNI was already installed so not to get stuck in a infinite loop of rebooting

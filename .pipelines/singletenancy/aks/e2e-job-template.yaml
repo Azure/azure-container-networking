@@ -1,0 +1,44 @@
+parameters:
+  name: ""
+  displayName: ""
+  arch: ""  
+  os: ""
+  clusterType: ""
+  clusterName: ""
+  k8sVersion: ""
+  windowsOsSku: ""
+  os_version: ""
+
+stages:
+  - stage: ${{ parameters.name }}
+    displayName: E2E - ${{ parameters.displayName }}
+    dependsOn: 
+    - setup
+    - publish
+    jobs:
+      - job: ${{ parameters.name }}
+        displayName: Singletenancy AKS - (${{ parameters.name }})
+        pool:
+          name: $(BUILD_POOL_NAME_DEFAULT)
+          demands: 
+          - agent.os -equals Linux
+          - Role -equals $(CUSTOM_E2E_ROLE)
+        variables:
+          GOPATH: "$(Agent.TempDirectory)/go" # Go workspace path
+          GOBIN: "$(GOPATH)/bin" # Go binaries path
+          modulePath: "$(GOPATH)/src/github.com/Azure/azure-container-networking"
+          dropgzVersion: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.dropgzVersion'] ]
+          cniVersion: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.cniVersion'] ]
+        steps:
+          - template: e2e-step-template.yaml
+            parameters:
+              name: ${{ parameters.name }}
+              clusterType: ${{ parameters.clusterType }}
+              clusterName: ${{ parameters.clusterName }}
+              arch: ${{ parameters.arch }}
+              os: ${{ parameters.os }}
+              k8sVersion: ${{ parameters.k8sVersion }}
+              windowsOsSku: ${{ parameters.windowsOsSku }}
+              os_version: ${{ parameters.os_version }}
+              version: $(dropgzVersion)
+              cniVersion: $(cniVersion)
