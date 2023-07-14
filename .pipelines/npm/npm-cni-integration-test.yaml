@@ -1,61 +1,63 @@
 parameters:
   clusterName: ""
   os: ""
+  sub: ""
+  os_version: ""
+  tag: ""
 
 jobs:
-  - job: npm
+  - job: npm_k8se2e
+    displayName: "NPM k8s E2E"
+    dependsOn: ${{ parameters.dependsOn }}
+    condition: ${{ or(contains(parameters.os_version, '2022'), eq(parameters.os, 'linux')) }}
+    pool:
+      name: $(BUILD_POOL_NAME_DEFAULT)
+      demands:
+      - agent.os -equals Linux
+      - Role -equals Build
     steps:
-    #Deploy NPM
       - task: AzureCLI@2
         displayName: "Deploy NPM to Test Cluster"
-        continueOnError: true # make sure to remove after testing is complete
         inputs:
-          azureSubscription: $(TEST_SUB_SERVICE_CONNECTION)
+          azureSubscription: ${{ parameters.sub }}
           scriptType: "bash"
           scriptLocation: "inlineScript"
-          failOnStderr: true
           inlineScript: |
             set -ex
-            # export CLUSTER_NAME=$(RESOURCE_GROUP)-$(PROFILE)
+
             make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}-$(make revision)
 
-            # curl -LO https://dl.k8s.io/release/v1.23.0/bin/linux/amd64/kubectl
-            # chmod +x kubectl
-
             # deploy azure-npm
-            # ./kubectl --kubeconfig=./kubeconfig apply -f https://raw.githubusercontent.com/Azure/azure-container-networking/master/npm/examples/windows/azure-npm.yaml
-            kubectl apply -f https://raw.githubusercontent.com/Azure/azure-container-networking/master/npm/examples/windows/azure-npm.yaml
+            if ${{ lower(eq(parameters.os, 'windows')) }}
+            then
+              # Windows
+              kubectl apply -f https://raw.githubusercontent.com/Azure/azure-container-networking/master/npm/examples/windows/azure-npm.yaml
+              kubectl set image daemonset/azure-npm-win -n kube-system azure-npm=$IMAGE_REGISTRY/azure-npm:windows-amd64-ltsc2022-${{ parameters.tag }}
+              kubectl rollout status -n kube-system daemonset/azure-npm-win
+              # may need to be longer for windows, took 7 minutes before it terminated original pods
+            else
+              # Linux
+              kubectl apply -f https://raw.githubusercontent.com/Azure/azure-container-networking/master/npm/azure-npm.yaml
+              kubectl set image daemonset/azure-npm -n kube-system azure-npm=$IMAGE_REGISTRY/azure-npm:${{ parameters.tag }}
+              kubectl rollout status -n kube-system daemonset/azure-npm
+            fi
 
-            # swap azure-npm image with one built during run
-            #$(TAG) may be what pipeline is set to. check and confirm, major doubt though.
-            # ./kubectl --kubeconfig=./kubeconfig set image daemonset/azure-npm-win -n kube-system azure-npm=$IMAGE_REGISTRY/azure-npm:windows-amd64-ltsc2022-$(TAG)
-            # kubectl set image daemonset/azure-npm-win -n kube-system azure-npm=$IMAGE_REGISTRY/azure-npm:windows-amd64-ltsc2022-$(make npm-version)
-            kubectl set image daemonset/azure-npm-win -n kube-system azure-npm=acnpublic.azurecr.io/azure-npm:windows-amd64-ltsc2022-a0754f41
-
-            #could use rollout to control flow through api. Thus removing the need for sleep
             echo "sleeping 3 minutes to allow NPM pods to restart"
             sleep 180
+            kubectl get po -n kube-system -owide -A
 
-            # ./kubectl --kubeconfig=./kubeconfig get po -n kube-system -owide -A
-            kubectl apply get po -n kube-system -owide -A
-
-
-            echo "Showing cluster status for $CLUSTER_NAME"
             # FQDN=`az aks show -n $CLUSTER_NAME -g $CLUSTER_NAME --query fqdn -o tsv`
             FQDN=`az aks show -g ${{ parameters.clusterName }}-$(make revision) -n ${{ parameters.clusterName }}-$(make revision) --query fqdn -o tsv`
             echo $FQDN
             echo "##vso[task.setvariable variable=FQDN]$FQDN"
 
-    #Build Suite
       - bash: |
-          git clone https://github.com/huntergregory/kubernetes.git --depth=1 --branch=linux-sleep-before-probing
+          git clone https://github.com/huntergregory/kubernetes.git --depth=1 --branch=quit-on-failure
           cd kubernetes
           export PATH=$PATH:/usr/local/go/bin/
           make WHAT=test/e2e/e2e.test
         displayName: "Build Kubernetes e2e.test"
-        continueOnError: true # make sure to remove after testing is complete
 
-    #Run Suite
       - bash: |
           # NetworkPolicy between server and...
           focus="\
@@ -76,16 +78,12 @@ jobs:
 
           cd kubernetes/_output/local/bin/linux/amd64
 
-
-
-          # why do we need to specify this? My tests run fine without it
-          # KUBERNETES_SERVICE_HOST="$FQDN" KUBERNETES_SERVICE_PORT=443 \
+          KUBERNETES_SERVICE_HOST="$FQDN" KUBERNETES_SERVICE_PORT=443 \
           ./e2e.test \
           --provider=local \
           --ginkgo.focus="$focus" \
           --ginkgo.skip="NetworkPolicyLegacy|SCTP" \
           --kubeconfig=$HOME/.kube/config
         displayName: "Run Kubernetes e2e.test"
-        continueOnError: true # make sure to remove after testing is complete
 
 

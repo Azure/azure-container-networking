@@ -10,7 +10,7 @@ parameters:
 stages:
   - stage: ${{ parameters.name }}
     displayName: E2E - ${{ parameters.displayName }}
-    dependsOn: 
+    dependsOn:
     - setup
     - publish
     jobs:
@@ -19,7 +19,7 @@ stages:
         timeoutInMinutes: 120
         pool:
           name: $(BUILD_POOL_NAME_DEFAULT)
-          demands: 
+          demands:
           - agent.os -equals Linux
           - Role -equals Build
         container:

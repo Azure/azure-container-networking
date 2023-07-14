@@ -1,19 +1,25 @@
 parameters:
   clusterName: ""
   os: ""
+  dependsOn: ""
+  sub: ""
 
 
 jobs:
-  - job: k8s_e2e
+  - job: cni_k8se2e
+    displayName: "CNI k8s E2E"
+    dependsOn: ${{ parameters.dependsOn }}
+    pool:
+      name: $(BUILD_POOL_NAME_DEFAULT)
     steps:
       - task: AzureCLI@1
         inputs:
-          azureSubscription: $(TEST_SUB_SERVICE_CONNECTION)
+          azureSubscription: ${{ parameters.sub }}
           scriptLocation: "inlineScript"
           scriptType: "bash"
           addSpnToEnvironment: true
           inlineScript: |
-            set -ex
+            set -e
             make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}-$(make revision)
 
             # sig-release provides test suite tarball(s) per k8s release. Just need to provide k8s version "v1.xx.xx"
@@ -38,8 +44,6 @@ jobs:
             processes: 4
             attempts: 10
       - ${{ if eq(parameters.netpol, true) }}:
-        - script: |
-
         - template: ../k8s-e2e/k8s-e2e-step-template.yaml
           parameters:
             testName: Network Policy
@@ -160,6 +164,3 @@ jobs:
             os: ${{ parameters.os }}
             processes: 4
             attempts: 3
-      - ${{ if eq(parameters.os, 'windows') }}:
-        - script: |
-
