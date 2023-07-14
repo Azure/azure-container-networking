@@ -8,10 +8,13 @@ AZIMG   = mcr.microsoft.com/azure-cli
 AZCLI   ?= docker run --rm -v $(AZCFG):/root/.azure -v $(KUBECFG):/root/.kube -v $(SSH):/root/.ssh -v $(PWD):/root/tmpsrc $(AZIMG) az
 
 # overrideable defaults
-REGION     ?= westus2
-OS_SKU     ?= Ubuntu
-VM_SIZE	   ?= Standard_B2s
-NODE_COUNT ?= 2
+REGION          ?= westus2
+OS_SKU          ?= Ubuntu
+WINDOWS_OS_SKU  ?= Windows2022
+VM_SIZE	        ?= Standard_B2s
+NODE_COUNT      ?= 2
+K8S_VER         ?= 1.25 # Used only for ubuntu 18 as K8S 1.24.9, as K8S > 1.25 have Ubuntu 22
+WINDOWS_VM_SKU  ?= Standard_B2s
 
 # overrideable variables
 SUB        ?= $(AZURE_SUBSCRIPTION)
@@ -203,11 +206,24 @@ windows-cniv1-up: rg-up overlay-net-up ## Bring up a Windows CNIv1 cluster
 
 	$(AZCLI) aks nodepool add --resource-group $(GROUP) --cluster-name $(CLUSTER) \
 		--os-type Windows \
-		--os-sku Windows2022 \
+		--os-sku $(WINDOWS_OS_SKU) \
 		--max-pods 250 \
 		--name npwin \
 		--node-count $(NODE_COUNT) \
 		-s $(WINDOWS_VM_SKU)
+
+	@$(MAKE) set-kubeconf
+
+linux-cniv1-up: rg-up overlay-net-up 
+	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
+		--node-count $(NODE_COUNT) \
+		--node-vm-size $(VM_SIZE) \
+		--network-plugin azure \
+		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
+		--kubernetes-version $(K8S_VER) \
+		--os-sku $(OS_SKU) \
+		--no-ssh-key \
+		--yes
 
 	@$(MAKE) set-kubeconf
 
