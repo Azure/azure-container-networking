@@ -95,7 +95,7 @@ overlay-byocni-up: rg-up overlay-net-up ## Brings up an Overlay BYO CNI cluster
 		--network-plugin-mode overlay \
 		--pod-cidr 10.128.0.0/9 \
 		--dns-service-ip 192.168.0.10 \
-    	--service-cidr 192.168.0.0/24 \
+    	--service-cidr 192.168.0.0/16 \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
 		--no-ssh-key \
 		--yes
@@ -110,7 +110,7 @@ overlay-no-kube-proxy-up: rg-up overlay-net-up ## Brings up an Overlay BYO CNI c
 		--network-plugin-mode overlay \
 		--pod-cidr 10.128.0.0/9  \
 		--dns-service-ip 192.168.0.10 \
-    	--service-cidr 192.168.0.0/24 \
+    	--service-cidr 192.168.0.0/16 \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
 		--no-ssh-key \
 		--kube-proxy-config ./kube-proxy.json \
@@ -127,7 +127,7 @@ overlay-cilium-up: rg-up overlay-net-up ## Brings up an Overlay AzCNI cluster
 		--network-plugin-mode overlay \
 		--pod-cidr 10.128.0.0/9  \
 		--dns-service-ip 192.168.0.10 \
-    	--service-cidr 192.168.0.0/24 \
+    	--service-cidr 192.168.0.0/16 \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
 		--no-ssh-key \
 		--yes
@@ -142,7 +142,7 @@ overlay-up: rg-up overlay-net-up ## Brings up an Overlay AzCNI cluster
 		--network-plugin-mode overlay \
 		--pod-cidr 10.128.0.0/9  \
 		--dns-service-ip 192.168.0.10 \
-    	--service-cidr 192.168.0.0/24 \
+    	--service-cidr 192.168.0.0/16 \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
 		--no-ssh-key \
 		--yes
