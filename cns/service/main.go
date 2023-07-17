@@ -1032,9 +1032,11 @@ func reconcileInitialCNSState(ctx context.Context, cli nodeNetworkConfigGetter, 
 		return errors.Wrap(err, "failed to init CNS state: failed to get NNC CRD")
 	}
 
+	logger.Printf("Retrieved NNC: %+v", nnc)
+
 	// If there are no NCs, we can't initialize our state and we should fail out.
 	if len(nnc.Status.NetworkContainers) == 0 {
-		return errors.Wrap(err, "failed to init CNS state: no NCs found in NNC CRD")
+		return errors.New("failed to init CNS state: no NCs found in NNC CRD")
 	}
 
 	// For each NC, we need to create a CreateNetworkContainerRequest and use it to rebuild our state.
