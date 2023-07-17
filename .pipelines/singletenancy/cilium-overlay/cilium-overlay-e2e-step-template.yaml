@@ -31,8 +31,8 @@ steps:
       inlineScript: |
         mkdir -p ~/.kube/
         echo "Create AKS Overlay cluster"
-        make -C ./hack/swift azcfg AZCLI=az REGION=$(REGION_OVERLAY_CLUSTER_TEST)
-        make -C ./hack/swift overlay-no-kube-proxy-up AZCLI=az REGION=$(REGION_OVERLAY_CLUSTER_TEST) SUB=$(SUB_AZURE_NETWORK_AGENT_TEST) CLUSTER=${{ parameters.clusterName }}-$(make revision) VM_SIZE=Standard_B2ms
+        make -C ./hack/aks azcfg AZCLI=az REGION=$(REGION_OVERLAY_CLUSTER_TEST)
+        make -C ./hack/aks overlay-no-kube-proxy-up AZCLI=az REGION=$(REGION_OVERLAY_CLUSTER_TEST) SUB=$(SUB_AZURE_NETWORK_AGENT_TEST) CLUSTER=${{ parameters.clusterName }}-$(make revision) VM_SIZE=Standard_B2ms
         echo "Cluster successfully created"
     displayName: Create Overlay cluster
     condition: succeeded()
@@ -99,7 +99,7 @@ steps:
       # Nightly does not build images per commit. Will use existing image. 
       if [ "$CILIUM_VERSION_TAG" = "cilium-nightly-pipeline" ] 
       then 
-          CNS=v1.5.3 DROPGZ=v0.0.4 && echo "Running nightly"
+          CNS=$(CNS_VERSION) DROPGZ=$(DROP_GZ_VERSION) && echo "Running nightly"
       else 
           CNS=$(make cns-version) DROPGZ=$(make cni-dropgz-version) 
       fi
@@ -166,6 +166,19 @@ steps:
     displayName: "Validate Pods"
 
   - script: |
+      echo "validate pod IP assignment before CNS restart"
+      kubectl get pod -owide -A
+      make test-validate-state
+      echo "restart CNS"
+      kubectl rollout restart ds azure-cns -n kube-system
+      kubectl rollout status ds azure-cns -n kube-system
+      kubectl get pod -owide -A
+      echo "validate pods after CNS restart"
+      make test-validate-state
+    name: "restartCNS"
+    displayName: "Restart CNS and validate pods"
+
+  - script: |
       echo "Run wireserver and metadata connectivity Tests"
       bash test/network/wireserver_metadata_test.sh
     retryCountOnTaskFailure: 3
@@ -189,8 +202,8 @@ steps:
       addSpnToEnvironment: true
       inlineScript: |
         echo "Deleting cluster"
-        make -C ./hack/swift azcfg AZCLI=az
-        make -C ./hack/swift down SUB=$(SUB_AZURE_NETWORK_AGENT_TEST) AZCLI=az CLUSTER=${{ parameters.clusterName }}-$(make revision)
+        make -C ./hack/aks azcfg AZCLI=az
+        make -C ./hack/aks down SUB=$(SUB_AZURE_NETWORK_AGENT_TEST) AZCLI=az CLUSTER=${{ parameters.clusterName }}-$(make revision)
         echo "Cluster and resources down"
     name: "Cleanupcluster"
     displayName: "Cleanup cluster"

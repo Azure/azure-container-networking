@@ -18,6 +18,7 @@ import (
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/rbac/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/yaml"
 	"k8s.io/client-go/kubernetes"
@@ -245,6 +246,8 @@ func WaitForPodDeployment(ctx context.Context, clientset *kubernetes.Clientset, 
 		}
 
 		if deployment.Status.AvailableReplicas != int32(replicas) {
+			// Provide real-time deployment availability to console
+			log.Printf("deployment %s has %d replicas in available status, expected %d", deploymentName, deployment.Status.AvailableReplicas, replicas)
 			return errors.New("deployment does not have the expected number of available replicas")
 		}
 
@@ -339,7 +342,7 @@ func ExecCmdOnPod(ctx context.Context, clientset *kubernetes.Clientset, namespac
 			Stdin:   false,
 			Stdout:  true,
 			Stderr:  true,
-			TTY:     true,
+			TTY:     false,
 		}, scheme.ParameterCodec)
 
 	exec, err := remotecommand.NewSPDYExecutor(config, "POST", req.URL())
@@ -352,11 +355,22 @@ func ExecCmdOnPod(ctx context.Context, clientset *kubernetes.Clientset, namespac
 		Stdin:  nil,
 		Stdout: &stdout,
 		Stderr: &stderr,
-		Tty:    true,
+		Tty:    false,
 	})
 	if err != nil {
 		return []byte{}, errors.Wrapf(err, "error in executing command %s", cmd)
 	}
 
 	return stdout.Bytes(), nil
+}
+
+func NamespaceExists(ctx context.Context, clientset *kubernetes.Clientset, namespace string) (bool, error) {
+	_, err := clientset.CoreV1().Namespaces().Get(ctx, namespace, metav1.GetOptions{})
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return false, nil
+		}
+		return false, errors.Wrapf(err, "error in getting namespace %s", namespace)
+	}
+	return true, nil
 }

@@ -19,3 +19,5 @@ spec:
           imagePullPolicy: Always
           securityContext:
             privileged: true
+      nodeSelector:
+        "kubernetes.io/os": linux

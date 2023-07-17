@@ -14,7 +14,6 @@ import (
 
 const (
 	manifestDir      = "../manifests"
-	noopdeployment   = manifestDir + "/load/noop-deployment.yaml"
 	podLabelSelector = "load-test=true"
 )
 
@@ -30,6 +29,11 @@ var (
 	restartCase       = flag.Bool("restart-case", false, "In restart case, skip if we don't find state file")
 	namespace         = "load-test"
 )
+
+var noopDeploymentMap = map[string]string{
+	"windows": manifestDir + "/noop-deployment-windows.yaml",
+	"linux":   manifestDir + "/noop-deployment-linux.yaml",
+}
 
 /*
 In order to run the scale tests, you need a k8s cluster and its kubeconfig.
@@ -62,12 +66,20 @@ func TestLoad(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
 	defer cancel()
 
-	err = k8sutils.MustCreateNamespace(ctx, clientset, namespace)
+	// Create namespace if it doesn't exist
+	namespaceExists, err := k8sutils.NamespaceExists(ctx, clientset, namespace)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	deployment, err := k8sutils.MustParseDeployment(noopdeployment)
+	if !namespaceExists {
+		err = k8sutils.MustCreateNamespace(ctx, clientset, namespace)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	deployment, err := k8sutils.MustParseDeployment(noopDeploymentMap[*osType])
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -145,11 +157,20 @@ func TestScaleDeployment(t *testing.T) {
 		t.Fatal(err)
 	}
 	ctx := context.Background()
-	err = k8sutils.MustCreateNamespace(ctx, clientset, namespace)
+	// Create namespace if it doesn't exist
+	namespaceExists, err := k8sutils.NamespaceExists(ctx, clientset, namespace)
 	if err != nil {
 		t.Fatal(err)
 	}
-	deployment, err := k8sutils.MustParseDeployment(noopdeployment)
+
+	if !namespaceExists {
+		err = k8sutils.MustCreateNamespace(ctx, clientset, namespace)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	deployment, err := k8sutils.MustParseDeployment(noopDeploymentMap[*osType])
 	if err != nil {
 		t.Fatal(err)
 	}

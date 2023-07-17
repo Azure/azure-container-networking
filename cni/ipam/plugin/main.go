@@ -4,17 +4,21 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 
 	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/cni/ipam"
+	"github.com/Azure/azure-container-networking/cni/log"
 	"github.com/Azure/azure-container-networking/common"
-	"github.com/Azure/azure-container-networking/log"
+	"go.uber.org/zap/zapcore"
 )
 
 const (
-	name = "azure-vnet-ipam"
+	name               = "azure-vnet-ipam"
+	maxLogFileSizeInMb = 5
+	maxLogFileCount    = 8
 )
 
 // Version is populated by make during build.
@@ -22,18 +26,18 @@ var version string
 
 // Main is the entry point for CNI IPAM plugin.
 func main() {
+	ctx, cancel := context.WithCancel(context.Background())
 	var config common.PluginConfig
 	config.Version = version
-	logDirectory := "" // Sets the current location as log directory
 
-	log.SetName(name)
-	log.SetLevel(log.LevelInfo)
-	if err := log.SetTargetLogDirectory(log.TargetLogfile, logDirectory); err != nil {
-		fmt.Printf("Failed to setup cni logging: %v\n", err)
-		return
+	loggerCfg := &log.Config{
+		Level:       zapcore.DebugLevel,
+		LogPath:     log.LogPath + "azure-ipam.log",
+		MaxSizeInMB: maxLogFileSizeInMb,
+		MaxBackups:  maxLogFileCount,
+		Name:        name,
 	}
-
-	defer log.Close()
+	log.Initialize(ctx, loggerCfg)
 
 	ipamPlugin, err := ipam.NewPlugin(name, &config)
 	if err != nil {
@@ -65,6 +69,7 @@ func main() {
 	err = ipamPlugin.Execute(cni.PluginApi(ipamPlugin))
 
 	ipamPlugin.Stop()
+	cancel()
 
 	if err != nil {
 		panic("ipam plugin fatal error")
