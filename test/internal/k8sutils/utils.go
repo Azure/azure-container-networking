@@ -246,6 +246,8 @@ func WaitForPodDeployment(ctx context.Context, clientset *kubernetes.Clientset, 
 		}
 
 		if deployment.Status.AvailableReplicas != int32(replicas) {
+			// Provide real-time deployment availability to console
+			log.Printf("deployment %s has %d replicas in available status, expected %d", deploymentName, deployment.Status.AvailableReplicas, replicas)
 			return errors.New("deployment does not have the expected number of available replicas")
 		}
 

@@ -18,10 +18,13 @@ WORKDIR /dropgz
 COPY dropgz .
 COPY --from=azure-ipam /azure-ipam/*.conflist pkg/embed/fs
 COPY --from=azure-ipam /azure-ipam/bin/* pkg/embed/fs
+COPY --from=azure-vnet /azure-container-networking/cni/azure-$OS.conflist pkg/embed/fs/azure.conflist
 COPY --from=azure-vnet /azure-container-networking/cni/azure-$OS-swift.conflist pkg/embed/fs/azure-swift.conflist
 COPY --from=azure-vnet /azure-container-networking/cni/azure-$OS-swift-overlay.conflist pkg/embed/fs/azure-swift-overlay.conflist
 COPY --from=azure-vnet /azure-container-networking/cni/azure-$OS-swift-overlay-dualstack.conflist pkg/embed/fs/azure-swift-overlay-dualstack.conflist
 COPY --from=azure-vnet /azure-container-networking/bin/* pkg/embed/fs
+COPY --from=azure-vnet /azure-container-networking/telemetry/azure-vnet-telemetry.config pkg/embed/fs
+
 RUN cd pkg/embed/fs/ && sha256sum * > sum.txt
 RUN gzip --verbose --best --recursive pkg/embed/fs && for f in pkg/embed/fs/*.gz; do mv -- "$f" "${f%%.gz}"; done
 

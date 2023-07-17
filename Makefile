@@ -247,6 +247,7 @@ endif
 
 ## Image name definitions.
 ACNCLI_IMAGE     	  = acncli
+CNI_PLUGIN_IMAGE 	  = azure-cni-plugin
 CNI_DROPGZ_IMAGE 	  = cni-dropgz
 CNI_DROPGZ_TEST_IMAGE = cni-dropgz-test
 CNS_IMAGE        	  = azure-cns
@@ -254,6 +255,7 @@ NPM_IMAGE        	  = azure-npm
 
 ## Image platform tags.
 ACNCLI_PLATFORM_TAG    		 ?= $(subst /,-,$(PLATFORM))$(if $(OS_VERSION),-$(OS_VERSION),)-$(ACN_VERSION)
+CNI_PLUGIN_PLATFORM_TAG 	 ?= $(subst /,-,$(PLATFORM))$(if $(OS_VERSION),-$(OS_VERSION),)-$(CNI_VERSION)
 CNI_DROPGZ_PLATFORM_TAG 	 ?= $(subst /,-,$(PLATFORM))$(if $(OS_VERSION),-$(OS_VERSION),)-$(CNI_DROPGZ_VERSION)
 CNI_DROPGZ_TEST_PLATFORM_TAG ?= $(subst /,-,$(PLATFORM))$(if $(OS_VERSION),-$(OS_VERSION),)-$(CNI_DROPGZ_TEST_VERSION)
 CNS_PLATFORM_TAG        	 ?= $(subst /,-,$(PLATFORM))$(if $(OS_VERSION),-$(OS_VERSION),)-$(CNS_VERSION)
@@ -438,15 +440,17 @@ npm-image-pull: ## pull cns container image.
 		IMAGE=$(NPM_IMAGE) \
 		TAG=$(NPM_PLATFORM_TAG)
 
-# cni-plugin 
+# cni-plugin - Specifically used for windows clusters, will be removed once we have Dropgz for windows
+cni-plugin-image-name-and-tag: # util target to print the CNI plugin image name and tag.
+	@echo $(IMAGE_REGISTRY)/$(CNI_PLUGIN_IMAGE):$(CNI_PLUGIN_PLATFORM_TAG)
 
 cni-plugin-image: ## build cni plugin container image.
 	$(MAKE) container \
 		DOCKERFILE=cni/build/$(OS).Dockerfile \
-		IMAGE=$(ACNCLI_IMAGE) \
+		IMAGE=$(CNI_PLUGIN_IMAGE) \
 		EXTRA_BUILD_ARGS='--build-arg  CNI_AI_PATH=$(CNI_AI_PATH) --build-arg CNI_AI_ID=$(CNI_AI_ID) --build-arg OS_VERSION=$(OS_VERSION)' \
 		PLATFORM=$(PLATFORM) \
-		TAG=$(ACNCLI_PLATFORM_TAG) \
+		TAG=$(CNI_PLUGIN_PLATFORM_TAG) \
 		OS=$(OS) \
 		ARCH=$(ARCH) \
 		OS_VERSION=$(OS_VERSION)

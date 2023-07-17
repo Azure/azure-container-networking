@@ -6,6 +6,8 @@ stages:
     displayName: "Build and Push Cilium Image"
     jobs:
       - job: build_and_push_cilium_image
+        pool:
+          name: $(BUILD_POOL_NAME_DEFAULT)
         steps:
           - bash: |
               set -ex
@@ -46,6 +48,8 @@ stages:
       modulePath: "$(GOPATH)/src/github.com/Azure/azure-container-networking"
     jobs:
       - job: cilium_nightly
+        pool:
+          name: $(BUILD_POOL_NAME_DEFAULT)
         steps:
         - template: ../../singletenancy/cilium-overlay/cilium-overlay-e2e-step-template.yaml
           parameters:
