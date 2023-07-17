@@ -99,7 +99,7 @@ steps:
       # Nightly does not build images per commit. Will use existing image. 
       if [ "$CILIUM_VERSION_TAG" = "cilium-nightly-pipeline" ] 
       then 
-          CNS=v1.5.3 DROPGZ=v0.0.4 && echo "Running nightly"
+          CNS=$(CNS_VERSION) DROPGZ=$(DROP_GZ_VERSION) && echo "Running nightly"
       else 
           CNS=$(make cns-version) DROPGZ=$(make cni-dropgz-version) 
       fi
