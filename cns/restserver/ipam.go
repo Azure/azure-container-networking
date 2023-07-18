@@ -88,8 +88,8 @@ func (service *HTTPRestService) requestIPConfigHandler(w http.ResponseWriter, r 
 		return
 	}
 
-	// This method can only return 1 IP. If we have more than one NC then we expect to need to return one IP per NC
-	if len(service.state.ContainerStatus) > 1 {
+	// This method can only return EXACTLY 1 IP. If we have more than one NC then we expect to need to return one IP per NC
+	if len(service.state.ContainerStatus) != 1 {
 		// we send a response back saying that this API won't be able to return the amount of IPs needed to fulfill the request
 		reserveResp := &cns.IPConfigResponse{
 			Response: cns.Response{
@@ -127,7 +127,20 @@ func (service *HTTPRestService) requestIPConfigHandler(w http.ResponseWriter, r 
 		logger.ResponseEx(service.Name+operationName, ipconfigsRequest, reserveResp, reserveResp.Response.ReturnCode, err)
 		return
 	}
-
+	// Checks to make sure we return exactly 1 IP
+	if len(ipConfigsResp.PodIPInfo) != 1 {
+		// we send a response back saying that this API won't be able to return the amount of IPs needed to fulfill the request
+		reserveResp := &cns.IPConfigResponse{
+			Response: cns.Response{
+				ReturnCode: types.UnexpectedError,
+				Message:    fmt.Sprintf("request returned incorrect number of IPs. Expected %d and returned %d", len(service.state.ContainerStatus), len(ipConfigsResp.PodIPInfo)),
+			},
+		}
+		w.Header().Set(cnsReturnCode, reserveResp.Response.ReturnCode.String())
+		err = service.Listener.Encode(w, &reserveResp)
+		logger.ResponseEx(service.Name+operationName, ipconfigRequest, reserveResp, reserveResp.Response.ReturnCode, err)
+		return
+	}
 	// As this API is expected to return IPConfigResponse, generate it from the IPConfigsResponse returned above.
 	reserveResp := &cns.IPConfigResponse{
 		Response:  ipConfigsResp.Response,
@@ -661,8 +674,15 @@ func (service *HTTPRestService) GetExistingIPConfig(podInfo cns.PodInfo) ([]cns.
 
 // Assigns a pod with all IPs desired
 func (service *HTTPRestService) AssignDesiredIPConfigs(podInfo cns.PodInfo, desiredIPAddresses []string) ([]cns.PodIpInfo, error) {
+	// Sets the number of desired IPs equal to the number of NCs so that we can get one IP per NC
 	numDesiredIPAddresses := len(desiredIPAddresses)
+	// Creates a slice of PodIpInfo with the size as number of NCs to hold the result for assigned IP configs
 	podIPInfo := make([]cns.PodIpInfo, numDesiredIPAddresses)
+	// if there are no NCs on the NNC there will be no IPs in the pool so return error
+	if numDesiredIPAddresses == 0 {
+		//nolint:goerr113 // return error
+		return podIPInfo, fmt.Errorf("no NCs found on the NNC so no IPs are in the pool")
+	}
 	// creating a map for the loop to check to see if the IP in the pool is one of the desired IPs
 	desiredIPMap := make(map[string]struct{})
 	// slice to keep track of IP configs to assign
@@ -762,6 +782,11 @@ func (service *HTTPRestService) AssignAvailableIPConfigs(podInfo cns.PodInfo) ([
 	numIPsNeeded := len(service.state.ContainerStatus)
 	// Creates a slice of PodIpInfo with the size as number of NCs to hold the result for assigned IP configs
 	podIPInfo := make([]cns.PodIpInfo, numIPsNeeded)
+	// if there are no NCs on the NNC there will be no IPs in the pool so return error
+	if numIPsNeeded == 0 {
+		//nolint:goerr113 // return error
+		return podIPInfo, fmt.Errorf("No NCs found on the NNC so no IPs are in the pool")
+	}
 	// This map is used to store whether or not we have found an available IP from an NC when looping through the pool
 	ipsToAssign := make(map[string]cns.IPConfigurationStatus)
 
