@@ -349,7 +349,7 @@ stages:
       os: 'linux'
       clusterType: linux-cniv1-up
       clusterName: 'ubuntu18e2e'
-      vmSize: Standard_D4s_v3
+      vmSize: Standard_B2ms
       k8sVersion: 1.24.9
       scaleup: 100
 
@@ -361,7 +361,7 @@ stages:
       os: 'linux'
       clusterType: linux-cniv1-up
       clusterName: 'ubuntu22e2e'
-      vmSize: Standard_D4s_v3
+      vmSize: Standard_B2s # If passing delete, default == B2
       k8sVersion: 1.25
       scaleup: 100
 
@@ -373,7 +373,7 @@ stages:
       os: windows
       clusterType: windows-cniv1-up
       clusterName: 'win19e2e'
-      vmSize: Standard_D4s_v3
+      vmSize: Standard_B2ms
       windowsOsSku: 'Windows2019'
       os_version: 'ltsc2019'
       scaleup: 100
@@ -386,7 +386,7 @@ stages:
       os: windows
       clusterType: windows-cniv1-up
       clusterName: 'win22e2e'
-      vmSize: Standard_D4s_v3
+      vmSize: Standard_B2ms
       windowsOsSku: 'Windows2022'
       os_version: 'ltsc2022'
       scaleup: 100

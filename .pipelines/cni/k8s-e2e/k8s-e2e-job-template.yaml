@@ -97,7 +97,7 @@ jobs:
             ginkgoSkip: ''
             os: ${{ parameters.os }}
             processes: 4
-            attempts: 10 #
+            attempts: 10
       - ${{ if eq(parameters.portforward, true) }}:
         - template: ../k8s-e2e/k8s-e2e-step-template.yaml
           parameters:

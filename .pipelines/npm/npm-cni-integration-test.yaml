@@ -34,7 +34,9 @@ jobs:
               kubectl apply -f https://raw.githubusercontent.com/Azure/azure-container-networking/master/npm/examples/windows/azure-npm.yaml
               kubectl set image daemonset/azure-npm-win -n kube-system azure-npm=$IMAGE_REGISTRY/azure-npm:windows-amd64-ltsc2022-${{ parameters.tag }}
               kubectl rollout status -n kube-system daemonset/azure-npm-win
-              # may need to be longer for windows, took 7 minutes before it terminated original pods
+
+              # Taint Linux (system) nodes so windows tests do not run on them
+              kubectl taint nodes -l kubernetes.azure.com/mode=system node-role.kubernetes.io/control-plane:NoSchedule
             else
               # Linux
               kubectl apply -f https://raw.githubusercontent.com/Azure/azure-container-networking/master/npm/azure-npm.yaml
@@ -52,7 +54,7 @@ jobs:
             echo "##vso[task.setvariable variable=FQDN]$FQDN"
 
       - bash: |
-          git clone https://github.com/huntergregory/kubernetes.git --depth=1 --branch=quit-on-failure
+          git clone https://github.com/huntergregory/kubernetes.git --depth=1 --branch=linux-sleep-before-probing
           cd kubernetes
           export PATH=$PATH:/usr/local/go/bin/
           make WHAT=test/e2e/e2e.test
@@ -84,6 +86,12 @@ jobs:
           --ginkgo.focus="$focus" \
           --ginkgo.skip="NetworkPolicyLegacy|SCTP" \
           --kubeconfig=$HOME/.kube/config
+
+          # Untaint Linux (system) nodes once testing is complete
+          if ${{ lower(eq(parameters.os, 'windows')) }}
+          then
+            kubectl taint nodes -l kubernetes.azure.com/mode=system node-role.kubernetes.io/control-plane:NoSchedule-
+          fi
         displayName: "Run Kubernetes e2e.test"
 
 
