@@ -153,12 +153,6 @@ func (plugin *NetPlugin) Start(config *common.PluginConfig) error {
 		zap.String("version", plugin.Version),
 		zap.String("component", "cni-net"))
 
-	log.Logger.Info("Os Info",
-		zap.String("platform", platform.GetOSInfo()),
-		zap.String("component", "cni-net"))
-	platform.PrintDependencyPackageDetails()
-	common.LogNetworkInterfaces()
-
 	// Initialize network manager. rehyrdration not required on reboot for cni plugin
 	err = plugin.nm.Initialize(config, false)
 	if err != nil {

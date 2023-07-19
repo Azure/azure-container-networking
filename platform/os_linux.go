@@ -171,9 +171,6 @@ func PrintDependencyPackageDetails() {
 	out, err := p.ExecuteCommand("iptables --version")
 	out = strings.TrimSuffix(out, "\n")
 	log.Printf("[cni-net] iptable version:%s, err:%v", out, err)
-	out, err = p.ExecuteCommand("ebtables --version")
-	out = strings.TrimSuffix(out, "\n")
-	log.Printf("[cni-net] ebtable version %s, err:%v", out, err)
 }
 
 func ReplaceFile(source, destination string) error {
