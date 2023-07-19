@@ -8,16 +8,17 @@ parameters:
 stages:
   - stage: ${{ parameters.name }}
     displayName: E2E - ${{ parameters.displayName }}
-    dependsOn: 
+    dependsOn:
     - setup
     - publish
+    - cluster
     jobs:
       - job: ${{ parameters.name }}
         displayName: Cilium Overlay Test Suite - (${{ parameters.name }})
         timeoutInMinutes: 120
         pool:
           name: $(BUILD_POOL_NAME_DEFAULT)
-          demands: 
+          demands:
           - agent.os -equals Linux
           - Role -equals $(CUSTOM_E2E_ROLE)
         variables:

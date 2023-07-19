@@ -23,6 +23,7 @@ stages:
     dependsOn:
     - setup
     - publish
+    - cluster
     jobs:
       - job: ${{ parameters.name }}
         displayName: Singletenancy AKS - (${{ parameters.name }})

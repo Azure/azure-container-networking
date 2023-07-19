@@ -8,9 +8,10 @@ parameters:
 stages:
   - stage: ${{ parameters.name }}
     displayName: E2E - ${{ parameters.displayName }}
-    dependsOn: 
+    dependsOn:
     - setup
     - publish
+    - cluster
     variables:
       TAG: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
       CURRENT_VERSION: $[ stagedependencies.containerize.check_tag.outputs['CurrentTagManifests.currentTagManifests'] ]
@@ -21,7 +22,7 @@ stages:
         timeoutInMinutes: 120
         pool:
           name: $(BUILD_POOL_NAME_DEFAULT)
-          demands: 
+          demands:
           - agent.os -equals Linux
           - Role -equals $(CUSTOM_E2E_ROLE)
         variables:
