@@ -1360,6 +1360,38 @@ func IPAMMarkExistingIPConfigAsPending(t *testing.T, ncStates []ncState) {
 	}
 }
 
+func TestIPAMFailToRequestIPsWithNoNCsSpecificIP(t *testing.T) {
+	svc := getTestService()
+	req := cns.IPConfigsRequest{
+		PodInterfaceID:   testPod1Info.InterfaceID(),
+		InfraContainerID: testPod1Info.InfraContainerID(),
+	}
+	b, _ := testPod1Info.OrchestratorContext()
+	req.OrchestratorContext = b
+	req.DesiredIPAddresses = make([]string, 1)
+	req.DesiredIPAddresses[0] = testIP1
+
+	_, err := requestIPConfigsHelper(svc, req)
+	if err == nil {
+		t.Fatalf("Expected error. Should not be able to request IPs when there are no NCs")
+	}
+}
+
+func TestIPAMFailToRequestIPsWithNoNCsAnyIP(t *testing.T) {
+	svc := getTestService()
+	req := cns.IPConfigsRequest{
+		PodInterfaceID:   testPod1Info.InterfaceID(),
+		InfraContainerID: testPod1Info.InfraContainerID(),
+	}
+	b, _ := testPod1Info.OrchestratorContext()
+	req.OrchestratorContext = b
+
+	_, err := requestIPConfigsHelper(svc, req)
+	if err == nil {
+		t.Fatalf("Expected error. Should not be able to request IPs when there are no NCs")
+	}
+}
+
 func TestIPAMReleaseOneIPWhenExpectedToHaveTwo(t *testing.T) {
 	svc := getTestService()
 

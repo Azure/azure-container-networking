@@ -20,6 +20,7 @@ import (
 var (
 	ErrStoreEmpty       = errors.New("empty endpoint state store")
 	ErrParsePodIPFailed = errors.New("failed to parse pod's ip")
+	ErrNoPoolIPs        = errors.New("no NCs found on the NNC so no IPs are in the pool")
 )
 
 // requestIPConfigHandlerHelper validates the request, assigns IPs, and returns a response
@@ -127,7 +128,9 @@ func (service *HTTPRestService) requestIPConfigHandler(w http.ResponseWriter, r 
 		logger.ResponseEx(service.Name+operationName, ipconfigsRequest, reserveResp, reserveResp.Response.ReturnCode, err)
 		return
 	}
+
 	// Checks to make sure we return exactly 1 IP
+	// If IPAM assigned more than 1 IP then we need to raise an error since this API can only return one IP and IPAM may have assigned more than one
 	if len(ipConfigsResp.PodIPInfo) != 1 {
 		// we send a response back saying that this API won't be able to return the amount of IPs needed to fulfill the request
 		reserveResp := &cns.IPConfigResponse{
@@ -674,15 +677,16 @@ func (service *HTTPRestService) GetExistingIPConfig(podInfo cns.PodInfo) ([]cns.
 
 // Assigns a pod with all IPs desired
 func (service *HTTPRestService) AssignDesiredIPConfigs(podInfo cns.PodInfo, desiredIPAddresses []string) ([]cns.PodIpInfo, error) {
-	// Sets the number of desired IPs equal to the number of NCs so that we can get one IP per NC
+	// gets the number of NCs
+	numOfNCs := len(service.state.ContainerStatus)
+	// Check to make sure that the number
+	if numOfNCs == 0 {
+		return nil, ErrNoPoolIPs
+	}
+	// Sets the number of desired IPs equal to the number of desired IPs passed in
 	numDesiredIPAddresses := len(desiredIPAddresses)
 	// Creates a slice of PodIpInfo with the size as number of NCs to hold the result for assigned IP configs
 	podIPInfo := make([]cns.PodIpInfo, numDesiredIPAddresses)
-	// if there are no NCs on the NNC there will be no IPs in the pool so return error
-	if numDesiredIPAddresses == 0 {
-		//nolint:goerr113 // return error
-		return podIPInfo, fmt.Errorf("no NCs found on the NNC so no IPs are in the pool")
-	}
 	// creating a map for the loop to check to see if the IP in the pool is one of the desired IPs
 	desiredIPMap := make(map[string]struct{})
 	// slice to keep track of IP configs to assign
@@ -776,17 +780,16 @@ func (service *HTTPRestService) AssignDesiredIPConfigs(podInfo cns.PodInfo, desi
 // Assigns an available IP from each NC on the NNC. If there is one NC then we expect to only have one IP return
 // In the case of dualstack we would expect to have one IPv6 from one NC and one IPv4 from a second NC
 func (service *HTTPRestService) AssignAvailableIPConfigs(podInfo cns.PodInfo) ([]cns.PodIpInfo, error) {
+	// Sets the number of IPs needed equal to the number of NCs so that we can get one IP per NC
+	numOfNCs := len(service.state.ContainerStatus)
+	// if there are no NCs on the NNC there will be no IPs in the pool so return error
+	if numOfNCs == 0 {
+		return nil, ErrNoPoolIPs
+	}
 	service.Lock()
 	defer service.Unlock()
-	// Sets the number of IPs needed equal to the number of NCs so that we can get one IP per NC
-	numIPsNeeded := len(service.state.ContainerStatus)
 	// Creates a slice of PodIpInfo with the size as number of NCs to hold the result for assigned IP configs
-	podIPInfo := make([]cns.PodIpInfo, numIPsNeeded)
-	// if there are no NCs on the NNC there will be no IPs in the pool so return error
-	if numIPsNeeded == 0 {
-		//nolint:goerr113 // return error
-		return podIPInfo, fmt.Errorf("No NCs found on the NNC so no IPs are in the pool")
-	}
+	podIPInfo := make([]cns.PodIpInfo, numOfNCs)
 	// This map is used to store whether or not we have found an available IP from an NC when looping through the pool
 	ipsToAssign := make(map[string]cns.IPConfigurationStatus)
 
@@ -802,13 +805,13 @@ func (service *HTTPRestService) AssignAvailableIPConfigs(podInfo cns.PodInfo) ([
 		}
 		ipsToAssign[ipState.NCID] = ipState
 		// Once one IP per container is found break out of the loop and stop searching
-		if len(ipsToAssign) == numIPsNeeded {
+		if len(ipsToAssign) == numOfNCs {
 			break
 		}
 	}
 
 	// Checks to make sure we found one IP for each NC
-	if len(ipsToAssign) != numIPsNeeded {
+	if len(ipsToAssign) != numOfNCs {
 		//nolint:goerr113 // return error
 		return podIPInfo, fmt.Errorf("not enough IPs available, waiting on Azure CNS to allocate more")
 	}
