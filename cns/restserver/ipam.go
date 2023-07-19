@@ -95,7 +95,7 @@ func (service *HTTPRestService) requestIPConfigHandler(w http.ResponseWriter, r 
 		reserveResp := &cns.IPConfigResponse{
 			Response: cns.Response{
 				ReturnCode: types.InvalidRequest,
-				Message:    fmt.Sprintf("Called API that can only return 1 IP when expecting %d", len(service.state.ContainerStatus)),
+				Message:    fmt.Sprintf("Expected 1 NC when calling this API but found %d NCs", len(service.state.ContainerStatus)),
 			},
 		}
 		w.Header().Set(cnsReturnCode, reserveResp.Response.ReturnCode.String())
@@ -136,7 +136,7 @@ func (service *HTTPRestService) requestIPConfigHandler(w http.ResponseWriter, r 
 		reserveResp := &cns.IPConfigResponse{
 			Response: cns.Response{
 				ReturnCode: types.UnexpectedError,
-				Message:    fmt.Sprintf("request returned incorrect number of IPs. Expected %d and returned %d", len(service.state.ContainerStatus), len(ipConfigsResp.PodIPInfo)),
+				Message:    fmt.Sprintf("request returned incorrect number of IPs. Expected 1 and returned %d", len(ipConfigsResp.PodIPInfo)),
 			},
 		}
 		w.Header().Set(cnsReturnCode, reserveResp.Response.ReturnCode.String())
@@ -289,12 +289,12 @@ func (service *HTTPRestService) releaseIPConfigHandler(w http.ResponseWriter, r 
 		return
 	}
 
-	// check to make sure there aren't multiple NCs
-	if len(service.state.ContainerStatus) > 1 {
+	// check to make sure there is only one NC
+	if len(service.state.ContainerStatus) != 1 {
 		reserveResp := &cns.IPConfigResponse{
 			Response: cns.Response{
 				ReturnCode: types.InvalidRequest,
-				Message:    fmt.Sprintf("Called API that can only return 1 IP when expecting %d", len(service.state.ContainerStatus)),
+				Message:    fmt.Sprintf("Expected 1 NC when calling this API but found %d NCs", len(service.state.ContainerStatus)),
 			},
 		}
 		w.Header().Set(cnsReturnCode, reserveResp.Response.ReturnCode.String())
@@ -677,9 +677,9 @@ func (service *HTTPRestService) GetExistingIPConfig(podInfo cns.PodInfo) ([]cns.
 
 // Assigns a pod with all IPs desired
 func (service *HTTPRestService) AssignDesiredIPConfigs(podInfo cns.PodInfo, desiredIPAddresses []string) ([]cns.PodIpInfo, error) {
-	// gets the number of NCs
+	// Gets the number of NCs which will determine the number of IPs given to a pod
 	numOfNCs := len(service.state.ContainerStatus)
-	// Check to make sure that the number
+	// checks to make sure we have NCs before trying to get IPs
 	if numOfNCs == 0 {
 		return nil, ErrNoNCs
 	}
@@ -780,7 +780,7 @@ func (service *HTTPRestService) AssignDesiredIPConfigs(podInfo cns.PodInfo, desi
 // Assigns an available IP from each NC on the NNC. If there is one NC then we expect to only have one IP return
 // In the case of dualstack we would expect to have one IPv6 from one NC and one IPv4 from a second NC
 func (service *HTTPRestService) AssignAvailableIPConfigs(podInfo cns.PodInfo) ([]cns.PodIpInfo, error) {
-	// Sets the number of IPs needed equal to the number of NCs so that we can get one IP per NC
+	// Gets the number of NCs which will determine the number of IPs given to a pod
 	numOfNCs := len(service.state.ContainerStatus)
 	// if there are no NCs on the NNC there will be no IPs in the pool so return error
 	if numOfNCs == 0 {

@@ -1375,6 +1375,7 @@ func TestIPAMFailToRequestIPsWithNoNCsSpecificIP(t *testing.T) {
 	if err == nil {
 		t.Fatalf("Expected error. Should not be able to request IPs when there are no NCs")
 	}
+	assert.ErrorIs(t, err, ErrNoNCs)
 }
 
 func TestIPAMFailToRequestIPsWithNoNCsAnyIP(t *testing.T) {
@@ -1390,6 +1391,7 @@ func TestIPAMFailToRequestIPsWithNoNCsAnyIP(t *testing.T) {
 	if err == nil {
 		t.Fatalf("Expected error. Should not be able to request IPs when there are no NCs")
 	}
+	assert.ErrorIs(t, err, ErrNoNCs)
 }
 
 func TestIPAMReleaseOneIPWhenExpectedToHaveTwo(t *testing.T) {
