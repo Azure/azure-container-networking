@@ -30,6 +30,21 @@ type GenericDataplane interface {
 	UpdatePolicy(policies *policies.NPMNetworkPolicy) error
 }
 
+type endpointCache struct {
+	sync.Mutex
+	cache map[string]*npmEndpoint
+}
+
+func newEndpointCache() *endpointCache {
+	return &endpointCache{cache: make(map[string]*npmEndpoint)}
+}
+
+type applyInfo struct {
+	sync.Mutex
+	numBatches    int
+	inBootupPhase bool
+}
+
 // UpdateNPMPod pod controller will populate and send this datastructure to dataplane
 // to update the dataplane with the latest pod information
 // this helps in calculating if any update needs to have policies applied or removed
@@ -80,6 +95,7 @@ func (npmPod *updateNPMPod) updateIPSetsToRemove(setNames []*ipsets.IPSetMetadat
 	}
 }
 
+// updatePodCache's ordered queue implementation is similar to that of netPolQueue.
 type updatePodCache struct {
 	sync.Mutex
 	cache map[string]*updateNPMPod
@@ -172,4 +188,48 @@ func (c *updatePodCache) requeue(pod *updateNPMPod) {
 // isEmpty returns true if the queue is empty
 func (c *updatePodCache) isEmpty() bool {
 	return len(c.queue) == 0
+}
+
+// netPolQueue contains NetPols to add. Currently implemented as an unordered map
+type netPolQueue struct {
+	sync.Mutex
+	toAdd map[string]*policies.NPMNetworkPolicy
+}
+
+func newNetPolQueue() *netPolQueue {
+	return &netPolQueue{
+		toAdd: make(map[string]*policies.NPMNetworkPolicy),
+	}
+}
+
+func (q *netPolQueue) len() int {
+	return len(q.toAdd)
+}
+
+// enqueue adds a NetPol to the queue. If the NetPol already exists in the queue, the NetPol object is updated.
+func (q *netPolQueue) enqueue(policy *policies.NPMNetworkPolicy) {
+	if _, ok := q.toAdd[policy.PolicyKey]; ok {
+		klog.Infof("[DataPlane] policy %s exists in netPolQueue. updating", policy.PolicyKey)
+	} else {
+		klog.Infof("[DataPlane] enqueuing policy %s in netPolQueue", policy.PolicyKey)
+	}
+	q.toAdd[policy.PolicyKey] = policy
+}
+
+// delete removes the NetPol from the queue
+func (q *netPolQueue) delete(policyKey string) {
+	delete(q.toAdd, policyKey)
+}
+
+// dump returns a copy of the queue
+func (q *netPolQueue) dump() []*policies.NPMNetworkPolicy {
+	result := make([]*policies.NPMNetworkPolicy, 0, len(q.toAdd))
+	for _, policy := range q.toAdd {
+		result = append(result, policy)
+	}
+	return result
+}
+
+func (q *netPolQueue) clear() {
+	q.toAdd = make(map[string]*policies.NPMNetworkPolicy)
 }

@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/Azure/azure-container-networking/aitelemetry"
@@ -41,6 +42,8 @@ const (
 	// Supported IP version. Currently support only IPv4
 	ipamV6                = "azure-vnet-ipamv6"
 	defaultRequestTimeout = 15 * time.Second
+	ipv4FullMask          = 32
+	ipv6FullMask          = 128
 )
 
 // CNI Operation Types
@@ -1341,20 +1344,30 @@ func convertNnsToCniResult(
 
 			intIndex := i
 			for _, ip := range ni.Ipaddresses {
+				ipAddr := net.ParseIP(ip.Ip)
 
-				ipWithPrefix := fmt.Sprintf("%s/%s", ip.Ip, ip.PrefixLength)
-				_, ipNet, err := net.ParseCIDR(ipWithPrefix)
+				prefixLength, err := strconv.Atoi(ip.PrefixLength)
 				if err != nil {
-					log.Logger.Error("Error while converting to cni result",
+					log.Logger.Error("Error parsing prefix length while converting to cni result",
+						zap.String("prefixLength", ip.PrefixLength),
 						zap.String("operation", operationName),
 						zap.String("pod", podName),
 						zap.Error(err))
 					continue
 				}
 
+				address := net.IPNet{
+					IP:   ipAddr,
+					Mask: net.CIDRMask(prefixLength, ipv6FullMask),
+				}
+
+				if ipAddr.To4() != nil {
+					address.Mask = net.CIDRMask(prefixLength, ipv4FullMask)
+				}
+
 				gateway := net.ParseIP(ip.DefaultGateway)
 				ipConfig := &cniTypesCurr.IPConfig{
-					Address:   *ipNet,
+					Address:   address,
 					Gateway:   gateway,
 					Interface: &intIndex,
 				}

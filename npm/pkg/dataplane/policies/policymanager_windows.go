@@ -251,6 +251,17 @@ func (pMgr *PolicyManager) AddBaseACLsForCalicoCNI(epID string) {
 	}
 }
 
+// NOTE: in Windows, we currently expect exactly one NetworkPolicy
+func (pMgr *PolicyManager) addPolicies(policies []*NPMNetworkPolicy, endpointList map[string]string) error {
+	for _, policy := range policies {
+		err := pMgr.addPolicy(policy, endpointList)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // addPolicy will add the policy for each specified endpoint if the policy doesn't exist on the endpoint yet,
 // and will add the endpoint to the PodEndpoints of the policy if successful.
 // addPolicy may modify the endpointList input.

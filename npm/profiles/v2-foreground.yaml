@@ -11,10 +11,11 @@ data:
       "ListeningAddress": "0.0.0.0",
       "Toggles": {
         "EnablePrometheusMetrics": true,
-        "EnablePprof": false,
-        "EnableHTTPDebugAPI": true,
-        "EnableV2NPM": true,
-        "PlaceAzureChainFirst": true,
-        "ApplyIPSetsOnNeed": true
+        "EnablePprof":             false,
+        "EnableHTTPDebugAPI":      true,
+        "EnableV2NPM":             true,
+        "PlaceAzureChainFirst":    false,
+        "ApplyIPSetsOnNeed":       true,
+        "NetPolInBackground":      false
       }
     }
