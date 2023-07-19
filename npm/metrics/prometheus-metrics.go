@@ -93,15 +93,18 @@ var (
 	controllerPodExecTime       *prometheus.SummaryVec
 	controllerNamespaceExecTime *prometheus.SummaryVec
 	controllerExecTimeLabels    = []string{operationLabel, hadErrorLabel}
+
+	// added in v1.5.4
+	podsWatched prometheus.Gauge
 )
 
-// windows metrics added after v1.5.1
+// windows metrics added in v1.5.4
 const (
 	windowsPrefix = "windows"
 	isNestedLabel = "is_nested"
 )
 
-// windows metrics added after v1.5.1
+// windows metrics added in v1.5.4
 var (
 	listEndpointsLatency  prometheus.Histogram
 	getEndpointLatency    prometheus.Histogram
@@ -113,7 +116,15 @@ var (
 	getNetworkFailures    prometheus.Counter
 	aclFailures           *prometheus.CounterVec
 	setPolicyFailures     *prometheus.CounterVec
-	podsWatched           prometheus.Gauge
+)
+
+const linuxPrefix = "linux"
+
+// linux metrics added in v1.5.5
+var (
+	itpablesRestoreLatency  *prometheus.HistogramVec
+	iptablesDeleteLatency   prometheus.Histogram
+	iptablesRestoreFailures *prometheus.CounterVec
 )
 
 type RegistryType string
@@ -148,39 +159,47 @@ func (op OperationKind) isValid() bool {
 func InitializeAll() {
 	if haveInitialized {
 		klog.Infof("metrics have already been initialized")
-	} else {
-		initializeDaemonMetrics()
-		initializeControllerMetrics()
-
-		podsWatched = prometheus.NewGauge(
-			prometheus.GaugeOpts{
-				Namespace: namespace,
-				Name:      "pods_watched",
-				Subsystem: "",
-				Help:      "Number of Pods NPM tracks across the cluster including Linux and Windows nodes",
-			},
-		)
-		register(podsWatched, "pods_watched", ClusterMetrics)
-
-		if util.IsWindowsDP() {
-			InitializeWindowsMetrics()
-
-			klog.Infof("registering windows metrics")
-			register(listEndpointsLatency, "list_endpoints_latency_seconds", NodeMetrics)
-			register(getEndpointLatency, "get_endpoint_latency_seconds", NodeMetrics)
-			register(getNetworkLatency, "get_network_latency_seconds", NodeMetrics)
-			register(aclLatency, "acl_latency_seconds", NodeMetrics)
-			register(setPolicyLatency, "setpolicy_latency_seconds", NodeMetrics)
-			register(listEndpointsFailures, "list_endpoints_failure_total", NodeMetrics)
-			register(getEndpointFailures, "get_endpoint_failure_total", NodeMetrics)
-			register(getNetworkFailures, "get_network_failure_total", NodeMetrics)
-			register(aclFailures, "acl_failure_total", NodeMetrics)
-			register(setPolicyFailures, "setpolicy_failure_total", NodeMetrics)
-		}
-
-		log.Logf("Finished initializing all Prometheus metrics")
-		haveInitialized = true
+		return
 	}
+
+	initializeDaemonMetrics()
+	initializeControllerMetrics()
+
+	podsWatched = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Namespace: namespace,
+			Name:      "pods_watched",
+			Subsystem: "",
+			Help:      "Number of Pods NPM tracks across the cluster including Linux and Windows nodes",
+		},
+	)
+	register(podsWatched, "pods_watched", ClusterMetrics)
+
+	if util.IsWindowsDP() {
+		InitializeWindowsMetrics()
+
+		klog.Infof("registering windows metrics")
+		register(listEndpointsLatency, "list_endpoints_latency_seconds", NodeMetrics)
+		register(getEndpointLatency, "get_endpoint_latency_seconds", NodeMetrics)
+		register(getNetworkLatency, "get_network_latency_seconds", NodeMetrics)
+		register(aclLatency, "acl_latency_seconds", NodeMetrics)
+		register(setPolicyLatency, "setpolicy_latency_seconds", NodeMetrics)
+		register(listEndpointsFailures, "list_endpoints_failure_total", NodeMetrics)
+		register(getEndpointFailures, "get_endpoint_failure_total", NodeMetrics)
+		register(getNetworkFailures, "get_network_failure_total", NodeMetrics)
+		register(aclFailures, "acl_failure_total", NodeMetrics)
+		register(setPolicyFailures, "setpolicy_failure_total", NodeMetrics)
+	} else {
+		InitializeLinuxMetrics()
+
+		klog.Infof("registering linux metrics")
+		register(itpablesRestoreLatency, "iptables_restore_latency_seconds", NodeMetrics)
+		register(iptablesDeleteLatency, "iptables_delete_latency_seconds", NodeMetrics)
+		register(iptablesRestoreFailures, "iptables_restore_failure_total", NodeMetrics)
+	}
+
+	log.Logf("Finished initializing all Prometheus metrics")
+	haveInitialized = true
 }
 
 // ReinitializeAll creates/replaces Prometheus metrics.
@@ -297,6 +316,43 @@ func InitializeWindowsMetrics() {
 			Help:      "Number of failures while adding/updating/deleting SetPolicies by operation & is_nested label",
 		},
 		[]string{operationLabel, isNestedLabel},
+	)
+}
+
+func InitializeLinuxMetrics() {
+	klog.Infof("initializing Linux metrics. will not register the newly created metrics in this function")
+
+	itpablesRestoreLatency = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Namespace: namespace,
+			Name:      "iptables_restore_latency_seconds",
+			Subsystem: linuxPrefix,
+			Help:      "Latency in seconds to restore iptables rules by operation label (add/delete NetPol)",
+			//nolint:gomnd // default bucket consts
+			Buckets: prometheus.ExponentialBuckets(0.016, 2, 14), // upper bounds of 16 ms to ~2 minutes
+		},
+		[]string{operationLabel},
+	)
+
+	iptablesDeleteLatency = prometheus.NewHistogram(
+		prometheus.HistogramOpts{
+			Namespace: namespace,
+			Name:      "iptables_delete_latency_seconds",
+			Subsystem: linuxPrefix,
+			Help:      "Latency in seconds to delete an iptables rule",
+			//nolint:gomnd // default bucket consts
+			Buckets: prometheus.ExponentialBuckets(0.016, 2, 14), // upper bounds of 16 ms to ~2 minutes
+		},
+	)
+
+	iptablesRestoreFailures = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: namespace,
+			Name:      "iptables_restore_failure_total",
+			Subsystem: linuxPrefix,
+			Help:      "Number of failures while restoring iptable rules by operation label (add/delete NetPol)",
+		},
+		[]string{operationLabel},
 	)
 }
 

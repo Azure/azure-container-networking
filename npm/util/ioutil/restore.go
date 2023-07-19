@@ -30,6 +30,7 @@ type FileCreator struct {
 	tryCount               int
 	maxTryCount            int
 	ioShim                 *common.IOShim
+	verbose                bool
 }
 
 // TODO ideas:
@@ -92,6 +93,10 @@ func NewFileCreator(ioShim *common.IOShim, maxTryCount int, lineFailurePatterns 
 		creator.lineFailureDefinitions[k] = NewErrorDefinition(lineFailurePattern)
 	}
 	return creator
+}
+
+func (creator *FileCreator) Verbose() {
+	creator.verbose = true
 }
 
 func NewErrorDefinition(pattern string) *ErrorDefinition {
@@ -181,9 +186,12 @@ func (creator *FileCreator) runCommandOnceWithFile(fileString, cmd string, args 
 	}
 
 	klog.Infof("running this restore command: [%s]", commandString)
+
+	if creator.verbose {
+		creator.logLines(commandString)
+	}
+
 	creator.tryCount++
-	// TODO uncomment for debugging or after ensuring no performance decrease
-	// creator.logLines(commandString)
 
 	command := creator.ioShim.Exec.Command(cmd, args...)
 	command.SetStdin(bytes.NewBufferString(fileString))

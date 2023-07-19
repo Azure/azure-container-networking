@@ -149,7 +149,7 @@ func TestAddPolicies(t *testing.T) {
 	pMgr, hns := getPMgr(t)
 
 	// AddPolicy may modify the endpointIDList, so we need to pass a copy
-	err := pMgr.AddPolicy(TestNetworkPolicies[0], endpointIDListCopy())
+	err := pMgr.AddPolicies([]*NPMNetworkPolicy{TestNetworkPolicies[0]}, endpointIDListCopy())
 	require.NoError(t, err)
 
 	aclID := TestNetworkPolicies[0].ACLPolicyID
@@ -181,7 +181,7 @@ func TestRemovePolicies(t *testing.T) {
 	pMgr, hns := getPMgr(t)
 
 	// AddPolicy may modify the endpointIDList, so we need to pass a copy
-	err := pMgr.AddPolicy(TestNetworkPolicies[0], endpointIDListCopy())
+	err := pMgr.AddPolicies([]*NPMNetworkPolicy{TestNetworkPolicies[0]}, endpointIDListCopy())
 	require.NoError(t, err)
 
 	aclID := TestNetworkPolicies[0].ACLPolicyID
@@ -217,7 +217,7 @@ func TestApplyPoliciesEndpointNotFound(t *testing.T) {
 	testendPointIDList := map[string]string{
 		"10.0.0.5": "test10",
 	}
-	err := pMgr.AddPolicy(TestNetworkPolicies[0], testendPointIDList)
+	err := pMgr.AddPolicies([]*NPMNetworkPolicy{TestNetworkPolicies[0]}, testendPointIDList)
 	require.NoError(t, err)
 	verifyACLCacheIsCleaned(t, hns, len(endPointIDList))
 
@@ -237,7 +237,7 @@ func TestRemovePoliciesEndpointNotFound(t *testing.T) {
 	pMgr, hns := getPMgr(t)
 
 	// AddPolicy may modify the endpointIDList, so we need to pass a copy
-	err := pMgr.AddPolicy(TestNetworkPolicies[0], endpointIDListCopy())
+	err := pMgr.AddPolicies([]*NPMNetworkPolicy{TestNetworkPolicies[0]}, endpointIDListCopy())
 	require.NoError(t, err)
 
 	aclID := TestNetworkPolicies[0].ACLPolicyID
