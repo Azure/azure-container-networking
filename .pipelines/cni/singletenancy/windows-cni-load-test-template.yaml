@@ -50,10 +50,31 @@ stages:
               name: $(name)
               os: $(os)
               os_version: $(os_version)
+
+  - stage: binaries
+    displayName: Build Binaries
+    dependsOn:
+      - setup
+    jobs:
+      - job:
+        displayName: "Build Kubernetes Test Suite Binary"
+        pool:
+          name: $(BUILD_POOL_NAME_DEFAULT) # May need to change
+        steps:
+          - bash: |
+              git clone https://github.com/huntergregory/kubernetes.git --depth=1 --branch=linux-sleep-before-probing
+              cd kubernetes
+              export PATH=$PATH:/usr/local/go/bin/
+              make WHAT=test/e2e/e2e.test
+            displayName: "Build Kubernetes e2e.test"
+          - publish: $(System.DefaultWorkingDirectory)/kubernetes/_output/local/bin/linux/amd64
+            artifact: Test
+
   - stage:  update_cni
     dependsOn:
       - createAKSclusterWindows
       - build_images
+      - binaries
     displayName: "Update CNI on Cluster"
     jobs:
       - job: deploy_pods
@@ -137,12 +158,26 @@ stages:
               clusterName: ${{ parameters.clusterName }}
               os: ${{ parameters.os }}
               cni: ${{ parameters.cni }}
+
+  - stage: npm
+    jobs:
+      - template: ../../npm/npm-cni-integration-test.yaml
+        parameters:
+          sub: $(AZURE_TEST_AGENT_SERVICE_CONNECTION)
+          clusterName: ${{ parameters.clusterName }}
+          os: ${{ parameters.os }}
+          os_version: ${{ parameters.os_version }}
+          dependsOn: validate_state_windows
+          tag: $(npmVersion)
+
+
+
   - stage: delete_resources
     pool:
       name: $(BUILD_POOL_NAME_DEFAULT)
     displayName: "Delete Resources"
     dependsOn:
-      - validate_state_windows
+      - npm
     jobs:
       - job: delete_resources
         pool:
