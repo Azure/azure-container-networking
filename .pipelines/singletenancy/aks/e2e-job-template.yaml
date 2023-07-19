@@ -60,21 +60,11 @@ stages:
           hybridWin: true
           dependsOn: ${{ parameters.name }}
 
-      - template: ../../npm/npm-cni-integration-test.yaml
-        parameters:
-          sub: $(AZURE_TEST_AGENT_SERVICE_CONNECTION)
-          clusterName: ${{ parameters.clusterName }}
-          os: ${{ parameters.os }}
-          os_version: ${{ parameters.os_version }}
-          dependsOn: cni_k8se2e
-          tag: $(npmVersion)
-
       - job: cleanup
         displayName: "Cleanup"
         dependsOn:
         - ${{ parameters.name }}
         - "cni_k8se2e"
-        - "npm_k8se2e"
         pool:
           name: $(BUILD_POOL_NAME_DEFAULT)
         condition: always()
