@@ -20,7 +20,7 @@ import (
 var (
 	ErrStoreEmpty       = errors.New("empty endpoint state store")
 	ErrParsePodIPFailed = errors.New("failed to parse pod's ip")
-	ErrNoPoolIPs        = errors.New("no NCs found on the NNC so no IPs are in the pool")
+	ErrNoNCs            = errors.New("No NCs found in the CNS internal state")
 )
 
 // requestIPConfigHandlerHelper validates the request, assigns IPs, and returns a response
@@ -681,7 +681,7 @@ func (service *HTTPRestService) AssignDesiredIPConfigs(podInfo cns.PodInfo, desi
 	numOfNCs := len(service.state.ContainerStatus)
 	// Check to make sure that the number
 	if numOfNCs == 0 {
-		return nil, ErrNoPoolIPs
+		return nil, ErrNoNCs
 	}
 	// Sets the number of desired IPs equal to the number of desired IPs passed in
 	numDesiredIPAddresses := len(desiredIPAddresses)
@@ -784,7 +784,7 @@ func (service *HTTPRestService) AssignAvailableIPConfigs(podInfo cns.PodInfo) ([
 	numOfNCs := len(service.state.ContainerStatus)
 	// if there are no NCs on the NNC there will be no IPs in the pool so return error
 	if numOfNCs == 0 {
-		return nil, ErrNoPoolIPs
+		return nil, ErrNoNCs
 	}
 	service.Lock()
 	defer service.Unlock()
