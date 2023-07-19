@@ -146,6 +146,23 @@ stages:
 
           - publish: ./test/apimodels/
             artifact: clusterdefinitions
+      - job: k8se2e
+        displayName: "Build Kubernetes Test Suite Binary"
+        pool:
+          name: $(BUILD_POOL_NAME_DEFAULT)
+          demands:
+            - agent.os -equals Linux
+            - Role -equals Build
+        steps:
+          - bash: |
+              git clone https://github.com/huntergregory/kubernetes.git --depth=1 --branch=linux-sleep-before-probing
+              cd kubernetes
+              export PATH=$PATH:/usr/local/go/bin/
+              make WHAT=test/e2e/e2e.test
+            displayName: "Build Kubernetes e2e.test"
+
+          - publish: $(System.DefaultWorkingDirectory)/kubernetes/_output/local/bin/linux/amd64
+            artifact: Test
 
   - stage: containerize
     displayName: Build Images
@@ -349,7 +366,7 @@ stages:
       os: 'linux'
       clusterType: linux-cniv1-up
       clusterName: 'ubuntu18e2e'
-      vmSize: Standard_B2ms
+      vmSize: Standard_B2s
       k8sVersion: 1.24.9
       scaleup: 100
 
@@ -361,7 +378,7 @@ stages:
       os: 'linux'
       clusterType: linux-cniv1-up
       clusterName: 'ubuntu22e2e'
-      vmSize: Standard_B2s # If passing delete, default == B2
+      vmSize: Standard_B2s
       k8sVersion: 1.25
       scaleup: 100
 
