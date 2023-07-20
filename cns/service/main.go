@@ -567,9 +567,11 @@ func main() {
 		return
 	}
 
-	homeAzMonitor := restserver.NewHomeAzMonitor(nmaClient, time.Duration(cnsconfig.PopulateHomeAzCacheRetryIntervalSecs)*time.Second)
-	logger.Printf("start the goroutine for refreshing homeAz")
-	homeAzMonitor.Start()
+	homeAzMonitor := restserver.NewHomeAzMonitor(nmaClient, time.Duration(cnsconfig.AZRSettings.PopulateHomeAzCacheRetryIntervalSecs)*time.Second)
+	if cnsconfig.AZRSettings.EnableAZR {
+		logger.Printf("start the goroutine for refreshing homeAz")
+		homeAzMonitor.Start()
+	}
 
 	if cnsconfig.ChannelMode == cns.Managed {
 		config.ChannelMode = cns.Managed
@@ -903,8 +905,10 @@ func main() {
 		}
 	}
 
-	logger.Printf("end the goroutine for refreshing homeAz")
-	homeAzMonitor.Stop()
+	if cnsconfig.AZRSettings.EnableAZR {
+		logger.Printf("end the goroutine for refreshing homeAz")
+		homeAzMonitor.Stop()
+	}
 
 	logger.Printf("stop cns service")
 	// Cleanup.
