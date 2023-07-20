@@ -83,8 +83,7 @@ spec:
       hostNetwork: true
       containers:
         - name: azure-npm
-          # setting to future version since it will use the updated Dockerfile
-          image: mcr.microsoft.com/containernetworking/azure-npm:v1.4.45
+          image: mcr.microsoft.com/containernetworking/azure-npm:v1.5.5
           command: ["powershell.exe"]
           args:
             [
@@ -141,13 +140,13 @@ metadata:
 data:
   azure-npm.json: |
     {
-        "WindowsNetworkName": "Calico",
-        "ResyncPeriodInMinutes": 15,
-        "ListeningPort":         10091,
-        "ListeningAddress":      "0.0.0.0",
-        "ApplyIntervalInMilliseconds":    500,
-        "ApplyMaxBatches":                100,
-        "MaxBatchedACLsPerPod":           30,
+        "WindowsNetworkName":          "Calico",
+        "ResyncPeriodInMinutes":       15,
+        "ListeningPort":               10091,
+        "ListeningAddress":            "0.0.0.0",
+        "ApplyIntervalInMilliseconds": 500,
+        "ApplyMaxBatches":             100,
+        "MaxBatchedACLsPerPod":        30,
         "Toggles": {
             "EnablePrometheusMetrics": true,
             "EnablePprof":             true,
@@ -157,5 +156,5 @@ data:
             "ApplyIPSetsOnNeed":       false,
             "ApplyInBackground":       true,
             "NetPolInBackground":      false
-        },
+        }
     }
