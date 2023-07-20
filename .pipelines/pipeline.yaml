@@ -343,18 +343,6 @@ stages:
 
   - template: singletenancy/aks/e2e-job-template.yaml
     parameters:
-      name: "aks_ubuntu_18_04_linux_e2e"
-      displayName: AKS Ubuntu 18.04
-      arch: 'amd64'
-      os: 'linux'
-      clusterType: linux-cniv1-up
-      clusterName: 'ubuntu18e2e'
-      vmSize: Standard_B2s
-      k8sVersion: 1.24.9
-      scaleup: 100
-
-  - template: singletenancy/aks/e2e-job-template.yaml
-    parameters:
       name: "aks_ubuntu_22_linux_e2e"
       displayName: AKS Ubuntu 22
       arch: 'amd64'
@@ -363,19 +351,6 @@ stages:
       clusterName: 'ubuntu22e2e'
       vmSize: Standard_B2s
       k8sVersion: 1.25
-      scaleup: 100
-
-  - template: singletenancy/aks/e2e-job-template.yaml
-    parameters:
-      name: "aks_windows_19_03_e2e"
-      displayName: AKS Windows 1903
-      arch: amd64
-      os: windows
-      clusterType: windows-cniv1-up
-      clusterName: 'win19e2e'
-      vmSize: Standard_B2ms
-      windowsOsSku: 'Windows2019'
-      os_version: 'ltsc2019'
       scaleup: 100
 
   - template: singletenancy/aks/e2e-job-template.yaml
@@ -417,8 +392,6 @@ stages:
       - "aks_swift_e2e"
       - "cilium_e2e"
       - "cilium_overlay_cilium_e2e"
-      - "aks_ubuntu_18_04_linux_e2e"
-      - "aks_windows_19_03_e2e"
       - "aks_ubuntu_22_linux_e2e"
       - "aks_windows_22_e2e"
     jobs:
