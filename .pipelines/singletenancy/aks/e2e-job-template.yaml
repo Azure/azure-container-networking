@@ -58,6 +58,8 @@ stages:
           portforward: true
           loadBalancer: true
           hybridWin: true
+          service: true
+          hostport: true
           dependsOn: ${{ parameters.name }}
 
       - job: cleanup
