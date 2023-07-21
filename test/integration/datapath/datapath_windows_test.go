@@ -5,7 +5,7 @@ package connection
 import (
 	"context"
 	"flag"
-	"fmt"
+	"net"
 	"testing"
 
 	"github.com/Azure/azure-container-networking/test/internal/datapath"
@@ -59,7 +59,8 @@ func TestDatapathWin(t *testing.T) {
 	restConfig := k8sutils.MustGetRestConfig(t)
 
 	t.Log("Create Label Selectors")
-	podLabelSelector, nodeLabelSelector := createLabelSelectors()
+	podLabelSelector := fmt.Sprintf("%s=%s", podLabelKey, *podPrefix)
+	nodeLabelSelector := fmt.Sprintf("%s=%s", nodepoolKey, *nodepoolSelector)
 
 	t.Log("Get Nodes")
 	nodes, err := k8sutils.GetNodeListByLabelSelector(ctx, clientset, nodeLabelSelector)
