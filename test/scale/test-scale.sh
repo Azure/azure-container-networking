@@ -103,7 +103,7 @@ while [[ $# -gt 0 ]]; do
         --kubeconfig=*)
             file=${1#*=}
             KUBECONFIG_ARG="--kubeconfig $file"
-            test -f $file || { 
+            test -f $file || {
                 echo "ERROR: kubeconfig not found: [$file]"
                 exit 1
             }
@@ -111,7 +111,7 @@ while [[ $# -gt 0 ]]; do
             ;;
         --kubectl-binary=*)
             KUBECTL=${1#*=}
-            test -f $KUBECTL || { 
+            test -f $KUBECTL || {
                 echo "ERROR: kubectl binary not found: [$KUBECTL]"
                 exit 1
             }
@@ -444,7 +444,7 @@ fi
 if [[ $numKwokPods -gt 0 ]]; then
     $KUBECTL $KUBECONFIG_ARG apply -f generated/deployments/kwok/
 fi
-if [[ $numServices -gt 0 ]]; then
+if [[ $numRealServices -gt 0 ]]; then
     $KUBECTL $KUBECONFIG_ARG apply -f generated/services/real/
 fi
 set +x
@@ -511,7 +511,7 @@ if [[ $deleteNetpols == true ]]; then
         set +x
         echo "sleeping $deleteNetpolsInterval seconds after deleting network policies (round $i/$deleteNetpolsTimes)..."
         sleep $deleteNetpolsInterval
-        
+
         echo "re-adding network policies. round $i/$deleteNetpolsTimes..."
         set -x
         if [[ $numUnappliedNetworkPolicies -gt 0 ]]; then
@@ -568,7 +568,7 @@ if [[ $deleteLabels == true && $numSharedLabelsPerPod -gt 2 ]]; then
         set +x
         echo "sleeping $deleteLabelsInterval seconds after deleting labels (round $i/$deleteLabelsTimes)..."
         sleep $deleteLabelsInterval
-        
+
         echo "re-adding labels. round $i/$deleteLabelsTimes..."
         set -x
         $KUBECTL $KUBECONFIG_ARG label pods -n scale-test --all shared-lab-00001=val shared-lab-00002=val shared-lab-00003=val
