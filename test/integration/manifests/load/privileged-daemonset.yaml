@@ -26,13 +26,25 @@ spec:
           volumeMounts:
             - mountPath: /var/run/azure-cns
               name: azure-cns
+            - mountPath: /var/run/azure-network
+              name: azure-network
             - mountPath: /host
               name: host-root
+            - mountPath: /var/run
+              name: azure-cns-noncilium
       volumes:
         - name: azure-cns
           hostPath:
             path: /var/run/azure-cns
+        - name: azure-network
+          hostPath:
+            path: /var/run/azure-network
+        - name: azure-cns-noncilium
+          hostPath:
+            path: /var/run
         - hostPath:
             path: /
             type: ""
           name: host-root
+      nodeSelector:
+        kubernetes.io/os: linux

@@ -91,20 +91,20 @@ func (l *LinuxClient) CreateClient(ctx context.Context, clienset *kubernetes.Cli
 
 // Todo: Based on cni version validate different state files
 func (v *LinuxValidator) ValidateStateFile() error {
-	checks := []struct {
-		name             string
-		stateFileIps     func([]byte) (map[string]string, error)
-		podLabelSelector string
-		podNamespace     string
-		cmd              []string
-	}{
+	checkSet := make(map[string][]check) // key is cni type, value is a list of check
+	// TODO: add cniv1 when adding Linux related test cases
+	checkSet["cilium"] = []check{
 		{"cns", cnsStateFileIps, cnsLabelSelector, privilegedNamespace, cnsStateFileCmd},
 		{"cilium", ciliumStateFileIps, ciliumLabelSelector, privilegedNamespace, ciliumStateFileCmd},
 		{"cns cache", cnsCacheStateFileIps, cnsLabelSelector, privilegedNamespace, cnsLocalCacheCmd},
 	}
 
-	for _, check := range checks {
-		err := v.validate(check.stateFileIps, check.cmd, check.name, check.podNamespace, check.podLabelSelector)
+	checkSet["cniv2"] = []check{
+		{"cns cache", cnsCacheStateFileIps, cnsLabelSelector, privilegedNamespace, cnsLocalCacheCmd},
+	}
+
+	for _, check := range checkSet[v.cni] {
+		err := v.validateIPs(check.stateFileIps, check.cmd, check.name, check.podNamespace, check.podLabelSelector)
 		if err != nil {
 			return err
 		}
@@ -191,7 +191,7 @@ func cnsCacheStateFileIps(result []byte) (map[string]string, error) {
 	return cnsPodIps, nil
 }
 
-func (v *LinuxValidator) validate(stateFileIps stateFileIpsFunc, cmd []string, checkType, namespace, labelSelector string) error {
+func (v *LinuxValidator) validateIPs(stateFileIps stateFileIpsFunc, cmd []string, checkType, namespace, labelSelector string) error {
 	log.Printf("Validating %s state file", checkType)
 	nodes, err := k8sutils.GetNodeList(v.ctx, v.clientset)
 	if err != nil {

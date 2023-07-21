@@ -36,9 +36,9 @@ k8s cluster with a windows nodepool consisting of at least 2 windows nodes.
 	-nodepoolSelector="yournodepoolname"
 
 To run the test use one of the following commands:
-go test -count=1 test/integration/datapath/datapath_win_test.go -timeout 3m -tags connection -run ^TestDatapathWin$ -tags=connection
+go test -count=1 test/integration/datapath/datapath_windows_test.go -timeout 3m -tags connection -run ^TestDatapathWin$ -tags=connection
    or
-go test -count=1 test/integration/datapath/datapath_win_test.go -timeout 3m -tags connection -run ^TestDatapathWin$ -podName=acnpod -nodepoolSelector=npwina -tags=connection
+go test -count=1 test/integration/datapath/datapath_windows_test.go -timeout 3m -tags connection -run ^TestDatapathWin$ -podName=acnpod -nodepoolSelector=npwina -tags=connection
 
 
 This test checks pod to pod, pod to node, and pod to internet for datapath connectivity.
@@ -110,7 +110,7 @@ func TestDatapathWin(t *testing.T) {
 			require.NoError(t, err)
 		}
 	}
-	t.Log("Checking Windows test environment ")
+	t.Log("Checking Windows test environment")
 	for _, node := range nodes.Items {
 
 		pods, err := k8sutils.GetPodsByNode(ctx, clientset, *podNamespace, podLabelSelector, node.Name)
@@ -129,11 +129,13 @@ func TestDatapathWin(t *testing.T) {
 		for _, node := range nodes.Items {
 			t.Log("Windows ping tests (1)")
 			nodeIP := ""
+			nodeIPv6 := ""
 			for _, address := range node.Status.Addresses {
 				if address.Type == "InternalIP" {
 					nodeIP = address.Address
-					// Multiple addresses exist, break once Internal IP found.
-					// Cannot call directly
+					if net.ParseIP(address.Address).To16() != nil {
+						nodeIPv6 = address.Address
+					}
 					break
 				}
 			}
@@ -141,6 +143,13 @@ func TestDatapathWin(t *testing.T) {
 			err := datapath.WindowsPodToNode(ctx, clientset, node.Name, nodeIP, *podNamespace, podLabelSelector, restConfig)
 			require.NoError(t, err, "Windows pod to node, ping test failed with: %+v", err)
 			t.Logf("Windows pod to node, passed for node: %s", node.Name)
+
+			// windows ipv6 connectivity
+			if nodeIPv6 != "" {
+				err = datapath.WindowsPodToNode(ctx, clientset, node.Name, nodeIPv6, *podNamespace, podLabelSelector, restConfig)
+				require.NoError(t, err, "Windows pod to node, ipv6 ping test failed with: %+v", err)
+				t.Logf("Windows pod to node via ipv6, passed for node: %s", node.Name)
+			}
 		}
 	})
 
