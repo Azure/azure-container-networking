@@ -59,8 +59,7 @@ func TestDatapathWin(t *testing.T) {
 	restConfig := k8sutils.MustGetRestConfig(t)
 
 	t.Log("Create Label Selectors")
-	podLabelSelector := fmt.Sprintf("%s=%s", podLabelKey, *podPrefix)
-	nodeLabelSelector := fmt.Sprintf("%s=%s", nodepoolKey, *nodepoolSelector)
+	podLabelSelector, nodeLabelSelector := createLabelSelectors()
 
 	t.Log("Get Nodes")
 	nodes, err := k8sutils.GetNodeListByLabelSelector(ctx, clientset, nodeLabelSelector)
@@ -71,6 +70,9 @@ func TestDatapathWin(t *testing.T) {
 	// Test Namespace
 	t.Log("Create Namespace")
 	err = k8sutils.MustCreateNamespace(ctx, clientset, *podNamespace)
+	if err != nil {
+		require.NoError(t, err, "failed to create pod namespace %s due to: %v", *podNamespace, err)
+	}
 	createPodFlag := !(apierrors.IsAlreadyExists(err))
 
 	if createPodFlag {
