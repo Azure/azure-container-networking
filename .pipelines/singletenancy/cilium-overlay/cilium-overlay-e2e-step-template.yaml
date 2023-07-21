@@ -29,6 +29,7 @@ steps:
       scriptType: "bash"
       addSpnToEnvironment: true
       inlineScript: |
+        set -e
         mkdir -p ~/.kube/
         echo "Create AKS Overlay cluster"
         make -C ./hack/aks azcfg AZCLI=az REGION=$(REGION_OVERLAY_CLUSTER_TEST)
@@ -99,7 +100,7 @@ steps:
       # Nightly does not build images per commit. Will use existing image.
       if [ "$CILIUM_VERSION_TAG" = "cilium-nightly-pipeline" ]
       then
-          CNS=v1.5.3 DROPGZ=v0.0.4 && echo "Running nightly"
+          CNS=$(CNS_VERSION) DROPGZ=$(DROP_GZ_VERSION) && echo "Running nightly"
       else
           CNS=$(make cns-version) DROPGZ=$(make cni-dropgz-version)
       fi
@@ -200,6 +201,7 @@ steps:
       scriptType: "bash"
       addSpnToEnvironment: true
       inlineScript: |
+        set -e
         echo "Deleting cluster"
         make -C ./hack/aks azcfg AZCLI=az
         make -C ./hack/aks down SUB=$(SUB_AZURE_NETWORK_AGENT_TEST) AZCLI=az CLUSTER=${{ parameters.clusterName }}-$(make revision)

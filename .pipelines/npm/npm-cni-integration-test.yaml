@@ -1,0 +1,93 @@
+parameters:
+  clusterName: ""
+  os: ""
+  sub: ""
+  os_version: ""
+  tag: ""
+
+jobs:
+  - job: npm_k8se2e
+    displayName: "NPM k8s E2E"
+    dependsOn: ${{ parameters.dependsOn }}
+    condition: and(succeeded(), ${{ or(contains(parameters.os_version, '2022'), eq(parameters.os, 'linux')) }}  )
+    pool:
+      name: $(BUILD_POOL_NAME_DEFAULT)
+      demands:
+      - agent.os -equals Linux
+      - Role -equals Build
+    steps:
+      - task: AzureCLI@2
+        displayName: "Deploy NPM to Test Cluster"
+        inputs:
+          azureSubscription: ${{ parameters.sub }}
+          scriptType: "bash"
+          scriptLocation: "inlineScript"
+          inlineScript: |
+            set -ex
+
+            make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}-$(make revision)
+
+            # deploy azure-npm
+            if ${{ lower(eq(parameters.os, 'windows')) }}
+            then
+              # Windows
+              kubectl apply -f https://raw.githubusercontent.com/Azure/azure-container-networking/master/npm/examples/windows/azure-npm.yaml
+              kubectl set image daemonset/azure-npm-win -n kube-system azure-npm=$IMAGE_REGISTRY/azure-npm:windows-amd64-ltsc2022-${{ parameters.tag }}
+              kubectl rollout status -n kube-system daemonset/azure-npm-win
+
+              # konnectivity agent tends to fail after rollout. Give it time to recover
+              sleep 60
+              # Taint Linux (system) nodes so windows tests do not run on them
+              kubectl taint nodes -l kubernetes.azure.com/mode=system node-role.kubernetes.io/control-plane:NoSchedule
+            else
+              # Linux
+              kubectl apply -f https://raw.githubusercontent.com/Azure/azure-container-networking/master/npm/azure-npm.yaml
+              kubectl set image daemonset/azure-npm -n kube-system azure-npm=$IMAGE_REGISTRY/azure-npm:${{ parameters.tag }}
+              kubectl rollout status -n kube-system daemonset/azure-npm
+            fi
+
+            kubectl get po -n kube-system -owide -A
+
+            # FQDN=`az aks show -n $CLUSTER_NAME -g $CLUSTER_NAME --query fqdn -o tsv`
+            FQDN=`az aks show -g ${{ parameters.clusterName }}-$(make revision) -n ${{ parameters.clusterName }}-$(make revision) --query fqdn -o tsv`
+            echo $FQDN
+            echo "##vso[task.setvariable variable=FQDN]$FQDN"
+
+      - download: current
+        artifact: Test
+
+      - bash: |
+          # NetworkPolicy between server and...
+          focus="\
+          client should enforce policy to allow traffic only from a different namespace, based on NamespaceSelector|\
+          client should deny egress from pods based on PodSelector|\
+          client should enforce multiple, stacked policies with overlapping podSelectors|\
+          client should enforce egress policy allowing traffic to a server in a different namespace based on PodSelector and NamespaceSelector|\
+          client should work with Ingress, Egress specified together|\
+          client should enforce ingress policy allowing any port traffic to a server on a specific protocol|\
+          client should not allow access by TCP when a policy specifies only UDP|\
+          client should allow egress access to server in CIDR block|\
+          client should enforce policy based on Ports|\
+          client should support allow-all policy|\
+          client should enforce updated policy|\
+          client should support denying of egress traffic on the client side|\
+          client should stop enforcing policies after they are deleted|\
+          client should support a 'default-deny-ingress' policy"
+
+          chmod +x $(Pipeline.Workspace)/Test/e2e.test
+
+          KUBERNETES_SERVICE_HOST="$FQDN" KUBERNETES_SERVICE_PORT=443 \
+          $(Pipeline.Workspace)/Test/e2e.test \
+          --provider=local \
+          --ginkgo.focus="$focus" \
+          --ginkgo.skip="NetworkPolicyLegacy|SCTP" \
+          --kubeconfig=$HOME/.kube/config
+
+          # Untaint Linux (system) nodes once testing is complete
+          if ${{ lower(eq(parameters.os, 'windows')) }}
+          then
+            kubectl taint nodes -l kubernetes.azure.com/mode=system node-role.kubernetes.io/control-plane:NoSchedule-
+          fi
+        displayName: "Run Kubernetes e2e.test"
+
+

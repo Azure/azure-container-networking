@@ -36,7 +36,7 @@ azlogin:
 
 azcfg:
 	@$(AZCLI) extension add --name aks-preview --yes
-	@$(AZCLI) extension update --name aks-preview 
+	@$(AZCLI) extension update --name aks-preview
 
 set-kubeconf: ## Adds the kubeconf for $CLUSTER
 	$(AZCLI) aks get-credentials -n $(CLUSTER) -g $(GROUP)
@@ -64,7 +64,7 @@ vars: ## Show the input vars configured for the cluster commands
 
 ##@ SWIFT Infra
 
-rg-up: ## Create resource group 
+rg-up: ## Create resource group
 	@$(AZCLI) group create --location $(REGION) --name $(GROUP)
 
 rg-down: ## Delete resource group
@@ -214,10 +214,11 @@ windows-cniv1-up: rg-up overlay-net-up ## Bring up a Windows CNIv1 cluster
 
 	@$(MAKE) set-kubeconf
 
-linux-cniv1-up: rg-up overlay-net-up 
+linux-cniv1-up: rg-up overlay-net-up
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
 		--node-count $(NODE_COUNT) \
 		--node-vm-size $(VM_SIZE) \
+		--max-pods 250 \
 		--network-plugin azure \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
 		--kubernetes-version $(K8S_VER) \

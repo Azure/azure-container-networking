@@ -30,6 +30,7 @@ steps:
       scriptType: "bash"
       addSpnToEnvironment: true
       inlineScript: |
+        set -e
         mkdir -p ~/.kube/
         echo "Create AKS cluster"
         make -C ./hack/aks azcfg AZCLI=az REGION=$(REGION_AKS_CLUSTER_TEST)
@@ -51,7 +52,7 @@ steps:
       sudo mv gsutil /usr/local/bin
     name: "installKubetest"
     displayName: "Set up Conformance Tests"
-  
+
   - script: |
       ls -lah
       pwd
@@ -123,6 +124,7 @@ steps:
       scriptType: "bash"
       addSpnToEnvironment: true
       inlineScript: |
+        set -e
         echo "Deleting cluster"
         make -C ./hack/aks azcfg AZCLI=az REGION=$(REGION_AKS_CLUSTER_TEST)
         make -C ./hack/aks down AZCLI=az REGION=$(REGION_AKS_CLUSTER_TEST) SUB=$(SUB_AZURE_NETWORK_AGENT_TEST) CLUSTER=${{ parameters.clusterName }}-${{ parameters.osSku }}-$(make revision)
