@@ -1,4 +1,4 @@
-# remove_ovs_bridges.py
+# ovs_scripts
 
 `remove_ovs_bridges.py` script is for removing all ovs bridges
 It will get all existing ovs bridges and delete them and then delete CNI state file 
