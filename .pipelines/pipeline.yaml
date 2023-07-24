@@ -421,7 +421,7 @@ stages:
       vmSize: Standard_B2ms
       windowsOsSku: 'Windows2022'
       os_version: 'ltsc2022'
-      scaleup: 100
+      scaleup: 50
 
   - template: singletenancy/dualstack-overlay/dualstackoverlay-e2e-job-template.yaml
     parameters:
