@@ -83,9 +83,6 @@ func setupLinuxEnvironment(t *testing.T) {
 	t.Log("Create Label Selectors")
 	podLabelSelector, nodeLabelSelector := k8sutils.CreateLabelSelectors(podLabelKey, nodepoolKey, podPrefix, nodepoolSelector)
 
-	t.Logf("nodeLabelSelector IS %s", nodeLabelSelector)
-	t.Logf("podLabelSelector uis %s", podLabelSelector)
-
 	t.Log("Get Nodes")
 	nodes, err := k8sutils.GetNodeListByLabelSelector(ctx, clientset, nodeLabelSelector)
 	if err != nil {
@@ -215,10 +212,7 @@ func TestDatapathLinux(t *testing.T) {
 	clientset, _ := k8sutils.MustGetClientset()
 
 	setupLinuxEnvironment(t)
-	t.Logf("nodepoolSelector is %s", *nodepoolSelector)
-	t.Logf("podPrefix is %s", *podPrefix)
 	podLabelSelector, _ := k8sutils.CreateLabelSelectors(podLabelKey, nodepoolKey, podPrefix, nodepoolSelector)
-	t.Logf("podLabelSelector is %s", podLabelSelector)
 
 	t.Run("Linux ping tests", func(t *testing.T) {
 		// Check goldpinger health
@@ -342,4 +336,9 @@ func TestDatapathLinux(t *testing.T) {
 			t.Log("all pings successful!")
 		})
 	})
+
+	// delete namespace after test is done
+	if err := k8sutils.MustDeleteNamespace(ctx, clientset, *podNamespace); err != nil {
+		require.NoError(t, err)
+	}
 }
