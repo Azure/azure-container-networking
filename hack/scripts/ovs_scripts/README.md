@@ -1,6 +1,6 @@
 # ovs_scripts
 
-`remove_ovs_bridges.py` script is for removing all ovs bridges
+`remove_ovs_bridges.py` script is for removing all ovs bridges and ssh connection will not be lost
 It will get all existing ovs bridges and delete them and then delete CNI state file 
 and all interfaces starting with `az` that are used for supporting apipa connectivity. After that,
 it will check if Linux VM internet connectivity is still working.
