@@ -1,0 +1,140 @@
+parameters:
+  name: ""
+  testDropgz: ""
+  clusterName: ""
+
+steps:
+  - bash: |
+      echo $UID
+      sudo rm -rf $(System.DefaultWorkingDirectory)/*
+    displayName: "Set up OS environment"
+
+  - checkout: self
+
+  - bash: |
+      go version
+      go env
+      mkdir -p '$(GOBIN)'
+      mkdir -p '$(GOPATH)/pkg'
+      mkdir -p '$(modulePath)'
+      echo '##vso[task.prependpath]$(GOBIN)'
+      echo '##vso[task.prependpath]$(GOROOT)/bin'
+    name: "GoEnv"
+    displayName: "Set up the Go environment"
+
+  - task: AzureCLI@1
+    inputs:
+      azureSubscription: $(AZURE_TEST_AGENT_SERVICE_CONNECTION)
+      scriptLocation: "inlineScript"
+      scriptType: "bash"
+      addSpnToEnvironment: true
+      inlineScript: |
+        set -e
+        mkdir -p ~/.kube/
+        echo "Create AKS Overlay cluster"
+        make -C ./hack/aks azcfg AZCLI=az REGION=$(REGION_OVERLAY_CLUSTER_TEST)
+        make -C ./hack/aks overlay-byocni-up AZCLI=az REGION=$(REGION_OVERLAY_CLUSTER_TEST) SUB=$(SUB_AZURE_NETWORK_AGENT_TEST) CLUSTER=${{ parameters.clusterName }}-$(make revision) VM_SIZE=Standard_B2ms
+        echo "Cluster successfully created"
+    displayName: Create Overlay cluster
+    condition: succeeded()
+
+  - script: |
+      ls -lah
+      pwd
+      echo "installing kubectl"
+      curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+      sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+      kubectl cluster-info
+      kubectl get po -owide -A
+    name: "installKubectl"
+    displayName: "Install Kubectl"
+
+  - script: |
+      echo "install kubetest2 and gsutils"
+      go get github.com/onsi/ginkgo/ginkgo
+      go get github.com/onsi/gomega/...
+      go install github.com/onsi/ginkgo/ginkgo@latest
+      go install sigs.k8s.io/kubetest2@latest
+      go install sigs.k8s.io/kubetest2/kubetest2-noop@latest
+      go install sigs.k8s.io/kubetest2/kubetest2-tester-ginkgo@latest
+      wget https://storage.googleapis.com/pub/gsutil.tar.gz
+      tar xfz gsutil.tar.gz
+      sudo mv gsutil /usr/local/bin
+    name: "installKubetest"
+    displayName: "Set up Conformance Tests"
+
+  - script: |
+      echo "Start Integration Tests on Overlay Cluster"
+      echo "deploy ip-masq-agent for overlay"
+      kubectl apply -f test/integration/manifests/ip-masq-agent/ip-masq-agent.yaml --validate=false
+      cd test/integration/manifests/ip-masq-agent/
+      kubectl apply -f config-custom.yaml
+      kubectl apply -f config-reconcile.yaml
+      cd ../../../..
+      kubectl get po -owide -A
+      CNS=$(make cns-version) DROPGZ=$(make cni-dropgz-version)
+      sudo -E env "PATH=$PATH" make test-integration CNS_VERSION=${CNS} CNI_DROPGZ_VERSION=${DROPGZ} INSTALL_CNS=true INSTALL_AZURE_CNI_OVERLAY=true TEST_DROPGZ=${{ parameters.testDropgz }}
+    retryCountOnTaskFailure: 3
+    name: "integrationTest"
+    displayName: "Run CNS Integration Tests on AKS Overlay"
+
+  - script: |
+      echo "Status of the nodes and pods after the test"
+      kubectl get nodes -o wide
+      kubectl get pods -A -o wide
+      echo "Logs will be available as a build artifact"
+      ARTIFACT_DIR=$(Build.ArtifactStagingDirectory)/test-output/
+      echo $ARTIFACT_DIR
+      sudo rm -rf $ARTIFACT_DIR
+      sudo mkdir $ARTIFACT_DIR
+      sudo cp test/integration/logs/* $ARTIFACT_DIR
+    name: "GetLogs"
+    displayName: "Get logs"
+    condition: always()
+
+  - task: PublishBuildArtifacts@1
+    inputs:
+      artifactName: test-output
+      pathtoPublish: "$(Build.ArtifactStagingDirectory)/test-output"
+    condition: always()
+
+  - script: |
+      echo "Run Service Conformance E2E"
+      export PATH=${PATH}:/usr/local/bin/gsutil
+      KUBECONFIG=~/.kube/config kubetest2 noop \
+        --test ginkgo -- \
+        --focus-regex "Services.*\[Conformance\].*"
+    name: "servicesConformance"
+    displayName: "Run Services Conformance Tests"
+
+  - script: |
+      echo "Run wireserver and metadata connectivity Tests"
+      bash test/network/wireserver_metadata_test.sh
+    retryCountOnTaskFailure: 3
+    name: "WireserverMetadataConnectivityTests"
+    displayName: "Run Wireserver and Metadata Connectivity Tests"
+
+  - script: |
+      ARTIFACT_DIR=$(Build.ArtifactStagingDirectory)/test-output/
+      echo $ARTIFACT_DIR
+      sudo rm -rf $ARTIFACT_DIR
+      sudo rm -rf test/integration/logs
+    name: "Cleanupartifactdir"
+    displayName: "Cleanup artifact dir"
+    condition: always()
+
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: $(AZURE_TEST_AGENT_SERVICE_CONNECTION)
+      scriptLocation: "inlineScript"
+      scriptType: "bash"
+      addSpnToEnvironment: true
+      inlineScript: |
+        set -e
+        echo "Deleting cluster"
+        make -C ./hack/aks azcfg AZCLI=az
+        make -C ./hack/aks down SUB=$(SUB_AZURE_NETWORK_AGENT_TEST) AZCLI=az CLUSTER=${{ parameters.clusterName }}-$(make revision)
+        echo "Cluster and resources down"
+    name: "Cleanupcluster"
+    displayName: "Cleanup cluster"
+    condition: always()

@@ -11,33 +11,36 @@ import (
 	"testing"
 
 	k8sutils "github.com/Azure/azure-container-networking/test/internal/k8sutils"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/kubernetes"
 )
 
 const (
 	exitFail = 1
 
-	envTestDropgz       = "TEST_DROPGZ"
-	envCNIDropgzVersion = "CNI_DROPGZ_VERSION"
-	envCNSVersion       = "CNS_VERSION"
-	envInstallCNS       = "INSTALL_CNS"
-	envInstallAzilium   = "INSTALL_AZILIUM"
-	envInstallAzureVnet = "INSTALL_AZURE_VNET"
-	envInstallOverlay   = "INSTALL_OVERLAY"
+	envTestDropgz             = "TEST_DROPGZ"
+	envCNIDropgzVersion       = "CNI_DROPGZ_VERSION"
+	envCNSVersion             = "CNS_VERSION"
+	envInstallCNS             = "INSTALL_CNS"
+	envInstallAzilium         = "INSTALL_AZILIUM"
+	envInstallAzureVnet       = "INSTALL_AZURE_VNET"
+	envInstallOverlay         = "INSTALL_OVERLAY"
+	envInstallAzureCNIOverlay = "INSTALL_AZURE_CNI_OVERLAY"
 
 	// relative cns manifest paths
-	cnsManifestFolder         = "manifests/cns"
-	cnsConfigFolder           = "manifests/cnsconfig"
-	cnsDaemonSetPath          = cnsManifestFolder + "/daemonset.yaml"
-	cnsClusterRolePath        = cnsManifestFolder + "/clusterrole.yaml"
-	cnsClusterRoleBindingPath = cnsManifestFolder + "/clusterrolebinding.yaml"
-	cnsSwiftConfigMapPath     = cnsConfigFolder + "/swiftconfigmap.yaml"
-	cnsCiliumConfigMapPath    = cnsConfigFolder + "/ciliumconfigmap.yaml"
-	cnsOverlayConfigMapPath   = cnsConfigFolder + "/overlayconfigmap.yaml"
-	cnsRolePath               = cnsManifestFolder + "/role.yaml"
-	cnsRoleBindingPath        = cnsManifestFolder + "/rolebinding.yaml"
-	cnsServiceAccountPath     = cnsManifestFolder + "/serviceaccount.yaml"
-	cnsLabelSelector          = "k8s-app=azure-cns"
+	cnsManifestFolder               = "manifests/cns"
+	cnsConfigFolder                 = "manifests/cnsconfig"
+	cnsDaemonSetPath                = cnsManifestFolder + "/daemonset.yaml"
+	cnsClusterRolePath              = cnsManifestFolder + "/clusterrole.yaml"
+	cnsClusterRoleBindingPath       = cnsManifestFolder + "/clusterrolebinding.yaml"
+	cnsSwiftConfigMapPath           = cnsConfigFolder + "/swiftconfigmap.yaml"
+	cnsCiliumConfigMapPath          = cnsConfigFolder + "/ciliumconfigmap.yaml"
+	cnsOverlayConfigMapPath         = cnsConfigFolder + "/overlayconfigmap.yaml"
+	cnsAzureCNIOverlayConfigMapPath = cnsConfigFolder + "/azurecnioverlayconfigmap.yaml"
+	cnsRolePath                     = cnsManifestFolder + "/role.yaml"
+	cnsRoleBindingPath              = cnsManifestFolder + "/rolebinding.yaml"
+	cnsServiceAccountPath           = cnsManifestFolder + "/serviceaccount.yaml"
+	cnsLabelSelector                = "k8s-app=azure-cns"
 
 	// relative log directory
 	logDir = "logs/"
@@ -160,6 +163,25 @@ func installCNSDaemonset(ctx context.Context, clientset *kubernetes.Clientset, l
 		log.Printf("Env %v not set to true, skipping", envInstallOverlay)
 	}
 
+	if installBool4 := os.Getenv(envInstallAzureCNIOverlay); installBool4 != "" {
+		if overlayScenario, err := strconv.ParseBool(installBool4); err == nil && overlayScenario {
+			log.Printf("Env %v set to true, deploy azure-cni and azure-cns", envInstallAzureCNIOverlay)
+			cns.Spec.Template.Spec.InitContainers[0].Args = []string{"deploy", "azure-vnet", "-o", "/opt/cni/bin/azure-vnet", "azure-vnet-telemetry", "-o", "/opt/cni/bin/azure-vnet-telemetry"}
+
+			// override the volumes and volume mounts
+			cns.Spec.Template.Spec.Volumes = volumesForAzureCNIOverlay()
+			cns.Spec.Template.Spec.InitContainers[0].VolumeMounts = dropgzVolumeMountsForAzureCNIOverlay()
+			cns.Spec.Template.Spec.Containers[0].VolumeMounts = cnsVolumeMountsForAzureCNIOverlay()
+
+			// set up the CNS conifgmap for azure cni overlay
+			if err := k8sutils.MustSetupConfigMap(ctx, clientset, cnsAzureCNIOverlayConfigMapPath); err != nil {
+				return nil, err
+			}
+		}
+	} else {
+		log.Printf("Env %v not set to true, skipping", envInstallAzureCNIOverlay)
+	}
+
 	cnsDaemonsetClient := clientset.AppsV1().DaemonSets(cns.Namespace)
 
 	log.Printf("Installing CNS with image %s", cns.Spec.Template.Spec.Containers[0].Image)
@@ -190,4 +212,132 @@ func installCNSDaemonset(ctx context.Context, clientset *kubernetes.Clientset, l
 	}
 
 	return cleanupds, nil
+}
+
+func hostPathTypePtr(h corev1.HostPathType) *corev1.HostPathType {
+	return &h
+}
+
+func volumesForAzureCNIOverlay() []corev1.Volume {
+	return []corev1.Volume{
+		{
+			Name: "log",
+			VolumeSource: corev1.VolumeSource{
+				HostPath: &corev1.HostPathVolumeSource{
+					Path: "/var/log/azure-cns",
+					Type: hostPathTypePtr(corev1.HostPathDirectoryOrCreate),
+				},
+			},
+		},
+		{
+			Name: "cns-state",
+			VolumeSource: corev1.VolumeSource{
+				HostPath: &corev1.HostPathVolumeSource{
+					Path: "/var/lib/azure-network",
+					Type: hostPathTypePtr(corev1.HostPathDirectoryOrCreate),
+				},
+			},
+		},
+		{
+			Name: "cni-bin",
+			VolumeSource: corev1.VolumeSource{
+				HostPath: &corev1.HostPathVolumeSource{
+					Path: "/opt/cni/bin",
+					Type: hostPathTypePtr(corev1.HostPathDirectory),
+				},
+			},
+		},
+		{
+			Name: "azure-vnet",
+			VolumeSource: corev1.VolumeSource{
+				HostPath: &corev1.HostPathVolumeSource{
+					Path: "/var/run/azure-vnet",
+					Type: hostPathTypePtr(corev1.HostPathDirectoryOrCreate),
+				},
+			},
+		},
+		{
+			Name: "cni-lock",
+			VolumeSource: corev1.VolumeSource{
+				HostPath: &corev1.HostPathVolumeSource{
+					Path: "/var/lock/azure-vnet",
+					Type: hostPathTypePtr(corev1.HostPathDirectoryOrCreate),
+				},
+			},
+		},
+		{
+			Name: "legacy-cni-state",
+			VolumeSource: corev1.VolumeSource{
+				HostPath: &corev1.HostPathVolumeSource{
+					Path: "/var/run/azure-vnet.json",
+					Type: hostPathTypePtr(corev1.HostPathFileOrCreate),
+				},
+			},
+		},
+		{
+			Name: "cni-conflist",
+			VolumeSource: corev1.VolumeSource{
+				HostPath: &corev1.HostPathVolumeSource{
+					Path: "/etc/cni/net.d",
+					Type: hostPathTypePtr(corev1.HostPathDirectory),
+				},
+			},
+		},
+		{
+			Name: "cns-config",
+			VolumeSource: corev1.VolumeSource{
+				ConfigMap: &corev1.ConfigMapVolumeSource{
+					LocalObjectReference: corev1.LocalObjectReference{
+						Name: "cns-config",
+					},
+				},
+			},
+		},
+	}
+}
+
+func dropgzVolumeMountsForAzureCNIOverlay() []corev1.VolumeMount {
+	return []corev1.VolumeMount{
+		{
+			Name:      "cni-bin",
+			MountPath: "/opt/cni/bin",
+		},
+	}
+}
+
+func cnsVolumeMountsForAzureCNIOverlay() []corev1.VolumeMount {
+	return []corev1.VolumeMount{
+		{
+			Name:      "log",
+			MountPath: "/var/log",
+		},
+		{
+			Name:      "cns-state",
+			MountPath: "/var/lib/azure-network",
+		},
+		{
+			Name:      "cns-config",
+			MountPath: "/etc/azure-cns",
+		},
+		{
+			Name:      "cni-bin",
+			MountPath: "/opt/cni/bin",
+		},
+		{
+			Name:      "azure-vnet",
+			MountPath: "/var/run/azure-vnet",
+		},
+		{
+			Name:      "cni-lock",
+			MountPath: "/var/lock/azure-vnet",
+		},
+		{
+			Name:      "legacy-cni-state",
+			MountPath: "/var/run/azure-vnet.json",
+		},
+		{
+			Name:      "cni-conflist",
+			MountPath: "/etc/cni/net.d",
+		},
+	}
 }
