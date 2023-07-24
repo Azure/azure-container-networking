@@ -41,6 +41,7 @@ OPTIONAL PARAMETERS:
     --debug-exit-after-print-counts       skip scale test. Just print out counts of things to be created and counts of IPSets/ACLs that NPM would create
     --num-real-services                   cluster ip service for the real deployments scheduled. Each svc will point to the respective deployment(having <num-real-replicas> pods) Default is 0
     --debug-exit-after-generation         skip scale test. Exit after generating templates
+    --num-real-nginx-deployments          create real-nginx-deployments, real-deployments should be set to 0 when this is in use. Default is 0
 
 OPTIONAL PARAMETERS TO TEST DELETION:
     --sleep-after-creation=<int>          seconds to sleep after creating everything. Default is 0
@@ -78,6 +79,9 @@ while [[ $# -gt 0 ]]; do
             ;;
         --num-real-deployments=*)
             numRealDeployments="${1#*=}"
+            ;;
+        --num-real-nginx-deployments=*)
+            numRealNginxDeployments="${1#*=}"
             ;;
         --num-real-replicas=*)
             numRealReplicas="${1#*=}"
@@ -181,6 +185,7 @@ if [[ -z $KUBECTL ]]; then
     KUBECTL="kubectl"
 fi
 if [[ -z $numRealServices ]]; then numRealServices=0; fi
+if [[ -z $numRealNginxDeployments ]]; then numRealNginxDeployments=0; fi
 if [[ -z $deletePodsInterval ]]; then deletePodsInterval=60; fi
 if [[ -z $deletePodsTimes ]]; then deletePodsTimes=1; fi
 if [[ -z $deleteLabelsInterval ]]; then deleteLabelsInterval=60; fi
@@ -213,7 +218,7 @@ if [[ $numRealPods -gt 0 ]]; then
     extraIPSets=$(( $extraIPSets + 2 ))
 fi
 if [[ $numRealServices -gt 0 ]]; then
-    extraIPSets=$(( $extraIPSets + $numRealDeployments ))
+    extraIPSets=$(( $extraIPSets + $numRealDeployments + $numRealNginxDeployments))
 fi
 numIPSetsAddedByNPM=$(( 4 + 2*$numTotalPods*$numUniqueLabelsPerPod + 2*$numSharedLabelsPerPod + 2*($numKwokDeployments+$numRealDeployments)*$numUniqueLabelsPerDeployment + $extraIPSets ))
 # 3 basic members are [all-ns,kubernetes.io/metadata.name,kubernetes.io/metadata.name:scale-test]
@@ -230,6 +235,7 @@ numKwokDeployments=$numKwokDeployments
 numKwokReplicas=$numKwokReplicas
 numRealServices=$numRealServices
 numRealDeployments=$numRealDeployments
+numRealNginxDeployments=$numRealNginxDeployments
 numRealReplicas=$numRealReplicas
 numSharedLabelsPerPod=$numSharedLabelsPerPod
 numUniqueLabelsPerPod=$numUniqueLabelsPerPod
@@ -293,13 +299,21 @@ mkdir -p generated/networkpolicies/applied
 mkdir -p generated/networkpolicies/unapplied
 mkdir -p generated/kwok-nodes
 mkdir -p generated/deployments/real/
+mkdir -p generated/deployments/real-nginx/
 mkdir -p generated/deployments/kwok/
 mkdir -p generated/services/real/
 
 generateDeployments() {
-    local numDeployments=$1
+    if [[ $numRealNginxDeployments -gt 0 ]]; then
+        local numDeployments=$numRealNginxDeployments
+        local depKind="real-nginx"
+    else
+        local numDeployments=$1
+        local depKind=$3
+    fi
+
     local numReplicas=$2
-    local depKind=$3
+
 
     for i in $(seq -f "%05g" 1 $numDeployments); do
         name="$depKind-dep-$i"
@@ -338,7 +352,11 @@ generateServices() {
         outFile=generated/services/$serviceKind/$name.yaml
 
         sed "s/TEMP_NAME/$name/g" templates/$serviceKind-service.yaml > $outFile
-        sed -i "s/TEMP_DEPLOYMENT_NAME/$serviceKind-dep-$i/g" $outFile
+        if [[ $numRealNginxDeployments -gt 0 ]]; then
+            sed -i "s/TEMP_DEPLOYMENT_NAME/$serviceKind-nginx-dep-$i/g" $outFile
+        else
+            sed -i "s/TEMP_DEPLOYMENT_NAME/$serviceKind-dep-$i/g" $outFile
+        fi
     done
 }
 
@@ -440,6 +458,9 @@ if [[ $numKwokNodes -gt 0 ]]; then
 fi
 if [[ $numRealPods -gt 0 ]]; then
     $KUBECTL $KUBECONFIG_ARG apply -f generated/deployments/real/
+fi
+if [[ $numRealNginxDeployments -gt 0 ]]; then
+    $KUBECTL $KUBECONFIG_ARG apply -f generated/deployments/real-nginx/
 fi
 if [[ $numKwokPods -gt 0 ]]; then
     $KUBECTL $KUBECONFIG_ARG apply -f generated/deployments/kwok/
