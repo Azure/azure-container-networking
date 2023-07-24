@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"flag"
+	"fmt"
 	"io"
 	"log"
 	"os"
@@ -372,4 +373,9 @@ func NamespaceExists(ctx context.Context, clientset *kubernetes.Clientset, names
 		return false, errors.Wrapf(err, "error in getting namespace %s", namespace)
 	}
 	return true, nil
+}
+
+// return podLabelSelector and nodeLabelSelector
+func CreateLabelSelectors(podLabelKey, nodepoolKey string, podPrefix, nodepoolSelector *string) (string, string) {
+	return fmt.Sprintf("%s=%s", podLabelKey, *podPrefix), fmt.Sprintf("%s=%s", nodepoolKey, *nodepoolSelector)
 }

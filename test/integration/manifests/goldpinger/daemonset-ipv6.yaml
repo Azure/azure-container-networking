@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: DaemonSet
 metadata:
   name: goldpinger-host
-  namespace: default
+  namespace: linux-datapath-test
 spec:
   selector:
     matchLabels:

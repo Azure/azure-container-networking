@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: goldpinger-deploy
-  namespace: default
+  namespace: linux-datapath-test
 spec:
   replicas: 4
   selector:

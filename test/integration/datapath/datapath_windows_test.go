@@ -5,7 +5,6 @@ package connection
 import (
 	"context"
 	"flag"
-	"fmt"
 	"net"
 	"testing"
 
@@ -14,7 +13,6 @@ import (
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
 	apiv1 "k8s.io/api/core/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 )
 
 const (
@@ -26,8 +24,8 @@ const (
 
 var (
 	podPrefix        = flag.String("podName", "datapod", "Prefix for test pods")
-	podNamespace     = flag.String("namespace", "datapath-win", "Namespace for test pods")
-	nodepoolSelector = flag.String("nodepoolSelector", "npwin", "Provides nodepool as a Node-Selector for pods")
+	podNamespace     = flag.String("namespace", "windows-datapath-test", "Namespace for test pods")
+	nodepoolSelector = flag.String("nodepoolSelector", "npwin", "Provides nodepool as a windows Node-Selector for pods")
 )
 
 /*
@@ -60,8 +58,7 @@ func TestDatapathWin(t *testing.T) {
 	restConfig := k8sutils.MustGetRestConfig(t)
 
 	t.Log("Create Label Selectors")
-	podLabelSelector := fmt.Sprintf("%s=%s", podLabelKey, *podPrefix)
-	nodeLabelSelector := fmt.Sprintf("%s=%s", nodepoolKey, *nodepoolSelector)
+	podLabelSelector, nodeLabelSelector := k8sutils.CreateLabelSelectors(podLabelKey, nodepoolKey, podPrefix, nodepoolSelector)
 
 	t.Log("Get Nodes")
 	nodes, err := k8sutils.GetNodeListByLabelSelector(ctx, clientset, nodeLabelSelector)
@@ -69,15 +66,20 @@ func TestDatapathWin(t *testing.T) {
 		require.NoError(t, err, "could not get k8s node list: %v", err)
 	}
 
-	// Test Namespace
-	t.Log("Create Namespace")
-	err = k8sutils.MustCreateNamespace(ctx, clientset, *podNamespace)
+	// Create namespace if it doesn't exist
+	namespaceExists, err := k8sutils.NamespaceExists(ctx, clientset, *podNamespace)
 	if err != nil {
-		require.NoError(t, err, "failed to create pod namespace %s due to: %v", *podNamespace, err)
+		require.NoError(t, err, "failed to check if namespace %s exists due to: %v", *podNamespace, err)
 	}
-	createPodFlag := !(apierrors.IsAlreadyExists(err))
 
-	if createPodFlag {
+	if !namespaceExists {
+		// Test Namespace
+		t.Log("Create Namespace")
+		err = k8sutils.MustCreateNamespace(ctx, clientset, *podNamespace)
+		if err != nil {
+			require.NoError(t, err, "failed to create pod namespace %s due to: %v", *podNamespace, err)
+		}
+
 		t.Log("Creating Windows pods through deployment")
 		deployment, err := k8sutils.MustParseDeployment(WindowsDeployYamlPath)
 		if err != nil {
@@ -114,6 +116,7 @@ func TestDatapathWin(t *testing.T) {
 			require.NoError(t, err)
 		}
 	}
+
 	t.Log("Checking Windows test environment")
 	for _, node := range nodes.Items {
 
