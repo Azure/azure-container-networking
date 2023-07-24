@@ -4,7 +4,8 @@
 ssh connection will not be lost when running script
 It will get all existing ovs bridges and delete them and then delete CNI state file 
 and all interfaces starting with `az` that are used for supporting apipa connectivity. After that,
-it will check if Linux VM internet connectivity is still working.
+it will bring back VM to original state with eth0 as primary interface and 
+check if Linux VM internet connectivity is still working.
 
 `remove_ovs_leaked_rules.py` script is for removeing all leaked ovs rules
 It will check ovs flow dumps and filter which ports are being used. Then delete these ovs rules that
