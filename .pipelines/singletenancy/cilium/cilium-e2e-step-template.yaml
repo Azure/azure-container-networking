@@ -38,24 +38,30 @@ steps:
   #   displayName: Create test cluster
   #   condition: succeeded()
 
-  - script: |
-      make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}-$(make revision)
-      ls -lah
-      pwd
-      echo "installing kubectl"
-      curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-      sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
-      kubectl cluster-info
-      kubectl get po -owide -A
-      echo "deploy Cilium ConfigMap"
-      kubectl apply -f cilium/configmap.yaml
-      kubectl apply -f test/integration/manifests/cilium/cilium-config.yaml
-      echo "install Cilium ${CILIUM_VERSION_TAG}"
-      envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/daemonset.yaml | kubectl apply -f -
-      envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/deployment.yaml | kubectl apply -f -
-      kubectl apply -f test/integration/manifests/cilium/cilium-agent
-      kubectl apply -f test/integration/manifests/cilium/cilium-operator
-      kubectl get po -owide -A
+  - task: AzureCLI@1
+    inputs:
+      azureSubscription: $(AZURE_TEST_AGENT_SERVICE_CONNECTION)
+      scriptLocation: "inlineScript"
+      scriptType: "bash"
+      addSpnToEnvironment: true
+      inlineScript: |
+        make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}-$(make revision)
+        ls -lah
+        pwd
+        echo "installing kubectl"
+        curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+        sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+        kubectl cluster-info
+        kubectl get po -owide -A
+        echo "deploy Cilium ConfigMap"
+        kubectl apply -f cilium/configmap.yaml
+        kubectl apply -f test/integration/manifests/cilium/cilium-config.yaml
+        echo "install Cilium ${CILIUM_VERSION_TAG}"
+        envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/daemonset.yaml | kubectl apply -f -
+        envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/deployment.yaml | kubectl apply -f -
+        kubectl apply -f test/integration/manifests/cilium/cilium-agent
+        kubectl apply -f test/integration/manifests/cilium/cilium-operator
+        kubectl get po -owide -A
     name: "installCilium"
     displayName: "Install Cilium"
 
@@ -143,6 +149,9 @@ steps:
   - script: |
       echo "validate pod IP assignment and check systemd-networkd restart"
       kubectl get pod -owide -A
+      # Deleting echo-external-node deployment until version matches TODO. Upstream TODO has change. - Replace todo with vipul work/PR in upstream
+      # Saves 17 minutes
+      kubectl delete deploy -n cilium-test echo-external-node
       make test-validate-state
       echo "delete cilium connectivity test resources and re-validate state"
       kubectl delete ns cilium-test

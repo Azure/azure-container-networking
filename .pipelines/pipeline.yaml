@@ -323,7 +323,7 @@ stages:
             cilium_e2e:
               displayName: Cilium
               clusterType: swift-no-kube-proxy-up
-              clusterName: 'cilium_e2e'
+              clusterName: 'ciliume2e'
               vmSize: Standard_B2ms
               k8sVersion: ""
               windowsOsSku: ""
@@ -338,14 +338,14 @@ stages:
               displayName: AKS Swift Ubuntu
               clusterType: byocni-up
               clusterName: 'swifte2e'
-              vmSize: Standard_B2
+              vmSize: Standard_B2s
               k8sVersion: ""
               windowsOsSku: ""
             aks_ubuntu_22_linux_e2e:
               displayName: AKS Ubuntu 22
               clusterType: linux-cniv1-up
               clusterName: 'ubuntu22e2e'
-              vmSize: Standard_B2
+              vmSize: Standard_B2s
               k8sVersion: 1.25
               windowsOsSku: ""
             aks_windows_22_e2e:
