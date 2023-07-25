@@ -30,7 +30,7 @@ func MustCreateOrUpdatePod(ctx context.Context, podI typedcorev1.PodInterface, p
 }
 
 func MustCreateDaemonset(ctx context.Context, daemonsets typedappsv1.DaemonSetInterface, ds appsv1.DaemonSet) error {
-	if err := mustDeleteDaemonset(ctx, daemonsets, ds); err != nil {
+	if err := MustDeleteDaemonset(ctx, daemonsets, ds); err != nil {
 		return err
 	}
 	log.Printf("Creating Daemonset %v", ds.Name)

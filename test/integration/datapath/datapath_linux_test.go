@@ -18,7 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	appsv1 "k8s.io/api/apps/v1"
-	apiv1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -44,7 +44,7 @@ const (
 
 var (
 	podPrefix        = flag.String("podName", "goldpinger", "Prefix for test pods")
-	podNamespace     = flag.String("namespace", "linux-datapath-test", "Namespace for test pods")
+	podNamespace     = flag.String("namespace", "default", "Namespace for test pods")
 	nodepoolSelector = flag.String("nodepoolSelector", "nodepool1", "Provides nodepool as a Linux Node-Selector for pods")
 	// TODO: add flag to support dual nic scenario
 	isDualStack    = flag.Bool("isDualStack", false, "whether system supports dualstack scenario")
@@ -91,103 +91,85 @@ func setupLinuxEnvironment(t *testing.T) {
 		require.NoError(t, err, "could not get k8s node list: %v", err)
 	}
 
-	// Create namespace if it doesn't exist
-	namespaceExists, err := k8sutils.NamespaceExists(ctx, clientset, *podNamespace)
-	if err != nil {
-		require.NoError(t, err, "failed to check if namespace %s exists due to: %v", *podNamespace, err)
-	}
+	t.Log("Creating Linux pods through deployment")
 
-	if !namespaceExists {
-		// Test Namespace
-		t.Log("Create Namespace")
-		err = k8sutils.MustCreateNamespace(ctx, clientset, *podNamespace)
-		if err != nil {
-			require.NoError(t, err, "failed to create pod namespace %s due to: %v", *podNamespace, err)
-		}
+	// run goldpinger ipv4 and ipv6 test cases saperately
+	var daemonset appsv1.DaemonSet
+	var deployment appsv1.Deployment
 
-		var daemonset appsv1.DaemonSet
-		var deployment appsv1.Deployment
-		t.Log("Creating Linux pods through deployment")
-
-		// run goldpinger ipv4 and ipv6 test cases saperately
-		if *isDualStack {
-			deployment, err = k8sutils.MustParseDeployment(LinuxDeployIPv6)
-			if err != nil {
-				require.NoError(t, err)
-			}
-
-			daemonset, err = k8sutils.MustParseDaemonSet(gpDaemonsetIPv6)
-			if err != nil {
-				t.Fatal(err)
-			}
-		} else {
-			deployment, err = k8sutils.MustParseDeployment(LinuxDeployIPV4)
-			if err != nil {
-				require.NoError(t, err)
-			}
-
-			daemonset, err = k8sutils.MustParseDaemonSet(gpDaemonset)
-			if err != nil {
-				t.Fatal(err)
-			}
-		}
-
-		rbacSetupFn, err := k8sutils.MustSetUpClusterRBAC(ctx, clientset, gpClusterRolePath, gpClusterRoleBindingPath, gpServiceAccountPath)
-		if err != nil {
-			t.Log(os.Getwd())
-			t.Fatal(err)
-		}
-
-		// Fields for overwritting existing deployment yaml.
-		// Defaults from flags will not change anything
-		deployment.Spec.Selector.MatchLabels[podLabelKey] = *podPrefix
-		deployment.Spec.Template.ObjectMeta.Labels[podLabelKey] = *podPrefix
-		deployment.Spec.Template.Spec.NodeSelector[nodepoolKey] = *nodepoolSelector
-		deployment.Name = *podPrefix
-		deployment.Namespace = *podNamespace
-
-		deploymentsClient := clientset.AppsV1().Deployments(*podNamespace)
-		err = k8sutils.MustCreateDeployment(ctx, deploymentsClient, deployment)
+	if *isDualStack {
+		deployment, err = k8sutils.MustParseDeployment(LinuxDeployIPv6)
 		if err != nil {
 			require.NoError(t, err)
 		}
 
-		daemonsetClient := clientset.AppsV1().DaemonSets(daemonset.Namespace)
-		err = k8sutils.MustCreateDaemonset(ctx, daemonsetClient, daemonset)
+		daemonset, err = k8sutils.MustParseDaemonSet(gpDaemonsetIPv6)
 		if err != nil {
 			t.Fatal(err)
-		}
-
-		t.Cleanup(func() {
-			t.Log("cleaning up resources")
-			rbacSetupFn()
-
-			if err := deploymentsClient.Delete(ctx, deployment.Name, metav1.DeleteOptions{}); err != nil {
-				t.Log(err)
-			}
-
-			if err := daemonsetClient.Delete(ctx, daemonset.Name, metav1.DeleteOptions{}); err != nil {
-				t.Log(err)
-			}
-		})
-
-		t.Log("Waiting for pods to be running state")
-		err = k8sutils.WaitForPodsRunning(ctx, clientset, *podNamespace, podLabelSelector)
-		if err != nil {
-			require.NoError(t, err)
-		}
-
-		if *isDualStack {
-			t.Log("Successfully created customer dualstack Linux pods")
-		} else {
-			t.Log("Successfully created customer singlestack Linux pods")
 		}
 	} else {
-		// delete namespace and stop test cases
-		if err := k8sutils.MustDeleteNamespace(ctx, clientset, *podNamespace); err != nil {
+		deployment, err = k8sutils.MustParseDeployment(LinuxDeployIPV4)
+		if err != nil {
 			require.NoError(t, err)
 		}
-		t.Fatal("goldpinger namespace existed and it was deleted. Please re-run test cases")
+
+		daemonset, err = k8sutils.MustParseDaemonSet(gpDaemonset)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// setup common RBAC, ClusteerRole, ClusterRoleBinding, ServiceAccount
+	rbacSetupFn, err := k8sutils.MustSetUpClusterRBAC(ctx, clientset, gpClusterRolePath, gpClusterRoleBindingPath, gpServiceAccountPath)
+	if err != nil {
+		t.Log(os.Getwd())
+		t.Fatal(err)
+	}
+
+	// Fields for overwritting existing deployment yaml.
+	// Defaults from flags will not change anything
+	deployment.Spec.Selector.MatchLabels[podLabelKey] = *podPrefix
+	deployment.Spec.Template.ObjectMeta.Labels[podLabelKey] = *podPrefix
+	deployment.Spec.Template.Spec.NodeSelector[nodepoolKey] = *nodepoolSelector
+	deployment.Name = *podPrefix
+	deployment.Namespace = *podNamespace
+	daemonset.Namespace = *podNamespace
+
+	deploymentsClient := clientset.AppsV1().Deployments(*podNamespace)
+	err = k8sutils.MustCreateDeployment(ctx, deploymentsClient, deployment)
+	if err != nil {
+		require.NoError(t, err)
+	}
+
+	daemonsetClient := clientset.AppsV1().DaemonSets(daemonset.Namespace)
+	err = k8sutils.MustCreateDaemonset(ctx, daemonsetClient, daemonset)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Cleanup(func() {
+		t.Log("cleaning up resources")
+		rbacSetupFn()
+
+		if err := deploymentsClient.Delete(ctx, deployment.Name, metav1.DeleteOptions{}); err != nil {
+			t.Log(err)
+		}
+
+		if err := daemonsetClient.Delete(ctx, daemonset.Name, metav1.DeleteOptions{}); err != nil {
+			t.Log(err)
+		}
+	})
+
+	t.Log("Waiting for pods to be running state")
+	err = k8sutils.WaitForPodsRunning(ctx, clientset, *podNamespace, podLabelSelector)
+	if err != nil {
+		require.NoError(t, err)
+	}
+
+	if *isDualStack {
+		t.Log("Successfully created customer dualstack Linux pods")
+	} else {
+		t.Log("Successfully created customer singlestack Linux pods")
 	}
 
 	t.Log("Checking Linux test environment")
@@ -200,8 +182,16 @@ func setupLinuxEnvironment(t *testing.T) {
 			t.Logf("%s", node.Name)
 			require.NoError(t, errors.New("Less than 2 pods on node"))
 		}
-
 	}
+
+	errFlag := apierrors.IsAlreadyExists(err)
+	if errFlag {
+		if err := k8sutils.MustDeleteDaemonset(ctx, daemonsetClient, daemonset); err != nil {
+			require.NoError(t, err)
+		}
+		t.Fatal("delete all goldpinger hosts and pods under default namespace if there is any error")
+	}
+
 	t.Log("Linux test environment ready")
 }
 
@@ -286,8 +276,9 @@ func TestDatapathLinux(t *testing.T) {
 				}
 				return nil
 			}
+
 			if err := defaultRetrier.Do(portForwardCtx, portForwardFn); err != nil {
-				t.Fatalf("could not start port forward within %ds: %v", defaultTimeoutSeconds, err)
+				t.Fatalf("could not start port forward within %d: %v", defaultTimeoutSeconds, err)
 			}
 			defer pf.Stop()
 
@@ -313,9 +304,4 @@ func TestDatapathLinux(t *testing.T) {
 			t.Log("all pings successful!")
 		})
 	})
-
-	// delete namespace after test is done
-	if err := k8sutils.MustDeleteNamespace(ctx, clientset, *podNamespace); err != nil {
-		require.NoError(t, err)
-	}
 }
