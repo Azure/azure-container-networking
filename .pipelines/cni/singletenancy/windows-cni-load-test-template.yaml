@@ -17,6 +17,8 @@ stages:
     displayName: "Windows AKS Cluster ${{ parameters.cni }}"
     jobs:
       - job: create_aks_cluster_with_${{ parameters.name }}
+        pool:
+          name: "$(BUILD_POOL_NAME_DEFAULT)"
         steps:
           - template: ../load-test-templates/create-cluster-template.yaml
             parameters:
@@ -36,10 +38,10 @@ stages:
           name: "$(BUILD_POOL_NAME_LINUX_AMD64)"
         strategy:
           matrix:
-            windows_cniv1_amd64:
-              os: windows
-              name: cni-plugin
+            cni_dropgz_windows2022_amd64:
               arch: amd64
+              name: cni-dropgz-test
+              os: windows
               os_version: ltsc2022
         steps:
           - template: ../../containers/container-template.yaml
@@ -49,17 +51,17 @@ stages:
               os: $(os)
               os_version: $(os_version)
   - stage:  update_cni
-    pool:
-      name: $(BUILD_POOL_NAME_DEFAULT)
     dependsOn:
       - createAKSclusterWindows
       - build_images
     displayName: "Update CNI on Cluster"
     jobs:
       - job: deploy_pods
+        pool:
+          name: "$(BUILD_POOL_NAME_DEFAULT)"
         strategy:
           matrix:
-            windows_cniv1_amd64:
+            cni_dropgz_windows2022_amd64:
               os: windows
               arch: amd64
               os_version: ltsc2022
@@ -72,12 +74,12 @@ stages:
               addSpnToEnvironment: true
               inlineScript: |
                 set -ex
-                export CNI_IMAGE=$(make cni-plugin-image-name-and-tag OS=$(os) ARCH=$(arch) OS_VERSION=$(os_version))
-                az extension add --name aks-preview
                 clusterName=${{ parameters.clusterName }}-$(make revision)
                 make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${clusterName}
                 make -C ./hack/aks azcfg AZCLI=az REGION=$(LOCATION)
-                envsubst < ./hack/manifests/windows-update.yaml | kubectl apply -f -
+                dropgz_version=$(make cni-dropgz-version)
+                export DROP_GZ_URL=$( make cni-dropgz-test-image-name-and-tag OS=$(os) ARCH=$(arch) OS_VERSION=$(os_version) CNI_DROPGZ_VERSION=${dropgz_version})
+                envsubst < ./test/integration/manifests/cni/cni-installer-v1-windows.yaml | kubectl apply -f -
             name: "UploadCNI"
             displayName: "Upload CNI"
           - script: |
@@ -110,6 +112,8 @@ stages:
     displayName: "Pod Deployment"
     jobs:
       - job: deploy_pods
+        pool:
+          name: "$(BUILD_POOL_NAME_DEFAULT)"
         steps:
           - template: ../load-test-templates/pod-deployment-template.yaml
             parameters:
@@ -125,6 +129,8 @@ stages:
     displayName: "Validate State"
     jobs:
       - job: validate_state
+        pool:
+          name: "$(BUILD_POOL_NAME_DEFAULT)"
         steps:
           - template: ../load-test-templates/validate-state-template.yaml
             parameters:
@@ -139,6 +145,8 @@ stages:
       - validate_state_windows
     jobs:
       - job: delete_resources
+        pool:
+          name: "$(BUILD_POOL_NAME_DEFAULT)"
         steps:
           - task: AzureCLI@1
             inputs:

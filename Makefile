@@ -343,7 +343,7 @@ cni-dropgz-image-name-and-tag: # util target to print the CNI dropgz image name 
 cni-dropgz-image: ## build cni-dropgz container image.
 	$(MAKE) container \
 		DOCKERFILE=dropgz/build/$(OS).Dockerfile \
-		EXTRA_BUILD_ARGS='--build-arg OS=$(OS) --build-arg ARCH=$(ARCH)' \
+		EXTRA_BUILD_ARGS='--build-arg OS=$(OS) --build-arg ARCH=$(ARCH) --build-arg OS_VERSION=$(OS_VERSION)' \
 		IMAGE=$(CNI_DROPGZ_IMAGE) \
 		TAG=$(CNI_DROPGZ_PLATFORM_TAG)
 
@@ -367,8 +367,8 @@ cni-dropgz-test-image-name-and-tag: # util target to print the CNI dropgz test i
 
 cni-dropgz-test-image: ## build cni-dropgz-test container image.
 	$(MAKE) container \
-		DOCKERFILE=dropgz/build/cniTest.Dockerfile \
-		EXTRA_BUILD_ARGS='--build-arg OS=$(OS)' \
+		DOCKERFILE=dropgz/build/cniTest_$(OS).Dockerfile \
+		EXTRA_BUILD_ARGS='--build-arg OS=$(OS)  --build-arg ARCH=$(ARCH) --build-arg OS_VERSION=$(OS_VERSION)' \
 		IMAGE=$(CNI_DROPGZ_TEST_IMAGE) \
 		TAG=$(CNI_DROPGZ_TEST_PLATFORM_TAG)
 
