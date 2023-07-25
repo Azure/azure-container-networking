@@ -80,9 +80,6 @@ while [[ $# -gt 0 ]]; do
         --num-real-deployments=*)
             numRealDeployments="${1#*=}"
             ;;
-        --num-real-nginx-deployments=*)
-            numRealNginxDeployments="${1#*=}"
-            ;;
         --real-pod-type=*)
             realPodType="${1#*=}"
             ;;
@@ -191,7 +188,6 @@ if [[ -z $realPodType ]]; then
     realPodType="agnhost"
 fi
 if [[ -z $numRealServices ]]; then numRealServices=0; fi
-if [[ -z $numRealNginxDeployments ]]; then numRealNginxDeployments=0; fi
 if [[ -z $deletePodsInterval ]]; then deletePodsInterval=60; fi
 if [[ -z $deletePodsTimes ]]; then deletePodsTimes=1; fi
 if [[ -z $deleteLabelsInterval ]]; then deleteLabelsInterval=60; fi
@@ -224,7 +220,7 @@ if [[ $numRealPods -gt 0 ]]; then
     extraIPSets=$(( $extraIPSets + 2 ))
 fi
 if [[ $numRealServices -gt 0 ]]; then
-    extraIPSets=$(( $extraIPSets + $numRealDeployments + $numRealNginxDeployments))
+    extraIPSets=$(( $extraIPSets + $numRealDeployments))
 fi
 numIPSetsAddedByNPM=$(( 4 + 2*$numTotalPods*$numUniqueLabelsPerPod + 2*$numSharedLabelsPerPod + 2*($numKwokDeployments+$numRealDeployments)*$numUniqueLabelsPerDeployment + $extraIPSets ))
 # 3 basic members are [all-ns,kubernetes.io/metadata.name,kubernetes.io/metadata.name:scale-test]
@@ -241,7 +237,6 @@ numKwokDeployments=$numKwokDeployments
 numKwokReplicas=$numKwokReplicas
 numRealServices=$numRealServices
 numRealDeployments=$numRealDeployments
-numRealNginxDeployments=$numRealNginxDeployments
 numRealReplicas=$numRealReplicas
 numSharedLabelsPerPod=$numSharedLabelsPerPod
 numUniqueLabelsPerPod=$numUniqueLabelsPerPod
