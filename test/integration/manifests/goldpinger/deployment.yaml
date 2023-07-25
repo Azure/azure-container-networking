@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: goldpinger-pod
-  namespace: linux-datapath-test
+  namespace: default
 spec:
   replicas: 1
   selector:

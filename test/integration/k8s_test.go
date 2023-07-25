@@ -188,7 +188,7 @@ func TestPodScaling(t *testing.T) {
 			defer cancel()
 
 			pfOpts := PortForwardingOpts{
-				Namespace:     "linux-datapath-test",
+				Namespace:     "default",
 				LabelSelector: "type=goldpinger-pod",
 				LocalPort:     9090,
 				DestPort:      8080,
