@@ -3,15 +3,31 @@ parameters:
   displayName: ""
   pipelineBuildImage: "$(BUILD_IMAGE)"
   testDropgz: ""
+  clusterType: ""
   clusterName: ""
+  vmSize: ""
+  k8sVersion: ""
+  windowsOsSku: ""
+  dependsOn: ""
 
 stages:
+  - template: ../aks/e2e-cluster-template.yaml
+    parameters:
+      name: ${{ parameters.name }}
+      displayName: ${{ parameters.displayName }}
+      clusterType: ${{ parameters.clusterType }}
+      clusterName: ${{ parameters.clusterName }}
+      vmSize: ${{ parameters.vmSize }}
+      k8sVersion: ${{ parameters.k8sVersion }}
+      windowsOsSku: ${{ parameters.windowsOsSku }}
+      dependsOn: ${{ parameters.dependsOn }}
+
   - stage: ${{ parameters.name }}
     displayName: E2E - ${{ parameters.displayName }}
     dependsOn:
     - setup
     - publish
-    - cluster
+    - ${{ parameters.clusterName }}
     jobs:
       - job: ${{ parameters.name }}
         displayName: Cilium Overlay Test Suite - (${{ parameters.name }})

@@ -46,6 +46,7 @@ steps:
       scriptType: "bash"
       addSpnToEnvironment: true
       inlineScript: |
+        make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}-$(make revision)
         echo "install kubetest2 and gsutils"
         go get github.com/onsi/ginkgo/ginkgo
         go get github.com/onsi/gomega/...
@@ -60,7 +61,6 @@ steps:
     displayName: "Set up Conformance Tests"
 
   - script: |
-      make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}-$(make revision)
       ls -lah
       pwd
       echo "installing kubectl"
