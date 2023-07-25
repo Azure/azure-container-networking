@@ -22,22 +22,6 @@ steps:
     name: "GoEnv"
     displayName: "Set up the Go environment"
 
-  # - task: AzureCLI@1
-  #   inputs:
-  #     azureSubscription: $(AZURE_TEST_AGENT_SERVICE_CONNECTION)
-  #     scriptLocation: "inlineScript"
-  #     scriptType: "bash"
-  #     addSpnToEnvironment: true
-  #     inlineScript: |
-  #       set -e
-  #       mkdir -p ~/.kube/
-  #       echo "Create AKS cluster"
-  #       make -C ./hack/aks azcfg AZCLI=az REGION=$(REGION_AKS_CLUSTER_TEST)
-  #       make -C ./hack/aks swift-no-kube-proxy-up AZCLI=az REGION=$(REGION_AKS_CLUSTER_TEST) SUB=$(SUB_AZURE_NETWORK_AGENT_TEST) CLUSTER=${{ parameters.clusterName }}-$(make revision) VM_SIZE=Standard_B2ms
-  #       echo "Cluster successfully created"
-  #   displayName: Create test cluster
-  #   condition: succeeded()
-
   - task: AzureCLI@1
     inputs:
       azureSubscription: $(AZURE_TEST_AGENT_SERVICE_CONNECTION)
