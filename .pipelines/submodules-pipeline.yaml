@@ -250,7 +250,12 @@ stages:
       displayName: Cilium
       pipelineBuildImage: "$(BUILD_IMAGE)"
       testDropgz: true
-      clusterName: "submodules-ciliume2e"
+      clusterType: swift-no-kube-proxy-up
+      clusterName: "submodciliume2e"
+      vmSize: Standard_B2ms
+      k8sVersion: ""
+      windowsOsSku: ""
+      dependsOn: 'containerize'
 
   - template: singletenancy/cilium-overlay/cilium-overlay-e2e-job-template.yaml
     parameters:
@@ -258,7 +263,12 @@ stages:
       displayName: Cilium on AKS Overlay
       pipelineBuildImage: "$(BUILD_IMAGE)"
       testDropgz: true
-      clusterName: "submodules-overlaye2e"
+      clusterType: overlay-no-kube-proxy-up
+      clusterName: "submodsoverlaye2e"
+      vmSize: Standard_B2ms
+      k8sVersion: ""
+      windowsOsSku: ""
+      dependsOn: 'containerize'
 
   - template: singletenancy/aks-swift/e2e-job-template.yaml
     parameters:
@@ -266,14 +276,20 @@ stages:
       displayName: AKS Swift
       pipelineBuildImage: "$(BUILD_IMAGE)"
       testDropgz: true
+      clusterType: byocni-up
       clusterName: "submodswift"
       osSku: "Ubuntu"
+      vmSize: Standard_B2ms
+      k8sVersion: ""
+      windowsOsSku: ""
+      dependsOn: 'containerize'
 
   - stage: cleanup
     displayName: Cleanup
     dependsOn:
       - cilium_e2e
       - aks_swift_e2e
+      - cilium_overlay_e2e
     jobs:
       - job: delete_remote_artifacts
         displayName: Delete remote artifacts
