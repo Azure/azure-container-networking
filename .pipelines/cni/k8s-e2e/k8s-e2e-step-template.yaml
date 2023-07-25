@@ -25,6 +25,7 @@ steps:
       # Taint Linux nodes so that windows tests do not run on them
       if ${{ lower(eq(parameters.os, 'windows')) }}
       then
+        kubectl rollout status -n kube-system deployment/konnectivity-agent --timeout=3m
         kubectl taint nodes -l kubernetes.azure.com/mode=system node-role.kubernetes.io/control-plane:NoSchedule
       fi
 
