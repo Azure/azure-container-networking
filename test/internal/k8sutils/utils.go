@@ -375,7 +375,7 @@ func NamespaceExists(ctx context.Context, clientset *kubernetes.Clientset, names
 	return true, nil
 }
 
-// return podLabelSelector and nodeLabelSelector
-func CreateLabelSelectors(podLabelKey, nodepoolKey string, podPrefix, nodepoolSelector *string) (string, string) {
-	return fmt.Sprintf("%s=%s", podLabelKey, *podPrefix), fmt.Sprintf("%s=%s", nodepoolKey, *nodepoolSelector)
+// return a label selector
+func CreateLabelSelectors(key string, selector *string) string {
+	return fmt.Sprintf("%s=%s", key, *selector)
 }

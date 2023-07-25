@@ -58,6 +58,7 @@ var (
 This test assumes that you have the current credentials loaded in your default kubeconfig for a
 k8s cluster with a Linux nodepool consisting of at least 2 Linux nodes.
 *** The expected nodepool name is nodepool1, if the nodepool has a different name ensure that you change nodepoolSelector with:
+		-nodepoolSelector="yournodepoolname"
 
 To run the test use one of the following commands:
 go test -count=1 test/integration/datapath/datapath_linux_test.go -timeout 3m -tags connection -run ^TestDatapathLinux$ -tags=connection,integration
@@ -81,7 +82,8 @@ func setupLinuxEnvironment(t *testing.T) {
 	}
 
 	t.Log("Create Label Selectors")
-	podLabelSelector, nodeLabelSelector := k8sutils.CreateLabelSelectors(podLabelKey, nodepoolKey, podPrefix, nodepoolSelector)
+	podLabelSelector := k8sutils.CreateLabelSelectors(podLabelKey, podPrefix)
+	nodeLabelSelector := k8sutils.CreateLabelSelectors(nodepoolKey, nodepoolSelector)
 
 	t.Log("Get Nodes")
 	nodes, err := k8sutils.GetNodeListByLabelSelector(ctx, clientset, nodeLabelSelector)
@@ -130,7 +132,7 @@ func setupLinuxEnvironment(t *testing.T) {
 			}
 		}
 
-		rbacCleanUpFn, err := k8sutils.MustSetUpClusterRBAC(ctx, clientset, gpClusterRolePath, gpClusterRoleBindingPath, gpServiceAccountPath)
+		rbacSetupFn, err := k8sutils.MustSetUpClusterRBAC(ctx, clientset, gpClusterRolePath, gpClusterRoleBindingPath, gpServiceAccountPath)
 		if err != nil {
 			t.Log(os.Getwd())
 			t.Fatal(err)
@@ -158,7 +160,7 @@ func setupLinuxEnvironment(t *testing.T) {
 
 		t.Cleanup(func() {
 			t.Log("cleaning up resources")
-			rbacCleanUpFn()
+			rbacSetupFn()
 
 			if err := deploymentsClient.Delete(ctx, deployment.Name, metav1.DeleteOptions{}); err != nil {
 				t.Log(err)
@@ -181,10 +183,11 @@ func setupLinuxEnvironment(t *testing.T) {
 			t.Log("Successfully created customer singlestack Linux pods")
 		}
 	} else {
-		// delete namespace
+		// delete namespace and stop test cases
 		if err := k8sutils.MustDeleteNamespace(ctx, clientset, *podNamespace); err != nil {
 			require.NoError(t, err)
 		}
+		return
 	}
 
 	t.Log("Checking Linux test environment")
@@ -212,7 +215,7 @@ func TestDatapathLinux(t *testing.T) {
 	clientset, _ := k8sutils.MustGetClientset()
 
 	setupLinuxEnvironment(t)
-	podLabelSelector, _ := k8sutils.CreateLabelSelectors(podLabelKey, nodepoolKey, podPrefix, nodepoolSelector)
+	podLabelSelector := k8sutils.CreateLabelSelectors(podLabelKey, podPrefix)
 
 	t.Run("Linux ping tests", func(t *testing.T) {
 		// Check goldpinger health

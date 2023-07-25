@@ -58,7 +58,8 @@ func TestDatapathWin(t *testing.T) {
 	restConfig := k8sutils.MustGetRestConfig(t)
 
 	t.Log("Create Label Selectors")
-	podLabelSelector, nodeLabelSelector := k8sutils.CreateLabelSelectors(podLabelKey, nodepoolKey, podPrefix, nodepoolSelector)
+	podLabelSelector := k8sutils.CreateLabelSelectors(podLabelKey, podPrefix)
+	nodeLabelSelector := k8sutils.CreateLabelSelectors(nodepoolKey, nodepoolSelector)
 
 	t.Log("Get Nodes")
 	nodes, err := k8sutils.GetNodeListByLabelSelector(ctx, clientset, nodeLabelSelector)
