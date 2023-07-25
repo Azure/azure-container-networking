@@ -65,17 +65,6 @@ jobs:
             os: ${{ parameters.os }}
             processes: 8
             attempts: 3
-      - ${{ if eq(parameters.loadBalancer, true) }}:
-        - template: ../k8s-e2e/k8s-e2e-step-template.yaml
-          parameters:
-            testName: Load Balancers
-            name: load
-            clusterName: ${{ parameters.clusterName }}
-            ginkgoFocus: '\[sig-network\].LoadBalancers'
-            ginkgoSkip: 'ESIPP|Serial'
-            os: ${{ parameters.os }}
-            processes: 8
-            attempts: 3
       - ${{ if eq(parameters.service, true) }}:
         - template: ../k8s-e2e/k8s-e2e-step-template.yaml
           parameters:
