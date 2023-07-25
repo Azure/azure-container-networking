@@ -133,8 +133,7 @@ func (nw *network) newEndpoint(
 	}
 
 	nw.Endpoints[epInfo.Id] = ep
-	log.Printf("[net] Created endpoint %+v.", ep)
-
+	log.Printf("[net] Created endpoint %+v. Num of endpoints:%d", ep, len(nw.Endpoints))
 	return ep, nil
 }
 
@@ -165,9 +164,7 @@ func (nw *network) deleteEndpoint(nl netlink.NetlinkInterface, plc platform.Exec
 
 	// Remove the endpoint object.
 	delete(nw.Endpoints, endpointID)
-
-	log.Printf("[net] Deleted endpoint %+v.", ep)
-
+	log.Printf("[net] Deleted endpoint %+v. Num of endpoints:%d", ep, len(nw.Endpoints))
 	return nil
 }
 

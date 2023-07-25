@@ -77,6 +77,25 @@ func (c *Client) JoinNetwork(ctx context.Context, jnr JoinNetworkRequest) error 
 	return err // nolint:wrapcheck // wrapping this just introduces noise
 }
 
+// DeleteNetwork deletes a customer network and it's associated subnets.
+func (c *Client) DeleteNetwork(ctx context.Context, dnr DeleteNetworkRequest) error {
+	req, err := c.buildRequest(ctx, dnr)
+	if err != nil {
+		return errors.Wrap(err, "building request")
+	}
+
+	resp, err := c.httpClient.Do(req) // nolint:govet // the shadow is intentional
+	if err != nil {
+		return errors.Wrap(err, "submitting request")
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return die(resp.StatusCode, resp.Header, resp.Body)
+	}
+	return nil
+}
+
 // GetNetworkConfiguration retrieves the configuration of a customer's virtual
 // network. Only subnets which have been delegated will be returned.
 func (c *Client) GetNetworkConfiguration(ctx context.Context, gncr GetNetworkConfigRequest) (VirtualNetwork, error) {

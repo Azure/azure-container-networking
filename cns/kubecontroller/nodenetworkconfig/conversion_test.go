@@ -117,66 +117,6 @@ var validVNETBlockNC = v1alpha.NetworkContainer{
 	Version:            version,
 }
 
-var validVNETBlockRequest = &cns.CreateNetworkContainerRequest{
-	Version: strconv.FormatInt(version, 10),
-	IPConfiguration: cns.IPConfiguration{
-		GatewayIPAddress: vnetBlockDefaultGateway,
-		IPSubnet: cns.IPSubnet{
-			PrefixLength: uint8(vnetBlockSubnetPrefixLen),
-			IPAddress:    vnetBlockPrimaryIP,
-		},
-	},
-	NetworkContainerid:   ncID,
-	NetworkContainerType: cns.Docker,
-	// Ignore first IP in first CIDR Block, i.e. 10.224.0.4
-	SecondaryIPConfigs: map[string]cns.SecondaryIPConfig{
-		"10.224.0.5": {
-			IPAddress: "10.224.0.5",
-			NCVersion: version,
-		},
-		"10.224.0.6": {
-			IPAddress: "10.224.0.6",
-			NCVersion: version,
-		},
-		"10.224.0.7": {
-			IPAddress: "10.224.0.7",
-			NCVersion: version,
-		},
-		"10.224.0.8": {
-			IPAddress: "10.224.0.8",
-			NCVersion: version,
-		},
-		"10.224.0.9": {
-			IPAddress: "10.224.0.9",
-			NCVersion: version,
-		},
-		"10.224.0.10": {
-			IPAddress: "10.224.0.10",
-			NCVersion: version,
-		},
-		"10.224.0.11": {
-			IPAddress: "10.224.0.11",
-			NCVersion: version,
-		},
-		"10.224.0.12": {
-			IPAddress: "10.224.0.12",
-			NCVersion: version,
-		},
-		"10.224.0.13": {
-			IPAddress: "10.224.0.13",
-			NCVersion: version,
-		},
-		"10.224.0.14": {
-			IPAddress: "10.224.0.14",
-			NCVersion: version,
-		},
-		"10.224.0.15": {
-			IPAddress: "10.224.0.15",
-			NCVersion: version,
-		},
-	},
-}
-
 func TestCreateNCRequestFromDynamicNC(t *testing.T) {
 	tests := []struct {
 		name    string

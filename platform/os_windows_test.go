@@ -2,11 +2,13 @@ package platform
 
 import (
 	"errors"
+	"os/exec"
 	"testing"
 
 	"github.com/Azure/azure-container-networking/platform/windows/adapter/mocks"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 var errTestFailure = errors.New("test failure")
@@ -80,4 +82,19 @@ func TestUpdatePriorityVLANTagIfRequiredIfCurrentValNotEqualDesiredValAndSetRetu
 	mockNetworkAdapter.EXPECT().SetPriorityVLANTag(5).Return(errTestFailure)
 	result := updatePriorityVLANTagIfRequired(mockNetworkAdapter, 5)
 	assert.EqualError(t, result, "error while setting Priority VLAN Tag value: test failure")
+}
+
+func TestExecuteCommand(t *testing.T) {
+	out, err := NewExecClient().ExecuteCommand("dir")
+	require.NoError(t, err)
+	require.NotEmpty(t, out)
+}
+
+func TestExecuteCommandError(t *testing.T) {
+	_, err := NewExecClient().ExecuteCommand("dontaddtopath")
+	require.Error(t, err)
+
+	var xErr *exec.ExitError
+	assert.ErrorAs(t, err, &xErr)
+	assert.Equal(t, 1, xErr.ExitCode())
 }

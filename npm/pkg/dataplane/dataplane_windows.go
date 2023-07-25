@@ -227,7 +227,7 @@ func (dp *DataPlane) updatePod(pod *updateNPMPod) error {
 			Scenarios:
 			1. If a policy is added to the ipset's selector after getting the selector (meaning dp.AddPolicy() was called),
 			   we will miss adding the policy here, but will add the policy to all endpoints in that other thread, which has
-			   to wait on the endpointCache lock when calling getEndpointsToApplyPolicy().
+			   to wait on the endpointCache lock when calling getEndpointsToApplyPolicies().
 
 			2. We may add the policy here and in the dp.AddPolicy() thread if the policy is added to the ipset's selector before
 			   that other thread calls policyMgr.AddPolicy(), which is ok.
@@ -292,8 +292,13 @@ func (dp *DataPlane) getSelectorIPSets(policy *policies.NPMNetworkPolicy) map[st
 	return selectorIpSets
 }
 
-func (dp *DataPlane) getEndpointsToApplyPolicy(policy *policies.NPMNetworkPolicy) (map[string]string, error) {
-	selectorIPSets := dp.getSelectorIPSets(policy)
+func (dp *DataPlane) getEndpointsToApplyPolicies(netPols []*policies.NPMNetworkPolicy) (map[string]string, error) {
+	if len(netPols) != 1 {
+		return nil, ErrIncorrectNumberOfNetPols
+	}
+
+	netPol := netPols[0]
+	selectorIPSets := dp.getSelectorIPSets(netPol)
 	netpolSelectorIPs, err := dp.ipsetMgr.GetIPsFromSelectorIPSets(selectorIPSets)
 	if err != nil {
 		return nil, err
@@ -318,7 +323,7 @@ func (dp *DataPlane) getEndpointsToApplyPolicy(policy *policies.NPMNetworkPolicy
 		}
 
 		endpointList[ip] = endpoint.id
-		endpoint.netPolReference[policy.PolicyKey] = struct{}{}
+		endpoint.netPolReference[netPol.PolicyKey] = struct{}{}
 	}
 	return endpointList, nil
 }

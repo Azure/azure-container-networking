@@ -15,11 +15,10 @@ jobs:
         # run cyclonus tests in parallel for NPM with the given ConfigMaps
         profile:
           [
-            v1-default.yaml,
-            v1-place-azure-chain-first.yaml,
-            v2-default.yaml,
             v2-apply-on-need.yaml,
-            v2-place-azure-after-kube-services.yaml,
+            v2-background.yaml,
+            v2-foreground.yaml,
+            v2-place-first.yaml,
           ]
     steps:
       - name: Checkout

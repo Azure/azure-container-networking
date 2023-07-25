@@ -267,7 +267,7 @@ stages:
               echo $TAG
               echo $CURRENT_VERSION
               echo "Checking if branch up to date with master"
-  
+
   - stage: publish
     displayName: Publish Multiarch Manifests
     dependsOn:
@@ -343,34 +343,15 @@ stages:
 
   - template: singletenancy/aks/e2e-job-template.yaml
     parameters:
-      name: "aks_ubuntu_18_04_linux_e2e"
-      displayName: AKS Ubuntu 18.04
-      arch: 'amd64'
-      os: 'linux'
-      clusterType: linux-cniv1-up
-      clusterName: 'ubuntu18e2e'
-      k8sVersion: 1.24.9
-
-  - template: singletenancy/aks/e2e-job-template.yaml
-    parameters:
       name: "aks_ubuntu_22_linux_e2e"
       displayName: AKS Ubuntu 22
       arch: 'amd64'
       os: 'linux'
       clusterType: linux-cniv1-up
       clusterName: 'ubuntu22e2e'
+      vmSize: Standard_B2s
       k8sVersion: 1.25
-
-  - template: singletenancy/aks/e2e-job-template.yaml
-    parameters:
-      name: "aks_windows_19_03_e2e"
-      displayName: AKS Windows 1903
-      arch: amd64
-      os: windows
-      clusterType: windows-cniv1-up
-      clusterName: 'win19e2e'
-      windowsOsSku: 'Windows2019'
-      os_version: 'ltsc2019'
+      scaleup: 100
 
   - template: singletenancy/aks/e2e-job-template.yaml
     parameters:
@@ -380,28 +361,10 @@ stages:
       os: windows
       clusterType: windows-cniv1-up
       clusterName: 'win22e2e'
+      vmSize: Standard_B2ms
       windowsOsSku: 'Windows2022'
       os_version: 'ltsc2022'
-
-  - template: singletenancy/aks-engine/e2e-job-template.yaml
-    parameters:
-      name: "ubuntu_18_04_linux_e2e"
-      displayName: Ubuntu 18.04
-      pipelineBuildImage: "$(BUILD_IMAGE)"
-      clusterDefinition: "cniLinux1804.json"
-      clusterDefinitionCniTypeKey: "azureCNIURLLinux"
-      clusterDefinitionCniBuildOS: "linux"
-      clusterDefinitionCniBuildExt: ".tgz"
-
-  - template: singletenancy/aks-engine/e2e-job-template.yaml
-    parameters:
-      name: "windows_19_03_e2e"
-      displayName: "Windows 1903"
-      pipelineBuildImage: "$(BUILD_IMAGE)"
-      clusterDefinition: "cniWindows1903.json"
-      clusterDefinitionCniTypeKey: "azureCNIURLWindows"
-      clusterDefinitionCniBuildOS: "windows"
-      clusterDefinitionCniBuildExt: ".zip"
+      scaleup: 100
 
   - stage: validate2
     displayName: Validate Tags
@@ -422,18 +385,15 @@ stages:
               echo $TAG
               echo $CURRENT_VERSION
               echo "Checking if branch is up to date with master"
-  
+
   - stage: cleanup
     displayName: Cleanup
     dependsOn:
       - "aks_swift_e2e"
       - "cilium_e2e"
-      - "aks_ubuntu_18_04_linux_e2e"
-      - "aks_windows_19_03_e2e"
+      - "cilium_overlay_cilium_e2e"
       - "aks_ubuntu_22_linux_e2e"
       - "aks_windows_22_e2e"
-      - "ubuntu_18_04_linux_e2e"
-      - "windows_19_03_e2e"
     jobs:
       - job: delete_remote_artifacts
         displayName: Delete remote artifacts

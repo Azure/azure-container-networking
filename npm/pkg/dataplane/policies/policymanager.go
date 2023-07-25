@@ -126,17 +126,26 @@ func (pMgr *PolicyManager) GetPolicy(policyKey string) (*NPMNetworkPolicy, bool)
 	return policy, ok
 }
 
-func (pMgr *PolicyManager) AddPolicy(policy *NPMNetworkPolicy, endpointList map[string]string) error {
-	if len(policy.ACLs) == 0 {
-		klog.Infof("[DataPlane] No ACLs in policy %s to apply", policy.PolicyKey)
-		return nil
+func (pMgr *PolicyManager) AddPolicies(policies []*NPMNetworkPolicy, endpointList map[string]string) error {
+	nonEmptyPolicies := make([]*NPMNetworkPolicy, 0, len(policies))
+	for _, policy := range policies {
+		if len(policy.ACLs) == 0 {
+			klog.Infof("[DataPlane] No ACLs in policy %s to apply", policy.PolicyKey)
+			continue
+		}
+
+		nonEmptyPolicies = append(nonEmptyPolicies, policy)
+
+		NormalizePolicy(policy)
+		if err := ValidatePolicy(policy); err != nil {
+			msg := fmt.Sprintf("failed to validate policy: %s", err.Error())
+			metrics.SendErrorLogAndMetric(util.IptmID, "error: %s", msg)
+			return npmerrors.Errorf(npmerrors.AddPolicy, false, msg)
+		}
 	}
 
-	NormalizePolicy(policy)
-	if err := ValidatePolicy(policy); err != nil {
-		msg := fmt.Sprintf("failed to validate policy: %s", err.Error())
-		metrics.SendErrorLogAndMetric(util.IptmID, "error: %s", msg)
-		return npmerrors.Errorf(npmerrors.AddPolicy, false, msg)
+	if len(nonEmptyPolicies) == 0 {
+		return nil
 	}
 
 	pMgr.policyMap.Lock()
@@ -144,7 +153,7 @@ func (pMgr *PolicyManager) AddPolicy(policy *NPMNetworkPolicy, endpointList map[
 
 	// Call actual dataplane function to apply changes
 	timer := metrics.StartNewTimer()
-	err := pMgr.addPolicy(policy, endpointList)
+	err := pMgr.addPolicies(nonEmptyPolicies, endpointList)
 	metrics.RecordACLRuleExecTime(timer) // record execution time regardless of failure
 	if err != nil {
 		// NOTE: in Linux, Prometheus metrics may be off at this point since some ACL rules may have been applied successfully
@@ -154,14 +163,17 @@ func (pMgr *PolicyManager) AddPolicy(policy *NPMNetworkPolicy, endpointList map[
 		return npmerrors.Errorf(npmerrors.AddPolicy, false, msg)
 	}
 
-	// update Prometheus metrics on success
-	if util.IsWindowsDP() {
-		metrics.IncNumACLRulesBy((1 + policy.numACLRulesProducedInKernel()) * len(endpointList))
-	} else {
-		metrics.IncNumACLRulesBy(policy.numACLRulesProducedInKernel())
-	}
+	for _, policy := range nonEmptyPolicies {
+		// update Prometheus metrics on success
+		if util.IsWindowsDP() {
+			metrics.IncNumACLRulesBy((1 + policy.numACLRulesProducedInKernel()) * len(endpointList))
+		} else {
+			metrics.IncNumACLRulesBy(policy.numACLRulesProducedInKernel())
+		}
 
-	pMgr.policyMap.cache[policy.PolicyKey] = policy
+		// add policy to cache
+		pMgr.policyMap.cache[policy.PolicyKey] = policy
+	}
 	return nil
 }
 

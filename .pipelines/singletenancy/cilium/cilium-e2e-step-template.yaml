@@ -29,6 +29,7 @@ steps:
       scriptType: "bash"
       addSpnToEnvironment: true
       inlineScript: |
+        set -e
         mkdir -p ~/.kube/
         echo "Create AKS cluster"
         make -C ./hack/aks azcfg AZCLI=az REGION=$(REGION_AKS_CLUSTER_TEST)
@@ -112,15 +113,15 @@ steps:
       pathtoPublish: "$(Build.ArtifactStagingDirectory)/test-output"
     condition: always()
 
-  - script: |              
+  - script: |
       kubectl get pods -A
       echo "Waiting < 2 minutes for cilium to be ready"
       # Ensure Cilium is ready Xm\Xs
       cilium status --wait --wait-duration 2m
     retryCountOnTaskFailure: 3
     name: "CiliumStatus"
-    displayName: "Cilium Status" 
-    
+    displayName: "Cilium Status"
+
   - script: |
       echo "Run Service Conformance E2E"
       export PATH=${PATH}:/usr/local/bin/gsutil
@@ -185,6 +186,7 @@ steps:
       scriptType: "bash"
       addSpnToEnvironment: true
       inlineScript: |
+        set -e
         echo "Deleting cluster"
         make -C ./hack/aks azcfg AZCLI=az REGION=$(REGION_AKS_CLUSTER_TEST)
         make -C ./hack/aks down AZCLI=az REGION=$(REGION_AKS_CLUSTER_TEST) SUB=$(SUB_AZURE_NETWORK_AGENT_TEST) CLUSTER=${{ parameters.clusterName }}-$(make revision)

@@ -10,22 +10,18 @@ import (
 )
 
 // createNCRequestFromStaticNCHelper generates a CreateNetworkContainerRequest from a static NetworkContainer.
-// If the NC's DefaultGateway is empty, it will set the 0th IP as the gateway IP and all remaining IPs as
-// secondary IPs. If the gateway is not empty, it will not reserve the 0th IP and add it as a secondary IP.
+// If the NC's DefaultGateway is empty and nc type is overlay, it will set the 2nd IP (*.1) as the gateway IP and all remaining IPs as
+// secondary IPs. If the gateway is not empty, it will not reserve the 2nd IP and add it as a secondary IP.
 //
 //nolint:gocritic //ignore hugeparam
 func createNCRequestFromStaticNCHelper(nc v1alpha.NetworkContainer, primaryIPPrefix netip.Prefix, subnet cns.IPSubnet) (*cns.CreateNetworkContainerRequest, error) {
 	secondaryIPConfigs := map[string]cns.SecondaryIPConfig{}
-
-	// if NC DefaultGateway is empty, set the 0th IP to the gateway and add the rest of the IPs
-	// as secondary IPs
-	startingAddr := primaryIPPrefix.Masked().Addr() // the masked address is the 0th IP in the subnet
+	// the masked address is the 0th IP in the subnet and startingAddr is the 2nd IP (*.1)
+	startingAddr := primaryIPPrefix.Masked().Addr().Next()
+	lastAddr := startingAddr
+	// if NC DefaultGateway is empty, set the 2nd IP (*.1) to the gateway and add the rest of the IPs as secondary IPs
 	if nc.DefaultGateway == "" && nc.Type == v1alpha.Overlay {
-		// assign 0th IP to the default gateway
 		nc.DefaultGateway = startingAddr.String()
-		startingAddr = startingAddr.Next()
-	} else if nc.Type == v1alpha.VNETBlock {
-		// skipping 0th IP for the Primary IP of NC
 		startingAddr = startingAddr.Next()
 	}
 
@@ -36,6 +32,7 @@ func createNCRequestFromStaticNCHelper(nc v1alpha.NetworkContainer, primaryIPPre
 			IPAddress: addr.String(),
 			NCVersion: int(nc.Version),
 		}
+		lastAddr = addr
 	}
 
 	if nc.Type == v1alpha.VNETBlock {
@@ -53,9 +50,12 @@ func createNCRequestFromStaticNCHelper(nc v1alpha.NetworkContainer, primaryIPPre
 					IPAddress: addr.String(),
 					NCVersion: int(nc.Version),
 				}
+				lastAddr = addr
 			}
 		}
 	}
+
+	delete(secondaryIPConfigs, lastAddr.String())
 
 	return &cns.CreateNetworkContainerRequest{
 		SecondaryIPConfigs:   secondaryIPConfigs,

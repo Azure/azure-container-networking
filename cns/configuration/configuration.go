@@ -20,30 +20,30 @@ const (
 )
 
 type CNSConfig struct {
-	ChannelMode                          string
-	EnablePprof                          bool
-	EnableSubnetScarcity                 bool
-	InitializeFromCNI                    bool
-	ManagedSettings                      ManagedSettings
-	MetricsBindAddress                   string
-	SyncHostNCTimeoutMs                  int
-	SyncHostNCVersionIntervalMs          int
-	TLSCertificatePath                   string
-	TLSEndpoint                          string
-	TLSPort                              string
-	TLSSubjectName                       string
-	TelemetrySettings                    TelemetrySettings
-	UseHTTPS                             bool
-	WireserverIP                         string
-	KeyVaultSettings                     KeyVaultSettings
-	MSISettings                          MSISettings
-	ProgramSNATIPTables                  bool
-	ManageEndpointState                  bool
-	CNIConflistScenario                  string
-	EnableCNIConflistGeneration          bool
-	CNIConflistFilepath                  string
-	PopulateHomeAzCacheRetryIntervalSecs int
-	MellanoxMonitorIntervalSecs          int
+	ChannelMode                 string
+	EnablePprof                 bool
+	EnableSubnetScarcity        bool
+	InitializeFromCNI           bool
+	ManagedSettings             ManagedSettings
+	MetricsBindAddress          string
+	SyncHostNCTimeoutMs         int
+	SyncHostNCVersionIntervalMs int
+	TLSCertificatePath          string
+	TLSEndpoint                 string
+	TLSPort                     string
+	TLSSubjectName              string
+	TelemetrySettings           TelemetrySettings
+	UseHTTPS                    bool
+	WireserverIP                string
+	KeyVaultSettings            KeyVaultSettings
+	MSISettings                 MSISettings
+	ProgramSNATIPTables         bool
+	ManageEndpointState         bool
+	CNIConflistScenario         string
+	EnableCNIConflistGeneration bool
+	CNIConflistFilepath         string
+	MellanoxMonitorIntervalSecs int
+	AZRSettings                 AZRSettings
 }
 
 type TelemetrySettings struct {
@@ -78,6 +78,11 @@ type ManagedSettings struct {
 	InfrastructureNetworkID   string
 	NodeID                    string
 	NodeSyncIntervalInSeconds int
+}
+
+type AZRSettings struct {
+	EnableAZR                            bool
+	PopulateHomeAzCacheRetryIntervalSecs int
 }
 
 type MSISettings struct {
@@ -165,6 +170,13 @@ func setManagedSettingDefaults(managedSettings *ManagedSettings) {
 	}
 }
 
+func setAZRSettingsDefaults(azrSettings *AZRSettings) {
+	if azrSettings.PopulateHomeAzCacheRetryIntervalSecs == 0 {
+		// set the default PopulateHomeAzCache retry interval to 60 seconds
+		azrSettings.PopulateHomeAzCacheRetryIntervalSecs = 60
+	}
+}
+
 func setKeyVaultSettingsDefaults(kvs *KeyVaultSettings) {
 	if kvs.RefreshIntervalInHrs == 0 {
 		kvs.RefreshIntervalInHrs = 12 //nolint:gomnd // default times
@@ -176,6 +188,7 @@ func SetCNSConfigDefaults(config *CNSConfig) {
 	setTelemetrySettingDefaults(&config.TelemetrySettings)
 	setManagedSettingDefaults(&config.ManagedSettings)
 	setKeyVaultSettingsDefaults(&config.KeyVaultSettings)
+	setAZRSettingsDefaults(&config.AZRSettings)
 
 	if config.ChannelMode == "" {
 		config.ChannelMode = cns.Direct
@@ -188,10 +201,6 @@ func SetCNSConfigDefaults(config *CNSConfig) {
 	}
 	if config.SyncHostNCTimeoutMs == 0 {
 		config.SyncHostNCTimeoutMs = 500 //nolint:gomnd // default times
-	}
-	if config.PopulateHomeAzCacheRetryIntervalSecs == 0 {
-		// set the default PopulateHomeAzCache retry interval to 30 seconds
-		config.PopulateHomeAzCacheRetryIntervalSecs = 30
 	}
 	if config.WireserverIP == "" {
 		config.WireserverIP = "168.63.129.16"
