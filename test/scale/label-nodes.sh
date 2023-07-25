@@ -1,20 +1,19 @@
 #!/bin/sh
-retry_kubectl() {
-    cmd=$1
-    retries=0
-    while [ $retries -lt 5 ]; do
-        $cmd
-        if [ $? -eq 0 ]; then
-            break
-        fi
-        retries=$((retries+1))
-        sleep 5s
-    done
-    if [ $retries -eq 5 ]; then
-        echo "Error in executing $cmd"
-        exit 1
+cmd=$1
+retries=0
+while [ $retries -lt 5 ]; do
+    $cmd
+    if [ $? -eq 0 ]; then
+        break
     fi
-}
+    retries=$((retries+1))
+    sleep 5s
+done
+    
+if [ $retries -eq 5 ]; then
+    echo "Error in executing $cmd"
+    exit 1
+fi
 
 for node in $(kubectl get nodes -o name);
 do
