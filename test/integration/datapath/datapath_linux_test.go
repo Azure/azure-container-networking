@@ -82,8 +82,8 @@ func setupLinuxEnvironment(t *testing.T) {
 	}
 
 	t.Log("Create Label Selectors")
-	podLabelSelector := k8sutils.CreateLabelSelectors(podLabelKey, podPrefix)
-	nodeLabelSelector := k8sutils.CreateLabelSelectors(nodepoolKey, nodepoolSelector)
+	podLabelSelector := k8sutils.CreateLabelSelector(podLabelKey, podPrefix)
+	nodeLabelSelector := k8sutils.CreateLabelSelector(nodepoolKey, nodepoolSelector)
 
 	t.Log("Get Nodes")
 	nodes, err := k8sutils.GetNodeListByLabelSelector(ctx, clientset, nodeLabelSelector)
@@ -215,37 +215,11 @@ func TestDatapathLinux(t *testing.T) {
 	clientset, _ := k8sutils.MustGetClientset()
 
 	setupLinuxEnvironment(t)
-	podLabelSelector := k8sutils.CreateLabelSelectors(podLabelKey, podPrefix)
+	podLabelSelector := k8sutils.CreateLabelSelector(podLabelKey, podPrefix)
 
 	t.Run("Linux ping tests", func(t *testing.T) {
 		// Check goldpinger health
 		t.Run("all pods have IPs assigned", func(t *testing.T) {
-			podsClient := clientset.CoreV1().Pods(*podNamespace)
-
-			_ = func() error {
-				podList, err := podsClient.List(ctx, metav1.ListOptions{LabelSelector: "app=goldpinger"})
-				if err != nil {
-					return err
-				}
-
-				if len(podList.Items) == 0 {
-					return errors.New("no pods scheduled")
-				}
-
-				for _, pod := range podList.Items {
-					if pod.Status.Phase == apiv1.PodPending {
-						return errors.New("some pods still pending")
-					}
-				}
-
-				for _, pod := range podList.Items {
-					if pod.Status.PodIP == "" {
-						return errors.New("a pod has not been allocated an IP")
-					}
-				}
-
-				return nil
-			}
 			err := k8sutils.WaitForPodsRunning(ctx, clientset, *podNamespace, podLabelSelector)
 			if err != nil {
 				require.NoError(t, err)

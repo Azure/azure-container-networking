@@ -376,6 +376,6 @@ func NamespaceExists(ctx context.Context, clientset *kubernetes.Clientset, names
 }
 
 // return a label selector
-func CreateLabelSelectors(key string, selector *string) string {
+func CreateLabelSelector(key string, selector *string) string {
 	return fmt.Sprintf("%s=%s", key, *selector)
 }
