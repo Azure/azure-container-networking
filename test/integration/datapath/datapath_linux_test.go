@@ -187,7 +187,7 @@ func setupLinuxEnvironment(t *testing.T) {
 		if err := k8sutils.MustDeleteNamespace(ctx, clientset, *podNamespace); err != nil {
 			require.NoError(t, err)
 		}
-		t.fatal("goldpinger namespace exists and was deleted. Re-run test")
+		t.Fatal("goldpinger namespace exists and was deleted. Re-run test")
 	}
 
 	t.Log("Checking Linux test environment")
