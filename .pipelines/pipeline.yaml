@@ -332,6 +332,14 @@ stages:
       testDropgz: ""
       clusterName: "overlaye2e"
 
+  - template: singletenancy/dualstack-overlay/dualstackoverlay-e2e-job-template.yaml
+    parameters:
+      name: "dualstackoverlay_e2e"
+      displayName: AKS DualStack Overlay
+      pipelineBuildImage: "$(BUILD_IMAGE)"
+      testDropgz: ""
+      clusterName: "dualstackoverlaye2e"
+      
   - template: singletenancy/aks-swift/e2e-job-template.yaml
     parameters:
       name: "aks_swift_e2e"
