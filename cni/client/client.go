@@ -11,12 +11,15 @@ import (
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/platform"
 	semver "github.com/hashicorp/go-version"
+	"github.com/pkg/errors"
 	utilexec "k8s.io/utils/exec"
 )
 
 type client struct {
 	exec utilexec.Interface
 }
+
+var ErrSemVerParse = errors.New("error parsing version")
 
 func New(exec utilexec.Interface) *client {
 	return &client{exec: exec}
@@ -58,5 +61,10 @@ func (c *client) GetVersion() (*semver.Version, error) {
 		return nil, fmt.Errorf("Unexpected Azure CNI Version formatting: %v", output)
 	}
 
-	return semver.NewVersion(res[3])
+	version, versionErr := semver.NewVersion(res[3])
+	if versionErr != nil {
+		return nil, errors.Wrap(ErrSemVerParse, versionErr.Error())
+	}
+
+	return version, nil
 }
