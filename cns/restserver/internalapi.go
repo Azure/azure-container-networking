@@ -274,14 +274,15 @@ func (service *HTTPRestService) syncHostNCVersion(ctx context.Context, channelMo
 	return len(programmedNCs), nil
 }
 
-func (service *HTTPRestService) ReconcileNCState(ncReqs []*cns.CreateNetworkContainerRequest, podInfoByIP map[string]cns.PodInfo, nnc *v1alpha.NodeNetworkConfig) types.ResponseCode {
-	logger.Printf("Reconciling NC state with nc requests: [%+v], PodInfo [%+v], NNC: [%+v]", ncReqs, podInfoByIP, nnc)
+func (service *HTTPRestService) ReconcileIPAMState(ncReqs []*cns.CreateNetworkContainerRequest, podInfoByIP map[string]cns.PodInfo, nnc *v1alpha.NodeNetworkConfig) types.ResponseCode {
+	logger.Printf("Reconciling CNS IPAM state with nc requests: [%+v], PodInfo [%+v], NNC: [%+v]", ncReqs, podInfoByIP, nnc)
 	// if no nc reqs, there is no CRD state yet
 	if len(ncReqs) == 0 {
 		logger.Printf("CNS starting with no NC state, podInfoMap count %d", len(podInfoByIP))
 		return types.Success
 	}
 
+	// first step in reconciliation is to create all the NCs in CNS, no IP assignment yet.
 	for _, ncReq := range ncReqs {
 		returnCode := service.CreateOrUpdateNetworkContainerInternal(ncReq)
 		if returnCode != types.Success {
@@ -289,7 +290,7 @@ func (service *HTTPRestService) ReconcileNCState(ncReqs []*cns.CreateNetworkCont
 		}
 	}
 
-	// index all the secondary IP configs for all the nc reqs
+	// index all the secondary IP configs for all the nc reqs, for easier lookup later on.
 	allSecIPsIdx := make(map[string]*cns.CreateNetworkContainerRequest)
 	for i := range ncReqs {
 		for _, secIPConfig := range ncReqs[i].SecondaryIPConfigs {
@@ -297,24 +298,46 @@ func (service *HTTPRestService) ReconcileNCState(ncReqs []*cns.CreateNetworkCont
 		}
 	}
 
-	interfaceIdx := podInfoByIPToPodInfoExtByInterfaceID(podInfoByIP)
+	// we now need to reconcile IP assignment.
+	// considering that a single pod may have multiple ips (such as in dual stack scenarios)
+	// and that IP assignment in CNS (as done by requestIPConfigsHelper) does not allow
+	// updates (it returns the existing state if one already exists for the pod's interface),
+	// we need to assign all IPs for a pod interface at the same time.
+	//
+	// iterating over single IPs is not appropriate then, since assignment for the first IP for
+	// a pod will prevent the second IP from being added. the following function call transforms
+	// pod info indexed by ip address:
+	//
+	//   {
+	//     "10.0.0.1": podInfo{interface: "aaa-eth0"},
+	//     "fe80::1":  podInfo{interface: "aaa-eth0"},
+	//   }
+	//
+	// to pod IPs indexed by interface:
+	//
+	//   {
+	//     "aaa-eth0": podIPs{IPs:["10.0.0.1","fbac:::::1"]}
+	//   }
+	//
+	// such that we can iterate over pod interfaces, and assign all IPs for it at once.
+	ifaceToPodIPs := newInterfaceToPodIPsMap(podInfoByIP)
 
-	for interfaceID, podInfo := range interfaceIdx {
+	for interfaceID, podIPs := range ifaceToPodIPs {
 		var (
 			desiredIPs []string
 			ncIDs      []string
 		)
-		for _, ip := range podInfo.IPs {
+		for _, ip := range podIPs.IPs {
 			if ncReq, ok := allSecIPsIdx[ip]; ok {
-				logger.Printf("secondary ip %s is assigned to pod %+v, ncId: %s ncVersion: %s", ip, podInfo, ncReq.NetworkContainerid, ncReq.Version)
+				logger.Printf("secondary ip %s is assigned to pod %+v, ncId: %s ncVersion: %s", ip, podIPs, ncReq.NetworkContainerid, ncReq.Version)
 				desiredIPs = append(desiredIPs, ip)
 				ncIDs = append(ncIDs, ncReq.NetworkContainerid)
 			} else {
-				logger.Errorf("ip %s assigned to pod %+v but not found in any nc", ip, podInfo)
+				logger.Errorf("ip %s assigned to pod %+v but not found in any nc", ip, podIPs)
 			}
 		}
 
-		jsonContext, err := podInfo.OrchestratorContext()
+		jsonContext, err := podIPs.OrchestratorContext()
 		if err != nil {
 			logger.Errorf("Failed to marshal KubernetesPodInfo, error: %v", err)
 			return types.UnexpectedError
@@ -323,12 +346,12 @@ func (service *HTTPRestService) ReconcileNCState(ncReqs []*cns.CreateNetworkCont
 		ipconfigsRequest := cns.IPConfigsRequest{
 			DesiredIPAddresses:  desiredIPs,
 			OrchestratorContext: jsonContext,
-			InfraContainerID:    podInfo.InfraContainerID(),
-			PodInterfaceID:      podInfo.InterfaceID(),
+			InfraContainerID:    podIPs.InfraContainerID(),
+			PodInterfaceID:      podIPs.InterfaceID(),
 		}
 
 		if _, err := requestIPConfigsHelper(service, ipconfigsRequest); err != nil {
-			logger.Errorf("requestIPConfigsHelper failed for interface id %s, podInfo %+v, ncIds %v, error: %v", interfaceID, podInfo, ncIDs, err)
+			logger.Errorf("requestIPConfigsHelper failed for interface id %s, podInfo %+v, ncIds %v, error: %v", interfaceID, podIPs, ncIDs, err)
 			return types.FailedToAllocateIPConfig
 		}
 	}
@@ -342,20 +365,27 @@ func (service *HTTPRestService) ReconcileNCState(ncReqs []*cns.CreateNetworkCont
 	return 0
 }
 
-func podInfoByIPToPodInfoExtByInterfaceID(podInfoByIP map[string]cns.PodInfo) map[string]podInfoExt {
-	out := make(map[string]podInfoExt)
-	for ip, podInfo := range podInfoByIP {
-		k := podInfo.InterfaceID()
+// newInterfaceToPodIPsMap groups IPs by interface id and returns them indexed by interface id.
+func newInterfaceToPodIPsMap(podInfoByIP map[string]cns.PodInfo) map[string]podIPs {
+	interfaceIDToPodIPs := make(map[string]podIPs)
 
-		xt := out[k]
-		xt.PodInfo = podInfo
-		xt.IPs = append(xt.IPs, ip)
-		out[k] = xt
+	for ip, podInfo := range podInfoByIP {
+		id := podInfo.InterfaceID()
+
+		ips, ok := interfaceIDToPodIPs[id]
+		if !ok {
+			ips.PodInfo = podInfo
+		}
+		ips.IPs = append(ips.IPs, ip)
+
+		interfaceIDToPodIPs[id] = ips
 	}
-	return out
+
+	return interfaceIDToPodIPs
 }
 
-type podInfoExt struct {
+// podIPs are all the IPs associated with a pod, along with pod info
+type podIPs struct {
 	cns.PodInfo
 	IPs []string
 }

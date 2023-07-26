@@ -1017,13 +1017,13 @@ type nodeNetworkConfigGetter interface {
 	Get(context.Context) (*v1alpha.NodeNetworkConfig, error)
 }
 
-type ncStateReconciler interface {
-	ReconcileNCState(ncRequests []*cns.CreateNetworkContainerRequest, podInfoByIP map[string]cns.PodInfo, nnc *v1alpha.NodeNetworkConfig) cnstypes.ResponseCode
+type ipamStateReconciler interface {
+	ReconcileIPAMState(ncRequests []*cns.CreateNetworkContainerRequest, podInfoByIP map[string]cns.PodInfo, nnc *v1alpha.NodeNetworkConfig) cnstypes.ResponseCode
 }
 
 // TODO(rbtr) where should this live??
 // reconcileInitialCNSState initializes cns by passing pods and a CreateNetworkContainerRequest
-func reconcileInitialCNSState(ctx context.Context, cli nodeNetworkConfigGetter, ncReconciler ncStateReconciler, podInfoByIPProvider cns.PodInfoByIPProvider) error {
+func reconcileInitialCNSState(ctx context.Context, cli nodeNetworkConfigGetter, ipamReconciler ipamStateReconciler, podInfoByIPProvider cns.PodInfoByIPProvider) error {
 	// Get nnc using direct client
 	nnc, err := cli.Get(ctx)
 	if err != nil {
@@ -1073,8 +1073,8 @@ func reconcileInitialCNSState(ctx context.Context, cli nodeNetworkConfigGetter, 
 	}
 
 	// Call cnsclient init cns passing those two things.
-	if err := restserver.ResponseCodeToError(ncReconciler.ReconcileNCState(ncReqs, podInfoByIP, nnc)); err != nil {
-		return errors.Wrap(err, "failed to reconcile NC state")
+	if err := restserver.ResponseCodeToError(ipamReconciler.ReconcileIPAMState(ncReqs, podInfoByIP, nnc)); err != nil {
+		return errors.Wrap(err, "failed to reconcile CNS IPAM state")
 	}
 
 	return nil
