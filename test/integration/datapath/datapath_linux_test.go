@@ -15,7 +15,6 @@ import (
 	k8sutils "github.com/Azure/azure-container-networking/test/internal/k8sutils"
 	"github.com/Azure/azure-container-networking/test/internal/retry"
 	"github.com/pkg/errors"
-	"github.com/stretchr/testify/require"
 
 	appsv1 "k8s.io/api/apps/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -78,7 +77,7 @@ func setupLinuxEnvironment(t *testing.T) {
 	t.Log("Create Clientset")
 	clientset, err := k8sutils.MustGetClientset()
 	if err != nil {
-		require.NoError(t, err, "could not get k8s clientset: %v", err)
+		t.Fatalf("could not get k8s clientset: %v", err)
 	}
 
 	t.Log("Create Label Selectors")
@@ -88,7 +87,7 @@ func setupLinuxEnvironment(t *testing.T) {
 	t.Log("Get Nodes")
 	nodes, err := k8sutils.GetNodeListByLabelSelector(ctx, clientset, nodeLabelSelector)
 	if err != nil {
-		require.NoError(t, err, "could not get k8s node list: %v", err)
+		t.Fatalf("could not get k8s node list: %v", err)
 	}
 
 	t.Log("Creating Linux pods through deployment")
@@ -100,22 +99,22 @@ func setupLinuxEnvironment(t *testing.T) {
 	if *isDualStack {
 		deployment, err = k8sutils.MustParseDeployment(LinuxDeployIPv6)
 		if err != nil {
-			require.NoError(t, err)
+			t.Fatal(err)
 		}
 
 		daemonset, err = k8sutils.MustParseDaemonSet(gpDaemonsetIPv6)
 		if err != nil {
-			require.NoError(t, err)
+			t.Fatal(err)
 		}
 	} else {
 		deployment, err = k8sutils.MustParseDeployment(LinuxDeployIPV4)
 		if err != nil {
-			require.NoError(t, err)
+			t.Fatal(err)
 		}
 
 		daemonset, err = k8sutils.MustParseDaemonSet(gpDaemonset)
 		if err != nil {
-			require.NoError(t, err)
+			t.Fatal(err)
 		}
 	}
 
@@ -138,13 +137,13 @@ func setupLinuxEnvironment(t *testing.T) {
 	deploymentsClient := clientset.AppsV1().Deployments(*podNamespace)
 	err = k8sutils.MustCreateDeployment(ctx, deploymentsClient, deployment)
 	if err != nil {
-		require.NoError(t, err)
+		t.Fatal(err)
 	}
 
 	daemonsetClient := clientset.AppsV1().DaemonSets(daemonset.Namespace)
 	err = k8sutils.MustCreateDaemonset(ctx, daemonsetClient, daemonset)
 	if err != nil {
-		require.NoError(t, err)
+		t.Fatal(err)
 	}
 
 	t.Cleanup(func() {
@@ -176,11 +175,11 @@ func setupLinuxEnvironment(t *testing.T) {
 	for _, node := range nodes.Items {
 		pods, err := k8sutils.GetPodsByNode(ctx, clientset, *podNamespace, podLabelSelector, node.Name)
 		if err != nil {
-			require.NoError(t, err, "could not get k8s clientset: %v", err)
+			t.Fatalf("could not get k8s clientset: %v", err)
 		}
 		if len(pods.Items) <= 1 {
 			t.Logf("%s", node.Name)
-			require.NoError(t, errors.New("Less than 2 pods on node"))
+			t.Fatal("Less than 2 pods on node")
 		}
 	}
 
