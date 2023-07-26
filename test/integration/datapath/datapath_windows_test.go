@@ -52,7 +52,7 @@ func TestDatapathWin(t *testing.T) {
 	t.Log("Create Clientset")
 	clientset, err := k8sutils.MustGetClientset()
 	if err != nil {
-		require.NoError(t, err, "could not get k8s clientset: %v", err)
+		require.NoError(t, err)
 	}
 	t.Log("Get REST config")
 	restConfig := k8sutils.MustGetRestConfig(t)
@@ -64,21 +64,21 @@ func TestDatapathWin(t *testing.T) {
 	t.Log("Get Nodes")
 	nodes, err := k8sutils.GetNodeListByLabelSelector(ctx, clientset, nodeLabelSelector)
 	if err != nil {
-		require.NoError(t, err, "could not get k8s node list: %v", err)
+		require.NoError(t, err)
 	}
 
 	// Create namespace if it doesn't exist
 	namespaceExists, err := k8sutils.NamespaceExists(ctx, clientset, *podNamespace)
 	if err != nil {
-		require.NoError(t, err, "failed to check if namespace %s exists due to: %v", *podNamespace, err)
+		t.Fatalf("failed to check if namespace %s exists due to: %v", *podNamespace, err)
 	}
 
 	if !namespaceExists {
 		// Test Namespace
 		t.Log("Create Namespace")
-		err = k8sutils.MustCreateNamespace(ctx, clientset, *podNamespace)
+		err := k8sutils.MustCreateNamespace(ctx, clientset, *podNamespace)
 		if err != nil {
-			require.NoError(t, err, "failed to create pod namespace %s due to: %v", *podNamespace, err)
+			t.Fatalf("failed to create pod namespace %s due to: %v", *podNamespace, err)
 		}
 
 		t.Log("Creating Windows pods through deployment")
@@ -102,7 +102,7 @@ func TestDatapathWin(t *testing.T) {
 		}
 
 		t.Log("Waiting for pods to be running state")
-		err = k8sutils.WaitForPodsRunning(ctx, clientset, *podNamespace, podLabelSelector)
+		err := k8sutils.WaitForPodsRunning(ctx, clientset, *podNamespace, podLabelSelector)
 		if err != nil {
 			require.NoError(t, err)
 		}
@@ -112,7 +112,7 @@ func TestDatapathWin(t *testing.T) {
 		t.Log("Namespace already exists")
 
 		t.Log("Checking for pods to be running state")
-		err = k8sutils.WaitForPodsRunning(ctx, clientset, *podNamespace, podLabelSelector)
+		err := k8sutils.WaitForPodsRunning(ctx, clientset, *podNamespace, podLabelSelector)
 		if err != nil {
 			require.NoError(t, err)
 		}
@@ -123,10 +123,9 @@ func TestDatapathWin(t *testing.T) {
 
 		pods, err := k8sutils.GetPodsByNode(ctx, clientset, *podNamespace, podLabelSelector, node.Name)
 		if err != nil {
-			require.NoError(t, err, "could not get k8s clientset: %v", err)
+			require.NoError(t, err)
 		}
 		if len(pods.Items) <= 1 {
-			t.Logf("%s", node.Name)
 			require.NoError(t, errors.New("Less than 2 pods on node"))
 		}
 	}
@@ -149,13 +148,17 @@ func TestDatapathWin(t *testing.T) {
 			}
 
 			err := datapath.WindowsPodToNode(ctx, clientset, node.Name, nodeIP, *podNamespace, podLabelSelector, restConfig)
-			require.NoError(t, err, "Windows pod to node, ping test failed with: %+v", err)
+			if err != nil {
+				require.NoError(t, err)
+			}
 			t.Logf("Windows pod to node, passed for node: %s", node.Name)
 
 			// windows ipv6 connectivity
 			if nodeIPv6 != "" {
-				err = datapath.WindowsPodToNode(ctx, clientset, node.Name, nodeIPv6, *podNamespace, podLabelSelector, restConfig)
-				require.NoError(t, err, "Windows pod to node, ipv6 ping test failed with: %+v", err)
+				err := datapath.WindowsPodToNode(ctx, clientset, node.Name, nodeIPv6, *podNamespace, podLabelSelector, restConfig)
+				if err != nil {
+					require.NoError(t, err)
+				}
 				t.Logf("Windows pod to node via ipv6, passed for node: %s", node.Name)
 			}
 		}
@@ -167,7 +170,9 @@ func TestDatapathWin(t *testing.T) {
 			if node.Status.NodeInfo.OperatingSystem == string(apiv1.Windows) {
 				t.Log("Windows ping tests (2) - Same Node")
 				err := datapath.WindowsPodToPodPingTestSameNode(ctx, clientset, node.Name, *podNamespace, podLabelSelector, restConfig)
-				require.NoError(t, err, "Windows pod to pod, same node, ping test failed with: %+v", err)
+				if err != nil {
+					require.NoError(t, err)
+				}
 				t.Logf("Windows pod to windows pod, same node, passed for node: %s", node.ObjectMeta.Name)
 			}
 		}
@@ -177,8 +182,10 @@ func TestDatapathWin(t *testing.T) {
 			t.Log("Windows ping tests (2) - Different Node")
 			firstNode := nodes.Items[i%2].Name
 			secondNode := nodes.Items[(i+1)%2].Name
-			err = datapath.WindowsPodToPodPingTestDiffNode(ctx, clientset, firstNode, secondNode, *podNamespace, podLabelSelector, restConfig)
-			require.NoError(t, err, "Windows pod to pod, different node, ping test failed with: %+v", err)
+			err := datapath.WindowsPodToPodPingTestDiffNode(ctx, clientset, firstNode, secondNode, *podNamespace, podLabelSelector, restConfig)
+			if err != nil {
+				require.NoError(t, err)
+			}
 			t.Logf("Windows pod to windows pod, different node, passed for node: %s -> %s", firstNode, secondNode)
 
 		}
@@ -190,7 +197,9 @@ func TestDatapathWin(t *testing.T) {
 			if node.Status.NodeInfo.OperatingSystem == string(apiv1.Windows) {
 				t.Log("Windows ping tests (3) - Pod to Internet tests")
 				err := datapath.WindowsPodToInternet(ctx, clientset, node.Name, *podNamespace, podLabelSelector, restConfig)
-				require.NoError(t, err, "Windows pod to internet test failed with: %+v", err)
+				if err != nil {
+					require.NoError(t, err)
+				}
 				t.Logf("Windows pod to Internet url tests")
 			}
 		}

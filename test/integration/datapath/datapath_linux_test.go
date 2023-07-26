@@ -178,7 +178,6 @@ func setupLinuxEnvironment(t *testing.T) {
 			t.Fatalf("could not get k8s clientset: %v", err)
 		}
 		if len(pods.Items) <= 1 {
-			t.Logf("%s", node.Name)
 			t.Fatal("Less than 2 pods on node")
 		}
 	}
