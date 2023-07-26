@@ -149,7 +149,7 @@ steps:
   - script: |
       echo "validate pod IP assignment and check systemd-networkd restart"
       kubectl get pod -owide -A
-      # Deleting echo-external-node deployment until version matches TODO. Upstream TODO has change. - Replace todo with vipul work/PR in upstream
+      # Deleting echo-external-node deployment until cilium version matches TODO. https://github.com/cilium/cilium-cli/issues/67 is addressing the change.
       # Saves 17 minutes
       kubectl delete deploy -n cilium-test echo-external-node
       if [ "$CILIUM_VERSION_TAG" = "cilium-nightly-pipeline" ]; then

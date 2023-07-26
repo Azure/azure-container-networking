@@ -14,7 +14,7 @@ parameters:
 
 
 stages:
-  - template: ../aks/e2e-cluster-template.yaml
+  - template: ../../templates/create-cluster.yaml
     parameters:
       name: ${{ parameters.name }}
       displayName: ${{ parameters.displayName }}

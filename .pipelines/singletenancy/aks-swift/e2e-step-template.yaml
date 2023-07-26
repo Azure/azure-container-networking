@@ -2,7 +2,6 @@ parameters:
   name: ""
   testDropgz: ""
   clusterName: ""
-  osSku: ""
 
 steps:
   - bash: |

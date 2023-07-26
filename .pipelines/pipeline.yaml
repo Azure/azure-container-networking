@@ -315,7 +315,7 @@ stages:
       displayName: Cilium
       pipelineBuildImage: "$(BUILD_IMAGE)"
       testDropgz: ""
-      clusterType: swift-no-kube-proxy-up
+      clusterType: cilium-podsubnet-up
       clusterName: "ciliume2e"
       vmSize: Standard_B2ms
       k8sVersion: ""
@@ -328,7 +328,7 @@ stages:
       displayName: Cilium on AKS Overlay
       pipelineBuildImage: "$(BUILD_IMAGE)"
       testDropgz: ""
-      clusterType: overlay-no-kube-proxy-up
+      clusterType: cilium-overlay-up
       clusterName: "overlaye2e"
       vmSize: Standard_B2ms
       k8sVersion: ""
@@ -349,12 +349,11 @@ stages:
       displayName: AKS Swift Ubuntu
       pipelineBuildImage: "$(BUILD_IMAGE)"
       testDropgz: ""
-      clusterType: byocni-up
+      clusterType: swift-byocni-up
       clusterName: "swifte2e"
       vmSize: Standard_B2s
       k8sVersion: ""
       windowsOsSku: ""
-      osSku: "Ubuntu"
       dependsOn: 'containerize'
 
   - template: singletenancy/aks/e2e-job-template.yaml
