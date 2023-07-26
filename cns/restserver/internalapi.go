@@ -333,6 +333,7 @@ func (service *HTTPRestService) ReconcileIPAMState(ncReqs []*cns.CreateNetworkCo
 				desiredIPs = append(desiredIPs, ip)
 				ncIDs = append(ncIDs, ncReq.NetworkContainerid)
 			} else {
+				// todo: confirm if this is a valid scenario for system pods
 				logger.Errorf("ip %s assigned to pod %+v but not found in any nc", ip, podIPs)
 			}
 		}
@@ -341,6 +342,11 @@ func (service *HTTPRestService) ReconcileIPAMState(ncReqs []*cns.CreateNetworkCo
 		if err != nil {
 			logger.Errorf("Failed to marshal KubernetesPodInfo, error: %v", err)
 			return types.UnexpectedError
+		}
+
+		if len(desiredIPs) == 0 {
+			// this may happen for system pods
+			continue
 		}
 
 		ipconfigsRequest := cns.IPConfigsRequest{

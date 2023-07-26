@@ -406,8 +406,8 @@ func TestReconcileNCWithExistingStateAndPendingRelease(t *testing.T) {
 		secondaryIPConfigs[ipID.String()] = secIPConfig
 	}
 	expectedAssignedPods := map[string]cns.PodInfo{
-		"10.0.0.6": cns.NewPodInfo("", "", "reconcilePod1", "PodNS1"),
-		"10.0.0.7": cns.NewPodInfo("", "", "reconcilePod2", "PodNS1"),
+		"10.0.0.6": cns.NewPodInfo("some-guid-1", "58a0b427-eth0", "reconcilePod1", "PodNS1"),
+		"10.0.0.7": cns.NewPodInfo("some-guid-2", "45b9b555-eth0", "reconcilePod2", "PodNS1"),
 	}
 	pendingIPIDs := func() map[string]cns.PodInfo {
 		numPending := rand.Intn(len(secondaryIPConfigs)) + 1 //nolint:gosec // weak rand is sufficient in test
@@ -459,8 +459,8 @@ func TestReconcileNCWithExistingState(t *testing.T) {
 	req := generateNetworkContainerRequest(secondaryIPConfigs, "reconcileNc1", "-1")
 
 	expectedAssignedPods := map[string]cns.PodInfo{
-		"10.0.0.6": cns.NewPodInfo("", "", "reconcilePod1", "PodNS1"),
-		"10.0.0.7": cns.NewPodInfo("", "", "reconcilePod2", "PodNS1"),
+		"10.0.0.6": cns.NewPodInfo("some-guid-1", "abc-eth0", "reconcilePod1", "PodNS1"),
+		"10.0.0.7": cns.NewPodInfo("some-guid-2", "def-eth0", "reconcilePod2", "PodNS1"),
 	}
 
 	expectedNcCount := len(svc.state.ContainerStatus)
@@ -545,10 +545,10 @@ func TestReconcileNCWithSystemPods(t *testing.T) {
 	req := generateNetworkContainerRequest(secondaryIPConfigs, uuid.New().String(), "-1")
 
 	expectedAssignedPods := make(map[string]cns.PodInfo)
-	expectedAssignedPods["10.0.0.6"] = cns.NewPodInfo("", "", "customerpod1", "PodNS1")
+	expectedAssignedPods["10.0.0.6"] = cns.NewPodInfo("some-guid-1", "abc-eth0", "customerpod1", "PodNS1")
 
 	// Allocate non-vnet IP for system  pod
-	expectedAssignedPods["192.168.0.1"] = cns.NewPodInfo("", "", "systempod", "kube-system")
+	expectedAssignedPods["192.168.0.1"] = cns.NewPodInfo("some-guid-2", "def-eth0", "systempod", "kube-system")
 
 	expectedNcCount := len(svc.state.ContainerStatus)
 	returnCode := svc.ReconcileIPAMState([]*cns.CreateNetworkContainerRequest{req}, expectedAssignedPods, &v1alpha.NodeNetworkConfig{
