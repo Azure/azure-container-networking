@@ -274,45 +274,62 @@ func (service *HTTPRestService) syncHostNCVersion(ctx context.Context, channelMo
 	return len(programmedNCs), nil
 }
 
-// This API will be called by CNS RequestController on CRD update.
-func (service *HTTPRestService) ReconcileNCState(ncRequest *cns.CreateNetworkContainerRequest, podInfoByIP map[string]cns.PodInfo, nnc *v1alpha.NodeNetworkConfig) types.ResponseCode {
-	logger.Printf("Reconciling NC state with CreateNCRequest: [%v], PodInfo [%+v], NNC: [%+v]", ncRequest, podInfoByIP, nnc)
-	// check if ncRequest is null, then return as there is no CRD state yet
-	if ncRequest == nil {
+func (service *HTTPRestService) ReconcileNCState(ncReqs []*cns.CreateNetworkContainerRequest, podInfoByIP map[string]cns.PodInfo, nnc *v1alpha.NodeNetworkConfig) types.ResponseCode {
+	logger.Printf("Reconciling NC state with nc requests: [%+v], PodInfo [%+v], NNC: [%+v]", ncReqs, podInfoByIP, nnc)
+	// if no nc reqs, there is no CRD state yet
+	if len(ncReqs) == 0 {
 		logger.Printf("CNS starting with no NC state, podInfoMap count %d", len(podInfoByIP))
 		return types.Success
 	}
 
-	// If the NC was created successfully, then reconcile the assigned pod state
-	returnCode := service.CreateOrUpdateNetworkContainerInternal(ncRequest)
-	if returnCode != types.Success {
-		return returnCode
+	for _, ncReq := range ncReqs {
+		returnCode := service.CreateOrUpdateNetworkContainerInternal(ncReq)
+		if returnCode != types.Success {
+			return returnCode
+		}
 	}
 
-	// now parse the secondaryIP list, if it exists in PodInfo list, then assign that ip.
-	for _, secIPConfig := range ncRequest.SecondaryIPConfigs {
-		if podInfo, exists := podInfoByIP[secIPConfig.IPAddress]; exists {
-			logger.Printf("SecondaryIP %+v is assigned to Pod. %+v, ncId: %s", secIPConfig, podInfo, ncRequest.NetworkContainerid)
+	// index all the secondary IP configs for all the nc reqs
+	allSecIPsIdx := make(map[string]*cns.CreateNetworkContainerRequest)
+	for i := range ncReqs {
+		for _, secIPConfig := range ncReqs[i].SecondaryIPConfigs {
+			allSecIPsIdx[secIPConfig.IPAddress] = ncReqs[i]
+		}
+	}
 
-			jsonContext, err := podInfo.OrchestratorContext()
-			if err != nil {
-				logger.Errorf("Failed to marshal KubernetesPodInfo, error: %v", err)
-				return types.UnexpectedError
-			}
+	interfaceIdx := podInfoByIPToPodInfoExtByInterfaceID(podInfoByIP)
 
-			ipconfigsRequest := cns.IPConfigsRequest{
-				DesiredIPAddresses:  []string{secIPConfig.IPAddress},
-				OrchestratorContext: jsonContext,
-				InfraContainerID:    podInfo.InfraContainerID(),
-				PodInterfaceID:      podInfo.InterfaceID(),
+	for interfaceID, podInfo := range interfaceIdx {
+		var (
+			desiredIPs []string
+			ncIDs      []string
+		)
+		for _, ip := range podInfo.IPs {
+			if ncReq, ok := allSecIPsIdx[ip]; ok {
+				logger.Printf("secondary ip %s is assigned to pod %+v, ncId: %s ncVersion: %s", ip, podInfo, ncReq.NetworkContainerid, ncReq.Version)
+				desiredIPs = append(desiredIPs, ip)
+				ncIDs = append(ncIDs, ncReq.NetworkContainerid)
+			} else {
+				logger.Errorf("ip %s assigned to pod %+v but not found in any nc", ip, podInfo)
 			}
+		}
 
-			if _, err := requestIPConfigsHelper(service, ipconfigsRequest); err != nil {
-				logger.Errorf("AllocateIPConfig failed for SecondaryIP %+v, podInfo %+v, ncId %s, error: %v", secIPConfig, podInfo, ncRequest.NetworkContainerid, err)
-				return types.FailedToAllocateIPConfig
-			}
-		} else {
-			logger.Printf("SecondaryIP %+v is not assigned. ncId: %s", secIPConfig, ncRequest.NetworkContainerid)
+		jsonContext, err := podInfo.OrchestratorContext()
+		if err != nil {
+			logger.Errorf("Failed to marshal KubernetesPodInfo, error: %v", err)
+			return types.UnexpectedError
+		}
+
+		ipconfigsRequest := cns.IPConfigsRequest{
+			DesiredIPAddresses:  desiredIPs,
+			OrchestratorContext: jsonContext,
+			InfraContainerID:    podInfo.InfraContainerID(),
+			PodInterfaceID:      podInfo.InterfaceID(),
+		}
+
+		if _, err := requestIPConfigsHelper(service, ipconfigsRequest); err != nil {
+			logger.Errorf("requestIPConfigsHelper failed for interface id %s, podInfo %+v, ncIds %v, error: %v", interfaceID, podInfo, ncIDs, err)
+			return types.FailedToAllocateIPConfig
 		}
 	}
 
@@ -323,6 +340,24 @@ func (service *HTTPRestService) ReconcileNCState(ncRequest *cns.CreateNetworkCon
 	}
 
 	return 0
+}
+
+func podInfoByIPToPodInfoExtByInterfaceID(podInfoByIP map[string]cns.PodInfo) map[string]podInfoExt {
+	out := make(map[string]podInfoExt)
+	for ip, podInfo := range podInfoByIP {
+		k := podInfo.InterfaceID()
+
+		xt := out[k]
+		xt.PodInfo = podInfo
+		xt.IPs = append(xt.IPs, ip)
+		out[k] = xt
+	}
+	return out
+}
+
+type podInfoExt struct {
+	cns.PodInfo
+	IPs []string
 }
 
 // GetNetworkContainerInternal gets network container details.

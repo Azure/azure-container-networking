@@ -51,19 +51,25 @@ func newCNIPodInfoProvider(exec exec.Interface) (cns.PodInfoByIPProvider, error)
 }
 
 // cniStateToPodInfoByIP converts an AzureCNIState dumped from a CNI exec
-// into a PodInfo map, using the first endpoint IP as the key in the map.
+// into a PodInfo map, using the endpoint IPs as keys in the map.
+// for pods with multiple IPs (such as in dualstack cases), this means multiple keys in the map
+// will point to the same pod information.
 func cniStateToPodInfoByIP(state *api.AzureCNIState) (map[string]cns.PodInfo, error) {
 	podInfoByIP := map[string]cns.PodInfo{}
 	for _, endpoint := range state.ContainerInterfaces {
-		if _, ok := podInfoByIP[endpoint.IPAddresses[0].IP.String()]; ok {
-			return nil, errors.Wrap(cns.ErrDuplicateIP, endpoint.IPAddresses[0].IP.String())
+		for _, epIP := range endpoint.IPAddresses {
+			ipKey := epIP.IP.String()
+			if _, ok := podInfoByIP[ipKey]; ok {
+				return nil, errors.Wrap(cns.ErrDuplicateIP, ipKey)
+			}
+
+			podInfoByIP[ipKey] = cns.NewPodInfo(
+				endpoint.ContainerID,
+				endpoint.PodEndpointId,
+				endpoint.PodName,
+				endpoint.PodNamespace,
+			)
 		}
-		podInfoByIP[endpoint.IPAddresses[0].IP.String()] = cns.NewPodInfo(
-			endpoint.ContainerID,
-			endpoint.PodEndpointId,
-			endpoint.PodName,
-			endpoint.PodNamespace,
-		)
 	}
 	return podInfoByIP, nil
 }
