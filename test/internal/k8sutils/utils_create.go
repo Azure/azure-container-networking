@@ -42,7 +42,7 @@ func MustCreateDaemonset(ctx context.Context, daemonsets typedappsv1.DaemonSetIn
 }
 
 func MustCreateDeployment(ctx context.Context, deployments typedappsv1.DeploymentInterface, d appsv1.Deployment) error {
-	if err := mustDeleteDeployment(ctx, deployments, d); err != nil {
+	if err := MustDeleteDeployment(ctx, deployments, d); err != nil {
 		return err
 	}
 	log.Printf("Creating Deployment %v", d.Name)

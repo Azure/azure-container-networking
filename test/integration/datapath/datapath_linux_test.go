@@ -163,6 +163,15 @@ func setupLinuxEnvironment(t *testing.T) {
 	t.Log("Waiting for pods to be running state")
 	err = k8sutils.WaitForPodsRunning(ctx, clientset, *podNamespace, podLabelSelector)
 	if err != nil {
+		// delete goldpinger daemonset and deployment
+		if err := k8sutils.MustDeleteDaemonset(ctx, daemonsetClient, daemonset); err != nil {
+			require.NoError(t, err)
+		}
+
+		if err := k8sutils.MustDeleteDeployment(ctx, deploymentsClient, deployment); err != nil {
+			require.NoError(t, err)
+		}
+
 		require.NoError(t, err)
 	}
 

@@ -32,7 +32,7 @@ func MustDeleteDaemonset(ctx context.Context, daemonsets typedappsv1.DaemonSetIn
 	return nil
 }
 
-func mustDeleteDeployment(ctx context.Context, deployments typedappsv1.DeploymentInterface, d appsv1.Deployment) error {
+func MustDeleteDeployment(ctx context.Context, deployments typedappsv1.DeploymentInterface, d appsv1.Deployment) error {
 	if err := deployments.Delete(ctx, d.Name, metav1.DeleteOptions{}); err != nil {
 		if !apierrors.IsNotFound(err) {
 			return err
