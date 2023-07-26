@@ -31,10 +31,12 @@ var (
 
 type stateFileIpsFunc func([]byte) (map[string]string, error)
 
-type LinuxClient struct{}
-
 type LinuxValidator struct {
-	Validator
+	clientset   *kubernetes.Clientset
+	config      *rest.Config
+	namespace   string
+	cni         string
+	restartCase bool
 }
 
 type CnsState struct {
@@ -62,35 +64,31 @@ type Address struct {
 	Addr string `json:"ipv4"`
 }
 
-func (l *LinuxClient) CreateClient(ctx context.Context, clienset *kubernetes.Clientset, config *rest.Config, namespace, cni string, restartCase bool) IValidator {
+func CreateLinuxValidator(ctx context.Context, clienset *kubernetes.Clientset, config *rest.Config, namespace, cni string, restartCase bool) (*LinuxValidator, error) {
 	// deploy privileged pod
 	privilegedDaemonSet, err := k8sutils.MustParseDaemonSet(privilegedDaemonSetPath)
 	if err != nil {
-		panic(err)
+		return nil, errors.Wrap(err, "unable to parse daemonset")
 	}
 	daemonsetClient := clienset.AppsV1().DaemonSets(privilegedNamespace)
-	err = k8sutils.MustCreateDaemonset(ctx, daemonsetClient, privilegedDaemonSet)
-	if err != nil {
-		panic(err)
+	if err := k8sutils.MustCreateDaemonset(ctx, daemonsetClient, privilegedDaemonSet); err != nil {
+		return nil, errors.Wrap(err, "unable to create daemonset")
 	}
-	err = k8sutils.WaitForPodsRunning(ctx, clienset, privilegedNamespace, privilegedLabelSelector)
-	if err != nil {
-		panic(err)
+	if err := k8sutils.WaitForPodsRunning(ctx, clienset, privilegedNamespace, privilegedLabelSelector); err != nil {
+		return nil, errors.Wrap(err, "error while waiting for pods to be running")
 	}
+
 	return &LinuxValidator{
-		Validator: Validator{
-			ctx:         ctx,
-			clientset:   clienset,
-			config:      config,
-			namespace:   namespace,
-			cni:         cni,
-			restartCase: restartCase,
-		},
-	}
+		clientset:   clienset,
+		config:      config,
+		namespace:   namespace,
+		cni:         cni,
+		restartCase: restartCase,
+	}, nil
 }
 
 // Todo: Based on cni version validate different state files
-func (v *LinuxValidator) ValidateStateFile() error {
+func (v *LinuxValidator) ValidateStateFile(ctx context.Context) error {
 	checkSet := make(map[string][]check) // key is cni type, value is a list of check
 	// TODO: add cniv1 when adding Linux related test cases
 	checkSet["cilium"] = []check{
@@ -104,7 +102,7 @@ func (v *LinuxValidator) ValidateStateFile() error {
 	}
 
 	for _, check := range checkSet[v.cni] {
-		err := v.validateIPs(check.stateFileIps, check.cmd, check.name, check.podNamespace, check.podLabelSelector)
+		err := v.validateIPs(ctx, check.stateFileIps, check.cmd, check.name, check.podNamespace, check.podLabelSelector)
 		if err != nil {
 			return err
 		}
@@ -112,26 +110,26 @@ func (v *LinuxValidator) ValidateStateFile() error {
 	return nil
 }
 
-func (v *LinuxValidator) ValidateRestartNetwork() error {
-	nodes, err := k8sutils.GetNodeList(v.ctx, v.clientset)
+func (v *LinuxValidator) ValidateRestartNetwork(ctx context.Context) error {
+	nodes, err := k8sutils.GetNodeList(ctx, v.clientset)
 	if err != nil {
 		return errors.Wrapf(err, "failed to get node list")
 	}
 
 	for index := range nodes.Items {
 		// get the privileged pod
-		pod, err := k8sutils.GetPodsByNode(v.ctx, v.clientset, privilegedNamespace, privilegedLabelSelector, nodes.Items[index].Name)
+		pod, err := k8sutils.GetPodsByNode(ctx, v.clientset, privilegedNamespace, privilegedLabelSelector, nodes.Items[index].Name)
 		if err != nil {
 			return errors.Wrapf(err, "failed to get privileged pod")
 		}
 
 		privelegedPod := pod.Items[0]
 		// exec into the pod to get the state file
-		_, err = k8sutils.ExecCmdOnPod(v.ctx, v.clientset, privilegedNamespace, privelegedPod.Name, restartNetworkCmd, v.config)
+		_, err = k8sutils.ExecCmdOnPod(ctx, v.clientset, privilegedNamespace, privelegedPod.Name, restartNetworkCmd, v.config)
 		if err != nil {
 			return errors.Wrapf(err, "failed to exec into privileged pod")
 		}
-		err = k8sutils.WaitForPodsRunning(v.ctx, v.clientset, "", "")
+		err = k8sutils.WaitForPodsRunning(ctx, v.clientset, "", "")
 		if err != nil {
 			return errors.Wrapf(err, "failed to wait for pods running")
 		}
@@ -191,22 +189,22 @@ func cnsCacheStateFileIps(result []byte) (map[string]string, error) {
 	return cnsPodIps, nil
 }
 
-func (v *LinuxValidator) validateIPs(stateFileIps stateFileIpsFunc, cmd []string, checkType, namespace, labelSelector string) error {
+func (v *LinuxValidator) validateIPs(ctx context.Context, stateFileIps stateFileIpsFunc, cmd []string, checkType, namespace, labelSelector string) error {
 	log.Printf("Validating %s state file", checkType)
-	nodes, err := k8sutils.GetNodeList(v.ctx, v.clientset)
+	nodes, err := k8sutils.GetNodeList(ctx, v.clientset)
 	if err != nil {
 		return errors.Wrapf(err, "failed to get node list")
 	}
 
 	for index := range nodes.Items {
 		// get the privileged pod
-		pod, err := k8sutils.GetPodsByNode(v.ctx, v.clientset, namespace, labelSelector, nodes.Items[index].Name)
+		pod, err := k8sutils.GetPodsByNode(ctx, v.clientset, namespace, labelSelector, nodes.Items[index].Name)
 		if err != nil {
 			return errors.Wrapf(err, "failed to get privileged pod")
 		}
 		podName := pod.Items[0].Name
 		// exec into the pod to get the state file
-		result, err := k8sutils.ExecCmdOnPod(v.ctx, v.clientset, namespace, podName, cmd, v.config)
+		result, err := k8sutils.ExecCmdOnPod(ctx, v.clientset, namespace, podName, cmd, v.config)
 		if err != nil {
 			return errors.Wrapf(err, "failed to exec into privileged pod")
 		}
@@ -219,7 +217,7 @@ func (v *LinuxValidator) validateIPs(stateFileIps stateFileIpsFunc, cmd []string
 			continue
 		}
 		// get the pod ips
-		podIps := getPodIPsWithoutNodeIP(v.ctx, v.clientset, nodes.Items[index])
+		podIps := getPodIPsWithoutNodeIP(ctx, v.clientset, nodes.Items[index])
 
 		check := compareIPs(filePodIps, podIps)
 

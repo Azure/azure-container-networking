@@ -23,10 +23,12 @@ var (
 	azureVnetIpamCmd = []string{"powershell", "-c", "cat ../../k/azure-vnet-ipam.json"}
 )
 
-type WindowsClient struct{}
-
 type WindowsValidator struct {
-	Validator
+	clientset   *kubernetes.Clientset
+	config      *rest.Config
+	namespace   string
+	cni         string
+	restartCase bool
 }
 
 type HNSEndpoint struct {
@@ -86,34 +88,29 @@ type check struct {
 	cmd              []string
 }
 
-func (w *WindowsClient) CreateClient(ctx context.Context, clienset *kubernetes.Clientset, config *rest.Config, namespace, cni string, restartCase bool) IValidator {
+func CreateWindowsValidator(ctx context.Context, clienset *kubernetes.Clientset, config *rest.Config, namespace, cni string, restartCase bool) (*WindowsValidator, error) {
 	// deploy privileged pod
 	privilegedDaemonSet, err := k8sutils.MustParseDaemonSet(privilegedWindowsDaemonSetPath)
 	if err != nil {
-		panic(err)
+		return nil, errors.Wrap(err, "unable to parse daemonset")
 	}
 	daemonsetClient := clienset.AppsV1().DaemonSets(privilegedNamespace)
-	err = k8sutils.MustCreateDaemonset(ctx, daemonsetClient, privilegedDaemonSet)
-	if err != nil {
-		panic(err)
+	if err := k8sutils.MustCreateDaemonset(ctx, daemonsetClient, privilegedDaemonSet); err != nil {
+		return nil, errors.Wrap(err, "unable to create daemonset")
 	}
-	err = k8sutils.WaitForPodsRunning(ctx, clienset, privilegedNamespace, privilegedLabelSelector)
-	if err != nil {
-		panic(err)
+	if err := k8sutils.WaitForPodsRunning(ctx, clienset, privilegedNamespace, privilegedLabelSelector); err != nil {
+		return nil, errors.Wrap(err, "error while waiting for pods to be running")
 	}
 	return &WindowsValidator{
-		Validator: Validator{
-			ctx:         ctx,
-			clientset:   clienset,
-			config:      config,
-			namespace:   namespace,
-			cni:         cni,
-			restartCase: restartCase,
-		},
-	}
+		clientset:   clienset,
+		config:      config,
+		namespace:   namespace,
+		cni:         cni,
+		restartCase: restartCase,
+	}, nil
 }
 
-func (v *WindowsValidator) ValidateStateFile() error {
+func (v *WindowsValidator) ValidateStateFile(ctx context.Context) error {
 	checkSet := make(map[string][]check) // key is cni type, value is a list of check
 
 	checkSet["cniv1"] = []check{
@@ -128,7 +125,7 @@ func (v *WindowsValidator) ValidateStateFile() error {
 
 	// this is checking all IPs of the pods with the statefile
 	for _, check := range checkSet[v.cni] {
-		err := v.validateIPs(check.stateFileIps, check.cmd, check.name, check.podNamespace, check.podLabelSelector)
+		err := v.validateIPs(ctx, check.stateFileIps, check.cmd, check.name, check.podNamespace, check.podLabelSelector)
 		if err != nil {
 			return err
 		}
@@ -194,21 +191,21 @@ func azureVnetIpamIps(result []byte) (map[string]string, error) {
 	return azureVnetIpamPodIps, nil
 }
 
-func (v *WindowsValidator) validateIPs(stateFileIps stateFileIpsFunc, cmd []string, checkType, namespace, labelSelector string) error {
+func (v *WindowsValidator) validateIPs(ctx context.Context, stateFileIps stateFileIpsFunc, cmd []string, checkType, namespace, labelSelector string) error {
 	log.Println("Validating ", checkType, " state file")
-	nodes, err := k8sutils.GetNodeListByLabelSelector(v.ctx, v.clientset, windowsNodeSelector)
+	nodes, err := k8sutils.GetNodeListByLabelSelector(ctx, v.clientset, windowsNodeSelector)
 	if err != nil {
 		return errors.Wrapf(err, "failed to get node list")
 	}
 	for index := range nodes.Items {
 		// get the privileged pod
-		pod, err := k8sutils.GetPodsByNode(v.ctx, v.clientset, namespace, labelSelector, nodes.Items[index].Name)
+		pod, err := k8sutils.GetPodsByNode(ctx, v.clientset, namespace, labelSelector, nodes.Items[index].Name)
 		if err != nil {
 			return errors.Wrapf(err, "failed to get privileged pod")
 		}
 		podName := pod.Items[0].Name
 		// exec into the pod to get the state file
-		result, err := k8sutils.ExecCmdOnPod(v.ctx, v.clientset, namespace, podName, cmd, v.config)
+		result, err := k8sutils.ExecCmdOnPod(ctx, v.clientset, namespace, podName, cmd, v.config)
 		if err != nil {
 			return errors.Wrapf(err, "failed to exec into privileged pod")
 		}
@@ -221,7 +218,7 @@ func (v *WindowsValidator) validateIPs(stateFileIps stateFileIpsFunc, cmd []stri
 			continue
 		}
 		// get the pod ips
-		podIps := getPodIPsWithoutNodeIP(v.ctx, v.clientset, nodes.Items[index])
+		podIps := getPodIPsWithoutNodeIP(ctx, v.clientset, nodes.Items[index])
 
 		check := compareIPs(filePodIps, podIps)
 
@@ -233,6 +230,6 @@ func (v *WindowsValidator) validateIPs(stateFileIps stateFileIpsFunc, cmd []stri
 	return nil
 }
 
-func (v *WindowsValidator) ValidateRestartNetwork() error {
-	return nil
+func (v *WindowsValidator) ValidateRestartNetwork(context.Context) error {
+	return errors.New("not implemented")
 }
