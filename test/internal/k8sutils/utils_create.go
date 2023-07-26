@@ -30,7 +30,7 @@ func MustCreateOrUpdatePod(ctx context.Context, podI typedcorev1.PodInterface, p
 }
 
 func MustCreateDaemonset(ctx context.Context, daemonsets typedappsv1.DaemonSetInterface, ds appsv1.DaemonSet) error {
-	if err := MustDeleteDaemonset(ctx, daemonsets, ds); err != nil {
+	if err := mustDeleteDaemonset(ctx, daemonsets, ds); err != nil {
 		return err
 	}
 	log.Printf("Creating Daemonset %v", ds.Name)
@@ -42,7 +42,7 @@ func MustCreateDaemonset(ctx context.Context, daemonsets typedappsv1.DaemonSetIn
 }
 
 func MustCreateDeployment(ctx context.Context, deployments typedappsv1.DeploymentInterface, d appsv1.Deployment) error {
-	if err := MustDeleteDeployment(ctx, deployments, d); err != nil {
+	if err := mustDeleteDeployment(ctx, deployments, d); err != nil {
 		return err
 	}
 	log.Printf("Creating Deployment %v", d.Name)

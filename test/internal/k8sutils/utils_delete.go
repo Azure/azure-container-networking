@@ -22,7 +22,7 @@ func MustDeletePod(ctx context.Context, podI typedcorev1.PodInterface, pod corev
 	return nil
 }
 
-func MustDeleteDaemonset(ctx context.Context, daemonsets typedappsv1.DaemonSetInterface, ds appsv1.DaemonSet) error {
+func mustDeleteDaemonset(ctx context.Context, daemonsets typedappsv1.DaemonSetInterface, ds appsv1.DaemonSet) error {
 	if err := daemonsets.Delete(ctx, ds.Name, metav1.DeleteOptions{}); err != nil {
 		if !apierrors.IsNotFound(err) {
 			return err
@@ -32,7 +32,7 @@ func MustDeleteDaemonset(ctx context.Context, daemonsets typedappsv1.DaemonSetIn
 	return nil
 }
 
-func MustDeleteDeployment(ctx context.Context, deployments typedappsv1.DeploymentInterface, d appsv1.Deployment) error {
+func mustDeleteDeployment(ctx context.Context, deployments typedappsv1.DeploymentInterface, d appsv1.Deployment) error {
 	if err := deployments.Delete(ctx, d.Name, metav1.DeleteOptions{}); err != nil {
 		if !apierrors.IsNotFound(err) {
 			return err

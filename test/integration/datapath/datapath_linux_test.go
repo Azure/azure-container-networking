@@ -204,7 +204,7 @@ func TestDatapathLinux(t *testing.T) {
 		t.Run("all pods have IPs assigned", func(t *testing.T) {
 			err := k8sutils.WaitForPodsRunning(ctx, clientset, *podNamespace, podLabelSelector)
 			if err != nil {
-				require.NoError(t, err)
+				t.Fatalf("Pods are not in running state due to %+v", err)
 			}
 			t.Log("all pods have been allocated IPs")
 		})
