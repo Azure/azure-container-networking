@@ -58,7 +58,7 @@ steps:
   - script: |
       cd test/integration/load
       cd ../datapath
-      sudo go test -count=1 datapath_linux_test.go -timeout 1m -tags connection -run ^TestDatapathLinux$ -tags=connection,integration -isDualStack=true
+      sudo go test -count=1 datapath_linux_test.go -timeout 1m -tags connection -run ^TestDatapathLinux$ -tags=connection,integration -isDualStack=true -v
     name: "DualStack_Overlay_Linux_Datapath_tests"
     displayName: "DualStack Overlay Linux Datapath Tests"
 
