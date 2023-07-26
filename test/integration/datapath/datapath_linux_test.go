@@ -105,7 +105,7 @@ func setupLinuxEnvironment(t *testing.T) {
 
 		daemonset, err = k8sutils.MustParseDaemonSet(gpDaemonsetIPv6)
 		if err != nil {
-			t.Fatal(err)
+			require.NoError(t, err)
 		}
 	} else {
 		deployment, err = k8sutils.MustParseDeployment(LinuxDeployIPV4)
@@ -115,7 +115,7 @@ func setupLinuxEnvironment(t *testing.T) {
 
 		daemonset, err = k8sutils.MustParseDaemonSet(gpDaemonset)
 		if err != nil {
-			t.Fatal(err)
+			require.NoError(t, err)
 		}
 	}
 
@@ -123,7 +123,7 @@ func setupLinuxEnvironment(t *testing.T) {
 	rbacSetupFn, err := k8sutils.MustSetUpClusterRBAC(ctx, clientset, gpClusterRolePath, gpClusterRoleBindingPath, gpServiceAccountPath)
 	if err != nil {
 		t.Log(os.Getwd())
-		t.Fatal(err)
+		require.NoError(t, err)
 	}
 
 	// Fields for overwritting existing deployment yaml.
@@ -144,7 +144,7 @@ func setupLinuxEnvironment(t *testing.T) {
 	daemonsetClient := clientset.AppsV1().DaemonSets(daemonset.Namespace)
 	err = k8sutils.MustCreateDaemonset(ctx, daemonsetClient, daemonset)
 	if err != nil {
-		t.Fatal(err)
+		require.NoError(t, err)
 	}
 
 	t.Cleanup(func() {
@@ -182,14 +182,6 @@ func setupLinuxEnvironment(t *testing.T) {
 			t.Logf("%s", node.Name)
 			require.NoError(t, errors.New("Less than 2 pods on node"))
 		}
-	}
-
-	errFlag := apierrors.IsAlreadyExists(err)
-	if errFlag {
-		if err := k8sutils.MustDeleteDaemonset(ctx, daemonsetClient, daemonset); err != nil {
-			require.NoError(t, err)
-		}
-		t.Fatal("delete all goldpinger hosts and pods under default namespace if there is any error")
 	}
 
 	t.Log("Linux test environment ready")
