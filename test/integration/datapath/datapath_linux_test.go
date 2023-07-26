@@ -123,7 +123,7 @@ func setupLinuxEnvironment(t *testing.T) {
 	rbacSetupFn, err := k8sutils.MustSetUpClusterRBAC(ctx, clientset, gpClusterRolePath, gpClusterRoleBindingPath, gpServiceAccountPath)
 	if err != nil {
 		t.Log(os.Getwd())
-		require.NoError(t, err)
+		t.Fatal(err)
 	}
 
 	// Fields for overwritting existing deployment yaml.
@@ -163,7 +163,7 @@ func setupLinuxEnvironment(t *testing.T) {
 	t.Log("Waiting for pods to be running state")
 	err = k8sutils.WaitForPodsRunning(ctx, clientset, *podNamespace, podLabelSelector)
 	if err != nil {
-		require.NoError(t, err)
+		t.Fatalf("Pods are not in running state due to %+v", err)
 	}
 
 	if *isDualStack {
