@@ -222,6 +222,7 @@ dualstack-overlay-up: rg-up overlay-net-up ## Brings up an dualstack Overlay clu
 		--network-plugin azure \
 		--ip-families ipv4,ipv6 \
 		--network-plugin-mode overlay \
+		--aks-custom-headers AKSHTTPCustomFeatures=Microsoft.ContainerService/AzureOverlayDualStackPreview \
 		--subscription $(SUB) \
 		--no-ssh-key \
 		--yes
