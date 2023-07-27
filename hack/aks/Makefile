@@ -50,6 +50,14 @@ unset-kubeconf: ## Deletes the kubeconf for $CLUSTER
 shell: ## print $AZCLI so it can be used outside of make
 	@echo $(AZCLI)
 
+k8se2e: k8se2e-build k8se2e-test ## Alias to run build and test
+
+k8se2e-build: ## Build k8s e2e test suite
+	cd ../scripts && bash ./k8se2e.sh $(GROUP) $(CLUSTER)
+
+k8se2e-test: ## Run k8s network conformance test, use TYPE=basic for only datapath tests
+	cd ../scripts && bash ./k8se2e-tests.sh $(OS) $(TYPE)
+
 vars: ## Show the input vars configured for the cluster commands
 	@echo CLUSTER=$(CLUSTER)
 	@echo GROUP=$(GROUP)
@@ -60,16 +68,6 @@ vars: ## Show the input vars configured for the cluster commands
 	@echo VM_SIZE=$(VM_SIZE)
 	@echo NODE_COUNT=$(NODE_COUNT)
 	@echo VMSS_NAME=$(VMSS_NAME)
-
-##@ k8s Network conformance tests
-
-k8se2e: k8se2e-build k8se2e-test ## Alias to run build and test
-
-k8se2e-build: ## Build k8s e2e test suite
-	cd ../scripts && bash ./k8se2e.sh $(GROUP) $(CLUSTER)
-
-k8se2e-test: ## Run k8s network conformance test
-	cd ../scripts && bash ./k8se2e-tests.sh $(OS) $(TYPE)
 
 
 ##@ SWIFT Infra

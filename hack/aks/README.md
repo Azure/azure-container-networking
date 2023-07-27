@@ -13,6 +13,9 @@ Utilities
   set-kubeconf     Adds the kubeconf for $CLUSTER
   unset-kubeconf   Deletes the kubeconf for $CLUSTER
   shell            print $AZCLI so it can be used outside of make
+  k8se2e           Alias for single command to build and test k8se2e
+  k8se2e-build     Build k8se2e tests based off $CLUSTER
+  k8se2e-test      Run k8se2e tests based off $CLUSTER and $OS
 
 SWIFT Infra
   vars             Show the env vars configured for the swift command
