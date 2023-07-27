@@ -142,7 +142,7 @@ azure-ipam: azure-ipam-binary azure-ipam-archive
 
 revision: ## print the current git revision
 	@echo $(REVISION)
-	
+
 version: ## prints the root version
 	@echo $(ACN_VERSION)
 
@@ -161,15 +161,15 @@ cni-dropgz-test-version: ## prints the cni-dropgz version
 	@echo $(CNI_DROPGZ_TEST_VERSION)
 
 cns-version:
-	@echo $(CNS_VERSION) 
+	@echo $(CNS_VERSION)
 
 npm-version:
-	@echo $(NPM_VERSION) 
+	@echo $(NPM_VERSION)
 
 zapai-version: ## prints the zapai version
 	@echo $(ZAPAI_VERSION)
 
-##@ Binaries 
+##@ Binaries
 
 # Build the delegated IPAM plugin binary.
 azure-ipam-binary:
@@ -509,8 +509,8 @@ manifest-build: # util target to compose multiarch container manifests from plat
 			$(MAKE) manifest-add PLATFORM=$(PLATFORM);\
 		)\
 	)\
-		
-			
+
+
 
 manifest-push: # util target to push multiarch container manifest.
 	$(CONTAINER_BUILDER) manifest push --all $(IMAGE_REGISTRY)/$(IMAGE):$(TAG) docker://$(IMAGE_REGISTRY)/$(IMAGE):$(TAG)
@@ -534,7 +534,7 @@ acncli-manifest-push: ## push acncli multiplat container manifest
 acncli-skopeo-archive: ## export tar archive of acncli multiplat container manifest.
 	$(MAKE) manifest-skopeo-archive \
 		IMAGE=$(ACNCLI_IMAGE) \
-		TAG=$(ACN_VERSION) 
+		TAG=$(ACN_VERSION)
 
 cni-dropgz-manifest-build: ## build cni-dropgz multiplat container manifest.
 	$(MAKE) manifest-build \
@@ -692,7 +692,7 @@ ifeq ($(GOOS),linux)
 endif
 
 
-##@ Utils 
+##@ Utils
 
 clean: ## Clean build artifacts.
 	$(RMDIR) $(OUTPUT_DIR)
@@ -723,7 +723,7 @@ workspace: ## Set up the Go workspace.
 	go work use ./dropgz
 	go work use ./zapai
 
-##@ Test 
+##@ Test
 
 COVER_PKG ?= .
 #Restart case is used for cni load test pipeline for restarting the nodes cluster.
@@ -762,6 +762,15 @@ test-azure-ipam: ## run the unit test for azure-ipam
 kind:
 	kind create cluster --config ./test/kind/kind.yaml
 
+test-k8se2e: test-k8se2e-build test-k8se2e-only ## Alias to run build and test
+
+test-k8se2e-build: ## Build k8s e2e test suite
+	cd hack/scripts && bash ./k8se2e.sh $(GROUP) $(CLUSTER)
+	cd ../..
+
+test-k8se2e-only: ## Run k8s network conformance test, use TYPE=basic for only datapath tests
+	cd hack/scripts && bash ./k8se2e-tests.sh $(OS) $(TYPE)
+	cd ../..
 
 ##@ Utilities
 
@@ -781,7 +790,7 @@ gitconfig: ## configure the local git repository
 setup: tools install-hooks gitconfig ## performs common required repo setup
 
 
-##@ Tools 
+##@ Tools
 
 $(TOOLS_DIR)/go.mod:
 	cd $(TOOLS_DIR); go mod init && go mod tidy
@@ -791,7 +800,7 @@ $(CONTROLLER_GEN): $(TOOLS_DIR)/go.mod
 
 controller-gen: $(CONTROLLER_GEN) ## Build controller-gen
 
-protoc: 
+protoc:
 	source ${REPO_ROOT}/scripts/install-protoc.sh
 
 $(GOCOV): $(TOOLS_DIR)/go.mod
@@ -824,13 +833,13 @@ $(MOCKGEN): $(TOOLS_DIR)/go.mod
 
 mockgen: $(MOCKGEN) ## Build mockgen
 
-clean-tools: 
+clean-tools:
 	rm -r build/tools/bin
 
 tools: acncli gocov gocov-xml go-junit-report golangci-lint gofumpt protoc ## Build bins for build tools
 
 
-##@ Help 
+##@ Help
 
 help: ## Display this help
-	@awk 'BEGIN {FS = ":.*##"; printf "\nUsage:\n  make \033[36m<target>\033[0m\n"} /^[a-zA-Z_-]+:.*?##/ { printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2 } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
+	@awk 'BEGIN {FS = ":.*##"; printf "\nUsage:\n  make \033[36m<target>\033[0m\n"} /^[0-9a-zA-Z_-]+:.*?##/ { printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2 } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)

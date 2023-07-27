@@ -1,7 +1,7 @@
-echo "-g $GROUP -n $CLUSTER"
+echo "Cluster -g $GROUP -n $CLUSTER"
 
 eval k8sVersion="v"$( az aks show -g $GROUP -n $CLUSTER --query "currentKubernetesVersion")
-echo "$k8sversion e2e Test Suite"
+echo $k8sVersion "e2e Test Suite"
 
 curl -L https://dl.k8s.io/$k8sVersion/kubernetes-test-linux-amd64.tar.gz -o ./kubernetes-test-linux-amd64.tar.gz
 
