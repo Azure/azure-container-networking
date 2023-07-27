@@ -25,16 +25,16 @@ VNET       ?= $(CLUSTER)
 ##@ Help
 
 help:  ## Display this help
-	@awk 'BEGIN {FS = ":.*##"; printf "\nUsage:\n  make \033[36m<target>\033[0m\n"} /^[a-zA-Z_-]+:.*?##/ { printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2 } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
+	@awk 'BEGIN {FS = ":.*##"; printf "\nUsage:\n  make \033[36m<target>\033[0m\n"} /^[0-9a-zA-Z_-]+:.*?##/ { printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2 } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
 
 
 ##@ Utilities
 
-azlogin:
+azlogin: ## Login and set account to $SUB
 	@$(AZCLI) login
 	@$(AZCLI) account set -s $(SUB)
 
-azcfg:
+azcfg: ## Set the $AZCLI to use aks-preview
 	@$(AZCLI) extension add --name aks-preview --yes
 	@$(AZCLI) extension update --name aks-preview
 
@@ -222,7 +222,7 @@ windows-cniv1-up: rg-up overlay-net-up ## Bring up a Windows CNIv1 cluster
 
 	@$(MAKE) set-kubeconf
 
-linux-cniv1-up: rg-up overlay-net-up
+linux-cniv1-up: rg-up overlay-net-up ## Bring up a Linux CNIv1 cluster
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
 		--node-count $(NODE_COUNT) \
 		--node-vm-size $(VM_SIZE) \
