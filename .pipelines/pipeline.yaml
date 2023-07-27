@@ -144,9 +144,6 @@ stages:
             displayName: Create artifact storage container
             condition: succeeded()
 
-          - publish: ./test/apimodels/
-            artifact: clusterdefinitions
-
   - stage: containerize
     displayName: Build Images
     dependsOn:
