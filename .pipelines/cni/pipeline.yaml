@@ -21,7 +21,7 @@ stages:
       name: cilium
       clusterType: "overlay-no-kube-proxy-up"
       clusterName: "cilium-overlay"
-      nodeCount: 10
+      nodeCount: ${LINUX_NODE_COUNT}
       vmSize: "Standard_DS4_v2"
       dependsOn: setup
   - template: singletenancy/windows-cni-load-test-template.yaml
