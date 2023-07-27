@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"flag"
+	"fmt"
 	"io"
 	"log"
 	"os"
@@ -71,7 +72,6 @@ func mustParseResource(path string, out interface{}) error {
 	if err := yaml.NewYAMLOrJSONDecoder(f, 0).Decode(out); err != nil {
 		return err
 	}
-
 	return err
 }
 
@@ -373,4 +373,9 @@ func NamespaceExists(ctx context.Context, clientset *kubernetes.Clientset, names
 		return false, errors.Wrapf(err, "error in getting namespace %s", namespace)
 	}
 	return true, nil
+}
+
+// return a label selector
+func CreateLabelSelector(key string, selector *string) string {
+	return fmt.Sprintf("%s=%s", key, *selector)
 }

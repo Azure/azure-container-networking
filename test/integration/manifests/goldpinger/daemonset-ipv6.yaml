@@ -49,6 +49,8 @@ spec:
               value: "20s"
             - name: CHECK_ALL_TIMEOUT
               value: "20s"
+            - name: IP_VERSIONS
+              value: "6"
             - name: HOSTNAME
               valueFrom:
                 fieldRef:
@@ -57,8 +59,8 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: status.podIP
-#            - name: HOSTS_TO_RESOLVE
-#              value: "1.1.1.1 8.8.8.8 www.bing.com"
+            - name: HOSTS_TO_RESOLVE
+              value: "2001:4860:4860::8888 www.bing.com"
           image: "docker.io/bloomberg/goldpinger:v3.7.0"
           securityContext:
             allowPrivilegeEscalation: false

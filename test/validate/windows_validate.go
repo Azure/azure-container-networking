@@ -18,7 +18,7 @@ const (
 )
 
 var (
-	hnsEndPpointCmd  = []string{"powershell", "-c", "Get-HnsEndpoint | ConvertTo-Json"}
+	hnsEndPointCmd   = []string{"powershell", "-c", "Get-HnsEndpoint | ConvertTo-Json"}
 	azureVnetCmd     = []string{"powershell", "-c", "cat ../../k/azure-vnet.json"}
 	azureVnetIpamCmd = []string{"powershell", "-c", "cat ../../k/azure-vnet-ipam.json"}
 )
@@ -78,6 +78,14 @@ type AddressRecord struct {
 	InUse bool
 }
 
+type check struct {
+	name             string
+	stateFileIps     func([]byte) (map[string]string, error)
+	podLabelSelector string
+	podNamespace     string
+	cmd              []string
+}
+
 func (w *WindowsClient) CreateClient(ctx context.Context, clienset *kubernetes.Clientset, config *rest.Config, namespace, cni string, restartCase bool) IValidator {
 	// deploy privileged pod
 	privilegedDaemonSet, err := k8sutils.MustParseDaemonSet(privilegedWindowsDaemonSetPath)
@@ -106,24 +114,26 @@ func (w *WindowsClient) CreateClient(ctx context.Context, clienset *kubernetes.C
 }
 
 func (v *WindowsValidator) ValidateStateFile() error {
-	checks := []struct {
-		name             string
-		stateFileIps     func([]byte) (map[string]string, error)
-		podLabelSelector string
-		podNamespace     string
-		cmd              []string
-	}{
-		{"hns", hnsStateFileIps, privilegedLabelSelector, privilegedNamespace, hnsEndPpointCmd},
+	checkSet := make(map[string][]check) // key is cni type, value is a list of check
+
+	checkSet["cniv1"] = []check{
+		{"hns", hnsStateFileIps, privilegedLabelSelector, privilegedNamespace, hnsEndPointCmd},
 		{"azure-vnet", azureVnetIps, privilegedLabelSelector, privilegedNamespace, azureVnetCmd},
 		{"azure-vnet-ipam", azureVnetIpamIps, privilegedLabelSelector, privilegedNamespace, azureVnetIpamCmd},
 	}
 
-	for _, check := range checks {
-		err := v.validate(check.stateFileIps, check.cmd, check.name, check.podNamespace, check.podLabelSelector)
+	checkSet["cniv2"] = []check{
+		{"azure-vnet", azureVnetIps, privilegedLabelSelector, privilegedNamespace, azureVnetCmd},
+	}
+
+	// this is checking all IPs of the pods with the statefile
+	for _, check := range checkSet[v.cni] {
+		err := v.validateIPs(check.stateFileIps, check.cmd, check.name, check.podNamespace, check.podLabelSelector)
 		if err != nil {
 			return err
 		}
 	}
+
 	return nil
 }
 
@@ -184,7 +194,7 @@ func azureVnetIpamIps(result []byte) (map[string]string, error) {
 	return azureVnetIpamPodIps, nil
 }
 
-func (v *WindowsValidator) validate(stateFileIps stateFileIpsFunc, cmd []string, checkType, namespace, labelSelector string) error {
+func (v *WindowsValidator) validateIPs(stateFileIps stateFileIpsFunc, cmd []string, checkType, namespace, labelSelector string) error {
 	log.Println("Validating ", checkType, " state file")
 	nodes, err := k8sutils.GetNodeListByLabelSelector(v.ctx, v.clientset, windowsNodeSelector)
 	if err != nil {

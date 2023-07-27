@@ -1,0 +1,86 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: goldpinger-deploy
+  namespace: linux-datapath-test
+spec:
+  replicas: 4
+  selector:
+    matchLabels:
+      app: goldpinger
+  template:
+    metadata:
+      labels:
+        app: goldpinger
+    spec:
+        containers:
+          - name: goldpinger
+            env:
+              - name: HOST
+                value: "0.0.0.0"
+              - name: PORT
+                value: "8080"
+              - name: PING_TIMEOUT
+                value: "10s"
+              - name: CHECK_TIMEOUT
+                value: "20s"
+              - name: CHECK_ALL_TIMEOUT
+                value: "20s"
+              - name: DNS_TARGETS_TIMEOUT
+                value: "10s"
+              - name: HOSTNAME
+                valueFrom:
+                  fieldRef:
+                    fieldPath: spec.nodeName
+              - name: POD_IP
+                valueFrom:
+                  fieldRef:
+                    fieldPath: status.podIP
+              - name: HOSTS_TO_RESOLVE
+                value: "1.1.1.1 8.8.8.8 www.bing.com"
+            image: "docker.io/bloomberg/goldpinger:v3.7.0"
+            serviceAccount: goldpinger-serviceaccount
+            tolerations:
+              - key: node-role.kubernetes.io/master
+                effect: NoSchedule
+            securityContext:
+              allowPrivilegeEscalation: false
+              securityContext:
+                runAsNonRoot: true
+                runAsUser: 1000
+                fsGroup: 2000
+              affinity:
+                podAntiAffinity:
+                  preferredDuringSchedulingIgnoredDuringExecution:
+                  - weight: 100
+                    podAffinityTerm:
+                      labelSelector:
+                        matchExpressions:
+                        - key: "app"
+                        operator: In
+                        values:
+                        - goldpinger
+                      topologyKey: "kubernetes.io/hostname"
+            resources:
+              limits:
+                memory: 80Mi
+            requests:
+              cpu: 1m
+              memory: 40Mi
+            ports:
+              - containerPort: 8080
+                name: http
+            readinessProbe:
+              httpGet:
+                path: /healthz
+                port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            livenessProbe:
+              httpGet:
+                path: /healthz
+                port: 8080
+              initialDelaySeconds: 5
+              periodSeconds: 5
+        nodeSelector:
+          kubernetes.io/os: linux
