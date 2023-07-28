@@ -221,18 +221,3 @@ steps:
     displayName: "Cleanup artifact dir"
     condition: always()
 
-  - task: AzureCLI@2
-    inputs:
-      azureSubscription: $(AZURE_TEST_AGENT_SERVICE_CONNECTION)
-      scriptLocation: "inlineScript"
-      scriptType: "bash"
-      addSpnToEnvironment: true
-      inlineScript: |
-        set -e
-        echo "Deleting cluster"
-        make -C ./hack/aks azcfg AZCLI=az
-        make -C ./hack/aks down SUB=$(SUB_AZURE_NETWORK_AGENT_TEST) AZCLI=az CLUSTER=${{ parameters.clusterName }}-$(make revision)
-        echo "Cluster and resources down"
-    name: "Cleanupcluster"
-    displayName: "Cleanup cluster"
-    condition: always()
