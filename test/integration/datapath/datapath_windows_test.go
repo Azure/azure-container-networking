@@ -123,7 +123,7 @@ func setupWindowsEnvironment(t *testing.T) {
 			t.Fatal(err)
 		}
 		if len(pods.Items) <= 1 {
-			t.Fatal("Less than 2 pods on node")
+			t.Fatalf("Less than 2 pods on node: %v", node.Name)
 		}
 	}
 	t.Log("Windows test environment ready")
@@ -136,7 +136,10 @@ func TestDatapathWin(t *testing.T) {
 	restConfig := k8sutils.MustGetRestConfig(t)
 
 	t.Log("Create Clientset")
-	clientset, _ := k8sutils.MustGetClientset()
+	clientset, err := k8sutils.MustGetClientset()
+	if err != nil {
+		t.Fatalf("could not get k8s clientset: %v", err)
+	}
 
 	setupWindowsEnvironment(t)
 	podLabelSelector := k8sutils.CreateLabelSelector(podLabelKey, podPrefix)

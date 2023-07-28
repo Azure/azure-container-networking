@@ -178,7 +178,7 @@ func setupLinuxEnvironment(t *testing.T) {
 			t.Fatalf("could not get k8s clientset: %v", err)
 		}
 		if len(pods.Items) <= 1 {
-			t.Fatal("Less than 2 pods on node")
+			t.Fatalf("Less than 2 pods on node: %v", node.Name)
 		}
 	}
 
@@ -192,8 +192,10 @@ func TestDatapathLinux(t *testing.T) {
 	restConfig := k8sutils.MustGetRestConfig(t)
 
 	t.Log("Create Clientset")
-	clientset, _ := k8sutils.MustGetClientset()
-
+	clientset, err := k8sutils.MustGetClientset()
+	if err != nil {
+		t.Fatalf("could not get k8s clientset: %v", err)
+	}
 	setupLinuxEnvironment(t)
 	podLabelSelector := k8sutils.CreateLabelSelector(podLabelKey, podPrefix)
 
