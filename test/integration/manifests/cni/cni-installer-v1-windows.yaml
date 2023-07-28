@@ -43,6 +43,10 @@ spec:
         - operator: "Exists"
           effect: NoSchedule
       initContainers:
+        - name: delete-azure-vnet-telemetry
+          image: mcr.microsoft.com/powershell:lts-nanoserver-ltsc2022
+          command: ["powershell.exe", "-command"]
+          args: ["if (Get-Process -Name 'azure-vnet-telemetry' -ErrorAction SilentlyContinue) { Stop-Process -Name 'azure-vnet-telemetry' -Force }"]
         - name: cni-drop
           image: ${DROP_GZ_URL}
           imagePullPolicy: Always
@@ -58,6 +62,9 @@ spec:
             - azure-vnet-telemetry.exe
             - -o
             - /k/azurecni/bin/azure-vnet-telemetry.exe
+            - azure-vnet-telemetry.config
+            - -o
+            - /k/azurecni/bin/azure-vnet-telemetry.config
           volumeMounts:
             - name: cni-bin
               mountPath: /k/azurecni/bin/

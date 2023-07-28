@@ -15,6 +15,7 @@ COPY dropgz .
 COPY --from=azure-vnet /azure-container-networking/azure-vnet.exe pkg/embed/fs
 COPY --from=azure-vnet /azure-container-networking/azure-vnet-telemetry.exe pkg/embed/fs
 COPY --from=azure-vnet /azure-container-networking/azure-vnet-ipam.exe pkg/embed/fs
+COPY --from=azure-vnet /azure-container-networking/telemetry/azure-vnet-telemetry.config pkg/embed/fs
 RUN cd pkg/embed/fs/ && sha256sum * > sum.txt
 RUN gzip --verbose --best --recursive pkg/embed/fs && for f in pkg/embed/fs/*.gz; do mv -- "$f" "${f%%.gz}"; done
 

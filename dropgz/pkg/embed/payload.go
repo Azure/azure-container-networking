@@ -7,10 +7,8 @@ import (
 	"io"
 	"io/fs"
 	"os"
-	"os/exec"
 	"path"
 	"path/filepath"
-	"runtime"
 
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
@@ -84,7 +82,7 @@ func Extract(p string) (*compoundReadCloser, error) {
 	return &compoundReadCloser{closer: f, readcloser: r}, nil
 }
 
-func deploy(log *zap.Logger, src, dest string) error {
+func deploy(src, dest string) error {
 	rc, err := Extract(src)
 	if err != nil {
 		return err
@@ -92,21 +90,6 @@ func deploy(log *zap.Logger, src, dest string) error {
 	defer rc.Close()
 	// check if the file exists at dest already and rename it as an old one
 	if _, err := os.Stat(dest); err == nil {
-		// For windows we need to close the process running with the binary before we can rename it.
-		// This is because the file is locked by the process.
-		// We can't use the os.Rename() function because it will fail with an error.
-		if runtime.GOOS == "windows" {
-			// Get the process image name based on the name of the file
-			processImageName := filepath.Base(dest)
-			cmd := exec.Command("taskkill", "/F", "/IM", processImageName)
-			cmd.Stdout = os.Stdout
-			cmd.Stderr = os.Stderr
-			err := cmd.Run()
-			//Silenty ignore the error if the process is not running
-			if err != nil {
-				log.Info("failed to kill process", zap.String("process", processImageName))
-			}
-		}
 		oldDest := dest + oldFileSuffix
 		if err = os.Rename(dest, oldDest); err != nil {
 			return errors.Wrapf(err, "failed to rename the %s to %s", dest, oldDest)
@@ -128,7 +111,7 @@ func Deploy(log *zap.Logger, srcs, dests []string) error {
 	for i := range srcs {
 		src := srcs[i]
 		dest := dests[i]
-		if err := deploy(log, src, dest); err != nil {
+		if err := deploy(src, dest); err != nil {
 			return err
 		}
 		log.Info("wrote file", zap.String("src", src), zap.String("dest", dest))
