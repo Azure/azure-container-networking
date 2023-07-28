@@ -11,6 +11,8 @@ parameters:
 
 stages:
   - stage: createAKSclusterWindows
+    pool:
+      name: $(BUILD_POOL_NAME_DEFAULT)
     dependsOn: ${{ parameters.dependsOn }}
     displayName: "Windows AKS Cluster ${{ parameters.cni }}"
     jobs:
@@ -24,6 +26,8 @@ stages:
               vmSize: ${{ parameters.vmSize }}
               windowsVMSize: ${{ parameters.windowsVMSize }}
   - stage: build_images
+    pool:
+      name: $(BUILD_POOL_NAME_DEFAULT)
     dependsOn: ${{ parameters.dependsOn }}
     displayName: "Build CNI Images"
     jobs:
@@ -45,6 +49,8 @@ stages:
               os: $(os)
               os_version: $(os_version)
   - stage:  update_cni
+    pool:
+      name: $(BUILD_POOL_NAME_DEFAULT)
     dependsOn:
       - createAKSclusterWindows
       - build_images
@@ -81,33 +87,25 @@ stages:
             name: "WaitForCNI"
             displayName: "Wait For CNI"
   - stage: datapath_tests
+    pool:
+      name: $(BUILD_POOL_NAME_DEFAULT)
     dependsOn: update_cni
     displayName: "Datapath Test - Windows"
     jobs:
       - template: ../k8s-e2e/k8s-e2e-job-template.yaml
         parameters:
+          sub: $(TEST_SUB_SERVICE_CONNECTION)
           clusterName: ${{ parameters.clusterName }}
           os: ${{ parameters.os }}
           datapath: true
-      - job: windows_datapath
-        steps:
-        - task: AzureCLI@1
-          inputs:
-            azureSubscription: $(TEST_SUB_SERVICE_CONNECTION)
-            scriptLocation: "inlineScript"
-            scriptType: "bash"
-            addSpnToEnvironment: true
-            inlineScript: |
-              set -ex
-              make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}-$(make revision)
-
-              # Needs to be changed after #2032 is merged
-              # test/integration/datapath/datapath_windows_test.go
-              # does not test IPv6 at this time, waiting for #2032
-              go test -count=1 test/integration/datapath/datapath_win_test.go -timeout 3m -tags connection -run ^TestDatapathWin$ -tags=connection
-          displayName: "Windows go test - IPv6 Datapath"
-          retryCountOnTaskFailure: 5 # Ping is flaky
+          dns: true
+          portforward: true
+          hybridWin: true
+          service: true
+          hostport: true
   - stage: pod_deployment_windows
+    pool:
+      name: $(BUILD_POOL_NAME_DEFAULT)
     dependsOn: datapath_tests
     displayName: "Pod Deployment"
     jobs:
@@ -121,6 +119,8 @@ stages:
               cni: ${{ parameters.cni }}
               iterations: ${WINDOWS_ITERATIONS}
   - stage: validate_state_windows
+    pool:
+      name: $(BUILD_POOL_NAME_DEFAULT)
     dependsOn: pod_deployment_windows
     displayName: "Validate State"
     jobs:
@@ -132,6 +132,8 @@ stages:
               os: ${{ parameters.os }}
               cni: ${{ parameters.cni }}
   - stage: delete_resources
+    pool:
+      name: $(BUILD_POOL_NAME_DEFAULT)
     displayName: "Delete Resources"
     dependsOn:
       - validate_state_windows
