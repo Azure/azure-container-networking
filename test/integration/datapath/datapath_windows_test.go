@@ -10,7 +10,6 @@ import (
 
 	"github.com/Azure/azure-container-networking/test/internal/datapath"
 	"github.com/Azure/azure-container-networking/test/internal/k8sutils"
-	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
 	apiv1 "k8s.io/api/core/v1"
 )
@@ -46,16 +45,14 @@ Timeout context is controled by the -timeout flag.
 
 */
 
-func TestDatapathWin(t *testing.T) {
+func setupWindowsEnvironment(t *testing.T) {
 	ctx := context.Background()
 
 	t.Log("Create Clientset")
 	clientset, err := k8sutils.MustGetClientset()
 	if err != nil {
-		require.NoError(t, err)
+		t.Fatal(err)
 	}
-	t.Log("Get REST config")
-	restConfig := k8sutils.MustGetRestConfig(t)
 
 	t.Log("Create Label Selectors")
 	podLabelSelector := k8sutils.CreateLabelSelector(podLabelKey, podPrefix)
@@ -64,7 +61,7 @@ func TestDatapathWin(t *testing.T) {
 	t.Log("Get Nodes")
 	nodes, err := k8sutils.GetNodeListByLabelSelector(ctx, clientset, nodeLabelSelector)
 	if err != nil {
-		require.NoError(t, err)
+		t.Fatal(err)
 	}
 
 	// Create namespace if it doesn't exist
@@ -84,7 +81,7 @@ func TestDatapathWin(t *testing.T) {
 		t.Log("Creating Windows pods through deployment")
 		deployment, err := k8sutils.MustParseDeployment(WindowsDeployYamlPath)
 		if err != nil {
-			require.NoError(t, err)
+			t.Fatal(err)
 		}
 
 		// Fields for overwritting existing deployment yaml.
@@ -98,13 +95,13 @@ func TestDatapathWin(t *testing.T) {
 		deploymentsClient := clientset.AppsV1().Deployments(*podNamespace)
 		err = k8sutils.MustCreateDeployment(ctx, deploymentsClient, deployment)
 		if err != nil {
-			require.NoError(t, err)
+			t.Fatal(err)
 		}
 
 		t.Log("Waiting for pods to be running state")
-		err := k8sutils.WaitForPodsRunning(ctx, clientset, *podNamespace, podLabelSelector)
+		err = k8sutils.WaitForPodsRunning(ctx, clientset, *podNamespace, podLabelSelector)
 		if err != nil {
-			require.NoError(t, err)
+			t.Fatal(err)
 		}
 		t.Log("Successfully created customer windows pods")
 	} else {
@@ -112,9 +109,9 @@ func TestDatapathWin(t *testing.T) {
 		t.Log("Namespace already exists")
 
 		t.Log("Checking for pods to be running state")
-		err := k8sutils.WaitForPodsRunning(ctx, clientset, *podNamespace, podLabelSelector)
+		err = k8sutils.WaitForPodsRunning(ctx, clientset, *podNamespace, podLabelSelector)
 		if err != nil {
-			require.NoError(t, err)
+			t.Fatal(err)
 		}
 	}
 
@@ -123,14 +120,33 @@ func TestDatapathWin(t *testing.T) {
 
 		pods, err := k8sutils.GetPodsByNode(ctx, clientset, *podNamespace, podLabelSelector, node.Name)
 		if err != nil {
-			require.NoError(t, err)
+			t.Fatal(err)
 		}
 		if len(pods.Items) <= 1 {
-			require.NoError(t, errors.New("Less than 2 pods on node"))
+			t.Fatal("Less than 2 pods on node")
 		}
 	}
 	t.Log("Windows test environment ready")
+}
 
+func TestDatapathWin(t *testing.T) {
+	ctx := context.Background()
+
+	t.Log("Get REST config")
+	restConfig := k8sutils.MustGetRestConfig(t)
+
+	t.Log("Create Clientset")
+	clientset, _ := k8sutils.MustGetClientset()
+
+	setupWindowsEnvironment(t)
+	podLabelSelector := k8sutils.CreateLabelSelector(podLabelKey, podPrefix)
+	nodeLabelSelector := k8sutils.CreateLabelSelector(nodepoolKey, nodepoolSelector)
+
+	t.Log("Get Nodes")
+	nodes, err := k8sutils.GetNodeListByLabelSelector(ctx, clientset, nodeLabelSelector)
+	if err != nil {
+		t.Fatal(err)
+	}
 	t.Run("Windows ping tests pod -> node", func(t *testing.T) {
 		// Windows ping tests between pods and node
 		for _, node := range nodes.Items {
