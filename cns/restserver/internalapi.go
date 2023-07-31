@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -316,37 +317,43 @@ func (service *HTTPRestService) ReconcileIPAMState(ncReqs []*cns.CreateNetworkCo
 	// to pod IPs indexed by interface:
 	//
 	//   {
-	//     "aaa-eth0": podIPs{IPs:["10.0.0.1","fbac:::::1"]}
+	//     "aaa-eth0": podIPs{IPs:["10.0.0.1","fe80::1"]}
 	//   }
 	//
 	// such that we can iterate over pod interfaces, and assign all IPs for it at once.
-	ifaceToPodIPs := newInterfaceToPodIPsMap(podInfoByIP)
+	ifaceToPodIPs, err := newInterfaceToPodIPsMap(podInfoByIP)
+	if err != nil {
+		logger.Errorf("could not transform pods indexed by IP address to pod IPs indexed by interface: %v", err)
+		return types.UnexpectedError
+	}
 
 	for interfaceID, podIPs := range ifaceToPodIPs {
 		var (
 			desiredIPs []string
 			ncIDs      []string
 		)
-		for _, ip := range podIPs.IPs {
-			if ncReq, ok := allSecIPsIdx[ip]; ok {
+
+		for _, ip := range []net.IP{podIPs.v4IP, podIPs.v6IP} {
+			if ncReq, ok := allSecIPsIdx[ip.String()]; ok {
 				logger.Printf("secondary ip %s is assigned to pod %+v, ncId: %s ncVersion: %s", ip, podIPs, ncReq.NetworkContainerid, ncReq.Version)
-				desiredIPs = append(desiredIPs, ip)
+				desiredIPs = append(desiredIPs, ip.String())
 				ncIDs = append(ncIDs, ncReq.NetworkContainerid)
 			} else {
-				// todo: confirm if this is a valid scenario for system pods
+				// it might still be possible to see host networking pods here (where ips are not from ncs) if we are restoring using the kube podinfo provider
+				// todo: once kube podinfo provider reconcile flow is removed, this line will not be necessary/should be removed.
 				logger.Errorf("ip %s assigned to pod %+v but not found in any nc", ip, podIPs)
 			}
+		}
+
+		if len(desiredIPs) == 0 {
+			// this may happen for system pods
+			continue
 		}
 
 		jsonContext, err := podIPs.OrchestratorContext()
 		if err != nil {
 			logger.Errorf("Failed to marshal KubernetesPodInfo, error: %v", err)
 			return types.UnexpectedError
-		}
-
-		if len(desiredIPs) == 0 {
-			// this may happen for system pods
-			continue
 		}
 
 		ipconfigsRequest := cns.IPConfigsRequest{
@@ -362,8 +369,7 @@ func (service *HTTPRestService) ReconcileIPAMState(ncReqs []*cns.CreateNetworkCo
 		}
 	}
 
-	err := service.MarkExistingIPsAsPendingRelease(nnc.Spec.IPsNotInUse)
-	if err != nil {
+	if err := service.MarkExistingIPsAsPendingRelease(nnc.Spec.IPsNotInUse); err != nil {
 		logger.Errorf("[Azure CNS] Error. Failed to mark IPs as pending %v", nnc.Spec.IPsNotInUse)
 		return types.UnexpectedError
 	}
@@ -371,29 +377,52 @@ func (service *HTTPRestService) ReconcileIPAMState(ncReqs []*cns.CreateNetworkCo
 	return 0
 }
 
+var (
+	errIPParse             = errors.New("parse IP")
+	errMultipleIPPerFamily = errors.New("multiple IPs per family")
+)
+
 // newInterfaceToPodIPsMap groups IPs by interface id and returns them indexed by interface id.
-func newInterfaceToPodIPsMap(podInfoByIP map[string]cns.PodInfo) map[string]podIPs {
+func newInterfaceToPodIPsMap(podInfoByIP map[string]cns.PodInfo) (map[string]podIPs, error) {
 	interfaceIDToPodIPs := make(map[string]podIPs)
 
-	for ip, podInfo := range podInfoByIP {
+	for ipStr, podInfo := range podInfoByIP {
 		id := podInfo.InterfaceID()
 
 		ips, ok := interfaceIDToPodIPs[id]
 		if !ok {
 			ips.PodInfo = podInfo
 		}
-		ips.IPs = append(ips.IPs, ip)
+
+		ip := net.ParseIP(ipStr)
+		switch {
+		case ip.To4() != nil:
+			if ips.v4IP != nil {
+				return nil, errors.Wrapf(errMultipleIPPerFamily, "multiple ipv4 addresses (%v, %v) associated to pod %+v", ips.v4IP, ip, podInfo)
+			}
+
+			ips.v4IP = ip
+		case ip.To16() != nil:
+			if ips.v6IP != nil {
+				return nil, errors.Wrapf(errMultipleIPPerFamily, "multiple ipv6 addresses (%v, %v) associated to pod %+v", ips.v6IP, ip, podInfo)
+			}
+
+			ips.v6IP = ip
+		default:
+			return nil, errors.Wrapf(errIPParse, "could not parse ip string %q on pod %+v", ipStr, podInfo)
+		}
 
 		interfaceIDToPodIPs[id] = ips
 	}
 
-	return interfaceIDToPodIPs
+	return interfaceIDToPodIPs, nil
 }
 
 // podIPs are all the IPs associated with a pod, along with pod info
 type podIPs struct {
 	cns.PodInfo
-	IPs []string
+	v4IP net.IP
+	v6IP net.IP
 }
 
 // GetNetworkContainerInternal gets network container details.

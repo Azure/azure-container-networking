@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
+	"net"
 	"os"
 	"reflect"
 	"strconv"
@@ -22,6 +23,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/maps"
 )
 
@@ -483,7 +485,7 @@ func TestReconcileNCWithExistingState(t *testing.T) {
 	validateNCStateAfterReconcile(t, req, expectedNcCount+1, expectedAssignedPods, nil)
 }
 
-func TestReconcileNCWithDualStackPods(t *testing.T) {
+func TestReconcileCNSIPAMWithDualStackPods(t *testing.T) {
 	restartService()
 	setEnv(t)
 	setOrchestratorTypeInternal(cns.KubernetesCRD)
@@ -527,11 +529,142 @@ func TestReconcileNCWithDualStackPods(t *testing.T) {
 			RequestedIPCount: initPoolSize,
 		},
 	})
-	if returnCode != types.Success {
-		t.Errorf("Unexpected failure on reconcile with no state %d", returnCode)
-	}
+
+	require.Equal(t, types.Success, returnCode)
 
 	validateIPAMStateAfterReconcile(t, ncReqs, podByIP)
+}
+
+func TestReconcileCNSIPAMWithMultipleIPsPerFamilyPerPod(t *testing.T) {
+	restartService()
+	setEnv(t)
+	setOrchestratorTypeInternal(cns.KubernetesCRD)
+
+	secIPv4Configs := make(map[string]cns.SecondaryIPConfig)
+	secIPv6Configs := make(map[string]cns.SecondaryIPConfig)
+
+	offset := 6
+	for i := 0; i < 4; i++ {
+		ipv4 := fmt.Sprintf("10.0.0.%d", offset)
+		secIPv4Configs[uuid.New().String()] = newSecondaryIPConfig(ipv4, -1)
+
+		ipv6 := fmt.Sprintf("fe80::%d", offset)
+		secIPv6Configs[uuid.New().String()] = newSecondaryIPConfig(ipv6, -1)
+
+		offset++
+	}
+
+	ipv4NC := generateNetworkContainerRequest(secIPv4Configs, "reconcileNc1", "-1")
+	ipv6NC := generateNetworkContainerRequest(secIPv6Configs, "reconcileNc2", "-1")
+
+	podByIP := map[string]cns.PodInfo{
+		"10.0.0.6": cns.NewPodInfo("some-guid-1", "abc-eth0", "reconcilePod1", "PodNS1"),
+		"10.0.0.7": cns.NewPodInfo("some-guid-1", "abc-eth0", "reconcilePod1", "PodNS1"),
+		"fe80::6":  cns.NewPodInfo("some-guid-1", "abc-eth0", "reconcilePod1", "PodNS1"),
+	}
+
+	ncReqs := []*cns.CreateNetworkContainerRequest{ipv4NC, ipv6NC}
+
+	returnCode := svc.ReconcileIPAMState(ncReqs, podByIP, &v1alpha.NodeNetworkConfig{
+		Status: v1alpha.NodeNetworkConfigStatus{
+			Scaler: v1alpha.Scaler{
+				BatchSize:               batchSize,
+				ReleaseThresholdPercent: releasePercent,
+				RequestThresholdPercent: requestPercent,
+			},
+		},
+		Spec: v1alpha.NodeNetworkConfigSpec{
+			RequestedIPCount: initPoolSize,
+		},
+	})
+
+	require.Equal(t, types.UnexpectedError, returnCode)
+}
+
+func TestPodIPsIndexedByInterface(t *testing.T) {
+	tests := []struct {
+		name           string
+		input          map[string]cns.PodInfo
+		expectedErr    error
+		expectedOutput map[string]podIPs
+	}{
+		{
+			name: "happy path",
+			input: map[string]cns.PodInfo{
+				"10.0.0.6": cns.NewPodInfo("some-guid-1", "abc-eth0", "reconcilePod1", "PodNS1"),
+				"fe80::6":  cns.NewPodInfo("some-guid-1", "abc-eth0", "reconcilePod1", "PodNS1"),
+				"10.0.0.7": cns.NewPodInfo("some-guid-2", "def-eth0", "reconcilePod2", "PodNS2"),
+				"fe80::7":  cns.NewPodInfo("some-guid-2", "def-eth0", "reconcilePod2", "PodNS2"),
+			},
+			expectedOutput: map[string]podIPs{
+				"abc-eth0": {
+					PodInfo: cns.NewPodInfo("some-guid-1", "abc-eth0", "reconcilePod1", "PodNS1"),
+					v4IP:    net.IPv4(10, 0, 0, 6),
+					v6IP:    []byte{0xfe, 0x80, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x06},
+				},
+				"def-eth0": {
+					PodInfo: cns.NewPodInfo("some-guid-2", "def-eth0", "reconcilePod2", "PodNS2"),
+					v4IP:    net.IPv4(10, 0, 0, 7),
+					v6IP:    []byte{0xfe, 0x80, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x07},
+				},
+			},
+		},
+		{
+			name: "multiple ipv4 on single stack pod",
+			input: map[string]cns.PodInfo{
+				"10.0.0.6": cns.NewPodInfo("some-guid-1", "abc-eth0", "reconcilePod1", "PodNS1"),
+				"10.0.0.7": cns.NewPodInfo("some-guid-1", "abc-eth0", "reconcilePod1", "PodNS1"),
+			},
+			expectedErr: errMultipleIPPerFamily,
+		},
+		{
+			name: "multiple ipv4 on dual stack pod",
+			input: map[string]cns.PodInfo{
+				"10.0.0.6": cns.NewPodInfo("some-guid-1", "abc-eth0", "reconcilePod1", "PodNS1"),
+				"10.0.0.7": cns.NewPodInfo("some-guid-1", "abc-eth0", "reconcilePod1", "PodNS1"),
+				"fe80::6":  cns.NewPodInfo("some-guid-1", "abc-eth0", "reconcilePod1", "PodNS1"),
+			},
+			expectedErr: errMultipleIPPerFamily,
+		},
+		{
+			name: "multiple ipv6 on single stack pod",
+			input: map[string]cns.PodInfo{
+				"fe80::6": cns.NewPodInfo("some-guid-1", "abc-eth0", "reconcilePod1", "PodNS1"),
+				"fe80::7": cns.NewPodInfo("some-guid-1", "abc-eth0", "reconcilePod1", "PodNS1"),
+			},
+			expectedErr: errMultipleIPPerFamily,
+		},
+		{
+			name: "multiple ipv6 on dual stack pod",
+			input: map[string]cns.PodInfo{
+				"10.0.0.6": cns.NewPodInfo("some-guid-1", "abc-eth0", "reconcilePod1", "PodNS1"),
+				"fe80::6":  cns.NewPodInfo("some-guid-1", "abc-eth0", "reconcilePod1", "PodNS1"),
+				"fe80::7":  cns.NewPodInfo("some-guid-1", "abc-eth0", "reconcilePod1", "PodNS1"),
+			},
+			expectedErr: errMultipleIPPerFamily,
+		},
+		{
+			name: "malformed ip",
+			input: map[string]cns.PodInfo{
+				"10.0.0.": cns.NewPodInfo("some-guid-1", "abc-eth0", "reconcilePod1", "PodNS1"),
+			},
+			expectedErr: errIPParse,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+
+		t.Run(tt.name, func(t *testing.T) {
+			out, err := newInterfaceToPodIPsMap(tt.input)
+			if tt.expectedErr != nil {
+				require.ErrorIs(t, err, tt.expectedErr)
+				return
+			}
+
+			require.Equal(t, tt.expectedOutput, out)
+		})
+	}
 }
 
 func TestReconcileNCWithExistingStateFromInterfaceID(t *testing.T) {
@@ -872,29 +1005,28 @@ func validateNCStateAfterReconcile(t *testing.T, ncRequest *cns.CreateNetworkCon
 	}
 }
 
-// todo: need to clean this up further. this is a bit of lift and shift of validateNCStateAfterReconcile,
-// because that one does not consider multiple IPs for a pod.
 func validateIPAMStateAfterReconcile(t *testing.T, ncReqs []*cns.CreateNetworkContainerRequest, expectedAssignedIPs map[string]cns.PodInfo) {
 	t.Helper()
 
-	interfaceIdx := newInterfaceToPodIPsMap(expectedAssignedIPs)
+	interfaceIdx, err := newInterfaceToPodIPsMap(expectedAssignedIPs)
+	require.NoError(t, err, "expected IPs contain incorrect state")
 
-	if len(interfaceIdx) != len(svc.PodIPIDByPodInterfaceKey) {
-		t.Fatalf("Unexpected assigned pods, actual: %d, expected: %d", len(svc.PodIPIDByPodInterfaceKey), len(interfaceIdx))
-	}
+	assert.Len(t, svc.PodIPIDByPodInterfaceKey, len(interfaceIdx), "unexepected quantity of interfaces in CNS")
 
-	for ipaddress, podInfo := range expectedAssignedIPs {
-		for _, ipID := range svc.PodIPIDByPodInterfaceKey[podInfo.Key()] {
-			ipConfigstate := svc.PodIPConfigState[ipID]
-			if ipConfigstate.GetState() != types.Assigned {
-				t.Fatalf("IpAddress %s is not marked as assigned to Pod: %+v, ipState: %+v", ipaddress, podInfo, ipConfigstate)
-			}
+	for ipAddress, podInfo := range expectedAssignedIPs {
+		podIPUUIDs, ok := svc.PodIPIDByPodInterfaceKey[podInfo.Key()]
+		assert.Truef(t, ok, "no pod uuids for pod info key %s", podInfo.Key())
 
-			// Validate this IP belongs to a valid NCRequest
-			nc := svc.state.ContainerStatus[ipConfigstate.NCID]
-			if _, exists := nc.CreateNetworkContainerRequest.SecondaryIPConfigs[ipConfigstate.ID]; !exists {
-				t.Fatalf("Secondary IP config doest exist in NC, ncid: %s, ipId %s", ipConfigstate.NCID, ipConfigstate.ID)
-			}
+		for _, ipID := range podIPUUIDs {
+			ipConfigstate, ok := svc.PodIPConfigState[ipID]
+			assert.Truef(t, ok, "ip id %s not found in CNS pod ip id index", ipID)
+			assert.Equalf(t, types.Assigned, ipConfigstate.GetState(), "ip address %s not marked as assigned to pod: %+v, ip config state: %+v", ipAddress, podInfo, ipConfigstate)
+
+			nc, ok := svc.state.ContainerStatus[ipConfigstate.NCID]
+			assert.Truef(t, ok, "nc id %s in ip config state %+v not found in CNS container status index", nc, ipConfigstate)
+
+			_, ok = nc.CreateNetworkContainerRequest.SecondaryIPConfigs[ipID]
+			assert.Truef(t, ok, "secondary ip id %s not found in nc request", ipID)
 		}
 	}
 
@@ -905,23 +1037,14 @@ func validateIPAMStateAfterReconcile(t *testing.T, ncReqs []*cns.CreateNetworkCo
 		}
 	}
 
-	// validate rest of Secondary IPs in Available state
+	// validate rest of secondary IPs in available state
 	for _, ncReq := range ncReqs {
 		for secIPID, secIPConfig := range ncReq.SecondaryIPConfigs {
-			// Validate IP state
-			if secIPConfigState, found := svc.PodIPConfigState[secIPID]; found {
-				if _, exists := expectedAssignedIPs[secIPConfig.IPAddress]; exists {
-					if secIPConfigState.GetState() != types.Assigned {
-						t.Fatalf("IPId: %s State is not Assigned, ipStatus: %+v", secIPID, secIPConfigState)
-					}
-					continue
-				}
+			secIPConfigState, ok := svc.PodIPConfigState[secIPID]
+			assert.True(t, ok)
 
-				if secIPConfigState.GetState() != types.Available {
-					t.Fatalf("IPId: %s State is not Available, ipStatus: %+v", secIPID, secIPConfigState)
-				}
-			} else {
-				t.Fatalf("IPId: %s, IpAddress: %+v State doesnt exists in PodIp Map", secIPID, secIPConfig)
+			if _, isAssigned := expectedAssignedIPs[secIPConfig.IPAddress]; !isAssigned {
+				assert.Equal(t, types.Available, secIPConfigState.GetState())
 			}
 		}
 	}
