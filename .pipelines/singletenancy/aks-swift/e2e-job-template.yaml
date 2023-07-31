@@ -55,11 +55,3 @@ stages:
               testDropgz: ${{ parameters.testDropgz }}
               clusterName: ${{ parameters.clusterName }}
               osSku: ${{ parameters.osSku }}
-
-  - template: ../../templates/delete-cluster.yaml
-    parameters:
-      name: ${{ parameters.name }}
-      displayName: ${{ parameters.displayName }}
-      clusterType: ${{ parameters.clusterType }}
-      clusterName: ${{ parameters.clusterName }}
-      dependsOn: ${{ parameters.name }}

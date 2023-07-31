@@ -72,13 +72,3 @@ stages:
           service: true
           hostport: true
           dependsOn: ${{ parameters.name }}
-
-  - template: ../../templates/delete-cluster.yaml
-    parameters:
-      name: ${{ parameters.name }}
-      displayName: ${{ parameters.displayName }}
-      clusterType: ${{ parameters.clusterType }}
-      clusterName: ${{ parameters.clusterName }}
-      dependsOn: ${{ parameters.name }}
-
-

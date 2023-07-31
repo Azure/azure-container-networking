@@ -391,6 +391,45 @@ stages:
       testDropgz: true
       clusterName: "dualstackoverlaye2e"
 
+
+  - stage: delete
+    displayName: Delete Clusters
+    condition: always()
+    dependsOn:
+      - "aks_swift_e2e"
+      - "cilium_e2e"
+      - "cilium_overlay_cilium_e2e"
+      - "aks_ubuntu_22_linux_e2e"
+      - "aks_windows_22_e2e"
+    jobs:
+      - job: delete
+        displayName: Delete Cluster
+        pool:
+          name: "$(BUILD_POOL_NAME_DEFAULT)"
+        strategy:
+          matrix:
+            cilium_e2e:
+              name: cilium_e2e
+              clusterName: 'ciliume2e'
+            cilium_overlay_cilium_e2e:
+              name: cilium_overlay_cilium_e2e
+              clusterName: 'overlaye2e'
+            aks_swift_e2e:
+              name: aks_swift_e2e
+              clusterName: 'swifte2e'
+            aks_ubuntu_22_linux_e2e:
+              name: aks_ubuntu_22_linux_e2e
+              clusterName: 'ubuntu22e2e'
+            aks_windows_22_e2e:
+              name: aks_windows_22_e2e
+              clusterName: 'win22e2e'
+        steps:
+          - template: templates/delete-cluster.yaml
+            parameters:
+              name: $(name)
+              clusterName: $(clusterName)
+
+
   - stage: validate2
     displayName: Validate Tags
     dependsOn:
