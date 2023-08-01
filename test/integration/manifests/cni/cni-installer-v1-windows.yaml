@@ -36,19 +36,42 @@ spec:
       hostNetwork: true
       serviceAccountName: azure-cni
       tolerations:
-      - operator: Exists
-        effect: NoSchedule
-      - key: CriticalAddonsOnly
-        operator: Exists
-      - effect: NoExecute
-        operator: Exists
-      containers:
+        - key: CriticalAddonsOnly
+          operator: Exists
+        - operator: "Exists"
+          effect: NoExecute
+        - operator: "Exists"
+          effect: NoSchedule
+      initContainers:
+        - name: delete-azure-vnet-telemetry
+          image: mcr.microsoft.com/powershell:lts-nanoserver-ltsc2022
+          command: ["powershell.exe", "-command"]
+          args: ["if (Get-Process -Name 'azure-vnet-telemetry' -ErrorAction SilentlyContinue) { Stop-Process -Name 'azure-vnet-telemetry' -Force }"]
         - name: cni-drop
-          image: ${CNI_IMAGE}
+          image: ${DROP_GZ_URL}
           imagePullPolicy: Always
+          command: ["%CONTAINER_SANDBOX_MOUNT_POINT%/dropgz.exe"]
+          args:
+            - deploy
+            - azure-vnet.exe
+            - -o
+            - /k/azurecni/bin/azure-vnet.exe
+            - azure-vnet-ipam.exe
+            - -o
+            - /k/azurecni/bin/azure-vnet-ipam.exe
+            - azure-vnet-telemetry.exe
+            - -o
+            - /k/azurecni/bin/azure-vnet-telemetry.exe
+            - azure-vnet-telemetry.config
+            - -o
+            - /k/azurecni/bin/azure-vnet-telemetry.config
           volumeMounts:
             - name: cni-bin
               mountPath: /k/azurecni/bin/
+      containers:
+        - name: pause
+          image: mcr.microsoft.com/oss/kubernetes/pause:3.6
+          command: ["%CONTAINER_SANDBOX_MOUNT_POINT%/pause.exe"]
       volumes:
         - name: cni-bin
           hostPath:
