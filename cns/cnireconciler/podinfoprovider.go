@@ -58,17 +58,14 @@ func cniStateToPodInfoByIP(state *api.AzureCNIState) (map[string]cns.PodInfo, er
 	podInfoByIP := map[string]cns.PodInfo{}
 	for _, endpoint := range state.ContainerInterfaces {
 		for _, epIP := range endpoint.IPAddresses {
+			podInfo := cns.NewPodInfo(endpoint.ContainerID, endpoint.PodEndpointId, endpoint.PodName, endpoint.PodNamespace)
+
 			ipKey := epIP.IP.String()
-			if _, ok := podInfoByIP[ipKey]; ok {
-				return nil, errors.Wrap(cns.ErrDuplicateIP, ipKey)
+			if prevPodInfo, ok := podInfoByIP[ipKey]; ok {
+				return nil, errors.Wrapf(cns.ErrDuplicateIP, "duplicate ip %s found for different pods: pod: %+v, pod: %+v", ipKey, podInfo, prevPodInfo)
 			}
 
-			podInfoByIP[ipKey] = cns.NewPodInfo(
-				endpoint.ContainerID,
-				endpoint.PodEndpointId,
-				endpoint.PodName,
-				endpoint.PodNamespace,
-			)
+			podInfoByIP[ipKey] = podInfo
 		}
 	}
 	return podInfoByIP, nil

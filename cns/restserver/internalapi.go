@@ -396,6 +396,8 @@ func newPodKeyToPodIPsMap(podInfoByIP map[string]cns.PodInfo) (map[string]podIPs
 
 		ip := net.ParseIP(ipStr)
 		switch {
+		case ip == nil:
+			return nil, errors.Wrapf(errIPParse, "could not parse ip string %q on pod %+v", ipStr, podInfo)
 		case ip.To4() != nil:
 			if ips.v4IP != nil {
 				return nil, errors.Wrapf(errMultipleIPPerFamily, "multiple ipv4 addresses (%v, %v) associated to pod %+v", ips.v4IP, ip, podInfo)
@@ -408,8 +410,6 @@ func newPodKeyToPodIPsMap(podInfoByIP map[string]cns.PodInfo) (map[string]podIPs
 			}
 
 			ips.v6IP = ip
-		default:
-			return nil, errors.Wrapf(errIPParse, "could not parse ip string %q on pod %+v", ipStr, podInfo)
 		}
 
 		podKeyToPodIPs[id] = ips
