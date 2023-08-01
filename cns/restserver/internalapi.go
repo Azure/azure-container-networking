@@ -317,7 +317,7 @@ func (service *HTTPRestService) ReconcileIPAMState(ncReqs []*cns.CreateNetworkCo
 	// to pod IPs indexed by pod key (interface or name+namespace, depending on scenario):
 	//
 	//   {
-	//     "aaa-eth0": podIPs{IPs:["10.0.0.1","fe80::1"]}
+	//     "aaa-eth0": podIPs{v4IP: 10.0.0.1, v6IP: fe80::1}
 	//   }
 	//
 	// such that we can iterate over pod interfaces, and assign all IPs for it at once.
@@ -346,7 +346,7 @@ func (service *HTTPRestService) ReconcileIPAMState(ncReqs []*cns.CreateNetworkCo
 		}
 
 		if len(desiredIPs) == 0 {
-			// this may happen for system pods
+			// this may happen for pods in the host network
 			continue
 		}
 

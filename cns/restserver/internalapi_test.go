@@ -733,7 +733,7 @@ func TestReconcileCNSIPAMWithKubePodInfoProvider(t *testing.T) {
 	expectedAssignedPods := make(map[string]cns.PodInfo)
 	expectedAssignedPods["10.0.0.6"] = cns.NewPodInfo("", "", "customerpod1", "PodNS1")
 
-	// allocate non-vnet IP for system  pod
+	// allocate non-vnet IP for pod in host network
 	expectedAssignedPods["192.168.0.1"] = cns.NewPodInfo("", "", "systempod", "kube-system")
 
 	expectedNcCount := len(svc.state.ContainerStatus)
