@@ -295,8 +295,6 @@ func KubePodsToPodInfoByIP(pods []corev1.Pod) (map[string]PodInfo, error) {
 			return nil, errors.Wrap(ErrDuplicateIP, pods[i].Status.PodIP)
 		}
 		// record the PodInfo by assigned IP.
-		// todo: this will not work for dual stack since we need to reconcile based on interface id
-		// todo: does this path work for since CNS internal state is keyed with interface id?
 		podInfoByIP[pods[i].Status.PodIP] = NewPodInfo("", "", pods[i].Name, pods[i].Namespace)
 	}
 	return podInfoByIP, nil

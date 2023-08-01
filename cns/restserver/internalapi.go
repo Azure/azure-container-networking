@@ -303,7 +303,7 @@ func (service *HTTPRestService) ReconcileIPAMState(ncReqs []*cns.CreateNetworkCo
 	// considering that a single pod may have multiple ips (such as in dual stack scenarios)
 	// and that IP assignment in CNS (as done by requestIPConfigsHelper) does not allow
 	// updates (it returns the existing state if one already exists for the pod's interface),
-	// we need to assign all IPs for a pod interface at the same time.
+	// we need to assign all IPs for a pod interface or name+namespace at the same time.
 	//
 	// iterating over single IPs is not appropriate then, since assignment for the first IP for
 	// a pod will prevent the second IP from being added. the following function call transforms
@@ -314,20 +314,20 @@ func (service *HTTPRestService) ReconcileIPAMState(ncReqs []*cns.CreateNetworkCo
 	//     "fe80::1":  podInfo{interface: "aaa-eth0"},
 	//   }
 	//
-	// to pod IPs indexed by interface:
+	// to pod IPs indexed by pod key (interface or name+namespace, depending on scenario):
 	//
 	//   {
 	//     "aaa-eth0": podIPs{IPs:["10.0.0.1","fe80::1"]}
 	//   }
 	//
 	// such that we can iterate over pod interfaces, and assign all IPs for it at once.
-	ifaceToPodIPs, err := newInterfaceToPodIPsMap(podInfoByIP)
+	podKeyToPodIPs, err := newPodKeyToPodIPsMap(podInfoByIP)
 	if err != nil {
 		logger.Errorf("could not transform pods indexed by IP address to pod IPs indexed by interface: %v", err)
 		return types.UnexpectedError
 	}
 
-	for interfaceID, podIPs := range ifaceToPodIPs {
+	for podKey, podIPs := range podKeyToPodIPs {
 		var (
 			desiredIPs []string
 			ncIDs      []string
@@ -364,7 +364,7 @@ func (service *HTTPRestService) ReconcileIPAMState(ncReqs []*cns.CreateNetworkCo
 		}
 
 		if _, err := requestIPConfigsHelper(service, ipconfigsRequest); err != nil {
-			logger.Errorf("requestIPConfigsHelper failed for interface id %s, podInfo %+v, ncIds %v, error: %v", interfaceID, podIPs, ncIDs, err)
+			logger.Errorf("requestIPConfigsHelper failed for pod key %s, podInfo %+v, ncIds %v, error: %v", podKey, podIPs, ncIDs, err)
 			return types.FailedToAllocateIPConfig
 		}
 	}
@@ -382,14 +382,14 @@ var (
 	errMultipleIPPerFamily = errors.New("multiple IPs per family")
 )
 
-// newInterfaceToPodIPsMap groups IPs by interface id and returns them indexed by interface id.
-func newInterfaceToPodIPsMap(podInfoByIP map[string]cns.PodInfo) (map[string]podIPs, error) {
-	interfaceIDToPodIPs := make(map[string]podIPs)
+// newPodKeyToPodIPsMap groups IPs by interface id and returns them indexed by interface id.
+func newPodKeyToPodIPsMap(podInfoByIP map[string]cns.PodInfo) (map[string]podIPs, error) {
+	podKeyToPodIPs := make(map[string]podIPs)
 
 	for ipStr, podInfo := range podInfoByIP {
-		id := podInfo.InterfaceID()
+		id := podInfo.Key()
 
-		ips, ok := interfaceIDToPodIPs[id]
+		ips, ok := podKeyToPodIPs[id]
 		if !ok {
 			ips.PodInfo = podInfo
 		}
@@ -412,10 +412,10 @@ func newInterfaceToPodIPsMap(podInfoByIP map[string]cns.PodInfo) (map[string]pod
 			return nil, errors.Wrapf(errIPParse, "could not parse ip string %q on pod %+v", ipStr, podInfo)
 		}
 
-		interfaceIDToPodIPs[id] = ips
+		podKeyToPodIPs[id] = ips
 	}
 
-	return interfaceIDToPodIPs, nil
+	return podKeyToPodIPs, nil
 }
 
 // podIPs are all the IPs associated with a pod, along with pod info
