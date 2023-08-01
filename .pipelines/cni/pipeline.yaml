@@ -31,7 +31,7 @@ stages:
       clusterType: "windows-cniv1-up"
       clusterName: "win-cniv1"
       nodeCount: 2
-      vmSize: "Standard_B2s"
+      vmSize: Standard_B2ms
       dependsOn: setup
       windowsVMSize: ${WINDOWS_VM_SKU}
       os: windows

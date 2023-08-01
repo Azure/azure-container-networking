@@ -165,7 +165,9 @@ stages:
 
 #  $(AZURE_TEST_AGENT_SERVICE_CONNECTION)
   - stage: npm
-    dependsOn: validate_state_windows
+    dependsOn:
+      - validate_state_windows
+      - setup
     displayName: NPM|CNI Release Test
     variables:
       npmVersion: $[ stagedependencies.setup.env.outputs['SetEnvVars.npmVersion'] ]
