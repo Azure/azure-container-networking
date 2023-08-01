@@ -42,6 +42,7 @@ stages:
           - script: |
               BUILD_NUMBER=$(Build.BuildNumber)
               echo "##vso[task.setvariable variable=StorageID;isOutput=true]$(echo ${BUILD_NUMBER//./-})"
+              echo "##vso[task.setvariable variable=commitID;isOutput=true]$(make revision)"
               echo "##vso[task.setvariable variable=Tag;isOutput=true]$(make version)"
               echo "##vso[task.setvariable variable=cniVersion;isOutput=true]$(make cni-version)"
               echo "##vso[task.setvariable variable=npmVersion;isOutput=true]$(make npm-version)"
@@ -248,7 +249,6 @@ stages:
     parameters:
       name: "cilium_e2e"
       displayName: Cilium
-      pipelineBuildImage: "$(BUILD_IMAGE)"
       testDropgz: true
       clusterType: cilium-podsubnet-up
       clusterName: "submodciliume2e"
@@ -261,7 +261,6 @@ stages:
     parameters:
       name: "cilium_overlay_e2e"
       displayName: Cilium on AKS Overlay
-      pipelineBuildImage: "$(BUILD_IMAGE)"
       testDropgz: true
       clusterType: cilium-overlay-up
       clusterName: "submodoverlaye2e"
@@ -274,11 +273,9 @@ stages:
     parameters:
       name: "aks_swift_e2e"
       displayName: AKS Swift
-      pipelineBuildImage: "$(BUILD_IMAGE)"
       testDropgz: true
       clusterType: swift-byocni-up
       clusterName: "submodswift"
-      osSku: "Ubuntu"
       vmSize: Standard_B2ms
       k8sVersion: ""
       windowsOsSku: ""
@@ -288,9 +285,12 @@ stages:
     displayName: Delete Clusters
     condition: always()
     dependsOn:
+      - setup
       - "aks_swift_e2e"
       - "cilium_e2e"
       - "cilium_overlay_cilium_e2e"
+    variables:
+      commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
     jobs:
       - job: delete
         displayName: Delete Cluster
@@ -301,23 +301,21 @@ stages:
             cilium_e2e:
               name: cilium_e2e
               clusterName: 'ciliume2e'
+              region: $(REGION_AKS_CLUSTER_TEST)
             cilium_overlay_cilium_e2e:
               name: cilium_overlay_cilium_e2e
               clusterName: 'overlaye2e'
+              region: $(REGION_OVERLAY_CLUSTER_TEST)
             aks_swift_e2e:
               name: aks_swift_e2e
               clusterName: 'swifte2e'
-            aks_ubuntu_22_linux_e2e:
-              name: aks_ubuntu_22_linux_e2e
-              clusterName: 'ubuntu22e2e'
-            aks_windows_22_e2e:
-              name: aks_windows_22_e2e
-              clusterName: 'win22e2e'
+              region: $(REGION_OVERLAY_CLUSTER_TEST)
         steps:
           - template: templates/delete-cluster.yaml
             parameters:
               name: $(name)
-              clusterName: $(clusterName)
+              clusterName: $(clusterName)-$(commitID)
+              region: $(region)
 
   - stage: cleanup
     displayName: Cleanup

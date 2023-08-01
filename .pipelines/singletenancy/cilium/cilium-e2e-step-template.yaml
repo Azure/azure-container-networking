@@ -29,7 +29,8 @@ steps:
       scriptType: "bash"
       addSpnToEnvironment: true
       inlineScript: |
-        make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}-$(make revision)
+        set -e
+        make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
         ls -lah
         pwd
         echo "installing kubectl"

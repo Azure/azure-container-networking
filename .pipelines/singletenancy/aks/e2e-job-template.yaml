@@ -12,17 +12,29 @@ parameters:
   scaleup: ""
   dependsOn: ""
 
+
 stages:
-  - template: ../../templates/create-cluster.yaml
-    parameters:
-      name: ${{ parameters.name }}
-      displayName: ${{ parameters.displayName }}
-      clusterType: ${{ parameters.clusterType }}
-      clusterName: ${{ parameters.clusterName }}
-      vmSize: ${{ parameters.vmSize }}
-      k8sVersion: ${{ parameters.k8sVersion }}
-      windowsOsSku: ${{ parameters.windowsOsSku }}
-      dependsOn: ${{ parameters.dependsOn }}
+  - stage: ${{ parameters.clusterName }}
+    displayName: Create Cluster - ${{ parameters.displayName }}
+    dependsOn:
+      - ${{ parameters.dependsOn }}
+      - setup
+    pool:
+      name: $(BUILD_POOL_NAME_DEFAULT)
+    variables:
+      commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
+    jobs:
+      - template: ../../templates/create-cluster.yaml
+        parameters:
+          name: ${{ parameters.name }}
+          displayName: ${{ parameters.displayName }}
+          clusterType: ${{ parameters.clusterType }}
+          clusterName: ${{ parameters.clusterName }}-$(commitID)
+          vmSize: ${{ parameters.vmSize }}
+          k8sVersion: ${{ parameters.k8sVersion }}
+          windowsOsSku: ${{ parameters.windowsOsSku }}
+          dependsOn: ${{ parameters.dependsOn }}
+          region: $(REGION_AKS_CLUSTER_TEST)
 
   - stage: ${{ parameters.name }}
     displayName: E2E - ${{ parameters.displayName }}
@@ -32,6 +44,7 @@ stages:
       modulePath: "$(GOPATH)/src/github.com/Azure/azure-container-networking"
       dropgzVersion: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.dropgzVersion'] ]
       cniVersion: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.cniVersion'] ]
+      commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
     dependsOn:
     - setup
     - publish
@@ -49,7 +62,7 @@ stages:
             parameters:
               name: ${{ parameters.name }}
               clusterType: ${{ parameters.clusterType }}
-              clusterName: ${{ parameters.clusterName }}
+              clusterName: ${{ parameters.clusterName }}-$(commitID)
               vmSize: ${{ parameters.vmSize }}
               arch: ${{ parameters.arch }}
               os: ${{ parameters.os }}
@@ -63,7 +76,7 @@ stages:
       - template: ../../cni/k8s-e2e/k8s-e2e-job-template.yaml
         parameters:
           sub: $(AZURE_TEST_AGENT_SERVICE_CONNECTION)
-          clusterName: ${{ parameters.clusterName }}
+          clusterName: ${{ parameters.clusterName }}-$(commitID)
           os: ${{ parameters.os }}
           datapath: true
           dns: true

@@ -29,7 +29,8 @@ steps:
       scriptType: "bash"
       addSpnToEnvironment: true
       inlineScript: |
-        make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}-$(make revision)
+        set -e
+        make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
         ls -lah
         pwd
         echo "installing kubectl"
@@ -93,7 +94,7 @@ steps:
       then
           CNS=$(CNS_VERSION) DROPGZ=$(DROP_GZ_VERSION) && echo "Running nightly"
       else
-          CNS=$(make cns-version) DROPGZ=$(make cni-dropgz-version)
+          CNS=$(make cns-version) DROPGZ=$(make cni-dropgz-version) # These could become out of sync TODO
       fi
       sudo -E env "PATH=$PATH" make test-integration CNS_VERSION=${CNS} CNI_DROPGZ_VERSION=${DROPGZ} INSTALL_CNS=true INSTALL_OVERLAY=true TEST_DROPGZ=${{ parameters.testDropgz }}
     retryCountOnTaskFailure: 3
