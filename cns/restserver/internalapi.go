@@ -333,7 +333,16 @@ func (service *HTTPRestService) ReconcileIPAMState(ncReqs []*cns.CreateNetworkCo
 			ncIDs      []string
 		)
 
-		for _, ip := range []net.IP{podIPs.v4IP, podIPs.v6IP} {
+		var ips []net.IP
+		if podIPs.v4IP != nil {
+			ips = append(ips, podIPs.v4IP)
+		}
+
+		if podIPs.v6IP != nil {
+			ips = append(ips, podIPs.v6IP)
+		}
+
+		for _, ip := range ips {
 			if ncReq, ok := allSecIPsIdx[ip.String()]; ok {
 				logger.Printf("secondary ip %s is assigned to pod %+v, ncId: %s ncVersion: %s", ip, podIPs, ncReq.NetworkContainerid, ncReq.Version)
 				desiredIPs = append(desiredIPs, ip.String())
