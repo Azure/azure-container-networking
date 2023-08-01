@@ -12,6 +12,7 @@ stages:
         steps:
           - script: |
               echo "Setting up environment"
+              echo "##vso[task.setvariable variable=npmVersion;isOutput=true]$(make npm-version)"
               go version
             name: "SetEnvVars"
             displayName: "Set Environment Variables"
