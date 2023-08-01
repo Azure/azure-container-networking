@@ -228,6 +228,34 @@ linux-cniv1-up: rg-up overlay-net-up ## Bring up a Linux CNIv1 cluster
 
 	@$(MAKE) set-kubeconf
 
+dualstack-overlay-up: rg-up overlay-net-up ## Brings up an dualstack Overlay cluster with Linux node only
+	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
+		--kubernetes-version 1.26.3 \
+		--node-count $(NODE_COUNT) \
+		--node-vm-size $(VM_SIZE) \
+		--network-plugin azure \
+		--ip-families ipv4,ipv6 \
+		--network-plugin-mode overlay \
+		--aks-custom-headers AKSHTTPCustomFeatures=Microsoft.ContainerService/AzureOverlayDualStackPreview \
+		--subscription $(SUB) \
+		--no-ssh-key \
+		--yes
+	@$(MAKE) set-kubeconf
+
+dualstack-overlay-byocni-up: rg-up overlay-net-up ## Brings up an dualstack Overlay BYO CNI cluster
+	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
+		--kubernetes-version 1.26.3 \
+		--node-count $(NODE_COUNT) \
+		--node-vm-size $(VM_SIZE) \
+		--network-plugin none \
+		--network-plugin-mode overlay \
+		--aks-custom-headers AKSHTTPCustomFeatures=Microsoft.ContainerService/AzureOverlayDualStackPreview \
+		--ip-families ipv4,ipv6 \
+		--subscription $(SUB) \
+		--no-ssh-key \
+		--yes
+	@$(MAKE) set-kubeconf
+	
 down: ## Delete the cluster
 	$(AZCLI) aks delete -g $(GROUP) -n $(CLUSTER) --yes
 	@$(MAKE) unset-kubeconf

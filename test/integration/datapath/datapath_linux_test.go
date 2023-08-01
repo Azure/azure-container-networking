@@ -10,14 +10,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Azure/azure-container-networking/test/integration"
+	k8s "github.com/Azure/azure-container-networking/test/integration"
 	"github.com/Azure/azure-container-networking/test/integration/goldpinger"
 	k8sutils "github.com/Azure/azure-container-networking/test/internal/k8sutils"
 	"github.com/Azure/azure-container-networking/test/internal/retry"
 	"github.com/pkg/errors"
 
 	appsv1 "k8s.io/api/apps/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 

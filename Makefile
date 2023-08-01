@@ -757,6 +757,12 @@ test-k8se2e-only: ## Run k8s network conformance test, use TYPE=basic for only d
 	cd hack/scripts && bash ./k8se2e-tests.sh $(OS) $(TYPE)
 	cd ../..
 
+# install azure Linux CNS and CNI dropgz images
+install-azure-images:
+	CNI_DROPGZ_VERSION=$(CNI_DROPGZ_VERSION) \
+	CNS_VERSION=$(CNS_VERSION) \
+	go test -mod=readonly -buildvcs=false -timeout 1h -coverpkg=./... -race -covermode atomic -coverprofile=coverage.out -tags=integration ./test/integration/setup_test.go
+	
 ##@ Utilities
 
 $(REPO_ROOT)/.git/hooks/pre-push:

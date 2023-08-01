@@ -367,6 +367,14 @@ stages:
       os_version: 'ltsc2022'
       scaleup: 100
 
+  - template: singletenancy/dualstack-overlay/dualstackoverlay-e2e-job-template.yaml
+    parameters:
+      name: "dualstackoverlay_e2e"
+      displayName: AKS DualStack Overlay
+      pipelineBuildImage: "$(BUILD_IMAGE)"
+      testDropgz: ""
+      clusterName: "dualstackoverlaye2e"
+
   - stage: validate2
     displayName: Validate Tags
     dependsOn:
@@ -395,6 +403,7 @@ stages:
       - "cilium_overlay_cilium_e2e"
       - "aks_ubuntu_22_linux_e2e"
       - "aks_windows_22_e2e"
+      - "dualstackoverlay_e2e"
     jobs:
       - job: delete_remote_artifacts
         displayName: Delete remote artifacts

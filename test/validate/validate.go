@@ -6,6 +6,7 @@ import (
 
 	k8sutils "github.com/Azure/azure-container-networking/test/internal/k8sutils"
 	"github.com/pkg/errors"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 )
@@ -170,5 +171,112 @@ func (v *Validator) validateIPs(ctx context.Context, stateFileIps stateFileIpsFu
 		}
 	}
 	log.Printf("State file validation for %s passed", checkType)
+	return nil
+}
+
+func (v *Validator) ValidateDualStackNodeProperties(ctx context.Context) error {
+	if v.os == "linux" {
+		log.Print("Validating Dualstack Overlay Linux Node properties")
+		nodes, err := k8sutils.GetNodeList(ctx, v.clientset)
+		if err != nil {
+			return errors.Wrapf(err, "failed to get node list")
+		}
+
+		for index := range nodes.Items {
+			nodeName := nodes.Items[index].ObjectMeta.Name
+			// check nodes status;
+			// nodes status should be ready after cluster is created
+			nodeConditions := nodes.Items[index].Status.Conditions
+			if nodeConditions[len(nodeConditions)-1].Type != corev1.NodeReady {
+				return errors.Wrapf(err, "node %s status is not ready", nodeName)
+			}
+
+			// get node labels
+			nodeLabels := nodes.Items[index].ObjectMeta.GetLabels()
+			for key := range nodeLabels {
+				if value, ok := dualstackOverlayNodeLabels[key]; ok {
+					log.Printf("label %s is correctly shown on the node %+v", key, nodeName)
+					if value != overlayClusterLabelName {
+						return errors.Wrapf(err, "node %s overlay label name is wrong", nodeName)
+					}
+				}
+			}
+
+			// check if node has two internal IPs(one is IPv4 and another is IPv6)
+			internalIPCount := 0
+			for _, address := range nodes.Items[index].Status.Addresses {
+				if address.Type == "InternalIP" {
+					internalIPCount++
+				}
+			}
+			if internalIPCount != 2 { //nolint
+				return errors.Wrap(err, "node does have two internal IPs")
+			}
+		}
+	} else if v.os == "windows" {
+		log.Print("Validating Dualstack Overlay Windows Node properties")
+		nodes, err := k8sutils.GetNodeListByLabelSelector(ctx, v.clientset, nodeSelectorMap[v.os])
+		if err != nil {
+			return errors.Wrapf(err, "failed to get node list")
+		}
+
+		for index := range nodes.Items {
+			nodeName := nodes.Items[index].ObjectMeta.Name
+			// check nodes status;
+			// nodes status should be ready after cluster is created
+			nodeConditions := nodes.Items[index].Status.Conditions
+			if nodeConditions[len(nodeConditions)-1].Type != corev1.NodeReady {
+				return errors.Wrapf(err, "node %s status is not ready", nodeName)
+			}
+
+			// get node labels
+			nodeLabels := nodes.Items[index].ObjectMeta.GetLabels()
+			for key := range nodeLabels {
+				if value, ok := dualstackOverlayNodeLabels[key]; ok {
+					log.Printf("label %s is correctly shown on the node %+v", key, nodeName)
+					if value != overlayClusterLabelName {
+						return errors.Wrapf(err, "node %s overlay label name is wrong", nodeName)
+					}
+				}
+			}
+
+			// check windows HNS network state
+			pod, err := k8sutils.GetPodsByNode(ctx, v.clientset, privilegedNamespace, privilegedLabelSelector, nodes.Items[index].Name)
+			if err != nil {
+				return errors.Wrapf(err, "failed to get privileged pod")
+			}
+
+			podName := pod.Items[0].Name
+			// exec into the pod to get the state file
+			result, err := k8sutils.ExecCmdOnPod(ctx, v.clientset, privilegedNamespace, podName, hnsNetworkCmd, v.config)
+			if err != nil {
+				return errors.Wrapf(err, "failed to exec into privileged pod")
+			}
+
+			hnsNetwork, err := hnsNetworkState(result)
+			if err != nil {
+				return errors.Wrapf(err, "failed to unmarshal hns network list")
+			}
+
+			if len(hnsNetwork) == 0 { //nolint
+				return errors.Wrapf(err, "windows node does not have any HNS network")
+			} else if len(hnsNetwork) == 1 { //nolint
+				return errors.Wrapf(err, "HNS default ext network or azure network does not exist")
+			} else {
+				for _, network := range hnsNetwork {
+					if !network.IPv6 {
+						return errors.Wrapf(err, "windows HNS network IPv6 flag is not set correctly")
+					}
+					if network.State != 1 {
+						return errors.Wrapf(err, "windows HNS network state is not correct")
+					}
+					if network.ManagementIPv6 == "" || network.ManagementIP == "" {
+						return errors.Wrapf(err, "windows HNS network is missing ipv4 or ipv6 management IP")
+					}
+				}
+			}
+		}
+	}
+
 	return nil
 }

@@ -18,14 +18,15 @@ import (
 const (
 	exitFail = 1
 
-	envTestDropgz             = "TEST_DROPGZ"
-	envCNIDropgzVersion       = "CNI_DROPGZ_VERSION"
-	envCNSVersion             = "CNS_VERSION"
-	envInstallCNS             = "INSTALL_CNS"
-	envInstallAzilium         = "INSTALL_AZILIUM"
-	envInstallAzureVnet       = "INSTALL_AZURE_VNET"
-	envInstallOverlay         = "INSTALL_OVERLAY"
-	envInstallAzureCNIOverlay = "INSTALL_AZURE_CNI_OVERLAY"
+	envTestDropgz              = "TEST_DROPGZ"
+	envCNIDropgzVersion        = "CNI_DROPGZ_VERSION"
+	envCNSVersion              = "CNS_VERSION"
+	envInstallCNS              = "INSTALL_CNS"
+	envInstallAzilium          = "INSTALL_AZILIUM"
+	envInstallAzureVnet        = "INSTALL_AZURE_VNET"
+	envInstallOverlay          = "INSTALL_OVERLAY"
+	envInstallAzureCNIOverlay  = "INSTALL_AZURE_CNI_OVERLAY"
+	envInstallDualStackOverlay = "INSTALL_DUALSTACK_OVERLAY"
 
 	// relative cns manifest paths
 	cnsManifestFolder               = "manifests/cns"
@@ -180,6 +181,19 @@ func installCNSDaemonset(ctx context.Context, clientset *kubernetes.Clientset, l
 		}
 	} else {
 		log.Printf("Env %v not set to true, skipping", envInstallAzureCNIOverlay)
+	}
+
+	if installBool5 := os.Getenv(envInstallDualStackOverlay); installBool5 != "" {
+		if dualStackOverlayScenario, err := strconv.ParseBool(installBool5); err == nil && dualStackOverlayScenario == true {
+			log.Printf("Env %v set to true, deploy azure-vnet", envInstallDualStackOverlay)
+			cns.Spec.Template.Spec.InitContainers[0].Args = []string{"deploy", "azure-vnet", "-o", "/opt/cni/bin/azure-vnet", "azure-vnet-telemetry", "-o", "/opt/cni/bin/azure-vnet-telemetry", "azure-vnet-ipam", "-o", "/opt/cni/bin/azure-vnet-ipam", "azure-swift-overlay-dualstack.conflist", "-o", "/etc/cni/net.d/10-azure.conflist"}
+		}
+		// setup the CNS swiftconfigmap
+		if err := k8sutils.MustSetupConfigMap(ctx, clientset, cnsSwiftConfigMapPath); err != nil {
+			return nil, err
+		}
+	} else {
+		log.Printf("Env %v not set to true, skipping", envInstallDualStackOverlay)
 	}
 
 	cnsDaemonsetClient := clientset.AppsV1().DaemonSets(cns.Namespace)
