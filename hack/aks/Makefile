@@ -247,7 +247,6 @@ dualstack-windows-byocni-up: ## Add windows node pool to dualstack overlay clust
 	    --cluster-name  $(CLUSTER) \
 		--node-count $(NODE_COUNT) \
 		--node-vm-size $(VM_SIZE) \
-		--network-plugin none \
 		--os-type Windows \
 		--os-sku Windows2022 \
 		--subscription $(SUB)
