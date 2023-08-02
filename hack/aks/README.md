@@ -29,8 +29,8 @@ AKS Clusters
   swift-cilium-up              Bring up a SWIFT Cilium cluster
   swift-up                     Bring up a SWIFT AzCNI cluster
   windows-cniv1-up             Bring up a Windows AzCNIv1 cluster
-  dualstack-overlay-up         Brings up an dualstack overlay cluster
   dualstack-overlay-byocni-up  Brings up an dualstack overlay cluster without CNS and CNI installed
+  dualstack-windows-byocni-up: Add windows node pool to dualstack overlay cluster
   down                         Delete the cluster
   vmss-restart                 Restart the nodes of the cluster
 ```

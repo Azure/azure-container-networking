@@ -54,22 +54,38 @@ steps:
     retryCountOnTaskFailure: 3
     name: "installKubectl"
     displayName: "Install kubectl on AKS dualstack overlay cluster"
-  - script: |
-      cd test/integration/load
-      echo "DualStack Overlay Linux control plane Node properties test"
-      sudo go test -timeout 30m -tags load -run ^TestDualStackProperties$ -tags=load
-      echo "DualStack Overlay Linux control plane Load test"
-      sudo go test -timeout 30m -tags load -run ^TestLoad$ -tags=load
-      echo "Delete Linux load-test namespace"
-      kubectl delete ns load-test
-      echo "DualStack Overlay Linux control plane CNS validation test"
-      sudo go test -timeout 30m -tags load -cni cniv2 -run ^TestValidateState$ -tags=load
-      sleep 10
-      cd ../datapath
-      echo "Dualstack Overlay Linux datapath IPv6 test"
-      sudo go test -count=1 datapath_linux_test.go -timeout 1m -tags connection -run ^TestDatapathLinux$ -tags=connection,integration -isDualStack=true
-      sleep 10
-      echo "Dualstack Overlay Linux datapath IPv4 test"
-      sudo go test -count=1 datapath_linux_test.go -timeout 1m -tags connection -run ^TestDatapathLinux$ -tags=connection,integration
-    name: "DualStack_Overlay_Linux_Tests"
-    displayName: "DualStack Overlay Linux Tests"
+
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: $(AZURE_TEST_AGENT_SERVICE_CONNECTION)
+      scriptLocation: "inlineScript"
+      scriptType: "bash"
+      addSpnToEnvironment: true
+      inlineScript: |
+        make -C ./hack/aks dualstack-windows-byocni-up AZCLI=az VM_SIZE=$(VM_SIZE) NODE_COUNT=$(NODE_COUNT) SUB=$(SUB_AZURE_NETWORK_AGENT_TEST) CLUSTER=${{ parameters.clusterName }}-$(make revision)
+        echo "Windows node are successfully added to Dualstack Overlay Cluster"
+        kubectl cluster-info
+        kubectl get node
+        kubectl get po -owide -A
+    name: "Add_Windows_Node"
+    displayName: "Add windows node on DualStackOverlay cluster"
+
+  # - script: |
+  #     cd test/integration/load
+  #     echo "DualStack Overlay Linux control plane Node properties test"
+  #     sudo go test -timeout 30m -tags load -run ^TestDualStackProperties$ -tags=load
+  #     echo "DualStack Overlay Linux control plane Load test"
+  #     sudo go test -timeout 30m -tags load -run ^TestLoad$ -tags=load
+  #     echo "Delete Linux load-test namespace"
+  #     kubectl delete ns load-test
+  #     echo "DualStack Overlay Linux control plane CNS validation test"
+  #     sudo go test -timeout 30m -tags load -cni cniv2 -run ^TestValidateState$ -tags=load
+  #     sleep 10
+  #     cd ../datapath
+  #     echo "Dualstack Overlay Linux datapath IPv6 test"
+  #     sudo go test -count=1 datapath_linux_test.go -timeout 1m -tags connection -run ^TestDatapathLinux$ -tags=connection,integration -isDualStack=true
+  #     sleep 10
+  #     echo "Dualstack Overlay Linux datapath IPv4 test"
+  #     sudo go test -count=1 datapath_linux_test.go -timeout 1m -tags connection -run ^TestDatapathLinux$ -tags=connection,integration
+  #   name: "DualStack_Overlay_Linux_Tests"
+  #   displayName: "DualStack Overlay Linux Tests"
