@@ -99,7 +99,7 @@ overlay-byocni-up: rg-up overlay-net-up ## Brings up an Overlay BYO CNI cluster
 		--yes
 	@$(MAKE) set-kubeconf
 
-overlay-cilium-up: rg-up overlay-net-up ## Brings up an Overlay AzCNI cluster
+overlay-cilium-up: rg-up overlay-net-up ## Brings up an Overlay Cilium cluster
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
 		--node-count $(NODE_COUNT) \
 		--node-vm-size $(VM_SIZE) \

@@ -30,7 +30,7 @@ stages:
           k8sVersion: ${{ parameters.k8sVersion }}
           windowsOsSku: ${{ parameters.windowsOsSku }}
           dependsOn: ${{ parameters.dependsOn }}
-          region: $(REGION_OVERLAY_CLUSTER_TEST)
+          region: $(REGION_AKS_CLUSTER_TEST)
 
   - stage: ${{ parameters.name }}
     displayName: E2E - ${{ parameters.displayName }}

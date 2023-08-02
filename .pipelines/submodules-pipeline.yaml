@@ -40,6 +40,7 @@ stages:
           name: "$(BUILD_POOL_NAME_DEFAULT)"
         steps:
           - script: |
+              # To use the variables below, you must make the respective stage's dependsOn have - setup or it will not retain context of this stage
               BUILD_NUMBER=$(Build.BuildNumber)
               echo "##vso[task.setvariable variable=StorageID;isOutput=true]$(echo ${BUILD_NUMBER//./-})"
               echo "##vso[task.setvariable variable=commitID;isOutput=true]$(make revision)"
@@ -288,7 +289,7 @@ stages:
       - setup
       - "aks_swift_e2e"
       - "cilium_e2e"
-      - "cilium_overlay_cilium_e2e"
+      - "cilium_overlay_e2e"
     variables:
       commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
     jobs:
@@ -300,22 +301,19 @@ stages:
           matrix:
             cilium_e2e:
               name: cilium_e2e
-              clusterName: 'ciliume2e'
-              region: $(REGION_AKS_CLUSTER_TEST)
-            cilium_overlay_cilium_e2e:
-              name: cilium_overlay_cilium_e2e
-              clusterName: 'overlaye2e'
-              region: $(REGION_OVERLAY_CLUSTER_TEST)
+              clusterName: 'submodciliume2e'
+            cilium_overlay_e2e:
+              name: cilium_overlay_e2e
+              clusterName: 'submodoverlaye2e'
             aks_swift_e2e:
               name: aks_swift_e2e
-              clusterName: 'swifte2e'
-              region: $(REGION_OVERLAY_CLUSTER_TEST)
+              clusterName: 'submodswift'
         steps:
           - template: templates/delete-cluster.yaml
             parameters:
               name: $(name)
               clusterName: $(clusterName)-$(commitID)
-              region: $(region)
+              region: $(REGION_AKS_CLUSTER_TEST)
 
   - stage: cleanup
     displayName: Cleanup

@@ -32,6 +32,7 @@ stages:
           name: "$(BUILD_POOL_NAME_DEFAULT)"
         steps:
           - script: |
+              # To use the variables below, you must make the respective stage's dependsOn have - setup or it will not retain context of this stage
               BUILD_NUMBER=$(Build.BuildNumber)
               echo "##vso[task.setvariable variable=StorageID;isOutput=true]$(echo ${BUILD_NUMBER//./-})"
               echo "##vso[task.setvariable variable=commitID;isOutput=true]$(make revision)"
@@ -417,33 +418,27 @@ stages:
             cilium_e2e:
               name: cilium_e2e
               clusterName: 'ciliume2e'
-              region: $(REGION_AKS_CLUSTER_TEST)
             cilium_overlay_cilium_e2e:
               name: cilium_overlay_cilium_e2e
               clusterName: 'overlaye2e'
-              region: $(REGION_OVERLAY_CLUSTER_TEST)
             azure_cni_overlay_e2e:
               name: azure_cni_overlay_e2e
               clusterName: 'azurecnioverlaye2e'
-              region: $(REGION_OVERLAY_CLUSTER_TEST)
             aks_swift_e2e:
               name: aks_swift_e2e
               clusterName: 'swifte2e'
-              region: $(REGION_AKS_CLUSTER_TEST)
             aks_ubuntu_22_linux_e2e:
               name: aks_ubuntu_22_linux_e2e
               clusterName: 'ubuntu22e2e'
-              region: $(REGION_AKS_CLUSTER_TEST)
             aks_windows_22_e2e:
               name: aks_windows_22_e2e
               clusterName: 'win22e2e'
-              region: $(REGION_AKS_CLUSTER_TEST)
         steps:
           - template: templates/delete-cluster.yaml
             parameters:
               name: $(name)
               clusterName: $(clusterName)-$(commitID)
-              region: $(region)
+              region: $(REGION_AKS_CLUSTER_TEST)
 
 
   - stage: validate2
