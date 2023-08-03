@@ -34,6 +34,7 @@ const (
 	NmAgentSupportedApisPath      = "/network/nmagentsupportedapis"
 	V1Prefix                      = "/v0.1"
 	V2Prefix                      = "/v0.2"
+	EndpointPath                  = "/network/endpoints"
 )
 
 // HTTPService describes the min API interface that every service should have.
@@ -346,4 +347,21 @@ type HomeAzResponse struct {
 type GetHomeAzResponse struct {
 	Response       Response       `json:"response"`
 	HomeAzResponse HomeAzResponse `json:"homeAzResponse"`
+}
+
+// UpdateEndpoint describes request to update the state.
+type UpdateEndpoint struct {
+	EndpointID string `json:"EndpointID"`
+	HnsID      string `json:"HnsID"`
+	VethName   string `json:"VethName"`
+}
+
+// UpdateEndpointResponse describes response to the UpdateEndpoint request.
+type UpdateEndpointResponse struct {
+	Response Response `json:"Response"`
+}
+
+// EndpointID describes request to get the state.
+type GetEndpoint struct {
+	EndpointID string `json:"EndpointID"`
 }

@@ -95,6 +95,8 @@ type EndpointInfo struct {
 	PodName       string
 	PodNamespace  string
 	IfnameToIPMap map[string]*IPInfo // key : interface name, value : IPInfo
+	HnsID         string
+	VethName      string
 }
 
 type IPInfo struct {
@@ -117,6 +119,12 @@ type HTTPRestServiceData struct {
 type Response struct {
 	ReturnCode types.ResponseCode
 	Message    string
+}
+
+// GetEndpointResponse describes response from the The GetEndpoint API.
+type GetEndpointResponse struct {
+	Response     Response     `json:"Response"`
+	EndpointInfo EndpointInfo `json:"EndpointInfo"`
 }
 
 // containerstatus is used to save status of an existing container
@@ -264,7 +272,7 @@ func (service *HTTPRestService) Init(config *common.ServiceConfig) error {
 	listener.AddHandler(cns.PathDebugRestData, service.handleDebugRestData)
 	listener.AddHandler(cns.NetworkContainersURLPath, service.getOrRefreshNetworkContainers)
 	listener.AddHandler(cns.GetHomeAz, service.getHomeAz)
-
+	listener.AddHandler(cns.EndpointPath, service.EndpointHandlerAPI)
 	// handlers for v0.2
 	listener.AddHandler(cns.V2Prefix+cns.SetEnvironmentPath, service.setEnvironment)
 	listener.AddHandler(cns.V2Prefix+cns.CreateNetworkPath, service.createNetwork)
@@ -289,6 +297,7 @@ func (service *HTTPRestService) Init(config *common.ServiceConfig) error {
 	listener.AddHandler(cns.V2Prefix+cns.DeleteHostNCApipaEndpointPath, service.deleteHostNCApipaEndpoint)
 	listener.AddHandler(cns.V2Prefix+cns.NmAgentSupportedApisPath, service.nmAgentSupportedApisHandler)
 	listener.AddHandler(cns.V2Prefix+cns.GetHomeAz, service.getHomeAz)
+	listener.AddHandler(cns.V2Prefix+cns.EndpointPath, service.EndpointHandlerAPI)
 
 	// Initialize HTTP client to be reused in CNS
 	connectionTimeout, _ := service.GetOption(acn.OptHttpConnectionTimeout).(int)

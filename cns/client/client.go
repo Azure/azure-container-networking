@@ -45,6 +45,7 @@ var clientPaths = []string{
 	cns.DeleteNetworkContainer,
 	cns.NetworkContainersURLPath,
 	cns.GetHomeAz,
+	cns.EndpointsPath,
 }
 
 type do interface {
@@ -1020,4 +1021,90 @@ func (c *Client) GetHomeAz(ctx context.Context) (*cns.GetHomeAzResponse, error) 
 	}
 
 	return &getHomeAzResponse, nil
+}
+
+// GetEndpoint calls the GetEndpoint in CNS
+func (c *Client) GetEndpoint(ctx context.Context, endpointID string) (*restserver.GetEndpointResponse, error) {
+	var err error
+	getEndpoint := cns.GetEndpoint{
+		EndpointID: endpointID,
+	}
+	var body bytes.Buffer
+	err = json.NewEncoder(&body).Encode(getEndpoint)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to encode getEndpoint")
+	}
+
+	u := c.routes[cns.EndpointsPath]
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), &body)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to build request")
+	}
+	req.Header.Set(headerContentType, contentTypeJSON)
+	res, err := c.client.Do(req)
+	if err != nil {
+		return nil, errors.Wrap(err, "http request failed")
+	}
+
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return nil, errors.Errorf("http response %d", res.StatusCode)
+	}
+
+	var response restserver.GetEndpointResponse
+	err = json.NewDecoder(res.Body).Decode(&response)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to decode IPConfigResponse")
+	}
+
+	if response.Response.ReturnCode != 0 {
+		return nil, errors.New(response.Response.Message)
+	}
+
+	return &response, nil
+}
+
+// UpdateEndpoint calls the UpdateEndpoint in CNS
+func (c *Client) UpdateEndpoint(ctx context.Context, endpointID, hnsID, vethName string) (*cns.UpdateEndpointResponse, error) {
+	var err error
+	updateEndpoint := cns.UpdateEndpoint{
+		EndpointID: endpointID,
+		HnsID:      hnsID,
+		VethName:   vethName,
+	}
+	var body bytes.Buffer
+	err = json.NewEncoder(&body).Encode(updateEndpoint)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to encode updateEndpoint")
+	}
+
+	u := c.routes[cns.EndpointsPath]
+	req, err := http.NewRequestWithContext(ctx, http.MethodPatch, u.String(), &body)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to build request")
+	}
+	req.Header.Set(headerContentType, contentTypeJSON)
+	res, err := c.client.Do(req)
+	if err != nil {
+		return nil, errors.Wrap(err, "http request failed with error from server")
+	}
+
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return nil, errors.Errorf("http response %d", res.StatusCode)
+	}
+
+	var response cns.UpdateEndpointResponse
+	err = json.NewDecoder(res.Body).Decode(&response)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to decode IPConfigResponse")
+	}
+
+	if response.Response.ReturnCode != 0 {
+		return nil, errors.New(response.Response.Message)
+	}
+
+	return &response, nil
 }
