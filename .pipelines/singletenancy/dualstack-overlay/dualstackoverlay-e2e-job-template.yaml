@@ -38,7 +38,7 @@ stages:
           dependsOn: ${{ parameters.name }}
           dualstack: true
           dns: true
-          portfoward: true
+          portforward: true
           hostport: true
 
       - job: cleanup

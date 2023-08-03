@@ -49,7 +49,7 @@ steps:
       kubectl cluster-info
       kubectl get node
       kubectl get po -owide -A
-      sudo -E env "PATH=$PATH" make install-azure-images CNS_VERSION=$(make cns-version) CNI_DROPGZ_VERSION=$(make cni-dropgz-version) INSTALL_CNS=true INSTALL_AZURE_VNET=true INSTALL_DUALSTACK_OVERLAY=true TEST_DROPGZ=${{ parameters.testDropgz }}
+      sudo -E env "PATH=$PATH" make test-integration CNS_VERSION=$(make cns-version) CNI_DROPGZ_VERSION=$(make cni-dropgz-version) INSTALL_CNS=true INSTALL_AZURE_VNET=true INSTALL_DUALSTACK_OVERLAY=true TEST_DROPGZ=${{ parameters.testDropgz }}
       kubectl get po -owide -A
     retryCountOnTaskFailure: 3
     name: "installKubectl"

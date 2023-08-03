@@ -174,108 +174,102 @@ func (v *Validator) validateIPs(ctx context.Context, stateFileIps stateFileIpsFu
 	return nil
 }
 
-func (v *Validator) ValidateDualStackNodeProperties(ctx context.Context) error {
-	if v.os == "linux" {
-		log.Print("Validating Dualstack Overlay Linux Node properties")
-		nodes, err := k8sutils.GetNodeList(ctx, v.clientset)
+func (v *Validator) validateDualStackNodeProperties(ctx context.Context) error {
+	log.Print("Validating Dualstack Overlay Node properties")
+	nodes, err := k8sutils.GetNodeListByLabelSelector(ctx, v.clientset, nodeSelectorMap[v.os])
+	if err != nil {
+		return errors.Wrapf(err, "failed to get node list")
+	}
+
+	for index := range nodes.Items {
+		nodeName := nodes.Items[index].ObjectMeta.Name
+		// check nodes status;
+		// nodes status should be ready after cluster is created
+		nodeConditions := nodes.Items[index].Status.Conditions
+		if nodeConditions[len(nodeConditions)-1].Type != corev1.NodeReady {
+			return errors.Wrapf(err, "node %s status is not ready", nodeName)
+		}
+
+		// get node labels
+		nodeLabels := nodes.Items[index].ObjectMeta.GetLabels()
+		for key := range nodeLabels {
+			if label, ok := dualstackOverlayNodeLabels[key]; ok {
+				log.Printf("label %s is correctly shown on the node %+v", key, nodeName)
+				if label != overlayClusterLabelName {
+					return errors.Wrapf(err, "node %s overlay label name is wrong; expected label:%s but actual label:%s", nodeName, overlayClusterLabelName, label)
+				}
+			}
+		}
+
+		// check if node has two internal IPs(one is IPv4 and another is IPv6)
+		internalIPCount := 0
+		for _, address := range nodes.Items[index].Status.Addresses {
+			if address.Type == "InternalIP" {
+				internalIPCount++
+			}
+		}
+		if internalIPCount != 2 { //nolint
+			return errors.Wrap(err, "node does not have two internal IPs")
+		}
+	}
+
+	return nil
+}
+
+func (v *Validator) validateHNSNetworkState(ctx context.Context) error {
+	// check HNS network state only on windows nodes
+	nodes, err := k8sutils.GetNodeListByLabelSelector(ctx, v.clientset, nodeSelectorMap["windows"])
+	if err != nil {
+		return errors.Wrapf(err, "failed to get node list")
+	}
+	// check windows HNS network state
+	for index := range nodes.Items {
+		pod, err := k8sutils.GetPodsByNode(ctx, v.clientset, privilegedNamespace, privilegedLabelSelector, nodes.Items[index].Name)
 		if err != nil {
-			return errors.Wrapf(err, "failed to get node list")
+			return errors.Wrapf(err, "failed to get privileged pod")
 		}
 
-		for index := range nodes.Items {
-			nodeName := nodes.Items[index].ObjectMeta.Name
-			// check nodes status;
-			// nodes status should be ready after cluster is created
-			nodeConditions := nodes.Items[index].Status.Conditions
-			if nodeConditions[len(nodeConditions)-1].Type != corev1.NodeReady {
-				return errors.Wrapf(err, "node %s status is not ready", nodeName)
-			}
-
-			// get node labels
-			nodeLabels := nodes.Items[index].ObjectMeta.GetLabels()
-			for key := range nodeLabels {
-				if value, ok := dualstackOverlayNodeLabels[key]; ok {
-					log.Printf("label %s is correctly shown on the node %+v", key, nodeName)
-					if value != overlayClusterLabelName {
-						return errors.Wrapf(err, "node %s overlay label name is wrong", nodeName)
-					}
-				}
-			}
-
-			// check if node has two internal IPs(one is IPv4 and another is IPv6)
-			internalIPCount := 0
-			for _, address := range nodes.Items[index].Status.Addresses {
-				if address.Type == "InternalIP" {
-					internalIPCount++
-				}
-			}
-			if internalIPCount != 2 { //nolint
-				return errors.Wrap(err, "node does not have two internal IPs")
-			}
-		}
-	} else if v.os == "windows" {
-		log.Print("Validating Dualstack Overlay Windows Node properties")
-		nodes, err := k8sutils.GetNodeListByLabelSelector(ctx, v.clientset, nodeSelectorMap[v.os])
+		podName := pod.Items[0].Name
+		// exec into the pod to get the state file
+		result, err := k8sutils.ExecCmdOnPod(ctx, v.clientset, privilegedNamespace, podName, hnsNetworkCmd, v.config)
 		if err != nil {
-			return errors.Wrapf(err, "failed to get node list")
+			return errors.Wrapf(err, "failed to exec into privileged pod")
 		}
 
-		for index := range nodes.Items {
-			nodeName := nodes.Items[index].ObjectMeta.Name
-			// check nodes status;
-			// nodes status should be ready after cluster is created
-			nodeConditions := nodes.Items[index].Status.Conditions
-			if nodeConditions[len(nodeConditions)-1].Type != corev1.NodeReady {
-				return errors.Wrapf(err, "node %s status is not ready", nodeName)
-			}
+		hnsNetwork, err := hnsNetworkState(result)
+		if err != nil {
+			return errors.Wrapf(err, "failed to unmarshal hns network list")
+		}
 
-			// get node labels
-			nodeLabels := nodes.Items[index].ObjectMeta.GetLabels()
-			for key := range nodeLabels {
-				if value, ok := dualstackOverlayNodeLabels[key]; ok {
-					log.Printf("label %s is correctly shown on the node %+v", key, nodeName)
-					if value != overlayClusterLabelName {
-						return errors.Wrapf(err, "node %s overlay label name is wrong", nodeName)
-					}
+		if len(hnsNetwork) == 0 {
+			return errors.Wrapf(err, "windows node does not have any HNS network")
+		} else if len(hnsNetwork) == 1 {
+			return errors.Wrapf(err, "HNS default ext network or azure network does not exist")
+		} else {
+			for _, network := range hnsNetwork {
+				if !network.IPv6 {
+					return errors.Wrapf(err, "windows HNS network IPv6 flag is not set correctly")
 				}
-			}
-
-			// check windows HNS network state
-			pod, err := k8sutils.GetPodsByNode(ctx, v.clientset, privilegedNamespace, privilegedLabelSelector, nodes.Items[index].Name)
-			if err != nil {
-				return errors.Wrapf(err, "failed to get privileged pod")
-			}
-
-			podName := pod.Items[0].Name
-			// exec into the pod to get the state file
-			result, err := k8sutils.ExecCmdOnPod(ctx, v.clientset, privilegedNamespace, podName, hnsNetworkCmd, v.config)
-			if err != nil {
-				return errors.Wrapf(err, "failed to exec into privileged pod")
-			}
-
-			hnsNetwork, err := hnsNetworkState(result)
-			if err != nil {
-				return errors.Wrapf(err, "failed to unmarshal hns network list")
-			}
-
-			if len(hnsNetwork) == 0 { //nolint
-				return errors.Wrapf(err, "windows node does not have any HNS network")
-			} else if len(hnsNetwork) == 1 { //nolint
-				return errors.Wrapf(err, "HNS default ext network or azure network does not exist")
-			} else {
-				for _, network := range hnsNetwork {
-					if !network.IPv6 {
-						return errors.Wrapf(err, "windows HNS network IPv6 flag is not set correctly")
-					}
-					if network.State != 1 {
-						return errors.Wrapf(err, "windows HNS network state is not correct")
-					}
-					if network.ManagementIPv6 == "" || network.ManagementIP == "" {
-						return errors.Wrapf(err, "windows HNS network is missing ipv4 or ipv6 management IP")
-					}
+				if network.State != 1 {
+					return errors.Wrapf(err, "windows HNS network state is not correct")
+				}
+				if network.ManagementIPv6 == "" || network.ManagementIP == "" {
+					return errors.Wrapf(err, "windows HNS network is missing ipv4 or ipv6 management IP")
 				}
 			}
 		}
+	}
+
+	return nil
+}
+
+func (v *Validator) ValidateDualStackControlPlane(ctx context.Context) error {
+	if err := v.validateDualStackNodeProperties(ctx); err != nil {
+		return errors.Wrap(err, "failed to validate dualstack overlay node properties")
+	}
+
+	if err := v.validateHNSNetworkState(ctx); err != nil {
+		return errors.Wrap(err, "failed to validate dualstack overlay HNS network state")
 	}
 
 	return nil

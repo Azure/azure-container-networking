@@ -194,7 +194,7 @@ func TestDualStackProperties(t *testing.T) {
 	}
 
 	// validate dualstack overlay scenarios
-	err = validator.ValidateDualStackNodeProperties(ctx)
+	err = validator.ValidateDualStackControlPlane(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}
