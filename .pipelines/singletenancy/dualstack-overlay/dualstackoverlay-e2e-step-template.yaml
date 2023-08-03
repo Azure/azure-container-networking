@@ -60,6 +60,7 @@ steps:
     displayName: "Install kubectl on AKS dualstack overlay cluster"
 
   - script: |
+      cd ../../../..
       cd test/integration/load
       echo "DualStack Overlay Linux control plane Node properties test"
       sudo go test -timeout 30m -tags load -run ^TestDualStackProperties$ -tags=load
