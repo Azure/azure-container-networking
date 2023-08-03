@@ -46,6 +46,11 @@ steps:
       echo "installing kubectl"
       curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
       sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+      echo "deploy ip-masq-agent for overlay"
+      kubectl create -f test/integration/manifests/ip-masq-agent/ip-masq-agent.yaml --validate=false
+      cd test/integration/manifests/ip-masq-agent/
+      kubectl create configmap config-custom.yaml
+      cd ../../../..
       kubectl cluster-info
       kubectl get node
       kubectl get po -owide -A
@@ -56,11 +61,6 @@ steps:
     displayName: "Install kubectl on AKS dualstack overlay cluster"
 
   - script: |
-      echo "deploy ip-masq-agent for overlay"
-      kubectl create -f test/integration/manifests/ip-masq-agent/ip-masq-agent.yaml --validate=false
-      cd test/integration/manifests/ip-masq-agent/
-      kubectl create configmap config-custom.yaml
-      cd ../../../..
       cd test/integration/load
       echo "DualStack Overlay Linux control plane Node properties test"
       sudo go test -timeout 30m -tags load -run ^TestDualStackProperties$ -tags=load
