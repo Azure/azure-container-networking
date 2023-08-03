@@ -49,8 +49,12 @@ steps:
       kubectl cluster-info
       kubectl get node
       kubectl get po -owide -A
-      sudo -E env "PATH=$PATH" make test-integration CNS_VERSION=$(make cns-version) CNI_DROPGZ_VERSION=$(make cni-dropgz-version) INSTALL_CNS=true INSTALL_AZURE_VNET=true INSTALL_DUALSTACK_OVERLAY=true TEST_DROPGZ=${{ parameters.testDropgz }}
+      sudo -E env "PATH=$PATH" make install-azure-images CNS_VERSION=$(make cns-version) CNI_DROPGZ_VERSION=$(make cni-dropgz-version) INSTALL_CNS=true INSTALL_AZURE_VNET=true INSTALL_DUALSTACK_OVERLAY=true TEST_DROPGZ=${{ parameters.testDropgz }}
       kubectl get po -owide -A
+      echo "deploy ip-masq-agent for overlay"
+      kubectl create -f test/integration/manifests/ip-masq-agent/ip-masq-agent.yaml --validate=false
+      cd test/integration/manifests/ip-masq-agent/
+      kubectl create configmap config-custom.yaml
     retryCountOnTaskFailure: 3
     name: "installKubectl"
     displayName: "Install kubectl on AKS dualstack overlay cluster"
@@ -74,40 +78,3 @@ steps:
       sudo go test -count=1 datapath_linux_test.go -timeout 1m -tags connection -run ^TestDatapathLinux$ -tags=connection,integration
     name: "DualStack_Overlay_Linux_Tests"
     displayName: "DualStack Overlay Linux Tests"
-
-  # - task: AzureCLI@2
-  #   inputs:
-  #     azureSubscription: $(AZURE_TEST_AGENT_SERVICE_CONNECTION)
-  #     scriptLocation: "inlineScript"
-  #     scriptType: "bash"
-  #     addSpnToEnvironment: true
-  #     inlineScript: |
-  #       make -C ./hack/aks dualstack-windows-byocni-up AZCLI=az VM_SIZE=$(VM_SIZE) NODE_COUNT=$(NODE_COUNT) SUB=$(SUB_AZURE_NETWORK_AGENT_TEST) CLUSTER=${{ parameters.clusterName }}-$(make revision)
-  #       echo "Windows node are successfully added to Dualstack Overlay Cluster"
-  #       kubectl cluster-info
-  #       kubectl get node
-  #       kubectl get po -owide -A
-  #   name: "Add_Windows_Node"
-  #   displayName: "Add windows node on DualStackOverlay cluster"
-
-  # - script: |
-  #       echo "Deploying on windows nodes"
-  #       export DROP_GZ_URL=$( make cni-dropgz-test-image-name-and-tag OS='windows' ARCH=${{ parameters.arch }}  OS_VERSION=${{ parameters.os_version }} CNI_DROPGZ_VERSION=${{ parameters.version }})
-  #       envsubst < ./test/integration/manifests/cni/cni-installer-v1-windows.yaml | kubectl apply -f -
-  #   retryCountOnTaskFailure: 3
-  #   name: "installKubectl"
-  #   displayName: "Deploying on windows nodes"
-
-  # - script: |
-  #     pwd
-  #     cd test/integration/load
-  #     go test -timeout 30m -tags load -run ^TestLoad$ -tags=load -os=windows
-  #     echo "DualStack Overlay Windows control plane CNS validation test"
-  #     go test -timeout 30m -tags load -run ^TestDualStackProperties$ -tags=load -os=windows -cni cniv2
-  #     echo "DualStack Overlay Windows control plane Node properties test"
-  #     go test -timeout 30m -tags load -cni cniv2 -run ^TestValidateState$ -tags=load -os=windows
-  #     echo "DualStack Overlay Windows datapath test"
-  #     cd ../datapath
-  #     go test -count=1 datapath_windows_test.go -timeout 3m -tags connection -run ^TestDatapathWin$ -tags=connection
-  #   name: "DualStack_Overlay_Windows_tests"
-  #   displayName: "DualStack Overlay Windows Tests"
