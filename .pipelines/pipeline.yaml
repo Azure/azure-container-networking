@@ -371,7 +371,6 @@ stages:
     parameters:
       name: "dualstackoverlay_e2e"
       displayName: AKS DualStack Overlay
-      pipelineBuildImage: "$(BUILD_IMAGE)"
       testDropgz: ""
       clusterName: "dualstackoverlaye2e"
 

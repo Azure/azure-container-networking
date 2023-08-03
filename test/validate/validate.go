@@ -210,7 +210,7 @@ func (v *Validator) ValidateDualStackNodeProperties(ctx context.Context) error {
 				}
 			}
 			if internalIPCount != 2 { //nolint
-				return errors.Wrap(err, "node does have two internal IPs")
+				return errors.Wrap(err, "node does not have two internal IPs")
 			}
 		}
 	} else if v.os == "windows" {

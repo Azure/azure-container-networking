@@ -37,6 +37,9 @@ stages:
           os: ${{ parameters.os }}
           dependsOn: ${{ parameters.name }}
           dualstack: true
+          dns: true
+          portfoward: true
+          hostport: true
 
       - job: cleanup
         displayName: "Cleanup"

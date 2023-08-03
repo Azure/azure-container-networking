@@ -17,7 +17,7 @@ const (
 var (
 	restartNetworkCmd     = []string{"bash", "-c", "chroot /host /bin/bash -c 'systemctl restart systemd-networkd'"}
 	cnsStateFileCmd       = []string{"bash", "-c", "cat /var/run/azure-cns/azure-endpoints.json"}
-	azureVnetStateFileCmd = []string{"bash", "-c", "cat /var/run/azure-vnet.json"} // azure vnet statefile is located at /var/run/azure-vnet.json
+	azureVnetStateFileCmd = []string{"bash", "-c", "cat /var/run/azure-vnet.json"}
 	ciliumStateFileCmd    = []string{"bash", "-c", "cilium endpoint list -o json"}
 	cnsLocalCacheCmd      = []string{"curl", "localhost:10090/debug/ipaddresses", "-d", "{\"IPConfigStateFilter\":[\"Assigned\"]}"}
 )
@@ -76,7 +76,7 @@ type AzureCniState struct {
 type AzureVnetNetwork struct {
 	Version            string                   `json:"Version"`
 	TimeStamp          string                   `json:"TimeStamp"`
-	ExternalInterfaces map[string]InterfaceInfo `json:"ExternalInterfaces"` // key: interface name; value: Interface Info
+	ExternalInterfaces map[string]InterfaceInfo `json:"ExternalInterfaces"`
 }
 
 type InterfaceInfo struct {
