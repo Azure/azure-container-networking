@@ -241,7 +241,7 @@ func (v *Validator) validateHNSNetworkState(ctx context.Context) error {
 			return errors.Wrapf(err, "failed to unmarshal hns network list")
 		}
 
-		if len(hnsNetwork) == 0 {
+		if len(hnsNetwork) == 0 { //nolint
 			return errors.Wrapf(err, "windows node does not have any HNS network")
 		} else if len(hnsNetwork) == 1 {
 			return errors.Wrapf(err, "HNS default ext network or azure network does not exist")
