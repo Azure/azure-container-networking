@@ -14,6 +14,11 @@ The IPAM APIs are:
 - requestIPAddress
 - releaseIPAddress
 
+#### Requirements/Notes
+- CNS must run with ManagedEndpointState in the MTv2 Scenario.  
+- CNS must wait until the MT interface is programmed before responding to CNI requests with the MT interface IP.  
+
+
 ### Implementation 
 
 #### NodeInfo
@@ -50,21 +55,10 @@ status:
 
 #### Pod Network
 
-CNS will watch Pods on its Node. When it receives a create Event for a Pod with V2 labels, it will create a MultiTenantPodNetworkConfig for that Pod associating it to the PodNetwork or PodNetworkInstance specified in the labels.
+CNS will watch Pods on its Node via controller-runtime. Controller-runtime will locally cache all known Pods and CNS will simply `GET` using a cache-aware client to read the latest Pod state.
 
-The Pod/MTPNC Reconciler flow is as follows:
+ When it receives an IP Request for a Pod, it will look up the Pod to determine if it is a V2 Multitenant Pod. If it is, CNS will cross-reference the Pod with a MultiTenantPodNetworkConfig (waiting for the controlplane to create the MTPNC if necessary).
 
-
-```mermaid
-sequenceDiagram
-    participant Kubernetes
-    participant CNS
-    Kubernetes->>CNS: Pod Create Event
-    CNS->>+Kubernetes: Get PN/PNI from Pod Labels
-    Kubernetes->>-CNS: PN/PNI Object
-    Note over CNS: Build MTPNC CRD
-    CNS->>+Kubernetes: Create MTPNC CRD
-```
 
 ```yaml
 apiVersion: acn.azure.com/v1alpha1
@@ -152,6 +146,7 @@ func (p *podWatcher) SetupWithManager(mgr ctrl.Manager) error {
 	return nil
 }
 ```
+
 </details>
 
 #### Changes to RequestIPAddress
