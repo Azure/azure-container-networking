@@ -370,7 +370,7 @@ stages:
   - template: singletenancy/dualstack-overlay/dualstackoverlay-e2e-job-template.yaml
     parameters:
       name: "dualstackoverlay_e2e"
-      displayName: AKS DualStack Overlay Linux Conformance Test
+      displayName: AKS DualStack Overlay
       os: linux
       testDropgz: ""
       clusterName: "dualstackoverlaye2e"
