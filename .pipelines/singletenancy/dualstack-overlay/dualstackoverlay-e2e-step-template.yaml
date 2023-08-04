@@ -106,13 +106,13 @@ steps:
 
   - script: |
       cd test/integration/load
-      go test -timeout 30m -tags load -run ^TestLoad$ -tags=load -os=windows
+      sudo go test -timeout 30m -tags load -run ^TestLoad$ -tags=load -os=windows
       echo "DualStack Overlay Windows control plane CNS validation test"
-      go test -timeout 30m -tags load -cni cniv2 -run ^TestDualStackProperties$ -tags=load -os=windows 
+      sudo go test -timeout 30m -tags load -cni cniv2 -run ^TestDualStackProperties$ -tags=load -os=windows 
       echo "DualStack Overlay Windows control plane Node properties test"
-      go test -timeout 30m -tags load -cni cniv2 -run ^TestValidateState$ -tags=load -os=windows
+      sudo go test -timeout 30m -tags load -cni cniv2 -run ^TestValidateState$ -tags=load -os=windows
       echo "DualStack Overlay Windows datapath test"
       cd ../datapath
-      go test -count=1 datapath_windows_test.go -timeout 3m -tags connection -run ^TestDatapathWin$ -tags=connection
+      sudo go test -count=1 datapath_windows_test.go -timeout 3m -tags connection -run ^TestDatapathWin$ -tags=connection
     name: "DualStack_Overlay_Windows_tests"
     displayName: "DualStack Overlay Windows Tests"
