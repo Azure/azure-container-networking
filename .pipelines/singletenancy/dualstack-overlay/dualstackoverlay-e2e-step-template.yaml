@@ -101,7 +101,7 @@ steps:
         export DROP_GZ_URL=$( make cni-dropgz-test-image-name-and-tag OS=$(os) ARCH=$(arch) OS_VERSION=$(os_version) CNI_DROPGZ_VERSION=${dropgz_version})
         envsubst < ./test/integration/manifests/cni/cni-installer-v1-windows.yaml | kubectl apply -f -
         echo "deploy windows CNS"
-        kubectl apply -f test/integration/manifests/cns/daemonset.yaml
+        kubectl apply -f test/integration/manifests/cns/daemonset-windows.yaml
         kubectl get po -owide -A
     name: "Add_Windows_Node"
     displayName: "Add windows node on DualStackOverlay cluster"
