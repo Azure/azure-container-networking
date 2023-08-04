@@ -46,8 +46,7 @@ stages:
         dependsOn:
           - ${{ parameters.name }}
           - "cni_k8se2e"
-          - "dualstackoverlay_linux_e2e"
-          - "dualstackoverlay_windows_e2e"
+          - "dualstackoverlay_e2e"
         pool:
           name: $(BUILD_POOL_NAME_DEFAULT)
         condition: always()
