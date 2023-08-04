@@ -369,9 +369,17 @@ stages:
 
   - template: singletenancy/dualstack-overlay/dualstackoverlay-e2e-job-template.yaml
     parameters:
-      name: "dualstackoverlay_e2e"
-      displayName: AKS DualStack Overlay
+      name: "dualstackoverlay_linux_e2e"
+      displayName: AKS DualStack Overlay Linux Conformance Test
       os: linux
+      testDropgz: ""
+      clusterName: "dualstackoverlaye2e"
+  
+  - template: singletenancy/dualstack-overlay/dualstackoverlay-e2e-job-template.yaml
+    parameters:
+      name: "dualstackoverlay_windows_e2e"
+      displayName: AKS DualStack Overlay Windows Conformance Test
+      os: windows
       testDropgz: ""
       clusterName: "dualstackoverlaye2e"
 
@@ -403,7 +411,8 @@ stages:
       - "cilium_overlay_cilium_e2e"
       - "aks_ubuntu_22_linux_e2e"
       - "aks_windows_22_e2e"
-      - "dualstackoverlay_e2e"
+      - "dualstackoverlay_linux_e2e"
+      - "dualstackoverlay_windows_e2e"
     jobs:
       - job: delete_remote_artifacts
         displayName: Delete remote artifacts
