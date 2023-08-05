@@ -87,6 +87,14 @@ spec:
               mountPath: C:\\k\\azurecni\\netconf
       hostNetwork: true
       volumes:
+        - name: cni-bin
+          hostPath:
+            path: /k/azurecni/bin
+            type: DirectoryOrCreate
+        - name: cni-conflist
+          hostPath:
+            path: /k/azurecni/netconf
+            type: DirectoryOrCreate
         - name: log
           hostPath:
             path: /k
