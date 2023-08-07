@@ -2778,7 +2778,7 @@ func TestUpdateEndpoint(t *testing.T) {
 		hnsID       string
 		vethName    string
 		response    *RequestCapture
-		expReq      *cns.UpdateEndpoint
+		expReq      *cns.EndpointRequest
 		shouldErr   bool
 	}{
 		{
@@ -2802,7 +2802,7 @@ func TestUpdateEndpoint(t *testing.T) {
 					httpStatusCodeToReturn: http.StatusOK,
 				},
 			},
-			&cns.UpdateEndpoint{
+			&cns.EndpointRequest{
 				EndpointID: "foo",
 				HnsID:      "bar",
 			},
@@ -2818,7 +2818,7 @@ func TestUpdateEndpoint(t *testing.T) {
 					httpStatusCodeToReturn: http.StatusOK,
 				},
 			},
-			&cns.UpdateEndpoint{
+			&cns.EndpointRequest{
 				EndpointID: "foo",
 				VethName:   "bar",
 			},
@@ -2855,7 +2855,93 @@ func TestUpdateEndpoint(t *testing.T) {
 			// if a request was expected to be sent, decode it and ensure that it
 			// matches expectations
 			if test.expReq != nil {
-				var gotReq cns.UpdateEndpoint
+				var gotReq cns.EndpointRequest
+				err = json.NewDecoder(test.response.Request.Body).Decode(&gotReq)
+				if err != nil {
+					t.Fatal("error decoding the received request: err:", err)
+				}
+
+				// a nil expReq is semantically meaningful (i.e. "no request"), but in
+				// order for cmp to work properly, the outer types should be identical.
+				// Thus we have to dereference it explicitly:
+				expReq := *test.expReq
+
+				// ensure that the received request is what was expected
+				if !cmp.Equal(gotReq, expReq) {
+					t.Error("received request differs from expectation: diff", cmp.Diff(gotReq, expReq))
+				}
+			}
+		})
+	}
+}
+
+func TestGetEndpoint(t *testing.T) {
+	// the CNS client has to be provided with routes going somewhere, so create a
+	// bunch of routes mapped to the localhost
+	emptyRoutes, _ := buildRoutes(defaultBaseURL, clientPaths)
+
+	// define our test cases
+	getEndpointTests := []struct {
+		name        string
+		containerID string
+		response    *RequestCapture
+		expReq      *cns.EndpointRequest
+		shouldErr   bool
+	}{
+		{
+			"empty",
+			"",
+			&RequestCapture{
+				Next: &mockdo{},
+			},
+			nil,
+			true,
+		},
+		{
+			"with EndpointID",
+			"foo",
+			&RequestCapture{
+				Next: &mockdo{
+					httpStatusCodeToReturn: http.StatusOK,
+				},
+			},
+			&cns.EndpointRequest{
+				EndpointID: "foo",
+			},
+			false,
+		},
+	}
+
+	for _, test := range getEndpointTests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			// create a new client with the mock routes and the mock doer
+			client := Client{
+				client: test.response,
+				routes: emptyRoutes,
+			}
+
+			// execute the method under test
+			res, err := client.GetEndpoint(context.TODO(), test.containerID)
+			if err != nil && !test.shouldErr {
+				t.Fatal("unexpected error: err: ", err, res.Response.Message)
+			}
+
+			if err == nil && test.shouldErr {
+				t.Fatal("expected test to error, but no error was produced", res.Response.Message)
+			}
+
+			// make sure a request was actually sent
+			if test.expReq != nil && test.response.Request == nil {
+				t.Fatal("expected a request to be sent, but none was", res.Response.Message)
+			}
+
+			// if a request was expected to be sent, decode it and ensure that it
+			// matches expectations
+			if test.expReq != nil {
+				var gotReq cns.EndpointRequest
 				err = json.NewDecoder(test.response.Request.Body).Decode(&gotReq)
 				if err != nil {
 					t.Fatal("error decoding the received request: err:", err)

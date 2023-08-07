@@ -1025,13 +1025,12 @@ func (c *Client) GetHomeAz(ctx context.Context) (*cns.GetHomeAzResponse, error) 
 
 // GetEndpoint calls the GetEndpoint in CNS
 func (c *Client) GetEndpoint(ctx context.Context, endpointID string) (*restserver.GetEndpointResponse, error) {
-	var err error
-	getEndpoint := cns.GetEndpoint{
+	getEndpoint := cns.EndpointRequest{
 		EndpointID: endpointID,
 	}
 	var body bytes.Buffer
-	err = json.NewEncoder(&body).Encode(getEndpoint)
-	if err != nil {
+
+	if err := json.NewEncoder(&body).Encode(getEndpoint); err != nil {
 		return nil, errors.Wrap(err, "failed to encode getEndpoint")
 	}
 
@@ -1067,15 +1066,14 @@ func (c *Client) GetEndpoint(ctx context.Context, endpointID string) (*restserve
 
 // UpdateEndpoint calls the UpdateEndpoint in CNS
 func (c *Client) UpdateEndpoint(ctx context.Context, endpointID, hnsID, vethName string) (*cns.UpdateEndpointResponse, error) {
-	var err error
-	updateEndpoint := cns.UpdateEndpoint{
+	updateEndpoint := cns.EndpointRequest{
 		EndpointID: endpointID,
 		HnsID:      hnsID,
 		VethName:   vethName,
 	}
 	var body bytes.Buffer
-	err = json.NewEncoder(&body).Encode(updateEndpoint)
-	if err != nil {
+
+	if err := json.NewEncoder(&body).Encode(updateEndpoint); err != nil {
 		return nil, errors.Wrap(err, "failed to encode updateEndpoint")
 	}
 
