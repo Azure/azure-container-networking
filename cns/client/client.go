@@ -1023,7 +1023,7 @@ func (c *Client) GetHomeAz(ctx context.Context) (*cns.GetHomeAzResponse, error) 
 	return &getHomeAzResponse, nil
 }
 
-// GetEndpoint calls the GetEndpoint in CNS
+// GetEndpoint calls the EndpointHandlerAPI in CNS to retrive the state of a given EndpointID
 func (c *Client) GetEndpoint(ctx context.Context, endpointID string) (*restserver.GetEndpointResponse, error) {
 	getEndpoint := cns.EndpointRequest{
 		EndpointID: endpointID,
@@ -1064,12 +1064,12 @@ func (c *Client) GetEndpoint(ctx context.Context, endpointID string) (*restserve
 	return &response, nil
 }
 
-// UpdateEndpoint calls the UpdateEndpoint in CNS
+// UpdateEndpoint calls the EndpointHandlerAPI in CNS to update the state of a given EndpointID with either HNSEndpointID or HostVethName
 func (c *Client) UpdateEndpoint(ctx context.Context, endpointID, hnsID, vethName string) (*cns.UpdateEndpointResponse, error) {
 	updateEndpoint := cns.EndpointRequest{
-		EndpointID: endpointID,
-		HnsID:      hnsID,
-		VethName:   vethName,
+		EndpointID:    endpointID,
+		HnsEndpointID: hnsID,
+		HostVethName:  vethName,
 	}
 	var body bytes.Buffer
 

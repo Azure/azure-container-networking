@@ -351,9 +351,9 @@ type GetHomeAzResponse struct {
 
 // UpdateEndpoint describes request to update the state.
 type EndpointRequest struct {
-	EndpointID string `json:"endpointID"`
-	HnsID      string `json:"hnsID"`
-	VethName   string `json:"vethName"`
+	EndpointID    string `json:"endpointID"`
+	HnsEndpointID string `json:"hnsEndpointID"`
+	HostVethName  string `json:"hostVethName"`
 }
 
 // UpdateEndpointResponse describes response to the UpdateEndpoint request.

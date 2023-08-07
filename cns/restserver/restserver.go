@@ -95,8 +95,8 @@ type EndpointInfo struct {
 	PodName       string
 	PodNamespace  string
 	IfnameToIPMap map[string]*IPInfo // key : interface name, value : IPInfo
-	HnsID         string
-	VethName      string
+	HnsEndpointID string
+	HostVethName  string
 }
 
 type IPInfo struct {
@@ -123,8 +123,8 @@ type Response struct {
 
 // GetEndpointResponse describes response from the The GetEndpoint API.
 type GetEndpointResponse struct {
-	Response     Response     `json:"Response"`
-	EndpointInfo EndpointInfo `json:"EndpointInfo"`
+	Response     Response     `json:"response"`
+	EndpointInfo EndpointInfo `json:"endpointInfo"`
 }
 
 // containerstatus is used to save status of an existing container

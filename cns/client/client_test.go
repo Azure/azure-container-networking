@@ -2803,8 +2803,8 @@ func TestUpdateEndpoint(t *testing.T) {
 				},
 			},
 			&cns.EndpointRequest{
-				EndpointID: "foo",
-				HnsID:      "bar",
+				EndpointID:    "foo",
+				HnsEndpointID: "bar",
 			},
 			false,
 		},
@@ -2819,10 +2819,26 @@ func TestUpdateEndpoint(t *testing.T) {
 				},
 			},
 			&cns.EndpointRequest{
-				EndpointID: "foo",
-				VethName:   "bar",
+				EndpointID:   "foo",
+				HostVethName: "bar",
 			},
 			false,
+		},
+		{
+			"bad request error",
+			"foo",
+			"",
+			"bar",
+			&RequestCapture{
+				Next: &mockdo{
+					httpStatusCodeToReturn: http.StatusBadRequest,
+				},
+			},
+			&cns.EndpointRequest{
+				EndpointID:   "foo",
+				HostVethName: "bar",
+			},
+			true,
 		},
 	}
 
@@ -2909,6 +2925,19 @@ func TestGetEndpoint(t *testing.T) {
 				EndpointID: "foo",
 			},
 			false,
+		},
+		{
+			"with EndpointID",
+			"foo",
+			&RequestCapture{
+				Next: &mockdo{
+					httpStatusCodeToReturn: http.StatusBadRequest,
+				},
+			},
+			&cns.EndpointRequest{
+				EndpointID: "foo",
+			},
+			true,
 		},
 	}
 

@@ -902,7 +902,6 @@ func validateDesiredIPAddresses(desiredIPs []string) error {
 // EndpointHandlerAPI forwards the endpoint related APIs to GetEndpointHandler or UpdateEndpointHandler based on the http method
 func (service *HTTPRestService) EndpointHandlerAPI(w http.ResponseWriter, r *http.Request) {
 	logger.Printf("[Azure CNS] EndpointHandlerAPI")
-
 	service.Lock()
 	defer service.Unlock()
 
@@ -946,17 +945,17 @@ func (service *HTTPRestService) GetEndpointHandler(w http.ResponseWriter, r *htt
 		}
 		err = service.Listener.Encode(w, &response)
 		logger.Response(service.Name, response, response.Response.ReturnCode, err)
-	} else {
-		response := GetEndpointResponse{
-			Response: Response{
-				ReturnCode: types.Success,
-				Message:    "[Azure CNS] GetEndpoint retruned successfully",
-			},
-			EndpointInfo: *endpointInfo,
-		}
-		err = service.Listener.Encode(w, &response)
-		logger.Response(service.Name, response, response.Response.ReturnCode, err)
 	}
+	response := GetEndpointResponse{
+		Response: Response{
+			ReturnCode: types.Success,
+			Message:    "[Azure CNS] GetEndpoint retruned successfully",
+		},
+		EndpointInfo: *endpointInfo,
+	}
+	err = service.Listener.Encode(w, &response)
+	logger.Response(service.Name, response, response.Response.ReturnCode, err)
+
 }
 
 // GetEndpointHelper returns the state of the given endpointId
@@ -964,44 +963,29 @@ func (service *HTTPRestService) GetEndpointHelper(endpointID string) (*EndpointI
 	logger.Printf("[GetEndpointState] Get endpoint state for infra container %s", endpointID)
 
 	// Skip if a store is not provided.
-	if service.store == nil {
+	if service.EndpointStateStore == nil {
 		logger.Printf("[GetEndpointState]  store not initialized.")
 		return nil, ErrStoreEmpty
 	}
-
-	// Read any persisted state.
-	err := service.store.Read(storeKey, &service.state)
-	if err != nil {
-		if errors.Is(err, store.ErrKeyNotFound) {
-			// Nothing to restore.
-			logger.Printf("[GetEndpointState]  No state to restore.\n")
-		} else {
-			logger.Errorf("[GetEndpointState]  Failed to restore state, err:%v", err)
-			service.store.Remove()
-		}
-
-		return nil, errors.Wrap(err, "[GetEndpointState]  Failed to retrieve state")
-	}
-
-	logger.Printf("[GetEndpointState]  retrieve state, %+v\n", service.state)
 
 	if service.Options[common.OptManageEndpointState] == true {
 		err := service.EndpointStateStore.Read(EndpointStoreKey, &service.EndpointState)
 		if err != nil {
 
 			if errors.Is(err, store.ErrKeyNotFound) {
-				// Nothing to restore.
-				logger.Printf("[GetEndpointState]  No endpoint state to restore.\n")
+				// Nothing to retrieve.
+				logger.Printf("[GetEndpointState]  No endpoint state to retrieve.\n")
 			} else {
 				logger.Errorf("[GetEndpointState]  Failed to retrieve state, err:%v", err)
 			}
 			return nil, errors.Wrap(err, "[GetEndpointState]  Failed to retrieve state")
-		} else if endpointInfo, ok := service.EndpointState[endpointID]; ok {
+		}
+		if endpointInfo, ok := service.EndpointState[endpointID]; ok {
 			logger.Warnf("[GetEndpointState] Found existing endpoint state for container %s", endpointID)
 			return endpointInfo, nil
-		} else {
-			return nil, errors.New("endpoint could not be found in the statefile")
 		}
+		return nil, errors.New("endpoint could not be found in the statefile")
+
 	}
 	return nil, ErrOptManageEndpointState
 }
@@ -1026,7 +1010,7 @@ func (service *HTTPRestService) UpdateEndpointHandler(w http.ResponseWriter, r *
 		return
 	}
 
-	err = service.UpdateEndpointHelper(req.EndpointID, req.HnsID, req.VethName)
+	err = service.UpdateEndpointHelper(req)
 	if err != nil {
 		response := cns.UpdateEndpointResponse{
 			Response: cns.Response{
@@ -1036,36 +1020,41 @@ func (service *HTTPRestService) UpdateEndpointHandler(w http.ResponseWriter, r *
 		}
 		err = service.Listener.Encode(w, &response)
 		logger.Response(service.Name, response, response.Response.ReturnCode, err)
-	} else {
-		response := cns.UpdateEndpointResponse{
-			Response: cns.Response{
-				ReturnCode: types.Success,
-				Message:    "[Azure CNS] updateEndpoint retruned successfully",
-			},
-		}
-		err = service.Listener.Encode(w, &response)
-		logger.Response(service.Name, response, response.Response.ReturnCode, err)
 	}
+	response := cns.UpdateEndpointResponse{
+		Response: cns.Response{
+			ReturnCode: types.Success,
+			Message:    "[Azure CNS] updateEndpoint retruned successfully",
+		},
+	}
+	err = service.Listener.Encode(w, &response)
+	logger.Response(service.Name, response, response.Response.ReturnCode, err)
 }
 
 // UpdateEndpointHelper updates the state of the given endpointId with HNSId or VethName
-func (service *HTTPRestService) UpdateEndpointHelper(endpointID, hnsID, vethName string) error {
+func (service *HTTPRestService) UpdateEndpointHelper(req cns.EndpointRequest) error {
 	if service.EndpointStateStore == nil {
 		return ErrStoreEmpty
 	}
-	logger.Printf("[UpdateEndpointState] Updating endpoint state for infra container %s", endpointID)
+	logger.Printf("[UpdateEndpointState] Updating endpoint state for infra container %s", req.EndpointID)
 	if service.Options[common.OptManageEndpointState] == true {
-		if endpointInfo, ok := service.EndpointState[endpointID]; ok {
-			logger.Printf("[UpdateEndpointState] Found existing endpoint state for infra container %s", endpointID)
-			if hnsID != "" {
-				service.EndpointState[endpointID].HnsID = hnsID
-				logger.Errorf("[UpdateEndpointState] update the endpoint %s with HNSID  %s", endpointID, hnsID)
-				return nil
-			} else if vethName != "" {
-				service.EndpointState[endpointID].VethName = vethName
-				logger.Errorf("[UpdateEndpointState] update the endpoint %s with vethName  %s", endpointID, vethName)
+		if endpointInfo, ok := service.EndpointState[req.EndpointID]; ok {
+			logger.Printf("[UpdateEndpointState] Found existing endpoint state for infra container %s", req.EndpointID)
+			if req.HostVethName == "" && req.HnsEndpointID != "" {
+				logger.Warnf("[UpdateEndpointState] No HnsEndpointID or HostVethName has been provided")
 				return nil
 			}
+			if req.HnsEndpointID != "" {
+				service.EndpointState[req.EndpointID].HnsEndpointID = req.HnsEndpointID
+				logger.Errorf("[UpdateEndpointState] update the endpoint %s with HNSID  %s", req.EndpointID, req.HnsEndpointID)
+				return nil
+			}
+			if req.HostVethName != "" {
+				service.EndpointState[req.EndpointID].HostVethName = req.HostVethName
+				logger.Errorf("[UpdateEndpointState] update the endpoint %s with vethName  %s", req.EndpointID, req.HostVethName)
+				return nil
+			}
+
 			err := service.EndpointStateStore.Write(EndpointStoreKey, service.EndpointState)
 			if err != nil {
 				return fmt.Errorf("failed to write endpoint state to store for pod %s :  %w", endpointInfo.PodName, err)
