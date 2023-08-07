@@ -8,6 +8,7 @@ pr:
     - "azure-ipam/*"
     - "dropgz/*"
     - "cni/*"
+    - ".pipelines/submodules-pipeline.yaml" # Enable /azp run Azure Container Networking PR - submodules
     exclude:
     - "*"
 
