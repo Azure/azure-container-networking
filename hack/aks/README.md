@@ -30,7 +30,6 @@ AKS Clusters
   swift-up                     Bring up a SWIFT AzCNI cluster
   windows-cniv1-up             Bring up a Windows AzCNIv1 cluster
   dualstack-overlay-byocni-up  Bring up an dualstack overlay cluster without CNS and CNI installed
-  windows-nodepool-up          Add windows node pool
   down                         Delete the cluster
   vmss-restart                 Restart the nodes of the cluster
 ```
