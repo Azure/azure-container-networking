@@ -10,8 +10,9 @@ import (
 
 	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/cni/ipam"
-	"github.com/Azure/azure-container-networking/cni/log"
+	zaplog "github.com/Azure/azure-container-networking/cni/log"
 	"github.com/Azure/azure-container-networking/common"
+	"github.com/Azure/azure-container-networking/log"
 	"go.uber.org/zap/zapcore"
 )
 
@@ -30,14 +31,25 @@ func main() {
 	var config common.PluginConfig
 	config.Version = version
 
-	loggerCfg := &log.Config{
+	logDirectory := "" // Sets the current location as log directory
+
+	log.SetName(name)
+	log.SetLevel(log.LevelInfo)
+	if err := log.SetTargetLogDirectory(log.TargetLogfile, logDirectory); err != nil {
+		fmt.Printf("Failed to setup cni logging: %v\n", err)
+		return
+	}
+
+	defer log.Close()
+
+	loggerCfg := &zaplog.Config{
 		Level:       zapcore.DebugLevel,
-		LogPath:     log.LogPath + "azure-ipam.log",
+		LogPath:     zaplog.LogPath + "azure-ipam.log",
 		MaxSizeInMB: maxLogFileSizeInMb,
 		MaxBackups:  maxLogFileCount,
 		Name:        name,
 	}
-	log.Initialize(ctx, loggerCfg)
+	zaplog.Initialize(ctx, loggerCfg)
 
 	ipamPlugin, err := ipam.NewPlugin(name, &config)
 	if err != nil {
