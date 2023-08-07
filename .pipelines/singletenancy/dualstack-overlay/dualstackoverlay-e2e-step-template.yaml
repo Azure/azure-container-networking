@@ -46,6 +46,13 @@ steps:
       echo "installing kubectl"
       curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
       sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+      kubectl cluster-info
+      kubectl get po -owide -A
+    retryCountOnTaskFailure: 3
+    name: "installKubectl"
+    displayName: "Install Kubectl"
+
+  - script: |
       echo "deploy ip-masq-agent for overlay"
       kubectl create -f test/integration/manifests/ip-masq-agent/ip-masq-agent.yaml --validate=false
       cd test/integration/manifests/ip-masq-agent/
@@ -53,12 +60,11 @@ steps:
       cd ../../../..
       kubectl cluster-info
       kubectl get node
-      kubectl get po -owide -A
       sudo -E env "PATH=$PATH" make test-integration CNS_VERSION=$(make cns-version) CNI_DROPGZ_VERSION=$(make cni-dropgz-version) INSTALL_CNS=true INSTALL_AZURE_VNET=true INSTALL_DUALSTACK_OVERLAY=true TEST_DROPGZ=${{ parameters.testDropgz }}
       kubectl get po -owide -A
     retryCountOnTaskFailure: 3
-    name: "installKubectl"
-    displayName: "Install kubectl on AKS dualstack overlay cluster"
+    name: "integrationTest"
+    displayName: "Run CNS Integration Tests on AKS DualStack Overlay"
 
   - script: |
       cd test/integration/load

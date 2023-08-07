@@ -14,7 +14,6 @@ stages:
     jobs:
       - job: ${{ parameters.name }}
         displayName: DualStack Overlay Test Suite - (${{ parameters.name }})
-        timeoutInMinutes: 120
         pool:
           name: $(BUILD_POOL_NAME_DEFAULT)
           demands: 
@@ -40,6 +39,7 @@ stages:
           dns: true
           portforward: true
           hostport: true
+          service: true
 
       - job: cleanup
         displayName: "Cleanup"
