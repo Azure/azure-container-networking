@@ -9,7 +9,6 @@ import (
 
 var (
 	hnsEndPointCmd   = []string{"powershell", "-c", "Get-HnsEndpoint | ConvertTo-Json"}
-	hnsNetworkCmd    = []string{"powershell", "-c", "Get-HnsNetwork | ConvertTo-Json"}
 	azureVnetCmd     = []string{"powershell", "-c", "cat ../../k/azure-vnet.json"}
 	azureVnetIpamCmd = []string{"powershell", "-c", "cat ../../k/azure-vnet-ipam.json"}
 )
@@ -23,14 +22,6 @@ var windowsChecksMap = map[string][]check{
 	"cniv2": {
 		{"azure-vnet", azureVnetIps, privilegedLabelSelector, privilegedNamespace, azureVnetCmd},
 	},
-}
-
-type HNSNetwork struct {
-	Name           string `json:"Name"`
-	IPv6           bool   `json:"IPv6"`
-	ManagementIP   string `json:"ManagementIP"`
-	ManagementIPv6 string `json:"ManagementIPv6"`
-	State          int    `json:"State"`
 }
 
 type HNSEndpoint struct {
@@ -80,17 +71,6 @@ type AddressPool struct {
 type AddressRecord struct {
 	Addr  net.IP
 	InUse bool
-}
-
-// return windows HNS network state
-func hnsNetworkState(result []byte) ([]HNSNetwork, error) {
-	var hnsNetworkResult []HNSNetwork
-	err := json.Unmarshal(result, &hnsNetworkResult)
-	if err != nil {
-		return nil, errors.Wrapf(err, "failed to unmarshal hns network list")
-	}
-
-	return hnsNetworkResult, nil
 }
 
 func hnsStateFileIps(result []byte) (map[string]string, error) {

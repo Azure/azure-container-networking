@@ -216,60 +216,9 @@ func (v *Validator) validateDualStackNodeProperties(ctx context.Context) error {
 	return nil
 }
 
-func (v *Validator) validateHNSNetworkState(ctx context.Context) error {
-	// check HNS network state only on windows nodes
-	nodes, err := k8sutils.GetNodeListByLabelSelector(ctx, v.clientset, nodeSelectorMap["windows"])
-	if err != nil {
-		return errors.Wrapf(err, "failed to get node list")
-	}
-	// check windows HNS network state
-	for index := range nodes.Items {
-		pod, err := k8sutils.GetPodsByNode(ctx, v.clientset, privilegedNamespace, privilegedLabelSelector, nodes.Items[index].Name)
-		if err != nil {
-			return errors.Wrapf(err, "failed to get privileged pod")
-		}
-
-		podName := pod.Items[0].Name
-		// exec into the pod to get the state file
-		result, err := k8sutils.ExecCmdOnPod(ctx, v.clientset, privilegedNamespace, podName, hnsNetworkCmd, v.config)
-		if err != nil {
-			return errors.Wrapf(err, "failed to exec into privileged pod")
-		}
-
-		hnsNetwork, err := hnsNetworkState(result)
-		if err != nil {
-			return errors.Wrapf(err, "failed to unmarshal hns network list")
-		}
-
-		if len(hnsNetwork) == 0 { //nolint
-			return errors.Wrapf(err, "windows node does not have any HNS network")
-		} else if len(hnsNetwork) == 1 {
-			return errors.Wrapf(err, "HNS default ext network or azure network does not exist")
-		} else {
-			for _, network := range hnsNetwork {
-				if !network.IPv6 {
-					return errors.Wrapf(err, "windows HNS network IPv6 flag is not set correctly")
-				}
-				if network.State != 1 {
-					return errors.Wrapf(err, "windows HNS network state is not correct")
-				}
-				if network.ManagementIPv6 == "" || network.ManagementIP == "" {
-					return errors.Wrapf(err, "windows HNS network is missing ipv4 or ipv6 management IP")
-				}
-			}
-		}
-	}
-
-	return nil
-}
-
 func (v *Validator) ValidateDualStackControlPlane(ctx context.Context) error {
 	if err := v.validateDualStackNodeProperties(ctx); err != nil {
 		return errors.Wrap(err, "failed to validate dualstack overlay node properties")
-	}
-
-	if err := v.validateHNSNetworkState(ctx); err != nil {
-		return errors.Wrap(err, "failed to validate dualstack overlay HNS network state")
 	}
 
 	return nil
