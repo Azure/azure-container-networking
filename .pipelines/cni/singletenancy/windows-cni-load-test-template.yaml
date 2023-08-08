@@ -33,7 +33,7 @@ stages:
     dependsOn: ${{ parameters.dependsOn }}
     displayName: "Build CNI Images"
     jobs:
-      - job: build_cni_images # Need to change name, will build various images from here (NPM|CNI)
+      - job: build_images
         pool:
           name: "$(BUILD_POOL_NAME_LINUX_AMD64)"
         strategy:
@@ -63,7 +63,7 @@ stages:
       - job:
         displayName: "Build Kubernetes Test Suite Binary"
         pool:
-          name: $(BUILD_POOL_NAME_DEFAULT) # May need to change
+          name: $(BUILD_POOL_NAME_DEFAULT)
         steps:
           - bash: |
               git clone https://github.com/huntergregory/kubernetes.git --depth=1 --branch=linux-sleep-before-probing
@@ -163,7 +163,6 @@ stages:
               os: ${{ parameters.os }}
               cni: ${{ parameters.cni }}
 
-#  $(AZURE_TEST_AGENT_SERVICE_CONNECTION)
   - stage: npm
     dependsOn:
       - validate_state_windows
@@ -179,7 +178,6 @@ stages:
           sub: $(TEST_SUB_SERVICE_CONNECTION)
           os_version: 'ltsc2022'
           tag: $(npmVersion)
-
 
   - stage: delete_resources
     pool:

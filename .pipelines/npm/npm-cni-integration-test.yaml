@@ -6,7 +6,6 @@ parameters:
   dependsOn: ""
   tag: ""
 
-
 jobs:
   - job: npm_k8se2e
     displayName: "NPM k8s E2E"
