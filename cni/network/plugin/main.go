@@ -303,6 +303,8 @@ func main() {
 		return
 	}
 
+	defer log.Close()
+
 	loggerCfg := &zaplog.Config{
 		Level:       zapcore.DebugLevel,
 		LogPath:     zaplog.LogPath + name + ".log",
