@@ -372,7 +372,7 @@ stages:
       name: "dualstackoverlay_e2e"
       displayName: AKS DualStack Overlay
       os: linux
-      testDropgz: ""
+      testDropgz: true
       clusterName: "dualstackoverlaye2e"
 
   - stage: validate2
