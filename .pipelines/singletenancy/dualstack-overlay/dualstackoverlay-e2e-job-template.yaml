@@ -1,7 +1,6 @@
 parameters:
   name: ""
   displayName: ""
-  pipelineBuildImage: "$(BUILD_IMAGE)"
   testDropgz: ""
   clusterName: ""
 
