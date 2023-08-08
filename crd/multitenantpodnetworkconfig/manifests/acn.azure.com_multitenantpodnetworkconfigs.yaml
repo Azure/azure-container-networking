@@ -21,9 +21,6 @@ spec:
   scope: Namespaced
   versions:
     - additionalPrinterColumns:
-        - jsonPath: .status.status
-          name: Status
-          type: string
         - jsonPath: .spec.podNetworkInstance
           name: PodNetworkInstance
           type: string
@@ -43,7 +40,7 @@ spec:
       schema:
         openAPIV3Schema:
           description:
-            NodeNetworkConfig is the Schema for the multitenantpodnetworkconfigs
+            MultitenantPodNetworkConfig is the Schema for the multitenantpodnetworkconfigs
             API
           properties:
             apiVersion:
@@ -78,13 +75,6 @@ spec:
                 macAddress:
                   type: string
                 primaryIP:
-                  type: string
-                status:
-                  description: Status indicates the MPNC reconcile status
-                  enum:
-                    - Updating
-                    - Updated
-                    - Error
                   type: string
                 uuid:
                   type: string
