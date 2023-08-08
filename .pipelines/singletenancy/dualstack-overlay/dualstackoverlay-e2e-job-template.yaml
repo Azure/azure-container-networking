@@ -58,9 +58,11 @@ stages:
               scriptType: "bash"
               addSpnToEnvironment: true
               inlineScript: |
+                set -e
                 echo "Deleting cluster"
                 make -C ./hack/aks azcfg AZCLI=az
-                make -C ./hack/aks down SUB=$(SUB_AZURE_NETWORK_AGENT_TEST) AZCLI=az CLUSTER=${{ parameters.clusterName }}-$(make revision)
+                make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}-$(make revision)
+                make -C ./hack/aks down AZCLI=az SUB=$(SUB_AZURE_NETWORK_AGENT_TEST) CLUSTER=${{ parameters.clusterName }}-$(make revision)
                 echo "Cluster and resources down"
             name: "CleanupDualStackOverlaycluster"
             displayName: "Cleanup DualStack Overlay Cluster"
