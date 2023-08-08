@@ -5,6 +5,13 @@ parameters:
 
 steps:
   - bash: |
+      echo $UID
+      sudo rm -rf $(System.DefaultWorkingDirectory)/*
+    displayName: "Set up OS environment"
+
+  - checkout: self
+  
+  - bash: |
       go version
       go env
       mkdir -p '$(GOBIN)'
@@ -25,6 +32,7 @@ steps:
         az version
         echo "Install az cli extension preview"
         az extension add --name aks-preview
+        az extension update --name aks-preview
         mkdir -p ~/.kube/
         echo "Create AKS DualStack Overlay cluster"
         make -C ./hack/aks azcfg AZCLI=az REGION=$(REGION_DUALSTACKOVERLAY_CLUSTER_TEST)
