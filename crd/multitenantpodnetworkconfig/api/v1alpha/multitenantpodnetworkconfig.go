@@ -41,14 +41,19 @@ type MultitenantPodNetworkConfigList struct {
 
 // MultitenantPodNetworkConfigSpec defines the desired state of PodNetworkConfig
 type MultitenantPodNetworkConfigSpec struct {
+	// name of PNI object from requesting cx pod
 	PodNetworkInstance string `json:"podNetworkInstance,omitempty"`
-	PodName            string `json:"podName,omitempty"`
+	// name of the requesting cx pod
+	PodName string `json:"podName,omitempty"`
 }
 
 // MultitenantPodNetworkConfigStatus defines the observed state of PodNetworkConfig
 type MultitenantPodNetworkConfigStatus struct {
-	UUID       string `json:"uuid,omitempty"`
-	PrimaryIP  string `json:"primaryIP,omitempty"`
+	// network container id
+	UUID string `json:"uuid,omitempty"`
+	// ip allocated to the network container
+	PrimaryIP string `json:"primaryIP,omitempty"`
+	// maps to the NIC to be injected for the network container
 	MacAddress string `json:"macAddress,omitempty"`
 }
 
