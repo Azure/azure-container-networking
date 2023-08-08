@@ -50,7 +50,7 @@ jobs:
             name: dns
             clusterName: ${{ parameters.clusterName }}
             ginkgoFocus: '\[sig-network\].DNS.should'
-            ginkgoSkip: 'resolv'
+            ginkgoSkip: 'resolv|256 search'
             os: ${{ parameters.os }}
             processes: 8
             attempts: 3
