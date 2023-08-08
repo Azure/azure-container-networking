@@ -17,7 +17,6 @@ import (
 // +kubebuilder:subresource:status
 // +kubebuilder:metadata:labels=managed=
 // +kubebuilder:metadata:labels=owner=
-// +kubebuilder:printcolumn:name="Status",type=string,JSONPath=`.status.status`
 // +kubebuilder:printcolumn:name="PodNetworkInstance",type=string,JSONPath=`.spec.podNetworkInstance`
 // +kubebuilder:printcolumn:name="PodName",type=string,JSONPath=`.spec.podName`
 // +kubebuilder:printcolumn:name="UUID",type=string,JSONPath=`.status.uuid`
@@ -46,22 +45,11 @@ type MultitenantPodNetworkConfigSpec struct {
 	PodName            string `json:"podName,omitempty"`
 }
 
-// Status indicates the MPNC reconcile status
-// +kubebuilder:validation:Enum=Updating;Updated;Error
-type Status string
-
-const (
-	Updating Status = "Updating"
-	Updated  Status = "Updated"
-	Error    Status = "Error"
-)
-
 // MultitenantPodNetworkConfigStatus defines the observed state of PodNetworkConfig
 type MultitenantPodNetworkConfigStatus struct {
 	UUID       string `json:"uuid,omitempty"`
 	PrimaryIP  string `json:"primaryIP,omitempty"`
 	MacAddress string `json:"macAddress,omitempty"`
-	Status     Status `json:"status,omitempty"`
 }
 
 func init() {
