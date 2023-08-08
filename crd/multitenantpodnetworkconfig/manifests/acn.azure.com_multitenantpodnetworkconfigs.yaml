@@ -63,8 +63,10 @@ spec:
                 of PodNetworkConfig
               properties:
                 podName:
+                  description: name of the requesting cx pod
                   type: string
                 podNetworkInstance:
+                  description: name of PNI object from requesting cx pod
                   type: string
               type: object
             status:
@@ -73,10 +75,13 @@ spec:
                 of PodNetworkConfig
               properties:
                 macAddress:
+                  description: maps to the NIC to be injected for the network container
                   type: string
                 primaryIP:
+                  description: ip allocated to the network container
                   type: string
                 uuid:
+                  description: network container id
                   type: string
               type: object
           type: object
