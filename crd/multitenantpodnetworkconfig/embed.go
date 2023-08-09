@@ -18,7 +18,7 @@ var MultitenantPodNetworkConfigsYAML []byte
 func GetMultitenantPodNetworkConfigs() (*apiextensionsv1.CustomResourceDefinition, error) {
 	multitenantPodNetworkConfigs := &apiextensionsv1.CustomResourceDefinition{}
 	if err := yaml.Unmarshal(MultitenantPodNetworkConfigsYAML, &multitenantPodNetworkConfigs); err != nil {
-		return nil, errors.Wrap(err, "error unmarshalling embedded nnc")
+		return nil, errors.Wrap(err, "error unmarshalling embedded mpnc")
 	}
 	return multitenantPodNetworkConfigs, nil
 }
