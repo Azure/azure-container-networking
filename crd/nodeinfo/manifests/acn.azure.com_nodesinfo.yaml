@@ -5,15 +5,13 @@ metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.11.3
   creationTimestamp: null
-  name: nodeinfoes.acn.azure.com
+  name: nodesinfo.acn.azure.com
 spec:
   group: acn.azure.com
   names:
     kind: NodeInfo
     listKind: NodeInfoList
-    plural: nodeinfoes
-    shortNames:
-    - ni
+    plural: nodesinfo
     singular: nodeinfo
   scope: Namespaced
   versions:
@@ -22,7 +20,7 @@ spec:
       name: VMUniqueID
       priority: 1
       type: string
-    name: v1alpha
+    name: v1alpha1
     schema:
       openAPIV3Schema:
         description: NodeInfo is the Schema for the NodesInfo API

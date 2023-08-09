@@ -1,7 +1,7 @@
 //go:build !ignore_uncovered
 // +build !ignore_uncovered
 
-package v1alpha
+package v1alpha1
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -14,6 +14,7 @@ import (
 // NodeInfo is the Schema for the NodesInfo API
 // +kubebuilder:resource:scope=Namespaced
 // +kubebuilder:resource:shortName=ni
+// +kubebuilder:resource:path=nodesinfo
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="VMUniqueID",type=string,priority=1,JSONPath=`.spec.vmUniqueID`
 type NodeInfo struct {
