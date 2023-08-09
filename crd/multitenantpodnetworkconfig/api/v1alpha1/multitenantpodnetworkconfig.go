@@ -1,7 +1,7 @@
 //go:build !ignore_uncovered
 // +build !ignore_uncovered
 
-package v1alpha
+package v1alpha1
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
