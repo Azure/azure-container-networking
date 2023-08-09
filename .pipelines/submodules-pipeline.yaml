@@ -7,6 +7,7 @@ pr:
     - "zapai/*"
     - "azure-ipam/*"
     - "dropgz/*"
+    - "cni/*"
     exclude:
     - "*"
 
@@ -16,6 +17,7 @@ trigger:
     - "zapai/*"
     - "azure-ipam/*"
     - "dropgz/*"
+    - "cni/*"
     exclude:
     - "*"
   tags:
@@ -23,6 +25,7 @@ trigger:
     - "zapai/*"
     - "azure-ipam/*"
     - "dropgz/*"
+    - "cni/*"
     exclude:
     - "v*"
 
