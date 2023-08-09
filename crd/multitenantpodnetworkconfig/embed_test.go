@@ -15,7 +15,7 @@ func TestEmbed(t *testing.T) {
 	assert.Equal(t, b, MultitenantPodNetworkConfigsYAML)
 }
 
-func TestGetNodeNetworkConfigs(t *testing.T) {
+func TestGetMultitenantPodNetworkConfigs(t *testing.T) {
 	_, err := GetMultitenantPodNetworkConfigs()
 	assert.NoError(t, err)
 }
