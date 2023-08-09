@@ -43,7 +43,6 @@ spec:
             description: NodeInfoSpec defines the desired state of NodeInfo
             properties:
               vmUniqueID:
-                default: 0
                 type: string
             type: object
         type: object

@@ -34,7 +34,6 @@ type NodeInfoList struct {
 
 // NodeInfoSpec defines the desired state of NodeInfo
 type NodeInfoSpec struct {
-	// +kubebuilder:default=0
 	// +kubebuilder:validation:Optional
 	VMUniqueID string `json:"vmUniqueID,omitempty"`
 }
