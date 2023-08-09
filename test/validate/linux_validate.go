@@ -38,6 +38,8 @@ var linuxChecksMap = map[string][]check{
 	},
 	"cniv2": {
 		{"cns cache", cnsCacheStateFileIps, cnsLabelSelector, privilegedNamespace, cnsLocalCacheCmd},
+	},
+	"dualstack": {
 		{"azure dualstackoverlay", azureDualStackStateFileIPs, privilegedLabelSelector, privilegedNamespace, azureVnetStateFileCmd},
 	},
 }
