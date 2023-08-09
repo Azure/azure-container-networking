@@ -44,6 +44,17 @@ steps:
     name: "installKubetest"
     displayName: "Set up Conformance Tests"
 
+  - ${{ if eq( parameters['testDropgz'], true) }}:
+      - script: |
+          echo "##vso[task.setvariable variable=dropgzVersion]$(make cni-dropgz-test-version)"
+        name: dropgzTestVersion
+        displayName: "Dropgz Test Version"
+  - ${{ else }}:
+      - script: |
+          echo "##vso[task.setvariable variable=dropgzVersion]$(make cni-dropgz-version)"
+        name: dropgzVersion
+        displayName: "Dropgz Version"
+
   - script: |
       ls -lah
       pwd
@@ -52,7 +63,7 @@ steps:
       sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
       kubectl cluster-info
       kubectl get po -owide -A
-      sudo -E env "PATH=$PATH" make test-integration CNS_VERSION=$(make cns-version) CNI_DROPGZ_VERSION=$(make cni-dropgz-version) INSTALL_CNS=true INSTALL_AZURE_VNET=true TEST_DROPGZ=${{ parameters.testDropgz }}
+      sudo -E env "PATH=$PATH" make test-integration CNS_VERSION=$(make cns-version) CNI_DROPGZ_VERSION=$(dropgzVersion) INSTALL_CNS=true INSTALL_AZURE_VNET=true TEST_DROPGZ=${{ parameters.testDropgz }}
     retryCountOnTaskFailure: 3
     name: "aksswifte2e"
     displayName: "Run AKS Swift E2E"

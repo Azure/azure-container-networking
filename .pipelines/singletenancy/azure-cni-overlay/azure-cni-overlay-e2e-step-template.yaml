@@ -55,6 +55,17 @@ steps:
     name: "installKubetest"
     displayName: "Set up Conformance Tests"
 
+  - ${{ if eq( parameters['testDropgz'], true) }}:
+      - script: |
+          echo "##vso[task.setvariable variable=dropgzVersion]$(make cni-dropgz-test-version)"
+        name: dropgzTestVersion
+        displayName: "Dropgz Test Version"
+  - ${{ else }}:
+      - script: |
+          echo "##vso[task.setvariable variable=dropgzVersion]$(make cni-dropgz-version)"
+        name: dropgzVersion
+        displayName: "Dropgz Version"
+
   - script: |
       echo "Start Integration Tests on Overlay Cluster"
       echo "deploy ip-masq-agent for overlay"
@@ -65,7 +76,7 @@ steps:
       cd ../../../..
       kubectl get po -owide -A
       CNS=$(make cns-version) DROPGZ=$(make cni-dropgz-version)
-      sudo -E env "PATH=$PATH" make test-integration CNS_VERSION=${CNS} CNI_DROPGZ_VERSION=${DROPGZ} INSTALL_CNS=true INSTALL_AZURE_CNI_OVERLAY=true TEST_DROPGZ=${{ parameters.testDropgz }}
+      sudo -E env "PATH=$PATH" make test-integration CNS_VERSION=${CNS} CNI_DROPGZ_VERSION=$(dropgzVersion) INSTALL_CNS=true INSTALL_AZURE_CNI_OVERLAY=true TEST_DROPGZ=${{ parameters.testDropgz }}
     retryCountOnTaskFailure: 3
     name: "integrationTest"
     displayName: "Run CNS Integration Tests on AKS Overlay"

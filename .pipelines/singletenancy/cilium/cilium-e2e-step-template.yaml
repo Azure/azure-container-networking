@@ -77,10 +77,21 @@ steps:
     name: "installKubetest"
     displayName: "Set up Conformance Tests"
 
+  - ${{ if eq( parameters['testDropgz'], true) }}:
+      - script: |
+          echo "##vso[task.setvariable variable=dropgzVersion]$(make cni-dropgz-test-version)"
+        name: dropgzTestVersion
+        displayName: "Dropgz Test Version"
+  - ${{ else }}:
+      - script: |
+          echo "##vso[task.setvariable variable=dropgzVersion]$(make cni-dropgz-version)"
+        name: dropgzVersion
+        displayName: "Dropgz Version"
+
   - script: |
       echo "Start Azilium E2E Tests"
       kubectl get po -owide -A
-      sudo -E env "PATH=$PATH" make test-integration CNS_VERSION=$(make cns-version) CNI_DROPGZ_VERSION=$(make cni-dropgz-version) INSTALL_CNS=true INSTALL_AZILIUM=true TEST_DROPGZ=${{ parameters.testDropgz }}
+      sudo -E env "PATH=$PATH" make test-integration CNS_VERSION=$(make cns-version) CNI_DROPGZ_VERSION=$(dropgzVersion) INSTALL_CNS=true INSTALL_AZILIUM=true TEST_DROPGZ=${{ parameters.testDropgz }}
     retryCountOnTaskFailure: 3
     name: "aziliumTest"
     displayName: "Run Azilium E2E"
