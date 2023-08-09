@@ -11,10 +11,10 @@ import (
 
 // +kubebuilder:object:root=true
 
-// NodeInfo is the Schema for the NodesInfo API
+// NodeInfo is the Schema for the NodeInfo API
 // +kubebuilder:resource:scope=Namespaced
 // +kubebuilder:resource:shortName=ni
-// +kubebuilder:resource:path=nodesinfo
+// +kubebuilder:resource:path=nodeinfo
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="VMUniqueID",type=string,priority=1,JSONPath=`.spec.vmUniqueID`
 type NodeInfo struct {

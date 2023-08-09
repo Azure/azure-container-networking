@@ -5,13 +5,13 @@ metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.11.3
   creationTimestamp: null
-  name: nodesinfo.acn.azure.com
+  name: nodeinfo.acn.azure.com
 spec:
   group: acn.azure.com
   names:
     kind: NodeInfo
     listKind: NodeInfoList
-    plural: nodesinfo
+    plural: nodeinfo
     singular: nodeinfo
   scope: Namespaced
   versions:
@@ -23,7 +23,7 @@ spec:
     name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: NodeInfo is the Schema for the NodesInfo API
+        description: NodeInfo is the Schema for the NodeInfo API
         properties:
           apiVersion:
             description: 'APIVersion defines the versioned schema of this representation

@@ -8,17 +8,17 @@ import (
 	"sigs.k8s.io/yaml"
 )
 
-// NodesInfoYAML embeds the CRD YAML for downstream consumers.
+// NodeInfoYAML embeds the CRD YAML for downstream consumers.
 //
-//go:embed manifests/acn.azure.com_nodesinfo.yaml
-var NodesInfoYAML []byte
+//go:embed manifests/acn.azure.com_nodeinfo.yaml
+var NodeInfoYAML []byte
 
-// GetNodesInfoDefinition parses the raw []byte NodesInfo in
+// GetNodeInfoDefinition parses the raw []byte NodeInfo in
 // to a CustomResourceDefinition and returns it or an unmarshalling error.
-func GetNodesInfo() (*apiextensionsv1.CustomResourceDefinition, error) {
-	nodesInfo := &apiextensionsv1.CustomResourceDefinition{}
-	if err := yaml.Unmarshal(NodesInfoYAML, &nodesInfo); err != nil {
+func GetNodeInfo() (*apiextensionsv1.CustomResourceDefinition, error) {
+	nodeInfo := &apiextensionsv1.CustomResourceDefinition{}
+	if err := yaml.Unmarshal(NodeInfoYAML, &nodeInfo); err != nil {
 		return nil, errors.Wrap(err, "error unmarshalling embedded nodeInfo")
 	}
-	return nodesInfo, nil
+	return nodeInfo, nil
 }

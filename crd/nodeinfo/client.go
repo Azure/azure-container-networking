@@ -52,7 +52,7 @@ func (i *Installer) create(ctx context.Context, res *v1.CustomResourceDefinition
 
 // Install installs the embedded NodeInfo CRD definition in the cluster.
 func (i *Installer) Install(ctx context.Context) (*v1.CustomResourceDefinition, error) {
-	nodeinfo, err := GetNodesInfo()
+	nodeinfo, err := GetNodeInfo()
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get embedded nodeinfo crd")
 	}
@@ -61,7 +61,7 @@ func (i *Installer) Install(ctx context.Context) (*v1.CustomResourceDefinition, 
 
 // InstallOrUpdate installs the embedded NodeInfo CRD definition in the cluster or updates it if present.
 func (i *Installer) InstallOrUpdate(ctx context.Context) (*v1.CustomResourceDefinition, error) {
-	nodeinfo, err := GetNodesInfo()
+	nodeinfo, err := GetNodeInfo()
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get embedded nodeinfo crd")
 	}

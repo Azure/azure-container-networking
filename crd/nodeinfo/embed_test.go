@@ -7,15 +7,15 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-const filename = "manifests/acn.azure.com_nodesinfo.yaml"
+const filename = "manifests/acn.azure.com_nodeinfo.yaml"
 
 func TestEmbed(t *testing.T) {
 	b, err := os.ReadFile(filename)
 	assert.NoError(t, err)
-	assert.Equal(t, b, NodesInfoYAML)
+	assert.Equal(t, b, NodeInfoYAML)
 }
 
-func TestGetNodesInfo(t *testing.T) {
-	_, err := GetNodesInfo()
+func TestGetNodeInfo(t *testing.T) {
+	_, err := GetNodeInfo()
 	assert.NoError(t, err)
 }
