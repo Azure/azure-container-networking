@@ -1,14 +1,8 @@
 parameters:
   name: ""
-  clusterType: ""
   clusterName: ""
-  nodeCount: ""
-  vmSize: ""
-  k8sVersion: ""
-  version: ""
+  arch: ""
   os: ""
-  windowsOsSku: ""
-  cniVersion: ""
   os_version: ""
   scaleup: ""
 

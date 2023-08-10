@@ -7,11 +7,9 @@ parameters:
   clusterName: ""
   vmSize: ""
   k8sVersion: ""
-  windowsOsSku: ""
   os_version: ""
   scaleup: ""
   dependsOn: ""
-
 
 stages:
   - stage: ${{ parameters.clusterName }}
@@ -32,7 +30,6 @@ stages:
           clusterName: ${{ parameters.clusterName }}-$(commitID)
           vmSize: ${{ parameters.vmSize }}
           k8sVersion: ${{ parameters.k8sVersion }}
-          windowsOsSku: ${{ parameters.windowsOsSku }}
           dependsOn: ${{ parameters.dependsOn }}
           region: $(REGION_AKS_CLUSTER_TEST)
 
@@ -61,13 +58,9 @@ stages:
           - template: e2e-step-template.yaml
             parameters:
               name: ${{ parameters.name }}
-              clusterType: ${{ parameters.clusterType }}
               clusterName: ${{ parameters.clusterName }}-$(commitID)
-              vmSize: ${{ parameters.vmSize }}
               arch: ${{ parameters.arch }}
               os: ${{ parameters.os }}
-              k8sVersion: ${{ parameters.k8sVersion }}
-              windowsOsSku: ${{ parameters.windowsOsSku }}
               os_version: ${{ parameters.os_version }}
               version: $(dropgzVersion)
               cniVersion: $(cniVersion)

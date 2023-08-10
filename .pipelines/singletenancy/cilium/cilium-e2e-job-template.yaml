@@ -6,7 +6,6 @@ parameters:
   clusterName: ""
   vmSize: ""
   k8sVersion: ""
-  windowsOsSku: ""
   dependsOn: ""
 
 stages:
@@ -28,7 +27,6 @@ stages:
           clusterName: ${{ parameters.clusterName }}-$(commitID)
           vmSize: ${{ parameters.vmSize }}
           k8sVersion: ${{ parameters.k8sVersion }}
-          windowsOsSku: ${{ parameters.windowsOsSku }}
           dependsOn: ${{ parameters.dependsOn }}
           region: $(REGION_AKS_CLUSTER_TEST)
 

@@ -320,7 +320,6 @@ stages:
       clusterName: "ciliume2e"
       vmSize: Standard_B2ms
       k8sVersion: ""
-      windowsOsSku: ""
       dependsOn: 'containerize'
 
   - template: singletenancy/cilium-overlay/cilium-overlay-e2e-job-template.yaml
@@ -332,7 +331,6 @@ stages:
       clusterName: "overlaye2e"
       vmSize: Standard_B2ms
       k8sVersion: ""
-      windowsOsSku: ""
       dependsOn: 'containerize'
 
   - template: singletenancy/azure-cni-overlay/azure-cni-overlay-e2e-job-template.yaml
@@ -344,7 +342,6 @@ stages:
       clusterName: "azurecnioverlaye2e"
       vmSize: Standard_B2ms
       k8sVersion: ""
-      windowsOsSku: ""
       dependsOn: 'containerize'
 
   - template: singletenancy/aks-swift/e2e-job-template.yaml
@@ -356,7 +353,6 @@ stages:
       clusterName: "swifte2e"
       vmSize: Standard_B2s
       k8sVersion: ""
-      windowsOsSku: ""
       dependsOn: 'containerize'
 
   - template: singletenancy/aks/e2e-job-template.yaml
@@ -381,7 +377,6 @@ stages:
       clusterType: windows-cniv1-up
       clusterName: 'win22e2e'
       vmSize: Standard_B2ms
-      windowsOsSku: 'Windows2022'
       os_version: 'ltsc2022'
       scaleup: 50
       dependsOn: 'containerize'
@@ -391,9 +386,11 @@ stages:
       name: "dualstackoverlay_e2e"
       displayName: AKS DualStack Overlay
       os: linux
-      testDropgz: true
+      clusterType: dualstack-overlay-byocni-up
       clusterName: "dualstackoverlaye2e"
-
+      vmSize: Standard_B2s
+      dependsOn: 'containerize'
+      testDropgz: true
 
   - stage: delete
     displayName: Delete Clusters
@@ -406,6 +403,7 @@ stages:
       - "cilium_overlay_cilium_e2e"
       - "aks_ubuntu_22_linux_e2e"
       - "aks_windows_22_e2e"
+      - "dualstackoverlay_e2e"
     variables:
       commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
     jobs:
@@ -433,13 +431,15 @@ stages:
             aks_windows_22_e2e:
               name: aks_windows_22_e2e
               clusterName: 'win22e2e'
+            dualstackoverlay_e2e:
+              name: dualstackoverlay_e2e
+              clusterName: 'dualstackoverlaye2e'
         steps:
           - template: templates/delete-cluster.yaml
             parameters:
               name: $(name)
               clusterName: $(clusterName)-$(commitID)
               region: $(REGION_AKS_CLUSTER_TEST)
-
 
   - stage: validate2
     displayName: Validate Tags

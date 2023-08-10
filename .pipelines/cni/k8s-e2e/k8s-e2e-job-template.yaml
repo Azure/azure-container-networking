@@ -24,7 +24,7 @@ jobs:
 
             # sig-release provides test suite tarball(s) per k8s release. Just need to provide k8s version "v1.xx.xx"
             # pulling k8s version from AKS.
-            eval k8sVersion="v"$( az aks show -g ${{ parameters.clusterName }}-$(make revision) -n ${{ parameters.clusterName }}-$(make revision) --query "currentKubernetesVersion")
+            eval k8sVersion="v"$( az aks show -g ${{ parameters.clusterName }} -n ${{ parameters.clusterName }} --query "currentKubernetesVersion")
             echo $k8sVersion
             curl -L https://dl.k8s.io/$k8sVersion/kubernetes-test-linux-amd64.tar.gz -o ./kubernetes-test-linux-amd64.tar.gz
 

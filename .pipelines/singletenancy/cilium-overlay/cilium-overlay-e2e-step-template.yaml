@@ -94,7 +94,7 @@ steps:
       then
           CNS=$(CNS_VERSION) DROPGZ=$(DROP_GZ_VERSION) && echo "Running nightly"
       else
-          CNS=$(make cns-version) DROPGZ=$(make cni-dropgz-version) # These could become out of sync TODO
+          CNS=$(make cns-version) DROPGZ=$(make cni-dropgz-version)
       fi
       sudo -E env "PATH=$PATH" make test-integration CNS_VERSION=${CNS} CNI_DROPGZ_VERSION=${DROPGZ} INSTALL_CNS=true INSTALL_OVERLAY=true TEST_DROPGZ=${{ parameters.testDropgz }}
     retryCountOnTaskFailure: 3
