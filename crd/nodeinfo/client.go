@@ -16,7 +16,6 @@ import (
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	ctrlutil "sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 )
 
 // Scheme is a runtime scheme containing the client-go scheme and the NodeInfo scheme.
@@ -103,59 +102,4 @@ func (c *Client) Get(ctx context.Context, key types.NamespacedName) (*v1alpha1.N
 	nodeInfo := &v1alpha1.NodeInfo{}
 	err := c.cli.Get(ctx, key, nodeInfo)
 	return nodeInfo, errors.Wrapf(err, "failed to get nodeinfo %v", key)
-}
-
-// PatchSpec performs a server-side patch of the passed NodeInfoSpec to the NodeInfo specified by the NamespacedName.
-func (c *Client) PatchSpec(ctx context.Context, key types.NamespacedName, spec *v1alpha1.NodeInfoSpec, fieldManager string) (*v1alpha1.NodeInfo, error) {
-	obj := genPatchSkel(key)
-	obj.Spec = *spec
-	if err := c.cli.Patch(ctx, obj, client.Apply, client.ForceOwnership, client.FieldOwner(fieldManager)); err != nil {
-		return nil, errors.Wrap(err, "failed to patch nodeinfo")
-	}
-	return obj, nil
-}
-
-// UpdateSpec does a fetch, deepcopy, and update of the NodeInfo with the passed spec.
-// Deprecated: UpdateSpec is deprecated and usage should migrate to PatchSpec.
-func (c *Client) UpdateSpec(ctx context.Context, key types.NamespacedName, spec *v1alpha1.NodeInfoSpec) (*v1alpha1.NodeInfo, error) {
-	nodeinfo, err := c.Get(ctx, key)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to get nodeinfo")
-	}
-	spec.DeepCopyInto(&nodeinfo.Spec)
-	if err := c.cli.Update(ctx, nodeinfo); err != nil {
-		return nil, errors.Wrap(err, "failed to update nodeinfo")
-	}
-	return nodeinfo, nil
-}
-
-// SetOwnerRef sets the controller of the NodeInfo to the given object atomically, using HTTP Patch.
-// Deprecated: SetOwnerRef is deprecated, use the more correctly named SetControllerRef.
-func (c *Client) SetOwnerRef(ctx context.Context, key types.NamespacedName, owner metav1.Object, fieldManager string) (*v1alpha1.NodeInfo, error) {
-	return c.SetControllerRef(ctx, key, owner, fieldManager)
-}
-
-// SetControllerRef sets the controller of the NodeInfo to the given object atomically, using HTTP Patch.
-func (c *Client) SetControllerRef(ctx context.Context, key types.NamespacedName, owner metav1.Object, fieldManager string) (*v1alpha1.NodeInfo, error) {
-	obj := genPatchSkel(key)
-	if err := ctrlutil.SetControllerReference(owner, obj, Scheme); err != nil {
-		return nil, errors.Wrapf(err, "failed to set controller reference for nodeinfo")
-	}
-	if err := c.cli.Patch(ctx, obj, client.Apply, client.ForceOwnership, client.FieldOwner(fieldManager)); err != nil {
-		return nil, errors.Wrapf(err, "failed to patch nodeinfo")
-	}
-	return obj, nil
-}
-
-func genPatchSkel(key types.NamespacedName) *v1alpha1.NodeInfo {
-	return &v1alpha1.NodeInfo{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: v1alpha1.GroupVersion.String(),
-			Kind:       "NodeInfo",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      key.Name,
-			Namespace: key.Namespace,
-		},
-	}
 }
