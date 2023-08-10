@@ -13,7 +13,7 @@ import (
 //go:embed manifests/acn.azure.com_nodeinfo.yaml
 var NodeInfoYAML []byte
 
-// GetNodeInfoDefinition parses the raw []byte NodeInfo in
+// GetNodeInfo parses the raw []byte NodeInfo in
 // to a CustomResourceDefinition and returns it or an unmarshalling error.
 func GetNodeInfo() (*apiextensionsv1.CustomResourceDefinition, error) {
 	nodeInfo := &apiextensionsv1.CustomResourceDefinition{}
