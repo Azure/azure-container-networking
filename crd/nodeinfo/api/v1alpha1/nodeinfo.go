@@ -15,7 +15,6 @@ import (
 // +kubebuilder:resource:scope=Namespaced
 // +kubebuilder:resource:shortName=ni
 // +kubebuilder:resource:path=nodeinfo
-// +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="VMUniqueID",type=string,priority=1,JSONPath=`.spec.vmUniqueID`
 type NodeInfo struct {
 	metav1.TypeMeta   `json:",inline"`
