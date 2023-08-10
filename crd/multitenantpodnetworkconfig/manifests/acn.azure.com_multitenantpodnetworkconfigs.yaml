@@ -26,8 +26,8 @@ spec:
     - jsonPath: .spec.podName
       name: PodName
       type: string
-    - jsonPath: .status.uuid
-      name: UUID
+    - jsonPath: .status.ncID
+      name: NCID
       type: string
     - jsonPath: .status.primaryIP
       name: PrimaryIP
@@ -71,11 +71,11 @@ spec:
               macAddress:
                 description: maps to the NIC to be injected for the network container
                 type: string
+              ncID:
+                description: network container id
+                type: string
               primaryIP:
                 description: ip allocated to the network container
-                type: string
-              uuid:
-                description: network container id
                 type: string
             type: object
         type: object

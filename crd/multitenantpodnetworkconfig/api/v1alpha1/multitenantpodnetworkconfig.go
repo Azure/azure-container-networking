@@ -19,7 +19,7 @@ import (
 // +kubebuilder:metadata:labels=owner=
 // +kubebuilder:printcolumn:name="PodNetworkInstance",type=string,JSONPath=`.spec.podNetworkInstance`
 // +kubebuilder:printcolumn:name="PodName",type=string,JSONPath=`.spec.podName`
-// +kubebuilder:printcolumn:name="UUID",type=string,JSONPath=`.status.uuid`
+// +kubebuilder:printcolumn:name="NCID",type=string,JSONPath=`.status.ncID`
 // +kubebuilder:printcolumn:name="PrimaryIP",type=string,JSONPath=`.status.primaryIP`
 // +kubebuilder:printcolumn:name="MacAddress",type=string,JSONPath=`.status.macAddress`
 type MultitenantPodNetworkConfig struct {
@@ -50,7 +50,7 @@ type MultitenantPodNetworkConfigSpec struct {
 // MultitenantPodNetworkConfigStatus defines the observed state of PodNetworkConfig
 type MultitenantPodNetworkConfigStatus struct {
 	// network container id
-	UUID string `json:"uuid,omitempty"`
+	NCID string `json:"ncID,omitempty"`
 	// ip allocated to the network container
 	PrimaryIP string `json:"primaryIP,omitempty"`
 	// maps to the NIC to be injected for the network container
