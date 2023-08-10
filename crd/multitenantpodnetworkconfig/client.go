@@ -42,42 +42,42 @@ func NewInstaller(c *rest.Config) (*Installer, error) {
 func (i *Installer) create(ctx context.Context, res *v1.CustomResourceDefinition) (*v1.CustomResourceDefinition, error) {
 	res, err := i.cli.Create(ctx, res, metav1.CreateOptions{})
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to create mpnc crd")
+		return nil, errors.Wrap(err, "failed to create mtpnc crd")
 	}
 	return res, nil
 }
 
 // Installs the embedded MultitenantPodNetworkConfig CRD definition in the cluster.
 func (i *Installer) Install(ctx context.Context) (*v1.CustomResourceDefinition, error) {
-	mpnc, err := GetMultitenantPodNetworkConfigs()
+	mtpnc, err := GetMultitenantPodNetworkConfigs()
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to get embedded mpnc crd")
+		return nil, errors.Wrap(err, "failed to get embedded mtpnc crd")
 	}
-	return i.create(ctx, mpnc)
+	return i.create(ctx, mtpnc)
 }
 
 // InstallOrUpdate installs the embedded MultitenantPodNetworkConfig CRD definition in the cluster or updates it if present.
 func (i *Installer) InstallOrUpdate(ctx context.Context) (*v1.CustomResourceDefinition, error) {
-	mpnc, err := GetMultitenantPodNetworkConfigs()
+	mtpnc, err := GetMultitenantPodNetworkConfigs()
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to get embedded mpnc crd")
+		return nil, errors.Wrap(err, "failed to get embedded mtpnc crd")
 	}
-	current, err := i.create(ctx, mpnc)
+	current, err := i.create(ctx, mtpnc)
 	if !apierrors.IsAlreadyExists(err) {
 		return current, err
 	}
 	if current == nil {
-		current, err = i.cli.Get(ctx, mpnc.Name, metav1.GetOptions{})
+		current, err = i.cli.Get(ctx, mtpnc.Name, metav1.GetOptions{})
 		if err != nil {
-			return nil, errors.Wrap(err, "failed to get existing mpnc crd")
+			return nil, errors.Wrap(err, "failed to get existing mtpnc crd")
 		}
 	}
-	if !reflect.DeepEqual(mpnc.Spec.Versions, current.Spec.Versions) {
-		mpnc.SetResourceVersion(current.GetResourceVersion())
+	if !reflect.DeepEqual(mtpnc.Spec.Versions, current.Spec.Versions) {
+		mtpnc.SetResourceVersion(current.GetResourceVersion())
 		previous := *current
-		current, err = i.cli.Update(ctx, mpnc, metav1.UpdateOptions{})
+		current, err = i.cli.Update(ctx, mtpnc, metav1.UpdateOptions{})
 		if err != nil {
-			return &previous, errors.Wrap(err, "failed to update existing mpnc crd")
+			return &previous, errors.Wrap(err, "failed to update existing mtpnc crd")
 		}
 	}
 	return current, nil

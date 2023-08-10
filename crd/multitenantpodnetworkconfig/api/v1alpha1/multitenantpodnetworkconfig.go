@@ -13,7 +13,7 @@ import (
 
 // MultitenantPodNetworkConfig is the Schema for the multitenantpodnetworkconfigs API
 // +kubebuilder:resource:scope=Namespaced
-// +kubebuilder:resource:shortName=mpnc
+// +kubebuilder:resource:shortName=mtpnc
 // +kubebuilder:subresource:status
 // +kubebuilder:metadata:labels=managed=
 // +kubebuilder:metadata:labels=owner=
@@ -22,6 +22,7 @@ import (
 // +kubebuilder:printcolumn:name="NCID",type=string,JSONPath=`.status.ncID`
 // +kubebuilder:printcolumn:name="PrimaryIP",type=string,JSONPath=`.status.primaryIP`
 // +kubebuilder:printcolumn:name="MacAddress",type=string,JSONPath=`.status.macAddress`
+// +kubebuilder:printcolumn:name="GatewayIP",type=string,JSONPath=`.status.gatewayIP`
 type MultitenantPodNetworkConfig struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -55,6 +56,8 @@ type MultitenantPodNetworkConfigStatus struct {
 	PrimaryIP string `json:"primaryIP,omitempty"`
 	// maps to the NIC to be injected for the network container
 	MacAddress string `json:"macAddress,omitempty"`
+	// Gateway IP
+	GatewayIP string `json:"gatewayIP,omitempty"`
 }
 
 func init() {

@@ -1,7 +1,7 @@
 //go:build !ignore_uncovered
 // +build !ignore_uncovered
 
-// Package v1alpha contains API Schema definitions for the acn v1alpha API group
+// Package v1alpha1 contains API Schema definitions for the acn v1alpha1 API group
 // +kubebuilder:object:generate=true
 // +groupName=acn.azure.com
 package v1alpha1

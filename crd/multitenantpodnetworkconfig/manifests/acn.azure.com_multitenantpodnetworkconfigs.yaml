@@ -15,7 +15,7 @@ spec:
     listKind: MultitenantPodNetworkConfigList
     plural: multitenantpodnetworkconfigs
     shortNames:
-    - mpnc
+    - mtpnc
     singular: multitenantpodnetworkconfig
   scope: Namespaced
   versions:
@@ -34,6 +34,9 @@ spec:
       type: string
     - jsonPath: .status.macAddress
       name: MacAddress
+      type: string
+    - jsonPath: .status.gatewayIP
+      name: GatewayIP
       type: string
     name: v1alpha1
     schema:
@@ -68,6 +71,9 @@ spec:
             description: MultitenantPodNetworkConfigStatus defines the observed state
               of PodNetworkConfig
             properties:
+              gatewayIP:
+                description: Gateway IP
+                type: string
               macAddress:
                 description: maps to the NIC to be injected for the network container
                 type: string

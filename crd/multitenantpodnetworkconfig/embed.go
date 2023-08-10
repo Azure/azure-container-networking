@@ -13,12 +13,12 @@ import (
 //go:embed manifests/acn.azure.com_multitenantpodnetworkconfigs.yaml
 var MultitenantPodNetworkConfigsYAML []byte
 
-// GetMultitenantPodNetworkConfigsDefinition parses the raw []byte MultitenantPodNetworkConfigs in
+// GetMultitenantPodNetworkConfigs parses the raw []byte MultitenantPodNetworkConfigs in
 // to a CustomResourceDefinition and returns it or an unmarshalling error.
 func GetMultitenantPodNetworkConfigs() (*apiextensionsv1.CustomResourceDefinition, error) {
 	multitenantPodNetworkConfigs := &apiextensionsv1.CustomResourceDefinition{}
 	if err := yaml.Unmarshal(MultitenantPodNetworkConfigsYAML, &multitenantPodNetworkConfigs); err != nil {
-		return nil, errors.Wrap(err, "error unmarshalling embedded mpnc")
+		return nil, errors.Wrap(err, "error unmarshalling embedded mtpnc")
 	}
 	return multitenantPodNetworkConfigs, nil
 }
