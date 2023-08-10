@@ -12,10 +12,8 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // Scheme is a runtime scheme containing the client-go scheme and the NodeInfo scheme.
@@ -83,23 +81,4 @@ func (i *Installer) InstallOrUpdate(ctx context.Context) (*v1.CustomResourceDefi
 		}
 	}
 	return current, nil
-}
-
-// Client provides methods to interact with instances of the NodeInfo custom resource.
-type Client struct {
-	cli client.Client
-}
-
-// NewClient creates a new NodeInfo client around the passed ctrlcli.Client.
-func NewClient(cli client.Client) *Client {
-	return &Client{
-		cli: cli,
-	}
-}
-
-// Get returns the NodeInfo identified by the NamespacedName.
-func (c *Client) Get(ctx context.Context, key types.NamespacedName) (*v1alpha1.NodeInfo, error) {
-	nodeInfo := &v1alpha1.NodeInfo{}
-	err := c.cli.Get(ctx, key, nodeInfo)
-	return nodeInfo, errors.Wrapf(err, "failed to get nodeinfo %v", key)
 }
