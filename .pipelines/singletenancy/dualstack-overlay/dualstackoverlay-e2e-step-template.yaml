@@ -2,6 +2,8 @@ parameters:
   name: ""
   testDropgz: ""
   clusterName: ""
+  restartCase: "false"
+  cni: "dualstack"
 
 steps:
   - bash: |
@@ -94,13 +96,9 @@ steps:
     displayName: "Restart Nodes"
 
   - script: |
-      kubectl get pods -A -o wide
-      echo "Deploying test pods"
-      cd test/integration/load
-      sudo go test -count 1 -timeout 30m -tags load -run ^TestLoad$ -tags=load -iterations=2 -scaleup=${{ parameters.scaleup }} -os=${{ parameters.os }}
-      if [ "${{parameters.os}}" == "windows" ]; then
-        make test-validate-state OS=${{ parameters.os }} CNI_TYPE=dualstack
-      fi
+      make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}-$(make revision)
+      kubectl get pods -A
+      sudo make test-validate-state RESTART_CASE=${{ parameters.restartCase }} CNI_TYPE=${{ parameters.cni }}
       kubectl delete ns load-test
     displayName: "Validate State"
     retryCountOnTaskFailure: 3
