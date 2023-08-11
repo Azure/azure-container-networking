@@ -1,0 +1,32 @@
+parameters:
+  name: ""
+  displayName: ""
+  pipelineBuildImage: "$(BUILD_IMAGE)"
+  testDropgz: ""
+  clusterName: ""
+
+stages:
+  - stage: ${{ parameters.name }}
+    displayName: E2E - ${{ parameters.displayName }}
+    dependsOn: 
+    - setup
+    - publish
+    jobs:
+      - job: ${{ parameters.name }}
+        displayName: Azure CNI Overlay Test Suite - (${{ parameters.name }})
+        timeoutInMinutes: 120
+        pool:
+          name: $(BUILD_POOL_NAME_DEFAULT)
+          demands: 
+          - agent.os -equals Linux
+          - Role -equals $(CUSTOM_E2E_ROLE)
+        variables:
+          GOPATH: "$(Agent.TempDirectory)/go" # Go workspace path
+          GOBIN: "$(GOPATH)/bin" # Go binaries path
+          modulePath: "$(GOPATH)/src/github.com/Azure/azure-container-networking"
+        steps:
+          - template: azure-cni-overlay-e2e-step-template.yaml
+            parameters:
+              name: ${{ parameters.name }}
+              testDropgz: ${{ parameters.testDropgz }}
+              clusterName: ${{ parameters.clusterName }}

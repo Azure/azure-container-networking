@@ -29,10 +29,11 @@ steps:
       scriptType: "bash"
       addSpnToEnvironment: true
       inlineScript: |
+        set -e
         mkdir -p ~/.kube/
         echo "Create AKS cluster"
-        make -C ./hack/swift azcfg AZCLI=az REGION=$(REGION_AKS_CLUSTER_TEST)
-        make -C ./hack/swift byocni-up AZCLI=az REGION=$(REGION_AKS_CLUSTER_TEST) SUB=$(SUB_AZURE_NETWORK_AGENT_TEST) CLUSTER=${{ parameters.clusterName }}-$(make revision)
+        make -C ./hack/aks azcfg AZCLI=az REGION=$(REGION_AKS_CLUSTER_TEST)
+        make -C ./hack/aks swift-no-kube-proxy-up AZCLI=az REGION=$(REGION_AKS_CLUSTER_TEST) SUB=$(SUB_AZURE_NETWORK_AGENT_TEST) CLUSTER=${{ parameters.clusterName }}-$(make revision) VM_SIZE=Standard_B2ms
         echo "Cluster successfully created"
     displayName: Create test cluster
     condition: succeeded()
@@ -45,18 +46,19 @@ steps:
       sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
       kubectl cluster-info
       kubectl get po -owide -A
-      curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
-      chmod 700 get_helm.sh
-      ./get_helm.sh
       echo "deploy Cilium ConfigMap"
       kubectl apply -f cilium/configmap.yaml
-      echo "install Cilium"
-      helm repo add cilium https://helm.cilium.io/
-      helm install cilium cilium/cilium --version 1.12.5 --namespace kube-system -f cilium/cilium_helm_values.yaml
+      kubectl apply -f test/integration/manifests/cilium/cilium-config.yaml
+      echo "install Cilium ${CILIUM_VERSION_TAG}"
+      envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/daemonset.yaml | kubectl apply -f -
+      envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/deployment.yaml | kubectl apply -f -
+      kubectl apply -f test/integration/manifests/cilium/cilium-agent
+      kubectl apply -f test/integration/manifests/cilium/cilium-operator
+      kubectl get po -owide -A
     name: "installCilium"
     displayName: "Install Cilium"
 
-  - script: | 
+  - script: |
       echo "install cilium CLI"
       CILIUM_CLI_VERSION=$(curl -s https://raw.githubusercontent.com/cilium/cilium-cli/master/stable.txt)
       CLI_ARCH=amd64
@@ -92,6 +94,9 @@ steps:
     displayName: "Run Azilium E2E"
 
   - script: |
+      echo "Status of the nodes and pods after the test"
+      kubectl get nodes -o wide
+      kubectl get pods -A -o wide
       echo "Logs will be available as a build artifact"
       ARTIFACT_DIR=$(Build.ArtifactStagingDirectory)/test-output/
       echo $ARTIFACT_DIR
@@ -109,6 +114,15 @@ steps:
     condition: always()
 
   - script: |
+      kubectl get pods -A
+      echo "Waiting < 2 minutes for cilium to be ready"
+      # Ensure Cilium is ready Xm\Xs
+      cilium status --wait --wait-duration 2m
+    retryCountOnTaskFailure: 3
+    name: "CiliumStatus"
+    displayName: "Cilium Status"
+
+  - script: |
       echo "Run Service Conformance E2E"
       export PATH=${PATH}:/usr/local/bin/gsutil
       KUBECONFIG=~/.kube/config kubetest2 noop \
@@ -124,7 +138,38 @@ steps:
     retryCountOnTaskFailure: 3
     name: "ciliumConnectivityTests"
     displayName: "Run Cilium Connectivity Tests"
-  
+
+  - script: |
+      echo "validate pod IP assignment and check systemd-networkd restart"
+      kubectl get pod -owide -A
+      make test-validate-state
+      echo "delete cilium connectivity test resources and re-validate state"
+      kubectl delete ns cilium-test
+      kubectl get pod -owide -A
+      make test-validate-state
+    name: "validatePods"
+    displayName: "Validate Pods"
+
+  - script: |
+      echo "validate pod IP assignment before CNS restart"
+      kubectl get pod -owide -A
+      make test-validate-state
+      echo "restart CNS"
+      kubectl rollout restart ds azure-cns -n kube-system
+      kubectl rollout status ds azure-cns -n kube-system
+      kubectl get pod -owide -A
+      echo "validate pods after CNS restart"
+      make test-validate-state
+    name: "restartCNS"
+    displayName: "Restart CNS and validate pods"
+
+  - script: |
+      echo "Run wireserver and metadata connectivity Tests"
+      bash test/network/wireserver_metadata_test.sh
+    retryCountOnTaskFailure: 3
+    name: "WireserverMetadataConnectivityTests"
+    displayName: "Run Wireserver and Metadata Connectivity Tests"
+
   - script: |
       ARTIFACT_DIR=$(Build.ArtifactStagingDirectory)/test-output/
       echo $ARTIFACT_DIR
@@ -136,14 +181,15 @@ steps:
 
   - task: AzureCLI@2
     inputs:
-      azureSubscription: "Azure Container Networking - Test"
+      azureSubscription: $(AZURE_TEST_AGENT_SERVICE_CONNECTION)
       scriptLocation: "inlineScript"
       scriptType: "bash"
       addSpnToEnvironment: true
       inlineScript: |
+        set -e
         echo "Deleting cluster"
-        make -C ./hack/swift azcfg AZCLI=az REGION=$(REGION_AKS_CLUSTER_TEST)
-        make -C ./hack/swift down AZCLI=az REGION=$(REGION_AKS_CLUSTER_TEST) SUB=$(SUB_AZURE_NETWORK_AGENT_TEST) CLUSTER=${{ parameters.clusterName }}-$(make revision)
+        make -C ./hack/aks azcfg AZCLI=az REGION=$(REGION_AKS_CLUSTER_TEST)
+        make -C ./hack/aks down AZCLI=az REGION=$(REGION_AKS_CLUSTER_TEST) SUB=$(SUB_AZURE_NETWORK_AGENT_TEST) CLUSTER=${{ parameters.clusterName }}-$(make revision)
         echo "Cluster and resources down"
     name: "Cleanupcluster"
     displayName: "Cleanup cluster"

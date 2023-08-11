@@ -29,10 +29,16 @@ const (
 )
 
 type PolicyManagerCfg struct {
+	// NodeIP is only used in Windows
+	NodeIP string
 	// PolicyMode only affects Windows
 	PolicyMode PolicyManagerMode
 	// PlaceAzureChainFirst only affects Linux
 	PlaceAzureChainFirst bool
+	// MaxBatchedACLsPerPod is the maximum number of ACLs that can be added to a Pod at once in Windows.
+	// The zero value is valid.
+	// A NetworkPolicy's ACLs are always in the same batch, and there will be at least one NetworkPolicy per batch.
+	MaxBatchedACLsPerPod int
 }
 
 type PolicyMap struct {
@@ -92,6 +98,11 @@ func (pMgr *PolicyManager) Bootup(epIDs []string) error {
 		// update Prometheus metrics on success
 		metrics.IncNumACLRulesBy(numLinuxBaseACLRules)
 	}
+
+	if util.IsWindowsDP() && pMgr.NodeIP == "" {
+		return npmerrors.Errorf(npmerrors.BootupPolicyMgr, false, "policy manager must have a configured nodeIP in Windows")
+	}
+
 	return nil
 }
 
@@ -115,17 +126,26 @@ func (pMgr *PolicyManager) GetPolicy(policyKey string) (*NPMNetworkPolicy, bool)
 	return policy, ok
 }
 
-func (pMgr *PolicyManager) AddPolicy(policy *NPMNetworkPolicy, endpointList map[string]string) error {
-	if len(policy.ACLs) == 0 {
-		klog.Infof("[DataPlane] No ACLs in policy %s to apply", policy.PolicyKey)
-		return nil
+func (pMgr *PolicyManager) AddPolicies(policies []*NPMNetworkPolicy, endpointList map[string]string) error {
+	nonEmptyPolicies := make([]*NPMNetworkPolicy, 0, len(policies))
+	for _, policy := range policies {
+		if len(policy.ACLs) == 0 {
+			klog.Infof("[DataPlane] No ACLs in policy %s to apply", policy.PolicyKey)
+			continue
+		}
+
+		nonEmptyPolicies = append(nonEmptyPolicies, policy)
+
+		NormalizePolicy(policy)
+		if err := ValidatePolicy(policy); err != nil {
+			msg := fmt.Sprintf("failed to validate policy: %s", err.Error())
+			metrics.SendErrorLogAndMetric(util.IptmID, "error: %s", msg)
+			return npmerrors.Errorf(npmerrors.AddPolicy, false, msg)
+		}
 	}
 
-	NormalizePolicy(policy)
-	if err := ValidatePolicy(policy); err != nil {
-		msg := fmt.Sprintf("failed to validate policy: %s", err.Error())
-		metrics.SendErrorLogAndMetric(util.IptmID, "error: %s", msg)
-		return npmerrors.Errorf(npmerrors.AddPolicy, false, msg)
+	if len(nonEmptyPolicies) == 0 {
+		return nil
 	}
 
 	pMgr.policyMap.Lock()
@@ -133,7 +153,7 @@ func (pMgr *PolicyManager) AddPolicy(policy *NPMNetworkPolicy, endpointList map[
 
 	// Call actual dataplane function to apply changes
 	timer := metrics.StartNewTimer()
-	err := pMgr.addPolicy(policy, endpointList)
+	err := pMgr.addPolicies(nonEmptyPolicies, endpointList)
 	metrics.RecordACLRuleExecTime(timer) // record execution time regardless of failure
 	if err != nil {
 		// NOTE: in Linux, Prometheus metrics may be off at this point since some ACL rules may have been applied successfully
@@ -143,14 +163,17 @@ func (pMgr *PolicyManager) AddPolicy(policy *NPMNetworkPolicy, endpointList map[
 		return npmerrors.Errorf(npmerrors.AddPolicy, false, msg)
 	}
 
-	// update Prometheus metrics on success
-	numEndpoints := 1
-	if util.IsWindowsDP() {
-		numEndpoints = len(endpointList)
-	}
-	metrics.IncNumACLRulesBy(policy.numACLRulesProducedInKernel() * numEndpoints)
+	for _, policy := range nonEmptyPolicies {
+		// update Prometheus metrics on success
+		if util.IsWindowsDP() {
+			metrics.IncNumACLRulesBy((1 + policy.numACLRulesProducedInKernel()) * len(endpointList))
+		} else {
+			metrics.IncNumACLRulesBy(policy.numACLRulesProducedInKernel())
+		}
 
-	pMgr.policyMap.cache[policy.PolicyKey] = policy
+		// add policy to cache
+		pMgr.policyMap.cache[policy.PolicyKey] = policy
+	}
 	return nil
 }
 
@@ -188,11 +211,12 @@ func (pMgr *PolicyManager) RemovePolicy(policyKey string) error {
 	}
 
 	// update Prometheus metrics on success
-	numEndpointsRemoved := 1
 	if util.IsWindowsDP() {
-		numEndpointsRemoved = numEndpointsBefore - len(policy.PodEndpoints)
+		numEndpointsRemoved := numEndpointsBefore - len(policy.PodEndpoints)
+		metrics.DecNumACLRulesBy((1 + policy.numACLRulesProducedInKernel()) * numEndpointsRemoved)
+	} else {
+		metrics.DecNumACLRulesBy(policy.numACLRulesProducedInKernel())
 	}
-	metrics.DecNumACLRulesBy(policy.numACLRulesProducedInKernel() * numEndpointsRemoved)
 
 	// remove policy from cache
 	delete(pMgr.policyMap.cache, policyKey)
@@ -223,7 +247,7 @@ func (pMgr *PolicyManager) RemovePolicyForEndpoints(policyKey string, endpointLi
 	}
 
 	// update Prometheus metrics on success
-	metrics.DecNumACLRulesBy(policy.numACLRulesProducedInKernel() * len(endpointList))
+	metrics.DecNumACLRulesBy((1 + policy.numACLRulesProducedInKernel()) * len(endpointList))
 
 	return nil
 }

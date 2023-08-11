@@ -8,10 +8,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/Azure/azure-container-networking/cns"
@@ -104,7 +106,7 @@ func (service *HTTPRestService) SyncNodeStatus(dncEP, infraVnet, nodeID string, 
 	if !skipNCVersionCheck {
 		nmaNCs := map[string]string{}
 		for _, nc := range ncVersionListResp.Containers {
-			nmaNCs[cns.SwiftPrefix+nc.NetworkContainerID] = nc.Version
+			nmaNCs[cns.SwiftPrefix+strings.ToLower(nc.NetworkContainerID)] = nc.Version
 		}
 
 		// check if the version is valid and save it to service state
@@ -164,7 +166,13 @@ func (service *HTTPRestService) SyncHostNCVersion(ctx context.Context, channelMo
 	service.Lock()
 	defer service.Unlock()
 	start := time.Now()
-	err := service.syncHostNCVersion(ctx, channelMode)
+	programmedNCCount, err := service.syncHostNCVersion(ctx, channelMode)
+	// even if we get an error, we want to write the CNI conflist if we have any NC programmed to any version
+	if programmedNCCount > 0 {
+		// This will only be done once per lifetime of the CNS process. This function is threadsafe and will panic
+		// if it fails, so it is safe to call in a non-preemptable goroutine.
+		go service.MustGenerateCNIConflistOnce()
+	}
 	if err != nil {
 		logger.Errorf("sync host error %v", err)
 	}
@@ -174,8 +182,13 @@ func (service *HTTPRestService) SyncHostNCVersion(ctx context.Context, channelMo
 
 var errNonExistentContainerStatus = errors.New("nonExistantContainerstatus")
 
-func (service *HTTPRestService) syncHostNCVersion(ctx context.Context, channelMode string) error {
+// syncHostVersion updates the CNS state with the latest programmed versions of NCs attached to the VM. If any NC in local CNS state
+// does not match the version that DNC claims to have published, this function will call NMAgent and list the latest programmed versions of
+// all NCs and update the CNS state accordingly. This function returns the the total number of NCs on this VM that have been programmed to
+// some version, NOT the number of NCs that are up-to-date.
+func (service *HTTPRestService) syncHostNCVersion(ctx context.Context, channelMode string) (int, error) {
 	outdatedNCs := map[string]struct{}{}
+	programmedNCs := map[string]struct{}{}
 	for idx := range service.state.ContainerStatus {
 		// Will open a separate PR to convert all the NC version related variable to int. Change from string to int is a pain.
 		localNCVersion, err := strconv.Atoi(service.state.ContainerStatus[idx].HostVersion)
@@ -194,18 +207,22 @@ func (service *HTTPRestService) syncHostNCVersion(ctx context.Context, channelMo
 		} else if localNCVersion > dncNCVersion {
 			logger.Errorf("NC version from NMAgent is larger than DNC, NC version from NMAgent is %d, NC version from DNC is %d", localNCVersion, dncNCVersion)
 		}
+
+		if localNCVersion > -1 {
+			programmedNCs[service.state.ContainerStatus[idx].ID] = struct{}{}
+		}
 	}
 	if len(outdatedNCs) == 0 {
-		return nil
+		return len(programmedNCs), nil
 	}
 	ncVersionListResp, err := service.nma.GetNCVersionList(ctx)
 	if err != nil {
-		return errors.Wrap(err, "failed to get nc version list from nmagent")
+		return len(programmedNCs), errors.Wrap(err, "failed to get nc version list from nmagent")
 	}
 
 	nmaNCs := map[string]string{}
 	for _, nc := range ncVersionListResp.Containers {
-		nmaNCs[nc.NetworkContainerID] = nc.Version
+		nmaNCs[strings.ToLower(nc.NetworkContainerID)] = nc.Version
 	}
 	for ncID := range outdatedNCs {
 		nmaNCVersionStr, ok := nmaNCs[ncID]
@@ -223,8 +240,13 @@ func (service *HTTPRestService) syncHostNCVersion(ctx context.Context, channelMo
 		if !exist {
 			// if we marked this NC as needs update, but it no longer exists in internal state when we reach
 			// this point, our internal state has changed unexpectedly and we should bail out and try again.
-			return errors.Wrapf(errNonExistentContainerStatus, "can't find NC with ID %s in service state, stop updating this host NC version", ncID)
+			return len(programmedNCs), errors.Wrapf(errNonExistentContainerStatus, "can't find NC with ID %s in service state, stop updating this host NC version", ncID)
 		}
+		// if the NC still exists in state and is programmed to some version (doesn't have to be latest), add it to our set of NCs that have been programmed
+		if nmaNCVersion > -1 {
+			programmedNCs[ncID] = struct{}{}
+		}
+
 		localNCVersion, err := strconv.Atoi(ncInfo.HostVersion)
 		if err != nil {
 			logger.Errorf("failed to parse host nc version string %s: %s", ncInfo.HostVersion, err)
@@ -247,65 +269,169 @@ func (service *HTTPRestService) syncHostNCVersion(ctx context.Context, channelMo
 	// if we didn't empty out the needs update set, NMA has not programmed all the NCs we are expecting, and we
 	// need to return an error indicating that
 	if len(outdatedNCs) > 0 {
-		return errors.Errorf("unabled to update some NCs: %v, missing or bad response from NMA", outdatedNCs)
+		return len(programmedNCs), errors.Errorf("unabled to update some NCs: %v, missing or bad response from NMA", outdatedNCs)
 	}
 
-	// if NMA has programmed all the NCs that we expect, we should write the CNI conflist. This will only be done
-	// once per lifetime of the CNS process. This function is threadsafe and will panic if it fails, so it is safe
-	// to call in a non-preemptable goroutine.
-	go service.MustGenerateCNIConflistOnce()
-	return nil
+	return len(programmedNCs), nil
 }
 
-// This API will be called by CNS RequestController on CRD update.
-func (service *HTTPRestService) ReconcileNCState(ncRequest *cns.CreateNetworkContainerRequest, podInfoByIP map[string]cns.PodInfo, nnc *v1alpha.NodeNetworkConfig) types.ResponseCode {
-	logger.Printf("Reconciling NC state with podInfo %+v", podInfoByIP)
-	// check if ncRequest is null, then return as there is no CRD state yet
-	if ncRequest == nil {
+func (service *HTTPRestService) ReconcileIPAMState(ncReqs []*cns.CreateNetworkContainerRequest, podInfoByIP map[string]cns.PodInfo, nnc *v1alpha.NodeNetworkConfig) types.ResponseCode {
+	logger.Printf("Reconciling CNS IPAM state with nc requests: [%+v], PodInfo [%+v], NNC: [%+v]", ncReqs, podInfoByIP, nnc)
+	// if no nc reqs, there is no CRD state yet
+	if len(ncReqs) == 0 {
 		logger.Printf("CNS starting with no NC state, podInfoMap count %d", len(podInfoByIP))
 		return types.Success
 	}
 
-	// If the NC was created successfully, then reconcile the assigned pod state
-	returnCode := service.CreateOrUpdateNetworkContainerInternal(ncRequest)
-	if returnCode != types.Success {
-		return returnCode
-	}
-
-	// now parse the secondaryIP list, if it exists in PodInfo list, then assign that ip.
-	for _, secIpConfig := range ncRequest.SecondaryIPConfigs {
-		if podInfo, exists := podInfoByIP[secIpConfig.IPAddress]; exists {
-			logger.Printf("SecondaryIP %+v is assigned to Pod. %+v, ncId: %s", secIpConfig, podInfo, ncRequest.NetworkContainerid)
-
-			jsonContext, err := podInfo.OrchestratorContext()
-			if err != nil {
-				logger.Errorf("Failed to marshal KubernetesPodInfo, error: %v", err)
-				return types.UnexpectedError
-			}
-
-			ipconfigRequest := cns.IPConfigRequest{
-				DesiredIPAddress:    secIpConfig.IPAddress,
-				OrchestratorContext: jsonContext,
-				InfraContainerID:    podInfo.InfraContainerID(),
-				PodInterfaceID:      podInfo.InterfaceID(),
-			}
-
-			if _, err := requestIPConfigHelper(service, ipconfigRequest); err != nil {
-				logger.Errorf("AllocateIPConfig failed for SecondaryIP %+v, podInfo %+v, ncId %s, error: %v", secIpConfig, podInfo, ncRequest.NetworkContainerid, err)
-				return types.FailedToAllocateIPConfig
-			}
-		} else {
-			logger.Printf("SecondaryIP %+v is not assigned. ncId: %s", secIpConfig, ncRequest.NetworkContainerid)
+	// first step in reconciliation is to create all the NCs in CNS, no IP assignment yet.
+	for _, ncReq := range ncReqs {
+		returnCode := service.CreateOrUpdateNetworkContainerInternal(ncReq)
+		if returnCode != types.Success {
+			return returnCode
 		}
 	}
 
-	err := service.MarkExistingIPsAsPendingRelease(nnc.Spec.IPsNotInUse)
+	// index all the secondary IP configs for all the nc reqs, for easier lookup later on.
+	allSecIPsIdx := make(map[string]*cns.CreateNetworkContainerRequest)
+	for i := range ncReqs {
+		for _, secIPConfig := range ncReqs[i].SecondaryIPConfigs {
+			allSecIPsIdx[secIPConfig.IPAddress] = ncReqs[i]
+		}
+	}
+
+	// we now need to reconcile IP assignment.
+	// considering that a single pod may have multiple ips (such as in dual stack scenarios)
+	// and that IP assignment in CNS (as done by requestIPConfigsHelper) does not allow
+	// updates (it returns the existing state if one already exists for the pod's interface),
+	// we need to assign all IPs for a pod interface or name+namespace at the same time.
+	//
+	// iterating over single IPs is not appropriate then, since assignment for the first IP for
+	// a pod will prevent the second IP from being added. the following function call transforms
+	// pod info indexed by ip address:
+	//
+	//   {
+	//     "10.0.0.1": podInfo{interface: "aaa-eth0"},
+	//     "fe80::1":  podInfo{interface: "aaa-eth0"},
+	//   }
+	//
+	// to pod IPs indexed by pod key (interface or name+namespace, depending on scenario):
+	//
+	//   {
+	//     "aaa-eth0": podIPs{v4IP: 10.0.0.1, v6IP: fe80::1}
+	//   }
+	//
+	// such that we can iterate over pod interfaces, and assign all IPs for it at once.
+	podKeyToPodIPs, err := newPodKeyToPodIPsMap(podInfoByIP)
 	if err != nil {
+		logger.Errorf("could not transform pods indexed by IP address to pod IPs indexed by interface: %v", err)
+		return types.UnexpectedError
+	}
+
+	for podKey, podIPs := range podKeyToPodIPs {
+		var (
+			desiredIPs []string
+			ncIDs      []string
+		)
+
+		var ips []net.IP
+		if podIPs.v4IP != nil {
+			ips = append(ips, podIPs.v4IP)
+		}
+
+		if podIPs.v6IP != nil {
+			ips = append(ips, podIPs.v6IP)
+		}
+
+		for _, ip := range ips {
+			if ncReq, ok := allSecIPsIdx[ip.String()]; ok {
+				logger.Printf("secondary ip %s is assigned to pod %+v, ncId: %s ncVersion: %s", ip, podIPs, ncReq.NetworkContainerid, ncReq.Version)
+				desiredIPs = append(desiredIPs, ip.String())
+				ncIDs = append(ncIDs, ncReq.NetworkContainerid)
+			} else {
+				// it might still be possible to see host networking pods here (where ips are not from ncs) if we are restoring using the kube podinfo provider
+				// todo: once kube podinfo provider reconcile flow is removed, this line will not be necessary/should be removed.
+				logger.Errorf("ip %s assigned to pod %+v but not found in any nc", ip, podIPs)
+			}
+		}
+
+		if len(desiredIPs) == 0 {
+			// this may happen for pods in the host network
+			continue
+		}
+
+		jsonContext, err := podIPs.OrchestratorContext()
+		if err != nil {
+			logger.Errorf("Failed to marshal KubernetesPodInfo, error: %v", err)
+			return types.UnexpectedError
+		}
+
+		ipconfigsRequest := cns.IPConfigsRequest{
+			DesiredIPAddresses:  desiredIPs,
+			OrchestratorContext: jsonContext,
+			InfraContainerID:    podIPs.InfraContainerID(),
+			PodInterfaceID:      podIPs.InterfaceID(),
+		}
+
+		if _, err := requestIPConfigsHelper(service, ipconfigsRequest); err != nil {
+			logger.Errorf("requestIPConfigsHelper failed for pod key %s, podInfo %+v, ncIds %v, error: %v", podKey, podIPs, ncIDs, err)
+			return types.FailedToAllocateIPConfig
+		}
+	}
+
+	if err := service.MarkExistingIPsAsPendingRelease(nnc.Spec.IPsNotInUse); err != nil {
 		logger.Errorf("[Azure CNS] Error. Failed to mark IPs as pending %v", nnc.Spec.IPsNotInUse)
 		return types.UnexpectedError
 	}
 
 	return 0
+}
+
+var (
+	errIPParse             = errors.New("parse IP")
+	errMultipleIPPerFamily = errors.New("multiple IPs per family")
+)
+
+// newPodKeyToPodIPsMap groups IPs by interface id and returns them indexed by interface id.
+func newPodKeyToPodIPsMap(podInfoByIP map[string]cns.PodInfo) (map[string]podIPs, error) {
+	podKeyToPodIPs := make(map[string]podIPs)
+
+	for ipStr, podInfo := range podInfoByIP {
+		id := podInfo.Key()
+
+		ips, ok := podKeyToPodIPs[id]
+		if !ok {
+			ips.PodInfo = podInfo
+		}
+
+		ip := net.ParseIP(ipStr)
+		switch {
+		case ip == nil:
+			return nil, errors.Wrapf(errIPParse, "could not parse ip string %q on pod %+v", ipStr, podInfo)
+		case ip.To4() != nil:
+			if ips.v4IP != nil {
+				return nil, errors.Wrapf(errMultipleIPPerFamily, "multiple ipv4 addresses (%v, %v) associated to pod %+v", ips.v4IP, ip, podInfo)
+			}
+
+			ips.v4IP = ip
+		case ip.To16() != nil:
+			if ips.v6IP != nil {
+				return nil, errors.Wrapf(errMultipleIPPerFamily, "multiple ipv6 addresses (%v, %v) associated to pod %+v", ips.v6IP, ip, podInfo)
+			}
+
+			ips.v6IP = ip
+		}
+
+		podKeyToPodIPs[id] = ips
+	}
+
+	return podKeyToPodIPs, nil
+}
+
+// podIPs are all the IPs associated with a pod, along with pod info
+type podIPs struct {
+	cns.PodInfo
+	v4IP net.IP
+	v6IP net.IP
 }
 
 // GetNetworkContainerInternal gets network container details.
@@ -371,10 +497,10 @@ func (service *HTTPRestService) CreateOrUpdateNetworkContainerInternal(req *cns.
 	}
 
 	// Validate SecondaryIPConfig
-	for _, secIpconfig := range req.SecondaryIPConfigs {
+	for _, secIPConfig := range req.SecondaryIPConfigs {
 		// Validate Ipconfig
-		if secIpconfig.IPAddress == "" {
-			logger.Errorf("Failed to add IPConfig to state: %+v, empty IPSubnet.IPAddress", secIpconfig)
+		if secIPConfig.IPAddress == "" {
+			logger.Errorf("Failed to add IPConfig to state: %+v, empty IPSubnet.IPAddress", secIPConfig)
 			return types.InvalidSecondaryIPConfig
 		}
 	}
@@ -383,8 +509,13 @@ func (service *HTTPRestService) CreateOrUpdateNetworkContainerInternal(req *cns.
 	existingNCInfo, ok := service.getNetworkContainerDetails(req.NetworkContainerid)
 	if ok {
 		existingReq := existingNCInfo.CreateNetworkContainerRequest
-		if !reflect.DeepEqual(existingReq.IPConfiguration, req.IPConfiguration) {
-			logger.Errorf("[Azure CNS] Error. PrimaryCA is not same, NCId %s, old CA %s, new CA %s", req.NetworkContainerid, existingReq.PrimaryInterfaceIdentifier, req.PrimaryInterfaceIdentifier)
+		if !reflect.DeepEqual(existingReq.IPConfiguration.IPSubnet, req.IPConfiguration.IPSubnet) {
+			logger.Errorf("[Azure CNS] Error. PrimaryCA is not same, NCId %s, old CA %s/%d, new CA %s/%d",
+				req.NetworkContainerid,
+				existingReq.IPConfiguration.IPSubnet.IPAddress,
+				existingReq.IPConfiguration.IPSubnet.PrefixLength,
+				req.IPConfiguration.IPSubnet.IPAddress,
+				req.IPConfiguration.IPSubnet.PrefixLength)
 			return types.PrimaryCANotSame
 		}
 	}
@@ -395,6 +526,8 @@ func (service *HTTPRestService) CreateOrUpdateNetworkContainerInternal(req *cns.
 	// If the NC was created successfully, log NC snapshot.
 	if returnCode == 0 {
 		logNCSnapshot(*req)
+
+		publishIPStateMetrics(service.buildIPState())
 	} else {
 		logger.Errorf(returnMessage)
 	}

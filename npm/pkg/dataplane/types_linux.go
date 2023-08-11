@@ -4,3 +4,5 @@ package dataplane
 type npmEndpoint struct {
 	netPolReference map[string]struct{}
 }
+
+type endpointQuery struct{}

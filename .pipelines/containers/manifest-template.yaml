@@ -34,7 +34,7 @@ steps:
       command: "logout"
       addPipelineData: false
 
-  - task: ManifestGeneratorTask@0
+  - task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
     displayName: "Add SBOM Generator tool"
     inputs:
       BuildDropPath: "$(Build.ArtifactStagingDirectory)"

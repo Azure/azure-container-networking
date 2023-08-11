@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/Azure/azure-container-networking/network/hnswrapper"
-
 	"github.com/Microsoft/hcsshim/hcn"
 )
 

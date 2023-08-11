@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"io/fs"
 	"net/http"
-	"net/http/pprof"
 	"os"
 	"os/signal"
 	"runtime"
@@ -55,6 +54,7 @@ import (
 	"github.com/avast/retry-go/v3"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
 	kuberuntime "k8s.io/apimachinery/pkg/runtime"
@@ -87,7 +87,10 @@ const (
 type cniConflistScenario string
 
 const (
-	scenarioV4Overlay cniConflistScenario = "v4overlay"
+	scenarioV4Overlay        cniConflistScenario = "v4overlay"
+	scenarioDualStackOverlay cniConflistScenario = "dualStackOverlay"
+	scenarioOverlay          cniConflistScenario = "overlay"
+	scenarioCilium           cniConflistScenario = "cilium"
 )
 
 var (
@@ -536,6 +539,12 @@ func main() {
 		switch scenario := cniConflistScenario(scenarioString); scenario {
 		case scenarioV4Overlay:
 			conflistGenerator = &cniconflist.V4OverlayGenerator{Writer: writer}
+		case scenarioDualStackOverlay:
+			conflistGenerator = &cniconflist.DualStackOverlayGenerator{Writer: writer}
+		case scenarioOverlay:
+			conflistGenerator = &cniconflist.OverlayGenerator{Writer: writer}
+		case scenarioCilium:
+			conflistGenerator = &cniconflist.CiliumGenerator{Writer: writer}
 		default:
 			logger.Errorf("unable to generate cni conflist for unknown scenario: %s", scenario)
 			os.Exit(1)
@@ -558,9 +567,11 @@ func main() {
 		return
 	}
 
-	homeAzMonitor := restserver.NewHomeAzMonitor(nmaClient, time.Duration(cnsconfig.PopulateHomeAzCacheRetryIntervalSecs)*time.Second)
-	logger.Printf("start the goroutine for refreshing homeAz")
-	homeAzMonitor.Start()
+	homeAzMonitor := restserver.NewHomeAzMonitor(nmaClient, time.Duration(cnsconfig.AZRSettings.PopulateHomeAzCacheRetryIntervalSecs)*time.Second)
+	if cnsconfig.AZRSettings.EnableAZR {
+		logger.Printf("start the goroutine for refreshing homeAz")
+		homeAzMonitor.Start()
+	}
 
 	if cnsconfig.ChannelMode == cns.Managed {
 		config.ChannelMode = cns.Managed
@@ -706,6 +717,17 @@ func main() {
 		return
 	}
 
+	// We are only setting the PriorityVLANTag in 'cns.Direct' mode, because it neatly maps today, to 'isUsingMultitenancy'
+	// In the future, we would want to have a better CNS flag, to explicitly say, this CNS is using multitenancy
+	if config.ChannelMode == cns.Direct {
+		// Set Mellanox adapter's PriorityVLANTag value to 3 if adapter exists
+		// reg key value for PriorityVLANTag = 3  --> Packet priority and VLAN enabled
+		// for more details goto https://docs.nvidia.com/networking/display/winof2v230/Configuring+the+Driver+Registry+Keys#ConfiguringtheDriverRegistryKeys-GeneralRegistryKeysGeneralRegistryKeys
+		if platform.HasMellanoxAdapter() {
+			go platform.MonitorAndSetMellanoxRegKeyPriorityVLANTag(rootCtx, cnsconfig.MellanoxMonitorIntervalSecs)
+		}
+	}
+
 	// Initialze state in if CNS is running in CRD mode
 	// State must be initialized before we start HTTPRestService
 	if config.ChannelMode == cns.CRD {
@@ -764,6 +786,10 @@ func main() {
 
 	logger.Printf("[Azure CNS] Start HTTP listener")
 	if httpRestService != nil {
+		if cnsconfig.EnablePprof {
+			httpRestService.RegisterPProfEndpoints()
+		}
+
 		err = httpRestService.Start(&config)
 		if err != nil {
 			logger.Errorf("Failed to start CNS, err:%v.\n", err)
@@ -879,8 +905,10 @@ func main() {
 		}
 	}
 
-	logger.Printf("end the goroutine for refreshing homeAz")
-	homeAzMonitor.Stop()
+	if cnsconfig.AZRSettings.EnableAZR {
+		logger.Printf("end the goroutine for refreshing homeAz")
+		homeAzMonitor.Stop()
+	}
 
 	logger.Printf("stop cns service")
 	// Cleanup.
@@ -989,42 +1017,46 @@ type nodeNetworkConfigGetter interface {
 	Get(context.Context) (*v1alpha.NodeNetworkConfig, error)
 }
 
-type ncStateReconciler interface {
-	ReconcileNCState(ncRequest *cns.CreateNetworkContainerRequest, podInfoByIP map[string]cns.PodInfo, nnc *v1alpha.NodeNetworkConfig) cnstypes.ResponseCode
+type ipamStateReconciler interface {
+	ReconcileIPAMState(ncRequests []*cns.CreateNetworkContainerRequest, podInfoByIP map[string]cns.PodInfo, nnc *v1alpha.NodeNetworkConfig) cnstypes.ResponseCode
 }
 
 // TODO(rbtr) where should this live??
 // reconcileInitialCNSState initializes cns by passing pods and a CreateNetworkContainerRequest
-func reconcileInitialCNSState(ctx context.Context, cli nodeNetworkConfigGetter, ncReconciler ncStateReconciler, podInfoByIPProvider cns.PodInfoByIPProvider) error {
+func reconcileInitialCNSState(ctx context.Context, cli nodeNetworkConfigGetter, ipamReconciler ipamStateReconciler, podInfoByIPProvider cns.PodInfoByIPProvider) error {
 	// Get nnc using direct client
 	nnc, err := cli.Get(ctx)
 	if err != nil {
-
 		if crd.IsNotDefined(err) {
-			return errors.Wrap(err, "failed to get NNC during init CNS state")
+			return errors.Wrap(err, "failed to init CNS state: NNC CRD is not defined")
 		}
-
-		// If instance of crd is not found, pass nil to CNSClient
-		if client.IgnoreNotFound(err) == nil {
-			err = restserver.ResponseCodeToError(ncReconciler.ReconcileNCState(nil, nil, nnc))
-			return errors.Wrap(err, "failed to reconcile NC state")
+		if apierrors.IsNotFound(err) {
+			return errors.Wrap(err, "failed to init CNS state: NNC not found")
 		}
-
-		// If it's any other error, log it and return
-		return errors.Wrap(err, "error getting NodeNetworkConfig when initializing CNS state")
+		return errors.Wrap(err, "failed to init CNS state: failed to get NNC CRD")
 	}
 
-	// If there are no NCs, pass nil to CNSClient
+	logger.Printf("Retrieved NNC: %+v", nnc)
+
+	// If there are no NCs, we can't initialize our state and we should fail out.
 	if len(nnc.Status.NetworkContainers) == 0 {
-		err = restserver.ResponseCodeToError(ncReconciler.ReconcileNCState(nil, nil, nnc))
-		return errors.Wrap(err, "failed to reconcile NC state")
+		return errors.New("failed to init CNS state: no NCs found in NNC CRD")
 	}
 
-	// Convert to CreateNetworkContainerRequest
-	for i := range nnc.Status.NetworkContainers {
-		var ncRequest *cns.CreateNetworkContainerRequest
-		var err error
+	// Get previous PodInfo state from podInfoByIPProvider
+	podInfoByIP, err := podInfoByIPProvider.PodInfoByIP()
+	if err != nil {
+		return errors.Wrap(err, "provider failed to provide PodInfoByIP")
+	}
 
+	ncReqs := make([]*cns.CreateNetworkContainerRequest, len(nnc.Status.NetworkContainers))
+
+	// For each NC, we need to create a CreateNetworkContainerRequest and use it to rebuild our state.
+	for i := range nnc.Status.NetworkContainers {
+		var (
+			ncRequest *cns.CreateNetworkContainerRequest
+			err       error
+		)
 		switch nnc.Status.NetworkContainers[i].AssignmentMode { //nolint:exhaustive // skipping dynamic case
 		case v1alpha.Static:
 			ncRequest, err = nncctrl.CreateNCRequestFromStaticNC(nnc.Status.NetworkContainers[i])
@@ -1037,17 +1069,14 @@ func reconcileInitialCNSState(ctx context.Context, cli nodeNetworkConfigGetter, 
 				"assignmentMode: %s", nnc.Status.NetworkContainers[i].AssignmentMode)
 		}
 
-		// rebuild CNS state
-		podInfoByIP, err := podInfoByIPProvider.PodInfoByIP()
-		if err != nil {
-			return errors.Wrap(err, "provider failed to provide PodInfoByIP")
-		}
-
-		// Call cnsclient init cns passing those two things.
-		if err := restserver.ResponseCodeToError(ncReconciler.ReconcileNCState(ncRequest, podInfoByIP, nnc)); err != nil {
-			return errors.Wrap(err, "failed to reconcile NC state")
-		}
+		ncReqs[i] = ncRequest
 	}
+
+	// Call cnsclient init cns passing those two things.
+	if err := restserver.ResponseCodeToError(ipamReconciler.ReconcileIPAMState(ncReqs, podInfoByIP, nnc)); err != nil {
+		return errors.Wrap(err, "failed to reconcile CNS IPAM state")
+	}
+
 	return nil
 }
 
@@ -1125,59 +1154,31 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 	if err != nil {
 		return errors.Wrap(err, "failed to create ctrl client")
 	}
-	nnccli := nodenetworkconfig.NewClient(directcli)
+	directnnccli := nodenetworkconfig.NewClient(directcli)
 	if err != nil {
 		return errors.Wrap(err, "failed to create NNC client")
 	}
 	// TODO(rbtr): nodename and namespace should be in the cns config
-	scopedcli := nncctrl.NewScopedClient(nnccli, types.NamespacedName{Namespace: "kube-system", Name: nodeName})
+	directscopedcli := nncctrl.NewScopedClient(directnnccli, types.NamespacedName{Namespace: "kube-system", Name: nodeName})
 
-	clusterSubnetStateChan := make(chan v1alpha1.ClusterSubnetState)
-	// initialize the ipam pool monitor
-	poolOpts := ipampool.Options{
-		RefreshDelay: poolIPAMRefreshRateInMilliseconds * time.Millisecond,
-	}
-	poolMonitor := ipampool.NewMonitor(httpRestServiceImplementation, scopedcli, clusterSubnetStateChan, &poolOpts)
-	httpRestServiceImplementation.IPAMPoolMonitor = poolMonitor
-
-	// reconcile initial CNS state from CNI or apiserver.
-	// Only reconcile if there are any existing Pods using NC ips,
-	// else let the goal state be updated using a regular NNC Reconciler loop
-	podInfoByIP, err := podInfoByIPProvider.PodInfoByIP()
-	if err != nil {
-		return errors.Wrap(err, "failed to provide PodInfoByIP")
-	}
-	if len(podInfoByIP) > 0 {
-		logger.Printf("Reconciling initial CNS state as PodInfoByIP is not empty: %d", len(podInfoByIP))
-
-		// apiserver nnc might not be registered or api server might be down and crashloop backof puts us outside of 5-10 minutes we have for
-		// aks addons to come up so retry a bit more aggresively here.
-		// will retry 10 times maxing out at a minute taking about 8 minutes before it gives up.
-		attempt := 0
-		err = retry.Do(func() error {
-			attempt++
-			logger.Printf("reconciling initial CNS state attempt: %d", attempt)
-			err = reconcileInitialCNSState(ctx, scopedcli, httpRestServiceImplementation, podInfoByIPProvider)
-			if err != nil {
-				logger.Errorf("failed to reconcile initial CNS state, attempt: %d err: %v", attempt, err)
-			}
-			return errors.Wrap(err, "failed to initialize CNS state")
-		}, retry.Context(ctx), retry.Delay(initCNSInitalDelay), retry.MaxDelay(time.Minute))
+	logger.Printf("Reconciling initial CNS state")
+	// apiserver nnc might not be registered or api server might be down and crashloop backof puts us outside of 5-10 minutes we have for
+	// aks addons to come up so retry a bit more aggresively here.
+	// will retry 10 times maxing out at a minute taking about 8 minutes before it gives up.
+	attempt := 0
+	err = retry.Do(func() error {
+		attempt++
+		logger.Printf("reconciling initial CNS state attempt: %d", attempt)
+		err = reconcileInitialCNSState(ctx, directscopedcli, httpRestServiceImplementation, podInfoByIPProvider)
 		if err != nil {
-			return err
+			logger.Errorf("failed to reconcile initial CNS state, attempt: %d err: %v", attempt, err)
 		}
-		logger.Printf("reconciled initial CNS state after %d attempts", attempt)
+		return errors.Wrap(err, "failed to initialize CNS state")
+	}, retry.Context(ctx), retry.Delay(initCNSInitalDelay), retry.MaxDelay(time.Minute))
+	if err != nil {
+		return err
 	}
-
-	// start the pool Monitor before the Reconciler, since it needs to be ready to receive an
-	// NodeNetworkConfig update by the time the Reconciler tries to send it.
-	go func() {
-		logger.Printf("Starting IPAM Pool Monitor")
-		if e := poolMonitor.Start(ctx); e != nil {
-			logger.Errorf("[Azure CNS] Failed to start pool monitor with err: %v", e)
-		}
-	}()
-	logger.Printf("initialized and started IPAM pool monitor")
+	logger.Printf("reconciled initial CNS state after %d attempts", attempt)
 
 	// the nodeScopedCache sets Selector options on the Manager cache which are used
 	// to perform *server-side* filtering of the cached objects. This is very important
@@ -1208,6 +1209,25 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 		return errors.Wrap(err, "failed to create manager")
 	}
 
+	// Build the IPAM Pool monitor
+	clusterSubnetStateChan := make(chan v1alpha1.ClusterSubnetState)
+
+	// this cachedscopedclient is built using the Manager's cached client, which is
+	// NOT SAFE TO USE UNTIL THE MANAGER IS STARTED!
+	// This is okay because it is only used to build the IPAMPoolMonitor, which does not
+	// attempt to use the client until it has received a NodeNetworkConfig to update, and
+	// that can only happen once the Manager has started and the NodeNetworkConfig
+	// reconciler has pushed the Monitor a NodeNetworkConfig.
+	cachedscopedcli := nncctrl.NewScopedClient(nodenetworkconfig.NewClient(manager.GetClient()), types.NamespacedName{Namespace: "kube-system", Name: nodeName})
+
+	poolOpts := ipampool.Options{
+		RefreshDelay: poolIPAMRefreshRateInMilliseconds * time.Millisecond,
+	}
+	poolMonitor := ipampool.NewMonitor(httpRestServiceImplementation, cachedscopedcli, clusterSubnetStateChan, &poolOpts)
+	httpRestServiceImplementation.IPAMPoolMonitor = poolMonitor
+
+	// Start building the NNC Reconciler
+
 	// get our Node so that we can xref it against the NodeNetworkConfig's to make sure that the
 	// NNC is not stale and represents the Node we're running on.
 	node, err := clientset.CoreV1().Nodes().Get(ctx, nodeName, metav1.GetOptions{})
@@ -1237,48 +1257,55 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 	mux := httpRestServiceImplementation.Listener.GetMux()
 	mux.Handle("/readyz", http.StripPrefix("/readyz", &healthz.Handler{}))
 	if cnsconfig.EnablePprof {
-		// add pprof endpoints
-		mux.Handle("/debug/pprof/allocs", pprof.Handler("allocs"))
-		mux.Handle("/debug/pprof/block", pprof.Handler("block"))
-		mux.Handle("/debug/pprof/goroutine", pprof.Handler("goroutine"))
-		mux.Handle("/debug/pprof/heap", pprof.Handler("heap"))
-		mux.Handle("/debug/pprof/mutex", pprof.Handler("mutex"))
-		mux.Handle("/debug/pprof/threadcreate", pprof.Handler("threadcreate"))
-		mux.HandleFunc("/debug/pprof/", pprof.Index)
-		mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
-		mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
-		mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
-		mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
+		httpRestServiceImplementation.RegisterPProfEndpoints()
 	}
+
+	// start the pool Monitor before the Reconciler, since it needs to be ready to receive an
+	// NodeNetworkConfig update by the time the Reconciler tries to send it.
+	go func() {
+		logger.Printf("Starting IPAM Pool Monitor")
+		if e := poolMonitor.Start(ctx); e != nil {
+			logger.Errorf("[Azure CNS] Failed to start pool monitor with err: %v", e)
+		}
+	}()
+	logger.Printf("initialized and started IPAM pool monitor")
 
 	// Start the Manager which starts the reconcile loop.
 	// The Reconciler will send an initial NodeNetworkConfig update to the PoolMonitor, starting the
 	// Monitor's internal loop.
 	go func() {
-		logger.Printf("Starting NodeNetworkConfig reconciler.")
+		logger.Printf("Starting controller-manager.")
 		for {
 			if err := manager.Start(ctx); err != nil {
-				logger.Errorf("[Azure CNS] Failed to start request controller: %v", err)
+				logger.Errorf("Failed to start controller-manager: %v", err)
 				// retry to start the request controller
-				// todo: add a CNS metric to count # of failures
+				// inc the managerStartFailures metric for failure tracking
+				managerStartFailures.Inc()
 			} else {
-				logger.Printf("exiting NodeNetworkConfig reconciler")
+				logger.Printf("Stopped controller-manager.")
 				return
 			}
-
-			// Retry after 1sec
-			time.Sleep(time.Second)
+			time.Sleep(time.Second) // TODO(rbtr): make this exponential backoff
 		}
 	}()
-	logger.Printf("initialized NodeNetworkConfig reconciler")
-	// wait for the Reconciler to run once on a NNC that was made for this Node
-	if started := nncReconciler.Started(ctx); !started {
-		return errors.Errorf("context cancelled while waiting for reconciler start")
+	logger.Printf("Initialized controller-manager.")
+	for {
+		logger.Printf("Waiting for NodeNetworkConfig reconciler to start.")
+		// wait for the Reconciler to run once on a NNC that was made for this Node.
+		// the nncReadyCtx has a timeout of 15 minutes, after which we will consider
+		// this false and the NNC Reconciler stuck/failed, log and retry.
+		nncReadyCtx, _ := context.WithTimeout(ctx, 15*time.Minute) //nolint // it will time out and not leak
+		if started, err := nncReconciler.Started(nncReadyCtx); !started {
+			log.Errorf("NNC reconciler has not started, does the NNC exist? err: %v", err)
+			nncReconcilerStartFailures.Inc()
+			continue
+		}
+		logger.Printf("NodeNetworkConfig reconciler has started.")
+		break
 	}
-	logger.Printf("started NodeNetworkConfig reconciler")
 
 	go func() {
-		logger.Printf("starting SyncHostNCVersion loop")
+		logger.Printf("Starting SyncHostNCVersion loop.")
 		// Periodically poll vfp programmed NC version from NMAgent
 		tickerChannel := time.Tick(time.Duration(cnsconfig.SyncHostNCVersionIntervalMs) * time.Millisecond)
 		for {
@@ -1288,12 +1315,11 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 				httpRestServiceImplementation.SyncHostNCVersion(timedCtx, cnsconfig.ChannelMode)
 				cancel()
 			case <-ctx.Done():
-				logger.Printf("exiting SyncHostNCVersion")
+				logger.Printf("Stopping SyncHostNCVersion loop.")
 				return
 			}
 		}
 	}()
-	logger.Printf("initialized and started SyncHostNCVersion loop")
-
+	logger.Printf("Initialized SyncHostNCVersion loop.")
 	return nil
 }

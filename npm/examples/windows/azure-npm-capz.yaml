@@ -83,14 +83,12 @@ spec:
       hostNetwork: true
       containers:
         - name: azure-npm
-          # setting to future version since it will use the updated Dockerfile
-          image: mcr.microsoft.com/containernetworking/azure-npm:v1.4.45
+          image: mcr.microsoft.com/containernetworking/azure-npm:v1.5.5
           command: ["powershell.exe"]
           args:
             [
               '.\setkubeconfigpath-capz.ps1',
               ";",
-              "powershell.exe",
               '.\npm.exe',
               "start",
               '--kubeconfig=.\kubeconfig',
@@ -142,21 +140,21 @@ metadata:
 data:
   azure-npm.json: |
     {
-        "WindowsNetworkName": "Calico",
-        "ResyncPeriodInMinutes": 15,
-        "ListeningPort":         10091,
-        "ListeningAddress":      "0.0.0.0",
+        "WindowsNetworkName":          "Calico",
+        "ResyncPeriodInMinutes":       15,
+        "ListeningPort":               10091,
+        "ListeningAddress":            "0.0.0.0",
+        "ApplyIntervalInMilliseconds": 500,
+        "ApplyMaxBatches":             100,
+        "MaxBatchedACLsPerPod":        30,
         "Toggles": {
             "EnablePrometheusMetrics": true,
             "EnablePprof":             true,
             "EnableHTTPDebugAPI":      true,
             "EnableV2NPM":             true,
             "PlaceAzureChainFirst":    true,
-            "ApplyIPSetsOnNeed":       false
-        },
-        "Transport": {
-          "Address": "azure-npm.kube-system.svc.cluster.local",
-          "Port": 10092,
-          "ServicePort": 9001
+            "ApplyIPSetsOnNeed":       false,
+            "ApplyInBackground":       true,
+            "NetPolInBackground":      false
         }
     }

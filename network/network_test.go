@@ -258,10 +258,10 @@ var _ = Describe("Test Network", func() {
 		})
 	})
 
-	Describe("Test GetNumEndpointsInNetNs", func() {
+	Describe("Test GetNumEndpointsByContainerID", func() {
 		Context("When one network has one endpoint and another network has two endpoints", func() {
 			It("Should return three endpoints", func() {
-				netNs := "989c079b-45a6-485f-8f9e-88b05d6c55c5"
+				containerID := "989c079b-45a6-485f-8f9e-88b05d6c55c5"
 				networkOneID := "byovnetbridge-vlan1-10-128-8-0_23"
 				networkTwoID := "byovnetbridge-vlan2-20-128-8-0_23"
 
@@ -274,15 +274,14 @@ var _ = Describe("Test Network", func() {
 									Id: "byovnetbridge-vlan1-10-128-8-0_23",
 									Endpoints: map[string]*endpoint{
 										"a591be2a-eth0": {
-											Id:    "a591be2a-eth0",
-											NetNs: netNs,
+											Id:          "a591be2a-eth0",
+											ContainerID: containerID,
 										},
 										"a691be2b-eth0": {
-											Id:    "a691be2b-eth0",
-											NetNs: netNs,
+											Id:          "a691be2b-eth0",
+											ContainerID: containerID,
 										},
 									},
-									NetNs: "aaac079b-45a6-485f-8f9e-88b05d6c55c5",
 								},
 							},
 						},
@@ -293,30 +292,30 @@ var _ = Describe("Test Network", func() {
 									Id: "byovnetbridge-vlan2-20-128-8-0_23",
 									Endpoints: map[string]*endpoint{
 										"a591be2b-eth0": {
-											Id:    "a591be2b-eth0",
-											NetNs: netNs,
+											Id:          "a591be2b-eth0",
+											ContainerID: containerID,
 										},
 									},
-									NetNs: "aaac079b-45a6-485f-8f9e-88b05d6c55c5",
+									NetNs: "",
 								},
 							},
 						},
 					},
 				}
 
-				got := nm.GetNumEndpointsInNetNs(netNs)
-				Expect(got).To(Equal(3))
+				got := nm.GetNumEndpointsByContainerID(containerID)
+				Expect(3).To(Equal(got))
 			})
 		})
 
 		Context("When network does not exist", func() {
 			It("Should return zero endpoints", func() {
-				netNs := "989c079b-45a6-485f-8f9e-88b05d6c55c9"
+				containerID := "989c079b-45a6-485f-8f9e-88b05d6c55c9"
 				nm := &networkManager{
 					ExternalInterfaces: make(map[string]*externalInterface),
 				}
 
-				got := nm.GetNumEndpointsInNetNs(netNs)
+				got := nm.GetNumEndpointsByContainerID(containerID)
 				Expect(got).To(Equal(0))
 			})
 		})

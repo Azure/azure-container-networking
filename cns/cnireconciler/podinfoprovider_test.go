@@ -81,9 +81,10 @@ func TestNewCNSPodInfoProvider(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			name:    "good",
-			store:   goodStore,
-			want:    map[string]cns.PodInfo{"10.241.0.65": cns.NewPodInfo("0a4917617e15d24dc495e407d8eb5c88e4406e58fa209e4eb75a2c2fb7045eea", "eth0", "goldpinger-deploy-bbbf9fd7c-z8v4l", "default")},
+			name:  "good",
+			store: goodStore,
+			want: map[string]cns.PodInfo{"10.241.0.65": cns.NewPodInfo("0a4917617e15d24dc495e407d8eb5c88e4406e58fa209e4eb75a2c2fb7045eea",
+				"0a4917617e15d24dc495e407d8eb5c88e4406e58fa209e4eb75a2c2fb7045eea", "goldpinger-deploy-bbbf9fd7c-z8v4l", "default")},
 			wantErr: false,
 		},
 		{

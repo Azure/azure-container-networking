@@ -1,0 +1,78 @@
+parameters:
+  name: ""
+  testDropgz: ""
+  clusterName: ""
+
+steps:
+  - bash: |
+      go version
+      go env
+      mkdir -p '$(GOBIN)'
+      mkdir -p '$(GOPATH)/pkg'
+      mkdir -p '$(modulePath)'
+      echo '##vso[task.prependpath]$(GOBIN)'
+      echo '##vso[task.prependpath]$(GOROOT)/bin'
+    name: "GoEnv"
+    displayName: "Set up the Go environment"
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: $(AZURE_TEST_AGENT_SERVICE_CONNECTION)
+      scriptLocation: "inlineScript"
+      scriptType: "bash"
+      addSpnToEnvironment: true
+      inlineScript: |
+        echo "Check az version"
+        az version
+        echo "Install az cli extension preview"
+        az extension add --name aks-preview
+        az extension update --name aks-preview
+        mkdir -p ~/.kube/
+        echo "Create AKS DualStack Overlay cluster"
+        make -C ./hack/aks azcfg AZCLI=az REGION=$(REGION_DUALSTACKOVERLAY_CLUSTER_TEST)
+        make -C ./hack/aks dualstack-overlay-byocni-up AZCLI=az REGION=$(REGION_DUALSTACKOVERLAY_CLUSTER_TEST) SUB=$(SUB_AZURE_NETWORK_AGENT_TEST) CLUSTER=${{ parameters.clusterName }}-$(make revision)
+        echo "Dualstack Overlay Cluster is successfully created"
+    displayName: Create DualStackOverlay cluster
+    condition: succeeded()
+
+  - script: |
+      ls -lah
+      pwd
+      echo "installing kubectl"
+      curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+      sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+      kubectl cluster-info
+      kubectl get po -owide -A
+    retryCountOnTaskFailure: 3
+    name: "installKubectl"
+    displayName: "Install Kubectl"
+
+  - script: |
+      echo "deploy ip-masq-agent for overlay"
+      kubectl create -f test/integration/manifests/ip-masq-agent/ip-masq-agent.yaml --validate=false
+      cd test/integration/manifests/ip-masq-agent/
+      kubectl create configmap config-custom.yaml
+      cd ../../../..
+      kubectl cluster-info
+      kubectl get node
+      CNS=$(make cns-version) DROPGZ=$(make cni-dropgz-test-version)
+      sudo -E env "PATH=$PATH" make test-integration CNS_VERSION=${CNS} CNI_DROPGZ_VERSION=${DROPGZ} INSTALL_CNS=true INSTALL_DUALSTACK_OVERLAY=true TEST_DROPGZ=${{ parameters.testDropgz }}
+      kubectl get po -owide -A
+    retryCountOnTaskFailure: 3
+    name: "integrationTest"
+    displayName: "Run CNS Integration Tests on AKS DualStack Overlay"
+
+  - script: |
+      cd test/integration/load
+      echo "DualStack Overlay Linux control plane Node properties test"
+      sudo go test -timeout 30m -tags load -run ^TestDualStackProperties$ -tags=load
+      echo "DualStack Overlay Linux control plane Load test"
+      sudo go test -timeout 30m -tags load -run ^TestLoad$ -tags=load
+      echo "DualStack Overlay Linux control plane CNS validation test"
+      sudo go test -timeout 30m -tags load -cni dualstack -run ^TestValidateState$ -tags=load
+      cd ../datapath
+      echo "Dualstack Overlay Linux datapath IPv6 test"
+      sudo go test -count=1 datapath_linux_test.go -timeout 1m -tags connection -run ^TestDatapathLinux$ -tags=connection,integration -isDualStack=true
+      echo "Dualstack Overlay Linux datapath IPv4 test"
+      sudo go test -count=1 datapath_linux_test.go -timeout 1m -tags connection -run ^TestDatapathLinux$ -tags=connection,integration
+    name: "DualStack_Overlay_Linux_Tests"
+    displayName: "DualStack Overlay Linux Tests"

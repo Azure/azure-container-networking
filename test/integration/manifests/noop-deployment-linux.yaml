@@ -1,0 +1,23 @@
+# No-op for linux based cluster
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: load-test
+  namespace: load-test
+spec:
+  selector:
+    matchLabels:
+      load-test: "true"
+  template:
+    metadata:
+      labels:
+        load-test: "true"
+    spec:
+      containers:
+        - name: no-op
+          image: mcr.microsoft.com/oss/kubernetes/pause:3.6
+          imagePullPolicy: Always
+          securityContext:
+            privileged: true
+      nodeSelector:
+        kubernetes.io/os: linux

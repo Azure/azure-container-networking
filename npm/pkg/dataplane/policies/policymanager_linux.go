@@ -5,10 +5,10 @@ package policies
 import (
 	"fmt"
 
-	"github.com/Azure/azure-container-networking/log"
+	"github.com/Azure/azure-container-networking/npm/metrics"
 	"github.com/Azure/azure-container-networking/npm/util"
-	npmerrors "github.com/Azure/azure-container-networking/npm/util/errors"
 	"github.com/Azure/azure-container-networking/npm/util/ioutil"
+	"k8s.io/klog"
 )
 
 const (
@@ -41,18 +41,21 @@ Known errors that we should retry on:
     Another app is currently holding the xtables lock. Stopped waiting after 60s.
 */
 
-func (pMgr *PolicyManager) addPolicy(networkPolicy *NPMNetworkPolicy, _ map[string]string) error {
+func (pMgr *PolicyManager) addPolicies(networkPolicies []*NPMNetworkPolicy, _ map[string]string) error {
 	// 1. Add rules for the network policies and activate NPM (if necessary).
-	chainsToCreate := chainNames([]*NPMNetworkPolicy{networkPolicy})
-	creator := pMgr.creatorForNewNetworkPolicies(chainsToCreate, []*NPMNetworkPolicy{networkPolicy})
+	chainsToCreate := chainNames(networkPolicies)
+	creator := pMgr.creatorForNewNetworkPolicies(chainsToCreate, networkPolicies)
 
 	// Stop reconciling so we don't contend for iptables, and so reconcile doesn't delete chainsToCreate.
 	pMgr.reconcileManager.forceLock()
 	defer pMgr.reconcileManager.forceUnlock()
 
+	timer := metrics.StartNewTimer()
 	err := restore(creator)
+	metrics.RecordIPTablesRestoreLatency(timer, metrics.CreateOp)
 	if err != nil {
-		return npmerrors.SimpleErrorWrapper("failed to restore iptables with updated policies", err)
+		metrics.IncIPTablesRestoreFailures(metrics.CreateOp)
+		return fmt.Errorf("failed to restore iptables with updated policies. err: %w", err)
 	}
 
 	// 2. Make sure the new chains don't get deleted in the background
@@ -74,13 +77,16 @@ func (pMgr *PolicyManager) removePolicy(networkPolicy *NPMNetworkPolicy, _ map[s
 	// We ought to delete these jump rules here in the foreground since if we add an NP back after deleting, iptables-restore --noflush can add duplicate jump rules.
 	deleteErr := pMgr.deleteOldJumpRulesOnRemove(networkPolicy)
 	if deleteErr != nil {
-		return npmerrors.SimpleErrorWrapper("failed to delete jumps to policy chains", deleteErr)
+		return fmt.Errorf("failed to delete jumps to policy chains. err: %w", deleteErr)
 	}
 
 	// 2. Flush the policy chains and deactivate NPM (if necessary).
+	timer := metrics.StartNewTimer()
 	restoreErr := restore(creator)
+	metrics.RecordIPTablesRestoreLatency(timer, metrics.DeleteOp)
 	if restoreErr != nil {
-		return npmerrors.SimpleErrorWrapper("failed to flush policies", restoreErr)
+		metrics.IncIPTablesRestoreFailures(metrics.DeleteOp)
+		return fmt.Errorf("failed to flush policies. err: %w", restoreErr)
 	}
 
 	// 3. Delete policy chains in the background.
@@ -93,11 +99,12 @@ func (pMgr *PolicyManager) removePolicy(networkPolicy *NPMNetworkPolicy, _ map[s
 func restore(creator *ioutil.FileCreator) error {
 	err := creator.RunCommandWithFile(util.IptablesRestore, util.IptablesWaitFlag, util.IptablesDefaultWaitTime, util.IptablesRestoreTableFlag, util.IptablesFilterTable, util.IptablesRestoreNoFlushFlag)
 	if err != nil {
-		return npmerrors.SimpleErrorWrapper("failed to restore iptables file", err)
+		return fmt.Errorf("failed to restore iptables file. err: %w", err)
 	}
 	return nil
 }
 
+// NOTE: if removing multiple policies, would need to add a isLastPolicy argument instead
 func (pMgr *PolicyManager) creatorForRemovingPolicies(allChainNames []string) *ioutil.FileCreator {
 	creator := pMgr.newCreatorWithChains(nil)
 	// 1. Deactivate NPM (if necessary).
@@ -174,12 +181,14 @@ func (pMgr *PolicyManager) deleteJumpRule(policy *NPMNetworkPolicy, direction Un
 	}
 
 	specs = append([]string{baseChainName}, specs...)
+	timer := metrics.StartNewTimer()
 	errCode, err := pMgr.runIPTablesCommand(util.IptablesDeletionFlag, specs...)
+	metrics.RecordIPTablesDeleteLatency(timer)
 	// if this actually happens (don't think it should), could use ignoreErrorsAndRunIPTablesCommand instead with: "Bad rule (does a matching rule exist in that chain?)"
-	if err != nil && errCode != doesNotExistErrorCode {
+	if err != nil && errCode != doesNotExistErrorCode && errCode != couldntLoadTargetErrorCode {
 		errorString := fmt.Sprintf("failed to delete jump from %s chain to %s chain for policy %s with exit code %d", baseChainName, chainName, policy.PolicyKey, errCode)
-		log.Errorf("%s: %w", errorString, err)
-		return npmerrors.SimpleErrorWrapper(errorString, err)
+		klog.Errorf("%s. err: %s", errorString, err.Error())
+		return fmt.Errorf("%s. err: %w", errorString, err)
 	}
 	return nil
 }

@@ -19,18 +19,25 @@ import (
 
 const (
 	// Network store key.
-	storeKey    = "Network"
-	VlanIDKey   = "VlanID"
-	AzureCNS    = "azure-cns"
-	SNATIPKey   = "NCPrimaryIPKey"
-	RoutesKey   = "RoutesKey"
-	IPTablesKey = "IPTablesKey"
-	genericData = "com.docker.network.generic"
+	storeKey        = "Network"
+	VlanIDKey       = "VlanID"
+	AzureCNS        = "azure-cns"
+	SNATIPKey       = "NCPrimaryIPKey"
+	RoutesKey       = "RoutesKey"
+	IPTablesKey     = "IPTablesKey"
+	genericData     = "com.docker.network.generic"
+	ipv6AddressMask = 128
 )
 
 var Ipv4DefaultRouteDstPrefix = net.IPNet{
 	IP:   net.IPv4zero,
 	Mask: net.IPv4Mask(0, 0, 0, 0),
+}
+
+var Ipv6DefaultRouteDstPrefix = net.IPNet{
+	IP: net.IPv6zero,
+	// This mask corresponds to a /0 subnet for IPv6
+	Mask: net.CIDRMask(0, ipv6AddressMask),
 }
 
 type NetworkClient interface {
@@ -76,7 +83,7 @@ type NetworkManager interface {
 	GetNetworkInfo(networkID string) (NetworkInfo, error)
 	// FindNetworkIDFromNetNs returns the network name that contains an endpoint created for this netNS, errNetworkNotFound if no network is found
 	FindNetworkIDFromNetNs(netNs string) (string, error)
-	GetNumEndpointsInNetNs(netNs string) int
+	GetNumEndpointsByContainerID(containerID string) int
 
 	CreateEndpoint(client apipaClient, networkID string, epInfo *EndpointInfo) error
 	DeleteEndpoint(networkID string, endpointID string) error
@@ -207,12 +214,6 @@ func (nm *networkManager) restore(isRehydrationRequired bool) error {
 	}
 
 	log.Printf("[net] Restored state")
-	for _, extIf := range nm.ExternalInterfaces {
-		for _, nw := range extIf.Networks {
-			log.Printf("Number of endpoints: %d", len(nw.Endpoints))
-		}
-	}
-
 	return nil
 }
 
@@ -340,7 +341,7 @@ func (nm *networkManager) CreateEndpoint(cli apipaClient, networkID string, epIn
 		}
 	}
 
-	_, err = nw.newEndpoint(cli, nm.netlink, nm.plClient, epInfo)
+	_, err = nw.newEndpoint(cli, nm.netlink, nm.plClient, nm.netio, epInfo)
 	if err != nil {
 		return err
 	}

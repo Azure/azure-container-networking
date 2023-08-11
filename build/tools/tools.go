@@ -1,6 +1,3 @@
-//go:build azure-container-netwokring/build/tools
-// +build azure-container-netwokring/build/tools
-
 package tools
 
 import (

@@ -1,0 +1,67 @@
+parameters:
+  name: ""
+  displayName: ""
+  testDropgz: ""
+  clusterName: ""
+
+stages:
+  - stage: ${{ parameters.name }}
+    displayName: E2E - ${{ parameters.displayName }}
+    dependsOn: 
+    - setup
+    - publish
+    jobs:
+      - job: ${{ parameters.name }}
+        displayName: DualStack Overlay Test Suite - (${{ parameters.name }})
+        pool:
+          name: $(BUILD_POOL_NAME_DEFAULT)
+          demands: 
+          - Role -equals $(CUSTOM_E2E_ROLE)
+        variables:
+          GOPATH: "$(Agent.TempDirectory)/go" # Go workspace path
+          GOBIN: "$(GOPATH)/bin" # Go binaries path
+          modulePath: "$(GOPATH)/src/github.com/Azure/azure-container-networking"
+        steps:
+          - template: dualstackoverlay-e2e-step-template.yaml
+            parameters:
+              name: ${{ parameters.name }}
+              testDropgz: ${{ parameters.testDropgz }}
+              clusterName: ${{ parameters.clusterName }}
+
+      - template: ../../cni/k8s-e2e/k8s-e2e-job-template.yaml
+        parameters:
+          sub: $(AZURE_TEST_AGENT_SERVICE_CONNECTION)
+          clusterName: ${{ parameters.clusterName }}
+          os: ${{ parameters.os }}
+          dependsOn: ${{ parameters.name }}
+          dualstack: true
+          dns: true
+          portforward: true
+          hostport: true
+          service: true
+
+      - job: cleanup
+        displayName: "Cleanup"
+        dependsOn:
+          - ${{ parameters.name }}
+          - "cni_k8se2e"
+          - "dualstackoverlay_e2e"
+        pool:
+          name: $(BUILD_POOL_NAME_DEFAULT)
+        condition: always()
+        steps:
+          - task: AzureCLI@1
+            inputs:
+              azureSubscription: $(AZURE_TEST_AGENT_SERVICE_CONNECTION)
+              scriptLocation: "inlineScript"
+              scriptType: "bash"
+              addSpnToEnvironment: true
+              inlineScript: |
+                set -e
+                echo "Deleting cluster"
+                make -C ./hack/aks azcfg AZCLI=az
+                make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}-$(make revision)
+                make -C ./hack/aks down AZCLI=az SUB=$(SUB_AZURE_NETWORK_AGENT_TEST) CLUSTER=${{ parameters.clusterName }}-$(make revision)
+                echo "Cluster and resources down"
+            name: "CleanupDualStackOverlaycluster"
+            displayName: "Cleanup DualStack Overlay Cluster"

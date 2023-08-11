@@ -7,7 +7,6 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
-	"fmt"
 	"net"
 	"os"
 	"path/filepath"
@@ -305,9 +304,14 @@ func ReadConfigFile(filePath string) (TelemetryConfig, error) {
 func (tb *TelemetryBuffer) ConnectToTelemetryService(telemetryNumRetries, telemetryWaitTimeInMilliseconds int) {
 	path, dir := getTelemetryServiceDirectory()
 	args := []string{"-d", dir}
+
 	for attempt := 0; attempt < 2; attempt++ {
 		if err := tb.Connect(); err != nil {
 			log.Logf("Connection to telemetry socket failed: %v", err)
+			if _, exists := os.Stat(path); exists != nil {
+				log.Logf("Skip starting telemetry service as file didn't exist")
+				return
+			}
 			tb.Cleanup(FdName)
 			StartTelemetryService(path, args)
 			WaitForTelemetrySocket(telemetryNumRetries, time.Duration(telemetryWaitTimeInMilliseconds))
@@ -319,20 +323,17 @@ func (tb *TelemetryBuffer) ConnectToTelemetryService(telemetryNumRetries, teleme
 	}
 }
 
+// getTelemetryServiceDirectory - check CNI install directory and Executable location for telemetry binary
 func getTelemetryServiceDirectory() (path string, dir string) {
-	path = fmt.Sprintf("%v/%v", CniInstallDir, TelemetryServiceProcessName)
-	if exists, _ := platform.CheckIfFileExists(path); !exists {
+	path = filepath.Join(CniInstallDir, TelemetryServiceProcessName)
+
+	if _, exists := os.Stat(path); exists != nil {
 		ex, _ := os.Executable()
 		exDir := filepath.Dir(ex)
-		path = fmt.Sprintf("%v/%v", exDir, TelemetryServiceProcessName)
-		if exists, _ = platform.CheckIfFileExists(path); !exists {
-			log.Logf("Skip starting telemetry service as file didn't exist")
-			return
-		}
+		path = filepath.Join(exDir, TelemetryServiceProcessName)
 		dir = exDir
 	} else {
 		dir = CniInstallDir
 	}
-
 	return
 }

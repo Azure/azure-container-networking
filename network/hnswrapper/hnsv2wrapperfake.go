@@ -91,7 +91,7 @@ func (f Hnsv2wrapperFake) ModifyNetworkSettings(network *hcn.HostComputeNetwork,
 						for _, memberID := range members {
 							_, ok := networkCache.Policies[memberID]
 							if !ok {
-								return newErrorFakeHNS(fmt.Sprintf("Member Policy %s not found", memberID))
+								return newErrorFakeHNS(fmt.Sprintf("Member Policy %s not found for hcn.RequestTypeAdd", memberID))
 							}
 						}
 					}
@@ -147,13 +147,15 @@ func (f Hnsv2wrapperFake) ModifyNetworkSettings(network *hcn.HostComputeNetwork,
 				// Replicating HNS behavior, we will not update non-existent set policy
 				continue
 			}
-			if setpol.PolicyType != hcn.SetPolicyTypeIpSet {
+			if setpol.PolicyType != hcn.SetPolicyTypeIpSet && setpol.Values != "" {
 				// Check Nested SetPolicy members
 				members := strings.Split(setpol.Values, ",")
-				for _, memberID := range members {
-					_, ok := networkCache.Policies[memberID]
-					if !ok {
-						return newErrorFakeHNS(fmt.Sprintf("Member Policy %s not found", memberID))
+				if setpol.Values != "" {
+					for _, memberID := range members {
+						_, ok := networkCache.Policies[memberID]
+						if !ok {
+							return newErrorFakeHNS(fmt.Sprintf("Member Policy %s not found for hcn.RequestTypeUpdate", memberID))
+						}
 					}
 				}
 			}
@@ -250,6 +252,22 @@ func (f Hnsv2wrapperFake) ListEndpointsOfNetwork(networkId string) ([]hcn.HostCo
 	for _, endpoint := range f.Cache.endpoints {
 		if endpoint.HostComputeNetwork == networkId {
 			endpoints = append(endpoints, *endpoint.GetHCNObj())
+		}
+	}
+	return endpoints, nil
+}
+
+// NOTE: hard assumption that the query just filters for local endpoints via hcn.EndpointFlagsNone
+func (f Hnsv2wrapperFake) ListEndpointsQuery(_ hcn.HostComputeQuery) ([]hcn.HostComputeEndpoint, error) {
+	f.Lock()
+	defer f.Unlock()
+	delayHnsCall(f.Delay)
+	endpoints := make([]hcn.HostComputeEndpoint, 0)
+	for _, endpoint := range f.Cache.endpoints {
+		e := *endpoint.GetHCNObj()
+		if e.Flags == hcn.EndpointFlagsNone {
+			// only get local endpoints
+			endpoints = append(endpoints, e)
 		}
 	}
 	return endpoints, nil
@@ -386,11 +404,13 @@ func (fCache FakeHNSCache) ACLPolicies(epList map[string]string, policyID string
 	return aclPols, nil
 }
 
-// GetAllACLs maps all Endpoint IDs to ACLs
+// GetAllACLs maps all local Endpoint IDs to ACLs
 func (fCache FakeHNSCache) GetAllACLs() map[string][]*FakeEndpointPolicy {
 	aclPols := make(map[string][]*FakeEndpointPolicy)
 	for _, ep := range fCache.endpoints {
-		aclPols[ep.ID] = ep.Policies
+		if ep.Flags == hcn.EndpointFlagsNone {
+			aclPols[ep.ID] = ep.Policies
+		}
 	}
 	return aclPols
 }
@@ -456,6 +476,7 @@ type FakeHostComputeEndpoint struct {
 	HostComputeNetwork string
 	Policies           []*FakeEndpointPolicy
 	IPConfiguration    string
+	Flags              hcn.EndpointFlags
 }
 
 func NewFakeHostComputeEndpoint(endpoint *hcn.HostComputeEndpoint) *FakeHostComputeEndpoint {
@@ -468,6 +489,7 @@ func NewFakeHostComputeEndpoint(endpoint *hcn.HostComputeEndpoint) *FakeHostComp
 		Name:               endpoint.Name,
 		HostComputeNetwork: endpoint.HostComputeNetwork,
 		IPConfiguration:    ip,
+		Flags:              endpoint.Flags,
 	}
 }
 
@@ -505,6 +527,7 @@ func (fEndpoint *FakeHostComputeEndpoint) GetHCNObj() *hcn.HostComputeEndpoint {
 			},
 		},
 		Policies: acls,
+		Flags:    fEndpoint.Flags,
 	}
 }
 

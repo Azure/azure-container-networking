@@ -10,19 +10,27 @@ import (
 )
 
 const (
-	uuid               = "539970a2-c2dd-11ea-b3de-0242ac130004"
-	defaultGateway     = "10.0.0.2"
-	ipIsCIDR           = "10.0.0.1/32"
-	ipMalformed        = "10.0.0.0.0"
-	ncID               = "160005ba-cd02-11ea-87d0-0242ac130003"
-	primaryIP          = "10.0.0.1"
-	overlayPrimaryIP   = "10.0.0.1/30"
-	subnetAddressSpace = "10.0.0.0/24"
-	subnetName         = "subnet1"
-	subnetPrefixLen    = 24
-	testSecIP          = "10.0.0.2"
-	version            = 1
-	nodeIP             = "10.1.0.5"
+	uuid                        = "539970a2-c2dd-11ea-b3de-0242ac130004"
+	defaultGateway              = "10.0.0.2"
+	ipIsCIDR                    = "10.0.0.1/32"
+	ipMalformed                 = "10.0.0.0.0"
+	ncID                        = "160005ba-cd02-11ea-87d0-0242ac130003"
+	primaryIP                   = "10.0.0.1"
+	overlayPrimaryIP            = "10.0.0.1/30"
+	subnetAddressSpace          = "10.0.0.0/24"
+	subnetName                  = "subnet1"
+	subnetPrefixLen             = 24
+	testSecIP                   = "10.0.0.2"
+	version                     = 1
+	nodeIP                      = "10.1.0.5"
+	vnetBlockPrimaryIP          = "10.224.0.4"
+	vnetBlockPrimaryIPPrefix    = "10.224.0.4/30"
+	vnetBlockSubnetAddressSpace = "10.224.0.0/14"
+	vnetBlockSubnetPrefixLen    = 14
+	vnetBlockNodeIP             = "10.228.0.6"
+	vnetBlockDefaultGateway     = "10.224.0.1"
+	vnetBlockCIDR1              = "10.224.0.8/30"
+	vnetBlockCIDR2              = "10.224.0.12/30"
 )
 
 var invalidStatusMultiNC = v1alpha.NodeNetworkConfigStatus{
@@ -87,34 +95,26 @@ var validOverlayNC = v1alpha.NetworkContainer{
 	Version:            version,
 }
 
-var validOverlayRequest = &cns.CreateNetworkContainerRequest{
-	Version: strconv.FormatInt(version, 10),
-	IPConfiguration: cns.IPConfiguration{
-		IPSubnet: cns.IPSubnet{
-			PrefixLength: uint8(subnetPrefixLen),
-			IPAddress:    primaryIP,
+var validVNETBlockNC = v1alpha.NetworkContainer{
+	ID:             ncID,
+	AssignmentMode: v1alpha.Static,
+	Type:           v1alpha.VNETBlock,
+	IPAssignments: []v1alpha.IPAssignment{
+		{
+			Name: uuid,
+			IP:   vnetBlockCIDR1,
+		},
+		{
+			Name: uuid,
+			IP:   vnetBlockCIDR2,
 		},
 	},
-	NetworkContainerid:   ncID,
-	NetworkContainerType: cns.Docker,
-	SecondaryIPConfigs: map[string]cns.SecondaryIPConfig{
-		"10.0.0.0": {
-			IPAddress: "10.0.0.0",
-			NCVersion: version,
-		},
-		"10.0.0.1": {
-			IPAddress: "10.0.0.1",
-			NCVersion: version,
-		},
-		"10.0.0.2": {
-			IPAddress: "10.0.0.2",
-			NCVersion: version,
-		},
-		"10.0.0.3": {
-			IPAddress: "10.0.0.3",
-			NCVersion: version,
-		},
-	},
+	NodeIP:             vnetBlockNodeIP,
+	PrimaryIP:          vnetBlockPrimaryIPPrefix,
+	SubnetName:         subnetName,
+	SubnetAddressSpace: vnetBlockSubnetAddressSpace,
+	DefaultGateway:     vnetBlockDefaultGateway,
+	Version:            version,
 }
 
 func TestCreateNCRequestFromDynamicNC(t *testing.T) {
@@ -297,6 +297,41 @@ func TestCreateNCRequestFromStaticNC(t *testing.T) {
 					},
 				},
 				SubnetAddressSpace: "10.0.0.0", // not a cidr range
+			},
+			wantErr: true,
+		},
+		// VNET Block test cases
+		{
+			name:    "valid VNET Block",
+			input:   validVNETBlockNC,
+			wantErr: false,
+			want:    validVNETBlockRequest,
+		},
+		{
+			name: "PrimaryIP is not CIDR",
+			input: v1alpha.NetworkContainer{
+				AssignmentMode:     v1alpha.Static,
+				Type:               v1alpha.VNETBlock,
+				PrimaryIP:          vnetBlockPrimaryIP,
+				ID:                 ncID,
+				SubnetAddressSpace: "10.224.0.0/14",
+			},
+			wantErr: true,
+		},
+		{
+			name: "IP assignment is not CIDR",
+			input: v1alpha.NetworkContainer{
+				AssignmentMode: v1alpha.Static,
+				Type:           v1alpha.VNETBlock,
+				PrimaryIP:      vnetBlockPrimaryIPPrefix,
+				ID:             ncID,
+				IPAssignments: []v1alpha.IPAssignment{
+					{
+						Name: uuid,
+						IP:   "10.224.0.4",
+					},
+				},
+				SubnetAddressSpace: "10.224.0.0/14",
 			},
 			wantErr: true,
 		},

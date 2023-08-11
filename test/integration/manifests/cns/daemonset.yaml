@@ -41,7 +41,7 @@ spec:
           effect: NoSchedule
       containers:
         - name: cns-container
-          image: acnpublic.azurecr.io/azure-cns:v1.4.33
+          image: acnpublic.azurecr.io/azure-cns:v1.5.3
           imagePullPolicy: IfNotPresent
           args: [ "-c", "tcp://$(CNSIpAddress):$(CNSPort)", "-t", "$(CNSLogTarget)"]
           securityContext:
@@ -65,6 +65,8 @@ spec:
               mountPath: /var/run/azure-vnet.json
             - name: xtables-lock
               mountPath: /run/xtables.lock
+            - name: cni-conflist
+              mountPath: /etc/cni/net.d
           ports:
             - containerPort: 10090
           env:

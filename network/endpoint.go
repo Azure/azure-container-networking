@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/Azure/azure-container-networking/log"
+	"github.com/Azure/azure-container-networking/netio"
 	"github.com/Azure/azure-container-networking/netlink"
 	"github.com/Azure/azure-container-networking/network/policy"
 	"github.com/Azure/azure-container-networking/platform"
@@ -108,7 +109,13 @@ func (epInfo *EndpointInfo) PrettyString() string {
 }
 
 // NewEndpoint creates a new endpoint in the network.
-func (nw *network) newEndpoint(cli apipaClient, nl netlink.NetlinkInterface, plc platform.ExecClient, epInfo *EndpointInfo) (*endpoint, error) {
+func (nw *network) newEndpoint(
+	apipaCli apipaClient,
+	nl netlink.NetlinkInterface,
+	plc platform.ExecClient,
+	netioCli netio.NetIOInterface,
+	epInfo *EndpointInfo,
+) (*endpoint, error) {
 	var ep *endpoint
 	var err error
 
@@ -119,14 +126,14 @@ func (nw *network) newEndpoint(cli apipaClient, nl netlink.NetlinkInterface, plc
 	}()
 
 	// Call the platform implementation.
-	ep, err = nw.newEndpointImpl(cli, nl, plc, epInfo)
+	// Pass nil for epClient and will be initialized in newendpointImpl
+	ep, err = nw.newEndpointImpl(apipaCli, nl, plc, netioCli, nil, epInfo)
 	if err != nil {
 		return nil, err
 	}
 
 	nw.Endpoints[epInfo.Id] = ep
-	log.Printf("[net] Created endpoint %+v.", ep)
-
+	log.Printf("[net] Created endpoint %+v. Num of endpoints:%d", ep, len(nw.Endpoints))
 	return ep, nil
 }
 
@@ -149,16 +156,15 @@ func (nw *network) deleteEndpoint(nl netlink.NetlinkInterface, plc platform.Exec
 	}
 
 	// Call the platform implementation.
-	err = nw.deleteEndpointImpl(nl, plc, ep)
+	// Pass nil for epClient and will be initialized in deleteEndpointImpl
+	err = nw.deleteEndpointImpl(nl, plc, nil, ep)
 	if err != nil {
 		return err
 	}
 
 	// Remove the endpoint object.
 	delete(nw.Endpoints, endpointID)
-
-	log.Printf("[net] Deleted endpoint %+v.", ep)
-
+	log.Printf("[net] Deleted endpoint %+v. Num of endpoints:%d", ep, len(nw.Endpoints))
 	return nil
 }
 

@@ -342,6 +342,30 @@ func (h Hnsv2wrapperwithtimeout) ListEndpointsOfNetwork(networkId string) ([]hcn
 	}
 }
 
+// NOTE see assumptions of hnsv2wrapperfake.ListEndpointsQuery
+func (h Hnsv2wrapperwithtimeout) ListEndpointsQuery(query hcn.HostComputeQuery) ([]hcn.HostComputeEndpoint, error) {
+	// must be a buffered chan of size 1, otherwise it leaks goroutines when trying to send to the channel after the timeout has fired
+	r := make(chan ListEndpointsFuncResult, 1)
+	ctx, cancel := context.WithTimeout(context.TODO(), h.HnsCallTimeout)
+	defer cancel()
+	go func() {
+		endpoints, err := h.Hnsv2.ListEndpointsQuery(query)
+
+		r <- ListEndpointsFuncResult{
+			endpoints: endpoints,
+			Err:       err,
+		}
+	}()
+
+	// Listen on our channel AND a timeout channel - which ever happens first.
+	select {
+	case res := <-r:
+		return res.endpoints, res.Err
+	case <-ctx.Done():
+		return nil, errors.Wrapf(ErrHNSCallTimeout, "ListEndpointsOfNetwork, timeout value is %s seconds", h.HnsCallTimeout.String())
+	}
+}
+
 func (h Hnsv2wrapperwithtimeout) ApplyEndpointPolicy(endpoint *hcn.HostComputeEndpoint, requestType hcn.RequestType, endpointPolicy hcn.PolicyEndpointRequest) error {
 	r := make(chan error)
 	ctx, cancel := context.WithTimeout(context.TODO(), h.HnsCallTimeout)

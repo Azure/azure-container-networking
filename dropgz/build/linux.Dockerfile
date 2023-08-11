@@ -12,7 +12,7 @@ COPY ./azure-ipam .
 RUN curl -LO --cacert /etc/ssl/certs/ca-certificates.crt https://github.com/Azure/azure-container-networking/releases/download/azure-ipam%2F$AZIPAM_VERSION/azure-ipam-$OS-$ARCH-$AZIPAM_VERSION.tgz && tar -xvf azure-ipam-$OS-$ARCH-$AZIPAM_VERSION.tgz
 
 FROM tar AS azure-vnet
-ARG AZCNI_VERSION=v1.4.39
+ARG AZCNI_VERSION=v1.5.9
 ARG VERSION
 ARG OS
 ARG ARCH
@@ -29,13 +29,14 @@ COPY --from=azure-ipam /azure-ipam/azure-ipam pkg/embed/fs
 COPY --from=azure-vnet /azure-container-networking/cni/azure-$OS.conflist pkg/embed/fs/azure.conflist
 COPY --from=azure-vnet /azure-container-networking/cni/azure-$OS-swift.conflist pkg/embed/fs/azure-swift.conflist
 COPY --from=azure-vnet /azure-container-networking/cni/azure-$OS-swift-overlay.conflist pkg/embed/fs/azure-swift-overlay.conflist
+COPY --from=azure-vnet /azure-container-networking/cni/azure-$OS-swift-overlay-dualstack.conflist pkg/embed/fs/azure-swift-overlay-dualstack.conflist
 COPY --from=azure-vnet /azure-container-networking/azure-vnet pkg/embed/fs
 COPY --from=azure-vnet /azure-container-networking/azure-vnet-telemetry pkg/embed/fs
 COPY --from=azure-vnet /azure-container-networking/azure-vnet-ipam pkg/embed/fs
 RUN cd pkg/embed/fs/ && sha256sum * > sum.txt
 RUN gzip --verbose --best --recursive pkg/embed/fs && for f in pkg/embed/fs/*.gz; do mv -- "$f" "${f%%.gz}"; done
 
-FROM mcr.microsoft.com/oss/go/microsoft/golang:1.19 AS dropgz
+FROM mcr.microsoft.com/oss/go/microsoft/golang:1.20 AS dropgz
 ARG VERSION
 WORKDIR /dropgz
 COPY --from=compressor /dropgz .

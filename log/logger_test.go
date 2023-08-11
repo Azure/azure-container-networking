@@ -9,6 +9,9 @@ import (
 	"path"
 	"strings"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -40,6 +43,31 @@ func TestNewLoggerError(t *testing.T) {
 	if err == nil {
 		t.Error("expected an error but did not receive one")
 	}
+}
+
+func TestRotateFailure(t *testing.T) {
+	// this test simulates a scenario where log rotation should fail because the file to rotate does not exist.
+	// previously, such a scenario would recursively call Logf, which would deadlock because of the mutexes taken.
+	// the logging api does not bubble up any errors, and does not allow any configuration of the frequency of
+	// rotation checks, but we shouldn't couple this test (too much) to the internal algorithm.
+	//
+	// the assertions below should demonstrate that:
+	// - logging does not block even if the target file is missing.
+	// - an explicit rotation call should return with an error and not block indefinitely.
+	// - successive calls after a rotation failure should not block either.
+	l := NewLogger(logName, LevelInfo, TargetStdOutAndLogFile, "/tmp/")
+	require.NotNil(t, l)
+
+	err := os.Remove(l.getLogFileName())
+	require.NoError(t, err)
+
+	l.Logf("this log line may or may not invoke rotation")
+
+	err = l.rotate()
+	var pErr *os.PathError
+	assert.ErrorAs(t, err, &pErr)
+
+	l.Logf("this log line may or may not invoke rotation")
 }
 
 // Tests that the log file rotates when size limit is reached.

@@ -245,6 +245,14 @@ func (nsc *NamespaceController) syncNamespace(nsKey string) error {
 		metrics.RecordControllerNamespaceExecTime(timer, operationKind, err != nil && dperr != nil)
 
 		if dperr != nil {
+			klog.Errorf("failed to apply dataplane changes while syncing namespace. err: %s", dperr.Error())
+			metrics.SendErrorLogAndMetric(util.NSID, "[syncNamespace] failed to apply dataplane changes while syncing namespace. err: %s", dperr.Error())
+
+			// Seems like setting err below does nothing.
+			// The return value of syncNamespace is fixed before this deferred func is called
+			// so modifications to err here do nothing.
+			// As a result, the controller will not requeue if there is an error applying the dataplane.
+			// However, a subsequent controller event should Apply Dataplane soon after.
 			if err == nil {
 				err = fmt.Errorf("failed to apply dataplane changes while syncing namespace. err: %w", dperr)
 			} else {

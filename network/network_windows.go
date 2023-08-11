@@ -11,9 +11,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Azure/azure-container-networking/network/hnswrapper"
-
 	"github.com/Azure/azure-container-networking/log"
+	"github.com/Azure/azure-container-networking/network/hnswrapper"
 	"github.com/Azure/azure-container-networking/network/policy"
 	"github.com/Microsoft/hcsshim"
 	"github.com/Microsoft/hcsshim/hcn"
@@ -31,10 +30,14 @@ const (
 	defaultRouteCIDR       = "0.0.0.0/0"
 	// prefix for interface name created by azure network
 	ifNamePrefix = "vEthernet"
+	// ipv4 default hop
+	ipv4DefaultHop = "0.0.0.0"
 	// ipv6 default hop
 	ipv6DefaultHop = "::"
 	// ipv6 route cmd
 	routeCmd = "netsh interface ipv6 %s route \"%s\" \"%s\" \"%s\" store=persistent"
+	// add/delete ipv4 and ipv6 route rules to/from windows node
+	netRouteCmd = "netsh interface %s %s route \"%s\" \"%s\" \"%s\""
 )
 
 // Windows implementation of route.
@@ -331,7 +334,6 @@ func (nm *networkManager) newNetworkImplHnsV2(nwInfo *NetworkInfo, extIf *extern
 		if errors.As(err, &hcn.NetworkNotFoundError{}) {
 			log.Printf("[net] Creating hcn network: %+v", hcnNetwork)
 			hnsResponse, err = Hnsv2.CreateNetwork(hcnNetwork)
-
 			if err != nil {
 				return nil, fmt.Errorf("Failed to create hcn network: %s due to error: %v", hcnNetwork.Name, err)
 			}

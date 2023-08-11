@@ -123,6 +123,33 @@ func start(config npmconfig.Config, flags npmconfig.Flags) error {
 	stopChannel := wait.NeverStop
 	if config.Toggles.EnableV2NPM {
 		// update the dataplane config
+		npmV2DataplaneCfg.MaxBatchedACLsPerPod = config.MaxBatchedACLsPerPod
+
+		npmV2DataplaneCfg.NetPolInBackground = config.Toggles.NetPolInBackground
+		if config.NetPolInvervalInMilliseconds > 0 {
+			npmV2DataplaneCfg.NetPolInterval = time.Duration(config.NetPolInvervalInMilliseconds * int(time.Millisecond))
+		} else {
+			npmV2DataplaneCfg.NetPolInterval = time.Duration(npmconfig.DefaultConfig.NetPolInvervalInMilliseconds * int(time.Millisecond))
+		}
+
+		if config.MaxPendingNetPols > 0 {
+			npmV2DataplaneCfg.MaxPendingNetPols = config.MaxPendingNetPols
+		} else {
+			npmV2DataplaneCfg.MaxPendingNetPols = npmconfig.DefaultConfig.MaxPendingNetPols
+		}
+
+		npmV2DataplaneCfg.ApplyInBackground = config.Toggles.ApplyInBackground
+		if config.ApplyMaxBatches > 0 {
+			npmV2DataplaneCfg.ApplyMaxBatches = config.ApplyMaxBatches
+		} else {
+			npmV2DataplaneCfg.ApplyMaxBatches = npmconfig.DefaultConfig.ApplyMaxBatches
+		}
+		if config.ApplyIntervalInMilliseconds > 0 {
+			npmV2DataplaneCfg.ApplyInterval = time.Duration(config.ApplyIntervalInMilliseconds * int(time.Millisecond))
+		} else {
+			npmV2DataplaneCfg.ApplyInterval = time.Duration(npmconfig.DefaultConfig.ApplyIntervalInMilliseconds * int(time.Millisecond))
+		}
+
 		if config.WindowsNetworkName == "" {
 			npmV2DataplaneCfg.NetworkName = util.AzureNetworkName
 		} else {
@@ -136,8 +163,20 @@ func start(config npmconfig.Config, flags npmconfig.Flags) error {
 			npmV2DataplaneCfg.IPSetMode = ipsets.ApplyAllIPSets
 		}
 
+		var nodeIP string
+		if util.IsWindowsDP() {
+			nodeIP, err = util.NodeIP()
+			if err != nil {
+				metrics.SendErrorLogAndMetric(util.NpmID, "error: failed to get node IP while booting up: %v", err)
+				return fmt.Errorf("failed to get node IP while booting up: %w", err)
+			}
+			klog.Infof("node IP is %s", nodeIP)
+		}
+		npmV2DataplaneCfg.NodeIP = nodeIP
+
 		dp, err = dataplane.NewDataPlane(models.GetNodeName(), common.NewIOShim(), npmV2DataplaneCfg, stopChannel)
 		if err != nil {
+			metrics.SendErrorLogAndMetric(util.NpmID, "error: failed to create dataplane with error %v", err)
 			return fmt.Errorf("failed to create dataplane with error %w", err)
 		}
 		dp.RunPeriodicTasks()

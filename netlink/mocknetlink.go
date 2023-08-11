@@ -13,9 +13,13 @@ func newErrorMockNetlink(errStr string) error {
 	return fmt.Errorf("%w : %s", ErrorMockNetlink, errStr)
 }
 
+type routeValidateFn func(route *Route) error
+
 type MockNetlink struct {
-	returnError bool
-	errorString string
+	returnError   bool
+	errorString   string
+	deleteRouteFn routeValidateFn
+	addRouteFn    routeValidateFn
 }
 
 func NewMockNetlink(returnError bool, errorString string) *MockNetlink {
@@ -23,6 +27,14 @@ func NewMockNetlink(returnError bool, errorString string) *MockNetlink {
 		returnError: returnError,
 		errorString: errorString,
 	}
+}
+
+func (f *MockNetlink) SetDeleteRouteValidationFn(fn routeValidateFn) {
+	f.deleteRouteFn = fn
+}
+
+func (f *MockNetlink) SetAddRouteValidationFn(fn routeValidateFn) {
+	f.addRouteFn = fn
 }
 
 func (f *MockNetlink) error() error {
@@ -88,10 +100,16 @@ func (f *MockNetlink) GetIPRoute(*Route) ([]*Route, error) {
 	return nil, f.error()
 }
 
-func (f *MockNetlink) AddIPRoute(*Route) error {
+func (f *MockNetlink) AddIPRoute(r *Route) error {
+	if f.addRouteFn != nil {
+		return f.addRouteFn(r)
+	}
 	return f.error()
 }
 
-func (f *MockNetlink) DeleteIPRoute(*Route) error {
+func (f *MockNetlink) DeleteIPRoute(r *Route) error {
+	if f.deleteRouteFn != nil {
+		return f.deleteRouteFn(r)
+	}
 	return f.error()
 }

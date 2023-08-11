@@ -213,7 +213,7 @@ func TestAddPolicyFailure(t *testing.T) {
 	defer ioshim.VerifyCalls(t, calls)
 	pMgr := NewPolicyManager(ioshim, ipsetConfig)
 
-	require.Error(t, pMgr.AddPolicy(testNetPol, nil))
+	require.Error(t, pMgr.AddPolicies([]*NPMNetworkPolicy{testNetPol}, nil))
 	_, ok := pMgr.GetPolicy(testNetPol.PolicyKey)
 	require.False(t, ok)
 	promVals{0, 1}.testPrometheusMetrics(t)
@@ -253,7 +253,7 @@ func TestCreatorForAddPolicies(t *testing.T) {
 
 	// 2. test without activation
 	// add a policy to the cache so that we don't activate (the cache doesn't impact creatorForNewNetworkPolicies)
-	require.NoError(t, pMgr.AddPolicy(allTestNetworkPolicies[0], nil))
+	require.NoError(t, pMgr.AddPolicies([]*NPMNetworkPolicy{allTestNetworkPolicies[0]}, nil))
 	creator = pMgr.creatorForNewNetworkPolicies(chainNames(allTestNetworkPolicies), allTestNetworkPolicies)
 	actualLines = strings.Split(creator.ToString(), "\n")
 	expectedLines = []string{
@@ -288,7 +288,7 @@ func TestCreatorForRemovePolicies(t *testing.T) {
 	defer ioshim.VerifyCalls(t, calls)
 	pMgr := NewPolicyManager(ioshim, ipsetConfig)
 
-	// 1. test without deactivation
+	// 1. test without deactivation (i.e. flushing azure chain when removing the last policy)
 	// hack: the cache is empty (and len(cache) != len(allTestNetworkPolicies)), so shouldDeactivate will be false
 	creator := pMgr.creatorForRemovingPolicies(chainNames(allTestNetworkPolicies))
 	actualLines := strings.Split(creator.ToString(), "\n")
@@ -303,10 +303,10 @@ func TestCreatorForRemovePolicies(t *testing.T) {
 	}
 	dptestutils.AssertEqualLines(t, expectedLines, actualLines)
 
-	// 2. test with deactivation
+	// 2. test with deactivation (i.e. flushing azure chain when removing the last policy)
 	// add to the cache so that we deactivate
 	policy := TestNetworkPolicies[0]
-	require.NoError(t, pMgr.AddPolicy(policy, nil))
+	require.NoError(t, pMgr.AddPolicies([]*NPMNetworkPolicy{policy}, nil))
 	creator = pMgr.creatorForRemovingPolicies(chainNames([]*NPMNetworkPolicy{policy}))
 	actualLines = strings.Split(creator.ToString(), "\n")
 	expectedLines = []string{
@@ -334,7 +334,7 @@ func TestRemovePoliciesAcceptableError(t *testing.T) {
 	ioshim := common.NewMockIOShim(calls)
 	defer ioshim.VerifyCalls(t, calls)
 	pMgr := NewPolicyManager(ioshim, ipsetConfig)
-	require.NoError(t, pMgr.AddPolicy(bothDirectionsNetPol, epList))
+	require.NoError(t, pMgr.AddPolicies([]*NPMNetworkPolicy{bothDirectionsNetPol}, epList))
 	require.NoError(t, pMgr.RemovePolicy(bothDirectionsNetPol.PolicyKey))
 	_, ok := pMgr.GetPolicy(bothDirectionsNetPol.PolicyKey)
 	require.False(t, ok)
@@ -361,7 +361,7 @@ func TestRemovePoliciesError(t *testing.T) {
 			name: "error on delete for ingress",
 			calls: []testutils.TestCmd{
 				fakeIPTablesRestoreCommand,
-				getFakeDeleteJumpCommandWithCode("AZURE-NPM-INGRESS", ingressEgressNetPolIngressJump, 2), // anything but 0 or 1
+				getFakeDeleteJumpCommandWithCode("AZURE-NPM-INGRESS", ingressEgressNetPolIngressJump, 3), // anything but 0, 1, or 2
 			},
 		},
 		{
@@ -369,7 +369,7 @@ func TestRemovePoliciesError(t *testing.T) {
 			calls: []testutils.TestCmd{
 				fakeIPTablesRestoreCommand,
 				getFakeDeleteJumpCommand("AZURE-NPM-INGRESS", ingressEgressNetPolIngressJump),
-				getFakeDeleteJumpCommandWithCode("AZURE-NPM-EGRESS", ingressEgressNetPolEgressJump, 2), // anything but 0 or 1
+				getFakeDeleteJumpCommandWithCode("AZURE-NPM-EGRESS", ingressEgressNetPolEgressJump, 3), // anything but 0, 1, or 2
 			},
 		},
 	}
@@ -380,7 +380,7 @@ func TestRemovePoliciesError(t *testing.T) {
 			ioshim := common.NewMockIOShim(tt.calls)
 			defer ioshim.VerifyCalls(t, tt.calls)
 			pMgr := NewPolicyManager(ioshim, ipsetConfig)
-			err := pMgr.AddPolicy(bothDirectionsNetPol, nil)
+			err := pMgr.AddPolicies([]*NPMNetworkPolicy{bothDirectionsNetPol}, nil)
 			require.NoError(t, err)
 			err = pMgr.RemovePolicy(bothDirectionsNetPol.PolicyKey)
 			require.Error(t, err)
@@ -404,7 +404,7 @@ func TestUpdatingStaleChains(t *testing.T) {
 	pMgr := NewPolicyManager(ioshim, ipsetConfig)
 
 	// add so we can remove. no stale chains to start
-	require.NoError(t, pMgr.AddPolicy(bothDirectionsNetPol, nil))
+	require.NoError(t, pMgr.AddPolicies([]*NPMNetworkPolicy{bothDirectionsNetPol}, nil))
 	assertStaleChainsContain(t, pMgr.staleChains)
 
 	// successful removal, so mark the policy's chains as stale
@@ -412,7 +412,7 @@ func TestUpdatingStaleChains(t *testing.T) {
 	assertStaleChainsContain(t, pMgr.staleChains, bothDirectionsNetPolIngressChain, bothDirectionsNetPolEgressChain)
 
 	// successful add, so keep the same stale chains
-	require.NoError(t, pMgr.AddPolicy(ingressNetPol, nil))
+	require.NoError(t, pMgr.AddPolicies([]*NPMNetworkPolicy{ingressNetPol}, nil))
 	assertStaleChainsContain(t, pMgr.staleChains, bothDirectionsNetPolIngressChain, bothDirectionsNetPolEgressChain)
 
 	// failure to remove, so keep the same stale chains
@@ -420,7 +420,7 @@ func TestUpdatingStaleChains(t *testing.T) {
 	assertStaleChainsContain(t, pMgr.staleChains, bothDirectionsNetPolIngressChain, bothDirectionsNetPolEgressChain)
 
 	// successfully add a new policy. keep the same stale chains
-	require.NoError(t, pMgr.AddPolicy(egressNetPol, nil))
+	require.NoError(t, pMgr.AddPolicies([]*NPMNetworkPolicy{egressNetPol}, nil))
 	assertStaleChainsContain(t, pMgr.staleChains, bothDirectionsNetPolIngressChain, bothDirectionsNetPolEgressChain)
 
 	// successful removal, so mark the policy's chains as stale
@@ -428,10 +428,10 @@ func TestUpdatingStaleChains(t *testing.T) {
 	assertStaleChainsContain(t, pMgr.staleChains, bothDirectionsNetPolIngressChain, bothDirectionsNetPolEgressChain, egressNetPolChain)
 
 	// failure to add, so keep the same stale chains the same
-	require.Error(t, pMgr.AddPolicy(bothDirectionsNetPol, nil))
+	require.Error(t, pMgr.AddPolicies([]*NPMNetworkPolicy{bothDirectionsNetPol}, nil))
 	assertStaleChainsContain(t, pMgr.staleChains, bothDirectionsNetPolIngressChain, bothDirectionsNetPolEgressChain, egressNetPolChain)
 
 	// successful add, so remove the policy's chains from the stale chains
-	require.NoError(t, pMgr.AddPolicy(bothDirectionsNetPol, nil))
+	require.NoError(t, pMgr.AddPolicies([]*NPMNetworkPolicy{bothDirectionsNetPol}, nil))
 	assertStaleChainsContain(t, pMgr.staleChains, egressNetPolChain)
 }

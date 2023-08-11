@@ -1,11 +1,13 @@
 package dataplane
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
 	"time"
 
+	"github.com/Azure/azure-container-networking/npm/metrics"
 	"github.com/Azure/azure-container-networking/npm/pkg/dataplane/policies"
 	"github.com/Azure/azure-container-networking/npm/util"
 	npmerrors "github.com/Azure/azure-container-networking/npm/util/errors"
@@ -17,8 +19,9 @@ const (
 	maxNoNetRetryCount int = 240 // max wait time 240*5 == 20 mins
 	maxNoNetSleepTime  int = 5   // in seconds
 
-	refreshAllEndpoints   bool = true
-	refreshLocalEndpoints bool = false
+	// used for lints
+	hcnSchemaMajorVersion = 2
+	hcnSchemaMinorVersion = 0
 )
 
 var errPolicyModeUnsupported = errors.New("only IPSet policy mode is supported")
@@ -36,8 +39,24 @@ func (dp *DataPlane) initializeDataPlane() error {
 
 	err := dp.getNetworkInfo()
 	if err != nil {
-		return err
+		return npmerrors.SimpleErrorWrapper("failed to get network info", err)
 	}
+
+	// Initialize Endpoint query used to filter healthy endpoints (vNIC) of Windows pods
+	dp.endpointQuery.query = hcn.HostComputeQuery{
+		SchemaVersion: hcn.SchemaVersion{
+			Major: hcnSchemaMajorVersion,
+			Minor: hcnSchemaMinorVersion,
+		},
+		Flags: hcn.HostComputeQueryFlagsNone,
+	}
+	// Filter out any endpoints that are not in "AttachedShared" State. All running Windows pods with networking must be in this state.
+	filterMap := map[string]uint16{"State": hcnEndpointStateAttachedSharing}
+	filter, err := json.Marshal(filterMap)
+	if err != nil {
+		return npmerrors.SimpleErrorWrapper("failed to marshal endpoint filter map", err)
+	}
+	dp.endpointQuery.query.Filter = string(filter)
 
 	// reset endpoint cache so that netpol references are removed for all endpoints while refreshing pod endpoints
 	// no need to lock endpointCache at boot up
@@ -79,9 +98,9 @@ func (dp *DataPlane) bootupDataPlane() error {
 	}
 
 	// for backwards compatibility, get remote allEndpoints to delete as well
-	allEndpoints, err := dp.getPodEndpoints(refreshAllEndpoints)
+	allEndpoints, err := dp.getAllPodEndpoints()
 	if err != nil {
-		return npmerrors.SimpleErrorWrapper("failed to get all pod endpoints", err)
+		return err
 	}
 
 	// TODO once we make endpoint refreshing smarter, it would be most efficient to use allEndpoints to refreshPodEndpoints here.
@@ -199,13 +218,16 @@ func (dp *DataPlane) updatePod(pod *updateNPMPod) error {
 	}
 
 	// for every ipset we're adding to the endpoint, consider adding to the endpoint every policy that the set touches
+	// add policy if:
+	// 1. it's not already there
+	// 2. the pod IP is part of every set that the policy requires (every set in the pod selector)
 	toAddPolicies := make(map[string]struct{})
 	for _, setName := range pod.IPSetsToAdd {
 		/*
 			Scenarios:
 			1. If a policy is added to the ipset's selector after getting the selector (meaning dp.AddPolicy() was called),
 			   we will miss adding the policy here, but will add the policy to all endpoints in that other thread, which has
-			   to wait on the endpointCache lock when calling getEndpointsToApplyPolicy().
+			   to wait on the endpointCache lock when calling getEndpointsToApplyPolicies().
 
 			2. We may add the policy here and in the dp.AddPolicy() thread if the policy is added to the ipset's selector before
 			   that other thread calls policyMgr.AddPolicy(), which is ok.
@@ -221,48 +243,42 @@ func (dp *DataPlane) updatePod(pod *updateNPMPod) error {
 		}
 
 		for policyKey := range selectorReference {
-			if dp.policyMgr.PolicyExists(policyKey) {
-				toAddPolicies[policyKey] = struct{}{}
-			} else {
-				klog.Infof("[DataPlane] while updating pod, policy is referenced but does not exist. pod: [%s], policy: [%s], set [%s]", pod.PodKey, policyKey, setName)
+			if _, ok := endpoint.netPolReference[policyKey]; ok {
+				continue
 			}
+
+			policy, ok := dp.policyMgr.GetPolicy(policyKey)
+			if !ok {
+				klog.Infof("[DataPlane] while updating pod, policy is referenced but does not exist. pod: [%s], policy: [%s], set [%s]", pod.PodKey, policyKey, setName)
+				continue
+			}
+
+			selectorIPSets := dp.getSelectorIPSets(policy)
+			ok, err := dp.ipsetMgr.DoesIPSatisfySelectorIPSets(pod.PodIP, pod.PodKey, selectorIPSets)
+			if err != nil {
+				return fmt.Errorf("[DataPlane] error getting IPs satisfying selector ipsets: %w", err)
+			}
+			if !ok {
+				continue
+			}
+
+			toAddPolicies[policyKey] = struct{}{}
 		}
 	}
 
-	// for all of these policies, add the policy to the endpoint if:
-	// 1. it's not already there
-	// 2. the pod IP is part of every set that the policy requires (every set in the pod selector)
-	for policyKey := range toAddPolicies {
-		if _, ok := endpoint.netPolReference[policyKey]; ok {
-			continue
-		}
+	if len(toAddPolicies) == 0 {
+		return nil
+	}
 
-		// TODO Also check if the endpoint reference in policy for this Ip is right
-		policy, ok := dp.policyMgr.GetPolicy(policyKey)
-		if !ok {
-			return fmt.Errorf("policy with name %s does not exist", policyKey)
-		}
-
-		selectorIPSets := dp.getSelectorIPSets(policy)
-		ok, err := dp.ipsetMgr.DoesIPSatisfySelectorIPSets(pod.PodIP, pod.PodKey, selectorIPSets)
-		if err != nil {
-			return err
-		}
-		if !ok {
-			continue
-		}
-
-		// Apply the network policy
-		endpointList := map[string]string{
-			endpoint.ip: endpoint.id,
-		}
-		err = dp.policyMgr.AddPolicy(policy, endpointList)
-		if err != nil {
-			return err
-		}
-
+	successfulPolicies, err := dp.policyMgr.AddAllPolicies(toAddPolicies, endpoint.id, endpoint.ip)
+	for policyKey := range successfulPolicies {
 		endpoint.netPolReference[policyKey] = struct{}{}
 	}
+	if err != nil {
+		return fmt.Errorf("failed to add all policies while updating pod. endpoint: %+v. policies: %+v. err: %w", endpoint, toAddPolicies, err)
+	}
+
+	klog.Infof("[DataPlane] updatedPod complete. podKey: %s. endpoint: %+v", pod.PodKey, endpoint)
 
 	return nil
 }
@@ -276,8 +292,13 @@ func (dp *DataPlane) getSelectorIPSets(policy *policies.NPMNetworkPolicy) map[st
 	return selectorIpSets
 }
 
-func (dp *DataPlane) getEndpointsToApplyPolicy(policy *policies.NPMNetworkPolicy) (map[string]string, error) {
-	selectorIPSets := dp.getSelectorIPSets(policy)
+func (dp *DataPlane) getEndpointsToApplyPolicies(netPols []*policies.NPMNetworkPolicy) (map[string]string, error) {
+	if len(netPols) != 1 {
+		return nil, ErrIncorrectNumberOfNetPols
+	}
+
+	netPol := netPols[0]
+	selectorIPSets := dp.getSelectorIPSets(netPol)
 	netpolSelectorIPs, err := dp.ipsetMgr.GetIPsFromSelectorIPSets(selectorIPSets)
 	if err != nil {
 		return nil, err
@@ -302,27 +323,43 @@ func (dp *DataPlane) getEndpointsToApplyPolicy(policy *policies.NPMNetworkPolicy
 		}
 
 		endpointList[ip] = endpoint.id
-		endpoint.netPolReference[policy.PolicyKey] = struct{}{}
+		endpoint.netPolReference[netPol.PolicyKey] = struct{}{}
 	}
 	return endpointList, nil
 }
 
-func (dp *DataPlane) getPodEndpoints(includeRemoteEndpoints bool) ([]*hcn.HostComputeEndpoint, error) {
-	klog.Infof("Getting all endpoints for Network ID %s", dp.networkID)
+func (dp *DataPlane) getAllPodEndpoints() ([]*hcn.HostComputeEndpoint, error) {
+	klog.Infof("getting all endpoints for network ID %s", dp.networkID)
+	timer := metrics.StartNewTimer()
 	endpoints, err := dp.ioShim.Hns.ListEndpointsOfNetwork(dp.networkID)
+	metrics.RecordListEndpointsLatency(timer)
 	if err != nil {
-		return nil, err
+		metrics.IncListEndpointsFailures()
+		return nil, npmerrors.SimpleErrorWrapper("failed to get all pod endpoints", err)
 	}
 
-	localEndpoints := make([]*hcn.HostComputeEndpoint, 0)
+	epPointers := make([]*hcn.HostComputeEndpoint, 0, len(endpoints))
 	for k := range endpoints {
-		e := &endpoints[k]
-		if includeRemoteEndpoints || e.Flags == hcn.EndpointFlagsNone {
-			// having EndpointFlagsNone means it is a local endpoint
-			localEndpoints = append(localEndpoints, e)
-		}
+		epPointers = append(epPointers, &endpoints[k])
 	}
-	return localEndpoints, nil
+	return epPointers, nil
+}
+
+func (dp *DataPlane) getLocalPodEndpoints() ([]*hcn.HostComputeEndpoint, error) {
+	klog.Info("getting local endpoints")
+	timer := metrics.StartNewTimer()
+	endpoints, err := dp.ioShim.Hns.ListEndpointsQuery(dp.endpointQuery.query)
+	metrics.RecordListEndpointsLatency(timer)
+	if err != nil {
+		metrics.IncListEndpointsFailures()
+		return nil, npmerrors.SimpleErrorWrapper("failed to get local pod endpoints", err)
+	}
+
+	epPointers := make([]*hcn.HostComputeEndpoint, 0, len(endpoints))
+	for k := range endpoints {
+		epPointers = append(epPointers, &endpoints[k])
+	}
+	return epPointers, nil
 }
 
 // refreshPodEndpoints will refresh all the pod endpoints and create empty netpol references for new endpoints
@@ -343,7 +380,7 @@ Why can we refresh only once before updating all pods in the updatePodCache (see
 - We won't miss the endpoint (see the assumption). At the time the pod event came in (when AddToSets/RemoveFromSets were called), HNS already knew about the endpoint.
 */
 func (dp *DataPlane) refreshPodEndpoints() error {
-	endpoints, err := dp.getPodEndpoints(refreshLocalEndpoints)
+	endpoints, err := dp.getLocalPodEndpoints()
 	if err != nil {
 		return err
 	}
@@ -412,8 +449,11 @@ func (dp *DataPlane) refreshPodEndpoints() error {
 
 func (dp *DataPlane) setNetworkIDByName(networkName string) error {
 	// Get Network ID
+	timer := metrics.StartNewTimer()
 	network, err := dp.ioShim.Hns.GetNetworkByName(networkName)
+	metrics.RecordGetNetworkLatency(timer)
 	if err != nil {
+		metrics.IncGetNetworkFailures()
 		return err
 	}
 

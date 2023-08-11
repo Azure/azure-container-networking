@@ -22,6 +22,17 @@ type testSet struct {
 	entryCount int
 }
 
+func TestAddPod(t *testing.T) {
+	podsWatched.Set(0)
+	AddPod()
+	AddPod()
+	AddPod()
+	RemovePod()
+	val, err := PodCount()
+	require.NoError(t, err, "unexpected error when getting pod count")
+	require.Equal(t, 2, val, "incorrect pod count")
+}
+
 func TestRecordIPSetExecTime(t *testing.T) {
 	testStopAndRecord(t, setExecMetric)
 }

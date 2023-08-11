@@ -33,6 +33,6 @@ And read this for faster PR reviews: https://github.com/kubernetes/community/blo
         test: Testing 💚 -->
 - [ ] includes documentation
 - [ ] adds unit tests
-
+- [ ] relevant PR labels added
 
 **Notes**:

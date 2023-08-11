@@ -89,7 +89,6 @@ spec:
             [
               '.\setkubeconfigpath.ps1',
               ";",
-              "pwsh.exe",
               '.\npm.exe',
               "start",
               '--kubeconfig=.\kubeconfig',
@@ -108,8 +107,6 @@ spec:
                   fieldPath: spec.nodeName
             - name: NPM_CONFIG
               value: .\\etc\\azure-npm\\azure-npm.json
-            - name: PATH
-              value: '%CONTAINER_SANDBOX_MOUNT_POINT%\Windows\System32\WindowsPowershell\v1.0\'
           volumeMounts:
             - name: azure-npm-config
               mountPath: .\\etc\\azure-npm
@@ -143,20 +140,22 @@ metadata:
 data:
   azure-npm.json: |
     {
-        "ResyncPeriodInMinutes": 15,
-        "ListeningPort":         10091,
-        "ListeningAddress":      "0.0.0.0",
+        "ResyncPeriodInMinutes":          15,
+        "ListeningPort":                  10091,
+        "ListeningAddress":               "0.0.0.0",
+        "ApplyIntervalInMilliseconds":    500,
+        "ApplyMaxBatches":                100,
+        "MaxBatchedACLsPerPod":           30,
+        "NetPolInvervalInMilliseconds":   500,
+        "MaxPendingNetPols":              100,
         "Toggles": {
             "EnablePrometheusMetrics": true,
             "EnablePprof":             true,
             "EnableHTTPDebugAPI":      true,
             "EnableV2NPM":             true,
-            "PlaceAzureChainFirst":    true,
-            "ApplyIPSetsOnNeed":       false
-        },
-        "Transport": {
-          "Address": "azure-npm.kube-system.svc.cluster.local",
-          "Port": 10092,
-          "ServicePort": 9001
+            "PlaceAzureChainFirst":    false,
+            "ApplyIPSetsOnNeed":       false,
+            "ApplyInBackground":       true,
+            "NetPolInBackground":      true
         }
     }

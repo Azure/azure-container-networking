@@ -97,9 +97,9 @@ func (i *IPConfigurationStatus) WithStateMiddleware(fs ...stateMiddlewareFunc) {
 	i.stateMiddlewareFuncs = append(i.stateMiddlewareFuncs, fs...)
 }
 
-func (i *IPConfigurationStatus) String() string {
-	return fmt.Sprintf("IPConfigurationStatus: Id: [%s], NcId: [%s], IpAddress: [%s], State: [%s], PodInfo: [%v]",
-		i.ID, i.NCID, i.IPAddress, i.state, i.PodInfo)
+func (i IPConfigurationStatus) String() string {
+	return fmt.Sprintf("ID: [%s], NCID: [%s], IPAddress: [%s], State: [%s], LastStateTransition: [%s] PodInfo: [%s]",
+		i.ID, i.NCID, i.IPAddress, i.state, i.LastStateTransition.Format(time.RFC3339), i.PodInfo)
 }
 
 // MarshalJSON is a custom marshaller for IPConfigurationStatus that

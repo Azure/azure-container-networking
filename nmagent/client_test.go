@@ -78,7 +78,6 @@ func TestNMAgentClientJoinNetwork(t *testing.T) {
 			defer cancel()
 
 			// attempt to join network
-			// TODO(timraymond): need a more realistic network ID, I think
 			err := client.JoinNetwork(ctx, nmagent.JoinNetworkRequest{test.id})
 			checkErr(t, err, test.shouldErr)
 
@@ -120,6 +119,68 @@ func TestNMAgentClientJoinNetworkRetry(t *testing.T) {
 
 	if invocations != exp {
 		t.Error("client did not make the expected number of API calls: got:", invocations, "exp:", exp)
+	}
+}
+
+func TestNMAgentClientDeleteNetwork(t *testing.T) {
+	deleteNetTests := []struct {
+		name       string
+		id         string
+		exp        string
+		respStatus int
+		shouldErr  bool
+	}{
+		{
+			"happy path",
+			"00000000-0000-0000-0000-000000000000",
+			"/machine/plugins?comp=nmagent&type=NetworkManagement%2FjoinedVirtualNetworks%2F00000000-0000-0000-0000-000000000000%2Fapi-version%2F1%2Fmethod%2FDELETE",
+			http.StatusOK,
+			false,
+		},
+		{
+			"empty network ID",
+			"",
+			"",
+			http.StatusOK, // this shouldn't be checked
+			true,
+		},
+		{
+			"internal error",
+			"00000000-0000-0000-0000-000000000000",
+			"/machine/plugins?comp=nmagent&type=NetworkManagement%2FjoinedVirtualNetworks%2F00000000-0000-0000-0000-000000000000%2Fapi-version%2F1%2Fmethod%2FDELETE",
+			http.StatusInternalServerError,
+			true,
+		},
+	}
+
+	for _, test := range deleteNetTests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			// create a client
+			var got string
+			client := nmagent.NewTestClient(&TestTripper{
+				RoundTripF: func(req *http.Request) (*http.Response, error) {
+					got = req.URL.RequestURI()
+					rr := httptest.NewRecorder()
+					_, _ = fmt.Fprintf(rr, `{"httpStatusCode":"%d"}`, test.respStatus)
+					rr.WriteHeader(http.StatusOK)
+					return rr.Result(), nil
+				},
+			})
+
+			ctx, cancel := testContext(t)
+			defer cancel()
+
+			// attempt to delete network
+			err := client.DeleteNetwork(ctx, nmagent.DeleteNetworkRequest{test.id})
+			checkErr(t, err, test.shouldErr)
+
+			if got != test.exp {
+				t.Error("received URL differs from expectation: got", got, "exp:", test.exp)
+			}
+		})
 	}
 }
 
@@ -675,6 +736,15 @@ func TestGetHomeAz(t *testing.T) {
 			},
 			true,
 		},
+		{
+			"404 from NMA",
+			nmagent.AzResponse{},
+			"/machine/plugins?comp=nmagent&type=GetHomeAz%2Fapi-version%2F1",
+			map[string]interface{}{
+				"httpStatusCode": "404",
+			},
+			true,
+		},
 	}
 
 	for _, test := range tests {
@@ -682,10 +752,8 @@ func TestGetHomeAz(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
-			var gotPath string
 			client := nmagent.NewTestClient(&TestTripper{
 				RoundTripF: func(req *http.Request) (*http.Response, error) {
-					gotPath = req.URL.RequestURI()
 					rr := httptest.NewRecorder()
 					err := json.NewEncoder(rr).Encode(test.resp)
 					if err != nil {
@@ -703,10 +771,6 @@ func TestGetHomeAz(t *testing.T) {
 
 			if err == nil && test.shouldErr {
 				t.Fatal("expected error but received none")
-			}
-
-			if gotPath != test.expPath {
-				t.Error("paths differ: got:", gotPath, "exp:", test.expPath)
 			}
 
 			if !cmp.Equal(got, test.exp) {

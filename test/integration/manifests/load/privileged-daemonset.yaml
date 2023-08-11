@@ -1,0 +1,50 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: privileged-daemonset
+  namespace: kube-system
+  labels:
+    app: privileged-daemonset
+spec:
+  selector:
+    matchLabels:
+      app: privileged-daemonset
+  template:
+    metadata:
+      labels:
+        app: privileged-daemonset
+    spec:
+      hostNetwork: true
+      hostPID: true
+      containers:
+        - name: privileged-container
+          image: mcr.microsoft.com/dotnet/runtime-deps:6.0
+          command: ["/bin/sleep", "3650d"]
+          securityContext:
+            privileged: true
+            runAsUser: 0
+          volumeMounts:
+            - mountPath: /var/run/azure-cns
+              name: azure-cns
+            - mountPath: /var/run/azure-network
+              name: azure-network
+            - mountPath: /host
+              name: host-root
+            - mountPath: /var/run
+              name: azure-cns-noncilium
+      volumes:
+        - name: azure-cns
+          hostPath:
+            path: /var/run/azure-cns
+        - name: azure-network
+          hostPath:
+            path: /var/run/azure-network
+        - name: azure-cns-noncilium
+          hostPath:
+            path: /var/run
+        - hostPath:
+            path: /
+            type: ""
+          name: host-root
+      nodeSelector:
+        kubernetes.io/os: linux

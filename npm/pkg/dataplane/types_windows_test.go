@@ -462,3 +462,17 @@ func (p *PolicyDeleteAction) Do(dp *DataPlane) error {
 	}
 	return nil
 }
+
+type FinishBootupPhaseAction struct{}
+
+func FinishBootupPhase() *Action {
+	return &Action{
+		DPAction: &FinishBootupPhaseAction{},
+	}
+}
+
+// Do signifies npMgr starting the Pod controller
+func (f *FinishBootupPhaseAction) Do(dp *DataPlane) error {
+	dp.FinishBootupPhase()
+	return nil
+}

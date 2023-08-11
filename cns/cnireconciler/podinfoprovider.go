@@ -51,19 +51,22 @@ func newCNIPodInfoProvider(exec exec.Interface) (cns.PodInfoByIPProvider, error)
 }
 
 // cniStateToPodInfoByIP converts an AzureCNIState dumped from a CNI exec
-// into a PodInfo map, using the first endpoint IP as the key in the map.
+// into a PodInfo map, using the endpoint IPs as keys in the map.
+// for pods with multiple IPs (such as in dualstack cases), this means multiple keys in the map
+// will point to the same pod information.
 func cniStateToPodInfoByIP(state *api.AzureCNIState) (map[string]cns.PodInfo, error) {
 	podInfoByIP := map[string]cns.PodInfo{}
 	for _, endpoint := range state.ContainerInterfaces {
-		if _, ok := podInfoByIP[endpoint.IPAddresses[0].IP.String()]; ok {
-			return nil, errors.Wrap(cns.ErrDuplicateIP, endpoint.IPAddresses[0].IP.String())
+		for _, epIP := range endpoint.IPAddresses {
+			podInfo := cns.NewPodInfo(endpoint.ContainerID, endpoint.PodEndpointId, endpoint.PodName, endpoint.PodNamespace)
+
+			ipKey := epIP.IP.String()
+			if prevPodInfo, ok := podInfoByIP[ipKey]; ok {
+				return nil, errors.Wrapf(cns.ErrDuplicateIP, "duplicate ip %s found for different pods: pod: %+v, pod: %+v", ipKey, podInfo, prevPodInfo)
+			}
+
+			podInfoByIP[ipKey] = podInfo
 		}
-		podInfoByIP[endpoint.IPAddresses[0].IP.String()] = cns.NewPodInfo(
-			endpoint.ContainerID,
-			endpoint.PodEndpointId,
-			endpoint.PodName,
-			endpoint.PodNamespace,
-		)
 	}
 	return podInfoByIP, nil
 }
@@ -71,14 +74,14 @@ func cniStateToPodInfoByIP(state *api.AzureCNIState) (map[string]cns.PodInfo, er
 func endpointStateToPodInfoByIP(state map[string]*restserver.EndpointInfo) (map[string]cns.PodInfo, error) {
 	podInfoByIP := map[string]cns.PodInfo{}
 	for containerID, endpointInfo := range state { // for each endpoint
-		for ifname, ipinfo := range endpointInfo.IfnameToIPMap { // for each IP info object of the endpoint's interfaces
+		for _, ipinfo := range endpointInfo.IfnameToIPMap { // for each IP info object of the endpoint's interfaces
 			for _, ipv4conf := range ipinfo.IPv4 { // for each IPv4 config of the endpoint's interfaces
 				if _, ok := podInfoByIP[ipv4conf.IP.String()]; ok {
 					return nil, errors.Wrap(cns.ErrDuplicateIP, ipv4conf.IP.String())
 				}
 				podInfoByIP[ipv4conf.IP.String()] = cns.NewPodInfo(
 					containerID,
-					ifname,
+					containerID,
 					endpointInfo.PodName,
 					endpointInfo.PodNamespace,
 				)
@@ -89,7 +92,7 @@ func endpointStateToPodInfoByIP(state map[string]*restserver.EndpointInfo) (map[
 				}
 				podInfoByIP[ipv6conf.IP.String()] = cns.NewPodInfo(
 					containerID,
-					ifname,
+					containerID,
 					endpointInfo.PodName,
 					endpointInfo.PodNamespace,
 				)

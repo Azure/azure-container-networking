@@ -290,7 +290,7 @@ func (service *HTTPRestService) addIPConfigStateUntransacted(ncID string, hostVe
 
 		if ipState, exists := service.PodIPConfigState[ipID]; exists {
 			logger.Printf("[Azure-Cns] Set ipId %s, IP %s version to %d, programmed host nc version is %d, "+
-				"ipState: %+v", ipID, ipconfig.IPAddress, ipconfig.NCVersion, hostVersion, ipState)
+				"ipState: %s", ipID, ipconfig.IPAddress, ipconfig.NCVersion, hostVersion, ipState)
 			continue
 		}
 
@@ -413,7 +413,9 @@ func (service *HTTPRestService) getAllNetworkContainerResponses(
 		}
 		nmaNCs := map[string]string{}
 		for _, nc := range ncVersionListResp.Containers {
-			nmaNCs[cns.SwiftPrefix+nc.NetworkContainerID] = nc.Version
+			// store nmaNCID as lower case to allow case insensitive comparison with nc stored in CNS
+			nmaNCID := cns.SwiftPrefix + strings.ToLower(nc.NetworkContainerID)
+			nmaNCs[nmaNCID] = nc.Version
 		}
 
 		if !skipNCVersionCheck {
@@ -606,7 +608,8 @@ func (service *HTTPRestService) attachOrDetachHelper(req cns.ConfigureContainerN
 				}
 				nmaNCs := map[string]string{}
 				for _, nc := range ncVersionListResp.Containers {
-					nmaNCs[nc.NetworkContainerID] = nc.Version
+					// store nmaNCID as lower case to allow case insensitive comparison with nc stored in CNS
+					nmaNCs[strings.ToLower(nc.NetworkContainerID)] = nc.Version
 				}
 				_, returnCode, message := service.isNCWaitingForUpdate(existing.CreateNetworkContainerRequest.Version, req.NetworkContainerid, nmaNCs)
 				if returnCode == types.NetworkContainerVfpProgramPending {
@@ -763,21 +766,21 @@ func (service *HTTPRestService) SendNCSnapShotPeriodically(ctx context.Context, 
 	}
 }
 
-func (service *HTTPRestService) validateIPConfigRequest(
-	ipConfigRequest cns.IPConfigRequest,
+func (service *HTTPRestService) validateIPConfigsRequest(
+	ipConfigsRequest cns.IPConfigsRequest,
 ) (cns.PodInfo, types.ResponseCode, string) {
 	if service.state.OrchestratorType != cns.KubernetesCRD && service.state.OrchestratorType != cns.Kubernetes {
 		return nil, types.UnsupportedOrchestratorType, "ReleaseIPConfig API supported only for kubernetes orchestrator"
 	}
 
-	if ipConfigRequest.OrchestratorContext == nil {
+	if ipConfigsRequest.OrchestratorContext == nil {
 		return nil,
 			types.EmptyOrchestratorContext,
-			fmt.Sprintf("OrchastratorContext is not set in the req: %+v", ipConfigRequest)
+			fmt.Sprintf("OrchastratorContext is not set in the req: %+v", ipConfigsRequest)
 	}
 
 	// retrieve podinfo from orchestrator context
-	podInfo, err := cns.NewPodInfoFromIPConfigRequest(ipConfigRequest)
+	podInfo, err := cns.NewPodInfoFromIPConfigsRequest(ipConfigsRequest)
 	if err != nil {
 		return podInfo, types.UnsupportedOrchestratorContext, err.Error()
 	}
@@ -829,6 +832,16 @@ func (service *HTTPRestService) populateIPConfigInfoUntransacted(ipConfigStatus 
 	return nil
 }
 
+// lowerCaseNCGuid() splits incoming NCID by "Swift_" and lowercase NC GUID; i.e,"Swift_ABCD-CD" -> "Swift_abcd-cd"
+func lowerCaseNCGuid(ncid string) string {
+	ncidHasSwiftPrefix := strings.HasPrefix(ncid, cns.SwiftPrefix)
+	if ncidHasSwiftPrefix {
+		return cns.SwiftPrefix + strings.ToLower(strings.Split(ncid, cns.SwiftPrefix)[1])
+	}
+
+	return strings.ToLower(ncid)
+}
+
 // isNCWaitingForUpdate :- Determine whether NC version on NMA matches programmed version
 // Return error and waitingForUpdate as true only CNS gets response from NMAgent indicating
 // the VFP programming is pending
@@ -853,13 +866,17 @@ func (service *HTTPRestService) isNCWaitingForUpdate(
 			"Skipping GetNCVersionStatus check from NMAgent", ncVersion, ncid)
 		return true, types.NetworkContainerVfpProgramPending, ""
 	}
-	nmaProgrammedNCVersionStr, ok := ncVersionList[ncid]
+
+	// get the ncVersionList with nc GUID as lower case
+	// when looking up if the ncid is present in ncVersionList, convert it to lowercase and then look up
+	nmaProgrammedNCVersionStr, ok := ncVersionList[lowerCaseNCGuid(ncid)]
 	if !ok {
 		// NMA doesn't have this NC that we need programmed yet, bail out
 		logger.Printf("[Azure CNS] Failed to get NC %s doesn't exist in NMAgent NC version list "+
 			"Skipping GetNCVersionStatus check from NMAgent", ncid)
 		return true, types.NetworkContainerVfpProgramPending, ""
 	}
+
 	nmaProgrammedNCVersion, err := strconv.Atoi(nmaProgrammedNCVersionStr)
 	if err != nil {
 		// it's unclear whether or not this can actually happen. In the NMAgent

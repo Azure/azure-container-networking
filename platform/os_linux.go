@@ -171,11 +171,16 @@ func PrintDependencyPackageDetails() {
 	out, err := p.ExecuteCommand("iptables --version")
 	out = strings.TrimSuffix(out, "\n")
 	log.Printf("[cni-net] iptable version:%s, err:%v", out, err)
-	out, err = p.ExecuteCommand("ebtables --version")
-	out = strings.TrimSuffix(out, "\n")
-	log.Printf("[cni-net] ebtable version %s, err:%v", out, err)
 }
 
 func ReplaceFile(source, destination string) error {
 	return os.Rename(source, destination)
 }
+
+// Mellanox adapter not applicable for linux
+func HasMellanoxAdapter() bool {
+	return false
+}
+
+// Not needed for Linux
+func MonitorAndSetMellanoxRegKeyPriorityVLANTag(_ context.Context, _ int) {}

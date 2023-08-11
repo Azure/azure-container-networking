@@ -65,6 +65,7 @@ CNI_MULTITENANCY_TRANSPARENT_VLAN_BUILD_DIR = $(BUILD_DIR)/cni-multitenancy-tran
 CNI_SWIFT_BUILD_DIR = $(BUILD_DIR)/cni-swift
 CNI_OVERLAY_BUILD_DIR = $(BUILD_DIR)/cni-overlay
 CNI_BAREMETAL_BUILD_DIR = $(BUILD_DIR)/cni-baremetal
+CNI_DUALSTACK_BUILD_DIR = $(BUILD_DIR)/cni-dualstack
 CNS_BUILD_DIR = $(BUILD_DIR)/cns
 NPM_BUILD_DIR = $(BUILD_DIR)/npm
 TOOLS_DIR = $(REPO_ROOT)/build/tools
@@ -94,6 +95,7 @@ CNI_MULTITENANCY_TRANSPARENT_VLAN_ARCHIVE_NAME = azure-vnet-cni-multitenancy-tra
 CNI_SWIFT_ARCHIVE_NAME = azure-vnet-cni-swift-$(GOOS)-$(GOARCH)-$(CNI_VERSION).$(ARCHIVE_EXT)
 CNI_OVERLAY_ARCHIVE_NAME = azure-vnet-cni-overlay-$(GOOS)-$(GOARCH)-$(CNI_VERSION).$(ARCHIVE_EXT)
 CNI_BAREMETAL_ARCHIVE_NAME = azure-vnet-cni-baremetal-$(GOOS)-$(GOARCH)-$(CNI_VERSION).$(ARCHIVE_EXT)
+CNI_DUALSTACK_ARCHIVE_NAME = azure-vnet-cni-overlay-dualstack-$(GOOS)-$(GOARCH)-$(CNI_VERSION).$(ARCHIVE_EXT)
 CNM_ARCHIVE_NAME = azure-vnet-cnm-$(GOOS)-$(GOARCH)-$(ACN_VERSION).$(ARCHIVE_EXT)
 CNS_ARCHIVE_NAME = azure-cns-$(GOOS)-$(GOARCH)-$(CNS_VERSION).$(ARCHIVE_EXT)
 NPM_ARCHIVE_NAME = azure-npm-$(GOOS)-$(GOARCH)-$(NPM_VERSION).$(ARCHIVE_EXT)
@@ -140,7 +142,7 @@ azure-ipam: azure-ipam-binary azure-ipam-archive
 
 revision: ## print the current git revision
 	@echo $(REVISION)
-	
+
 version: ## prints the root version
 	@echo $(ACN_VERSION)
 
@@ -159,15 +161,15 @@ cni-dropgz-test-version: ## prints the cni-dropgz version
 	@echo $(CNI_DROPGZ_TEST_VERSION)
 
 cns-version:
-	@echo $(CNS_VERSION) 
+	@echo $(CNS_VERSION)
 
 npm-version:
-	@echo $(NPM_VERSION) 
+	@echo $(NPM_VERSION)
 
 zapai-version: ## prints the zapai version
 	@echo $(ZAPAI_VERSION)
 
-##@ Binaries 
+##@ Binaries
 
 # Build the delegated IPAM plugin binary.
 azure-ipam-binary:
@@ -339,7 +341,7 @@ cni-dropgz-image-name-and-tag: # util target to print the CNI dropgz image name 
 cni-dropgz-image: ## build cni-dropgz container image.
 	$(MAKE) container \
 		DOCKERFILE=dropgz/build/$(OS).Dockerfile \
-		EXTRA_BUILD_ARGS='--build-arg OS=$(OS) --build-arg ARCH=$(ARCH)' \
+		EXTRA_BUILD_ARGS='--build-arg OS=$(OS) --build-arg ARCH=$(ARCH) --build-arg OS_VERSION=$(OS_VERSION)' \
 		IMAGE=$(CNI_DROPGZ_IMAGE) \
 		TAG=$(CNI_DROPGZ_PLATFORM_TAG)
 
@@ -363,8 +365,8 @@ cni-dropgz-test-image-name-and-tag: # util target to print the CNI dropgz test i
 
 cni-dropgz-test-image: ## build cni-dropgz-test container image.
 	$(MAKE) container \
-		DOCKERFILE=dropgz/build/cniTest.Dockerfile \
-		EXTRA_BUILD_ARGS='--build-arg OS=$(OS)' \
+		DOCKERFILE=dropgz/build/cniTest_$(OS).Dockerfile \
+		EXTRA_BUILD_ARGS='--build-arg OS=$(OS)  --build-arg ARCH=$(ARCH) --build-arg OS_VERSION=$(OS_VERSION)' \
 		IMAGE=$(CNI_DROPGZ_TEST_IMAGE) \
 		TAG=$(CNI_DROPGZ_TEST_PLATFORM_TAG)
 
@@ -490,8 +492,8 @@ manifest-build: # util target to compose multiarch container manifests from plat
 			$(MAKE) manifest-add PLATFORM=$(PLATFORM);\
 		)\
 	)\
-		
-			
+
+
 
 manifest-push: # util target to push multiarch container manifest.
 	$(CONTAINER_BUILDER) manifest push --all $(IMAGE_REGISTRY)/$(IMAGE):$(TAG) docker://$(IMAGE_REGISTRY)/$(IMAGE):$(TAG)
@@ -515,7 +517,7 @@ acncli-manifest-push: ## push acncli multiplat container manifest
 acncli-skopeo-archive: ## export tar archive of acncli multiplat container manifest.
 	$(MAKE) manifest-skopeo-archive \
 		IMAGE=$(ACNCLI_IMAGE) \
-		TAG=$(ACN_VERSION) 
+		TAG=$(ACN_VERSION)
 
 cni-dropgz-manifest-build: ## build cni-dropgz multiplat container manifest.
 	$(MAKE) manifest-build \
@@ -554,7 +556,7 @@ cns-manifest-build: ## build azure-cns multiplat container manifest.
 		PLATFORMS="$(PLATFORMS)" \
 		IMAGE=$(CNS_IMAGE) \
 		TAG=$(CNS_VERSION) \
-		OS_VERSIONS="ltsc2022 ltsc2019"
+		OS_VERSIONS="$(OS_VERSIONS)"
 
 cns-manifest-push: ## push cns multiplat container manifest
 	$(MAKE) manifest-push \
@@ -571,7 +573,7 @@ npm-manifest-build: ## build azure-npm multiplat container manifest.
 		PLATFORMS="$(PLATFORMS)" \
 		IMAGE=$(NPM_IMAGE) \
 		TAG=$(NPM_VERSION) \
-		OS_VERSIONS="ltsc2022 1809"
+		OS_VERSIONS="$(OS_VERSIONS)"
 
 npm-manifest-push: ## push multiplat container manifest
 	$(MAKE) manifest-push \
@@ -624,6 +626,12 @@ endif
 	cp $(CNI_BUILD_DIR)/azure-vnet$(EXE_EXT) $(CNI_BUILD_DIR)/azure-vnet-ipam$(EXE_EXT) $(CNI_BUILD_DIR)/azure-vnet-telemetry$(EXE_EXT) $(CNI_OVERLAY_BUILD_DIR)
 	cd $(CNI_OVERLAY_BUILD_DIR) && $(ARCHIVE_CMD) $(CNI_OVERLAY_ARCHIVE_NAME) azure-vnet$(EXE_EXT) azure-vnet-ipam$(EXE_EXT) azure-vnet-telemetry$(EXE_EXT) 10-azure.conflist azure-vnet-telemetry.config
 
+	$(MKDIR) $(CNI_DUALSTACK_BUILD_DIR)
+	cp cni/azure-$(GOOS)-swift-overlay-dualstack.conflist $(CNI_DUALSTACK_BUILD_DIR)/10-azure.conflist
+	cp telemetry/azure-vnet-telemetry.config $(CNI_DUALSTACK_BUILD_DIR)/azure-vnet-telemetry.config
+	cp $(CNI_BUILD_DIR)/azure-vnet$(EXE_EXT) $(CNI_BUILD_DIR)/azure-vnet-telemetry$(EXE_EXT) $(CNI_DUALSTACK_BUILD_DIR)
+	cd $(CNI_DUALSTACK_BUILD_DIR) && $(ARCHIVE_CMD) $(CNI_DUALSTACK_ARCHIVE_NAME) azure-vnet$(EXE_EXT) azure-vnet-telemetry$(EXE_EXT) 10-azure.conflist azure-vnet-telemetry.config
+
 #baremetal mode is windows only (at least for now)
 ifeq ($(GOOS),windows)
 	$(MKDIR) $(CNI_BAREMETAL_BUILD_DIR)
@@ -667,7 +675,7 @@ ifeq ($(GOOS),linux)
 endif
 
 
-##@ Utils 
+##@ Utils
 
 clean: ## Clean build artifacts.
 	$(RMDIR) $(OUTPUT_DIR)
@@ -698,9 +706,13 @@ workspace: ## Set up the Go workspace.
 	go work use ./dropgz
 	go work use ./zapai
 
-##@ Test 
+##@ Test
 
 COVER_PKG ?= .
+#Restart case is used for cni load test pipeline for restarting the nodes cluster.
+RESTART_CASE ?= false
+# CNI type is a key to direct the types of state validation done on a cluster.
+CNI_TYPE ?= cilium
 
 # COVER_FILTER omits folders with all files tagged with one of 'unit', '!ignore_uncovered', or '!ignore_autogenerated'
 test-all: ## run all unit tests.
@@ -712,6 +724,10 @@ test-integration: ## run all integration tests.
 	CNI_DROPGZ_VERSION=$(CNI_DROPGZ_VERSION) \
 		CNS_VERSION=$(CNS_VERSION) \
 		go test -mod=readonly -buildvcs=false -timeout 1h -coverpkg=./... -race -covermode atomic -coverprofile=coverage.out -tags=integration ./test/integration...
+
+test-validate-state:
+	cd test/integration/load && go test -mod=readonly -count=1 -timeout 30m -tags load -run ^TestValidateState -tags=load -restart-case=$(RESTART_CASE) -os=$(OS) -cni=$(CNI_TYPE)
+	cd ../../..
 
 test-cyclonus: ## run the cyclonus test for npm.
 	cd test/cyclonus && bash ./test-cyclonus.sh
@@ -731,6 +747,15 @@ test-azure-ipam: ## run the unit test for azure-ipam
 kind:
 	kind create cluster --config ./test/kind/kind.yaml
 
+test-k8se2e: test-k8se2e-build test-k8se2e-only ## Alias to run build and test
+
+test-k8se2e-build: ## Build k8s e2e test suite
+	cd hack/scripts && bash ./k8se2e.sh $(GROUP) $(CLUSTER)
+	cd ../..
+
+test-k8se2e-only: ## Run k8s network conformance test, use TYPE=basic for only datapath tests
+	cd hack/scripts && bash ./k8se2e-tests.sh $(OS) $(TYPE)
+	cd ../..
 
 ##@ Utilities
 
@@ -750,58 +775,56 @@ gitconfig: ## configure the local git repository
 setup: tools install-hooks gitconfig ## performs common required repo setup
 
 
-##@ Tools 
-
-TOOL_TAG = azure-container-netwokring/build/tools
+##@ Tools
 
 $(TOOLS_DIR)/go.mod:
 	cd $(TOOLS_DIR); go mod init && go mod tidy
 
 $(CONTROLLER_GEN): $(TOOLS_DIR)/go.mod
-	cd $(TOOLS_DIR); go mod download; go build -tags=$(TOOL_TAG) -o bin/controller-gen sigs.k8s.io/controller-tools/cmd/controller-gen
+	cd $(TOOLS_DIR); go mod download; go build -o bin/controller-gen sigs.k8s.io/controller-tools/cmd/controller-gen
 
 controller-gen: $(CONTROLLER_GEN) ## Build controller-gen
 
-protoc: 
+protoc:
 	source ${REPO_ROOT}/scripts/install-protoc.sh
 
 $(GOCOV): $(TOOLS_DIR)/go.mod
-	cd $(TOOLS_DIR); go mod download; go build -tags=$(TOOL_TAG) -o bin/gocov github.com/axw/gocov/gocov
+	cd $(TOOLS_DIR); go mod download; go build -o bin/gocov github.com/axw/gocov/gocov
 
 gocov: $(GOCOV) ## Build gocov
 
 $(GOCOV_XML): $(TOOLS_DIR)/go.mod
-	cd $(TOOLS_DIR); go mod download; go build -tags=$(TOOL_TAG) -o bin/gocov-xml github.com/AlekSi/gocov-xml
+	cd $(TOOLS_DIR); go mod download; go build -o bin/gocov-xml github.com/AlekSi/gocov-xml
 
 gocov-xml: $(GOCOV_XML) ## Build gocov-xml
 
 $(GOFUMPT): $(TOOLS_DIR)/go.mod
-	cd $(TOOLS_DIR); go mod download; go build -tags=$(TOOL_TAG) -o bin/gofumpt mvdan.cc/gofumpt
+	cd $(TOOLS_DIR); go mod download; go build -o bin/gofumpt mvdan.cc/gofumpt
 
 gofumpt: $(GOFUMPT) ## Build gofumpt
 
 $(GOLANGCI_LINT): $(TOOLS_DIR)/go.mod
-	cd $(TOOLS_DIR); go mod download; go build -tags=$(TOOL_TAG) -o bin/golangci-lint github.com/golangci/golangci-lint/cmd/golangci-lint
+	cd $(TOOLS_DIR); go mod download; go build -o bin/golangci-lint github.com/golangci/golangci-lint/cmd/golangci-lint
 
 golangci-lint: $(GOLANGCI_LINT) ## Build golangci-lint
 
 $(GO_JUNIT_REPORT): $(TOOLS_DIR)/go.mod
-	cd $(TOOLS_DIR); go mod download; go build -tags=$(TOOL_TAG) -o bin/go-junit-report github.com/jstemmer/go-junit-report
+	cd $(TOOLS_DIR); go mod download; go build -o bin/go-junit-report github.com/jstemmer/go-junit-report
 
 go-junit-report: $(GO_JUNIT_REPORT) ## Build go-junit-report
 
 $(MOCKGEN): $(TOOLS_DIR)/go.mod
-	cd $(TOOLS_DIR); go mod download; go build -tags=$(TOOL_TAG) -o bin/mockgen github.com/golang/mock/mockgen
+	cd $(TOOLS_DIR); go mod download; go build -o bin/mockgen github.com/golang/mock/mockgen
 
 mockgen: $(MOCKGEN) ## Build mockgen
 
-clean-tools: 
+clean-tools:
 	rm -r build/tools/bin
 
 tools: acncli gocov gocov-xml go-junit-report golangci-lint gofumpt protoc ## Build bins for build tools
 
 
-##@ Help 
+##@ Help
 
 help: ## Display this help
-	@awk 'BEGIN {FS = ":.*##"; printf "\nUsage:\n  make \033[36m<target>\033[0m\n"} /^[a-zA-Z_-]+:.*?##/ { printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2 } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
+	@awk 'BEGIN {FS = ":.*##"; printf "\nUsage:\n  make \033[36m<target>\033[0m\n"} /^[0-9a-zA-Z_-]+:.*?##/ { printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2 } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)

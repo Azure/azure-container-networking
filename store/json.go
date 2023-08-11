@@ -23,7 +23,8 @@ const (
 	LockExtension = ".lock"
 
 	// DefaultLockTimeout - lock timeout in milliseconds
-	DefaultLockTimeout = 10000 * time.Millisecond
+	DefaultLockTimeout        = 10000 * time.Millisecond
+	DefaultLockTimeoutWindows = 60000 * time.Millisecond
 )
 
 // jsonFileStore is an implementation of KeyValueStore using a local JSON file.
@@ -35,8 +36,9 @@ type jsonFileStore struct {
 	sync.Mutex
 }
 
-//nolint:revive // ignoring name change
 // NewJsonFileStore creates a new jsonFileStore object, accessed as a KeyValueStore.
+//
+//nolint:revive // ignoring name change
 func NewJsonFileStore(fileName string, lockclient processlock.Interface) (KeyValueStore, error) {
 	if fileName == "" {
 		return &jsonFileStore{}, errors.New("need to pass in a json file path")
@@ -195,7 +197,7 @@ func (kvs *jsonFileStore) Lock(timeout time.Duration) error {
 		return errors.Wrap(err, "processLock acquire error")
 	}
 
-	log.Printf("Acquired process lock")
+	log.Printf("Acquired process lock with timeout value of %v ", timeout)
 	return nil
 }
 
