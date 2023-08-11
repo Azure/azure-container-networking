@@ -88,8 +88,8 @@ steps:
         set -e
         clusterName=${{ parameters.clusterName }}-$(make revision)
         echo "Restarting nodes"
-        for val in $(az vmss list -g MC_${clusterName}_${clusterName}_$(REGION_AKS_CLUSTER_TEST) --query "[].name" -o tsv); do
-          sudo make -C ./hack/aks restart-vmss AZCLI=az CLUSTER=${clusterName} REGION=$(REGION_AKS_CLUSTER_TEST) VMSS_NAME=${val}
+        for val in $(az vmss list -g MC_${clusterName}_${clusterName}_$(REGION_DUALSTACKOVERLAY_CLUSTER_TEST) --query "[].name" -o tsv); do
+          sudo make -C ./hack/aks restart-vmss AZCLI=az CLUSTER=${clusterName} REGION=$(REGION_DUALSTACKOVERLAY_CLUSTER_TEST) VMSS_NAME=${val}
         done
     displayName: "Restart Nodes"
 
