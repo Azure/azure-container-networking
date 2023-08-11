@@ -99,5 +99,6 @@ steps:
       cd test/integration/load
       sudo go test -count 1 -timeout 30m -tags load -run ^TestLoad$ -tags=load -iterations=2 -scaleup=${{ parameters.scaleup }} -os=${{ parameters.os }}
       kubectl delete ns load-test
+      make test-validate-state
     displayName: "Validate State"
     retryCountOnTaskFailure: 3
