@@ -17,7 +17,6 @@ spec:
   - additionalPrinterColumns:
     - jsonPath: .spec.vmUniqueID
       name: VMUniqueID
-      priority: 1
       type: string
     name: v1alpha1
     schema:
