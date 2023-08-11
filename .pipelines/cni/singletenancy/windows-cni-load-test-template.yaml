@@ -147,6 +147,7 @@ stages:
               os: ${{ parameters.os }}
               cni: ${{ parameters.cni }}
               iterations: ${WINDOWS_ITERATIONS}
+              nodeCount: ${{ parameters.nodeCount }}
   - stage: validate_state_windows
     pool:
       name: $(BUILD_POOL_NAME_DEFAULT)

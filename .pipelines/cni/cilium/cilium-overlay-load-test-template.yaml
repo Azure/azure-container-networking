@@ -6,7 +6,6 @@ parameters:
   nodeCount: 10
   vmSize: "Standard_DS4_v2"
 
-
 stages:
 
   - stage: createAKScluster
@@ -76,8 +75,10 @@ stages:
           - template: ../load-test-templates/pod-deployment-template.yaml
             parameters:
               clusterName: ${{ parameters.clusterName }}
-              scaleup: 2400
+              scaleup: ${CILIUM_SCALEUP}
               os: linux
+              iterations: ${CILIUM_ITERATIONS}
+              nodeCount: ${{ parameters.nodeCount }}
   - stage: validate_state
     dependsOn: pod_deployment
     displayName: "Validate State"
@@ -100,6 +101,8 @@ stages:
           - template: ../load-test-templates/restart-node-template.yaml
             parameters:
               clusterName: ${{ parameters.clusterName }}
+              nodeCount: ${{ parameters.nodeCount }}
+              scaleup: ${CILIUM_SCALEUP}
   - stage: validate_restart_state
     dependsOn: restart_nodes
     displayName: "Validate Restart State"
