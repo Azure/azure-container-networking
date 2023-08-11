@@ -1,6 +1,6 @@
 parameters:
   clusterName: ""
-  scaleup: 1000
+  scaleup: 100
   os: ""
   iterations: 4
   nodeCount: 10
