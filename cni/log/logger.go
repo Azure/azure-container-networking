@@ -47,7 +47,7 @@ func newFileLogger(cfg *Config) *zap.Logger {
 
 	core := zapcore.NewCore(jsonEncoder, logFileWriter, logLevel)
 	Logger = zap.New(core)
-	Logger = Logger.With(zap.Int("pid", os.Getgid()))
+	Logger = Logger.With(zap.Int("pid", os.Getpid()))
 
 	return Logger.Named("")
 }
