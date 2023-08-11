@@ -49,5 +49,5 @@ func newFileLogger(cfg *Config) *zap.Logger {
 	Logger = zap.New(core)
 	Logger = Logger.With(zap.Int("pid", os.Getpid()))
 
-	return Logger.Named("")
+	return Logger
 }
