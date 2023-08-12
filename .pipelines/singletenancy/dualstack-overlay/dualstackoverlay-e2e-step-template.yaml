@@ -2,6 +2,7 @@ parameters:
   name: ""
   testDropgz: ""
   clusterName: ""
+  restartCase: "true"
   cni: "dualstack"
 
 steps:
@@ -96,8 +97,8 @@ steps:
   - script: |
       make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}-$(make revision)
       kubectl get pods -A
-      make test-validate-state CNI_TYPE=${{ parameters.cni }}
-    displayName: "Validate State"
+      make test-validate-state RESTART_CASE=${{ parameters.restartCase }} CNI_TYPE=${{ parameters.cni }}
+    displayName: "Validate Node Restart"
     retryCountOnTaskFailure: 3
 
   - script: |
@@ -107,6 +108,6 @@ steps:
       kubectl rollout status ds azure-cns -n kube-system
       kubectl get pod -owide -A
       echo "validate pods after CNS restart"
-      make test-validate-state CNI_TYPE=${{ parameters.cni }}
+      make test-validate-state RESTART_CASE=${{ parameters.restartCase }} CNI_TYPE=${{ parameters.cni }}
     name: "restartCNS"
     displayName: "Restart CNS and validate pods"
