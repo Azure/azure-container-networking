@@ -1,15 +1,16 @@
 # The intention of the CODEOWNERS is that a reviewer can be automatically assigned
-# to a PR when it is opened instead of needing to be manually assigned or being left 
-# unassigned. PRs without assigned Reviewers do not get the prompt attention that 
+# to a PR when it is opened instead of needing to be manually assigned or being left
+# unassigned. PRs without assigned Reviewers do not get the prompt attention that
 # they should.
 #
-# The CODEOWNERS are not Gatekeepers, just someone who has the domain knowledge to 
-# review a PR in an area. 
+# The CODEOWNERS are not Gatekeepers, just someone who has the domain knowledge to
+# review a PR in an area.
 #
 # Rules are evaluated in this order, and the last match is used for auto-assignment.
 *           @azure/azure-sdn-members
 /.github/   @azure/acn-admins
 /cns/       @azure/acn-cns-reviewers
+/cni/       @azure/acn-cni-reviewers
 /dropgz/    @rbtr @camrynl @paulyufan2 @ashvindeodhar @thatmattlong
 /npm/       @azure/acn-npm-reviewers
 /zapai/     @rbtr @ZetaoZhuang
