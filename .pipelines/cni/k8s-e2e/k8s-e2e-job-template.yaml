@@ -20,11 +20,11 @@ jobs:
           addSpnToEnvironment: true
           inlineScript: |
             set -e
-            make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}-$(make revision)
+            make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
 
             # sig-release provides test suite tarball(s) per k8s release. Just need to provide k8s version "v1.xx.xx"
             # pulling k8s version from AKS.
-            eval k8sVersion="v"$( az aks show -g ${{ parameters.clusterName }}-$(make revision) -n ${{ parameters.clusterName }}-$(make revision) --query "currentKubernetesVersion")
+            eval k8sVersion="v"$( az aks show -g ${{ parameters.clusterName }} -n ${{ parameters.clusterName }} --query "currentKubernetesVersion")
             echo $k8sVersion
             curl -L https://dl.k8s.io/$k8sVersion/kubernetes-test-linux-amd64.tar.gz -o ./kubernetes-test-linux-amd64.tar.gz
 
@@ -38,7 +38,6 @@ jobs:
           parameters:
             testName: Datapath
             name: datapath
-            clusterName: ${{ parameters.clusterName }}
             ginkgoFocus: '(.*).Networking.should|(.*).Networking.Granular|(.*)kubernetes.api'
             ginkgoSkip: 'SCTP|Disruptive|Slow|hostNetwork|kube-proxy|IPv6'
             os: ${{ parameters.os }}
@@ -49,7 +48,6 @@ jobs:
           parameters:
             testName: DNS
             name: dns
-            clusterName: ${{ parameters.clusterName }}
             ginkgoFocus: '\[sig-network\].DNS.should'
             ginkgoSkip: 'resolv|256 search'
             os: ${{ parameters.os }}
@@ -60,7 +58,6 @@ jobs:
           parameters:
             testName: Kubectl Portforward
             name: portforward
-            clusterName: ${{ parameters.clusterName }}
             ginkgoFocus: '\[sig-cli\].Kubectl.Port'
             ginkgoSkip: ''
             os: ${{ parameters.os }}
@@ -71,7 +68,6 @@ jobs:
           parameters:
             testName: Service Conformance
             name: service
-            clusterName: ${{ parameters.clusterName }}
             ginkgoFocus: 'Services.*\[Conformance\].*'
             ginkgoSkip: ''
             os: ${{ parameters.os }}
@@ -82,7 +78,6 @@ jobs:
           parameters:
             testName: Host Port
             name: hostport
-            clusterName: ${{ parameters.clusterName }}
             ginkgoFocus: '\[sig-network\](.*)HostPort|\[sig-scheduling\](.*)hostPort'
             ginkgoSkip: 'SCTP|exists conflict' # Skip slow 5 minute test
             os: ${{ parameters.os }}
@@ -93,7 +88,6 @@ jobs:
           parameters:
             testName: Hybrid Network
             name: hybrid
-            clusterName: ${{ parameters.clusterName }}
             ginkgoFocus: '\[sig-windows\].Hybrid'
             ginkgoSkip: ''
             os: ${{ parameters.os }}
