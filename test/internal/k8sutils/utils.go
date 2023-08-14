@@ -36,8 +36,8 @@ const (
 	SubnetNameLabel        = "kubernetes.azure.com/podnetwork-subnet"
 
 	// RetryAttempts is the number of times to retry a test.
-	RetryAttempts = 30
-	RetryDelay    = 30 * time.Second
+	RetryAttempts = 90
+	RetryDelay    = 10 * time.Second
 )
 
 var Kubeconfig = flag.String("test-kubeconfig", filepath.Join(homedir.HomeDir(), ".kube", "config"), "(optional) absolute path to the kubeconfig file")

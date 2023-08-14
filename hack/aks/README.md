@@ -24,11 +24,16 @@ AKS Clusters
   byocni-up                    Alias to swift-byocni-up
   cilium-up                    Alias to swift-cilium-up
   up                           Alias to swift-up
-  overlay-up                   Bring up an Overlay AzCNI cluster
+  overlay-byocni-up            Bring up a Overlay BYO CNI cluster
+  overlay-cilium-up            Bring up a Overlay Cilium cluster
+  overlay-up                   Bring up a Overlay AzCNI cluster
   swift-byocni-up              Bring up a SWIFT BYO CNI cluster
   swift-cilium-up              Bring up a SWIFT Cilium cluster
   swift-up                     Bring up a SWIFT AzCNI cluster
+  cilium-overlay-up            Bring up a Overlay BYO CNI cluster without kube-proxy for Cilium
+  cilium-podsubnet-up          Bring up a SWIFT BYO CNI cluster without kube-proxy for Cilium
   windows-cniv1-up             Bring up a Windows AzCNIv1 cluster
+  linux-cniv1-up               Bring up a Linux AzCNIv1 cluster
   dualstack-overlay-byocni-up  Bring up an dualstack overlay cluster without CNS and CNI installed
   down                         Delete the cluster
   vmss-restart                 Restart the nodes of the cluster
