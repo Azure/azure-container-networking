@@ -7,11 +7,32 @@ parameters:
   clusterName: ""
   vmSize: ""
   k8sVersion: ""
-  windowsOsSku: ""
   os_version: ""
   scaleup: ""
+  dependsOn: ""
 
 stages:
+  - stage: ${{ parameters.clusterName }}
+    displayName: Create Cluster - ${{ parameters.displayName }}
+    dependsOn:
+      - ${{ parameters.dependsOn }}
+      - setup
+    pool:
+      name: $(BUILD_POOL_NAME_DEFAULT)
+    variables:
+      commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
+    jobs:
+      - template: ../../templates/create-cluster.yaml
+        parameters:
+          name: ${{ parameters.name }}
+          displayName: ${{ parameters.displayName }}
+          clusterType: ${{ parameters.clusterType }}
+          clusterName: ${{ parameters.clusterName }}-$(commitID)
+          vmSize: ${{ parameters.vmSize }}
+          k8sVersion: ${{ parameters.k8sVersion }}
+          dependsOn: ${{ parameters.dependsOn }}
+          region: $(REGION_AKS_CLUSTER_TEST)
+
   - stage: ${{ parameters.name }}
     displayName: E2E - ${{ parameters.displayName }}
     variables:
@@ -20,9 +41,11 @@ stages:
       modulePath: "$(GOPATH)/src/github.com/Azure/azure-container-networking"
       dropgzVersion: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.dropgzVersion'] ]
       cniVersion: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.cniVersion'] ]
+      commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
     dependsOn:
     - setup
     - publish
+    - ${{ parameters.clusterName }}
     jobs:
       - job: ${{ parameters.name }}
         displayName: Singletenancy AKS - (${{ parameters.name }})
@@ -35,13 +58,9 @@ stages:
           - template: e2e-step-template.yaml
             parameters:
               name: ${{ parameters.name }}
-              clusterType: ${{ parameters.clusterType }}
-              clusterName: ${{ parameters.clusterName }}
-              vmSize: ${{ parameters.vmSize }}
+              clusterName: ${{ parameters.clusterName }}-$(commitID)
               arch: ${{ parameters.arch }}
               os: ${{ parameters.os }}
-              k8sVersion: ${{ parameters.k8sVersion }}
-              windowsOsSku: ${{ parameters.windowsOsSku }}
               os_version: ${{ parameters.os_version }}
               version: $(dropgzVersion)
               cniVersion: $(cniVersion)
@@ -50,7 +69,7 @@ stages:
       - template: ../../cni/k8s-e2e/k8s-e2e-job-template.yaml
         parameters:
           sub: $(AZURE_TEST_AGENT_SERVICE_CONNECTION)
-          clusterName: ${{ parameters.clusterName }}
+          clusterName: ${{ parameters.clusterName }}-$(commitID)
           os: ${{ parameters.os }}
           datapath: true
           dns: true
@@ -59,29 +78,3 @@ stages:
           service: true
           hostport: true
           dependsOn: ${{ parameters.name }}
-
-      - job: cleanup
-        displayName: "Cleanup"
-        dependsOn:
-        - ${{ parameters.name }}
-        - "cni_k8se2e"
-        pool:
-          name: $(BUILD_POOL_NAME_DEFAULT)
-        condition: always()
-        steps:
-          - task: AzureCLI@1
-            inputs:
-              azureSubscription: $(AZURE_TEST_AGENT_SERVICE_CONNECTION)
-              scriptLocation: "inlineScript"
-              scriptType: "bash"
-              addSpnToEnvironment: true
-              inlineScript: |
-                set -e
-                echo "Deleting cluster"
-                make -C ./hack/aks azcfg AZCLI=az REGION=$(REGION_AKS_CLUSTER_TEST)
-                make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}-$(make revision)
-                make -C ./hack/aks down AZCLI=az REGION=$(REGION_AKS_CLUSTER_TEST) SUB=$(SUB_AZURE_NETWORK_AGENT_TEST) CLUSTER=${{ parameters.clusterName }}-$(make revision)
-                echo "Cluster and resources down"
-            displayName: "Delete test cluster"
-
-

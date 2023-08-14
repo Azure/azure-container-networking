@@ -1,7 +1,6 @@
 parameters:
   testName: ""
   name: ""
-  clusterName: ""
   ginkgoFocus: ""
   ginkgoSkip: ""
   os: ""

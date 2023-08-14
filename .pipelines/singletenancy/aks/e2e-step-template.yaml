@@ -1,14 +1,8 @@
 parameters:
   name: ""
-  clusterType: ""
   clusterName: ""
-  nodeCount: ""
-  vmSize: ""
-  k8sVersion: ""
-  version: ""
+  arch: ""
   os: ""
-  windowsOsSku: ""
-  cniVersion: ""
   os_version: ""
   scaleup: ""
 
@@ -31,28 +25,21 @@ steps:
       addSpnToEnvironment: true
       inlineScript: |
         set -e
-        mkdir -p ~/.kube/
-        echo "Create AKS cluster"
-        echo "parameters ${{ parameters.windowsOsSku }}"
-        make -C ./hack/aks azcfg AZCLI=az REGION=$(REGION_AKS_CLUSTER_TEST)
-        make -C ./hack/aks ${{ parameters.clusterType }} AZCLI=az REGION=$(REGION_AKS_CLUSTER_TEST) SUB=$(SUB_AZURE_NETWORK_AGENT_TEST) CLUSTER=${{ parameters.clusterName }}-$(make revision) K8S_VER=${{ parameters.k8sVersion }} VM_SIZE=${{ parameters.vmSize }} WINDOWS_OS_SKU=${{ parameters.windowsOsSku }} WINDOWS_VM_SKU=${{ parameters.vmSize }} WINDOWS_USERNAME=${WINDOWS_USERNAME} WINDOWS_PASSWORD=${WINDOWS_PASSWORD}
-        echo "Cluster successfully created"
-    displayName: Create test cluster
-  - script: |
-      echo "Upload CNI"
-      if [ "${{parameters.os}}" == "windows" ]; then
-        export DROP_GZ_URL=$( make cni-dropgz-test-image-name-and-tag OS='linux' ARCH=${{ parameters.arch }} CNI_DROPGZ_VERSION=${{ parameters.version }})
-        envsubst < ./test/integration/manifests/cni/cni-installer-v1.yaml | kubectl apply -f -
-        kubectl rollout status daemonset/azure-cni -n kube-system
-        echo "Deploying on windows nodes"
-        export DROP_GZ_URL=$( make cni-dropgz-test-image-name-and-tag OS='windows' ARCH=${{ parameters.arch }}  OS_VERSION=${{ parameters.os_version }} CNI_DROPGZ_VERSION=${{ parameters.version }})
-        envsubst < ./test/integration/manifests/cni/cni-installer-v1-windows.yaml | kubectl apply -f -
-        kubectl rollout status daemonset/azure-cni-windows -n kube-system
-      else
-        export DROP_GZ_URL=$( make cni-dropgz-test-image-name-and-tag OS=${{ parameters.os }} ARCH=${{ parameters.arch }} CNI_DROPGZ_VERSION=${{ parameters.version }})
-        envsubst < ./test/integration/manifests/cni/cni-installer-v1.yaml | kubectl apply -f -
-        kubectl rollout status daemonset/azure-cni -n kube-system
-      fi
+        make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
+        echo "Upload CNI"
+        if [ "${{parameters.os}}" == "windows" ]; then
+          export DROP_GZ_URL=$( make cni-dropgz-test-image-name-and-tag OS='linux' ARCH=${{ parameters.arch }} CNI_DROPGZ_VERSION=${{ parameters.version }})
+          envsubst < ./test/integration/manifests/cni/cni-installer-v1.yaml | kubectl apply -f -
+          kubectl rollout status daemonset/azure-cni -n kube-system
+          echo "Deploying on windows nodes"
+          export DROP_GZ_URL=$( make cni-dropgz-test-image-name-and-tag OS='windows' ARCH=${{ parameters.arch }}  OS_VERSION=${{ parameters.os_version }} CNI_DROPGZ_VERSION=${{ parameters.version }})
+          envsubst < ./test/integration/manifests/cni/cni-installer-v1-windows.yaml | kubectl apply -f -
+          kubectl rollout status daemonset/azure-cni-windows -n kube-system
+        else
+          export DROP_GZ_URL=$( make cni-dropgz-test-image-name-and-tag OS=${{ parameters.os }} ARCH=${{ parameters.arch }} CNI_DROPGZ_VERSION=${{ parameters.version }})
+          envsubst < ./test/integration/manifests/cni/cni-installer-v1.yaml | kubectl apply -f -
+          kubectl rollout status daemonset/azure-cni -n kube-system
+        fi
     name: "UploadCni"
     displayName: "Upload CNI"
   - task: AzureCLI@1
@@ -63,7 +50,7 @@ steps:
       addSpnToEnvironment: true
       inlineScript: |
         set -e
-        clusterName=${{ parameters.clusterName }}-$(make revision)
+        clusterName=${{ parameters.clusterName }}
         echo "Restarting nodes"
         for val in $(az vmss list -g MC_${clusterName}_${clusterName}_$(REGION_AKS_CLUSTER_TEST) --query "[].name" -o tsv); do
           make -C ./hack/aks restart-vmss AZCLI=az CLUSTER=${clusterName} REGION=$(REGION_AKS_CLUSTER_TEST) VMSS_NAME=${val}
