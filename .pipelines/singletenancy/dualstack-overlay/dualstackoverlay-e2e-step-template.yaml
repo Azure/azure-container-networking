@@ -95,7 +95,6 @@ steps:
     displayName: "Restart Nodes"
 
   - script: |
-      make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}-$(make revision)
       kubectl get pods -A
       make test-validate-state RESTART_CASE=${{ parameters.restartCase }} CNI_TYPE=${{ parameters.cni }}
     displayName: "Validate Node Restart"
