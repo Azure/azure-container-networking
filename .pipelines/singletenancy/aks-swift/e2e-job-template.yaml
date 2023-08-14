@@ -1,19 +1,45 @@
 parameters:
   name: ""
   displayName: ""
-  pipelineBuildImage: "$(BUILD_IMAGE)"
   testDropgz: ""
+  clusterType: ""
   clusterName: ""
-  osSku: ""
+  vmSize: ""
+  k8sVersion: ""
+  dependsOn: ""
+
 stages:
+  - stage: ${{ parameters.clusterName }}
+    displayName: Create Cluster - ${{ parameters.displayName }}
+    dependsOn:
+      - ${{ parameters.dependsOn }}
+      - setup
+    pool:
+      name: $(BUILD_POOL_NAME_DEFAULT)
+    variables:
+      commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
+    jobs:
+      - template: ../../templates/create-cluster.yaml
+        parameters:
+          name: ${{ parameters.name }}
+          displayName: ${{ parameters.displayName }}
+          clusterType: ${{ parameters.clusterType }}
+          clusterName: ${{ parameters.clusterName }}-$(commitID)
+          vmSize: ${{ parameters.vmSize }}
+          k8sVersion: ${{ parameters.k8sVersion }}
+          dependsOn: ${{ parameters.dependsOn }}
+          region: $(REGION_AKS_CLUSTER_TEST)
+
   - stage: ${{ parameters.name }}
     displayName: E2E - ${{ parameters.displayName }}
-    dependsOn: 
+    dependsOn:
     - setup
     - publish
+    - ${{ parameters.clusterName }}
     variables:
       TAG: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
       CURRENT_VERSION: $[ stagedependencies.containerize.check_tag.outputs['CurrentTagManifests.currentTagManifests'] ]
+      commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
     condition: and(succeeded(), eq(variables.TAG, variables.CURRENT_VERSION))
     jobs:
       - job: ${{ parameters.name }}
@@ -21,7 +47,7 @@ stages:
         timeoutInMinutes: 120
         pool:
           name: $(BUILD_POOL_NAME_DEFAULT)
-          demands: 
+          demands:
           - agent.os -equals Linux
           - Role -equals $(CUSTOM_E2E_ROLE)
         variables:
@@ -33,5 +59,4 @@ stages:
             parameters:
               name: ${{ parameters.name }}
               testDropgz: ${{ parameters.testDropgz }}
-              clusterName: ${{ parameters.clusterName }}
-              osSku: ${{ parameters.osSku }}
+              clusterName: ${{ parameters.clusterName }}-$(commitID)

@@ -32,8 +32,10 @@ stages:
           name: "$(BUILD_POOL_NAME_DEFAULT)"
         steps:
           - script: |
+              # To use the variables below, you must make the respective stage's dependsOn have - setup or it will not retain context of this stage
               BUILD_NUMBER=$(Build.BuildNumber)
               echo "##vso[task.setvariable variable=StorageID;isOutput=true]$(echo ${BUILD_NUMBER//./-})"
+              echo "##vso[task.setvariable variable=commitID;isOutput=true]$(make revision)"
               echo "##vso[task.setvariable variable=Tag;isOutput=true]$(make version)"
               echo "##vso[task.setvariable variable=cniVersion;isOutput=true]$(make cni-version)"
               echo "##vso[task.setvariable variable=npmVersion;isOutput=true]$(make npm-version)"
@@ -313,34 +315,45 @@ stages:
     parameters:
       name: "cilium_e2e"
       displayName: Cilium
-      pipelineBuildImage: "$(BUILD_IMAGE)"
       testDropgz: ""
+      clusterType: cilium-podsubnet-up
       clusterName: "ciliume2e"
+      vmSize: Standard_B2ms
+      k8sVersion: ""
+      dependsOn: 'containerize'
 
   - template: singletenancy/cilium-overlay/cilium-overlay-e2e-job-template.yaml
     parameters:
       name: "cilium_overlay_cilium_e2e"
       displayName: Cilium on AKS Overlay
-      pipelineBuildImage: "$(BUILD_IMAGE)"
       testDropgz: ""
+      clusterType: cilium-overlay-up
       clusterName: "overlaye2e"
+      vmSize: Standard_B2ms
+      k8sVersion: ""
+      dependsOn: 'containerize'
 
   - template: singletenancy/azure-cni-overlay/azure-cni-overlay-e2e-job-template.yaml
     parameters:
       name: "azure_cni_overlay_e2e"
       displayName: Azure CNI Overlay
-      pipelineBuildImage: "$(BUILD_IMAGE)"
       testDropgz: ""
+      clusterType: overlay-byocni-up
       clusterName: "azurecnioverlaye2e"
+      vmSize: Standard_B2ms
+      k8sVersion: ""
+      dependsOn: 'containerize'
 
   - template: singletenancy/aks-swift/e2e-job-template.yaml
     parameters:
       name: "aks_swift_e2e"
       displayName: AKS Swift Ubuntu
-      pipelineBuildImage: "$(BUILD_IMAGE)"
       testDropgz: ""
+      clusterType: swift-byocni-up
       clusterName: "swifte2e"
-      osSku: "Ubuntu"
+      vmSize: Standard_B2s
+      k8sVersion: ""
+      dependsOn: 'containerize'
 
   - template: singletenancy/aks/e2e-job-template.yaml
     parameters:
@@ -353,6 +366,7 @@ stages:
       vmSize: Standard_B2s
       k8sVersion: 1.25
       scaleup: 100
+      dependsOn: 'containerize'
 
   - template: singletenancy/aks/e2e-job-template.yaml
     parameters:
@@ -363,17 +377,69 @@ stages:
       clusterType: windows-cniv1-up
       clusterName: 'win22e2e'
       vmSize: Standard_B2ms
-      windowsOsSku: 'Windows2022'
       os_version: 'ltsc2022'
-      scaleup: 100
+      scaleup: 50
+      dependsOn: 'containerize'
 
   - template: singletenancy/dualstack-overlay/dualstackoverlay-e2e-job-template.yaml
     parameters:
       name: "dualstackoverlay_e2e"
       displayName: AKS DualStack Overlay
       os: linux
-      testDropgz: true
+      clusterType: dualstack-overlay-byocni-up
       clusterName: "dualstackoverlaye2e"
+      vmSize: Standard_B2s
+      dependsOn: 'containerize'
+      testDropgz: true
+
+  - stage: delete
+    displayName: Delete Clusters
+    condition: always()
+    dependsOn:
+      - setup
+      - "azure_cni_overlay_e2e"
+      - "aks_swift_e2e"
+      - "cilium_e2e"
+      - "cilium_overlay_cilium_e2e"
+      - "aks_ubuntu_22_linux_e2e"
+      - "aks_windows_22_e2e"
+      - "dualstackoverlay_e2e"
+    variables:
+      commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
+    jobs:
+      - job: delete
+        displayName: Delete Cluster
+        pool:
+          name: "$(BUILD_POOL_NAME_DEFAULT)"
+        strategy:
+          matrix:
+            cilium_e2e:
+              name: cilium_e2e
+              clusterName: 'ciliume2e'
+            cilium_overlay_cilium_e2e:
+              name: cilium_overlay_cilium_e2e
+              clusterName: 'overlaye2e'
+            azure_cni_overlay_e2e:
+              name: azure_cni_overlay_e2e
+              clusterName: 'azurecnioverlaye2e'
+            aks_swift_e2e:
+              name: aks_swift_e2e
+              clusterName: 'swifte2e'
+            aks_ubuntu_22_linux_e2e:
+              name: aks_ubuntu_22_linux_e2e
+              clusterName: 'ubuntu22e2e'
+            aks_windows_22_e2e:
+              name: aks_windows_22_e2e
+              clusterName: 'win22e2e'
+            dualstackoverlay_e2e:
+              name: dualstackoverlay_e2e
+              clusterName: 'dualstackoverlaye2e'
+        steps:
+          - template: templates/delete-cluster.yaml
+            parameters:
+              name: $(name)
+              clusterName: $(clusterName)-$(commitID)
+              region: $(REGION_AKS_CLUSTER_TEST)
 
   - stage: validate2
     displayName: Validate Tags
@@ -398,6 +464,7 @@ stages:
   - stage: cleanup
     displayName: Cleanup
     dependsOn:
+      - "azure_cni_overlay_e2e"
       - "aks_swift_e2e"
       - "cilium_e2e"
       - "cilium_overlay_cilium_e2e"
