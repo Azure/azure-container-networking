@@ -1,23 +1,50 @@
 parameters:
   name: ""
   displayName: ""
-  pipelineBuildImage: "$(BUILD_IMAGE)"
   testDropgz: ""
+  clusterType: ""
   clusterName: ""
+  vmSize: ""
+  k8sVersion: ""
+  dependsOn: ""
 
 stages:
+  - stage: ${{ parameters.clusterName }}
+    displayName: Create Cluster - ${{ parameters.displayName }}
+    dependsOn:
+      - ${{ parameters.dependsOn }}
+      - setup
+    pool:
+      name: $(BUILD_POOL_NAME_DEFAULT)
+    variables:
+      commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
+    jobs:
+      - template: ../../templates/create-cluster.yaml
+        parameters:
+          name: ${{ parameters.name }}
+          displayName: ${{ parameters.displayName }}
+          clusterType: ${{ parameters.clusterType }}
+          clusterName: ${{ parameters.clusterName }}-$(commitID)
+          vmSize: ${{ parameters.vmSize }}
+          k8sVersion: ${{ parameters.k8sVersion }}
+          dependsOn: ${{ parameters.dependsOn }}
+          region: $(REGION_AKS_CLUSTER_TEST)
+
   - stage: ${{ parameters.name }}
     displayName: E2E - ${{ parameters.displayName }}
-    dependsOn: 
+    dependsOn:
     - setup
     - publish
+    - ${{ parameters.clusterName }}
+    variables:
+      commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
     jobs:
       - job: ${{ parameters.name }}
         displayName: Azure CNI Overlay Test Suite - (${{ parameters.name }})
         timeoutInMinutes: 120
         pool:
           name: $(BUILD_POOL_NAME_DEFAULT)
-          demands: 
+          demands:
           - agent.os -equals Linux
           - Role -equals $(CUSTOM_E2E_ROLE)
         variables:
@@ -29,4 +56,4 @@ stages:
             parameters:
               name: ${{ parameters.name }}
               testDropgz: ${{ parameters.testDropgz }}
-              clusterName: ${{ parameters.clusterName }}
+              clusterName: ${{ parameters.clusterName }}-$(commitID)
