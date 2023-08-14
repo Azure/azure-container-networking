@@ -25,7 +25,7 @@ spec:
       name: Address Prefixes
       priority: 1
       type: string
-    - jsonPath: .spec.vnetGuid
+    - jsonPath: .spec.vnetGUID
       name: Network
       priority: 1
       type: string
@@ -54,9 +54,9 @@ spec:
             description: PodNetworkSpec defines the desired state of PodNetwork
             properties:
               subnetResourceID:
-                description: customer subnet name
+                description: customer subnet id
                 type: string
-              vnetGuid:
+              vnetGUID:
                 description: customer vnet guid
                 type: string
             type: object

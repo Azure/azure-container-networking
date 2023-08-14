@@ -17,7 +17,7 @@ import (
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="Status",type=string,priority=1,JSONPath=`.status.status`
 // +kubebuilder:printcolumn:name="Address Prefixes",type=string,priority=1,JSONPath=`.status.addressPrefixes`
-// +kubebuilder:printcolumn:name="Network",type=string,priority=1,JSONPath=`.spec.vnetGuid`
+// +kubebuilder:printcolumn:name="Network",type=string,priority=1,JSONPath=`.spec.vnetGUID`
 // +kubebuilder:printcolumn:name="Subnet",type=string,priority=1,JSONPath=`.spec.subnetResourceID`
 type PodNetwork struct {
 	metav1.TypeMeta   `json:",inline"`
@@ -41,7 +41,7 @@ type PodNetworkSpec struct {
 	// +kubebuilder:validation:Optional
 	// customer vnet guid
 	VnetGUID string `json:"vnetGUID,omitempty"`
-	// customer subnet name
+	// customer subnet id
 	SubnetResourceID string `json:"subnetResourceID,omitempty"`
 }
 
