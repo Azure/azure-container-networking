@@ -2,7 +2,7 @@
 
 ### Introduction
 
-In AKS with Azure CNI, the Azure CNS service manages the CNI IPAM. The `azure-vnet` CNI plugin (and any CNI using delegated IPAM through `azure-ipam`) makes IP requests to the CNS API to request an IP during Pod createion or to release an IP during Pod deletion. The CNS API is a synchronous API, which means that the IP request is not completed until the IP is allocated or released in CNS internal IPAM state.
+In AKS with Azure CNI, the Azure CNS service manages the CNI IPAM. The `azure-vnet` CNI plugin (and any CNI using delegated IPAM through `azure-ipam`) makes IP requests to the CNS API to request an IP during Pod creation or to release an IP during Pod deletion. The CNS API is a synchronous API, which means that the IP request is not completed until the IP is allocated or released in CNS internal IPAM state.
 
 There is a deadlock scenario possible when the CNS API is not available (due to daemonset rollouts or for other reason):
 If the Node is fully saturated with Pods (scheduled pods == maxPods), and CNS is not running (a CNS daemonset rollout _deletes_ the existing Pod, then schedules the upgraded Pod), the scheduler will attempt to preempt a low priority Pod to make room for the CNS Pod. However, with no CNS Pod currently running, the CNI delete call will fail, and the Pod will be stuck in the `Terminating` state since the CRI cannot clean up the netns. The scheduler will not be able to schedule the CNS Pod, and the Node will deadlock without manual intervention to decrease the Pod pressure.
