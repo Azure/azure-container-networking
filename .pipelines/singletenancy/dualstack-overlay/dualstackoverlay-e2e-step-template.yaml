@@ -2,6 +2,7 @@ parameters:
   name: ""
   testDropgz: ""
   clusterName: ""
+  cni: "dualstack"
 
 steps:
   - bash: |
@@ -14,6 +15,7 @@ steps:
       echo '##vso[task.prependpath]$(GOROOT)/bin'
     name: "GoEnv"
     displayName: "Set up the Go environment"
+
   - task: AzureCLI@2
     inputs:
       azureSubscription: $(AZURE_TEST_AGENT_SERVICE_CONNECTION)
@@ -21,27 +23,15 @@ steps:
       scriptType: "bash"
       addSpnToEnvironment: true
       inlineScript: |
-        echo "Check az version"
-        az version
-        echo "Install az cli extension preview"
-        az extension add --name aks-preview
-        az extension update --name aks-preview
-        mkdir -p ~/.kube/
-        echo "Create AKS DualStack Overlay cluster"
-        make -C ./hack/aks azcfg AZCLI=az REGION=$(REGION_DUALSTACKOVERLAY_CLUSTER_TEST)
-        make -C ./hack/aks dualstack-overlay-byocni-up AZCLI=az REGION=$(REGION_DUALSTACKOVERLAY_CLUSTER_TEST) SUB=$(SUB_AZURE_NETWORK_AGENT_TEST) CLUSTER=${{ parameters.clusterName }}-$(make revision)
-        echo "Dualstack Overlay Cluster is successfully created"
-    displayName: Create DualStackOverlay cluster
-    condition: succeeded()
-
-  - script: |
-      ls -lah
-      pwd
-      echo "installing kubectl"
-      curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-      sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
-      kubectl cluster-info
-      kubectl get po -owide -A
+        set -e
+        make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
+        ls -lah
+        pwd
+        echo "installing kubectl"
+        curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+        sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+        kubectl cluster-info
+        kubectl get po -owide -A
     retryCountOnTaskFailure: 3
     name: "installKubectl"
     displayName: "Install Kubectl"
@@ -68,7 +58,7 @@ steps:
       echo "DualStack Overlay Linux control plane Load test"
       sudo go test -timeout 30m -tags load -run ^TestLoad$ -tags=load
       echo "DualStack Overlay Linux control plane CNS validation test"
-      sudo go test -timeout 30m -tags load -cni dualstack -run ^TestValidateState$ -tags=load
+      make test-validate-state OS=${{ parameters.os }} CNI_TYPE=${{ parameters.cni }}
       cd ../datapath
       echo "Dualstack Overlay Linux datapath IPv6 test"
       sudo go test -count=1 datapath_linux_test.go -timeout 1m -tags connection -run ^TestDatapathLinux$ -tags=connection,integration -isDualStack=true
