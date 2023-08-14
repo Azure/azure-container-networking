@@ -11,6 +11,8 @@ const (
 	EnvNodeName = "NODENAME"
 	// EnvNodeIP is the IP of the node running this CNS binary
 	EnvNodeIP = "NODE_IP"
+	// LabelSwiftV2 is the Node label for Swift V2
+	LabelSwiftV2 = "swiftv2" // TODO(rbtr): update with real label
 )
 
 // ErrNodeNameUnset indicates the the $EnvNodeName variable is unset in the environment.
