@@ -94,12 +94,18 @@ steps:
         done
     displayName: "Restart Nodes"
 
-  - script: |
-      clusterName=${{ parameters.clusterName }}-$(make revision)
-      make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${clusterName}
-      make -C ./hack/aks azcfg AZCLI=az REGION=$(REGION_DUALSTACKOVERLAY_CLUSTER_TEST)
-      kubectl get pods -A
-      make test-validate-state RESTART_CASE=${{ parameters.restartCase }} CNI_TYPE=${{ parameters.cni }}
+  - task: AzureCLI@1
+    inputs:
+      azureSubscription: $(AZURE_TEST_AGENT_SERVICE_CONNECTION)
+      scriptLocation: "inlineScript"
+      scriptType: "bash"
+      addSpnToEnvironment: true
+      inlineScript: |
+        clusterName=${{ parameters.clusterName }}-$(make revision)
+        make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${clusterName}
+        make -C ./hack/aks azcfg AZCLI=az REGION=$(REGION_DUALSTACKOVERLAY_CLUSTER_TEST)
+        kubectl get pods -A
+        make test-validate-state RESTART_CASE=${{ parameters.restartCase }} CNI_TYPE=${{ parameters.cni }}
     displayName: "Validate Node Restart"
     retryCountOnTaskFailure: 3
 
