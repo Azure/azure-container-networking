@@ -39,10 +39,8 @@ type PodNetworkInstanceList struct {
 
 // PodNetworkInstanceSpec defines the desired state of PodNetworkInstance
 type PodNetworkInstanceSpec struct {
-	// +kubebuilder:default=0
-	// +kubebuilder:validation:Optional
 	// pod network resource object name
-	PodNetwork string `json:"podnetwork,omitempty"`
+	PodNetwork string `json:"podnetwork"`
 	// number of backend IP address to reserve for running pods
 	// +kubebuilder:default=0
 	PodIPReservationSize int `json:"podIPReservationSize"`
@@ -50,7 +48,6 @@ type PodNetworkInstanceSpec struct {
 
 // PodNetworkInstanceStatus defines the observed state of PodNetworkInstance
 type PodNetworkInstanceStatus struct {
-	// +kubebuilder:validation:Optional
 	PodIPAddresses []string `json:"podIPAddresses,omitempty"`
 }
 
