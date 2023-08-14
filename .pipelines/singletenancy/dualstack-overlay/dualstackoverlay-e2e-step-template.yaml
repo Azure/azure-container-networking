@@ -2,6 +2,8 @@ parameters:
   name: ""
   testDropgz: ""
   clusterName: ""
+  restartCase: "true"
+  cni: "dualstack"
 
 steps:
   - bash: |
@@ -68,7 +70,7 @@ steps:
       echo "DualStack Overlay Linux control plane Load test"
       sudo go test -timeout 30m -tags load -run ^TestLoad$ -tags=load
       echo "DualStack Overlay Linux control plane CNS validation test"
-      sudo go test -timeout 30m -tags load -cni dualstack -run ^TestValidateState$ -tags=load
+      make test-validate-state CNI_TYPE=${{ parameters.cni }}
       cd ../datapath
       echo "Dualstack Overlay Linux datapath IPv6 test"
       sudo go test -count=1 datapath_linux_test.go -timeout 1m -tags connection -run ^TestDatapathLinux$ -tags=connection,integration -isDualStack=true
@@ -93,8 +95,11 @@ steps:
     displayName: "Restart Nodes"
 
   - script: |
+      clusterName=${{ parameters.clusterName }}-$(make revision)
+      make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${clusterName}
+      make -C ./hack/aks azcfg AZCLI=az REGION=$(REGION_DUALSTACKOVERLAY_CLUSTER_TEST)
       kubectl get pods -A
-      sudo go test -timeout 30m -tags load -cni dualstack -run ^TestValidateState$ -tags=load
+      make test-validate-state RESTART_CASE=${{ parameters.restartCase }} CNI_TYPE=${{ parameters.cni }}
     displayName: "Validate Node Restart"
     retryCountOnTaskFailure: 3
 
@@ -105,6 +110,6 @@ steps:
       kubectl rollout status ds azure-cns -n kube-system
       kubectl get pod -owide -A
       echo "validate pods after CNS restart"
-      sudo go test -timeout 30m -tags load -cni dualstack -run ^TestValidateState$ -tags=load
+      make test-validate-state CNI_TYPE=${{ parameters.cni }}
     name: "restartCNS"
     displayName: "Restart CNS and validate pods"
