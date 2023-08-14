@@ -3,6 +3,7 @@ package log
 import (
 	"context"
 	"fmt"
+	"os"
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -46,6 +47,7 @@ func newFileLogger(cfg *Config) *zap.Logger {
 
 	core := zapcore.NewCore(jsonEncoder, logFileWriter, logLevel)
 	Logger = zap.New(core)
+	Logger = Logger.With(zap.Int("pid", os.Getpid()))
 
-	return Logger.Named(cfg.Name)
+	return Logger
 }
