@@ -264,3 +264,6 @@ down: ## Delete the cluster
 
 restart-vmss: ## Restarts the nodes in the cluster
 	$(AZCLI) vmss restart -g MC_${GROUP}_${CLUSTER}_${REGION} --name $(VMSS_NAME)
+
+scale-vmss: ## Scales the nodes in the cluster
+	$(AZCLI) vmss scale -g MC_${GROUP}_${CLUSTER}_${REGION} --name $(VMSS_NAME) --new-capacity $(NODE_COUNT)
