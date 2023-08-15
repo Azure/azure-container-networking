@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"strconv"
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -52,5 +51,5 @@ func newFileLogger(cfg *Config) *zap.Logger {
 	Logger = Logger.With(zap.Int("pid", os.Getpid()))
 	Logger = Logger.With(zap.String("component", cfg.Component))
 
-	return Logger.Named("pid").Named(strconv.Itoa(os.Getpid()))
+	return Logger
 }
