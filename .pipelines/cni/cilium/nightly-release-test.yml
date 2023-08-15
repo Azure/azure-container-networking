@@ -77,6 +77,7 @@ stages:
           dependsOn: ""
           region: $(LOCATION)
       - job: cilium_nightly
+        displayName: Cilium Overlay Nightly E2E
         dependsOn:
           - cilium_overlay_nightly
         pool:
@@ -89,6 +90,7 @@ stages:
             clusterName: ciliumnightly-$(commitID)
       - job: delete
         displayName: Delete Cluster
+        condition: always()
         dependsOn:
           - cilium_nightly
         pool:
