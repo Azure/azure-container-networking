@@ -12,7 +12,7 @@ const (
 	// EnvNodeIP is the IP of the node running this CNS binary
 	EnvNodeIP = "NODE_IP"
 	// LabelSwiftV2 is the Node label for Swift V2
-	LabelSwiftV2 = "swiftv2" // TODO(rbtr): update with real label
+	LabelSwiftV2 = "kubernetes.azure.com/podnetwork-multi-tenancy"
 )
 
 // ErrNodeNameUnset indicates the the $EnvNodeName variable is unset in the environment.
