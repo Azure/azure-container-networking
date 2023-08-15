@@ -29,7 +29,7 @@ const (
 	configExtension                   = ".config"
 	maxLogFileSizeInMb                = 5
 	maxLogFileCount                   = 8
-	component                         = "telemetry"
+	component                         = "cni"
 )
 
 var version string
