@@ -1,0 +1,28 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: container6
+  namespace: default
+spec:
+  selector:
+    matchLabels:
+      app: container6
+  replicas: 3
+  template: # create pods using pod definition in this template
+    metadata:
+      # unlike pod-nginx.yaml, the name is not included in the meta data as a unique name is
+      # generated from the deployment name
+      labels:
+        app: container6
+        netperf: "true"
+    spec:
+      nodeSelector:
+        netperf: "true"
+      containers:
+      - name: ubuntu
+        image: tamilmani1989/ubuntu18-tools
+        imagePullPolicy: Always
+        command: ["/bin/sh","-c"]
+        args: ["echo helloworld>hello.txt; php -S 0.0.0.0:9568"]
+        securityContext:
+          privileged: true
