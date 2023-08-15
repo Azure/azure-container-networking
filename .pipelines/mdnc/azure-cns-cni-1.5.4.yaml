@@ -96,7 +96,7 @@ spec:
           effect: NoSchedule
       initContainers:
         - name: init-cni-dropgz
-          image: "acnpublic.azurecr.io/containernetworking/mdnc-cni-dropgz:cni_v1_4_35"
+          image: "mcr.microsoft.com/containernetworking/cni-dropgz:v0.0.9" # CNI 1.5.4
           imagePullPolicy: IfNotPresent
           command: ["/dropgz"]
           args: ["deploy" , "azure-vnet", "-o", "/opt/cni/bin/azure-vnet", "azure-vnet-telemetry", "-o", "/opt/cni/bin/azure-vnet-telemetry", "azure-swift.conflist", "-o", "/etc/cni/net.d/10-azure.conflist"]
@@ -107,7 +107,7 @@ spec:
               mountPath: /etc/cni/net.d
       containers:
         - name: cns-container
-          image: mcr.microsoft.com/containernetworking/azure-cns:v1.4.32
+          image: mcr.microsoft.com/containernetworking/azure-cns:v1.5.4
           imagePullPolicy: IfNotPresent
           args: [ "-c", "tcp://$(CNSIpAddress):$(CNSPort)", "-t", "$(CNSLogTarget)"]
           volumeMounts:
