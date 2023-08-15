@@ -99,21 +99,7 @@ overlay-byocni-up: rg-up overlay-net-up ## Brings up an Overlay BYO CNI cluster
 		--yes
 	@$(MAKE) set-kubeconf
 
-overlay-no-kube-proxy-up: rg-up overlay-net-up ## Brings up an Overlay BYO CNI cluster without kube-proxy for Cilium
-	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
-		--node-count $(NODE_COUNT) \
-		--node-vm-size $(VM_SIZE) \
-		--load-balancer-sku basic \
-		--network-plugin none \
-		--network-plugin-mode overlay \
-		--pod-cidr 192.168.0.0/16 \
-		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
-		--no-ssh-key \
-		--kube-proxy-config ./kube-proxy.json \
-		--yes
-	@$(MAKE) set-kubeconf
-
-overlay-cilium-up: rg-up overlay-net-up ## Brings up an Overlay AzCNI cluster
+overlay-cilium-up: rg-up overlay-net-up ## Brings up an Overlay Cilium cluster
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
 		--node-count $(NODE_COUNT) \
 		--node-vm-size $(VM_SIZE) \
@@ -153,19 +139,6 @@ swift-byocni-up: rg-up swift-net-up ## Bring up a SWIFT BYO CNI cluster
 		--yes
 	@$(MAKE) set-kubeconf
 
-swift-no-kube-proxy-up: rg-up swift-net-up ## Bring up a SWIFT BYO CNI cluster without kube-proxy for Cilium
-	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
-		--node-count $(NODE_COUNT) \
-		--node-vm-size $(VM_SIZE) \
-		--load-balancer-sku basic \
-		--network-plugin none \
-		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
-		--pod-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/podnet \
-		--no-ssh-key \
-		--os-sku $(OS_SKU) \
-		--kube-proxy-config ./kube-proxy.json \
-		--yes
-	@$(MAKE) set-kubeconf
 
 swift-cilium-up: rg-up swift-net-up ## Bring up a SWIFT Cilium cluster
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
@@ -190,6 +163,34 @@ swift-up: rg-up swift-net-up ## Bring up a SWIFT AzCNI cluster
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
 		--pod-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/podnet \
 		--no-ssh-key \
+		--yes
+	@$(MAKE) set-kubeconf
+
+cilium-overlay-up: rg-up overlay-net-up ## Brings up an Overlay BYO CNI cluster without kube-proxy for Cilium
+	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
+		--node-count $(NODE_COUNT) \
+		--node-vm-size $(VM_SIZE) \
+		--load-balancer-sku basic \
+		--network-plugin none \
+		--network-plugin-mode overlay \
+		--pod-cidr 192.168.0.0/16 \
+		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
+		--no-ssh-key \
+		--kube-proxy-config ./kube-proxy.json \
+		--yes
+	@$(MAKE) set-kubeconf
+
+cilium-podsubnet-up: rg-up swift-net-up ## Bring up a SWIFT BYO CNI cluster without kube-proxy for Cilium
+	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
+		--node-count $(NODE_COUNT) \
+		--node-vm-size $(VM_SIZE) \
+		--load-balancer-sku basic \
+		--network-plugin none \
+		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
+		--pod-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/podnet \
+		--no-ssh-key \
+		--os-sku $(OS_SKU) \
+		--kube-proxy-config ./kube-proxy.json \
 		--yes
 	@$(MAKE) set-kubeconf
 
@@ -263,3 +264,6 @@ down: ## Delete the cluster
 
 restart-vmss: ## Restarts the nodes in the cluster
 	$(AZCLI) vmss restart -g MC_${GROUP}_${CLUSTER}_${REGION} --name $(VMSS_NAME)
+
+scale-vmss: ## Scales the nodes in the cluster
+	$(AZCLI) vmss scale -g MC_${GROUP}_${CLUSTER}_${REGION} --name $(VMSS_NAME) --new-capacity $(NODE_COUNT)
