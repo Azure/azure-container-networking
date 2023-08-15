@@ -74,8 +74,7 @@ steps:
       scriptLocation: "inlineScript"
       scriptType: "bash"
       addSpnToEnvironment: true
-      inlineScript: |
-        set -e
+      inlineScript: |    
         clusterName=${{ parameters.clusterName }}
         echo "Restarting nodes"
         for val in $(az vmss list -g MC_${clusterName}_${clusterName}_$(REGION_DUALSTACKOVERLAY_CLUSTER_TEST) --query "[].name" -o tsv); do
