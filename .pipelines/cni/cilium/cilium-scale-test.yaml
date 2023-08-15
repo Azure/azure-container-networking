@@ -1,0 +1,409 @@
+pr: none
+trigger: none
+
+stages:
+  - stage: update_daemonset_versions
+    displayName: "Update Cilium + CNS Version and Restart Nodes"
+    jobs:
+      - job: update_version
+        pool:
+          name: "$(BUILD_POOL_NAME_DEFAULT)"
+        steps:
+          - task: AzureCLI@1
+            inputs:
+              azureSubscription: $(TEST_SUB_SERVICE_CONNECTION)
+              scriptLocation: "inlineScript"
+              scriptType: "bash"
+              addSpnToEnvironment: true
+              inlineScript: |
+                az aks get-credentials --resource-group ${CLUSTER} --name ${CLUSTER}
+                echo "Redeploy all cilium components and update cilium version. Redeploy all to catch all changes between versions"
+                echo "deploy Cilium ConfigMap"
+                kubectl apply -f cilium/configmap.yaml
+                kubectl apply -f test/integration/manifests/cilium/cilium-config.yaml
+                echo "install Cilium ${CILIUM_VERSION_TAG}"
+                envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/daemonset.yaml | kubectl apply -f -
+                envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/deployment.yaml | kubectl apply -f -
+                kubectl apply -f test/integration/manifests/cilium/cilium-agent
+                kubectl apply -f test/integration/manifests/cilium/cilium-operator
+                echo "Keep CNS version up to date, grabbing pipeline parameter"
+                CNS_IMAGE=${CNS_IMAGE}
+                sed -i '/containers:/{n;n;s/\(image\).*/\1: '"${CNS_IMAGE//\//\\/}"'/}' test/integration/manifests/cns/daemonset.yaml 
+                kubectl apply -f test/integration/manifests/cns/daemonset.yaml 
+                for val in $(az vmss list -g MC_${clusterName}_${clusterName}_$(REGION_AKS_CLUSTER_TEST) --query "[].name" -o tsv); do
+                  make -C ./hack/aks restart-vmss AZCLI=az CLUSTER=${clusterName} REGION=$(REGION_AKS_CLUSTER_TEST) VMSS_NAME=${val}
+                done
+                kubectl get node 
+                kubectl get pod -A
+            name: "UpdateCiliumandCNSVersion"
+            displayName: "Update Cilium and CNS Version"
+  - stage: scale_up_cluster
+    displayName: "Scale Up Cluster"
+    jobs:
+      - job: scale_up
+        pool:
+          name: "$(BUILD_POOL_NAME_DEFAULT)"
+        steps:
+          - task: AzureCLI@1
+            inputs:
+              azureSubscription: $(TEST_SUB_SERVICE_CONNECTION)
+              scriptLocation: "inlineScript"
+              scriptType: "bash"
+              addSpnToEnvironment: true
+              inlineScript: |
+                set -ex
+                az aks get-credentials --resource-group ${CLUSTER} --name ${CLUSTER}
+                echo "Scaling up nodes"
+                az aks nodepool scale --name nodepool1 --cluster-name ${CLUSTER} --resource-group ${CLUSTER} --node-count ${NODE_COUNT_UP}
+            name: "ScaleUp"
+            displayName: "Scale up Nodes"
+  - stage: label_nodes
+    displayName: "Label Nodes for Testing"
+    jobs:
+      - job: label_nodes
+        pool:
+          name: "$(BUILD_POOL_NAME_DEFAULT)"
+        steps:
+          - task: AzureCLI@1
+            inputs:
+              azureSubscription: $(TEST_SUB_SERVICE_CONNECTION)
+              scriptLocation: "inlineScript"
+              scriptType: "bash"
+              addSpnToEnvironment: true
+              inlineScript: |
+                echo "Set node label scale-test=true and connectivity-test=true for testing"
+                az aks get-credentials --resource-group ${CLUSTER} --name ${CLUSTER}
+                cd test/scale 
+                chmod +x label-nodes.sh
+                ./label-nodes.sh
+            name: "LabelNodes"
+            displayName: "Label all Nodes"
+  - stage: scale_cluster_deployments
+    displayName: "Scale deploments for Network Policies Check"
+    jobs:
+      - job: scale_deployments
+        pool:
+          name: "$(BUILD_POOL_NAME_DEFAULT)"
+        steps:
+          - task: AzureCLI@1
+            inputs:
+              azureSubscription: $(TEST_SUB_SERVICE_CONNECTION)
+              scriptLocation: "inlineScript"
+              scriptType: "bash"
+              addSpnToEnvironment: true
+              inlineScript: |
+                az aks get-credentials --resource-group ${CLUSTER} --name ${CLUSTER}
+                echo "collect cpu and memory usage before scaling for network policies"
+                mkdir test1_1_netpol_cpu_and_mem_before
+                cd test1_1_netpol_cpu_and_mem_before
+                echo "running k top node" 
+                kubectl top node >> "node_before_netpol_scale.log"
+                echo "running k top pod"
+                kubectl top pod -A | grep cilium >> "pod_before_netpol_scale.log"
+                echo "Logs will be available as a build artifact"
+                ARTIFACT_DIR=$(Build.ArtifactStagingDirectory)/test1_1_netpol_cpu_and_mem_before/
+                echo $ARTIFACT_DIR
+                sudo rm -rf $ARTIFACT_DIR 
+                sudo mkdir $ARTIFACT_DIR
+                cd ..
+                sudo cp ./test1_1_netpol_cpu_and_mem_before/* $ARTIFACT_DIR
+                echo "scale deployment and to prep for network policies test"
+                cd test/scale
+                chmod +x test-scale.sh
+                ./test-scale.sh --max-kwok-pods-per-node=0 --num-kwok-deployments=0 --num-kwok-replicas=0 --max-real-pods-per-node=${REAL_PODS_PER_NODE_NETPOL} --num-real-deployments=${NUM_REAL_DEPLOYMENTS_NETPOL} --num-real-replicas=${NUM_REAL_REPLICAS_NETPOL} --num-network-policies=${APPLIED_NETPOL} --num-unapplied-network-policies=${UNAPPLIED_NETPOL} --num-unique-labels-per-pod=0 --num-unique-labels-per-deployment=5 --num-shared-labels-per-pod=3 --num-real-services=${NUM_REAL_SVC_NETPOL} --delete-labels
+                echo "collect cpu and mem results after scaling"
+                mkdir test1_2_netpol_cpu_and_mem_scale
+                cd test1_2_netpol_cpu_and_mem_scale
+                echo "running k top node" 
+                kubectl top node >> "node_netpol_scale.log"
+                echo "running k top pod"
+                kubectl top pod -A | grep cilium >> "pod_netpol_scale.log"
+                echo "Logs will be available as a build artifact"
+                ARTIFACT_DIR2=$(Build.ArtifactStagingDirectory)/test1_2_netpol_cpu_and_mem_scale/
+                echo $ARTIFACT_DIR2
+                sudo rm -rf $ARTIFACT_DIR2
+                sudo mkdir $ARTIFACT_DIR2
+                cd ..
+                sudo cp ./test1_2_netpol_cpu_and_mem_scale/* $ARTIFACT_DIR2
+            name: "scaling"
+            displayName: "Run scale script"
+          - task: PublishBuildArtifacts@1
+            inputs:
+              artifactName: test1_1_netpol_cpu_and_mem_before
+              pathtoPublish: "$(Build.ArtifactStagingDirectory)/test1_1_netpol_cpu_and_mem_before"
+            condition: always()
+            name: "PublishResults"
+            displayName: "Result Artifacts"
+          - task: PublishBuildArtifacts@1
+            inputs:
+              artifactName: test1_2_netpol_cpu_and_mem_scale
+              pathtoPublish: "$(Build.ArtifactStagingDirectory)/test1_2_netpol_cpu_and_mem_scale"
+            condition: always()
+            name: "PublishResults2"
+            displayName: "Result Network Policies Artifacts"
+  - stage: test_network_policies_connectivity
+    displayName: "Test Network Policies"
+    jobs:
+      - job: network_policies
+        pool:
+          name: "$(BUILD_POOL_NAME_DEFAULT)"
+        timeoutInMinutes: 120
+        steps:
+          - task: AzureCLI@1
+            inputs:
+              azureSubscription: $(TEST_SUB_SERVICE_CONNECTION)
+              scriptLocation: "inlineScript"
+              scriptType: "bash"
+              addSpnToEnvironment: true
+              inlineScript: |
+                echo "Run network policies test"
+                az aks get-credentials --resource-group ${CLUSTER} --name ${CLUSTER}
+                cd test/scale/connectivity
+                chmod +x test-connectivity.sh
+                ./test-connectivity.sh --num-scale-pods-to-verify=${NUM_SCALE_PODS_TO_VERIFY} --max-wait-for-initial-connectivity=600 --max-wait-after-adding-netpol=120
+                echo "collect cpu and mem results after connectivity tests"
+                mkdir test1_3_netpol_cpu_and_mem_after
+                cd test1_3_netpol_cpu_and_mem_after
+                echo "running k top node" 
+                kubectl top node >> "node_after_netpol_tests.log"
+                echo "running k top pod"
+                kubectl top pod -A | grep cilium >> "pod_after_netpol_tests.log"
+                echo "Logs will be available as a build artifact"
+                ARTIFACT_DIR=$(Build.ArtifactStagingDirectory)/test1_3_netpol_cpu_and_mem_after/
+                echo $ARTIFACT_DIR
+                sudo rm -rf $ARTIFACT_DIR 
+                sudo mkdir $ARTIFACT_DIR
+                cd ..
+                sudo cp ./test1_3_netpol_cpu_and_mem_after/* $ARTIFACT_DIR
+            name: "TestNetworkPolicies"
+            displayName: "Network Policies Connectivity Test"
+          - task: PublishBuildArtifacts@1
+            inputs:
+              artifactName: test1_3_netpol_cpu_and_mem_after
+              pathtoPublish: "$(Build.ArtifactStagingDirectory)/test1_3_netpol_cpu_and_mem_after"
+            condition: always()
+            name: "PublishResults"
+            displayName: "Result Artifacts"
+  - stage: scale_for_load_tests
+    displayName: "Scale for load tests"
+    jobs:
+      - job: deploy_service
+        pool:
+          name: "$(BUILD_POOL_NAME_DEFAULT)"
+        steps:
+          - task: AzureCLI@1
+            inputs:
+              azureSubscription: $(TEST_SUB_SERVICE_CONNECTION)
+              scriptLocation: "inlineScript"
+              scriptType: "bash"
+              addSpnToEnvironment: true
+              inlineScript: |
+                az aks get-credentials --resource-group ${CLUSTER} --name ${CLUSTER}
+                echo "collect cpu and mem results before scale for lb tests"
+                mkdir test2_1_lb_cpu_and_mem_before
+                cd test2_1_lb_cpu_and_mem_before
+                echo "running k top node" 
+                kubectl top node >> "node_before_lb_scale.log"
+                echo "running k top pod"
+                kubectl top pod -A | grep cilium >> "pod_before_lb_scale.log"
+                echo "Logs will be available as a build artifact"
+                ARTIFACT_DIR=$(Build.ArtifactStagingDirectory)/test2_1_lb_cpu_and_mem_before/
+                echo $ARTIFACT_DIR
+                sudo rm -rf $ARTIFACT_DIR 
+                sudo mkdir $ARTIFACT_DIR
+                cd ..
+                sudo cp ./test2_1_lb_cpu_and_mem_before/* $ARTIFACT_DIR
+                cd test/scale
+                chmod +x test-scale.sh
+                ./test-scale.sh --max-kwok-pods-per-node=0 --num-kwok-deployments=0 --num-kwok-replicas=0 --max-real-pods-per-node=${REAL_PODS_PER_NODE_LB} --num-real-deployments=${NUM_REAL_DEPLOYMENTS_LB} --num-real-replicas=${NUM_REAL_REPLICAS_LB} --num-network-policies=0 --num-unapplied-network-policies=0 --num-unique-labels-per-pod=0 --num-unique-labels-per-deployment=5 --num-shared-labels-per-pod=3 --num-real-services=${NUM_REAL_SVC_LB} --delete-labels --real-pod-type=nginx
+                echo "collect cpu and mem results after scaling"
+                mkdir test2_2_lb_cpu_and_mem_scale
+                cd test2_2_lb_cpu_and_mem_scale
+                echo "running k top node" 
+                kubectl top node >> "node_lb_scale.log"
+                echo "running k top pod"
+                kubectl top pod -A | grep cilium >> "pod_lb_scale.log"
+                echo "Logs will be available as a build artifact"
+                ARTIFACT_DIR2=$(Build.ArtifactStagingDirectory)/test2_2_lb_cpu_and_mem_scale/
+                echo $ARTIFACT_DIR2
+                sudo rm -rf $ARTIFACT_DIR2
+                sudo mkdir $ARTIFACT_DIR2
+                cd ..
+                sudo cp ./test2_2_lb_cpu_and_mem_scale/* $ARTIFACT_DIR2
+            name: "TestLBServices"
+            displayName: "Scale for load tests"
+          - task: PublishBuildArtifacts@1
+            inputs:
+              artifactName: test2_1_lb_cpu_and_mem_before
+              pathtoPublish: "$(Build.ArtifactStagingDirectory)/test2_1_lb_cpu_and_mem_before"
+            condition: always()
+            name: "PublishResults"
+            displayName: "Result Artifacts"
+          - task: PublishBuildArtifacts@1
+            inputs:
+              artifactName: test2_2_lb_cpu_and_mem_scale
+              pathtoPublish: "$(Build.ArtifactStagingDirectory)/test2_2_lb_cpu_and_mem_scale"
+            condition: always()
+            name: "PublishResults2"
+            displayName: "Result Scale Artifacts"
+  - stage: benchmark_testing
+    displayName: "Run apachebench test"
+    jobs:
+      - job: apachebench_test
+        pool:
+          name: "$(BUILD_POOL_NAME_DEFAULT)"
+        steps:
+          - task: AzureCLI@1
+            inputs:
+              azureSubscription: $(TEST_SUB_SERVICE_CONNECTION)
+              scriptLocation: "inlineScript"
+              scriptType: "bash"
+              addSpnToEnvironment: true
+              inlineScript: |
+                az aks get-credentials --resource-group ${CLUSTER} --name ${CLUSTER}
+                echo "Deploy apachebench pod and run test"
+                cd hack/manifests
+                kubectl apply -f apache.yaml
+                echo "wait for pod to become ready"
+                kubectl rollout status deployment apachebench --timeout=30s
+                kubectl get pod -owide
+                mkdir test2_apachebench
+                cd test2_apachebench
+                AB_POD=$(kubectl get pod -l app=apachebench | grep apachebench | awk '{print $1}')
+                kubectl exec -it $AB_POD -- ab -n ${AB_REQUESTS} -c ${AB_CONCURRENCY} -r http://real-svc-00001.scale-test/ >> "ab_${AB_REQUESTS}requests_${NUM_REAL_REPLICAS_LB}kpods.log"
+                echo "collect cpu and memory usage after apachebench tests"
+                cd ..
+                mkdir test2_3_lb_cpu_and_mem_after
+                cd test2_3_lb_cpu_and_mem_after
+                echo "running k top node" 
+                kubectl top node >> "node_after_lb_tests.log"
+                echo "running k top pod"
+                kubectl top pod -A | grep cilium >> "pod_after_lb_tests.log"
+                cd ..
+                echo "Logs will be available as a build artifact"
+                ARTIFACT_DIR2=$(Build.ArtifactStagingDirectory)/test2_3_lb_cpu_and_mem_after/
+                ARTIFACT_DIR=$(Build.ArtifactStagingDirectory)/test2_apachebench/
+                echo $ARTIFACT_DIR
+                echo $ARTIFACT_DIR2
+                sudo rm -rf $ARTIFACT_DIR $ARTIFACT_DIR2
+                sudo mkdir $ARTIFACT_DIR
+                sudo mkdir $ARTIFACT_DIR2
+                sudo cp ./test2_apachebench/* $ARTIFACT_DIR
+                sudo cp ./test2_3_lb_cpu_and_mem_after/* $ARTIFACT_DIR2
+            name: "TestLBServices"
+            displayName: "Apachebench testing"
+          - task: PublishBuildArtifacts@1
+            inputs:
+              artifactName: test2_apachebench
+              pathtoPublish: "$(Build.ArtifactStagingDirectory)/test2_apachebench"
+            condition: always()
+            name: "PublishResults"
+            displayName: "Apachebench Result Artifacts"
+          - task: PublishBuildArtifacts@1
+            inputs:
+              artifactName: test2_3_lb_cpu_and_mem_after
+              pathtoPublish: "$(Build.ArtifactStagingDirectory)/test2_3_lb_cpu_and_mem_after"
+            condition: always()
+            name: "PublishResults2"
+            displayName: "Result Artifacts"
+  - stage: netperf_tests
+    displayName: "Run netperf tests"
+    jobs:
+      - job: netperf
+        pool:
+          name: "$(BUILD_POOL_NAME_DEFAULT)"
+        steps:
+          - task: AzureCLI@1
+            inputs:
+              azureSubscription: $(TEST_SUB_SERVICE_CONNECTION)
+              scriptLocation: "inlineScript"
+              scriptType: "bash"
+              addSpnToEnvironment: true
+              inlineScript: |
+                az aks get-credentials --resource-group ${CLUSTER} --name ${CLUSTER}
+                chmod +x hack/scripts/netperf.sh
+                kubectl apply -f hack/manifests/netperf-pod.yaml
+                kubectl rollout status deployment container6 --timeout=30s
+                mkdir test3_netperf
+                sh hack/scripts/netperf.sh
+                echo "collect cpu and mem results after netperf tests"
+                mkdir test3_netperf_cpu_and_mem
+                cd test3_netperf_cpu_and_mem
+                echo "running k top node" 
+                kubectl top node >> "node_netperf.log"
+                echo "running k top pod"
+                kubectl top pod -A | grep cilium >> "pod_netperf.log"
+                echo "Logs will be available as a build artifact"
+                ARTIFACT_DIR=$(Build.ArtifactStagingDirectory)/test3_netperf_cpu_and_mem/
+                ARTIFACT_DIR2=$(Build.ArtifactStagingDirectory)/test3_netperf/
+                echo $ARTIFACT_DIR
+                echo $ARTIFACT_DIR2
+                sudo rm -rf $ARTIFACT_DIR 
+                sudo rm -rf $ARTIFACT_DIR2 
+                sudo mkdir $ARTIFACT_DIR
+                sudo mkdir $ARTIFACT_DIR2
+                cd ..
+                sudo cp ./test3_netperf_cpu_and_mem/* $ARTIFACT_DIR
+                sudo cp ./test3_netperf/* $ARTIFACT_DIR2
+            name: "NetperfIterations"
+            displayName: "Run Netperf tests"
+          - task: PublishBuildArtifacts@1
+            inputs:
+              artifactName: test3_netperf_cpu_and_mem
+              pathtoPublish: "$(Build.ArtifactStagingDirectory)/test3_netperf_cpu_and_mem"
+            condition: always()
+            name: "PublishResults"
+            displayName: "Netperf cpu and mem Artifacts"
+          - task: PublishBuildArtifacts@1
+            inputs:
+              artifactName: test3_netperf
+              pathtoPublish: "$(Build.ArtifactStagingDirectory)/test3_netperf"
+            condition: always()
+            name: "PublishNetperf"
+            displayName: "Netperf Result Artifacts"
+  - stage: scale_down_cluster
+    displayName: "Scale Down Cluster"
+    jobs:
+      - job: scale_down
+        pool:
+          name: "$(BUILD_POOL_NAME_DEFAULT)"
+        steps:
+          - task: AzureCLI@1
+            inputs:
+              azureSubscription: $(TEST_SUB_SERVICE_CONNECTION)
+              scriptLocation: "inlineScript"
+              scriptType: "bash"
+              addSpnToEnvironment: true
+              inlineScript: |
+                set -ex
+                az aks get-credentials --resource-group ${CLUSTER} --name ${CLUSTER}
+                echo "Scaling to 5 nodes"
+                vmss_name=$(az vmss list -g MC_${CLUSTER}_${CLUSTER}_$(LOCATION) --query "[].name" -o tsv)
+                make -C ./hack/aks scale-vmss AZCLI=az CLUSTER=${CLUSTER} REGION=$(LOCATION) VMSS_NAME=$vmss_name NODE_COUNT=5
+                kubectl get node
+            name: "ScaleDown"
+            displayName: "Scale down to 5 Nodes"
+  - stage: delete_test_namespaces
+    displayName: "Delete Test Namespaces"
+    jobs:
+      - job: delete_namespaces
+        pool:
+          name: "$(BUILD_POOL_NAME_DEFAULT)"
+        steps:
+        - task: AzureCLI@1
+          inputs:
+            azureSubscription: $(TEST_SUB_SERVICE_CONNECTION)
+            scriptLocation: "inlineScript"
+            scriptType: "bash"
+            addSpnToEnvironment: true
+            inlineScript: |
+              echo "delete test resources and namespaces"
+              az aks get-credentials --resource-group ${CLUSTER} --name ${CLUSTER}
+              kubectl delete ns scale-test
+              kubectl delete ns connectivity-test
+              kubectl get ns
+              cd hack/manifests
+              kubectl delete -f apache.yaml
+              kubectl delete -f netperf-pod.yaml
+          name: "DeleteTestNamespaces"
+          displayName: "Delete Test Namespaces"
