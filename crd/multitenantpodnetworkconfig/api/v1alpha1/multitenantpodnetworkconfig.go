@@ -18,6 +18,7 @@ import (
 // +kubebuilder:metadata:labels=managed=
 // +kubebuilder:metadata:labels=owner=
 // +kubebuilder:printcolumn:name="PodNetworkInstance",type=string,JSONPath=`.spec.podNetworkInstance`
+// +kubebuilder:printcolumn:name="PodNetwork",type=string,JSONPath=`.spec.podNetwork`
 // +kubebuilder:printcolumn:name="PodName",type=string,JSONPath=`.spec.podName`
 // +kubebuilder:printcolumn:name="NCID",type=string,JSONPath=`.status.ncID`
 // +kubebuilder:printcolumn:name="PrimaryIP",type=string,JSONPath=`.status.primaryIP`
@@ -44,6 +45,8 @@ type MultitenantPodNetworkConfigList struct {
 type MultitenantPodNetworkConfigSpec struct {
 	// name of PNI object from requesting cx pod
 	PodNetworkInstance string `json:"podNetworkInstance,omitempty"`
+	// name of PN object from requesting cx pod
+	PodNetwork string `json:"podNetwork,omitempty"`
 	// name of the requesting cx pod
 	PodName string `json:"podName,omitempty"`
 }
