@@ -125,8 +125,8 @@ steps:
       echo "validate pods after CNS restart"
       cd test/integration/load
       sudo go test -timeout 30m -tags load -cni dualstack -run ^TestValidateState$ -tags=load
-    name: "restartCNS_ValidatePods"
-    displayName: "Restart CNS and validate pods"
+    name: "restartCNS_ValidatePodState"
+    displayName: "Restart CNS and validate pod state"
     retryCountOnTaskFailure: 3
 
   - task: PublishBuildArtifacts@1
