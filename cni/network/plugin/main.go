@@ -39,6 +39,7 @@ const (
 	name                            = "azure-vnet"
 	maxLogFileSizeInMb              = 5
 	maxLogFileCount                 = 8
+	component                       = "cni"
 )
 
 // Version is populated by make during build.
@@ -311,6 +312,7 @@ func main() {
 		MaxSizeInMB: maxLogFileSizeInMb,
 		MaxBackups:  maxLogFileCount,
 		Name:        name,
+		Component:   component,
 	}
 	zaplog.Initialize(ctx, loggerCfg)
 
