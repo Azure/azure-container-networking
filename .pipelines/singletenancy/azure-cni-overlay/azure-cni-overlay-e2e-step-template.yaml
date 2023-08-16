@@ -2,7 +2,6 @@ parameters:
   name: ""
   testDropgz: ""
   clusterName: ""
-  cni: "v4Overlay"
 
 steps:
   - bash: |
@@ -113,7 +112,7 @@ steps:
         make -C ./hack/aks azcfg AZCLI=az REGION=$(REGION_AKS_CLUSTER_TEST)
         kubectl get pods -A
         echo "Validating Node Restart"
-        make test-validate-state CNI_TYPE=${{ parameters.cni }}
+        sudo go test -timeout 30m -tags load -cni v4Overlay -run ^TestValidateState$ -tags=load
     displayName: "Validate Node Restart"
     retryCountOnTaskFailure: 3
 
