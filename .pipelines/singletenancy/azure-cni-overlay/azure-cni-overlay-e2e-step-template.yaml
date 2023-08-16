@@ -71,19 +71,6 @@ steps:
     displayName: "Run CNS Integration Tests on AKS Overlay"
 
   - script: |
-      echo "validate pod IP assignment before CNS restart"
-      kubectl get pod -owide -A
-      kubectl rollout restart ds azure-cns -n kube-system
-      kubectl rollout status ds azure-cns -n kube-system
-      kubectl get pod -owide -A
-      echo "validate pods after CNS restart"
-      cd test/integration/load
-      sudo go test -timeout 30m -tags load -cni dualstack -run ^TestValidateState$ -tags=load
-    retryCountOnTaskFailure: 3
-    name: "restartCNS_ValidatePods"
-    displayName: "Restart CNS and validate pods"
-
-  - script: |
       echo "Status of the nodes and pods after the test"
       kubectl get nodes -o wide
       kubectl get pods -A -o wide
@@ -123,10 +110,23 @@ steps:
         clusterName=${{ parameters.clusterName }}
         make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${clusterName}
         make -C ./hack/aks azcfg AZCLI=az REGION=$(REGION_AKS_CLUSTER_TEST)
-        kubectl get pods -A
+        kubectl get pods -owide -A
         echo "Validating Node Restart"
         sudo go test -timeout 30m -tags load -cni v4Overlay -run ^TestValidateState$ -tags=load
     displayName: "Validate Node Restart"
+    retryCountOnTaskFailure: 3
+
+  - script: |
+      echo "validate pod IP assignment before CNS restart"
+      kubectl get pod -owide -A
+      kubectl rollout restart ds azure-cns -n kube-system
+      kubectl rollout status ds azure-cns -n kube-system
+      kubectl get pod -owide -A
+      echo "validate pods after CNS restart"
+      cd test/integration/load
+      sudo go test -timeout 30m -tags load -cni dualstack -run ^TestValidateState$ -tags=load
+    name: "restartCNS_ValidatePods"
+    displayName: "Restart CNS and validate pods"
     retryCountOnTaskFailure: 3
 
   - task: PublishBuildArtifacts@1
