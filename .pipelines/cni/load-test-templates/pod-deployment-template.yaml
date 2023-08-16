@@ -9,7 +9,7 @@ steps:
   - task: AzureCLI@1
     displayName: "Pod Deployment"
     inputs:
-      azureSubscription: $(TEST_SUB_SERVICE_CONNECTION)
+      azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
       scriptLocation: "inlineScript"
       scriptType: "bash"
       addSpnToEnvironment: true

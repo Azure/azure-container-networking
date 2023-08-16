@@ -71,11 +71,11 @@ steps:
 
   - task: AzureCLI@1
     inputs:
-      azureSubscription: $(AZURE_TEST_AGENT_SERVICE_CONNECTION)
+      azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
       scriptLocation: "inlineScript"
       scriptType: "bash"
       addSpnToEnvironment: true
-      inlineScript: |    
+      inlineScript: |
         set -e
         clusterName=${{ parameters.clusterName }}
         echo "Restarting nodes"
@@ -86,7 +86,7 @@ steps:
 
   - task: AzureCLI@1
     inputs:
-      azureSubscription: $(AZURE_TEST_AGENT_SERVICE_CONNECTION)
+      azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
       scriptLocation: "inlineScript"
       scriptType: "bash"
       addSpnToEnvironment: true

@@ -33,7 +33,7 @@ stages:
           - task: AzureCLI@1
             displayName: "Install Cilium, CNS, and ip-masq-agent"
             inputs:
-              azureSubscription: $(TEST_SUB_SERVICE_CONNECTION)
+              azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
               scriptLocation: "inlineScript"
               scriptType: "bash"
               addSpnToEnvironment: true
@@ -161,7 +161,7 @@ stages:
         steps:
           - task: AzureCLI@1
             inputs:
-              azureSubscription: $(TEST_SUB_SERVICE_CONNECTION)
+              azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
               scriptLocation: "inlineScript"
               scriptType: "bash"
               addSpnToEnvironment: true
@@ -172,7 +172,7 @@ stages:
                   echo "Deleting Cluster and resource group"
                   make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}-$(make revision)
                   make -C ./hack/aks azcfg AZCLI=az REGION=$(LOCATION)
-                  make -C ./hack/aks down AZCLI=az REGION=$(LOCATION) SUB=$(SUBSCRIPTION_ID) CLUSTER=${{ parameters.clusterName }}-$(make revision)
+                  make -C ./hack/aks down AZCLI=az REGION=$(LOCATION) SUB=$(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS) CLUSTER=${{ parameters.clusterName }}-$(make revision)
                   echo "Cluster and resources down"
                 else
                   echo "Deletion of resources is False"
