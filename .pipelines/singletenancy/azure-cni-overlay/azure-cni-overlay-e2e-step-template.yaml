@@ -112,7 +112,7 @@ steps:
         make -C ./hack/aks azcfg AZCLI=az REGION=$(REGION_AKS_CLUSTER_TEST)
         kubectl get pods -owide -A
         echo "Validating Node Restart"
-        sudo go test -timeout 30m -tags load -cni v4Overlay -run ^TestValidateState$ -tags=load
+        sudo go test -timeout 30m -tags load -cni v4Overlay -run ^TestValidateState$ -tags=load -restart-case=true
     displayName: "Validate Node Restart"
     retryCountOnTaskFailure: 3
 
