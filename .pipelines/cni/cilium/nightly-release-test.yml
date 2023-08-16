@@ -2,6 +2,20 @@ pr: none
 trigger: none
 
 stages:
+  - stage: setup
+    displayName: Setup
+    jobs:
+      - job: env
+        displayName: Setup
+        pool:
+          name: "$(BUILD_POOL_NAME_DEFAULT)"
+        steps:
+          - script: |
+              echo "##vso[task.setvariable variable=commitID;isOutput=true]$(make revision)"
+            name: "EnvironmentalVariables"
+            displayName: "Set environmental variables"
+            condition: always()
+
   - stage: init
     displayName: "Build and Push Cilium Image"
     jobs:
@@ -40,14 +54,32 @@ stages:
             inputs:
               containerRegistry: $(CONTAINER_REGISTRY)
               command: "logout"
+
   - stage: cilium_nightly
     displayName: E2E - Cilium Nightly
+    dependsOn:
+      - init
+      - setup
     variables:
       GOPATH: "$(Agent.TempDirectory)/go" # Go workspace path
       GOBIN: "$(GOPATH)/bin" # Go binaries path
       modulePath: "$(GOPATH)/src/github.com/Azure/azure-container-networking"
+      commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
     jobs:
+      - template: ../../templates/create-cluster.yaml
+        parameters:
+          name: cilium_overlay_nightly
+          displayName: Cilium on AKS Overlay
+          clusterType: cilium-overlay-up
+          clusterName: ciliumnightly-$(commitID)
+          vmSize: Standard_B2ms
+          k8sVersion: ""
+          dependsOn: ""
+          region: $(LOCATION)
       - job: cilium_nightly
+        displayName: Cilium Overlay Nightly E2E
+        dependsOn:
+          - cilium_overlay_nightly
         pool:
           name: $(BUILD_POOL_NAME_DEFAULT)
         steps:
@@ -55,4 +87,23 @@ stages:
           parameters:
             name: "cilium_nightly"
             testDropgz: ""
-            clusterName: "ciliumnightly"
+            clusterName: ciliumnightly-$(commitID)
+      - job: delete
+        displayName: Delete Cluster
+        condition: always()
+        dependsOn:
+          - cilium_nightly
+        pool:
+          name: "$(BUILD_POOL_NAME_DEFAULT)"
+        strategy:
+          matrix:
+            cilium_nightly:
+              name: ciliumnightly
+              clusterName: overlaynightly
+        steps:
+          - template: ../../templates/delete-cluster.yaml
+            parameters:
+              name: $(name)
+              clusterName: $(clusterName)-$(commitID)
+              region: $(LOCATION)
+
