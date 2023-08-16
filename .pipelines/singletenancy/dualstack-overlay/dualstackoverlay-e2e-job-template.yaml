@@ -59,7 +59,7 @@ stages:
 
       - template: ../../cni/k8s-e2e/k8s-e2e-job-template.yaml
         parameters:
-          sub: $(AZURE_TEST_AGENT_SERVICE_CONNECTION)
+          sub: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
           clusterName: ${{ parameters.clusterName }}-$(commitID)
           os: ${{ parameters.os }}
           dependsOn: ${{ parameters.name }}
