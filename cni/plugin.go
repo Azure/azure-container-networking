@@ -77,8 +77,7 @@ func (plugin *Plugin) Execute(api PluginApi) (err error) {
 
 			log.Logger.Info("Recovered panic",
 				zap.String("error", cniErr.Msg),
-				zap.String("details", cniErr.Details),
-				zap.String("component", "cni"))
+				zap.String("details", cniErr.Details))
 		}
 	}()
 
@@ -100,13 +99,12 @@ func (plugin *Plugin) DelegateAdd(pluginName string, nwCfg *NetworkConfig) (*cni
 	var result *cniTypesCurr.Result
 	var err error
 
-	log.Logger.Info("Calling ADD", zap.String("plugin", pluginName), zap.String("component", "cni"))
+	log.Logger.Info("Calling ADD", zap.String("plugin", pluginName))
 	defer func() {
 		log.Logger.Info("Plugin returned",
 			zap.String("plugin", pluginName),
 			zap.Any("result", result),
-			zap.Error(err),
-			zap.String("component", "cni"))
+			zap.Error(err))
 	}()
 
 	os.Setenv(Cmd, CmdAdd)
@@ -130,13 +128,11 @@ func (plugin *Plugin) DelegateDel(pluginName string, nwCfg *NetworkConfig) error
 
 	log.Logger.Info("Calling DEL",
 		zap.String("plugin", pluginName),
-		zap.Any("config", nwCfg),
-		zap.String("component", "cni"))
+		zap.Any("config", nwCfg))
 	defer func() {
 		log.Logger.Info("Plugin eturned",
 			zap.String("plugin", pluginName),
-			zap.Error(err),
-			zap.String("component", "cni"))
+			zap.Error(err))
 	}()
 
 	os.Setenv(Cmd, CmdDel)
@@ -186,14 +182,13 @@ func (plugin *Plugin) InitializeKeyValueStore(config *common.PluginConfig) error
 	if plugin.Store == nil {
 		lockclient, err := processlock.NewFileLock(platform.CNILockPath + plugin.Name + store.LockExtension)
 		if err != nil {
-			log.Logger.Error("Error initializing file lock",
-				zap.Error(err), zap.String("component", "cni"))
+			log.Logger.Error("Error initializing file lock", zap.Error(err))
 			return errors.Wrap(err, "error creating new filelock")
 		}
 
 		plugin.Store, err = store.NewJsonFileStore(platform.CNIRuntimePath+plugin.Name+".json", lockclient)
 		if err != nil {
-			log.Logger.Error("Failed to create store", zap.Error(err), zap.String("component", "cni"))
+			log.Logger.Error("Failed to create store", zap.Error(err))
 			return err
 		}
 	}
@@ -219,7 +214,7 @@ func (plugin *Plugin) UninitializeKeyValueStore() error {
 	if plugin.Store != nil {
 		err := plugin.Store.Unlock()
 		if err != nil {
-			log.Logger.Error("Failed to unlock store", zap.Error(err), zap.String("component", "cni"))
+			log.Logger.Error("Failed to unlock store", zap.Error(err))
 			return err
 		}
 	}

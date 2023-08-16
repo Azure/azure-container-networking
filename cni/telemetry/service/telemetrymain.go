@@ -29,6 +29,7 @@ const (
 	configExtension                   = ".config"
 	maxLogFileSizeInMb                = 5
 	maxLogFileCount                   = 8
+	component                         = "cni"
 )
 
 var version string
@@ -123,6 +124,7 @@ func main() {
 		MaxSizeInMB: maxLogFileSizeInMb,
 		MaxBackups:  maxLogFileCount,
 		Name:        azureVnetTelemetry,
+		Component:   component,
 	}
 	log.Initialize(ctx, loggerCfg)
 
@@ -134,14 +136,11 @@ func main() {
 		configPath = fmt.Sprintf("%s\\%s%s", configDirectory, azureVnetTelemetry, configExtension)
 	}
 
-	log.Logger.Info("Config path",
-		zap.String("path", configPath), zap.String("component", "telemetry"))
+	log.Logger.Info("Config path", zap.String("path", configPath))
 
 	config, err = telemetry.ReadConfigFile(configPath)
 	if err != nil {
-		log.Logger.Error("Error reading telemetry config",
-			zap.Error(err),
-			zap.String("component", "telemetry"))
+		log.Logger.Error("Error reading telemetry config", zap.Error(err))
 	}
 
 	log.Logger.Info("read config returned", zap.Any("config", config))
@@ -157,14 +156,13 @@ func main() {
 	for {
 		tb = telemetry.NewTelemetryBuffer()
 
-		log.Logger.Info("Starting telemetry server", zap.String("component", "telemetry"))
+		log.Logger.Info("Starting telemetry server")
 		err = tb.StartServer()
 		if err == nil || tb.FdExists {
 			break
 		}
 
-		log.Logger.Error("Telemetry service starting failed",
-			zap.Error(err), zap.String("component", "telemetry"))
+		log.Logger.Error("Telemetry service starting failed", zap.Error(err))
 		tb.Cleanup(telemetry.FdName)
 		time.Sleep(time.Millisecond * 200)
 	}
