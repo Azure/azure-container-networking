@@ -19,7 +19,7 @@ steps:
     displayName: "Set up the Go environment"
   - task: AzureCLI@1
     inputs:
-      azureSubscription: $(AZURE_TEST_AGENT_SERVICE_CONNECTION)
+      azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
       scriptLocation: "inlineScript"
       scriptType: "bash"
       addSpnToEnvironment: true
@@ -44,7 +44,7 @@ steps:
     displayName: "Upload CNI"
   - task: AzureCLI@1
     inputs:
-      azureSubscription: $(AZURE_TEST_AGENT_SERVICE_CONNECTION)
+      azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
       scriptLocation: "inlineScript"
       scriptType: "bash"
       addSpnToEnvironment: true
