@@ -6,84 +6,49 @@ parameters:
   nodeCount: ""
   vmSize: ""
   windowsVMSize: ""
-  os: ""
-  cni: ""
+  os: windows
+  arch: ""
+
+# CNIv1
+# + Should be able to scale up/down the pods successfully certain number of times.
+# + Node reboot scenarios should be covered.
+# The HNS state should be validated with that of CNI state.
+# + Pods should have ips assigned and connectivity/datapath test should be present.
 
 stages:
-  - stage: createAKSclusterWindows
+  - stage: create_${{ parameters.name }}
+    variables:
+      commitID: $[ stagedependencies.setup.env.outputs['SetEnvVars.commitID'] ]
+      npmVersion: $[ stagedependencies.setup.env.outputs['SetEnvVars.npmVersion'] ]
     pool:
       name: $(BUILD_POOL_NAME_DEFAULT)
-    dependsOn: ${{ parameters.dependsOn }}
-    displayName: "Windows AKS Cluster ${{ parameters.cni }}"
+    dependsOn:
+      - setup
+    displayName: "Create Cluster - ${{ parameters.clusterName }}"
     jobs:
       - job: create_aks_cluster_with_${{ parameters.name }}
-        pool:
-          name: "$(BUILD_POOL_NAME_DEFAULT)"
         steps:
           - template: ../load-test-templates/create-cluster-template.yaml
             parameters:
               clusterType: ${{ parameters.clusterType }}
-              clusterName: ${{ parameters.clusterName }}
+              clusterName: ${{ parameters.clusterName }}-$(commitID)
               nodeCount: ${{ parameters.nodeCount }}
               vmSize: ${{ parameters.vmSize }}
               windowsVMSize: ${{ parameters.windowsVMSize }}
-  - stage: build_images
+              region: $(LOCATION)
+  - stage: ${{ parameters.name }}
+    variables:
+      commitID: $[ stagedependencies.setup.env.outputs['SetEnvVars.commitID'] ]
+      npmVersion: $[ stagedependencies.setup.env.outputs['SetEnvVars.npmVersion'] ]
     pool:
       name: $(BUILD_POOL_NAME_DEFAULT)
-    dependsOn: ${{ parameters.dependsOn }}
-    displayName: "Build CNI Images"
-    jobs:
-      - job: build_images
-        pool:
-          name: "$(BUILD_POOL_NAME_LINUX_AMD64)"
-        strategy:
-          matrix:
-            cni_dropgz_windows2022_amd64:
-              arch: amd64
-              name: cni-dropgz-test
-              os: windows
-              os_version: ltsc2022
-            npm_windows2022_amd64:
-              arch: amd64
-              name: npm
-              os: windows
-              os_version: ltsc2022
-        steps:
-          - template: ../../containers/container-template.yaml
-            parameters:
-              arch: $(arch)
-              name: $(name)
-              os: $(os)
-              os_version: $(os_version)
-
-  - stage: binaries
-    displayName: Build Binaries
-    dependsOn: ${{ parameters.dependsOn }}
-    jobs:
-      - job:
-        displayName: "Build Kubernetes Test Suite Binary"
-        pool:
-          name: $(BUILD_POOL_NAME_DEFAULT)
-        steps:
-          - bash: |
-              git clone https://github.com/huntergregory/kubernetes.git --depth=1 --branch=linux-sleep-before-probing
-              cd kubernetes
-              export PATH=$PATH:/usr/local/go/bin/
-              make WHAT=test/e2e/e2e.test
-            displayName: "Build Kubernetes e2e.test"
-          - publish: $(System.DefaultWorkingDirectory)/kubernetes/_output/local/bin/linux/amd64
-            artifact: npm_k8s
-
-  - stage:  update_cni
     dependsOn:
-      - createAKSclusterWindows
-      - build_images
-      - binaries
-    displayName: "Update CNI on Cluster"
+      - create_${{ parameters.name }}
+      - publish
+      - setup
+    displayName: "CNIv1 Test - ${{ parameters.name }}"
     jobs:
-      - job: deploy_pods
-        pool:
-          name: "$(BUILD_POOL_NAME_DEFAULT)"
+      - job: update_cni
         strategy:
           matrix:
             cni_dropgz_windows2022_amd64:
@@ -99,11 +64,9 @@ stages:
               addSpnToEnvironment: true
               inlineScript: |
                 set -ex
-                clusterName=${{ parameters.clusterName }}-$(make revision)
-                make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${clusterName}
+                make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}-$(commitID)
                 make -C ./hack/aks azcfg AZCLI=az REGION=$(LOCATION)
-                dropgz_version=$(make cni-dropgz-version)
-                export DROP_GZ_URL=$( make cni-dropgz-test-image-name-and-tag OS=$(os) ARCH=$(arch) OS_VERSION=$(os_version) CNI_DROPGZ_VERSION=${dropgz_version})
+                export DROP_GZ_URL=$( make cni-dropgz-test-image-name-and-tag OS=${{ parameters.os }} ARCH=${{ parameters.arch }} CNI_DROPGZ_VERSION=$(dropgzVersion))
                 envsubst < ./test/integration/manifests/cni/cni-installer-v1-windows.yaml | kubectl apply -f -
             name: "UploadCNI"
             displayName: "Upload CNI"
@@ -137,15 +100,14 @@ stages:
     displayName: "Pod Deployment"
     jobs:
       - job: deploy_pods
-        pool:
-          name: "$(BUILD_POOL_NAME_DEFAULT)"
+        displayName: "Scale Test"
+        dependsOn: update_cni
         steps:
           - template: ../load-test-templates/pod-deployment-template.yaml
             parameters:
-              clusterName: ${{ parameters.clusterName }}
+              clusterName: ${{ parameters.clusterName }}-$(commitID)
               scaleup: ${WINDOWS_SCALEUP}
               os: ${{ parameters.os }}
-              cni: ${{ parameters.cni }}
               iterations: ${WINDOWS_ITERATIONS}
               nodeCount: ${{ parameters.nodeCount }}
   - stage: validate_state_windows
@@ -160,7 +122,7 @@ stages:
         steps:
           - template: ../load-test-templates/validate-state-template.yaml
             parameters:
-              clusterName: ${{ parameters.clusterName }}
+              clusterName: ${{ parameters.clusterName }}-$(commitID)
               os: ${{ parameters.os }}
               cni: ${{ parameters.cni }}
 
@@ -198,17 +160,30 @@ stages:
               scriptType: "bash"
               addSpnToEnvironment: true
               inlineScript: |
-                set -ex
-                if [ "$(DELETE_RESOURCES)" ]
-                then
-                  echo "Deleting Cluster and resource group"
-                  make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}-$(make revision)
-                  make -C ./hack/aks azcfg AZCLI=az REGION=$(LOCATION)
-                  make -C ./hack/aks down AZCLI=az REGION=$(LOCATION) SUB=$(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS) CLUSTER=${{ parameters.clusterName }}-$(make revision)
-                  echo "Cluster and resources down"
-                else
-                  echo "Deletion of resources is False"
-                fi
-            name: "CleanUpCluster"
-            displayName: "Cleanup cluster"
-    condition: always()
+                echo "Delete load-test Namespace"
+                make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}-$(commitID)
+                kubectl delete ns load-test
+                kubectl cluster-info
+                kubectl get po -owide -A
+            name: "recover"
+            displayName: "Delete test Namespaces"
+      - template: ../k8s-e2e/k8s-e2e-job-template.yaml
+        parameters:
+          sub: $(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS)
+          clusterName: ${{ parameters.clusterName }}-$(commitID)
+          os: ${{ parameters.os }}
+          dependsOn: recover
+          datapath: true
+          dns: true
+          portforward: true
+          hybridWin: true
+          service: true
+          hostport: true
+      - template: ../../npm/npm-cni-integration-test.yaml
+        parameters:
+          clusterName: ${{ parameters.clusterName }}-$(commitID)
+          os: ${{ parameters.os }}
+          sub: $(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS)
+          os_version: 'ltsc2022'
+          tag: $(npmVersion)
+          dependsOn: cni_k8se2e

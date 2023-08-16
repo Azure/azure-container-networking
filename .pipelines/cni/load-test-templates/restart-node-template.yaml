@@ -12,7 +12,7 @@ steps:
       addSpnToEnvironment: true
       inlineScript: |
         echo "Scale up the pods and immediated restart the nodes"
-        clusterName=${{ parameters.clusterName }}-$(make revision)
+        clusterName=${{ parameters.clusterName }}
         make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${clusterName}
         make -C ./hack/aks azcfg AZCLI=az REGION=$(LOCATION)
         cd test/integration/load

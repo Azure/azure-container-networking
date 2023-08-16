@@ -12,7 +12,7 @@ steps:
       scriptType: "bash"
       addSpnToEnvironment: true
       inlineScript: |
-        make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}-$(make revision)
+        make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
         kubectl get pods -A
         make test-validate-state OS=${{ parameters.os }} RESTART_CASE=${{ parameters.restartCase }} CNI_TYPE=${{ parameters.cni }}
     name: "ValidateState"

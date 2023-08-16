@@ -7,10 +7,12 @@ parameters:
   vmSize: "Standard_DS4_v2"
 
 stages:
-
-  - stage: createAKScluster
-    dependsOn: ${{ parameters.dependsOn }}
-    displayName: "AKS Cluster with Cilium"
+  - stage: create_${{ parameters.name }}
+    variables:
+      commitID: $[ stagedependencies.setup.env.outputs['SetEnvVars.commitID'] ]
+    dependsOn:
+      - setup
+    displayName: "Create Cluster - ${{ parameters.clusterName }}"
     jobs:
       - job: create_aks_cluster_with_${{ parameters.name }}
         pool:
@@ -19,16 +21,22 @@ stages:
           - template: ../load-test-templates/create-cluster-template.yaml
             parameters:
               clusterType: ${{ parameters.clusterType }}
-              clusterName: ${{ parameters.clusterName }}
+              clusterName: ${{ parameters.clusterName }}-$(commitID)
               nodeCount: ${{ parameters.nodeCount }}
               vmSize: ${{ parameters.vmSize }}
-  - stage: install_cilium
-    dependsOn: createAKScluster
-    displayName: "Install Cilium on AKS Overlay"
+              region: $(LOCATION)
+
+  - stage: ${{ parameters.name }}
+    variables:
+      commitID: $[ stagedependencies.setup.env.outputs['SetEnvVars.commitID'] ]
+    pool:
+      name: "$(BUILD_POOL_NAME_DEFAULT)"
+    dependsOn:
+      - create_${{ parameters.name }}
+      - setup
+    displayName: "Cilium Test - ${{ parameters.name }}"
     jobs:
       - job: deploy_cilium_components
-        pool:
-          name: "$(BUILD_POOL_NAME_DEFAULT)"
         steps:
           - task: AzureCLI@1
             displayName: "Install Cilium, CNS, and ip-masq-agent"
@@ -40,7 +48,7 @@ stages:
               inlineScript: |
                 set -ex
                 az extension add --name aks-preview
-                make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}-$(make revision)
+                make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}-$(commitID)
                 ls -lah
                 pwd
                 kubectl cluster-info
@@ -64,17 +72,13 @@ stages:
                 kubectl create configmap config-reconcile.yaml
                 cd ../../../..
                 kubectl get po -owide -A
-  - stage: pod_deployment
-    dependsOn: install_cilium
-    displayName: "Pod Deployment"
-    jobs:
       - job: deploy_pods
-        pool:
-          name: "$(BUILD_POOL_NAME_DEFAULT)"
+        displayName: "Scale Test"
+        dependsOn: deploy_cilium_components
         steps:
           - template: ../load-test-templates/pod-deployment-template.yaml
             parameters:
-              clusterName: ${{ parameters.clusterName }}
+              clusterName: ${{ parameters.clusterName }}-$(commitID)
               scaleup: ${CILIUM_SCALEUP}
               os: linux
               iterations: ${CILIUM_ITERATIONS}
@@ -89,18 +93,14 @@ stages:
         steps:
           - template: ../load-test-templates/validate-state-template.yaml
             parameters:
-              clusterName: ${{ parameters.clusterName }}
-  - stage: restart_nodes
-    dependsOn: validate_state
-    displayName: "Restart Node"
-    jobs:
+              clusterName: ${{ parameters.clusterName }}-$(commitID)
       - job: restart_nodes
-        pool:
-          name: "$(BUILD_POOL_NAME_DEFAULT)"
+        displayName: "Restart Test"
+        dependsOn: deploy_pods
         steps:
           - template: ../load-test-templates/restart-node-template.yaml
             parameters:
-              clusterName: ${{ parameters.clusterName }}
+              clusterName: ${{ parameters.clusterName }}-$(commitID)
               nodeCount: ${{ parameters.nodeCount }}
               scaleup: ${CILIUM_SCALEUP}
   - stage: validate_restart_state
@@ -113,15 +113,11 @@ stages:
         steps:
           - template: ../load-test-templates/validate-state-template.yaml
             parameters:
-              clusterName: ${{ parameters.clusterName }}
+              clusterName: ${{ parameters.clusterName }}-$(commitID)
               restartCase: "true"
-  - stage: connectivity_tests
-    dependsOn: validate_restart_state
-    displayName: "Connectivity Tests"
-    jobs:
       - job: cni_tests
-        pool:
-          name: "$(BUILD_POOL_NAME_DEFAULT)"
+        displayName: "Cilium Test"
+        dependsOn: restart_nodes
         steps:
           - script: |
               echo "install cilium CLI"
@@ -141,7 +137,7 @@ stages:
               addSpnToEnvironment: true
               inlineScript: |
                 set -ex
-                make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}-$(make revision)
+                make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}-$(commitID)
             name: "GetCluster"
             displayName: "Get AKS Cluster"
           - script: |

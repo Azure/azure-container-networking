@@ -16,7 +16,7 @@ steps:
       inlineScript: |
         set -ex
         az extension add --name aks-preview
-        make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}-$(make revision)
+        make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
         cd test/integration/load
         scale=$(( ${{ parameters.scaleup }} * ${{ parameters.nodeCount }} ))
         go test -timeout 30m -tags load -run ^TestLoad$ -tags=load -iterations=${{ parameters.iterations }} -scaleup=$scale -os=${{ parameters.os }}

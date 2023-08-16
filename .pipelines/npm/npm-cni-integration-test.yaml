@@ -26,7 +26,7 @@ jobs:
           inlineScript: |
             set -ex
 
-            make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}-$(make revision)
+            make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
 
             # deploy azure-npm
             if ${{ lower(eq(parameters.os, 'windows')) }}
@@ -50,7 +50,7 @@ jobs:
             kubectl get po -n kube-system -owide -A
 
             # FQDN=`az aks show -n $CLUSTER_NAME -g $CLUSTER_NAME --query fqdn -o tsv`
-            FQDN=`az aks show -g ${{ parameters.clusterName }}-$(make revision) -n ${{ parameters.clusterName }}-$(make revision) --query fqdn -o tsv`
+            FQDN=`az aks show -g ${{ parameters.clusterName }} -n ${{ parameters.clusterName }} --query fqdn -o tsv`
             echo $FQDN
             echo "##vso[task.setvariable variable=FQDN]$FQDN"
 
@@ -58,6 +58,7 @@ jobs:
         artifact: npm_k8s
 
       - bash: |
+          set -e
           # NetworkPolicy between server and...
           focus="\
           client should enforce policy to allow traffic only from a different namespace, based on NamespaceSelector|\
