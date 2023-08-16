@@ -681,6 +681,9 @@ func (service *HTTPRestService) GetExistingIPConfig(podInfo cns.PodInfo) ([]cns.
 
 // Assigns a pod with all IPs desired
 func (service *HTTPRestService) AssignDesiredIPConfigs(podInfo cns.PodInfo, desiredIPAddresses []string) ([]cns.PodIpInfo, error) {
+	service.Lock()
+	defer service.Unlock()
+
 	// Gets the number of NCs which will determine the number of IPs given to a pod
 	numOfNCs := len(service.state.ContainerStatus)
 	// checks to make sure we have NCs before trying to get IPs
@@ -695,9 +698,6 @@ func (service *HTTPRestService) AssignDesiredIPConfigs(podInfo cns.PodInfo, desi
 	desiredIPMap := make(map[string]struct{})
 	// slice to keep track of IP configs to assign
 	ipConfigsToAssign := make([]cns.IPConfigurationStatus, 0)
-
-	service.Lock()
-	defer service.Unlock()
 
 	for _, desiredIP := range desiredIPAddresses {
 		desiredIPMap[desiredIP] = struct{}{}

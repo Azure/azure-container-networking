@@ -149,42 +149,54 @@ func (logger *Logger) getLogFileName() string {
 	return logFileName
 }
 
-// todo: handle errors and use atomic file rotation
-// Rotate checks the active log file size and rotates log files if necessary.
-func (logger *Logger) rotate() {
-	// Return if target is not a log file.
+// todo: handle errors and use atomic file rotation.
+// rotate checks the active log file size and rotates log files if necessary.
+func (logger *Logger) rotate() error {
+	// return if target is not a log file.
 	if (logger.target != TargetLogfile && logger.target != TargetStdOutAndLogFile) || logger.out == nil {
-		return
+		return nil
 	}
 
 	fileName := logger.getLogFileName()
 	fileInfo, err := os.Stat(fileName)
 	if err != nil {
-		logger.Logf("[log] Failed to query log file info %+v.", err)
-		return
+		return fmt.Errorf("rotate: could not get file info: %w", err)
 	}
 
-	// Rotate if size limit is reached.
-	if fileInfo.Size() >= int64(logger.maxFileSize) {
-		logger.out.Close()
-		var fn1, fn2 string
+	// only rotate if size limit is reached.
+	if fileInfo.Size() < int64(logger.maxFileSize) {
+		return nil
+	}
 
-		// Rotate log files, keeping the last maxFileCount files.
-		for n := logger.maxFileCount - 1; n >= 0; n-- {
-			fn2 = fn1
-			if n == 0 {
-				fn1 = fileName
-			} else {
-				fn1 = fmt.Sprintf("%v.%v", fileName, n)
-			}
-			if fn2 != "" {
-				os.Rename(fn1, fn2)
-			}
+	// todo: what should happen if current file cannot be closed?
+	_ = logger.out.Close()
+
+	var fn1 string
+	// rotate log files, keeping the last maxFileCount files.
+	for n := logger.maxFileCount - 1; n >= 0; n-- {
+		fn2 := fn1
+
+		if n == 0 {
+			fn1 = fileName
+		} else {
+			fn1 = fmt.Sprintf("%v.%v", fileName, n)
 		}
 
-		// Create a new log file.
-		logger.SetTarget(logger.target)
+		if fn2 != "" {
+			// this algorithm attempts renaming non-existent files.
+			// todo: handle different types of error: if a non-existing file
+			// is being renamed, then continue. if an existing file cannot
+			// be renamed, log.
+			_ = os.Rename(fn1, fn2)
+		}
 	}
+
+	// Create a new log file.
+	if err := logger.SetTarget(logger.target); err != nil {
+		return fmt.Errorf("rotate: could not set target: %w", err)
+	}
+
+	return nil
 }
 
 // Request logs a structured request.
@@ -221,7 +233,9 @@ func (logger *Logger) ResponseEx(tag string, request interface{}, response inter
 // logf logs a formatted string.
 func (logger *Logger) logf(format string, args ...interface{}) {
 	if logger.callCount%rotationCheckFrq == 0 {
-		logger.rotate()
+		if err := logger.rotate(); err != nil {
+			logger.l.Printf("logf: could not rotate file: %v", err)
+		}
 	}
 	format = fmt.Sprintf("[%v] %s", pid, format)
 	logger.callCount++

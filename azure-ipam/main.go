@@ -4,6 +4,7 @@ import (
 	"log"
 	"os"
 
+	"github.com/Azure/azure-container-networking/azure-ipam/internal/buildinfo"
 	"github.com/Azure/azure-container-networking/azure-ipam/logger"
 	cnsclient "github.com/Azure/azure-container-networking/cns/client"
 	"github.com/containernetworking/cni/pkg/skel"
@@ -47,6 +48,8 @@ func executePlugin() error {
 		pluginLogger.Error("Failed to create IPAM plugin")
 		return errors.Wrapf(err, "failed to create IPAM plugin")
 	}
+
+	bv.BuildVersion = buildinfo.Version
 
 	// Execute CNI plugin
 	cniErr := skel.PluginMainWithError(plugin.CmdAdd, plugin.CmdCheck, plugin.CmdDel, version.All, bv.BuildString(pluginName))

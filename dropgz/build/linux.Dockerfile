@@ -12,7 +12,7 @@ COPY ./azure-ipam .
 RUN curl -LO --cacert /etc/ssl/certs/ca-certificates.crt https://github.com/Azure/azure-container-networking/releases/download/azure-ipam%2F$AZIPAM_VERSION/azure-ipam-$OS-$ARCH-$AZIPAM_VERSION.tgz && tar -xvf azure-ipam-$OS-$ARCH-$AZIPAM_VERSION.tgz
 
 FROM tar AS azure-vnet
-ARG AZCNI_VERSION=v1.5.4
+ARG AZCNI_VERSION=v1.5.9
 ARG VERSION
 ARG OS
 ARG ARCH

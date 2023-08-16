@@ -20,4 +20,4 @@ spec:
           securityContext:
             privileged: true
       nodeSelector:
-        "kubernetes.io/os": linux
+        kubernetes.io/os: linux

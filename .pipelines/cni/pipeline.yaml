@@ -12,6 +12,7 @@ stages:
         steps:
           - script: |
               echo "Setting up environment"
+              echo "##vso[task.setvariable variable=npmVersion;isOutput=true]$(make npm-version)"
               go version
             name: "SetEnvVars"
             displayName: "Set Environment Variables"
@@ -19,9 +20,9 @@ stages:
   - template: cilium/cilium-overlay-load-test-template.yaml
     parameters:
       name: cilium
-      clusterType: "overlay-no-kube-proxy-up"
+      clusterType: "cilium-overlay-up"
       clusterName: "cilium-overlay"
-      nodeCount: 10
+      nodeCount: ${LINUX_NODE_COUNT}
       vmSize: "Standard_DS4_v2"
       dependsOn: setup
   - template: singletenancy/windows-cni-load-test-template.yaml
@@ -30,7 +31,7 @@ stages:
       clusterType: "windows-cniv1-up"
       clusterName: "win-cniv1"
       nodeCount: 2
-      vmSize: "Standard_B2s"
+      vmSize: Standard_B2ms
       dependsOn: setup
       windowsVMSize: ${WINDOWS_VM_SKU}
       os: windows

@@ -3,6 +3,7 @@ package datapath
 import (
 	"context"
 	"fmt"
+	"net"
 	"strings"
 
 	"github.com/Azure/azure-container-networking/test/internal/k8sutils"
@@ -13,6 +14,8 @@ import (
 	"k8s.io/client-go/kubernetes"
 	restclient "k8s.io/client-go/rest"
 )
+
+var ipv6PrefixPolicy = []string{"curl", "-6", "-I", "-v", "www.bing.com"}
 
 func podTest(ctx context.Context, clientset *kubernetes.Clientset, srcPod *apiv1.Pod, cmd []string, rc *restclient.Config, passFunc func(string) error) error {
 	logrus.Infof("podTest() - %v %v", srcPod.Name, cmd)
@@ -48,8 +51,27 @@ func WindowsPodToPodPingTestSameNode(ctx context.Context, clientset *kubernetes.
 	}
 	logrus.Infof("Second pod: %v %v", secondPod.Name, secondPod.Status.PodIP)
 
+	// ipv4 ping test
 	// Ping the second pod from the first pod
-	return podTest(ctx, clientset, firstPod, []string{"ping", secondPod.Status.PodIP}, rc, pingPassedWindows)
+	resultOne := podTest(ctx, clientset, firstPod, []string{"ping", secondPod.Status.PodIP}, rc, pingPassedWindows)
+	if resultOne != nil {
+		return resultOne
+	}
+
+	// ipv6 ping test
+	// ipv6 Ping the second pod from the first pod
+	if len(secondPod.Status.PodIPs) > 1 {
+		for _, ip := range secondPod.Status.PodIPs {
+			if net.ParseIP(ip.IP).To16() != nil {
+				resultTwo := podTest(ctx, clientset, firstPod, []string{"ping", ip.IP}, rc, pingPassedWindows)
+				if resultTwo != nil {
+					return resultTwo
+				}
+			}
+		}
+	}
+
+	return nil
 }
 
 func WindowsPodToPodPingTestDiffNode(ctx context.Context, clientset *kubernetes.Clientset, nodeName1, nodeName2, podNamespace, labelSelector string, rc *restclient.Config) error {
@@ -80,7 +102,23 @@ func WindowsPodToPodPingTestDiffNode(ctx context.Context, clientset *kubernetes.
 	logrus.Infof("Second pod: %v %v", secondPod.Name, secondPod.Status.PodIP)
 
 	// Ping the second pod from the first pod located on different nodes
-	return podTest(ctx, clientset, firstPod, []string{"ping", secondPod.Status.PodIP}, rc, pingPassedWindows)
+	resultOne := podTest(ctx, clientset, firstPod, []string{"ping", secondPod.Status.PodIP}, rc, pingPassedWindows)
+	if resultOne != nil {
+		return resultOne
+	}
+
+	if len(secondPod.Status.PodIPs) > 1 {
+		for _, ip := range secondPod.Status.PodIPs {
+			if net.ParseIP(ip.IP).To16() != nil {
+				resultTwo := podTest(ctx, clientset, firstPod, []string{"ping ", ip.IP}, rc, pingPassedWindows)
+				if resultTwo != nil {
+					return resultTwo
+				}
+			}
+		}
+	}
+
+	return nil
 }
 
 func WindowsPodToNode(ctx context.Context, clientset *kubernetes.Clientset, nodeName, nodeIP, podNamespace, labelSelector string, rc *restclient.Config) error {
@@ -156,6 +194,21 @@ func WindowsPodToInternet(ctx context.Context, clientset *kubernetes.Clientset, 
 
 	if resultTwo != nil {
 		return resultTwo
+	}
+
+	// test Invoke-WebRequest an URL by IPv6 address on one pod
+	// command is: C:\inetpub\wwwroot>curl -6 -I -v www.bing.com
+	// then return *   Trying [2620:1ec:c11::200]:80...
+	//              HTTP/1.1 200 OK
+	if len(secondPod.Status.PodIPs) > 1 {
+		for _, ip := range secondPod.Status.PodIPs {
+			if net.ParseIP(ip.IP).To16() != nil {
+				resultThree := podTest(ctx, clientset, secondPod, ipv6PrefixPolicy, rc, webRequestPassedWindows)
+				if resultThree != nil {
+					return resultThree
+				}
+			}
+		}
 	}
 
 	return nil

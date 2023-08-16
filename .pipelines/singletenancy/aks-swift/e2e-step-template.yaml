@@ -2,7 +2,6 @@ parameters:
   name: ""
   testDropgz: ""
   clusterName: ""
-  osSku: ""
 
 steps:
   - bash: |
@@ -31,25 +30,17 @@ steps:
       addSpnToEnvironment: true
       inlineScript: |
         set -e
-        mkdir -p ~/.kube/
-        echo "Create AKS cluster"
-        make -C ./hack/aks azcfg AZCLI=az REGION=$(REGION_AKS_CLUSTER_TEST)
-        make -C ./hack/aks byocni-up AZCLI=az REGION=$(REGION_AKS_CLUSTER_TEST) SUB=$(SUB_AZURE_NETWORK_AGENT_TEST) CLUSTER=${{ parameters.clusterName }}-${{ parameters.osSku }}-$(make revision) OSSKU=${{ parameters.osSku }}
-        echo "Cluster successfully created"
-    displayName: Create test cluster
-    condition: succeeded()
-
-  - script: |
-      echo "install kubetest2 and gsutils"
-      go get github.com/onsi/ginkgo/ginkgo
-      go get github.com/onsi/gomega/...
-      go install github.com/onsi/ginkgo/ginkgo@latest
-      go install sigs.k8s.io/kubetest2@latest
-      go install sigs.k8s.io/kubetest2/kubetest2-noop@latest
-      go install sigs.k8s.io/kubetest2/kubetest2-tester-ginkgo@latest
-      wget https://storage.googleapis.com/pub/gsutil.tar.gz
-      tar xfz gsutil.tar.gz
-      sudo mv gsutil /usr/local/bin
+        make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
+        echo "install kubetest2 and gsutils"
+        go get github.com/onsi/ginkgo/ginkgo
+        go get github.com/onsi/gomega/...
+        go install github.com/onsi/ginkgo/ginkgo@latest
+        go install sigs.k8s.io/kubetest2@latest
+        go install sigs.k8s.io/kubetest2/kubetest2-noop@latest
+        go install sigs.k8s.io/kubetest2/kubetest2-tester-ginkgo@latest
+        wget https://storage.googleapis.com/pub/gsutil.tar.gz
+        tar xfz gsutil.tar.gz
+        sudo mv gsutil /usr/local/bin
     name: "installKubetest"
     displayName: "Set up Conformance Tests"
 
@@ -115,20 +106,4 @@ steps:
       sudo rm -rf test/integration/logs
     name: "Cleanupartifactdir"
     displayName: "Cleanup artifact dir"
-    condition: always()
-
-  - task: AzureCLI@2
-    inputs:
-      azureSubscription: $(AZURE_TEST_AGENT_SERVICE_CONNECTION)
-      scriptLocation: "inlineScript"
-      scriptType: "bash"
-      addSpnToEnvironment: true
-      inlineScript: |
-        set -e
-        echo "Deleting cluster"
-        make -C ./hack/aks azcfg AZCLI=az REGION=$(REGION_AKS_CLUSTER_TEST)
-        make -C ./hack/aks down AZCLI=az REGION=$(REGION_AKS_CLUSTER_TEST) SUB=$(SUB_AZURE_NETWORK_AGENT_TEST) CLUSTER=${{ parameters.clusterName }}-${{ parameters.osSku }}-$(make revision)
-        echo "Cluster and resources down"
-    name: "Cleanupcluster"
-    displayName: "Cleanup cluster"
     condition: always()

@@ -54,23 +54,20 @@ func (plugin *NetPlugin) handleConsecutiveAdd(args *cniSkel.CmdArgs, endpointId 
 	hnsEndpoint, err := network.Hnsv1.GetHNSEndpointByName(endpointId)
 	if hnsEndpoint != nil {
 		log.Logger.Info("Found existing endpoint through hcsshim",
-			zap.Any("endpoint", hnsEndpoint),
-			zap.String("component", "net"))
+			zap.Any("endpoint", hnsEndpoint))
 		endpoint, _ := network.Hnsv1.GetHNSEndpointByID(hnsEndpoint.Id)
 		isAttached, _ := network.Hnsv1.IsAttached(endpoint, args.ContainerID)
 		// Attach endpoint if it's not attached yet.
 		if !isAttached {
 			log.Logger.Info("Attaching endpoint to container",
 				zap.String("endpoint", hnsEndpoint.Id),
-				zap.String("container", args.ContainerID),
-				zap.String("component", "net"))
+				zap.String("container", args.ContainerID))
 			err := network.Hnsv1.HotAttachEndpoint(args.ContainerID, hnsEndpoint.Id)
 			if err != nil {
 				log.Logger.Error("Failed to hot attach shared endpoint to container",
 					zap.String("endpoint", hnsEndpoint.Id),
 					zap.String("container", args.ContainerID),
-					zap.Error(err),
-					zap.String("component", "cni-net"))
+					zap.Error(err))
 				return nil, err
 			}
 		}
@@ -254,8 +251,7 @@ func getEndpointDNSSettings(nwCfg *cni.NetworkConfig, result *cniTypesCurr.Resul
 // getPoliciesFromRuntimeCfg returns network policies from network config.
 func getPoliciesFromRuntimeCfg(nwCfg *cni.NetworkConfig, isIPv6Enabled bool) []policy.Policy {
 	log.Logger.Info("Runtime Info",
-		zap.Any("config", nwCfg.RuntimeConfig),
-		zap.String("component", "net"))
+		zap.Any("config", nwCfg.RuntimeConfig))
 	var policies []policy.Policy
 	var protocol uint32
 
@@ -290,8 +286,7 @@ func getPoliciesFromRuntimeCfg(nwCfg *cni.NetworkConfig, isIPv6Enabled bool) []p
 		}
 
 		log.Logger.Info("Creating port mapping policyv4",
-			zap.Any("policy", policyv4),
-			zap.String("component", "net"))
+			zap.Any("policy", policyv4))
 		policies = append(policies, policyv4)
 
 		// add port mapping policy for v6 if we have IPV6 enabled
@@ -317,8 +312,7 @@ func getPoliciesFromRuntimeCfg(nwCfg *cni.NetworkConfig, isIPv6Enabled bool) []p
 			}
 
 			log.Logger.Info("Creating port mapping policyv6",
-				zap.Any("policy", policyv6),
-				zap.String("component", "net"))
+				zap.Any("policy", policyv6))
 			policies = append(policies, policyv6)
 		}
 	}

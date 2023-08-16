@@ -3,6 +3,7 @@ parameters:
   os: ""
   sub: ""
   os_version: ""
+  dependsOn: ""
   tag: ""
 
 jobs:
@@ -54,7 +55,7 @@ jobs:
             echo "##vso[task.setvariable variable=FQDN]$FQDN"
 
       - download: current
-        artifact: Test
+        artifact: npm_k8s
 
       - bash: |
           # NetworkPolicy between server and...
@@ -74,10 +75,10 @@ jobs:
           client should stop enforcing policies after they are deleted|\
           client should support a 'default-deny-ingress' policy"
 
-          chmod +x $(Pipeline.Workspace)/Test/e2e.test
+          chmod +x $(Pipeline.Workspace)/npm_k8s/e2e.test
 
           KUBERNETES_SERVICE_HOST="$FQDN" KUBERNETES_SERVICE_PORT=443 \
-          $(Pipeline.Workspace)/Test/e2e.test \
+          $(Pipeline.Workspace)/npm_k8s/e2e.test \
           --provider=local \
           --ginkgo.focus="$focus" \
           --ginkgo.skip="NetworkPolicyLegacy|SCTP" \
