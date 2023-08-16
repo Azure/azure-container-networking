@@ -1,7 +1,7 @@
 parameters:
   dependsOn: ""
   name: "cilium"
-  clusterType: "overlay-no-kube-proxy-up"
+  clusterType: "cilium-overlay-up"
   clusterName: "cilium-overlay"
   nodeCount: 10
   vmSize: "Standard_DS4_v2"
