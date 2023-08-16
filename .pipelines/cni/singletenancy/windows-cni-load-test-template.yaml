@@ -93,7 +93,7 @@ stages:
         steps:
           - task: AzureCLI@1
             inputs:
-              azureSubscription: $(TEST_SUB_SERVICE_CONNECTION)
+              azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
               scriptLocation: "inlineScript"
               scriptType: "bash"
               addSpnToEnvironment: true
@@ -121,7 +121,7 @@ stages:
     jobs:
       - template: ../k8s-e2e/k8s-e2e-job-template.yaml
         parameters:
-          sub: $(TEST_SUB_SERVICE_CONNECTION)
+          sub: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
           clusterName: ${{ parameters.clusterName }}-$(make revision)
           os: ${{ parameters.os }}
           datapath: true
@@ -176,7 +176,7 @@ stages:
         parameters:
           clusterName: ${{ parameters.clusterName }}
           os: ${{ parameters.os }}
-          sub: $(TEST_SUB_SERVICE_CONNECTION)
+          sub: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
           os_version: 'ltsc2022'
           tag: $(npmVersion)
 
@@ -193,7 +193,7 @@ stages:
         steps:
           - task: AzureCLI@1
             inputs:
-              azureSubscription: $(TEST_SUB_SERVICE_CONNECTION)
+              azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
               scriptLocation: "inlineScript"
               scriptType: "bash"
               addSpnToEnvironment: true
@@ -204,7 +204,7 @@ stages:
                   echo "Deleting Cluster and resource group"
                   make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}-$(make revision)
                   make -C ./hack/aks azcfg AZCLI=az REGION=$(LOCATION)
-                  make -C ./hack/aks down AZCLI=az REGION=$(LOCATION) SUB=$(SUBSCRIPTION_ID) CLUSTER=${{ parameters.clusterName }}-$(make revision)
+                  make -C ./hack/aks down AZCLI=az REGION=$(LOCATION) SUB=$(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS) CLUSTER=${{ parameters.clusterName }}-$(make revision)
                   echo "Cluster and resources down"
                 else
                   echo "Deletion of resources is False"

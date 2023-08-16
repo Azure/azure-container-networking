@@ -7,7 +7,7 @@ parameters:
 steps:
   - task: AzureCLI@1
     inputs:
-      azureSubscription: $(TEST_SUB_SERVICE_CONNECTION)
+      azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
       scriptLocation: "inlineScript"
       scriptType: "bash"
       addSpnToEnvironment: true
