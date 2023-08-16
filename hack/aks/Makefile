@@ -180,7 +180,9 @@ cilium-overlay-up: rg-up overlay-net-up ## Brings up an Overlay BYO CNI cluster 
 		--load-balancer-sku basic \
 		--network-plugin none \
 		--network-plugin-mode overlay \
-		--pod-cidr 192.168.0.0/16 \
+		--pod-cidr 10.128.0.0/9 \
+		--dns-service-ip 192.168.0.10 \
+		--service-cidr 192.168.0.0/16 \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
 		--no-ssh-key \
 		--kube-proxy-config ./kube-proxy.json \
