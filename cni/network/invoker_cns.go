@@ -137,8 +137,7 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 
 		log.Logger.Info("Received info for pod",
 			zap.Any("ipv4info", info),
-			zap.Any("podInfo", podInfo),
-			zap.String("component", "cni-invoker-cns"))
+			zap.Any("podInfo", podInfo))
 		ip, ncIPNet, err := net.ParseCIDR(info.podIPAddress + "/" + fmt.Sprint(info.ncSubnetPrefix))
 		if ip == nil {
 			return IPAMAddResult{}, errors.Wrap(err, "Unable to parse IP from response: "+info.podIPAddress+" with err %w")

@@ -150,19 +150,16 @@ func (plugin *NetPlugin) Start(config *common.PluginConfig) error {
 	// Log platform information.
 	log.Logger.Info("Plugin Info",
 		zap.String("name", plugin.Name),
-		zap.String("version", plugin.Version),
-		zap.String("component", "cni-net"))
+		zap.String("version", plugin.Version))
 
 	// Initialize network manager. rehyrdration not required on reboot for cni plugin
 	err = plugin.nm.Initialize(config, false)
 	if err != nil {
-		log.Logger.Error("Failed to initialize network manager",
-			zap.Error(err),
-			zap.String("component", "cni-net"))
+		log.Logger.Error("Failed to initialize network manager", zap.Error(err))
 		return err
 	}
 
-	log.Logger.Info("Plugin started", zap.String("component", "cni-net"))
+	log.Logger.Info("Plugin started")
 
 	return nil
 }
@@ -206,7 +203,7 @@ func (plugin *NetPlugin) GetAllEndpointState(networkid string) (*api.AzureCNISta
 func (plugin *NetPlugin) Stop() {
 	plugin.nm.Uninitialize()
 	plugin.Uninitialize()
-	log.Logger.Info("Plugin stopped", zap.String("component", "cni-net"))
+	log.Logger.Info("Plugin stopped")
 }
 
 // FindMasterInterface returns the name of the master interface.
@@ -270,8 +267,7 @@ func (plugin *NetPlugin) getPodInfo(args string) (name, ns string, err error) {
 
 func SetCustomDimensions(cniMetric *telemetry.AIMetric, nwCfg *cni.NetworkConfig, err error) {
 	if cniMetric == nil {
-		log.Logger.Error("Unable to set custom dimension. Report is nil",
-			zap.String("component", "cni"))
+		log.Logger.Error("Unable to set custom dimension. Report is nil")
 		return
 	}
 
@@ -313,7 +309,7 @@ func addNatIPV6SubnetInfo(nwCfg *cni.NetworkConfig,
 			Gateway: resultV6.IPs[0].Gateway,
 		}
 		log.Logger.Info("ipv6 subnet info",
-			zap.Any("ipv6SubnetInfo", ipv6SubnetInfo), zap.String("component", "net"))
+			zap.Any("ipv6SubnetInfo", ipv6SubnetInfo))
 		nwInfo.Subnets = append(nwInfo.Subnets, ipv6SubnetInfo)
 	}
 }
