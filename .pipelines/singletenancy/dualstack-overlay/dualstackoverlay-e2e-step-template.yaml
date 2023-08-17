@@ -97,7 +97,7 @@ steps:
         make -C ./hack/aks azcfg AZCLI=az REGION=$(REGION_DUALSTACKOVERLAY_CLUSTER_TEST)
         kubectl get pods -A
         echo "Validating Node Restart"
-        sudo go test -timeout 30m -tags load -cni dualstack -run ^TestValidateState$ -tags=load
+        sudo go test -timeout 30m -tags load -cni dualstack -run ^TestValidateState$ -tags=load -restart-case=true
     displayName: "Validate Node Restart"
     retryCountOnTaskFailure: 3
 
@@ -110,5 +110,5 @@ steps:
       echo "validate pods after CNS restart"
       cd test/integration/load
       sudo go test -timeout 30m -tags load -cni dualstack -run ^TestValidateState$ -tags=load
-    name: "restartCNS_ValidatePods"
-    displayName: "Restart CNS and validate pods"
+    name: "restartCNS_ValidatePodState"
+    displayName: "Restart CNS and Validate Pod State"
