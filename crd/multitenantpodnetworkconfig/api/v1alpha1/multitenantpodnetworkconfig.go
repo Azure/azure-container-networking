@@ -47,9 +47,9 @@ type MultitenantPodNetworkConfigSpec struct {
 	// +kubebuilder:validation:Optional
 	PodNetworkInstance string `json:"podNetworkInstance,omitempty"`
 	// name of PN object from requesting cx pod
-	PodNetwork string `json:"podNetwork,omitempty"`
+	PodNetwork string `json:"podNetwork"`
 	// name of the requesting cx pod
-	PodName string `json:"podName,omitempty"`
+	PodName string `json:"podName"`
 }
 
 // MultitenantPodNetworkConfigStatus defines the observed state of PodNetworkConfig
