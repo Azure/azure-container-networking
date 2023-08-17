@@ -194,7 +194,7 @@ func (plugin *Plugin) InitializeKeyValueStore(config *common.PluginConfig) error
 	}
 
 	// Acquire store lock. For windows 1m timeout is used while for Linux 10s timeout is assigned.
-	var lockTimeoutValue time.Duration = store.DefaultLockTimeout
+	var lockTimeoutValue time.Duration = store.DefaultLockTimeoutLinux
 	if runtime.GOOS == "windows" {
 		lockTimeoutValue = store.DefaultLockTimeoutWindows
 	}
