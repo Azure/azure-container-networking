@@ -43,9 +43,6 @@ var linuxChecksMap = map[string][]check{
 		{"cns cache", cnsCacheStateFileIps, cnsLabelSelector, privilegedNamespace, cnsLocalCacheCmd},
 		{"azure dualstackoverlay", azureDualStackStateFileIPs, privilegedLabelSelector, privilegedNamespace, azureVnetStateFileCmd},
 	},
-	"v4Overlay": {
-		{"cns cache", cnsCacheStateFileIps, cnsLabelSelector, privilegedNamespace, cnsLocalCacheCmd},
-	},
 }
 
 type CnsState struct {
