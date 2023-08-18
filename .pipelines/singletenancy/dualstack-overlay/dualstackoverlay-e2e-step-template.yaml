@@ -114,3 +114,4 @@ steps:
       sudo go test -timeout 30m -tags load -cni dualstack -run ^TestValidateState$ -tags=load
     name: "restartCNS_ValidatePodState"
     displayName: "Restart CNS and Validate Pod State"
+    retryCountOnTaskFailure: 3
