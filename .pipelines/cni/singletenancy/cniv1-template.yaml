@@ -6,15 +6,20 @@ parameters:
   nodeCount: ""
   vmSize: ""
   windowsVMSize: ""
-  os: windows
+  os: ""
   arch: ""
+  scaleup: 100
+  iterations: 3
   os_version: ""
 
 # CNIv1
 # + Should be able to scale up/down the pods successfully certain number of times.
 # + Node reboot scenarios should be covered.
-# The HNS state should be validated with that of CNI state.
+# + The azure-vnet state should be validated with that of CNI state.
 # + Pods should have ips assigned and connectivity/datapath test should be present.
+# Windows
+# + The HNS state should be validated with that of CNI state.
+
 
 stages:
   - stage: create_${{ parameters.name }}
@@ -37,6 +42,7 @@ stages:
               vmSize: ${{ parameters.vmSize }}
               windowsVMSize: ${{ parameters.windowsVMSize }}
               region: $(LOCATION)
+
   - stage: ${{ parameters.name }}
     variables:
       commitID: $[ stagedependencies.setup.env.outputs['SetEnvVars.commitID'] ]
@@ -47,13 +53,13 @@ stages:
       - create_${{ parameters.name }}
       - publish
       - setup
-    displayName: "CNIv1 Test - ${{ parameters.clusterName }}"
+    displayName: "CNIv1 Test - ${{ parameters.name }}"
     jobs:
       - job: update_cni
         steps:
           - task: AzureCLI@1
             inputs:
-              azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+              azureSubscription: $(TEST_SUB_SERVICE_CONNECTION)
               scriptLocation: "inlineScript"
               scriptType: "bash"
               addSpnToEnvironment: true
@@ -61,47 +67,57 @@ stages:
                 set -ex
                 make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}-$(commitID)
                 echo "Upload CNI"
-                export DROP_GZ_URL=$( make cni-dropgz-test-image-name-and-tag OS='linux' ARCH=${{ parameters.arch }} )
-                envsubst < ./test/integration/manifests/cni/cni-installer-v1.yaml | kubectl apply -f -
-                kubectl rollout status daemonset/azure-cni -n kube-system
-                echo "Deploying on windows nodes"
-                export DROP_GZ_URL=$( make cni-dropgz-test-image-name-and-tag OS='windows' ARCH=${{ parameters.arch }}  OS_VERSION=${{ parameters.os_version }} )
-                envsubst < ./test/integration/manifests/cni/cni-installer-v1-windows.yaml | kubectl apply -f -
-                kubectl rollout status daemonset/azure-cni-windows -n kube-system
+                if [ "${{parameters.os}}" == "windows" ]; then
+                  export DROP_GZ_URL=$( make cni-dropgz-test-image-name-and-tag OS='linux' ARCH=${{ parameters.arch }} CNI_DROPGZ_VERSION=${{ parameters.version }})
+                  envsubst < ./test/integration/manifests/cni/cni-installer-v1.yaml | kubectl apply -f -
+                  kubectl rollout status daemonset/azure-cni -n kube-system
+                  echo "Deploying on windows nodes"
+                  export DROP_GZ_URL=$( make cni-dropgz-test-image-name-and-tag OS='windows' ARCH=${{ parameters.arch }}  OS_VERSION=${{ parameters.os_version }} CNI_DROPGZ_VERSION=${{ parameters.version }})
+                  envsubst < ./test/integration/manifests/cni/cni-installer-v1-windows.yaml | kubectl apply -f -
+                  kubectl rollout status daemonset/azure-cni-windows -n kube-system
+                else
+                  export DROP_GZ_URL=$( make cni-dropgz-test-image-name-and-tag OS=${{ parameters.os }} ARCH=${{ parameters.arch }} CNI_DROPGZ_VERSION=${{ parameters.version }})
+                  envsubst < ./test/integration/manifests/cni/cni-installer-v1.yaml | kubectl apply -f -
+                  kubectl rollout status daemonset/azure-cni -n kube-system
+                fi
                 kubectl get pods -A -owide
             name: "UploadCNI"
             displayName: "Upload CNI"
-      - template: ../../npm/npm-cni-integration-test.yaml
-        parameters:
-          clusterName: ${{ parameters.clusterName }}-$(commitID)
-          os: ${{ parameters.os }}
-          sub: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
-          os_version: 'ltsc2022'
-          tag: $(npmVersion)
-          dependsOn: update_cni
       - job: deploy_pods
         displayName: "Scale Test"
-        dependsOn: npm_k8se2e
+        dependsOn: update_cni
         steps:
           - template: ../load-test-templates/pod-deployment-template.yaml
             parameters:
               clusterName: ${{ parameters.clusterName }}-$(commitID)
-              scaleup: ${WINDOWS_SCALEUP}
+              scaleup: ${{ parameters.scaleup }}
               os: ${{ parameters.os }}
-              iterations: ${WINDOWS_ITERATIONS}
-              nodeCount: ${{ parameters.nodeCount }}
+              iterations: ${{ parameters.iterations }}
           - template: ../load-test-templates/validate-state-template.yaml
             parameters:
               clusterName: ${{ parameters.clusterName }}-$(commitID)
               os: ${{ parameters.os }}
-              cni: ${{ parameters.cni }}
+              cni: cniv1
+      - job: restart_nodes
+        displayName: "Restart Test"
+        dependsOn: deploy_pods
+        steps:
+          - template: ../load-test-templates/restart-node-template.yaml
+            parameters:
+              clusterName: ${{ parameters.clusterName }}-$(commitID)
+          - template: ../load-test-templates/validate-state-template.yaml
+            parameters:
+              clusterName: ${{ parameters.clusterName }}-$(commitID)
+              os: ${{ parameters.os }}
+              cni: cniv1
+              restartCase: "true"
       - job: recover
         displayName: "Recover Resources"
         dependsOn: deploy_pods
         steps:
           - task: AzureCLI@1
             inputs:
-              azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+              azureSubscription: $(TEST_SUB_SERVICE_CONNECTION)
               scriptLocation: "inlineScript"
               scriptType: "bash"
               addSpnToEnvironment: true
@@ -115,7 +131,7 @@ stages:
             displayName: "Delete test Namespaces"
       - template: ../k8s-e2e/k8s-e2e-job-template.yaml
         parameters:
-          sub: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+          sub: $(TEST_SUB_SERVICE_CONNECTION)
           clusterName: ${{ parameters.clusterName }}-$(commitID)
           os: ${{ parameters.os }}
           dependsOn: recover
@@ -125,4 +141,11 @@ stages:
           hybridWin: true
           service: true
           hostport: true
-
+      - template: ../../npm/npm-cni-integration-test.yaml
+        parameters:
+          clusterName: ${{ parameters.clusterName }}-$(commitID)
+          os: ${{ parameters.os }}
+          sub: $(TEST_SUB_SERVICE_CONNECTION)
+          os_version: ${{ parameters.os_version }}
+          tag: $(npmVersion)
+          dependsOn: cni_k8se2e
