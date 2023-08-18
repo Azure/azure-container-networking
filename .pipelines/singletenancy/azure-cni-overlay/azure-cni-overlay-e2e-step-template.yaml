@@ -112,7 +112,7 @@ steps:
         make -C ./hack/aks azcfg AZCLI=az REGION=$(REGION_AKS_CLUSTER_TEST)
         kubectl get pods -owide -A
         echo "Validating Node Restart"
-        sudo go test -timeout 30m -tags load -cni cniv2 -run ^TestValidateState$ -tags=load -restart-case=true
+        sudo go test -timeout 30m -tags load -cni cniv2 -run ^TestValidateState$ -restart-case=true
     displayName: "Validate Node Restart"
     retryCountOnTaskFailure: 3
 
@@ -121,12 +121,12 @@ steps:
       kubectl get pod -owide -A
       echo "validate pod state before CNS restarts"
       cd test/integration/load
-      sudo go test -timeout 30m -tags load -cni cniv2 -run ^TestValidateState$ -tags=load
+      sudo go test -timeout 30m -tags load -cni cniv2 -run ^TestValidateState$
       kubectl rollout restart ds azure-cns -n kube-system
       kubectl rollout status ds azure-cns -n kube-system
       kubectl get pod -owide -A
       echo "validate pods after CNS restart"
-      sudo go test -timeout 30m -tags load -cni cniv2 -run ^TestValidateState$ -tags=load
+      sudo go test -timeout 30m -tags load -cni cniv2 -run ^TestValidateState$
     name: "restartCNS_ValidatePodState"
     displayName: "Restart CNS and validate pod state"
     retryCountOnTaskFailure: 3

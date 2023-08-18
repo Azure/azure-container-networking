@@ -17,4 +17,4 @@ steps:
         az extension add --name aks-preview
         make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}-$(make revision)
         cd test/integration/load
-        go test -timeout 30m -tags load -run ^TestLoad$ -tags=load -iterations=${{ parameters.iterations }} -scaleup=${{ parameters.scaleup }} -os=${{ parameters.os }}
+        go test -timeout 30m -tags load -run ^TestLoad$ -iterations=${{ parameters.iterations }} -scaleup=${{ parameters.scaleup }} -os=${{ parameters.os }}
