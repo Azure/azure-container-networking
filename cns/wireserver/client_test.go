@@ -29,21 +29,18 @@ func (m *NOPLogger) Printf(_ string, _ ...any) {}
 
 func TestGetInterfaces(t *testing.T) {
 	tests := []struct {
-		name   string
-		host   string
-		port   uint16
-		expURL string
+		name     string
+		hostport string
+		expURL   string
 	}{
 		{
 			"real ws url",
 			"168.63.129.16",
-			0, // a.k.a. "no port"
 			"http://168.63.129.16/machine/plugins?comp=nmagent&type=getinterfaceinfov1",
 		},
 		{
 			"local ws url",
-			"127.0.0.1",
-			9001, // a.k.a. "no port"
+			"127.0.0.1:9001",
 			"http://127.0.0.1:9001/machine/plugins?comp=nmagent&type=getinterfaceinfov1",
 		},
 	}
@@ -56,9 +53,8 @@ func TestGetInterfaces(t *testing.T) {
 			// that the correct requests are sent.
 			var gotURL string
 			client := &wireserver.Client{
-				Host:   test.host,
-				Port:   test.port,
-				Logger: &NOPLogger{},
+				HostPort: test.hostport,
+				Logger:   &NOPLogger{},
 				HTTPClient: &http.Client{
 					Transport: &TestTripper{
 						RoundTripF: func(req *http.Request) (*http.Response, error) {

@@ -678,6 +678,7 @@ func main() {
 	}
 
 	wsclient := &wireserver.Client{
+		HostPort:   cnsconfig.WireserverIP,
 		HTTPClient: &http.Client{},
 		Logger:     logger.Log,
 	}

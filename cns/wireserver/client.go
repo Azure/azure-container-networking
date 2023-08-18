@@ -5,10 +5,8 @@ import (
 	"context"
 	"encoding/xml"
 	"io"
-	"net"
 	"net/http"
 	"net/url"
-	"strconv"
 
 	"github.com/pkg/errors"
 )
@@ -29,8 +27,7 @@ type do interface {
 }
 
 type Client struct {
-	Host string
-	Port uint16
+	HostPort string
 
 	HTTPClient do
 	Logger     interface {
@@ -39,11 +36,7 @@ type Client struct {
 }
 
 func (c *Client) hostport() string {
-	if c.Port != 0 {
-		port := strconv.FormatUint(uint64(c.Port), 10)
-		return net.JoinHostPort(c.Host, port)
-	}
-	return c.Host
+	return c.HostPort
 }
 
 // GetInterfaces queries interfaces from the wireserver.
