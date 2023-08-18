@@ -1235,6 +1235,12 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 		return errors.Wrapf(err, "failed to get node %s", nodeName)
 	}
 
+	// check the Node labels for Swift V2
+	if _, ok := node.Labels[configuration.LabelSwiftV2]; ok {
+		cnsconfig.EnableSwiftV2 = true
+		// TODO(rbtr): create the NodeInfo for Swift V2
+	}
+
 	// get CNS Node IP to compare NC Node IP with this Node IP to ensure NCs were created for this node
 	nodeIP := configuration.NodeIP()
 

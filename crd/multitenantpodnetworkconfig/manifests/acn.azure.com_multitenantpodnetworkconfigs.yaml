@@ -23,6 +23,9 @@ spec:
     - jsonPath: .spec.podNetworkInstance
       name: PodNetworkInstance
       type: string
+    - jsonPath: .spec.podNetwork
+      name: PodNetwork
+      type: string
     - jsonPath: .spec.podName
       name: PodName
       type: string
@@ -63,9 +66,15 @@ spec:
               podName:
                 description: name of the requesting cx pod
                 type: string
+              podNetwork:
+                description: name of PN object from requesting cx pod
+                type: string
               podNetworkInstance:
                 description: name of PNI object from requesting cx pod
                 type: string
+            required:
+            - podName
+            - podNetwork
             type: object
           status:
             description: MultitenantPodNetworkConfigStatus defines the observed state
