@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sys/unix"
 )
 
 const (
@@ -302,6 +303,69 @@ func TestAddRemoveStaticArp(t *testing.T) {
 	}
 
 	err = nl.SetOrRemoveLinkAddress(linkInfo, REMOVE, NUD_INCOMPLETE)
+	if err != nil {
+		t.Errorf("ret val %v", err)
+	}
+
+	err = nl.DeleteLink(ifName)
+	if err != nil {
+		t.Errorf("DeleteLink failed: %+v", err)
+	}
+}
+
+func TestAddRemoveIPAddress(t *testing.T) {
+	_, err := addDummyInterface(ifName)
+	if err != nil {
+		t.Errorf("addDummyInterface failed: %v", err)
+	}
+
+	ip := net.ParseIP("192.168.0.4")
+	_, ipNet, _ := net.ParseCIDR("192.168.0.4/24")
+	nl := NewNetlink()
+
+	err = nl.setIPAddress(ifName, ip, ipNet, true)
+	if err != nil {
+		t.Errorf("ret val %v", err)
+	}
+
+	err = nl.setIPAddress(ifName, ip, ipNet, false)
+	if err != nil {
+		t.Errorf("ret val %v", err)
+	}
+
+	err = nl.DeleteLink(ifName)
+	if err != nil {
+		t.Errorf("DeleteLink failed: %+v", err)
+	}
+}
+
+func TestAddDeleteRoute(t *testing.T) {
+	_, err := addDummyInterface(ifName)
+	if err != nil {
+		t.Errorf("addDummyInterface failed: %v", err)
+	}
+
+	nl := NewNetlink()
+	err = nl.SetLinkState(ifName, true)
+	if err != nil {
+		t.Errorf("ret val %v", err)
+	}
+	_, dstIPNet, _ := net.ParseCIDR("192.168.0.4/24")
+	netif, _ := net.InterfaceByName(ifName)
+
+	route := Route{
+		Family:    unix.AF_INET,
+		Dst:       dstIPNet,
+		LinkIndex: netif.Index,
+		Scope:     RT_SCOPE_LINK,
+	}
+
+	err = setIpRoute(&route, true)
+	if err != nil {
+		t.Errorf("ret val %v", err)
+	}
+
+	err = setIpRoute(&route, false)
 	if err != nil {
 		t.Errorf("ret val %v", err)
 	}
