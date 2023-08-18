@@ -53,7 +53,7 @@ stages:
       - create_${{ parameters.name }}
       - publish
       - setup
-    displayName: "CNIv1 Test - ${{ parameters.name }}"
+    displayName: "CNIv1 Test - ${{ parameters.clusterName }}"
     jobs:
       - job: update_cni
         steps:

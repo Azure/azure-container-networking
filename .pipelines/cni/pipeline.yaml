@@ -118,11 +118,12 @@ stages:
       clusterName: win22-cniv1
       nodeCount: ${WINDOWS_NODE_COUNT}
       vmSize: Standard_DS4_v2
-      windowsVMSize: ${WINDOWS_VM_SKU}
+      windowsVMSize: Standard_DS4_v2
+      os: windows
+      os_version: 'ltsc2022'
       arch: amd64
       scaleup: ${WINDOWS_SCALEUP}
       iterations: ${WINDOWS_ITERATIONS}
-      os_version: 'ltsc2022'
 
   - template: singletenancy/cniv1-template.yaml
     parameters:
@@ -131,6 +132,7 @@ stages:
       clusterName: linux-cniv1
       nodeCount: ${LINUX_NODE_COUNT}
       vmSize: Standard_DS4_v2
+      os: linux
       arch: amd64
       scaleup: ${LINUX_SCALEUP}
       iterations: ${LINUX_ITERATIONS}
