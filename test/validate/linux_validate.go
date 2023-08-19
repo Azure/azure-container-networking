@@ -18,6 +18,7 @@ var (
 	restartNetworkCmd      = []string{"bash", "-c", "chroot /host /bin/bash -c systemctl restart systemd-networkd"}
 	cnsManagedStateFileCmd = []string{"bash", "-c", "cat /var/run/azure-cns/azure-endpoints.json"}
 	azureVnetStateFileCmd  = []string{"bash", "-c", "cat /var/run/azure-vnet.json"}
+	azureVnetStateIpamCmd  = []string{"bash", "-c", "cat /var/run/azure-vnet-ipam.json"}
 	ciliumStateFileCmd     = []string{"bash", "-c", "cilium endpoint list -o json"}
 	cnsLocalCacheCmd       = []string{"curl", "localhost:10090/debug/ipaddresses", "-d", "{\"IPConfigStateFilter\":[\"Assigned\"]}"}
 )
@@ -35,6 +36,10 @@ var linuxChecksMap = map[string][]check{
 		{"cns", cnsManagedStateFileIps, cnsLabelSelector, privilegedNamespace, cnsManagedStateFileCmd}, // cns configmap "ManageEndpointState": true, | Endpoints managed in CNS State File
 		{"cilium", ciliumStateFileIps, ciliumLabelSelector, privilegedNamespace, ciliumStateFileCmd},
 		{"cns cache", cnsCacheStateFileIps, cnsLabelSelector, privilegedNamespace, cnsLocalCacheCmd},
+	},
+	"cniv1": {
+		{"azure-vnet", azureVnetStateIps, privilegedLabelSelector, privilegedNamespace, azureVnetStateFileCmd},
+		{"azure-vnet-ipam", azureVnetStateIpamIps, privilegedLabelSelector, privilegedNamespace, azureVnetStateIpamCmd},
 	},
 	"cniv2": {
 		{"cns cache", cnsCacheStateFileIps, cnsLabelSelector, privilegedNamespace, cnsLocalCacheCmd},
@@ -191,4 +196,25 @@ func azureVnetStateIps(result []byte) (map[string]string, error) {
 		}
 	}
 	return azureVnetPodIps, nil
+}
+
+func azureVnetStateIpamIps(result []byte) (map[string]string, error) {
+	var azureVnetIpamResult AzureVnetIpam
+	err := json.Unmarshal(result, &azureVnetIpamResult)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to unmarshal azure vnet ipam")
+	}
+
+	azureVnetIpamPodIps := make(map[string]string)
+
+	for _, v := range azureVnetIpamResult.IPAM.AddrSpaces {
+		for _, v := range v.Pools {
+			for _, v := range v.Addresses {
+				if v.InUse {
+					azureVnetIpamPodIps[v.Addr.String()] = v.Addr.String()
+				}
+			}
+		}
+	}
+	return azureVnetIpamPodIps, nil
 }

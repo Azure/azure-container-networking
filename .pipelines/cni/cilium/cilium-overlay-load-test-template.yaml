@@ -5,6 +5,7 @@ parameters:
   clusterName: "cilium-overlay"
   nodeCount: 10
   vmSize: "Standard_DS4_v2"
+  os: "linux"
 
 stages:
   - stage: create_${{ parameters.name }}

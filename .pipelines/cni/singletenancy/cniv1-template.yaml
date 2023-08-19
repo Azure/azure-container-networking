@@ -105,6 +105,9 @@ stages:
           - template: ../load-test-templates/restart-node-template.yaml
             parameters:
               clusterName: ${{ parameters.clusterName }}-$(commitID)
+              os: ${{ parameters.os }}
+              nodeCount: ${{ parameters.nodeCount }}
+              scaleup: ${{ parameters.scaleup }}
           - template: ../load-test-templates/validate-state-template.yaml
             parameters:
               clusterName: ${{ parameters.clusterName }}-$(commitID)
@@ -113,7 +116,7 @@ stages:
               restartCase: "true"
       - job: recover
         displayName: "Recover Resources"
-        dependsOn: deploy_pods
+        dependsOn: restart_nodes
         steps:
           - task: AzureCLI@1
             inputs:
