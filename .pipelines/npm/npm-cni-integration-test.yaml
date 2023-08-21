@@ -45,6 +45,7 @@ jobs:
               kubectl apply -f https://raw.githubusercontent.com/Azure/azure-container-networking/master/npm/azure-npm.yaml
               kubectl set image daemonset/azure-npm -n kube-system azure-npm=$IMAGE_REGISTRY/azure-npm:${{ parameters.tag }}
               kubectl rollout status -n kube-system daemonset/azure-npm
+              sleep 60 # Tests were failing on SWIFT clusters.
             fi
 
             kubectl get po -n kube-system -owide -A

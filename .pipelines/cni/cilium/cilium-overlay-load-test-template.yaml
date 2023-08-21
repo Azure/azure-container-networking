@@ -83,14 +83,6 @@ stages:
               os: linux
               iterations: ${CILIUM_ITERATIONS}
               nodeCount: ${{ parameters.nodeCount }}
-  - stage: validate_state
-    dependsOn: pod_deployment
-    displayName: "Validate State"
-    jobs:
-      - job: validate_state
-        pool:
-          name: "$(BUILD_POOL_NAME_DEFAULT)"
-        steps:
           - template: ../load-test-templates/validate-state-template.yaml
             parameters:
               clusterName: ${{ parameters.clusterName }}-$(commitID)
@@ -103,14 +95,6 @@ stages:
               clusterName: ${{ parameters.clusterName }}-$(commitID)
               nodeCount: ${{ parameters.nodeCount }}
               scaleup: ${CILIUM_SCALEUP}
-  - stage: validate_restart_state
-    dependsOn: restart_nodes
-    displayName: "Validate Restart State"
-    jobs:
-      - job: validate_restart_state
-        pool:
-          name: "$(BUILD_POOL_NAME_DEFAULT)"
-        steps:
           - template: ../load-test-templates/validate-state-template.yaml
             parameters:
               clusterName: ${{ parameters.clusterName }}-$(commitID)

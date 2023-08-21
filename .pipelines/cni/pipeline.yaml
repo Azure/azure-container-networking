@@ -124,6 +124,7 @@ stages:
       vmSize: Standard_DS4_v2
       windowsVMSize: ${WINDOWS_VM_SKU}
       arch: amd64
+      os_version: 'ltsc2022'
 
   - template: singletenancy/linux-cniv2-template.yaml
     parameters:
