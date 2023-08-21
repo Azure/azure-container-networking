@@ -90,6 +90,12 @@ func (c *Client) DeleteNetwork(ctx context.Context, dnr DeleteNetworkRequest) er
 	}
 	defer resp.Body.Close()
 
+	// NMAgent returns 400 Bad Request if the network ID is invalid or does not
+	// exist, but we wish to return this as a NotFound error.
+	if resp.StatusCode == http.StatusBadRequest {
+		resp.StatusCode = http.StatusNotFound
+	}
+
 	if resp.StatusCode != http.StatusOK {
 		return die(resp.StatusCode, resp.Header, resp.Body)
 	}

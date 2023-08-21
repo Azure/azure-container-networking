@@ -151,6 +151,13 @@ func TestNMAgentClientDeleteNetwork(t *testing.T) {
 			http.StatusInternalServerError,
 			true,
 		},
+		{
+			"network does not exist",
+			"00000000-0000-0000-0000-000000000000",
+			"/machine/plugins?comp=nmagent&type=NetworkManagement%2FjoinedVirtualNetworks%2F00000000-0000-0000-0000-000000000000%2Fapi-version%2F1%2Fmethod%2FDELETE",
+			http.StatusBadRequest,
+			true,
+		},
 	}
 
 	for _, test := range deleteNetTests {

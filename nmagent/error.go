@@ -103,3 +103,9 @@ func (e Error) StatusCode() int {
 func (e Error) Unauthorized() bool {
 	return e.Code == http.StatusUnauthorized
 }
+
+// NotFound reports whether the error was produced as a result of the resource
+// not existing.
+func (e Error) NotFound() bool {
+	return e.Code == http.StatusNotFound
+}
