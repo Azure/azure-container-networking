@@ -60,11 +60,11 @@ steps:
       sudo go test -timeout 30m -tags load -run ^TestLoad$
       echo "DualStack Overlay Linux control plane CNS validation test"
       sudo go test -timeout 30m -tags load -cni dualstack -run ^TestValidateState$
-      cd ../../..
+      cd ../datapath
       echo "Dualstack Overlay Linux datapath IPv6 test"
-      sudo go test -count=1 test/integration/datapath/datapath_linux_test.go -timeout 1m -tags connection -run ^TestDatapathLinux$ -tags=connection,integration -isDualStack=true
+      sudo go test -count=1 datapath_linux_test.go -timeout 1m -tags connection -run ^TestDatapathLinux$ -tags=connection,integration -isDualStack=true
       echo "Dualstack Overlay Linux datapath IPv4 test"
-      sudo go test -count=1 test/integration/datapath/datapath_linux_test.go -timeout 1m -tags connection -run ^TestDatapathLinux$ -tags=connection,integration
+      sudo go test -count=1 datapath_linux_test.go -timeout 1m -tags connection -run ^TestDatapathLinux$ -tags=connection,integration
     retryCountOnTaskFailure: 3
     name: "DualStack_Overlay_Linux_Tests"
     displayName: "DualStack Overlay Linux Tests"
