@@ -68,11 +68,15 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	ctrlzap "sigs.k8s.io/controller-runtime/pkg/log/zap"
 <<<<<<< HEAD
+<<<<<<< HEAD
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 =======
 	ctrlmgr "sigs.k8s.io/controller-runtime/pkg/manager"
 	ctrlmetrics "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 >>>>>>> 5a283da8 (again)
+=======
+	ctrlmgr "sigs.k8s.io/controller-runtime/pkg/manager"
+>>>>>>> 6e0ec608 (update build tools and regen crds)
 )
 
 const (
@@ -1189,23 +1193,8 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 	}
 	logger.Printf("reconciled initial CNS state after %d attempts", attempt)
 
-	// the nodeScopedCache sets Selector options on the Manager cache which are used
-	// to perform *server-side* filtering of the cached objects. This is very important
-	// for high node/pod count clusters, as it keeps us from watching objects at the
-	// whole cluster scope when we are only interested in the Node's scope.
-	// nodeScopedCache := cache.BuilderWithOptions(cache.Options{
-	// 	SelectorsByObject: cache.SelectorsByObject{
-	// 		&v1alpha.NodeNetworkConfig{}: {
-	// 			Field: fields.SelectorFromSet(fields.Set{"metadata.name": nodeName}),
-	// 		},
-	// 		&corev1.Pod{}: {
-	// 			Field: fields.SelectorFromSet(fields.Set{"spec.nodeName": nodeName}),
-	// 		},
-	// 	},
-	// })
-
 	scheme := kuberuntime.NewScheme()
-	if err := corev1.AddToScheme(scheme); err != nil {
+	if err := corev1.AddToScheme(scheme); err != nil { //nolint:govet // intentional shadow
 		return errors.Wrap(err, "failed to add corev1 to scheme")
 	}
 	if err = v1alpha.AddToScheme(scheme); err != nil {
@@ -1215,6 +1204,10 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 		return errors.Wrap(err, "failed to add clustersubnetstate/v1alpha1 to scheme")
 	}
 
+	// Set Selector options on the Manager cache which are used
+	// to perform *server-side* filtering of the cached objects. This is very important
+	// for high node/pod count clusters, as it keeps us from watching objects at the
+	// whole cluster scope when we are only interested in the Node's scope.
 	cacheOpts := cache.Options{
 		Scheme: scheme,
 		ByObject: map[client.Object]cache.ByObject{
