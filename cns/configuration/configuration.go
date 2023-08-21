@@ -45,6 +45,7 @@ type CNSConfig struct {
 	CNIConflistFilepath         string
 	MellanoxMonitorIntervalSecs int
 	AZRSettings                 AZRSettings
+	WatchPods                   bool
 }
 
 type TelemetrySettings struct {

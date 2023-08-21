@@ -164,6 +164,9 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager, node *v1.Node) error {
 		WithEventFilter(predicate.Funcs{
 			// check that the generation is the same - status changes don't update generation.
 			UpdateFunc: func(ue event.UpdateEvent) bool {
+				if ue.ObjectOld == nil || ue.ObjectNew == nil {
+					return false
+				}
 				return ue.ObjectOld.GetGeneration() == ue.ObjectNew.GetGeneration()
 			},
 		}).
