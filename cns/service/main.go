@@ -66,6 +66,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
+	ctrlzap "sigs.k8s.io/controller-runtime/pkg/log/zap"
+<<<<<<< HEAD
+	"sigs.k8s.io/controller-runtime/pkg/manager"
+=======
+	ctrlmgr "sigs.k8s.io/controller-runtime/pkg/manager"
+	ctrlmetrics "sigs.k8s.io/controller-runtime/pkg/metrics/server"
+>>>>>>> 5a283da8 (again)
 )
 
 const (
@@ -1186,30 +1193,50 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 	// to perform *server-side* filtering of the cached objects. This is very important
 	// for high node/pod count clusters, as it keeps us from watching objects at the
 	// whole cluster scope when we are only interested in the Node's scope.
-	nodeScopedCache := cache.BuilderWithOptions(cache.Options{
-		SelectorsByObject: cache.SelectorsByObject{
+	// nodeScopedCache := cache.BuilderWithOptions(cache.Options{
+	// 	SelectorsByObject: cache.SelectorsByObject{
+	// 		&v1alpha.NodeNetworkConfig{}: {
+	// 			Field: fields.SelectorFromSet(fields.Set{"metadata.name": nodeName}),
+	// 		},
+	// 		&corev1.Pod{}: {
+	// 			Field: fields.SelectorFromSet(fields.Set{"spec.nodeName": nodeName}),
+	// 		},
+	// 	},
+	// })
+
+	scheme := kuberuntime.NewScheme()
+	if err := corev1.AddToScheme(scheme); err != nil {
+		return errors.Wrap(err, "failed to add corev1 to scheme")
+	}
+	if err = v1alpha.AddToScheme(scheme); err != nil {
+		return errors.Wrap(err, "failed to add nodenetworkconfig/v1alpha to scheme")
+	}
+	if err = v1alpha1.AddToScheme(scheme); err != nil {
+		return errors.Wrap(err, "failed to add clustersubnetstate/v1alpha1 to scheme")
+	}
+
+	cacheOpts := cache.Options{
+		Scheme: scheme,
+		ByObject: map[client.Object]cache.ByObject{
 			&v1alpha.NodeNetworkConfig{}: {
-				Field: fields.SelectorFromSet(fields.Set{"metadata.name": nodeName}),
+				Namespaces: map[string]cache.Config{
+					"kube-system": {FieldSelector: fields.SelectorFromSet(fields.Set{"metadata.name": nodeName})},
+				},
 			},
 			&corev1.Pod{}: {
 				Field: fields.SelectorFromSet(fields.Set{"spec.nodeName": nodeName}),
 			},
 		},
-	})
+	}
 
-	crdSchemes := kuberuntime.NewScheme()
-	if err = v1alpha.AddToScheme(crdSchemes); err != nil {
-		return errors.Wrap(err, "failed to add nodenetworkconfig/v1alpha to scheme")
+	managerOpts := ctrlmgr.Options{
+		Scheme:  scheme,
+		Metrics: ctrlmetrics.Options{BindAddress: "0"},
+		Cache:   cacheOpts,
+		Logger:  ctrlzap.New(),
 	}
-	if err = v1alpha1.AddToScheme(crdSchemes); err != nil {
-		return errors.Wrap(err, "failed to add clustersubnetstate/v1alpha1 to scheme")
-	}
-	manager, err := ctrl.NewManager(kubeConfig, ctrl.Options{
-		Scheme:             crdSchemes,
-		MetricsBindAddress: "0",
-		Namespace:          "kube-system", // TODO(rbtr): namespace should be in the cns config
-		NewCache:           nodeScopedCache,
-	})
+
+	manager, err := ctrl.NewManager(kubeConfig, managerOpts)
 	if err != nil {
 		return errors.Wrap(err, "failed to create manager")
 	}
