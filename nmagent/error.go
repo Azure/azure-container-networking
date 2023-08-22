@@ -11,6 +11,8 @@ import (
 	pkgerrors "github.com/pkg/errors"
 )
 
+var deleteNetworkPattern = regexp.MustCompile(`/NetworkManagement/joinedVirtualNetworks/[^/]+/api-version/\d+/method/DELETE`)
+
 // ContentError is encountered when an unexpected content type is obtained from
 // NMAgent.
 type ContentError struct {
@@ -109,7 +111,6 @@ func (e Error) Unauthorized() bool {
 // NotFound reports whether the error was produced as a result of the resource
 // not existing.
 func (e Error) NotFound() bool {
-	deleteNetworkPattern := regexp.MustCompile(`/NetworkManagement/joinedVirtualNetworks/[^/]+/api-version/\d+/method/DELETE`)
 	if deleteNetworkPattern.MatchString(e.Path) {
 		return e.Code == http.StatusBadRequest || e.Code == http.StatusNotFound
 	}
