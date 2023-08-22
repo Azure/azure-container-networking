@@ -1,4 +1,4 @@
-package multitenantpodnetworkconfig
+package multitenancy
 
 import (
 	_ "embed"
@@ -21,4 +21,19 @@ func GetMultitenantPodNetworkConfigs() (*apiextensionsv1.CustomResourceDefinitio
 		return nil, errors.Wrap(err, "error unmarshalling embedded mtpnc")
 	}
 	return multitenantPodNetworkConfigs, nil
+}
+
+// NodeInfoYAML embeds the CRD YAML for downstream consumers.
+//
+//go:embed manifests/acn.azure.com_nodeinfo.yaml
+var NodeInfoYAML []byte
+
+// GetNodeInfo parses the raw []byte NodeInfo in
+// to a CustomResourceDefinition and returns it or an unmarshalling error.
+func GetNodeInfo() (*apiextensionsv1.CustomResourceDefinition, error) {
+	nodeInfo := &apiextensionsv1.CustomResourceDefinition{}
+	if err := yaml.Unmarshal(NodeInfoYAML, &nodeInfo); err != nil {
+		return nil, errors.Wrap(err, "error unmarshalling embedded nodeInfo")
+	}
+	return nodeInfo, nil
 }

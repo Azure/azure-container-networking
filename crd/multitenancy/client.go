@@ -1,11 +1,11 @@
-package nodeinfo
+package multitenancy
 
 import (
 	"context"
 	"reflect"
 
 	"github.com/Azure/azure-container-networking/crd"
-	"github.com/Azure/azure-container-networking/crd/nodeinfo/api/v1alpha1"
+	"github.com/Azure/azure-container-networking/crd/multitenancy/api/v1alpha1"
 	"github.com/pkg/errors"
 	v1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	typedv1 "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1"
@@ -16,7 +16,7 @@ import (
 	"k8s.io/client-go/rest"
 )
 
-// Scheme is a runtime scheme containing the client-go scheme and the NodeInfo scheme.
+// Scheme is a runtime scheme containing the client-go scheme and the MTPNC/NI scheme.
 var Scheme = runtime.NewScheme()
 
 func init() {
@@ -24,7 +24,7 @@ func init() {
 	_ = v1alpha1.AddToScheme(Scheme)
 }
 
-// Installer provides methods to manage the lifecycle of the NodeInfo resource definition.
+// Installer provides methods to manage the lifecycle of the MultitenantPodNetworkConfig/NodeInfo resource definition.
 type Installer struct {
 	cli typedv1.CustomResourceDefinitionInterface
 }
@@ -42,13 +42,49 @@ func NewInstaller(c *rest.Config) (*Installer, error) {
 func (i *Installer) create(ctx context.Context, res *v1.CustomResourceDefinition) (*v1.CustomResourceDefinition, error) {
 	res, err := i.cli.Create(ctx, res, metav1.CreateOptions{})
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to create nodeinfo crd")
+		return nil, errors.Wrap(err, "failed to create crd")
 	}
 	return res, nil
 }
 
+// Installs the embedded MultitenantPodNetworkConfig CRD definition in the cluster.
+func (i *Installer) InstallMTPNC(ctx context.Context) (*v1.CustomResourceDefinition, error) {
+	mtpnc, err := GetMultitenantPodNetworkConfigs()
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get embedded mtpnc crd")
+	}
+	return i.create(ctx, mtpnc)
+}
+
+// InstallOrUpdate installs the embedded MultitenantPodNetworkConfig CRD definition in the cluster or updates it if present.
+func (i *Installer) InstallOrUpdateMTPNC(ctx context.Context) (*v1.CustomResourceDefinition, error) {
+	mtpnc, err := GetMultitenantPodNetworkConfigs()
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get embedded mtpnc crd")
+	}
+	current, err := i.create(ctx, mtpnc)
+	if !apierrors.IsAlreadyExists(err) {
+		return current, err
+	}
+	if current == nil {
+		current, err = i.cli.Get(ctx, mtpnc.Name, metav1.GetOptions{})
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to get existing mtpnc crd")
+		}
+	}
+	if !reflect.DeepEqual(mtpnc.Spec.Versions, current.Spec.Versions) {
+		mtpnc.SetResourceVersion(current.GetResourceVersion())
+		previous := *current
+		current, err = i.cli.Update(ctx, mtpnc, metav1.UpdateOptions{})
+		if err != nil {
+			return &previous, errors.Wrap(err, "failed to update existing mtpnc crd")
+		}
+	}
+	return current, nil
+}
+
 // Install installs the embedded NodeInfo CRD definition in the cluster.
-func (i *Installer) Install(ctx context.Context) (*v1.CustomResourceDefinition, error) {
+func (i *Installer) InstallNodeInfo(ctx context.Context) (*v1.CustomResourceDefinition, error) {
 	nodeinfo, err := GetNodeInfo()
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get embedded nodeinfo crd")
@@ -57,7 +93,7 @@ func (i *Installer) Install(ctx context.Context) (*v1.CustomResourceDefinition, 
 }
 
 // InstallOrUpdate installs the embedded NodeInfo CRD definition in the cluster or updates it if present.
-func (i *Installer) InstallOrUpdate(ctx context.Context) (*v1.CustomResourceDefinition, error) {
+func (i *Installer) InstallOrUpdateNodeInfo(ctx context.Context) (*v1.CustomResourceDefinition, error) {
 	nodeinfo, err := GetNodeInfo()
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to get embedded nodeinfo crd")
