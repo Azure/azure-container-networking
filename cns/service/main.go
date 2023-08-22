@@ -67,16 +67,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	ctrlzap "sigs.k8s.io/controller-runtime/pkg/log/zap"
-<<<<<<< HEAD
-<<<<<<< HEAD
-	"sigs.k8s.io/controller-runtime/pkg/manager"
-=======
 	ctrlmgr "sigs.k8s.io/controller-runtime/pkg/manager"
 	ctrlmetrics "sigs.k8s.io/controller-runtime/pkg/metrics/server"
->>>>>>> 5a283da8 (again)
-=======
-	ctrlmgr "sigs.k8s.io/controller-runtime/pkg/manager"
->>>>>>> 6e0ec608 (update build tools and regen crds)
 )
 
 const (
