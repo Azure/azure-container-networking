@@ -8,7 +8,6 @@ import (
 )
 
 const mtpncFilename = "manifests/acn.azure.com_multitenantpodnetworkconfigs.yaml"
-const nodeinfoFilename = "manifests/acn.azure.com_nodeinfo.yaml"
 
 func TestEmbedMTPNC(t *testing.T) {
 	b, err := os.ReadFile(mtpncFilename)
@@ -20,6 +19,8 @@ func TestGetMultitenantPodNetworkConfigs(t *testing.T) {
 	_, err := GetMultitenantPodNetworkConfigs()
 	assert.NoError(t, err)
 }
+
+const nodeinfoFilename = "manifests/acn.azure.com_nodeinfo.yaml"
 
 func TestEmbedNodeInfo(t *testing.T) {
 	b, err := os.ReadFile(nodeinfoFilename)
