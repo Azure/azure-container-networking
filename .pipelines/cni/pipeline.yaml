@@ -20,9 +20,9 @@ stages:
   - template: cilium/cilium-overlay-load-test-template.yaml
     parameters:
       name: cilium
-      clusterType: "cilium-overlay-up"
+      clusterType: cilium-overlay-up
       clusterName: "cilium-overlay"
-      nodeCount: ${LINUX_NODE_COUNT}
+      nodeCount: ${CILIUM_NODE_COUNT}
       vmSize: "Standard_DS4_v2"
       dependsOn: setup
   - template: singletenancy/windows-cni-load-test-template.yaml
@@ -30,7 +30,7 @@ stages:
       name: win_cniv1
       clusterType: "windows-cniv1-up"
       clusterName: "win-cniv1"
-      nodeCount: 2
+      nodeCount: ${WINDOWS_NODE_COUNT}
       vmSize: Standard_B2ms
       dependsOn: setup
       windowsVMSize: ${WINDOWS_VM_SKU}

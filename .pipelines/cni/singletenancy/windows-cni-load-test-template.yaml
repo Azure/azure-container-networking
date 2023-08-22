@@ -122,7 +122,7 @@ stages:
       - template: ../k8s-e2e/k8s-e2e-job-template.yaml
         parameters:
           sub: $(TEST_SUB_SERVICE_CONNECTION)
-          clusterName: ${{ parameters.clusterName }}
+          clusterName: ${{ parameters.clusterName }}-$(make revision)
           os: ${{ parameters.os }}
           datapath: true
           dns: true
@@ -147,6 +147,7 @@ stages:
               os: ${{ parameters.os }}
               cni: ${{ parameters.cni }}
               iterations: ${WINDOWS_ITERATIONS}
+              nodeCount: ${{ parameters.nodeCount }}
   - stage: validate_state_windows
     pool:
       name: $(BUILD_POOL_NAME_DEFAULT)
