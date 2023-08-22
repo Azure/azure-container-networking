@@ -8,7 +8,7 @@ AZIMG   = mcr.microsoft.com/azure-cli
 AZCLI   ?= docker run --rm -v $(AZCFG):/root/.azure -v $(KUBECFG):/root/.kube -v $(SSH):/root/.ssh -v $(PWD):/root/tmpsrc $(AZIMG) az
 
 # overrideable defaults
-REGION          ?= westus2
+REGION          = westus2
 OS_SKU          ?= Ubuntu
 WINDOWS_OS_SKU  ?= Windows2022
 VM_SIZE	        = Standard_DS4_v3
