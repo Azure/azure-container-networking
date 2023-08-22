@@ -554,6 +554,10 @@ type UnpublishNetworkContainerRequest struct {
 	JoinNetworkURL                    string
 	DeleteNetworkContainerURL         string
 	DeleteNetworkContainerRequestBody []byte
+
+	// ShouldDeleteNetwork specifies whether the virtual network should be deleted via
+	// NMAgent after the network container has been unpublished.
+	ShouldDeleteNetwork bool
 }
 
 func (u UnpublishNetworkContainerRequest) String() string {

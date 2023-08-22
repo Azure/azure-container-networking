@@ -718,6 +718,14 @@ func (service *HTTPRestService) setNetworkStateJoined(networkID string) {
 	service.state.joinedNetworks[networkID] = struct{}{}
 }
 
+// Set the network as unjoined (deleted)
+func (service *HTTPRestService) setNetworkStateUnjoined(networkID string) {
+	namedLock.LockAcquire(stateJoinedNetworks)
+	defer namedLock.LockRelease(stateJoinedNetworks)
+
+	delete(service.state.joinedNetworks, networkID)
+}
+
 func logNCSnapshot(createNetworkContainerRequest cns.CreateNetworkContainerRequest) {
 	aiEvent := aitelemetry.Event{
 		EventName:  logger.CnsNCSnapshotEventStr,

@@ -43,6 +43,7 @@ type nmagentClient interface {
 	SupportedAPIs(context.Context) ([]string, error)
 	GetNCVersionList(context.Context) (nma.NCVersionList, error)
 	GetHomeAz(context.Context) (nma.AzResponse, error)
+	DeleteNetwork(context.Context, nma.DeleteNetworkRequest) error
 }
 
 type wireserverProxy interface {

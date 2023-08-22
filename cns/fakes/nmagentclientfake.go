@@ -17,6 +17,7 @@ type NMAgentClientFake struct {
 	SupportedAPIsF    func(context.Context) ([]string, error)
 	GetNCVersionListF func(context.Context) (nmagent.NCVersionList, error)
 	GetHomeAzF        func(context.Context) (nmagent.AzResponse, error)
+	DeleteNetworkf    func(context.Context, nmagent.DeleteNetworkRequest) error
 }
 
 func (n *NMAgentClientFake) SupportedAPIs(ctx context.Context) ([]string, error) {
@@ -29,4 +30,8 @@ func (n *NMAgentClientFake) GetNCVersionList(ctx context.Context) (nmagent.NCVer
 
 func (n *NMAgentClientFake) GetHomeAz(ctx context.Context) (nmagent.AzResponse, error) {
 	return n.GetHomeAzF(ctx)
+}
+
+func (n *NMAgentClientFake) DeleteNetwork(ctx context.Context, req nmagent.DeleteNetworkRequest) error {
+	return n.DeleteNetworkf(ctx, req)
 }

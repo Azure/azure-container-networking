@@ -20,6 +20,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/cns/wireserver"
+	"github.com/Azure/azure-container-networking/nmagent"
 	"github.com/pkg/errors"
 )
 
@@ -1369,6 +1370,19 @@ func (service *HTTPRestService) unpublishNetworkContainer(w http.ResponseWriter,
 		resp.Response = cns.Response{
 			ReturnCode: types.NetworkContainerUnpublishFailed,
 			Message:    fmt.Sprintf("failed to unpublish nc %s. did not get 200 from wireserver", req.NetworkContainerID),
+		}
+	}
+
+	if req.ShouldDeleteNetwork {
+		err := service.nma.DeleteNetwork(ctx, nmagent.DeleteNetworkRequest{
+			NetworkID: req.NetworkID,
+		})
+
+		if err == nil {
+			service.setNetworkStateUnjoined(req.NetworkID)
+			logger.Printf("[Azure-CNS] deleted vnet %s after nc unpublish", req.NetworkID)
+		} else {
+			logger.Printf("[Azure-CNS] failed to delete vnet %s after nc unpublish: %v", req.NetworkID, err)
 		}
 	}
 
