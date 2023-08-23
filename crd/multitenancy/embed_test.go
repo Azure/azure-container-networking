@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-const mtpncFilename = "manifests/acn.azure.com_multitenantpodnetworkconfigs.yaml"
+const mtpncFilename = "manifests/multitenancy.acn.azure.com_multitenantpodnetworkconfigs.yaml"
 
 func TestEmbedMTPNC(t *testing.T) {
 	b, err := os.ReadFile(mtpncFilename)
@@ -20,7 +20,7 @@ func TestGetMultitenantPodNetworkConfigs(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-const nodeinfoFilename = "manifests/acn.azure.com_nodeinfo.yaml"
+const nodeinfoFilename = "manifests/multitenancy.acn.azure.com_nodeinfo.yaml"
 
 func TestEmbedNodeInfo(t *testing.T) {
 	b, err := os.ReadFile(nodeinfoFilename)
@@ -33,7 +33,7 @@ func TestGetNodeInfo(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-const podNetworkFilename = "manifests/public.acn.azure.com_podnetworks.yaml"
+const podNetworkFilename = "manifests/multitenancy.acn.azure.com_podnetworks.yaml"
 
 func TestEmbedPodNetwork(t *testing.T) {
 	b, err := os.ReadFile(podNetworkFilename)
@@ -46,7 +46,7 @@ func TestGetPodNetworks(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-const podNetworkInstanceFilename = "manifests/public.acn.azure.com_podnetworkinstances.yaml"
+const podNetworkInstanceFilename = "manifests/multitenancy.acn.azure.com_podnetworkinstances.yaml"
 
 func TestEmbedPodNetworkInstance(t *testing.T) {
 	b, err := os.ReadFile(podNetworkInstanceFilename)
