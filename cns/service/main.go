@@ -32,6 +32,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/ipampool"
 	cssctrl "github.com/Azure/azure-container-networking/cns/kubecontroller/clustersubnetstate"
 	nncctrl "github.com/Azure/azure-container-networking/cns/kubecontroller/nodenetworkconfig"
+	"github.com/Azure/azure-container-networking/cns/kubecontroller/podwatcher"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/multitenantcontroller"
 	"github.com/Azure/azure-container-networking/cns/multitenantcontroller/multitenantoperator"
@@ -54,6 +55,7 @@ import (
 	"github.com/avast/retry-go/v3"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
@@ -64,6 +66,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
+	ctrlzap "sigs.k8s.io/controller-runtime/pkg/log/zap"
+	ctrlmgr "sigs.k8s.io/controller-runtime/pkg/manager"
+	ctrlmetrics "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 )
 
 const (
@@ -1180,31 +1185,43 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 	}
 	logger.Printf("reconciled initial CNS state after %d attempts", attempt)
 
-	// the nodeScopedCache sets Selector options on the Manager cache which are used
+	scheme := kuberuntime.NewScheme()
+	if err := corev1.AddToScheme(scheme); err != nil { //nolint:govet // intentional shadow
+		return errors.Wrap(err, "failed to add corev1 to scheme")
+	}
+	if err = v1alpha.AddToScheme(scheme); err != nil {
+		return errors.Wrap(err, "failed to add nodenetworkconfig/v1alpha to scheme")
+	}
+	if err = v1alpha1.AddToScheme(scheme); err != nil {
+		return errors.Wrap(err, "failed to add clustersubnetstate/v1alpha1 to scheme")
+	}
+
+	// Set Selector options on the Manager cache which are used
 	// to perform *server-side* filtering of the cached objects. This is very important
 	// for high node/pod count clusters, as it keeps us from watching objects at the
 	// whole cluster scope when we are only interested in the Node's scope.
-	nodeScopedCache := cache.BuilderWithOptions(cache.Options{
-		SelectorsByObject: cache.SelectorsByObject{
+	cacheOpts := cache.Options{
+		Scheme: scheme,
+		ByObject: map[client.Object]cache.ByObject{
 			&v1alpha.NodeNetworkConfig{}: {
-				Field: fields.SelectorFromSet(fields.Set{"metadata.name": nodeName}),
+				Namespaces: map[string]cache.Config{
+					"kube-system": {FieldSelector: fields.SelectorFromSet(fields.Set{"metadata.name": nodeName})},
+				},
+			},
+			&corev1.Pod{}: {
+				Field: fields.SelectorFromSet(fields.Set{"spec.nodeName": nodeName}),
 			},
 		},
-	})
+	}
 
-	crdSchemes := kuberuntime.NewScheme()
-	if err = v1alpha.AddToScheme(crdSchemes); err != nil {
-		return errors.Wrap(err, "failed to add nodenetworkconfig/v1alpha to scheme")
+	managerOpts := ctrlmgr.Options{
+		Scheme:  scheme,
+		Metrics: ctrlmetrics.Options{BindAddress: "0"},
+		Cache:   cacheOpts,
+		Logger:  ctrlzap.New(),
 	}
-	if err = v1alpha1.AddToScheme(crdSchemes); err != nil {
-		return errors.Wrap(err, "failed to add clustersubnetstate/v1alpha1 to scheme")
-	}
-	manager, err := ctrl.NewManager(kubeConfig, ctrl.Options{
-		Scheme:             crdSchemes,
-		MetricsBindAddress: "0",
-		Namespace:          "kube-system", // TODO(rbtr): namespace should be in the cns config
-		NewCache:           nodeScopedCache,
-	})
+
+	manager, err := ctrl.NewManager(kubeConfig, managerOpts)
 	if err != nil {
 		return errors.Wrap(err, "failed to create manager")
 	}
@@ -1235,6 +1252,12 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 		return errors.Wrapf(err, "failed to get node %s", nodeName)
 	}
 
+	// check the Node labels for Swift V2
+	if _, ok := node.Labels[configuration.LabelSwiftV2]; ok {
+		cnsconfig.EnableSwiftV2 = true
+		// TODO(rbtr): create the NodeInfo for Swift V2
+	}
+
 	// get CNS Node IP to compare NC Node IP with this Node IP to ensure NCs were created for this node
 	nodeIP := configuration.NodeIP()
 
@@ -1250,6 +1273,14 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 		cssReconciler := cssctrl.New(clusterSubnetStateChan)
 		if err := cssReconciler.SetupWithManager(manager); err != nil {
 			return errors.Wrapf(err, "failed to setup css reconciler with manager")
+		}
+	}
+
+	// TODO: add pod listeners based on Swift V1 vs MT/V2 configuration
+	if cnsconfig.WatchPods {
+		pw := podwatcher.New(nodeName)
+		if err := pw.SetupWithManager(manager); err != nil {
+			return errors.Wrapf(err, "failed to setup pod watcher with manager")
 		}
 	}
 

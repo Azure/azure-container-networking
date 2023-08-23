@@ -3,32 +3,49 @@ pr:
     include:
       - master
   paths:
-    include:
-    - "zapai/*"
-    - "azure-ipam/*"
-    - "dropgz/*"
-    - "cni/*"
-    - ".pipelines/submodules-pipeline.yaml" # Enable /azp run Azure Container Networking PR - submodules
     exclude:
-      - "*"
+    - ".devcontainer"
+    - ".hooks"
+    - ".vscode"
+    - ".github"
+    - cnm
+    - crd
+    - debug
+    - docs
+    - ebtables
+    - examples
+    - nmagent
+    - npm
+    - proto
+    - pkgerrlint
+    - server
 
 trigger:
   paths:
-    include:
-    - "zapai/*"
-    - "azure-ipam/*"
-    - "dropgz/*"
-    - "cni/*"
     exclude:
-      - "*"
+    - ".devcontainer"
+    - ".hooks"
+    - ".vscode"
+    - ".github"
+    - cnm
+    - crd
+    - debug
+    - docs
+    - ebtables
+    - examples
+    - nmagent
+    - npm
+    - pkgerrlint
+    - proto
+    - server
+
   tags:
     include:
     - "zapai/*"
     - "azure-ipam/*"
     - "dropgz/*"
     - "cni/*"
-    exclude:
-      - "v*"
+    - "v*"
 
 stages:
   - stage: setup

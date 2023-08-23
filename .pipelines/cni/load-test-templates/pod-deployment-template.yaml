@@ -1,8 +1,9 @@
 parameters:
   clusterName: ""
-  scaleup: 1000
+  scaleup: 100
   os: ""
   iterations: 4
+  nodeCount: 10
 
 steps:
   - task: AzureCLI@1
@@ -17,4 +18,5 @@ steps:
         az extension add --name aks-preview
         make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}-$(make revision)
         cd test/integration/load
-        go test -timeout 30m -tags load -run ^TestLoad$ -tags=load -iterations=${{ parameters.iterations }} -scaleup=${{ parameters.scaleup }} -os=${{ parameters.os }}
+        scale=$(( ${{ parameters.scaleup }} * ${{ parameters.nodeCount }} ))
+        go test -timeout 30m -tags load -run ^TestLoad$ -tags=load -iterations=${{ parameters.iterations }} -scaleup=$scale -os=${{ parameters.os }}

@@ -1,5 +1,7 @@
 parameters:
   clusterName: ""
+  nodeCount: 10
+  scaleup: 100
 
 steps:
   - task: AzureCLI@1
@@ -14,13 +16,15 @@ steps:
         make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${clusterName}
         make -C ./hack/aks azcfg AZCLI=az REGION=$(LOCATION)
         cd test/integration/load
-        echo "Scaling the pods down to 100 per node"
-        go test -count 1 -timeout 30m -tags load -run ^TestScaleDeployment$ -tags=load -scaleup=1000 -skip-wait=true
+        # Capture a scaledown, scaling down to 50% of initial value
+        scale=$(( ${{ parameters.scaleup }} * ${{ parameters.nodeCount }} / 2))
+        echo "Scaling the pods down to $(( $scale / ${{ parameters.nodeCount }} )) per node"
+        go test -count 1 -timeout 30m -tags load -run ^TestScaleDeployment$ -tags=load -replicas=$scale -skip-wait=true
         cd ../../../
         echo "Restarting the nodes"
         vmss_name=$(az vmss list -g MC_${clusterName}_${clusterName}_$(LOCATION) --query "[].name" -o tsv)
         make -C ./hack/aks restart-vmss AZCLI=az CLUSTER=${clusterName} REGION=$(LOCATION) VMSS_NAME=$vmss_name
         cd test/integration/load
-        go test -count 1 -timeout 30m -tags load -run ^TestScaleDeployment$ -tags=load -replicas=1000
+        go test -count 1 -timeout 30m -tags load -run ^TestScaleDeployment$ -tags=load -replicas=$scale
     name: "RestartNodes"
     displayName: "Restart Nodes"
