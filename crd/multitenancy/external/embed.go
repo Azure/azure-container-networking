@@ -1,4 +1,4 @@
-package podnetworkinstance
+package external
 
 import (
 	_ "embed"
@@ -8,9 +8,24 @@ import (
 	"sigs.k8s.io/yaml"
 )
 
+// PodNetworkYAML embeds the CRD YAML for downstream consumers.
+//
+//go:embed manifests/public.acn.azure.com_podnetworks.yaml
+var PodNetworkYAML []byte
+
+// GetPodNetworks parses the raw []byte PodNetwork in
+// to a CustomResourceDefinition and returns it or an unmarshalling error.
+func GetPodNetworks() (*apiextensionsv1.CustomResourceDefinition, error) {
+	podNetworks := &apiextensionsv1.CustomResourceDefinition{}
+	if err := yaml.Unmarshal(PodNetworkYAML, &podNetworks); err != nil {
+		return nil, errors.Wrap(err, "error unmarshalling embedded PodNetwork")
+	}
+	return podNetworks, nil
+}
+
 // PodNetworkInstanceYAML embeds the CRD YAML for downstream consumers.
 //
-//go:embed manifests/acn.azure.com_podnetworkinstances.yaml
+//go:embed manifests/public.acn.azure.com_podnetworkinstances.yaml
 var PodNetworkInstanceYAML []byte
 
 // GetPodNetworkInstances parses the raw []byte PodNetworkInstance in
