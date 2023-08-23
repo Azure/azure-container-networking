@@ -98,8 +98,8 @@ stages:
         strategy:
           matrix:
             cilium_nightly:
-              name: ciliumnightly
-              clusterName: overlaynightly
+              name: cilium_overlay_nightly
+              clusterName: ciliumnightly
         steps:
           - template: ../../templates/delete-cluster.yaml
             parameters:
