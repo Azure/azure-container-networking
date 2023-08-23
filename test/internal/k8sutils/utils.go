@@ -267,6 +267,47 @@ func WaitForPodDeployment(ctx context.Context, clientset *kubernetes.Clientset, 
 	return errors.Wrapf(retrier.Do(ctx, checkPodDeploymentFn), "could not wait for deployment %s", deploymentName)
 }
 
+func WaitForPodDaemonset(ctx context.Context, clientset *kubernetes.Clientset, namespace, daemonsetName, podLabelSelector string) error {
+	podsClient := clientset.CoreV1().Pods(namespace)
+	daemonsetClient := clientset.AppsV1().DaemonSets(namespace)
+	checkPodDaemonsetFn := func() error {
+		daemonset, err := daemonsetClient.Get(ctx, daemonsetName, metav1.GetOptions{})
+		if err != nil {
+			return errors.Wrapf(err, "could not get daemonset %s", daemonsetName)
+		}
+
+		if daemonset.Status.NumberReady == 0 && daemonset.Status.DesiredNumberScheduled == 0 {
+			// Capture daemonset restart. Restart sets every numerical status to 0.
+			log.Printf("daemonset %s has %d pods in ready status, expected %d", daemonsetName, daemonset.Status.NumberReady, daemonset.Status.DesiredNumberScheduled)
+			return errors.New("daemonset has not correctly scheduled the right number of pods")
+		}
+
+		if daemonset.Status.NumberReady != daemonset.Status.DesiredNumberScheduled {
+			// Provide real-time daemonset availability to console
+			log.Printf("daemonset %s has %d pods in ready status, expected %d", daemonsetName, daemonset.Status.NumberReady, daemonset.Status.DesiredNumberScheduled)
+			return errors.New("daemonset does not have the expected number of ready state pods")
+		}
+
+		podList, err := podsClient.List(ctx, metav1.ListOptions{LabelSelector: podLabelSelector})
+		if err != nil {
+			return errors.Wrapf(err, "could not list pods with label selector %s", podLabelSelector)
+		}
+
+		if daemonset.Status.NumberUnavailable > int32(0) {
+			return errors.New("some pods have not been running for long enough in ")
+		}
+
+		log.Printf("daemonset %s has %d pods in ready status, expected %d", daemonsetName, len(podList.Items), daemonset.Status.CurrentNumberScheduled)
+		if len(podList.Items) != int(daemonset.Status.CurrentNumberScheduled) {
+			return errors.New("some pods of the daemonset are still not ready")
+		}
+		return nil
+	}
+
+	retrier := retry.Retrier{Attempts: RetryAttempts, Delay: RetryDelay}
+	return errors.Wrapf(retrier.Do(ctx, checkPodDaemonsetFn), "could not wait for daemonset %s", daemonsetName)
+}
+
 func MustUpdateReplica(ctx context.Context, deploymentsClient typedappsv1.DeploymentInterface, deploymentName string, replicas int32) error {
 	deployment, err := deploymentsClient.Get(ctx, deploymentName, metav1.GetOptions{})
 	if err != nil {
