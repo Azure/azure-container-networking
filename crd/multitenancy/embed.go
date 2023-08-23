@@ -10,7 +10,7 @@ import (
 
 // MultitenantPodNetworkConfigsYAML embeds the CRD YAML for downstream consumers.
 //
-//go:embed manifests/acn.azure.com_multitenantpodnetworkconfigs.yaml
+//go:embed manifests/multitenancy.acn.azure.com_multitenantpodnetworkconfigs.yaml
 var MultitenantPodNetworkConfigsYAML []byte
 
 // GetMultitenantPodNetworkConfigs parses the raw []byte MultitenantPodNetworkConfigs in
@@ -25,7 +25,7 @@ func GetMultitenantPodNetworkConfigs() (*apiextensionsv1.CustomResourceDefinitio
 
 // NodeInfoYAML embeds the CRD YAML for downstream consumers.
 //
-//go:embed manifests/acn.azure.com_nodeinfo.yaml
+//go:embed manifests/multitenancy.acn.azure.com_nodeinfo.yaml
 var NodeInfoYAML []byte
 
 // GetNodeInfo parses the raw []byte NodeInfo in
@@ -40,7 +40,7 @@ func GetNodeInfo() (*apiextensionsv1.CustomResourceDefinition, error) {
 
 // PodNetworkYAML embeds the CRD YAML for downstream consumers.
 //
-//go:embed manifests/public.acn.azure.com_podnetworks.yaml
+//go:embed manifests/multitenancy.acn.azure.com_podnetworks.yaml
 var PodNetworkYAML []byte
 
 // GetPodNetworks parses the raw []byte PodNetwork in
@@ -55,7 +55,7 @@ func GetPodNetworks() (*apiextensionsv1.CustomResourceDefinition, error) {
 
 // PodNetworkInstanceYAML embeds the CRD YAML for downstream consumers.
 //
-//go:embed manifests/public.acn.azure.com_podnetworkinstances.yaml
+//go:embed manifests/multitenancy.acn.azure.com_podnetworkinstances.yaml
 var PodNetworkInstanceYAML []byte
 
 // GetPodNetworkInstances parses the raw []byte PodNetworkInstance in

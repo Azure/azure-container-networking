@@ -6,7 +6,6 @@ import (
 
 	"github.com/Azure/azure-container-networking/crd"
 	"github.com/Azure/azure-container-networking/crd/multitenancy/api/v1alpha1"
-	v1alpha1External "github.com/Azure/azure-container-networking/crd/multitenancy/external/api/v1alpha1"
 	"github.com/pkg/errors"
 	v1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	typedv1 "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1"
@@ -23,7 +22,6 @@ var Scheme = runtime.NewScheme()
 func init() {
 	_ = scheme.AddToScheme(Scheme)
 	_ = v1alpha1.AddToScheme(Scheme)
-	_ = v1alpha1External.AddToScheme(Scheme)
 }
 
 // Installer provides methods to manage the lifecycle of the custom resource definition.
