@@ -21,3 +21,7 @@ func (v *OverlayGenerator) Generate() error {
 func (v *CiliumGenerator) Generate() error {
 	return errNotImplemented
 }
+
+func (v *SWIFTGenerator) Generate() error {
+	return errNotImplemented
+}

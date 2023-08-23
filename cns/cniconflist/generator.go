@@ -16,6 +16,9 @@ const (
 	overlaycniName    = "azure"                   //nolint:unused,deadcode,varcheck // used in linux
 	overlaycniType    = "azure-vnet"              //nolint:unused,deadcode,varcheck // used in linux
 	nodeLocalDNSIP    = "169.254.20.10"           //nolint:unused,deadcode,varcheck // used in linux
+	azurecniVersion   = "0.3.0"                   //nolint:unused,deadcode,varcheck // used in linux
+	azureName         = "azure"                   //nolint:unused,deadcode,varcheck // used in linux
+	azureType         = "azure-vnet"              //nolint:unused,deadcode,varcheck // used in linux
 )
 
 // cniConflist represents the containernetworking/cni/pkg/types.NetConfList
@@ -63,6 +66,11 @@ type CiliumGenerator struct {
 	Writer io.WriteCloser
 }
 
+// SWIFTGenerator generates the Azure CNI conflist for the SWIFT scenario
+type SWIFTGenerator struct {
+	Writer io.WriteCloser
+}
+
 func (v *V4OverlayGenerator) Close() error {
 	if err := v.Writer.Close(); err != nil {
 		return errors.Wrap(err, "error closing generator")
@@ -88,6 +96,14 @@ func (v *OverlayGenerator) Close() error {
 }
 
 func (v *CiliumGenerator) Close() error {
+	if err := v.Writer.Close(); err != nil {
+		return errors.Wrap(err, "error closing generator")
+	}
+
+	return nil
+}
+
+func (v *SWIFTGenerator) Close() error {
 	if err := v.Writer.Close(); err != nil {
 		return errors.Wrap(err, "error closing generator")
 	}
