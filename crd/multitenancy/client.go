@@ -6,6 +6,7 @@ import (
 
 	"github.com/Azure/azure-container-networking/crd"
 	"github.com/Azure/azure-container-networking/crd/multitenancy/api/v1alpha1"
+	v1alpha1External "github.com/Azure/azure-container-networking/crd/multitenancy/external/api/v1alpha1"
 	"github.com/pkg/errors"
 	v1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1"
 	typedv1 "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1"
@@ -22,9 +23,10 @@ var Scheme = runtime.NewScheme()
 func init() {
 	_ = scheme.AddToScheme(Scheme)
 	_ = v1alpha1.AddToScheme(Scheme)
+	_ = v1alpha1External.AddToScheme(Scheme)
 }
 
-// Installer provides methods to manage the lifecycle of the MultitenantPodNetworkConfig/NodeInfo resource definition.
+// Installer provides methods to manage the lifecycle of the custom resource definition.
 type Installer struct {
 	cli typedv1.CustomResourceDefinitionInterface
 }
@@ -114,6 +116,78 @@ func (i *Installer) InstallOrUpdateNodeInfo(ctx context.Context) (*v1.CustomReso
 		current, err = i.cli.Update(ctx, nodeinfo, metav1.UpdateOptions{})
 		if err != nil {
 			return &previous, errors.Wrap(err, "failed to update existing nodeinfo crd")
+		}
+	}
+	return current, nil
+}
+
+// Install installs the embedded PodNetwork CRD definition in the cluster.
+func (i *Installer) InstallPodNetwork(ctx context.Context) (*v1.CustomResourceDefinition, error) {
+	podnetwork, err := GetPodNetworks()
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get embedded podnetwork crd")
+	}
+	return i.create(ctx, podnetwork)
+}
+
+// InstallOrUpdate installs the embedded PodNetwork CRD definition in the cluster or updates it if present.
+func (i *Installer) InstallOrUpdatePodNetwork(ctx context.Context) (*v1.CustomResourceDefinition, error) {
+	podNetwork, err := GetPodNetworks()
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get embedded podnetwork crd")
+	}
+	current, err := i.create(ctx, podNetwork)
+	if !apierrors.IsAlreadyExists(err) {
+		return current, err
+	}
+	if current == nil {
+		current, err = i.cli.Get(ctx, podNetwork.Name, metav1.GetOptions{})
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to get existing podnetwork crd")
+		}
+	}
+	if !reflect.DeepEqual(podNetwork.Spec.Versions, current.Spec.Versions) {
+		podNetwork.SetResourceVersion(current.GetResourceVersion())
+		previous := *current
+		current, err = i.cli.Update(ctx, podNetwork, metav1.UpdateOptions{})
+		if err != nil {
+			return &previous, errors.Wrap(err, "failed to update existing podnetwork crd")
+		}
+	}
+	return current, nil
+}
+
+// Install installs the embedded PodNetworkInstance CRD definition in the cluster.
+func (i *Installer) InstallPodNetworkInstance(ctx context.Context) (*v1.CustomResourceDefinition, error) {
+	podnetworkinstance, err := GetPodNetworkInstances()
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get embedded podnetworkinstance crd")
+	}
+	return i.create(ctx, podnetworkinstance)
+}
+
+// InstallOrUpdate installs the embedded PodNetworkInstance CRD definition in the cluster or updates it if present.
+func (i *Installer) InstallOrUpdatePodNetworkInstance(ctx context.Context) (*v1.CustomResourceDefinition, error) {
+	podnetworkinstance, err := GetPodNetworkInstances()
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get embedded podnetworkinstance crd")
+	}
+	current, err := i.create(ctx, podnetworkinstance)
+	if !apierrors.IsAlreadyExists(err) {
+		return current, err
+	}
+	if current == nil {
+		current, err = i.cli.Get(ctx, podnetworkinstance.Name, metav1.GetOptions{})
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to get existing podnetworkinstance crd")
+		}
+	}
+	if !reflect.DeepEqual(podnetworkinstance.Spec.Versions, current.Spec.Versions) {
+		podnetworkinstance.SetResourceVersion(current.GetResourceVersion())
+		previous := *current
+		current, err = i.cli.Update(ctx, podnetworkinstance, metav1.UpdateOptions{})
+		if err != nil {
+			return &previous, errors.Wrap(err, "failed to update existing podnetworkinstance crd")
 		}
 	}
 	return current, nil
