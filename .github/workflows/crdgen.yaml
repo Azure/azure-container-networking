@@ -26,13 +26,7 @@ jobs:
       run: make -C crd/nodenetworkconfig
     - name: Regenerate MultitenantNetworkContainer CRD
       run: make -C crd/multitenantnetworkcontainer
-    - name: Regenerate PodNetworkInstance CRD
-      run: make -C crd/external/podnetworkinstance
-    - name: Regenerate PodNetwork CRD
-      run: make -C crd/external/podnetwork
-    - name: Regenerate NodeInfo CRD
-      run: make -C crd/nodeinfo
-    - name: Regenerate MultitenantPodNetworkConfig CRD
-      run: make -C crd/multitenantpodnetworkconfig
+    - name: Regenerate Multitenancy CRDs
+      run: make -C crd/multitenancy
     - name: Fail if the tree is dirty
       run: test -z "$(git status --porcelain)"
