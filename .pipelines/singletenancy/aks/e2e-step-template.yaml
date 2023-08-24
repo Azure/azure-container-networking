@@ -60,7 +60,7 @@ steps:
       kubectl get pods -A -o wide
       echo "Deploying test pods"
       cd test/integration/load
-      go test -count 1 -timeout 30m -tags load -run ^TestLoad$ -tags=load -iterations=2 -scaleup=${{ parameters.scaleup }} -os=${{ parameters.os }}
+      go test -count 1 -timeout 30m -tags load -run ^TestLoad$ -iterations=2 -scaleup=${{ parameters.scaleup }} -os=${{ parameters.os }}
       cd ../../..
       # Remove this once we have cniv1 support for validating the test cluster
       echo "Validate State skipped for linux cniv1 for now"
