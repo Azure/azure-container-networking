@@ -7,9 +7,9 @@ metadata:
   labels:
     managed: ""
     owner: ""
-  name: multitenantpodnetworkconfigs.acn.azure.com
+  name: multitenantpodnetworkconfigs.multitenancy.acn.azure.com
 spec:
-  group: acn.azure.com
+  group: multitenancy.acn.azure.com
   names:
     kind: MultitenantPodNetworkConfig
     listKind: MultitenantPodNetworkConfigList

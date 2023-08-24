@@ -124,17 +124,19 @@ func TestNMAgentClientJoinNetworkRetry(t *testing.T) {
 
 func TestNMAgentClientDeleteNetwork(t *testing.T) {
 	deleteNetTests := []struct {
-		name       string
-		id         string
-		exp        string
-		respStatus int
-		shouldErr  bool
+		name           string
+		id             string
+		exp            string
+		respStatus     int
+		shouldErr      bool
+		shouldNotFound bool
 	}{
 		{
 			"happy path",
 			"00000000-0000-0000-0000-000000000000",
 			"/machine/plugins?comp=nmagent&type=NetworkManagement%2FjoinedVirtualNetworks%2F00000000-0000-0000-0000-000000000000%2Fapi-version%2F1%2Fmethod%2FDELETE",
 			http.StatusOK,
+			false,
 			false,
 		},
 		{
@@ -143,12 +145,22 @@ func TestNMAgentClientDeleteNetwork(t *testing.T) {
 			"",
 			http.StatusOK, // this shouldn't be checked
 			true,
+			false,
 		},
 		{
 			"internal error",
 			"00000000-0000-0000-0000-000000000000",
 			"/machine/plugins?comp=nmagent&type=NetworkManagement%2FjoinedVirtualNetworks%2F00000000-0000-0000-0000-000000000000%2Fapi-version%2F1%2Fmethod%2FDELETE",
 			http.StatusInternalServerError,
+			true,
+			false,
+		},
+		{
+			"network does not exist",
+			"00000000-0000-0000-0000-000000000000",
+			"/machine/plugins?comp=nmagent&type=NetworkManagement%2FjoinedVirtualNetworks%2F00000000-0000-0000-0000-000000000000%2Fapi-version%2F1%2Fmethod%2FDELETE",
+			http.StatusBadRequest,
+			true,
 			true,
 		},
 	}
@@ -176,6 +188,12 @@ func TestNMAgentClientDeleteNetwork(t *testing.T) {
 			// attempt to delete network
 			err := client.DeleteNetwork(ctx, nmagent.DeleteNetworkRequest{test.id})
 			checkErr(t, err, test.shouldErr)
+
+			var nmaError nmagent.Error
+			errors.As(err, &nmaError)
+			if nmaError.NotFound() != test.shouldNotFound {
+				t.Error("unexpected NotFound value: got:", nmaError.NotFound(), "exp:", test.shouldNotFound)
+			}
 
 			if got != test.exp {
 				t.Error("received URL differs from expectation: got", got, "exp:", test.exp)

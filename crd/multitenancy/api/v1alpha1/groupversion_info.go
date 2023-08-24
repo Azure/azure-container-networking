@@ -1,9 +1,9 @@
 //go:build !ignore_uncovered
 // +build !ignore_uncovered
 
-// Package v1alpha1 contains API Schema definitions for the networking v1alpha1 API group
+// Package v1alpha1 contains API Schema definitions for the acn v1alpha1 API group
 // +kubebuilder:object:generate=true
-// +groupName=acn.azure.com
+// +groupName=multitenancy.acn.azure.com
 package v1alpha1
 
 import (
@@ -13,7 +13,7 @@ import (
 
 var (
 	// GroupVersion is group version used to register these objects
-	GroupVersion = schema.GroupVersion{Group: "acn.azure.com", Version: "v1alpha1"}
+	GroupVersion = schema.GroupVersion{Group: "multitenancy.acn.azure.com", Version: "v1alpha1"}
 
 	// SchemeBuilder is used to add go types to the GroupVersionKind scheme
 	SchemeBuilder = &scheme.Builder{GroupVersion: GroupVersion}
