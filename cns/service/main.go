@@ -22,11 +22,13 @@ import (
 	"github.com/Azure/azure-container-networking/cnm/ipam"
 	"github.com/Azure/azure-container-networking/cnm/network"
 	"github.com/Azure/azure-container-networking/cns"
+	cnsclient "github.com/Azure/azure-container-networking/cns/client"
 	cnscli "github.com/Azure/azure-container-networking/cns/cmd/cli"
 	"github.com/Azure/azure-container-networking/cns/cniconflist"
 	"github.com/Azure/azure-container-networking/cns/cnireconciler"
 	"github.com/Azure/azure-container-networking/cns/common"
 	"github.com/Azure/azure-container-networking/cns/configuration"
+	"github.com/Azure/azure-container-networking/cns/fsnotify"
 	"github.com/Azure/azure-container-networking/cns/healthserver"
 	"github.com/Azure/azure-container-networking/cns/hnsclient"
 	"github.com/Azure/azure-container-networking/cns/ipampool"
@@ -805,6 +807,16 @@ func main() {
 			logger.Errorf("Failed to start CNS, err:%v.\n", err)
 			return
 		}
+	}
+
+	// Start fs watcher here
+	logger.Printf("[Azure CNS] Start fsnotify watcher for intended deletes")
+	w := &fsnotify.Watcher{
+		CnsClient: &cnsclient.Client{},
+	}
+	err = fsnotify.WatchFs(w)
+	if err != nil {
+		logger.Errorf("Failed to start fsnotify watcher, err:%v.\n", err)
 	}
 
 	if !disableTelemetry {

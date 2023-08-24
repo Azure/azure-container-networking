@@ -57,6 +57,12 @@ type Client struct {
 	routes map[string]url.URL
 }
 
+type ConnectionFailureErr struct{}
+
+func (e *ConnectionFailureErr) Error() string {
+	return "connection failure"
+}
+
 // New returns a new CNS client configured with the passed URL and timeout.
 func New(baseURL string, requestTimeout time.Duration) (*Client, error) {
 	if baseURL == "" {
@@ -445,7 +451,7 @@ func (c *Client) ReleaseIPs(ctx context.Context, ipconfig cns.IPConfigsRequest) 
 	req.Header.Set(headerContentType, contentTypeJSON)
 	res, err := c.client.Do(req)
 	if err != nil {
-		return errors.Wrap(err, "http request failed")
+		return &ConnectionFailureErr{}
 	}
 	defer res.Body.Close()
 

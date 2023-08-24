@@ -18,6 +18,7 @@ import (
 	"github.com/Azure/azure-container-networking/cni/util"
 	"github.com/Azure/azure-container-networking/cns"
 	cnscli "github.com/Azure/azure-container-networking/cns/client"
+	"github.com/Azure/azure-container-networking/cns/fsnotify"
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/iptables"
 	"github.com/Azure/azure-container-networking/netio"
@@ -1072,7 +1073,11 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 					zap.String("containerID", args.ContainerID))
 				sendEvent(plugin, fmt.Sprintf("Release ip by ContainerID (endpoint not found):%v", args.ContainerID))
 				if err = plugin.ipamInvoker.Delete(nil, nwCfg, args, nwInfo.Options); err != nil {
-					return plugin.RetriableError(fmt.Errorf("failed to release address(no endpoint): %w", err))
+					if errors.Is(err, &cnscli.ConnectionFailureErr{}) {
+						fsnotify.WatcherAddFile(args.ContainerID)
+					} else {
+						return plugin.RetriableError(fmt.Errorf("failed to release address(no endpoint): %w", err))
+					}
 				}
 			}
 			// Log the error but return success if the endpoint being deleted is not found.
