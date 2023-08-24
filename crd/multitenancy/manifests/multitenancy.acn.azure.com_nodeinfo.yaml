@@ -11,8 +11,10 @@ spec:
     kind: NodeInfo
     listKind: NodeInfoList
     plural: nodeinfo
+    shortNames:
+    - ni
     singular: nodeinfo
-  scope: Namespaced
+  scope: Cluster
   versions:
   - additionalPrinterColumns:
     - jsonPath: .spec.vmUniqueID

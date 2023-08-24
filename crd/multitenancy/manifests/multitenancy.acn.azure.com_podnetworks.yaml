@@ -14,7 +14,7 @@ spec:
     shortNames:
     - pn
     singular: podnetwork
-  scope: Namespaced
+  scope: Cluster
   versions:
   - additionalPrinterColumns:
     - jsonPath: .status.status
