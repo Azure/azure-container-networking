@@ -64,11 +64,14 @@ stages:
   - stage: binaries
     displayName: Build Binaries
     dependsOn: setup
+    pool:
+      name: $(BUILD_POOL_NAME_DEFAULT)
+      demands:
+        - agent.os -equals Linux
+        - Role -equals Build
     jobs:
       - job:
-        displayName: "Build Kubernetes Test Suite Binary"
-        pool:
-          name: $(BUILD_POOL_NAME_DEFAULT)
+        displayName: "Build k8s NPM Linux Test Suite Binary"
         steps:
           - bash: |
               git clone https://github.com/huntergregory/kubernetes.git --depth=1 --branch=linux-sleep-before-probing
@@ -78,6 +81,19 @@ stages:
             displayName: "Build Kubernetes e2e.test"
           - publish: $(System.DefaultWorkingDirectory)/kubernetes/_output/local/bin/linux/amd64
             artifact: npm_k8s
+      - job:
+        displayName: "Build k8s NPM Windows Test Suite Binary"
+        pool:
+          name: $(BUILD_POOL_NAME_DEFAULT)
+        steps:
+          - bash: |
+              git clone https://github.com/huntergregory/kubernetes.git --depth=1 --branch=sleep-before-probing
+              cd kubernetes
+              export PATH=$PATH:/usr/local/go/bin/
+              make WHAT=test/e2e/e2e.test
+            displayName: "Build Kubernetes e2e.test"
+          - publish: $(System.DefaultWorkingDirectory)/kubernetes/_output/local/bin/linux/amd64
+            artifact: npm_k8s_windows
 
   - stage: publish
     displayName: Publish Multiarch Manifests

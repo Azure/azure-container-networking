@@ -71,9 +71,17 @@ stages:
                 kubectl get pods -A -owide
             name: "UploadCNI"
             displayName: "Upload CNI"
+      - template: ../../npm/npm-cni-integration-test.yaml
+        parameters:
+          clusterName: ${{ parameters.clusterName }}-$(commitID)
+          os: ${{ parameters.os }}
+          sub: $(TEST_SUB_SERVICE_CONNECTION)
+          os_version: 'ltsc2022'
+          tag: $(npmVersion)
+          dependsOn: update_cni
       - job: deploy_pods
         displayName: "Scale Test"
-        dependsOn: update_cni
+        dependsOn: npm_k8se2e
         steps:
           - template: ../load-test-templates/pod-deployment-template.yaml
             parameters:
@@ -141,11 +149,4 @@ stages:
           hybridWin: true
           service: true
           hostport: true
-      - template: ../../npm/npm-cni-integration-test.yaml
-        parameters:
-          clusterName: ${{ parameters.clusterName }}-$(commitID)
-          os: ${{ parameters.os }}
-          sub: $(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS)
-          os_version: 'ltsc2022'
-          tag: $(npmVersion)
-          dependsOn: cni_k8se2e
+

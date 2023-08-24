@@ -17,20 +17,50 @@ jobs:
       - agent.os -equals Linux
       - Role -equals Build
     steps:
-      - task: AzureCLI@2
-        displayName: "Deploy NPM to Test Cluster"
-        inputs:
-          azureSubscription: ${{ parameters.sub }}
-          scriptType: "bash"
-          scriptLocation: "inlineScript"
-          inlineScript: |
-            set -ex
+      - ${{ if eq(parameters.os, 'linux') }}:
+        - task: AzureCLI@2
+          displayName: "Deploy NPM to Test Cluster"
+          inputs:
+            azureSubscription: ${{ parameters.sub }}
+            scriptType: "bash"
+            scriptLocation: "inlineScript"
+            inlineScript: |
+              set -ex
 
-            make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
+              make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
 
-            # deploy azure-npm
-            if ${{ lower(eq(parameters.os, 'windows')) }}
-            then
+              # deploy azure-npm
+              kubectl apply -f https://raw.githubusercontent.com/Azure/azure-container-networking/master/npm/azure-npm.yaml
+              kubectl set image daemonset/azure-npm -n kube-system azure-npm=$IMAGE_REGISTRY/azure-npm:${{ parameters.tag }}
+              kubectl rollout status -n kube-system daemonset/azure-npm
+
+              kubectl get po -n kube-system -owide -A
+
+              # FQDN=`az aks show -n $CLUSTER_NAME -g $CLUSTER_NAME --query fqdn -o tsv`
+              FQDN=`az aks show -g ${{ parameters.clusterName }} -n ${{ parameters.clusterName }} --query fqdn -o tsv`
+              echo $FQDN
+              echo "##vso[task.setvariable variable=FQDN]$FQDN"
+
+              artifact=npm_k8s
+              echo $artifact/e2e.test
+              echo "##vso[task.setvariable variable=artifact]$artifact"
+
+        - download: current
+          artifact: npm_k8s
+
+      - ${{ if eq(parameters.os, 'windows') }}:
+        - task: AzureCLI@2
+          displayName: "Deploy Windows NPM to Test Cluster"
+          inputs:
+            azureSubscription: ${{ parameters.sub }}
+            scriptType: "bash"
+            scriptLocation: "inlineScript"
+            inlineScript: |
+              set -ex
+
+              make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
+
+              # deploy azure-npm-win
               # Windows
               kubectl apply -f https://raw.githubusercontent.com/Azure/azure-container-networking/master/npm/examples/windows/azure-npm.yaml
               kubectl set image daemonset/azure-npm-win -n kube-system azure-npm=$IMAGE_REGISTRY/azure-npm:windows-amd64-ltsc2022-${{ parameters.tag }}
@@ -40,23 +70,20 @@ jobs:
               sleep 60
               # Taint Linux (system) nodes so windows tests do not run on them
               kubectl taint nodes -l kubernetes.azure.com/mode=system node-role.kubernetes.io/control-plane:NoSchedule
-            else
-              # Linux
-              kubectl apply -f https://raw.githubusercontent.com/Azure/azure-container-networking/master/npm/azure-npm.yaml
-              kubectl set image daemonset/azure-npm -n kube-system azure-npm=$IMAGE_REGISTRY/azure-npm:${{ parameters.tag }}
-              kubectl rollout status -n kube-system daemonset/azure-npm
-              sleep 60 # Tests were failing on SWIFT clusters.
-            fi
 
-            kubectl get po -n kube-system -owide -A
+              kubectl get po -n kube-system -owide -A
 
-            # FQDN=`az aks show -n $CLUSTER_NAME -g $CLUSTER_NAME --query fqdn -o tsv`
-            FQDN=`az aks show -g ${{ parameters.clusterName }} -n ${{ parameters.clusterName }} --query fqdn -o tsv`
-            echo $FQDN
-            echo "##vso[task.setvariable variable=FQDN]$FQDN"
+              # FQDN=`az aks show -n $CLUSTER_NAME -g $CLUSTER_NAME --query fqdn -o tsv`
+              FQDN=`az aks show -g ${{ parameters.clusterName }} -n ${{ parameters.clusterName }} --query fqdn -o tsv`
+              echo $FQDN
+              echo "##vso[task.setvariable variable=FQDN]$FQDN"
 
-      - download: current
-        artifact: npm_k8s
+              artifact=npm_k8s_windows
+              echo $artifact/e2e.test
+              echo "##vso[task.setvariable variable=artifact]$artifact"
+
+        - download: current
+          artifact: npm_k8s_windows
 
       - bash: |
           set -e
@@ -77,10 +104,13 @@ jobs:
           client should stop enforcing policies after they are deleted|\
           client should support a 'default-deny-ingress' policy"
 
-          chmod +x $(Pipeline.Workspace)/npm_k8s/e2e.test
+          ls -l $(Pipeline.Workspace)/$(artifact)
+          echo adding execution to $(artifact)/e2e.test
+          chmod +x $(Pipeline.Workspace)/$(artifact)/e2e.test
+          ls -l $(Pipeline.Workspace)/$(artifact)
 
           KUBERNETES_SERVICE_HOST="$FQDN" KUBERNETES_SERVICE_PORT=443 \
-          $(Pipeline.Workspace)/npm_k8s/e2e.test \
+          $(Pipeline.Workspace)/$(artifact)/e2e.test \
           --provider=local \
           --ginkgo.focus="$focus" \
           --ginkgo.skip="NetworkPolicyLegacy|SCTP" \
