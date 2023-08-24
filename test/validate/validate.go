@@ -56,7 +56,7 @@ func CreateValidator(ctx context.Context, clientset *kubernetes.Clientset, confi
 	}
 	// Ensures that pods have been replaced if test is re-run after failure
 	if err := k8sutils.WaitForPodDaemonset(ctx, clientset, privilegedNamespace, privilegedDaemonSet.Name, privilegedLabelSelector); err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "unable to wait for daemonset")
 	}
 
 	var checks []check
