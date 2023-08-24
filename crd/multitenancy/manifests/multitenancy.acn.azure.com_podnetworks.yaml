@@ -4,39 +4,39 @@ kind: CustomResourceDefinition
 metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.13.0
-  labels:
-    managed: ""
-    owner: ""
-  name: podnetworkinstances.acn.azure.com
+  name: podnetworks.multitenancy.acn.azure.com
 spec:
-  group: acn.azure.com
+  group: multitenancy.acn.azure.com
   names:
-    kind: PodNetworkInstance
-    listKind: PodNetworkInstanceList
-    plural: podnetworkinstances
+    kind: PodNetwork
+    listKind: PodNetworkList
+    plural: podnetworks
     shortNames:
-    - pni
-    singular: podnetworkinstance
+    - pn
+    singular: podnetwork
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
-    - jsonPath: .status.podIPAddresses
-      name: Pod IPs
+    - jsonPath: .status.status
+      name: Status
       priority: 1
       type: string
-    - jsonPath: .spec.podNetwork
-      name: PodNetwork
+    - jsonPath: .status.addressPrefixes
+      name: Address Prefixes
       priority: 1
       type: string
-    - jsonPath: .spec.podIPReservationSize
-      name: PodIPReservationSize
+    - jsonPath: .spec.vnetGUID
+      name: Network
+      priority: 1
+      type: string
+    - jsonPath: .spec.subnetResourceID
+      name: Subnet
       priority: 1
       type: string
     name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: PodNetworkInstance is the Schema for the PodNetworkInstances
-          API
+        description: PodNetwork is the Schema for the PodNetworks API
         properties:
           apiVersion:
             description: 'APIVersion defines the versioned schema of this representation
@@ -51,26 +51,29 @@ spec:
           metadata:
             type: object
           spec:
-            description: PodNetworkInstanceSpec defines the desired state of PodNetworkInstance
+            description: PodNetworkSpec defines the desired state of PodNetwork
             properties:
-              podIPReservationSize:
-                default: 0
-                description: number of backend IP address to reserve for running pods
-                type: integer
-              podnetwork:
-                description: pod network resource object name
+              subnetResourceID:
+                description: customer subnet id
                 type: string
-            required:
-            - podIPReservationSize
-            - podnetwork
+              vnetGUID:
+                description: customer vnet guid
+                type: string
             type: object
           status:
-            description: PodNetworkInstanceStatus defines the observed state of PodNetworkInstance
+            description: PodNetworkStatus defines the observed state of PodNetwork
             properties:
-              podIPAddresses:
+              addressPrefixes:
                 items:
                   type: string
                 type: array
+              status:
+                description: Status indicates the status of PN
+                enum:
+                - Ready
+                - InUse
+                - SubnetNotDelegated
+                type: string
             type: object
         type: object
     served: true

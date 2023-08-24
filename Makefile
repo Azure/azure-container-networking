@@ -726,7 +726,7 @@ test-integration: ## run all integration tests.
 		go test -mod=readonly -buildvcs=false -timeout 1h -coverpkg=./... -race -covermode atomic -coverprofile=coverage.out -tags=integration ./test/integration...
 
 test-validate-state:
-	cd test/integration/load && go test -mod=readonly -count=1 -timeout 30m -tags load -run ^TestValidateState -tags=load -restart-case=$(RESTART_CASE) -os=$(OS) -cni=$(CNI_TYPE)
+	cd test/integration/load && go test -mod=readonly -count=1 -timeout 30m -tags load -run ^TestValidateState -restart-case=$(RESTART_CASE) -os=$(OS) -cni=$(CNI_TYPE)
 	cd ../../..
 
 test-cyclonus: ## run the cyclonus test for npm.
