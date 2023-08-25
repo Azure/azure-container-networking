@@ -14,9 +14,9 @@ stages:
               echo "Setting up environment"
               go version
               echo "##vso[task.setvariable variable=commitID;isOutput=true]$(make revision)"
-              echo "##vso[task.setvariable variable=npmVersion;isOutput=true]$(make npm-version)"
-              echo "##vso[task.setvariable variable=dropgzVersion;isOutput=true]$(make cni-dropgz-version)"
-              echo "##vso[task.setvariable variable=cnsVersion;isOutput=true]$(make cns-version)"
+              echo "##vso[task.setvariable variable=npmVersion;isOutput=true]$(NPM_VERSION)"
+              echo "##vso[task.setvariable variable=dropgzVersion;isOutput=true]$(make cni-dropgz-test-version)"
+              echo "##vso[task.setvariable variable=cnsVersion;isOutput=true]$(CNS_VERSION)"
             name: "SetEnvVars"
             displayName: "Set Environment Variables"
             condition: always()
@@ -38,19 +38,6 @@ stages:
             cni_dropgz_test_windows2022_amd64:
               arch: amd64
               name: cni-dropgz-test
-              os: windows
-              os_version: ltsc2022
-            cns_linux_amd64:
-              arch: amd64
-              name: cns
-              os: linux
-            npm_linux_amd64:
-              arch: amd64
-              name: npm
-              os: linux
-            npm_windows2022_amd64:
-              arch: amd64
-              name: npm
               os: windows
               os_version: ltsc2022
         steps:
@@ -108,13 +95,6 @@ stages:
           matrix:
             cni_dropgz_test:
               name: cni-dropgz-test
-              platforms: linux/amd64 windows/amd64
-            cns:
-              name: cns
-              platforms: linux/amd64
-            npm:
-              name: npm
-              os_versions: ltsc2022
               platforms: linux/amd64 windows/amd64
         steps:
           - template: ../containers/manifest-template.yaml
