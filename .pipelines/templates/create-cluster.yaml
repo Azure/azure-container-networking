@@ -34,3 +34,4 @@ jobs:
             make -C ./hack/aks ${{ parameters.clusterType }} AZCLI=az REGION=${{ parameters.region }} SUB=$(SUB_AZURE_NETWORK_AGENT_TEST) CLUSTER=${{ parameters.clusterName }} K8S_VER=${{ parameters.k8sVersion }} VM_SIZE=${{ parameters.vmSize }} WINDOWS_OS_SKU=${{ parameters.windowsOsSku }} WINDOWS_VM_SKU=${{ parameters.vmSize }} WINDOWS_USERNAME=${WINDOWS_USERNAME} WINDOWS_PASSWORD=${WINDOWS_PASSWORD}
             echo "Cluster successfully created"
         displayName: Cluster - ${{ parameters.clusterType }}
+        continueOnError: ${{ contains(parameters.clusterType, 'dualstack') }}
