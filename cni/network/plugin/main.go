@@ -41,8 +41,10 @@ const (
 // Version is populated by make during build.
 var version string
 
-var LoggerVnetName = name
-var logger = zaplog.InitLog(log.LoggerVnetCfg).With(zap.String("component", "cni"))
+var (
+	LoggerVnetName = name
+	logger         = zaplog.InitLog(log.LoggerVnetCfg).With(zap.String("component", "cni"))
+)
 
 // Command line arguments for CNI plugin.
 var args = common.ArgumentList{

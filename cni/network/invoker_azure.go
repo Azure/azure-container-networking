@@ -20,8 +20,10 @@ import (
 	"go.uber.org/zap"
 )
 
-var LoggerVnetName = "azure-vnet"
-var logger = zaplog.InitLog(log.LoggerVnetCfg).With(zap.String("component", "cni"))
+var (
+	LoggerVnetName = "azure-vnet"
+	logger         = zaplog.InitLog(log.LoggerVnetCfg).With(zap.String("component", "cni"))
+)
 
 const (
 	bytesSize4  = 4
