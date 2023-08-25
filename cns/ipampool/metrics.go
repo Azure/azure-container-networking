@@ -20,7 +20,7 @@ var (
 	ipamAllocatedIPCount = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name:        "cx_ipam_pod_allocated_ips",
-			Help:        "Count of IPs CNS has allocated to Pods.",
+			Help:        "IPs currently in use by Pods on this CNS Node.",
 			ConstLabels: prometheus.Labels{customerMetricLabel: customerMetricLabelValue},
 		},
 		[]string{subnetLabel, subnetCIDRLabel, podnetARMIDLabel},
@@ -28,7 +28,7 @@ var (
 	ipamAvailableIPCount = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name:        "cx_ipam_available_ips",
-			Help:        "Available IP count.",
+			Help:        "IPs available on this CNS Node for use by a Pod.",
 			ConstLabels: prometheus.Labels{customerMetricLabel: customerMetricLabelValue},
 		},
 		[]string{subnetLabel, subnetCIDRLabel, podnetARMIDLabel},
@@ -36,7 +36,7 @@ var (
 	ipamBatchSize = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name:        "cx_ipam_batch_size",
-			Help:        "IPAM IP pool batch size.",
+			Help:        "IPAM IP pool scaling batch size.",
 			ConstLabels: prometheus.Labels{customerMetricLabel: customerMetricLabelValue},
 		},
 		[]string{subnetLabel, subnetCIDRLabel, podnetARMIDLabel},
@@ -60,7 +60,7 @@ var (
 	ipamMaxIPCount = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name:        "cx_ipam_max_ips",
-			Help:        "Maximum IP count.",
+			Help:        "Maximum Secondary IPs allowed on this Node.",
 			ConstLabels: prometheus.Labels{customerMetricLabel: customerMetricLabelValue},
 		},
 		[]string{subnetLabel, subnetCIDRLabel, podnetARMIDLabel},
@@ -68,7 +68,7 @@ var (
 	ipamPendingProgramIPCount = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name:        "cx_ipam_pending_programming_ips",
-			Help:        "Pending programming IP count.",
+			Help:        "IPs reserved but not yet available (Pending Programming).",
 			ConstLabels: prometheus.Labels{customerMetricLabel: customerMetricLabelValue},
 		},
 		[]string{subnetLabel, subnetCIDRLabel, podnetARMIDLabel},
@@ -76,7 +76,7 @@ var (
 	ipamPendingReleaseIPCount = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name:        "cx_ipam_pending_release_ips",
-			Help:        "Pending release IP count.",
+			Help:        "IPs reserved but not available anymore (Pending Release).",
 			ConstLabels: prometheus.Labels{customerMetricLabel: customerMetricLabelValue},
 		},
 		[]string{subnetLabel, subnetCIDRLabel, podnetARMIDLabel},
@@ -84,7 +84,7 @@ var (
 	ipamPrimaryIPCount = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name:        "cx_ipam_primary_ips",
-			Help:        "NC Primary IP count (unassignable).",
+			Help:        "Node NC Primary IP count (reserved not usable by Pods).",
 			ConstLabels: prometheus.Labels{customerMetricLabel: customerMetricLabelValue},
 		},
 		[]string{subnetLabel, subnetCIDRLabel, podnetARMIDLabel},
@@ -92,7 +92,7 @@ var (
 	ipamRequestedIPConfigCount = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name:        "cx_ipam_requested_ips",
-			Help:        "Requested IP count.",
+			Help:        "Number of Secondary Pod Subnet IPs requested by this CNS Node (for Pods).",
 			ConstLabels: prometheus.Labels{customerMetricLabel: customerMetricLabelValue},
 		},
 		[]string{subnetLabel, subnetCIDRLabel, podnetARMIDLabel},
@@ -100,7 +100,7 @@ var (
 	ipamSecondaryIPCount = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name:        "cx_ipam_secondary_ips",
-			Help:        "NC Secondary IP count (assignable).",
+			Help:        "Node NC Secondary IP count (reserved usable by Pods).",
 			ConstLabels: prometheus.Labels{customerMetricLabel: customerMetricLabelValue},
 		},
 		[]string{subnetLabel, subnetCIDRLabel, podnetARMIDLabel},
@@ -115,7 +115,7 @@ var (
 	ipamSubnetExhaustionState = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name:        "cx_ipam_subnet_exhaustion_state",
-			Help:        "IPAM view of subnet exhaustion state",
+			Help:        "CNS view of subnet exhaustion state",
 			ConstLabels: prometheus.Labels{customerMetricLabel: customerMetricLabelValue},
 		},
 		[]string{subnetLabel, subnetCIDRLabel, podnetARMIDLabel},
@@ -123,7 +123,7 @@ var (
 	ipamTotalIPCount = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name:        "cx_ipam_total_ips",
-			Help:        "Total IPs reserved from the Subnet by this CNS.",
+			Help:        "Total IPs reserved from the Pod Subnet by this Node.",
 			ConstLabels: prometheus.Labels{customerMetricLabel: customerMetricLabelValue},
 		},
 		[]string{subnetLabel, subnetCIDRLabel, podnetARMIDLabel},
