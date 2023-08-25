@@ -12,7 +12,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Azure/azure-container-networking/cni/log"
 	"github.com/Azure/azure-container-networking/common"
 	cniSkel "github.com/containernetworking/cni/pkg/skel"
 	cniTypesCurr "github.com/containernetworking/cni/pkg/types/100"
@@ -98,7 +97,7 @@ var (
 
 		arg = &cniSkel.CmdArgs{}
 
-		log.InitializeMock()
+		//log.InitializeMock()
 	})
 
 	_ = AfterSuite(func() {

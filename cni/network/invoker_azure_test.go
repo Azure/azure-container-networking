@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/Azure/azure-container-networking/cni"
-	"github.com/Azure/azure-container-networking/cni/log"
 	"github.com/Azure/azure-container-networking/ipam"
 	"github.com/Azure/azure-container-networking/network"
 	cniSkel "github.com/containernetworking/cni/pkg/skel"
@@ -209,7 +208,7 @@ func TestAzureIPAMInvoker_Add(t *testing.T) {
 		},
 	}
 
-	log.InitializeMock()
+	//log.InitializeMock()
 
 	for _, tt := range tests {
 		tt := tt

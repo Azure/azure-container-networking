@@ -15,6 +15,7 @@ import (
 	"github.com/Azure/azure-container-networking/platform"
 	"github.com/Azure/azure-container-networking/processlock"
 	"github.com/Azure/azure-container-networking/store"
+	"github.com/Azure/azure-container-networking/zaplog"
 	cniInvoke "github.com/containernetworking/cni/pkg/invoke"
 	cniSkel "github.com/containernetworking/cni/pkg/skel"
 	cniTypes "github.com/containernetworking/cni/pkg/types"
@@ -23,6 +24,9 @@ import (
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
 )
+
+var LoggerVnetName = "azure-vnet"
+var logger = zaplog.InitLog(log.LoggerVnetCfg).With(zap.String("component", "cni"))
 
 var errEmptyContent = errors.New("read content is zero bytes")
 
@@ -75,7 +79,7 @@ func (plugin *Plugin) Execute(api PluginApi) (err error) {
 			cniErr.Print()
 			err = cniErr
 
-			log.Logger.Info("Recovered panic",
+			logger.Info("Recovered panic",
 				zap.String("error", cniErr.Msg),
 				zap.String("details", cniErr.Details))
 		}
@@ -99,9 +103,9 @@ func (plugin *Plugin) DelegateAdd(pluginName string, nwCfg *NetworkConfig) (*cni
 	var result *cniTypesCurr.Result
 	var err error
 
-	log.Logger.Info("Calling ADD", zap.String("plugin", pluginName))
+	logger.Info("Calling ADD", zap.String("plugin", pluginName))
 	defer func() {
-		log.Logger.Info("Plugin returned",
+		logger.Info("Plugin returned",
 			zap.String("plugin", pluginName),
 			zap.Any("result", result),
 			zap.Error(err))
@@ -126,11 +130,11 @@ func (plugin *Plugin) DelegateAdd(pluginName string, nwCfg *NetworkConfig) (*cni
 func (plugin *Plugin) DelegateDel(pluginName string, nwCfg *NetworkConfig) error {
 	var err error
 
-	log.Logger.Info("Calling DEL",
+	logger.Info("Calling DEL",
 		zap.String("plugin", pluginName),
 		zap.Any("config", nwCfg))
 	defer func() {
-		log.Logger.Info("Plugin eturned",
+		logger.Info("Plugin eturned",
 			zap.String("plugin", pluginName),
 			zap.Error(err))
 	}()
@@ -155,7 +159,7 @@ func (plugin *Plugin) Error(err error) *cniTypes.Error {
 		cniErr = &cniTypes.Error{Code: 100, Msg: err.Error()}
 	}
 
-	log.Logger.Error("",
+	logger.Error("",
 		zap.String("plugin", plugin.Name),
 		zap.String("error", cniErr.Error()))
 
@@ -170,7 +174,7 @@ func (plugin *Plugin) Errorf(format string, args ...interface{}) *cniTypes.Error
 // RetriableError logs and returns a CNI error with the TryAgainLater error code
 func (plugin *Plugin) RetriableError(err error) *cniTypes.Error {
 	tryAgainErr := cniTypes.NewError(cniTypes.ErrTryAgainLater, err.Error(), "")
-	log.Logger.Error("",
+	logger.Error("",
 		zap.String("name", plugin.Name),
 		zap.String("error", tryAgainErr.Error()))
 	return tryAgainErr
@@ -182,13 +186,13 @@ func (plugin *Plugin) InitializeKeyValueStore(config *common.PluginConfig) error
 	if plugin.Store == nil {
 		lockclient, err := processlock.NewFileLock(platform.CNILockPath + plugin.Name + store.LockExtension)
 		if err != nil {
-			log.Logger.Error("Error initializing file lock", zap.Error(err))
+			logger.Error("Error initializing file lock", zap.Error(err))
 			return errors.Wrap(err, "error creating new filelock")
 		}
 
 		plugin.Store, err = store.NewJsonFileStore(platform.CNIRuntimePath+plugin.Name+".json", lockclient)
 		if err != nil {
-			log.Logger.Error("Failed to create store", zap.Error(err))
+			logger.Error("Failed to create store", zap.Error(err))
 			return err
 		}
 	}
@@ -200,7 +204,7 @@ func (plugin *Plugin) InitializeKeyValueStore(config *common.PluginConfig) error
 	}
 	// Acquire store lock.
 	if err := plugin.Store.Lock(lockTimeoutValue); err != nil {
-		log.Logger.Error("[cni] Failed to lock store", zap.Error(err))
+		logger.Error("[cni] Failed to lock store", zap.Error(err))
 		return errors.Wrap(err, "error Acquiring store lock")
 	}
 
@@ -214,7 +218,7 @@ func (plugin *Plugin) UninitializeKeyValueStore() error {
 	if plugin.Store != nil {
 		err := plugin.Store.Unlock()
 		if err != nil {
-			log.Logger.Error("Failed to unlock store", zap.Error(err))
+			logger.Error("Failed to unlock store", zap.Error(err))
 			return err
 		}
 	}
