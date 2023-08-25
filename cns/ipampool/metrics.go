@@ -84,7 +84,7 @@ var (
 	ipamPrimaryIPCount = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name:        "cx_ipam_primary_ips",
-			Help:        "Node NC Primary IP count (reserved not usable by Pods).",
+			Help:        "NC Primary IP count (reserved from Pod Subnet for DNS and IMDS SNAT).",
 			ConstLabels: prometheus.Labels{customerMetricLabel: customerMetricLabelValue},
 		},
 		[]string{subnetLabel, subnetCIDRLabel, podnetARMIDLabel},
@@ -92,7 +92,7 @@ var (
 	ipamRequestedIPConfigCount = prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name:        "cx_ipam_requested_ips",
-			Help:        "Number of Secondary Pod Subnet IPs requested by this CNS Node (for Pods).",
+			Help:        "Secondary Pod Subnet IPs requested by this CNS Node (for Pods).",
 			ConstLabels: prometheus.Labels{customerMetricLabel: customerMetricLabelValue},
 		},
 		[]string{subnetLabel, subnetCIDRLabel, podnetARMIDLabel},
