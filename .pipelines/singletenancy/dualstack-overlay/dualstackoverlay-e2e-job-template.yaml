@@ -19,16 +19,26 @@ stages:
     variables:
       commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
     jobs:
-      - template: ../../templates/create-cluster.yaml
-        parameters:
-          name: ${{ parameters.name }}
-          displayName: ${{ parameters.displayName }}
-          clusterType: ${{ parameters.clusterType }}
-          clusterName: ${{ parameters.clusterName }}-$(commitID)
-          vmSize: ${{ parameters.vmSize }}
-          k8sVersion: ${{ parameters.k8sVersion }}
-          dependsOn: ${{ parameters.dependsOn }}
-          region: $(REGION_DUALSTACKOVERLAY_CLUSTER_TEST) # Dualstack has a specific region requirement
+      - job: temp
+        pool:
+          name: "$(BUILD_POOL_NAME_DEFAULT)"
+        steps:
+          - script: |
+              # To use the variables below, you must make the respective stage's dependsOn have - setup or it will not retain context of this stage
+              echo you did it
+            name: "EnvironmentalVariables"
+            displayName: "Set environmental variables"
+
+      # - template: ../../templates/create-cluster.yaml
+      #   parameters:
+      #     name: ${{ parameters.name }}
+      #     displayName: ${{ parameters.displayName }}
+      #     clusterType: ${{ parameters.clusterType }}
+      #     clusterName: ${{ parameters.clusterName }}-$(commitID)
+      #     vmSize: ${{ parameters.vmSize }}
+      #     k8sVersion: ${{ parameters.k8sVersion }}
+      #     dependsOn: ${{ parameters.dependsOn }}
+      #     region: $(REGION_DUALSTACKOVERLAY_CLUSTER_TEST) # Dualstack has a specific region requirement
 
   - stage: ${{ parameters.name }}
     condition: and( succeeded(), not(eq(dependencies.dualstackoverlaye2e.result,'SucceededWithIssues')) ) # Cant use parameters in dependencies
