@@ -81,6 +81,7 @@ const (
 	pluginName                        = "azure-vnet"
 	endpointStoreName                 = "azure-endpoints"
 	endpointStoreLocation             = "/var/run/azure-cns/"
+	cniPath                           = "/var/run/azure-vnet"
 	defaultCNINetworkConfigFileName   = "10-azure.conflist"
 	dncApiVersion                     = "?api-version=2018-03-01"
 	poolIPAMRefreshRateInMilliseconds = 1000
@@ -814,7 +815,7 @@ func main() {
 	w := &fsnotify.Watcher{
 		CnsClient: &cnsclient.Client{},
 	}
-	err = fsnotify.WatchFs(w)
+	err = fsnotify.WatchFs(w, cniPath)
 	if err != nil {
 		logger.Errorf("Failed to start fsnotify watcher, err:%v.\n", err)
 	}

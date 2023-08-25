@@ -18,6 +18,10 @@ import (
 	"go.uber.org/zap"
 )
 
+const (
+	cniPath = "/var/run/azure-vnet"
+)
+
 // IPAMPlugin is the struct for the delegated azure-ipam plugin
 // https://www.cni.dev/docs/spec/#section-4-plugin-delegation
 type IPAMPlugin struct {
@@ -135,7 +139,13 @@ func (p *IPAMPlugin) CmdDel(args *cniSkel.CmdArgs) error {
 	// cnsClient enforces it own timeout
 	if err := p.cnsClient.ReleaseIPAddress(context.TODO(), req); err != nil {
 		if errors.Is(err, &cnscli.ConnectionFailureErr{}) {
-			fsnotify.WatcherAddFile(args.ContainerID)
+			p.logger.Info("---Found connection failure. Add file to watcher")
+			addErr := fsnotify.WatcherAddFile(args.ContainerID, cniPath)
+			if addErr != nil {
+				p.logger.Error("---Failed to Add file to watcher", zap.Error(addErr))
+			} else {
+				p.logger.Info("---Add file success")
+			}
 		} else {
 			p.logger.Error("Failed to release IP address from CNS", zap.Error(err), zap.Any("request", req))
 			return cniTypes.NewError(cniTypes.ErrTryAgainLater, err.Error(), "failed to release IP address from CNS")

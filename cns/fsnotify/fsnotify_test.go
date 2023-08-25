@@ -9,7 +9,8 @@ import (
 
 func TestWatchFs(t *testing.T) {
 	type args struct {
-		w *Watcher
+		w    *Watcher
+		path string
 	}
 	tests := []struct {
 		name    string
@@ -20,7 +21,7 @@ func TestWatchFs(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if err := WatchFs(tt.args.w); (err != nil) != tt.wantErr {
+			if err := WatchFs(tt.args.w, tt.args.path); (err != nil) != tt.wantErr {
 				t.Errorf("WatchFs() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
@@ -30,6 +31,7 @@ func TestWatchFs(t *testing.T) {
 func TestWatcherAddFile(t *testing.T) {
 	type args struct {
 		containerID string
+		path        string
 	}
 	tests := []struct {
 		name    string
@@ -40,7 +42,7 @@ func TestWatcherAddFile(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if err := WatcherAddFile(tt.args.containerID); (err != nil) != tt.wantErr {
+			if err := WatcherAddFile(tt.args.containerID, tt.args.path); (err != nil) != tt.wantErr {
 				t.Errorf("WatcherAddFile() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
@@ -50,6 +52,7 @@ func TestWatcherAddFile(t *testing.T) {
 func TestWatcherRemoveFile(t *testing.T) {
 	type args struct {
 		containerID string
+		path        string
 	}
 	tests := []struct {
 		name    string
@@ -60,7 +63,7 @@ func TestWatcherRemoveFile(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if err := WatcherRemoveFile(tt.args.containerID); (err != nil) != tt.wantErr {
+			if err := WatcherRemoveFile(tt.args.containerID, tt.args.path); (err != nil) != tt.wantErr {
 				t.Errorf("WatcherRemoveFile() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
@@ -74,6 +77,7 @@ func TestWatcher_releaseIP(t *testing.T) {
 	}
 	type args struct {
 		containerID string
+		path        string
 	}
 	tests := []struct {
 		name   string
@@ -88,7 +92,7 @@ func TestWatcher_releaseIP(t *testing.T) {
 				CnsClient: tt.fields.CnsClient,
 				logger:    tt.fields.logger,
 			}
-			w.releaseIP(tt.args.containerID)
+			w.releaseIP(tt.args.containerID, tt.args.path)
 		})
 	}
 }

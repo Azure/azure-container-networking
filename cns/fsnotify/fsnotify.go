@@ -22,7 +22,7 @@ type Watcher struct {
 	logger    *zap.Logger
 }
 
-func WatchFs(w *Watcher) error {
+func WatchFs(w *Watcher, path string) error {
 	loggerCfg := &logger.Config{
 		Level:       "debug",
 		Filepath:    "/var/log/fsnotify-watcher.log",
@@ -56,7 +56,7 @@ func WatchFs(w *Watcher) error {
 				w.logger.Info("Watcher: ", zap.Any("event: ", event.Name))
 				if event.Has(fsnotify.Create) {
 					w.logger.Info("created file: ", zap.Any("event: ", event.Name))
-					w.releaseIP(event.Name)
+					w.releaseIP(event.Name, path)
 				}
 				if event.Has(fsnotify.Remove) {
 					w.logger.Info("removed file: ", zap.Any("event: ", event.Name))
@@ -71,23 +71,24 @@ func WatchFs(w *Watcher) error {
 	}()
 
 	// Add directory where intended deletes are kept
-	err = os.MkdirAll(directory, 0o755)
+	dirpath := path + "/" + directory
+	err = os.MkdirAll(dirpath, 0o755)
 	if err != nil {
 		w.logger.Error("Error making directory: ", zap.Error(err))
 	}
-	err = watcher.Add(directory)
+	err = watcher.Add(dirpath)
 	if err != nil {
 		w.logger.Error("Watcher add directory error: ", zap.Error(err))
 	}
 
 	// list the directory then call ReleaseIPs
-	w.logger.Info("Listing directory /deleteIDs: ")
-	dirContents, err := os.ReadDir(directory)
+	w.logger.Info("Listing directory deleteIDs: ")
+	dirContents, err := os.ReadDir(dirpath)
 	if err != nil {
 		w.logger.Error("Error reading deleteID directory", zap.Error(err))
 	} else {
 		for _, file := range dirContents {
-			w.releaseIP(file.Name())
+			w.releaseIP(file.Name(), path)
 		}
 	}
 
@@ -95,13 +96,14 @@ func WatchFs(w *Watcher) error {
 }
 
 // WatcherAddFile creates new file using the containerID as name
-func WatcherAddFile(containerID string) error {
-	_, err := os.Stat(directory)
+func WatcherAddFile(containerID string, path string) error {
+	dirpath := path + "/" + directory
+	_, err := os.Stat(dirpath)
 	if errors.Is(err, fs.ErrNotExist) {
 		return errors.Wrapf(err, "Error reading directory")
 	}
 
-	filepath := directory + "/" + containerID
+	filepath := dirpath + "/" + containerID
 	f, err := os.Create(filepath)
 	if err != nil {
 		return errors.Wrapf(err, "Error creating file")
@@ -111,13 +113,14 @@ func WatcherAddFile(containerID string) error {
 }
 
 // WatcherRemoveFile removes the file based on containerID
-func WatcherRemoveFile(containerID string) error {
-	_, err := os.Stat(directory)
+func WatcherRemoveFile(containerID string, path string) error {
+	dirpath := path + "/" + directory
+	_, err := os.Stat(dirpath)
 	if errors.Is(err, fs.ErrNotExist) {
 		return errors.Wrapf(err, "Error reading directory")
 	}
 
-	filepath := directory + "/" + containerID
+	filepath := dirpath + "/" + containerID
 
 	// check the file exists
 	_, fileExists := os.Stat(filepath)
@@ -138,9 +141,14 @@ func WatcherRemoveFile(containerID string) error {
 }
 
 // call cns ReleaseIPs
-func (w *Watcher) releaseIP(containerID string) {
+func (w *Watcher) releaseIP(containerID string, path string) {
 	ipconfigreq := cns.IPConfigsRequest{InfraContainerID: containerID}
 	w.CnsClient.ReleaseIPs(context.Background(), ipconfigreq)
 
-	WatcherRemoveFile(containerID)
+	err := WatcherRemoveFile(containerID, path)
+	if err != nil {
+		w.logger.Error("---Failed to remove file from watcher", zap.Error(err))
+	} else {
+		w.logger.Info("---Removed file successfully")
+	}
 }

@@ -44,6 +44,7 @@ const (
 	defaultRequestTimeout = 15 * time.Second
 	ipv4FullMask          = 32
 	ipv6FullMask          = 128
+	cniPath               = "/var/run/azure-vnet"
 )
 
 // CNI Operation Types
@@ -1074,7 +1075,12 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 				sendEvent(plugin, fmt.Sprintf("Release ip by ContainerID (endpoint not found):%v", args.ContainerID))
 				if err = plugin.ipamInvoker.Delete(nil, nwCfg, args, nwInfo.Options); err != nil {
 					if errors.Is(err, &cnscli.ConnectionFailureErr{}) {
-						fsnotify.WatcherAddFile(args.ContainerID)
+						addErr := fsnotify.WatcherAddFile(args.ContainerID, cniPath)
+						if addErr != nil {
+							log.Logger.Error("---Failed to add file to watcher", zap.Error(addErr))
+						} else {
+							log.Logger.Info("---Add file success")
+						}
 					} else {
 						return plugin.RetriableError(fmt.Errorf("failed to release address(no endpoint): %w", err))
 					}
