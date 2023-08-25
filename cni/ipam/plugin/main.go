@@ -10,16 +10,10 @@ import (
 
 	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/cni/ipam"
-	"github.com/Azure/azure-container-networking/cni/log"
 	"github.com/Azure/azure-container-networking/common"
-	"github.com/Azure/azure-container-networking/zaplog"
-	"go.uber.org/zap"
 )
 
 const name = "azure-vnet-ipam"
-
-var LoggerIpamName = name
-var logger = zaplog.InitLog(log.LoggerIpamCfg).With(zap.String("component", "cni"))
 
 // Version is populated by make during build.
 var version string

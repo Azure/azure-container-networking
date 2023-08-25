@@ -10,19 +10,13 @@ import (
 
 	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/cni/ipam"
-	"github.com/Azure/azure-container-networking/cni/log"
 	"github.com/Azure/azure-container-networking/common"
-	"github.com/Azure/azure-container-networking/zaplog"
-	"go.uber.org/zap"
 )
 
 const name = "azure-vnet-ipamv6"
 
 // Version is populated by make during build.
 var version string
-
-var LoggerIpamName = name
-var logger = zaplog.InitLog(log.LoggerIpamCfg).With(zap.String("component", "cni"))
 
 // Main is the entry point for CNI IPAM plugin.
 func main() {
