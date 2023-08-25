@@ -555,7 +555,7 @@ type UnpublishNetworkContainerRequest struct {
 	DeleteNetworkContainerURL         string
 	DeleteNetworkContainerRequestBody []byte
 
-	// ShouldDeleteNetwork specifies whether the virtual network should be deleted via
+	// ShouldDeleteNetwork specifies whether the virtual network should be deleted from
 	// NMAgent after the network container has been unpublished.
 	ShouldDeleteNetwork bool
 }
