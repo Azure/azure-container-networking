@@ -444,7 +444,7 @@ jobs:
 
             echo "sleeping and waiting for NPM pods to be ready..."
             sleep 1m
-            ./kubectl --kubeconfig=./kubeconfig wait --for=condition=Ready pod -l k8s-app=azure-npm
+            ./kubectl --kubeconfig=./kubeconfig wait --for=condition=Ready pod -n kube-system -l k8s-app=azure-npm
             echo "sleeping 3 more minutes to let windows NPM finish bootup phase"
 
             ./kubectl --kubeconfig=./kubeconfig get po -n kube-system -owide -A
