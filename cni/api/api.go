@@ -10,8 +10,10 @@ import (
 	"go.uber.org/zap"
 )
 
-var LoggerVnetName = "azure-vnet"
-var logger = zaplog.InitLog(log.LoggerIpamCfg).With(zap.String("component", "cni"))
+var (
+	LoggerVnetName = "azure-vnet"
+	logger         = zaplog.InitLog(log.LoggerIpamCfg).With(zap.String("component", "cni"))
+)
 
 type PodNetworkInterfaceInfo struct {
 	PodName       string
