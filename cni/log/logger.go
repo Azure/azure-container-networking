@@ -35,7 +35,7 @@ var LoggerIpamCfg = &zaplog.Config{
 }
 
 var LoggerTelemetryCfg = &zaplog.Config{
-	Level:       zapcore.Level(zapcore.Int8Type),
+	Level:       zapcore.DebugLevel,
 	LogPath:     log.LogPath + "azure-vnet-telemetry.log",
 	MaxSizeInMB: maxLogFileSizeInMb,
 	MaxBackups:  maxLogFileCount,
