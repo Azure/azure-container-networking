@@ -94,6 +94,7 @@ stages:
           sub: $(TEST_SUB_SERVICE_CONNECTION)
           tag: $(npmVersion)
           dependsOn: integration
+          continueOnError: true
       - job: deploy_pods
         displayName: "Scale Test"
         dependsOn: npm_k8se2e

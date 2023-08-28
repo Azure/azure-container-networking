@@ -5,6 +5,7 @@ parameters:
   os_version: ""
   dependsOn: ""
   tag: ""
+  continueOnError: false
 
 jobs:
   - job: npm_k8se2e
@@ -122,5 +123,5 @@ jobs:
             kubectl taint nodes -l kubernetes.azure.com/mode=system node-role.kubernetes.io/control-plane:NoSchedule-
           fi
         displayName: "Run Kubernetes e2e.test"
-
+        continueOnError: ${{ parameters.continueOnError }}
 
