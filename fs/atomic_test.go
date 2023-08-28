@@ -14,7 +14,9 @@ func TestAtomicWriterFileExists(t *testing.T) {
 	w, err := fs.NewAtomicWriter(file)
 	require.NoError(t, err, "error creating atomic writer")
 
-	// atomic writer should replace existing file with -old suffix
+	// atomic writer should copy existing file with -old suffix
+	_, err = os.Stat(file)
+	require.NoError(t, err, "error stating existing file")
 	_, err = os.Stat(file + "-old")
 	require.NoError(t, err, "error stating old file")
 
