@@ -1023,19 +1023,12 @@ func (c *Client) GetHomeAz(ctx context.Context) (*cns.GetHomeAzResponse, error) 
 	return &getHomeAzResponse, nil
 }
 
-// GetEndpoint calls the EndpointHandlerAPI in CNS to retrive the state of a given EndpointID
+// GetEndpoint calls the EndpointHandlerAPI in CNS to retrieve the state of a given EndpointID
 func (c *Client) GetEndpoint(ctx context.Context, endpointID string) (*restserver.GetEndpointResponse, error) {
-	getEndpoint := cns.EndpointRequest{
-		EndpointID: endpointID,
-	}
-	var body bytes.Buffer
-
-	if err := json.NewEncoder(&body).Encode(getEndpoint); err != nil {
-		return nil, errors.Wrap(err, "failed to encode getEndpoint")
-	}
-
+	// build the request
 	u := c.routes[cns.EndpointsPath]
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), &body)
+	uString := u.String() + endpointID
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, uString, http.NoBody)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to build request")
 	}
@@ -1064,10 +1057,11 @@ func (c *Client) GetEndpoint(ctx context.Context, endpointID string) (*restserve
 	return &response, nil
 }
 
-// UpdateEndpoint calls the EndpointHandlerAPI in CNS to update the state of a given EndpointID with either HNSEndpointID or HostVethName
-func (c *Client) UpdateEndpoint(ctx context.Context, endpointID, hnsID, vethName string) (*cns.UpdateEndpointResponse, error) {
+// UpdateEndpoint calls the EndpointHandlerAPI in CNS
+// to update the state of a given EndpointID with either HNSEndpointID or HostVethName
+func (c *Client) UpdateEndpoint(ctx context.Context, endpointID, hnsID, vethName string) (*cns.Response, error) {
+	// build the request
 	updateEndpoint := cns.EndpointRequest{
-		EndpointID:    endpointID,
 		HnsEndpointID: hnsID,
 		HostVethName:  vethName,
 	}
@@ -1078,7 +1072,8 @@ func (c *Client) UpdateEndpoint(ctx context.Context, endpointID, hnsID, vethName
 	}
 
 	u := c.routes[cns.EndpointsPath]
-	req, err := http.NewRequestWithContext(ctx, http.MethodPatch, u.String(), &body)
+	uString := u.String() + endpointID
+	req, err := http.NewRequestWithContext(ctx, http.MethodPatch, uString, &body)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to build request")
 	}
@@ -1089,19 +1084,19 @@ func (c *Client) UpdateEndpoint(ctx context.Context, endpointID, hnsID, vethName
 	}
 
 	defer res.Body.Close()
-
 	if res.StatusCode != http.StatusOK {
 		return nil, errors.Errorf("http response %d", res.StatusCode)
 	}
 
-	var response cns.UpdateEndpointResponse
+	var response cns.Response
 	err = json.NewDecoder(res.Body).Decode(&response)
+
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to decode IPConfigResponse")
 	}
 
-	if response.Response.ReturnCode != 0 {
-		return nil, errors.New(response.Response.Message)
+	if response.ReturnCode != 0 {
+		return nil, errors.New(response.Message)
 	}
 
 	return &response, nil
