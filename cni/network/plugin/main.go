@@ -4,7 +4,6 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -289,7 +288,6 @@ func rootExecute() error {
 // Main is the entry point for CNI network plugin.
 func main() {
 	// Initialize and parse command line arguments.
-	_, cancel := context.WithCancel(context.Background())
 	common.ParseArgs(&args, printVersion)
 	vers := common.GetArg(common.OptVersion).(bool)
 
@@ -301,6 +299,4 @@ func main() {
 	if rootExecute() != nil {
 		os.Exit(1)
 	}
-
-	cancel()
 }

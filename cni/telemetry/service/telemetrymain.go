@@ -106,7 +106,6 @@ func main() {
 	var config telemetry.TelemetryConfig
 	var configPath string
 	var err error
-	_, cancel := context.WithCancel(context.Background())
 
 	acn.ParseArgs(&args, printVersion)
 	logLevel := acn.GetArg(acn.OptLogLevel).(zapcore.Level)
@@ -180,5 +179,4 @@ func main() {
 	tb.PushData(context.Background())
 	telemetry.CloseAITelemetryHandle()
 
-	cancel()
 }

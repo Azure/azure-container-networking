@@ -4,7 +4,6 @@
 package main
 
 import (
-	"context"
 	"fmt"
 	"os"
 
@@ -20,7 +19,6 @@ var version string
 
 // Main is the entry point for CNI IPAM plugin.
 func main() {
-	_, cancel := context.WithCancel(context.Background())
 	var config common.PluginConfig
 	config.Version = version
 
@@ -54,7 +52,6 @@ func main() {
 	err = ipamPlugin.Execute(cni.PluginApi(ipamPlugin))
 
 	ipamPlugin.Stop()
-	cancel()
 
 	if err != nil {
 		panic("ipam plugin fatal error")
