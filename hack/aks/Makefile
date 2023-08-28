@@ -195,7 +195,7 @@ swift-up: rg-up swift-net-up ## Bring up a SWIFT AzCNI cluster
 
 windows-cniv1-up: rg-up overlay-net-up ## Bring up a Windows CNIv1 cluster
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
-		--node-count 2 \
+		--node-count $(NODE_COUNT) \
 		--node-vm-size $(VM_SIZE) \
 		--network-plugin azure \
 		--windows-admin-password $(WINDOWS_PASSWORD) \
@@ -205,7 +205,6 @@ windows-cniv1-up: rg-up overlay-net-up ## Bring up a Windows CNIv1 cluster
 		--yes
 
 	@$(MAKE) windows-nodepool-up
-
 
 linux-cniv1-up: rg-up overlay-net-up ## Bring up a Linux CNIv1 cluster
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
@@ -249,10 +248,9 @@ dualstack-overlay-byocni-up: rg-up overlay-net-up ## Brings up an dualstack Over
 		--yes
 	@$(MAKE) set-kubeconf
 
-#Change node pool to $(NODE_COUNT) after testing
 windows-nodepool-up: ## Add windows node pool
 	$(AZCLI) aks nodepool add -g $(GROUP) -n npwin \
-		--node-count 10 \
+		--node-count $(NODE_COUNT) \
 		--node-vm-size $(VM_SIZE) \
 		--cluster-name  $(CLUSTER) \
 		--os-type Windows \
@@ -260,14 +258,6 @@ windows-nodepool-up: ## Add windows node pool
 		--max-pods 250 \
 		--subscription $(SUB)
 	@$(MAKE) set-kubeconf
-
-# $(AZCLI) aks nodepool add --resource-group $(GROUP) --cluster-name $(CLUSTER) \
-# 	--os-type Windows \
-# 	--os-sku $(WINDOWS_OS_SKU) \
-# 	--max-pods 250 \
-# 	--name npwin \
-# 	--node-count $(NODE_COUNT) \
-# 	-s $(WINDOWS_VM_SKU)
 
 down: ## Delete the cluster
 	$(AZCLI) aks delete -g $(GROUP) -n $(CLUSTER) --yes
