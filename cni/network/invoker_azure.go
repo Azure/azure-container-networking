@@ -13,7 +13,6 @@ import (
 	"github.com/Azure/azure-container-networking/ipam"
 	"github.com/Azure/azure-container-networking/network"
 	"github.com/Azure/azure-container-networking/platform"
-	"github.com/Azure/azure-container-networking/zaplog"
 	cniSkel "github.com/containernetworking/cni/pkg/skel"
 	cniTypes "github.com/containernetworking/cni/pkg/types"
 	cniTypesCurr "github.com/containernetworking/cni/pkg/types/100"
@@ -22,7 +21,7 @@ import (
 
 var (
 	LoggerVnetName = "azure-vnet"
-	logger         = zaplog.InitLog(log.LoggerVnetCfg).With(zap.String("component", "cni"))
+	logger         = log.InitZapLogCNI(log.LoggerVnetCfg).With(zap.String("component", "cni"))
 )
 
 const (

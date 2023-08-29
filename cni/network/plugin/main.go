@@ -21,7 +21,6 @@ import (
 	"github.com/Azure/azure-container-networking/platform"
 	"github.com/Azure/azure-container-networking/store"
 	"github.com/Azure/azure-container-networking/telemetry"
-	"github.com/Azure/azure-container-networking/zaplog"
 	"github.com/containernetworking/cni/pkg/skel"
 	cniTypes "github.com/containernetworking/cni/pkg/types"
 	"github.com/pkg/errors"
@@ -42,7 +41,7 @@ var version string
 
 var (
 	LoggerVnetName = name
-	logger         = zaplog.InitLog(log.LoggerVnetCfg).With(zap.String("component", "cni"))
+	logger         = log.InitZapLogCNI(log.LoggerVnetCfg).With(zap.String("component", "cni"))
 )
 
 // Command line arguments for CNI plugin.

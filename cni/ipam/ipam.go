@@ -13,7 +13,6 @@ import (
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/ipam"
 	"github.com/Azure/azure-container-networking/platform"
-	"github.com/Azure/azure-container-networking/zaplog"
 	cniSkel "github.com/containernetworking/cni/pkg/skel"
 	cniTypes "github.com/containernetworking/cni/pkg/types"
 	cniTypesCurr "github.com/containernetworking/cni/pkg/types/100"
@@ -24,7 +23,7 @@ const ipamV6 = "azure-vnet-ipamv6"
 
 var (
 	LoggerVnetName = "azure-vnet-ipam"
-	logger         = zaplog.InitLog(log.LoggerIpamCfg).With(zap.String("component", "cni"))
+	logger         = log.InitZapLogCNI(log.LoggerIpamCfg).With(zap.String("component", "cni"))
 )
 
 var ipv4DefaultRouteDstPrefix = net.IPNet{

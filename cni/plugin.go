@@ -15,7 +15,6 @@ import (
 	"github.com/Azure/azure-container-networking/platform"
 	"github.com/Azure/azure-container-networking/processlock"
 	"github.com/Azure/azure-container-networking/store"
-	"github.com/Azure/azure-container-networking/zaplog"
 	cniInvoke "github.com/containernetworking/cni/pkg/invoke"
 	cniSkel "github.com/containernetworking/cni/pkg/skel"
 	cniTypes "github.com/containernetworking/cni/pkg/types"
@@ -27,7 +26,7 @@ import (
 
 var (
 	LoggerVnetName = "azure-vnet"
-	logger         = zaplog.InitLog(log.LoggerVnetCfg).With(zap.String("component", "cni"))
+	logger         = log.InitZapLogCNI(log.LoggerVnetCfg).With(zap.String("component", "cni"))
 )
 
 var errEmptyContent = errors.New("read content is zero bytes")

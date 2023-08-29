@@ -1,8 +1,8 @@
 package log
 
 import (
-	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/zaplog"
+	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
 
@@ -20,7 +20,7 @@ var (
 
 var LoggerVnetCfg = &zaplog.Config{
 	Level:       zapcore.DebugLevel,
-	LogPath:     log.LogPath + "azure-vnet.log",
+	LogPath:     LogPath + "azure-vnet.log",
 	MaxSizeInMB: maxLogFileSizeInMb,
 	MaxBackups:  maxLogFileCount,
 	Name:        LoggerVnetName,
@@ -28,7 +28,7 @@ var LoggerVnetCfg = &zaplog.Config{
 
 var LoggerIpamCfg = &zaplog.Config{
 	Level:       zapcore.DebugLevel,
-	LogPath:     log.LogPath + "azure-ipam.log",
+	LogPath:     LogPath + "azure-ipam.log",
 	MaxSizeInMB: maxLogFileSizeInMb,
 	MaxBackups:  maxLogFileCount,
 	Name:        LoggerIpamName,
@@ -36,8 +36,12 @@ var LoggerIpamCfg = &zaplog.Config{
 
 var LoggerTelemetryCfg = &zaplog.Config{
 	Level:       zapcore.DebugLevel,
-	LogPath:     log.LogPath + "azure-vnet-telemetry.log",
+	LogPath:     LogPath + "azure-vnet-telemetry.log",
 	MaxSizeInMB: maxLogFileSizeInMb,
 	MaxBackups:  maxLogFileCount,
 	Name:        LoggerTelemetryName,
+}
+
+func InitZapLogCNI(zapLogConfig *zaplog.Config) *zap.Logger {
+	return zaplog.InitZapLog(zapLogConfig)
 }

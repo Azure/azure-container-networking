@@ -8,7 +8,7 @@ import (
 	"gopkg.in/natefinch/lumberjack.v2"
 )
 
-var ZapDefaultLogger = InitLog(&Config{})
+var ZapDefaultLogger = InitZapLog(&Config{})
 
 type Config struct {
 	Level       zapcore.Level
@@ -18,7 +18,7 @@ type Config struct {
 	Name        string
 }
 
-func InitLog(cfg *Config) *zap.Logger {
+func InitZapLog(cfg *Config) *zap.Logger {
 	logFileWriter := zapcore.AddSync(&lumberjack.Logger{
 		Filename:   cfg.LogPath,
 		MaxSize:    cfg.MaxSizeInMB,

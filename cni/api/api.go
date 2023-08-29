@@ -6,13 +6,12 @@ import (
 	"os"
 
 	"github.com/Azure/azure-container-networking/cni/log"
-	"github.com/Azure/azure-container-networking/zaplog"
 	"go.uber.org/zap"
 )
 
 var (
 	LoggerVnetName = "azure-vnet"
-	logger         = zaplog.InitLog(log.LoggerVnetCfg).With(zap.String("component", "cni"))
+	logger         = log.InitZapLogCNI(log.LoggerVnetCfg).With(zap.String("component", "cni"))
 )
 
 type PodNetworkInterfaceInfo struct {

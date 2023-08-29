@@ -13,7 +13,6 @@ import (
 	"github.com/Azure/azure-container-networking/cni/log"
 	acn "github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/telemetry"
-	"github.com/Azure/azure-container-networking/zaplog"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -119,7 +118,7 @@ func main() {
 
 	log.LoggerTelemetryCfg.Level = logLevel
 	log.LoggerTelemetryCfg.Name = azureVnetTelemetry
-	logger := zaplog.InitLog(log.LoggerVnetCfg).With(zap.String("component", "cni"))
+	logger := log.InitZapLogCNI(log.LoggerTelemetryCfg).With(zap.String("component", "cni"))
 
 	logger.Info("Telemetry invocation info", zap.Any("arguments", os.Args))
 
