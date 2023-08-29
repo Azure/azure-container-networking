@@ -475,6 +475,25 @@ func (service *HTTPRestService) DeleteNetworkContainerInternal(
 	return types.Success
 }
 
+func (service *HTTPRestService) EnsureNoStaleNCs(validNCIDs []string) {
+	valid := make(map[string]struct{})
+	for _, ncID := range validNCIDs {
+		valid[ncID] = struct{}{}
+	}
+
+	service.Lock()
+	defer service.Unlock()
+
+	for ncID := range service.state.ContainerStatus {
+		if _, ok := valid[ncID]; !ok {
+			logger.Errorf("[Azure CNS] Found stale network container id %s in CNS state. Removing...", ncID)
+			delete(service.state.ContainerStatus, ncID)
+		}
+	}
+
+	_ = service.saveState()
+}
+
 // This API will be called by CNS RequestController on CRD update.
 func (service *HTTPRestService) CreateOrUpdateNetworkContainerInternal(req *cns.CreateNetworkContainerRequest) types.ResponseCode {
 	if req.NetworkContainerid == "" {
