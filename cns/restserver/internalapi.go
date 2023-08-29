@@ -484,14 +484,18 @@ func (service *HTTPRestService) EnsureNoStaleNCs(validNCIDs []string) {
 	service.Lock()
 	defer service.Unlock()
 
+	mutated := false
 	for ncID := range service.state.ContainerStatus {
 		if _, ok := valid[ncID]; !ok {
 			logger.Errorf("[Azure CNS] Found stale network container id %s in CNS state. Removing...", ncID)
 			delete(service.state.ContainerStatus, ncID)
+			mutated = true
 		}
 	}
 
-	_ = service.saveState()
+	if mutated {
+		_ = service.saveState()
+	}
 }
 
 // This API will be called by CNS RequestController on CRD update.
