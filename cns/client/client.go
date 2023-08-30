@@ -360,7 +360,7 @@ func (c *Client) ReleaseIPAddress(ctx context.Context, ipconfig cns.IPConfigRequ
 	req.Header.Set(headerContentType, contentTypeJSON)
 	res, err := c.client.Do(req)
 	if err != nil {
-		return errors.Wrap(err, "http request failed")
+		return &ConnectionFailureErr{}
 	}
 	defer res.Body.Close()
 

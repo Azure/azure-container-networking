@@ -87,7 +87,11 @@ func WatchFs(w *Watcher, path string) error {
 	if err != nil {
 		w.logger.Error("Error reading deleteID directory", zap.Error(err))
 	} else {
+		w.logger.Info("TESTWATCHER: files exist in the directory")
 		for _, file := range dirContents {
+			w.logger.Info("TESTWATCHER: release IPs from directory")
+			w.logger.Info("File to be deleted: ", zap.String("name", file.Name()))
+			w.logger.Info("TESTWATCHER: path to be removed from: ", zap.String("path: ", path))
 			w.releaseIP(file.Name(), path)
 		}
 	}
@@ -133,7 +137,7 @@ func WatcherRemoveFile(containerID string, path string) error {
 		return errors.Wrapf(err, "Error opening file")
 	}
 
-	if err := os.Remove(containerID); err != nil {
+	if err := os.Remove(filepath); err != nil {
 		return errors.Wrapf(err, "Error deleting file")
 	}
 	file.Close()
@@ -142,13 +146,13 @@ func WatcherRemoveFile(containerID string, path string) error {
 
 // call cns ReleaseIPs
 func (w *Watcher) releaseIP(containerID string, path string) {
-	ipconfigreq := cns.IPConfigsRequest{InfraContainerID: containerID}
-	w.CnsClient.ReleaseIPs(context.Background(), ipconfigreq)
+	ipconfigreq := &cns.IPConfigsRequest{InfraContainerID: containerID}
+	w.CnsClient.ReleaseIPs(context.Background(), *ipconfigreq)
 
 	err := WatcherRemoveFile(containerID, path)
 	if err != nil {
-		w.logger.Error("---Failed to remove file from watcher", zap.Error(err))
+		w.logger.Error("Failed to remove file: ", zap.Error(err))
 	} else {
-		w.logger.Info("---Removed file successfully")
+		w.logger.Info("Removed file")
 	}
 }

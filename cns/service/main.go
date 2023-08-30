@@ -81,7 +81,7 @@ const (
 	pluginName                        = "azure-vnet"
 	endpointStoreName                 = "azure-endpoints"
 	endpointStoreLocation             = "/var/run/azure-cns/"
-	cniPath                           = "/var/run/azure-vnet"
+	watcherPath                       = "/var/run/azure-vnet"
 	defaultCNINetworkConfigFileName   = "10-azure.conflist"
 	dncApiVersion                     = "?api-version=2018-03-01"
 	poolIPAMRefreshRateInMilliseconds = 1000
@@ -812,10 +812,14 @@ func main() {
 
 	// Start fs watcher here
 	logger.Printf("[Azure CNS] Start fsnotify watcher for intended deletes")
-	w := &fsnotify.Watcher{
-		CnsClient: &cnsclient.Client{},
+	client, err := cnsclient.New("http://localhost:10090", 15*time.Second)
+	if err != nil {
+		logger.Errorf("failed to initialize CNS client:%v.\n", err)
 	}
-	err = fsnotify.WatchFs(w, cniPath)
+	w := &fsnotify.Watcher{
+		CnsClient: client,
+	}
+	err = fsnotify.WatchFs(w, watcherPath)
 	if err != nil {
 		logger.Errorf("Failed to start fsnotify watcher, err:%v.\n", err)
 	}
