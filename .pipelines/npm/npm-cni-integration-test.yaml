@@ -125,3 +125,22 @@ jobs:
         displayName: "Run Kubernetes e2e.test"
         continueOnError: ${{ parameters.continueOnError }}
 
+      - bash: |
+          npmLogs=$(System.DefaultWorkingDirectory)/Attempt_#$(System.StageAttempt)/npmLogs_${{ parameters.clusterName }}
+          mkdir -p $npmLogs
+          cp ./kubeconfig $npmLogs/kubeconfig
+
+          kubectl get pods -n kube-system | grep npm
+          npmPodList=`kubectl get pods -n kube-system | grep npm | awk '{print $1}'`
+          # capture all logs
+          for npmPod in $npmPodList; do
+              kubectl logs -n kube-system $npmPod > $npmLogs/$npmPod-logs.txt
+          done
+        displayName: Generate NPM pod logs
+        condition: always()
+
+      - publish: $(System.DefaultWorkingDirectory)/Attempt_#$(System.StageAttempt)/npmLogs_${{ parameters.clusterName }}
+        condition: always()
+        artifact: npmLogs_${{ parameters.clusterName }}
+        name: npmLogs
+        displayName: Publish NPM pod logs
