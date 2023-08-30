@@ -9,8 +9,10 @@ import (
 
 func TestWatchFs(t *testing.T) {
 	type args struct {
-		w    *Watcher
-		path string
+		w         *Watcher
+		path      string
+		directory string
+		logger    *zap.Logger
 	}
 	tests := []struct {
 		name    string
@@ -21,7 +23,7 @@ func TestWatchFs(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if err := WatchFs(tt.args.w, tt.args.path); (err != nil) != tt.wantErr {
+			if err := WatchFs(tt.args.w, tt.args.path, tt.args.directory, tt.args.logger); (err != nil) != tt.wantErr {
 				t.Errorf("WatchFs() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
@@ -32,6 +34,7 @@ func TestWatcherAddFile(t *testing.T) {
 	type args struct {
 		containerID string
 		path        string
+		directory   string
 	}
 	tests := []struct {
 		name    string
@@ -42,7 +45,7 @@ func TestWatcherAddFile(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if err := WatcherAddFile(tt.args.containerID, tt.args.path); (err != nil) != tt.wantErr {
+			if err := WatcherAddFile(tt.args.containerID, tt.args.path, tt.args.directory); (err != nil) != tt.wantErr {
 				t.Errorf("WatcherAddFile() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
@@ -53,6 +56,7 @@ func TestWatcherRemoveFile(t *testing.T) {
 	type args struct {
 		containerID string
 		path        string
+		directory   string
 	}
 	tests := []struct {
 		name    string
@@ -63,7 +67,7 @@ func TestWatcherRemoveFile(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if err := WatcherRemoveFile(tt.args.containerID, tt.args.path); (err != nil) != tt.wantErr {
+			if err := WatcherRemoveFile(tt.args.containerID, tt.args.path, tt.args.directory); (err != nil) != tt.wantErr {
 				t.Errorf("WatcherRemoveFile() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
@@ -73,11 +77,12 @@ func TestWatcherRemoveFile(t *testing.T) {
 func TestWatcher_releaseIP(t *testing.T) {
 	type fields struct {
 		CnsClient *client.Client
-		logger    *zap.Logger
 	}
 	type args struct {
 		containerID string
 		path        string
+		directory   string
+		logger      *zap.Logger
 	}
 	tests := []struct {
 		name   string
@@ -90,9 +95,8 @@ func TestWatcher_releaseIP(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			w := &Watcher{
 				CnsClient: tt.fields.CnsClient,
-				logger:    tt.fields.logger,
 			}
-			w.releaseIP(tt.args.containerID, tt.args.path)
+			w.releaseIP(tt.args.containerID, tt.args.path, tt.args.directory, tt.args.logger)
 		})
 	}
 }

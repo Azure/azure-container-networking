@@ -19,7 +19,8 @@ import (
 )
 
 const (
-	watcherPath = "/var/run/azure-vnet"
+	watcherPath      = "/var/run/azure-vnet"
+	watcherDirectory = "/deleteIDs"
 )
 
 // IPAMPlugin is the struct for the delegated azure-ipam plugin
@@ -139,9 +140,10 @@ func (p *IPAMPlugin) CmdDel(args *cniSkel.CmdArgs) error {
 	// cnsClient enforces it own timeout
 	if err := p.cnsClient.ReleaseIPAddress(context.TODO(), req); err != nil {
 		if errors.Is(err, &cnscli.ConnectionFailureErr{}) {
-			addErr := fsnotify.WatcherAddFile(args.ContainerID, watcherPath)
+			addErr := fsnotify.WatcherAddFile(args.ContainerID, watcherPath, watcherDirectory)
 			if addErr != nil {
-				p.logger.Error("Failed to Add file to watcher", zap.Error(addErr))
+				p.logger.Error("Failed to add file to watcher", zap.Error(addErr))
+				return cniTypes.NewError(cniTypes.ErrTryAgainLater, err.Error(), "Failed to add file to watcher")
 			} else {
 				p.logger.Info("File successfully added to watcher directory")
 			}
