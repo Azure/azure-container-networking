@@ -81,8 +81,6 @@ const (
 	pluginName                        = "azure-vnet"
 	endpointStoreName                 = "azure-endpoints"
 	endpointStoreLocation             = "/var/run/azure-cns/"
-	watcherPath                       = "/var/run/azure-vnet"
-	watcherDirectory                  = "/deleteIDs"
 	defaultCNINetworkConfigFileName   = "10-azure.conflist"
 	dncApiVersion                     = "?api-version=2018-03-01"
 	poolIPAMRefreshRateInMilliseconds = 1000
@@ -93,6 +91,9 @@ const (
 
 	// envVarEnableCNIConflistGeneration enables cni conflist generation if set (value doesn't matter)
 	envVarEnableCNIConflistGeneration = "CNS_ENABLE_CNI_CONFLIST_GENERATION"
+
+	cnsBaseURL    = "http://localhost:10090"
+	cnsReqTimeout = 15 * time.Second
 )
 
 type cniConflistScenario string
@@ -317,6 +318,20 @@ var args = acn.ArgumentList{
 		Name:         acn.OptCNIConflistScenario,
 		Shorthand:    acn.OptCNIConflistScenarioAlias,
 		Description:  "Scenario to generate CNI conflist for",
+		Type:         "string",
+		DefaultValue: "",
+	},
+	{
+		Name:         acn.OptWatcherPath,
+		Shorthand:    acn.OptWatcherPathAlias,
+		Description:  "Path to store watcher directory",
+		Type:         "string",
+		DefaultValue: "",
+	},
+	{
+		Name:         acn.OptDeleteDirectory,
+		Shorthand:    acn.OptDeleteDirectoryAlias,
+		Description:  "Watcher delete directory",
 		Type:         "string",
 		DefaultValue: "",
 	},
@@ -692,6 +707,8 @@ func main() {
 	httpRestService.SetOption(acn.OptHttpResponseHeaderTimeout, httpResponseHeaderTimeout)
 	httpRestService.SetOption(acn.OptProgramSNATIPTables, cnsconfig.ProgramSNATIPTables)
 	httpRestService.SetOption(acn.OptManageEndpointState, cnsconfig.ManageEndpointState)
+	httpRestService.SetOption(acn.OptWatcherPath, cnsconfig.WatcherPath)
+	httpRestService.SetOption(acn.OptDeleteDirectory, cnsconfig.DeleteDirectory)
 
 	// Create default ext network if commandline option is set
 	if len(strings.TrimSpace(createDefaultExtNetworkType)) > 0 {
@@ -813,13 +830,17 @@ func main() {
 
 	// Start fs watcher here
 	logger.Printf("[Azure CNS] Start fsnotify watcher for intended deletes")
-	client, err := cnsclient.New("http://localhost:10090", 15*time.Second)
+	cnsclient, err := cnsclient.New(cnsBaseURL, cnsReqTimeout) //nolint
 	if err != nil {
 		logger.Errorf("failed to initialize CNS client:%v.\n", err)
 	}
 	w := &fsnotify.Watcher{
-		CnsClient: client,
+		CnsClient: cnsclient,
 	}
+	watcherPath := cnsconfig.WatcherPath
+	watcherDirectory := cnsconfig.DeleteDirectory
+	logger.Printf("watcherPath: %s", watcherPath)
+	logger.Printf("watcherDir: %s", watcherDirectory)
 	err = fsnotify.WatchFs(w, watcherPath, watcherDirectory, z)
 	if err != nil {
 		logger.Errorf("Failed to start fsnotify watcher, err:%v.\n", err)

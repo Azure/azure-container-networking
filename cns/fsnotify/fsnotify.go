@@ -16,7 +16,7 @@ type Watcher struct {
 	CnsClient *client.Client
 }
 
-func WatchFs(w *Watcher, path string, directory string, logger *zap.Logger) error {
+func WatchFs(w *Watcher, path, directory string, logger *zap.Logger) error {
 	// Create new fs watcher.
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
@@ -41,18 +41,18 @@ func WatchFs(w *Watcher, path string, directory string, logger *zap.Logger) erro
 				if event.Has(fsnotify.Remove) {
 					logger.Info("removed file: ", zap.Any("event: ", event.Name))
 				}
-			case err, ok := <-watcher.Errors:
+			case watcherErr, ok := <-watcher.Errors:
 				if !ok {
 					return
 				}
-				logger.Error("Watcher Error: ", zap.Error(err))
+				logger.Error("Watcher Error: ", zap.Error(watcherErr))
 			}
 		}
 	}()
 
 	// Add directory where intended deletes are kept
 	dirpath := path + directory
-	err = os.MkdirAll(dirpath, 0o755)
+	err = os.MkdirAll(dirpath, 0o755) //nolint
 	if err != nil {
 		logger.Error("Error making directory: ", zap.Error(err))
 	}
@@ -78,7 +78,7 @@ func WatchFs(w *Watcher, path string, directory string, logger *zap.Logger) erro
 }
 
 // WatcherAddFile creates new file using the containerID as name
-func WatcherAddFile(containerID string, path string, directory string) error {
+func WatcherAddFile(containerID, path, directory string) error {
 	dirpath := path + directory
 	_, err := os.Stat(dirpath)
 	if errors.Is(err, fs.ErrNotExist) {
@@ -95,7 +95,7 @@ func WatcherAddFile(containerID string, path string, directory string) error {
 }
 
 // WatcherRemoveFile removes the file based on containerID
-func WatcherRemoveFile(containerID string, path string, directory string) error {
+func WatcherRemoveFile(containerID, path, directory string) error {
 	dirpath := path + directory
 	_, err := os.Stat(dirpath)
 	if errors.Is(err, fs.ErrNotExist) {
@@ -123,7 +123,7 @@ func WatcherRemoveFile(containerID string, path string, directory string) error 
 }
 
 // call cns ReleaseIPs
-func (w *Watcher) releaseIP(containerID string, path string, directory string, logger *zap.Logger) {
+func (w *Watcher) releaseIP(containerID, path, directory string, logger *zap.Logger) {
 	ipconfigreq := &cns.IPConfigsRequest{InfraContainerID: containerID}
 
 	cnsReleaseErr := w.CnsClient.ReleaseIPs(context.Background(), *ipconfigreq)

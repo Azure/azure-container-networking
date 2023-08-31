@@ -1080,8 +1080,6 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 						if addErr != nil {
 							log.Logger.Error("Failed to add file to watcher", zap.Error(addErr))
 							return plugin.RetriableError(fmt.Errorf("failed to add file to watcher: %w", err))
-						} else {
-							log.Logger.Info("File successfully added to watcher directory")
 						}
 					} else {
 						return plugin.RetriableError(fmt.Errorf("failed to release address(no endpoint): %w", err))

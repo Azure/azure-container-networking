@@ -46,6 +46,8 @@ type CNSConfig struct {
 	MellanoxMonitorIntervalSecs int
 	AZRSettings                 AZRSettings
 	WatchPods                   bool
+	WatcherPath                 string
+	DeleteDirectory             string
 }
 
 type TelemetrySettings struct {
@@ -206,5 +208,11 @@ func SetCNSConfigDefaults(config *CNSConfig) {
 	}
 	if config.WireserverIP == "" {
 		config.WireserverIP = "168.63.129.16"
+	}
+	if config.WatcherPath == "" {
+		config.WatcherPath = "/var/run/azure-vnet"
+	}
+	if config.DeleteDirectory == "" {
+		config.DeleteDirectory = "/deleteIDs"
 	}
 }

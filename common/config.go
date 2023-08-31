@@ -147,4 +147,11 @@ const (
 	OptCNIConflistScenario = "cni-conflist-scenario"
 	// OptCNIConflistScenarioAlias "shorthand" for the cni conflist scenairo, see above
 	OptCNIConflistScenarioAlias = "cniconflistscenario"
+
+	// OptWatcherPath
+	OptWatcherPath      = "watcher-path"
+	OptWatcherPathAlias = "wp"
+	// OptDeleteDirectory
+	OptDeleteDirectory      = "delete-directory"
+	OptDeleteDirectoryAlias = "deletedir"
 )
