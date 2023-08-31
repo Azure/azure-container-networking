@@ -14,22 +14,21 @@ const (
 )
 
 var (
-	LoggerName string
-	LoggerFile string
-	LogLevel   int8
+	loggerName string
+	loggerFile string
 )
 
 var LoggerCfg = &zaplog.Config{
 	Level:       zapcore.DebugLevel,
-	LogPath:     LoggerFile,
+	LogPath:     loggerFile,
 	MaxSizeInMB: maxLogFileSizeInMb,
 	MaxBackups:  maxLogFileCount,
-	Name:        LoggerName,
+	Name:        loggerName,
 }
 
-func InitZapLogCNI(LoggerName, LoggerFile string) *zap.Logger {
-	LoggerCfg.Name = LoggerName
-	LoggerCfg.LogPath = LogPath + LoggerFile
+func InitZapLogCNI(loggerName, loggerFile string) *zap.Logger {
+	LoggerCfg.Name = loggerName
+	LoggerCfg.LogPath = LogPath + loggerFile
 	logger := zaplog.InitZapLog(LoggerCfg)
 
 	// only log process id on CNI package
