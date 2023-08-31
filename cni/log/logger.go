@@ -14,38 +14,25 @@ const (
 )
 
 var (
-	LoggerVnetName      string
-	LoggerIpamName      string
-	LoggerTelemetryName string
-	LogLevel            int8
+	LoggerName string
+	LoggerFile string
+	LogLevel   int8
 )
 
-var LoggerVnetCfg = &zaplog.Config{
+var LoggerCfg = &zaplog.Config{
 	Level:       zapcore.DebugLevel,
-	LogPath:     LogPath + "azure-vnet.log",
+	LogPath:     LoggerFile,
 	MaxSizeInMB: maxLogFileSizeInMb,
 	MaxBackups:  maxLogFileCount,
-	Name:        LoggerVnetName,
+	Name:        LoggerName,
 }
 
-var LoggerIpamCfg = &zaplog.Config{
-	Level:       zapcore.DebugLevel,
-	LogPath:     LogPath + "azure-ipam.log",
-	MaxSizeInMB: maxLogFileSizeInMb,
-	MaxBackups:  maxLogFileCount,
-	Name:        LoggerIpamName,
-}
+func InitZapLogCNI(LoggerName, LoggerFile string) *zap.Logger {
+	LoggerCfg.Name = LoggerName
+	LoggerCfg.LogPath = LogPath + LoggerFile
+	logger := zaplog.InitZapLog(LoggerCfg)
 
-var LoggerTelemetryCfg = &zaplog.Config{
-	Level:       zapcore.DebugLevel,
-	LogPath:     LogPath + "azure-vnet-telemetry.log",
-	MaxSizeInMB: maxLogFileSizeInMb,
-	MaxBackups:  maxLogFileCount,
-	Name:        LoggerTelemetryName,
-}
-
-func InitZapLogCNI(zapLogConfig *zaplog.Config) *zap.Logger {
-	logger := zaplog.InitZapLog(zapLogConfig)
+	// only log process id on CNI package
 	logger = logger.With(zap.Int("pid", os.Getpid()))
 	return logger
 }

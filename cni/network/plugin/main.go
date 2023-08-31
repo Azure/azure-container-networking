@@ -40,8 +40,7 @@ const (
 var version string
 
 var (
-	LoggerVnetName = name
-	logger         = log.InitZapLogCNI(log.LoggerVnetCfg).With(zap.String("component", "cni"))
+	logger = log.InitZapLogCNI(name, "azure-vnet.log").With(zap.String("component", "cni"))
 )
 
 // Command line arguments for CNI plugin.

@@ -22,8 +22,8 @@ import (
 const ipamV6 = "azure-vnet-ipamv6"
 
 var (
-	LoggerVnetName = "azure-vnet-ipam"
-	logger         = log.InitZapLogCNI(log.LoggerIpamCfg).With(zap.String("component", "cni"))
+	loggerName = "azure-vnet-ipam"
+	logger     = log.InitZapLogCNI(loggerName, "azure-ipam.log").With(zap.String("component", "cni"))
 )
 
 var ipv4DefaultRouteDstPrefix = net.IPNet{

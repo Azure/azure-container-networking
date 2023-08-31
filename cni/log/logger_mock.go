@@ -5,5 +5,5 @@ import (
 )
 
 func InitializeMock() {
-	InitZapLogCNI(LoggerVnetCfg).With(zap.String("component", "cni"))
+	InitZapLogCNI("azure-vnet", "").With(zap.String("component", "cni"))
 }

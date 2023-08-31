@@ -116,9 +116,8 @@ func main() {
 		os.Exit(0)
 	}
 
-	log.LoggerTelemetryCfg.Level = logLevel
-	log.LoggerTelemetryCfg.Name = azureVnetTelemetry
-	logger := log.InitZapLogCNI(log.LoggerTelemetryCfg).With(zap.String("component", "cni"))
+	log.LoggerCfg.Level = logLevel
+	logger := log.InitZapLogCNI(azureVnetTelemetry, azureVnetTelemetry+".log").With(zap.String("component", "cni"))
 
 	logger.Info("Telemetry invocation info", zap.Any("arguments", os.Args))
 

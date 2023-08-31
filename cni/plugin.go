@@ -25,8 +25,8 @@ import (
 )
 
 var (
-	LoggerVnetName = "azure-vnet"
-	logger         = log.InitZapLogCNI(log.LoggerVnetCfg).With(zap.String("component", "cni"))
+	loggerName = "azure-vnet"
+	logger     = log.InitZapLogCNI(loggerName, "azure-vnet.log").With(zap.String("component", "cni"))
 )
 
 var errEmptyContent = errors.New("read content is zero bytes")
