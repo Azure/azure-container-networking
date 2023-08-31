@@ -272,7 +272,7 @@ func (plugin *netPlugin) deleteEndpoint(w http.ResponseWriter, r *http.Request) 
 	}
 
 	// Process request.
-	err = plugin.nm.DeleteEndpoint(req.NetworkID, req.EndpointID)
+	err = plugin.nm.DeleteEndpoint(req.NetworkID, req.EndpointID, nil)
 	if err != nil {
 		plugin.SendErrorResponse(w, err)
 		return

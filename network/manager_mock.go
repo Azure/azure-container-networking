@@ -58,9 +58,22 @@ func (nm *MockNetworkManager) CreateEndpoint(_ apipaClient, networkID string, ep
 }
 
 // DeleteEndpoint mock
-func (nm *MockNetworkManager) DeleteEndpoint(networkID, endpointID string) error {
+func (nm *MockNetworkManager) DeleteEndpoint(networkID, endpointID string, ep *EndpointInfo) error {
 	delete(nm.TestEndpointInfoMap, endpointID)
 	return nil
+}
+
+// SetStatelessCNIMode enable the statelessCNI falg and inititlizes a CNSClient
+func (nm *MockNetworkManager) SetStatelessCNIMode() error {
+	return nil
+}
+
+// IsStatelessCNIMode checks if the Stateless CNI mode has been enabled or not
+func (nm *MockNetworkManager) IsStatelessCNIMode() bool {
+	return false
+}
+func (nm *MockNetworkManager) GetEndpointID(containerID, ifName string) string {
+	return containerID
 }
 
 func (nm *MockNetworkManager) GetAllEndpoints(networkID string) (map[string]*EndpointInfo, error) {

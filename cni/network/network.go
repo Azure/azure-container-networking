@@ -149,7 +149,8 @@ func (plugin *NetPlugin) Start(config *common.PluginConfig) error {
 	// Log platform information.
 	logger.Info("Plugin Info",
 		zap.String("name", plugin.Name),
-		zap.String("version", plugin.Version))
+		zap.String("version", plugin.Version),
+		zap.String("component", "cni-net"))
 
 	// Initialize network manager. rehyrdration not required on reboot for cni plugin
 	err = plugin.nm.Initialize(config, false)
@@ -486,7 +487,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 		options := make(map[string]any)
 		networkID, err = plugin.getNetworkName(args.Netns, &ipamAddResult, nwCfg)
 
-		endpointID := GetEndpointID(args)
+		endpointID := plugin.nm.GetEndpointID(args.ContainerID, args.IfName)
 		policies := cni.GetPoliciesFromNwCfg(nwCfg.AdditionalArgs)
 
 		// Check whether the network already exists.
@@ -1051,11 +1052,13 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 				// if cni hits this, mostly state file would be missing and it can be reboot scenario where
 				// container runtime tries to delete and create pods which existed before reboot.
 				err = nil
-				return err
+				if !plugin.nm.IsStatelessCNIMode() {
+					return err
+				}
 			}
 		}
 
-		endpointID := GetEndpointID(args)
+		endpointID := plugin.nm.GetEndpointID(args.ContainerID, args.IfName)
 		// Query the endpoint.
 		if epInfo, err = plugin.nm.GetEndpointInfo(networkID, endpointID); err != nil {
 			logger.Info("[cni-net] GetEndpoint",
@@ -1086,7 +1089,7 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 			zap.String("endpointID", endpointID))
 		sendEvent(plugin, fmt.Sprintf("Deleting endpoint:%v", endpointID))
 		// Delete the endpoint.
-		if err = plugin.nm.DeleteEndpoint(networkID, endpointID); err != nil {
+		if err = plugin.nm.DeleteEndpoint(networkID, endpointID, epInfo); err != nil {
 			// return a retriable error so the container runtime will retry this DEL later
 			// the implementation of this function returns nil if the endpoint doens't exist, so
 			// we don't have to check that here
