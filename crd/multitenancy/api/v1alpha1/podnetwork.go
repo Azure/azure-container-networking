@@ -12,8 +12,7 @@ import (
 // +kubebuilder:object:root=true
 
 // PodNetwork is the Schema for the PodNetworks API
-// +kubebuilder:resource:scope=Namespaced
-// +kubebuilder:resource:shortName=pn
+// +kubebuilder:resource:shortName=pn,scope=Cluster
 // +kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="Status",type=string,priority=1,JSONPath=`.status.status`
 // +kubebuilder:printcolumn:name="Address Prefixes",type=string,priority=1,JSONPath=`.status.addressPrefixes`

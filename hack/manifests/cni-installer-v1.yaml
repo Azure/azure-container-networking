@@ -39,7 +39,7 @@ spec:
           effect: NoSchedule
       initContainers:
         - name: azure-cni
-          image:  mcr.microsoft.com/containernetworking/cni-dropgz:v0.0.4
+          image:  mcr.microsoft.com/containernetworking/cni-dropgz:v0.0.10
           imagePullPolicy: Always
           command: ["/dropgz"]
           args:
@@ -51,7 +51,7 @@ spec:
             - -o
             - /opt/cni/bin/azure-vnet-ipam
             - azure-vnet-telemetry
-            - -o 
+            - -o
             - /opt/cni/bin/azure-vnet-telemetry
             - azure.conflist
             - -o

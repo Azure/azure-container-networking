@@ -6,7 +6,7 @@ RUN tdnf install -y unzip
 RUN tdnf upgrade -y && tdnf install -y ca-certificates
 
 FROM tar AS azure-vnet
-ARG AZCNI_VERSION=v1.5.9
+ARG AZCNI_VERSION=v1.5.10
 ARG VERSION
 ARG OS
 ARG ARCH

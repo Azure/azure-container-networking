@@ -12,9 +12,7 @@ import (
 // +kubebuilder:object:root=true
 
 // NodeInfo is the Schema for the NodeInfo API
-// +kubebuilder:resource:scope=Namespaced
-// +kubebuilder:resource:shortName=ni
-// +kubebuilder:resource:path=nodeinfo
+// +kubebuilder:resource:shortName=ni,scope=Cluster,path=nodeinfo
 // +kubebuilder:printcolumn:name="VMUniqueID",type=string,priority=0,JSONPath=`.spec.vmUniqueID`
 type NodeInfo struct {
 	metav1.TypeMeta   `json:",inline"`

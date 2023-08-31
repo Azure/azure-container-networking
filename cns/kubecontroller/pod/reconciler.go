@@ -1,4 +1,4 @@
-package podwatcher
+package pod
 
 import (
 	"context"
@@ -85,8 +85,5 @@ func (p *PodWatcher) SetupWithManager(mgr ctrl.Manager) error {
 			},
 		}).
 		Complete(p)
-	if err != nil {
-		return errors.Wrap(err, "failed to set up pod watcher with manager")
-	}
-	return nil
+	return errors.Wrap(err, "failed to set up pod watcher with manager")
 }

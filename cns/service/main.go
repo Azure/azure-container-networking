@@ -31,8 +31,9 @@ import (
 	"github.com/Azure/azure-container-networking/cns/hnsclient"
 	"github.com/Azure/azure-container-networking/cns/ipampool"
 	cssctrl "github.com/Azure/azure-container-networking/cns/kubecontroller/clustersubnetstate"
+	mtpncctrl "github.com/Azure/azure-container-networking/cns/kubecontroller/multitenantpodnetworkconfig"
 	nncctrl "github.com/Azure/azure-container-networking/cns/kubecontroller/nodenetworkconfig"
-	"github.com/Azure/azure-container-networking/cns/kubecontroller/podwatcher"
+	podctrl "github.com/Azure/azure-container-networking/cns/kubecontroller/pod"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/multitenantcontroller"
 	"github.com/Azure/azure-container-networking/cns/multitenantcontroller/multitenantoperator"
@@ -41,7 +42,8 @@ import (
 	"github.com/Azure/azure-container-networking/cns/wireserver"
 	acn "github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/crd"
-	"github.com/Azure/azure-container-networking/crd/clustersubnetstate/api/v1alpha1"
+	cssv1alpha1 "github.com/Azure/azure-container-networking/crd/clustersubnetstate/api/v1alpha1"
+	mtv1alpha1 "github.com/Azure/azure-container-networking/crd/multitenancy/api/v1alpha1"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 	acnfs "github.com/Azure/azure-container-networking/internal/fs"
@@ -1123,6 +1125,19 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 		return errors.Wrap(err, "failed to get NodeName")
 	}
 
+	node, err := clientset.CoreV1().Nodes().Get(ctx, nodeName, metav1.GetOptions{})
+	if err != nil {
+		return errors.Wrapf(err, "failed to get node %s", nodeName)
+	}
+
+	// check the Node labels for Swift V2
+	if _, ok := node.Labels[configuration.LabelSwiftV2]; ok {
+		cnsconfig.EnableSwiftV2 = true
+		cnsconfig.WatchPods = true
+		// TODO(rbtr): create the NodeInfo for Swift V2
+		// register the noop mtpnc reconciler to populate the cache
+	}
+
 	var podInfoByIPProvider cns.PodInfoByIPProvider
 	switch {
 	case cnsconfig.ManageEndpointState:
@@ -1195,8 +1210,11 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 	if err = v1alpha.AddToScheme(scheme); err != nil {
 		return errors.Wrap(err, "failed to add nodenetworkconfig/v1alpha to scheme")
 	}
-	if err = v1alpha1.AddToScheme(scheme); err != nil {
+	if err = cssv1alpha1.AddToScheme(scheme); err != nil {
 		return errors.Wrap(err, "failed to add clustersubnetstate/v1alpha1 to scheme")
+	}
+	if err = mtv1alpha1.AddToScheme(scheme); err != nil {
+		return errors.Wrap(err, "failed to add multitenantpodnetworkconfig/v1alpha1 to scheme")
 	}
 
 	// Set Selector options on the Manager cache which are used
@@ -1211,10 +1229,13 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 					"kube-system": {FieldSelector: fields.SelectorFromSet(fields.Set{"metadata.name": nodeName})},
 				},
 			},
-			&corev1.Pod{}: {
-				Field: fields.SelectorFromSet(fields.Set{"spec.nodeName": nodeName}),
-			},
 		},
+	}
+
+	if cnsconfig.WatchPods {
+		cacheOpts.ByObject[&corev1.Pod{}] = cache.ByObject{
+			Field: fields.SelectorFromSet(fields.Set{"spec.nodeName": nodeName}),
+		}
 	}
 
 	managerOpts := ctrlmgr.Options{
@@ -1230,7 +1251,7 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 	}
 
 	// Build the IPAM Pool monitor
-	clusterSubnetStateChan := make(chan v1alpha1.ClusterSubnetState)
+	clusterSubnetStateChan := make(chan cssv1alpha1.ClusterSubnetState)
 
 	// this cachedscopedclient is built using the Manager's cached client, which is
 	// NOT SAFE TO USE UNTIL THE MANAGER IS STARTED!
@@ -1247,19 +1268,6 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 	httpRestServiceImplementation.IPAMPoolMonitor = poolMonitor
 
 	// Start building the NNC Reconciler
-
-	// get our Node so that we can xref it against the NodeNetworkConfig's to make sure that the
-	// NNC is not stale and represents the Node we're running on.
-	node, err := clientset.CoreV1().Nodes().Get(ctx, nodeName, metav1.GetOptions{})
-	if err != nil {
-		return errors.Wrapf(err, "failed to get node %s", nodeName)
-	}
-
-	// check the Node labels for Swift V2
-	if _, ok := node.Labels[configuration.LabelSwiftV2]; ok {
-		cnsconfig.EnableSwiftV2 = true
-		// TODO(rbtr): create the NodeInfo for Swift V2
-	}
 
 	// get CNS Node IP to compare NC Node IP with this Node IP to ensure NCs were created for this node
 	nodeIP := configuration.NodeIP()
@@ -1281,9 +1289,15 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 
 	// TODO: add pod listeners based on Swift V1 vs MT/V2 configuration
 	if cnsconfig.WatchPods {
-		pw := podwatcher.New(nodeName)
+		pw := podctrl.New(nodeName)
 		if err := pw.SetupWithManager(manager); err != nil {
 			return errors.Wrapf(err, "failed to setup pod watcher with manager")
+		}
+	}
+
+	if cnsconfig.EnableSwiftV2 {
+		if err := mtpncctrl.SetupWithManager(manager); err != nil {
+			return errors.Wrapf(err, "failed to setup mtpnc reconciler with manager")
 		}
 	}
 

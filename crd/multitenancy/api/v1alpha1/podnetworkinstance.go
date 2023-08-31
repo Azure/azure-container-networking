@@ -12,8 +12,7 @@ import (
 // +kubebuilder:object:root=true
 
 // PodNetworkInstance is the Schema for the PodNetworkInstances API
-// +kubebuilder:resource:scope=Namespaced
-// +kubebuilder:resource:shortName=pni
+// +kubebuilder:resource:shortName=pni,scope=Cluster
 // +kubebuilder:subresource:status
 // +kubebuilder:metadata:labels=managed=
 // +kubebuilder:metadata:labels=owner=

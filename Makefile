@@ -480,14 +480,14 @@ manifest-create:
 	$(CONTAINER_BUILDER) manifest create $(IMAGE_REGISTRY)/$(IMAGE):$(TAG)
 
 manifest-add:
-	$(CONTAINER_BUILDER) manifest add --os-version=$($(OS_VERSION)) $(IMAGE_REGISTRY)/$(IMAGE):$(TAG) docker://$(IMAGE_REGISTRY)/$(IMAGE):$(subst /,-,$(PLATFORM))$(if $(OS_VERSION),-$(OS_VERSION),)-$(TAG)
+	$(CONTAINER_BUILDER) manifest add --os=$(OS) --os-version=$($(OS_VERSION)) $(IMAGE_REGISTRY)/$(IMAGE):$(TAG) docker://$(IMAGE_REGISTRY)/$(IMAGE):$(subst /,-,$(PLATFORM))$(if $(OS_VERSION),-$(OS_VERSION),)-$(TAG)
 
 manifest-build: # util target to compose multiarch container manifests from platform specific images.
 	$(MAKE) manifest-create
 	$(foreach PLATFORM,$(PLATFORMS),\
 		$(if $(filter $(PLATFORM),windows/amd64),\
 			$(foreach OS_VERSION,$(OS_VERSIONS),\
-				$(MAKE) manifest-add OS_VERSION=$(OS_VERSION) PLATFORM=$(PLATFORM);\
+				$(MAKE) manifest-add CONTAINER_BUILDER=$(CONTAINER_BUILDER) OS=windows OS_VERSION=$(OS_VERSION) PLATFORM=$(PLATFORM);\
 			),\
 			$(MAKE) manifest-add PLATFORM=$(PLATFORM);\
 		)\

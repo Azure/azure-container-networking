@@ -44,18 +44,19 @@ type check struct {
 	cmd              []string
 }
 
-func CreateValidator(ctx context.Context, clienset *kubernetes.Clientset, config *rest.Config, namespace, cni string, restartCase bool, os string) (*Validator, error) {
+func CreateValidator(ctx context.Context, clientset *kubernetes.Clientset, config *rest.Config, namespace, cni string, restartCase bool, os string) (*Validator, error) {
 	// deploy privileged pod
 	privilegedDaemonSet, err := k8sutils.MustParseDaemonSet(privilegedDaemonSetPathMap[os])
 	if err != nil {
 		return nil, errors.Wrap(err, "unable to parse daemonset")
 	}
-	daemonsetClient := clienset.AppsV1().DaemonSets(privilegedNamespace)
+	daemonsetClient := clientset.AppsV1().DaemonSets(privilegedNamespace)
 	if err := k8sutils.MustCreateDaemonset(ctx, daemonsetClient, privilegedDaemonSet); err != nil {
 		return nil, errors.Wrap(err, "unable to create daemonset")
 	}
-	if err := k8sutils.WaitForPodsRunning(ctx, clienset, privilegedNamespace, privilegedLabelSelector); err != nil {
-		return nil, errors.Wrap(err, "error while waiting for pods to be running")
+	// Ensures that pods have been replaced if test is re-run after failure
+	if err := k8sutils.WaitForPodDaemonset(ctx, clientset, privilegedNamespace, privilegedDaemonSet.Name, privilegedLabelSelector); err != nil {
+		return nil, errors.Wrap(err, "unable to wait for daemonset")
 	}
 
 	var checks []check
@@ -69,7 +70,7 @@ func CreateValidator(ctx context.Context, clienset *kubernetes.Clientset, config
 	}
 
 	return &Validator{
-		clientset:   clienset,
+		clientset:   clientset,
 		config:      config,
 		namespace:   namespace,
 		cni:         cni,
@@ -124,7 +125,7 @@ func (v *Validator) ValidateRestartNetwork(ctx context.Context) error {
 		// exec into the pod to get the state file
 		_, err = k8sutils.ExecCmdOnPod(ctx, v.clientset, privilegedNamespace, privelegedPod.Name, restartNetworkCmd, v.config)
 		if err != nil {
-			return errors.Wrapf(err, "failed to exec into privileged pod")
+			return errors.Wrapf(err, "failed to exec into privileged pod - %s", privelegedPod.Name)
 		}
 		err = k8sutils.WaitForPodsRunning(ctx, v.clientset, "", "")
 		if err != nil {
@@ -151,7 +152,7 @@ func (v *Validator) validateIPs(ctx context.Context, stateFileIps stateFileIpsFu
 		// exec into the pod to get the state file
 		result, err := k8sutils.ExecCmdOnPod(ctx, v.clientset, namespace, podName, cmd, v.config)
 		if err != nil {
-			return errors.Wrapf(err, "failed to exec into privileged pod")
+			return errors.Wrapf(err, "failed to exec into privileged pod - %s", podName)
 		}
 		filePodIps, err := stateFileIps(result)
 		if err != nil {
