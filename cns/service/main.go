@@ -91,6 +91,8 @@ const (
 
 	// envVarEnableCNIConflistGeneration enables cni conflist generation if set (value doesn't matter)
 	envVarEnableCNIConflistGeneration = "CNS_ENABLE_CNI_CONFLIST_GENERATION"
+	// envVarEnableAsyncPodDelete enables CNS and CNI to use fsnotify package for async pod deletes
+	envVarEnableAsyncPodDelete = "ASYNC_POD_DELETE"
 
 	cnsBaseURL    = "http://localhost:10090"
 	cnsReqTimeout = 15 * time.Second
@@ -828,22 +830,23 @@ func main() {
 		}
 	}
 
-	// Start fs watcher here
-	logger.Printf("[Azure CNS] Start fsnotify watcher for intended deletes")
-	cnsclient, err := cnsclient.New(cnsBaseURL, cnsReqTimeout) //nolint
-	if err != nil {
-		logger.Errorf("failed to initialize CNS client:%v.\n", err)
-	}
-	w := &fsnotify.Watcher{
-		CnsClient: cnsclient,
-	}
-	watcherPath := cnsconfig.WatcherPath
-	watcherDirectory := cnsconfig.DeleteDirectory
-	logger.Printf("watcherPath: %s", watcherPath)
-	logger.Printf("watcherDir: %s", watcherDirectory)
-	err = fsnotify.WatchFs(w, watcherPath, watcherDirectory, z)
-	if err != nil {
-		logger.Errorf("Failed to start fsnotify watcher, err:%v.\n", err)
+	_, envEnableAsyncPodDelete := os.LookupEnv(envVarEnableAsyncPodDelete)
+	if cnsconfig.EnableAsyncPodDelete || envEnableAsyncPodDelete {
+		// Start fs watcher here
+		logger.Printf("[Azure CNS] Start fsnotify watcher for intended deletes")
+		cnsclient, err := cnsclient.New(cnsBaseURL, cnsReqTimeout) //nolint
+		if err != nil {
+			logger.Errorf("failed to initialize CNS client:%v.\n", err)
+		}
+		w := &fsnotify.Watcher{
+			CnsClient: cnsclient,
+		}
+		watcherPath := cnsconfig.WatcherPath
+		watcherDirectory := cnsconfig.DeleteDirectory
+		err = fsnotify.WatchFs(w, watcherPath, watcherDirectory, z)
+		if err != nil {
+			logger.Errorf("Failed to start fsnotify watcher, err:%v.\n", err)
+		}
 	}
 
 	if !disableTelemetry {

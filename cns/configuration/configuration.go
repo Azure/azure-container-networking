@@ -46,6 +46,7 @@ type CNSConfig struct {
 	MellanoxMonitorIntervalSecs int
 	AZRSettings                 AZRSettings
 	WatchPods                   bool
+	EnableAsyncPodDelete        bool
 	WatcherPath                 string
 	DeleteDirectory             string
 }
