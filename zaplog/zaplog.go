@@ -1,14 +1,10 @@
 package zaplog
 
 import (
-	"os"
-
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"gopkg.in/natefinch/lumberjack.v2"
 )
-
-var ZapDefaultLogger = InitZapLog(&Config{})
 
 type Config struct {
 	Level       zapcore.Level
@@ -32,6 +28,5 @@ func InitZapLog(cfg *Config) *zap.Logger {
 
 	core := zapcore.NewCore(jsonEncoder, logFileWriter, logLevel)
 	Logger := zap.New(core)
-	Logger = Logger.With(zap.Int("pid", os.Getpid()))
 	return Logger
 }

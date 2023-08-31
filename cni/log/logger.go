@@ -1,6 +1,8 @@
 package log
 
 import (
+	"os"
+
 	"github.com/Azure/azure-container-networking/zaplog"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -43,5 +45,7 @@ var LoggerTelemetryCfg = &zaplog.Config{
 }
 
 func InitZapLogCNI(zapLogConfig *zaplog.Config) *zap.Logger {
-	return zaplog.InitZapLog(zapLogConfig)
+	logger := zaplog.InitZapLog(zapLogConfig)
+	logger = logger.With(zap.Int("pid", os.Getpid()))
+	return logger
 }
