@@ -23,7 +23,7 @@ const ipamV6 = "azure-vnet-ipamv6"
 
 var (
 	loggerName = "azure-vnet-ipam"
-	logger     = log.InitZapLogCNI(loggerName, "azure-ipam.log").With(zap.String("component", "cni"))
+	logger     = log.InitZapLogCNI(loggerName, "azure-ipam.log")
 )
 
 var ipv4DefaultRouteDstPrefix = net.IPNet{
@@ -81,7 +81,7 @@ func (plugin *ipamPlugin) Start(config *common.PluginConfig) error {
 	err = plugin.am.Initialize(config, false, plugin.Options)
 	if err != nil {
 		logger.Error("Failed to initialize address manager",
-			zap.String("error", err.Error()))
+			zap.Error(err))
 		return err
 	}
 
@@ -156,7 +156,7 @@ func (plugin *ipamPlugin) Add(args *cniSkel.CmdArgs) error {
 	defer func() {
 		logger.Info("ADD command completed",
 			zap.Any("result", result),
-			zap.Any("error:", err))
+			zap.Error(err))
 	}()
 
 	// Parse network configuration from stdin.

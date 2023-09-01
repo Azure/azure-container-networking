@@ -33,5 +33,6 @@ func InitZapLogCNI(loggerName, loggerFile string) *zap.Logger {
 
 	// only log process id on CNI package
 	logger = logger.With(zap.Int("pid", os.Getpid()))
+	logger = logger.With(zap.String("component", "cni"))
 	return logger
 }

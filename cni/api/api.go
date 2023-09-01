@@ -11,7 +11,7 @@ import (
 
 var (
 	loggerName = "azure-vnet"
-	logger     = log.InitZapLogCNI(loggerName, "azure-vnet.log").With(zap.String("component", "cni"))
+	logger     = log.InitZapLogCNI(loggerName, "azure-vnet.log")
 )
 
 type PodNetworkInterfaceInfo struct {

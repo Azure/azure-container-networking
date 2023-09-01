@@ -39,7 +39,7 @@ const (
 // Version is populated by make during build.
 var version string
 
-var logger = log.InitZapLogCNI(name, "azure-vnet.log").With(zap.String("component", "cni"))
+var logger = log.InitZapLogCNI(name, "azure-vnet.log")
 
 // Command line arguments for CNI plugin.
 var args = common.ArgumentList{

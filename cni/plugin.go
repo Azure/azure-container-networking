@@ -26,7 +26,7 @@ import (
 
 var (
 	loggerName = "azure-vnet"
-	logger     = log.InitZapLogCNI(loggerName, "azure-vnet.log").With(zap.String("component", "cni"))
+	logger     = log.InitZapLogCNI(loggerName, "azure-vnet.log")
 )
 
 var errEmptyContent = errors.New("read content is zero bytes")
@@ -160,9 +160,9 @@ func (plugin *Plugin) Error(err error) *cniTypes.Error {
 		cniErr = &cniTypes.Error{Code: 100, Msg: err.Error()}
 	}
 
-	logger.Error("",
+	logger.Error("error",
 		zap.String("plugin", plugin.Name),
-		zap.String("error", cniErr.Error()))
+		zap.Error(cniErr))
 
 	return cniErr
 }
@@ -175,7 +175,7 @@ func (plugin *Plugin) Errorf(format string, args ...interface{}) *cniTypes.Error
 // RetriableError logs and returns a CNI error with the TryAgainLater error code
 func (plugin *Plugin) RetriableError(err error) *cniTypes.Error {
 	tryAgainErr := cniTypes.NewError(cniTypes.ErrTryAgainLater, err.Error(), "")
-	logger.Error("",
+	logger.Error("retry failed",
 		zap.String("name", plugin.Name),
 		zap.String("error", tryAgainErr.Error()))
 	return tryAgainErr
