@@ -77,7 +77,7 @@ func TestWatcherAddFile(t *testing.T) {
 			name: "no such directory, add fail",
 			args: args{
 				containerID: "67890",
-				path:        "/path/we/want",
+				path:        "/bad/path",
 				directory:   "",
 			},
 			wantErr: true,
@@ -118,7 +118,7 @@ func TestWatcherRemoveFile(t *testing.T) {
 			name: "remove file fail",
 			args: args{
 				containerID: "12345",
-				path:        "/path/we/want",
+				path:        "/bad/path",
 				directory:   "",
 			},
 			wantErr: true,
