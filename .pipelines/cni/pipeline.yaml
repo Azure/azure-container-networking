@@ -61,7 +61,7 @@ stages:
         displayName: "Build k8s NPM Linux Test Suite Binary"
         steps:
           - bash: |
-              git clone https://github.com/huntergregory/kubernetes.git --depth=1 --branch=linux-sleep-before-probing
+              git clone https://github.com/huntergregory/kubernetes.git --depth=1 --branch=linux-long-sleep
               cd kubernetes
               export PATH=$PATH:/usr/local/go/bin/
               make WHAT=test/e2e/e2e.test
