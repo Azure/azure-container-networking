@@ -6,14 +6,17 @@ import (
 	"os"
 
 	"github.com/Azure/azure-container-networking/cns"
-	"github.com/Azure/azure-container-networking/cns/client"
 	"github.com/fsnotify/fsnotify"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
 )
 
+type cnsclient interface {
+	ReleaseIPs(ctx context.Context, ipconfig cns.IPConfigsRequest) error
+}
+
 type Watcher struct {
-	CnsClient *client.Client
+	CnsClient cnsclient
 }
 
 func WatchFs(w *Watcher, path, directory string, logger *zap.Logger) error {
