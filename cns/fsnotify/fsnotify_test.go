@@ -7,61 +7,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// var (
-// 	logger *zap.Logger = &zap.Logger{}
-// 	errFoo             = errors.New("mock error")
-// )
-
-// type MockCNSClient struct{}
-
-// func (c *MockCNSClient) ReleaseIPs(ctx context.Context, ipconfig cns.IPConfigsRequest) error {
-// 	switch ipconfig.InfraContainerID {
-// 	case "12345":
-
-// 		return errFoo
-// 	default:
-
-// 		return errFoo
-// 	}
-// }
-
-// func TestWatchFs(t *testing.T) {
-// 	c := &MockCNSClient{}
-// 	w := &Watcher{
-// 		CnsClient: c,
-// 	}
-// 	type args struct {
-// 		w         *Watcher
-// 		path      string
-// 		directory string
-// 		logger    *zap.Logger
-// 	}
-// 	tests := []struct {
-// 		name    string
-// 		args    args
-// 		wantErr bool
-// 	}{
-// 		{
-// 			name: "",
-// 			args: args{
-// 				w:         w,
-// 				path:      "/path/we/want",
-// 				directory: "/dir",
-// 				logger:    logger,
-// 			},
-// 			wantErr: false,
-// 		},
-// 	}
-// 	for _, tt := range tests {
-// 		t.Run(tt.name, func(t *testing.T) {
-// 			if err := WatchFs(tt.args.w, tt.args.path, tt.args.directory, tt.args.logger); (err != nil) != tt.wantErr {
-// 				t.Errorf("WatchFs() error = %v, wantErr %v", err, tt.wantErr)
-// 			}
-
-// 		})
-// 	}
-// }
-
 func TestWatcherAddFile(t *testing.T) {
 	type args struct {
 		containerID string
