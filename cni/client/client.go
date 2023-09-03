@@ -27,12 +27,16 @@ func New(exec utilexec.Interface) *client {
 
 func (c *client) GetEndpointState() (*api.AzureCNIState, error) {
 	cmd := c.exec.Command(platform.CNIBinaryPath)
+	log.Printf("first cmd is %+v", cmd)
 	cmd.SetDir(CNIExecDir)
+	log.Printf("second cmd is %+v", cmd)
 	envs := os.Environ()
 	cmdenv := fmt.Sprintf("%s=%s", cni.Cmd, cni.CmdGetEndpointsState)
 	log.Printf("Setting cmd to %s", cmdenv)
 	envs = append(envs, cmdenv)
+	log.Printf("envs is %+v", envs)
 	cmd.SetEnv(envs)
+	log.Printf("third cmd is %+v", cmd)
 
 	output, err := cmd.CombinedOutput()
 	log.Printf("CombinedOutput output is %s", string(output))
@@ -41,7 +45,6 @@ func (c *client) GetEndpointState() (*api.AzureCNIState, error) {
 	}
 
 	state := &api.AzureCNIState{}
-	log.Printf("state is %+v", state)
 	if err := json.Unmarshal(output, state); err != nil {
 		return nil, fmt.Errorf("failed to decode response from Azure CNI when retrieving state: [%w], response from CNI: [%s]", err, string(output))
 	}
