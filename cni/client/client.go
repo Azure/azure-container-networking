@@ -35,11 +35,13 @@ func (c *client) GetEndpointState() (*api.AzureCNIState, error) {
 	cmd.SetEnv(envs)
 
 	output, err := cmd.CombinedOutput()
+	log.Printf("CombinedOutput output is %+v", output)
 	if err != nil {
 		return nil, fmt.Errorf("failed to call Azure CNI bin with err: [%w], output: [%s]", err, string(output))
 	}
 
 	state := &api.AzureCNIState{}
+	log.Printf("state is %+v", state)
 	if err := json.Unmarshal(output, state); err != nil {
 		return nil, fmt.Errorf("failed to decode response from Azure CNI when retrieving state: [%w], response from CNI: [%s]", err, string(output))
 	}
