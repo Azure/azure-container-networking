@@ -41,6 +41,7 @@ func (c *client) GetEndpointState() (*api.AzureCNIState, error) {
 	cmd.SetEnv(envs)
 
 	output, err := cmd.CombinedOutput()
+	fmt.Printf("output is %+v", output)
 	if err != nil {
 		return nil, fmt.Errorf("failed to call Azure CNI bin with err: [%w], output: [%s]", err, string(output))
 	}

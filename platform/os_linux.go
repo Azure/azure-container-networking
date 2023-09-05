@@ -63,7 +63,6 @@ func GetProcessSupport() error {
 func GetLastRebootTime() (time.Time, error) {
 	// Query last reboot time.
 	out, err := exec.Command("uptime", "-s").Output()
-	log.Printf("out is %+v", out)
 	if err != nil {
 		log.Printf("Failed to query uptime, err:%v", err)
 		return time.Time{}.UTC(), err
