@@ -140,6 +140,7 @@ func (p *IPAMPlugin) CmdDel(args *cniSkel.CmdArgs) error {
 	// cnsClient enforces it own timeout
 	if err := p.cnsClient.ReleaseIPAddress(context.TODO(), req); err != nil {
 		if errors.Is(err, &cnscli.ConnectionFailureErr{}) {
+			p.logger.Info("Failed to release IP address from CNS due to connection failure, saving to watcher to delete")
 			addErr := fsnotify.WatcherAddFile(args.ContainerID, watcherPath, watcherDirectory)
 			if addErr != nil {
 				p.logger.Error("Failed to add file to watcher", zap.Error(addErr))
