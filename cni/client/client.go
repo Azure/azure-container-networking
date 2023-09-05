@@ -8,11 +8,17 @@ import (
 
 	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/cni/api"
-	"github.com/Azure/azure-container-networking/log"
+	"github.com/Azure/azure-container-networking/cni/log"
 	"github.com/Azure/azure-container-networking/platform"
 	semver "github.com/hashicorp/go-version"
 	"github.com/pkg/errors"
+	"go.uber.org/zap"
 	utilexec "k8s.io/utils/exec"
+)
+
+var (
+	loggerName = "azure-vnet-client"
+	logger     = log.InitZapLogCNI(loggerName, "azure-vnet.log")
 )
 
 type client struct {
@@ -27,19 +33,14 @@ func New(exec utilexec.Interface) *client {
 
 func (c *client) GetEndpointState() (*api.AzureCNIState, error) {
 	cmd := c.exec.Command(platform.CNIBinaryPath)
-	log.Printf("first cmd is %+v", cmd)
 	cmd.SetDir(CNIExecDir)
-	log.Printf("second cmd is %+v", cmd)
 	envs := os.Environ()
 	cmdenv := fmt.Sprintf("%s=%s", cni.Cmd, cni.CmdGetEndpointsState)
-	log.Printf("Setting cmd to %s", cmdenv)
+	logger.Info("Setting cmd to", zap.String("cmdenv", cmdenv))
 	envs = append(envs, cmdenv)
-	log.Printf("envs is %+v", envs)
 	cmd.SetEnv(envs)
-	log.Printf("third cmd is %+v", cmd)
 
 	output, err := cmd.CombinedOutput()
-	log.Printf("CombinedOutput output is %s", string(output))
 	if err != nil {
 		return nil, fmt.Errorf("failed to call Azure CNI bin with err: [%w], output: [%s]", err, string(output))
 	}
