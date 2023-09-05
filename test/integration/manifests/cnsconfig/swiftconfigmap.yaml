@@ -27,5 +27,5 @@ data:
       "ProgramSNATIPTables" : false,
       "EnableAsyncPodDelete": true,
       "WatcherPath": "/var/run/azure-vnet",
-      "Delete-Directory": "/deleteIDs"
+      "DeleteDirectory": "/deleteIDs"
     }
