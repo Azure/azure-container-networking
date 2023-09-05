@@ -33,15 +33,18 @@ func New(exec utilexec.Interface) *client {
 
 func (c *client) GetEndpointState() (*api.AzureCNIState, error) {
 	cmd := c.exec.Command(platform.CNIBinaryPath)
+	fmt.Printf("cmd is %s", cmd)
 	cmd.SetDir(CNIExecDir)
 	envs := os.Environ()
 	cmdenv := fmt.Sprintf("%s=%s", cni.Cmd, cni.CmdGetEndpointsState)
 	logger.Info("Setting cmd to", zap.String("cmdenv", cmdenv))
+	fmt.Printf("cmdenv is %s", cmdenv)
 	envs = append(envs, cmdenv)
 	cmd.SetEnv(envs)
+	fmt.Printf("envs is %s", cmdenv)
 
 	output, err := cmd.CombinedOutput()
-	fmt.Printf("output is %+v", output)
+	fmt.Printf("output is %+v", string(output))
 	if err != nil {
 		return nil, fmt.Errorf("failed to call Azure CNI bin with err: [%w], output: [%s]", err, string(output))
 	}
