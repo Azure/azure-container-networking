@@ -14,9 +14,10 @@ import (
 	"github.com/Azure/azure-container-networking/aitelemetry"
 	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/cni/api"
-	"github.com/Azure/azure-container-networking/cni/log"
+	zapLog "github.com/Azure/azure-container-networking/cni/log"
 	"github.com/Azure/azure-container-networking/cni/network"
 	"github.com/Azure/azure-container-networking/common"
+	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/nns"
 	"github.com/Azure/azure-container-networking/platform"
 	"github.com/Azure/azure-container-networking/store"
@@ -39,7 +40,7 @@ const (
 // Version is populated by make during build.
 var version string
 
-var logger = log.InitZapLogCNI(name, "azure-vnet.log")
+var logger = zapLog.InitZapLogCNI(name, "azure-vnet.log")
 
 // Command line arguments for CNI plugin.
 var args = common.ArgumentList{
@@ -291,6 +292,15 @@ func main() {
 		printVersion()
 		os.Exit(0)
 	}
+
+	log.SetName(name)
+	log.SetLevel(log.LevelInfo)
+	if err := log.SetTargetLogDirectory(log.TargetLogfile, ""); err != nil {
+		fmt.Printf("Failed to setup cni logging: %v\n", err)
+		return
+	}
+
+	defer log.Close()
 
 	if rootExecute() != nil {
 		os.Exit(1)
