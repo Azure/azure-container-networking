@@ -388,7 +388,7 @@ stages:
       os: linux
       clusterType: dualstack-overlay-byocni-up
       clusterName: "dualstackoverlaye2e"
-      vmSize: Standard_B2s
+      vmSize: Standard_B2ms
       dependsOn: 'containerize'
       testDropgz: true
 
