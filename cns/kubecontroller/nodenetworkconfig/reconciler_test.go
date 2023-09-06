@@ -33,7 +33,7 @@ func (m *mockCNSClient) CreateOrUpdateNetworkContainerInternal(req *cns.CreateNe
 	return m.createOrUpdateNC(req)
 }
 
-func (m *mockCNSClient) EnsureNoStaleNCs(validNCIDs []string) {
+func (m *mockCNSClient) MustEnsureNoStaleNCs(validNCIDs []string) {
 	valid := make(map[string]struct{})
 	for _, ncID := range validNCIDs {
 		valid[ncID] = struct{}{}

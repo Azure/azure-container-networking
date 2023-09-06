@@ -24,7 +24,7 @@ import (
 
 type cnsClient interface {
 	CreateOrUpdateNetworkContainerInternal(*cns.CreateNetworkContainerRequest) cnstypes.ResponseCode
-	EnsureNoStaleNCs(validNCIDs []string)
+	MustEnsureNoStaleNCs(validNCIDs []string)
 }
 
 type nodeNetworkConfigListener interface {
@@ -82,7 +82,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 	for i := range nnc.Status.NetworkContainers {
 		validNCIDs[i] = nnc.Status.NetworkContainers[i].ID
 	}
-	r.cnscli.EnsureNoStaleNCs(validNCIDs)
+	r.cnscli.MustEnsureNoStaleNCs(validNCIDs)
 
 	// for each NC, parse it in to a CreateNCRequest and forward it to the appropriate Listener
 	for i := range nnc.Status.NetworkContainers {

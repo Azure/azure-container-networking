@@ -20,6 +20,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 	nma "github.com/Azure/azure-container-networking/nmagent"
+	"github.com/Azure/azure-container-networking/store"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
@@ -1274,4 +1275,154 @@ func TestCNIConflistGenerationOnNMAError(t *testing.T) {
 	// CNI conflist gen happens in goroutine so sleep for a second to let it run
 	time.Sleep(time.Second)
 	assert.Equal(t, 1, mockgen.getGeneratedCount())
+}
+
+func TestMustEnsureNoStaleNCs(t *testing.T) {
+	tests := []struct {
+		name                 string
+		storedNCs            map[string]containerstatus
+		ipStates             map[string]cns.IPConfigurationStatus
+		ipStatesOverrideFunc func(map[string]cns.IPConfigurationStatus) // defaults to available
+		ncsFromReconcile     []string
+		expectedRemovedNCs   []string
+	}{
+		{
+			name: "normal reconcile, single nc",
+			storedNCs: map[string]containerstatus{
+				"nc1": {},
+			},
+			ipStates: map[string]cns.IPConfigurationStatus{
+				"aaaa": {IPAddress: "10.0.0.10", NCID: "nc1"},
+			},
+			ipStatesOverrideFunc: func(ipStates map[string]cns.IPConfigurationStatus) {
+				for k, is := range ipStates {
+					is.SetState(types.Assigned)
+					ipStates[k] = is
+				}
+			},
+			ncsFromReconcile:   []string{"nc1"},
+			expectedRemovedNCs: []string{},
+		},
+		{
+			name: "normal reconcile, dual stack ncs",
+			storedNCs: map[string]containerstatus{
+				"nc1": {},
+				"nc2": {},
+			},
+			ipStates: map[string]cns.IPConfigurationStatus{
+				"aaaa": {IPAddress: "10.0.0.10", NCID: "nc1"},
+				"aabb": {IPAddress: "fe80::1ff:fe23:4567:890a", NCID: "nc2"},
+			},
+			ipStatesOverrideFunc: func(ipStates map[string]cns.IPConfigurationStatus) {
+				for k, is := range ipStates {
+					is.SetState(types.Assigned)
+					ipStates[k] = is
+				}
+			},
+			ncsFromReconcile:   []string{"nc1", "nc2"},
+			expectedRemovedNCs: []string{},
+		},
+		{
+			name: "stale nc",
+			storedNCs: map[string]containerstatus{
+				"nc1": {},
+			},
+			ipStates: map[string]cns.IPConfigurationStatus{
+				"aaaa": {IPAddress: "10.0.0.10", NCID: "nc1"},
+			},
+			ncsFromReconcile:   []string{"nc2"},
+			expectedRemovedNCs: []string{"nc1"},
+		},
+		{
+			name: "stale dual stack ncs",
+			storedNCs: map[string]containerstatus{
+				"nc1": {},
+				"nc2": {},
+			},
+			ipStates: map[string]cns.IPConfigurationStatus{
+				"aaaa": {IPAddress: "10.0.0.10", NCID: "nc1"},
+				"aabb": {IPAddress: "fe80::1ff:fe23:4567:890a", NCID: "nc2"},
+			},
+			ncsFromReconcile:   []string{"nc3", "nc4"},
+			expectedRemovedNCs: []string{"nc1", "nc2"},
+		},
+		{
+			name: "stale ncs, ips in flight",
+			storedNCs: map[string]containerstatus{
+				"nc1": {},
+				"nc2": {},
+			},
+			ipStates: map[string]cns.IPConfigurationStatus{
+				"aaaa": {IPAddress: "10.0.0.10", NCID: "nc1"},
+				"aabb": {IPAddress: "fe80::1ff:fe23:4567:890a", NCID: "nc2"},
+			},
+			ipStatesOverrideFunc: func(m map[string]cns.IPConfigurationStatus) {
+				ip1 := m["aaaa"]
+				ip1.SetState(types.PendingRelease)
+				m["aaaa"] = ip1
+
+				ip2 := m["aabb"]
+				ip2.SetState(types.PendingProgramming)
+				m["aabb"] = ip2
+			},
+			ncsFromReconcile:   []string{"nc3", "nc4"},
+			expectedRemovedNCs: []string{"nc1", "nc2"},
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.ipStatesOverrideFunc != nil {
+				tt.ipStatesOverrideFunc(tt.ipStates)
+			} else {
+				for k, is := range tt.ipStates {
+					is.SetState(types.Available)
+					tt.ipStates[k] = is
+				}
+			}
+
+			svc := HTTPRestService{
+				store:            store.NewMockStore("foo"),
+				state:            &httpRestServiceState{ContainerStatus: tt.storedNCs},
+				PodIPConfigState: tt.ipStates,
+			}
+
+			require.NotPanics(t, func() {
+				svc.MustEnsureNoStaleNCs(tt.ncsFromReconcile)
+			})
+
+			for _, expectedRemovedNCID := range tt.expectedRemovedNCs {
+				assert.NotContains(t, svc.state.ContainerStatus, expectedRemovedNCID)
+			}
+		})
+	}
+}
+
+func TestMustEnsureNoStaleNCs_PanicsWhenIPsFromStaleNCAreAssigned(t *testing.T) {
+	staleNC1 := "nc1"
+	staleNC2 := "nc2"
+
+	ncs := map[string]containerstatus{staleNC1: {}, staleNC2: {}}
+
+	ipStates := map[string]cns.IPConfigurationStatus{
+		"aaaa": {IPAddress: "10.0.0.10", NCID: staleNC1},
+		"aabb": {IPAddress: "10.0.0.11", NCID: staleNC1},
+		"aacc": {IPAddress: "10.0.0.12", NCID: staleNC2},
+		"aadd": {IPAddress: "10.0.0.13", NCID: staleNC2},
+	}
+	for k, is := range ipStates {
+		is.SetState(types.Assigned)
+		ipStates[k] = is
+	}
+
+	svc := HTTPRestService{
+		store:            store.NewMockStore("foo"),
+		state:            &httpRestServiceState{ContainerStatus: ncs},
+		PodIPConfigState: ipStates,
+	}
+
+	require.Panics(t, func() {
+		svc.MustEnsureNoStaleNCs([]string{"nc3", "nc4"})
+	})
 }
