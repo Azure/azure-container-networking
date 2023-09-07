@@ -29,6 +29,5 @@ data:
       "CNIConflistFilepath": "/etc/cni/net.d/05-cilium.conflist",
       "CNIConflistScenario": "cilium",
       "EnableAsyncPodDelete": true,
-      "WatcherPath": "/var/run/azure-vnet",
-      "DeleteDirectory": "/deleteIDs"
+      "AsyncPodDeletePath": "/var/run/azure-vnet/deleteIDs"
     }

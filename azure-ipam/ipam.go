@@ -19,8 +19,7 @@ import (
 )
 
 const (
-	watcherPath      = "/var/run/azure-vnet"
-	watcherDirectory = "/deleteIDs"
+	watcherPath = "/var/run/azure-vnet/deleteIDs"
 )
 
 // IPAMPlugin is the struct for the delegated azure-ipam plugin
@@ -126,6 +125,7 @@ func (p *IPAMPlugin) CmdAdd(args *cniSkel.CmdArgs) error {
 
 // CmdDel handles CNI delete commands.
 func (p *IPAMPlugin) CmdDel(args *cniSkel.CmdArgs) error {
+	var connectionErr *cnscli.ConnectionFailureErr
 	p.logger.Info("DEL called", zap.Any("args", args))
 
 	// Create ip config request from args
@@ -139,9 +139,9 @@ func (p *IPAMPlugin) CmdDel(args *cniSkel.CmdArgs) error {
 	p.logger.Debug("Making request to CNS")
 	// cnsClient enforces it own timeout
 	if err := p.cnsClient.ReleaseIPAddress(context.TODO(), req); err != nil {
-		if errors.Is(err, &cnscli.ConnectionFailureErr{}) {
+		if errors.As(err, &connectionErr) {
 			p.logger.Info("Failed to release IP address from CNS due to connection failure, saving to watcher to delete")
-			addErr := fsnotify.WatcherAddFile(args.ContainerID, watcherPath, watcherDirectory)
+			addErr := fsnotify.AddFile(args.ContainerID, watcherPath)
 			if addErr != nil {
 				p.logger.Error("Failed to add file to watcher", zap.Error(addErr))
 				return cniTypes.NewError(cniTypes.ErrTryAgainLater, err.Error(), "Failed to add file to watcher")
