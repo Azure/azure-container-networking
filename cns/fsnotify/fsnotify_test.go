@@ -49,7 +49,6 @@ func TestWatcherRemoveFile(t *testing.T) {
 	type args struct {
 		containerID string
 		path        string
-		directory   string
 	}
 	tests := []struct {
 		name    string

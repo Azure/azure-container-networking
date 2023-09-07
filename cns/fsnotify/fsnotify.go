@@ -39,12 +39,12 @@ func WatchFs(w *Watcher, path string, logger *zap.Logger) error {
 				logger.Info("received event", zap.String("event", event.Name))
 				if event.Has(fsnotify.Create) {
 					logger.Info("file created, triggering release", zap.String("event", event.Name))
-					cnsReleaseErr := w.releaseIP(event.Name, path, logger)
+					cnsReleaseErr := w.releaseIP(event.Name)
 					if cnsReleaseErr != nil {
 						logger.Error("failed to release IP from CNS", zap.Error(cnsReleaseErr))
 					}
-					err := RemoveFile(event.Name, path)
-					if err != nil {
+					deleteErr := RemoveFile(event.Name, path)
+					if deleteErr != nil {
 						logger.Error("failed to remove file", zap.Error(err))
 					}
 				}
@@ -55,7 +55,7 @@ func WatchFs(w *Watcher, path string, logger *zap.Logger) error {
 				if !ok {
 					return
 				}
-				logger.Error("watcher Error: ", zap.Error(watcherErr))
+				logger.Error("watcher error", zap.Error(watcherErr))
 			}
 		}
 	}()
@@ -78,13 +78,13 @@ func WatchFs(w *Watcher, path string, logger *zap.Logger) error {
 	} else {
 		for _, file := range dirContents {
 			logger.Info("file to be deleted", zap.String("name", file.Name()))
-			cnsReleaseErr := w.releaseIP(file.Name(), path, logger)
+			cnsReleaseErr := w.releaseIP(file.Name())
 			if cnsReleaseErr != nil {
 				logger.Error("failed to release IP from CNS", zap.Error(cnsReleaseErr))
 			}
 			err := RemoveFile(file.Name(), path)
 			if err != nil {
-				logger.Error("failed to remove file: ", zap.Error(err))
+				logger.Error("failed to remove file", zap.Error(err))
 			}
 		}
 	}
@@ -136,12 +136,11 @@ func RemoveFile(containerID, path string) error {
 }
 
 // call cns ReleaseIPs
-func (w *Watcher) releaseIP(containerID, path string, logger *zap.Logger) error {
+func (w *Watcher) releaseIP(containerID string) error {
 	ipconfigreq := &cns.IPConfigsRequest{InfraContainerID: containerID}
 
 	cnsReleaseErr := w.CnsClient.ReleaseIPs(context.Background(), *ipconfigreq)
 	if cnsReleaseErr != nil {
-		// logger.Error("failed to release IP from watcher directory")
 		return errors.Wrapf(cnsReleaseErr, "error releasing IP from CNS")
 	}
 	return nil
