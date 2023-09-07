@@ -57,10 +57,12 @@ type Client struct {
 	routes map[string]url.URL
 }
 
-type ConnectionFailureErr struct{}
+type ConnectionFailureErr struct {
+	cause error
+}
 
 func (e *ConnectionFailureErr) Error() string {
-	return "connection failure"
+	return fmt.Sprintf("connection failure: %v", e.cause)
 }
 
 // New returns a new CNS client configured with the passed URL and timeout.

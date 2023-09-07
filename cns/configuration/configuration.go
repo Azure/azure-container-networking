@@ -47,8 +47,7 @@ type CNSConfig struct {
 	AZRSettings                 AZRSettings
 	WatchPods                   bool
 	EnableAsyncPodDelete        bool
-	WatcherPath                 string
-	DeleteDirectory             string
+	AsyncPodDeletePath          string
 }
 
 type TelemetrySettings struct {
@@ -210,10 +209,7 @@ func SetCNSConfigDefaults(config *CNSConfig) {
 	if config.WireserverIP == "" {
 		config.WireserverIP = "168.63.129.16"
 	}
-	if config.WatcherPath == "" {
-		config.WatcherPath = "/var/run/azure-vnet"
-	}
-	if config.DeleteDirectory == "" {
-		config.DeleteDirectory = "/deleteIDs"
+	if config.AsyncPodDeletePath == "" {
+		config.AsyncPodDeletePath = "/var/run/azure-vnet/deleteIDs"
 	}
 }

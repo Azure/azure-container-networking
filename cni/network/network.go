@@ -1076,7 +1076,7 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 				sendEvent(plugin, fmt.Sprintf("Release ip by ContainerID (endpoint not found):%v", args.ContainerID))
 				if err = plugin.ipamInvoker.Delete(nil, nwCfg, args, nwInfo.Options); err != nil {
 					if errors.Is(err, &cnscli.ConnectionFailureErr{}) {
-						addErr := fsnotify.WatcherAddFile(args.ContainerID, watcherPath, watcherDirectory)
+						addErr := fsnotify.AddFile(args.ContainerID, watcherPath)
 						if addErr != nil {
 							log.Logger.Error("Failed to add file to watcher", zap.Error(addErr))
 							return plugin.RetriableError(fmt.Errorf("failed to add file to watcher: %w", err))
