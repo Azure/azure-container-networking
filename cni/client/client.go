@@ -33,17 +33,12 @@ func New(exec utilexec.Interface) *client {
 
 func (c *client) GetEndpointState() (*api.AzureCNIState, error) {
 	cmd := c.exec.Command(platform.CNIBinaryPath)
-	fmt.Printf("first cmd is %s\n", cmd)
 	cmd.SetDir(CNIExecDir)
-	fmt.Printf("second cmd is %s\n", cmd)
 	envs := os.Environ()
 	cmdenv := fmt.Sprintf("%s=%s", cni.Cmd, cni.CmdGetEndpointsState)
 	logger.Info("Setting cmd to", zap.String("cmdenv", cmdenv))
-	fmt.Printf("Setting cmd to %s\n", cmdenv)
 	envs = append(envs, cmdenv)
 	cmd.SetEnv(envs)
-	fmt.Printf("envs is %s\n", cmdenv)
-	fmt.Printf("third cmd is %s\n", cmd)
 
 	output, err := cmd.CombinedOutput()
 	fmt.Printf("output is----- %+v\n", string(output))
