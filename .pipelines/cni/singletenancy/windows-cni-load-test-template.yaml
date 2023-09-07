@@ -64,7 +64,7 @@ stages:
         steps:
           - task: AzureCLI@1
             inputs:
-              azureSubscription: $(TEST_SUB_SERVICE_CONNECTION)
+              azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
               scriptLocation: "inlineScript"
               scriptType: "bash"
               addSpnToEnvironment: true
@@ -84,6 +84,23 @@ stages:
               kubectl get pods -A
             name: "WaitForCNI"
             displayName: "Wait For CNI"
+  - stage: datapath_tests
+    pool:
+      name: $(BUILD_POOL_NAME_DEFAULT)
+    dependsOn: update_cni
+    displayName: "Datapath Test - Windows"
+    jobs:
+      - template: ../k8s-e2e/k8s-e2e-job-template.yaml
+        parameters:
+          sub: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+          clusterName: ${{ parameters.clusterName }}-$(make revision)
+          os: ${{ parameters.os }}
+          datapath: true
+          dns: true
+          portforward: true
+          hybridWin: true
+          service: true
+          hostport: true
   - stage: pod_deployment_windows
     dependsOn: update_cni
     displayName: "Pod Deployment"
@@ -112,6 +129,23 @@ stages:
               clusterName: ${{ parameters.clusterName }}
               os: ${{ parameters.os }}
               cni: ${{ parameters.cni }}
+
+  - stage: npm
+    dependsOn:
+      - validate_state_windows
+      - setup
+    displayName: NPM|CNI Release Test
+    variables:
+      npmVersion: $[ stagedependencies.setup.env.outputs['SetEnvVars.npmVersion'] ]
+    jobs:
+      - template: ../../npm/npm-cni-integration-test.yaml
+        parameters:
+          clusterName: ${{ parameters.clusterName }}
+          os: ${{ parameters.os }}
+          sub: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+          os_version: 'ltsc2022'
+          tag: $(npmVersion)
+
   - stage: delete_resources
     displayName: "Delete Resources"
     dependsOn:
@@ -123,7 +157,7 @@ stages:
         steps:
           - task: AzureCLI@1
             inputs:
-              azureSubscription: $(TEST_SUB_SERVICE_CONNECTION)
+              azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
               scriptLocation: "inlineScript"
               scriptType: "bash"
               addSpnToEnvironment: true
@@ -134,7 +168,7 @@ stages:
                   echo "Deleting Cluster and resource group"
                   make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}-$(make revision)
                   make -C ./hack/aks azcfg AZCLI=az REGION=$(LOCATION)
-                  make -C ./hack/aks down AZCLI=az REGION=$(LOCATION) SUB=$(SUBSCRIPTION_ID) CLUSTER=${{ parameters.clusterName }}-$(make revision)
+                  make -C ./hack/aks down AZCLI=az REGION=$(LOCATION) SUB=$(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS) CLUSTER=${{ parameters.clusterName }}-$(make revision)
                   echo "Cluster and resources down"
                 else
                   echo "Deletion of resources is False"
