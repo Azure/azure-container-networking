@@ -41,7 +41,7 @@ spec:
           effect: NoSchedule
       containers:
         - name: cns-container
-          image: acnpublic.azurecr.io/azure-cns:v1.5.3
+          image: acnpublic.azurecr.io/azure-cns:v1.5.10
           imagePullPolicy: IfNotPresent
           args: [ "-c", "tcp://$(CNSIpAddress):$(CNSPort)", "-t", "$(CNSLogTarget)"]
           securityContext:
@@ -82,7 +82,7 @@ spec:
               valueFrom:
                   fieldRef:
                     apiVersion: v1
-                    fieldPath: spec.nodeName 
+                    fieldPath: spec.nodeName
       initContainers:
         - name: init-cni-dropgz
           image: acnpublic.azurecr.io/cni-dropgz:latest

@@ -20,4 +20,4 @@ spec:
         ports:
           - containerPort: 80
       nodeSelector:
-        "kubernetes.io/os": windows
+        kubernetes.io/os: windows

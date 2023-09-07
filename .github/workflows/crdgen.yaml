@@ -26,5 +26,7 @@ jobs:
       run: make -C crd/nodenetworkconfig
     - name: Regenerate MultitenantNetworkContainer CRD
       run: make -C crd/multitenantnetworkcontainer
+    - name: Regenerate Multitenancy CRDs
+      run: make -C crd/multitenancy
     - name: Fail if the tree is dirty
       run: test -z "$(git status --porcelain)"

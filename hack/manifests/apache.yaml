@@ -1,0 +1,18 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+   name: apachebench
+spec:
+  selector:
+    matchLabels:
+      app: apachebench
+  template:
+    metadata:
+      labels:
+        app: apachebench
+    spec:
+      containers:
+      - name: ubuntu-tools
+        image: tamilmani1989/ubuntu18-tools
+        command: ["/bin/sleep", "3650d"]
+        

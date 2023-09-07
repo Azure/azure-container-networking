@@ -2,6 +2,7 @@ package validate
 
 import (
 	"context"
+	"reflect"
 
 	"github.com/Azure/azure-container-networking/test/internal/k8sutils"
 	corev1 "k8s.io/api/core/v1"
@@ -29,11 +30,30 @@ func getPodIPsWithoutNodeIP(ctx context.Context, clientset *kubernetes.Clientset
 	if err != nil {
 		return podsIpsWithoutNodeIP
 	}
-	nodeIP := node.Status.Addresses[0].Address
+	nodeIPs := make([]string, 0)
+	for _, address := range node.Status.Addresses {
+		if address.Type == corev1.NodeInternalIP {
+			nodeIPs = append(nodeIPs, address.Address)
+		}
+	}
+
 	for _, podIP := range podIPs {
-		if podIP != nodeIP {
+		if !contain(podIP, nodeIPs) {
 			podsIpsWithoutNodeIP = append(podsIpsWithoutNodeIP, podIP)
 		}
 	}
 	return podsIpsWithoutNodeIP
+}
+
+func contain(obj, target interface{}) bool {
+	targetValue := reflect.ValueOf(target)
+	switch reflect.TypeOf(target).Kind() { //nolint
+	case reflect.Slice, reflect.Array:
+		for i := 0; i < targetValue.Len(); i++ {
+			if targetValue.Index(i).Interface() == obj {
+				return true
+			}
+		}
+	}
+	return false
 }

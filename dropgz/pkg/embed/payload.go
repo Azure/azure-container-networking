@@ -7,8 +7,8 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"path"
 	"path/filepath"
-	"strings"
 
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
@@ -16,13 +16,13 @@ import (
 
 const (
 	cwd           = "fs"
-	pathPrefix    = cwd + string(filepath.Separator)
 	oldFileSuffix = ".old"
 )
 
 var ErrArgsMismatched = errors.New("mismatched argument count")
 
 // embedfs contains the embedded files for deployment, as a read-only FileSystem containing only "embedfs/".
+//
 //nolint:typecheck // dir is populated at build.
 //go:embed fs
 var embedfs embed.FS
@@ -36,7 +36,8 @@ func Contents() ([]string, error) {
 		if d.IsDir() {
 			return nil
 		}
-		contents = append(contents, strings.TrimPrefix(path, pathPrefix))
+		_, filename := filepath.Split(path)
+		contents = append(contents, filename)
 		return nil
 	})
 	if err != nil {
@@ -69,10 +70,10 @@ func (c *compoundReadCloser) Close() error {
 	return nil
 }
 
-func Extract(path string) (*compoundReadCloser, error) {
-	f, err := embedfs.Open(filepath.Join(cwd, path))
+func Extract(p string) (*compoundReadCloser, error) {
+	f, err := embedfs.Open(path.Join(cwd, p))
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to open file %s", path)
+		return nil, errors.Wrapf(err, "failed to open file %s", p)
 	}
 	r, err := gzip.NewReader(bufio.NewReader(f))
 	if err != nil {

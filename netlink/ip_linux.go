@@ -43,7 +43,7 @@ func (Netlink) setIPAddress(ifName string, ipAddress net.IP, ipNet *net.IPNet, a
 		flags = unix.NLM_F_CREATE | unix.NLM_F_EXCL | unix.NLM_F_ACK
 	} else {
 		msgType = unix.RTM_DELADDR
-		flags = unix.NLM_F_EXCL | unix.NLM_F_ACK
+		flags = unix.NLM_F_ACK
 	}
 
 	req := newRequest(msgType, flags)
@@ -225,7 +225,7 @@ func setIpRoute(route *Route, add bool) error {
 		flags = unix.NLM_F_CREATE | unix.NLM_F_EXCL | unix.NLM_F_ACK
 	} else {
 		msgType = unix.RTM_DELROUTE
-		flags = unix.NLM_F_EXCL | unix.NLM_F_ACK
+		flags = unix.NLM_F_ACK
 	}
 
 	req := newRequest(msgType, flags)

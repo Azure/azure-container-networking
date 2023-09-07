@@ -152,9 +152,10 @@ func (client *TransparentEndpointClient) AddEndpointRules(epInfo *EndpointInfo) 
 		log.Printf("[net] Adding route for the ip %v", ipNet.String())
 		routeInfo.Dst = ipNet
 		routeInfoList = append(routeInfoList, routeInfo)
-		if err := addRoutes(client.netlink, client.netioshim, client.hostVethName, routeInfoList); err != nil {
-			return newErrorTransparentEndpointClient(err.Error())
-		}
+	}
+
+	if err := addRoutes(client.netlink, client.netioshim, client.hostVethName, routeInfoList); err != nil {
+		return newErrorTransparentEndpointClient(err.Error())
 	}
 
 	log.Printf("calling setArpProxy for %v", client.hostVethName)

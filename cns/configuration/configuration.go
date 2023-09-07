@@ -23,6 +23,7 @@ type CNSConfig struct {
 	ChannelMode                 string
 	EnablePprof                 bool
 	EnableSubnetScarcity        bool
+	EnableSwiftV2               bool
 	InitializeFromCNI           bool
 	ManagedSettings             ManagedSettings
 	MetricsBindAddress          string
@@ -44,6 +45,7 @@ type CNSConfig struct {
 	CNIConflistFilepath         string
 	MellanoxMonitorIntervalSecs int
 	AZRSettings                 AZRSettings
+	WatchPods                   bool
 }
 
 type TelemetrySettings struct {

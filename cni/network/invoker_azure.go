@@ -104,9 +104,7 @@ func (invoker *AzureIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, er
 func (invoker *AzureIPAMInvoker) deleteIpamState() {
 	cniStateExists, err := platform.CheckIfFileExists(platform.CNIStateFilePath)
 	if err != nil {
-		log.Logger.Error("Error checking CNI state exist",
-			zap.Error(err),
-			zap.String("component", "cni"))
+		log.Logger.Error("Error checking CNI state exist", zap.Error(err))
 		return
 	}
 
@@ -116,15 +114,15 @@ func (invoker *AzureIPAMInvoker) deleteIpamState() {
 
 	ipamStateExists, err := platform.CheckIfFileExists(platform.CNIIpamStatePath)
 	if err != nil {
-		log.Logger.Error("Error checking IPAM state exist", zap.Error(err), zap.String("component", "cni"))
+		log.Logger.Error("Error checking IPAM state exist", zap.Error(err))
 		return
 	}
 
 	if ipamStateExists {
-		log.Logger.Info("Deleting IPAM state file", zap.String("component", "cni"))
+		log.Logger.Info("Deleting IPAM state file")
 		err = os.Remove(platform.CNIIpamStatePath)
 		if err != nil {
-			log.Logger.Error("Error deleting state file", zap.Error(err), zap.String("component", "cni"))
+			log.Logger.Error("Error deleting state file", zap.Error(err))
 			return
 		}
 	}

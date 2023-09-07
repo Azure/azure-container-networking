@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -274,55 +275,163 @@ func (service *HTTPRestService) syncHostNCVersion(ctx context.Context, channelMo
 	return len(programmedNCs), nil
 }
 
-// This API will be called by CNS RequestController on CRD update.
-func (service *HTTPRestService) ReconcileNCState(ncRequest *cns.CreateNetworkContainerRequest, podInfoByIP map[string]cns.PodInfo, nnc *v1alpha.NodeNetworkConfig) types.ResponseCode {
-	logger.Printf("Reconciling NC state with CreateNCRequest: [%v], PodInfo [%+v], NNC: [%+v]", ncRequest, podInfoByIP, nnc)
-	// check if ncRequest is null, then return as there is no CRD state yet
-	if ncRequest == nil {
+func (service *HTTPRestService) ReconcileIPAMState(ncReqs []*cns.CreateNetworkContainerRequest, podInfoByIP map[string]cns.PodInfo, nnc *v1alpha.NodeNetworkConfig) types.ResponseCode {
+	logger.Printf("Reconciling CNS IPAM state with nc requests: [%+v], PodInfo [%+v], NNC: [%+v]", ncReqs, podInfoByIP, nnc)
+	// if no nc reqs, there is no CRD state yet
+	if len(ncReqs) == 0 {
 		logger.Printf("CNS starting with no NC state, podInfoMap count %d", len(podInfoByIP))
 		return types.Success
 	}
 
-	// If the NC was created successfully, then reconcile the assigned pod state
-	returnCode := service.CreateOrUpdateNetworkContainerInternal(ncRequest)
-	if returnCode != types.Success {
-		return returnCode
-	}
-
-	// now parse the secondaryIP list, if it exists in PodInfo list, then assign that ip.
-	for _, secIPConfig := range ncRequest.SecondaryIPConfigs {
-		if podInfo, exists := podInfoByIP[secIPConfig.IPAddress]; exists {
-			logger.Printf("SecondaryIP %+v is assigned to Pod. %+v, ncId: %s", secIPConfig, podInfo, ncRequest.NetworkContainerid)
-
-			jsonContext, err := podInfo.OrchestratorContext()
-			if err != nil {
-				logger.Errorf("Failed to marshal KubernetesPodInfo, error: %v", err)
-				return types.UnexpectedError
-			}
-
-			ipconfigsRequest := cns.IPConfigsRequest{
-				DesiredIPAddresses:  []string{secIPConfig.IPAddress},
-				OrchestratorContext: jsonContext,
-				InfraContainerID:    podInfo.InfraContainerID(),
-				PodInterfaceID:      podInfo.InterfaceID(),
-			}
-
-			if _, err := requestIPConfigsHelper(service, ipconfigsRequest); err != nil {
-				logger.Errorf("AllocateIPConfig failed for SecondaryIP %+v, podInfo %+v, ncId %s, error: %v", secIPConfig, podInfo, ncRequest.NetworkContainerid, err)
-				return types.FailedToAllocateIPConfig
-			}
-		} else {
-			logger.Printf("SecondaryIP %+v is not assigned. ncId: %s", secIPConfig, ncRequest.NetworkContainerid)
+	// first step in reconciliation is to create all the NCs in CNS, no IP assignment yet.
+	for _, ncReq := range ncReqs {
+		returnCode := service.CreateOrUpdateNetworkContainerInternal(ncReq)
+		if returnCode != types.Success {
+			return returnCode
 		}
 	}
 
-	err := service.MarkExistingIPsAsPendingRelease(nnc.Spec.IPsNotInUse)
+	// index all the secondary IP configs for all the nc reqs, for easier lookup later on.
+	allSecIPsIdx := make(map[string]*cns.CreateNetworkContainerRequest)
+	for i := range ncReqs {
+		for _, secIPConfig := range ncReqs[i].SecondaryIPConfigs {
+			allSecIPsIdx[secIPConfig.IPAddress] = ncReqs[i]
+		}
+	}
+
+	// we now need to reconcile IP assignment.
+	// considering that a single pod may have multiple ips (such as in dual stack scenarios)
+	// and that IP assignment in CNS (as done by requestIPConfigsHelper) does not allow
+	// updates (it returns the existing state if one already exists for the pod's interface),
+	// we need to assign all IPs for a pod interface or name+namespace at the same time.
+	//
+	// iterating over single IPs is not appropriate then, since assignment for the first IP for
+	// a pod will prevent the second IP from being added. the following function call transforms
+	// pod info indexed by ip address:
+	//
+	//   {
+	//     "10.0.0.1": podInfo{interface: "aaa-eth0"},
+	//     "fe80::1":  podInfo{interface: "aaa-eth0"},
+	//   }
+	//
+	// to pod IPs indexed by pod key (interface or name+namespace, depending on scenario):
+	//
+	//   {
+	//     "aaa-eth0": podIPs{v4IP: 10.0.0.1, v6IP: fe80::1}
+	//   }
+	//
+	// such that we can iterate over pod interfaces, and assign all IPs for it at once.
+	podKeyToPodIPs, err := newPodKeyToPodIPsMap(podInfoByIP)
 	if err != nil {
+		logger.Errorf("could not transform pods indexed by IP address to pod IPs indexed by interface: %v", err)
+		return types.UnexpectedError
+	}
+
+	for podKey, podIPs := range podKeyToPodIPs {
+		var (
+			desiredIPs []string
+			ncIDs      []string
+		)
+
+		var ips []net.IP
+		if podIPs.v4IP != nil {
+			ips = append(ips, podIPs.v4IP)
+		}
+
+		if podIPs.v6IP != nil {
+			ips = append(ips, podIPs.v6IP)
+		}
+
+		for _, ip := range ips {
+			if ncReq, ok := allSecIPsIdx[ip.String()]; ok {
+				logger.Printf("secondary ip %s is assigned to pod %+v, ncId: %s ncVersion: %s", ip, podIPs, ncReq.NetworkContainerid, ncReq.Version)
+				desiredIPs = append(desiredIPs, ip.String())
+				ncIDs = append(ncIDs, ncReq.NetworkContainerid)
+			} else {
+				// it might still be possible to see host networking pods here (where ips are not from ncs) if we are restoring using the kube podinfo provider
+				// todo: once kube podinfo provider reconcile flow is removed, this line will not be necessary/should be removed.
+				logger.Errorf("ip %s assigned to pod %+v but not found in any nc", ip, podIPs)
+			}
+		}
+
+		if len(desiredIPs) == 0 {
+			// this may happen for pods in the host network
+			continue
+		}
+
+		jsonContext, err := podIPs.OrchestratorContext()
+		if err != nil {
+			logger.Errorf("Failed to marshal KubernetesPodInfo, error: %v", err)
+			return types.UnexpectedError
+		}
+
+		ipconfigsRequest := cns.IPConfigsRequest{
+			DesiredIPAddresses:  desiredIPs,
+			OrchestratorContext: jsonContext,
+			InfraContainerID:    podIPs.InfraContainerID(),
+			PodInterfaceID:      podIPs.InterfaceID(),
+		}
+
+		if _, err := requestIPConfigsHelper(service, ipconfigsRequest); err != nil {
+			logger.Errorf("requestIPConfigsHelper failed for pod key %s, podInfo %+v, ncIds %v, error: %v", podKey, podIPs, ncIDs, err)
+			return types.FailedToAllocateIPConfig
+		}
+	}
+
+	if err := service.MarkExistingIPsAsPendingRelease(nnc.Spec.IPsNotInUse); err != nil {
 		logger.Errorf("[Azure CNS] Error. Failed to mark IPs as pending %v", nnc.Spec.IPsNotInUse)
 		return types.UnexpectedError
 	}
 
 	return 0
+}
+
+var (
+	errIPParse             = errors.New("parse IP")
+	errMultipleIPPerFamily = errors.New("multiple IPs per family")
+)
+
+// newPodKeyToPodIPsMap groups IPs by interface id and returns them indexed by interface id.
+func newPodKeyToPodIPsMap(podInfoByIP map[string]cns.PodInfo) (map[string]podIPs, error) {
+	podKeyToPodIPs := make(map[string]podIPs)
+
+	for ipStr, podInfo := range podInfoByIP {
+		id := podInfo.Key()
+
+		ips, ok := podKeyToPodIPs[id]
+		if !ok {
+			ips.PodInfo = podInfo
+		}
+
+		ip := net.ParseIP(ipStr)
+		switch {
+		case ip == nil:
+			return nil, errors.Wrapf(errIPParse, "could not parse ip string %q on pod %+v", ipStr, podInfo)
+		case ip.To4() != nil:
+			if ips.v4IP != nil {
+				return nil, errors.Wrapf(errMultipleIPPerFamily, "multiple ipv4 addresses (%v, %v) associated to pod %+v", ips.v4IP, ip, podInfo)
+			}
+
+			ips.v4IP = ip
+		case ip.To16() != nil:
+			if ips.v6IP != nil {
+				return nil, errors.Wrapf(errMultipleIPPerFamily, "multiple ipv6 addresses (%v, %v) associated to pod %+v", ips.v6IP, ip, podInfo)
+			}
+
+			ips.v6IP = ip
+		}
+
+		podKeyToPodIPs[id] = ips
+	}
+
+	return podKeyToPodIPs, nil
+}
+
+// podIPs are all the IPs associated with a pod, along with pod info
+type podIPs struct {
+	cns.PodInfo
+	v4IP net.IP
+	v6IP net.IP
 }
 
 // GetNetworkContainerInternal gets network container details.

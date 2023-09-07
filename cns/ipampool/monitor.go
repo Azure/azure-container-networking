@@ -173,13 +173,13 @@ type ipPoolState struct {
 	pendingRelease int64
 	// requestedIPs are the IPs CNS has requested that it be allocated by DNC.
 	requestedIPs int64
-	// totalIPs are all the IPs given to CNS by DNC.
-	totalIPs int64
+	// secondaryIPs are all the IPs given to CNS by DNC, not including the primary IP of the NC.
+	secondaryIPs int64
 }
 
 func buildIPPoolState(ips map[string]cns.IPConfigurationStatus, spec v1alpha.NodeNetworkConfigSpec) ipPoolState {
 	state := ipPoolState{
-		totalIPs:     int64(len(ips)),
+		secondaryIPs: int64(len(ips)),
 		requestedIPs: spec.RequestedIPCount,
 	}
 	for i := range ips {
@@ -195,7 +195,7 @@ func buildIPPoolState(ips map[string]cns.IPConfigurationStatus, spec v1alpha.Nod
 			state.pendingRelease++
 		}
 	}
-	state.currentAvailableIPs = state.totalIPs - state.allocatedToPods - state.pendingRelease
+	state.currentAvailableIPs = state.secondaryIPs - state.allocatedToPods - state.pendingRelease
 	state.expectedAvailableIPs = state.requestedIPs - state.allocatedToPods
 	return state
 }

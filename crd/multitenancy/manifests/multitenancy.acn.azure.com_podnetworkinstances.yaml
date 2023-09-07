@@ -1,0 +1,79 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.13.0
+  labels:
+    managed: ""
+    owner: ""
+  name: podnetworkinstances.multitenancy.acn.azure.com
+spec:
+  group: multitenancy.acn.azure.com
+  names:
+    kind: PodNetworkInstance
+    listKind: PodNetworkInstanceList
+    plural: podnetworkinstances
+    shortNames:
+    - pni
+    singular: podnetworkinstance
+  scope: Cluster
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .status.podIPAddresses
+      name: Pod IPs
+      priority: 1
+      type: string
+    - jsonPath: .spec.podNetwork
+      name: PodNetwork
+      priority: 1
+      type: string
+    - jsonPath: .spec.podIPReservationSize
+      name: PodIPReservationSize
+      priority: 1
+      type: string
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: PodNetworkInstance is the Schema for the PodNetworkInstances
+          API
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: PodNetworkInstanceSpec defines the desired state of PodNetworkInstance
+            properties:
+              podIPReservationSize:
+                default: 0
+                description: number of backend IP address to reserve for running pods
+                type: integer
+              podnetwork:
+                description: pod network resource object name
+                type: string
+            required:
+            - podIPReservationSize
+            - podnetwork
+            type: object
+          status:
+            description: PodNetworkInstanceStatus defines the observed state of PodNetworkInstance
+            properties:
+              podIPAddresses:
+                items:
+                  type: string
+                type: array
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

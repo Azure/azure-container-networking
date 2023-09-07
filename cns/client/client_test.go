@@ -314,7 +314,7 @@ func TestCNSClientPodContextApi(t *testing.T) {
 
 	addTestStateToRestServer(t, secondaryIps)
 
-	podInfo := cns.NewPodInfo("", "", podName, podNamespace)
+	podInfo := cns.NewPodInfo("some-guid-1", "abc-eth0", podName, podNamespace)
 	orchestratorContext, err := json.Marshal(podInfo)
 	assert.NoError(t, err)
 
@@ -344,7 +344,7 @@ func TestCNSClientDebugAPI(t *testing.T) {
 
 	addTestStateToRestServer(t, secondaryIps)
 
-	podInfo := cns.NewPodInfo("", "", podName, podNamespace)
+	podInfo := cns.NewPodInfo("some-guid-1", "abc-eth0", podName, podNamespace)
 	orchestratorContext, err := json.Marshal(podInfo)
 	assert.NoError(t, err)
 

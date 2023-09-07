@@ -43,9 +43,11 @@ func GetPodsIpsByNode(ctx context.Context, clientset *kubernetes.Clientset, name
 	if err != nil {
 		return nil, err
 	}
-	ips := make([]string, 0, len(pods.Items))
+	ips := make([]string, 0, len(pods.Items)*2) //nolint
 	for index := range pods.Items {
-		ips = append(ips, pods.Items[index].Status.PodIP)
+		for _, podIP := range pods.Items[index].Status.PodIPs {
+			ips = append(ips, podIP.IP)
+		}
 	}
 	return ips, nil
 }

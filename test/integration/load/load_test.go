@@ -25,6 +25,7 @@ var (
 	scaleDownReplicas = flag.Int("scaledown", 1, "Number of replicas to scale down to")
 	replicas          = flag.Int("replicas", 1, "Number of replicas to scale up/down to")
 	validateStateFile = flag.Bool("validate-statefile", false, "Validate the state file")
+	validateDualStack = flag.Bool("validate-dualstack", false, "Validate the dualstack overlay")
 	skipWait          = flag.Bool("skip-wait", false, "Skip waiting for pods to be ready")
 	restartCase       = flag.Bool("restart-case", false, "In restart case, skip if we don't find state file")
 	namespace         = "load-test"
@@ -52,10 +53,10 @@ todo: consider adding the following scenarios
 - [x] Test the CNS Local cache.
 - [x] Test the Cilium state file.
 - [x] Test the Node restart.
-- [ ] Test based on operating system.
-- [ ] Test the HNS state file.
-- [ ] Parameterize the os, cni and number of iterations.
-- [ ] Add deployment yaml for windows.
+- [x] Test based on operating system.
+- [x] Test the HNS state file.
+- [x] Parameterize the os, cni and number of iterations.
+- [x] Add deployment yaml for windows.
 */
 func TestLoad(t *testing.T) {
 	clientset, err := k8sutils.MustGetClientset()
@@ -119,6 +120,10 @@ func TestLoad(t *testing.T) {
 	if *validateStateFile {
 		t.Run("Validate state file", TestValidateState)
 	}
+
+	if *validateDualStack {
+		t.Run("Validate dualstack overlay", TestDualStackProperties)
+	}
 }
 
 // TestValidateState validates the state file based on the os and cni type.
@@ -131,19 +136,11 @@ func TestValidateState(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
 	defer cancel()
 
-	t.Log("Validating the state file")
-	validatorClient := validate.GetValidatorClient(*osType)
-	validator := validatorClient.CreateClient(ctx, clientset, config, namespace, *cniType, *restartCase)
-
-	err = validator.ValidateStateFile()
+	validator, err := validate.CreateValidator(ctx, clientset, config, namespace, *cniType, *restartCase, *osType)
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	//We are restarting the systmemd network and checking that the connectivity works after the restart. For more details: https://github.com/cilium/cilium/issues/18706
-	t.Log("Validating the restart network scenario")
-	err = validator.ValidateRestartNetwork()
-	if err != nil {
+	if err := validator.Validate(ctx); err != nil {
 		t.Fatal(err)
 	}
 }
@@ -176,6 +173,28 @@ func TestScaleDeployment(t *testing.T) {
 	}
 	deploymentsClient := clientset.AppsV1().Deployments(namespace)
 	err = k8sutils.MustScaleDeployment(ctx, deploymentsClient, deployment, clientset, namespace, podLabelSelector, *replicas, *skipWait)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestDualStackProperties(t *testing.T) {
+	clientset, err := k8sutils.MustGetClientset()
+	if err != nil {
+		t.Fatal(err)
+	}
+	config := k8sutils.MustGetRestConfig(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+	defer cancel()
+
+	t.Log("Validating the dualstack node labels")
+	validator, err := validate.CreateValidator(ctx, clientset, config, namespace, *cniType, *restartCase, *osType)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// validate dualstack overlay scenarios
+	err = validator.ValidateDualStackControlPlane(ctx)
 	if err != nil {
 		t.Fatal(err)
 	}

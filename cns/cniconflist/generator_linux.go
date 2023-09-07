@@ -133,3 +133,31 @@ func (v *CiliumGenerator) Generate() error {
 
 	return nil
 }
+
+// Generate writes the CNI conflist to the Generator's output stream
+func (v *SWIFTGenerator) Generate() error {
+	conflist := cniConflist{
+		CNIVersion: azurecniVersion,
+		Name:       azureName,
+		Plugins: []any{
+			cni.NetworkConfig{
+				Type:              azureType,
+				Mode:              cninet.OpModeTransparent,
+				ExecutionMode:     string(util.V4Swift),
+				IPsToRouteViaHost: []string{nodeLocalDNSIP},
+				IPAM: cni.IPAM{
+					Type: network.AzureCNS,
+				},
+			},
+			portmapConfig,
+		},
+	}
+
+	enc := json.NewEncoder(v.Writer)
+	enc.SetIndent("", "\t")
+	if err := enc.Encode(conflist); err != nil {
+		return errors.Wrap(err, "error encoding conflist to json")
+	}
+
+	return nil
+}
