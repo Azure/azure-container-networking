@@ -11,10 +11,10 @@ AZCLI   ?= docker run --rm -v $(AZCFG):/root/.azure -v $(KUBECFG):/root/.kube -v
 REGION          ?= westus2
 OS_SKU          ?= Ubuntu
 WINDOWS_OS_SKU  ?= Windows2022
-VM_SIZE	        = Standard_DS3_v2
+VM_SIZE	        = Standard_DS4_v3
 NODE_COUNT      ?= 2
-K8S_VER         ?= 1.25 # Used only for ubuntu 18 as K8S 1.24.9, as K8S > 1.25 have Ubuntu 22
-WINDOWS_VM_SKU  = Standard_DS3_v2
+K8S_VER         ?= 1.26 # Used only for ubuntu 18 as K8S 1.24.9, as K8S > 1.25 have Ubuntu 22
+WINDOWS_VM_SKU  = Standard_DS4_v3
 
 # overrideable variables
 SUB        ?= $(AZURE_SUBSCRIPTION)
@@ -106,8 +106,7 @@ overlay-cilium-up: rg-up overlay-net-up ## Brings up an Overlay Cilium cluster
 		--node-count $(NODE_COUNT) \
 		--node-vm-size $(VM_SIZE) \
 		--load-balancer-sku standard \
-		--network-plugin azure \
-		--network-dataplane cilium \
+		--network-plugin none \
 		--network-plugin-mode overlay \
 		--pod-cidr 10.128.0.0/9  \
 		--dns-service-ip 192.168.0.10 \
@@ -137,7 +136,11 @@ swift-byocni-up: rg-up swift-net-up ## Bring up a SWIFT BYO CNI cluster
 		--node-count $(NODE_COUNT) \
 		--node-vm-size $(VM_SIZE) \
 		--load-balancer-sku standard \
-		--network-plugin none \
+		--network-plugin azure \
+		--network-plugin-mode overlay \
+		--pod-cidr 10.128.0.0/9  \
+		--dns-service-ip 192.168.0.10 \
+    	--service-cidr 192.168.0.0/16 \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
 		--pod-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/podnet \
 		--no-ssh-key \
@@ -150,10 +153,8 @@ swift-cilium-up: rg-up swift-net-up ## Bring up a SWIFT Cilium cluster
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
 		--node-count $(NODE_COUNT) \
 		--node-vm-size $(VM_SIZE) \
-		--load-balancer-sku basic \
-		--network-plugin azure \
-		--network-dataplane cilium \
-		--aks-custom-headers AKSHTTPCustomFeatures=Microsoft.ContainerService/CiliumDataplanePreview \
+		--load-balancer-sku standard \
+		--network-plugin none \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
 		--pod-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/podnet \
 		--no-ssh-key \
@@ -164,7 +165,7 @@ swift-up: rg-up swift-net-up ## Bring up a SWIFT AzCNI cluster
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
 		--node-count $(NODE_COUNT) \
 		--node-vm-size $(VM_SIZE) \
-		--load-balancer-sku basic \
+		--load-balancer-sku standard \
 		--network-plugin azure \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
 		--pod-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/podnet \
@@ -176,10 +177,12 @@ cilium-overlay-up: rg-up overlay-net-up ## Brings up an Overlay BYO CNI cluster 
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
 		--node-count $(NODE_COUNT) \
 		--node-vm-size $(VM_SIZE) \
-		--load-balancer-sku basic \
+		--load-balancer-sku standard \
 		--network-plugin none \
 		--network-plugin-mode overlay \
-		--pod-cidr 192.168.0.0/16 \
+		--pod-cidr 10.128.0.0/9 \
+		--dns-service-ip 192.168.0.10 \
+		--service-cidr 192.168.0.0/16 \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
 		--no-ssh-key \
 		--kube-proxy-config ./kube-proxy.json \
@@ -190,7 +193,7 @@ cilium-podsubnet-up: rg-up swift-net-up ## Bring up a SWIFT BYO CNI cluster with
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
 		--node-count $(NODE_COUNT) \
 		--node-vm-size $(VM_SIZE) \
-		--load-balancer-sku basic \
+		--load-balancer-sku standard \
 		--network-plugin none \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
 		--pod-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/podnet \
