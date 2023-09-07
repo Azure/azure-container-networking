@@ -62,7 +62,7 @@ type ConnectionFailureErr struct {
 }
 
 func (e *ConnectionFailureErr) Error() string {
-	return fmt.Sprintf("%v", e.cause)
+	return e.cause.Error()
 }
 
 // New returns a new CNS client configured with the passed URL and timeout.
