@@ -62,7 +62,7 @@ type ConnectionFailureErr struct {
 }
 
 func (e *ConnectionFailureErr) Error() string {
-	return fmt.Sprintf("connection failure: %v", e.cause)
+	return fmt.Sprintf("%v", e.cause)
 }
 
 // New returns a new CNS client configured with the passed URL and timeout.
@@ -362,7 +362,9 @@ func (c *Client) ReleaseIPAddress(ctx context.Context, ipconfig cns.IPConfigRequ
 	req.Header.Set(headerContentType, contentTypeJSON)
 	res, err := c.client.Do(req)
 	if err != nil {
-		return &ConnectionFailureErr{}
+		return &ConnectionFailureErr{
+			cause: err,
+		}
 	}
 	defer res.Body.Close()
 
@@ -453,7 +455,9 @@ func (c *Client) ReleaseIPs(ctx context.Context, ipconfig cns.IPConfigsRequest) 
 	req.Header.Set(headerContentType, contentTypeJSON)
 	res, err := c.client.Do(req)
 	if err != nil {
-		return &ConnectionFailureErr{}
+		return &ConnectionFailureErr{
+			cause: err,
+		}
 	}
 	defer res.Body.Close()
 
