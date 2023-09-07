@@ -55,7 +55,7 @@ stages:
           - ${{ if contains(parameters.clusterType, 'overlay') }}:
             - task: AzureCLI@1
               inputs:
-                azureSubscription: $(TEST_SUB_SERVICE_CONNECTION)
+                azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
                 scriptLocation: "inlineScript"
                 scriptType: "bash"
                 addSpnToEnvironment: true
@@ -75,7 +75,7 @@ stages:
           - ${{ if contains(parameters.clusterType, 'swift') }}:
             - task: AzureCLI@1
               inputs:
-                azureSubscription: $(TEST_SUB_SERVICE_CONNECTION)
+                azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
                 scriptLocation: "inlineScript"
                 scriptType: "bash"
                 addSpnToEnvironment: true
@@ -91,7 +91,7 @@ stages:
         parameters:
           clusterName: ${{ parameters.clusterName }}-$(commitID)
           os: ${{ parameters.os }}
-          sub: $(TEST_SUB_SERVICE_CONNECTION)
+          sub: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
           tag: $(npmVersion)
           dependsOn: integration
           continueOnError: true
@@ -119,6 +119,7 @@ stages:
             parameters:
               clusterName: ${{ parameters.clusterName }}-$(commitID)
               nodeCount: ${{ parameters.nodeCount }}
+              scaleup: ${LINUX_SCALEUP}
           - template: ../load-test-templates/validate-state-template.yaml
             parameters:
               clusterName: ${{ parameters.clusterName }}-$(commitID)
@@ -127,11 +128,11 @@ stages:
               restartCase: "true"
       - job: restart_cns
         displayName: "Restart and Validate CNS"
-        dependsOn: recover
+        dependsOn: restart_nodes
         steps:
           - task: AzureCLI@1
             inputs:
-              azureSubscription: $(TEST_SUB_SERVICE_CONNECTION)
+              azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
               scriptLocation: "inlineScript"
               scriptType: "bash"
               addSpnToEnvironment: true
@@ -152,11 +153,11 @@ stages:
             retryCountOnTaskFailure: 3
       - job: recover
         displayName: "Recover Resources"
-        dependsOn: restart_nodes
+        dependsOn: restart_cns
         steps:
           - task: AzureCLI@1
             inputs:
-              azureSubscription: $(TEST_SUB_SERVICE_CONNECTION)
+              azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
               scriptLocation: "inlineScript"
               scriptType: "bash"
               addSpnToEnvironment: true
@@ -170,7 +171,7 @@ stages:
             displayName: "Delete test Namespaces"
       - template: ../k8s-e2e/k8s-e2e-job-template.yaml
         parameters:
-          sub: $(TEST_SUB_SERVICE_CONNECTION)
+          sub: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
           clusterName: ${{ parameters.clusterName }}-$(commitID)
           os: ${{ parameters.os }}
           dependsOn: restart_cns

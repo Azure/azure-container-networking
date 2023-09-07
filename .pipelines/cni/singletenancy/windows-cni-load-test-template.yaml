@@ -75,7 +75,7 @@ stages:
         parameters:
           clusterName: ${{ parameters.clusterName }}-$(commitID)
           os: ${{ parameters.os }}
-          sub: $(TEST_SUB_SERVICE_CONNECTION)
+          sub: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
           os_version: 'ltsc2022'
           tag: $(npmVersion)
           dependsOn: update_cni
@@ -95,33 +95,9 @@ stages:
               clusterName: ${{ parameters.clusterName }}-$(commitID)
               os: ${{ parameters.os }}
               cni: ${{ parameters.cni }}
-
-  - stage: npm
-    dependsOn:
-      - validate_state_windows
-      - setup
-    displayName: NPM|CNI Release Test
-    variables:
-      npmVersion: $[ stagedependencies.setup.env.outputs['SetEnvVars.npmVersion'] ]
-    jobs:
-      - template: ../../npm/npm-cni-integration-test.yaml
-        parameters:
-          clusterName: ${{ parameters.clusterName }}
-          os: ${{ parameters.os }}
-          sub: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
-          os_version: 'ltsc2022'
-          tag: $(npmVersion)
-
-  - stage: delete_resources
-    pool:
-      name: $(BUILD_POOL_NAME_DEFAULT)
-    displayName: "Delete Resources"
-    dependsOn:
-      - npm
-    jobs:
-      - job: delete_resources
-        pool:
-          name: "$(BUILD_POOL_NAME_DEFAULT)"
+      - job: recover
+        displayName: "Recover Resources"
+        dependsOn: deploy_pods
         steps:
           - task: AzureCLI@1
             inputs:
@@ -139,7 +115,7 @@ stages:
             displayName: "Delete test Namespaces"
       - template: ../k8s-e2e/k8s-e2e-job-template.yaml
         parameters:
-          sub: $(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS)
+          sub: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
           clusterName: ${{ parameters.clusterName }}-$(commitID)
           os: ${{ parameters.os }}
           dependsOn: recover

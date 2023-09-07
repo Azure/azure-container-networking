@@ -115,7 +115,7 @@ stages:
             displayName: "Install Cilium CLI"
           - task: AzureCLI@1
             inputs:
-              azureSubscription: $(TEST_SUB_SERVICE_CONNECTION)
+              azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
               scriptLocation: "inlineScript"
               scriptType: "bash"
               addSpnToEnvironment: true
@@ -130,33 +130,4 @@ stages:
             retryCountOnTaskFailure: 6
             name: "CiliumConnectivityTests"
             displayName: "Run Cilium Connectivity Tests"
-  - stage: delete
-    displayName: "Delete Resources"
-    dependsOn:
-      - connectivity_tests
-    jobs:
-      - job: delete_resources
-        pool:
-          name: "$(BUILD_POOL_NAME_DEFAULT)"
-        steps:
-          - task: AzureCLI@1
-            inputs:
-              azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
-              scriptLocation: "inlineScript"
-              scriptType: "bash"
-              addSpnToEnvironment: true
-              inlineScript: |
-                set -ex
-                if [ "$(DELETE_RESOURCES)" ]
-                then
-                  echo "Deleting Cluster and resource group"
-                  make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}-$(make revision)
-                  make -C ./hack/aks azcfg AZCLI=az REGION=$(LOCATION)
-                  make -C ./hack/aks down AZCLI=az REGION=$(LOCATION) SUB=$(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS) CLUSTER=${{ parameters.clusterName }}-$(make revision)
-                  echo "Cluster and resources down"
-                else
-                  echo "Deletion of resources is False"
-                fi
-            name: "CleanUpCluster"
-            displayName: "Cleanup cluster"
-    condition: always()
+

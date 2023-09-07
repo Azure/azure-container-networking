@@ -19,7 +19,7 @@ var (
 	cnsManagedStateFileCmd = []string{"bash", "-c", "cat /var/run/azure-cns/azure-endpoints.json"}
 	azureVnetStateFileCmd  = []string{"bash", "-c", "cat /var/run/azure-vnet.json"}
 	ciliumStateFileCmd     = []string{"bash", "-c", "cilium endpoint list -o json"}
-	cnsLocalCacheCmd       = []string{"curl", "localhost:10090", "-d", "{\"IPConfigStateFilter\":[\"Assigned\"]}"}
+	cnsLocalCacheCmd       = []string{"curl", "localhost:10090/debug/ipaddresses", "-d", "{\"IPConfigStateFilter\":[\"Assigned\"]}"}
 )
 
 // dualstack overlay Linux and windows nodes must have these labels
