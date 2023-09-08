@@ -104,7 +104,6 @@ type RouteInfo struct {
 	Table    int
 }
 
-// InterfaceInfo contains information for secondary interfaces
 type InterfaceInfo struct {
 	Name              string
 	MacAddress        net.HardwareAddr
@@ -131,14 +130,14 @@ func (nw *network) newEndpoint(
 	nl netlink.NetlinkInterface,
 	plc platform.ExecClient,
 	netioCli netio.NetIOInterface,
-	epInfo *EndpointInfo,
+	epInfo []*EndpointInfo,
 ) (*endpoint, error) {
 	var ep *endpoint
 	var err error
 
 	defer func() {
 		if err != nil {
-			logger.Error("Failed to create endpoint with err", zap.String("id", epInfo.Id), zap.Error(err))
+			logger.Error("Failed to create endpoint with err", zap.String("id", epInfo[0].Id), zap.Error(err))
 		}
 	}()
 
@@ -149,7 +148,7 @@ func (nw *network) newEndpoint(
 		return nil, err
 	}
 
-	nw.Endpoints[epInfo.Id] = ep
+	nw.Endpoints[ep.Id] = ep
 	logger.Info("Created endpoint. Num of endpoints", zap.Any("ep", ep), zap.Int("numEndpoints", len(nw.Endpoints)))
 	return ep, nil
 }
