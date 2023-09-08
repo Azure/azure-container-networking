@@ -1,6 +1,7 @@
 package netio
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"net"
@@ -16,7 +17,10 @@ type MockNetIO struct {
 }
 
 // ErrMockNetIOFail - mock netio error
-var ErrMockNetIOFail = errors.New("netio fail")
+var (
+	ErrMockNetIOFail = errors.New("netio fail")
+	hwAddr, _        = net.ParseMAC("ab:cd:ef:12:34:56")
+)
 
 func NewMockNetIO(fail bool, failAttempt int) *MockNetIO {
 	return &MockNetIO{
@@ -40,8 +44,6 @@ func (netshim *MockNetIO) GetNetworkInterfaceByName(name string) (*net.Interface
 		return netshim.getInterfaceFn(name)
 	}
 
-	hwAddr, _ := net.ParseMAC("ab:cd:ef:12:34:56")
-
 	return &net.Interface{
 		//nolint:gomnd // Dummy MTU
 		MTU:          1000,
@@ -54,4 +56,19 @@ func (netshim *MockNetIO) GetNetworkInterfaceByName(name string) (*net.Interface
 
 func (netshim *MockNetIO) GetNetworkInterfaceAddrs(iface *net.Interface) ([]net.Addr, error) {
 	return []net.Addr{}, nil
+}
+
+func (netshim *MockNetIO) GetNetworkInterfaceByMac(mac net.HardwareAddr) (*net.Interface, error) {
+	if !bytes.Equal(mac, hwAddr) {
+		return nil, fmt.Errorf("%w: %s", ErrMockNetIOFail, mac)
+	}
+
+	return &net.Interface{
+		//nolint:gomnd // Dummy MTU
+		MTU:          1000,
+		Name:         "eth1",
+		HardwareAddr: mac,
+		//nolint:gomnd // Dummy interface index
+		Index: 2,
+	}, nil
 }
