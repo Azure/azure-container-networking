@@ -115,6 +115,11 @@ spec:
                       type: string
                     resourceGroupID:
                       type: string
+                    status:
+                      description: NCStatus indicates the latest NC request status
+                      enum:
+                      - SubnetFull
+                      type: string
                     subcriptionID:
                       type: string
                     subnetAddressSpace:
