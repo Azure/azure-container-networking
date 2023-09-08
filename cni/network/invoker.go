@@ -27,8 +27,16 @@ type IPAMAddConfig struct {
 }
 
 type IPAMAddResult struct {
-	ipv4Result       *cniTypesCurr.Result
-	ipv6Result       *cniTypesCurr.Result
+	defaultCniResult CNIResult
+	cniResults       []CNIResult
 	ncResponse       *cns.GetNetworkContainerResponse
 	hostSubnetPrefix net.IPNet
+	ipv6Enabled      bool
+}
+
+type CNIResult struct {
+	ipResult           *cniTypesCurr.Result
+	addressType        string
+	macAddress         net.HardwareAddr
+	isDefaultInterface bool
 }
