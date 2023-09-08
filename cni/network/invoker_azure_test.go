@@ -35,23 +35,13 @@ func (d *add) DelegateAdd(pluginName string, nwCfg *cni.NetworkConfig) (*cniType
 		if d.errv6 != nil {
 			return nil, d.errv6
 		}
-		if d.resultsIPv6 == nil || d.resultsIPv6Index-1 > len(d.resultsIPv6) {
-			return nil, errors.New("no more ipv6 results in mock available") //nolint:goerr113
-		}
-		res := d.resultsIPv6[d.resultsIPv6Index]
-		d.resultsIPv6Index++
-		return res, nil
+		return d.resultsIPv6, nil
 	}
 
 	if d.errv4 != nil {
 		return nil, d.errv4
 	}
-	if d.resultsIPv4 == nil || d.resultsIPv4Index-1 > len(d.resultsIPv4) {
-		return nil, errors.New("no more ipv4 results in mock available") //nolint:goerr113
-	}
-	res := d.resultsIPv4[d.resultsIPv4Index]
-	d.resultsIPv4Index++
-	return res, nil
+	return d.resultsIPv4, nil
 }
 
 type del struct {

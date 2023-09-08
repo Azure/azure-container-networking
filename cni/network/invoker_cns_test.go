@@ -68,12 +68,21 @@ func TestCNSIPAMInvoker_Add_Overlay(t *testing.T) {
 	}
 
 	tests := []struct {
+<<<<<<< HEAD
 		name                        string
 		fields                      fields
 		args                        args
 		wantDefaultResult           *cniTypesCurr.Result
 		wantSecondaryInterfacesInfo InterfaceInfo
 		wantErr                     bool
+=======
+		name                  string
+		fields                fields
+		args                  args
+		wantDefaultResult     *cniTypesCurr.Result
+		wantMultitenantResult *cniTypesCurr.Result
+		wantErr               bool
+>>>>>>> 5267b700 (feat: update invokers to support swift 2)
 	}{
 		{
 			name: "Test happy CNI Overlay add in v4overlay ipamMode",
@@ -273,16 +282,25 @@ func TestCNSIPAMInvoker_Add_Overlay(t *testing.T) {
 										PrimaryIP: "10.0.0.1",
 										Subnet:    "10.0.0.0/24",
 									},
+<<<<<<< HEAD
 									NICType:           cns.InfraNIC,
 									SkipDefaultRoutes: true,
+=======
+									AddressType: cns.Default,
+>>>>>>> 5267b700 (feat: update invokers to support swift 2)
 								},
 								{
 									PodIPConfig: cns.IPSubnet{
 										IPAddress:    "20.240.1.242",
 										PrefixLength: 24,
 									},
+<<<<<<< HEAD
 									NICType:    cns.DelegatedVMNIC,
 									MacAddress: macAddress,
+=======
+									AddressType: cns.Secondary,
+									MacAddress:  "12:34:56:78:9a:bc",
+>>>>>>> 5267b700 (feat: update invokers to support swift 2)
 								},
 							},
 							Response: cns.Response{
@@ -318,6 +336,7 @@ func TestCNSIPAMInvoker_Add_Overlay(t *testing.T) {
 					},
 				},
 			},
+<<<<<<< HEAD
 			wantSecondaryInterfacesInfo: InterfaceInfo{
 				ipResult: &cniTypesCurr.Result{
 					IPs: []*cniTypesCurr.IPConfig{
@@ -383,6 +402,17 @@ func TestCNSIPAMInvoker_Add_Overlay(t *testing.T) {
 							},
 						},
 						err: nil,
+=======
+			wantMultitenantResult: &cniTypesCurr.Result{
+				IPs: []*cniTypesCurr.IPConfig{
+					{
+						Address: *getCIDRNotationForAddress("20.240.1.242/24"),
+					},
+				},
+				Interfaces: []*cniTypesCurr.Interface{
+					{
+						Mac: "12:34:56:78:9a:bc",
+>>>>>>> 5267b700 (feat: update invokers to support swift 2)
 					},
 				},
 			},
@@ -484,10 +514,17 @@ func TestCNSIPAMInvoker_Add_Overlay(t *testing.T) {
 				require.NoError(err)
 			}
 
+<<<<<<< HEAD
 			fmt.Printf("want:%+v\nrest:%+v\n", tt.wantSecondaryInterfacesInfo, ipamAddResult.secondaryInterfacesInfo)
 			require.Equalf(tt.wantDefaultResult, ipamAddResult.defaultInterfaceInfo.ipResult, "incorrect default response")
 			if tt.wantSecondaryInterfacesInfo.ipResult != nil {
 				require.EqualValues(tt.wantSecondaryInterfacesInfo, ipamAddResult.secondaryInterfacesInfo[0], "incorrect multitenant response")
+=======
+			fmt.Printf("want:%+v\nrest:%+v\n", tt.wantMultitenantResult, ipamAddResult.cniResults)
+			require.Equalf(tt.wantDefaultResult, ipamAddResult.defaultCniResult.ipResult, "incorrect default response")
+			if tt.wantMultitenantResult != nil {
+				require.Equalf(tt.wantMultitenantResult, ipamAddResult.cniResults[0].ipResult, "incorrect multitenant response")
+>>>>>>> 5267b700 (feat: update invokers to support swift 2)
 			}
 		})
 	}
@@ -710,10 +747,17 @@ func TestCNSIPAMInvoker_Add(t *testing.T) {
 				require.NoError(err)
 			}
 
+<<<<<<< HEAD
 			fmt.Printf("want:%+v\nrest:%+v\n", tt.wantMultitenantResult, ipamAddResult.secondaryInterfacesInfo)
 			require.Equalf(tt.wantDefaultResult, ipamAddResult.defaultInterfaceInfo.ipResult, "incorrect default response")
 			if tt.wantMultitenantResult != nil {
 				require.Equalf(tt.wantMultitenantResult, ipamAddResult.secondaryInterfacesInfo[0].ipResult, "incorrect multitenant response")
+=======
+			fmt.Printf("want:%+v\nrest:%+v\n", tt.wantMultitenantResult, ipamAddResult.cniResults)
+			require.Equalf(tt.wantDefaultResult, ipamAddResult.defaultCniResult.ipResult, "incorrect default response")
+			if tt.wantMultitenantResult != nil {
+				require.Equalf(tt.wantMultitenantResult, ipamAddResult.cniResults[0].ipResult, "incorrect multitenant response")
+>>>>>>> 5267b700 (feat: update invokers to support swift 2)
 			}
 		})
 	}
@@ -829,7 +873,11 @@ func TestCNSIPAMInvoker_Add_UnsupportedAPI(t *testing.T) {
 				t.Fatalf("expected an error %+v but none received", err)
 			}
 			require.NoError(err)
+<<<<<<< HEAD
 			require.Equalf(tt.want, ipamAddResult.defaultInterfaceInfo.ipResult, "incorrect ipv4 response")
+=======
+			require.Equalf(tt.want, ipamAddResult.defaultCniResult.ipResult, "incorrect ipv4 response")
+>>>>>>> 5267b700 (feat: update invokers to support swift 2)
 		})
 	}
 }
