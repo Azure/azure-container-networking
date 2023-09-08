@@ -122,6 +122,7 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 	}
 
 	addResult := IPAMAddResult{}
+	var isDefaultInterfaceSet bool
 
 	for i := 0; i < len(response.PodIPInfo); i++ {
 		info := IPResultInfo{
@@ -132,96 +133,165 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 			hostSubnet:         response.PodIPInfo[i].HostPrimaryIPInfo.Subnet,
 			hostPrimaryIP:      response.PodIPInfo[i].HostPrimaryIPInfo.PrimaryIP,
 			hostGateway:        response.PodIPInfo[i].HostPrimaryIPInfo.Gateway,
-		}
-
-		// set the NC Primary IP in options
-		// SNATIPKey is not set for ipv6
-		if net.ParseIP(info.ncPrimaryIP).To4() != nil {
-			addConfig.options[network.SNATIPKey] = info.ncPrimaryIP
+			addressType:        response.PodIPInfo[i].AddressType,
+			macAddress:         response.PodIPInfo[i].MacAddress,
+			isDefaultInterface: response.PodIPInfo[i].IsDefaultInterface,
+			routes:             response.PodIPInfo[i].Routes,
 		}
 
 		logger.Info("Received info for pod",
-			zap.Any("ipv4info", info),
+			zap.Any("ipinfo", info),
 			zap.Any("podInfo", podInfo))
-		ip, ncIPNet, err := net.ParseCIDR(info.podIPAddress + "/" + fmt.Sprint(info.ncSubnetPrefix))
-		if ip == nil {
-			return IPAMAddResult{}, errors.Wrap(err, "Unable to parse IP from response: "+info.podIPAddress+" with err %w")
-		}
 
-		ncgw := net.ParseIP(info.ncGatewayIPAddress)
-		if ncgw == nil {
+		switch info.addressType {
+		case cns.Secondary:
+			ip, ipnet, err := response.PodIPInfo[i].PodIPConfig.GetIPNet()
+			if ip == nil {
+				return IPAMAddResult{}, errors.Wrap(err, "Unable to parse IP from response: "+info.podIPAddress+" with err %w")
+			}
+
+			macAddress, err := net.ParseMAC(info.macAddress)
+			if err != nil {
+				return IPAMAddResult{}, errors.Wrap(err, "Invalid mac address")
+			}
+
+			isDefaultInterfaceSet = isDefaultInterfaceSet || info.isDefaultInterface
+			result := CNIResult{
+				ipResult: &cniTypesCurr.Result{
+					IPs: []*cniTypesCurr.IPConfig{
+						{
+							Address: net.IPNet{
+								IP:   ip,
+								Mask: ipnet.Mask,
+							},
+						},
+					},
+					Interfaces: []*cniTypesCurr.Interface{
+						{
+							Mac: info.macAddress,
+						},
+					},
+				},
+				addressType:        cns.Secondary,
+				macAddress:         macAddress,
+				isDefaultInterface: info.isDefaultInterface,
+			}
+
+			for _, route := range info.routes {
+				_, dst, err := net.ParseCIDR(route.IPAddress)
+				if err != nil {
+					return IPAMAddResult{}, fmt.Errorf("unable to parse destination %s: %w", route.IPAddress, err)
+				}
+				gw := net.ParseIP(route.GatewayIPAddress)
+				if gw == nil {
+					return IPAMAddResult{}, fmt.Errorf("unable to parse gateway %s: %w", route.GatewayIPAddress, err)
+				}
+
+				result.ipResult.Routes = append(result.ipResult.Routes,
+					&cniTypes.Route{
+						Dst: *dst,
+						GW:  gw,
+					})
+			}
+
+			addResult.cniResults = append(addResult.cniResults, result)
+		default:
+			// set the NC Primary IP in options
+			// SNATIPKey is not set for ipv6
+			if net.ParseIP(info.ncPrimaryIP).To4() != nil {
+				addConfig.options[network.SNATIPKey] = info.ncPrimaryIP
+			}
+
+			ip, ncIPNet, err := net.ParseCIDR(info.podIPAddress + "/" + fmt.Sprint(info.ncSubnetPrefix))
+			if ip == nil {
+				return IPAMAddResult{}, errors.Wrap(err, "Unable to parse IP from response: "+info.podIPAddress+" with err %w")
+			}
+
+			ncgw := net.ParseIP(info.ncGatewayIPAddress)
+			if ncgw == nil {
+				// TODO: Remove v4overlay and dualstackoverlay options, after 'overlay' rolls out in AKS-RP
+				if (invoker.ipamMode != util.V4Overlay) && (invoker.ipamMode != util.DualStackOverlay) && (invoker.ipamMode != util.Overlay) {
+					return IPAMAddResult{}, errors.Wrap(errInvalidArgs, "%w: Gateway address "+info.ncGatewayIPAddress+" from response is invalid")
+				}
+
+				if net.ParseIP(info.podIPAddress).To4() != nil { //nolint:gocritic
+					ncgw, err = getOverlayGateway(ncIPNet)
+					if err != nil {
+						return IPAMAddResult{}, err
+					}
+				} else if net.ParseIP(info.podIPAddress).To16() != nil {
+					ncgw = net.ParseIP(overlayGatewayV6IP)
+				} else {
+					return IPAMAddResult{}, errors.Wrap(err, "No podIPAddress is found: %w")
+				}
+			}
+
+			// construct ipnet for result
+			resultIPnet := net.IPNet{
+				IP:   ip,
+				Mask: ncIPNet.Mask,
+			}
+
+			if ip := net.ParseIP(info.podIPAddress); ip != nil {
+				if addResult.defaultCniResult.ipResult == nil {
+					addResult.defaultCniResult.ipResult = &cniTypesCurr.Result{}
+				}
+
+				defaultRouteDstPrefix := network.Ipv4DefaultRouteDstPrefix
+				if ip.To4() == nil {
+					defaultRouteDstPrefix = network.Ipv6DefaultRouteDstPrefix
+					addResult.ipv6Enabled = true
+				}
+
+				addResult.defaultCniResult.ipResult.IPs = append(addResult.defaultCniResult.ipResult.IPs,
+					&cniTypesCurr.IPConfig{
+						Address: resultIPnet,
+						Gateway: ncgw,
+					})
+				addResult.defaultCniResult.ipResult.Routes = append(addResult.defaultCniResult.ipResult.Routes,
+					&cniTypes.Route{
+						Dst: defaultRouteDstPrefix,
+						GW:  ncgw,
+					})
+				for _, route := range info.routes {
+					_, dst, routeErr := net.ParseCIDR(route.IPAddress)
+					if routeErr != nil {
+						return IPAMAddResult{}, fmt.Errorf("unable to parse destination %s: %w", route.IPAddress, routeErr)
+					}
+
+					gw := net.ParseIP(route.GatewayIPAddress)
+					if gw == nil {
+						return IPAMAddResult{}, fmt.Errorf("unable to parse gateway %s: %w", route.GatewayIPAddress, routeErr)
+					}
+
+					addResult.defaultCniResult.ipResult.Routes = append(addResult.defaultCniResult.ipResult.Routes,
+						&cniTypes.Route{
+							Dst: *dst,
+							GW:  gw,
+						})
+				}
+			}
+
+			// get the name of the primary IP address
+			_, hostIPNet, err := net.ParseCIDR(info.hostSubnet)
+			if err != nil {
+				return IPAMAddResult{}, fmt.Errorf("unable to parse hostSubnet: %w", err)
+			}
+
+			addResult.hostSubnetPrefix = *hostIPNet
+
+			// set subnet prefix for host vm
+			// setHostOptions will execute if IPAM mode is not v4 overlay and not dualStackOverlay mode
 			// TODO: Remove v4overlay and dualstackoverlay options, after 'overlay' rolls out in AKS-RP
 			if (invoker.ipamMode != util.V4Overlay) && (invoker.ipamMode != util.DualStackOverlay) && (invoker.ipamMode != util.Overlay) {
-				return IPAMAddResult{}, errors.Wrap(errInvalidArgs, "%w: Gateway address "+info.ncGatewayIPAddress+" from response is invalid")
-			}
-
-			if net.ParseIP(info.podIPAddress).To4() != nil { //nolint:gocritic
-				ncgw, err = getOverlayGateway(ncIPNet)
-				if err != nil {
+				if err := setHostOptions(ncIPNet, addConfig.options, &info); err != nil {
 					return IPAMAddResult{}, err
 				}
-			} else if net.ParseIP(info.podIPAddress).To16() != nil {
-				ncgw = net.ParseIP(overlayGatewayV6IP)
-			} else {
-				return IPAMAddResult{}, errors.Wrap(err, "No podIPAddress is found: %w")
-			}
-		}
-
-		// construct ipnet for result
-		resultIPnet := net.IPNet{
-			IP:   ip,
-			Mask: ncIPNet.Mask,
-		}
-
-		if net.ParseIP(info.podIPAddress).To4() != nil {
-			addResult.ipv4Result = &cniTypesCurr.Result{
-				IPs: []*cniTypesCurr.IPConfig{
-					{
-						Address: resultIPnet,
-						Gateway: ncgw,
-					},
-				},
-				Routes: []*cniTypes.Route{
-					{
-						Dst: network.Ipv4DefaultRouteDstPrefix,
-						GW:  ncgw,
-					},
-				},
-			}
-		} else if net.ParseIP(info.podIPAddress).To16() != nil {
-			addResult.ipv6Result = &cniTypesCurr.Result{
-				IPs: []*cniTypesCurr.IPConfig{
-					{
-						Address: resultIPnet,
-						Gateway: ncgw,
-					},
-				},
-				Routes: []*cniTypes.Route{
-					{
-						Dst: network.Ipv6DefaultRouteDstPrefix,
-						GW:  ncgw,
-					},
-				},
-			}
-		}
-
-		// get the name of the primary IP address
-		_, hostIPNet, err := net.ParseCIDR(info.hostSubnet)
-		if err != nil {
-			return IPAMAddResult{}, fmt.Errorf("unable to parse hostSubnet: %w", err)
-		}
-
-		addResult.hostSubnetPrefix = *hostIPNet
-
-		// set subnet prefix for host vm
-		// setHostOptions will execute if IPAM mode is not v4 overlay and not dualStackOverlay mode
-		// TODO: Remove v4overlay and dualstackoverlay options, after 'overlay' rolls out in AKS-RP
-		if (invoker.ipamMode != util.V4Overlay) && (invoker.ipamMode != util.DualStackOverlay) && (invoker.ipamMode != util.Overlay) {
-			if err := setHostOptions(ncIPNet, addConfig.options, &info); err != nil {
-				return IPAMAddResult{}, err
 			}
 		}
 	}
+
+	addResult.defaultCniResult.isDefaultInterface = !isDefaultInterfaceSet
 
 	return addResult, nil
 }

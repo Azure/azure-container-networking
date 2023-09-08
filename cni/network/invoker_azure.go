@@ -9,6 +9,7 @@ import (
 
 	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/cni/log"
+	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/ipam"
 	"github.com/Azure/azure-container-networking/network"
@@ -46,10 +47,7 @@ func NewAzureIpamInvoker(plugin *NetPlugin, nwInfo *network.NetworkInfo) *AzureI
 }
 
 func (invoker *AzureIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, error) {
-	var (
-		addResult = IPAMAddResult{}
-		err       error
-	)
+	addResult := IPAMAddResult{}
 
 	if addConfig.nwCfg == nil {
 		return addResult, invoker.plugin.Errorf("nil nwCfg passed to CNI ADD, stack: %+v", string(debug.Stack()))
@@ -60,8 +58,7 @@ func (invoker *AzureIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, er
 	}
 
 	// Call into IPAM plugin to allocate an address pool for the network.
-	addResult.ipv4Result, err = invoker.plugin.DelegateAdd(addConfig.nwCfg.IPAM.Type, addConfig.nwCfg)
-
+	ipv4Result, err := invoker.plugin.DelegateAdd(addConfig.nwCfg.IPAM.Type, addConfig.nwCfg)
 	if err != nil && strings.Contains(err.Error(), ipam.ErrNoAvailableAddressPools.Error()) {
 		invoker.deleteIpamState()
 		logger.Info("Retry pool allocation after deleting IPAM state")
@@ -72,11 +69,15 @@ func (invoker *AzureIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, er
 		err = invoker.plugin.Errorf("Failed to allocate pool: %v", err)
 		return addResult, err
 	}
+	addResult.defaultCniResult = CNIResult{ipResult: ipv4Result, addressType: cns.Default, isDefaultInterface: true}
+	if len(ipv4Result.IPs) > 0 {
+		addResult.hostSubnetPrefix = ipv4Result.IPs[0].Address
+	}
 
 	defer func() {
 		if err != nil {
-			if len(addResult.ipv4Result.IPs) > 0 {
-				if er := invoker.Delete(&addResult.ipv4Result.IPs[0].Address, addConfig.nwCfg, nil, addConfig.options); er != nil {
+			if len(addResult.defaultCniResult.ipResult.IPs) > 0 {
+				if er := invoker.Delete(&addResult.defaultCniResult.ipResult.IPs[0].Address, addConfig.nwCfg, nil, addConfig.options); er != nil {
 					err = invoker.plugin.Errorf("Failed to clean up IP's during Delete with error %v, after Add failed with error %w", er, err)
 				}
 			} else {
@@ -95,13 +96,16 @@ func (invoker *AzureIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, er
 			nwCfg6.IPAM.Subnet = invoker.nwInfo.Subnets[1].Prefix.String()
 		}
 
-		addResult.ipv6Result, err = invoker.plugin.DelegateAdd(nwCfg6.IPAM.Type, &nwCfg6)
+		var ipv6Result *cniTypesCurr.Result
+		ipv6Result, err = invoker.plugin.DelegateAdd(nwCfg6.IPAM.Type, &nwCfg6)
 		if err != nil {
 			err = invoker.plugin.Errorf("Failed to allocate v6 pool: %v", err)
+		} else {
+			addResult.defaultCniResult.ipResult.IPs = append(addResult.defaultCniResult.ipResult.IPs, ipv6Result.IPs...)
+			addResult.defaultCniResult.ipResult.Routes = append(addResult.defaultCniResult.ipResult.Routes, ipv6Result.Routes...)
+			addResult.ipv6Enabled = true
 		}
 	}
-
-	addResult.hostSubnetPrefix = addResult.ipv4Result.IPs[0].Address
 
 	return addResult, err
 }
