@@ -22,12 +22,19 @@ type mockDelegatePlugin struct {
 }
 
 type add struct {
+<<<<<<< HEAD
 	resultsIPv4      []*cniTypesCurr.Result
 	resultsIPv6      []*cniTypesCurr.Result
 	resultsIPv4Index int
 	resultsIPv6Index int
 	errv4            error
 	errv6            error
+=======
+	resultsIPv4 *cniTypesCurr.Result
+	resultsIPv6 *cniTypesCurr.Result
+	errv4       error
+	errv6       error
+>>>>>>> 5267b700 (feat: update invokers to support swift 2)
 }
 
 func (d *add) DelegateAdd(pluginName string, nwCfg *cni.NetworkConfig) (*cniTypesCurr.Result, error) {
@@ -35,23 +42,13 @@ func (d *add) DelegateAdd(pluginName string, nwCfg *cni.NetworkConfig) (*cniType
 		if d.errv6 != nil {
 			return nil, d.errv6
 		}
-		if d.resultsIPv6 == nil || d.resultsIPv6Index-1 > len(d.resultsIPv6) {
-			return nil, errors.New("no more ipv6 results in mock available") //nolint:goerr113
-		}
-		res := d.resultsIPv6[d.resultsIPv6Index]
-		d.resultsIPv6Index++
-		return res, nil
+		return d.resultsIPv6, nil
 	}
 
 	if d.errv4 != nil {
 		return nil, d.errv4
 	}
-	if d.resultsIPv4 == nil || d.resultsIPv4Index-1 > len(d.resultsIPv4) {
-		return nil, errors.New("no more ipv4 results in mock available") //nolint:goerr113
-	}
-	res := d.resultsIPv4[d.resultsIPv4Index]
-	d.resultsIPv4Index++
-	return res, nil
+	return d.resultsIPv4, nil
 }
 
 type del struct {
@@ -82,6 +79,7 @@ func getCIDRNotationForAddress(ipaddresswithcidr string) *net.IPNet {
 	return ipnet
 }
 
+<<<<<<< HEAD
 // getSingleResult returns an IPConfig with v4 or v6 IPNet
 func getSingleResult(ip string) []*cniTypesCurr.Result {
 	return []*cniTypesCurr.Result{
@@ -92,6 +90,12 @@ func getSingleResult(ip string) []*cniTypesCurr.Result {
 				},
 			},
 		},
+=======
+func getResult(ips ...string) *cniTypesCurr.Result {
+	res := &cniTypesCurr.Result{}
+	for _, ip := range ips {
+		res.IPs = append(res.IPs, &cniTypesCurr.IPConfig{Address: *getCIDRNotationForAddress(ip)})
+>>>>>>> 5267b700 (feat: update invokers to support swift 2)
 	}
 }
 
@@ -231,8 +235,13 @@ func TestAzureIPAMInvoker_Add(t *testing.T) {
 				require.Nil(err)
 			}
 
+<<<<<<< HEAD
 			fmt.Printf("want:%+v\nrest:%+v\n", tt.want, ipamAddResult.defaultInterfaceInfo.ipResult)
 			require.Exactly(tt.want, ipamAddResult.defaultInterfaceInfo.ipResult)
+=======
+			fmt.Printf("want:%+v\nrest:%+v\n", tt.want, ipamAddResult.defaultCniResult.ipResult)
+			require.Exactly(tt.want, ipamAddResult.defaultCniResult.ipResult)
+>>>>>>> 5267b700 (feat: update invokers to support swift 2)
 		})
 	}
 }
