@@ -64,16 +64,16 @@ func ConstructEndpointID(containerID string, netNsPath string, ifName string) (s
 }
 
 // newEndpointImpl creates a new endpoint in the network.
-func (nw *network) newEndpointImpl(cli apipaClient, _ netlink.NetlinkInterface, plc platform.ExecClient, _ netio.NetIOInterface, _ EndpointClient, epInfo *EndpointInfo) (*endpoint, error) {
-	if useHnsV2, err := UseHnsV2(epInfo.NetNsPath); useHnsV2 {
+func (nw *network) newEndpointImpl(cli apipaClient, _ netlink.NetlinkInterface, plc platform.ExecClient, _ netio.NetIOInterface, _ EndpointClient, epInfo []*EndpointInfo) (*endpoint, error) {
+	if useHnsV2, err := UseHnsV2(epInfo[0].NetNsPath); useHnsV2 {
 		if err != nil {
 			return nil, err
 		}
 
-		return nw.newEndpointImplHnsV2(cli, epInfo)
+		return nw.newEndpointImplHnsV2(cli, epInfo[0])
 	}
 
-	return nw.newEndpointImplHnsV1(epInfo, plc)
+	return nw.newEndpointImplHnsV1(epInfo[0], plc)
 }
 
 // newEndpointImplHnsV1 creates a new endpoint in the network using HnsV1

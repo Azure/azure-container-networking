@@ -52,8 +52,8 @@ func (nm *MockNetworkManager) GetNetworkInfo(networkID string) (NetworkInfo, err
 }
 
 // CreateEndpoint mock
-func (nm *MockNetworkManager) CreateEndpoint(_ apipaClient, networkID string, epInfo *EndpointInfo) error {
-	nm.TestEndpointInfoMap[epInfo.Id] = epInfo
+func (nm *MockNetworkManager) CreateEndpoint(_ apipaClient, _ string, epInfo []*EndpointInfo) error {
+	nm.TestEndpointInfoMap[epInfo[0].Id] = epInfo[0]
 	return nil
 }
 
