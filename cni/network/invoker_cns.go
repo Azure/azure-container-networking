@@ -44,6 +44,10 @@ type IPResultInfo struct {
 	hostSubnet         string
 	hostPrimaryIP      string
 	hostGateway        string
+	addressType        string
+	macAddress         string
+	isDefaultInterface bool
+	routes             []cns.Route
 }
 
 func NewCNSInvoker(podName, namespace string, cnsClient cnsclient, executionMode util.ExecutionMode, ipamMode util.IpamMode) *CNSIPAMInvoker {
