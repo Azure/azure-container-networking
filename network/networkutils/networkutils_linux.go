@@ -75,7 +75,7 @@ func (nu NetworkUtils) CreateEndpoint(hostVethName, containerVethName string, ma
 
 	err := nu.netlink.AddLink(&link)
 	if err != nil {
-		logger.Error("[net] Failed to create veth pair with", zap.Error(err))
+		logger.Error("Failed to create veth pair with", zap.Error(err))
 		return newErrorNetworkUtils(err.Error())
 	}
 

@@ -54,7 +54,7 @@ func (client *OVSEndpointClient) AddSnatEndpoint() error {
 		// of veth will be attached to linux bridge
 		_, err := net.InterfaceByName(azureSnatVeth0)
 		if err == nil {
-			logger.Info("Azure snat veth already exists")
+			logger.Error("Failed to create veth pair", zap.Error(err))
 			return nil
 		}
 

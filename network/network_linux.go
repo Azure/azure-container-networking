@@ -157,7 +157,7 @@ func (nm *networkManager) saveIPConfig(hostIf *net.Interface, extIf *externalInt
 	// Save the default routes on the interface.
 	routes, err := nm.netlink.GetIPRoute(&netlink.Route{Dst: &net.IPNet{}, LinkIndex: hostIf.Index})
 	if err != nil {
-		logger.Error("Failed to query routes with", zap.Error(err))
+		logger.Error("Failed to query routes", zap.Error(err))
 		return err
 	}
 
@@ -218,7 +218,7 @@ func getMajorVersion(version string) (int, error) {
 func isGreaterOrEqaulUbuntuVersion(versionToMatch int) bool {
 	osInfo, err := platform.GetOSDetails()
 	if err != nil {
-		logger.Error("Unable to get OS Details with", zap.Error(err))
+		logger.Error("Unable to get OS Details", zap.Error(err))
 		return false
 	}
 

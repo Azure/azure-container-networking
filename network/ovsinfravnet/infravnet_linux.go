@@ -62,7 +62,7 @@ func (client *OVSInfraVnetClient) CreateInfraVnetEndpoint(bridgeName string) err
 
 	logger.Info("Adding port master", zap.String("hostInfraVethName", client.hostInfraVethName), zap.String("bridgeName", bridgeName))
 	if err := ovs.AddPortOnOVSBridge(client.hostInfraVethName, bridgeName, 0); err != nil {
-		logger.Error("Creating infraep failed with", zap.Error(err))
+		logger.Error("Adding infraveth to ovsbr failed with", zap.Error(err))
 		return err
 	}
 
@@ -88,19 +88,19 @@ func (client *OVSInfraVnetClient) CreateInfraVnetRules(
 
 	infraContainerPort, err := ovs.GetOVSPortNumber(client.hostInfraVethName)
 	if err != nil {
-		logger.Error("Get ofport failed with", zap.Error(err))
+		logger.Error("[ovs] Get ofport failed with", zap.Error(err))
 		return err
 	}
 
 	// 0 signifies not to add vlan tag to this traffic
 	if err := ovs.AddIPSnatRule(bridgeName, infraIP.IP, 0, infraContainerPort, hostPrimaryMac, hostPort); err != nil {
-		logger.Error("AddIpSnatRule failed with", zap.Error(err))
+		logger.Error("[ovs] AddIpSnatRule failed with", zap.Error(err))
 		return err
 	}
 
 	// 0 signifies not to match traffic based on vlan tag
 	if err := ovs.AddMacDnatRule(bridgeName, hostPort, infraIP.IP, client.containerInfraMac, 0, infraContainerPort); err != nil {
-		logger.Error("AddMacDnatRule failed with", zap.Error(err))
+		logger.Error("[ovs] AddMacDnatRule failed with", zap.Error(err))
 		return err
 	}
 
@@ -108,7 +108,7 @@ func (client *OVSInfraVnetClient) CreateInfraVnetRules(
 }
 
 func (client *OVSInfraVnetClient) MoveInfraEndpointToContainerNS(netnsPath string, nsID uintptr) error {
-	logger.Info("Setting link netns", zap.String("ContainerInfraVethName", client.ContainerInfraVethName),
+	logger.Info("[ovs] Setting link netns", zap.String("ContainerInfraVethName", client.ContainerInfraVethName),
 		zap.Any("netnsPath", netnsPath))
 	err := client.netlink.SetLinkNetNs(client.ContainerInfraVethName, nsID)
 	if err != nil {
@@ -129,7 +129,7 @@ func (client *OVSInfraVnetClient) SetupInfraVnetContainerInterface() error {
 }
 
 func (client *OVSInfraVnetClient) ConfigureInfraVnetContainerInterface(infraIP net.IPNet) error {
-	logger.Info("Adding IP address to link", zap.String("IP", infraIP.String()), zap.String("ContainerInfraVethName", client.ContainerInfraVethName))
+	logger.Info("[ovs] Adding IP address to link", zap.String("IP", infraIP.String()), zap.String("ContainerInfraVethName", client.ContainerInfraVethName))
 	err := client.netlink.AddIPAddress(client.ContainerInfraVethName, infraIP.IP, &infraIP)
 	if err != nil {
 		return newErrorOVSInfraVnetClient(err.Error())
@@ -144,19 +144,19 @@ func (client *OVSInfraVnetClient) DeleteInfraVnetRules(
 ) {
 	ovs := ovsctl.NewOvsctl()
 
-	logger.Info("Deleting MAC DNAT rule for infravnet IP address", zap.String("IP", infraIP.IP.String()))
+	logger.Info("[ovs] Deleting MAC DNAT rule for infravnet IP address", zap.String("IP", infraIP.IP.String()))
 	ovs.DeleteMacDnatRule(bridgeName, hostPort, infraIP.IP, 0)
 
-	logger.Info("Get ovs port for infravnet interface", zap.String("hostInfraVethName", client.hostInfraVethName))
+	logger.Info("[ovs] Get ovs port for infravnet interface", zap.String("hostInfraVethName", client.hostInfraVethName))
 	infraContainerPort, err := ovs.GetOVSPortNumber(client.hostInfraVethName)
 	if err != nil {
-		logger.Error("Get infravnet portnum failed with", zap.Error(err))
+		logger.Error("[ovs] Get infravnet portnum failed with", zap.Error(err))
 	}
 
 	logger.Info("Deleting IP SNAT for infravnet port", zap.String("infraContainerPort", infraContainerPort))
 	ovs.DeleteIPSnatRule(bridgeName, infraContainerPort)
 
-	logger.Info("Deleting infravnet interface", zap.String("hostInfraVethName", client.hostInfraVethName), zap.String("bridgeName", bridgeName))
+	logger.Info("[ovs] Deleting infravnet interface", zap.String("hostInfraVethName", client.hostInfraVethName), zap.String("bridgeName", bridgeName))
 	if err := ovs.DeletePortFromOVS(bridgeName, client.hostInfraVethName); err != nil {
 		logger.Error("[ovs] Deletion of infravnet interface", zap.String("hostInfraVethName", client.hostInfraVethName), zap.String("bridgeName", bridgeName))
 	}
@@ -166,7 +166,7 @@ func (client *OVSInfraVnetClient) DeleteInfraVnetEndpoint() error {
 	logger.Info("[ovs] Deleting Infra veth pair", zap.String("hostInfraVethName", client.hostInfraVethName))
 	err := client.netlink.DeleteLink(client.hostInfraVethName)
 	if err != nil {
-		logger.Error("Failed to delete veth pair", zap.String("hostInfraVethName", client.hostInfraVethName),
+		logger.Error("[ovs] Failed to delete veth pair", zap.String("hostInfraVethName", client.hostInfraVethName),
 			zap.Error(err))
 		return newErrorOVSInfraVnetClient(err.Error())
 	}

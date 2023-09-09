@@ -323,7 +323,7 @@ func (nm *networkManager) configureHcnNetwork(nwInfo *NetworkInfo, extIf *extern
 func (nm *networkManager) newNetworkImplHnsV2(nwInfo *NetworkInfo, extIf *externalInterface) (*network, error) {
 	hcnNetwork, err := nm.configureHcnNetwork(nwInfo, extIf)
 	if err != nil {
-		logger.Error("Failed to serialize network adapter policy due to", zap.Error(err))
+		logger.Error("Failed to configure hcn network due to", zap.Error(err))
 		return nil, err
 	}
 
