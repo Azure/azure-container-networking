@@ -102,7 +102,7 @@ func (client *TransparentEndpointClient) AddEndpoints(epInfo *EndpointInfo) erro
 	defer func() {
 		if err != nil {
 			if delErr := client.netlink.DeleteLink(client.hostVethName); delErr != nil {
-				logger.Error("Failed to parse the mac addrress", zap.String("defaultHostVethHwAddr", defaultHostVethHwAddr))
+				logger.Error("Deleting veth failed on addendpoint failure", zap.Error(delErr))
 			}
 		}
 	}()

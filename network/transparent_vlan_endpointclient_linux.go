@@ -315,7 +315,7 @@ func (client *TransparentVlanEndpointClient) AddEndpointRules(epInfo *EndpointIn
 	if err := client.AddSnatEndpointRules(); err != nil {
 		return errors.Wrap(err, "failed to add snat endpoint rules")
 	}
-	logger.Info("Adding tunneling rules in vnet namespace")
+	logger.Info("[transparent-vlan] Adding tunneling rules in vnet namespace")
 	err := ExecuteInNS(client.vnetNSName, func() error {
 		return client.AddVnetRules(epInfo)
 	})
@@ -452,7 +452,7 @@ func (client *TransparentVlanEndpointClient) ConfigureVnetInterfacesAndRoutesImp
 
 	// Delete old route if any for this IP
 	err = deleteRoutes(client.netlink, client.netioshim, "", routeInfoList)
-	logger.Info("Deleting old routes returned", zap.Error(err))
+	logger.Info("[transparent-vlan] Deleting old routes returned", zap.Error(err))
 
 	if err = addRoutes(client.netlink, client.netioshim, client.vnetVethName, routeInfoList); err != nil {
 		return errors.Wrap(err, "failed adding routes to vnet specific to this container")

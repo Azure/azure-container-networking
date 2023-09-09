@@ -104,7 +104,7 @@ func (client *Client) CreateSnatEndpoint() error {
 
 	// Drop all vlan packets coming via linux bridge.
 	if err := client.addVlanDropRule(); err != nil {
-		logger.Error("Creating Snat Endpoint failed with", zap.Error(err))
+		logger.Error("Adding vlan drop rule failed", zap.Error(err))
 		return err
 	}
 
@@ -358,7 +358,7 @@ func (client *Client) DeleteInboundFromNCToHost() error {
 
 // Configures Local IP Address for container Veth
 func (client *Client) ConfigureSnatContainerInterface() error {
-	logger.Info("Adding IP address", zap.String("localIP", client.localIP),
+	logger.Info("[snat] IP address", zap.String("localIP", client.localIP),
 		zap.String("containerSnatVethName", client.containerSnatVethName))
 	ip, intIpAddr, _ := net.ParseCIDR(client.localIP)
 	err := client.netlink.AddIPAddress(client.containerSnatVethName, ip, intIpAddr)
@@ -369,10 +369,10 @@ func (client *Client) ConfigureSnatContainerInterface() error {
 }
 
 func (client *Client) DeleteSnatEndpoint() error {
-	logger.Info("Deleting snat veth pair", zap.String("hostSnatVethName", client.hostSnatVethName))
+	logger.Info("[snat] Deleting snat veth pair", zap.String("hostSnatVethName", client.hostSnatVethName))
 	err := client.netlink.DeleteLink(client.hostSnatVethName)
 	if err != nil {
-		logger.Error("Failed to delete veth pair", zap.String("hostSnatVethName", client.hostSnatVethName),
+		logger.Error("[snat] Failed to delete veth pair", zap.String("hostSnatVethName", client.hostSnatVethName),
 			zap.Error(err))
 		return newErrorSnatClient(err.Error())
 	}
