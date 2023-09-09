@@ -21,3 +21,10 @@ spec:
           - containerPort: 80
       nodeSelector:
         kubernetes.io/os: windows
+      topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: kubernetes.io/hostname # KV: Key is hostname, value is each unique nodename
+        whenUnsatisfiable: ScheduleAnyway
+        labelSelector:
+          matchLabels:
+            load-test: "true"

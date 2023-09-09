@@ -21,3 +21,10 @@ spec:
             privileged: true
       nodeSelector:
         kubernetes.io/os: linux
+      topologySpreadConstraints:
+      - maxSkew: 1
+        topologyKey: kubernetes.io/hostname # KV: Key is hostname, value is each unique nodename
+        whenUnsatisfiable: ScheduleAnyway
+        labelSelector:
+          matchLabels:
+            load-test: "true"
