@@ -27,8 +27,7 @@ func (w *Watcher) WatchFs(ctx context.Context) error {
 	// Create new fs watcher.
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
-		w.Logger.Error("error creating watcher", zap.Error(err))
-		return err
+		return errors.Wrap(err, "error creating watcher")
 	}
 	defer watcher.Close()
 
@@ -46,7 +45,7 @@ func (w *Watcher) WatchFs(ctx context.Context) error {
 				w.Logger.Info("received event", zap.String("event", event.Name))
 				if event.Has(fsnotify.Create) {
 					w.Logger.Info("file created, triggering release", zap.String("event", event.Name))
-					cnsReleaseErr := w.releaseIP(event.Name)
+					cnsReleaseErr := w.releaseIP(ctx, event.Name)
 					if cnsReleaseErr != nil {
 						w.Logger.Error("failed to release IP from CNS", zap.Error(cnsReleaseErr))
 					}
@@ -85,7 +84,7 @@ func (w *Watcher) WatchFs(ctx context.Context) error {
 	} else {
 		for _, file := range dirContents {
 			w.Logger.Info("file to be deleted", zap.String("name", file.Name()))
-			cnsReleaseErr := w.releaseIP(file.Name())
+			cnsReleaseErr := w.releaseIP(ctx, file.Name())
 			if cnsReleaseErr != nil {
 				w.Logger.Error("failed to release IP from CNS", zap.Error(cnsReleaseErr))
 			}
@@ -97,7 +96,7 @@ func (w *Watcher) WatchFs(ctx context.Context) error {
 	}
 
 	<-c.Done()
-	return c.Err()
+	return errors.Wrap(c.Err(), "error watching directory")
 }
 
 // AddFile creates new file using the containerID as name
@@ -107,7 +106,7 @@ func AddFile(containerID, path string) error {
 	if err != nil {
 		return errors.Wrap(err, "error creating file")
 	}
-	return f.Close()
+	return errors.Wrap(f.Close(), "error adding file to directory")
 }
 
 // RemoveFile removes the file based on containerID
@@ -122,7 +121,7 @@ func RemoveFile(containerID, path string) error {
 }
 
 // call cns ReleaseIPs
-func (w *Watcher) releaseIP(containerID string) error {
+func (w *Watcher) releaseIP(ctx context.Context, containerID string) error {
 	ipconfigreq := &cns.IPConfigsRequest{InfraContainerID: containerID}
-	return errors.Wrap(w.CnsClient.ReleaseIPs(context.Background(), *ipconfigreq), "error releasing IP from CNS")
+	return errors.Wrap(w.CnsClient.ReleaseIPs(ctx, *ipconfigreq), "error releasing IP from CNS")
 }
