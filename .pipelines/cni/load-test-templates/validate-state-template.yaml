@@ -3,6 +3,7 @@ parameters:
   os: "linux"
   restartCase: "false"
   cni: "cilium"
+  continueOnError: false
 
 steps:
   - task: AzureCLI@1
@@ -15,6 +16,15 @@ steps:
         make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
         kubectl get pods -A
         make test-validate-state OS=${{ parameters.os }} RESTART_CASE=${{ parameters.restartCase }} CNI_TYPE=${{ parameters.cni }}
+
+        # If this step fails, test manually
+        # Only fails when CNS is managing the endpoint state and state file does not exist
+        # Fails due to slow node restart which is from restart happening after scale down. (Which also misses the intent of the restart node scenario)
+        # Timing should be: Scale down > Restart nodes during scale down > complete scale down > validate.
+
+        # Contnuing on Error only when endpoint state is managed by CNS and Restart Test Job to allow for further test cases to run
+        # Currently only Cilium has an endpoint state managed by CNS.
     name: "ValidateState"
     displayName: "Validate State"
     retryCountOnTaskFailure: 3
+    continueOnError: ${{ parameters.continueOnError }}

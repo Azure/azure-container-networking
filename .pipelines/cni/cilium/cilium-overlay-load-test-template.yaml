@@ -99,6 +99,7 @@ stages:
             parameters:
               clusterName: ${{ parameters.clusterName }}-$(commitID)
               restartCase: "true"
+              continueOnError: true
       - job: cni_tests
         displayName: "Cilium Test"
         dependsOn: restart_nodes
