@@ -5,32 +5,14 @@ import (
 
 	"github.com/Azure/azure-container-networking/zaplog"
 	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 )
-
-const (
-	maxLogFileSizeInMb = 5
-	maxLogFileCount    = 8
-)
-
-var (
-	loggerName string
-	loggerFile string
-)
-
-var LoggerCfg = &zaplog.Config{
-	Level:       zapcore.DebugLevel,
-	LogPath:     loggerFile,
-	MaxSizeInMB: maxLogFileSizeInMb,
-	MaxBackups:  maxLogFileCount,
-	Name:        loggerName,
-}
 
 func InitZapLogNet(loggerName, loggerFile string) *zap.Logger {
-	LoggerCfg.Name = loggerName
-	LoggerCfg.LogPath = LogPath + loggerFile
-	logger := zaplog.InitZapLog(LoggerCfg)
+	zaplog.LoggerCfg.Name = loggerName
+	zaplog.LoggerCfg.LogPath = LogPath + loggerFile
+	logger := zaplog.InitZapLog(&zaplog.LoggerCfg)
 
+	// only log process id on CNI package
 	logger = logger.With(zap.Int("pid", os.Getpid()))
 	return logger
 }

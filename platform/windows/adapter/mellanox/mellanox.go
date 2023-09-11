@@ -10,7 +10,13 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Azure/azure-container-networking/log"
+	"github.com/Azure/azure-container-networking/platform/log"
+	"go.uber.org/zap"
+)
+
+var (
+	loggerName = "platform"
+	logger     = log.InitZapLogOS(loggerName, "azure-vnet.log")
 )
 
 const (
@@ -146,8 +152,9 @@ func (m *Mellanox) setMellanoxPriorityVLANTagValueForV4(adapterName string, desi
 		return fmt.Errorf("error while setting up registry value for PriorityVLANTag for adapter: %w", err)
 	}
 
-	log.Printf("Successfully set Mellanox Network Adapter: %s with %s property value as %d",
-		adapterName, priorityVLANTagIdentifier, desiredVal)
+	logger.Info("Successfully set Mellanox Network Adapter",
+		zap.String("adapterName", adapterName), zap.String("priorityVLANTagIdentifier", priorityVLANTagIdentifier),
+		zap.Int("desiredVal", desiredVal))
 	return nil
 }
 
@@ -165,19 +172,19 @@ func (m *Mellanox) setMellanoxPriorityVLANTagValueForV3(adapterName string, desi
 		return fmt.Errorf("error while executing powershell command to set Item property for adapter  %s: %w", adapterName, err)
 	}
 
-	log.Printf("Restarting Mellanox network adapter for regkey change to take effect")
+	logger.Info("Restarting Mellanox network adapter for regkey change to take effect")
 	cmd = fmt.Sprintf(`Restart-NetAdapter -Name '%s'`, adapterName)
 	_, err = executePowershellCommand(cmd)
 	if err != nil {
 		return fmt.Errorf("error while executing powershell command to restart net adapter  %s: %w", adapterName, err)
 	}
-	log.Printf("For Mellanox CX-3 adapters, the reg key set to %d", desiredVal)
+	logger.Info("For Mellanox CX-3 adapters, the reg key set to", zap.Int("desiredVal", desiredVal))
 	return nil
 }
 
 // Get registry full path for Mellanox Adapter
 func (m *Mellanox) getRegistryFullPath() (string, error) {
-	log.Printf("Searching through CIM instances for Network devices with %s in the name", mellanoxSearchString)
+	logger.Info("Searching through CIM instances for Network devices with", zap.Any("mellanoxSearchString", mellanoxSearchString))
 	cmd := fmt.Sprintf(
 		`Get-CimInstance -Namespace root/cimv2 -ClassName Win32_PNPEntity | Where-Object PNPClass -EQ "Net" | Where-Object { $_.Name -like '%s' } | Select-Object -ExpandProperty DeviceID`,
 		mellanoxSearchString)
@@ -205,7 +212,7 @@ func executePowershellCommand(command string) (string, error) {
 		return "", errorPowershellNotFound
 	}
 
-	log.Printf("[Azure-Utils] %s", command)
+	logger.Info("[Azure-Utils]", zap.String("command", command))
 
 	cmd := exec.Command(ps, command)
 	var stdout bytes.Buffer

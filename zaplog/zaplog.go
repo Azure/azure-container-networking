@@ -14,6 +14,24 @@ type Config struct {
 	Name        string
 }
 
+const (
+	maxLogFileSizeInMb = 5
+	maxLogFileCount    = 8
+)
+
+var (
+	loggerName string
+	loggerFile string
+)
+
+var LoggerCfg = Config{
+	Level:       zapcore.DebugLevel,
+	LogPath:     loggerFile,
+	MaxSizeInMB: maxLogFileSizeInMb,
+	MaxBackups:  maxLogFileCount,
+	Name:        loggerName,
+}
+
 func InitZapLog(cfg *Config) *zap.Logger {
 	logFileWriter := zapcore.AddSync(&lumberjack.Logger{
 		Filename:   cfg.LogPath,

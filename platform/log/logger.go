@@ -7,13 +7,12 @@ import (
 	"go.uber.org/zap"
 )
 
-func InitZapLogCNI(loggerName, loggerFile string) *zap.Logger {
+func InitZapLogOS(loggerName, loggerFile string) *zap.Logger {
 	zaplog.LoggerCfg.Name = loggerName
 	zaplog.LoggerCfg.LogPath = LogPath + loggerFile
 	logger := zaplog.InitZapLog(&zaplog.LoggerCfg)
 
 	// only log process id on CNI package
 	logger = logger.With(zap.Int("pid", os.Getpid()))
-	logger = logger.With(zap.String("component", "cni"))
 	return logger
 }

@@ -13,10 +13,10 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/platform/windows/adapter"
 	"github.com/Azure/azure-container-networking/platform/windows/adapter/mellanox"
 	"github.com/pkg/errors"
+	"go.uber.org/zap"
 	"golang.org/x/sys/windows"
 )
 
@@ -100,16 +100,16 @@ func GetLastRebootTime() (time.Time, error) {
 	currentTime := time.Now()
 	output, _, err := tickCount.Call()
 	if errno, ok := err.(syscall.Errno); !ok || errno != 0 {
-		log.Printf("Failed to call GetTickCount64, err: %v", err)
+		logger.Error("Failed to call GetTickCount64", zap.Error(err))
 		return time.Time{}.UTC(), err
 	}
 	rebootTime := currentTime.Add(-time.Duration(output) * time.Millisecond).Truncate(time.Second)
-	log.Printf("Formatted Boot time: %s", rebootTime.Format(time.RFC3339))
+	logger.Info("Formatted Boot", zap.Any("time", rebootTime.Format(time.RFC3339)))
 	return rebootTime.UTC(), nil
 }
 
 func (p *execClient) ExecuteCommand(command string) (string, error) {
-	log.Printf("[Azure-Utils] ExecuteCommand: %q", command)
+	logger.Info("[Azure-Utils] ExecuteCommand", zap.String("command", command))
 
 	var stderr, stdout bytes.Buffer
 
@@ -132,11 +132,11 @@ func SetOutboundSNAT(subnet string) error {
 // This will be called only when reboot is detected - This is windows specific
 func ClearNetworkConfiguration() (bool, error) {
 	jsonStore := CNIRuntimePath + "azure-vnet.json"
-	log.Printf("Deleting the json store %s", jsonStore)
+	logger.Info("Deleting the", zap.String("json store", jsonStore))
 	cmd := exec.Command("cmd", "/c", "del", jsonStore)
 
 	if err := cmd.Run(); err != nil {
-		log.Printf("Error deleting the json store %s", jsonStore)
+		logger.Error("Error deleting the", zap.String("json store", jsonStore))
 		return true, err
 	}
 
@@ -156,7 +156,7 @@ func ExecutePowershellCommand(command string) (string, error) {
 		return "", fmt.Errorf("Failed to find powershell executable")
 	}
 
-	log.Printf("[Azure-Utils] %s", command)
+	logger.Info("[Azure-Utils]", zap.String("command", command))
 
 	cmd := exec.Command(ps, command)
 	var stdout bytes.Buffer
@@ -183,13 +183,13 @@ func SetSdnRemoteArpMacAddress() error {
 		// Set the reg key if not already set or has incorrect value
 		if result != SDNRemoteArpMacAddress {
 			if _, err = ExecutePowershellCommand(SetSdnRemoteArpMacAddressCommand); err != nil {
-				log.Printf("Failed to set SDNRemoteArpMacAddress due to error %s", err.Error())
+				logger.Error("Failed to set SDNRemoteArpMacAddress due to error", zap.Error(err))
 				return err
 			}
 
-			log.Printf("[Azure CNS] SDNRemoteArpMacAddress regKey set successfully. Restarting hns service.")
+			logger.Info("[Azure CNS] SDNRemoteArpMacAddress regKey set successfully. Restarting hns service.")
 			if _, err := ExecutePowershellCommand(RestartHnsServiceCommand); err != nil {
-				log.Printf("Failed to Restart HNS Service due to error %s", err.Error())
+				logger.Error("Failed to Restart HNS Service due to error", zap.Error(err))
 				return err
 			}
 		}
@@ -208,10 +208,10 @@ func HasMellanoxAdapter() bool {
 func hasNetworkAdapter(na adapter.NetworkAdapter) bool {
 	adapterName, err := na.GetAdapterName()
 	if err != nil {
-		log.Errorf("Error while getting network adapter name: %v", err)
+		logger.Error("Error while getting network adapter name", zap.Error(err))
 		return false
 	}
-	log.Printf("Name of the network adapter : %v", adapterName)
+	logger.Info("Name of the network", zap.String("adapter", adapterName))
 	return true
 }
 
@@ -224,19 +224,19 @@ func MonitorAndSetMellanoxRegKeyPriorityVLANTag(ctx context.Context, intervalSec
 	}
 	err := updatePriorityVLANTagIfRequired(m, desiredVLANTagForMellanox)
 	if err != nil {
-		log.Errorf("Error while monitoring mellanox, continuing: %v", err)
+		logger.Error("Error while monitoring mellanox, continuing", zap.Error(err))
 	}
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 	for {
 		select {
 		case <-ctx.Done():
-			log.Printf("context cancelled, stopping Mellanox Monitoring: %v", ctx.Err())
+			logger.Error("context cancelled, stopping Mellanox Monitoring", zap.Error(ctx.Err()))
 			return
 		case <-ticker.C:
 			err := updatePriorityVLANTagIfRequired(m, desiredVLANTagForMellanox)
 			if err != nil {
-				log.Errorf("Error while monitoring mellanox, continuing: %v", err)
+				logger.Error("Error while monitoring mellanox, continuing", zap.Error(err))
 			}
 		}
 	}
@@ -250,7 +250,7 @@ func updatePriorityVLANTagIfRequired(na adapter.NetworkAdapter, desiredValue int
 	}
 
 	if currentVal == desiredValue {
-		log.Printf("Adapter's PriorityVLANTag is already set to %v, skipping reset", desiredValue)
+		logger.Info("Adapter's PriorityVLANTag is already set to skipping reset", zap.Int("desiredValue", desiredValue))
 		return nil
 	}
 
@@ -271,12 +271,12 @@ func GetProcessNameByID(pidstr string) (string, error) {
 	cmd := fmt.Sprintf("Get-Process -Id %s|Format-List", pidstr)
 	out, err := ExecutePowershellCommand(cmd)
 	if err != nil {
-		log.Printf("Process is not running. Output:%v, Error %v", out, err)
+		logger.Error("Process is not running.", zap.String("output", out), zap.Error(err))
 		return "", err
 	}
 
 	if len(out) <= 0 {
-		log.Printf("Output length is 0")
+		logger.Info("Output length is 0")
 		return "", fmt.Errorf("get-process output length is 0")
 	}
 

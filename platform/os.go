@@ -4,8 +4,15 @@ import (
 	"bufio"
 	"fmt"
 	"io"
-	"log"
 	"os"
+
+	"github.com/Azure/azure-container-networking/platform/log"
+	"go.uber.org/zap"
+)
+
+var (
+	loggerName = "platform"
+	logger     = log.InitZapLogOS(loggerName, "azure-vnet.log")
 )
 
 // ReadFileByLines reads file line by line and return array of lines.
@@ -53,13 +60,13 @@ func CheckIfFileExists(filepath string) (bool, error) {
 
 func CreateDirectory(dirPath string) error {
 	if dirPath == "" {
-		log.Printf("dirPath is empty, nothing to create.")
+		logger.Info("dirPath is empty, nothing to create.")
 		return nil
 	}
 
 	isExist, err := CheckIfFileExists(dirPath)
 	if err != nil {
-		log.Printf("CheckIfFileExists returns err:%v", err)
+		logger.Error("CheckIfFileExists returns", zap.Error(err))
 		return err
 	}
 

@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/Azure/azure-container-networking/log"
+	"go.uber.org/zap"
 )
 
 const (
@@ -64,7 +64,7 @@ func GetLastRebootTime() (time.Time, error) {
 	// Query last reboot time.
 	out, err := exec.Command("uptime", "-s").Output()
 	if err != nil {
-		log.Printf("Failed to query uptime, err:%v", err)
+		logger.Error("Failed to query uptime", zap.Error(err))
 		return time.Time{}.UTC(), err
 	}
 
@@ -72,7 +72,7 @@ func GetLastRebootTime() (time.Time, error) {
 	layout := "2006-01-02 15:04:05"
 	rebootTime, err := time.ParseInLocation(layout, string(out[:len(out)-1]), time.Local)
 	if err != nil {
-		log.Printf("Failed to parse uptime, err:%v", err)
+		logger.Error("Failed to parse uptime", zap.Error(err))
 		return time.Time{}.UTC(), err
 	}
 
@@ -80,7 +80,7 @@ func GetLastRebootTime() (time.Time, error) {
 }
 
 func (p *execClient) ExecuteCommand(command string) (string, error) {
-	log.Printf("[Azure-Utils] %s", command)
+	logger.Info("[Azure-Utils]", zap.String("command", command))
 
 	var stderr bytes.Buffer
 	var out bytes.Buffer
@@ -107,7 +107,7 @@ func SetOutboundSNAT(subnet string) error {
 		subnet)
 	_, err := p.ExecuteCommand(cmd)
 	if err != nil {
-		log.Printf("SNAT Iptable rule was not set")
+		logger.Info("SNAT Iptable rule was not set")
 		return err
 	}
 	return nil
@@ -156,7 +156,7 @@ func GetProcessNameByID(pidstr string) (string, error) {
 	cmd := fmt.Sprintf("ps -p %s -o comm=", pidstr)
 	out, err := p.ExecuteCommand(cmd)
 	if err != nil {
-		log.Printf("GetProcessNameByID returned error: %v", err)
+		logger.Error("GetProcessNameByID returned", zap.Error(err))
 		return "", err
 	}
 
@@ -170,7 +170,7 @@ func PrintDependencyPackageDetails() {
 	p := NewExecClient()
 	out, err := p.ExecuteCommand("iptables --version")
 	out = strings.TrimSuffix(out, "\n")
-	log.Printf("[cni-net] iptable version:%s, err:%v", out, err)
+	logger.Error("[cni-net] iptable version", zap.String("output", out), zap.Error(err))
 }
 
 func ReplaceFile(source, destination string) error {
