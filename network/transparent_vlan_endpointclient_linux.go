@@ -19,12 +19,13 @@ import (
 )
 
 const (
-	azureMac           = "12:34:56:78:9a:bc"                       // Packets leaving the VM should have this MAC
-	loopbackIf         = "lo"                                      // The name of the loopback interface
-	numDefaultRoutes   = 2                                         // VNET NS, when no containers use it, has this many routes
-	tunnelingTable     = 2                                         // Packets not entering on the vlan interface go to this routing table
-	tunnelingMark      = 333                                       // The packets that are to tunnel will be marked with this number
-	DisableRPFilterCmd = "sysctl -w net.ipv4.conf.all.rp_filter=0" // Command to disable the rp filter for tunneling
+	virtualGwIPVlanString = "169.254.2.1/32"
+	azureMac              = "12:34:56:78:9a:bc"                       // Packets leaving the VM should have this MAC
+	loopbackIf            = "lo"                                      // The name of the loopback interface
+	numDefaultRoutes      = 2                                         // VNET NS, when no containers use it, has this many routes
+	tunnelingTable        = 2                                         // Packets not entering on the vlan interface go to this routing table
+	tunnelingMark         = 333                                       // The packets that are to tunnel will be marked with this number
+	DisableRPFilterCmd    = "sysctl -w net.ipv4.conf.all.rp_filter=0" // Command to disable the rp filter for tunneling
 )
 
 var errNamespaceCreation = fmt.Errorf("Network namespace creation error")
@@ -489,10 +490,10 @@ func (client *TransparentVlanEndpointClient) GetVnetRoutes(ipAddresses []net.IPN
 // Helper that creates routing rules for the current NS which direct packets
 // to the virtual gateway ip on linkToName device interface
 // Route 1: 169.254.1.1 dev <linkToName>
-// Route 2: default via 169.254.1.1 dev <linkToName>
+// Route 2: default via 169.254.2.1 dev <linkToName>
 func (client *TransparentVlanEndpointClient) addDefaultRoutes(linkToName string, table int) error {
-	// Add route for virtualgwip (ip route add 169.254.1.1/32 dev eth0)
-	virtualGwIP, virtualGwNet, _ := net.ParseCIDR(virtualGwIPString)
+	// Add route for virtualgwip (ip route add 169.254.2.1/32 dev eth0)
+	virtualGwIP, virtualGwNet, _ := net.ParseCIDR(virtualGwIPVlanString)
 	routeInfo := RouteInfo{
 		Dst:   *virtualGwNet,
 		Scope: netlink.RT_SCOPE_LINK,
@@ -503,7 +504,7 @@ func (client *TransparentVlanEndpointClient) addDefaultRoutes(linkToName string,
 		return err
 	}
 
-	// Add default route (ip route add default via 169.254.1.1 dev eth0)
+	// Add default route (ip route add default via 169.254.2.1 dev eth0)
 	_, defaultIPNet, _ := net.ParseCIDR(defaultGwCidr)
 	dstIP := net.IPNet{IP: net.ParseIP(defaultGw), Mask: defaultIPNet.Mask}
 	routeInfo = RouteInfo{
@@ -519,10 +520,10 @@ func (client *TransparentVlanEndpointClient) addDefaultRoutes(linkToName string,
 }
 
 // Helper that creates arp entry for the current NS which maps the virtual
-// gateway (169.254.1.1) to destMac on a particular interfaceName
-// Example: (169.254.1.1) at 12:34:56:78:9a:bc [ether] PERM on <interfaceName>
+// gateway (169.254.2.1) to destMac on a particular interfaceName
+// Example: (169.254.2.1) at 12:34:56:78:9a:bc [ether] PERM on <interfaceName>
 func (client *TransparentVlanEndpointClient) AddDefaultArp(interfaceName, destMac string) error {
-	_, virtualGwNet, _ := net.ParseCIDR(virtualGwIPString)
+	_, virtualGwNet, _ := net.ParseCIDR(virtualGwIPVlanString)
 	log.Printf("[net] Adding static arp for IP address %v and MAC %v in namespace",
 		virtualGwNet.String(), destMac)
 	hardwareAddr, err := net.ParseMAC(destMac)

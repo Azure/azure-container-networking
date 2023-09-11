@@ -13,9 +13,7 @@ import (
 	"github.com/Azure/azure-container-networking/log"
 )
 
-const (
-	name = "azure-vnet-ipamv6"
-)
+const name = "azure-vnet-ipamv6"
 
 // Version is populated by make during build.
 var version string
@@ -24,6 +22,7 @@ var version string
 func main() {
 	var config common.PluginConfig
 	config.Version = version
+
 	logDirectory := "" // Sets the current location as log directory
 
 	log.SetName(name)

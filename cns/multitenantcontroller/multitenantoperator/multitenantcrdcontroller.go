@@ -17,6 +17,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
+	ctrlmetrics "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 )
 
 const (
@@ -62,8 +63,8 @@ func New(restService *restserver.HTTPRestService, kubeconfig *rest.Config) (*req
 
 	// Create manager for multiTenantController.
 	mgr, err := ctrl.NewManager(kubeconfig, ctrl.Options{
-		Scheme:             scheme,
-		MetricsBindAddress: prometheusAddress,
+		Scheme:  scheme,
+		Metrics: ctrlmetrics.Options{BindAddress: prometheusAddress},
 	})
 	if err != nil {
 		logger.Errorf("Error creating new multiTenantController: %v", err)

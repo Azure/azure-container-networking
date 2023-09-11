@@ -9,16 +9,22 @@ import (
 	"strconv"
 
 	"github.com/Azure/azure-container-networking/cni"
+	"github.com/Azure/azure-container-networking/cni/log"
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/ipam"
-	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/platform"
 	cniSkel "github.com/containernetworking/cni/pkg/skel"
 	cniTypes "github.com/containernetworking/cni/pkg/types"
 	cniTypesCurr "github.com/containernetworking/cni/pkg/types/100"
+	"go.uber.org/zap"
 )
 
 const ipamV6 = "azure-vnet-ipamv6"
+
+var (
+	loggerName = "azure-vnet-ipam"
+	logger     = log.InitZapLogCNI(loggerName, "azure-ipam.log")
+)
 
 var ipv4DefaultRouteDstPrefix = net.IPNet{
 	IP:   net.IPv4zero,
@@ -61,22 +67,25 @@ func (plugin *ipamPlugin) Start(config *common.PluginConfig) error {
 	// Initialize base plugin.
 	err := plugin.Initialize(config)
 	if err != nil {
-		log.Printf("[cni-ipam] Failed to initialize base plugin, err:%v.", err)
+		logger.Error("Failed to initialize base plugin.", zap.Error(err))
 		return err
 	}
 
 	// Log platform information.
-	log.Printf("[cni-ipam] Plugin %v version %v.", plugin.Name, plugin.Version)
-	log.Printf("[cni-ipam] Running on %v", platform.GetOSInfo())
+	logger.Info("Plugin version.", zap.String("name", plugin.Name),
+		zap.String("version", plugin.Version))
+	logger.Info("Running on",
+		zap.String("platform", platform.GetOSInfo()))
 
 	// Initialize address manager. rehyrdration not required on reboot for cni ipam plugin
 	err = plugin.am.Initialize(config, false, plugin.Options)
 	if err != nil {
-		log.Printf("[cni-ipam] Failed to initialize address manager, err:%v.", err)
+		logger.Error("Failed to initialize address manager",
+			zap.Error(err))
 		return err
 	}
 
-	log.Printf("[cni-ipam] Plugin started.")
+	logger.Info("Plugin started")
 
 	return nil
 }
@@ -85,7 +94,7 @@ func (plugin *ipamPlugin) Start(config *common.PluginConfig) error {
 func (plugin *ipamPlugin) Stop() {
 	plugin.am.Uninitialize()
 	plugin.Uninitialize()
-	log.Printf("[cni-ipam] Plugin stopped.")
+	logger.Info("Plugin stopped")
 }
 
 // Configure parses and applies the given network configuration.
@@ -96,7 +105,8 @@ func (plugin *ipamPlugin) Configure(stdinData []byte) (*cni.NetworkConfig, error
 		return nil, err
 	}
 
-	log.Printf("[cni-ipam] Read network configuration %+v.", nwCfg)
+	logger.Info("Read network configuration",
+		zap.Any("config", nwCfg))
 
 	// Apply IPAM configuration.
 
@@ -135,10 +145,19 @@ func (plugin *ipamPlugin) Add(args *cniSkel.CmdArgs) error {
 	var result *cniTypesCurr.Result
 	var err error
 
-	log.Printf("[cni-ipam] Processing ADD command with args {ContainerID:%v Netns:%v IfName:%v Args:%v Path:%v StdinData:%s}.",
-		args.ContainerID, args.Netns, args.IfName, args.Args, args.Path, args.StdinData)
+	logger.Info("Processing ADD command",
+		zap.String("ContainerId", args.ContainerID),
+		zap.String("Netns", args.Netns),
+		zap.String("IfName", args.IfName),
+		zap.String("Args", args.Args),
+		zap.String("Path", args.Path),
+		zap.ByteString("StdinData", args.StdinData))
 
-	defer func() { log.Printf("[cni-ipam] ADD command completed with result:%+v err:%v.", result, err) }()
+	defer func() {
+		logger.Info("ADD command completed",
+			zap.Any("result", result),
+			zap.Error(err))
+	}()
 
 	// Parse network configuration from stdin.
 	nwCfg, err := plugin.Configure(args.StdinData)
@@ -174,13 +193,16 @@ func (plugin *ipamPlugin) Add(args *cniSkel.CmdArgs) error {
 		// On failure, release the address pool.
 		defer func() {
 			if err != nil && poolID != "" {
-				log.Printf("[cni-ipam] Releasing pool %v.", poolID)
+				logger.Info("Releasing pool",
+					zap.String("poolId", poolID))
 				_ = plugin.am.ReleasePool(nwCfg.IPAM.AddrSpace, poolID)
 			}
 		}()
 
 		nwCfg.IPAM.Subnet = subnet
-		log.Printf("[cni-ipam] Allocated address poolID %v with subnet %v.", poolID, subnet)
+		logger.Info("Allocated address with subnet",
+			zap.String("poolId", poolID),
+			zap.String("subnet", subnet))
 	}
 
 	// Allocate an address for the endpoint.
@@ -193,12 +215,12 @@ func (plugin *ipamPlugin) Add(args *cniSkel.CmdArgs) error {
 	// On failure, release the address.
 	defer func() {
 		if err != nil && address != "" {
-			log.Printf("[cni-ipam] Releasing address %v.", address)
+			logger.Info("Releasing address", zap.String("address", address))
 			_ = plugin.am.ReleaseAddress(nwCfg.IPAM.AddrSpace, nwCfg.IPAM.Subnet, address, options)
 		}
 	}()
 
-	log.Printf("[cni-ipam] Allocated address %v.", address)
+	logger.Info("Allocated address", zap.String("address", address))
 
 	// Parse IP address.
 	ipAddress, err := platform.ConvertStringToIPNet(address)
@@ -263,10 +285,18 @@ func (plugin *ipamPlugin) Get(args *cniSkel.CmdArgs) error {
 func (plugin *ipamPlugin) Delete(args *cniSkel.CmdArgs) error {
 	var err error
 
-	log.Printf("[cni-ipam] Processing DEL command with args {ContainerID:%v Netns:%v IfName:%v Args:%v Path:%v StdinData:%s}.",
-		args.ContainerID, args.Netns, args.IfName, args.Args, args.Path, args.StdinData)
+	logger.Info("[cni-ipam] Processing DEL command",
+		zap.String("ContainerId", args.ContainerID),
+		zap.String("Netns", args.Netns),
+		zap.String("IfName", args.IfName),
+		zap.String("Args", args.Args),
+		zap.String("Path", args.Path),
+		zap.ByteString("StdinData", args.StdinData))
 
-	defer func() { log.Printf("[cni-ipam] DEL command completed with err:%v.", err) }()
+	defer func() {
+		logger.Info("[cni-ipam] DEL command completed",
+			zap.Error(err))
+	}()
 
 	// Parse network configuration from stdin.
 	nwCfg, err := plugin.Configure(args.StdinData)

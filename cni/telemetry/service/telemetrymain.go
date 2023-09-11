@@ -10,9 +10,11 @@ import (
 	"time"
 
 	"github.com/Azure/azure-container-networking/aitelemetry"
+	"github.com/Azure/azure-container-networking/cni/log"
 	acn "github.com/Azure/azure-container-networking/common"
-	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/telemetry"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 const (
@@ -25,6 +27,8 @@ const (
 	pluginName                        = "AzureCNI"
 	azureVnetTelemetry                = "azure-vnet-telemetry"
 	configExtension                   = ".config"
+	maxLogFileSizeInMb                = 5
+	maxLogFileCount                   = 8
 )
 
 var version string
@@ -37,22 +41,8 @@ var args = acn.ArgumentList{
 		Type:         "int",
 		DefaultValue: acn.OptLogLevelInfo,
 		ValueMap: map[string]interface{}{
-			acn.OptLogLevelInfo:  log.LevelInfo,
-			acn.OptLogLevelDebug: log.LevelDebug,
-		},
-	},
-	{
-		Name:         acn.OptLogTarget,
-		Shorthand:    acn.OptLogTargetAlias,
-		Description:  "Set the logging target",
-		Type:         "int",
-		DefaultValue: acn.OptLogTargetFile,
-		ValueMap: map[string]interface{}{
-			acn.OptLogTargetSyslog: log.TargetSyslog,
-			acn.OptLogTargetStderr: log.TargetStderr,
-			acn.OptLogTargetFile:   log.TargetLogfile,
-			acn.OptLogStdout:       log.TargetStdout,
-			acn.OptLogMultiWrite:   log.TargetStdOutAndLogFile,
+			acn.OptLogLevelInfo:  zapcore.InfoLevel,
+			acn.OptLogLevelError: zapcore.ErrorLevel,
 		},
 	},
 	{
@@ -117,9 +107,7 @@ func main() {
 	var err error
 
 	acn.ParseArgs(&args, printVersion)
-	logTarget := acn.GetArg(acn.OptLogTarget).(int)
-	logDirectory := acn.GetArg(acn.OptLogLocation).(string)
-	logLevel := acn.GetArg(acn.OptLogLevel).(int)
+	logLevel := acn.GetArg(acn.OptLogLevel).(zapcore.Level)
 	configDirectory := acn.GetArg(acn.OptTelemetryConfigDir).(string)
 	vers := acn.GetArg(acn.OptVersion).(bool)
 
@@ -128,15 +116,10 @@ func main() {
 		os.Exit(0)
 	}
 
-	log.SetName(azureVnetTelemetry)
-	log.SetLevel(logLevel)
-	err = log.SetTargetLogDirectory(logTarget, logDirectory)
-	if err != nil {
-		fmt.Printf("Failed to configure logging: %v\n", err)
-		return
-	}
+	log.LoggerCfg.Level = logLevel
+	logger := log.InitZapLogCNI(azureVnetTelemetry, azureVnetTelemetry+".log")
 
-	log.Logf("args %+v", os.Args)
+	logger.Info("Telemetry invocation info", zap.Any("arguments", os.Args))
 
 	if runtime.GOOS == "linux" {
 		configPath = fmt.Sprintf("%s/%s%s", configDirectory, azureVnetTelemetry, configExtension)
@@ -144,18 +127,18 @@ func main() {
 		configPath = fmt.Sprintf("%s\\%s%s", configDirectory, azureVnetTelemetry, configExtension)
 	}
 
-	log.Logf("[Telemetry] Config path: %s", configPath)
+	logger.Info("Config path", zap.String("path", configPath))
 
 	config, err = telemetry.ReadConfigFile(configPath)
 	if err != nil {
-		log.Logf("[Telemetry] Error reading telemetry config: %v", err)
+		logger.Error("Error reading telemetry config", zap.Error(err))
 	}
 
-	log.Logf("read config returned %+v", config)
+	logger.Info("read config returned", zap.Any("config", config))
 
 	setTelemetryDefaults(&config)
 
-	log.Logf("Config after setting defaults %+v", config)
+	logger.Info("Config after setting defaults", zap.Any("config", config))
 
 	// Cleaning up orphan socket if present
 	tbtemp := telemetry.NewTelemetryBuffer()
@@ -164,13 +147,13 @@ func main() {
 	for {
 		tb = telemetry.NewTelemetryBuffer()
 
-		log.Logf("[Telemetry] Starting telemetry server")
+		logger.Info("Starting telemetry server")
 		err = tb.StartServer()
 		if err == nil || tb.FdExists {
 			break
 		}
 
-		log.Logf("[Telemetry] Telemetry service starting failed: %v", err)
+		logger.Error("Telemetry service starting failed", zap.Error(err))
 		tb.Cleanup(telemetry.FdName)
 		time.Sleep(time.Millisecond * 200)
 	}
@@ -187,11 +170,11 @@ func main() {
 		GetEnvRetryWaitTimeInSecs:    config.GetEnvRetryWaitTimeInSecs,
 	}
 
-	err = telemetry.CreateAITelemetryHandle(aiConfig, config.DisableAll, config.DisableTrace, config.DisableMetric)
-	log.Printf("[Telemetry] AI Handle creation status:%v", err)
-	log.Logf("[Telemetry] Report to host for an interval of %d seconds", config.ReportToHostIntervalInSeconds)
+	if telemetry.CreateAITelemetryHandle(aiConfig, config.DisableAll, config.DisableTrace, config.DisableMetric) != nil {
+		logger.Error("[Telemetry] AI Handle creation error", zap.Error(err))
+	}
+	logger.Info("[Telemetry] Report to host interval", zap.Duration("seconds", config.ReportToHostIntervalInSeconds))
 	tb.PushData(context.Background())
 	telemetry.CloseAITelemetryHandle()
 
-	log.Close()
 }

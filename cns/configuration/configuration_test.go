@@ -83,6 +83,10 @@ func TestReadConfigFromFile(t *testing.T) {
 					TelemetryBatchIntervalInSecs: 15,
 					TelemetryBatchSizeBytes:      16384,
 				},
+				AZRSettings: AZRSettings{
+					EnableAZR:                            true,
+					PopulateHomeAzCacheRetryIntervalSecs: 60,
+				},
 				UseHTTPS:     true,
 				WireserverIP: "168.63.129.16",
 			},
@@ -206,8 +210,10 @@ func TestSetCNSConfigDefaults(t *testing.T) {
 				KeyVaultSettings: KeyVaultSettings{
 					RefreshIntervalInHrs: 12,
 				},
-				PopulateHomeAzCacheRetryIntervalSecs: 30,
-				WireserverIP:                         "168.63.129.16",
+				AZRSettings: AZRSettings{
+					PopulateHomeAzCacheRetryIntervalSecs: 60,
+				},
+				WireserverIP: "168.63.129.16",
 			},
 		},
 		{
@@ -230,7 +236,10 @@ func TestSetCNSConfigDefaults(t *testing.T) {
 				KeyVaultSettings: KeyVaultSettings{
 					RefreshIntervalInHrs: 3,
 				},
-				PopulateHomeAzCacheRetryIntervalSecs: 10,
+				AZRSettings: AZRSettings{
+					EnableAZR:                            true,
+					PopulateHomeAzCacheRetryIntervalSecs: 10,
+				},
 			},
 			want: CNSConfig{
 				ChannelMode: "Other",
@@ -250,8 +259,11 @@ func TestSetCNSConfigDefaults(t *testing.T) {
 				KeyVaultSettings: KeyVaultSettings{
 					RefreshIntervalInHrs: 3,
 				},
-				PopulateHomeAzCacheRetryIntervalSecs: 10,
-				WireserverIP:                         "168.63.129.16",
+				AZRSettings: AZRSettings{
+					EnableAZR:                            true,
+					PopulateHomeAzCacheRetryIntervalSecs: 10,
+				},
+				WireserverIP: "168.63.129.16",
 			},
 		},
 	}

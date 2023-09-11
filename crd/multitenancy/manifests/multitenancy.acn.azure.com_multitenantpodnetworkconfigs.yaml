@@ -1,0 +1,100 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.13.0
+  labels:
+    managed: ""
+    owner: ""
+  name: multitenantpodnetworkconfigs.multitenancy.acn.azure.com
+spec:
+  group: multitenancy.acn.azure.com
+  names:
+    kind: MultitenantPodNetworkConfig
+    listKind: MultitenantPodNetworkConfigList
+    plural: multitenantpodnetworkconfigs
+    shortNames:
+    - mtpnc
+    singular: multitenantpodnetworkconfig
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .spec.podNetworkInstance
+      name: PodNetworkInstance
+      type: string
+    - jsonPath: .spec.podNetwork
+      name: PodNetwork
+      type: string
+    - jsonPath: .spec.podName
+      name: PodName
+      type: string
+    - jsonPath: .status.ncID
+      name: NCID
+      type: string
+    - jsonPath: .status.primaryIP
+      name: PrimaryIP
+      type: string
+    - jsonPath: .status.macAddress
+      name: MacAddress
+      type: string
+    - jsonPath: .status.gatewayIP
+      name: GatewayIP
+      type: string
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        description: MultitenantPodNetworkConfig is the Schema for the multitenantpodnetworkconfigs
+          API
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: MultitenantPodNetworkConfigSpec defines the desired state
+              of PodNetworkConfig
+            properties:
+              podName:
+                description: name of the requesting cx pod
+                type: string
+              podNetwork:
+                description: name of PN object from requesting cx pod
+                type: string
+              podNetworkInstance:
+                description: name of PNI object from requesting cx pod
+                type: string
+            required:
+            - podName
+            - podNetwork
+            type: object
+          status:
+            description: MultitenantPodNetworkConfigStatus defines the observed state
+              of PodNetworkConfig
+            properties:
+              gatewayIP:
+                description: Gateway IP
+                type: string
+              macAddress:
+                description: maps to the NIC to be injected for the network container
+                type: string
+              ncID:
+                description: network container id
+                type: string
+              primaryIP:
+                description: ip allocated to the network container
+                type: string
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

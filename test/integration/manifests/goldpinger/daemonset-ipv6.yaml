@@ -1,0 +1,82 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: goldpinger-host
+  namespace: default
+spec:
+  selector:
+    matchLabels:
+      app: goldpinger
+      type: goldpinger-host
+  template:
+    metadata:
+      labels:
+        app: goldpinger
+        type: goldpinger-host
+    spec:
+      tolerations:
+        - effect: NoSchedule
+          key: node-role.kubernetes.io/master
+          operator: Exists
+      hostNetwork: true
+      serviceAccount: "goldpinger-serviceaccount"
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 2000
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: "app"
+                  operator: In
+                  values:
+                  - goldpinger
+              topologyKey: "kubernetes.io/hostname"
+      containers:
+        - name: goldpinger-vm
+          env:
+            - name: HOST
+              value: "0.0.0.0"
+            - name: PORT
+              value: "8080"
+            - name: PING_TIMEOUT
+              value: "10s"
+            - name: CHECK_TIMEOUT
+              value: "20s"
+            - name: CHECK_ALL_TIMEOUT
+              value: "20s"
+            - name: IP_VERSIONS
+              value: "6"
+            - name: HOSTNAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: HOSTS_TO_RESOLVE
+              value: "2001:4860:4860::8888 www.bing.com"
+          image: "docker.io/bloomberg/goldpinger:v3.7.0"
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+          ports:
+            - containerPort: 8080
+              name: http
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 5

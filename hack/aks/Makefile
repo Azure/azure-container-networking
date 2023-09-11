@@ -8,10 +8,13 @@ AZIMG   = mcr.microsoft.com/azure-cli
 AZCLI   ?= docker run --rm -v $(AZCFG):/root/.azure -v $(KUBECFG):/root/.kube -v $(SSH):/root/.ssh -v $(PWD):/root/tmpsrc $(AZIMG) az
 
 # overrideable defaults
-REGION     ?= westus2
-OS_SKU     ?= Ubuntu
-VM_SIZE	   ?= Standard_B2s
-NODE_COUNT ?= 2
+REGION          ?= westus2
+OS_SKU          ?= Ubuntu
+WINDOWS_OS_SKU  ?= Windows2022
+VM_SIZE	        ?= Standard_B2s
+NODE_COUNT      ?= 2
+K8S_VER         ?= 1.25 # Used only for ubuntu 18 as K8S 1.24.9, as K8S > 1.25 have Ubuntu 22
+WINDOWS_VM_SKU  ?= Standard_B2s
 
 # overrideable variables
 SUB        ?= $(AZURE_SUBSCRIPTION)
@@ -22,18 +25,18 @@ VNET       ?= $(CLUSTER)
 ##@ Help
 
 help:  ## Display this help
-	@awk 'BEGIN {FS = ":.*##"; printf "\nUsage:\n  make \033[36m<target>\033[0m\n"} /^[a-zA-Z_-]+:.*?##/ { printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2 } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
+	@awk 'BEGIN {FS = ":.*##"; printf "\nUsage:\n  make \033[36m<target>\033[0m\n"} /^[0-9a-zA-Z_-]+:.*?##/ { printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2 } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
 
 
 ##@ Utilities
 
-azlogin:
+azlogin: ## Login and set account to $SUB
 	@$(AZCLI) login
 	@$(AZCLI) account set -s $(SUB)
 
-azcfg:
+azcfg: ## Set the $AZCLI to use aks-preview
 	@$(AZCLI) extension add --name aks-preview --yes
-	@$(AZCLI) extension update --name aks-preview 
+	@$(AZCLI) extension update --name aks-preview
 
 set-kubeconf: ## Adds the kubeconf for $CLUSTER
 	$(AZCLI) aks get-credentials -n $(CLUSTER) -g $(GROUP)
@@ -61,7 +64,7 @@ vars: ## Show the input vars configured for the cluster commands
 
 ##@ SWIFT Infra
 
-rg-up: ## Create resource group 
+rg-up: ## Create resource group
 	@$(AZCLI) group create --location $(REGION) --name $(GROUP)
 
 rg-down: ## Delete resource group
@@ -96,21 +99,7 @@ overlay-byocni-up: rg-up overlay-net-up ## Brings up an Overlay BYO CNI cluster
 		--yes
 	@$(MAKE) set-kubeconf
 
-overlay-no-kube-proxy-up: rg-up overlay-net-up ## Brings up an Overlay BYO CNI cluster without kube-proxy for Cilium
-	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
-		--node-count $(NODE_COUNT) \
-		--node-vm-size $(VM_SIZE) \
-		--load-balancer-sku basic \
-		--network-plugin none \
-		--network-plugin-mode overlay \
-		--pod-cidr 192.168.0.0/16 \
-		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
-		--no-ssh-key \
-		--kube-proxy-config ./kube-proxy.json \
-		--yes
-	@$(MAKE) set-kubeconf
-
-overlay-cilium-up: rg-up overlay-net-up ## Brings up an Overlay AzCNI cluster
+overlay-cilium-up: rg-up overlay-net-up ## Brings up an Overlay Cilium cluster
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
 		--node-count $(NODE_COUNT) \
 		--node-vm-size $(VM_SIZE) \
@@ -150,19 +139,6 @@ swift-byocni-up: rg-up swift-net-up ## Bring up a SWIFT BYO CNI cluster
 		--yes
 	@$(MAKE) set-kubeconf
 
-swift-no-kube-proxy-up: rg-up swift-net-up ## Bring up a SWIFT BYO CNI cluster without kube-proxy for Cilium
-	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
-		--node-count $(NODE_COUNT) \
-		--node-vm-size $(VM_SIZE) \
-		--load-balancer-sku basic \
-		--network-plugin none \
-		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
-		--pod-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/podnet \
-		--no-ssh-key \
-		--os-sku $(OS_SKU) \
-		--kube-proxy-config ./kube-proxy.json \
-		--yes
-	@$(MAKE) set-kubeconf
 
 swift-cilium-up: rg-up swift-net-up ## Bring up a SWIFT Cilium cluster
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
@@ -190,6 +166,34 @@ swift-up: rg-up swift-net-up ## Bring up a SWIFT AzCNI cluster
 		--yes
 	@$(MAKE) set-kubeconf
 
+cilium-overlay-up: rg-up overlay-net-up ## Brings up an Overlay BYO CNI cluster without kube-proxy for Cilium
+	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
+		--node-count $(NODE_COUNT) \
+		--node-vm-size $(VM_SIZE) \
+		--load-balancer-sku basic \
+		--network-plugin none \
+		--network-plugin-mode overlay \
+		--pod-cidr 192.168.0.0/16 \
+		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
+		--no-ssh-key \
+		--kube-proxy-config ./kube-proxy.json \
+		--yes
+	@$(MAKE) set-kubeconf
+
+cilium-podsubnet-up: rg-up swift-net-up ## Bring up a SWIFT BYO CNI cluster without kube-proxy for Cilium
+	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
+		--node-count $(NODE_COUNT) \
+		--node-vm-size $(VM_SIZE) \
+		--load-balancer-sku basic \
+		--network-plugin none \
+		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
+		--pod-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/podnet \
+		--no-ssh-key \
+		--os-sku $(OS_SKU) \
+		--kube-proxy-config ./kube-proxy.json \
+		--yes
+	@$(MAKE) set-kubeconf
+
 windows-cniv1-up: rg-up overlay-net-up ## Bring up a Windows CNIv1 cluster
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
 		--node-count $(NODE_COUNT) \
@@ -203,12 +207,54 @@ windows-cniv1-up: rg-up overlay-net-up ## Bring up a Windows CNIv1 cluster
 
 	$(AZCLI) aks nodepool add --resource-group $(GROUP) --cluster-name $(CLUSTER) \
 		--os-type Windows \
-		--os-sku Windows2022 \
+		--os-sku $(WINDOWS_OS_SKU) \
 		--max-pods 250 \
 		--name npwin \
 		--node-count $(NODE_COUNT) \
 		-s $(WINDOWS_VM_SKU)
 
+	@$(MAKE) set-kubeconf
+
+linux-cniv1-up: rg-up overlay-net-up ## Bring up a Linux CNIv1 cluster
+	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
+		--node-count $(NODE_COUNT) \
+		--node-vm-size $(VM_SIZE) \
+		--max-pods 250 \
+		--network-plugin azure \
+		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
+		--kubernetes-version $(K8S_VER) \
+		--os-sku $(OS_SKU) \
+		--no-ssh-key \
+		--yes
+
+	@$(MAKE) set-kubeconf
+
+dualstack-overlay-up: rg-up overlay-net-up ## Brings up an dualstack Overlay cluster with Linux node only
+	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
+		--node-count $(NODE_COUNT) \
+		--node-vm-size $(VM_SIZE) \
+		--network-plugin azure \
+		--network-plugin-mode overlay \
+		--subscription $(SUB) \
+		--ip-families ipv4,ipv6 \
+		--kubernetes-version 1.26.3 \
+		--aks-custom-headers AKSHTTPCustomFeatures=Microsoft.ContainerService/AzureOverlayDualStackPreview \
+		--no-ssh-key \
+		--yes
+	@$(MAKE) set-kubeconf
+
+dualstack-overlay-byocni-up: rg-up overlay-net-up ## Brings up an dualstack Overlay BYO CNI cluster
+	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
+		--node-count $(NODE_COUNT) \
+		--node-vm-size $(VM_SIZE) \
+		--network-plugin none \
+		--network-plugin-mode overlay \
+		--subscription $(SUB) \
+		--ip-families ipv4,ipv6 \
+		--kubernetes-version 1.26.3 \
+		--aks-custom-headers AKSHTTPCustomFeatures=Microsoft.ContainerService/AzureOverlayDualStackPreview \
+		--no-ssh-key \
+		--yes
 	@$(MAKE) set-kubeconf
 
 down: ## Delete the cluster
@@ -218,3 +264,6 @@ down: ## Delete the cluster
 
 restart-vmss: ## Restarts the nodes in the cluster
 	$(AZCLI) vmss restart -g MC_${GROUP}_${CLUSTER}_${REGION} --name $(VMSS_NAME)
+
+scale-vmss: ## Scales the nodes in the cluster
+	$(AZCLI) vmss scale -g MC_${GROUP}_${CLUSTER}_${REGION} --name $(VMSS_NAME) --new-capacity $(NODE_COUNT)

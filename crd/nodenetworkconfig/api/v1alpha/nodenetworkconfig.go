@@ -58,6 +58,15 @@ const (
 	Error    Status = "Error"
 )
 
+// NCStatus indicates the latest NC request status
+// +kubebuilder:validation:Enum=SubnetFull
+// +kubebuilder:validation:Optional
+type NCStatus string
+
+const (
+	NCStatusSubnetFull NCStatus = "SubnetFull"
+)
+
 // NodeNetworkConfigStatus defines the observed state of NetworkConfig
 type NodeNetworkConfigStatus struct {
 	// +kubebuilder:default=0
@@ -108,12 +117,13 @@ type NetworkContainer struct {
 	SubnetAddressSpace string         `json:"subnetAddressSpace,omitempty"`
 	// +kubebuilder:default=0
 	// +kubebuilder:validation:Optional
-	Version         int64  `json:"version"`
-	NodeIP          string `json:"nodeIP,omitempty"`
-	SubscriptionID  string `json:"subcriptionID,omitempty"`
-	ResourceGroupID string `json:"resourceGroupID,omitempty"`
-	VNETID          string `json:"vnetID,omitempty"`
-	SubnetID        string `json:"subnetID,omitempty"`
+	Version         int64    `json:"version"`
+	NodeIP          string   `json:"nodeIP,omitempty"`
+	SubscriptionID  string   `json:"subcriptionID,omitempty"`
+	ResourceGroupID string   `json:"resourceGroupID,omitempty"`
+	VNETID          string   `json:"vnetID,omitempty"`
+	SubnetID        string   `json:"subnetID,omitempty"`
+	Status          NCStatus `json:"status,omitempty"`
 }
 
 // IPAssignment groups an IP address and Name. Name is a UUID set by the the IP address assigner.

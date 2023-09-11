@@ -16,10 +16,10 @@ import (
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/client"
 	"github.com/Azure/azure-container-networking/common"
-	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/network"
 	cniTypes "github.com/containernetworking/cni/pkg/types"
 	cniTypesCurr "github.com/containernetworking/cni/pkg/types/100"
+	"go.uber.org/zap"
 )
 
 const (
@@ -87,8 +87,8 @@ func (m *Multitenancy) DetermineSnatFeatureOnHost(snatFile, nmAgentSupportedApis
 		bytes, _ := io.ReadAll(jsonFile)
 		jsonFile.Close()
 		if retrieveSnatConfigErr = json.Unmarshal(bytes, &snatConfig); retrieveSnatConfigErr != nil {
-			log.Errorf("[cni-net] failed to unmarshal to snatConfig with error %v",
-				retrieveSnatConfigErr)
+			logger.Error("failed to unmarshal to snatConfig with error %v",
+				zap.Error(retrieveSnatConfigErr))
 		}
 	}
 
@@ -97,10 +97,10 @@ func (m *Multitenancy) DetermineSnatFeatureOnHost(snatFile, nmAgentSupportedApis
 		var resp *http.Response
 		req, err := http.NewRequestWithContext(context.TODO(), http.MethodGet, nmAgentSupportedApisURL, nil)
 		if err != nil {
-			log.Errorf("failed creating http request:%+v", err)
+			logger.Error("failed creating http request", zap.Error(err))
 			return false, false, fmt.Errorf("%w", err)
 		}
-		log.Printf("Query nma for dns snat support: %s", nmAgentSupportedApisURL)
+		logger.Info("Query nma for dns snat support", zap.String("query", nmAgentSupportedApisURL))
 		resp, retrieveSnatConfigErr = httpClient.Do(req)
 		if retrieveSnatConfigErr == nil {
 			defer resp.Body.Close()
@@ -120,11 +120,13 @@ func (m *Multitenancy) DetermineSnatFeatureOnHost(snatFile, nmAgentSupportedApis
 					if err == nil {
 						_, err = fp.Write(jsonStr)
 						if err != nil {
-							log.Errorf("DetermineSnatFeatureOnHost: Write to json failed:%+v", err)
+							logger.Error("DetermineSnatFeatureOnHost: Write to json failed", zap.Error(err))
 						}
 						fp.Close()
 					} else {
-						log.Errorf("[cni-net] failed to save snat settings to %s with error: %+v", snatConfigFile, err)
+						logger.Error("failed to save snat settings",
+							zap.String("snatConfgFile", snatConfigFile),
+							zap.Error(err))
 					}
 				}
 			} else {
@@ -135,20 +137,22 @@ func (m *Multitenancy) DetermineSnatFeatureOnHost(snatFile, nmAgentSupportedApis
 
 	// Log and return the error when we fail acquire snat configuration for host and dns
 	if retrieveSnatConfigErr != nil {
-		log.Errorf("[cni-net] failed to acquire SNAT configuration with error %v",
-			retrieveSnatConfigErr)
+		logger.Error("failed to acquire SNAT configuration with error %v",
+			zap.Error(retrieveSnatConfigErr))
 		return snatConfig.EnableSnatForDns, snatConfig.EnableSnatOnHost, retrieveSnatConfigErr
 	}
 
-	log.Printf("[cni-net] saved snat settings %+v to %s", snatConfig, snatConfigFile)
+	logger.Info("saved snat settings",
+		zap.Any("snatConfig", snatConfig),
+		zap.String("snatConfigfile", snatConfigFile))
 	if snatConfig.EnableSnatOnHost {
-		log.Printf("[cni-net] enabling SNAT on container host for outbound connectivity")
+		logger.Info("enabling SNAT on container host for outbound connectivity")
 	}
 	if snatConfig.EnableSnatForDns {
-		log.Printf("[cni-net] enabling SNAT on container host for DNS traffic")
+		logger.Info("enabling SNAT on container host for DNS traffic")
 	}
 	if !snatConfig.EnableSnatForDns && !snatConfig.EnableSnatOnHost {
-		log.Printf("[cni-net] disabling SNAT on container host")
+		logger.Info("disabling SNAT on container host")
 	}
 
 	return snatConfig.EnableSnatForDns, snatConfig.EnableSnatOnHost, nil
@@ -164,7 +168,7 @@ func (m *Multitenancy) SetupRoutingForMultitenancy(
 	// Adding default gateway
 	// if snat enabled, add 169.254.128.1 as default gateway
 	if nwCfg.EnableSnatOnHost {
-		log.Printf("add default route for multitenancy.snat on host enabled")
+		logger.Info("add default route for multitenancy.snat on host enabled")
 		addDefaultRoute(cnsNetworkConfig.LocalIPConfiguration.GatewayIPAddress, epInfo, result)
 	} else {
 		_, defaultIPNet, _ := net.ParseCIDR("0.0.0.0/0")
@@ -174,7 +178,7 @@ func (m *Multitenancy) SetupRoutingForMultitenancy(
 		result.Routes = append(result.Routes, &cniTypes.Route{Dst: dstIP, GW: gwIP})
 
 		if epInfo.EnableSnatForDns {
-			log.Printf("add SNAT for DNS enabled")
+			logger.Info("add SNAT for DNS enabled")
 			addSnatForDNS(cnsNetworkConfig.LocalIPConfiguration.GatewayIPAddress, epInfo, result)
 		}
 	}
@@ -194,7 +198,7 @@ func (m *Multitenancy) GetAllNetworkContainers(
 		podNameWithoutSuffix = podName
 	}
 
-	log.Printf("Podname without suffix %v", podNameWithoutSuffix)
+	logger.Info("Podname without suffix", zap.String("podName", podNameWithoutSuffix))
 
 	ncResponses, hostSubnetPrefixes, err := m.getNetworkContainersInternal(ctx, podNamespace, podNameWithoutSuffix)
 	if err != nil {
@@ -204,7 +208,8 @@ func (m *Multitenancy) GetAllNetworkContainers(
 	for i := 0; i < len(ncResponses); i++ {
 		if nwCfg.EnableSnatOnHost {
 			if ncResponses[i].LocalIPConfiguration.IPSubnet.IPAddress == "" {
-				log.Printf("Snat IP is not populated for ncs %+v. Got empty string", ncResponses)
+				logger.Info("Snat IP is not populated for ncs. Got empty string",
+					zap.Any("response", ncResponses))
 				return []IPAMAddResult{}, errSnatIP
 			}
 		}
@@ -232,7 +237,7 @@ func (m *Multitenancy) getNetworkContainersInternal(
 
 	orchestratorContext, err := json.Marshal(podInfo)
 	if err != nil {
-		log.Printf("Marshalling KubernetesPodInfo failed with %v", err)
+		logger.Error("Marshalling KubernetesPodInfo failed", zap.Error(err))
 		return nil, []net.IPNet{}, fmt.Errorf("%w", err)
 	}
 
@@ -249,13 +254,14 @@ func (m *Multitenancy) getNetworkContainersInternal(
 		return nil, []net.IPNet{}, fmt.Errorf("%w", err)
 	}
 
-	log.Printf("Network config received from cns %+v", ncConfigs)
+	logger.Info("Network config received from cns", zap.Any("nconfig", ncConfigs))
 
 	subnetPrefixes := []net.IPNet{}
 	for i := 0; i < len(ncConfigs); i++ {
 		subnetPrefix := m.netioshim.GetInterfaceSubnetWithSpecificIP(ncConfigs[i].PrimaryInterfaceIdentifier)
 		if subnetPrefix == nil {
-			log.Printf("%w %s", errIfaceNotFound, ncConfigs[i].PrimaryInterfaceIdentifier)
+			logger.Error(errIfaceNotFound.Error(),
+				zap.String("nodeIP", ncConfigs[i].PrimaryInterfaceIdentifier))
 			return nil, []net.IPNet{}, errIfaceNotFound
 		}
 		subnetPrefixes = append(subnetPrefixes, *subnetPrefix)

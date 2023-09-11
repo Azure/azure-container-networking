@@ -125,6 +125,19 @@ func start(config npmconfig.Config, flags npmconfig.Flags) error {
 		// update the dataplane config
 		npmV2DataplaneCfg.MaxBatchedACLsPerPod = config.MaxBatchedACLsPerPod
 
+		npmV2DataplaneCfg.NetPolInBackground = config.Toggles.NetPolInBackground
+		if config.NetPolInvervalInMilliseconds > 0 {
+			npmV2DataplaneCfg.NetPolInterval = time.Duration(config.NetPolInvervalInMilliseconds * int(time.Millisecond))
+		} else {
+			npmV2DataplaneCfg.NetPolInterval = time.Duration(npmconfig.DefaultConfig.NetPolInvervalInMilliseconds * int(time.Millisecond))
+		}
+
+		if config.MaxPendingNetPols > 0 {
+			npmV2DataplaneCfg.MaxPendingNetPols = config.MaxPendingNetPols
+		} else {
+			npmV2DataplaneCfg.MaxPendingNetPols = npmconfig.DefaultConfig.MaxPendingNetPols
+		}
+
 		npmV2DataplaneCfg.ApplyInBackground = config.Toggles.ApplyInBackground
 		if config.ApplyMaxBatches > 0 {
 			npmV2DataplaneCfg.ApplyMaxBatches = config.ApplyMaxBatches

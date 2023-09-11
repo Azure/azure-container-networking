@@ -386,6 +386,9 @@ func (nw *network) newEndpointImplHnsV2(cli apipaClient, epInfo *EndpointInfo) (
 		AllowInboundFromNCToHost: epInfo.AllowInboundFromNCToHost,
 		AllowInboundFromHostToNC: epInfo.AllowInboundFromHostToNC,
 		NetworkContainerID:       epInfo.NetworkContainerID,
+		ContainerID:              epInfo.ContainerID,
+		PODName:                  epInfo.PODName,
+		PODNameSpace:             epInfo.PODNameSpace,
 	}
 
 	for _, route := range epInfo.Routes {

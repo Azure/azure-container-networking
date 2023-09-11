@@ -14,6 +14,7 @@ import (
 	"github.com/Azure/azure-container-networking/aitelemetry"
 	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/cni/api"
+	zapLog "github.com/Azure/azure-container-networking/cni/log"
 	"github.com/Azure/azure-container-networking/cni/network"
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/log"
@@ -24,6 +25,7 @@ import (
 	"github.com/containernetworking/cni/pkg/skel"
 	cniTypes "github.com/containernetworking/cni/pkg/types"
 	"github.com/pkg/errors"
+	"go.uber.org/zap"
 )
 
 const (
@@ -37,6 +39,8 @@ const (
 
 // Version is populated by make during build.
 var version string
+
+var logger = zapLog.InitZapLogCNI(name, "azure-vnet.log")
 
 // Command line arguments for CNI plugin.
 var args = common.ArgumentList{
@@ -56,11 +60,11 @@ func printVersion() {
 
 // send error report to hostnetagent if CNI encounters any error.
 func reportPluginError(reportManager *telemetry.ReportManager, tb *telemetry.TelemetryBuffer, err error) {
-	log.Printf("Report plugin error")
+	logger.Error("Report plugin error")
 	reflect.ValueOf(reportManager.Report).Elem().FieldByName("ErrorMessage").SetString(err.Error())
 
 	if err := reportManager.SendReport(tb); err != nil {
-		log.Errorf("SendReport failed due to %v", err)
+		logger.Error("SendReport failed", zap.Error(err))
 	}
 }
 
@@ -78,7 +82,7 @@ func validateConfig(jsonBytes []byte) error {
 }
 
 func getCmdArgsFromEnv() (string, *skel.CmdArgs, error) {
-	log.Printf("Going to read from stdin")
+	logger.Info("Going to read from stdin")
 	stdinData, err := io.ReadAll(os.Stdin)
 	if err != nil {
 		return "", nil, fmt.Errorf("error reading from stdin: %v", err)
@@ -104,24 +108,24 @@ func handleIfCniUpdate(update func(*skel.CmdArgs) error) (bool, error) {
 		return false, nil
 	}
 
-	log.Printf("CNI UPDATE received.")
+	logger.Info("CNI UPDATE received")
 
 	_, cmdArgs, err := getCmdArgsFromEnv()
 	if err != nil {
-		log.Printf("Received error while retrieving cmds from environment: %+v", err)
+		logger.Error("Received error while retrieving cmds from environment", zap.Error(err))
 		return isupdate, err
 	}
 
-	log.Printf("Retrieved command args for update +%v", cmdArgs)
+	logger.Info("Retrieved command args for update", zap.Any("args", cmdArgs))
 	err = validateConfig(cmdArgs.StdinData)
 	if err != nil {
-		log.Printf("Failed to handle CNI UPDATE, err:%v.", err)
+		logger.Error("Failed to handle CNI UPDATE", zap.Error(err))
 		return isupdate, err
 	}
 
 	err = update(cmdArgs)
 	if err != nil {
-		log.Printf("Failed to handle CNI UPDATE, err:%v.", err)
+		logger.Error("Failed to handle CNI UPDATE", zap.Error(err))
 		return isupdate, err
 	}
 
@@ -129,7 +133,7 @@ func handleIfCniUpdate(update func(*skel.CmdArgs) error) (bool, error) {
 }
 
 func printCNIError(msg string) {
-	log.Errorf(msg)
+	logger.Error(msg)
 	cniErr := &cniTypes.Error{
 		Code: cniTypes.ErrTryAgainLater,
 		Msg:  msg,
@@ -173,7 +177,7 @@ func rootExecute() error {
 	cniCmd := os.Getenv(cni.Cmd)
 
 	if cniCmd != cni.CmdVersion {
-		log.Printf("CNI_COMMAND environment variable set to %s", cniCmd)
+		logger.Info("Environment variable set", zap.String("CNI_COMMAND", cniCmd))
 
 		cniReport.GetReport(pluginName, version, ipamQueryURL)
 
@@ -189,7 +193,7 @@ func rootExecute() error {
 
 			tb = telemetry.NewTelemetryBuffer()
 			if tberr := tb.Connect(); tberr != nil {
-				log.Errorf("Cannot connect to telemetry service:%v", tberr)
+				logger.Error("Cannot connect to telemetry service", zap.Error(tberr))
 				return errors.Wrap(err, "lock acquire error")
 			}
 
@@ -204,7 +208,7 @@ func rootExecute() error {
 				}
 				sendErr := telemetry.SendCNIMetric(&cniMetric, tb)
 				if sendErr != nil {
-					log.Errorf("Couldn't send cnilocktimeout metric: %v", sendErr)
+					logger.Error("Couldn't send cnilocktimeout metric", zap.Error(sendErr))
 				}
 			}
 
@@ -214,7 +218,7 @@ func rootExecute() error {
 
 		defer func() {
 			if errUninit := netPlugin.Plugin.UninitializeKeyValueStore(); errUninit != nil {
-				log.Errorf("Failed to uninitialize key-value store of network plugin, err:%v.\n", errUninit)
+				logger.Error("Failed to uninitialize key-value store of network plugin", zap.Error(errUninit))
 			}
 
 			if recover() != nil {
@@ -241,17 +245,17 @@ func rootExecute() error {
 
 		// used to dump state
 		if cniCmd == cni.CmdGetEndpointsState {
-			log.Printf("Retrieving state")
+			logger.Debug("Retrieving state")
 			var simpleState *api.AzureCNIState
 			simpleState, err = netPlugin.GetAllEndpointState("azure")
 			if err != nil {
-				log.Errorf("Failed to get Azure CNI state, err:%v.\n", err)
+				logger.Error("Failed to get Azure CNI state", zap.Error(err))
 				return errors.Wrap(err, "Get all endpoints error")
 			}
 
 			err = simpleState.PrintResult()
 			if err != nil {
-				log.Errorf("Failed to print state result to stdout with err %v\n", err)
+				logger.Error("Failed to print state result to stdout", zap.Error(err))
 			}
 
 			return errors.Wrap(err, "Get cni state printresult error")
@@ -260,9 +264,9 @@ func rootExecute() error {
 
 	handled, _ := handleIfCniUpdate(netPlugin.Update)
 	if handled {
-		log.Printf("CNI UPDATE finished.")
+		logger.Info("CNI UPDATE finished.")
 	} else if err = netPlugin.Execute(cni.PluginApi(netPlugin)); err != nil {
-		log.Errorf("Failed to execute network plugin, err:%v.\n", err)
+		logger.Error("Failed to execute network plugin", zap.Error(err))
 	}
 
 	if cniCmd == cni.CmdVersion {
@@ -296,10 +300,9 @@ func main() {
 		return
 	}
 
-	err := rootExecute()
+	defer log.Close()
 
-	log.Close()
-	if err != nil {
+	if rootExecute() != nil {
 		os.Exit(1)
 	}
 }

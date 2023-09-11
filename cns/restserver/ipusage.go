@@ -23,9 +23,11 @@ func (service *HTTPRestService) buildIPState() *ipState {
 	defer service.Unlock()
 
 	state := ipState{
-		allocatedIPs: 0,
-		assignedIPs:  0,
-		availableIPs: 0,
+		allocatedIPs:   0,
+		assignedIPs:    0,
+		availableIPs:   0,
+		programmingIPs: 0,
+		releasingIPs:   0,
 	}
 
 	//nolint:gocritic // This has to iterate over the IP Config state to get the counts.
@@ -45,6 +47,12 @@ func (service *HTTPRestService) buildIPState() *ipState {
 		}
 	}
 
-	logger.Printf("[IP Usage] allocated IPs: %d, assigned IPs: %d, available IPs: %d", state.allocatedIPs, state.assignedIPs, state.availableIPs)
+	logger.Printf("[IP Usage] Allocated IPs: %d, Assigned IPs: %d, Available IPs: %d, PendingProgramming IPs: %d, PendingRelease IPs: %d",
+		state.allocatedIPs,
+		state.assignedIPs,
+		state.availableIPs,
+		state.programmingIPs,
+		state.releasingIPs,
+	)
 	return &state
 }

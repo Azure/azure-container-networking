@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"flag"
+	"fmt"
 	"io"
 	"log"
 	"os"
@@ -35,8 +36,8 @@ const (
 	SubnetNameLabel        = "kubernetes.azure.com/podnetwork-subnet"
 
 	// RetryAttempts is the number of times to retry a test.
-	RetryAttempts = 30
-	RetryDelay    = 30 * time.Second
+	RetryAttempts = 90
+	RetryDelay    = 10 * time.Second
 )
 
 var Kubeconfig = flag.String("test-kubeconfig", filepath.Join(homedir.HomeDir(), ".kube", "config"), "(optional) absolute path to the kubeconfig file")
@@ -71,7 +72,6 @@ func mustParseResource(path string, out interface{}) error {
 	if err := yaml.NewYAMLOrJSONDecoder(f, 0).Decode(out); err != nil {
 		return err
 	}
-
 	return err
 }
 
@@ -246,6 +246,8 @@ func WaitForPodDeployment(ctx context.Context, clientset *kubernetes.Clientset, 
 		}
 
 		if deployment.Status.AvailableReplicas != int32(replicas) {
+			// Provide real-time deployment availability to console
+			log.Printf("deployment %s has %d replicas in available status, expected %d", deploymentName, deployment.Status.AvailableReplicas, replicas)
 			return errors.New("deployment does not have the expected number of available replicas")
 		}
 
@@ -263,6 +265,43 @@ func WaitForPodDeployment(ctx context.Context, clientset *kubernetes.Clientset, 
 
 	retrier := retry.Retrier{Attempts: RetryAttempts, Delay: RetryDelay}
 	return errors.Wrapf(retrier.Do(ctx, checkPodDeploymentFn), "could not wait for deployment %s", deploymentName)
+}
+
+func WaitForPodDaemonset(ctx context.Context, clientset *kubernetes.Clientset, namespace, daemonsetName, podLabelSelector string) error {
+	podsClient := clientset.CoreV1().Pods(namespace)
+	daemonsetClient := clientset.AppsV1().DaemonSets(namespace)
+	checkPodDaemonsetFn := func() error {
+		daemonset, err := daemonsetClient.Get(ctx, daemonsetName, metav1.GetOptions{})
+		if err != nil {
+			return errors.Wrapf(err, "could not get daemonset %s", daemonsetName)
+		}
+
+		if daemonset.Status.NumberReady == 0 && daemonset.Status.DesiredNumberScheduled == 0 {
+			// Capture daemonset restart. Restart sets every numerical status to 0.
+			log.Printf("daemonset %s is in restart phase, no pods should be ready or scheduled", daemonsetName)
+			return errors.New("daemonset did not set any pods to be scheduled")
+		}
+
+		if daemonset.Status.NumberReady != daemonset.Status.DesiredNumberScheduled {
+			// Provide real-time daemonset availability to console
+			log.Printf("daemonset %s has %d pods in ready status, expected %d", daemonsetName, daemonset.Status.NumberReady, daemonset.Status.DesiredNumberScheduled)
+			return errors.New("daemonset does not have the expected number of ready state pods")
+		}
+
+		podList, err := podsClient.List(ctx, metav1.ListOptions{LabelSelector: podLabelSelector})
+		if err != nil {
+			return errors.Wrapf(err, "could not list pods with label selector %s", podLabelSelector)
+		}
+
+		log.Printf("daemonset %s has %d pods in ready status, expected %d", daemonsetName, len(podList.Items), daemonset.Status.CurrentNumberScheduled)
+		if len(podList.Items) != int(daemonset.Status.NumberReady) {
+			return errors.New("some pods of the daemonset are still not ready")
+		}
+		return nil
+	}
+
+	retrier := retry.Retrier{Attempts: RetryAttempts, Delay: RetryDelay}
+	return errors.Wrapf(retrier.Do(ctx, checkPodDaemonsetFn), "could not wait for daemonset %s", daemonsetName)
 }
 
 func MustUpdateReplica(ctx context.Context, deploymentsClient typedappsv1.DeploymentInterface, deploymentName string, replicas int32) error {
@@ -371,4 +410,9 @@ func NamespaceExists(ctx context.Context, clientset *kubernetes.Clientset, names
 		return false, errors.Wrapf(err, "error in getting namespace %s", namespace)
 	}
 	return true, nil
+}
+
+// return a label selector
+func CreateLabelSelector(key string, selector *string) string {
+	return fmt.Sprintf("%s=%s", key, *selector)
 }

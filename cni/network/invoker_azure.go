@@ -8,14 +8,20 @@ import (
 	"strings"
 
 	"github.com/Azure/azure-container-networking/cni"
+	"github.com/Azure/azure-container-networking/cni/log"
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/ipam"
-	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/network"
 	"github.com/Azure/azure-container-networking/platform"
 	cniSkel "github.com/containernetworking/cni/pkg/skel"
 	cniTypes "github.com/containernetworking/cni/pkg/types"
 	cniTypesCurr "github.com/containernetworking/cni/pkg/types/100"
+	"go.uber.org/zap"
+)
+
+var (
+	loggerName = "azure-vnet"
+	logger     = log.InitZapLogCNI(loggerName, "azure-vnet.log")
 )
 
 const (
@@ -103,7 +109,7 @@ func (invoker *AzureIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, er
 func (invoker *AzureIPAMInvoker) deleteIpamState() {
 	cniStateExists, err := platform.CheckIfFileExists(platform.CNIStateFilePath)
 	if err != nil {
-		log.Printf("[cni] Error checking CNI state exist: %v", err)
+		logger.Error("Error checking CNI state exist", zap.Error(err))
 		return
 	}
 
@@ -113,15 +119,15 @@ func (invoker *AzureIPAMInvoker) deleteIpamState() {
 
 	ipamStateExists, err := platform.CheckIfFileExists(platform.CNIIpamStatePath)
 	if err != nil {
-		log.Printf("[cni] Error checking IPAM state exist: %v", err)
+		logger.Error("Error checking IPAM state exist", zap.Error(err))
 		return
 	}
 
 	if ipamStateExists {
-		log.Printf("[cni] Deleting IPAM state file")
+		logger.Info("Deleting IPAM state file")
 		err = os.Remove(platform.CNIIpamStatePath)
 		if err != nil {
-			log.Printf("[cni] Error deleting state file %v", err)
+			logger.Error("Error deleting state file", zap.Error(err))
 			return
 		}
 	}
@@ -142,10 +148,12 @@ func (invoker *AzureIPAMInvoker) Delete(address *net.IPNet, nwCfg *cni.NetworkCo
 		}
 	} else if len(address.IP.To4()) == bytesSize4 { //nolint:gocritic
 		nwCfg.IPAM.Address = address.IP.String()
-		log.Printf("Releasing ipv4 address :%s pool: %s", nwCfg.IPAM.Address, nwCfg.IPAM.Subnet)
+		logger.Info("Releasing ipv4",
+			zap.String("address", nwCfg.IPAM.Address),
+			zap.String("pool", nwCfg.IPAM.Subnet))
 		if err := invoker.plugin.DelegateDel(nwCfg.IPAM.Type, nwCfg); err != nil {
-			log.Printf("Failed to release ipv4 address: %v", err)
-			return invoker.plugin.Errorf("Failed to release ipv4 address: %v with error: ", nwCfg.IPAM.Address, err)
+			logger.Error("Failed to release ipv4 address", zap.Error(err))
+			return invoker.plugin.Errorf("Failed to release ipv4 address: %v", err)
 		}
 	} else if len(address.IP.To16()) == bytesSize16 {
 		nwCfgIpv6 := *nwCfg
@@ -161,9 +169,11 @@ func (invoker *AzureIPAMInvoker) Delete(address *net.IPNet, nwCfg *cni.NetworkCo
 			}
 		}
 
-		log.Printf("Releasing ipv6 address :%s pool: %s", nwCfgIpv6.IPAM.Address, nwCfgIpv6.IPAM.Subnet)
+		logger.Info("Releasing ipv6",
+			zap.String("address", nwCfgIpv6.IPAM.Address),
+			zap.String("pool", nwCfgIpv6.IPAM.Subnet))
 		if err := invoker.plugin.DelegateDel(nwCfgIpv6.IPAM.Type, &nwCfgIpv6); err != nil {
-			log.Printf("Failed to release ipv6 address: %v", err)
+			logger.Error("Failed to release ipv6 address", zap.Error(err))
 			return invoker.plugin.Errorf("Failed to release ipv6 address: %v", err)
 		}
 	} else {

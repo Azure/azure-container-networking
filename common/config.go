@@ -24,6 +24,7 @@ const (
 	OptLogLevelAlias = "l"
 	OptLogLevelInfo  = "info"
 	OptLogLevelDebug = "debug"
+	OptLogLevelError = "error"
 
 	// Logging target.
 	OptLogTarget       = "log-target"

@@ -24,6 +24,7 @@ const (
 
 	// DefaultLockTimeout - lock timeout in milliseconds
 	DefaultLockTimeout        = 10000 * time.Millisecond
+	DefaultLockTimeoutLinux   = 30000 * time.Millisecond
 	DefaultLockTimeoutWindows = 60000 * time.Millisecond
 )
 
