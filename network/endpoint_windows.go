@@ -6,7 +6,6 @@ package network
 import (
 	"context"
 	"fmt"
-	"log"
 	"net"
 	"strings"
 
@@ -347,7 +346,7 @@ func (nw *network) newEndpointImplHnsV2(cli apipaClient, epInfo *EndpointInfo) (
 	defer func() {
 		if err != nil {
 			if errRemoveNsEp := Hnsv2.RemoveNamespaceEndpoint(namespace.Id, hnsResponse.Id); errRemoveNsEp != nil {
-				log.Logger.Error("Failed to remove endpoint from namespace due to error",
+				logger.Error("Failed to remove endpoint from namespace due to error",
 					zap.String("id", hnsResponse.Id), zap.String("id", hnsResponse.Id), zap.Any("errRemoveNsEp", errRemoveNsEp))
 			}
 		}
