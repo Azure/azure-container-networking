@@ -2,7 +2,6 @@ package fsnotify
 
 import (
 	"context"
-	"io/fs"
 	"os"
 
 	"github.com/Azure/azure-container-networking/cns"
@@ -17,131 +16,113 @@ type cnsclient interface {
 
 type Watcher struct {
 	CnsClient cnsclient
+	Path      string
+	Logger    *zap.Logger
 }
 
-func WatchFs(w *Watcher, path string, logger *zap.Logger) error {
+// WatchFS starts the filesystem watcher to handle async Pod deletes.
+// Blocks until the context is closed; returns underlying fsnotify errors
+// if something goes fatally wrong.
+func (w *Watcher) WatchFs(ctx context.Context) error {
 	// Create new fs watcher.
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
-		logger.Error("error creating watcher", zap.Error(err))
+		w.Logger.Error("error creating watcher", zap.Error(err))
+		return err
 	}
 	defer watcher.Close()
 
+	c, cancel := context.WithCancel(ctx)
 	// Start listening for events.
-	logger.Info("listening for events from watcher")
+	w.Logger.Info("listening for events from watcher")
 	go func() {
+		defer cancel()
 		for {
 			select {
 			case event, ok := <-watcher.Events:
 				if !ok {
 					return
 				}
-				logger.Info("received event", zap.String("event", event.Name))
+				w.Logger.Info("received event", zap.String("event", event.Name))
 				if event.Has(fsnotify.Create) {
-					logger.Info("file created, triggering release", zap.String("event", event.Name))
+					w.Logger.Info("file created, triggering release", zap.String("event", event.Name))
 					cnsReleaseErr := w.releaseIP(event.Name)
 					if cnsReleaseErr != nil {
-						logger.Error("failed to release IP from CNS", zap.Error(cnsReleaseErr))
+						w.Logger.Error("failed to release IP from CNS", zap.Error(cnsReleaseErr))
 					}
-					deleteErr := RemoveFile(event.Name, path)
+					deleteErr := RemoveFile(event.Name, w.Path)
 					if deleteErr != nil {
-						logger.Error("failed to remove file", zap.Error(err))
+						w.Logger.Error("failed to remove file", zap.Error(err))
 					}
 				}
 				if event.Has(fsnotify.Remove) {
-					logger.Info("file deleted", zap.String("event", event.Name))
+					w.Logger.Info("file deleted", zap.String("event", event.Name))
 				}
 			case watcherErr, ok := <-watcher.Errors:
 				if !ok {
 					return
 				}
-				logger.Error("watcher error", zap.Error(watcherErr))
+				w.Logger.Error("watcher error", zap.Error(watcherErr))
 			}
 		}
 	}()
 
 	// Add directory where intended deletes are kept
-	err = os.MkdirAll(path, 0o755) //nolint
+	err = os.MkdirAll(w.Path, 0o755) //nolint
 	if err != nil {
-		logger.Error("error making directory", zap.Error(err))
+		w.Logger.Error("error making directory", zap.Error(err))
 	}
-	err = watcher.Add(path)
+	err = watcher.Add(w.Path)
 	if err != nil {
-		logger.Error("watcher add directory error", zap.Error(err))
+		w.Logger.Error("watcher add directory error", zap.Error(err))
 	}
 
 	// list the directory then call ReleaseIPs
-	logger.Info("listing directory deleteIDs")
-	dirContents, err := os.ReadDir(path)
+	w.Logger.Info("listing directory deleteIDs")
+	dirContents, err := os.ReadDir(w.Path)
 	if err != nil {
-		logger.Error("error reading deleteID directory", zap.Error(err))
+		w.Logger.Error("error reading deleteID directory", zap.Error(err))
 	} else {
 		for _, file := range dirContents {
-			logger.Info("file to be deleted", zap.String("name", file.Name()))
+			w.Logger.Info("file to be deleted", zap.String("name", file.Name()))
 			cnsReleaseErr := w.releaseIP(file.Name())
 			if cnsReleaseErr != nil {
-				logger.Error("failed to release IP from CNS", zap.Error(cnsReleaseErr))
+				w.Logger.Error("failed to release IP from CNS", zap.Error(cnsReleaseErr))
 			}
-			err := RemoveFile(file.Name(), path)
+			err := RemoveFile(file.Name(), w.Path)
 			if err != nil {
-				logger.Error("failed to remove file", zap.Error(err))
+				w.Logger.Error("failed to remove file", zap.Error(err))
 			}
 		}
 	}
 
-	return nil
+	<-c.Done()
+	return c.Err()
 }
 
 // AddFile creates new file using the containerID as name
 func AddFile(containerID, path string) error {
-	_, err := os.Stat(path)
-	if errors.Is(err, fs.ErrNotExist) {
-		return errors.Wrapf(err, "error reading directory, directory must already exist")
-	}
-
 	filepath := path + "/" + containerID
 	f, err := os.Create(filepath)
 	if err != nil {
-		return errors.Wrapf(err, "error creating file")
+		return errors.Wrap(err, "error creating file")
 	}
-	f.Close()
-	return nil
+	return f.Close()
 }
 
 // RemoveFile removes the file based on containerID
 func RemoveFile(containerID, path string) error {
-	_, err := os.Stat(path)
-	if errors.Is(err, fs.ErrNotExist) {
-		return errors.Wrapf(err, "error reading directory, directory must already exist")
-	}
-
 	filepath := path + "/" + containerID
 
-	// check the file exists
-	_, fileExists := os.Stat(filepath)
-	if errors.Is(fileExists, fs.ErrNotExist) {
-		return nil
-	}
-
-	file, err := os.Open(filepath)
-	if err != nil {
-		return errors.Wrapf(err, "error opening file")
-	}
-
 	if err := os.Remove(filepath); err != nil {
-		return errors.Wrapf(err, "error deleting file")
+		return errors.Wrap(err, "error deleting file")
 	}
-	file.Close()
+
 	return nil
 }
 
 // call cns ReleaseIPs
 func (w *Watcher) releaseIP(containerID string) error {
 	ipconfigreq := &cns.IPConfigsRequest{InfraContainerID: containerID}
-
-	cnsReleaseErr := w.CnsClient.ReleaseIPs(context.Background(), *ipconfigreq)
-	if cnsReleaseErr != nil {
-		return errors.Wrapf(cnsReleaseErr, "error releasing IP from CNS")
-	}
-	return nil
+	return errors.Wrap(w.CnsClient.ReleaseIPs(context.Background(), *ipconfigreq), "error releasing IP from CNS")
 }

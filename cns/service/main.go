@@ -818,14 +818,16 @@ func main() {
 		if err != nil {
 			logger.Errorf("Failed to initialize CNS client:%v.\n", err)
 		}
-		w := &fsnotify.Watcher{
-			CnsClient: cnsclient,
-		}
-		watcherPath := cnsconfig.AsyncPodDeletePath
 
 		go func() {
 			for {
-				if err := fsnotify.WatchFs(w, watcherPath, z); err != nil {
+				watcherPath := cnsconfig.AsyncPodDeletePath
+				w := &fsnotify.Watcher{
+					CnsClient: cnsclient,
+					Path:      watcherPath,
+					Logger:    z,
+				}
+				if err := w.WatchFs(rootCtx); err != nil {
 					logger.Errorf("Failed to start fsnotify watcher, err:%v.\n", err)
 				} else {
 					logger.Printf("Fsnotify watcher started")
