@@ -38,6 +38,8 @@ func (w *Watcher) WatchFs(ctx context.Context) error {
 		defer cancel()
 		for {
 			select {
+			case <-ctx.Done():
+				return
 			case event, ok := <-watcher.Events:
 				if !ok {
 					return
@@ -67,7 +69,7 @@ func (w *Watcher) WatchFs(ctx context.Context) error {
 	}()
 
 	// Add directory where intended deletes are kept
-	err = os.MkdirAll(w.Path, 0o755) //nolint
+	err = os.Mkdir(w.Path, 0o755) //nolint
 	if err != nil {
 		w.Logger.Error("error making directory", zap.Error(err))
 	}
