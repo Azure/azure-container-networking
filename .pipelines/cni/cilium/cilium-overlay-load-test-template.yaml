@@ -99,32 +99,14 @@ stages:
             parameters:
               clusterName: ${{ parameters.clusterName }}-$(commitID)
               restartCase: "true"
-              continueOnError: true
+              cnsManagedEndpoint: true
       - job: restart_cns
         displayName: "Restart and Validate CNS"
         dependsOn: restart_nodes
         steps:
-          - task: AzureCLI@1
-            inputs:
-              azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
-              scriptLocation: "inlineScript"
-              scriptType: "bash"
-              addSpnToEnvironment: true
-              inlineScript: |
-                make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}-$(commitID)
-                kubectl get pod -owide -A
-                echo "Validate pod IP assignment before CNS restart"
-                make test-validate-state
-                echo "restart CNS"
-                kubectl rollout restart ds azure-cns -n kube-system
-                kubectl rollout status ds azure-cns -n kube-system
-                sleep 15 # curl -ing after restart without a delay is flaky
-                kubectl get pod -owide -A
-                echo "Validate pod IP assignment after CNS restart"
-                make test-validate-state # Runs a curl command from CNS Pod
-            name: "restartCNS"
-            displayName: "Restart CNS and Validate pods"
-            retryCountOnTaskFailure: 3
+          - template: ../load-test-templates/restart-cns-template.yaml
+            parameters:
+              clusterName: ${{ parameters.clusterName }}-$(commitID)
       - job: cni_tests
         displayName: "Cilium Test"
         dependsOn: restart_cns
