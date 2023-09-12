@@ -13,6 +13,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/platform/windows/adapter"
 	"github.com/Azure/azure-container-networking/platform/windows/adapter/mellanox"
 	"github.com/pkg/errors"
@@ -100,16 +101,16 @@ func GetLastRebootTime() (time.Time, error) {
 	currentTime := time.Now()
 	output, _, err := tickCount.Call()
 	if errno, ok := err.(syscall.Errno); !ok || errno != 0 {
-		logger.Error("Failed to call GetTickCount64", zap.Error(err))
+		log.Printf("Failed to call GetTickCount64, err: %v", err)
 		return time.Time{}.UTC(), err
 	}
 	rebootTime := currentTime.Add(-time.Duration(output) * time.Millisecond).Truncate(time.Second)
-	logger.Info("Formatted Boot", zap.Any("time", rebootTime.Format(time.RFC3339)))
+	log.Printf("Formatted Boot time: %s", rebootTime.Format(time.RFC3339))
 	return rebootTime.UTC(), nil
 }
 
 func (p *execClient) ExecuteCommand(command string) (string, error) {
-	logger.Info("[Azure-Utils] ExecuteCommand", zap.String("command", command))
+	log.Printf("[Azure-Utils] ExecuteCommand: %q", command)
 
 	var stderr, stdout bytes.Buffer
 
@@ -183,13 +184,13 @@ func SetSdnRemoteArpMacAddress() error {
 		// Set the reg key if not already set or has incorrect value
 		if result != SDNRemoteArpMacAddress {
 			if _, err = ExecutePowershellCommand(SetSdnRemoteArpMacAddressCommand); err != nil {
-				logger.Error("Failed to set SDNRemoteArpMacAddress due to error", zap.Error(err))
+				log.Printf("Failed to set SDNRemoteArpMacAddress due to error %s", err.Error())
 				return err
 			}
 
-			logger.Info("[Azure CNS] SDNRemoteArpMacAddress regKey set successfully. Restarting hns service.")
+			log.Printf("[Azure CNS] SDNRemoteArpMacAddress regKey set successfully. Restarting hns service.")
 			if _, err := ExecutePowershellCommand(RestartHnsServiceCommand); err != nil {
-				logger.Error("Failed to Restart HNS Service due to error", zap.Error(err))
+				log.Printf("Failed to Restart HNS Service due to error %s", err.Error())
 				return err
 			}
 		}
@@ -224,19 +225,19 @@ func MonitorAndSetMellanoxRegKeyPriorityVLANTag(ctx context.Context, intervalSec
 	}
 	err := updatePriorityVLANTagIfRequired(m, desiredVLANTagForMellanox)
 	if err != nil {
-		logger.Error("Error while monitoring mellanox, continuing", zap.Error(err))
+		log.Errorf("Error while monitoring mellanox, continuing: %v", err)
 	}
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 	for {
 		select {
 		case <-ctx.Done():
-			logger.Error("context cancelled, stopping Mellanox Monitoring", zap.Error(ctx.Err()))
+			log.Printf("context cancelled, stopping Mellanox Monitoring: %v", ctx.Err())
 			return
 		case <-ticker.C:
 			err := updatePriorityVLANTagIfRequired(m, desiredVLANTagForMellanox)
 			if err != nil {
-				logger.Error("Error while monitoring mellanox, continuing", zap.Error(err))
+				log.Errorf("Error while monitoring mellanox, continuing: %v", err)
 			}
 		}
 	}

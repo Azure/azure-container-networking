@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Azure/azure-container-networking/log"
 	"go.uber.org/zap"
 )
 
@@ -64,7 +65,7 @@ func GetLastRebootTime() (time.Time, error) {
 	// Query last reboot time.
 	out, err := exec.Command("uptime", "-s").Output()
 	if err != nil {
-		logger.Error("Failed to query uptime", zap.Error(err))
+		log.Printf("Failed to query uptime, err:%v", err)
 		return time.Time{}.UTC(), err
 	}
 
@@ -72,7 +73,7 @@ func GetLastRebootTime() (time.Time, error) {
 	layout := "2006-01-02 15:04:05"
 	rebootTime, err := time.ParseInLocation(layout, string(out[:len(out)-1]), time.Local)
 	if err != nil {
-		logger.Error("Failed to parse uptime", zap.Error(err))
+		log.Printf("Failed to parse uptime, err:%v", err)
 		return time.Time{}.UTC(), err
 	}
 
@@ -80,7 +81,7 @@ func GetLastRebootTime() (time.Time, error) {
 }
 
 func (p *execClient) ExecuteCommand(command string) (string, error) {
-	logger.Info("[Azure-Utils]", zap.String("command", command))
+	log.Printf("[Azure-Utils] %s", command)
 
 	var stderr bytes.Buffer
 	var out bytes.Buffer
@@ -107,7 +108,7 @@ func SetOutboundSNAT(subnet string) error {
 		subnet)
 	_, err := p.ExecuteCommand(cmd)
 	if err != nil {
-		logger.Info("SNAT Iptable rule was not set")
+		log.Printf("SNAT Iptable rule was not set")
 		return err
 	}
 	return nil
