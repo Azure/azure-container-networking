@@ -1078,7 +1078,7 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 					if errors.As(err, &connectionErr) {
 						addErr := fsnotify.AddFile(args.ContainerID, watcherPath)
 						if addErr != nil {
-							log.Logger.Error("Failed to add file to watcher", zap.String("containerID", args.ContainerID), zap.Error(addErr))
+							logger.Error("Failed to add file to watcher", zap.String("containerID", args.ContainerID), zap.Error(addErr))
 							return plugin.RetriableError(fmt.Errorf("failed to add file to watcher: %w", addErr))
 						}
 					} else {
