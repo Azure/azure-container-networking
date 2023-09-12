@@ -316,7 +316,7 @@ stages:
       name: "cilium_e2e"
       displayName: Cilium
       testDropgz: ""
-      clusterType: cilium-podsubnet-up
+      clusterType: swift-byocni-nokubeproxy-up
       clusterName: "ciliume2e"
       vmSize: Standard_B2ms
       k8sVersion: ""
@@ -327,7 +327,7 @@ stages:
       name: "cilium_overlay_cilium_e2e"
       displayName: Cilium on AKS Overlay
       testDropgz: ""
-      clusterType: cilium-overlay-up
+      clusterType: overlay-byocni-nokubeproxy-up
       clusterName: "overlaye2e"
       vmSize: Standard_B2ms
       k8sVersion: ""

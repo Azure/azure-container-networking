@@ -20,7 +20,7 @@ stages:
   - template: cilium/cilium-overlay-load-test-template.yaml
     parameters:
       name: cilium
-      clusterType: cilium-overlay-up
+      clusterType: overlay-byocni-nokubeproxy-up
       clusterName: "cilium-overlay"
       nodeCount: ${CILIUM_NODE_COUNT}
       vmSize: "Standard_DS4_v2"
