@@ -121,7 +121,7 @@ func (client *TransparentEndpointClient) AddEndpoints(epInfo *EndpointInfo) erro
 
 	client.hostVethMac = hostVethIf.HardwareAddr
 
-	logger.Info("Setting mtu on veth interface", zap.Any("MTU", primaryIf.MTU), zap.String("hostVethName", client.hostVethName))
+	logger.Info("Setting mtu on veth interface", zap.Int("MTU", primaryIf.MTU), zap.String("hostVethName", client.hostVethName))
 	if err := client.netlink.SetLinkMTU(client.hostVethName, primaryIf.MTU); err != nil {
 		logger.Error("Setting mtu failed for hostveth", zap.String("hostVethName", client.hostVethName),
 			zap.Error(err))

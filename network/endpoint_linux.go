@@ -7,7 +7,6 @@ import (
 	"crypto/sha1"
 	"encoding/hex"
 	"fmt"
-	"log"
 	"net"
 	"strings"
 
@@ -208,7 +207,7 @@ func (nw *network) newEndpointImpl(
 
 	if epInfo.IPV6Mode != "" {
 		// Enable ipv6 setting in container
-		log.Printf("Enable ipv6 setting in container.")
+		logger.Info("Enable ipv6 setting in container.")
 		nuc := networkutils.NewNetworkUtils(nl, plc)
 		if err = nuc.UpdateIPV6Setting(0); err != nil {
 			return nil, fmt.Errorf("Enable ipv6 in container failed:%w", err)
@@ -471,12 +470,12 @@ func (nm *networkManager) updateRoutes(existingEp *EndpointInfo, targetEp *Endpo
 	logger.Info("Key for route to infra vnet", zap.String("infraVnetKey", infraVnetKey))
 	for _, route := range existingEp.Routes {
 		destination := route.Dst.IP.String()
-		logger.Info("Checking destination as to skip or not", zap.Any("destination", destination))
+		logger.Info("Checking destination as to skip or not", zap.String("destination", destination))
 		isDefaultRoute := destination == defaultDst.String()
 		isInfraVnetRoute := targetEp.EnableInfraVnet && (destination == infraVnetKey)
 		if !isDefaultRoute && !isInfraVnetRoute {
 			existingRoutes[route.Dst.String()] = route
-			logger.Info("was skipped", zap.Any("destination", destination))
+			logger.Info("was skipped", zap.String("destination", destination))
 		}
 	}
 

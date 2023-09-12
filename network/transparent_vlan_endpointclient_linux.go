@@ -261,20 +261,20 @@ func (client *TransparentVlanEndpointClient) PopulateVM(epInfo *EndpointInfo) er
 	// Disable RA for veth pair, and delete if any failure
 	if err = client.netUtilsClient.DisableRAForInterface(client.vnetVethName); err != nil {
 		if delErr := client.netlink.DeleteLink(client.vnetVethName); delErr != nil {
-			logger.Error("Deleting vnet veth failed on addendpoint failure with", zap.Any("error:", delErr.Error()))
+			logger.Error("Deleting vnet veth failed on addendpoint failure with", zap.Error(delErr))
 		}
 		return errors.Wrap(err, "failed to disable RA on vnet veth, deleting")
 	}
 	if err = client.netUtilsClient.DisableRAForInterface(client.containerVethName); err != nil {
 		if delErr := client.netlink.DeleteLink(client.containerVethName); delErr != nil {
-			logger.Error("Deleting container veth failed on addendpoint failure with", zap.Any("error:", delErr.Error()))
+			logger.Error("Deleting container veth failed on addendpoint failure with", zap.Error(delErr))
 		}
 		return errors.Wrap(err, "failed to disable RA on container veth, deleting")
 	}
 
 	if err = client.netlink.SetLinkNetNs(client.vnetVethName, uintptr(client.vnetNSFileDescriptor)); err != nil {
 		if delErr := client.netlink.DeleteLink(client.vnetVethName); delErr != nil {
-			logger.Error("Deleting vnet veth failed on addendpoint failure with", zap.Any("error:", delErr.Error()))
+			logger.Error("Deleting vnet veth failed on addendpoint failure with", zap.Error(delErr))
 		}
 		return errors.Wrap(err, "failed to move vnetVethName into vnet ns, deleting")
 	}

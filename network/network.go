@@ -122,7 +122,7 @@ func (nm *networkManager) newExternalInterface(ifName string, subnet string) err
 
 	nm.ExternalInterfaces[ifName] = &extIf
 
-	logger.Info("Added ExternalInterface for subnet", zap.String("ifName", ifName), zap.Any("subnet", subnet))
+	logger.Info("Added ExternalInterface for subnet", zap.String("ifName", ifName), zap.String("subnet", subnet))
 
 	return nil
 }
@@ -164,7 +164,7 @@ func (nm *networkManager) newNetwork(nwInfo *NetworkInfo) (*network, error) {
 	var nw *network
 	var err error
 
-	logger.Error("Failed to create network", zap.String("id", nwInfo.Id), zap.Error(err))
+	logger.Info("Creating", zap.String("network", nwInfo.PrettyString()))
 	defer func() {
 		if err != nil {
 			logger.Error("Failed to create network", zap.String("id", nwInfo.Id), zap.Error(err))

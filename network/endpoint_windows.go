@@ -257,7 +257,7 @@ func (nw *network) deleteHostNCApipaEndpoint(networkContainerID string) error {
 		// If error is anything other than EndpointNotFoundError, return error.
 		// else log the error but don't return error because endpoint is already deleted.
 		if _, endpointNotFound := err.(hcn.EndpointNotFoundError); !endpointNotFound {
-			return fmt.Errorf("[net] deleteEndpointByNameHnsV2 failed due to error with GetEndpointByName: %w", err)
+			return fmt.Errorf("deleteEndpointByNameHnsV2 failed due to error with GetEndpointByName: %w", err)
 		}
 
 		logger.Error("Delete called on the Endpoint which doesn't exist. Error:", zap.String("endpointName", endpointName), zap.Error(err))
@@ -301,7 +301,7 @@ func (nw *network) createHostNCApipaEndpoint(cli apipaClient, epInfo *EndpointIn
 	}()
 
 	if err = hcn.AddNamespaceEndpoint(namespace.Id, hostNCApipaEndpointID); err != nil {
-		return fmt.Errorf("[net] Failed to add HostNCApipaEndpoint: %s to namespace: %s due to error: %v",
+		return fmt.Errorf("Failed to add HostNCApipaEndpoint: %s to namespace: %s due to error: %v",
 			hostNCApipaEndpointID, namespace.Id, err)
 	}
 
@@ -317,7 +317,7 @@ func (nw *network) newEndpointImplHnsV2(cli apipaClient, epInfo *EndpointInfo) (
 	}
 
 	// Create the HCN endpoint.
-	logger.Error("Failed to configure hcn endpoint due to", zap.Error(err))
+	logger.Info("Creating hcn endpoint", zap.String("name", hcnEndpoint.Name), zap.String("computenetwork", hcnEndpoint.HostComputeNetwork))
 	hnsResponse, err := Hnsv2.CreateEndpoint(hcnEndpoint)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to create endpoint: %s due to error: %v", hcnEndpoint.Name, err)
@@ -339,7 +339,7 @@ func (nw *network) newEndpointImplHnsV2(cli apipaClient, epInfo *EndpointInfo) (
 	}
 
 	if err = Hnsv2.AddNamespaceEndpoint(namespace.Id, hnsResponse.Id); err != nil {
-		return nil, fmt.Errorf("[net] Failed to add endpoint: %s to hcn namespace: %s due to error: %v",
+		return nil, fmt.Errorf("Failed to add endpoint: %s to hcn namespace: %s due to error: %v",
 			hnsResponse.Id, namespace.Id, err)
 	}
 
@@ -347,7 +347,7 @@ func (nw *network) newEndpointImplHnsV2(cli apipaClient, epInfo *EndpointInfo) (
 		if err != nil {
 			if errRemoveNsEp := Hnsv2.RemoveNamespaceEndpoint(namespace.Id, hnsResponse.Id); errRemoveNsEp != nil {
 				logger.Error("Failed to remove endpoint from namespace due to error",
-					zap.String("id", hnsResponse.Id), zap.String("id", hnsResponse.Id), zap.Any("errRemoveNsEp", errRemoveNsEp))
+					zap.String("id", hnsResponse.Id), zap.String("id", hnsResponse.Id), zap.Error(errRemoveNsEp))
 			}
 		}
 	}()

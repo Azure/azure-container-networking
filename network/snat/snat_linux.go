@@ -340,7 +340,7 @@ func (client *Client) DeleteInboundFromNCToHost() error {
 	}
 
 	// Remove static arp entry added for container local IP
-	logger.Info("Removing static arp entry for ip ", zap.Any("containerIP", containerIP))
+	logger.Info("Removing static arp entry for ip", zap.Any("containerIP", containerIP))
 	linkInfo := netlink.LinkInfo{
 		Name:       SnatBridgeName,
 		IPAddr:     containerIP,

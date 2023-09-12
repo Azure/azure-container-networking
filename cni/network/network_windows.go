@@ -385,7 +385,7 @@ func getIPV6EndpointPolicy(nwInfo *network.NetworkInfo) (policy.Policy, error) {
 		Data: rawPolicy,
 	}
 
-	logger.Info("[net] ipv6 outboundnat policy", zap.Any("policy", eppolicy))
+	logger.Info("ipv6 outboundnat policy", zap.Any("policy", eppolicy))
 	return eppolicy, nil
 }
 

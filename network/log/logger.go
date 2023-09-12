@@ -9,7 +9,7 @@ import (
 
 func InitZapLogNet(loggerName, loggerFile string) *zap.Logger {
 	zaplog.LoggerCfg.Name = loggerName
-	zaplog.LoggerCfg.LogPath = LogPath + loggerFile
+	zaplog.LoggerCfg.LogPath = zaplog.LogPath + loggerFile
 	logger := zaplog.InitZapLog(&zaplog.LoggerCfg)
 
 	// only log process id on CNI package

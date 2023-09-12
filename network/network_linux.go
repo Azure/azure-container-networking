@@ -212,7 +212,7 @@ func getMajorVersion(version string) (int, error) {
 		return retrieved_version, err
 	}
 
-	return 0, fmt.Errorf("[net] Error getting major version")
+	return 0, fmt.Errorf("Error getting major version")
 }
 
 func isGreaterOrEqaulUbuntuVersion(versionToMatch int) bool {
@@ -257,7 +257,7 @@ func readDnsInfo(ifName string) (DNSInfo, error) {
 
 	lineArr := strings.Split(out, lineDelimiter)
 	if len(lineArr) <= 0 {
-		return dnsInfo, fmt.Errorf("[net] Console output doesn't have any lines")
+		return dnsInfo, fmt.Errorf("Console output doesn't have any lines")
 	}
 
 	dnsServerFound := false
@@ -420,7 +420,7 @@ func (nm *networkManager) connectExternalInterface(extIf *externalInterface, nwI
 		}
 	} else {
 		// Use the existing bridge.
-		logger.Error("Found existing bridge", zap.String("bridgeName", bridgeName))
+		logger.Info("Found existing bridge", zap.String("bridgeName", bridgeName))
 	}
 
 	defer func() {

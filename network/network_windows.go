@@ -157,7 +157,7 @@ func (nm *networkManager) newNetworkImplHnsV1(nwInfo *NetworkInfo, extIf *extern
 		if err != nil {
 			logger.Info("HNSNetworkRequest DELETE", zap.String("id", hnsResponse.Id))
 			hnsResponse, err := Hnsv1.DeleteNetwork(hnsResponse.Id)
-			logger.Error("HNSNetworkRequest DELETE response", zap.Any("hnsResponse", hnsResponse), zap.Error(err))
+			logger.Info("HNSNetworkRequest DELETE response", zap.Any("hnsResponse", hnsResponse), zap.Error(err))
 		}
 	}()
 
@@ -278,7 +278,7 @@ func (nm *networkManager) configureHcnNetwork(nwInfo *NetworkInfo, extIf *extern
 		vlanID, _ := strconv.ParseUint(opt[VlanIDKey].(string), baseDecimal, bitSize)
 		subnetPolicy, err = policy.SerializeHcnSubnetVlanPolicy((uint32)(vlanID))
 		if err != nil {
-			log.Printf("[net] Failed to serialize subnet vlan policy due to error: %v", err)
+			log.Printf("Failed to serialize subnet vlan policy due to error: %v", err)
 			return nil, err
 		}
 
