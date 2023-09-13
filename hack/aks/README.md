@@ -25,11 +25,11 @@ AKS Clusters
   cilium-up                     Alias to swift-cilium-up
   up                            Alias to swift-up
   overlay-byocni-up             Bring up a Overlay BYO CNI cluster
-  overlay-byocni-nokubeproxy-up Bring up a Overlay BYO CNI cluster without kube-proxy for Cilium
+  overlay-byocni-nokubeproxy-up Bring up a Overlay BYO CNI cluster without kube-proxy
   overlay-cilium-up             Bring up a Overlay Cilium cluster
   overlay-up                    Bring up a Overlay AzCNI cluster
   swift-byocni-up               Bring up a SWIFT BYO CNI cluster
-  swift-byocni-nokubeproxy-up   Bring up a SWIFT BYO CNI cluster without kube-proxy for Cilium
+  swift-byocni-nokubeproxy-up   Bring up a SWIFT BYO CNI cluster without kube-proxy
   swift-cilium-up               Bring up a SWIFT Cilium cluster
   swift-up                      Bring up a SWIFT AzCNI cluster
   windows-cniv1-up              Bring up a Windows AzCNIv1 cluster
