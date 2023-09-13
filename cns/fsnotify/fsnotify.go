@@ -3,6 +3,7 @@ package fsnotify
 import (
 	"context"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/Azure/azure-container-networking/cns"
@@ -11,134 +12,163 @@ import (
 	"go.uber.org/zap"
 )
 
-// map containing containerIDs from failure to release IP
-var releaseIPRetry = make(map[string]string)
-
-type cnsclient interface {
+type releaseIPsClient interface {
 	ReleaseIPs(ctx context.Context, ipconfig cns.IPConfigsRequest) error
 }
 
-type Watcher struct {
-	CnsClient cnsclient
-	Path      string
-	Logger    *zap.Logger
+type watcher struct {
+	cli  releaseIPsClient
+	path string
+	log  *zap.Logger
+
+	pendingDelete map[string]struct{}
+	lock          sync.Mutex
+}
+
+// Create the AsyncDelete watcher.
+func New(cli releaseIPsClient, path string, logger *zap.Logger) *watcher { //nolint
+	// Add directory where intended deletes are kept
+	if err := os.Mkdir(path, 0o755); err != nil { //nolint
+		logger.Error("error making directory", zap.String("path", path), zap.Error(err))
+	}
+	return &watcher{
+		cli:           cli,
+		path:          path,
+		log:           logger,
+		pendingDelete: make(map[string]struct{}),
+	}
+}
+
+// releaseAll locks and iterates the pendingDeletes map and calls CNS to
+// release the IP for any Pod containerIDs present. When an IP is released
+// that entry is removed from the map and the file is deleted. If the file
+// fails to delete, we still remove it from the map so that we don't retry
+// it during the life of this process, but we may retry it on a subsequent
+// invocation of CNS. This is okay because calling releaseIP on an already
+// processed containerID is a no-op, and we may be able to delete the file
+// during that future retry.
+func (w *watcher) releaseAll(ctx context.Context) {
+	w.lock.Lock()
+	defer w.lock.Unlock()
+	for containerID := range w.pendingDelete {
+		w.log.Info("releasing IP for missed delete", zap.String("containerID", containerID))
+		if err := w.releaseIP(ctx, containerID); err != nil {
+			w.log.Error("failed to release IP for missed delete", zap.String("containerID", containerID), zap.Error(err))
+			continue
+		}
+		w.log.Info("successfully released IP for missed delete", zap.String("containerID", containerID))
+		delete(w.pendingDelete, containerID)
+		if err := removeFile(containerID, w.path); err != nil {
+			w.log.Error("failed to remove file for missed delete", zap.Error(err))
+		}
+	}
+}
+
+// watchPendingDelete periodically checks the map for pending release IPs
+// and calls releaseAll to process the contents when present.
+func (w *watcher) watchPendingDelete(ctx context.Context) error {
+	ticker := time.NewTicker(15 * time.Second) //nolint
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return errors.Wrap(ctx.Err(), "exiting watchPendingDelete")
+		case <-ticker.C:
+			n := len(w.pendingDelete)
+			if n == 0 {
+				continue
+			}
+			w.log.Info("processing pending missed deletes", zap.Int("count", n))
+			w.releaseAll(ctx)
+		}
+	}
+}
+
+// watchFS starts the fsnotify watcher and handles events for file creation
+// or deletion in the missed pending delete directory. A file creation event
+// indicates that CNS missed the delete call for a containerID and needs
+// to process the release IP asynchronously.
+func (w *watcher) watchFS(ctx context.Context) error {
+	// Create new fs watcher.
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		return errors.Wrap(err, "error creating fsnotify watcher")
+	}
+	defer watcher.Close()
+
+	err = watcher.Add(w.path)
+	if err != nil {
+		w.log.Error("failed to add path to fsnotify watcher", zap.String("path", w.path), zap.Error(err))
+	}
+	// Start listening for events.
+	w.log.Info("listening for events from fsnotify watcher")
+	for {
+		select {
+		case <-ctx.Done():
+			return errors.Wrap(ctx.Err(), "exiting watchFS")
+		case event, ok := <-watcher.Events:
+			if !ok {
+				return errors.New("fsnotify watcher closed")
+			}
+			if !event.Has(fsnotify.Create) {
+				// discard any event that is not a file Create
+				continue
+			}
+			w.log.Info("received create event", zap.String("event", event.Name))
+			w.lock.Lock()
+			w.pendingDelete[event.Name] = struct{}{}
+			w.lock.Unlock()
+		case watcherErr := <-watcher.Errors:
+			w.log.Error("fsnotify watcher error", zap.Error(watcherErr))
+		}
+	}
+}
+
+// readFS lists the directory and enqueues any missed deletes that are already
+// present on-disk.
+func (w *watcher) readFS() error {
+	w.log.Info("listing directory", zap.String("path", w.path))
+	dirContents, err := os.ReadDir(w.path)
+	if err != nil {
+		w.log.Error("error reading deleteID directory", zap.String("path", w.path), zap.Error(err))
+		return errors.Wrapf(err, "failed to read %s", w.path)
+	}
+	if len(dirContents) == 0 {
+		w.log.Info("no missed deletes found")
+		return nil
+	}
+	w.lock.Lock()
+	for _, file := range dirContents {
+		w.log.Info("adding missed delete from file", zap.String("name", file.Name()))
+		w.pendingDelete[file.Name()] = struct{}{}
+	}
+	w.lock.Unlock()
+	return nil
 }
 
 // WatchFS starts the filesystem watcher to handle async Pod deletes.
 // Blocks until the context is closed; returns underlying fsnotify errors
 // if something goes fatally wrong.
-func (w *Watcher) WatchFs(ctx context.Context) error {
-	// Create new fs watcher.
-	watcher, err := fsnotify.NewWatcher()
-	if err != nil {
-		return errors.Wrap(err, "error creating watcher")
-	}
-	defer watcher.Close()
+func (w *watcher) Start(ctx context.Context) error {
+	errs := make(chan error)
+	// Start watching for enqueued missed deletes so that we process them as soon as they arrive.
+	go func(errs chan<- error) {
+		errs <- w.watchPendingDelete(ctx)
+	}(errs)
 
-	c, cancel := context.WithCancel(ctx)
-	// Start listening for events.
-	w.Logger.Info("listening for events from watcher")
-	go func() {
-		defer cancel()
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case event, ok := <-watcher.Events:
-				if !ok {
-					return
-				}
-				w.Logger.Info("received event", zap.String("event", event.Name))
-				if event.Has(fsnotify.Create) {
-					w.Logger.Info("file created, triggering release", zap.String("event", event.Name))
-					cnsReleaseErr := w.releaseIP(ctx, event.Name)
-					if cnsReleaseErr != nil {
-						w.Logger.Error("failed to release IP from CNS, adding to map for retry later", zap.Error(cnsReleaseErr))
-						releaseIPRetry[event.Name] = event.Name
-					} else {
-						deleteErr := RemoveFile(event.Name, w.Path)
-						if deleteErr != nil {
-							w.Logger.Error("failed to remove file", zap.Error(err))
-						}
-					}
-				}
-				if event.Has(fsnotify.Remove) {
-					w.Logger.Info("file deleted", zap.String("event", event.Name))
-				}
-			case watcherErr, ok := <-watcher.Errors:
-				if !ok {
-					return
-				}
-				w.Logger.Error("watcher error", zap.Error(watcherErr))
-			}
-		}
-	}()
+	// Start watching for changes to the filesystem so that we don't miss any async deletes.
+	go func(errs chan<- error) {
+		errs <- w.watchFS(ctx)
+	}(errs)
 
-	// periodically check map for release ip retries
-	// remove entry from map ip is successfully released
-	// on failure the entry will stay in the map
-	ticker := time.NewTicker(15 * time.Second) //nolint
-	stop := make(chan struct{})
-	go func() {
-		for {
-			select {
-			case <-ticker.C:
-				if len(releaseIPRetry) != 0 {
-					w.Logger.Info("attempt delete on entries in releaseIPRetry")
-					for _, entry := range releaseIPRetry {
-						retryErr := w.releaseIP(ctx, entry)
-						if retryErr != nil {
-							w.Logger.Error("failed to release IP from CNS", zap.Error(retryErr))
-						} else {
-							delete(releaseIPRetry, entry)
-							removeErr := RemoveFile(entry, w.Path)
-							if removeErr != nil {
-								w.Logger.Error("failed to remove file", zap.Error(removeErr))
-							}
-						}
-					}
-
-				}
-			case <-stop:
-				ticker.Stop()
-				return
-			}
-		}
-	}()
-
-	// Add directory where intended deletes are kept
-	err = os.Mkdir(w.Path, 0o755) //nolint
-	if err != nil {
-		w.Logger.Error("error making directory", zap.Error(err))
-	}
-	err = watcher.Add(w.Path)
-	if err != nil {
-		w.Logger.Error("watcher add directory error", zap.Error(err))
+	// Read the directory to enqueue any missed deletes that are already present on-disk.
+	if err := w.readFS(); err != nil {
+		return err
 	}
 
-	// list the directory then call ReleaseIPs
-	w.Logger.Info("listing directory deleteIDs")
-	dirContents, err := os.ReadDir(w.Path)
-	if err != nil {
-		w.Logger.Error("error reading deleteID directory", zap.Error(err))
-	} else {
-		for _, file := range dirContents {
-			w.Logger.Info("file to be deleted", zap.String("name", file.Name()))
-			cnsReleaseErr := w.releaseIP(ctx, file.Name())
-			if cnsReleaseErr != nil {
-				w.Logger.Error("failed to release IP from CNS, adding to map for retry", zap.Error(cnsReleaseErr))
-				releaseIPRetry[file.Name()] = file.Name()
-			} else {
-				err := RemoveFile(file.Name(), w.Path)
-				if err != nil {
-					w.Logger.Error("failed to remove file", zap.Error(err))
-				}
-			}
-		}
-	}
-
-	<-c.Done()
-	return errors.Wrap(c.Err(), "error watching directory")
+	// block until one of the goroutines returns an error
+	err := <-errs
+	return err
 }
 
 // AddFile creates new file using the containerID as name
@@ -151,19 +181,17 @@ func AddFile(containerID, path string) error {
 	return errors.Wrap(f.Close(), "error adding file to directory")
 }
 
-// RemoveFile removes the file based on containerID
-func RemoveFile(containerID, path string) error {
+// removeFile removes the file based on containerID
+func removeFile(containerID, path string) error {
 	filepath := path + "/" + containerID
-
 	if err := os.Remove(filepath); err != nil {
 		return errors.Wrap(err, "error deleting file")
 	}
-
 	return nil
 }
 
 // call cns ReleaseIPs
-func (w *Watcher) releaseIP(ctx context.Context, containerID string) error {
+func (w *watcher) releaseIP(ctx context.Context, containerID string) error {
 	ipconfigreq := &cns.IPConfigsRequest{InfraContainerID: containerID}
-	return errors.Wrap(w.CnsClient.ReleaseIPs(ctx, *ipconfigreq), "error releasing IP from CNS")
+	return errors.Wrap(w.cli.ReleaseIPs(ctx, *ipconfigreq), "failed to release IP from CNS")
 }

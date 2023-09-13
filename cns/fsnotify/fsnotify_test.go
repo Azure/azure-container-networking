@@ -76,7 +76,7 @@ func TestWatcherRemoveFile(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			err := os.MkdirAll("/path/we/want/67890", 0o777)
 			require.NoError(t, err)
-			if err := RemoveFile(tt.args.containerID, tt.args.path); (err != nil) != tt.wantErr {
+			if err := removeFile(tt.args.containerID, tt.args.path); (err != nil) != tt.wantErr {
 				t.Errorf("WatcherRemoveFile() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})

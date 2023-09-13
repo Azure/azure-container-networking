@@ -813,29 +813,19 @@ func main() {
 
 	if cnsconfig.EnableAsyncPodDelete {
 		// Start fs watcher here
-		logger.Printf("[Azure CNS] Start fsnotify watcher for intended deletes")
 		cnsclient, err := cnsclient.New("", cnsReqTimeout) //nolint
 		if err != nil {
-			logger.Errorf("Failed to initialize CNS client:%v.\n", err)
+			z.Error("failed to create cnsclient", zap.Error(err))
 		}
-
 		go func() {
 			for {
-				watcherPath := cnsconfig.AsyncPodDeletePath
-				w := &fsnotify.Watcher{
-					CnsClient: cnsclient,
-					Path:      watcherPath,
-					Logger:    z,
+				z.Info("starting fsnotify watcher to process missed Pod deletes")
+				w := fsnotify.New(cnsclient, cnsconfig.AsyncPodDeletePath, z)
+				if err := w.Start(rootCtx); err != nil {
+					z.Error("failed to start fsnotify watcher, will retry", zap.Error(err))
+					time.Sleep(time.Minute)
+					continue
 				}
-				if err := w.WatchFs(rootCtx); err != nil {
-					logger.Errorf("Failed to start fsnotify watcher, err:%v.\n", err)
-				} else {
-					logger.Printf("Fsnotify watcher started")
-					return
-				}
-
-				// wait 1s and retry if watcher fails to start
-				time.Sleep(time.Second)
 			}
 		}()
 	}
