@@ -10,6 +10,7 @@ import (
 	"github.com/Azure/azure-container-networking/cni/util"
 	"github.com/Azure/azure-container-networking/cns"
 	cnscli "github.com/Azure/azure-container-networking/cns/client"
+	"github.com/Azure/azure-container-networking/cns/fsnotify"
 	"github.com/Azure/azure-container-networking/iptables"
 	"github.com/Azure/azure-container-networking/network"
 	"github.com/Azure/azure-container-networking/network/networkutils"
@@ -24,6 +25,7 @@ var (
 	errEmptyCNIArgs    = errors.New("empty CNI cmd args not allowed")
 	errInvalidArgs     = errors.New("invalid arg(s)")
 	overlayGatewayV6IP = "fe80::1234:5678:9abc"
+	watcherPath        = "/var/run/azure-vnet/deleteIDs"
 )
 
 type CNSIPAMInvoker struct {
@@ -318,16 +320,26 @@ func (invoker *CNSIPAMInvoker) Delete(address *net.IPNet, nwCfg *cni.NetworkConf
 
 			if err = invoker.cnsClient.ReleaseIPAddress(context.TODO(), ipConfig); err != nil {
 				// if the old API fails as well then we just return the error
+
 				logger.Error("Failed to release IP address from CNS using ReleaseIPAddress ",
 					zap.String("infracontainerid", ipConfigs.InfraContainerID),
 					zap.Error(err))
+
 				return errors.Wrap(err, fmt.Sprintf("failed to release IP %v using ReleaseIPAddress with err ", ipConfig.DesiredIPAddress)+"%w")
 			}
 		} else {
-			logger.Error("Failed to release IP address",
-				zap.String("infracontainerid", ipConfigs.InfraContainerID),
-				zap.Error(err))
-			return errors.Wrap(err, fmt.Sprintf("failed to release IP %v using ReleaseIPs with err ", ipConfigs.DesiredIPAddresses)+"%w")
+			var connectionErr *cnscli.ConnectionFailureErr
+			if errors.As(err, &connectionErr) {
+				addErr := fsnotify.AddFile(args.ContainerID, watcherPath)
+				if addErr != nil {
+					logger.Error("Failed to add file to watcher", zap.String("containerID", args.ContainerID), zap.Error(addErr))
+				}
+			} else {
+				logger.Error("Failed to release IP address",
+					zap.String("infracontainerid", ipConfigs.InfraContainerID),
+					zap.Error(err))
+				return errors.Wrap(err, fmt.Sprintf("failed to release IP %v using ReleaseIPs with err ", ipConfigs.DesiredIPAddresses)+"%w")
+			}
 		}
 	}
 

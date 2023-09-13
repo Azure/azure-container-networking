@@ -18,7 +18,6 @@ import (
 	"github.com/Azure/azure-container-networking/cni/util"
 	"github.com/Azure/azure-container-networking/cns"
 	cnscli "github.com/Azure/azure-container-networking/cns/client"
-	"github.com/Azure/azure-container-networking/cns/fsnotify"
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/iptables"
 	"github.com/Azure/azure-container-networking/netio"
@@ -44,7 +43,6 @@ const (
 	defaultRequestTimeout = 15 * time.Second
 	ipv4FullMask          = 32
 	ipv6FullMask          = 128
-	watcherPath           = "/var/run/azure-vnet/deleteIDs"
 )
 
 // CNI Operation Types
@@ -931,15 +929,14 @@ func (plugin *NetPlugin) Get(args *cniSkel.CmdArgs) error {
 // Delete handles CNI delete commands.
 func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 	var (
-		err           error
-		nwCfg         *cni.NetworkConfig
-		k8sPodName    string
-		k8sNamespace  string
-		networkID     string
-		nwInfo        network.NetworkInfo
-		epInfo        *network.EndpointInfo
-		cniMetric     telemetry.AIMetric
-		connectionErr *cnscli.ConnectionFailureErr
+		err          error
+		nwCfg        *cni.NetworkConfig
+		k8sPodName   string
+		k8sNamespace string
+		networkID    string
+		nwInfo       network.NetworkInfo
+		epInfo       *network.EndpointInfo
+		cniMetric    telemetry.AIMetric
 	)
 
 	startTime := time.Now()
@@ -1075,15 +1072,7 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 					zap.String("containerID", args.ContainerID))
 				sendEvent(plugin, fmt.Sprintf("Release ip by ContainerID (endpoint not found):%v", args.ContainerID))
 				if err = plugin.ipamInvoker.Delete(nil, nwCfg, args, nwInfo.Options); err != nil {
-					if errors.As(err, &connectionErr) {
-						addErr := fsnotify.AddFile(args.ContainerID, watcherPath)
-						if addErr != nil {
-							logger.Error("Failed to add file to watcher", zap.String("containerID", args.ContainerID), zap.Error(addErr))
-							return plugin.RetriableError(fmt.Errorf("failed to add file to watcher: %w", addErr))
-						}
-					} else {
-						return plugin.RetriableError(fmt.Errorf("failed to release address(no endpoint): %w", err))
-					}
+					return plugin.RetriableError(fmt.Errorf("failed to release address(no endpoint): %w", err))
 				}
 			}
 			// Log the error but return success if the endpoint being deleted is not found.
