@@ -99,7 +99,7 @@ stages:
             parameters:
               clusterName: ${{ parameters.clusterName }}-$(commitID)
               restartCase: "true"
-              cnsManagedEndpoint: true
+              cnsManagedEndpoint: "true"
       - job: restart_cns
         displayName: "Restart and Validate CNS"
         dependsOn: restart_nodes
@@ -107,6 +107,8 @@ stages:
           - template: ../load-test-templates/restart-cns-template.yaml
             parameters:
               clusterName: ${{ parameters.clusterName }}-$(commitID)
+              scaleup: ${CILIUM_SCALEUP}
+              nodeCount: ${{ parameters.nodeCount }}
       - job: cni_tests
         displayName: "Cilium Test"
         dependsOn: restart_cns

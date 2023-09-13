@@ -1,6 +1,8 @@
 parameters:
   clusterName: ""
   cni: "cilium"
+  scaleup: 100
+  nodeCount: 10
 
 steps:
   - task: AzureCLI@1
@@ -12,6 +14,13 @@ steps:
       inlineScript: |
         make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
         kubectl get pod -owide -A
+
+        echo "Ensure there are pods scheduled on each node"
+        cd test/integration/load
+        scale=$(( ${{ parameters.scaleup }} * ${{ parameters.nodeCount }} ))
+        go test -count 1 -timeout 30m -tags load -run ^TestScaleDeployment$ -tags=load -replicas=$scale
+        cd ../../../
+
         echo "Validate pod IP assignment before CNS restart"
         make test-validate-state CNI_TYPE=${{ parameters.cni }}
         echo "restart CNS"

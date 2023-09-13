@@ -134,6 +134,8 @@ stages:
             parameters:
               clusterName: ${{ parameters.clusterName }}-$(commitID)
               cni: cniv2
+              scaleup: ${LINUX_SCALEUP}
+              nodeCount: ${{ parameters.nodeCount }}
       - job: recover
         displayName: "Recover Resources"
         dependsOn: restart_cns
@@ -157,7 +159,7 @@ stages:
           sub: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
           clusterName: ${{ parameters.clusterName }}-$(commitID)
           os: ${{ parameters.os }}
-          dependsOn: restart_cns
+          dependsOn: recover
           datapath: true
           dns: true
           portforward: true
