@@ -77,7 +77,7 @@ func (w *Watcher) WatchFs(ctx context.Context) error {
 	// periodically check map for release ip retries
 	// remove entry from map ip is successfully released
 	// on failure the entry will stay in the map
-	ticker := time.NewTicker(15 * time.Second)
+	ticker := time.NewTicker(15 * time.Second) //nolint
 	stop := make(chan struct{})
 	go func() {
 		for {
@@ -91,9 +91,9 @@ func (w *Watcher) WatchFs(ctx context.Context) error {
 							w.Logger.Error("failed to release IP from CNS", zap.Error(retryErr))
 						} else {
 							delete(releaseIPRetry, entry)
-							err := RemoveFile(entry, w.Path)
-							if err != nil {
-								w.Logger.Error("failed to remove file", zap.Error(err))
+							removeErr := RemoveFile(entry, w.Path)
+							if removeErr != nil {
+								w.Logger.Error("failed to remove file", zap.Error(removeErr))
 							}
 						}
 					}
