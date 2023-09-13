@@ -143,8 +143,7 @@ func (p *IPAMPlugin) CmdDel(args *cniSkel.CmdArgs) error {
 			p.logger.Info("Failed to release IP address from CNS due to connection failure, saving to watcher to delete")
 			addErr := fsnotify.AddFile(args.ContainerID, watcherPath)
 			if addErr != nil {
-				p.logger.Error("Failed to add file to watcher", zap.Error(addErr))
-				return cniTypes.NewError(cniTypes.ErrTryAgainLater, err.Error(), "Failed to add file to watcher")
+				p.logger.Error("Failed to add file to watcher", zap.String("containerID", args.ContainerID), zap.Error(addErr))
 			} else {
 				p.logger.Info("File successfully added to watcher directory")
 			}
