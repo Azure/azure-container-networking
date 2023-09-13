@@ -231,7 +231,7 @@ func addRuleToRouteViaHost(epInfo *EndpointInfo) error {
 		logger.Info("Checking if EB rule already exists in table chain", zap.String("rule", rule), zap.String("tableName", tableName), zap.String("chainName", chainName))
 		exists, err := ebtables.EbTableRuleExists(tableName, chainName, rule)
 		if err != nil {
-			logger.Error("Failed to check if EB table rule exists with", zap.Error(err))
+			logger.Error("Failed to check if EB table rule exists", zap.Error(err))
 			return err
 		}
 

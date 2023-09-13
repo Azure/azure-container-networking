@@ -133,7 +133,7 @@ func (nw *network) newEndpointImpl(
 	// Cleanup on failure.
 	defer func() {
 		if err != nil {
-			logger.Info("CNI error. Delete Endpoint and rules that are created with", zap.Error(err), zap.String("contIfName", contIfName))
+			logger.Error("CNI error. Delete Endpoint and rules that are created", zap.Error(err), zap.String("contIfName", contIfName))
 			endpt := &endpoint{
 				Id:                       epInfo.Id,
 				IfName:                   contIfName,
