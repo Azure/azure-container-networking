@@ -51,6 +51,7 @@ const (
 	Basic                  = "Basic"
 	JobObject              = "JobObject"
 	COW                    = "COW" // Container on Windows
+	BackendNIC             = "BackendNIC"
 )
 
 // Orchestrator Types

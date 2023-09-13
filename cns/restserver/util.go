@@ -177,7 +177,7 @@ func (service *HTTPRestService) saveNetworkContainerGoalState(
 			fallthrough
 		case cns.AzureFirstParty:
 			fallthrough
-		case cns.WebApps: // todo: Is WebApps an OrchastratorType or ContainerType?
+		case cns.WebApps, cns.BackendNIC: // todo: Is WebApps an OrchastratorType or ContainerType?
 			podInfo, err := cns.UnmarshalPodInfo(req.OrchestratorContext)
 			if err != nil {
 				errBuf := fmt.Sprintf("Unmarshalling %s failed with error %v", req.NetworkContainerType, err)
