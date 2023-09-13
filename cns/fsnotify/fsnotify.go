@@ -3,12 +3,16 @@ package fsnotify
 import (
 	"context"
 	"os"
+	"time"
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/fsnotify/fsnotify"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
 )
+
+// map containing containerIDs from failure to release IP
+var releaseIPRetry = make(map[string]string)
 
 type cnsclient interface {
 	ReleaseIPs(ctx context.Context, ipconfig cns.IPConfigsRequest) error
@@ -49,11 +53,13 @@ func (w *Watcher) WatchFs(ctx context.Context) error {
 					w.Logger.Info("file created, triggering release", zap.String("event", event.Name))
 					cnsReleaseErr := w.releaseIP(ctx, event.Name)
 					if cnsReleaseErr != nil {
-						w.Logger.Error("failed to release IP from CNS", zap.Error(cnsReleaseErr))
-					}
-					deleteErr := RemoveFile(event.Name, w.Path)
-					if deleteErr != nil {
-						w.Logger.Error("failed to remove file", zap.Error(err))
+						w.Logger.Error("failed to release IP from CNS, adding to map for retry later", zap.Error(cnsReleaseErr))
+						releaseIPRetry[event.Name] = event.Name
+					} else {
+						deleteErr := RemoveFile(event.Name, w.Path)
+						if deleteErr != nil {
+							w.Logger.Error("failed to remove file", zap.Error(err))
+						}
 					}
 				}
 				if event.Has(fsnotify.Remove) {
@@ -64,6 +70,38 @@ func (w *Watcher) WatchFs(ctx context.Context) error {
 					return
 				}
 				w.Logger.Error("watcher error", zap.Error(watcherErr))
+			}
+		}
+	}()
+
+	// periodically check map for release ip retries
+	// remove entry from map ip is successfully released
+	// on failure the entry will stay in the map
+	ticker := time.NewTicker(15 * time.Second)
+	stop := make(chan struct{})
+	go func() {
+		for {
+			select {
+			case <-ticker.C:
+				if len(releaseIPRetry) != 0 {
+					w.Logger.Info("attempt delete on entries in releaseIPRetry")
+					for _, entry := range releaseIPRetry {
+						retryErr := w.releaseIP(ctx, entry)
+						if retryErr != nil {
+							w.Logger.Error("failed to release IP from CNS", zap.Error(retryErr))
+						} else {
+							delete(releaseIPRetry, entry)
+							err := RemoveFile(entry, w.Path)
+							if err != nil {
+								w.Logger.Error("failed to remove file", zap.Error(err))
+							}
+						}
+					}
+
+				}
+			case <-stop:
+				ticker.Stop()
+				return
 			}
 		}
 	}()
@@ -88,11 +126,13 @@ func (w *Watcher) WatchFs(ctx context.Context) error {
 			w.Logger.Info("file to be deleted", zap.String("name", file.Name()))
 			cnsReleaseErr := w.releaseIP(ctx, file.Name())
 			if cnsReleaseErr != nil {
-				w.Logger.Error("failed to release IP from CNS", zap.Error(cnsReleaseErr))
-			}
-			err := RemoveFile(file.Name(), w.Path)
-			if err != nil {
-				w.Logger.Error("failed to remove file", zap.Error(err))
+				w.Logger.Error("failed to release IP from CNS, adding to map for retry", zap.Error(cnsReleaseErr))
+				releaseIPRetry[file.Name()] = file.Name()
+			} else {
+				err := RemoveFile(file.Name(), w.Path)
+				if err != nil {
+					w.Logger.Error("failed to remove file", zap.Error(err))
+				}
 			}
 		}
 	}
