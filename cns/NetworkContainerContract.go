@@ -107,6 +107,8 @@ type CreateNetworkContainerRequest struct {
 	AllowNCToHostCommunication bool
 	EndpointPolicies           []NetworkContainerRequestPolicies
 	NCStatus                   v1alpha.NCStatus
+	BackendNetworkInterfaceID  string
+	MACAddress                 string
 }
 
 // CreateNetworkContainerRequest implements fmt.Stringer for logging
