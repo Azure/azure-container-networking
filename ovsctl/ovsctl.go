@@ -10,13 +10,14 @@ import (
 	"strings"
 
 	"github.com/Azure/azure-container-networking/common"
+	"github.com/Azure/azure-container-networking/network/log"
 	"github.com/Azure/azure-container-networking/platform"
 	"go.uber.org/zap"
 )
 
 var (
 	loggerName = "ovs"
-	logger     = InitZapLogOVS(loggerName, "azure-vnet.log")
+	logger     = log.InitZapLogNet(loggerName, "azure-vnet.log")
 )
 
 const (
