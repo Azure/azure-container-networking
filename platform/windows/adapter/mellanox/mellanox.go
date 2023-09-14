@@ -171,7 +171,7 @@ func (m *Mellanox) setMellanoxPriorityVLANTagValueForV3(adapterName string, desi
 	if err != nil {
 		return fmt.Errorf("error while executing powershell command to restart net adapter  %s: %w", adapterName, err)
 	}
-	log.Printf("Restarting Mellanox network adapter for regkey change to take effect")
+	log.Printf("For Mellanox CX-3 adapters, the reg key set to %d", desiredVal)
 	return nil
 }
 
