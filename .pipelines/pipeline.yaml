@@ -167,6 +167,16 @@ stages:
               arch: amd64
               name: cni-dropgz-test
               os: linux
+            cni_dropgz_windows2019_amd64:
+              arch: amd64
+              name: cni-dropgz
+              os: windows
+              os_version: ltsc2019
+            cni_dropgz_test_windows2019_amd64:
+              arch: amd64
+              name: cni-dropgz-test
+              os: windows
+              os_version: ltsc2019
             cni_dropgz_windows2022_amd64:
               arch: amd64
               name: cni-dropgz
@@ -286,7 +296,7 @@ stages:
           matrix:
             cni_dropgz:
               name: cni-dropgz
-              os_version: ltsc2022
+              os_version: ltsc2019 ltsc2022
               platforms: linux/amd64 linux/amd64 windows/amd64
             cni_dropgz_test:
               name: cni-dropgz-test
