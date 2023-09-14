@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/Azure/azure-container-networking/log"
-	"go.uber.org/zap"
 )
 
 const (
@@ -157,7 +156,7 @@ func GetProcessNameByID(pidstr string) (string, error) {
 	cmd := fmt.Sprintf("ps -p %s -o comm=", pidstr)
 	out, err := p.ExecuteCommand(cmd)
 	if err != nil {
-		logger.Error("GetProcessNameByID returned", zap.Error(err))
+		log.Printf("GetProcessNameByID returned error: %v", err)
 		return "", err
 	}
 
@@ -171,7 +170,7 @@ func PrintDependencyPackageDetails() {
 	p := NewExecClient()
 	out, err := p.ExecuteCommand("iptables --version")
 	out = strings.TrimSuffix(out, "\n")
-	logger.Error("[cni-net] iptable version", zap.String("output", out), zap.Error(err))
+	log.Printf("[cni-net] iptable version:%s, err:%v", out, err)
 }
 
 func ReplaceFile(source, destination string) error {

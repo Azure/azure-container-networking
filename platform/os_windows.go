@@ -17,7 +17,6 @@ import (
 	"github.com/Azure/azure-container-networking/platform/windows/adapter"
 	"github.com/Azure/azure-container-networking/platform/windows/adapter/mellanox"
 	"github.com/pkg/errors"
-	"go.uber.org/zap"
 	"golang.org/x/sys/windows"
 )
 
@@ -133,11 +132,11 @@ func SetOutboundSNAT(subnet string) error {
 // This will be called only when reboot is detected - This is windows specific
 func ClearNetworkConfiguration() (bool, error) {
 	jsonStore := CNIRuntimePath + "azure-vnet.json"
-	logger.Info("Deleting the", zap.String("json store", jsonStore))
+	log.Printf("Deleting the json store %s", jsonStore)
 	cmd := exec.Command("cmd", "/c", "del", jsonStore)
 
 	if err := cmd.Run(); err != nil {
-		logger.Error("Error deleting the", zap.String("json store", jsonStore))
+		log.Printf("Error deleting the json store %s", jsonStore)
 		return true, err
 	}
 
@@ -157,7 +156,7 @@ func ExecutePowershellCommand(command string) (string, error) {
 		return "", fmt.Errorf("Failed to find powershell executable")
 	}
 
-	logger.Info("[Azure-Utils]", zap.String("command", command))
+	log.Printf("[Azure-Utils] %s", command)
 
 	cmd := exec.Command(ps, command)
 	var stdout bytes.Buffer
@@ -209,10 +208,10 @@ func HasMellanoxAdapter() bool {
 func hasNetworkAdapter(na adapter.NetworkAdapter) bool {
 	adapterName, err := na.GetAdapterName()
 	if err != nil {
-		logger.Error("Error while getting network adapter name", zap.Error(err))
+		log.Errorf("Error while getting network adapter name: %v", err)
 		return false
 	}
-	logger.Info("Name of the network", zap.String("adapter", adapterName))
+	log.Printf("Name of the network adapter : %v", adapterName)
 	return true
 }
 
@@ -251,7 +250,7 @@ func updatePriorityVLANTagIfRequired(na adapter.NetworkAdapter, desiredValue int
 	}
 
 	if currentVal == desiredValue {
-		logger.Info("Adapter's PriorityVLANTag is already set to skipping reset", zap.Int("desiredValue", desiredValue))
+		log.Printf("Adapter's PriorityVLANTag is already set to %v, skipping reset", desiredValue)
 		return nil
 	}
 
@@ -272,12 +271,12 @@ func GetProcessNameByID(pidstr string) (string, error) {
 	cmd := fmt.Sprintf("Get-Process -Id %s|Format-List", pidstr)
 	out, err := ExecutePowershellCommand(cmd)
 	if err != nil {
-		logger.Error("Process is not running.", zap.String("output", out), zap.Error(err))
+		log.Printf("Process is not running. Output:%v, Error %v", out, err)
 		return "", err
 	}
 
 	if len(out) <= 0 {
-		logger.Info("Output length is 0")
+		log.Printf("Output length is 0")
 		return "", fmt.Errorf("get-process output length is 0")
 	}
 
