@@ -9,8 +9,9 @@ import (
 
 func TestAddFile(t *testing.T) {
 	type args struct {
-		containerID string
-		path        string
+		podInterfaceID string
+		containerID    string
+		path           string
 	}
 	tests := []struct {
 		name    string
@@ -20,16 +21,18 @@ func TestAddFile(t *testing.T) {
 		{
 			name: "no such directory, add fail",
 			args: args{
-				containerID: "67890",
-				path:        "/bad/path",
+				podInterfaceID: "123",
+				containerID:    "67890",
+				path:           "/bad/path",
 			},
 			wantErr: true,
 		},
 		{
 			name: "added file to directory",
 			args: args{
-				containerID: "12345",
-				path:        "/path/we/want",
+				podInterfaceID: "345",
+				containerID:    "12345",
+				path:           "/path/we/want",
 			},
 			wantErr: false,
 		},
@@ -38,7 +41,7 @@ func TestAddFile(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			err := os.MkdirAll("/path/we/want", 0o777)
 			require.NoError(t, err)
-			if err := AddFile(tt.args.containerID, tt.args.path); (err != nil) != tt.wantErr {
+			if err := AddFile(tt.args.podInterfaceID, tt.args.containerID, tt.args.path); (err != nil) != tt.wantErr {
 				t.Errorf("WatcherAddFile() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})

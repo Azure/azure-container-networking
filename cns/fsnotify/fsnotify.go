@@ -2,6 +2,7 @@ package fsnotify
 
 import (
 	"context"
+	"io"
 	"os"
 	"sync"
 	"time"
@@ -51,8 +52,21 @@ func (w *watcher) releaseAll(ctx context.Context) {
 	w.lock.Lock()
 	defer w.lock.Unlock()
 	for containerID := range w.pendingDelete {
-		w.log.Info("releasing IP for missed delete", zap.String("containerID", containerID))
-		if err := w.releaseIP(ctx, containerID); err != nil {
+		// read file contents
+		filepath := w.path + "/" + containerID
+		file, err := os.Open(filepath)
+		if err != nil {
+			w.log.Error("failed to open file", zap.Error(err))
+		}
+
+		data, errReadingFile := io.ReadAll(file)
+		if errReadingFile != nil {
+			w.log.Error("failed to read file content", zap.Error(errReadingFile))
+		}
+		podInterfaceID := string(data)
+
+		w.log.Info("releasing IP for missed delete", zap.String("podInterfaceID", podInterfaceID), zap.String("containerID", containerID))
+		if err := w.releaseIP(ctx, podInterfaceID, containerID); err != nil {
 			w.log.Error("failed to release IP for missed delete", zap.String("containerID", containerID), zap.Error(err))
 			continue
 		}
@@ -61,6 +75,7 @@ func (w *watcher) releaseAll(ctx context.Context) {
 		if err := removeFile(containerID, w.path); err != nil {
 			w.log.Error("failed to remove file for missed delete", zap.Error(err))
 		}
+		file.Close()
 	}
 }
 
@@ -172,11 +187,15 @@ func (w *watcher) Start(ctx context.Context) error {
 }
 
 // AddFile creates new file using the containerID as name
-func AddFile(containerID, path string) error {
+func AddFile(podInterfaceID, containerID, path string) error {
 	filepath := path + "/" + containerID
 	f, err := os.Create(filepath)
 	if err != nil {
 		return errors.Wrap(err, "error creating file")
+	}
+	_, writeErr := f.WriteString(podInterfaceID)
+	if writeErr != nil {
+		return errors.Wrap(writeErr, "error writing to file")
 	}
 	return errors.Wrap(f.Close(), "error adding file to directory")
 }
@@ -191,7 +210,10 @@ func removeFile(containerID, path string) error {
 }
 
 // call cns ReleaseIPs
-func (w *watcher) releaseIP(ctx context.Context, containerID string) error {
-	ipconfigreq := &cns.IPConfigsRequest{InfraContainerID: containerID}
+func (w *watcher) releaseIP(ctx context.Context, podInterfaceID, containerID string) error {
+	ipconfigreq := &cns.IPConfigsRequest{
+		PodInterfaceID:   podInterfaceID,
+		InfraContainerID: containerID,
+	}
 	return errors.Wrap(w.cli.ReleaseIPs(ctx, *ipconfigreq), "failed to release IP from CNS")
 }
