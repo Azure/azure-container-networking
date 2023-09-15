@@ -139,7 +139,7 @@ func (nw *network) newEndpoint(
 	}
 
 	nw.Endpoints[epInfo.Id] = ep
-	logger.Info("Created endpoint. Num of endpoints", zap.Any("ep", ep), zap.Any("numEndpoints", nw.Endpoints))
+	logger.Info("Created endpoint. Num of endpoints", zap.Any("ep", ep), zap.Int("numEndpoints", len(nw.Endpoints)))
 	return ep, nil
 }
 
