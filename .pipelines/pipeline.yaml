@@ -172,16 +172,16 @@ stages:
               name: cni-dropgz
               os: windows
               os_version: ltsc2019
-            cni_dropgz_test_windows2019_amd64:
-              arch: amd64
-              name: cni-dropgz-test
-              os: windows
-              os_version: ltsc2019
             cni_dropgz_windows2022_amd64:
               arch: amd64
               name: cni-dropgz
               os: windows
               os_version: ltsc2022
+            cni_dropgz_test_windows2019_amd64:
+              arch: amd64
+              name: cni-dropgz-test
+              os: windows
+              os_version: ltsc2019
             cni_dropgz_test_windows2022_amd64:
               arch: amd64
               name: cni-dropgz-test
