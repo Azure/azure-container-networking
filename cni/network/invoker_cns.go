@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"time"
 
 	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/cni/util"
@@ -330,10 +331,16 @@ func (invoker *CNSIPAMInvoker) Delete(address *net.IPNet, nwCfg *cni.NetworkConf
 		} else {
 			var connectionErr *cnscli.ConnectionFailureErr
 			if errors.As(err, &connectionErr) {
-				addErr := fsnotify.AddFile(ipConfigs.PodInterfaceID, args.ContainerID, watcherPath)
-				if addErr != nil {
-					logger.Error("Failed to add file to watcher", zap.String("podInterfaceID", ipConfigs.PodInterfaceID), zap.String("containerID", args.ContainerID), zap.Error(addErr))
-				}
+				go func() {
+					for {
+						addErr := fsnotify.AddFile(ipConfigs.PodInterfaceID, args.ContainerID, watcherPath)
+						if addErr != nil {
+							logger.Error("Failed to add file to watcher", zap.String("podInterfaceID", ipConfigs.PodInterfaceID), zap.String("containerID", args.ContainerID), zap.Error(addErr))
+							time.Sleep(time.Second)
+							continue
+						}
+					}
+				}()
 			} else {
 				logger.Error("Failed to release IP address",
 					zap.String("infracontainerid", ipConfigs.InfraContainerID),
