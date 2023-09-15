@@ -90,14 +90,14 @@ func DeleteSnatEndpointRules(snatClient *snat.Client, hostToNC, ncToHost bool) {
 	if hostToNC {
 		err := snatClient.DeleteInboundFromHostToNC()
 		if err != nil {
-			logger.Error("failed to delete inbound from host to nc rules")
+			logger.Error("failed to delete inbound from host to nc rules", zap.Error(err))
 		}
 	}
 
 	if ncToHost {
 		err := snatClient.DeleteInboundFromNCToHost()
 		if err != nil {
-			logger.Error("failed to delete inbound from nc to host rules")
+			logger.Error("failed to delete inbound from nc to host rules", zap.Error(err))
 		}
 	}
 }

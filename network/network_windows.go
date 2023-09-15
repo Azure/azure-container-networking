@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"strconv"
 	"strings"
 	"time"
@@ -278,7 +277,7 @@ func (nm *networkManager) configureHcnNetwork(nwInfo *NetworkInfo, extIf *extern
 		vlanID, _ := strconv.ParseUint(opt[VlanIDKey].(string), baseDecimal, bitSize)
 		subnetPolicy, err = policy.SerializeHcnSubnetVlanPolicy((uint32)(vlanID))
 		if err != nil {
-			log.Printf("Failed to serialize subnet vlan policy due to error: %v", err)
+			logger.Error("Failed to serialize subnet vlan policy due to", zap.Error(err))
 			return nil, err
 		}
 

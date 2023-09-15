@@ -301,8 +301,7 @@ func (nw *network) createHostNCApipaEndpoint(cli apipaClient, epInfo *EndpointIn
 	}()
 
 	if err = hcn.AddNamespaceEndpoint(namespace.Id, hostNCApipaEndpointID); err != nil {
-		return fmt.Errorf("Failed to add HostNCApipaEndpoint: %s to namespace: %s due to error: %v",
-			hostNCApipaEndpointID, namespace.Id, err)
+		return fmt.Errorf("Failed to add HostNCApipaEndpoint: %s to namespace: %s due to error: %v", hostNCApipaEndpointID, namespace.Id, err) //nolint
 	}
 
 	return nil
@@ -339,8 +338,7 @@ func (nw *network) newEndpointImplHnsV2(cli apipaClient, epInfo *EndpointInfo) (
 	}
 
 	if err = Hnsv2.AddNamespaceEndpoint(namespace.Id, hnsResponse.Id); err != nil {
-		return nil, fmt.Errorf("Failed to add endpoint: %s to hcn namespace: %s due to error: %v",
-			hnsResponse.Id, namespace.Id, err)
+		return nil, fmt.Errorf("Failed to add endpoint: %s to hcn namespace: %s due to error: %v", hnsResponse.Id, namespace.Id, err) //nolint
 	}
 
 	defer func() {
