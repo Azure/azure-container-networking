@@ -15,7 +15,7 @@ import (
 
 var (
 	loggerName = "policy"
-	logger     = log.InitZapLogNet(loggerName, "azure-vnet.log")
+	logger     = log.InitZapLogNet(loggerName)
 )
 
 const (

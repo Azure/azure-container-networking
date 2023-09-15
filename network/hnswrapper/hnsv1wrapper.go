@@ -13,7 +13,7 @@ import (
 
 var (
 	loggerName = "net"
-	logger     = log.InitZapLogNet(loggerName, "azure-vnet.log")
+	logger     = log.InitZapLogNet(loggerName)
 )
 
 type Hnsv1wrapper struct{}

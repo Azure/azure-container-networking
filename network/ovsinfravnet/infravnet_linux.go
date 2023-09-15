@@ -18,7 +18,7 @@ import (
 
 var (
 	loggerName = "net"
-	logger     = log.InitZapLogNet(loggerName, "azure-vnet.log")
+	logger     = log.InitZapLogNet(loggerName)
 )
 
 const (

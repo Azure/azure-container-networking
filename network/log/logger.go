@@ -7,7 +7,9 @@ import (
 	"go.uber.org/zap"
 )
 
-func InitZapLogNet(loggerName, loggerFile string) *zap.Logger {
+var loggerFile = "azure-vnet.log"
+
+func InitZapLogNet(loggerName string) *zap.Logger {
 	zaplog.LoggerCfg.Name = loggerName
 	zaplog.LoggerCfg.LogPath = zaplog.LogPath + loggerFile
 	logger := zaplog.InitZapLog(&zaplog.LoggerCfg)
