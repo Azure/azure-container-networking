@@ -523,7 +523,8 @@ cni-dropgz-manifest-build: ## build cni-dropgz multiplat container manifest.
 	$(MAKE) manifest-build \
 		PLATFORMS="$(PLATFORMS)" \
 		IMAGE=$(CNI_DROPGZ_IMAGE) \
-		TAG=$(CNI_DROPGZ_VERSION)
+		TAG=$(CNI_DROPGZ_VERSION) \
+		OS_VERSIONS="$(OS_VERSIONS)"
 
 cni-dropgz-manifest-push: ## push cni-dropgz multiplat container manifest
 	$(MAKE) manifest-push \
@@ -539,7 +540,8 @@ cni-dropgz-test-manifest-build: ## build cni-dropgz multiplat container manifest
 	$(MAKE) manifest-build \
 		PLATFORMS="$(PLATFORMS)" \
 		IMAGE=$(CNI_DROPGZ_TEST_IMAGE) \
-		TAG=$(CNI_DROPGZ_TEST_VERSION)
+		TAG=$(CNI_DROPGZ_TEST_VERSION) \
+		OS_VERSIONS="$(OS_VERSIONS)"
 
 cni-dropgz-test-manifest-push: ## push cni-dropgz multiplat container manifest
 	$(MAKE) manifest-push \
