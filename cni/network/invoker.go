@@ -27,6 +27,7 @@ type IPAMAddConfig struct {
 }
 
 type IPAMAddResult struct {
+	// Splitting defaultCniResult from (secondary) cniResults so we don't need to loop for default CNI result every time
 	defaultCniResult CNIResult
 	cniResults       []CNIResult
 	ncResponse       *cns.GetNetworkContainerResponse
