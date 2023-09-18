@@ -337,6 +337,7 @@ func (nm *networkManager) CreateEndpoint(cli apipaClient, networkID string, epIn
 	}
 
 	if nw.VlanId != 0 {
+		// the first entry in epInfo is default address type
 		if epInfo[0].Data[VlanIDKey] == nil {
 			logger.Info("overriding endpoint vlanid with network vlanid")
 			epInfo[0].Data[VlanIDKey] = nw.VlanId

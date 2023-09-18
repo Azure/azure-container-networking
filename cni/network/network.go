@@ -580,10 +580,8 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 			return err
 		}
 
-		if ipamAddResult.defaultCniResult.ipResult != nil {
-			sendEvent(plugin, fmt.Sprintf("CNI ADD succeeded: IP:%+v, VlanID: %v, podname %v, namespace %v numendpoints:%d",
-				ipamAddResult.defaultCniResult.ipResult.IPs, epInfo.Data[network.VlanIDKey], k8sPodName, k8sNamespace, plugin.nm.GetNumberOfEndpoints("", nwCfg.Name)))
-		}
+		sendEvent(plugin, fmt.Sprintf("CNI ADD succeeded: IP:%+v, VlanID: %v, podname %v, namespace %v numendpoints:%d",
+			ipamAddResult.defaultCniResult.ipResult.IPs, epInfo.Data[network.VlanIDKey], k8sPodName, k8sNamespace, plugin.nm.GetNumberOfEndpoints("", nwCfg.Name)))
 	}
 
 	return nil
@@ -597,7 +595,7 @@ func (plugin *NetPlugin) cleanupAllocationOnError(
 	options map[string]interface{},
 ) {
 	for _, cniResult := range cniResults {
-		if cniResult.ipResult != nil && cniResult.addressType != cns.Secondary {
+		if cniResult.ipResult != nil && cniResult.addressType == cns.Default {
 			if er := plugin.ipamInvoker.Delete(&cniResult.ipResult.IPs[0].Address, nwCfg, args, options); er != nil {
 				logger.Error("Failed to cleanup ip allocation on failure", zap.Error(er))
 			}
@@ -803,10 +801,10 @@ func (plugin *NetPlugin) createEndpointInternal(opt *createEndpointInternalOpt) 
 	}
 
 	epInfos := []*network.EndpointInfo{&epInfo}
-	// get multitenant/secondary interface info
-	for _, multitenantResult := range opt.ipamAddResult.cniResults {
+	// get secondary interface info
+	for _, secondaryCniResult := range opt.ipamAddResult.cniResults {
 		var addresses []net.IPNet
-		for _, ipconfig := range multitenantResult.ipResult.IPs {
+		for _, ipconfig := range secondaryCniResult.ipResult.IPs {
 			addresses = append(addresses, ipconfig.Address)
 		}
 
@@ -815,9 +813,9 @@ func (plugin *NetPlugin) createEndpointInternal(opt *createEndpointInternalOpt) 
 				ContainerID:        epInfo.ContainerID,
 				NetNsPath:          epInfo.NetNsPath,
 				IPAddresses:        addresses,
-				MacAddress:         multitenantResult.macAddress,
+				MacAddress:         secondaryCniResult.macAddress,
 				AddressType:        cns.Secondary,
-				IsDefaultInterface: multitenantResult.isDefaultInterface,
+				IsDefaultInterface: secondaryCniResult.isDefaultInterface,
 			})
 	}
 

@@ -54,116 +54,111 @@ func (nw *network) newEndpointImpl(
 	nl netlink.NetlinkInterface,
 	plc platform.ExecClient,
 	netioCli netio.NetIOInterface,
-	epClient EndpointClient,
+	testEpClient EndpointClient,
 	epInfo []*EndpointInfo,
 ) (*endpoint, error) {
 	var (
-		containerIf *net.Interface
-		err         error
-		hostIfName  string
-		contIfName  string
-		localIP     string
-		vlanid      = 0
-		ep          = &endpoint{}
+		containerIf   *net.Interface
+		err           error
+		hostIfName    string
+		contIfName    string
+		localIP       string
+		vlanid        = 0
+		defaultEpInfo = epInfo[0]
 	)
+
+	if nw.Endpoints[defaultEpInfo.Id] != nil {
+		logger.Info("[net] Endpoint already exists.")
+		err = errEndpointExists
+		return nil, err
+	}
+
+	if defaultEpInfo.Data != nil {
+		if _, ok := defaultEpInfo.Data[VlanIDKey]; ok {
+			vlanid = defaultEpInfo.Data[VlanIDKey].(int)
+		}
+
+		if _, ok := defaultEpInfo.Data[LocalIPKey]; ok {
+			localIP = defaultEpInfo.Data[LocalIPKey].(string)
+		}
+	}
+
+	if _, ok := defaultEpInfo.Data[OptVethName]; ok {
+		key := defaultEpInfo.Data[OptVethName].(string)
+		logger.Info("Generate veth name based on the key provided", zap.String("key", key))
+		vethname := generateVethName(key)
+		hostIfName = fmt.Sprintf("%s%s", hostVEthInterfacePrefix, vethname)
+		contIfName = fmt.Sprintf("%s%s2", hostVEthInterfacePrefix, vethname)
+	} else {
+		// Create a veth pair.
+		logger.Info("Generate veth name based on endpoint id")
+		hostIfName = fmt.Sprintf("%s%s", hostVEthInterfacePrefix, defaultEpInfo.Id[:7])
+		contIfName = fmt.Sprintf("%s%s-2", hostVEthInterfacePrefix, defaultEpInfo.Id[:7])
+	}
+
+	ep := &endpoint{
+		Id:                       defaultEpInfo.Id,
+		IfName:                   contIfName, // container veth pair name. In cnm, we won't rename this and docker expects veth name.
+		HostIfName:               hostIfName,
+		InfraVnetIP:              defaultEpInfo.InfraVnetIP,
+		LocalIP:                  localIP,
+		IPAddresses:              defaultEpInfo.IPAddresses,
+		DNS:                      defaultEpInfo.DNS,
+		VlanID:                   vlanid,
+		EnableSnatOnHost:         defaultEpInfo.EnableSnatOnHost,
+		EnableInfraVnet:          defaultEpInfo.EnableInfraVnet,
+		EnableMultitenancy:       defaultEpInfo.EnableMultiTenancy,
+		AllowInboundFromHostToNC: defaultEpInfo.AllowInboundFromHostToNC,
+		AllowInboundFromNCToHost: defaultEpInfo.AllowInboundFromNCToHost,
+		NetworkNameSpace:         defaultEpInfo.NetNsPath,
+		ContainerID:              defaultEpInfo.ContainerID,
+		PODName:                  defaultEpInfo.PODName,
+		PODNameSpace:             defaultEpInfo.PODNameSpace,
+		Routes:                   defaultEpInfo.Routes,
+		SecondaryInterfaces:      make(map[string]*InterfaceInfo),
+	}
 	if nw.extIf != nil {
 		ep.Gateways = []net.IP{nw.extIf.IPv4Gateway}
 	}
 
 	for _, epInfo := range epInfo {
-		epClient := epClient
-		switch epInfo.AddressType {
-		case cns.Secondary:
-			logger.Info("Secondary client")
-			if ep.SecondaryInterfaces == nil {
-				ep.SecondaryInterfaces = make(map[string]*InterfaceInfo)
-			}
-			if epClient == nil {
-				epClient = NewSecondaryEndpointClient(nl, plc, ep)
-			}
-		default:
-			if nw.Endpoints[epInfo.Id] != nil {
-				logger.Info("[net] Endpoint already exists.")
-				err = errEndpointExists
-				return nil, err
-			}
-
-			if epInfo.Data != nil {
-				if _, ok := epInfo.Data[VlanIDKey]; ok {
-					vlanid = epInfo.Data[VlanIDKey].(int)
-				}
-
-				if _, ok := epInfo.Data[LocalIPKey]; ok {
-					localIP = epInfo.Data[LocalIPKey].(string)
-				}
-			}
-
-			if _, ok := epInfo.Data[OptVethName]; ok {
-				key := epInfo.Data[OptVethName].(string)
-				logger.Info("Generate veth name based on the key provided", zap.String("key", key))
-				vethname := generateVethName(key)
-				hostIfName = fmt.Sprintf("%s%s", hostVEthInterfacePrefix, vethname)
-				contIfName = fmt.Sprintf("%s%s2", hostVEthInterfacePrefix, vethname)
-			} else {
-				// Create a veth pair.
-				logger.Info("Generate veth name based on endpoint id")
-				hostIfName = fmt.Sprintf("%s%s", hostVEthInterfacePrefix, epInfo.Id[:7])
-				contIfName = fmt.Sprintf("%s%s-2", hostVEthInterfacePrefix, epInfo.Id[:7])
-			}
-
-			ep.Id = epInfo.Id
-			ep.IfName = contIfName // container veth pair name. In cnm, we won't rename this and docker expects veth name.
-			ep.HostIfName = hostIfName
-			ep.InfraVnetIP = epInfo.InfraVnetIP
-			ep.LocalIP = localIP
-			ep.IPAddresses = epInfo.IPAddresses
-			ep.DNS = epInfo.DNS
-			ep.VlanID = vlanid
-			ep.EnableSnatOnHost = epInfo.EnableSnatOnHost
-			ep.EnableInfraVnet = epInfo.EnableInfraVnet
-			ep.EnableMultitenancy = epInfo.EnableMultiTenancy
-			ep.AllowInboundFromHostToNC = epInfo.AllowInboundFromHostToNC
-			ep.AllowInboundFromNCToHost = epInfo.AllowInboundFromNCToHost
-			ep.NetworkNameSpace = epInfo.NetNsPath
-			ep.ContainerID = epInfo.ContainerID
-			ep.PODName = epInfo.PODName
-			ep.PODNameSpace = epInfo.PODNameSpace
-			ep.Routes = epInfo.Routes
-
-			// epClient is non-nil only when the endpoint is created for the unit test.
-			if epClient == nil {
-				//nolint:gocritic
-				if vlanid != 0 {
-					if nw.Mode == opModeTransparentVlan {
-						logger.Info("Transparent vlan client")
-						if _, ok := epInfo.Data[SnatBridgeIPKey]; ok {
-							nw.SnatBridgeIP = epInfo.Data[SnatBridgeIPKey].(string)
-						}
-						epClient = NewTransparentVlanEndpointClient(nw, epInfo, hostIfName, contIfName, vlanid, localIP, nl, plc)
-					} else {
-						logger.Info("OVS client")
-						if _, ok := epInfo.Data[SnatBridgeIPKey]; ok {
-							nw.SnatBridgeIP = epInfo.Data[SnatBridgeIPKey].(string)
-						}
-
-						epClient = NewOVSEndpointClient(
-							nw,
-							epInfo,
-							hostIfName,
-							contIfName,
-							vlanid,
-							localIP,
-							nl,
-							ovsctl.NewOvsctl(),
-							plc)
+		// testEpClient is non-nil only when the endpoint is created for the unit test
+		epClient := testEpClient
+		if epClient == nil {
+			//nolint:gocritic
+			if vlanid != 0 {
+				if nw.Mode == opModeTransparentVlan {
+					logger.Info("Transparent vlan client")
+					if _, ok := epInfo.Data[SnatBridgeIPKey]; ok {
+						nw.SnatBridgeIP = epInfo.Data[SnatBridgeIPKey].(string)
 					}
-				} else if nw.Mode != opModeTransparent {
-					logger.Info("Bridge client")
-					epClient = NewLinuxBridgeEndpointClient(nw.extIf, hostIfName, contIfName, nw.Mode, nl, plc)
+					epClient = NewTransparentVlanEndpointClient(nw, epInfo, hostIfName, contIfName, vlanid, localIP, nl, plc)
 				} else {
-					logger.Info("Transparent client")
-					epClient = NewTransparentEndpointClient(nw.extIf, hostIfName, contIfName, nw.Mode, nl, plc)
+					logger.Info("OVS client")
+					if _, ok := epInfo.Data[SnatBridgeIPKey]; ok {
+						nw.SnatBridgeIP = epInfo.Data[SnatBridgeIPKey].(string)
+					}
+
+					epClient = NewOVSEndpointClient(
+						nw,
+						epInfo,
+						hostIfName,
+						contIfName,
+						vlanid,
+						localIP,
+						nl,
+						ovsctl.NewOvsctl(),
+						plc)
 				}
+			} else if nw.Mode != opModeTransparent {
+				logger.Info("Bridge client")
+				epClient = NewLinuxBridgeEndpointClient(nw.extIf, hostIfName, contIfName, nw.Mode, nl, plc)
+			} else if epInfo.AddressType == cns.Secondary {
+				logger.Info("Secondary client")
+				epClient = NewSecondaryEndpointClient(nl, plc, ep)
+			} else {
+				logger.Info("Transparent client")
+				epClient = NewTransparentEndpointClient(nw.extIf, hostIfName, contIfName, nw.Mode, nl, plc)
 			}
 		}
 
