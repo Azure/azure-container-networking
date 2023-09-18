@@ -69,7 +69,6 @@ func (invoker *AzureIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, er
 		err = invoker.plugin.Errorf("Failed to allocate pool: %v", err)
 		return addResult, err
 	}
-	addResult.defaultCniResult = CNIResult{ipResult: ipv4Result, addressType: cns.Default, isDefaultInterface: true}
 	if len(ipv4Result.IPs) > 0 {
 		addResult.hostSubnetPrefix = ipv4Result.IPs[0].Address
 	}
@@ -101,11 +100,13 @@ func (invoker *AzureIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, er
 		if err != nil {
 			err = invoker.plugin.Errorf("Failed to allocate v6 pool: %v", err)
 		} else {
-			addResult.defaultCniResult.ipResult.IPs = append(addResult.defaultCniResult.ipResult.IPs, ipv6Result.IPs...)
-			addResult.defaultCniResult.ipResult.Routes = append(addResult.defaultCniResult.ipResult.Routes, ipv6Result.Routes...)
+			ipv4Result.IPs = append(ipv4Result.IPs, ipv6Result.IPs...)
+			ipv4Result.Routes = append(ipv4Result.Routes, ipv6Result.Routes...)
 			addResult.ipv6Enabled = true
 		}
 	}
+
+	addResult.defaultCniResult = CNIResult{ipResult: ipv4Result, addressType: cns.Default, isDefaultInterface: true}
 
 	return addResult, err
 }

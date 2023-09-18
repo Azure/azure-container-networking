@@ -122,7 +122,9 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 	}
 
 	addResult := IPAMAddResult{}
+	// Default address type will be the default interface unless isDefaultInterface is true for a secondary address
 	var isDefaultInterfaceSet bool
+	defaultRoutes := make([]*cniTypes.Route, 0)
 
 	for i := 0; i < len(response.PodIPInfo); i++ {
 		info := IPResultInfo{
@@ -177,23 +179,12 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 				isDefaultInterface: info.isDefaultInterface,
 			}
 
-			for _, route := range info.routes {
-				_, dst, err := net.ParseCIDR(route.IPAddress)
-				if err != nil {
-					return IPAMAddResult{}, fmt.Errorf("unable to parse destination %s: %w", route.IPAddress, err)
-				}
-				gw := net.ParseIP(route.GatewayIPAddress)
-				if gw == nil {
-					return IPAMAddResult{}, fmt.Errorf("unable to parse gateway %s: %w", route.GatewayIPAddress, err)
-				}
-
-				result.ipResult.Routes = append(result.ipResult.Routes,
-					&cniTypes.Route{
-						Dst: *dst,
-						GW:  gw,
-					})
+			routes, err := getRoutes(info.routes)
+			if err != nil {
+				return IPAMAddResult{}, err
 			}
 
+			result.ipResult.Routes = append(result.ipResult.Routes, routes...)
 			addResult.cniResults = append(addResult.cniResults, result)
 		default:
 			// set the NC Primary IP in options
@@ -233,8 +224,9 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 			}
 
 			if ip := net.ParseIP(info.podIPAddress); ip != nil {
-				if addResult.defaultCniResult.ipResult == nil {
-					addResult.defaultCniResult.ipResult = &cniTypesCurr.Result{}
+				defaultCniResult := addResult.defaultCniResult.ipResult
+				if defaultCniResult == nil {
+					defaultCniResult = &cniTypesCurr.Result{}
 				}
 
 				defaultRouteDstPrefix := network.Ipv4DefaultRouteDstPrefix
@@ -243,33 +235,24 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 					addResult.ipv6Enabled = true
 				}
 
-				addResult.defaultCniResult.ipResult.IPs = append(addResult.defaultCniResult.ipResult.IPs,
+				defaultCniResult.IPs = append(defaultCniResult.IPs,
 					&cniTypesCurr.IPConfig{
 						Address: resultIPnet,
 						Gateway: ncgw,
 					})
-				addResult.defaultCniResult.ipResult.Routes = append(addResult.defaultCniResult.ipResult.Routes,
+				defaultRoutes = append(defaultRoutes,
 					&cniTypes.Route{
 						Dst: defaultRouteDstPrefix,
 						GW:  ncgw,
 					})
-				for _, route := range info.routes {
-					_, dst, routeErr := net.ParseCIDR(route.IPAddress)
-					if routeErr != nil {
-						return IPAMAddResult{}, fmt.Errorf("unable to parse destination %s: %w", route.IPAddress, routeErr)
-					}
 
-					gw := net.ParseIP(route.GatewayIPAddress)
-					if gw == nil {
-						return IPAMAddResult{}, fmt.Errorf("unable to parse gateway %s: %w", route.GatewayIPAddress, routeErr)
-					}
-
-					addResult.defaultCniResult.ipResult.Routes = append(addResult.defaultCniResult.ipResult.Routes,
-						&cniTypes.Route{
-							Dst: *dst,
-							GW:  gw,
-						})
+				routes, err := getRoutes(info.routes)
+				if err != nil {
+					return IPAMAddResult{}, err
 				}
+
+				defaultCniResult.Routes = append(defaultCniResult.Routes, routes...)
+				addResult.defaultCniResult.ipResult = defaultCniResult
 			}
 
 			// get the name of the primary IP address
@@ -292,6 +275,10 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 	}
 
 	addResult.defaultCniResult.isDefaultInterface = !isDefaultInterfaceSet
+	// add default routes if none exists
+	if len(addResult.defaultCniResult.ipResult.Routes) == 0 {
+		addResult.defaultCniResult.ipResult.Routes = defaultRoutes
+	}
 
 	return addResult, nil
 }
@@ -425,4 +412,27 @@ func (invoker *CNSIPAMInvoker) Delete(address *net.IPNet, nwCfg *cni.NetworkConf
 	}
 
 	return nil
+}
+
+func getRoutes(cnsRoutes []cns.Route) ([]*cniTypes.Route, error) {
+	routes := make([]*cniTypes.Route, 0)
+	for _, route := range cnsRoutes {
+		_, dst, routeErr := net.ParseCIDR(route.IPAddress)
+		if routeErr != nil {
+			return nil, fmt.Errorf("unable to parse destination %s: %w", route.IPAddress, routeErr)
+		}
+
+		gw := net.ParseIP(route.GatewayIPAddress)
+		if gw == nil {
+			return nil, fmt.Errorf("unable to parse gateway %s: %w", route.GatewayIPAddress, routeErr)
+		}
+
+		routes = append(routes,
+			&cniTypes.Route{
+				Dst: *dst,
+				GW:  gw,
+			})
+	}
+
+	return routes, nil
 }
