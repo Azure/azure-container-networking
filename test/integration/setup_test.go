@@ -55,14 +55,13 @@ func TestMain(m *testing.M) {
 	}
 
 	ctx := context.Background()
-	if installopt := os.Getenv(kubernetes.EnvInstallCNS); installopt != "" {
-		// create dirty cns ds
-		if installCNS, err := strconv.ParseBool(installopt); err == nil && installCNS == true {
-			if cnscleanup, err = kubernetes.InstallCNSDaemonset(ctx, clientset, logDir); err != nil {
-				log.Print(err)
-				exitCode = 2
-				return
-			}
+	installopt := os.Getenv(kubernetes.EnvInstallCNS)
+	// create dirty cns ds
+	if installCNS, err := strconv.ParseBool(installopt); err == nil && installCNS == true {
+		if cnscleanup, err = kubernetes.InstallCNSDaemonset(ctx, clientset, logDir); err != nil {
+			log.Print(err)
+			exitCode = 2
+			return
 		}
 	} else {
 		log.Printf("Env %v not set to true, skipping", kubernetes.EnvInstallCNS)

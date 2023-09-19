@@ -2,6 +2,7 @@ package kubernetes
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"os"
 	"strconv"
@@ -17,6 +18,14 @@ import (
 	typedcorev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	typedrbacv1 "k8s.io/client-go/kubernetes/typed/rbac/v1"
 )
+
+type cnsScenario struct {
+	initContainerArgs         []string
+	volumes                   []corev1.Volume
+	initContainerVolumeMounts []corev1.VolumeMount
+	containerVolumeMounts     []corev1.VolumeMount
+	configMapPath             string
+}
 
 const (
 	envTestDropgz              = "TEST_DROPGZ"
@@ -43,6 +52,47 @@ const (
 	cnsRoleBindingPath              = cnsManifestFolder + "/rolebinding.yaml"
 	cnsServiceAccountPath           = cnsManifestFolder + "/serviceaccount.yaml"
 	cnsLabelSelector                = "k8s-app=azure-cns"
+)
+
+var (
+	ErrUnsupportedCNSScenario = errors.New("Unsupported CNS scenario")
+	cnsScenarioMap            = map[string]cnsScenario{
+		envInstallAzureVnet: {
+			initContainerArgs: []string{
+				"deploy", "azure-vnet", "-o", "/opt/cni/bin/azure-vnet", "azure-vnet-telemetry",
+				"-o", "/opt/cni/bin/azure-vnet-telemetry", "azure-vnet-ipam", "-o", "/opt/cni/bin/azure-vnet-ipam",
+				"azure-swift.conflist", "-o", "/etc/cni/net.d/10-azure.conflist",
+			},
+			configMapPath: cnsSwiftConfigMapPath,
+		},
+		envInstallAzilium: {
+			initContainerArgs: []string{
+				"deploy", "azure-ipam", "-o", "/opt/cni/bin/azure-ipam",
+			},
+			configMapPath: cnsCiliumConfigMapPath,
+		},
+		envInstallOverlay: {
+			initContainerArgs: []string{"deploy", "azure-ipam", "-o", "/opt/cni/bin/azure-ipam"},
+			configMapPath:     cnsOverlayConfigMapPath,
+		},
+		envInstallAzureCNIOverlay: {
+			initContainerArgs: []string{
+				"deploy", "azure-vnet", "-o", "/opt/cni/bin/azure-vnet", "azure-vnet-telemetry", "-o", "/opt/cni/bin/azure-vnet-telemetry",
+			},
+			volumes:                   volumesForAzureCNIOverlay(),
+			initContainerVolumeMounts: dropgzVolumeMountsForAzureCNIOverlay(),
+			containerVolumeMounts:     cnsVolumeMountsForAzureCNIOverlay(),
+			configMapPath:             cnsAzureCNIOverlayConfigMapPath,
+		},
+		envInstallDualStackOverlay: {
+			initContainerArgs: []string{
+				"deploy", "azure-vnet", "-o", "/opt/cni/bin/azure-vnet",
+				"azure-vnet-telemetry", "-o", "/opt/cni/bin/azure-vnet-telemetry", "azure-vnet-ipam", "-o",
+				"/opt/cni/bin/azure-vnet-ipam", "azure-swift-overlay-dualstack.conflist", "-o", "/etc/cni/net.d/10-azure.conflist",
+			},
+			configMapPath: cnsSwiftConfigMapPath,
+		},
+	}
 )
 
 func MustCreateOrUpdatePod(ctx context.Context, podI typedcorev1.PodInterface, pod corev1.Pod) error {
@@ -361,25 +411,12 @@ func loadCNSDaemonset(ctx context.Context, clientset *kubernetes.Clientset, cnsV
 
 	log.Printf("Checking environment scenario")
 	cns = loadDropgzImage(cns, cniDropgzVersion)
-	cns, err = loadAzureVnet(ctx, clientset, cns)
-	if err != nil {
-		return appsv1.DaemonSet{}, errors.Wrap(err, "failed to load azure vnet")
-	}
-	cns, err = loadAzilium(ctx, clientset, cns)
-	if err != nil {
-		return appsv1.DaemonSet{}, errors.Wrap(err, "failed to load azilium")
-	}
-	cns, err = loadCiliumOverlay(ctx, clientset, cns)
-	if err != nil {
-		return appsv1.DaemonSet{}, errors.Wrap(err, "failed to load cilium overlay")
-	}
-	cns, err = loadAzureCNIOverlay(ctx, clientset, cns)
-	if err != nil {
-		return appsv1.DaemonSet{}, errors.Wrap(err, "failed to load azure cni overlay")
-	}
-	cns, err = loadDualstackOverlay(ctx, clientset, cns)
-	if err != nil {
-		return appsv1.DaemonSet{}, errors.Wrap(err, "failed to load dualstack overlay")
+
+	for cnsScenario := range cnsScenarioMap {
+		cns, err = setupCNSDaemonset(ctx, clientset, cns, cnsScenario)
+		if err != nil {
+			return appsv1.DaemonSet{}, errors.Wrap(err, fmt.Sprintf("failed to setup %s cns scenario", cnsScenario))
+		}
 	}
 
 	cnsDaemonsetClient := clientset.AppsV1().DaemonSets(cns.Namespace)
@@ -407,6 +444,41 @@ func loadCNSDaemonset(ctx context.Context, clientset *kubernetes.Clientset, cnsV
 	return cns, nil
 }
 
+func setupCNSDaemonset(ctx context.Context, clientset *kubernetes.Clientset, cns appsv1.DaemonSet, flag string) (appsv1.DaemonSet, error) {
+	cnsScenarioConfig, ok := cnsScenarioMap[flag]
+	if !ok {
+		return cns, errors.Wrap(ErrUnsupportedCNSScenario, fmt.Sprintf("%s not a supported cns scneario", flag))
+	}
+
+	flagValue := os.Getenv(flag)
+
+	if scenario, err := strconv.ParseBool(flagValue); err == nil && scenario {
+		log.Printf("Env %v set to true", flag)
+
+		// override init container args
+		cns.Spec.Template.Spec.InitContainers[0].Args = cnsScenarioConfig.initContainerArgs
+
+		// override the volumes and volume mounts (if present)
+		if len(cnsScenarioConfig.volumes) > 0 {
+			cns.Spec.Template.Spec.Volumes = cnsScenarioConfig.volumes
+		}
+		if len(cnsScenarioConfig.initContainerVolumeMounts) > 0 {
+			cns.Spec.Template.Spec.InitContainers[0].VolumeMounts = cnsScenarioConfig.initContainerVolumeMounts
+		}
+		if len(cnsScenarioConfig.containerVolumeMounts) > 0 {
+			cns.Spec.Template.Spec.Containers[0].VolumeMounts = cnsScenarioConfig.containerVolumeMounts
+		}
+
+		// setup the CNS configmap
+		if err := MustSetupConfigMap(ctx, clientset, cnsScenarioConfig.configMapPath); err != nil {
+			return cns, errors.Wrap(err, fmt.Sprintf("failed to setup CNS %s configMap", cnsScenarioConfig.configMapPath))
+		}
+	} else {
+		log.Printf("Env %v not set to true, skipping", flag)
+	}
+	return cns, nil
+}
+
 func loadDropgzImage(cns appsv1.DaemonSet, dropgzVersion string) appsv1.DaemonSet {
 	installFlag := os.Getenv(envTestDropgz)
 	if testDropgzScenario, err := strconv.ParseBool(installFlag); err == nil && testDropgzScenario {
@@ -419,95 +491,4 @@ func loadDropgzImage(cns appsv1.DaemonSet, dropgzVersion string) appsv1.DaemonSe
 		cns.Spec.Template.Spec.InitContainers[0].Image = GetImageString(initImage, dropgzVersion)
 	}
 	return cns
-}
-
-func loadAzureVnet(ctx context.Context, clientset *kubernetes.Clientset, cns appsv1.DaemonSet) (appsv1.DaemonSet, error) {
-	installFlag := os.Getenv(envInstallAzureVnet)
-	if azureVnetScenario, err := strconv.ParseBool(installFlag); err == nil && azureVnetScenario {
-		log.Printf("Env %v set to true, deploy azure-vnet", envInstallAzureVnet)
-		cns.Spec.Template.Spec.InitContainers[0].Args = []string{
-			"deploy", "azure-vnet", "-o", "/opt/cni/bin/azure-vnet", "azure-vnet-telemetry",
-			"-o", "/opt/cni/bin/azure-vnet-telemetry", "azure-vnet-ipam", "-o", "/opt/cni/bin/azure-vnet-ipam",
-			"azure-swift.conflist", "-o", "/etc/cni/net.d/10-azure.conflist",
-		}
-		// setup the CNS swiftconfigmap
-		if err := MustSetupConfigMap(ctx, clientset, cnsSwiftConfigMapPath); err != nil {
-			return cns, errors.Wrap(err, "failed to setup CNS Swift configMap")
-		}
-	} else {
-		log.Printf("Env %v not set to true, skipping", envInstallAzureVnet)
-	}
-	return cns, nil
-}
-
-func loadAzilium(ctx context.Context, clientset *kubernetes.Clientset, cns appsv1.DaemonSet) (appsv1.DaemonSet, error) {
-	installFlag := os.Getenv(envInstallAzilium)
-	if aziliumScenario, err := strconv.ParseBool(installFlag); err == nil && aziliumScenario {
-		log.Printf("Env %v set to true, deploy azure-ipam and cilium-cni", envInstallAzilium)
-		cns.Spec.Template.Spec.InitContainers[0].Args = []string{"deploy", "azure-ipam", "-o", "/opt/cni/bin/azure-ipam"}
-
-		// setup the CNS ciliumconfigmap
-		if err := MustSetupConfigMap(ctx, clientset, cnsCiliumConfigMapPath); err != nil {
-			return cns, errors.Wrap(err, "failed to setup Cilium configMap")
-		}
-	} else {
-		log.Printf("Env %v not set to true, skipping", envInstallAzilium)
-	}
-	return cns, nil
-}
-
-func loadCiliumOverlay(ctx context.Context, clientset *kubernetes.Clientset, cns appsv1.DaemonSet) (appsv1.DaemonSet, error) {
-	installFlag := os.Getenv(envInstallOverlay)
-	if overlayScenario, err := strconv.ParseBool(installFlag); err == nil && overlayScenario {
-		log.Printf("Env %v set to true, deploy azure-ipam and cilium-cni", envInstallOverlay)
-		cns.Spec.Template.Spec.InitContainers[0].Args = []string{"deploy", "azure-ipam", "-o", "/opt/cni/bin/azure-ipam"}
-
-		// setup the CNS cns overlay configmap
-		if err := MustSetupConfigMap(ctx, clientset, cnsOverlayConfigMapPath); err != nil {
-			return cns, errors.Wrap(err, "failed to setup cns overlay configMap")
-		}
-	} else {
-		log.Printf("Env %v not set to true, skipping", envInstallOverlay)
-	}
-	return cns, nil
-}
-
-func loadAzureCNIOverlay(ctx context.Context, clientset *kubernetes.Clientset, cns appsv1.DaemonSet) (appsv1.DaemonSet, error) {
-	installFlag := os.Getenv(envInstallAzureCNIOverlay)
-	if overlayScenario, err := strconv.ParseBool(installFlag); err == nil && overlayScenario {
-		log.Printf("Env %v set to true, deploy azure-cni and azure-cns", envInstallAzureCNIOverlay)
-		cns.Spec.Template.Spec.InitContainers[0].Args = []string{"deploy", "azure-vnet", "-o", "/opt/cni/bin/azure-vnet", "azure-vnet-telemetry", "-o", "/opt/cni/bin/azure-vnet-telemetry"}
-
-		// override the volumes and volume mounts
-		cns.Spec.Template.Spec.Volumes = volumesForAzureCNIOverlay()
-		cns.Spec.Template.Spec.InitContainers[0].VolumeMounts = dropgzVolumeMountsForAzureCNIOverlay()
-		cns.Spec.Template.Spec.Containers[0].VolumeMounts = cnsVolumeMountsForAzureCNIOverlay()
-
-		// set up the CNS configMap for azure cni overlay
-		if err := MustSetupConfigMap(ctx, clientset, cnsAzureCNIOverlayConfigMapPath); err != nil {
-			return cns, errors.Wrap(err, "failed to setup CNS configMap for azure cni overlay")
-		}
-	} else {
-		log.Printf("Env %v not set to true, skipping", envInstallAzureCNIOverlay)
-	}
-	return cns, nil
-}
-
-func loadDualstackOverlay(ctx context.Context, clientset *kubernetes.Clientset, cns appsv1.DaemonSet) (appsv1.DaemonSet, error) {
-	installFlag := os.Getenv(envInstallDualStackOverlay)
-	if dualStackOverlayScenario, err := strconv.ParseBool(installFlag); err == nil && dualStackOverlayScenario {
-		log.Printf("Env %v set to true, deploy azure-vnet", envInstallDualStackOverlay)
-		cns.Spec.Template.Spec.InitContainers[0].Args = []string{
-			"deploy", "azure-vnet", "-o", "/opt/cni/bin/azure-vnet",
-			"azure-vnet-telemetry", "-o", "/opt/cni/bin/azure-vnet-telemetry", "azure-vnet-ipam", "-o",
-			"/opt/cni/bin/azure-vnet-ipam", "azure-swift-overlay-dualstack.conflist", "-o", "/etc/cni/net.d/10-azure.conflist",
-		}
-		// setup the CNS swiftconfigmap
-		if err := MustSetupConfigMap(ctx, clientset, cnsSwiftConfigMapPath); err != nil {
-			return appsv1.DaemonSet{}, errors.Wrap(err, "failed to setup swift configMap")
-		}
-	} else {
-		log.Printf("Env %v not set to true, skipping", envInstallDualStackOverlay)
-	}
-	return cns, nil
 }
