@@ -9,6 +9,8 @@ import (
 	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/cni/util"
 	"github.com/Azure/azure-container-networking/cns"
+	cnscli "github.com/Azure/azure-container-networking/cns/client"
+	"github.com/Azure/azure-container-networking/cns/fsnotify"
 	"github.com/Azure/azure-container-networking/iptables"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/network"
@@ -17,11 +19,13 @@ import (
 	cniTypes "github.com/containernetworking/cni/pkg/types"
 	cniTypesCurr "github.com/containernetworking/cni/pkg/types/100"
 	"github.com/pkg/errors"
+	"go.uber.org/zap"
 )
 
 var (
 	errEmptyCNIArgs = errors.New("empty CNI cmd args not allowed")
 	errInvalidArgs  = errors.New("invalid arg(s)")
+	watcherPath     = "/var/run/azure-vnet/deleteIDs"
 )
 
 type CNSIPAMInvoker struct {
@@ -242,8 +246,19 @@ func (invoker *CNSIPAMInvoker) Delete(address *net.IPNet, nwCfg *cni.NetworkConf
 	}
 
 	if err := invoker.cnsClient.ReleaseIPAddress(context.TODO(), req); err != nil {
-		return errors.Wrap(err, fmt.Sprintf("failed to release IP %v with err ", address)+"%w")
+		var connectionErr *cnscli.ConnectionFailureErr
+		if errors.As(err, &connectionErr) {
+			addErr := fsnotify.AddFile(req.PodInterfaceID, args.ContainerID, watcherPath)
+			if addErr != nil {
+				log.Errorf("Failed to add file to watcher", zap.String("podInterfaceID", req.PodInterfaceID), zap.String("containerID", args.ContainerID), zap.Error(addErr))
+				return errors.Wrap(addErr, fmt.Sprintf("failed to add file to watcher with containerID %s and podInterfaceID %s", args.ContainerID, req.PodInterfaceID))
+			}
+			return nil
+		}
+		log.Errorf("Failed to release IP address",
+			zap.String("infracontainerid", req.InfraContainerID),
+			zap.Error(err))
+		return errors.Wrap(err, fmt.Sprintf("failed to release IP %v using ReleaseIPs with err ", req.DesiredIPAddress)+"%w")
 	}
-
 	return nil
 }
