@@ -7,6 +7,8 @@ import (
 	"go.uber.org/zap"
 )
 
+var CNILogger = zaplog.InitZapCNILog().With(zap.Int("pid", os.Getpid())).With(zap.String("component", "cni"))
+
 func InitZapLogCNI(loggerName, loggerFile string) *zap.Logger {
 	zaplog.LoggerCfg.Name = loggerName
 	zaplog.LoggerCfg.LogPath = zaplog.LogPath + loggerFile
