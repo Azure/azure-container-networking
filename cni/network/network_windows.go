@@ -52,18 +52,18 @@ func (plugin *NetPlugin) handleConsecutiveAdd(args *cniSkel.CmdArgs, endpointId 
 
 	hnsEndpoint, err := network.Hnsv1.GetHNSEndpointByName(endpointId)
 	if hnsEndpoint != nil {
-		networkLogger.Info("Found existing endpoint through hcsshim",
+		logger.Info("Found existing endpoint through hcsshim",
 			zap.Any("endpoint", hnsEndpoint))
 		endpoint, _ := network.Hnsv1.GetHNSEndpointByID(hnsEndpoint.Id)
 		isAttached, _ := network.Hnsv1.IsAttached(endpoint, args.ContainerID)
 		// Attach endpoint if it's not attached yet.
 		if !isAttached {
-			networkLogger.Info("Attaching endpoint to container",
+			logger.Info("Attaching endpoint to container",
 				zap.String("endpoint", hnsEndpoint.Id),
 				zap.String("container", args.ContainerID))
 			err := network.Hnsv1.HotAttachEndpoint(args.ContainerID, hnsEndpoint.Id)
 			if err != nil {
-				networkLogger.Error("Failed to hot attach shared endpoint to container",
+				logger.Error("Failed to hot attach shared endpoint to container",
 					zap.String("endpoint", hnsEndpoint.Id),
 					zap.String("container", args.ContainerID),
 					zap.Error(err))
@@ -121,7 +121,7 @@ func addInfraRoutes(azIpamResult *cniTypesCurr.Result, result *cniTypesCurr.Resu
 
 func setNetworkOptions(cnsNwConfig *cns.GetNetworkContainerResponse, nwInfo *network.NetworkInfo) {
 	if cnsNwConfig != nil && cnsNwConfig.MultiTenancyInfo.ID != 0 {
-		networkLogger.Info("Setting Network Options")
+		logger.Info("Setting Network Options")
 		vlanMap := make(map[string]interface{})
 		vlanMap[network.VlanIDKey] = strconv.Itoa(cnsNwConfig.MultiTenancyInfo.ID)
 		nwInfo.Options[dockerNetworkOption] = vlanMap
@@ -130,7 +130,7 @@ func setNetworkOptions(cnsNwConfig *cns.GetNetworkContainerResponse, nwInfo *net
 
 func setEndpointOptions(cnsNwConfig *cns.GetNetworkContainerResponse, epInfo *network.EndpointInfo, vethName string) {
 	if cnsNwConfig != nil && cnsNwConfig.MultiTenancyInfo.ID != 0 {
-		networkLogger.Info("Setting Endpoint Options")
+		logger.Info("Setting Endpoint Options")
 		var cnetAddressMap []string
 		for _, ipSubnet := range cnsNwConfig.CnetAddressSpace {
 			cnetAddressMap = append(cnetAddressMap, ipSubnet.IPAddress+"/"+strconv.Itoa(int(ipSubnet.PrefixLength)))
@@ -164,7 +164,7 @@ func (plugin *NetPlugin) getNetworkName(netNs string, ipamAddResult *IPAMAddResu
 		ipAddrNet := ipamAddResult.ipv4Result.IPs[0].Address
 		prefix, err := netip.ParsePrefix(ipAddrNet.String())
 		if err != nil {
-			networkLogger.Error("Error parsing network CIDR",
+			logger.Error("Error parsing network CIDR",
 				zap.String("cidr", ipAddrNet.String()),
 				zap.Error(err))
 			return "", errors.Wrapf(err, "cns returned invalid CIDR %s", ipAddrNet.String())
@@ -179,7 +179,7 @@ func (plugin *NetPlugin) getNetworkName(netNs string, ipamAddResult *IPAMAddResu
 	// This will happen during DEL call
 	networkName, err := plugin.nm.FindNetworkIDFromNetNs(netNs)
 	if err != nil {
-		networkLogger.Error("No endpoint available",
+		logger.Error("No endpoint available",
 			zap.String("netns", netNs),
 			zap.Error(err))
 		return "", fmt.Errorf("No endpoint available with netNs: %s: %w", netNs, err)
@@ -249,7 +249,7 @@ func getEndpointDNSSettings(nwCfg *cni.NetworkConfig, result *cniTypesCurr.Resul
 
 // getPoliciesFromRuntimeCfg returns network policies from network config.
 func getPoliciesFromRuntimeCfg(nwCfg *cni.NetworkConfig, isIPv6Enabled bool) []policy.Policy {
-	networkLogger.Info("Runtime Info",
+	logger.Info("Runtime Info",
 		zap.Any("config", nwCfg.RuntimeConfig))
 	var policies []policy.Policy
 	var protocol uint32
@@ -284,7 +284,7 @@ func getPoliciesFromRuntimeCfg(nwCfg *cni.NetworkConfig, isIPv6Enabled bool) []p
 			Data: hnsv2Policy,
 		}
 
-		networkLogger.Info("Creating port mapping policyv4",
+		logger.Info("Creating port mapping policyv4",
 			zap.Any("policy", policyv4))
 		policies = append(policies, policyv4)
 
@@ -310,7 +310,7 @@ func getPoliciesFromRuntimeCfg(nwCfg *cni.NetworkConfig, isIPv6Enabled bool) []p
 				Data: hnsv2Policyv6,
 			}
 
-			networkLogger.Info("Creating port mapping policyv6",
+			logger.Info("Creating port mapping policyv6",
 				zap.Any("policy", policyv6))
 			policies = append(policies, policyv6)
 		}
@@ -385,7 +385,7 @@ func getIPV6EndpointPolicy(nwInfo *network.NetworkInfo) (policy.Policy, error) {
 		Data: rawPolicy,
 	}
 
-	networkLogger.Info("ipv6 outboundnat policy", zap.Any("policy", eppolicy))
+	logger.Info("ipv6 outboundnat policy", zap.Any("policy", eppolicy))
 	return eppolicy, nil
 }
 
@@ -417,7 +417,7 @@ func determineWinVer() {
 	}
 
 	if err != nil {
-		networkLogger.Error(err.Error())
+		logger.Error(err.Error())
 	}
 }
 
@@ -439,7 +439,7 @@ func getNATInfo(nwCfg *cni.NetworkConfig, ncPrimaryIPIface interface{}, enableSn
 
 func platformInit(cniConfig *cni.NetworkConfig) {
 	if cniConfig.WindowsSettings.HnsTimeoutDurationInSeconds > 0 {
-		networkLogger.Info("Enabling timeout for Hns calls",
+		logger.Info("Enabling timeout for Hns calls",
 			zap.Int("timeout", cniConfig.WindowsSettings.HnsTimeoutDurationInSeconds))
 		network.EnableHnsV1Timeout(cniConfig.WindowsSettings.HnsTimeoutDurationInSeconds)
 		network.EnableHnsV2Timeout(cniConfig.WindowsSettings.HnsTimeoutDurationInSeconds)
@@ -452,12 +452,12 @@ func (plugin *NetPlugin) isDualNicFeatureSupported(netNs string) bool {
 	if useHnsV2 && err == nil {
 		return true
 	}
-	networkLogger.Error("DualNicFeature is not supported")
+	logger.Error("DualNicFeature is not supported")
 	return false
 }
 
 func getOverlayGateway(podsubnet *net.IPNet) (net.IP, error) {
-	networkLogger.Warn("No gateway specified for Overlay NC. CNI will choose one, but connectivity may break")
+	logger.Warn("No gateway specified for Overlay NC. CNI will choose one, but connectivity may break")
 	ncgw := podsubnet.IP
 	ncgw[3]++
 	ncgw = net.ParseIP(ncgw.String())

@@ -29,9 +29,8 @@ func initZapCNILog(logFile string) *zap.Logger {
 	encoderConfig := zap.NewProductionEncoderConfig()
 	encoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
 	jsonEncoder := zapcore.NewJSONEncoder(encoderConfig)
-	logLevel := zapcore.DebugLevel
 
-	core := zapcore.NewCore(jsonEncoder, logFileCNIWriter, logLevel)
+	core := zapcore.NewCore(jsonEncoder, logFileCNIWriter, zapcore.DebugLevel)
 	Logger := zap.New(core)
 	return Logger
 }
