@@ -25,55 +25,33 @@ const (
 	envInstallDualStackOverlay = "INSTALL_DUALSTACK_OVERLAY"
 
 	// relative cns manifest paths
-	cnsManifestFolder                      = "manifests/cns"
-	cnsConfigFolder                        = "manifests/cnsconfig"
-	cnsLinuxDaemonSetPath                  = cnsManifestFolder + "/daemonset-linux.yaml"
-	cnsWindowsDaemonsetPath                = cnsManifestFolder + "/daemonset-windows.yaml"
-	cnsClusterRolePath                     = cnsManifestFolder + "/clusterrole.yaml"
-	cnsClusterRoleBindingPath              = cnsManifestFolder + "/clusterrolebinding.yaml"
-	cnsSwiftConfigMapPath                  = cnsConfigFolder + "/swiftconfigmap.yaml"
-	cnsCiliumConfigMapPath                 = cnsConfigFolder + "/ciliumconfigmap.yaml"
-	cnsOverlayConfigMapPath                = cnsConfigFolder + "/overlayconfigmap.yaml"
-	cnsAzureCNIOverlayLinuxConfigMapPath   = cnsConfigFolder + "/azurecnioverlaylinuxconfigmap.yaml"
-	cnsAzureCNIOverlayWindowsConfigMapPath = cnsConfigFolder + "/azurecnioverlaywindowsconfigmap.yaml"
-	cnsRolePath                            = cnsManifestFolder + "/role.yaml"
-	cnsRoleBindingPath                     = cnsManifestFolder + "/rolebinding.yaml"
-	cnsServiceAccountPath                  = cnsManifestFolder + "/serviceaccount.yaml"
-	cnsLinuxLabelSelector                  = "k8s-app=azure-cns"
-	cnsWindowsLabelSelector                = "k8s-app=azure-cns-win"
+	cnsManifestFolder               = "manifests/cns"
+	cnsConfigFolder                 = "manifests/cnsconfig"
+	cnsDaemonSetPath                = cnsManifestFolder + "/daemonset.yaml"
+	cnsClusterRolePath              = cnsManifestFolder + "/clusterrole.yaml"
+	cnsClusterRoleBindingPath       = cnsManifestFolder + "/clusterrolebinding.yaml"
+	cnsSwiftConfigMapPath           = cnsConfigFolder + "/swiftconfigmap.yaml"
+	cnsCiliumConfigMapPath          = cnsConfigFolder + "/ciliumconfigmap.yaml"
+	cnsOverlayConfigMapPath         = cnsConfigFolder + "/overlayconfigmap.yaml"
+	cnsAzureCNIOverlayConfigMapPath = cnsConfigFolder + "/azurecnioverlayconfigmap.yaml"
+	cnsRolePath                     = cnsManifestFolder + "/role.yaml"
+	cnsRoleBindingPath              = cnsManifestFolder + "/rolebinding.yaml"
+	cnsServiceAccountPath           = cnsManifestFolder + "/serviceaccount.yaml"
+	cnsLabelSelector                = "k8s-app=azure-cns"
 )
-
-var ErrUnsupportedOS = errors.New("Unsuported OS for CNS")
 
 func InstallCNSDaemonset(ctx context.Context, clientset *kubernetes.Clientset, logDir string) (func() error, error) {
 	cniDropgzVersion := os.Getenv(envCNIDropgzVersion)
 	cnsVersion := os.Getenv(envCNSVersion)
 
-	cnsLinux, err := loadCNSDaemonset(ctx, clientset, cnsVersion, cniDropgzVersion, string(corev1.Linux))
+	cns, err := loadCNSDaemonset(ctx, clientset, cnsVersion, cniDropgzVersion)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to load CNS Linux daemonset")
-	}
-
-	cnsWindows := appsv1.DaemonSet{}
-	hasWindowsNodes, err := k8sutils.HasNodeOS(ctx, clientset, string(corev1.Windows))
-	if err != nil {
-		return nil, errors.Wrap(err, "could not check if windows nodes were present")
-	}
-	if hasWindowsNodes {
-		cnsWindows, err = loadCNSDaemonset(ctx, clientset, cnsVersion, cniDropgzVersion, string(corev1.Windows))
-		if err != nil {
-			return nil, errors.Wrap(err, "failed to load CNS Windows daemonset")
-		}
+		return nil, errors.Wrap(err, "failed to load CNS daemonset")
 	}
 
 	cleanupds := func() error {
-		if err := k8sutils.ExportLogsByLabelSelector(ctx, clientset, cnsLinux.Namespace, cnsLinuxLabelSelector, logDir); err != nil {
-			return errors.Wrapf(err, "failed to export logs by label selector %s", cnsLinuxLabelSelector)
-		}
-		if hasWindowsNodes {
-			if err := k8sutils.ExportLogsByLabelSelector(ctx, clientset, cnsWindows.Namespace, cnsWindowsLabelSelector, logDir); err != nil {
-				return errors.Wrapf(err, "failed to export logs by label selector %s", cnsLinuxLabelSelector)
-			}
+		if err := k8sutils.ExportLogsByLabelSelector(ctx, clientset, cns.Namespace, cnsLabelSelector, logDir); err != nil {
+			return errors.Wrapf(err, "failed to export logs by label selector %s", cnsLabelSelector)
 		}
 		return nil
 	}
@@ -85,7 +63,7 @@ func hostPathTypePtr(h corev1.HostPathType) *corev1.HostPathType {
 	return &h
 }
 
-func volumesForAzureCNIOverlayLinux() []corev1.Volume {
+func volumesForAzureCNIOverlay() []corev1.Volume {
 	return []corev1.Volume{
 		{
 			Name: "log",
@@ -163,49 +141,7 @@ func volumesForAzureCNIOverlayLinux() []corev1.Volume {
 	}
 }
 
-func volumesForAzureCNIOverlayWindows() []corev1.Volume {
-	return []corev1.Volume{
-		{
-			Name: "log",
-			VolumeSource: corev1.VolumeSource{
-				HostPath: &corev1.HostPathVolumeSource{
-					Path: "/k/azurecns",
-					Type: hostPathTypePtr(corev1.HostPathDirectoryOrCreate),
-				},
-			},
-		},
-		{
-			Name: "cns-config",
-			VolumeSource: corev1.VolumeSource{
-				ConfigMap: &corev1.ConfigMapVolumeSource{
-					LocalObjectReference: corev1.LocalObjectReference{
-						Name: "cns-win-config",
-					},
-				},
-			},
-		},
-		{
-			Name: "cni-bin",
-			VolumeSource: corev1.VolumeSource{
-				HostPath: &corev1.HostPathVolumeSource{
-					Path: "/k/azurecni/bin",
-					Type: hostPathTypePtr(corev1.HostPathDirectory),
-				},
-			},
-		},
-		{
-			Name: "cni-conflist",
-			VolumeSource: corev1.VolumeSource{
-				HostPath: &corev1.HostPathVolumeSource{
-					Path: "/k/azurecni/netconf",
-					Type: hostPathTypePtr(corev1.HostPathDirectory),
-				},
-			},
-		},
-	}
-}
-
-func dropgzVolumeMountsForAzureCNIOverlayLinux() []corev1.VolumeMount {
+func dropgzVolumeMountsForAzureCNIOverlay() []corev1.VolumeMount {
 	return []corev1.VolumeMount{
 		{
 			Name:      "cni-bin",
@@ -214,20 +150,7 @@ func dropgzVolumeMountsForAzureCNIOverlayLinux() []corev1.VolumeMount {
 	}
 }
 
-func dropgzVolumeMountsForAzureCNIOverlayWindows() []corev1.VolumeMount {
-	return []corev1.VolumeMount{
-		{
-			Name:      "cni-bin",
-			MountPath: "/k/azurecni/bin/",
-		},
-		{
-			Name:      "cni-conflist",
-			MountPath: "/k/azurecni/netconf/",
-		},
-	}
-}
-
-func cnsVolumeMountsForAzureCNIOverlayLinux() []corev1.VolumeMount {
+func cnsVolumeMountsForAzureCNIOverlay() []corev1.VolumeMount {
 	return []corev1.VolumeMount{
 		{
 			Name:      "log",
@@ -264,59 +187,10 @@ func cnsVolumeMountsForAzureCNIOverlayLinux() []corev1.VolumeMount {
 	}
 }
 
-func cnsVolumeMountsForAzureCNIOverlayWindows() []corev1.VolumeMount {
-	return []corev1.VolumeMount{
-		{
-			Name:      "log",
-			MountPath: "/k/azurecns",
-		},
-		{
-			Name:      "cns-config",
-			MountPath: "/etc/azure-cns",
-		},
-		{
-			Name:      "cni-bin",
-			MountPath: "/k/azurecni/bin",
-		},
-		{
-			Name:      "cni-conflist",
-			MountPath: "/k/azurecni/netconf",
-		},
-	}
-}
-
-func ParseCNSDaemonset(nodeOS string) (appsv1.DaemonSet, error) {
-	yamlPath := ""
-	switch nodeOS {
-	case string(corev1.Linux):
-		yamlPath = cnsLinuxDaemonSetPath
-	case string(corev1.Windows):
-		yamlPath = cnsWindowsDaemonsetPath
-	default:
-		return appsv1.DaemonSet{}, ErrUnsupportedOS
-	}
-
-	cns, err := k8sutils.MustParseDaemonSet(yamlPath)
+func loadCNSDaemonset(ctx context.Context, clientset *kubernetes.Clientset, cnsVersion, cniDropgzVersion string) (appsv1.DaemonSet, error) {
+	cns, err := k8sutils.MustParseDaemonSet(cnsDaemonSetPath)
 	if err != nil {
-		return appsv1.DaemonSet{}, errors.Wrapf(err, "failed to parse daemonset %s", yamlPath)
-	}
-	return cns, nil
-}
-
-func loadCNSDaemonset(ctx context.Context, clientset *kubernetes.Clientset, cnsVersion, cniDropgzVersion, nodeOS string) (appsv1.DaemonSet, error) {
-	cns, err := ParseCNSDaemonset(nodeOS)
-	if err != nil {
-		return appsv1.DaemonSet{}, errors.Wrapf(err, "failed to parse daemonset for %s", nodeOS)
-	}
-
-	labelSelector := ""
-	switch nodeOS {
-	case string(corev1.Linux):
-		labelSelector = cnsLinuxLabelSelector
-	case string(corev1.Windows):
-		labelSelector = cnsWindowsLabelSelector
-	default:
-		return appsv1.DaemonSet{}, ErrUnsupportedOS
+		return appsv1.DaemonSet{}, errors.Wrapf(err, "failed to parse daemonset")
 	}
 
 	image, _ := k8sutils.ParseImageString(cns.Spec.Template.Spec.Containers[0].Image)
@@ -336,7 +210,7 @@ func loadCNSDaemonset(ctx context.Context, clientset *kubernetes.Clientset, cnsV
 	if err != nil {
 		return appsv1.DaemonSet{}, errors.Wrap(err, "failed to load cilium overlay")
 	}
-	cns, err = loadAzureCNIOverlay(ctx, clientset, cns, nodeOS)
+	cns, err = loadAzureCNIOverlay(ctx, clientset, cns)
 	if err != nil {
 		return appsv1.DaemonSet{}, errors.Wrap(err, "failed to load azure cni overlay")
 	}
@@ -363,7 +237,7 @@ func loadCNSDaemonset(ctx context.Context, clientset *kubernetes.Clientset, cnsV
 		return appsv1.DaemonSet{}, errors.Wrap(err, "failed to create daemonset")
 	}
 
-	if err := k8sutils.WaitForPodsRunning(ctx, clientset, cns.Namespace, labelSelector); err != nil {
+	if err := k8sutils.WaitForPodsRunning(ctx, clientset, cns.Namespace, cnsLabelSelector); err != nil {
 		return appsv1.DaemonSet{}, errors.Wrap(err, "failed to check pod running")
 	}
 
@@ -371,12 +245,11 @@ func loadCNSDaemonset(ctx context.Context, clientset *kubernetes.Clientset, cnsV
 }
 
 func loadDropgzImage(cns appsv1.DaemonSet, dropgzVersion string) appsv1.DaemonSet {
-	if installFlag := os.Getenv(envTestDropgz); installFlag != "" {
-		if testDropgzScenario, err := strconv.ParseBool(installFlag); err == nil && testDropgzScenario {
-			log.Printf("Env %v set to true, deploy cniTest.Dockerfile", envTestDropgz)
-			initImage, _ := k8sutils.ParseImageString("acnpublic.azurecr.io/cni-dropgz-test:latest")
-			cns.Spec.Template.Spec.InitContainers[0].Image = k8sutils.GetImageString(initImage, dropgzVersion)
-		}
+	installFlag := os.Getenv(envTestDropgz)
+	if testDropgzScenario, err := strconv.ParseBool(installFlag); err == nil && testDropgzScenario {
+		log.Printf("Env %v set to true, deploy cniTest.Dockerfile", envTestDropgz)
+		initImage, _ := k8sutils.ParseImageString("acnpublic.azurecr.io/cni-dropgz-test:latest")
+		cns.Spec.Template.Spec.InitContainers[0].Image = k8sutils.GetImageString(initImage, dropgzVersion)
 	} else {
 		log.Printf("Env %v not set to true, deploying cni.Dockerfile", envTestDropgz)
 		initImage, _ := k8sutils.ParseImageString(cns.Spec.Template.Spec.InitContainers[0].Image)
@@ -386,14 +259,13 @@ func loadDropgzImage(cns appsv1.DaemonSet, dropgzVersion string) appsv1.DaemonSe
 }
 
 func loadAzureVnet(ctx context.Context, clientset *kubernetes.Clientset, cns appsv1.DaemonSet) (appsv1.DaemonSet, error) {
-	if installFlag := os.Getenv(envInstallAzureVnet); installFlag != "" {
-		if azureVnetScenario, err := strconv.ParseBool(installFlag); err == nil && azureVnetScenario {
-			log.Printf("Env %v set to true, deploy azure-vnet", envInstallAzureVnet)
-			cns.Spec.Template.Spec.InitContainers[0].Args = []string{
-				"deploy", "azure-vnet", "-o", "/opt/cni/bin/azure-vnet", "azure-vnet-telemetry",
-				"-o", "/opt/cni/bin/azure-vnet-telemetry", "azure-vnet-ipam", "-o", "/opt/cni/bin/azure-vnet-ipam",
-				"azure-swift.conflist", "-o", "/etc/cni/net.d/10-azure.conflist",
-			}
+	installFlag := os.Getenv(envInstallAzureVnet)
+	if azureVnetScenario, err := strconv.ParseBool(installFlag); err == nil && azureVnetScenario {
+		log.Printf("Env %v set to true, deploy azure-vnet", envInstallAzureVnet)
+		cns.Spec.Template.Spec.InitContainers[0].Args = []string{
+			"deploy", "azure-vnet", "-o", "/opt/cni/bin/azure-vnet", "azure-vnet-telemetry",
+			"-o", "/opt/cni/bin/azure-vnet-telemetry", "azure-vnet-ipam", "-o", "/opt/cni/bin/azure-vnet-ipam",
+			"azure-swift.conflist", "-o", "/etc/cni/net.d/10-azure.conflist",
 		}
 		// setup the CNS swiftconfigmap
 		if err := k8sutils.MustSetupConfigMap(ctx, clientset, cnsSwiftConfigMapPath); err != nil {
@@ -406,11 +278,11 @@ func loadAzureVnet(ctx context.Context, clientset *kubernetes.Clientset, cns app
 }
 
 func loadAzilium(ctx context.Context, clientset *kubernetes.Clientset, cns appsv1.DaemonSet) (appsv1.DaemonSet, error) {
-	if installFlag := os.Getenv(envInstallAzilium); installFlag != "" {
-		if aziliumScenario, err := strconv.ParseBool(installFlag); err == nil && aziliumScenario {
-			log.Printf("Env %v set to true, deploy azure-ipam and cilium-cni", envInstallAzilium)
-			cns.Spec.Template.Spec.InitContainers[0].Args = []string{"deploy", "azure-ipam", "-o", "/opt/cni/bin/azure-ipam"}
-		}
+	installFlag := os.Getenv(envInstallAzilium)
+	if aziliumScenario, err := strconv.ParseBool(installFlag); err == nil && aziliumScenario {
+		log.Printf("Env %v set to true, deploy azure-ipam and cilium-cni", envInstallAzilium)
+		cns.Spec.Template.Spec.InitContainers[0].Args = []string{"deploy", "azure-ipam", "-o", "/opt/cni/bin/azure-ipam"}
+
 		// setup the CNS ciliumconfigmap
 		if err := k8sutils.MustSetupConfigMap(ctx, clientset, cnsCiliumConfigMapPath); err != nil {
 			return cns, errors.Wrap(err, "failed to setup Cilium configMap")
@@ -422,11 +294,11 @@ func loadAzilium(ctx context.Context, clientset *kubernetes.Clientset, cns appsv
 }
 
 func loadCiliumOverlay(ctx context.Context, clientset *kubernetes.Clientset, cns appsv1.DaemonSet) (appsv1.DaemonSet, error) {
-	if installFlag := os.Getenv(envInstallOverlay); installFlag != "" {
-		if overlayScenario, err := strconv.ParseBool(installFlag); err == nil && overlayScenario {
-			log.Printf("Env %v set to true, deploy azure-ipam and cilium-cni", envInstallOverlay)
-			cns.Spec.Template.Spec.InitContainers[0].Args = []string{"deploy", "azure-ipam", "-o", "/opt/cni/bin/azure-ipam"}
-		}
+	installFlag := os.Getenv(envInstallOverlay)
+	if overlayScenario, err := strconv.ParseBool(installFlag); err == nil && overlayScenario {
+		log.Printf("Env %v set to true, deploy azure-ipam and cilium-cni", envInstallOverlay)
+		cns.Spec.Template.Spec.InitContainers[0].Args = []string{"deploy", "azure-ipam", "-o", "/opt/cni/bin/azure-ipam"}
+
 		// setup the CNS cns overlay configmap
 		if err := k8sutils.MustSetupConfigMap(ctx, clientset, cnsOverlayConfigMapPath); err != nil {
 			return cns, errors.Wrap(err, "failed to setup cns overlay configMap")
@@ -437,40 +309,20 @@ func loadCiliumOverlay(ctx context.Context, clientset *kubernetes.Clientset, cns
 	return cns, nil
 }
 
-func loadAzureCNIOverlay(ctx context.Context, clientset *kubernetes.Clientset, cns appsv1.DaemonSet, nodeOS string) (appsv1.DaemonSet, error) {
-	if installFlag := os.Getenv(envInstallAzureCNIOverlay); installFlag != "" {
-		if overlayScenario, err := strconv.ParseBool(installFlag); err == nil && overlayScenario {
-			log.Printf("Env %v set to true, deploy azure-cni and azure-cns", envInstallAzureCNIOverlay)
-			log.Printf("Deploysing OS version %s: of CNS", nodeOS)
-			switch nodeOS {
-			case string(corev1.Linux):
-				// TODO: Also add cni conflist, once Ryan changes dropgz windows dockerfile to include it
-				cns.Spec.Template.Spec.InitContainers[0].Args = []string{"deploy", "azure-vnet", "-o", "/opt/cni/bin/azure-vnet", "azure-vnet-telemetry", "-o", "/opt/cni/bin/azure-vnet-telemetry"}
+func loadAzureCNIOverlay(ctx context.Context, clientset *kubernetes.Clientset, cns appsv1.DaemonSet) (appsv1.DaemonSet, error) {
+	installFlag := os.Getenv(envInstallAzureCNIOverlay)
+	if overlayScenario, err := strconv.ParseBool(installFlag); err == nil && overlayScenario {
+		log.Printf("Env %v set to true, deploy azure-cni and azure-cns", envInstallAzureCNIOverlay)
+		cns.Spec.Template.Spec.InitContainers[0].Args = []string{"deploy", "azure-vnet", "-o", "/opt/cni/bin/azure-vnet", "azure-vnet-telemetry", "-o", "/opt/cni/bin/azure-vnet-telemetry"}
 
-				// override the volumes and volume mounts
-				cns.Spec.Template.Spec.Volumes = volumesForAzureCNIOverlayLinux()
-				cns.Spec.Template.Spec.InitContainers[0].VolumeMounts = dropgzVolumeMountsForAzureCNIOverlayLinux()
-				cns.Spec.Template.Spec.Containers[0].VolumeMounts = cnsVolumeMountsForAzureCNIOverlayLinux()
+		// override the volumes and volume mounts
+		cns.Spec.Template.Spec.Volumes = volumesForAzureCNIOverlay()
+		cns.Spec.Template.Spec.InitContainers[0].VolumeMounts = dropgzVolumeMountsForAzureCNIOverlay()
+		cns.Spec.Template.Spec.Containers[0].VolumeMounts = cnsVolumeMountsForAzureCNIOverlay()
 
-				// set up the CNS configMap for azure cni overlay
-				if err := k8sutils.MustSetupConfigMap(ctx, clientset, cnsAzureCNIOverlayLinuxConfigMapPath); err != nil {
-					return cns, errors.Wrap(err, "failed to setup CNS configMap for azure cni overlay")
-				}
-			case string(corev1.Windows):
-				cns.Spec.Template.Spec.InitContainers[0].Args = []string{"deploy", "azure-vnet.exe", "-o", "/k/azurecni/bin/azure-vnet.exe"}
-
-				// override volumes and volume mounts
-				cns.Spec.Template.Spec.Volumes = volumesForAzureCNIOverlayWindows()
-				cns.Spec.Template.Spec.InitContainers[0].VolumeMounts = dropgzVolumeMountsForAzureCNIOverlayWindows()
-				cns.Spec.Template.Spec.Containers[0].VolumeMounts = cnsVolumeMountsForAzureCNIOverlayWindows()
-
-				// set up the CNS configMap for azure cni overlay
-				if err := k8sutils.MustSetupConfigMap(ctx, clientset, cnsAzureCNIOverlayWindowsConfigMapPath); err != nil {
-					return cns, errors.Wrap(err, "failed to setup CNS configMap for azure cni overlay")
-				}
-			default:
-				return cns, ErrUnsupportedOS
-			}
+		// set up the CNS configMap for azure cni overlay
+		if err := k8sutils.MustSetupConfigMap(ctx, clientset, cnsAzureCNIOverlayConfigMapPath); err != nil {
+			return cns, errors.Wrap(err, "failed to setup CNS configMap for azure cni overlay")
 		}
 	} else {
 		log.Printf("Env %v not set to true, skipping", envInstallAzureCNIOverlay)
@@ -479,14 +331,13 @@ func loadAzureCNIOverlay(ctx context.Context, clientset *kubernetes.Clientset, c
 }
 
 func loadDualstackOverlay(ctx context.Context, clientset *kubernetes.Clientset, cns appsv1.DaemonSet) (appsv1.DaemonSet, error) {
-	if installFlag := os.Getenv(envInstallDualStackOverlay); installFlag != "" {
-		if dualStackOverlayScenario, err := strconv.ParseBool(installFlag); err == nil && dualStackOverlayScenario {
-			log.Printf("Env %v set to true, deploy azure-vnet", envInstallDualStackOverlay)
-			cns.Spec.Template.Spec.InitContainers[0].Args = []string{
-				"deploy", "azure-vnet", "-o", "/opt/cni/bin/azure-vnet",
-				"azure-vnet-telemetry", "-o", "/opt/cni/bin/azure-vnet-telemetry", "azure-vnet-ipam", "-o",
-				"/opt/cni/bin/azure-vnet-ipam", "azure-swift-overlay-dualstack.conflist", "-o", "/etc/cni/net.d/10-azure.conflist",
-			}
+	installFlag := os.Getenv(envInstallDualStackOverlay)
+	if dualStackOverlayScenario, err := strconv.ParseBool(installFlag); err == nil && dualStackOverlayScenario {
+		log.Printf("Env %v set to true, deploy azure-vnet", envInstallDualStackOverlay)
+		cns.Spec.Template.Spec.InitContainers[0].Args = []string{
+			"deploy", "azure-vnet", "-o", "/opt/cni/bin/azure-vnet",
+			"azure-vnet-telemetry", "-o", "/opt/cni/bin/azure-vnet-telemetry", "azure-vnet-ipam", "-o",
+			"/opt/cni/bin/azure-vnet-ipam", "azure-swift-overlay-dualstack.conflist", "-o", "/etc/cni/net.d/10-azure.conflist",
 		}
 		// setup the CNS swiftconfigmap
 		if err := k8sutils.MustSetupConfigMap(ctx, clientset, cnsSwiftConfigMapPath); err != nil {
