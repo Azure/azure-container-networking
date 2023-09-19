@@ -38,7 +38,7 @@ const (
 	acceptRAV6File       = "/proc/sys/net/ipv6/conf/%s/accept_ra"
 )
 
-var logger = log.CNILogger.With(zap.String("component", "net"))
+var logger = log.CNILogger.With(zap.String("component", "net-utils"))
 
 var errorNetworkUtils = errors.New("NetworkUtils Error")
 

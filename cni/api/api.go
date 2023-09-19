@@ -9,7 +9,7 @@ import (
 	"go.uber.org/zap"
 )
 
-var logger = log.CNILogger.With(zap.String("component", "cni"))
+var logger = log.CNILogger.With(zap.String("component", "cni-api"))
 
 type PodNetworkInterfaceInfo struct {
 	PodName       string

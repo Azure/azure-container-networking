@@ -16,7 +16,7 @@ import (
 	utilexec "k8s.io/utils/exec"
 )
 
-var logger = log.CNILogger.With(zap.String("component", "cni"))
+var logger = log.CNILogger.With(zap.String("component", "cni-client"))
 
 type client struct {
 	exec utilexec.Interface
