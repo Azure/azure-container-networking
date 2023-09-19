@@ -14,7 +14,7 @@ import (
 	"github.com/Azure/azure-container-networking/aitelemetry"
 	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/cni/api"
-	zapLog "github.com/Azure/azure-container-networking/cni/log"
+	zaplog "github.com/Azure/azure-container-networking/cni/log"
 	"github.com/Azure/azure-container-networking/cni/network"
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/log"
@@ -40,7 +40,7 @@ const (
 // Version is populated by make during build.
 var version string
 
-var logger = zapLog.InitZapLogCNI(name, "azure-vnet.log")
+var logger = zaplog.CNILogger.With(zap.String("component", "cni-net"))
 
 // Command line arguments for CNI plugin.
 var args = common.ArgumentList{

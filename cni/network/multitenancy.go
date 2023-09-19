@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/Azure/azure-container-networking/cni"
-	"github.com/Azure/azure-container-networking/cni/log"
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/client"
 	"github.com/Azure/azure-container-networking/common"
@@ -88,7 +87,7 @@ func (m *Multitenancy) DetermineSnatFeatureOnHost(snatFile, nmAgentSupportedApis
 		bytes, _ := io.ReadAll(jsonFile)
 		jsonFile.Close()
 		if retrieveSnatConfigErr = json.Unmarshal(bytes, &snatConfig); retrieveSnatConfigErr != nil {
-			log.CNILogger.Error("failed to unmarshal to snatConfig with error %v",
+			networkLogger.Error("failed to unmarshal to snatConfig with error %v",
 				zap.Error(retrieveSnatConfigErr))
 		}
 	}
@@ -98,10 +97,10 @@ func (m *Multitenancy) DetermineSnatFeatureOnHost(snatFile, nmAgentSupportedApis
 		var resp *http.Response
 		req, err := http.NewRequestWithContext(context.TODO(), http.MethodGet, nmAgentSupportedApisURL, nil)
 		if err != nil {
-			log.CNILogger.Error("failed creating http request", zap.Error(err))
+			networkLogger.Error("failed creating http request", zap.Error(err))
 			return false, false, fmt.Errorf("%w", err)
 		}
-		log.CNILogger.Info("Query nma for dns snat support", zap.String("query", nmAgentSupportedApisURL))
+		networkLogger.Info("Query nma for dns snat support", zap.String("query", nmAgentSupportedApisURL))
 		resp, retrieveSnatConfigErr = httpClient.Do(req)
 		if retrieveSnatConfigErr == nil {
 			defer resp.Body.Close()
@@ -121,11 +120,11 @@ func (m *Multitenancy) DetermineSnatFeatureOnHost(snatFile, nmAgentSupportedApis
 					if err == nil {
 						_, err = fp.Write(jsonStr)
 						if err != nil {
-							log.CNILogger.Error("DetermineSnatFeatureOnHost: Write to json failed", zap.Error(err))
+							networkLogger.Error("DetermineSnatFeatureOnHost: Write to json failed", zap.Error(err))
 						}
 						fp.Close()
 					} else {
-						log.CNILogger.Error("failed to save snat settings",
+						networkLogger.Error("failed to save snat settings",
 							zap.String("snatConfgFile", snatConfigFile),
 							zap.Error(err))
 					}
@@ -138,22 +137,22 @@ func (m *Multitenancy) DetermineSnatFeatureOnHost(snatFile, nmAgentSupportedApis
 
 	// Log and return the error when we fail acquire snat configuration for host and dns
 	if retrieveSnatConfigErr != nil {
-		log.CNILogger.Error("failed to acquire SNAT configuration with error %v",
+		networkLogger.Error("failed to acquire SNAT configuration with error %v",
 			zap.Error(retrieveSnatConfigErr))
 		return snatConfig.EnableSnatForDns, snatConfig.EnableSnatOnHost, retrieveSnatConfigErr
 	}
 
-	log.CNILogger.Info("saved snat settings",
+	networkLogger.Info("saved snat settings",
 		zap.Any("snatConfig", snatConfig),
 		zap.String("snatConfigfile", snatConfigFile))
 	if snatConfig.EnableSnatOnHost {
-		log.CNILogger.Info("enabling SNAT on container host for outbound connectivity")
+		networkLogger.Info("enabling SNAT on container host for outbound connectivity")
 	}
 	if snatConfig.EnableSnatForDns {
-		log.CNILogger.Info("enabling SNAT on container host for DNS traffic")
+		networkLogger.Info("enabling SNAT on container host for DNS traffic")
 	}
 	if !snatConfig.EnableSnatForDns && !snatConfig.EnableSnatOnHost {
-		log.CNILogger.Info("disabling SNAT on container host")
+		networkLogger.Info("disabling SNAT on container host")
 	}
 
 	return snatConfig.EnableSnatForDns, snatConfig.EnableSnatOnHost, nil
@@ -169,7 +168,7 @@ func (m *Multitenancy) SetupRoutingForMultitenancy(
 	// Adding default gateway
 	// if snat enabled, add 169.254.128.1 as default gateway
 	if nwCfg.EnableSnatOnHost {
-		log.CNILogger.Info("add default route for multitenancy.snat on host enabled")
+		networkLogger.Info("add default route for multitenancy.snat on host enabled")
 		addDefaultRoute(cnsNetworkConfig.LocalIPConfiguration.GatewayIPAddress, epInfo, result)
 	} else {
 		_, defaultIPNet, _ := net.ParseCIDR("0.0.0.0/0")
@@ -179,7 +178,7 @@ func (m *Multitenancy) SetupRoutingForMultitenancy(
 		result.Routes = append(result.Routes, &cniTypes.Route{Dst: dstIP, GW: gwIP})
 
 		if epInfo.EnableSnatForDns {
-			log.CNILogger.Info("add SNAT for DNS enabled")
+			networkLogger.Info("add SNAT for DNS enabled")
 			addSnatForDNS(cnsNetworkConfig.LocalIPConfiguration.GatewayIPAddress, epInfo, result)
 		}
 	}
@@ -199,7 +198,7 @@ func (m *Multitenancy) GetAllNetworkContainers(
 		podNameWithoutSuffix = podName
 	}
 
-	log.CNILogger.Info("Podname without suffix", zap.String("podName", podNameWithoutSuffix))
+	networkLogger.Info("Podname without suffix", zap.String("podName", podNameWithoutSuffix))
 
 	ncResponses, hostSubnetPrefixes, err := m.getNetworkContainersInternal(ctx, podNamespace, podNameWithoutSuffix)
 	if err != nil {
@@ -209,7 +208,7 @@ func (m *Multitenancy) GetAllNetworkContainers(
 	for i := 0; i < len(ncResponses); i++ {
 		if nwCfg.EnableSnatOnHost {
 			if ncResponses[i].LocalIPConfiguration.IPSubnet.IPAddress == "" {
-				log.CNILogger.Info("Snat IP is not populated for ncs. Got empty string",
+				networkLogger.Info("Snat IP is not populated for ncs. Got empty string",
 					zap.Any("response", ncResponses))
 				return []IPAMAddResult{}, errSnatIP
 			}
@@ -238,7 +237,7 @@ func (m *Multitenancy) getNetworkContainersInternal(
 
 	orchestratorContext, err := json.Marshal(podInfo)
 	if err != nil {
-		log.CNILogger.Error("Marshalling KubernetesPodInfo failed", zap.Error(err))
+		networkLogger.Error("Marshalling KubernetesPodInfo failed", zap.Error(err))
 		return nil, []net.IPNet{}, fmt.Errorf("%w", err)
 	}
 
@@ -255,13 +254,13 @@ func (m *Multitenancy) getNetworkContainersInternal(
 		return nil, []net.IPNet{}, fmt.Errorf("%w", err)
 	}
 
-	log.CNILogger.Info("Network config received from cns", zap.Any("nconfig", ncConfigs))
+	networkLogger.Info("Network config received from cns", zap.Any("nconfig", ncConfigs))
 
 	subnetPrefixes := []net.IPNet{}
 	for i := 0; i < len(ncConfigs); i++ {
 		subnetPrefix := m.netioshim.GetInterfaceSubnetWithSpecificIP(ncConfigs[i].PrimaryInterfaceIdentifier)
 		if subnetPrefix == nil {
-			log.CNILogger.Error(errIfaceNotFound.Error(),
+			networkLogger.Error(errIfaceNotFound.Error(),
 				zap.String("nodeIP", ncConfigs[i].PrimaryInterfaceIdentifier))
 			return nil, []net.IPNet{}, errIfaceNotFound
 		}

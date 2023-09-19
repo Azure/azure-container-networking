@@ -3,19 +3,31 @@ package log
 import (
 	"os"
 
-	"github.com/Azure/azure-container-networking/zaplog"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"gopkg.in/natefinch/lumberjack.v2"
 )
 
-var CNILogger = zaplog.InitZapCNILog().With(zap.Int("pid", os.Getpid())).With(zap.String("component", "cni"))
+const (
+	maxLogFileSizeInMb = 5
+	maxLogFileCount    = 8
+)
 
-func InitZapLogCNI(loggerName, loggerFile string) *zap.Logger {
-	zaplog.LoggerCfg.Name = loggerName
-	zaplog.LoggerCfg.LogPath = zaplog.LogPath + loggerFile
-	logger := zaplog.InitZapLog(&zaplog.LoggerCfg)
+var logFileCNIWriter = zapcore.AddSync(&lumberjack.Logger{
+	Filename:   LogPath + "azure-vnet.log",
+	MaxSize:    maxLogFileSizeInMb,
+	MaxBackups: maxLogFileCount,
+})
 
-	// only log process id on CNI package
-	logger = logger.With(zap.Int("pid", os.Getpid()))
-	logger = logger.With(zap.String("component", "cni"))
-	return logger
+func initZapCNILog() *zap.Logger {
+	encoderConfig := zap.NewProductionEncoderConfig()
+	encoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
+	jsonEncoder := zapcore.NewJSONEncoder(encoderConfig)
+	logLevel := zapcore.DebugLevel
+
+	core := zapcore.NewCore(jsonEncoder, logFileCNIWriter, logLevel)
+	Logger := zap.New(core)
+	return Logger
 }
+
+var CNILogger = initZapCNILog().With(zap.Int("pid", os.Getpid()))

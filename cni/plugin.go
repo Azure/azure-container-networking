@@ -24,10 +24,7 @@ import (
 	"go.uber.org/zap"
 )
 
-var (
-	loggerName = "azure-vnet"
-	logger     = log.InitZapLogCNI(loggerName, "azure-vnet.log")
-)
+var logger = log.CNILogger.With(zap.String("component", "cni-net"))
 
 var errEmptyContent = errors.New("read content is zero bytes")
 

@@ -16,10 +16,7 @@ import (
 	utilexec "k8s.io/utils/exec"
 )
 
-var (
-	loggerName = "azure-vnet-client"
-	logger     = log.InitZapLogCNI(loggerName, "azure-vnet.log")
-)
+var logger = log.CNILogger.With(zap.String("component", "cni-net"))
 
 type client struct {
 	exec utilexec.Interface
