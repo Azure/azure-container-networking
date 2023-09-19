@@ -107,7 +107,6 @@ func main() {
 	var err error
 
 	acn.ParseArgs(&args, printVersion)
-	//logLevel := acn.GetArg(acn.OptLogLevel).(zapcore.Level)
 	configDirectory := acn.GetArg(acn.OptTelemetryConfigDir).(string)
 	vers := acn.GetArg(acn.OptVersion).(bool)
 
@@ -116,7 +115,7 @@ func main() {
 		os.Exit(0)
 	}
 
-	var logger = log.CNILogger.With(zap.String("component", "cni-telemetry"))
+	var logger = log.TelemetryLogger.With(zap.String("component", "cni-telemetry"))
 
 	logger.Info("Telemetry invocation info", zap.Any("arguments", os.Args))
 

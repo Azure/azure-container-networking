@@ -19,7 +19,7 @@ import (
 	"go.uber.org/zap"
 )
 
-var networkLogger = log.CNILogger.With(zap.String("component", "cni-net"))
+var logger = log.CNILogger.With(zap.String("component", "cni-net"))
 
 const (
 	bytesSize4  = 4
@@ -106,7 +106,7 @@ func (invoker *AzureIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, er
 func (invoker *AzureIPAMInvoker) deleteIpamState() {
 	cniStateExists, err := platform.CheckIfFileExists(platform.CNIStateFilePath)
 	if err != nil {
-		networkLogger.Error("Error checking CNI state exist", zap.Error(err))
+		logger.Error("Error checking CNI state exist", zap.Error(err))
 		return
 	}
 
@@ -116,15 +116,15 @@ func (invoker *AzureIPAMInvoker) deleteIpamState() {
 
 	ipamStateExists, err := platform.CheckIfFileExists(platform.CNIIpamStatePath)
 	if err != nil {
-		networkLogger.Error("Error checking IPAM state exist", zap.Error(err))
+		logger.Error("Error checking IPAM state exist", zap.Error(err))
 		return
 	}
 
 	if ipamStateExists {
-		networkLogger.Info("Deleting IPAM state file")
+		logger.Info("Deleting IPAM state file")
 		err = os.Remove(platform.CNIIpamStatePath)
 		if err != nil {
-			networkLogger.Error("Error deleting state file", zap.Error(err))
+			logger.Error("Error deleting state file", zap.Error(err))
 			return
 		}
 	}
@@ -145,11 +145,11 @@ func (invoker *AzureIPAMInvoker) Delete(address *net.IPNet, nwCfg *cni.NetworkCo
 		}
 	} else if len(address.IP.To4()) == bytesSize4 { //nolint:gocritic
 		nwCfg.IPAM.Address = address.IP.String()
-		networkLogger.Info("Releasing ipv4",
+		logger.Info("Releasing ipv4",
 			zap.String("address", nwCfg.IPAM.Address),
 			zap.String("pool", nwCfg.IPAM.Subnet))
 		if err := invoker.plugin.DelegateDel(nwCfg.IPAM.Type, nwCfg); err != nil {
-			networkLogger.Error("Failed to release ipv4 address", zap.Error(err))
+			logger.Error("Failed to release ipv4 address", zap.Error(err))
 			return invoker.plugin.Errorf("Failed to release ipv4 address: %v", err)
 		}
 	} else if len(address.IP.To16()) == bytesSize16 {
@@ -166,11 +166,11 @@ func (invoker *AzureIPAMInvoker) Delete(address *net.IPNet, nwCfg *cni.NetworkCo
 			}
 		}
 
-		networkLogger.Info("Releasing ipv6",
+		logger.Info("Releasing ipv6",
 			zap.String("address", nwCfgIpv6.IPAM.Address),
 			zap.String("pool", nwCfgIpv6.IPAM.Subnet))
 		if err := invoker.plugin.DelegateDel(nwCfgIpv6.IPAM.Type, &nwCfgIpv6); err != nil {
-			networkLogger.Error("Failed to release ipv6 address", zap.Error(err))
+			logger.Error("Failed to release ipv6 address", zap.Error(err))
 			return invoker.plugin.Errorf("Failed to release ipv6 address: %v", err)
 		}
 	} else {
