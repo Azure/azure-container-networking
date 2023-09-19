@@ -1,0 +1,14 @@
+# System.StageAttempt to add a unique identifier on the folder stucture giving you no breaking points
+
+# Refactor current logging to use same file structure
+
+# capture cns/cni logs
+
+# capture ds/deployment states
+
+# go through TSG and see what are the standard outputs that are useful
+## Seems like I could copy over the complete file directory to get the logs
+
+
+
+
