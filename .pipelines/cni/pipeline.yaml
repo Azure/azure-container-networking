@@ -70,8 +70,6 @@ stages:
             artifact: npm_k8s
       - job:
         displayName: "Build k8s NPM Windows Test Suite Binary"
-        pool:
-          name: $(BUILD_POOL_NAME_DEFAULT)
         steps:
           - bash: |
               git clone https://github.com/huntergregory/kubernetes.git --depth=1 --branch=sleep-before-probing
