@@ -416,3 +416,19 @@ func NamespaceExists(ctx context.Context, clientset *kubernetes.Clientset, names
 func CreateLabelSelector(key string, selector *string) string {
 	return fmt.Sprintf("%s=%s", key, *selector)
 }
+
+// check if nodes of OS type are present in the cluster
+func HasNodeOS(ctx context.Context, clientset *kubernetes.Clientset, nodeOS string) (bool, error) {
+	nodes, err := GetNodeList(ctx, clientset)
+	if err != nil {
+		return false, errors.Wrapf(err, "failed to get node list")
+	}
+
+	for index := range nodes.Items {
+		node := nodes.Items[index]
+		if node.Status.NodeInfo.OperatingSystem == nodeOS {
+			return true, nil
+		}
+	}
+	return false, nil
+}
