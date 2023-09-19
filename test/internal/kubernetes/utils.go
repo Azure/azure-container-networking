@@ -1,4 +1,4 @@
-package k8sutils
+package kubernetes
 
 import (
 	"bytes"
@@ -12,8 +12,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	// crd "dnc/requestcontroller/kubernetes"
 
 	"github.com/Azure/azure-container-networking/test/internal/retry"
 	"github.com/pkg/errors"
@@ -45,11 +43,11 @@ var Kubeconfig = flag.String("test-kubeconfig", filepath.Join(homedir.HomeDir(),
 func MustGetClientset() (*kubernetes.Clientset, error) {
 	config, err := clientcmd.BuildConfigFromFlags("", *Kubeconfig)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "failed to build config from flags")
 	}
 	clientset, err := kubernetes.NewForConfig(config)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "failed to get clientset")
 	}
 	return clientset, nil
 }
@@ -65,14 +63,14 @@ func MustGetRestConfig(t *testing.T) *rest.Config {
 func mustParseResource(path string, out interface{}) error {
 	f, err := os.Open(path)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "failed to open path")
 	}
 	defer func() { _ = f.Close() }()
 
 	if err := yaml.NewYAMLOrJSONDecoder(f, 0).Decode(out); err != nil {
-		return err
+		return errors.Wrap(err, "failed to decode")
 	}
-	return err
+	return nil
 }
 
 func MustLabelSwiftNodes(ctx context.Context, t *testing.T, clientset *kubernetes.Clientset, delegatedSubnetID, delegatedSubnetName string) {
@@ -85,7 +83,8 @@ func MustLabelSwiftNodes(ctx context.Context, t *testing.T, clientset *kubernete
 	if err != nil {
 		t.Fatalf("could not list nodes: %v", err)
 	}
-	for _, node := range res.Items {
+	for index := range res.Items {
+		node := res.Items[index]
 		_, err := AddNodeLabels(ctx, clientset.CoreV1().Nodes(), node.Name, swiftNodeLabels)
 		if err != nil {
 			t.Fatalf("could not add labels to node: %v", err)
@@ -134,15 +133,15 @@ func MustSetUpClusterRBAC(ctx context.Context, clientset *kubernetes.Clientset, 
 		log.Print("rbac cleaned up")
 	}
 
-	if err = mustCreateServiceAccount(ctx, serviceAccounts, serviceAccount); err != nil {
+	if err := mustCreateServiceAccount(ctx, serviceAccounts, serviceAccount); err != nil {
 		return cleanupFunc, err
 	}
 
-	if err = mustCreateClusterRole(ctx, clusterRoles, clusterRole); err != nil {
+	if err := mustCreateClusterRole(ctx, clusterRoles, clusterRole); err != nil {
 		return cleanupFunc, err
 	}
 
-	if err = mustCreateClusterRoleBinding(ctx, clusterRoleBindings, clusterRoleBinding); err != nil {
+	if err := mustCreateClusterRoleBinding(ctx, clusterRoleBindings, clusterRoleBinding); err != nil {
 		return cleanupFunc, err
 	}
 
@@ -167,15 +166,11 @@ func MustSetUpRBAC(ctx context.Context, clientset *kubernetes.Clientset, rolePat
 	roles := clientset.RbacV1().Roles(role.Namespace)
 	roleBindings := clientset.RbacV1().RoleBindings(roleBinding.Namespace)
 
-	if err = mustCreateRole(ctx, roles, role); err != nil {
+	if err := mustCreateRole(ctx, roles, role); err != nil {
 		return err
 	}
 
-	if err = mustCreateRoleBinding(ctx, roleBindings, roleBinding); err != nil {
-		return err
-	}
-
-	return nil
+	return mustCreateRoleBinding(ctx, roleBindings, roleBinding)
 }
 
 func MustSetupConfigMap(ctx context.Context, clientset *kubernetes.Clientset, configMapPath string) error {
@@ -217,13 +212,15 @@ func WaitForPodsRunning(ctx context.Context, clientset *kubernetes.Clientset, na
 			return errors.New("no pods scheduled")
 		}
 
-		for _, pod := range podList.Items {
+		for index := range podList.Items {
+			pod := podList.Items[index]
 			if pod.Status.Phase == corev1.PodPending {
 				return errors.New("some pods still pending")
 			}
 		}
 
-		for _, pod := range podList.Items {
+		for index := range podList.Items {
+			pod := podList.Items[index]
 			if pod.Status.PodIP == "" {
 				return errors.Wrapf(err, "Pod %s/%s has not been allocated an IP yet with reason %s", pod.Namespace, pod.Name, pod.Status.Message)
 			}
@@ -233,7 +230,7 @@ func WaitForPodsRunning(ctx context.Context, clientset *kubernetes.Clientset, na
 	}
 
 	retrier := retry.Retrier{Attempts: RetryAttempts, Delay: RetryDelay}
-	return retrier.Do(ctx, checkPodIPsFn)
+	return errors.Wrap(retrier.Do(ctx, checkPodIPsFn), "failed to check if pods were running")
 }
 
 func WaitForPodDeployment(ctx context.Context, clientset *kubernetes.Clientset, namespace, deploymentName, podLabelSelector string, replicas int) error {
@@ -321,21 +318,22 @@ func ExportLogsByLabelSelector(ctx context.Context, clientset *kubernetes.Client
 	logExtension := ".log"
 	podList, err := podsClient.List(ctx, metav1.ListOptions{LabelSelector: labelselector})
 	if err != nil {
-		return err
+		return errors.Wrap(err, "failed to list pods")
 	}
 
-	for _, pod := range podList.Items {
+	for index := range podList.Items {
+		pod := podList.Items[index]
 		req := podsClient.GetLogs(pod.Name, &podLogOpts)
 		podLogs, err := req.Stream(ctx)
 		if err != nil {
-			return err
+			return errors.Wrap(err, "failed to get pod logs as stream")
 		}
-		defer podLogs.Close()
 
 		buf := new(bytes.Buffer)
 		_, err = io.Copy(buf, podLogs)
+		podLogs.Close()
 		if err != nil {
-			return err
+			return errors.Wrap(err, "failed to copy pod logs")
 		}
 		str := buf.String()
 		err = writeToFile(logDir, pod.Name+logExtension, str)
@@ -349,23 +347,25 @@ func ExportLogsByLabelSelector(ctx context.Context, clientset *kubernetes.Client
 func writeToFile(dir, fileName, str string) error {
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
 		// your dir does not exist
-		os.MkdirAll(dir, 0o666)
+		if err := os.MkdirAll(dir, 0o666); err != nil { //nolint
+			return errors.Wrap(err, "failed to make directory")
+		}
 	}
 	// open output file
 	f, err := os.Create(dir + fileName)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "failed to create output file")
 	}
 	// close fo on exit and check for its returned error
 	defer func() {
-		if err := f.Close(); err != nil {
-			panic(err)
+		if closeErr := f.Close(); closeErr != nil {
+			panic(closeErr)
 		}
 	}()
 
 	// If write went ok then err is nil
 	_, err = f.WriteString(str)
-	return err
+	return errors.Wrap(err, "failed to write string")
 }
 
 func ExecCmdOnPod(ctx context.Context, clientset *kubernetes.Clientset, namespace, podName string, cmd []string, config *rest.Config) ([]byte, error) {

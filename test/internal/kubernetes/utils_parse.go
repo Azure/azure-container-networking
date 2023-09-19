@@ -1,4 +1,4 @@
-package k8sutils
+package kubernetes
 
 import (
 	appsv1 "k8s.io/api/apps/v1"

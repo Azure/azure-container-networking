@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"github.com/Azure/azure-container-networking/test/integration/goldpinger"
-	k8sutils "github.com/Azure/azure-container-networking/test/internal/k8sutils"
+	"github.com/Azure/azure-container-networking/test/internal/kubernetes"
 	"github.com/Azure/azure-container-networking/test/internal/retry"
 	v1 "k8s.io/client-go/kubernetes/typed/apps/v1"
 
@@ -81,18 +81,18 @@ todo:
 */
 
 func TestPodScaling(t *testing.T) {
-	clientset, err := k8sutils.MustGetClientset()
+	clientset, err := kubernetes.MustGetClientset()
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	restConfig := k8sutils.MustGetRestConfig(t)
-	deployment, err := k8sutils.MustParseDeployment(gpDeployment)
+	restConfig := kubernetes.MustGetRestConfig(t)
+	deployment, err := kubernetes.MustParseDeployment(gpDeployment)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	daemonset, err := k8sutils.MustParseDaemonSet(gpDaemonset)
+	daemonset, err := kubernetes.MustParseDaemonSet(gpDaemonset)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -100,25 +100,25 @@ func TestPodScaling(t *testing.T) {
 	ctx := context.Background()
 
 	if shouldLabelNodes() {
-		k8sutils.MustLabelSwiftNodes(ctx, t, clientset, *delegatedSubnetID, *delegatedSubnetName)
+		kubernetes.MustLabelSwiftNodes(ctx, t, clientset, *delegatedSubnetID, *delegatedSubnetName)
 	} else {
 		t.Log("swift node labels not passed or set. skipping labeling")
 	}
 
-	rbacCleanUpFn, err := k8sutils.MustSetUpClusterRBAC(ctx, clientset, gpClusterRolePath, gpClusterRoleBindingPath, gpServiceAccountPath)
+	rbacCleanUpFn, err := kubernetes.MustSetUpClusterRBAC(ctx, clientset, gpClusterRolePath, gpClusterRoleBindingPath, gpServiceAccountPath)
 	if err != nil {
 		t.Log(os.Getwd())
 		t.Fatal(err)
 	}
 
 	deploymentsClient := clientset.AppsV1().Deployments(deployment.Namespace)
-	err = k8sutils.MustCreateDeployment(ctx, deploymentsClient, deployment)
+	err = kubernetes.MustCreateDeployment(ctx, deploymentsClient, deployment)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	daemonsetClient := clientset.AppsV1().DaemonSets(daemonset.Namespace)
-	err = k8sutils.MustCreateDaemonset(ctx, daemonsetClient, daemonset)
+	err = kubernetes.MustCreateDaemonset(ctx, daemonsetClient, daemonset)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -254,7 +254,7 @@ func updateReplicaCount(t *testing.T, ctx context.Context, deployments v1.Deploy
 		}
 
 		t.Logf("setting deployment %s to %d replicas", name, replicas)
-		res.Spec.Replicas = k8sutils.Int32ToPtr(int32(replicas))
+		res.Spec.Replicas = kubernetes.Int32ToPtr(int32(replicas))
 		_, err = deployments.Update(ctx, res, metav1.UpdateOptions{})
 		return err
 	})

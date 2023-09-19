@@ -12,7 +12,7 @@ import (
 
 	k8s "github.com/Azure/azure-container-networking/test/integration"
 	"github.com/Azure/azure-container-networking/test/integration/goldpinger"
-	k8sutils "github.com/Azure/azure-container-networking/test/internal/k8sutils"
+	"github.com/Azure/azure-container-networking/test/internal/kubernetes"
 	"github.com/Azure/azure-container-networking/test/internal/retry"
 	"github.com/pkg/errors"
 
@@ -74,17 +74,17 @@ func setupLinuxEnvironment(t *testing.T) {
 	ctx := context.Background()
 
 	t.Log("Create Clientset")
-	clientset, err := k8sutils.MustGetClientset()
+	clientset, err := kubernetes.MustGetClientset()
 	if err != nil {
 		t.Fatalf("could not get k8s clientset: %v", err)
 	}
 
 	t.Log("Create Label Selectors")
-	podLabelSelector := k8sutils.CreateLabelSelector(podLabelKey, podPrefix)
-	nodeLabelSelector := k8sutils.CreateLabelSelector(nodepoolKey, nodepoolSelector)
+	podLabelSelector := kubernetes.CreateLabelSelector(podLabelKey, podPrefix)
+	nodeLabelSelector := kubernetes.CreateLabelSelector(nodepoolKey, nodepoolSelector)
 
 	t.Log("Get Nodes")
-	nodes, err := k8sutils.GetNodeListByLabelSelector(ctx, clientset, nodeLabelSelector)
+	nodes, err := kubernetes.GetNodeListByLabelSelector(ctx, clientset, nodeLabelSelector)
 	if err != nil {
 		t.Fatalf("could not get k8s node list: %v", err)
 	}
@@ -96,29 +96,29 @@ func setupLinuxEnvironment(t *testing.T) {
 	var deployment appsv1.Deployment
 
 	if *isDualStack {
-		deployment, err = k8sutils.MustParseDeployment(LinuxDeployIPv6)
+		deployment, err = kubernetes.MustParseDeployment(LinuxDeployIPv6)
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		daemonset, err = k8sutils.MustParseDaemonSet(gpDaemonsetIPv6)
+		daemonset, err = kubernetes.MustParseDaemonSet(gpDaemonsetIPv6)
 		if err != nil {
 			t.Fatal(err)
 		}
 	} else {
-		deployment, err = k8sutils.MustParseDeployment(LinuxDeployIPV4)
+		deployment, err = kubernetes.MustParseDeployment(LinuxDeployIPV4)
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		daemonset, err = k8sutils.MustParseDaemonSet(gpDaemonset)
+		daemonset, err = kubernetes.MustParseDaemonSet(gpDaemonset)
 		if err != nil {
 			t.Fatal(err)
 		}
 	}
 
 	// setup common RBAC, ClusteerRole, ClusterRoleBinding, ServiceAccount
-	rbacSetupFn, err := k8sutils.MustSetUpClusterRBAC(ctx, clientset, gpClusterRolePath, gpClusterRoleBindingPath, gpServiceAccountPath)
+	rbacSetupFn, err := kubernetes.MustSetUpClusterRBAC(ctx, clientset, gpClusterRolePath, gpClusterRoleBindingPath, gpServiceAccountPath)
 	if err != nil {
 		t.Log(os.Getwd())
 		t.Fatal(err)
@@ -134,13 +134,13 @@ func setupLinuxEnvironment(t *testing.T) {
 	daemonset.Namespace = *podNamespace
 
 	deploymentsClient := clientset.AppsV1().Deployments(*podNamespace)
-	err = k8sutils.MustCreateDeployment(ctx, deploymentsClient, deployment)
+	err = kubernetes.MustCreateDeployment(ctx, deploymentsClient, deployment)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	daemonsetClient := clientset.AppsV1().DaemonSets(daemonset.Namespace)
-	err = k8sutils.MustCreateDaemonset(ctx, daemonsetClient, daemonset)
+	err = kubernetes.MustCreateDaemonset(ctx, daemonsetClient, daemonset)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -159,7 +159,7 @@ func setupLinuxEnvironment(t *testing.T) {
 	})
 
 	t.Log("Waiting for pods to be running state")
-	err = k8sutils.WaitForPodsRunning(ctx, clientset, *podNamespace, podLabelSelector)
+	err = kubernetes.WaitForPodsRunning(ctx, clientset, *podNamespace, podLabelSelector)
 	if err != nil {
 		t.Fatalf("Pods are not in running state due to %+v", err)
 	}
@@ -172,7 +172,7 @@ func setupLinuxEnvironment(t *testing.T) {
 
 	t.Log("Checking Linux test environment")
 	for _, node := range nodes.Items {
-		pods, err := k8sutils.GetPodsByNode(ctx, clientset, *podNamespace, podLabelSelector, node.Name)
+		pods, err := kubernetes.GetPodsByNode(ctx, clientset, *podNamespace, podLabelSelector, node.Name)
 		if err != nil {
 			t.Fatalf("could not get k8s clientset: %v", err)
 		}
@@ -188,20 +188,20 @@ func TestDatapathLinux(t *testing.T) {
 	ctx := context.Background()
 
 	t.Log("Get REST config")
-	restConfig := k8sutils.MustGetRestConfig(t)
+	restConfig := kubernetes.MustGetRestConfig(t)
 
 	t.Log("Create Clientset")
-	clientset, err := k8sutils.MustGetClientset()
+	clientset, err := kubernetes.MustGetClientset()
 	if err != nil {
 		t.Fatalf("could not get k8s clientset: %v", err)
 	}
 	setupLinuxEnvironment(t)
-	podLabelSelector := k8sutils.CreateLabelSelector(podLabelKey, podPrefix)
+	podLabelSelector := kubernetes.CreateLabelSelector(podLabelKey, podPrefix)
 
 	t.Run("Linux ping tests", func(t *testing.T) {
 		// Check goldpinger health
 		t.Run("all pods have IPs assigned", func(t *testing.T) {
-			err := k8sutils.WaitForPodsRunning(ctx, clientset, *podNamespace, podLabelSelector)
+			err := kubernetes.WaitForPodsRunning(ctx, clientset, *podNamespace, podLabelSelector)
 			if err != nil {
 				t.Fatalf("Pods are not in running state due to %+v", err)
 			}

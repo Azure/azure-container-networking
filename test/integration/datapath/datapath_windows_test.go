@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/Azure/azure-container-networking/test/internal/datapath"
-	"github.com/Azure/azure-container-networking/test/internal/k8sutils"
+	"github.com/Azure/azure-container-networking/test/internal/kubernetes"
 	"github.com/stretchr/testify/require"
 	apiv1 "k8s.io/api/core/v1"
 )
@@ -49,23 +49,23 @@ func setupWindowsEnvironment(t *testing.T) {
 	ctx := context.Background()
 
 	t.Log("Create Clientset")
-	clientset, err := k8sutils.MustGetClientset()
+	clientset, err := kubernetes.MustGetClientset()
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	t.Log("Create Label Selectors")
-	podLabelSelector := k8sutils.CreateLabelSelector(podLabelKey, podPrefix)
-	nodeLabelSelector := k8sutils.CreateLabelSelector(nodepoolKey, nodepoolSelector)
+	podLabelSelector := kubernetes.CreateLabelSelector(podLabelKey, podPrefix)
+	nodeLabelSelector := kubernetes.CreateLabelSelector(nodepoolKey, nodepoolSelector)
 
 	t.Log("Get Nodes")
-	nodes, err := k8sutils.GetNodeListByLabelSelector(ctx, clientset, nodeLabelSelector)
+	nodes, err := kubernetes.GetNodeListByLabelSelector(ctx, clientset, nodeLabelSelector)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	// Create namespace if it doesn't exist
-	namespaceExists, err := k8sutils.NamespaceExists(ctx, clientset, *podNamespace)
+	namespaceExists, err := kubernetes.NamespaceExists(ctx, clientset, *podNamespace)
 	if err != nil {
 		t.Fatalf("failed to check if namespace %s exists due to: %v", *podNamespace, err)
 	}
@@ -73,13 +73,13 @@ func setupWindowsEnvironment(t *testing.T) {
 	if !namespaceExists {
 		// Test Namespace
 		t.Log("Create Namespace")
-		err := k8sutils.MustCreateNamespace(ctx, clientset, *podNamespace)
+		err := kubernetes.MustCreateNamespace(ctx, clientset, *podNamespace)
 		if err != nil {
 			t.Fatalf("failed to create pod namespace %s due to: %v", *podNamespace, err)
 		}
 
 		t.Log("Creating Windows pods through deployment")
-		deployment, err := k8sutils.MustParseDeployment(WindowsDeployYamlPath)
+		deployment, err := kubernetes.MustParseDeployment(WindowsDeployYamlPath)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -93,13 +93,13 @@ func setupWindowsEnvironment(t *testing.T) {
 		deployment.Namespace = *podNamespace
 
 		deploymentsClient := clientset.AppsV1().Deployments(*podNamespace)
-		err = k8sutils.MustCreateDeployment(ctx, deploymentsClient, deployment)
+		err = kubernetes.MustCreateDeployment(ctx, deploymentsClient, deployment)
 		if err != nil {
 			t.Fatal(err)
 		}
 
 		t.Log("Waiting for pods to be running state")
-		err = k8sutils.WaitForPodsRunning(ctx, clientset, *podNamespace, podLabelSelector)
+		err = kubernetes.WaitForPodsRunning(ctx, clientset, *podNamespace, podLabelSelector)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -109,7 +109,7 @@ func setupWindowsEnvironment(t *testing.T) {
 		t.Log("Namespace already exists")
 
 		t.Log("Checking for pods to be running state")
-		err = k8sutils.WaitForPodsRunning(ctx, clientset, *podNamespace, podLabelSelector)
+		err = kubernetes.WaitForPodsRunning(ctx, clientset, *podNamespace, podLabelSelector)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -118,7 +118,7 @@ func setupWindowsEnvironment(t *testing.T) {
 	t.Log("Checking Windows test environment")
 	for _, node := range nodes.Items {
 
-		pods, err := k8sutils.GetPodsByNode(ctx, clientset, *podNamespace, podLabelSelector, node.Name)
+		pods, err := kubernetes.GetPodsByNode(ctx, clientset, *podNamespace, podLabelSelector, node.Name)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -133,20 +133,20 @@ func TestDatapathWin(t *testing.T) {
 	ctx := context.Background()
 
 	t.Log("Get REST config")
-	restConfig := k8sutils.MustGetRestConfig(t)
+	restConfig := kubernetes.MustGetRestConfig(t)
 
 	t.Log("Create Clientset")
-	clientset, err := k8sutils.MustGetClientset()
+	clientset, err := kubernetes.MustGetClientset()
 	if err != nil {
 		t.Fatalf("could not get k8s clientset: %v", err)
 	}
 
 	setupWindowsEnvironment(t)
-	podLabelSelector := k8sutils.CreateLabelSelector(podLabelKey, podPrefix)
-	nodeLabelSelector := k8sutils.CreateLabelSelector(nodepoolKey, nodepoolSelector)
+	podLabelSelector := kubernetes.CreateLabelSelector(podLabelKey, podPrefix)
+	nodeLabelSelector := kubernetes.CreateLabelSelector(nodepoolKey, nodepoolSelector)
 
 	t.Log("Get Nodes")
-	nodes, err := k8sutils.GetNodeListByLabelSelector(ctx, clientset, nodeLabelSelector)
+	nodes, err := kubernetes.GetNodeListByLabelSelector(ctx, clientset, nodeLabelSelector)
 	if err != nil {
 		t.Fatal(err)
 	}

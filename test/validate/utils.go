@@ -4,7 +4,7 @@ import (
 	"context"
 	"reflect"
 
-	"github.com/Azure/azure-container-networking/test/internal/k8sutils"
+	acnk8s "github.com/Azure/azure-container-networking/test/internal/kubernetes"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/kubernetes"
 )
@@ -26,7 +26,7 @@ func compareIPs(expected map[string]string, actual []string) bool {
 // func to get the pods ip without the node ip (ie. host network as false)
 func getPodIPsWithoutNodeIP(ctx context.Context, clientset *kubernetes.Clientset, node corev1.Node) []string {
 	podsIpsWithoutNodeIP := []string{}
-	podIPs, err := k8sutils.GetPodsIpsByNode(ctx, clientset, "", "", node.Name)
+	podIPs, err := acnk8s.GetPodsIpsByNode(ctx, clientset, "", "", node.Name)
 	if err != nil {
 		return podsIpsWithoutNodeIP
 	}

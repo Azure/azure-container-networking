@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	k8sutils "github.com/Azure/azure-container-networking/test/internal/k8sutils"
+	"github.com/Azure/azure-container-networking/test/internal/kubernetes"
 	"github.com/Azure/azure-container-networking/test/validate"
 )
 
@@ -59,7 +59,7 @@ todo: consider adding the following scenarios
 - [x] Add deployment yaml for windows.
 */
 func TestLoad(t *testing.T) {
-	clientset, err := k8sutils.MustGetClientset()
+	clientset, err := kubernetes.MustGetClientset()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -68,31 +68,31 @@ func TestLoad(t *testing.T) {
 	defer cancel()
 
 	// Create namespace if it doesn't exist
-	namespaceExists, err := k8sutils.NamespaceExists(ctx, clientset, namespace)
+	namespaceExists, err := kubernetes.NamespaceExists(ctx, clientset, namespace)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	if !namespaceExists {
-		err = k8sutils.MustCreateNamespace(ctx, clientset, namespace)
+		err = kubernetes.MustCreateNamespace(ctx, clientset, namespace)
 		if err != nil {
 			t.Fatal(err)
 		}
 	}
 
-	deployment, err := k8sutils.MustParseDeployment(noopDeploymentMap[*osType])
+	deployment, err := kubernetes.MustParseDeployment(noopDeploymentMap[*osType])
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	deploymentsClient := clientset.AppsV1().Deployments(namespace)
-	err = k8sutils.MustCreateDeployment(ctx, deploymentsClient, deployment)
+	err = kubernetes.MustCreateDeployment(ctx, deploymentsClient, deployment)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	t.Log("Checking pods are running")
-	err = k8sutils.WaitForPodsRunning(ctx, clientset, namespace, podLabelSelector)
+	err = kubernetes.WaitForPodsRunning(ctx, clientset, namespace, podLabelSelector)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -101,18 +101,18 @@ func TestLoad(t *testing.T) {
 	for i := 0; i < *iterations; i++ {
 		t.Log("Iteration ", i)
 		t.Log("Scale down deployment")
-		err = k8sutils.MustScaleDeployment(ctx, deploymentsClient, deployment, clientset, namespace, podLabelSelector, *scaleDownReplicas, *skipWait)
+		err = kubernetes.MustScaleDeployment(ctx, deploymentsClient, deployment, clientset, namespace, podLabelSelector, *scaleDownReplicas, *skipWait)
 		if err != nil {
 			t.Fatal(err)
 		}
 		t.Log("Scale up deployment")
-		err = k8sutils.MustScaleDeployment(ctx, deploymentsClient, deployment, clientset, namespace, podLabelSelector, *scaleUpReplicas, *skipWait)
+		err = kubernetes.MustScaleDeployment(ctx, deploymentsClient, deployment, clientset, namespace, podLabelSelector, *scaleUpReplicas, *skipWait)
 		if err != nil {
 			t.Fatal(err)
 		}
 	}
 	t.Log("Checking pods are running and IP assigned")
-	err = k8sutils.WaitForPodsRunning(ctx, clientset, "", "")
+	err = kubernetes.WaitForPodsRunning(ctx, clientset, "", "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -128,11 +128,11 @@ func TestLoad(t *testing.T) {
 
 // TestValidateState validates the state file based on the os and cni type.
 func TestValidateState(t *testing.T) {
-	clientset, err := k8sutils.MustGetClientset()
+	clientset, err := kubernetes.MustGetClientset()
 	if err != nil {
 		t.Fatal(err)
 	}
-	config := k8sutils.MustGetRestConfig(t)
+	config := kubernetes.MustGetRestConfig(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
 	defer cancel()
 
@@ -149,41 +149,41 @@ func TestValidateState(t *testing.T) {
 // go test -timeout 30m -tags load -run ^TestScaleDeployment$ -tags=load -replicas 10
 func TestScaleDeployment(t *testing.T) {
 	t.Log("Scale deployment")
-	clientset, err := k8sutils.MustGetClientset()
+	clientset, err := kubernetes.MustGetClientset()
 	if err != nil {
 		t.Fatal(err)
 	}
 	ctx := context.Background()
 	// Create namespace if it doesn't exist
-	namespaceExists, err := k8sutils.NamespaceExists(ctx, clientset, namespace)
+	namespaceExists, err := kubernetes.NamespaceExists(ctx, clientset, namespace)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	if !namespaceExists {
-		err = k8sutils.MustCreateNamespace(ctx, clientset, namespace)
+		err = kubernetes.MustCreateNamespace(ctx, clientset, namespace)
 		if err != nil {
 			t.Fatal(err)
 		}
 	}
 
-	deployment, err := k8sutils.MustParseDeployment(noopDeploymentMap[*osType])
+	deployment, err := kubernetes.MustParseDeployment(noopDeploymentMap[*osType])
 	if err != nil {
 		t.Fatal(err)
 	}
 	deploymentsClient := clientset.AppsV1().Deployments(namespace)
-	err = k8sutils.MustScaleDeployment(ctx, deploymentsClient, deployment, clientset, namespace, podLabelSelector, *replicas, *skipWait)
+	err = kubernetes.MustScaleDeployment(ctx, deploymentsClient, deployment, clientset, namespace, podLabelSelector, *replicas, *skipWait)
 	if err != nil {
 		t.Fatal(err)
 	}
 }
 
 func TestDualStackProperties(t *testing.T) {
-	clientset, err := k8sutils.MustGetClientset()
+	clientset, err := kubernetes.MustGetClientset()
 	if err != nil {
 		t.Fatal(err)
 	}
-	config := k8sutils.MustGetRestConfig(t)
+	config := kubernetes.MustGetRestConfig(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
 	defer cancel()
 

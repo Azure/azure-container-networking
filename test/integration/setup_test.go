@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"testing"
 
-	k8sutils "github.com/Azure/azure-container-networking/test/internal/k8sutils"
+	"github.com/Azure/azure-container-networking/test/internal/kubernetes"
 )
 
 const (
@@ -49,23 +49,23 @@ func TestMain(m *testing.M) {
 		os.Exit(exitCode)
 	}()
 
-	clientset, err := k8sutils.MustGetClientset()
+	clientset, err := kubernetes.MustGetClientset()
 	if err != nil {
 		return
 	}
 
 	ctx := context.Background()
-	if installopt := os.Getenv(k8sutils.EnvInstallCNS); installopt != "" {
+	if installopt := os.Getenv(kubernetes.EnvInstallCNS); installopt != "" {
 		// create dirty cns ds
 		if installCNS, err := strconv.ParseBool(installopt); err == nil && installCNS == true {
-			if cnscleanup, err = k8sutils.InstallCNSDaemonset(ctx, clientset, logDir); err != nil {
+			if cnscleanup, err = kubernetes.InstallCNSDaemonset(ctx, clientset, logDir); err != nil {
 				log.Print(err)
 				exitCode = 2
 				return
 			}
 		}
 	} else {
-		log.Printf("Env %v not set to true, skipping", k8sutils.EnvInstallCNS)
+		log.Printf("Env %v not set to true, skipping", kubernetes.EnvInstallCNS)
 	}
 
 	exitCode = m.Run()
