@@ -115,7 +115,7 @@ func main() {
 		os.Exit(0)
 	}
 
-	var logger = log.TelemetryLogger.With(zap.String("component", "cni-telemetry"))
+	logger := log.TelemetryLogger.With(zap.String("component", "cni-telemetry"))
 
 	logger.Info("Telemetry invocation info", zap.Any("arguments", os.Args))
 
@@ -174,5 +174,4 @@ func main() {
 	logger.Info("[Telemetry] Report to host interval", zap.Duration("seconds", config.ReportToHostIntervalInSeconds))
 	tb.PushData(context.Background())
 	telemetry.CloseAITelemetryHandle()
-
 }

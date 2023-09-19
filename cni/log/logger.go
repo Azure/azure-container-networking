@@ -20,7 +20,7 @@ const (
 )
 
 func initZapCNILog(logFile string) *zap.Logger {
-	var logFileCNIWriter = zapcore.AddSync(&lumberjack.Logger{
+	logFileCNIWriter := zapcore.AddSync(&lumberjack.Logger{
 		Filename:   LogPath + logFile,
 		MaxSize:    maxLogFileSizeInMb,
 		MaxBackups: maxLogFileCount,
@@ -35,6 +35,8 @@ func initZapCNILog(logFile string) *zap.Logger {
 	return Logger
 }
 
-var CNILogger = initZapCNILog(zapCNILogFile).With(zap.Int("pid", os.Getpid()))
-var IPamLogger = initZapCNILog(zapIpamLogFile).With(zap.Int("pid", os.Getpid()))
-var TelemetryLogger = initZapCNILog(zapTelemetryLogFile).With(zap.Int("pid", os.Getpid()))
+var (
+	CNILogger       = initZapCNILog(zapCNILogFile).With(zap.Int("pid", os.Getpid()))
+	IPamLogger      = initZapCNILog(zapIpamLogFile).With(zap.Int("pid", os.Getpid()))
+	TelemetryLogger = initZapCNILog(zapTelemetryLogFile).With(zap.Int("pid", os.Getpid()))
+)
