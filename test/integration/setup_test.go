@@ -55,17 +55,17 @@ func TestMain(m *testing.M) {
 	}
 
 	ctx := context.Background()
-	if installopt := os.Getenv(envInstallCNS); installopt != "" {
+	if installopt := os.Getenv(k8sutils.EnvInstallCNS); installopt != "" {
 		// create dirty cns ds
 		if installCNS, err := strconv.ParseBool(installopt); err == nil && installCNS == true {
-			if cnscleanup, err = InstallCNSDaemonset(ctx, clientset, logDir); err != nil {
+			if cnscleanup, err = k8sutils.InstallCNSDaemonset(ctx, clientset, logDir); err != nil {
 				log.Print(err)
 				exitCode = 2
 				return
 			}
 		}
 	} else {
-		log.Printf("Env %v not set to true, skipping", envInstallCNS)
+		log.Printf("Env %v not set to true, skipping", k8sutils.EnvInstallCNS)
 	}
 
 	exitCode = m.Run()
