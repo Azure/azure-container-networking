@@ -8,10 +8,10 @@ import (
 	"net"
 	"strings"
 
+	"github.com/Azure/azure-container-networking/cni/log"
 	"github.com/Azure/azure-container-networking/ebtables"
 	"github.com/Azure/azure-container-networking/iptables"
 	"github.com/Azure/azure-container-networking/netlink"
-	"github.com/Azure/azure-container-networking/network/log"
 	"github.com/Azure/azure-container-networking/network/networkutils"
 	"github.com/Azure/azure-container-networking/platform"
 	"github.com/pkg/errors"
@@ -28,10 +28,7 @@ const (
 	l2PreroutingEntries = "ebtables -t nat -L PREROUTING"
 )
 
-var (
-	loggerName = "net"
-	logger     = log.InitZapLogNet(loggerName)
-)
+var logger = log.CNILogger.With(zap.String("component", "net"))
 
 var errorSnatClient = errors.New("SnatClient Error")
 

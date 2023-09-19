@@ -9,16 +9,13 @@ import (
 	"net"
 	"strings"
 
+	"github.com/Azure/azure-container-networking/cni/log"
 	"github.com/Azure/azure-container-networking/common"
-	"github.com/Azure/azure-container-networking/network/log"
 	"github.com/Azure/azure-container-networking/platform"
 	"go.uber.org/zap"
 )
 
-var (
-	loggerName = "ovs"
-	logger     = log.InitZapLogNet(loggerName)
-)
+var logger = log.CNILogger.With(zap.String("component", "ovs"))
 
 const (
 	defaultMacForArpResponse = "12:34:56:78:9a:bc"

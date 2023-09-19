@@ -6,15 +6,12 @@ package hnswrapper
 import (
 	"encoding/json"
 
-	"github.com/Azure/azure-container-networking/network/log"
+	"github.com/Azure/azure-container-networking/cni/log"
 	"github.com/Microsoft/hcsshim"
 	"go.uber.org/zap"
 )
 
-var (
-	loggerName = "net"
-	logger     = log.InitZapLogNet(loggerName)
-)
+var logger = log.CNILogger.With(zap.String("component", "net"))
 
 type Hnsv1wrapper struct{}
 

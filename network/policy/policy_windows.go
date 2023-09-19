@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"net"
 
-	"github.com/Azure/azure-container-networking/network/log"
+	"github.com/Azure/azure-container-networking/cni/log"
 	"github.com/Azure/azure-container-networking/network/networkutils"
 	"github.com/Microsoft/hcsshim"
 	"github.com/Microsoft/hcsshim/hcn"
@@ -13,10 +13,7 @@ import (
 	"go.uber.org/zap"
 )
 
-var (
-	loggerName = "policy"
-	logger     = log.InitZapLogNet(loggerName)
-)
+var logger = log.CNILogger.With(zap.String("component", "net"))
 
 const (
 	// ProtocolTcp indicates tcp protocol id for portmapping

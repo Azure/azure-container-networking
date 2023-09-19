@@ -9,9 +9,9 @@ import (
 	"net"
 	"strings"
 
+	"github.com/Azure/azure-container-networking/cni/log"
 	"github.com/Azure/azure-container-networking/netio"
 	"github.com/Azure/azure-container-networking/netlink"
-	"github.com/Azure/azure-container-networking/network/log"
 	"github.com/Azure/azure-container-networking/network/policy"
 	"github.com/Azure/azure-container-networking/platform"
 	"go.uber.org/zap"
@@ -21,10 +21,7 @@ const (
 	InfraVnet = 0
 )
 
-var (
-	loggerName = "net"
-	logger     = log.InitZapLogNet(loggerName)
-)
+var logger = log.CNILogger.With(zap.String("component", "net"))
 
 type AzureHNSEndpoint struct{}
 

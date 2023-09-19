@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"net"
 
+	"github.com/Azure/azure-container-networking/cni/log"
 	"github.com/Azure/azure-container-networking/iptables"
 	"github.com/Azure/azure-container-networking/netlink"
-	"github.com/Azure/azure-container-networking/network/log"
 	"github.com/Azure/azure-container-networking/platform"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
@@ -38,10 +38,7 @@ const (
 	acceptRAV6File       = "/proc/sys/net/ipv6/conf/%s/accept_ra"
 )
 
-var (
-	loggerName = "net"
-	logger     = log.InitZapLogNet(loggerName)
-)
+var logger = log.CNILogger.With(zap.String("component", "net"))
 
 var errorNetworkUtils = errors.New("NetworkUtils Error")
 
