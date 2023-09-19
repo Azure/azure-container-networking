@@ -11,7 +11,7 @@ import (
 	"go.uber.org/zap"
 )
 
-var logger = log.CNILogger.With(zap.String("component", "net"))
+var logger = log.CNILogger.With(zap.String("component", "net-hns"))
 
 type Hnsv1wrapper struct{}
 
