@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net"
 
@@ -144,6 +145,7 @@ func (p *IPAMPlugin) CmdDel(args *cniSkel.CmdArgs) error {
 			addErr := fsnotify.AddFile(args.ContainerID, args.ContainerID, watcherPath)
 			if addErr != nil {
 				p.logger.Error("Failed to add file to watcher", zap.String("containerID", args.ContainerID), zap.Error(addErr))
+				return cniTypes.NewError(cniTypes.ErrTryAgainLater, addErr.Error(), fmt.Sprintf("failed to add file to watcher with containerID %s", args.ContainerID))
 			} else {
 				p.logger.Info("File successfully added to watcher directory")
 			}
