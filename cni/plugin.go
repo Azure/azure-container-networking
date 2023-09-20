@@ -188,7 +188,7 @@ func (plugin *Plugin) InitializeKeyValueStore(config *common.PluginConfig) error
 			return errors.Wrap(err, "error creating new filelock")
 		}
 
-		plugin.Store, err = store.NewJsonFileStore(platform.CNIRuntimePath+plugin.Name+".json", lockclient)
+		plugin.Store, err = store.NewJsonFileStore(platform.CNIRuntimePath+plugin.Name+".json", lockclient, true)
 		if err != nil {
 			logger.Error("Failed to create store", zap.Error(err))
 			return err

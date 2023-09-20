@@ -641,7 +641,7 @@ func main() {
 
 	// Create the key value store.
 	storeFileName := storeFileLocation + name + ".json"
-	config.Store, err = store.NewJsonFileStore(storeFileName, lockclient)
+	config.Store, err = store.NewJsonFileStore(storeFileName, lockclient, false)
 	if err != nil {
 		logger.Errorf("Failed to create store file: %s, due to error %v\n", storeFileName, err)
 		return
@@ -664,7 +664,7 @@ func main() {
 		}
 		// Create the key value store.
 		storeFileName := endpointStoreLocation + endpointStoreName + ".json"
-		endpointStateStore, err = store.NewJsonFileStore(storeFileName, endpointStoreLock)
+		endpointStateStore, err = store.NewJsonFileStore(storeFileName, endpointStoreLock, false)
 		if err != nil {
 			logger.Errorf("Failed to create endpoint state store file: %s, due to error %v\n", storeFileName, err)
 			return
@@ -903,7 +903,7 @@ func main() {
 
 		// Create the key value store.
 		pluginStoreFile := storeFileLocation + pluginName + ".json"
-		pluginConfig.Store, err = store.NewJsonFileStore(pluginStoreFile, lockclientCnm)
+		pluginConfig.Store, err = store.NewJsonFileStore(pluginStoreFile, lockclientCnm, false)
 		if err != nil {
 			logger.Errorf("Failed to create plugin store file %s, due to error : %v\n", pluginStoreFile, err)
 			return

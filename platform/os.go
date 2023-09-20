@@ -4,8 +4,9 @@ import (
 	"bufio"
 	"fmt"
 	"io"
-	"log"
 	"os"
+
+	"github.com/Azure/azure-container-networking/log"
 )
 
 // ReadFileByLines reads file line by line and return array of lines.

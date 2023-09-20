@@ -150,7 +150,7 @@ func main() {
 			return
 		}
 
-		config.Store, err = store.NewJsonFileStore(platform.CNIRuntimePath+pluginName+".json", lockclient)
+		config.Store, err = store.NewJsonFileStore(platform.CNIRuntimePath+pluginName+".json", lockclient, false)
 		if err != nil {
 			fmt.Printf("[monitor] Failed to create store: %v\n", err)
 			return

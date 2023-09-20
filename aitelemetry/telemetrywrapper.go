@@ -111,7 +111,7 @@ func getMetadata(th *telemetryHandle) {
 	}
 
 	// Save metadata retrieved from wireserver to a file
-	kvs, err := store.NewJsonFileStore(metadataFile, lockclient)
+	kvs, err := store.NewJsonFileStore(metadataFile, lockclient, false)
 	if err != nil {
 		debugLog("[AppInsights] Error initializing kvs store: %v", err)
 		return
