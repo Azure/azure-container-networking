@@ -157,7 +157,7 @@ stages:
     parameters:
       name: mariner_linux_overlay
       clusterType: overlay-byocni-mariner-up
-      clusterName: mariner-linux-cniv2-overlay
+      clusterName: mariner-cniv2-overlay
       nodeCount: ${LINUX_NODE_COUNT}
       vmSize: Standard_DS4_v2
       arch: amd64
@@ -173,6 +173,7 @@ stages:
       - linux_cniv1
       - linux_podsubnet
       - linux_overlay
+      - mariner_linux_overlay
       - setup
     variables:
       commitID: $[ stagedependencies.setup.env.outputs['SetEnvVars.commitID'] ]
@@ -198,6 +199,9 @@ stages:
             linux_overlay:
               name: linux_overlay
               clusterName: linux-cniv2-overlay
+            mariner_linux_overlay:
+              name: mariner_linux_overlay
+              clusterName: mariner-linux-cniv2-overlay
         steps:
           - task: AzureCLI@1
             inputs:

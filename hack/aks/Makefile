@@ -15,7 +15,7 @@ VM_SIZE	        ?= Standard_B2s
 NODE_COUNT      ?= 2
 K8S_VER         ?= 1.25 # Used only for ubuntu 18 as K8S 1.24.9, as K8S > 1.25 have Ubuntu 22
 WINDOWS_VM_SKU  ?= Standard_B2s
-MARINER_OS_SKU	?= CBLMariner
+MARINER_OS_SKU	?= AzureLinux
 
 
 # overrideable variables
