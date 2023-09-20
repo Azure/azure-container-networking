@@ -201,7 +201,7 @@ stages:
               clusterName: linux-cniv2-overlay
             mariner_linux_overlay:
               name: mariner_linux_overlay
-              clusterName: mariner-linux-cniv2-overlay
+              clusterName: mariner-cniv2-overlay
         steps:
           - task: AzureCLI@1
             inputs:
