@@ -18,7 +18,7 @@ steps:
         echo "Ensure there are pods scheduled on each node"
         cd test/integration/load
         scale=$(( ${{ parameters.scaleup }} * ${{ parameters.nodeCount }} ))
-        go test -count 1 -timeout 30m -tags load -run ^TestScaleDeployment$ -tags=load -replicas=$scale
+        REPLICAS=$scale go test -count 1 -timeout 30m -tags load -run ^TestScaleDeployment$ -tags=load
         cd ../../../
 
         echo "Validate pod IP assignment before CNS restart"

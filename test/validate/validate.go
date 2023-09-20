@@ -224,3 +224,16 @@ func (v *Validator) ValidateDualStackControlPlane(ctx context.Context) error {
 
 	return nil
 }
+
+func (v *Validator) Cleanup(ctx context.Context) error {
+	// deploy privileged pod
+	privilegedDaemonSet, err := acnk8s.MustParseDaemonSet(privilegedDaemonSetPathMap[v.os])
+	if err != nil {
+		return errors.Wrap(err, "unable to parse daemonset")
+	}
+	daemonsetClient := v.clientset.AppsV1().DaemonSets(privilegedNamespace)
+	if err := acnk8s.MustDeleteDaemonset(ctx, daemonsetClient, privilegedDaemonSet); err != nil {
+		return errors.Wrap(err, "unable to create daemonset")
+	}
+	return nil
+}

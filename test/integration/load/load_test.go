@@ -4,32 +4,35 @@ package load
 
 import (
 	"context"
-	"flag"
 	"testing"
 	"time"
 
 	"github.com/Azure/azure-container-networking/test/internal/kubernetes"
 	"github.com/Azure/azure-container-networking/test/validate"
+	"github.com/stretchr/testify/require"
 )
+
+type TestConfig struct {
+	OSType            string `env:"OS_TYPE" default:"linux"`
+	CNIType           string `env:"CNI_TYPE" default:"cilium"`
+	Iterations        int    `env:"ITERATIONS" default:"2"`
+	ScaleUpReplicas   int    `env:"SCALE_UP" default:"10"`
+	ScaleDownReplicas int    `env:"SCALE_DOWN" default:"1"`
+	Replicas          int    `env:"REPLICAS" default:"1"`
+	ValidateStateFile bool   `env:"VALIDATE_STATEFILE" default:"false"`
+	ValidateDualStack bool   `env:"VALIDATE_DUALSTACK" default:"false"`
+	SkipWait          bool   `env:"SKIP_WAIT" default:"false"`
+	RestartCase       bool   `env:"RESTART_CASE" default:"false"`
+	Cleanup           bool   `env:"CLEANUP" default:"false"`
+}
 
 const (
 	manifestDir      = "../manifests"
 	podLabelSelector = "load-test=true"
+	namespace        = "load-test"
 )
 
-var (
-	osType            = flag.String("os", "linux", "Operating system to run the test on")
-	cniType           = flag.String("cni", "cilium", "CNI to run the test on")
-	iterations        = flag.Int("iterations", 2, "Number of iterations to run the test for")
-	scaleUpReplicas   = flag.Int("scaleup", 10, "Number of replicas to scale up to")
-	scaleDownReplicas = flag.Int("scaledown", 1, "Number of replicas to scale down to")
-	replicas          = flag.Int("replicas", 1, "Number of replicas to scale up/down to")
-	validateStateFile = flag.Bool("validate-statefile", false, "Validate the state file")
-	validateDualStack = flag.Bool("validate-dualstack", false, "Validate the dualstack overlay")
-	skipWait          = flag.Bool("skip-wait", false, "Skip waiting for pods to be ready")
-	restartCase       = flag.Bool("restart-case", false, "In restart case, skip if we don't find state file")
-	namespace         = "load-test"
-)
+var testConfig = &TestConfig{}
 
 var noopDeploymentMap = map[string]string{
 	"windows": manifestDir + "/noop-deployment-windows.yaml",
@@ -41,7 +44,7 @@ In order to run the scale tests, you need a k8s cluster and its kubeconfig.
 If no kubeconfig is passed, the test will attempt to find one in the default location for kubectl config.
 Run the tests as follows:
 
-go test -timeout 30m -tags load -run ^TestLoad$ -tags=load
+go test -timeout 30m -tags load -run ^TestLoad$
 
 The Load test scale the pods up/down on the cluster and validates the pods have IP. By default it runs the
 cycle for 2 iterations.
@@ -60,142 +63,138 @@ todo: consider adding the following scenarios
 */
 func TestLoad(t *testing.T) {
 	clientset, err := kubernetes.MustGetClientset()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
 	defer cancel()
 
 	// Create namespace if it doesn't exist
 	namespaceExists, err := kubernetes.NamespaceExists(ctx, clientset, namespace)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	if !namespaceExists {
 		err = kubernetes.MustCreateNamespace(ctx, clientset, namespace)
-		if err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, err)
 	}
 
-	deployment, err := kubernetes.MustParseDeployment(noopDeploymentMap[*osType])
-	if err != nil {
-		t.Fatal(err)
-	}
+	deployment, err := kubernetes.MustParseDeployment(noopDeploymentMap[testConfig.OSType])
+	require.NoError(t, err)
 
 	deploymentsClient := clientset.AppsV1().Deployments(namespace)
 	err = kubernetes.MustCreateDeployment(ctx, deploymentsClient, deployment)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	t.Log("Checking pods are running")
 	err = kubernetes.WaitForPodsRunning(ctx, clientset, namespace, podLabelSelector)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	t.Log("Repeating the scale up/down cycle")
-	for i := 0; i < *iterations; i++ {
+	for i := 0; i < testConfig.Iterations; i++ {
 		t.Log("Iteration ", i)
 		t.Log("Scale down deployment")
-		err = kubernetes.MustScaleDeployment(ctx, deploymentsClient, deployment, clientset, namespace, podLabelSelector, *scaleDownReplicas, *skipWait)
-		if err != nil {
-			t.Fatal(err)
-		}
+		err = kubernetes.MustScaleDeployment(ctx, deploymentsClient, deployment, clientset, namespace, podLabelSelector, testConfig.Iterations, testConfig.SkipWait)
+		require.NoError(t, err)
+
 		t.Log("Scale up deployment")
-		err = kubernetes.MustScaleDeployment(ctx, deploymentsClient, deployment, clientset, namespace, podLabelSelector, *scaleUpReplicas, *skipWait)
-		if err != nil {
-			t.Fatal(err)
-		}
+		err = kubernetes.MustScaleDeployment(ctx, deploymentsClient, deployment, clientset, namespace, podLabelSelector, testConfig.ScaleUpReplicas, testConfig.SkipWait)
+		require.NoError(t, err)
 	}
 	t.Log("Checking pods are running and IP assigned")
 	err = kubernetes.WaitForPodsRunning(ctx, clientset, "", "")
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
-	if *validateStateFile {
+	if testConfig.ValidateStateFile {
 		t.Run("Validate state file", TestValidateState)
 	}
 
-	if *validateDualStack {
+	if testConfig.ValidateDualStack {
 		t.Run("Validate dualstack overlay", TestDualStackProperties)
+	}
+
+	if testConfig.Cleanup {
+		err = kubernetes.MustDeleteDeployment(ctx, deploymentsClient, deployment)
+		require.NoError(t, err, "error deleteing load deployment")
 	}
 }
 
 // TestValidateState validates the state file based on the os and cni type.
 func TestValidateState(t *testing.T) {
 	clientset, err := kubernetes.MustGetClientset()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
+
 	config := kubernetes.MustGetRestConfig(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
 	defer cancel()
 
-	validator, err := validate.CreateValidator(ctx, clientset, config, namespace, *cniType, *restartCase, *osType)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := validator.Validate(ctx); err != nil {
-		t.Fatal(err)
+	validator, err := validate.CreateValidator(ctx, clientset, config, namespace, testConfig.CNIType, testConfig.RestartCase, testConfig.OSType)
+	require.NoError(t, err)
+
+	err = validator.Validate(ctx)
+	require.NoError(t, err)
+
+	if testConfig.Cleanup {
+		err = validator.Cleanup(ctx)
+		require.NoError(t, err, "failed to cleanup validator")
 	}
 }
 
 // TestScaleDeployment scales the deployment up/down based on the replicas passed.
-// go test -timeout 30m -tags load -run ^TestScaleDeployment$ -tags=load -replicas 10
+// REPLICAS=10 go test -timeout 30m -tags load -run ^TestScaleDeployment$ -tags=load
 func TestScaleDeployment(t *testing.T) {
 	t.Log("Scale deployment")
 	clientset, err := kubernetes.MustGetClientset()
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
+
 	ctx := context.Background()
 	// Create namespace if it doesn't exist
 	namespaceExists, err := kubernetes.NamespaceExists(ctx, clientset, namespace)
-	if err != nil {
-		t.Fatal(err)
-	}
+	require.NoError(t, err)
 
 	if !namespaceExists {
 		err = kubernetes.MustCreateNamespace(ctx, clientset, namespace)
-		if err != nil {
-			t.Fatal(err)
-		}
+		require.NoError(t, err)
 	}
 
-	deployment, err := kubernetes.MustParseDeployment(noopDeploymentMap[*osType])
-	if err != nil {
-		t.Fatal(err)
+	deployment, err := kubernetes.MustParseDeployment(noopDeploymentMap[testConfig.OSType])
+	require.NoError(t, err)
+
+	if testConfig.Cleanup {
+		deploymentsClient := clientset.AppsV1().Deployments(namespace)
+		err = kubernetes.MustCreateDeployment(ctx, deploymentsClient, deployment)
+		require.NoError(t, err)
 	}
+
 	deploymentsClient := clientset.AppsV1().Deployments(namespace)
-	err = kubernetes.MustScaleDeployment(ctx, deploymentsClient, deployment, clientset, namespace, podLabelSelector, *replicas, *skipWait)
-	if err != nil {
-		t.Fatal(err)
+	err = kubernetes.MustScaleDeployment(ctx, deploymentsClient, deployment, clientset, namespace, podLabelSelector, testConfig.Replicas, testConfig.SkipWait)
+	require.NoError(t, err)
+
+	if testConfig.Cleanup {
+		err = kubernetes.MustDeleteDeployment(ctx, deploymentsClient, deployment)
+		require.NoError(t, err, "error deleteing load deployment")
 	}
 }
 
 func TestDualStackProperties(t *testing.T) {
-	clientset, err := kubernetes.MustGetClientset()
-	if err != nil {
-		t.Fatal(err)
+	if !testConfig.ValidateDualStack {
+		return
 	}
+	clientset, err := kubernetes.MustGetClientset()
+	require.NoError(t, err)
+
 	config := kubernetes.MustGetRestConfig(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
 	defer cancel()
 
 	t.Log("Validating the dualstack node labels")
-	validator, err := validate.CreateValidator(ctx, clientset, config, namespace, *cniType, *restartCase, *osType)
-	if err != nil {
-		t.Fatal(err)
-	}
+	validator, err := validate.CreateValidator(ctx, clientset, config, namespace, testConfig.CNIType, testConfig.RestartCase, testConfig.OSType)
+	require.NoError(t, err)
 
 	// validate dualstack overlay scenarios
 	err = validator.ValidateDualStackControlPlane(ctx)
-	if err != nil {
-		t.Fatal(err)
+	require.NoError(t, err)
+
+	if testConfig.Cleanup {
+		err = validator.Cleanup(ctx)
+		require.NoError(t, err, "failed to cleanup validator")
 	}
 }

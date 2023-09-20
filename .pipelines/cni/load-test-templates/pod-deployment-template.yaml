@@ -19,4 +19,4 @@ steps:
         make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
         cd test/integration/load
         scale=$(( ${{ parameters.scaleup }} * ${{ parameters.nodeCount }} ))
-        go test -timeout 30m -tags load -run ^TestLoad$ -tags=load -iterations=${{ parameters.iterations }} -scaleup=$scale -os=${{ parameters.os }}
+        ITERATIONS=${{ parameters.iterations }} SCALE_UP=$scale OS_TYPE=${{ parameters.os }} go test -timeout 30m -tags load -run ^TestLoad$

@@ -727,6 +727,11 @@ test-integration: ## run all integration tests.
 		CNS_VERSION=$(CNS_VERSION) \
 		go test -mod=readonly -buildvcs=false -timeout 1h -coverpkg=./... -race -covermode atomic -coverprofile=coverage.out -tags=integration ./test/integration...
 
+test-load: ## run all load tests
+	CNI_DROPGZ_VERSION=$(CNI_DROPGZ_VERSION) \
+		CNS_VERSION=$(CNS_VERSION) \
+		go test -timeout 30m -race -tags=load ./test/integration/load...
+
 test-validate-state:
 	cd test/integration/load && go test -mod=readonly -count=1 -timeout 30m -tags load -run ^TestValidateState -restart-case=$(RESTART_CASE) -os=$(OS) -cni=$(CNI_TYPE)
 	cd ../../..

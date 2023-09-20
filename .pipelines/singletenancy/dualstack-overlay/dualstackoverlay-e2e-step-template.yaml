@@ -55,11 +55,11 @@ steps:
       set -e
       cd test/integration/load
       echo "DualStack Overlay Linux control plane Node properties test"
-      sudo go test -timeout 30m -tags load -run ^TestDualStackProperties$
+      sudo CNI_TYPE=dualstack go test -timeout 30m -tags load -run ^TestDualStackProperties$
       echo "DualStack Overlay Linux control plane Load test"
       sudo go test -timeout 30m -tags load -run ^TestLoad$
       echo "DualStack Overlay Linux control plane CNS validation test"
-      sudo go test -timeout 30m -tags load -cni dualstack -run ^TestValidateState$
+      sudo CNI_TYPE=dualstack go test -timeout 30m -tags load -run ^TestValidateState$
       cd ../datapath
       echo "Dualstack Overlay Linux datapath IPv6 test"
       sudo go test -count=1 datapath_linux_test.go -timeout 3m -tags connection -run ^TestDatapathLinux$ -tags=connection,integration -isDualStack=true
@@ -97,7 +97,7 @@ steps:
         make -C ./hack/aks azcfg AZCLI=az REGION=$(REGION_DUALSTACKOVERLAY_CLUSTER_TEST)
         kubectl get pods -A
         echo "Validating Node Restart"
-        sudo go test -timeout 30m -tags load -cni dualstack -run ^TestValidateState$ -restart-case=true
+        sudo CNI_TYPE=dualstack RESTART_CASE=true go test -timeout 30m -tags load -run ^TestValidateState$
     displayName: "Validate Node Restart"
     retryCountOnTaskFailure: 3
 
@@ -106,12 +106,12 @@ steps:
       kubectl get pod -owide -A
       echo "validate pod state before CNS restarts"
       cd test/integration/load
-      sudo go test -timeout 30m -tags load -cni dualstack -run ^TestValidateState$
+      sudo CNI_TYPE=dualstack go test -timeout 30m -tags load -run ^TestValidateState$
       kubectl rollout restart ds azure-cns -n kube-system
       kubectl rollout status ds azure-cns -n kube-system
       kubectl get pod -owide -A
       echo "validate pods after CNS restarts"
-      sudo go test -timeout 30m -tags load -cni dualstack -run ^TestValidateState$
+      sudo CNI_TYPE=dualstack go test -timeout 30m -tags load -run ^TestValidateState$
     name: "restartCNS_ValidatePodState"
     displayName: "Restart CNS and Validate Pod State"
     retryCountOnTaskFailure: 3
