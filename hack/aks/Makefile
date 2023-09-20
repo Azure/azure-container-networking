@@ -114,7 +114,6 @@ overlay-byocni-ubuntu22-up: rg-up overlay-net-up ## Brings up an Ubuntu22 Overla
 		--no-ssh-key \
 		--kubernetes-version $(K8S_VER) \
 		--os-sku $(OS_SKU) \
-		--k
 		--yes
 	@$(MAKE) set-kubeconf 
 
@@ -130,7 +129,6 @@ overlay-byocni-ubuntu18-up: rg-up overlay-net-up ## Brings up an Ubuntu18 Overla
 		--no-ssh-key \
 		--kubernetes-version 1.24.9 \
 		--os-sku $(OS_SKU) \
-		--k
 		--yes
 	@$(MAKE) set-kubeconf 
 
@@ -146,7 +144,6 @@ overlay-byocni-arm-ubuntu22-up: rg-up overlay-net-up ## Brings up an ARM + Ubunt
 		--no-ssh-key \
 		--kubernetes-version $(K8S_VER) \
 		--os-sku $(OS_SKU) \
-		--k
 		--yes
 	@$(MAKE) set-kubeconf
 
