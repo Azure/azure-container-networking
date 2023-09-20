@@ -153,6 +153,15 @@ stages:
       vmSize: ${LINUX_VM_SKU}
       arch: amd64
 
+  - template: singletenancy/linux-cniv2-template.yaml
+    parameters:
+      name: mariner_linux_overlay
+      clusterType: overlay-byocni-mariner-up
+      clusterName: mariner-linux-cniv2-overlay
+      nodeCount: ${LINUX_NODE_COUNT}
+      vmSize: Standard_DS4_v2
+      arch: amd64
+
   - stage: delete_resources
     displayName: "Delete Resources"
     pool:
