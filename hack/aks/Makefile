@@ -137,7 +137,7 @@ overlay-byocni-ubuntu18-up: rg-up overlay-net-up ## Brings up an Ubuntu18 Overla
 overlay-byocni-arm-ubuntu22-up: rg-up overlay-net-up ## Brings up an ARM + Ubuntu22 Overlay BYO CNI
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
 		--node-count $(NODE_COUNT) \
-		--node-vm-size Standard_D4ps_v5 \
+		--node-vm-size Standard_D8ps_v5 \
 		--load-balancer-sku basic \
 		--network-plugin none \
 		--network-plugin-mode overlay \

@@ -162,6 +162,33 @@ stages:
       vmSize: Standard_DS4_v2
       arch: amd64
 
+  - template: singletenancy/linux-cniv2-template.yaml
+    parameters:
+      name: ubuntu22_linux_overlay
+      clusterType: overlay-byocni-ubuntu22-up
+      clusterName: ubuntu22-cniv2-overlay
+      nodeCount: ${LINUX_NODE_COUNT}
+      vmSize: Standard_DS4_v2
+      arch: amd64
+
+  - template: singletenancy/linux-cniv2-template.yaml
+    parameters:
+      name: ubuntu18_linux_overlay
+      clusterType: overlay-byocni-ubuntu18-up
+      clusterName: ubuntu18-cniv2-overlay
+      nodeCount: ${LINUX_NODE_COUNT}
+      vmSize: Standard_DS4_v2
+      arch: amd64
+
+  - template: singletenancy/linux-cniv2-template.yaml
+    parameters:
+      name: arm_ubuntu22_linux_overlay
+      clusterType: overlay-byocni-arm-ubuntu22-up
+      clusterName: arm-ubuntu22-cniv2-overlay
+      nodeCount: ${LINUX_NODE_COUNT}
+      vmSize: Standard_DS4_v2
+      arch: arm64
+
   - stage: delete_resources
     displayName: "Delete Resources"
     pool:
@@ -174,6 +201,9 @@ stages:
       - linux_podsubnet
       - linux_overlay
       - mariner_linux_overlay
+      - ubuntu22_linux_overlay
+      - ubuntu18_linux_overlay
+      - arm_ubuntu22_linux_overlay
       - setup
     variables:
       commitID: $[ stagedependencies.setup.env.outputs['SetEnvVars.commitID'] ]
@@ -202,6 +232,15 @@ stages:
             mariner_linux_overlay:
               name: mariner_linux_overlay
               clusterName: mariner-cniv2-overlay
+            ubuntu22_linux_overlay:
+              name: ubuntu22_linux_overlay
+              clusterName: ubuntu22-cniv2-overlay
+            ubuntu18_linux_overlay:
+              name: ubuntu18_linux_overlay
+              clusterName: ubuntu18-cniv2-overlay
+            arm_ubuntu22_linux_overlay:
+              name: arm_ubuntu22_linux_overlay
+              clusterName: arm-ubuntu22-cniv2-overlay
         steps:
           - task: AzureCLI@1
             inputs:
