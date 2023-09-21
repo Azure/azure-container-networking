@@ -57,7 +57,7 @@ func TestMain(m *testing.M) {
 	ctx := context.Background()
 	installopt := os.Getenv(kubernetes.EnvInstallCNS)
 	// create dirty cns ds
-	if installCNS, err := strconv.ParseBool(installopt); err == nil && installCNS == true {
+	if installCNS, err := strconv.ParseBool(installopt); err == nil && installCNS {
 		if cnscleanup, err = kubernetes.InstallCNSDaemonset(ctx, clientset, logDir); err != nil {
 			log.Print(err)
 			exitCode = 2

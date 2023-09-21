@@ -233,7 +233,7 @@ func (v *Validator) Cleanup(ctx context.Context) error {
 	}
 	daemonsetClient := v.clientset.AppsV1().DaemonSets(privilegedNamespace)
 	if err := acnk8s.MustDeleteDaemonset(ctx, daemonsetClient, privilegedDaemonSet); err != nil {
-		return errors.Wrap(err, "unable to create daemonset")
+		return errors.Wrap(err, "unable to delete daemonset")
 	}
 	return nil
 }

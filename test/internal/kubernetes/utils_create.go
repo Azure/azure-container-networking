@@ -2,7 +2,6 @@ package kubernetes
 
 import (
 	"context"
-	"fmt"
 	"log"
 	"os"
 	"path"
@@ -299,7 +298,7 @@ func loadCNSDaemonset(ctx context.Context, clientset *kubernetes.Clientset, cnsV
 	for cnsScenario := range cnsScenarioMap {
 		cns, err = setupCNSDaemonset(ctx, clientset, cns, cnsScenarioMap, cnsScenario)
 		if err != nil {
-			return appsv1.DaemonSet{}, errors.Wrap(err, fmt.Sprintf("failed to setup %s cns scenario", cnsScenario))
+			return appsv1.DaemonSet{}, errors.Wrapf(err, "failed to setup %s cns scenario", cnsScenario)
 		}
 	}
 
@@ -331,7 +330,7 @@ func loadCNSDaemonset(ctx context.Context, clientset *kubernetes.Clientset, cnsV
 func setupCNSDaemonset(ctx context.Context, clientset *kubernetes.Clientset, cns appsv1.DaemonSet, cnsScenarioMap map[string]cnsScenario, flag string) (appsv1.DaemonSet, error) {
 	cnsScenarioConfig, ok := cnsScenarioMap[flag]
 	if !ok {
-		return cns, errors.Wrap(ErrUnsupportedCNSScenario, fmt.Sprintf("%s not a supported cns scneario", flag))
+		return cns, errors.Wrapf(ErrUnsupportedCNSScenario, "%s not a supported cns scneario", flag)
 	}
 
 	flagValue := os.Getenv(flag)
@@ -355,7 +354,7 @@ func setupCNSDaemonset(ctx context.Context, clientset *kubernetes.Clientset, cns
 
 		// setup the CNS configmap
 		if err := MustSetupConfigMap(ctx, clientset, cnsScenarioConfig.configMapPath); err != nil {
-			return cns, errors.Wrap(err, fmt.Sprintf("failed to setup CNS %s configMap", cnsScenarioConfig.configMapPath))
+			return cns, errors.Wrapf(err, "failed to setup CNS %s configMap", cnsScenarioConfig.configMapPath)
 		}
 	} else {
 		log.Printf("Env %v not set to true, skipping", flag)

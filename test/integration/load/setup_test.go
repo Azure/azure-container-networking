@@ -4,6 +4,7 @@ package load
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -21,6 +22,8 @@ const (
 	// relative log directory
 	logDir = "logs/"
 )
+
+var ErrInvalidVariableType = errors.New("variable type not supported")
 
 func TestMain(m *testing.M) {
 	var (
@@ -61,7 +64,7 @@ func TestMain(m *testing.M) {
 	ctx := context.Background()
 	installopt := os.Getenv(kubernetes.EnvInstallCNS)
 	// create dirty cns ds
-	if installCNS, err := strconv.ParseBool(installopt); err == nil && installCNS == true {
+	if installCNS, err := strconv.ParseBool(installopt); err == nil && installCNS {
 		if cnscleanup, err = kubernetes.InstallCNSDaemonset(ctx, clientset, logDir); err != nil {
 			log.Print(err)
 			exitCode = 2
@@ -105,6 +108,8 @@ func LoadEnvironment(obj interface{}) {
 				panic(fmt.Sprintf("environment variable %s must be a bool", env))
 			}
 			fieldVal.SetBool(boolVal)
+		default:
+			panic(ErrInvalidVariableType)
 		}
 	}
 }
