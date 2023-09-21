@@ -91,8 +91,9 @@ func (kvs *jsonFileStore) Read(key string, value interface{}) error {
 		if len(b) == 0 {
 			if kvs.isZapLogger {
 				logger.Info("Unable to read empty file", zap.String("fileName", kvs.fileName))
+			} else {
+				log.Printf("Unable to read file %s, was empty", kvs.fileName)
 			}
-			log.Printf("Unable to read file %s, was empty", kvs.fileName)
 
 			return ErrStoreEmpty
 		}
@@ -196,8 +197,9 @@ func (kvs *jsonFileStore) Lock(timeout time.Duration) error {
 
 	if kvs.isZapLogger {
 		logger.Info("Acquiring process lock")
+	} else {
+		log.Printf("Acquiring process lock")
 	}
-	log.Printf("Acquiring process lock")
 
 	go kvs.lockUtil(status)
 
@@ -214,9 +216,9 @@ func (kvs *jsonFileStore) Lock(timeout time.Duration) error {
 
 	if kvs.isZapLogger {
 		logger.Info("Acquired process lock with timeout value of", zap.Any("timeout", timeout))
+	} else {
+		log.Printf("Acquired process lock with timeout value of %v", timeout)
 	}
-
-	log.Printf("Acquired process lock with timeout value of %v", timeout)
 
 	return nil
 }
@@ -233,8 +235,9 @@ func (kvs *jsonFileStore) Unlock() error {
 
 	if kvs.isZapLogger {
 		logger.Info("Released process lock")
+	} else {
+		log.Printf("Released process lock")
 	}
-	log.Printf("Released process lock")
 
 	return nil
 }
@@ -248,8 +251,9 @@ func (kvs *jsonFileStore) GetModificationTime() (time.Time, error) {
 	if err != nil {
 		if kvs.isZapLogger {
 			logger.Info("os.stat() for file", zap.String("fileName", kvs.fileName), zap.Error(err))
+		} else {
+			log.Printf("os.stat() for file %v failed: %v", kvs.fileName, err)
 		}
-		log.Printf("os.stat() for file %v failed: %v", kvs.fileName, err)
 
 		return time.Time{}.UTC(), err
 	}
