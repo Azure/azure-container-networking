@@ -8,6 +8,7 @@ parameters:
   os: linux
   arch: ""
   testDropgz: true
+  osSKU: Ubuntu
 
 # + Should be able to scale up/down the pods successfully certain number of times.
 # + Node reboot scenarios should be covered.
@@ -34,6 +35,7 @@ stages:
               nodeCount: ${{ parameters.nodeCount }}
               vmSize: ${{ parameters.vmSize }}
               region: $(LOCATION)
+              osSKU: ${{ parameters.osSKU }}
 
   - stage: ${{ parameters.name }}
     variables:
