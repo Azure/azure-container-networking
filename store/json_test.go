@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Azure/azure-container-networking/cni/log"
 	"github.com/Azure/azure-container-networking/processlock"
 	"github.com/stretchr/testify/require"
 )
@@ -119,8 +120,11 @@ func TestKeyValuePairsAreWrittenAndReadCorrectly(t *testing.T) {
 	anotherValue := testType1{"any", 14}
 	var readValue testType1
 
+	// Test when passing zap logger obj to NewJsonFileStore
+	logger := log.CNILogger
+
 	// Create the store.
-	kvs, err := NewJsonFileStore(testFileName, processlock.NewMockFileLock(false), nil)
+	kvs, err := NewJsonFileStore(testFileName, processlock.NewMockFileLock(false), logger)
 	if err != nil {
 		t.Fatalf("Failed to create KeyValueStore %v\n", err)
 	}
