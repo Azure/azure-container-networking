@@ -96,7 +96,7 @@ overlay-byocni-up: rg-up overlay-net-up ## Brings up an Overlay BYO CNI cluster
 		--pod-cidr 192.168.0.0/16 \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
 		--no-ssh-key \
-		--kubernetes-version $(K8S_VER)
+		--kubernetes-version $(K8S_VER) \
 		--os-sku $(OS_SKU) \
 		--yes
 	@$(MAKE) set-kubeconf

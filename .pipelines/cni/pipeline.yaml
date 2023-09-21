@@ -47,6 +47,24 @@ stages:
               name: $(name)
               os: $(os)
               os_version: $(os_version)
+      - job: containerize_linux_arm64
+        displayName: Build Images
+        variables:
+          TAG: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
+        pool:
+          name: "$(BUILD_POOL_NAME_LINUX_ARM64)"
+        strategy:
+          matrix:
+            cni_dropgz_test_linux_arm64:
+              arch: arm64
+              name: cni-dropgz-test
+              os: linux
+        steps:
+          - template: ../containers/container-template.yaml
+            parameters:
+              arch: $(arch)
+              name: $(name)
+              os: $(os)
 
   - stage: binaries
     displayName: Build Binaries
@@ -93,7 +111,7 @@ stages:
           matrix:
             cni_dropgz_test:
               name: cni-dropgz-test
-              platforms: linux/amd64 windows/amd64
+              platforms: linux/amd64 linux/arm64 windows/amd64
         steps:
           - template: ../containers/manifest-template.yaml
             parameters:
@@ -171,6 +189,15 @@ stages:
       nodeCount: ${LINUX_NODE_COUNT}
       vmSize: Standard_D8ps_v5
       arch: arm64
+
+  - template: singletenancy/linux-cniv2-template.yaml
+    parameters:
+      name: rdma_linux_overlay
+      clusterType: overlay-byocni-up
+      clusterName: rdma-cniv2-overlay
+      nodeCount: ${LINUX_NODE_COUNT}
+      vmSize: Standard_NC24r*
+      arch: amd64
 
   - stage: delete_resources
     displayName: "Delete Resources"
