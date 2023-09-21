@@ -92,7 +92,7 @@ func TestLoad(t *testing.T) {
 	for i := 0; i < testConfig.Iterations; i++ {
 		t.Log("Iteration ", i)
 		t.Log("Scale down deployment")
-		err = kubernetes.MustScaleDeployment(ctx, deploymentsClient, deployment, clientset, namespace, podLabelSelector, testConfig.Iterations, testConfig.SkipWait)
+		err = kubernetes.MustScaleDeployment(ctx, deploymentsClient, deployment, clientset, namespace, podLabelSelector, testConfig.ScaleDownReplicas, testConfig.SkipWait)
 		require.NoError(t, err)
 
 		t.Log("Scale up deployment")
