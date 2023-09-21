@@ -733,7 +733,7 @@ test-load: ## run all load tests
 		go test -timeout 30m -race -tags=load ./test/integration/load...
 
 test-validate-state:
-	cd test/integration/load && OS_TYPE=$(OS) go test -mod=readonly -count=1 -timeout 30m -tags load -run ^TestValidateState
+	cd test/integration/load && go test -mod=readonly -count=1 -timeout 30m -tags load -run ^TestValidateState
 	cd ../../..
 
 test-cyclonus: ## run the cyclonus test for npm.

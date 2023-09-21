@@ -25,7 +25,7 @@ steps:
 
         make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
         kubectl get pods -A
-        make test-validate-state OS=${{ parameters.os }} RESTART_CASE=${{ parameters.restartCase }} CNI_TYPE=${{ parameters.cni }}
+        make test-validate-state OS_TYPE=${{ parameters.os }} RESTART_CASE=${{ parameters.restartCase }} CNI_TYPE=${{ parameters.cni }}
     name: "ValidateState"
     displayName: "Validate State"
     retryCountOnTaskFailure: 3
