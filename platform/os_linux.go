@@ -68,7 +68,6 @@ func GetLastRebootTime() (time.Time, error) {
 	// Query last reboot time.
 	out, err := exec.Command("uptime", "-s").Output()
 	if err != nil {
-		// log.Printf("Failed to query uptime, err:%v", err)
 		return time.Time{}.UTC(), err
 	}
 
@@ -76,7 +75,6 @@ func GetLastRebootTime() (time.Time, error) {
 	layout := "2006-01-02 15:04:05"
 	rebootTime, err := time.ParseInLocation(layout, string(out[:len(out)-1]), time.Local)
 	if err != nil {
-		// log.Printf("Failed to parse uptime, err:%v", err)
 		return time.Time{}.UTC(), err
 	}
 
