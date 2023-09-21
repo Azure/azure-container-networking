@@ -25,6 +25,7 @@ import (
 )
 
 var logger = log.CNILogger.With(zap.String("component", "cni-plugin"))
+var storeLogger = log.CNILogger.With(zap.String("component", "store"))
 
 var errEmptyContent = errors.New("read content is zero bytes")
 
@@ -188,7 +189,7 @@ func (plugin *Plugin) InitializeKeyValueStore(config *common.PluginConfig) error
 			return errors.Wrap(err, "error creating new filelock")
 		}
 
-		plugin.Store, err = store.NewJsonFileStore(platform.CNIRuntimePath+plugin.Name+".json", lockclient, logger)
+		plugin.Store, err = store.NewJsonFileStore(platform.CNIRuntimePath+plugin.Name+".json", lockclient, storeLogger)
 		if err != nil {
 			logger.Error("Failed to create store", zap.Error(err))
 			return err

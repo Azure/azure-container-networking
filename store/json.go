@@ -12,15 +12,12 @@ import (
 	"sync"
 	"time"
 
-	zapLog "github.com/Azure/azure-container-networking/cni/log"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/platform"
 	"github.com/Azure/azure-container-networking/processlock"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
 )
-
-var logger = zapLog.CNILogger.With(zap.String("component", "store"))
 
 const (
 	// LockExtension - Extension added to the file name for lock.
@@ -90,7 +87,7 @@ func (kvs *jsonFileStore) Read(key string, value interface{}) error {
 
 		if len(b) == 0 {
 			if kvs.logger != nil {
-				logger.Info("Unable to read empty file", zap.String("fileName", kvs.fileName))
+				kvs.logger.Info("Unable to read empty file", zap.String("fileName", kvs.fileName))
 			} else {
 				log.Printf("Unable to read file %s, was empty", kvs.fileName)
 			}
@@ -196,7 +193,7 @@ func (kvs *jsonFileStore) Lock(timeout time.Duration) error {
 	status := make(chan error)
 
 	if kvs.logger != nil {
-		logger.Info("Acquiring process lock")
+		kvs.logger.Info("Acquiring process lock")
 	} else {
 		log.Printf("Acquiring process lock")
 	}
@@ -215,7 +212,7 @@ func (kvs *jsonFileStore) Lock(timeout time.Duration) error {
 	}
 
 	if kvs.logger != nil {
-		logger.Info("Acquired process lock with timeout value of", zap.Any("timeout", timeout))
+		kvs.logger.Info("Acquired process lock with timeout value of", zap.Any("timeout", timeout))
 	} else {
 		log.Printf("Acquired process lock with timeout value of %v", timeout)
 	}
@@ -234,7 +231,7 @@ func (kvs *jsonFileStore) Unlock() error {
 	}
 
 	if kvs.logger != nil {
-		logger.Info("Released process lock")
+		kvs.logger.Info("Released process lock")
 	} else {
 		log.Printf("Released process lock")
 	}
@@ -250,7 +247,7 @@ func (kvs *jsonFileStore) GetModificationTime() (time.Time, error) {
 	info, err := os.Stat(kvs.fileName)
 	if err != nil {
 		if kvs.logger != nil {
-			logger.Info("os.stat() for file", zap.String("fileName", kvs.fileName), zap.Error(err))
+			kvs.logger.Info("os.stat() for file", zap.String("fileName", kvs.fileName), zap.Error(err))
 		} else {
 			log.Printf("os.stat() for file %v failed: %v", kvs.fileName, err)
 		}
