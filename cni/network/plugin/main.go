@@ -182,9 +182,11 @@ func rootExecute() error {
 		cniReport.GetReport(pluginName, version, ipamQueryURL)
 
 		var upTime time.Time
-		upTime, err = platform.GetLastRebootTime(true)
+		upTime, err = platform.GetLastRebootTime()
 		if err == nil {
 			cniReport.VMUptime = upTime.Format("2006-01-02 15:04:05")
+		} else {
+			logger.Info("Failed to query last reboot time", zap.Error(err))
 		}
 
 		// CNI Acquires lock

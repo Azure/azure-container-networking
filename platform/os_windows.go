@@ -100,20 +100,14 @@ func GetProcessSupport() error {
 var tickCount = syscall.NewLazyDLL("kernel32.dll").NewProc("GetTickCount64")
 
 // GetLastRebootTime returns the last time the system rebooted.
-func GetLastRebootTime(isZapLogger bool) (time.Time, error) {
+func GetLastRebootTime() (time.Time, error) {
 	currentTime := time.Now()
 	output, _, err := tickCount.Call()
 	if errno, ok := err.(syscall.Errno); !ok || errno != 0 {
-		if isZapLogger {
-			logger.Error("Failed to call GetTickCount64", zap.Error(err))
-		}
 		log.Printf("Failed to call GetTickCount64, err: %v", err)
 		return time.Time{}.UTC(), err
 	}
 	rebootTime := currentTime.Add(-time.Duration(output) * time.Millisecond).Truncate(time.Second)
-	if isZapLogger {
-		logger.Info("Formatted Boot", zap.String("time", rebootTime.Format(time.RFC3339)))
-	}
 	log.Printf("Formatted Boot time: %s", rebootTime.Format(time.RFC3339))
 	return rebootTime.UTC(), nil
 }
