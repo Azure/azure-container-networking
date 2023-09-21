@@ -182,7 +182,7 @@ func rootExecute() error {
 		cniReport.GetReport(pluginName, version, ipamQueryURL)
 
 		var upTime time.Time
-		upTime, err = platform.GetLastRebootTime()
+		upTime, err = platform.GetLastRebootTime(true)
 		if err == nil {
 			cniReport.VMUptime = upTime.Format("2006-01-02 15:04:05")
 		}

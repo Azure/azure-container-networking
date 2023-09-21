@@ -13,7 +13,7 @@ func TestMain(m *testing.M) {
 }
 
 func TestGetLastRebootTime(t *testing.T) {
-	_, err := GetLastRebootTime()
+	_, err := GetLastRebootTime(false)
 	if err != nil {
 		t.Errorf("GetLastRebootTime failed :%v", err)
 	}

@@ -229,7 +229,7 @@ var _ = Describe("Test Manager", func() {
 				am := &addressManager{
 					AddrSpaces: make(map[string]*addressSpace),
 				}
-				timeReboot, _ := platform.GetLastRebootTime()
+				timeReboot, _ := platform.GetLastRebootTime(false)
 				am.store = &testutils.KeyValueStoreMock{
 					ModificationTime: timeReboot.Add(time.Hour),
 				}
