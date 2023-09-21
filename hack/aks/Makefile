@@ -15,8 +15,6 @@ VM_SIZE	        ?= Standard_B2s
 NODE_COUNT      ?= 2
 K8S_VER         ?= 1.25 # Used only for ubuntu 18 as K8S 1.24.9, as K8S > 1.25 have Ubuntu 22
 WINDOWS_VM_SKU  ?= Standard_B2s
-MARINER_OS_SKU	?= AzureLinux
-
 
 # overrideable variables
 SUB        ?= $(AZURE_SUBSCRIPTION)
@@ -88,65 +86,6 @@ byocni-up: swift-byocni-up ## Alias to swift-byocni-up
 cilium-up: swift-cilium-up ## Alias to swift-cilium-up
 up: swift-up ## Alias to swift-up
 
-overlay-byocni-mariner-up: rg-up overlay-net-up ## Brings up a Mariner Overlay BYO CNI
-	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
-		--node-count $(NODE_COUNT) \
-		--node-vm-size $(VM_SIZE) \
-		--load-balancer-sku basic \
-		--network-plugin none \
-		--network-plugin-mode overlay \
-		--pod-cidr 192.168.0.0/16 \
-		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
-		--no-ssh-key \
-		--os-sku $(MARINER_OS_SKU) \
-		--yes
-	@$(MAKE) set-kubeconf
-
-overlay-byocni-ubuntu22-up: rg-up overlay-net-up ## Brings up an Ubuntu22 Overlay BYO CNI
-	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
-		--node-count $(NODE_COUNT) \
-		--node-vm-size $(VM_SIZE) \
-		--load-balancer-sku basic \
-		--network-plugin none \
-		--network-plugin-mode overlay \
-		--pod-cidr 192.168.0.0/16 \
-		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
-		--no-ssh-key \
-		--kubernetes-version $(K8S_VER) \
-		--os-sku $(OS_SKU) \
-		--yes
-	@$(MAKE) set-kubeconf 
-
-overlay-byocni-ubuntu18-up: rg-up overlay-net-up ## Brings up an Ubuntu18 Overlay BYO CNI
-	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
-		--node-count $(NODE_COUNT) \
-		--node-vm-size $(VM_SIZE) \
-		--load-balancer-sku basic \
-		--network-plugin none \
-		--network-plugin-mode overlay \
-		--pod-cidr 192.168.0.0/16 \
-		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
-		--no-ssh-key \
-		--kubernetes-version 1.24.9 \
-		--os-sku $(OS_SKU) \
-		--yes
-	@$(MAKE) set-kubeconf 
-
-overlay-byocni-arm-ubuntu22-up: rg-up overlay-net-up ## Brings up an ARM + Ubuntu22 Overlay BYO CNI
-	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
-		--node-count $(NODE_COUNT) \
-		--node-vm-size Standard_D8ps_v5 \
-		--load-balancer-sku basic \
-		--network-plugin none \
-		--network-plugin-mode overlay \
-		--pod-cidr 192.168.0.0/16 \
-		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
-		--no-ssh-key \
-		--kubernetes-version $(K8S_VER) \
-		--os-sku $(OS_SKU) \
-		--yes
-	@$(MAKE) set-kubeconf
-
 overlay-byocni-up: rg-up overlay-net-up ## Brings up an Overlay BYO CNI cluster
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
 		--node-count $(NODE_COUNT) \
@@ -157,6 +96,8 @@ overlay-byocni-up: rg-up overlay-net-up ## Brings up an Overlay BYO CNI cluster
 		--pod-cidr 192.168.0.0/16 \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
 		--no-ssh-key \
+		--kubernetes-version $(K8S_VER)
+		--os-sku $(OS_SKU) \
 		--yes
 	@$(MAKE) set-kubeconf
 
