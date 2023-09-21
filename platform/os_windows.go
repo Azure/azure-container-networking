@@ -13,6 +13,7 @@ import (
 	"syscall"
 	"time"
 
+	zaplog "github.com/Azure/azure-container-networking/cni/log"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/platform/windows/adapter"
 	"github.com/Azure/azure-container-networking/platform/windows/adapter/mellanox"
@@ -20,6 +21,8 @@ import (
 	"go.uber.org/zap"
 	"golang.org/x/sys/windows"
 )
+
+var logger = zaplog.CNILogger.With(zap.String("component", "platform-windows"))
 
 const (
 	// CNMRuntimePath is the path where CNM state files are stored.
@@ -163,7 +166,7 @@ func ExecutePowershellCommand(command string) (string, error) {
 		return "", fmt.Errorf("Failed to find powershell executable")
 	}
 
-	logger.Info("[Azure-Utils]", string("command", command))
+	logger.Info("[Azure-Utils]", zap.String("command", command))
 
 	cmd := exec.Command(ps, command)
 	var stdout bytes.Buffer

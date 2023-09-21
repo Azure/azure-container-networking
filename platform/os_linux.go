@@ -17,7 +17,7 @@ import (
 	"go.uber.org/zap"
 )
 
-var logger = zaplog.CNILogger.With(zap.String("component", "platform"))
+var logger = zaplog.CNILogger.With(zap.String("component", "platform-linux"))
 
 const (
 	// CNMRuntimePath is the path where CNM state files are stored.
