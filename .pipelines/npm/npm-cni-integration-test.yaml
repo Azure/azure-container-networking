@@ -128,7 +128,6 @@ jobs:
       - bash: |
           npmLogs=$(System.DefaultWorkingDirectory)/${{ parameters.clusterName }}_npmLogs_Attempt_#$(System.StageAttempt)
           mkdir -p $npmLogs
-          cp ./kubeconfig $npmLogs/kubeconfig
 
           kubectl get pods -n kube-system | grep npm
           npmPodList=`kubectl get pods -n kube-system | grep npm | awk '{print $1}'`
