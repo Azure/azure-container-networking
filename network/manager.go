@@ -156,7 +156,7 @@ func (nm *networkManager) restore(isRehydrationRequired bool) error {
 		if err == nil {
 			rebootTime, err := platform.GetLastRebootTime()
 			if err != nil {
-				logger.Info("Failed to query last reboot time", zap.Error(err))
+				logger.Error("Failed to query last reboot time", zap.Error(err))
 			}
 			logger.Info("reboot time, store mod time", zap.Any("rebootTime", rebootTime), zap.Any("modTime", modTime))
 			if err == nil && rebootTime.After(modTime) {
