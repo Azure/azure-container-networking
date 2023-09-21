@@ -12,12 +12,8 @@ import (
 	"strings"
 	"time"
 
-	zaplog "github.com/Azure/azure-container-networking/cni/log"
 	"github.com/Azure/azure-container-networking/log"
-	"go.uber.org/zap"
 )
-
-var logger = zaplog.CNILogger.With(zap.String("component", "platform-linux"))
 
 const (
 	// CNMRuntimePath is the path where CNM state files are stored.
