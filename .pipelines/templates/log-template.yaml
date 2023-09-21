@@ -9,6 +9,116 @@
 # go through TSG and see what are the standard outputs that are useful
 ## Seems like I could copy over the complete file directory to get the logs
 
+# Found a thing call node network config https://eng.ms/docs/cloud-ai-platform/azure-core/azure-networking/sdn-dbansal/azure-container-networking/azure-container-networking-tsgs/tsgs/aks/nnc
+# Should we add it? What uses does it have?
 
+parameters:
+  clusterName: ""
+  logType: "failure"
+  os: ""
+
+steps:
+  - task: AzureCLI@1
+    inputs:
+      azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+      scriptLocation: "inlineScript"
+      scriptType: "bash"
+      addSpnToEnvironment: true
+      inlineScript: |
+          set -e
+          make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
+
+          acnLogs=$(System.DefaultWorkingDirectory)/${{ parameters.clusterName }}_${{ parameters.logType }}_Attempt_#$(System.StageAttempt)
+          mkdir -p $acnLogs
+          echo Root Directory created: $acnLogs
+          echo "##vso[task.setvariable variable=acnLogs]$acnLogs"
+
+          kubectl get pods -n kube-system -owide -sort-by=.spec.nodeName
+          podList=`kubectl get pods -n kube-system --no-headers --sort-by=.spec.nodeName | awk '{print $1}'`
+          # capture all logs
+          mkdir -p $acnLogs/kube-system
+          echo Directory created: $acnLogs/kube-system
+          for pod in $podList; do
+            kubectl logs -n kube-system $pod > $acnLogs/kube-system/$pod-logs.txt
+            echo $acnLogs/kube-system/$pod-logs.txt
+          done
+      displayName: Log Cluster
+      condition: always()
+
+  - bash: |
+      kubectl get ds -A -owide
+      echo Capture daemonset images being used
+      dsList=`kubectl get ds -A | grep kube-system | awk '{print $2}'`
+      for ds in $dsList; do
+        echo $ds
+        kubectl describe ds -n kube-system $ds | grep Image
+      done
+    displayName: Daemonset Images
+    condition: always()
+
+  - bash: |
+      kubectl get deploy -A -owide
+      echo Capture deployment images being used
+      deployList=`kubectl get deploy -A | grep kube-system | awk '{print $2}'`
+      for deploy in $deployList; do
+        echo $deploy
+        kubectl describe deploy -n kube-system $deploy | grep Image
+      done
+    displayName: Deployment Images
+    condition: always()
+#gather IPAM, CNS, CNI from var/logs | c:\k
+  - ${{ if eq(parameters.os, 'linux') }}:
+    - bash: |
+        echo Ensure that privileged pod exists on each node
+        kubectl apply -f test/integration/manifests/load/privileged-daemonset.yaml
+        kubectl rollout status ds -n kube-system privileged-daemonset
+
+        kubectl get pods -n kube-system -l os=linux -owide --sort-by=.spec.nodeName
+        echo Capture logs from each linux node. Files located in var/logs
+        # This requires that a privileged pod is up and running to access
+
+        podList=`kubectl get pods -n kube-system -l os=linux -owide --sort-by=.spec.nodeName | grep privileged | awk '{print $1}'`
+        for pod in $podList; do
+          output=`kubectl exec -i -n kube-system $pod -- ls /var/log/ | grep azure-`
+          node=`kubectl get pod -n kube-system $pod -o custom-columns=NODE:.spec.nodeName,NAME:.metadata.name | grep privileged | awk '{print $1}'`
+          for file in $output; do
+            mkdir -p $(acnLogs)/"$node"_logs
+            echo Directory created: $(acnLogs)/"$node"_logs
+            kubectl exec -i -n kube-system $pod -- cat /var/log/$file > $(acnLogs)/"$node"_logs/$file
+            # May want to rename this output...
+          done
+        done
+      displayName: Linux Logs
+      condition: always()
+
+  - ${{ if eq(parameters.os, 'windows') }}:
+    - bash: |
+        echo Ensure that privileged pod exists on each node
+        kubectl apply -f test/integration/manifests/load/privileged-daemonset-windows.yaml
+        kubectl rollout status ds -n kube-system privileged-daemonset
+
+        kubectl get pods -n kube-system -l os=windows -owide --sort-by=.spec.nodeName
+        echo Capture logs from each windows node. Files located in c:\k
+        # This requires that a privileged pod is up and ready to access
+
+        podList=`kubectl get pods -n kube-system -l os=windows -owide --sort-by=.spec.nodeName | grep privileged | awk '{print $1}'`
+        for pod in $podList; do
+          output=`kubectl exec -i -n kube-system $pod -- powershell "ls ../../k/azure*.log*" | grep azure | awk '{print $6}'`
+          node=`kubectl get pod -n kube-system $pod -o custom-columns=NODE:.spec.nodeName,NAME:.metadata.name | grep privileged | awk '{print $1}'`
+          for file in $output; do
+            mkdir -p $(acnLogs)/"$node"_logs
+            echo Directory created: $(acnLogs)/"$node"_logs
+            kubectl exec -i -n kube-system $pod -- powershell "cat ../../k/$file" > $(acnLogs)/"$node"_logs/$file
+            # May want to rename this output...
+          done
+        done
+      displayName: Windows Logs
+      condition: always()
+
+  - publish: $(System.DefaultWorkingDirectory)/${{ parameters.clusterName }}_${{ parameters.logType }}_Attempt_#$(System.StageAttempt)
+    condition: always()
+    artifact: ${{ parameters.clusterName }}_${{ parameters.logType }}_Attempt_#$(System.StageAttempt)
+    name: acnLogs
+    displayName: Publish Cluster logs
 
 
