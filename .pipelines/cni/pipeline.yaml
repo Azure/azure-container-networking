@@ -166,7 +166,7 @@ stages:
   - template: singletenancy/linux-cniv2-template.yaml
     parameters:
       name: arm_linux_overlay
-      clusterType: overlay-byocni-arm-up
+      clusterType: overlay-byocni-up
       clusterName: arm-cniv2-overlay
       nodeCount: ${LINUX_NODE_COUNT}
       vmSize: Standard_D8ps_v5
