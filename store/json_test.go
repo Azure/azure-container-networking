@@ -49,7 +49,7 @@ func TestKeyValuePairsAreReinstantiatedFromJSONFile(t *testing.T) {
 	defer os.Remove(testFileName)
 
 	// Create the store, initialized using the JSON file.
-	kvs, err := NewJsonFileStore(testFileName, processlock.NewMockFileLock(false), false)
+	kvs, err := NewJsonFileStore(testFileName, processlock.NewMockFileLock(false), nil)
 	if err != nil {
 		t.Fatalf("Failed to create KeyValueStore %v\n", err)
 	}
@@ -74,7 +74,7 @@ func TestKeyValuePairsArePersistedToJSONFile(t *testing.T) {
 	var actualPair string
 
 	// Create the store.
-	kvs, err := NewJsonFileStore(testFileName, processlock.NewMockFileLock(false), false)
+	kvs, err := NewJsonFileStore(testFileName, processlock.NewMockFileLock(false), nil)
 	if err != nil {
 		t.Fatalf("Failed to create KeyValueStore %v\n", err)
 	}
@@ -120,7 +120,7 @@ func TestKeyValuePairsAreWrittenAndReadCorrectly(t *testing.T) {
 	var readValue testType1
 
 	// Create the store.
-	kvs, err := NewJsonFileStore(testFileName, processlock.NewMockFileLock(false), false)
+	kvs, err := NewJsonFileStore(testFileName, processlock.NewMockFileLock(false), nil)
 	if err != nil {
 		t.Fatalf("Failed to create KeyValueStore %v\n", err)
 	}
@@ -155,12 +155,12 @@ func TestKeyValuePairsAreWrittenAndReadCorrectly(t *testing.T) {
 
 // test case for testing newjsonfilestore idempotent
 func TestNewJsonFileStoreIdempotent(t *testing.T) {
-	_, err := NewJsonFileStore(testLockFileName, processlock.NewMockFileLock(false), false)
+	_, err := NewJsonFileStore(testLockFileName, processlock.NewMockFileLock(false), nil)
 	if err != nil {
 		t.Errorf("Failed to initialize store: %v", err)
 	}
 
-	_, err = NewJsonFileStore(testLockFileName, processlock.NewMockFileLock(false), false)
+	_, err = NewJsonFileStore(testLockFileName, processlock.NewMockFileLock(false), nil)
 	if err != nil {
 		t.Errorf("Failed to initialize same store second time: %v", err)
 	}
@@ -177,7 +177,7 @@ func TestLock(t *testing.T) {
 		{
 			name: "Acquire Lock happy path",
 			store: func() KeyValueStore {
-				st, _ := NewJsonFileStore(testFileName, processlock.NewMockFileLock(false), false)
+				st, _ := NewJsonFileStore(testFileName, processlock.NewMockFileLock(false), nil)
 				return st
 			}(),
 			timeoutms: 10000,
@@ -186,7 +186,7 @@ func TestLock(t *testing.T) {
 		{
 			name: "Acquire Lock Fail",
 			store: func() KeyValueStore {
-				st, _ := NewJsonFileStore(testFileName, processlock.NewMockFileLock(true), false)
+				st, _ := NewJsonFileStore(testFileName, processlock.NewMockFileLock(true), nil)
 				return st
 			}(),
 			timeoutms:  10000,
@@ -196,7 +196,7 @@ func TestLock(t *testing.T) {
 		{
 			name: "Acquire Lock timeout error",
 			store: func() KeyValueStore {
-				st, _ := NewJsonFileStore(testFileName, processlock.NewMockFileLock(false), false)
+				st, _ := NewJsonFileStore(testFileName, processlock.NewMockFileLock(false), nil)
 				return st
 			}(),
 			timeoutms:  0,
@@ -223,12 +223,12 @@ func TestLock(t *testing.T) {
 
 // test case for testing newjsonfilestore idempotent
 func TestFileName(t *testing.T) {
-	_, err := NewJsonFileStore("", processlock.NewMockFileLock(false), false)
+	_, err := NewJsonFileStore("", processlock.NewMockFileLock(false), nil)
 	if err == nil {
 		t.Errorf("This should have failed for empty file name")
 	}
 
-	_, err = NewJsonFileStore("test.json", processlock.NewMockFileLock(false), false)
+	_, err = NewJsonFileStore("test.json", processlock.NewMockFileLock(false), nil)
 	if err != nil {
 		t.Fatalf("This should not fail for a non-empty file %v", err)
 	}
