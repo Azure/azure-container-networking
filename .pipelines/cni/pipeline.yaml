@@ -49,8 +49,6 @@ stages:
               os_version: $(os_version)
       - job: containerize_linux_arm64
         displayName: Build Images
-        variables:
-          TAG: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
         pool:
           name: "$(BUILD_POOL_NAME_LINUX_ARM64)"
         strategy:
@@ -196,7 +194,7 @@ stages:
       clusterType: overlay-byocni-up
       clusterName: rdma-cniv2-overlay
       nodeCount: ${LINUX_NODE_COUNT}
-      vmSize: Standard_NC24r*
+      vmSize: Standard_NC24r
       arch: amd64
 
   - stage: delete_resources
@@ -212,6 +210,7 @@ stages:
       - linux_overlay
       - mariner_linux_overlay
       - arm_linux_overlay
+      - rdma_linux_overlay
       - setup
     variables:
       commitID: $[ stagedependencies.setup.env.outputs['SetEnvVars.commitID'] ]
@@ -243,6 +242,9 @@ stages:
             arm_linux_overlay:
               name: arm_linux_overlay
               clusterName: arm-cniv2-overlay
+            rdma_linux_overlay:
+              name: rdma_linux_overlay
+              clusterName: rdma-cniv2-overlay
         steps:
           - task: AzureCLI@1
             inputs:
