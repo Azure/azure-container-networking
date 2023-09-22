@@ -87,7 +87,7 @@ type EndpointInfo struct {
 	VnetCidrs                string
 	ServiceCidrs             string
 	NATInfo                  []policy.NATInfo
-	AddressType              string
+	NICType                  string
 	IsDefaultInterface       bool
 }
 
@@ -110,7 +110,7 @@ type InterfaceInfo struct {
 	IPAddress          []net.IPNet
 	Gateways           []net.IP
 	Routes             []RouteInfo
-	AddressType        string
+	NICType            string
 	IsDefaultInterface bool
 }
 
