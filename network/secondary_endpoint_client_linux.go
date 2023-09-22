@@ -56,7 +56,7 @@ func (client *SecondaryEndpointClient) AddEndpoints(epInfo *EndpointInfo) error 
 		Name:               iface.Name,
 		MacAddress:         epInfo.MacAddress,
 		IPAddress:          epInfo.IPAddresses,
-		AddressType:        epInfo.AddressType,
+		NICType:            epInfo.NICType,
 		IsDefaultInterface: epInfo.IsDefaultInterface,
 	}
 
@@ -68,14 +68,6 @@ func (client *SecondaryEndpointClient) AddEndpointRules(_ *EndpointInfo) error {
 }
 
 func (client *SecondaryEndpointClient) DeleteEndpointRules(ep *endpoint) {
-	// ip route del <multitenant ip> dev <ethX>
-	// Deleting the route set up for routing the incoming packets to pod
-	for ifName, ifInfo := range ep.SecondaryInterfaces {
-		log.Printf("[net] deleting routes on %s: %+v", ifName, ifInfo.Routes)
-		if err := deleteRoutes(client.netlink, client.netioshim, ifName, ifInfo.Routes); err != nil {
-			log.Printf("[net] Failed to delete routes %+v on %s: %v", ifInfo.Routes, ifName, err)
-		}
-	}
 }
 
 func (client *SecondaryEndpointClient) MoveEndpointsToContainerNS(epInfo *EndpointInfo, nsID uintptr) error {
@@ -90,8 +82,11 @@ func (client *SecondaryEndpointClient) MoveEndpointsToContainerNS(epInfo *Endpoi
 
 func (client *SecondaryEndpointClient) SetupContainerInterfaces(epInfo *EndpointInfo) error {
 	log.Printf("[net] Setting link %v state up.", epInfo.IfName)
+	if err := client.netlink.SetLinkState(epInfo.IfName, true); err != nil {
+		return newErrorSecondaryEndpointClient(err)
+	}
 
-	return client.netlink.SetLinkState(epInfo.IfName, true)
+	return nil
 }
 
 func (client *SecondaryEndpointClient) ConfigureContainerInterfacesAndRoutes(epInfo *EndpointInfo) error {
@@ -105,35 +100,19 @@ func (client *SecondaryEndpointClient) ConfigureContainerInterfacesAndRoutes(epI
 	}
 
 	if epInfo.IsDefaultInterface {
-		// add route for virtualgwip
-		// ip route add 169.254.1.1/32 dev ethX
-		virtualGwIP, virtualGwNet, _ := net.ParseCIDR(virtualGwIPString)
-		routeInfo := RouteInfo{
-			Dst:   *virtualGwNet,
-			Scope: netlink.RT_SCOPE_LINK,
-		}
-		if err := addRoutes(client.netlink, client.netioshim, epInfo.IfName, []RouteInfo{routeInfo}); err != nil {
-			return newErrorSecondaryEndpointClient(err)
-		}
-
-		// TO-DO: will default routes need to be cleaned up even though they're added in pod netns?
-		// looks like interface goes back to default state (down without routes) after deleting pod
-		ifInfo.Routes = append(ifInfo.Routes, routeInfo)
-
-		// ip route add default via 169.254.1.1 dev ethX
+		// ip route add default via 0.0.0.0 dev ethX
 		_, defaultIPNet, _ := net.ParseCIDR(defaultGwCidr)
 		dstIP := net.IPNet{IP: net.ParseIP(defaultGw), Mask: defaultIPNet.Mask}
-		routeInfo = RouteInfo{
+		routeInfo := RouteInfo{
 			Dst: dstIP,
-			Gw:  virtualGwIP,
 		}
 		if err := addRoutes(client.netlink, client.netioshim, epInfo.IfName, []RouteInfo{routeInfo}); err != nil {
 			return newErrorSecondaryEndpointClient(err)
 		}
 
-		// TO-DO: will default routes need to be cleaned up even though they're added in pod netns?
-		// looks like interface goes back to default state (down without routes) after deleting pod
 		ifInfo.Routes = append(ifInfo.Routes, routeInfo)
+
+		return nil
 	}
 
 	if err := addRoutes(client.netlink, client.netioshim, epInfo.IfName, epInfo.Routes); err != nil {
