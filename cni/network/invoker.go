@@ -37,7 +37,7 @@ type IPAMAddResult struct {
 
 type CNIResult struct {
 	ipResult           *cniTypesCurr.Result
-	addressType        string
+	nicType            string
 	macAddress         net.HardwareAddr
 	isDefaultInterface bool
 }

@@ -44,7 +44,7 @@ type IPResultInfo struct {
 	hostSubnet         string
 	hostPrimaryIP      string
 	hostGateway        string
-	addressType        string
+	nicType            string
 	macAddress         string
 	isDefaultInterface bool
 	routes             []cns.Route
