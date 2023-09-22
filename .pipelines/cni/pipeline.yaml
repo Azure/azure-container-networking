@@ -193,7 +193,7 @@ stages:
       name: rdma_linux_overlay
       clusterType: overlay-byocni-up
       clusterName: rdma-cniv2-overlay
-      nodeCount: ${LINUX_NODE_COUNT}
+      nodeCount: 2
       vmSize: Standard_NC24r
       arch: amd64
 
