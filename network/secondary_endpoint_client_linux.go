@@ -94,6 +94,11 @@ func (client *SecondaryEndpointClient) SetupContainerInterfaces(epInfo *Endpoint
 }
 
 func (client *SecondaryEndpointClient) ConfigureContainerInterfacesAndRoutes(epInfo *EndpointInfo) error {
+	log.Printf("[net] Setting link %v state up.", epInfo.IfName)
+	if err := client.netlink.SetLinkState(epInfo.IfName, true); err != nil {
+		return newErrorSecondaryEndpointClient(err)
+	}
+
 	if err := client.netUtilsClient.AssignIPToInterface(epInfo.IfName, epInfo.IPAddresses); err != nil {
 		return newErrorSecondaryEndpointClient(err)
 	}
