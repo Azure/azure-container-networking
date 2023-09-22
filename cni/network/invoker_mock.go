@@ -58,7 +58,7 @@ func (invoker *MockIpamInvoker) Add(opt IPAMAddConfig) (ipamAddResult IPAMAddRes
 		ipResult: &current.Result{
 			IPs: []*current.IPConfig{{Address: ipnet, Gateway: gwIP}},
 		},
-		addressType: cns.Default,
+		nicType: cns.Default,
 	}
 	invoker.ipMap[ipnet.String()] = true
 	if invoker.v6Fail {
