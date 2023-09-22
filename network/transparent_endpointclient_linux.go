@@ -277,6 +277,8 @@ func (client *TransparentEndpointClient) ConfigureContainerInterfacesAndRoutes(e
 		if epInfo.IPV6Mode != "" {
 			return client.setIPV6NeighEntry()
 		}
+
+		return nil
 	}
 
 	if err := addRoutes(client.netlink, client.netioshim, client.containerVethName, epInfo.Routes); err != nil {
