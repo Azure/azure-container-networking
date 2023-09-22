@@ -19,7 +19,7 @@ parameters:
 # + The azure-vnet state should be validated with that of CNI state.
 # + Pods should have ips assigned and connectivity/datapath test should be present.
 # Windows
-# - The HNS state should be validated with that of CNI state.
+# + The HNS state should be validated with that of CNI state.
 
 
 stages:
@@ -126,9 +126,18 @@ stages:
               os: ${{ parameters.os }}
               cni: cniv1
               restartCase: "true"
+      - job: restart_hns
+        displayName: "Restart and Validate HNS"
+        dependsOn: restart_nodes
+        condition: and( succeeded(), ${{ eq(parameters.os, 'windows') }} )
+        steps:
+          - template: ../load-test-templates/restart-hns-template.yaml
+            parameters:
+              clusterName: ${{ parameters.clusterName }}-$(commitID)
+              cni: cniv1
       - job: recover
         displayName: "Recover Resources"
-        dependsOn: restart_nodes
+        dependsOn: restart_hns
         steps:
           - task: AzureCLI@1
             inputs:

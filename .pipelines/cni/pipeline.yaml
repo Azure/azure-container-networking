@@ -224,9 +224,9 @@ stages:
             cilium_overlay:
               name: cilium_overlay
               clusterName: cilium-overlay
-            win_cniv1:
-              name: win_cniv1
-              clusterName: win-cniv1
+            win22-cniv1:
+              name: win22-cniv1
+              clusterName: win22-cniv1
             linux_cniv1:
               name: linux_cniv1
               clusterName: linux-cniv1
