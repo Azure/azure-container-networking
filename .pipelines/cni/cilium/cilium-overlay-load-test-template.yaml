@@ -84,6 +84,7 @@ stages:
               os: linux
               iterations: ${ITERATIONS_CILIUM}
               nodeCount: ${{ parameters.nodeCount }}
+              cni: cilium
           - template: ../load-test-templates/validate-state-template.yaml
             parameters:
               clusterName: ${{ parameters.clusterName }}-$(commitID)
@@ -96,7 +97,8 @@ stages:
               clusterName: ${{ parameters.clusterName }}-$(commitID)
               os: ${{ parameters.os }}
               nodeCount: ${{ parameters.nodeCount }}
-              scaleup: ${SCALEUP_CILIUM}
+              scaleup: ${CILIUM_SCALEUP}
+              cni: cilium
           - template: ../load-test-templates/validate-state-template.yaml
             parameters:
               clusterName: ${{ parameters.clusterName }}-$(commitID)
@@ -112,6 +114,7 @@ stages:
               os: ${{ parameters.os }}
               scaleup: ${CILIUM_SCALEUP}
               nodeCount: ${{ parameters.nodeCount }}
+              cni: cilium
       - job: cni_tests
         displayName: "Cilium Test"
         dependsOn: restart_cns
@@ -157,3 +160,4 @@ stages:
             parameters:
               clusterName: ${{ parameters.clusterName }}-$(commitID)
               os: linux
+              cni: cilium

@@ -3,6 +3,7 @@ parameters:
   nodeCount: 10
   scaleup: 100
   os: "linux"
+  cni: ""
 
 steps:
   - task: AzureCLI@1
@@ -36,3 +37,4 @@ steps:
       clusterName: ${{ parameters.clusterName }}
       logType: restartNode
       os: ${{ parameters.os }}
+      cni: ${{ parameters.cni }}

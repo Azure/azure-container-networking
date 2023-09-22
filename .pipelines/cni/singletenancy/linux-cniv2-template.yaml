@@ -108,6 +108,7 @@ stages:
               os: ${{ parameters.os }}
               iterations: ${ITERATIONS_LINUX}
               nodeCount: ${{ parameters.nodeCount }}
+              cni: cniv2
           - template: ../load-test-templates/validate-state-template.yaml
             parameters:
               clusterName: ${{ parameters.clusterName }}-$(commitID)
@@ -122,7 +123,8 @@ stages:
               clusterName: ${{ parameters.clusterName }}-$(commitID)
               os: ${{ parameters.os }}
               nodeCount: ${{ parameters.nodeCount }}
-              scaleup: ${SCALEUP_LINUX}
+              scaleup: ${LINUX_SCALEUP}
+              cni: cniv2
           - template: ../load-test-templates/validate-state-template.yaml
             parameters:
               clusterName: ${{ parameters.clusterName }}-$(commitID)
@@ -185,3 +187,4 @@ stages:
             parameters:
               clusterName: ${{ parameters.clusterName }}-$(commitID)
               os: ${{ parameters.os }}
+              cni: ${{ parameters.cni }}

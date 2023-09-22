@@ -39,3 +39,4 @@ steps:
       clusterName: ${{ parameters.clusterName }}
       logType: restartCNS
       os: ${{ parameters.os }}
+      cni: ${{ parameters.cni }}

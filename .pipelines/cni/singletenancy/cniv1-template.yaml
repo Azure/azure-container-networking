@@ -105,6 +105,7 @@ stages:
               os: ${{ parameters.os }}
               iterations: ${{ parameters.iterations }}
               nodeCount: ${{ parameters.nodeCount }}
+              cni: cniv1
           - template: ../load-test-templates/validate-state-template.yaml
             parameters:
               clusterName: ${{ parameters.clusterName }}-$(commitID)
@@ -120,6 +121,7 @@ stages:
               os: ${{ parameters.os }}
               nodeCount: ${{ parameters.nodeCount }}
               scaleup: ${{ parameters.scaleup }}
+              cni: cniv1
           - template: ../load-test-templates/validate-state-template.yaml
             parameters:
               clusterName: ${{ parameters.clusterName }}-$(commitID)

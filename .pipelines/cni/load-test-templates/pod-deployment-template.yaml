@@ -4,6 +4,7 @@ parameters:
   os: ""
   iterations: 4
   nodeCount: 10
+  cni: ""
 
 steps:
   - task: AzureCLI@1
@@ -26,3 +27,4 @@ steps:
       clusterName: ${{ parameters.clusterName }}
       logType: scaleTest
       os: ${{ parameters.os }}
+      cni: ${{ parameters.cni }}
