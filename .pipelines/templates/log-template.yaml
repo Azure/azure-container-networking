@@ -33,8 +33,8 @@ steps:
           echo Root Directory created: $acnLogs
           echo "##vso[task.setvariable variable=acnLogs]$acnLogs"
 
-          kubectl get pods -n kube-system -owide -sort-by=.spec.nodeName
-          podList=`kubectl get pods -n kube-system --no-headers --sort-by=.spec.nodeName | awk '{print $1}'`
+          kubectl get pods -n kube-system -owide
+          podList=`kubectl get pods -n kube-system --no-headers | awk '{print $1}'`
           # capture all logs
           mkdir -p $acnLogs/kube-system
           echo Directory created: $acnLogs/kube-system
@@ -66,18 +66,18 @@ steps:
       done
     displayName: Deployment Images
     condition: always()
-#gather IPAM, CNS, CNI from var/logs | c:\k
+
   - ${{ if eq(parameters.os, 'linux') }}:
     - bash: |
         echo Ensure that privileged pod exists on each node
         kubectl apply -f test/integration/manifests/load/privileged-daemonset.yaml
         kubectl rollout status ds -n kube-system privileged-daemonset
 
-        kubectl get pods -n kube-system -l os=linux -owide --sort-by=.spec.nodeName
+        kubectl get pods -n kube-system -l os=linux -owide
         echo Capture logs from each linux node. Files located in var/logs
         # This requires that a privileged pod is up and running to access
 
-        podList=`kubectl get pods -n kube-system -l os=linux -owide --sort-by=.spec.nodeName | grep privileged | awk '{print $1}'`
+        podList=`kubectl get pods -n kube-system -l os=linux -owide | grep privileged | awk '{print $1}'`
         for pod in $podList; do
           output=`kubectl exec -i -n kube-system $pod -- ls /var/log/ | grep azure-`
           node=`kubectl get pod -n kube-system $pod -o custom-columns=NODE:.spec.nodeName,NAME:.metadata.name | grep privileged | awk '{print $1}'`
@@ -97,11 +97,11 @@ steps:
         kubectl apply -f test/integration/manifests/load/privileged-daemonset-windows.yaml
         kubectl rollout status ds -n kube-system privileged-daemonset
 
-        kubectl get pods -n kube-system -l os=windows -owide --sort-by=.spec.nodeName
+        kubectl get pods -n kube-system -l os=windows -owide
         echo Capture logs from each windows node. Files located in c:\k
         # This requires that a privileged pod is up and ready to access
 
-        podList=`kubectl get pods -n kube-system -l os=windows -owide --sort-by=.spec.nodeName | grep privileged | awk '{print $1}'`
+        podList=`kubectl get pods -n kube-system -l os=windows -owide | grep privileged | awk '{print $1}'`
         for pod in $podList; do
           output=`kubectl exec -i -n kube-system $pod -- powershell "ls ../../k/azure*.log*" | grep azure | awk '{print $6}'`
           node=`kubectl get pod -n kube-system $pod -o custom-columns=NODE:.spec.nodeName,NAME:.metadata.name | grep privileged | awk '{print $1}'`
@@ -113,6 +113,26 @@ steps:
           done
         done
       displayName: Windows Logs
+      condition: always()
+
+  - ${{ if eq(parameters.logType, 'failure') }}:
+    - bash: |
+        kubectl get pods -n kube-system -o custom-columns=NAME:.metadata.name,STATUS:.status.phase,NODE:.spec.nodeName
+        podList=`kubectl get pods -n kube-system -o custom-columns=NAME:.metadata.name,STATUS:.status.phase,NODE:.spec.nodeName --no-headers | grep -v Running | awk '{print $1}'`
+        array=($podList)
+
+        if [ -z ${array[0]} ]; then
+          echo There are no kube-system pods in a non-ready state.
+        else
+          mkdir -p $acnLogs/non-ready
+          echo Directory created: $acnLogs/non-ready
+          echo Capturing failed pods
+          for pod in $podList; do
+            kubectl describe pod -n kube-system $pod > $acnLogs/non-ready/$pod.txt
+            echo $acnLogs/non-ready/$pod.txt
+          done
+        fi
+      displayName: Failure Logs
       condition: always()
 
   - publish: $(System.DefaultWorkingDirectory)/${{ parameters.clusterName }}_${{ parameters.logType }}_Attempt_#$(System.StageAttempt)
