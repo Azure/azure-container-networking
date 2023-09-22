@@ -18,7 +18,7 @@ var (
 	restartNetworkCmd      = []string{"bash", "-c", "chroot /host /bin/bash -c systemctl restart systemd-networkd"}
 	cnsManagedStateFileCmd = []string{"bash", "-c", "cat /var/run/azure-cns/azure-endpoints.json"}
 	azureVnetStateFileCmd  = []string{"bash", "-c", "cat /var/run/azure-vnet.json"}
-	azureVnetStateIpamCmd  = []string{"bash", "-c", "cat /var/run/azure-vnet-ipam.json"}
+	azureVnetIpamStateCmd  = []string{"bash", "-c", "cat /var/run/azure-vnet-ipam.json"}
 	ciliumStateFileCmd     = []string{"bash", "-c", "cilium endpoint list -o json"}
 	cnsLocalCacheCmd       = []string{"curl", "localhost:10090/debug/ipaddresses", "-d", "{\"IPConfigStateFilter\":[\"Assigned\"]}"}
 )
@@ -39,7 +39,7 @@ var linuxChecksMap = map[string][]check{
 	},
 	"cniv1": {
 		{"azure-vnet", azureVnetStateIps, privilegedLabelSelector, privilegedNamespace, azureVnetStateFileCmd},
-		{"azure-vnet-ipam", azureVnetStateIpamIps, privilegedLabelSelector, privilegedNamespace, azureVnetStateIpamCmd},
+		{"azure-vnet-ipam", azureVnetIpamStateIps, privilegedLabelSelector, privilegedNamespace, azureVnetIpamStateCmd},
 	},
 	"cniv2": {
 		{"cns cache", cnsCacheStateFileIps, cnsLabelSelector, privilegedNamespace, cnsLocalCacheCmd},
@@ -198,7 +198,7 @@ func azureVnetStateIps(result []byte) (map[string]string, error) {
 	return azureVnetPodIps, nil
 }
 
-func azureVnetStateIpamIps(result []byte) (map[string]string, error) {
+func azureVnetIpamStateIps(result []byte) (map[string]string, error) {
 	var azureVnetIpamResult AzureVnetIpam
 	err := json.Unmarshal(result, &azureVnetIpamResult)
 	if err != nil {
