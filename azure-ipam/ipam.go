@@ -181,7 +181,6 @@ func (p *IPAMPlugin) CmdDel(args *cniSkel.CmdArgs) error {
 			}
 			err = p.cnsClient.ReleaseIPAddress(context.TODO(), ipconfigReq)
 
-			// if the old API fails as well then we just return the error
 			if err != nil {
 				if errors.As(err, &connectionErr) {
 					p.logger.Info("Failed to release IP address from CNS due to connection failure, saving to watcher to delete")
