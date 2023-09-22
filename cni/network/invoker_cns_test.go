@@ -270,15 +270,15 @@ func TestCNSIPAMInvoker_Add_Overlay(t *testing.T) {
 										PrimaryIP: "10.0.0.1",
 										Subnet:    "10.0.0.0/24",
 									},
-									AddressType: cns.Default,
+									NICType: cns.Default,
 								},
 								{
 									PodIPConfig: cns.IPSubnet{
 										IPAddress:    "20.240.1.242",
 										PrefixLength: 24,
 									},
-									AddressType: cns.Secondary,
-									MacAddress:  "12:34:56:78:9a:bc",
+									NICType:    cns.Secondary,
+									MacAddress: "12:34:56:78:9a:bc",
 								},
 							},
 							Response: cns.Response{

@@ -103,7 +103,7 @@ func (invoker *AzureIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, er
 		}
 	}
 
-	addResult.defaultCniResult = CNIResult{ipResult: ipv4Result, addressType: cns.Default, isDefaultInterface: true}
+	addResult.defaultCniResult = CNIResult{ipResult: ipv4Result, nicType: cns.Default, isDefaultInterface: true}
 
 	return addResult, err
 }

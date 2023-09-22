@@ -159,7 +159,7 @@ func (m *MockMultitenancy) GetAllNetworkContainers(
 		ipamResults[i].ncResponse = &cnsResponses[i]
 		ipamResults[i].hostSubnetPrefix = ipNets[i]
 		ipamResults[i].defaultCniResult.ipResult = convertToCniResult(ipamResults[i].ncResponse, ifName)
-		ipamResults[i].defaultCniResult.addressType = cns.Default
+		ipamResults[i].defaultCniResult.nicType = cns.Default
 	}
 
 	return ipamResults, nil

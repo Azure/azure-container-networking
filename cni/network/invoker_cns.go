@@ -135,7 +135,7 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 			hostSubnet:         response.PodIPInfo[i].HostPrimaryIPInfo.Subnet,
 			hostPrimaryIP:      response.PodIPInfo[i].HostPrimaryIPInfo.PrimaryIP,
 			hostGateway:        response.PodIPInfo[i].HostPrimaryIPInfo.Gateway,
-			addressType:        response.PodIPInfo[i].AddressType,
+			nicType:            response.PodIPInfo[i].NICType,
 			macAddress:         response.PodIPInfo[i].MacAddress,
 			isDefaultInterface: response.PodIPInfo[i].IsDefaultInterface,
 			routes:             response.PodIPInfo[i].Routes,
@@ -145,7 +145,7 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 			zap.Any("ipinfo", info),
 			zap.Any("podInfo", podInfo))
 
-		switch info.addressType {
+		switch info.nicType {
 		case cns.Secondary:
 			ip, ipnet, err := response.PodIPInfo[i].PodIPConfig.GetIPNet()
 			if ip == nil {
@@ -174,7 +174,7 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 						},
 					},
 				},
-				addressType:        cns.Secondary,
+				nicType:            cns.Secondary,
 				macAddress:         macAddress,
 				isDefaultInterface: info.isDefaultInterface,
 			}
