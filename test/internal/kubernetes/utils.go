@@ -416,3 +416,18 @@ func NamespaceExists(ctx context.Context, clientset *kubernetes.Clientset, names
 func CreateLabelSelector(key string, selector *string) string {
 	return fmt.Sprintf("%s=%s", key, *selector)
 }
+
+func HasWindowsNodes(ctx context.Context, clientset *kubernetes.Clientset) (bool, error) {
+	nodes, err := GetNodeList(ctx, clientset)
+	if err != nil {
+		return false, errors.Wrapf(err, "failed to get node list")
+	}
+
+	for index := range nodes.Items {
+		node := nodes.Items[index]
+		if node.Status.NodeInfo.OperatingSystem == string(corev1.Windows) {
+			return true, nil
+		}
+	}
+	return false, nil
+}

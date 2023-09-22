@@ -21,7 +21,24 @@ import (
 	typedrbacv1 "k8s.io/client-go/kubernetes/typed/rbac/v1"
 )
 
-type cnsScenario struct {
+type CNSScenario string
+
+const (
+	EnvInstallAzilium          CNSScenario = "INSTALL_AZILIUM"
+	EnvInstallAzureVnet        CNSScenario = "INSTALL_AZURE_VNET"
+	EnvInstallOverlay          CNSScenario = "INSTALL_OVERLAY"
+	EnvInstallAzureCNIOverlay  CNSScenario = "INSTALL_AZURE_CNI_OVERLAY"
+	EnvInstallDualStackOverlay CNSScenario = "INSTALL_DUALSTACK_OVERLAY"
+)
+
+type cnsDetails struct {
+	daemonsetPath             string
+	labelSelector             string
+	rolePath                  string
+	roleBindingPath           string
+	clusterRolePath           string
+	clusterRoleBindingPath    string
+	serviceAccountPath        string
 	initContainerArgs         []string
 	volumes                   []corev1.Volume
 	initContainerVolumeMounts []corev1.VolumeMount
@@ -30,21 +47,18 @@ type cnsScenario struct {
 }
 
 const (
-	envTestDropgz              = "TEST_DROPGZ"
-	envCNIDropgzVersion        = "CNI_DROPGZ_VERSION"
-	envCNSVersion              = "CNS_VERSION"
-	EnvInstallCNS              = "INSTALL_CNS"
-	envInstallAzilium          = "INSTALL_AZILIUM"
-	envInstallAzureVnet        = "INSTALL_AZURE_VNET"
-	envInstallOverlay          = "INSTALL_OVERLAY"
-	envInstallAzureCNIOverlay  = "INSTALL_AZURE_CNI_OVERLAY"
-	envInstallDualStackOverlay = "INSTALL_DUALSTACK_OVERLAY"
-	cnsLabelSelector           = "k8s-app=azure-cns"
+	envTestDropgz           = "TEST_DROPGZ"
+	envCNIDropgzVersion     = "CNI_DROPGZ_VERSION"
+	envCNSVersion           = "CNS_VERSION"
+	EnvInstallCNS           = "INSTALL_CNS"
+	cnsLinuxLabelSelector   = "k8s-app=azure-cns"
+	cnsWindowsLabelSelector = "k8s-app=azure-cns-win"
 )
 
 var (
 	ErrUnsupportedCNSScenario = errors.New("unsupported CNS scenario")
 	ErrPathNotFound           = errors.New("failed to get the absolute path to directory")
+	ErrNoCNSScenarioDefined   = errors.New("no CNSScenario set to true as env var")
 )
 
 func MustCreateOrUpdatePod(ctx context.Context, podI typedcorev1.PodInterface, pod corev1.Pod) error {
@@ -209,14 +223,32 @@ func InstallCNSDaemonset(ctx context.Context, clientset *kubernetes.Clientset, l
 	cniDropgzVersion := os.Getenv(envCNIDropgzVersion)
 	cnsVersion := os.Getenv(envCNSVersion)
 
-	cns, err := loadCNSDaemonset(ctx, clientset, cnsVersion, cniDropgzVersion)
+	cnsLinux, cnsLinuxDetails, err := loadCNSDaemonset(ctx, clientset, cnsVersion, cniDropgzVersion, corev1.Linux)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to load CNS daemonset")
+		return nil, errors.Wrap(err, "failed to load linux CNS daemonset")
+	}
+
+	cnsWindows := appsv1.DaemonSet{}
+	cnsWindowsDetails := cnsDetails{}
+	hasWinNodes, err := HasWindowsNodes(ctx, clientset)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to check if cluster has windows nodes")
+	}
+	if hasWinNodes {
+		cnsWindows, cnsWindowsDetails, err = loadCNSDaemonset(ctx, clientset, cnsVersion, cniDropgzVersion, corev1.Windows)
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to load windows CNS daemonset")
+		}
 	}
 
 	cleanupds := func() error {
-		if err := ExportLogsByLabelSelector(ctx, clientset, cns.Namespace, cnsLabelSelector, logDir); err != nil {
-			return errors.Wrapf(err, "failed to export logs by label selector %s", cnsLabelSelector)
+		if err := ExportLogsByLabelSelector(ctx, clientset, cnsLinux.Namespace, cnsLinuxDetails.labelSelector, logDir); err != nil {
+			return errors.Wrapf(err, "failed to export linux logs by label selector %s", cnsLinuxLabelSelector)
+		}
+		if hasWinNodes {
+			if err := ExportLogsByLabelSelector(ctx, clientset, cnsWindows.Namespace, cnsWindowsDetails.labelSelector, logDir); err != nil {
+				return errors.Wrapf(err, "failed to export windows logs by label selector %s", cnsWindowsLabelSelector)
+			}
 		}
 		return nil
 	}
@@ -224,142 +256,215 @@ func InstallCNSDaemonset(ctx context.Context, clientset *kubernetes.Clientset, l
 	return cleanupds, nil
 }
 
-func loadCNSDaemonset(ctx context.Context, clientset *kubernetes.Clientset, cnsVersion, cniDropgzVersion string) (appsv1.DaemonSet, error) {
+func loadCNSDaemonset(ctx context.Context, clientset *kubernetes.Clientset, cnsVersion, cniDropgzVersion string, nodeOS corev1.OSName) (appsv1.DaemonSet, cnsDetails, error) {
 	_, b, _, ok := runtime.Caller(0)
 	if !ok {
-		return appsv1.DaemonSet{}, errors.Wrap(ErrPathNotFound, "could not get path to caller")
+		return appsv1.DaemonSet{}, cnsDetails{}, errors.Wrap(ErrPathNotFound, "could not get path to caller")
 	}
 	basepath := filepath.Dir(b)
 	cnsManifestFolder := path.Join(basepath, "../../integration/manifests/cns")
 	cnsConfigFolder := path.Join(basepath, "../../integration/manifests/cnsconfig")
 
 	// relative cns manifest paths
-	cnsDaemonSetPath := cnsManifestFolder + "/daemonset.yaml"
+	cnsLinuxDaemonSetPath := cnsManifestFolder + "/daemonset-linux.yaml"
+	cnsWindowsDaemonSetPath := cnsManifestFolder + "/daemonset-windows.yaml"
 	cnsClusterRolePath := cnsManifestFolder + "/clusterrole.yaml"
 	cnsClusterRoleBindingPath := cnsManifestFolder + "/clusterrolebinding.yaml"
 	cnsSwiftConfigMapPath := cnsConfigFolder + "/swiftconfigmap.yaml"
 	cnsCiliumConfigMapPath := cnsConfigFolder + "/ciliumconfigmap.yaml"
 	cnsOverlayConfigMapPath := cnsConfigFolder + "/overlayconfigmap.yaml"
-	cnsAzureCNIOverlayConfigMapPath := cnsConfigFolder + "/azurecnioverlayconfigmap.yaml"
+	cnsAzureCNIOverlayLinuxConfigMapPath := cnsConfigFolder + "/azurecnioverlaylinuxconfigmap.yaml"
+	cnsAzureCNIOverlayWindowsConfigMapPath := cnsConfigFolder + "/azurecnioverlaywindowsconfigmap.yaml"
 	cnsRolePath := cnsManifestFolder + "/role.yaml"
 	cnsRoleBindingPath := cnsManifestFolder + "/rolebinding.yaml"
 	cnsServiceAccountPath := cnsManifestFolder + "/serviceaccount.yaml"
 
 	// cns scenario map
-	cnsScenarioMap := map[string]cnsScenario{
-		envInstallAzureVnet: {
-			initContainerArgs: []string{
-				"deploy", "azure-vnet", "-o", "/opt/cni/bin/azure-vnet", "azure-vnet-telemetry",
-				"-o", "/opt/cni/bin/azure-vnet-telemetry", "azure-vnet-ipam", "-o", "/opt/cni/bin/azure-vnet-ipam",
-				"azure-swift.conflist", "-o", "/etc/cni/net.d/10-azure.conflist",
+	cnsScenarioMap := map[CNSScenario]map[corev1.OSName]cnsDetails{
+		EnvInstallAzureVnet: {
+			corev1.Linux: {
+				daemonsetPath:          cnsLinuxDaemonSetPath,
+				labelSelector:          cnsLinuxLabelSelector,
+				rolePath:               cnsRolePath,
+				roleBindingPath:        cnsRoleBindingPath,
+				clusterRolePath:        cnsClusterRolePath,
+				clusterRoleBindingPath: cnsClusterRoleBindingPath,
+				serviceAccountPath:     cnsServiceAccountPath,
+				initContainerArgs: []string{
+					"deploy", "azure-vnet", "-o", "/opt/cni/bin/azure-vnet", "azure-vnet-telemetry",
+					"-o", "/opt/cni/bin/azure-vnet-telemetry", "azure-vnet-ipam", "-o", "/opt/cni/bin/azure-vnet-ipam",
+					"azure-swift.conflist", "-o", "/etc/cni/net.d/10-azure.conflist",
+				},
+				configMapPath: cnsSwiftConfigMapPath,
 			},
-			configMapPath: cnsSwiftConfigMapPath,
 		},
-		envInstallAzilium: {
-			initContainerArgs: []string{
-				"deploy", "azure-ipam", "-o", "/opt/cni/bin/azure-ipam",
+		EnvInstallAzilium: {
+			corev1.Linux: {
+				daemonsetPath:          cnsLinuxDaemonSetPath,
+				labelSelector:          cnsLinuxLabelSelector,
+				rolePath:               cnsRolePath,
+				roleBindingPath:        cnsRoleBindingPath,
+				clusterRolePath:        cnsClusterRolePath,
+				clusterRoleBindingPath: cnsClusterRoleBindingPath,
+				serviceAccountPath:     cnsServiceAccountPath,
+				initContainerArgs: []string{
+					"deploy", "azure-ipam", "-o", "/opt/cni/bin/azure-ipam",
+				},
+				configMapPath: cnsCiliumConfigMapPath,
 			},
-			configMapPath: cnsCiliumConfigMapPath,
 		},
-		envInstallOverlay: {
-			initContainerArgs: []string{"deploy", "azure-ipam", "-o", "/opt/cni/bin/azure-ipam"},
-			configMapPath:     cnsOverlayConfigMapPath,
-		},
-		envInstallAzureCNIOverlay: {
-			initContainerArgs: []string{
-				"deploy", "azure-vnet", "-o", "/opt/cni/bin/azure-vnet", "azure-vnet-telemetry", "-o", "/opt/cni/bin/azure-vnet-telemetry",
+		EnvInstallOverlay: {
+			corev1.Linux: {
+				daemonsetPath:          cnsLinuxDaemonSetPath,
+				labelSelector:          cnsLinuxLabelSelector,
+				rolePath:               cnsRolePath,
+				roleBindingPath:        cnsRoleBindingPath,
+				clusterRolePath:        cnsClusterRolePath,
+				clusterRoleBindingPath: cnsClusterRoleBindingPath,
+				serviceAccountPath:     cnsServiceAccountPath,
+				initContainerArgs: []string{
+					"deploy", "azure-ipam", "-o", "/opt/cni/bin/azure-ipam",
+				},
+				configMapPath: cnsOverlayConfigMapPath,
 			},
-			volumes:                   volumesForAzureCNIOverlay(),
-			initContainerVolumeMounts: dropgzVolumeMountsForAzureCNIOverlay(),
-			containerVolumeMounts:     cnsVolumeMountsForAzureCNIOverlay(),
-			configMapPath:             cnsAzureCNIOverlayConfigMapPath,
 		},
-		envInstallDualStackOverlay: {
-			initContainerArgs: []string{
-				"deploy", "azure-vnet", "-o", "/opt/cni/bin/azure-vnet",
-				"azure-vnet-telemetry", "-o", "/opt/cni/bin/azure-vnet-telemetry", "azure-vnet-ipam", "-o",
-				"/opt/cni/bin/azure-vnet-ipam", "azure-swift-overlay-dualstack.conflist", "-o", "/etc/cni/net.d/10-azure.conflist",
+		EnvInstallAzureCNIOverlay: {
+			corev1.Linux: {
+				daemonsetPath:          cnsLinuxDaemonSetPath,
+				labelSelector:          cnsLinuxLabelSelector,
+				rolePath:               cnsRolePath,
+				roleBindingPath:        cnsRoleBindingPath,
+				clusterRolePath:        cnsClusterRolePath,
+				clusterRoleBindingPath: cnsClusterRoleBindingPath,
+				serviceAccountPath:     cnsServiceAccountPath,
+				initContainerArgs: []string{
+					"deploy", "azure-vnet", "-o", "/opt/cni/bin/azure-vnet", "azure-vnet-telemetry", "-o", "/opt/cni/bin/azure-vnet-telemetry",
+				},
+				volumes:                   volumesForAzureCNIOverlayLinux(),
+				initContainerVolumeMounts: dropgzVolumeMountsForAzureCNIOverlayLinux(),
+				containerVolumeMounts:     cnsVolumeMountsForAzureCNIOverlayLinux(),
+				configMapPath:             cnsAzureCNIOverlayLinuxConfigMapPath,
 			},
-			configMapPath: cnsSwiftConfigMapPath,
+			corev1.Windows: {
+				daemonsetPath:          cnsWindowsDaemonSetPath,
+				labelSelector:          cnsWindowsLabelSelector,
+				rolePath:               cnsRolePath,
+				roleBindingPath:        cnsRoleBindingPath,
+				clusterRolePath:        cnsClusterRolePath,
+				clusterRoleBindingPath: cnsClusterRoleBindingPath,
+				serviceAccountPath:     cnsServiceAccountPath,
+				initContainerArgs: []string{
+					"deploy", "azure-vnet.exe", "-o", "/k/azurecni/bin/azure-vnet.exe",
+				},
+				volumes:                   volumesForAzureCNIOverlayWindows(),
+				initContainerVolumeMounts: dropgzVolumeMountsForAzureCNIOverlayWindows(),
+				containerVolumeMounts:     cnsVolumeMountsForAzureCNIOverlayWindows(),
+				configMapPath:             cnsAzureCNIOverlayWindowsConfigMapPath,
+			},
+		},
+		EnvInstallDualStackOverlay: {
+			corev1.Linux: {
+				daemonsetPath:          cnsLinuxDaemonSetPath,
+				labelSelector:          cnsLinuxLabelSelector,
+				rolePath:               cnsRolePath,
+				roleBindingPath:        cnsRoleBindingPath,
+				clusterRolePath:        cnsClusterRolePath,
+				clusterRoleBindingPath: cnsClusterRoleBindingPath,
+				serviceAccountPath:     cnsServiceAccountPath,
+				initContainerArgs: []string{
+					"deploy", "azure-vnet", "-o", "/opt/cni/bin/azure-vnet",
+					"azure-vnet-telemetry", "-o", "/opt/cni/bin/azure-vnet-telemetry", "azure-vnet-ipam", "-o",
+					"/opt/cni/bin/azure-vnet-ipam", "azure-swift-overlay-dualstack.conflist", "-o", "/etc/cni/net.d/10-azure.conflist",
+				},
+				configMapPath: cnsSwiftConfigMapPath,
+			},
 		},
 	}
 
-	cns, err := MustParseDaemonSet(cnsDaemonSetPath)
+	cns, cnsScenarioDetails, err := setupCNSDaemonset(ctx, clientset, cnsVersion, cniDropgzVersion, cnsScenarioMap, nodeOS)
 	if err != nil {
-		return appsv1.DaemonSet{}, errors.Wrapf(err, "failed to parse daemonset")
+		return appsv1.DaemonSet{}, cnsDetails{}, errors.Wrap(err, "failed to setup cns daemonset")
 	}
 
-	image, _ := ParseImageString(cns.Spec.Template.Spec.Containers[0].Image)
-	cns.Spec.Template.Spec.Containers[0].Image = GetImageString(image, cnsVersion)
-
-	log.Printf("Checking environment scenario")
-	cns = loadDropgzImage(cns, cniDropgzVersion)
-
-	for cnsScenario := range cnsScenarioMap {
-		cns, err = setupCNSDaemonset(ctx, clientset, cns, cnsScenarioMap, cnsScenario)
-		if err != nil {
-			return appsv1.DaemonSet{}, errors.Wrapf(err, "failed to setup %s cns scenario", cnsScenario)
-		}
-	}
-
-	cnsDaemonsetClient := clientset.AppsV1().DaemonSets(cns.Namespace)
-
-	log.Printf("Installing CNS with image %s", cns.Spec.Template.Spec.Containers[0].Image)
-
-	// setup common RBAC, ClusteerRole, ClusterRoleBinding, ServiceAccount
-	if _, err := MustSetUpClusterRBAC(ctx, clientset, cnsClusterRolePath, cnsClusterRoleBindingPath, cnsServiceAccountPath); err != nil {
-		return appsv1.DaemonSet{}, errors.Wrap(err, "failed to setup common RBAC, ClusteerRole, ClusterRoleBinding and ServiceAccount")
-	}
-
-	// setup RBAC, Role, RoleBinding
-	if err := MustSetUpRBAC(ctx, clientset, cnsRolePath, cnsRoleBindingPath); err != nil {
-		return appsv1.DaemonSet{}, errors.Wrap(err, "failed to setup RBAC, Role and RoleBinding")
-	}
-
-	if err := MustCreateDaemonset(ctx, cnsDaemonsetClient, cns); err != nil {
-		return appsv1.DaemonSet{}, errors.Wrap(err, "failed to create daemonset")
-	}
-
-	if err := WaitForPodDaemonset(ctx, clientset, cns.Namespace, cns.Name, cnsLabelSelector); err != nil {
-		return appsv1.DaemonSet{}, errors.Wrap(err, "failed to check daemonset running")
-	}
-
-	return cns, nil
+	return cns, cnsScenarioDetails, nil
 }
 
-func setupCNSDaemonset(ctx context.Context, clientset *kubernetes.Clientset, cns appsv1.DaemonSet, cnsScenarioMap map[string]cnsScenario, flag string) (appsv1.DaemonSet, error) {
-	cnsScenarioConfig, ok := cnsScenarioMap[flag]
-	if !ok {
-		return cns, errors.Wrapf(ErrUnsupportedCNSScenario, "%s not a supported cns scneario", flag)
-	}
+// setupCNSDaemonset installs the first CNSScenario encountered by env var
+// if no CNSScenario env var is set, returns an error
+func setupCNSDaemonset(
+	ctx context.Context,
+	clientset *kubernetes.Clientset,
+	cnsVersion, cniDropgzVersion string,
+	cnsScenarioMap map[CNSScenario]map[corev1.OSName]cnsDetails,
+	nodeOS corev1.OSName,
+) (appsv1.DaemonSet, cnsDetails, error) {
+	for scenario := range cnsScenarioMap {
+		if ok, err := strconv.ParseBool(os.Getenv(string(scenario))); err != nil || !ok {
+			log.Printf("%s not set to 'true', skipping", scenario)
+			continue
+		}
 
-	flagValue := os.Getenv(flag)
+		log.Printf("installing %s", scenario)
 
-	if scenario, err := strconv.ParseBool(flagValue); err == nil && scenario {
-		log.Printf("Env %v set to true", flag)
+		cnsScenarioDetails, ok := cnsScenarioMap[scenario][nodeOS]
+		if !ok {
+			return appsv1.DaemonSet{}, cnsScenarioDetails, errors.Wrapf(ErrUnsupportedCNSScenario, "the combination of %s and %s is not supported", scenario, nodeOS)
+		}
+
+		cns, err := MustParseDaemonSet(cnsScenarioDetails.daemonsetPath) //nolint:govet // return this anyways
+		if err != nil {
+			return appsv1.DaemonSet{}, cnsDetails{}, errors.Wrapf(err, "failed to parse daemonset")
+		}
+
+		image, _ := ParseImageString(cns.Spec.Template.Spec.Containers[0].Image)
+		cns.Spec.Template.Spec.Containers[0].Image = GetImageString(image, cnsVersion)
+
+		log.Printf("Checking environment scenario")
+		cns = loadDropgzImage(cns, cniDropgzVersion)
 
 		// override init container args
-		cns.Spec.Template.Spec.InitContainers[0].Args = cnsScenarioConfig.initContainerArgs
+		cns.Spec.Template.Spec.InitContainers[0].Args = cnsScenarioDetails.initContainerArgs
 
 		// override the volumes and volume mounts (if present)
-		if len(cnsScenarioConfig.volumes) > 0 {
-			cns.Spec.Template.Spec.Volumes = cnsScenarioConfig.volumes
+		if len(cnsScenarioDetails.volumes) > 0 {
+			cns.Spec.Template.Spec.Volumes = cnsScenarioDetails.volumes
 		}
-		if len(cnsScenarioConfig.initContainerVolumeMounts) > 0 {
-			cns.Spec.Template.Spec.InitContainers[0].VolumeMounts = cnsScenarioConfig.initContainerVolumeMounts
+		if len(cnsScenarioDetails.initContainerVolumeMounts) > 0 {
+			cns.Spec.Template.Spec.InitContainers[0].VolumeMounts = cnsScenarioDetails.initContainerVolumeMounts
 		}
-		if len(cnsScenarioConfig.containerVolumeMounts) > 0 {
-			cns.Spec.Template.Spec.Containers[0].VolumeMounts = cnsScenarioConfig.containerVolumeMounts
+		if len(cnsScenarioDetails.containerVolumeMounts) > 0 {
+			cns.Spec.Template.Spec.Containers[0].VolumeMounts = cnsScenarioDetails.containerVolumeMounts
 		}
 
 		// setup the CNS configmap
-		if err := MustSetupConfigMap(ctx, clientset, cnsScenarioConfig.configMapPath); err != nil {
-			return cns, errors.Wrapf(err, "failed to setup CNS %s configMap", cnsScenarioConfig.configMapPath)
+		if err := MustSetupConfigMap(ctx, clientset, cnsScenarioDetails.configMapPath); err != nil {
+			return cns, cnsDetails{}, errors.Wrapf(err, "failed to setup CNS %s configMap", cnsScenarioDetails.configMapPath)
 		}
-	} else {
-		log.Printf("Env %v not set to true, skipping", flag)
+
+		cnsDaemonsetClient := clientset.AppsV1().DaemonSets(cns.Namespace)
+
+		log.Printf("Installing CNS with image %s", cns.Spec.Template.Spec.Containers[0].Image)
+
+		// setup common RBAC, ClusteerRole, ClusterRoleBinding, ServiceAccount
+		if _, err := MustSetUpClusterRBAC(ctx, clientset, cnsScenarioDetails.clusterRolePath, cnsScenarioDetails.clusterRoleBindingPath, cnsScenarioDetails.serviceAccountPath); err != nil {
+			return appsv1.DaemonSet{}, cnsDetails{}, errors.Wrap(err, "failed to setup common RBAC, ClusteerRole, ClusterRoleBinding and ServiceAccount")
+		}
+
+		// setup RBAC, Role, RoleBinding
+		if err := MustSetUpRBAC(ctx, clientset, cnsScenarioDetails.rolePath, cnsScenarioDetails.roleBindingPath); err != nil {
+			return appsv1.DaemonSet{}, cnsDetails{}, errors.Wrap(err, "failed to setup RBAC, Role and RoleBinding")
+		}
+
+		if err := MustCreateDaemonset(ctx, cnsDaemonsetClient, cns); err != nil {
+			return appsv1.DaemonSet{}, cnsDetails{}, errors.Wrap(err, "failed to create daemonset")
+		}
+
+		if err := WaitForPodDaemonset(ctx, clientset, cns.Namespace, cns.Name, cnsScenarioDetails.labelSelector); err != nil {
+			return appsv1.DaemonSet{}, cnsDetails{}, errors.Wrap(err, "failed to check daemonset running")
+		}
+		return cns, cnsScenarioDetails, nil
 	}
-	return cns, nil
+	return appsv1.DaemonSet{}, cnsDetails{}, errors.Wrap(ErrNoCNSScenarioDefined, "no CNSSCenario env vars set to true, must explicitly set one to true")
 }
 
 func loadDropgzImage(cns appsv1.DaemonSet, dropgzVersion string) appsv1.DaemonSet {
@@ -380,7 +485,7 @@ func hostPathTypePtr(h corev1.HostPathType) *corev1.HostPathType {
 	return &h
 }
 
-func volumesForAzureCNIOverlay() []corev1.Volume {
+func volumesForAzureCNIOverlayLinux() []corev1.Volume {
 	return []corev1.Volume{
 		{
 			Name: "log",
@@ -458,7 +563,40 @@ func volumesForAzureCNIOverlay() []corev1.Volume {
 	}
 }
 
-func dropgzVolumeMountsForAzureCNIOverlay() []corev1.VolumeMount {
+func volumesForAzureCNIOverlayWindows() []corev1.Volume {
+	return []corev1.Volume{
+		{
+			Name: "log",
+			VolumeSource: corev1.VolumeSource{
+				HostPath: &corev1.HostPathVolumeSource{
+					Path: "/k/azurecns",
+					Type: hostPathTypePtr(corev1.HostPathDirectoryOrCreate),
+				},
+			},
+		},
+		{
+			Name: "cns-config",
+			VolumeSource: corev1.VolumeSource{
+				ConfigMap: &corev1.ConfigMapVolumeSource{
+					LocalObjectReference: corev1.LocalObjectReference{
+						Name: "cns-win-config",
+					},
+				},
+			},
+		},
+		{
+			Name: "cni-bin",
+			VolumeSource: corev1.VolumeSource{
+				HostPath: &corev1.HostPathVolumeSource{
+					Path: "/k/azurecni/bin",
+					Type: hostPathTypePtr(corev1.HostPathDirectory),
+				},
+			},
+		}, // TODO: add windows cni conflist when ready
+	}
+}
+
+func dropgzVolumeMountsForAzureCNIOverlayLinux() []corev1.VolumeMount {
 	return []corev1.VolumeMount{
 		{
 			Name:      "cni-bin",
@@ -467,7 +605,16 @@ func dropgzVolumeMountsForAzureCNIOverlay() []corev1.VolumeMount {
 	}
 }
 
-func cnsVolumeMountsForAzureCNIOverlay() []corev1.VolumeMount {
+func dropgzVolumeMountsForAzureCNIOverlayWindows() []corev1.VolumeMount {
+	return []corev1.VolumeMount{
+		{
+			Name:      "cni-bin",
+			MountPath: "/k/azurecni/bin/",
+		}, // TODO: add windows cni conflist when ready
+	}
+}
+
+func cnsVolumeMountsForAzureCNIOverlayLinux() []corev1.VolumeMount {
 	return []corev1.VolumeMount{
 		{
 			Name:      "log",
@@ -501,5 +648,22 @@ func cnsVolumeMountsForAzureCNIOverlay() []corev1.VolumeMount {
 			Name:      "cni-conflist",
 			MountPath: "/etc/cni/net.d",
 		},
+	}
+}
+
+func cnsVolumeMountsForAzureCNIOverlayWindows() []corev1.VolumeMount {
+	return []corev1.VolumeMount{
+		{
+			Name:      "log",
+			MountPath: "/k/azurecns",
+		},
+		{
+			Name:      "cns-config",
+			MountPath: "/etc/azure-cns",
+		},
+		{
+			Name:      "cni-bin",
+			MountPath: "/k/azurecni/bin",
+		}, // TODO: add windows cni conflist when ready
 	}
 }
