@@ -118,7 +118,11 @@ spec:
                     status:
                       description: NCStatus indicates the latest NC request status
                       enum:
-                      - SubnetFull
+                      - NCUpdateSubnetFullError
+                      - NCUpdateInternalServerError
+                      - NCUpdateUnauthorizedError
+                      - NCUpdateSuccess
+                      - NCUpdateFailed
                       type: string
                     subcriptionID:
                       type: string

@@ -59,12 +59,16 @@ const (
 )
 
 // NCStatus indicates the latest NC request status
-// +kubebuilder:validation:Enum=SubnetFull
+// +kubebuilder:validation:Enum=NCUpdateSubnetFullError;NCUpdateInternalServerError;NCUpdateUnauthorizedError;NCUpdateSuccess;NCUpdateFailed
 // +kubebuilder:validation:Optional
 type NCStatus string
 
 const (
-	NCStatusSubnetFull NCStatus = "SubnetFull"
+	NCUpdateSubnetFull          NCStatus = "NCUpdateSubnetFullError"
+	NCUpdateInternalServerError NCStatus = "NCUpdateInternalServerError"
+	NCUpdateUnauthorizedError   NCStatus = "NCUpdateUnauthorizedError"
+	NCUpdateSuccess             NCStatus = "NCUpdateSuccess"
+	NCUpdateFailed              NCStatus = "NCUpdateFailed"
 )
 
 // NodeNetworkConfigStatus defines the observed state of NetworkConfig
