@@ -50,7 +50,7 @@ stages:
       - job: containerize_linux_arm64
         displayName: Build Images
         pool:
-          name: "$(BUILD_POOL_NAME_LINUX_ARM64)"
+          name: "Networking-ContainerNetworking-linux-arm" # "$(BUILD_POOL_NAME_LINUX_ARM64)"
         strategy:
           matrix:
             cni_dropgz_test_linux_arm64:
