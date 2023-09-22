@@ -595,7 +595,7 @@ func (plugin *NetPlugin) cleanupAllocationOnError(
 	options map[string]interface{},
 ) {
 	for _, cniResult := range cniResults {
-		if cniResult.ipResult != nil && cniResult.addressType == cns.Default {
+		if cniResult.ipResult != nil && cniResult.nicType == cns.Default {
 			if er := plugin.ipamInvoker.Delete(&cniResult.ipResult.IPs[0].Address, nwCfg, args, options); er != nil {
 				logger.Error("Failed to cleanup ip allocation on failure", zap.Error(er))
 			}
@@ -758,7 +758,7 @@ func (plugin *NetPlugin) createEndpointInternal(opt *createEndpointInternalOpt) 
 		VnetCidrs:          opt.nwCfg.VnetCidrs,
 		ServiceCidrs:       opt.nwCfg.ServiceCidrs,
 		NATInfo:            opt.natInfo,
-		AddressType:        cns.Default,
+		NICType:            cns.Default,
 		IsDefaultInterface: opt.ipamAddResult.defaultCniResult.isDefaultInterface,
 	}
 
@@ -814,7 +814,7 @@ func (plugin *NetPlugin) createEndpointInternal(opt *createEndpointInternalOpt) 
 				NetNsPath:          epInfo.NetNsPath,
 				IPAddresses:        addresses,
 				MacAddress:         secondaryCniResult.macAddress,
-				AddressType:        cns.Secondary,
+				NICType:            cns.Secondary,
 				IsDefaultInterface: secondaryCniResult.isDefaultInterface,
 			})
 	}

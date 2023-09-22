@@ -265,7 +265,7 @@ func TestSecondaryConfigureContainerInterfacesAndRoutes(t *testing.T) {
 				netlink:        netlink.NewMockNetlink(false, ""),
 				plClient:       platform.NewMockExecClient(false),
 				netUtilsClient: networkutils.NewNetworkUtils(nl, plc),
-				netioshim:      netio.NewMockNetIO(true, 2),
+				netioshim:      netio.NewMockNetIO(true, 1),
 				ep:             &endpoint{SecondaryInterfaces: map[string]*InterfaceInfo{"eth1": {Name: "eth1"}}},
 			},
 			epInfo: &EndpointInfo{
