@@ -140,7 +140,6 @@ jobs:
                 --vm-set-type VirtualMachineScaleSets \
                 --node-vm-size Standard_D4s_v3 \
                 --node-count 1 \
-                --tier=standard \
                 --max-pods 100
 
             if [[ $(PROFILE) == *ws22 ]]; then
