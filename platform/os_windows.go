@@ -93,7 +93,7 @@ func GetOSInfo() string {
 
 func GetProcessSupport() error {
 	cmd := fmt.Sprintf("Get-Process -Id %v", os.Getpid())
-	_, err := ExecutePowershellCommand(cmd, logger)
+	_, err := ExecutePowershellCommand(cmd)
 	return err
 }
 
@@ -154,7 +154,7 @@ func KillProcessByName(processName string) {
 }
 
 // ExecutePowershellCommand executes powershell command
-func ExecutePowershellCommand(command string, logger *zap.Logger) (string, error) {
+func ExecutePowershellCommand(command string) (string, error) {
 	ps, err := exec.LookPath("powershell.exe")
 	if err != nil {
 		return "", fmt.Errorf("Failed to find powershell executable")
@@ -183,20 +183,20 @@ func ExecutePowershellCommand(command string, logger *zap.Logger) (string, error
 // SetSdnRemoteArpMacAddress sets the regkey for SDNRemoteArpMacAddress needed for multitenancy
 func SetSdnRemoteArpMacAddress() error {
 	if sdnRemoteArpMacAddressSet == false {
-		result, err := ExecutePowershellCommand(GetSdnRemoteArpMacAddressCommand, logger)
+		result, err := ExecutePowershellCommand(GetSdnRemoteArpMacAddressCommand)
 		if err != nil {
 			return err
 		}
 
 		// Set the reg key if not already set or has incorrect value
 		if result != SDNRemoteArpMacAddress {
-			if _, err = ExecutePowershellCommand(SetSdnRemoteArpMacAddressCommand, logger); err != nil {
+			if _, err = ExecutePowershellCommand(SetSdnRemoteArpMacAddressCommand); err != nil {
 				log.Printf("Failed to set SDNRemoteArpMacAddress due to error %s", err.Error())
 				return err
 			}
 
 			log.Printf("[Azure CNS] SDNRemoteArpMacAddress regKey set successfully. Restarting hns service.")
-			if _, err := ExecutePowershellCommand(RestartHnsServiceCommand, logger); err != nil {
+			if _, err := ExecutePowershellCommand(RestartHnsServiceCommand); err != nil {
 				log.Printf("Failed to Restart HNS Service due to error %s", err.Error())
 				return err
 			}
@@ -277,7 +277,7 @@ func GetOSDetails() (map[string]string, error) {
 func GetProcessNameByID(pidstr string) (string, error) {
 	pidstr = strings.Trim(pidstr, "\r\n")
 	cmd := fmt.Sprintf("Get-Process -Id %s|Format-List", pidstr)
-	out, err := ExecutePowershellCommand(cmd, logger)
+	out, err := ExecutePowershellCommand(cmd)
 	if err != nil {
 		log.Printf("Process is not running. Output:%v, Error %v", out, err)
 		return "", err

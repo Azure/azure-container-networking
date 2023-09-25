@@ -183,7 +183,7 @@ func (nw *network) addIPv6NeighborEntryForGateway(epInfo *EndpointInfo) error {
 		// run powershell cmd to set neighbor entry for gw ip to 12-34-56-78-9a-bc
 		cmd := fmt.Sprintf("New-NetNeighbor -IPAddress %s -InterfaceAlias \"%s (%s)\" -LinkLayerAddress \"%s\"",
 			nw.Subnets[1].Gateway.String(), containerIfNamePrefix, epInfo.Id, defaultGwMac)
-		if out, err = platform.ExecutePowershellCommand(cmd, nil); err != nil {
+		if out, err = platform.ExecutePowershellCommand(cmd); err != nil {
 			logger.Error("Adding ipv6 gw neigh entry failed", zap.Any("out", out), zap.Error(err))
 			return err
 		}
