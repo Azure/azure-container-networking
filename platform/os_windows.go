@@ -160,11 +160,7 @@ func ExecutePowershellCommand(command string) (string, error) {
 		return "", fmt.Errorf("Failed to find powershell executable")
 	}
 
-	if logger != nil {
-		logger.Info("[Azure-Utils]", zap.String("command", command))
-	} else {
-		log.Printf("[Azure-Utils] %s", command)
-	}
+	log.Printf("[Azure-Utils] %s", command)
 
 	cmd := exec.Command(ps, command)
 	var stdout bytes.Buffer
