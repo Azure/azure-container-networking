@@ -1047,7 +1047,7 @@ func (c *Client) GetEndpoint(ctx context.Context, endpointID string) (*restserve
 	var response restserver.GetEndpointResponse
 	err = json.NewDecoder(res.Body).Decode(&response)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to decode IPConfigResponse")
+		return nil, errors.Wrap(err, "failed to decode GetEndpointResponse")
 	}
 
 	if response.Response.ReturnCode != 0 {
@@ -1092,7 +1092,7 @@ func (c *Client) UpdateEndpoint(ctx context.Context, endpointID, hnsID, vethName
 	err = json.NewDecoder(res.Body).Decode(&response)
 
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to decode IPConfigResponse")
+		return nil, errors.Wrap(err, "failed to decode GetEndpointResponse")
 	}
 
 	if response.ReturnCode != 0 {

@@ -77,11 +77,10 @@ import (
 
 const (
 	// Service name.
-	name                  = "azure-cns"
-	pluginName            = "azure-vnet"
-	endpointStoreName     = "azure-endpoints"
-	endpointStoreLocation = "/var/run/azure-cns/"
-	//endpointStoreLocationWindows      = "C:\\Temp\\"
+	name                              = "azure-cns"
+	pluginName                        = "azure-vnet"
+	endpointStoreName                 = "azure-endpoints"
+	endpointStoreLocation             = "/var/run/azure-cns/"
 	defaultCNINetworkConfigFileName   = "10-azure.conflist"
 	dncApiVersion                     = "?api-version=2018-03-01"
 	poolIPAMRefreshRateInMilliseconds = 1000
@@ -661,7 +660,6 @@ func main() {
 		endpointStorePath := endpointStoreLocation
 		if runtime.GOOS == "windows" {
 			endpointStorePath = os.Getenv("CNSStoreFilePath")
-			//endpointStorePath = endpointStoreLocationWindows
 		}
 		logger.Printf("EndpointState path is %s", endpointStorePath)
 		err = platform.CreateDirectory(endpointStorePath)

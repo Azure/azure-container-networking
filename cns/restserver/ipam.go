@@ -903,14 +903,14 @@ func validateDesiredIPAddresses(desiredIPs []string) error {
 
 // EndpointHandlerAPI forwards the endpoint related APIs to GetEndpointHandler or UpdateEndpointHandler based on the http method
 func (service *HTTPRestService) EndpointHandlerAPI(w http.ResponseWriter, r *http.Request) {
-	logger.Printf("[Azure CNS] EndpointHandlerAPI received request with http Method %s", r.Method)
+	logger.Printf("[EndpointHandlerAPI] EndpointHandlerAPI received request with http Method %s", r.Method)
 	service.Lock()
 	defer service.Unlock()
 	// Check if CNS is managing the CNI statefile
 	if service.Options[common.OptManageEndpointState] == false {
 		response := cns.Response{
 			ReturnCode: types.UnexpectedError,
-			Message:    fmt.Sprintf("[updateEndpoint] updateEndpoint failed with error: %s", ErrOptManageEndpointState),
+			Message:    fmt.Sprintf("[EndpointHandlerAPI] EndpointHandlerAPI failed with error: %s", ErrOptManageEndpointState),
 		}
 		err := service.Listener.Encode(w, &response)
 		logger.Response(service.Name, response, response.ReturnCode, err)
@@ -922,7 +922,7 @@ func (service *HTTPRestService) EndpointHandlerAPI(w http.ResponseWriter, r *htt
 	case http.MethodPatch:
 		service.UpdateEndpointHandler(w, r)
 	default:
-		logger.Errorf("[Azure CNS] EndpointHandler API expect http Get or Patch method")
+		logger.Errorf("[EndpointHandlerAPI] EndpointHandler API expect http Get or Patch method")
 	}
 }
 
