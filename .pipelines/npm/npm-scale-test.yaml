@@ -175,7 +175,9 @@ jobs:
             set -e
 
             # install kwok
-            $(Pipeline.Workspace)/s/test/scale/run-kwok-as-pod.sh
+            cd $(Pipeline.Workspace)/s/test/scale/
+            chmod u+x run-kwok-as-pod.sh test-scale.sh connectivity/test-connectivity.sh
+            ./run-kwok-as-pod.sh
 
             # deploy azure-npm
             cp $(Pipeline.Workspace)/s/npm/azure-npm.yaml azure-npm.yaml
