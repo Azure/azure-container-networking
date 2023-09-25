@@ -176,6 +176,7 @@ func (nw *network) newEndpointImpl(
 			}
 		}(epClient, contIfName)
 
+		//nolint:wrapcheck // ignore wrap check
 		err = func() error {
 			if epErr := epClient.AddEndpoints(epInfo); epErr != nil {
 				return epErr
