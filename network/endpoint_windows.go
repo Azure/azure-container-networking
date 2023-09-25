@@ -9,6 +9,7 @@ import (
 	"net"
 	"strings"
 
+	zaplog "github.com/Azure/azure-container-networking/cni/log"
 	"github.com/Azure/azure-container-networking/netio"
 	"github.com/Azure/azure-container-networking/netlink"
 	"github.com/Azure/azure-container-networking/network/policy"
@@ -17,6 +18,8 @@ import (
 	"github.com/Microsoft/hcsshim/hcn"
 	"go.uber.org/zap"
 )
+
+var platformLogger = zaplog.CNILogger.With(zap.String("component", "platform-windows"))
 
 const (
 	// hcnSchemaVersionMajor indicates major version number for hcn schema
@@ -183,7 +186,7 @@ func (nw *network) addIPv6NeighborEntryForGateway(epInfo *EndpointInfo) error {
 		// run powershell cmd to set neighbor entry for gw ip to 12-34-56-78-9a-bc
 		cmd := fmt.Sprintf("New-NetNeighbor -IPAddress %s -InterfaceAlias \"%s (%s)\" -LinkLayerAddress \"%s\"",
 			nw.Subnets[1].Gateway.String(), containerIfNamePrefix, epInfo.Id, defaultGwMac)
-		if out, err = platform.ExecutePowershellCommand(cmd); err != nil {
+		if out, err = platform.ExecutePowershellCommand(cmd, platformLogger); err != nil {
 			logger.Error("Adding ipv6 gw neigh entry failed", zap.Any("out", out), zap.Error(err))
 			return err
 		}

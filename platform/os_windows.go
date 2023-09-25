@@ -93,7 +93,7 @@ func GetOSInfo() string {
 
 func GetProcessSupport() error {
 	cmd := fmt.Sprintf("Get-Process -Id %v", os.Getpid())
-	_, err := ExecutePowershellCommand(cmd)
+	_, err := ExecutePowershellCommand(cmd, nil)
 	return err
 }
 
@@ -154,13 +154,17 @@ func KillProcessByName(processName string) {
 }
 
 // ExecutePowershellCommand executes powershell command
-func ExecutePowershellCommand(command string) (string, error) {
+func ExecutePowershellCommand(command string, logger *zap.Logger) (string, error) {
 	ps, err := exec.LookPath("powershell.exe")
 	if err != nil {
 		return "", fmt.Errorf("Failed to find powershell executable")
 	}
 
-	log.Printf("[Azure-Utils] %s", command)
+	if logger != nil {
+		logger.Info("[Azure-Utils]", zap.String("command", command))
+	} else {
+		log.Printf("[Azure-Utils] %s", command)
+	}
 
 	cmd := exec.Command(ps, command)
 	var stdout bytes.Buffer
@@ -179,20 +183,20 @@ func ExecutePowershellCommand(command string) (string, error) {
 // SetSdnRemoteArpMacAddress sets the regkey for SDNRemoteArpMacAddress needed for multitenancy
 func SetSdnRemoteArpMacAddress() error {
 	if sdnRemoteArpMacAddressSet == false {
-		result, err := ExecutePowershellCommand(GetSdnRemoteArpMacAddressCommand)
+		result, err := ExecutePowershellCommand(GetSdnRemoteArpMacAddressCommand, nil)
 		if err != nil {
 			return err
 		}
 
 		// Set the reg key if not already set or has incorrect value
 		if result != SDNRemoteArpMacAddress {
-			if _, err = ExecutePowershellCommand(SetSdnRemoteArpMacAddressCommand); err != nil {
+			if _, err = ExecutePowershellCommand(SetSdnRemoteArpMacAddressCommand, nil); err != nil {
 				log.Printf("Failed to set SDNRemoteArpMacAddress due to error %s", err.Error())
 				return err
 			}
 
 			log.Printf("[Azure CNS] SDNRemoteArpMacAddress regKey set successfully. Restarting hns service.")
-			if _, err := ExecutePowershellCommand(RestartHnsServiceCommand); err != nil {
+			if _, err := ExecutePowershellCommand(RestartHnsServiceCommand, nil); err != nil {
 				log.Printf("Failed to Restart HNS Service due to error %s", err.Error())
 				return err
 			}
@@ -273,7 +277,7 @@ func GetOSDetails() (map[string]string, error) {
 func GetProcessNameByID(pidstr string) (string, error) {
 	pidstr = strings.Trim(pidstr, "\r\n")
 	cmd := fmt.Sprintf("Get-Process -Id %s|Format-List", pidstr)
-	out, err := ExecutePowershellCommand(cmd)
+	out, err := ExecutePowershellCommand(cmd, nil)
 	if err != nil {
 		log.Printf("Process is not running. Output:%v, Error %v", out, err)
 		return "", err
