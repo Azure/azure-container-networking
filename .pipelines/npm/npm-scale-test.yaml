@@ -96,7 +96,7 @@ jobs:
         displayName: "Verify Directory Exists"
         failOnStderr: true
       - task: AzureCLI@2
-        displayName: "Download Kubectl and Kwok"
+        displayName: "Download Kubectl"
         inputs:
           azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
           scriptType: "bash"
@@ -107,11 +107,6 @@ jobs:
             set -e
             curl -LO https://dl.k8s.io/release/v1.23.0/bin/linux/amd64/kubectl
             chmod +x kubectl
-
-            KWOK_REPO=kubernetes-sigs/kwok
-            KWOK_LATEST_RELEASE=$(curl "https://api.github.com/repos/${KWOK_REPO}/releases/latest" | jq -r '.tag_name')
-            wget -O kwok -c "https://github.com/kubernetes-sigs/kwok/releases/download/${KWOK_LATEST_RELEASE}/kwok-$(go env GOOS)-$(go env GOARCH)"
-            chmod +x kwok
       - task: AzureCLI@2
         displayName: "Create AKS Cluster"
         inputs:
@@ -179,6 +174,9 @@ jobs:
           inlineScript: |
             set -e
 
+            # install kwok
+            $(Pipeline.Workspace)/s/test/scale/run-kwok-as-pod.sh
+
             # deploy azure-npm
             cp $(Pipeline.Workspace)/s/npm/azure-npm.yaml azure-npm.yaml
             sed -i 's/memory: 300Mi/memory: 1000Mi/g' azure-npm.yaml
@@ -230,15 +228,6 @@ jobs:
             set -e
             export CLUSTER_NAME=$(RESOURCE_GROUP)-$(PROFILE)
             mkdir -p $(System.DefaultWorkingDirectory)/$CLUSTER_NAME
-            ./kwok --kubeconfig ~/.kube/config \
-              --cidr=155.0.0.0/16 \
-              --node-ip=155.0.0.1 \
-              --manage-all-nodes=false \
-              --manage-nodes-with-annotation-selector=kwok.x-k8s.io/node=fake \
-              --manage-nodes-with-label-selector= \
-              --disregard-status-with-annotation-selector=kwok.x-k8s.io/status=custom \
-              --disregard-status-with-label-selector= > $(System.DefaultWorkingDirectory)/$CLUSTER_NAME/kwok-scale-up.log &
-            kwok_pid=$!
 
             # 20 kwok nodes
             # 1000 kwok Pods
@@ -262,7 +251,6 @@ jobs:
                 --num-unique-labels-per-deployment=2 \
                 --num-shared-labels-per-pod=10
             rc=$?
-            kill $kwok_pid
             exit $rc
 
       - task: AzureCLI@2
@@ -277,15 +265,6 @@ jobs:
             set -e
             export CLUSTER_NAME=$(RESOURCE_GROUP)-$(PROFILE)
             mkdir -p $(System.DefaultWorkingDirectory)/$CLUSTER_NAME
-            ./kwok --kubeconfig ~/.kube/config \
-              --cidr=155.0.0.0/16 \
-              --node-ip=155.0.0.1 \
-              --manage-all-nodes=false \
-              --manage-nodes-with-annotation-selector=kwok.x-k8s.io/node=fake \
-              --manage-nodes-with-label-selector= \
-              --disregard-status-with-annotation-selector=kwok.x-k8s.io/status=custom \
-              --disregard-status-with-label-selector= > $(System.DefaultWorkingDirectory)/$CLUSTER_NAME/kwok-bootup-latency.log &
-            kwok_pid=$!
 
             kubectl rollout restart -n kube-system ds azure-npm-win
             echo "sleeping 3 minutes to allow NPM pods to restart after scale-up..."
@@ -305,7 +284,6 @@ jobs:
                 kubectl get pod -n scale-test
                 kubectl get pod -n connectivity-test
             fi
-            kill $kwok_pid
             exit $rc
 
       - task: AzureCLI@2
@@ -320,15 +298,6 @@ jobs:
             set -e
             export CLUSTER_NAME=$(RESOURCE_GROUP)-$(PROFILE)
             mkdir -p $(System.DefaultWorkingDirectory)/$CLUSTER_NAME
-            ./kwok --kubeconfig ~/.kube/config \
-              --cidr=155.0.0.0/16 \
-              --node-ip=155.0.0.1 \
-              --manage-all-nodes=false \
-              --manage-nodes-with-annotation-selector=kwok.x-k8s.io/node=fake \
-              --manage-nodes-with-label-selector= \
-              --disregard-status-with-annotation-selector=kwok.x-k8s.io/status=custom \
-              --disregard-status-with-label-selector= > $(System.DefaultWorkingDirectory)/$CLUSTER_NAME/kwok-crud.log &
-            kwok_pid=$!
 
             # will delete scale-test and connectivity-test namespaces from previous run
             # 10 kwok Pods
@@ -359,7 +328,6 @@ jobs:
                 --delete-pods-interval=120 \
                 --delete-pods-times=2
             rc=$?
-            kill $kwok_pid
             exit $rc
 
       - task: AzureCLI@2
@@ -374,15 +342,6 @@ jobs:
             set -e
             export CLUSTER_NAME=$(RESOURCE_GROUP)-$(PROFILE)
             mkdir -p $(System.DefaultWorkingDirectory)/$CLUSTER_NAME
-            ./kwok --kubeconfig ~/.kube/config \
-              --cidr=155.0.0.0/16 \
-              --node-ip=155.0.0.1 \
-              --manage-all-nodes=false \
-              --manage-nodes-with-annotation-selector=kwok.x-k8s.io/node=fake \
-              --manage-nodes-with-label-selector= \
-              --disregard-status-with-annotation-selector=kwok.x-k8s.io/status=custom \
-              --disregard-status-with-label-selector= > $(System.DefaultWorkingDirectory)/$CLUSTER_NAME/kwok-crud-connectivity.log &
-            kwok_pid=$!
 
             cd $(Pipeline.Workspace)/s/test/scale/connectivity/
             # initial connectivity should be established within 10 minutes
@@ -397,7 +356,6 @@ jobs:
                 kubectl get pod -n scale-test
                 kubectl get pod -n connectivity-test
             fi
-            kill $kwok_pid
             exit $rc
 
       - bash: |
