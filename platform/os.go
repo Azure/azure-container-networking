@@ -4,9 +4,8 @@ import (
 	"bufio"
 	"fmt"
 	"io"
-	"os"
-
 	"log"
+	"os"
 )
 
 // ReadFileByLines reads file line by line and return array of lines.
