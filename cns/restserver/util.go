@@ -542,7 +542,7 @@ func (service *HTTPRestService) restoreNetworkState() error {
 
 		rebootTime, err := platform.GetLastRebootTime()
 		if err != nil {
-			logger.Printf("Failed to query last reboot time due to %v", err)
+			logger.Errorf("Failed to query last reboot time due to %v", err)
 		}
 		if err == nil && rebootTime.After(modTime) {
 			logger.Printf("[Azure CNS] reboot time %v mod time %v", rebootTime, modTime)
