@@ -143,16 +143,21 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 			zap.Any("ipinfo", info),
 			zap.Any("podInfo", podInfo))
 
-		if !info.skipDefaultRoutes {
-			numInterfacesWithDefaultRoutes += 1
-		}
-
 		switch info.nicType {
 		case cns.Secondary:
+			if !info.skipDefaultRoutes {
+				numInterfacesWithDefaultRoutes += 1
+			}
+
 			if err := configureSecondaryAddResult(&info, &addResult, &response.PodIPInfo[i].PodIPConfig); err != nil {
 				return IPAMAddResult{}, err
 			}
 		default:
+			// only count dualstack interface once
+			if addResult.defaultInterfaceInfo.ipResult == nil && !info.skipDefaultRoutes {
+				numInterfacesWithDefaultRoutes += 1
+			}
+
 			overlayMode := (invoker.ipamMode == util.V4Overlay) || (invoker.ipamMode == util.DualStackOverlay) || (invoker.ipamMode == util.Overlay)
 			if err := configureDefaultAddResult(&info, &addConfig, &addResult, overlayMode); err != nil {
 				return IPAMAddResult{}, err
@@ -162,7 +167,7 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 
 	// Make sure default routes exist for 1 interface
 	if numInterfacesWithDefaultRoutes != 1 {
-		return IPAMAddResult{}, errors.New("Add result requires an interface with default routes")
+		return IPAMAddResult{}, errors.New("Add result requires exactly one interface with default routes")
 	}
 
 	return addResult, nil
