@@ -88,7 +88,7 @@ type EndpointInfo struct {
 	ServiceCidrs             string
 	NATInfo                  []policy.NATInfo
 	NICType                  string
-	IsDefaultInterface       bool
+	SkipDefaultRoutes        bool
 }
 
 // RouteInfo contains information about an IP route.
@@ -105,13 +105,13 @@ type RouteInfo struct {
 
 // InterfaceInfo contains information for secondary interfaces
 type InterfaceInfo struct {
-	Name               string
-	MacAddress         net.HardwareAddr
-	IPAddress          []net.IPNet
-	Gateways           []net.IP
-	Routes             []RouteInfo
-	NICType            string
-	IsDefaultInterface bool
+	Name              string
+	MacAddress        net.HardwareAddr
+	IPAddress         []net.IPNet
+	Gateways          []net.IP
+	Routes            []RouteInfo
+	NICType           string
+	SkipDefaultRoutes bool
 }
 
 type apipaClient interface {
