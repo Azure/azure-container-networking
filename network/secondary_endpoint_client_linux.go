@@ -96,6 +96,10 @@ func (client *SecondaryEndpointClient) ConfigureContainerInterfacesAndRoutes(epI
 		return newErrorSecondaryEndpointClient(errors.New(epInfo.IfName + " does not exist"))
 	}
 
+	if len(epInfo.Routes) < 1 {
+		return newErrorSecondaryEndpointClient(errors.New("routes expected for " + epInfo.IfName))
+	}
+
 	if err := addRoutes(client.netlink, client.netioshim, epInfo.IfName, epInfo.Routes); err != nil {
 		return newErrorSecondaryEndpointClient(err)
 	}
