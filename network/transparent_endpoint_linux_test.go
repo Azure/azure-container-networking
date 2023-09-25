@@ -370,7 +370,6 @@ func TestTransConfigureContainerInterfacesAndRoutes(t *testing.T) {
 						Mask: net.CIDRMask(subnetv4Mask, ipv4Bits),
 					},
 				},
-				IsDefaultInterface: true,
 			},
 			wantErr:    true,
 			wantErrMsg: netio.ErrMockNetIOFail.Error(),

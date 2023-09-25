@@ -230,7 +230,7 @@ func (client *TransparentEndpointClient) ConfigureContainerInterfacesAndRoutes(e
 		}
 	}
 
-	if epInfo.IsDefaultInterface {
+	if !epInfo.SkipDefaultRoutes {
 		// add route for virtualgwip
 		// ip route add 169.254.1.1/32 dev eth0
 		virtualGwIP, virtualGwNet, _ := net.ParseCIDR(virtualGwIPString)
