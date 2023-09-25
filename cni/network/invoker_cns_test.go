@@ -270,7 +270,7 @@ func TestCNSIPAMInvoker_Add_Overlay(t *testing.T) {
 										PrimaryIP: "10.0.0.1",
 										Subnet:    "10.0.0.0/24",
 									},
-									NICType: cns.Default,
+									NICType: cns.Infra,
 								},
 								{
 									PodIPConfig: cns.IPSubnet{
@@ -347,10 +347,10 @@ func TestCNSIPAMInvoker_Add_Overlay(t *testing.T) {
 				require.NoError(err)
 			}
 
-			fmt.Printf("want:%+v\nrest:%+v\n", tt.wantMultitenantResult, ipamAddResult.cniResults)
-			require.Equalf(tt.wantDefaultResult, ipamAddResult.defaultCniResult.ipResult, "incorrect default response")
+			fmt.Printf("want:%+v\nrest:%+v\n", tt.wantMultitenantResult, ipamAddResult.secondaryInterfaceInfo)
+			require.Equalf(tt.wantDefaultResult, ipamAddResult.defaultInterfaceInfo.ipResult, "incorrect default response")
 			if tt.wantMultitenantResult != nil {
-				require.Equalf(tt.wantMultitenantResult, ipamAddResult.cniResults[0].ipResult, "incorrect multitenant response")
+				require.Equalf(tt.wantMultitenantResult, ipamAddResult.secondaryInterfaceInfo[0].ipResult, "incorrect multitenant response")
 			}
 		})
 	}
@@ -573,10 +573,10 @@ func TestCNSIPAMInvoker_Add(t *testing.T) {
 				require.NoError(err)
 			}
 
-			fmt.Printf("want:%+v\nrest:%+v\n", tt.wantMultitenantResult, ipamAddResult.cniResults)
-			require.Equalf(tt.wantDefaultResult, ipamAddResult.defaultCniResult.ipResult, "incorrect default response")
+			fmt.Printf("want:%+v\nrest:%+v\n", tt.wantMultitenantResult, ipamAddResult.secondaryInterfaceInfo)
+			require.Equalf(tt.wantDefaultResult, ipamAddResult.defaultInterfaceInfo.ipResult, "incorrect default response")
 			if tt.wantMultitenantResult != nil {
-				require.Equalf(tt.wantMultitenantResult, ipamAddResult.cniResults[0].ipResult, "incorrect multitenant response")
+				require.Equalf(tt.wantMultitenantResult, ipamAddResult.secondaryInterfaceInfo[0].ipResult, "incorrect multitenant response")
 			}
 		})
 	}
@@ -692,7 +692,7 @@ func TestCNSIPAMInvoker_Add_UnsupportedAPI(t *testing.T) {
 				t.Fatalf("expected an error %+v but none received", err)
 			}
 			require.NoError(err)
-			require.Equalf(tt.want, ipamAddResult.defaultCniResult.ipResult, "incorrect ipv4 response")
+			require.Equalf(tt.want, ipamAddResult.defaultInterfaceInfo.ipResult, "incorrect ipv4 response")
 		})
 	}
 }

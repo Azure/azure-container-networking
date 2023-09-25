@@ -75,8 +75,8 @@ func (invoker *AzureIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, er
 
 	defer func() {
 		if err != nil {
-			if len(addResult.defaultCniResult.ipResult.IPs) > 0 {
-				if er := invoker.Delete(&addResult.defaultCniResult.ipResult.IPs[0].Address, addConfig.nwCfg, nil, addConfig.options); er != nil {
+			if len(addResult.defaultInterfaceInfo.ipResult.IPs) > 0 {
+				if er := invoker.Delete(&addResult.defaultInterfaceInfo.ipResult.IPs[0].Address, addConfig.nwCfg, nil, addConfig.options); er != nil {
 					err = invoker.plugin.Errorf("Failed to clean up IP's during Delete with error %v, after Add failed with error %w", er, err)
 				}
 			} else {
@@ -106,7 +106,7 @@ func (invoker *AzureIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, er
 		}
 	}
 
-	addResult.defaultCniResult = CNIResult{ipResult: ipv4Result, nicType: cns.Default, isDefaultInterface: true}
+	addResult.defaultInterfaceInfo = InterfaceInfo{ipResult: ipv4Result, nicType: cns.Infra}
 
 	return addResult, err
 }

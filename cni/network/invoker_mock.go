@@ -54,11 +54,11 @@ func (invoker *MockIpamInvoker) Add(opt IPAMAddConfig) (ipamAddResult IPAMAddRes
 	ip := net.ParseIP(ipv4Str)
 	ipnet := net.IPNet{IP: ip, Mask: net.CIDRMask(subnetBits, ipv4Bits)}
 	gwIP := net.ParseIP("10.240.0.1")
-	ipamAddResult.defaultCniResult = CNIResult{
+	ipamAddResult.defaultInterfaceInfo = InterfaceInfo{
 		ipResult: &current.Result{
 			IPs: []*current.IPConfig{{Address: ipnet, Gateway: gwIP}},
 		},
-		nicType: cns.Default,
+		nicType: cns.Infra,
 	}
 	invoker.ipMap[ipnet.String()] = true
 	if invoker.v6Fail {
@@ -74,7 +74,7 @@ func (invoker *MockIpamInvoker) Add(opt IPAMAddConfig) (ipamAddResult IPAMAddRes
 		ip := net.ParseIP(ipv6Str)
 		ipnet := net.IPNet{IP: ip, Mask: net.CIDRMask(subnetv6Bits, ipv6Bits)}
 		gwIP := net.ParseIP("fc00::1")
-		ipamAddResult.defaultCniResult.ipResult.IPs = append(ipamAddResult.defaultCniResult.ipResult.IPs, &current.IPConfig{Address: ipnet, Gateway: gwIP})
+		ipamAddResult.defaultInterfaceInfo.ipResult.IPs = append(ipamAddResult.defaultInterfaceInfo.ipResult.IPs, &current.IPConfig{Address: ipnet, Gateway: gwIP})
 		invoker.ipMap[ipnet.String()] = true
 	}
 
