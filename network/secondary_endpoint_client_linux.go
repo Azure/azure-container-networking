@@ -1,8 +1,6 @@
 package network
 
 import (
-	"net"
-
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/netio"
 	"github.com/Azure/azure-container-networking/netlink"
@@ -52,11 +50,11 @@ func (client *SecondaryEndpointClient) AddEndpoints(epInfo *EndpointInfo) error 
 		return newErrorSecondaryEndpointClient(errors.New(iface.Name + " already exists"))
 	}
 	client.ep.SecondaryInterfaces[iface.Name] = &InterfaceInfo{
-		Name:               iface.Name,
-		MacAddress:         epInfo.MacAddress,
-		IPAddress:          epInfo.IPAddresses,
-		NICType:            epInfo.NICType,
-		IsDefaultInterface: epInfo.IsDefaultInterface,
+		Name:              iface.Name,
+		MacAddress:        epInfo.MacAddress,
+		IPAddress:         epInfo.IPAddresses,
+		NICType:           epInfo.NICType,
+		SkipDefaultRoutes: epInfo.SkipDefaultRoutes,
 	}
 
 	return nil
@@ -96,22 +94,6 @@ func (client *SecondaryEndpointClient) ConfigureContainerInterfacesAndRoutes(epI
 	ifInfo, exists := client.ep.SecondaryInterfaces[epInfo.IfName]
 	if !exists {
 		return newErrorSecondaryEndpointClient(errors.New(epInfo.IfName + " does not exist"))
-	}
-
-	if epInfo.IsDefaultInterface {
-		// ip route add default via 0.0.0.0 dev ethX
-		_, defaultIPNet, _ := net.ParseCIDR(defaultGwCidr)
-		dstIP := net.IPNet{IP: net.ParseIP(defaultGw), Mask: defaultIPNet.Mask}
-		routeInfo := RouteInfo{
-			Dst: dstIP,
-		}
-		if err := addRoutes(client.netlink, client.netioshim, epInfo.IfName, []RouteInfo{routeInfo}); err != nil {
-			return newErrorSecondaryEndpointClient(err)
-		}
-
-		ifInfo.Routes = append(ifInfo.Routes, routeInfo)
-
-		return nil
 	}
 
 	if err := addRoutes(client.netlink, client.netioshim, epInfo.IfName, epInfo.Routes); err != nil {
