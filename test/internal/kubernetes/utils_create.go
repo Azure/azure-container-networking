@@ -242,15 +242,14 @@ func InstallCNSDaemonset(ctx context.Context, clientset *kubernetes.Clientset, l
 	}
 
 	cleanupds := func() error {
-		if err := ExportLogsByLabelSelector(ctx, clientset, cnsLinux.Namespace, cnsLinuxDetails.labelSelector, logDir); err != nil {
-			return errors.Wrapf(err, "failed to export linux logs by label selector %s", cnsLinuxLabelSelector)
-		}
+		err := ExportLogsByLabelSelector(ctx, clientset, cnsLinux.Namespace, cnsLinuxDetails.labelSelector, logDir)
+		err = errors.Wrapf(err, "failed to export linux logs by label selector %s", cnsLinuxLabelSelector)
+
 		if hasWinNodes {
-			if err := ExportLogsByLabelSelector(ctx, clientset, cnsWindows.Namespace, cnsWindowsDetails.labelSelector, logDir); err != nil {
-				return errors.Wrapf(err, "failed to export windows logs by label selector %s", cnsWindowsLabelSelector)
-			}
+			ExportLogsByLabelSelector(ctx, clientset, cnsWindows.Namespace, cnsWindowsDetails.labelSelector, logDir) //nolint:errcheck // we wrap the error
+			err = errors.Wrapf(err, "failed to export windows logs by label selector %s", cnsWindowsLabelSelector)
 		}
-		return nil
+		return err
 	}
 
 	return cleanupds, nil

@@ -105,7 +105,7 @@ spec:
                   fieldPath: spec.nodeName
       initContainers:
         - name: init-cni-dropgz
-          image: acnpublic.azurecr.io/cni-dropgz:latest
+          image: acnpublic.azurecr.io/cni-dropgz:CNI_DROPGZ_VERSION
           imagePullPolicy: Always
           command: ["%CONTAINER_SANDBOX_MOUNT_POINT%/dropgz.exe"]
           args:
