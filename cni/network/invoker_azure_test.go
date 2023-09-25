@@ -205,8 +205,8 @@ func TestAzureIPAMInvoker_Add(t *testing.T) {
 				require.Nil(err)
 			}
 
-			fmt.Printf("want:%+v\nrest:%+v\n", tt.want, ipamAddResult.defaultCniResult.ipResult)
-			require.Exactly(tt.want, ipamAddResult.defaultCniResult.ipResult)
+			fmt.Printf("want:%+v\nrest:%+v\n", tt.want, ipamAddResult.defaultInterfaceInfo.ipResult)
+			require.Exactly(tt.want, ipamAddResult.defaultInterfaceInfo.ipResult)
 		})
 	}
 }

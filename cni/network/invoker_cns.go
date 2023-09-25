@@ -122,8 +122,7 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 	}
 
 	addResult := IPAMAddResult{}
-	// Default address type will be the default interface unless isDefaultInterface is true for a secondary address
-	var isDefaultInterfaceSet bool
+	numInterfacesWithDefaultRoutes := 0
 
 	for i := 0; i < len(response.PodIPInfo); i++ {
 		info := IPResultInfo{
@@ -136,7 +135,7 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 			hostGateway:        response.PodIPInfo[i].HostPrimaryIPInfo.Gateway,
 			nicType:            response.PodIPInfo[i].NICType,
 			macAddress:         response.PodIPInfo[i].MacAddress,
-			isDefaultInterface: response.PodIPInfo[i].IsDefaultInterface,
+			skipDefaultRoutes:  response.PodIPInfo[i].SkipDefaultRoutes,
 			routes:             response.PodIPInfo[i].Routes,
 		}
 
@@ -144,9 +143,12 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 			zap.Any("ipinfo", info),
 			zap.Any("podInfo", podInfo))
 
+		if !info.skipDefaultRoutes {
+			numInterfacesWithDefaultRoutes += 1
+		}
+
 		switch info.nicType {
 		case cns.Secondary:
-			isDefaultInterfaceSet = isDefaultInterfaceSet || info.isDefaultInterface
 			if err := configureSecondaryAddResult(&info, &addResult, &response.PodIPInfo[i].PodIPConfig); err != nil {
 				return IPAMAddResult{}, err
 			}
@@ -158,7 +160,10 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 		}
 	}
 
-	addResult.defaultCniResult.isDefaultInterface = !isDefaultInterfaceSet
+	// Make sure default routes exist for 1 interface
+	if numInterfacesWithDefaultRoutes != 1 {
+		return IPAMAddResult{}, errors.New("Add result requires an interface with default routes")
+	}
 
 	return addResult, nil
 }
@@ -355,9 +360,9 @@ func configureDefaultAddResult(info *IPResultInfo, addConfig *IPAMAddConfig, add
 	}
 
 	if ip := net.ParseIP(info.podIPAddress); ip != nil {
-		defaultCniResult := addResult.defaultCniResult.ipResult
-		if defaultCniResult == nil {
-			defaultCniResult = &cniTypesCurr.Result{}
+		defaultInterfaceInfo := addResult.defaultInterfaceInfo.ipResult
+		if defaultInterfaceInfo == nil {
+			defaultInterfaceInfo = &cniTypesCurr.Result{}
 		}
 
 		defaultRouteDstPrefix := network.Ipv4DefaultRouteDstPrefix
@@ -366,7 +371,7 @@ func configureDefaultAddResult(info *IPResultInfo, addConfig *IPAMAddConfig, add
 			addResult.ipv6Enabled = true
 		}
 
-		defaultCniResult.IPs = append(defaultCniResult.IPs,
+		defaultInterfaceInfo.IPs = append(defaultInterfaceInfo.IPs,
 			&cniTypesCurr.IPConfig{
 				Address: resultIPnet,
 				Gateway: ncgw,
@@ -378,15 +383,16 @@ func configureDefaultAddResult(info *IPResultInfo, addConfig *IPAMAddConfig, add
 		}
 
 		if len(routes) > 0 {
-			defaultCniResult.Routes = append(defaultCniResult.Routes, routes...)
+			defaultInterfaceInfo.Routes = append(defaultInterfaceInfo.Routes, routes...)
 		} else { // add default routes if none are provided
-			defaultCniResult.Routes = append(defaultCniResult.Routes, &cniTypes.Route{
+			defaultInterfaceInfo.Routes = append(defaultInterfaceInfo.Routes, &cniTypes.Route{
 				Dst: defaultRouteDstPrefix,
 				GW:  ncgw,
 			})
 		}
 
-		addResult.defaultCniResult.ipResult = defaultCniResult
+		addResult.defaultInterfaceInfo.ipResult = defaultInterfaceInfo
+		addResult.defaultInterfaceInfo.skipDefaultRoutes = info.skipDefaultRoutes
 	}
 
 	// get the name of the primary IP address
@@ -420,7 +426,7 @@ func configureSecondaryAddResult(info *IPResultInfo, addResult *IPAMAddResult, p
 		return errors.Wrap(err, "Invalid mac address")
 	}
 
-	result := CNIResult{
+	result := InterfaceInfo{
 		ipResult: &cniTypesCurr.Result{
 			IPs: []*cniTypesCurr.IPConfig{
 				{
@@ -436,9 +442,9 @@ func configureSecondaryAddResult(info *IPResultInfo, addResult *IPAMAddResult, p
 				},
 			},
 		},
-		nicType:            cns.Secondary,
-		macAddress:         macAddress,
-		isDefaultInterface: info.isDefaultInterface,
+		nicType:           cns.Secondary,
+		macAddress:        macAddress,
+		skipDefaultRoutes: info.skipDefaultRoutes,
 	}
 
 	routes, err := getRoutes(info.routes)
@@ -447,7 +453,7 @@ func configureSecondaryAddResult(info *IPResultInfo, addResult *IPAMAddResult, p
 	}
 
 	result.ipResult.Routes = append(result.ipResult.Routes, routes...)
-	addResult.cniResults = append(addResult.cniResults, result)
+	addResult.secondaryInterfaceInfo = append(addResult.secondaryInterfaceInfo, result)
 
 	return nil
 }

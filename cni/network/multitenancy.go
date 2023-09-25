@@ -220,8 +220,8 @@ func (m *Multitenancy) GetAllNetworkContainers(
 	for i := 0; i < len(ncResponses); i++ {
 		ipamResults[i].ncResponse = &ncResponses[i]
 		ipamResults[i].hostSubnetPrefix = hostSubnetPrefixes[i]
-		ipamResults[i].defaultCniResult.ipResult = convertToCniResult(ipamResults[i].ncResponse, ifName)
-		ipamResults[i].defaultCniResult.nicType = cns.Default
+		ipamResults[i].defaultInterfaceInfo.ipResult = convertToCniResult(ipamResults[i].ncResponse, ifName)
+		ipamResults[i].defaultInterfaceInfo.nicType = cns.Infra
 	}
 
 	return ipamResults, err
