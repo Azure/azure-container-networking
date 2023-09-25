@@ -126,18 +126,9 @@ stages:
               os: ${{ parameters.os }}
               cni: cniv1
               restartCase: "true"
-      - job: restart_hns
-        displayName: "Restart and Validate HNS"
-        dependsOn: restart_nodes
-        condition: and( succeeded(), ${{ eq(parameters.os, 'windows') }} )
-        steps:
-          - template: ../load-test-templates/restart-hns-template.yaml
-            parameters:
-              clusterName: ${{ parameters.clusterName }}-$(commitID)
-              cni: cniv1
       - job: recover
         displayName: "Recover Resources"
-        dependsOn: restart_hns
+        dependsOn: restart_nodes
         steps:
           - task: AzureCLI@1
             inputs:
@@ -166,3 +157,86 @@ stages:
           service: true
           hostport: true
 
+  - ${{ if eq(parameters.os, 'windows') }}:
+    - stage: ${{ parameters.name }}_HNS
+      variables:
+        commitID: $[ stagedependencies.setup.env.outputs['SetEnvVars.commitID'] ]
+        npmVersion: $[ stagedependencies.setup.env.outputs['SetEnvVars.npmVersion'] ]
+        dropgzVersion: $[ stagedependencies.setup.env.outputs['SetEnvVars.dropgzVersion'] ]
+      pool:
+        name: $(BUILD_POOL_NAME_DEFAULT)
+      dependsOn:
+        - ${{ parameters.name }}
+        - setup
+      displayName: "HNS Test - ${{ parameters.clusterName }}"
+      jobs:
+        - job: restart_hns
+          displayName: "Restart and Validate HNS"
+          condition: and( succeeded(), ${{ eq(parameters.os, 'windows') }} )
+          steps:
+            - template: ../load-test-templates/restart-hns-template.yaml
+              parameters:
+                clusterName: ${{ parameters.clusterName }}-$(commitID)
+                cni: cniv1
+        - job: deploy_pods
+          displayName: "Scale Test"
+          dependsOn: restart_hns
+          steps:
+            - template: ../load-test-templates/pod-deployment-template.yaml
+              parameters:
+                clusterName: ${{ parameters.clusterName }}-$(commitID)
+                scaleup: ${{ parameters.scaleup }}
+                os: ${{ parameters.os }}
+                iterations: ${{ parameters.iterations }}
+                nodeCount: ${{ parameters.nodeCount }}
+            - template: ../load-test-templates/validate-state-template.yaml
+              parameters:
+                clusterName: ${{ parameters.clusterName }}-$(commitID)
+                os: ${{ parameters.os }}
+                cni: cniv1
+        - job: restart_nodes
+          displayName: "Restart Test"
+          dependsOn: deploy_pods
+          steps:
+            - template: ../load-test-templates/restart-node-template.yaml
+              parameters:
+                clusterName: ${{ parameters.clusterName }}-$(commitID)
+                os: ${{ parameters.os }}
+                nodeCount: ${{ parameters.nodeCount }}
+                scaleup: ${{ parameters.scaleup }}
+            - template: ../load-test-templates/validate-state-template.yaml
+              parameters:
+                clusterName: ${{ parameters.clusterName }}-$(commitID)
+                os: ${{ parameters.os }}
+                cni: cniv1
+                restartCase: "true"
+        - job: recover
+          displayName: "Recover Resources"
+          dependsOn: restart_nodes
+          steps:
+            - task: AzureCLI@1
+              inputs:
+                azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+                scriptLocation: "inlineScript"
+                scriptType: "bash"
+                addSpnToEnvironment: true
+                inlineScript: |
+                  echo "Delete load-test Namespace"
+                  make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}-$(commitID)
+                  kubectl delete ns load-test
+                  kubectl cluster-info
+                  kubectl get po -owide -A
+              name: "recover"
+              displayName: "Delete test Namespaces"
+        - template: ../k8s-e2e/k8s-e2e-job-template.yaml
+          parameters:
+            sub: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+            clusterName: ${{ parameters.clusterName }}-$(commitID)
+            os: ${{ parameters.os }}
+            dependsOn: recover
+            datapath: true
+            dns: true
+            portforward: true
+            hybridWin: true
+            service: true
+            hostport: true

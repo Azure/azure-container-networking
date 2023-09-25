@@ -204,7 +204,7 @@ stages:
     condition: always()
     dependsOn:
       - cilium_overlay
-      - win22_cniv1
+      - win22_cniv1_HNS
       - linux_cniv1
       - linux_podsubnet
       - linux_overlay
