@@ -161,7 +161,7 @@ func (plugin *NetPlugin) getNetworkName(netNs string, ipamAddResult *IPAMAddResu
 	// This will happen during ADD call
 	if ipamAddResult != nil && ipamAddResult.ncResponse != nil {
 		// networkName will look like ~ azure-vlan1-172-28-1-0_24
-		ipAddrNet := ipamAddResult.defaultCniResult.ipResult.IPs[0].Address
+		ipAddrNet := ipamAddResult.defaultInterfaceInfo.ipResult.IPs[0].Address
 		prefix, err := netip.ParsePrefix(ipAddrNet.String())
 		if err != nil {
 			logger.Error("Error parsing network CIDR",

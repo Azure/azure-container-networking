@@ -182,7 +182,7 @@ func (nw *network) newEndpointImpl(
 				return epErr
 			}
 
-			if epInfo.NICType == cns.Default {
+			if epInfo.NICType == cns.Infra {
 				var epErr error
 				containerIf, epErr = netioCli.GetNetworkInterfaceByName(contIfName)
 				if epErr != nil {
