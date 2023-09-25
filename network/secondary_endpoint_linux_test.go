@@ -150,15 +150,20 @@ func TestSecondaryConfigureContainerInterfacesAndRoutes(t *testing.T) {
 						Mask: net.CIDRMask(subnetv4Mask, ipv4Bits),
 					},
 				},
+				Routes: []RouteInfo{
+					{
+						Dst: net.IPNet{IP: net.ParseIP("192.168.0.4"), Mask: net.CIDRMask(ipv4FullMask, ipv4Bits)},
+					},
+				},
 			},
 			wantErr: false,
 		},
 		{
 			name: "Configure Interface and routes assign ip fail",
 			client: &SecondaryEndpointClient{
-				netlink:        netlink.NewMockNetlink(true, "netlink fail"),
+				netlink:        netlink.NewMockNetlink(false, ""),
 				plClient:       platform.NewMockExecClient(false),
-				netUtilsClient: networkutils.NewNetworkUtils(nl, plc),
+				netUtilsClient: networkutils.NewNetworkUtils(netlink.NewMockNetlink(true, ""), plc),
 				netioshim:      netio.NewMockNetIO(false, 0),
 				ep:             &endpoint{SecondaryInterfaces: map[string]*InterfaceInfo{"eth1": {Name: "eth1"}}},
 			},
@@ -172,7 +177,7 @@ func TestSecondaryConfigureContainerInterfacesAndRoutes(t *testing.T) {
 				},
 			},
 			wantErr:    true,
-			wantErrMsg: "netlink fail",
+			wantErrMsg: "",
 		},
 		{
 			name: "Configure Interface and routes add routes fail",
@@ -189,6 +194,11 @@ func TestSecondaryConfigureContainerInterfacesAndRoutes(t *testing.T) {
 					{
 						IP:   net.ParseIP("192.168.0.4"),
 						Mask: net.CIDRMask(subnetv4Mask, ipv4Bits),
+					},
+				},
+				Routes: []RouteInfo{
+					{
+						Dst: net.IPNet{IP: net.ParseIP("192.168.0.4"), Mask: net.CIDRMask(ipv4FullMask, ipv4Bits)},
 					},
 				},
 			},
@@ -217,24 +227,19 @@ func TestSecondaryConfigureContainerInterfacesAndRoutes(t *testing.T) {
 			wantErrMsg: "SecondaryEndpointClient Error: eth2 does not exist",
 		},
 		{
-			name: "Configure Interface and routes add routes fail on non default interface",
+			name: "Configure Interface and routes add routes fail when no routes are provided",
 			client: &SecondaryEndpointClient{
 				netlink:        netlink.NewMockNetlink(false, ""),
 				plClient:       platform.NewMockExecClient(false),
 				netUtilsClient: networkutils.NewNetworkUtils(nl, plc),
-				netioshim:      netio.NewMockNetIO(true, 2),
+				netioshim:      netio.NewMockNetIO(false, 0),
 				ep:             &endpoint{SecondaryInterfaces: map[string]*InterfaceInfo{"eth1": {Name: "eth1"}}},
 			},
 			epInfo: &EndpointInfo{
 				IfName: "eth1",
-				Routes: []RouteInfo{
-					{
-						Dst: net.IPNet{IP: net.ParseIP("192.168.0.4"), Mask: net.CIDRMask(ipv4FullMask, ipv4Bits)},
-					},
-				},
 			},
 			wantErr:    true,
-			wantErrMsg: netio.ErrMockNetIOFail.Error(),
+			wantErrMsg: "SecondaryEndpointClient Error: routes expected for eth1",
 		},
 	}
 
