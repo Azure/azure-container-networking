@@ -6,7 +6,7 @@ import (
 	"io"
 	"os"
 
-	"github.com/Azure/azure-container-networking/log"
+	"log"
 )
 
 // ReadFileByLines reads file line by line and return array of lines.
