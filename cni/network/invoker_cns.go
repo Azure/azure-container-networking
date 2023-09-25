@@ -46,7 +46,7 @@ type IPResultInfo struct {
 	hostGateway        string
 	nicType            string
 	macAddress         string
-	isDefaultInterface bool
+	skipDefaultRoutes  bool
 	routes             []cns.Route
 }
 
