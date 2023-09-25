@@ -362,7 +362,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 		telemetry.SendCNIMetric(&cniMetric, plugin.tb)
 
 		// Add Interfaces to result.
-		defaultCniResult := ipamAddResult.defaultCniResult.ipResult
+		defaultCniResult := ipamAddResult.defaultInterfaceInfo.ipResult
 		if defaultCniResult == nil {
 			defaultCniResult = &cniTypesCurr.Result{}
 		}
@@ -421,7 +421,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 		res, err = plugin.nnsClient.AddContainerNetworking(context.Background(), k8sPodName, args.Netns)
 
 		if err == nil {
-			ipamAddResult.defaultCniResult.ipResult = convertNnsToCniResult(res, args.IfName, k8sPodName, "AddContainerNetworking")
+			ipamAddResult.defaultInterfaceInfo.ipResult = convertNnsToCniResult(res, args.IfName, k8sPodName, "AddContainerNetworking")
 		}
 
 		return err
@@ -508,7 +508,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 			}
 
 			if resultSecondAdd != nil {
-				ipamAddResult.defaultCniResult.ipResult = resultSecondAdd
+				ipamAddResult.defaultInterfaceInfo.ipResult = resultSecondAdd
 				return nil
 			}
 		}
@@ -530,12 +530,12 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 			if err != nil {
 				return fmt.Errorf("IPAM Invoker Add failed with error: %w", err)
 			}
-			sendEvent(plugin, fmt.Sprintf("Allocated IPAddress from ipam:%+v", ipamAddResult.defaultCniResult))
+			sendEvent(plugin, fmt.Sprintf("Allocated IPAddress from ipam:%+v", ipamAddResult.defaultInterfaceInfo))
 		}
 
 		defer func() { //nolint:gocritic
 			if err != nil {
-				plugin.cleanupAllocationOnError(ipamAddResult.cniResults, nwCfg, args, options)
+				plugin.cleanupAllocationOnError(ipamAddResult.secondaryInterfaceInfo, nwCfg, args, options)
 			}
 		}()
 
@@ -581,7 +581,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 		}
 
 		sendEvent(plugin, fmt.Sprintf("CNI ADD succeeded: IP:%+v, VlanID: %v, podname %v, namespace %v numendpoints:%d",
-			ipamAddResult.defaultCniResult.ipResult.IPs, epInfo.Data[network.VlanIDKey], k8sPodName, k8sNamespace, plugin.nm.GetNumberOfEndpoints("", nwCfg.Name)))
+			ipamAddResult.defaultInterfaceInfo.ipResult.IPs, epInfo.Data[network.VlanIDKey], k8sPodName, k8sNamespace, plugin.nm.GetNumberOfEndpoints("", nwCfg.Name)))
 	}
 
 	return nil
@@ -589,14 +589,14 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 
 // cleanup allocated ipv4 and ipv6 addresses if they exist
 func (plugin *NetPlugin) cleanupAllocationOnError(
-	cniResults []CNIResult,
+	cniResults []InterfaceInfo,
 	nwCfg *cni.NetworkConfig,
 	args *cniSkel.CmdArgs,
 	options map[string]interface{},
 ) {
-	for _, cniResult := range cniResults {
-		if cniResult.ipResult != nil && cniResult.nicType == cns.Default {
-			if er := plugin.ipamInvoker.Delete(&cniResult.ipResult.IPs[0].Address, nwCfg, args, options); er != nil {
+	for _, interfaceInfo := range cniResults {
+		if interfaceInfo.ipResult != nil && interfaceInfo.nicType == cns.Infra {
+			if er := plugin.ipamInvoker.Delete(&interfaceInfo.ipResult.IPs[0].Address, nwCfg, args, options); er != nil {
 				logger.Error("Failed to cleanup ip allocation on failure", zap.Error(er))
 			}
 		}
@@ -627,7 +627,7 @@ func (plugin *NetPlugin) createNetworkInternal(
 		return nwInfo, err
 	}
 
-	nwDNSInfo, err := getNetworkDNSSettings(ipamAddConfig.nwCfg, ipamAddResult.defaultCniResult.ipResult)
+	nwDNSInfo, err := getNetworkDNSSettings(ipamAddConfig.nwCfg, ipamAddResult.defaultInterfaceInfo.ipResult)
 	if err != nil {
 		err = plugin.Errorf("Failed to getDNSSettings: %v", err)
 		return nwInfo, err
@@ -671,7 +671,7 @@ func (plugin *NetPlugin) createNetworkInternal(
 
 // construct network info with ipv4/ipv6 subnets
 func addSubnetToNetworkInfo(ipamAddResult IPAMAddResult, nwInfo *network.NetworkInfo) error {
-	for _, ipConfig := range ipamAddResult.defaultCniResult.ipResult.IPs {
+	for _, ipConfig := range ipamAddResult.defaultInterfaceInfo.ipResult.IPs {
 		ip, podSubnetPrefix, err := net.ParseCIDR(ipConfig.Address.String())
 		if err != nil {
 			return fmt.Errorf("Failed to ParseCIDR for pod subnet prefix: %w", err)
@@ -711,7 +711,7 @@ type createEndpointInternalOpt struct {
 func (plugin *NetPlugin) createEndpointInternal(opt *createEndpointInternalOpt) (network.EndpointInfo, error) {
 	epInfo := network.EndpointInfo{}
 
-	defaultIPResult := opt.ipamAddResult.defaultCniResult.ipResult
+	defaultIPResult := opt.ipamAddResult.defaultInterfaceInfo.ipResult
 	epDNSInfo, err := getEndpointDNSSettings(opt.nwCfg, defaultIPResult, opt.k8sNamespace)
 	if err != nil {
 		err = plugin.Errorf("Failed to getEndpointDNSSettings: %v", err)
@@ -758,8 +758,8 @@ func (plugin *NetPlugin) createEndpointInternal(opt *createEndpointInternalOpt) 
 		VnetCidrs:          opt.nwCfg.VnetCidrs,
 		ServiceCidrs:       opt.nwCfg.ServiceCidrs,
 		NATInfo:            opt.natInfo,
-		NICType:            cns.Default,
-		IsDefaultInterface: opt.ipamAddResult.defaultCniResult.isDefaultInterface,
+		NICType:            cns.Infra,
+		SkipDefaultRoutes:  opt.ipamAddResult.defaultInterfaceInfo.skipDefaultRoutes,
 	}
 
 	epPolicies, err := getPoliciesFromRuntimeCfg(opt.nwCfg, opt.ipamAddResult.ipv6Enabled)
@@ -802,7 +802,7 @@ func (plugin *NetPlugin) createEndpointInternal(opt *createEndpointInternalOpt) 
 
 	epInfos := []*network.EndpointInfo{&epInfo}
 	// get secondary interface info
-	for _, secondaryCniResult := range opt.ipamAddResult.cniResults {
+	for _, secondaryCniResult := range opt.ipamAddResult.secondaryInterfaceInfo {
 		var addresses []net.IPNet
 		for _, ipconfig := range secondaryCniResult.ipResult.IPs {
 			addresses = append(addresses, ipconfig.Address)
@@ -810,12 +810,12 @@ func (plugin *NetPlugin) createEndpointInternal(opt *createEndpointInternalOpt) 
 
 		epInfos = append(epInfos,
 			&network.EndpointInfo{
-				ContainerID:        epInfo.ContainerID,
-				NetNsPath:          epInfo.NetNsPath,
-				IPAddresses:        addresses,
-				MacAddress:         secondaryCniResult.macAddress,
-				NICType:            cns.Secondary,
-				IsDefaultInterface: secondaryCniResult.isDefaultInterface,
+				ContainerID:       epInfo.ContainerID,
+				NetNsPath:         epInfo.NetNsPath,
+				IPAddresses:       addresses,
+				MacAddress:        secondaryCniResult.macAddress,
+				NICType:           cns.Secondary,
+				SkipDefaultRoutes: secondaryCniResult.skipDefaultRoutes,
 			})
 	}
 
