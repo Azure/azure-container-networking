@@ -3,13 +3,12 @@ package network
 import (
 	"net"
 
-	"github.com/pkg/errors"
-
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/netio"
 	"github.com/Azure/azure-container-networking/netlink"
 	"github.com/Azure/azure-container-networking/network/networkutils"
 	"github.com/Azure/azure-container-networking/platform"
+	"github.com/pkg/errors"
 )
 
 var errorSecondaryEndpointClient = errors.New("SecondaryEndpointClient Error")
@@ -67,7 +66,7 @@ func (client *SecondaryEndpointClient) AddEndpointRules(_ *EndpointInfo) error {
 	return nil
 }
 
-func (client *SecondaryEndpointClient) DeleteEndpointRules(ep *endpoint) {
+func (client *SecondaryEndpointClient) DeleteEndpointRules(_ *endpoint) {
 }
 
 func (client *SecondaryEndpointClient) MoveEndpointsToContainerNS(epInfo *EndpointInfo, nsID uintptr) error {
