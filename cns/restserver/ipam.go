@@ -542,7 +542,9 @@ func (service *HTTPRestService) AssignAnyAvailableIPConfig(podInfo cns.PodInfo) 
 	service.Lock()
 	defer service.Unlock()
 
+	var ncID string
 	for _, ipState := range service.PodIPConfigState {
+		ncID = ipState.NCID
 		if ipState.GetState() == types.Available {
 			if err := service.assignIPConfig(ipState, podInfo); err != nil {
 				return cns.PodIpInfo{}, err
@@ -557,7 +559,8 @@ func (service *HTTPRestService) AssignAnyAvailableIPConfig(podInfo cns.PodInfo) 
 		}
 	}
 	//nolint:goerr113
-	return cns.PodIpInfo{}, fmt.Errorf("no IPs available, waiting on Azure CNS to allocate more")
+	return cns.PodIpInfo{}, errors.Errorf("not enough IPs available for %s, waiting on Azure CNS to allocate more with NC Status: %s",
+		ncID, string(service.state.ContainerStatus[ncID].CreateNetworkContainerRequest.NCStatus))
 }
 
 // If IPConfig is already assigned to pod, it returns that else it returns one of the available ipconfigs.
