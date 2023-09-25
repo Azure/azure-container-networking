@@ -270,7 +270,8 @@ func TestCNSIPAMInvoker_Add_Overlay(t *testing.T) {
 										PrimaryIP: "10.0.0.1",
 										Subnet:    "10.0.0.0/24",
 									},
-									NICType: cns.Infra,
+									NICType:           cns.Infra,
+									SkipDefaultRoutes: true,
 								},
 								{
 									PodIPConfig: cns.IPSubnet{
