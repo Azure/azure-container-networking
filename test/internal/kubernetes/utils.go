@@ -233,6 +233,24 @@ func WaitForPodsRunning(ctx context.Context, clientset *kubernetes.Clientset, na
 	return errors.Wrap(retrier.Do(ctx, checkPodIPsFn), "failed to check if pods were running")
 }
 
+func WaitForPodsDelete(ctx context.Context, clientset *kubernetes.Clientset, namespace, labelselector string) error {
+	podsClient := clientset.CoreV1().Pods(namespace)
+
+	checkPodsDeleted := func() error {
+		podList, err := podsClient.List(ctx, metav1.ListOptions{LabelSelector: labelselector})
+		if err != nil {
+			return errors.Wrapf(err, "could not list pods with label selector %s", labelselector)
+		}
+		if len(podList.Items) != 0 {
+			return errors.Errorf("pods still present: %+v", podList.Items)
+		}
+		return nil
+	}
+
+	retrier := retry.Retrier{Attempts: RetryAttempts, Delay: RetryDelay}
+	return errors.Wrap(retrier.Do(ctx, checkPodsDeleted), "failed to wait for pods to delete")
+}
+
 func WaitForPodDeployment(ctx context.Context, clientset *kubernetes.Clientset, namespace, deploymentName, podLabelSelector string, replicas int) error {
 	podsClient := clientset.CoreV1().Pods(namespace)
 	deploymentsClient := clientset.AppsV1().Deployments(namespace)
@@ -430,4 +448,20 @@ func HasWindowsNodes(ctx context.Context, clientset *kubernetes.Clientset) (bool
 		}
 	}
 	return false, nil
+}
+
+func MustRestartDaemonset(ctx context.Context, clientset *kubernetes.Clientset, namespace, daemonsetName string) error {
+	ds, err := clientset.AppsV1().DaemonSets(namespace).Get(ctx, daemonsetName, metav1.GetOptions{})
+	if err != nil {
+		return errors.Wrapf(err, "failed to get daemonset %s", daemonsetName)
+	}
+
+	if ds.Spec.Template.ObjectMeta.Annotations == nil {
+		ds.Spec.Template.ObjectMeta.Annotations = make(map[string]string)
+	}
+
+	ds.Spec.Template.ObjectMeta.Annotations["kubectl.kubernetes.io/restartedAt"] = time.Now().Format(time.RFC3339)
+
+	_, err = clientset.AppsV1().DaemonSets(namespace).Update(ctx, ds, metav1.UpdateOptions{})
+	return errors.Wrapf(err, "failed to update ds %s", daemonsetName)
 }

@@ -255,10 +255,50 @@ func InstallCNSDaemonset(ctx context.Context, clientset *kubernetes.Clientset, l
 	return cleanupds, nil
 }
 
-func loadCNSDaemonset(ctx context.Context, clientset *kubernetes.Clientset, cnsVersion, cniDropgzVersion string, nodeOS corev1.OSName) (appsv1.DaemonSet, cnsDetails, error) {
+func RestartCNSDaemonset(ctx context.Context, clientset *kubernetes.Clientset) error {
+	cniDropgzVersion := os.Getenv(envCNIDropgzVersion)
+	cnsVersion := os.Getenv(envCNSVersion)
+	cnsScenarioMap, err := initCNSScenarioVars()
+	if err != nil {
+		return errors.Wrap(err, "failed to initialize cns scenario map")
+	}
+
+	oses := []corev1.OSName{corev1.Linux}
+	hasWinNodes, err := HasWindowsNodes(ctx, clientset)
+	if err != nil {
+		return errors.Wrap(err, "failed to check if cluster has windows nodes")
+	}
+
+	if hasWinNodes {
+		// prepend windows so it's first os to restart, if present
+		oses = append([]corev1.OSName{corev1.Windows}, oses...)
+	}
+
+	restartErrors := []error{}
+	for _, nodeOS := range oses {
+		cns, _, err := parseCNSDaemonset(cnsVersion, cniDropgzVersion, cnsScenarioMap, nodeOS)
+		if err != nil {
+			restartErrors = append(restartErrors, err)
+		}
+
+		err = MustRestartDaemonset(ctx, clientset, cns.Namespace, cns.Name)
+		if err != nil {
+			restartErrors = append(restartErrors, err)
+		}
+
+	}
+
+	if len(restartErrors) > 0 {
+		log.Printf("Saw errors %+v", restartErrors)
+		return restartErrors[0]
+	}
+	return nil
+}
+
+func initCNSScenarioVars() (map[CNSScenario]map[corev1.OSName]cnsDetails, error) {
 	_, b, _, ok := runtime.Caller(0)
 	if !ok {
-		return appsv1.DaemonSet{}, cnsDetails{}, errors.Wrap(ErrPathNotFound, "could not get path to caller")
+		return map[CNSScenario]map[corev1.OSName]cnsDetails{}, errors.Wrap(ErrPathNotFound, "could not get path to caller")
 	}
 	basepath := filepath.Dir(b)
 	cnsManifestFolder := path.Join(basepath, "../../integration/manifests/cns")
@@ -380,6 +420,14 @@ func loadCNSDaemonset(ctx context.Context, clientset *kubernetes.Clientset, cnsV
 		},
 	}
 
+	return cnsScenarioMap, nil
+}
+
+func loadCNSDaemonset(ctx context.Context, clientset *kubernetes.Clientset, cnsVersion, cniDropgzVersion string, nodeOS corev1.OSName) (appsv1.DaemonSet, cnsDetails, error) {
+	cnsScenarioMap, err := initCNSScenarioVars()
+	if err != nil {
+		return appsv1.DaemonSet{}, cnsDetails{}, errors.Wrap(err, "failed to initialize cns scenario map")
+	}
 	cns, cnsScenarioDetails, err := setupCNSDaemonset(ctx, clientset, cnsVersion, cniDropgzVersion, cnsScenarioMap, nodeOS)
 	if err != nil {
 		return appsv1.DaemonSet{}, cnsDetails{}, errors.Wrap(err, "failed to setup cns daemonset")
@@ -397,13 +445,51 @@ func setupCNSDaemonset(
 	cnsScenarioMap map[CNSScenario]map[corev1.OSName]cnsDetails,
 	nodeOS corev1.OSName,
 ) (appsv1.DaemonSet, cnsDetails, error) {
+	cns, cnsScenarioDetails, err := parseCNSDaemonset(cnsVersion, cniDropgzVersion, cnsScenarioMap, nodeOS)
+	if err != nil {
+		return appsv1.DaemonSet{}, cnsDetails{}, errors.Wrap(err, "failed to parse cns daemonset")
+	}
+
+	log.Printf("Installing CNS with image %s", cns.Spec.Template.Spec.Containers[0].Image)
+	cnsDaemonsetClient := clientset.AppsV1().DaemonSets(cns.Namespace)
+
+	// setup the CNS configmap
+	if err := MustSetupConfigMap(ctx, clientset, cnsScenarioDetails.configMapPath); err != nil {
+		return cns, cnsDetails{}, errors.Wrapf(err, "failed to setup CNS %s configMap", cnsScenarioDetails.configMapPath)
+	}
+
+	// setup common RBAC, ClusteerRole, ClusterRoleBinding, ServiceAccount
+	if _, err := MustSetUpClusterRBAC(ctx, clientset, cnsScenarioDetails.clusterRolePath, cnsScenarioDetails.clusterRoleBindingPath, cnsScenarioDetails.serviceAccountPath); err != nil {
+		return appsv1.DaemonSet{}, cnsDetails{}, errors.Wrap(err, "failed to setup common RBAC, ClusteerRole, ClusterRoleBinding and ServiceAccount")
+	}
+
+	// setup RBAC, Role, RoleBinding
+	if err := MustSetUpRBAC(ctx, clientset, cnsScenarioDetails.rolePath, cnsScenarioDetails.roleBindingPath); err != nil {
+		return appsv1.DaemonSet{}, cnsDetails{}, errors.Wrap(err, "failed to setup RBAC, Role and RoleBinding")
+	}
+
+	if err := MustCreateDaemonset(ctx, cnsDaemonsetClient, cns); err != nil {
+		return appsv1.DaemonSet{}, cnsDetails{}, errors.Wrap(err, "failed to create daemonset")
+	}
+
+	if err := WaitForPodDaemonset(ctx, clientset, cns.Namespace, cns.Name, cnsScenarioDetails.labelSelector); err != nil {
+		return appsv1.DaemonSet{}, cnsDetails{}, errors.Wrap(err, "failed to check daemonset running")
+	}
+	return cns, cnsScenarioDetails, nil
+}
+
+// parseCNSDaemonset just parses the appropriate cns daemonset
+func parseCNSDaemonset(cnsVersion, cniDropgzVersion string,
+	cnsScenarioMap map[CNSScenario]map[corev1.OSName]cnsDetails,
+	nodeOS corev1.OSName,
+) (appsv1.DaemonSet, cnsDetails, error) {
 	for scenario := range cnsScenarioMap {
 		if ok, err := strconv.ParseBool(os.Getenv(string(scenario))); err != nil || !ok {
 			log.Printf("%s not set to 'true', skipping", scenario)
 			continue
 		}
 
-		log.Printf("installing %s", scenario)
+		log.Printf("%s set to 'true'", scenario)
 
 		cnsScenarioDetails, ok := cnsScenarioMap[scenario][nodeOS]
 		if !ok {
@@ -433,33 +519,6 @@ func setupCNSDaemonset(
 		}
 		if len(cnsScenarioDetails.containerVolumeMounts) > 0 {
 			cns.Spec.Template.Spec.Containers[0].VolumeMounts = cnsScenarioDetails.containerVolumeMounts
-		}
-
-		// setup the CNS configmap
-		if err := MustSetupConfigMap(ctx, clientset, cnsScenarioDetails.configMapPath); err != nil {
-			return cns, cnsDetails{}, errors.Wrapf(err, "failed to setup CNS %s configMap", cnsScenarioDetails.configMapPath)
-		}
-
-		cnsDaemonsetClient := clientset.AppsV1().DaemonSets(cns.Namespace)
-
-		log.Printf("Installing CNS with image %s", cns.Spec.Template.Spec.Containers[0].Image)
-
-		// setup common RBAC, ClusteerRole, ClusterRoleBinding, ServiceAccount
-		if _, err := MustSetUpClusterRBAC(ctx, clientset, cnsScenarioDetails.clusterRolePath, cnsScenarioDetails.clusterRoleBindingPath, cnsScenarioDetails.serviceAccountPath); err != nil {
-			return appsv1.DaemonSet{}, cnsDetails{}, errors.Wrap(err, "failed to setup common RBAC, ClusteerRole, ClusterRoleBinding and ServiceAccount")
-		}
-
-		// setup RBAC, Role, RoleBinding
-		if err := MustSetUpRBAC(ctx, clientset, cnsScenarioDetails.rolePath, cnsScenarioDetails.roleBindingPath); err != nil {
-			return appsv1.DaemonSet{}, cnsDetails{}, errors.Wrap(err, "failed to setup RBAC, Role and RoleBinding")
-		}
-
-		if err := MustCreateDaemonset(ctx, cnsDaemonsetClient, cns); err != nil {
-			return appsv1.DaemonSet{}, cnsDetails{}, errors.Wrap(err, "failed to create daemonset")
-		}
-
-		if err := WaitForPodDaemonset(ctx, clientset, cns.Namespace, cns.Name, cnsScenarioDetails.labelSelector); err != nil {
-			return appsv1.DaemonSet{}, cnsDetails{}, errors.Wrap(err, "failed to check daemonset running")
 		}
 		return cns, cnsScenarioDetails, nil
 	}
