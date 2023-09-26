@@ -137,6 +137,16 @@ jobs:
                 --node-count 1 \
                 --max-pods 100
 
+            echo "Getting credentials to $CLUSTER_NAME"
+            az aks get-credentials -g $(RESOURCE_GROUP) -n $CLUSTER_NAME --overwrite-existing --file ./kubeconfig
+            mkdir -p ~/.kube/
+            cp ./kubeconfig ~/.kube/config
+
+            # install kwok on linux node
+            cd $(Pipeline.Workspace)/s/test/scale/
+            chmod u+x run-kwok-as-pod.sh test-scale.sh connectivity/test-connectivity.sh
+            ./run-kwok-as-pod.sh
+
             if [[ $(PROFILE) == *ws22 ]]; then
               echo "Adding Windows nodepool to $CLUSTER_NAME"
               az aks nodepool add \
@@ -150,10 +160,6 @@ jobs:
                   --max-pods 100
             fi
 
-            echo "Getting credentials to $CLUSTER_NAME"
-            az aks get-credentials -g $(RESOURCE_GROUP) -n $CLUSTER_NAME --overwrite-existing --file ./kubeconfig
-            mkdir -p ~/.kube/
-            cp ./kubeconfig ~/.kube/config
 
       - task: AzureCLI@2
         displayName: "Deploy NPM to Test Cluster"
@@ -165,11 +171,6 @@ jobs:
           condition: succeeded()
           inlineScript: |
             set -e
-
-            # install kwok
-            cd $(Pipeline.Workspace)/s/test/scale/
-            chmod u+x run-kwok-as-pod.sh test-scale.sh connectivity/test-connectivity.sh
-            ./run-kwok-as-pod.sh
 
             # deploy azure-npm
             cp $(Pipeline.Workspace)/s/npm/azure-npm.yaml azure-npm.yaml
