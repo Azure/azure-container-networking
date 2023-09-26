@@ -5,22 +5,23 @@ import (
 	"reflect"
 
 	acnk8s "github.com/Azure/azure-container-networking/test/internal/kubernetes"
+	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/kubernetes"
 )
 
-func compareIPs(expected map[string]string, actual []string) bool {
+func compareIPs(expected map[string]string, actual []string) error {
 	if len(expected) != len(actual) {
-		return false
+		return errors.Errorf("len of expected IPs != len of actual IPs, expected: %+v, actual: %+v", expected, actual)
 	}
 
 	for _, ip := range actual {
 		if _, ok := expected[ip]; !ok {
-			return false
+			return errors.Errorf("actual ip %s is unexpected, expected: %+v, actual: %+v", ip, expected, actual)
 		}
 	}
 
-	return true
+	return nil
 }
 
 // func to get the pods ip without the node ip (ie. host network as false)

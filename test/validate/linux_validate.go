@@ -23,12 +23,6 @@ var (
 	cnsLocalCacheCmd       = []string{"curl", "localhost:10090/debug/ipaddresses", "-d", "{\"IPConfigStateFilter\":[\"Assigned\"]}"}
 )
 
-// dualstack overlay Linux and windows nodes must have these labels
-var dualstackOverlayNodeLabels = map[string]string{
-	"kubernetes.azure.com/podnetwork-type":   "overlay",
-	"kubernetes.azure.com/podv6network-type": "overlay",
-}
-
 type stateFileIpsFunc func([]byte) (map[string]string, error)
 
 var linuxChecksMap = map[string][]check{

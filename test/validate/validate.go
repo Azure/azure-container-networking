@@ -21,9 +21,22 @@ var nodeSelectorMap = map[string]string{
 	"linux":   "kubernetes.io/os=linux",
 }
 
+// IPv4 overlay Linux and windows nodes must have this label
+var v4OverlayNodeLabels = map[string]string{
+	"kubernetes.azure.com/podnetwork-type": "overlay",
+}
+
+// dualstack overlay Linux and windows nodes must have these labels
+var dualstackOverlayNodeLabels = map[string]string{
+	"kubernetes.azure.com/podnetwork-type":   "overlay",
+	"kubernetes.azure.com/podv6network-type": "overlay",
+}
+
 const (
-	privilegedLabelSelector = "app=privileged-daemonset"
-	privilegedNamespace     = "kube-system"
+	privilegedLabelSelector  = "app=privileged-daemonset"
+	privilegedNamespace      = "kube-system"
+	IPv4ExpectedIPCount      = 1
+	DualstackExpectedIPCount = 2
 )
 
 type Validator struct {
@@ -154,20 +167,18 @@ func (v *Validator) validateIPs(ctx context.Context, stateFileIps stateFileIpsFu
 		if err != nil {
 			return errors.Wrapf(err, "failed to exec into privileged pod - %s", podName)
 		}
-		filePodIps, err := stateFileIps(result)
+		cnsPodIPs, err := stateFileIps(result)
 		if err != nil {
 			return errors.Wrapf(err, "failed to get pod ips from state file")
 		}
-		if len(filePodIps) == 0 && v.restartCase {
+		if len(cnsPodIPs) == 0 && v.restartCase {
 			log.Printf("No pods found on node %s", nodes.Items[index].Name)
 			continue
 		}
 		// get the pod ips
-		podIps := getPodIPsWithoutNodeIP(ctx, v.clientset, nodes.Items[index])
+		observedPodIPs := getPodIPsWithoutNodeIP(ctx, v.clientset, nodes.Items[index])
 
-		check := compareIPs(filePodIps, podIps)
-
-		if !check {
+		if err := compareIPs(cnsPodIPs, observedPodIPs); err != nil {
 			return errors.Wrapf(errors.New("State file validation failed"), "for %s on node %s", checkType, nodes.Items[index].Name)
 		}
 	}
@@ -175,12 +186,8 @@ func (v *Validator) validateIPs(ctx context.Context, stateFileIps stateFileIpsFu
 	return nil
 }
 
-func (v *Validator) validateDualStackNodeProperties(ctx context.Context) error {
-	log.Print("Validating Dualstack Overlay Node properties")
-	nodes, err := acnk8s.GetNodeListByLabelSelector(ctx, v.clientset, nodeSelectorMap[v.os])
-	if err != nil {
-		return errors.Wrapf(err, "failed to get node list")
-	}
+func validateNodeProperties(nodes *corev1.NodeList, labels map[string]string, expectedIPCount int) error {
+	log.Print("Validating Node properties")
 
 	for index := range nodes.Items {
 		nodeName := nodes.Items[index].ObjectMeta.Name
@@ -188,29 +195,47 @@ func (v *Validator) validateDualStackNodeProperties(ctx context.Context) error {
 		// nodes status should be ready after cluster is created
 		nodeConditions := nodes.Items[index].Status.Conditions
 		if nodeConditions[len(nodeConditions)-1].Type != corev1.NodeReady {
-			return errors.Wrapf(err, "node %s status is not ready", nodeName)
+			return errors.Errorf("node %s status is not ready", nodeName)
 		}
 
 		// get node labels
 		nodeLabels := nodes.Items[index].ObjectMeta.GetLabels()
 		for key := range nodeLabels {
-			if label, ok := dualstackOverlayNodeLabels[key]; ok {
+			if label, ok := labels[key]; ok {
 				log.Printf("label %s is correctly shown on the node %+v", key, nodeName)
 				if label != overlayClusterLabelName {
-					return errors.Wrapf(err, "node %s overlay label name is wrong; expected label:%s but actual label:%s", nodeName, overlayClusterLabelName, label)
+					return errors.Errorf("node %s overlay label name is wrong; expected label:%s but actual label:%s", nodeName, overlayClusterLabelName, label)
 				}
 			}
 		}
 
-		// check if node has two internal IPs(one is IPv4 and another is IPv6)
+		// check if node has corret number of internal IPs
 		internalIPCount := 0
 		for _, address := range nodes.Items[index].Status.Addresses {
 			if address.Type == "InternalIP" {
 				internalIPCount++
 			}
 		}
-		if internalIPCount != 2 { //nolint
-			return errors.Wrap(err, "node does not have two internal IPs")
+		if internalIPCount != expectedIPCount {
+			return errors.Errorf("node does not expected number of IPs %d", expectedIPCount)
+		}
+	}
+	return nil
+}
+
+func (v *Validator) ValidateV4OverlayControlPlane(ctx context.Context) error {
+	nodes, err := acnk8s.GetNodeListByLabelSelector(ctx, v.clientset, nodeSelectorMap[v.os])
+	if err != nil {
+		return errors.Wrap(err, "failed to get node list")
+	}
+
+	if err := validateNodeProperties(nodes, v4OverlayNodeLabels, IPv4ExpectedIPCount); err != nil {
+		return errors.Wrap(err, "failed to validate IPv4 overlay node properties")
+	}
+
+	if v.os == "windows" {
+		if err := validateHNSNetworkState(ctx, nodes, v.clientset, v.config); err != nil {
+			return errors.Wrap(err, "failed to validate IPv4 overlay HNS network state")
 		}
 	}
 
@@ -218,10 +243,42 @@ func (v *Validator) validateDualStackNodeProperties(ctx context.Context) error {
 }
 
 func (v *Validator) ValidateDualStackControlPlane(ctx context.Context) error {
-	if err := v.validateDualStackNodeProperties(ctx); err != nil {
+	nodes, err := acnk8s.GetNodeListByLabelSelector(ctx, v.clientset, nodeSelectorMap[v.os])
+	if err != nil {
+		return errors.Wrap(err, "failed to get node list")
+	}
+
+	if err := validateNodeProperties(nodes, dualstackOverlayNodeLabels, DualstackExpectedIPCount); err != nil {
 		return errors.Wrap(err, "failed to validate dualstack overlay node properties")
 	}
 
+	return nil
+}
+
+func (v *Validator) RestartKubeProxyService(ctx context.Context) error {
+	nodes, err := acnk8s.GetNodeList(ctx, v.clientset)
+	if err != nil {
+		return errors.Wrapf(err, "failed to get node list")
+	}
+
+	for index := range nodes.Items {
+		node := nodes.Items[index]
+		if node.Status.NodeInfo.OperatingSystem != string(corev1.Windows) {
+			continue
+		}
+		// get the privileged pod
+		pod, err := acnk8s.GetPodsByNode(ctx, v.clientset, privilegedNamespace, privilegedLabelSelector, nodes.Items[index].Name)
+		if err != nil {
+			return errors.Wrapf(err, "failed to get privileged pod")
+		}
+
+		privelegedPod := pod.Items[0]
+		// exec into the pod and restart kubeproxy
+		_, err = acnk8s.ExecCmdOnPod(ctx, v.clientset, privilegedNamespace, privelegedPod.Name, restartKubeProxyCmd, v.config)
+		if err != nil {
+			return errors.Wrapf(err, "failed to exec into privileged pod - %s", privelegedPod.Name)
+		}
+	}
 	return nil
 }
 

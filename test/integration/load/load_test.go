@@ -21,6 +21,7 @@ type TestConfig struct {
 	Replicas          int    `env:"REPLICAS" default:"1"`
 	ValidateStateFile bool   `env:"VALIDATE_STATEFILE" default:"false"`
 	ValidateDualStack bool   `env:"VALIDATE_DUALSTACK" default:"false"`
+	ValidateV4Overlay bool   `env:"VALIDATE_V4OVERLAY" default:"false"`
 	SkipWait          bool   `env:"SKIP_WAIT" default:"false"`
 	RestartCase       bool   `env:"RESTART_CASE" default:"false"`
 	Cleanup           bool   `env:"CLEANUP" default:"false"`
@@ -107,6 +108,10 @@ func TestLoad(t *testing.T) {
 		t.Run("Validate state file", TestValidateState)
 	}
 
+	if testConfig.ValidateV4Overlay {
+		t.Run("Validate v4overlay", TestV4OverlayProperties)
+	}
+
 	if testConfig.ValidateDualStack {
 		t.Run("Validate dualstack overlay", TestDualStackProperties)
 	}
@@ -114,6 +119,8 @@ func TestLoad(t *testing.T) {
 	if testConfig.Cleanup {
 		err = kubernetes.MustDeleteDeployment(ctx, deploymentsClient, deployment)
 		require.NoError(t, err, "error deleteing load deployment")
+		err = kubernetes.WaitForPodsDelete(ctx, clientset, namespace, podLabelSelector)
+		require.NoError(t, err, "error waiting for pods to delete")
 	}
 }
 
@@ -171,7 +178,92 @@ func TestScaleDeployment(t *testing.T) {
 	if testConfig.Cleanup {
 		err = kubernetes.MustDeleteDeployment(ctx, deploymentsClient, deployment)
 		require.NoError(t, err, "error deleteing load deployment")
+		err = kubernetes.WaitForPodsDelete(ctx, clientset, namespace, podLabelSelector)
+		require.NoError(t, err, "error waiting for pods to delete")
 	}
+}
+
+func TestValidCNSStateDuringScaleAndCNSRestart(t *testing.T) {
+	clientset, err := kubernetes.MustGetClientset()
+	require.NoError(t, err)
+
+	config := kubernetes.MustGetRestConfig(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+	defer cancel()
+
+	validator, err := validate.CreateValidator(ctx, clientset, config, namespace, testConfig.CNIType, testConfig.RestartCase, testConfig.OSType)
+	require.NoError(t, err)
+
+	err = validator.Validate(ctx)
+	require.NoError(t, err)
+
+	deployment, err := kubernetes.MustParseDeployment(noopDeploymentMap[testConfig.OSType])
+	require.NoError(t, err)
+	deploymentsClient := clientset.AppsV1().Deployments(namespace)
+
+	// Create a deployment
+	err = kubernetes.MustCreateDeployment(ctx, deploymentsClient, deployment)
+	require.NoError(t, err)
+
+	// Scale it up and "skipWait", so CNS restart can happen immediately after scale call is made (while pods are still creating)
+	skipWait := true
+	err = kubernetes.MustScaleDeployment(ctx, deploymentsClient, deployment, clientset, namespace, podLabelSelector, testConfig.ScaleUpReplicas, skipWait)
+	require.NoError(t, err)
+
+	// restart linux CNS (linux, windows)
+	err = kubernetes.RestartCNSDaemonset(ctx, clientset)
+	require.NoError(t, err)
+
+	// wait for pods to settle before checking cns state (otherwise, race between getting pods in creating state, and getting CNS state file)
+	err = kubernetes.WaitForPodDeployment(ctx, clientset, namespace, deployment.Name, podLabelSelector, testConfig.ScaleUpReplicas)
+	require.NoError(t, err)
+
+	// Validate the CNS state
+	err = validator.Validate(ctx)
+	require.NoError(t, err)
+
+	// Scale it down
+	err = kubernetes.MustScaleDeployment(ctx, deploymentsClient, deployment, clientset, namespace, podLabelSelector, testConfig.ScaleDownReplicas, skipWait)
+	require.NoError(t, err)
+
+	// restart linux CNS (linux, windows)
+	err = kubernetes.RestartCNSDaemonset(ctx, clientset)
+	require.NoError(t, err)
+
+	// wait for pods to settle before checking cns state (otherwise, race between getting pods in terminating state, and getting CNS state file)
+	err = kubernetes.WaitForPodDeployment(ctx, clientset, namespace, deployment.Name, podLabelSelector, testConfig.ScaleDownReplicas)
+	require.NoError(t, err)
+
+	// Validate the CNS state
+	err = validator.Validate(ctx)
+	require.NoError(t, err)
+
+	if testConfig.Cleanup {
+		err = kubernetes.MustDeleteDeployment(ctx, deploymentsClient, deployment)
+		require.NoError(t, err, "error deleteing load deployment")
+		err = kubernetes.WaitForPodsDelete(ctx, clientset, namespace, podLabelSelector)
+		require.NoError(t, err, "error waiting for pods to delete")
+	}
+}
+
+func TestV4OverlayProperties(t *testing.T) {
+	if !testConfig.ValidateV4Overlay {
+		return
+	}
+	clientset, err := kubernetes.MustGetClientset()
+	require.NoError(t, err)
+
+	config := kubernetes.MustGetRestConfig(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+	defer cancel()
+
+	validator, err := validate.CreateValidator(ctx, clientset, config, namespace, testConfig.CNIType, testConfig.RestartCase, testConfig.OSType)
+	require.NoError(t, err)
+
+	// validate IPv4 overlay scenarios
+	t.Log("Validating v4Overlay node labels")
+	err = validator.ValidateV4OverlayControlPlane(ctx)
+	require.NoError(t, err)
 }
 
 func TestDualStackProperties(t *testing.T) {
