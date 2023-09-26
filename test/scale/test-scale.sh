@@ -276,6 +276,30 @@ fi
 
 ## HELPER FUNCTIONS
 wait_for_pods() {
+    if [[ $numKwokPods -gt 0 ]]; then
+        # wait up to 20 minutes
+        startDate=`date +%s`
+        count=0
+        while : ; do
+            echo "waiting for fake pods to run (try $count)"
+            count=$((count+1))
+            endDate=`date +%s`
+            if [[ $endDate -gt $(( startDate + (20*60) )) ]]; then
+                echo "timed out waiting for all kwok pods to run"
+                k get pod -n scale-test -owide
+                k get node
+                k get pod -n kube-system -l app=kwok-controller -owide
+                exit 1
+            fi
+            # just make sure kwok pods are Running, not necessarily Ready (sometimes kwok pods have NodeNotReady even though the node is ready)
+            set +e -x
+            $KUBECTL $KUBECONFIG_ARG wait --for=condition=Initialized pods -n scale-test -l is-kwok=true --all --timeout=0 && set -e +x && break
+            set -e +x
+            # try recreating nodes if KWOK controller failed
+            $KUBECTL $KUBECONFIG_ARG apply -f generated/kwok-nodes/
+        done
+    fi
+
     if [[ $numRealPods -gt 0 ]]; then
         # wait up to 10 minutes
         startDate=`date +%s`
@@ -291,31 +315,6 @@ wait_for_pods() {
             set +e -x
             $KUBECTL $KUBECONFIG_ARG wait --for=condition=Ready pods -n scale-test -l is-real=true --all --timeout=0 && set -e +x && break
             set -e +x
-        done
-    fi
-
-    # just make sure kwok pods are Running, not necessarily Ready (sometimes kwok pods have NodeNotReady even though the node is ready)
-    minutesToWaitForKwokPods=$(( 1 + $numKwokPods / 500 ))
-    if [[ $numKwokPods -gt 0 ]]; then
-        # wait up to 10 minutes
-        startDate=`date +%s`
-        count=0
-        while : ; do
-            echo "waiting for fake pods to run (try $count)"
-            count=$((count+1))
-            endDate=`date +%s`
-            if [[ $endDate -gt $(( startDate + (10*60) )) ]]; then
-                echo "timed out waiting for all kwok pods to run"
-                k get pod -n scale-test -owide
-                k get node
-                k get pod -n kube-system -l app=kwok-controller
-                exit 1
-            fi
-            set +e -x
-            $KUBECTL $KUBECONFIG_ARG wait --for=condition=Initialized pods -n scale-test -l is-kwok=true --all --timeout=0 && set -e +x && break
-            set -e +x
-            # try recreating nodes if KWOK controller failed
-            $KUBECTL $KUBECONFIG_ARG apply -f generated/kwok-nodes/
         done
     fi
 }
