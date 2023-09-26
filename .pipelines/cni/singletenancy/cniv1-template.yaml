@@ -5,7 +5,7 @@ parameters:
   clusterName: ""
   nodeCount: ""
   vmSize: ""
-  windowsVMSize: ""
+  vmSizeWin: ""
   os: ""
   arch: ""
   scaleup: 100
@@ -40,7 +40,7 @@ stages:
               clusterName: ${{ parameters.clusterName }}-$(commitID)
               nodeCount: ${{ parameters.nodeCount }}
               vmSize: ${{ parameters.vmSize }}
-              windowsVMSize: ${{ parameters.windowsVMSize }}
+              vmSizeWin: ${{ parameters.vmSizeWin }}
               region: $(LOCATION)
 
   - stage: ${{ parameters.name }}

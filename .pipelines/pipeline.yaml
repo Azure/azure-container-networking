@@ -349,7 +349,6 @@ stages:
       clusterName: "ciliumpodsubnetcnie2e"
       vmSize: Standard_B2ms
       k8sVersion: ""
-      windowsOsSku: ""
       dependsOn: "containerize"
 
   # Cilium Overlay E2E tests
@@ -373,7 +372,6 @@ stages:
       clusterName: "ciliumoverlaycnie2e"
       vmSize: Standard_B2ms
       k8sVersion: ""
-      windowsOsSku: ""
       dependsOn: "containerize"
 
   # Azure Overlay E2E tests
@@ -420,7 +418,6 @@ stages:
       clusterName: "swiftcnie2e"
       vmSize: Standard_B2ms
       k8sVersion: ""
-      windowsOsSku: ""
       dependsOn: "containerize"
 
   # CNIv1 E2E tests

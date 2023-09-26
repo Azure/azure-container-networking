@@ -3,7 +3,7 @@ parameters:
   clusterName: ""
   nodeCount: ""
   vmSize: ""
-  windowsVMSize: ""
+  vmSizeWin: ""
 
 steps:
   - task: AzureCLI@1
@@ -15,6 +15,13 @@ steps:
       inlineScript: |
         set -ex
         make -C ./hack/aks azcfg AZCLI=az REGION=${{ parameters.region }}
-        make -C ./hack/aks ${{ parameters.clusterType }} AZCLI=az REGION=${{ parameters.region }} SUB=$(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS) CLUSTER=${{ parameters.clusterName }} NODE_COUNT=${{ parameters.nodeCount }} VM_SIZE=${{ parameters.vmSize }} WINDOWS_VM_SKU=${{ parameters.windowsVMSize }} WINDOWS_USERNAME=${WINDOWS_USERNAME} WINDOWS_PASSWORD=${WINDOWS_PASSWORD}
+
+        make -C ./hack/aks ${{ parameters.clusterType }} \
+        AZCLI=az REGION=${{ parameters.region }} SUB=$(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS) \
+        CLUSTER=${{ parameters.clusterName }} NODE_COUNT=${{ parameters.nodeCount }} \
+        VM_SIZE=${{ parameters.vmSize }} VM_SIZE_WIN=${{ parameters.vmSizeWin }} \
+        WINDOWS_USERNAME=${WINDOWS_USERNAME} WINDOWS_PASSWORD=${WINDOWS_PASSWORD}
+
+        echo "Cluster successfully created"
     name: "CreateAksCluster"
     displayName: "Create AKS Cluster"

@@ -29,6 +29,7 @@ stages:
           clusterType: ${{ parameters.clusterType }}
           clusterName: ${{ parameters.clusterName }}-$(commitID)
           vmSize: ${{ parameters.vmSize }}
+          vmSizeWin: ${{ parameters.vmSize }} # Matching linux vmSize
           k8sVersion: ${{ parameters.k8sVersion }}
           dependsOn: ${{ parameters.dependsOn }}
           region: $(REGION_AKS_CLUSTER_TEST)

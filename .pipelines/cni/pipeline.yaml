@@ -116,7 +116,7 @@ stages:
       clusterName: win22-cniv1
       nodeCount: ${WINDOWS_NODE_COUNT}
       vmSize: ${WINDOWS_LINUX_VM_SKU}
-      windowsVMSize: ${WINDOWS_VM_SKU}
+      vmSizeWin: ${WINDOWS_VM_SKU}
       os: windows
       os_version: 'ltsc2022'
       arch: amd64
