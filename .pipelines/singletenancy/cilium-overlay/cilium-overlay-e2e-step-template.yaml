@@ -146,7 +146,8 @@ steps:
       export PATH=${PATH}:/usr/local/bin/gsutil
       KUBECONFIG=~/.kube/config kubetest2 noop \
         --test ginkgo -- \
-        --focus-regex "Services.*\[Conformance\].*"
+        --focus-regex "Services.*\[Conformance\].*" \
+        --skip-regex "should serve endpoints on same port and different protocols" # Cilium does not support this feature. For more info on test: https://github.com/kubernetes/kubernetes/blame/e602e9e03cd744c23dde9fee09396812dd7bdd93/test/conformance/testdata/conformance.yaml#L1780-L1788
     name: "servicesConformance"
     displayName: "Run Services Conformance Tests"
 
