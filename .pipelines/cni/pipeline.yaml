@@ -107,7 +107,7 @@ stages:
       clusterType: overlay-byocni-nokubeproxy-up
       clusterName: "cilium-overlay"
       nodeCount: ${CILIUM_NODE_COUNT}
-      vmSize: ${CILIUM_VM_SKU}
+      vmSize: ${CILIUM_VM_SIZE}
 
   - template: singletenancy/cniv1-template.yaml
     parameters:
@@ -115,8 +115,8 @@ stages:
       clusterType: windows-cniv1-up
       clusterName: win22-cniv1
       nodeCount: ${WINDOWS_NODE_COUNT}
-      vmSize: ${WINDOWS_LINUX_VM_SKU}
-      windowsVMSize: ${WINDOWS_VM_SKU}
+      vmSize: ${WINDOWS_LINUX_VM_SIZE}
+      windowsVMSize: ${WINDOWS_VM_SIZE}
       os: windows
       os_version: 'ltsc2022'
       arch: amd64
@@ -129,7 +129,7 @@ stages:
       clusterType: linux-cniv1-up
       clusterName: linux-cniv1
       nodeCount: ${LINUX_NODE_COUNT}
-      vmSize: ${LINUX_VM_SKU}
+      vmSize: ${VM_SIZE_LINUX}
       os: linux
       arch: amd64
       scaleup: ${LINUX_SCALEUP}
@@ -141,7 +141,7 @@ stages:
       clusterType: swift-byocni-up
       clusterName: linux-cniv2-podsubnet
       nodeCount: ${LINUX_NODE_COUNT}
-      vmSize: ${LINUX_VM_SKU}
+      vmSize: ${VM_SIZE_LINUX}
       arch: amd64
 
   - template: singletenancy/linux-cniv2-template.yaml
@@ -150,7 +150,7 @@ stages:
       clusterType: overlay-byocni-up
       clusterName: linux-cniv2-overlay
       nodeCount: ${LINUX_NODE_COUNT}
-      vmSize: ${LINUX_VM_SKU}
+      vmSize: ${VM_SIZE_LINUX}
       arch: amd64
 
   - stage: delete_resources
