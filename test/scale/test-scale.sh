@@ -306,6 +306,9 @@ wait_for_pods() {
             endDate=`date +%s`
             if [[ $endDate -gt $(( startDate + (10*60) )) ]]; then
                 echo "timed out waiting for all kwok pods to run"
+                k get pod -n scale-test -owide
+                k get node
+                k get pod -n kube-system -l app=kwok-controller
                 exit 1
             fi
             set +e -x
