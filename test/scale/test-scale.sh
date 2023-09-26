@@ -525,6 +525,8 @@ if [[ $numUniqueLabelsPerPod -gt 0 ]]; then
     done
 fi
 
+wait_for_pods
+
 if [[ $numUnappliedNetworkPolicies -gt 0 ]]; then
     set -x
     $KUBECTL $KUBECONFIG_ARG apply -f generated/networkpolicies/unapplied
@@ -535,8 +537,6 @@ if [[ $numNetworkPolicies -gt 0 ]]; then
     $KUBECTL $KUBECONFIG_ARG apply -f generated/networkpolicies/applied
     set +x
 fi
-
-wait_for_pods
 
 echo
 echo "done scaling at $(date -u). Had started at $startDate."
