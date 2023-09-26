@@ -138,14 +138,6 @@ jobs:
                 --max-pods 100
 
             if [[ $(PROFILE) == *ws22 ]]; then
-              # don't schedule anything on the linux system pool
-              echo "Updating $CLUSTER_NAME to not schedule anything on linux pool..."
-              az aks nodepool update \
-                --cluster-name $CLUSTER_NAME \
-                -g $(RESOURCE_GROUP) \
-                -n nodepool1 \
-                --node-taints CriticalAddonsOnly=true:NoSchedule
-
               echo "Adding Windows nodepool to $CLUSTER_NAME"
               az aks nodepool add \
                   --resource-group $(RESOURCE_GROUP) \
