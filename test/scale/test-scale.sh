@@ -276,11 +276,22 @@ fi
 
 ## HELPER FUNCTIONS
 wait_for_pods() {
-    # wait for all pods to run
-    minutesToWaitForRealPods=$(( 10 + $numRealPods / 250 ))
     set -x
     if [[ $numRealPods -gt 0 ]]; then
-        $KUBECTL $KUBECONFIG_ARG wait --for=condition=Ready pods -n scale-test -l is-real=true --all --timeout="${minutesToWaitForRealPods}m"
+        # wait up to 10 minutes
+        startDate=`date +%s`
+        while : ; do
+            endDate=`date +%s`
+            if [[ $endDate -gt $(( startDate + (10*60) )) ]]; then
+                echo "timed out waiting for all real pods to run"
+                exit 1
+            fi
+            set +e
+            $KUBECTL $KUBECONFIG_ARG wait --for=condition=Ready pods -n scale-test -l is-real=true --all --timeout=0 && break
+            set -e
+            # try recreating nodes if KWOK controller failed
+            $KUBECTL $KUBECONFIG_ARG apply -f generated/kwok-nodes/
+        done
     fi
     set +x
 
@@ -288,7 +299,19 @@ wait_for_pods() {
     minutesToWaitForKwokPods=$(( 1 + $numKwokPods / 500 ))
     set -x
     if [[ $numKwokPods -gt 0 ]]; then
-        $KUBECTL $KUBECONFIG_ARG wait --for=condition=Initialized pods -n scale-test -l is-kwok=true --all --timeout="${minutesToWaitForKwokPods}m"
+        # wait up to 10 minutes
+        startDate=`date +%s`
+        while : ; do
+            endDate=`date +%s`
+            if [[ $endDate -gt $(( startDate + (10*60) )) ]]; then
+                echo "timed out waiting for all kwok pods to run"
+                exit 1
+            fi
+            set +e
+            $KUBECTL $KUBECONFIG_ARG wait --for=condition=Initialized pods -n scale-test -l is-kwok=true --all --timeout=0 && break
+
+            set -e
+        done
     fi
     set +x
 }
