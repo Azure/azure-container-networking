@@ -308,12 +308,6 @@ jobs:
             export CLUSTER_NAME=$(RESOURCE_GROUP)-$(PROFILE)
             mkdir -p $(System.DefaultWorkingDirectory)/$CLUSTER_NAME
 
-            kubectl get pod -n kube-system -l app=kwok-controller -owide
-            kubectl get pod -n kube-system -l app=kwok-controller -owide | grep -q Running || {
-                echo "##vso[task.logissue type=error]need at least one kwok pod running"
-                exit 1
-            }
-
             # will delete scale-test and connectivity-test namespaces from previous run
             # 10 kwok Pods
             # 30 real Pods
@@ -343,17 +337,7 @@ jobs:
                 --delete-pods-interval=120 \
                 --delete-pods-times=2
             rc=$?
-            if [[ $rc != 0 ]]; then
-                kubectl get pod -n scale-test
-                kubectl get pod -n connectivity-test
-                exit $rc
-            fi
-
-            kubectl get pod -n kube-system -l app=kwok-controller -owide
-            kubectl get pod -n kube-system -l app=kwok-controller -owide | grep -q Running || {
-                echo "##vso[task.logissue type=error]need at least one kwok pod running"
-                exit 1
-            }
+            exit $rc
 
       - task: AzureCLI@2
         displayName: "Test Connectivity after CRUD ($(PROFILE))"
@@ -368,6 +352,12 @@ jobs:
             export CLUSTER_NAME=$(RESOURCE_GROUP)-$(PROFILE)
             mkdir -p $(System.DefaultWorkingDirectory)/$CLUSTER_NAME
 
+            kubectl get pod -n kube-system -l app=kwok-controller -owide
+            kubectl get pod -n kube-system -l app=kwok-controller -owide | grep -q Running || {
+                echo "##vso[task.logissue type=error]need at least one kwok pod running"
+                exit 1
+            }
+
             cd $(Pipeline.Workspace)/s/test/scale/connectivity/
             # initial connectivity should be established within 10 minutes
             # adding new network policy to all 12 Pods should happen within 20 seconds
@@ -380,8 +370,14 @@ jobs:
             if [[ $rc != 0 ]]; then
                 kubectl get pod -n scale-test
                 kubectl get pod -n connectivity-test
+                exit $rc
             fi
-            exit $rc
+
+            kubectl get pod -n kube-system -l app=kwok-controller -owide
+            kubectl get pod -n kube-system -l app=kwok-controller -owide | grep -q Running || {
+                echo "##vso[task.logissue type=error]need at least one kwok pod running"
+                exit 1
+            }
 
       - bash: |
           export CLUSTER_NAME=$(RESOURCE_GROUP)-$(PROFILE)
