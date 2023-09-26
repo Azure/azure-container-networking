@@ -148,7 +148,7 @@ jobs:
             chmod u+x run-kwok-as-pod.sh test-scale.sh connectivity/test-connectivity.sh
             ./run-kwok-as-pod.sh
             # need reliability in case multiple controllers enter CrashLoopBackOff from "context cancelled"
-            kubectl scale deployment -n kube-system -l app=kwok-controller=5
+            kubectl scale deployment -n kube-system -l app=kwok-controller --replicas=5
 
             if [[ $(PROFILE) == *ws22 ]]; then
               echo "Adding Windows nodepool to $CLUSTER_NAME"
