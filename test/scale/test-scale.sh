@@ -283,7 +283,11 @@ wait_for_pods() {
         while : ; do
             echo "waiting for fake pods to run (try $count)"
             count=$((count+1))
+            # just make sure kwok pods are Running, not necessarily Ready (sometimes kwok pods have NodeNotReady even though the node is ready)
+            set +e -x
+            $KUBECTL $KUBECONFIG_ARG wait --for=condition=Initialized pods -n scale-test -l is-kwok=true --all --timeout=0 && set -e +x && break
             endDate=`date +%s`
+            set -e +x
             if [[ $endDate -gt $(( startDate + (20*60) )) ]]; then
                 echo "timed out waiting for all kwok pods to run"
                 k get pod -n scale-test -owide
@@ -291,10 +295,6 @@ wait_for_pods() {
                 k get pod -n kube-system -l app=kwok-controller -owide
                 exit 1
             fi
-            # just make sure kwok pods are Running, not necessarily Ready (sometimes kwok pods have NodeNotReady even though the node is ready)
-            set +e -x
-            $KUBECTL $KUBECONFIG_ARG wait --for=condition=Initialized pods -n scale-test -l is-kwok=true --all --timeout=0 && set -e +x && break
-            set -e +x
             # try recreating nodes if KWOK controller failed
             $KUBECTL $KUBECONFIG_ARG apply -f generated/kwok-nodes/
         done
@@ -307,14 +307,14 @@ wait_for_pods() {
         while : ; do
             echo "waiting for real pods to run (try $count)"
             count=$((count+1))
+            set +e -x
+            $KUBECTL $KUBECONFIG_ARG wait --for=condition=Ready pods -n scale-test -l is-real=true --all --timeout=0 && set -e +x && break
+            set -e +x
             endDate=`date +%s`
             if [[ $endDate -gt $(( startDate + (10*60) )) ]]; then
                 echo "timed out waiting for all real pods to run"
                 exit 1
             fi
-            set +e -x
-            $KUBECTL $KUBECONFIG_ARG wait --for=condition=Ready pods -n scale-test -l is-real=true --all --timeout=0 && set -e +x && break
-            set -e +x
         done
     fi
 }
