@@ -10,7 +10,7 @@ NETPOL_SLEEP=5
 
 printHelp() {
     cat <<EOF
-./test-connectivity.sh --num-scale-pods-to-verify=all|<int> --max-wait-for-initial-connectivity=<int> --max-wait-after-adding-netpol=<int> [--kubeconfig=<path>] [--kubectl-binary=<path>]
+./test-connectivity.sh --num-scale-pods-to-verify=all|<int> --max-wait-for-initial-connectivity=<int> --max-wait-after-adding-netpol=<int> [--kubeconfig=<path>] [--kubectl-binary=<path>] [--connect-timeout=<int>]
 
 Verifies that scale test Pods can connect to each other, but cannot connect to a new "pinger" Pod.
 Then, adds a NetworkPolicy to allow traffic between the scale test Pods and the "pinger" Pod, and verifies connectivity.
@@ -29,7 +29,8 @@ REQUIRED PARAMETERS:
 
 OPTIONAL PARAMETERS:
     --kubeconfig=<path>                 path to kubeconfig file
-    --kubectl-binary=<path>               path to kubectl binary. Default is kubectl
+    --kubectl-binary=<path>             path to kubectl binary. Default is kubectl
+    --connect-timeout=<int>             seconds before connect timeout
 
 EXIT CODES:
 0 - success
@@ -80,6 +81,9 @@ while [[ $# -gt 0 ]]; do
                 exit 1
             }
             log "using kubectl binary: $KUBECTL"
+            ;;
+        --connect-timeout=*)
+            TIMEOUT=${1#*=}
             ;;
         *)
             log "ERROR: unknown parameter $1. Make sure you're using '--key=value' for parameters with values"

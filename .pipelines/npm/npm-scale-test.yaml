@@ -277,11 +277,16 @@ jobs:
             # notes for Windows:
             # initial connectivity should be established within 15 minutes of NPM restart (12 minute timeout since we already waited 3 minutes above)
             # adding new network policy to all 30 Pods should happen within 30 seconds
+            timeout=5
+            if [[ $(PROFILE) == *ws22 ]]; then
+                timeout=7
+            fi
             set +e
             ./test-connectivity.sh --kubectl-binary=$kubectlPath \
                 --num-scale-pods-to-verify=all \
                 --max-wait-for-initial-connectivity=$(INITIAL_CONNECTIVITY_TIMEOUT) \
-                --max-wait-after-adding-netpol=30
+                --max-wait-after-adding-netpol=30 \
+                --connect-timeout=$timeout
             rc=$?
             if [[ $rc != 0 ]]; then
                 kubectl get pod -n scale-test
@@ -358,14 +363,20 @@ jobs:
                 exit 1
             }
 
+
             cd $(Pipeline.Workspace)/s/test/scale/connectivity/
             # initial connectivity should be established within 10 minutes
             # adding new network policy to all 12 Pods should happen within 20 seconds
+            timeout=5
+            if [[ $(PROFILE) == *ws22 ]]; then
+                timeout=7
+            fi
             set +e
             ./test-connectivity.sh --kubectl-binary=$kubectlPath \
                 --num-scale-pods-to-verify=all \
                 --max-wait-for-initial-connectivity=$((10*60)) \
-                --max-wait-after-adding-netpol=20
+                --max-wait-after-adding-netpol=20 \
+                --connect-timeout=$timeout
             rc=$?
             if [[ $rc != 0 ]]; then
                 kubectl get pod -n scale-test
