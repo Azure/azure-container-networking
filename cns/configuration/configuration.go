@@ -1,4 +1,3 @@
-// Copyright Microsoft. All rights reserved.
 package configuration
 
 import (
@@ -20,12 +19,24 @@ const (
 )
 
 type CNSConfig struct {
+	AsyncPodDeletePath                   string
+	CNIConflistFilepath                  string
+	CNIConflistScenario                  string
 	ChannelMode                          string
+	EnableAsyncPodDelete                 bool
+	EnableCNIConflistGeneration          bool
 	EnablePprof                          bool
 	EnableSubnetScarcity                 bool
+	EnableSwiftV2                        bool
 	InitializeFromCNI                    bool
+	KeyVaultSettings                     KeyVaultSettings
+	MSISettings                          MSISettings
+	ManageEndpointState                  bool
 	ManagedSettings                      ManagedSettings
+	MellanoxMonitorIntervalSecs          int
 	MetricsBindAddress                   string
+	PopulateHomeAzCacheRetryIntervalSecs int
+	ProgramSNATIPTables                  bool
 	SyncHostNCTimeoutMs                  int
 	SyncHostNCVersionIntervalMs          int
 	TLSCertificatePath                   string
@@ -34,16 +45,8 @@ type CNSConfig struct {
 	TLSSubjectName                       string
 	TelemetrySettings                    TelemetrySettings
 	UseHTTPS                             bool
+	WatchPods                            bool
 	WireserverIP                         string
-	KeyVaultSettings                     KeyVaultSettings
-	MSISettings                          MSISettings
-	ProgramSNATIPTables                  bool
-	ManageEndpointState                  bool
-	CNIConflistScenario                  string
-	EnableCNIConflistGeneration          bool
-	CNIConflistFilepath                  string
-	PopulateHomeAzCacheRetryIntervalSecs int
-	MellanoxMonitorIntervalSecs          int
 }
 
 type TelemetrySettings struct {
@@ -195,5 +198,8 @@ func SetCNSConfigDefaults(config *CNSConfig) {
 	}
 	if config.WireserverIP == "" {
 		config.WireserverIP = "168.63.129.16"
+	}
+	if config.AsyncPodDeletePath == "" {
+		config.AsyncPodDeletePath = "/var/run/azure-vnet/deleteIDs"
 	}
 }

@@ -208,6 +208,7 @@ func TestSetCNSConfigDefaults(t *testing.T) {
 				},
 				PopulateHomeAzCacheRetryIntervalSecs: 15,
 				WireserverIP:                         "168.63.129.16",
+				AsyncPodDeletePath:                   "/var/run/azure-vnet/deleteIDs",
 			},
 		},
 		{
@@ -252,6 +253,7 @@ func TestSetCNSConfigDefaults(t *testing.T) {
 				},
 				PopulateHomeAzCacheRetryIntervalSecs: 10,
 				WireserverIP:                         "168.63.129.16",
+				AsyncPodDeletePath:                   "/var/run/azure-vnet/deleteIDs",
 			},
 		},
 	}

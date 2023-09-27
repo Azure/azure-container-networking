@@ -22,11 +22,13 @@ import (
 	"github.com/Azure/azure-container-networking/cnm/ipam"
 	"github.com/Azure/azure-container-networking/cnm/network"
 	"github.com/Azure/azure-container-networking/cns"
+	cnsclient "github.com/Azure/azure-container-networking/cns/client"
 	cnscli "github.com/Azure/azure-container-networking/cns/cmd/cli"
 	"github.com/Azure/azure-container-networking/cns/cniconflist"
 	"github.com/Azure/azure-container-networking/cns/cnireconciler"
 	"github.com/Azure/azure-container-networking/cns/common"
 	"github.com/Azure/azure-container-networking/cns/configuration"
+	"github.com/Azure/azure-container-networking/cns/fsnotify"
 	"github.com/Azure/azure-container-networking/cns/healthserver"
 	"github.com/Azure/azure-container-networking/cns/hnsclient"
 	"github.com/Azure/azure-container-networking/cns/ipampool"
@@ -82,6 +84,8 @@ const (
 
 	// envVarEnableCNIConflistGeneration enables cni conflist generation if set (value doesn't matter)
 	envVarEnableCNIConflistGeneration = "CNS_ENABLE_CNI_CONFLIST_GENERATION"
+
+	cnsReqTimeout = 15 * time.Second
 )
 
 type cniConflistScenario string
@@ -791,6 +795,25 @@ func main() {
 			logger.Errorf("Failed to start CNS, err:%v.\n", err)
 			return
 		}
+	}
+
+	if cnsconfig.EnableAsyncPodDelete {
+		// Start fs watcher here
+		cnsclient, err := cnsclient.New("", cnsReqTimeout) //nolint
+		if err != nil {
+			z.Error("failed to create cnsclient", zap.Error(err))
+		}
+		go func() {
+			for {
+				z.Info("starting fsnotify watcher to process missed Pod deletes")
+				w := fsnotify.New(cnsclient, cnsconfig.AsyncPodDeletePath, z)
+				if err := w.Start(rootCtx); err != nil {
+					z.Error("failed to start fsnotify watcher, will retry", zap.Error(err))
+					time.Sleep(time.Minute)
+					continue
+				}
+			}
+		}()
 	}
 
 	if !disableTelemetry {
