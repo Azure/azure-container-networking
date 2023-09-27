@@ -44,7 +44,7 @@ type IPResultInfo struct {
 	hostSubnet         string
 	hostPrimaryIP      string
 	hostGateway        string
-	nicType            string
+	nicType            cns.NICType
 	macAddress         string
 	skipDefaultRoutes  bool
 	routes             []cns.Route
@@ -144,7 +144,7 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 			zap.Any("podInfo", podInfo))
 
 		switch info.nicType {
-		case cns.Secondary:
+		case cns.DelegatedVMNIC:
 			if !info.skipDefaultRoutes {
 				numInterfacesWithDefaultRoutes += 1
 			}
@@ -447,7 +447,7 @@ func configureSecondaryAddResult(info *IPResultInfo, addResult *IPAMAddResult, p
 				},
 			},
 		},
-		nicType:           cns.Secondary,
+		nicType:           cns.DelegatedVMNIC,
 		macAddress:        macAddress,
 		skipDefaultRoutes: info.skipDefaultRoutes,
 	}

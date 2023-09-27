@@ -106,7 +106,7 @@ func (invoker *AzureIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, er
 		}
 	}
 
-	addResult.defaultInterfaceInfo = InterfaceInfo{ipResult: ipv4Result, nicType: cns.Infra}
+	addResult.defaultInterfaceInfo = InterfaceInfo{ipResult: ipv4Result, nicType: cns.InfraNIC}
 
 	return addResult, err
 }
