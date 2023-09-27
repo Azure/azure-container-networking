@@ -146,16 +146,18 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 		switch info.nicType {
 		case cns.DelegatedVMNIC:
 			if !info.skipDefaultRoutes {
-				numInterfacesWithDefaultRoutes += 1
+				numInterfacesWithDefaultRoutes++
 			}
 
 			if err := configureSecondaryAddResult(&info, &addResult, &response.PodIPInfo[i].PodIPConfig); err != nil {
 				return IPAMAddResult{}, err
 			}
+		case cns.InfraNIC:
+			fallthrough
 		default:
 			// only count dualstack interface once
 			if addResult.defaultInterfaceInfo.ipResult == nil && !info.skipDefaultRoutes {
-				numInterfacesWithDefaultRoutes += 1
+				numInterfacesWithDefaultRoutes++
 			}
 
 			overlayMode := (invoker.ipamMode == util.V4Overlay) || (invoker.ipamMode == util.DualStackOverlay) || (invoker.ipamMode == util.Overlay)
@@ -407,6 +409,7 @@ func configureDefaultAddResult(info *IPResultInfo, addConfig *IPAMAddConfig, add
 	}
 
 	addResult.hostSubnetPrefix = *hostIPNet
+	addResult.defaultInterfaceInfo.nicType = cns.InfraNIC
 
 	// set subnet prefix for host vm
 	// setHostOptions will execute if IPAM mode is not v4 overlay and not dualStackOverlay mode
