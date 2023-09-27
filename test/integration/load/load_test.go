@@ -183,7 +183,9 @@ func TestScaleDeployment(t *testing.T) {
 	}
 }
 
-func TestValidCNSStateDuringScaleAndCNSRestart(t *testing.T) {
+// TestValidCNSStateDuringScaleAndCNSRestartToTriggerDropgzInstall
+// tests that dropgz install during a pod scaling event, does not crash cns
+func TestValidCNSStateDuringScaleAndCNSRestartToTriggerDropgzInstall(t *testing.T) {
 	clientset, err := kubernetes.MustGetClientset()
 	require.NoError(t, err)
 

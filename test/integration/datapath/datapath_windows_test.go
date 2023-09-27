@@ -16,13 +16,10 @@ import (
 )
 
 const (
-	WindowsDeployYamlPath         = "../manifests/datapath/windows-deployment.yaml"
-	IPMasqAgentYamlPath           = "../manifests/ip-masq-agent/ip-masq-agent.yaml"
-	IPMasqAgentCustomConfigMap    = "../manifests/ip-masq-agent/config-custom.yaml"
-	IPMasqAgentReconcileConfigMap = "../manifests/ip-masq-agent/config-reconcile.yaml"
-	podLabelKey                   = "app"
-	podCount                      = 2
-	nodepoolKey                   = "agentpool"
+	WindowsDeployYamlPath = "../manifests/datapath/windows-deployment.yaml"
+	podLabelKey           = "app"
+	podCount              = 2
+	nodepoolKey           = "agentpool"
 )
 
 var (

@@ -197,8 +197,8 @@ steps:
               kubectl taint nodes $node node.cloudprovider.kubernetes.io/uninitialized=true:NoSchedule-
           fi
       done
-      CNS=$(make cns-version) DROPGZ=$(make cni-dropgz-version)
-      sudo -E env "PATH=$PATH" make test-load SCALE_UP=32 OS_TYPE=windows CNI_TYPE=cniv2 VALIDATE_STATEFILE=true INSTALL_CNS=true INSTALL_AZURE_CNI_OVERLAY=true VALIDATE_V4OVERLAY=true CNS_VERSION=${CNS} CNI_DROPGZ_VERSION=${DROPGZ} CLEANUP=true
+      CNS=$(make cns-version)
+      sudo -E env "PATH=$PATH" make test-load SCALE_UP=32 OS_TYPE=windows CNI_TYPE=cniv2 VALIDATE_STATEFILE=true INSTALL_CNS=true INSTALL_AZURE_CNI_OVERLAY=true VALIDATE_V4OVERLAY=true CNS_VERSION=${CNS} CNI_DROPGZ_VERSION=$(dropgzVersion) TEST_DROPGZ=${{ parameters.testDropgz }} CLEANUP=true
     name: "WindowsOverlayControlPlaneScaleTests"
     displayName: "Windows v4Overlay ControlPlane Scale Tests"
     retryCountOnTaskFailure: 3
