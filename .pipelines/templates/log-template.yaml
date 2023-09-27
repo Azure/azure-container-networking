@@ -161,6 +161,33 @@ steps:
             # May want to rename this output...
           done
         done
+
+        echo ------ privileged work ------
+        echo Capture State Files from privileged pods
+        for pod in $podList; do
+          node=`kubectl get pod -n kube-system $pod -o custom-columns=NODE:.spec.nodeName,NAME:.metadata.name | grep privileged | awk '{print $1}'`
+          file="azure-vnet.json"
+          kubectl exec -i -n kube-system $pod -- powershell cat ../../k/$file > $(acnLogs)/"$node"_logs/$file
+          echo CNI State, $file, captured: $(acnLogs)/"$node"_logs/$file
+          if [ ${{ parameters.cni }} = 'cniv1' ]; then
+            file="azure-vnet-ipam.json"
+            kubectl exec -i -n kube-system $pod -- powershell cat ../../k/$file > $(acnLogs)/"$node"_logs/$file
+            echo CNI IPAM, $file, captured: $(acnLogs)/"$node"_logs/$file
+          fi
+        done
+
+        # This block needs to be exec cmd need to be verified
+        if [ ${{ parameters.cni }} = 'cniv2' ]; then
+          echo ------ CNS work ------
+          echo Capture State Files from CNS pods
+          cnsPods=`kubectl get pods -n kube-system -l k8s-app=azure-cns-win --no-headers | awk '{print $1}'`
+          for pod in $cnsPods; do
+            file="cnsCache.txt"
+            node=`kubectl get pod -n kube-system $pod -o custom-columns=NODE:.spec.nodeName,NAME:.metadata.name | grep cns | awk '{print $1}'`
+            kubectl exec -i -n kube-system $pod -- powershell curl localhost:10090/debug/ipaddresses -d {\"IPConfigStateFilter\":[\"Assigned\"]} > $(acnLogs)/"$node"_logs/$file
+            echo CNS cache, $file, captured: $(acnLogs)/"$node"_logs/$file
+          done
+        fi
       displayName: Windows Logs
       condition: always()
 
