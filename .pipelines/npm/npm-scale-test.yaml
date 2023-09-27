@@ -282,12 +282,13 @@ jobs:
                 timeout=7
             fi
             set +e
-            ./test-connectivity.sh --kubectl-binary=$kubectlPath \
-                --num-scale-pods-to-verify=all \
-                --max-wait-for-initial-connectivity=$(INITIAL_CONNECTIVITY_TIMEOUT) \
-                --max-wait-after-adding-netpol=30 \
-                --connect-timeout=$timeout
-            rc=$?
+            rc=1
+            # ./test-connectivity.sh --kubectl-binary=$kubectlPath \
+            #     --num-scale-pods-to-verify=all \
+            #     --max-wait-for-initial-connectivity=$(INITIAL_CONNECTIVITY_TIMEOUT) \
+            #     --max-wait-after-adding-netpol=30 \
+            #     --connect-timeout=$timeout
+            # rc=$?
             if [[ $rc != 0 ]]; then
                 if [[ $(PROFILE) == *ws22 ]]; then
                     cd $(Pipeline.Workspace)/s/debug/windows/npm/win-debug.sh
