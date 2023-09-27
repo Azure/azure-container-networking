@@ -289,6 +289,17 @@ jobs:
                 --connect-timeout=$timeout
             rc=$?
             if [[ $rc != 0 ]]; then
+                if [[ $(PROFILE) == *ws22 ]]; then
+                    cd $(Pipeline.Workspace)/s/debug/windows/npm/win-debug.sh
+                    chmod u+x win-debug.sh
+                    ./win-debug.sh
+                    mv logs_* $(System.DefaultWorkingDirectory)/$CLUSTER_NAME/
+                else
+                    npmPod=`kubectl get pod -n kube-system -owide | grep npm | grep -v npm-win | awk '{print $1}' | head -n 1`
+                    kubectl exec -n kube-system $npmPod -- iptables-nft -vnL > $(System.DefaultWorkingDirectory)/$CLUSTER_NAME/iptables.out
+                    kubectl exec -n kube-system $npmPod -- ipset -L > $(System.DefaultWorkingDirectory)/$CLUSTER_NAME/ipset.out
+                fi
+
                 kubectl get pod -n scale-test
                 kubectl get pod -n connectivity-test
                 exit $rc
@@ -379,6 +390,17 @@ jobs:
                 --connect-timeout=$timeout
             rc=$?
             if [[ $rc != 0 ]]; then
+                if [[ $(PROFILE) == *ws22 ]]; then
+                    cd $(Pipeline.Workspace)/s/debug/windows/npm/win-debug.sh
+                    chmod u+x win-debug.sh
+                    ./win-debug.sh
+                    mv logs_* $(System.DefaultWorkingDirectory)/$CLUSTER_NAME/
+                else
+                    npmPod=`kubectl get pod -n kube-system -owide | grep npm | grep -v npm-win | awk '{print $1}' | head -n 1`
+                    kubectl exec -n kube-system $npmPod -- iptables-nft -vnL > $(System.DefaultWorkingDirectory)/$CLUSTER_NAME/iptables.out
+                    kubectl exec -n kube-system $npmPod -- ipset -L > $(System.DefaultWorkingDirectory)/$CLUSTER_NAME/ipset.out
+                fi
+
                 kubectl get pod -n scale-test
                 kubectl get pod -n connectivity-test
                 exit $rc
