@@ -29,7 +29,7 @@ var (
 	podPrefix        = flag.String("podName", "datapod", "Prefix for test pods")
 	podNamespace     = flag.String("namespace", "windows-datapath-test", "Namespace for test pods")
 	nodepoolSelector = flag.String("nodepoolSelector", "npwin", "Provides nodepool as a windows Node-Selector for pods")
-	initBYOCNI       = flag.Bool("initbyocni", false, "installs ipmas agent, configmap, and restarts kubeproxy")
+	restartKubeproxy = flag.Bool("restartKubeproxy", false, "restarts kubeproxy on the windows node")
 )
 
 /*
@@ -62,20 +62,7 @@ func setupWindowsEnvironment(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if *initBYOCNI {
-		// create ipmasq configmaps
-		err := kubernetes.MustSetupConfigMap(ctx, clientset, IPMasqAgentCustomConfigMap)
-		require.NoError(t, err, "failed to setup ip masq agent custom configmap")
-		err = kubernetes.MustSetupConfigMap(ctx, clientset, IPMasqAgentReconcileConfigMap)
-		require.NoError(t, err, "failed to setup ip masq agent reconcile configmap")
-
-		// create ipmasq agent daemonset
-		ds, err := kubernetes.MustParseDaemonSet(IPMasqAgentYamlPath)
-		require.NoError(t, err, "failed to parse ipmasq agent")
-		err = kubernetes.MustCreateDaemonset(ctx, clientset.AppsV1().DaemonSets(ds.Namespace), ds)
-		require.NoError(t, err, "failed to create ipmasq daemonset")
-
-		// restart kubeproxy
+	if *restartKubeproxy {
 		validator, err := validate.CreateValidator(ctx, clientset, restConfig, *podNamespace, "cniv2", false, "windows")
 		require.NoError(t, err)
 		err = validator.RestartKubeProxyService(ctx)

@@ -206,7 +206,7 @@ steps:
   - script: |
       echo "IPv4 Overlay DataPath Test"
       cd test/integration/datapath
-      sudo -E env "PATH=$PATH" go test -count=1 datapath_windows_test.go -timeout 3m -tags connection -initbyocni true -run ^TestDatapathWin$
+      sudo -E env "PATH=$PATH" go test -count=1 datapath_windows_test.go -timeout 3m -tags connection -restartKubeproxy true -run ^TestDatapathWin$
     name: "WindowsV4OverlayDatapathTests"
     displayName: "Windows v4Overlay Datapath Tests"
     retryCountOnTaskFailure: 3

@@ -201,9 +201,11 @@ func TestValidCNSStateDuringScaleAndCNSRestart(t *testing.T) {
 	require.NoError(t, err)
 	deploymentsClient := clientset.AppsV1().Deployments(namespace)
 
-	// Create a deployment
-	err = kubernetes.MustCreateDeployment(ctx, deploymentsClient, deployment)
-	require.NoError(t, err)
+	if testConfig.Cleanup {
+		// Create a deployment
+		err = kubernetes.MustCreateDeployment(ctx, deploymentsClient, deployment)
+		require.NoError(t, err)
+	}
 
 	// Scale it up and "skipWait", so CNS restart can happen immediately after scale call is made (while pods are still creating)
 	skipWait := true

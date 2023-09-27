@@ -3,6 +3,7 @@ package validate
 import (
 	"context"
 	"encoding/json"
+	"log"
 	"net"
 
 	acnk8s "github.com/Azure/azure-container-networking/test/internal/kubernetes"
@@ -173,6 +174,7 @@ func validateHNSNetworkState(ctx context.Context, nodes *corev1.NodeList, client
 		}
 
 		hnsNetwork, err := hnsNetworkState(result)
+		log.Printf("hnsNetwork: %+v", hnsNetwork)
 		if err != nil {
 			return errors.Wrap(err, "failed to unmarshal HNS state file")
 		}

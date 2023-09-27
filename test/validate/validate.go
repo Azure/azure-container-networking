@@ -167,18 +167,18 @@ func (v *Validator) validateIPs(ctx context.Context, stateFileIps stateFileIpsFu
 		if err != nil {
 			return errors.Wrapf(err, "failed to exec into privileged pod - %s", podName)
 		}
-		cnsPodIPs, err := stateFileIps(result)
+		filePodIps, err := stateFileIps(result)
 		if err != nil {
 			return errors.Wrapf(err, "failed to get pod ips from state file")
 		}
-		if len(cnsPodIPs) == 0 && v.restartCase {
+		if len(filePodIps) == 0 && v.restartCase {
 			log.Printf("No pods found on node %s", nodes.Items[index].Name)
 			continue
 		}
 		// get the pod ips
-		observedPodIPs := getPodIPsWithoutNodeIP(ctx, v.clientset, nodes.Items[index])
+		podIps := getPodIPsWithoutNodeIP(ctx, v.clientset, nodes.Items[index])
 
-		if err := compareIPs(cnsPodIPs, observedPodIPs); err != nil {
+		if err := compareIPs(filePodIps, podIps); err != nil {
 			return errors.Wrapf(errors.New("State file validation failed"), "for %s on node %s", checkType, nodes.Items[index].Name)
 		}
 	}
@@ -209,7 +209,7 @@ func validateNodeProperties(nodes *corev1.NodeList, labels map[string]string, ex
 			}
 		}
 
-		// check if node has corret number of internal IPs
+		// check if node has correct number of internal IPs
 		internalIPCount := 0
 		for _, address := range nodes.Items[index].Status.Addresses {
 			if address.Type == "InternalIP" {
@@ -217,7 +217,7 @@ func validateNodeProperties(nodes *corev1.NodeList, labels map[string]string, ex
 			}
 		}
 		if internalIPCount != expectedIPCount {
-			return errors.Errorf("node does not expected number of IPs %d", expectedIPCount)
+			return errors.Errorf("number of node internal IPs: %d does not match expected number of IPs %d", internalIPCount, expectedIPCount)
 		}
 	}
 	return nil

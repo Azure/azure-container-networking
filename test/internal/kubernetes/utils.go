@@ -242,7 +242,7 @@ func WaitForPodsDelete(ctx context.Context, clientset *kubernetes.Clientset, nam
 			return errors.Wrapf(err, "could not list pods with label selector %s", labelselector)
 		}
 		if len(podList.Items) != 0 {
-			return errors.Errorf("pods still present: %+v", podList.Items)
+			return errors.Errorf("%d pods still present", len(podList.Items))
 		}
 		return nil
 	}
