@@ -230,18 +230,18 @@ func (client *TransparentEndpointClient) ConfigureContainerInterfacesAndRoutes(e
 		}
 	}
 
-	if !epInfo.SkipDefaultRoutes {
-		// add route for virtualgwip
-		// ip route add 169.254.1.1/32 dev eth0
-		virtualGwIP, virtualGwNet, _ := net.ParseCIDR(virtualGwIPString)
-		routeInfo := RouteInfo{
-			Dst:   *virtualGwNet,
-			Scope: netlink.RT_SCOPE_LINK,
-		}
-		if err := addRoutes(client.netlink, client.netioshim, client.containerVethName, []RouteInfo{routeInfo}); err != nil {
-			return newErrorTransparentEndpointClient(err)
-		}
+	// add route for virtualgwip
+	// ip route add 169.254.1.1/32 dev eth0
+	virtualGwIP, virtualGwNet, _ := net.ParseCIDR(virtualGwIPString)
+	routeInfo := RouteInfo{
+		Dst:   *virtualGwNet,
+		Scope: netlink.RT_SCOPE_LINK,
+	}
+	if err := addRoutes(client.netlink, client.netioshim, client.containerVethName, []RouteInfo{routeInfo}); err != nil {
+		return newErrorTransparentEndpointClient(err)
+	}
 
+	if !epInfo.SkipDefaultRoutes {
 		// ip route add default via 169.254.1.1 dev eth0
 		_, defaultIPNet, _ := net.ParseCIDR(defaultGwCidr)
 		dstIP := net.IPNet{IP: net.ParseIP(defaultGw), Mask: defaultIPNet.Mask}
@@ -252,37 +252,33 @@ func (client *TransparentEndpointClient) ConfigureContainerInterfacesAndRoutes(e
 		if err := addRoutes(client.netlink, client.netioshim, client.containerVethName, []RouteInfo{routeInfo}); err != nil {
 			return err
 		}
-
-		// arp -s 169.254.1.1 e3:45:f4:ac:34:12 - add static arp entry for virtualgwip to hostveth interface mac
-		logger.Info("Adding static arp for IP address and MAC in Container namespace",
-			zap.String("address", virtualGwNet.String()), zap.Any("hostVethMac", client.hostVethMac))
-		linkInfo := netlink.LinkInfo{
-			Name:       client.containerVethName,
-			IPAddr:     virtualGwNet.IP,
-			MacAddress: client.hostVethMac,
-		}
-
-		if err := client.netlink.SetOrRemoveLinkAddress(linkInfo, netlink.ADD, netlink.NUD_PROBE); err != nil {
-			return fmt.Errorf("Adding arp in container failed: %w", err)
-		}
-
-		// IPv6Mode can be ipv6NAT or dual stack overlay
-		// set epInfo ipv6Mode to 'dualStackOverlay' to set ipv6Routes and ipv6NeighborEntries for Linux pod in dualStackOverlay ipam mode
-		if epInfo.IPV6Mode != "" {
-			if err := client.setupIPV6Routes(); err != nil {
-				return err
-			}
-		}
-
-		if epInfo.IPV6Mode != "" {
-			return client.setIPV6NeighEntry()
-		}
-
-		return nil
+	} else if err := addRoutes(client.netlink, client.netioshim, client.containerVethName, epInfo.Routes); err != nil {
+		return newErrorTransparentEndpointClient(err)
 	}
 
-	if err := addRoutes(client.netlink, client.netioshim, client.containerVethName, epInfo.Routes); err != nil {
-		return newErrorTransparentEndpointClient(err)
+	// arp -s 169.254.1.1 e3:45:f4:ac:34:12 - add static arp entry for virtualgwip to hostveth interface mac
+	logger.Info("Adding static arp for IP address and MAC in Container namespace",
+		zap.String("address", virtualGwNet.String()), zap.Any("hostVethMac", client.hostVethMac))
+	linkInfo := netlink.LinkInfo{
+		Name:       client.containerVethName,
+		IPAddr:     virtualGwNet.IP,
+		MacAddress: client.hostVethMac,
+	}
+
+	if err := client.netlink.SetOrRemoveLinkAddress(linkInfo, netlink.ADD, netlink.NUD_PROBE); err != nil {
+		return fmt.Errorf("Adding arp in container failed: %w", err)
+	}
+
+	// IPv6Mode can be ipv6NAT or dual stack overlay
+	// set epInfo ipv6Mode to 'dualStackOverlay' to set ipv6Routes and ipv6NeighborEntries for Linux pod in dualStackOverlay ipam mode
+	if epInfo.IPV6Mode != "" {
+		if err := client.setupIPV6Routes(); err != nil {
+			return err
+		}
+	}
+
+	if epInfo.IPV6Mode != "" {
+		return client.setIPV6NeighEntry()
 	}
 
 	return nil
