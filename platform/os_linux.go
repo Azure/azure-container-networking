@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/Azure/azure-container-networking/log"
+	"go.uber.org/zap"
 )
 
 const (
@@ -42,6 +43,10 @@ const (
 	osReleaseFile = "/etc/os-release"
 )
 
+type PlatformLog struct {
+	logger *zap.Logger
+}
+
 // GetOSInfo returns OS version information.
 func GetOSInfo() string {
 	info, err := os.ReadFile("/proc/version")
@@ -59,11 +64,22 @@ func GetProcessSupport() error {
 	return err
 }
 
+func SetPlatformLog(logger *zap.Logger) PlatformLog {
+	return PlatformLog{
+		logger,
+	}
+}
+
 // GetLastRebootTime returns the last time the system rebooted.
-func GetLastRebootTime() (time.Time, error) {
+func (p *PlatformLog) GetLastRebootTime() (time.Time, error) {
 	// Query last reboot time.
 	out, err := exec.Command("uptime", "-s").Output()
 	if err != nil {
+		if p.logger != nil {
+			p.logger.Error("Failed to query uptime", zap.Error(err))
+		} else {
+			log.Printf("Failed to query uptime, err:%v", err)
+		}
 		return time.Time{}.UTC(), err
 	}
 
@@ -71,6 +87,11 @@ func GetLastRebootTime() (time.Time, error) {
 	layout := "2006-01-02 15:04:05"
 	rebootTime, err := time.ParseInLocation(layout, string(out[:len(out)-1]), time.Local)
 	if err != nil {
+		if p.logger != nil {
+			p.logger.Error("Failed to parse uptime", zap.Error(err))
+		} else {
+			log.Printf("Failed to parse uptime, err:%v", err)
+		}
 		return time.Time{}.UTC(), err
 	}
 
@@ -113,7 +134,7 @@ func SetOutboundSNAT(subnet string) error {
 
 // ClearNetworkConfiguration clears the azure-vnet.json contents.
 // This will be called only when reboot is detected - This is windows specific
-func ClearNetworkConfiguration() (bool, error) {
+func (p *PlatformLog) ClearNetworkConfiguration() (bool, error) {
 	return false, nil
 }
 

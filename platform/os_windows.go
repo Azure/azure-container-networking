@@ -100,15 +100,23 @@ func GetProcessSupport() error {
 var tickCount = syscall.NewLazyDLL("kernel32.dll").NewProc("GetTickCount64")
 
 // GetLastRebootTime returns the last time the system rebooted.
-func GetLastRebootTime() (time.Time, error) {
+func (p *PlatformLog) GetLastRebootTime() (time.Time, error) {
 	currentTime := time.Now()
 	output, _, err := tickCount.Call()
 	if errno, ok := err.(syscall.Errno); !ok || errno != 0 {
-		log.Printf("Failed to call GetTickCount64, err: %v", err)
+		if p.logger != nil {
+			p.logger.Error("Failed to call GetTickCount64", zap.Error(err))
+		} else {
+			log.Printf("Failed to call GetTickCount64, err: %v", err)
+		}
 		return time.Time{}.UTC(), err
 	}
 	rebootTime := currentTime.Add(-time.Duration(output) * time.Millisecond).Truncate(time.Second)
-	log.Printf("Formatted Boot time: %s", rebootTime.Format(time.RFC3339))
+	if p.logger != nil {
+		p.logger.Info("Formatted Boot", zap.String("time", rebootTime.Format(time.RFC3339)))
+	} else {
+		log.Printf("Formatted Boot time: %s", rebootTime.Format(time.RFC3339))
+	}
 	return rebootTime.UTC(), nil
 }
 
@@ -134,13 +142,13 @@ func SetOutboundSNAT(subnet string) error {
 
 // ClearNetworkConfiguration clears the azure-vnet.json contents.
 // This will be called only when reboot is detected - This is windows specific
-func ClearNetworkConfiguration() (bool, error) {
+func (p *PlatformLog) ClearNetworkConfiguration() (bool, error) {
 	jsonStore := CNIRuntimePath + "azure-vnet.json"
-	logger.Info("Deleting the json", zap.String("store", jsonStore))
+	p.logger.Info("Deleting the json", zap.String("store", jsonStore))
 	cmd := exec.Command("cmd", "/c", "del", jsonStore)
 
 	if err := cmd.Run(); err != nil {
-		logger.Info("Error deleting the json", zap.String("store", jsonStore))
+		p.logger.Info("Error deleting the json", zap.String("store", jsonStore))
 		return true, err
 	}
 

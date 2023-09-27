@@ -152,9 +152,10 @@ func (nm *networkManager) restore(isRehydrationRequired bool) error {
 	}
 
 	if isRehydrationRequired {
+		var lastRebootTime = platform.SetPlatformLog(logger)
 		modTime, err := nm.store.GetModificationTime()
 		if err == nil {
-			rebootTime, err := platform.GetLastRebootTime()
+			rebootTime, err := lastRebootTime.GetLastRebootTime()
 			if err != nil {
 				logger.Error("Failed to query last reboot time", zap.Error(err))
 			}
@@ -162,7 +163,7 @@ func (nm *networkManager) restore(isRehydrationRequired bool) error {
 			if err == nil && rebootTime.After(modTime) {
 				logger.Info("Detected Reboot")
 				rebooted = true
-				if clearNwConfig, err := platform.ClearNetworkConfiguration(); clearNwConfig {
+				if clearNwConfig, err := lastRebootTime.ClearNetworkConfiguration(); clearNwConfig {
 					if err != nil {
 						logger.Error("Failed to clear network configuration", zap.Error(err))
 						return err
