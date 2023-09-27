@@ -530,12 +530,12 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 			if err != nil {
 				return fmt.Errorf("IPAM Invoker Add failed with error: %w", err)
 			}
-			sendEvent(plugin, fmt.Sprintf("Allocated IPAddress from ipam:%+v", ipamAddResult.defaultInterfaceInfo))
+			sendEvent(plugin, fmt.Sprintf("Allocated IPAddress from ipam DefaultInterface: %+v, SecondaryInterfaces: %+v", ipamAddResult.defaultInterfaceInfo, ipamAddResult.secondaryInterfacesInfo))
 		}
 
 		defer func() { //nolint:gocritic
 			if err != nil {
-				plugin.cleanupAllocationOnError(ipamAddResult.secondaryInterfaceInfo, nwCfg, args, options)
+				plugin.cleanupAllocationOnError(ipamAddResult.secondaryInterfacesInfo, nwCfg, args, options)
 			}
 		}()
 
@@ -595,7 +595,7 @@ func (plugin *NetPlugin) cleanupAllocationOnError(
 	options map[string]interface{},
 ) {
 	for _, interfaceInfo := range cniResults {
-		if interfaceInfo.ipResult != nil && interfaceInfo.nicType == cns.Infra {
+		if interfaceInfo.ipResult != nil && interfaceInfo.nicType == cns.InfraNIC {
 			if er := plugin.ipamInvoker.Delete(&interfaceInfo.ipResult.IPs[0].Address, nwCfg, args, options); er != nil {
 				logger.Error("Failed to cleanup ip allocation on failure", zap.Error(er))
 			}
@@ -758,7 +758,7 @@ func (plugin *NetPlugin) createEndpointInternal(opt *createEndpointInternalOpt) 
 		VnetCidrs:          opt.nwCfg.VnetCidrs,
 		ServiceCidrs:       opt.nwCfg.ServiceCidrs,
 		NATInfo:            opt.natInfo,
-		NICType:            cns.Infra,
+		NICType:            cns.InfraNIC,
 		SkipDefaultRoutes:  opt.ipamAddResult.defaultInterfaceInfo.skipDefaultRoutes,
 	}
 
@@ -798,7 +798,7 @@ func (plugin *NetPlugin) createEndpointInternal(opt *createEndpointInternalOpt) 
 
 	epInfos := []*network.EndpointInfo{&epInfo}
 	// get secondary interface info
-	for _, secondaryCniResult := range opt.ipamAddResult.secondaryInterfaceInfo {
+	for _, secondaryCniResult := range opt.ipamAddResult.secondaryInterfacesInfo {
 		var addresses []net.IPNet
 		for _, ipconfig := range secondaryCniResult.ipResult.IPs {
 			addresses = append(addresses, ipconfig.Address)
@@ -810,7 +810,7 @@ func (plugin *NetPlugin) createEndpointInternal(opt *createEndpointInternalOpt) 
 				NetNsPath:         epInfo.NetNsPath,
 				IPAddresses:       addresses,
 				MacAddress:        secondaryCniResult.macAddress,
-				NICType:           cns.Secondary,
+				NICType:           cns.DelegatedVMNIC,
 				SkipDefaultRoutes: secondaryCniResult.skipDefaultRoutes,
 			})
 	}

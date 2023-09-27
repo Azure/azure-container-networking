@@ -153,7 +153,7 @@ func (nw *network) newEndpointImpl(
 			} else if nw.Mode != opModeTransparent {
 				logger.Info("Bridge client")
 				epClient = NewLinuxBridgeEndpointClient(nw.extIf, hostIfName, contIfName, nw.Mode, nl, plc)
-			} else if epInfo.NICType == cns.Secondary {
+			} else if epInfo.NICType == cns.DelegatedVMNIC {
 				logger.Info("Secondary client")
 				epClient = NewSecondaryEndpointClient(nl, plc, ep)
 			} else {
@@ -182,7 +182,7 @@ func (nw *network) newEndpointImpl(
 				return epErr
 			}
 
-			if epInfo.NICType == cns.Infra {
+			if epInfo.NICType == cns.InfraNIC {
 				var epErr error
 				containerIf, epErr = netioCli.GetNetworkInterfaceByName(contIfName)
 				if epErr != nil {

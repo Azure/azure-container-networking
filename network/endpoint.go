@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/Azure/azure-container-networking/cni/log"
+	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/netio"
 	"github.com/Azure/azure-container-networking/netlink"
 	"github.com/Azure/azure-container-networking/network/policy"
@@ -88,7 +89,7 @@ type EndpointInfo struct {
 	VnetCidrs                string
 	ServiceCidrs             string
 	NATInfo                  []policy.NATInfo
-	NICType                  string
+	NICType                  cns.NICType
 	SkipDefaultRoutes        bool
 }
 
@@ -104,12 +105,13 @@ type RouteInfo struct {
 	Table    int
 }
 
+// InterfaceInfo contains information for secondary interfaces
 type InterfaceInfo struct {
 	Name              string
 	MacAddress        net.HardwareAddr
 	IPAddress         []net.IPNet
 	Routes            []RouteInfo
-	NICType           string
+	NICType           cns.NICType
 	SkipDefaultRoutes bool
 }
 
