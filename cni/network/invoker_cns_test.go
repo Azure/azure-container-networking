@@ -270,7 +270,7 @@ func TestCNSIPAMInvoker_Add_Overlay(t *testing.T) {
 										PrimaryIP: "10.0.0.1",
 										Subnet:    "10.0.0.0/24",
 									},
-									NICType:           cns.Infra,
+									NICType:           cns.InfraNIC,
 									SkipDefaultRoutes: true,
 								},
 								{
@@ -278,7 +278,7 @@ func TestCNSIPAMInvoker_Add_Overlay(t *testing.T) {
 										IPAddress:    "20.240.1.242",
 										PrefixLength: 24,
 									},
-									NICType:    cns.Secondary,
+									NICType:    cns.DelegatedVMNIC,
 									MacAddress: "12:34:56:78:9a:bc",
 								},
 							},

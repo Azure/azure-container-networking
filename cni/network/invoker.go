@@ -38,7 +38,7 @@ type IPAMAddResult struct {
 
 type InterfaceInfo struct {
 	ipResult          *cniTypesCurr.Result
-	nicType           string
+	nicType           cns.NICType
 	macAddress        net.HardwareAddr
 	skipDefaultRoutes bool
 }
