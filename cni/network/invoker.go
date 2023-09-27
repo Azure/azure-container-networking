@@ -27,9 +27,9 @@ type IPAMAddConfig struct {
 }
 
 type IPAMAddResult struct {
-	// Splitting defaultInterfaceInfo from secondaryInterfaceInfo so we don't need to loop for default CNI result every time
-	defaultInterfaceInfo   InterfaceInfo
-	secondaryInterfaceInfo []InterfaceInfo
+	// Splitting defaultInterfaceInfo from secondaryInterfacesInfo so we don't need to loop for default CNI result every time
+	defaultInterfaceInfo    InterfaceInfo
+	secondaryInterfacesInfo []InterfaceInfo
 	// ncResponse is used for Swift 1.0 multitenancy
 	ncResponse       *cns.GetNetworkContainerResponse
 	hostSubnetPrefix net.IPNet

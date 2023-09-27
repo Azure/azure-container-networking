@@ -348,10 +348,10 @@ func TestCNSIPAMInvoker_Add_Overlay(t *testing.T) {
 				require.NoError(err)
 			}
 
-			fmt.Printf("want:%+v\nrest:%+v\n", tt.wantMultitenantResult, ipamAddResult.secondaryInterfaceInfo)
+			fmt.Printf("want:%+v\nrest:%+v\n", tt.wantMultitenantResult, ipamAddResult.secondaryInterfacesInfo)
 			require.Equalf(tt.wantDefaultResult, ipamAddResult.defaultInterfaceInfo.ipResult, "incorrect default response")
 			if tt.wantMultitenantResult != nil {
-				require.Equalf(tt.wantMultitenantResult, ipamAddResult.secondaryInterfaceInfo[0].ipResult, "incorrect multitenant response")
+				require.Equalf(tt.wantMultitenantResult, ipamAddResult.secondaryInterfacesInfo[0].ipResult, "incorrect multitenant response")
 			}
 		})
 	}
@@ -574,10 +574,10 @@ func TestCNSIPAMInvoker_Add(t *testing.T) {
 				require.NoError(err)
 			}
 
-			fmt.Printf("want:%+v\nrest:%+v\n", tt.wantMultitenantResult, ipamAddResult.secondaryInterfaceInfo)
+			fmt.Printf("want:%+v\nrest:%+v\n", tt.wantMultitenantResult, ipamAddResult.secondaryInterfacesInfo)
 			require.Equalf(tt.wantDefaultResult, ipamAddResult.defaultInterfaceInfo.ipResult, "incorrect default response")
 			if tt.wantMultitenantResult != nil {
-				require.Equalf(tt.wantMultitenantResult, ipamAddResult.secondaryInterfaceInfo[0].ipResult, "incorrect multitenant response")
+				require.Equalf(tt.wantMultitenantResult, ipamAddResult.secondaryInterfacesInfo[0].ipResult, "incorrect multitenant response")
 			}
 		})
 	}
