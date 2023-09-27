@@ -187,4 +187,4 @@ stages:
             parameters:
               clusterName: ${{ parameters.clusterName }}-$(commitID)
               os: ${{ parameters.os }}
-              cni: ${{ parameters.cni }}
+              cni: cniv2

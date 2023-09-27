@@ -45,6 +45,7 @@ steps:
           done
     displayName: Log Cluster
     condition: always()
+    continueOnError: true # Tends to fail after restart due to pods still restarting after node restart. This should not block other tests from running
 
   - bash: |
       kubectl get ds -A -owide
@@ -74,18 +75,18 @@ steps:
         kubectl apply -f test/integration/manifests/load/privileged-daemonset.yaml
         kubectl rollout status ds -n kube-system privileged-daemonset
 
+        echo ------ Log work ------
         kubectl get pods -n kube-system -l os=linux -owide
         echo Capture logs from each linux node. Files located in var/logs
-        # This requires that a privileged pod is up and running to access
-
         podList=`kubectl get pods -n kube-system -l os=linux -owide | grep privileged | awk '{print $1}'`
         for pod in $podList; do
           output=`kubectl exec -i -n kube-system $pod -- ls /var/log/ | grep azure-`
           node=`kubectl get pod -n kube-system $pod -o custom-columns=NODE:.spec.nodeName,NAME:.metadata.name | grep privileged | awk '{print $1}'`
           for file in $output; do
             mkdir -p $(acnLogs)/"$node"_logs
-            echo Directory created: $(acnLogs)/"$node"_logs
+            echo Directory created: $(acnLogs)/"$node"_logs/$file
             kubectl exec -i -n kube-system $pod -- cat /var/log/$file > $(acnLogs)/"$node"_logs/$file
+            echo Azure-*.log, $file, captured: $(acnLogs)/"$node"_logs/$file
             # May want to rename this output...
           done
         done
@@ -95,6 +96,7 @@ steps:
 
         if ! [ ${{ parameters.cni }} = 'cilium' ]; then
           echo ------ Privileged work ------
+          kubectl get pods -n kube-system -l os=linux -owide
           echo Capture State Files from privileged pods
           for pod in $podList; do
             node=`kubectl get pod -n kube-system $pod -o custom-columns=NODE:.spec.nodeName,NAME:.metadata.name | grep privileged | awk '{print $1}'`
@@ -111,6 +113,7 @@ steps:
 
         if [ ${{ parameters.cni }} = 'cilium' ] || [ ${{ parameters.cni }} = 'cniv2' ]; then
           echo ------ CNS work ------
+          kubectl get pods -n kube-system -l k8s-app=azure-cns --no-headers
           echo Capture State Files from CNS pods
           cnsPods=`kubectl get pods -n kube-system -l k8s-app=azure-cns --no-headers | awk '{print $1}'`
           for pod in $cnsPods; do
@@ -128,6 +131,7 @@ steps:
 
         if [ ${{ parameters.cni }} = 'cilium' ]; then
           echo ------ Cilium work ------
+          kubectl get pods -n kube-system -l k8s-app=cilium --no-headers
           echo Capture State Files from Cilium pods
           ciliumPods=`kubectl get pods -n kube-system -l k8s-app=cilium --no-headers | awk '{print $1}'`
           for pod in $ciliumPods; do
@@ -146,10 +150,9 @@ steps:
         kubectl apply -f test/integration/manifests/load/privileged-daemonset-windows.yaml
         kubectl rollout status ds -n kube-system privileged-daemonset
 
+        echo ------ Log work ------
         kubectl get pods -n kube-system -l os=windows -owide
         echo Capture logs from each windows node. Files located in c:\k
-        # This requires that a privileged pod is up and ready to access
-
         podList=`kubectl get pods -n kube-system -l os=windows -owide | grep privileged | awk '{print $1}'`
         for pod in $podList; do
           output=`kubectl exec -i -n kube-system $pod -- powershell "ls ../../k/azure*.log*" | grep azure | awk '{print $6}'`
@@ -158,11 +161,12 @@ steps:
             mkdir -p $(acnLogs)/"$node"_logs
             echo Directory created: $(acnLogs)/"$node"_logs
             kubectl exec -i -n kube-system $pod -- powershell "cat ../../k/$file" > $(acnLogs)/"$node"_logs/$file
-            # May want to rename this output...
+            echo Azure-*.log, $file, captured: $(acnLogs)/"$node"_logs/$file
           done
         done
 
         echo ------ privileged work ------
+        kubectl get pods -n kube-system -l os=windows -owide
         echo Capture State Files from privileged pods
         for pod in $podList; do
           node=`kubectl get pod -n kube-system $pod -o custom-columns=NODE:.spec.nodeName,NAME:.metadata.name | grep privileged | awk '{print $1}'`
@@ -179,6 +183,7 @@ steps:
         # This block needs to be exec cmd need to be verified
         if [ ${{ parameters.cni }} = 'cniv2' ]; then
           echo ------ CNS work ------
+          kubectl get pods -n kube-system -l k8s-app=azure-cns-win --no-headers
           echo Capture State Files from CNS pods
           cnsPods=`kubectl get pods -n kube-system -l k8s-app=azure-cns-win --no-headers | awk '{print $1}'`
           for pod in $cnsPods; do
@@ -216,5 +221,3 @@ steps:
     artifact: ${{ parameters.clusterName }}_${{ parameters.logType }}_Attempt_#$(System.StageAttempt)
     name: acnLogs
     displayName: Publish Cluster logs
-
-
