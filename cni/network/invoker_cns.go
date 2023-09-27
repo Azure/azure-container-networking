@@ -461,7 +461,7 @@ func configureSecondaryAddResult(info *IPResultInfo, addResult *IPAMAddResult, p
 	}
 
 	result.ipResult.Routes = append(result.ipResult.Routes, routes...)
-	addResult.secondaryInterfaceInfo = append(addResult.secondaryInterfaceInfo, result)
+	addResult.secondaryInterfacesInfo = append(addResult.secondaryInterfacesInfo, result)
 
 	return nil
 }
