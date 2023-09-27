@@ -106,42 +106,42 @@ stages:
       name: cilium_overlay
       clusterType: overlay-byocni-nokubeproxy-up
       clusterName: "cilium-overlay"
-      nodeCount: ${CILIUM_NODE_COUNT}
-      vmSize: ${CILIUM_VM_SIZE}
+      nodeCount: ${NODE_COUNT_CILIUM}
+      vmSize: ${VM_SIZE_CILIUM}
 
   - template: singletenancy/cniv1-template.yaml
     parameters:
       name: win22_cniv1
       clusterType: windows-cniv1-up
       clusterName: win22-cniv1
-      nodeCount: ${WINDOWS_NODE_COUNT}
-      vmSize: ${WINDOWS_LINUX_VM_SIZE}
-      vmSizeWin: ${WINDOWS_VM_SIZE}
+      nodeCount: ${NODE_COUNT_WIN}
+      vmSize: ${VM_SIZE_WINCLUSTER_SYSTEMPOOL}
+      vmSizeWin: ${VM_SIZE_WIN}
       os: windows
       os_version: 'ltsc2022'
       arch: amd64
-      scaleup: ${WINDOWS_SCALEUP}
-      iterations: ${WINDOWS_ITERATIONS}
+      scaleup: ${SCALEUP_WIN}
+      iterations: ${ITERATIONS_WIN}
 
   - template: singletenancy/cniv1-template.yaml
     parameters:
       name: linux_cniv1
       clusterType: linux-cniv1-up
       clusterName: linux-cniv1
-      nodeCount: ${LINUX_NODE_COUNT}
-      vmSize: ${LINUX_VM_SIZE}
+      nodeCount: ${NODE_COUNT_LINUX}
+      vmSize: ${VM_SIZE}
       os: linux
       arch: amd64
-      scaleup: ${LINUX_SCALEUP}
-      iterations: ${LINUX_ITERATIONS}
+      scaleup: ${SCALEUP_LINUX}
+      iterations: ${ITERATIONS_LINUX}
 
   - template: singletenancy/linux-cniv2-template.yaml
     parameters:
       name: linux_podsubnet
       clusterType: swift-byocni-up
       clusterName: linux-cniv2-podsubnet
-      nodeCount: ${LINUX_NODE_COUNT}
-      vmSize: ${LINUX_VM_SIZE}
+      nodeCount: ${NODE_COUNT_LINUX}
+      vmSize: ${VM_SIZE}
       arch: amd64
 
   - template: singletenancy/linux-cniv2-template.yaml
@@ -149,8 +149,8 @@ stages:
       name: linux_overlay
       clusterType: overlay-byocni-up
       clusterName: linux-cniv2-overlay
-      nodeCount: ${LINUX_NODE_COUNT}
-      vmSize: ${LINUX_VM_SIZE}
+      nodeCount: ${NODE_COUNT_LINUX}
+      vmSize: ${VM_SIZE}
       arch: amd64
 
   - stage: delete_resources

@@ -102,9 +102,9 @@ stages:
           - template: ../load-test-templates/pod-deployment-template.yaml
             parameters:
               clusterName: ${{ parameters.clusterName }}-$(commitID)
-              scaleup: ${LINUX_SCALEUP}
+              scaleup: ${SCALEUP_LINUX}
               os: ${{ parameters.os }}
-              iterations: ${LINUX_ITERATIONS}
+              iterations: ${ITERATIONS_LINUX}
               nodeCount: ${{ parameters.nodeCount }}
           - template: ../load-test-templates/validate-state-template.yaml
             parameters:
@@ -119,7 +119,7 @@ stages:
             parameters:
               clusterName: ${{ parameters.clusterName }}-$(commitID)
               nodeCount: ${{ parameters.nodeCount }}
-              scaleup: ${LINUX_SCALEUP}
+              scaleup: ${SCALEUP_LINUX}
           - template: ../load-test-templates/validate-state-template.yaml
             parameters:
               clusterName: ${{ parameters.clusterName }}-$(commitID)
@@ -134,7 +134,7 @@ stages:
             parameters:
               clusterName: ${{ parameters.clusterName }}-$(commitID)
               cni: cniv2
-              scaleup: ${LINUX_SCALEUP}
+              scaleup: ${SCALEUP_LINUX}
               nodeCount: ${{ parameters.nodeCount }}
       - job: recover
         displayName: "Recover Resources"

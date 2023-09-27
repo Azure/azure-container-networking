@@ -80,9 +80,9 @@ stages:
           - template: ../load-test-templates/pod-deployment-template.yaml
             parameters:
               clusterName: ${{ parameters.clusterName }}-$(commitID)
-              scaleup: ${CILIUM_SCALEUP}
+              scaleup: ${SCALEUP_CILIUM}
               os: linux
-              iterations: ${CILIUM_ITERATIONS}
+              iterations: ${ITERATIONS_CILIUM}
               nodeCount: ${{ parameters.nodeCount }}
           - template: ../load-test-templates/validate-state-template.yaml
             parameters:
@@ -95,7 +95,7 @@ stages:
             parameters:
               clusterName: ${{ parameters.clusterName }}-$(commitID)
               nodeCount: ${{ parameters.nodeCount }}
-              scaleup: ${CILIUM_SCALEUP}
+              scaleup: ${SCALEUP_CILIUM}
           - template: ../load-test-templates/validate-state-template.yaml
             parameters:
               clusterName: ${{ parameters.clusterName }}-$(commitID)
@@ -108,7 +108,7 @@ stages:
           - template: ../load-test-templates/restart-cns-template.yaml
             parameters:
               clusterName: ${{ parameters.clusterName }}-$(commitID)
-              scaleup: ${CILIUM_SCALEUP}
+              scaleup: ${SCALEUP_CILIUM}
               nodeCount: ${{ parameters.nodeCount }}
       - job: cni_tests
         displayName: "Cilium Test"
