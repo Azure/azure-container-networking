@@ -1,16 +1,16 @@
-# System.StageAttempt to add a unique identifier on the folder stucture giving you no breaking points
-
-# Refactor current logging to use same file structure
-
-# capture cns/cni logs
-
-# capture ds/deployment states
-
-# go through TSG and see what are the standard outputs that are useful
-## Seems like I could copy over the complete file directory to get the logs
-
-# Found a thing call node network config https://eng.ms/docs/cloud-ai-platform/azure-core/azure-networking/sdn-dbansal/azure-container-networking/azure-container-networking-tsgs/tsgs/aks/nnc
-# Should we add it? What uses does it have?
+# -- Captures --
+# CNS, CNI, and Cilium Logs
+# CNS, CNI, and Cilium State files
+# Daemonset and Deployment Images
+# kube-system namespace logs
+# Non-ready pods on failure
+# -- Controled by --
+# CNI and OS | ${{ parameters.cni }} and ${{ parameters.os }}
+# -- Generates --
+# Logs on a per-node basis
+# Outputs a singluar unique artifact per template call | ${{ parameters.clusterName }}_${{ parameters.logType }}_Attempt_#$(System.StageAttempt)
+# -- Intent --
+# Provide through debugging information to understand why CNI test scenarios are failing without having to blindly reproduce
 
 parameters:
   clusterName: ""
@@ -45,7 +45,7 @@ steps:
           done
     displayName: Log Cluster
     condition: always()
-    continueOnError: true # Tends to fail after restart due to pods still restarting after node restart. This should not block other tests from running
+    continueOnError: true # Tends to fail after node restart due to pods still restarting. This should not block other tests or logs from running.
 
   - bash: |
       kubectl get ds -A -owide
@@ -87,7 +87,6 @@ steps:
             echo Directory created: $(acnLogs)/"$node"_logs/$file
             kubectl exec -i -n kube-system $pod -- cat /var/log/$file > $(acnLogs)/"$node"_logs/$file
             echo Azure-*.log, $file, captured: $(acnLogs)/"$node"_logs/$file
-            # May want to rename this output...
           done
         done
 
