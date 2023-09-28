@@ -20,7 +20,7 @@ parameters:
 # + Pods should have ips assigned and connectivity/datapath test should be present.
 # Windows
 # + The HNS state should be validated with that of CNI state.
-
+# + All CNI E2E is re-ran after HNS service is restarted
 
 stages:
   - stage: create_${{ parameters.name }}

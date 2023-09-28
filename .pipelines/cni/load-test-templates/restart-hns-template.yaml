@@ -17,15 +17,13 @@ steps:
         make test-validate-state CNI_TYPE=${{ parameters.cni }} OS_TYPE=windows
 
         podList=`kubectl get pods -n kube-system -l os=windows -owide | grep privileged | awk '{print $1}'`
+        echo Restart HNS service on each node
         for pod in $podList; do
           kubectl exec -i -n kube-system $pod -- powershell Restart-Service hns
-          kubectl exec -i -n kube-system $pod -- powershell Get-EventLog -LogName System -Newest 30 # Remove later. Keep for testing
-          echo ----- HNS Restart Confirmed -----
         done
 
         echo "Validate pod IP assignment after HNS restart"
         make test-validate-state CNI_TYPE=${{ parameters.cni }} OS_TYPE=windows
-
     name: "restartHNS"
     displayName: "Restart HNS and Validate pods"
     retryCountOnTaskFailure: 3
