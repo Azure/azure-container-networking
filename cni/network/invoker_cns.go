@@ -152,8 +152,6 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 			if err := configureSecondaryAddResult(&info, &addResult, &response.PodIPInfo[i].PodIPConfig); err != nil {
 				return IPAMAddResult{}, err
 			}
-		case cns.InfraNIC:
-			fallthrough
 		default:
 			// only count dualstack interface once
 			if addResult.defaultInterfaceInfo.ipResult == nil && !info.skipDefaultRoutes {
@@ -314,15 +312,10 @@ func getRoutes(cnsRoutes []cns.Route) ([]*cniTypes.Route, error) {
 			return nil, fmt.Errorf("unable to parse destination %s: %w", route.IPAddress, routeErr)
 		}
 
-		gw := net.ParseIP(route.GatewayIPAddress)
-		if gw == nil {
-			return nil, fmt.Errorf("unable to parse gateway %s: %w", route.GatewayIPAddress, routeErr)
-		}
-
 		routes = append(routes,
 			&cniTypes.Route{
 				Dst: *dst,
-				GW:  gw,
+				GW:  net.ParseIP(route.GatewayIPAddress),
 			})
 	}
 
