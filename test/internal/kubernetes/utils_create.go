@@ -417,6 +417,22 @@ func initCNSScenarioVars() (map[CNSScenario]map[corev1.OSName]cnsDetails, error)
 				},
 				configMapPath: cnsSwiftConfigMapPath,
 			},
+			corev1.Windows: {
+				daemonsetPath:          cnsWindowsDaemonSetPath,
+				labelSelector:          cnsWindowsLabelSelector,
+				rolePath:               cnsRolePath,
+				roleBindingPath:        cnsRoleBindingPath,
+				clusterRolePath:        cnsClusterRolePath,
+				clusterRoleBindingPath: cnsClusterRoleBindingPath,
+				serviceAccountPath:     cnsServiceAccountPath,
+				initContainerArgs: []string{
+					"deploy", "azure-vnet.exe", "-o", "/k/azurecni/bin/azure-vnet.exe",
+				},
+				volumes:                   volumesForAzureCNIOverlayWindows(),
+				initContainerVolumeMounts: dropgzVolumeMountsForAzureCNIOverlayWindows(),
+				containerVolumeMounts:     cnsVolumeMountsForAzureCNIOverlayWindows(),
+				configMapPath:             cnsAzureCNIOverlayWindowsConfigMapPath,
+			},
 		},
 	}
 
