@@ -282,13 +282,12 @@ jobs:
                 timeout=7
             fi
             set +e
-            rc=1
-            # ./test-connectivity.sh --kubectl-binary=$kubectlPath \
-            #     --num-scale-pods-to-verify=all \
-            #     --max-wait-for-initial-connectivity=$(INITIAL_CONNECTIVITY_TIMEOUT) \
-            #     --max-wait-after-adding-netpol=30 \
-            #     --connect-timeout=$timeout
-            # rc=$?
+            ./test-connectivity.sh --kubectl-binary=$kubectlPath \
+                --num-scale-pods-to-verify=all \
+                --max-wait-for-initial-connectivity=$(INITIAL_CONNECTIVITY_TIMEOUT) \
+                --max-wait-after-adding-netpol=30 \
+                --connect-timeout=$timeout
+            rc=$?
             if [[ $rc != 0 ]]; then
                 echo "capturing cluster state due to failure"
                 if [[ $(PROFILE) == *ws22 ]]; then
