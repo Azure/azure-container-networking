@@ -191,6 +191,13 @@ func validateHNSNetworkState(ctx context.Context, nodes *corev1.NodeList, client
 			if network.ManagementIP == "" {
 				return errors.New("windows HNS network is missing ipv4 management IP")
 			}
+
+			// dualstack scenario
+			if network.IPv6 {
+				if network.ManagementIPv6 == "" {
+					return errors.New("windows HNS network is missing ipv6 management IP")
+				}
+			}
 		}
 	}
 	return nil

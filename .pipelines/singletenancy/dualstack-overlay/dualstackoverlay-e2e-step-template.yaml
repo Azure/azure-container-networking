@@ -65,6 +65,8 @@ steps:
       sudo go test -count=1 datapath_linux_test.go -timeout 3m -tags connection -run ^TestDatapathLinux$ -tags=connection,integration -isDualStack=true
       echo "Dualstack Overlay Linux datapath IPv4 test"
       sudo go test -count=1 datapath_linux_test.go -timeout 3m -tags connection -run ^TestDatapathLinux$ -tags=connection,integration
+      echo "cleaning up load-test namespace"
+      kubectl delete ns load-test
     retryCountOnTaskFailure: 3
     name: "DualStack_Overlay_Linux_Tests"
     displayName: "DualStack Overlay Linux Tests"
@@ -114,4 +116,42 @@ steps:
       sudo CNI_TYPE=dualstack go test -timeout 30m -tags load -run ^TestValidateState$
     name: "restartCNS_ValidatePodState"
     displayName: "Restart CNS and Validate Pod State"
+    retryCountOnTaskFailure: 3
+
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+      scriptLocation: "inlineScript"
+      scriptType: "bash"
+      addSpnToEnvironment: true
+      inlineScript: |
+        set -e
+        make -C ./hack/aks windows-nodepool-up AZCLI=az SUB=$(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS) CLUSTER=${{ parameters.clusterName }}
+        echo "Windows node are successfully added to DualStack Overlay Cluster"
+        kubectl cluster-info
+        kubectl get node -owide
+        kubectl get po -owide -A
+    name: "Add_Windows_Node"
+    displayName: "Add windows node on dualstack overlay cluster"
+
+  - script: |
+      nodeList=`kubectl get node -owide | grep Windows | awk '{print $1}'`
+      for node in $nodeList; do
+          taint=`kubectl describe node $node | grep Taints | awk '{print $2}'`
+          if [ $taint == "node.cloudprovider.kubernetes.io/uninitialized=true:NoSchedule" ]; then
+              kubectl taint nodes $node node.cloudprovider.kubernetes.io/uninitialized=true:NoSchedule-
+          fi
+      done
+      CNS=$(make cns-version)
+      sudo -E env "PATH=$PATH" make test-load SCALE_UP=32 OS_TYPE=windows CNI_TYPE=cniv2 VALIDATE_STATEFILE=true INSTALL_CNS=true INSTALL_AZURE_CNI_OVERLAY=true VALIDATE_DUALSTACK=true CNS_VERSION=${CNS} CNI_DROPGZ_VERSION=$(dropgzVersion) TEST_DROPGZ=${{ parameters.testDropgz }} CLEANUP=true
+    name: "WindowsDualStackOverlayControlPlaneScaleTests"
+    displayName: "Windows DualStack Overlay ControlPlane Scale Tests"
+    retryCountOnTaskFailure: 3
+
+  - script: |
+      echo "DualStack Overlay DataPath Test"
+      cd test/integration/datapath
+      sudo -E env "PATH=$PATH" go test -count=1 datapath_windows_test.go -timeout 3m -tags connection -restartKubeproxy true -run ^TestDatapathWin$
+    name: "WindowsDualStackOverlayDatapathTests"
+    displayName: "Windows DauStack Overlay Datapath Tests"
     retryCountOnTaskFailure: 3

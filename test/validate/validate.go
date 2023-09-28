@@ -252,6 +252,12 @@ func (v *Validator) ValidateDualStackControlPlane(ctx context.Context) error {
 		return errors.Wrap(err, "failed to validate dualstack overlay node properties")
 	}
 
+	if v.os == "windows" {
+		if err := validateHNSNetworkState(ctx, nodes, v.clientset, v.config); err != nil {
+			return errors.Wrap(err, "failed to validate dualstack overlay HNS network state")
+		}
+	}
+
 	return nil
 }
 
