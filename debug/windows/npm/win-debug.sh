@@ -47,13 +47,22 @@ for i in $(seq 1 ${#npmPods[*]}); do
     kubectl $kubeconfigArg cp ./pod_exec.ps1 kube-system/"$npmPod":execw.ps1
 
     echo "executing ps1 file on $npmPod"
-    kubectl $kubeconfigArg exec -it -n kube-system $npmPod -- powershell.exe -Command  .\\execw.ps1 "'${ips[@]}'"
+    kubectl $kubeconfigArg exec -n kube-system $npmPod -- powershell.exe -Command  .\\execw.ps1 "'${ips[@]}'"
 
     echo "copying logs.zip from $npmPod. NOTE: this will be a windows-based compressed archive (probably need windows to expand it)"
     kubectl $kubeconfigArg cp kube-system/"$npmPod":npm-exec-logs.zip $filepath/npm-exec-logs_$node.zip
 done
 
-echo "finished getting HNS info. getting cluster state now"
+echo "finished getting HNS info. getting prometheus metrics"
+
+mkdir -p $filepath/prometheus/node-metrics
+for i in $(seq 1 ${#npmPods[*]}); do
+    j=$((i-1))
+    npmPod=${npmPods[$j]}
+    kubectl $kubeconfigArg exec -n kube-system $npmPod -- powershell.exe -Command "(Invoke-WebRequest -UseBasicParsing http://localhost:10091/node-metrics).Content" > $filepath/prometheus/node-metrics/$npmPod.out
+done
+
+echo "finished getting prometheus metrics. getting cluster state"
 
 kubectl $kubeconfigArg get pod -A -o wide --show-labels > $filepath/allpods.out
 kubectl $kubeconfigArg get netpol -A -o yaml > $filepath/all-netpol-yamls.out
