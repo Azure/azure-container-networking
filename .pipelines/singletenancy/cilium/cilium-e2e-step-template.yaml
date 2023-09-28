@@ -157,6 +157,13 @@ steps:
     name: "validatePods"
     displayName: "Validate Pods"
 
+  - template: ../../templates/log-template.yaml
+    parameters:
+      clusterName: ${{ parameters.clusterName }}
+      logType: ciliumConnectivity
+      os: linux
+      cni: cilium
+
   - script: |
       echo "validate pod IP assignment before CNS restart"
       kubectl get pod -owide -A
@@ -169,6 +176,13 @@ steps:
       make test-validate-state
     name: "restartCNS"
     displayName: "Restart CNS and validate pods"
+
+  - template: ../../templates/log-template.yaml
+    parameters:
+      clusterName: ${{ parameters.clusterName }}
+      logType: restartCNS
+      os: linux
+      cni: cilium
 
   - script: |
       echo "Run wireserver and metadata connectivity Tests"

@@ -219,5 +219,5 @@ steps:
   - publish: $(System.DefaultWorkingDirectory)/${{ parameters.clusterName }}_${{ parameters.logType }}_Attempt_#$(System.StageAttempt)
     condition: always()
     artifact: ${{ parameters.clusterName }}_${{ parameters.logType }}_Attempt_#$(System.StageAttempt)
-    name: acnLogs
+    name: acnLogs_${{ parameters.logType }}
     displayName: Publish Cluster logs
