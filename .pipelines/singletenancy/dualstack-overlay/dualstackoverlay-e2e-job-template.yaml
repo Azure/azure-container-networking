@@ -80,3 +80,17 @@ stages:
           portforward: true
           service: true
           hybridWin: true
+
+      - job: logs
+        displayName: "Log Failure"
+        dependsOn:
+          - ${{ parameters.name }}
+          - cni_${{ parameters.os }}
+          - cni_windows
+        condition: failed()
+        steps:
+          - template: ../../templates/log-template.yaml
+            parameters:
+              clusterName: ${{ parameters.clusterName }}-$(commitID)
+              os: ${{ parameters.os }}
+              cni: cniv2
