@@ -43,10 +43,6 @@ const (
 	osReleaseFile = "/etc/os-release"
 )
 
-type PlatformLog struct {
-	logger *zap.Logger
-}
-
 // GetOSInfo returns OS version information.
 func GetOSInfo() string {
 	info, err := os.ReadFile("/proc/version")
@@ -64,14 +60,8 @@ func GetProcessSupport() error {
 	return err
 }
 
-func SetPlatformLog(logger *zap.Logger) PlatformLog {
-	return PlatformLog{
-		logger,
-	}
-}
-
 // GetLastRebootTime returns the last time the system rebooted.
-func (p *PlatformLog) GetLastRebootTime() (time.Time, error) {
+func (p *execClient) GetLastRebootTime() (time.Time, error) {
 	// Query last reboot time.
 	out, err := exec.Command("uptime", "-s").Output()
 	if err != nil {
@@ -134,7 +124,7 @@ func SetOutboundSNAT(subnet string) error {
 
 // ClearNetworkConfiguration clears the azure-vnet.json contents.
 // This will be called only when reboot is detected - This is windows specific
-func (p *PlatformLog) ClearNetworkConfiguration() (bool, error) {
+func (p *execClient) ClearNetworkConfiguration() (bool, error) {
 	return false, nil
 }
 

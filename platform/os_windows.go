@@ -100,7 +100,7 @@ func GetProcessSupport() error {
 var tickCount = syscall.NewLazyDLL("kernel32.dll").NewProc("GetTickCount64")
 
 // GetLastRebootTime returns the last time the system rebooted.
-func (p *PlatformLog) GetLastRebootTime() (time.Time, error) {
+func (p *execClient) GetLastRebootTime() (time.Time, error) {
 	currentTime := time.Now()
 	output, _, err := tickCount.Call()
 	if errno, ok := err.(syscall.Errno); !ok || errno != 0 {
@@ -142,7 +142,7 @@ func SetOutboundSNAT(subnet string) error {
 
 // ClearNetworkConfiguration clears the azure-vnet.json contents.
 // This will be called only when reboot is detected - This is windows specific
-func (p *PlatformLog) ClearNetworkConfiguration() (bool, error) {
+func (p *execClient) ClearNetworkConfiguration() (bool, error) {
 	jsonStore := CNIRuntimePath + "azure-vnet.json"
 	p.logger.Info("Deleting the json", zap.String("store", jsonStore))
 	cmd := exec.Command("cmd", "/c", "del", jsonStore)
@@ -162,14 +162,14 @@ func KillProcessByName(processName string) {
 }
 
 // ExecutePowershellCommand executes powershell command
-func ExecutePowershellCommand(command string, logger *zap.Logger) (string, error) {
+func (p *execClient) ExecutePowershellCommand(command string) (string, error) {
 	ps, err := exec.LookPath("powershell.exe")
 	if err != nil {
 		return "", fmt.Errorf("Failed to find powershell executable")
 	}
 
-	if logger != nil {
-		logger.Info("[Azure-Utils]", zap.String("command", command))
+	if p.logger != nil {
+		p.logger.Info("[Azure-Utils]", zap.String("command", command))
 	} else {
 		log.Printf("[Azure-Utils] %s", command)
 	}

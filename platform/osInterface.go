@@ -2,6 +2,8 @@ package platform
 
 import (
 	"time"
+
+	"go.uber.org/zap"
 )
 
 const (
@@ -10,6 +12,7 @@ const (
 
 type execClient struct {
 	Timeout time.Duration
+	logger  *zap.Logger
 }
 
 //nolint:revive // ExecClient make sense
