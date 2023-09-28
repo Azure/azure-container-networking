@@ -28,36 +28,63 @@ type NOPLogger struct{}
 func (m *NOPLogger) Printf(_ string, _ ...any) {}
 
 func TestGetInterfaces(t *testing.T) {
-	// create a wireserver client using a test tripper so that it can be asserted
-	// that the correct requests are sent.
-	expURL := "http://168.63.129.16/machine/plugins?comp=nmagent&type=getinterfaceinfov1"
-	var reqURL string
-	client := &wireserver.Client{
-		Logger: &NOPLogger{},
-		HTTPClient: &http.Client{
-			Transport: &TestTripper{
-				RoundTripF: func(req *http.Request) (*http.Response, error) {
-					reqURL = req.URL.String()
-					rr := httptest.NewRecorder()
-					resp := wireserver.GetInterfacesResult{}
-					err := xml.NewEncoder(rr).Encode(&resp)
-					if err != nil {
-						t.Fatal("unexpected error encoding mock wireserver response: err:", err)
-					}
-
-					return rr.Result(), nil
-				},
-			},
+	tests := []struct {
+		name   string
+		host   string
+		port   uint16
+		expURL string
+	}{
+		{
+			"real ws url",
+			"168.63.129.16",
+			0, // a.k.a. "no port"
+			"http://168.63.129.16/machine/plugins?comp=nmagent&type=getinterfaceinfov1",
+		},
+		{
+			"local ws url",
+			"127.0.0.1",
+			9001, // a.k.a. "no port"
+			"http://127.0.0.1:9001/machine/plugins?comp=nmagent&type=getinterfaceinfov1",
 		},
 	}
 
-	// invoke the endpoint on Wireserver
-	_, err := client.GetInterfaces(context.TODO())
-	if err != nil {
-		t.Fatal("unexpected error invoking GetInterfaces: err:", err)
-	}
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			// create a wireserver client using a test tripper so that it can be asserted
+			// that the correct requests are sent.
+			var gotURL string
+			client := &wireserver.Client{
+				Host:   test.host,
+				Port:   test.port,
+				Logger: &NOPLogger{},
+				HTTPClient: &http.Client{
+					Transport: &TestTripper{
+						RoundTripF: func(req *http.Request) (*http.Response, error) {
+							gotURL = req.URL.String()
+							rr := httptest.NewRecorder()
+							resp := wireserver.GetInterfacesResult{}
+							err := xml.NewEncoder(rr).Encode(&resp)
+							if err != nil {
+								t.Fatal("unexpected error encoding mock wireserver response: err:", err)
+							}
 
-	if expURL != reqURL {
-		t.Error("received request URL to wireserve does not match expectation:\n\texp:", expURL, "\n\tgot:", reqURL)
+							return rr.Result(), nil
+						},
+					},
+				},
+			}
+
+			// invoke the endpoint on Wireserver
+			_, err := client.GetInterfaces(context.TODO())
+			if err != nil {
+				t.Fatal("unexpected error invoking GetInterfaces: err:", err)
+			}
+
+			if test.expURL != gotURL {
+				t.Error("received request URL to wireserve does not match expectation:\n\texp:", test.expURL, "\n\tgot:", gotURL)
+			}
+		})
 	}
 }
