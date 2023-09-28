@@ -7,7 +7,6 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/pkg/errors"
 )
 
@@ -26,11 +25,14 @@ type do interface {
 
 type Client struct {
 	HTTPClient do
+	Logger     interface {
+		Printf(string, ...any)
+	}
 }
 
 // GetInterfaces queries interfaces from the wireserver.
 func (c *Client) GetInterfaces(ctx context.Context) (*GetInterfacesResult, error) {
-	logger.Printf("[Azure CNS] GetPrimaryInterfaceInfoFromHost")
+	c.Logger.Printf("[Azure CNS] GetPrimaryInterfaceInfoFromHost")
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, hostQueryURL, nil)
 	if err != nil {
@@ -46,7 +48,7 @@ func (c *Client) GetInterfaces(ctx context.Context) (*GetInterfacesResult, error
 		return nil, errors.Wrap(err, "failed to read response body")
 	}
 
-	logger.Printf("[Azure CNS] Response received from NMAgent for get interface details: %s", string(b))
+	c.Logger.Printf("[Azure CNS] Response received from NMAgent for get interface details: %s", string(b))
 
 	var res GetInterfacesResult
 	if err := xml.NewDecoder(bytes.NewReader(b)).Decode(&res); err != nil {
