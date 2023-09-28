@@ -314,6 +314,7 @@ func initCNSScenarioVars() (map[CNSScenario]map[corev1.OSName]cnsDetails, error)
 	cnsOverlayConfigMapPath := cnsConfigFolder + "/overlayconfigmap.yaml"
 	cnsAzureCNIOverlayLinuxConfigMapPath := cnsConfigFolder + "/azurecnioverlaylinuxconfigmap.yaml"
 	cnsAzureCNIOverlayWindowsConfigMapPath := cnsConfigFolder + "/azurecnioverlaywindowsconfigmap.yaml"
+	cnsAzureCNIDualStackWindowsConfigMapPath := cnsConfigFolder + "/azurecnidualstackoverlaywindowsconfigmap.yaml"
 	cnsRolePath := cnsManifestFolder + "/role.yaml"
 	cnsRoleBindingPath := cnsManifestFolder + "/rolebinding.yaml"
 	cnsServiceAccountPath := cnsManifestFolder + "/serviceaccount.yaml"
@@ -431,7 +432,7 @@ func initCNSScenarioVars() (map[CNSScenario]map[corev1.OSName]cnsDetails, error)
 				volumes:                   volumesForAzureCNIOverlayWindows(),
 				initContainerVolumeMounts: dropgzVolumeMountsForAzureCNIOverlayWindows(),
 				containerVolumeMounts:     cnsVolumeMountsForAzureCNIOverlayWindows(),
-				configMapPath:             cnsAzureCNIOverlayWindowsConfigMapPath,
+				configMapPath:             cnsAzureCNIDualStackWindowsConfigMapPath,
 			},
 		},
 	}
