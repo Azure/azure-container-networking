@@ -290,13 +290,15 @@ jobs:
             #     --connect-timeout=$timeout
             # rc=$?
             if [[ $rc != 0 ]]; then
+                echo "capturing cluster state due to failure"
                 if [[ $(PROFILE) == *ws22 ]]; then
-                    cd $(Pipeline.Workspace)/s/debug/windows/npm/win-debug.sh
+                    cd $(Pipeline.Workspace)/s/debug/windows/npm/
                     chmod u+x win-debug.sh
                     ./win-debug.sh
                     mv logs_* $(System.DefaultWorkingDirectory)/$CLUSTER_NAME/
                 else
-                    npmPod=`kubectl get pod -n kube-system -owide | grep npm | grep -v npm-win | awk '{print $1}' | head -n 1`
+                    set -x
+                    npmPod=`kubectl get pod -n kube-system | grep npm | grep -v npm-win | awk '{print $1}' | head -n 1 | tr -d \n`
                     kubectl exec -n kube-system $npmPod -- iptables-nft -vnL > $(System.DefaultWorkingDirectory)/$CLUSTER_NAME/iptables.out
                     kubectl exec -n kube-system $npmPod -- ipset -L > $(System.DefaultWorkingDirectory)/$CLUSTER_NAME/ipset.out
                 fi
@@ -391,13 +393,15 @@ jobs:
                 --connect-timeout=$timeout
             rc=$?
             if [[ $rc != 0 ]]; then
+                echo "capturing cluster state due to failure"
                 if [[ $(PROFILE) == *ws22 ]]; then
-                    cd $(Pipeline.Workspace)/s/debug/windows/npm/win-debug.sh
+                    cd $(Pipeline.Workspace)/s/debug/windows/npm/
                     chmod u+x win-debug.sh
                     ./win-debug.sh
                     mv logs_* $(System.DefaultWorkingDirectory)/$CLUSTER_NAME/
                 else
-                    npmPod=`kubectl get pod -n kube-system -owide | grep npm | grep -v npm-win | awk '{print $1}' | head -n 1`
+                    set -x
+                    npmPod=`kubectl get pod -n kube-system | grep npm | grep -v npm-win | awk '{print $1}' | head -n 1 | tr -d \n`
                     kubectl exec -n kube-system $npmPod -- iptables-nft -vnL > $(System.DefaultWorkingDirectory)/$CLUSTER_NAME/iptables.out
                     kubectl exec -n kube-system $npmPod -- ipset -L > $(System.DefaultWorkingDirectory)/$CLUSTER_NAME/ipset.out
                 fi
