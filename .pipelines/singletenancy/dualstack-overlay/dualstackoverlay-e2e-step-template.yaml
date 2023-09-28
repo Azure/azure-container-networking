@@ -35,7 +35,7 @@ steps:
     retryCountOnTaskFailure: 3
     name: "installKubectl"
     displayName: "Install Kubectl"
-        
+
   - script: |
       echo "deploy ip-masq-agent for overlay"
       kubectl create -f test/integration/manifests/ip-masq-agent/ip-masq-agent.yaml --validate=false
@@ -128,7 +128,7 @@ steps:
           echo "##vso[task.setvariable variable=dropgzVersion]$(make cni-dropgz-version)"
         name: dropgzVersion
         displayName: "Dropgz Version"
-        
+
   - task: AzureCLI@2
     inputs:
       azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
