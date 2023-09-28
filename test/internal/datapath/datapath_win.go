@@ -197,7 +197,7 @@ func WindowsPodToInternet(ctx context.Context, clientset *kubernetes.Clientset, 
 	}
 
 	// test Invoke-WebRequest an URL by IPv6 address on one pod
-	// command is: C:\inetpub\wwwroot>curl -6 -v www.bing.com
+	// command is: C:\inetpub\wwwroot> powershell curl.exe -6 -v www.bing.com
 	// then return *   Trying [2620:1ec:c11::200]:80...
 	//              HTTP/1.1 200 OK
 	if len(secondPod.Status.PodIPs) > 1 {
