@@ -143,7 +143,7 @@ steps:
           fi
       done
       CNS=$(make cns-version)
-      sudo -E env "PATH=$PATH" make test-load SCALE_UP=32 OS_TYPE=windows CNI_TYPE=cniv2 VALIDATE_STATEFILE=true INSTALL_CNS=true INSTALL_AZURE_CNI_OVERLAY=true VALIDATE_DUALSTACK=true CNS_VERSION=${CNS} CNI_DROPGZ_VERSION=$(dropgzVersion) TEST_DROPGZ=${{ parameters.testDropgz }} CLEANUP=true
+      sudo -E env "PATH=$PATH" make test-load SCALE_UP=32 OS_TYPE=windows CNI_TYPE=cniv2 VALIDATE_STATEFILE=true INSTALL_CNS=true INSTALL_DUALSTACK_OVERLAY=true VALIDATE_DUALSTACK=true CNS_VERSION=${CNS} CNI_DROPGZ_VERSION=$(dropgzVersion) TEST_DROPGZ=${{ parameters.testDropgz }} CLEANUP=true
     name: "WindowsDualStackOverlayControlPlaneScaleTests"
     displayName: "Windows DualStack Overlay ControlPlane Scale Tests"
     retryCountOnTaskFailure: 3
@@ -153,5 +153,5 @@ steps:
       cd test/integration/datapath
       sudo -E env "PATH=$PATH" go test -count=1 datapath_windows_test.go -timeout 3m -tags connection -restartKubeproxy true -run ^TestDatapathWin$
     name: "WindowsDualStackOverlayDatapathTests"
-    displayName: "Windows DauStack Overlay Datapath Tests"
+    displayName: "Windows DaulStack Overlay Datapath Tests"
     retryCountOnTaskFailure: 3
