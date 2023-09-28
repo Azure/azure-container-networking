@@ -143,6 +143,7 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 			zap.Any("ipinfo", info),
 			zap.Any("podInfo", podInfo))
 
+		//nolint:exhaustive // ignore exhaustive types check
 		switch info.nicType {
 		case cns.DelegatedVMNIC:
 			if !info.skipDefaultRoutes {
