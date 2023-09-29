@@ -349,7 +349,7 @@ type GetHomeAzResponse struct {
 	HomeAzResponse HomeAzResponse `json:"homeAzResponse"`
 }
 
-// UpdateEndpoint describes request to update the state.
+// Used by EndpointHandler API to update endpoint state.
 type EndpointRequest struct {
 	HnsEndpointID string `json:"hnsEndpointID"`
 	HostVethName  string `json:"hostVethName"`

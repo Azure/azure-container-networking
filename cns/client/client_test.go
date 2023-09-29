@@ -2919,7 +2919,7 @@ func TestGetEndpoint(t *testing.T) {
 			false,
 		},
 		{
-			"with EndpointID",
+			"Bad Request",
 			"foo",
 			&RequestCapture{
 				Next: &mockdo{
