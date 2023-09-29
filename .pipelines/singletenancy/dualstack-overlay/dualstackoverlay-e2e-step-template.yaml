@@ -56,7 +56,7 @@ steps:
       kubectl cluster-info
       kubectl get node
       CNS=$(make cns-version)
-      sudo -E env "PATH=$PATH" make test-integration CNS_VERSION=${CNS} CNI_DROPGZ_VERSION=$(dropgzVersion) INSTALL_CNS=true INSTALL_DUALSTACK_OVERLAY=true TEST_DROPGZ=${{ parameters.testDropgz }}
+      sudo -E env "PATH=$PATH" make test-integration CNS_VERSION=${CNS} CNI_DROPGZ_VERSION=$(dropgzTestVersion) INSTALL_CNS=true INSTALL_DUALSTACK_OVERLAY=true TEST_DROPGZ=${{ parameters.testDropgz }}
       kubectl get po -owide -A
     retryCountOnTaskFailure: 3
     name: "integrationTest"
