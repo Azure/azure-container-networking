@@ -61,10 +61,23 @@ stages:
         parameters:
           sub: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
           clusterName: ${{ parameters.clusterName }}-$(commitID)
-          os: ${{ parameters.os }}
+          os: linux
           dependsOn: ${{ parameters.name }}
           dualstack: true
           dns: true
           portforward: true
           hostport: true
           service: true
+
+      - template: ../../cni/k8s-e2e/k8s-e2e-job-template.yaml
+        parameters:
+          sub: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+          clusterName: ${{ parameters.clusterName }}-$(commitID)
+          os: windows
+          dependsOn: cni_k8se2e
+          dualstack: true
+          dns: true
+          portforward: true
+          hostport: true
+          service: true
+          hybridWin: true
