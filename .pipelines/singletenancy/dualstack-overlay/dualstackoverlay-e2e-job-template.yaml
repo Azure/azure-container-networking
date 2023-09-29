@@ -74,7 +74,7 @@ stages:
           sub: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
           clusterName: ${{ parameters.clusterName }}-$(commitID)
           os: windows
-          dependsOn: cni_k8se2e
+          dependsOn: cni_linux
           dualstack: true
           dns: true
           portforward: true
