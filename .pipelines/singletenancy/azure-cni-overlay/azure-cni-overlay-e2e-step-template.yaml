@@ -190,7 +190,7 @@ steps:
     displayName: "Add windows node on v4 overlay cluster"
 
   - script: |
-      nodeList=`kubectl get nodes -l os=windows`
+      nodeList=`kubectl get node -owide | grep Windows | awk '{print $1}'`
       for node in $nodeList; do
           taint=`kubectl describe node $node | grep Taints | awk '{print $2}'`
           if [ $taint == "node.cloudprovider.kubernetes.io/uninitialized=true:NoSchedule" ]; then
