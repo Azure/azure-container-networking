@@ -84,14 +84,15 @@ spec:
       containers:
         - name: azure-npm
           image: mcr.microsoft.com/containernetworking/azure-npm:v1.5.5
+          # workingDir: "$env:CONTAINER_SANDBOX_MOUNT_POINT"
           command: ["powershell.exe"]
           args:
             [
-              '.\setkubeconfigpath-capz.ps1',
+              'mv $env:CONTAINER_SANDBOX_MOUNT_POINT/npm.exe /npm.exe',
               ";",
               '.\npm.exe',
               "start",
-              '--kubeconfig=.\kubeconfig',
+              '--kubeconfig=C:\etc\kubernetes\kubelet.conf',
             ]
           resources:
             limits:
@@ -106,10 +107,10 @@ spec:
                   apiVersion: v1
                   fieldPath: spec.nodeName
             - name: NPM_CONFIG
-              value: .\\etc\\azure-npm\\azure-npm.json
+              value: /etc/azure-npm/azure-npm.json
           volumeMounts:
             - name: azure-npm-config
-              mountPath: .\\etc\\azure-npm
+              mountPath: /etc/azure-npm
       nodeSelector:
         kubernetes.io/os: windows
       volumes:
