@@ -2,13 +2,16 @@
 # CNS, CNI, and Cilium Logs
 # CNS, CNI, and Cilium State files
 # Daemonset and Deployment Images
+# Node Status
 # kube-system namespace logs
 # Non-ready pods on failure
 # -- Controled by --
 # CNI and OS | ${{ parameters.cni }} and ${{ parameters.os }}
+# CNS ConfigMap | "ManageEndpointState"
 # -- Generates --
 # Logs on a per-node basis
 # Outputs a singluar unique artifact per template call | ${{ parameters.clusterName }}_${{ parameters.logType }}_Attempt_#$(System.StageAttempt)
+# Each artifact is divided into sub-directories
 # -- Intent --
 # Provide through debugging information to understand why CNI test scenarios are failing without having to blindly reproduce
 
@@ -36,16 +39,20 @@ steps:
 
           kubectl get pods -n kube-system -owide
           podList=`kubectl get pods -n kube-system --no-headers | awk '{print $1}'`
-          # capture all logs
           mkdir -p $acnLogs/kube-system
           echo Directory created: $acnLogs/kube-system
           for pod in $podList; do
             kubectl logs -n kube-system $pod > $acnLogs/kube-system/$pod-logs.txt
             echo $acnLogs/kube-system/$pod-logs.txt
           done
-    displayName: Log Cluster
+    displayName: Kube-System Logs
     condition: always()
     continueOnError: true # Tends to fail after node restart due to pods still restarting. This should not block other tests or logs from running.
+
+  - bash: |
+      kubectl describe nodes
+    displayName: Node Status
+    condition: always()
 
   - bash: |
       kubectl get ds -A -owide

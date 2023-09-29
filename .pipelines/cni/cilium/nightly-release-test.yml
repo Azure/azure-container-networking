@@ -88,11 +88,23 @@ stages:
             name: "cilium_nightly"
             testDropgz: ""
             clusterName: ciliumnightly-$(commitID)
+      - job: logs
+        displayName: "Log Failure"
+        dependsOn:
+          - cilium_nightly
+        condition: failed()
+        steps:
+          - template: ../../templates/log-template.yaml
+            parameters:
+              clusterName: ciliumnightly-$(commitID)
+              os: linux
+              cni: cilium
       - job: delete
         displayName: Delete Cluster
         condition: always()
         dependsOn:
           - cilium_nightly
+          - logs
         pool:
           name: "$(BUILD_POOL_NAME_DEFAULT)"
         strategy:

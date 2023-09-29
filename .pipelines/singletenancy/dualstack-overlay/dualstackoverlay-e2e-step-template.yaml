@@ -193,10 +193,3 @@ steps:
     name: "WindowsDualStackOverlayDatapathTests"
     displayName: "Windows DaulStack Overlay Datapath Tests"
     retryCountOnTaskFailure: 3
-
-  - template: ../../templates/log-template.yaml
-    parameters:
-      clusterName: ${{ parameters.clusterName }}
-      logType: Datapath
-      os: windows
-      cni: cniv2
