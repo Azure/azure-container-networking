@@ -279,7 +279,7 @@ jobs:
             # adding new network policy to all 30 Pods should happen within 30 seconds
             timeout=5
             if [[ $(PROFILE) == *ws22 ]]; then
-                timeout=7
+                timeout=5
             fi
             set +e
             ./test-connectivity.sh --kubectl-binary=$kubectlPath \
@@ -382,7 +382,7 @@ jobs:
             # adding new network policy to all 12 Pods should happen within 20 seconds
             timeout=5
             if [[ $(PROFILE) == *ws22 ]]; then
-                timeout=7
+                timeout=5
             fi
             set +e
             ./test-connectivity.sh --kubectl-binary=$kubectlPath \
