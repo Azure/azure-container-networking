@@ -83,7 +83,7 @@ spec:
       hostNetwork: true
       containers:
         - name: azure-npm
-          image: mcr.microsoft.com/containernetworking/azure-npm:v1.4.45
+          image: mcr.microsoft.com/containernetworking/azure-npm:v1.5.5
           command: ["powershell.exe"]
           args:
             [
@@ -140,14 +140,14 @@ metadata:
 data:
   azure-npm.json: |
     {
-        "ResyncPeriodInMinutes":          15,
-        "ListeningPort":                  10091,
-        "ListeningAddress":               "0.0.0.0",
-        "ApplyIntervalInMilliseconds":    500,
-        "ApplyMaxBatches":                100,
-        "MaxBatchedACLsPerPod":           30,
-        "NetPolInvervalInMilliseconds":   500,
-        "MaxPendingNetPols":              100,
+        "ResyncPeriodInMinutes":        15,
+        "ListeningPort":                10091,
+        "ListeningAddress":             "0.0.0.0",
+        "ApplyIntervalInMilliseconds":  500,
+        "ApplyMaxBatches":              100,
+        "MaxBatchedACLsPerPod":         30,
+        "NetPolInvervalInMilliseconds": 500,
+        "MaxPendingNetPols":            100,
         "Toggles": {
             "EnablePrometheusMetrics": true,
             "EnablePprof":             true,
