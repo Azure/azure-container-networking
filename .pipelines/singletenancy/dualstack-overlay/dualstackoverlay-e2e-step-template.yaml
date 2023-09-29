@@ -36,6 +36,17 @@ steps:
     name: "installKubectl"
     displayName: "Install Kubectl"
 
+  - ${{ if eq( parameters['testDropgz'], true) }}:
+      - script: |
+          echo "##vso[task.setvariable variable=dropgzVersion]$(make cni-dropgz-test-version)"
+        name: dropgzTestVersion
+        displayName: "Dropgz Test Version"
+  - ${{ else }}:
+      - script: |
+          echo "##vso[task.setvariable variable=dropgzVersion]$(make cni-dropgz-version)"
+        name: dropgzVersion
+        displayName: "Dropgz Version"
+
   - script: |
       echo "deploy ip-masq-agent for overlay"
       kubectl create -f test/integration/manifests/ip-masq-agent/ip-masq-agent.yaml --validate=false
@@ -44,8 +55,8 @@ steps:
       cd ../../../..
       kubectl cluster-info
       kubectl get node
-      CNS=$(make cns-version) DROPGZ=$(make cni-dropgz-test-version)
-      sudo -E env "PATH=$PATH" make test-integration CNS_VERSION=${CNS} CNI_DROPGZ_VERSION=${DROPGZ} INSTALL_CNS=true INSTALL_DUALSTACK_OVERLAY=true TEST_DROPGZ=${{ parameters.testDropgz }}
+      CNS=$(make cns-version)
+      sudo -E env "PATH=$PATH" make test-integration CNS_VERSION=${CNS} CNI_DROPGZ_VERSION=$(dropgzVersion) INSTALL_CNS=true INSTALL_DUALSTACK_OVERLAY=true TEST_DROPGZ=${{ parameters.testDropgz }}
       kubectl get po -owide -A
     retryCountOnTaskFailure: 3
     name: "integrationTest"
@@ -118,17 +129,6 @@ steps:
     displayName: "Restart CNS and Validate Pod State"
     retryCountOnTaskFailure: 3
 
-  - ${{ if eq( parameters['testDropgz'], true) }}:
-      - script: |
-          echo "##vso[task.setvariable variable=dropgzVersion]$(make cni-dropgz-test-version)"
-        name: dropgzTestVersion
-        displayName: "Dropgz Test Version"
-  - ${{ else }}:
-      - script: |
-          echo "##vso[task.setvariable variable=dropgzVersion]$(make cni-dropgz-version)"
-        name: dropgzVersion
-        displayName: "Dropgz Version"
-
   - task: AzureCLI@2
     inputs:
       azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
@@ -138,12 +138,12 @@ steps:
       inlineScript: |
         set -e
         make -C ./hack/aks windows-nodepool-up AZCLI=az SUB=$(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS) CLUSTER=${{ parameters.clusterName }}
-        echo "Windows node are successfully added to DualStack Overlay Cluster"
+        echo "Windows nodes have been successfully added to DualStack Overlay Cluster"
         kubectl cluster-info
         kubectl get node -owide
         kubectl get po -owide -A
     name: "Add_Windows_Node"
-    displayName: "Add windows node on dualstack overlay cluster"
+    displayName: "Add windows node"
 
   - script: |
       nodeList=`kubectl get node -owide | grep Windows | awk '{print $1}'`

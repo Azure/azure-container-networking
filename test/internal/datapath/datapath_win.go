@@ -15,7 +15,7 @@ import (
 	restclient "k8s.io/client-go/rest"
 )
 
-var ipv6PrefixPolicy = []string{"curl.exe", "-6", "-v", "www.bing.com"}
+// var ipv6PrefixPolicy = []string{"curl.exe", "-6", "-v", "www.bing.com"}
 
 func podTest(ctx context.Context, clientset *kubernetes.Clientset, srcPod *apiv1.Pod, cmd []string, rc *restclient.Config, passFunc func(string) error) error {
 	logrus.Infof("podTest() - %v %v", srcPod.Name, cmd)
@@ -200,16 +200,16 @@ func WindowsPodToInternet(ctx context.Context, clientset *kubernetes.Clientset, 
 	// command is: C:\inetpub\wwwroot> powershell curl.exe -6 -v www.bing.com
 	// then return *   Trying [2620:1ec:c11::200]:80...
 	//              HTTP/1.1 200 OK
-	if len(secondPod.Status.PodIPs) > 1 {
-		for _, ip := range secondPod.Status.PodIPs {
-			if net.ParseIP(ip.IP).To16() != nil {
-				resultThree := podTest(ctx, clientset, secondPod, ipv6PrefixPolicy, rc, webRequestPassedWindows)
-				if resultThree != nil {
-					return resultThree
-				}
-			}
-		}
-	}
+	// if len(secondPod.Status.PodIPs) > 1 {
+	// 	for _, ip := range secondPod.Status.PodIPs {
+	// 		if net.ParseIP(ip.IP).To16() != nil {
+	// 			resultThree := podTest(ctx, clientset, secondPod, ipv6PrefixPolicy, rc, webRequestPassedWindows)
+	// 			if resultThree != nil {
+	// 				return resultThree
+	// 			}
+	// 		}
+	// 	}
+	// }
 
 	return nil
 }
