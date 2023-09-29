@@ -7,11 +7,15 @@ import (
 	"encoding/json"
 
 	"github.com/Azure/azure-container-networking/aitelemetry"
+	zapLog "github.com/Azure/azure-container-networking/cni/log"
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/platform"
 	"github.com/pkg/errors"
+	"go.uber.org/zap"
 )
+
+var logger = zapLog.CNILogger.With(zap.String("component", "cni-telemetry"))
 
 const (
 	// CNITelemetryFile Path.
@@ -92,6 +96,7 @@ type ReportManager struct {
 	HostNetAgentURL string
 	ContentType     string
 	Report          interface{}
+	Logger          *zap.Logger
 }
 
 // GetReport retrieves orchestrator, system, OS and Interface details and create a report structure.
@@ -112,7 +117,11 @@ func (reportMgr *ReportManager) SendReport(tb *TelemetryBuffer) error {
 		report, err = reportMgr.ReportToBytes()
 		if err == nil {
 			if _, err = tb.Write(report); err != nil {
-				log.Printf("telemetry write failed:%v", err)
+				if reportMgr.Logger != nil {
+					reportMgr.Logger.Error("telemetry write failed", zap.Error(err))
+				} else {
+					log.Printf("telemetry write failed:%v", err)
+				}
 			}
 		}
 	}
@@ -143,7 +152,7 @@ func SendCNIMetric(cniMetric *AIMetric, tb *TelemetryBuffer) error {
 		report, err = reportMgr.ReportToBytes()
 		if err == nil {
 			if _, err = tb.Write(report); err != nil {
-				log.Printf("Error writing to telemetry socket:%v", err)
+				logger.Info("Error writing to telemetry socket", zap.Error(err))
 			}
 		}
 	}
@@ -157,7 +166,7 @@ func SendCNIEvent(tb *TelemetryBuffer, report *CNIReport) {
 		reportBytes, err := reportMgr.ReportToBytes()
 		if err == nil {
 			if _, err = tb.Write(reportBytes); err != nil {
-				log.Printf("Error writing to telemetry socket:%v", err)
+				logger.Error("Error writing to telemetry socket", zap.Error(err))
 			}
 		}
 	}

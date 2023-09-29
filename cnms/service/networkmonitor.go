@@ -128,6 +128,7 @@ func main() {
 			InterfaceDetails: telemetry.InterfaceInfo{},
 			BridgeDetails:    telemetry.BridgeInfo{},
 		},
+		Logger: nil,
 	}
 
 	reportManager.Report.(*telemetry.CNIReport).GetOSDetails()
@@ -138,7 +139,7 @@ func main() {
 		CNIReport:                reportManager.Report.(*telemetry.CNIReport),
 	}
 
-	tb := telemetry.NewTelemetryBuffer()
+	tb := telemetry.NewTelemetryBuffer(nil)
 	tb.ConnectToTelemetryService(telemetryNumRetries, telemetryWaitTimeInMilliseconds)
 	defer tb.Close()
 

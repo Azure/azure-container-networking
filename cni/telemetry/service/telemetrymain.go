@@ -139,11 +139,11 @@ func main() {
 	logger.Info("Config after setting defaults", zap.Any("config", config))
 
 	// Cleaning up orphan socket if present
-	tbtemp := telemetry.NewTelemetryBuffer()
+	tbtemp := telemetry.NewTelemetryBuffer(logger)
 	tbtemp.Cleanup(telemetry.FdName)
 
 	for {
-		tb = telemetry.NewTelemetryBuffer()
+		tb = telemetry.NewTelemetryBuffer(logger)
 
 		logger.Info("Starting telemetry server")
 		err = tb.StartServer()
@@ -168,7 +168,8 @@ func main() {
 		GetEnvRetryWaitTimeInSecs:    config.GetEnvRetryWaitTimeInSecs,
 	}
 
-	if telemetry.CreateAITelemetryHandle(aiConfig, config.DisableAll, config.DisableTrace, config.DisableMetric) != nil {
+	tb = telemetry.NewTelemetryBuffer(logger)
+	if tb.CreateAITelemetryHandle(aiConfig, config.DisableAll, config.DisableTrace, config.DisableMetric) != nil {
 		logger.Error("[Telemetry] AI Handle creation error", zap.Error(err))
 	}
 	logger.Info("[Telemetry] Report to host interval", zap.Duration("seconds", config.ReportToHostIntervalInSeconds))

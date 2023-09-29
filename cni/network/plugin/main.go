@@ -148,6 +148,7 @@ func rootExecute() error {
 	)
 
 	config.Version = version
+	telemetryLog := zaplog.CNILogger.With(zap.String("component", "cni-telemetry"))
 	reportManager := &telemetry.ReportManager{
 		HostNetAgentURL: hostNetAgentURL,
 		ContentType:     telemetry.ContentType,
@@ -158,6 +159,7 @@ func rootExecute() error {
 			BridgeDetails:    telemetry.BridgeInfo{},
 			Version:          version,
 		},
+		Logger: telemetryLog,
 	}
 
 	cniReport := reportManager.Report.(*telemetry.CNIReport)
@@ -191,7 +193,7 @@ func rootExecute() error {
 		if err = netPlugin.Plugin.InitializeKeyValueStore(&config); err != nil {
 			printCNIError(fmt.Sprintf("Failed to initialize key-value store of network plugin: %v", err))
 
-			tb = telemetry.NewTelemetryBuffer()
+			tb = telemetry.NewTelemetryBuffer(reportManager.Logger)
 			if tberr := tb.Connect(); tberr != nil {
 				logger.Error("Cannot connect to telemetry service", zap.Error(tberr))
 				return errors.Wrap(err, "lock acquire error")
@@ -228,7 +230,7 @@ func rootExecute() error {
 
 		// Start telemetry process if not already started. This should be done inside lock, otherwise multiple process
 		// end up creating/killing telemetry process results in undesired state.
-		tb = telemetry.NewTelemetryBuffer()
+		tb = telemetry.NewTelemetryBuffer(reportManager.Logger)
 		tb.ConnectToTelemetryService(telemetryNumRetries, telemetryWaitTimeInMilliseconds)
 		defer tb.Close()
 

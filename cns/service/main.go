@@ -430,17 +430,17 @@ func sendRegisterNodeRequest(httpc *http.Client, httpRestService cns.HTTPService
 func startTelemetryService(ctx context.Context) {
 	var config aitelemetry.AIConfig
 
-	err := telemetry.CreateAITelemetryHandle(config, false, false, false)
+	tb := telemetry.NewTelemetryBuffer(nil)
+	err := tb.CreateAITelemetryHandle(config, false, false, false)
 	if err != nil {
 		log.Errorf("AI telemetry handle creation failed..:%w", err)
 		return
 	}
 
-	tbtemp := telemetry.NewTelemetryBuffer()
+	tbtemp := telemetry.NewTelemetryBuffer(nil)
 	//nolint:errcheck // best effort to cleanup leaked pipe/socket before start
 	tbtemp.Cleanup(telemetry.FdName)
 
-	tb := telemetry.NewTelemetryBuffer()
 	err = tb.StartServer()
 	if err != nil {
 		log.Errorf("Telemetry service failed to start: %w", err)
