@@ -117,7 +117,7 @@ func NewPlugin(name string,
 
 	nl := netlink.NewNetlink()
 	// Setup network manager.
-	nm, err := network.NewNetworkManager(nl, platform.NewExecClient(), &netio.NetIO{})
+	nm, err := network.NewNetworkManager(nl, platform.NewExecClient(logger), &netio.NetIO{})
 	if err != nil {
 		return nil, err
 	}

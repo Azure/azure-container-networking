@@ -13,7 +13,6 @@ import (
 	"syscall"
 	"time"
 
-	zaplog "github.com/Azure/azure-container-networking/cni/log"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/platform/windows/adapter"
 	"github.com/Azure/azure-container-networking/platform/windows/adapter/mellanox"
@@ -21,8 +20,6 @@ import (
 	"go.uber.org/zap"
 	"golang.org/x/sys/windows"
 )
-
-var logger = zaplog.CNILogger.With(zap.String("component", "platform-windows"))
 
 const (
 	// CNMRuntimePath is the path where CNM state files are stored.
@@ -121,7 +118,11 @@ func (p *execClient) GetLastRebootTime() (time.Time, error) {
 }
 
 func (p *execClient) ExecuteCommand(command string) (string, error) {
-	log.Printf("[Azure-Utils] ExecuteCommand: %q", command)
+	if p.logger != nil {
+		p.logger.Info("[Azure-Utils]", zap.String("ExecuteCommand", command))
+	} else {
+		log.Printf("[Azure-Utils] ExecuteCommand: %q", command)
+	}
 
 	var stderr, stdout bytes.Buffer
 
@@ -156,20 +157,20 @@ func (p *execClient) ClearNetworkConfiguration() (bool, error) {
 }
 
 func KillProcessByName(processName string) {
-	p := NewExecClient()
+	p := NewExecClient(nil)
 	cmd := fmt.Sprintf("taskkill /IM %v /F", processName)
 	p.ExecuteCommand(cmd)
 }
 
 // ExecutePowershellCommand executes powershell command
-func (p *execClient) ExecutePowershellCommand(command string) (string, error) {
+func ExecutePowershellCommand(command string, logger *zap.Logger) (string, error) {
 	ps, err := exec.LookPath("powershell.exe")
 	if err != nil {
 		return "", fmt.Errorf("Failed to find powershell executable")
 	}
 
-	if p.logger != nil {
-		p.logger.Info("[Azure-Utils]", zap.String("command", command))
+	if logger != nil {
+		logger.Info("[Azure-Utils]", zap.String("command", command))
 	} else {
 		log.Printf("[Azure-Utils] %s", command)
 	}

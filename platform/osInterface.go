@@ -18,11 +18,14 @@ type execClient struct {
 //nolint:revive // ExecClient make sense
 type ExecClient interface {
 	ExecuteCommand(command string) (string, error)
+	GetLastRebootTime() (time.Time, error)
+	ClearNetworkConfiguration() (bool, error)
 }
 
-func NewExecClient() ExecClient {
+func NewExecClient(logger *zap.Logger) ExecClient {
 	return &execClient{
 		Timeout: defaultExecTimeout * time.Second,
+		logger:  logger,
 	}
 }
 

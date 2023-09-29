@@ -246,7 +246,7 @@ func isGreaterOrEqaulUbuntuVersion(versionToMatch int) bool {
 func readDnsInfo(ifName string) (DNSInfo, error) {
 	var dnsInfo DNSInfo
 
-	p := platform.NewExecClient()
+	p := platform.NewExecClient(logger)
 	cmd := fmt.Sprintf("systemd-resolve --status %s", ifName)
 	out, err := p.ExecuteCommand(cmd)
 	if err != nil {
@@ -337,7 +337,7 @@ func applyDnsConfig(extIf *externalInterface, ifName string) error {
 		setDnsList string
 		err        error
 	)
-	p := platform.NewExecClient()
+	p := platform.NewExecClient(logger)
 
 	if extIf != nil {
 		for _, server := range extIf.DNSInfo.Servers {
@@ -443,7 +443,7 @@ func (nm *networkManager) connectExternalInterface(extIf *externalInterface, nwI
 	isGreaterOrEqualUbuntu17 := isGreaterOrEqaulUbuntuVersion(ubuntuVersion17)
 	isSystemdResolvedActive := false
 	if isGreaterOrEqualUbuntu17 {
-		p := platform.NewExecClient()
+		p := platform.NewExecClient(logger)
 		// Don't copy dns servers if systemd-resolved isn't available
 		if _, cmderr := p.ExecuteCommand("systemctl status systemd-resolved"); cmderr == nil {
 			isSystemdResolvedActive = true

@@ -134,8 +134,8 @@ func (am *addressManager) restore(rehydrateIpamInfoOnReboot bool) error {
 		// Check if the VM is rebooted.
 		modTime, err := am.store.GetModificationTime()
 		if err == nil {
-			lastRebootTime := platform.SetPlatformLog(nil)
-			rebootTime, err := lastRebootTime.GetLastRebootTime()
+			p := platform.NewExecClient(nil)
+			rebootTime, err := p.GetLastRebootTime()
 			if err != nil {
 				log.Errorf("Failed to query last reboot time due to %v", err)
 			}

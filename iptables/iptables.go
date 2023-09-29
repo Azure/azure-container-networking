@@ -88,7 +88,7 @@ type IPTableEntry struct {
 func RunCmd(version, params string) error {
 	var cmd string
 
-	p := platform.NewExecClient()
+	p := platform.NewExecClient(nil)
 	iptCmd := iptables
 	if version == V6 {
 		iptCmd = ip6tables

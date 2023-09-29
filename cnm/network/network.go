@@ -53,7 +53,7 @@ func NewPlugin(config *common.PluginConfig) (NetPlugin, error) {
 
 	nl := netlink.NewNetlink()
 	// Setup network manager.
-	nm, err := network.NewNetworkManager(nl, platform.NewExecClient(), &netio.NetIO{})
+	nm, err := network.NewNetworkManager(nl, platform.NewExecClient(nil), &netio.NetIO{})
 	if err != nil {
 		return nil, err
 	}
