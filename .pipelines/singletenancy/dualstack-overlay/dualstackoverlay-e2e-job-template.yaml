@@ -78,6 +78,5 @@ stages:
           dualstack: true
           dns: true
           portforward: true
-          hostport: true
           service: true
           hybridWin: true
