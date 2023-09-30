@@ -166,7 +166,7 @@ stages:
           - deploy_pods
           - restart_nodes
           - recover
-          - cni_k8se2e
+          - cni_${{ parameters.os }}
         condition: failed()
         steps:
           - template: ../../templates/log-template.yaml
@@ -264,7 +264,7 @@ stages:
             - restart_nodes
             - deploy_pods
             - recover
-            - cni_k8se2e
+            - cni_${{ parameters.os }}
           condition: failed()
           steps:
             - template: ../../templates/log-template.yaml

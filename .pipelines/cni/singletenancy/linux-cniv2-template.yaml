@@ -180,7 +180,7 @@ stages:
           - restart_nodes
           - restart_cns
           - recover
-          - cni_k8se2e
+          - cni_${{ parameters.os }}
         condition: failed()
         steps:
           - template: ../../templates/log-template.yaml

@@ -37,6 +37,8 @@ spec:
               name: host-root
             - mountPath: /var/run
               name: azure-cns-noncilium
+            - name: cns-state
+              mountPath: /var/lib/azure-network
       volumes:
         - name: log
           hostPath:
@@ -50,6 +52,9 @@ spec:
         - name: azure-cns-noncilium
           hostPath:
             path: /var/run
+        - name: cns-state
+          hostPath:
+            path: /var/lib/azure-network
         - hostPath:
             path: /
             type: ""

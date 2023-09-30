@@ -84,7 +84,7 @@ stages:
         displayName: "Log Failure"
         dependsOn:
           - ${{ parameters.name }}
-          - cni_k8se2e
+          - cni_${{ parameters.os }}
         condition: failed()
         steps:
           - template: ../../templates/log-template.yaml
