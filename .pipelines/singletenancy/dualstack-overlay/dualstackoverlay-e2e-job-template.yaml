@@ -75,7 +75,6 @@ stages:
           clusterName: ${{ parameters.clusterName }}-$(commitID)
           os: windows
           dependsOn: cni_${{ parameters.os }}
-          hostport: true
           dualstack: true
           dns: true
           portforward: true
