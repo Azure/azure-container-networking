@@ -7,15 +7,12 @@ import (
 	"encoding/json"
 
 	"github.com/Azure/azure-container-networking/aitelemetry"
-	zapLog "github.com/Azure/azure-container-networking/cni/log"
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/platform"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
 )
-
-var logger = zapLog.CNILogger.With(zap.String("component", "cni-telemetry"))
 
 const (
 	// CNITelemetryFile Path.
@@ -152,7 +149,7 @@ func SendCNIMetric(cniMetric *AIMetric, tb *TelemetryBuffer) error {
 		report, err = reportMgr.ReportToBytes()
 		if err == nil {
 			if _, err = tb.Write(report); err != nil {
-				logger.Info("Error writing to telemetry socket", zap.Error(err))
+				tb.logger.Info("Error writing to telemetry socket", zap.Error(err))
 			}
 		}
 	}
@@ -166,7 +163,7 @@ func SendCNIEvent(tb *TelemetryBuffer, report *CNIReport) {
 		reportBytes, err := reportMgr.ReportToBytes()
 		if err == nil {
 			if _, err = tb.Write(reportBytes); err != nil {
-				logger.Error("Error writing to telemetry socket", zap.Error(err))
+				tb.logger.Error("Error writing to telemetry socket", zap.Error(err))
 			}
 		}
 	}
