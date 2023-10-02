@@ -71,7 +71,9 @@ func TestMain(m *testing.M) {
 		log.Printf("Env %v not set to true, skipping", kubernetes.EnvInstallCNS)
 	}
 
-	exitCode = m.Run()
+	if !testConfig.CNSOnly {
+		exitCode = m.Run()
+	}
 }
 
 func LoadEnvironment(obj interface{}) {
