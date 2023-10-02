@@ -37,6 +37,7 @@ const (
 	PathDebugRestData                        = "/debug/restdata"
 	NumberOfCPUCores                         = NumberOfCPUCoresPath
 	NMAgentSupportedAPIs                     = NmAgentSupportedApisPath
+	EndpointApi                              = EndpointPath
 )
 
 // NetworkContainer Prefixes
