@@ -148,7 +148,6 @@ func rootExecute() error {
 	)
 
 	config.Version = version
-	telemetryLog := zaplog.CNILogger.With(zap.String("component", "cni-telemetry"))
 	reportManager := &telemetry.ReportManager{
 		HostNetAgentURL: hostNetAgentURL,
 		ContentType:     telemetry.ContentType,
@@ -159,7 +158,6 @@ func rootExecute() error {
 			BridgeDetails:    telemetry.BridgeInfo{},
 			Version:          version,
 		},
-		Logger: telemetryLog,
 	}
 
 	cniReport := reportManager.Report.(*telemetry.CNIReport)

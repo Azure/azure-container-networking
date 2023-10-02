@@ -203,14 +203,14 @@ func (tb *TelemetryBuffer) PushData(ctx context.Context) {
 			tb.mutex.Unlock()
 		case <-tb.cancel:
 			if tb.logger != nil {
-				tb.logger.Info("[Telemetry] server cancel event")
+				tb.logger.Info("server cancel event")
 			} else {
 				log.Logf("[Telemetry] server cancel event")
 			}
 			return
 		case <-ctx.Done():
 			if tb.logger != nil {
-				tb.logger.Info("[Telemetry] received context done event")
+				tb.logger.Info("received context done event")
 			} else {
 				log.Logf("[Telemetry] received context done event")
 			}

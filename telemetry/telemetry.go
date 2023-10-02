@@ -93,7 +93,6 @@ type ReportManager struct {
 	HostNetAgentURL string
 	ContentType     string
 	Report          interface{}
-	Logger          *zap.Logger
 }
 
 // GetReport retrieves orchestrator, system, OS and Interface details and create a report structure.
@@ -114,8 +113,8 @@ func (reportMgr *ReportManager) SendReport(tb *TelemetryBuffer) error {
 		report, err = reportMgr.ReportToBytes()
 		if err == nil {
 			if _, err = tb.Write(report); err != nil {
-				if reportMgr.Logger != nil {
-					reportMgr.Logger.Error("telemetry write failed", zap.Error(err))
+				if tb.logger != nil {
+					tb.logger.Error("telemetry write failed", zap.Error(err))
 				} else {
 					log.Printf("telemetry write failed:%v", err)
 				}
@@ -149,7 +148,7 @@ func SendCNIMetric(cniMetric *AIMetric, tb *TelemetryBuffer) error {
 		report, err = reportMgr.ReportToBytes()
 		if err == nil {
 			if _, err = tb.Write(report); err != nil {
-				tb.logger.Info("Error writing to telemetry socket", zap.Error(err))
+				tb.logger.Error("Error writing to telemetry socket", zap.Error(err))
 			}
 		}
 	}

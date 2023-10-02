@@ -128,7 +128,6 @@ func main() {
 			InterfaceDetails: telemetry.InterfaceInfo{},
 			BridgeDetails:    telemetry.BridgeInfo{},
 		},
-		Logger: nil,
 	}
 
 	reportManager.Report.(*telemetry.CNIReport).GetOSDetails()
