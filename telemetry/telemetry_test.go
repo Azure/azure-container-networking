@@ -87,7 +87,6 @@ func TestSendReport(t *testing.T) {
 	for _, tt := range telemetryTests {
 		tt := tt
 		reportManager.Report = tt.Data
-		reportManager.Logger = log.CNILogger.With(zap.String("component", "cni-telemetry"))
 		t.Run(tt.name, func(t *testing.T) {
 			err := reportManager.SendReport(tb)
 			if tt.wantErr {
