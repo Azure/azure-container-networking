@@ -5,6 +5,7 @@ parameters:
   vmSize: ""
   vmSizeWin: ""
   osSKU: Ubuntu
+  os: linux
 
 steps:
   - task: AzureCLI@1
@@ -21,7 +22,7 @@ steps:
         CLUSTER=${{ parameters.clusterName }} NODE_COUNT=${{ parameters.nodeCount }} \
         VM_SIZE=${{ parameters.vmSize }} VM_SIZE_WIN=${{ parameters.vmSizeWin }} \
         WINDOWS_USERNAME=${WINDOWS_USERNAME} WINDOWS_PASSWORD=${WINDOWS_PASSWORD} \
-        OS_SKU=${{parameters.osSKU}}
+        OS_SKU=${{parameters.osSKU}} OS=${{parameters.os}}
         echo "Cluster successfully created"
 
     name: "CreateAksCluster"

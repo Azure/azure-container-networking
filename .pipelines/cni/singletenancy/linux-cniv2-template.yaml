@@ -71,6 +71,7 @@ stages:
                 vmSize: ${{ parameters.vmSize }}
                 region: $(LOCATION)
                 osSKU: ${{ parameters.osSKU }}
+                os: ${{ parameters.os }}
 
 # Conditions for below E2E test scenarios confirm that:
 # Pipeline has not been canceled and that the previous job has reports anything other than failure(Succeeded, SuccededWithIssues, Skipped). Previous job is declared by dependsOn:

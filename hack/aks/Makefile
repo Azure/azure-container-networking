@@ -11,7 +11,9 @@ AZCLI   ?= docker run --rm -v $(AZCFG):/root/.azure -v $(KUBECFG):/root/.kube -v
 AUTOUPGRADE     ?= patch
 K8S_VER         ?= 1.27 # Designated for Long Term Support, July 2025 | Only Ubuntu 22.04 is supported
 NODE_COUNT      ?= 2
+NODE_COUNT_WIN	?= $(NODE_COUNT)
 NODEUPGRADE     ?= NodeImage
+OS				?= linux # Used to signify if you want to bring up a windows nodePool on byocni clusters
 OS_SKU          ?= Ubuntu
 OS_SKU_WIN      ?= Windows2022
 REGION          ?= westus2
@@ -107,7 +109,12 @@ overlay-byocni-up: rg-up overlay-net-up ## Brings up an Overlay BYO CNI cluster
 		--no-ssh-key \
 		--os-sku $(OS_SKU) \
 		--yes
+ifeq ($(OS),windows)
+	@$(MAKE) windows-nodepool-up
+else
 	@$(MAKE) set-kubeconf
+endif
+
 
 overlay-byocni-nokubeproxy-up: rg-up overlay-net-up ## Brings up an Overlay BYO CNI cluster without kube-proxy
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
@@ -169,7 +176,11 @@ swift-byocni-up: rg-up swift-net-up ## Bring up a SWIFT BYO CNI cluster
 		--no-ssh-key \
 		--os-sku $(OS_SKU) \
 		--yes
+ifeq ($(OS),windows)
+	@$(MAKE) windows-swift-nodepool-up
+else
 	@$(MAKE) set-kubeconf
+endif
 
 swift-byocni-nokubeproxy-up: rg-up swift-net-up ## Bring up a SWIFT BYO CNI cluster without kube-proxy
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
@@ -379,13 +390,25 @@ dualstack-byocni-nokubeproxy-up: rg-up overlay-net-up ## Brings up a Dualstack o
 
 windows-nodepool-up: ## Add windows node pool
 	$(AZCLI) aks nodepool add -g $(GROUP) -n npwin \
-		--node-count $(NODE_COUNT) \
+		--node-count $(NODE_COUNT_WIN) \
 		--node-vm-size $(VM_SIZE_WIN) \
-		--cluster-name  $(CLUSTER) \
+		--cluster-name $(CLUSTER) \
 		--os-type Windows \
 		--os-sku $(OS_SKU_WIN) \
 		--max-pods 250 \
 		--subscription $(SUB)
+	@$(MAKE) set-kubeconf
+
+windows-swift-nodepool-up: ## Add windows node pool
+	$(AZCLI) aks nodepool add -g $(GROUP) -n npwin \
+		--node-count $(NODE_COUNT_WIN) \
+		--node-vm-size $(VM_SIZE_WIN) \
+		--cluster-name $(CLUSTER) \
+		--os-type Windows \
+		--os-sku $(OS_SKU_WIN) \
+		--max-pods 250 \
+		--subscription $(SUB) \
+		--pod-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/podnet
 	@$(MAKE) set-kubeconf
 
 down: ## Delete the cluster
