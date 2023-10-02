@@ -81,47 +81,26 @@ todo:
 */
 
 func TestPodScaling(t *testing.T) {
-	clientset, err := kubernetes.MustGetClientset()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	restConfig := kubernetes.MustGetRestConfig(t)
-	deployment, err := kubernetes.MustParseDeployment(gpDeployment)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	daemonset, err := kubernetes.MustParseDaemonSet(gpDaemonset)
-	if err != nil {
-		t.Fatal(err)
-	}
+	clientset := kubernetes.MustGetClientset()
+	restConfig := kubernetes.MustGetRestConfig()
+	deployment := kubernetes.MustParseDeployment(gpDeployment)
+	daemonset := kubernetes.MustParseDaemonSet(gpDaemonset)
 
 	ctx := context.Background()
 
 	if shouldLabelNodes() {
-		kubernetes.MustLabelSwiftNodes(ctx, t, clientset, *delegatedSubnetID, *delegatedSubnetName)
+		kubernetes.MustLabelSwiftNodes(ctx, clientset, *delegatedSubnetID, *delegatedSubnetName)
 	} else {
 		t.Log("swift node labels not passed or set. skipping labeling")
 	}
 
-	rbacCleanUpFn, err := kubernetes.MustSetUpClusterRBAC(ctx, clientset, gpClusterRolePath, gpClusterRoleBindingPath, gpServiceAccountPath)
-	if err != nil {
-		t.Log(os.Getwd())
-		t.Fatal(err)
-	}
+	rbacCleanUpFn := kubernetes.MustSetUpClusterRBAC(ctx, clientset, gpClusterRolePath, gpClusterRoleBindingPath, gpServiceAccountPath)
 
 	deploymentsClient := clientset.AppsV1().Deployments(deployment.Namespace)
-	err = kubernetes.MustCreateDeployment(ctx, deploymentsClient, deployment)
-	if err != nil {
-		t.Fatal(err)
-	}
+	kubernetes.MustCreateDeployment(ctx, deploymentsClient, deployment)
 
 	daemonsetClient := clientset.AppsV1().DaemonSets(daemonset.Namespace)
-	err = kubernetes.MustCreateDaemonset(ctx, daemonsetClient, daemonset)
-	if err != nil {
-		t.Fatal(err)
-	}
+	kubernetes.MustCreateDaemonset(ctx, daemonsetClient, daemonset)
 
 	t.Cleanup(func() {
 		t.Log("cleaning up resources")

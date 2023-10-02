@@ -6,7 +6,6 @@ import (
 	"context"
 	"flag"
 	"net"
-	"os"
 	"testing"
 	"time"
 
@@ -74,10 +73,7 @@ func setupLinuxEnvironment(t *testing.T) {
 	ctx := context.Background()
 
 	t.Log("Create Clientset")
-	clientset, err := kubernetes.MustGetClientset()
-	if err != nil {
-		t.Fatalf("could not get k8s clientset: %v", err)
-	}
+	clientset := kubernetes.MustGetClientset()
 
 	t.Log("Create Label Selectors")
 	podLabelSelector := kubernetes.CreateLabelSelector(podLabelKey, podPrefix)
@@ -96,33 +92,15 @@ func setupLinuxEnvironment(t *testing.T) {
 	var deployment appsv1.Deployment
 
 	if *isDualStack {
-		deployment, err = kubernetes.MustParseDeployment(LinuxDeployIPv6)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		daemonset, err = kubernetes.MustParseDaemonSet(gpDaemonsetIPv6)
-		if err != nil {
-			t.Fatal(err)
-		}
+		deployment = kubernetes.MustParseDeployment(LinuxDeployIPv6)
+		daemonset = kubernetes.MustParseDaemonSet(gpDaemonsetIPv6)
 	} else {
-		deployment, err = kubernetes.MustParseDeployment(LinuxDeployIPV4)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		daemonset, err = kubernetes.MustParseDaemonSet(gpDaemonset)
-		if err != nil {
-			t.Fatal(err)
-		}
+		deployment = kubernetes.MustParseDeployment(LinuxDeployIPV4)
+		daemonset = kubernetes.MustParseDaemonSet(gpDaemonset)
 	}
 
 	// setup common RBAC, ClusteerRole, ClusterRoleBinding, ServiceAccount
-	rbacSetupFn, err := kubernetes.MustSetUpClusterRBAC(ctx, clientset, gpClusterRolePath, gpClusterRoleBindingPath, gpServiceAccountPath)
-	if err != nil {
-		t.Log(os.Getwd())
-		t.Fatal(err)
-	}
+	rbacSetupFn := kubernetes.MustSetUpClusterRBAC(ctx, clientset, gpClusterRolePath, gpClusterRoleBindingPath, gpServiceAccountPath)
 
 	// Fields for overwritting existing deployment yaml.
 	// Defaults from flags will not change anything
@@ -134,16 +112,10 @@ func setupLinuxEnvironment(t *testing.T) {
 	daemonset.Namespace = *podNamespace
 
 	deploymentsClient := clientset.AppsV1().Deployments(*podNamespace)
-	err = kubernetes.MustCreateDeployment(ctx, deploymentsClient, deployment)
-	if err != nil {
-		t.Fatal(err)
-	}
+	kubernetes.MustCreateDeployment(ctx, deploymentsClient, deployment)
 
 	daemonsetClient := clientset.AppsV1().DaemonSets(daemonset.Namespace)
-	err = kubernetes.MustCreateDaemonset(ctx, daemonsetClient, daemonset)
-	if err != nil {
-		t.Fatal(err)
-	}
+	kubernetes.MustCreateDaemonset(ctx, daemonsetClient, daemonset)
 
 	t.Cleanup(func() {
 		t.Log("cleaning up resources")
@@ -188,13 +160,11 @@ func TestDatapathLinux(t *testing.T) {
 	ctx := context.Background()
 
 	t.Log("Get REST config")
-	restConfig := kubernetes.MustGetRestConfig(t)
+	restConfig := kubernetes.MustGetRestConfig()
 
 	t.Log("Create Clientset")
-	clientset, err := kubernetes.MustGetClientset()
-	if err != nil {
-		t.Fatalf("could not get k8s clientset: %v", err)
-	}
+	clientset := kubernetes.MustGetClientset()
+
 	setupLinuxEnvironment(t)
 	podLabelSelector := kubernetes.CreateLabelSelector(podLabelKey, podPrefix)
 

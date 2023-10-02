@@ -61,125 +61,92 @@ var (
 	ErrNoCNSScenarioDefined   = errors.New("no CNSScenario set to true as env var")
 )
 
-func MustCreateOrUpdatePod(ctx context.Context, podI typedcorev1.PodInterface, pod corev1.Pod) error {
-	if err := MustDeletePod(ctx, podI, pod); err != nil {
-		if !apierrors.IsNotFound(err) {
-			return errors.Wrap(err, "failed to delete pod")
-		}
-	}
-	if _, err := podI.Create(ctx, &pod, metav1.CreateOptions{}); err != nil {
-		return errors.Wrapf(err, "failed to create pod %v", pod.Name)
-	}
-
-	return nil
-}
-
-func MustCreateDaemonset(ctx context.Context, daemonsets typedappsv1.DaemonSetInterface, ds appsv1.DaemonSet) error {
-	if err := MustDeleteDaemonset(ctx, daemonsets, ds); err != nil {
-		return errors.Wrap(err, "failed to delete daemonset")
-	}
+func MustCreateDaemonset(ctx context.Context, daemonsets typedappsv1.DaemonSetInterface, ds appsv1.DaemonSet) {
+	MustDeleteDaemonset(ctx, daemonsets, ds)
 	log.Printf("Creating Daemonset %v", ds.Name)
 	if _, err := daemonsets.Create(ctx, &ds, metav1.CreateOptions{}); err != nil {
-		return errors.Wrap(err, "failed to create daemonset")
+		panic(errors.Wrap(err, "failed to create daemonset"))
 	}
-
-	return nil
 }
 
-func MustCreateDeployment(ctx context.Context, deployments typedappsv1.DeploymentInterface, d appsv1.Deployment) error {
-	if err := MustDeleteDeployment(ctx, deployments, d); err != nil {
-		return errors.Wrap(err, "failed to delete deployment")
-	}
+func MustCreateDeployment(ctx context.Context, deployments typedappsv1.DeploymentInterface, d appsv1.Deployment) {
+	MustDeleteDeployment(ctx, deployments, d)
 	log.Printf("Creating Deployment %v", d.Name)
 	if _, err := deployments.Create(ctx, &d, metav1.CreateOptions{}); err != nil {
-		return errors.Wrap(err, "failed to create deployment")
+		panic(errors.Wrap(err, "failed to create deployment"))
 	}
-
-	return nil
 }
 
-func mustCreateServiceAccount(ctx context.Context, svcAccounts typedcorev1.ServiceAccountInterface, s corev1.ServiceAccount) error {
+func mustCreateServiceAccount(ctx context.Context, svcAccounts typedcorev1.ServiceAccountInterface, s corev1.ServiceAccount) {
 	if err := svcAccounts.Delete(ctx, s.Name, metav1.DeleteOptions{}); err != nil {
 		if !apierrors.IsNotFound(err) {
-			return errors.Wrap(err, "failed to delete svc account")
+			panic(errors.Wrap(err, "failed to delete svc account"))
 		}
 	}
 	log.Printf("Creating ServiceAccount %v", s.Name)
 	if _, err := svcAccounts.Create(ctx, &s, metav1.CreateOptions{}); err != nil {
-		return errors.Wrap(err, "failed to create svc account")
+		panic(errors.Wrap(err, "failed to create svc account"))
 	}
-
-	return nil
 }
 
-func mustCreateClusterRole(ctx context.Context, clusterRoles typedrbacv1.ClusterRoleInterface, cr rbacv1.ClusterRole) error {
+func mustCreateClusterRole(ctx context.Context, clusterRoles typedrbacv1.ClusterRoleInterface, cr rbacv1.ClusterRole) {
 	if err := clusterRoles.Delete(ctx, cr.Name, metav1.DeleteOptions{}); err != nil {
 		if !apierrors.IsNotFound(err) {
-			return errors.Wrap(err, "failed to delete cluster role")
+			panic(errors.Wrap(err, "failed to delete cluster role"))
 		}
 	}
 	log.Printf("Creating ClusterRoles %v", cr.Name)
 	if _, err := clusterRoles.Create(ctx, &cr, metav1.CreateOptions{}); err != nil {
-		return errors.Wrap(err, "failed to create cluster role")
+		panic(errors.Wrap(err, "failed to create cluster role"))
 	}
-
-	return nil
 }
 
-func mustCreateClusterRoleBinding(ctx context.Context, crBindings typedrbacv1.ClusterRoleBindingInterface, crb rbacv1.ClusterRoleBinding) error {
+func mustCreateClusterRoleBinding(ctx context.Context, crBindings typedrbacv1.ClusterRoleBindingInterface, crb rbacv1.ClusterRoleBinding) {
 	if err := crBindings.Delete(ctx, crb.Name, metav1.DeleteOptions{}); err != nil {
 		if !apierrors.IsNotFound(err) {
-			return errors.Wrap(err, "failed to delete cluster role binding")
+			panic(errors.Wrap(err, "failed to delete cluster role binding"))
 		}
 	}
 	log.Printf("Creating RoleBinding %v", crb.Name)
 	if _, err := crBindings.Create(ctx, &crb, metav1.CreateOptions{}); err != nil {
-		return errors.Wrap(err, "failed to create role binding")
+		panic(errors.Wrap(err, "failed to create role binding"))
 	}
-
-	return nil
 }
 
-func mustCreateRole(ctx context.Context, rs typedrbacv1.RoleInterface, r rbacv1.Role) error {
+func mustCreateRole(ctx context.Context, rs typedrbacv1.RoleInterface, r rbacv1.Role) {
 	if err := rs.Delete(ctx, r.Name, metav1.DeleteOptions{}); err != nil {
 		if !apierrors.IsNotFound(err) {
-			return errors.Wrap(err, "failed to delete role")
+			panic(errors.Wrap(err, "failed to delete role"))
 		}
 	}
 	log.Printf("Creating Role %v", r.Name)
 	if _, err := rs.Create(ctx, &r, metav1.CreateOptions{}); err != nil {
-		return errors.Wrap(err, "failed to create role")
+		panic(errors.Wrap(err, "failed to create role"))
 	}
-
-	return nil
 }
 
-func mustCreateRoleBinding(ctx context.Context, rbi typedrbacv1.RoleBindingInterface, rb rbacv1.RoleBinding) error {
+func mustCreateRoleBinding(ctx context.Context, rbi typedrbacv1.RoleBindingInterface, rb rbacv1.RoleBinding) {
 	if err := rbi.Delete(ctx, rb.Name, metav1.DeleteOptions{}); err != nil {
 		if !apierrors.IsNotFound(err) {
-			return errors.Wrap(err, "failed to delete role binding")
+			panic(errors.Wrap(err, "failed to delete role binding"))
 		}
 	}
 	log.Printf("Creating RoleBinding %v", rb.Name)
 	if _, err := rbi.Create(ctx, &rb, metav1.CreateOptions{}); err != nil {
-		return errors.Wrap(err, "failed to create role binding")
+		panic(errors.Wrap(err, "failed to create role binding"))
 	}
-
-	return nil
 }
 
-func mustCreateConfigMap(ctx context.Context, cmi typedcorev1.ConfigMapInterface, cm corev1.ConfigMap) error {
+func mustCreateConfigMap(ctx context.Context, cmi typedcorev1.ConfigMapInterface, cm corev1.ConfigMap) {
 	if err := cmi.Delete(ctx, cm.Name, metav1.DeleteOptions{}); err != nil {
 		if !apierrors.IsNotFound(err) {
-			return errors.Wrap(err, "failed to delete configmap")
+			panic(errors.Wrap(err, "failed to delete configmap"))
 		}
 	}
 	log.Printf("Creating ConfigMap %v", cm.Name)
 	if _, err := cmi.Create(ctx, &cm, metav1.CreateOptions{}); err != nil {
-		return errors.Wrap(err, "failed to create configmap")
+		panic(errors.Wrap(err, "failed to create configmap"))
 	}
-
-	return nil
 }
 
 func MustScaleDeployment(ctx context.Context,
@@ -190,33 +157,28 @@ func MustScaleDeployment(ctx context.Context,
 	podLabelSelector string,
 	replicas int,
 	skipWait bool,
-) error {
+) {
 	log.Printf("Scaling deployment %v to %v replicas", deployment.Name, replicas)
-	err := MustUpdateReplica(ctx, deploymentsClient, deployment.Name, int32(replicas))
-	if err != nil {
-		return errors.Wrap(err, "failed to scale deployment")
-	}
+	MustUpdateReplica(ctx, deploymentsClient, deployment.Name, int32(replicas))
 
 	if !skipWait {
 		log.Printf("Waiting for pods to be ready..")
-		err = WaitForPodDeployment(ctx, clientset, namespace, deployment.Name, podLabelSelector, replicas)
+		err := WaitForPodDeployment(ctx, clientset, namespace, deployment.Name, podLabelSelector, replicas)
 		if err != nil {
-			return errors.Wrap(err, "failed to wait for pod deployment")
+			panic(errors.Wrap(err, "failed to wait for pod deployment"))
 		}
 	}
-	return nil
 }
 
-func MustCreateNamespace(ctx context.Context, clienset *kubernetes.Clientset, namespace string) error {
+func MustCreateNamespace(ctx context.Context, clienset *kubernetes.Clientset, namespace string) {
 	_, err := clienset.CoreV1().Namespaces().Create(ctx, &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: namespace,
 		},
 	}, metav1.CreateOptions{})
 	if err != nil {
-		return errors.Wrapf(err, "failed to create namespace %v", namespace)
+		panic(errors.Wrapf(err, "failed to create namespace %v", namespace))
 	}
-	return nil
 }
 
 func InstallCNSDaemonset(ctx context.Context, clientset *kubernetes.Clientset, logDir string) (func() error, error) {
@@ -471,23 +433,14 @@ func setupCNSDaemonset(
 	cnsDaemonsetClient := clientset.AppsV1().DaemonSets(cns.Namespace)
 
 	// setup the CNS configmap
-	if err := MustSetupConfigMap(ctx, clientset, cnsScenarioDetails.configMapPath); err != nil {
-		return cns, cnsDetails{}, errors.Wrapf(err, "failed to setup CNS %s configMap", cnsScenarioDetails.configMapPath)
-	}
+	MustSetupConfigMap(ctx, clientset, cnsScenarioDetails.configMapPath)
 
 	// setup common RBAC, ClusteerRole, ClusterRoleBinding, ServiceAccount
-	if _, err := MustSetUpClusterRBAC(ctx, clientset, cnsScenarioDetails.clusterRolePath, cnsScenarioDetails.clusterRoleBindingPath, cnsScenarioDetails.serviceAccountPath); err != nil {
-		return appsv1.DaemonSet{}, cnsDetails{}, errors.Wrap(err, "failed to setup common RBAC, ClusteerRole, ClusterRoleBinding and ServiceAccount")
-	}
+	MustSetUpClusterRBAC(ctx, clientset, cnsScenarioDetails.clusterRolePath, cnsScenarioDetails.clusterRoleBindingPath, cnsScenarioDetails.serviceAccountPath)
 
 	// setup RBAC, Role, RoleBinding
-	if err := MustSetUpRBAC(ctx, clientset, cnsScenarioDetails.rolePath, cnsScenarioDetails.roleBindingPath); err != nil {
-		return appsv1.DaemonSet{}, cnsDetails{}, errors.Wrap(err, "failed to setup RBAC, Role and RoleBinding")
-	}
-
-	if err := MustCreateDaemonset(ctx, cnsDaemonsetClient, cns); err != nil {
-		return appsv1.DaemonSet{}, cnsDetails{}, errors.Wrap(err, "failed to create daemonset")
-	}
+	MustSetUpRBAC(ctx, clientset, cnsScenarioDetails.rolePath, cnsScenarioDetails.roleBindingPath)
+	MustCreateDaemonset(ctx, cnsDaemonsetClient, cns)
 
 	if err := WaitForPodDaemonset(ctx, clientset, cns.Namespace, cns.Name, cnsScenarioDetails.labelSelector); err != nil {
 		return appsv1.DaemonSet{}, cnsDetails{}, errors.Wrap(err, "failed to check daemonset running")
@@ -513,10 +466,7 @@ func parseCNSDaemonset(cnsVersion, cniDropgzVersion string,
 			return appsv1.DaemonSet{}, cnsScenarioDetails, errors.Wrapf(ErrUnsupportedCNSScenario, "the combination of %s and %s is not supported", scenario, nodeOS)
 		}
 
-		cns, err := MustParseDaemonSet(cnsScenarioDetails.daemonsetPath) //nolint:govet // return this anyways
-		if err != nil {
-			return appsv1.DaemonSet{}, cnsDetails{}, errors.Wrapf(err, "failed to parse daemonset")
-		}
+		cns := MustParseDaemonSet(cnsScenarioDetails.daemonsetPath)
 
 		image, _ := ParseImageString(cns.Spec.Template.Spec.Containers[0].Image)
 		cns.Spec.Template.Spec.Containers[0].Image = GetImageString(image, cnsVersion)

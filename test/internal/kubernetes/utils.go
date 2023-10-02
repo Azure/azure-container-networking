@@ -10,7 +10,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"testing"
 	"time"
 
 	"github.com/Azure/azure-container-networking/test/internal/retry"
@@ -40,40 +39,39 @@ const (
 
 var Kubeconfig = flag.String("test-kubeconfig", filepath.Join(homedir.HomeDir(), ".kube", "config"), "(optional) absolute path to the kubeconfig file")
 
-func MustGetClientset() (*kubernetes.Clientset, error) {
+func MustGetClientset() *kubernetes.Clientset {
 	config, err := clientcmd.BuildConfigFromFlags("", *Kubeconfig)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to build config from flags")
+		panic(errors.Wrap(err, "failed to build config from flags"))
 	}
 	clientset, err := kubernetes.NewForConfig(config)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to get clientset")
+		panic(errors.Wrap(err, "failed to get clientset"))
 	}
-	return clientset, nil
+	return clientset
 }
 
-func MustGetRestConfig(t *testing.T) *rest.Config {
+func MustGetRestConfig() *rest.Config {
 	config, err := clientcmd.BuildConfigFromFlags("", *Kubeconfig)
 	if err != nil {
-		t.Fatal(err)
+		panic(err)
 	}
 	return config
 }
 
-func mustParseResource(path string, out interface{}) error {
+func mustParseResource(path string, out interface{}) {
 	f, err := os.Open(path)
 	if err != nil {
-		return errors.Wrap(err, "failed to open path")
+		panic(errors.Wrap(err, "failed to open path"))
 	}
 	defer func() { _ = f.Close() }()
 
 	if err := yaml.NewYAMLOrJSONDecoder(f, 0).Decode(out); err != nil {
-		return errors.Wrap(err, "failed to decode")
+		panic(errors.Wrap(err, "failed to decode"))
 	}
-	return nil
 }
 
-func MustLabelSwiftNodes(ctx context.Context, t *testing.T, clientset *kubernetes.Clientset, delegatedSubnetID, delegatedSubnetName string) {
+func MustLabelSwiftNodes(ctx context.Context, clientset *kubernetes.Clientset, delegatedSubnetID, delegatedSubnetName string) {
 	swiftNodeLabels := map[string]string{
 		DelegatedSubnetIDLabel: delegatedSubnetID,
 		SubnetNameLabel:        delegatedSubnetName,
@@ -81,37 +79,27 @@ func MustLabelSwiftNodes(ctx context.Context, t *testing.T, clientset *kubernete
 
 	res, err := clientset.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
 	if err != nil {
-		t.Fatalf("could not list nodes: %v", err)
+		panic(errors.Wrap(err, "could not list nodes"))
 	}
 	for index := range res.Items {
 		node := res.Items[index]
 		_, err := AddNodeLabels(ctx, clientset.CoreV1().Nodes(), node.Name, swiftNodeLabels)
 		if err != nil {
-			t.Fatalf("could not add labels to node: %v", err)
+			panic(errors.Wrap(err, "could not add labels to node"))
 		}
-		t.Logf("labels added to node %s", node.Name)
 	}
 }
 
-func MustSetUpClusterRBAC(ctx context.Context, clientset *kubernetes.Clientset, clusterRolePath, clusterRoleBindingPath, serviceAccountPath string) (func(), error) {
+func MustSetUpClusterRBAC(ctx context.Context, clientset *kubernetes.Clientset, clusterRolePath, clusterRoleBindingPath, serviceAccountPath string) func() {
 	var (
-		err                error
 		clusterRole        v1.ClusterRole
 		clusterRoleBinding v1.ClusterRoleBinding
 		serviceAccount     corev1.ServiceAccount
 	)
 
-	if clusterRole, err = mustParseClusterRole(clusterRolePath); err != nil {
-		return nil, err
-	}
-
-	if clusterRoleBinding, err = mustParseClusterRoleBinding(clusterRoleBindingPath); err != nil {
-		return nil, err
-	}
-
-	if serviceAccount, err = mustParseServiceAccount(serviceAccountPath); err != nil {
-		return nil, err
-	}
+	mustParseClusterRole(clusterRolePath)
+	mustParseClusterRoleBinding(clusterRoleBindingPath)
+	mustParseServiceAccount(serviceAccountPath)
 
 	clusterRoles := clientset.RbacV1().ClusterRoles()
 	clusterRoleBindings := clientset.RbacV1().ClusterRoleBindings()
@@ -133,59 +121,35 @@ func MustSetUpClusterRBAC(ctx context.Context, clientset *kubernetes.Clientset, 
 		log.Print("rbac cleaned up")
 	}
 
-	if err := mustCreateServiceAccount(ctx, serviceAccounts, serviceAccount); err != nil {
-		return cleanupFunc, err
-	}
+	mustCreateServiceAccount(ctx, serviceAccounts, serviceAccount)
+	mustCreateClusterRole(ctx, clusterRoles, clusterRole)
+	mustCreateClusterRoleBinding(ctx, clusterRoleBindings, clusterRoleBinding)
 
-	if err := mustCreateClusterRole(ctx, clusterRoles, clusterRole); err != nil {
-		return cleanupFunc, err
-	}
-
-	if err := mustCreateClusterRoleBinding(ctx, clusterRoleBindings, clusterRoleBinding); err != nil {
-		return cleanupFunc, err
-	}
-
-	return cleanupFunc, nil
+	return cleanupFunc
 }
 
-func MustSetUpRBAC(ctx context.Context, clientset *kubernetes.Clientset, rolePath, roleBindingPath string) error {
+func MustSetUpRBAC(ctx context.Context, clientset *kubernetes.Clientset, rolePath, roleBindingPath string) {
 	var (
-		err         error
 		role        v1.Role
 		roleBinding v1.RoleBinding
 	)
 
-	if role, err = mustParseRole(rolePath); err != nil {
-		return err
-	}
-
-	if roleBinding, err = mustParseRoleBinding(roleBindingPath); err != nil {
-		return err
-	}
+	mustParseRole(rolePath)
+	mustParseRoleBinding(roleBindingPath)
 
 	roles := clientset.RbacV1().Roles(role.Namespace)
 	roleBindings := clientset.RbacV1().RoleBindings(roleBinding.Namespace)
 
-	if err := mustCreateRole(ctx, roles, role); err != nil {
-		return err
-	}
-
-	return mustCreateRoleBinding(ctx, roleBindings, roleBinding)
+	mustCreateRole(ctx, roles, role)
+	mustCreateRoleBinding(ctx, roleBindings, roleBinding)
 }
 
-func MustSetupConfigMap(ctx context.Context, clientset *kubernetes.Clientset, configMapPath string) error {
-	var (
-		err error
-		cm  corev1.ConfigMap
-	)
+func MustSetupConfigMap(ctx context.Context, clientset *kubernetes.Clientset, configMapPath string) {
+	var cm corev1.ConfigMap
 
-	if cm, err = mustParseConfigMap(configMapPath); err != nil {
-		return err
-	}
-
+	mustParseConfigMap(configMapPath)
 	configmaps := clientset.CoreV1().ConfigMaps(cm.Namespace)
-
-	return mustCreateConfigMap(ctx, configmaps, cm)
+	mustCreateConfigMap(ctx, configmaps, cm)
 }
 
 func Int32ToPtr(i int32) *int32 { return &i }
@@ -319,15 +283,16 @@ func WaitForPodDaemonset(ctx context.Context, clientset *kubernetes.Clientset, n
 	return errors.Wrapf(retrier.Do(ctx, checkPodDaemonsetFn), "could not wait for daemonset %s", daemonsetName)
 }
 
-func MustUpdateReplica(ctx context.Context, deploymentsClient typedappsv1.DeploymentInterface, deploymentName string, replicas int32) error {
+func MustUpdateReplica(ctx context.Context, deploymentsClient typedappsv1.DeploymentInterface, deploymentName string, replicas int32) {
 	deployment, err := deploymentsClient.Get(ctx, deploymentName, metav1.GetOptions{})
 	if err != nil {
-		return errors.Wrapf(err, "could not get deployment %s", deploymentName)
+		panic(errors.Wrapf(err, "could not get deployment %s", deploymentName))
 	}
 
 	deployment.Spec.Replicas = Int32ToPtr(replicas)
-	_, err = deploymentsClient.Update(ctx, deployment, metav1.UpdateOptions{})
-	return errors.Wrapf(err, "could not update deployment %s", deploymentName)
+	if _, err := deploymentsClient.Update(ctx, deployment, metav1.UpdateOptions{}); err != nil {
+		panic(errors.Wrapf(err, "could not update deployment %s", deploymentName))
+	}
 }
 
 func ExportLogsByLabelSelector(ctx context.Context, clientset *kubernetes.Clientset, namespace, labelselector, logDir string) error {

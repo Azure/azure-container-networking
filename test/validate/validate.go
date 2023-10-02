@@ -59,14 +59,10 @@ type check struct {
 
 func CreateValidator(ctx context.Context, clientset *kubernetes.Clientset, config *rest.Config, namespace, cni string, restartCase bool, os string) (*Validator, error) {
 	// deploy privileged pod
-	privilegedDaemonSet, err := acnk8s.MustParseDaemonSet(privilegedDaemonSetPathMap[os])
-	if err != nil {
-		return nil, errors.Wrap(err, "unable to parse daemonset")
-	}
+	privilegedDaemonSet := acnk8s.MustParseDaemonSet(privilegedDaemonSetPathMap[os])
 	daemonsetClient := clientset.AppsV1().DaemonSets(privilegedNamespace)
-	if err := acnk8s.MustCreateDaemonset(ctx, daemonsetClient, privilegedDaemonSet); err != nil {
-		return nil, errors.Wrap(err, "unable to create daemonset")
-	}
+	acnk8s.MustCreateDaemonset(ctx, daemonsetClient, privilegedDaemonSet)
+
 	// Ensures that pods have been replaced if test is re-run after failure
 	if err := acnk8s.WaitForPodDaemonset(ctx, clientset, privilegedNamespace, privilegedDaemonSet.Name, privilegedLabelSelector); err != nil {
 		return nil, errors.Wrap(err, "unable to wait for daemonset")
@@ -288,15 +284,9 @@ func (v *Validator) RestartKubeProxyService(ctx context.Context) error {
 	return nil
 }
 
-func (v *Validator) Cleanup(ctx context.Context) error {
+func (v *Validator) Cleanup(ctx context.Context) {
 	// deploy privileged pod
-	privilegedDaemonSet, err := acnk8s.MustParseDaemonSet(privilegedDaemonSetPathMap[v.os])
-	if err != nil {
-		return errors.Wrap(err, "unable to parse daemonset")
-	}
+	privilegedDaemonSet := acnk8s.MustParseDaemonSet(privilegedDaemonSetPathMap[v.os])
 	daemonsetClient := v.clientset.AppsV1().DaemonSets(privilegedNamespace)
-	if err := acnk8s.MustDeleteDaemonset(ctx, daemonsetClient, privilegedDaemonSet); err != nil {
-		return errors.Wrap(err, "unable to delete daemonset")
-	}
-	return nil
+	acnk8s.MustDeleteDaemonset(ctx, daemonsetClient, privilegedDaemonSet)
 }
