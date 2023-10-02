@@ -84,15 +84,14 @@ spec:
       containers:
         - name: azure-npm
           image: mcr.microsoft.com/containernetworking/azure-npm:v1.5.5
-          # workingDir: "$env:CONTAINER_SANDBOX_MOUNT_POINT"
           command: ["powershell.exe"]
           args:
             [
+              # eventually should have the Dockerfile copy npm.exe to /npm.exe instead
               'mv $env:CONTAINER_SANDBOX_MOUNT_POINT/npm.exe /npm.exe',
               ";",
               '.\npm.exe',
               "start",
-              '--kubeconfig=C:\etc\kubernetes\kubelet.conf',
             ]
           resources:
             limits:
