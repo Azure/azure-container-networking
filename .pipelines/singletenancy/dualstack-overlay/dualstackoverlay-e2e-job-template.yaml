@@ -61,7 +61,7 @@ stages:
         parameters:
           sub: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
           clusterName: ${{ parameters.clusterName }}-$(commitID)
-          os: linux
+          os: ${{ parameters.os }}
           dependsOn: ${{ parameters.name }}
           dualstack: true
           dns: true
