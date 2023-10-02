@@ -97,9 +97,9 @@ func MustSetUpClusterRBAC(ctx context.Context, clientset *kubernetes.Clientset, 
 		serviceAccount     corev1.ServiceAccount
 	)
 
-	mustParseClusterRole(clusterRolePath)
-	mustParseClusterRoleBinding(clusterRoleBindingPath)
-	mustParseServiceAccount(serviceAccountPath)
+	clusterRole = mustParseClusterRole(clusterRolePath)
+	clusterRoleBinding = mustParseClusterRoleBinding(clusterRoleBindingPath)
+	serviceAccount = mustParseServiceAccount(serviceAccountPath)
 
 	clusterRoles := clientset.RbacV1().ClusterRoles()
 	clusterRoleBindings := clientset.RbacV1().ClusterRoleBindings()
@@ -134,8 +134,8 @@ func MustSetUpRBAC(ctx context.Context, clientset *kubernetes.Clientset, rolePat
 		roleBinding v1.RoleBinding
 	)
 
-	mustParseRole(rolePath)
-	mustParseRoleBinding(roleBindingPath)
+	role = mustParseRole(rolePath)
+	roleBinding = mustParseRoleBinding(roleBindingPath)
 
 	roles := clientset.RbacV1().Roles(role.Namespace)
 	roleBindings := clientset.RbacV1().RoleBindings(roleBinding.Namespace)
@@ -145,9 +145,7 @@ func MustSetUpRBAC(ctx context.Context, clientset *kubernetes.Clientset, rolePat
 }
 
 func MustSetupConfigMap(ctx context.Context, clientset *kubernetes.Clientset, configMapPath string) {
-	var cm corev1.ConfigMap
-
-	mustParseConfigMap(configMapPath)
+	cm := mustParseConfigMap(configMapPath)
 	configmaps := clientset.CoreV1().ConfigMaps(cm.Namespace)
 	mustCreateConfigMap(ctx, configmaps, cm)
 }
