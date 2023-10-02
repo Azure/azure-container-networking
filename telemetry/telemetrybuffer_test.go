@@ -4,7 +4,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Azure/azure-container-networking/cni/log"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 )
 
 const telemetryConfig = "azure-vnet-telemetry.config"
@@ -34,7 +36,8 @@ func TestConnect(t *testing.T) {
 	_, closeTBServer := createTBServer(t)
 	defer closeTBServer()
 
-	tbClient := NewTelemetryBuffer(nil)
+	logger := log.TelemetryLogger.With(zap.String("component", "cni-telemetry"))
+	tbClient := NewTelemetryBuffer(logger)
 	err := tbClient.Connect()
 	require.NoError(t, err)
 
