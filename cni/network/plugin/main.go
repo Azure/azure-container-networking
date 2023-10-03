@@ -4,11 +4,8 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
-	"io"
 	"os"
-	"reflect"
 	"time"
 
 	"github.com/Azure/azure-container-networking/aitelemetry"
@@ -22,8 +19,6 @@ import (
 	"github.com/Azure/azure-container-networking/platform"
 	"github.com/Azure/azure-container-networking/store"
 	"github.com/Azure/azure-container-networking/telemetry"
-	"github.com/containernetworking/cni/pkg/skel"
-	cniTypes "github.com/containernetworking/cni/pkg/types"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
 )
@@ -58,89 +53,6 @@ func printVersion() {
 	fmt.Printf("Azure CNI Version %v\n", version)
 }
 
-// send error report to hostnetagent if CNI encounters any error.
-func reportPluginError(reportManager *telemetry.ReportManager, tb *telemetry.TelemetryBuffer, err error) {
-	logger.Error("Report plugin error")
-	reflect.ValueOf(reportManager.Report).Elem().FieldByName("ErrorMessage").SetString(err.Error())
-
-	if err := reportManager.SendReport(tb); err != nil {
-		logger.Error("SendReport failed", zap.Error(err))
-	}
-}
-
-func validateConfig(jsonBytes []byte) error {
-	var conf struct {
-		Name string `json:"name"`
-	}
-	if err := json.Unmarshal(jsonBytes, &conf); err != nil {
-		return fmt.Errorf("error reading network config: %s", err)
-	}
-	if conf.Name == "" {
-		return fmt.Errorf("missing network name")
-	}
-	return nil
-}
-
-func getCmdArgsFromEnv() (string, *skel.CmdArgs, error) {
-	logger.Info("Going to read from stdin")
-	stdinData, err := io.ReadAll(os.Stdin)
-	if err != nil {
-		return "", nil, fmt.Errorf("error reading from stdin: %v", err)
-	}
-
-	cmdArgs := &skel.CmdArgs{
-		ContainerID: os.Getenv("CNI_CONTAINERID"),
-		Netns:       os.Getenv("CNI_NETNS"),
-		IfName:      os.Getenv("CNI_IFNAME"),
-		Args:        os.Getenv("CNI_ARGS"),
-		Path:        os.Getenv("CNI_PATH"),
-		StdinData:   stdinData,
-	}
-
-	cmd := os.Getenv("CNI_COMMAND")
-	return cmd, cmdArgs, nil
-}
-
-func handleIfCniUpdate(update func(*skel.CmdArgs) error) (bool, error) {
-	isupdate := true
-
-	if os.Getenv("CNI_COMMAND") != cni.CmdUpdate {
-		return false, nil
-	}
-
-	logger.Info("CNI UPDATE received")
-
-	_, cmdArgs, err := getCmdArgsFromEnv()
-	if err != nil {
-		logger.Error("Received error while retrieving cmds from environment", zap.Error(err))
-		return isupdate, err
-	}
-
-	logger.Info("Retrieved command args for update", zap.Any("args", cmdArgs))
-	err = validateConfig(cmdArgs.StdinData)
-	if err != nil {
-		logger.Error("Failed to handle CNI UPDATE", zap.Error(err))
-		return isupdate, err
-	}
-
-	err = update(cmdArgs)
-	if err != nil {
-		logger.Error("Failed to handle CNI UPDATE", zap.Error(err))
-		return isupdate, err
-	}
-
-	return isupdate, nil
-}
-
-func printCNIError(msg string) {
-	logger.Error(msg)
-	cniErr := &cniTypes.Error{
-		Code: cniTypes.ErrTryAgainLater,
-		Msg:  msg,
-	}
-	cniErr.Print()
-}
-
 func rootExecute() error {
 	var (
 		config common.PluginConfig
@@ -148,6 +60,7 @@ func rootExecute() error {
 	)
 
 	config.Version = version
+
 	reportManager := &telemetry.ReportManager{
 		HostNetAgentURL: hostNetAgentURL,
 		ContentType:     telemetry.ContentType,
@@ -169,7 +82,7 @@ func rootExecute() error {
 		&network.Multitenancy{},
 	)
 	if err != nil {
-		printCNIError(fmt.Sprintf("Failed to create network plugin, err:%v.\n", err))
+		network.PrintCNIError(fmt.Sprintf("Failed to create network plugin, err:%v.\n", err))
 		return errors.Wrap(err, "Create plugin error")
 	}
 
@@ -189,7 +102,7 @@ func rootExecute() error {
 
 		// CNI Acquires lock
 		if err = netPlugin.Plugin.InitializeKeyValueStore(&config); err != nil {
-			printCNIError(fmt.Sprintf("Failed to initialize key-value store of network plugin: %v", err))
+			network.PrintCNIError(fmt.Sprintf("Failed to initialize key-value store of network plugin: %v", err))
 
 			tb = telemetry.NewTelemetryBuffer(logger)
 			if tberr := tb.Connect(); tberr != nil {
@@ -197,7 +110,7 @@ func rootExecute() error {
 				return errors.Wrap(err, "lock acquire error")
 			}
 
-			reportPluginError(reportManager, tb, err)
+			network.ReportPluginError(reportManager, tb, err)
 
 			if errors.Is(err, store.ErrTimeoutLockingStore) {
 				var cniMetric telemetry.AIMetric
@@ -238,8 +151,8 @@ func rootExecute() error {
 		cniReport.Timestamp = t.Format("2006-01-02 15:04:05")
 
 		if err = netPlugin.Start(&config); err != nil {
-			printCNIError(fmt.Sprintf("Failed to start network plugin, err:%v.\n", err))
-			reportPluginError(reportManager, tb, err)
+			network.PrintCNIError(fmt.Sprintf("Failed to start network plugin, err:%v.\n", err))
+			network.ReportPluginError(reportManager, tb, err)
 			panic("network plugin start fatal error")
 		}
 
@@ -262,7 +175,7 @@ func rootExecute() error {
 		}
 	}
 
-	handled, _ := handleIfCniUpdate(netPlugin.Update)
+	handled, _ := network.HandleIfCniUpdate(netPlugin.Update)
 	if handled {
 		logger.Info("CNI UPDATE finished.")
 	} else if err = netPlugin.Execute(cni.PluginApi(netPlugin)); err != nil {
@@ -276,7 +189,7 @@ func rootExecute() error {
 	netPlugin.Stop()
 
 	if err != nil {
-		reportPluginError(reportManager, tb, err)
+		network.ReportPluginError(reportManager, tb, err)
 	}
 
 	return errors.Wrap(err, "Execute netplugin failure")
