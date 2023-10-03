@@ -58,7 +58,7 @@ func (invoker *AzureIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, er
 	}
 
 	// Call into IPAM plugin to allocate an address pool for the network.
-	ipv4Result, err := invoker.plugin.DelegateAdd(addConfig.nwCfg.IPAM.Type, addConfig.nwCfg)
+	result, err := invoker.plugin.DelegateAdd(addConfig.nwCfg.IPAM.Type, addConfig.nwCfg)
 	if err != nil && strings.Contains(err.Error(), ipam.ErrNoAvailableAddressPools.Error()) {
 		invoker.deleteIpamState()
 		logger.Info("Retry pool allocation after deleting IPAM state")
@@ -69,8 +69,8 @@ func (invoker *AzureIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, er
 		err = invoker.plugin.Errorf("Failed to allocate pool: %v", err)
 		return addResult, err
 	}
-	if len(ipv4Result.IPs) > 0 {
-		addResult.hostSubnetPrefix = ipv4Result.IPs[0].Address
+	if len(result.IPs) > 0 {
+		addResult.hostSubnetPrefix = result.IPs[0].Address
 	}
 
 	defer func() {
@@ -100,13 +100,13 @@ func (invoker *AzureIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, er
 		if err != nil {
 			err = invoker.plugin.Errorf("Failed to allocate v6 pool: %v", err)
 		} else {
-			ipv4Result.IPs = append(ipv4Result.IPs, ipv6Result.IPs...)
-			ipv4Result.Routes = append(ipv4Result.Routes, ipv6Result.Routes...)
+			result.IPs = append(result.IPs, ipv6Result.IPs...)
+			result.Routes = append(result.Routes, ipv6Result.Routes...)
 			addResult.ipv6Enabled = true
 		}
 	}
 
-	addResult.defaultInterfaceInfo = InterfaceInfo{ipResult: ipv4Result, nicType: cns.InfraNIC}
+	addResult.defaultInterfaceInfo = InterfaceInfo{ipResult: result, nicType: cns.InfraNIC}
 
 	return addResult, err
 }

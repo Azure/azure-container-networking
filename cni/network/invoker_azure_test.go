@@ -22,10 +22,12 @@ type mockDelegatePlugin struct {
 }
 
 type add struct {
-	resultsIPv4 *cniTypesCurr.Result
-	resultsIPv6 *cniTypesCurr.Result
-	errv4       error
-	errv6       error
+	resultsIPv4      []*cniTypesCurr.Result
+	resultsIPv6      []*cniTypesCurr.Result
+	resultsIPv4Index int
+	resultsIPv6Index int
+	errv4            error
+	errv6            error
 }
 
 func (d *add) DelegateAdd(pluginName string, nwCfg *cni.NetworkConfig) (*cniTypesCurr.Result, error) {
@@ -33,13 +35,23 @@ func (d *add) DelegateAdd(pluginName string, nwCfg *cni.NetworkConfig) (*cniType
 		if d.errv6 != nil {
 			return nil, d.errv6
 		}
-		return d.resultsIPv6, nil
+		if d.resultsIPv6 == nil || d.resultsIPv6Index-1 > len(d.resultsIPv6) {
+			return nil, errors.New("no more ipv6 results in mock available") //nolint:goerr113
+		}
+		res := d.resultsIPv6[d.resultsIPv6Index]
+		d.resultsIPv6Index++
+		return res, nil
 	}
 
 	if d.errv4 != nil {
 		return nil, d.errv4
 	}
-	return d.resultsIPv4, nil
+	if d.resultsIPv4 == nil || d.resultsIPv4Index-1 > len(d.resultsIPv4) {
+		return nil, errors.New("no more ipv4 results in mock available") //nolint:goerr113
+	}
+	res := d.resultsIPv4[d.resultsIPv4Index]
+	d.resultsIPv4Index++
+	return res, nil
 }
 
 type del struct {
@@ -68,6 +80,18 @@ func getCIDRNotationForAddress(ipaddresswithcidr string) *net.IPNet {
 	}
 	ipnet.IP = ip
 	return ipnet
+}
+
+func getSingleResult(ip string) []*cniTypesCurr.Result {
+	return []*cniTypesCurr.Result{
+		{
+			IPs: []*cniTypesCurr.IPConfig{
+				{
+					Address: *getCIDRNotationForAddress(ip),
+				},
+			},
+		},
+	}
 }
 
 func getResult(ips ...string) *cniTypesCurr.Result {
@@ -117,7 +141,7 @@ func TestAzureIPAMInvoker_Add(t *testing.T) {
 			fields: fields{
 				plugin: &mockDelegatePlugin{
 					add: add{
-						resultsIPv4: getResult("10.0.0.1/24"),
+						resultsIPv4: getSingleResult("10.0.0.1/24"),
 					},
 					del: del{},
 				},
@@ -135,8 +159,8 @@ func TestAzureIPAMInvoker_Add(t *testing.T) {
 			fields: fields{
 				plugin: &mockDelegatePlugin{
 					add: add{
-						resultsIPv4: getResult("10.0.0.1/24"),
-						resultsIPv6: getResult("2001:0db8:abcd:0015::0/64"),
+						resultsIPv4: getSingleResult("10.0.0.1/24"),
+						resultsIPv6: getSingleResult("2001:0db8:abcd:0015::0/64"),
 					},
 				},
 				nwInfo: getNwInfo("10.0.0.0/24", "2001:db8:abcd:0012::0/64"),
@@ -171,7 +195,7 @@ func TestAzureIPAMInvoker_Add(t *testing.T) {
 			fields: fields{
 				plugin: &mockDelegatePlugin{
 					add: add{
-						resultsIPv4: getResult("10.0.0.1/24"),
+						resultsIPv4: getSingleResult("10.0.0.1/24"),
 						errv6:       errors.New("test v6 error"), //nolint:goerr113
 					},
 				},
@@ -372,7 +396,7 @@ func TestRemoveIpamState_Add(t *testing.T) {
 			fields: fields{
 				plugin: &mockDelegatePlugin{
 					add: add{
-						resultsIPv4: getResult("10.0.0.1/24"),
+						resultsIPv4: getSingleResult("10.0.0.1/24"),
 						errv4:       ipam.ErrNoAvailableAddressPools,
 					},
 				},
