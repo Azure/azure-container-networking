@@ -390,6 +390,16 @@ func (tb *TelemetryBuffer) ConnectToTelemetryService(telemetryNumRetries, teleme
 	}
 }
 
+// ConnectToTelemetry - attempt to connect to telemetry service
+func (tb *TelemetryBuffer) ConnectToTelemetry() {
+	if err := tb.Connect(); err != nil {
+		log.Logf("Connection to telemetry socket failed: %v", err)
+		return
+	}
+	tb.Connected = true
+	log.Logf("Connected to telemetry service")
+}
+
 // getTelemetryServiceDirectory - check CNI install directory and Executable location for telemetry binary
 func getTelemetryServiceDirectory() (path string, dir string) {
 	path = filepath.Join(CniInstallDir, TelemetryServiceProcessName)
