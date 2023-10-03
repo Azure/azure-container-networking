@@ -36,6 +36,8 @@ stages:
     - setup
     - publish
     - ${{ parameters.clusterName }}
+    pool:
+      name: $(BUILD_POOL_NAME_DEFAULT)
     jobs:
       - job: ${{ parameters.name }}
         displayName: Cilium Overlay Test Suite - (${{ parameters.name }})

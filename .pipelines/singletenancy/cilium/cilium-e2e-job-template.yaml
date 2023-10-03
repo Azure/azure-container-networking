@@ -41,6 +41,8 @@ stages:
       CURRENT_VERSION: $[ stagedependencies.containerize.check_tag.outputs['CurrentTagManifests.currentTagManifests'] ]
       commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
     condition: and(succeeded(), eq(variables.TAG, variables.CURRENT_VERSION))
+    pool:
+      name: $(BUILD_POOL_NAME_DEFAULT)
     jobs:
       - job: ${{ parameters.name }}
         displayName: Cilium Test Suite - (${{ parameters.name }})
