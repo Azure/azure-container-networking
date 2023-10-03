@@ -36,6 +36,19 @@ steps:
     name: "RestartNodes"
     displayName: "Restart Nodes"
 
+  - ${{ if contains(parameters.os, 'windows') }}:
+    - script: |
+        kubectl apply -f test/integration/manifests/load/privileged-daemonset-windows.yaml
+        kubectl rollout status -n kube-system ds privileged-daemonset
+
+        kubectl get pod -n kube-system -l app=privileged-daemonset,os=windows -owide
+        pods=`kubectl get pod -n kube-system -l app=privileged-daemonset,os=windows --no-headers | awk '{print $1}'`
+        for pod in $pods; do
+          kubectl exec -i -n kube-system $pod -- powershell "Restart-service kubeproxy"
+        done
+      name: kubeproxy
+      displayName: Restart Kubeproxy on Windows nodes
+
   - template: ../../templates/log-template.yaml
     parameters:
       clusterName: ${{ parameters.clusterName }}

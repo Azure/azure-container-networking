@@ -71,9 +71,7 @@ spec:
             - name: log
               mountPath: /k/azurecns
             - name: cns-config
-              mountPath: /etc/azure-cns
-            - name: cni-conflist
-              mountPath: /k/azurecni/netconf
+              mountPath: /etc/azure-cns # // TODO: add windows cni conflist when ready
             - name: azure-vnet
               mountPath: /var/run/azure-vnet
           ports:

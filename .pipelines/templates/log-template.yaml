@@ -232,7 +232,7 @@ steps:
             echo "Directory created: $(acnLogs)/"$node"_logs/CNS-output/"
 
             file="cnsCache.txt"
-            kubectl exec -i -n kube-system $pod -- powershell curl localhost:10090/debug/ipaddresses -d {\"IPConfigStateFilter\":[\"Assigned\"]} > $(acnLogs)/"$node"_logs/CNS-output/$file
+            kubectl exec -i -n kube-system $pod -- powershell 'Invoke-WebRequest -Uri 127.0.0.1:10090/debug/ipaddresses -Method Post -ContentType application/x-www-form-urlencoded -Body "{`"IPConfigStateFilter`":[`"Assigned`"]}" -UseBasicParsing | Select-Object -Expand Content' > $(acnLogs)/"$node"_logs/CNS-output/$file
             echo "CNS cache, $file, captured: $(acnLogs)/"$node"_logs/CNS-output/$file"
 
             file="azure-cns.json"

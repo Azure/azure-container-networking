@@ -73,6 +73,8 @@ func TestMain(m *testing.M) {
 
 	if !testConfig.CNSOnly {
 		exitCode = m.Run()
+	} else {
+		exitCode = 0
 	}
 }
 

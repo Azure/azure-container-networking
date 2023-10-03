@@ -142,6 +142,7 @@ stages:
               platforms: linux/amd64 linux/arm64 windows/amd64
             cni:
               name: cni
+              os_versions: ltsc2022
               platforms: linux/amd64 linux/arm64 windows/amd64
             npm:
               name: npm
@@ -195,7 +196,8 @@ stages:
       name: win22_cniv1
       clusterType: windows-cniv1-up
       clusterName: "win22-cniv1"
-      nodeCount: ${NODE_COUNT_WIN}
+      nodeCount: ${NODE_COUNT_WINCLUSTER_SYSTEMPOOL}
+      nodeCountWin: ${NODE_COUNT_WIN}
       vmSize: ${VM_SIZE_WINCLUSTER_SYSTEMPOOL}
       vmSizeWin: ${VM_SIZE_WIN}
       os: windows
@@ -224,6 +226,8 @@ stages:
       nodeCount: ${NODE_COUNT_LINUX}
       vmSize: ${VM_SIZE}
       arch: amd64
+      scaleup: ${SCALEUP_LINUX}
+      iterations: ${ITERATIONS_LINUX}
 
   - template: singletenancy/linux-cniv2-template.yaml
     parameters:
@@ -233,6 +237,8 @@ stages:
       nodeCount: ${NODE_COUNT_LINUX}
       vmSize: ${VM_SIZE}
       arch: amd64
+      scaleup: ${SCALEUP_LINUX}
+      iterations: ${ITERATIONS_LINUX}
 
   - template: singletenancy/linux-cniv2-template.yaml
     parameters:
@@ -243,6 +249,8 @@ stages:
       vmSize:  ${VM_SIZE}
       arch: amd64
       osSKU: AzureLinux
+      scaleup: ${SCALEUP_LINUX}
+      iterations: ${ITERATIONS_LINUX}
 
   - template: singletenancy/linux-cniv2-template.yaml
     parameters:
@@ -252,6 +260,8 @@ stages:
       nodeCount: ${NODE_COUNT_LINUX}
       vmSize: Standard_D8ps_v5
       arch: arm64
+      scaleup: ${SCALEUP_LINUX}
+      iterations: ${ITERATIONS_LINUX}
 
   - template: singletenancy/linux-cniv2-template.yaml
     parameters:
@@ -261,6 +271,38 @@ stages:
       nodeCount: 2
       vmSize: Standard_HC44-16rs
       arch: amd64
+      scaleup: ${SCALEUP_LINUX}
+      iterations: ${ITERATIONS_LINUX}
+
+  - template: singletenancy/linux-cniv2-template.yaml
+    parameters:
+      name: windows_podsubnet
+      clusterType: swift-byocni-up
+      clusterName: win-podsub
+      nodeCount: ${NODE_COUNT_WINCLUSTER_SYSTEMPOOL}
+      nodeCountWin: ${NODE_COUNT_WIN}
+      vmSize: ${VM_SIZE_WINCLUSTER_SYSTEMPOOL}
+      vmSizeWin: ${VM_SIZE_WIN}
+      arch: amd64
+      os: windows
+      os_version: 'ltsc2022'
+      scaleup: ${SCALEUP_WIN}
+      iterations: ${ITERATIONS_WIN}
+
+  - template: singletenancy/linux-cniv2-template.yaml
+    parameters:
+      name: windows_overlay
+      clusterType: overlay-byocni-up
+      clusterName: win-over
+      nodeCount: ${NODE_COUNT_WINCLUSTER_SYSTEMPOOL}
+      nodeCountWin: ${NODE_COUNT_WIN}
+      vmSize: ${VM_SIZE_WINCLUSTER_SYSTEMPOOL}
+      vmSizeWin: ${VM_SIZE_WIN}
+      arch: amd64
+      os: windows
+      os_version: 'ltsc2022'
+      scaleup: ${SCALEUP_WIN}
+      iterations: ${ITERATIONS_WIN}
 
   - stage: delete_resources
     displayName: "Delete Resources"
@@ -279,6 +321,8 @@ stages:
       - mariner_linux_overlay
       - arm_linux_overlay
       - rdma_linux_overlay
+      - windows_podsubnet_HNS
+      - windows_overlay_HNS
       - setup
     variables:
       commitID: $[ stagedependencies.setup.env.outputs['SetEnvVars.commitID'] ]
@@ -322,6 +366,12 @@ stages:
             rdma_linux_overlay:
               name: rdma_linux_overlay
               clusterName: "rdma-over"
+            win-cniv2-podsubnet:
+              name: windows_podsubnet
+              clusterName: win-podsub
+            win-cniv2-overlay:
+              name: windows_overlay
+              clusterName: win-over
         steps:
           - task: AzureCLI@1
             inputs:

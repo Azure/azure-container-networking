@@ -8,6 +8,7 @@ parameters:
 
 jobs:
   - job: CNI_${{ parameters.os }}
+    condition: and( not(canceled()), not(failed()) )
     displayName: CNI k8s E2E ${{ parameters.os }}
     dependsOn: ${{ parameters.dependsOn }}
     pool:
