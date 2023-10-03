@@ -57,3 +57,26 @@ stages:
               name: ${{ parameters.name }}
               testDropgz: ${{ parameters.testDropgz }}
               clusterName: ${{ parameters.clusterName }}-$(commitID)
+
+      - template: ../../cni/k8s-e2e/k8s-e2e-job-template.yaml
+        parameters:
+          sub: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+          clusterName: ${{ parameters.clusterName }}-$(commitID)
+          os: ${{ parameters.os }}
+          dependsOn: ${{ parameters.name }}
+          dns: true
+          portforward: true
+          hostport: true
+          service: true
+
+      - template: ../../cni/k8s-e2e/k8s-e2e-job-template.yaml
+        parameters:
+          sub: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+          clusterName: ${{ parameters.clusterName }}-$(commitID)
+          os: windows
+          dependsOn: cni_${{ parameters.os }}
+          dns: true
+          portforward: true
+          service: true
+          hybridWin: true
+          datapath: true
