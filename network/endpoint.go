@@ -52,7 +52,8 @@ type endpoint struct {
 	PODNameSpace             string `json:",omitempty"`
 	InfraVnetAddressSpace    string `json:",omitempty"`
 	NetNs                    string `json:",omitempty"`
-	SecondaryInterfaces      map[string]*InterfaceInfo
+	// SecondaryInterfaces is a map of interface name to InterfaceInfo
+	SecondaryInterfaces map[string]*InterfaceInfo
 }
 
 // EndpointInfo contains read-only information about an endpoint.
@@ -108,7 +109,6 @@ type InterfaceInfo struct {
 	Name              string
 	MacAddress        net.HardwareAddr
 	IPAddress         []net.IPNet
-	Gateways          []net.IP
 	Routes            []RouteInfo
 	NICType           string
 	SkipDefaultRoutes bool
