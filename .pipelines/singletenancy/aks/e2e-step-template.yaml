@@ -70,9 +70,3 @@ steps:
       kubectl delete ns load-test
     displayName: "Validate State"
     retryCountOnTaskFailure: 3
-  - template: ../../templates/log-template.yaml
-    parameters:
-      clusterName: ${{ parameters.clusterName }}
-      logType: restartNodes
-      os: ${{ parameters.os }}
-      cni: cniv1

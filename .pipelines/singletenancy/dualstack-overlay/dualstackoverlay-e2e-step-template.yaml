@@ -81,13 +81,6 @@ steps:
     name: "DualStack_Overlay_Linux_Tests"
     displayName: "DualStack Overlay Linux Tests"
 
-  - template: ../../templates/log-template.yaml
-    parameters:
-      clusterName: ${{ parameters.clusterName }}
-      logType: linuxTests
-      os: linux
-      cni: cniv2
-
   - task: AzureCLI@1
     inputs:
       azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
@@ -120,13 +113,6 @@ steps:
     displayName: "Validate Node Restart"
     retryCountOnTaskFailure: 3
 
-  - template: ../../templates/log-template.yaml
-    parameters:
-      clusterName: ${{ parameters.clusterName }}
-      logType: restartNode
-      os: linux
-      cni: cniv2
-
   - script: |
       echo "validate pod IP assignment before CNS restart"
       kubectl get pod -owide -A
@@ -141,13 +127,6 @@ steps:
     name: "restartCNS_ValidatePodState"
     displayName: "Restart CNS and Validate Pod State"
     retryCountOnTaskFailure: 3
-
-  - template: ../../templates/log-template.yaml
-    parameters:
-      clusterName: ${{ parameters.clusterName }}
-      logType: restartCNS
-      os: linux
-      cni: cniv2
 
   - task: AzureCLI@2
     inputs:
@@ -178,13 +157,6 @@ steps:
     name: "WindowsDualStackOverlayControlPlaneScaleTests"
     displayName: "Windows DualStack Overlay ControlPlane Scale Tests"
     retryCountOnTaskFailure: 3
-
-  - template: ../../templates/log-template.yaml
-    parameters:
-      clusterName: ${{ parameters.clusterName }}
-      logType: controlPlane
-      os: windows
-      cni: cniv2
 
   - script: |
       echo "DualStack Overlay DataPath Test"

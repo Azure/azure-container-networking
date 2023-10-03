@@ -127,13 +127,6 @@ steps:
     displayName: "Validate Node Restart"
     retryCountOnTaskFailure: 3
 
-  - template: ../../templates/log-template.yaml
-    parameters:
-      clusterName: ${{ parameters.clusterName }}
-      logType: restartNode
-      os: linux
-      cni: cniv2
-
   - script: |
       echo "validate pod IP assignment before CNS restart"
       kubectl get pod -owide -A
@@ -148,13 +141,6 @@ steps:
     name: "restartCNS_ValidatePodState"
     displayName: "Restart CNS and validate pod state"
     retryCountOnTaskFailure: 3
-
-  - template: ../../templates/log-template.yaml
-    parameters:
-      clusterName: ${{ parameters.clusterName }}
-      logType: restartCNS
-      os: linux
-      cni: cniv2
 
   - task: PublishBuildArtifacts@1
     inputs:
@@ -217,13 +203,6 @@ steps:
     displayName: "Windows v4Overlay ControlPlane Scale Tests"
     retryCountOnTaskFailure: 3
 
-  - template: ../../templates/log-template.yaml
-    parameters:
-      clusterName: ${{ parameters.clusterName }}
-      logType: windowsTests
-      os: windows
-      cni: cniv2
-
   - script: |
       echo "IPv4 Overlay DataPath Test"
       cd test/integration/datapath
@@ -231,10 +210,3 @@ steps:
     name: "WindowsV4OverlayDatapathTests"
     displayName: "Windows v4Overlay Datapath Tests"
     retryCountOnTaskFailure: 3
-
-  - template: ../../templates/log-template.yaml
-    parameters:
-      clusterName: ${{ parameters.clusterName }}
-      logType: windowsDatapath
-      os: windows
-      cni: cniv2
