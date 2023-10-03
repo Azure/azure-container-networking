@@ -22,10 +22,11 @@ import (
 )
 
 var (
-	errEmptyCNIArgs    = errors.New("empty CNI cmd args not allowed")
-	errInvalidArgs     = errors.New("invalid arg(s)")
-	overlayGatewayV6IP = "fe80::1234:5678:9abc"
-	watcherPath        = "/var/run/azure-vnet/deleteIDs"
+	errEmptyCNIArgs          = errors.New("empty CNI cmd args not allowed")
+	errInvalidArgs           = errors.New("invalid arg(s)")
+	errInvalidDefaultRouting = errors.New("add result requires exactly one interface with default routes")
+	overlayGatewayV6IP       = "fe80::1234:5678:9abc"
+	watcherPath              = "/var/run/azure-vnet/deleteIDs"
 )
 
 type CNSIPAMInvoker struct {
@@ -168,7 +169,7 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 
 	// Make sure default routes exist for 1 interface
 	if numInterfacesWithDefaultRoutes != 1 {
-		return IPAMAddResult{}, errors.New("Add result requires exactly one interface with default routes")
+		return IPAMAddResult{}, errInvalidDefaultRouting
 	}
 
 	return addResult, nil
@@ -354,12 +355,6 @@ func configureDefaultAddResult(info *IPResultInfo, addConfig *IPAMAddConfig, add
 		}
 	}
 
-	// construct ipnet for result
-	resultIPnet := net.IPNet{
-		IP:   ip,
-		Mask: ncIPNet.Mask,
-	}
-
 	if ip := net.ParseIP(info.podIPAddress); ip != nil {
 		defaultInterfaceInfo := addResult.defaultInterfaceInfo.ipResult
 		if defaultInterfaceInfo == nil {
@@ -374,7 +369,10 @@ func configureDefaultAddResult(info *IPResultInfo, addConfig *IPAMAddConfig, add
 
 		defaultInterfaceInfo.IPs = append(defaultInterfaceInfo.IPs,
 			&cniTypesCurr.IPConfig{
-				Address: resultIPnet,
+				Address: net.IPNet{
+					IP:   ip,
+					Mask: ncIPNet.Mask,
+				},
 				Gateway: ncgw,
 			})
 
@@ -436,11 +434,6 @@ func configureSecondaryAddResult(info *IPResultInfo, addResult *IPAMAddResult, p
 						IP:   ip,
 						Mask: ipnet.Mask,
 					},
-				},
-			},
-			Interfaces: []*cniTypesCurr.Interface{
-				{
-					Mac: info.macAddress,
 				},
 			},
 		},
