@@ -9,11 +9,12 @@ import (
 
 // Plugin is the parent class that implements behavior common to all plugins.
 type Plugin struct {
-	Name    string
-	Version string
-	Options map[string]interface{}
-	ErrChan chan error
-	Store   store.KeyValueStore
+	Name      string
+	Version   string
+	Options   map[string]interface{}
+	ErrChan   chan error
+	Store     store.KeyValueStore
+	Stateless bool
 }
 
 // Plugin base interface.
@@ -34,12 +35,13 @@ type IpamApi interface{}
 
 // Plugin common configuration.
 type PluginConfig struct {
-	Version  string
-	NetApi   NetApi
-	IpamApi  IpamApi
-	Listener *Listener
-	ErrChan  chan error
-	Store    store.KeyValueStore
+	Version   string
+	NetApi    NetApi  // nolint
+	IpamApi   IpamApi // nolint
+	Listener  *Listener
+	ErrChan   chan error
+	Store     store.KeyValueStore
+	Stateless bool
 }
 
 // NewPlugin creates a new Plugin object.
@@ -55,6 +57,7 @@ func NewPlugin(name, version string) (*Plugin, error) {
 func (plugin *Plugin) Initialize(config *PluginConfig) error {
 	plugin.ErrChan = config.ErrChan
 	plugin.Store = config.Store
+	plugin.Stateless = config.Stateless
 
 	return nil
 }
