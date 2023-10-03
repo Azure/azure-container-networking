@@ -58,11 +58,7 @@ func (invoker *AzureIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, er
 	}
 
 	// Call into IPAM plugin to allocate an address pool for the network.
-<<<<<<< HEAD
 	result, err := invoker.plugin.DelegateAdd(addConfig.nwCfg.IPAM.Type, addConfig.nwCfg)
-=======
-	ipv4Result, err := invoker.plugin.DelegateAdd(addConfig.nwCfg.IPAM.Type, addConfig.nwCfg)
->>>>>>> 5267b700 (feat: update invokers to support swift 2)
 	if err != nil && strings.Contains(err.Error(), ipam.ErrNoAvailableAddressPools.Error()) {
 		invoker.deleteIpamState()
 		logger.Info("Retry pool allocation after deleting IPAM state")
@@ -73,25 +69,14 @@ func (invoker *AzureIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, er
 		err = invoker.plugin.Errorf("Failed to allocate pool: %v", err)
 		return addResult, err
 	}
-<<<<<<< HEAD
 	if len(result.IPs) > 0 {
 		addResult.hostSubnetPrefix = result.IPs[0].Address
-=======
-	addResult.defaultCniResult = CNIResult{ipResult: ipv4Result, addressType: cns.Default, isDefaultInterface: true}
-	if len(ipv4Result.IPs) > 0 {
-		addResult.hostSubnetPrefix = ipv4Result.IPs[0].Address
->>>>>>> 5267b700 (feat: update invokers to support swift 2)
 	}
 
 	defer func() {
 		if err != nil {
-<<<<<<< HEAD
 			if len(addResult.defaultInterfaceInfo.ipResult.IPs) > 0 {
 				if er := invoker.Delete(&addResult.defaultInterfaceInfo.ipResult.IPs[0].Address, addConfig.nwCfg, nil, addConfig.options); er != nil {
-=======
-			if len(addResult.defaultCniResult.ipResult.IPs) > 0 {
-				if er := invoker.Delete(&addResult.defaultCniResult.ipResult.IPs[0].Address, addConfig.nwCfg, nil, addConfig.options); er != nil {
->>>>>>> 5267b700 (feat: update invokers to support swift 2)
 					err = invoker.plugin.Errorf("Failed to clean up IP's during Delete with error %v, after Add failed with error %w", er, err)
 				}
 			} else {
@@ -115,22 +100,14 @@ func (invoker *AzureIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, er
 		if err != nil {
 			err = invoker.plugin.Errorf("Failed to allocate v6 pool: %v", err)
 		} else {
-<<<<<<< HEAD
 			result.IPs = append(result.IPs, ipv6Result.IPs...)
 			result.Routes = append(result.Routes, ipv6Result.Routes...)
-=======
-			addResult.defaultCniResult.ipResult.IPs = append(addResult.defaultCniResult.ipResult.IPs, ipv6Result.IPs...)
-			addResult.defaultCniResult.ipResult.Routes = append(addResult.defaultCniResult.ipResult.Routes, ipv6Result.Routes...)
->>>>>>> 5267b700 (feat: update invokers to support swift 2)
 			addResult.ipv6Enabled = true
 		}
 	}
 
-<<<<<<< HEAD
 	addResult.defaultInterfaceInfo = InterfaceInfo{ipResult: result, nicType: cns.InfraNIC}
 
-=======
->>>>>>> 5267b700 (feat: update invokers to support swift 2)
 	return addResult, err
 }
 
