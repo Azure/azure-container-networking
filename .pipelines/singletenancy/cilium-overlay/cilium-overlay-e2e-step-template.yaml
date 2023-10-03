@@ -93,13 +93,6 @@ steps:
 
   - script: |
       echo "Start Azilium E2E Tests on Overlay Cluster"
-      echo "deploy ip-masq-agent for overlay"
-      kubectl create -f test/integration/manifests/ip-masq-agent/ip-masq-agent.yaml --validate=false
-      cd test/integration/manifests/ip-masq-agent/
-      kubectl create configmap config-custom.yaml
-      kubectl create configmap config-reconcile.yaml
-      cd ../../../..
-      kubectl get po -owide -A
       # Nightly does not build images per commit. Will use existing image.
       if [ "$CILIUM_VERSION_TAG" = "cilium-nightly-pipeline" ]
       then

@@ -48,11 +48,6 @@ steps:
         displayName: "Dropgz Version"
 
   - script: |
-      echo "deploy ip-masq-agent for overlay"
-      kubectl create -f test/integration/manifests/ip-masq-agent/ip-masq-agent.yaml --validate=false
-      cd test/integration/manifests/ip-masq-agent/
-      kubectl create configmap config-custom.yaml
-      cd ../../../..
       kubectl cluster-info
       kubectl get node
       sudo -E env "PATH=$PATH" make test-integration CNS_VERSION=$(make cns-version) CNI_DROPGZ_VERSION=$(dropgzVersion) INSTALL_CNS=true INSTALL_DUALSTACK_OVERLAY=true TEST_DROPGZ=${{ parameters.testDropgz }}
