@@ -133,7 +133,7 @@ func (plugin *Plugin) DelegateDel(pluginName string, nwCfg *NetworkConfig) error
 		zap.String("plugin", pluginName),
 		zap.Any("config", nwCfg))
 	defer func() {
-		logger.Info("Plugin eturned",
+		logger.Info("Plugin returned",
 			zap.String("plugin", pluginName),
 			zap.Error(err))
 	}()

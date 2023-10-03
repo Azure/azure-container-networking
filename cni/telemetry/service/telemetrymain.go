@@ -142,9 +142,9 @@ func main() {
 	tbtemp := telemetry.NewTelemetryBuffer(logger)
 	tbtemp.Cleanup(telemetry.FdName)
 
-	for {
-		tb = telemetry.NewTelemetryBuffer(logger)
+	tb = telemetry.NewTelemetryBuffer(logger)
 
+	for {
 		logger.Info("Starting telemetry server")
 		err = tb.StartServer()
 		if err == nil || tb.FdExists {
@@ -168,11 +168,10 @@ func main() {
 		GetEnvRetryWaitTimeInSecs:    config.GetEnvRetryWaitTimeInSecs,
 	}
 
-	tb = telemetry.NewTelemetryBuffer(logger)
 	if tb.CreateAITelemetryHandle(aiConfig, config.DisableAll, config.DisableTrace, config.DisableMetric) != nil {
-		logger.Error("[Telemetry] AI Handle creation error", zap.Error(err))
+		logger.Error("AI Handle creation error", zap.Error(err))
 	}
-	logger.Info("[Telemetry] Report to host interval", zap.Duration("seconds", config.ReportToHostIntervalInSeconds))
+	logger.Info("Report to host interval", zap.Duration("seconds", config.ReportToHostIntervalInSeconds))
 	tb.PushData(context.Background())
 	telemetry.CloseAITelemetryHandle()
 }
