@@ -51,6 +51,9 @@ func TestCNSIPAMInvoker_Add_Overlay(t *testing.T) {
 	unsupportedAPIs := make(map[cnsAPIName]struct{})
 	unsupportedAPIs["RequestIPs"] = struct{}{}
 
+	macAddress := "12:34:56:78:9a:bc"
+	parsedMacAddress, _ := net.ParseMAC(macAddress)
+
 	type fields struct {
 		podName      string
 		podNamespace string
@@ -65,12 +68,12 @@ func TestCNSIPAMInvoker_Add_Overlay(t *testing.T) {
 	}
 
 	tests := []struct {
-		name                  string
-		fields                fields
-		args                  args
-		wantDefaultResult     *cniTypesCurr.Result
-		wantMultitenantResult *cniTypesCurr.Result
-		wantErr               bool
+		name                        string
+		fields                      fields
+		args                        args
+		wantDefaultResult           *cniTypesCurr.Result
+		wantSecondaryInterfacesInfo InterfaceInfo
+		wantErr                     bool
 	}{
 		{
 			name: "Test happy CNI Overlay add in v4overlay ipamMode",
@@ -279,7 +282,7 @@ func TestCNSIPAMInvoker_Add_Overlay(t *testing.T) {
 										PrefixLength: 24,
 									},
 									NICType:    cns.DelegatedVMNIC,
-									MacAddress: "12:34:56:78:9a:bc",
+									MacAddress: macAddress,
 								},
 							},
 							Response: cns.Response{
@@ -315,17 +318,16 @@ func TestCNSIPAMInvoker_Add_Overlay(t *testing.T) {
 					},
 				},
 			},
-			wantMultitenantResult: &cniTypesCurr.Result{
-				IPs: []*cniTypesCurr.IPConfig{
-					{
-						Address: *getCIDRNotationForAddress("20.240.1.242/24"),
+			wantSecondaryInterfacesInfo: InterfaceInfo{
+				ipResult: &cniTypesCurr.Result{
+					IPs: []*cniTypesCurr.IPConfig{
+						{
+							Address: *getCIDRNotationForAddress("20.240.1.242/24"),
+						},
 					},
 				},
-				Interfaces: []*cniTypesCurr.Interface{
-					{
-						Mac: "12:34:56:78:9a:bc",
-					},
-				},
+				nicType:    cns.DelegatedVMNIC,
+				macAddress: parsedMacAddress,
 			},
 			wantErr: false,
 		},
@@ -348,10 +350,10 @@ func TestCNSIPAMInvoker_Add_Overlay(t *testing.T) {
 				require.NoError(err)
 			}
 
-			fmt.Printf("want:%+v\nrest:%+v\n", tt.wantMultitenantResult, ipamAddResult.secondaryInterfacesInfo)
+			fmt.Printf("want:%+v\nrest:%+v\n", tt.wantSecondaryInterfacesInfo, ipamAddResult.secondaryInterfacesInfo)
 			require.Equalf(tt.wantDefaultResult, ipamAddResult.defaultInterfaceInfo.ipResult, "incorrect default response")
-			if tt.wantMultitenantResult != nil {
-				require.Equalf(tt.wantMultitenantResult, ipamAddResult.secondaryInterfacesInfo[0].ipResult, "incorrect multitenant response")
+			if tt.wantSecondaryInterfacesInfo.ipResult != nil {
+				require.EqualValues(tt.wantSecondaryInterfacesInfo, ipamAddResult.secondaryInterfacesInfo[0], "incorrect multitenant response")
 			}
 		})
 	}
