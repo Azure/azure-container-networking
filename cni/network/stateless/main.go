@@ -8,34 +8,30 @@ import (
 	"os"
 	"time"
 
-	"github.com/Azure/azure-container-networking/aitelemetry"
 	"github.com/Azure/azure-container-networking/cni"
-	"github.com/Azure/azure-container-networking/cni/api"
-	zaplog "github.com/Azure/azure-container-networking/cni/log"
+	zapLog "github.com/Azure/azure-container-networking/cni/log"
 	"github.com/Azure/azure-container-networking/cni/network"
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/nns"
 	"github.com/Azure/azure-container-networking/platform"
-	"github.com/Azure/azure-container-networking/store"
 	"github.com/Azure/azure-container-networking/telemetry"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
 )
 
+var logger = zapLog.CNILogger.With(zap.String("component", "cni-main"))
+
 const (
-	hostNetAgentURL                 = "http://168.63.129.16/machine/plugins?comp=netagent&type=cnireport"
-	ipamQueryURL                    = "http://168.63.129.16/machine/plugins?comp=nmagent&type=getinterfaceinfov1"
-	pluginName                      = "CNI"
-	telemetryNumRetries             = 5
-	telemetryWaitTimeInMilliseconds = 200
-	name                            = "azure-vnet"
+	hostNetAgentURL = "http://168.63.129.16/machine/plugins?comp=netagent&type=cnireport"
+	ipamQueryURL    = "http://168.63.129.16/machine/plugins?comp=nmagent&type=getinterfaceinfov1"
+	pluginName      = "CNI"
+	name            = "azure-vnet"
+	stateless       = true
 )
 
 // Version is populated by make during build.
 var version string
-
-var logger = zaplog.CNILogger.With(zap.String("component", "cni-main"))
 
 // Command line arguments for CNI plugin.
 var args = common.ArgumentList{
@@ -59,7 +55,15 @@ func rootExecute() error {
 		tb     *telemetry.TelemetryBuffer
 	)
 
+	log.SetName(name)
+	log.SetLevel(log.LevelInfo)
+	if err := log.SetTargetLogDirectory(log.TargetLogfile, ""); err != nil {
+		fmt.Printf("Failed to setup cni logging: %v\n", err)
+	}
+	defer log.Close()
+
 	config.Version = version
+	config.Stateless = stateless
 
 	reportManager := &telemetry.ReportManager{
 		HostNetAgentURL: hostNetAgentURL,
@@ -100,49 +104,15 @@ func rootExecute() error {
 			cniReport.VMUptime = upTime.Format("2006-01-02 15:04:05")
 		}
 
-		// CNI Acquires lock
-		if err = netPlugin.Plugin.InitializeKeyValueStore(&config); err != nil {
-			network.PrintCNIError(fmt.Sprintf("Failed to initialize key-value store of network plugin: %v", err))
-
-			tb = telemetry.NewTelemetryBuffer()
-			if tberr := tb.Connect(); tberr != nil {
-				logger.Error("Cannot connect to telemetry service", zap.Error(tberr))
-				return errors.Wrap(err, "lock acquire error")
-			}
-
-			network.ReportPluginError(reportManager, tb, err)
-
-			if errors.Is(err, store.ErrTimeoutLockingStore) {
-				var cniMetric telemetry.AIMetric
-				cniMetric.Metric = aitelemetry.Metric{
-					Name:             telemetry.CNILockTimeoutStr,
-					Value:            1.0,
-					CustomDimensions: make(map[string]string),
-				}
-				sendErr := telemetry.SendCNIMetric(&cniMetric, tb)
-				if sendErr != nil {
-					logger.Error("Couldn't send cnilocktimeout metric", zap.Error(sendErr))
-				}
-			}
-
-			tb.Close()
-			return errors.Wrap(err, "lock acquire error")
-		}
-
 		defer func() {
-			if errUninit := netPlugin.Plugin.UninitializeKeyValueStore(); errUninit != nil {
-				logger.Error("Failed to uninitialize key-value store of network plugin", zap.Error(errUninit))
-			}
-
 			if recover() != nil {
 				os.Exit(1)
 			}
 		}()
 
-		// Start telemetry process if not already started. This should be done inside lock, otherwise multiple process
-		// end up creating/killing telemetry process results in undesired state.
+		// Connect to the telemetry process.
 		tb = telemetry.NewTelemetryBuffer()
-		tb.ConnectToTelemetryService(telemetryNumRetries, telemetryWaitTimeInMilliseconds)
+		tb.ConnectToTelemetry()
 		defer tb.Close()
 
 		netPlugin.SetCNIReport(cniReport, tb)
@@ -155,37 +125,15 @@ func rootExecute() error {
 			network.ReportPluginError(reportManager, tb, err)
 			panic("network plugin start fatal error")
 		}
-
-		// used to dump state
-		if cniCmd == cni.CmdGetEndpointsState {
-			logger.Debug("Retrieving state")
-			var simpleState *api.AzureCNIState
-			simpleState, err = netPlugin.GetAllEndpointState("azure")
-			if err != nil {
-				logger.Error("Failed to get Azure CNI state", zap.Error(err))
-				return errors.Wrap(err, "Get all endpoints error")
-			}
-
-			err = simpleState.PrintResult()
-			if err != nil {
-				logger.Error("Failed to print state result to stdout", zap.Error(err))
-			}
-
-			return errors.Wrap(err, "Get cni state printresult error")
-		}
-	}
-
-	handled, _ := network.HandleIfCniUpdate(netPlugin.Update)
-	if handled {
-		logger.Info("CNI UPDATE finished.")
-	} else if err = netPlugin.Execute(cni.PluginApi(netPlugin)); err != nil {
-		logger.Error("Failed to execute network plugin", zap.Error(err))
 	}
 
 	if cniCmd == cni.CmdVersion {
 		return errors.Wrap(err, "Execute netplugin failure")
 	}
 
+	if err = netPlugin.Execute(cni.PluginApi(netPlugin)); err != nil {
+		return errors.Wrap(err, "Failed to execute network plugin")
+	}
 	netPlugin.Stop()
 
 	if err != nil {
@@ -205,15 +153,6 @@ func main() {
 		printVersion()
 		os.Exit(0)
 	}
-
-	log.SetName(name)
-	log.SetLevel(log.LevelInfo)
-	if err := log.SetTargetLogDirectory(log.TargetLogfile, ""); err != nil {
-		fmt.Printf("Failed to setup cni logging: %v\n", err)
-		return
-	}
-
-	defer log.Close()
 
 	if rootExecute() != nil {
 		os.Exit(1)
