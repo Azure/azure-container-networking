@@ -535,7 +535,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 
 		defer func() { //nolint:gocritic
 			if err != nil {
-				plugin.cleanupAllocationOnError(ipamAddResult.secondaryInterfacesInfo, nwCfg, args, options)
+				plugin.cleanupAllocationOnError(ipamAddResult.defaultInterfaceInfo.ipResult, nwCfg, args, options)
 			}
 		}()
 
@@ -589,14 +589,14 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 
 // cleanup allocated ipv4 and ipv6 addresses if they exist
 func (plugin *NetPlugin) cleanupAllocationOnError(
-	cniResults []InterfaceInfo,
+	result *cniTypesCurr.Result,
 	nwCfg *cni.NetworkConfig,
 	args *cniSkel.CmdArgs,
 	options map[string]interface{},
 ) {
-	for _, interfaceInfo := range cniResults {
-		if interfaceInfo.ipResult != nil && interfaceInfo.nicType == cns.InfraNIC {
-			if er := plugin.ipamInvoker.Delete(&interfaceInfo.ipResult.IPs[0].Address, nwCfg, args, options); er != nil {
+	if result != nil {
+		for i := 0; i < len(result.IPs); i++ {
+			if er := plugin.ipamInvoker.Delete(&result.IPs[i].Address, nwCfg, args, options); er != nil {
 				logger.Error("Failed to cleanup ip allocation on failure", zap.Error(er))
 			}
 		}
@@ -800,8 +800,12 @@ func (plugin *NetPlugin) createEndpointInternal(opt *createEndpointInternalOpt) 
 	// get secondary interface info
 	for _, secondaryCniResult := range opt.ipamAddResult.secondaryInterfacesInfo {
 		var addresses []net.IPNet
+		var routes []network.RouteInfo
 		for _, ipconfig := range secondaryCniResult.ipResult.IPs {
 			addresses = append(addresses, ipconfig.Address)
+		}
+		for _, route := range secondaryCniResult.ipResult.Routes {
+			routes = append(routes, network.RouteInfo{Dst: route.Dst, Gw: route.GW})
 		}
 
 		epInfos = append(epInfos,
@@ -809,6 +813,7 @@ func (plugin *NetPlugin) createEndpointInternal(opt *createEndpointInternalOpt) 
 				ContainerID:       epInfo.ContainerID,
 				NetNsPath:         epInfo.NetNsPath,
 				IPAddresses:       addresses,
+				Routes:            routes,
 				MacAddress:        secondaryCniResult.macAddress,
 				NICType:           cns.DelegatedVMNIC,
 				SkipDefaultRoutes: secondaryCniResult.skipDefaultRoutes,
