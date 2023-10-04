@@ -75,7 +75,7 @@ func GetTestResources() *NetPlugin {
 	grpcClient := &nns.MockGrpcClient{}
 	plugin, _ := NewPlugin(pluginName, config, grpcClient, &Multitenancy{})
 	plugin.report = &telemetry.CNIReport{}
-	mockNetworkManager := acnnetwork.NewMockNetworkmanager()
+	mockNetworkManager := acnnetwork.NewMockNetworkmanager(false)
 	plugin.nm = mockNetworkManager
 	plugin.ipamInvoker = NewMockIpamInvoker(isIPv6, false, false, false, false)
 	return plugin
@@ -310,6 +310,7 @@ func TestIpamAddFail(t *testing.T) {
 		methods           []string
 		cniArgs           []cniSkel.CmdArgs
 		wantErr           []bool
+		wantEndpointErr   bool
 		wantErrMsg        string
 		expectedEndpoints int
 	}{
@@ -366,6 +367,23 @@ func TestIpamAddFail(t *testing.T) {
 			wantErrMsg:        "v4 fail",
 			expectedEndpoints: 1,
 		},
+		{
+			name:    "cleanup ipam add fail",
+			methods: []string{CNI_ADD},
+			cniArgs: []cniSkel.CmdArgs{
+				{
+					ContainerID: "test1-container",
+					Netns:       "test1-container",
+					StdinData:   nwCfg.Serialize(),
+					Args:        fmt.Sprintf("K8S_POD_NAME=%v;K8S_POD_NAMESPACE=%v", "container1", "container1-ns"),
+					IfName:      eth0IfName,
+				},
+			},
+			wantErr:           []bool{false},
+			wantEndpointErr:   true,
+			wantErrMsg:        "Failed to create endpoint: create endpoint failed",
+			expectedEndpoints: 0,
+		},
 	}
 
 	for _, tt := range tests {
@@ -380,17 +398,25 @@ func TestIpamAddFail(t *testing.T) {
 					plugin.ipamInvoker = NewMockIpamInvoker(false, false, false, false, false)
 				}
 
+				if tt.wantEndpointErr {
+					plugin.nm = acnnetwork.NewMockNetworkmanager(true)
+				}
+
 				if method == CNI_ADD {
 					err = plugin.Add(&tt.cniArgs[i])
 				} else if method == CNI_DEL {
 					err = plugin.Delete(&tt.cniArgs[i])
 				}
 
-				if tt.wantErr[i] {
+				if tt.wantErr[i] || tt.wantEndpointErr {
 					require.Error(t, err)
 					assert.Contains(t, err.Error(), tt.wantErrMsg)
 				} else {
 					require.NoError(t, err)
+				}
+
+				if tt.wantEndpointErr {
+					assert.Len(t, plugin.ipamInvoker.(*MockIpamInvoker).ipMap, 0)
 				}
 			}
 		})
@@ -459,7 +485,7 @@ func TestAddDualStack(t *testing.T) {
 			name: "Dualstack happy path",
 			plugin: &NetPlugin{
 				Plugin:      cniPlugin,
-				nm:          acnnetwork.NewMockNetworkmanager(),
+				nm:          acnnetwork.NewMockNetworkmanager(false),
 				ipamInvoker: NewMockIpamInvoker(true, false, false, false, false),
 				report:      &telemetry.CNIReport{},
 				tb:          &telemetry.TelemetryBuffer{},
@@ -470,7 +496,7 @@ func TestAddDualStack(t *testing.T) {
 			name: "Dualstack ipv6 fail",
 			plugin: &NetPlugin{
 				Plugin:      cniPlugin,
-				nm:          acnnetwork.NewMockNetworkmanager(),
+				nm:          acnnetwork.NewMockNetworkmanager(false),
 				ipamInvoker: NewMockIpamInvoker(true, false, true, false, false),
 				report:      &telemetry.CNIReport{},
 				tb:          &telemetry.TelemetryBuffer{},
@@ -516,7 +542,7 @@ func TestPluginGet(t *testing.T) {
 			methods: []string{CNI_ADD, "GET"},
 			plugin: &NetPlugin{
 				Plugin:      plugin,
-				nm:          acnnetwork.NewMockNetworkmanager(),
+				nm:          acnnetwork.NewMockNetworkmanager(false),
 				ipamInvoker: NewMockIpamInvoker(false, false, false, false, false),
 				report:      &telemetry.CNIReport{},
 				tb:          &telemetry.TelemetryBuffer{},
@@ -528,7 +554,7 @@ func TestPluginGet(t *testing.T) {
 			methods: []string{"GET"},
 			plugin: &NetPlugin{
 				Plugin:      plugin,
-				nm:          acnnetwork.NewMockNetworkmanager(),
+				nm:          acnnetwork.NewMockNetworkmanager(false),
 				ipamInvoker: NewMockIpamInvoker(false, false, false, false, false),
 				report:      &telemetry.CNIReport{},
 				tb:          &telemetry.TelemetryBuffer{},
@@ -541,7 +567,7 @@ func TestPluginGet(t *testing.T) {
 			methods: []string{CNI_ADD, CNI_DEL, "GET"},
 			plugin: &NetPlugin{
 				Plugin:      plugin,
-				nm:          acnnetwork.NewMockNetworkmanager(),
+				nm:          acnnetwork.NewMockNetworkmanager(false),
 				ipamInvoker: NewMockIpamInvoker(false, false, false, false, false),
 				report:      &telemetry.CNIReport{},
 				tb:          &telemetry.TelemetryBuffer{},
@@ -604,7 +630,7 @@ func TestPluginMultitenancyAdd(t *testing.T) {
 			name: "Add Happy path",
 			plugin: &NetPlugin{
 				Plugin:             plugin,
-				nm:                 acnnetwork.NewMockNetworkmanager(),
+				nm:                 acnnetwork.NewMockNetworkmanager(false),
 				tb:                 &telemetry.TelemetryBuffer{},
 				report:             &telemetry.CNIReport{},
 				multitenancyClient: NewMockMultitenancy(false),
@@ -623,7 +649,7 @@ func TestPluginMultitenancyAdd(t *testing.T) {
 			name: "Add Fail",
 			plugin: &NetPlugin{
 				Plugin:             plugin,
-				nm:                 acnnetwork.NewMockNetworkmanager(),
+				nm:                 acnnetwork.NewMockNetworkmanager(false),
 				tb:                 &telemetry.TelemetryBuffer{},
 				report:             &telemetry.CNIReport{},
 				multitenancyClient: NewMockMultitenancy(true),
@@ -735,7 +761,7 @@ func TestPluginBaremetalAdd(t *testing.T) {
 			name: "Baremetal Add Happy path",
 			plugin: &NetPlugin{
 				Plugin:    plugin,
-				nm:        acnnetwork.NewMockNetworkmanager(),
+				nm:        acnnetwork.NewMockNetworkmanager(false),
 				tb:        &telemetry.TelemetryBuffer{},
 				report:    &telemetry.CNIReport{},
 				nnsClient: &nns.MockGrpcClient{},
@@ -753,7 +779,7 @@ func TestPluginBaremetalAdd(t *testing.T) {
 			name: "Baremetal Add Fail",
 			plugin: &NetPlugin{
 				Plugin:    plugin,
-				nm:        acnnetwork.NewMockNetworkmanager(),
+				nm:        acnnetwork.NewMockNetworkmanager(false),
 				tb:        &telemetry.TelemetryBuffer{},
 				report:    &telemetry.CNIReport{},
 				nnsClient: &nns.MockGrpcClient{Fail: true},
@@ -1126,7 +1152,7 @@ func TestPluginSwiftV2Add(t *testing.T) {
 			name: "SwiftV2 Add Happy path",
 			plugin: &NetPlugin{
 				Plugin:      plugin,
-				nm:          acnnetwork.NewMockNetworkmanager(),
+				nm:          acnnetwork.NewMockNetworkmanager(false),
 				ipamInvoker: NewMockIpamInvoker(false, false, false, true, false),
 				report:      &telemetry.CNIReport{},
 				tb:          &telemetry.TelemetryBuffer{},
@@ -1144,7 +1170,7 @@ func TestPluginSwiftV2Add(t *testing.T) {
 			name: "SwiftV2 Add fail",
 			plugin: &NetPlugin{
 				Plugin:      plugin,
-				nm:          acnnetwork.NewMockNetworkmanager(),
+				nm:          acnnetwork.NewMockNetworkmanager(false),
 				ipamInvoker: NewMockIpamInvoker(false, false, false, true, true),
 				report:      &telemetry.CNIReport{},
 				tb:          &telemetry.TelemetryBuffer{},

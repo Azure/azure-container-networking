@@ -1,21 +1,27 @@
 package network
 
 import (
+	"errors"
+
 	cnms "github.com/Azure/azure-container-networking/cnms/cnmspackage"
 	"github.com/Azure/azure-container-networking/common"
 )
+
+var errCreateEndpointFailed = errors.New("create endpoint failed")
 
 // MockNetworkManager is a mock structure for Network Manager
 type MockNetworkManager struct {
 	TestNetworkInfoMap  map[string]*NetworkInfo
 	TestEndpointInfoMap map[string]*EndpointInfo
+	createEndpointFail  bool
 }
 
 // NewMockNetworkmanager returns a new mock
-func NewMockNetworkmanager() *MockNetworkManager {
+func NewMockNetworkmanager(createEndpointFail bool) *MockNetworkManager {
 	return &MockNetworkManager{
 		TestNetworkInfoMap:  make(map[string]*NetworkInfo),
 		TestEndpointInfoMap: make(map[string]*EndpointInfo),
+		createEndpointFail:  createEndpointFail,
 	}
 }
 
@@ -53,6 +59,10 @@ func (nm *MockNetworkManager) GetNetworkInfo(networkID string) (NetworkInfo, err
 
 // CreateEndpoint mock
 func (nm *MockNetworkManager) CreateEndpoint(_ apipaClient, _ string, epInfo []*EndpointInfo) error {
+	if nm.createEndpointFail {
+		return errCreateEndpointFailed
+	}
+
 	nm.TestEndpointInfoMap[epInfo[0].Id] = epInfo[0]
 	return nil
 }
