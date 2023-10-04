@@ -132,7 +132,7 @@ func (p *execClient) ClearNetworkConfiguration() (bool, error) {
 	return false, nil
 }
 
-func (p *execClient) ExecutePowershellCommand(command string) (string, error) {
+func (p *execClient) ExecutePowershellCommand(_ string) (string, error) {
 	return "", nil
 }
 
