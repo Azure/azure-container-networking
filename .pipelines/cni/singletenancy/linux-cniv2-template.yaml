@@ -16,26 +16,53 @@ parameters:
 # + Pods should have ips assigned and connectivity/datapath test should be present.
 # + CNS restart and validates the state
 
+#  and( succeeded(),  or( and( contains(variables.RUN, 'cniv2'), contains(variables.RUN, ${{ parameters.os }} ) , contains(variables.RUN, 'all') ) ) )
+#  and( succeeded(),  or(  ...   , contains(variables.RUN, 'all') )
+#   and( contains(variables.RUN, 'cniv2'),
+#  contains(variables.RUN, ${{ parameters.os }} )
 stages:
-  - stage: create_${{ parameters.name }}
-    variables:
-      commitID: $[ stagedependencies.setup.env.outputs['SetEnvVars.commitID'] ]
-    pool:
-      name: $(BUILD_POOL_NAME_DEFAULT)
-    dependsOn:
-      - setup
-    displayName: "Create Cluster - ${{ parameters.clusterName }}"
-    jobs:
-      - job: create_aks_cluster_with_${{ parameters.name }}
-        steps:
-          - template: ../load-test-templates/create-cluster-template.yaml
-            parameters:
-              clusterType: ${{ parameters.clusterType }}
-              clusterName: ${{ parameters.clusterName }}-$(commitID)
-              nodeCount: ${{ parameters.nodeCount }}
-              vmSize: ${{ parameters.vmSize }}
-              region: $(LOCATION)
-              osSKU: ${{ parameters.osSKU }}
+  - ${{ if eq(parameters.os, 'linux') }}:
+    - stage: create_${{ parameters.name }}
+      condition: and( succeeded(), or( and( contains(variables.RUN, 'cniv2'), contains(variables.OS, 'linux') ) , contains(variables.RUN, 'all') ) )
+      variables:
+        commitID: $[ stagedependencies.setup.env.outputs['SetEnvVars.commitID'] ]
+      pool:
+        name: $(BUILD_POOL_NAME_DEFAULT)
+      dependsOn:
+        - setup
+      displayName: "Create Cluster - ${{ parameters.clusterName }}"
+      jobs:
+        - job: create_aks_cluster_with_${{ parameters.name }}
+          steps:
+            - template: ../load-test-templates/create-cluster-template.yaml
+              parameters:
+                clusterType: ${{ parameters.clusterType }}
+                clusterName: ${{ parameters.clusterName }}-$(commitID)
+                nodeCount: ${{ parameters.nodeCount }}
+                vmSize: ${{ parameters.vmSize }}
+                region: $(LOCATION)
+                osSKU: ${{ parameters.osSKU }}
+  - ${{ if eq(parameters.os, 'windows') }}:
+    - stage: create_${{ parameters.name }}
+      condition: and( succeeded(), or( and( contains(variables.RUN, 'cniv2'), contains(variables.OS, 'windows') ) , contains(variables.RUN, 'all') ) )
+      variables:
+        commitID: $[ stagedependencies.setup.env.outputs['SetEnvVars.commitID'] ]
+      pool:
+        name: $(BUILD_POOL_NAME_DEFAULT)
+      dependsOn:
+        - setup
+      displayName: "Create Cluster - ${{ parameters.clusterName }}"
+      jobs:
+        - job: create_aks_cluster_with_${{ parameters.name }}
+          steps:
+            - template: ../load-test-templates/create-cluster-template.yaml
+              parameters:
+                clusterType: ${{ parameters.clusterType }}
+                clusterName: ${{ parameters.clusterName }}-$(commitID)
+                nodeCount: ${{ parameters.nodeCount }}
+                vmSize: ${{ parameters.vmSize }}
+                region: $(LOCATION)
+                osSKU: ${{ parameters.osSKU }}
 
   - stage: ${{ parameters.name }}
     variables:

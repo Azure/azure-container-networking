@@ -23,27 +23,52 @@ parameters:
 # + All CNI E2E is re-ran after HNS service is restarted
 
 stages:
-  - stage: create_${{ parameters.name }}
-    variables:
-      commitID: $[ stagedependencies.setup.env.outputs['SetEnvVars.commitID'] ]
-      npmVersion: $[ stagedependencies.setup.env.outputs['SetEnvVars.npmVersion'] ]
-    pool:
-      name: $(BUILD_POOL_NAME_DEFAULT)
-    dependsOn:
-      - setup
-    displayName: "Create Cluster - ${{ parameters.clusterName }}"
-    jobs:
-      - job: create_aks_cluster_with_${{ parameters.name }}
-        steps:
-          - template: ../load-test-templates/create-cluster-template.yaml
-            parameters:
-              clusterType: ${{ parameters.clusterType }}
-              clusterName: ${{ parameters.clusterName }}-$(commitID)
-              nodeCount: ${{ parameters.nodeCount }}
-              vmSize: ${{ parameters.vmSize }}
-              vmSizeWin: ${{ parameters.vmSizeWin }}
-              region: $(LOCATION)
-              osSKU: ${{ parameters.osSKU }}
+  - ${{ if eq(parameters.os, 'linux') }}:
+    - stage: create_${{ parameters.name }}
+      condition: and( succeeded(), or( and( contains(variables.RUN, 'cniv1'), contains(variables.OS, 'linux') ) , contains(variables.RUN, 'all') ) )
+      variables:
+        commitID: $[ stagedependencies.setup.env.outputs['SetEnvVars.commitID'] ]
+        npmVersion: $[ stagedependencies.setup.env.outputs['SetEnvVars.npmVersion'] ]
+      pool:
+        name: $(BUILD_POOL_NAME_DEFAULT)
+      dependsOn:
+        - setup
+      displayName: "Create Cluster - ${{ parameters.clusterName }}"
+      jobs:
+        - job: create_aks_cluster_with_${{ parameters.name }}
+          steps:
+            - template: ../load-test-templates/create-cluster-template.yaml
+              parameters:
+                clusterType: ${{ parameters.clusterType }}
+                clusterName: ${{ parameters.clusterName }}-$(commitID)
+                nodeCount: ${{ parameters.nodeCount }}
+                vmSize: ${{ parameters.vmSize }}
+                vmSizeWin: ${{ parameters.vmSizeWin }}
+                region: $(LOCATION)
+                osSKU: ${{ parameters.osSKU }}
+  - ${{ if eq(parameters.os, 'windows') }}:
+    - stage: create_${{ parameters.name }}
+      condition: and( succeeded(), or( and( contains(variables.RUN, 'cniv1'), contains(variables.OS, 'windows') ) , contains(variables.RUN, 'all') ) )
+      variables:
+        commitID: $[ stagedependencies.setup.env.outputs['SetEnvVars.commitID'] ]
+        npmVersion: $[ stagedependencies.setup.env.outputs['SetEnvVars.npmVersion'] ]
+      pool:
+        name: $(BUILD_POOL_NAME_DEFAULT)
+      dependsOn:
+        - setup
+      displayName: "Create Cluster - ${{ parameters.clusterName }}"
+      jobs:
+        - job: create_aks_cluster_with_${{ parameters.name }}
+          steps:
+            - template: ../load-test-templates/create-cluster-template.yaml
+              parameters:
+                clusterType: ${{ parameters.clusterType }}
+                clusterName: ${{ parameters.clusterName }}-$(commitID)
+                nodeCount: ${{ parameters.nodeCount }}
+                vmSize: ${{ parameters.vmSize }}
+                vmSizeWin: ${{ parameters.vmSizeWin }}
+                region: $(LOCATION)
+                osSKU: ${{ parameters.osSKU }}
 
   - stage: ${{ parameters.name }}
     variables:
