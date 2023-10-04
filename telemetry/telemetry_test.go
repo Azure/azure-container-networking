@@ -8,7 +8,9 @@ import (
 	"testing"
 
 	"github.com/Azure/azure-container-networking/aitelemetry"
+	"github.com/Azure/azure-container-networking/cni/log"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 )
 
 var telemetryTests = []struct {
@@ -51,7 +53,8 @@ var telemetryTests = []struct {
 }
 
 func TestMain(m *testing.M) {
-	tb := NewTelemetryBuffer()
+	telemetryLog := log.CNILogger.With(zap.String("component", "cni-telemetry"))
+	tb := NewTelemetryBuffer(telemetryLog)
 	_ = tb.Cleanup(FdName)
 	exitCode := m.Run()
 	os.Exit(exitCode)

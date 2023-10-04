@@ -191,7 +191,7 @@ func rootExecute() error {
 		if err = netPlugin.Plugin.InitializeKeyValueStore(&config); err != nil {
 			printCNIError(fmt.Sprintf("Failed to initialize key-value store of network plugin: %v", err))
 
-			tb = telemetry.NewTelemetryBuffer()
+			tb = telemetry.NewTelemetryBuffer(logger)
 			if tberr := tb.Connect(); tberr != nil {
 				logger.Error("Cannot connect to telemetry service", zap.Error(tberr))
 				return errors.Wrap(err, "lock acquire error")
@@ -228,7 +228,7 @@ func rootExecute() error {
 
 		// Start telemetry process if not already started. This should be done inside lock, otherwise multiple process
 		// end up creating/killing telemetry process results in undesired state.
-		tb = telemetry.NewTelemetryBuffer()
+		tb = telemetry.NewTelemetryBuffer(logger)
 		tb.ConnectToTelemetryService(telemetryNumRetries, telemetryWaitTimeInMilliseconds)
 		defer tb.Close()
 

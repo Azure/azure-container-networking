@@ -17,6 +17,7 @@ import (
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/platform"
+	"go.uber.org/zap"
 )
 
 // TelemetryConfig - telemetry config read by telemetry service
@@ -55,6 +56,7 @@ type TelemetryBuffer struct {
 	data        chan interface{}
 	cancel      chan bool
 	mutex       sync.Mutex
+	logger      *zap.Logger
 }
 
 // Buffer object holds the different types of reports
@@ -63,12 +65,13 @@ type Buffer struct {
 }
 
 // NewTelemetryBuffer - create a new TelemetryBuffer
-func NewTelemetryBuffer() *TelemetryBuffer {
+func NewTelemetryBuffer(logger *zap.Logger) *TelemetryBuffer {
 	var tb TelemetryBuffer
 
 	tb.data = make(chan interface{}, MaxNumReports)
 	tb.cancel = make(chan bool, 1)
 	tb.connections = make([]net.Conn, 0)
+	tb.logger = logger
 
 	return &tb
 }
@@ -88,11 +91,19 @@ func (tb *TelemetryBuffer) StartServer() error {
 	err := tb.Listen(FdName)
 	if err != nil {
 		tb.FdExists = strings.Contains(err.Error(), "in use") || strings.Contains(err.Error(), "Access is denied")
-		log.Logf("Listen returns: %v", err.Error())
+		if tb.logger != nil {
+			tb.logger.Error("Listen returns", zap.Error(err))
+		} else {
+			log.Logf("Listen returns: %v", err.Error())
+		}
 		return err
 	}
 
-	log.Logf("Telemetry service started")
+	if tb.logger != nil {
+		tb.logger.Info("Telemetry service started")
+	} else {
+		log.Logf("Telemetry service started")
+	}
 	// Spawn server goroutine to handle incoming connections
 	go func() {
 		for {
@@ -109,7 +120,11 @@ func (tb *TelemetryBuffer) StartServer() error {
 							var tmp map[string]interface{}
 							err = json.Unmarshal(reportStr, &tmp)
 							if err != nil {
-								log.Logf("StartServer: unmarshal error:%v", err)
+								if tb.logger != nil {
+									tb.logger.Error("StartServer: unmarshal error", zap.Error(err))
+								} else {
+									log.Logf("StartServer: unmarshal error:%v", err)
+								}
 								return
 							}
 							if _, ok := tmp["CniSucceeded"]; ok {
@@ -121,7 +136,11 @@ func (tb *TelemetryBuffer) StartServer() error {
 								json.Unmarshal([]byte(reportStr), &aiMetric)
 								tb.data <- aiMetric
 							} else {
-								log.Logf("StartServer: default case:%+v...", tmp)
+								if tb.logger != nil {
+									tb.logger.Info("StartServer: default", zap.Any("case", tmp))
+								} else {
+									log.Logf("StartServer: default case:%+v...", tmp)
+								}
 							}
 						} else {
 							var index int
@@ -148,7 +167,11 @@ func (tb *TelemetryBuffer) StartServer() error {
 					}
 				}()
 			} else {
-				log.Logf("Telemetry Server accept error %v", err)
+				if tb.logger != nil {
+					tb.logger.Error("Telemetry Server accept error", zap.Error(err))
+				} else {
+					log.Logf("Telemetry Server accept error %v", err)
+				}
 				return
 			}
 		}
@@ -179,10 +202,18 @@ func (tb *TelemetryBuffer) PushData(ctx context.Context) {
 			push(report)
 			tb.mutex.Unlock()
 		case <-tb.cancel:
-			log.Logf("[Telemetry] server cancel event")
+			if tb.logger != nil {
+				tb.logger.Info("server cancel event")
+			} else {
+				log.Logf("[Telemetry] server cancel event")
+			}
 			return
 		case <-ctx.Done():
-			log.Logf("[Telemetry] received context done event")
+			if tb.logger != nil {
+				tb.logger.Info("received context done event")
+			} else {
+				log.Logf("[Telemetry] received context done event")
+			}
 			return
 		}
 	}

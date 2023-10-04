@@ -4,13 +4,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Azure/azure-container-networking/cni/log"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 )
 
 const telemetryConfig = "azure-vnet-telemetry.config"
 
 func createTBServer(t *testing.T) (*TelemetryBuffer, func()) {
-	tbServer := NewTelemetryBuffer()
+	tbServer := NewTelemetryBuffer(nil)
 	err := tbServer.StartServer()
 	require.NoError(t, err)
 
@@ -25,7 +27,7 @@ func TestStartServer(t *testing.T) {
 	_, closeTBServer := createTBServer(t)
 	defer closeTBServer()
 
-	secondTBServer := NewTelemetryBuffer()
+	secondTBServer := NewTelemetryBuffer(nil)
 	err := secondTBServer.StartServer()
 	require.Error(t, err)
 }
@@ -34,7 +36,8 @@ func TestConnect(t *testing.T) {
 	_, closeTBServer := createTBServer(t)
 	defer closeTBServer()
 
-	tbClient := NewTelemetryBuffer()
+	logger := log.TelemetryLogger.With(zap.String("component", "cni-telemetry"))
+	tbClient := NewTelemetryBuffer(logger)
 	err := tbClient.Connect()
 	require.NoError(t, err)
 
@@ -45,7 +48,7 @@ func TestServerConnClose(t *testing.T) {
 	tbServer, closeTBServer := createTBServer(t)
 	defer closeTBServer()
 
-	tbClient := NewTelemetryBuffer()
+	tbClient := NewTelemetryBuffer(nil)
 	err := tbClient.Connect()
 	require.NoError(t, err)
 	defer tbClient.Close()
@@ -61,7 +64,7 @@ func TestClientConnClose(t *testing.T) {
 	_, closeTBServer := createTBServer(t)
 	defer closeTBServer()
 
-	tbClient := NewTelemetryBuffer()
+	tbClient := NewTelemetryBuffer(nil)
 	err := tbClient.Connect()
 	require.NoError(t, err)
 	tbClient.Close()
@@ -71,7 +74,7 @@ func TestWrite(t *testing.T) {
 	_, closeTBServer := createTBServer(t)
 	defer closeTBServer()
 
-	tbClient := NewTelemetryBuffer()
+	tbClient := NewTelemetryBuffer(nil)
 	err := tbClient.Connect()
 	require.NoError(t, err)
 	defer tbClient.Close()
