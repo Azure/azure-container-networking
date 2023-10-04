@@ -92,7 +92,7 @@ func TestPluginSecondAddSamePodWindows(t *testing.T) {
 			plugin: &NetPlugin{
 				Plugin:      plugin,
 				nm:          network.NewMockNetworkmanager(),
-				ipamInvoker: NewMockIpamInvoker(false, false, false),
+				ipamInvoker: NewMockIpamInvoker(false, false, false, false, false),
 				report:      &telemetry.CNIReport{},
 				tb:          &telemetry.TelemetryBuffer{},
 			},
@@ -111,7 +111,7 @@ func TestPluginSecondAddSamePodWindows(t *testing.T) {
 			plugin: &NetPlugin{
 				Plugin:      plugin,
 				nm:          network.NewMockNetworkmanager(),
-				ipamInvoker: NewMockIpamInvoker(false, false, false),
+				ipamInvoker: NewMockIpamInvoker(false, false, false, false, false),
 				report:      &telemetry.CNIReport{},
 				tb:          &telemetry.TelemetryBuffer{},
 			},
@@ -332,7 +332,7 @@ func TestGetNetworkNameFromCNS(t *testing.T) {
 			plugin: &NetPlugin{
 				Plugin:      plugin,
 				nm:          network.NewMockNetworkmanager(),
-				ipamInvoker: NewMockIpamInvoker(false, false, false),
+				ipamInvoker: NewMockIpamInvoker(false, false, false, false, false),
 				report:      &telemetry.CNIReport{},
 				tb:          &telemetry.TelemetryBuffer{},
 			},
@@ -367,7 +367,7 @@ func TestGetNetworkNameFromCNS(t *testing.T) {
 			plugin: &NetPlugin{
 				Plugin:      plugin,
 				nm:          network.NewMockNetworkmanager(),
-				ipamInvoker: NewMockIpamInvoker(false, false, false),
+				ipamInvoker: NewMockIpamInvoker(false, false, false, false, false),
 				report:      &telemetry.CNIReport{},
 				tb:          &telemetry.TelemetryBuffer{},
 			},
@@ -402,7 +402,7 @@ func TestGetNetworkNameFromCNS(t *testing.T) {
 			plugin: &NetPlugin{
 				Plugin:      plugin,
 				nm:          network.NewMockNetworkmanager(),
-				ipamInvoker: NewMockIpamInvoker(false, false, false),
+				ipamInvoker: NewMockIpamInvoker(false, false, false, false, false),
 				report:      &telemetry.CNIReport{},
 				tb:          &telemetry.TelemetryBuffer{},
 			},
@@ -437,7 +437,7 @@ func TestGetNetworkNameFromCNS(t *testing.T) {
 			plugin: &NetPlugin{
 				Plugin:      plugin,
 				nm:          network.NewMockNetworkmanager(),
-				ipamInvoker: NewMockIpamInvoker(false, false, false),
+				ipamInvoker: NewMockIpamInvoker(false, false, false, false, false),
 				report:      &telemetry.CNIReport{},
 				tb:          &telemetry.TelemetryBuffer{},
 			},
@@ -472,7 +472,7 @@ func TestGetNetworkNameFromCNS(t *testing.T) {
 			plugin: &NetPlugin{
 				Plugin:      plugin,
 				nm:          network.NewMockNetworkmanager(),
-				ipamInvoker: NewMockIpamInvoker(false, false, false),
+				ipamInvoker: NewMockIpamInvoker(false, false, false, false, false),
 				report:      &telemetry.CNIReport{},
 				tb:          &telemetry.TelemetryBuffer{},
 			},

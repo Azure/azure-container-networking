@@ -25,6 +25,7 @@ var (
 	errEmptyCNIArgs          = errors.New("empty CNI cmd args not allowed")
 	errInvalidArgs           = errors.New("invalid arg(s)")
 	errInvalidDefaultRouting = errors.New("add result requires exactly one interface with default routes")
+	errInvalidGatewayIP      = errors.New("invalid gateway IP")
 	overlayGatewayV6IP       = "fe80::1234:5678:9abc"
 	watcherPath              = "/var/run/azure-vnet/deleteIDs"
 )
@@ -306,7 +307,7 @@ func (invoker *CNSIPAMInvoker) Delete(address *net.IPNet, nwCfg *cni.NetworkConf
 	return nil
 }
 
-func getRoutes(cnsRoutes []cns.Route) ([]*cniTypes.Route, error) {
+func getRoutes(cnsRoutes []cns.Route, skipDefaultRoutes bool) ([]*cniTypes.Route, error) {
 	routes := make([]*cniTypes.Route, 0)
 	for _, route := range cnsRoutes {
 		_, dst, routeErr := net.ParseCIDR(route.IPAddress)
@@ -314,10 +315,15 @@ func getRoutes(cnsRoutes []cns.Route) ([]*cniTypes.Route, error) {
 			return nil, fmt.Errorf("unable to parse destination %s: %w", route.IPAddress, routeErr)
 		}
 
+		gw := net.ParseIP(route.GatewayIPAddress)
+		if gw == nil && skipDefaultRoutes {
+			return nil, errors.Wrap(errInvalidGatewayIP, route.GatewayIPAddress)
+		}
+
 		routes = append(routes,
 			&cniTypes.Route{
 				Dst: *dst,
-				GW:  net.ParseIP(route.GatewayIPAddress),
+				GW:  gw,
 			})
 	}
 
@@ -376,9 +382,9 @@ func configureDefaultAddResult(info *IPResultInfo, addConfig *IPAMAddConfig, add
 				Gateway: ncgw,
 			})
 
-		routes, err := getRoutes(info.routes)
-		if err != nil {
-			return err
+		routes, getRoutesErr := getRoutes(info.routes, info.skipDefaultRoutes)
+		if getRoutesErr != nil {
+			return getRoutesErr
 		}
 
 		if len(routes) > 0 {
@@ -442,7 +448,7 @@ func configureSecondaryAddResult(info *IPResultInfo, addResult *IPAMAddResult, p
 		skipDefaultRoutes: info.skipDefaultRoutes,
 	}
 
-	routes, err := getRoutes(info.routes)
+	routes, err := getRoutes(info.routes, info.skipDefaultRoutes)
 	if err != nil {
 		return err
 	}
