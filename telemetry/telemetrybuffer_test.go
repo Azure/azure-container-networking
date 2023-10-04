@@ -157,6 +157,6 @@ func TestReadConfigFile(t *testing.T) {
 
 func TestStartTelemetryService(t *testing.T) {
 	tb := NewTelemetryBuffer(nil)
-	err := tb.StartTelemetryService("", nil) // nolint
+	err := tb.StartTelemetryService("", nil)
 	require.Error(t, err)
 }

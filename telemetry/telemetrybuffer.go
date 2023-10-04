@@ -376,7 +376,7 @@ func (tb *TelemetryBuffer) ConnectToTelemetryService(telemetryNumRetries, teleme
 				return
 			}
 			tb.Cleanup(FdName)
-			tb.StartTelemetryService(path, args)
+			tb.StartTelemetryService(path, args) // nolint
 			WaitForTelemetrySocket(telemetryNumRetries, time.Duration(telemetryWaitTimeInMilliseconds))
 		} else {
 			tb.Connected = true
