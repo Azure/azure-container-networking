@@ -4,6 +4,7 @@ parameters:
   scaleup: 100
   nodeCount: 10
   os: ""
+  jobName: "restart_cns"
 
 steps:
   - task: AzureCLI@1
@@ -40,3 +41,4 @@ steps:
       logType: restartCNS
       os: ${{ parameters.os }}
       cni: ${{ parameters.cni }}
+      jobName: ${{ parameters.jobName }}

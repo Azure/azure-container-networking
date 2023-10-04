@@ -206,6 +206,7 @@ stages:
                 os: ${{ parameters.os }}
                 iterations: ${{ parameters.iterations }}
                 nodeCount: ${{ parameters.nodeCount }}
+                jobName: deploy_podsHNS
             - template: ../load-test-templates/validate-state-template.yaml
               parameters:
                 clusterName: ${{ parameters.clusterName }}-$(commitID)
@@ -221,6 +222,7 @@ stages:
                 os: ${{ parameters.os }}
                 nodeCount: ${{ parameters.nodeCount }}
                 scaleup: ${{ parameters.scaleup }}
+                jobName: restart_nodesHNS
             - template: ../load-test-templates/validate-state-template.yaml
               parameters:
                 clusterName: ${{ parameters.clusterName }}-$(commitID)
@@ -271,3 +273,4 @@ stages:
               parameters:
                 clusterName: ${{ parameters.clusterName }}-$(commitID)
                 os: ${{ parameters.os }}
+                jobName: failedE2ELogsHNS

@@ -5,6 +5,7 @@ parameters:
   iterations: 4
   nodeCount: 10
   cni: ""
+  jobName: "deploy_pods"
 
 steps:
   - task: AzureCLI@1
@@ -28,3 +29,4 @@ steps:
       logType: scaleTest
       os: ${{ parameters.os }}
       cni: ${{ parameters.cni }}
+      jobName: ${{ parameters.jobName }}
