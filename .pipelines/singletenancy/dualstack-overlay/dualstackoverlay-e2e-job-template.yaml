@@ -42,6 +42,8 @@ stages:
       GOBIN: "$(GOPATH)/bin" # Go binaries path
       modulePath: "$(GOPATH)/src/github.com/Azure/azure-container-networking"
       commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
+    pool:
+      name: $(BUILD_POOL_NAME_DEFAULT)
     jobs:
       - job: ${{ parameters.name }}
         displayName: DualStack Overlay Test Suite - (${{ parameters.name }})

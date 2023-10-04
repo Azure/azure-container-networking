@@ -38,6 +38,8 @@ stages:
     - ${{ parameters.clusterName }}
     variables:
       commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
+    pool:
+      name: $(BUILD_POOL_NAME_DEFAULT)
     jobs:
       - job: ${{ parameters.name }}
         displayName: Azure CNI Overlay Test Suite - (${{ parameters.name }})
