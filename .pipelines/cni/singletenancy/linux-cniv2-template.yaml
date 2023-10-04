@@ -55,35 +55,35 @@ stages:
         displayName: "Integration Test - ${{ parameters.name }}"
         steps:
           - ${{ if contains(parameters.clusterType, 'overlay') }}:
-              - task: AzureCLI@1
-                inputs:
-                  azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
-                  scriptLocation: "inlineScript"
-                  scriptType: "bash"
-                  addSpnToEnvironment: true
-                  inlineScript: |
-                    echo "Start Integration Tests on Overlay Cluster"
-                    make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}-$(commitID)
-                    kubectl cluster-info
-                    kubectl get po -owide -A
-                    sudo -E env "PATH=$PATH" make test-integration CNS_VERSION=$(cnsVersion) CNI_DROPGZ_VERSION=$(dropgzVersion) INSTALL_CNS=true INSTALL_AZURE_CNI_OVERLAY=true TEST_DROPGZ=${{ parameters.testDropgz }}
-                name: "overlaye2e"
-                displayName: "Overlay Integration"
+            - task: AzureCLI@1
+              inputs:
+                azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+                scriptLocation: "inlineScript"
+                scriptType: "bash"
+                addSpnToEnvironment: true
+                inlineScript: |
+                  echo "Start Integration Tests on Overlay Cluster"
+                  make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}-$(commitID)
+                  kubectl cluster-info
+                  kubectl get po -owide -A
+                  sudo -E env "PATH=$PATH" make test-integration CNS_VERSION=$(cnsVersion) CNI_DROPGZ_VERSION=$(dropgzVersion) INSTALL_CNS=true INSTALL_AZURE_CNI_OVERLAY=true TEST_DROPGZ=${{ parameters.testDropgz }}
+              name: "overlaye2e"
+              displayName: "Overlay Integration"
           - ${{ if contains(parameters.clusterType, 'swift') }}:
-              - task: AzureCLI@1
-                inputs:
-                  azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
-                  scriptLocation: "inlineScript"
-                  scriptType: "bash"
-                  addSpnToEnvironment: true
-                  inlineScript: |
-                    echo "Start Integration Tests on Swift Cluster"
-                    make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}-$(commitID)
-                    kubectl cluster-info
-                    kubectl get po -owide -A
-                    sudo -E env "PATH=$PATH" make test-integration CNS_VERSION=$(cnsVersion) CNI_DROPGZ_VERSION=$(dropgzVersion) INSTALL_CNS=true INSTALL_AZURE_VNET=true TEST_DROPGZ=${{ parameters.testDropgz }}
-                name: "swifte2e"
-                displayName: "Swift Integration"
+            - task: AzureCLI@1
+              inputs:
+                azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+                scriptLocation: "inlineScript"
+                scriptType: "bash"
+                addSpnToEnvironment: true
+                inlineScript: |
+                  echo "Start Integration Tests on Swift Cluster"
+                  make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}-$(commitID)
+                  kubectl cluster-info
+                  kubectl get po -owide -A
+                  sudo -E env "PATH=$PATH" make test-integration CNS_VERSION=$(cnsVersion) CNI_DROPGZ_VERSION=$(dropgzVersion) INSTALL_CNS=true INSTALL_AZURE_VNET=true TEST_DROPGZ=${{ parameters.testDropgz }}
+              name: "swifte2e"
+              displayName: "Swift Integration"
       - template: ../../npm/npm-cni-integration-test.yaml
         parameters:
           clusterName: ${{ parameters.clusterName }}-$(commitID)

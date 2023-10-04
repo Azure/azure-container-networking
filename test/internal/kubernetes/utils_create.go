@@ -473,6 +473,7 @@ func setupCNSDaemonset(
 	}
 
 	if cnsScenarioDetails.installIPMasqAgent {
+		log.Printf("Installing IP Masq Agent")
 		if err := InstallIPMasqAgent(ctx, clientset); err != nil {
 			return appsv1.DaemonSet{}, cnsDetails{}, errors.Wrap(err, "failed to install ip masq agent")
 		}
