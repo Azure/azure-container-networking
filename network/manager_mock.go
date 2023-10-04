@@ -58,7 +58,7 @@ func (nm *MockNetworkManager) CreateEndpoint(_ apipaClient, networkID string, ep
 }
 
 // DeleteEndpoint mock
-func (nm *MockNetworkManager) DeleteEndpoint(networkID, endpointID string, ep *EndpointInfo) error {
+func (nm *MockNetworkManager) DeleteEndpoint(networkID string, endpointID string, ep *EndpointInfo) error {
 	delete(nm.TestEndpointInfoMap, endpointID)
 	return nil
 }
@@ -72,8 +72,13 @@ func (nm *MockNetworkManager) SetStatelessCNIMode() error {
 func (nm *MockNetworkManager) IsStatelessCNIMode() bool {
 	return false
 }
+
+// GetEndpointID returns the ContainerID value
 func (nm *MockNetworkManager) GetEndpointID(containerID, ifName string) string {
-	return containerID
+	if nm.IsStatelessCNIMode() {
+		return containerID
+	}
+	return containerID + "-" + ifName
 }
 
 func (nm *MockNetworkManager) GetAllEndpoints(networkID string) (map[string]*EndpointInfo, error) {

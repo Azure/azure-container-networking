@@ -149,8 +149,7 @@ func (plugin *NetPlugin) Start(config *common.PluginConfig) error {
 	// Log platform information.
 	logger.Info("Plugin Info",
 		zap.String("name", plugin.Name),
-		zap.String("version", plugin.Version),
-		zap.String("component", "cni-net"))
+		zap.String("version", plugin.Version))
 
 	// Initialize network manager. rehyrdration not required on reboot for cni plugin
 	err = plugin.nm.Initialize(config, false)
@@ -1051,6 +1050,7 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 				// Log the error but return success if the network is not found.
 				// if cni hits this, mostly state file would be missing and it can be reboot scenario where
 				// container runtime tries to delete and create pods which existed before reboot.
+				// this condition will not apply to stateless CNI since the network struct will be crated on each call
 				err = nil
 				if !plugin.nm.IsStatelessCNIMode() {
 					return err
