@@ -20,6 +20,7 @@ type ExecClient interface {
 	ExecuteCommand(command string) (string, error)
 	GetLastRebootTime() (time.Time, error)
 	ClearNetworkConfiguration() (bool, error)
+	ExecutePowershellCommand(command string) (string, error)
 }
 
 func NewExecClient(logger *zap.Logger) ExecClient {

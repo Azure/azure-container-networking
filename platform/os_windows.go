@@ -16,7 +16,6 @@ import (
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/platform/windows/adapter"
 	"github.com/Azure/azure-container-networking/platform/windows/adapter/mellanox"
-	"github.com/docker/docker/daemon/logger"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
 	"golang.org/x/sys/windows"
@@ -171,8 +170,8 @@ func (p *execClient) ExecutePowershellCommand(command string) (string, error) {
 		return "", fmt.Errorf("Failed to find powershell executable")
 	}
 
-	if logger != nil {
-		logger.Info("[Azure-Utils]", zap.String("command", command))
+	if p.logger != nil {
+		p.logger.Info("[Azure-Utils]", zap.String("command", command))
 	} else {
 		log.Printf("[Azure-Utils] %s", command)
 	}
@@ -289,7 +288,8 @@ func GetOSDetails() (map[string]string, error) {
 func GetProcessNameByID(pidstr string) (string, error) {
 	pidstr = strings.Trim(pidstr, "\r\n")
 	cmd := fmt.Sprintf("Get-Process -Id %s|Format-List", pidstr)
-	out, err := ExecutePowershellCommand(cmd, nil)
+	p := NewExecClient(nil)
+	out, err := p.ExecutePowershellCommand(cmd)
 	if err != nil {
 		log.Printf("Process is not running. Output:%v, Error %v", out, err)
 		return "", err
