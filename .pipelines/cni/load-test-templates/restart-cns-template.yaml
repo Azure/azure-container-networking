@@ -3,6 +3,7 @@ parameters:
   cni: "cilium"
   scaleup: 100
   nodeCount: 10
+  os: ""
 
 steps:
   - task: AzureCLI@1
@@ -32,3 +33,10 @@ steps:
     name: "restartCNS"
     displayName: "Restart CNS and Validate pods"
     retryCountOnTaskFailure: 3
+
+  - template: ../../templates/log-template.yaml
+    parameters:
+      clusterName: ${{ parameters.clusterName }}
+      logType: restartCNS
+      os: ${{ parameters.os }}
+      cni: ${{ parameters.cni }}

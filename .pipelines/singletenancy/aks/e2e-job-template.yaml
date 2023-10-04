@@ -79,3 +79,16 @@ stages:
           service: true
           hostport: true
           dependsOn: ${{ parameters.name }}
+
+      - job: logs
+        displayName: "Log Failure"
+        dependsOn:
+          - ${{ parameters.name }}
+          - cni_${{ parameters.os }}
+        condition: failed()
+        steps:
+          - template: ../../templates/log-template.yaml
+            parameters:
+              clusterName: ${{ parameters.clusterName }}-$(commitID)
+              os: ${{ parameters.os }}
+              cni: cniv1

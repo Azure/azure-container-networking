@@ -3,6 +3,7 @@ parameters:
   nodeCount: 10
   scaleup: 100
   os: "linux"
+  cni: ""
 
 steps:
   - task: AzureCLI@1
@@ -30,3 +31,10 @@ steps:
         REPLICAS=$scale OS_TYPE=${{ parameters.os }} go test -count 1 -timeout 30m -tags load -run ^TestScaleDeployment$
     name: "RestartNodes"
     displayName: "Restart Nodes"
+
+  - template: ../../templates/log-template.yaml
+    parameters:
+      clusterName: ${{ parameters.clusterName }}
+      logType: restartNode
+      os: ${{ parameters.os }}
+      cni: ${{ parameters.cni }}

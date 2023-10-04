@@ -108,6 +108,7 @@ stages:
               os: ${{ parameters.os }}
               iterations: ${ITERATIONS_LINUX}
               nodeCount: ${{ parameters.nodeCount }}
+              cni: cniv2
           - template: ../load-test-templates/validate-state-template.yaml
             parameters:
               clusterName: ${{ parameters.clusterName }}-$(commitID)
@@ -120,8 +121,10 @@ stages:
           - template: ../load-test-templates/restart-node-template.yaml
             parameters:
               clusterName: ${{ parameters.clusterName }}-$(commitID)
+              os: ${{ parameters.os }}
               nodeCount: ${{ parameters.nodeCount }}
               scaleup: ${SCALEUP_LINUX}
+              cni: cniv2
           - template: ../load-test-templates/validate-state-template.yaml
             parameters:
               clusterName: ${{ parameters.clusterName }}-$(commitID)
@@ -135,6 +138,7 @@ stages:
           - template: ../load-test-templates/restart-cns-template.yaml
             parameters:
               clusterName: ${{ parameters.clusterName }}-$(commitID)
+              os: ${{ parameters.os }}
               cni: cniv2
               scaleup: ${SCALEUP_LINUX}
               nodeCount: ${{ parameters.nodeCount }}
@@ -167,4 +171,20 @@ stages:
           portforward: true
           service: true
           hostport: true
-
+      - job: logs
+        displayName: "Log Failure"
+        dependsOn:
+          - integration
+          - npm_k8se2e
+          - deploy_pods
+          - restart_nodes
+          - restart_cns
+          - recover
+          - cni_${{ parameters.os }}
+        condition: failed()
+        steps:
+          - template: ../../templates/log-template.yaml
+            parameters:
+              clusterName: ${{ parameters.clusterName }}-$(commitID)
+              os: ${{ parameters.os }}
+              cni: cniv2

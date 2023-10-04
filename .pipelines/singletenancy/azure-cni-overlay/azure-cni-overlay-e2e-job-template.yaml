@@ -81,3 +81,16 @@ stages:
           service: true
           hybridWin: true
           datapath: true
+
+      - job: logs
+        displayName: "Log Failure"
+        dependsOn:
+          - ${{ parameters.name }}
+        condition: failed()
+        steps:
+          - template: ../../templates/log-template.yaml
+            parameters:
+              clusterName: ${{ parameters.clusterName }}-$(commitID)
+              os: ${{ parameters.os }}
+              cni: cniv2
+

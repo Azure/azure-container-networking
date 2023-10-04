@@ -105,6 +105,7 @@ stages:
               os: ${{ parameters.os }}
               iterations: ${{ parameters.iterations }}
               nodeCount: ${{ parameters.nodeCount }}
+              cni: cniv1
           - template: ../load-test-templates/validate-state-template.yaml
             parameters:
               clusterName: ${{ parameters.clusterName }}-$(commitID)
@@ -120,6 +121,7 @@ stages:
               os: ${{ parameters.os }}
               nodeCount: ${{ parameters.nodeCount }}
               scaleup: ${{ parameters.scaleup }}
+              cni: cniv1
           - template: ../load-test-templates/validate-state-template.yaml
             parameters:
               clusterName: ${{ parameters.clusterName }}-$(commitID)
@@ -156,6 +158,21 @@ stages:
           hybridWin: true
           service: true
           hostport: true
+      - job: logs
+        displayName: "Log Failure"
+        dependsOn:
+          - update_cni
+          - npm_k8se2e
+          - deploy_pods
+          - restart_nodes
+          - recover
+          - cni_${{ parameters.os }}
+        condition: failed()
+        steps:
+          - template: ../../templates/log-template.yaml
+            parameters:
+              clusterName: ${{ parameters.clusterName }}-$(commitID)
+              os: ${{ parameters.os }}
 
   - ${{ if eq(parameters.os, 'windows') }}:
     - stage: ${{ parameters.name }}_HNS
@@ -240,3 +257,17 @@ stages:
             hybridWin: true
             service: true
             hostport: true
+        - job: logs
+          displayName: "Log Failure"
+          dependsOn:
+            - restart_hns
+            - restart_nodes
+            - deploy_pods
+            - recover
+            - cni_${{ parameters.os }}
+          condition: failed()
+          steps:
+            - template: ../../templates/log-template.yaml
+              parameters:
+                clusterName: ${{ parameters.clusterName }}-$(commitID)
+                os: ${{ parameters.os }}

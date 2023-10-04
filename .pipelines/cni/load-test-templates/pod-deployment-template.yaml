@@ -4,6 +4,7 @@ parameters:
   os: ""
   iterations: 4
   nodeCount: 10
+  cni: ""
 
 steps:
   - task: AzureCLI@1
@@ -20,3 +21,10 @@ steps:
         cd test/integration/load
         scale=$(( ${{ parameters.scaleup }} * ${{ parameters.nodeCount }} ))
         ITERATIONS=${{ parameters.iterations }} SCALE_UP=$scale OS_TYPE=${{ parameters.os }} go test -timeout 30m -tags load -run ^TestLoad$
+
+  - template: ../../templates/log-template.yaml
+    parameters:
+      clusterName: ${{ parameters.clusterName }}
+      logType: scaleTest
+      os: ${{ parameters.os }}
+      cni: ${{ parameters.cni }}

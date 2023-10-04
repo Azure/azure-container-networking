@@ -60,3 +60,15 @@ stages:
               name: ${{ parameters.name }}
               testDropgz: ${{ parameters.testDropgz }}
               clusterName: ${{ parameters.clusterName }}-$(commitID)
+
+      - job: logs
+        displayName: "Log Failure"
+        dependsOn:
+          - ${{ parameters.name }}
+        condition: failed()
+        steps:
+          - template: ../../templates/log-template.yaml
+            parameters:
+              clusterName: ${{ parameters.clusterName }}-$(commitID)
+              os: ${{ parameters.os }}
+              cni: cniv2

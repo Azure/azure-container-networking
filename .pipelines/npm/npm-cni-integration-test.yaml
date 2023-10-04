@@ -126,9 +126,8 @@ jobs:
         continueOnError: ${{ parameters.continueOnError }}
 
       - bash: |
-          npmLogs=$(System.DefaultWorkingDirectory)/Attempt_#$(System.StageAttempt)/npmLogs_${{ parameters.clusterName }}
+          npmLogs=$(System.DefaultWorkingDirectory)/${{ parameters.clusterName }}_npmLogs_Attempt_#$(System.StageAttempt)
           mkdir -p $npmLogs
-          cp ./kubeconfig $npmLogs/kubeconfig
 
           kubectl get pods -n kube-system | grep npm
           npmPodList=`kubectl get pods -n kube-system | grep npm | awk '{print $1}'`
@@ -139,8 +138,8 @@ jobs:
         displayName: Generate NPM pod logs
         condition: always()
 
-      - publish: $(System.DefaultWorkingDirectory)/Attempt_#$(System.StageAttempt)/npmLogs_${{ parameters.clusterName }}
+      - publish: $(System.DefaultWorkingDirectory)/${{ parameters.clusterName }}_npmLogs_Attempt_#$(System.StageAttempt)
         condition: always()
-        artifact: npmLogs_${{ parameters.clusterName }}
+        artifact: ${{ parameters.clusterName }}_npmLogs_Attempt_#$(System.StageAttempt)
         name: npmLogs
         displayName: Publish NPM pod logs

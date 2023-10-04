@@ -84,6 +84,7 @@ stages:
               os: linux
               iterations: ${ITERATIONS_CILIUM}
               nodeCount: ${{ parameters.nodeCount }}
+              cni: cilium
           - template: ../load-test-templates/validate-state-template.yaml
             parameters:
               clusterName: ${{ parameters.clusterName }}-$(commitID)
@@ -94,8 +95,10 @@ stages:
           - template: ../load-test-templates/restart-node-template.yaml
             parameters:
               clusterName: ${{ parameters.clusterName }}-$(commitID)
+              os: ${{ parameters.os }}
               nodeCount: ${{ parameters.nodeCount }}
               scaleup: ${SCALEUP_CILIUM}
+              cni: cilium
           - template: ../load-test-templates/validate-state-template.yaml
             parameters:
               clusterName: ${{ parameters.clusterName }}-$(commitID)
@@ -108,8 +111,10 @@ stages:
           - template: ../load-test-templates/restart-cns-template.yaml
             parameters:
               clusterName: ${{ parameters.clusterName }}-$(commitID)
+              os: ${{ parameters.os }}
               scaleup: ${SCALEUP_CILIUM}
               nodeCount: ${{ parameters.nodeCount }}
+              cni: cilium
       - job: cni_tests
         displayName: "Cilium Test"
         dependsOn: restart_cns
@@ -141,4 +146,18 @@ stages:
             retryCountOnTaskFailure: 6
             name: "CiliumConnectivityTests"
             displayName: "Run Cilium Connectivity Tests"
-
+      - job: logs
+        displayName: "Log Failure"
+        dependsOn:
+          - deploy_cilium_components
+          - deploy_pods
+          - restart_nodes
+          - restart_cns
+          - cni_tests
+        condition: failed()
+        steps:
+          - template: ../../templates/log-template.yaml
+            parameters:
+              clusterName: ${{ parameters.clusterName }}-$(commitID)
+              os: linux
+              cni: cilium
