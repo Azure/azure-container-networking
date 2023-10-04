@@ -41,7 +41,7 @@ func (e *MockExecClient) ClearNetworkConfiguration() (bool, error) {
 	return true, nil
 }
 
-func (e *MockExecClient) ExecutePowershellCommand(command string) (string, error) {
+func (e *MockExecClient) ExecutePowershellCommand(_ string) (string, error) {
 	return "", nil
 }
 
