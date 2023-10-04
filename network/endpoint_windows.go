@@ -185,8 +185,9 @@ func (nw *network) addIPv6NeighborEntryForGateway(epInfo *EndpointInfo) error {
 		cmd := fmt.Sprintf("New-NetNeighbor -IPAddress %s -InterfaceAlias \"%s (%s)\" -LinkLayerAddress \"%s\"",
 			nw.Subnets[1].Gateway.String(), containerIfNamePrefix, epInfo.Id, defaultGwMac)
 
-		platformLogger := zaplog.CNILogger.With(zap.String("component", "platform-windows"))
-		if out, err = platform.ExecutePowershellCommand(cmd, platformLogger); err != nil {
+		platformLogger := zaplog.CNILogger.With(zap.String("component", "cni-platform-windows"))
+		p := NewExecClient(platformLogger)
+		if out, err = p.ExecutePowershellCommand(cmd); err != nil {
 			logger.Error("Adding ipv6 gw neigh entry failed", zap.Any("out", out), zap.Error(err))
 			return err
 		}

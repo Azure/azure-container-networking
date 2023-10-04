@@ -257,7 +257,11 @@ func (tb *TelemetryBuffer) Close() {
 	}
 
 	if tb.listener != nil {
-		log.Logf("server close")
+		if tb.logger != nil {
+			tb.logger.Info("server close")
+		} else {
+			log.Logf("server close")
+		}
 		tb.listener.Close()
 	}
 
@@ -299,33 +303,53 @@ func WaitForTelemetrySocket(maxAttempt int, waitTimeInMillisecs time.Duration) {
 }
 
 // StartTelemetryService - Kills if any telemetry service runs and start new telemetry service
-func StartTelemetryService(path string, args []string) error {
+func (tb *TelemetryBuffer) StartTelemetryService(path string, args []string) error {
 	platform.KillProcessByName(TelemetryServiceProcessName)
 
-	log.Logf("[Telemetry] Starting telemetry service process :%v args:%v", path, args)
+	if tb.logger != nil {
+		tb.logger.Info("Starting telemetry service process", zap.String("path", path), zap.Any("args", args))
+	} else {
+		log.Logf("[Telemetry] Starting telemetry service process :%v args:%v", path, args)
+	}
 
 	if err := common.StartProcess(path, args); err != nil {
-		log.Logf("[Telemetry] Failed to start telemetry service process :%v", err)
+		if tb.logger != nil {
+			tb.logger.Error("Failed to start telemetry service process", zap.Error(err))
+		} else {
+			log.Logf("[Telemetry] Failed to start telemetry service process :%v", err)
+		}
 		return err
 	}
 
-	log.Logf("[Telemetry] Telemetry service started")
+	if tb.logger != nil {
+		tb.logger.Info("Telemetry service started")
+	} else {
+		log.Logf("[Telemetry] Telemetry service started")
+	}
 
 	return nil
 }
 
 // ReadConfigFile - Read telemetry config file and populate to structure
-func ReadConfigFile(filePath string) (TelemetryConfig, error) {
+func (tb *TelemetryBuffer) ReadConfigFile(filePath string) (TelemetryConfig, error) {
 	config := TelemetryConfig{}
 
 	b, err := os.ReadFile(filePath)
 	if err != nil {
-		log.Logf("[Telemetry] Failed to read telemetry config: %v", err)
+		if tb.logger != nil {
+			tb.logger.Error("Failed to read telemetry config", zap.Error(err))
+		} else {
+			log.Logf("[Telemetry] Failed to read telemetry config: %v", err)
+		}
 		return config, err
 	}
 
 	if err = json.Unmarshal(b, &config); err != nil {
-		log.Logf("[Telemetry] unmarshal failed with %v", err)
+		if tb.logger != nil {
+			tb.logger.Error("unmarshal failed with", zap.Error(err))
+		} else {
+			log.Logf("[Telemetry] unmarshal failed with %v", err)
+		}
 	}
 
 	return config, err
@@ -338,17 +362,29 @@ func (tb *TelemetryBuffer) ConnectToTelemetryService(telemetryNumRetries, teleme
 
 	for attempt := 0; attempt < 2; attempt++ {
 		if err := tb.Connect(); err != nil {
-			log.Logf("Connection to telemetry socket failed: %v", err)
+			if tb.logger != nil {
+				tb.logger.Error("Connection to telemetry socket failed", zap.Error(err))
+			} else {
+				log.Logf("Connection to telemetry socket failed: %v", err)
+			}
 			if _, exists := os.Stat(path); exists != nil {
-				log.Logf("Skip starting telemetry service as file didn't exist")
+				if tb.logger != nil {
+					tb.logger.Info("Skip starting telemetry service as file didn't exist")
+				} else {
+					log.Logf("Skip starting telemetry service as file didn't exist")
+				}
 				return
 			}
 			tb.Cleanup(FdName)
-			StartTelemetryService(path, args)
+			tb.StartTelemetryService(path, args)
 			WaitForTelemetrySocket(telemetryNumRetries, time.Duration(telemetryWaitTimeInMilliseconds))
 		} else {
 			tb.Connected = true
-			log.Logf("Connected to telemetry service")
+			if tb.logger != nil {
+				tb.logger.Info("Connected to telemetry service")
+			} else {
+				log.Logf("Connected to telemetry service")
+			}
 			return
 		}
 	}

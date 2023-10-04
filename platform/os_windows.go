@@ -16,6 +16,7 @@ import (
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/platform/windows/adapter"
 	"github.com/Azure/azure-container-networking/platform/windows/adapter/mellanox"
+	"github.com/docker/docker/daemon/logger"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
 	"golang.org/x/sys/windows"
@@ -89,8 +90,9 @@ func GetOSInfo() string {
 }
 
 func GetProcessSupport() error {
+	p := NewExecClient(nil)
 	cmd := fmt.Sprintf("Get-Process -Id %v", os.Getpid())
-	_, err := ExecutePowershellCommand(cmd, nil)
+	_, err := p.ExecutePowershellCommand(cmd)
 	return err
 }
 
@@ -163,7 +165,7 @@ func KillProcessByName(processName string) {
 }
 
 // ExecutePowershellCommand executes powershell command
-func ExecutePowershellCommand(command string, logger *zap.Logger) (string, error) {
+func (p *execClient) ExecutePowershellCommand(command string) (string, error) {
 	ps, err := exec.LookPath("powershell.exe")
 	if err != nil {
 		return "", fmt.Errorf("Failed to find powershell executable")
@@ -191,21 +193,22 @@ func ExecutePowershellCommand(command string, logger *zap.Logger) (string, error
 
 // SetSdnRemoteArpMacAddress sets the regkey for SDNRemoteArpMacAddress needed for multitenancy
 func SetSdnRemoteArpMacAddress() error {
+	p := NewExecClient(nil)
 	if sdnRemoteArpMacAddressSet == false {
-		result, err := ExecutePowershellCommand(GetSdnRemoteArpMacAddressCommand, nil)
+		result, err := p.ExecutePowershellCommand(GetSdnRemoteArpMacAddressCommand)
 		if err != nil {
 			return err
 		}
 
 		// Set the reg key if not already set or has incorrect value
 		if result != SDNRemoteArpMacAddress {
-			if _, err = ExecutePowershellCommand(SetSdnRemoteArpMacAddressCommand, nil); err != nil {
+			if _, err = p.ExecutePowershellCommand(SetSdnRemoteArpMacAddressCommand); err != nil {
 				log.Printf("Failed to set SDNRemoteArpMacAddress due to error %s", err.Error())
 				return err
 			}
 
 			log.Printf("[Azure CNS] SDNRemoteArpMacAddress regKey set successfully. Restarting hns service.")
-			if _, err := ExecutePowershellCommand(RestartHnsServiceCommand, nil); err != nil {
+			if _, err := p.ExecutePowershellCommand(RestartHnsServiceCommand); err != nil {
 				log.Printf("Failed to Restart HNS Service due to error %s", err.Error())
 				return err
 			}

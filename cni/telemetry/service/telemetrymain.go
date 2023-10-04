@@ -127,7 +127,7 @@ func main() {
 
 	logger.Info("Config path", zap.String("path", configPath))
 
-	config, err = telemetry.ReadConfigFile(configPath)
+	config, err = tb.ReadConfigFile(configPath)
 	if err != nil {
 		logger.Error("Error reading telemetry config", zap.Error(err))
 	}
