@@ -152,7 +152,7 @@ func (nm *networkManager) restore(isRehydrationRequired bool) error {
 	}
 
 	if isRehydrationRequired {
-		var p = platform.NewExecClient(logger)
+		p := platform.NewExecClient(logger)
 		modTime, err := nm.store.GetModificationTime()
 		if err == nil {
 			rebootTime, err := p.GetLastRebootTime()
