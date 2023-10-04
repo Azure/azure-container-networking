@@ -158,8 +158,8 @@ stages:
           hybridWin: true
           service: true
           hostport: true
-      - job: logs
-        displayName: "Log Failure"
+      - job: failedE2ELogs
+        displayName: "Failure Logs"
         dependsOn:
           - update_cni
           - npm_k8se2e
@@ -195,7 +195,7 @@ stages:
               parameters:
                 clusterName: ${{ parameters.clusterName }}-$(commitID)
                 cni: cniv1
-        - job: deploy_pods
+        - job: deploy_podsHNS
           displayName: "Scale Test"
           dependsOn: restart_hns
           steps:
@@ -211,9 +211,9 @@ stages:
                 clusterName: ${{ parameters.clusterName }}-$(commitID)
                 os: ${{ parameters.os }}
                 cni: cniv1
-        - job: restart_nodes
+        - job: restart_nodesHNS
           displayName: "Restart Test"
-          dependsOn: deploy_pods
+          dependsOn: deploy_podsHNS
           steps:
             - template: ../load-test-templates/restart-node-template.yaml
               parameters:
@@ -229,7 +229,7 @@ stages:
                 restartCase: "true"
         - job: recover
           displayName: "Recover Resources"
-          dependsOn: restart_nodes
+          dependsOn: restart_nodesHNS
           steps:
             - task: AzureCLI@1
               inputs:
@@ -257,12 +257,12 @@ stages:
             hybridWin: true
             service: true
             hostport: true
-        - job: logs
-          displayName: "Log Failure"
+        - job: failedE2ELogsHNS
+          displayName: "Failure Logs"
           dependsOn:
             - restart_hns
-            - restart_nodes
-            - deploy_pods
+            - restart_nodesHNS
+            - deploy_podsHNS
             - recover
             - cni_${{ parameters.os }}
           condition: failed()

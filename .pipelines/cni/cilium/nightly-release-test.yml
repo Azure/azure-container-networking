@@ -89,7 +89,7 @@ stages:
             testDropgz: ""
             clusterName: ciliumnightly-$(commitID)
       - job: logs
-        displayName: "Log Failure"
+        displayName: "Failure Logs"
         dependsOn:
           - cilium_nightly
         condition: failed()

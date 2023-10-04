@@ -59,8 +59,8 @@ stages:
               testDropgz: ${{ parameters.testDropgz }}
               clusterName: ${{ parameters.clusterName }}-$(commitID)
 
-      - job: logs
-        displayName: "Log Failure"
+      - job: failedE2ELogs
+        displayName: "Failure Logs"
         dependsOn:
           - ${{ parameters.name }}
         condition: failed()

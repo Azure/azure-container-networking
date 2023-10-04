@@ -82,8 +82,8 @@ stages:
           hostport: true
           dependsOn: ${{ parameters.name }}
 
-      - job: logs
-        displayName: "Log Failure"
+      - job: failedE2ELogs
+        displayName: "Failure Logs"
         dependsOn:
           - ${{ parameters.name }}
           - cni_${{ parameters.os }}

@@ -166,8 +166,8 @@ stages:
           portforward: true
           service: true
           hostport: true
-      - job: logs
-        displayName: "Log Failure"
+      - job: failedE2ELogs
+        displayName: "Failure Logs"
         dependsOn:
           - integration
           - npm_k8se2e
