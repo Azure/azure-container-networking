@@ -77,7 +77,7 @@ func GetTestResources() *NetPlugin {
 	plugin.report = &telemetry.CNIReport{}
 	mockNetworkManager := acnnetwork.NewMockNetworkmanager()
 	plugin.nm = mockNetworkManager
-	plugin.ipamInvoker = NewMockIpamInvoker(isIPv6, false, false)
+	plugin.ipamInvoker = NewMockIpamInvoker(isIPv6, false, false, false, false)
 	return plugin
 }
 
@@ -375,9 +375,9 @@ func TestIpamAddFail(t *testing.T) {
 			for i, method := range tt.methods {
 				fmt.Println("method", method, "wanterr", tt.wantErr[i])
 				if tt.wantErr[i] {
-					plugin.ipamInvoker = NewMockIpamInvoker(false, true, false)
+					plugin.ipamInvoker = NewMockIpamInvoker(false, true, false, false, false)
 				} else {
-					plugin.ipamInvoker = NewMockIpamInvoker(false, false, false)
+					plugin.ipamInvoker = NewMockIpamInvoker(false, false, false, false, false)
 				}
 
 				if method == CNI_ADD {
@@ -430,7 +430,7 @@ func TestIpamDeleteFail(t *testing.T) {
 			err := plugin.Add(tt.args)
 			require.NoError(t, err)
 
-			plugin.ipamInvoker = NewMockIpamInvoker(false, true, false)
+			plugin.ipamInvoker = NewMockIpamInvoker(false, true, false, false, false)
 			err = plugin.Delete(args)
 			if tt.wantErr {
 				require.Error(t, err)
@@ -460,7 +460,7 @@ func TestAddDualStack(t *testing.T) {
 			plugin: &NetPlugin{
 				Plugin:      cniPlugin,
 				nm:          acnnetwork.NewMockNetworkmanager(),
-				ipamInvoker: NewMockIpamInvoker(true, false, false),
+				ipamInvoker: NewMockIpamInvoker(true, false, false, false, false),
 				report:      &telemetry.CNIReport{},
 				tb:          &telemetry.TelemetryBuffer{},
 			},
@@ -471,7 +471,7 @@ func TestAddDualStack(t *testing.T) {
 			plugin: &NetPlugin{
 				Plugin:      cniPlugin,
 				nm:          acnnetwork.NewMockNetworkmanager(),
-				ipamInvoker: NewMockIpamInvoker(true, false, true),
+				ipamInvoker: NewMockIpamInvoker(true, false, true, false, false),
 				report:      &telemetry.CNIReport{},
 				tb:          &telemetry.TelemetryBuffer{},
 			},
@@ -517,7 +517,7 @@ func TestPluginGet(t *testing.T) {
 			plugin: &NetPlugin{
 				Plugin:      plugin,
 				nm:          acnnetwork.NewMockNetworkmanager(),
-				ipamInvoker: NewMockIpamInvoker(false, false, false),
+				ipamInvoker: NewMockIpamInvoker(false, false, false, false, false),
 				report:      &telemetry.CNIReport{},
 				tb:          &telemetry.TelemetryBuffer{},
 			},
@@ -529,7 +529,7 @@ func TestPluginGet(t *testing.T) {
 			plugin: &NetPlugin{
 				Plugin:      plugin,
 				nm:          acnnetwork.NewMockNetworkmanager(),
-				ipamInvoker: NewMockIpamInvoker(false, false, false),
+				ipamInvoker: NewMockIpamInvoker(false, false, false, false, false),
 				report:      &telemetry.CNIReport{},
 				tb:          &telemetry.TelemetryBuffer{},
 			},
@@ -542,7 +542,7 @@ func TestPluginGet(t *testing.T) {
 			plugin: &NetPlugin{
 				Plugin:      plugin,
 				nm:          acnnetwork.NewMockNetworkmanager(),
-				ipamInvoker: NewMockIpamInvoker(false, false, false),
+				ipamInvoker: NewMockIpamInvoker(false, false, false, false, false),
 				report:      &telemetry.CNIReport{},
 				tb:          &telemetry.TelemetryBuffer{},
 			},
@@ -1101,5 +1101,77 @@ func TestGetPodSubnetNatInfo(t *testing.T) {
 		}, "invalid windows podsubnet natInfo")
 	} else {
 		require.Empty(t, natInfo, "linux podsubnet natInfo should be empty")
+	}
+}
+
+func TestPluginSwiftV2Add(t *testing.T) {
+	plugin, _ := cni.NewPlugin("name", "0.3.0")
+
+	localNwCfg := cni.NetworkConfig{
+		CNIVersion:                 "0.3.0",
+		Name:                       "swiftv2",
+		ExecutionMode:              string(util.V4Overlay),
+		EnableExactMatchForPodName: true,
+		Master:                     "eth0",
+	}
+
+	tests := []struct {
+		name       string
+		plugin     *NetPlugin
+		args       *cniSkel.CmdArgs
+		wantErr    bool
+		wantErrMsg string
+	}{
+		{
+			name: "SwiftV2 Add Happy path",
+			plugin: &NetPlugin{
+				Plugin:      plugin,
+				nm:          acnnetwork.NewMockNetworkmanager(),
+				ipamInvoker: NewMockIpamInvoker(false, false, false, true, false),
+				report:      &telemetry.CNIReport{},
+				tb:          &telemetry.TelemetryBuffer{},
+			},
+			args: &cniSkel.CmdArgs{
+				StdinData:   localNwCfg.Serialize(),
+				ContainerID: "test-container",
+				Netns:       "test-container",
+				Args:        fmt.Sprintf("K8S_POD_NAME=%v;K8S_POD_NAMESPACE=%v", "test-pod", "test-pod-ns"),
+				IfName:      eth0IfName,
+			},
+			wantErr: false,
+		},
+		{
+			name: "SwiftV2 Add fail",
+			plugin: &NetPlugin{
+				Plugin:      plugin,
+				nm:          acnnetwork.NewMockNetworkmanager(),
+				ipamInvoker: NewMockIpamInvoker(false, false, false, true, true),
+				report:      &telemetry.CNIReport{},
+				tb:          &telemetry.TelemetryBuffer{},
+			},
+			args: &cniSkel.CmdArgs{
+				StdinData:   localNwCfg.Serialize(),
+				ContainerID: "test-container",
+				Netns:       "test-container",
+				Args:        fmt.Sprintf("K8S_POD_NAME=%v;K8S_POD_NAMESPACE=%v", "test-pod", "test-pod-ns"),
+				IfName:      eth0IfName,
+			},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.plugin.Add(tt.args)
+			if tt.wantErr {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.wantErrMsg, "Expected %v but got %+v", tt.wantErrMsg, err.Error())
+			} else {
+				require.NoError(t, err)
+				endpoints, _ := tt.plugin.nm.GetAllEndpoints(localNwCfg.Name)
+				require.Condition(t, assert.Comparison(func() bool { return len(endpoints) == 1 }))
+			}
+		})
 	}
 }
