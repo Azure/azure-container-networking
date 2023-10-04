@@ -132,6 +132,10 @@ func (p *execClient) ClearNetworkConfiguration() (bool, error) {
 	return false, nil
 }
 
+func (p *execClient) ExecutePowershellCommand(command string) (string, error) {
+	return "", nil
+}
+
 func KillProcessByName(processName string) error {
 	p := NewExecClient(nil)
 	cmd := fmt.Sprintf("pkill -f %v", processName)
