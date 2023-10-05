@@ -44,6 +44,7 @@ type cnsDetails struct {
 	initContainerVolumeMounts []corev1.VolumeMount
 	containerVolumeMounts     []corev1.VolumeMount
 	configMapPath             string
+	installIPMasqAgent        bool
 }
 
 const (
@@ -181,6 +182,31 @@ func MustCreateNamespace(ctx context.Context, clienset *kubernetes.Clientset, na
 	}
 }
 
+func InstallIPMasqAgent(ctx context.Context, clientset *kubernetes.Clientset) error {
+	manifestDir, err := getManifestFolder()
+	if err != nil {
+		return errors.Wrap(err, "failed to get manifest folder")
+	}
+
+	ipMasqAgentDir := path.Join(manifestDir, "/ip-masq-agent")
+	customConfigPath := path.Join(ipMasqAgentDir, "/config-custom.yaml")
+	reconcileConfigPath := path.Join(ipMasqAgentDir, "/config-reconcile.yaml")
+	daemonsetPath := path.Join(ipMasqAgentDir, "/ip-masq-agent.yaml")
+
+	MustSetupConfigMap(ctx, clientset, customConfigPath)
+	MustSetupConfigMap(ctx, clientset, reconcileConfigPath)
+
+	ds := MustParseDaemonSet(daemonsetPath)
+	dsClient := clientset.AppsV1().DaemonSets(ds.Namespace)
+	MustCreateDaemonset(ctx, dsClient, ds)
+
+	if err := WaitForPodDaemonset(ctx, clientset, ds.Namespace, ds.Name, "k8s-app=azure-ip-masq-agent-user"); err != nil {
+		return errors.Wrap(err, "failed to check daemonset running")
+	}
+
+	return nil
+}
+
 func InstallCNSDaemonset(ctx context.Context, clientset *kubernetes.Clientset, logDir string) (func() error, error) {
 	cniDropgzVersion := os.Getenv(envCNIDropgzVersion)
 	cnsVersion := os.Getenv(envCNSVersion)
@@ -257,14 +283,24 @@ func RestartCNSDaemonset(ctx context.Context, clientset *kubernetes.Clientset) e
 	return nil
 }
 
-func initCNSScenarioVars() (map[CNSScenario]map[corev1.OSName]cnsDetails, error) {
+func getManifestFolder() (string, error) {
 	_, b, _, ok := runtime.Caller(0)
 	if !ok {
-		return map[CNSScenario]map[corev1.OSName]cnsDetails{}, errors.Wrap(ErrPathNotFound, "could not get path to caller")
+		return "", errors.Wrap(ErrPathNotFound, "could not get path to caller")
 	}
 	basepath := filepath.Dir(b)
-	cnsManifestFolder := path.Join(basepath, "../../integration/manifests/cns")
-	cnsConfigFolder := path.Join(basepath, "../../integration/manifests/cnsconfig")
+	manifestFolder := path.Join(basepath, "../../integration/manifests")
+	return manifestFolder, nil
+}
+
+func initCNSScenarioVars() (map[CNSScenario]map[corev1.OSName]cnsDetails, error) {
+	manifestDir, err := getManifestFolder()
+	if err != nil {
+		return map[CNSScenario]map[corev1.OSName]cnsDetails{}, errors.Wrap(err, "failed to get manifest folder")
+	}
+
+	cnsManifestFolder := path.Join(manifestDir, "/cns")
+	cnsConfigFolder := path.Join(manifestDir, "/cnsconfig")
 
 	// relative cns manifest paths
 	cnsLinuxDaemonSetPath := cnsManifestFolder + "/daemonset-linux.yaml"
@@ -297,7 +333,8 @@ func initCNSScenarioVars() (map[CNSScenario]map[corev1.OSName]cnsDetails, error)
 					"-o", "/opt/cni/bin/azure-vnet-telemetry", "azure-vnet-ipam", "-o", "/opt/cni/bin/azure-vnet-ipam",
 					"azure-swift.conflist", "-o", "/etc/cni/net.d/10-azure.conflist",
 				},
-				configMapPath: cnsSwiftConfigMapPath,
+				configMapPath:      cnsSwiftConfigMapPath,
+				installIPMasqAgent: false,
 			},
 		},
 		EnvInstallAzilium: {
@@ -312,7 +349,8 @@ func initCNSScenarioVars() (map[CNSScenario]map[corev1.OSName]cnsDetails, error)
 				initContainerArgs: []string{
 					"deploy", "azure-ipam", "-o", "/opt/cni/bin/azure-ipam",
 				},
-				configMapPath: cnsCiliumConfigMapPath,
+				configMapPath:      cnsCiliumConfigMapPath,
+				installIPMasqAgent: false,
 			},
 		},
 		EnvInstallOverlay: {
@@ -327,7 +365,8 @@ func initCNSScenarioVars() (map[CNSScenario]map[corev1.OSName]cnsDetails, error)
 				initContainerArgs: []string{
 					"deploy", "azure-ipam", "-o", "/opt/cni/bin/azure-ipam",
 				},
-				configMapPath: cnsOverlayConfigMapPath,
+				configMapPath:      cnsOverlayConfigMapPath,
+				installIPMasqAgent: true,
 			},
 		},
 		EnvInstallAzureCNIOverlay: {
@@ -346,6 +385,7 @@ func initCNSScenarioVars() (map[CNSScenario]map[corev1.OSName]cnsDetails, error)
 				initContainerVolumeMounts: dropgzVolumeMountsForAzureCNIOverlayLinux(),
 				containerVolumeMounts:     cnsVolumeMountsForAzureCNIOverlayLinux(),
 				configMapPath:             cnsAzureCNIOverlayLinuxConfigMapPath,
+				installIPMasqAgent:        true,
 			},
 			corev1.Windows: {
 				daemonsetPath:          cnsWindowsDaemonSetPath,
@@ -362,6 +402,7 @@ func initCNSScenarioVars() (map[CNSScenario]map[corev1.OSName]cnsDetails, error)
 				initContainerVolumeMounts: dropgzVolumeMountsForAzureCNIOverlayWindows(),
 				containerVolumeMounts:     cnsVolumeMountsForAzureCNIOverlayWindows(),
 				configMapPath:             cnsAzureCNIOverlayWindowsConfigMapPath,
+				installIPMasqAgent:        true,
 			},
 		},
 		EnvInstallDualStackOverlay: {
@@ -378,7 +419,8 @@ func initCNSScenarioVars() (map[CNSScenario]map[corev1.OSName]cnsDetails, error)
 					"azure-vnet-telemetry", "-o", "/opt/cni/bin/azure-vnet-telemetry", "azure-vnet-ipam", "-o",
 					"/opt/cni/bin/azure-vnet-ipam", "azure-swift-overlay-dualstack.conflist", "-o", "/etc/cni/net.d/10-azure.conflist",
 				},
-				configMapPath: cnsSwiftConfigMapPath,
+				configMapPath:      cnsSwiftConfigMapPath,
+				installIPMasqAgent: true,
 			},
 			corev1.Windows: {
 				daemonsetPath:          cnsWindowsDaemonSetPath,
@@ -395,6 +437,7 @@ func initCNSScenarioVars() (map[CNSScenario]map[corev1.OSName]cnsDetails, error)
 				initContainerVolumeMounts: dropgzVolumeMountsForAzureCNIOverlayWindows(),
 				containerVolumeMounts:     cnsVolumeMountsForAzureCNIOverlayWindows(),
 				configMapPath:             cnsAzureCNIDualStackWindowsConfigMapPath,
+				installIPMasqAgent:        true,
 			},
 		},
 	}
@@ -427,6 +470,13 @@ func setupCNSDaemonset(
 	cns, cnsScenarioDetails, err := parseCNSDaemonset(cnsVersion, cniDropgzVersion, cnsScenarioMap, nodeOS)
 	if err != nil {
 		return appsv1.DaemonSet{}, cnsDetails{}, errors.Wrap(err, "failed to parse cns daemonset")
+	}
+
+	if cnsScenarioDetails.installIPMasqAgent {
+		log.Printf("Installing IP Masq Agent")
+		if err := InstallIPMasqAgent(ctx, clientset); err != nil {
+			return appsv1.DaemonSet{}, cnsDetails{}, errors.Wrap(err, "failed to install ip masq agent")
+		}
 	}
 
 	log.Printf("Installing CNS with image %s", cns.Spec.Template.Spec.Containers[0].Image)

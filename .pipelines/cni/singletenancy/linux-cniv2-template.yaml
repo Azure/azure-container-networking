@@ -63,13 +63,8 @@ stages:
                 addSpnToEnvironment: true
                 inlineScript: |
                   echo "Start Integration Tests on Overlay Cluster"
-                  echo "deploy ip-masq-agent for overlay"
                   make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}-$(commitID)
-                  kubectl apply -f test/integration/manifests/ip-masq-agent/ip-masq-agent.yaml --validate=false
-                  cd test/integration/manifests/ip-masq-agent/
-                  kubectl apply -f config-custom.yaml
-                  kubectl apply -f config-reconcile.yaml
-                  cd ../../../..
+                  kubectl cluster-info
                   kubectl get po -owide -A
                   sudo -E env "PATH=$PATH" make test-integration CNS_VERSION=$(cnsVersion) CNI_DROPGZ_VERSION=$(dropgzVersion) INSTALL_CNS=true INSTALL_AZURE_CNI_OVERLAY=true TEST_DROPGZ=${{ parameters.testDropgz }}
               name: "overlaye2e"
