@@ -39,7 +39,7 @@ func NewSecondaryEndpointClient(
 	return client
 }
 
-func (client *SecondaryEndpointClient) AddEndpoints(epInfo *EndpointInfo) error {
+func (client *SecondaryEndpointClient) AddEndpoints(epInfo *EndpointInfo, _ *endpoint) error {
 	iface, err := client.netioshim.GetNetworkInterfaceByMac(epInfo.MacAddress)
 	if err != nil {
 		return newErrorSecondaryEndpointClient(err)
