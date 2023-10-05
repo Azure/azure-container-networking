@@ -49,7 +49,6 @@ type network struct {
 	VlanId           int
 	Subnets          []SubnetInfo
 	Endpoints        map[string]*endpoint
-	plClient         platform.ExecClient
 	extIf            *externalInterface
 	DNS              DNSInfo
 	EnableSnatOnHost bool

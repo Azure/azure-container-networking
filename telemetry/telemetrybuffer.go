@@ -347,7 +347,7 @@ func ReadConfigFile(filePath string) (TelemetryConfig, error) {
 	}
 
 	if err = json.Unmarshal(b, &config); err != nil {
-		return config, err
+		return config, err // nolint
 	}
 
 	return config, err
