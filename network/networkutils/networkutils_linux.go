@@ -201,7 +201,7 @@ func BlockIPAddresses(bridgeName, action string) error {
 }
 
 // This fucntion enables ip forwarding in VM and allow forwarding packets from the interface
-func (nu NetworkUtils) EnableIPForwarding(ifName string) error {
+func (nu NetworkUtils) EnableIPForwarding() error {
 	// Enable ip forwading on linux vm.
 	// sysctl -w net.ipv4.ip_forward=1
 	cmd := fmt.Sprint(enableIPForwardCmd)
