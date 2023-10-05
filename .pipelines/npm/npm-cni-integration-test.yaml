@@ -11,7 +11,7 @@ jobs:
   - job: npm_k8se2e
     displayName: "NPM k8s E2E"
     dependsOn: ${{ parameters.dependsOn }}
-    condition: and( and( not(canceled()), not(failed()) ), ${{ or(contains(parameters.os_version, '2022'), eq(parameters.os, 'linux') ) }} , or( contains(variables.SCENARIO, 'npm') , contains(variables.SCENARIO, 'all') ) )
+    condition: and( and( not(canceled()), not(failed()) ), ${{ or(contains(parameters.os_version, '2022'), eq(parameters.os, 'linux') ) }} , or( contains(variables.CONTROL_SCENARIO, 'npm') , contains(variables.CONTROL_SCENARIO, 'all') ) )
     pool:
       name: $(BUILD_POOL_NAME_DEFAULT)
       demands:

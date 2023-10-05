@@ -25,7 +25,7 @@ parameters:
 stages:
   - ${{ if eq(parameters.os, 'linux') }}:
     - stage: create_${{ parameters.name }}
-      condition: and( succeeded(), or( and( contains(variables.CNI, 'cniv1'), contains(variables.OS, 'linux') ) , contains(variables.CNI, 'all') ) )
+      condition: and( succeeded(), or( and( contains(variables.CONTROL_CNI, 'cniv1'), contains(variables.CONTROL_OS, 'linux') ) , contains(variables.CONTROL_CNI, 'all') ) )
       variables:
         commitID: $[ stagedependencies.setup.env.outputs['SetEnvVars.commitID'] ]
         npmVersion: $[ stagedependencies.setup.env.outputs['SetEnvVars.npmVersion'] ]
@@ -48,7 +48,7 @@ stages:
                 osSKU: ${{ parameters.osSKU }}
   - ${{ if eq(parameters.os, 'windows') }}:
     - stage: create_${{ parameters.name }}
-      condition: and( succeeded(), or( and( contains(variables.CNI, 'cniv1'), contains(variables.OS, 'windows') ) , contains(variables.CNI, 'all') ) )
+      condition: and( succeeded(), or( and( contains(variables.CONTROL_CNI, 'cniv1'), contains(variables.CONTROL_OS, 'windows') ) , contains(variables.CONTROL_CNI, 'all') ) )
       variables:
         commitID: $[ stagedependencies.setup.env.outputs['SetEnvVars.commitID'] ]
         npmVersion: $[ stagedependencies.setup.env.outputs['SetEnvVars.npmVersion'] ]
@@ -120,7 +120,7 @@ stages:
           tag: $(npmVersion)
           dependsOn: update_cni
       - job: deploy_pods
-        condition: and( and( not(canceled()), not(failed()) ), or( contains(variables.SCENARIO, 'scaleTest') , contains(variables.SCENARIO, 'all') ) )
+        condition: and( and( not(canceled()), not(failed()) ), or( contains(variables.CONTROL_SCENARIO, 'scaleTest') , contains(variables.CONTROL_SCENARIO, 'all') ) )
         displayName: "Scale Test"
         dependsOn: npm_k8se2e
         steps:
@@ -138,7 +138,7 @@ stages:
               os: ${{ parameters.os }}
               cni: cniv1
       - job: restart_nodes
-        condition: and( and( not(canceled()), not(failed()) ), or( contains(variables.SCENARIO, 'restartNode') , contains(variables.SCENARIO, 'all') ) )
+        condition: and( and( not(canceled()), not(failed()) ), or( contains(variables.CONTROL_SCENARIO, 'restartNode') , contains(variables.CONTROL_SCENARIO, 'all') ) )
         displayName: "Restart Test"
         dependsOn: deploy_pods
         steps:
@@ -225,7 +225,7 @@ stages:
                 clusterName: ${{ parameters.clusterName }}-$(commitID)
                 cni: cniv1
         - job: deploy_podsHNS
-          condition: and( and( not(canceled()), not(failed()) ), or( contains(variables.SCENARIO, 'scaleTest') , contains(variables.SCENARIO, 'all') ) )
+          condition: and( and( not(canceled()), not(failed()) ), or( contains(variables.CONTROL_SCENARIO, 'scaleTest') , contains(variables.CONTROL_SCENARIO, 'all') ) )
           displayName: "Scale Test"
           dependsOn: restart_hns
           steps:
@@ -243,7 +243,7 @@ stages:
                 os: ${{ parameters.os }}
                 cni: cniv1
         - job: restart_nodesHNS
-          condition: and( and( not(canceled()), not(failed()) ), or( contains(variables.SCENARIO, 'restartNode') , contains(variables.SCENARIO, 'all') ) )
+          condition: and( and( not(canceled()), not(failed()) ), or( contains(variables.CONTROL_SCENARIO, 'restartNode') , contains(variables.CONTROL_SCENARIO, 'all') ) )
           displayName: "Restart Test"
           dependsOn: deploy_podsHNS
           steps:
