@@ -379,6 +379,7 @@ stages:
     parameters:
       name: "azure_overlay_e2e"
       displayName: Azure Overlay
+      os: linux
       testDropgz: ""
       clusterType: overlay-byocni-up
       clusterName: "azureoverlaye2e"
@@ -390,6 +391,7 @@ stages:
     parameters:
       name: "azure_overlay_cni_e2e"
       displayName: CNI - Azure Overlay
+      os: linux
       testDropgz: true
       clusterType: overlay-byocni-up
       clusterName: "azureoverlaycnie2e"

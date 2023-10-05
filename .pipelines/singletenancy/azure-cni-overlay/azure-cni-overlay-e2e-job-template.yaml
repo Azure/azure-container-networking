@@ -60,10 +60,36 @@ stages:
               testDropgz: ${{ parameters.testDropgz }}
               clusterName: ${{ parameters.clusterName }}-$(commitID)
 
+      - template: ../../cni/k8s-e2e/k8s-e2e-job-template.yaml
+        parameters:
+          sub: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+          clusterName: ${{ parameters.clusterName }}-$(commitID)
+          os: ${{ parameters.os }}
+          dependsOn: ${{ parameters.name }}
+          dns: true
+          portforward: true
+          hostport: true
+          service: true
+
+      - template: ../../cni/k8s-e2e/k8s-e2e-job-template.yaml
+        parameters:
+          sub: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+          clusterName: ${{ parameters.clusterName }}-$(commitID)
+          os: windows
+          dependsOn: cni_${{ parameters.os }}
+          dns: true
+          portforward: true
+          hostport: true
+          service: true
+          hybridWin: true
+          datapath: true
+
       - job: logs
         displayName: "Log Failure"
         dependsOn:
           - ${{ parameters.name }}
+          - cni_${{ parameters.os }}
+          - cni_windows
         condition: failed()
         steps:
           - template: ../../templates/log-template.yaml
@@ -71,3 +97,4 @@ stages:
               clusterName: ${{ parameters.clusterName }}-$(commitID)
               os: ${{ parameters.os }}
               cni: cniv2
+
