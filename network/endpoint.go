@@ -86,6 +86,7 @@ type EndpointInfo struct {
 	VnetCidrs                string
 	ServiceCidrs             string
 	NATInfo                  []policy.NATInfo
+	HNSEndpointID            string
 }
 
 // RouteInfo contains information about an IP route.
