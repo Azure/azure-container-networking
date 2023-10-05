@@ -48,3 +48,7 @@ func (e *MockExecClient) ExecutePowershellCommand(_ string) (string, error) {
 func (e *MockExecClient) GetLastRebootTime() (time.Time, error) {
 	return time.Time{}, nil
 }
+
+func (e *MockExecClient) KillProcessByName(_ string) error {
+	return nil
+}
