@@ -205,7 +205,7 @@ var _ = Describe("Test Endpoint", func() {
 			It("Should be not added", func() {
 				// Adding an endpoint with an id.
 				mockCli := NewMockEndpointClient(false)
-				err := mockCli.AddEndpoints(epInfo)
+				err := mockCli.AddEndpoints(epInfo, nil)
 				Expect(err).ToNot(HaveOccurred())
 				// Adding endpoint with same id should fail and delete should cleanup the state
 				ep2, err := nw.newEndpointImpl(nil, netlink.NewMockNetlink(false, ""), platform.NewMockExecClient(false),
