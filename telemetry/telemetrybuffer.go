@@ -343,12 +343,10 @@ func ReadConfigFile(filePath string) (TelemetryConfig, error) {
 
 	b, err := os.ReadFile(filePath)
 	if err != nil {
-		log.Logf("[Telemetry] Failed to read telemetry config: %v", err)
 		return config, err
 	}
 
 	if err = json.Unmarshal(b, &config); err != nil {
-		log.Logf("[Telemetry] unmarshal failed with %v", err)
 	}
 
 	return config, err

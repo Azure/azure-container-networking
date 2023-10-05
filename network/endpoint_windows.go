@@ -9,7 +9,6 @@ import (
 	"net"
 	"strings"
 
-	zaplog "github.com/Azure/azure-container-networking/cni/log"
 	"github.com/Azure/azure-container-networking/netio"
 	"github.com/Azure/azure-container-networking/netlink"
 	"github.com/Azure/azure-container-networking/network/policy"
@@ -185,9 +184,7 @@ func (nw *network) addIPv6NeighborEntryForGateway(epInfo *EndpointInfo) error {
 		cmd := fmt.Sprintf("New-NetNeighbor -IPAddress %s -InterfaceAlias \"%s (%s)\" -LinkLayerAddress \"%s\"",
 			nw.Subnets[1].Gateway.String(), containerIfNamePrefix, epInfo.Id, defaultGwMac)
 
-		platformLogger := zaplog.CNILogger.With(zap.String("component", "cni-platform-windows"))
-		p := platform.NewExecClient(platformLogger)
-		if out, err = p.ExecutePowershellCommand(cmd); err != nil {
+		if out, err = nw.plClient.ExecutePowershellCommand(cmd); err != nil {
 			logger.Error("Adding ipv6 gw neigh entry failed", zap.Any("out", out), zap.Error(err))
 			return err
 		}
