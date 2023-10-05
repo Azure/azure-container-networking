@@ -123,7 +123,7 @@ func TestTransAddEndpoints(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			err := tt.client.AddEndpoints(tt.epInfo)
+			err := tt.client.AddEndpoints(tt.epInfo, &endpoint{})
 			if tt.wantErr {
 				require.Error(t, err)
 				require.Contains(t, tt.wantErrMsg, err.Error(), "Expected:%v actual:%v", tt.wantErrMsg, err.Error())

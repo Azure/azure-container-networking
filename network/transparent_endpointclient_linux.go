@@ -76,7 +76,7 @@ func (client *TransparentEndpointClient) setArpProxy(ifName string) error {
 	return err
 }
 
-func (client *TransparentEndpointClient) AddEndpoints(epInfo *EndpointInfo) error {
+func (client *TransparentEndpointClient) AddEndpoints(epInfo *EndpointInfo, ep *endpoint) error {
 	if _, err := client.netioshim.GetNetworkInterfaceByName(client.hostVethName); err == nil {
 		logger.Info("Deleting old host veth", zap.String("hostVethName", client.hostVethName))
 		if err = client.netlink.DeleteLink(client.hostVethName); err != nil {
@@ -113,6 +113,7 @@ func (client *TransparentEndpointClient) AddEndpoints(epInfo *EndpointInfo) erro
 	}
 
 	client.containerMac = containerIf.HardwareAddr
+	ep.MacAddress = containerIf.HardwareAddr
 
 	hostVethIf, err := client.netioshim.GetNetworkInterfaceByName(client.hostVethName)
 	if err != nil {
