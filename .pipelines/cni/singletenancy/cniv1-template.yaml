@@ -120,6 +120,7 @@ stages:
           tag: $(npmVersion)
           dependsOn: update_cni
       - job: deploy_pods
+        condition: and( and( not(canceled()), not(failed()) ), or( contains(variables.SCENARIO, 'scaleTest') , contains(variables.SCENARIO, 'all') ) )
         displayName: "Scale Test"
         dependsOn: npm_k8se2e
         steps:
@@ -137,6 +138,7 @@ stages:
               os: ${{ parameters.os }}
               cni: cniv1
       - job: restart_nodes
+        condition: and( and( not(canceled()), not(failed()) ), or( contains(variables.SCENARIO, 'restartNode') , contains(variables.SCENARIO, 'all') ) )
         displayName: "Restart Test"
         dependsOn: deploy_pods
         steps:
@@ -216,13 +218,14 @@ stages:
       jobs:
         - job: restart_hns
           displayName: "Restart and Validate HNS"
-          condition: and( succeeded(), ${{ eq(parameters.os, 'windows') }} )
+          condition: and( and( not(canceled()), not(failed()) ), ${{ eq(parameters.os, 'windows') }} )
           steps:
             - template: ../load-test-templates/restart-hns-template.yaml
               parameters:
                 clusterName: ${{ parameters.clusterName }}-$(commitID)
                 cni: cniv1
         - job: deploy_podsHNS
+          condition: and( and( not(canceled()), not(failed()) ), or( contains(variables.SCENARIO, 'scaleTest') , contains(variables.SCENARIO, 'all') ) )
           displayName: "Scale Test"
           dependsOn: restart_hns
           steps:
@@ -240,6 +243,7 @@ stages:
                 os: ${{ parameters.os }}
                 cni: cniv1
         - job: restart_nodesHNS
+          condition: and( and( not(canceled()), not(failed()) ), or( contains(variables.SCENARIO, 'restartNode') , contains(variables.SCENARIO, 'all') ) )
           displayName: "Restart Test"
           dependsOn: deploy_podsHNS
           steps:

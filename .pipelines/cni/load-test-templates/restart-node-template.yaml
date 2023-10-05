@@ -8,7 +8,6 @@ parameters:
 
 steps:
   - task: AzureCLI@1
-    condition: and( succeeded(), or( contains(variables.SCENARIO, 'restartNode') , contains(variables.SCENARIO, 'all') ) )
     inputs:
       azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
       scriptLocation: "inlineScript"

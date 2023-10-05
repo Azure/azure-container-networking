@@ -16,10 +16,6 @@ parameters:
 # + Pods should have ips assigned and connectivity/datapath test should be present.
 # + CNS restart and validates the state
 
-#  and( succeeded(),  or( and( contains(variables.RUN, 'cniv2'), contains(variables.RUN, ${{ parameters.os }} ) , contains(variables.RUN, 'all') ) ) )
-#  and( succeeded(),  or(  ...   , contains(variables.RUN, 'all') )
-#   and( contains(variables.RUN, 'cniv2'),
-#  contains(variables.RUN, ${{ parameters.os }} )
 stages:
   - ${{ if eq(parameters.os, 'linux') }}:
     - stage: create_${{ parameters.name }}
@@ -120,6 +116,7 @@ stages:
           dependsOn: integration
           continueOnError: true
       - job: deploy_pods
+        condition: and( and( not(canceled()), not(failed()) ), or( contains(variables.SCENARIO, 'scaleTest') , contains(variables.SCENARIO, 'all') ) )
         displayName: "Scale Test"
         dependsOn: npm_k8se2e
         steps:
@@ -137,6 +134,7 @@ stages:
               os: ${{ parameters.os }}
               cni: cniv2
       - job: restart_nodes
+        condition: and( and( not(canceled()), not(failed()) ), or( contains(variables.SCENARIO, 'restartNode') , contains(variables.SCENARIO, 'all') ) )
         displayName: "Restart Test"
         dependsOn: deploy_pods
         steps:
@@ -154,6 +152,7 @@ stages:
               cni: cniv2
               restartCase: "true"
       - job: restart_cns
+        condition: and( and( not(canceled()), not(failed()) ), or( contains(variables.SCENARIO, 'restartCNS') , contains(variables.SCENARIO, 'all') ) )
         displayName: "Restart and Validate CNS"
         dependsOn: restart_nodes
         steps:

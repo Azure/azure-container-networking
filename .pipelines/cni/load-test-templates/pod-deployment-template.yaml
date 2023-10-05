@@ -9,7 +9,6 @@ parameters:
 
 steps:
   - task: AzureCLI@1
-    condition: and( succeeded(), or( contains(variables.SCENARIO, 'scaleTest') , contains(variables.SCENARIO, 'all') ) )
     displayName: "Pod Deployment"
     inputs:
       azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
