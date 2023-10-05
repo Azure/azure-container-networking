@@ -23,7 +23,7 @@ parameters:
 stages:
   - ${{ if eq(parameters.os, 'linux') }}:
     - stage: create_${{ parameters.name }}
-      condition: and( succeeded(), or( and( contains(variables.RUN, 'cniv2'), contains(variables.OS, 'linux') ) , contains(variables.RUN, 'all') ) )
+      condition: and( succeeded(), or( and( contains(variables.CNI, 'cniv2'), contains(variables.OS, 'linux') ) , contains(variables.CNI, 'all') ) )
       variables:
         commitID: $[ stagedependencies.setup.env.outputs['SetEnvVars.commitID'] ]
       pool:
@@ -44,7 +44,7 @@ stages:
                 osSKU: ${{ parameters.osSKU }}
   - ${{ if eq(parameters.os, 'windows') }}:
     - stage: create_${{ parameters.name }}
-      condition: and( succeeded(), or( and( contains(variables.RUN, 'cniv2'), contains(variables.OS, 'windows') ) , contains(variables.RUN, 'all') ) )
+      condition: and( succeeded(), or( and( contains(variables.CNI, 'cniv2'), contains(variables.OS, 'windows') ) , contains(variables.CNI, 'all') ) )
       variables:
         commitID: $[ stagedependencies.setup.env.outputs['SetEnvVars.commitID'] ]
       pool:

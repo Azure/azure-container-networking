@@ -9,7 +9,7 @@ parameters:
 
 stages:
   - stage: create_${{ parameters.name }}
-    condition: and( succeeded(), or( contains(variables.RUN, 'cilium') , contains(variables.RUN, 'all') ) )
+    condition: and( succeeded(), or( contains(variables.CNI, 'cilium') , contains(variables.CNI, 'all') ) )
     variables:
       commitID: $[ stagedependencies.setup.env.outputs['SetEnvVars.commitID'] ]
     dependsOn:
