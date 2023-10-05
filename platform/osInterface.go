@@ -21,6 +21,7 @@ type ExecClient interface {
 	GetLastRebootTime() (time.Time, error)
 	ClearNetworkConfiguration() (bool, error)
 	ExecutePowershellCommand(command string) (string, error)
+	KillProcessByName(processName string) error
 }
 
 func NewExecClient(logger *zap.Logger) ExecClient {

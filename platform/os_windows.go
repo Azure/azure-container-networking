@@ -157,10 +157,11 @@ func (p *execClient) ClearNetworkConfiguration() (bool, error) {
 	return true, nil
 }
 
-func KillProcessByName(processName string) {
-	p := NewExecClient(nil)
+func (p *execClient) KillProcessByName(processName string) error {
+	newExecClient := NewExecClient(p.logger)
 	cmd := fmt.Sprintf("taskkill /IM %v /F", processName)
-	p.ExecuteCommand(cmd)
+	_, err := newExecClient.ExecuteCommand(cmd)
+	return err // nolint
 }
 
 // ExecutePowershellCommand executes powershell command

@@ -127,8 +127,7 @@ func main() {
 
 	logger.Info("Config path", zap.String("path", configPath))
 
-	tb = telemetry.NewTelemetryBuffer(logger)
-	config, err = tb.ReadConfigFile(configPath)
+	config, err = telemetry.ReadConfigFile(configPath)
 	if err != nil {
 		logger.Error("Error reading telemetry config", zap.Error(err))
 	}
@@ -143,6 +142,7 @@ func main() {
 	tbtemp := telemetry.NewTelemetryBuffer(logger)
 	tbtemp.Cleanup(telemetry.FdName)
 
+	tb = telemetry.NewTelemetryBuffer(logger)
 	for {
 		logger.Info("Starting telemetry server")
 		err = tb.StartServer()

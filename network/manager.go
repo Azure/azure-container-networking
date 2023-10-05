@@ -152,15 +152,14 @@ func (nm *networkManager) restore(isRehydrationRequired bool) error {
 	}
 
 	if isRehydrationRequired {
-		p := platform.NewExecClient(logger)
 		modTime, err := nm.store.GetModificationTime()
 		if err == nil {
-			rebootTime, err := p.GetLastRebootTime()
+			rebootTime, err := nm.plClient.GetLastRebootTime()
 			logger.Info("reboot time, store mod time", zap.Any("rebootTime", rebootTime), zap.Any("modTime", modTime))
 			if err == nil && rebootTime.After(modTime) {
 				logger.Info("Detected Reboot")
 				rebooted = true
-				if clearNwConfig, err := p.ClearNetworkConfiguration(); clearNwConfig {
+				if clearNwConfig, err := nm.plClient.ClearNetworkConfiguration(); clearNwConfig {
 					if err != nil {
 						logger.Error("Failed to clear network configuration", zap.Error(err))
 						return err

@@ -141,10 +141,8 @@ func TestReadConfigFile(t *testing.T) {
 
 	for _, tt := range tests {
 		tt := tt
-		telemetryLog := log.CNILogger.With(zap.String("component", "cni-telemetry"))
-		tb := NewTelemetryBuffer(telemetryLog)
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := tb.ReadConfigFile(tt.fileName)
+			got, err := ReadConfigFile(tt.fileName)
 			if tt.wantErr {
 				require.Error(t, err)
 				return
