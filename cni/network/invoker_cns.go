@@ -21,6 +21,10 @@ import (
 	"go.uber.org/zap"
 )
 
+const (
+	ExpectedNumInterfacesWithDefaultRoutes = 1
+)
+
 var (
 	errEmptyCNIArgs          = errors.New("empty CNI cmd args not allowed")
 	errInvalidArgs           = errors.New("invalid arg(s)")
@@ -142,7 +146,7 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 		}
 
 		logger.Info("Received info for pod",
-			zap.Any("ipinfo", info),
+			zap.Any("ipInfo", info),
 			zap.Any("podInfo", podInfo))
 
 		//nolint:exhaustive // ignore exhaustive types check
@@ -169,7 +173,7 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 	}
 
 	// Make sure default routes exist for 1 interface
-	if numInterfacesWithDefaultRoutes != 1 {
+	if numInterfacesWithDefaultRoutes != ExpectedNumInterfacesWithDefaultRoutes {
 		return IPAMAddResult{}, errInvalidDefaultRouting
 	}
 
