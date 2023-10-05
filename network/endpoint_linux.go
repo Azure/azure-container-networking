@@ -58,7 +58,6 @@ func (nw *network) newEndpointImpl(
 	epInfo []*EndpointInfo,
 ) (*endpoint, error) {
 	var (
-		containerIf   *net.Interface
 		err           error
 		hostIfName    string
 		contIfName    string
@@ -167,7 +166,7 @@ func (nw *network) newEndpointImpl(
 			// Cleanup on failure.
 			if err != nil {
 				logger.Error("CNI error. Delete Endpoint and rules that are created", zap.Error(err), zap.String("contIfName", contIfName))
-				if containerIf != nil {
+				if ep.MacAddress != nil {
 					client.DeleteEndpointRules(ep)
 				}
 				// set deleteHostVeth to true to cleanup host veth interface if created
@@ -178,17 +177,8 @@ func (nw *network) newEndpointImpl(
 
 		//nolint:wrapcheck // ignore wrap check
 		err = func() error {
-			if epErr := epClient.AddEndpoints(epInfo); epErr != nil {
+			if epErr := epClient.AddEndpoints(epInfo, ep); epErr != nil {
 				return epErr
-			}
-
-			if epInfo.NICType == cns.InfraNIC {
-				var epErr error
-				containerIf, epErr = netioCli.GetNetworkInterfaceByName(contIfName)
-				if epErr != nil {
-					return epErr
-				}
-				ep.MacAddress = containerIf.HardwareAddr
 			}
 
 			// Setup rules for IP addresses on the container interface.
