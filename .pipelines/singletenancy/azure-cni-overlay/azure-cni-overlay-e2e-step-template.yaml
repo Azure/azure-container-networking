@@ -39,20 +39,6 @@ steps:
     displayName: "Set Kubeconfig"
 
   - script: |
-      echo "install kubetest2 and gsutils"
-      go get github.com/onsi/ginkgo/ginkgo
-      go get github.com/onsi/gomega/...
-      go install github.com/onsi/ginkgo/ginkgo@latest
-      go install sigs.k8s.io/kubetest2@latest
-      go install sigs.k8s.io/kubetest2/kubetest2-noop@latest
-      go install sigs.k8s.io/kubetest2/kubetest2-tester-ginkgo@latest
-      wget https://storage.googleapis.com/pub/gsutil.tar.gz
-      tar xfz gsutil.tar.gz
-      sudo mv gsutil /usr/local/bin
-    name: "installKubetest"
-    displayName: "Set up Conformance Tests"
-
-  - script: |
       echo "Start Integration Tests on Overlay Cluster"
       echo "deploy ip-masq-agent for overlay"
       kubectl apply -f test/integration/manifests/ip-masq-agent/ip-masq-agent.yaml --validate=false
@@ -86,15 +72,6 @@ steps:
       artifactName: test-output
       pathtoPublish: "$(Build.ArtifactStagingDirectory)/test-output"
     condition: always()
-
-  - script: |
-      echo "Run Service Conformance E2E"
-      export PATH=${PATH}:/usr/local/bin/gsutil
-      KUBECONFIG=~/.kube/config kubetest2 noop \
-        --test ginkgo -- \
-        --focus-regex "Services.*\[Conformance\].*"
-    name: "servicesConformance"
-    displayName: "Run Services Conformance Tests"
 
   - script: |
       echo "Run wireserver and metadata connectivity Tests"

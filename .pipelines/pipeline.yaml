@@ -340,14 +340,15 @@ stages:
 
   - template: singletenancy/azure-cni-overlay/azure-cni-overlay-e2e-job-template.yaml
     parameters:
-      name: "azure_cni_overlay_e2e"
-      displayName: Azure CNI Overlay
+      name: "azure_overlay_e2e"
+      displayName: Azure Overlay
+      os: linux
       testDropgz: ""
       clusterType: overlay-byocni-up
       clusterName: "azurecnioverlaye2e"
       vmSize: Standard_B2ms
       k8sVersion: ""
-      dependsOn: 'containerize'
+      dependsOn: "containerize"
 
   - template: singletenancy/aks-swift/e2e-job-template.yaml
     parameters:
@@ -392,7 +393,7 @@ stages:
     condition: always()
     dependsOn:
       - setup
-      - "azure_cni_overlay_e2e"
+      - "azure_overlay_e2e"
       - "aks_swift_e2e"
       - "cilium_e2e"
       - "cilium_overlay_cilium_e2e"
@@ -413,8 +414,8 @@ stages:
             cilium_overlay_cilium_e2e:
               name: cilium_overlay_cilium_e2e
               clusterName: 'overlaye2e'
-            azure_cni_overlay_e2e:
-              name: azure_cni_overlay_e2e
+            azure_overlay_e2e:
+              name: azure_overlay_e2e
               clusterName: 'azurecnioverlaye2e'
             aks_swift_e2e:
               name: aks_swift_e2e
@@ -455,7 +456,7 @@ stages:
   - stage: cleanup
     displayName: Cleanup
     dependsOn:
-      - "azure_cni_overlay_e2e"
+      - "azure_overlay_e2e"
       - "aks_swift_e2e"
       - "cilium_e2e"
       - "cilium_overlay_cilium_e2e"
