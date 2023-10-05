@@ -111,7 +111,7 @@ func rootExecute() error {
 		}()
 
 		// Connect to the telemetry process.
-		tb = telemetry.NewTelemetryBuffer()
+		tb = telemetry.NewTelemetryBuffer(logger)
 		tb.ConnectToTelemetry()
 		defer tb.Close()
 
