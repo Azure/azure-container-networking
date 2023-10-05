@@ -64,6 +64,7 @@ ACNCLI_BUILD_DIR = $(BUILD_DIR)/acncli
 CNI_MULTITENANCY_BUILD_DIR = $(BUILD_DIR)/cni-multitenancy
 CNI_MULTITENANCY_TRANSPARENT_VLAN_BUILD_DIR = $(BUILD_DIR)/cni-multitenancy-transparent-vlan
 CNI_SWIFT_BUILD_DIR = $(BUILD_DIR)/cni-swift
+STATELESS_CNI_SWIFT_BUILD_DIR = $(CNI_SWIFT_BUILD_DIR)/stateless
 CNI_OVERLAY_BUILD_DIR = $(BUILD_DIR)/cni-overlay
 STATELESS_CNI_OVERLAY_BUILD_DIR = $(CNI_OVERLAY_BUILD_DIR)/stateless
 CNI_BAREMETAL_BUILD_DIR = $(BUILD_DIR)/cni-baremetal
@@ -682,6 +683,8 @@ endif
 	cp cni/azure-$(GOOS)-swift.conflist $(CNI_SWIFT_BUILD_DIR)/10-azure.conflist
 	cp telemetry/azure-vnet-telemetry.config $(CNI_SWIFT_BUILD_DIR)/azure-vnet-telemetry.config
 	cp $(CNI_BUILD_DIR)/azure-vnet$(EXE_EXT) $(CNI_BUILD_DIR)/azure-vnet-ipam$(EXE_EXT) $(CNI_BUILD_DIR)/azure-vnet-telemetry$(EXE_EXT) $(CNI_SWIFT_BUILD_DIR)
+	$(MKDIR) $(STATELESS_CNI_SWIFT_BUILD_DIR)
+	cp $(STATELESS_CNI_BUILD_DIR)/azure-vnet$(EXE_EXT) $(STATELESS_CNI_SWIFT_BUILD_DIR)
 	cd $(CNI_SWIFT_BUILD_DIR) && $(ARCHIVE_CMD) $(CNI_SWIFT_ARCHIVE_NAME) azure-vnet$(EXE_EXT) azure-vnet-ipam$(EXE_EXT) azure-vnet-telemetry$(EXE_EXT) 10-azure.conflist azure-vnet-telemetry.config
 
 	$(MKDIR) $(CNI_OVERLAY_BUILD_DIR)
