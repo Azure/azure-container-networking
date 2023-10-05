@@ -91,7 +91,7 @@ func TestExecuteCommand(t *testing.T) {
 }
 
 func TestExecuteCommandError(t *testing.T) {
-	_, err := NewExecClient().ExecuteCommand("dontaddtopath")
+	_, err := NewExecClient(nil).ExecuteCommand("dontaddtopath")
 	require.Error(t, err)
 
 	var xErr *exec.ExitError
