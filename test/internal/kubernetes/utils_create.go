@@ -51,10 +51,18 @@ const (
 	envTestDropgz           = "TEST_DROPGZ"
 	envCNIDropgzVersion     = "CNI_DROPGZ_VERSION"
 	envCNSVersion           = "CNS_VERSION"
+	envCNSImageRepo         = "CNS_IMAGE_REPO"
 	EnvInstallCNS           = "INSTALL_CNS"
 	cnsLinuxLabelSelector   = "k8s-app=azure-cns"
 	cnsWindowsLabelSelector = "k8s-app=azure-cns-win"
+	acnImageRepoURL         = "acnpublic.azurecr.io"
+	mcrImageRepoURL         = "mcr.microsoft.com/containernetworking"
 )
+
+var imageRepoURL = map[string]string{
+	"ACN": acnImageRepoURL,
+	"MCR": mcrImageRepoURL,
+}
 
 var (
 	ErrUnsupportedCNSScenario = errors.New("unsupported CNS scenario")
@@ -517,9 +525,14 @@ func parseCNSDaemonset(cnsVersion, cniDropgzVersion string,
 		}
 
 		cns := MustParseDaemonSet(cnsScenarioDetails.daemonsetPath)
+		_, image, _ := ParseImageString(cns.Spec.Template.Spec.Containers[0].Image)
+		url, key := imageRepoURL[os.Getenv(string(envCNSImageRepo))]
+		if !key {
+			log.Printf("%s not set to expected value \"ACN\", \"MCR\". Default to %s", envCNSImageRepo, imageRepoURL["ACN"])
+			url = imageRepoURL["ACN"]
+		}
 
-		image, _ := ParseImageString(cns.Spec.Template.Spec.Containers[0].Image)
-		cns.Spec.Template.Spec.Containers[0].Image = GetImageString(image, cnsVersion)
+		cns.Spec.Template.Spec.Containers[0].Image = GetImageString(url, image, cnsVersion)
 
 		log.Printf("Checking environment scenario")
 		cns = loadDropgzImage(cns, cniDropgzVersion)
@@ -546,12 +559,12 @@ func loadDropgzImage(cns appsv1.DaemonSet, dropgzVersion string) appsv1.DaemonSe
 	installFlag := os.Getenv(envTestDropgz)
 	if testDropgzScenario, err := strconv.ParseBool(installFlag); err == nil && testDropgzScenario {
 		log.Printf("Env %v set to true, deploy cniTest.Dockerfile", envTestDropgz)
-		initImage, _ := ParseImageString("acnpublic.azurecr.io/cni-dropgz-test:latest")
-		cns.Spec.Template.Spec.InitContainers[0].Image = GetImageString(initImage, dropgzVersion)
+		url, initImage, _ := ParseImageString("acnpublic.azurecr.io/cni-dropgz-test:latest")
+		cns.Spec.Template.Spec.InitContainers[0].Image = GetImageString(url, initImage, dropgzVersion)
 	} else {
 		log.Printf("Env %v not set to true, deploying cni.Dockerfile", envTestDropgz)
-		initImage, _ := ParseImageString(cns.Spec.Template.Spec.InitContainers[0].Image)
-		cns.Spec.Template.Spec.InitContainers[0].Image = GetImageString(initImage, dropgzVersion)
+		url, initImage, _ := ParseImageString(cns.Spec.Template.Spec.InitContainers[0].Image)
+		cns.Spec.Template.Spec.InitContainers[0].Image = GetImageString(url, initImage, dropgzVersion)
 	}
 	return cns
 }

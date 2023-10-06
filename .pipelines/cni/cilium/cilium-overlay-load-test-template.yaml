@@ -30,6 +30,8 @@ stages:
   - stage: ${{ parameters.name }}
     variables:
       commitID: $[ stagedependencies.setup.env.outputs['SetEnvVars.commitID'] ]
+      cnsVersion: $[ stagedependencies.setup.env.outputs['SetEnvVars.cnsVersion'] ]
+      dropgzVersion: $[ stagedependencies.setup.env.outputs['SetEnvVars.dropgzVersion'] ]
     pool:
       name: "$(BUILD_POOL_NAME_DEFAULT)"
     dependsOn:
@@ -54,24 +56,18 @@ stages:
                 pwd
                 kubectl cluster-info
                 kubectl get po -owide -A
-                echo "Deploy Azure-CNS"
-                kubectl apply -f test/integration/manifests/cilium/cns-write-ovly.yaml
+
                 echo "deploy Cilium ConfigMap"
                 kubectl apply -f cilium/configmap.yaml
                 kubectl apply -f test/integration/manifests/cilium/cilium-config.yaml
-                echo "install Cilium onto Overlay Cluster"
-                kubectl apply -f test/integration/manifests/cilium/cilium-agent
-                kubectl apply -f test/integration/manifests/cilium/cilium-operator
+                echo "install Cilium ${CILIUM_VERSION_TAG} onto Overlay Cluster"
                 # Passes Cilium image to daemonset and deployment
                 envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/daemonset.yaml | kubectl apply -f -
                 envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/deployment.yaml | kubectl apply -f -
                 kubectl get po -owide -A
-                echo "deploy ip-masq-agent for overlay"
-                kubectl create -f test/integration/manifests/ip-masq-agent/ip-masq-agent.yaml --validate=false
-                cd test/integration/manifests/ip-masq-agent/
-                kubectl create configmap config-custom.yaml
-                kubectl create configmap config-reconcile.yaml
-                cd ../../../..
+
+                echo "Deploy Azure-CNS"
+                sudo -E env "PATH=$PATH" make test-integration CNS_VERSION=$(cnsVersion) CNI_DROPGZ_VERSION=$(dropgzVersion) INSTALL_CNS=true INSTALL_OVERLAY=true TEST_DROPGZ=${{ parameters.testDropgz }} CNS_IMAGE_REPO=$(CNS_IMAGE_REPO)
                 kubectl get po -owide -A
       - job: deploy_pods
         displayName: "Scale Test"
