@@ -7,6 +7,10 @@ parameters:
   tag: ""
   continueOnError: false
 
+# Condition confirms that:
+# Pipeline has not been canceled and that the previous job has reports anything other than failure(Succeeded, SuccededWithIssues, Skipped). Previous job is declared by dependsOn: ${{ parameters.dependsOn }}
+# Cluster is either Windows2022 or Linux
+# CONTROL_SCENARIO either contains 'npm' or 'all'. It is not case sensitive
 jobs:
   - job: npm_k8se2e
     displayName: "NPM k8s E2E"

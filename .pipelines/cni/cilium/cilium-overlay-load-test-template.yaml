@@ -7,6 +7,9 @@ parameters:
   vmSize: "Standard_DS4_v2"
   os: "linux"
 
+# Condition confirms that:
+# Previous job has reported Succeeded. Previous job is currently setup which controls variable assignment and we are dependent on its success.
+# CONTROL_CNI either contains 'cniv1' or 'all'. It is not case sensitive
 stages:
   - stage: create_${{ parameters.name }}
     condition: and( succeeded(), or( contains(variables.CONTROL_CNI, 'cilium') , contains(variables.CONTROL_CNI, 'all') ) )
@@ -28,6 +31,10 @@ stages:
               vmSize: ${{ parameters.vmSize }}
               region: $(LOCATION)
 
+# Conditions for below E2E test scenarios confirm that:
+# Pipeline has not been canceled and that the previous job has reports anything other than failure(Succeeded, SuccededWithIssues, Skipped). Previous job is declared by dependsOn:
+# CONTROL_SCENARIO either contains 'all' or its respective scenario 'npm', 'scaleTest', 'restartNode', 'restartCNS'. It is not case sensitive
+# Ex. CONTROL_SCENARIO = "restartnode SCALETEST" will only run Scale Test and Restart Test.
   - stage: ${{ parameters.name }}
     variables:
       commitID: $[ stagedependencies.setup.env.outputs['SetEnvVars.commitID'] ]
