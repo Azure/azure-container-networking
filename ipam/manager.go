@@ -136,9 +136,6 @@ func (am *addressManager) restore(rehydrateIpamInfoOnReboot bool) error {
 		if err == nil {
 			p := platform.NewExecClient(nil)
 			rebootTime, err := p.GetLastRebootTime()
-			if err != nil {
-				log.Errorf("Failed to query last reboot time due to %v", err)
-			}
 			log.Printf("[ipam] reboot time %v store mod time %v", rebootTime, modTime)
 
 			if err == nil && rebootTime.After(modTime) {

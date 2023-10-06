@@ -57,6 +57,7 @@ type TelemetryBuffer struct {
 	cancel      chan bool
 	mutex       sync.Mutex
 	logger      *zap.Logger
+	plc         platform.ExecClient
 }
 
 // Buffer object holds the different types of reports
@@ -72,6 +73,7 @@ func NewTelemetryBuffer(logger *zap.Logger) *TelemetryBuffer {
 	tb.cancel = make(chan bool, 1)
 	tb.connections = make([]net.Conn, 0)
 	tb.logger = logger
+	tb.plc = platform.NewExecClient(tb.logger)
 
 	return &tb
 }
@@ -304,7 +306,7 @@ func WaitForTelemetrySocket(maxAttempt int, waitTimeInMillisecs time.Duration) {
 
 // StartTelemetryService - Kills if any telemetry service runs and start new telemetry service
 func (tb *TelemetryBuffer) StartTelemetryService(path string, args []string) error {
-	err := platform.NewExecClient(tb.logger).KillProcessByName(TelemetryServiceProcessName)
+	err := tb.plc.KillProcessByName(TelemetryServiceProcessName)
 	if err != nil {
 		if tb.logger != nil {
 			tb.logger.Error("Failed to kill process by", zap.String("TelemetryServiceProcessName", TelemetryServiceProcessName), zap.Error(err))
