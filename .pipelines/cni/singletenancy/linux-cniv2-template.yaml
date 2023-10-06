@@ -150,7 +150,9 @@ stages:
               inlineScript: |
                 echo "Delete load-test Namespace"
                 make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}-$(commitID)
-                kubectl delete ns load-test
+                kubectl get ns --no-headers | grep -v 'kube\|default' | awk '{print $1}'
+                delete=`kubectl get ns --no-headers | grep -v 'kube\|default' | awk '{print $1}'`
+                kubectl delete ns $delete
                 kubectl cluster-info
                 kubectl get po -owide -A
             name: "recover"
@@ -166,8 +168,8 @@ stages:
           portforward: true
           service: true
           hostport: true
-      - job: logs
-        displayName: "Log Failure"
+      - job: failedE2ELogs
+        displayName: "Failure Logs"
         dependsOn:
           - integration
           - npm_k8se2e

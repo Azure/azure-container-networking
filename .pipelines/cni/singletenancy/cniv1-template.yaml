@@ -141,7 +141,9 @@ stages:
               inlineScript: |
                 echo "Delete load-test Namespace"
                 make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}-$(commitID)
-                kubectl delete ns load-test
+                kubectl get ns --no-headers | grep -v 'kube\|default' | awk '{print $1}'
+                delete=`kubectl get ns --no-headers | grep -v 'kube\|default' | awk '{print $1}'`
+                kubectl delete ns $delete
                 kubectl cluster-info
                 kubectl get po -owide -A
             name: "recover"
@@ -158,8 +160,8 @@ stages:
           hybridWin: true
           service: true
           hostport: true
-      - job: logs
-        displayName: "Log Failure"
+      - job: failedE2ELogs
+        displayName: "Failure Logs"
         dependsOn:
           - update_cni
           - npm_k8se2e
@@ -195,7 +197,7 @@ stages:
               parameters:
                 clusterName: ${{ parameters.clusterName }}-$(commitID)
                 cni: cniv1
-        - job: deploy_pods
+        - job: deploy_podsHNS
           displayName: "Scale Test"
           dependsOn: restart_hns
           steps:
@@ -206,14 +208,15 @@ stages:
                 os: ${{ parameters.os }}
                 iterations: ${{ parameters.iterations }}
                 nodeCount: ${{ parameters.nodeCount }}
+                jobName: deploy_podsHNS
             - template: ../load-test-templates/validate-state-template.yaml
               parameters:
                 clusterName: ${{ parameters.clusterName }}-$(commitID)
                 os: ${{ parameters.os }}
                 cni: cniv1
-        - job: restart_nodes
+        - job: restart_nodesHNS
           displayName: "Restart Test"
-          dependsOn: deploy_pods
+          dependsOn: deploy_podsHNS
           steps:
             - template: ../load-test-templates/restart-node-template.yaml
               parameters:
@@ -221,6 +224,7 @@ stages:
                 os: ${{ parameters.os }}
                 nodeCount: ${{ parameters.nodeCount }}
                 scaleup: ${{ parameters.scaleup }}
+                jobName: restart_nodesHNS
             - template: ../load-test-templates/validate-state-template.yaml
               parameters:
                 clusterName: ${{ parameters.clusterName }}-$(commitID)
@@ -229,7 +233,7 @@ stages:
                 restartCase: "true"
         - job: recover
           displayName: "Recover Resources"
-          dependsOn: restart_nodes
+          dependsOn: restart_nodesHNS
           steps:
             - task: AzureCLI@1
               inputs:
@@ -240,7 +244,9 @@ stages:
                 inlineScript: |
                   echo "Delete load-test Namespace"
                   make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}-$(commitID)
-                  kubectl delete ns load-test
+                  kubectl get ns --no-headers | grep -v 'kube\|default' | awk '{print $1}'
+                  delete=`kubectl get ns --no-headers | grep -v 'kube\|default' | awk '{print $1}'`
+                  kubectl delete ns $delete
                   kubectl cluster-info
                   kubectl get po -owide -A
               name: "recover"
@@ -257,12 +263,12 @@ stages:
             hybridWin: true
             service: true
             hostport: true
-        - job: logs
-          displayName: "Log Failure"
+        - job: failedE2ELogsHNS
+          displayName: "Failure Logs"
           dependsOn:
             - restart_hns
-            - restart_nodes
-            - deploy_pods
+            - restart_nodesHNS
+            - deploy_podsHNS
             - recover
             - cni_${{ parameters.os }}
           condition: failed()
@@ -271,3 +277,4 @@ stages:
               parameters:
                 clusterName: ${{ parameters.clusterName }}-$(commitID)
                 os: ${{ parameters.os }}
+                jobName: failedE2ELogsHNS

@@ -10,7 +10,7 @@
 # CNS ConfigMap | "ManageEndpointState"
 # -- Generates --
 # Logs on a per-node basis
-# Outputs a singluar unique artifact per template call | ${{ parameters.clusterName }}_${{ parameters.logType }}_Attempt_#$(System.StageAttempt)
+# Outputs a singluar unique artifact per template call | ${{ parameters.clusterName }}_${{ parameters.jobName }}_Attempt_#$(System.StageAttempt)
 # Each artifact is divided into sub-directories
 # -- Intent --
 # Provide through debugging information to understand why CNI test scenarios are failing without having to blindly reproduce
@@ -20,6 +20,7 @@ parameters:
   logType: "failure"
   os: ""
   cni: ""
+  jobName: "failedE2ELogs"
 
 steps:
   - task: AzureCLI@1
@@ -269,6 +270,6 @@ steps:
 
   - publish: $(System.DefaultWorkingDirectory)/${{ parameters.clusterName }}_${{ parameters.logType }}_Attempt_#$(System.StageAttempt)
     condition: always()
-    artifact: ${{ parameters.clusterName }}_${{ parameters.logType }}_Attempt_#$(System.StageAttempt)
+    artifact: ${{ parameters.clusterName }}_${{ parameters.jobName }}_Attempt_#$(System.StageAttempt)
     name: acnLogs_${{ parameters.logType }}
     displayName: Publish Cluster logs
