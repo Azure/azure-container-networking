@@ -25,7 +25,8 @@ steps:
         if ! [ ${{ parameters.cni }} = 'cniv1' ]; then
           echo "Ensure CNS daemonsets are ready and available"
           labels="app=azure-cns app=azure-cns-win"
-          for label in labels; do
+          for label in $labels; do
+            kubectl get pods -n kube-system -l $label
             kubectl rollout status ds -n kube-system -l $label
           done
         fi
