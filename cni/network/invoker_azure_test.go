@@ -82,6 +82,7 @@ func getCIDRNotationForAddress(ipaddresswithcidr string) *net.IPNet {
 	return ipnet
 }
 
+// getSingleResult returns an IPConfig with v4 or v6 IPNet
 func getSingleResult(ip string) []*cniTypesCurr.Result {
 	return []*cniTypesCurr.Result{
 		{
@@ -94,6 +95,7 @@ func getSingleResult(ip string) []*cniTypesCurr.Result {
 	}
 }
 
+// getResult will return a slice of IPConfigs
 func getResult(ips ...string) *cniTypesCurr.Result {
 	res := &cniTypesCurr.Result{}
 	for _, ip := range ips {
