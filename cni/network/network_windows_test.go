@@ -91,7 +91,7 @@ func TestPluginSecondAddSamePodWindows(t *testing.T) {
 			},
 			plugin: &NetPlugin{
 				Plugin:      plugin,
-				nm:          network.NewMockNetworkmanager(),
+				nm:          network.NewMockNetworkmanager(network.NewMockEndpointClient(nil)),
 				ipamInvoker: NewMockIpamInvoker(false, false, false, false, false),
 				report:      &telemetry.CNIReport{},
 				tb:          &telemetry.TelemetryBuffer{},
@@ -110,7 +110,7 @@ func TestPluginSecondAddSamePodWindows(t *testing.T) {
 			},
 			plugin: &NetPlugin{
 				Plugin:      plugin,
-				nm:          network.NewMockNetworkmanager(),
+				nm:          network.NewMockNetworkmanager(network.NewMockEndpointClient(nil)),
 				ipamInvoker: NewMockIpamInvoker(false, false, false, false, false),
 				report:      &telemetry.CNIReport{},
 				tb:          &telemetry.TelemetryBuffer{},
@@ -331,7 +331,7 @@ func TestGetNetworkNameFromCNS(t *testing.T) {
 			name: "Get Network Name from CNS with correct CIDR",
 			plugin: &NetPlugin{
 				Plugin:      plugin,
-				nm:          network.NewMockNetworkmanager(),
+				nm:          network.NewMockNetworkmanager(network.NewMockEndpointClient(nil)),
 				ipamInvoker: NewMockIpamInvoker(false, false, false, false, false),
 				report:      &telemetry.CNIReport{},
 				tb:          &telemetry.TelemetryBuffer{},
@@ -366,7 +366,7 @@ func TestGetNetworkNameFromCNS(t *testing.T) {
 			name: "Get Network Name from CNS with malformed CIDR #1",
 			plugin: &NetPlugin{
 				Plugin:      plugin,
-				nm:          network.NewMockNetworkmanager(),
+				nm:          network.NewMockNetworkmanager(network.NewMockEndpointClient(nil)),
 				ipamInvoker: NewMockIpamInvoker(false, false, false, false, false),
 				report:      &telemetry.CNIReport{},
 				tb:          &telemetry.TelemetryBuffer{},
@@ -401,7 +401,7 @@ func TestGetNetworkNameFromCNS(t *testing.T) {
 			name: "Get Network Name from CNS with malformed CIDR #2",
 			plugin: &NetPlugin{
 				Plugin:      plugin,
-				nm:          network.NewMockNetworkmanager(),
+				nm:          network.NewMockNetworkmanager(network.NewMockEndpointClient(nil)),
 				ipamInvoker: NewMockIpamInvoker(false, false, false, false, false),
 				report:      &telemetry.CNIReport{},
 				tb:          &telemetry.TelemetryBuffer{},
@@ -436,7 +436,7 @@ func TestGetNetworkNameFromCNS(t *testing.T) {
 			name: "Get Network Name from CNS without NetNS",
 			plugin: &NetPlugin{
 				Plugin:      plugin,
-				nm:          network.NewMockNetworkmanager(),
+				nm:          network.NewMockNetworkmanager(network.NewMockEndpointClient(nil)),
 				ipamInvoker: NewMockIpamInvoker(false, false, false, false, false),
 				report:      &telemetry.CNIReport{},
 				tb:          &telemetry.TelemetryBuffer{},
@@ -471,7 +471,7 @@ func TestGetNetworkNameFromCNS(t *testing.T) {
 			name: "Get Network Name from CNS without multitenancy",
 			plugin: &NetPlugin{
 				Plugin:      plugin,
-				nm:          network.NewMockNetworkmanager(),
+				nm:          network.NewMockNetworkmanager(network.NewMockEndpointClient(nil)),
 				ipamInvoker: NewMockIpamInvoker(false, false, false, false, false),
 				report:      &telemetry.CNIReport{},
 				tb:          &telemetry.TelemetryBuffer{},

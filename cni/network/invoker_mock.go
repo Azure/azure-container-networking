@@ -95,6 +95,7 @@ func (invoker *MockIpamInvoker) Add(opt IPAMAddConfig) (ipamAddResult IPAMAddRes
 			ipResult: &current.Result{
 				IPs: []*current.IPConfig{{Address: *ipnet}},
 			},
+			nicType: cns.DelegatedVMNIC,
 		})
 	}
 
