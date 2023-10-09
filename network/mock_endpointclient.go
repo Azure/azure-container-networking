@@ -11,11 +11,7 @@ const (
 	eth0IfName = "eth0"
 )
 
-<<<<<<< HEAD
 func NewErrorMockEndpointClient(errStr string) error {
-=======
-func newErrorMockEndpointClient(errStr string) error {
->>>>>>> b657c80b (update test for invoker add and endpoint client add failure)
 	return fmt.Errorf("%w : %s", errMockEpClient, errStr)
 }
 
@@ -39,15 +35,9 @@ func NewMockEndpointClient(fn func(*EndpointInfo) error) *MockEndpointClient {
 	return client
 }
 
-<<<<<<< HEAD
 func (client *MockEndpointClient) AddEndpoints(epInfo *EndpointInfo) error {
 	if ok := client.endpoints[epInfo.Id]; ok && epInfo.IfName == eth0IfName {
 		return NewErrorMockEndpointClient("Endpoint already exists")
-=======
-func (client *MockEndpointClient) AddEndpoints(epInfo *EndpointInfo, _ *endpoint) error {
-	if ok := client.endpoints[epInfo.Id]; ok && epInfo.IfName == eth0IfName {
-		return newErrorMockEndpointClient("Endpoint already exists")
->>>>>>> b657c80b (update test for invoker add and endpoint client add failure)
 	}
 
 	client.endpoints[epInfo.Id] = true
