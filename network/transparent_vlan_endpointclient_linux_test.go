@@ -267,7 +267,7 @@ func TestTransparentVlanAddEndpoints(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			err := tt.client.PopulateVM(tt.epInfo, &endpoint{})
+			err := tt.client.PopulateVM(tt.epInfo)
 			if tt.wantErr {
 				require.Error(t, err)
 				require.Contains(t, err.Error(), tt.wantErrMsg, "Expected:%v actual:%v", tt.wantErrMsg, err.Error())

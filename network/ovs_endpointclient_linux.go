@@ -77,7 +77,7 @@ func NewOVSEndpointClient(
 	return client
 }
 
-func (client *OVSEndpointClient) AddEndpoints(epInfo *EndpointInfo, ep *endpoint) error {
+func (client *OVSEndpointClient) AddEndpoints(epInfo *EndpointInfo) error {
 	epc := networkutils.NewNetworkUtils(client.netlink, client.plClient)
 	if err := epc.CreateEndpoint(client.hostVethName, client.containerVethName, nil); err != nil {
 		return err
@@ -90,7 +90,6 @@ func (client *OVSEndpointClient) AddEndpoints(epInfo *EndpointInfo, ep *endpoint
 	}
 
 	client.containerMac = containerIf.HardwareAddr.String()
-	ep.MacAddress = containerIf.HardwareAddr
 
 	if err := client.AddSnatEndpoint(); err != nil {
 		return err
