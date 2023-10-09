@@ -4,6 +4,7 @@ import (
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/netio"
 	"github.com/Azure/azure-container-networking/netlink"
+	"github.com/Azure/azure-container-networking/netns"
 	"github.com/Azure/azure-container-networking/network/networkutils"
 	"github.com/Azure/azure-container-networking/platform"
 	"github.com/pkg/errors"
@@ -39,7 +40,7 @@ func NewSecondaryEndpointClient(
 	return client
 }
 
-func (client *SecondaryEndpointClient) AddEndpoints(epInfo *EndpointInfo, _ *endpoint) error {
+func (client *SecondaryEndpointClient) AddEndpoints(epInfo *EndpointInfo) error {
 	iface, err := client.netioshim.GetNetworkInterfaceByMac(epInfo.MacAddress)
 	if err != nil {
 		return newErrorSecondaryEndpointClient(err)
@@ -109,8 +110,17 @@ func (client *SecondaryEndpointClient) ConfigureContainerInterfacesAndRoutes(epI
 	return nil
 }
 
-func (client *SecondaryEndpointClient) DeleteEndpoints(_ *endpoint) error {
-	// TO-DO: try to clean up and move back to default ns?
-	// looks like interface goes back to default state (down without routes) after deleting pod
+func (client *SecondaryEndpointClient) DeleteEndpoints(ep *endpoint) error {
+	netnsClient := netns.New()
+	vmns, err := netnsClient.Get()
+	if err != nil {
+		return newErrorSecondaryEndpointClient(err)
+	}
+
+	for iface := range ep.SecondaryInterfaces {
+		if err := client.netlink.SetLinkNetNs(iface, uintptr(vmns)); err != nil {
+			return newErrorSecondaryEndpointClient(err)
+		}
+	}
 	return nil
 }

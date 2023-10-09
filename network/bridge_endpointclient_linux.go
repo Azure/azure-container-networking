@@ -59,7 +59,7 @@ func NewLinuxBridgeEndpointClient(
 	return client
 }
 
-func (client *LinuxBridgeEndpointClient) AddEndpoints(epInfo *EndpointInfo, ep *endpoint) error {
+func (client *LinuxBridgeEndpointClient) AddEndpoints(epInfo *EndpointInfo) error {
 	if err := client.nuc.CreateEndpoint(client.hostVethName, client.containerVethName, nil); err != nil {
 		return err
 	}
@@ -70,7 +70,6 @@ func (client *LinuxBridgeEndpointClient) AddEndpoints(epInfo *EndpointInfo, ep *
 	}
 
 	client.containerMac = containerIf.HardwareAddr
-	ep.MacAddress = containerIf.HardwareAddr
 	return nil
 }
 

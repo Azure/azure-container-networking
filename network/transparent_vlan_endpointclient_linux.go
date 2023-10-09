@@ -109,9 +109,9 @@ func NewTransparentVlanEndpointClient(
 }
 
 // Adds interfaces to the vnet (created if not existing) and vm namespace
-func (client *TransparentVlanEndpointClient) AddEndpoints(epInfo *EndpointInfo, ep *endpoint) error {
+func (client *TransparentVlanEndpointClient) AddEndpoints(epInfo *EndpointInfo) error {
 	// VM Namespace
-	err := client.PopulateVM(epInfo, ep)
+	err := client.PopulateVM(epInfo)
 	if err != nil {
 		return err
 	}
@@ -154,7 +154,7 @@ func (client *TransparentVlanEndpointClient) createNetworkNamespace(vmNS, numRet
 }
 
 // Called from AddEndpoints, Namespace: VM
-func (client *TransparentVlanEndpointClient) PopulateVM(epInfo *EndpointInfo, ep *endpoint) error {
+func (client *TransparentVlanEndpointClient) PopulateVM(epInfo *EndpointInfo) error {
 	vmNS, err := client.netnsClient.Get()
 	if err != nil {
 		return errors.Wrap(err, "failed to get vm ns handle")
@@ -284,7 +284,6 @@ func (client *TransparentVlanEndpointClient) PopulateVM(epInfo *EndpointInfo, ep
 		return errors.Wrap(err, "container veth does not exist")
 	}
 	client.containerMac = containerIf.HardwareAddr
-	ep.MacAddress = containerIf.HardwareAddr
 	return nil
 }
 
