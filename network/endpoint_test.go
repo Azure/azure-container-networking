@@ -173,8 +173,9 @@ var _ = Describe("Test Endpoint", func() {
 				Endpoints: map[string]*endpoint{},
 			}
 			epInfo := &EndpointInfo{
-				Id:   "768e8deb-eth1",
-				Data: make(map[string]interface{}),
+				Id:     "768e8deb-eth1",
+				Data:   make(map[string]interface{}),
+				IfName: eth0IfName,
 			}
 			epInfo.Data[VlanIDKey] = 100
 
@@ -239,7 +240,8 @@ var _ = Describe("Test Endpoint", func() {
 					Endpoints: map[string]*endpoint{},
 				}
 				epInfo := &EndpointInfo{
-					Id: "768e8deb-eth1",
+					Id:     "768e8deb-eth1",
+					IfName: eth0IfName,
 				}
 				ep, err := nw.newEndpointImpl(nil, netlink.NewMockNetlink(false, ""), platform.NewMockExecClient(false),
 					netio.NewMockNetIO(false, 0), NewMockEndpointClient(true), []*EndpointInfo{epInfo})
@@ -261,7 +263,8 @@ var _ = Describe("Test Endpoint", func() {
 
 				nw := &network{}
 				existingEpInfo := &EndpointInfo{
-					Id: "768e8deb-eth1",
+					Id:     "768e8deb-eth1",
+					IfName: eth0IfName,
 				}
 				targetEpInfo := &EndpointInfo{}
 				err := nm.updateEndpoint(nw, existingEpInfo, targetEpInfo)
