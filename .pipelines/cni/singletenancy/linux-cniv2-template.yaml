@@ -159,8 +159,6 @@ stages:
             parameters:
               clusterName: ${{ parameters.clusterName }}-$(commitID)
               os: ${{ parameters.os }}
-              nodeCount: ${{ parameters.nodeCount }}
-              scaleup: ${SCALEUP_LINUX}
               cni: cniv2
           - template: ../load-test-templates/validate-state-template.yaml
             parameters:
