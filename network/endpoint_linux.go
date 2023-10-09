@@ -64,6 +64,7 @@ func (nw *network) newEndpointImpl(
 		localIP       string
 		vlanid        = 0
 		defaultEpInfo = epInfo[0]
+		containerIf   *net.Interface
 	)
 
 	if nw.Endpoints[defaultEpInfo.Id] != nil {
@@ -122,6 +123,7 @@ func (nw *network) newEndpointImpl(
 
 	for _, epInfo := range epInfo {
 		// testEpClient is non-nil only when the endpoint is created for the unit test
+		// resetting epClient to testEpClient in loop to use the test endpoint client if specified
 		epClient := testEpClient
 		if epClient == nil {
 			//nolint:gocritic
@@ -166,7 +168,7 @@ func (nw *network) newEndpointImpl(
 			// Cleanup on failure.
 			if err != nil {
 				logger.Error("CNI error. Delete Endpoint and rules that are created", zap.Error(err), zap.String("contIfName", contIfName))
-				if ep.MacAddress != nil {
+				if containerIf != nil {
 					client.DeleteEndpointRules(ep)
 				}
 				// set deleteHostVeth to true to cleanup host veth interface if created
@@ -175,10 +177,20 @@ func (nw *network) newEndpointImpl(
 			}
 		}(epClient, contIfName)
 
+		// wrapping endpoint client commands in anonymous func so that namespace can be exit and closed before the next loop
 		//nolint:wrapcheck // ignore wrap check
 		err = func() error {
-			if epErr := epClient.AddEndpoints(epInfo, ep); epErr != nil {
+			if epErr := epClient.AddEndpoints(epInfo); epErr != nil {
 				return epErr
+			}
+
+			if epInfo.NICType == cns.InfraNIC {
+				var epErr error
+				containerIf, epErr = netioCli.GetNetworkInterfaceByName(contIfName)
+				if epErr != nil {
+					return epErr
+				}
+				ep.MacAddress = containerIf.HardwareAddr
 			}
 
 			// Setup rules for IP addresses on the container interface.
