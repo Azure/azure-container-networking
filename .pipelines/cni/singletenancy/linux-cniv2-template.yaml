@@ -66,7 +66,7 @@ stages:
                   make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}-$(commitID)
                   kubectl cluster-info
                   kubectl get po -owide -A
-                  sudo -E env "PATH=$PATH" make test-integration CNS_VERSION=$(cnsVersion) CNI_DROPGZ_VERSION=$(dropgzVersion) INSTALL_CNS=true INSTALL_AZURE_CNI_OVERLAY=true TEST_DROPGZ=${{ parameters.testDropgz }}
+                  sudo -E env "PATH=$PATH" make test-integration CNS_VERSION=$(cnsVersion) CNI_DROPGZ_VERSION=$(dropgzVersion) INSTALL_CNS=true INSTALL_AZURE_CNI_OVERLAY=true TEST_DROPGZ=${{ parameters.testDropgz }} CNS_IMAGE_REPO=$(CNS_IMAGE_REPO)
               name: "overlaye2e"
               displayName: "Overlay Integration"
           - ${{ if contains(parameters.clusterType, 'swift') }}:
@@ -81,7 +81,7 @@ stages:
                   make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}-$(commitID)
                   kubectl cluster-info
                   kubectl get po -owide -A
-                  sudo -E env "PATH=$PATH" make test-integration CNS_VERSION=$(cnsVersion) CNI_DROPGZ_VERSION=$(dropgzVersion) INSTALL_CNS=true INSTALL_AZURE_VNET=true TEST_DROPGZ=${{ parameters.testDropgz }}
+                  sudo -E env "PATH=$PATH" make test-integration CNS_VERSION=$(cnsVersion) CNI_DROPGZ_VERSION=$(dropgzVersion) INSTALL_CNS=true INSTALL_AZURE_VNET=true TEST_DROPGZ=${{ parameters.testDropgz }} CNS_IMAGE_REPO=$(CNS_IMAGE_REPO)
               name: "swifte2e"
               displayName: "Swift Integration"
       - template: ../../npm/npm-cni-integration-test.yaml
