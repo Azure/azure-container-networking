@@ -213,7 +213,8 @@ func TestSetCNSConfigDefaults(t *testing.T) {
 				AZRSettings: AZRSettings{
 					PopulateHomeAzCacheRetryIntervalSecs: 60,
 				},
-				WireserverIP: "168.63.129.16",
+				WireserverIP:       "168.63.129.16",
+				AsyncPodDeletePath: "/var/run/azure-vnet/deleteIDs",
 			},
 		},
 		{
@@ -263,7 +264,8 @@ func TestSetCNSConfigDefaults(t *testing.T) {
 					EnableAZR:                            true,
 					PopulateHomeAzCacheRetryIntervalSecs: 10,
 				},
-				WireserverIP: "168.63.129.16",
+				WireserverIP:       "168.63.129.16",
+				AsyncPodDeletePath: "/var/run/azure-vnet/deleteIDs",
 			},
 		},
 	}

@@ -475,6 +475,43 @@ func (service *HTTPRestService) DeleteNetworkContainerInternal(
 	return types.Success
 }
 
+func (service *HTTPRestService) MustEnsureNoStaleNCs(validNCIDs []string) {
+	valid := make(map[string]struct{})
+	for _, ncID := range validNCIDs {
+		valid[ncID] = struct{}{}
+	}
+
+	service.Lock()
+	defer service.Unlock()
+
+	ncIDToAssignedIPs := make(map[string][]cns.IPConfigurationStatus)
+	for _, ipInfo := range service.PodIPConfigState { // nolint:gocritic // copy is fine; it's a larger change to modify the map to hold pointers
+		if ipInfo.GetState() == types.Assigned {
+			ncIDToAssignedIPs[ipInfo.NCID] = append(ncIDToAssignedIPs[ipInfo.NCID], ipInfo)
+		}
+	}
+
+	mutated := false
+	for ncID := range service.state.ContainerStatus {
+		if _, ok := valid[ncID]; !ok {
+			// stale NCs with assigned IPs are an unexpected CNS state which we need to alert on.
+			if assignedIPs, hasAssignedIPs := ncIDToAssignedIPs[ncID]; hasAssignedIPs {
+				msg := fmt.Sprintf("Unexpected state: found stale NC ID %s in CNS state with %d assigned IPs: %+v", ncID, len(assignedIPs), assignedIPs)
+				logger.Errorf(msg)
+				panic(msg)
+			}
+
+			logger.Errorf("[Azure CNS] Found stale NC ID %s in CNS state. Removing...", ncID)
+			delete(service.state.ContainerStatus, ncID)
+			mutated = true
+		}
+	}
+
+	if mutated {
+		_ = service.saveState()
+	}
+}
+
 // This API will be called by CNS RequestController on CRD update.
 func (service *HTTPRestService) CreateOrUpdateNetworkContainerInternal(req *cns.CreateNetworkContainerRequest) types.ResponseCode {
 	if req.NetworkContainerid == "" {

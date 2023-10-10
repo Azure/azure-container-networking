@@ -19,7 +19,7 @@ steps:
     displayName: "Set up the Go environment"
   - task: AzureCLI@1
     inputs:
-      azureSubscription: $(AZURE_TEST_AGENT_SERVICE_CONNECTION)
+      azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
       scriptLocation: "inlineScript"
       scriptType: "bash"
       addSpnToEnvironment: true
@@ -44,7 +44,7 @@ steps:
     displayName: "Upload CNI"
   - task: AzureCLI@1
     inputs:
-      azureSubscription: $(AZURE_TEST_AGENT_SERVICE_CONNECTION)
+      azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
       scriptLocation: "inlineScript"
       scriptType: "bash"
       addSpnToEnvironment: true
@@ -60,15 +60,13 @@ steps:
       kubectl get pods -A -o wide
       echo "Deploying test pods"
       cd test/integration/load
-      go test -count 1 -timeout 30m -tags load -run ^TestLoad$ -iterations=2 -scaleup=${{ parameters.scaleup }} -os=${{ parameters.os }}
+      ITERATIONS=2 SCALE_UP=${{ parameters.scaleup }} OS_TYPE=${{ parameters.os }} go test -count 1 -timeout 30m -tags load -run ^TestLoad$
       cd ../../..
       # Remove this once we have cniv1 support for validating the test cluster
       echo "Validate State skipped for linux cniv1 for now"
       if [ "${{parameters.os}}" == "windows" ]; then
-        make test-validate-state OS=${{ parameters.os }} CNI_TYPE=cniv1
+        make test-validate-state OS_TYPE=${{ parameters.os }} CNI_TYPE=cniv1
       fi
       kubectl delete ns load-test
     displayName: "Validate State"
     retryCountOnTaskFailure: 3
-
-

@@ -8,12 +8,15 @@ import (
 
 	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/cni/api"
-	"github.com/Azure/azure-container-networking/log"
+	"github.com/Azure/azure-container-networking/cni/log"
 	"github.com/Azure/azure-container-networking/platform"
 	semver "github.com/hashicorp/go-version"
 	"github.com/pkg/errors"
+	"go.uber.org/zap"
 	utilexec "k8s.io/utils/exec"
 )
+
+var logger = log.CNILogger.With(zap.String("component", "cni-client"))
 
 type client struct {
 	exec utilexec.Interface
@@ -30,7 +33,7 @@ func (c *client) GetEndpointState() (*api.AzureCNIState, error) {
 	cmd.SetDir(CNIExecDir)
 	envs := os.Environ()
 	cmdenv := fmt.Sprintf("%s=%s", cni.Cmd, cni.CmdGetEndpointsState)
-	log.Printf("Setting cmd to %s", cmdenv)
+	logger.Info("Setting cmd to", zap.String("cmdenv", cmdenv))
 	envs = append(envs, cmdenv)
 	cmd.SetEnv(envs)
 

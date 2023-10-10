@@ -13,6 +13,7 @@ spec:
       labels:
         app: goldpinger
     spec:
+        serviceAccount: goldpinger-serviceaccount
         containers:
           - name: goldpinger
             env:
@@ -41,7 +42,6 @@ spec:
               - name: HOSTS_TO_RESOLVE
                 value: "2001:4860:4860::8888 www.bing.com"
             image: "docker.io/bloomberg/goldpinger:v3.7.0"
-            serviceAccount: goldpinger-serviceaccount
             tolerations:
               - key: node-role.kubernetes.io/master
                 effect: NoSchedule

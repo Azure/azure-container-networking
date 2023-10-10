@@ -3,17 +3,24 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net"
 
 	"github.com/Azure/azure-container-networking/azure-ipam/internal/buildinfo"
 	"github.com/Azure/azure-container-networking/azure-ipam/ipconfig"
 	"github.com/Azure/azure-container-networking/cns"
+	cnscli "github.com/Azure/azure-container-networking/cns/client"
+	"github.com/Azure/azure-container-networking/cns/fsnotify"
 	cniSkel "github.com/containernetworking/cni/pkg/skel"
 	cniTypes "github.com/containernetworking/cni/pkg/types"
 	types100 "github.com/containernetworking/cni/pkg/types/100"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
+)
+
+const (
+	watcherPath = "/var/run/azure-vnet/deleteIDs"
 )
 
 // IPAMPlugin is the struct for the delegated azure-ipam plugin
@@ -119,6 +126,7 @@ func (p *IPAMPlugin) CmdAdd(args *cniSkel.CmdArgs) error {
 
 // CmdDel handles CNI delete commands.
 func (p *IPAMPlugin) CmdDel(args *cniSkel.CmdArgs) error {
+	var connectionErr *cnscli.ConnectionFailureErr
 	p.logger.Info("DEL called", zap.Any("args", args))
 
 	// Create ip config request from args
@@ -132,8 +140,19 @@ func (p *IPAMPlugin) CmdDel(args *cniSkel.CmdArgs) error {
 	p.logger.Debug("Making request to CNS")
 	// cnsClient enforces it own timeout
 	if err := p.cnsClient.ReleaseIPAddress(context.TODO(), req); err != nil {
-		p.logger.Error("Failed to release IP address from CNS", zap.Error(err), zap.Any("request", req))
-		return cniTypes.NewError(cniTypes.ErrTryAgainLater, err.Error(), "failed to release IP address from CNS")
+		if errors.As(err, &connectionErr) {
+			p.logger.Info("Failed to release IP address from CNS due to connection failure, saving to watcher to delete")
+			addErr := fsnotify.AddFile(args.ContainerID, args.ContainerID, watcherPath)
+			if addErr != nil {
+				p.logger.Error("Failed to add file to watcher", zap.String("containerID", args.ContainerID), zap.Error(addErr))
+				return cniTypes.NewError(cniTypes.ErrTryAgainLater, addErr.Error(), fmt.Sprintf("failed to add file to watcher with containerID %s", args.ContainerID))
+			} else {
+				p.logger.Info("File successfully added to watcher directory")
+			}
+		} else {
+			p.logger.Error("Failed to release IP address from CNS", zap.Error(err), zap.Any("request", req))
+			return cniTypes.NewError(cniTypes.ErrTryAgainLater, err.Error(), "failed to release IP address from CNS")
+		}
 	}
 
 	p.logger.Info("DEL success")

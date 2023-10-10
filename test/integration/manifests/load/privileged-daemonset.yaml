@@ -5,14 +5,17 @@ metadata:
   namespace: kube-system
   labels:
     app: privileged-daemonset
+    os: linux
 spec:
   selector:
     matchLabels:
       app: privileged-daemonset
+      os: linux
   template:
     metadata:
       labels:
         app: privileged-daemonset
+        os: linux
     spec:
       hostNetwork: true
       hostPID: true
@@ -24,6 +27,8 @@ spec:
             privileged: true
             runAsUser: 0
           volumeMounts:
+            - mountPath: /var/log
+              name: log
             - mountPath: /var/run/azure-cns
               name: azure-cns
             - mountPath: /var/run/azure-network
@@ -32,7 +37,12 @@ spec:
               name: host-root
             - mountPath: /var/run
               name: azure-cns-noncilium
+            - name: cns-state
+              mountPath: /var/lib/azure-network
       volumes:
+        - name: log
+          hostPath:
+            path: /var/log
         - name: azure-cns
           hostPath:
             path: /var/run/azure-cns
@@ -42,6 +52,9 @@ spec:
         - name: azure-cns-noncilium
           hostPath:
             path: /var/run
+        - name: cns-state
+          hostPath:
+            path: /var/lib/azure-network
         - hostPath:
             path: /
             type: ""

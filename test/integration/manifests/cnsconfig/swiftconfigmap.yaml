@@ -24,5 +24,7 @@ data:
       "ChannelMode": "CRD",
       "InitializeFromCNI": true,
       "ManageEndpointState": false,
-      "ProgramSNATIPTables" : false
+      "ProgramSNATIPTables" : false,
+      "EnableAsyncPodDelete": true,
+      "AsyncPodDeletePath": "/var/run/azure-vnet/deleteIDs"
     }

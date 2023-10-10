@@ -1,0 +1,134 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: azure-cns-win
+  namespace: kube-system
+  labels:
+    app: azure-cns-win
+spec:
+  selector:
+    matchLabels:
+      k8s-app: azure-cns-win
+  template:
+    metadata:
+      labels:
+        k8s-app: azure-cns-win
+        kubernetes.azure.com/managedby: aks
+      annotations:
+        cluster-autoscaler.kubernetes.io/daemonset-pod: "true"
+        prometheus.io/port: "10092"
+    spec:
+      securityContext:
+        windowsOptions:
+          hostProcess: true
+          runAsUserName: "NT AUTHORITY\\SYSTEM"
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.azure.com/cluster
+                    operator: Exists
+                  - key: type
+                    operator: NotIn
+                    values:
+                      - virtual-kubelet
+                  - key: kubernetes.io/os
+                    operator: In
+                    values:
+                      - windows
+      tolerations:
+        - operator: "Exists"
+          effect: NoExecute
+        - operator: "Exists"
+          effect: NoSchedule
+      containers:
+        - name: cns-container
+          image: acnpublic.azurecr.io/azure-cns:latest
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            privileged: true
+          command: ["powershell.exe"]
+          args:
+            [
+              '.\setkubeconfigpath.ps1',
+              ";",
+              '.\azure-cns.exe',
+              "-c",
+              "tcp://$(CNSIpAddress):$(CNSPort)",
+              "-t",
+              "$(CNSLogTarget)",
+              "-o",
+              "$(CNSLogDir)",
+              "-storefilepath",
+              "$(CNSStoreFilePath)",
+              "-config-path",
+              "%CONTAINER_SANDBOX_MOUNT_POINT%\\$(CNS_CONFIGURATION_PATH)",
+              "--kubeconfig",
+              '.\kubeconfig',
+            ]
+          volumeMounts:
+            - name: log
+              mountPath: /k/azurecns
+            - name: cns-config
+              mountPath: /etc/azure-cns
+            - name: cni-conflist
+              mountPath: /k/azurecni/netconf
+          ports:
+            - containerPort: 10090
+              hostPort: 10090
+              name: api
+              protocol: TCP
+            - containerPort: 10092
+              hostPort: 10092
+              name: metrics
+              protocol: TCP
+          env:
+            - name: PATH
+              value: '%CONTAINER_SANDBOX_MOUNT_POINT%\Windows\System32\WindowsPowershell\v1.0\'
+            - name: CNSIpAddress
+              value: "127.0.0.1"
+            - name: CNSPort
+              value: "10090"
+            - name: CNSLogTarget
+              value: "stdoutfile"
+            - name: CNSLogDir
+              value: /k/azurecns/
+            - name: CNSStoreFilePath
+              value: /k/azurecns/
+            - name: CNS_CONFIGURATION_PATH
+              value: /etc/azure-cns/cns_config.json
+            - name: NODENAME
+              valueFrom:
+                fieldRef:
+                  apiVersion: v1
+                  fieldPath: spec.nodeName
+      initContainers:
+        - name: init-cni-dropgz
+          image: acnpublic.azurecr.io/cni-dropgz:CNI_DROPGZ_VERSION
+          imagePullPolicy: Always
+          command: ["%CONTAINER_SANDBOX_MOUNT_POINT%/dropgz.exe"]
+          args:
+            - deploy
+            - azure-vnet.exe
+            - -o
+            - /k/azurecni/bin/azure-vnet.exe # // TODO: add windows cni conflist when ready
+          volumeMounts:
+            - name: cni-bin
+              mountPath: /k/azurecni/bin/ # TODO: add cni conflist when ready
+      hostNetwork: true
+      volumes:
+        - name: log
+          hostPath:
+            path: /k/azurecns
+            type: DirectoryOrCreate
+        - name: cns-config
+          configMap:
+            name: cns-win-config
+            defaultMode: 420
+        - name: cni-bin
+          hostPath:
+            path: /k/azurecni/bin
+            type: Directory # // TODO: add windows cni conflist when ready
+      serviceAccount: azure-cns
+      serviceAccountName: azure-cns

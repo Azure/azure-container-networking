@@ -12,7 +12,7 @@ import (
 // +kubebuilder:object:root=true
 
 // MultitenantPodNetworkConfig is the Schema for the multitenantpodnetworkconfigs API
-// +kubebuilder:resource:shortName=mtpnc,scope=Cluster
+// +kubebuilder:resource:shortName=mtpnc,scope=Namespaced
 // +kubebuilder:subresource:status
 // +kubebuilder:metadata:labels=managed=
 // +kubebuilder:metadata:labels=owner=

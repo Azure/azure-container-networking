@@ -15,37 +15,37 @@ const (
 )
 
 var (
-	restartNetworkCmd     = []string{"bash", "-c", "chroot /host /bin/bash -c systemctl restart systemd-networkd"}
-	cnsStateFileCmd       = []string{"bash", "-c", "cat /var/run/azure-cns/azure-endpoints.json"}
-	azureVnetStateFileCmd = []string{"bash", "-c", "cat /var/run/azure-vnet.json"}
-	ciliumStateFileCmd    = []string{"bash", "-c", "cilium endpoint list -o json"}
-	cnsLocalCacheCmd      = []string{"curl", "localhost:10090/debug/ipaddresses", "-d", "{\"IPConfigStateFilter\":[\"Assigned\"]}"}
+	restartNetworkCmd      = []string{"bash", "-c", "chroot /host /bin/bash -c systemctl restart systemd-networkd"}
+	cnsManagedStateFileCmd = []string{"bash", "-c", "cat /var/run/azure-cns/azure-endpoints.json"}
+	azureVnetStateFileCmd  = []string{"bash", "-c", "cat /var/run/azure-vnet.json"}
+	azureVnetIpamStateCmd  = []string{"bash", "-c", "cat /var/run/azure-vnet-ipam.json"}
+	ciliumStateFileCmd     = []string{"bash", "-c", "cilium endpoint list -o json"}
+	cnsLocalCacheCmd       = []string{"curl", "localhost:10090/debug/ipaddresses", "-d", "{\"IPConfigStateFilter\":[\"Assigned\"]}"}
 )
-
-// dualstack overlay Linux and windows nodes must have these labels
-var dualstackOverlayNodeLabels = map[string]string{
-	"kubernetes.azure.com/podnetwork-type":   "overlay",
-	"kubernetes.azure.com/podv6network-type": "overlay",
-}
 
 type stateFileIpsFunc func([]byte) (map[string]string, error)
 
 var linuxChecksMap = map[string][]check{
 	"cilium": {
-		{"cns", cnsStateFileIps, cnsLabelSelector, privilegedNamespace, cnsStateFileCmd},
+		{"cns", cnsManagedStateFileIps, cnsLabelSelector, privilegedNamespace, cnsManagedStateFileCmd}, // cns configmap "ManageEndpointState": true, | Endpoints managed in CNS State File
 		{"cilium", ciliumStateFileIps, ciliumLabelSelector, privilegedNamespace, ciliumStateFileCmd},
 		{"cns cache", cnsCacheStateFileIps, cnsLabelSelector, privilegedNamespace, cnsLocalCacheCmd},
 	},
+	"cniv1": {
+		{"azure-vnet", azureVnetStateIps, privilegedLabelSelector, privilegedNamespace, azureVnetStateFileCmd},
+		{"azure-vnet-ipam", azureVnetIpamStateIps, privilegedLabelSelector, privilegedNamespace, azureVnetIpamStateCmd},
+	},
 	"cniv2": {
 		{"cns cache", cnsCacheStateFileIps, cnsLabelSelector, privilegedNamespace, cnsLocalCacheCmd},
+		{"azure-vnet", azureVnetStateIps, privilegedLabelSelector, privilegedNamespace, azureVnetStateFileCmd}, // cns configmap "ManageEndpointState": false, | Endpoints managed in CNI State File
 	},
 	"dualstack": {
 		{"cns cache", cnsCacheStateFileIps, cnsLabelSelector, privilegedNamespace, cnsLocalCacheCmd},
-		{"azure dualstackoverlay", azureDualStackStateFileIPs, privilegedLabelSelector, privilegedNamespace, azureVnetStateFileCmd},
+		{"azure dualstackoverlay", azureVnetStateIps, privilegedLabelSelector, privilegedNamespace, azureVnetStateFileCmd},
 	},
 }
 
-type CnsState struct {
+type CnsManagedState struct {
 	Endpoints map[string]restserver.EndpointInfo `json:"Endpoints"`
 }
 
@@ -119,8 +119,8 @@ type AzureVnetEndpointInfo struct {
 	PodName     string
 }
 
-func cnsStateFileIps(result []byte) (map[string]string, error) {
-	var cnsResult CnsState
+func cnsManagedStateFileIps(result []byte) (map[string]string, error) {
+	var cnsResult CnsManagedState
 	err := json.Unmarshal(result, &cnsResult)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to unmarshal cns endpoint list")
@@ -171,27 +171,44 @@ func cnsCacheStateFileIps(result []byte) (map[string]string, error) {
 	return cnsPodIps, nil
 }
 
-func azureDualStackStateFileIPs(result []byte) (map[string]string, error) {
-	var azureDualStackResult AzureCniState
-	err := json.Unmarshal(result, &azureDualStackResult)
+func azureVnetStateIps(result []byte) (map[string]string, error) {
+	var azureVnetResult AzureCniState
+	err := json.Unmarshal(result, &azureVnetResult)
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to unmarshal azure cni endpoint list")
+		return nil, errors.Wrapf(err, "failed to unmarshal azure vnet")
 	}
 
-	azureCnsPodIps := make(map[string]string)
-	for _, v := range azureDualStackResult.AzureCniState.ExternalInterfaces {
-		for _, networks := range v.Networks {
-			for _, ip := range networks.Endpoints {
-				pod := ip.PodName
-				// dualstack node's and pod's first ip is ipv4 and second is ipv6
-				ipv4 := ip.IPAddresses[0].IP
-				azureCnsPodIps[ipv4] = pod
-				if len(ip.IPAddresses) > 1 {
-					ipv6 := ip.IPAddresses[1].IP
-					azureCnsPodIps[ipv6] = pod
+	azureVnetPodIps := make(map[string]string)
+	for _, v := range azureVnetResult.AzureCniState.ExternalInterfaces {
+		for _, v := range v.Networks {
+			for _, e := range v.Endpoints {
+				for _, v := range e.IPAddresses {
+					// collect both ipv4 and ipv6 addresses
+					azureVnetPodIps[v.IP] = e.IfName
 				}
 			}
 		}
 	}
-	return azureCnsPodIps, nil
+	return azureVnetPodIps, nil
+}
+
+func azureVnetIpamStateIps(result []byte) (map[string]string, error) {
+	var azureVnetIpamResult AzureVnetIpam
+	err := json.Unmarshal(result, &azureVnetIpamResult)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to unmarshal azure vnet ipam")
+	}
+
+	azureVnetIpamPodIps := make(map[string]string)
+
+	for _, v := range azureVnetIpamResult.IPAM.AddrSpaces {
+		for _, v := range v.Pools {
+			for _, v := range v.Addresses {
+				if v.InUse {
+					azureVnetIpamPodIps[v.Addr.String()] = v.Addr.String()
+				}
+			}
+		}
+	}
+	return azureVnetIpamPodIps, nil
 }

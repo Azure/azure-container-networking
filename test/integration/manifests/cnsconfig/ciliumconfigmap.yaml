@@ -27,5 +27,7 @@ data:
       "ProgramSNATIPTables" : true,
       "EnableCNIConflistGeneration": true,
       "CNIConflistFilepath": "/etc/cni/net.d/05-cilium.conflist",
-      "CNIConflistScenario": "cilium"
+      "CNIConflistScenario": "cilium",
+      "EnableAsyncPodDelete": true,
+      "AsyncPodDeletePath": "/var/run/azure-vnet/deleteIDs"
     }

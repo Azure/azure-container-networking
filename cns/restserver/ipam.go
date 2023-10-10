@@ -816,8 +816,13 @@ func (service *HTTPRestService) AssignAvailableIPConfigs(podInfo cns.PodInfo) ([
 
 	// Checks to make sure we found one IP for each NC
 	if len(ipsToAssign) != numOfNCs {
-		//nolint:goerr113 // return error
-		return podIPInfo, fmt.Errorf("not enough IPs available, waiting on Azure CNS to allocate more")
+		for ncID := range service.state.ContainerStatus {
+			if _, found := ipsToAssign[ncID]; found {
+				continue
+			}
+			return podIPInfo, errors.Errorf("not enough IPs available for %s, waiting on Azure CNS to allocate more with NC Status: %s",
+				ncID, string(service.state.ContainerStatus[ncID].CreateNetworkContainerRequest.NCStatus))
+		}
 	}
 
 	failedToAssignIP := false

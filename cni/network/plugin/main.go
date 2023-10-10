@@ -4,7 +4,6 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -27,7 +26,6 @@ import (
 	cniTypes "github.com/containernetworking/cni/pkg/types"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 )
 
 const (
@@ -37,13 +35,12 @@ const (
 	telemetryNumRetries             = 5
 	telemetryWaitTimeInMilliseconds = 200
 	name                            = "azure-vnet"
-	maxLogFileSizeInMb              = 5
-	maxLogFileCount                 = 8
-	component                       = "cni"
 )
 
 // Version is populated by make during build.
 var version string
+
+var logger = zaplog.CNILogger.With(zap.String("component", "cni-main"))
 
 // Command line arguments for CNI plugin.
 var args = common.ArgumentList{
@@ -63,11 +60,11 @@ func printVersion() {
 
 // send error report to hostnetagent if CNI encounters any error.
 func reportPluginError(reportManager *telemetry.ReportManager, tb *telemetry.TelemetryBuffer, err error) {
-	zaplog.Logger.Error("Report plugin error")
+	logger.Error("Report plugin error")
 	reflect.ValueOf(reportManager.Report).Elem().FieldByName("ErrorMessage").SetString(err.Error())
 
 	if err := reportManager.SendReport(tb); err != nil {
-		zaplog.Logger.Error("SendReport failed", zap.Error(err))
+		logger.Error("SendReport failed", zap.Error(err))
 	}
 }
 
@@ -85,7 +82,7 @@ func validateConfig(jsonBytes []byte) error {
 }
 
 func getCmdArgsFromEnv() (string, *skel.CmdArgs, error) {
-	zaplog.Logger.Info("Going to read from stdin")
+	logger.Info("Going to read from stdin")
 	stdinData, err := io.ReadAll(os.Stdin)
 	if err != nil {
 		return "", nil, fmt.Errorf("error reading from stdin: %v", err)
@@ -111,24 +108,24 @@ func handleIfCniUpdate(update func(*skel.CmdArgs) error) (bool, error) {
 		return false, nil
 	}
 
-	zaplog.Logger.Info("CNI UPDATE received")
+	logger.Info("CNI UPDATE received")
 
 	_, cmdArgs, err := getCmdArgsFromEnv()
 	if err != nil {
-		zaplog.Logger.Error("Received error while retrieving cmds from environment", zap.Error(err))
+		logger.Error("Received error while retrieving cmds from environment", zap.Error(err))
 		return isupdate, err
 	}
 
-	zaplog.Logger.Info("Retrieved command args for update", zap.Any("args", cmdArgs))
+	logger.Info("Retrieved command args for update", zap.Any("args", cmdArgs))
 	err = validateConfig(cmdArgs.StdinData)
 	if err != nil {
-		zaplog.Logger.Error("Failed to handle CNI UPDATE", zap.Error(err))
+		logger.Error("Failed to handle CNI UPDATE", zap.Error(err))
 		return isupdate, err
 	}
 
 	err = update(cmdArgs)
 	if err != nil {
-		zaplog.Logger.Error("Failed to handle CNI UPDATE", zap.Error(err))
+		logger.Error("Failed to handle CNI UPDATE", zap.Error(err))
 		return isupdate, err
 	}
 
@@ -136,7 +133,7 @@ func handleIfCniUpdate(update func(*skel.CmdArgs) error) (bool, error) {
 }
 
 func printCNIError(msg string) {
-	zaplog.Logger.Error(msg)
+	logger.Error(msg)
 	cniErr := &cniTypes.Error{
 		Code: cniTypes.ErrTryAgainLater,
 		Msg:  msg,
@@ -180,7 +177,7 @@ func rootExecute() error {
 	cniCmd := os.Getenv(cni.Cmd)
 
 	if cniCmd != cni.CmdVersion {
-		zaplog.Logger.Info("Environment variable set", zap.String("CNI_COMMAND", cniCmd))
+		logger.Info("Environment variable set", zap.String("CNI_COMMAND", cniCmd))
 
 		cniReport.GetReport(pluginName, version, ipamQueryURL)
 
@@ -194,9 +191,9 @@ func rootExecute() error {
 		if err = netPlugin.Plugin.InitializeKeyValueStore(&config); err != nil {
 			printCNIError(fmt.Sprintf("Failed to initialize key-value store of network plugin: %v", err))
 
-			tb = telemetry.NewTelemetryBuffer()
+			tb = telemetry.NewTelemetryBuffer(logger)
 			if tberr := tb.Connect(); tberr != nil {
-				zaplog.Logger.Error("Cannot connect to telemetry service", zap.Error(tberr))
+				logger.Error("Cannot connect to telemetry service", zap.Error(tberr))
 				return errors.Wrap(err, "lock acquire error")
 			}
 
@@ -211,7 +208,7 @@ func rootExecute() error {
 				}
 				sendErr := telemetry.SendCNIMetric(&cniMetric, tb)
 				if sendErr != nil {
-					zaplog.Logger.Error("Couldn't send cnilocktimeout metric", zap.Error(sendErr))
+					logger.Error("Couldn't send cnilocktimeout metric", zap.Error(sendErr))
 				}
 			}
 
@@ -221,7 +218,7 @@ func rootExecute() error {
 
 		defer func() {
 			if errUninit := netPlugin.Plugin.UninitializeKeyValueStore(); errUninit != nil {
-				zaplog.Logger.Error("Failed to uninitialize key-value store of network plugin", zap.Error(errUninit))
+				logger.Error("Failed to uninitialize key-value store of network plugin", zap.Error(errUninit))
 			}
 
 			if recover() != nil {
@@ -231,7 +228,7 @@ func rootExecute() error {
 
 		// Start telemetry process if not already started. This should be done inside lock, otherwise multiple process
 		// end up creating/killing telemetry process results in undesired state.
-		tb = telemetry.NewTelemetryBuffer()
+		tb = telemetry.NewTelemetryBuffer(logger)
 		tb.ConnectToTelemetryService(telemetryNumRetries, telemetryWaitTimeInMilliseconds)
 		defer tb.Close()
 
@@ -248,17 +245,17 @@ func rootExecute() error {
 
 		// used to dump state
 		if cniCmd == cni.CmdGetEndpointsState {
-			zaplog.Logger.Debug("Retrieving state")
+			logger.Debug("Retrieving state")
 			var simpleState *api.AzureCNIState
 			simpleState, err = netPlugin.GetAllEndpointState("azure")
 			if err != nil {
-				zaplog.Logger.Error("Failed to get Azure CNI state", zap.Error(err))
+				logger.Error("Failed to get Azure CNI state", zap.Error(err))
 				return errors.Wrap(err, "Get all endpoints error")
 			}
 
 			err = simpleState.PrintResult()
 			if err != nil {
-				zaplog.Logger.Error("Failed to print state result to stdout", zap.Error(err))
+				logger.Error("Failed to print state result to stdout", zap.Error(err))
 			}
 
 			return errors.Wrap(err, "Get cni state printresult error")
@@ -267,9 +264,9 @@ func rootExecute() error {
 
 	handled, _ := handleIfCniUpdate(netPlugin.Update)
 	if handled {
-		zaplog.Logger.Info("CNI UPDATE finished.")
+		logger.Info("CNI UPDATE finished.")
 	} else if err = netPlugin.Execute(cni.PluginApi(netPlugin)); err != nil {
-		zaplog.Logger.Error("Failed to execute network plugin", zap.Error(err))
+		logger.Error("Failed to execute network plugin", zap.Error(err))
 	}
 
 	if cniCmd == cni.CmdVersion {
@@ -288,7 +285,6 @@ func rootExecute() error {
 // Main is the entry point for CNI network plugin.
 func main() {
 	// Initialize and parse command line arguments.
-	ctx, cancel := context.WithCancel(context.Background())
 	common.ParseArgs(&args, printVersion)
 	vers := common.GetArg(common.OptVersion).(bool)
 
@@ -306,19 +302,7 @@ func main() {
 
 	defer log.Close()
 
-	loggerCfg := &zaplog.Config{
-		Level:       zapcore.DebugLevel,
-		LogPath:     zaplog.LogPath + name + ".log",
-		MaxSizeInMB: maxLogFileSizeInMb,
-		MaxBackups:  maxLogFileCount,
-		Name:        name,
-		Component:   component,
-	}
-	zaplog.Initialize(ctx, loggerCfg)
-
 	if rootExecute() != nil {
 		os.Exit(1)
 	}
-
-	cancel()
 }

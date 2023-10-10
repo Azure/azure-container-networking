@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/Azure/azure-container-networking/cns/types"
+	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 )
@@ -69,6 +70,15 @@ const (
 	Vxlan = "Vxlan"
 )
 
+type NICType string
+
+// NIC Types
+const (
+	InfraNIC NICType = "InfraNIC"
+	// Delegated VM NICs are projected from VM to container network namespace
+	DelegatedVMNIC NICType = "DelegatedVMNIC"
+)
+
 // ChannelMode :- CNS channel modes
 const (
 	Direct         = "Direct"
@@ -95,6 +105,7 @@ type CreateNetworkContainerRequest struct {
 	AllowHostToNCCommunication bool
 	AllowNCToHostCommunication bool
 	EndpointPolicies           []NetworkContainerRequestPolicies
+	NCStatus                   v1alpha.NCStatus
 }
 
 // CreateNetworkContainerRequest implements fmt.Stringer for logging
@@ -102,9 +113,9 @@ func (req *CreateNetworkContainerRequest) String() string {
 	return fmt.Sprintf("CreateNetworkContainerRequest"+
 		"{Version: %s, NetworkContainerType: %s, NetworkContainerid: %s, PrimaryInterfaceIdentifier: %s, "+
 		"LocalIPConfiguration: %+v, IPConfiguration: %+v, SecondaryIPConfigs: %+v, MultitenancyInfo: %+v, "+
-		"AllowHostToNCCommunication: %t, AllowNCToHostCommunication: %t}",
+		"AllowHostToNCCommunication: %t, AllowNCToHostCommunication: %t, NCStatus: %s}",
 		req.Version, req.NetworkContainerType, req.NetworkContainerid, req.PrimaryInterfaceIdentifier, req.LocalIPConfiguration,
-		req.IPConfiguration, req.SecondaryIPConfigs, req.MultiTenancyInfo, req.AllowHostToNCCommunication, req.AllowNCToHostCommunication)
+		req.IPConfiguration, req.SecondaryIPConfigs, req.MultiTenancyInfo, req.AllowHostToNCCommunication, req.AllowNCToHostCommunication, string(req.NCStatus))
 }
 
 // NetworkContainerRequestPolicies - specifies policies associated with create network request
@@ -404,6 +415,15 @@ type PodIpInfo struct {
 	PodIPConfig                     IPSubnet
 	NetworkContainerPrimaryIPConfig IPConfiguration
 	HostPrimaryIPInfo               HostIPInfo
+	// NICType defines whether NIC is InfraNIC or DelegatedVMNIC
+	NICType       NICType
+	InterfaceName string
+	// MacAddress of interface
+	MacAddress string
+	// SkipDefaultRoutes is true if default routes should not be added on interface
+	SkipDefaultRoutes bool
+	// Routes to configure on interface
+	Routes []Route
 }
 
 type HostIPInfo struct {

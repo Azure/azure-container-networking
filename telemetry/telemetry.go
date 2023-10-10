@@ -11,6 +11,7 @@ import (
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/platform"
 	"github.com/pkg/errors"
+	"go.uber.org/zap"
 )
 
 const (
@@ -112,7 +113,11 @@ func (reportMgr *ReportManager) SendReport(tb *TelemetryBuffer) error {
 		report, err = reportMgr.ReportToBytes()
 		if err == nil {
 			if _, err = tb.Write(report); err != nil {
-				log.Printf("telemetry write failed:%v", err)
+				if tb.logger != nil {
+					tb.logger.Error("telemetry write failed", zap.Error(err))
+				} else {
+					log.Printf("telemetry write failed:%v", err)
+				}
 			}
 		}
 	}
@@ -143,7 +148,7 @@ func SendCNIMetric(cniMetric *AIMetric, tb *TelemetryBuffer) error {
 		report, err = reportMgr.ReportToBytes()
 		if err == nil {
 			if _, err = tb.Write(report); err != nil {
-				log.Printf("Error writing to telemetry socket:%v", err)
+				tb.logger.Error("Error writing to telemetry socket", zap.Error(err))
 			}
 		}
 	}
@@ -157,7 +162,7 @@ func SendCNIEvent(tb *TelemetryBuffer, report *CNIReport) {
 		reportBytes, err := reportMgr.ReportToBytes()
 		if err == nil {
 			if _, err = tb.Write(reportBytes); err != nil {
-				log.Printf("Error writing to telemetry socket:%v", err)
+				tb.logger.Error("Error writing to telemetry socket", zap.Error(err))
 			}
 		}
 	}

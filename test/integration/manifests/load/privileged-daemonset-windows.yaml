@@ -5,14 +5,17 @@ metadata:
   namespace: kube-system
   labels:
     app: privileged-daemonset
+    os: windows
 spec:
   selector:
     matchLabels:
       app: privileged-daemonset
+      os: windows
   template:
     metadata:
       labels:
         app: privileged-daemonset
+        os: windows
     spec:
       nodeSelector:
         kubernetes.io/os: windows

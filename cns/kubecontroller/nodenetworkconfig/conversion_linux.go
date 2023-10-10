@@ -56,5 +56,6 @@ func createNCRequestFromStaticNCHelper(nc v1alpha.NetworkContainer, primaryIPPre
 			IPSubnet:         subnet,
 			GatewayIPAddress: nc.DefaultGateway,
 		},
+		NCStatus: nc.Status,
 	}, nil
 }

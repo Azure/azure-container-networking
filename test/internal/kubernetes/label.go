@@ -1,9 +1,10 @@
-package k8sutils
+package kubernetes
 
 import (
 	"context"
 	"encoding/json"
 
+	"github.com/pkg/errors"
 	apiv1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -24,8 +25,13 @@ func AddNodeLabels(ctx context.Context, nodes corev1.NodeInterface, nodeName str
 
 	bs, err := json.Marshal(mergeData)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "failed to marshal labels")
 	}
 
-	return nodes.Patch(ctx, nodeName, types.MergePatchType, bs, metav1.PatchOptions{})
+	node, err := nodes.Patch(ctx, nodeName, types.MergePatchType, bs, metav1.PatchOptions{})
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to path nodes")
+	}
+
+	return node, nil
 }

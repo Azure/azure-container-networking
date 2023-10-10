@@ -24,6 +24,7 @@ import (
 
 type cnsClient interface {
 	CreateOrUpdateNetworkContainerInternal(*cns.CreateNetworkContainerRequest) cnstypes.ResponseCode
+	MustEnsureNoStaleNCs(validNCIDs []string)
 }
 
 type nodeNetworkConfigListener interface {
@@ -73,6 +74,15 @@ func (r *Reconciler) Reconcile(ctx context.Context, req reconcile.Request) (reco
 	logger.Printf("[cns-rc] CRD Spec: %+v", nnc.Spec)
 
 	ipAssignments := 0
+
+	// during node upgrades, an nnc may be updated with new ncs. at any given time, only the ncs
+	// that exist in the nnc are valid. any others that may have been previously created and no
+	// longer exist in the nnc should be considered stale.
+	validNCIDs := make([]string, len(nnc.Status.NetworkContainers))
+	for i := range nnc.Status.NetworkContainers {
+		validNCIDs[i] = nnc.Status.NetworkContainers[i].ID
+	}
+	r.cnscli.MustEnsureNoStaleNCs(validNCIDs)
 
 	// for each NC, parse it in to a CreateNCRequest and forward it to the appropriate Listener
 	for i := range nnc.Status.NetworkContainers {

@@ -9,6 +9,8 @@ import (
 	"go.uber.org/zap"
 )
 
+var logger = log.CNILogger.With(zap.String("component", "cni-api"))
+
 type PodNetworkInterfaceInfo struct {
 	PodName       string
 	PodNamespace  string
@@ -24,13 +26,13 @@ type AzureCNIState struct {
 func (a *AzureCNIState) PrintResult() error {
 	b, err := json.MarshalIndent(a, "", "    ")
 	if err != nil {
-		log.Logger.Error("Failed to unmarshall Azure CNI state", zap.Error(err))
+		logger.Error("Failed to unmarshall Azure CNI state", zap.Error(err))
 	}
 
 	// write result to stdout to be captured by caller
 	_, err = os.Stdout.Write(b)
 	if err != nil {
-		log.Logger.Error("Failed to write response to stdout", zap.Error(err))
+		logger.Error("Failed to write response to stdout", zap.Error(err))
 		return err
 	}
 

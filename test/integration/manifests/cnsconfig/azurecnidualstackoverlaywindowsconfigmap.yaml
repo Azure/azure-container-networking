@@ -1,0 +1,33 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cns-win-config
+  namespace: kube-system
+data:
+  cns_config.json: |
+    {
+      "TelemetrySettings": {
+          "TelemetryBatchSizeBytes": 16384,
+          "TelemetryBatchIntervalInSecs": 15,
+          "RefreshIntervalInSecs": 15,
+          "DisableAll": false,
+          "HeartBeatIntervalInMins": 30,
+          "DebugMode": false,
+          "SnapshotIntervalInMins": 60
+      },
+      "ManagedSettings": {
+          "PrivateEndpoint": "",
+          "InfrastructureNetworkID": "",
+          "NodeID": "",
+          "NodeSyncIntervalInSeconds": 30
+      },
+      "EnableSubnetScarcity": false,
+      "ChannelMode": "CRD",
+      "InitializeFromCNI": true,
+      "ManageEndpointState": false,
+      "ProgramSNATIPTables" : false,
+      "MetricsBindAddress": ":10092",
+      "EnableCNIConflistGeneration": false,
+      "CNIConflistFilepath": "C:\\k\\azurecni\\netconf\\10-azure.conflist",
+      "CNIConflistScenario": "dualStackOverlay"
+    }

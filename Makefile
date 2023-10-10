@@ -257,7 +257,7 @@ ACNCLI_PLATFORM_TAG    		 ?= $(subst /,-,$(PLATFORM))$(if $(OS_VERSION),-$(OS_VE
 CNI_DROPGZ_PLATFORM_TAG 	 ?= $(subst /,-,$(PLATFORM))$(if $(OS_VERSION),-$(OS_VERSION),)-$(CNI_DROPGZ_VERSION)
 CNI_DROPGZ_TEST_PLATFORM_TAG ?= $(subst /,-,$(PLATFORM))$(if $(OS_VERSION),-$(OS_VERSION),)-$(CNI_DROPGZ_TEST_VERSION)
 CNS_PLATFORM_TAG        	 ?= $(subst /,-,$(PLATFORM))$(if $(OS_VERSION),-$(OS_VERSION),)-$(CNS_VERSION)
-CNS_WINDOWS_PLATFORM_TAG 	 ?= $(subst /,-,$(PLATFORM))$(if $(OS_VERSION),-$(OS_VERSION),)-$(CNS_VERSION)-$(WINDOWS_OS_SKU)
+CNS_WINDOWS_PLATFORM_TAG 	 ?= $(subst /,-,$(PLATFORM))$(if $(OS_VERSION),-$(OS_VERSION),)-$(CNS_VERSION)-$(OS_SKU_WIN)
 NPM_PLATFORM_TAG        	 ?= $(subst /,-,$(PLATFORM))$(if $(OS_VERSION),-$(OS_VERSION),)-$(NPM_VERSION)
 
 
@@ -480,14 +480,14 @@ manifest-create:
 	$(CONTAINER_BUILDER) manifest create $(IMAGE_REGISTRY)/$(IMAGE):$(TAG)
 
 manifest-add:
-	$(CONTAINER_BUILDER) manifest add --os-version=$($(OS_VERSION)) $(IMAGE_REGISTRY)/$(IMAGE):$(TAG) docker://$(IMAGE_REGISTRY)/$(IMAGE):$(subst /,-,$(PLATFORM))$(if $(OS_VERSION),-$(OS_VERSION),)-$(TAG)
+	$(CONTAINER_BUILDER) manifest add --os=$(OS) --os-version=$($(OS_VERSION)) $(IMAGE_REGISTRY)/$(IMAGE):$(TAG) docker://$(IMAGE_REGISTRY)/$(IMAGE):$(subst /,-,$(PLATFORM))$(if $(OS_VERSION),-$(OS_VERSION),)-$(TAG)
 
 manifest-build: # util target to compose multiarch container manifests from platform specific images.
 	$(MAKE) manifest-create
 	$(foreach PLATFORM,$(PLATFORMS),\
 		$(if $(filter $(PLATFORM),windows/amd64),\
 			$(foreach OS_VERSION,$(OS_VERSIONS),\
-				$(MAKE) manifest-add OS_VERSION=$(OS_VERSION) PLATFORM=$(PLATFORM);\
+				$(MAKE) manifest-add CONTAINER_BUILDER=$(CONTAINER_BUILDER) OS=windows OS_VERSION=$(OS_VERSION) PLATFORM=$(PLATFORM);\
 			),\
 			$(MAKE) manifest-add PLATFORM=$(PLATFORM);\
 		)\
@@ -523,7 +523,8 @@ cni-dropgz-manifest-build: ## build cni-dropgz multiplat container manifest.
 	$(MAKE) manifest-build \
 		PLATFORMS="$(PLATFORMS)" \
 		IMAGE=$(CNI_DROPGZ_IMAGE) \
-		TAG=$(CNI_DROPGZ_VERSION)
+		TAG=$(CNI_DROPGZ_VERSION) \
+		OS_VERSIONS="$(OS_VERSIONS)"
 
 cni-dropgz-manifest-push: ## push cni-dropgz multiplat container manifest
 	$(MAKE) manifest-push \
@@ -539,7 +540,8 @@ cni-dropgz-test-manifest-build: ## build cni-dropgz multiplat container manifest
 	$(MAKE) manifest-build \
 		PLATFORMS="$(PLATFORMS)" \
 		IMAGE=$(CNI_DROPGZ_TEST_IMAGE) \
-		TAG=$(CNI_DROPGZ_TEST_VERSION)
+		TAG=$(CNI_DROPGZ_TEST_VERSION) \
+		OS_VERSIONS="$(OS_VERSIONS)"
 
 cni-dropgz-test-manifest-push: ## push cni-dropgz multiplat container manifest
 	$(MAKE) manifest-push \
@@ -725,8 +727,13 @@ test-integration: ## run all integration tests.
 		CNS_VERSION=$(CNS_VERSION) \
 		go test -mod=readonly -buildvcs=false -timeout 1h -coverpkg=./... -race -covermode atomic -coverprofile=coverage.out -tags=integration ./test/integration...
 
+test-load: ## run all load tests
+	CNI_DROPGZ_VERSION=$(CNI_DROPGZ_VERSION) \
+		CNS_VERSION=$(CNS_VERSION) \
+		go test -timeout 30m -race -tags=load ./test/integration/load...
+
 test-validate-state:
-	cd test/integration/load && go test -mod=readonly -count=1 -timeout 30m -tags load -run ^TestValidateState -restart-case=$(RESTART_CASE) -os=$(OS) -cni=$(CNI_TYPE)
+	cd test/integration/load && go test -mod=readonly -count=1 -timeout 30m -tags load -run ^TestValidateState
 	cd ../../..
 
 test-cyclonus: ## run the cyclonus test for npm.

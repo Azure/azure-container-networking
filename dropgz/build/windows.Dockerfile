@@ -6,7 +6,7 @@ RUN tdnf install -y unzip
 RUN tdnf upgrade -y && tdnf install -y ca-certificates
 
 FROM tar AS azure-vnet
-ARG AZCNI_VERSION=v1.5.10
+ARG AZCNI_VERSION=v1.5.11
 ARG VERSION
 ARG OS
 ARG ARCH
@@ -18,6 +18,8 @@ FROM --platform=linux/${ARCH} mcr.microsoft.com/cbl-mariner/base/core:2.0 AS com
 ARG OS
 WORKDIR /dropgz
 COPY dropgz .
+COPY --from=azure-vnet /azure-container-networking/cni/azure-$OS-swift-overlay.conflist pkg/embed/fs/azure-swift-overlay.conflist
+COPY --from=azure-vnet /azure-container-networking/cni/azure-$OS-swift-overlay-dualstack.conflist pkg/embed/fs/azure-swift-overlay-dualstack.conflist
 COPY --from=azure-vnet /azure-container-networking/azure-vnet.exe pkg/embed/fs
 COPY --from=azure-vnet /azure-container-networking/azure-vnet-telemetry.exe pkg/embed/fs
 COPY --from=azure-vnet /azure-container-networking/azure-vnet-ipam.exe pkg/embed/fs

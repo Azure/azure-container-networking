@@ -87,11 +87,11 @@ spec:
           command: ["powershell.exe"]
           args:
             [
-              '.\setkubeconfigpath-capz.ps1',
+              # eventually should have the Dockerfile copy npm.exe to /npm.exe instead
+              'mv $env:CONTAINER_SANDBOX_MOUNT_POINT/npm.exe /npm.exe',
               ";",
               '.\npm.exe',
               "start",
-              '--kubeconfig=.\kubeconfig',
             ]
           resources:
             limits:
@@ -106,10 +106,10 @@ spec:
                   apiVersion: v1
                   fieldPath: spec.nodeName
             - name: NPM_CONFIG
-              value: .\\etc\\azure-npm\\azure-npm.json
+              value: /etc/azure-npm/azure-npm.json
           volumeMounts:
             - name: azure-npm-config
-              mountPath: .\\etc\\azure-npm
+              mountPath: /etc/azure-npm
       nodeSelector:
         kubernetes.io/os: windows
       volumes:
@@ -140,21 +140,23 @@ metadata:
 data:
   azure-npm.json: |
     {
-        "WindowsNetworkName":          "Calico",
-        "ResyncPeriodInMinutes":       15,
-        "ListeningPort":               10091,
-        "ListeningAddress":            "0.0.0.0",
-        "ApplyIntervalInMilliseconds": 500,
-        "ApplyMaxBatches":             100,
-        "MaxBatchedACLsPerPod":        30,
+        "WindowsNetworkName":           "Calico",
+        "ResyncPeriodInMinutes":        15,
+        "ListeningPort":                10091,
+        "ListeningAddress":             "0.0.0.0",
+        "ApplyIntervalInMilliseconds":  500,
+        "ApplyMaxBatches":              100,
+        "MaxBatchedACLsPerPod":         30,
+        "NetPolInvervalInMilliseconds": 500,
+        "MaxPendingNetPols":            100,
         "Toggles": {
             "EnablePrometheusMetrics": true,
             "EnablePprof":             true,
             "EnableHTTPDebugAPI":      true,
             "EnableV2NPM":             true,
-            "PlaceAzureChainFirst":    true,
+            "PlaceAzureChainFirst":    false,
             "ApplyIPSetsOnNeed":       false,
             "ApplyInBackground":       true,
-            "NetPolInBackground":      false
+            "NetPolInBackground":      true
         }
     }

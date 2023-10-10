@@ -37,7 +37,8 @@ func TestCreateAITelemetryHandle(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			err := CreateAITelemetryHandle(tt.aiConfig, tt.disableAll, tt.disableMetric, tt.disableTrace)
+			tb := NewTelemetryBuffer(nil)
+			err := tb.CreateAITelemetryHandle(tt.aiConfig, tt.disableAll, tt.disableMetric, tt.disableTrace)
 			if tt.wantErr {
 				require.Error(t, err)
 				return

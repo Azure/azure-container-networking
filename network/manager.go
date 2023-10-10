@@ -10,11 +10,11 @@ import (
 
 	cnms "github.com/Azure/azure-container-networking/cnms/cnmspackage"
 	"github.com/Azure/azure-container-networking/common"
-	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/netio"
 	"github.com/Azure/azure-container-networking/netlink"
 	"github.com/Azure/azure-container-networking/platform"
 	"github.com/Azure/azure-container-networking/store"
+	"go.uber.org/zap"
 )
 
 const (
@@ -127,7 +127,7 @@ func (nm *networkManager) Uninitialize() {
 func (nm *networkManager) restore(isRehydrationRequired bool) error {
 	// Skip if a store is not provided.
 	if nm.store == nil {
-		log.Printf("[net] network store is nil")
+		logger.Info("network store is nil")
 		return nil
 	}
 
@@ -139,14 +139,14 @@ func (nm *networkManager) restore(isRehydrationRequired bool) error {
 	err := nm.store.Read(storeKey, nm)
 	if err != nil {
 		if err == store.ErrKeyNotFound {
-			log.Printf("[net] network store key not found")
+			logger.Info("network store key not found")
 			// Considered successful.
 			return nil
 		} else if err == store.ErrStoreEmpty {
-			log.Printf("[net] network store empty")
+			logger.Info("network store empty")
 			return nil
 		} else {
-			log.Printf("[net] Failed to restore state, err:%v\n", err)
+			logger.Error("Failed to restore state", zap.Error(err))
 			return err
 		}
 	}
@@ -155,20 +155,20 @@ func (nm *networkManager) restore(isRehydrationRequired bool) error {
 		modTime, err := nm.store.GetModificationTime()
 		if err == nil {
 			rebootTime, err := platform.GetLastRebootTime()
-			log.Printf("[net] reboot time %v store mod time %v", rebootTime, modTime)
+			logger.Info("reboot time, store mod time", zap.Any("rebootTime", rebootTime), zap.Any("modTime", modTime))
 			if err == nil && rebootTime.After(modTime) {
-				log.Printf("[net] Detected Reboot")
+				logger.Info("Detected Reboot")
 				rebooted = true
 				if clearNwConfig, err := platform.ClearNetworkConfiguration(); clearNwConfig {
 					if err != nil {
-						log.Printf("[net] Failed to clear network configuration, err:%v\n", err)
+						logger.Error("Failed to clear network configuration", zap.Error(err))
 						return err
 					}
 
 					// Delete the networks left behind after reboot
 					for _, extIf := range nm.ExternalInterfaces {
 						for _, nw := range extIf.Networks {
-							log.Printf("[net] Deleting the network %s on reboot\n", nw.Id)
+							logger.Info("Deleting the network on reboot", zap.String("id", nw.Id))
 							_ = nm.deleteNetwork(nw.Id)
 						}
 					}
@@ -193,12 +193,13 @@ func (nm *networkManager) restore(isRehydrationRequired bool) error {
 
 	// if rebooted recreate the network that existed before reboot.
 	if rebooted {
-		log.Printf("[net] Rehydrating network state from persistent store")
+		logger.Info("Rehydrating network state from persistent store")
 		for _, extIf := range nm.ExternalInterfaces {
 			for _, nw := range extIf.Networks {
 				nwInfo, err := nm.GetNetworkInfo(nw.Id)
 				if err != nil {
-					log.Printf("[net] Failed to fetch network info for network %v extif %v err %v. This should not happen", nw, extIf, err)
+					logger.Error("Failed to fetch network info for network extif err. This should not happen",
+						zap.Any("nw", nw), zap.Any("extIf", extIf), zap.Error(err))
 					return err
 				}
 
@@ -206,14 +207,15 @@ func (nm *networkManager) restore(isRehydrationRequired bool) error {
 
 				_, err = nm.newNetworkImpl(&nwInfo, extIf)
 				if err != nil {
-					log.Printf("[net] Restoring network failed for nwInfo %v extif %v. This should not happen %v", nwInfo, extIf, err)
+					logger.Error("Restoring network failed for nwInfo extif. This should not happen",
+						zap.Any("nwInfo", nwInfo), zap.Any("extIf", extIf), zap.Error(err))
 					return err
 				}
 			}
 		}
 	}
 
-	log.Printf("[net] Restored state")
+	logger.Info("Restored state")
 	return nil
 }
 
@@ -229,9 +231,9 @@ func (nm *networkManager) save() error {
 
 	err := nm.store.Write(storeKey, nm)
 	if err == nil {
-		log.Printf("[net] Save succeeded.\n")
+		logger.Info("Save succeeded")
 	} else {
-		log.Printf("[net] Save failed, err:%v\n", err)
+		logger.Error("Save failed", zap.Error(err))
 	}
 	return err
 }
@@ -336,7 +338,7 @@ func (nm *networkManager) CreateEndpoint(cli apipaClient, networkID string, epIn
 
 	if nw.VlanId != 0 {
 		if epInfo.Data[VlanIDKey] == nil {
-			log.Printf("overriding endpoint vlanid with network vlanid")
+			logger.Info("overriding endpoint vlanid with network vlanid")
 			epInfo.Data[VlanIDKey] = nw.VlanId
 		}
 	}
@@ -403,7 +405,7 @@ func (nm *networkManager) GetAllEndpoints(networkId string) (map[string]*Endpoin
 
 	// Special case when CNS invokes CNI, but there is no state, but return gracefully
 	if len(nm.ExternalInterfaces) == 0 {
-		log.Printf("Network manager has no external interfaces, is the state file populated?")
+		logger.Info("Network manager has no external interfaces, is the state file populated?")
 		return eps, store.ErrStoreEmpty
 	}
 

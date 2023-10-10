@@ -6,8 +6,8 @@ parameters:
 
 
 jobs:
-  - job: cni_k8se2e
-    displayName: "CNI k8s E2E"
+  - job: CNI_${{ parameters.os }}
+    displayName: CNI k8s E2E ${{ parameters.os }}
     dependsOn: ${{ parameters.dependsOn }}
     pool:
       name: $(BUILD_POOL_NAME_DEFAULT)

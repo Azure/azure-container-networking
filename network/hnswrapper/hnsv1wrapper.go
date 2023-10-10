@@ -6,9 +6,12 @@ package hnswrapper
 import (
 	"encoding/json"
 
-	"github.com/Azure/azure-container-networking/log"
+	"github.com/Azure/azure-container-networking/cni/log"
 	"github.com/Microsoft/hcsshim"
+	"go.uber.org/zap"
 )
+
+var logger = log.CNILogger.With(zap.String("component", "net-hns"))
 
 type Hnsv1wrapper struct{}
 
@@ -21,9 +24,9 @@ func (Hnsv1wrapper) CreateEndpoint(endpoint *hcsshim.HNSEndpoint, path string) (
 	hnsRequest := string(buffer)
 
 	// Create the HNS endpoint.
-	log.Printf("[net] HNSEndpointRequest POST request:%+v", hnsRequest)
+	logger.Info("HNSEndpointRequest POST", zap.String("request", hnsRequest))
 	hnsResponse, err := hcsshim.HNSEndpointRequest("POST", path, hnsRequest)
-	log.Printf("[net] HNSEndpointRequest POST response:%+v err:%v.", hnsResponse, err)
+	logger.Info("HNSEndpointRequest POST", zap.Any("response", hnsResponse), zap.Error(err))
 
 	if err != nil {
 		return nil, err
@@ -50,9 +53,9 @@ func (Hnsv1wrapper) CreateNetwork(network *hcsshim.HNSNetwork, path string) (*hc
 	hnsRequest := string(buffer)
 
 	// Create the HNS network.
-	log.Printf("[net] HNSNetworkRequest POST request:%+v", hnsRequest)
+	logger.Info("HNSNetworkRequest POST request", zap.String("request", hnsRequest))
 	hnsResponse, err := hcsshim.HNSNetworkRequest("POST", path, hnsRequest)
-	log.Printf("[net] HNSNetworkRequest POST response:%+v err:%v.", hnsResponse, err)
+	logger.Info("HNSNetworkRequest POST response", zap.Any("response", hnsResponse), zap.Error(err))
 
 	if err != nil {
 		return nil, err

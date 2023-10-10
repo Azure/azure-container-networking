@@ -1,4 +1,4 @@
-package k8sutils
+package kubernetes
 
 import (
 	"context"
@@ -41,7 +41,7 @@ func GetPodsByNode(ctx context.Context, clientset *kubernetes.Clientset, namespa
 func GetPodsIpsByNode(ctx context.Context, clientset *kubernetes.Clientset, namespace, labelselector, nodeName string) ([]string, error) {
 	pods, err := GetPodsByNode(ctx, clientset, namespace, labelselector, nodeName)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "failed to get pods by node")
 	}
 	ips := make([]string, 0, len(pods.Items)*2) //nolint
 	for index := range pods.Items {

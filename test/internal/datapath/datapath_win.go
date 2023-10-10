@@ -6,7 +6,7 @@ import (
 	"net"
 	"strings"
 
-	"github.com/Azure/azure-container-networking/test/internal/k8sutils"
+	acnk8s "github.com/Azure/azure-container-networking/test/internal/kubernetes"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	apiv1 "k8s.io/api/core/v1"
@@ -15,11 +15,11 @@ import (
 	restclient "k8s.io/client-go/rest"
 )
 
-var ipv6PrefixPolicy = []string{"curl", "-6", "-I", "-v", "www.bing.com"}
+var ipv6PrefixPolicy = []string{"powershell", "-c", "curl.exe", "-6", "-v", "www.bing.com", "--head"}
 
 func podTest(ctx context.Context, clientset *kubernetes.Clientset, srcPod *apiv1.Pod, cmd []string, rc *restclient.Config, passFunc func(string) error) error {
 	logrus.Infof("podTest() - %v %v", srcPod.Name, cmd)
-	output, err := k8sutils.ExecCmdOnPod(ctx, clientset, srcPod.Namespace, srcPod.Name, cmd, rc)
+	output, err := acnk8s.ExecCmdOnPod(ctx, clientset, srcPod.Namespace, srcPod.Name, cmd, rc)
 	if err != nil {
 		return errors.Wrapf(err, "failed to execute command on pod: %v", srcPod.Name)
 	}
@@ -28,7 +28,7 @@ func podTest(ctx context.Context, clientset *kubernetes.Clientset, srcPod *apiv1
 
 func WindowsPodToPodPingTestSameNode(ctx context.Context, clientset *kubernetes.Clientset, nodeName, podNamespace, labelSelector string, rc *restclient.Config) error {
 	logrus.Infof("Get Pods for Node: %s", nodeName)
-	pods, err := k8sutils.GetPodsByNode(ctx, clientset, podNamespace, labelSelector, nodeName)
+	pods, err := acnk8s.GetPodsByNode(ctx, clientset, podNamespace, labelSelector, nodeName)
 	if err != nil {
 		logrus.Error(err)
 		return errors.Wrap(err, "k8s api call")
@@ -77,7 +77,7 @@ func WindowsPodToPodPingTestSameNode(ctx context.Context, clientset *kubernetes.
 func WindowsPodToPodPingTestDiffNode(ctx context.Context, clientset *kubernetes.Clientset, nodeName1, nodeName2, podNamespace, labelSelector string, rc *restclient.Config) error {
 	logrus.Infof("Get Pods for Node 1: %s", nodeName1)
 	// Node 1
-	pods, err := k8sutils.GetPodsByNode(ctx, clientset, podNamespace, labelSelector, nodeName1)
+	pods, err := acnk8s.GetPodsByNode(ctx, clientset, podNamespace, labelSelector, nodeName1)
 	if err != nil {
 		logrus.Error(err)
 		return errors.Wrap(err, "k8s api call")
@@ -90,7 +90,7 @@ func WindowsPodToPodPingTestDiffNode(ctx context.Context, clientset *kubernetes.
 
 	logrus.Infof("Get Pods for Node 2: %s", nodeName2)
 	// Node 2
-	pods, err = k8sutils.GetPodsByNode(ctx, clientset, podNamespace, labelSelector, nodeName2)
+	pods, err = acnk8s.GetPodsByNode(ctx, clientset, podNamespace, labelSelector, nodeName2)
 	if err != nil {
 		logrus.Error(err)
 		return errors.Wrap(err, "k8s api call")
@@ -123,7 +123,7 @@ func WindowsPodToPodPingTestDiffNode(ctx context.Context, clientset *kubernetes.
 
 func WindowsPodToNode(ctx context.Context, clientset *kubernetes.Clientset, nodeName, nodeIP, podNamespace, labelSelector string, rc *restclient.Config) error {
 	logrus.Infof("Get Pods by Node: %s %s", nodeName, nodeIP)
-	pods, err := k8sutils.GetPodsByNode(ctx, clientset, podNamespace, labelSelector, nodeName)
+	pods, err := acnk8s.GetPodsByNode(ctx, clientset, podNamespace, labelSelector, nodeName)
 	if err != nil {
 		logrus.Error(err)
 		return errors.Wrap(err, "k8s api call")
@@ -162,7 +162,7 @@ func WindowsPodToNode(ctx context.Context, clientset *kubernetes.Clientset, node
 
 func WindowsPodToInternet(ctx context.Context, clientset *kubernetes.Clientset, nodeName, podNamespace, labelSelector string, rc *restclient.Config) error {
 	logrus.Infof("Get Pods by Node: %s", nodeName)
-	pods, err := k8sutils.GetPodsByNode(ctx, clientset, podNamespace, labelSelector, nodeName)
+	pods, err := acnk8s.GetPodsByNode(ctx, clientset, podNamespace, labelSelector, nodeName)
 	if err != nil {
 		logrus.Error(err)
 		return errors.Wrap(err, "k8s api call")
@@ -197,7 +197,7 @@ func WindowsPodToInternet(ctx context.Context, clientset *kubernetes.Clientset, 
 	}
 
 	// test Invoke-WebRequest an URL by IPv6 address on one pod
-	// command is: C:\inetpub\wwwroot>curl -6 -I -v www.bing.com
+	// command is: C:\inetpub\wwwroot> powershell -c curl.exe -6 -v www.bing.com --head
 	// then return *   Trying [2620:1ec:c11::200]:80...
 	//              HTTP/1.1 200 OK
 	if len(secondPod.Status.PodIPs) > 1 {

@@ -22,11 +22,13 @@ import (
 	"github.com/Azure/azure-container-networking/cnm/ipam"
 	"github.com/Azure/azure-container-networking/cnm/network"
 	"github.com/Azure/azure-container-networking/cns"
+	cnsclient "github.com/Azure/azure-container-networking/cns/client"
 	cnscli "github.com/Azure/azure-container-networking/cns/cmd/cli"
 	"github.com/Azure/azure-container-networking/cns/cniconflist"
 	"github.com/Azure/azure-container-networking/cns/cnireconciler"
 	"github.com/Azure/azure-container-networking/cns/common"
 	"github.com/Azure/azure-container-networking/cns/configuration"
+	"github.com/Azure/azure-container-networking/cns/fsnotify"
 	"github.com/Azure/azure-container-networking/cns/healthserver"
 	"github.com/Azure/azure-container-networking/cns/hnsclient"
 	"github.com/Azure/azure-container-networking/cns/ipampool"
@@ -89,6 +91,8 @@ const (
 
 	// envVarEnableCNIConflistGeneration enables cni conflist generation if set (value doesn't matter)
 	envVarEnableCNIConflistGeneration = "CNS_ENABLE_CNI_CONFLIST_GENERATION"
+
+	cnsReqTimeout = 15 * time.Second
 )
 
 type cniConflistScenario string
@@ -426,17 +430,17 @@ func sendRegisterNodeRequest(httpc *http.Client, httpRestService cns.HTTPService
 func startTelemetryService(ctx context.Context) {
 	var config aitelemetry.AIConfig
 
-	err := telemetry.CreateAITelemetryHandle(config, false, false, false)
+	tb := telemetry.NewTelemetryBuffer(nil)
+	err := tb.CreateAITelemetryHandle(config, false, false, false)
 	if err != nil {
 		log.Errorf("AI telemetry handle creation failed..:%w", err)
 		return
 	}
 
-	tbtemp := telemetry.NewTelemetryBuffer()
+	tbtemp := telemetry.NewTelemetryBuffer(nil)
 	//nolint:errcheck // best effort to cleanup leaked pipe/socket before start
 	tbtemp.Cleanup(telemetry.FdName)
 
-	tb := telemetry.NewTelemetryBuffer()
 	err = tb.StartServer()
 	if err != nil {
 		log.Errorf("Telemetry service failed to start: %w", err)
@@ -637,7 +641,7 @@ func main() {
 
 	// Create the key value store.
 	storeFileName := storeFileLocation + name + ".json"
-	config.Store, err = store.NewJsonFileStore(storeFileName, lockclient)
+	config.Store, err = store.NewJsonFileStore(storeFileName, lockclient, nil)
 	if err != nil {
 		logger.Errorf("Failed to create store file: %s, due to error %v\n", storeFileName, err)
 		return
@@ -660,7 +664,7 @@ func main() {
 		}
 		// Create the key value store.
 		storeFileName := endpointStoreLocation + endpointStoreName + ".json"
-		endpointStateStore, err = store.NewJsonFileStore(storeFileName, endpointStoreLock)
+		endpointStateStore, err = store.NewJsonFileStore(storeFileName, endpointStoreLock, nil)
 		if err != nil {
 			logger.Errorf("Failed to create endpoint state store file: %s, due to error %v\n", storeFileName, err)
 			return
@@ -729,7 +733,7 @@ func main() {
 
 	// We are only setting the PriorityVLANTag in 'cns.Direct' mode, because it neatly maps today, to 'isUsingMultitenancy'
 	// In the future, we would want to have a better CNS flag, to explicitly say, this CNS is using multitenancy
-	if config.ChannelMode == cns.Direct {
+	if cnsconfig.ChannelMode == cns.Direct {
 		// Set Mellanox adapter's PriorityVLANTag value to 3 if adapter exists
 		// reg key value for PriorityVLANTag = 3  --> Packet priority and VLAN enabled
 		// for more details goto https://docs.nvidia.com/networking/display/winof2v230/Configuring+the+Driver+Registry+Keys#ConfiguringtheDriverRegistryKeys-GeneralRegistryKeysGeneralRegistryKeys
@@ -807,6 +811,25 @@ func main() {
 		}
 	}
 
+	if cnsconfig.EnableAsyncPodDelete {
+		// Start fs watcher here
+		cnsclient, err := cnsclient.New("", cnsReqTimeout) //nolint
+		if err != nil {
+			z.Error("failed to create cnsclient", zap.Error(err))
+		}
+		go func() {
+			for {
+				z.Info("starting fsnotify watcher to process missed Pod deletes")
+				w := fsnotify.New(cnsclient, cnsconfig.AsyncPodDeletePath, z)
+				if err := w.Start(rootCtx); err != nil {
+					z.Error("failed to start fsnotify watcher, will retry", zap.Error(err))
+					time.Sleep(time.Minute)
+					continue
+				}
+			}
+		}()
+	}
+
 	if !disableTelemetry {
 		go logger.SendHeartBeat(rootCtx, cnsconfig.TelemetrySettings.HeartBeatIntervalInMins)
 		go httpRestService.SendNCSnapShotPeriodically(rootCtx, cnsconfig.TelemetrySettings.SnapshotIntervalInMins)
@@ -880,7 +903,7 @@ func main() {
 
 		// Create the key value store.
 		pluginStoreFile := storeFileLocation + pluginName + ".json"
-		pluginConfig.Store, err = store.NewJsonFileStore(pluginStoreFile, lockclientCnm)
+		pluginConfig.Store, err = store.NewJsonFileStore(pluginStoreFile, lockclientCnm, nil)
 		if err != nil {
 			logger.Errorf("Failed to create plugin store file %s, due to error : %v\n", pluginStoreFile, err)
 			return

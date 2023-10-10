@@ -9,10 +9,13 @@ import (
 	"net"
 	"strings"
 
+	"github.com/Azure/azure-container-networking/cni/log"
 	"github.com/Azure/azure-container-networking/common"
-	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/platform"
+	"go.uber.org/zap"
 )
+
+var logger = log.CNILogger.With(zap.String("component", "ovs"))
 
 const (
 	defaultMacForArpResponse = "12:34:56:78:9a:bc"
@@ -59,12 +62,12 @@ func NewOvsctl() Ovsctl {
 }
 
 func (o Ovsctl) CreateOVSBridge(bridgeName string) error {
-	log.Printf("[ovs] Creating OVS Bridge %v", bridgeName)
+	logger.Info("Creating OVS Bridge", zap.String("name", bridgeName))
 
 	ovsCreateCmd := fmt.Sprintf("ovs-vsctl add-br %s", bridgeName)
 	_, err := o.execcli.ExecuteCommand(ovsCreateCmd)
 	if err != nil {
-		log.Printf("[ovs] Error while creating OVS bridge %v", err)
+		logger.Error("Error while creating OVS bridge", zap.Error(err))
 		return newErrorOvsctl(err.Error())
 	}
 
@@ -72,12 +75,12 @@ func (o Ovsctl) CreateOVSBridge(bridgeName string) error {
 }
 
 func (o Ovsctl) DeleteOVSBridge(bridgeName string) error {
-	log.Printf("[ovs] Deleting OVS Bridge %v", bridgeName)
+	logger.Info("Deleting OVS Bridge", zap.String("name", bridgeName))
 
 	ovsCreateCmd := fmt.Sprintf("ovs-vsctl del-br %s", bridgeName)
 	_, err := o.execcli.ExecuteCommand(ovsCreateCmd)
 	if err != nil {
-		log.Printf("[ovs] Error while deleting OVS bridge %v", err)
+		logger.Error("Error while deleting OVS bridge", zap.Error(err))
 		return newErrorOvsctl(err.Error())
 	}
 
@@ -88,7 +91,7 @@ func (o Ovsctl) AddPortOnOVSBridge(hostIfName, bridgeName string, vlanID int) er
 	cmd := fmt.Sprintf("ovs-vsctl add-port %s %s", bridgeName, hostIfName)
 	_, err := o.execcli.ExecuteCommand(cmd)
 	if err != nil {
-		log.Printf("[ovs] Error while setting OVS as master to primary interface %v", err)
+		logger.Error("Error while setting OVS as master to primary interface", zap.Error(err))
 		return newErrorOvsctl(err.Error())
 	}
 
@@ -99,7 +102,7 @@ func (o Ovsctl) GetOVSPortNumber(interfaceName string) (string, error) {
 	cmd := fmt.Sprintf("ovs-vsctl get Interface %s ofport", interfaceName)
 	ofport, err := o.execcli.ExecuteCommand(cmd)
 	if err != nil {
-		log.Printf("[ovs] Get ofport failed with error %v", err)
+		logger.Error("Get ofport failed with", zap.Error(err))
 		return "", newErrorOvsctl(err.Error())
 	}
 
@@ -110,7 +113,7 @@ func (o Ovsctl) AddVMIpAcceptRule(bridgeName, primaryIP, mac string) error {
 	cmd := fmt.Sprintf("ovs-ofctl add-flow %s ip,nw_dst=%s,dl_dst=%s,priority=%d,actions=normal", bridgeName, primaryIP, mac, high)
 	_, err := o.execcli.ExecuteCommand(cmd)
 	if err != nil {
-		log.Printf("[ovs] Adding SNAT rule failed with error %v", err)
+		logger.Error("Adding SNAT rule failed with", zap.Error(err))
 		return newErrorOvsctl(err.Error())
 	}
 
@@ -122,7 +125,7 @@ func (o Ovsctl) AddArpSnatRule(bridgeName, mac, macHex, ofport string) error {
 		load:0x%s->NXM_NX_ARP_SHA[],output:%s'`, bridgeName, low, mac, macHex, ofport)
 	_, err := o.execcli.ExecuteCommand(cmd)
 	if err != nil {
-		log.Printf("[ovs] Adding ARP SNAT rule failed with error %v", err)
+		logger.Error("Adding ARP SNAT rule failed with", zap.Error(err))
 		return newErrorOvsctl(err.Error())
 	}
 
@@ -148,7 +151,7 @@ func (o Ovsctl) AddIPSnatRule(bridgeName string, ip net.IP, vlanID int, port, ma
 
 	_, err := o.execcli.ExecuteCommand(cmd)
 	if err != nil {
-		log.Printf("[ovs] Adding IP SNAT rule failed with error %v", err)
+		logger.Error("Adding IP SNAT rule failed with", zap.Error(err))
 		return newErrorOvsctl(err.Error())
 	}
 
@@ -157,7 +160,7 @@ func (o Ovsctl) AddIPSnatRule(bridgeName string, ip net.IP, vlanID int, port, ma
 		bridgeName, low, port)
 	_, err = o.execcli.ExecuteCommand(cmd)
 	if err != nil {
-		log.Printf("[ovs] Dropping vlantag packet rule failed with error %v", err)
+		logger.Error("Dropping vlantag packet rule failed with", zap.Error(err))
 		return newErrorOvsctl(err.Error())
 	}
 
@@ -170,7 +173,7 @@ func (o Ovsctl) AddArpDnatRule(bridgeName, port, mac string) error {
 		load:0x%s->NXM_NX_ARP_THA[],normal'`, bridgeName, port, mac)
 	_, err := o.execcli.ExecuteCommand(cmd)
 	if err != nil {
-		log.Printf("[ovs] Adding DNAT rule failed with error %v", err)
+		logger.Error("Adding DNAT rule failed with", zap.Error(err))
 		return newErrorOvsctl(err.Error())
 	}
 
@@ -182,7 +185,7 @@ func (o Ovsctl) AddFakeArpReply(bridgeName string, ip net.IP) error {
 	macAddrHex := strings.Replace(defaultMacForArpResponse, ":", "", -1)
 	ipAddrInt := common.IpToInt(ip)
 
-	log.Printf("[ovs] Adding ARP reply rule for IP address %v ", ip.String())
+	logger.Info("Adding ARP reply rule for IP", zap.String("address", ip.String()))
 	cmd := fmt.Sprintf(`ovs-ofctl add-flow %s arp,arp_op=1,priority=%d,actions='load:0x2->NXM_OF_ARP_OP[],
 			move:NXM_OF_ETH_SRC[]->NXM_OF_ETH_DST[],mod_dl_src:%s,
 			move:NXM_NX_ARP_SHA[]->NXM_NX_ARP_THA[],move:NXM_OF_ARP_TPA[]->NXM_OF_ARP_SPA[],
@@ -190,7 +193,7 @@ func (o Ovsctl) AddFakeArpReply(bridgeName string, ip net.IP) error {
 		bridgeName, high, defaultMacForArpResponse, macAddrHex, ipAddrInt)
 	_, err := o.execcli.ExecuteCommand(cmd)
 	if err != nil {
-		log.Printf("[ovs] Adding ARP reply rule failed with error %v", err)
+		logger.Error("[ovs] Adding ARP reply rule failed with", zap.Error(err))
 		return newErrorOvsctl(err.Error())
 	}
 
@@ -201,17 +204,17 @@ func (o Ovsctl) AddArpReplyRule(bridgeName, port string, ip net.IP, mac string, 
 	ipAddrInt := common.IpToInt(ip)
 	macAddrHex := strings.Replace(mac, ":", "", -1)
 
-	log.Printf("[ovs] Adding ARP reply rule to add vlan %v and forward packet to table 1 for port %v", vlanid, port)
+	logger.Info("Adding ARP reply rule to add vlan and forward packet to table 1 for port", zap.Int("vlanid", vlanid), zap.String("port", port))
 	cmd := fmt.Sprintf(`ovs-ofctl add-flow %s arp,arp_op=1,in_port=%s,actions='mod_vlan_vid:%v,resubmit(,1)'`,
 		bridgeName, port, vlanid)
 	_, err := o.execcli.ExecuteCommand(cmd)
 	if err != nil {
-		log.Printf("[ovs] Adding ARP reply rule failed with error %v", err)
+		logger.Error("Adding ARP reply rule failed with", zap.Error(err))
 		return newErrorOvsctl(err.Error())
 	}
 
 	// If arp fields matches, set arp reply rule for the request
-	log.Printf("[ovs] Adding ARP reply rule for IP address %v and vlanid %v.", ip, vlanid)
+	logger.Info("Adding ARP reply rule for IP", zap.Any("address", ip), zap.Int("vlanid", vlanid))
 	cmd = fmt.Sprintf(`ovs-ofctl add-flow %s table=1,arp,arp_tpa=%s,dl_vlan=%v,arp_op=1,priority=%d,actions='load:0x2->NXM_OF_ARP_OP[],
 			move:NXM_OF_ETH_SRC[]->NXM_OF_ETH_DST[],mod_dl_src:%s,
 			move:NXM_NX_ARP_SHA[]->NXM_NX_ARP_THA[],move:NXM_OF_ARP_SPA[]->NXM_OF_ARP_TPA[],
@@ -219,7 +222,7 @@ func (o Ovsctl) AddArpReplyRule(bridgeName, port string, ip net.IP, mac string, 
 		bridgeName, ip.String(), vlanid, high, mac, macAddrHex, ipAddrInt)
 	_, err = o.execcli.ExecuteCommand(cmd)
 	if err != nil {
-		log.Printf("[ovs] Adding ARP reply rule failed with error %v", err)
+		logger.Error("Adding ARP reply rule failed with", zap.Error(err))
 		return newErrorOvsctl(err.Error())
 	}
 
@@ -240,7 +243,7 @@ func (o Ovsctl) AddMacDnatRule(bridgeName, port string, ip net.IP, mac string, v
 	}
 	_, err := o.execcli.ExecuteCommand(cmd)
 	if err != nil {
-		log.Printf("[ovs] Adding MAC DNAT rule failed with error %v", err)
+		logger.Error("Adding MAC DNAT rule failed with", zap.Error(err))
 		return newErrorOvsctl(err.Error())
 	}
 
@@ -252,14 +255,14 @@ func (o Ovsctl) DeleteArpReplyRule(bridgeName, port string, ip net.IP, vlanid in
 		bridgeName, port)
 	_, err := o.execcli.ExecuteCommand(cmd)
 	if err != nil {
-		log.Printf("[net] Deleting ARP reply rule failed with error %v", err)
+		logger.Error("[net] Deleting ARP reply rule failed with", zap.Error(err))
 	}
 
 	cmd = fmt.Sprintf("ovs-ofctl del-flows %s table=1,arp,arp_tpa=%s,dl_vlan=%v,arp_op=1",
 		bridgeName, ip.String(), vlanid)
 	_, err = o.execcli.ExecuteCommand(cmd)
 	if err != nil {
-		log.Printf("[net] Deleting ARP reply rule failed with error %v", err)
+		logger.Error("[net] Deleting ARP reply rule failed with", zap.Error(err))
 	}
 }
 
@@ -268,7 +271,7 @@ func (o Ovsctl) DeleteIPSnatRule(bridgeName, port string) {
 		bridgeName, port)
 	_, err := o.execcli.ExecuteCommand(cmd)
 	if err != nil {
-		log.Printf("Error while deleting ovs rule %v error %v", cmd, err)
+		logger.Error("Error while deleting ovs rule", zap.String("cmd", cmd), zap.Error(err))
 	}
 }
 
@@ -285,7 +288,7 @@ func (o Ovsctl) DeleteMacDnatRule(bridgeName, port string, ip net.IP, vlanid int
 
 	_, err := o.execcli.ExecuteCommand(cmd)
 	if err != nil {
-		log.Printf("[net] Deleting MAC DNAT rule failed with error %v", err)
+		logger.Error("[net] Deleting MAC DNAT rule failed with", zap.Error(err))
 	}
 }
 
@@ -294,7 +297,7 @@ func (o Ovsctl) DeletePortFromOVS(bridgeName, interfaceName string) error {
 	cmd := fmt.Sprintf("ovs-vsctl del-port %s %s", bridgeName, interfaceName)
 	_, err := o.execcli.ExecuteCommand(cmd)
 	if err != nil {
-		log.Printf("[ovs] Failed to disconnect interface %v from bridge, err:%v.", interfaceName, err)
+		logger.Error("Failed to disconnect interface", zap.String("from", interfaceName), zap.Error(err))
 		return newErrorOvsctl(err.Error())
 	}
 
