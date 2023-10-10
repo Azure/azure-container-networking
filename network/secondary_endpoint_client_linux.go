@@ -111,16 +111,18 @@ func (client *SecondaryEndpointClient) ConfigureContainerInterfacesAndRoutes(epI
 }
 
 func (client *SecondaryEndpointClient) DeleteEndpoints(ep *endpoint) error {
-	netnsClient := netns.New()
-	vmns, err := netnsClient.Get()
+	vmns, err := netns.New().Get()
 	if err != nil {
 		return newErrorSecondaryEndpointClient(err)
 	}
 
 	for iface := range ep.SecondaryInterfaces {
 		if err := client.netlink.SetLinkNetNs(iface, uintptr(vmns)); err != nil {
-			return newErrorSecondaryEndpointClient(err)
+			log.Errorf("%w", newErrorSecondaryEndpointClient(err))
 		}
+
+		delete(ep.SecondaryInterfaces, iface)
 	}
+
 	return nil
 }
