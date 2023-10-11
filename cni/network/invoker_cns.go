@@ -22,7 +22,7 @@ import (
 )
 
 const (
-	ExpectedNumInterfacesWithDefaultRoutes = 1
+	expectedNumInterfacesWithDefaultRoutes = 1
 )
 
 var (
@@ -174,7 +174,7 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 	}
 
 	// Make sure default routes exist for 1 interface
-	if numInterfacesWithDefaultRoutes != ExpectedNumInterfacesWithDefaultRoutes {
+	if numInterfacesWithDefaultRoutes != expectedNumInterfacesWithDefaultRoutes {
 		return IPAMAddResult{}, errInvalidDefaultRouting
 	}
 
