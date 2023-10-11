@@ -1,13 +1,13 @@
 package network
 
 import (
-	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/netio"
 	"github.com/Azure/azure-container-networking/netlink"
 	"github.com/Azure/azure-container-networking/netns"
 	"github.com/Azure/azure-container-networking/network/networkutils"
 	"github.com/Azure/azure-container-networking/platform"
 	"github.com/pkg/errors"
+	"go.uber.org/zap"
 )
 
 var errorSecondaryEndpointClient = errors.New("SecondaryEndpointClient Error")
@@ -70,7 +70,7 @@ func (client *SecondaryEndpointClient) DeleteEndpointRules(_ *endpoint) {
 
 func (client *SecondaryEndpointClient) MoveEndpointsToContainerNS(epInfo *EndpointInfo, nsID uintptr) error {
 	// Move the container interface to container's network namespace.
-	log.Printf("[net] Setting link %v netns %v.", epInfo.IfName, epInfo.NetNsPath)
+	logger.Info("[net] Setting link %v netns %v.", zap.String("IfName", epInfo.IfName), zap.String("NetNsPath", epInfo.NetNsPath))
 	if err := client.netlink.SetLinkNetNs(epInfo.IfName, nsID); err != nil {
 		return newErrorSecondaryEndpointClient(err)
 	}
@@ -79,7 +79,7 @@ func (client *SecondaryEndpointClient) MoveEndpointsToContainerNS(epInfo *Endpoi
 }
 
 func (client *SecondaryEndpointClient) SetupContainerInterfaces(epInfo *EndpointInfo) error {
-	log.Printf("[net] Setting link %v state up.", epInfo.IfName)
+	logger.Info("[net] Setting link state up.", zap.String("IfName", epInfo.IfName))
 	if err := client.netlink.SetLinkState(epInfo.IfName, true); err != nil {
 		return newErrorSecondaryEndpointClient(err)
 	}
@@ -111,17 +111,42 @@ func (client *SecondaryEndpointClient) ConfigureContainerInterfacesAndRoutes(epI
 }
 
 func (client *SecondaryEndpointClient) DeleteEndpoints(ep *endpoint) error {
-	vmns, err := netns.New().Get()
-	if err != nil {
-		return newErrorSecondaryEndpointClient(err)
-	}
-
-	for iface := range ep.SecondaryInterfaces {
-		if err := client.netlink.SetLinkNetNs(iface, uintptr(vmns)); err != nil {
-			log.Errorf("%w", newErrorSecondaryEndpointClient(err))
+	if ep.NetworkNameSpace != "" {
+		// Get VM namespace
+		vmns, err := netns.New().Get()
+		if err != nil {
+			return newErrorSecondaryEndpointClient(err)
 		}
 
-		delete(ep.SecondaryInterfaces, iface)
+		// Open the network namespace.
+		logger.Info("Opening netns", zap.Any("NetNsPath", ep.NetworkNameSpace))
+		ns, err := OpenNamespace(ep.NetworkNameSpace)
+		if err != nil {
+			return err
+		}
+		defer ns.Close()
+
+		// Enter the container network namespace.
+		logger.Info("Entering netns", zap.Any("NetNsPath", ep.NetworkNameSpace))
+		if err := ns.Enter(); err != nil {
+			return err
+		}
+
+		// Return to host network namespace.
+		defer func() {
+			logger.Info("Exiting netns", zap.Any("NetNsPath", ep.NetworkNameSpace))
+			if err := ns.Exit(); err != nil {
+				logger.Error("Failed to exit netns with", zap.Error(newErrorSecondaryEndpointClient(err)))
+			}
+		}()
+
+		for iface := range ep.SecondaryInterfaces {
+			if err := client.netlink.SetLinkNetNs(iface, uintptr(vmns)); err != nil {
+				logger.Error("Failed to move interface", zap.String("IfName", iface), zap.Error(newErrorSecondaryEndpointClient(err)))
+			}
+
+			delete(ep.SecondaryInterfaces, iface)
+		}
 	}
 
 	return nil
