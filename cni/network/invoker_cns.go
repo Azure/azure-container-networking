@@ -162,8 +162,11 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 			}
 		default:
 			// only count dualstack interface once
-			if addResult.defaultInterfaceInfo.ipResult == nil && !info.skipDefaultRoutes {
-				numInterfacesWithDefaultRoutes++
+			if addResult.defaultInterfaceInfo.ipResult == nil {
+				addResult.defaultInterfaceInfo.ipResult = &cniTypesCurr.Result{}
+				if !info.skipDefaultRoutes {
+					numInterfacesWithDefaultRoutes++
+				}
 			}
 
 			overlayMode := (invoker.ipamMode == util.V4Overlay) || (invoker.ipamMode == util.DualStackOverlay) || (invoker.ipamMode == util.Overlay)
@@ -368,10 +371,6 @@ func configureDefaultAddResult(info *IPResultInfo, addConfig *IPAMAddConfig, add
 
 	if ip := net.ParseIP(info.podIPAddress); ip != nil {
 		defaultInterfaceInfo := addResult.defaultInterfaceInfo.ipResult
-		if defaultInterfaceInfo == nil {
-			defaultInterfaceInfo = &cniTypesCurr.Result{}
-		}
-
 		defaultRouteDstPrefix := network.Ipv4DefaultRouteDstPrefix
 		if ip.To4() == nil {
 			defaultRouteDstPrefix = network.Ipv6DefaultRouteDstPrefix
