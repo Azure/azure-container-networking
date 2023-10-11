@@ -222,7 +222,7 @@ func (nw *network) newEndpointImpl(
 				defer func() {
 					logger.Info("Exiting netns", zap.Any("NetNsPath", epInfo.NetNsPath))
 					if epErr := ns.Exit(); epErr != nil {
-						logger.Error("Failed to exit netns with", zap.Error(err))
+						logger.Error("Failed to exit netns with", zap.Error(epErr))
 					}
 				}()
 			}
