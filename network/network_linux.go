@@ -243,12 +243,11 @@ func isGreaterOrEqaulUbuntuVersion(versionToMatch int) bool {
 	return false
 }
 
-func readDnsInfo(ifName string) (DNSInfo, error) {
+func (nm *networkManager) readDNSInfo(ifName string) (DNSInfo, error) {
 	var dnsInfo DNSInfo
 
-	p := platform.NewExecClient(logger)
 	cmd := fmt.Sprintf("systemd-resolve --status %s", ifName)
-	out, err := p.ExecuteCommand(cmd)
+	out, err := nm.plClient.ExecuteCommand(cmd)
 	if err != nil {
 		return dnsInfo, err
 	}
@@ -289,8 +288,8 @@ func readDnsInfo(ifName string) (DNSInfo, error) {
 	return dnsInfo, nil
 }
 
-func saveDnsConfig(extIf *externalInterface) error {
-	dnsInfo, err := readDnsInfo(extIf.Name)
+func (nm *networkManager) saveDNSConfig(extIf *externalInterface) error {
+	dnsInfo, err := nm.readDNSInfo(extIf.Name)
 	if err != nil || len(dnsInfo.Servers) == 0 || dnsInfo.Suffix == "" {
 		logger.Info("Failed to read dns info from interface", zap.Any("dnsInfo", dnsInfo), zap.String("extIfName", extIf.Name),
 			zap.Error(err))
@@ -443,12 +442,11 @@ func (nm *networkManager) connectExternalInterface(extIf *externalInterface, nwI
 	isGreaterOrEqualUbuntu17 := isGreaterOrEqaulUbuntuVersion(ubuntuVersion17)
 	isSystemdResolvedActive := false
 	if isGreaterOrEqualUbuntu17 {
-		p := platform.NewExecClient(logger)
 		// Don't copy dns servers if systemd-resolved isn't available
-		if _, cmderr := p.ExecuteCommand("systemctl status systemd-resolved"); cmderr == nil {
+		if _, cmderr := nm.plClient.ExecuteCommand("systemctl status systemd-resolved"); cmderr == nil {
 			isSystemdResolvedActive = true
 			logger.Info("Saving dns config from", zap.String("Name", hostIf.Name))
-			if err = saveDnsConfig(extIf); err != nil {
+			if err = nm.saveDNSConfig(extIf); err != nil {
 				logger.Error("Failed to save dns config", zap.Error(err))
 				return err
 			}
