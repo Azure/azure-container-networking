@@ -158,9 +158,8 @@ func (p *execClient) ClearNetworkConfiguration() (bool, error) {
 }
 
 func (p *execClient) KillProcessByName(processName string) error {
-	newExecClient := NewExecClient(p.logger)
 	cmd := fmt.Sprintf("taskkill /IM %v /F", processName)
-	_, err := newExecClient.ExecuteCommand(cmd)
+	_, err := p.ExecuteCommand(cmd)
 	return err // nolint
 }
 

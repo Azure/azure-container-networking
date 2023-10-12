@@ -137,9 +137,8 @@ func (p *execClient) ExecutePowershellCommand(_ string) (string, error) {
 }
 
 func (p *execClient) KillProcessByName(processName string) error {
-	newExecClient := NewExecClient(p.logger)
 	cmd := fmt.Sprintf("pkill -f %v", processName)
-	_, err := newExecClient.ExecuteCommand(cmd)
+	_, err := p.ExecuteCommand(cmd)
 	return err
 }
 
