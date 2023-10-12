@@ -66,6 +66,10 @@ stages:
               arch: arm64
               name: cni-dropgz-test
               os: linux
+            npm_linux_arm64:
+              arch: arm64
+              name: npm
+              os: linux
         steps:
           - template: ../containers/container-template.yaml
             parameters:
@@ -122,7 +126,7 @@ stages:
             npm:
               name: npm
               os_versions: ltsc2022
-              platforms: linux/amd64 windows/amd64
+              platforms: linux/amd64 linux/arm64 windows/amd64
         steps:
           - template: ../containers/manifest-template.yaml
             parameters:
