@@ -7,11 +7,15 @@ parameters:
   tag: ""
   continueOnError: false
 
+# Condition confirms that:
+# Pipeline has not been canceled and that the previous job has reports anything other than failure(Succeeded, SuccededWithIssues, Skipped). Previous job is declared by dependsOn: ${{ parameters.dependsOn }}
+# Cluster is either Windows2022 or Linux
+# CONTROL_SCENARIO either contains 'npm' or 'all'. It is not case sensitive
 jobs:
   - job: npm_k8se2e
     displayName: "NPM k8s E2E"
     dependsOn: ${{ parameters.dependsOn }}
-    condition: and(succeeded(), ${{ or(contains(parameters.os_version, '2022'), eq(parameters.os, 'linux')) }}  )
+    condition: and( and( not(canceled()), not(failed()) ), ${{ or(contains(parameters.os_version, '2022'), eq(parameters.os, 'linux') ) }} , or( contains(variables.CONTROL_SCENARIO, 'npm') , contains(variables.CONTROL_SCENARIO, 'all') ) )
     pool:
       name: $(BUILD_POOL_NAME_DEFAULT)
       demands:

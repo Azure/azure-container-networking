@@ -10,33 +10,73 @@ parameters:
   testDropgz: true
   osSKU: Ubuntu
 
+# CNIv2
 # + Should be able to scale up/down the pods successfully certain number of times.
 # + Node reboot scenarios should be covered.
 # + The CNS state should be validated with that of CNI state.
 # + Pods should have ips assigned and connectivity/datapath test should be present.
 # + CNS restart and validates the state
+# Windows
+# The HNS state should be validated with that of CNI state.
+# + All CNI E2E is re-ran after HNS service is restarted
 
+# If ensures that only linux template calls are compared against the below condition
+# Condition confirms that:
+# Previous job has reported Succeeded. Previous job is currently setup which controls variable assignment and we are dependent on its success.
+# CONTROL_OS either contains 'linux' or 'all' and CONTROL_CNI either contains 'cniv1' or 'all'. Both must be true and are not case sensitive
 stages:
-  - stage: create_${{ parameters.name }}
-    variables:
-      commitID: $[ stagedependencies.setup.env.outputs['SetEnvVars.commitID'] ]
-    pool:
-      name: $(BUILD_POOL_NAME_DEFAULT)
-    dependsOn:
-      - setup
-    displayName: "Create Cluster - ${{ parameters.clusterName }}"
-    jobs:
-      - job: create_aks_cluster_with_${{ parameters.name }}
-        steps:
-          - template: ../load-test-templates/create-cluster-template.yaml
-            parameters:
-              clusterType: ${{ parameters.clusterType }}
-              clusterName: ${{ parameters.clusterName }}-$(commitID)
-              nodeCount: ${{ parameters.nodeCount }}
-              vmSize: ${{ parameters.vmSize }}
-              region: $(LOCATION)
-              osSKU: ${{ parameters.osSKU }}
+  - ${{ if eq(parameters.os, 'linux') }}:
+    - stage: create_${{ parameters.name }}
+      condition: and( succeeded(), and( or( contains(variables.CONTROL_CNI, 'cniv2'), contains(variables.CONTROL_CNI, 'all') ), or( contains(variables.CONTROL_OS, 'linux'), contains(variables.CONTROL_OS, 'all') ) ) )
+      variables:
+        commitID: $[ stagedependencies.setup.env.outputs['SetEnvVars.commitID'] ]
+      pool:
+        name: $(BUILD_POOL_NAME_DEFAULT)
+      dependsOn:
+        - setup
+      displayName: "Create Cluster - ${{ parameters.clusterName }}"
+      jobs:
+        - job: create_aks_cluster_with_${{ parameters.name }}
+          steps:
+            - template: ../load-test-templates/create-cluster-template.yaml
+              parameters:
+                clusterType: ${{ parameters.clusterType }}
+                clusterName: ${{ parameters.clusterName }}-$(commitID)
+                nodeCount: ${{ parameters.nodeCount }}
+                vmSize: ${{ parameters.vmSize }}
+                region: $(LOCATION)
+                osSKU: ${{ parameters.osSKU }}
 
+# If ensures that only windows template calls are compared against the below condition
+# Condition confirms that:
+# Previous job has reported Succeeded. Previous job is currently setup which controls variable assignment and we are dependent on its success.
+# CONTROL_OS either contains 'windows' or 'all' and CONTROL_CNI either contains 'cniv2' or 'all'. Both must be true and are not case sensitive
+  - ${{ if eq(parameters.os, 'windows') }}:
+    - stage: create_${{ parameters.name }}
+      condition: and( succeeded(), and( or( contains(variables.CONTROL_CNI, 'cniv2'), contains(variables.CONTROL_CNI, 'all') ), or( contains(variables.CONTROL_OS, 'windows'), contains(variables.CONTROL_OS, 'all') ) ) )
+      variables:
+        commitID: $[ stagedependencies.setup.env.outputs['SetEnvVars.commitID'] ]
+      pool:
+        name: $(BUILD_POOL_NAME_DEFAULT)
+      dependsOn:
+        - setup
+      displayName: "Create Cluster - ${{ parameters.clusterName }}"
+      jobs:
+        - job: create_aks_cluster_with_${{ parameters.name }}
+          steps:
+            - template: ../load-test-templates/create-cluster-template.yaml
+              parameters:
+                clusterType: ${{ parameters.clusterType }}
+                clusterName: ${{ parameters.clusterName }}-$(commitID)
+                nodeCount: ${{ parameters.nodeCount }}
+                vmSize: ${{ parameters.vmSize }}
+                region: $(LOCATION)
+                osSKU: ${{ parameters.osSKU }}
+
+# Conditions for below E2E test scenarios confirm that:
+# Pipeline has not been canceled and that the previous job has reports anything other than failure(Succeeded, SuccededWithIssues, Skipped). Previous job is declared by dependsOn:
+# CONTROL_SCENARIO either contains 'all' or its respective scenario 'npm', 'scaleTest', 'restartNode', 'restartCNS'. It is not case sensitive
+# Ex. CONTROL_SCENARIO = "restartnode SCALETEST" will only run Scale Test and Restart Test.
   - stage: ${{ parameters.name }}
     variables:
       commitID: $[ stagedependencies.setup.env.outputs['SetEnvVars.commitID'] ]
@@ -93,6 +133,7 @@ stages:
           dependsOn: integration
           continueOnError: true
       - job: deploy_pods
+        condition: and( and( not(canceled()), not(failed()) ), or( contains(variables.CONTROL_SCENARIO, 'scaleTest') , contains(variables.CONTROL_SCENARIO, 'all') ) )
         displayName: "Scale Test"
         dependsOn: npm_k8se2e
         steps:
@@ -110,6 +151,7 @@ stages:
               os: ${{ parameters.os }}
               cni: cniv2
       - job: restart_nodes
+        condition: and( and( not(canceled()), not(failed()) ), or( contains(variables.CONTROL_SCENARIO, 'restartNode') , contains(variables.CONTROL_SCENARIO, 'all') ) )
         displayName: "Restart Test"
         dependsOn: deploy_pods
         steps:
@@ -127,6 +169,7 @@ stages:
               cni: cniv2
               restartCase: "true"
       - job: restart_cns
+        condition: and( and( not(canceled()), not(failed()) ), or( contains(variables.CONTROL_SCENARIO, 'restartCNS') , contains(variables.CONTROL_SCENARIO, 'all') ) )
         displayName: "Restart and Validate CNS"
         dependsOn: restart_nodes
         steps:
