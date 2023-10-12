@@ -186,7 +186,6 @@ func TestDeleteEndpointImplHnsv1Timeout(t *testing.T) {
 		},
 		MacAddress: net.HardwareAddr("00:00:5e:00:53:01"),
 	}
-
 	endpoint, err := nw.newEndpointImplHnsV1(epInfo, nil)
 	if err != nil {
 		fmt.Printf("+%v", err)
