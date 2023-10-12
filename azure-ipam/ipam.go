@@ -74,7 +74,7 @@ func (p *IPAMPlugin) CmdAdd(args *cniSkel.CmdArgs) error {
 	req, err := ipconfig.CreateIPConfigsReq(args)
 	if err != nil {
 		p.logger.Error("Failed to create CNS IP configs request", zap.Error(err))
-		return cniTypes.NewError(ErrCreateIPConfigRequest, err.Error(), "failed to create CNS IP configs request")
+		return cniTypes.NewError(ErrCreateIPConfigsRequest, err.Error(), "failed to create CNS IP configs request")
 	}
 	p.logger.Debug("Created CNS IP config request", zap.Any("request", req))
 
@@ -90,6 +90,9 @@ func (p *IPAMPlugin) CmdAdd(args *cniSkel.CmdArgs) error {
 				p.logger.Error("Failed to create CNS IP config request", zap.Error(err))
 				return cniTypes.NewError(ErrCreateIPConfigRequest, err.Error(), "failed to create CNS IP config request")
 			}
+			p.logger.Debug("Created CNS IP config request", zap.Any("request", ipconfigReq))
+
+			p.logger.Debug("Making request to CNS")
 			res, err := p.cnsClient.RequestIPAddress(context.TODO(), ipconfigReq)
 
 			// if the old API fails as well then we just return the error
@@ -179,22 +182,14 @@ func (p *IPAMPlugin) CmdDel(args *cniSkel.CmdArgs) error {
 				p.logger.Error("Failed to create CNS IP config request", zap.Error(err))
 				return cniTypes.NewError(ErrCreateIPConfigRequest, err.Error(), "failed to create CNS IP config request")
 			}
+			p.logger.Debug("Created CNS IP config request", zap.Any("request", ipconfigReq))
+
+			p.logger.Debug("Making request to CNS")
 			err = p.cnsClient.ReleaseIPAddress(context.TODO(), ipconfigReq)
 
 			if err != nil {
-				if errors.As(err, &connectionErr) {
-					p.logger.Info("Failed to release IP address from CNS due to connection failure, saving to watcher to delete")
-					addErr := fsnotify.AddFile(args.ContainerID, args.ContainerID, watcherPath)
-					if addErr != nil {
-						p.logger.Error("Failed to add file to watcher", zap.String("containerID", args.ContainerID), zap.Error(addErr))
-						return cniTypes.NewError(cniTypes.ErrTryAgainLater, addErr.Error(), fmt.Sprintf("failed to add file to watcher with containerID %s", args.ContainerID))
-					} else {
-						p.logger.Info("File successfully added to watcher directory")
-					}
-				} else {
-					p.logger.Error("Failed to release IP address to CNS using ReleaseIPAddress", zap.Error(err), zap.Any("request", ipconfigReq))
-					return cniTypes.NewError(ErrRequestIPConfigFromCNS, err.Error(), "failed to release IP address from CNS using ReleaseIPAddress")
-				}
+				p.logger.Error("Failed to release IP address to CNS using ReleaseIPAddress", zap.Error(err), zap.Any("request", ipconfigReq))
+				return cniTypes.NewError(ErrRequestIPConfigFromCNS, err.Error(), "failed to release IP address from CNS using ReleaseIPAddress")
 			}
 		} else if errors.As(err, &connectionErr) {
 			p.logger.Info("Failed to release IP addresses from CNS due to connection failure, saving to watcher to delete")
