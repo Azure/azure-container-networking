@@ -107,8 +107,7 @@ type CreateNetworkContainerRequest struct {
 	AllowNCToHostCommunication bool
 	EndpointPolicies           []NetworkContainerRequestPolicies
 	NCStatus                   v1alpha.NCStatus
-	BackendNetworkInterfaceID  string
-	MACAddress                 string
+	backendNICInfo             BackendNICInfo
 }
 
 // CreateNetworkContainerRequest implements fmt.Stringer for logging
@@ -318,6 +317,12 @@ func KubePodsToPodInfoByIP(pods []corev1.Pod) (map[string]PodInfo, error) {
 type MultiTenancyInfo struct {
 	EncapType string
 	ID        int // This can be vlanid, vxlanid, gre-key etc. (depends on EnacapType).
+}
+
+type BackendNICInfo struct {
+	NICType                   string
+	BackendNetworkInterfaceID string
+	MACAddress                string
 }
 
 // IPConfiguration contains details about ip config to provision in the VM.
