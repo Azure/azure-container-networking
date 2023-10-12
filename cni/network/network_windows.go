@@ -248,7 +248,7 @@ func getEndpointDNSSettings(nwCfg *cni.NetworkConfig, result *cniTypesCurr.Resul
 }
 
 // getPoliciesFromRuntimeCfg returns network policies from network config.
-func getPoliciesFromRuntimeCfg(nwCfg *cni.NetworkConfig, isIPv6Enabled bool) []policy.Policy {
+func getPoliciesFromRuntimeCfg(nwCfg *cni.NetworkConfig) []policy.Policy {
 	logger.Info("Runtime Info",
 		zap.Any("config", nwCfg.RuntimeConfig))
 	var policies []policy.Policy
@@ -266,30 +266,30 @@ func getPoliciesFromRuntimeCfg(nwCfg *cni.NetworkConfig, isIPv6Enabled bool) []p
 
 		// To support hostport policy mapping
 		// uint32 NatFlagsLocalRoutedVip = 1
-		rawPolicy, _ := json.Marshal(&hnsv2.PortMappingPolicySetting{
-			ExternalPort: uint16(mapping.HostPort),
-			InternalPort: uint16(mapping.ContainerPort),
-			VIP:          mapping.HostIp,
-			Protocol:     protocol,
-			Flags:        hnsv2.NatFlagsLocalRoutedVip,
-		})
+		if net.ParseIP(mapping.HostIp).To4() != nil {
+			rawPolicy, _ := json.Marshal(&hnsv2.PortMappingPolicySetting{
+				ExternalPort: uint16(mapping.HostPort),
+				InternalPort: uint16(mapping.ContainerPort),
+				VIP:          mapping.HostIp,
+				Protocol:     protocol,
+				Flags:        hnsv2.NatFlagsLocalRoutedVip,
+			})
 
-		hnsv2Policy, _ := json.Marshal(&hnsv2.EndpointPolicy{
-			Type:     hnsv2.PortMapping,
-			Settings: rawPolicy,
-		})
+			hnsv2Policy, _ := json.Marshal(&hnsv2.EndpointPolicy{
+				Type:     hnsv2.PortMapping,
+				Settings: rawPolicy,
+			})
 
-		policyv4 := policy.Policy{
-			Type: policy.EndpointPolicy,
-			Data: hnsv2Policy,
-		}
+			policyv4 := policy.Policy{
+				Type: policy.EndpointPolicy,
+				Data: hnsv2Policy,
+			}
 
-		logger.Info("Creating port mapping policyv4",
-			zap.Any("policy", policyv4))
-		policies = append(policies, policyv4)
-
-		// add port mapping policy for v6 if we have IPV6 enabled
-		if isIPv6Enabled {
+			logger.Info("Creating port mapping policyv4",
+				zap.Any("policy", policyv4))
+			policies = append(policies, policyv4)
+		} else {
+			// add port mapping policy for v6 if hostIP is ipv6
 			// To support hostport policy mapping for ipv6 in dualstack overlay mode
 			// uint32 NatFlagsIPv6 = 2
 			rawPolicyv6, _ := json.Marshal(&hnsv2.PortMappingPolicySetting{ // nolint

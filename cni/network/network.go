@@ -781,8 +781,7 @@ func (plugin *NetPlugin) createEndpointInternal(opt *createEndpointInternalOpt) 
 		NATInfo:            opt.natInfo,
 	}
 
-	isIPv6Enabled := opt.resultV6 != nil
-	epPolicies := getPoliciesFromRuntimeCfg(opt.nwCfg, isIPv6Enabled)
+	epPolicies := getPoliciesFromRuntimeCfg(opt.nwCfg)
 	epInfo.Policies = append(epInfo.Policies, epPolicies...)
 
 	// Populate addresses.

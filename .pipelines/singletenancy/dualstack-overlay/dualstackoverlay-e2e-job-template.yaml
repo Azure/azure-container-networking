@@ -81,6 +81,7 @@ stages:
           dns: true
           portforward: true
           service: true
+          hostport: true
           hybridWin: true
 
       - job: failedE2ELogs
