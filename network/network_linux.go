@@ -331,12 +331,11 @@ func (nm *networkManager) applyIPConfig(extIf *externalInterface, targetIf *net.
 	return nil
 }
 
-func applyDnsConfig(extIf *externalInterface, ifName string) error {
+func (nm *networkManager) applyDNSConfig(extIf *externalInterface, ifName string) error {
 	var (
 		setDnsList string
 		err        error
 	)
-	p := platform.NewExecClient(logger)
 
 	if extIf != nil {
 		for _, server := range extIf.DNSInfo.Servers {
@@ -351,7 +350,7 @@ func applyDnsConfig(extIf *externalInterface, ifName string) error {
 
 		if setDnsList != "" {
 			cmd := fmt.Sprintf("systemd-resolve --interface=%s%s", ifName, setDnsList)
-			_, err = p.ExecuteCommand(cmd)
+			_, err = nm.plClient.ExecuteCommand(cmd)
 			if err != nil {
 				return err
 			}
@@ -359,7 +358,7 @@ func applyDnsConfig(extIf *externalInterface, ifName string) error {
 
 		if extIf.DNSInfo.Suffix != "" {
 			cmd := fmt.Sprintf("systemd-resolve --interface=%s --set-domain=%s", ifName, extIf.DNSInfo.Suffix)
-			_, err = p.ExecuteCommand(cmd)
+			_, err = nm.plClient.ExecuteCommand(cmd)
 		}
 
 	}
@@ -504,7 +503,7 @@ func (nm *networkManager) connectExternalInterface(extIf *externalInterface, nwI
 	if isGreaterOrEqualUbuntu17 && isSystemdResolvedActive {
 		logger.Info("Applying dns config on", zap.String("bridgeName", bridgeName))
 
-		if err = applyDnsConfig(extIf, bridgeName); err != nil {
+		if err = nm.applyDNSConfig(extIf, bridgeName); err != nil {
 			logger.Error("Failed to apply DNS configuration with", zap.Error(err))
 			return err
 		}
