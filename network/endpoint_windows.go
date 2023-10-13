@@ -64,7 +64,7 @@ func ConstructEndpointID(containerID string, netNsPath string, ifName string) (s
 }
 
 // newEndpointImpl creates a new endpoint in the network.
-func (nw *network) newEndpointImpl(cli apipaClient, _ netlink.NetlinkInterface, _ platform.ExecClient, _ netio.NetIOInterface, _ EndpointClient, epInfo *EndpointInfo) (*endpoint, error) {
+func (nw *network) newEndpointImpl(cli apipaClient, _ netlink.NetlinkInterface, plc platform.ExecClient, _ netio.NetIOInterface, _ EndpointClient, epInfo *EndpointInfo) (*endpoint, error) {
 	if useHnsV2, err := UseHnsV2(epInfo.NetNsPath); useHnsV2 {
 		if err != nil {
 			return nil, err
@@ -73,11 +73,11 @@ func (nw *network) newEndpointImpl(cli apipaClient, _ netlink.NetlinkInterface, 
 		return nw.newEndpointImplHnsV2(cli, epInfo)
 	}
 
-	return nw.newEndpointImplHnsV1(epInfo)
+	return nw.newEndpointImplHnsV1(epInfo, plc)
 }
 
 // newEndpointImplHnsV1 creates a new endpoint in the network using HnsV1
-func (nw *network) newEndpointImplHnsV1(epInfo *EndpointInfo) (*endpoint, error) {
+func (nw *network) newEndpointImplHnsV1(epInfo *EndpointInfo, plc platform.ExecClient) (*endpoint, error) {
 	var vlanid int
 
 	if epInfo.Data != nil {
@@ -141,7 +141,7 @@ func (nw *network) newEndpointImplHnsV1(epInfo *EndpointInfo) (*endpoint, error)
 	}
 
 	// add ipv6 neighbor entry for gateway IP to default mac in container
-	if err := nw.addIPv6NeighborEntryForGateway(epInfo); err != nil {
+	if err := nw.addIPv6NeighborEntryForGateway(epInfo, plc); err != nil {
 		return nil, err
 	}
 
@@ -169,7 +169,7 @@ func (nw *network) newEndpointImplHnsV1(epInfo *EndpointInfo) (*endpoint, error)
 	return ep, nil
 }
 
-func (nw *network) addIPv6NeighborEntryForGateway(epInfo *EndpointInfo) error {
+func (nw *network) addIPv6NeighborEntryForGateway(epInfo *EndpointInfo, plc platform.ExecClient) error {
 	var (
 		err error
 		out string
@@ -183,7 +183,8 @@ func (nw *network) addIPv6NeighborEntryForGateway(epInfo *EndpointInfo) error {
 		// run powershell cmd to set neighbor entry for gw ip to 12-34-56-78-9a-bc
 		cmd := fmt.Sprintf("New-NetNeighbor -IPAddress %s -InterfaceAlias \"%s (%s)\" -LinkLayerAddress \"%s\"",
 			nw.Subnets[1].Gateway.String(), containerIfNamePrefix, epInfo.Id, defaultGwMac)
-		if out, err = platform.ExecutePowershellCommand(cmd); err != nil {
+
+		if out, err = plc.ExecutePowershellCommand(cmd); err != nil {
 			logger.Error("Adding ipv6 gw neigh entry failed", zap.Any("out", out), zap.Error(err))
 			return err
 		}

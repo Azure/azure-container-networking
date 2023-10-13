@@ -143,7 +143,6 @@ func main() {
 	tbtemp.Cleanup(telemetry.FdName)
 
 	tb = telemetry.NewTelemetryBuffer(logger)
-
 	for {
 		logger.Info("Starting telemetry server")
 		err = tb.StartServer()

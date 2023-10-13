@@ -85,13 +85,13 @@ func TestUpdatePriorityVLANTagIfRequiredIfCurrentValNotEqualDesiredValAndSetRetu
 }
 
 func TestExecuteCommand(t *testing.T) {
-	out, err := NewExecClient().ExecuteCommand("dir")
+	out, err := NewExecClient(nil).ExecuteCommand("dir")
 	require.NoError(t, err)
 	require.NotEmpty(t, out)
 }
 
 func TestExecuteCommandError(t *testing.T) {
-	_, err := NewExecClient().ExecuteCommand("dontaddtopath")
+	_, err := NewExecClient(nil).ExecuteCommand("dontaddtopath")
 	require.Error(t, err)
 
 	var xErr *exec.ExitError

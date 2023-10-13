@@ -58,7 +58,7 @@ type Ovsctl struct {
 }
 
 func NewOvsctl() Ovsctl {
-	return Ovsctl{execcli: platform.NewExecClient()}
+	return Ovsctl{execcli: platform.NewExecClient(logger)}
 }
 
 func (o Ovsctl) CreateOVSBridge(bridgeName string) error {

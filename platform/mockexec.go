@@ -1,6 +1,9 @@
 package platform
 
-import "errors"
+import (
+	"errors"
+	"time"
+)
 
 type MockExecClient struct {
 	returnError    bool
@@ -32,4 +35,20 @@ func (e *MockExecClient) ExecuteCommand(cmd string) (string, error) {
 
 func (e *MockExecClient) SetExecCommand(fn execCommandValidator) {
 	e.setExecCommand = fn
+}
+
+func (e *MockExecClient) ClearNetworkConfiguration() (bool, error) {
+	return true, nil
+}
+
+func (e *MockExecClient) ExecutePowershellCommand(_ string) (string, error) {
+	return "", nil
+}
+
+func (e *MockExecClient) GetLastRebootTime() (time.Time, error) {
+	return time.Time{}, nil
+}
+
+func (e *MockExecClient) KillProcessByName(_ string) error {
+	return nil
 }

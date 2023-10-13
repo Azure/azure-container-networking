@@ -5,9 +5,12 @@ package iptables
 import (
 	"fmt"
 
-	"github.com/Azure/azure-container-networking/log"
+	"github.com/Azure/azure-container-networking/cni/log"
 	"github.com/Azure/azure-container-networking/platform"
+	"go.uber.org/zap"
 )
+
+var logger = log.CNILogger.With(zap.String("component", "cni-iptables"))
 
 // cni iptable chains
 const (
@@ -88,7 +91,7 @@ type IPTableEntry struct {
 func RunCmd(version, params string) error {
 	var cmd string
 
-	p := platform.NewExecClient()
+	p := platform.NewExecClient(logger)
 	iptCmd := iptables
 	if version == V6 {
 		iptCmd = ip6tables
@@ -132,7 +135,7 @@ func CreateChain(version, tableName, chainName string) error {
 		cmd := GetCreateChainCmd(version, tableName, chainName)
 		err = RunCmd(version, cmd.Params)
 	} else {
-		log.Printf("%s Chain exists in table %s", chainName, tableName)
+		logger.Info("Chain exists in table", zap.String("chainName", chainName), zap.String("tableName", tableName))
 	}
 
 	return err
@@ -157,7 +160,7 @@ func GetInsertIptableRuleCmd(version, tableName, chainName, match, target string
 // Insert iptable rule at beginning of iptable chain
 func InsertIptableRule(version, tableName, chainName, match, target string) error {
 	if RuleExists(version, tableName, chainName, match, target) {
-		log.Printf("Rule already exists")
+		logger.Info("Rule already exists")
 		return nil
 	}
 
@@ -175,7 +178,7 @@ func GetAppendIptableRuleCmd(version, tableName, chainName, match, target string
 // Append iptable rule at end of iptable chain
 func AppendIptableRule(version, tableName, chainName, match, target string) error {
 	if RuleExists(version, tableName, chainName, match, target) {
-		log.Printf("Rule already exists")
+		logger.Info("Rule already exists")
 		return nil
 	}
 

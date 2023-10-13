@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/Azure/azure-container-networking/log"
+	"go.uber.org/zap"
 )
 
 const (
@@ -53,18 +54,22 @@ func GetOSInfo() string {
 }
 
 func GetProcessSupport() error {
-	p := NewExecClient()
+	p := NewExecClient(nil)
 	cmd := fmt.Sprintf("ps -p %v -o comm=", os.Getpid())
 	_, err := p.ExecuteCommand(cmd)
 	return err
 }
 
 // GetLastRebootTime returns the last time the system rebooted.
-func GetLastRebootTime() (time.Time, error) {
+func (p *execClient) GetLastRebootTime() (time.Time, error) {
 	// Query last reboot time.
 	out, err := exec.Command("uptime", "-s").Output()
 	if err != nil {
-		log.Printf("Failed to query uptime, err:%v", err)
+		if p.logger != nil {
+			p.logger.Error("Failed to query uptime", zap.Error(err))
+		} else {
+			log.Printf("Failed to query uptime, err:%v", err)
+		}
 		return time.Time{}.UTC(), err
 	}
 
@@ -72,7 +77,11 @@ func GetLastRebootTime() (time.Time, error) {
 	layout := "2006-01-02 15:04:05"
 	rebootTime, err := time.ParseInLocation(layout, string(out[:len(out)-1]), time.Local)
 	if err != nil {
-		log.Printf("Failed to parse uptime, err:%v", err)
+		if p.logger != nil {
+			p.logger.Error("Failed to parse uptime", zap.Error(err))
+		} else {
+			log.Printf("Failed to parse uptime, err:%v", err)
+		}
 		return time.Time{}.UTC(), err
 	}
 
@@ -80,7 +89,11 @@ func GetLastRebootTime() (time.Time, error) {
 }
 
 func (p *execClient) ExecuteCommand(command string) (string, error) {
-	log.Printf("[Azure-Utils] %s", command)
+	if p.logger != nil {
+		p.logger.Info("[Azure-Utils]", zap.String("command", command))
+	} else {
+		log.Printf("[Azure-Utils] %s", command)
+	}
 
 	var stderr bytes.Buffer
 	var out bytes.Buffer
@@ -102,7 +115,7 @@ func (p *execClient) ExecuteCommand(command string) (string, error) {
 }
 
 func SetOutboundSNAT(subnet string) error {
-	p := NewExecClient()
+	p := NewExecClient(nil)
 	cmd := fmt.Sprintf("iptables -t nat -A POSTROUTING -m iprange ! --dst-range 168.63.129.16 -m addrtype ! --dst-type local ! -d %v -j MASQUERADE",
 		subnet)
 	_, err := p.ExecuteCommand(cmd)
@@ -115,12 +128,15 @@ func SetOutboundSNAT(subnet string) error {
 
 // ClearNetworkConfiguration clears the azure-vnet.json contents.
 // This will be called only when reboot is detected - This is windows specific
-func ClearNetworkConfiguration() (bool, error) {
+func (p *execClient) ClearNetworkConfiguration() (bool, error) {
 	return false, nil
 }
 
-func KillProcessByName(processName string) error {
-	p := NewExecClient()
+func (p *execClient) ExecutePowershellCommand(_ string) (string, error) {
+	return "", nil
+}
+
+func (p *execClient) KillProcessByName(processName string) error {
 	cmd := fmt.Sprintf("pkill -f %v", processName)
 	_, err := p.ExecuteCommand(cmd)
 	return err
@@ -151,7 +167,7 @@ func GetOSDetails() (map[string]string, error) {
 }
 
 func GetProcessNameByID(pidstr string) (string, error) {
-	p := NewExecClient()
+	p := NewExecClient(nil)
 	pidstr = strings.Trim(pidstr, "\n")
 	cmd := fmt.Sprintf("ps -p %s -o comm=", pidstr)
 	out, err := p.ExecuteCommand(cmd)
@@ -167,7 +183,7 @@ func GetProcessNameByID(pidstr string) (string, error) {
 }
 
 func PrintDependencyPackageDetails() {
-	p := NewExecClient()
+	p := NewExecClient(nil)
 	out, err := p.ExecuteCommand("iptables --version")
 	out = strings.TrimSuffix(out, "\n")
 	log.Printf("[cni-net] iptable version:%s, err:%v", out, err)

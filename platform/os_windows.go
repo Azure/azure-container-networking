@@ -17,6 +17,7 @@ import (
 	"github.com/Azure/azure-container-networking/platform/windows/adapter"
 	"github.com/Azure/azure-container-networking/platform/windows/adapter/mellanox"
 	"github.com/pkg/errors"
+	"go.uber.org/zap"
 	"golang.org/x/sys/windows"
 )
 
@@ -88,28 +89,41 @@ func GetOSInfo() string {
 }
 
 func GetProcessSupport() error {
+	p := NewExecClient(nil)
 	cmd := fmt.Sprintf("Get-Process -Id %v", os.Getpid())
-	_, err := ExecutePowershellCommand(cmd)
+	_, err := p.ExecutePowershellCommand(cmd)
 	return err
 }
 
 var tickCount = syscall.NewLazyDLL("kernel32.dll").NewProc("GetTickCount64")
 
 // GetLastRebootTime returns the last time the system rebooted.
-func GetLastRebootTime() (time.Time, error) {
+func (p *execClient) GetLastRebootTime() (time.Time, error) {
 	currentTime := time.Now()
 	output, _, err := tickCount.Call()
 	if errno, ok := err.(syscall.Errno); !ok || errno != 0 {
-		log.Printf("Failed to call GetTickCount64, err: %v", err)
+		if p.logger != nil {
+			p.logger.Error("Failed to call GetTickCount64", zap.Error(err))
+		} else {
+			log.Printf("Failed to call GetTickCount64, err: %v", err)
+		}
 		return time.Time{}.UTC(), err
 	}
 	rebootTime := currentTime.Add(-time.Duration(output) * time.Millisecond).Truncate(time.Second)
-	log.Printf("Formatted Boot time: %s", rebootTime.Format(time.RFC3339))
+	if p.logger != nil {
+		p.logger.Info("Formatted Boot", zap.String("time", rebootTime.Format(time.RFC3339)))
+	} else {
+		log.Printf("Formatted Boot time: %s", rebootTime.Format(time.RFC3339))
+	}
 	return rebootTime.UTC(), nil
 }
 
 func (p *execClient) ExecuteCommand(command string) (string, error) {
-	log.Printf("[Azure-Utils] ExecuteCommand: %q", command)
+	if p.logger != nil {
+		p.logger.Info("[Azure-Utils]", zap.String("ExecuteCommand", command))
+	} else {
+		log.Printf("[Azure-Utils] ExecuteCommand: %q", command)
+	}
 
 	var stderr, stdout bytes.Buffer
 
@@ -130,33 +144,37 @@ func SetOutboundSNAT(subnet string) error {
 
 // ClearNetworkConfiguration clears the azure-vnet.json contents.
 // This will be called only when reboot is detected - This is windows specific
-func ClearNetworkConfiguration() (bool, error) {
+func (p *execClient) ClearNetworkConfiguration() (bool, error) {
 	jsonStore := CNIRuntimePath + "azure-vnet.json"
-	log.Printf("Deleting the json store %s", jsonStore)
+	p.logger.Info("Deleting the json", zap.String("store", jsonStore))
 	cmd := exec.Command("cmd", "/c", "del", jsonStore)
 
 	if err := cmd.Run(); err != nil {
-		log.Printf("Error deleting the json store %s", jsonStore)
+		p.logger.Info("Error deleting the json", zap.String("store", jsonStore))
 		return true, err
 	}
 
 	return true, nil
 }
 
-func KillProcessByName(processName string) {
-	p := NewExecClient()
+func (p *execClient) KillProcessByName(processName string) error {
 	cmd := fmt.Sprintf("taskkill /IM %v /F", processName)
-	p.ExecuteCommand(cmd)
+	_, err := p.ExecuteCommand(cmd)
+	return err // nolint
 }
 
 // ExecutePowershellCommand executes powershell command
-func ExecutePowershellCommand(command string) (string, error) {
+func (p *execClient) ExecutePowershellCommand(command string) (string, error) {
 	ps, err := exec.LookPath("powershell.exe")
 	if err != nil {
 		return "", fmt.Errorf("Failed to find powershell executable")
 	}
 
-	log.Printf("[Azure-Utils] %s", command)
+	if p.logger != nil {
+		p.logger.Info("[Azure-Utils]", zap.String("command", command))
+	} else {
+		log.Printf("[Azure-Utils] %s", command)
+	}
 
 	cmd := exec.Command(ps, command)
 	var stdout bytes.Buffer
@@ -174,21 +192,22 @@ func ExecutePowershellCommand(command string) (string, error) {
 
 // SetSdnRemoteArpMacAddress sets the regkey for SDNRemoteArpMacAddress needed for multitenancy
 func SetSdnRemoteArpMacAddress() error {
+	p := NewExecClient(nil)
 	if sdnRemoteArpMacAddressSet == false {
-		result, err := ExecutePowershellCommand(GetSdnRemoteArpMacAddressCommand)
+		result, err := p.ExecutePowershellCommand(GetSdnRemoteArpMacAddressCommand)
 		if err != nil {
 			return err
 		}
 
 		// Set the reg key if not already set or has incorrect value
 		if result != SDNRemoteArpMacAddress {
-			if _, err = ExecutePowershellCommand(SetSdnRemoteArpMacAddressCommand); err != nil {
+			if _, err = p.ExecutePowershellCommand(SetSdnRemoteArpMacAddressCommand); err != nil {
 				log.Printf("Failed to set SDNRemoteArpMacAddress due to error %s", err.Error())
 				return err
 			}
 
 			log.Printf("[Azure CNS] SDNRemoteArpMacAddress regKey set successfully. Restarting hns service.")
-			if _, err := ExecutePowershellCommand(RestartHnsServiceCommand); err != nil {
+			if _, err := p.ExecutePowershellCommand(RestartHnsServiceCommand); err != nil {
 				log.Printf("Failed to Restart HNS Service due to error %s", err.Error())
 				return err
 			}
@@ -269,7 +288,8 @@ func GetOSDetails() (map[string]string, error) {
 func GetProcessNameByID(pidstr string) (string, error) {
 	pidstr = strings.Trim(pidstr, "\r\n")
 	cmd := fmt.Sprintf("Get-Process -Id %s|Format-List", pidstr)
-	out, err := ExecutePowershellCommand(cmd)
+	p := NewExecClient(nil)
+	out, err := p.ExecutePowershellCommand(cmd)
 	if err != nil {
 		log.Printf("Process is not running. Output:%v, Error %v", out, err)
 		return "", err

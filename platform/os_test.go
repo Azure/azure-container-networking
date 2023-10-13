@@ -5,6 +5,9 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/Azure/azure-container-networking/cni/log"
+	"go.uber.org/zap"
 )
 
 func TestMain(m *testing.M) {
@@ -13,7 +16,9 @@ func TestMain(m *testing.M) {
 }
 
 func TestGetLastRebootTime(t *testing.T) {
-	_, err := GetLastRebootTime()
+	logger := log.CNILogger.With(zap.String("component", "platform"))
+	p := NewExecClient(logger)
+	_, err := p.GetLastRebootTime()
 	if err != nil {
 		t.Errorf("GetLastRebootTime failed :%v", err)
 	}

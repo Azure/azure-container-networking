@@ -134,7 +134,8 @@ func (am *addressManager) restore(rehydrateIpamInfoOnReboot bool) error {
 		// Check if the VM is rebooted.
 		modTime, err := am.store.GetModificationTime()
 		if err == nil {
-			rebootTime, err := platform.GetLastRebootTime()
+			p := platform.NewExecClient(nil)
+			rebootTime, err := p.GetLastRebootTime()
 			log.Printf("[ipam] reboot time %v store mod time %v", rebootTime, modTime)
 
 			if err == nil && rebootTime.After(modTime) {
