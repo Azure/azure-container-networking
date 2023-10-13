@@ -4,7 +4,9 @@
 package network
 
 import (
+	"fmt"
 	"net"
+	"os"
 	"testing"
 
 	"github.com/Azure/azure-container-networking/netio"
@@ -12,6 +14,7 @@ import (
 	"github.com/Azure/azure-container-networking/network/networkutils"
 	"github.com/Azure/azure-container-networking/platform"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sys/unix"
 )
 
 func TestSecondaryAddEndpoints(t *testing.T) {
@@ -82,7 +85,7 @@ func TestSecondaryAddEndpoints(t *testing.T) {
 	}
 }
 
-func TestSecondaryDeleteEndpointsRules(t *testing.T) {
+func TestSecondaryDeleteEndpoints(t *testing.T) {
 	nl := netlink.NewMockNetlink(false, "")
 	plc := platform.NewMockExecClient(false)
 
@@ -92,7 +95,7 @@ func TestSecondaryDeleteEndpointsRules(t *testing.T) {
 		ep     *endpoint
 	}{
 		{
-			name: "Delete endpoint rules happy path",
+			name: "Delete endpoint happy path",
 			client: &SecondaryEndpointClient{
 				netlink:        netlink.NewMockNetlink(false, ""),
 				plClient:       platform.NewMockExecClient(false),
@@ -100,6 +103,7 @@ func TestSecondaryDeleteEndpointsRules(t *testing.T) {
 				netioshim:      netio.NewMockNetIO(false, 0),
 			},
 			ep: &endpoint{
+				NetworkNameSpace: fmt.Sprintf("/proc/%d/task/%d/ns/net", os.Getpid(), unix.Gettid()),
 				SecondaryInterfaces: map[string]*InterfaceInfo{
 					"eth1": {
 						Name: "eth1",
@@ -117,7 +121,9 @@ func TestSecondaryDeleteEndpointsRules(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			tt.client.DeleteEndpointRules(tt.ep)
+			require.Len(t, tt.ep.SecondaryInterfaces, 1)
+			require.Nil(t, tt.client.DeleteEndpoints(tt.ep))
+			require.Len(t, tt.ep.SecondaryInterfaces, 0)
 		})
 	}
 }
