@@ -781,7 +781,11 @@ func (plugin *NetPlugin) createEndpointInternal(opt *createEndpointInternalOpt) 
 		NATInfo:            opt.natInfo,
 	}
 
-	epPolicies := getPoliciesFromRuntimeCfg(opt.nwCfg)
+	epPolicies, err := getPoliciesFromRuntimeCfg(opt.nwCfg)
+	if err != nil {
+		logger.Error("failed to get policies from runtime configurations", zap.Error(err))
+	}
+
 	epInfo.Policies = append(epInfo.Policies, epPolicies...)
 
 	// Populate addresses.

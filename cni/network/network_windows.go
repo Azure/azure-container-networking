@@ -248,9 +248,8 @@ func getEndpointDNSSettings(nwCfg *cni.NetworkConfig, result *cniTypesCurr.Resul
 }
 
 // getPoliciesFromRuntimeCfg returns network policies from network config.
-func getPoliciesFromRuntimeCfg(nwCfg *cni.NetworkConfig) []policy.Policy {
-	logger.Info("Runtime Info",
-		zap.Any("config", nwCfg.RuntimeConfig))
+func getPoliciesFromRuntimeCfg(nwCfg *cni.NetworkConfig) ([]policy.Policy, error) {
+	logger.Info("Runtime Info", zap.Any("config", nwCfg.RuntimeConfig))
 	var policies []policy.Policy
 	var protocol uint32
 
@@ -264,59 +263,52 @@ func getPoliciesFromRuntimeCfg(nwCfg *cni.NetworkConfig) []policy.Policy {
 			protocol = policy.ProtocolUdp
 		}
 
+		hostIP := net.ParseIP(mapping.HostIp)
+
 		// To support hostport policy mapping
 		// uint32 NatFlagsLocalRoutedVip = 1
-		if net.ParseIP(mapping.HostIp).To4() != nil {
-			rawPolicy, _ := json.Marshal(&hnsv2.PortMappingPolicySetting{ // nolint
-				ExternalPort: uint16(mapping.HostPort),
-				InternalPort: uint16(mapping.ContainerPort),
-				VIP:          mapping.HostIp,
-				Protocol:     protocol,
-				Flags:        hnsv2.NatFlagsLocalRoutedVip,
-			})
-
-			hnsv2Policy, _ := json.Marshal(&hnsv2.EndpointPolicy{ // nolint
-				Type:     hnsv2.PortMapping,
-				Settings: rawPolicy,
-			})
-
-			policyv4 := policy.Policy{
-				Type: policy.EndpointPolicy,
-				Data: hnsv2Policy,
-			}
-
-			logger.Info("Creating port mapping policyv4",
-				zap.Any("policy", policyv4))
-			policies = append(policies, policyv4)
-		} else {
-			// add port mapping policy for v6 if hostIP is ipv6
-			// To support hostport policy mapping for ipv6 in dualstack overlay mode
-			// uint32 NatFlagsIPv6 = 2
-			rawPolicyv6, _ := json.Marshal(&hnsv2.PortMappingPolicySetting{ // nolint
-				ExternalPort: uint16(mapping.HostPort),
-				InternalPort: uint16(mapping.ContainerPort),
-				VIP:          mapping.HostIp,
-				Protocol:     protocol,
-				Flags:        hnsv2.NatFlagsIPv6,
-			})
-
-			hnsv2Policyv6, _ := json.Marshal(&hnsv2.EndpointPolicy{ // nolint
-				Type:     hnsv2.PortMapping,
-				Settings: rawPolicyv6,
-			})
-
-			policyv6 := policy.Policy{
-				Type: policy.EndpointPolicy,
-				Data: hnsv2Policyv6,
-			}
-
-			logger.Info("Creating port mapping policyv6",
-				zap.Any("policy", policyv6))
-			policies = append(policies, policyv6)
+		// To support hostport policy mapping for ipv6 in dualstack overlay mode
+		// uint32 NatFlagsIPv6 = 2
+		var flag hnsv2.NatFlags
+		switch {
+		case hostIP.To4() != nil:
+			flag = hnsv2.NatFlagsLocalRoutedVip
+		case hostIP.To16() != nil:
+			flag = hnsv2.NatFlagsIPv6
 		}
+
+		rawPolicy, err := json.Marshal(&hnsv2.PortMappingPolicySetting{
+			ExternalPort: uint16(mapping.HostPort),
+			InternalPort: uint16(mapping.ContainerPort),
+			VIP:          hostIP,
+			Protocol:     protocol,
+			Flags:        flag,
+		})
+
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to marshal HNS portMappingPolicySetting")
+		}
+
+		hnsv2Policy, err := json.Marshal(&hnsv2.EndpointPolicy{
+			Type:     hnsv2.PortMapping,
+			Settings: rawPolicy,
+		})
+
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to marshal HNS endpointPolicy")
+		}
+
+		policy := policy.Policy{
+			Type: policy.EndpointPolicy,
+			Data: hnsv2Policy,
+		}
+
+		logger.Info("Creating port mapping policy", zap.Any("policy", policy))
+
+		policies = append(policies, policy)
 	}
 
-	return policies
+	return policies, nil
 }
 
 func getEndpointPolicies(args PolicyArgs) ([]policy.Policy, error) {
