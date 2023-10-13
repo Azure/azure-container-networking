@@ -301,14 +301,14 @@ func getPoliciesFromRuntimeCfg(nwCfg *cni.NetworkConfig) ([]policy.Policy, error
 			return nil, errors.Wrap(err, "failed to marshal HNS endpointPolicy")
 		}
 
-		policy := policy.Policy{
+		hnsPolicy := policy.Policy{
 			Type: policy.EndpointPolicy,
 			Data: hnsv2Policy,
 		}
 
-		logger.Info("Creating port mapping policy", zap.Any("policy", policy))
+		logger.Info("Creating port mapping policy", zap.Any("policy", hnsPolicy))
 
-		policies = append(policies, policy)
+		policies = append(policies, hnsPolicy)
 	}
 
 	return policies, nil
