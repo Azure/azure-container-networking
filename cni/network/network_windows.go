@@ -267,7 +267,7 @@ func getPoliciesFromRuntimeCfg(nwCfg *cni.NetworkConfig) []policy.Policy {
 		// To support hostport policy mapping
 		// uint32 NatFlagsLocalRoutedVip = 1
 		if net.ParseIP(mapping.HostIp).To4() != nil {
-			rawPolicy, _ := json.Marshal(&hnsv2.PortMappingPolicySetting{
+			rawPolicy, _ := json.Marshal(&hnsv2.PortMappingPolicySetting{ // nolint
 				ExternalPort: uint16(mapping.HostPort),
 				InternalPort: uint16(mapping.ContainerPort),
 				VIP:          mapping.HostIp,
@@ -275,7 +275,7 @@ func getPoliciesFromRuntimeCfg(nwCfg *cni.NetworkConfig) []policy.Policy {
 				Flags:        hnsv2.NatFlagsLocalRoutedVip,
 			})
 
-			hnsv2Policy, _ := json.Marshal(&hnsv2.EndpointPolicy{
+			hnsv2Policy, _ := json.Marshal(&hnsv2.EndpointPolicy{ // nolint
 				Type:     hnsv2.PortMapping,
 				Settings: rawPolicy,
 			})
