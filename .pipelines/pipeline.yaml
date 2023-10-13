@@ -35,7 +35,7 @@ stages:
               # To use the variables below, you must make the respective stage's dependsOn have - setup or it will not retain context of this stage
               BUILD_NUMBER=$(Build.BuildNumber)
               echo "##vso[task.setvariable variable=StorageID;isOutput=true]$(echo ${BUILD_NUMBER//./-})"
-              echo "##vso[task.setvariable variable=commitID;isOutput=true]$(make revision)"
+              echo "##vso[task.setvariable variable=commitID;isOutput=true]$(echo $(make revision)-$(date "+%d-%H-%M"))"
               echo "##vso[task.setvariable variable=Tag;isOutput=true]$(make version)"
               echo "##vso[task.setvariable variable=cniVersion;isOutput=true]$(make cni-version)"
               echo "##vso[task.setvariable variable=npmVersion;isOutput=true]$(make npm-version)"
