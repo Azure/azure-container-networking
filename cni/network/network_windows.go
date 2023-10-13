@@ -280,7 +280,7 @@ func getPoliciesFromRuntimeCfg(nwCfg *cni.NetworkConfig) ([]policy.Policy, error
 		rawPolicy, err := json.Marshal(&hnsv2.PortMappingPolicySetting{
 			ExternalPort: uint16(mapping.HostPort),
 			InternalPort: uint16(mapping.ContainerPort),
-			VIP:          hostIP,
+			VIP:          mapping.HostIp,
 			Protocol:     protocol,
 			Flags:        flag,
 		})
