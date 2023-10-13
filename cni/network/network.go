@@ -781,7 +781,8 @@ func (plugin *NetPlugin) createEndpointInternal(opt *createEndpointInternalOpt) 
 		NATInfo:            opt.natInfo,
 	}
 
-	epPolicies, err := getPoliciesFromRuntimeCfg(opt.nwCfg)
+	isIPv6Enabled := opt.resultV6 != nil
+	epPolicies, err := getPoliciesFromRuntimeCfg(opt.nwCfg, isIPv6Enabled)
 	if err != nil {
 		logger.Error("failed to get policies from runtime configurations", zap.Error(err))
 		return epInfo, err

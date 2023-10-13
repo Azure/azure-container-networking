@@ -248,7 +248,7 @@ func getEndpointDNSSettings(nwCfg *cni.NetworkConfig, result *cniTypesCurr.Resul
 }
 
 // getPoliciesFromRuntimeCfg returns network policies from network config.
-func getPoliciesFromRuntimeCfg(nwCfg *cni.NetworkConfig) ([]policy.Policy, error) {
+func getPoliciesFromRuntimeCfg(nwCfg *cni.NetworkConfig, isIPv6Enabled bool) ([]policy.Policy, error) {
 	logger.Info("Runtime Info", zap.Any("config", nwCfg.RuntimeConfig))
 	var policies []policy.Policy
 	var protocol uint32
@@ -265,7 +265,7 @@ func getPoliciesFromRuntimeCfg(nwCfg *cni.NetworkConfig) ([]policy.Policy, error
 
 		hostIP, err := netip.ParseAddr(mapping.HostIp)
 		if err != nil {
-			return nil, errors.Wrap(err, "failed to parse hostIP")
+			return nil, errors.Wrapf(err, "failed to parse hostIP %v", hostIP)
 		}
 
 		// To support hostport policy mapping
@@ -276,7 +276,7 @@ func getPoliciesFromRuntimeCfg(nwCfg *cni.NetworkConfig) ([]policy.Policy, error
 		switch {
 		case hostIP.Is4():
 			flag = hnsv2.NatFlagsLocalRoutedVip
-		case hostIP.Is6():
+		case hostIP.Is6() && isIPv6Enabled:
 			flag = hnsv2.NatFlagsIPv6
 		}
 

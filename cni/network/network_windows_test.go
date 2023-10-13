@@ -253,7 +253,8 @@ func TestSetPoliciesFromNwCfg(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			policies, err := getPoliciesFromRuntimeCfg(&tt.nwCfg)
+			isIPv6Enabled := false
+			policies, err := getPoliciesFromRuntimeCfg(&tt.nwCfg, isIPv6Enabled)
 			require.NoError(t, err)
 			require.Condition(t, assert.Comparison(func() bool {
 				return len(policies) > 0 && policies[0].Type == policy.EndpointPolicy
