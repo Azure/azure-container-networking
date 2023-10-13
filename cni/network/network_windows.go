@@ -263,7 +263,10 @@ func getPoliciesFromRuntimeCfg(nwCfg *cni.NetworkConfig) ([]policy.Policy, error
 			protocol = policy.ProtocolUdp
 		}
 
-		hostIP := net.ParseIP(mapping.HostIp)
+		hostIP, err := netip.ParseAddr(mapping.HostIp)
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to parse hostIP")
+		}
 
 		// To support hostport policy mapping
 		// uint32 NatFlagsLocalRoutedVip = 1
@@ -271,9 +274,9 @@ func getPoliciesFromRuntimeCfg(nwCfg *cni.NetworkConfig) ([]policy.Policy, error
 		// uint32 NatFlagsIPv6 = 2
 		var flag hnsv2.NatFlags
 		switch {
-		case hostIP.To4() != nil:
+		case hostIP.Is4():
 			flag = hnsv2.NatFlagsLocalRoutedVip
-		case hostIP.To16() != nil:
+		case hostIP.Is6():
 			flag = hnsv2.NatFlagsIPv6
 		}
 

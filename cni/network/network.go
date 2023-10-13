@@ -784,6 +784,7 @@ func (plugin *NetPlugin) createEndpointInternal(opt *createEndpointInternalOpt) 
 	epPolicies, err := getPoliciesFromRuntimeCfg(opt.nwCfg)
 	if err != nil {
 		logger.Error("failed to get policies from runtime configurations", zap.Error(err))
+		return epInfo, err
 	}
 
 	epInfo.Policies = append(epInfo.Policies, epPolicies...)
