@@ -3,7 +3,6 @@ parameters:
   os: "linux"
   restartCase: "false"
   cni: "cilium"
-  cnsManagedEndpoint: "false"
 
 steps:
   - task: AzureCLI@1
@@ -13,20 +12,9 @@ steps:
       scriptType: "bash"
       addSpnToEnvironment: true
       inlineScript: |
-        if [ ${{ parameters.cnsManagedEndpoint }} == "true" ] && [ ${{ parameters.restartCase }} == "true" ]
-        then
-          echo If this step fails, test manually.
-          echo Only fails when CNS is managing the endpoint state and state file does not exist due to node restart with 0 load-test pods scheduled on node.
-          echo Failure is due to slow node restart which occurs after scale down. Scale down causes the 0 pod scenario as it is not a controlable feature, leading to nodes with 100+ load-test pods and others with 0.
-          echo This delay also misses the intent of the restart node scenario as the scenario requires the operation to be interuptted by the restart.
-          echo Timing should be: Scale down > Restart nodes during scale down > complete scale down > validate.
-          echo Contnuing on Error only when endpoint state is managed by CNS and RestartCase == True to allow for further test cases to run.
-        fi
-
         make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
         kubectl get pods -A
         make test-validate-state OS_TYPE=${{ parameters.os }} RESTART_CASE=${{ parameters.restartCase }} CNI_TYPE=${{ parameters.cni }}
     name: "ValidateState"
     displayName: "Validate State"
     retryCountOnTaskFailure: 3
-    continueOnError: ${{ parameters.cnsManagedEndpoint }}
