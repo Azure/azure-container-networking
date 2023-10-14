@@ -3,7 +3,6 @@ package nodenetworkconfig
 import (
 	"net/netip"
 	"strconv"
-	"strings"
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
@@ -26,12 +25,6 @@ func createNCRequestFromStaticNCHelper(nc v1alpha.NetworkContainer, primaryIPPre
 		}
 	}
 
-	// IP Configurations for Primary IP and Gateway Mask
-	ipConfig := cns.IPConfiguration{
-		IPSubnet:         subnet,
-		GatewayIPAddress: nc.DefaultGateway,
-	}
-
 	// Add IPs from CIDR block to the secondary IPConfigs
 	if nc.Type == v1alpha.VNETBlock {
 		for _, ipAssignment := range nc.IPAssignments {
@@ -49,18 +42,8 @@ func createNCRequestFromStaticNCHelper(nc v1alpha.NetworkContainer, primaryIPPre
 				}
 			}
 		}
-		// if the NodeIP is not a CIDR, append a /32
-		if !strings.Contains(nc.NodeIP, "/") {
-			nc.NodeIP += "/32"
-		}
-		nodeIPPrefix, err := netip.ParsePrefix(nc.NodeIP)
-		if err != nil {
-			return nil, errors.Wrapf(err, "invalid Node IP %s", nc.NodeIP)
-		}
-		ipConfig.IPSubnet = cns.IPSubnet{
-			IPAddress:    nodeIPPrefix.Addr().String(),
-			PrefixLength: uint8(nodeIPPrefix.Bits()),
-		}
+		// Change the primary IP to the Node IP
+		subnet.IPAddress = nc.NodeIP
 	}
 
 	return &cns.CreateNetworkContainerRequest{
@@ -68,7 +51,10 @@ func createNCRequestFromStaticNCHelper(nc v1alpha.NetworkContainer, primaryIPPre
 		NetworkContainerid:   nc.ID,
 		NetworkContainerType: cns.Docker,
 		Version:              strconv.FormatInt(nc.Version, 10), //nolint:gomnd // it's decimal
-		IPConfiguration:      ipConfig,
-		NCStatus:             nc.Status,
+		IPConfiguration: cns.IPConfiguration{
+			IPSubnet:         subnet,
+			GatewayIPAddress: nc.DefaultGateway,
+		},
+		NCStatus: nc.Status,
 	}, nil
 }
