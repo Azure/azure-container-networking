@@ -34,5 +34,8 @@
     "AZRSettings": {
         "EnableAZR": true,
         "PopulateHomeAzCacheRetryIntervalSecs": 60
+    },
+    "FeatureFlagSettings": {
+        "UseNodeIPAsNCPrimaryIP": false
     }
 }

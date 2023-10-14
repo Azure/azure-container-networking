@@ -228,10 +228,11 @@ func TestCreateNCRequestFromDynamicNC(t *testing.T) {
 
 func TestCreateNCRequestFromStaticNC(t *testing.T) {
 	tests := []struct {
-		name    string
-		input   v1alpha.NetworkContainer
-		want    *cns.CreateNetworkContainerRequest
-		wantErr bool
+		name                   string
+		input                  v1alpha.NetworkContainer
+		want                   *cns.CreateNetworkContainerRequest
+		wantErr                bool
+		useNodeIPAsNCPrimaryIP bool
 	}{
 		{
 			name:    "valid overlay",
@@ -302,10 +303,18 @@ func TestCreateNCRequestFromStaticNC(t *testing.T) {
 		},
 		// VNET Block test cases
 		{
-			name:    "valid VNET Block",
-			input:   validVNETBlockNC,
-			wantErr: false,
-			want:    validVNETBlockRequest,
+			name:                   "valid VNET Block without Node IP as Primary IP",
+			input:                  validVNETBlockNC,
+			wantErr:                false,
+			want:                   validVNETBlockRequest,
+			useNodeIPAsNCPrimaryIP: false,
+		},
+		{
+			name:                   "valid VNET Block with Node IP as Primary IP",
+			input:                  validVNETBlockNC,
+			wantErr:                false,
+			want:                   validVNETBlockRequestUsingNodeIP,
+			useNodeIPAsNCPrimaryIP: false,
 		},
 		{
 			name: "PrimaryIP is not CIDR",
@@ -339,7 +348,7 @@ func TestCreateNCRequestFromStaticNC(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := CreateNCRequestFromStaticNC(tt.input)
+			got, err := CreateNCRequestFromStaticNC(tt.input, tt.useNodeIPAsNCPrimaryIP)
 			if tt.wantErr {
 				assert.Error(t, err)
 				return

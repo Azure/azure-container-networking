@@ -73,7 +73,7 @@ func CreateNCRequestFromDynamicNC(nc v1alpha.NetworkContainer) (*cns.CreateNetwo
 // CreateNCRequestFromStaticNC generates a CreateNetworkContainerRequest from a static NetworkContainer.
 //
 //nolint:gocritic //ignore hugeparam
-func CreateNCRequestFromStaticNC(nc v1alpha.NetworkContainer) (*cns.CreateNetworkContainerRequest, error) {
+func CreateNCRequestFromStaticNC(nc v1alpha.NetworkContainer, useNodeIPAsNCPrimaryIP bool) (*cns.CreateNetworkContainerRequest, error) {
 	if nc.Type == v1alpha.Overlay {
 		nc.Version = 0 // fix for NMA always giving us version 0 for Overlay NCs
 	}
@@ -92,7 +92,7 @@ func CreateNCRequestFromStaticNC(nc v1alpha.NetworkContainer) (*cns.CreateNetwor
 		PrefixLength: uint8(subnetPrefix.Bits()),
 	}
 
-	req, err := createNCRequestFromStaticNCHelper(nc, primaryPrefix, subnet)
+	req, err := createNCRequestFromStaticNCHelper(nc, primaryPrefix, subnet, useNodeIPAsNCPrimaryIP)
 	if err != nil {
 		return nil, errors.Wrapf(err, "error while creating NC request from static NC")
 	}

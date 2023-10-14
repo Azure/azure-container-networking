@@ -48,6 +48,7 @@ type CNSConfig struct {
 	WatchPods                   bool
 	EnableAsyncPodDelete        bool
 	AsyncPodDeletePath          string
+	FeatureFlagSettings         FeatureFlagSettings
 }
 
 type TelemetrySettings struct {
@@ -82,6 +83,12 @@ type ManagedSettings struct {
 	InfrastructureNetworkID   string
 	NodeID                    string
 	NodeSyncIntervalInSeconds int
+}
+
+type FeatureFlagSettings struct {
+	// This flag will be used to enable/disable the feature of using node IP as NC primary IP.
+	// This feature is disabled by default. When enabled, DNC will use node IP as NC primary IP instead of one of the IPs from the secondary IP pool.
+	UseNodeIPAsNCPrimaryIP bool
 }
 
 type AZRSettings struct {

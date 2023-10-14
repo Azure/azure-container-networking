@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/Azure/azure-container-networking/cns"
+	"github.com/Azure/azure-container-networking/cns/configuration"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	cnstypes "github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
@@ -184,6 +185,11 @@ func TestReconcile(t *testing.T) {
 			wantCNSClientState: cnsClientState{}, // state should be empty since we should skip this NC
 		},
 	}
+
+	featureFlags := configuration.FeatureFlagSettings{
+		UseNodeIPAsNCPrimaryIP: false,
+	}
+
 	for _, tt := range tests {
 		tt := tt
 		tt.cnsClient.state.reqsByNCID = make(map[string]*cns.CreateNetworkContainerRequest)
@@ -192,7 +198,7 @@ func TestReconcile(t *testing.T) {
 		}
 
 		t.Run(tt.name, func(t *testing.T) {
-			r := NewReconciler(&tt.cnsClient, &tt.cnsClient, tt.nodeIP)
+			r := NewReconciler(&tt.cnsClient, &tt.cnsClient, tt.nodeIP, featureFlags)
 			r.nnccli = &tt.ncGetter
 			got, err := r.Reconcile(context.Background(), tt.in)
 			if tt.wantErr {
@@ -249,7 +255,11 @@ func TestReconcileStaleNCs(t *testing.T) {
 		return &nncLog[len(nncLog)-1], nil
 	}
 
-	r := NewReconciler(&cnsClient, &cnsClient, nodeIP)
+	featureFlags := configuration.FeatureFlagSettings{
+		UseNodeIPAsNCPrimaryIP: false,
+	}
+
+	r := NewReconciler(&cnsClient, &cnsClient, nodeIP, featureFlags)
 	r.nnccli = &mockNCGetter{get: nncIterator}
 
 	_, err := r.Reconcile(context.Background(), reconcile.Request{})

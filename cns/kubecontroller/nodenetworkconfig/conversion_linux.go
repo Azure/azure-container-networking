@@ -13,7 +13,7 @@ import (
 // by adding all IPs in the the block to the secondary IP configs list. It does not skip any IPs.
 //
 //nolint:gocritic //ignore hugeparam
-func createNCRequestFromStaticNCHelper(nc v1alpha.NetworkContainer, primaryIPPrefix netip.Prefix, subnet cns.IPSubnet) (*cns.CreateNetworkContainerRequest, error) {
+func createNCRequestFromStaticNCHelper(nc v1alpha.NetworkContainer, primaryIPPrefix netip.Prefix, subnet cns.IPSubnet, useNodeIPAsNCPrimaryIP bool) (*cns.CreateNetworkContainerRequest, error) {
 	secondaryIPConfigs := map[string]cns.SecondaryIPConfig{}
 
 	// iterate through all IP addresses in the subnet described by primaryPrefix and
@@ -42,8 +42,10 @@ func createNCRequestFromStaticNCHelper(nc v1alpha.NetworkContainer, primaryIPPre
 				}
 			}
 		}
-		// Change the primary IP to the Node IP
-		subnet.IPAddress = nc.NodeIP
+		// Change the primary IP to the Node IP if feature flag is set
+		if useNodeIPAsNCPrimaryIP {
+			subnet.IPAddress = nc.NodeIP
+		}
 	}
 
 	return &cns.CreateNetworkContainerRequest{
