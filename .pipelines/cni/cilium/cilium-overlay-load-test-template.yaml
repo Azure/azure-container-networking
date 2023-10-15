@@ -69,6 +69,9 @@ stages:
                 echo "deploy Cilium ConfigMap"
                 kubectl apply -f cilium/configmap.yaml
                 kubectl apply -f test/integration/manifests/cilium/cilium-config.yaml
+                echo "install Cilium onto Overlay Cluster"
+                kubectl apply -f test/integration/manifests/cilium/cilium-agent
+                kubectl apply -f test/integration/manifests/cilium/cilium-operator
                 echo "install Cilium ${CILIUM_VERSION_TAG} onto Overlay Cluster"
                 # Passes Cilium image to daemonset and deployment
                 envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/daemonset.yaml | kubectl apply -f -
