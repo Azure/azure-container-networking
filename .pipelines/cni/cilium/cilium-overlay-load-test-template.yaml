@@ -7,6 +7,8 @@ parameters:
   vmSize: "Standard_DS4_v2"
   testDropgz: true
   os: "linux"
+  arch: ""
+  osSKU: Ubuntu
 
 # Condition confirms that:
 # Previous job has reported Succeeded. Previous job is currently setup which controls variable assignment and we are dependent on its success.
@@ -79,9 +81,9 @@ stages:
 
                 echo "Deploy Azure-CNS"
                 if [ -z $(DROP_GZ_VERSION) ]; then
-                  sudo -E env "PATH=$PATH" make test-integration CNS_VERSION=$(cnsVersion) CNI_DROPGZ_VERSION=$(dropgzVersion) INSTALL_CNS=true INSTALL_AZURE_CNI_OVERLAY=true TEST_DROPGZ=${{ parameters.testDropgz }} CNS_IMAGE_REPO=$(CNS_IMAGE_REPO)
+                  sudo -E env "PATH=$PATH" make test-integration CNS_VERSION=$(cnsVersion) CNI_DROPGZ_VERSION=$(dropgzVersion) INSTALL_CNS=true INSTALL_OVERLAY=true TEST_DROPGZ=${{ parameters.testDropgz }} CNS_IMAGE_REPO=$(CNS_IMAGE_REPO)
                 else
-                  sudo -E env "PATH=$PATH" make test-integration CNS_VERSION=$(cnsVersion) CNI_DROPGZ_VERSION=$(DROP_GZ_VERSION) INSTALL_CNS=true INSTALL_AZURE_CNI_OVERLAY=true TEST_DROPGZ=${{ parameters.testDropgz }} CNS_IMAGE_REPO=$(CNS_IMAGE_REPO)
+                  sudo -E env "PATH=$PATH" make test-integration CNS_VERSION=$(cnsVersion) CNI_DROPGZ_VERSION=$(DROP_GZ_VERSION) INSTALL_CNS=true INSTALL_OVERLAY=true TEST_DROPGZ=${{ parameters.testDropgz }} CNS_IMAGE_REPO=$(CNS_IMAGE_REPO)
                 fi
                 kubectl get po -owide -A
       - job: deploy_pods
