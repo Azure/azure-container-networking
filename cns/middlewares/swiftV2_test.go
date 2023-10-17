@@ -89,8 +89,8 @@ func TestGetSWIFTv2IPConfigFailure(t *testing.T) {
 
 func TestSetRoutesSuccess(t *testing.T) {
 	middleware := SWIFTv2Middleware{Cli: mock.NewMockClient()}
-	os.Setenv(configuration.EnvPodCIDRs, "10.0.1.10/24;16A0:0010:AB00:001E::2/32")
-	os.Setenv(configuration.EnvServiceCIDRs, "10.0.0.0/16;16A0:0010:AB00:0000::/32")
+	os.Setenv(configuration.EnvPodCIDRs, "10.0.1.10/24,16A0:0010:AB00:001E::2/32")
+	os.Setenv(configuration.EnvServiceCIDRs, "10.0.0.0/16,16A0:0010:AB00:0000::/32")
 	podIPInfo := []cns.PodIpInfo{
 		{
 			PodIPConfig: cns.IPSubnet{
