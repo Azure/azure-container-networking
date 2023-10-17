@@ -263,21 +263,15 @@ func getPoliciesFromRuntimeCfg(nwCfg *cni.NetworkConfig, isIPv6Enabled bool) ([]
 			protocol = policy.ProtocolUdp
 		}
 
-		hostIP, err := netip.ParseAddr(mapping.HostIp)
-		if err != nil {
-			return nil, errors.Wrapf(err, "failed to parse hostIP %v", hostIP)
-		}
-
 		// To support hostport policy mapping
 		// uint32 NatFlagsLocalRoutedVip = 1
 		// To support hostport policy mapping for ipv6 in dualstack overlay mode
 		// uint32 NatFlagsIPv6 = 2
 		var flag hnsv2.NatFlags
-		switch {
-		case hostIP.Is4():
-			flag = hnsv2.NatFlagsLocalRoutedVip
-		case hostIP.Is6() && isIPv6Enabled:
+		if isIPv6Enabled {
 			flag = hnsv2.NatFlagsIPv6
+		} else {
+			flag = hnsv2.NatFlagsLocalRoutedVip
 		}
 
 		rawPolicy, err := json.Marshal(&hnsv2.PortMappingPolicySetting{
