@@ -25,8 +25,8 @@ const (
 	azCloudUrl                      = "http://169.254.169.254/metadata/instance/compute/azEnvironment?api-version=2018-10-01&format=text"
 	httpConnectionTimeout           = 7
 	headerTimeout                   = 7
-	RegisterNodeURLFmt              = "%s/%s/node/%s%s"
-	SyncNodeNetworkContainersURLFmt = "%s/%s/node/%s%s"
+	RegisterNodeURLFmt              = "%s/networks/%s/node/%s%s"
+	SyncNodeNetworkContainersURLFmt = "%s/networks/%s/node/%s/networkcontainers%s"
 	FiveSeconds                     = 5 * time.Second
 	JsonContent                     = "application/json; charset=UTF-8"
 	ContentType                     = "Content-Type"
