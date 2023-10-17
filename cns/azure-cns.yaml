@@ -24,6 +24,7 @@ metadata:
 subjects:
   - kind: ServiceAccount
     name: azure-cns
+    namespace: kube-system
 roleRef:
   kind: ClusterRole
   name: acn-multitenancy-editor
