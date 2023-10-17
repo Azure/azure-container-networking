@@ -13,7 +13,7 @@ stages:
           - script: |
               echo "Setting up environment"
               go version
-              echo "##vso[task.setvariable variable=commitID;isOutput=true]$(make revision)"
+              echo "##vso[task.setvariable variable=commitID;isOutput=true]$(echo $(make revision)-$(date "+%d%H%M"))"
               echo "##vso[task.setvariable variable=npmVersion;isOutput=true]$(make npm-version)"
               echo "##vso[task.setvariable variable=dropgzVersion;isOutput=true]$(make cni-dropgz-test-version)"
               echo "##vso[task.setvariable variable=cnsVersion;isOutput=true]$(CNS_VERSION)"
@@ -138,7 +138,7 @@ stages:
     parameters:
       name: cilium_overlay
       clusterType: overlay-byocni-nokubeproxy-up
-      clusterName: "cilium-overlay"
+      clusterName: "cilium-over"
       nodeCount: ${NODE_COUNT_CILIUM}
       vmSize: ${VM_SIZE_CILIUM}
 
@@ -146,7 +146,7 @@ stages:
     parameters:
       name: win22_cniv1
       clusterType: windows-cniv1-up
-      clusterName: win22-cniv1
+      clusterName: "win22-cniv1"
       nodeCount: ${NODE_COUNT_WIN}
       vmSize: ${VM_SIZE_WINCLUSTER_SYSTEMPOOL}
       vmSizeWin: ${VM_SIZE_WIN}
@@ -160,7 +160,7 @@ stages:
     parameters:
       name: linux_cniv1
       clusterType: linux-cniv1-up
-      clusterName: linux-cniv1
+      clusterName: "linux-cniv1"
       nodeCount: ${NODE_COUNT_LINUX}
       vmSize: ${VM_SIZE}
       os: linux
@@ -172,7 +172,7 @@ stages:
     parameters:
       name: linux_podsubnet
       clusterType: swift-byocni-up
-      clusterName: linux-cniv2-podsubnet
+      clusterName: "linux-podsub"
       nodeCount: ${NODE_COUNT_LINUX}
       vmSize: ${VM_SIZE}
       arch: amd64
@@ -181,7 +181,7 @@ stages:
     parameters:
       name: linux_overlay
       clusterType: overlay-byocni-up
-      clusterName: linux-cniv2-overlay
+      clusterName: "linux-over"
       nodeCount: ${NODE_COUNT_LINUX}
       vmSize: ${VM_SIZE}
       arch: amd64
@@ -190,7 +190,7 @@ stages:
     parameters:
       name: mariner_linux_overlay
       clusterType: overlay-byocni-up
-      clusterName: mariner-cniv2-overlay
+      clusterName: "mariner-over"
       nodeCount: ${NODE_COUNT_LINUX}
       vmSize:  ${VM_SIZE}
       arch: amd64
@@ -200,7 +200,7 @@ stages:
     parameters:
       name: arm_linux_overlay
       clusterType: overlay-byocni-up
-      clusterName: arm-cniv2-overlay
+      clusterName: "arm-over"
       nodeCount: ${NODE_COUNT_LINUX}
       vmSize: Standard_D8ps_v5
       arch: arm64
@@ -209,7 +209,7 @@ stages:
     parameters:
       name: rdma_linux_overlay
       clusterType: overlay-byocni-up
-      clusterName: rdma-cniv2-overlay
+      clusterName: "rdma-over"
       nodeCount: 2
       vmSize: Standard_NC24r
       arch: amd64
@@ -240,28 +240,28 @@ stages:
           matrix:
             cilium_overlay:
               name: cilium_overlay
-              clusterName: cilium-overlay
+              clusterName: "cilium-over"
             win22-cniv1:
               name: win22-cniv1
-              clusterName: win22-cniv1
+              clusterName: "win22-cniv1"
             linux_cniv1:
               name: linux_cniv1
-              clusterName: linux-cniv1
+              clusterName: "linux-cniv1"
             linux_podsubnet:
               name: linux_podsubnet
-              clusterName: linux-cniv2-podsubnet
+              clusterName: "linux-podsub"
             linux_overlay:
               name: linux_overlay
-              clusterName: linux-cniv2-overlay
+              clusterName: "linux-over"
             mariner_linux_overlay:
               name: mariner_linux_overlay
-              clusterName: mariner-cniv2-overlay
+              clusterName: "mariner-over"
             arm_linux_overlay:
               name: arm_linux_overlay
-              clusterName: arm-cniv2-overlay
+              clusterName: "arm-over"
             rdma_linux_overlay:
               name: rdma_linux_overlay
-              clusterName: rdma-cniv2-overlay
+              clusterName: "rdma-over"
         steps:
           - task: AzureCLI@1
             inputs:
