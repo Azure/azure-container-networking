@@ -423,7 +423,7 @@ func sendRegisterNodeRequest(httpc *http.Client, httpRestService cns.HTTPService
 	}
 	defer response.Body.Close()
 
-	if response.StatusCode != http.StatusCreated {
+	if response.StatusCode != http.StatusOK {
 		err = fmt.Errorf("[Azure CNS] Failed to register node, DNC replied with http status code %s", strconv.Itoa(response.StatusCode))
 		logger.Errorf(err.Error())
 		return errors.Wrap(err, "failed to sendRegisterNodeRequest")
