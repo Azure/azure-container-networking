@@ -5,6 +5,31 @@ metadata:
   namespace: kube-system
 ---
 apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: acn-multitenancy-editor
+rules:
+  - apiGroups: ["acn.azure.com"]
+    resources: ["clustersubnetstates"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["multitenancy.acn.azure.com"]
+    resources:
+      ["multitenantpodnetworkconfigs", "podnetworkinstances", "podnetworks"]
+    verbs: ["get", "list", "watch", "patch", "update"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: acn-multitenancy-editor-binding
+subjects:
+  - kind: ServiceAccount
+    name: azure-cns
+roleRef:
+  kind: ClusterRole
+  name: acn-multitenancy-editor
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   namespace: kube-system
@@ -12,18 +37,6 @@ metadata:
 rules:
   - apiGroups: ["acn.azure.com"]
     resources: ["nodenetworkconfigs"]
-    verbs: ["get", "list", "watch", "patch", "update"]
-  - apiGroups: ["acn.azure.com"]
-    resources: ["clustersubnetstates"]
-    verbs: ["get", "list", "watch"]
-  - apiGroups: ["multitenancy.acn.azure.com"]
-    resources:
-      [
-        "multitenantpodnetworkconfigs",
-        "nodeinfo",
-        "podnetworkinstances",
-        "podnetworks",
-      ]
     verbs: ["get", "list", "watch", "patch", "update"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
