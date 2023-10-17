@@ -12,7 +12,7 @@ import (
 	"strings"
 
 	"github.com/Azure/azure-container-networking/common"
-	"github.com/Azure/azure-container-networking/log"
+	"go.uber.org/zap"
 )
 
 const (
@@ -116,7 +116,7 @@ func (source *fileIpamSource) refresh() error {
 		return err
 	}
 
-	log.Printf("[ipam] Address space successfully populated from config file")
+	logger.Info("Address space successfully populated from config file")
 	source.fileLoaded = true
 
 	return nil
@@ -150,7 +150,7 @@ func populateAddressSpace(localAddressSpace *addressSpace, sdnInterfaces *Networ
 
 		// Skip if interface is not found.
 		if ifName == "" {
-			log.Printf("[ipam] Failed to find interface with MAC address:%v", sdnIf.MacAddress)
+			logger.Info("Failed to find interface with", zap.String("MAC Address", sdnIf.MacAddress))
 			continue
 		}
 
@@ -163,13 +163,13 @@ func populateAddressSpace(localAddressSpace *addressSpace, sdnInterfaces *Networ
 		for _, subnet := range sdnIf.IPSubnets {
 			_, network, err := net.ParseCIDR(subnet.Prefix)
 			if err != nil {
-				log.Printf("[ipam] Failed to parse subnet:%v err:%v.", subnet.Prefix, err)
+				logger.Error("Failed to parse subnet", zap.String("prefix", subnet.Prefix), zap.Error(err))
 				continue
 			}
 
 			addressPool, err := localAddressSpace.newAddressPool(ifName, priority, network)
 			if err != nil {
-				log.Printf("[ipam] Failed to create pool:%v ifName:%v err:%v.", subnet, ifName, err)
+				logger.Error("Failed to create pool", zap.Any("subnet", subnet), zap.String("ifName", ifName), zap.Error(err))
 				continue
 			}
 
@@ -184,7 +184,7 @@ func populateAddressSpace(localAddressSpace *addressSpace, sdnInterfaces *Networ
 
 				_, err = addressPool.newAddressRecord(&address)
 				if err != nil {
-					log.Printf("[ipam] Failed to create address:%v err:%v.", address, err)
+					logger.Error("Failed to create", zap.Any("address", address), zap.Error(err))
 					continue
 				}
 			}
