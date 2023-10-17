@@ -179,7 +179,7 @@ func (source *ipv6IpamSource) refresh() error {
 	// Query the list of Kubernetes Pod IPs
 	interfaceIPs, err := retrieveKubernetesPodIPs(source.kubeNode, source.subnetMaskSizeLimit)
 	if err != nil {
-		logger.Error("[ipam] Failed retrieve Kubernetes IP's from subnet", zap.Error(err))
+		logger.Error("Failed retrieve Kubernetes IP's from subnet", zap.Error(err))
 		return err
 	}
 
