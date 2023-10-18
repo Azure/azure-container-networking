@@ -130,8 +130,10 @@ func (nm *networkManager) Initialize(config *common.PluginConfig, isRehydrationR
 	nm.Version = config.Version
 	nm.store = config.Store
 	if config.Stateless {
-		err := nm.SetStatelessCNIMode()
-		return errors.Wrapf(err, "Failed to initialize stateles CNI")
+		if err := nm.SetStatelessCNIMode(); err != nil {
+			return errors.Wrapf(err, "Failed to initialize stateles CNI")
+		}
+		return nil
 	}
 
 	// Restore persisted state.

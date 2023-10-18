@@ -305,7 +305,7 @@ var args = acn.ArgumentList{
 		Shorthand:    acn.OptTelemetryServiceAlias,
 		Description:  "Flag to start telemetry service to receive telemetry events from CNI. Default, disabled.",
 		Type:         "bool",
-		DefaultValue: true,
+		DefaultValue: false,
 	},
 	{
 		Name:         acn.OptCNIConflistFilepath,
@@ -621,8 +621,8 @@ func main() {
 			logger.InitAI(aiConfig, ts.DisableTrace, ts.DisableMetric, ts.DisableEvent)
 		}
 	}
-	telemetryDaemonEnabled = disableTelemetry
-	if !telemetryDaemonEnabled {
+	if telemetryDaemonEnabled {
+		log.Printf("CNI Telemtry is enabled")
 		go startTelemetryService(rootCtx)
 	}
 
