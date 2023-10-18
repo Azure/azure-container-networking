@@ -64,7 +64,10 @@ func (invoker *AzureIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, er
 
 	if err != nil && strings.Contains(err.Error(), ipam.ErrNoAvailableAddressPools.Error()) {
 		invoker.deleteIpamState()
+		logger.Info("Retry pool allocation after deleting IPAM state")
+		addResult.ipv4Result, err = invoker.plugin.DelegateAdd(addConfig.nwCfg.IPAM.Type, addConfig.nwCfg)
 	}
+
 	if err != nil {
 		err = invoker.plugin.Errorf("Failed to allocate pool: %v", err)
 		return addResult, err
