@@ -8,6 +8,8 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   name: acn-multitenancy-editor
+labels:
+  addonmanager.kubernetes.io/mode: Reconcile
 rules:
   - apiGroups: ["acn.azure.com"]
     resources: ["clustersubnetstates"]
