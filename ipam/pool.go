@@ -8,8 +8,8 @@ import (
 	"net"
 	"strings"
 
-	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/platform"
+	"go.uber.org/zap"
 )
 
 const (
@@ -161,7 +161,7 @@ func (am *addressManager) setAddressSpace(as *addressSpace) error {
 	} else {
 		// merges the address set refreshed from the source
 		// and the ones we have currently in this address space
-		log.Printf("[ipam] merging address space")
+		logger.Info("merging address space")
 		as1.merge(as)
 	}
 
@@ -293,7 +293,7 @@ func (as *addressSpace) requestPool(poolId string, subPoolId string, options map
 	var ap *addressPool
 	var err error
 
-	log.Printf("[ipam] Requesting pool with poolId:%v options:%+v v6:%v.", poolId, options, v6)
+	logger.Info("Requesting pool with", zap.String("poolId", poolId), zap.Any("options", options), zap.Any("v6", v6))
 
 	if poolId != "" {
 		// Return the specific address pool requested.
@@ -307,11 +307,11 @@ func (as *addressSpace) requestPool(poolId string, subPoolId string, options map
 		ifName := options[OptInterfaceName]
 
 		for _, pool := range as.Pools {
-			log.Printf("[ipam] Checking pool %v.", pool.Id)
+			logger.Info("Checking pool", zap.String("id", pool.Id))
 
 			// Skip if pool is already in use.
 			if pool.isInUse() {
-				log.Printf("[ipam] Pool %s is in use.", pool.Id)
+				logger.Info("Pool is in use", zap.String("id", pool.Id))
 
 				// in case the pool is actually not in use,
 				// attempt to release it
@@ -323,17 +323,17 @@ func (as *addressSpace) requestPool(poolId string, subPoolId string, options map
 
 			// Pick a pool from the same address family.
 			if pool.IsIPv6 != v6 {
-				log.Printf("[ipam] Pool is of a different address family.")
+				logger.Info("Pool is of a different address family")
 				continue
 			}
 
 			// Skip if pool is not on the requested interface.
 			if ifName != "" && ifName != pool.IfName {
-				log.Printf("[ipam] Pool is not on the requested interface.")
+				logger.Info("Pool is not on the requested interface")
 				continue
 			}
 
-			log.Printf("[ipam] Pool %v matches requirements.", pool.Id)
+			logger.Info("Pool matches requirements", zap.String("id", pool.Id))
 
 			if ap == nil {
 				ap = pool
@@ -342,13 +342,13 @@ func (as *addressSpace) requestPool(poolId string, subPoolId string, options map
 
 			// Prefer the pool with the highest priority.
 			if pool.Priority > ap.Priority {
-				log.Printf("[ipam] Pool is preferred because of priority.")
+				logger.Info("Pool is preferred because of priority")
 				ap = pool
 			}
 
 			// Prefer the pool with the highest number of addresses.
 			if len(pool.Addresses) > len(ap.Addresses) {
-				log.Printf("[ipam] Pool is preferred because of capacity.")
+				logger.Info("Pool is preferred because of capacity")
 				ap = pool
 			}
 		}
@@ -362,7 +362,7 @@ func (as *addressSpace) requestPool(poolId string, subPoolId string, options map
 		ap.RefCount = 1
 	}
 
-	log.Printf("[ipam] Pool request completed with pool:%+v err:%v.", ap, err)
+	logger.Info("Pool request completed with pool", zap.Any("ap", ap), zap.Error(err))
 
 	return ap, err
 }
@@ -377,17 +377,15 @@ func (as *addressSpace) releasePool(poolId string) error {
 	}
 
 	if addressesInUse = ap.IsAnyRecordInUse(); addressesInUse {
-		log.Printf("[ipam] Skip releasing pool with poolId:%s. due to address being in use",
-			poolId)
+		logger.Info("Skip releasing pool with due to address being in use", zap.String("poolId", poolId))
 	} else {
-		log.Printf("[ipam] Releasing pool %s as there are no allocations", poolId)
+		logger.Info("Releasing pool as there are no allocations", zap.String("poolId", poolId))
 		ap.RefCount = 0
 	}
 
 	return nil
 }
 
-//
 // AddressPool
 //
 // Returns address pool information.
@@ -461,19 +459,19 @@ func (ap *addressPool) requestAddress(address string, options map[string]string)
 	var addr *net.IPNet
 	id := options[OptAddressID]
 
-	log.Printf("[ipam] Requesting address with address:%v options:%+v.", address, options)
+	logger.Info("Requesting address with", zap.String("address", address), zap.Any("options", options))
 
 	if address != "" {
 		// Return the specific address requested.
 		ar = ap.Addresses[address]
 		if ar == nil {
-			log.Printf("[ipam] Address request failed with %v", errAddressNotFound)
+			logger.Error("Address request failed with", zap.Error(errAddressNotFound))
 			return "", errAddressNotFound
 		}
 		if ar.InUse {
 			// Return the same address if IDs match.
 			if id == "" || id != ar.ID {
-				log.Printf("[ipam] Address request failed with %v", errAddressInUse)
+				logger.Error("Address request failed with", zap.Error(errAddressInUse))
 				return "", errAddressInUse
 			}
 		}
@@ -498,7 +496,7 @@ func (ap *addressPool) requestAddress(address string, options map[string]string)
 		}
 
 		if ar == nil {
-			log.Printf("[ipam] Address request failed with %v", errNoAvailableAddresses)
+			logger.Error("Address request failed with", zap.Error(errNoAvailableAddresses))
 			return "", errNoAvailableAddresses
 		}
 	}
@@ -516,7 +514,7 @@ func (ap *addressPool) requestAddress(address string, options map[string]string)
 		Mask: ap.Subnet.Mask,
 	}
 
-	log.Printf("[ipam] Address request completed with address:%v", addr)
+	logger.Info("Address request completed with", zap.Any("address", addr))
 
 	return addr.String(), nil
 }
@@ -527,8 +525,8 @@ func (ap *addressPool) releaseAddress(address string, options map[string]string)
 	var id string
 	var err error
 
-	log.Printf("[ipam] Releasing address with address:%v options:%+v.", address, options)
-	defer func() { log.Printf("[ipam] Address release completed with address:%v err:%v.", address, err) }()
+	logger.Info("Releasing address with", zap.String("address", address), zap.Any("options", options))
+	defer func() { logger.Error("Address release completed with", zap.String("address", address), zap.Error(err)) }()
 
 	if options != nil {
 		id = options[OptAddressID]
@@ -552,12 +550,12 @@ func (ap *addressPool) releaseAddress(address string, options map[string]string)
 
 	// Fail if an address record with a matching ID is not found.
 	if ar == nil || (id != "" && id != ar.ID) {
-		log.Printf("Address not found. Not Returning error")
+		logger.Info("Address not found. Not Returning error")
 		return nil
 	}
 
 	if !ar.InUse {
-		log.Printf("Address not in use. Not Returning error")
+		logger.Info("Address not in use. Not Returning error")
 		return nil
 	}
 
@@ -570,7 +568,7 @@ func (ap *addressPool) releaseAddress(address string, options map[string]string)
 
 	// Delete address record if it is no longer available.
 	if ar.epoch < ap.as.epoch {
-		log.Printf("Deleting Address record from address pool as metadata doesn't have this address")
+		logger.Info("Deleting Address record from address pool as metadata doesn't have this address")
 		delete(ap.Addresses, address)
 	}
 
