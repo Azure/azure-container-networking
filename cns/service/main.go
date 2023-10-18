@@ -442,6 +442,7 @@ func startTelemetryService(ctx context.Context) {
 	tbtemp.Cleanup(telemetry.FdName)
 
 	err = tb.StartServer()
+	log.Printf("Telemetry service for CNI started")
 	if err != nil {
 		log.Errorf("Telemetry service failed to start: %w", err)
 		return
@@ -619,8 +620,8 @@ func main() {
 			logger.InitAI(aiConfig, ts.DisableTrace, ts.DisableMetric, ts.DisableEvent)
 		}
 	}
-
-	if telemetryDaemonEnabled {
+	telemetryDaemonEnabled = disableTelemetry
+	if !telemetryDaemonEnabled {
 		go startTelemetryService(rootCtx)
 	}
 
@@ -661,14 +662,14 @@ func main() {
 		if runtime.GOOS == "windows" {
 			endpointStorePath = os.Getenv("CNSStoreFilePath")
 		}
-		logger.Printf("EndpointState path is %s", endpointStorePath)
 		err = platform.CreateDirectory(endpointStorePath)
 		if err != nil {
 			logger.Errorf("Failed to create File Store directory %s, due to Error:%v", storeFileLocation, err.Error())
 			return
 		}
 		// Create the key value store.
-		storeFileName := endpointStoreLocation + endpointStoreName + ".json"
+		storeFileName := endpointStorePath + endpointStoreName + ".json"
+		logger.Printf("EndpointStoreState path is %s", storeFileName)
 		endpointStateStore, err = store.NewJsonFileStore(storeFileName, endpointStoreLock, nil)
 		if err != nil {
 			logger.Errorf("Failed to create endpoint state store file: %s, due to error %v\n", storeFileName, err)
