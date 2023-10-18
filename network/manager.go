@@ -479,6 +479,9 @@ func (nm *networkManager) GetEndpointInfo(networkId string, endpointId string) (
 		if err != nil {
 			return nil, errors.Wrapf(err, "Get endpoint API returend with error")
 		}
+		if endpointResponse.EndpointInfo.HnsEndpointID == "" && endpointResponse.EndpointInfo.HostVethName == "" {
+			return nil, errors.New("Get endpoint API returend with empty HNSEndpointID and HostVethName")
+		}
 		epInfo := &EndpointInfo{
 			Id:                 endpointId,
 			IfIndex:            EndpointIfIndex, // Azure CNI supports only one interface
