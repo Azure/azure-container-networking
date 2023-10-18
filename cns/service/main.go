@@ -317,7 +317,7 @@ var args = acn.ArgumentList{
 		Shorthand:    acn.OptTelemetryServiceAlias,
 		Description:  "Flag to start telemetry service to receive telemetry events from CNI. Default, disabled.",
 		Type:         "bool",
-		DefaultValue: false,
+		DefaultValue: true,
 	},
 	{
 		Name:         acn.OptCNIConflistFilepath,
