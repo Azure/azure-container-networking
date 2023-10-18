@@ -17,22 +17,29 @@ import (
 type Namespace struct {
 	file   *os.File
 	prevNs *Namespace
+	cli    *NamespaceClient
+}
+
+type NamespaceClient struct{}
+
+func NewNamespaceClient() *NamespaceClient {
+	return &NamespaceClient{}
 }
 
 // OpenNamespace creates a new namespace object for the given netns path.
-func OpenNamespace(nsPath string) (*Namespace, error) {
+func (c *NamespaceClient) OpenNamespace(nsPath string) (NamespaceInterface, error) {
 	fd, err := os.Open(nsPath)
 	if err != nil {
 		return nil, err
 	}
 
-	return &Namespace{file: fd}, nil
+	return &Namespace{file: fd, cli: c}, nil
 }
 
 // GetCurrentThreadNamespace returns the caller thread's current namespace.
-func GetCurrentThreadNamespace() (*Namespace, error) {
+func (c *NamespaceClient) GetCurrentThreadNamespace() (NamespaceInterface, error) {
 	nsPath := fmt.Sprintf("/proc/%d/task/%d/ns/net", os.Getpid(), unix.Gettid())
-	return OpenNamespace(nsPath)
+	return c.OpenNamespace(nsPath)
 }
 
 // Close releases the resources associated with the namespace object.
@@ -43,7 +50,7 @@ func (ns *Namespace) Close() error {
 
 	err := ns.file.Close()
 	if err != nil {
-		return fmt.Errorf("Failed to close namespace %v, err:%v", ns.file.Name(), err)
+		return fmt.Errorf("failed to close namespace %v, err:%w", ns.file.Name(), err)
 	}
 
 	ns.file = nil
@@ -56,11 +63,15 @@ func (ns *Namespace) GetFd() uintptr {
 	return ns.file.Fd()
 }
 
+func (ns *Namespace) GetName() string {
+	return ns.file.Name()
+}
+
 // Set sets the current namespace.
 func (ns *Namespace) set() error {
 	_, _, err := unix.Syscall(unix.SYS_SETNS, ns.file.Fd(), uintptr(unix.CLONE_NEWNET), 0)
 	if err != 0 {
-		return fmt.Errorf("Failed to set namespace %v, err:%v", ns.file.Name(), err)
+		return fmt.Errorf("failed to set namespace %v, err:%w", ns.file.Name(), err)
 	}
 
 	return nil
@@ -68,12 +79,12 @@ func (ns *Namespace) set() error {
 
 // Enter puts the caller thread inside the namespace.
 func (ns *Namespace) Enter() error {
-	var err error
-
-	ns.prevNs, err = GetCurrentThreadNamespace()
+	currentNs, err := ns.cli.GetCurrentThreadNamespace()
 	if err != nil {
 		return err
 	}
+
+	ns.prevNs = currentNs.(*Namespace)
 
 	runtime.LockOSThread()
 

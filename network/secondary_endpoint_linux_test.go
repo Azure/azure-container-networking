@@ -4,9 +4,7 @@
 package network
 
 import (
-	"fmt"
 	"net"
-	"os"
 	"testing"
 
 	"github.com/Azure/azure-container-networking/netio"
@@ -14,7 +12,6 @@ import (
 	"github.com/Azure/azure-container-networking/network/networkutils"
 	"github.com/Azure/azure-container-networking/platform"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/sys/unix"
 )
 
 func TestSecondaryAddEndpoints(t *testing.T) {
@@ -101,9 +98,32 @@ func TestSecondaryDeleteEndpoints(t *testing.T) {
 				plClient:       platform.NewMockExecClient(false),
 				netUtilsClient: networkutils.NewNetworkUtils(nl, plc),
 				netioshim:      netio.NewMockNetIO(false, 0),
+				nsClient:       NewMockNamespaceClient(),
 			},
 			ep: &endpoint{
-				NetworkNameSpace: fmt.Sprintf("/proc/%d/task/%d/ns/net", os.Getpid(), unix.Gettid()),
+				NetworkNameSpace: "testns",
+				SecondaryInterfaces: map[string]*InterfaceInfo{
+					"eth1": {
+						Name: "eth1",
+						Routes: []RouteInfo{
+							{
+								Dst: net.IPNet{IP: net.ParseIP("192.168.0.4"), Mask: net.CIDRMask(ipv4FullMask, ipv4Bits)},
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "Delete endpoint happy path namespace not found",
+			client: &SecondaryEndpointClient{
+				netlink:        netlink.NewMockNetlink(false, ""),
+				plClient:       platform.NewMockExecClient(false),
+				netUtilsClient: networkutils.NewNetworkUtils(nl, plc),
+				netioshim:      netio.NewMockNetIO(false, 0),
+				nsClient:       NewMockNamespaceClient(),
+			},
+			ep: &endpoint{
 				SecondaryInterfaces: map[string]*InterfaceInfo{
 					"eth1": {
 						Name: "eth1",
