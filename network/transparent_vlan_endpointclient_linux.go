@@ -68,6 +68,7 @@ type TransparentVlanEndpointClient struct {
 	netioshim                netio.NetIOInterface
 	plClient                 platform.ExecClient
 	netUtilsClient           networkutils.NetworkUtils
+	nsClient                 NamespaceClientInterface
 }
 
 func NewTransparentVlanEndpointClient(
@@ -79,6 +80,7 @@ func NewTransparentVlanEndpointClient(
 	localIP string,
 	nl netlink.NetlinkInterface,
 	plc platform.ExecClient,
+	nsc NamespaceClientInterface,
 ) *TransparentVlanEndpointClient {
 	vlanVethName := fmt.Sprintf("%s_%d", nw.extIf.Name, vlanid)
 	vnetNSName := fmt.Sprintf("az_ns_%d", vlanid)
@@ -100,6 +102,7 @@ func NewTransparentVlanEndpointClient(
 		netioshim:                &netio.NetIO{},
 		plClient:                 plc,
 		netUtilsClient:           networkutils.NewNetworkUtils(nl, plc),
+		nsClient:                 nsc,
 	}
 
 	client.NewSnatClient(nw.SnatBridgeIP, localIP, ep)
@@ -118,7 +121,7 @@ func (client *TransparentVlanEndpointClient) AddEndpoints(epInfo *EndpointInfo) 
 		return errors.Wrap(err, "failed to add snat endpoint")
 	}
 	// VNET Namespace
-	return ExecuteInNS(client.vnetNSName, func() error {
+	return ExecuteInNS(client.nsClient, client.vnetNSName, func() error {
 		return client.PopulateVnet(epInfo)
 	})
 }
@@ -315,7 +318,7 @@ func (client *TransparentVlanEndpointClient) AddEndpointRules(epInfo *EndpointIn
 		return errors.Wrap(err, "failed to add snat endpoint rules")
 	}
 	logger.Info("[transparent-vlan] Adding tunneling rules in vnet namespace")
-	err := ExecuteInNS(client.vnetNSName, func() error {
+	err := ExecuteInNS(client.nsClient, client.vnetNSName, func() error {
 		return client.AddVnetRules(epInfo)
 	})
 	return err
@@ -392,7 +395,7 @@ func (client *TransparentVlanEndpointClient) ConfigureContainerInterfacesAndRout
 	}
 
 	// Switch to vnet NS and call ConfigureVnetInterfacesAndRoutes
-	err = ExecuteInNS(client.vnetNSName, func() error {
+	err = ExecuteInNS(client.nsClient, client.vnetNSName, func() error {
 		return client.ConfigureVnetInterfacesAndRoutesImpl(epInfo)
 	})
 	if err != nil {
@@ -544,7 +547,7 @@ func (client *TransparentVlanEndpointClient) AddDefaultArp(interfaceName, destMa
 
 func (client *TransparentVlanEndpointClient) DeleteEndpoints(ep *endpoint) error {
 	// Vnet NS
-	err := ExecuteInNS(client.vnetNSName, func() error {
+	err := ExecuteInNS(client.nsClient, client.vnetNSName, func() error {
 		// Passing in functionality to get number of routes after deletion
 		getNumRoutesLeft := func() (int, error) {
 			routes, err := vishnetlink.RouteList(nil, vishnetlink.FAMILY_V4)
@@ -597,39 +600,39 @@ func (client *TransparentVlanEndpointClient) DeleteEndpointsImpl(ep *endpoint, _
 
 // Helper function that allows executing a function in a VM namespace
 // Does not work for process namespaces
-func ExecuteInNS(nsName string, f func() error) error {
+func ExecuteInNS(nsc NamespaceClientInterface, nsName string, f func() error) error {
 	// Current namespace
-	returnedTo, err := GetCurrentThreadNamespace()
+	returnedTo, err := nsc.GetCurrentThreadNamespace()
 	if err != nil {
 		logger.Error("[ExecuteInNS] Could not get NS we are in", zap.Error(err))
 	} else {
-		logger.Info("[ExecuteInNS] In NS before switch", zap.String("fileName", returnedTo.file.Name()))
+		logger.Info("[ExecuteInNS] In NS before switch", zap.String("fileName", returnedTo.GetName()))
 	}
 
 	// Open the network namespace
 	logger.Info("[ExecuteInNS] Opening ns", zap.String("nsName", fmt.Sprintf("/var/run/netns/%s", nsName)))
-	ns, err := OpenNamespace(fmt.Sprintf("/var/run/netns/%s", nsName))
+	ns, err := nsc.OpenNamespace(fmt.Sprintf("/var/run/netns/%s", nsName))
 	if err != nil {
 		return err
 	}
 	defer ns.Close()
 	// Enter the network namespace
-	logger.Info("[ExecuteInNS] Entering ns", zap.String("nsFileName", ns.file.Name()))
+	logger.Info("[ExecuteInNS] Entering ns", zap.String("nsFileName", ns.GetName()))
 	if err := ns.Enter(); err != nil {
 		return err
 	}
 
 	// Exit network namespace
 	defer func() {
-		logger.Info("[ExecuteInNS] Exiting ns", zap.String("nsFileName", ns.file.Name()))
+		logger.Info("[ExecuteInNS] Exiting ns", zap.String("nsFileName", ns.GetName()))
 		if err := ns.Exit(); err != nil {
 			logger.Error("[ExecuteInNS] Could not exit ns", zap.Error(err))
 		}
-		returnedTo, err := GetCurrentThreadNamespace()
+		returnedTo, err := nsc.GetCurrentThreadNamespace()
 		if err != nil {
 			logger.Error("[ExecuteInNS] Could not get NS we returned to", zap.Error(err))
 		} else {
-			logger.Info("[ExecuteInNS] Returned to NS", zap.String("fileName", returnedTo.file.Name()))
+			logger.Info("[ExecuteInNS] Returned to NS", zap.String("fileName", returnedTo.GetName()))
 		}
 	}()
 	return f()
