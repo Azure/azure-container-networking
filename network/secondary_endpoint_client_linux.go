@@ -12,9 +12,10 @@ import (
 	"go.uber.org/zap"
 )
 
-var errorSecondaryEndpointClient = errors.New("SecondaryEndpointClient Error")
-
-const errFileNotExist = "no such file or directory"
+var (
+	errorSecondaryEndpointClient = errors.New("SecondaryEndpointClient Error")
+	errFileNotExist              = errors.New("no such file or directory")
+)
 
 func newErrorSecondaryEndpointClient(err error) error {
 	return errors.Wrapf(err, "%s", errorSecondaryEndpointClient)
@@ -128,7 +129,7 @@ func (client *SecondaryEndpointClient) DeleteEndpoints(ep *endpoint) error {
 	logger.Info("Opening netns", zap.Any("NetNsPath", ep.NetworkNameSpace))
 	ns, err := client.nsClient.OpenNamespace(ep.NetworkNameSpace)
 	if err != nil {
-		if strings.Contains(err.Error(), errFileNotExist) {
+		if strings.Contains(err.Error(), errFileNotExist.Error()) {
 			ep.SecondaryInterfaces = make(map[string]*InterfaceInfo)
 			return nil
 		}

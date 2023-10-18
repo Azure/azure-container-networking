@@ -5,15 +5,12 @@ package network
 
 import (
 	"errors"
-	"os"
 )
 
+const windowsImplErr = errors.New("windows impl err")
+
 // Namespace represents a network namespace.
-type Namespace struct {
-	file   *os.File
-	prevNs *Namespace
-	cli    *NamespaceClient
-}
+type Namespace struct{}
 
 type NamespaceClient struct{}
 
@@ -22,8 +19,8 @@ func NewNamespaceClient() *NamespaceClient {
 }
 
 // OpenNamespace creates a new namespace object for the given netns path.
-func (c *NamespaceClient) OpenNamespace(nsPath string) (NamespaceInterface, error) {
-	return nil, errors.New("windows impl")
+func (c *NamespaceClient) OpenNamespace(_ string) (NamespaceInterface, error) {
+	return nil, windowsImplErr
 }
 
 // GetCurrentThreadNamespace returns the caller thread's current namespace.
@@ -43,11 +40,6 @@ func (ns *Namespace) GetFd() uintptr {
 
 func (ns *Namespace) GetName() string {
 	return "windows impl"
-}
-
-// Set sets the current namespace.
-func (ns *Namespace) set() error {
-	return nil
 }
 
 // Enter puts the caller thread inside the namespace.

@@ -3,8 +3,6 @@
 
 package network
 
-import "errors"
-
 type MockNamespace struct{}
 
 type MockNamespaceClient struct{}
@@ -16,7 +14,7 @@ func NewMockNamespaceClient() *MockNamespaceClient {
 // OpenNamespace creates a new namespace object for the given netns path.
 func (c *MockNamespaceClient) OpenNamespace(ns string) (NamespaceInterface, error) {
 	if ns == "" {
-		return nil, errors.New("no such file or directory")
+		return nil, errFileNotExist
 	}
 	return &MockNamespace{}, nil
 }
