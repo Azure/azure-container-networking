@@ -381,6 +381,9 @@ func (nm *networkManager) CreateEndpoint(cli apipaClient, networkID string, epIn
 		}
 	}
 
+	if nm.IsStatelessCNIMode() {
+		epInfo.stateless = true
+	}
 	ep, err := nw.newEndpoint(cli, nm.netlink, nm.plClient, nm.netio, epInfo)
 	if err != nil {
 		return err
@@ -474,6 +477,9 @@ func (nm *networkManager) GetEndpointInfo(networkId string, endpointId string) (
 		endpointResponse, err := nm.CnsClient.GetEndpoint(context.TODO(), endpointId)
 		if err != nil {
 			return nil, errors.Wrapf(err, "Get endpoint API returend with error")
+		}
+		if endpointResponse.EndpointInfo.HnsEndpointID == "" && endpointResponse.EndpointInfo.HostVethName == "" {
+			return nil, errors.New("Get endpoint API returend with empty HNSEndpointID and HostVethName")
 		}
 		epInfo := &EndpointInfo{
 			Id:                 endpointId,

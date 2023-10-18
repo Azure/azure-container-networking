@@ -87,6 +87,7 @@ type EndpointInfo struct {
 	ServiceCidrs             string
 	NATInfo                  []policy.NATInfo
 	HNSEndpointID            string
+	stateless                bool
 }
 
 // RouteInfo contains information about an IP route.
