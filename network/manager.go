@@ -465,7 +465,7 @@ func (nm *networkManager) DeleteEndpointState(networkID string, epInfo *Endpoint
 		NetworkContainerID:       epInfo.Id,
 	}
 	logger.Info("Deleting endpoint with", zap.String("Endpoint Info: ", epInfo.PrettyString()), zap.String("HNISID : ", ep.HnsId))
-	return nw.deleteEndpointImpl(netlink.NewNetlink(), platform.NewExecClient(), nil, ep)
+	return nw.deleteEndpointImpl(netlink.NewNetlink(), platform.NewExecClient(logger), nil, ep)
 }
 
 // GetEndpointInfo returns information about the given endpoint.
