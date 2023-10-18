@@ -68,6 +68,7 @@ type networkManager struct {
 	netlink            netlink.NetlinkInterface
 	netio              netio.NetIOInterface
 	plClient           platform.ExecClient
+	nsClient           NamespaceClientInterface
 	sync.Mutex
 }
 
@@ -98,12 +99,13 @@ type NetworkManager interface {
 }
 
 // Creates a new network manager.
-func NewNetworkManager(nl netlink.NetlinkInterface, plc platform.ExecClient, netioCli netio.NetIOInterface) (NetworkManager, error) {
+func NewNetworkManager(nl netlink.NetlinkInterface, plc platform.ExecClient, netioCli netio.NetIOInterface, nsc NamespaceClientInterface) (NetworkManager, error) {
 	nm := &networkManager{
 		ExternalInterfaces: make(map[string]*externalInterface),
 		netlink:            nl,
 		plClient:           plc,
 		netio:              netioCli,
+		nsClient:           nsc,
 	}
 
 	return nm, nil
@@ -344,7 +346,7 @@ func (nm *networkManager) CreateEndpoint(cli apipaClient, networkID string, epIn
 		}
 	}
 
-	_, err = nw.newEndpoint(cli, nm.netlink, nm.plClient, nm.netio, epInfo)
+	_, err = nw.newEndpoint(cli, nm.netlink, nm.plClient, nm.netio, nm.nsClient, epInfo)
 	if err != nil {
 		return err
 	}
@@ -367,7 +369,7 @@ func (nm *networkManager) DeleteEndpoint(networkID, endpointID string) error {
 		return err
 	}
 
-	err = nw.deleteEndpoint(nm.netlink, nm.plClient, endpointID)
+	err = nw.deleteEndpoint(nm.netlink, nm.plClient, nm.nsClient, endpointID)
 	if err != nil {
 		return err
 	}

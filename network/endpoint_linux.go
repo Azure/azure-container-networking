@@ -55,6 +55,7 @@ func (nw *network) newEndpointImpl(
 	plc platform.ExecClient,
 	netioCli netio.NetIOInterface,
 	testEpClient EndpointClient,
+	nsc NamespaceClientInterface,
 	epInfo []*EndpointInfo,
 ) (*endpoint, error) {
 	var (
@@ -133,7 +134,7 @@ func (nw *network) newEndpointImpl(
 					if _, ok := epInfo.Data[SnatBridgeIPKey]; ok {
 						nw.SnatBridgeIP = epInfo.Data[SnatBridgeIPKey].(string)
 					}
-					epClient = NewTransparentVlanEndpointClient(nw, epInfo, hostIfName, contIfName, vlanid, localIP, nl, plc)
+					epClient = NewTransparentVlanEndpointClient(nw, epInfo, hostIfName, contIfName, vlanid, localIP, nl, plc, nsc)
 				} else {
 					logger.Info("OVS client")
 					if _, ok := epInfo.Data[SnatBridgeIPKey]; ok {
@@ -156,7 +157,7 @@ func (nw *network) newEndpointImpl(
 				epClient = NewLinuxBridgeEndpointClient(nw.extIf, hostIfName, contIfName, nw.Mode, nl, plc)
 			} else if epInfo.NICType == cns.DelegatedVMNIC {
 				logger.Info("Secondary client")
-				epClient = NewSecondaryEndpointClient(nl, plc, ep)
+				epClient = NewSecondaryEndpointClient(nl, plc, nsc, ep)
 			} else {
 				logger.Info("Transparent client")
 				epClient = NewTransparentEndpointClient(nw.extIf, hostIfName, contIfName, nw.Mode, nl, plc)
@@ -202,7 +203,7 @@ func (nw *network) newEndpointImpl(
 			if epInfo.NetNsPath != "" {
 				// Open the network namespace.
 				logger.Info("Opening netns", zap.Any("NetNsPath", epInfo.NetNsPath))
-				ns, epErr := OpenNamespace(epInfo.NetNsPath)
+				ns, epErr := nsc.OpenNamespace(epInfo.NetNsPath)
 				if epErr != nil {
 					return epErr
 				}
@@ -254,7 +255,7 @@ func (nw *network) newEndpointImpl(
 }
 
 // deleteEndpointImpl deletes an existing endpoint from the network.
-func (nw *network) deleteEndpointImpl(nl netlink.NetlinkInterface, plc platform.ExecClient, epClient EndpointClient, ep *endpoint) error {
+func (nw *network) deleteEndpointImpl(nl netlink.NetlinkInterface, plc platform.ExecClient, epClient EndpointClient, nsc NamespaceClientInterface, ep *endpoint) error {
 	// Delete the veth pair by deleting one of the peer interfaces.
 	// Deleting the host interface is more convenient since it does not require
 	// entering the container netns and hence works both for CNI and CNM.
@@ -266,7 +267,7 @@ func (nw *network) deleteEndpointImpl(nl netlink.NetlinkInterface, plc platform.
 			epInfo := ep.getInfo()
 			if nw.Mode == opModeTransparentVlan {
 				logger.Info("Transparent vlan client")
-				epClient = NewTransparentVlanEndpointClient(nw, epInfo, ep.HostIfName, "", ep.VlanID, ep.LocalIP, nl, plc)
+				epClient = NewTransparentVlanEndpointClient(nw, epInfo, ep.HostIfName, "", ep.VlanID, ep.LocalIP, nl, plc, nsc)
 
 			} else {
 				epClient = NewOVSEndpointClient(nw, epInfo, ep.HostIfName, "", ep.VlanID, ep.LocalIP, nl, ovsctl.NewOvsctl(), plc)
@@ -275,7 +276,7 @@ func (nw *network) deleteEndpointImpl(nl netlink.NetlinkInterface, plc platform.
 			epClient = NewLinuxBridgeEndpointClient(nw.extIf, ep.HostIfName, "", nw.Mode, nl, plc)
 		} else {
 			if len(ep.SecondaryInterfaces) > 0 {
-				epClient = NewSecondaryEndpointClient(nl, plc, ep)
+				epClient = NewSecondaryEndpointClient(nl, plc, nsc, ep)
 				epClient.DeleteEndpointRules(ep)
 				//nolint:errcheck // ignore error
 				epClient.DeleteEndpoints(ep)
@@ -389,16 +390,13 @@ func deleteRoutes(nl netlink.NetlinkInterface, netioshim netio.NetIOInterface, i
 
 // updateEndpointImpl updates an existing endpoint in the network.
 func (nm *networkManager) updateEndpointImpl(nw *network, existingEpInfo *EndpointInfo, targetEpInfo *EndpointInfo) (*endpoint, error) {
-	var ns *Namespace
 	var ep *endpoint
-	var err error
 
 	existingEpFromRepository := nw.Endpoints[existingEpInfo.Id]
 	logger.Info("[updateEndpointImpl] Going to retrieve endpoint with Id to update", zap.String("id", existingEpInfo.Id))
 	if existingEpFromRepository == nil {
 		logger.Info("[updateEndpointImpl] Endpoint cannot be updated as it does not exist")
-		err = errEndpointNotFound
-		return nil, err
+		return nil, errEndpointNotFound
 	}
 
 	netns := existingEpFromRepository.NetworkNameSpace
@@ -406,7 +404,7 @@ func (nm *networkManager) updateEndpointImpl(nw *network, existingEpInfo *Endpoi
 	if netns != "" {
 		// Open the network namespace.
 		logger.Info("[updateEndpointImpl] Opening netns", zap.Any("netns", netns))
-		ns, err = OpenNamespace(netns)
+		ns, err := nm.nsClient.OpenNamespace(netns)
 		if err != nil {
 			return nil, err
 		}
@@ -428,12 +426,11 @@ func (nm *networkManager) updateEndpointImpl(nw *network, existingEpInfo *Endpoi
 	} else {
 		logger.Info("[updateEndpointImpl] Endpoint cannot be updated as the network namespace does not exist: Epid", zap.String("id", existingEpInfo.Id),
 			zap.String("component", "updateEndpointImpl"))
-		err = errNamespaceNotFound
-		return nil, err
+		return nil, errNamespaceNotFound
 	}
 
 	logger.Info("[updateEndpointImpl] Going to update routes in netns", zap.Any("netns", netns))
-	if err = nm.updateRoutes(existingEpInfo, targetEpInfo); err != nil {
+	if err := nm.updateRoutes(existingEpInfo, targetEpInfo); err != nil {
 		return nil, err
 	}
 

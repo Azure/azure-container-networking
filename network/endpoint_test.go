@@ -183,7 +183,7 @@ var _ = Describe("Test Endpoint", func() {
 			It("Should be added", func() {
 				// Add endpoint with valid id
 				ep, err := nw.newEndpointImpl(nil, netlink.NewMockNetlink(false, ""), platform.NewMockExecClient(false),
-					netio.NewMockNetIO(false, 0), NewMockEndpointClient(nil), []*EndpointInfo{epInfo})
+					netio.NewMockNetIO(false, 0), NewMockEndpointClient(nil), NewMockNamespaceClient(), []*EndpointInfo{epInfo})
 				Expect(err).NotTo(HaveOccurred())
 				Expect(ep).NotTo(BeNil())
 				Expect(ep.Id).To(Equal(epInfo.Id))
@@ -195,7 +195,7 @@ var _ = Describe("Test Endpoint", func() {
 					extIf:     &externalInterface{IPv4Gateway: net.ParseIP("192.168.0.1")},
 				}
 				ep, err := nw2.newEndpointImpl(nil, netlink.NewMockNetlink(false, ""), platform.NewMockExecClient(false),
-					netio.NewMockNetIO(false, 0), NewMockEndpointClient(nil), []*EndpointInfo{epInfo})
+					netio.NewMockNetIO(false, 0), NewMockEndpointClient(nil), NewMockNamespaceClient(), []*EndpointInfo{epInfo})
 				Expect(err).NotTo(HaveOccurred())
 				Expect(ep).NotTo(BeNil())
 				Expect(ep.Id).To(Equal(epInfo.Id))
@@ -211,7 +211,7 @@ var _ = Describe("Test Endpoint", func() {
 				Expect(err).ToNot(HaveOccurred())
 				// Adding endpoint with same id should fail and delete should cleanup the state
 				ep2, err := nw.newEndpointImpl(nil, netlink.NewMockNetlink(false, ""), platform.NewMockExecClient(false),
-					netio.NewMockNetIO(false, 0), mockCli, []*EndpointInfo{epInfo})
+					netio.NewMockNetIO(false, 0), mockCli, NewMockNamespaceClient(), []*EndpointInfo{epInfo})
 				Expect(err).To(HaveOccurred())
 				Expect(ep2).To(BeNil())
 				assert.Contains(GinkgoT(), err.Error(), "Endpoint already exists")
@@ -221,17 +221,17 @@ var _ = Describe("Test Endpoint", func() {
 				// Adding an endpoint with an id.
 				mockCli := NewMockEndpointClient(nil)
 				ep2, err := nw.newEndpointImpl(nil, netlink.NewMockNetlink(false, ""), platform.NewMockExecClient(false),
-					netio.NewMockNetIO(false, 0), mockCli, []*EndpointInfo{epInfo})
+					netio.NewMockNetIO(false, 0), mockCli, NewMockNamespaceClient(), []*EndpointInfo{epInfo})
 				Expect(err).ToNot(HaveOccurred())
 				Expect(ep2).ToNot(BeNil())
 				Expect(len(mockCli.endpoints)).To(Equal(1))
 				// Deleting the endpoint
 				//nolint:errcheck // ignore error
-				nw.deleteEndpointImpl(netlink.NewMockNetlink(false, ""), platform.NewMockExecClient(false), mockCli, ep2)
+				nw.deleteEndpointImpl(netlink.NewMockNetlink(false, ""), platform.NewMockExecClient(false), mockCli, NewMockNamespaceClient(), ep2)
 				Expect(len(mockCli.endpoints)).To(Equal(0))
 				// Deleting same endpoint with same id should not fail
 				//nolint:errcheck // ignore error
-				nw.deleteEndpointImpl(netlink.NewMockNetlink(false, ""), platform.NewMockExecClient(false), mockCli, ep2)
+				nw.deleteEndpointImpl(netlink.NewMockNetlink(false, ""), platform.NewMockExecClient(false), mockCli, NewMockNamespaceClient(), ep2)
 				Expect(len(mockCli.endpoints)).To(Equal(0))
 			})
 		})
@@ -252,11 +252,11 @@ var _ = Describe("Test Endpoint", func() {
 						}
 
 						return nil
-					}), []*EndpointInfo{epInfo})
+					}), NewMockNamespaceClient(), []*EndpointInfo{epInfo})
 				Expect(err).To(HaveOccurred())
 				Expect(ep).To(BeNil())
 				ep, err = nw.newEndpointImpl(nil, netlink.NewMockNetlink(false, ""), platform.NewMockExecClient(false),
-					netio.NewMockNetIO(false, 0), NewMockEndpointClient(nil), []*EndpointInfo{epInfo})
+					netio.NewMockNetIO(false, 0), NewMockEndpointClient(nil), NewMockNamespaceClient(), []*EndpointInfo{epInfo})
 				Expect(err).NotTo(HaveOccurred())
 				Expect(ep).NotTo(BeNil())
 				Expect(ep.Id).To(Equal(epInfo.Id))
