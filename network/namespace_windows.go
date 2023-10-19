@@ -7,7 +7,7 @@ import (
 	"errors"
 )
 
-const windowsImplErr = errors.New("windows impl err")
+var windowsImplErr = errors.New("windows impl err")
 
 // Namespace represents a network namespace.
 type Namespace struct{}

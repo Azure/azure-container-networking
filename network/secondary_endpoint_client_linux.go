@@ -14,7 +14,6 @@ import (
 
 var (
 	errorSecondaryEndpointClient = errors.New("SecondaryEndpointClient Error")
-	errFileNotExist              = errors.New("no such file or directory")
 )
 
 func newErrorSecondaryEndpointClient(err error) error {

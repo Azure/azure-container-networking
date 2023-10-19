@@ -1,5 +1,9 @@
 package network
 
+import "errors"
+
+var errFileNotExist = errors.New("no such file or directory")
+
 type NamespaceInterface interface {
 	GetFd() uintptr
 	GetName() string
