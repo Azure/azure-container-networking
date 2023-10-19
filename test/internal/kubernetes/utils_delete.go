@@ -35,6 +35,9 @@ func MustDeleteDeployment(ctx context.Context, deployments typedappsv1.Deploymen
 			panic(errors.Wrap(err, "failed to delete deployment"))
 		}
 	}
+	if err := WaitForDeploymentToDelete(ctx, deployments, d); err != nil {
+		panic(errors.Wrap(err, "failed to wait for deployment to delete"))
+	}
 }
 
 func MustDeleteNamespace(ctx context.Context, clienset *kubernetes.Clientset, namespace string) {
