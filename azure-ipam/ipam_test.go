@@ -9,6 +9,8 @@ import (
 
 	"github.com/Azure/azure-container-networking/azure-ipam/logger"
 	"github.com/Azure/azure-container-networking/cns"
+	"github.com/Azure/azure-container-networking/cns/client"
+	"github.com/Azure/azure-container-networking/cns/types"
 	cniSkel "github.com/containernetworking/cni/pkg/skel"
 	cniTypes "github.com/containernetworking/cni/pkg/types"
 	types100 "github.com/containernetworking/cni/pkg/types/100"
@@ -17,8 +19,9 @@ import (
 )
 
 var (
-	errFoo                   = errors.New("err")
-	loggerCfg *logger.Config = &logger.Config{}
+	errFoo                           = errors.New("err")
+	errUnsupportedAPI                = errors.New("Unsupported API")
+	loggerCfg         *logger.Config = &logger.Config{}
 )
 
 // MOckCNSClient is a mock implementation of the CNSClient interface
@@ -26,9 +29,9 @@ type MockCNSClient struct{}
 
 func (c *MockCNSClient) RequestIPAddress(ctx context.Context, ipconfig cns.IPConfigRequest) (*cns.IPConfigResponse, error) {
 	switch ipconfig.InfraContainerID {
-	case "failRequestCNSArgs":
+	case "failRequestCNSArgsSingleIP":
 		return nil, errFoo
-	case "failProcessCNSResp":
+	case "failProcessCNSRespSingleIP":
 		result := &cns.IPConfigResponse{
 			PodIpInfo: cns.PodIpInfo{
 				PodIPConfig: cns.IPSubnet{
@@ -85,10 +88,132 @@ func (c *MockCNSClient) RequestIPAddress(ctx context.Context, ipconfig cns.IPCon
 	}
 }
 
+func (c *MockCNSClient) RequestIPs(ctx context.Context, ipconfig cns.IPConfigsRequest) (*cns.IPConfigsResponse, error) {
+	switch ipconfig.InfraContainerID {
+	case "failRequestCNSArgs":
+		return nil, errFoo
+	case "happyArgsSingle", "failProcessCNSRespSingleIP", "failRequestCNSArgsSingleIP":
+		e := &client.CNSClientError{}
+		e.Code = types.UnsupportedAPI
+		e.Err = errUnsupportedAPI
+		return nil, e
+	case "failProcessCNSResp":
+		result := &cns.IPConfigsResponse{
+			PodIPInfo: []cns.PodIpInfo{
+				{
+					PodIPConfig: cns.IPSubnet{
+						IPAddress:    "10.0.1.10.2",
+						PrefixLength: 24,
+					},
+					NetworkContainerPrimaryIPConfig: cns.IPConfiguration{
+						IPSubnet: cns.IPSubnet{
+							IPAddress:    "10.0.1.0",
+							PrefixLength: 24,
+						},
+						DNSServers:       nil,
+						GatewayIPAddress: "10.0.0.1",
+					},
+					HostPrimaryIPInfo: cns.HostIPInfo{
+						Gateway:   "10.0.0.1",
+						PrimaryIP: "10.0.0.1",
+						Subnet:    "10.0.0.0/24",
+					},
+				},
+				{
+					PodIPConfig: cns.IPSubnet{
+						IPAddress:    "fd11:1234::1:::::",
+						PrefixLength: 24,
+					},
+					NetworkContainerPrimaryIPConfig: cns.IPConfiguration{
+						IPSubnet: cns.IPSubnet{
+							IPAddress:    "fd11:1234::",
+							PrefixLength: 112,
+						},
+						DNSServers:       nil,
+						GatewayIPAddress: "fe80::1234:5678:9abc",
+					},
+					HostPrimaryIPInfo: cns.HostIPInfo{
+						Gateway:   "fe80::1234:5678:9abc",
+						PrimaryIP: "fe80::1234:5678:9abc",
+						Subnet:    "fd11:1234::/112",
+					},
+				},
+			},
+			Response: cns.Response{
+				ReturnCode: 0,
+				Message:    "",
+			},
+		}
+		return result, nil
+	default:
+		result := &cns.IPConfigsResponse{
+			PodIPInfo: []cns.PodIpInfo{
+				{
+					PodIPConfig: cns.IPSubnet{
+						IPAddress:    "10.0.1.10",
+						PrefixLength: 24,
+					},
+					NetworkContainerPrimaryIPConfig: cns.IPConfiguration{
+						IPSubnet: cns.IPSubnet{
+							IPAddress:    "10.0.1.0",
+							PrefixLength: 24,
+						},
+						DNSServers:       nil,
+						GatewayIPAddress: "10.0.0.1",
+					},
+					HostPrimaryIPInfo: cns.HostIPInfo{
+						Gateway:   "10.0.0.1",
+						PrimaryIP: "10.0.0.1",
+						Subnet:    "10.0.0.0/24",
+					},
+				},
+				{
+					PodIPConfig: cns.IPSubnet{
+						IPAddress:    "fd11:1234::1",
+						PrefixLength: 120,
+					},
+					NetworkContainerPrimaryIPConfig: cns.IPConfiguration{
+						IPSubnet: cns.IPSubnet{
+							IPAddress:    "fd11:1234::",
+							PrefixLength: 120,
+						},
+						DNSServers:       nil,
+						GatewayIPAddress: "fe80::1234:5678:9abc",
+					},
+					HostPrimaryIPInfo: cns.HostIPInfo{
+						Gateway:   "fe80::1234:5678:9abc",
+						PrimaryIP: "fe80::1234:5678:9abc",
+						Subnet:    "fd11:1234::/120",
+					},
+				},
+			},
+			Response: cns.Response{
+				ReturnCode: 0,
+				Message:    "",
+			},
+		}
+		return result, nil
+	}
+}
+
 func (c *MockCNSClient) ReleaseIPAddress(ctx context.Context, ipconfig cns.IPConfigRequest) error {
 	switch ipconfig.InfraContainerID {
 	case "failRequestCNSReleaseIPArgs":
 		return errFoo
+	default:
+		return nil
+	}
+}
+
+func (c *MockCNSClient) ReleaseIPs(ctx context.Context, ipconfig cns.IPConfigsRequest) error {
+	switch ipconfig.InfraContainerID {
+	case "failRequestCNSReleaseIPsArgs":
+		return errFoo
+	case "happyArgsSingle", "failRequestCNSReleaseIPArgs":
+		e := &client.CNSClientError{}
+		e.Code = types.UnsupportedAPI
+		e.Err = errUnsupportedAPI
+		return e
 	default:
 		return nil
 	}
@@ -152,8 +277,8 @@ func TestCmdAdd(t *testing.T) {
 
 	tests := []scenario{
 		{
-			name: "Happy CNI add",
-			args: buildArgs("happyArgs", happyPodArgs, happyNetConfByteArr),
+			name: "Happy CNI add single IP",
+			args: buildArgs("happyArgsSingle", happyPodArgs, happyNetConfByteArr),
 			want: &types100.Result{
 				CNIVersion: "1.0.0",
 				IPs: []*types100.IPConfig{
@@ -169,13 +294,46 @@ func TestCmdAdd(t *testing.T) {
 			wantErr: false,
 		},
 		{
+			name: "Happy CNI add dual IP",
+			args: buildArgs("happyArgsDual", happyPodArgs, happyNetConfByteArr),
+			want: &types100.Result{
+				CNIVersion: "1.0.0",
+				IPs: []*types100.IPConfig{
+					{
+						Address: net.IPNet{
+							IP:   net.IPv4(10, 0, 1, 10),
+							Mask: net.CIDRMask(24, 32),
+						},
+					},
+					{
+						Address: net.IPNet{
+							IP:   net.ParseIP("fd11:1234::1"),
+							Mask: net.CIDRMask(120, 128),
+						},
+					},
+				},
+				DNS: cniTypes.DNS{},
+			},
+			wantErr: false,
+		},
+		{
 			name:    "Fail request CNS ipconfig during CmdAdd",
 			args:    buildArgs("failRequestCNSArgs", happyPodArgs, happyNetConfByteArr),
 			wantErr: true,
 		},
 		{
+			name:    "Fail request CNS ipconfig using RequestIPAddress during CmdAdd",
+			args:    buildArgs("failRequestCNSArgsSingleIP", happyPodArgs, happyNetConfByteArr),
+			wantErr: true,
+		},
+		{
 			name:    "Fail process CNS response during CmdAdd",
 			args:    buildArgs("failProcessCNSResp", happyPodArgs, happyNetConfByteArr),
+			wantErr: true,
+		},
+		{
+			name:    "Fail process CNS response using RequestIPAddress during CmdAdd",
+			args:    buildArgs("failProcessCNSRespSingleIP", happyPodArgs, happyNetConfByteArr),
 			wantErr: true,
 		},
 		{
@@ -227,13 +385,23 @@ func TestCmdDel(t *testing.T) {
 
 	tests := []scenario{
 		{
-			name:    "Happy CNI del",
-			args:    buildArgs("happyArgs", happyPodArgs, happyNetConfByteArr),
+			name:    "Happy CNI del single IP",
+			args:    buildArgs("happyArgsSingle", happyPodArgs, happyNetConfByteArr),
 			wantErr: false,
 		},
 		{
-			name:    "Fail request CNS release IP during CmdDel",
+			name:    "Happy CNI del dual IP",
+			args:    buildArgs("happyArgsDual", happyPodArgs, happyNetConfByteArr),
+			wantErr: false,
+		},
+		{
+			name:    "Fail request CNS release using ReleaseIPAddress during CmdDel",
 			args:    buildArgs("failRequestCNSReleaseIPArgs", happyPodArgs, happyNetConfByteArr),
+			wantErr: true,
+		},
+		{
+			name:    "Fail request CNS release during CmdDel",
+			args:    buildArgs("failRequestCNSReleaseIPsArgs", happyPodArgs, happyNetConfByteArr),
 			wantErr: true,
 		},
 	}

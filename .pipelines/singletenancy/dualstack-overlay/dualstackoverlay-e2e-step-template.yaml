@@ -16,6 +16,10 @@ steps:
     name: "GoEnv"
     displayName: "Set up the Go environment"
 
+  - task: KubectlInstaller@0
+    inputs:
+      kubectlVersion: latest
+
   - task: AzureCLI@2
     inputs:
       azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
@@ -25,16 +29,8 @@ steps:
       inlineScript: |
         set -e
         make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
-        ls -lah
-        pwd
-        echo "installing kubectl"
-        curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-        sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
-        kubectl cluster-info
-        kubectl get po -owide -A
-    retryCountOnTaskFailure: 3
-    name: "installKubectl"
-    displayName: "Install Kubectl"
+    name: "kubeconfig"
+    displayName: "Set Kubeconfig"
 
   - ${{ if eq( parameters['testDropgz'], true) }}:
       - script: |
