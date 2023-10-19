@@ -35,8 +35,9 @@ const (
 
 	// RetryAttempts is the number of times to retry a test.
 	RetryAttempts       = 90
-	DeleteRetryAttempts = 6
 	RetryDelay          = 10 * time.Second
+	DeleteRetryAttempts = 12
+	DeleteRetryDelay    = 5 * time.Second
 )
 
 var Kubeconfig = flag.String("test-kubeconfig", filepath.Join(homedir.HomeDir(), ".kube", "config"), "(optional) absolute path to the kubeconfig file")
@@ -256,7 +257,7 @@ func WaitForDeploymentToDelete(ctx context.Context, deploymentsClient typedappsv
 		if apierrors.IsNotFound(err) {
 			return nil
 		}
-		return errors.New(fmt.Sprintf("expected isNotFound error when getting deployment, but got %+v", err))
+		return errors.Errorf(fmt.Sprintf("expected isNotFound error when getting deployment, but got %+v", err))
 	}
 	retrier := retry.Retrier{Attempts: DeleteRetryAttempts, Delay: RetryDelay}
 	return errors.Wrapf(retrier.Do(ctx, assertDeploymentNotFound), "could not assert deployment %s isNotFound", d.Name)
