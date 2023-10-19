@@ -163,9 +163,7 @@ func (service *HTTPRestService) saveNetworkContainerGoalState(
 		fallthrough
 	case cns.JobObject:
 		fallthrough
-	case cns.COW:
-		fallthrough
-	case cns.BackendNIC:
+	case cns.COW, cns.BackendNIC:
 		fallthrough
 	case cns.WebApps:
 		switch service.state.OrchestratorType {

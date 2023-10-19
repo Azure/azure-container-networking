@@ -107,7 +107,7 @@ type CreateNetworkContainerRequest struct {
 	AllowNCToHostCommunication bool
 	EndpointPolicies           []NetworkContainerRequestPolicies
 	NCStatus                   v1alpha.NCStatus
-	backendNICInfo             BackendNICInfo
+	backendNICInfo             BackendNICInfo //nolint // introducing new field for backendnic, to be used later by cni code
 }
 
 // CreateNetworkContainerRequest implements fmt.Stringer for logging
@@ -320,9 +320,8 @@ type MultiTenancyInfo struct {
 }
 
 type BackendNICInfo struct {
-	NICType                   string
-	BackendNetworkInterfaceID string
-	MACAddress                string
+	NICType    string
+	MACAddress string
 }
 
 // IPConfiguration contains details about ip config to provision in the VM.
