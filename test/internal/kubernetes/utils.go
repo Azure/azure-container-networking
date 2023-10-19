@@ -259,7 +259,7 @@ func WaitForDeploymentToDelete(ctx context.Context, deploymentsClient typedappsv
 		}
 		return errors.Errorf(fmt.Sprintf("expected isNotFound error when getting deployment, but got %+v", err))
 	}
-	retrier := retry.Retrier{Attempts: DeleteRetryAttempts, Delay: RetryDelay}
+	retrier := retry.Retrier{Attempts: DeleteRetryAttempts, Delay: DeleteRetryDelay}
 	return errors.Wrapf(retrier.Do(ctx, assertDeploymentNotFound), "could not assert deployment %s isNotFound", d.Name)
 }
 
