@@ -51,7 +51,7 @@ const (
 	Basic                  = "Basic"
 	JobObject              = "JobObject"
 	COW                    = "COW" // Container on Windows
-	BackendNIC             = "BackendNIC"
+	BackendNICNC           = "BackendNICNC"
 )
 
 // Orchestrator Types
@@ -78,6 +78,8 @@ const (
 	InfraNIC NICType = "InfraNIC"
 	// Delegated VM NICs are projected from VM to container network namespace
 	DelegatedVMNIC NICType = "DelegatedVMNIC"
+	// BackendNIC NICs are used for infiniband nics on a VM
+	BackendNIC NICType = "BackendNIC"
 )
 
 // ChannelMode :- CNS channel modes
@@ -107,7 +109,7 @@ type CreateNetworkContainerRequest struct {
 	AllowNCToHostCommunication bool
 	EndpointPolicies           []NetworkContainerRequestPolicies
 	NCStatus                   v1alpha.NCStatus
-	backendNICInfo             BackendNICInfo //nolint // introducing new field for backendnic, to be used later by cni code
+	networkInterfaceInfo       NetworkInterfaceInfo //nolint // introducing new field for backendnic, to be used later by cni code
 }
 
 // CreateNetworkContainerRequest implements fmt.Stringer for logging
@@ -319,7 +321,7 @@ type MultiTenancyInfo struct {
 	ID        int // This can be vlanid, vxlanid, gre-key etc. (depends on EnacapType).
 }
 
-type BackendNICInfo struct {
+type NetworkInterfaceInfo struct {
 	NICType    string
 	MACAddress string
 }
@@ -422,7 +424,7 @@ type PodIpInfo struct {
 	PodIPConfig                     IPSubnet
 	NetworkContainerPrimaryIPConfig IPConfiguration
 	HostPrimaryIPInfo               HostIPInfo
-	// NICType defines whether NIC is InfraNIC or DelegatedVMNIC
+	// NICType defines whether NIC is InfraNIC or DelegatedVMNIC or BackendNIC
 	NICType       NICType
 	InterfaceName string
 	// MacAddress of interface
