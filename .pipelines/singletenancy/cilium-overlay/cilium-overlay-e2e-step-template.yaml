@@ -55,18 +55,6 @@ steps:
     name: "installCilium"
     displayName: "Install Cilium on AKS Overlay"
 
-  - ${{ if eq( parameters['testHubble'], true) }}:
-      - script: |
-          echo "enable Hubble metrics server"
-          kubectl apply -f test/integration/manifests/cilium/hubble/hubble-peer-svc.yaml
-          kubectl apply -f test/integration/manifests/cilium/cilium-config-hubble.yaml
-          kubectl rollout restart ds cilium -n kube-system
-          echo "wait <3 minutes for pods to be ready after restart"
-          kubectl rollout status ds cilium -n kube-system --timeout=3m
-          kubectl get pods -Aowide
-        name: "installHubble"
-        displayName: "Install Hubble on AKS Overlay"
-
   - script: |
       echo "install cilium CLI"
       CILIUM_CLI_VERSION=$(curl -s https://raw.githubusercontent.com/cilium/cilium-cli/master/stable.txt)
@@ -147,6 +135,18 @@ steps:
     retryCountOnTaskFailure: 3
     name: "CiliumStatus"
     displayName: "Cilium Status"
+
+  - ${{ if eq( parameters['testHubble'], true) }}:
+      - script: |
+          echo "enable Hubble metrics server"
+          kubectl apply -f test/integration/manifests/cilium/hubble/hubble-peer-svc.yaml
+          kubectl apply -f test/integration/manifests/cilium/cilium-config-hubble.yaml
+          kubectl rollout restart ds cilium -n kube-system
+          echo "wait <3 minutes for pods to be ready after restart"
+          kubectl rollout status ds cilium -n kube-system --timeout=3m
+          kubectl get pods -Aowide
+        name: "installHubble"
+        displayName: "Install Hubble on AKS Overlay"
 
   - script: |
       echo "Run Service Conformance E2E"
