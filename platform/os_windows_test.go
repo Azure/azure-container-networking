@@ -3,6 +3,7 @@ package platform
 import (
 	"errors"
 	"os/exec"
+	"strings"
 	"testing"
 
 	"github.com/Azure/azure-container-networking/platform/windows/adapter/mocks"
@@ -97,4 +98,39 @@ func TestExecuteCommandError(t *testing.T) {
 	var xErr *exec.ExitError
 	assert.ErrorAs(t, err, &xErr)
 	assert.Equal(t, 1, xErr.ExitCode())
+}
+
+func TestSetSdnRemoteArpMacAddress_hnsNotEnabled(t *testing.T) {
+	mockExecClient := NewMockExecClient(false)
+	// testing skip setting SdnRemoteArpMacAddress when hns not enabled
+	mockExecClient.SetPowershellCommandResponder(func(_ string) (string, error) {
+		return "false", nil
+	})
+	err := SetSdnRemoteArpMacAddress(mockExecClient)
+	assert.NoError(t, err)
+	assert.Equal(t, false, sdnRemoteArpMacAddressSet)
+
+	// testing the scenario when there is an error in checking if hns is enabled or not
+	mockExecClient.SetPowershellCommandResponder(func(_ string) (string, error) {
+		return "", errTestFailure
+	})
+	err = SetSdnRemoteArpMacAddress(mockExecClient)
+	assert.ErrorAs(t, err, &errTestFailure)
+	assert.Equal(t, false, sdnRemoteArpMacAddressSet)
+}
+
+func TestSetSdnRemoteArpMacAddress_hnsEnabled(t *testing.T) {
+	mockExecClient := NewMockExecClient(false)
+	// happy path
+	mockExecClient.SetPowershellCommandResponder(func(cmd string) (string, error) {
+		if strings.Contains(cmd, "Test-Path") {
+			return "true", nil
+		}
+		return "", nil
+	})
+	err := SetSdnRemoteArpMacAddress(mockExecClient)
+	assert.NoError(t, err)
+	assert.Equal(t, true, sdnRemoteArpMacAddressSet)
+	// reset sdnRemoteArpMacAddressSet
+	sdnRemoteArpMacAddressSet = false
 }
