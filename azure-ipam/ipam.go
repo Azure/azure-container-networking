@@ -188,8 +188,19 @@ func (p *IPAMPlugin) CmdDel(args *cniSkel.CmdArgs) error {
 			err = p.cnsClient.ReleaseIPAddress(context.TODO(), ipconfigReq)
 
 			if err != nil {
-				p.logger.Error("Failed to release IP address to CNS using ReleaseIPAddress", zap.Error(err), zap.Any("request", ipconfigReq))
-				return cniTypes.NewError(ErrRequestIPConfigFromCNS, err.Error(), "failed to release IP address from CNS using ReleaseIPAddress")
+				if errors.As(err, &connectionErr) {
+					p.logger.Info("Failed to release IP address from CNS due to connection failure, saving to watcher to delete")
+					addErr := fsnotify.AddFile(args.ContainerID, args.ContainerID, watcherPath)
+					if addErr != nil {
+						p.logger.Error("Failed to add file to watcher", zap.String("containerID", args.ContainerID), zap.Error(addErr))
+						return cniTypes.NewError(cniTypes.ErrTryAgainLater, addErr.Error(), fmt.Sprintf("failed to add file to watcher with containerID %s", args.ContainerID))
+					} else {
+						p.logger.Info("File successfully added to watcher directory")
+					}
+				} else {
+					p.logger.Error("Failed to release IP address to CNS using ReleaseIPAddress", zap.Error(err), zap.Any("request", ipconfigReq))
+					return cniTypes.NewError(ErrRequestIPConfigFromCNS, err.Error(), "failed to release IP address from CNS using ReleaseIPAddress")
+				}
 			}
 		} else if errors.As(err, &connectionErr) {
 			p.logger.Info("Failed to release IP addresses from CNS due to connection failure, saving to watcher to delete")
