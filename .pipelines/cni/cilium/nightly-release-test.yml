@@ -88,6 +88,7 @@ stages:
             name: "cilium_nightly"
             testDropgz: ""
             clusterName: ciliumnightly-$(commitID)
+            testHubble: true
       - job: logs
         displayName: "Failure Logs"
         dependsOn:

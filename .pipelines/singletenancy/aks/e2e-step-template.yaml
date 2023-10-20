@@ -17,6 +17,9 @@ steps:
       echo '##vso[task.prependpath]$(GOROOT)/bin'
     name: "GoEnv"
     displayName: "Set up the Go environment"
+  - task: KubectlInstaller@0
+    inputs:
+      kubectlVersion: latest
   - task: AzureCLI@1
     inputs:
       azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
