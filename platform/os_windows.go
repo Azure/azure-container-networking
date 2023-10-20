@@ -202,7 +202,7 @@ func SetSdnRemoteArpMacAddress(execClient ExecClient) error {
 		log.Printf(errMsg)
 		return errors.Errorf(errMsg)
 	}
-	if strings.ToLower(exists) == "false" {
+	if strings.EqualFold(exists, "false") {
 		log.Printf("hns path does not exist, skip setting SdnRemoteArpMacAddress")
 		return nil
 	}
