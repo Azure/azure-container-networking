@@ -12,9 +12,7 @@ import (
 	"go.uber.org/zap"
 )
 
-var (
-	errorSecondaryEndpointClient = errors.New("SecondaryEndpointClient Error")
-)
+var errorSecondaryEndpointClient = errors.New("SecondaryEndpointClient Error")
 
 func newErrorSecondaryEndpointClient(err error) error {
 	return errors.Wrapf(err, "%s", errorSecondaryEndpointClient)

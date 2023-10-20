@@ -3,7 +3,15 @@
 
 package network
 
-type MockNamespace struct{}
+import "github.com/pkg/errors"
+
+var errMockEnterNamespaceFailure = errors.New("failed to enter namespace")
+
+const failToEnterNamespaceName = "failns"
+
+type MockNamespace struct {
+	namespace string
+}
 
 type MockNamespaceClient struct{}
 
@@ -16,7 +24,7 @@ func (c *MockNamespaceClient) OpenNamespace(ns string) (NamespaceInterface, erro
 	if ns == "" {
 		return nil, errFileNotExist
 	}
-	return &MockNamespace{}, nil
+	return &MockNamespace{namespace: ns}, nil
 }
 
 // GetCurrentThreadNamespace returns the caller thread's current namespace.
@@ -35,11 +43,14 @@ func (ns *MockNamespace) GetFd() uintptr {
 }
 
 func (ns *MockNamespace) GetName() string {
-	return "nsname"
+	return ns.namespace
 }
 
 // Enter puts the caller thread inside the namespace.
 func (ns *MockNamespace) Enter() error {
+	if ns.namespace == failToEnterNamespaceName {
+		return errMockEnterNamespaceFailure
+	}
 	return nil
 }
 

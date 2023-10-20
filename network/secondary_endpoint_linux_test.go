@@ -87,9 +87,10 @@ func TestSecondaryDeleteEndpoints(t *testing.T) {
 	plc := platform.NewMockExecClient(false)
 
 	tests := []struct {
-		name   string
-		client *SecondaryEndpointClient
-		ep     *endpoint
+		name    string
+		client  *SecondaryEndpointClient
+		ep      *endpoint
+		wantErr bool
 	}{
 		{
 			name: "Delete endpoint happy path",
@@ -136,14 +137,43 @@ func TestSecondaryDeleteEndpoints(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "Delete endpoint enter namespace failure",
+			client: &SecondaryEndpointClient{
+				netlink:        netlink.NewMockNetlink(false, ""),
+				plClient:       platform.NewMockExecClient(false),
+				netUtilsClient: networkutils.NewNetworkUtils(nl, plc),
+				netioshim:      netio.NewMockNetIO(false, 0),
+				nsClient:       NewMockNamespaceClient(),
+			},
+			ep: &endpoint{
+				NetworkNameSpace: failToEnterNamespaceName,
+				SecondaryInterfaces: map[string]*InterfaceInfo{
+					"eth1": {
+						Name: "eth1",
+						Routes: []RouteInfo{
+							{
+								Dst: net.IPNet{IP: net.ParseIP("192.168.0.4"), Mask: net.CIDRMask(ipv4FullMask, ipv4Bits)},
+							},
+						},
+					},
+				},
+			},
+			wantErr: true,
+		},
 	}
 
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			require.Len(t, tt.ep.SecondaryInterfaces, 1)
-			require.Nil(t, tt.client.DeleteEndpoints(tt.ep))
-			require.Len(t, tt.ep.SecondaryInterfaces, 0)
+			if tt.wantErr {
+				require.Error(t, tt.client.DeleteEndpoints(tt.ep))
+				require.Len(t, tt.ep.SecondaryInterfaces, 1)
+			} else {
+				require.Nil(t, tt.client.DeleteEndpoints(tt.ep))
+				require.Len(t, tt.ep.SecondaryInterfaces, 0)
+			}
 		})
 	}
 }

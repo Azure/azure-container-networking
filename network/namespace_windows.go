@@ -7,7 +7,7 @@ import (
 	"errors"
 )
 
-var windowsImplErr = errors.New("windows impl err")
+var errWindowsImpl = errors.New("windows impl err")
 
 // Namespace represents a network namespace.
 type Namespace struct{}
@@ -20,7 +20,7 @@ func NewNamespaceClient() *NamespaceClient {
 
 // OpenNamespace creates a new namespace object for the given netns path.
 func (c *NamespaceClient) OpenNamespace(_ string) (NamespaceInterface, error) {
-	return nil, windowsImplErr
+	return nil, errWindowsImpl
 }
 
 // GetCurrentThreadNamespace returns the caller thread's current namespace.
