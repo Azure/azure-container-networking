@@ -196,13 +196,14 @@ func (p *execClient) ExecutePowershellCommand(command string) (string, error) {
 
 // SetSdnRemoteArpMacAddress sets the regkey for SDNRemoteArpMacAddress needed for multitenancy if hns is enabled
 func SetSdnRemoteArpMacAddress(execClient ExecClient) error {
-	existed, err := execClient.ExecutePowershellCommand(CheckIfHNSPathExistsCommand)
+	exists, err := execClient.ExecutePowershellCommand(CheckIfHNSPathExistsCommand)
 	if err != nil {
-		log.Printf("Failed to check the existent of hns path due to error %s", err.Error())
-		return err
+		errMsg := fmt.Sprintf("Failed to check the existent of hns path due to error %s", err.Error())
+		log.Printf(errMsg)
+		return errors.Errorf(errMsg)
 	}
-	if existed == "false" {
-		log.Printf("hns path is not existed, skip setting SdnRemoteArpMacAddress")
+	if strings.ToLower(exists) == "false" {
+		log.Printf("hns path does not exist, skip setting SdnRemoteArpMacAddress")
 		return nil
 	}
 	if sdnRemoteArpMacAddressSet == false {
