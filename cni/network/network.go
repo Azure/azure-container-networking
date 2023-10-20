@@ -389,7 +389,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 			res.Print()
 		}
 
-		logger.Info("[cni-net] ADD command completed for pod %v with IPs:%+v err:%v.",
+		logger.Info("[cni-net] ADD command completed for",
 			zap.String("pod", k8sPodName),
 			zap.Any("IPs", ipamAddResult.ipv4Result.IPs),
 			zap.Error(err))
