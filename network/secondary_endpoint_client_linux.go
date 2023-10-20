@@ -129,6 +129,7 @@ func (client *SecondaryEndpointClient) DeleteEndpoints(ep *endpoint) error {
 	ns, err := client.nsClient.OpenNamespace(ep.NetworkNameSpace)
 	if err != nil {
 		if strings.Contains(err.Error(), errFileNotExist.Error()) {
+			// clear SecondaryInterfaces map since network namespace doesn't exist anymore
 			ep.SecondaryInterfaces = make(map[string]*InterfaceInfo)
 			return nil
 		}
