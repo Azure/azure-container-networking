@@ -154,5 +154,5 @@ steps:
       cd test/integration/datapath
       sudo -E env "PATH=$PATH" go test -count=1 datapath_windows_test.go -timeout 3m -tags connection -restartKubeproxy true -run ^TestDatapathWin$
     name: "WindowsDualStackOverlayDatapathTests"
-    displayName: "Windows DaulStack Overlay Datapath Tests"
+    displayName: "Windows DualStack Overlay Datapath Tests"
     retryCountOnTaskFailure: 3
