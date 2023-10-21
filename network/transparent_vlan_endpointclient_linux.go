@@ -26,14 +26,11 @@ const (
 	tunnelingTable        = 2                                         // Packets not entering on the vlan interface go to this routing table
 	tunnelingMark         = 333                                       // The packets that are to tunnel will be marked with this number
 	DisableRPFilterCmd    = "sysctl -w net.ipv4.conf.all.rp_filter=0" // Command to disable the rp filter for tunneling
+	numRetries            = 5
+	sleepInMs             = 100
 )
 
-var errNamespaceCreation = fmt.Errorf("Network namespace creation error")
-
-var (
-	numRetries = 5
-	sleepInMs  = 100
-)
+var errNamespaceCreation = fmt.Errorf("network namespace creation error")
 
 type netnsClient interface {
 	Get() (fileDescriptor int, err error)
@@ -641,4 +638,17 @@ func ExecuteInNS(nsc NamespaceClientInterface, nsName string, f func() error) er
 		}
 	}()
 	return f()
+}
+
+func RunWithRetries(f func() error, maxRuns int, sleepMs int) error {
+	var err error = nil
+	for i := 0; i < maxRuns; i++ {
+		err = f()
+		if err == nil {
+			break
+		}
+		logger.Info("Function failed, retrying after delay...", zap.Error(err))
+		time.Sleep(time.Duration(sleepMs) * time.Millisecond)
+	}
+	return err
 }

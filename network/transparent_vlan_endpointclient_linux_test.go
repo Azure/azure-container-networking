@@ -689,3 +689,55 @@ func TestTransparentVlanConfigureContainerInterfacesAndRoutes(t *testing.T) {
 		})
 	}
 }
+func createFunctionWithFailurePattern(errorPattern []error) func() error {
+	s := 0
+	return func() error {
+		if s >= len(errorPattern) {
+			return nil
+		}
+		result := errorPattern[s]
+		s += 1
+		return result
+	}
+}
+func TestRunWithRetries(t *testing.T) {
+	var errMock = errors.New("mock error")
+	var runs = 4
+	tests := []struct {
+		name    string
+		wantErr bool
+		f       func() error
+	}{
+		{
+			name:    "Succeed on first try",
+			f:       createFunctionWithFailurePattern([]error{}),
+			wantErr: false,
+		},
+		{
+			name:    "Succeed on first try do not check again",
+			f:       createFunctionWithFailurePattern([]error{nil, errMock, errMock, errMock}),
+			wantErr: false,
+		},
+		{
+			name:    "Succeed on last try",
+			f:       createFunctionWithFailurePattern([]error{errMock, errMock, errMock, nil, errMock}),
+			wantErr: false,
+		},
+		{
+			name:    "Fail after too many attempts",
+			f:       createFunctionWithFailurePattern([]error{errMock, errMock, errMock, errMock, nil, nil}),
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			err := RunWithRetries(tt.f, runs, 100)
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
