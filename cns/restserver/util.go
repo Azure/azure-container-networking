@@ -501,6 +501,7 @@ func (service *HTTPRestService) getAllNetworkContainerResponses(
 			LocalIPConfiguration:       savedReq.LocalIPConfiguration,
 			AllowHostToNCCommunication: savedReq.AllowHostToNCCommunication,
 			AllowNCToHostCommunication: savedReq.AllowNCToHostCommunication,
+			NetworkInterfaceInfo:       savedReq.NetworkInterfaceInfo,
 		}
 
 		// If the NC version check wasn't skipped, take into account the VFP programming status when returning the response
