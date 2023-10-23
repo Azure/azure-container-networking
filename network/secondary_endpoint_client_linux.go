@@ -1,6 +1,7 @@
 package network
 
 import (
+	"os"
 	"strings"
 
 	"github.com/Azure/azure-container-networking/netio"
@@ -139,6 +140,11 @@ func (client *SecondaryEndpointClient) DeleteEndpoints(ep *endpoint) error {
 	// Enter the container network namespace.
 	logger.Info("Entering netns", zap.Any("NetNsPath", ep.NetworkNameSpace))
 	if err := ns.Enter(); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			ep.SecondaryInterfaces = make(map[string]*InterfaceInfo)
+			return nil
+		}
+
 		return newErrorSecondaryEndpointClient(err)
 	}
 
@@ -153,6 +159,7 @@ func (client *SecondaryEndpointClient) DeleteEndpoints(ep *endpoint) error {
 	for iface := range ep.SecondaryInterfaces {
 		if err := client.netlink.SetLinkNetNs(iface, uintptr(vmns)); err != nil {
 			logger.Error("Failed to move interface", zap.String("IfName", iface), zap.Error(newErrorSecondaryEndpointClient(err)))
+			continue
 		}
 
 		delete(ep.SecondaryInterfaces, iface)

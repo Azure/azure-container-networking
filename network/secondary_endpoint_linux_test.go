@@ -161,6 +161,30 @@ func TestSecondaryDeleteEndpoints(t *testing.T) {
 			},
 			wantErr: true,
 		},
+		{
+			name: "Delete endpoint netlink failure",
+			client: &SecondaryEndpointClient{
+				netlink:        netlink.NewMockNetlink(true, "netlink failure"),
+				plClient:       platform.NewMockExecClient(false),
+				netUtilsClient: networkutils.NewNetworkUtils(nl, plc),
+				netioshim:      netio.NewMockNetIO(false, 0),
+				nsClient:       NewMockNamespaceClient(),
+			},
+			ep: &endpoint{
+				NetworkNameSpace: failToEnterNamespaceName,
+				SecondaryInterfaces: map[string]*InterfaceInfo{
+					"eth1": {
+						Name: "eth1",
+						Routes: []RouteInfo{
+							{
+								Dst: net.IPNet{IP: net.ParseIP("192.168.0.4"), Mask: net.CIDRMask(ipv4FullMask, ipv4Bits)},
+							},
+						},
+					},
+				},
+			},
+			wantErr: true,
+		},
 	}
 
 	for _, tt := range tests {
