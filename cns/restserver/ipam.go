@@ -80,7 +80,7 @@ func (service *HTTPRestService) requestIPConfigHandlerHelper(ctx context.Context
 		if err != nil {
 			defer func() {
 				logger.Errorf("failed to get SWIFTv2 IP config : %v. Releasing default IP config...", err)
-				_, err := service.releaseIPConfigHandlerHelper(ctx, ipconfigsRequest)
+				_, err = service.releaseIPConfigHandlerHelper(ctx, ipconfigsRequest)
 				if err != nil {
 					logger.Errorf("failed to release default IP config %v", err)
 				}
@@ -99,9 +99,9 @@ func (service *HTTPRestService) requestIPConfigHandlerHelper(ctx context.Context
 			ipInfo := &podIPInfo[i]
 			err := service.SWIFTv2Middleware.SetRoutes(ipInfo)
 			if err != nil {
-				defer func() {
+				defer func() { //nolint:gocritic
 					logger.Errorf("failed to set routes for SWIFTv2 IP config : %v. Releasing default IP config...", err)
-					_, err := service.releaseIPConfigHandlerHelper(ctx, ipconfigsRequest)
+					_, err = service.releaseIPConfigHandlerHelper(ctx, ipconfigsRequest)
 					if err != nil {
 						logger.Errorf("failed to release default IP config %v", err)
 					}

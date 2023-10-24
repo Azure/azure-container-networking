@@ -1533,9 +1533,14 @@ func TestIPAMFailToRequestPartialIPsInPool(t *testing.T) {
 	}
 }
 
-func TestIPAMGetSWIFTv2IP(t *testing.T) {
+func TestIPAMGetSWIFTv2IPSuccess(t *testing.T) {
 	svc := getTestService()
-	svc.AttachSWIFTv2Middleware(middlewares.NewMockSWIFTv2Middleware())
+	middleware := middlewares.NewMockSWIFTv2Middleware()
+	svc.AttachSWIFTv2Middleware(middleware)
+
+	middleware.SetEnvVar()
+	defer middleware.UnsetEnvVar() //nolint:errcheck // ignore error
+	middleware.SetMTPNCReady()
 
 	ncStates := []ncState{
 		{
@@ -1588,4 +1593,63 @@ func TestIPAMGetSWIFTv2IP(t *testing.T) {
 	assert.Equal(t, SWIFTv2MAC, podIPInfo[2].MacAddress)
 	assert.Equal(t, cns.DelegatedVMNIC, podIPInfo[2].NICType)
 	assert.False(t, podIPInfo[2].SkipDefaultRoutes)
+}
+
+func TestIPAMGetSWIFTv2IPFailure(t *testing.T) {
+	svc := getTestService()
+	middleware := middlewares.NewMockSWIFTv2Middleware()
+	svc.AttachSWIFTv2Middleware(middleware)
+	ncStates := []ncState{
+		{
+			ncID: testNCID,
+			ips: []string{
+				testIP1,
+			},
+		},
+		{
+			ncID: testNCIDv6,
+			ips: []string{
+				testIP1v6,
+			},
+		},
+	}
+	// Add Available Pod IP to state
+	for i := range ncStates {
+		ipconfigs := make(map[string]cns.IPConfigurationStatus, 0)
+		state := NewPodState(ncStates[i].ips[0], ipIDs[i][0], ncStates[i].ncID, types.Available, 0)
+		ipconfigs[state.ID] = state
+		err := UpdatePodIPConfigState(t, svc, ipconfigs, ncStates[i].ncID)
+		if err != nil {
+			t.Fatalf("Expected to not fail adding IPs to state: %+v", err)
+		}
+	}
+	req := cns.IPConfigsRequest{
+		PodInterfaceID:   testPod1Info.InterfaceID(),
+		InfraContainerID: testPod1Info.InfraContainerID(),
+	}
+	b, _ := testPod1Info.OrchestratorContext()
+	req.OrchestratorContext = b
+	req.DesiredIPAddresses = make([]string, 2)
+	req.DesiredIPAddresses[0] = testIP1
+	req.DesiredIPAddresses[1] = testIP1v6
+	_, err := svc.requestIPConfigHandlerHelper(context.TODO(), req)
+	if err == nil {
+		t.Fatalf("Expected failing requesting IPs due to MTPNC not ready")
+	}
+	available := svc.GetAvailableIPConfigs()
+	if len(available) != 2 {
+		t.Fatal("Expected available ips to be 2 since we expect the IP to not be assigned")
+	}
+
+	middleware.SetMTPNCReady()
+
+	_, err = svc.requestIPConfigHandlerHelper(context.TODO(), req)
+	if err == nil {
+		t.Fatalf("Expected failing requesting IPs due to not able to set routes")
+	}
+
+	available = svc.GetAvailableIPConfigs()
+	if len(available) != 2 {
+		t.Fatal("Expected available ips to be 2 since we expect the IP to not be assigned")
+	}
 }

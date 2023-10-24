@@ -4,6 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
+	"os"
+	"strings"
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/configuration"
@@ -14,8 +17,15 @@ import (
 )
 
 var (
-	errMTPNCNotReady  = errors.New("mtpnc is not ready")
-	errFailedToGetPod = errors.New("failed to get pod")
+	errMTPNCNotReady         = errors.New("mtpnc is not ready")
+	errFailedToGetPod        = errors.New("failed to get pod")
+	errInvalidSWIFTv2NICType = errors.New("invalid NIC type for SWIFT v2 scenario")
+)
+
+const (
+	prefixLength     = 32
+	overlayGatewayv4 = "169.254.1.1"
+	overlayGatewayV6 = "fe80::1234:5678:9abc"
 )
 
 type MockSWIFTv2Middleware struct {
@@ -29,15 +39,33 @@ func NewMockSWIFTv2Middleware() *MockSWIFTv2Middleware {
 	testPod1.Labels[configuration.LabelPodSwiftV2] = "true"
 
 	testMTPNC1 := v1alpha1.MultitenantPodNetworkConfig{}
-	testMTPNC1.Status.PrimaryIP = "192.168.0.1"
-	testMTPNC1.Status.MacAddress = "00:00:00:00:00:00"
-	testMTPNC1.Status.GatewayIP = "10.0.0.1"
-	testMTPNC1.Status.NCID = "testncid"
 
 	return &MockSWIFTv2Middleware{
 		mtPodState: map[string]*v1.Pod{"testpod1namespace/testpod1": &testPod1},
 		mtpncState: map[string]*v1alpha1.MultitenantPodNetworkConfig{"testpod1namespace/testpod1": &testMTPNC1},
 	}
+}
+
+func (m *MockSWIFTv2Middleware) SetMTPNCReady() {
+	m.mtpncState["testpod1namespace/testpod1"].Status.PrimaryIP = "192.168.0.1"
+	m.mtpncState["testpod1namespace/testpod1"].Status.MacAddress = "00:00:00:00:00:00"
+	m.mtpncState["testpod1namespace/testpod1"].Status.GatewayIP = "10.0.0.1"
+	m.mtpncState["testpod1namespace/testpod1"].Status.NCID = "testncid"
+}
+
+func (m *MockSWIFTv2Middleware) SetEnvVar() {
+	os.Setenv(configuration.EnvPodCIDRs, "10.0.1.10/24")
+	os.Setenv(configuration.EnvServiceCIDRs, "10.0.2.10/24")
+}
+
+func (m *MockSWIFTv2Middleware) UnsetEnvVar() error {
+	if err := os.Unsetenv(configuration.EnvPodCIDRs); err != nil {
+		return fmt.Errorf("failed to unset env var %s : %w", configuration.EnvPodCIDRs, err)
+	}
+	if err := os.Unsetenv(configuration.EnvServiceCIDRs); err != nil {
+		return fmt.Errorf("failed to unset env var %s : %w", configuration.EnvServiceCIDRs, err)
+	}
+	return nil
 }
 
 // validateMultitenantIPConfigsRequest validates if pod is multitenant
@@ -87,6 +115,88 @@ func (m *MockSWIFTv2Middleware) GetIPConfig(_ context.Context, podInfo cns.PodIn
 	return podIPInfo, nil
 }
 
-func (m *MockSWIFTv2Middleware) SetRoutes(_ *cns.PodIpInfo) error {
+func (m *MockSWIFTv2Middleware) SetRoutes(podIPInfo *cns.PodIpInfo) error {
+	podIPInfo.Routes = []cns.Route{}
+	switch podIPInfo.NICType {
+	case cns.DelegatedVMNIC:
+		// default route via SWIFT v2 interface
+		route := cns.Route{
+			IPAddress: "0.0.0.0/0",
+		}
+		podIPInfo.Routes = []cns.Route{route}
+	case cns.InfraNIC:
+		podCIDRs, err := configuration.PodCIDRs()
+		if err != nil {
+			return fmt.Errorf("failed to get podCIDRs from env : %w", err)
+		}
+		podCIDRsV4, podCIDRv6, err := parseCIDRs(podCIDRs)
+		if err != nil {
+			return fmt.Errorf("failed to parse podCIDRs : %w", err)
+		}
+
+		serviceCIDRs, err := configuration.ServiceCIDRs()
+		if err != nil {
+			return fmt.Errorf("failed to get serviceCIDRs from env : %w", err)
+		}
+		serviceCIDRsV4, serviceCIDRsV6, err := parseCIDRs(serviceCIDRs)
+		if err != nil {
+			return fmt.Errorf("failed to parse serviceCIDRs : %w", err)
+		}
+		// Check if the podIPInfo is IPv4 or IPv6
+		if net.ParseIP(podIPInfo.PodIPConfig.IPAddress).To4() != nil {
+			// routes for IPv4 podCIDR traffic
+			for _, podCIDRv4 := range podCIDRsV4 {
+				podCIDRv4Route := cns.Route{
+					IPAddress:        podCIDRv4,
+					GatewayIPAddress: overlayGatewayv4,
+				}
+				podIPInfo.Routes = append(podIPInfo.Routes, podCIDRv4Route)
+			}
+			// route for IPv4 serviceCIDR traffic
+			for _, serviceCIDRv4 := range serviceCIDRsV4 {
+				serviceCIDRv4Route := cns.Route{
+					IPAddress:        serviceCIDRv4,
+					GatewayIPAddress: overlayGatewayv4,
+				}
+				podIPInfo.Routes = append(podIPInfo.Routes, serviceCIDRv4Route)
+			}
+
+		} else {
+			// routes for IPv6 podCIDR traffic
+			for _, podCIDRv6 := range podCIDRv6 {
+				podCIDRv6Route := cns.Route{
+					IPAddress:        podCIDRv6,
+					GatewayIPAddress: overlayGatewayV6,
+				}
+				podIPInfo.Routes = append(podIPInfo.Routes, podCIDRv6Route)
+			}
+			// route for IPv6 serviceCIDR traffic
+			for _, serviceCIDRv6 := range serviceCIDRsV6 {
+				serviceCIDRv6Route := cns.Route{
+					IPAddress:        serviceCIDRv6,
+					GatewayIPAddress: overlayGatewayV6,
+				}
+				podIPInfo.Routes = append(podIPInfo.Routes, serviceCIDRv6Route)
+			}
+		}
+	default:
+		return errInvalidSWIFTv2NICType
+	}
 	return nil
+}
+
+// parseCIDRs parses the semicolons separated CIDRs string and returns the IPv4 and IPv6 CIDRs.
+func parseCIDRs(cidrs string) (v4IPs, v6IPs []string, err error) {
+	for _, cidr := range strings.Split(cidrs, ",") {
+		ip, _, err := net.ParseCIDR(cidr)
+		if err != nil {
+			return nil, nil, fmt.Errorf("failed to parse cidr %s : %w", cidr, err)
+		}
+		if ip.To4() != nil {
+			v4IPs = append(v4IPs, cidr)
+		} else {
+			v6IPs = append(v6IPs, cidr)
+		}
+	}
+	return v4IPs, v6IPs, nil
 }

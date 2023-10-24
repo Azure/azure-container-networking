@@ -17,8 +17,8 @@ import (
 )
 
 var (
-	ErrMTPNCNotReady         = errors.New("mtpnc is not ready")
-	ErrInvalidSWIFTv2NICType = errors.New("invalid NIC type for SWIFT v2 scenario")
+	errMTPNCNotReady         = errors.New("mtpnc is not ready")
+	errInvalidSWIFTv2NICType = errors.New("invalid NIC type for SWIFT v2 scenario")
 )
 
 const (
@@ -65,7 +65,7 @@ func (m *SWIFTv2Middleware) GetIPConfig(ctx context.Context, podInfo cns.PodInfo
 
 	// Check if the MTPNC CRD is ready. If one of the fields is empty, return error
 	if mtpnc.Status.PrimaryIP == "" || mtpnc.Status.MacAddress == "" || mtpnc.Status.NCID == "" || mtpnc.Status.GatewayIP == "" {
-		return cns.PodIpInfo{}, ErrMTPNCNotReady
+		return cns.PodIpInfo{}, errMTPNCNotReady
 	}
 	podIPInfo := cns.PodIpInfo{
 		PodIPConfig: cns.IPSubnet{
@@ -147,7 +147,7 @@ func (m *SWIFTv2Middleware) SetRoutes(podIPInfo *cns.PodIpInfo) error {
 			}
 		}
 	default:
-		return ErrInvalidSWIFTv2NICType
+		return errInvalidSWIFTv2NICType
 	}
 	return nil
 }

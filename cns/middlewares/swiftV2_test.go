@@ -23,6 +23,16 @@ var (
 	testPod3Info = cns.NewPodInfo("718e04-eth0", testPod3GUID, "testpod3", "testpod3namespace")
 )
 
+func setEnvVar() {
+	os.Setenv(configuration.EnvPodCIDRs, "10.0.1.10/24,16A0:0010:AB00:001E::2/32")
+	os.Setenv(configuration.EnvServiceCIDRs, "10.0.0.0/16,16A0:0010:AB00:0000::/32")
+}
+
+func unsetEnvVar() {
+	os.Unsetenv(configuration.EnvPodCIDRs)
+	os.Unsetenv(configuration.EnvServiceCIDRs)
+}
+
 func TestValidateMultitenantIPConfigsRequestSuccess(t *testing.T) {
 	middleware := SWIFTv2Middleware{Cli: mock.NewMockClient()}
 
@@ -64,8 +74,8 @@ func TestValidateMultitenantIPConfigsRequestFailure(t *testing.T) {
 }
 
 func TestGetSWIFTv2IPConfigSuccess(t *testing.T) {
-	os.Setenv(configuration.EnvPodCIDRs, "10.0.1.10/24")
-	os.Setenv(configuration.EnvServiceCIDRs, "10.0.2.10/24")
+	setEnvVar()
+	defer unsetEnvVar()
 
 	middleware := SWIFTv2Middleware{Cli: mock.NewMockClient()}
 
@@ -84,13 +94,13 @@ func TestGetSWIFTv2IPConfigFailure(t *testing.T) {
 
 	// Pod's MTPNC is not ready test
 	_, err = middleware.GetIPConfig(context.TODO(), testPod3Info)
-	assert.Error(t, err, ErrMTPNCNotReady.Error())
+	assert.Error(t, err, errMTPNCNotReady.Error())
 }
 
 func TestSetRoutesSuccess(t *testing.T) {
 	middleware := SWIFTv2Middleware{Cli: mock.NewMockClient()}
-	os.Setenv(configuration.EnvPodCIDRs, "10.0.1.10/24,16A0:0010:AB00:001E::2/32")
-	os.Setenv(configuration.EnvServiceCIDRs, "10.0.0.0/16,16A0:0010:AB00:0000::/32")
+	setEnvVar()
+	defer unsetEnvVar()
 	podIPInfo := []cns.PodIpInfo{
 		{
 			PodIPConfig: cns.IPSubnet{
@@ -171,5 +181,33 @@ func TestSetRoutesSuccess(t *testing.T) {
 	}
 	for i := range podIPInfo {
 		assert.DeepEqual(t, podIPInfo[i].Routes, desiredPodIPInfo[i].Routes)
+	}
+}
+
+func TestSetRoutesFailure(t *testing.T) {
+	// Failure due to env var not set
+	middleware := SWIFTv2Middleware{Cli: mock.NewMockClient()}
+	podIPInfo := []cns.PodIpInfo{
+		{
+			PodIPConfig: cns.IPSubnet{
+				IPAddress:    "10.0.1.10",
+				PrefixLength: 32,
+			},
+			NICType: cns.InfraNIC,
+		},
+		{
+			PodIPConfig: cns.IPSubnet{
+				IPAddress:    "2001:0db8:abcd:0015::0",
+				PrefixLength: 64,
+			},
+			NICType: cns.InfraNIC,
+		},
+	}
+	for i := range podIPInfo {
+		ipInfo := &podIPInfo[i]
+		err := middleware.SetRoutes(ipInfo)
+		if err == nil {
+			t.Errorf("SetRoutes should fail due to env var not set")
+		}
 	}
 }
