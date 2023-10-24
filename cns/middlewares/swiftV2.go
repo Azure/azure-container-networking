@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/netip"
 	"strings"
 
 	"github.com/Azure/azure-container-networking/cns"
@@ -67,10 +68,21 @@ func (m *SWIFTv2Middleware) GetIPConfig(ctx context.Context, podInfo cns.PodInfo
 	if mtpnc.Status.PrimaryIP == "" || mtpnc.Status.MacAddress == "" || mtpnc.Status.NCID == "" || mtpnc.Status.GatewayIP == "" {
 		return cns.PodIpInfo{}, errMTPNCNotReady
 	}
+	// Parse MTPNC primaryIP to get the IP address and prefix length
+	p, err := netip.ParsePrefix(mtpnc.Status.PrimaryIP)
+	if err != nil {
+		return cns.PodIpInfo{}, fmt.Errorf("failed to parse MTPNC primaryIP %s : %w", mtpnc.Status.PrimaryIP, err)
+	}
+	// Get the IP address and prefix length
+	ip := p.Addr()
+	prefixSize := p.Bits()
+	if prefixSize != prefixLength {
+		return cns.PodIpInfo{}, fmt.Errorf("invalid prefix length %d for MTPNC primaryIP %s, prefix length must be %d", prefixSize, mtpnc.Status.PrimaryIP, prefixLength)
+	}
 	podIPInfo := cns.PodIpInfo{
 		PodIPConfig: cns.IPSubnet{
-			IPAddress:    mtpnc.Status.PrimaryIP,
-			PrefixLength: prefixLength,
+			IPAddress:    ip.String(),
+			PrefixLength: uint8(prefixSize),
 		},
 		MacAddress:        mtpnc.Status.MacAddress,
 		NICType:           cns.DelegatedVMNIC,
