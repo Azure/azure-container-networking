@@ -178,6 +178,12 @@ func TestSetRoutesSuccess(t *testing.T) {
 		ipInfo := &podIPInfo[i]
 		err := middleware.SetRoutes(ipInfo)
 		assert.Equal(t, err, nil)
+		if ipInfo.NICType == cns.InfraNIC {
+			assert.Equal(t, ipInfo.SkipDefaultRoutes, true)
+		} else {
+			assert.Equal(t, ipInfo.SkipDefaultRoutes, false)
+		}
+
 	}
 	for i := range podIPInfo {
 		assert.DeepEqual(t, podIPInfo[i].Routes, desiredPodIPInfo[i].Routes)
