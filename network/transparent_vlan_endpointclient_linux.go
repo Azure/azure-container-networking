@@ -251,6 +251,28 @@ func (client *TransparentVlanEndpointClient) PopulateVM(epInfo *EndpointInfo) er
 	if err = client.netUtilsClient.CreateEndpoint(client.vnetVethName, client.containerVethName, mac); err != nil {
 		return errors.Wrap(err, "failed to create veth pair")
 	}
+
+	// Ensure vnet veth is created, as there may be a slight delay
+	err = RunWithRetries(func() error {
+		var getErr error
+		_, getErr = client.netioshim.GetNetworkInterfaceByName(client.vnetVethName)
+		return getErr
+	}, numRetries, sleepInMs)
+	if err != nil {
+		return errors.Wrap(err, "vnet veth does not exist")
+	}
+
+	// Ensure container veth is created, as there may be a slight delay
+	var containerIf *net.Interface = nil
+	err = RunWithRetries(func() error {
+		var getErr error
+		containerIf, getErr = client.netioshim.GetNetworkInterfaceByName(client.containerVethName)
+		return getErr
+	}, numRetries, sleepInMs)
+	if err != nil {
+		return errors.Wrap(err, "container veth does not exist")
+	}
+
 	// Disable RA for veth pair, and delete if any failure
 	if err = client.netUtilsClient.DisableRAForInterface(client.vnetVethName); err != nil {
 		if delErr := client.netlink.DeleteLink(client.vnetVethName); delErr != nil {
@@ -272,10 +294,6 @@ func (client *TransparentVlanEndpointClient) PopulateVM(epInfo *EndpointInfo) er
 		return errors.Wrap(err, "failed to move vnetVethName into vnet ns, deleting")
 	}
 
-	containerIf, err := client.netioshim.GetNetworkInterfaceByName(client.containerVethName)
-	if err != nil {
-		return errors.Wrap(err, "container veth does not exist")
-	}
 	client.containerMac = containerIf.HardwareAddr
 	return nil
 }
