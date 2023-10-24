@@ -78,6 +78,13 @@ func (service *HTTPRestService) requestIPConfigHandlerHelper(ctx context.Context
 		// In the future, if we have multiple scenario with secondary interfaces, we can add a switch case here
 		SWIFTv2PodIPInfo, err := service.SWIFTv2Middleware.GetIPConfig(ctx, podInfo)
 		if err != nil {
+			defer func() {
+				logger.Errorf("failed to get SWIFTv2 IP config : %v. Releasing default IP config...", err)
+				_, err := service.releaseIPConfigHandlerHelper(ctx, ipconfigsRequest)
+				if err != nil {
+					logger.Errorf("failed to release default IP config %v", err)
+				}
+			}()
 			return &cns.IPConfigsResponse{
 				Response: cns.Response{
 					ReturnCode: types.FailedToAllocateIPConfig,
@@ -92,6 +99,13 @@ func (service *HTTPRestService) requestIPConfigHandlerHelper(ctx context.Context
 			ipInfo := &podIPInfo[i]
 			err := service.SWIFTv2Middleware.SetRoutes(ipInfo)
 			if err != nil {
+				defer func() {
+					logger.Errorf("failed to set routes for SWIFTv2 IP config : %v. Releasing default IP config...", err)
+					_, err := service.releaseIPConfigHandlerHelper(ctx, ipconfigsRequest)
+					if err != nil {
+						logger.Errorf("failed to release default IP config %v", err)
+					}
+				}()
 				return &cns.IPConfigsResponse{
 					Response: cns.Response{
 						ReturnCode: types.FailedToAllocateIPConfig,
