@@ -903,7 +903,7 @@ func (plugin *NetPlugin) Get(args *cniSkel.CmdArgs) error {
 
 	// Query the endpoint.
 	if epInfo, err = plugin.nm.GetEndpointInfo(networkID, endpointID); err != nil {
-		plugin.Errorf("Failed to query endpoint: %v", err)
+		logger.Error("Failed to query endpoint", zap.Error(err))
 		return err
 	}
 
