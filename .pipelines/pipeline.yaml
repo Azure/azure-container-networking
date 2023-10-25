@@ -58,13 +58,27 @@ stages:
           - script: |
               set -x
 
+              echo "Checking UID"
+              echo $UID
+
+              podman -v
+              buildah -v
+
               echo "Checking XDG_RUNTIME_DIR"
               echo $XDG_RUNTIME_DIR
-              export XDG_RUNTIME_DIR=/run/user/1000
+              export XDG_RUNTIME_DIR=/run/user/$(id -u)
               echo $XDG_RUNTIME_DIR
+
+              echo "Checking XDG_CONFIG_HOME"
+              echo ${XDG_CONFIG_HOME}
+
 
               echo "Checking REGISTRY_AUTH_FILE"
               echo $REGISTRY_AUTH_FILE
+
+
+              skopeo -v
+
             name: "EnvironmentalVariables"
             displayName: "Test"
             condition: always()
