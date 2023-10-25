@@ -282,7 +282,7 @@ func (plugin *ipamPlugin) Get(args *cniSkel.CmdArgs) error {
 func (plugin *ipamPlugin) Delete(args *cniSkel.CmdArgs) error {
 	var err error
 
-	logger.Info("[cni-ipam] Processing DEL command",
+	logger.Info("Processing DEL command",
 		zap.String("ContainerId", args.ContainerID),
 		zap.String("Netns", args.Netns),
 		zap.String("IfName", args.IfName),
@@ -291,7 +291,7 @@ func (plugin *ipamPlugin) Delete(args *cniSkel.CmdArgs) error {
 		zap.ByteString("StdinData", args.StdinData))
 
 	defer func() {
-		logger.Info("[cni-ipam] DEL command completed",
+		logger.Info("DEL command completed",
 			zap.Error(err))
 	}()
 
