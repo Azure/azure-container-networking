@@ -68,8 +68,8 @@ const (
 	SetSdnRemoteArpMacAddressCommand = "Set-ItemProperty " +
 		"-Path HKLM:\\SYSTEM\\CurrentControlSet\\Services\\hns\\State -Name SDNRemoteArpMacAddress -Value \"12-34-56-78-9a-bc\""
 
-	// Command to check if system have hns path or not
-	CheckIfHNSPathExistsCommand = "Test-Path " +
+	// Command to check if system has hns state path or not
+	CheckIfHNSStatePathExistsCommand = "Test-Path " +
 		"-Path HKLM:\\SYSTEM\\CurrentControlSet\\Services\\hns\\State"
 
 	// Command to restart HNS service
@@ -196,14 +196,14 @@ func (p *execClient) ExecutePowershellCommand(command string) (string, error) {
 
 // SetSdnRemoteArpMacAddress sets the regkey for SDNRemoteArpMacAddress needed for multitenancy if hns is enabled
 func SetSdnRemoteArpMacAddress(execClient ExecClient) error {
-	exists, err := execClient.ExecutePowershellCommand(CheckIfHNSPathExistsCommand)
+	exists, err := execClient.ExecutePowershellCommand(CheckIfHNSStatePathExistsCommand)
 	if err != nil {
-		errMsg := fmt.Sprintf("Failed to check the existent of hns path due to error %s", err.Error())
+		errMsg := fmt.Sprintf("Failed to check the existent of hns state path due to error %s", err.Error())
 		log.Printf(errMsg)
 		return errors.Errorf(errMsg)
 	}
 	if strings.EqualFold(exists, "false") {
-		log.Printf("hns path does not exist, skip setting SdnRemoteArpMacAddress")
+		log.Printf("hns state path does not exist, skip setting SdnRemoteArpMacAddress")
 		return nil
 	}
 	if sdnRemoteArpMacAddressSet == false {

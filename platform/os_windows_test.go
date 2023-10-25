@@ -104,7 +104,7 @@ func TestSetSdnRemoteArpMacAddress_hnsNotEnabled(t *testing.T) {
 	mockExecClient := NewMockExecClient(false)
 	// testing skip setting SdnRemoteArpMacAddress when hns not enabled
 	mockExecClient.SetPowershellCommandResponder(func(_ string) (string, error) {
-		return "false", nil
+		return "False", nil
 	})
 	err := SetSdnRemoteArpMacAddress(mockExecClient)
 	assert.NoError(t, err)
@@ -124,7 +124,7 @@ func TestSetSdnRemoteArpMacAddress_hnsEnabled(t *testing.T) {
 	// happy path
 	mockExecClient.SetPowershellCommandResponder(func(cmd string) (string, error) {
 		if strings.Contains(cmd, "Test-Path") {
-			return "true", nil
+			return "True", nil
 		}
 		return "", nil
 	})
