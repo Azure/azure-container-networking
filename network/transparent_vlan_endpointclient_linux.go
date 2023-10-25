@@ -143,7 +143,7 @@ func (client *TransparentVlanEndpointClient) ensureCleanPopulateVM() error {
 				return errors.Wrap(delErr, "failed to cleanup/delete ns after noticing vlan veth does not exist")
 			}
 		}
-		logger.Info("Veth interface was found in namespace")
+		logger.Info("Vlan veth interface was found in namespace")
 	}
 	// Delete the vlan interface in the VM namespace if it exists
 	_, vlanIfInVMErr := client.netioshim.GetNetworkInterfaceByName(client.vlanIfName)
