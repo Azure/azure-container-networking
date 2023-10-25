@@ -50,6 +50,24 @@ stages:
             name: "EnvironmentalVariables"
             displayName: "Set environmental variables"
             condition: always()
+      - job: test
+        displayName: Test
+        pool:
+          name: "$(BUILD_POOL_NAME_DEFAULT)"
+        steps:
+          - script: |
+              set -x
+
+              echo "Checking XDG_RUNTIME_DIR"
+              echo $XDG_RUNTIME_DIR
+              export XDG_RUNTIME_DIR=/run/user/1000
+              echo $XDG_RUNTIME_DIR
+
+              echo "Checking REGISTRY_AUTH_FILE"
+              echo $REGISTRY_AUTH_FILE
+            name: "EnvironmentalVariables"
+            displayName: "Test"
+            condition: always()
 
   - stage: test
     displayName: Test ACN
