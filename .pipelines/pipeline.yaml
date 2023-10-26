@@ -50,38 +50,6 @@ stages:
             name: "EnvironmentalVariables"
             displayName: "Set environmental variables"
             condition: always()
-      - job: test
-        displayName: Test
-        pool:
-          name: "$(BUILD_POOL_NAME_DEFAULT)"
-        steps:
-          - script: |
-              set -x
-
-              echo "Checking UID"
-              echo $UID
-
-              podman -v
-              buildah -v
-
-              echo "Checking XDG_RUNTIME_DIR"
-              echo $XDG_RUNTIME_DIR
-              export XDG_RUNTIME_DIR=/run/user/$(id -u)
-              echo $XDG_RUNTIME_DIR
-
-              echo "Checking XDG_CONFIG_HOME"
-              echo ${XDG_CONFIG_HOME}
-
-
-              echo "Checking REGISTRY_AUTH_FILE"
-              echo $REGISTRY_AUTH_FILE
-
-
-              skopeo -v
-
-            name: "EnvironmentalVariables"
-            displayName: "Test"
-            condition: always()
 
   - stage: test
     displayName: Test ACN
