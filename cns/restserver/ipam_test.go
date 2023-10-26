@@ -1647,4 +1647,9 @@ func TestIPAMGetSWIFTv2IPFailure(t *testing.T) {
 	if err == nil {
 		t.Fatalf("Expected failing requesting IPs due to not able to set routes")
 	}
+
+	available = svc.GetAvailableIPConfigs()
+	if len(available) != 2 {
+		t.Fatal("Expected available ips to be 2 since we expect the IP to not be assigned")
+	}
 }

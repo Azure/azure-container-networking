@@ -24,7 +24,6 @@ var (
 	ErrNoNCs            = errors.New("No NCs found in the CNS internal state")
 )
 
-// requestIPConfigHandlerHelper validates the request, assigns IPs, and returns a response
 func (service *HTTPRestService) requestIPConfigHandlerHelper(ctx context.Context, ipconfigsRequest cns.IPConfigsRequest) (*cns.IPConfigsResponse, error) {
 	// For SWIFT v2 scenario, the validator function will also modify the ipconfigsRequest.
 	podInfo, returnCode, returnMessage := service.validateIPConfigsRequest(ctx, ipconfigsRequest)
@@ -40,24 +39,6 @@ func (service *HTTPRestService) requestIPConfigHandlerHelper(ctx context.Context
 	// record a pod requesting an IP
 	service.podsPendingIPAssignment.Push(podInfo.Key())
 
-	var SWIFTv2PodIPInfo cns.PodIpInfo
-	// Check if request is for pod with secondary interface(s)
-	if podInfo.SecondaryInterfacesExist() {
-		// In the future, if we have multiple scenario with secondary interfaces, we can add a switch case here
-		podIPInfo, err := service.SWIFTv2Middleware.GetIPConfig(ctx, podInfo)
-		if err != nil {
-			return &cns.IPConfigsResponse{
-				Response: cns.Response{
-					ReturnCode: types.FailedToAllocateIPConfig,
-					Message:    fmt.Sprintf("AllocateIPConfig failed: %v, IP config request is %v", err, ipconfigsRequest),
-				},
-				PodIPInfo: []cns.PodIpInfo{},
-			}, errors.Wrapf(err, "failed to get SWIFTv2 IP config %v", ipconfigsRequest)
-		}
-		SWIFTv2PodIPInfo = podIPInfo
-	}
-
-	// Assign default IP config
 	podIPInfo, err := requestIPConfigsHelper(service, ipconfigsRequest)
 	if err != nil {
 		return &cns.IPConfigsResponse{
@@ -91,20 +72,46 @@ func (service *HTTPRestService) requestIPConfigHandlerHelper(ctx context.Context
 		}
 	}
 
-	// Check if SWIFTv2 pod IP info is set
-	if SWIFTv2PodIPInfo.PodIPConfig.IPAddress != "" {
+	// Check if request is for pod with secondary interface(s)
+	if podInfo.SecondaryInterfacesExist() {
+		// In the future, if we have multiple scenario with secondary interfaces, we can add a switch case here
+		SWIFTv2PodIPInfo, err := service.SWIFTv2Middleware.GetIPConfig(ctx, podInfo)
+		if err != nil {
+			defer func() {
+				logger.Errorf("failed to get SWIFTv2 IP config : %v. Releasing default IP config...", err)
+				_, err = service.releaseIPConfigHandlerHelper(ctx, ipconfigsRequest)
+				if err != nil {
+					logger.Errorf("failed to release default IP config %v", err)
+				}
+			}()
+			return &cns.IPConfigsResponse{
+				Response: cns.Response{
+					ReturnCode: types.FailedToAllocateIPConfig,
+					Message:    fmt.Sprintf("AllocateIPConfig failed: %v, IP config request is %v", err, ipconfigsRequest),
+				},
+				PodIPInfo: []cns.PodIpInfo{},
+			}, errors.Wrapf(err, "failed to get SWIFTv2 IP config %v", ipconfigsRequest)
+		}
 		podIPInfo = append(podIPInfo, SWIFTv2PodIPInfo)
 		// Setting up routes for SWIFTv2 scenario
 		for i := range podIPInfo {
 			ipInfo := &podIPInfo[i]
-			if err := service.SWIFTv2Middleware.SetRoutes(ipInfo); err != nil {
+			err := service.SWIFTv2Middleware.SetRoutes(ipInfo)
+			if err != nil {
+				defer func() { //nolint:gocritic
+					logger.Errorf("failed to set routes for SWIFTv2 IP config : %v. Releasing default IP config...", err)
+					_, err = service.releaseIPConfigHandlerHelper(ctx, ipconfigsRequest)
+					if err != nil {
+						logger.Errorf("failed to release default IP config %v", err)
+					}
+				}()
 				return &cns.IPConfigsResponse{
 					Response: cns.Response{
 						ReturnCode: types.UnexpectedError,
-						Message:    fmt.Sprintf("failed to set routes for SWIFT v2: %v ", err),
+						Message:    fmt.Sprintf("failed to set SWIFTv2 routes %v", err),
 					},
 					PodIPInfo: []cns.PodIpInfo{},
-				}, fmt.Errorf("failed to set routes for SWIFT v2: %w", err)
+				}, errors.Wrapf(err, "failed to set SWIFTv2 routes %v", ipconfigsRequest)
 			}
 		}
 	}
