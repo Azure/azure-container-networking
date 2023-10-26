@@ -56,16 +56,16 @@ steps:
       set -e
       cd test/integration/load
       echo "DualStack Overlay Linux control plane Node properties test"
-      sudo CNI_TYPE=dualstack go test -timeout 30m -tags load -run ^TestDualStackProperties$
+      CNI_TYPE=dualstack go test -timeout 30m -tags load -run ^TestDualStackProperties$
       echo "DualStack Overlay Linux control plane Load test"
-      sudo go test -timeout 30m -tags load -run ^TestLoad$
+      go test -timeout 30m -tags load -run ^TestLoad$
       echo "DualStack Overlay Linux control plane CNS validation test"
       CNI_TYPE=dualstack go test -timeout 30m -tags load -run ^TestValidateState$
       cd ../datapath
       echo "Dualstack Overlay Linux datapath IPv6 test"
-      sudo go test -count=1 datapath_linux_test.go -timeout 3m -tags connection -run ^TestDatapathLinux$ -tags=connection,integration -isDualStack=true
+      go test -count=1 datapath_linux_test.go -timeout 3m -tags connection -run ^TestDatapathLinux$ -tags=connection,integration -isDualStack=true
       echo "Dualstack Overlay Linux datapath IPv4 test"
-      sudo go test -count=1 datapath_linux_test.go -timeout 3m -tags connection -run ^TestDatapathLinux$ -tags=connection,integration
+      go test -count=1 datapath_linux_test.go -timeout 3m -tags connection -run ^TestDatapathLinux$ -tags=connection,integration
       echo "cleaning up load-test namespace"
       kubectl delete ns load-test
     retryCountOnTaskFailure: 3
