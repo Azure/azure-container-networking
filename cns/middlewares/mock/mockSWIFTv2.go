@@ -56,7 +56,7 @@ func (m *MockSWIFTv2Middleware) SetMTPNCReady() {
 func (m *MockSWIFTv2Middleware) SetEnvVar() {
 	os.Setenv(configuration.EnvPodCIDRs, "10.0.1.10/24")
 	os.Setenv(configuration.EnvServiceCIDRs, "10.0.2.10/24")
-	os.Setenv(configuration.EnvNodeCIDR, "10.0.3.10/24")
+	os.Setenv(configuration.EnvNodeCIDRs, "10.0.3.10/24")
 }
 
 func (m *MockSWIFTv2Middleware) UnsetEnvVar() error {
@@ -66,8 +66,8 @@ func (m *MockSWIFTv2Middleware) UnsetEnvVar() error {
 	if err := os.Unsetenv(configuration.EnvServiceCIDRs); err != nil {
 		return fmt.Errorf("failed to unset env var %s : %w", configuration.EnvServiceCIDRs, err)
 	}
-	if err := os.Unsetenv(configuration.EnvNodeCIDR); err != nil {
-		return fmt.Errorf("failed to unset env var %s : %w", configuration.EnvNodeCIDR, err)
+	if err := os.Unsetenv(configuration.EnvNodeCIDRs); err != nil {
+		return fmt.Errorf("failed to unset env var %s : %w", configuration.EnvNodeCIDRs, err)
 	}
 	return nil
 }

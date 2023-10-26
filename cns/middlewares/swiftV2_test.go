@@ -26,13 +26,13 @@ var (
 func setEnvVar() {
 	os.Setenv(configuration.EnvPodCIDRs, "10.0.1.10/24,16A0:0010:AB00:001E::2/32")
 	os.Setenv(configuration.EnvServiceCIDRs, "10.0.0.0/16,16A0:0010:AB00:0000::/32")
-	os.Setenv(configuration.EnvNodeCIDR, "10.240.0.1/16")
+	os.Setenv(configuration.EnvNodeCIDRs, "10.240.0.1/16,16A0:0020:AB00:0000::/32")
 }
 
 func unsetEnvVar() {
 	os.Unsetenv(configuration.EnvPodCIDRs)
 	os.Unsetenv(configuration.EnvServiceCIDRs)
-	os.Unsetenv(configuration.EnvNodeCIDR)
+	os.Unsetenv(configuration.EnvNodeCIDRs)
 }
 
 func TestValidateMultitenantIPConfigsRequestSuccess(t *testing.T) {
@@ -162,6 +162,10 @@ func TestSetRoutesSuccess(t *testing.T) {
 				},
 				{
 					IPAddress:        "16A0:0010:AB00:0000::/32",
+					GatewayIPAddress: overlayGatewayV6,
+				},
+				{
+					IPAddress:        "16A0:0020:AB00:0000::/32",
 					GatewayIPAddress: overlayGatewayV6,
 				},
 			},

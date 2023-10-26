@@ -29,7 +29,7 @@ func NewMockClient() *MockClient {
 	testPod1.Labels[configuration.LabelPodSwiftV2] = "true"
 
 	testMTPNC1 := v1alpha1.MultitenantPodNetworkConfig{}
-	testMTPNC1.Status.PrimaryIP = "192.168.0.1"
+	testMTPNC1.Status.PrimaryIP = "192.168.0.1/32"
 	testMTPNC1.Status.MacAddress = "00:00:00:00:00:00"
 	testMTPNC1.Status.GatewayIP = "10.0.0.1"
 	testMTPNC1.Status.NCID = "testncid"

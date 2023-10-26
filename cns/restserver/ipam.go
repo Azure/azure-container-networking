@@ -95,22 +95,14 @@ func (service *HTTPRestService) requestIPConfigHandlerHelper(ctx context.Context
 		// Setting up routes for SWIFTv2 scenario
 		for i := range podIPInfo {
 			ipInfo := &podIPInfo[i]
-			err := service.SWIFTv2Middleware.SetRoutes(ipInfo)
-			if err != nil {
-				defer func() {
-					logger.Errorf("failed to get SWIFTv2 IP config %v, releasing default IP config...", err)
-					_, err := service.releaseIPConfigHandlerHelper(ctx, ipconfigsRequest)
-					if err != nil {
-						logger.Errorf("failed to release default IP config %v", err)
-					}
-				}()
+			if err := service.SWIFTv2Middleware.SetRoutes(ipInfo); err != nil {
 				return &cns.IPConfigsResponse{
 					Response: cns.Response{
-						ReturnCode: types.FailedToAllocateIPConfig,
-						Message:    fmt.Sprintf("AllocateIPConfig failed: %v, IP config request is %v", err, ipconfigsRequest),
+						ReturnCode: types.UnexpectedError,
+						Message:    fmt.Sprintf("failed to set routes for SWIFT v2: %v ", err),
 					},
 					PodIPInfo: []cns.PodIpInfo{},
-				}, errors.Wrapf(err, "failed to set SWIFTv2 routes %v", ipconfigsRequest)
+				}, fmt.Errorf("failed to set routes for SWIFT v2: %w", err)
 			}
 		}
 	}

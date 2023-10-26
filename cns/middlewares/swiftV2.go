@@ -18,8 +18,9 @@ import (
 )
 
 var (
-	errMTPNCNotReady         = errors.New("mtpnc is not ready")
-	errInvalidSWIFTv2NICType = errors.New("invalid NIC type for SWIFT v2 scenario")
+	errMTPNCNotReady            = errors.New("mtpnc is not ready")
+	errInvalidSWIFTv2NICType    = errors.New("invalid NIC type for SWIFT v2 scenario")
+	errInvalidMTPNCPrefixLength = errors.New("invalid prefix length for MTPNC primaryIP, must be 32")
 )
 
 const (
@@ -77,7 +78,7 @@ func (m *SWIFTv2Middleware) GetIPConfig(ctx context.Context, podInfo cns.PodInfo
 	ip := p.Addr()
 	prefixSize := p.Bits()
 	if prefixSize != prefixLength {
-		return cns.PodIpInfo{}, fmt.Errorf("invalid prefix length %d for MTPNC primaryIP %s, prefix length must be %d", prefixSize, mtpnc.Status.PrimaryIP, prefixLength)
+		return cns.PodIpInfo{}, fmt.Errorf("%w, MTPNC primaryIP prefix length is %d", errInvalidMTPNCPrefixLength, prefixSize)
 	}
 	podIPInfo := cns.PodIpInfo{
 		PodIPConfig: cns.IPSubnet{
@@ -104,6 +105,17 @@ func (m *SWIFTv2Middleware) SetRoutes(podIPInfo *cns.PodIpInfo) error {
 		}
 		podIPInfo.Routes = []cns.Route{route}
 	case cns.InfraNIC:
+		// Get and parse nodeCIDRs from env
+		nodeCIDRs, err := configuration.NodeCIDRs()
+		if err != nil {
+			return fmt.Errorf("failed to get nodeCIDR from env : %w", err)
+		}
+		nodeCIDRsv4, nodeCIDRsv6, err := parseCIDRs(nodeCIDRs)
+		if err != nil {
+			return fmt.Errorf("failed to parse nodeCIDRs : %w", err)
+		}
+
+		// Get and parse podCIDRs from env
 		podCIDRs, err := configuration.PodCIDRs()
 		if err != nil {
 			return fmt.Errorf("failed to get podCIDRs from env : %w", err)
@@ -113,6 +125,7 @@ func (m *SWIFTv2Middleware) SetRoutes(podIPInfo *cns.PodIpInfo) error {
 			return fmt.Errorf("failed to parse podCIDRs : %w", err)
 		}
 
+		// Get and parse serviceCIDRs from env
 		serviceCIDRs, err := configuration.ServiceCIDRs()
 		if err != nil {
 			return fmt.Errorf("failed to get serviceCIDRs from env : %w", err)
@@ -139,17 +152,14 @@ func (m *SWIFTv2Middleware) SetRoutes(podIPInfo *cns.PodIpInfo) error {
 				}
 				podIPInfo.Routes = append(podIPInfo.Routes, serviceCIDRv4Route)
 			}
-			nodeCIDR, err := configuration.NodeCIDR()
-			if err != nil {
-				return fmt.Errorf("failed to get nodeCIDR from env : %w", err)
+			// route for IPv4 nodeCIDR traffic
+			for _, nodeCIDRv4 := range nodeCIDRsv4 {
+				nodeCIDRv4Route := cns.Route{
+					IPAddress:        nodeCIDRv4,
+					GatewayIPAddress: overlayGatewayv4,
+				}
+				podIPInfo.Routes = append(podIPInfo.Routes, nodeCIDRv4Route)
 			}
-			// route for nodeCIDR traffic
-			nodeCIDRRoute := cns.Route{
-				IPAddress:        nodeCIDR,
-				GatewayIPAddress: overlayGatewayv4,
-			}
-			podIPInfo.Routes = append(podIPInfo.Routes, nodeCIDRRoute)
-
 		} else {
 			// routes for IPv6 podCIDR traffic
 			for _, podCIDRv6 := range podCIDRv6 {
@@ -166,6 +176,14 @@ func (m *SWIFTv2Middleware) SetRoutes(podIPInfo *cns.PodIpInfo) error {
 					GatewayIPAddress: overlayGatewayV6,
 				}
 				podIPInfo.Routes = append(podIPInfo.Routes, serviceCIDRv6Route)
+			}
+			// route for IPv6 nodeCIDR traffic
+			for _, nodeCIDRv6 := range nodeCIDRsv6 {
+				nodeCIDRv6Route := cns.Route{
+					IPAddress:        nodeCIDRv6,
+					GatewayIPAddress: overlayGatewayV6,
+				}
+				podIPInfo.Routes = append(podIPInfo.Routes, nodeCIDRv6Route)
 			}
 		}
 		podIPInfo.SkipDefaultRoutes = true
