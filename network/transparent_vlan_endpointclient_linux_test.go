@@ -13,6 +13,7 @@ import (
 	"github.com/Azure/azure-container-networking/platform"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 )
 
 var errNetnsMock = errors.New("mock netns error")
@@ -77,11 +78,112 @@ func defaultDeleteNamed(name string) error {
 	return nil
 }
 
+// This mock netioshim provides more flexbility in when it errors compared to the one in the netio package
+type mockNetIO struct {
+	existingInterfaces map[string]bool
+}
+
+func (ns *mockNetIO) GetNetworkInterfaceByName(name string) (*net.Interface, error) {
+	var ErrMockNetIOFail = errors.New("netio fail")
+	if ns.existingInterfaces[name] {
+		hwAddr, _ := net.ParseMAC("ab:cd:ef:12:34:56")
+		return &net.Interface{
+			//nolint:gomnd // Dummy MTU
+			MTU:          1000,
+			Name:         name,
+			HardwareAddr: hwAddr,
+			//nolint:gomnd // Dummy interface index
+			Index: 2,
+		}, nil
+	} else {
+		return nil, errors.Wrap(ErrMockNetIOFail, name)
+	}
+}
+func (ns *mockNetIO) GetNetworkInterfaceAddrs(iface *net.Interface) ([]net.Addr, error) {
+	return []net.Addr{}, nil
+}
+
+func defaultExecuteInNSFn(nsName string, f func() error) error {
+	logger.Info("[MockExecuteInNS] Entering ns", zap.String("nsName", nsName))
+	defer func() {
+		logger.Info("[MockExecuteInNS] Exiting ns", zap.String("nsName", nsName))
+	}()
+	return f()
+}
 func TestTransparentVlanAddEndpoints(t *testing.T) {
 	nl := netlink.NewMockNetlink(false, "")
 	plc := platform.NewMockExecClient(false)
 
 	tests := []struct {
+		name       string
+		client     *TransparentVlanEndpointClient
+		epInfo     *EndpointInfo
+		wantErr    bool
+		wantErrMsg string
+	}{
+		// Ensuring vnet namespace and vlan both exist or are both absent before populating the vm
+		{
+			name: "Ensure clean populate VM neither vnet ns nor vlan if exists",
+			client: &TransparentVlanEndpointClient{
+				primaryHostIfName: "eth0",
+				vlanIfName:        "eth0.1",
+				vnetVethName:      "A1veth0",
+				containerVethName: "B1veth0",
+				vnetNSName:        "az_ns_1",
+				netnsClient: &mockNetns{
+					get: defaultGet,
+					getFromName: func(name string) (fileDescriptor int, err error) {
+						return 0, newNetnsErrorMock("netns failure")
+					},
+				},
+				netlink:        netlink.NewMockNetlink(false, ""),
+				plClient:       platform.NewMockExecClient(false),
+				netUtilsClient: networkutils.NewNetworkUtils(nl, plc),
+				netioshim:      netio.NewMockNetIO(false, 0),
+				executeInNSFn:  defaultExecuteInNSFn,
+			},
+			epInfo:  &EndpointInfo{},
+			wantErr: false,
+		},
+		{
+			name: "Ensure clean populate VM vnet ns but vlan if does not",
+			client: &TransparentVlanEndpointClient{
+				primaryHostIfName: "eth0",
+				vlanIfName:        "eth0.1",
+				vnetVethName:      "A1veth0",
+				containerVethName: "B1veth0",
+				vnetNSName:        "az_ns_1",
+				netnsClient: &mockNetns{
+					get:         defaultGet,
+					getFromName: defaultGetFromName,
+					deleteNamed: func(name string) (err error) {
+						return newNetnsErrorMock("netns failure")
+					},
+				},
+				netlink:        netlink.NewMockNetlink(false, ""),
+				plClient:       platform.NewMockExecClient(false),
+				netUtilsClient: networkutils.NewNetworkUtils(nl, plc),
+				netioshim:      netio.NewMockNetIO(true, 1),
+				executeInNSFn:  defaultExecuteInNSFn,
+			},
+			epInfo:     &EndpointInfo{},
+			wantErr:    true,
+			wantErrMsg: "failed to cleanup/delete ns after noticing vlan veth does not exist: netns failure: " + errNetnsMock.Error(),
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.client.ensureCleanPopulateVM()
+			if tt.wantErr {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), tt.wantErrMsg, "Expected:%v actual:%v", tt.wantErrMsg, err.Error())
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+	tests = []struct {
 		name       string
 		client     *TransparentVlanEndpointClient
 		epInfo     *EndpointInfo
@@ -206,11 +308,16 @@ func TestTransparentVlanAddEndpoints(t *testing.T) {
 				netlink:        netlink.NewMockNetlink(false, ""),
 				plClient:       platform.NewMockExecClient(false),
 				netUtilsClient: networkutils.NewNetworkUtils(nl, plc),
-				netioshim:      netio.NewMockNetIO(true, 1),
+				netioshim: &mockNetIO{
+					existingInterfaces: map[string]bool{
+						"A1veth0": true,
+					},
+				},
+				executeInNSFn: defaultExecuteInNSFn,
 			},
 			epInfo:     &EndpointInfo{},
 			wantErr:    true,
-			wantErrMsg: "container veth does not exist: " + netio.ErrMockNetIOFail.Error() + ":B1veth0",
+			wantErrMsg: "container veth does not exist: B1veth0: " + netio.ErrMockNetIOFail.Error() + "",
 		},
 		{
 			name: "Add endpoints NetNS Get fail",
@@ -703,6 +810,7 @@ func createFunctionWithFailurePattern(errorPattern []error) func() error {
 func TestRunWithRetries(t *testing.T) {
 	var errMock = errors.New("mock error")
 	var runs = 4
+
 	tests := []struct {
 		name    string
 		wantErr bool
