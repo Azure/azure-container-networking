@@ -305,12 +305,12 @@ func (nm *networkManager) readDNSInfo(ifName string) (DNSInfo, error) {
 
 	cmd, err := nm.ifNameStatus(ifName)
 	if err != nil {
-		return dnsInfo, err
+		return dnsInfo, errors.Wrap(err, "Error generating interface name status cmd")
 	}
 
 	out, err := nm.plClient.ExecuteCommand(cmd)
 	if err != nil {
-		return dnsInfo, err
+		return dnsInfo, errors.Wrapf(err, "Error executing interface status with cmd %s", cmd)
 	}
 
 	logger.Info("console output for above cmd", zap.Any("out", out))
@@ -412,24 +412,24 @@ func (nm *networkManager) applyDNSConfig(extIf *externalInterface, ifName string
 		if len(setDNSList) > 0 {
 			cmd, err = nm.addDNSServers(ifName, setDNSList)
 			if err != nil {
-				return err
+				return errors.Wrap(err, "Error generating add DNS Servers cmd")
 			}
 
 			_, err = nm.plClient.ExecuteCommand(cmd)
 			if err != nil {
-				return err
+				return errors.Wrapf(err, "Error executing add DNS Servers with cmd %s", cmd)
 			}
 		}
 
 		if extIf.DNSInfo.Suffix != "" {
 			cmd, err = nm.addDomain(ifName, extIf.DNSInfo.Suffix)
 			if err != nil {
-				return err
+				return errors.Wrap(err, "Error generating add domain cmd")
 			}
 
 			_, err = nm.plClient.ExecuteCommand(cmd)
 			if err != nil {
-				return err
+				return errors.Wrapf(err, "Error executing add Domain with cmd %s", cmd)
 			}
 		}
 
