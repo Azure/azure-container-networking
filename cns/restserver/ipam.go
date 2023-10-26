@@ -37,9 +37,13 @@ func (service *HTTPRestService) requestIPConfigHandlerHelper(ctx context.Context
 		}, errors.New("failed to validate ip config request")
 	}
 
+	// record a pod requesting an IP
+	service.podsPendingIPAssignment.Push(podInfo.Key())
+
 	var SWIFTv2PodIPInfo cns.PodIpInfo
 	// Check if request is for pod with secondary interface(s)
 	if podInfo.SecondaryInterfacesExist() {
+		// In the future, if we have multiple scenario with secondary interfaces, we can add a switch case here
 		podIPInfo, err := service.SWIFTv2Middleware.GetIPConfig(ctx, podInfo)
 		if err != nil {
 			return &cns.IPConfigsResponse{
@@ -53,9 +57,7 @@ func (service *HTTPRestService) requestIPConfigHandlerHelper(ctx context.Context
 		SWIFTv2PodIPInfo = podIPInfo
 	}
 
-	// record a pod requesting an IP
-	service.podsPendingIPAssignment.Push(podInfo.Key())
-
+	// Assign default IP config
 	podIPInfo, err := requestIPConfigsHelper(service, ipconfigsRequest)
 	if err != nil {
 		return &cns.IPConfigsResponse{
