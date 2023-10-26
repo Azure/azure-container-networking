@@ -139,6 +139,16 @@ func (m *SWIFTv2Middleware) SetRoutes(podIPInfo *cns.PodIpInfo) error {
 				}
 				podIPInfo.Routes = append(podIPInfo.Routes, serviceCIDRv4Route)
 			}
+			nodeCIDR, err := configuration.NodeCIDR()
+			if err != nil {
+				return fmt.Errorf("failed to get nodeCIDR from env : %w", err)
+			}
+			// route for nodeCIDR traffic
+			nodeCIDRRoute := cns.Route{
+				IPAddress:        nodeCIDR,
+				GatewayIPAddress: overlayGatewayv4,
+			}
+			podIPInfo.Routes = append(podIPInfo.Routes, nodeCIDRRoute)
 
 		} else {
 			// routes for IPv6 podCIDR traffic

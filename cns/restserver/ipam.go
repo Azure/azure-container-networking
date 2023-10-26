@@ -37,6 +37,22 @@ func (service *HTTPRestService) requestIPConfigHandlerHelper(ctx context.Context
 		}, errors.New("failed to validate ip config request")
 	}
 
+	var SWIFTv2PodIPInfo cns.PodIpInfo
+	// Check if request is for pod with secondary interface(s)
+	if podInfo.SecondaryInterfacesExist() {
+		podIPInfo, err := service.SWIFTv2Middleware.GetIPConfig(ctx, podInfo)
+		if err != nil {
+			return &cns.IPConfigsResponse{
+				Response: cns.Response{
+					ReturnCode: types.FailedToAllocateIPConfig,
+					Message:    fmt.Sprintf("AllocateIPConfig failed: %v, IP config request is %v", err, ipconfigsRequest),
+				},
+				PodIPInfo: []cns.PodIpInfo{},
+			}, errors.Wrapf(err, "failed to get SWIFTv2 IP config %v", ipconfigsRequest)
+		}
+		SWIFTv2PodIPInfo = podIPInfo
+	}
+
 	// record a pod requesting an IP
 	service.podsPendingIPAssignment.Push(podInfo.Key())
 
@@ -73,26 +89,8 @@ func (service *HTTPRestService) requestIPConfigHandlerHelper(ctx context.Context
 		}
 	}
 
-	// Check if request is for pod with secondary interface(s)
-	if podInfo.SecondaryInterfacesExist() {
-		// In the future, if we have multiple scenario with secondary interfaces, we can add a switch case here
-		SWIFTv2PodIPInfo, err := service.SWIFTv2Middleware.GetIPConfig(ctx, podInfo)
-		if err != nil {
-			defer func() {
-				logger.Errorf("failed to get SWIFTv2 IP config %v, releasing default IP config...", err)
-				_, err := service.releaseIPConfigHandlerHelper(ctx, ipconfigsRequest)
-				if err != nil {
-					logger.Errorf("failed to release default IP config %v", err)
-				}
-			}()
-			return &cns.IPConfigsResponse{
-				Response: cns.Response{
-					ReturnCode: types.FailedToAllocateIPConfig,
-					Message:    fmt.Sprintf("AllocateIPConfig failed: %v, IP config request is %v", err, ipconfigsRequest),
-				},
-				PodIPInfo: []cns.PodIpInfo{},
-			}, errors.Wrapf(err, "failed to get SWIFTv2 IP config %v", ipconfigsRequest)
-		}
+	// Check if SWIFTv2 pod IP info is set
+	if SWIFTv2PodIPInfo.PodIPConfig.IPAddress != "" {
 		podIPInfo = append(podIPInfo, SWIFTv2PodIPInfo)
 		// Setting up routes for SWIFTv2 scenario
 		for i := range podIPInfo {
