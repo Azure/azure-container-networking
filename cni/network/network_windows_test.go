@@ -258,7 +258,7 @@ func TestSetPoliciesFromNwCfg(t *testing.T) {
 							Protocol:      "tcp",
 							HostPort:      44000,
 							ContainerPort: 80,
-							HostIp:        "2001:2002:2003::1"
+							HostIp:        "2001:2002:2003::1",
 						},
 					},
 				},
