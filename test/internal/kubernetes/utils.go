@@ -27,6 +27,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/remotecommand"
 	"k8s.io/client-go/util/homedir"
+	k8sRetry "k8s.io/client-go/util/retry"
 )
 
 const (
@@ -301,14 +302,27 @@ func WaitForPodDaemonset(ctx context.Context, clientset *kubernetes.Clientset, n
 }
 
 func MustUpdateReplica(ctx context.Context, deploymentsClient typedappsv1.DeploymentInterface, deploymentName string, replicas int32) {
-	deployment, err := deploymentsClient.Get(ctx, deploymentName, metav1.GetOptions{})
-	if err != nil {
-		panic(errors.Wrapf(err, "could not get deployment %s", deploymentName))
-	}
+	retryErr := k8sRetry.RetryOnConflict(k8sRetry.DefaultRetry, func() error {
+		// Get the latest Deployment resource.
+		deployment, getErr := deploymentsClient.Get(ctx, deploymentName, metav1.GetOptions{})
+		if getErr != nil {
+			return fmt.Errorf("failed to get deployment: %w", getErr)
+		}
 
-	deployment.Spec.Replicas = Int32ToPtr(replicas)
-	if _, err := deploymentsClient.Update(ctx, deployment, metav1.UpdateOptions{}); err != nil {
-		panic(errors.Wrapf(err, "could not update deployment %s", deploymentName))
+		// Modify the number of replicas.
+		deployment.Spec.Replicas = Int32ToPtr(replicas)
+
+		// Attempt to update the Deployment.
+		_, updateErr := deploymentsClient.Update(ctx, deployment, metav1.UpdateOptions{})
+		if updateErr != nil {
+			return fmt.Errorf("failed to update deployment: %w", updateErr)
+		}
+
+		return nil // No error, operation succeeded.
+	})
+
+	if retryErr != nil {
+		panic(errors.Wrapf(retryErr, "could not update deployment %s", deploymentName))
 	}
 }
 
