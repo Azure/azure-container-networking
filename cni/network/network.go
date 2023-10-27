@@ -782,7 +782,12 @@ func (plugin *NetPlugin) createEndpointInternal(opt *createEndpointInternalOpt) 
 	}
 
 	isIPv6Enabled := opt.resultV6 != nil
-	epPolicies := getPoliciesFromRuntimeCfg(opt.nwCfg, isIPv6Enabled)
+	epPolicies, err := getPoliciesFromRuntimeCfg(opt.nwCfg, isIPv6Enabled)
+	if err != nil {
+		logger.Error("failed to get policies from runtime configurations", zap.Error(err))
+		return epInfo, plugin.Errorf(err.Error())
+	}
+
 	epInfo.Policies = append(epInfo.Policies, epPolicies...)
 
 	// Populate addresses.
