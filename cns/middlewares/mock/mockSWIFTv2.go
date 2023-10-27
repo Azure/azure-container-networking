@@ -1,4 +1,4 @@
-package middlewares
+package mock
 
 import (
 	"context"
@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"strings"
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/configuration"
+	"github.com/Azure/azure-container-networking/cns/middlewares/utils"
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/crd/multitenancy/api/v1alpha1"
 	v1 "k8s.io/api/core/v1"
@@ -28,38 +28,38 @@ const (
 	overlayGatewayV6 = "fe80::1234:5678:9abc"
 )
 
-type MockSWIFTv2Middleware struct {
+type SWIFTv2Middleware struct {
 	mtPodState map[string]*v1.Pod
 	mtpncState map[string]*v1alpha1.MultitenantPodNetworkConfig
 }
 
-func NewMockSWIFTv2Middleware() *MockSWIFTv2Middleware {
+func NewMockSWIFTv2Middleware() *SWIFTv2Middleware {
 	testPod1 := v1.Pod{}
 	testPod1.Labels = make(map[string]string)
 	testPod1.Labels[configuration.LabelPodSwiftV2] = "true"
 
 	testMTPNC1 := v1alpha1.MultitenantPodNetworkConfig{}
 
-	return &MockSWIFTv2Middleware{
+	return &SWIFTv2Middleware{
 		mtPodState: map[string]*v1.Pod{"testpod1namespace/testpod1": &testPod1},
 		mtpncState: map[string]*v1alpha1.MultitenantPodNetworkConfig{"testpod1namespace/testpod1": &testMTPNC1},
 	}
 }
 
-func (m *MockSWIFTv2Middleware) SetMTPNCReady() {
+func (m *SWIFTv2Middleware) SetMTPNCReady() {
 	m.mtpncState["testpod1namespace/testpod1"].Status.PrimaryIP = "192.168.0.1"
 	m.mtpncState["testpod1namespace/testpod1"].Status.MacAddress = "00:00:00:00:00:00"
 	m.mtpncState["testpod1namespace/testpod1"].Status.GatewayIP = "10.0.0.1"
 	m.mtpncState["testpod1namespace/testpod1"].Status.NCID = "testncid"
 }
 
-func (m *MockSWIFTv2Middleware) SetEnvVar() {
+func (m *SWIFTv2Middleware) SetEnvVar() {
 	os.Setenv(configuration.EnvPodCIDRs, "10.0.1.10/24")
 	os.Setenv(configuration.EnvServiceCIDRs, "10.0.2.10/24")
 	os.Setenv(configuration.EnvNodeCIDRs, "10.0.3.10/24")
 }
 
-func (m *MockSWIFTv2Middleware) UnsetEnvVar() error {
+func (m *SWIFTv2Middleware) UnsetEnvVar() error {
 	if err := os.Unsetenv(configuration.EnvPodCIDRs); err != nil {
 		return fmt.Errorf("failed to unset env var %s : %w", configuration.EnvPodCIDRs, err)
 	}
@@ -74,7 +74,7 @@ func (m *MockSWIFTv2Middleware) UnsetEnvVar() error {
 
 // validateMultitenantIPConfigsRequest validates if pod is multitenant
 // nolint
-func (m *MockSWIFTv2Middleware) ValidateIPConfigsRequest(_ context.Context, req *cns.IPConfigsRequest) (respCode types.ResponseCode, message string) {
+func (m *SWIFTv2Middleware) ValidateIPConfigsRequest(_ context.Context, req *cns.IPConfigsRequest) (respCode types.ResponseCode, message string) {
 	// Retrieve the pod from the cluster
 	podInfo, err := cns.UnmarshalPodInfo(req.OrchestratorContext)
 	if err != nil {
@@ -96,7 +96,7 @@ func (m *MockSWIFTv2Middleware) ValidateIPConfigsRequest(_ context.Context, req 
 
 // GetSWIFTv2IPConfig(podInfo PodInfo) (*PodIpInfo, error)
 // GetMultitenantIPConfig returns the IP config for a multitenant pod from the MTPNC CRD
-func (m *MockSWIFTv2Middleware) GetIPConfig(_ context.Context, podInfo cns.PodInfo) (cns.PodIpInfo, error) {
+func (m *SWIFTv2Middleware) GetIPConfig(_ context.Context, podInfo cns.PodInfo) (cns.PodIpInfo, error) {
 	// Check if the MTPNC CRD exists for the pod, if not, return error
 	mtpncNamespacedName := k8types.NamespacedName{Namespace: podInfo.Namespace(), Name: podInfo.Name()}
 	mtpnc, ok := m.mtpncState[mtpncNamespacedName.String()]
@@ -119,7 +119,7 @@ func (m *MockSWIFTv2Middleware) GetIPConfig(_ context.Context, podInfo cns.PodIn
 	return podIPInfo, nil
 }
 
-func (m *MockSWIFTv2Middleware) SetRoutes(podIPInfo *cns.PodIpInfo) error {
+func (m *SWIFTv2Middleware) SetRoutes(podIPInfo *cns.PodIpInfo) error {
 	podIPInfo.Routes = []cns.Route{}
 	switch podIPInfo.NICType {
 	case cns.DelegatedVMNIC:
@@ -133,7 +133,7 @@ func (m *MockSWIFTv2Middleware) SetRoutes(podIPInfo *cns.PodIpInfo) error {
 		if err != nil {
 			return fmt.Errorf("failed to get podCIDRs from env : %w", err)
 		}
-		podCIDRsV4, podCIDRv6, err := parseCIDRs(podCIDRs)
+		podCIDRsV4, podCIDRv6, err := utils.ParseCIDRs(podCIDRs)
 		if err != nil {
 			return fmt.Errorf("failed to parse podCIDRs : %w", err)
 		}
@@ -142,7 +142,7 @@ func (m *MockSWIFTv2Middleware) SetRoutes(podIPInfo *cns.PodIpInfo) error {
 		if err != nil {
 			return fmt.Errorf("failed to get serviceCIDRs from env : %w", err)
 		}
-		serviceCIDRsV4, serviceCIDRsV6, err := parseCIDRs(serviceCIDRs)
+		serviceCIDRsV4, serviceCIDRsV6, err := utils.ParseCIDRs(serviceCIDRs)
 		if err != nil {
 			return fmt.Errorf("failed to parse serviceCIDRs : %w", err)
 		}
@@ -187,20 +187,4 @@ func (m *MockSWIFTv2Middleware) SetRoutes(podIPInfo *cns.PodIpInfo) error {
 		return errInvalidSWIFTv2NICType
 	}
 	return nil
-}
-
-// parseCIDRs parses the semicolons separated CIDRs string and returns the IPv4 and IPv6 CIDRs.
-func parseCIDRs(cidrs string) (v4IPs, v6IPs []string, err error) {
-	for _, cidr := range strings.Split(cidrs, ",") {
-		ip, _, err := net.ParseCIDR(cidr)
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to parse cidr %s : %w", cidr, err)
-		}
-		if ip.To4() != nil {
-			v4IPs = append(v4IPs, cidr)
-		} else {
-			v6IPs = append(v6IPs, cidr)
-		}
-	}
-	return v4IPs, v6IPs, nil
 }

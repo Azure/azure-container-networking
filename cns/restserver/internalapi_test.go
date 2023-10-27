@@ -29,12 +29,10 @@ import (
 )
 
 const (
-	primaryIp           = "10.0.0.5"
+	primaryIP           = "10.0.0.5"
 	SWIFTv2IP           = "192.168.0.1"
 	SWIFTv2MAC          = "00:00:00:00:00:00"
-	SWIFTv2GatewayIP    = "10.0.0.1"
-	SWIFTv2NCID         = "testncid"
-	gatewayIp           = "10.0.0.1"
+	gatewayIP           = "10.0.0.1"
 	subnetPrfixLength   = 24
 	dockerContainerType = cns.Docker
 	releasePercent      = 50
@@ -920,9 +918,9 @@ func validateNetworkRequest(t *testing.T, req cns.CreateNetworkContainerRequest)
 func generateNetworkContainerRequest(secondaryIps map[string]cns.SecondaryIPConfig, ncID, ncVersion string) *cns.CreateNetworkContainerRequest {
 	var ipConfig cns.IPConfiguration
 	ipConfig.DNSServers = dnsservers
-	ipConfig.GatewayIPAddress = gatewayIp
+	ipConfig.GatewayIPAddress = gatewayIP
 	var ipSubnet cns.IPSubnet
-	ipSubnet.IPAddress = primaryIp
+	ipSubnet.IPAddress = primaryIP
 	ipSubnet.PrefixLength = subnetPrfixLength
 	ipConfig.IPSubnet = ipSubnet
 

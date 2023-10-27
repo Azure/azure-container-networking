@@ -8,7 +8,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/configuration"
 	"github.com/Azure/azure-container-networking/cns/logger"
-	mock "github.com/Azure/azure-container-networking/cns/middlewares/mock"
+	"github.com/Azure/azure-container-networking/cns/middlewares/mock"
 	"github.com/Azure/azure-container-networking/cns/types"
 	"gotest.tools/v3/assert"
 )
@@ -42,7 +42,7 @@ func TestMain(m *testing.M) {
 }
 
 func TestValidateMultitenantIPConfigsRequestSuccess(t *testing.T) {
-	middleware := SWIFTv2Middleware{Cli: mock.NewMockClient()}
+	middleware := SWIFTv2Middleware{Cli: mock.NewClient()}
 
 	happyReq := &cns.IPConfigsRequest{
 		PodInterfaceID:   testPod1Info.InterfaceID(),
@@ -59,7 +59,7 @@ func TestValidateMultitenantIPConfigsRequestSuccess(t *testing.T) {
 }
 
 func TestValidateMultitenantIPConfigsRequestFailure(t *testing.T) {
-	middleware := SWIFTv2Middleware{Cli: mock.NewMockClient()}
+	middleware := SWIFTv2Middleware{Cli: mock.NewClient()}
 
 	// Fail to unmarshal pod info test
 	failReq := &cns.IPConfigsRequest{
@@ -85,7 +85,7 @@ func TestGetSWIFTv2IPConfigSuccess(t *testing.T) {
 	setEnvVar()
 	defer unsetEnvVar()
 
-	middleware := SWIFTv2Middleware{Cli: mock.NewMockClient()}
+	middleware := SWIFTv2Middleware{Cli: mock.NewClient()}
 
 	ipInfo, err := middleware.GetIPConfig(context.TODO(), testPod1Info)
 	assert.Equal(t, err, nil)
@@ -94,7 +94,7 @@ func TestGetSWIFTv2IPConfigSuccess(t *testing.T) {
 }
 
 func TestGetSWIFTv2IPConfigFailure(t *testing.T) {
-	middleware := SWIFTv2Middleware{Cli: mock.NewMockClient()}
+	middleware := SWIFTv2Middleware{Cli: mock.NewClient()}
 
 	// Pod's MTPNC doesn't exist in cache test
 	_, err := middleware.GetIPConfig(context.TODO(), testPod2Info)
@@ -106,7 +106,7 @@ func TestGetSWIFTv2IPConfigFailure(t *testing.T) {
 }
 
 func TestSetRoutesSuccess(t *testing.T) {
-	middleware := SWIFTv2Middleware{Cli: mock.NewMockClient()}
+	middleware := SWIFTv2Middleware{Cli: mock.NewClient()}
 	setEnvVar()
 	defer unsetEnvVar()
 	podIPInfo := []cns.PodIpInfo{
@@ -208,7 +208,7 @@ func TestSetRoutesSuccess(t *testing.T) {
 
 func TestSetRoutesFailure(t *testing.T) {
 	// Failure due to env var not set
-	middleware := SWIFTv2Middleware{Cli: mock.NewMockClient()}
+	middleware := SWIFTv2Middleware{Cli: mock.NewClient()}
 	podIPInfo := []cns.PodIpInfo{
 		{
 			PodIPConfig: cns.IPSubnet{

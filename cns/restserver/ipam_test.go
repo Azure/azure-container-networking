@@ -14,7 +14,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/common"
 	"github.com/Azure/azure-container-networking/cns/fakes"
-	middlewares "github.com/Azure/azure-container-networking/cns/middlewares/mock"
+	"github.com/Azure/azure-container-networking/cns/middlewares/mock"
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 	"github.com/Azure/azure-container-networking/store"
@@ -99,10 +99,10 @@ func requestIPAddressAndGetState(t *testing.T, req cns.IPConfigsRequest) ([]cns.
 	}
 
 	for i := range podIPInfo {
-		assert.Equal(t, primaryIp, podIPInfo[i].NetworkContainerPrimaryIPConfig.IPSubnet.IPAddress)
+		assert.Equal(t, primaryIP, podIPInfo[i].NetworkContainerPrimaryIPConfig.IPSubnet.IPAddress)
 		assert.Equal(t, subnetPrfixLength, int(podIPInfo[i].NetworkContainerPrimaryIPConfig.IPSubnet.PrefixLength))
 		assert.Equal(t, dnsservers, podIPInfo[i].NetworkContainerPrimaryIPConfig.DNSServers)
-		assert.Equal(t, gatewayIp, podIPInfo[i].NetworkContainerPrimaryIPConfig.GatewayIPAddress)
+		assert.Equal(t, gatewayIP, podIPInfo[i].NetworkContainerPrimaryIPConfig.GatewayIPAddress)
 		assert.Equal(t, subnetPrfixLength, int(podIPInfo[i].PodIPConfig.PrefixLength))
 		assert.Equal(t, fakes.HostPrimaryIP, podIPInfo[i].HostPrimaryIPInfo.PrimaryIP)
 		assert.Equal(t, fakes.HostSubnet, podIPInfo[i].HostPrimaryIPInfo.Subnet)
@@ -1535,7 +1535,7 @@ func TestIPAMFailToRequestPartialIPsInPool(t *testing.T) {
 
 func TestIPAMGetSWIFTv2IPSuccess(t *testing.T) {
 	svc := getTestService()
-	middleware := middlewares.NewMockSWIFTv2Middleware()
+	middleware := mock.NewMockSWIFTv2Middleware()
 	svc.AttachSWIFTv2Middleware(middleware)
 
 	middleware.SetEnvVar()
@@ -1597,7 +1597,7 @@ func TestIPAMGetSWIFTv2IPSuccess(t *testing.T) {
 
 func TestIPAMGetSWIFTv2IPFailure(t *testing.T) {
 	svc := getTestService()
-	middleware := middlewares.NewMockSWIFTv2Middleware()
+	middleware := mock.NewMockSWIFTv2Middleware()
 	svc.AttachSWIFTv2Middleware(middleware)
 	ncStates := []ncState{
 		{

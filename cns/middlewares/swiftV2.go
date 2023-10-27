@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
-	"strings"
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/configuration"
 	"github.com/Azure/azure-container-networking/cns/logger"
+	"github.com/Azure/azure-container-networking/cns/middlewares/utils"
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/crd/multitenancy/api/v1alpha1"
 	v1 "k8s.io/api/core/v1"
@@ -115,7 +115,7 @@ func (m *SWIFTv2Middleware) SetRoutes(podIPInfo *cns.PodIpInfo) error {
 		if err != nil {
 			return fmt.Errorf("failed to get nodeCIDR from env : %w", err)
 		}
-		nodeCIDRsv4, nodeCIDRsv6, err := parseCIDRs(nodeCIDRs)
+		nodeCIDRsv4, nodeCIDRsv6, err := utils.ParseCIDRs(nodeCIDRs)
 		if err != nil {
 			return fmt.Errorf("failed to parse nodeCIDRs : %w", err)
 		}
@@ -125,7 +125,7 @@ func (m *SWIFTv2Middleware) SetRoutes(podIPInfo *cns.PodIpInfo) error {
 		if err != nil {
 			return fmt.Errorf("failed to get podCIDRs from env : %w", err)
 		}
-		podCIDRsV4, podCIDRv6, err := parseCIDRs(podCIDRs)
+		podCIDRsV4, podCIDRv6, err := utils.ParseCIDRs(podCIDRs)
 		if err != nil {
 			return fmt.Errorf("failed to parse podCIDRs : %w", err)
 		}
@@ -135,7 +135,7 @@ func (m *SWIFTv2Middleware) SetRoutes(podIPInfo *cns.PodIpInfo) error {
 		if err != nil {
 			return fmt.Errorf("failed to get serviceCIDRs from env : %w", err)
 		}
-		serviceCIDRsV4, serviceCIDRsV6, err := parseCIDRs(serviceCIDRs)
+		serviceCIDRsV4, serviceCIDRsV6, err := utils.ParseCIDRs(serviceCIDRs)
 		if err != nil {
 			return fmt.Errorf("failed to parse serviceCIDRs : %w", err)
 		}
@@ -196,20 +196,4 @@ func (m *SWIFTv2Middleware) SetRoutes(podIPInfo *cns.PodIpInfo) error {
 		return errInvalidSWIFTv2NICType
 	}
 	return nil
-}
-
-// parseCIDRs parses the semicolons separated CIDRs string and returns the IPv4 and IPv6 CIDRs.
-func parseCIDRs(cidrs string) (v4IPs, v6IPs []string, err error) {
-	for _, cidr := range strings.Split(cidrs, ",") {
-		ip, _, err := net.ParseCIDR(cidr)
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to parse cidr %s : %w", cidr, err)
-		}
-		if ip.To4() != nil {
-			v4IPs = append(v4IPs, cidr)
-		} else {
-			v6IPs = append(v6IPs, cidr)
-		}
-	}
-	return v4IPs, v6IPs, nil
 }
