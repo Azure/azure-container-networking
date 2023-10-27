@@ -91,7 +91,7 @@ func (s *azureSource) refresh() error {
 
 	httpClient := common.InitHttpClient(httpConnectionTimeout, responseHeaderTimeout)
 	if httpClient == nil {
-		logger.Info("Failed intializing http client")
+		logger.Error("Failed intializing http client")
 		return fmt.Errorf("Error intializing http client")
 	}
 
@@ -106,7 +106,7 @@ func (s *azureSource) refresh() error {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		logger.Info("http return error code for wireserver call", zap.Any("response", resp))
+		logger.Error("http return error code for wireserver call", zap.Any("response", resp))
 		return fmt.Errorf("wireserver http error %+v", resp)
 	}
 
