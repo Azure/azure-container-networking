@@ -249,11 +249,26 @@ func TestSetPoliciesFromNwCfg(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "Runtime hostPort mapping polices with ipv6 hostIP",
+			nwCfg: cni.NetworkConfig{
+				RuntimeConfig: cni.RuntimeConfig{
+					PortMappings: []cni.PortMapping{
+						{
+							Protocol:      "tcp",
+							HostPort:      44000,
+							ContainerPort: 80,
+							HostIp:        "2001:2002:2003::1"
+						},
+					},
+				},
+			},
+		},
 	}
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			isIPv6Enabled := false
+			isIPv6Enabled := true
 			policies, err := getPoliciesFromRuntimeCfg(&tt.nwCfg, isIPv6Enabled)
 			require.NoError(t, err)
 			require.Condition(t, assert.Comparison(func() bool {
