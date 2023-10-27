@@ -10,6 +10,7 @@ import (
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/configuration"
+	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/crd/multitenancy/api/v1alpha1"
 	v1 "k8s.io/api/core/v1"
@@ -38,6 +39,7 @@ type SWIFTv2Middleware struct {
 func (m *SWIFTv2Middleware) ValidateIPConfigsRequest(ctx context.Context, req *cns.IPConfigsRequest) (respCode types.ResponseCode, message string) {
 	// Retrieve the pod from the cluster
 	podInfo, err := cns.UnmarshalPodInfo(req.OrchestratorContext)
+	logger.Debugf("[SWIFTv2Middleware] validate ipconfigs request for pod %s", podInfo.Name())
 	if err != nil {
 		errBuf := fmt.Sprintf("unmarshalling pod info from ipconfigs request %v failed with error %v", req, err)
 		return types.UnexpectedError, errBuf
@@ -53,6 +55,7 @@ func (m *SWIFTv2Middleware) ValidateIPConfigsRequest(ctx context.Context, req *c
 	if _, ok := pod.Labels[configuration.LabelPodSwiftV2]; ok {
 		req.SecondaryInterfacesExist = true
 	}
+	logger.Debugf("[SWIFTv2Middleware] pod %s has secondary interface : %v", podInfo.Name(), req.SecondaryInterfacesExist)
 	return types.Success, ""
 }
 
@@ -69,6 +72,7 @@ func (m *SWIFTv2Middleware) GetIPConfig(ctx context.Context, podInfo cns.PodInfo
 	if mtpnc.Status.PrimaryIP == "" || mtpnc.Status.MacAddress == "" || mtpnc.Status.NCID == "" || mtpnc.Status.GatewayIP == "" {
 		return cns.PodIpInfo{}, errMTPNCNotReady
 	}
+	logger.Debugf("[SWIFTv2Middleware] mtpnc for pod %s is : %+v", podInfo.Name(), mtpnc)
 	// Parse MTPNC primaryIP to get the IP address and prefix length
 	p, err := netip.ParsePrefix(mtpnc.Status.PrimaryIP)
 	if err != nil {
@@ -96,6 +100,7 @@ func (m *SWIFTv2Middleware) GetIPConfig(ctx context.Context, podInfo cns.PodInfo
 
 // SetRoutes sets the routes for podIPInfo used in SWIFT V2 scenario.
 func (m *SWIFTv2Middleware) SetRoutes(podIPInfo *cns.PodIpInfo) error {
+	logger.Debugf("[SWIFTv2Middleware] set routes for pod with nic type : %s", podIPInfo.NICType)
 	podIPInfo.Routes = []cns.Route{}
 	switch podIPInfo.NICType {
 	case cns.DelegatedVMNIC:
