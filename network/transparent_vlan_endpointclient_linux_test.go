@@ -84,7 +84,7 @@ type mockNetIO struct {
 }
 
 func (ns *mockNetIO) GetNetworkInterfaceByName(name string) (*net.Interface, error) {
-	var ErrMockNetIOFail = errors.New("netio fail")
+	ErrMockNetIOFail := errors.New("netio fail")
 	if ns.existingInterfaces[name] {
 		hwAddr, _ := net.ParseMAC("ab:cd:ef:12:34:56")
 		return &net.Interface{
@@ -95,11 +95,11 @@ func (ns *mockNetIO) GetNetworkInterfaceByName(name string) (*net.Interface, err
 			//nolint:gomnd // Dummy interface index
 			Index: 2,
 		}, nil
-	} else {
-		return nil, errors.Wrap(ErrMockNetIOFail, name)
 	}
+	return nil, errors.Wrap(ErrMockNetIOFail, name)
 }
-func (ns *mockNetIO) GetNetworkInterfaceAddrs(iface *net.Interface) ([]net.Addr, error) {
+
+func (ns *mockNetIO) GetNetworkInterfaceAddrs(_ *net.Interface) ([]net.Addr, error) {
 	return []net.Addr{}, nil
 }
 
@@ -110,6 +110,7 @@ func defaultExecuteInNSFn(nsName string, f func() error) error {
 	}()
 	return f()
 }
+
 func TestTransparentVlanAddEndpoints(t *testing.T) {
 	nl := netlink.NewMockNetlink(false, "")
 	plc := platform.NewMockExecClient(false)
@@ -395,7 +396,7 @@ func TestTransparentVlanAddEndpoints(t *testing.T) {
 			},
 			epInfo:     &EndpointInfo{},
 			wantErr:    true,
-			wantErrMsg: "container veth does not exist: B1veth0: " + netio.ErrMockNetIOFail.Error() + "",
+			wantErrMsg: "container veth does not exist: failed to get container veth: B1veth0: " + netio.ErrMockNetIOFail.Error() + "",
 		},
 		{
 			name: "Add endpoints NetNS Get fail",
@@ -874,6 +875,7 @@ func TestTransparentVlanConfigureContainerInterfacesAndRoutes(t *testing.T) {
 		})
 	}
 }
+
 func createFunctionWithFailurePattern(errorPattern []error) func() error {
 	s := 0
 	return func() error {
@@ -881,13 +883,14 @@ func createFunctionWithFailurePattern(errorPattern []error) func() error {
 			return nil
 		}
 		result := errorPattern[s]
-		s += 1
+		s++
 		return result
 	}
 }
+
 func TestRunWithRetries(t *testing.T) {
-	var errMock = errors.New("mock error")
-	var runs = 4
+	errMock := errors.New("mock error")
+	runs := 4
 
 	tests := []struct {
 		name    string

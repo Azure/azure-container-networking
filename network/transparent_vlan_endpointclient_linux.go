@@ -136,7 +136,7 @@ func (client *TransparentVlanEndpointClient) ensureCleanPopulateVM() error {
 		vlanIfNotFoundErr := ExecuteInNS(client.nsClient, client.vnetNSName, func() error {
 			// Ensure the vlan interface exists in the namespace
 			_, err := client.netioshim.GetNetworkInterfaceByName(client.vlanIfName)
-			return err
+			return errors.Wrap(err, "failed to get vlan interface in namespace")
 		})
 		if vlanIfNotFoundErr != nil {
 			logger.Info("Vlan interface doesn't exist even though network namespace exists, deleting network namespace...")
@@ -197,7 +197,7 @@ func (client *TransparentVlanEndpointClient) setLinkNetNSAndConfirm(name string,
 		// retry checking in the namespace if the interface is not detected
 		return client.executeInNSFn(client.vnetNSName, func() error {
 			_, ifDetectedErr := client.netioshim.GetNetworkInterfaceByName(client.vlanIfName)
-			return ifDetectedErr
+			return errors.Wrap(ifDetectedErr, "failed to get vlan veth in namespace")
 		})
 	}, numRetries, sleepInMs)
 	if err != nil {
@@ -280,7 +280,7 @@ func (client *TransparentVlanEndpointClient) PopulateVM(epInfo *EndpointInfo) er
 		// sometimes there is slight delay in interface creation. check if it exists
 		err = RunWithRetries(func() error {
 			_, err = client.netioshim.GetNetworkInterfaceByName(client.vlanIfName)
-			return err
+			return errors.Wrap(err, "failed to get vlan veth")
 		}, numRetries, sleepInMs)
 
 		if err != nil {
@@ -316,20 +316,19 @@ func (client *TransparentVlanEndpointClient) PopulateVM(epInfo *EndpointInfo) er
 
 	// Ensure vnet veth is created, as there may be a slight delay
 	err = RunWithRetries(func() error {
-		var getErr error
-		_, getErr = client.netioshim.GetNetworkInterfaceByName(client.vnetVethName)
-		return getErr
+		_, getErr := client.netioshim.GetNetworkInterfaceByName(client.vnetVethName)
+		return errors.Wrap(getErr, "failed to get vnet veth")
 	}, numRetries, sleepInMs)
 	if err != nil {
 		return errors.Wrap(err, "vnet veth does not exist")
 	}
 
 	// Ensure container veth is created, as there may be a slight delay
-	var containerIf *net.Interface = nil
+	var containerIf *net.Interface
 	err = RunWithRetries(func() error {
 		var getErr error
 		containerIf, getErr = client.netioshim.GetNetworkInterfaceByName(client.containerVethName)
-		return getErr
+		return errors.Wrap(getErr, "failed to get container veth")
 	}, numRetries, sleepInMs)
 	if err != nil {
 		return errors.Wrap(err, "container veth does not exist")
@@ -708,8 +707,8 @@ func ExecuteInNS(nsc NamespaceClientInterface, nsName string, f func() error) er
 	return f()
 }
 
-func RunWithRetries(f func() error, maxRuns int, sleepMs int) error {
-	var err error = nil
+func RunWithRetries(f func() error, maxRuns, sleepMs int) error {
+	var err error
 	for i := 0; i < maxRuns; i++ {
 		err = f()
 		if err == nil {
