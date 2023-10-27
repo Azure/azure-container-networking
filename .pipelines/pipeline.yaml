@@ -499,8 +499,8 @@ stages:
               name: aks_swift_e2e
               clusterName: "swifte2e"
             azure_overlay_cni_e2e:
-              name: "azovercnie2e"
-              clusterName: "azureoverlaycnie2e"
+              name: "azure_overlay_cni_e2e"
+              clusterName: "azovercnie2e"
             cilium_podsubnet_cni_e2e:
               name: cilium_podsubnet_cni_e2e
               clusterName: "cilpodcnie2e"
