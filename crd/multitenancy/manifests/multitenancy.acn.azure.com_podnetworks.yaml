@@ -57,11 +57,11 @@ spec:
           spec:
             description: PodNetworkSpec defines the desired state of PodNetwork
             properties:
-              subnetResourceID:
-                description: customer subnet id
-                type: string
               subnetGUID:
                 description: customer subnet guid
+                type: string
+              subnetResourceID:
+                description: customer subnet id
                 type: string
               vnetGUID:
                 description: customer vnet guid
