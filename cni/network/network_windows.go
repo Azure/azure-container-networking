@@ -278,6 +278,10 @@ func getPoliciesFromRuntimeCfg(nwCfg *cni.NetworkConfig, isIPv6Enabled bool) ([]
 			if hostIP.Is6() && isIPv6Enabled {
 				flag = hnsv2.NatFlagsIPv6
 			}
+
+			if hostIP.Is6() && !isIPv6Enabled {
+				logger.Info("Do not use ipv6 hostIP to create windows pod on ipv4 cluster")
+			}
 		}
 
 		rawPolicy, err := json.Marshal(&hnsv2.PortMappingPolicySetting{

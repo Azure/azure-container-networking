@@ -217,8 +217,9 @@ func TestSetEndpointOptions(t *testing.T) {
 
 func TestSetPoliciesFromNwCfg(t *testing.T) {
 	tests := []struct {
-		name  string
-		nwCfg cni.NetworkConfig
+		name          string
+		nwCfg         cni.NetworkConfig
+		isIPv6Enabled bool
 	}{
 		{
 			name: "Runtime network polices",
@@ -234,6 +235,7 @@ func TestSetPoliciesFromNwCfg(t *testing.T) {
 					},
 				},
 			},
+			isIPv6Enabled: false,
 		},
 		{
 			name: "Runtime hostPort mapping polices",
@@ -248,6 +250,7 @@ func TestSetPoliciesFromNwCfg(t *testing.T) {
 					},
 				},
 			},
+			isIPv6Enabled: false,
 		},
 		{
 			name: "Runtime hostPort mapping polices with ipv6 hostIP",
@@ -263,13 +266,13 @@ func TestSetPoliciesFromNwCfg(t *testing.T) {
 					},
 				},
 			},
+			isIPv6Enabled: true,
 		},
 	}
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			isIPv6Enabled := true
-			policies, err := getPoliciesFromRuntimeCfg(&tt.nwCfg, isIPv6Enabled)
+			policies, err := getPoliciesFromRuntimeCfg(&tt.nwCfg, tt.isIPv6Enabled)
 			require.NoError(t, err)
 			require.Condition(t, assert.Comparison(func() bool {
 				return len(policies) > 0 && policies[0].Type == policy.EndpointPolicy
