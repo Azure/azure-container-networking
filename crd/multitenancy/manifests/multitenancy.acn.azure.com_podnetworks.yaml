@@ -29,8 +29,12 @@ spec:
       name: Network
       priority: 1
       type: string
-    - jsonPath: .spec.subnetGUID
+    - jsonPath: .spec.subnetResourceID
       name: Subnet
+      priority: 1
+      type: string
+    - jsonPath: .spec.subnetGUID
+      name: SubnetGUID
       priority: 1
       type: string
     name: v1alpha1
@@ -53,6 +57,9 @@ spec:
           spec:
             description: PodNetworkSpec defines the desired state of PodNetwork
             properties:
+              subnetResourceID:
+                description: customer subnet id
+                type: string
               subnetGUID:
                 description: customer subnet guid
                 type: string
