@@ -7,6 +7,7 @@ import (
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/configuration"
+	"github.com/Azure/azure-container-networking/cns/logger"
 	mock "github.com/Azure/azure-container-networking/cns/middlewares/mock"
 	"github.com/Azure/azure-container-networking/cns/types"
 	"gotest.tools/v3/assert"
@@ -33,6 +34,11 @@ func unsetEnvVar() {
 	os.Unsetenv(configuration.EnvPodCIDRs)
 	os.Unsetenv(configuration.EnvServiceCIDRs)
 	os.Unsetenv(configuration.EnvNodeCIDRs)
+}
+
+func TestMain(m *testing.M) {
+	logger.InitLogger("testlogs", 0, 0, "./")
+	m.Run()
 }
 
 func TestValidateMultitenantIPConfigsRequestSuccess(t *testing.T) {
