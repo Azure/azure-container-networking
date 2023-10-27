@@ -81,7 +81,7 @@ func (service *HTTPRestService) requestIPConfigHandlerHelper(ctx context.Context
 				logger.Errorf("failed to get SWIFTv2 IP config : %v. Releasing default IP config...", err)
 				_, err = service.releaseIPConfigHandlerHelper(ctx, ipconfigsRequest)
 				if err != nil {
-					logger.Errorf("failed to release default IP config %v", err)
+					logger.Errorf("failed to release default IP config : %v", err)
 				}
 			}()
 			return &cns.IPConfigsResponse{
@@ -90,7 +90,7 @@ func (service *HTTPRestService) requestIPConfigHandlerHelper(ctx context.Context
 					Message:    fmt.Sprintf("AllocateIPConfig failed: %v, IP config request is %v", err, ipconfigsRequest),
 				},
 				PodIPInfo: []cns.PodIpInfo{},
-			}, errors.Wrapf(err, "failed to get SWIFTv2 IP config %v", ipconfigsRequest)
+			}, errors.Wrapf(err, "failed to get SWIFTv2 IP config : %v", ipconfigsRequest)
 		}
 		podIPInfo = append(podIPInfo, SWIFTv2PodIPInfo)
 		// Setting up routes for SWIFTv2 scenario
@@ -102,16 +102,16 @@ func (service *HTTPRestService) requestIPConfigHandlerHelper(ctx context.Context
 					logger.Errorf("failed to set routes for SWIFTv2 IP config : %v. Releasing default IP config...", err)
 					_, err = service.releaseIPConfigHandlerHelper(ctx, ipconfigsRequest)
 					if err != nil {
-						logger.Errorf("failed to release default IP config %v", err)
+						logger.Errorf("failed to release default IP config : %v", err)
 					}
 				}()
 				return &cns.IPConfigsResponse{
 					Response: cns.Response{
 						ReturnCode: types.UnexpectedError,
-						Message:    fmt.Sprintf("failed to set SWIFTv2 routes %v", err),
+						Message:    fmt.Sprintf("failed to set SWIFTv2 routes : %v", err),
 					},
 					PodIPInfo: []cns.PodIpInfo{},
-				}, errors.Wrapf(err, "failed to set SWIFTv2 routes %v", ipconfigsRequest)
+				}, errors.Wrapf(err, "failed to set SWIFTv2 routes : %v", ipconfigsRequest)
 			}
 		}
 	}
