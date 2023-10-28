@@ -192,6 +192,7 @@ func (m *SWIFTv2Middleware) SetRoutes(podIPInfo *cns.PodIpInfo) error {
 			}
 		}
 		podIPInfo.SkipDefaultRoutes = true
+	case cns.BackendNIC:
 	default:
 		return errInvalidSWIFTv2NICType
 	}
