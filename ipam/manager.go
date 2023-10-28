@@ -8,9 +8,9 @@ import (
 	"time"
 
 	"github.com/Azure/azure-container-networking/common"
-	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/platform"
 	"github.com/Azure/azure-container-networking/store"
+	"go.uber.org/zap"
 )
 
 const (
@@ -96,7 +96,7 @@ func (am *addressManager) Uninitialize() {
 func (am *addressManager) restore(rehydrateIpamInfoOnReboot bool) error {
 	// Skip if a store is not provided.
 	if am.store == nil {
-		log.Printf("[ipam] ipam store is nil")
+		logger.Info("ipam store is nil")
 		return nil
 	}
 
@@ -104,13 +104,13 @@ func (am *addressManager) restore(rehydrateIpamInfoOnReboot bool) error {
 	err := am.store.Read(storeKey, am)
 	if err != nil {
 		if err == store.ErrKeyNotFound {
-			log.Printf("[ipam] store key not found")
+			logger.Info("store key not found")
 			return nil
 		} else if err == store.ErrStoreEmpty {
-			log.Printf("[ipam] store empty")
+			logger.Info("store empty")
 			return nil
 		} else {
-			log.Printf("[ipam] Failed to restore state, err:%v\n", err)
+			logger.Error("Failed to restore state", zap.Error(err))
 			return err
 		}
 	}
@@ -136,10 +136,10 @@ func (am *addressManager) restore(rehydrateIpamInfoOnReboot bool) error {
 		if err == nil {
 			p := platform.NewExecClient(nil)
 			rebootTime, err := p.GetLastRebootTime()
-			log.Printf("[ipam] reboot time %v store mod time %v", rebootTime, modTime)
+			logger.Info("reboot store mod", zap.Any("rebootTime", rebootTime), zap.Any("modTime", modTime))
 
 			if err == nil && rebootTime.After(modTime) {
-				log.Printf("[ipam] Rehydrating ipam state from persistent store")
+				logger.Info("Rehydrating ipam state from persistent store")
 				for _, as := range am.AddrSpaces {
 					for _, ap := range as.Pools {
 						ap.as = as
@@ -154,7 +154,7 @@ func (am *addressManager) restore(rehydrateIpamInfoOnReboot bool) error {
 		}
 	}
 
-	log.Printf("[ipam] Restored state, %+v\n", am)
+	logger.Info("Restored state", zap.Any("am", am))
 
 	return nil
 }
@@ -163,19 +163,19 @@ func (am *addressManager) restore(rehydrateIpamInfoOnReboot bool) error {
 func (am *addressManager) save() error {
 	// Skip if a store is not provided.
 	if am.store == nil {
-		log.Printf("[ipam] ipam store is nil.\n")
+		logger.Info("ipam store is nil")
 		return nil
 	}
 
 	// Update time stamp.
 	am.TimeStamp = time.Now()
 
-	log.Printf("[ipam] saving ipam state.\n")
+	logger.Info("saving ipam state")
 	err := am.store.Write(storeKey, am)
 	if err == nil {
-		log.Printf("[ipam] Save succeeded.\n")
+		logger.Info("Save succeeded")
 	} else {
-		log.Printf("[ipam] Save failed, err:%v\n", err)
+		logger.Error("Save failed", zap.Error(err))
 	}
 	return err
 }
@@ -216,12 +216,12 @@ func (am *addressManager) StartSource(options map[string]interface{}) error {
 	}
 
 	if am.source != nil {
-		log.Printf("[ipam] Starting source %v.", environment)
+		logger.Info("Starting source", zap.String("environment", environment))
 		err = am.source.start(am)
 	}
 
 	if err != nil {
-		log.Printf("[ipam] Failed to start source %v, err:%v.", environment, err)
+		logger.Error("Failed to start source", zap.String("environment", environment), zap.Error(err))
 	}
 
 	return err
@@ -238,10 +238,10 @@ func (am *addressManager) StopSource() {
 // Signals configuration source to refresh.
 func (am *addressManager) refreshSource() {
 	if am.source != nil {
-		log.Printf("[ipam] Refreshing address source.")
+		logger.Info("Refreshing address source.")
 		err := am.source.refresh()
 		if err != nil {
-			log.Printf("[ipam] Source refresh failed, err:%v.\n", err)
+			logger.Error("Source refresh failed", zap.Error(err))
 		}
 	}
 }

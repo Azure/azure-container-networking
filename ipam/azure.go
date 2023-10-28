@@ -11,9 +11,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Azure/azure-container-networking/cni/log"
 	"github.com/Azure/azure-container-networking/common"
-	"github.com/Azure/azure-container-networking/log"
+	"go.uber.org/zap"
 )
+
+var logger = log.CNILogger.With(zap.String("component", "ipam"))
 
 const (
 	// Host URL to query.
@@ -88,22 +91,22 @@ func (s *azureSource) refresh() error {
 
 	httpClient := common.InitHttpClient(httpConnectionTimeout, responseHeaderTimeout)
 	if httpClient == nil {
-		log.Errorf("[ipam] Failed intializing http client")
+		logger.Error("Failed intializing http client")
 		return fmt.Errorf("Error intializing http client")
 	}
 
-	log.Printf("[ipam] Wireserver call %v to retrieve IP List", s.queryUrl)
+	logger.Info("Wireserver call to retrieve IP List", zap.String("queryUrl", s.queryUrl))
 	// Fetch configuration.
 	resp, err := httpClient.Get(s.queryUrl)
 	if err != nil {
-		log.Printf("[ipam] wireserver call failed with: %v", err)
+		logger.Error("wireserver call failed", zap.Error(err))
 		return err
 	}
 
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		log.Errorf("[ipam] http return error code for wireserver call %+v", resp)
+		logger.Error("http return error code for wireserver call", zap.Any("response", resp))
 		return fmt.Errorf("wireserver http error %+v", resp)
 	}
 
@@ -138,7 +141,7 @@ func (s *azureSource) refresh() error {
 
 		// Skip if interface is not found.
 		if ifName == "" {
-			log.Printf("[ipam] Failed to find interface with MAC address:%v.", i.MacAddress)
+			logger.Info("Failed to find interface with", zap.String("MAC Address", i.MacAddress))
 			continue
 		}
 
@@ -146,13 +149,13 @@ func (s *azureSource) refresh() error {
 		for _, s := range i.IPSubnet {
 			_, subnet, err := net.ParseCIDR(s.Prefix)
 			if err != nil {
-				log.Printf("[ipam] Failed to parse subnet:%v err:%v.", s.Prefix, err)
+				logger.Error("Failed to parse subnet", zap.String("prefix", s.Prefix), zap.Error(err))
 				continue
 			}
 
 			ap, err := local.newAddressPool(ifName, priority, subnet)
 			if err != nil {
-				log.Printf("[ipam] Failed to create pool:%v ifName:%v err:%v.", subnet, ifName, err)
+				logger.Error("Failed to create pool", zap.Any("subnet", subnet), zap.String("ifName", ifName), zap.Error(err))
 				continue
 			}
 
@@ -168,12 +171,12 @@ func (s *azureSource) refresh() error {
 
 				_, err = ap.newAddressRecord(&address)
 				if err != nil {
-					log.Printf("[ipam] Failed to create address:%v err:%v.", address, err)
+					logger.Error("Failed to create", zap.Any("address", address), zap.Error(err))
 					continue
 				}
 				addressCount++
 			}
-			log.Printf("[ipam] got %d addresses from interface %s, subnet %s", addressCount, ifName, subnet)
+			logger.Info("got addresses from interface subnet", zap.Int("addressCount", addressCount), zap.String("ifName", ifName), zap.Any("subnet", subnet))
 		}
 	}
 

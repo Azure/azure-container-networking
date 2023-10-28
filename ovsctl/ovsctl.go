@@ -255,14 +255,14 @@ func (o Ovsctl) DeleteArpReplyRule(bridgeName, port string, ip net.IP, vlanid in
 		bridgeName, port)
 	_, err := o.execcli.ExecuteCommand(cmd)
 	if err != nil {
-		logger.Error("[net] Deleting ARP reply rule failed with", zap.Error(err))
+		logger.Error("Deleting ARP reply rule failed with", zap.Error(err))
 	}
 
 	cmd = fmt.Sprintf("ovs-ofctl del-flows %s table=1,arp,arp_tpa=%s,dl_vlan=%v,arp_op=1",
 		bridgeName, ip.String(), vlanid)
 	_, err = o.execcli.ExecuteCommand(cmd)
 	if err != nil {
-		logger.Error("[net] Deleting ARP reply rule failed with", zap.Error(err))
+		logger.Error("Deleting ARP reply rule failed with", zap.Error(err))
 	}
 }
 
@@ -288,7 +288,7 @@ func (o Ovsctl) DeleteMacDnatRule(bridgeName, port string, ip net.IP, vlanid int
 
 	_, err := o.execcli.ExecuteCommand(cmd)
 	if err != nil {
-		logger.Error("[net] Deleting MAC DNAT rule failed with", zap.Error(err))
+		logger.Error("Deleting MAC DNAT rule failed with", zap.Error(err))
 	}
 }
 
