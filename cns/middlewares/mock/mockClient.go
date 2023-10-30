@@ -2,17 +2,17 @@ package mock
 
 import (
 	"context"
-	"errors"
 
 	"github.com/Azure/azure-container-networking/cns/configuration"
 	"github.com/Azure/azure-container-networking/crd/multitenancy/api/v1alpha1"
+	"github.com/pkg/errors"
 	v1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 var (
-	errPodNotFound   = errors.New("pod not found")
-	errMTPNCNotFound = errors.New("mtpnc not found")
+	ErrPodNotFound   = errors.New("pod not found")
+	ErrMTPNCNotFound = errors.New("mtpnc not found")
 )
 
 // Client implements the client.Client interface for testing. We only care about Get, the rest is nil ops.
@@ -52,13 +52,13 @@ func (c *Client) Get(_ context.Context, key client.ObjectKey, obj client.Object,
 		if pod, ok := c.mtPodCache[key.String()]; ok {
 			*o = *pod
 		} else {
-			return errPodNotFound
+			return ErrPodNotFound
 		}
 	case *v1alpha1.MultitenantPodNetworkConfig:
 		if mtpnc, ok := c.mtpncCache[key.String()]; ok {
 			*o = *mtpnc
 		} else {
-			return errMTPNCNotFound
+			return ErrMTPNCNotFound
 		}
 	}
 	return nil

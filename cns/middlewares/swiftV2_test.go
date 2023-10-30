@@ -98,7 +98,7 @@ func TestGetSWIFTv2IPConfigFailure(t *testing.T) {
 
 	// Pod's MTPNC doesn't exist in cache test
 	_, err := middleware.GetIPConfig(context.TODO(), testPod2Info)
-	assert.Error(t, err, "failed to get pod's mtpnc from cache : mtpnc not found")
+	assert.ErrorContains(t, err, mock.ErrMTPNCNotFound.Error())
 
 	// Pod's MTPNC is not ready test
 	_, err = middleware.GetIPConfig(context.TODO(), testPod3Info)

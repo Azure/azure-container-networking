@@ -2,8 +2,6 @@ package middlewares
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"net"
 	"net/netip"
 
@@ -13,6 +11,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/middlewares/utils"
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/crd/multitenancy/api/v1alpha1"
+	"github.com/pkg/errors"
 	v1 "k8s.io/api/core/v1"
 	k8stypes "k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -40,15 +39,15 @@ func (m *SWIFTv2Middleware) ValidateIPConfigsRequest(ctx context.Context, req *c
 	// Retrieve the pod from the cluster
 	podInfo, err := cns.UnmarshalPodInfo(req.OrchestratorContext)
 	if err != nil {
-		errBuf := fmt.Sprintf("unmarshalling pod info from ipconfigs request %v failed with error %v", req, err)
-		return types.UnexpectedError, errBuf
+		errBuf := errors.Wrapf(err, "failed to unmarshalling pod info from ipconfigs request %v", req)
+		return types.UnexpectedError, errBuf.Error()
 	}
 	logger.Printf("[SWIFTv2Middleware] validate ipconfigs request for pod %s", podInfo.Name())
 	podNamespacedName := k8stypes.NamespacedName{Namespace: podInfo.Namespace(), Name: podInfo.Name()}
 	pod := v1.Pod{}
 	if err := m.Cli.Get(ctx, podNamespacedName, &pod); err != nil {
-		errBuf := fmt.Sprintf("failed to get pod %v with error %v", podNamespacedName, err)
-		return types.UnexpectedError, errBuf
+		errBuf := errors.Wrapf(err, "failed to get pod %v", podNamespacedName)
+		return types.UnexpectedError, errBuf.Error()
 	}
 
 	// check the pod labels for Swift V2, set the request's SecondaryInterfaceSet flag to true.
@@ -65,7 +64,7 @@ func (m *SWIFTv2Middleware) GetIPConfig(ctx context.Context, podInfo cns.PodInfo
 	mtpnc := v1alpha1.MultitenantPodNetworkConfig{}
 	mtpncNamespacedName := k8stypes.NamespacedName{Namespace: podInfo.Namespace(), Name: podInfo.Name()}
 	if err := m.Cli.Get(ctx, mtpncNamespacedName, &mtpnc); err != nil {
-		return cns.PodIpInfo{}, fmt.Errorf("failed to get pod's mtpnc from cache : %w", err)
+		return cns.PodIpInfo{}, errors.Wrapf(err, "failed to get pod's mtpnc from cache")
 	}
 
 	// Check if the MTPNC CRD is ready. If one of the fields is empty, return error
@@ -76,13 +75,13 @@ func (m *SWIFTv2Middleware) GetIPConfig(ctx context.Context, podInfo cns.PodInfo
 	// Parse MTPNC primaryIP to get the IP address and prefix length
 	p, err := netip.ParsePrefix(mtpnc.Status.PrimaryIP)
 	if err != nil {
-		return cns.PodIpInfo{}, fmt.Errorf("failed to parse MTPNC primaryIP %s : %w", mtpnc.Status.PrimaryIP, err)
+		return cns.PodIpInfo{}, errors.Wrapf(err, "failed to parse mtpnc primaryIP %s", mtpnc.Status.PrimaryIP)
 	}
 	// Get the IP address and prefix length
 	ip := p.Addr()
 	prefixSize := p.Bits()
 	if prefixSize != prefixLength {
-		return cns.PodIpInfo{}, fmt.Errorf("%w, MTPNC primaryIP prefix length is %d", errInvalidMTPNCPrefixLength, prefixSize)
+		return cns.PodIpInfo{}, errors.Wrapf(errInvalidMTPNCPrefixLength, "mtpnc primaryIP prefix length is %d", prefixSize)
 	}
 	podIPInfo := cns.PodIpInfo{
 		PodIPConfig: cns.IPSubnet{
@@ -113,31 +112,31 @@ func (m *SWIFTv2Middleware) SetRoutes(podIPInfo *cns.PodIpInfo) error {
 		// Get and parse nodeCIDRs from env
 		nodeCIDRs, err := configuration.NodeCIDRs()
 		if err != nil {
-			return fmt.Errorf("failed to get nodeCIDR from env : %w", err)
+			return errors.Wrapf(err, "failed to get nodeCIDR from env")
 		}
 		nodeCIDRsv4, nodeCIDRsv6, err := utils.ParseCIDRs(nodeCIDRs)
 		if err != nil {
-			return fmt.Errorf("failed to parse nodeCIDRs : %w", err)
+			return errors.Wrapf(err, "failed to parse nodeCIDRs")
 		}
 
 		// Get and parse podCIDRs from env
 		podCIDRs, err := configuration.PodCIDRs()
 		if err != nil {
-			return fmt.Errorf("failed to get podCIDRs from env : %w", err)
+			return errors.Wrapf(err, "failed to get podCIDRs from env")
 		}
 		podCIDRsV4, podCIDRv6, err := utils.ParseCIDRs(podCIDRs)
 		if err != nil {
-			return fmt.Errorf("failed to parse podCIDRs : %w", err)
+			return errors.Wrapf(err, "failed to parse podCIDRs")
 		}
 
 		// Get and parse serviceCIDRs from env
 		serviceCIDRs, err := configuration.ServiceCIDRs()
 		if err != nil {
-			return fmt.Errorf("failed to get serviceCIDRs from env : %w", err)
+			return errors.Wrapf(err, "failed to get serviceCIDRs from env")
 		}
 		serviceCIDRsV4, serviceCIDRsV6, err := utils.ParseCIDRs(serviceCIDRs)
 		if err != nil {
-			return fmt.Errorf("failed to parse serviceCIDRs : %w", err)
+			return errors.Wrapf(err, "failed to parse serviceCIDRs")
 		}
 		// Check if the podIPInfo is IPv4 or IPv6
 		if net.ParseIP(podIPInfo.PodIPConfig.IPAddress).To4() != nil {

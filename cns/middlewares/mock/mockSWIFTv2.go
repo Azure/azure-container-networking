@@ -2,7 +2,6 @@ package mock
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -12,6 +11,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/middlewares/utils"
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/crd/multitenancy/api/v1alpha1"
+	"github.com/pkg/errors"
 	v1 "k8s.io/api/core/v1"
 	k8types "k8s.io/apimachinery/pkg/types"
 )
@@ -129,22 +129,34 @@ func (m *SWIFTv2Middleware) SetRoutes(podIPInfo *cns.PodIpInfo) error {
 		}
 		podIPInfo.Routes = []cns.Route{route}
 	case cns.InfraNIC:
+		// Get and parse nodeCIDRs from env
+		nodeCIDRs, err := configuration.NodeCIDRs()
+		if err != nil {
+			return errors.Wrapf(err, "failed to get nodeCIDR from env")
+		}
+		nodeCIDRsv4, nodeCIDRsv6, err := utils.ParseCIDRs(nodeCIDRs)
+		if err != nil {
+			return errors.Wrapf(err, "failed to parse nodeCIDRs")
+		}
+
+		// Get and parse podCIDRs from env
 		podCIDRs, err := configuration.PodCIDRs()
 		if err != nil {
-			return fmt.Errorf("failed to get podCIDRs from env : %w", err)
+			return errors.Wrapf(err, "failed to get podCIDRs from env")
 		}
 		podCIDRsV4, podCIDRv6, err := utils.ParseCIDRs(podCIDRs)
 		if err != nil {
-			return fmt.Errorf("failed to parse podCIDRs : %w", err)
+			return errors.Wrapf(err, "failed to parse podCIDRs")
 		}
 
+		// Get and parse serviceCIDRs from env
 		serviceCIDRs, err := configuration.ServiceCIDRs()
 		if err != nil {
-			return fmt.Errorf("failed to get serviceCIDRs from env : %w", err)
+			return errors.Wrapf(err, "failed to get serviceCIDRs from env")
 		}
 		serviceCIDRsV4, serviceCIDRsV6, err := utils.ParseCIDRs(serviceCIDRs)
 		if err != nil {
-			return fmt.Errorf("failed to parse serviceCIDRs : %w", err)
+			return errors.Wrapf(err, "failed to parse serviceCIDRs")
 		}
 		// Check if the podIPInfo is IPv4 or IPv6
 		if net.ParseIP(podIPInfo.PodIPConfig.IPAddress).To4() != nil {
@@ -164,7 +176,14 @@ func (m *SWIFTv2Middleware) SetRoutes(podIPInfo *cns.PodIpInfo) error {
 				}
 				podIPInfo.Routes = append(podIPInfo.Routes, serviceCIDRv4Route)
 			}
-
+			// route for IPv4 nodeCIDR traffic
+			for _, nodeCIDRv4 := range nodeCIDRsv4 {
+				nodeCIDRv4Route := cns.Route{
+					IPAddress:        nodeCIDRv4,
+					GatewayIPAddress: overlayGatewayv4,
+				}
+				podIPInfo.Routes = append(podIPInfo.Routes, nodeCIDRv4Route)
+			}
 		} else {
 			// routes for IPv6 podCIDR traffic
 			for _, podCIDRv6 := range podCIDRv6 {
@@ -182,7 +201,16 @@ func (m *SWIFTv2Middleware) SetRoutes(podIPInfo *cns.PodIpInfo) error {
 				}
 				podIPInfo.Routes = append(podIPInfo.Routes, serviceCIDRv6Route)
 			}
+			// route for IPv6 nodeCIDR traffic
+			for _, nodeCIDRv6 := range nodeCIDRsv6 {
+				nodeCIDRv6Route := cns.Route{
+					IPAddress:        nodeCIDRv6,
+					GatewayIPAddress: overlayGatewayV6,
+				}
+				podIPInfo.Routes = append(podIPInfo.Routes, nodeCIDRv6Route)
+			}
 		}
+		podIPInfo.SkipDefaultRoutes = true
 	case cns.BackendNIC:
 	default:
 		return errInvalidSWIFTv2NICType
