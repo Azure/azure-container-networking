@@ -18,6 +18,7 @@ import (
 
 var (
 	errMTPNCNotReady         = errors.New("mtpnc is not ready")
+	errFailedToGetMTPNC      = errors.New("failed to get mtpnc")
 	errFailedToGetPod        = errors.New("failed to get pod")
 	errInvalidSWIFTv2NICType = errors.New("invalid NIC type for SWIFT v2 scenario")
 )
@@ -90,6 +91,17 @@ func (m *SWIFTv2Middleware) ValidateIPConfigsRequest(_ context.Context, req *cns
 	// check the pod labels for Swift V2, enrich the request with the multitenant flag.
 	if _, ok := pod.Labels[configuration.LabelPodSwiftV2]; ok {
 		req.SecondaryInterfacesExist = true
+		// Check if the MTPNC CRD exists for the pod, if not, return error
+		mtpncNamespacedName := k8types.NamespacedName{Namespace: podInfo.Namespace(), Name: podInfo.Name()}
+		mtpnc, ok := m.mtpncState[mtpncNamespacedName.String()]
+		if !ok {
+			return types.UnexpectedError, errFailedToGetMTPNC.Error()
+		}
+
+		// Check if the MTPNC CRD is ready. If one of the fields is empty, return error
+		if mtpnc.Status.PrimaryIP == "" || mtpnc.Status.MacAddress == "" || mtpnc.Status.NCID == "" || mtpnc.Status.GatewayIP == "" {
+			return types.UnexpectedError, errMTPNCNotReady.Error()
+		}
 	}
 	return types.Success, ""
 }
@@ -101,13 +113,9 @@ func (m *SWIFTv2Middleware) GetIPConfig(_ context.Context, podInfo cns.PodInfo) 
 	mtpncNamespacedName := k8types.NamespacedName{Namespace: podInfo.Namespace(), Name: podInfo.Name()}
 	mtpnc, ok := m.mtpncState[mtpncNamespacedName.String()]
 	if !ok {
-		return cns.PodIpInfo{}, errFailedToGetPod
+		return cns.PodIpInfo{}, errFailedToGetMTPNC
 	}
 
-	// Check if the MTPNC CRD is ready. If one of the fields is empty, return error
-	if mtpnc.Status.PrimaryIP == "" || mtpnc.Status.MacAddress == "" || mtpnc.Status.NCID == "" || mtpnc.Status.GatewayIP == "" {
-		return cns.PodIpInfo{}, errMTPNCNotReady
-	}
 	podIPInfo := cns.PodIpInfo{}
 	podIPInfo.PodIPConfig = cns.IPSubnet{
 		IPAddress: mtpnc.Status.PrimaryIP,

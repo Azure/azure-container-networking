@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-// ParseCIDRs parses the semicolons separated CIDRs string and returns the IPv4 and IPv6 CIDRs.
+// ParseCIDRs parses the comma separated list of CIDRs and returns the IPv4 and IPv6 CIDRs.
 func ParseCIDRs(cidrs string) (v4IPs, v6IPs []string, err error) {
 	v4IPs = []string{}
 	v6IPs = []string{}

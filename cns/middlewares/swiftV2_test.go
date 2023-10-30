@@ -22,6 +22,9 @@ var (
 
 	testPod3GUID = "718e04ac-5a13-4dce-84b3-040accaa9b41"
 	testPod3Info = cns.NewPodInfo("718e04-eth0", testPod3GUID, "testpod3", "testpod3namespace")
+
+	testPod4GUID = "b21e1ee1-fb7e-4e6d-8c68-22ee5049944e"
+	testPod4Info = cns.NewPodInfo("b21e1e-eth0", testPod4GUID, "testpod4", "testpod4namespace")
 )
 
 func setEnvVar() {
@@ -79,6 +82,18 @@ func TestValidateMultitenantIPConfigsRequestFailure(t *testing.T) {
 	failReq.OrchestratorContext = b
 	respCode, _ = middleware.ValidateIPConfigsRequest(context.TODO(), failReq)
 	assert.Equal(t, respCode, types.UnexpectedError)
+
+	// Failed to get MTPNC
+	b, _ = testPod3Info.OrchestratorContext()
+	failReq.OrchestratorContext = b
+	respCode, _ = middleware.ValidateIPConfigsRequest(context.TODO(), failReq)
+	assert.Equal(t, respCode, types.UnexpectedError)
+
+	// MTPNC not ready
+	b, _ = testPod4Info.OrchestratorContext()
+	failReq.OrchestratorContext = b
+	respCode, _ = middleware.ValidateIPConfigsRequest(context.TODO(), failReq)
+	assert.Equal(t, respCode, types.UnexpectedError)
 }
 
 func TestGetSWIFTv2IPConfigSuccess(t *testing.T) {
@@ -101,7 +116,7 @@ func TestGetSWIFTv2IPConfigFailure(t *testing.T) {
 	assert.ErrorContains(t, err, mock.ErrMTPNCNotFound.Error())
 
 	// Pod's MTPNC is not ready test
-	_, err = middleware.GetIPConfig(context.TODO(), testPod3Info)
+	_, err = middleware.GetIPConfig(context.TODO(), testPod4Info)
 	assert.Error(t, err, errMTPNCNotReady.Error())
 }
 

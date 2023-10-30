@@ -24,23 +24,34 @@ type Client struct {
 
 // NewClient returns a new MockClient.
 func NewClient() *Client {
+	const podNetwork = "azure"
+
 	testPod1 := v1.Pod{}
 	testPod1.Labels = make(map[string]string)
-	testPod1.Labels[configuration.LabelPodSwiftV2] = "true"
+	testPod1.Labels[configuration.LabelPodSwiftV2] = podNetwork
+
+	testPod3 := v1.Pod{}
+	testPod3.Labels = make(map[string]string)
+	testPod3.Labels[configuration.LabelPodSwiftV2] = podNetwork
+
+	testPod4 := v1.Pod{}
+	testPod4.Labels = make(map[string]string)
+	testPod4.Labels[configuration.LabelPodSwiftV2] = podNetwork
 
 	testMTPNC1 := v1alpha1.MultitenantPodNetworkConfig{}
+
 	testMTPNC1.Status.PrimaryIP = "192.168.0.1/32"
 	testMTPNC1.Status.MacAddress = "00:00:00:00:00:00"
 	testMTPNC1.Status.GatewayIP = "10.0.0.1"
 	testMTPNC1.Status.NCID = "testncid"
 
-	testMTPNC3 := v1alpha1.MultitenantPodNetworkConfig{}
+	testMTPNC4 := v1alpha1.MultitenantPodNetworkConfig{}
 
 	return &Client{
-		mtPodCache: map[string]*v1.Pod{"testpod1namespace/testpod1": &testPod1},
+		mtPodCache: map[string]*v1.Pod{"testpod1namespace/testpod1": &testPod1, "testpod3namespace/testpod3": &testPod3, "testpod4namespace/testpod4": &testPod4},
 		mtpncCache: map[string]*v1alpha1.MultitenantPodNetworkConfig{
 			"testpod1namespace/testpod1": &testMTPNC1,
-			"testpod3namespace/testpod3": &testMTPNC3,
+			"testpod4namespace/testpod4": &testMTPNC4,
 		},
 	}
 }

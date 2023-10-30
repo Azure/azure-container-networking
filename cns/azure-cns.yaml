@@ -1,12 +1,68 @@
 apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: azure-cns
+  namespace: kube-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: acn-multitenancy-editor
+labels:
+  addonmanager.kubernetes.io/mode: Reconcile
+rules:
+  - apiGroups: ["acn.azure.com"]
+    resources: ["clustersubnetstates"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["multitenancy.acn.azure.com"]
+    resources:
+      ["multitenantpodnetworkconfigs", "podnetworkinstances", "podnetworks"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: acn-multitenancy-editor-binding
+subjects:
+  - kind: ServiceAccount
+    name: azure-cns
+    namespace: kube-system
+roleRef:
+  kind: ClusterRole
+  name: acn-multitenancy-editor
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  namespace: kube-system
+  name: nodeNetConfigEditor
+rules:
+  - apiGroups: ["acn.azure.com"]
+    resources: ["nodenetworkconfigs"]
+    verbs: ["get", "list", "watch", "patch", "update"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: pod-reader-all-namespaces
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "watch", "list"]
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
   name: nodeNetConfigEditorRoleBinding
   namespace: kube-system
 subjects:
-- kind: ServiceAccount
-  name: azure-cns
-  namespace: kube-system
+  - kind: ServiceAccount
+    name: azure-cns
+    namespace: kube-system
 roleRef:
   kind: Role
   name: nodeNetConfigEditor
@@ -17,9 +73,9 @@ kind: ClusterRoleBinding
 metadata:
   name: pod-reader-all-namespaces-binding
 subjects:
-- kind: ServiceAccount
-  name: azure-cns
-  namespace: kube-system
+  - kind: ServiceAccount
+    name: azure-cns
+    namespace: kube-system
 roleRef:
   kind: ClusterRole
   name: pod-reader-all-namespaces
@@ -47,17 +103,17 @@ spec:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
             nodeSelectorTerms:
-            - matchExpressions:
-              - key: kubernetes.azure.com/cluster
-                operator: Exists
-              - key: type
-                operator: NotIn
-                values:
-                - virtual-kubelet
-              - key: beta.kubernetes.io/os
-                operator: In
-                values:
-                - linux
+              - matchExpressions:
+                  - key: kubernetes.azure.com/cluster
+                    operator: Exists
+                  - key: type
+                    operator: NotIn
+                    values:
+                      - virtual-kubelet
+                  - key: beta.kubernetes.io/os
+                    operator: In
+                    values:
+                      - linux
       priorityClassName: system-node-critical
       tolerations:
         - key: CriticalAddonsOnly
@@ -70,7 +126,8 @@ spec:
         - name: cns-container
           image: mcr.microsoft.com/containernetworking/azure-cns:v1.4.7
           imagePullPolicy: IfNotPresent
-          args: [ "-c", "tcp://$(CNSIpAddress):$(CNSPort)", "-t", "$(CNSLogTarget)"]
+          args:
+            ["-c", "tcp://$(CNSIpAddress):$(CNSPort)", "-t", "$(CNSLogTarget)"]
           volumeMounts:
             - name: log
               mountPath: /var/log
@@ -99,9 +156,16 @@ spec:
               value: /etc/azure-cns/cns_config.json
             - name: NODENAME
               valueFrom:
-                  fieldRef:
-                    apiVersion: v1
-                    fieldPath: spec.nodeName 
+                fieldRef:
+                  apiVersion: v1
+                  fieldPath: spec.nodeName
+            - name: POD_CIDRs
+              value: 10.0.0.0/16
+            - name: SERVICE_CIDRs
+              value: 10.1.0.0/16
+            - name: NODE_CIDRs
+              value: 192.168.0.0/16
+              # POD_CIDRs, SERVICE_CIDRs and NODE_CIDRs are set for SWIFT v2 scenario.
       hostNetwork: true
       volumes:
         - name: azure-endpoints

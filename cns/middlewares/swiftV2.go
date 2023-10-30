@@ -2,7 +2,7 @@ package middlewares
 
 import (
 	"context"
-	"net"
+	"fmt"
 	"net/netip"
 
 	"github.com/Azure/azure-container-networking/cns"
@@ -50,9 +50,19 @@ func (m *SWIFTv2Middleware) ValidateIPConfigsRequest(ctx context.Context, req *c
 		return types.UnexpectedError, errBuf.Error()
 	}
 
-	// check the pod labels for Swift V2, set the request's SecondaryInterfaceSet flag to true.
+	// check the pod labels for Swift V2, set the request's SecondaryInterfaceSet flag to true and check if its MTPNC CRD is ready
 	if _, ok := pod.Labels[configuration.LabelPodSwiftV2]; ok {
 		req.SecondaryInterfacesExist = true
+		// Check if the MTPNC CRD exists for the pod, if not, return error
+		mtpnc := v1alpha1.MultitenantPodNetworkConfig{}
+		mtpncNamespacedName := k8stypes.NamespacedName{Namespace: podInfo.Namespace(), Name: podInfo.Name()}
+		if err := m.Cli.Get(ctx, mtpncNamespacedName, &mtpnc); err != nil {
+			return types.UnexpectedError, fmt.Errorf("failed to get pod's mtpnc from cache : %w", err).Error()
+		}
+		// Check if the MTPNC CRD is ready. If one of the fields is empty, return error
+		if mtpnc.Status.PrimaryIP == "" || mtpnc.Status.MacAddress == "" || mtpnc.Status.NCID == "" || mtpnc.Status.GatewayIP == "" {
+			return types.UnexpectedError, errMTPNCNotReady.Error()
+		}
 	}
 	logger.Printf("[SWIFTv2Middleware] pod %s has secondary interface : %v", podInfo.Name(), req.SecondaryInterfacesExist)
 	return types.Success, ""
@@ -72,6 +82,7 @@ func (m *SWIFTv2Middleware) GetIPConfig(ctx context.Context, podInfo cns.PodInfo
 		return cns.PodIpInfo{}, errMTPNCNotReady
 	}
 	logger.Printf("[SWIFTv2Middleware] mtpnc for pod %s is : %+v", podInfo.Name(), mtpnc)
+
 	// Parse MTPNC primaryIP to get the IP address and prefix length
 	p, err := netip.ParsePrefix(mtpnc.Status.PrimaryIP)
 	if err != nil {
@@ -139,7 +150,11 @@ func (m *SWIFTv2Middleware) SetRoutes(podIPInfo *cns.PodIpInfo) error {
 			return errors.Wrapf(err, "failed to parse serviceCIDRs")
 		}
 		// Check if the podIPInfo is IPv4 or IPv6
-		if net.ParseIP(podIPInfo.PodIPConfig.IPAddress).To4() != nil {
+		ip, err := netip.ParseAddr(podIPInfo.PodIPConfig.IPAddress)
+		if err != nil {
+			return errors.Wrapf(err, "failed to parse podIPConfig IP address %s", podIPInfo.PodIPConfig.IPAddress)
+		}
+		if ip.Is4() {
 			// routes for IPv4 podCIDR traffic
 			for _, podCIDRv4 := range podCIDRsV4 {
 				podCIDRv4Route := cns.Route{
