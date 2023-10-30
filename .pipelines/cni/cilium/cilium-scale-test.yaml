@@ -19,7 +19,6 @@ stages:
                 az aks get-credentials --resource-group ${CLUSTER} --name ${CLUSTER}
                 echo "Redeploy all cilium components and update cilium version. Redeploy all to catch all changes between versions"
                 echo "deploy Cilium ConfigMap"
-                kubectl apply -f cilium/configmap.yaml
                 kubectl apply -f test/integration/manifests/cilium/cilium-config.yaml
                 echo "install Cilium ${CILIUM_VERSION_TAG}"
                 envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/daemonset.yaml | kubectl apply -f -
