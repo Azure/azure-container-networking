@@ -1671,7 +1671,7 @@ func startService() error {
 	config := common.ServiceConfig{}
 
 	// Create the key value fileStore.
-	fileStore, err := store.NewJsonFileStore(cnsJsonFileName, processlock.NewMockFileLock(false))
+	fileStore, err := store.NewJsonFileStore(cnsJsonFileName, processlock.NewMockFileLock(false), nil)
 	if err != nil {
 		logger.Errorf("Failed to create store file: %s, due to error %v\n", cnsJsonFileName, err)
 		return err

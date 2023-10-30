@@ -13,25 +13,273 @@ stages:
           - script: |
               echo "Setting up environment"
               go version
+              echo "##vso[task.setvariable variable=commitID;isOutput=true]$(echo $(make revision)-$(date "+%d%H%M"))"
+              echo "##vso[task.setvariable variable=npmVersion;isOutput=true]$(make npm-version)"
+              echo "##vso[task.setvariable variable=dropgzVersion;isOutput=true]$(make cni-dropgz-test-version)"
+              echo "##vso[task.setvariable variable=cnsVersion;isOutput=true]$(CNS_VERSION)"
             name: "SetEnvVars"
             displayName: "Set Environment Variables"
             condition: always()
+
+  - stage: build_images
+    dependsOn: setup
+    displayName: "Build Images"
+    jobs:
+      - job: containerize_amd64
+        displayName: Build Images
+        pool:
+          name: "$(BUILD_POOL_NAME_LINUX_AMD64)"
+        strategy:
+          matrix:
+            cni_dropgz_test_linux_amd64:
+              arch: amd64
+              name: cni-dropgz-test
+              os: linux
+            cni_dropgz_test_windows2022_amd64:
+              arch: amd64
+              name: cni-dropgz-test
+              os: windows
+              os_version: ltsc2022
+            npm_linux_amd64:
+              arch: amd64
+              name: npm
+              os: linux
+            npm_windows2022_amd64:
+              arch: amd64
+              name: npm
+              os: windows
+              os_version: ltsc2022
+        steps:
+          - template: ../containers/container-template.yaml
+            parameters:
+              arch: $(arch)
+              name: $(name)
+              os: $(os)
+              os_version: $(os_version)
+      - job: containerize_linux_arm64
+        displayName: Build Images
+        pool:
+          name: "$(BUILD_POOL_NAME_LINUX_ARM64)"
+        strategy:
+          matrix:
+            cni_dropgz_test_linux_arm64:
+              arch: arm64
+              name: cni-dropgz-test
+              os: linux
+            npm_linux_arm64:
+              arch: arm64
+              name: npm
+              os: linux
+        steps:
+          - template: ../containers/container-template.yaml
+            parameters:
+              arch: $(arch)
+              name: $(name)
+              os: $(os)
+
+  - stage: binaries
+    displayName: Build Binaries
+    dependsOn: setup
+    pool:
+      name: $(BUILD_POOL_NAME_DEFAULT)
+      demands:
+        - agent.os -equals Linux
+        - Role -equals Build
+    jobs:
+      - job:
+        displayName: "Build k8s NPM Linux Test Suite Binary"
+        steps:
+          - bash: |
+              git clone https://github.com/huntergregory/kubernetes.git --depth=1 --branch=linux-long-sleep
+              cd kubernetes
+              export PATH=$PATH:/usr/local/go/bin/
+              make WHAT=test/e2e/e2e.test
+            displayName: "Build Kubernetes e2e.test"
+          - publish: $(System.DefaultWorkingDirectory)/kubernetes/_output/local/bin/linux/amd64
+            artifact: npm_k8s
+      - job:
+        displayName: "Build k8s NPM Windows Test Suite Binary"
+        steps:
+          - bash: |
+              git clone https://github.com/huntergregory/kubernetes.git --depth=1 --branch=sleep-before-probing
+              cd kubernetes
+              export PATH=$PATH:/usr/local/go/bin/
+              make WHAT=test/e2e/e2e.test
+            displayName: "Build Kubernetes e2e.test"
+          - publish: $(System.DefaultWorkingDirectory)/kubernetes/_output/local/bin/linux/amd64
+            artifact: npm_k8s_windows
+
+  - stage: publish
+    displayName: Publish Multiarch Manifests
+    dependsOn:
+      - build_images
+    jobs:
+      - job: manifest
+        displayName: Compile Manifests
+        pool:
+          name: "$(BUILD_POOL_NAME_DEFAULT)"
+        strategy:
+          matrix:
+            cni_dropgz_test:
+              name: cni-dropgz-test
+              platforms: linux/amd64 linux/arm64 windows/amd64
+            npm:
+              name: npm
+              os_versions: ltsc2022
+              platforms: linux/amd64 linux/arm64 windows/amd64
+        steps:
+          - template: ../containers/manifest-template.yaml
+            parameters:
+              name: $(name)
+              os_versions: $(os_versions)
+              platforms: $(platforms)
+
   - template: cilium/cilium-overlay-load-test-template.yaml
     parameters:
-      name: cilium
-      clusterType: "overlay-no-kube-proxy-up"
-      clusterName: "cilium-overlay"
-      nodeCount: 10
-      vmSize: "Standard_DS4_v2"
-      dependsOn: setup
-  - template: singletenancy/windows-cni-load-test-template.yaml
+      name: cilium_overlay
+      clusterType: overlay-byocni-nokubeproxy-up
+      clusterName: "cilium-over"
+      nodeCount: ${NODE_COUNT_CILIUM}
+      vmSize: ${VM_SIZE_CILIUM}
+
+  - template: singletenancy/cniv1-template.yaml
     parameters:
-      name: win_cniv1
-      clusterType: "windows-cniv1-up"
-      clusterName: "win-cniv1"
-      nodeCount: 2
-      vmSize: "Standard_B2s"
-      dependsOn: setup
-      windowsVMSize: ${WINDOWS_VM_SKU}
+      name: win22_cniv1
+      clusterType: windows-cniv1-up
+      clusterName: "win22-cniv1"
+      nodeCount: ${NODE_COUNT_WIN}
+      vmSize: ${VM_SIZE_WINCLUSTER_SYSTEMPOOL}
+      vmSizeWin: ${VM_SIZE_WIN}
       os: windows
-      cni: cniv1
+      os_version: 'ltsc2022'
+      arch: amd64
+      scaleup: ${SCALEUP_WIN}
+      iterations: ${ITERATIONS_WIN}
+
+  - template: singletenancy/cniv1-template.yaml
+    parameters:
+      name: linux_cniv1
+      clusterType: linux-cniv1-up
+      clusterName: "linux-cniv1"
+      nodeCount: ${NODE_COUNT_LINUX}
+      vmSize: ${VM_SIZE}
+      os: linux
+      arch: amd64
+      scaleup: ${SCALEUP_LINUX}
+      iterations: ${ITERATIONS_LINUX}
+
+  - template: singletenancy/linux-cniv2-template.yaml
+    parameters:
+      name: linux_podsubnet
+      clusterType: swift-byocni-up
+      clusterName: "linux-podsub"
+      nodeCount: ${NODE_COUNT_LINUX}
+      vmSize: ${VM_SIZE}
+      arch: amd64
+
+  - template: singletenancy/linux-cniv2-template.yaml
+    parameters:
+      name: linux_overlay
+      clusterType: overlay-byocni-up
+      clusterName: "linux-over"
+      nodeCount: ${NODE_COUNT_LINUX}
+      vmSize: ${VM_SIZE}
+      arch: amd64
+
+  - template: singletenancy/linux-cniv2-template.yaml
+    parameters:
+      name: mariner_linux_overlay
+      clusterType: overlay-byocni-up
+      clusterName: "mariner-over"
+      nodeCount: ${NODE_COUNT_LINUX}
+      vmSize:  ${VM_SIZE}
+      arch: amd64
+      osSKU: AzureLinux
+
+  - template: singletenancy/linux-cniv2-template.yaml
+    parameters:
+      name: arm_linux_overlay
+      clusterType: overlay-byocni-up
+      clusterName: "arm-over"
+      nodeCount: ${NODE_COUNT_LINUX}
+      vmSize: Standard_D8ps_v5
+      arch: arm64
+
+  - template: singletenancy/linux-cniv2-template.yaml
+    parameters:
+      name: rdma_linux_overlay
+      clusterType: overlay-byocni-up
+      clusterName: "rdma-over"
+      nodeCount: 2
+      vmSize: Standard_NC24r
+      arch: amd64
+
+  - stage: delete_resources
+    displayName: "Delete Resources"
+    pool:
+      name: "$(BUILD_POOL_NAME_DEFAULT)"
+    condition: always()
+    dependsOn:
+      - cilium_overlay
+      - win22_cniv1_HNS
+      - linux_cniv1
+      - linux_podsubnet
+      - linux_overlay
+      - mariner_linux_overlay
+      - arm_linux_overlay
+      - rdma_linux_overlay
+      - setup
+    variables:
+      commitID: $[ stagedependencies.setup.env.outputs['SetEnvVars.commitID'] ]
+    jobs:
+      - job: delete
+        displayName: Delete Cluster
+        pool:
+          name: "$(BUILD_POOL_NAME_DEFAULT)"
+        strategy:
+          matrix:
+            cilium_overlay:
+              name: cilium_overlay
+              clusterName: "cilium-over"
+            win22-cniv1:
+              name: win22-cniv1
+              clusterName: "win22-cniv1"
+            linux_cniv1:
+              name: linux_cniv1
+              clusterName: "linux-cniv1"
+            linux_podsubnet:
+              name: linux_podsubnet
+              clusterName: "linux-podsub"
+            linux_overlay:
+              name: linux_overlay
+              clusterName: "linux-over"
+            mariner_linux_overlay:
+              name: mariner_linux_overlay
+              clusterName: "mariner-over"
+            arm_linux_overlay:
+              name: arm_linux_overlay
+              clusterName: "arm-over"
+            rdma_linux_overlay:
+              name: rdma_linux_overlay
+              clusterName: "rdma-over"
+        steps:
+          - task: AzureCLI@1
+            inputs:
+              azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+              scriptLocation: "inlineScript"
+              scriptType: "bash"
+              addSpnToEnvironment: true
+              inlineScript: |
+                set -x
+                if [ "$(DELETE_RESOURCES)" ]
+                then
+                  echo "Deleting Cluster and resource group"
+                  make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=$(clusterName)-$(commitID)
+                  make -C ./hack/aks azcfg AZCLI=az REGION=$(LOCATION)
+                  make -C ./hack/aks down AZCLI=az REGION=$(LOCATION) SUB=$(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS) CLUSTER=$(clusterName)-$(commitID)
+                  echo "Cluster and resources down"
+                else
+                  echo "Deletion of resources is False"
+                fi
+            name: "CleanUpCluster"
+            displayName: "Cleanup cluster - $(name)"

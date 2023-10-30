@@ -142,7 +142,7 @@ azure-ipam: azure-ipam-binary azure-ipam-archive
 
 revision: ## print the current git revision
 	@echo $(REVISION)
-	
+
 version: ## prints the root version
 	@echo $(ACN_VERSION)
 
@@ -161,19 +161,19 @@ cni-dropgz-test-version: ## prints the cni-dropgz version
 	@echo $(CNI_DROPGZ_TEST_VERSION)
 
 cns-version:
-	@echo $(CNS_VERSION) 
+	@echo $(CNS_VERSION)
 
 npm-version:
-	@echo $(NPM_VERSION) 
+	@echo $(NPM_VERSION)
 
 zapai-version: ## prints the zapai version
 	@echo $(ZAPAI_VERSION)
 
-##@ Binaries 
+##@ Binaries
 
 # Build the delegated IPAM plugin binary.
 azure-ipam-binary:
-	cd $(AZURE_IPAM_DIR) && CGO_ENABLED=0 go build -v -o $(AZURE_IPAM_BUILD_DIR)/azure-ipam$(EXE_EXT) -ldflags "-X main.version=$(AZURE_IPAM_VERSION)" -gcflags="-dwarflocationlists=true"
+	cd $(AZURE_IPAM_DIR) && CGO_ENABLED=0 go build -v -o $(AZURE_IPAM_BUILD_DIR)/azure-ipam$(EXE_EXT) -ldflags "-X github.com/Azure/azure-container-networking/azure-ipam/internal/buildinfo.Version=$(AZURE_IPAM_VERSION)" -gcflags="-dwarflocationlists=true"
 
 # Build the Azure CNM binary.
 cnm-binary:
@@ -247,7 +247,6 @@ endif
 
 ## Image name definitions.
 ACNCLI_IMAGE     	  = acncli
-CNI_PLUGIN_IMAGE 	  = azure-cni-plugin
 CNI_DROPGZ_IMAGE 	  = cni-dropgz
 CNI_DROPGZ_TEST_IMAGE = cni-dropgz-test
 CNS_IMAGE        	  = azure-cns
@@ -255,11 +254,10 @@ NPM_IMAGE        	  = azure-npm
 
 ## Image platform tags.
 ACNCLI_PLATFORM_TAG    		 ?= $(subst /,-,$(PLATFORM))$(if $(OS_VERSION),-$(OS_VERSION),)-$(ACN_VERSION)
-CNI_PLUGIN_PLATFORM_TAG 	 ?= $(subst /,-,$(PLATFORM))$(if $(OS_VERSION),-$(OS_VERSION),)-$(CNI_VERSION)
 CNI_DROPGZ_PLATFORM_TAG 	 ?= $(subst /,-,$(PLATFORM))$(if $(OS_VERSION),-$(OS_VERSION),)-$(CNI_DROPGZ_VERSION)
 CNI_DROPGZ_TEST_PLATFORM_TAG ?= $(subst /,-,$(PLATFORM))$(if $(OS_VERSION),-$(OS_VERSION),)-$(CNI_DROPGZ_TEST_VERSION)
 CNS_PLATFORM_TAG        	 ?= $(subst /,-,$(PLATFORM))$(if $(OS_VERSION),-$(OS_VERSION),)-$(CNS_VERSION)
-CNS_WINDOWS_PLATFORM_TAG 	 ?= $(subst /,-,$(PLATFORM))$(if $(OS_VERSION),-$(OS_VERSION),)-$(CNS_VERSION)-$(WINDOWS_OS_SKU)
+CNS_WINDOWS_PLATFORM_TAG 	 ?= $(subst /,-,$(PLATFORM))$(if $(OS_VERSION),-$(OS_VERSION),)-$(CNS_VERSION)-$(OS_SKU_WIN)
 NPM_PLATFORM_TAG        	 ?= $(subst /,-,$(PLATFORM))$(if $(OS_VERSION),-$(OS_VERSION),)-$(NPM_VERSION)
 
 
@@ -343,7 +341,7 @@ cni-dropgz-image-name-and-tag: # util target to print the CNI dropgz image name 
 cni-dropgz-image: ## build cni-dropgz container image.
 	$(MAKE) container \
 		DOCKERFILE=dropgz/build/$(OS).Dockerfile \
-		EXTRA_BUILD_ARGS='--build-arg OS=$(OS) --build-arg ARCH=$(ARCH)' \
+		EXTRA_BUILD_ARGS='--build-arg OS=$(OS) --build-arg ARCH=$(ARCH) --build-arg OS_VERSION=$(OS_VERSION)' \
 		IMAGE=$(CNI_DROPGZ_IMAGE) \
 		TAG=$(CNI_DROPGZ_PLATFORM_TAG)
 
@@ -367,8 +365,8 @@ cni-dropgz-test-image-name-and-tag: # util target to print the CNI dropgz test i
 
 cni-dropgz-test-image: ## build cni-dropgz-test container image.
 	$(MAKE) container \
-		DOCKERFILE=dropgz/build/cniTest.Dockerfile \
-		EXTRA_BUILD_ARGS='--build-arg OS=$(OS)' \
+		DOCKERFILE=dropgz/build/cniTest_$(OS).Dockerfile \
+		EXTRA_BUILD_ARGS='--build-arg OS=$(OS)  --build-arg ARCH=$(ARCH) --build-arg OS_VERSION=$(OS_VERSION)' \
 		IMAGE=$(CNI_DROPGZ_TEST_IMAGE) \
 		TAG=$(CNI_DROPGZ_TEST_PLATFORM_TAG)
 
@@ -440,21 +438,6 @@ npm-image-pull: ## pull cns container image.
 		IMAGE=$(NPM_IMAGE) \
 		TAG=$(NPM_PLATFORM_TAG)
 
-# cni-plugin - Specifically used for windows clusters, will be removed once we have Dropgz for windows
-cni-plugin-image-name-and-tag: # util target to print the CNI plugin image name and tag.
-	@echo $(IMAGE_REGISTRY)/$(CNI_PLUGIN_IMAGE):$(CNI_PLUGIN_PLATFORM_TAG)
-
-cni-plugin-image: ## build cni plugin container image.
-	$(MAKE) container \
-		DOCKERFILE=cni/build/$(OS).Dockerfile \
-		IMAGE=$(CNI_PLUGIN_IMAGE) \
-		EXTRA_BUILD_ARGS='--build-arg  CNI_AI_PATH=$(CNI_AI_PATH) --build-arg CNI_AI_ID=$(CNI_AI_ID) --build-arg OS_VERSION=$(OS_VERSION)' \
-		PLATFORM=$(PLATFORM) \
-		TAG=$(CNI_PLUGIN_PLATFORM_TAG) \
-		OS=$(OS) \
-		ARCH=$(ARCH) \
-		OS_VERSION=$(OS_VERSION)
-
 
 ## Legacy
 
@@ -497,26 +480,26 @@ manifest-create:
 	$(CONTAINER_BUILDER) manifest create $(IMAGE_REGISTRY)/$(IMAGE):$(TAG)
 
 manifest-add:
-	$(CONTAINER_BUILDER) manifest add --os-version=$($(OS_VERSION)) $(IMAGE_REGISTRY)/$(IMAGE):$(TAG) docker://$(IMAGE_REGISTRY)/$(IMAGE):$(subst /,-,$(PLATFORM))$(if $(OS_VERSION),-$(OS_VERSION),)-$(TAG)
+	$(CONTAINER_BUILDER) manifest add --os=$(OS) --os-version=$($(OS_VERSION)) $(IMAGE_REGISTRY)/$(IMAGE):$(TAG) docker://$(IMAGE_REGISTRY)/$(IMAGE):$(subst /,-,$(PLATFORM))$(if $(OS_VERSION),-$(OS_VERSION),)-$(TAG)
 
 manifest-build: # util target to compose multiarch container manifests from platform specific images.
 	$(MAKE) manifest-create
 	$(foreach PLATFORM,$(PLATFORMS),\
 		$(if $(filter $(PLATFORM),windows/amd64),\
 			$(foreach OS_VERSION,$(OS_VERSIONS),\
-				$(MAKE) manifest-add OS_VERSION=$(OS_VERSION) PLATFORM=$(PLATFORM);\
+				$(MAKE) manifest-add CONTAINER_BUILDER=$(CONTAINER_BUILDER) OS=windows OS_VERSION=$(OS_VERSION) PLATFORM=$(PLATFORM);\
 			),\
 			$(MAKE) manifest-add PLATFORM=$(PLATFORM);\
 		)\
 	)\
-		
-			
+
+
 
 manifest-push: # util target to push multiarch container manifest.
 	$(CONTAINER_BUILDER) manifest push --all $(IMAGE_REGISTRY)/$(IMAGE):$(TAG) docker://$(IMAGE_REGISTRY)/$(IMAGE):$(TAG)
 
 manifest-skopeo-archive: # util target to export tar archive of multiarch container manifest.
-	skopeo copy --all docker://$(IMAGE_REGISTRY)/$(IMAGE):$(TAG) oci-archive:$(IMAGE_ARCHIVE_DIR)/$(IMAGE)-$(TAG).tar
+	skopeo copy --all docker://$(IMAGE_REGISTRY)/$(IMAGE):$(TAG) oci-archive:$(IMAGE_ARCHIVE_DIR)/$(IMAGE)-$(TAG).tar --debug
 
 ## Build specific multiplat images.
 
@@ -534,13 +517,14 @@ acncli-manifest-push: ## push acncli multiplat container manifest
 acncli-skopeo-archive: ## export tar archive of acncli multiplat container manifest.
 	$(MAKE) manifest-skopeo-archive \
 		IMAGE=$(ACNCLI_IMAGE) \
-		TAG=$(ACN_VERSION) 
+		TAG=$(ACN_VERSION)
 
 cni-dropgz-manifest-build: ## build cni-dropgz multiplat container manifest.
 	$(MAKE) manifest-build \
 		PLATFORMS="$(PLATFORMS)" \
 		IMAGE=$(CNI_DROPGZ_IMAGE) \
-		TAG=$(CNI_DROPGZ_VERSION)
+		TAG=$(CNI_DROPGZ_VERSION) \
+		OS_VERSIONS="$(OS_VERSIONS)"
 
 cni-dropgz-manifest-push: ## push cni-dropgz multiplat container manifest
 	$(MAKE) manifest-push \
@@ -556,7 +540,8 @@ cni-dropgz-test-manifest-build: ## build cni-dropgz multiplat container manifest
 	$(MAKE) manifest-build \
 		PLATFORMS="$(PLATFORMS)" \
 		IMAGE=$(CNI_DROPGZ_TEST_IMAGE) \
-		TAG=$(CNI_DROPGZ_TEST_VERSION)
+		TAG=$(CNI_DROPGZ_TEST_VERSION) \
+		OS_VERSIONS="$(OS_VERSIONS)"
 
 cni-dropgz-test-manifest-push: ## push cni-dropgz multiplat container manifest
 	$(MAKE) manifest-push \
@@ -692,7 +677,7 @@ ifeq ($(GOOS),linux)
 endif
 
 
-##@ Utils 
+##@ Utils
 
 clean: ## Clean build artifacts.
 	$(RMDIR) $(OUTPUT_DIR)
@@ -723,11 +708,13 @@ workspace: ## Set up the Go workspace.
 	go work use ./dropgz
 	go work use ./zapai
 
-##@ Test 
+##@ Test
 
 COVER_PKG ?= .
 #Restart case is used for cni load test pipeline for restarting the nodes cluster.
 RESTART_CASE ?= false
+# CNI type is a key to direct the types of state validation done on a cluster.
+CNI_TYPE ?= cilium
 
 # COVER_FILTER omits folders with all files tagged with one of 'unit', '!ignore_uncovered', or '!ignore_autogenerated'
 test-all: ## run all unit tests.
@@ -740,8 +727,13 @@ test-integration: ## run all integration tests.
 		CNS_VERSION=$(CNS_VERSION) \
 		go test -mod=readonly -buildvcs=false -timeout 1h -coverpkg=./... -race -covermode atomic -coverprofile=coverage.out -tags=integration ./test/integration...
 
+test-load: ## run all load tests
+	CNI_DROPGZ_VERSION=$(CNI_DROPGZ_VERSION) \
+		CNS_VERSION=$(CNS_VERSION) \
+		go test -timeout 30m -race -tags=load ./test/integration/load...
+
 test-validate-state:
-	cd test/integration/load && go test -count 1 -timeout 30m -tags load -run ^TestValidateState -tags=load -restart-case=$(RESTART_CASE) -os=$(OS)
+	cd test/integration/load && go test -mod=readonly -count=1 -timeout 30m -tags load -run ^TestValidateState
 	cd ../../..
 
 test-cyclonus: ## run the cyclonus test for npm.
@@ -762,6 +754,15 @@ test-azure-ipam: ## run the unit test for azure-ipam
 kind:
 	kind create cluster --config ./test/kind/kind.yaml
 
+test-k8se2e: test-k8se2e-build test-k8se2e-only ## Alias to run build and test
+
+test-k8se2e-build: ## Build k8s e2e test suite
+	cd hack/scripts && bash ./k8se2e.sh $(GROUP) $(CLUSTER)
+	cd ../..
+
+test-k8se2e-only: ## Run k8s network conformance test, use TYPE=basic for only datapath tests
+	cd hack/scripts && bash ./k8se2e-tests.sh $(OS) $(TYPE)
+	cd ../..
 
 ##@ Utilities
 
@@ -781,7 +782,7 @@ gitconfig: ## configure the local git repository
 setup: tools install-hooks gitconfig ## performs common required repo setup
 
 
-##@ Tools 
+##@ Tools
 
 $(TOOLS_DIR)/go.mod:
 	cd $(TOOLS_DIR); go mod init && go mod tidy
@@ -791,7 +792,7 @@ $(CONTROLLER_GEN): $(TOOLS_DIR)/go.mod
 
 controller-gen: $(CONTROLLER_GEN) ## Build controller-gen
 
-protoc: 
+protoc:
 	source ${REPO_ROOT}/scripts/install-protoc.sh
 
 $(GOCOV): $(TOOLS_DIR)/go.mod
@@ -824,13 +825,13 @@ $(MOCKGEN): $(TOOLS_DIR)/go.mod
 
 mockgen: $(MOCKGEN) ## Build mockgen
 
-clean-tools: 
+clean-tools:
 	rm -r build/tools/bin
 
 tools: acncli gocov gocov-xml go-junit-report golangci-lint gofumpt protoc ## Build bins for build tools
 
 
-##@ Help 
+##@ Help
 
 help: ## Display this help
-	@awk 'BEGIN {FS = ":.*##"; printf "\nUsage:\n  make \033[36m<target>\033[0m\n"} /^[a-zA-Z_-]+:.*?##/ { printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2 } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
+	@awk 'BEGIN {FS = ":.*##"; printf "\nUsage:\n  make \033[36m<target>\033[0m\n"} /^[0-9a-zA-Z_-]+:.*?##/ { printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2 } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)

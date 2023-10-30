@@ -19,9 +19,16 @@ steps:
     retryCountOnTaskFailure: 3
 
   - script: |
-      set -e
+      set -ex
+      echo "checking XDG_RUNTIME_DIR"
+      echo $XDG_RUNTIME_DIR
       make ${{ parameters.name }}-manifest-push
       mkdir -p $(Build.ArtifactStagingDirectory)/images
+
+      echo "setting XDG_RUNTIME_DIR"
+      export XDG_RUNTIME_DIR=/run/user/$(id -u)
+      echo $XDG_RUNTIME_DIR
+
       make ${{ parameters.name }}-skopeo-archive IMAGE_ARCHIVE_DIR=$(Build.ArtifactStagingDirectory)/images
     name: manifest_push
     displayName: Manifest Push

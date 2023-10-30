@@ -24,12 +24,14 @@ const (
 	DefaultRefreshDelay = 1 * time.Second
 	// DefaultMaxIPs default maximum allocatable IPs
 	DefaultMaxIPs = 250
+	// fieldManager is the field manager used when patching the NodeNetworkConfig.
+	fieldManager = "azure-cns"
 	// Subnet ARM ID /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/$(SUBNET)
 	subnetARMIDTemplate = "/subscriptions/%s/resourceGroups/%s/providers/Microsoft.Network/virtualNetworks/%s/subnets/%s"
 )
 
 type nodeNetworkConfigSpecUpdater interface {
-	UpdateSpec(context.Context, *v1alpha.NodeNetworkConfigSpec) (*v1alpha.NodeNetworkConfig, error)
+	PatchSpec(context.Context, *v1alpha.NodeNetworkConfigSpec, string) (*v1alpha.NodeNetworkConfig, error)
 }
 
 // metaState is the Monitor's configuration state for the IP pool.
@@ -173,13 +175,13 @@ type ipPoolState struct {
 	pendingRelease int64
 	// requestedIPs are the IPs CNS has requested that it be allocated by DNC.
 	requestedIPs int64
-	// totalIPs are all the IPs given to CNS by DNC.
-	totalIPs int64
+	// secondaryIPs are all the IPs given to CNS by DNC, not including the primary IP of the NC.
+	secondaryIPs int64
 }
 
 func buildIPPoolState(ips map[string]cns.IPConfigurationStatus, spec v1alpha.NodeNetworkConfigSpec) ipPoolState {
 	state := ipPoolState{
-		totalIPs:     int64(len(ips)),
+		secondaryIPs: int64(len(ips)),
 		requestedIPs: spec.RequestedIPCount,
 	}
 	for i := range ips {
@@ -195,7 +197,7 @@ func buildIPPoolState(ips map[string]cns.IPConfigurationStatus, spec v1alpha.Nod
 			state.pendingRelease++
 		}
 	}
-	state.currentAvailableIPs = state.totalIPs - state.allocatedToPods - state.pendingRelease
+	state.currentAvailableIPs = state.secondaryIPs - state.allocatedToPods - state.pendingRelease
 	state.expectedAvailableIPs = state.requestedIPs - state.allocatedToPods
 	return state
 }
@@ -281,7 +283,7 @@ func (pm *Monitor) increasePoolSize(ctx context.Context, meta metaState, state i
 
 	logger.Printf("[ipam-pool-monitor] Increasing pool size, pool %+v, spec %+v", state, tempNNCSpec)
 
-	if _, err := pm.nnccli.UpdateSpec(ctx, &tempNNCSpec); err != nil {
+	if _, err := pm.nnccli.PatchSpec(ctx, &tempNNCSpec, fieldManager); err != nil {
 		// caller will retry to update the CRD again
 		return errors.Wrap(err, "executing UpdateSpec with NNC client")
 	}
@@ -347,7 +349,7 @@ func (pm *Monitor) decreasePoolSize(ctx context.Context, meta metaState, state i
 	attempts := 0
 	if err := retry.Do(func() error {
 		attempts++
-		_, err := pm.nnccli.UpdateSpec(ctx, &tempNNCSpec)
+		_, err := pm.nnccli.PatchSpec(ctx, &tempNNCSpec, fieldManager)
 		if err != nil {
 			// caller will retry to update the CRD again
 			logger.Printf("failed to update NNC spec attempt #%d, err: %v", attempts, err)
@@ -378,7 +380,7 @@ func (pm *Monitor) decreasePoolSize(ctx context.Context, meta metaState, state i
 func (pm *Monitor) cleanPendingRelease(ctx context.Context) error {
 	tempNNCSpec := pm.createNNCSpecForCRD()
 
-	_, err := pm.nnccli.UpdateSpec(ctx, &tempNNCSpec)
+	_, err := pm.nnccli.PatchSpec(ctx, &tempNNCSpec, fieldManager)
 	if err != nil {
 		// caller will retry to update the CRD again
 		return errors.Wrap(err, "executing UpdateSpec with NNC client")

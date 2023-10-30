@@ -138,7 +138,7 @@ func main() {
 		CNIReport:                reportManager.Report.(*telemetry.CNIReport),
 	}
 
-	tb := telemetry.NewTelemetryBuffer()
+	tb := telemetry.NewTelemetryBuffer(nil)
 	tb.ConnectToTelemetryService(telemetryNumRetries, telemetryWaitTimeInMilliseconds)
 	defer tb.Close()
 
@@ -150,14 +150,14 @@ func main() {
 			return
 		}
 
-		config.Store, err = store.NewJsonFileStore(platform.CNIRuntimePath+pluginName+".json", lockclient)
+		config.Store, err = store.NewJsonFileStore(platform.CNIRuntimePath+pluginName+".json", lockclient, nil)
 		if err != nil {
 			fmt.Printf("[monitor] Failed to create store: %v\n", err)
 			return
 		}
 
 		nl := netlink.NewNetlink()
-		nm, err := network.NewNetworkManager(nl, platform.NewExecClient(), &netio.NetIO{})
+		nm, err := network.NewNetworkManager(nl, platform.NewExecClient(nil), &netio.NetIO{})
 		if err != nil {
 			log.Printf("[monitor] Failed while creating network manager")
 			return

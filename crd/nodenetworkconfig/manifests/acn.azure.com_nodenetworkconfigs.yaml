@@ -3,7 +3,7 @@ apiVersion: apiextensions.k8s.io/v1
 kind: CustomResourceDefinition
 metadata:
   annotations:
-    controller-gen.kubebuilder.io/version: v0.12.0
+    controller-gen.kubebuilder.io/version: v0.13.0
   name: nodenetworkconfigs.acn.azure.com
 spec:
   group: acn.azure.com
@@ -114,6 +114,15 @@ spec:
                     primaryIP:
                       type: string
                     resourceGroupID:
+                      type: string
+                    status:
+                      description: NCStatus indicates the latest NC request status
+                      enum:
+                      - NCUpdateSubnetFullError
+                      - NCUpdateInternalServerError
+                      - NCUpdateUnauthorizedError
+                      - NCUpdateSuccess
+                      - NCUpdateFailed
                       type: string
                     subcriptionID:
                       type: string

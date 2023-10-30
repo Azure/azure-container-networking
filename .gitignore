@@ -35,3 +35,6 @@ go.work*
 
 # scale-test
 test/scale/generated/*
+
+# test env file
+*.env

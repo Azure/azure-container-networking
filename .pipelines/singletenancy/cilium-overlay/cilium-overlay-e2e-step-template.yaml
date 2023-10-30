@@ -2,6 +2,7 @@ parameters:
   name: ""
   testDropgz: ""
   clusterName: ""
+  testHubble: false
 
 steps:
   - bash: |
@@ -22,41 +23,34 @@ steps:
     name: "GoEnv"
     displayName: "Set up the Go environment"
 
+  - task: KubectlInstaller@0
+    inputs:
+      kubectlVersion: latest
+
   - task: AzureCLI@1
     inputs:
-      azureSubscription: $(AZURE_TEST_AGENT_SERVICE_CONNECTION)
+      azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
       scriptLocation: "inlineScript"
       scriptType: "bash"
       addSpnToEnvironment: true
       inlineScript: |
-        mkdir -p ~/.kube/
-        echo "Create AKS Overlay cluster"
-        make -C ./hack/aks azcfg AZCLI=az REGION=$(REGION_OVERLAY_CLUSTER_TEST)
-        make -C ./hack/aks overlay-no-kube-proxy-up AZCLI=az REGION=$(REGION_OVERLAY_CLUSTER_TEST) SUB=$(SUB_AZURE_NETWORK_AGENT_TEST) CLUSTER=${{ parameters.clusterName }}-$(make revision) VM_SIZE=Standard_B2ms
-        echo "Cluster successfully created"
-    displayName: Create Overlay cluster
-    condition: succeeded()
-
-  - script: |
-      ls -lah
-      pwd
-      echo "installing kubectl"
-      curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-      sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
-      kubectl cluster-info
-      kubectl get po -owide -A
-      if [ "$CILIUM_VERSION_TAG" = "cilium-nightly-pipeline" ]; then FILE_PATH=-nightly && echo "Running nightly"; fi
-      echo "deploy Cilium ConfigMap"
-      kubectl apply -f cilium/configmap.yaml      
-      kubectl apply -f test/integration/manifests/cilium/cilium${FILE_PATH}-config.yaml
-      echo "install Cilium ${CILIUM_VERSION_TAG}"
-      # Passes Cilium image to daemonset and deployment
-      envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/daemonset.yaml | kubectl apply -f -
-      envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/deployment.yaml | kubectl apply -f -
-      # Use different file directories for nightly and current cilium version
-      kubectl apply -f test/integration/manifests/cilium/cilium${FILE_PATH}-agent
-      kubectl apply -f test/integration/manifests/cilium/cilium${FILE_PATH}-operator
-      kubectl get po -owide -A
+        set -e
+        make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
+        ls -lah
+        pwd
+        kubectl cluster-info
+        kubectl get po -owide -A
+        if [ "$CILIUM_VERSION_TAG" = "cilium-nightly-pipeline" ]; then FILE_PATH=-nightly && echo "Running nightly"; fi
+        echo "deploy Cilium ConfigMap"
+        kubectl apply -f test/integration/manifests/cilium/cilium${FILE_PATH}-config.yaml
+        echo "install Cilium ${CILIUM_VERSION_TAG}"
+        # Passes Cilium image to daemonset and deployment
+        envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/daemonset.yaml | kubectl apply -f -
+        envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/deployment.yaml | kubectl apply -f -
+        # Use different file directories for nightly and current cilium version
+        kubectl apply -f test/integration/manifests/cilium/cilium${FILE_PATH}-agent
+        kubectl apply -f test/integration/manifests/cilium/cilium${FILE_PATH}-operator
+        kubectl get po -owide -A
     name: "installCilium"
     displayName: "Install Cilium on AKS Overlay"
 
@@ -87,21 +81,25 @@ steps:
     name: "installKubetest"
     displayName: "Set up Conformance Tests"
 
+  - ${{ if eq( parameters['testDropgz'], true) }}:
+      - script: |
+          echo "##vso[task.setvariable variable=dropgzVersion]$(make cni-dropgz-test-version)"
+        name: dropgzTestVersion
+        displayName: "Dropgz Test Version"
+  - ${{ else }}:
+      - script: |
+          echo "##vso[task.setvariable variable=dropgzVersion]$(make cni-dropgz-version)"
+        name: dropgzVersion
+        displayName: "Dropgz Version"
+
   - script: |
       echo "Start Azilium E2E Tests on Overlay Cluster"
-      echo "deploy ip-masq-agent for overlay"
-      kubectl create -f test/integration/manifests/ip-masq-agent/ip-masq-agent.yaml --validate=false
-      cd test/integration/manifests/ip-masq-agent/
-      kubectl create configmap config-custom.yaml
-      kubectl create configmap config-reconcile.yaml
-      cd ../../../..
-      kubectl get po -owide -A
-      # Nightly does not build images per commit. Will use existing image. 
-      if [ "$CILIUM_VERSION_TAG" = "cilium-nightly-pipeline" ] 
-      then 
+      # Nightly does not build images per commit. Will use existing image.
+      if [ "$CILIUM_VERSION_TAG" = "cilium-nightly-pipeline" ]
+      then
           CNS=$(CNS_VERSION) DROPGZ=$(DROP_GZ_VERSION) && echo "Running nightly"
-      else 
-          CNS=$(make cns-version) DROPGZ=$(make cni-dropgz-version) 
+      else
+          CNS=$(make cns-version) DROPGZ=$(dropgzVersion)
       fi
       sudo -E env "PATH=$PATH" make test-integration CNS_VERSION=${CNS} CNI_DROPGZ_VERSION=${DROPGZ} INSTALL_CNS=true INSTALL_OVERLAY=true TEST_DROPGZ=${{ parameters.testDropgz }}
     retryCountOnTaskFailure: 3
@@ -128,7 +126,7 @@ steps:
       pathtoPublish: "$(Build.ArtifactStagingDirectory)/test-output"
     condition: always()
 
-  - script: |              
+  - script: |
       kubectl get pods -A
       echo "Waiting < 2 minutes for cilium to be ready"
       # Ensure Cilium is ready Xm\Xs
@@ -142,7 +140,8 @@ steps:
       export PATH=${PATH}:/usr/local/bin/gsutil
       KUBECONFIG=~/.kube/config kubetest2 noop \
         --test ginkgo -- \
-        --focus-regex "Services.*\[Conformance\].*"
+        --focus-regex "Services.*\[Conformance\].*" \
+        --skip-regex "should serve endpoints on same port and different protocols" # Cilium does not support this feature. For more info on test: https://github.com/kubernetes/kubernetes/blame/e602e9e03cd744c23dde9fee09396812dd7bdd93/test/conformance/testdata/conformance.yaml#L1780-L1788
     name: "servicesConformance"
     displayName: "Run Services Conformance Tests"
 
@@ -154,9 +153,32 @@ steps:
     name: "ciliumConnectivityTests"
     displayName: "Run Cilium Connectivity Tests"
 
+  - ${{ if eq( parameters['testHubble'], true) }}:
+      - script: |
+          echo "enable Hubble metrics server"
+          kubectl apply -f test/integration/manifests/cilium/hubble/hubble-peer-svc.yaml
+          kubectl apply -f test/integration/manifests/cilium/cilium-config-hubble.yaml
+          kubectl rollout restart ds cilium -n kube-system
+          echo "wait <3 minutes for pods to be ready after restart"
+          kubectl rollout status ds cilium -n kube-system --timeout=3m
+          kubectl get pods -Aowide
+          echo "verify Hubble metrics endpoint is usable"
+          go test ./test/integration/networkobservability -count=1 -v -tags=networkobservability
+        retryCountOnTaskFailure: 3
+        name: "HubbleConnectivityTests"
+        displayName: "Run Hubble Connectivity Tests"
+
   - script: |
       echo "validate pod IP assignment and check systemd-networkd restart"
       kubectl get pod -owide -A
+      # Deleting echo-external-node deployment until cilium version matches TODO. https://github.com/cilium/cilium-cli/issues/67 is addressing the change.
+      # Saves 17 minutes
+      kubectl delete deploy -n cilium-test echo-external-node
+      if [ "$CILIUM_VERSION_TAG" = "cilium-nightly-pipeline" ]; then
+        echo "Check cilium identities in cilium-test namepsace during nightly run"
+        echo "expect the identities to be deleted when the namespace is deleted"
+        kubectl get ciliumidentity | grep cilium-test
+      fi
       make test-validate-state
       echo "delete cilium connectivity test resources and re-validate state"
       kubectl delete ns cilium-test
@@ -164,6 +186,33 @@ steps:
       make test-validate-state
     name: "validatePods"
     displayName: "Validate Pods"
+
+  - script: |
+      if [ "$CILIUM_VERSION_TAG" = "cilium-nightly-pipeline" ]; then
+        kubectl get pod -owide -n cilium-test
+        echo "wait for pod and cilium identity deletion in cilium-test namespace"
+        ns="cilium-test"
+        while true; do
+          pods=$(kubectl get pods -n $ns --no-headers=true 2>/dev/null)
+          if [[ -z "$pods" ]]; then
+            echo "No pods found"
+              break
+          fi
+          sleep 2s
+        done
+        sleep 20s
+        echo "Verify cilium identities are deleted from cilium-test"
+        checkIdentity="$(kubectl get ciliumidentity -o json | grep cilium-test | jq -e 'length == 0')"
+        if [[ -n $checkIdentity ]]; then
+          echo "##[error]Cilium Identities still present in cilium-test namespace"
+        else
+          printf -- "Identities deleted from cilium-test namespace\n"
+        fi
+      else
+        echo "skip cilium identities check for PR pipeline"
+      fi
+    name: "CiliumIdentities"
+    displayName: "Verify Cilium Identities Deletion"
 
   - script: |
       echo "validate pod IP assignment before CNS restart"
@@ -192,19 +241,4 @@ steps:
       sudo rm -rf test/integration/logs
     name: "Cleanupartifactdir"
     displayName: "Cleanup artifact dir"
-    condition: always()
-
-  - task: AzureCLI@2
-    inputs:
-      azureSubscription: $(AZURE_TEST_AGENT_SERVICE_CONNECTION)
-      scriptLocation: "inlineScript"
-      scriptType: "bash"
-      addSpnToEnvironment: true
-      inlineScript: |
-        echo "Deleting cluster"
-        make -C ./hack/aks azcfg AZCLI=az
-        make -C ./hack/aks down SUB=$(SUB_AZURE_NETWORK_AGENT_TEST) AZCLI=az CLUSTER=${{ parameters.clusterName }}-$(make revision)
-        echo "Cluster and resources down"
-    name: "Cleanupcluster"
-    displayName: "Cleanup cluster"
     condition: always()

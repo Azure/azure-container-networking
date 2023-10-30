@@ -29,8 +29,8 @@ func (sc *ScopedClient) Get(ctx context.Context) (*v1alpha.NodeNetworkConfig, er
 	return nnc, errors.Wrapf(err, "failed to get nnc %v", sc.NamespacedName)
 }
 
-// UpdateSpec updates the associated NodeNetworkConfig with the passed NodeNetworkConfigSpec.
-func (sc *ScopedClient) UpdateSpec(ctx context.Context, spec *v1alpha.NodeNetworkConfigSpec) (*v1alpha.NodeNetworkConfig, error) {
-	nnc, err := sc.Client.UpdateSpec(ctx, sc.NamespacedName, spec)
-	return nnc, errors.Wrapf(err, "failed to update nnc %v", sc.NamespacedName)
+// PatchSpec updates the associated NodeNetworkConfig with the passed NodeNetworkConfigSpec.
+func (sc *ScopedClient) PatchSpec(ctx context.Context, spec *v1alpha.NodeNetworkConfigSpec, fieldManager string) (*v1alpha.NodeNetworkConfig, error) {
+	nnc, err := sc.Client.PatchSpec(ctx, sc.NamespacedName, spec, fieldManager)
+	return nnc, errors.Wrapf(err, "failed to patch nnc %v", sc.NamespacedName)
 }

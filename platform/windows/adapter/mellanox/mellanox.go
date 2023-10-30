@@ -198,7 +198,7 @@ func (m *Mellanox) getRegistryFullPath() (string, error) {
 	return registryKeyPrefix + registryKeySuffix, nil
 }
 
-// ExecutePowershellCommand executes powershell command
+// executePowershellCommand executes powershell command
 func executePowershellCommand(command string) (string, error) {
 	ps, err := exec.LookPath("powershell.exe")
 	if err != nil {

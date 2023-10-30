@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: ip-masq-agent-config
+  name: azure-ip-masq-agent-config
   namespace: kube-system
   labels:
     component: ip-masq-agent

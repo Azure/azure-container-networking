@@ -48,6 +48,18 @@ func TestIsDumpStateVer(t *testing.T) {
 			want:    true,
 			wantErr: false,
 		},
+		{
+			name:    "non-semver",
+			exec:    newCNIVersionFakeExec(`Azure CNI Version v1.4.35_Win2019OverlayFix`),
+			want:    true,
+			wantErr: false,
+		},
+		{
+			name:    "non-semver hotfix ver",
+			exec:    newCNIVersionFakeExec(`Azure CNI Version v1.4.44.4`),
+			want:    true,
+			wantErr: false,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

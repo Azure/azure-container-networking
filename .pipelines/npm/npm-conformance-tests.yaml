@@ -442,8 +442,10 @@ jobs:
             # swap azure-npm image with one built during run
             ./kubectl --kubeconfig=./kubeconfig set image daemonset/azure-npm-win -n kube-system azure-npm=$IMAGE_REGISTRY/azure-npm:windows-amd64-ltsc2022-$(TAG)
 
-            echo "sleeping 3 minutes to allow NPM pods to restart"
-            sleep 180
+            echo "sleeping and waiting for NPM pods to be ready..."
+            sleep 1m
+            ./kubectl --kubeconfig=./kubeconfig wait --for=condition=Ready pod -n kube-system -l k8s-app=azure-npm --timeout=5m
+            echo "sleeping 3 more minutes to let windows NPM finish bootup phase"
 
             ./kubectl --kubeconfig=./kubeconfig get po -n kube-system -owide -A
 

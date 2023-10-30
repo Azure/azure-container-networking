@@ -21,11 +21,15 @@ const (
 	waitTimeInSecs = 10
 )
 
-func CreateAITelemetryHandle(aiConfig aitelemetry.AIConfig, disableAll, disableMetric, disableTrace bool) error {
+func (tb *TelemetryBuffer) CreateAITelemetryHandle(aiConfig aitelemetry.AIConfig, disableAll, disableMetric, disableTrace bool) error {
 	var err error
 
 	if disableAll {
-		log.Printf("Telemetry is disabled")
+		if tb.logger != nil {
+			tb.logger.Info("Telemetry is disabled")
+		} else {
+			log.Printf("Telemetry is disabled")
+		}
 		return ErrTelemetryDisabled
 	}
 

@@ -167,7 +167,7 @@ func main() {
 
 	// Create the key value store.
 	storeFileName := storeFileLocation + name + ".json"
-	config.Store, err = store.NewJsonFileStore(storeFileName, lockclient)
+	config.Store, err = store.NewJsonFileStore(storeFileName, lockclient, nil)
 	if err != nil {
 		log.Errorf("Failed to create store file: %s, due to error %v\n", storeFileName, err)
 		return

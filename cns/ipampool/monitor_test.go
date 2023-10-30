@@ -17,15 +17,15 @@ type fakeNodeNetworkConfigUpdater struct {
 	nnc *v1alpha.NodeNetworkConfig
 }
 
-func (f *fakeNodeNetworkConfigUpdater) UpdateSpec(ctx context.Context, spec *v1alpha.NodeNetworkConfigSpec) (*v1alpha.NodeNetworkConfig, error) {
+func (f *fakeNodeNetworkConfigUpdater) PatchSpec(_ context.Context, spec *v1alpha.NodeNetworkConfigSpec, _ string) (*v1alpha.NodeNetworkConfig, error) {
 	f.nnc.Spec = *spec
 	return f.nnc, nil
 }
 
-type fakeNodeNetworkConfigUpdaterFunc func(ctx context.Context, spec *v1alpha.NodeNetworkConfigSpec) (*v1alpha.NodeNetworkConfig, error)
+type fakeNodeNetworkConfigUpdaterFunc func(context.Context, *v1alpha.NodeNetworkConfigSpec, string) (*v1alpha.NodeNetworkConfig, error)
 
-func (f fakeNodeNetworkConfigUpdaterFunc) UpdateSpec(ctx context.Context, spec *v1alpha.NodeNetworkConfigSpec) (*v1alpha.NodeNetworkConfig, error) {
-	return f(ctx, spec)
+func (f fakeNodeNetworkConfigUpdaterFunc) PatchSpec(ctx context.Context, spec *v1alpha.NodeNetworkConfigSpec, owner string) (*v1alpha.NodeNetworkConfig, error) {
+	return f(ctx, spec, owner)
 }
 
 type directUpdatePoolMonitor struct {
@@ -568,7 +568,7 @@ func TestDecreaseWithAPIServerFailure(t *testing.T) {
 		totalIPs:                64,
 		max:                     250,
 	}
-	var errNNCCLi fakeNodeNetworkConfigUpdaterFunc = func(ctx context.Context, spec *v1alpha.NodeNetworkConfigSpec) (*v1alpha.NodeNetworkConfig, error) {
+	var errNNCCLi fakeNodeNetworkConfigUpdaterFunc = func(context.Context, *v1alpha.NodeNetworkConfigSpec, string) (*v1alpha.NodeNetworkConfig, error) {
 		return nil, errors.New("fake APIServer failure") //nolint:goerr113 // this is a fake error
 	}
 

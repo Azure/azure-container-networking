@@ -6,10 +6,10 @@ import (
 	"net"
 
 	"github.com/Azure/azure-container-networking/ebtables"
-	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/netlink"
 	"github.com/Azure/azure-container-networking/network/networkutils"
 	"github.com/Azure/azure-container-networking/platform"
+	"go.uber.org/zap"
 )
 
 const (
@@ -49,7 +49,7 @@ func NewLinuxBridgeClient(
 }
 
 func (client *LinuxBridgeClient) CreateBridge() error {
-	log.Printf("[net] Creating bridge %v.", client.bridgeName)
+	logger.Info("Creating bridge", zap.String("bridgeName", client.bridgeName))
 
 	link := netlink.BridgeLink{
 		LinkInfo: netlink.LinkInfo{
@@ -73,13 +73,13 @@ func (client *LinuxBridgeClient) DeleteBridge() error {
 	// Disconnect external interface from its bridge.
 	err := client.netlink.SetLinkMaster(client.hostInterfaceName, "")
 	if err != nil {
-		log.Printf("[net] Failed to disconnect interface %v from bridge, err:%v.", client.hostInterfaceName, err)
+		logger.Error("Failed to disconnect interface from bridge", zap.String("hostInterfaceName", client.hostInterfaceName), zap.Error(err))
 	}
 
 	// Delete the bridge.
 	err = client.netlink.DeleteLink(client.bridgeName)
 	if err != nil {
-		log.Printf("[net] Failed to delete bridge %v, err:%v.", client.bridgeName, err)
+		logger.Error("Failed to delete bridge", zap.String("bridgeName", client.bridgeName), zap.Error(err))
 	}
 
 	return nil
@@ -92,7 +92,7 @@ func (client *LinuxBridgeClient) AddL2Rules(extIf *externalInterface) error {
 	}
 
 	// Add SNAT rule to translate container egress traffic.
-	log.Printf("[net] Adding SNAT rule for egress traffic on %v.", client.hostInterfaceName)
+	logger.Info("Adding SNAT rule for egress traffic on", zap.String("hostInterfaceName", client.hostInterfaceName))
 	if err := ebtables.SetSnatForInterface(client.hostInterfaceName, hostIf.HardwareAddr, ebtables.Append); err != nil {
 		return err
 	}
@@ -101,13 +101,13 @@ func (client *LinuxBridgeClient) AddL2Rules(extIf *externalInterface) error {
 	// ARP requests for all IP addresses are forwarded to the SDN fabric, but fabric
 	// doesn't respond to ARP requests from the VM for its own primary IP address.
 	primary := extIf.IPAddresses[0].IP
-	log.Printf("[net] Adding ARP reply rule for primary IP address %v.", primary)
+	logger.Info("Adding ARP reply rule for primary IP address", zap.Any("address", primary))
 	if err := ebtables.SetArpReply(primary, hostIf.HardwareAddr, ebtables.Append); err != nil {
 		return err
 	}
 
 	// Add DNAT rule to forward ARP replies to container interfaces.
-	log.Printf("[net] Adding DNAT rule for ingress ARP traffic on interface %v.", client.hostInterfaceName)
+	logger.Info("Adding DNAT rule for ingress ARP traffic on interface", zap.String("hostInterfaceName", client.hostInterfaceName))
 	if err := ebtables.SetDnatForArpReplies(client.hostInterfaceName, ebtables.Append); err != nil {
 		return err
 	}
@@ -138,7 +138,7 @@ func (client *LinuxBridgeClient) AddL2Rules(extIf *externalInterface) error {
 
 	// Enable VEPA for host policy enforcement if necessary.
 	if client.nwInfo.Mode == opModeTunnel {
-		log.Printf("[net] Enabling VEPA mode for %v.", client.hostInterfaceName)
+		logger.Info("Enabling VEPA mode for", zap.String("hostInterfaceName", client.hostInterfaceName))
 		if err := ebtables.SetVepaMode(client.bridgeName, commonInterfacePrefix, virtualMacAddress, ebtables.Append); err != nil {
 			return err
 		}

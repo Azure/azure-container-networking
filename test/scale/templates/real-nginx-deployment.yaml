@@ -1,0 +1,30 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: TEMP_NAME
+  namespace: scale-test
+  labels:
+    app: scale-test
+    is-real: "true"
+    name: TEMP_NAME
+spec:
+  replicas: TEMP_REPLICAS
+  selector:
+    matchLabels:
+      app: scale-test
+      is-real: "true"OTHER_LABELS_6_SPACES
+  template:
+    metadata:
+      labels:
+        app: scale-test
+        name: TEMP_NAME
+        is-real: "true"OTHER_LABELS_8_SPACES
+    spec:
+      nodeSelector:
+        scale-test: "true"
+      containers:
+      - name: nginx
+        image: nginx:1
+        ports:
+        - name: http
+          containerPort: 80

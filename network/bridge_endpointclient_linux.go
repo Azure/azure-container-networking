@@ -5,11 +5,11 @@ import (
 	"net"
 
 	"github.com/Azure/azure-container-networking/ebtables"
-	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/netio"
 	"github.com/Azure/azure-container-networking/netlink"
 	"github.com/Azure/azure-container-networking/network/networkutils"
 	"github.com/Azure/azure-container-networking/platform"
+	"go.uber.org/zap"
 )
 
 const (
@@ -76,7 +76,7 @@ func (client *LinuxBridgeEndpointClient) AddEndpoints(epInfo *EndpointInfo) erro
 func (client *LinuxBridgeEndpointClient) AddEndpointRules(epInfo *EndpointInfo) error {
 	var err error
 
-	log.Printf("[net] Setting link %v master %v.", client.hostVethName, client.bridgeName)
+	logger.Info("Setting link master", zap.String("hostVethName", client.hostVethName), zap.String("bridgeName", client.bridgeName))
 	if err := client.netlink.SetLinkMaster(client.hostVethName, client.bridgeName); err != nil {
 		return err
 	}
@@ -84,20 +84,20 @@ func (client *LinuxBridgeEndpointClient) AddEndpointRules(epInfo *EndpointInfo) 
 	for _, ipAddr := range epInfo.IPAddresses {
 		if ipAddr.IP.To4() != nil {
 			// Add ARP reply rule.
-			log.Printf("[net] Adding ARP reply rule for IP address %v", ipAddr.String())
+			logger.Info("Adding ARP reply rule for IP address", zap.String("address", ipAddr.String()))
 			if err = ebtables.SetArpReply(ipAddr.IP, client.getArpReplyAddress(client.containerMac), ebtables.Append); err != nil {
 				return err
 			}
 		}
 
 		// Add MAC address translation rule.
-		log.Printf("[net] Adding MAC DNAT rule for IP address %v", ipAddr.String())
+		logger.Info("Adding MAC DNAT rule for IP address", zap.String("address", ipAddr.String()))
 		if err := ebtables.SetDnatForIPAddress(client.hostPrimaryIfName, ipAddr.IP, client.containerMac, ebtables.Append); err != nil {
 			return err
 		}
 
 		if client.mode != opModeTunnel && ipAddr.IP.To4() != nil {
-			log.Printf("[net] Adding static arp for IP address %v and MAC %v in VM", ipAddr.String(), client.containerMac.String())
+			logger.Info("Adding static arp for IP address and MAC in VM", zap.String("address", ipAddr.String()), zap.String("MAC", client.containerMac.String()))
 			linkInfo := netlink.LinkInfo{
 				Name:       client.bridgeName,
 				IPAddr:     ipAddr.IP,
@@ -105,16 +105,16 @@ func (client *LinuxBridgeEndpointClient) AddEndpointRules(epInfo *EndpointInfo) 
 			}
 
 			if err := client.netlink.SetOrRemoveLinkAddress(linkInfo, netlink.ADD, netlink.NUD_PERMANENT); err != nil {
-				log.Printf("Failed setting arp in vm: %v", err)
+				logger.Info("Failed setting arp in vm with", zap.Error(err))
 			}
 		}
 	}
 
 	addRuleToRouteViaHost(epInfo)
 
-	log.Printf("[net] Setting hairpin for hostveth %v", client.hostVethName)
+	logger.Info("Setting hairpin for ", zap.String("hostveth", client.hostVethName))
 	if err := client.netlink.SetLinkHairpin(client.hostVethName, true); err != nil {
-		log.Printf("Setting up hairpin failed for interface %v error %v", client.hostVethName, err)
+		logger.Info("Setting up hairpin failed for interface error", zap.String("interfaceName", client.hostVethName), zap.Error(err))
 		return err
 	}
 
@@ -126,22 +126,22 @@ func (client *LinuxBridgeEndpointClient) DeleteEndpointRules(ep *endpoint) {
 	for _, ipAddr := range ep.IPAddresses {
 		if ipAddr.IP.To4() != nil {
 			// Delete ARP reply rule.
-			log.Printf("[net] Deleting ARP reply rule for IP address %v on %v.", ipAddr.String(), ep.Id)
+			logger.Info("Deleting ARP reply rule for IP address on", zap.String("address", ipAddr.String()), zap.String("id", ep.Id))
 			err := ebtables.SetArpReply(ipAddr.IP, client.getArpReplyAddress(ep.MacAddress), ebtables.Delete)
 			if err != nil {
-				log.Printf("[net] Failed to delete ARP reply rule for IP address %v: %v.", ipAddr.String(), err)
+				logger.Error("Failed to delete ARP reply rule for IP address", zap.String("address", ipAddr.String()), zap.Error(err))
 			}
 		}
 
 		// Delete MAC address translation rule.
-		log.Printf("[net] Deleting MAC DNAT rule for IP address %v on %v.", ipAddr.String(), ep.Id)
+		logger.Info("Deleting MAC DNAT rule for IP address on", zap.String("address", ipAddr.String()), zap.String("id", ep.Id))
 		err := ebtables.SetDnatForIPAddress(client.hostPrimaryIfName, ipAddr.IP, ep.MacAddress, ebtables.Delete)
 		if err != nil {
-			log.Printf("[net] Failed to delete MAC DNAT rule for IP address %v: %v.", ipAddr.String(), err)
+			logger.Error("Failed to delete MAC DNAT rule for IP address", zap.String("address", ipAddr.String()), zap.Error(err))
 		}
 
 		if client.mode != opModeTunnel && ipAddr.IP.To4() != nil {
-			log.Printf("[net] Removing static arp for IP address %v and MAC %v from VM", ipAddr.String(), ep.MacAddress.String())
+			logger.Info("Removing static arp for IP address and MAC from VM", zap.String("address", ipAddr.String()), zap.String("MAC", ep.MacAddress.String()))
 			linkInfo := netlink.LinkInfo{
 				Name:       client.bridgeName,
 				IPAddr:     ipAddr.IP,
@@ -149,7 +149,7 @@ func (client *LinuxBridgeEndpointClient) DeleteEndpointRules(ep *endpoint) {
 			}
 			err := client.netlink.SetOrRemoveLinkAddress(linkInfo, netlink.REMOVE, netlink.NUD_INCOMPLETE)
 			if err != nil {
-				log.Printf("Failed removing arp from vm: %v", err)
+				logger.Error("Failed removing arp from vm with", zap.Error(err))
 			}
 		}
 	}
@@ -172,7 +172,7 @@ func (client *LinuxBridgeEndpointClient) getArpReplyAddress(epMacAddress net.Har
 
 func (client *LinuxBridgeEndpointClient) MoveEndpointsToContainerNS(epInfo *EndpointInfo, nsID uintptr) error {
 	// Move the container interface to container's network namespace.
-	log.Printf("[net] Setting link %v netns %v.", client.containerVethName, epInfo.NetNsPath)
+	logger.Info("Setting link netns", zap.String("containerVethName", client.containerVethName), zap.String("NetNsPath", epInfo.NetNsPath))
 	if err := client.netlink.SetLinkNetNs(client.containerVethName, nsID); err != nil {
 		return newErrorLinuxBridgeClient(err.Error())
 	}
@@ -211,10 +211,10 @@ func (client *LinuxBridgeEndpointClient) ConfigureContainerInterfacesAndRoutes(e
 }
 
 func (client *LinuxBridgeEndpointClient) DeleteEndpoints(ep *endpoint) error {
-	log.Printf("[net] Deleting veth pair %v %v.", ep.HostIfName, ep.IfName)
+	logger.Info("Deleting veth pair", zap.String("hostIfName", ep.HostIfName), zap.String("interfaceName", ep.IfName))
 	err := client.netlink.DeleteLink(ep.HostIfName)
 	if err != nil {
-		log.Printf("[net] Failed to delete veth pair %v: %v.", ep.HostIfName, err)
+		logger.Error("Failed to delete veth pair", zap.String("hostIfName", ep.HostIfName), zap.Error(err))
 		return err
 	}
 
@@ -228,21 +228,21 @@ func addRuleToRouteViaHost(epInfo *EndpointInfo) error {
 		rule := fmt.Sprintf("-p IPv4 --ip-dst %s -j redirect", ipAddr)
 
 		// Check if EB rule exists
-		log.Printf("[net] Checking if EB rule %s already exists in table %s chain %s", rule, tableName, chainName)
+		logger.Info("Checking if EB rule already exists in table chain", zap.String("rule", rule), zap.String("tableName", tableName), zap.String("chainName", chainName))
 		exists, err := ebtables.EbTableRuleExists(tableName, chainName, rule)
 		if err != nil {
-			log.Printf("[net] Failed to check if EB table rule exists: %v", err)
+			logger.Error("Failed to check if EB table rule exists", zap.Error(err))
 			return err
 		}
 
 		if exists {
 			// EB rule already exists.
-			log.Printf("[net] EB rule %s already exists in table %s chain %s.", rule, tableName, chainName)
+			logger.Info("EB rule already exists in table chain", zap.String("rule", rule), zap.String("tableName", tableName), zap.String("chainName", chainName))
 		} else {
 			// Add EB rule to route via host.
-			log.Printf("[net] Adding EB rule to route via host for IP address %v", ipAddr)
+			logger.Info("Adding EB rule to route via host for IP", zap.Any("address", ipAddr))
 			if err := ebtables.SetBrouteAccept(ipAddr, ebtables.Append); err != nil {
-				log.Printf("[net] Failed to add EB rule to route via host: %v", err)
+				logger.Error("Failed to add EB rule to route via host with", zap.Error(err))
 				return err
 			}
 		}
@@ -287,7 +287,7 @@ func (client *LinuxBridgeEndpointClient) setupIPV6Routes(epInfo *EndpointInfo) e
 		routes = append(routes, vmV6Route)
 		routes = append(routes, defaultV6Route)
 
-		log.Printf("[net] Adding ipv6 routes in container %+v", routes)
+		logger.Info("Adding ipv6 routes in", zap.Any("container", routes))
 		if err := addRoutes(client.netlink, client.netioshim, client.containerVethName, routes); err != nil {
 			return nil
 		}
@@ -298,7 +298,7 @@ func (client *LinuxBridgeEndpointClient) setupIPV6Routes(epInfo *EndpointInfo) e
 
 func (client *LinuxBridgeEndpointClient) setIPV6NeighEntry(epInfo *EndpointInfo) error {
 	if epInfo.IPV6Mode != "" {
-		log.Printf("[net] Add neigh entry for host gw ip")
+		logger.Info("Add neigh entry for host gw ip")
 		hardwareAddr, _ := net.ParseMAC(defaultHostGwMac)
 		hostGwIp := net.ParseIP(defaultV6HostGw)
 		linkInfo := netlink.LinkInfo{
@@ -307,7 +307,7 @@ func (client *LinuxBridgeEndpointClient) setIPV6NeighEntry(epInfo *EndpointInfo)
 			MacAddress: hardwareAddr,
 		}
 		if err := client.netlink.SetOrRemoveLinkAddress(linkInfo, netlink.ADD, netlink.NUD_PERMANENT); err != nil {
-			log.Printf("Failed setting neigh entry in container: %v", err)
+			logger.Error("Failed setting neigh entry in", zap.Any("container", err.Error()))
 			return err
 		}
 	}

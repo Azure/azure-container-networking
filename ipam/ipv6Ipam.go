@@ -10,8 +10,8 @@ import (
 	"strings"
 
 	"github.com/Azure/azure-container-networking/common"
-	"github.com/Azure/azure-container-networking/log"
 	"github.com/Masterminds/semver"
+	"go.uber.org/zap"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/version"
@@ -89,13 +89,13 @@ func (source *ipv6IpamSource) stop() {
 func (source *ipv6IpamSource) loadKubernetesConfig() (kubernetes.Interface, error) {
 	config, err := clientcmd.BuildConfigFromFlags("", source.kubeConfigPath)
 	if err != nil {
-		log.Printf("[ipam] Failed to load Kubernetes config from disk: %+v", err)
+		logger.Error("Failed to load Kubernetes config from disk", zap.Error(err))
 		return nil, err
 	}
 
 	client, err := kubernetes.NewForConfig(config)
 	if err != nil {
-		log.Printf("[ipam] Failed to create Kubernetes config: %+v", err)
+		logger.Error("Failed to create Kubernetes config", zap.Error(err))
 		return nil, err
 	}
 
@@ -106,7 +106,7 @@ func (source *ipv6IpamSource) loadKubernetesConfig() (kubernetes.Interface, erro
 
 	serverVersion, err := client.ServerVersion()
 	if err != nil {
-		log.Printf("[ipam] Failed to retrieve Kubernetes version: %+v", err)
+		logger.Error("Failed to retrieve Kubernetes version", zap.Error(err))
 		return nil, err
 	}
 
@@ -153,14 +153,14 @@ func (source *ipv6IpamSource) refresh() error {
 	}
 
 	if source.isLoaded {
-		log.Printf("ipv6 source already loaded")
+		logger.Info("ipv6 source already loaded")
 		return nil
 	}
 
 	if source.kubeClient == nil {
 		kubeClient, err := source.loadKubernetesConfig()
 		if err != nil {
-			log.Printf("[ipam] Failed to load Kubernetes config: %+v", err)
+			logger.Error("Failed to load Kubernetes config", zap.Error(err))
 			return err
 		}
 
@@ -169,24 +169,24 @@ func (source *ipv6IpamSource) refresh() error {
 
 	kubeNode, err := source.kubeClient.CoreV1().Nodes().Get(context.TODO(), source.nodeHostname, metav1.GetOptions{})
 	if err != nil {
-		log.Printf("[ipam] Failed to retrieve node using hostname: %+v with err %+v", source.nodeHostname, err)
+		logger.Error("Failed to retrieve node using", zap.String("hostName", source.nodeHostname), zap.Error(err))
 		return err
 	}
 
 	source.kubeNode = kubeNode
-	log.Printf("[ipam] Discovered CIDR's %v.", source.kubeNode.Spec.PodCIDRs)
+	logger.Info("Discovered", zap.Any("CIDR's", source.kubeNode.Spec.PodCIDRs))
 
 	// Query the list of Kubernetes Pod IPs
 	interfaceIPs, err := retrieveKubernetesPodIPs(source.kubeNode, source.subnetMaskSizeLimit)
 	if err != nil {
-		log.Printf("[ipam] Failed retrieve Kubernetes IP's from subnet: %v.", err)
+		logger.Error("Failed retrieve Kubernetes IP's from subnet", zap.Error(err))
 		return err
 	}
 
 	// Configure the local default address space.
 	local, err := source.sink.newAddressSpace(LocalDefaultAddressSpaceId, LocalScope)
 	if err != nil {
-		log.Printf("[ipam] Failed to configure local default address space: %v.", err)
+		logger.Error("Failed to configure local default address space", zap.Error(err))
 		return err
 	}
 
@@ -201,7 +201,7 @@ func (source *ipv6IpamSource) refresh() error {
 				address := net.ParseIP(a.Address)
 				_, err = ap.newAddressRecord(&address)
 				if err != nil {
-					log.Printf("[ipam] Failed to create address:%v err:%v.", address, err)
+					logger.Error("Failed to create", zap.Any("address", address), zap.Error(err))
 					continue
 				}
 			}
@@ -214,7 +214,7 @@ func (source *ipv6IpamSource) refresh() error {
 	}
 
 	source.isLoaded = true
-	log.Printf("[ipam] Address space successfully populated from Kubernetes API Server")
+	logger.Info("Address space successfully populated from Kubernetes API Server")
 
 	return err
 }

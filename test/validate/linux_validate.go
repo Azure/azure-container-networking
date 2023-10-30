@@ -1,43 +1,51 @@
 package validate
 
 import (
-	"context"
 	"encoding/json"
-	"log"
 
 	"github.com/Azure/azure-container-networking/cns"
 	restserver "github.com/Azure/azure-container-networking/cns/restserver"
-	k8sutils "github.com/Azure/azure-container-networking/test/internal/k8sutils"
 	"github.com/pkg/errors"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
 )
 
 const (
-	privilegedDaemonSetPath = "../manifests/load/privileged-daemonset.yaml"
-	privilegedLabelSelector = "app=privileged-daemonset"
-	privilegedNamespace     = "kube-system"
-
-	cnsLabelSelector    = "k8s-app=azure-cns"
-	ciliumLabelSelector = "k8s-app=cilium"
+	cnsLabelSelector        = "k8s-app=azure-cns"
+	ciliumLabelSelector     = "k8s-app=cilium"
+	overlayClusterLabelName = "overlay"
 )
 
 var (
-	restartNetworkCmd  = []string{"bash", "-c", "chroot /host /bin/bash -c 'systemctl restart systemd-networkd'"}
-	cnsStateFileCmd    = []string{"bash", "-c", "cat /var/run/azure-cns/azure-endpoints.json"}
-	ciliumStateFileCmd = []string{"bash", "-c", "cilium endpoint list -o json"}
-	cnsLocalCacheCmd   = []string{"curl", "localhost:10090/debug/ipaddresses", "-d", "{\"IPConfigStateFilter\":[\"Assigned\"]}"}
+	restartNetworkCmd      = []string{"bash", "-c", "chroot /host /bin/bash -c systemctl restart systemd-networkd"}
+	cnsManagedStateFileCmd = []string{"bash", "-c", "cat /var/run/azure-cns/azure-endpoints.json"}
+	azureVnetStateFileCmd  = []string{"bash", "-c", "cat /var/run/azure-vnet.json"}
+	azureVnetIpamStateCmd  = []string{"bash", "-c", "cat /var/run/azure-vnet-ipam.json"}
+	ciliumStateFileCmd     = []string{"bash", "-c", "cilium endpoint list -o json"}
+	cnsLocalCacheCmd       = []string{"curl", "localhost:10090/debug/ipaddresses", "-d", "{\"IPConfigStateFilter\":[\"Assigned\"]}"}
 )
 
 type stateFileIpsFunc func([]byte) (map[string]string, error)
 
-type LinuxClient struct{}
-
-type LinuxValidator struct {
-	Validator
+var linuxChecksMap = map[string][]check{
+	"cilium": {
+		{"cns", cnsManagedStateFileIps, cnsLabelSelector, privilegedNamespace, cnsManagedStateFileCmd}, // cns configmap "ManageEndpointState": true, | Endpoints managed in CNS State File
+		{"cilium", ciliumStateFileIps, ciliumLabelSelector, privilegedNamespace, ciliumStateFileCmd},
+		{"cns cache", cnsCacheStateFileIps, cnsLabelSelector, privilegedNamespace, cnsLocalCacheCmd},
+	},
+	"cniv1": {
+		{"azure-vnet", azureVnetStateIps, privilegedLabelSelector, privilegedNamespace, azureVnetStateFileCmd},
+		{"azure-vnet-ipam", azureVnetIpamStateIps, privilegedLabelSelector, privilegedNamespace, azureVnetIpamStateCmd},
+	},
+	"cniv2": {
+		{"cns cache", cnsCacheStateFileIps, cnsLabelSelector, privilegedNamespace, cnsLocalCacheCmd},
+		{"azure-vnet", azureVnetStateIps, privilegedLabelSelector, privilegedNamespace, azureVnetStateFileCmd}, // cns configmap "ManageEndpointState": false, | Endpoints managed in CNI State File
+	},
+	"dualstack": {
+		{"cns cache", cnsCacheStateFileIps, cnsLabelSelector, privilegedNamespace, cnsLocalCacheCmd},
+		{"azure dualstackoverlay", azureVnetStateIps, privilegedLabelSelector, privilegedNamespace, azureVnetStateFileCmd},
+	},
 }
 
-type CnsState struct {
+type CnsManagedState struct {
 	Endpoints map[string]restserver.EndpointInfo `json:"Endpoints"`
 }
 
@@ -62,85 +70,57 @@ type Address struct {
 	Addr string `json:"ipv4"`
 }
 
-func (l *LinuxClient) CreateClient(ctx context.Context, clienset *kubernetes.Clientset, config *rest.Config, namespace, cni string, restartCase bool) IValidator {
-	// deploy privileged pod
-	privilegedDaemonSet, err := k8sutils.MustParseDaemonSet(privilegedDaemonSetPath)
-	if err != nil {
-		panic(err)
-	}
-	daemonsetClient := clienset.AppsV1().DaemonSets(privilegedNamespace)
-	err = k8sutils.MustCreateDaemonset(ctx, daemonsetClient, privilegedDaemonSet)
-	if err != nil {
-		panic(err)
-	}
-	err = k8sutils.WaitForPodsRunning(ctx, clienset, privilegedNamespace, privilegedLabelSelector)
-	if err != nil {
-		panic(err)
-	}
-	return &LinuxValidator{
-		Validator: Validator{
-			ctx:         ctx,
-			clientset:   clienset,
-			config:      config,
-			namespace:   namespace,
-			cni:         cni,
-			restartCase: restartCase,
-		},
-	}
+// parse azure-vnet.json
+// azure cni manages endpoint state
+type AzureCniState struct {
+	AzureCniState AzureVnetNetwork `json:"Network"`
 }
 
-// Todo: Based on cni version validate different state files
-func (v *LinuxValidator) ValidateStateFile() error {
-	checks := []struct {
-		name             string
-		stateFileIps     func([]byte) (map[string]string, error)
-		podLabelSelector string
-		podNamespace     string
-		cmd              []string
-	}{
-		{"cns", cnsStateFileIps, cnsLabelSelector, privilegedNamespace, cnsStateFileCmd},
-		{"cilium", ciliumStateFileIps, ciliumLabelSelector, privilegedNamespace, ciliumStateFileCmd},
-		{"cns cache", cnsCacheStateFileIps, cnsLabelSelector, privilegedNamespace, cnsLocalCacheCmd},
-	}
-
-	for _, check := range checks {
-		err := v.validate(check.stateFileIps, check.cmd, check.name, check.podNamespace, check.podLabelSelector)
-		if err != nil {
-			return err
-		}
-	}
-	return nil
+type AzureVnetNetwork struct {
+	Version            string                   `json:"Version"`
+	TimeStamp          string                   `json:"TimeStamp"`
+	ExternalInterfaces map[string]InterfaceInfo `json:"ExternalInterfaces"`
 }
 
-func (v *LinuxValidator) ValidateRestartNetwork() error {
-	nodes, err := k8sutils.GetNodeList(v.ctx, v.clientset)
-	if err != nil {
-		return errors.Wrapf(err, "failed to get node list")
-	}
-
-	for index := range nodes.Items {
-		// get the privileged pod
-		pod, err := k8sutils.GetPodsByNode(v.ctx, v.clientset, privilegedNamespace, privilegedLabelSelector, nodes.Items[index].Name)
-		if err != nil {
-			return errors.Wrapf(err, "failed to get privileged pod")
-		}
-
-		privelegedPod := pod.Items[0]
-		// exec into the pod to get the state file
-		_, err = k8sutils.ExecCmdOnPod(v.ctx, v.clientset, privilegedNamespace, privelegedPod.Name, restartNetworkCmd, v.config)
-		if err != nil {
-			return errors.Wrapf(err, "failed to exec into privileged pod")
-		}
-		err = k8sutils.WaitForPodsRunning(v.ctx, v.clientset, "", "")
-		if err != nil {
-			return errors.Wrapf(err, "failed to wait for pods running")
-		}
-	}
-	return nil
+type InterfaceInfo struct {
+	Name     string                          `json:"Name"`
+	Networks map[string]AzureVnetNetworkInfo `json:"Networks"` // key: networkName, value: AzureVnetNetworkInfo
 }
 
-func cnsStateFileIps(result []byte) (map[string]string, error) {
-	var cnsResult CnsState
+type AzureVnetInfo struct {
+	Name     string
+	Networks map[string]AzureVnetNetworkInfo // key: network name, value: NetworkInfo
+}
+
+type AzureVnetNetworkInfo struct {
+	ID        string
+	Mode      string
+	Subnets   []Subnet
+	Endpoints map[string]AzureVnetEndpointInfo // key: azure endpoint name, value: AzureVnetEndpointInfo
+	PodName   string
+}
+
+type Subnet struct {
+	Family    int
+	Prefix    Prefix
+	Gateway   string
+	PrimaryIP string
+}
+
+type Prefix struct {
+	IP   string
+	Mask string
+}
+
+type AzureVnetEndpointInfo struct {
+	IfName      string
+	MacAddress  string
+	IPAddresses []Prefix
+	PodName     string
+}
+
+func cnsManagedStateFileIps(result []byte) (map[string]string, error) {
+	var cnsResult CnsManagedState
 	err := json.Unmarshal(result, &cnsResult)
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to unmarshal cns endpoint list")
@@ -191,42 +171,44 @@ func cnsCacheStateFileIps(result []byte) (map[string]string, error) {
 	return cnsPodIps, nil
 }
 
-func (v *LinuxValidator) validate(stateFileIps stateFileIpsFunc, cmd []string, checkType, namespace, labelSelector string) error {
-	log.Printf("Validating %s state file", checkType)
-	nodes, err := k8sutils.GetNodeList(v.ctx, v.clientset)
+func azureVnetStateIps(result []byte) (map[string]string, error) {
+	var azureVnetResult AzureCniState
+	err := json.Unmarshal(result, &azureVnetResult)
 	if err != nil {
-		return errors.Wrapf(err, "failed to get node list")
+		return nil, errors.Wrapf(err, "failed to unmarshal azure vnet")
 	}
 
-	for index := range nodes.Items {
-		// get the privileged pod
-		pod, err := k8sutils.GetPodsByNode(v.ctx, v.clientset, namespace, labelSelector, nodes.Items[index].Name)
-		if err != nil {
-			return errors.Wrapf(err, "failed to get privileged pod")
-		}
-		podName := pod.Items[0].Name
-		// exec into the pod to get the state file
-		result, err := k8sutils.ExecCmdOnPod(v.ctx, v.clientset, namespace, podName, cmd, v.config)
-		if err != nil {
-			return errors.Wrapf(err, "failed to exec into privileged pod")
-		}
-		filePodIps, err := stateFileIps(result)
-		if err != nil {
-			return errors.Wrapf(err, "failed to get pod ips from state file")
-		}
-		if len(filePodIps) == 0 && v.restartCase {
-			log.Printf("No pods found on node %s", nodes.Items[index].Name)
-			continue
-		}
-		// get the pod ips
-		podIps := getPodIPsWithoutNodeIP(v.ctx, v.clientset, nodes.Items[index])
-
-		check := compareIPs(filePodIps, podIps)
-
-		if !check {
-			return errors.Wrapf(errors.New("State file validation failed"), "for %s on node %s", checkType, nodes.Items[index].Name)
+	azureVnetPodIps := make(map[string]string)
+	for _, v := range azureVnetResult.AzureCniState.ExternalInterfaces {
+		for _, v := range v.Networks {
+			for _, e := range v.Endpoints {
+				for _, v := range e.IPAddresses {
+					// collect both ipv4 and ipv6 addresses
+					azureVnetPodIps[v.IP] = e.IfName
+				}
+			}
 		}
 	}
-	log.Printf("State file validation for %s passed", checkType)
-	return nil
+	return azureVnetPodIps, nil
+}
+
+func azureVnetIpamStateIps(result []byte) (map[string]string, error) {
+	var azureVnetIpamResult AzureVnetIpam
+	err := json.Unmarshal(result, &azureVnetIpamResult)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to unmarshal azure vnet ipam")
+	}
+
+	azureVnetIpamPodIps := make(map[string]string)
+
+	for _, v := range azureVnetIpamResult.IPAM.AddrSpaces {
+		for _, v := range v.Pools {
+			for _, v := range v.Addresses {
+				if v.InUse {
+					azureVnetIpamPodIps[v.Addr.String()] = v.Addr.String()
+				}
+			}
+		}
+	}
+	return azureVnetIpamPodIps, nil
 }

@@ -22,16 +22,20 @@ import (
 	"github.com/Azure/azure-container-networking/cnm/ipam"
 	"github.com/Azure/azure-container-networking/cnm/network"
 	"github.com/Azure/azure-container-networking/cns"
+	cnsclient "github.com/Azure/azure-container-networking/cns/client"
 	cnscli "github.com/Azure/azure-container-networking/cns/cmd/cli"
 	"github.com/Azure/azure-container-networking/cns/cniconflist"
 	"github.com/Azure/azure-container-networking/cns/cnireconciler"
 	"github.com/Azure/azure-container-networking/cns/common"
 	"github.com/Azure/azure-container-networking/cns/configuration"
+	"github.com/Azure/azure-container-networking/cns/fsnotify"
 	"github.com/Azure/azure-container-networking/cns/healthserver"
 	"github.com/Azure/azure-container-networking/cns/hnsclient"
 	"github.com/Azure/azure-container-networking/cns/ipampool"
 	cssctrl "github.com/Azure/azure-container-networking/cns/kubecontroller/clustersubnetstate"
+	mtpncctrl "github.com/Azure/azure-container-networking/cns/kubecontroller/multitenantpodnetworkconfig"
 	nncctrl "github.com/Azure/azure-container-networking/cns/kubecontroller/nodenetworkconfig"
+	podctrl "github.com/Azure/azure-container-networking/cns/kubecontroller/pod"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/multitenantcontroller"
 	"github.com/Azure/azure-container-networking/cns/multitenantcontroller/multitenantoperator"
@@ -40,7 +44,8 @@ import (
 	"github.com/Azure/azure-container-networking/cns/wireserver"
 	acn "github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/crd"
-	"github.com/Azure/azure-container-networking/crd/clustersubnetstate/api/v1alpha1"
+	cssv1alpha1 "github.com/Azure/azure-container-networking/crd/clustersubnetstate/api/v1alpha1"
+	mtv1alpha1 "github.com/Azure/azure-container-networking/crd/multitenancy/api/v1alpha1"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 	acnfs "github.com/Azure/azure-container-networking/internal/fs"
@@ -54,6 +59,7 @@ import (
 	"github.com/avast/retry-go/v3"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
@@ -64,6 +70,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
+	ctrlzap "sigs.k8s.io/controller-runtime/pkg/log/zap"
+	ctrlmgr "sigs.k8s.io/controller-runtime/pkg/manager"
+	ctrlmetrics "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 )
 
 const (
@@ -82,6 +91,8 @@ const (
 
 	// envVarEnableCNIConflistGeneration enables cni conflist generation if set (value doesn't matter)
 	envVarEnableCNIConflistGeneration = "CNS_ENABLE_CNI_CONFLIST_GENERATION"
+
+	cnsReqTimeout = 15 * time.Second
 )
 
 type cniConflistScenario string
@@ -91,6 +102,7 @@ const (
 	scenarioDualStackOverlay cniConflistScenario = "dualStackOverlay"
 	scenarioOverlay          cniConflistScenario = "overlay"
 	scenarioCilium           cniConflistScenario = "cilium"
+	scenarioSWIFT            cniConflistScenario = "swift"
 )
 
 var (
@@ -418,17 +430,17 @@ func sendRegisterNodeRequest(httpc *http.Client, httpRestService cns.HTTPService
 func startTelemetryService(ctx context.Context) {
 	var config aitelemetry.AIConfig
 
-	err := telemetry.CreateAITelemetryHandle(config, false, false, false)
+	tb := telemetry.NewTelemetryBuffer(nil)
+	err := tb.CreateAITelemetryHandle(config, false, false, false)
 	if err != nil {
 		log.Errorf("AI telemetry handle creation failed..:%w", err)
 		return
 	}
 
-	tbtemp := telemetry.NewTelemetryBuffer()
+	tbtemp := telemetry.NewTelemetryBuffer(nil)
 	//nolint:errcheck // best effort to cleanup leaked pipe/socket before start
 	tbtemp.Cleanup(telemetry.FdName)
 
-	tb := telemetry.NewTelemetryBuffer()
 	err = tb.StartServer()
 	if err != nil {
 		log.Errorf("Telemetry service failed to start: %w", err)
@@ -545,6 +557,8 @@ func main() {
 			conflistGenerator = &cniconflist.OverlayGenerator{Writer: writer}
 		case scenarioCilium:
 			conflistGenerator = &cniconflist.CiliumGenerator{Writer: writer}
+		case scenarioSWIFT:
+			conflistGenerator = &cniconflist.SWIFTGenerator{Writer: writer}
 		default:
 			logger.Errorf("unable to generate cni conflist for unknown scenario: %s", scenario)
 			os.Exit(1)
@@ -567,9 +581,11 @@ func main() {
 		return
 	}
 
-	homeAzMonitor := restserver.NewHomeAzMonitor(nmaClient, time.Duration(cnsconfig.PopulateHomeAzCacheRetryIntervalSecs)*time.Second)
-	logger.Printf("start the goroutine for refreshing homeAz")
-	homeAzMonitor.Start()
+	homeAzMonitor := restserver.NewHomeAzMonitor(nmaClient, time.Duration(cnsconfig.AZRSettings.PopulateHomeAzCacheRetryIntervalSecs)*time.Second)
+	if cnsconfig.AZRSettings.EnableAZR {
+		logger.Printf("start the goroutine for refreshing homeAz")
+		homeAzMonitor.Start()
+	}
 
 	if cnsconfig.ChannelMode == cns.Managed {
 		config.ChannelMode = cns.Managed
@@ -625,7 +641,7 @@ func main() {
 
 	// Create the key value store.
 	storeFileName := storeFileLocation + name + ".json"
-	config.Store, err = store.NewJsonFileStore(storeFileName, lockclient)
+	config.Store, err = store.NewJsonFileStore(storeFileName, lockclient, nil)
 	if err != nil {
 		logger.Errorf("Failed to create store file: %s, due to error %v\n", storeFileName, err)
 		return
@@ -648,7 +664,7 @@ func main() {
 		}
 		// Create the key value store.
 		storeFileName := endpointStoreLocation + endpointStoreName + ".json"
-		endpointStateStore, err = store.NewJsonFileStore(storeFileName, endpointStoreLock)
+		endpointStateStore, err = store.NewJsonFileStore(storeFileName, endpointStoreLock, nil)
 		if err != nil {
 			logger.Errorf("Failed to create endpoint state store file: %s, due to error %v\n", storeFileName, err)
 			return
@@ -717,7 +733,7 @@ func main() {
 
 	// We are only setting the PriorityVLANTag in 'cns.Direct' mode, because it neatly maps today, to 'isUsingMultitenancy'
 	// In the future, we would want to have a better CNS flag, to explicitly say, this CNS is using multitenancy
-	if config.ChannelMode == cns.Direct {
+	if cnsconfig.ChannelMode == cns.Direct {
 		// Set Mellanox adapter's PriorityVLANTag value to 3 if adapter exists
 		// reg key value for PriorityVLANTag = 3  --> Packet priority and VLAN enabled
 		// for more details goto https://docs.nvidia.com/networking/display/winof2v230/Configuring+the+Driver+Registry+Keys#ConfiguringtheDriverRegistryKeys-GeneralRegistryKeysGeneralRegistryKeys
@@ -795,6 +811,25 @@ func main() {
 		}
 	}
 
+	if cnsconfig.EnableAsyncPodDelete {
+		// Start fs watcher here
+		cnsclient, err := cnsclient.New("", cnsReqTimeout) //nolint
+		if err != nil {
+			z.Error("failed to create cnsclient", zap.Error(err))
+		}
+		go func() {
+			for {
+				z.Info("starting fsnotify watcher to process missed Pod deletes")
+				w := fsnotify.New(cnsclient, cnsconfig.AsyncPodDeletePath, z)
+				if err := w.Start(rootCtx); err != nil {
+					z.Error("failed to start fsnotify watcher, will retry", zap.Error(err))
+					time.Sleep(time.Minute)
+					continue
+				}
+			}
+		}()
+	}
+
 	if !disableTelemetry {
 		go logger.SendHeartBeat(rootCtx, cnsconfig.TelemetrySettings.HeartBeatIntervalInMins)
 		go httpRestService.SendNCSnapShotPeriodically(rootCtx, cnsconfig.TelemetrySettings.SnapshotIntervalInMins)
@@ -868,7 +903,7 @@ func main() {
 
 		// Create the key value store.
 		pluginStoreFile := storeFileLocation + pluginName + ".json"
-		pluginConfig.Store, err = store.NewJsonFileStore(pluginStoreFile, lockclientCnm)
+		pluginConfig.Store, err = store.NewJsonFileStore(pluginStoreFile, lockclientCnm, nil)
 		if err != nil {
 			logger.Errorf("Failed to create plugin store file %s, due to error : %v\n", pluginStoreFile, err)
 			return
@@ -903,8 +938,10 @@ func main() {
 		}
 	}
 
-	logger.Printf("end the goroutine for refreshing homeAz")
-	homeAzMonitor.Stop()
+	if cnsconfig.AZRSettings.EnableAZR {
+		logger.Printf("end the goroutine for refreshing homeAz")
+		homeAzMonitor.Stop()
+	}
 
 	logger.Printf("stop cns service")
 	// Cleanup.
@@ -1013,13 +1050,13 @@ type nodeNetworkConfigGetter interface {
 	Get(context.Context) (*v1alpha.NodeNetworkConfig, error)
 }
 
-type ncStateReconciler interface {
-	ReconcileNCState(ncRequest *cns.CreateNetworkContainerRequest, podInfoByIP map[string]cns.PodInfo, nnc *v1alpha.NodeNetworkConfig) cnstypes.ResponseCode
+type ipamStateReconciler interface {
+	ReconcileIPAMState(ncRequests []*cns.CreateNetworkContainerRequest, podInfoByIP map[string]cns.PodInfo, nnc *v1alpha.NodeNetworkConfig) cnstypes.ResponseCode
 }
 
 // TODO(rbtr) where should this live??
 // reconcileInitialCNSState initializes cns by passing pods and a CreateNetworkContainerRequest
-func reconcileInitialCNSState(ctx context.Context, cli nodeNetworkConfigGetter, ncReconciler ncStateReconciler, podInfoByIPProvider cns.PodInfoByIPProvider) error {
+func reconcileInitialCNSState(ctx context.Context, cli nodeNetworkConfigGetter, ipamReconciler ipamStateReconciler, podInfoByIPProvider cns.PodInfoByIPProvider) error {
 	// Get nnc using direct client
 	nnc, err := cli.Get(ctx)
 	if err != nil {
@@ -1039,11 +1076,20 @@ func reconcileInitialCNSState(ctx context.Context, cli nodeNetworkConfigGetter, 
 		return errors.New("failed to init CNS state: no NCs found in NNC CRD")
 	}
 
+	// Get previous PodInfo state from podInfoByIPProvider
+	podInfoByIP, err := podInfoByIPProvider.PodInfoByIP()
+	if err != nil {
+		return errors.Wrap(err, "provider failed to provide PodInfoByIP")
+	}
+
+	ncReqs := make([]*cns.CreateNetworkContainerRequest, len(nnc.Status.NetworkContainers))
+
 	// For each NC, we need to create a CreateNetworkContainerRequest and use it to rebuild our state.
 	for i := range nnc.Status.NetworkContainers {
-		var ncRequest *cns.CreateNetworkContainerRequest
-		var err error
-
+		var (
+			ncRequest *cns.CreateNetworkContainerRequest
+			err       error
+		)
 		switch nnc.Status.NetworkContainers[i].AssignmentMode { //nolint:exhaustive // skipping dynamic case
 		case v1alpha.Static:
 			ncRequest, err = nncctrl.CreateNCRequestFromStaticNC(nnc.Status.NetworkContainers[i])
@@ -1055,17 +1101,15 @@ func reconcileInitialCNSState(ctx context.Context, cli nodeNetworkConfigGetter, 
 			return errors.Wrapf(err, "failed to convert NNC status to network container request, "+
 				"assignmentMode: %s", nnc.Status.NetworkContainers[i].AssignmentMode)
 		}
-		// Get previous PodInfo state from podInfoByIPProvider
-		podInfoByIP, err := podInfoByIPProvider.PodInfoByIP()
-		if err != nil {
-			return errors.Wrap(err, "provider failed to provide PodInfoByIP")
-		}
 
-		// Call cnsclient init cns passing those two things.
-		if err := restserver.ResponseCodeToError(ncReconciler.ReconcileNCState(ncRequest, podInfoByIP, nnc)); err != nil {
-			return errors.Wrap(err, "failed to reconcile NC state")
-		}
+		ncReqs[i] = ncRequest
 	}
+
+	// Call cnsclient init cns passing those two things.
+	if err := restserver.ResponseCodeToError(ipamReconciler.ReconcileIPAMState(ncReqs, podInfoByIP, nnc)); err != nil {
+		return errors.Wrap(err, "failed to reconcile CNS IPAM state")
+	}
+
 	return nil
 }
 
@@ -1102,6 +1146,19 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 	nodeName, err := configuration.NodeName()
 	if err != nil {
 		return errors.Wrap(err, "failed to get NodeName")
+	}
+
+	node, err := clientset.CoreV1().Nodes().Get(ctx, nodeName, metav1.GetOptions{})
+	if err != nil {
+		return errors.Wrapf(err, "failed to get node %s", nodeName)
+	}
+
+	// check the Node labels for Swift V2
+	if _, ok := node.Labels[configuration.LabelSwiftV2]; ok {
+		cnsconfig.EnableSwiftV2 = true
+		cnsconfig.WatchPods = true
+		// TODO(rbtr): create the NodeInfo for Swift V2
+		// register the noop mtpnc reconciler to populate the cache
 	}
 
 	var podInfoByIPProvider cns.PodInfoByIPProvider
@@ -1143,20 +1200,12 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 	if err != nil {
 		return errors.Wrap(err, "failed to create ctrl client")
 	}
-	nnccli := nodenetworkconfig.NewClient(directcli)
+	directnnccli := nodenetworkconfig.NewClient(directcli)
 	if err != nil {
 		return errors.Wrap(err, "failed to create NNC client")
 	}
 	// TODO(rbtr): nodename and namespace should be in the cns config
-	scopedcli := nncctrl.NewScopedClient(nnccli, types.NamespacedName{Namespace: "kube-system", Name: nodeName})
-
-	clusterSubnetStateChan := make(chan v1alpha1.ClusterSubnetState)
-	// initialize the ipam pool monitor
-	poolOpts := ipampool.Options{
-		RefreshDelay: poolIPAMRefreshRateInMilliseconds * time.Millisecond,
-	}
-	poolMonitor := ipampool.NewMonitor(httpRestServiceImplementation, scopedcli, clusterSubnetStateChan, &poolOpts)
-	httpRestServiceImplementation.IPAMPoolMonitor = poolMonitor
+	directscopedcli := nncctrl.NewScopedClient(directnnccli, types.NamespacedName{Namespace: "kube-system", Name: nodeName})
 
 	logger.Printf("Reconciling initial CNS state")
 	// apiserver nnc might not be registered or api server might be down and crashloop backof puts us outside of 5-10 minutes we have for
@@ -1166,7 +1215,7 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 	err = retry.Do(func() error {
 		attempt++
 		logger.Printf("reconciling initial CNS state attempt: %d", attempt)
-		err = reconcileInitialCNSState(ctx, scopedcli, httpRestServiceImplementation, podInfoByIPProvider)
+		err = reconcileInitialCNSState(ctx, directscopedcli, httpRestServiceImplementation, podInfoByIPProvider)
 		if err != nil {
 			logger.Errorf("failed to reconcile initial CNS state, attempt: %d err: %v", attempt, err)
 		}
@@ -1177,51 +1226,71 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 	}
 	logger.Printf("reconciled initial CNS state after %d attempts", attempt)
 
-	// start the pool Monitor before the Reconciler, since it needs to be ready to receive an
-	// NodeNetworkConfig update by the time the Reconciler tries to send it.
-	go func() {
-		logger.Printf("Starting IPAM Pool Monitor")
-		if e := poolMonitor.Start(ctx); e != nil {
-			logger.Errorf("[Azure CNS] Failed to start pool monitor with err: %v", e)
-		}
-	}()
-	logger.Printf("initialized and started IPAM pool monitor")
+	scheme := kuberuntime.NewScheme()
+	if err := corev1.AddToScheme(scheme); err != nil { //nolint:govet // intentional shadow
+		return errors.Wrap(err, "failed to add corev1 to scheme")
+	}
+	if err = v1alpha.AddToScheme(scheme); err != nil {
+		return errors.Wrap(err, "failed to add nodenetworkconfig/v1alpha to scheme")
+	}
+	if err = cssv1alpha1.AddToScheme(scheme); err != nil {
+		return errors.Wrap(err, "failed to add clustersubnetstate/v1alpha1 to scheme")
+	}
+	if err = mtv1alpha1.AddToScheme(scheme); err != nil {
+		return errors.Wrap(err, "failed to add multitenantpodnetworkconfig/v1alpha1 to scheme")
+	}
 
-	// the nodeScopedCache sets Selector options on the Manager cache which are used
+	// Set Selector options on the Manager cache which are used
 	// to perform *server-side* filtering of the cached objects. This is very important
 	// for high node/pod count clusters, as it keeps us from watching objects at the
 	// whole cluster scope when we are only interested in the Node's scope.
-	nodeScopedCache := cache.BuilderWithOptions(cache.Options{
-		SelectorsByObject: cache.SelectorsByObject{
+	cacheOpts := cache.Options{
+		Scheme: scheme,
+		ByObject: map[client.Object]cache.ByObject{
 			&v1alpha.NodeNetworkConfig{}: {
-				Field: fields.SelectorFromSet(fields.Set{"metadata.name": nodeName}),
+				Namespaces: map[string]cache.Config{
+					"kube-system": {FieldSelector: fields.SelectorFromSet(fields.Set{"metadata.name": nodeName})},
+				},
 			},
 		},
-	})
+	}
 
-	crdSchemes := kuberuntime.NewScheme()
-	if err = v1alpha.AddToScheme(crdSchemes); err != nil {
-		return errors.Wrap(err, "failed to add nodenetworkconfig/v1alpha to scheme")
+	if cnsconfig.WatchPods {
+		cacheOpts.ByObject[&corev1.Pod{}] = cache.ByObject{
+			Field: fields.SelectorFromSet(fields.Set{"spec.nodeName": nodeName}),
+		}
 	}
-	if err = v1alpha1.AddToScheme(crdSchemes); err != nil {
-		return errors.Wrap(err, "failed to add clustersubnetstate/v1alpha1 to scheme")
+
+	managerOpts := ctrlmgr.Options{
+		Scheme:  scheme,
+		Metrics: ctrlmetrics.Options{BindAddress: "0"},
+		Cache:   cacheOpts,
+		Logger:  ctrlzap.New(),
 	}
-	manager, err := ctrl.NewManager(kubeConfig, ctrl.Options{
-		Scheme:             crdSchemes,
-		MetricsBindAddress: "0",
-		Namespace:          "kube-system", // TODO(rbtr): namespace should be in the cns config
-		NewCache:           nodeScopedCache,
-	})
+
+	manager, err := ctrl.NewManager(kubeConfig, managerOpts)
 	if err != nil {
 		return errors.Wrap(err, "failed to create manager")
 	}
 
-	// get our Node so that we can xref it against the NodeNetworkConfig's to make sure that the
-	// NNC is not stale and represents the Node we're running on.
-	node, err := clientset.CoreV1().Nodes().Get(ctx, nodeName, metav1.GetOptions{})
-	if err != nil {
-		return errors.Wrapf(err, "failed to get node %s", nodeName)
+	// Build the IPAM Pool monitor
+	clusterSubnetStateChan := make(chan cssv1alpha1.ClusterSubnetState)
+
+	// this cachedscopedclient is built using the Manager's cached client, which is
+	// NOT SAFE TO USE UNTIL THE MANAGER IS STARTED!
+	// This is okay because it is only used to build the IPAMPoolMonitor, which does not
+	// attempt to use the client until it has received a NodeNetworkConfig to update, and
+	// that can only happen once the Manager has started and the NodeNetworkConfig
+	// reconciler has pushed the Monitor a NodeNetworkConfig.
+	cachedscopedcli := nncctrl.NewScopedClient(nodenetworkconfig.NewClient(manager.GetClient()), types.NamespacedName{Namespace: "kube-system", Name: nodeName})
+
+	poolOpts := ipampool.Options{
+		RefreshDelay: poolIPAMRefreshRateInMilliseconds * time.Millisecond,
 	}
+	poolMonitor := ipampool.NewMonitor(httpRestServiceImplementation, cachedscopedcli, clusterSubnetStateChan, &poolOpts)
+	httpRestServiceImplementation.IPAMPoolMonitor = poolMonitor
+
+	// Start building the NNC Reconciler
 
 	// get CNS Node IP to compare NC Node IP with this Node IP to ensure NCs were created for this node
 	nodeIP := configuration.NodeIP()
@@ -1241,12 +1310,36 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 		}
 	}
 
+	// TODO: add pod listeners based on Swift V1 vs MT/V2 configuration
+	if cnsconfig.WatchPods {
+		pw := podctrl.New(nodeName)
+		if err := pw.SetupWithManager(manager); err != nil {
+			return errors.Wrapf(err, "failed to setup pod watcher with manager")
+		}
+	}
+
+	if cnsconfig.EnableSwiftV2 {
+		if err := mtpncctrl.SetupWithManager(manager); err != nil {
+			return errors.Wrapf(err, "failed to setup mtpnc reconciler with manager")
+		}
+	}
+
 	// adding some routes to the root service mux
 	mux := httpRestServiceImplementation.Listener.GetMux()
 	mux.Handle("/readyz", http.StripPrefix("/readyz", &healthz.Handler{}))
 	if cnsconfig.EnablePprof {
 		httpRestServiceImplementation.RegisterPProfEndpoints()
 	}
+
+	// start the pool Monitor before the Reconciler, since it needs to be ready to receive an
+	// NodeNetworkConfig update by the time the Reconciler tries to send it.
+	go func() {
+		logger.Printf("Starting IPAM Pool Monitor")
+		if e := poolMonitor.Start(ctx); e != nil {
+			logger.Errorf("[Azure CNS] Failed to start pool monitor with err: %v", e)
+		}
+	}()
+	logger.Printf("initialized and started IPAM pool monitor")
 
 	// Start the Manager which starts the reconcile loop.
 	// The Reconciler will send an initial NodeNetworkConfig update to the PoolMonitor, starting the

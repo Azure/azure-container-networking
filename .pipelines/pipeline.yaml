@@ -2,24 +2,25 @@ pr:
   branches:
     include:
       - master
+      - release/*
   paths:
     exclude:
-    - ".devcontainer"
-    - ".hooks"
-    - ".vscode"
-    - ".github"
-    - docs
+      - ".devcontainer"
+      - ".hooks"
+      - ".vscode"
+      - ".github"
+      - docs
 
 trigger:
   paths:
     exclude:
-    - docs
-    - "zapai/*"
-    - "azure-ipam/*"
-    - "dropgz/*"
+      - docs
+      - "zapai/*"
+      - "azure-ipam/*"
+      - "dropgz/*"
   tags:
     include:
-    - "*"
+      - "*"
 
 stages:
   - stage: setup
@@ -31,8 +32,10 @@ stages:
           name: "$(BUILD_POOL_NAME_DEFAULT)"
         steps:
           - script: |
+              # To use the variables below, you must make the respective stage's dependsOn have - setup or it will not retain context of this stage
               BUILD_NUMBER=$(Build.BuildNumber)
               echo "##vso[task.setvariable variable=StorageID;isOutput=true]$(echo ${BUILD_NUMBER//./-})"
+              echo "##vso[task.setvariable variable=commitID;isOutput=true]$(echo $(make revision)-$(date "+%d%H%M"))"
               echo "##vso[task.setvariable variable=Tag;isOutput=true]$(make version)"
               echo "##vso[task.setvariable variable=cniVersion;isOutput=true]$(make cni-version)"
               echo "##vso[task.setvariable variable=npmVersion;isOutput=true]$(make npm-version)"
@@ -144,9 +147,6 @@ stages:
             displayName: Create artifact storage container
             condition: succeeded()
 
-          - publish: ./test/apimodels/
-            artifact: clusterdefinitions
-
   - stage: containerize
     displayName: Build Images
     dependsOn:
@@ -167,16 +167,26 @@ stages:
               arch: amd64
               name: cni-dropgz-test
               os: linux
-            cni_plugin_windows2022_amd64:
-              os: windows
-              name: cni-plugin
+            cni_dropgz_windows2019_amd64:
               arch: amd64
-              os_version: ltsc2022
-            cni_plugin_windows2019_amd64:
+              name: cni-dropgz
               os: windows
-              name: cni-plugin
-              arch: amd64
               os_version: ltsc2019
+            cni_dropgz_windows2022_amd64:
+              arch: amd64
+              name: cni-dropgz
+              os: windows
+              os_version: ltsc2022
+            cni_dropgz_test_windows2019_amd64:
+              arch: amd64
+              name: cni-dropgz-test
+              os: windows
+              os_version: ltsc2019
+            cni_dropgz_test_windows2022_amd64:
+              arch: amd64
+              name: cni-dropgz-test
+              os: windows
+              os_version: ltsc2022
             cns_linux_amd64:
               arch: amd64
               name: cns
@@ -267,7 +277,7 @@ stages:
               echo $TAG
               echo $CURRENT_VERSION
               echo "Checking if branch up to date with master"
-  
+
   - stage: publish
     displayName: Publish Multiarch Manifests
     dependsOn:
@@ -286,10 +296,12 @@ stages:
           matrix:
             cni_dropgz:
               name: cni-dropgz
-              platforms: linux/amd64 linux/arm64
+              os_versions: ltsc2019 ltsc2022
+              platforms: linux/amd64 linux/arm64 windows/amd64
             cni_dropgz_test:
               name: cni-dropgz-test
-              platforms: linux/amd64 linux/arm64
+              os_versions: ltsc2019 ltsc2022
+              platforms: linux/amd64 linux/arm64 windows/amd64
             cns:
               name: cns
               os_versions: ltsc2019 ltsc2022
@@ -316,61 +328,113 @@ stages:
             displayName: "Set current tag variable"
             condition: always()
 
+  # Cilium Podsubnet E2E tests
   - template: singletenancy/cilium/cilium-e2e-job-template.yaml
     parameters:
       name: "cilium_e2e"
       displayName: Cilium
-      pipelineBuildImage: "$(BUILD_IMAGE)"
       testDropgz: ""
+      clusterType: swift-byocni-nokubeproxy-up
       clusterName: "ciliume2e"
+      vmSize: Standard_B2ms
+      k8sVersion: ""
+      dependsOn: "containerize"
+
+  - template: singletenancy/cilium/cilium-e2e-job-template.yaml
+    parameters:
+      name: "cilium_podsubnet_cni_e2e"
+      displayName: CNI - Cilium Podsubnet
+      testDropgz: true
+      clusterType: swift-byocni-nokubeproxy-up
+      clusterName: "cilpodcnie2e"
+      vmSize: Standard_B2ms
+      k8sVersion: ""
+      dependsOn: "containerize"
+
+  # Cilium Overlay E2E tests
+  - template: singletenancy/cilium-overlay/cilium-overlay-e2e-job-template.yaml
+    parameters:
+      name: "cilium_overlay_e2e"
+      displayName: Cilium on AKS Overlay
+      testDropgz: ""
+      clusterType: overlay-byocni-nokubeproxy-up
+      clusterName: "cilovere2e"
+      vmSize: Standard_B2ms
+      k8sVersion: ""
+      dependsOn: "containerize"
 
   - template: singletenancy/cilium-overlay/cilium-overlay-e2e-job-template.yaml
     parameters:
-      name: "cilium_overlay_cilium_e2e"
-      displayName: Cilium on AKS Overlay
-      pipelineBuildImage: "$(BUILD_IMAGE)"
-      testDropgz: ""
-      clusterName: "overlaye2e"
+      name: "cilium_overlay_cni_e2e"
+      displayName: CNI - Cilium on AKS Overlay
+      testDropgz: true
+      clusterType: overlay-byocni-nokubeproxy-up
+      clusterName: "cilovercnie2e"
+      vmSize: Standard_B2ms
+      k8sVersion: ""
+      dependsOn: "containerize"
 
+  # Azure Overlay E2E tests
+  - template: singletenancy/azure-cni-overlay/azure-cni-overlay-e2e-job-template.yaml
+    parameters:
+      name: "azure_overlay_e2e"
+      displayName: Azure Overlay
+      os: linux
+      testDropgz: ""
+      clusterType: overlay-byocni-up
+      clusterName: "azovere2e"
+      vmSize: Standard_B2ms
+      k8sVersion: ""
+      dependsOn: "containerize"
+
+  - template: singletenancy/azure-cni-overlay/azure-cni-overlay-e2e-job-template.yaml
+    parameters:
+      name: "azure_overlay_cni_e2e"
+      displayName: CNI - Azure Overlay
+      os: linux
+      testDropgz: true
+      clusterType: overlay-byocni-up
+      clusterName: "azovercnie2e"
+      vmSize: Standard_B2ms
+      k8sVersion: ""
+      dependsOn: "containerize"
+
+  # AKS Swift E2E tests
   - template: singletenancy/aks-swift/e2e-job-template.yaml
     parameters:
       name: "aks_swift_e2e"
       displayName: AKS Swift Ubuntu
-      pipelineBuildImage: "$(BUILD_IMAGE)"
       testDropgz: ""
+      clusterType: swift-byocni-up
       clusterName: "swifte2e"
-      osSku: "Ubuntu"
+      vmSize: Standard_B2s
+      k8sVersion: ""
+      dependsOn: "containerize"
 
-  - template: singletenancy/aks/e2e-job-template.yaml
+  - template: singletenancy/aks-swift/e2e-job-template.yaml
     parameters:
-      name: "aks_ubuntu_18_04_linux_e2e"
-      displayName: AKS Ubuntu 18.04
-      arch: 'amd64'
-      os: 'linux'
-      clusterType: linux-cniv1-up
-      clusterName: 'ubuntu18e2e'
-      k8sVersion: 1.24.9
+      name: "aks_swift_cni_e2e"
+      displayName: CNI - AKS Swift
+      testDropgz: true
+      clusterType: swift-byocni-up
+      clusterName: "swiftcnie2e"
+      vmSize: Standard_B2ms
+      k8sVersion: ""
+      dependsOn: "containerize"
 
+  # CNIv1 E2E tests
   - template: singletenancy/aks/e2e-job-template.yaml
     parameters:
       name: "aks_ubuntu_22_linux_e2e"
       displayName: AKS Ubuntu 22
-      arch: 'amd64'
-      os: 'linux'
+      arch: "amd64"
+      os: "linux"
       clusterType: linux-cniv1-up
-      clusterName: 'ubuntu22e2e'
+      clusterName: "ubuntu22e2e"
+      vmSize: Standard_B2s
       k8sVersion: 1.25
-
-  - template: singletenancy/aks/e2e-job-template.yaml
-    parameters:
-      name: "aks_windows_19_03_e2e"
-      displayName: AKS Windows 1903
-      arch: amd64
-      os: windows
-      clusterType: windows-cniv1-up
-      clusterName: 'win19e2e'
-      windowsOsSku: 'Windows2019'
-      os_version: 'ltsc2019'
+      scaleup: 100
+      dependsOn: "containerize"
 
   - template: singletenancy/aks/e2e-job-template.yaml
     parameters:
@@ -379,29 +443,88 @@ stages:
       arch: amd64
       os: windows
       clusterType: windows-cniv1-up
-      clusterName: 'win22e2e'
-      windowsOsSku: 'Windows2022'
-      os_version: 'ltsc2022'
+      clusterName: "win22e2e"
+      vmSize: Standard_B2ms
+      os_version: "ltsc2022"
+      scaleup: 50
+      dependsOn: "containerize"
 
-  - template: singletenancy/aks-engine/e2e-job-template.yaml
+  # CNI dual stack overlay E2E tests
+  - template: singletenancy/dualstack-overlay/dualstackoverlay-e2e-job-template.yaml
     parameters:
-      name: "ubuntu_18_04_linux_e2e"
-      displayName: Ubuntu 18.04
-      pipelineBuildImage: "$(BUILD_IMAGE)"
-      clusterDefinition: "cniLinux1804.json"
-      clusterDefinitionCniTypeKey: "azureCNIURLLinux"
-      clusterDefinitionCniBuildOS: "linux"
-      clusterDefinitionCniBuildExt: ".tgz"
+      name: "dualstackoverlay_e2e"
+      displayName: AKS DualStack Overlay
+      os: linux
+      clusterType: dualstack-overlay-byocni-up
+      clusterName: "dsovere2e"
+      vmSize: Standard_B2ms
+      dependsOn: "containerize"
+      testDropgz: true
 
-  - template: singletenancy/aks-engine/e2e-job-template.yaml
-    parameters:
-      name: "windows_19_03_e2e"
-      displayName: "Windows 1903"
-      pipelineBuildImage: "$(BUILD_IMAGE)"
-      clusterDefinition: "cniWindows1903.json"
-      clusterDefinitionCniTypeKey: "azureCNIURLWindows"
-      clusterDefinitionCniBuildOS: "windows"
-      clusterDefinitionCniBuildExt: ".zip"
+  - stage: delete
+    displayName: Delete Clusters
+    condition: always()
+    dependsOn:
+      - setup
+      - "azure_overlay_e2e"
+      - "azure_overlay_cni_e2e"
+      - "aks_swift_e2e"
+      - "aks_swift_cni_e2e"
+      - "cilium_e2e"
+      - "cilium_podsubnet_cni_e2e"
+      - "cilium_overlay_e2e"
+      - "cilium_overlay_cni_e2e"
+      - "aks_ubuntu_22_linux_e2e"
+      - "aks_windows_22_e2e"
+      - "dualstackoverlay_e2e"
+    variables:
+      commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
+    jobs:
+      - job: delete
+        displayName: Delete Cluster
+        pool:
+          name: "$(BUILD_POOL_NAME_DEFAULT)"
+        strategy:
+          matrix:
+            cilium_e2e:
+              name: cilium_e2e
+              clusterName: "ciliume2e"
+            cilium_overlay_e2e:
+              name: cilium_overlay_e2e
+              clusterName: "cilovere2e"
+            azure_overlay_e2e:
+              name: azure_overlay_e2e
+              clusterName: "azovere2e"
+            aks_swift_e2e:
+              name: aks_swift_e2e
+              clusterName: "swifte2e"
+            azure_overlay_cni_e2e:
+              name: "azure_overlay_cni_e2e"
+              clusterName: "azovercnie2e"
+            cilium_podsubnet_cni_e2e:
+              name: cilium_podsubnet_cni_e2e
+              clusterName: "cilpodcnie2e"
+            cilium_overlay_cni_e2e:
+              name: cilium_overlay_cni_e2e
+              clusterName: "cilovercnie2e"
+            aks_swift_cni_e2e:
+              name: aks_swift_cni_e2e
+              clusterName: "swiftcnie2e"
+            aks_ubuntu_22_linux_e2e:
+              name: aks_ubuntu_22_linux_e2e
+              clusterName: "ubuntu22e2e"
+            aks_windows_22_e2e:
+              name: aks_windows_22_e2e
+              clusterName: "win22e2e"
+            dualstackoverlay_e2e:
+              name: dualstackoverlay_e2e
+              clusterName: "dsovere2e"
+        steps:
+          - template: templates/delete-cluster.yaml
+            parameters:
+              name: $(name)
+              clusterName: $(clusterName)-$(commitID)
+              region: $(REGION_AKS_CLUSTER_TEST)
 
   - stage: validate2
     displayName: Validate Tags
@@ -422,18 +545,22 @@ stages:
               echo $TAG
               echo $CURRENT_VERSION
               echo "Checking if branch is up to date with master"
-  
+
   - stage: cleanup
     displayName: Cleanup
     dependsOn:
+      - "azure_overlay_e2e"
+      - "azure_overlay_cni_e2e"
       - "aks_swift_e2e"
+      - "aks_swift_cni_e2e"
       - "cilium_e2e"
-      - "aks_ubuntu_18_04_linux_e2e"
-      - "aks_windows_19_03_e2e"
+      - "cilium_podsubnet_cni_e2e"
+      - "cilium_overlay_e2e"
+      - "cilium_overlay_cni_e2e"
       - "aks_ubuntu_22_linux_e2e"
       - "aks_windows_22_e2e"
-      - "ubuntu_18_04_linux_e2e"
-      - "windows_19_03_e2e"
+      - "dualstackoverlay_e2e"
+
     jobs:
       - job: delete_remote_artifacts
         displayName: Delete remote artifacts

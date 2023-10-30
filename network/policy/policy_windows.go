@@ -5,12 +5,15 @@ import (
 	"fmt"
 	"net"
 
-	"github.com/Azure/azure-container-networking/log"
+	"github.com/Azure/azure-container-networking/cni/log"
 	"github.com/Azure/azure-container-networking/network/networkutils"
 	"github.com/Microsoft/hcsshim"
 	"github.com/Microsoft/hcsshim/hcn"
 	"github.com/pkg/errors"
+	"go.uber.org/zap"
 )
+
+var logger = log.CNILogger.With(zap.String("component", "net-policy"))
 
 const (
 	// ProtocolTcp indicates tcp protocol id for portmapping
@@ -71,7 +74,7 @@ func SerializePolicies(policyType CNIPolicyType, policies []Policy, epInfoData m
 			case OutBoundNatPolicy:
 				if snatAndSerialize || !enableMultiTenancy {
 					if serializedOutboundNatPolicy, err := SerializeOutBoundNATPolicy(policy, epInfoData); err != nil {
-						log.Printf("Failed to serialize OutBoundNAT policy")
+						logger.Error("Failed to serialize OutBoundNAT policy", zap.Error(err))
 					} else {
 						jsonPolicies = append(jsonPolicies, serializedOutboundNatPolicy)
 					}
@@ -79,13 +82,13 @@ func SerializePolicies(policyType CNIPolicyType, policies []Policy, epInfoData m
 			case PortMappingPolicy:
 				// NATPolicy comes as a HNSv2 type, it needs to be converted to HNSv1
 				if serializedNatPolicy, err := SerializeNATPolicy(policy); err != nil {
-					log.Printf("Failed to serialize NatPolicy")
+					logger.Error("Failed to serialize NatPolicy", zap.Error(err))
 				} else {
 					jsonPolicies = append(jsonPolicies, serializedNatPolicy)
 				}
 			case LoopbackDSRPolicy:
 				if dsrPolicy, err := SerializeLoopbackDSRPolicy(policy); err != nil {
-					log.Printf("Failed to serialize DSR policy")
+					logger.Error("Failed to serialize DSR policy", zap.Error(err))
 				} else {
 					jsonPolicies = append(jsonPolicies, dsrPolicy)
 				}
@@ -98,7 +101,7 @@ func SerializePolicies(policyType CNIPolicyType, policies []Policy, epInfoData m
 	if snatAndSerialize && ValidWinVerForDnsNat {
 		// SerializePolicies is only called for HnsV1 operations
 		if serializedDnsNatPolicy, err := AddDnsNATPolicyV1(); err != nil {
-			log.Printf("Failed to serialize DnsNAT policy")
+			logger.Error("Failed to serialize DnsNAT policy", zap.Error(err))
 		} else {
 			jsonPolicies = append(jsonPolicies, serializedDnsNatPolicy)
 		}
@@ -122,7 +125,7 @@ func GetOutBoundNatExceptionList(policy Policy) ([]string, error) {
 		return exceptionList, nil
 	}
 
-	log.Printf("OutBoundNAT policy not set")
+	logger.Info("OutBoundNAT policy not set")
 	return nil, nil
 }
 
@@ -158,7 +161,7 @@ func SerializeOutBoundNATPolicy(policy Policy, epInfoData map[string]interface{}
 
 	exceptionList, err := GetOutBoundNatExceptionList(policy)
 	if err != nil {
-		log.Printf("Failed to parse outbound NAT policy %v", err)
+		logger.Error("Failed to parse outbound NAT policy", zap.Error(err))
 		return nil, err
 	}
 
@@ -195,7 +198,7 @@ func SerializeLoopbackDSRPolicy(policy Policy) (json.RawMessage, error) {
 		return []byte{}, errors.Wrap(err, "unmarshal dsr data failed")
 	}
 
-	log.Printf("DSR policy for ip:%s", dsrData.IPAddress.String())
+	logger.Info("DSR policy for", zap.String("ip", dsrData.IPAddress.String()))
 
 	hnsLoopbackRoute := hcsshim.OutboundNatPolicy{
 		Policy:       hcsshim.Policy{Type: hcsshim.OutboundNat},
@@ -259,7 +262,7 @@ func GetPolicyType(policy Policy) CNIPolicyType {
 		}
 	}
 	// Return empty string if the policy type is invalid
-	log.Printf("Returning policyType INVALID")
+	logger.Info("Returning policyType INVALID")
 	return ""
 }
 
@@ -316,7 +319,7 @@ func GetHcnOutBoundNATPolicy(policy Policy, epInfoData map[string]interface{}) (
 	outBoundNATPolicySetting := hcn.OutboundNatPolicySetting{}
 	exceptionList, err := GetOutBoundNatExceptionList(policy)
 	if err != nil {
-		log.Printf("Failed to parse outbound NAT policy %v", err)
+		logger.Error("Failed to parse outbound NAT policy", zap.Error(err))
 		return outBoundNATPolicy, err
 	}
 
@@ -456,7 +459,7 @@ func GetHcnLoopbackDSRPolicy(policy Policy) (hcn.EndpointPolicy, error) {
 		return hcn.EndpointPolicy{}, errors.Wrap(err, "unmarshal dsr data failed")
 	}
 
-	log.Printf("DSR policy for ip:%s", dsrData.IPAddress.String())
+	logger.Info("DSR policy for", zap.String("ip", dsrData.IPAddress.String()))
 
 	hcnLoopbackRoute := hcn.OutboundNatPolicySetting{
 		Destinations: []string{dsrData.IPAddress.String()},
@@ -500,13 +503,13 @@ func GetHcnEndpointPolicies(policyType CNIPolicyType, policies []Policy, epInfoD
 			}
 
 			if err != nil {
-				log.Printf("Failed to parse policy: %+v with error %v", policy.Data, err)
+				logger.Error("Failed to parse policy", zap.Any("data", policy.Data), zap.Error(err))
 				return hcnEndPointPolicies, err
 			}
 
 			if !(isOutboundNatPolicy && enableMultiTenancy && !enableSnatForDns) {
 				hcnEndPointPolicies = append(hcnEndPointPolicies, endpointPolicy)
-				log.Printf("Successfully retrieve endpoint policy: %s", endpointPolicy.Type)
+				logger.Info("Successfully retrieve endpoint policy", zap.Any("type", endpointPolicy.Type))
 			}
 		}
 	}
@@ -515,12 +518,12 @@ func GetHcnEndpointPolicies(policyType CNIPolicyType, policies []Policy, epInfoD
 		for _, natRule := range natInfo {
 			natPolicy, err := AddNATPolicyV2(natRule.VirtualIP, natRule.Destinations)
 			if err != nil {
-				log.Printf("Failed to retrieve NAT endpoint policy due to error: %v", err)
+				logger.Error("Failed to retrieve NAT endpoint policy due to error", zap.Error(err))
 				return hcnEndPointPolicies, err
 			}
 
 			hcnEndPointPolicies = append(hcnEndPointPolicies, natPolicy)
-			log.Printf("Successfully retrieve natInfo policy: %s", natPolicy.Type)
+			logger.Info("Successfully retrieve natInfo policy", zap.Any("type", natPolicy.Type))
 		}
 	}
 

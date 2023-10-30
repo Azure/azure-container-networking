@@ -69,7 +69,7 @@ func (c *Client) JoinNetwork(ctx context.Context, jnr JoinNetworkRequest) error 
 		defer resp.Body.Close()
 
 		if resp.StatusCode != http.StatusOK {
-			return die(resp.StatusCode, resp.Header, resp.Body)
+			return die(resp.StatusCode, resp.Header, resp.Body, req.URL.Path)
 		}
 		return nil
 	})
@@ -91,7 +91,7 @@ func (c *Client) DeleteNetwork(ctx context.Context, dnr DeleteNetworkRequest) er
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return die(resp.StatusCode, resp.Header, resp.Body)
+		return die(resp.StatusCode, resp.Header, resp.Body, req.URL.Path)
 	}
 	return nil
 }
@@ -114,7 +114,7 @@ func (c *Client) GetNetworkConfiguration(ctx context.Context, gncr GetNetworkCon
 		defer resp.Body.Close()
 
 		if resp.StatusCode != http.StatusOK {
-			return die(resp.StatusCode, resp.Header, resp.Body)
+			return die(resp.StatusCode, resp.Header, resp.Body, req.URL.Path)
 		}
 
 		ct := resp.Header.Get(internal.HeaderContentType)
@@ -152,7 +152,7 @@ func (c *Client) GetNCVersion(ctx context.Context, ncvr NCVersionRequest) (NCVer
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return NCVersion{}, die(resp.StatusCode, resp.Header, resp.Body)
+		return NCVersion{}, die(resp.StatusCode, resp.Header, resp.Body, req.URL.Path)
 	}
 
 	var out NCVersion
@@ -179,7 +179,7 @@ func (c *Client) PutNetworkContainer(ctx context.Context, pncr *PutNetworkContai
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return die(resp.StatusCode, resp.Header, resp.Body)
+		return die(resp.StatusCode, resp.Header, resp.Body, req.URL.Path)
 	}
 	return nil
 }
@@ -223,7 +223,7 @@ func (c *Client) DeleteNetworkContainer(ctx context.Context, dcr DeleteContainer
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return die(resp.StatusCode, resp.Header, resp.Body)
+		return die(resp.StatusCode, resp.Header, resp.Body, req.URL.Path)
 	}
 
 	return nil
@@ -242,7 +242,7 @@ func (c *Client) GetNCVersionList(ctx context.Context) (NCVersionList, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return NCVersionList{}, die(resp.StatusCode, resp.Header, resp.Body)
+		return NCVersionList{}, die(resp.StatusCode, resp.Header, resp.Body, req.URL.Path)
 	}
 
 	var out NCVersionList
@@ -270,7 +270,7 @@ func (c *Client) GetHomeAz(ctx context.Context) (AzResponse, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return homeAzResponse, die(resp.StatusCode, resp.Header, resp.Body)
+		return homeAzResponse, die(resp.StatusCode, resp.Header, resp.Body, req.URL.Path)
 	}
 
 	err = json.NewDecoder(resp.Body).Decode(&homeAzResponse)
@@ -281,7 +281,7 @@ func (c *Client) GetHomeAz(ctx context.Context) (AzResponse, error) {
 	return homeAzResponse, nil
 }
 
-func die(code int, headers http.Header, body io.ReadCloser) error {
+func die(code int, headers http.Header, body io.ReadCloser, path string) error {
 	// nolint:errcheck // make a best effort to return whatever information we can
 	// returning an error here without the code and source would
 	// be less helpful
@@ -292,6 +292,7 @@ func die(code int, headers http.Header, body io.ReadCloser) error {
 		// consumers to depend on an internal type (which they can't anyway)
 		Source: internal.GetErrorSource(headers).String(),
 		Body:   bodyContent,
+		Path:   path,
 	}
 }
 

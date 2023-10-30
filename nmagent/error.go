@@ -5,10 +5,13 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"regexp"
 
 	"github.com/Azure/azure-container-networking/nmagent/internal"
 	pkgerrors "github.com/pkg/errors"
 )
+
+var deleteNetworkPattern = regexp.MustCompile(`/NetworkManagement/joinedVirtualNetworks/[^/]+/api-version/\d+/method/DELETE`)
 
 // ContentError is encountered when an unexpected content type is obtained from
 // NMAgent.
@@ -52,6 +55,7 @@ type Error struct {
 	Code   int    // the HTTP status code received
 	Source string // the component responsible for producing the error
 	Body   []byte // the body of the error returned
+	Path   string // the path of the request that produced the error
 }
 
 // Error constructs a string representation of this error in accordance with
@@ -102,4 +106,13 @@ func (e Error) StatusCode() int {
 // retried.
 func (e Error) Unauthorized() bool {
 	return e.Code == http.StatusUnauthorized
+}
+
+// NotFound reports whether the error was produced as a result of the resource
+// not existing.
+func (e Error) NotFound() bool {
+	if deleteNetworkPattern.MatchString(e.Path) {
+		return e.Code == http.StatusBadRequest || e.Code == http.StatusNotFound
+	}
+	return e.Code == http.StatusNotFound
 }
