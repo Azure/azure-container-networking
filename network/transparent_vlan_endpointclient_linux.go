@@ -308,9 +308,6 @@ func (client *TransparentVlanEndpointClient) PopulateVnet(epInfo *EndpointInfo) 
 	if err != nil {
 		return errors.Wrap(err, "transparent vlan failed to disable rp filter vlan interface in vnet")
 	}
-	if err := client.netUtilsClient.EnableIPV4Forwarding(); err != nil {
-		return errors.Wrap(err, "transparent vlan failed to enable ipv4 forwarding in vnet namespace")
-	}
 	return nil
 }
 
