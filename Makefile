@@ -248,6 +248,7 @@ endif
 
 ## Image name definitions.
 ACNCLI_IMAGE			= acncli
+AZURE_IPAM_IMAGE		= azure-ipam
 CNI_IMAGE				= azure-cni
 CNI_DROPGZ_IMAGE		= cni-dropgz
 CNI_DROPGZ_TEST_IMAGE	= cni-dropgz-test
@@ -256,6 +257,8 @@ NPM_IMAGE				= azure-npm
 
 ## Image platform tags.
 ACNCLI_PLATFORM_TAG				?= $(subst /,-,$(PLATFORM))$(if $(OS_VERSION),-$(OS_VERSION),)-$(ACN_VERSION)
+AZURE_IPAM_PLATFORM_TAG			?= $(subst /,-,$(PLATFORM))$(if $(OS_VERSION),-$(OS_VERSION),)-$(AZURE_IPAM_VERSION)
+AZURE_IPAM_WINDOWS_PLATFORM_TAG	?= $(subst /,-,$(PLATFORM))$(if $(OS_VERSION),-$(OS_VERSION),)-$(AZURE_IPAM_VERSION)-$(OS_SKU_WIN)
 CNI_PLATFORM_TAG				?= $(subst /,-,$(PLATFORM))$(if $(OS_VERSION),-$(OS_VERSION),)-$(CNI_VERSION)
 CNI_WINDOWS_PLATFORM_TAG		?= $(subst /,-,$(PLATFORM))$(if $(OS_VERSION),-$(OS_VERSION),)-$(CNI_VERSION)-$(OS_SKU_WIN)
 CNI_DROPGZ_PLATFORM_TAG			?= $(subst /,-,$(PLATFORM))$(if $(OS_VERSION),-$(OS_VERSION),)-$(CNI_DROPGZ_VERSION)
@@ -335,12 +338,42 @@ acncli-image-pull: ## pull cni-manager container image.
 		TAG=$(ACNCLI_PLATFORM_TAG)
 
 
+# azure-ipam
+
+azure-ipam-image-name: # util target to print the azure-ipam  image name.
+	@echo $(AZURE_IPAM_IMAGE)
+
+azure-ipam-image-name-and-tag: # util target to print the azure-ipam image name and tag.
+	@echo $(IMAGE_REGISTRY)/$(AZURE_IPAM_IMAGE):$(AZURE_IPAM_PLATFORM_TAG)
+
+azure-ipam-image: ## build azure-ipam container image.
+	$(MAKE) container \
+		DOCKERFILE=azure-ipam/$(OS).Dockerfile \
+		IMAGE=$(AZURE_IPAM_IMAGE) \
+		EXTRA_BUILD_ARGS='--build-arg OS=$(OS) --build-arg ARCH=$(ARCH) --build-arg OS_VERSION=$(OS_VERSION)' \
+		PLATFORM=$(PLATFORM) \
+		TAG=$(AZURE_IPAM_PLATFORM_TAG) \
+		OS=$(OS) \
+		ARCH=$(ARCH) \
+		OS_VERSION=$(OS_VERSION)
+
+azure-ipam-image-push: ## push azure-ipam container image.
+	$(MAKE) container-push \
+		IMAGE=$(AZURE_IPAM_IMAGE) \
+		TAG=$(AZURE_IPAM_PLATFORM_TAG)
+
+azure-ipam-image-pull: ## pull azure-ipam container image.
+	$(MAKE) container-pull \
+		IMAGE=$(AZURE_IPAM_IMAGE) \
+		TAG=$(AZURE_IPAM_PLATFORM_TAG)
+
+
 # cni
 
-cni-image-name: # util target to print the CNI image name.
+cni-image-name: # util target to print the cni image name.
 	@echo $(CNI_IMAGE)
 
-cni-image-name-and-tag: # util target to print the CNI image name and tag.
+cni-image-name-and-tag: # util target to print the cni image name and tag.
 	@echo $(IMAGE_REGISTRY)/$(CNI_IMAGE):$(CNI_PLATFORM_TAG)
 
 cni-image: ## build cni container image.
@@ -553,6 +586,23 @@ acncli-skopeo-archive: ## export tar archive of acncli multiplat container manif
 	$(MAKE) manifest-skopeo-archive \
 		IMAGE=$(ACNCLI_IMAGE) \
 		TAG=$(ACN_VERSION)
+
+azure-ipam-manifest-build: ## build azure-ipam multiplat container manifest.
+	$(MAKE) manifest-build \
+		PLATFORMS="$(PLATFORMS)" \
+		IMAGE=$(AZURE_IPAM_IMAGE) \
+		TAG=$(AZURE_IPAM_VERSION) \
+		OS_VERSIONS="$(OS_VERSIONS)"
+
+azure-ipam-manifest-push: ## push azure-ipam multiplat container manifest
+	$(MAKE) manifest-push \
+		IMAGE=$(AZURE_IPAM_IMAGE) \
+		TAG=$(AZURE_IPAM_VERSION)
+
+azure-ipam-skopeo-archive: ## export tar archive of azure-ipam multiplat container manifest.
+	$(MAKE) manifest-skopeo-archive \
+		IMAGE=$(AZURE_IPAM_IMAGE) \
+		TAG=$(AZURE_IPAM_VERSION)
 
 cni-manifest-build: ## build cni multiplat container manifest.
 	$(MAKE) manifest-build \

@@ -159,6 +159,20 @@ stages:
           name: "$(BUILD_POOL_NAME_LINUX_AMD64)"
         strategy:
           matrix:
+            azure_ipam_linux_amd64:
+              arch: amd64
+              name: azure-ipam
+              os: linux
+            azure_ipam_windows2019_amd64:
+              arch: amd64
+              name: azure-ipam
+              os: windows
+              os_version: ltsc2019
+            azure_ipam_windows2022_amd64:
+              arch: amd64
+              name: azure-ipam
+              os: windows
+              os_version: ltsc2022
             cni_linux_amd64:
               arch: amd64
               name: cni
@@ -239,6 +253,10 @@ stages:
           name: "$(BUILD_POOL_NAME_LINUX_ARM64)"
         strategy:
           matrix:
+            azure_ipam_linux_arm64:
+              arch: arm64
+              name: azure-ipam
+              os: linux
             cni_linux_arm64:
               arch: arm64
               name: cni
@@ -312,6 +330,10 @@ stages:
           name: "$(BUILD_POOL_NAME_DEFAULT)"
         strategy:
           matrix:
+            azure_ipam:
+              name: azure-ipam
+              os_versions: ltsc2019 ltsc2022
+              platforms: linux/amd64 linux/arm64 windows/amd64
             cni:
               name: cni
               os_versions: ltsc2019 ltsc2022
