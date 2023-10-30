@@ -4,9 +4,11 @@
 package restserver
 
 import (
+	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 
@@ -15,16 +17,18 @@ import (
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/common"
+	"github.com/Azure/azure-container-networking/platform"
 	"github.com/Azure/azure-container-networking/store"
 	"github.com/pkg/errors"
 )
 
 var (
-	ErrStoreEmpty             = errors.New("empty endpoint state store")
-	ErrParsePodIPFailed       = errors.New("failed to parse pod's ip")
-	ErrNoNCs                  = errors.New("No NCs found in the CNS internal state")
-	ErrOptManageEndpointState = errors.New("CNS is not set to manage the endpoint state")
-	ErrEndpointStateNotFound  = errors.New("Endpoint state could not be found in the statefile")
+	ErrStoreEmpty                 = errors.New("empty endpoint state store")
+	ErrParsePodIPFailed           = errors.New("failed to parse pod's ip")
+	ErrNoNCs                      = errors.New("No NCs found in the CNS internal state")
+	ErrOptManageEndpointState     = errors.New("CNS is not set to manage the endpoint state")
+	ErrEndpointStateNotFound      = errors.New("Endpoint state could not be found in the statefile")
+	CNIStatefileMigrationIsNeeded = true
 )
 
 // requestIPConfigHandlerHelper validates the request, assigns IPs, and returns a response
@@ -916,6 +920,10 @@ func (service *HTTPRestService) EndpointHandlerAPI(w http.ResponseWriter, r *htt
 		logger.Response(service.Name, response, response.ReturnCode, err)
 		return
 	}
+	// Check if Legacy CNI statefile is present to perform the migration to steless CNI endpoint state
+	if CNIStatefileMigrationIsNeeded {
+		service.MigrationToStatelessCNIRequired()
+	}
 	switch r.Method {
 	case http.MethodGet:
 		service.GetEndpointHandler(w, r)
@@ -1067,4 +1075,69 @@ func (service *HTTPRestService) UpdateEndpointHelper(endpointID string, req cns.
 		return nil
 	}
 	return errors.New("[updateEndpoint] endpoint could not be found in the statefile")
+}
+
+// Checking if migration to Stateless CNI is needed
+func (service *HTTPRestService) MigrationToStatelessCNIRequired() error {
+	logger.Printf("Checking if migration to Stateless CNI is needed\n")
+	filename := platform.CNIStateFilePath
+	fi, err := os.Stat(filename)
+	if err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			CNIStatefileMigrationIsNeeded = false
+			logger.Printf("CNI statefile %s does not exist", filename)
+			return nil
+		}
+		return err
+	}
+	if fi.Size() == 0 {
+		CNIStatefileMigrationIsNeeded = false
+		return nil
+	}
+	return service.buildEndpointStateFromLegacyCNI()
+}
+
+// Migrate the endpoint state from legacy CNI to Stateless CNI
+func (service *HTTPRestService) buildEndpointStateFromLegacyCNI() error {
+	logger.Printf("MIgrating legacy CNI state to stateless CNI\n")
+	filename := platform.CNIStateFilePath
+	logger.Printf("Reading legacy CNI statefile %s", filename)
+	b, err := os.ReadFile(filename)
+	if err != nil {
+		return errors.Wrap(err, "Failed to read the legacy CNI statefile")
+	}
+	var data *nm.network
+	if err = json.Unmarshal(b, &data); err != nil {
+		return errors.Wrap(err, "Failed to Unmarshal CNI statefile to Json")
+	}
+	for i := range data.Endpoints {
+		endpointInfo := &EndpointInfo{PodName: data.Endpoints[i].podName, PodNamespace: data.Endpoints[i].podNameSpace, IfnameToIPMap: make(map[string]*IPInfo), HnsEndpointID: data.Endpoints[i].HnsId, HostVethName: data.Endpoints[i].HostIfName}
+		ipInfo := parseEndpointIpAdresses(data.Endpoints[i].IPAddresses)
+		endpointInfo.IfnameToIPMap[data.Endpoints[i].Ifname] = ipInfo
+		service.EndpointState[data.Endpoints[i].ContainerID] = endpointInfo
+		if err := service.EndpointStateStore.Write(EndpointStoreKey, service.EndpointState); err != nil {
+			return fmt.Errorf("failed to write endpoint state to store: %w", err)
+		}
+	}
+	// Removing legacy state file file from the directory
+	if err := os.Remove(filename); err != nil {
+		logger.Errorf("Failed to remove legacy statefile: %w", err)
+		b, _ := json.Marshal(map[string]string{})
+		os.WriteFile(filename, b, os.FileMode(0o666))
+	}
+	CNIStatefileMigrationIsNeeded = false
+	return nil
+}
+
+// parse the endpoint IP Addresses and retrun an IPInfo struct
+func parseEndpointIpAdresses(ipAddresses []net.IPNet) *IPInfo {
+	ipInfo := &IPInfo{}
+	for i := range ipAddresses {
+		if ipAddresses[i].IP.To4() == nil { // is an ipv6 address
+			ipInfo.IPv6 = append(ipInfo.IPv6, ipAddresses[i])
+		} else {
+			ipInfo.IPv4 = append(ipInfo.IPv4, ipAddresses[i])
+		}
+	}
+	return ipInfo
 }
