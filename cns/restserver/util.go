@@ -163,7 +163,7 @@ func (service *HTTPRestService) saveNetworkContainerGoalState(
 		fallthrough
 	case cns.JobObject:
 		fallthrough
-	case cns.COW:
+	case cns.COW, cns.BackendNICNC:
 		fallthrough
 	case cns.WebApps:
 		switch service.state.OrchestratorType {
@@ -177,7 +177,7 @@ func (service *HTTPRestService) saveNetworkContainerGoalState(
 			fallthrough
 		case cns.AzureFirstParty:
 			fallthrough
-		case cns.WebApps: // todo: Is WebApps an OrchastratorType or ContainerType?
+		case cns.WebApps, cns.BackendNICNC: // todo: Is WebApps an OrchastratorType or ContainerType?
 			podInfo, err := cns.UnmarshalPodInfo(req.OrchestratorContext)
 			if err != nil {
 				errBuf := fmt.Sprintf("Unmarshalling %s failed with error %v", req.NetworkContainerType, err)
@@ -501,6 +501,7 @@ func (service *HTTPRestService) getAllNetworkContainerResponses(
 			LocalIPConfiguration:       savedReq.LocalIPConfiguration,
 			AllowHostToNCCommunication: savedReq.AllowHostToNCCommunication,
 			AllowNCToHostCommunication: savedReq.AllowNCToHostCommunication,
+			NetworkInterfaceInfo:       savedReq.NetworkInterfaceInfo,
 		}
 
 		// If the NC version check wasn't skipped, take into account the VFP programming status when returning the response

@@ -142,7 +142,7 @@ func (plugin *NetPlugin) Start(config *common.PluginConfig) error {
 	// Initialize base plugin.
 	err := plugin.Initialize(config)
 	if err != nil {
-		logger.Error("[cni-net] Failed to initialize base plugin", zap.Error(err))
+		logger.Error("Failed to initialize base plugin", zap.Error(err))
 		return err
 	}
 
@@ -330,7 +330,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 
 	startTime := time.Now()
 
-	logger.Info("[cni-net] Processing ADD command",
+	logger.Info("Processing ADD command",
 		zap.String("containerId", args.ContainerID),
 		zap.String("netNS", args.Netns),
 		zap.String("ifName", args.IfName),
@@ -389,7 +389,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 			res.Print()
 		}
 
-		logger.Info("[cni-net] ADD command completed for pod %v with IPs:%+v err:%v.",
+		logger.Info("ADD command completed for",
 			zap.String("pod", k8sPodName),
 			zap.Any("IPs", ipamAddResult.ipv4Result.IPs),
 			zap.Error(err))
@@ -497,7 +497,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 		// Issue link: https://github.com/kubernetes/kubernetes/issues/57253
 
 		if nwInfoErr == nil {
-			logger.Info("[cni-net] Found network with subnet",
+			logger.Info("Found network with subnet",
 				zap.String("network", networkID),
 				zap.String("subnet", nwInfo.Subnets[0].Prefix.String()))
 			nwInfo.IPAMType = nwCfg.IPAM.Type
@@ -545,14 +545,14 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 		// Create network
 		if nwInfoErr != nil {
 			// Network does not exist.
-			logger.Info("[cni-net] Creating network", zap.String("networkID", networkID))
+			logger.Info("Creating network", zap.String("networkID", networkID))
 			sendEvent(plugin, fmt.Sprintf("[cni-net] Creating network %v.", networkID))
 			// opts map needs to get passed in here
 			if nwInfo, err = plugin.createNetworkInternal(networkID, policies, ipamAddConfig, ipamAddResult); err != nil {
 				logger.Error("Create network failed", zap.Error(err))
 				return err
 			}
-			logger.Info("[cni-net] Created network",
+			logger.Info("Created network",
 				zap.String("networkId", networkID),
 				zap.String("subnet", ipamAddResult.hostSubnetPrefix.String()))
 			sendEvent(plugin, fmt.Sprintf("[cni-net] Created network %v with subnet %v.", networkID, ipamAddResult.hostSubnetPrefix.String()))
@@ -625,7 +625,7 @@ func (plugin *NetPlugin) createNetworkInternal(
 		err := plugin.Errorf("Failed to find the master interface")
 		return nwInfo, err
 	}
-	logger.Info("[cni-net] Found master interface", zap.String("ifname", masterIfName))
+	logger.Info("Found master interface", zap.String("ifname", masterIfName))
 
 	// Add the master as an external interface.
 	err := plugin.nm.AddExternalInterface(masterIfName, ipamAddResult.hostSubnetPrefix.String())
@@ -640,7 +640,7 @@ func (plugin *NetPlugin) createNetworkInternal(
 		return nwInfo, err
 	}
 
-	logger.Info("[cni-net] DNS Info", zap.Any("info", nwDNSInfo))
+	logger.Info("DNS Info", zap.Any("info", nwDNSInfo))
 
 	// Create the network.
 	nwInfo = network.NetworkInfo{
@@ -662,7 +662,7 @@ func (plugin *NetPlugin) createNetworkInternal(
 	}
 
 	if err = addSubnetToNetworkInfo(ipamAddResult, &nwInfo); err != nil {
-		logger.Info("[cni-net] Failed to add subnets to networkInfo",
+		logger.Info("Failed to add subnets to networkInfo",
 			zap.Error(err))
 		return nwInfo, err
 	}
@@ -826,7 +826,7 @@ func (plugin *NetPlugin) createEndpointInternal(opt *createEndpointInternalOpt) 
 	}
 
 	// Create the endpoint.
-	logger.Info("[cni-net] Creating endpoint", zap.String("endpointInfo", epInfo.PrettyString()))
+	logger.Info("Creating endpoint", zap.String("endpointInfo", epInfo.PrettyString()))
 	sendEvent(plugin, fmt.Sprintf("[cni-net] Creating endpoint %s.", epInfo.PrettyString()))
 	err = plugin.nm.CreateEndpoint(cnsclient, opt.nwInfo.Id, &epInfo)
 	if err != nil {
@@ -847,7 +847,7 @@ func (plugin *NetPlugin) Get(args *cniSkel.CmdArgs) error {
 		networkID string
 	)
 
-	logger.Info("[cni-net] Processing GET command",
+	logger.Info("Processing GET command",
 		zap.String("container", args.ContainerID),
 		zap.String("netns", args.Netns),
 		zap.String("ifname", args.IfName),
@@ -873,7 +873,7 @@ func (plugin *NetPlugin) Get(args *cniSkel.CmdArgs) error {
 			res.Print()
 		}
 
-		logger.Info("[cni-net] GET command completed", zap.Any("result", result),
+		logger.Info("GET command completed", zap.Any("result", result),
 			zap.Error(err))
 	}()
 
@@ -883,14 +883,14 @@ func (plugin *NetPlugin) Get(args *cniSkel.CmdArgs) error {
 		return err
 	}
 
-	logger.Info("[cni-net] Read network configuration", zap.Any("config", nwCfg))
+	logger.Info("Read network configuration", zap.Any("config", nwCfg))
 
 	iptables.DisableIPTableLock = nwCfg.DisableIPTableLock
 
 	// Initialize values from network config.
 	if networkID, err = plugin.getNetworkName(args.Netns, nil, nwCfg); err != nil {
 		// TODO: Ideally we should return from here only.
-		logger.Error("[cni-net] Failed to extract network name from network config",
+		logger.Error("Failed to extract network name from network config",
 			zap.Error(err))
 	}
 
@@ -898,7 +898,7 @@ func (plugin *NetPlugin) Get(args *cniSkel.CmdArgs) error {
 
 	// Query the network.
 	if _, err = plugin.nm.GetNetworkInfo(networkID); err != nil {
-		plugin.Errorf("Failed to query network: %v", err)
+		logger.Error("Failed to query network", zap.Error(err))
 		return err
 	}
 
@@ -946,7 +946,7 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 
 	startTime := time.Now()
 
-	logger.Info("[cni-net] Processing DEL command",
+	logger.Info("Processing DEL command",
 		zap.String("containerId", args.ContainerID),
 		zap.String("netNS", args.Netns),
 		zap.String("ifName", args.IfName),
@@ -957,7 +957,7 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 		args.ContainerID, args.Netns, args.IfName, args.Args, args.Path, args.StdinData))
 
 	defer func() {
-		logger.Info("[cni-net] DEL command completed",
+		logger.Info("DEL command completed",
 			zap.String("pod", k8sPodName),
 			zap.Error(err))
 	}()
@@ -970,7 +970,7 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 
 	// Parse Pod arguments.
 	if k8sPodName, k8sNamespace, err = plugin.getPodInfo(args.Args); err != nil {
-		logger.Error("[cni-net] Failed to get POD info", zap.Error(err))
+		logger.Error("Failed to get POD info", zap.Error(err))
 	}
 
 	plugin.setCNIReportDetails(nwCfg, CNI_DEL, "")
@@ -1010,7 +1010,7 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 		case network.AzureCNS:
 			cnsClient, cnsErr := cnscli.New("", defaultRequestTimeout)
 			if cnsErr != nil {
-				logger.Error("[cni-net] failed to create cns client", zap.Error(cnsErr))
+				logger.Error("failed to create cns client", zap.Error(cnsErr))
 				return errors.Wrap(cnsErr, "failed to create cns client")
 			}
 			plugin.ipamInvoker = NewCNSInvoker(k8sPodName, k8sNamespace, cnsClient, util.ExecutionMode(nwCfg.ExecutionMode), util.IpamMode(nwCfg.IPAM.Mode))
@@ -1031,7 +1031,7 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 		numEndpointsToDelete = plugin.nm.GetNumEndpointsByContainerID(args.ContainerID)
 	}
 
-	logger.Info("[cni-net] Endpoints to be deleted", zap.Int("count", numEndpointsToDelete))
+	logger.Info("Endpoints to be deleted", zap.Int("count", numEndpointsToDelete))
 	for i := 0; i < numEndpointsToDelete; i++ {
 		// Initialize values from network config.
 		networkID, err = plugin.getNetworkName(args.Netns, nil, nwCfg)
@@ -1042,14 +1042,14 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 				return err
 			}
 
-			logger.Error("[cni-net] Failed to extract network name from network config", zap.Error(err))
+			logger.Error("Failed to extract network name from network config", zap.Error(err))
 			err = plugin.Errorf("Failed to extract network name from network config. error: %v", err)
 			return err
 		}
 		// Query the network.
 		if nwInfo, err = plugin.nm.GetNetworkInfo(networkID); err != nil {
 			if !nwCfg.MultiTenancy {
-				logger.Error("[cni-net] Failed to query network",
+				logger.Error("Failed to query network",
 					zap.String("network", networkID),
 					zap.Error(err))
 				// Log the error but return success if the network is not found.
@@ -1063,14 +1063,14 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 		endpointID := GetEndpointID(args)
 		// Query the endpoint.
 		if epInfo, err = plugin.nm.GetEndpointInfo(networkID, endpointID); err != nil {
-			logger.Info("[cni-net] GetEndpoint",
+			logger.Info("GetEndpoint",
 				zap.String("endpoint", endpointID),
 				zap.Error(err))
 			if !nwCfg.MultiTenancy {
 				// attempt to release address associated with this Endpoint id
 				// This is to ensure clean up is done even in failure cases
 
-				logger.Error("[cni-net] Failed to query endpoint",
+				logger.Error("Failed to query endpoint",
 					zap.String("endpoint", endpointID),
 					zap.Error(err))
 				logger.Error("Release ip by ContainerID (endpoint not found)",
@@ -1138,7 +1138,7 @@ func (plugin *NetPlugin) Update(args *cniSkel.CmdArgs) error {
 
 	startTime := time.Now()
 
-	logger.Info("[cni-net] Processing UPDATE command",
+	logger.Info("Processing UPDATE command",
 		zap.String("netns", args.Netns),
 		zap.String("args", args.Args),
 		zap.String("path", args.Path))
@@ -1149,7 +1149,7 @@ func (plugin *NetPlugin) Update(args *cniSkel.CmdArgs) error {
 		return err
 	}
 
-	logger.Info("[cni-net] Read network configuration", zap.Any("config", nwCfg))
+	logger.Info("Read network configuration", zap.Any("config", nwCfg))
 
 	iptables.DisableIPTableLock = nwCfg.DisableIPTableLock
 	plugin.setCNIReportDetails(nwCfg, CNI_UPDATE, "")
@@ -1181,14 +1181,14 @@ func (plugin *NetPlugin) Update(args *cniSkel.CmdArgs) error {
 			res.Print()
 		}
 
-		logger.Info("[cni-net] UPDATE command completed",
+		logger.Info("UPDATE command completed",
 			zap.Any("result", result),
 			zap.Error(err))
 	}()
 
 	// Parse Pod arguments.
 	if podCfg, err = cni.ParseCniArgs(args.Args); err != nil {
-		logger.Error("[cni-net] Error while parsing CNI Args during UPDATE",
+		logger.Error("Error while parsing CNI Args during UPDATE",
 			zap.Error(err))
 		return err
 	}

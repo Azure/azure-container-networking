@@ -51,6 +51,7 @@ const (
 	Basic                  = "Basic"
 	JobObject              = "JobObject"
 	COW                    = "COW" // Container on Windows
+	BackendNICNC           = "BackendNICNC"
 )
 
 // Orchestrator Types
@@ -77,6 +78,8 @@ const (
 	InfraNIC NICType = "InfraNIC"
 	// Delegated VM NICs are projected from VM to container network namespace
 	DelegatedVMNIC NICType = "DelegatedVMNIC"
+	// BackendNIC NICs are used for infiniband nics on a VM
+	BackendNIC NICType = "BackendNIC"
 )
 
 // ChannelMode :- CNS channel modes
@@ -106,6 +109,7 @@ type CreateNetworkContainerRequest struct {
 	AllowNCToHostCommunication bool
 	EndpointPolicies           []NetworkContainerRequestPolicies
 	NCStatus                   v1alpha.NCStatus
+	NetworkInterfaceInfo       NetworkInterfaceInfo //nolint // introducing new field for backendnic, to be used later by cni code
 }
 
 // CreateNetworkContainerRequest implements fmt.Stringer for logging
@@ -113,9 +117,10 @@ func (req *CreateNetworkContainerRequest) String() string {
 	return fmt.Sprintf("CreateNetworkContainerRequest"+
 		"{Version: %s, NetworkContainerType: %s, NetworkContainerid: %s, PrimaryInterfaceIdentifier: %s, "+
 		"LocalIPConfiguration: %+v, IPConfiguration: %+v, SecondaryIPConfigs: %+v, MultitenancyInfo: %+v, "+
-		"AllowHostToNCCommunication: %t, AllowNCToHostCommunication: %t, NCStatus: %s}",
+		"AllowHostToNCCommunication: %t, AllowNCToHostCommunication: %t, NCStatus: %s, NetworkInterfaceInfo: %+v}",
 		req.Version, req.NetworkContainerType, req.NetworkContainerid, req.PrimaryInterfaceIdentifier, req.LocalIPConfiguration,
-		req.IPConfiguration, req.SecondaryIPConfigs, req.MultiTenancyInfo, req.AllowHostToNCCommunication, req.AllowNCToHostCommunication, string(req.NCStatus))
+		req.IPConfiguration, req.SecondaryIPConfigs, req.MultiTenancyInfo, req.AllowHostToNCCommunication, req.AllowNCToHostCommunication,
+		string(req.NCStatus), req.NetworkInterfaceInfo)
 }
 
 // NetworkContainerRequestPolicies - specifies policies associated with create network request
@@ -317,6 +322,11 @@ type MultiTenancyInfo struct {
 	ID        int // This can be vlanid, vxlanid, gre-key etc. (depends on EnacapType).
 }
 
+type NetworkInterfaceInfo struct {
+	NICType    NICType
+	MACAddress string
+}
+
 // IPConfiguration contains details about ip config to provision in the VM.
 type IPConfiguration struct {
 	IPSubnet         IPSubnet
@@ -409,13 +419,14 @@ type GetNetworkContainerResponse struct {
 	Response                   Response
 	AllowHostToNCCommunication bool
 	AllowNCToHostCommunication bool
+	NetworkInterfaceInfo       NetworkInterfaceInfo
 }
 
 type PodIpInfo struct {
 	PodIPConfig                     IPSubnet
 	NetworkContainerPrimaryIPConfig IPConfiguration
 	HostPrimaryIPInfo               HostIPInfo
-	// NICType defines whether NIC is InfraNIC or DelegatedVMNIC
+	// NICType defines whether NIC is InfraNIC or DelegatedVMNIC or BackendNIC
 	NICType       NICType
 	InterfaceName string
 	// MacAddress of interface
