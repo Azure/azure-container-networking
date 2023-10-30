@@ -39,14 +39,14 @@ func (m *SWIFTv2Middleware) ValidateIPConfigsRequest(ctx context.Context, req *c
 	// Retrieve the pod from the cluster
 	podInfo, err := cns.UnmarshalPodInfo(req.OrchestratorContext)
 	if err != nil {
-		errBuf := errors.Wrapf(err, "failed to unmarshalling pod info from ipconfigs request %v", req)
+		errBuf := errors.Wrapf(err, "failed to unmarshalling pod info from ipconfigs request %+v", req)
 		return types.UnexpectedError, errBuf.Error()
 	}
 	logger.Printf("[SWIFTv2Middleware] validate ipconfigs request for pod %s", podInfo.Name())
 	podNamespacedName := k8stypes.NamespacedName{Namespace: podInfo.Namespace(), Name: podInfo.Name()}
 	pod := v1.Pod{}
 	if err := m.Cli.Get(ctx, podNamespacedName, &pod); err != nil {
-		errBuf := errors.Wrapf(err, "failed to get pod %v", podNamespacedName)
+		errBuf := errors.Wrapf(err, "failed to get pod %+v", podNamespacedName)
 		return types.UnexpectedError, errBuf.Error()
 	}
 

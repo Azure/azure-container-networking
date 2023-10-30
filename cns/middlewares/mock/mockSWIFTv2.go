@@ -3,7 +3,7 @@ package mock
 import (
 	"context"
 	"fmt"
-	"net"
+	"net/netip"
 	"os"
 
 	"github.com/Azure/azure-container-networking/cns"
@@ -19,7 +19,6 @@ import (
 var (
 	errMTPNCNotReady         = errors.New("mtpnc is not ready")
 	errFailedToGetMTPNC      = errors.New("failed to get mtpnc")
-	errFailedToGetPod        = errors.New("failed to get pod")
 	errInvalidSWIFTv2NICType = errors.New("invalid NIC type for SWIFT v2 scenario")
 )
 
@@ -79,14 +78,14 @@ func (m *SWIFTv2Middleware) ValidateIPConfigsRequest(_ context.Context, req *cns
 	// Retrieve the pod from the cluster
 	podInfo, err := cns.UnmarshalPodInfo(req.OrchestratorContext)
 	if err != nil {
-		errBuf := fmt.Sprintf("unmarshalling pod info from ipconfigs request %v failed with error %v", req, err)
-		return types.UnexpectedError, errBuf
+		errBuf := errors.Wrapf(err, "failed to unmarshalling pod info from ipconfigs request %+v", req)
+		return types.UnexpectedError, errBuf.Error()
 	}
 	podNamespacedName := k8types.NamespacedName{Namespace: podInfo.Namespace(), Name: podInfo.Name()}
 	pod, ok := m.mtPodState[podNamespacedName.String()]
 	if !ok {
-		errBuf := fmt.Sprintf("failed to get pod %v with error %v", podNamespacedName, err)
-		return types.UnexpectedError, errBuf
+		errBuf := errors.Wrapf(err, "failed to get pod %+v", podNamespacedName)
+		return types.UnexpectedError, errBuf.Error()
 	}
 	// check the pod labels for Swift V2, enrich the request with the multitenant flag.
 	if _, ok := pod.Labels[configuration.LabelPodSwiftV2]; ok {
@@ -167,7 +166,11 @@ func (m *SWIFTv2Middleware) SetRoutes(podIPInfo *cns.PodIpInfo) error {
 			return errors.Wrapf(err, "failed to parse serviceCIDRs")
 		}
 		// Check if the podIPInfo is IPv4 or IPv6
-		if net.ParseIP(podIPInfo.PodIPConfig.IPAddress).To4() != nil {
+		ip, err := netip.ParseAddr(podIPInfo.PodIPConfig.IPAddress)
+		if err != nil {
+			return errors.Wrapf(err, "failed to parse podIPConfig IP address %s", podIPInfo.PodIPConfig.IPAddress)
+		}
+		if ip.Is4() {
 			// routes for IPv4 podCIDR traffic
 			for _, podCIDRv4 := range podCIDRsV4 {
 				podCIDRv4Route := cns.Route{
