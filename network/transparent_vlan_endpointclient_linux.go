@@ -166,7 +166,7 @@ func (client *TransparentVlanEndpointClient) createNetworkNamespace(vmNS int) er
 		if err != nil {
 			return errors.Wrap(err, "failed to create vnet ns")
 		}
-		logger.Info("Vnet Namespace created", zap.String("vnetNS", client.netnsClient.NamespaceUniqueID(vnetNS)))
+		logger.Info("Vnet Namespace created", zap.String("vnetNS", client.netnsClient.NamespaceUniqueID(vnetNS)), zap.String("vmNS", client.netnsClient.NamespaceUniqueID(vmNS)))
 		if !client.netnsClient.IsNamespaceEqual(vnetNS, vmNS) {
 			client.vnetNSFileDescriptor = vnetNS
 			return nil
