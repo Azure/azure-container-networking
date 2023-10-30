@@ -159,6 +159,20 @@ stages:
           name: "$(BUILD_POOL_NAME_LINUX_AMD64)"
         strategy:
           matrix:
+            cni_linux_amd64:
+              arch: amd64
+              name: cni
+              os: linux
+            cni_windows2019_amd64:
+              arch: amd64
+              name: cni
+              os: windows
+              os_version: ltsc2019
+            cni_windows2022_amd64:
+              arch: amd64
+              name: cni
+              os: windows
+              os_version: ltsc2022
             cni_dropgz_linux_amd64:
               arch: amd64
               name: cni-dropgz
@@ -225,6 +239,10 @@ stages:
           name: "$(BUILD_POOL_NAME_LINUX_ARM64)"
         strategy:
           matrix:
+            cni_linux_arm64:
+              arch: arm64
+              name: cni
+              os: linux
             cni_dropgz_linux_arm64:
               arch: arm64
               name: cni-dropgz
@@ -294,6 +312,10 @@ stages:
           name: "$(BUILD_POOL_NAME_DEFAULT)"
         strategy:
           matrix:
+            cni:
+              name: cni
+              os_versions: ltsc2019 ltsc2022
+              platforms: linux/amd64 linux/arm64 windows/amd64
             cni_dropgz:
               name: cni-dropgz
               os_versions: ltsc2019 ltsc2022
