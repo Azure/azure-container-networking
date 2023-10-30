@@ -3,7 +3,7 @@ RUN tdnf install -y tar
 RUN tdnf upgrade -y && tdnf install -y ca-certificates
 
 FROM tar AS azure-ipam
-ARG AZIPAM_VERSION=v0.0.3
+ARG AZIPAM_VERSION=v0.0.5
 ARG VERSION
 ARG OS
 ARG ARCH
