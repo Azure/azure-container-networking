@@ -11,12 +11,26 @@ const (
 	EnvNodeName = "NODENAME"
 	// EnvNodeIP is the IP of the node running this CNS binary
 	EnvNodeIP = "NODE_IP"
-	// LabelSwiftV2 is the Node label for Swift V2
-	LabelSwiftV2 = "kubernetes.azure.com/podnetwork-multi-tenancy"
+	// LabelNodeSwiftV2 is the Node label for Swift V2
+	LabelNodeSwiftV2 = "kubernetes.azure.com/podnetwork-multi-tenancy-enabled"
+	// LabelPodSwiftV2 is the Pod label for Swift V2
+	LabelPodSwiftV2 = "kubernetes.azure.com/pod-network"
+	EnvPodCIDRs     = "POD_CIDRs"
+	EnvServiceCIDRs = "SERVICE_CIDRs"
+	EnvNodeCIDRs    = "NODE_CIDRs"
 )
 
 // ErrNodeNameUnset indicates the the $EnvNodeName variable is unset in the environment.
 var ErrNodeNameUnset = errors.Errorf("must declare %s environment variable", EnvNodeName)
+
+// ErrPodCIDRsUnset indicates the the $EnvPodCIDRs variable is unset in the environment.
+var ErrPodCIDRsUnset = errors.Errorf("must declare %s environment variable", EnvPodCIDRs)
+
+// ErrServiceCIDRsUnset indicates the the $EnvServiceCIDRs variable is unset in the environment.
+var ErrServiceCIDRsUnset = errors.Errorf("must declare %s environment variable", EnvServiceCIDRs)
+
+// ErrNodeCIDRsUnset indicates the the $EnvNodeCIDRs variable is unset in the environment.
+var ErrNodeCIDRsUnset = errors.Errorf("must declare %s environment variable", EnvNodeCIDRs)
 
 // NodeName checks the environment variables for the NODENAME and returns it or an error if unset.
 func NodeName() (string, error) {
@@ -30,4 +44,28 @@ func NodeName() (string, error) {
 // NodeIP returns the value of the NODE_IP environment variable, or empty string if unset.
 func NodeIP() string {
 	return os.Getenv(EnvNodeIP)
+}
+
+func PodCIDRs() (string, error) {
+	podCIDRs := os.Getenv(EnvPodCIDRs)
+	if podCIDRs == "" {
+		return "", ErrPodCIDRsUnset
+	}
+	return podCIDRs, nil
+}
+
+func ServiceCIDRs() (string, error) {
+	serviceCIDRs := os.Getenv(EnvServiceCIDRs)
+	if serviceCIDRs == "" {
+		return "", ErrServiceCIDRsUnset
+	}
+	return serviceCIDRs, nil
+}
+
+func NodeCIDRs() (string, error) {
+	nodeCIDRs := os.Getenv(EnvNodeCIDRs)
+	if nodeCIDRs == "" {
+		return "", ErrNodeCIDRsUnset
+	}
+	return nodeCIDRs, nil
 }

@@ -132,7 +132,10 @@ require (
 	sigs.k8s.io/structured-merge-diff/v4 v4.3.0 // indirect
 )
 
-require sigs.k8s.io/yaml v1.3.0
+require (
+	gotest.tools/v3 v3.0.3
+	sigs.k8s.io/yaml v1.3.0
+)
 
 require github.com/emicklei/go-restful/v3 v3.11.0 // indirect
 

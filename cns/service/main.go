@@ -37,6 +37,7 @@ import (
 	nncctrl "github.com/Azure/azure-container-networking/cns/kubecontroller/nodenetworkconfig"
 	podctrl "github.com/Azure/azure-container-networking/cns/kubecontroller/pod"
 	"github.com/Azure/azure-container-networking/cns/logger"
+	"github.com/Azure/azure-container-networking/cns/middlewares"
 	"github.com/Azure/azure-container-networking/cns/multitenantcontroller"
 	"github.com/Azure/azure-container-networking/cns/multitenantcontroller/multitenantoperator"
 	"github.com/Azure/azure-container-networking/cns/restserver"
@@ -1155,7 +1156,7 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 	}
 
 	// check the Node labels for Swift V2
-	if _, ok := node.Labels[configuration.LabelSwiftV2]; ok {
+	if _, ok := node.Labels[configuration.LabelNodeSwiftV2]; ok {
 		cnsconfig.EnableSwiftV2 = true
 		cnsconfig.WatchPods = true
 		// TODO(rbtr): create the NodeInfo for Swift V2
@@ -1323,6 +1324,9 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 		if err := mtpncctrl.SetupWithManager(manager); err != nil {
 			return errors.Wrapf(err, "failed to setup mtpnc reconciler with manager")
 		}
+		// if SWIFT v2 is enabled on CNS, attach multitenant middleware to rest service
+		swiftV2Middleware := middlewares.SWIFTv2Middleware{Cli: manager.GetClient()}
+		httpRestService.AttachSWIFTv2Middleware(&swiftV2Middleware)
 	}
 
 	// adding some routes to the root service mux

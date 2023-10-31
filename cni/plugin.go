@@ -24,8 +24,10 @@ import (
 	"go.uber.org/zap"
 )
 
-var logger = log.CNILogger.With(zap.String("component", "cni-plugin"))
-var storeLogger = log.CNILogger.With(zap.String("component", "cni-store"))
+var (
+	logger      = log.CNILogger.With(zap.String("component", "cni-plugin"))
+	storeLogger = log.CNILogger.With(zap.String("component", "cni-store"))
+)
 
 var errEmptyContent = errors.New("read content is zero bytes")
 
