@@ -25,7 +25,7 @@ var (
 const (
 	prefixLength     = 32
 	overlayGatewayv4 = "169.254.1.1"
-	virtualGW        = "169.254.2.1"
+	virtualGW        = "169.254.2.1/32"
 	overlayGatewayV6 = "fe80::1234:5678:9abc"
 )
 
