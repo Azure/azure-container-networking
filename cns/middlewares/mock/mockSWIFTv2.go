@@ -25,7 +25,7 @@ var (
 const (
 	prefixLength     = 32
 	overlayGatewayv4 = "169.254.1.1"
-	virtualGW        = "169.254.2.1/32"
+	virtualGW        = "169.254.2.1"
 	overlayGatewayV6 = "fe80::1234:5678:9abc"
 )
 
@@ -132,7 +132,7 @@ func (m *SWIFTv2Middleware) SetRoutes(podIPInfo *cns.PodIpInfo) error {
 	switch podIPInfo.NICType {
 	case cns.DelegatedVMNIC:
 		virtualGWRoute := cns.Route{
-			IPAddress: virtualGW,
+			IPAddress: fmt.Sprintf("%s/%d", virtualGW, prefixLength),
 		}
 		// default route via SWIFT v2 interface
 		route := cns.Route{

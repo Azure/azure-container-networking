@@ -2,6 +2,7 @@ package middlewares
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"testing"
 
@@ -200,7 +201,7 @@ func TestSetRoutesSuccess(t *testing.T) {
 			MacAddress: "12:34:56:78:9a:bc",
 			Routes: []cns.Route{
 				{
-					IPAddress: virtualGW,
+					IPAddress: fmt.Sprintf("%s/%d", virtualGW, prefixLength),
 				},
 				{
 					IPAddress:        "0.0.0.0/0",
