@@ -19,6 +19,7 @@ import (
 	cniTypesCurr "github.com/containernetworking/cni/pkg/types/100"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 const (
@@ -54,6 +55,21 @@ type IPResultInfo struct {
 	macAddress         string
 	skipDefaultRoutes  bool
 	routes             []cns.Route
+}
+
+func (i IPResultInfo) MarshalLogObject(encoder zapcore.ObjectEncoder) error {
+	encoder.AddString("podIPAddress", i.podIPAddress)
+	encoder.AddUint8("ncSubnetPrefix", i.ncSubnetPrefix)
+	encoder.AddString("ncPrimaryIP", i.ncPrimaryIP)
+	encoder.AddString("ncGatewayIPAddress", i.ncGatewayIPAddress)
+	encoder.AddString("hostSubnet", i.hostSubnet)
+	encoder.AddString("hostPrimaryIP", i.hostPrimaryIP)
+	encoder.AddString("hostGateway", i.hostGateway)
+	encoder.AddString("nicType", string(i.nicType))
+	encoder.AddString("macAddress", i.macAddress)
+	encoder.AddBool("skipDefaultRoutes", i.skipDefaultRoutes)
+	encoder.AddString("routes", fmt.Sprintf("%+v", i.routes))
+	return nil
 }
 
 func NewCNSInvoker(podName, namespace string, cnsClient cnsclient, executionMode util.ExecutionMode, ipamMode util.IpamMode) *CNSIPAMInvoker {
