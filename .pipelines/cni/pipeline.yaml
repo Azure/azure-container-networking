@@ -142,6 +142,34 @@ stages:
       nodeCount: ${NODE_COUNT_CILIUM}
       vmSize: ${VM_SIZE_CILIUM}
 
+  - template: cilium/cilium-overlay-load-test-template.yaml
+    parameters:
+      name: cilium_overlay_mariner
+      clusterType: overlay-byocni-nokubeproxy-up
+      clusterName: "cil-over-mar"
+      nodeCount: ${NODE_COUNT_CILIUM}
+      vmSize: ${VM_SIZE_CILIUM}
+      arch: amd64
+      osSKU: AzureLinux
+
+  - template: cilium/cilium-overlay-load-test-template.yaml
+    parameters:
+      name: cilium_overlay_arm
+      clusterType: overlay-byocni-nokubeproxy-up
+      clusterName: "cil-over-arm"
+      nodeCount: ${NODE_COUNT_CILIUM}
+      vmSize: Standard_D8ps_v5
+      arch: arm64
+
+  - template: cilium/cilium-overlay-load-test-template.yaml
+    parameters:
+      name: cilium_overlay_rdma
+      clusterType: overlay-byocni-nokubeproxy-up
+      clusterName: "cil-over-rdma"
+      nodeCount: 2
+      vmSize: Standard_NC24r
+      arch: amd64
+
   - template: singletenancy/cniv1-template.yaml
     parameters:
       name: win22_cniv1
@@ -221,6 +249,9 @@ stages:
     condition: always()
     dependsOn:
       - cilium_overlay
+      - cilium_overlay_mariner
+      - cilium_overlay_arm
+      - cilium_overlay_rdma
       - win22_cniv1_HNS
       - linux_cniv1
       - linux_podsubnet
@@ -241,6 +272,15 @@ stages:
             cilium_overlay:
               name: cilium_overlay
               clusterName: "cilium-over"
+            cilium_overlay_mariner:
+              name: cilium_overlay_mariner
+              clusterName: "cil-over-mar"
+            cilium_overlay_arm:
+              name: cilium_overlay_arm
+              clusterName: "cil-over-arm"
+            cilium_overlay_rdma:
+              name: cilium_overlay_rdma
+              clusterName: "cil-over-rdma"
             win22-cniv1:
               name: win22-cniv1
               clusterName: "win22-cniv1"
