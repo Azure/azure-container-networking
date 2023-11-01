@@ -37,3 +37,13 @@ func TestServiceCIDRs(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, "test", cidr)
 }
+
+func TestInfraVNETCIDRs(t *testing.T) {
+	_, err := InfraVNETCIDRs()
+	require.Error(t, err)
+	require.ErrorIs(t, err, ErrInfraVNETCIDRsUnset)
+	os.Setenv(EnvInfraVNETCIDRs, "test")
+	cidr, err := InfraVNETCIDRs()
+	assert.NoError(t, err)
+	assert.Equal(t, "test", cidr)
+}
