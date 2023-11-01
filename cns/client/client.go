@@ -45,7 +45,7 @@ var clientPaths = []string{
 	cns.DeleteNetworkContainer,
 	cns.NetworkContainersURLPath,
 	cns.GetHomeAz,
-	cns.EndpointApi,
+	cns.EndpointAPI,
 }
 
 type do interface {
@@ -1026,7 +1026,7 @@ func (c *Client) GetHomeAz(ctx context.Context) (*cns.GetHomeAzResponse, error) 
 // GetEndpoint calls the EndpointHandlerAPI in CNS to retrieve the state of a given EndpointID
 func (c *Client) GetEndpoint(ctx context.Context, endpointID string) (*restserver.GetEndpointResponse, error) {
 	// build the request
-	u := c.routes[cns.EndpointApi]
+	u := c.routes[cns.EndpointAPI]
 	uString := u.String() + endpointID
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, uString, http.NoBody)
 	if err != nil {
@@ -1071,7 +1071,7 @@ func (c *Client) UpdateEndpoint(ctx context.Context, endpointID, hnsID, vethName
 		return nil, errors.Wrap(err, "failed to encode updateEndpoint")
 	}
 
-	u := c.routes[cns.EndpointApi]
+	u := c.routes[cns.EndpointAPI]
 	uString := u.String() + endpointID
 	req, err := http.NewRequestWithContext(ctx, http.MethodPatch, uString, &body)
 	if err != nil {

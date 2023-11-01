@@ -91,6 +91,7 @@ type EndpointInfo struct {
 	NATInfo                  []policy.NATInfo
 	NICType                  cns.NICType
 	SkipDefaultRoutes        bool
+	HNSEndpointID            string
 }
 
 // RouteInfo contains information about an IP route.
