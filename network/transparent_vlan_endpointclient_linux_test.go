@@ -13,7 +13,6 @@ import (
 	"github.com/Azure/azure-container-networking/platform"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 )
 
 var errNetnsMock = errors.New("mock netns error")
@@ -103,12 +102,15 @@ func (ns *mockNetIO) GetNetworkInterfaceAddrs(_ *net.Interface) ([]net.Addr, err
 	return []net.Addr{}, nil
 }
 
-func defaultExecuteInNSFn(nsName string, f func() error) error {
-	logger.Info("[MockExecuteInNS] Entering ns", zap.String("nsName", nsName))
-	defer func() {
-		logger.Info("[MockExecuteInNS] Exiting ns", zap.String("nsName", nsName))
-	}()
-	return f()
+func (ns *mockNetIO) GetNetworkInterfaceByMac(mac net.HardwareAddr) (*net.Interface, error) {
+	return &net.Interface{
+		//nolint:gomnd // Dummy MTU
+		MTU:          1000,
+		Name:         "eth1",
+		HardwareAddr: mac,
+		//nolint:gomnd // Dummy interface index
+		Index: 2,
+	}, nil
 }
 
 func TestTransparentVlanAddEndpoints(t *testing.T) {
@@ -135,7 +137,7 @@ func TestTransparentVlanAddEndpoints(t *testing.T) {
 				plClient:          platform.NewMockExecClient(false),
 				netUtilsClient:    networkutils.NewNetworkUtils(nl, plc),
 				netioshim:         netio.NewMockNetIO(false, 0),
-				executeInNSFn:     defaultExecuteInNSFn,
+				nsClient:          NewMockNamespaceClient(),
 			},
 			epInfo:  &EndpointInfo{},
 			wantErr: false,
@@ -152,7 +154,7 @@ func TestTransparentVlanAddEndpoints(t *testing.T) {
 				plClient:          platform.NewMockExecClient(false),
 				netUtilsClient:    networkutils.NewNetworkUtils(nl, plc),
 				netioshim:         netio.NewMockNetIO(false, 0),
-				executeInNSFn:     defaultExecuteInNSFn,
+				nsClient:          NewMockNamespaceClient(),
 			},
 			epInfo:     &EndpointInfo{},
 			wantErr:    true,
@@ -172,7 +174,7 @@ func TestTransparentVlanAddEndpoints(t *testing.T) {
 				netioshim: &mockNetIO{
 					existingInterfaces: map[string]bool{},
 				},
-				executeInNSFn: defaultExecuteInNSFn,
+				nsClient: NewMockNamespaceClient(),
 			},
 			epInfo:     &EndpointInfo{},
 			wantErr:    true,
@@ -218,7 +220,7 @@ func TestTransparentVlanAddEndpoints(t *testing.T) {
 				plClient:       platform.NewMockExecClient(false),
 				netUtilsClient: networkutils.NewNetworkUtils(nl, plc),
 				netioshim:      netio.NewMockNetIO(false, 0),
-				executeInNSFn:  defaultExecuteInNSFn,
+				nsClient:       NewMockNamespaceClient(),
 			},
 			epInfo:  &EndpointInfo{},
 			wantErr: false,
@@ -242,7 +244,7 @@ func TestTransparentVlanAddEndpoints(t *testing.T) {
 				plClient:       platform.NewMockExecClient(false),
 				netUtilsClient: networkutils.NewNetworkUtils(nl, plc),
 				netioshim:      netio.NewMockNetIO(true, 1),
-				executeInNSFn:  defaultExecuteInNSFn,
+				nsClient:       NewMockNamespaceClient(),
 			},
 			epInfo:     &EndpointInfo{},
 			wantErr:    true,
@@ -314,7 +316,7 @@ func TestTransparentVlanAddEndpoints(t *testing.T) {
 				plClient:       platform.NewMockExecClient(false),
 				netUtilsClient: networkutils.NewNetworkUtils(nl, plc),
 				netioshim:      netio.NewMockNetIO(false, 0),
-				executeInNSFn:  defaultExecuteInNSFn,
+				nsClient:       NewMockNamespaceClient(),
 			},
 			epInfo:  &EndpointInfo{},
 			wantErr: false,
@@ -392,7 +394,7 @@ func TestTransparentVlanAddEndpoints(t *testing.T) {
 						"A1veth0": true,
 					},
 				},
-				executeInNSFn: defaultExecuteInNSFn,
+				nsClient: NewMockNamespaceClient(),
 			},
 			epInfo:     &EndpointInfo{},
 			wantErr:    true,

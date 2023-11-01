@@ -195,7 +195,7 @@ func (client *TransparentVlanEndpointClient) setLinkNetNSAndConfirm(name string,
 	// confirm veth was moved successfully
 	err = RunWithRetries(func() error {
 		// retry checking in the namespace if the interface is not detected
-		return client.executeInNSFn(client.vnetNSName, func() error {
+		return ExecuteInNS(client.nsClient, client.vnetNSName, func() error {
 			_, ifDetectedErr := client.netioshim.GetNetworkInterfaceByName(client.vlanIfName)
 			return errors.Wrap(ifDetectedErr, "failed to get vlan veth in namespace")
 		})
