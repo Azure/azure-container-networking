@@ -111,9 +111,7 @@ func (service *HTTPRestService) restoreState() {
 	}
 }
 
-func (service *HTTPRestService) saveNetworkContainerGoalState(
-	req cns.CreateNetworkContainerRequest,
-) (types.ResponseCode, string) {
+func (service *HTTPRestService) saveNetworkContainerGoalState(req cns.CreateNetworkContainerRequest) (types.ResponseCode, string) { //nolint // legacy
 	// we don't want to overwrite what other calls may have written
 	service.Lock()
 	defer service.Unlock()
@@ -414,8 +412,7 @@ func (service *HTTPRestService) getAllNetworkContainerResponses(
 		nmaNCs := map[string]string{}
 		for _, nc := range ncVersionListResp.Containers {
 			// store nmaNCID as lower case to allow case insensitive comparison with nc stored in CNS
-			nmaNCID := cns.SwiftPrefix + strings.ToLower(nc.NetworkContainerID)
-			nmaNCs[nmaNCID] = nc.Version
+			nmaNCs[strings.TrimPrefix(lowerCaseNCGuid(nc.NetworkContainerID), cns.SwiftPrefix)] = nc.Version
 		}
 
 		if !skipNCVersionCheck {
@@ -610,7 +607,7 @@ func (service *HTTPRestService) attachOrDetachHelper(req cns.ConfigureContainerN
 				nmaNCs := map[string]string{}
 				for _, nc := range ncVersionListResp.Containers {
 					// store nmaNCID as lower case to allow case insensitive comparison with nc stored in CNS
-					nmaNCs[strings.ToLower(nc.NetworkContainerID)] = nc.Version
+					nmaNCs[strings.TrimPrefix(lowerCaseNCGuid(nc.NetworkContainerID), cns.SwiftPrefix)] = nc.Version
 				}
 				_, returnCode, message := service.isNCWaitingForUpdate(existing.CreateNetworkContainerRequest.Version, req.NetworkContainerid, nmaNCs)
 				if returnCode == types.NetworkContainerVfpProgramPending {
@@ -846,9 +843,8 @@ func (service *HTTPRestService) populateIPConfigInfoUntransacted(ipConfigStatus 
 func lowerCaseNCGuid(ncid string) string {
 	ncidHasSwiftPrefix := strings.HasPrefix(ncid, cns.SwiftPrefix)
 	if ncidHasSwiftPrefix {
-		return cns.SwiftPrefix + strings.ToLower(strings.Split(ncid, cns.SwiftPrefix)[1])
+		return cns.SwiftPrefix + strings.ToLower(strings.TrimPrefix(ncid, cns.SwiftPrefix))
 	}
-
 	return strings.ToLower(ncid)
 }
 
@@ -857,9 +853,7 @@ func lowerCaseNCGuid(ncid string) string {
 // the VFP programming is pending
 // This returns success / waitingForUpdate as false in all other cases.
 // V2 is using the nmagent get nc version list api v2 which doesn't need authentication token
-func (service *HTTPRestService) isNCWaitingForUpdate(
-	ncVersion, ncid string, ncVersionList map[string]string,
-) (waitingForUpdate bool, returnCode types.ResponseCode, message string) {
+func (service *HTTPRestService) isNCWaitingForUpdate(ncVersion, ncid string, ncVersionList map[string]string) (waitingForUpdate bool, returnCode types.ResponseCode, message string) {
 	ncStatus, ok := service.state.ContainerStatus[ncid]
 	if ok {
 		if ncStatus.VfpUpdateComplete &&
@@ -879,7 +873,7 @@ func (service *HTTPRestService) isNCWaitingForUpdate(
 
 	// get the ncVersionList with nc GUID as lower case
 	// when looking up if the ncid is present in ncVersionList, convert it to lowercase and then look up
-	nmaProgrammedNCVersionStr, ok := ncVersionList[lowerCaseNCGuid(ncid)]
+	nmaProgrammedNCVersionStr, ok := ncVersionList[strings.TrimPrefix(lowerCaseNCGuid(ncid), cns.SwiftPrefix)]
 	if !ok {
 		// NMA doesn't have this NC that we need programmed yet, bail out
 		logger.Printf("[Azure CNS] Failed to get NC %s doesn't exist in NMAgent NC version list "+

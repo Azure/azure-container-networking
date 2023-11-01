@@ -1311,7 +1311,7 @@ func TestNCIDCaseInSensitive(t *testing.T) {
 	ncVersionList := map[string]string{}
 	// add lower-case NCIDs to ncVersionList
 	for _, ncid := range ncids {
-		ncVersionList[lowerCaseNCGuid(ncid)] = "1"
+		ncVersionList[strings.TrimPrefix(lowerCaseNCGuid(ncid), cns.SwiftPrefix)] = "1"
 	}
 
 	for _, ncid := range ncids {
