@@ -98,7 +98,7 @@ type NetworkManager interface {
 	FindNetworkIDFromNetNs(netNs string) (string, error)
 	GetNumEndpointsByContainerID(containerID string) int
 
-	CreateEndpoint(client apipaClient, networkID string, epInfo *EndpointInfo) error
+	CreateEndpoint(client apipaClient, networkID string, epInfo []*EndpointInfo) error
 	DeleteEndpoint(networkID string, endpointID string, epInfo *EndpointInfo) error
 	GetEndpointInfo(networkID string, endpointID string) (*EndpointInfo, error)
 	GetAllEndpoints(networkID string) (map[string]*EndpointInfo, error)
@@ -386,8 +386,7 @@ func (nm *networkManager) CreateEndpoint(cli apipaClient, networkID string, epIn
 			epInfo[0].Data[VlanIDKey] = nw.VlanId
 		}
 	}
-
-	_, err = nw.newEndpoint(cli, nm.netlink, nm.plClient, nm.netio, nm.nsClient, epInfo)
+	ep, err := nw.newEndpoint(cli, nm.netlink, nm.plClient, nm.netio, nm.nsClient, epInfo)
 	if err != nil {
 		return err
 	}
@@ -467,7 +466,7 @@ func (nm *networkManager) DeleteEndpointState(networkID string, epInfo *Endpoint
 		NetworkContainerID:       epInfo.Id,
 	}
 	logger.Info("Deleting endpoint with", zap.String("Endpoint Info: ", epInfo.PrettyString()), zap.String("HNISID : ", ep.HnsId))
-	return nw.deleteEndpointImpl(netlink.NewNetlink(), platform.NewExecClient(logger), nil, ep)
+	return nw.deleteEndpointImpl(netlink.NewNetlink(), platform.NewExecClient(logger), nil, nil, nil, ep)
 }
 
 // GetEndpointInfo returns information about the given endpoint.
