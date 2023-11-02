@@ -157,10 +157,10 @@ func (nw *network) newEndpointImpl(
 				epClient = NewLinuxBridgeEndpointClient(nw.extIf, hostIfName, contIfName, nw.Mode, nl, plc)
 			} else if epInfo.NICType == cns.DelegatedVMNIC {
 				logger.Info("Secondary client")
-				epClient = NewSecondaryEndpointClient(nl, plc, nsc, ep)
+				epClient = NewSecondaryEndpointClient(nl, netioCli, plc, nsc, ep)
 			} else {
 				logger.Info("Transparent client")
-				epClient = NewTransparentEndpointClient(nw.extIf, hostIfName, contIfName, nw.Mode, nl, plc)
+				epClient = NewTransparentEndpointClient(nw.extIf, hostIfName, contIfName, nw.Mode, nl, netioCli, plc)
 			}
 		}
 
@@ -255,7 +255,7 @@ func (nw *network) newEndpointImpl(
 }
 
 // deleteEndpointImpl deletes an existing endpoint from the network.
-func (nw *network) deleteEndpointImpl(nl netlink.NetlinkInterface, plc platform.ExecClient, epClient EndpointClient, nsc NamespaceClientInterface, ep *endpoint) error {
+func (nw *network) deleteEndpointImpl(nl netlink.NetlinkInterface, plc platform.ExecClient, epClient EndpointClient, nioc netio.NetIOInterface, nsc NamespaceClientInterface, ep *endpoint) error {
 	// Delete the veth pair by deleting one of the peer interfaces.
 	// Deleting the host interface is more convenient since it does not require
 	// entering the container netns and hence works both for CNI and CNM.
@@ -276,13 +276,13 @@ func (nw *network) deleteEndpointImpl(nl netlink.NetlinkInterface, plc platform.
 			epClient = NewLinuxBridgeEndpointClient(nw.extIf, ep.HostIfName, "", nw.Mode, nl, plc)
 		} else {
 			if len(ep.SecondaryInterfaces) > 0 {
-				epClient = NewSecondaryEndpointClient(nl, plc, nsc, ep)
+				epClient = NewSecondaryEndpointClient(nl, nioc, plc, nsc, ep)
 				epClient.DeleteEndpointRules(ep)
 				//nolint:errcheck // ignore error
 				epClient.DeleteEndpoints(ep)
 			}
 
-			epClient = NewTransparentEndpointClient(nw.extIf, ep.HostIfName, "", nw.Mode, nl, plc)
+			epClient = NewTransparentEndpointClient(nw.extIf, ep.HostIfName, "", nw.Mode, nl, nioc, plc)
 		}
 	}
 

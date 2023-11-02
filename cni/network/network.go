@@ -819,7 +819,7 @@ func (plugin *NetPlugin) createEndpointInternal(opt *createEndpointInternalOpt) 
 				IPAddresses:       addresses,
 				Routes:            routes,
 				MacAddress:        secondaryCniResult.macAddress,
-				NICType:           cns.DelegatedVMNIC,
+				NICType:           secondaryCniResult.nicType,
 				SkipDefaultRoutes: secondaryCniResult.skipDefaultRoutes,
 			})
 	}

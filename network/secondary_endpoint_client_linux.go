@@ -30,13 +30,14 @@ type SecondaryEndpointClient struct {
 
 func NewSecondaryEndpointClient(
 	nl netlink.NetlinkInterface,
+	nioc netio.NetIOInterface,
 	plc platform.ExecClient,
 	nsc NamespaceClientInterface,
 	endpoint *endpoint,
 ) *SecondaryEndpointClient {
 	client := &SecondaryEndpointClient{
 		netlink:        nl,
-		netioshim:      &netio.NetIO{},
+		netioshim:      nioc,
 		plClient:       plc,
 		netUtilsClient: networkutils.NewNetworkUtils(nl, plc),
 		nsClient:       nsc,

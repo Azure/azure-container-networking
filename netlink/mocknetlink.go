@@ -6,6 +6,8 @@ import (
 	"net"
 )
 
+const BadEth = "badeth"
+
 // ErrorMockNetlink - netlink mock error
 var ErrorMockNetlink = errors.New("Mock Netlink Error")
 
@@ -60,7 +62,11 @@ func (f *MockNetlink) SetLinkName(string, string) error {
 	return f.error()
 }
 
-func (f *MockNetlink) SetLinkState(string, bool) error {
+func (f *MockNetlink) SetLinkState(name string, _ bool) error {
+	if name == BadEth {
+		return ErrorMockNetlink
+	}
+
 	return f.error()
 }
 
