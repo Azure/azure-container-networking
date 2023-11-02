@@ -225,7 +225,7 @@ func (nu NetworkUtils) EnableIPV4Forwarding() error {
 	_, err := nu.plClient.ExecuteCommand(enableIPV4ForwardCmd)
 	if err != nil {
 		logger.Error("Enable ipv4 forwarding failed with", zap.Error(err))
-		return err
+		return errors.Wrap(err, "enable ipv4 forwarding failed")
 	}
 
 	return nil
