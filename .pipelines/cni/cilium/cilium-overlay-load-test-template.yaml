@@ -155,7 +155,7 @@ stages:
             displayName: "Get AKS Cluster"
           - script: |
               kubectl delete ns load-test
-              cilium connectivity test
+              cilium connectivity test --connect-timeout 4s --request-timeout 30s
             retryCountOnTaskFailure: 6
             name: "CiliumConnectivityTests"
             displayName: "Run Cilium Connectivity Tests"

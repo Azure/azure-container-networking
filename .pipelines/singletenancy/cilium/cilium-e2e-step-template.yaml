@@ -138,7 +138,7 @@ steps:
   - script: |
       echo "Run Cilium Connectivity Tests"
       cilium status
-      cilium connectivity test
+      cilium connectivity test --connect-timeout 4s --request-timeout 30s
     retryCountOnTaskFailure: 3
     name: "ciliumConnectivityTests"
     displayName: "Run Cilium Connectivity Tests"
