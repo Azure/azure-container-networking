@@ -16,6 +16,8 @@ import (
 )
 
 var errNetnsMock = errors.New("mock netns error")
+var errMockNetIOFail = errors.New("netio fail")
+var errMockNetIONoIfFail = errors.New("no such network interface")
 
 func newNetnsErrorMock(errStr string) error {
 	return errors.Wrap(errNetnsMock, errStr)
@@ -80,10 +82,10 @@ func defaultDeleteNamed(name string) error {
 // This mock netioshim provides more flexbility in when it errors compared to the one in the netio package
 type mockNetIO struct {
 	existingInterfaces map[string]bool
+	err                error
 }
 
 func (ns *mockNetIO) GetNetworkInterfaceByName(name string) (*net.Interface, error) {
-	ErrMockNetIOFail := errors.New("netio fail")
 	if ns.existingInterfaces[name] {
 		hwAddr, _ := net.ParseMAC("ab:cd:ef:12:34:56")
 		return &net.Interface{
@@ -95,7 +97,7 @@ func (ns *mockNetIO) GetNetworkInterfaceByName(name string) (*net.Interface, err
 			Index: 2,
 		}, nil
 	}
-	return nil, errors.Wrap(ErrMockNetIOFail, name)
+	return nil, errors.Wrap(ns.err, name)
 }
 
 func (ns *mockNetIO) GetNetworkInterfaceAddrs(_ *net.Interface) ([]net.Addr, error) {
@@ -173,6 +175,7 @@ func TestTransparentVlanAddEndpoints(t *testing.T) {
 				netUtilsClient:    networkutils.NewNetworkUtils(nl, plc),
 				netioshim: &mockNetIO{
 					existingInterfaces: map[string]bool{},
+					err:                errMockNetIOFail,
 				},
 				nsClient: NewMockNamespaceClient(),
 			},
@@ -226,7 +229,7 @@ func TestTransparentVlanAddEndpoints(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "Ensure clean populate VM vnet ns but vlan if does not",
+			name: "Ensure clean populate VM vnet ns exists vlan does not exist",
 			client: &TransparentVlanEndpointClient{
 				primaryHostIfName: "eth0",
 				vlanIfName:        "eth0.1",
@@ -243,12 +246,43 @@ func TestTransparentVlanAddEndpoints(t *testing.T) {
 				netlink:        netlink.NewMockNetlink(false, ""),
 				plClient:       platform.NewMockExecClient(false),
 				netUtilsClient: networkutils.NewNetworkUtils(nl, plc),
-				netioshim:      netio.NewMockNetIO(true, 1),
-				nsClient:       NewMockNamespaceClient(),
+				netioshim: &mockNetIO{
+					existingInterfaces: map[string]bool{},
+					err:                errMockNetIONoIfFail,
+				},
+				nsClient: NewMockNamespaceClient(),
 			},
 			epInfo:     &EndpointInfo{},
 			wantErr:    true,
 			wantErrMsg: "failed to cleanup/delete ns after noticing vlan veth does not exist: netns failure: " + errNetnsMock.Error(),
+		},
+		{
+			name: "Ensure clean populate VM vnet ns exists unknown if vlan veth exists",
+			client: &TransparentVlanEndpointClient{
+				primaryHostIfName: "eth0",
+				vlanIfName:        "eth0.1",
+				vnetVethName:      "A1veth0",
+				containerVethName: "B1veth0",
+				vnetNSName:        "az_ns_1",
+				netnsClient: &mockNetns{
+					get:         defaultGet,
+					getFromName: defaultGetFromName,
+					deleteNamed: func(name string) (err error) {
+						return newNetnsErrorMock("netns failure")
+					},
+				},
+				netlink:        netlink.NewMockNetlink(false, ""),
+				plClient:       platform.NewMockExecClient(false),
+				netUtilsClient: networkutils.NewNetworkUtils(nl, plc),
+				netioshim: &mockNetIO{
+					existingInterfaces: map[string]bool{},
+					err:                errMockNetIOFail,
+				},
+				nsClient: NewMockNamespaceClient(),
+			},
+			epInfo:     &EndpointInfo{},
+			wantErr:    true,
+			wantErrMsg: "could not determine if vlan veth exists in vnet namespace",
 		},
 	}
 	for _, tt := range tests {
@@ -393,12 +427,13 @@ func TestTransparentVlanAddEndpoints(t *testing.T) {
 					existingInterfaces: map[string]bool{
 						"A1veth0": true,
 					},
+					err: errMockNetIOFail,
 				},
 				nsClient: NewMockNamespaceClient(),
 			},
 			epInfo:     &EndpointInfo{},
 			wantErr:    true,
-			wantErrMsg: "container veth does not exist: failed to get container veth: B1veth0: " + netio.ErrMockNetIOFail.Error() + "",
+			wantErrMsg: "container veth does not exist: failed to get container veth: B1veth0: " + errMockNetIOFail.Error() + "",
 		},
 		{
 			name: "Add endpoints NetNS Get fail",

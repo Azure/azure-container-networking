@@ -111,7 +111,7 @@ func NewTransparentVlanEndpointClient(
 func (client *TransparentVlanEndpointClient) AddEndpoints(epInfo *EndpointInfo) error {
 	// VM Namespace
 	if err := client.ensureCleanPopulateVM(); err != nil {
-		return errors.Wrap(err, "failed to ensure both network namespace and vlan veth were both present or both absent")
+		return errors.Wrap(err, "failed to ensure both network namespace and vlan veth were present or both absent")
 	}
 	if err := client.PopulateVM(epInfo); err != nil {
 		return err
@@ -133,18 +133,26 @@ func (client *TransparentVlanEndpointClient) ensureCleanPopulateVM() error {
 	client.vnetNSFileDescriptor, existingErr = client.netnsClient.GetFromName(client.vnetNSName)
 	if existingErr == nil {
 		// The namespace exists
-		vlanIfNotFoundErr := ExecuteInNS(client.nsClient, client.vnetNSName, func() error {
+		vlanIfErr := ExecuteInNS(client.nsClient, client.vnetNSName, func() error {
 			// Ensure the vlan interface exists in the namespace
 			_, err := client.netioshim.GetNetworkInterfaceByName(client.vlanIfName)
 			return errors.Wrap(err, "failed to get vlan interface in namespace")
 		})
-		if vlanIfNotFoundErr != nil {
-			logger.Info("Vlan interface doesn't exist even though network namespace exists, deleting network namespace...")
-			delErr := client.netnsClient.DeleteNamed(client.vnetNSName)
-			if delErr != nil {
-				return errors.Wrap(delErr, "failed to cleanup/delete ns after noticing vlan veth does not exist")
+
+		// If the vlan veth for sure doesn't exist, we delete the vnet ns, but if we can't query, we can't delete the ns (the vlan veth might exist!)
+		if vlanIfErr != nil {
+			if strings.Contains(vlanIfErr.Error(), "no such network interface") {
+				logger.Info("Vlan interface doesn't exist even though network namespace exists, deleting network namespace...")
+				delErr := client.netnsClient.DeleteNamed(client.vnetNSName)
+				if delErr != nil {
+					return errors.Wrap(delErr, "failed to cleanup/delete ns after noticing vlan veth does not exist")
+				}
+			} else {
+				return errors.Wrap(vlanIfErr, "could not determine if vlan veth exists in vnet namespace")
 			}
 		}
+	} else {
+		logger.Info("Expecting vnet namespace not to exist", zap.String("result", existingErr.Error()))
 	}
 	// Delete the vlan interface in the VM namespace if it exists
 	_, vlanIfInVMErr := client.netioshim.GetNetworkInterfaceByName(client.vlanIfName)
@@ -154,6 +162,8 @@ func (client *TransparentVlanEndpointClient) ensureCleanPopulateVM() error {
 		if delErr := client.netlink.DeleteLink(client.vlanIfName); delErr != nil {
 			return errors.Wrap(delErr, "failed to clean up vlan interface")
 		}
+	} else {
+		logger.Info("Expecting vlan interface not to exist", zap.String("result", vlanIfInVMErr.Error()))
 	}
 	return nil
 }
@@ -714,7 +724,7 @@ func RunWithRetries(f func() error, maxRuns, sleepMs int) error {
 		if err == nil {
 			break
 		}
-		logger.Info("Retrying after delay...", zap.String("error", err.Error()))
+		logger.Info("Retrying after delay...", zap.String("error", err.Error()), zap.Int("retry", i), zap.Int("sleepMs", sleepMs))
 		time.Sleep(time.Duration(sleepMs) * time.Millisecond)
 	}
 	return err
