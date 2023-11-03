@@ -262,24 +262,25 @@ var _ = Describe("Test Endpoint", func() {
 				Expect(ep.Id).To(Equal(epInfo.Id))
 			})
 		})
-		Context("When secondary endpoint add failed", func() {
-			It("Should not be added to the network", func() {
-				_, ipnet, _ := net.ParseCIDR("0.0.0.0/0")
-				nw := &network{
-					Endpoints: map[string]*endpoint{},
-					Mode:      opModeTransparent,
-					extIf:     &externalInterface{BridgeName: "testbridge"},
-				}
-				epInfo := &EndpointInfo{
-					Id:      "768e8deb-eth1",
-					IfName:  eth0IfName,
-					NICType: cns.InfraNIC,
-				}
-				secondaryEpInfo := &EndpointInfo{
-					MacAddress: netio.BadHwAddr, // mock netlink will fail to set link state on bad eth
-					NICType:    cns.DelegatedVMNIC,
-					Routes:     []RouteInfo{{Dst: *ipnet}},
-				}
+		Context("When secondary endpoint client is used", func() {
+			_, ipnet, _ := net.ParseCIDR("0.0.0.0/0")
+			nw := &network{
+				Endpoints: map[string]*endpoint{},
+				Mode:      opModeTransparent,
+				extIf:     &externalInterface{BridgeName: "testbridge"},
+			}
+			epInfo := &EndpointInfo{
+				Id:      "768e8deb-eth1",
+				IfName:  eth0IfName,
+				NICType: cns.InfraNIC,
+			}
+			secondaryEpInfo := &EndpointInfo{
+				NICType: cns.DelegatedVMNIC,
+				Routes:  []RouteInfo{{Dst: *ipnet}},
+			}
+
+			It("Should not endpoint to the network when there is an error", func() {
+				secondaryEpInfo.MacAddress = netio.BadHwAddr // mock netlink will fail to set link state on bad eth
 				ep, err := nw.newEndpointImpl(nil, netlink.NewMockNetlink(false, ""), platform.NewMockExecClient(false),
 					netio.NewMockNetIO(false, 0), nil, NewMockNamespaceClient(), []*EndpointInfo{epInfo, secondaryEpInfo})
 				Expect(err).To(HaveOccurred())
@@ -288,6 +289,14 @@ var _ = Describe("Test Endpoint", func() {
 
 				secondaryEpInfo.MacAddress = netio.HwAddr
 				ep, err = nw.newEndpointImpl(nil, netlink.NewMockNetlink(false, ""), platform.NewMockExecClient(false),
+					netio.NewMockNetIO(false, 0), nil, NewMockNamespaceClient(), []*EndpointInfo{epInfo, secondaryEpInfo})
+				Expect(err).ToNot(HaveOccurred())
+				Expect(ep.Id).To(Equal(epInfo.Id))
+			})
+
+			It("Should add endpoint when there are no errors", func() {
+				secondaryEpInfo.MacAddress = netio.HwAddr
+				ep, err := nw.newEndpointImpl(nil, netlink.NewMockNetlink(false, ""), platform.NewMockExecClient(false),
 					netio.NewMockNetIO(false, 0), nil, NewMockNamespaceClient(), []*EndpointInfo{epInfo, secondaryEpInfo})
 				Expect(err).ToNot(HaveOccurred())
 				Expect(ep.Id).To(Equal(epInfo.Id))
