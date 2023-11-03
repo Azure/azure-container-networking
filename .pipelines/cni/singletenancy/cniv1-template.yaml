@@ -108,16 +108,20 @@ stages:
                 set -ex
                 make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}-$(commitID)
                 echo "Upload CNI"
+                echo "Deploying on Linux nodes"
                 if [ "${{parameters.os}}" == "windows" ]; then
-                  export DROP_GZ_URL=$( make cni-dropgz-test-image-name-and-tag OS='linux' ARCH=${{ parameters.arch }} CNI_DROPGZ_VERSION=$(dropgzVersion))
+                  export DROP_GZ_URL=$( make cni-dropgz-test-image-name-and-tag OS='linux' ARCH=${{ parameters.arch }} CNI_DROPGZ_TEST_VERSION=$(dropgzVersion))
+                  echo "Dropgz image: $DROP_GZ_URL"
                   envsubst < ./test/integration/manifests/cni/cni-installer-v1.yaml | kubectl apply -f -
                   kubectl rollout status daemonset/azure-cni -n kube-system
                   echo "Deploying on windows nodes"
-                  export DROP_GZ_URL=$( make cni-dropgz-test-image-name-and-tag OS='windows' ARCH=${{ parameters.arch }}  OS_VERSION=${{ parameters.os_version }} CNI_DROPGZ_VERSION=$(dropgzVersion))
+                  export DROP_GZ_URL=$( make cni-dropgz-test-image-name-and-tag OS='windows' ARCH=${{ parameters.arch }}  OS_VERSION=${{ parameters.os_version }} CNI_DROPGZ_TEST_VERSION=$(dropgzVersion))
+                  echo "Dropgz image: $DROP_GZ_URL"
                   envsubst < ./test/integration/manifests/cni/cni-installer-v1-windows.yaml | kubectl apply -f -
                   kubectl rollout status daemonset/azure-cni-windows -n kube-system
                 else
-                  export DROP_GZ_URL=$( make cni-dropgz-test-image-name-and-tag OS=${{ parameters.os }} ARCH=${{ parameters.arch }} CNI_DROPGZ_VERSION=$(dropgzVersion))
+                  export DROP_GZ_URL=$( make cni-dropgz-test-image-name-and-tag OS=${{ parameters.os }} ARCH=${{ parameters.arch }} CNI_DROPGZ_TEST_VERSION=$(dropgzVersion))
+                  echo "Dropgz image: $DROP_GZ_URL"
                   envsubst < ./test/integration/manifests/cni/cni-installer-v1.yaml | kubectl apply -f -
                   kubectl rollout status daemonset/azure-cni -n kube-system
                 fi
