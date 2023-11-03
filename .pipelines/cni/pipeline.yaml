@@ -15,8 +15,13 @@ stages:
               go version
               echo "##vso[task.setvariable variable=commitID;isOutput=true]$(echo $(make revision)-$(date "+%d%H%M"))"
               echo "##vso[task.setvariable variable=npmVersion;isOutput=true]$(make npm-version)"
-              echo "##vso[task.setvariable variable=dropgzVersion;isOutput=true]$(make cni-dropgz-test-version)"
               echo "##vso[task.setvariable variable=cnsVersion;isOutput=true]$(CNS_VERSION)"
+
+              if [ -z $(DROP_GZ_VERSION) ]; then
+                echo "##vso[task.setvariable variable=dropgzVersion;isOutput=true]$(make cni-dropgz-test-version)"
+              else
+                echo "##vso[task.setvariable variable=dropgzVersion;isOutput=true]$(DROP_GZ_VERSION)"
+              fi
             name: "SetEnvVars"
             displayName: "Set Environment Variables"
             condition: always()

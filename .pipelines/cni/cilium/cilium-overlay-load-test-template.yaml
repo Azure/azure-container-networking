@@ -80,11 +80,7 @@ stages:
                 kubectl get po -owide -A
 
                 echo "Deploy Azure-CNS"
-                if [ -z $(DROP_GZ_VERSION) ]; then
-                  sudo -E env "PATH=$PATH" make test-integration CNS_VERSION=$(cnsVersion) CNI_DROPGZ_VERSION=$(dropgzVersion) INSTALL_CNS=true INSTALL_OVERLAY=true TEST_DROPGZ=${{ parameters.testDropgz }} CNS_IMAGE_REPO=$(CNS_IMAGE_REPO)
-                else
-                  sudo -E env "PATH=$PATH" make test-integration CNS_VERSION=$(cnsVersion) CNI_DROPGZ_VERSION=$(DROP_GZ_VERSION) INSTALL_CNS=true INSTALL_OVERLAY=true TEST_DROPGZ=${{ parameters.testDropgz }} CNS_IMAGE_REPO=$(CNS_IMAGE_REPO)
-                fi
+                sudo -E env "PATH=$PATH" make test-integration CNS_VERSION=$(cnsVersion) CNI_DROPGZ_VERSION=$(dropgzVersion) INSTALL_CNS=true INSTALL_OVERLAY=true TEST_DROPGZ=${{ parameters.testDropgz }} CNS_IMAGE_REPO=$(CNS_IMAGE_REPO)
                 kubectl get po -owide -A
       - job: deploy_pods
         condition: and( and( not(canceled()), not(failed()) ), or( contains(variables.CONTROL_SCENARIO, 'scaleTest') , contains(variables.CONTROL_SCENARIO, 'all') ) )
