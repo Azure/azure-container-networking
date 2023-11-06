@@ -172,7 +172,7 @@ stages:
       clusterType: overlay-byocni-nokubeproxy-up
       clusterName: "cil-over-rdma"
       nodeCount: 2
-      vmSize: Standard_NC24r
+      vmSize: Standard_HC44-16rs
       arch: amd64
 
   - template: singletenancy/cniv1-template.yaml
@@ -244,7 +244,7 @@ stages:
       clusterType: overlay-byocni-up
       clusterName: "rdma-over"
       nodeCount: 2
-      vmSize: Standard_NC24r
+      vmSize: Standard_HC44-16rs
       arch: amd64
 
   - stage: delete_resources
