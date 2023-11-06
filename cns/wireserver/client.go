@@ -54,7 +54,7 @@ func (c *Client) GetInterfaces(ctx context.Context) (*GetInterfacesResult, error
 		RawQuery: q.Encode(),
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL.String(), nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL.String(), http.NoBody)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to construct request")
 	}
