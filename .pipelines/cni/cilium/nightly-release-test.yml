@@ -100,12 +100,18 @@ stages:
               clusterName: ciliumnightly-$(commitID)
               os: linux
               cni: cilium
+
+  - stage: delete
+    displayName: Delete Clusters
+    condition: always()
+    dependsOn:
+      - setup
+      - cilium_nightly
+    variables:
+      commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
+    jobs:
       - job: delete
         displayName: Delete Cluster
-        condition: always()
-        dependsOn:
-          - cilium_nightly
-          - logs
         pool:
           name: "$(BUILD_POOL_NAME_DEFAULT)"
         strategy:
@@ -119,4 +125,3 @@ stages:
               name: $(name)
               clusterName: $(clusterName)-$(commitID)
               region: $(LOCATION)
-
