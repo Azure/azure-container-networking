@@ -535,7 +535,10 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 
 		defer func() { //nolint:gocritic
 			if err != nil {
-				plugin.cleanupAllocationOnError(ipamAddResult.defaultInterfaceInfo.ipResult, nwCfg, args, options)
+				// for multi-tenancies scenario, CNI is not supposed to invoke CNS for cleaning Ips
+				if !(nwCfg.MultiTenancy && nwCfg.IPAM.Type == network.AzureCNS) {
+					plugin.cleanupAllocationOnError(ipamAddResult.defaultInterfaceInfo.ipResult, nwCfg, args, options)
+				}
 			}
 		}()
 
