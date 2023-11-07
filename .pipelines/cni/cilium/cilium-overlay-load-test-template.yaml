@@ -130,7 +130,7 @@ stages:
         steps:
           - script: |
               echo "install cilium CLI"
-              CILIUM_CLI_VERSION=v0.13.2
+              CILIUM_CLI_VERSION="v0.15.11"
               CLI_ARCH=amd64
               curl -L --fail --remote-name-all https://github.com/cilium/cilium-cli/releases/download/${CILIUM_CLI_VERSION}/cilium-linux-${CLI_ARCH}.tar.gz{,.sha256sum}
               sha256sum --check cilium-linux-${CLI_ARCH}.tar.gz.sha256sum
