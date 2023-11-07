@@ -105,3 +105,40 @@ func TestNewPodInfoFromIPConfigsRequest(t *testing.T) {
 		})
 	}
 }
+
+func TestCreateNetworkContainerRequest_Validate(t *testing.T) {
+	tests := []struct {
+		name    string
+		ncreq   CreateNetworkContainerRequest
+		wantErr bool
+	}{
+		{
+			name: "valid",
+			ncreq: CreateNetworkContainerRequest{
+				NetworkContainerid: "f47ac10b-58cc-0372-8567-0e02b2c3d479",
+			},
+			wantErr: false,
+		},
+		{
+			name: "valid",
+			ncreq: CreateNetworkContainerRequest{
+				NetworkContainerid: SwiftPrefix + "f47ac10b-58cc-0372-8567-0e02b2c3d479",
+			},
+			wantErr: false,
+		},
+		{
+			name: "invalid",
+			ncreq: CreateNetworkContainerRequest{
+				NetworkContainerid: "f47ac10b-58cc-0372-8567-0e02b2c3d479-",
+			},
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := tt.ncreq.Validate(); (err != nil) != tt.wantErr {
+				t.Errorf("CreateNetworkContainerRequest.Validate() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}

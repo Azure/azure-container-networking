@@ -119,7 +119,7 @@ func (req *CreateNetworkContainerRequest) Validate() error {
 	if req.NetworkContainerid == "" {
 		return errors.Wrap(ErrInvalidNCID, "NetworkContainerID is empty")
 	}
-	if _, err := uuid.Parse(req.NetworkContainerid); err != nil {
+	if _, err := uuid.Parse(strings.TrimPrefix(req.NetworkContainerid, SwiftPrefix)); err != nil {
 		return errors.Wrapf(ErrInvalidNCID, "NetworkContainerID %s is not a valid UUID: %s", req.NetworkContainerid, err.Error())
 	}
 	return nil

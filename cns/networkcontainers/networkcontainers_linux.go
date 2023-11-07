@@ -89,11 +89,6 @@ func configureNetworkContainerNetworking(operation, podName, podNamespace, docke
 	return fmt.Errorf("[Azure CNS] Operation is not supported in linux.")
 }
 
-func createOrUpdateWithOperation(
-	adapterName string,
-	ipConfig cns.IPConfiguration,
-	setWeakHost bool,
-	primaryInterfaceIdentifier string,
-	operation string) error {
+func createOrUpdateWithOperation(string, cns.IPConfiguration, bool, string, string) error {
 	return nil
 }

@@ -8,7 +8,6 @@ import (
 	"context"
 	"encoding/json"
 	"encoding/xml"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -28,6 +27,7 @@ import (
 	"github.com/Azure/azure-container-networking/nmagent"
 	"github.com/Azure/azure-container-networking/processlock"
 	"github.com/Azure/azure-container-networking/store"
+	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -86,7 +86,7 @@ var (
 	}
 
 	nc1 = createOrUpdateNetworkContainerParams{
-		ncID:         "ethWebApp1",
+		ncID:         "f47ac10b-58cc-0372-8567-0e02b2c3d479",
 		ncIP:         "11.0.0.5",
 		ncType:       cns.AzureContainerInstance,
 		ncVersion:    "0",
@@ -94,7 +94,7 @@ var (
 		podNamespace: "testpodnamespace",
 	}
 	nc2 = createOrUpdateNetworkContainerParams{
-		ncID:         "ethWebApp2",
+		ncID:         "f47ac10b-58cc-0372-8567-0e02b2c3d478",
 		ncIP:         "11.0.0.5",
 		ncType:       cns.AzureContainerInstance,
 		ncVersion:    "0",
@@ -105,7 +105,7 @@ var (
 	errMismatchedNCs = errors.New("GetNetworkContainers failed because NCs not matched")
 
 	nc3 = createOrUpdateNetworkContainerParams{
-		ncID:         "1abc",
+		ncID:         "f47ac10b-58cc-0372-8567-0e02b2c3d477",
 		ncIP:         "10.0.0.5",
 		ncType:       cns.AzureContainerInstance,
 		ncVersion:    "0",
@@ -113,7 +113,7 @@ var (
 		podNamespace: "testpodnamespace",
 	}
 	nc4 = createOrUpdateNetworkContainerParams{
-		ncID:         "2abc",
+		ncID:         "f47ac10b-58cc-0372-8567-0e02b2c3d476",
 		ncIP:         "20.0.0.5",
 		ncType:       cns.AzureContainerInstance,
 		ncVersion:    "0",
@@ -421,7 +421,7 @@ func TestDeleteNetworkContainers(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if ncResponse.NetworkContainerID != "Swift_2abc" {
+	if strings.TrimPrefix(ncResponse.NetworkContainerID, cns.SwiftPrefix) != nc4.ncID {
 		t.Fatal("failed to check second nc")
 	}
 
@@ -448,7 +448,7 @@ func TestCreateNetworkContainer(t *testing.T) {
 	fmt.Println("TestCreateNetworkContainer: JobObject")
 
 	params := createOrUpdateNetworkContainerParams{
-		ncID:         "testJobObject",
+		ncID:         "f47ac10b-58cc-0372-8567-0e02b2c3d476",
 		ncIP:         "10.1.0.5",
 		ncType:       "JobObject",
 		ncVersion:    "0",
@@ -473,7 +473,7 @@ func TestCreateNetworkContainer(t *testing.T) {
 	// Test create network container of type WebApps
 	fmt.Println("TestCreateNetworkContainer: WebApps")
 	params = createOrUpdateNetworkContainerParams{
-		ncID:         "ethWebApp",
+		ncID:         "f47ac10b-58cc-0372-8567-0e02b2c3d475",
 		ncIP:         "192.0.0.5",
 		ncType:       "WebApps",
 		ncVersion:    "0",
@@ -488,7 +488,7 @@ func TestCreateNetworkContainer(t *testing.T) {
 	}
 
 	params = createOrUpdateNetworkContainerParams{
-		ncID:         "ethWebApp",
+		ncID:         "f47ac10b-58cc-0372-8567-0e02b2c3d475",
 		ncIP:         "192.0.0.6",
 		ncType:       "WebApps",
 		ncVersion:    "0",
@@ -512,7 +512,7 @@ func TestCreateNetworkContainer(t *testing.T) {
 
 	// Test create network container of type COW
 	params = createOrUpdateNetworkContainerParams{
-		ncID:         "testCOWContainer",
+		ncID:         "f47ac10b-58cc-0372-8567-0e02b2c3d474",
 		ncIP:         "10.0.0.5",
 		ncType:       "COW",
 		ncVersion:    "0",
@@ -543,7 +543,7 @@ func TestGetNetworkContainerByOrchestratorContext(t *testing.T) {
 	setOrchestratorType(t, cns.Kubernetes)
 
 	params := createOrUpdateNetworkContainerParams{
-		ncID:         "ethWebApp",
+		ncID:         "f47ac10b-58cc-0372-8567-0e02b2c3d471",
 		ncIP:         "11.0.0.5",
 		ncType:       cns.AzureContainerInstance,
 		ncVersion:    "0",
@@ -605,7 +605,7 @@ func TestGetInterfaceForNetworkContainer(t *testing.T) {
 	setOrchestratorType(t, cns.Kubernetes)
 
 	params := createOrUpdateNetworkContainerParams{
-		ncID:         "ethWebApp",
+		ncID:         "f47ac10b-58cc-0372-8567-0e02b2c3d479",
 		ncIP:         "11.0.0.5",
 		ncType:       "WebApps",
 		ncVersion:    "0",
@@ -673,7 +673,7 @@ func TestGetNetworkContainerVersionStatus(t *testing.T) {
 	defer cleanupWSP()
 
 	params := createOrUpdateNetworkContainerParams{
-		ncID:         "nc-nma-success",
+		ncID:         "f47ac10b-58cc-0372-8567-0e02b2c3d475",
 		ncIP:         "11.0.0.5",
 		ncType:       cns.AzureContainerInstance,
 		ncVersion:    "0",
@@ -721,7 +721,7 @@ func TestGetNetworkContainerVersionStatus(t *testing.T) {
 	// Testing the path where the NC version with CNS is higher than the one with NMAgent.
 	// This indicates that the NMAgent is yet to program the NC version.
 	params = createOrUpdateNetworkContainerParams{
-		ncID:         "nc-nma-fail-version-mismatch",
+		ncID:         "f47ac10b-58cc-0372-8567-0e02b2c3d474",
 		ncIP:         "11.0.0.5",
 		ncType:       cns.AzureContainerInstance,
 		ncVersion:    "1",
@@ -760,7 +760,7 @@ func TestGetNetworkContainerVersionStatus(t *testing.T) {
 
 	// Testing the path where NMAgent response status code is not 200.
 	params = createOrUpdateNetworkContainerParams{
-		ncID:         "nc-nma-fail-500",
+		ncID:         "f47ac10b-58cc-0372-8567-0e02b2c3d473",
 		ncIP:         "11.0.0.5",
 		ncType:       cns.AzureContainerInstance,
 		ncVersion:    "0",
@@ -802,7 +802,7 @@ func TestGetNetworkContainerVersionStatus(t *testing.T) {
 
 	// Testing the path where NMAgent response status code is 200 but embedded response is 401
 	params = createOrUpdateNetworkContainerParams{
-		ncID:         "nc-nma-fail-unavailable",
+		ncID:         "f47ac10b-58cc-0372-8567-0e02b2c3d472",
 		ncIP:         "11.0.0.5",
 		ncType:       cns.AzureContainerInstance,
 		ncVersion:    "0",
@@ -1362,7 +1362,7 @@ func getAllNetworkContainers(t *testing.T, ncParams []createOrUpdateNetworkConta
 	var resp cns.GetAllNetworkContainersResponse
 	err = decodeResponse(w, &resp)
 	if err != nil || resp.Response.ReturnCode != types.Success || len(resp.NetworkContainers) != len(ncParams) {
-		return cns.GetAllNetworkContainersResponse{}, fmt.Errorf("GetNetworkContainers failed with response %+v Err: %w", resp, err)
+		return cns.GetAllNetworkContainersResponse{}, errors.Wrapf(err, "GetNetworkContainers failed with response %+v", resp)
 	}
 
 	// If any NC in response is not found in ncParams, it means get all NCs failed
@@ -1446,7 +1446,7 @@ func postAllNetworkContainers(t *testing.T, ncParams []createOrUpdateNetworkCont
 	err = decodeResponse(w, &resp)
 
 	if err != nil || resp.Response.ReturnCode != types.Success {
-		return fmt.Errorf("post Network Containers failed with response %+v Err:  %w", resp, err)
+		return fmt.Errorf("post Network Containers failed with response %+v: %w", resp, err)
 	}
 	t.Logf("Post Network Containers succeeded with response %+v\n", resp)
 
