@@ -28,6 +28,9 @@ stages:
               cd .pipelines/
               git clone https://github.com/cilium/cilium.git
               cd cilium
+              if [ ! -z $CILIUM_COMMIT_ID ]; then
+                git reset --hard $CILIUM_COMMIT_ID
+              fi
               make docker-cilium-image
               make docker-operator-generic-image
             name: BuildCiliumImage
