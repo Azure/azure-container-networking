@@ -791,6 +791,7 @@ func (service *HTTPRestService) createOrUpdateNetworkContainer(w http.ResponseWr
 		return
 	}
 	if err := req.Validate(); err != nil {
+		logger.Errorf("[Azure CNS] invalid request %+v: %s", req, err)
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}

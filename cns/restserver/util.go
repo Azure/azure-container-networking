@@ -951,6 +951,7 @@ func (service *HTTPRestService) handlePostNetworkContainers(w http.ResponseWrite
 		return
 	}
 	if err := req.Validate(); err != nil { //nolint:govet // shadow okay
+		logger.Errorf("[Azure CNS] handlePostNetworkContainers failed with error: %s", err.Error())
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
