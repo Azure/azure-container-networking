@@ -91,11 +91,7 @@ func (cn *NetworkContainers) Delete(networkContainerID string) error {
 }
 
 // CreateLoopbackAdapter creates a loopback adapter with the specified settings
-func CreateLoopbackAdapter(
-	adapterName string,
-	ipConfig cns.IPConfiguration,
-	setWeakHostOnInterface bool,
-	primaryInterfaceIdentifier string) error {
+func CreateLoopbackAdapter(adapterName string, ipConfig cns.IPConfiguration, setWeakHostOnInterface bool, primaryInterfaceIdentifier string) error {
 	return createOrUpdateWithOperation(
 		adapterName,
 		ipConfig,

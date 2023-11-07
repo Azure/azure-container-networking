@@ -684,9 +684,7 @@ func (service *HTTPRestService) getNetPluginDetails() *networkcontainers.NetPlug
 func (service *HTTPRestService) getNetworkContainerDetails(networkContainerID string) (containerstatus, bool) {
 	service.RLock()
 	defer service.RUnlock()
-
 	containerDetails, containerExists := service.state.ContainerStatus[networkContainerID]
-
 	return containerDetails, containerExists
 }
 
@@ -702,9 +700,7 @@ func (service *HTTPRestService) areNCsPresent() bool {
 func (service *HTTPRestService) isNetworkJoined(networkID string) bool {
 	namedLock.LockAcquire(stateJoinedNetworks)
 	defer namedLock.LockRelease(stateJoinedNetworks)
-
 	_, exists := service.state.joinedNetworks[networkID]
-
 	return exists
 }
 
@@ -712,7 +708,6 @@ func (service *HTTPRestService) isNetworkJoined(networkID string) bool {
 func (service *HTTPRestService) setNetworkStateJoined(networkID string) {
 	namedLock.LockAcquire(stateJoinedNetworks)
 	defer namedLock.LockRelease(stateJoinedNetworks)
-
 	service.state.joinedNetworks[networkID] = struct{}{}
 }
 
@@ -953,6 +948,10 @@ func (service *HTTPRestService) handlePostNetworkContainers(w http.ResponseWrite
 		}
 		err = service.Listener.Encode(w, &response)
 		logger.Response(service.Name, response, response.Response.ReturnCode, err)
+		return
+	}
+	if err := req.Validate(); err != nil { //nolint:govet // shadow okay
+		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
