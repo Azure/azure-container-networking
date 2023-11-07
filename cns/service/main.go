@@ -1191,10 +1191,19 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 		if err != nil {
 			if errors.Is(err, store.ErrKeyNotFound) {
 				logger.Printf("[Azure CNS] No endpoint state found, skipping initializing CNS state")
+				if os.Getenv("StatelessCNIMigration") == "true" {
+					logger.Printf("StatelessCNI Migration is enabled")
+					logger.Printf("Initializing from Statefull CNI")
+					podInfoByIPProvider, err = cnireconciler.NewStatefullCNIPodInfoProvider()
+					if err != nil {
+						return errors.Wrap(err, "failed to create CNI PodInfoProvider")
+					}
+				}
 			} else {
 				return errors.Wrap(err, "failed to create CNS PodInfoProvider")
 			}
 		}
+
 	case cnsconfig.InitializeFromCNI:
 		logger.Printf("Initializing from CNI")
 		podInfoByIPProvider, err = cnireconciler.NewCNIPodInfoProvider()
