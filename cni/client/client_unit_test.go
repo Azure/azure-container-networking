@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/Azure/azure-container-networking/cni/api"
+	"github.com/Azure/azure-container-networking/platform"
 	testutils "github.com/Azure/azure-container-networking/test/utils"
 	ver "github.com/hashicorp/go-version"
 	"github.com/stretchr/testify/require"
@@ -20,7 +21,7 @@ func TestGetState(t *testing.T) {
 	fakeexec := testutils.GetFakeExecWithScripts(calls)
 
 	c := New(fakeexec)
-	state, err := c.GetEndpointState()
+	state, err := c.GetEndpointState(platform.CNIBinaryPath)
 	require.NoError(t, err)
 
 	res := &api.AzureCNIState{

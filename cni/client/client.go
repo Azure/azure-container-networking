@@ -28,8 +28,8 @@ func New(exec utilexec.Interface) *client {
 	return &client{exec: exec}
 }
 
-func (c *client) GetEndpointState() (*api.AzureCNIState, error) {
-	cmd := c.exec.Command(platform.CNIBinaryPath)
+func (c *client) GetEndpointState(cniBinaryPath string) (*api.AzureCNIState, error) {
+	cmd := c.exec.Command(cniBinaryPath)
 	cmd.SetDir(CNIExecDir)
 	envs := os.Environ()
 	cmdenv := fmt.Sprintf("%s=%s", cni.Cmd, cni.CmdGetEndpointsState)

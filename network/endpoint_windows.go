@@ -5,6 +5,7 @@ package network
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"strings"
@@ -494,4 +495,28 @@ func (ep *endpoint) getInfoImpl(epInfo *EndpointInfo) {
 // updateEndpointImpl in windows does nothing for now
 func (nm *networkManager) updateEndpointImpl(nw *network, existingEpInfo *EndpointInfo, targetEpInfo *EndpointInfo) (*endpoint, error) {
 	return nil, nil
+}
+
+// getHNSEndpointIdByIP returns an HNS Endpoint IP that matches an specific IPAddress.
+func (nm *networkManager) GetEndpointInfoByIPImpl(ipAddresses []net.IPNet, networkId string) (string, error) {
+	// check if network exists, only create the network does not exist
+	hnsResponse, err := Hnsv2.GetNetworkByName(networkId)
+	if err != nil {
+		return "", err
+	}
+	hcnEndpoints, err := Hnsv2.ListEndpointsOfNetwork(hnsResponse.Id)
+	if err != nil {
+		return "", err
+	}
+	for _, hcnEndpoint := range hcnEndpoints {
+		for _, ipConfiguration := range hcnEndpoint.IpConfigurations {
+			for _, ipAddress := range ipAddresses {
+				prefixLength, _ := ipAddress.Mask.Size()
+				if ipConfiguration.IpAddress == ipAddress.IP.String() && ipConfiguration.PrefixLength == uint8(prefixLength) {
+					return hcnEndpoint.Id, nil
+				}
+			}
+		}
+	}
+	return "", errors.New("No HNSEndpointID matches the IPAddress: " + ipAddresses[0].IP.String())
 }

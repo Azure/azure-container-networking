@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/Azure/azure-container-networking/cni/api"
+	"github.com/Azure/azure-container-networking/platform"
 	testutils "github.com/Azure/azure-container-networking/test/utils"
 	ver "github.com/hashicorp/go-version"
 	"github.com/stretchr/testify/require"
@@ -62,7 +63,7 @@ func TestMain(m *testing.M) {
 // todo: enable this test in CI, requires built azure vnet
 func TestGetStateFromAzureCNI(t *testing.T) {
 	c := New(exec.New())
-	state, err := c.GetEndpointState()
+	state, err := c.GetEndpointState(platform.CNIBinaryPath)
 	require.NoError(t, err)
 
 	res := &api.AzureCNIState{
@@ -101,7 +102,7 @@ func TestGetStateWithEmptyStateFile(t *testing.T) {
 	require.NoError(t, err)
 	out.Close()
 
-	state, err := c.GetEndpointState()
+	state, err := c.GetEndpointState(platform.CNIBinaryPath)
 	require.NoError(t, err)
 	require.Exactly(t, 0, len(state.ContainerInterfaces))
 }

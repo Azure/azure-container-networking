@@ -6,6 +6,7 @@ package network
 import (
 	"crypto/sha1"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"net"
 	"strings"
@@ -530,4 +531,9 @@ func getDefaultGateway(routes []RouteInfo) net.IP {
 	}
 
 	return nil
+}
+
+// getHNSEndpointIdByIP returns an HNS Endpoint IP that matches an specific IPAddress.
+func (nm *networkManager) GetEndpointInfoByIPImpl(ipAddresses []net.IPNet, _ string) (string, error) {
+	return "", errors.New("No HostVethName matches the IPAddress: " + ipAddresses[0].IP.String())
 }

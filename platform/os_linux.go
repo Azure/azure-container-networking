@@ -29,6 +29,8 @@ const (
 	CNIIpamStatePath = "/var/run/azure-vnet-ipam.json"
 	// CNIBinaryPath is the path to the CNI binary
 	CNIBinaryPath = "/opt/cni/bin/azure-vnet"
+	// StatefullCNIBinaryPath is the path to the Statefull CNI binary
+	StatefullCNIBinaryPath = "/opt/cni/bin/azure-vnet-statefull"
 	// CNSRuntimePath is the path where CNS state files are stored.
 	CNSRuntimePath = "/var/run/"
 	// CNI runtime path on a Kubernetes cluster
