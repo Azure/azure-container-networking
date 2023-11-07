@@ -81,7 +81,7 @@ type NetPlugin struct {
 type PolicyArgs struct {
 	nwInfo    *network.NetworkInfo
 	nwCfg     *cni.NetworkConfig
-	ipconfigs []*cniTypesCurr.IPConfig
+	ipconfigs []*network.IPConfig
 }
 
 // client for node network service
@@ -362,11 +362,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 		telemetry.SendCNIMetric(&cniMetric, plugin.tb)
 
 		// Add Interfaces to result.
-		defaultCniResult := ipamAddResult.defaultInterfaceInfo.ipResult
-		if defaultCniResult == nil {
-			defaultCniResult = &cniTypesCurr.Result{}
-		}
-
+		defaultCniResult := convertInterfaceInfoToCniResult(ipamAddResult.defaultInterfaceInfo)
 		iface := &cniTypesCurr.Interface{
 			Name: args.IfName,
 		}
@@ -415,17 +411,17 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 	}
 
 	platformInit(nwCfg)
-	if nwCfg.ExecutionMode == string(util.Baremetal) {
-		var res *nnscontracts.ConfigureContainerNetworkingResponse
-		logger.Info("Baremetal mode. Calling vnet agent for ADD")
-		res, err = plugin.nnsClient.AddContainerNetworking(context.Background(), k8sPodName, args.Netns)
+	// if nwCfg.ExecutionMode == string(util.Baremetal) {
+	// 	var res *nnscontracts.ConfigureContainerNetworkingResponse
+	// 	logger.Info("Baremetal mode. Calling vnet agent for ADD")
+	// 	res, err = plugin.nnsClient.AddContainerNetworking(context.Background(), k8sPodName, args.Netns)
 
-		if err == nil {
-			ipamAddResult.defaultInterfaceInfo.ipResult = convertNnsToCniResult(res, args.IfName, k8sPodName, "AddContainerNetworking")
-		}
+	// 	if err == nil {
+	// 		ipamAddResult.defaultInterfaceInfo.ipResult = convertNnsToCniResult(res, args.IfName, k8sPodName, "AddContainerNetworking")
+	// 	}
 
-		return err
-	}
+	// 	return err
+	// }
 
 	for _, ns := range nwCfg.PodNamespaceForDualNetwork {
 		if k8sNamespace == ns {
@@ -508,7 +504,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 			}
 
 			if resultSecondAdd != nil {
-				ipamAddResult.defaultInterfaceInfo.ipResult = resultSecondAdd
+				ipamAddResult.defaultInterfaceInfo = convertCniResultToInterfaceInfo(resultSecondAdd)
 				return nil
 			}
 		}
@@ -537,7 +533,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 			if err != nil {
 				// for multi-tenancies scenario, CNI is not supposed to invoke CNS for cleaning Ips
 				if !(nwCfg.MultiTenancy && nwCfg.IPAM.Type == network.AzureCNS) {
-					plugin.cleanupAllocationOnError(ipamAddResult.defaultInterfaceInfo.ipResult, nwCfg, args, options)
+					plugin.cleanupAllocationOnError(ipamAddResult.defaultInterfaceInfo.IPConfigs, nwCfg, args, options)
 				}
 			}
 		}()
@@ -584,7 +580,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 		}
 
 		sendEvent(plugin, fmt.Sprintf("CNI ADD succeeded: IP:%+v, VlanID: %v, podname %v, namespace %v numendpoints:%d",
-			ipamAddResult.defaultInterfaceInfo.ipResult.IPs, epInfo.Data[network.VlanIDKey], k8sPodName, k8sNamespace, plugin.nm.GetNumberOfEndpoints("", nwCfg.Name)))
+			ipamAddResult.defaultInterfaceInfo.IPConfigs, epInfo.Data[network.VlanIDKey], k8sPodName, k8sNamespace, plugin.nm.GetNumberOfEndpoints("", nwCfg.Name)))
 	}
 
 	return nil
@@ -592,14 +588,14 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 
 // cleanup allocated ipv4 and ipv6 addresses if they exist
 func (plugin *NetPlugin) cleanupAllocationOnError(
-	result *cniTypesCurr.Result,
+	result []*network.IPConfig,
 	nwCfg *cni.NetworkConfig,
 	args *cniSkel.CmdArgs,
 	options map[string]interface{},
 ) {
 	if result != nil {
-		for i := 0; i < len(result.IPs); i++ {
-			if er := plugin.ipamInvoker.Delete(&result.IPs[i].Address, nwCfg, args, options); er != nil {
+		for i := 0; i < len(result); i++ {
+			if er := plugin.ipamInvoker.Delete(&result[i].Address, nwCfg, args, options); er != nil {
 				logger.Error("Failed to cleanup ip allocation on failure", zap.Error(er))
 			}
 		}
@@ -630,7 +626,7 @@ func (plugin *NetPlugin) createNetworkInternal(
 		return nwInfo, err
 	}
 
-	nwDNSInfo, err := getNetworkDNSSettings(ipamAddConfig.nwCfg, ipamAddResult.defaultInterfaceInfo.ipResult)
+	nwDNSInfo, err := getNetworkDNSSettings(ipamAddConfig.nwCfg, ipamAddResult.defaultInterfaceInfo.DNS)
 	if err != nil {
 		err = plugin.Errorf("Failed to getDNSSettings: %v", err)
 		return nwInfo, err
@@ -674,7 +670,7 @@ func (plugin *NetPlugin) createNetworkInternal(
 
 // construct network info with ipv4/ipv6 subnets
 func addSubnetToNetworkInfo(ipamAddResult IPAMAddResult, nwInfo *network.NetworkInfo) error {
-	for _, ipConfig := range ipamAddResult.defaultInterfaceInfo.ipResult.IPs {
+	for _, ipConfig := range ipamAddResult.defaultInterfaceInfo.IPConfigs {
 		ip, podSubnetPrefix, err := net.ParseCIDR(ipConfig.Address.String())
 		if err != nil {
 			return fmt.Errorf("Failed to ParseCIDR for pod subnet prefix: %w", err)
@@ -714,8 +710,8 @@ type createEndpointInternalOpt struct {
 func (plugin *NetPlugin) createEndpointInternal(opt *createEndpointInternalOpt) (network.EndpointInfo, error) {
 	epInfo := network.EndpointInfo{}
 
-	defaultIPResult := opt.ipamAddResult.defaultInterfaceInfo.ipResult
-	epDNSInfo, err := getEndpointDNSSettings(opt.nwCfg, defaultIPResult, opt.k8sNamespace)
+	defaultInterfaceInfo := opt.ipamAddResult.defaultInterfaceInfo
+	epDNSInfo, err := getEndpointDNSSettings(opt.nwCfg, defaultInterfaceInfo.DNS, opt.k8sNamespace)
 	if err != nil {
 		err = plugin.Errorf("Failed to getEndpointDNSSettings: %v", err)
 		return epInfo, err
@@ -723,7 +719,7 @@ func (plugin *NetPlugin) createEndpointInternal(opt *createEndpointInternalOpt) 
 	policyArgs := PolicyArgs{
 		nwInfo:    opt.nwInfo,
 		nwCfg:     opt.nwCfg,
-		ipconfigs: defaultIPResult.IPs,
+		ipconfigs: defaultInterfaceInfo.IPConfigs,
 	}
 	endpointPolicies, err := getEndpointPolicies(policyArgs)
 	if err != nil {
@@ -762,7 +758,8 @@ func (plugin *NetPlugin) createEndpointInternal(opt *createEndpointInternalOpt) 
 		ServiceCidrs:       opt.nwCfg.ServiceCidrs,
 		NATInfo:            opt.natInfo,
 		NICType:            cns.InfraNIC,
-		SkipDefaultRoutes:  opt.ipamAddResult.defaultInterfaceInfo.skipDefaultRoutes,
+		SkipDefaultRoutes:  opt.ipamAddResult.defaultInterfaceInfo.SkipDefaultRoutes,
+		Routes:             defaultInterfaceInfo.Routes,
 	}
 
 	epPolicies, err := getPoliciesFromRuntimeCfg(opt.nwCfg, opt.ipamAddResult.ipv6Enabled)
@@ -773,7 +770,7 @@ func (plugin *NetPlugin) createEndpointInternal(opt *createEndpointInternalOpt) 
 	epInfo.Policies = append(epInfo.Policies, epPolicies...)
 
 	// Populate addresses.
-	for _, ipconfig := range defaultIPResult.IPs {
+	for _, ipconfig := range defaultInterfaceInfo.IPConfigs {
 		epInfo.IPAddresses = append(epInfo.IPAddresses, ipconfig.Address)
 	}
 
@@ -781,17 +778,12 @@ func (plugin *NetPlugin) createEndpointInternal(opt *createEndpointInternalOpt) 
 		epInfo.IPV6Mode = string(util.IpamMode(opt.nwCfg.IPAM.Mode)) // TODO: check IPV6Mode field can be deprecated and can we add IsIPv6Enabled flag for generic working
 	}
 
-	// Populate routes.
-	for _, route := range defaultIPResult.Routes {
-		epInfo.Routes = append(epInfo.Routes, network.RouteInfo{Dst: route.Dst, Gw: route.GW})
-	}
-
 	if opt.azIpamResult != nil && opt.azIpamResult.IPs != nil {
 		epInfo.InfraVnetIP = opt.azIpamResult.IPs[0].Address
 	}
 
 	if opt.nwCfg.MultiTenancy {
-		plugin.multitenancyClient.SetupRoutingForMultitenancy(opt.nwCfg, opt.cnsNetworkConfig, opt.azIpamResult, &epInfo, defaultIPResult)
+		plugin.multitenancyClient.SetupRoutingForMultitenancy(opt.nwCfg, opt.cnsNetworkConfig, opt.azIpamResult, &epInfo, &defaultInterfaceInfo)
 	}
 
 	setEndpointOptions(opt.cnsNetworkConfig, &epInfo, vethName)
@@ -807,12 +799,8 @@ func (plugin *NetPlugin) createEndpointInternal(opt *createEndpointInternalOpt) 
 	// get secondary interface info
 	for _, secondaryCniResult := range opt.ipamAddResult.secondaryInterfacesInfo {
 		var addresses []net.IPNet
-		var routes []network.RouteInfo
-		for _, ipconfig := range secondaryCniResult.ipResult.IPs {
+		for _, ipconfig := range secondaryCniResult.IPConfigs {
 			addresses = append(addresses, ipconfig.Address)
-		}
-		for _, route := range secondaryCniResult.ipResult.Routes {
-			routes = append(routes, network.RouteInfo{Dst: route.Dst, Gw: route.GW})
 		}
 
 		epInfos = append(epInfos,
@@ -820,10 +808,10 @@ func (plugin *NetPlugin) createEndpointInternal(opt *createEndpointInternalOpt) 
 				ContainerID:       epInfo.ContainerID,
 				NetNsPath:         epInfo.NetNsPath,
 				IPAddresses:       addresses,
-				Routes:            routes,
-				MacAddress:        secondaryCniResult.macAddress,
-				NICType:           secondaryCniResult.nicType,
-				SkipDefaultRoutes: secondaryCniResult.skipDefaultRoutes,
+				Routes:            secondaryCniResult.Routes,
+				MacAddress:        secondaryCniResult.MacAddress,
+				NICType:           secondaryCniResult.NICType,
+				SkipDefaultRoutes: secondaryCniResult.SkipDefaultRoutes,
 			})
 	}
 
@@ -1376,4 +1364,46 @@ func convertNnsToCniResult(
 	result.IPs = resultIpconfigs
 
 	return result
+}
+
+func convertInterfaceInfoToCniResult(info network.InterfaceInfo) *cniTypesCurr.Result {
+	result := &cniTypesCurr.Result{
+		DNS: cniTypes.DNS{
+			Domain:      info.DNS.Suffix,
+			Nameservers: info.DNS.Servers,
+		},
+	}
+
+	if len(info.IPConfigs) > 0 {
+		for _, ipconfig := range info.IPConfigs {
+			result.IPs = append(result.IPs, &cniTypesCurr.IPConfig{Address: ipconfig.Address, Gateway: ipconfig.Gateway})
+		}
+
+		for i := range info.Routes {
+			result.Routes = append(result.Routes, &cniTypes.Route{Dst: info.Routes[i].Dst, GW: info.Routes[i].Gw})
+		}
+	}
+
+	return result
+}
+
+func convertCniResultToInterfaceInfo(result *cniTypesCurr.Result) network.InterfaceInfo {
+	interfaceInfo := network.InterfaceInfo{}
+
+	if result != nil {
+		for _, ipconfig := range result.IPs {
+			interfaceInfo.IPConfigs = append(interfaceInfo.IPConfigs, &network.IPConfig{Address: ipconfig.Address, Gateway: ipconfig.Gateway})
+		}
+
+		for _, route := range result.Routes {
+			interfaceInfo.Routes = append(interfaceInfo.Routes, network.RouteInfo{Dst: route.Dst, Gw: route.GW})
+		}
+
+		interfaceInfo.DNS = network.DNSInfo{
+			Suffix:  result.DNS.Domain,
+			Servers: result.DNS.Nameservers,
+		}
+	}
+
+	return interfaceInfo
 }

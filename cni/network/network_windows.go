@@ -110,13 +110,10 @@ func (plugin *NetPlugin) handleConsecutiveAdd(args *cniSkel.CmdArgs, endpointId 
 	return nil, err
 }
 
-func addDefaultRoute(gwIPString string, epInfo *network.EndpointInfo, result *cniTypesCurr.Result) {
+func addDefaultRoute(_ string, _ *network.EndpointInfo, _ *network.InterfaceInfo) {
 }
 
-func addSnatForDNS(gwIPString string, epInfo *network.EndpointInfo, result *cniTypesCurr.Result) {
-}
-
-func addInfraRoutes(azIpamResult *cniTypesCurr.Result, result *cniTypesCurr.Result, epInfo *network.EndpointInfo) {
+func addSnatForDNS(_ string, _ *network.EndpointInfo, _ *network.InterfaceInfo) {
 }
 
 func setNetworkOptions(cnsNwConfig *cns.GetNetworkContainerResponse, nwInfo *network.NetworkInfo) {
@@ -161,7 +158,7 @@ func (plugin *NetPlugin) getNetworkName(netNs string, ipamAddResult *IPAMAddResu
 	// This will happen during ADD call
 	if ipamAddResult != nil && ipamAddResult.ncResponse != nil {
 		// networkName will look like ~ azure-vlan1-172-28-1-0_24
-		ipAddrNet := ipamAddResult.defaultInterfaceInfo.ipResult.IPs[0].Address
+		ipAddrNet := ipamAddResult.defaultInterfaceInfo.IPConfigs[0].Address
 		prefix, err := netip.ParsePrefix(ipAddrNet.String())
 		if err != nil {
 			logger.Error("Error parsing network CIDR",
@@ -191,11 +188,10 @@ func (plugin *NetPlugin) getNetworkName(netNs string, ipamAddResult *IPAMAddResu
 func setupInfraVnetRoutingForMultitenancy(
 	_ *cni.NetworkConfig,
 	_ *cniTypesCurr.Result,
-	_ *network.EndpointInfo,
-	_ *cniTypesCurr.Result) {
+	_ *network.EndpointInfo) {
 }
 
-func getNetworkDNSSettings(nwCfg *cni.NetworkConfig, _ *cniTypesCurr.Result) (network.DNSInfo, error) {
+func getNetworkDNSSettings(nwCfg *cni.NetworkConfig, _ network.DNSInfo) (network.DNSInfo, error) {
 	var nwDNS network.DNSInfo
 
 	// use custom dns if present
@@ -216,7 +212,7 @@ func getNetworkDNSSettings(nwCfg *cni.NetworkConfig, _ *cniTypesCurr.Result) (ne
 	return nwDNS, nil
 }
 
-func getEndpointDNSSettings(nwCfg *cni.NetworkConfig, result *cniTypesCurr.Result, namespace string) (network.DNSInfo, error) {
+func getEndpointDNSSettings(nwCfg *cni.NetworkConfig, dns network.DNSInfo, namespace string) (network.DNSInfo, error) {
 	var epDNS network.DNSInfo
 
 	// use custom dns if present
@@ -237,11 +233,8 @@ func getEndpointDNSSettings(nwCfg *cni.NetworkConfig, result *cniTypesCurr.Resul
 			Options: nwCfg.DNS.Options,
 		}
 	} else {
-		epDNS = network.DNSInfo{
-			Servers: result.DNS.Nameservers,
-			Suffix:  result.DNS.Domain,
-			Options: nwCfg.DNS.Options,
-		}
+		epDNS = dns
+		epDNS.Options = nwCfg.DNS.Options
 	}
 
 	return epDNS, nil

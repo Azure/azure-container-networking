@@ -194,7 +194,7 @@ func TestSetupRoutingForMultitenancy(t *testing.T) {
 		cnsNetworkConfig *cns.GetNetworkContainerResponse
 		azIpamResult     *cniTypesCurr.Result
 		epInfo           *network.EndpointInfo
-		result           *cniTypesCurr.Result
+		result           *network.InterfaceInfo
 	}
 
 	tests := []struct {
@@ -218,7 +218,7 @@ func TestSetupRoutingForMultitenancy(t *testing.T) {
 					},
 				},
 				epInfo: &network.EndpointInfo{},
-				result: &cniTypesCurr.Result{},
+				result: &network.InterfaceInfo{},
 			},
 			expected: args{
 				nwCfg: &cni.NetworkConfig{
@@ -240,11 +240,11 @@ func TestSetupRoutingForMultitenancy(t *testing.T) {
 						},
 					},
 				},
-				result: &cniTypesCurr.Result{
-					Routes: []*cniTypes.Route{
+				result: &network.InterfaceInfo{
+					Routes: []network.RouteInfo{
 						{
 							Dst: net.IPNet{IP: net.ParseIP("0.0.0.0"), Mask: defaultIPNet().Mask},
-							GW:  net.ParseIP("10.0.0.1"),
+							Gw:  net.ParseIP("10.0.0.1"),
 						},
 					},
 				},

@@ -8,7 +8,6 @@ import (
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/network"
-	current "github.com/containernetworking/cni/pkg/types/100"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -114,7 +113,7 @@ func TestAddDefaultRoute(t *testing.T) {
 		name   string
 		gwIP   string
 		epInfo network.EndpointInfo
-		result current.Result
+		result network.InterfaceInfo
 	}{
 		{
 			name: "add default route multitenancy",
@@ -140,7 +139,7 @@ func TestAddSnatForDns(t *testing.T) {
 		name   string
 		gwIP   string
 		epInfo network.EndpointInfo
-		result current.Result
+		result network.InterfaceInfo
 	}{
 		{
 			name: "add snat for dns",

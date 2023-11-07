@@ -57,10 +57,16 @@ func (client *SecondaryEndpointClient) AddEndpoints(epInfo *EndpointInfo) error 
 	if _, exists := client.ep.SecondaryInterfaces[iface.Name]; exists {
 		return newErrorSecondaryEndpointClient(errors.New(iface.Name + " already exists"))
 	}
+
+	ipconfigs := make([]*IPConfig, len(epInfo.IPAddresses))
+	for i, ipconfig := range epInfo.IPAddresses {
+		ipconfigs[i] = &IPConfig{Address: ipconfig}
+	}
+
 	client.ep.SecondaryInterfaces[iface.Name] = &InterfaceInfo{
 		Name:              iface.Name,
 		MacAddress:        epInfo.MacAddress,
-		IPAddress:         epInfo.IPAddresses,
+		IPConfigs:         ipconfigs,
 		NICType:           epInfo.NICType,
 		SkipDefaultRoutes: epInfo.SkipDefaultRoutes,
 	}

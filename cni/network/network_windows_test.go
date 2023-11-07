@@ -15,7 +15,6 @@ import (
 	"github.com/Azure/azure-container-networking/network/policy"
 	"github.com/Azure/azure-container-networking/telemetry"
 	"github.com/containernetworking/cni/pkg/skel"
-	cniTypesCurr "github.com/containernetworking/cni/pkg/types/100"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -228,7 +227,7 @@ func TestSetPoliciesFromNwCfg(t *testing.T) {
 					PortMappings: []cni.PortMapping{
 						{
 							Protocol:      "tcp",
-							HostIp:        "19.268.0.4",
+							HostIp:        "192.168.0.4",
 							HostPort:      8000,
 							ContainerPort: 80,
 						},
@@ -296,7 +295,7 @@ func TestDSRPolciy(t *testing.T) {
 					},
 				},
 				nwInfo: &network.NetworkInfo{},
-				ipconfigs: []*cniTypesCurr.IPConfig{
+				ipconfigs: []*network.IPConfig{
 					{
 						Address: func() net.IPNet {
 							_, ipnet, _ := net.ParseCIDR("10.0.0.5/24")
@@ -312,7 +311,7 @@ func TestDSRPolciy(t *testing.T) {
 			args: PolicyArgs{
 				nwCfg:  &cni.NetworkConfig{},
 				nwInfo: &network.NetworkInfo{},
-				ipconfigs: []*cniTypesCurr.IPConfig{
+				ipconfigs: []*network.IPConfig{
 					{
 						Address: func() net.IPNet {
 							_, ipnet, _ := net.ParseCIDR("10.0.0.5/24")
@@ -367,14 +366,12 @@ func TestGetNetworkNameFromCNS(t *testing.T) {
 						ID: 1,
 					},
 				},
-				defaultInterfaceInfo: InterfaceInfo{
-					ipResult: &cniTypesCurr.Result{
-						IPs: []*cniTypesCurr.IPConfig{
-							{
-								Address: net.IPNet{
-									IP:   net.ParseIP("10.240.0.5"),
-									Mask: net.CIDRMask(24, 32),
-								},
+				defaultInterfaceInfo: network.InterfaceInfo{
+					IPConfigs: []*network.IPConfig{
+						{
+							Address: net.IPNet{
+								IP:   net.ParseIP("10.240.0.5"),
+								Mask: net.CIDRMask(24, 32),
 							},
 						},
 					},
@@ -404,14 +401,12 @@ func TestGetNetworkNameFromCNS(t *testing.T) {
 						ID: 1,
 					},
 				},
-				defaultInterfaceInfo: InterfaceInfo{
-					ipResult: &cniTypesCurr.Result{
-						IPs: []*cniTypesCurr.IPConfig{
-							{
-								Address: net.IPNet{
-									IP:   net.ParseIP(""),
-									Mask: net.CIDRMask(24, 32),
-								},
+				defaultInterfaceInfo: network.InterfaceInfo{
+					IPConfigs: []*network.IPConfig{
+						{
+							Address: net.IPNet{
+								IP:   net.ParseIP(""),
+								Mask: net.CIDRMask(24, 32),
 							},
 						},
 					},
@@ -441,14 +436,12 @@ func TestGetNetworkNameFromCNS(t *testing.T) {
 						ID: 1,
 					},
 				},
-				defaultInterfaceInfo: InterfaceInfo{
-					ipResult: &cniTypesCurr.Result{
-						IPs: []*cniTypesCurr.IPConfig{
-							{
-								Address: net.IPNet{
-									IP:   net.ParseIP("10.0.00.6"),
-									Mask: net.CIDRMask(24, 32),
-								},
+				defaultInterfaceInfo: network.InterfaceInfo{
+					IPConfigs: []*network.IPConfig{
+						{
+							Address: net.IPNet{
+								IP:   net.ParseIP("10.0.00.6"),
+								Mask: net.CIDRMask(24, 32),
 							},
 						},
 					},
@@ -478,14 +471,12 @@ func TestGetNetworkNameFromCNS(t *testing.T) {
 						ID: 1,
 					},
 				},
-				defaultInterfaceInfo: InterfaceInfo{
-					ipResult: &cniTypesCurr.Result{
-						IPs: []*cniTypesCurr.IPConfig{
-							{
-								Address: net.IPNet{
-									IP:   net.ParseIP("10.0.0.6"),
-									Mask: net.CIDRMask(24, 32),
-								},
+				defaultInterfaceInfo: network.InterfaceInfo{
+					IPConfigs: []*network.IPConfig{
+						{
+							Address: net.IPNet{
+								IP:   net.ParseIP("10.0.0.6"),
+								Mask: net.CIDRMask(24, 32),
 							},
 						},
 					},
@@ -511,14 +502,12 @@ func TestGetNetworkNameFromCNS(t *testing.T) {
 			},
 			ipamAddResult: &IPAMAddResult{
 				ncResponse: &cns.GetNetworkContainerResponse{},
-				defaultInterfaceInfo: InterfaceInfo{
-					ipResult: &cniTypesCurr.Result{
-						IPs: []*cniTypesCurr.IPConfig{
-							{
-								Address: net.IPNet{
-									IP:   net.ParseIP("10.0.0.6"),
-									Mask: net.CIDRMask(24, 32),
-								},
+				defaultInterfaceInfo: network.InterfaceInfo{
+					IPConfigs: []*network.IPConfig{
+						{
+							Address: net.IPNet{
+								IP:   net.ParseIP("10.0.0.6"),
+								Mask: net.CIDRMask(24, 32),
 							},
 						},
 					},
