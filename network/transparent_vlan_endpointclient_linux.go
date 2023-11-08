@@ -145,13 +145,12 @@ func (client *TransparentVlanEndpointClient) ensureCleanPopulateVM() error {
 			var ev *os.SyscallError
 			if errors.As(vlanIfErr, &ev) {
 				return errors.Wrap(vlanIfErr, "could not determine if vlan veth exists in vnet namespace")
-			} else {
-				// Assume any other error is the vlan interface not found
-				logger.Info("Vlan interface doesn't exist even though network namespace exists, deleting network namespace...", zap.String("message", vlanIfErr.Error()))
-				delErr := client.netnsClient.DeleteNamed(client.vnetNSName)
-				if delErr != nil {
-					return errors.Wrap(delErr, "failed to cleanup/delete ns after noticing vlan veth does not exist")
-				}
+			}
+			// Assume any other error is the vlan interface not found
+			logger.Info("Vlan interface doesn't exist even though network namespace exists, deleting network namespace...", zap.String("message", vlanIfErr.Error()))
+			delErr := client.netnsClient.DeleteNamed(client.vnetNSName)
+			if delErr != nil {
+				return errors.Wrap(delErr, "failed to cleanup/delete ns after noticing vlan veth does not exist")
 			}
 		}
 	}
