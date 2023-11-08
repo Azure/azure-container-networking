@@ -3,6 +3,7 @@ package network
 import (
 	"fmt"
 	"net"
+	"os"
 	"strings"
 	"time"
 
@@ -125,7 +126,7 @@ func (client *TransparentVlanEndpointClient) AddEndpoints(epInfo *EndpointInfo) 
 	})
 }
 
-// Called from PopulateVM, Namespace: VM and Vnet
+// Called from AddEndpoints, Namespace: VM and Vnet
 func (client *TransparentVlanEndpointClient) ensureCleanPopulateVM() error {
 	// Clean up vlan interface in the VM namespace and ensure the network namespace (if it exists) has a vlan interface
 	logger.Info("Checking if NS and vlan veth exists...")
@@ -141,18 +142,18 @@ func (client *TransparentVlanEndpointClient) ensureCleanPopulateVM() error {
 
 		// If the vlan veth for sure doesn't exist, we delete the vnet ns, but if we can't query, we can't delete the ns (the vlan veth might exist!)
 		if vlanIfErr != nil {
-			if strings.Contains(vlanIfErr.Error(), "no such network interface") {
-				logger.Info("Vlan interface doesn't exist even though network namespace exists, deleting network namespace...")
+			var ev *os.SyscallError
+			if errors.As(vlanIfErr, &ev) {
+				return errors.Wrap(vlanIfErr, "could not determine if vlan veth exists in vnet namespace")
+			} else {
+				// Assume any other error is the vlan interface not found
+				logger.Info("Vlan interface doesn't exist even though network namespace exists, deleting network namespace...", zap.String("message", vlanIfErr.Error()))
 				delErr := client.netnsClient.DeleteNamed(client.vnetNSName)
 				if delErr != nil {
 					return errors.Wrap(delErr, "failed to cleanup/delete ns after noticing vlan veth does not exist")
 				}
-			} else {
-				return errors.Wrap(vlanIfErr, "could not determine if vlan veth exists in vnet namespace")
 			}
 		}
-	} else {
-		logger.Info("Expecting vnet namespace not to exist", zap.String("result", existingErr.Error()))
 	}
 	// Delete the vlan interface in the VM namespace if it exists
 	_, vlanIfInVMErr := client.netioshim.GetNetworkInterfaceByName(client.vlanIfName)
@@ -162,36 +163,29 @@ func (client *TransparentVlanEndpointClient) ensureCleanPopulateVM() error {
 		if delErr := client.netlink.DeleteLink(client.vlanIfName); delErr != nil {
 			return errors.Wrap(delErr, "failed to clean up vlan interface")
 		}
-	} else {
-		logger.Info("Expecting vlan interface not to exist", zap.String("result", vlanIfInVMErr.Error()))
 	}
 	return nil
 }
 
 // Called from PopulateVM, Namespace: VM
 func (client *TransparentVlanEndpointClient) createNetworkNamespace(vmNS int) error {
-	createNsImpl := func() error {
-		// If this call succeeds, the namespace is set to the new namespace
-		vnetNS, err := client.netnsClient.NewNamed(client.vnetNSName)
-		if err != nil {
-			return errors.Wrap(err, "failed to create vnet ns")
-		}
-		logger.Info("Vnet Namespace created", zap.String("vnetNS", client.netnsClient.NamespaceUniqueID(vnetNS)), zap.String("vmNS", client.netnsClient.NamespaceUniqueID(vmNS)))
-		if !client.netnsClient.IsNamespaceEqual(vnetNS, vmNS) {
-			client.vnetNSFileDescriptor = vnetNS
-			return nil
-		}
-		// the vnet and vm namespace are the same by this point
-		logger.Info("Vnet Namespace is the same as VM namespace. Deleting and retrying...")
-		delErr := client.netnsClient.DeleteNamed(client.vnetNSName)
-		if delErr != nil {
-			logger.Error("failed to cleanup/delete ns after noticing vnet ns is the same as vm ns", zap.Any("error:", delErr.Error()))
-		}
-		return errors.Wrap(errNamespaceCreation, "vnet and vm namespace are the same")
+	// If this call succeeds, the namespace is set to the new namespace
+	vnetNS, err := client.netnsClient.NewNamed(client.vnetNSName)
+	if err != nil {
+		return errors.Wrap(err, "failed to create vnet ns")
 	}
-	err := RunWithRetries(createNsImpl, numRetries, sleepInMs)
-
-	return err
+	logger.Info("Vnet Namespace created", zap.String("vnetNS", client.netnsClient.NamespaceUniqueID(vnetNS)), zap.String("vmNS", client.netnsClient.NamespaceUniqueID(vmNS)))
+	if !client.netnsClient.IsNamespaceEqual(vnetNS, vmNS) {
+		client.vnetNSFileDescriptor = vnetNS
+		return nil
+	}
+	// the vnet and vm namespace are the same by this point
+	logger.Info("Vnet Namespace is the same as VM namespace. Deleting...")
+	delErr := client.netnsClient.DeleteNamed(client.vnetNSName)
+	if delErr != nil {
+		logger.Error("failed to cleanup/delete ns after noticing vnet ns is the same as vm ns", zap.Any("error:", delErr.Error()))
+	}
+	return errors.Wrap(errNamespaceCreation, "vnet and vm namespace are the same")
 }
 
 // Called from PopulateVM, Namespace: VM and namespace represented by fd
@@ -230,10 +224,13 @@ func (client *TransparentVlanEndpointClient) PopulateVM(epInfo *EndpointInfo) er
 	// This will also (we assume) mean the vlan veth does not exist
 	if existingErr != nil {
 		// We assume the only possible error is that the namespace doesn't exist
-		logger.Info("No existing NS detected. Creating the vnet namespace and switching to it")
+		logger.Info("No existing NS detected. Creating the vnet namespace and switching to it", zap.String("message", existingErr.Error()))
 
-		if err = client.createNetworkNamespace(vmNS); err != nil {
-			return errors.Wrap(err, "")
+		err = RunWithRetries(func() error {
+			return client.createNetworkNamespace(vmNS)
+		}, numRetries, sleepInMs)
+		if err != nil {
+			return errors.Wrap(err, "failed to create network namespace")
 		}
 
 		deleteNSIfNotNilErr := client.netnsClient.Set(vmNS)

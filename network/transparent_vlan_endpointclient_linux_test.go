@@ -5,6 +5,7 @@ package network
 
 import (
 	"net"
+	"os"
 	"testing"
 
 	"github.com/Azure/azure-container-networking/netio"
@@ -17,7 +18,8 @@ import (
 
 var errNetnsMock = errors.New("mock netns error")
 var errMockNetIOFail = errors.New("netio fail")
-var errMockNetIONoIfFail = errors.New("no such network interface")
+var errMockNetIOSyscallFail = &net.OpError{Op: "route", Net: "ip+net", Source: nil, Addr: nil, Err: os.NewSyscallError("syscall error", errMockNetIOFail)}
+var errMockNetIONoIfFail = &net.OpError{Op: "route", Net: "ip+net", Source: nil, Addr: nil, Err: errors.New("no such network interface")}
 
 func newNetnsErrorMock(errStr string) error {
 	return errors.Wrap(errNetnsMock, errStr)
@@ -276,7 +278,7 @@ func TestTransparentVlanAddEndpoints(t *testing.T) {
 				netUtilsClient: networkutils.NewNetworkUtils(nl, plc),
 				netioshim: &mockNetIO{
 					existingInterfaces: map[string]bool{},
-					err:                errMockNetIOFail,
+					err:                errMockNetIOSyscallFail,
 				},
 				nsClient: NewMockNamespaceClient(),
 			},
