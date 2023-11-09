@@ -7,8 +7,8 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.1.0
 	github.com/Azure/azure-sdk-for-go/sdk/keyvault/azsecrets v0.11.0
 	github.com/Masterminds/semver v1.5.0
-	github.com/Microsoft/go-winio v0.4.17
-	github.com/Microsoft/hcsshim v0.8.23
+	github.com/Microsoft/go-winio v0.6.1
+	github.com/Microsoft/hcsshim v0.11.4
 	github.com/avast/retry-go/v3 v3.1.1
 	github.com/avast/retry-go/v4 v4.3.4
 	github.com/billgraziano/dpapi v0.4.0
@@ -59,10 +59,10 @@ require (
 	github.com/AzureAD/microsoft-authentication-library-for-go v0.5.1 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
-	github.com/containerd/cgroups v1.0.1 // indirect
+	github.com/containerd/cgroups v1.1.0 // indirect
 	github.com/coreos/go-iptables v0.7.0
 	github.com/davecgh/go-spew v1.1.1 // indirect
-	github.com/docker/docker v20.10.24+incompatible // indirect
+	github.com/docker/docker v23.0.3+incompatible // indirect
 	github.com/docker/go-connections v0.4.0 // indirect
 	github.com/evanphx/json-patch v5.6.0+incompatible // indirect
 	github.com/fsnotify/fsnotify v1.6.0
@@ -100,7 +100,7 @@ require (
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/prometheus/common v0.44.0 // indirect
 	github.com/prometheus/procfs v0.11.1 // indirect
-	github.com/sirupsen/logrus v1.9.0
+	github.com/sirupsen/logrus v1.9.2
 	github.com/spf13/afero v1.9.5 // indirect
 	github.com/spf13/cast v1.5.1 // indirect
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
@@ -133,15 +133,18 @@ require (
 )
 
 require (
-	gotest.tools/v3 v3.0.3
+	gotest.tools/v3 v3.5.0
 	sigs.k8s.io/yaml v1.3.0
 )
 
-require github.com/emicklei/go-restful/v3 v3.11.0 // indirect
+require (
+	github.com/containerd/containerd v1.6.23 // indirect
+	github.com/emicklei/go-restful/v3 v3.11.0 // indirect
+	github.com/rootless-containers/rootlesskit v1.1.1 // indirect
+)
 
 replace (
 	github.com/Microsoft/go-winio => github.com/microsoft/go-winio v0.4.17
-	github.com/Microsoft/hcsshim => github.com/vakalapa/hcsshim v0.9.1-0.20211203205307-837d4d06df77
 	github.com/onsi/ginkgo => github.com/onsi/ginkgo v1.12.0
 	github.com/onsi/gomega => github.com/onsi/gomega v1.10.0
 )

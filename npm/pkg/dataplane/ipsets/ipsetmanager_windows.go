@@ -434,7 +434,7 @@ func getPolicyNetworkRequestMarshal(setPolicySettings map[string]*hcn.SetPolicyS
 	}
 
 	for _, setPol := range setPolicySettings {
-		if setPol.PolicyType != policyType {
+		if setPol.Type != policyType {
 			continue
 		}
 		rawSettings, err := json.Marshal(setPol)
@@ -501,10 +501,10 @@ func convertToSetPolicy(set *IPSet) (*hcn.SetPolicySetting, error) {
 	}
 
 	setPolicy := &hcn.SetPolicySetting{
-		Id:         set.HashedName,
-		Name:       set.Name,
-		PolicyType: getSetPolicyType(set),
-		Values:     util.SliceToString(setContents),
+		Id:     set.HashedName,
+		Name:   set.Name,
+		Type:   getSetPolicyType(set),
+		Values: util.SliceToString(setContents),
 	}
 	return setPolicy, nil
 }

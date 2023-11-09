@@ -83,7 +83,7 @@ func (f Hnsv2wrapperFake) ModifyNetworkSettings(network *hcn.HostComputeNetwork,
 				if err != nil {
 					return newErrorFakeHNS(err.Error())
 				}
-				if setpol.PolicyType != hcn.SetPolicyTypeIpSet {
+				if setpol.Type != hcn.SetPolicyTypeIpSet {
 					// Check Nested SetPolicy members
 					// checking for the case of no members in nested policy. iMgrCfg.AddEmptySetToLists is set to false in some tests so it creates a nested policy with no members
 					if setpol.Values != "" {
@@ -114,10 +114,10 @@ func (f Hnsv2wrapperFake) ModifyNetworkSettings(network *hcn.HostComputeNetwork,
 			if _, ok := networkCache.Policies[setpol.Id]; !ok {
 				return newErrorFakeHNS(fmt.Sprintf("[FakeHNS] could not find %s ipset", setpol.Name))
 			}
-			if setpol.PolicyType == hcn.SetPolicyTypeIpSet {
+			if setpol.Type == hcn.SetPolicyTypeIpSet {
 				// For 1st level sets check if they are being referred by nested sets
 				for _, cacheSet := range networkCache.Policies {
-					if cacheSet.PolicyType == hcn.SetPolicyTypeIpSet {
+					if cacheSet.Type == hcn.SetPolicyTypeIpSet {
 						continue
 					}
 					if strings.Contains(cacheSet.Values, setpol.Id) {
@@ -147,7 +147,7 @@ func (f Hnsv2wrapperFake) ModifyNetworkSettings(network *hcn.HostComputeNetwork,
 				// Replicating HNS behavior, we will not update non-existent set policy
 				continue
 			}
-			if setpol.PolicyType != hcn.SetPolicyTypeIpSet && setpol.Values != "" {
+			if setpol.Type != hcn.SetPolicyTypeIpSet && setpol.Values != "" {
 				// Check Nested SetPolicy members
 				members := strings.Split(setpol.Values, ",")
 				if setpol.Values != "" {

@@ -58,10 +58,10 @@ func SetPolicy(setMetadata *ipsets.IPSetMetadata, members ...string) *hcn.SetPol
 	sort.Strings(members)
 
 	return &hcn.SetPolicySetting{
-		Id:         setMetadata.GetHashedName(),
-		Name:       setMetadata.GetPrefixName(),
-		PolicyType: pType,
-		Values:     strings.Join(members, ","),
+		Id:     setMetadata.GetHashedName(),
+		Name:   setMetadata.GetPrefixName(),
+		Type:   pType,
+		Values: strings.Join(members, ","),
 	}
 }
 
