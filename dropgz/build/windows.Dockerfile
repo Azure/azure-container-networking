@@ -6,7 +6,7 @@ RUN tdnf install -y unzip
 RUN tdnf upgrade -y && tdnf install -y ca-certificates
 
 FROM tar AS azure-vnet
-ARG AZCNI_VERSION=v1.5.4
+ARG AZCNI_VERSION=v1.4.51
 ARG VERSION
 ARG OS
 ARG ARCH
@@ -25,7 +25,7 @@ COPY --from=azure-vnet /azure-container-networking/azure-vnet-telemetry.config p
 RUN cd pkg/embed/fs/ && sha256sum * > sum.txt
 RUN gzip --verbose --best --recursive pkg/embed/fs && for f in pkg/embed/fs/*.gz; do mv -- "$f" "${f%%.gz}"; done
 
-FROM --platform=linux/${ARCH} mcr.microsoft.com/oss/go/microsoft/golang:1.20 AS dropgz
+FROM --platform=linux/${ARCH} mcr.microsoft.com/oss/go/microsoft/golang:1.21 AS dropgz
 ARG VERSION
 WORKDIR /dropgz
 COPY --from=compressor /dropgz .

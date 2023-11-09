@@ -3,7 +3,7 @@ RUN tdnf install -y tar
 RUN tdnf upgrade -y && tdnf install -y ca-certificates
 
 FROM tar AS azure-ipam
-ARG AZIPAM_VERSION=v0.0.3
+ARG AZIPAM_VERSION=v0.0.3.1
 ARG VERSION
 ARG OS
 ARG ARCH
@@ -12,7 +12,7 @@ COPY ./azure-ipam .
 RUN curl -LO --cacert /etc/ssl/certs/ca-certificates.crt https://github.com/Azure/azure-container-networking/releases/download/azure-ipam%2F$AZIPAM_VERSION/azure-ipam-$OS-$ARCH-$AZIPAM_VERSION.tgz && tar -xvf azure-ipam-$OS-$ARCH-$AZIPAM_VERSION.tgz
 
 FROM tar AS azure-vnet
-ARG AZCNI_VERSION=v1.4.39
+ARG AZCNI_VERSION=v1.4.51
 ARG VERSION
 ARG OS
 ARG ARCH
@@ -35,7 +35,7 @@ COPY --from=azure-vnet /azure-container-networking/azure-vnet-ipam pkg/embed/fs
 RUN cd pkg/embed/fs/ && sha256sum * > sum.txt
 RUN gzip --verbose --best --recursive pkg/embed/fs && for f in pkg/embed/fs/*.gz; do mv -- "$f" "${f%%.gz}"; done
 
-FROM mcr.microsoft.com/oss/go/microsoft/golang:1.20 AS dropgz
+FROM mcr.microsoft.com/oss/go/microsoft/golang:1.21 AS dropgz
 ARG VERSION
 WORKDIR /dropgz
 COPY --from=compressor /dropgz .
