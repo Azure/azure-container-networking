@@ -138,6 +138,7 @@ require (
 )
 
 require (
+	github.com/elazarl/goproxy v0.0.0-20231031074852-3ec07828be7a // indirect
 	github.com/emicklei/go-restful/v3 v3.11.0 // indirect
 	github.com/rootless-containers/rootlesskit v1.1.1 // indirect
 )
