@@ -362,11 +362,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 		telemetry.SendCNIMetric(&cniMetric, plugin.tb)
 
 		// Add Interfaces to result.
-		defaultCniResult := convertInterfaceInfoToCniResult(ipamAddResult.defaultInterfaceInfo)
-		iface := &cniTypesCurr.Interface{
-			Name: args.IfName,
-		}
-		defaultCniResult.Interfaces = append(defaultCniResult.Interfaces, iface)
+		defaultCniResult := convertInterfaceInfoToCniResult(ipamAddResult.defaultInterfaceInfo, args.IfName)
 
 		addSnatInterface(nwCfg, defaultCniResult)
 
@@ -1359,8 +1355,13 @@ func convertNnsToIPConfigs(
 	return ipConfigs
 }
 
-func convertInterfaceInfoToCniResult(info network.InterfaceInfo) *cniTypesCurr.Result {
+func convertInterfaceInfoToCniResult(info network.InterfaceInfo, ifName string) *cniTypesCurr.Result {
 	result := &cniTypesCurr.Result{
+		Interfaces: []*cniTypesCurr.Interface{
+			{
+				Name: ifName,
+			},
+		},
 		DNS: cniTypes.DNS{
 			Domain:      info.DNS.Suffix,
 			Nameservers: info.DNS.Servers,
