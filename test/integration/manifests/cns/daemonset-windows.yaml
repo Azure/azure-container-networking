@@ -104,13 +104,13 @@ spec:
                   apiVersion: v1
                   fieldPath: spec.nodeName
       initContainers:
-        - name: init-cni-dropgz
-          image: acnpublic.azurecr.io/cni-dropgz:CNI_DROPGZ_VERSION
+        - name: cni-installer
+          image: acnpublic.azurecr.io/cni-dropgz:latest
           imagePullPolicy: Always
-          command: ["%CONTAINER_SANDBOX_MOUNT_POINT%/dropgz.exe"]
+          command: ["%CONTAINER_SANDBOX_MOUNT_POINT%/dropgz"]
           args:
             - deploy
-            - azure-vnet.exe
+            - azure-vnet
             - -o
             - /k/azurecni/bin/azure-vnet.exe # // TODO: add windows cni conflist when ready
           volumeMounts:

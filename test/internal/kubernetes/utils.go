@@ -9,7 +9,6 @@ import (
 	"log"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/Azure/azure-container-networking/test/internal/retry"
@@ -155,18 +154,6 @@ func MustSetupConfigMap(ctx context.Context, clientset *kubernetes.Clientset, co
 }
 
 func Int32ToPtr(i int32) *int32 { return &i }
-
-func ParseImageString(s string) (url, image, version string) {
-	s1 := strings.Split(s, ":")
-	s2 := s1[0]
-	index := strings.LastIndex(s2, "/") // Returns byte location
-
-	return s2[:index], s2[index:], s1[1]
-}
-
-func GetImageString(url, image, version string) string {
-	return url + image + ":" + version
-}
 
 func WaitForPodsRunning(ctx context.Context, clientset *kubernetes.Clientset, namespace, labelselector string) error {
 	podsClient := clientset.CoreV1().Pods(namespace)

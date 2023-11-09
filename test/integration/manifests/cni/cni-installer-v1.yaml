@@ -38,8 +38,8 @@ spec:
         - operator: "Exists"
           effect: NoSchedule
       initContainers:
-        - name: azure-cni
-          image:  ${DROP_GZ_URL}
+        - name: cni-installer
+          image:  ${CNI_IMAGE}
           imagePullPolicy: Always
           command: ["/dropgz"]
           args:

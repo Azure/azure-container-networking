@@ -1,6 +1,5 @@
 parameters:
   name: ""
-  testDropgz: ""
   clusterName: ""
 
 steps:
@@ -48,23 +47,12 @@ steps:
     name: "installKubetest"
     displayName: "Set up Conformance Tests"
 
-  - ${{ if eq( parameters['testDropgz'], true) }}:
-      - script: |
-          echo "##vso[task.setvariable variable=dropgzVersion]$(make cni-dropgz-test-version)"
-        name: dropgzTestVersion
-        displayName: "Dropgz Test Version"
-  - ${{ else }}:
-      - script: |
-          echo "##vso[task.setvariable variable=dropgzVersion]$(make cni-dropgz-version)"
-        name: dropgzVersion
-        displayName: "Dropgz Version"
-
   - script: |
       ls -lah
       pwd
       kubectl cluster-info
       kubectl get po -owide -A
-      sudo -E env "PATH=$PATH" make test-integration CNS_VERSION=$(make cns-version) CNI_DROPGZ_VERSION=$(dropgzVersion) INSTALL_CNS=true INSTALL_AZURE_VNET=true TEST_DROPGZ=${{ parameters.testDropgz }}
+      sudo -E env "PATH=$PATH" make test-integration CNS_VERSION=$(make cns-version) CNI_VERSION=$(make cni-version) INSTALL_CNS=true INSTALL_AZURE_VNET=true
     retryCountOnTaskFailure: 3
     name: "aksswifte2e"
     displayName: "Run AKS Swift E2E"
@@ -111,16 +99,15 @@ steps:
     name: "WireserverMetadataConnectivityTests"
     displayName: "Run Wireserver and Metadata Connectivity Tests"
   
-  - ${{ if eq( parameters['testDropgz'], true) }}:
-    - script: |
-        cd hack/scripts
-        chmod +x async-delete-test.sh
-        ./async-delete-test.sh
-        if ! [ -z $(kubectl -n kube-system get ds  azure-cns | grep non-existing) ]; then
-          kubectl -n kube-system patch daemonset azure-cns --type json -p='[{"op": "remove", "path": "/spec/template/spec/nodeSelector/non-existing"}]'
-        fi
-      name: "testAsyncDelete"
-      displayName: "Verify Async Delete when CNS is down"
+  - script: |
+      cd hack/scripts
+      chmod +x async-delete-test.sh
+      ./async-delete-test.sh
+      if ! [ -z $(kubectl -n kube-system get ds  azure-cns | grep non-existing) ]; then
+        kubectl -n kube-system patch daemonset azure-cns --type json -p='[{"op": "remove", "path": "/spec/template/spec/nodeSelector/non-existing"}]'
+      fi
+    name: "testAsyncDelete"
+    displayName: "Verify Async Delete when CNS is down"
 
   - script: |
       ARTIFACT_DIR=$(Build.ArtifactStagingDirectory)/aks-swift-output/

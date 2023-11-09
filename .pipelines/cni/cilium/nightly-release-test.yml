@@ -86,7 +86,6 @@ stages:
         - template: ../../singletenancy/cilium-overlay/cilium-overlay-e2e-step-template.yaml
           parameters:
             name: "cilium_nightly"
-            testDropgz: ""
             clusterName: ciliumnightly-$(commitID)
             testHubble: true
       - job: logs

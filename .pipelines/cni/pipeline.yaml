@@ -16,12 +16,6 @@ stages:
               echo "##vso[task.setvariable variable=commitID;isOutput=true]$(echo $(make revision)-$(date "+%d%H%M"))"
               echo "##vso[task.setvariable variable=npmVersion;isOutput=true]$(make npm-version)"
               echo "##vso[task.setvariable variable=cnsVersion;isOutput=true]$(CNS_VERSION)"
-
-              if [ -z $(DROP_GZ_VERSION) ]; then
-                echo "##vso[task.setvariable variable=dropgzVersion;isOutput=true]$(make cni-dropgz-test-version)"
-              else
-                echo "##vso[task.setvariable variable=dropgzVersion;isOutput=true]$(DROP_GZ_VERSION)"
-              fi
             name: "SetEnvVars"
             displayName: "Set Environment Variables"
             condition: always()
@@ -36,13 +30,22 @@ stages:
           name: "$(BUILD_POOL_NAME_LINUX_AMD64)"
         strategy:
           matrix:
-            cni_dropgz_test_linux_amd64:
+            azure_ipam_linux_amd64:
               arch: amd64
-              name: cni-dropgz-test
+              name: azure-ipam
               os: linux
-            cni_dropgz_test_windows2022_amd64:
+            azure_ipam_windows2022_amd64:
               arch: amd64
-              name: cni-dropgz-test
+              name: azure-ipam
+              os: windows
+              os_version: ltsc2022
+            cni_linux_amd64:
+              arch: amd64
+              name: cni
+              os: linux
+            cni_windows2022_amd64:
+              arch: amd64
+              name: cni
               os: windows
               os_version: ltsc2022
             npm_linux_amd64:
@@ -67,9 +70,13 @@ stages:
           name: "$(BUILD_POOL_NAME_LINUX_ARM64)"
         strategy:
           matrix:
-            cni_dropgz_test_linux_arm64:
+            azure_ipam_linux_arm64:
               arch: arm64
-              name: cni-dropgz-test
+              name: azure-ipam
+              os: linux
+            cni_linux_arm64:
+              arch: arm64
+              name: cni
               os: linux
             npm_linux_arm64:
               arch: arm64
@@ -125,8 +132,11 @@ stages:
           name: "$(BUILD_POOL_NAME_DEFAULT)"
         strategy:
           matrix:
-            cni_dropgz_test:
-              name: cni-dropgz-test
+            azure-ipam:
+              name: azure-ipam
+              platforms: linux/amd64 linux/arm64 windows/amd64
+            cni:
+              name: cni
               platforms: linux/amd64 linux/arm64 windows/amd64
             npm:
               name: npm

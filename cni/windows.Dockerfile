@@ -30,9 +30,9 @@ ARG OS
 ARG VERSION
 RUN go mod download github.com/azure/azure-container-networking/dropgz@$DROPGZ_VERSION
 WORKDIR /go/pkg/mod/github.com/azure/azure-container-networking/dropgz\@$DROPGZ_VERSION
-COPY --from=compressor /payload/* /pkg/embed/fs/
+COPY --from=compressor /payload/* pkg/embed/fs/
 RUN GOOS=$OS CGO_ENABLED=0 go build -a -o /go/bin/dropgz -trimpath -ldflags "-X github.com/Azure/azure-container-networking/dropgz/internal/buildinfo.Version="$VERSION"" -gcflags="-dwarflocationlists=true" main.go
 
 FROM mcr.microsoft.com/windows/nanoserver:${OS_VERSION}
 COPY --from=dropgz /go/bin/dropgz dropgz
-ENTRYPOINT [ "dropgz" ]
+ENTRYPOINT [ "/dropgz" ]

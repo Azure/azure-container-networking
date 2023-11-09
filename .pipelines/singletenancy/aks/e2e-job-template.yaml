@@ -40,8 +40,6 @@ stages:
       GOPATH: "$(Agent.TempDirectory)/go" # Go workspace path
       GOBIN: "$(GOPATH)/bin" # Go binaries path
       modulePath: "$(GOPATH)/src/github.com/Azure/azure-container-networking"
-      dropgzVersion: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.dropgzVersion'] ]
-      cniVersion: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.cniVersion'] ]
       commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
     dependsOn:
     - setup
@@ -65,8 +63,6 @@ stages:
               arch: ${{ parameters.arch }}
               os: ${{ parameters.os }}
               os_version: ${{ parameters.os_version }}
-              version: $(dropgzVersion)
-              cniVersion: $(cniVersion)
               scaleup: ${{ parameters.scaleup }}
 
       - template: ../../cni/k8s-e2e/k8s-e2e-job-template.yaml

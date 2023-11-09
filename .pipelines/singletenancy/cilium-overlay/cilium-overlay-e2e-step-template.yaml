@@ -1,6 +1,5 @@
 parameters:
   name: ""
-  testDropgz: ""
   clusterName: ""
   testHubble: false
 
@@ -88,27 +87,9 @@ steps:
     name: "installKubetest"
     displayName: "Set up Conformance Tests"
 
-  - ${{ if eq( parameters['testDropgz'], true) }}:
-      - script: |
-          echo "##vso[task.setvariable variable=dropgzVersion]$(make cni-dropgz-test-version)"
-        name: dropgzTestVersion
-        displayName: "Dropgz Test Version"
-  - ${{ else }}:
-      - script: |
-          echo "##vso[task.setvariable variable=dropgzVersion]$(make cni-dropgz-version)"
-        name: dropgzVersion
-        displayName: "Dropgz Version"
-
   - script: |
       echo "Start Azilium E2E Tests on Overlay Cluster"
-      # Nightly does not build images per commit. Will use existing image.
-      if [ "$CILIUM_VERSION_TAG" = "cilium-nightly-pipeline" ]
-      then
-          CNS=$(CNS_VERSION) DROPGZ=$(DROP_GZ_VERSION) && echo "Running nightly"
-      else
-          CNS=$(make cns-version) DROPGZ=$(dropgzVersion)
-      fi
-      sudo -E env "PATH=$PATH" make test-integration CNS_VERSION=${CNS} CNI_DROPGZ_VERSION=${DROPGZ} INSTALL_CNS=true INSTALL_OVERLAY=true TEST_DROPGZ=${{ parameters.testDropgz }}
+      sudo -E env "PATH=$PATH" make test-integration AZURE_IPAM_VERSION=$(make azure-ipam-version) CNS_VERSION=$(make cns-version) INSTALL_CNS=true INSTALL_OVERLAY=true
     retryCountOnTaskFailure: 3
     name: "aziliumTest"
     displayName: "Run Azilium E2E on AKS Overlay"

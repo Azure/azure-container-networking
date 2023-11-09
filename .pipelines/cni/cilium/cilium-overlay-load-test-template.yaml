@@ -5,7 +5,6 @@ parameters:
   clusterName: "cilium-overlay"
   nodeCount: 10
   vmSize: "Standard_DS4_v2"
-  testDropgz: true
   os: "linux"
   arch: ""
   osSKU: Ubuntu
@@ -42,7 +41,6 @@ stages:
     variables:
       commitID: $[ stagedependencies.setup.env.outputs['SetEnvVars.commitID'] ]
       cnsVersion: $[ stagedependencies.setup.env.outputs['SetEnvVars.cnsVersion'] ]
-      dropgzVersion: $[ stagedependencies.setup.env.outputs['SetEnvVars.dropgzVersion'] ]
     pool:
       name: "$(BUILD_POOL_NAME_DEFAULT)"
     dependsOn:
@@ -80,7 +78,7 @@ stages:
                 kubectl get po -owide -A
 
                 echo "Deploy Azure-CNS"
-                sudo -E env "PATH=$PATH" make test-integration CNS_VERSION=$(cnsVersion) CNI_DROPGZ_VERSION=$(dropgzVersion) INSTALL_CNS=true INSTALL_OVERLAY=true TEST_DROPGZ=${{ parameters.testDropgz }} CNS_IMAGE_REPO=$(CNS_IMAGE_REPO)
+                sudo -E env "PATH=$PATH" make test-integration AZURE_IPAM_VERSION=$(make azure-ipam-version) CNS_VERSION=$(make cns-version) INSTALL_CNS=true INSTALL_OVERLAY=true CNS_IMAGE_REPO=$(CNS_IMAGE_REPO)
                 kubectl get po -owide -A
       - job: deploy_pods
         condition: and( and( not(canceled()), not(failed()) ), or( contains(variables.CONTROL_SCENARIO, 'scaleTest') , contains(variables.CONTROL_SCENARIO, 'all') ) )

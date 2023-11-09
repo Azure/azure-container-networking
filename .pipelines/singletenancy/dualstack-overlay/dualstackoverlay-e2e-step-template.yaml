@@ -1,6 +1,5 @@
 parameters:
   name: ""
-  testDropgz: ""
   clusterName: ""
   cni: "dualstack"
 
@@ -32,21 +31,10 @@ steps:
     name: "kubeconfig"
     displayName: "Set Kubeconfig"
 
-  - ${{ if eq( parameters['testDropgz'], true) }}:
-      - script: |
-          echo "##vso[task.setvariable variable=dropgzVersion]$(make cni-dropgz-test-version)"
-        name: dropgzTestVersion
-        displayName: "Dropgz Test Version"
-  - ${{ else }}:
-      - script: |
-          echo "##vso[task.setvariable variable=dropgzVersion]$(make cni-dropgz-version)"
-        name: dropgzVersion
-        displayName: "Dropgz Version"
-
   - script: |
       kubectl cluster-info
       kubectl get node
-      sudo -E env "PATH=$PATH" make test-integration CNS_VERSION=$(make cns-version) CNI_DROPGZ_VERSION=$(dropgzVersion) INSTALL_CNS=true INSTALL_DUALSTACK_OVERLAY=true TEST_DROPGZ=${{ parameters.testDropgz }}
+      sudo -E env "PATH=$PATH" make test-integration CNI_VERSION=$(make cni-version) CNS_VERSION=$(make cns-version) INSTALL_CNS=true INSTALL_DUALSTACK_OVERLAY=true
       kubectl get po -owide -A
     retryCountOnTaskFailure: 3
     name: "integrationTest"
@@ -143,8 +131,7 @@ steps:
               kubectl taint nodes $node node.cloudprovider.kubernetes.io/uninitialized=true:NoSchedule-
           fi
       done
-      CNS=$(make cns-version)
-      sudo -E env "PATH=$PATH" make test-load SCALE_UP=32 OS_TYPE=windows CNI_TYPE=cniv2 VALIDATE_STATEFILE=true INSTALL_CNS=true INSTALL_DUALSTACK_OVERLAY=true VALIDATE_DUALSTACK=true CNS_VERSION=${CNS} CNI_DROPGZ_VERSION=$(dropgzVersion) TEST_DROPGZ=${{ parameters.testDropgz }} CLEANUP=true
+      sudo -E env "PATH=$PATH" make test-load SCALE_UP=32 OS_TYPE=windows CNI_TYPE=cniv2 VALIDATE_STATEFILE=true INSTALL_CNS=true INSTALL_DUALSTACK_OVERLAY=true VALIDATE_DUALSTACK=true CNI_VERSION=$(make cni-version) CNS_VERSION=$(make cns-version) CLEANUP=true
     name: "WindowsDualStackOverlayControlPlaneScaleTests"
     displayName: "Windows DualStack Overlay ControlPlane Scale Tests"
     retryCountOnTaskFailure: 3
