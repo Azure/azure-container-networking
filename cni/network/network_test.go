@@ -742,131 +742,131 @@ func TestPluginMultitenancyDelete(t *testing.T) {
 /*
 Baremetal scenarios
 */
-// func TestPluginBaremetalAdd(t *testing.T) {
-// 	plugin, _ := cni.NewPlugin("test", "0.3.0")
+func TestPluginBaremetalAdd(t *testing.T) {
+	plugin, _ := cni.NewPlugin("test", "0.3.0")
 
-// 	localNwCfg := cni.NetworkConfig{
-// 		CNIVersion:                 "0.3.0",
-// 		Name:                       "baremetal-net",
-// 		ExecutionMode:              string(util.Baremetal),
-// 		EnableExactMatchForPodName: true,
-// 		Master:                     "eth0",
-// 	}
+	localNwCfg := cni.NetworkConfig{
+		CNIVersion:                 "0.3.0",
+		Name:                       "baremetal-net",
+		ExecutionMode:              string(util.Baremetal),
+		EnableExactMatchForPodName: true,
+		Master:                     "eth0",
+	}
 
-// 	tests := []struct {
-// 		name       string
-// 		plugin     *NetPlugin
-// 		args       *cniSkel.CmdArgs
-// 		wantErr    bool
-// 		wantErrMsg string
-// 	}{
-// 		{
-// 			name: "Baremetal Add Happy path",
-// 			plugin: &NetPlugin{
-// 				Plugin:    plugin,
-// 				nm:        acnnetwork.NewMockNetworkmanager(acnnetwork.NewMockEndpointClient(nil)),
-// 				tb:        &telemetry.TelemetryBuffer{},
-// 				report:    &telemetry.CNIReport{},
-// 				nnsClient: &nns.MockGrpcClient{},
-// 			},
-// 			args: &cniSkel.CmdArgs{
-// 				StdinData:   localNwCfg.Serialize(),
-// 				ContainerID: "test-container",
-// 				Netns:       "test-container",
-// 				Args:        fmt.Sprintf("K8S_POD_NAME=%v;K8S_POD_NAMESPACE=%v", "test-pod", "test-pod-ns"),
-// 				IfName:      eth0IfName,
-// 			},
-// 			wantErr: false,
-// 		},
-// 		{
-// 			name: "Baremetal Add Fail",
-// 			plugin: &NetPlugin{
-// 				Plugin:    plugin,
-// 				nm:        acnnetwork.NewMockNetworkmanager(acnnetwork.NewMockEndpointClient(nil)),
-// 				tb:        &telemetry.TelemetryBuffer{},
-// 				report:    &telemetry.CNIReport{},
-// 				nnsClient: &nns.MockGrpcClient{Fail: true},
-// 			},
-// 			args: &cniSkel.CmdArgs{
-// 				StdinData:   localNwCfg.Serialize(),
-// 				ContainerID: "test-container",
-// 				Netns:       "test-container",
-// 				Args:        fmt.Sprintf("K8S_POD_NAME=%v;K8S_POD_NAMESPACE=%v", "test-pod", "test-pod-ns"),
-// 				IfName:      eth0IfName,
-// 			},
-// 			wantErr:    true,
-// 			wantErrMsg: nns.ErrMockNnsAdd.Error(),
-// 		},
-// 	}
+	tests := []struct {
+		name       string
+		plugin     *NetPlugin
+		args       *cniSkel.CmdArgs
+		wantErr    bool
+		wantErrMsg string
+	}{
+		{
+			name: "Baremetal Add Happy path",
+			plugin: &NetPlugin{
+				Plugin:    plugin,
+				nm:        acnnetwork.NewMockNetworkmanager(acnnetwork.NewMockEndpointClient(nil)),
+				tb:        &telemetry.TelemetryBuffer{},
+				report:    &telemetry.CNIReport{},
+				nnsClient: &nns.MockGrpcClient{},
+			},
+			args: &cniSkel.CmdArgs{
+				StdinData:   localNwCfg.Serialize(),
+				ContainerID: "test-container",
+				Netns:       "test-container",
+				Args:        fmt.Sprintf("K8S_POD_NAME=%v;K8S_POD_NAMESPACE=%v", "test-pod", "test-pod-ns"),
+				IfName:      eth0IfName,
+			},
+			wantErr: false,
+		},
+		{
+			name: "Baremetal Add Fail",
+			plugin: &NetPlugin{
+				Plugin:    plugin,
+				nm:        acnnetwork.NewMockNetworkmanager(acnnetwork.NewMockEndpointClient(nil)),
+				tb:        &telemetry.TelemetryBuffer{},
+				report:    &telemetry.CNIReport{},
+				nnsClient: &nns.MockGrpcClient{Fail: true},
+			},
+			args: &cniSkel.CmdArgs{
+				StdinData:   localNwCfg.Serialize(),
+				ContainerID: "test-container",
+				Netns:       "test-container",
+				Args:        fmt.Sprintf("K8S_POD_NAME=%v;K8S_POD_NAMESPACE=%v", "test-pod", "test-pod-ns"),
+				IfName:      eth0IfName,
+			},
+			wantErr:    true,
+			wantErrMsg: nns.ErrMockNnsAdd.Error(),
+		},
+	}
 
-// 	for _, tt := range tests {
-// 		tt := tt
-// 		t.Run(tt.name, func(t *testing.T) {
-// 			err := tt.plugin.Add(tt.args)
-// 			if tt.wantErr {
-// 				require.Error(t, err)
-// 				assert.Contains(t, err.Error(), tt.wantErrMsg, "Expected %v but got %+v", tt.wantErrMsg, err.Error())
-// 			} else {
-// 				require.NoError(t, err)
-// 			}
-// 		})
-// 	}
-// }
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.plugin.Add(tt.args)
+			if tt.wantErr {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.wantErrMsg, "Expected %v but got %+v", tt.wantErrMsg, err.Error())
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
 
-// func TestPluginBaremetalDelete(t *testing.T) {
-// 	plugin := GetTestResources()
-// 	plugin.nnsClient = &nns.MockGrpcClient{}
-// 	localNwCfg := cni.NetworkConfig{
-// 		CNIVersion:                 "0.3.0",
-// 		Name:                       "baremetal-net",
-// 		ExecutionMode:              string(util.Baremetal),
-// 		EnableExactMatchForPodName: true,
-// 		Master:                     "eth0",
-// 	}
+func TestPluginBaremetalDelete(t *testing.T) {
+	plugin := GetTestResources()
+	plugin.nnsClient = &nns.MockGrpcClient{}
+	localNwCfg := cni.NetworkConfig{
+		CNIVersion:                 "0.3.0",
+		Name:                       "baremetal-net",
+		ExecutionMode:              string(util.Baremetal),
+		EnableExactMatchForPodName: true,
+		Master:                     "eth0",
+	}
 
-// 	tests := []struct {
-// 		name       string
-// 		methods    []string
-// 		args       *cniSkel.CmdArgs
-// 		wantErr    bool
-// 		wantErrMsg string
-// 	}{
-// 		{
-// 			name:    "Baremetal delete success",
-// 			methods: []string{CNI_ADD, CNI_DEL},
-// 			args: &cniSkel.CmdArgs{
-// 				StdinData:   localNwCfg.Serialize(),
-// 				ContainerID: "test-container",
-// 				Netns:       "test-container",
-// 				Args:        fmt.Sprintf("K8S_POD_NAME=%v;K8S_POD_NAMESPACE=%v", "test-pod", "test-pod-ns"),
-// 				IfName:      eth0IfName,
-// 			},
-// 			wantErr: false,
-// 		},
-// 	}
+	tests := []struct {
+		name       string
+		methods    []string
+		args       *cniSkel.CmdArgs
+		wantErr    bool
+		wantErrMsg string
+	}{
+		{
+			name:    "Baremetal delete success",
+			methods: []string{CNI_ADD, CNI_DEL},
+			args: &cniSkel.CmdArgs{
+				StdinData:   localNwCfg.Serialize(),
+				ContainerID: "test-container",
+				Netns:       "test-container",
+				Args:        fmt.Sprintf("K8S_POD_NAME=%v;K8S_POD_NAMESPACE=%v", "test-pod", "test-pod-ns"),
+				IfName:      eth0IfName,
+			},
+			wantErr: false,
+		},
+	}
 
-// 	for _, tt := range tests {
-// 		tt := tt
-// 		t.Run(tt.name, func(t *testing.T) {
-// 			var err error
-// 			for _, method := range tt.methods {
-// 				if method == CNI_ADD {
-// 					err = plugin.Add(tt.args)
-// 				} else if method == CNI_DEL {
-// 					err = plugin.Delete(tt.args)
-// 				}
-// 			}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			var err error
+			for _, method := range tt.methods {
+				if method == CNI_ADD {
+					err = plugin.Add(tt.args)
+				} else if method == CNI_DEL {
+					err = plugin.Delete(tt.args)
+				}
+			}
 
-// 			if tt.wantErr {
-// 				require.Error(t, err)
-// 			} else {
-// 				require.NoError(t, err)
-// 				endpoints, _ := plugin.nm.GetAllEndpoints(localNwCfg.Name)
-// 				require.Condition(t, assert.Comparison(func() bool { return len(endpoints) == 0 }))
-// 			}
-// 		})
-// 	}
-// }
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				endpoints, _ := plugin.nm.GetAllEndpoints(localNwCfg.Name)
+				require.Condition(t, assert.Comparison(func() bool { return len(endpoints) == 0 }))
+			}
+		})
+	}
+}
 
 /*
 AKS-Swift scenario

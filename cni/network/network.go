@@ -411,17 +411,17 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 	}
 
 	platformInit(nwCfg)
-	// if nwCfg.ExecutionMode == string(util.Baremetal) {
-	// 	var res *nnscontracts.ConfigureContainerNetworkingResponse
-	// 	logger.Info("Baremetal mode. Calling vnet agent for ADD")
-	// 	res, err = plugin.nnsClient.AddContainerNetworking(context.Background(), k8sPodName, args.Netns)
+	if nwCfg.ExecutionMode == string(util.Baremetal) {
+		var res *nnscontracts.ConfigureContainerNetworkingResponse
+		logger.Info("Baremetal mode. Calling vnet agent for ADD")
+		res, err = plugin.nnsClient.AddContainerNetworking(context.Background(), k8sPodName, args.Netns)
 
-	// 	if err == nil {
-	// 		ipamAddResult.defaultInterfaceInfo.ipResult = convertNnsToCniResult(res, args.IfName, k8sPodName, "AddContainerNetworking")
-	// 	}
+		if err == nil {
+			ipamAddResult.defaultInterfaceInfo.IPConfigs = convertNnsToIPConfigs(res, args.IfName, k8sPodName, "AddContainerNetworking")
+		}
 
-	// 	return err
-	// }
+		return err
+	}
 
 	for _, ns := range nwCfg.PodNamespaceForDualNetwork {
 		if k8sNamespace == ns {
@@ -1311,22 +1311,19 @@ func (plugin *NetPlugin) Update(args *cniSkel.CmdArgs) error {
 	return nil
 }
 
-func convertNnsToCniResult(
+func convertNnsToIPConfigs(
 	netRes *nnscontracts.ConfigureContainerNetworkingResponse,
 	ifName string,
 	podName string,
 	operationName string,
-) *cniTypesCurr.Result {
+) []*network.IPConfig {
 	// This function does not add interfaces to CNI result. Reason being CRI (containerD in baremetal case)
 	// only looks for default interface named "eth0" and this default interface is added in the defer
 	// method of ADD method
-	result := &cniTypesCurr.Result{}
-	var resultIpconfigs []*cniTypesCurr.IPConfig
+	var ipConfigs []*network.IPConfig
 
 	if netRes.Interfaces != nil {
-		for i, ni := range netRes.Interfaces {
-
-			intIndex := i
+		for _, ni := range netRes.Interfaces {
 			for _, ip := range ni.Ipaddresses {
 				ipAddr := net.ParseIP(ip.Ip)
 
@@ -1350,20 +1347,16 @@ func convertNnsToCniResult(
 				}
 
 				gateway := net.ParseIP(ip.DefaultGateway)
-				ipConfig := &cniTypesCurr.IPConfig{
-					Address:   address,
-					Gateway:   gateway,
-					Interface: &intIndex,
-				}
 
-				resultIpconfigs = append(resultIpconfigs, ipConfig)
+				ipConfigs = append(ipConfigs, &network.IPConfig{
+					Address: address,
+					Gateway: gateway,
+				})
 			}
 		}
 	}
 
-	result.IPs = resultIpconfigs
-
-	return result
+	return ipConfigs
 }
 
 func convertInterfaceInfoToCniResult(info network.InterfaceInfo) *cniTypesCurr.Result {
