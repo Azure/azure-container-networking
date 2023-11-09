@@ -147,7 +147,7 @@ func (client *TransparentVlanEndpointClient) ensureCleanPopulateVM() error {
 				return errors.Wrap(vlanIfErr, "could not determine if vlan veth exists in vnet namespace")
 			}
 			// Assume any other error is the vlan interface not found
-			logger.Info("Vlan interface doesn't exist even though network namespace exists, deleting network namespace...", zap.String("message", vlanIfErr.Error()))
+			logger.Info("vlan interface doesn't exist even though network namespace exists, deleting network namespace...", zap.String("message", vlanIfErr.Error()))
 			delErr := client.netnsClient.DeleteNamed(client.vnetNSName)
 			if delErr != nil {
 				return errors.Wrap(delErr, "failed to cleanup/delete ns after noticing vlan veth does not exist")
@@ -158,7 +158,7 @@ func (client *TransparentVlanEndpointClient) ensureCleanPopulateVM() error {
 	_, vlanIfInVMErr := client.netioshim.GetNetworkInterfaceByName(client.vlanIfName)
 	if vlanIfInVMErr == nil {
 		// The vlan interface exists in the VM ns because it failed to move into the network ns previously and needs to be cleaned up
-		logger.Info("Vlan interface exists on the VM namespace, deleting", zap.String("vlanIfName", client.vlanIfName))
+		logger.Info("vlan interface exists on the VM namespace, deleting", zap.String("vlanIfName", client.vlanIfName))
 		if delErr := client.netlink.DeleteLink(client.vlanIfName); delErr != nil {
 			return errors.Wrap(delErr, "failed to clean up vlan interface")
 		}
@@ -306,7 +306,7 @@ func (client *TransparentVlanEndpointClient) PopulateVM(epInfo *EndpointInfo) er
 		}
 		logger.Info("Moving vlan veth into namespace confirmed")
 	} else {
-		logger.Info("Existing NS detected. Vlan interface should exist or namespace would've been deleted.", zap.String("vnetNSName", client.vnetNSName), zap.String("vlanIfName", client.vlanIfName))
+		logger.Info("Existing NS detected. vlan interface should exist or namespace would've been deleted.", zap.String("vnetNSName", client.vnetNSName), zap.String("vlanIfName", client.vlanIfName))
 	}
 
 	// Get the default constant host veth mac
