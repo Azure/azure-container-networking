@@ -25,7 +25,7 @@ data:
   enable-health-check-nodeport: "true"
   enable-health-checking: "true"
   enable-host-legacy-routing: "true"
-  enable-hubble: "true"
+  enable-hubble: "false"
   enable-ipv4: "true"
   enable-ipv4-masquerade: "false"
   enable-ipv6: "false"
@@ -43,16 +43,6 @@ data:
   enable-vtep: "false"
   enable-well-known-identities: "false"
   enable-xt-socket-fallback: "true"
-  hubble-metrics: flow:sourceContext=workload-name;destinationContext=workload-name
-    tcp:sourceContext=workload-name;destinationContext=workload-name
-    dns:flow:sourceContext=workload-name;destinationContext=workload-name
-  hubble-metrics-server: :9965
-  hubble-disable-tls: "false"
-  hubble-listen-address: ""
-  hubble-socket-path: /dev/null
-  hubble-tls-cert-file: /var/lib/cilium/tls/hubble/server.crt
-  hubble-tls-client-ca-files: /var/lib/cilium/tls/hubble/client-ca.crt
-  hubble-tls-key-file: /var/lib/cilium/tls/hubble/server.key
   identity-allocation-mode: crd
   install-iptables-rules: "true"
   install-no-conntrack-iptables-rules: "false"
