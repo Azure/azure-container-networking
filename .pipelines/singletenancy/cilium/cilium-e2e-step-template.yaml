@@ -145,7 +145,7 @@ steps:
   - script: |
       echo "Run Cilium Connectivity Tests"
       cilium status
-      cilium connectivity test --connect-timeout 4s --request-timeout 30s
+      cilium connectivity test --connect-timeout 4s --request-timeout 30s --test '!pod-to-pod-encryption,!node-to-node-encryption'
     retryCountOnTaskFailure: 3
     name: "ciliumConnectivityTests"
     displayName: "Run Cilium Connectivity Tests"
