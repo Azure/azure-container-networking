@@ -114,6 +114,13 @@ func (client *SecondaryEndpointClient) ConfigureContainerInterfacesAndRoutes(epI
 		return newErrorSecondaryEndpointClient(errors.New("routes expected for " + epInfo.IfName))
 	}
 
+	// virtual gw route needs to be scope link
+	for i := range epInfo.Routes {
+		if epInfo.Routes[i].Gw == nil {
+			epInfo.Routes[i].Scope = netlink.RT_SCOPE_LINK
+		}
+	}
+
 	if err := addRoutes(client.netlink, client.netioshim, epInfo.IfName, epInfo.Routes); err != nil {
 		return newErrorSecondaryEndpointClient(err)
 	}
