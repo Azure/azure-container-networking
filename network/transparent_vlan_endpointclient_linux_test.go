@@ -5,7 +5,6 @@ package network
 
 import (
 	"net"
-	"os"
 	"testing"
 
 	"github.com/Azure/azure-container-networking/netio"
@@ -18,7 +17,6 @@ import (
 
 var errNetnsMock = errors.New("mock netns error")
 var errMockNetIOFail = errors.New("netio fail")
-var errMockNetIOSyscallFail = &net.OpError{Op: "route", Net: "ip+net", Source: nil, Addr: nil, Err: os.NewSyscallError("syscall error", errMockNetIOFail)}
 var errMockNetIONoIfFail = &net.OpError{Op: "route", Net: "ip+net", Source: nil, Addr: nil, Err: errors.New("no such network interface")}
 
 func newNetnsErrorMock(errStr string) error {
@@ -259,7 +257,7 @@ func TestTransparentVlanAddEndpoints(t *testing.T) {
 			wantErrMsg: "failed to cleanup/delete ns after noticing vlan veth does not exist: netns failure: " + errNetnsMock.Error(),
 		},
 		{
-			name: "Ensure clean populate VM vnet ns exists unknown if vlan veth exists",
+			name: "Ensure clean populate VM cleanup straggling vlan if in vm ns",
 			client: &TransparentVlanEndpointClient{
 				primaryHostIfName: "eth0",
 				vlanIfName:        "eth0.1",
@@ -267,24 +265,20 @@ func TestTransparentVlanAddEndpoints(t *testing.T) {
 				containerVethName: "B1veth0",
 				vnetNSName:        "az_ns_1",
 				netnsClient: &mockNetns{
-					get:         defaultGet,
-					getFromName: defaultGetFromName,
-					deleteNamed: func(name string) (err error) {
-						return newNetnsErrorMock("netns failure")
+					get: defaultGet,
+					getFromName: func(name string) (fileDescriptor int, err error) {
+						return 0, newNetnsErrorMock("netns failure")
 					},
 				},
-				netlink:        netlink.NewMockNetlink(false, ""),
+				netlink:        netlink.NewMockNetlink(true, "netlink fail"),
 				plClient:       platform.NewMockExecClient(false),
 				netUtilsClient: networkutils.NewNetworkUtils(nl, plc),
-				netioshim: &mockNetIO{
-					existingInterfaces: map[string]bool{},
-					err:                errMockNetIOSyscallFail,
-				},
-				nsClient: NewMockNamespaceClient(),
+				netioshim:      netio.NewMockNetIO(false, 0),
+				nsClient:       NewMockNamespaceClient(),
 			},
 			epInfo:     &EndpointInfo{},
 			wantErr:    true,
-			wantErrMsg: "could not determine if vlan veth exists in vnet namespace",
+			wantErrMsg: "failed to clean up vlan interface",
 		},
 	}
 	for _, tt := range tests {

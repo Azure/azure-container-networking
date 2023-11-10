@@ -3,7 +3,6 @@ package network
 import (
 	"fmt"
 	"net"
-	"os"
 	"strings"
 	"time"
 
@@ -139,14 +138,8 @@ func (client *TransparentVlanEndpointClient) ensureCleanPopulateVM() error {
 			_, err := client.netioshim.GetNetworkInterfaceByName(client.vlanIfName)
 			return errors.Wrap(err, "failed to get vlan interface in namespace")
 		})
-
-		// If the vlan veth for sure doesn't exist, we delete the vnet ns, but if we can't query, we can't delete the ns (the vlan veth might exist!)
 		if vlanIfErr != nil {
-			var ev *os.SyscallError
-			if errors.As(vlanIfErr, &ev) {
-				return errors.Wrap(vlanIfErr, "could not determine if vlan veth exists in vnet namespace")
-			}
-			// Assume any other error is the vlan interface not found
+			// Assume any error is the vlan interface not found
 			logger.Info("vlan interface doesn't exist even though network namespace exists, deleting network namespace...", zap.String("message", vlanIfErr.Error()))
 			delErr := client.netnsClient.DeleteNamed(client.vnetNSName)
 			if delErr != nil {
