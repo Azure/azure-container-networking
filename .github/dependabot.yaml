@@ -5,9 +5,6 @@ updates:
   directory: "/"
   schedule:
     interval: "daily"
-  assignees:
-    - "matmerr"
-    - "rbtr"
   reviewers:
     - "azure/azure-sdn-members"
   commit-message:
@@ -17,9 +14,6 @@ updates:
   directory: "/"
   schedule:
     interval: "daily"
-  assignees:
-    - "matmerr"
-    - "rbtr"
   reviewers:
     - "azure/azure-sdn-members"
   commit-message:
@@ -29,9 +23,6 @@ updates:
   directory: "/"
   schedule:
     interval: "daily"
-  assignees:
-    - "matmerr"
-    - "rbtr"
   reviewers:
     - "azure/azure-sdn-members"
   commit-message:
@@ -40,9 +31,6 @@ updates:
   directory: "/azure-ipam"
   schedule:
     interval: "daily"
-  assignees:
-    - "matmerr"
-    - "rbtr"
   reviewers:
     - "azure/azure-sdn-members"
   commit-message:
@@ -51,9 +39,6 @@ updates:
   directory: "/build/tools"
   schedule:
     interval: "daily"
-  assignees:
-    - "matmerr"
-    - "rbtr"
   reviewers:
     - "azure/azure-sdn-members"
   commit-message:
@@ -62,17 +47,11 @@ updates:
   directory: "/dropgz"
   schedule:
     interval: "daily"
-  assignees:
-    - "matmerr"
-    - "rbtr"
   commit-message:
     prefix: "deps"
 - package-ecosystem: "gomod"
   directory: "/zapai"
   schedule:
     interval: "daily"
-  assignees:
-    - "matmerr"
-    - "rbtr"
   commit-message:
     prefix: "deps"

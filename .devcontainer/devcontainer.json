@@ -5,11 +5,7 @@
 	"build": {
 		"dockerfile": "Dockerfile",
 		"args": {
-			// Update the VARIANT arg to pick a version of Go: 1, 1.16, 1.17
-			// Append -bullseye or -buster to pin to an OS version.
-			// Use -bullseye variants on local arm64/Apple Silicon.
-			"VARIANT": "1.20-bullseye",
-			// Options
+			"VARIANT": "1.21-bullseye",
 			"NODE_VERSION": "none"
 		}
 	},
@@ -19,47 +15,46 @@
 		"--security-opt",
 		"seccomp=unconfined"
 	],
-	// Set *default* container specific settings.json values on container create.
-	"settings": {
-		"editor.formatOnSave": true,
-		"files.autoSave": "onFocusChange",
-		"files.insertFinalNewline": true,
-		"git.allowForcePush": true,
-		"git.alwaysSignOff": true,
-		"git.autoStash": true,
-		"git.autofetch": "all",
-		"git.branchSortOrder": "alphabetically",
-		"git.enableCommitSigning": true,
-		"git.fetchOnPull": true,
-		"git.pruneOnFetch": true,
-		"git.rebaseWhenSync": true,
-		"go.coverOnSave": true,
-		"go.coverOnSingleTest": true,
-		"go.coverOnSingleTestFile": true,
-		"go.formatTool": "gofumpt",
-		"go.gopath": "/go",
-		"go.goroot": "/usr/local/go",
-		"go.lintTool": "golangci-lint",
-		"go.testOnSave": true,
-		"go.toolsManagement.autoUpdate": true,
-		"go.toolsManagement.checkForUpdates": "local",
-		"go.useLanguageServer": true
+	"customizations": {
+		"codespaces": {},
+		"vscode": {
+			"settings": {
+				"editor.formatOnSave": true,
+				"files.autoSave": "onFocusChange",
+				"files.insertFinalNewline": true,
+				"git.allowForcePush": true,
+				"git.alwaysSignOff": true,
+				"git.autoStash": true,
+				"git.autofetch": "all",
+				"git.branchSortOrder": "alphabetically",
+				"git.enableCommitSigning": true,
+				"git.fetchOnPull": true,
+				"git.pruneOnFetch": true,
+				"git.rebaseWhenSync": true,
+				"go.coverOnSave": true,
+				"go.coverOnSingleTest": true,
+				"go.coverOnSingleTestFile": true,
+				"go.formatTool": "gofumpt",
+				"go.gopath": "/go",
+				"go.goroot": "/usr/local/go",
+				"go.lintTool": "golangci-lint",
+				"go.testOnSave": true,
+				"go.toolsManagement.autoUpdate": true,
+				"go.toolsManagement.checkForUpdates": "local",
+				"go.useLanguageServer": true
+			},
+			"extensions": [
+				"bierner.github-markdown-preview",
+				"gitHub.codespaces",
+				"ms-vscode-remote.vscode-remote-extensionpack",
+				"golang.go",
+				"ms-vsliveshare.vsliveshare-pack",
+				"redhat.vscode-yaml",
+				"eamodio.gitlens"
+			]
+		}
 	},
-	// Add the IDs of extensions you want installed when the container is created.
-	"extensions": [
-		"bierner.github-markdown-preview",
-		"gitHub.codespaces",
-		"ms-vscode-remote.vscode-remote-extensionpack",
-		"golang.go",
-		"ms-vsliveshare.vsliveshare-pack",
-		"redhat.vscode-yaml",
-		"eamodio.gitlens"
-	],
-	// Use 'forwardPorts' to make a list of ports inside the container available locally.
-	// "forwardPorts": [],
-	// Use 'postCreateCommand' to run commands after the container is created.
 	"postCreateCommand": "make setup",
-	// Comment out connect as root instead. More info: https://aka.ms/vscode-remote/containers/non-root.
 	"remoteUser": "vscode",
 	"features": {
 		"docker-in-docker": "latest",
