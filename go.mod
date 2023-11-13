@@ -133,21 +133,18 @@ require (
 )
 
 require (
-	gotest.tools/v3 v3.4.0
+	gotest.tools/v3 v3.5.0
 	sigs.k8s.io/yaml v1.3.0
 )
 
 require (
-	github.com/elazarl/goproxy v0.0.0-20231031074852-3ec07828be7a // indirect
+	github.com/containerd/containerd v1.6.23 // indirect
 	github.com/emicklei/go-restful/v3 v3.11.0 // indirect
-	github.com/felixge/httpsnoop v1.0.3 // indirect
-	github.com/gorilla/handlers v1.5.2 // indirect
 	github.com/rootless-containers/rootlesskit v1.1.1 // indirect
 )
 
 replace (
 	github.com/Microsoft/go-winio => github.com/microsoft/go-winio v0.4.17
-	github.com/Microsoft/hcsshim => github.com/vakalapa/hcsshim v0.9.1-0.20211203205307-837d4d06df77
 	github.com/onsi/ginkgo => github.com/onsi/ginkgo v1.12.0
 	github.com/onsi/gomega => github.com/onsi/gomega v1.10.0
 )

@@ -203,22 +203,22 @@ func TestApplyDeletions(t *testing.T) {
 	toDeleteSetNames := []string{TestCIDRSet.PrefixName, TestNestedLabelList.PrefixName}
 	toAddOrUpdateSetMap := map[string]hcn.SetPolicySetting{
 		TestNSSet.PrefixName: {
-			Id:         TestNSSet.HashedName,
-			PolicyType: hcn.SetPolicyTypeIpSet,
-			Name:       TestNSSet.PrefixName,
-			Values:     "10.0.0.0",
+			Id:     TestNSSet.HashedName,
+			Type:   hcn.SetPolicyTypeIpSet,
+			Name:   TestNSSet.PrefixName,
+			Values: "10.0.0.0",
 		},
 		TestKeyPodSet.PrefixName: {
-			Id:         TestKeyPodSet.HashedName,
-			PolicyType: hcn.SetPolicyTypeIpSet,
-			Name:       TestKeyPodSet.PrefixName,
-			Values:     "",
+			Id:     TestKeyPodSet.HashedName,
+			Type:   hcn.SetPolicyTypeIpSet,
+			Name:   TestKeyPodSet.PrefixName,
+			Values: "",
 		},
 		TestKeyNSList.PrefixName: {
-			Id:         TestKeyNSList.HashedName,
-			PolicyType: SetPolicyTypeNestedIPSet,
-			Name:       TestKeyNSList.PrefixName,
-			Values:     TestNSSet.HashedName,
+			Id:     TestKeyNSList.HashedName,
+			Type:   SetPolicyTypeNestedIPSet,
+			Name:   TestKeyNSList.PrefixName,
+			Values: TestNSSet.HashedName,
 		},
 	}
 
@@ -245,16 +245,16 @@ func TestFailureOnCreation(t *testing.T) {
 	toDeleteSetNames := []string{TestCIDRSet.PrefixName}
 	toAddOrUpdateSetMap := map[string]hcn.SetPolicySetting{
 		TestNSSet.PrefixName: {
-			Id:         TestNSSet.HashedName,
-			PolicyType: hcn.SetPolicyTypeIpSet,
-			Name:       TestNSSet.PrefixName,
-			Values:     "10.0.0.0,10.0.0.1",
+			Id:     TestNSSet.HashedName,
+			Type:   hcn.SetPolicyTypeIpSet,
+			Name:   TestNSSet.PrefixName,
+			Values: "10.0.0.0,10.0.0.1",
 		},
 		TestKeyPodSet.PrefixName: {
-			Id:         TestKeyPodSet.HashedName,
-			PolicyType: hcn.SetPolicyTypeIpSet,
-			Name:       TestKeyPodSet.PrefixName,
-			Values:     "10.0.0.5",
+			Id:     TestKeyPodSet.HashedName,
+			Type:   hcn.SetPolicyTypeIpSet,
+			Name:   TestKeyPodSet.PrefixName,
+			Values: "10.0.0.5",
 		},
 	}
 
@@ -333,10 +333,10 @@ func TestFailureOnFlush(t *testing.T) {
 	toDeleteSetNames := []string{TestKVPodSet.PrefixName, TestCIDRSet.PrefixName}
 	toAddOrUpdateSetMap := map[string]hcn.SetPolicySetting{
 		TestNSSet.PrefixName: {
-			Id:         TestNSSet.HashedName,
-			PolicyType: hcn.SetPolicyTypeIpSet,
-			Name:       TestNSSet.PrefixName,
-			Values:     "10.0.0.0",
+			Id:     TestNSSet.HashedName,
+			Type:   hcn.SetPolicyTypeIpSet,
+			Name:   TestNSSet.PrefixName,
+			Values: "10.0.0.0",
 		},
 	}
 
@@ -362,10 +362,10 @@ func TestFailureOnDeletion(t *testing.T) {
 	toDeleteSetNames := []string{TestKVPodSet.PrefixName, TestCIDRSet.PrefixName}
 	toAddOrUpdateSetMap := map[string]hcn.SetPolicySetting{
 		TestNSSet.PrefixName: {
-			Id:         TestNSSet.HashedName,
-			PolicyType: hcn.SetPolicyTypeIpSet,
-			Name:       TestNSSet.PrefixName,
-			Values:     "10.0.0.0",
+			Id:     TestNSSet.HashedName,
+			Type:   hcn.SetPolicyTypeIpSet,
+			Name:   TestNSSet.PrefixName,
+			Values: "10.0.0.0",
 		},
 	}
 
