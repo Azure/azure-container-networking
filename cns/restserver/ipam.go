@@ -6,16 +6,17 @@ package restserver
 import (
 	"context"
 	"fmt"
-	"net"
-	"net/http"
-	"strconv"
-
 	"github.com/Azure/azure-container-networking/cns"
+	"github.com/Azure/azure-container-networking/cns/configuration"
 	"github.com/Azure/azure-container-networking/cns/filter"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/common"
+	acn "github.com/Azure/azure-container-networking/common"
 	"github.com/pkg/errors"
+	"net"
+	"net/http"
+	"strconv"
 )
 
 var (
@@ -75,8 +76,17 @@ func (service *HTTPRestService) requestIPConfigHandlerHelper(ctx context.Context
 
 	// Check if request is for pod with secondary interface(s)
 	if podInfo.SecondaryInterfacesExist() {
+		cmdLineConfigPath := acn.GetArg(acn.OptCNSConfigPath).(string)
+		cnsconfig, err := configuration.ReadConfig(cmdLineConfigPath)
 		// In the future, if we have multiple scenario with secondary interfaces, we can add a switch case here
-		SWIFTv2PodIPInfo, err := service.SWIFTv2Middleware.GetIPConfig(ctx, podInfo)
+		var SWIFTv2PodIPInfo cns.PodIpInfo
+		switch cnsconfig.EnableSwiftV2 {
+		case configuration.EnableSFSwiftV2:
+			SWIFTv2PodIPInfo, err = service.SFSWIFTv2Middleware.GetIPConfigs(podInfo)
+		case configuration.EnableK8SwiftV2:
+			SWIFTv2PodIPInfo, err = service.SWIFTv2Middleware.GetIPConfig(ctx, podInfo)
+		}
+
 		if err != nil {
 			defer func() {
 				logger.Errorf("failed to get SWIFTv2 IP config : %v. Releasing default IP config...", err)

@@ -74,6 +74,7 @@ type HTTPRestService struct {
 	generateCNIConflistOnce    sync.Once
 	ipConfigsRequestValidators []cns.IPConfigsRequestValidator
 	SWIFTv2Middleware          cns.SWIFTv2Middleware
+	SFSWIFTv2Middleware        cns.SFSWIFTv2Middleware
 }
 
 type CNIConflistGenerator interface {
@@ -357,4 +358,10 @@ func (service *HTTPRestService) AttachSWIFTv2Middleware(middleware cns.SWIFTv2Mi
 	service.SWIFTv2Middleware = middleware
 	// adding the SWIFT v2 ipconfigs request validator
 	service.ipConfigsRequestValidators = append(service.ipConfigsRequestValidators, middleware.ValidateIPConfigsRequest)
+}
+
+func (service *HTTPRestService) AttachSFSWIFTv2Middleware(middleware cns.SFSWIFTv2Middleware) {
+	service.SFSWIFTv2Middleware = middleware
+	// adding the SF SWIFT v2 ipconfigs request validator
+	service.ipConfigsRequestValidators = append(service.ipConfigsRequestValidators, middleware.ValidateIPConfigsRequests)
 }

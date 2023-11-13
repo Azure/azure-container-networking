@@ -1163,7 +1163,7 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 
 	// check the Node labels for Swift V2
 	if _, ok := node.Labels[configuration.LabelNodeSwiftV2]; ok {
-		cnsconfig.EnableSwiftV2 = true
+		cnsconfig.EnableSwiftV2 = configuration.EnableK8SwiftV2
 		cnsconfig.WatchPods = true
 		// TODO(rbtr): create the NodeInfo for Swift V2
 		// register the noop mtpnc reconciler to populate the cache
@@ -1326,13 +1326,17 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 		}
 	}
 
-	if cnsconfig.EnableSwiftV2 {
+	if cnsconfig.EnableSwiftV2 == configuration.EnableK8SwiftV2 {
 		if err := mtpncctrl.SetupWithManager(manager); err != nil {
 			return errors.Wrapf(err, "failed to setup mtpnc reconciler with manager")
 		}
 		// if SWIFT v2 is enabled on CNS, attach multitenant middleware to rest service
 		swiftV2Middleware := middlewares.SWIFTv2Middleware{Cli: manager.GetClient()}
 		httpRestService.AttachSWIFTv2Middleware(&swiftV2Middleware)
+	} else if cnsconfig.EnableSwiftV2 == configuration.EnableSFSwiftV2 {
+		// if SWIFT v2 is enabled on CNS, attach multitenant middleware to rest service
+		swiftV2Middleware := middlewares.SFSWIFTv2Middleware{Cli: manager.GetClient()}
+		httpRestService.AttachSFSWIFTv2Middleware(&swiftV2Middleware)
 	}
 
 	// adding some routes to the root service mux

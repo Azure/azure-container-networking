@@ -19,11 +19,16 @@ const (
 	defaultConfigName = "cns_config.json"
 )
 
+const (
+	EnableSFSwiftV2 EnableSwiftV2Mode = "EnableSFSwiftV2"
+	EnableK8SwiftV2 EnableSwiftV2Mode = "EnableK8SwiftV2"
+)
+
 type CNSConfig struct {
 	ChannelMode                 string
 	EnablePprof                 bool
 	EnableSubnetScarcity        bool
-	EnableSwiftV2               bool
+	EnableSwiftV2               EnableSwiftV2Mode
 	InitializeFromCNI           bool
 	ManagedSettings             ManagedSettings
 	MetricsBindAddress          string
@@ -49,6 +54,8 @@ type CNSConfig struct {
 	EnableAsyncPodDelete        bool
 	AsyncPodDeletePath          string
 }
+
+type EnableSwiftV2Mode string
 
 type TelemetrySettings struct {
 	// Flag to disable the telemetry.
