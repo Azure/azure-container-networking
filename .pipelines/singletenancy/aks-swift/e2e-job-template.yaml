@@ -40,6 +40,9 @@ stages:
       TAG: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
       CURRENT_VERSION: $[ stagedependencies.containerize.check_tag.outputs['CurrentTagManifests.currentTagManifests'] ]
       commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
+      GOPATH: "$(Agent.TempDirectory)/go" # Go workspace path
+      GOBIN: "$(GOPATH)/bin" # Go binaries path
+      modulePath: "$(GOPATH)/src/github.com/Azure/azure-container-networking"
     condition: and(succeeded(), eq(variables.TAG, variables.CURRENT_VERSION))
     pool:
       name: $(BUILD_POOL_NAME_DEFAULT)
@@ -52,10 +55,6 @@ stages:
           demands:
           - agent.os -equals Linux
           - Role -equals $(CUSTOM_E2E_ROLE)
-        variables:
-          GOPATH: "$(Agent.TempDirectory)/go" # Go workspace path
-          GOBIN: "$(GOPATH)/bin" # Go binaries path
-          modulePath: "$(GOPATH)/src/github.com/Azure/azure-container-networking"
         steps:
           - template: e2e-step-template.yaml
             parameters:

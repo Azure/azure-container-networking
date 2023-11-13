@@ -369,7 +369,7 @@ func (nm *networkManager) DeleteEndpoint(networkID, endpointID string) error {
 		return err
 	}
 
-	err = nw.deleteEndpoint(nm.netlink, nm.plClient, nm.nsClient, endpointID)
+	err = nw.deleteEndpoint(nm.netlink, nm.plClient, nm.netio, nm.nsClient, endpointID)
 	if err != nil {
 		return err
 	}

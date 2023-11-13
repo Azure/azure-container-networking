@@ -126,12 +126,7 @@ func setWeakHostOnInterface(ipAddress, ncID string) error {
 	return nil
 }
 
-func createOrUpdateWithOperation(
-	adapterName string,
-	ipConfig cns.IPConfiguration,
-	setWeakHost bool,
-	primaryInterfaceIdentifier string,
-	operation string) error {
+func createOrUpdateWithOperation(adapterName string, ipConfig cns.IPConfiguration, setWeakHost bool, primaryInterfaceIdentifier, operation string) error {
 	acnBinaryPath, err := getAzureNetworkContainerBinaryPath()
 	if err != nil {
 		return err

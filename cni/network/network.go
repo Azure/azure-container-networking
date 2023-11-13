@@ -535,7 +535,10 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 
 		defer func() { //nolint:gocritic
 			if err != nil {
-				plugin.cleanupAllocationOnError(ipamAddResult.defaultInterfaceInfo.ipResult, nwCfg, args, options)
+				// for multi-tenancies scenario, CNI is not supposed to invoke CNS for cleaning Ips
+				if !(nwCfg.MultiTenancy && nwCfg.IPAM.Type == network.AzureCNS) {
+					plugin.cleanupAllocationOnError(ipamAddResult.defaultInterfaceInfo.ipResult, nwCfg, args, options)
+				}
 			}
 		}()
 
@@ -819,7 +822,7 @@ func (plugin *NetPlugin) createEndpointInternal(opt *createEndpointInternalOpt) 
 				IPAddresses:       addresses,
 				Routes:            routes,
 				MacAddress:        secondaryCniResult.macAddress,
-				NICType:           cns.DelegatedVMNIC,
+				NICType:           secondaryCniResult.nicType,
 				SkipDefaultRoutes: secondaryCniResult.skipDefaultRoutes,
 			})
 	}
@@ -903,7 +906,7 @@ func (plugin *NetPlugin) Get(args *cniSkel.CmdArgs) error {
 
 	// Query the endpoint.
 	if epInfo, err = plugin.nm.GetEndpointInfo(networkID, endpointID); err != nil {
-		plugin.Errorf("Failed to query endpoint: %v", err)
+		logger.Error("Failed to query endpoint", zap.Error(err))
 		return err
 	}
 

@@ -463,7 +463,7 @@ func configureSecondaryAddResult(info *IPResultInfo, addResult *IPAMAddResult, p
 				},
 			},
 		},
-		nicType:           cns.DelegatedVMNIC,
+		nicType:           info.nicType,
 		macAddress:        macAddress,
 		skipDefaultRoutes: info.skipDefaultRoutes,
 	}

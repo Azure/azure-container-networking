@@ -34,6 +34,7 @@ const (
 	enableIPForwardCmd   = "sysctl -w net.ipv4.ip_forward=1"
 	toggleIPV6Cmd        = "sysctl -w net.ipv6.conf.all.disable_ipv6=%d"
 	enableIPV6ForwardCmd = "sysctl -w net.ipv6.conf.all.forwarding=1"
+	enableIPV4ForwardCmd = "sysctl -w net.ipv4.conf.all.forwarding=1"
 	disableRACmd         = "sysctl -w net.ipv6.conf.%s.accept_ra=0"
 	acceptRAV6File       = "/proc/sys/net/ipv6/conf/%s/accept_ra"
 )
@@ -199,8 +200,8 @@ func BlockIPAddresses(bridgeName, action string) error {
 	return nil
 }
 
-// This fucntion enables ip forwarding in VM and allow forwarding packets from the interface
-func (nu NetworkUtils) EnableIPForwarding(ifName string) error {
+// This function enables ip forwarding in VM and allow forwarding packets from the interface
+func (nu NetworkUtils) EnableIPForwarding() error {
 	// Enable ip forwading on linux vm.
 	// sysctl -w net.ipv4.ip_forward=1
 	cmd := fmt.Sprint(enableIPForwardCmd)
@@ -215,6 +216,16 @@ func (nu NetworkUtils) EnableIPForwarding(ifName string) error {
 		logger.Error("Appending forward chain rule: allow traffic coming from snatbridge failed with",
 			zap.Error(err))
 		return err
+	}
+
+	return nil
+}
+
+func (nu NetworkUtils) EnableIPV4Forwarding() error {
+	_, err := nu.plClient.ExecuteCommand(enableIPV4ForwardCmd)
+	if err != nil {
+		logger.Error("Enable ipv4 forwarding failed with", zap.Error(err))
+		return errors.Wrap(err, "enable ipv4 forwarding failed")
 	}
 
 	return nil

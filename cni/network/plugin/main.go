@@ -17,7 +17,6 @@ import (
 	zaplog "github.com/Azure/azure-container-networking/cni/log"
 	"github.com/Azure/azure-container-networking/cni/network"
 	"github.com/Azure/azure-container-networking/common"
-	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/nns"
 	"github.com/Azure/azure-container-networking/platform"
 	"github.com/Azure/azure-container-networking/store"
@@ -294,15 +293,6 @@ func main() {
 		printVersion()
 		os.Exit(0)
 	}
-
-	log.SetName(name)
-	log.SetLevel(log.LevelInfo)
-	if err := log.SetTargetLogDirectory(log.TargetLogfile, ""); err != nil {
-		fmt.Printf("Failed to setup cni logging: %v\n", err)
-		return
-	}
-
-	defer log.Close()
 
 	if rootExecute() != nil {
 		os.Exit(1)

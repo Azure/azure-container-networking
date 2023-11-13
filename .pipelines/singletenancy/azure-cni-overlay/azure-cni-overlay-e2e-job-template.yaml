@@ -38,6 +38,9 @@ stages:
     - ${{ parameters.clusterName }}
     variables:
       commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
+      GOPATH: "$(Agent.TempDirectory)/go" # Go workspace path
+      GOBIN: "$(GOPATH)/bin" # Go binaries path
+      modulePath: "$(GOPATH)/src/github.com/Azure/azure-container-networking"
     pool:
       name: $(BUILD_POOL_NAME_DEFAULT)
     jobs:
@@ -49,10 +52,6 @@ stages:
           demands:
           - agent.os -equals Linux
           - Role -equals $(CUSTOM_E2E_ROLE)
-        variables:
-          GOPATH: "$(Agent.TempDirectory)/go" # Go workspace path
-          GOBIN: "$(GOPATH)/bin" # Go binaries path
-          modulePath: "$(GOPATH)/src/github.com/Azure/azure-container-networking"
         steps:
           - template: azure-cni-overlay-e2e-step-template.yaml
             parameters:

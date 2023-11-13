@@ -9,7 +9,7 @@ AZCLI   ?= docker run --rm -v $(AZCFG):/root/.azure -v $(KUBECFG):/root/.kube -v
 
 # overrideable defaults
 AUTOUPGRADE     ?= patch
-K8S_VER         ?= 1.25 # Used only for ubuntu 18 as K8S 1.24.9, as K8S > 1.25 have Ubuntu 22
+K8S_VER         ?= 1.27 # Designated for Long Term Support, July 2025 | Only Ubuntu 22.04 is supported
 NODE_COUNT      ?= 2
 NODEUPGRADE     ?= NodeImage
 OS_SKU          ?= Ubuntu
@@ -236,7 +236,6 @@ linux-cniv1-up: rg-up overlay-net-up ## Bring up a Linux CNIv1 cluster
 		--max-pods 250 \
 		--network-plugin azure \
 		--vnet-subnet-id /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/virtualNetworks/$(VNET)/subnets/nodenet \
-		--kubernetes-version $(K8S_VER) \
 		--os-sku $(OS_SKU) \
 		--no-ssh-key \
 		--yes
@@ -253,7 +252,6 @@ dualstack-overlay-up: rg-up overlay-net-up ## Brings up an dualstack Overlay clu
 		--network-plugin-mode overlay \
 		--subscription $(SUB) \
 		--ip-families ipv4,ipv6 \
-		--kubernetes-version 1.26.3 \
 		--aks-custom-headers AKSHTTPCustomFeatures=Microsoft.ContainerService/AzureOverlayDualStackPreview \
 		--no-ssh-key \
 		--yes
@@ -269,9 +267,40 @@ dualstack-overlay-byocni-up: rg-up overlay-net-up ## Brings up an dualstack Over
 		--network-plugin-mode overlay \
 		--subscription $(SUB) \
 		--ip-families ipv4,ipv6 \
-		--kubernetes-version 1.26.3 \
 		--aks-custom-headers AKSHTTPCustomFeatures=Microsoft.ContainerService/AzureOverlayDualStackPreview \
 		--no-ssh-key \
+		--yes
+	@$(MAKE) set-kubeconf
+
+cilium-dualstack-up: rg-up overlay-net-up ## Brings up a Cilium Dualstack Overlay cluster with Linux node only
+	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
+		--auto-upgrade-channel $(AUTOUPGRADE) \
+		--node-os-upgrade-channel $(NODEUPGRADE) \
+		--node-count $(NODE_COUNT) \
+		--node-vm-size $(VM_SIZE) \
+		--network-plugin azure \
+		--network-plugin-mode overlay \
+		--network-dataplane cilium \
+		--subscription $(SUB) \
+		--ip-families ipv4,ipv6 \
+		--aks-custom-headers AKSHTTPCustomFeatures=Microsoft.ContainerService/AzureOverlayDualStackPreview \
+		--no-ssh-key \
+		--yes
+	@$(MAKE) set-kubeconf
+
+dualstack-byocni-nokubeproxy-up: rg-up overlay-net-up ## Brings up a Dualstack overlay BYOCNI cluster with Linux node only and no kube-proxy
+	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
+		--auto-upgrade-channel $(AUTOUPGRADE) \
+		--node-os-upgrade-channel $(NODEUPGRADE) \
+		--node-count $(NODE_COUNT) \
+		--node-vm-size $(VM_SIZE) \
+		--network-plugin none \
+		--network-plugin-mode overlay \
+		--subscription $(SUB) \
+		--ip-families ipv4,ipv6 \
+		--aks-custom-headers AKSHTTPCustomFeatures=Microsoft.ContainerService/AzureOverlayDualStackPreview \
+		--no-ssh-key \
+		--kube-proxy-config ./kube-proxy.json \
 		--yes
 	@$(MAKE) set-kubeconf
 

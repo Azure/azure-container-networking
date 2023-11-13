@@ -9,6 +9,7 @@ import (
 
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
+	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 )
@@ -90,6 +91,8 @@ const (
 	MultiTenantCRD = "MultiTenantCRD"
 )
 
+var ErrInvalidNCID = errors.New("invalid NetworkContainerID")
+
 // CreateNetworkContainerRequest specifies request to create a network container or network isolation boundary.
 type CreateNetworkContainerRequest struct {
 	HostPrimaryIP              string
@@ -110,6 +113,16 @@ type CreateNetworkContainerRequest struct {
 	EndpointPolicies           []NetworkContainerRequestPolicies
 	NCStatus                   v1alpha.NCStatus
 	NetworkInterfaceInfo       NetworkInterfaceInfo //nolint // introducing new field for backendnic, to be used later by cni code
+}
+
+func (req *CreateNetworkContainerRequest) Validate() error {
+	if req.NetworkContainerid == "" {
+		return errors.Wrap(ErrInvalidNCID, "NetworkContainerID is empty")
+	}
+	if _, err := uuid.Parse(strings.TrimPrefix(req.NetworkContainerid, SwiftPrefix)); err != nil {
+		return errors.Wrapf(ErrInvalidNCID, "NetworkContainerID %s is not a valid UUID: %s", req.NetworkContainerid, err.Error())
+	}
+	return nil
 }
 
 // CreateNetworkContainerRequest implements fmt.Stringer for logging
@@ -402,6 +415,15 @@ type GetAllNetworkContainersResponse struct {
 // PostNetworkContainersRequest specifies the request of creating all NCs that are sent from DNC.
 type PostNetworkContainersRequest struct {
 	CreateNetworkContainerRequests []CreateNetworkContainerRequest
+}
+
+func (req *PostNetworkContainersRequest) Validate() error {
+	for i := range req.CreateNetworkContainerRequests {
+		if err := req.CreateNetworkContainerRequests[i].Validate(); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // PostNetworkContainersResponse specifies response of creating all NCs that are sent from DNC.

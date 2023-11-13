@@ -52,6 +52,7 @@ func NewTransparentEndpointClient(
 	containerVethName string,
 	mode string,
 	nl netlink.NetlinkInterface,
+	nioc netio.NetIOInterface,
 	plc platform.ExecClient,
 ) *TransparentEndpointClient {
 	client := &TransparentEndpointClient{
@@ -62,7 +63,7 @@ func NewTransparentEndpointClient(
 		hostPrimaryMac:    extIf.MacAddress,
 		mode:              mode,
 		netlink:           nl,
-		netioshim:         &netio.NetIO{},
+		netioshim:         nioc,
 		plClient:          plc,
 		netUtilsClient:    networkutils.NewNetworkUtils(nl, plc),
 	}
