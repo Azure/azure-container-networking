@@ -25,7 +25,7 @@ stages:
           displayName: ${{ parameters.displayName }}
           clusterType: ${{ parameters.clusterType }}
           clusterName: ${{ parameters.clusterName }}-$(commitID)
-          vmSize: Standard_D4s_v3
+          vmSize: Standard_B2ms # Standard_D4s_v3
           k8sVersion: ${{ parameters.k8sVersion }}
           dependsOn: ${{ parameters.dependsOn }}
           region: $(REGION_AKS_CLUSTER_TEST)

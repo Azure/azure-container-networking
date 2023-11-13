@@ -31,7 +31,7 @@ stages:
               clusterType: ${{ parameters.clusterType }}
               clusterName: ${{ parameters.clusterName }}-$(commitID)
               nodeCount: ${{ parameters.nodeCount }}
-              vmSize: Standard_D4s_v3
+              vmSize: Standard_B2ms # Standard_D4s_v3
               region: $(LOCATION)
 
 # Conditions for below E2E test scenarios confirm that:

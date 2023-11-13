@@ -72,7 +72,7 @@ stages:
           displayName: Cilium on AKS Overlay
           clusterType: overlay-byocni-nokubeproxy-up
           clusterName: ciliumnightly-$(commitID)
-          vmSize: Standard_D4s_v3
+          vmSize: Standard_B2ms # Standard_D4s_v3
           k8sVersion: ""
           dependsOn: ""
           region: $(LOCATION)
