@@ -34,7 +34,7 @@ type MultitenancyClient interface {
 		cnsNetworkConfig *cns.GetNetworkContainerResponse,
 		azIpamResult *cniTypesCurr.Result,
 		epInfo *network.EndpointInfo,
-		result *cniTypesCurr.Result)
+		result *network.InterfaceInfo)
 	DetermineSnatFeatureOnHost(
 		snatFile string,
 		nmAgentSupportedApisURL string) (bool, bool, error)
@@ -163,7 +163,7 @@ func (m *Multitenancy) SetupRoutingForMultitenancy(
 	cnsNetworkConfig *cns.GetNetworkContainerResponse,
 	azIpamResult *cniTypesCurr.Result,
 	epInfo *network.EndpointInfo,
-	result *cniTypesCurr.Result,
+	result *network.InterfaceInfo,
 ) {
 	// Adding default gateway
 	// if snat enabled, add 169.254.128.1 as default gateway
@@ -175,7 +175,7 @@ func (m *Multitenancy) SetupRoutingForMultitenancy(
 		dstIP := net.IPNet{IP: net.ParseIP("0.0.0.0"), Mask: defaultIPNet.Mask}
 		gwIP := net.ParseIP(cnsNetworkConfig.IPConfiguration.GatewayIPAddress)
 		epInfo.Routes = append(epInfo.Routes, network.RouteInfo{Dst: dstIP, Gw: gwIP})
-		result.Routes = append(result.Routes, &cniTypes.Route{Dst: dstIP, GW: gwIP})
+		result.Routes = append(result.Routes, network.RouteInfo{Dst: dstIP, Gw: gwIP})
 
 		if epInfo.EnableSnatForDns {
 			logger.Info("add SNAT for DNS enabled")
@@ -183,7 +183,7 @@ func (m *Multitenancy) SetupRoutingForMultitenancy(
 		}
 	}
 
-	setupInfraVnetRoutingForMultitenancy(nwCfg, azIpamResult, epInfo, result)
+	setupInfraVnetRoutingForMultitenancy(nwCfg, azIpamResult, epInfo)
 }
 
 // get all network container configuration(s) for given orchestratorContext
@@ -220,8 +220,10 @@ func (m *Multitenancy) GetAllNetworkContainers(
 	for i := 0; i < len(ncResponses); i++ {
 		ipamResults[i].ncResponse = &ncResponses[i]
 		ipamResults[i].hostSubnetPrefix = hostSubnetPrefixes[i]
-		ipamResults[i].defaultInterfaceInfo.ipResult = convertToCniResult(ipamResults[i].ncResponse, ifName)
-		ipamResults[i].defaultInterfaceInfo.nicType = cns.InfraNIC
+		ipconfig, routes := convertToIPConfigAndRouteInfo(ipamResults[i].ncResponse)
+		ipamResults[i].defaultInterfaceInfo.IPConfigs = []*network.IPConfig{ipconfig}
+		ipamResults[i].defaultInterfaceInfo.Routes = routes
+		ipamResults[i].defaultInterfaceInfo.NICType = cns.InfraNIC
 	}
 
 	return ipamResults, err
@@ -279,9 +281,9 @@ func convertToCniResult(networkConfig *cns.GetNetworkContainerResponse, ifName s
 	ipAddr := net.ParseIP(ipconfig.IPSubnet.IPAddress)
 
 	if ipAddr.To4() != nil {
-		resultIpconfig.Address = net.IPNet{IP: ipAddr, Mask: net.CIDRMask(int(ipconfig.IPSubnet.PrefixLength), 32)}
+		resultIpconfig.Address = net.IPNet{IP: ipAddr, Mask: net.CIDRMask(int(ipconfig.IPSubnet.PrefixLength), ipv4FullMask)}
 	} else {
-		resultIpconfig.Address = net.IPNet{IP: ipAddr, Mask: net.CIDRMask(int(ipconfig.IPSubnet.PrefixLength), 128)}
+		resultIpconfig.Address = net.IPNet{IP: ipAddr, Mask: net.CIDRMask(int(ipconfig.IPSubnet.PrefixLength), ipv6FullMask)}
 	}
 
 	resultIpconfig.Gateway = net.ParseIP(ipconfig.GatewayIPAddress)
@@ -296,7 +298,7 @@ func convertToCniResult(networkConfig *cns.GetNetworkContainerResponse, ifName s
 	}
 
 	for _, ipRouteSubnet := range networkConfig.CnetAddressSpace {
-		routeIPnet := net.IPNet{IP: net.ParseIP(ipRouteSubnet.IPAddress), Mask: net.CIDRMask(int(ipRouteSubnet.PrefixLength), 32)}
+		routeIPnet := net.IPNet{IP: net.ParseIP(ipRouteSubnet.IPAddress), Mask: net.CIDRMask(int(ipRouteSubnet.PrefixLength), ipv4FullMask)}
 		gwIP := net.ParseIP(ipconfig.GatewayIPAddress)
 		result.Routes = append(result.Routes, &cniTypes.Route{Dst: routeIPnet, GW: gwIP})
 	}
@@ -307,6 +309,36 @@ func convertToCniResult(networkConfig *cns.GetNetworkContainerResponse, ifName s
 	return result
 }
 
+func convertToIPConfigAndRouteInfo(networkConfig *cns.GetNetworkContainerResponse) (*network.IPConfig, []network.RouteInfo) {
+	ipconfig := &network.IPConfig{}
+	cnsIPConfig := networkConfig.IPConfiguration
+	ipAddr := net.ParseIP(cnsIPConfig.IPSubnet.IPAddress)
+
+	if ipAddr.To4() != nil {
+		ipconfig.Address = net.IPNet{IP: ipAddr, Mask: net.CIDRMask(int(cnsIPConfig.IPSubnet.PrefixLength), ipv4FullMask)}
+	} else {
+		ipconfig.Address = net.IPNet{IP: ipAddr, Mask: net.CIDRMask(int(cnsIPConfig.IPSubnet.PrefixLength), ipv6FullMask)}
+	}
+
+	ipconfig.Gateway = net.ParseIP(cnsIPConfig.GatewayIPAddress)
+
+	routes := make([]network.RouteInfo, 0)
+	if networkConfig.Routes != nil && len(networkConfig.Routes) > 0 {
+		for _, route := range networkConfig.Routes {
+			_, routeIPnet, _ := net.ParseCIDR(route.IPAddress)
+			gwIP := net.ParseIP(route.GatewayIPAddress)
+			routes = append(routes, network.RouteInfo{Dst: *routeIPnet, Gw: gwIP})
+		}
+	}
+
+	for _, ipRouteSubnet := range networkConfig.CnetAddressSpace {
+		routeIPnet := net.IPNet{IP: net.ParseIP(ipRouteSubnet.IPAddress), Mask: net.CIDRMask(int(ipRouteSubnet.PrefixLength), ipv4FullMask)}
+		routes = append(routes, network.RouteInfo{Dst: routeIPnet, Gw: ipconfig.Gateway})
+	}
+
+	return ipconfig, routes
+}
+
 func checkIfSubnetOverlaps(enableInfraVnet bool, nwCfg *cni.NetworkConfig, cnsNetworkConfig *cns.GetNetworkContainerResponse) bool {
 	if enableInfraVnet {
 		if cnsNetworkConfig != nil {
@@ -314,7 +346,7 @@ func checkIfSubnetOverlaps(enableInfraVnet bool, nwCfg *cni.NetworkConfig, cnsNe
 			for _, cnetSpace := range cnsNetworkConfig.CnetAddressSpace {
 				cnetSpaceIPNet := &net.IPNet{
 					IP:   net.ParseIP(cnetSpace.IPAddress),
-					Mask: net.CIDRMask(int(cnetSpace.PrefixLength), 32),
+					Mask: net.CIDRMask(int(cnetSpace.PrefixLength), ipv4FullMask),
 				}
 
 				return infraNet.Contains(cnetSpaceIPNet.IP) || cnetSpaceIPNet.Contains(infraNet.IP)

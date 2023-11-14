@@ -38,7 +38,7 @@ func (m *MockMultitenancy) SetupRoutingForMultitenancy(
 	cnsNetworkConfig *cns.GetNetworkContainerResponse,
 	azIpamResult *current.Result,
 	epInfo *network.EndpointInfo,
-	result *current.Result) {
+	_ *network.InterfaceInfo) {
 }
 
 func (m *MockMultitenancy) DetermineSnatFeatureOnHost(snatFile, nmAgentSupportedApisURL string) (snatDNS, snatHost bool, err error) {
@@ -158,8 +158,10 @@ func (m *MockMultitenancy) GetAllNetworkContainers(
 	for i := 0; i < len(cnsResponses); i++ {
 		ipamResults[i].ncResponse = &cnsResponses[i]
 		ipamResults[i].hostSubnetPrefix = ipNets[i]
-		ipamResults[i].defaultInterfaceInfo.ipResult = convertToCniResult(ipamResults[i].ncResponse, ifName)
-		ipamResults[i].defaultInterfaceInfo.nicType = cns.InfraNIC
+		ipconfig, routes := convertToIPConfigAndRouteInfo(ipamResults[i].ncResponse)
+		ipamResults[i].defaultInterfaceInfo.IPConfigs = []*network.IPConfig{ipconfig}
+		ipamResults[i].defaultInterfaceInfo.Routes = routes
+		ipamResults[i].defaultInterfaceInfo.NICType = cns.InfraNIC
 	}
 
 	return ipamResults, nil

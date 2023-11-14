@@ -109,10 +109,16 @@ type RouteInfo struct {
 type InterfaceInfo struct {
 	Name              string
 	MacAddress        net.HardwareAddr
-	IPAddress         []net.IPNet
+	IPConfigs         []*IPConfig
 	Routes            []RouteInfo
+	DNS               DNSInfo
 	NICType           cns.NICType
 	SkipDefaultRoutes bool
+}
+
+type IPConfig struct {
+	Address net.IPNet
+	Gateway net.IP
 }
 
 type apipaClient interface {

@@ -9,7 +9,6 @@ import (
 	"github.com/Azure/azure-container-networking/network"
 	"github.com/Azure/azure-container-networking/network/policy"
 	cniSkel "github.com/containernetworking/cni/pkg/skel"
-	cniTypes "github.com/containernetworking/cni/pkg/types"
 	cniTypesCurr "github.com/containernetworking/cni/pkg/types/100"
 )
 
@@ -27,26 +26,19 @@ func (plugin *NetPlugin) handleConsecutiveAdd(args *cniSkel.CmdArgs, endpointID 
 	return nil, nil
 }
 
-func addDefaultRoute(gwIPString string, epInfo *network.EndpointInfo, result *cniTypesCurr.Result) {
+func addDefaultRoute(gwIPString string, epInfo *network.EndpointInfo, result *network.InterfaceInfo) {
 	_, defaultIPNet, _ := net.ParseCIDR("0.0.0.0/0")
 	dstIP := net.IPNet{IP: net.ParseIP("0.0.0.0"), Mask: defaultIPNet.Mask}
 	gwIP := net.ParseIP(gwIPString)
 	epInfo.Routes = append(epInfo.Routes, network.RouteInfo{Dst: dstIP, Gw: gwIP, DevName: snatInterface})
-	result.Routes = append(result.Routes, &cniTypes.Route{Dst: dstIP, GW: gwIP})
+	result.Routes = append(result.Routes, network.RouteInfo{Dst: dstIP, Gw: gwIP})
 }
 
-func addSnatForDNS(gwIPString string, epInfo *network.EndpointInfo, result *cniTypesCurr.Result) {
+func addSnatForDNS(gwIPString string, epInfo *network.EndpointInfo, result *network.InterfaceInfo) {
 	_, dnsIPNet, _ := net.ParseCIDR("168.63.129.16/32")
 	gwIP := net.ParseIP(gwIPString)
 	epInfo.Routes = append(epInfo.Routes, network.RouteInfo{Dst: *dnsIPNet, Gw: gwIP, DevName: snatInterface})
-	result.Routes = append(result.Routes, &cniTypes.Route{Dst: *dnsIPNet, GW: gwIP})
-}
-
-func addInfraRoutes(azIpamResult *cniTypesCurr.Result, result *cniTypesCurr.Result, epInfo *network.EndpointInfo) {
-	for _, route := range azIpamResult.Routes {
-		epInfo.Routes = append(epInfo.Routes, network.RouteInfo{Dst: route.Dst, Gw: route.GW, DevName: infraInterface})
-		result.Routes = append(result.Routes, &cniTypes.Route{Dst: route.Dst, GW: route.GW})
-	}
+	result.Routes = append(result.Routes, network.RouteInfo{Dst: *dnsIPNet, Gw: gwIP})
 }
 
 func setNetworkOptions(cnsNwConfig *cns.GetNetworkContainerResponse, nwInfo *network.NetworkInfo) {
@@ -87,7 +79,6 @@ func setupInfraVnetRoutingForMultitenancy(
 	nwCfg *cni.NetworkConfig,
 	azIpamResult *cniTypesCurr.Result,
 	epInfo *network.EndpointInfo,
-	result *cniTypesCurr.Result,
 ) {
 	if epInfo.EnableInfraVnet {
 		_, ipNet, _ := net.ParseCIDR(nwCfg.InfraVnetAddressSpace)
@@ -95,7 +86,7 @@ func setupInfraVnetRoutingForMultitenancy(
 	}
 }
 
-func getNetworkDNSSettings(nwCfg *cni.NetworkConfig, result *cniTypesCurr.Result) (network.DNSInfo, error) {
+func getNetworkDNSSettings(nwCfg *cni.NetworkConfig, dns network.DNSInfo) (network.DNSInfo, error) {
 	var nwDNS network.DNSInfo
 
 	if len(nwCfg.DNS.Nameservers) > 0 {
@@ -104,17 +95,14 @@ func getNetworkDNSSettings(nwCfg *cni.NetworkConfig, result *cniTypesCurr.Result
 			Suffix:  nwCfg.DNS.Domain,
 		}
 	} else {
-		nwDNS = network.DNSInfo{
-			Suffix:  result.DNS.Domain,
-			Servers: result.DNS.Nameservers,
-		}
+		nwDNS = dns
 	}
 
 	return nwDNS, nil
 }
 
-func getEndpointDNSSettings(nwCfg *cni.NetworkConfig, result *cniTypesCurr.Result, _ string) (network.DNSInfo, error) {
-	return getNetworkDNSSettings(nwCfg, result)
+func getEndpointDNSSettings(nwCfg *cni.NetworkConfig, dns network.DNSInfo, _ string) (network.DNSInfo, error) {
+	return getNetworkDNSSettings(nwCfg, dns)
 }
 
 func getEndpointPolicies(PolicyArgs) ([]policy.Policy, error) {

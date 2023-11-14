@@ -5,8 +5,8 @@ import (
 
 	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/cns"
+	"github.com/Azure/azure-container-networking/network"
 	cniSkel "github.com/containernetworking/cni/pkg/skel"
-	cniTypesCurr "github.com/containernetworking/cni/pkg/types/100"
 )
 
 // IPAMInvoker is used by the azure-vnet CNI plugin to call different sources for IPAM.
@@ -28,17 +28,10 @@ type IPAMAddConfig struct {
 
 type IPAMAddResult struct {
 	// Splitting defaultInterfaceInfo from secondaryInterfacesInfo so we don't need to loop for default CNI result every time
-	defaultInterfaceInfo    InterfaceInfo
-	secondaryInterfacesInfo []InterfaceInfo
+	defaultInterfaceInfo    network.InterfaceInfo
+	secondaryInterfacesInfo []network.InterfaceInfo
 	// ncResponse is used for Swift 1.0 multitenancy
 	ncResponse       *cns.GetNetworkContainerResponse
 	hostSubnetPrefix net.IPNet
 	ipv6Enabled      bool
-}
-
-type InterfaceInfo struct {
-	ipResult          *cniTypesCurr.Result
-	nicType           cns.NICType
-	macAddress        net.HardwareAddr
-	skipDefaultRoutes bool
 }

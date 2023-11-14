@@ -103,10 +103,10 @@ func getSingleResult(ip string) []*cniTypesCurr.Result {
 }
 
 // getResult will return a slice of IPConfigs
-func getResult(ips ...string) *cniTypesCurr.Result {
-	res := &cniTypesCurr.Result{}
+func getResult(ips ...string) []*network.IPConfig {
+	res := make([]*network.IPConfig, 0)
 	for _, ip := range ips {
-		res.IPs = append(res.IPs, &cniTypesCurr.IPConfig{Address: *getCIDRNotationForAddress(ip)})
+		res = append(res, &network.IPConfig{Address: *getCIDRNotationForAddress(ip)})
 	}
 	return res
 }
@@ -142,7 +142,7 @@ func TestAzureIPAMInvoker_Add(t *testing.T) {
 		name    string
 		fields  fields
 		args    args
-		want    *cniTypesCurr.Result
+		want    []*network.IPConfig
 		wantErr bool
 	}{
 		{
@@ -238,8 +238,8 @@ func TestAzureIPAMInvoker_Add(t *testing.T) {
 				require.Nil(err)
 			}
 
-			fmt.Printf("want:%+v\nrest:%+v\n", tt.want, ipamAddResult.defaultInterfaceInfo.ipResult)
-			require.Exactly(tt.want, ipamAddResult.defaultInterfaceInfo.ipResult)
+			fmt.Printf("want:%+v\nrest:%+v\n", tt.want, ipamAddResult.defaultInterfaceInfo.IPConfigs)
+			require.Exactly(tt.want, ipamAddResult.defaultInterfaceInfo.IPConfigs)
 		})
 	}
 }
@@ -395,8 +395,7 @@ func TestRemoveIpamState_Add(t *testing.T) {
 		name       string
 		fields     fields
 		args       args
-		want       *cniTypesCurr.Result
-		want1      *cniTypesCurr.Result
+		want       []*network.IPConfig
 		wantErrMsg string
 		wantErr    bool
 	}{

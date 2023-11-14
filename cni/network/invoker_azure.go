@@ -75,8 +75,8 @@ func (invoker *AzureIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, er
 
 	defer func() {
 		if err != nil {
-			if len(addResult.defaultInterfaceInfo.ipResult.IPs) > 0 {
-				if er := invoker.Delete(&addResult.defaultInterfaceInfo.ipResult.IPs[0].Address, addConfig.nwCfg, nil, addConfig.options); er != nil {
+			if len(addResult.defaultInterfaceInfo.IPConfigs) > 0 {
+				if er := invoker.Delete(&addResult.defaultInterfaceInfo.IPConfigs[0].Address, addConfig.nwCfg, nil, addConfig.options); er != nil {
 					err = invoker.plugin.Errorf("Failed to clean up IP's during Delete with error %v, after Add failed with error %w", er, err)
 				}
 			} else {
@@ -106,7 +106,17 @@ func (invoker *AzureIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, er
 		}
 	}
 
-	addResult.defaultInterfaceInfo = InterfaceInfo{ipResult: result, nicType: cns.InfraNIC}
+	ipconfigs := make([]*network.IPConfig, len(result.IPs))
+	for i, ipconfig := range result.IPs {
+		ipconfigs[i] = &network.IPConfig{Address: ipconfig.Address, Gateway: ipconfig.Gateway}
+	}
+
+	routes := make([]network.RouteInfo, len(result.Routes))
+	for i, route := range result.Routes {
+		routes[i] = network.RouteInfo{Dst: route.Dst, Gw: route.GW}
+	}
+
+	addResult.defaultInterfaceInfo = network.InterfaceInfo{IPConfigs: ipconfigs, Routes: routes, DNS: network.DNSInfo{Suffix: result.DNS.Domain, Servers: result.DNS.Nameservers}, NICType: cns.InfraNIC}
 
 	return addResult, err
 }
