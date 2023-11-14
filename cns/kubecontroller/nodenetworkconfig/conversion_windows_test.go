@@ -25,6 +25,25 @@ var validOverlayRequest = &cns.CreateNetworkContainerRequest{
 	},
 }
 
+var validDualstackOverlayRequest = &cns.CreateNetworkContainerRequest{
+	Version: strconv.FormatInt(0, 10),
+	IPConfiguration: cns.IPConfiguration{
+		IPSubnet: cns.IPSubnet{
+			PrefixLength: uint8(subnetPrefixLenV6),
+			IPAddress:    primaryIPV6,
+		},
+		GatewayIPAddress: "fd12:1234::1",
+	},
+	NetworkContainerid:   ncID,
+	NetworkContainerType: cns.Docker,
+	SecondaryIPConfigs: map[string]cns.SecondaryIPConfig{
+		"fd12:1234::2": {
+			IPAddress: "fd12:1234::2",
+			NCVersion: 0,
+		},
+	},
+}
+
 var validVNETBlockRequest = &cns.CreateNetworkContainerRequest{
 	Version: strconv.FormatInt(version, 10),
 	IPConfiguration: cns.IPConfiguration{
@@ -76,6 +95,62 @@ var validVNETBlockRequest = &cns.CreateNetworkContainerRequest{
 		},
 		"10.224.0.14": {
 			IPAddress: "10.224.0.14",
+			NCVersion: version,
+		},
+	},
+}
+
+var validVNETBlockDualstackRequest = &cns.CreateNetworkContainerRequest{
+	Version: strconv.FormatInt(version, 10),
+	IPConfiguration: cns.IPConfiguration{
+		GatewayIPAddress: vnetBlockDefaultGatewayV6,
+		IPSubnet: cns.IPSubnet{
+			PrefixLength: uint8(vnetBlockSubnetPrefixLenV6),
+			IPAddress:    vnetBlockPrimaryIPV6,
+		},
+	},
+	NetworkContainerid:   ncID,
+	NetworkContainerType: cns.Docker,
+	// Ignore first IP in first CIDR Block, i.e. fd12:1234::4
+	SecondaryIPConfigs: map[string]cns.SecondaryIPConfig{
+		"fd12:1234::5": {
+			IPAddress: "fd12:1234::5",
+			NCVersion: version,
+		},
+		"fd12:1234::6": {
+			IPAddress: "fd12:1234::6",
+			NCVersion: version,
+		},
+		"fd12:1234::7": {
+			IPAddress: "fd12:1234::7",
+			NCVersion: version,
+		},
+		"fd12:1234::8": {
+			IPAddress: "fd12:1234::8",
+			NCVersion: version,
+		},
+		"fd12:1234::9": {
+			IPAddress: "fd12:1234::9",
+			NCVersion: version,
+		},
+		"fd12:1234::a": {
+			IPAddress: "fd12:1234::a",
+			NCVersion: version,
+		},
+		"fd12:1234::b": {
+			IPAddress: "fd12:1234::b",
+			NCVersion: version,
+		},
+		"fd12:1234::c": {
+			IPAddress: "fd12:1234::c",
+			NCVersion: version,
+		},
+		"fd12:1234::d": {
+			IPAddress: "fd12:1234::d",
+			NCVersion: version,
+		},
+		"fd12:1234::e": {
+			IPAddress: "fd12:1234::e",
 			NCVersion: version,
 		},
 	},
