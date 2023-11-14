@@ -293,6 +293,8 @@ wait_for_pods() {
                 k get pod -n scale-test -owide
                 k get node
                 k get pod -n kube-system -l app=kwok-controller -owide
+                k top pod -n kube-system -l app=kwok-controller
+                k top node
                 exit 1
             fi
             # try recreating nodes if KWOK controller failed
