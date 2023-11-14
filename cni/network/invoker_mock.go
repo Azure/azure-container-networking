@@ -5,8 +5,9 @@ import (
 	"net"
 
 	"github.com/Azure/azure-container-networking/cni"
+	"github.com/Azure/azure-container-networking/cns"
+	"github.com/Azure/azure-container-networking/network"
 	"github.com/containernetworking/cni/pkg/skel"
-	current "github.com/containernetworking/cni/pkg/types/100"
 )
 
 const (
@@ -17,24 +18,30 @@ const (
 )
 
 var (
-	errV4         = errors.New("v4 fail")
-	errV6         = errors.New("v6 Fail")
-	errDeleteIpam = errors.New("delete fail")
+	errV4             = errors.New("v4 fail")
+	errV6             = errors.New("v6 Fail")
+	errDelegatedVMNIC = errors.New("delegatedVMNIC fail")
+	errDeleteIpam     = errors.New("delete fail")
 )
 
 type MockIpamInvoker struct {
-	isIPv6 bool
-	v4Fail bool
-	v6Fail bool
-	ipMap  map[string]bool
+	isIPv6             bool
+	v4Fail             bool
+	v6Fail             bool
+	delegatedVMNIC     bool
+	delegatedVMNICFail bool
+	ipMap              map[string]bool
 }
 
-func NewMockIpamInvoker(ipv6, v4Fail, v6Fail bool) *MockIpamInvoker {
+func NewMockIpamInvoker(ipv6, v4Fail, v6Fail, delegatedVMNIC, delegatedVMNICFail bool) *MockIpamInvoker {
 	return &MockIpamInvoker{
-		isIPv6: ipv6,
-		v4Fail: v4Fail,
-		v6Fail: v6Fail,
-		ipMap:  make(map[string]bool),
+		isIPv6:             ipv6,
+		v4Fail:             v4Fail,
+		v6Fail:             v6Fail,
+		delegatedVMNIC:     delegatedVMNIC,
+		delegatedVMNICFail: delegatedVMNICFail,
+
+		ipMap: make(map[string]bool),
 	}
 }
 
@@ -53,9 +60,12 @@ func (invoker *MockIpamInvoker) Add(opt IPAMAddConfig) (ipamAddResult IPAMAddRes
 	ip := net.ParseIP(ipv4Str)
 	ipnet := net.IPNet{IP: ip, Mask: net.CIDRMask(subnetBits, ipv4Bits)}
 	gwIP := net.ParseIP("10.240.0.1")
-	ipConfig := &current.IPConfig{Address: ipnet, Gateway: gwIP}
-	ipamAddResult.ipv4Result = &current.Result{}
-	ipamAddResult.ipv4Result.IPs = append(ipamAddResult.ipv4Result.IPs, ipConfig)
+	ipamAddResult.defaultInterfaceInfo = network.InterfaceInfo{
+		IPConfigs: []*network.IPConfig{
+			{Address: ipnet, Gateway: gwIP},
+		},
+		NICType: cns.InfraNIC,
+	}
 	invoker.ipMap[ipnet.String()] = true
 	if invoker.v6Fail {
 		return ipamAddResult, errV6
@@ -70,10 +80,23 @@ func (invoker *MockIpamInvoker) Add(opt IPAMAddConfig) (ipamAddResult IPAMAddRes
 		ip := net.ParseIP(ipv6Str)
 		ipnet := net.IPNet{IP: ip, Mask: net.CIDRMask(subnetv6Bits, ipv6Bits)}
 		gwIP := net.ParseIP("fc00::1")
-		ipConfig := &current.IPConfig{Address: ipnet, Gateway: gwIP}
-		ipamAddResult.ipv6Result = &current.Result{}
-		ipamAddResult.ipv6Result.IPs = append(ipamAddResult.ipv6Result.IPs, ipConfig)
+		ipamAddResult.defaultInterfaceInfo.IPConfigs = append(ipamAddResult.defaultInterfaceInfo.IPConfigs, &network.IPConfig{Address: ipnet, Gateway: gwIP})
 		invoker.ipMap[ipnet.String()] = true
+	}
+
+	if invoker.delegatedVMNIC {
+		if invoker.delegatedVMNICFail {
+			return IPAMAddResult{}, errDelegatedVMNIC
+		}
+
+		ipStr := "20.20.20.20/32"
+		_, ipnet, _ := net.ParseCIDR(ipStr)
+		ipamAddResult.secondaryInterfacesInfo = append(ipamAddResult.secondaryInterfacesInfo, network.InterfaceInfo{
+			IPConfigs: []*network.IPConfig{
+				{Address: *ipnet},
+			},
+			NICType: cns.DelegatedVMNIC,
+		})
 	}
 
 	return ipamAddResult, nil

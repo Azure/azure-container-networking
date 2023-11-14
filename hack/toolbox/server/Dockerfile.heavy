@@ -3,7 +3,7 @@ ADD ./ /
 WORKDIR /
 RUN CGO_ENABLED=0 GOOS=linux go build -o server .
 
-FROM mcr.microsoft.com/oss/mirror/docker.io/library/ubuntu:20.04
+FROM mcr.microsoft.com/mirror/docker/library/ubuntu:22.04
 RUN apt-get update
 RUN apt-get install -y \
     axel \
@@ -21,12 +21,12 @@ RUN apt-get install -y \
     net-tools \
     netcat \
     nmap \
-    python \
     python3 \
     ssh \
     sudo \
     tcpdump \
     traceroute \
+    unzip \
     vim \
     wget
 

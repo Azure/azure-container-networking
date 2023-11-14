@@ -1,9 +1,12 @@
 package netio
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"net"
+
+	"github.com/Azure/azure-container-networking/netlink"
 )
 
 type getInterfaceValidationFn func(name string) (*net.Interface, error)
@@ -16,7 +19,11 @@ type MockNetIO struct {
 }
 
 // ErrMockNetIOFail - mock netio error
-var ErrMockNetIOFail = errors.New("netio fail")
+var (
+	ErrMockNetIOFail = errors.New("netio fail")
+	HwAddr, _        = net.ParseMAC("ab:cd:ef:12:34:56")
+	BadHwAddr, _     = net.ParseMAC("56:34:12:ef:cd:ab")
+)
 
 func NewMockNetIO(fail bool, failAttempt int) *MockNetIO {
 	return &MockNetIO{
@@ -40,13 +47,11 @@ func (netshim *MockNetIO) GetNetworkInterfaceByName(name string) (*net.Interface
 		return netshim.getInterfaceFn(name)
 	}
 
-	hwAddr, _ := net.ParseMAC("ab:cd:ef:12:34:56")
-
 	return &net.Interface{
 		//nolint:gomnd // Dummy MTU
 		MTU:          1000,
 		Name:         name,
-		HardwareAddr: hwAddr,
+		HardwareAddr: HwAddr,
 		//nolint:gomnd // Dummy interface index
 		Index: 2,
 	}, nil
@@ -54,4 +59,30 @@ func (netshim *MockNetIO) GetNetworkInterfaceByName(name string) (*net.Interface
 
 func (netshim *MockNetIO) GetNetworkInterfaceAddrs(iface *net.Interface) ([]net.Addr, error) {
 	return []net.Addr{}, nil
+}
+
+func (netshim *MockNetIO) GetNetworkInterfaceByMac(mac net.HardwareAddr) (*net.Interface, error) {
+	if bytes.Equal(mac, HwAddr) {
+		return &net.Interface{
+			//nolint:gomnd // Dummy MTU
+			MTU:          1000,
+			Name:         "eth1",
+			HardwareAddr: mac,
+			//nolint:gomnd // Dummy interface index
+			Index: 2,
+		}, nil
+	}
+
+	if bytes.Equal(mac, BadHwAddr) {
+		return &net.Interface{
+			//nolint:gomnd // Dummy MTU
+			MTU:          1000,
+			Name:         netlink.BadEth,
+			HardwareAddr: mac,
+			//nolint:gomnd // Dummy interface index
+			Index: 1,
+		}, nil
+	}
+
+	return nil, fmt.Errorf("%w: %s", ErrMockNetIOFail, mac)
 }

@@ -33,6 +33,10 @@ spec:
       name: Subnet
       priority: 1
       type: string
+    - jsonPath: .spec.subnetGUID
+      name: SubnetGUID
+      priority: 1
+      type: string
     name: v1alpha1
     schema:
       openAPIV3Schema:
@@ -53,6 +57,9 @@ spec:
           spec:
             description: PodNetworkSpec defines the desired state of PodNetwork
             properties:
+              subnetGUID:
+                description: customer subnet guid
+                type: string
               subnetResourceID:
                 description: customer subnet id
                 type: string

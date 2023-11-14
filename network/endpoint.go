@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/Azure/azure-container-networking/cni/log"
+	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/netio"
 	"github.com/Azure/azure-container-networking/netlink"
 	"github.com/Azure/azure-container-networking/network/policy"
@@ -52,6 +53,8 @@ type endpoint struct {
 	PODNameSpace             string `json:",omitempty"`
 	InfraVnetAddressSpace    string `json:",omitempty"`
 	NetNs                    string `json:",omitempty"`
+	// SecondaryInterfaces is a map of interface name to InterfaceInfo
+	SecondaryInterfaces map[string]*InterfaceInfo
 }
 
 // EndpointInfo contains read-only information about an endpoint.
@@ -86,6 +89,8 @@ type EndpointInfo struct {
 	VnetCidrs                string
 	ServiceCidrs             string
 	NATInfo                  []policy.NATInfo
+	NICType                  cns.NICType
+	SkipDefaultRoutes        bool
 }
 
 // RouteInfo contains information about an IP route.
@@ -98,6 +103,22 @@ type RouteInfo struct {
 	Scope    int
 	Priority int
 	Table    int
+}
+
+// InterfaceInfo contains information for secondary interfaces
+type InterfaceInfo struct {
+	Name              string
+	MacAddress        net.HardwareAddr
+	IPConfigs         []*IPConfig
+	Routes            []RouteInfo
+	DNS               DNSInfo
+	NICType           cns.NICType
+	SkipDefaultRoutes bool
+}
+
+type IPConfig struct {
+	Address net.IPNet
+	Gateway net.IP
 }
 
 type apipaClient interface {
@@ -117,31 +138,32 @@ func (nw *network) newEndpoint(
 	nl netlink.NetlinkInterface,
 	plc platform.ExecClient,
 	netioCli netio.NetIOInterface,
-	epInfo *EndpointInfo,
+	nsc NamespaceClientInterface,
+	epInfo []*EndpointInfo,
 ) (*endpoint, error) {
 	var ep *endpoint
 	var err error
 
 	defer func() {
 		if err != nil {
-			logger.Error("Failed to create endpoint with err", zap.String("id", epInfo.Id), zap.Error(err))
+			logger.Error("Failed to create endpoint with err", zap.String("id", epInfo[0].Id), zap.Error(err))
 		}
 	}()
 
 	// Call the platform implementation.
 	// Pass nil for epClient and will be initialized in newendpointImpl
-	ep, err = nw.newEndpointImpl(apipaCli, nl, plc, netioCli, nil, epInfo)
+	ep, err = nw.newEndpointImpl(apipaCli, nl, plc, netioCli, nil, nsc, epInfo)
 	if err != nil {
 		return nil, err
 	}
 
-	nw.Endpoints[epInfo.Id] = ep
+	nw.Endpoints[ep.Id] = ep
 	logger.Info("Created endpoint. Num of endpoints", zap.Any("ep", ep), zap.Int("numEndpoints", len(nw.Endpoints)))
 	return ep, nil
 }
 
 // DeleteEndpoint deletes an existing endpoint from the network.
-func (nw *network) deleteEndpoint(nl netlink.NetlinkInterface, plc platform.ExecClient, endpointID string) error {
+func (nw *network) deleteEndpoint(nl netlink.NetlinkInterface, plc platform.ExecClient, nioc netio.NetIOInterface, nsc NamespaceClientInterface, endpointID string) error {
 	var err error
 
 	logger.Info("Deleting endpoint from network", zap.String("endpointID", endpointID), zap.String("id", nw.Id))
@@ -160,7 +182,7 @@ func (nw *network) deleteEndpoint(nl netlink.NetlinkInterface, plc platform.Exec
 
 	// Call the platform implementation.
 	// Pass nil for epClient and will be initialized in deleteEndpointImpl
-	err = nw.deleteEndpointImpl(nl, plc, nil, ep)
+	err = nw.deleteEndpointImpl(nl, plc, nil, nioc, nsc, ep)
 	if err != nil {
 		return err
 	}

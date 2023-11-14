@@ -10,6 +10,7 @@ import (
 
 	"github.com/Azure/azure-container-networking/test/internal/datapath"
 	"github.com/Azure/azure-container-networking/test/internal/kubernetes"
+	"github.com/Azure/azure-container-networking/test/validate"
 	"github.com/stretchr/testify/require"
 	apiv1 "k8s.io/api/core/v1"
 )
@@ -25,6 +26,7 @@ var (
 	podPrefix        = flag.String("podName", "datapod", "Prefix for test pods")
 	podNamespace     = flag.String("namespace", "windows-datapath-test", "Namespace for test pods")
 	nodepoolSelector = flag.String("nodepoolSelector", "npwin", "Provides nodepool as a windows Node-Selector for pods")
+	restartKubeproxy = flag.Bool("restartKubeproxy", false, "restarts kubeproxy on the windows node")
 )
 
 /*
@@ -48,10 +50,17 @@ Timeout context is controled by the -timeout flag.
 func setupWindowsEnvironment(t *testing.T) {
 	ctx := context.Background()
 
+	t.Log("Get REST config")
+	restConfig := kubernetes.MustGetRestConfig()
+
 	t.Log("Create Clientset")
-	clientset, err := kubernetes.MustGetClientset()
-	if err != nil {
-		t.Fatal(err)
+	clientset := kubernetes.MustGetClientset()
+
+	if *restartKubeproxy {
+		validator, err := validate.CreateValidator(ctx, clientset, restConfig, *podNamespace, "cniv2", false, "windows")
+		require.NoError(t, err)
+		err = validator.RestartKubeProxyService(ctx)
+		require.NoError(t, err)
 	}
 
 	t.Log("Create Label Selectors")
@@ -73,16 +82,10 @@ func setupWindowsEnvironment(t *testing.T) {
 	if !namespaceExists {
 		// Test Namespace
 		t.Log("Create Namespace")
-		err := kubernetes.MustCreateNamespace(ctx, clientset, *podNamespace)
-		if err != nil {
-			t.Fatalf("failed to create pod namespace %s due to: %v", *podNamespace, err)
-		}
+		kubernetes.MustCreateNamespace(ctx, clientset, *podNamespace)
 
 		t.Log("Creating Windows pods through deployment")
-		deployment, err := kubernetes.MustParseDeployment(WindowsDeployYamlPath)
-		if err != nil {
-			t.Fatal(err)
-		}
+		deployment := kubernetes.MustParseDeployment(WindowsDeployYamlPath)
 
 		// Fields for overwritting existing deployment yaml.
 		// Defaults from flags will not change anything
@@ -93,10 +96,7 @@ func setupWindowsEnvironment(t *testing.T) {
 		deployment.Namespace = *podNamespace
 
 		deploymentsClient := clientset.AppsV1().Deployments(*podNamespace)
-		err = kubernetes.MustCreateDeployment(ctx, deploymentsClient, deployment)
-		if err != nil {
-			t.Fatal(err)
-		}
+		kubernetes.MustCreateDeployment(ctx, deploymentsClient, deployment)
 
 		t.Log("Waiting for pods to be running state")
 		err = kubernetes.WaitForPodsRunning(ctx, clientset, *podNamespace, podLabelSelector)
@@ -133,13 +133,10 @@ func TestDatapathWin(t *testing.T) {
 	ctx := context.Background()
 
 	t.Log("Get REST config")
-	restConfig := kubernetes.MustGetRestConfig(t)
+	restConfig := kubernetes.MustGetRestConfig()
 
 	t.Log("Create Clientset")
-	clientset, err := kubernetes.MustGetClientset()
-	if err != nil {
-		t.Fatalf("could not get k8s clientset: %v", err)
-	}
+	clientset := kubernetes.MustGetClientset()
 
 	setupWindowsEnvironment(t)
 	podLabelSelector := kubernetes.CreateLabelSelector(podLabelKey, podPrefix)

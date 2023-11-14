@@ -786,14 +786,20 @@ func (service *HTTPRestService) createOrUpdateNetworkContainer(w http.ResponseWr
 	logger.Printf("[Azure CNS] createOrUpdateNetworkContainer")
 
 	var req cns.CreateNetworkContainerRequest
-	err := service.Listener.Decode(w, r, &req)
-	logger.Request(service.Name, req.String(), err)
-	if err != nil {
+	if err := service.Listener.Decode(w, r, &req); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	if err := req.Validate(); err != nil {
+		logger.Errorf("[Azure CNS] invalid request %+v: %s", req, err)
+		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
 
+	logger.Request(service.Name, req.String(), nil)
 	var returnCode types.ResponseCode
 	var returnMessage string
+	var err error
 	switch r.Method {
 	case http.MethodPost:
 		if req.NetworkContainerType == cns.WebApps {

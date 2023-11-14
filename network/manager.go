@@ -68,6 +68,7 @@ type networkManager struct {
 	netlink            netlink.NetlinkInterface
 	netio              netio.NetIOInterface
 	plClient           platform.ExecClient
+	nsClient           NamespaceClientInterface
 	sync.Mutex
 }
 
@@ -85,7 +86,7 @@ type NetworkManager interface {
 	FindNetworkIDFromNetNs(netNs string) (string, error)
 	GetNumEndpointsByContainerID(containerID string) int
 
-	CreateEndpoint(client apipaClient, networkID string, epInfo *EndpointInfo) error
+	CreateEndpoint(client apipaClient, networkID string, epInfo []*EndpointInfo) error
 	DeleteEndpoint(networkID string, endpointID string) error
 	GetEndpointInfo(networkID string, endpointID string) (*EndpointInfo, error)
 	GetAllEndpoints(networkID string) (map[string]*EndpointInfo, error)
@@ -98,12 +99,13 @@ type NetworkManager interface {
 }
 
 // Creates a new network manager.
-func NewNetworkManager(nl netlink.NetlinkInterface, plc platform.ExecClient, netioCli netio.NetIOInterface) (NetworkManager, error) {
+func NewNetworkManager(nl netlink.NetlinkInterface, plc platform.ExecClient, netioCli netio.NetIOInterface, nsc NamespaceClientInterface) (NetworkManager, error) {
 	nm := &networkManager{
 		ExternalInterfaces: make(map[string]*externalInterface),
 		netlink:            nl,
 		plClient:           plc,
 		netio:              netioCli,
+		nsClient:           nsc,
 	}
 
 	return nm, nil
@@ -154,12 +156,12 @@ func (nm *networkManager) restore(isRehydrationRequired bool) error {
 	if isRehydrationRequired {
 		modTime, err := nm.store.GetModificationTime()
 		if err == nil {
-			rebootTime, err := platform.GetLastRebootTime()
+			rebootTime, err := nm.plClient.GetLastRebootTime()
 			logger.Info("reboot time, store mod time", zap.Any("rebootTime", rebootTime), zap.Any("modTime", modTime))
 			if err == nil && rebootTime.After(modTime) {
 				logger.Info("Detected Reboot")
 				rebooted = true
-				if clearNwConfig, err := platform.ClearNetworkConfiguration(); clearNwConfig {
+				if clearNwConfig, err := nm.plClient.ClearNetworkConfiguration(); clearNwConfig {
 					if err != nil {
 						logger.Error("Failed to clear network configuration", zap.Error(err))
 						return err
@@ -327,7 +329,7 @@ func (nm *networkManager) GetNetworkInfo(networkId string) (NetworkInfo, error) 
 }
 
 // CreateEndpoint creates a new container endpoint.
-func (nm *networkManager) CreateEndpoint(cli apipaClient, networkID string, epInfo *EndpointInfo) error {
+func (nm *networkManager) CreateEndpoint(cli apipaClient, networkID string, epInfo []*EndpointInfo) error {
 	nm.Lock()
 	defer nm.Unlock()
 
@@ -337,13 +339,14 @@ func (nm *networkManager) CreateEndpoint(cli apipaClient, networkID string, epIn
 	}
 
 	if nw.VlanId != 0 {
-		if epInfo.Data[VlanIDKey] == nil {
+		// the first entry in epInfo is InfraNIC type
+		if epInfo[0].Data[VlanIDKey] == nil {
 			logger.Info("overriding endpoint vlanid with network vlanid")
-			epInfo.Data[VlanIDKey] = nw.VlanId
+			epInfo[0].Data[VlanIDKey] = nw.VlanId
 		}
 	}
 
-	_, err = nw.newEndpoint(cli, nm.netlink, nm.plClient, nm.netio, epInfo)
+	_, err = nw.newEndpoint(cli, nm.netlink, nm.plClient, nm.netio, nm.nsClient, epInfo)
 	if err != nil {
 		return err
 	}
@@ -366,7 +369,7 @@ func (nm *networkManager) DeleteEndpoint(networkID, endpointID string) error {
 		return err
 	}
 
-	err = nw.deleteEndpoint(nm.netlink, nm.plClient, endpointID)
+	err = nw.deleteEndpoint(nm.netlink, nm.plClient, nm.netio, nm.nsClient, endpointID)
 	if err != nil {
 		return err
 	}

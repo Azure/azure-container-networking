@@ -15,7 +15,7 @@ import (
 	restclient "k8s.io/client-go/rest"
 )
 
-var ipv6PrefixPolicy = []string{"curl", "-6", "-I", "-v", "www.bing.com"}
+var ipv6PrefixPolicy = []string{"powershell", "-c", "curl.exe", "-6", "-v", "www.bing.com", "--head"}
 
 func podTest(ctx context.Context, clientset *kubernetes.Clientset, srcPod *apiv1.Pod, cmd []string, rc *restclient.Config, passFunc func(string) error) error {
 	logrus.Infof("podTest() - %v %v", srcPod.Name, cmd)
@@ -197,7 +197,7 @@ func WindowsPodToInternet(ctx context.Context, clientset *kubernetes.Clientset, 
 	}
 
 	// test Invoke-WebRequest an URL by IPv6 address on one pod
-	// command is: C:\inetpub\wwwroot>curl -6 -I -v www.bing.com
+	// command is: C:\inetpub\wwwroot> powershell -c curl.exe -6 -v www.bing.com --head
 	// then return *   Trying [2620:1ec:c11::200]:80...
 	//              HTTP/1.1 200 OK
 	if len(secondPod.Status.PodIPs) > 1 {

@@ -2,6 +2,8 @@ package platform
 
 import (
 	"time"
+
+	"go.uber.org/zap"
 )
 
 const (
@@ -10,16 +12,22 @@ const (
 
 type execClient struct {
 	Timeout time.Duration
+	logger  *zap.Logger
 }
 
 //nolint:revive // ExecClient make sense
 type ExecClient interface {
 	ExecuteCommand(command string) (string, error)
+	GetLastRebootTime() (time.Time, error)
+	ClearNetworkConfiguration() (bool, error)
+	ExecutePowershellCommand(command string) (string, error)
+	KillProcessByName(processName string) error
 }
 
-func NewExecClient() ExecClient {
+func NewExecClient(logger *zap.Logger) ExecClient {
 	return &execClient{
 		Timeout: defaultExecTimeout * time.Second,
+		logger:  logger,
 	}
 }
 

@@ -16,16 +16,24 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const (
+	ipv4cidr  = "10.0.0.1/24"
+	v4NetCidr = "10.0.0.0/24"
+	ipv4cidr2 = "10.0.0.4/24"
+	ipv6cidr  = "2001:0db8:abcd:0015::0/64"
+	v6NetCidr = "2001:db8:abcd:0012::0/64"
+)
+
 type mockDelegatePlugin struct {
 	add
 	del
 }
 
 type add struct {
+	resultsIPv4      []*cniTypesCurr.Result
+	resultsIPv6      []*cniTypesCurr.Result
 	resultsIPv4Index int
-	resultsIPv4      [](*cniTypesCurr.Result)
 	resultsIPv6Index int
-	resultsIPv6      [](*cniTypesCurr.Result)
 	errv4            error
 	errv6            error
 }
@@ -82,8 +90,8 @@ func getCIDRNotationForAddress(ipaddresswithcidr string) *net.IPNet {
 	return ipnet
 }
 
-func getResult(ip string) []*cniTypesCurr.Result {
-	res := []*cniTypesCurr.Result{
+func getSingleResult(ip string) []*cniTypesCurr.Result {
+	return []*cniTypesCurr.Result{
 		{
 			IPs: []*cniTypesCurr.IPConfig{
 				{
@@ -91,6 +99,14 @@ func getResult(ip string) []*cniTypesCurr.Result {
 				},
 			},
 		},
+	}
+}
+
+// getResult will return a slice of IPConfigs
+func getResult(ips ...string) []*network.IPConfig {
+	res := make([]*network.IPConfig, 0)
+	for _, ip := range ips {
+		res = append(res, &network.IPConfig{Address: *getCIDRNotationForAddress(ip)})
 	}
 	return res
 }
@@ -126,8 +142,7 @@ func TestAzureIPAMInvoker_Add(t *testing.T) {
 		name    string
 		fields  fields
 		args    args
-		want    *cniTypesCurr.Result
-		want1   *cniTypesCurr.Result
+		want    []*network.IPConfig
 		wantErr bool
 	}{
 		{
@@ -135,17 +150,17 @@ func TestAzureIPAMInvoker_Add(t *testing.T) {
 			fields: fields{
 				plugin: &mockDelegatePlugin{
 					add: add{
-						resultsIPv4: getResult("10.0.0.1/24"),
+						resultsIPv4: getSingleResult(ipv4cidr),
 					},
 					del: del{},
 				},
-				nwInfo: getNwInfo("10.0.0.0/24", ""),
+				nwInfo: getNwInfo(v4NetCidr, ""),
 			},
 			args: args{
 				nwCfg:        &cni.NetworkConfig{},
-				subnetPrefix: getCIDRNotationForAddress("10.0.0.0/24"),
+				subnetPrefix: getCIDRNotationForAddress(v4NetCidr),
 			},
-			want:    getResult("10.0.0.1/24")[0],
+			want:    getResult(ipv4cidr),
 			wantErr: false,
 		},
 		{
@@ -153,20 +168,19 @@ func TestAzureIPAMInvoker_Add(t *testing.T) {
 			fields: fields{
 				plugin: &mockDelegatePlugin{
 					add: add{
-						resultsIPv4: getResult("10.0.0.1/24"),
-						resultsIPv6: getResult("2001:0db8:abcd:0015::0/64"),
+						resultsIPv4: getSingleResult(ipv4cidr),
+						resultsIPv6: getSingleResult(ipv6cidr),
 					},
 				},
-				nwInfo: getNwInfo("10.0.0.0/24", "2001:db8:abcd:0012::0/64"),
+				nwInfo: getNwInfo(v4NetCidr, v6NetCidr),
 			},
 			args: args{
 				nwCfg: &cni.NetworkConfig{
 					IPV6Mode: network.IPV6Nat,
 				},
-				subnetPrefix: getCIDRNotationForAddress("10.0.0.0/24"),
+				subnetPrefix: getCIDRNotationForAddress(v4NetCidr),
 			},
-			want:    getResult("10.0.0.1/24")[0],
-			want1:   getResult("2001:0db8:abcd:0015::0/64")[0],
+			want:    getResult(ipv4cidr, ipv6cidr),
 			wantErr: false,
 		},
 		{
@@ -177,13 +191,12 @@ func TestAzureIPAMInvoker_Add(t *testing.T) {
 						errv4: errors.New("test error"), //nolint:goerr113
 					},
 				},
-				nwInfo: getNwInfo("10.0.0.0/24", ""),
+				nwInfo: getNwInfo(v4NetCidr, ""),
 			},
 			args: args{
 				nwCfg: &cni.NetworkConfig{},
 			},
 			want:    nil,
-			want1:   nil,
 			wantErr: true,
 		},
 		{
@@ -191,20 +204,19 @@ func TestAzureIPAMInvoker_Add(t *testing.T) {
 			fields: fields{
 				plugin: &mockDelegatePlugin{
 					add: add{
-						resultsIPv4: getResult("10.0.0.1/24"),
+						resultsIPv4: getSingleResult(ipv4cidr),
 						errv6:       errors.New("test v6 error"), //nolint:goerr113
 					},
 				},
-				nwInfo: getNwInfo("10.0.0.0/24", ""),
+				nwInfo: getNwInfo(v4NetCidr, ""),
 			},
 			args: args{
 				nwCfg: &cni.NetworkConfig{
 					IPV6Mode: network.IPV6Nat,
 				},
-				subnetPrefix: getCIDRNotationForAddress("10.0.0.0/24"),
+				subnetPrefix: getCIDRNotationForAddress(v4NetCidr),
 			},
-			want:    getResult("10.0.0.1/24")[0],
-			want1:   nil,
+			want:    getResult(ipv4cidr),
 			wantErr: true,
 		},
 	}
@@ -226,8 +238,8 @@ func TestAzureIPAMInvoker_Add(t *testing.T) {
 				require.Nil(err)
 			}
 
-			require.Exactly(tt.want, ipamAddResult.ipv4Result)
-			require.Exactly(tt.want1, ipamAddResult.ipv6Result)
+			fmt.Printf("want:%+v\nrest:%+v\n", tt.want, ipamAddResult.defaultInterfaceInfo.IPConfigs)
+			require.Exactly(tt.want, ipamAddResult.defaultInterfaceInfo.IPConfigs)
 		})
 	}
 }
@@ -256,10 +268,10 @@ func TestAzureIPAMInvoker_Delete(t *testing.T) {
 				plugin: &mockDelegatePlugin{
 					del: del{},
 				},
-				nwInfo: getNwInfo("10.0.0.0/24", ""),
+				nwInfo: getNwInfo(v4NetCidr, ""),
 			},
 			args: args{
-				address: getCIDRNotationForAddress("10.0.0.4/24"),
+				address: getCIDRNotationForAddress(ipv4cidr2),
 				nwCfg: &cni.NetworkConfig{
 					IPAM: cni.IPAM{
 						Address: "10.0.0.4",
@@ -273,7 +285,7 @@ func TestAzureIPAMInvoker_Delete(t *testing.T) {
 				plugin: &mockDelegatePlugin{
 					del: del{},
 				},
-				nwInfo: getNwInfo("10.0.0.0/24", "2001:db8:abcd:0012::0/64"),
+				nwInfo: getNwInfo(v4NetCidr, v6NetCidr),
 			},
 			args: args{
 				address: getCIDRNotationForAddress("2001:db8:abcd:0015::0/64"),
@@ -292,7 +304,7 @@ func TestAzureIPAMInvoker_Delete(t *testing.T) {
 						err: errors.New("error when address is nil"), //nolint:goerr113
 					},
 				},
-				nwInfo: getNwInfo("", "2001:db8:abcd:0012::0/64"),
+				nwInfo: getNwInfo("", v6NetCidr),
 			},
 			args: args{
 				address: nil,
@@ -312,13 +324,13 @@ func TestAzureIPAMInvoker_Delete(t *testing.T) {
 						err: errors.New("error on v4 delete"), //nolint:goerr113
 					},
 				},
-				nwInfo: getNwInfo("10.0.0.0/24", ""),
+				nwInfo: getNwInfo(v4NetCidr, ""),
 			},
 			args: args{
-				address: getCIDRNotationForAddress("10.0.0.4/24"),
+				address: getCIDRNotationForAddress(ipv4cidr2),
 				nwCfg: &cni.NetworkConfig{
 					IPAM: cni.IPAM{
-						Address: "10.0.0.4/24",
+						Address: ipv4cidr2,
 					},
 				},
 			},
@@ -332,13 +344,13 @@ func TestAzureIPAMInvoker_Delete(t *testing.T) {
 						err: errors.New("error on v6 delete"), //nolint:goerr113
 					},
 				},
-				nwInfo: getNwInfo("10.0.0.0/24", "2001:db8:abcd:0012::0/64"),
+				nwInfo: getNwInfo(v4NetCidr, v6NetCidr),
 			},
 			args: args{
 				address: getCIDRNotationForAddress("2001:db8:abcd:0015::0/64"),
 				nwCfg: &cni.NetworkConfig{
 					IPAM: cni.IPAM{
-						Address: "10.0.0.4/24",
+						Address: ipv4cidr2,
 					},
 				},
 			},
@@ -383,8 +395,7 @@ func TestRemoveIpamState_Add(t *testing.T) {
 		name       string
 		fields     fields
 		args       args
-		want       *cniTypesCurr.Result
-		want1      *cniTypesCurr.Result
+		want       []*network.IPConfig
 		wantErrMsg string
 		wantErr    bool
 	}{
@@ -393,17 +404,17 @@ func TestRemoveIpamState_Add(t *testing.T) {
 			fields: fields{
 				plugin: &mockDelegatePlugin{
 					add: add{
-						resultsIPv4: getResult("10.0.0.1/24"),
+						resultsIPv4: getSingleResult(ipv4cidr),
 						errv4:       ipam.ErrNoAvailableAddressPools,
 					},
 				},
-				nwInfo: getNwInfo("10.0.0.0/24", ""),
+				nwInfo: getNwInfo(v4NetCidr, ""),
 			},
 			args: args{
 				nwCfg:        &cni.NetworkConfig{},
-				subnetPrefix: getCIDRNotationForAddress("10.0.0.0/24"),
+				subnetPrefix: getCIDRNotationForAddress(v4NetCidr),
 			},
-			want:       getResult("10.0.0.1/24")[0],
+			want:       getResult(ipv4cidr),
 			wantErrMsg: ipam.ErrNoAvailableAddressPools.Error(),
 			wantErr:    true,
 		},

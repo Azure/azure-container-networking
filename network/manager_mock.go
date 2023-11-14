@@ -9,13 +9,15 @@ import (
 type MockNetworkManager struct {
 	TestNetworkInfoMap  map[string]*NetworkInfo
 	TestEndpointInfoMap map[string]*EndpointInfo
+	TestEndpointClient  *MockEndpointClient
 }
 
 // NewMockNetworkmanager returns a new mock
-func NewMockNetworkmanager() *MockNetworkManager {
+func NewMockNetworkmanager(mockEndpointclient *MockEndpointClient) *MockNetworkManager {
 	return &MockNetworkManager{
 		TestNetworkInfoMap:  make(map[string]*NetworkInfo),
 		TestEndpointInfoMap: make(map[string]*EndpointInfo),
+		TestEndpointClient:  mockEndpointclient,
 	}
 }
 
@@ -52,8 +54,14 @@ func (nm *MockNetworkManager) GetNetworkInfo(networkID string) (NetworkInfo, err
 }
 
 // CreateEndpoint mock
-func (nm *MockNetworkManager) CreateEndpoint(_ apipaClient, networkID string, epInfo *EndpointInfo) error {
-	nm.TestEndpointInfoMap[epInfo.Id] = epInfo
+func (nm *MockNetworkManager) CreateEndpoint(_ apipaClient, _ string, epInfos []*EndpointInfo) error {
+	for _, epInfo := range epInfos {
+		if err := nm.TestEndpointClient.AddEndpoints(epInfo); err != nil {
+			return err
+		}
+	}
+
+	nm.TestEndpointInfoMap[epInfos[0].Id] = epInfos[0]
 	return nil
 }
 

@@ -29,7 +29,7 @@ func TestMain(m *testing.M) {
 		fmt.Printf("TestST LogDir configuration succeeded\n")
 	}
 
-	p := platform.NewExecClient()
+	p := platform.NewExecClient(nil)
 	if runtime.GOOS == "linux" {
 		//nolint:errcheck // initial test setup
 		p.ExecuteCommand("cp metadata_test.json /tmp/azuremetadata.json")

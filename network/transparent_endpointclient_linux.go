@@ -1,7 +1,6 @@
 package network
 
 import (
-	"errors"
 	"fmt"
 	"net"
 
@@ -9,6 +8,7 @@ import (
 	"github.com/Azure/azure-container-networking/netlink"
 	"github.com/Azure/azure-container-networking/network/networkutils"
 	"github.com/Azure/azure-container-networking/platform"
+	"github.com/pkg/errors"
 	"go.uber.org/zap"
 )
 
@@ -27,8 +27,8 @@ const (
 
 var errorTransparentEndpointClient = errors.New("TransparentEndpointClient Error")
 
-func newErrorTransparentEndpointClient(errStr string) error {
-	return fmt.Errorf("%w : %s", errorTransparentEndpointClient, errStr)
+func newErrorTransparentEndpointClient(err error) error {
+	return errors.Wrapf(err, "%s", errorTransparentEndpointClient)
 }
 
 type TransparentEndpointClient struct {
@@ -52,6 +52,7 @@ func NewTransparentEndpointClient(
 	containerVethName string,
 	mode string,
 	nl netlink.NetlinkInterface,
+	nioc netio.NetIOInterface,
 	plc platform.ExecClient,
 ) *TransparentEndpointClient {
 	client := &TransparentEndpointClient{
@@ -62,7 +63,7 @@ func NewTransparentEndpointClient(
 		hostPrimaryMac:    extIf.MacAddress,
 		mode:              mode,
 		netlink:           nl,
-		netioshim:         &netio.NetIO{},
+		netioshim:         nioc,
 		plClient:          plc,
 		netUtilsClient:    networkutils.NewNetworkUtils(nl, plc),
 	}
@@ -81,13 +82,13 @@ func (client *TransparentEndpointClient) AddEndpoints(epInfo *EndpointInfo) erro
 		logger.Info("Deleting old host veth", zap.String("hostVethName", client.hostVethName))
 		if err = client.netlink.DeleteLink(client.hostVethName); err != nil {
 			logger.Error("Failed to delete old", zap.String("hostVethName", client.hostVethName), zap.Error(err))
-			return newErrorTransparentEndpointClient(err.Error())
+			return newErrorTransparentEndpointClient(err)
 		}
 	}
 
 	primaryIf, err := client.netioshim.GetNetworkInterfaceByName(client.hostPrimaryIfName)
 	if err != nil {
-		return newErrorTransparentEndpointClient(err.Error())
+		return newErrorTransparentEndpointClient(err)
 	}
 
 	mac, err := net.ParseMAC(defaultHostVethHwAddr)
@@ -96,7 +97,7 @@ func (client *TransparentEndpointClient) AddEndpoints(epInfo *EndpointInfo) erro
 	}
 
 	if err = client.netUtilsClient.CreateEndpoint(client.hostVethName, client.containerVethName, mac); err != nil {
-		return newErrorTransparentEndpointClient(err.Error())
+		return newErrorTransparentEndpointClient(err)
 	}
 
 	defer func() {
@@ -109,14 +110,14 @@ func (client *TransparentEndpointClient) AddEndpoints(epInfo *EndpointInfo) erro
 
 	containerIf, err := client.netioshim.GetNetworkInterfaceByName(client.containerVethName)
 	if err != nil {
-		return newErrorTransparentEndpointClient(err.Error())
+		return newErrorTransparentEndpointClient(err)
 	}
 
 	client.containerMac = containerIf.HardwareAddr
 
 	hostVethIf, err := client.netioshim.GetNetworkInterfaceByName(client.hostVethName)
 	if err != nil {
-		return newErrorTransparentEndpointClient(err.Error())
+		return newErrorTransparentEndpointClient(err)
 	}
 
 	client.hostVethMac = hostVethIf.HardwareAddr
@@ -157,7 +158,7 @@ func (client *TransparentEndpointClient) AddEndpointRules(epInfo *EndpointInfo) 
 	}
 
 	if err := addRoutes(client.netlink, client.netioshim, client.hostVethName, routeInfoList); err != nil {
-		return newErrorTransparentEndpointClient(err.Error())
+		return newErrorTransparentEndpointClient(err)
 	}
 
 	logger.Info("calling setArpProxy for", zap.String("hostVethName", client.hostVethName))
@@ -196,7 +197,7 @@ func (client *TransparentEndpointClient) MoveEndpointsToContainerNS(epInfo *Endp
 	// Move the container interface to container's network namespace.
 	logger.Info("Setting link netns", zap.String("containerVethName", client.containerVethName), zap.String("NetNsPath", epInfo.NetNsPath))
 	if err := client.netlink.SetLinkNetNs(client.containerVethName, nsID); err != nil {
-		return newErrorTransparentEndpointClient(err.Error())
+		return newErrorTransparentEndpointClient(err)
 	}
 
 	return nil
@@ -214,7 +215,7 @@ func (client *TransparentEndpointClient) SetupContainerInterfaces(epInfo *Endpoi
 
 func (client *TransparentEndpointClient) ConfigureContainerInterfacesAndRoutes(epInfo *EndpointInfo) error {
 	if err := client.netUtilsClient.AssignIPToInterface(client.containerVethName, epInfo.IPAddresses); err != nil {
-		return newErrorTransparentEndpointClient(err.Error())
+		return newErrorTransparentEndpointClient(err)
 	}
 
 	// ip route del 10.240.0.0/12 dev eth0 (removing kernel subnet route added by above call)
@@ -226,7 +227,7 @@ func (client *TransparentEndpointClient) ConfigureContainerInterfacesAndRoutes(e
 			Protocol: netlink.RTPROT_KERNEL,
 		}
 		if err := deleteRoutes(client.netlink, client.netioshim, client.containerVethName, []RouteInfo{routeInfo}); err != nil {
-			return newErrorTransparentEndpointClient(err.Error())
+			return newErrorTransparentEndpointClient(err)
 		}
 	}
 
@@ -238,18 +239,22 @@ func (client *TransparentEndpointClient) ConfigureContainerInterfacesAndRoutes(e
 		Scope: netlink.RT_SCOPE_LINK,
 	}
 	if err := addRoutes(client.netlink, client.netioshim, client.containerVethName, []RouteInfo{routeInfo}); err != nil {
-		return newErrorTransparentEndpointClient(err.Error())
+		return newErrorTransparentEndpointClient(err)
 	}
 
-	// ip route add default via 169.254.1.1 dev eth0
-	_, defaultIPNet, _ := net.ParseCIDR(defaultGwCidr)
-	dstIP := net.IPNet{IP: net.ParseIP(defaultGw), Mask: defaultIPNet.Mask}
-	routeInfo = RouteInfo{
-		Dst: dstIP,
-		Gw:  virtualGwIP,
-	}
-	if err := addRoutes(client.netlink, client.netioshim, client.containerVethName, []RouteInfo{routeInfo}); err != nil {
-		return err
+	if !epInfo.SkipDefaultRoutes {
+		// ip route add default via 169.254.1.1 dev eth0
+		_, defaultIPNet, _ := net.ParseCIDR(defaultGwCidr)
+		dstIP := net.IPNet{IP: net.ParseIP(defaultGw), Mask: defaultIPNet.Mask}
+		routeInfo = RouteInfo{
+			Dst: dstIP,
+			Gw:  virtualGwIP,
+		}
+		if err := addRoutes(client.netlink, client.netioshim, client.containerVethName, []RouteInfo{routeInfo}); err != nil {
+			return err
+		}
+	} else if err := addRoutes(client.netlink, client.netioshim, client.containerVethName, epInfo.Routes); err != nil {
+		return newErrorTransparentEndpointClient(err)
 	}
 
 	// arp -s 169.254.1.1 e3:45:f4:ac:34:12 - add static arp entry for virtualgwip to hostveth interface mac

@@ -1,0 +1,353 @@
+---
+openapi: "3.0.0"
+info:
+  version: 0.1.0
+  title: Container Networking Service (CNS)
+paths:
+  /network/nmagentsupportedapis:
+    post:
+      description: |
+        Returns the supported API names from NMAgent
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NMAgentSupportedAPIsRequest'
+      responses:
+        '200':
+          description: The list of supported API names
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NMAgentSupportedApisResponse'
+
+  /network/deletenetworkcontainer:
+    post:
+      summary: Removes the Network Container from CNS's purview
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeleteContainerRequest"
+      responses:
+        '200':
+          description: >-
+            The delete request was processed. This does not indicate the request
+            was successful.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeleteContainerResponse'
+
+  /network/setorchestratortype:
+    post:
+      description: >-
+        Sets the orchestrator type for a given node
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#components/schemas/SetOrchestratorTypeRequest"
+      responses:
+        '200':
+          description: The request was submitted. This does not indicate success.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Response'
+
+  /network/createorupdatenetworkcontainer:
+    post:
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#components/schemas/CreateNetworkContainerRequest"
+      responses:
+        '200':
+          description: >-
+            The request was submitted. This does not indicate success. You
+            must check the value of the return code in the response body.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Response"
+  /network/publishnetworkcontainer:
+    post:
+      summary: Publish NetworkContainer via NMAgent
+      description: >-
+        Publishes the provided network container via the NMAgent running on the
+        node CNS is running on. CNS acts as a proxy for this request.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PublishNetworkContainerRequest"
+      responses:
+        '200':
+          description: >-
+            The request was submitted. Check the return code for success or
+            failure information.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublishNetworkContainerResponse"
+
+  /network/unpublishnetworkcontainer:
+    post:
+      summary: Unpublish Network Container via NMAgent
+      description: >-
+        Unpublishes the network container through the NMAgent running on the CNS
+        node. CNS acts as a proxy to NMAgent.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UnpublishNetworkContainerRequest"
+      responses:
+        '200':
+          description: >-
+            The request was submitted. Check the response code for more
+            information on success or failure.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UnpublishNetworkContainerResponse"
+
+components:
+  schemas:
+    UnpublishNetworkContainerResponse:
+      type: object
+      properties:
+        Response:
+          $ref: "#/components/schemas/Response"
+        UnpublishErrorStr:
+          type: string
+        UnpublishStatusCode:
+          type: string
+        UnpublishResponseBody:
+          type: string
+          description: >-
+            The base64 encoded response body from NMAgent
+
+    PublishNetworkContainerResponse:
+      type: object
+      properties:
+        Response:
+          $ref: "#/components/schemas/Response"
+        PublishErrStr:
+          type: string
+        PublishStatusCode:
+          type: string
+        PublishResponseBody:
+          type: string
+          description: >-
+            The base64 encoded response body from NMAgent
+
+    UnpublishNetworkContainerRequest:
+      type: object
+      properties:
+        NetworkID:
+          type: string
+        NetworkContainerID:
+          type: string
+        JoinNetworkURL:
+          type: string
+        DeleteNetworkContainerURL:
+          type: string
+
+    PublishNetworkContainerRequest:
+      type: object
+      properties:
+        NetworkID:
+          type: string
+        NetworkContainerID:
+          type: string
+        JoinNetworkURL:
+          type: string
+        CreateNetworkContainerURL:
+          type: string
+        CreateNetworkContainerRequestBody:
+          type: string
+          description: >-
+            The base64 encoded value of the create network container request
+            body
+    CreateNetworkContainerRequest:
+      type: object
+      properties:
+        Version:
+          type: string
+        NetworkContainerType:
+          type: string
+        NetworkContainerid:
+          type: string
+        PrimaryInterfaceIdentifier:
+          type: string
+        AuthorizationToken:
+          type: string
+        LocalIPConfiguration:
+          $ref: "#/components/schemas/IPConfiguration"
+        OrchestratorContext:
+          type: object
+        IPConfiguration:
+          $ref: "#/components/schemas/IPConfiguration"
+        SecondaryIPConfigs:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/SecondaryIPConfig"
+        MultiTenancyInfo:
+          type: object
+          properties:
+            EncapType:
+              type: string
+              description: >-
+                The encapsulation type for multitenancy.
+            ID:
+              type: integer
+              description: >-
+                The identifier associated with the encapsulation type specified.
+                For VLAN, this would be the VLAN ID. For VXLAN, the VXLAN id,
+                for GRE, the gre-key, etc.
+        CnetAddressSpace:
+          type: array
+          items:
+            $ref: "#/components/schemas/IPSubnet"
+        Routes:
+          type: array
+          items:
+            $ref: "#/components/schemas/Route"
+        AllowHostToNCCommunication:
+          type: boolean
+        AllowNCToHostCommunication:
+          type: boolean
+        EndpointPolicies:
+          type: array
+          items:
+            $ref: "#/components/schemas/NetworkContainerRequestPolicy"
+
+    NetworkContainerRequestPolicy:
+      type: object
+      description: >-
+        Specifies policies associated with a request to create a network
+        container.
+      properties:
+        Type:
+          type: string
+        EndpointType:
+          type: string
+        Settings:
+          type: object
+
+    Route:
+      type: object
+      properties:
+        IPAddress:
+          type: string
+        GatewayIPAddress:
+          type: string
+        InterfaceToUse:
+          type: string
+
+    SecondaryIPConfig:
+      type: object
+      properties:
+        IPAddress:
+          type: string
+        NCVersion:
+          type: integer
+
+    IPSubnet:
+      type: object
+      properties:
+        IPAddress:
+          type: string
+        PrefixLength:
+          type: integer
+          minimum: 0
+          maximum: 255
+    IPConfiguration:
+      type: object
+      properties:
+        IPSubnet:
+          $ref: "#/components/schemas/IPSubnet"
+        DNSServers:
+          type: array
+          items:
+            type: string
+        GatewayIPAddress:
+          type: string
+    SetOrchestratorTypeRequest:
+      type: object
+      required:
+        - OrchestratorType
+        - NodeID
+      properties:
+        OrchestratorType:
+          type: string
+          enum:
+            - "Kubernetes"
+            - "ServiceFabric"
+            - "Batch"
+            - "DBforPostgreSQL"
+            - "AzureFirstParty"
+            - "KubernetesCRD"
+        DncPartitionKey:
+          type: string
+        NodeID:
+          type: string
+
+    NMAgentSupportedAPIsRequest:
+      type: object
+      required:
+        - GetNmAgentSupportedApisURL
+      properties:
+        GetNmAgentSupportedApisURL:
+          type: string
+
+    DeleteContainerRequest:
+      type: object
+      required:
+        - NetworkContainerid
+      properties:
+        NetworkContainerid:
+          type: string
+
+    NMAgentSupportedApisResponse:
+      type: object
+      required:
+        - Response
+        - SupportedApis
+      properties:
+        Response:
+          $ref: "#/components/schemas/Response"
+        SupportedApis:
+          type: array
+          items:
+            type: string
+
+    DeleteContainerResponse:
+      type: object
+      required:
+        - Response
+      properties:
+        Response:
+          $ref: "#/components/schemas/Response"
+
+    Response:
+      type: object
+      required:
+        - ReturnCode
+        - Message
+      properties:
+        ReturnCode:
+          type: integer
+          description: The CNS Error Code
+        Message:
+          type: string
+          description: The error message

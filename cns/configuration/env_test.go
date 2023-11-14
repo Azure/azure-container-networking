@@ -17,3 +17,33 @@ func TestNodeName(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, "test", name)
 }
+
+func TestPodCIDRs(t *testing.T) {
+	_, err := PodCIDRs()
+	require.Error(t, err)
+	require.ErrorIs(t, err, ErrPodCIDRsUnset)
+	os.Setenv(EnvPodCIDRs, "test")
+	cidr, err := PodCIDRs()
+	assert.NoError(t, err)
+	assert.Equal(t, "test", cidr)
+}
+
+func TestServiceCIDRs(t *testing.T) {
+	_, err := ServiceCIDRs()
+	require.Error(t, err)
+	require.ErrorIs(t, err, ErrServiceCIDRsUnset)
+	os.Setenv(EnvServiceCIDRs, "test")
+	cidr, err := ServiceCIDRs()
+	assert.NoError(t, err)
+	assert.Equal(t, "test", cidr)
+}
+
+func TestInfraVNETCIDRs(t *testing.T) {
+	_, err := InfraVNETCIDRs()
+	require.Error(t, err)
+	require.ErrorIs(t, err, ErrInfraVNETCIDRsUnset)
+	os.Setenv(EnvInfraVNETCIDRs, "test")
+	cidr, err := InfraVNETCIDRs()
+	assert.NoError(t, err)
+	assert.Equal(t, "test", cidr)
+}

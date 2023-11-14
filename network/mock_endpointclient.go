@@ -7,36 +7,42 @@ import (
 
 var errMockEpClient = errors.New("MockEndpointClient Error")
 
-func newErrorMockEndpointClient(errStr string) error {
+const (
+	eth0IfName = "eth0"
+)
+
+func NewErrorMockEndpointClient(errStr string) error {
 	return fmt.Errorf("%w : %s", errMockEpClient, errStr)
 }
 
 type MockEndpointClient struct {
-	endpoints   map[string]bool
-	returnError bool
+	endpoints         map[string]bool
+	testAddEndpointFn func(*EndpointInfo) error
 }
 
-func NewMockEndpointClient(returnError bool) *MockEndpointClient {
+func NewMockEndpointClient(fn func(*EndpointInfo) error) *MockEndpointClient {
+	if fn == nil {
+		fn = func(_ *EndpointInfo) error {
+			return nil
+		}
+	}
+
 	client := &MockEndpointClient{
-		endpoints:   make(map[string]bool),
-		returnError: returnError,
+		endpoints:         make(map[string]bool),
+		testAddEndpointFn: fn,
 	}
 
 	return client
 }
 
 func (client *MockEndpointClient) AddEndpoints(epInfo *EndpointInfo) error {
-	if ok := client.endpoints[epInfo.Id]; ok {
-		return newErrorMockEndpointClient("Endpoint already exists")
+	if ok := client.endpoints[epInfo.Id]; ok && epInfo.IfName == eth0IfName {
+		return NewErrorMockEndpointClient("Endpoint already exists")
 	}
 
 	client.endpoints[epInfo.Id] = true
 
-	if client.returnError {
-		return newErrorMockEndpointClient("AddEndpoints failed")
-	}
-
-	return nil
+	return client.testAddEndpointFn(epInfo)
 }
 
 func (client *MockEndpointClient) AddEndpointRules(_ *EndpointInfo) error {

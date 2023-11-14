@@ -13,10 +13,15 @@ stages:
           - script: |
               echo "Setting up environment"
               go version
-              echo "##vso[task.setvariable variable=commitID;isOutput=true]$(make revision)"
-              echo "##vso[task.setvariable variable=npmVersion;isOutput=true]$(NPM_VERSION)"
-              echo "##vso[task.setvariable variable=dropgzVersion;isOutput=true]$(make cni-dropgz-test-version)"
+              echo "##vso[task.setvariable variable=commitID;isOutput=true]$(echo $(make revision)-$(date "+%d%H%M"))"
+              echo "##vso[task.setvariable variable=npmVersion;isOutput=true]$(make npm-version)"
               echo "##vso[task.setvariable variable=cnsVersion;isOutput=true]$(CNS_VERSION)"
+
+              if [ -z $(DROP_GZ_VERSION) ]; then
+                echo "##vso[task.setvariable variable=dropgzVersion;isOutput=true]$(make cni-dropgz-test-version)"
+              else
+                echo "##vso[task.setvariable variable=dropgzVersion;isOutput=true]$(DROP_GZ_VERSION)"
+              fi
             name: "SetEnvVars"
             displayName: "Set Environment Variables"
             condition: always()
@@ -40,6 +45,15 @@ stages:
               name: cni-dropgz-test
               os: windows
               os_version: ltsc2022
+            npm_linux_amd64:
+              arch: amd64
+              name: npm
+              os: linux
+            npm_windows2022_amd64:
+              arch: amd64
+              name: npm
+              os: windows
+              os_version: ltsc2022
         steps:
           - template: ../containers/container-template.yaml
             parameters:
@@ -47,6 +61,26 @@ stages:
               name: $(name)
               os: $(os)
               os_version: $(os_version)
+      - job: containerize_linux_arm64
+        displayName: Build Images
+        pool:
+          name: "$(BUILD_POOL_NAME_LINUX_ARM64)"
+        strategy:
+          matrix:
+            cni_dropgz_test_linux_arm64:
+              arch: arm64
+              name: cni-dropgz-test
+              os: linux
+            npm_linux_arm64:
+              arch: arm64
+              name: npm
+              os: linux
+        steps:
+          - template: ../containers/container-template.yaml
+            parameters:
+              arch: $(arch)
+              name: $(name)
+              os: $(os)
 
   - stage: binaries
     displayName: Build Binaries
@@ -93,7 +127,11 @@ stages:
           matrix:
             cni_dropgz_test:
               name: cni-dropgz-test
-              platforms: linux/amd64 windows/amd64
+              platforms: linux/amd64 linux/arm64 windows/amd64
+            npm:
+              name: npm
+              os_versions: ltsc2022
+              platforms: linux/amd64 linux/arm64 windows/amd64
         steps:
           - template: ../containers/manifest-template.yaml
             parameters:
@@ -105,52 +143,108 @@ stages:
     parameters:
       name: cilium_overlay
       clusterType: overlay-byocni-nokubeproxy-up
-      clusterName: "cilium-overlay"
-      nodeCount: ${CILIUM_NODE_COUNT}
-      vmSize: ${CILIUM_VM_SKU}
+      clusterName: "cilium-over"
+      nodeCount: ${NODE_COUNT_CILIUM}
+      vmSize: ${VM_SIZE_CILIUM}
+
+  - template: cilium/cilium-overlay-load-test-template.yaml
+    parameters:
+      name: cilium_overlay_mariner
+      clusterType: overlay-byocni-nokubeproxy-up
+      clusterName: "cil-over-mar"
+      nodeCount: ${NODE_COUNT_CILIUM}
+      vmSize: ${VM_SIZE_CILIUM}
+      arch: amd64
+      osSKU: AzureLinux
+
+  - template: cilium/cilium-overlay-load-test-template.yaml
+    parameters:
+      name: cilium_overlay_arm
+      clusterType: overlay-byocni-nokubeproxy-up
+      clusterName: "cil-over-arm"
+      nodeCount: ${NODE_COUNT_CILIUM}
+      vmSize: Standard_D8ps_v5
+      arch: arm64
+
+  - template: cilium/cilium-overlay-load-test-template.yaml
+    parameters:
+      name: cilium_overlay_rdma
+      clusterType: overlay-byocni-nokubeproxy-up
+      clusterName: "cil-over-rdma"
+      nodeCount: 2
+      vmSize: Standard_HC44-16rs
+      arch: amd64
 
   - template: singletenancy/cniv1-template.yaml
     parameters:
       name: win22_cniv1
       clusterType: windows-cniv1-up
-      clusterName: win22-cniv1
-      nodeCount: ${WINDOWS_NODE_COUNT}
-      vmSize: ${WINDOWS_LINUX_VM_SKU}
-      windowsVMSize: ${WINDOWS_VM_SKU}
+      clusterName: "win22-cniv1"
+      nodeCount: ${NODE_COUNT_WIN}
+      vmSize: ${VM_SIZE_WINCLUSTER_SYSTEMPOOL}
+      vmSizeWin: ${VM_SIZE_WIN}
       os: windows
       os_version: 'ltsc2022'
       arch: amd64
-      scaleup: ${WINDOWS_SCALEUP}
-      iterations: ${WINDOWS_ITERATIONS}
+      scaleup: ${SCALEUP_WIN}
+      iterations: ${ITERATIONS_WIN}
 
   - template: singletenancy/cniv1-template.yaml
     parameters:
       name: linux_cniv1
       clusterType: linux-cniv1-up
-      clusterName: linux-cniv1
-      nodeCount: ${LINUX_NODE_COUNT}
-      vmSize: ${LINUX_VM_SKU}
+      clusterName: "linux-cniv1"
+      nodeCount: ${NODE_COUNT_LINUX}
+      vmSize: ${VM_SIZE}
       os: linux
       arch: amd64
-      scaleup: ${LINUX_SCALEUP}
-      iterations: ${LINUX_ITERATIONS}
+      scaleup: ${SCALEUP_LINUX}
+      iterations: ${ITERATIONS_LINUX}
 
   - template: singletenancy/linux-cniv2-template.yaml
     parameters:
       name: linux_podsubnet
       clusterType: swift-byocni-up
-      clusterName: linux-cniv2-podsubnet
-      nodeCount: ${LINUX_NODE_COUNT}
-      vmSize: ${LINUX_VM_SKU}
+      clusterName: "linux-podsub"
+      nodeCount: ${NODE_COUNT_LINUX}
+      vmSize: ${VM_SIZE}
       arch: amd64
 
   - template: singletenancy/linux-cniv2-template.yaml
     parameters:
       name: linux_overlay
       clusterType: overlay-byocni-up
-      clusterName: linux-cniv2-overlay
-      nodeCount: ${LINUX_NODE_COUNT}
-      vmSize: ${LINUX_VM_SKU}
+      clusterName: "linux-over"
+      nodeCount: ${NODE_COUNT_LINUX}
+      vmSize: ${VM_SIZE}
+      arch: amd64
+
+  - template: singletenancy/linux-cniv2-template.yaml
+    parameters:
+      name: mariner_linux_overlay
+      clusterType: overlay-byocni-up
+      clusterName: "mariner-over"
+      nodeCount: ${NODE_COUNT_LINUX}
+      vmSize:  ${VM_SIZE}
+      arch: amd64
+      osSKU: AzureLinux
+
+  - template: singletenancy/linux-cniv2-template.yaml
+    parameters:
+      name: arm_linux_overlay
+      clusterType: overlay-byocni-up
+      clusterName: "arm-over"
+      nodeCount: ${NODE_COUNT_LINUX}
+      vmSize: Standard_D8ps_v5
+      arch: arm64
+
+  - template: singletenancy/linux-cniv2-template.yaml
+    parameters:
+      name: rdma_linux_overlay
+      clusterType: overlay-byocni-up
+      clusterName: "rdma-over"
+      nodeCount: 2
+      vmSize: Standard_HC44-16rs
       arch: amd64
 
   - stage: delete_resources
@@ -160,10 +254,16 @@ stages:
     condition: always()
     dependsOn:
       - cilium_overlay
-      - win22_cniv1
+      - cilium_overlay_mariner
+      - cilium_overlay_arm
+      - cilium_overlay_rdma
+      - win22_cniv1_HNS
       - linux_cniv1
       - linux_podsubnet
       - linux_overlay
+      - mariner_linux_overlay
+      - arm_linux_overlay
+      - rdma_linux_overlay
       - setup
     variables:
       commitID: $[ stagedependencies.setup.env.outputs['SetEnvVars.commitID'] ]
@@ -176,19 +276,37 @@ stages:
           matrix:
             cilium_overlay:
               name: cilium_overlay
-              clusterName: cilium-overlay
-            win_cniv1:
-              name: win_cniv1
-              clusterName: win-cniv1
+              clusterName: "cilium-over"
+            cilium_overlay_mariner:
+              name: cilium_overlay_mariner
+              clusterName: "cil-over-mar"
+            cilium_overlay_arm:
+              name: cilium_overlay_arm
+              clusterName: "cil-over-arm"
+            cilium_overlay_rdma:
+              name: cilium_overlay_rdma
+              clusterName: "cil-over-rdma"
+            win22-cniv1:
+              name: win22-cniv1
+              clusterName: "win22-cniv1"
             linux_cniv1:
               name: linux_cniv1
-              clusterName: linux-cniv1
+              clusterName: "linux-cniv1"
             linux_podsubnet:
               name: linux_podsubnet
-              clusterName: linux-cniv2-podsubnet
+              clusterName: "linux-podsub"
             linux_overlay:
               name: linux_overlay
-              clusterName: linux-cniv2-overlay
+              clusterName: "linux-over"
+            mariner_linux_overlay:
+              name: mariner_linux_overlay
+              clusterName: "mariner-over"
+            arm_linux_overlay:
+              name: arm_linux_overlay
+              clusterName: "arm-over"
+            rdma_linux_overlay:
+              name: rdma_linux_overlay
+              clusterName: "rdma-over"
         steps:
           - task: AzureCLI@1
             inputs:

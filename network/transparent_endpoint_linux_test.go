@@ -57,7 +57,7 @@ func TestTransAddEndpoints(t *testing.T) {
 			},
 			epInfo:     &EndpointInfo{},
 			wantErr:    true,
-			wantErrMsg: "TransparentEndpointClient Error : " + netlink.ErrorMockNetlink.Error() + " : netlink fail",
+			wantErrMsg: "TransparentEndpointClient Error: " + netlink.ErrorMockNetlink.Error() + " : netlink fail",
 		},
 		{
 			name: "Add endpoints get interface fail for old veth",
@@ -86,7 +86,7 @@ func TestTransAddEndpoints(t *testing.T) {
 			},
 			epInfo:     &EndpointInfo{},
 			wantErr:    true,
-			wantErrMsg: "TransparentEndpointClient Error : " + netio.ErrMockNetIOFail.Error() + ":eth0",
+			wantErrMsg: "TransparentEndpointClient Error: " + netio.ErrMockNetIOFail.Error() + ":eth0",
 		},
 		{
 			name: "Add endpoints get interface fail for host veth",
@@ -101,7 +101,7 @@ func TestTransAddEndpoints(t *testing.T) {
 			},
 			epInfo:     &EndpointInfo{},
 			wantErr:    true,
-			wantErrMsg: "TransparentEndpointClient Error : " + netio.ErrMockNetIOFail.Error() + ":azvcontainer",
+			wantErrMsg: "TransparentEndpointClient Error: " + netio.ErrMockNetIOFail.Error() + ":azvcontainer",
 		},
 		{
 			name: "get interface fail for container veth",
@@ -116,7 +116,7 @@ func TestTransAddEndpoints(t *testing.T) {
 			},
 			epInfo:     &EndpointInfo{},
 			wantErr:    true,
-			wantErrMsg: "TransparentEndpointClient Error : " + netio.ErrMockNetIOFail.Error() + ":azvhost",
+			wantErrMsg: "TransparentEndpointClient Error: " + netio.ErrMockNetIOFail.Error() + ":azvhost",
 		},
 	}
 

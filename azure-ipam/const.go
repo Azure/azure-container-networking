@@ -13,7 +13,8 @@ const (
 // plugin specific error codes
 // https://www.cni.dev/docs/spec/#error
 const (
-	ErrCreateIPConfigRequest uint = iota + 100
+	ErrCreateIPConfigRequest  uint = iota + 100
+	ErrCreateIPConfigsRequest uint = iota + 200
 	ErrRequestIPConfigFromCNS
 	ErrProcessIPConfigResponse
 )

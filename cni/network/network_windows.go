@@ -110,13 +110,10 @@ func (plugin *NetPlugin) handleConsecutiveAdd(args *cniSkel.CmdArgs, endpointId 
 	return nil, err
 }
 
-func addDefaultRoute(gwIPString string, epInfo *network.EndpointInfo, result *cniTypesCurr.Result) {
+func addDefaultRoute(_ string, _ *network.EndpointInfo, _ *network.InterfaceInfo) {
 }
 
-func addSnatForDNS(gwIPString string, epInfo *network.EndpointInfo, result *cniTypesCurr.Result) {
-}
-
-func addInfraRoutes(azIpamResult *cniTypesCurr.Result, result *cniTypesCurr.Result, epInfo *network.EndpointInfo) {
+func addSnatForDNS(_ string, _ *network.EndpointInfo, _ *network.InterfaceInfo) {
 }
 
 func setNetworkOptions(cnsNwConfig *cns.GetNetworkContainerResponse, nwInfo *network.NetworkInfo) {
@@ -161,7 +158,7 @@ func (plugin *NetPlugin) getNetworkName(netNs string, ipamAddResult *IPAMAddResu
 	// This will happen during ADD call
 	if ipamAddResult != nil && ipamAddResult.ncResponse != nil {
 		// networkName will look like ~ azure-vlan1-172-28-1-0_24
-		ipAddrNet := ipamAddResult.ipv4Result.IPs[0].Address
+		ipAddrNet := ipamAddResult.defaultInterfaceInfo.IPConfigs[0].Address
 		prefix, err := netip.ParsePrefix(ipAddrNet.String())
 		if err != nil {
 			logger.Error("Error parsing network CIDR",
@@ -191,11 +188,10 @@ func (plugin *NetPlugin) getNetworkName(netNs string, ipamAddResult *IPAMAddResu
 func setupInfraVnetRoutingForMultitenancy(
 	_ *cni.NetworkConfig,
 	_ *cniTypesCurr.Result,
-	_ *network.EndpointInfo,
-	_ *cniTypesCurr.Result) {
+	_ *network.EndpointInfo) {
 }
 
-func getNetworkDNSSettings(nwCfg *cni.NetworkConfig, _ *cniTypesCurr.Result) (network.DNSInfo, error) {
+func getNetworkDNSSettings(nwCfg *cni.NetworkConfig, _ network.DNSInfo) (network.DNSInfo, error) {
 	var nwDNS network.DNSInfo
 
 	// use custom dns if present
@@ -216,7 +212,7 @@ func getNetworkDNSSettings(nwCfg *cni.NetworkConfig, _ *cniTypesCurr.Result) (ne
 	return nwDNS, nil
 }
 
-func getEndpointDNSSettings(nwCfg *cni.NetworkConfig, result *cniTypesCurr.Result, namespace string) (network.DNSInfo, error) {
+func getEndpointDNSSettings(nwCfg *cni.NetworkConfig, dns network.DNSInfo, namespace string) (network.DNSInfo, error) {
 	var epDNS network.DNSInfo
 
 	// use custom dns if present
@@ -237,20 +233,16 @@ func getEndpointDNSSettings(nwCfg *cni.NetworkConfig, result *cniTypesCurr.Resul
 			Options: nwCfg.DNS.Options,
 		}
 	} else {
-		epDNS = network.DNSInfo{
-			Servers: result.DNS.Nameservers,
-			Suffix:  result.DNS.Domain,
-			Options: nwCfg.DNS.Options,
-		}
+		epDNS = dns
+		epDNS.Options = nwCfg.DNS.Options
 	}
 
 	return epDNS, nil
 }
 
 // getPoliciesFromRuntimeCfg returns network policies from network config.
-func getPoliciesFromRuntimeCfg(nwCfg *cni.NetworkConfig, isIPv6Enabled bool) []policy.Policy {
-	logger.Info("Runtime Info",
-		zap.Any("config", nwCfg.RuntimeConfig))
+func getPoliciesFromRuntimeCfg(nwCfg *cni.NetworkConfig, isIPv6Enabled bool) ([]policy.Policy, error) {
+	logger.Info("Runtime Info", zap.Any("config", nwCfg.RuntimeConfig))
 	var policies []policy.Policy
 	var protocol uint32
 
@@ -266,57 +258,57 @@ func getPoliciesFromRuntimeCfg(nwCfg *cni.NetworkConfig, isIPv6Enabled bool) []p
 
 		// To support hostport policy mapping
 		// uint32 NatFlagsLocalRoutedVip = 1
-		rawPolicy, _ := json.Marshal(&hnsv2.PortMappingPolicySetting{
+		// To support hostport policy mapping for ipv6 in dualstack overlay mode
+		// uint32 NatFlagsIPv6 = 2
+
+		flag := hnsv2.NatFlagsLocalRoutedVip
+		if mapping.HostIp != "" {
+			hostIP, err := netip.ParseAddr(mapping.HostIp)
+			if err != nil {
+				return nil, errors.Wrapf(err, "failed to parse hostIP %v", hostIP)
+			}
+
+			if hostIP.Is6() && isIPv6Enabled {
+				flag = hnsv2.NatFlagsIPv6
+			}
+
+			if hostIP.Is6() && !isIPv6Enabled {
+				logger.Info("Do not use ipv6 hostIP to create windows pod on ipv4 cluster")
+			}
+		}
+
+		rawPolicy, err := json.Marshal(&hnsv2.PortMappingPolicySetting{
 			ExternalPort: uint16(mapping.HostPort),
 			InternalPort: uint16(mapping.ContainerPort),
 			VIP:          mapping.HostIp,
 			Protocol:     protocol,
-			Flags:        hnsv2.NatFlagsLocalRoutedVip,
+			Flags:        flag,
 		})
 
-		hnsv2Policy, _ := json.Marshal(&hnsv2.EndpointPolicy{
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to marshal HNS portMappingPolicySetting")
+		}
+
+		hnsv2Policy, err := json.Marshal(&hnsv2.EndpointPolicy{
 			Type:     hnsv2.PortMapping,
 			Settings: rawPolicy,
 		})
 
-		policyv4 := policy.Policy{
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to marshal HNS endpointPolicy")
+		}
+
+		hnsPolicy := policy.Policy{
 			Type: policy.EndpointPolicy,
 			Data: hnsv2Policy,
 		}
 
-		logger.Info("Creating port mapping policyv4",
-			zap.Any("policy", policyv4))
-		policies = append(policies, policyv4)
+		logger.Info("Creating port mapping policy", zap.Any("policy", hnsPolicy))
 
-		// add port mapping policy for v6 if we have IPV6 enabled
-		if isIPv6Enabled {
-			// To support hostport policy mapping for ipv6 in dualstack overlay mode
-			// uint32 NatFlagsIPv6 = 2
-			rawPolicyv6, _ := json.Marshal(&hnsv2.PortMappingPolicySetting{ // nolint
-				ExternalPort: uint16(mapping.HostPort),
-				InternalPort: uint16(mapping.ContainerPort),
-				VIP:          mapping.HostIp,
-				Protocol:     protocol,
-				Flags:        hnsv2.NatFlagsIPv6,
-			})
-
-			hnsv2Policyv6, _ := json.Marshal(&hnsv2.EndpointPolicy{ // nolint
-				Type:     hnsv2.PortMapping,
-				Settings: rawPolicyv6,
-			})
-
-			policyv6 := policy.Policy{
-				Type: policy.EndpointPolicy,
-				Data: hnsv2Policyv6,
-			}
-
-			logger.Info("Creating port mapping policyv6",
-				zap.Any("policy", policyv6))
-			policies = append(policies, policyv6)
-		}
+		policies = append(policies, hnsPolicy)
 	}
 
-	return policies
+	return policies, nil
 }
 
 func getEndpointPolicies(args PolicyArgs) ([]policy.Policy, error) {

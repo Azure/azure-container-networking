@@ -20,6 +20,7 @@ COPY --from=azure-ipam /azure-ipam/*.conflist pkg/embed/fs
 COPY --from=azure-ipam /azure-ipam/bin/* pkg/embed/fs
 COPY --from=azure-vnet /azure-container-networking/cni/azure-$OS.conflist pkg/embed/fs/azure.conflist
 COPY --from=azure-vnet /azure-container-networking/cni/azure-$OS-swift.conflist pkg/embed/fs/azure-swift.conflist
+COPY --from=azure-vnet /azure-container-networking/cni/azure-$OS-multitenancy-transparent-vlan.conflist pkg/embed/fs/azure-multitenancy-transparent-vlan.conflist
 COPY --from=azure-vnet /azure-container-networking/cni/azure-$OS-swift-overlay.conflist pkg/embed/fs/azure-swift-overlay.conflist
 COPY --from=azure-vnet /azure-container-networking/cni/azure-$OS-swift-overlay-dualstack.conflist pkg/embed/fs/azure-swift-overlay-dualstack.conflist
 COPY --from=azure-vnet /azure-container-networking/bin/* pkg/embed/fs

@@ -22,6 +22,10 @@ steps:
     name: "GoEnv"
     displayName: "Set up the Go environment"
 
+  - task: KubectlInstaller@0
+    inputs:
+      kubectlVersion: latest
+
   - task: AzureCLI@1
     inputs:
       azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
@@ -31,29 +35,8 @@ steps:
       inlineScript: |
         set -e
         make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
-        ls -lah
-        pwd
-        echo "installing kubectl"
-        curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
-        sudo install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
-        kubectl cluster-info
-        kubectl get po -owide -A
-    name: "installKubectl"
-    displayName: "Install Kubectl"
-
-  - script: |
-      echo "install kubetest2 and gsutils"
-      go get github.com/onsi/ginkgo/ginkgo
-      go get github.com/onsi/gomega/...
-      go install github.com/onsi/ginkgo/ginkgo@latest
-      go install sigs.k8s.io/kubetest2@latest
-      go install sigs.k8s.io/kubetest2/kubetest2-noop@latest
-      go install sigs.k8s.io/kubetest2/kubetest2-tester-ginkgo@latest
-      wget https://storage.googleapis.com/pub/gsutil.tar.gz
-      tar xfz gsutil.tar.gz
-      sudo mv gsutil /usr/local/bin
-    name: "installKubetest"
-    displayName: "Set up Conformance Tests"
+    name: "kubeconfig"
+    displayName: "Set Kubeconfig"
 
   - ${{ if eq( parameters['testDropgz'], true) }}:
       - script: |
@@ -68,14 +51,7 @@ steps:
 
   - script: |
       echo "Start Integration Tests on Overlay Cluster"
-      echo "deploy ip-masq-agent for overlay"
-      kubectl apply -f test/integration/manifests/ip-masq-agent/ip-masq-agent.yaml --validate=false
-      cd test/integration/manifests/ip-masq-agent/
-      kubectl apply -f config-custom.yaml
-      kubectl apply -f config-reconcile.yaml
-      cd ../../../..
-      kubectl get po -owide -A
-      CNS=$(make cns-version) DROPGZ=$(make cni-dropgz-version)
+      CNS=$(make cns-version)
       sudo -E env "PATH=$PATH" make test-integration CNS_VERSION=${CNS} CNI_DROPGZ_VERSION=$(dropgzVersion) INSTALL_CNS=true INSTALL_AZURE_CNI_OVERLAY=true TEST_DROPGZ=${{ parameters.testDropgz }}
     retryCountOnTaskFailure: 3
     name: "integrationTest"
@@ -123,7 +99,7 @@ steps:
         make -C ./hack/aks azcfg AZCLI=az REGION=$(REGION_AKS_CLUSTER_TEST)
         kubectl get pods -owide -A
         echo "Validating Node Restart"
-        sudo CNI_TYPE=cniv2 RESTART_CASE=true go test -timeout 30m -tags load -run ^TestValidateState$
+        CNI_TYPE=cniv2 RESTART_CASE=true go test -timeout 30m -tags load -run ^TestValidateState$
     displayName: "Validate Node Restart"
     retryCountOnTaskFailure: 3
 
@@ -132,12 +108,12 @@ steps:
       kubectl get pod -owide -A
       echo "validate pod state before CNS restarts"
       cd test/integration/load
-      sudo CNI_TYPE=cniv2 go test -timeout 30m -tags load -run ^TestValidateState$
+      CNI_TYPE=cniv2 go test -timeout 30m -tags load -run ^TestValidateState$
       kubectl rollout restart ds azure-cns -n kube-system
       kubectl rollout status ds azure-cns -n kube-system
       kubectl get pod -owide -A
       echo "validate pods after CNS restart"
-      sudo CNI_TYPE=cniv2 go test -timeout 30m -tags load -run ^TestValidateState$
+      CNI_TYPE=cniv2 go test -timeout 30m -tags load -run ^TestValidateState$
     name: "restartCNS_ValidatePodState"
     displayName: "Restart CNS and validate pod state"
     retryCountOnTaskFailure: 3
@@ -147,15 +123,6 @@ steps:
       artifactName: test-output
       pathtoPublish: "$(Build.ArtifactStagingDirectory)/test-output"
     condition: always()
-
-  - script: |
-      echo "Run Service Conformance E2E"
-      export PATH=${PATH}:/usr/local/bin/gsutil
-      KUBECONFIG=~/.kube/config kubetest2 noop \
-        --test ginkgo -- \
-        --focus-regex "Services.*\[Conformance\].*"
-    name: "servicesConformance"
-    displayName: "Run Services Conformance Tests"
 
   - script: |
       echo "Run wireserver and metadata connectivity Tests"
@@ -172,3 +139,41 @@ steps:
     name: "Cleanupartifactdir"
     displayName: "Cleanup artifact dir"
     condition: always()
+
+  - task: AzureCLI@2
+    inputs:
+      azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+      scriptLocation: "inlineScript"
+      scriptType: "bash"
+      addSpnToEnvironment: true
+      inlineScript: |
+        set -e
+        make -C ./hack/aks windows-nodepool-up AZCLI=az SUB=$(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS) CLUSTER=${{ parameters.clusterName }}
+        echo "Windows node are successfully added to v4 Overlay Cluster"
+        kubectl cluster-info
+        kubectl get node -owide
+        kubectl get po -owide -A
+    name: "Add_Windows_Node"
+    displayName: "Add windows node on v4 overlay cluster"
+
+  - script: |
+      nodeList=`kubectl get node -owide | grep Windows | awk '{print $1}'`
+      for node in $nodeList; do
+          taint=`kubectl describe node $node | grep Taints | awk '{print $2}'`
+          if [ $taint == "node.cloudprovider.kubernetes.io/uninitialized=true:NoSchedule" ]; then
+              kubectl taint nodes $node node.cloudprovider.kubernetes.io/uninitialized=true:NoSchedule-
+          fi
+      done
+      CNS=$(make cns-version)
+      sudo -E env "PATH=$PATH" make test-load SCALE_UP=32 OS_TYPE=windows CNI_TYPE=cniv2 VALIDATE_STATEFILE=true INSTALL_CNS=true INSTALL_AZURE_CNI_OVERLAY=true VALIDATE_V4OVERLAY=true CNS_VERSION=${CNS} CNI_DROPGZ_VERSION=$(dropgzVersion) TEST_DROPGZ=${{ parameters.testDropgz }} CLEANUP=true
+    name: "WindowsOverlayControlPlaneScaleTests"
+    displayName: "Windows v4Overlay ControlPlane Scale Tests"
+    retryCountOnTaskFailure: 3
+
+  - script: |
+      echo "IPv4 Overlay DataPath Test"
+      cd test/integration/datapath
+      sudo -E env "PATH=$PATH" go test -count=1 datapath_windows_test.go -timeout 3m -tags connection -restartKubeproxy true -run ^TestDatapathWin$
+    name: "WindowsV4OverlayDatapathTests"
+    displayName: "Windows v4Overlay Datapath Tests"
+    retryCountOnTaskFailure: 3

@@ -148,7 +148,7 @@ func (c *Client) CreateNetwork(networkName string, nicInfo *wireserver.Interface
 
 // DeleteNetwork creates a network using docker network create.
 func (c *Client) DeleteNetwork(networkName string) error {
-	p := platform.NewExecClient()
+	p := platform.NewExecClient(nil)
 	logger.Printf("[Azure CNS] DeleteNetwork")
 
 	url := c.connectionURL + inspectNetworkPath + networkName

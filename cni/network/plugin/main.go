@@ -17,7 +17,6 @@ import (
 	zaplog "github.com/Azure/azure-container-networking/cni/log"
 	"github.com/Azure/azure-container-networking/cni/network"
 	"github.com/Azure/azure-container-networking/common"
-	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/nns"
 	"github.com/Azure/azure-container-networking/platform"
 	"github.com/Azure/azure-container-networking/store"
@@ -157,6 +156,7 @@ func rootExecute() error {
 			InterfaceDetails: telemetry.InterfaceInfo{},
 			BridgeDetails:    telemetry.BridgeInfo{},
 			Version:          version,
+			Logger:           logger,
 		},
 	}
 
@@ -182,7 +182,8 @@ func rootExecute() error {
 		cniReport.GetReport(pluginName, version, ipamQueryURL)
 
 		var upTime time.Time
-		upTime, err = platform.GetLastRebootTime()
+		p := platform.NewExecClient(logger)
+		upTime, err = p.GetLastRebootTime()
 		if err == nil {
 			cniReport.VMUptime = upTime.Format("2006-01-02 15:04:05")
 		}
@@ -191,7 +192,7 @@ func rootExecute() error {
 		if err = netPlugin.Plugin.InitializeKeyValueStore(&config); err != nil {
 			printCNIError(fmt.Sprintf("Failed to initialize key-value store of network plugin: %v", err))
 
-			tb = telemetry.NewTelemetryBuffer()
+			tb = telemetry.NewTelemetryBuffer(logger)
 			if tberr := tb.Connect(); tberr != nil {
 				logger.Error("Cannot connect to telemetry service", zap.Error(tberr))
 				return errors.Wrap(err, "lock acquire error")
@@ -228,7 +229,7 @@ func rootExecute() error {
 
 		// Start telemetry process if not already started. This should be done inside lock, otherwise multiple process
 		// end up creating/killing telemetry process results in undesired state.
-		tb = telemetry.NewTelemetryBuffer()
+		tb = telemetry.NewTelemetryBuffer(logger)
 		tb.ConnectToTelemetryService(telemetryNumRetries, telemetryWaitTimeInMilliseconds)
 		defer tb.Close()
 
@@ -292,15 +293,6 @@ func main() {
 		printVersion()
 		os.Exit(0)
 	}
-
-	log.SetName(name)
-	log.SetLevel(log.LevelInfo)
-	if err := log.SetTargetLogDirectory(log.TargetLogfile, ""); err != nil {
-		fmt.Printf("Failed to setup cni logging: %v\n", err)
-		return
-	}
-
-	defer log.Close()
 
 	if rootExecute() != nil {
 		os.Exit(1)

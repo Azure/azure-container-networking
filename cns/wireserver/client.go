@@ -6,12 +6,14 @@ import (
 	"encoding/xml"
 	"io"
 	"net/http"
+	"net/url"
 
-	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/pkg/errors"
 )
 
-const hostQueryURL = "http://168.63.129.16/machine/plugins?comp=nmagent&type=getinterfaceinfov1"
+const (
+	WireserverIP = "168.63.129.16"
+)
 
 type GetNetworkContainerOpts struct {
 	NetworkContainerID string
@@ -25,14 +27,34 @@ type do interface {
 }
 
 type Client struct {
+	HostPort string
+
 	HTTPClient do
+	Logger     interface {
+		Printf(string, ...any)
+	}
+}
+
+func (c *Client) hostport() string {
+	return c.HostPort
 }
 
 // GetInterfaces queries interfaces from the wireserver.
 func (c *Client) GetInterfaces(ctx context.Context) (*GetInterfacesResult, error) {
-	logger.Printf("[Azure CNS] GetPrimaryInterfaceInfoFromHost")
+	c.Logger.Printf("[Azure CNS] GetPrimaryInterfaceInfoFromHost")
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, hostQueryURL, nil)
+	q := &url.Values{}
+	q.Add("comp", "nmagent")
+	q.Add("type", "getinterfaceinfov1")
+
+	reqURL := &url.URL{
+		Scheme:   "http",
+		Host:     c.hostport(),
+		Path:     "/machine/plugins",
+		RawQuery: q.Encode(),
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL.String(), http.NoBody)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to construct request")
 	}
@@ -46,7 +68,7 @@ func (c *Client) GetInterfaces(ctx context.Context) (*GetInterfacesResult, error
 		return nil, errors.Wrap(err, "failed to read response body")
 	}
 
-	logger.Printf("[Azure CNS] Response received from NMAgent for get interface details: %s", string(b))
+	c.Logger.Printf("[Azure CNS] Response received from NMAgent for get interface details: %s", string(b))
 
 	var res GetInterfacesResult
 	if err := xml.NewDecoder(bytes.NewReader(b)).Decode(&res); err != nil {

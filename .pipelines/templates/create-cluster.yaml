@@ -4,8 +4,9 @@ parameters:
   clusterType: ""
   clusterName: "" # Recommended to pass in unique identifier
   vmSize: ""
+  vmSizeWin: ""
   k8sVersion: ""
-  windowsOsSku: "Windows2022" # Currently we only support Windows2022
+  osSkuWin: "Windows2022" # Currently we only support Windows2022
   dependsOn: ""
   region: ""
 
@@ -31,7 +32,14 @@ jobs:
             fi
             mkdir -p ~/.kube/
             make -C ./hack/aks azcfg AZCLI=az REGION=${{ parameters.region }}
-            make -C ./hack/aks ${{ parameters.clusterType }} AZCLI=az REGION=${{ parameters.region }} SUB=$(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS) CLUSTER=${{ parameters.clusterName }} K8S_VER=${{ parameters.k8sVersion }} VM_SIZE=${{ parameters.vmSize }} WINDOWS_OS_SKU=${{ parameters.windowsOsSku }} WINDOWS_VM_SKU=${{ parameters.vmSize }} WINDOWS_USERNAME=${WINDOWS_USERNAME} WINDOWS_PASSWORD=${WINDOWS_PASSWORD}
+
+            make -C ./hack/aks ${{ parameters.clusterType }} \
+            AZCLI=az REGION=${{ parameters.region }} SUB=$(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS) \
+            CLUSTER=${{ parameters.clusterName }} K8S_VER=${{ parameters.k8sVersion }} \
+            VM_SIZE=${{ parameters.vmSize }} VM_SIZE_WIN=${{ parameters.vmSizeWin }} \
+            OS_SKU_WIN=${{ parameters.osSkuWin }} \
+            WINDOWS_USERNAME=${WINDOWS_USERNAME} WINDOWS_PASSWORD=${WINDOWS_PASSWORD}
+
             echo "Cluster successfully created"
         displayName: Cluster - ${{ parameters.clusterType }}
         continueOnError: ${{ contains(parameters.clusterType, 'dualstack') }}

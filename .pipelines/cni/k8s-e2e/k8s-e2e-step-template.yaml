@@ -28,6 +28,12 @@ steps:
         kubectl taint nodes -l kubernetes.azure.com/mode=system node-role.kubernetes.io/control-plane:NoSchedule
       fi
 
+      # Taint Windows nodes so that Linux tests do not run on them
+      if ${{ lower(eq(parameters.os, 'linux')) }}
+      then
+        kubectl taint nodes -l kubernetes.azure.com/mode=user node-role.kubernetes.io/control-plane:NoSchedule
+      fi
+
       # Depreciating flags. Change once k8s minimum version supported is > 1.24
       # nodes -> procs
       # flakeAttempts -> flake-attempts
@@ -48,6 +54,12 @@ steps:
       if ${{ lower(eq(parameters.os, 'windows')) }}
       then
         kubectl taint nodes -l kubernetes.azure.com/mode=system node-role.kubernetes.io/control-plane:NoSchedule-
+      fi
+
+      # Untaint Windows nodes once testing is complete
+      if ${{ lower(eq(parameters.os, 'linux')) }}
+      then
+        kubectl taint nodes -l kubernetes.azure.com/mode=user node-role.kubernetes.io/control-plane:NoSchedule-
       fi
     name: ${{ parameters.name }}
     displayName: k8s E2E - ${{ parameters.testName }}

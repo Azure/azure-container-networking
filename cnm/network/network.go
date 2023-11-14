@@ -53,7 +53,7 @@ func NewPlugin(config *common.PluginConfig) (NetPlugin, error) {
 
 	nl := netlink.NewNetlink()
 	// Setup network manager.
-	nm, err := network.NewNetworkManager(nl, platform.NewExecClient(), &netio.NetIO{})
+	nm, err := network.NewNetworkManager(nl, platform.NewExecClient(nil), &netio.NetIO{}, network.NewNamespaceClient())
 	if err != nil {
 		return nil, err
 	}
@@ -246,7 +246,7 @@ func (plugin *netPlugin) createEndpoint(w http.ResponseWriter, r *http.Request) 
 	if err != nil {
 		log.Errorf("failed to init CNS client", err)
 	}
-	err = plugin.nm.CreateEndpoint(cnscli, req.NetworkID, &epInfo)
+	err = plugin.nm.CreateEndpoint(cnscli, req.NetworkID, []*network.EndpointInfo{&epInfo})
 	if err != nil {
 		plugin.SendErrorResponse(w, err)
 		return

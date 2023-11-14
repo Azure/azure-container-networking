@@ -1,0 +1,29 @@
+parameters:
+  clusterName: ""
+  cni: "cniv1"
+
+steps:
+  - task: AzureCLI@1
+    inputs:
+      azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+      scriptLocation: "inlineScript"
+      scriptType: "bash"
+      addSpnToEnvironment: true
+      inlineScript: |
+        make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
+        kubectl get pod -owide -A
+
+        echo "Validate pod IP assignment before HNS restart"
+        make test-validate-state CNI_TYPE=${{ parameters.cni }} OS_TYPE=windows
+
+        podList=`kubectl get pods -n kube-system -l os=windows,app=privileged-daemonset -owide --no-headers | awk '{print $1}'`
+        echo "Restart HNS service on each node"
+        for pod in $podList; do
+          kubectl exec -i -n kube-system $pod -- powershell Restart-Service hns
+        done
+
+        echo "Validate pod IP assignment after HNS restart"
+        make test-validate-state CNI_TYPE=${{ parameters.cni }} OS_TYPE=windows
+    name: "restartHNS"
+    displayName: "Restart HNS and Validate pods"
+    retryCountOnTaskFailure: 3

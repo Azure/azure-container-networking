@@ -37,6 +37,7 @@ import (
 	nncctrl "github.com/Azure/azure-container-networking/cns/kubecontroller/nodenetworkconfig"
 	podctrl "github.com/Azure/azure-container-networking/cns/kubecontroller/pod"
 	"github.com/Azure/azure-container-networking/cns/logger"
+	"github.com/Azure/azure-container-networking/cns/middlewares"
 	"github.com/Azure/azure-container-networking/cns/multitenantcontroller"
 	"github.com/Azure/azure-container-networking/cns/multitenantcontroller/multitenantoperator"
 	"github.com/Azure/azure-container-networking/cns/restserver"
@@ -430,17 +431,17 @@ func sendRegisterNodeRequest(httpc *http.Client, httpRestService cns.HTTPService
 func startTelemetryService(ctx context.Context) {
 	var config aitelemetry.AIConfig
 
-	err := telemetry.CreateAITelemetryHandle(config, false, false, false)
+	tb := telemetry.NewTelemetryBuffer(nil)
+	err := tb.CreateAITelemetryHandle(config, false, false, false)
 	if err != nil {
 		log.Errorf("AI telemetry handle creation failed..:%w", err)
 		return
 	}
 
-	tbtemp := telemetry.NewTelemetryBuffer()
+	tbtemp := telemetry.NewTelemetryBuffer(nil)
 	//nolint:errcheck // best effort to cleanup leaked pipe/socket before start
 	tbtemp.Cleanup(telemetry.FdName)
 
-	tb := telemetry.NewTelemetryBuffer()
 	err = tb.StartServer()
 	if err != nil {
 		log.Errorf("Telemetry service failed to start: %w", err)
@@ -676,7 +677,13 @@ func main() {
 		HTTPClient: &http.Client{},
 	}
 
-	httpRestService, err := restserver.NewHTTPRestService(&config, &wireserver.Client{HTTPClient: &http.Client{}}, &wsProxy, nmaClient,
+	wsclient := &wireserver.Client{
+		HostPort:   cnsconfig.WireserverIP,
+		HTTPClient: &http.Client{},
+		Logger:     logger.Log,
+	}
+
+	httpRestService, err := restserver.NewHTTPRestService(&config, wsclient, &wsProxy, nmaClient,
 		endpointStateStore, conflistGenerator, homeAzMonitor)
 	if err != nil {
 		logger.Errorf("Failed to create CNS object, err:%v.\n", err)
@@ -724,8 +731,9 @@ func main() {
 		}
 	}
 
-	// Setting the remote ARP MAC address to 12-34-56-78-9a-bc on windows for external traffic
-	err = platform.SetSdnRemoteArpMacAddress()
+	// Setting the remote ARP MAC address to 12-34-56-78-9a-bc on windows for external traffic if HNS is enabled
+	execClient := platform.NewExecClient(nil)
+	err = platform.SetSdnRemoteArpMacAddress(execClient)
 	if err != nil {
 		logger.Errorf("Failed to set remote ARP MAC address: %v", err)
 		return
@@ -1154,7 +1162,7 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 	}
 
 	// check the Node labels for Swift V2
-	if _, ok := node.Labels[configuration.LabelSwiftV2]; ok {
+	if _, ok := node.Labels[configuration.LabelNodeSwiftV2]; ok {
 		cnsconfig.EnableSwiftV2 = true
 		cnsconfig.WatchPods = true
 		// TODO(rbtr): create the NodeInfo for Swift V2
@@ -1322,6 +1330,9 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 		if err := mtpncctrl.SetupWithManager(manager); err != nil {
 			return errors.Wrapf(err, "failed to setup mtpnc reconciler with manager")
 		}
+		// if SWIFT v2 is enabled on CNS, attach multitenant middleware to rest service
+		swiftV2Middleware := middlewares.SWIFTv2Middleware{Cli: manager.GetClient()}
+		httpRestService.AttachSWIFTv2Middleware(&swiftV2Middleware)
 	}
 
 	// adding some routes to the root service mux

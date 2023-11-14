@@ -105,3 +105,98 @@ func TestNewPodInfoFromIPConfigsRequest(t *testing.T) {
 		})
 	}
 }
+
+func TestCreateNetworkContainerRequestValidate(t *testing.T) {
+	tests := []struct {
+		name    string
+		req     CreateNetworkContainerRequest
+		wantErr bool
+	}{
+		{
+			name: "valid",
+			req: CreateNetworkContainerRequest{
+				NetworkContainerid: "f47ac10b-58cc-0372-8567-0e02b2c3d479",
+			},
+			wantErr: false,
+		},
+		{
+			name: "valid",
+			req: CreateNetworkContainerRequest{
+				NetworkContainerid: SwiftPrefix + "f47ac10b-58cc-0372-8567-0e02b2c3d479",
+			},
+			wantErr: false,
+		},
+		{
+			name: "invalid",
+			req: CreateNetworkContainerRequest{
+				NetworkContainerid: "-f47ac10b-58cc-0372-8567-0e02b2c3d479",
+			},
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := tt.req.Validate(); (err != nil) != tt.wantErr {
+				t.Errorf("CreateNetworkContainerRequest.Validate() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestPostNetworkContainersRequest_Validate(t *testing.T) {
+	tests := []struct {
+		name    string
+		req     PostNetworkContainersRequest
+		wantErr bool
+	}{
+		{
+			name: "valid",
+			req: PostNetworkContainersRequest{
+				CreateNetworkContainerRequests: []CreateNetworkContainerRequest{
+					{
+						NetworkContainerid: "f47ac10b-58cc-0372-8567-0e02b2c3d479",
+					},
+					{
+						NetworkContainerid: "f47ac10b-58cc-0372-8567-0e02b2c3d478",
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "valid",
+			req: PostNetworkContainersRequest{
+				CreateNetworkContainerRequests: []CreateNetworkContainerRequest{
+					{
+						NetworkContainerid: "f47ac10b-58cc-0372-8567-0e02b2c3d479",
+					},
+					{
+						NetworkContainerid: SwiftPrefix + "f47ac10b-58cc-0372-8567-0e02b2c3d478",
+					},
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "invalid",
+			req: PostNetworkContainersRequest{
+				CreateNetworkContainerRequests: []CreateNetworkContainerRequest{
+					{
+						NetworkContainerid: "f47ac10b-58cc-0372-8567-0e02b2c3d479",
+					},
+					{
+						NetworkContainerid: "-f47ac10b-58cc-0372-8567-0e02b2c3d478",
+					},
+				},
+			},
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := tt.req.Validate(); (err != nil) != tt.wantErr {
+				t.Errorf("PostNetworkContainersRequest.Validate() error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}

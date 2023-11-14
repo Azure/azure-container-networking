@@ -194,7 +194,7 @@ func TestSetupRoutingForMultitenancy(t *testing.T) {
 		cnsNetworkConfig *cns.GetNetworkContainerResponse
 		azIpamResult     *cniTypesCurr.Result
 		epInfo           *network.EndpointInfo
-		result           *cniTypesCurr.Result
+		result           *network.InterfaceInfo
 	}
 
 	tests := []struct {
@@ -218,7 +218,7 @@ func TestSetupRoutingForMultitenancy(t *testing.T) {
 					},
 				},
 				epInfo: &network.EndpointInfo{},
-				result: &cniTypesCurr.Result{},
+				result: &network.InterfaceInfo{},
 			},
 			expected: args{
 				nwCfg: &cni.NetworkConfig{
@@ -240,11 +240,11 @@ func TestSetupRoutingForMultitenancy(t *testing.T) {
 						},
 					},
 				},
-				result: &cniTypesCurr.Result{
-					Routes: []*cniTypes.Route{
+				result: &network.InterfaceInfo{
+					Routes: []network.RouteInfo{
 						{
 							Dst: net.IPNet{IP: net.ParseIP("0.0.0.0"), Mask: defaultIPNet().Mask},
-							GW:  net.ParseIP("10.0.0.1"),
+							Gw:  net.ParseIP("10.0.0.1"),
 						},
 					},
 				},
@@ -287,7 +287,7 @@ func TestCleanupMultitenancyResources(t *testing.T) {
 				},
 				infraIPNet: &cniTypesCurr.Result{},
 				plugin: &NetPlugin{
-					ipamInvoker: NewMockIpamInvoker(false, false, false),
+					ipamInvoker: NewMockIpamInvoker(false, false, false, false, false),
 				},
 			},
 			expected: args{
@@ -298,7 +298,7 @@ func TestCleanupMultitenancyResources(t *testing.T) {
 				},
 				infraIPNet: &cniTypesCurr.Result{},
 				plugin: &NetPlugin{
-					ipamInvoker: NewMockIpamInvoker(false, false, false),
+					ipamInvoker: NewMockIpamInvoker(false, false, false, false, false),
 				},
 			},
 		},
@@ -413,7 +413,7 @@ func TestGetMultiTenancyCNIResult(t *testing.T) {
 					IPAM:                       cni.IPAM{Type: "azure-vnet-ipam"},
 				},
 				plugin: &NetPlugin{
-					ipamInvoker: NewMockIpamInvoker(false, false, false),
+					ipamInvoker: NewMockIpamInvoker(false, false, false, false, false),
 					multitenancyClient: &Multitenancy{
 						netioshim: &mockNetIOShim{},
 						cnsclient: &MockCNSClient{
@@ -626,7 +626,7 @@ func TestGetMultiTenancyCNIResultUnsupportedAPI(t *testing.T) {
 					IPAM:                       cni.IPAM{Type: "azure-vnet-ipam"},
 				},
 				plugin: &NetPlugin{
-					ipamInvoker: NewMockIpamInvoker(false, false, false),
+					ipamInvoker: NewMockIpamInvoker(false, false, false, false, false),
 					multitenancyClient: &Multitenancy{
 						netioshim: &mockNetIOShim{},
 						cnsclient: &MockCNSClient{
@@ -765,7 +765,7 @@ func TestGetMultiTenancyCNIResultNotFound(t *testing.T) {
 					IPAM:                       cni.IPAM{Type: "azure-vnet-ipam"},
 				},
 				plugin: &NetPlugin{
-					ipamInvoker: NewMockIpamInvoker(false, false, false),
+					ipamInvoker: NewMockIpamInvoker(false, false, false, false, false),
 					multitenancyClient: &Multitenancy{
 						netioshim: &mockNetIOShim{},
 						cnsclient: &MockCNSClient{
@@ -800,7 +800,7 @@ func TestGetMultiTenancyCNIResultNotFound(t *testing.T) {
 					IPAM:                       cni.IPAM{Type: "azure-vnet-ipam"},
 				},
 				plugin: &NetPlugin{
-					ipamInvoker: NewMockIpamInvoker(false, false, false),
+					ipamInvoker: NewMockIpamInvoker(false, false, false, false, false),
 					multitenancyClient: &Multitenancy{
 						netioshim: &mockNetIOShim{},
 						cnsclient: &MockCNSClient{

@@ -24,8 +24,10 @@ import (
 	"go.uber.org/zap"
 )
 
-var logger = log.CNILogger.With(zap.String("component", "cni-plugin"))
-var storeLogger = log.CNILogger.With(zap.String("component", "cni-store"))
+var (
+	logger      = log.CNILogger.With(zap.String("component", "cni-plugin"))
+	storeLogger = log.CNILogger.With(zap.String("component", "cni-store"))
+)
 
 var errEmptyContent = errors.New("read content is zero bytes")
 
@@ -133,7 +135,7 @@ func (plugin *Plugin) DelegateDel(pluginName string, nwCfg *NetworkConfig) error
 		zap.String("plugin", pluginName),
 		zap.Any("config", nwCfg))
 	defer func() {
-		logger.Info("Plugin eturned",
+		logger.Info("Plugin returned",
 			zap.String("plugin", pluginName),
 			zap.Error(err))
 	}()

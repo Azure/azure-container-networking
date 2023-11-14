@@ -49,10 +49,7 @@ func TestMain(m *testing.M) {
 		os.Exit(exitCode)
 	}()
 
-	clientset, err := kubernetes.MustGetClientset()
-	if err != nil {
-		return
-	}
+	clientset := kubernetes.MustGetClientset()
 
 	ctx := context.Background()
 	installopt := os.Getenv(kubernetes.EnvInstallCNS)

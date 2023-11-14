@@ -4,7 +4,6 @@
 package network
 
 import (
-	"errors"
 	"fmt"
 	"net"
 	"strconv"
@@ -16,6 +15,7 @@ import (
 	"github.com/Azure/azure-container-networking/network/networkutils"
 	"github.com/Azure/azure-container-networking/ovsctl"
 	"github.com/Azure/azure-container-networking/platform"
+	"github.com/pkg/errors"
 	"go.uber.org/zap"
 	"golang.org/x/sys/unix"
 )
@@ -39,6 +39,8 @@ const (
 	LocalIPKey = "localIP"
 	// InfraVnetIPKey key for infra vnet
 	InfraVnetIPKey = "infraVnetIP"
+	// Ubuntu Release Version for checking which command to use.
+	Ubuntu22 = "22.04"
 )
 
 const (
@@ -91,6 +93,11 @@ func (nm *networkManager) newNetworkImpl(nwInfo *NetworkInfo, extIf *externalInt
 	case opModeTransparentVlan:
 		logger.Info("Transparent vlan mode")
 		ifName = extIf.Name
+		nu := networkutils.NewNetworkUtils(nm.netlink, nm.plClient)
+		if err := nu.EnableIPV4Forwarding(); err != nil {
+			return nil, fmt.Errorf("Ipv4 forwarding failed: %w", err)
+		}
+		logger.Info("Ipv4 forwarding enabled")
 	default:
 		return nil, errNetworkModeInvalid
 	}
@@ -243,14 +250,72 @@ func isGreaterOrEqaulUbuntuVersion(versionToMatch int) bool {
 	return false
 }
 
-func readDnsInfo(ifName string) (DNSInfo, error) {
+func (nm *networkManager) systemVersion() (string, error) {
+	osVersion, err := nm.plClient.ExecuteCommand("lsb_release -rs")
+	if err != nil {
+		return osVersion, errors.Wrap(err, "error retrieving the system distribution version")
+	}
+	return osVersion, nil
+}
+
+func (nm *networkManager) addDomain(ifName, domain string) (string, error) {
+	osVersion, err := nm.systemVersion()
+	if err != nil {
+		return osVersion, err
+	}
+
+	var cmd string
+	switch {
+	case strings.HasPrefix(osVersion, Ubuntu22):
+		cmd = fmt.Sprintf("resolvectl domain %s %s", ifName, domain)
+	default:
+		cmd = fmt.Sprintf("systemd-resolve --interface %s --set-domain %s", ifName, domain)
+	}
+	return cmd, nil
+}
+
+func (nm *networkManager) addDNSServers(ifName string, dnsServers []string) (string, error) {
+	osVersion, err := nm.systemVersion()
+	if err != nil {
+		return osVersion, err
+	}
+
+	var cmd string
+	switch {
+	case strings.HasPrefix(osVersion, Ubuntu22):
+		cmd = fmt.Sprintf("resolvectl dns %s %s", ifName, strings.Join(dnsServers, " "))
+	default:
+		cmd = fmt.Sprintf("systemd-resolve --interface %s %s", ifName, strings.Join(dnsServers, "--set-dns "))
+	}
+	return cmd, nil
+}
+
+func (nm *networkManager) ifNameStatus(ifName string) (string, error) {
+	osVersion, err := nm.systemVersion()
+	if err != nil {
+		return osVersion, err
+	}
+	var cmd string
+	switch {
+	case strings.HasPrefix(osVersion, Ubuntu22):
+		cmd = fmt.Sprintf("resolvectl status %s", ifName)
+	default:
+		cmd = fmt.Sprintf("systemd-resolve --status %s", ifName)
+	}
+	return cmd, nil
+}
+
+func (nm *networkManager) readDNSInfo(ifName string) (DNSInfo, error) {
 	var dnsInfo DNSInfo
 
-	p := platform.NewExecClient()
-	cmd := fmt.Sprintf("systemd-resolve --status %s", ifName)
-	out, err := p.ExecuteCommand(cmd)
+	cmd, err := nm.ifNameStatus(ifName)
 	if err != nil {
-		return dnsInfo, err
+		return dnsInfo, errors.Wrap(err, "Error generating interface name status cmd")
+	}
+
+	out, err := nm.plClient.ExecuteCommand(cmd)
+	if err != nil {
+		return dnsInfo, errors.Wrapf(err, "Error executing interface status with cmd %s", cmd)
 	}
 
 	logger.Info("console output for above cmd", zap.Any("out", out))
@@ -289,8 +354,8 @@ func readDnsInfo(ifName string) (DNSInfo, error) {
 	return dnsInfo, nil
 }
 
-func saveDnsConfig(extIf *externalInterface) error {
-	dnsInfo, err := readDnsInfo(extIf.Name)
+func (nm *networkManager) saveDNSConfig(extIf *externalInterface) error {
+	dnsInfo, err := nm.readDNSInfo(extIf.Name)
 	if err != nil || len(dnsInfo.Servers) == 0 || dnsInfo.Suffix == "" {
 		logger.Info("Failed to read dns info from interface", zap.Any("dnsInfo", dnsInfo), zap.String("extIfName", extIf.Name),
 			zap.Error(err))
@@ -332,12 +397,12 @@ func (nm *networkManager) applyIPConfig(extIf *externalInterface, targetIf *net.
 	return nil
 }
 
-func applyDnsConfig(extIf *externalInterface, ifName string) error {
+func (nm *networkManager) applyDNSConfig(extIf *externalInterface, ifName string) error {
 	var (
-		setDnsList string
+		setDNSList []string
+		cmd        string
 		err        error
 	)
-	p := platform.NewExecClient()
 
 	if extIf != nil {
 		for _, server := range extIf.DNSInfo.Servers {
@@ -346,21 +411,31 @@ func applyDnsConfig(extIf *externalInterface, ifName string) error {
 				continue
 			}
 
-			buf := fmt.Sprintf("--set-dns=%s", server)
-			setDnsList = setDnsList + " " + buf
+			setDNSList = append(setDNSList, server)
 		}
 
-		if setDnsList != "" {
-			cmd := fmt.Sprintf("systemd-resolve --interface=%s%s", ifName, setDnsList)
-			_, err = p.ExecuteCommand(cmd)
+		if len(setDNSList) > 0 {
+			cmd, err = nm.addDNSServers(ifName, setDNSList)
 			if err != nil {
-				return err
+				return errors.Wrap(err, "Error generating add DNS Servers cmd")
+			}
+
+			_, err = nm.plClient.ExecuteCommand(cmd)
+			if err != nil {
+				return errors.Wrapf(err, "Error executing add DNS Servers with cmd %s", cmd)
 			}
 		}
 
 		if extIf.DNSInfo.Suffix != "" {
-			cmd := fmt.Sprintf("systemd-resolve --interface=%s --set-domain=%s", ifName, extIf.DNSInfo.Suffix)
-			_, err = p.ExecuteCommand(cmd)
+			cmd, err = nm.addDomain(ifName, extIf.DNSInfo.Suffix)
+			if err != nil {
+				return errors.Wrap(err, "Error generating add domain cmd")
+			}
+
+			_, err = nm.plClient.ExecuteCommand(cmd)
+			if err != nil {
+				return errors.Wrapf(err, "Error executing add Domain with cmd %s", cmd)
+			}
 		}
 
 	}
@@ -443,12 +518,11 @@ func (nm *networkManager) connectExternalInterface(extIf *externalInterface, nwI
 	isGreaterOrEqualUbuntu17 := isGreaterOrEqaulUbuntuVersion(ubuntuVersion17)
 	isSystemdResolvedActive := false
 	if isGreaterOrEqualUbuntu17 {
-		p := platform.NewExecClient()
 		// Don't copy dns servers if systemd-resolved isn't available
-		if _, cmderr := p.ExecuteCommand("systemctl status systemd-resolved"); cmderr == nil {
+		if _, cmderr := nm.plClient.ExecuteCommand("systemctl status systemd-resolved"); cmderr == nil {
 			isSystemdResolvedActive = true
 			logger.Info("Saving dns config from", zap.String("Name", hostIf.Name))
-			if err = saveDnsConfig(extIf); err != nil {
+			if err = nm.saveDNSConfig(extIf); err != nil {
 				logger.Error("Failed to save dns config", zap.Error(err))
 				return err
 			}
@@ -506,7 +580,7 @@ func (nm *networkManager) connectExternalInterface(extIf *externalInterface, nwI
 	if isGreaterOrEqualUbuntu17 && isSystemdResolvedActive {
 		logger.Info("Applying dns config on", zap.String("bridgeName", bridgeName))
 
-		if err = applyDnsConfig(extIf, bridgeName); err != nil {
+		if err = nm.applyDNSConfig(extIf, bridgeName); err != nil {
 			logger.Error("Failed to apply DNS configuration with", zap.Error(err))
 			return err
 		}

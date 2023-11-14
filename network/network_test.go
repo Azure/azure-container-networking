@@ -181,6 +181,26 @@ var _ = Describe("Test Network", func() {
 				Expect(nw.Id).To(Equal(nwInfo.Id))
 			})
 		})
+
+		Context("When we cannot enable ipv4 forwarding", func() {
+			It("Should error when ipv4 forwarding failed", func() {
+				nm := &networkManager{
+					ExternalInterfaces: map[string]*externalInterface{},
+					plClient:           platform.NewMockExecClient(true),
+				}
+				nm.ExternalInterfaces["eth0"] = &externalInterface{
+					Networks: map[string]*network{},
+				}
+				nwInfo := &NetworkInfo{
+					Id:           "nw",
+					MasterIfName: "eth0",
+					Mode:         opModeTransparentVlan,
+				}
+				nw, err := nm.newNetwork(nwInfo)
+				Expect(err).To(MatchError(platform.ErrMockExec))
+				Expect(nw).To(BeNil())
+			})
+		})
 	})
 
 	Describe("Test deleteNetwork", func() {

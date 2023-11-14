@@ -17,7 +17,7 @@ spec:
     shortNames:
     - pni
     singular: podnetworkinstance
-  scope: Cluster
+  scope: Namespaced
   versions:
   - additionalPrinterColumns:
     - jsonPath: .status.podIPAddresses
