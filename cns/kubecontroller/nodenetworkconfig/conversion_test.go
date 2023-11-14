@@ -10,19 +10,24 @@ import (
 )
 
 const (
-	uuid                        = "539970a2-c2dd-11ea-b3de-0242ac130004"
-	defaultGateway              = "10.0.0.2"
-	ipIsCIDR                    = "10.0.0.1/32"
-	ipMalformed                 = "10.0.0.0.0"
-	ncID                        = "160005ba-cd02-11ea-87d0-0242ac130003"
-	primaryIP                   = "10.0.0.1"
-	overlayPrimaryIP            = "10.0.0.1/30"
-	subnetAddressSpace          = "10.0.0.0/24"
-	subnetName                  = "subnet1"
-	subnetPrefixLen             = 24
-	testSecIP                   = "10.0.0.2"
-	version                     = 1
-	nodeIP                      = "10.1.0.5"
+	uuid                 = "539970a2-c2dd-11ea-b3de-0242ac130004"
+	defaultGateway       = "10.0.0.2"
+	ipIsCIDR             = "10.0.0.1/32"
+	ipMalformed          = "10.0.0.0.0"
+	ncID                 = "160005ba-cd02-11ea-87d0-0242ac130003"
+	primaryIP            = "10.0.0.1"
+	primaryIPV6          = "fd12:1234::1"
+	overlayPrimaryIP     = "10.0.0.1/30"
+	overlayPrimaryIPv6   = "fd12:1234::1/126"
+	subnetAddressSpace   = "10.0.0.0/24"
+	subnetAddressSpacev6 = "fd12:1234::/120"
+	subnetName           = "subnet1"
+	subnetPrefixLen      = 24
+	subnetPrefixLenV6    = 120
+	testSecIP            = "10.0.0.2"
+	version              = 1
+	nodeIP               = "10.1.0.5"
+
 	vnetBlockPrimaryIP          = "10.224.0.4"
 	vnetBlockPrimaryIPPrefix    = "10.224.0.4/30"
 	vnetBlockSubnetAddressSpace = "10.224.0.0/14"
@@ -31,6 +36,15 @@ const (
 	vnetBlockDefaultGateway     = "10.224.0.1"
 	vnetBlockCIDR1              = "10.224.0.8/30"
 	vnetBlockCIDR2              = "10.224.0.12/30"
+
+	vnetBlockPrimaryIPV6          = "fd12:1234::4"
+	vnetBlockPrimaryIPPrefixV6    = "fd12:1234::4/126"
+	vnetBlockSubnetAddressSpaceV6 = "fd12:1234::1/110"
+	vnetBlockSubnetPrefixLenV6    = 110
+	vnetBlockNodeIPV6             = "fd12:1238::1"
+	vnetBlockDefaultGatewayV6     = "fd12:1234::1"
+	vnetBlockCIDR1V6              = "fd12:1234::8/126"
+	vnetBlockCIDR2V6              = "fd12:1234::c/126"
 )
 
 var invalidStatusMultiNC = v1alpha.NodeNetworkConfigStatus{
@@ -95,6 +109,17 @@ var validOverlayNC = v1alpha.NetworkContainer{
 	Version:            version,
 }
 
+var validDualstackOverlayNC = v1alpha.NetworkContainer{
+	ID:                 ncID,
+	AssignmentMode:     v1alpha.Static,
+	Type:               v1alpha.Overlay,
+	PrimaryIP:          overlayPrimaryIPv6,
+	NodeIP:             nodeIP,
+	SubnetName:         subnetName,
+	SubnetAddressSpace: subnetAddressSpacev6,
+	Version:            version,
+}
+
 var validVNETBlockNC = v1alpha.NetworkContainer{
 	ID:             ncID,
 	AssignmentMode: v1alpha.Static,
@@ -114,6 +139,28 @@ var validVNETBlockNC = v1alpha.NetworkContainer{
 	SubnetName:         subnetName,
 	SubnetAddressSpace: vnetBlockSubnetAddressSpace,
 	DefaultGateway:     vnetBlockDefaultGateway,
+	Version:            version,
+}
+
+var validDualstackVNETBlockNC = v1alpha.NetworkContainer{
+	ID:             ncID,
+	AssignmentMode: v1alpha.Static,
+	Type:           v1alpha.VNETBlock,
+	IPAssignments: []v1alpha.IPAssignment{
+		{
+			Name: uuid,
+			IP:   vnetBlockCIDR1V6,
+		},
+		{
+			Name: uuid,
+			IP:   vnetBlockCIDR2V6,
+		},
+	},
+	NodeIP:             vnetBlockNodeIPV6,
+	PrimaryIP:          vnetBlockPrimaryIPPrefixV6,
+	SubnetName:         subnetName,
+	SubnetAddressSpace: vnetBlockSubnetAddressSpaceV6,
+	DefaultGateway:     vnetBlockDefaultGatewayV6,
 	Version:            version,
 }
 
@@ -240,6 +287,12 @@ func TestCreateNCRequestFromStaticNC(t *testing.T) {
 			want:    validOverlayRequest,
 		},
 		{
+			name:    "valid overlay V6",
+			input:   validDualstackOverlayNC,
+			wantErr: false,
+			want:    validDualstackOverlayRequest,
+		},
+		{
 			name: "malformed primary IP",
 			input: v1alpha.NetworkContainer{
 				PrimaryIP: ipMalformed,
@@ -306,6 +359,12 @@ func TestCreateNCRequestFromStaticNC(t *testing.T) {
 			input:   validVNETBlockNC,
 			wantErr: false,
 			want:    validVNETBlockRequest,
+		},
+		{
+			name:    "valid VNET Block V6",
+			input:   validDualstackVNETBlockNC,
+			wantErr: false,
+			want:    validVNETBlockDualstackRequest,
 		},
 		{
 			name: "PrimaryIP is not CIDR",
