@@ -85,9 +85,10 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 	}
 
 	ipconfigs := cns.IPConfigsRequest{
-		OrchestratorContext: orchestratorContext,
-		PodInterfaceID:      GetEndpointID(addConfig.args),
-		InfraContainerID:    addConfig.args.ContainerID,
+		OrchestratorContext:     orchestratorContext,
+		PodInterfaceID:          GetEndpointID(addConfig.args),
+		InfraContainerID:        addConfig.args.ContainerID,
+		ProgramSecondaryNICOnly: true,
 	}
 
 	logger.Info("Requesting IP for pod using ipconfig",

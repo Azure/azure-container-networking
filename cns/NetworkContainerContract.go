@@ -467,6 +467,7 @@ type IPConfigsRequest struct {
 	OrchestratorContext      json.RawMessage `json:"orchestratorContext"`
 	Ifname                   string          `json:"ifname"`                   // Used by delegated IPAM
 	SecondaryInterfacesExist bool            `json:"secondaryInterfacesExist"` // will be set by SWIFT v2 validator func
+	ProgramSecondaryNICOnly  bool            `json:"programSecondaryNICOnly"`
 }
 
 // IPConfigResponse is used in CNS IPAM mode as a response to CNI ADD
