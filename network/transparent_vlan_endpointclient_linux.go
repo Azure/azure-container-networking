@@ -404,6 +404,12 @@ func (client *TransparentVlanEndpointClient) AddVnetRules(epInfo *EndpointInfo) 
 	if err := iptables.InsertIptableRule(iptables.V4, "mangle", "PREROUTING", match, "ACCEPT"); err != nil {
 		return errors.Wrap(err, "unable to insert iptables rule accept all incoming from vlan interface")
 	}
+	// iptables -t filter -I FORWARD -j DROP -d 168.63.129.16/32 -p tcp -m tcp --dport 80 -m comment --comment "block traffic to 168.63.129.16 port 80"
+	dropWireserver := "-d 168.63.129.16/32 -p tcp -m tcp --dport 80"
+	if err := iptables.InsertIptableRule(iptables.V4, "filter", "FORWARD", dropWireserver, "DROP"); err != nil {
+		return errors.Wrap(err, "unable to insert iptables rule drop all wireserver port 80 packets")
+	}
+
 	// Packets that are marked should go to the tunneling table
 	newRule := vishnetlink.NewRule()
 	newRule.Mark = tunnelingMark

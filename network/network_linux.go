@@ -98,6 +98,12 @@ func (nm *networkManager) newNetworkImpl(nwInfo *NetworkInfo, extIf *externalInt
 			return nil, fmt.Errorf("Ipv4 forwarding failed: %w", err)
 		}
 		logger.Info("Ipv4 forwarding enabled")
+		// iptables -t filter -I FORWARD -j DROP -d 168.63.129.16/32 -p tcp -m tcp --dport 80
+		dropWireserver := "-d 168.63.129.16/32 -p tcp -m tcp --dport 80"
+		if err := iptables.InsertIptableRule(iptables.V4, "filter", "FORWARD", dropWireserver, "DROP"); err != nil {
+			return nil, fmt.Errorf("unable to insert vm iptables rule drop all wireserver port 80 packets: %w", err)
+		}
+		logger.Info("Block wireserver traffic rule added")
 	default:
 		return nil, errNetworkModeInvalid
 	}
