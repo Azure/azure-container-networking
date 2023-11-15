@@ -2,6 +2,7 @@ package restserver
 
 import (
 	"context"
+	"github.com/pkg/errors"
 	"net"
 	"net/http"
 	"net/http/pprof"
@@ -21,7 +22,6 @@ import (
 	acn "github.com/Azure/azure-container-networking/common"
 	nma "github.com/Azure/azure-container-networking/nmagent"
 	"github.com/Azure/azure-container-networking/store"
-	"github.com/pkg/errors"
 )
 
 // This file contains the initialization of RestServer.

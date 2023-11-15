@@ -185,11 +185,22 @@ func (service *HTTPRestService) GetIPConfigs(podInfo cns.PodInfo) (cns.PodIpInfo
 	}
 	logger.Printf("[SWIFTv2Middleware] networkcontainerrequest for pod %s is : %+v", podInfo.Name(), resp)
 
+	primaryHostInterface, err := service.getPrimaryHostInterface(context.TODO())
+	if err != nil {
+		return cns.PodIpInfo{}, err
+	}
+
 	podIPInfo := cns.PodIpInfo{
 		PodIPConfig:       resp.IPConfiguration.IPSubnet,
 		MacAddress:        resp.NetworkInterfaceInfo.MACAddress,
 		NICType:           resp.NetworkInterfaceInfo.NICType,
 		SkipDefaultRoutes: false,
+		HostPrimaryIPInfo: cns.HostIPInfo{
+			Gateway:   primaryHostInterface.Gateway,
+			PrimaryIP: primaryHostInterface.PrimaryIP,
+			Subnet:    primaryHostInterface.Subnet,
+		},
+		NetworkContainerPrimaryIPConfig: resp.IPConfiguration,
 		// InterfaceName is empty for DelegatedVMNIC
 	}
 
