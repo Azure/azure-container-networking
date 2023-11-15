@@ -155,7 +155,13 @@ steps:
   - script: |
       echo "Run Cilium Connectivity Tests"
       cilium status
-      cilium connectivity test --connect-timeout 4s --request-timeout 30s --test '!pod-to-pod-encryption,!node-to-node-encryption'
+      if [ "$CILIUM_VERSION_TAG" = "cilium-nightly-pipeline" ]
+      then
+        # Until the issue https://github.com/cilium/cilium/issues/29213 is resolved, skip metrics check for nightly run
+        cilium connectivity test --connect-timeout 4s --request-timeout 30s --test '!pod-to-pod-encryption,!node-to-node-encryption,!allow-all-with-metrics-check'
+      else
+        cilium connectivity test --connect-timeout 4s --request-timeout 30s --test '!pod-to-pod-encryption,!node-to-node-encryption'
+      fi
     retryCountOnTaskFailure: 3
     name: "ciliumConnectivityTests"
     displayName: "Run Cilium Connectivity Tests"
