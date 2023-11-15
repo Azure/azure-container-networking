@@ -45,6 +45,93 @@ func TestMain(m *testing.M) {
 	m.Run()
 }
 
+func TestIPConfigsRequestHandlerWrapperSuccess(t *testing.T) {
+	middleware := SWIFTv2Middleware{Cli: mock.NewClient()}
+	setEnvVar()
+	defer unsetEnvVar()
+	defaultHandler := func(context.Context, cns.IPConfigsRequest) (*cns.IPConfigsResponse, error) {
+		return &cns.IPConfigsResponse{
+			PodIPInfo: []cns.PodIpInfo{
+				{
+					PodIPConfig: cns.IPSubnet{
+						IPAddress:    "10.0.1.10",
+						PrefixLength: 32,
+					},
+					NICType: cns.InfraNIC,
+				},
+				{
+					PodIPConfig: cns.IPSubnet{
+						IPAddress:    "2001:0db8:abcd:0015::0",
+						PrefixLength: 64,
+					},
+					NICType: cns.InfraNIC,
+				},
+			},
+		}, nil
+	}
+	failureHandler := func(context.Context, cns.IPConfigsRequest) (*cns.IPConfigsResponse, error) {
+		return nil, nil
+	}
+	wrappedHandler := middleware.IPConfigsRequestHandlerWrapper(defaultHandler, failureHandler)
+	happyReq := cns.IPConfigsRequest{
+		PodInterfaceID:   testPod1Info.InterfaceID(),
+		InfraContainerID: testPod1Info.InfraContainerID(),
+	}
+	b, _ := testPod1Info.OrchestratorContext()
+	happyReq.OrchestratorContext = b
+	resp, err := wrappedHandler(context.TODO(), happyReq)
+	assert.Equal(t, err, nil)
+	assert.Equal(t, resp.PodIPInfo[2].PodIPConfig.IPAddress, "192.168.0.1")
+	assert.Equal(t, resp.PodIPInfo[2].MacAddress, "00:00:00:00:00:00")
+}
+
+func TestIPConfigsRequestHandlerWrapperFailure(t *testing.T) {
+	middleware := SWIFTv2Middleware{Cli: mock.NewClient()}
+	defaultHandler := func(context.Context, cns.IPConfigsRequest) (*cns.IPConfigsResponse, error) {
+		return &cns.IPConfigsResponse{
+			PodIPInfo: []cns.PodIpInfo{
+				{
+					PodIPConfig: cns.IPSubnet{
+						IPAddress:    "10.0.1.10",
+						PrefixLength: 32,
+					},
+					NICType: cns.InfraNIC,
+				},
+				{
+					PodIPConfig: cns.IPSubnet{
+						IPAddress:    "2001:0db8:abcd:0015::0",
+						PrefixLength: 64,
+					},
+					NICType: cns.InfraNIC,
+				},
+			},
+		}, nil
+	}
+	failureHandler := func(context.Context, cns.IPConfigsRequest) (*cns.IPConfigsResponse, error) {
+		return nil, nil
+	}
+	wrappedHandler := middleware.IPConfigsRequestHandlerWrapper(defaultHandler, failureHandler)
+	// MTPNC not ready test
+	failReq := cns.IPConfigsRequest{
+		PodInterfaceID:   testPod4Info.InterfaceID(),
+		InfraContainerID: testPod4Info.InfraContainerID(),
+	}
+	b, _ := testPod4Info.OrchestratorContext()
+	failReq.OrchestratorContext = b
+	resp, _ := wrappedHandler(context.TODO(), failReq)
+	assert.Equal(t, resp.Response.Message, errMTPNCNotReady.Error())
+
+	// Failed to set routes
+	failReq = cns.IPConfigsRequest{
+		PodInterfaceID:   testPod1Info.InterfaceID(),
+		InfraContainerID: testPod1Info.InfraContainerID(),
+	}
+	b, _ = testPod1Info.OrchestratorContext()
+	failReq.OrchestratorContext = b
+	_, err := wrappedHandler(context.TODO(), failReq)
+	assert.ErrorContains(t, err, "failed to set routes for pod")
+}
+
 func TestValidateMultitenantIPConfigsRequestSuccess(t *testing.T) {
 	middleware := SWIFTv2Middleware{Cli: mock.NewClient()}
 
@@ -56,7 +143,7 @@ func TestValidateMultitenantIPConfigsRequestSuccess(t *testing.T) {
 	happyReq.OrchestratorContext = b
 	happyReq.SecondaryInterfacesExist = false
 
-	respCode, err := middleware.ValidateIPConfigsRequest(context.TODO(), happyReq)
+	_, respCode, err := middleware.validateIPConfigsRequest(context.TODO(), happyReq)
 	assert.Equal(t, err, "")
 	assert.Equal(t, respCode, types.Success)
 	assert.Equal(t, happyReq.SecondaryInterfacesExist, true)
@@ -71,7 +158,7 @@ func TestValidateMultitenantIPConfigsRequestFailure(t *testing.T) {
 		InfraContainerID: testPod1Info.InfraContainerID(),
 	}
 	failReq.OrchestratorContext = []byte("invalid")
-	respCode, _ := middleware.ValidateIPConfigsRequest(context.TODO(), failReq)
+	_, respCode, _ := middleware.validateIPConfigsRequest(context.TODO(), failReq)
 	assert.Equal(t, respCode, types.UnexpectedError)
 
 	// Pod doesn't exist in cache test
@@ -81,19 +168,19 @@ func TestValidateMultitenantIPConfigsRequestFailure(t *testing.T) {
 	}
 	b, _ := testPod2Info.OrchestratorContext()
 	failReq.OrchestratorContext = b
-	respCode, _ = middleware.ValidateIPConfigsRequest(context.TODO(), failReq)
+	_, respCode, _ = middleware.validateIPConfigsRequest(context.TODO(), failReq)
 	assert.Equal(t, respCode, types.UnexpectedError)
 
 	// Failed to get MTPNC
 	b, _ = testPod3Info.OrchestratorContext()
 	failReq.OrchestratorContext = b
-	respCode, _ = middleware.ValidateIPConfigsRequest(context.TODO(), failReq)
+	_, respCode, _ = middleware.validateIPConfigsRequest(context.TODO(), failReq)
 	assert.Equal(t, respCode, types.UnexpectedError)
 
 	// MTPNC not ready
 	b, _ = testPod4Info.OrchestratorContext()
 	failReq.OrchestratorContext = b
-	respCode, _ = middleware.ValidateIPConfigsRequest(context.TODO(), failReq)
+	_, respCode, _ = middleware.validateIPConfigsRequest(context.TODO(), failReq)
 	assert.Equal(t, respCode, types.UnexpectedError)
 }
 
@@ -103,7 +190,7 @@ func TestGetSWIFTv2IPConfigSuccess(t *testing.T) {
 
 	middleware := SWIFTv2Middleware{Cli: mock.NewClient()}
 
-	ipInfo, err := middleware.GetIPConfig(context.TODO(), testPod1Info)
+	ipInfo, err := middleware.getIPConfig(context.TODO(), testPod1Info)
 	assert.Equal(t, err, nil)
 	assert.Equal(t, ipInfo.NICType, cns.DelegatedVMNIC)
 	assert.Equal(t, ipInfo.SkipDefaultRoutes, false)
@@ -113,11 +200,11 @@ func TestGetSWIFTv2IPConfigFailure(t *testing.T) {
 	middleware := SWIFTv2Middleware{Cli: mock.NewClient()}
 
 	// Pod's MTPNC doesn't exist in cache test
-	_, err := middleware.GetIPConfig(context.TODO(), testPod2Info)
+	_, err := middleware.getIPConfig(context.TODO(), testPod3Info)
 	assert.ErrorContains(t, err, mock.ErrMTPNCNotFound.Error())
 
 	// Pod's MTPNC is not ready test
-	_, err = middleware.GetIPConfig(context.TODO(), testPod4Info)
+	_, err = middleware.getIPConfig(context.TODO(), testPod4Info)
 	assert.Error(t, err, errMTPNCNotReady.Error())
 }
 
@@ -212,7 +299,7 @@ func TestSetRoutesSuccess(t *testing.T) {
 	}
 	for i := range podIPInfo {
 		ipInfo := &podIPInfo[i]
-		err := middleware.SetRoutes(ipInfo)
+		err := middleware.setRoutes(ipInfo)
 		assert.Equal(t, err, nil)
 		if ipInfo.NICType == cns.InfraNIC {
 			assert.Equal(t, ipInfo.SkipDefaultRoutes, true)
@@ -247,7 +334,7 @@ func TestSetRoutesFailure(t *testing.T) {
 	}
 	for i := range podIPInfo {
 		ipInfo := &podIPInfo[i]
-		err := middleware.SetRoutes(ipInfo)
+		err := middleware.setRoutes(ipInfo)
 		if err == nil {
 			t.Errorf("SetRoutes should fail due to env var not set")
 		}

@@ -8,12 +8,15 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
+	"os"
 	"strconv"
 	"testing"
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/common"
+	"github.com/Azure/azure-container-networking/cns/configuration"
 	"github.com/Azure/azure-container-networking/cns/fakes"
+	"github.com/Azure/azure-container-networking/cns/middlewares"
 	"github.com/Azure/azure-container-networking/cns/middlewares/mock"
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
@@ -63,11 +66,10 @@ type ncState struct {
 	ips  []string
 }
 
-func getTestService() *HTTPRestService {
+func GetTestService() *HTTPRestService {
 	var config common.ServiceConfig
 	httpsvc, _ := NewHTTPRestService(&config, &fakes.WireserverClientFake{}, &fakes.WireserverProxyFake{}, &fakes.NMAgentClientFake{}, store.NewMockStore(""), nil, nil)
 	svc = httpsvc
-	svc.ipConfigsRequestValidators = append(svc.ipConfigsRequestValidators, svc.validateDefaultIPConfigsRequest)
 	httpsvc.IPAMPoolMonitor = &fakes.MonitorFake{}
 	setOrchestratorTypeInternal(cns.KubernetesCRD)
 
@@ -194,7 +196,7 @@ func TestEndpointStateReadAndWriteMultipleNCs(t *testing.T) {
 
 // Tests the creation of an endpoint using the NCs and IPs as input and then tests the deletion of that endpoint
 func EndpointStateReadAndWrite(t *testing.T, ncStates []ncState) {
-	svc := getTestService()
+	svc := GetTestService()
 	ipconfigs := make(map[string]cns.IPConfigurationStatus, 0)
 	for i := range ncStates {
 		state := NewPodState(ncStates[i].ips[0], ipIDs[i][0], ncStates[i].ncID, types.Available, 0)
@@ -297,7 +299,7 @@ func TestIPAMGetAvailableIPConfigMultipleNCs(t *testing.T) {
 
 // Add one IP per NC to the pool and request those IPs
 func IPAMGetAvailableIPConfig(t *testing.T, ncStates []ncState) {
-	svc := getTestService()
+	svc := GetTestService()
 
 	for i := range ncStates {
 		ipconfigs := make(map[string]cns.IPConfigurationStatus, 0)
@@ -376,7 +378,7 @@ func TestIPAMGetNextAvailableIPConfigMultipleNCs(t *testing.T) {
 
 // First IP is already assigned to a pod, want second IP
 func IPAMGetNextAvailableIPConfig(t *testing.T, ncStates []ncState) {
-	svc := getTestService()
+	svc := GetTestService()
 
 	// Add already assigned pod ip to state
 	for i := range ncStates {
@@ -455,7 +457,7 @@ func TestIPAMGetAlreadyAssignedIPConfigForSamePodMultipleNCs(t *testing.T) {
 }
 
 func IPAMGetAlreadyAssignedIPConfigForSamePod(t *testing.T, ncStates []ncState) {
-	svc := getTestService()
+	svc := GetTestService()
 
 	// Add Assigned Pod IP to state
 	for i := range ncStates {
@@ -533,7 +535,7 @@ func TestIPAMAttemptToRequestIPNotFoundInPoolMultipleNCs(t *testing.T) {
 }
 
 func IPAMAttemptToRequestIPNotFoundInPool(t *testing.T, ncStates []ncState) {
-	svc := getTestService()
+	svc := GetTestService()
 
 	// Add Available Pod IP to state
 	for i := range ncStates {
@@ -593,7 +595,7 @@ func TestIPAMGetDesiredIPConfigWithSpecfiedIPMultipleNCs(t *testing.T) {
 }
 
 func IPAMGetDesiredIPConfigWithSpecfiedIP(t *testing.T, ncStates []ncState) {
-	svc := getTestService()
+	svc := GetTestService()
 
 	// Add Available Pod IP to state
 	for i := range ncStates {
@@ -672,7 +674,7 @@ func TestIPAMFailToGetDesiredIPConfigWithAlreadyAssignedSpecfiedIPMultipleNCs(t 
 }
 
 func IPAMFailToGetDesiredIPConfigWithAlreadyAssignedSpecfiedIP(t *testing.T, ncStates []ncState) {
-	svc := getTestService()
+	svc := GetTestService()
 
 	// set state as already assigned
 	ipconfigs := make(map[string]cns.IPConfigurationStatus, 0)
@@ -736,7 +738,7 @@ func TestIPAMFailToGetIPWhenAllIPsAreAssignedMultipleNCs(t *testing.T) {
 }
 
 func IPAMFailToGetIPWhenAllIPsAreAssigned(t *testing.T, ncStates []ncState) {
-	svc := getTestService()
+	svc := GetTestService()
 
 	ipconfigs := make(map[string]cns.IPConfigurationStatus, 0)
 	// Add already assigned pod ip to state
@@ -797,7 +799,7 @@ func TestIPAMRequestThenReleaseThenRequestAgainMultipleNCs(t *testing.T) {
 // Release PodInfo1
 // Request 10.0.0.1 with PodInfo2 (Success)
 func IPAMRequestThenReleaseThenRequestAgain(t *testing.T, ncStates []ncState) {
-	svc := getTestService()
+	svc := GetTestService()
 
 	// set state as already assigned
 	for i := range ncStates {
@@ -902,7 +904,7 @@ func TestIPAMReleaseIPIdempotencyMultipleNCs(t *testing.T) {
 }
 
 func IPAMReleaseIPIdempotency(t *testing.T, ncStates []ncState) {
-	svc := getTestService()
+	svc := GetTestService()
 	// set state as already assigned
 	ipconfigs := make(map[string]cns.IPConfigurationStatus, 0)
 	for i := range ncStates {
@@ -958,7 +960,7 @@ func TestIPAMAllocateIPIdempotencyMultipleNCs(t *testing.T) {
 }
 
 func IPAMAllocateIPIdempotency(t *testing.T, ncStates []ncState) {
-	svc := getTestService()
+	svc := GetTestService()
 	// set state as already assigned
 	ipconfigs := make(map[string]cns.IPConfigurationStatus, 0)
 	for i := range ncStates {
@@ -1013,7 +1015,7 @@ func TestAvailableIPConfigsMultipleNCs(t *testing.T) {
 }
 
 func AvailableIPConfigs(t *testing.T, ncStates []ncState) {
-	svc := getTestService()
+	svc := GetTestService()
 
 	IDsToBeDeleted := make([]string, len(ncStates))
 	ipconfigs := make(map[string]cns.IPConfigurationStatus, 0)
@@ -1126,7 +1128,7 @@ func TestIPAMMarkIPCountAsPendingMultipleNCs(t *testing.T) {
 }
 
 func IPAMMarkIPCountAsPending(t *testing.T, ncStates []ncState) {
-	svc := getTestService()
+	svc := GetTestService()
 	// set state as already assigned
 	ipconfigs := make(map[string]cns.IPConfigurationStatus, 0)
 	for i := range ncStates {
@@ -1175,7 +1177,7 @@ func IPAMMarkIPCountAsPending(t *testing.T, ncStates []ncState) {
 }
 
 func TestIPAMMarkIPAsPendingWithPendingProgrammingIPs(t *testing.T) {
-	svc := getTestService()
+	svc := GetTestService()
 
 	secondaryIPConfigs := make(map[string]cns.SecondaryIPConfig)
 	// Default Programmed NC version is -1, set nc version as 0 will result in pending programming state.
@@ -1302,7 +1304,7 @@ func TestIPAMMarkExistingIPConfigAsPendingMultipleNCs(t *testing.T) {
 }
 
 func IPAMMarkExistingIPConfigAsPending(t *testing.T, ncStates []ncState) {
-	svc := getTestService()
+	svc := GetTestService()
 
 	// Add already assigned pod ip to state
 	for i := range ncStates {
@@ -1364,7 +1366,7 @@ func IPAMMarkExistingIPConfigAsPending(t *testing.T, ncStates []ncState) {
 }
 
 func TestIPAMFailToRequestIPsWithNoNCsSpecificIP(t *testing.T) {
-	svc := getTestService()
+	svc := GetTestService()
 	req := cns.IPConfigsRequest{
 		PodInterfaceID:   testPod1Info.InterfaceID(),
 		InfraContainerID: testPod1Info.InfraContainerID(),
@@ -1382,7 +1384,7 @@ func TestIPAMFailToRequestIPsWithNoNCsSpecificIP(t *testing.T) {
 }
 
 func TestIPAMFailToRequestIPsWithNoNCsAnyIP(t *testing.T) {
-	svc := getTestService()
+	svc := GetTestService()
 	req := cns.IPConfigsRequest{
 		PodInterfaceID:   testPod1Info.InterfaceID(),
 		InfraContainerID: testPod1Info.InfraContainerID(),
@@ -1398,7 +1400,7 @@ func TestIPAMFailToRequestIPsWithNoNCsAnyIP(t *testing.T) {
 }
 
 func TestIPAMReleaseOneIPWhenExpectedToHaveTwo(t *testing.T) {
-	svc := getTestService()
+	svc := GetTestService()
 
 	// set state as already assigned
 	testState, _ := NewPodStateWithOrchestratorContext(testIP1, testPod1GUID, testNCID, types.Assigned, 24, 0, testPod1Info)
@@ -1428,7 +1430,7 @@ func TestIPAMReleaseOneIPWhenExpectedToHaveTwo(t *testing.T) {
 }
 
 func TestIPAMFailToRequestOneIPWhenExpectedToHaveTwo(t *testing.T) {
-	svc := getTestService()
+	svc := GetTestService()
 
 	// set state as already assigned
 	testState := NewPodState(testIP1, ipIDs[0][0], testNCID, types.Available, 0)
@@ -1464,7 +1466,7 @@ func TestIPAMFailToRequestOneIPWhenExpectedToHaveTwo(t *testing.T) {
 }
 
 func TestIPAMFailToReleasePartialIPsInPool(t *testing.T) {
-	svc := getTestService()
+	svc := GetTestService()
 
 	// set state as already assigned
 	testState, _ := NewPodStateWithOrchestratorContext(testIP1, testIPID1, testNCID, types.Assigned, 24, 0, testPod1Info)
@@ -1494,7 +1496,7 @@ func TestIPAMFailToReleasePartialIPsInPool(t *testing.T) {
 }
 
 func TestIPAMFailToRequestPartialIPsInPool(t *testing.T) {
-	svc := getTestService()
+	svc := GetTestService()
 
 	// set state as already assigned
 	testState := NewPodState(testIP1, testIPID1, testNCID, types.Available, 0)
@@ -1533,14 +1535,25 @@ func TestIPAMFailToRequestPartialIPsInPool(t *testing.T) {
 	}
 }
 
-func TestIPAMGetSWIFTv2IPSuccess(t *testing.T) {
-	svc := getTestService()
-	middleware := mock.NewMockSWIFTv2Middleware()
-	svc.AttachSWIFTv2Middleware(middleware)
+func setEnvVars() {
+	os.Setenv(configuration.EnvPodCIDRs, "10.0.1.10/24")
+	os.Setenv(configuration.EnvServiceCIDRs, "10.0.2.10/24")
+	os.Setenv(configuration.EnvInfraVNETCIDRs, "10.0.3.10/24")
+}
 
-	middleware.SetEnvVar()
-	defer middleware.UnsetEnvVar() //nolint:errcheck // ignore error
-	middleware.SetMTPNCReady()
+func unsetEnvVars() {
+	_ = os.Unsetenv(configuration.EnvPodCIDRs)
+	_ = os.Unsetenv(configuration.EnvServiceCIDRs)
+	_ = os.Unsetenv(configuration.EnvInfraVNETCIDRs)
+}
+
+func TestIPAMGetSWIFTv2IPSuccess(t *testing.T) {
+	svc := GetTestService()
+	middleware := middlewares.SWIFTv2Middleware{Cli: mock.NewClient()}
+	svc.AttachSWIFTv2Middleware(&middleware)
+
+	setEnvVars()
+	defer unsetEnvVars()
 
 	ncStates := []ncState{
 		{
@@ -1578,7 +1591,8 @@ func TestIPAMGetSWIFTv2IPSuccess(t *testing.T) {
 	req.DesiredIPAddresses[0] = testIP1
 	req.DesiredIPAddresses[1] = testIP1v6
 
-	resp, err := svc.requestIPConfigHandlerHelper(context.TODO(), req)
+	wrappedHandler := svc.SWIFTv2Middleware.IPConfigsRequestHandlerWrapper(svc.requestIPConfigHandlerHelper, svc.releaseIPConfigHandlerHelper)
+	resp, err := wrappedHandler(context.TODO(), req)
 	if err != nil {
 		t.Fatalf("Expected to not fail requesting IPs: %+v", err)
 	}
@@ -1596,9 +1610,9 @@ func TestIPAMGetSWIFTv2IPSuccess(t *testing.T) {
 }
 
 func TestIPAMGetSWIFTv2IPFailure(t *testing.T) {
-	svc := getTestService()
-	middleware := mock.NewMockSWIFTv2Middleware()
-	svc.AttachSWIFTv2Middleware(middleware)
+	svc := GetTestService()
+	middleware := middlewares.SWIFTv2Middleware{Cli: mock.NewClient()}
+	svc.AttachSWIFTv2Middleware(&middleware)
 	ncStates := []ncState{
 		{
 			ncID: testNCID,
@@ -1623,27 +1637,38 @@ func TestIPAMGetSWIFTv2IPFailure(t *testing.T) {
 			t.Fatalf("Expected to not fail adding IPs to state: %+v", err)
 		}
 	}
+	// MTPNC not ready for this pod
 	req := cns.IPConfigsRequest{
-		PodInterfaceID:   testPod1Info.InterfaceID(),
-		InfraContainerID: testPod1Info.InfraContainerID(),
+		PodInterfaceID:   testPod2Info.InterfaceID(),
+		InfraContainerID: testPod2Info.InfraContainerID(),
 	}
-	b, _ := testPod1Info.OrchestratorContext()
+	b, _ := testPod2Info.OrchestratorContext()
 	req.OrchestratorContext = b
 	req.DesiredIPAddresses = make([]string, 2)
 	req.DesiredIPAddresses[0] = testIP1
 	req.DesiredIPAddresses[1] = testIP1v6
-	_, err := svc.requestIPConfigHandlerHelper(context.TODO(), req)
+	wrappedHandler := svc.SWIFTv2Middleware.IPConfigsRequestHandlerWrapper(svc.requestIPConfigHandlerHelper, svc.releaseIPConfigHandlerHelper)
+	_, err := wrappedHandler(context.TODO(), req)
 	if err == nil {
 		t.Fatalf("Expected failing requesting IPs due to MTPNC not ready")
 	}
 	available := svc.GetAvailableIPConfigs()
 	if len(available) != 2 {
-		t.Fatal("Expected available ips to be 2 since we expect the IP to not be assigned")
+		t.Fatalf("Expected available ips to be 2 since we expect the IP to not be assigned. Available IPs: %d", len(available))
 	}
 
-	middleware.SetMTPNCReady()
+	// MTPNC is ready for this pod but env vars not set
+	req = cns.IPConfigsRequest{
+		PodInterfaceID:   testPod1Info.InterfaceID(),
+		InfraContainerID: testPod1Info.InfraContainerID(),
+	}
+	b, _ = testPod1Info.OrchestratorContext()
+	req.OrchestratorContext = b
+	req.DesiredIPAddresses = make([]string, 2)
+	req.DesiredIPAddresses[0] = testIP1
+	req.DesiredIPAddresses[1] = testIP1v6
 
-	_, err = svc.requestIPConfigHandlerHelper(context.TODO(), req)
+	_, err = wrappedHandler(context.TODO(), req)
 	if err == nil {
 		t.Fatalf("Expected failing requesting IPs due to not able to set routes")
 	}
