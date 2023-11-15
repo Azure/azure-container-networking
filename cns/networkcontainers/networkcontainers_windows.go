@@ -160,6 +160,8 @@ func createOrUpdateWithOperation(adapterName string, ipConfig cns.IPConfiguratio
 		"true",
 		"/weakhostreceive",
 		"true",
+		"/renamewithnetsh",
+		"true",
 	}
 
 	c := exec.Command("cmd", args...)
