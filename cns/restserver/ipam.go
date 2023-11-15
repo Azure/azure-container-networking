@@ -274,7 +274,7 @@ func (service *HTTPRestService) releaseIPConfigHandlerHelper(ctx context.Context
 					Message:    err.Error(),
 				},
 			}
-			return resp, fmt.Errorf("releaseIPConfigHandlerHelper remove endpoint state failed because %v, release IP config info %+v", resp.Response.Message, ipconfigsRequest) //nolint:goerr113 // return error
+			return resp, fmt.Errorf("releaseIPConfigHandlerHelper remove endpoint state failed : %v, release IP config info %+v", resp.Response.Message, ipconfigsRequest) //nolint:goerr113 // return error
 		}
 	}
 
@@ -284,7 +284,7 @@ func (service *HTTPRestService) releaseIPConfigHandlerHelper(ctx context.Context
 				ReturnCode: types.UnexpectedError,
 				Message:    err.Error(),
 			},
-		}, fmt.Errorf("releaseIPConfigHandlerHelper releaseIPConfigs failed because %v, release IP config info %+v", returnMessage, ipconfigsRequest) //nolint:goerr113 // return error
+		}, fmt.Errorf("releaseIPConfigHandlerHelper releaseIPConfigs failed : %v, release IP config info %+v", returnMessage, ipconfigsRequest) //nolint:goerr113 // return error
 	}
 
 	return &cns.IPConfigsResponse{
