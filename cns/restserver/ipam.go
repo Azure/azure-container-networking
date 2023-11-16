@@ -8,16 +8,17 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
+	"net/http"
+	"net/http/httptest"
+	"strconv"
+
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/filter"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/pkg/errors"
-	"net"
-	"net/http"
-	"net/http/httptest"
-	"strconv"
 )
 
 var (
@@ -185,25 +186,45 @@ func (service *HTTPRestService) GetIPConfigs(podInfo cns.PodInfo) (cns.PodIpInfo
 	}
 	logger.Printf("[SWIFTv2Middleware] networkcontainerrequest for pod %s is : %+v", podInfo.Name(), resp)
 
-	primaryHostInterface, err := service.getPrimaryHostInterface(context.TODO())
-	if err != nil {
-		return cns.PodIpInfo{}, err
+	var podIPInfo cns.PodIpInfo
+	var ipconfigsRequest cns.IPConfigsRequest
+	if !ipconfigsRequest.ProgramSecondaryNICOnly {
+		hostInterface, err := service.getPrimaryHostInterface(context.TODO())
+		if err != nil {
+			return cns.PodIpInfo{}, err
+		}
+		podIPInfo = cns.PodIpInfo{
+			PodIPConfig:       resp.IPConfiguration.IPSubnet,
+			MacAddress:        resp.NetworkInterfaceInfo.MACAddress,
+			NICType:           resp.NetworkInterfaceInfo.NICType,
+			SkipDefaultRoutes: false,
+			HostPrimaryIPInfo: cns.HostIPInfo{
+				Gateway:   hostInterface.Gateway,
+				PrimaryIP: hostInterface.PrimaryIP,
+				Subnet:    hostInterface.Subnet,
+			},
+			NetworkContainerPrimaryIPConfig: resp.IPConfiguration,
+		}
+	} else {
+		hostInterface, err := service.getSecondaryHostInterface(context.TODO())
+		if err != nil {
+			return cns.PodIpInfo{}, err
+		}
+		podIPInfo = cns.PodIpInfo{
+			PodIPConfig:       resp.IPConfiguration.IPSubnet,
+			MacAddress:        resp.NetworkInterfaceInfo.MACAddress,
+			NICType:           resp.NetworkInterfaceInfo.NICType,
+			SkipDefaultRoutes: false,
+			HostSecondaryIPInfo: cns.HostIPInfo{
+				Gateway:     hostInterface.Gateway,
+				SecondaryIP: hostInterface.SecondaryIPs[0],
+				Subnet:      hostInterface.Subnet,
+			},
+			NetworkContainerPrimaryIPConfig: resp.IPConfiguration,
+		}
 	}
 
-	podIPInfo := cns.PodIpInfo{
-		PodIPConfig:       resp.IPConfiguration.IPSubnet,
-		MacAddress:        resp.NetworkInterfaceInfo.MACAddress,
-		NICType:           resp.NetworkInterfaceInfo.NICType,
-		SkipDefaultRoutes: false,
-		HostPrimaryIPInfo: cns.HostIPInfo{
-			Gateway:   primaryHostInterface.Gateway,
-			PrimaryIP: primaryHostInterface.PrimaryIP,
-			Subnet:    primaryHostInterface.Subnet,
-		},
-		NetworkContainerPrimaryIPConfig: resp.IPConfiguration,
-		// InterfaceName is empty for DelegatedVMNIC
-	}
-
+	logger.Printf("latest podIPInfo is %+v", podIPInfo)
 	return podIPInfo, nil
 }
 

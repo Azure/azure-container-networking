@@ -2,12 +2,13 @@ package restserver
 
 import (
 	"context"
-	"github.com/pkg/errors"
 	"net"
 	"net/http"
 	"net/http/pprof"
 	"sync"
 	"time"
+
+	"github.com/pkg/errors"
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/common"
@@ -142,6 +143,7 @@ type httpRestServiceState struct {
 	TimeStamp                        time.Time
 	joinedNetworks                   map[string]struct{}
 	primaryInterface                 *wireserver.InterfaceInfo
+	secondaryInterface               *wireserver.InterfaceInfo
 }
 
 type networkInfo struct {
