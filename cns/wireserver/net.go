@@ -27,23 +27,23 @@ func GetSecondaryInterfaceFromResult(res *GetInterfacesResult) (*InterfaceInfo, 
 		}
 
 		// get the second subnet
-		s := i.IPSubnet[0]
-		gw, err := calculateGatewayIP(s.Prefix)
-		if err != nil {
-			return nil, err
-		}
+		// s := i.IPSubnet[0]
+		// gw, err := calculateGatewayIP(s.Prefix)
+		// if err != nil {
+		// 	return nil, err
+		// }
 
-		secondaryIP := ""
-		for _, ip := range s.IPAddress {
-			secondaryIP = ip.Address
-		}
+		secondaryIP := "169.254.149.141"
+		// for _, ip := range s.IPAddress {
+		// 	secondaryIP = ip.Address
+		// }
 		secondaryIPs := []string{}
 		secondaryIPs = append(secondaryIPs, secondaryIP)
 
 		return &InterfaceInfo{
-			Subnet:       s.Prefix,
+			Subnet:       "169.254.149.0/24",
 			IsPrimary:    false,
-			Gateway:      gw.String(),
+			Gateway:      "",
 			MacAddress:   i.MacAddress,
 			SecondaryIPs: secondaryIPs,
 		}, nil

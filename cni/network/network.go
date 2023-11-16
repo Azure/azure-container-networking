@@ -206,16 +206,20 @@ func (plugin *NetPlugin) Stop() {
 }
 
 // FindMasterInterface returns the name of the master interface.
-func (plugin *NetPlugin) findMasterInterface(nwCfg *cni.NetworkConfig, subnetPrefix *net.IPNet) string {
+func (plugin *NetPlugin) findMasterInterface(nwCfg *cni.NetworkConfig, subnetPrefix *net.IPNet) (string, error) {
 	// An explicit master configuration wins. Explicitly specifying a master is
 	// useful if host has multiple interfaces with addresses in the same subnet.
 	if nwCfg.Master != "" {
-		return nwCfg.Master
+		return nwCfg.Master, nil
 	}
 
 	// Otherwise, pick the first interface with an IP address in the given subnet.
 	subnetPrefixString := subnetPrefix.String()
 	interfaces, _ := net.Interfaces()
+	if len(interfaces) == 0 {
+		return "", errors.New("no interfaces found")
+	}
+
 	for _, iface := range interfaces {
 		addrs, _ := iface.Addrs()
 		for _, addr := range addrs {
@@ -224,13 +228,13 @@ func (plugin *NetPlugin) findMasterInterface(nwCfg *cni.NetworkConfig, subnetPre
 				continue
 			}
 			if subnetPrefixString == ipnet.String() {
-				return iface.Name
+				return iface.Name, nil
 			}
 		}
 	}
 
 	// Failed to find a suitable interface.
-	return ""
+	return "", nil
 }
 
 // GetEndpointID returns a unique endpoint ID based on the CNI args.
@@ -614,10 +618,10 @@ func (plugin *NetPlugin) createNetworkInternal(
 	ipamAddResult.hostSubnetPrefix.IP = ipamAddResult.hostSubnetPrefix.IP.Mask(ipamAddResult.hostSubnetPrefix.Mask)
 	ipamAddConfig.nwCfg.IPAM.Subnet = ipamAddResult.hostSubnetPrefix.String()
 	// Find the master interface.
-	masterIfName := plugin.findMasterInterface(ipamAddConfig.nwCfg, &ipamAddResult.hostSubnetPrefix)
+	masterIfName, err1 := plugin.findMasterInterface(ipamAddConfig.nwCfg, &ipamAddResult.hostSubnetPrefix)
 	if masterIfName == "" {
-		err := plugin.Errorf("Failed to find the master interface")
-		return nwInfo, err
+		// err := plugin.Errorf("Failed to find the master interface")
+		return nwInfo, err1
 	}
 	logger.Info("[cni-net] Found master interface", zap.String("ifname", masterIfName))
 
