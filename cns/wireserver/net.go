@@ -17,9 +17,9 @@ var (
 func GetSecondaryInterfaceFromResult(res *GetInterfacesResult) (*InterfaceInfo, error) {
 	for _, i := range res.Interface {
 		// skip if primary
-		if i.IsPrimary {
-			continue
-		}
+		// if i.IsPrimary {
+		// 	continue
+		// }
 
 		// skip if no subnets
 		if len(i.IPSubnet) == 0 {
@@ -27,7 +27,7 @@ func GetSecondaryInterfaceFromResult(res *GetInterfacesResult) (*InterfaceInfo, 
 		}
 
 		// get the second subnet
-		s := i.IPSubnet[1]
+		s := i.IPSubnet[0]
 		gw, err := calculateGatewayIP(s.Prefix)
 		if err != nil {
 			return nil, err
@@ -35,9 +35,7 @@ func GetSecondaryInterfaceFromResult(res *GetInterfacesResult) (*InterfaceInfo, 
 
 		secondaryIP := ""
 		for _, ip := range s.IPAddress {
-			if !ip.IsPrimary {
-				secondaryIP = ip.Address
-			}
+			secondaryIP = ip.Address
 		}
 		secondaryIPs := []string{}
 		secondaryIPs = append(secondaryIPs, secondaryIP)
@@ -46,6 +44,7 @@ func GetSecondaryInterfaceFromResult(res *GetInterfacesResult) (*InterfaceInfo, 
 			Subnet:       s.Prefix,
 			IsPrimary:    false,
 			Gateway:      gw.String(),
+			MacAddress:   i.MacAddress,
 			SecondaryIPs: secondaryIPs,
 		}, nil
 	}

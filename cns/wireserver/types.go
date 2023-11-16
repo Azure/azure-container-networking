@@ -6,6 +6,7 @@ type InterfaceInfo struct {
 	Gateway      string
 	IsPrimary    bool
 	PrimaryIP    string
+	MacAddress   string
 	SecondaryIPs []string
 }
 

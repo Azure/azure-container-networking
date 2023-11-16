@@ -188,6 +188,8 @@ func (service *HTTPRestService) GetIPConfigs(podInfo cns.PodInfo) (cns.PodIpInfo
 
 	var podIPInfo cns.PodIpInfo
 	var ipconfigsRequest cns.IPConfigsRequest
+	ipconfigsRequest.ProgramSecondaryNICOnly = true
+	logger.Printf("ipconfigsRequest.ProgramSecondaryNICOnly is %+v", ipconfigsRequest.ProgramSecondaryNICOnly)
 	if !ipconfigsRequest.ProgramSecondaryNICOnly {
 		hostInterface, err := service.getPrimaryHostInterface(context.TODO())
 		if err != nil {
@@ -207,6 +209,7 @@ func (service *HTTPRestService) GetIPConfigs(podInfo cns.PodInfo) (cns.PodIpInfo
 		}
 	} else {
 		hostInterface, err := service.getSecondaryHostInterface(context.TODO())
+		logger.Printf("secondary hostInterface is %+v", hostInterface)
 		if err != nil {
 			return cns.PodIpInfo{}, err
 		}
@@ -278,6 +281,7 @@ func (service *HTTPRestService) requestIPConfigHandler(w http.ResponseWriter, r 
 		return
 	}
 
+	logger.Printf("ipConfigsResp.PodIPInfo is %+v", ipConfigsResp.PodIPInfo)
 	// Checks to make sure we return exactly 1 IP
 	// If IPAM assigned more than 1 IP then we need to raise an error since this API can only return one IP and IPAM may have assigned more than one
 	if len(ipConfigsResp.PodIPInfo) != 1 {
