@@ -98,9 +98,7 @@ func (nm *networkManager) newNetworkImpl(nwInfo *NetworkInfo, extIf *externalInt
 			return nil, fmt.Errorf("Ipv4 forwarding failed: %w", err)
 		}
 		logger.Info("Ipv4 forwarding enabled")
-		// iptables -t filter -I FORWARD -j DROP -d <wireserver ip>/32 -p tcp -m tcp --dport 80
-		dropWireserver := fmt.Sprintf("-d %s/32 -p tcp -m tcp --dport 80", networkutils.AzureDNS)
-		if err := iptables.InsertIptableRule(iptables.V4, "filter", "FORWARD", dropWireserver, "DROP"); err != nil {
+		if err := networkutils.BlockWireserverTraffic(); err != nil {
 			return nil, fmt.Errorf("unable to insert vm iptables rule drop all wireserver port 80 packets: %w", err)
 		}
 		logger.Info("Block wireserver traffic rule added")

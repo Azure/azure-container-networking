@@ -176,6 +176,12 @@ func AllowIPAddresses(bridgeName string, skipAddresses []string, action string) 
 	return nil
 }
 
+func BlockWireserverTraffic() error {
+	// iptables -t filter -I FORWARD -j DROP -d <wireserver ip>/32 -p tcp -m tcp --dport 80
+	dropWireserver := fmt.Sprintf("-d %s/32 -p tcp -m tcp --dport 80", AzureDNS)
+	return errors.Wrap(iptables.InsertIptableRule(iptables.V4, "filter", "FORWARD", dropWireserver, "DROP"), "block wireserver traffic port 80 failed")
+}
+
 func BlockIPAddresses(bridgeName, action string) error {
 	privateIPAddresses := getPrivateIPSpace()
 	chains := getFilterChains()

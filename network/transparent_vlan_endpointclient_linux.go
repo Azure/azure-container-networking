@@ -404,9 +404,8 @@ func (client *TransparentVlanEndpointClient) AddVnetRules(epInfo *EndpointInfo) 
 	if err := iptables.InsertIptableRule(iptables.V4, "mangle", "PREROUTING", match, "ACCEPT"); err != nil {
 		return errors.Wrap(err, "unable to insert iptables rule accept all incoming from vlan interface")
 	}
-	// iptables -t filter -I FORWARD -j DROP -d <wireserver ip>/32 -p tcp -m tcp --dport 80
-	dropWireserver := fmt.Sprintf("-d %s/32 -p tcp -m tcp --dport 80", networkutils.AzureDNS)
-	if err := iptables.InsertIptableRule(iptables.V4, "filter", "FORWARD", dropWireserver, "DROP"); err != nil {
+
+	if err := networkutils.BlockWireserverTraffic(); err != nil {
 		return errors.Wrap(err, "unable to insert iptables rule drop all wireserver port 80 packets")
 	}
 
