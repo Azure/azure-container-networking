@@ -34,6 +34,9 @@ type SWIFTv2Middleware struct {
 	Cli client.Client
 }
 
+// Verify interface compliance at compile time
+var _ cns.IPConfigsHandlerMiddleware = (*SWIFTv2Middleware)(nil)
+
 func (m *SWIFTv2Middleware) IPConfigsRequestHandlerWrapper(defaultHandler, failureHandler cns.IPConfigsHandlerFunc) cns.IPConfigsHandlerFunc {
 	return func(ctx context.Context, req cns.IPConfigsRequest) (*cns.IPConfigsResponse, error) {
 		podInfo, respCode, message := m.validateIPConfigsRequest(ctx, &req)

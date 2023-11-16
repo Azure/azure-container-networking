@@ -1550,7 +1550,7 @@ func unsetEnvVars() {
 func TestIPAMGetSWIFTv2IPSuccess(t *testing.T) {
 	svc := getTestService()
 	middleware := middlewares.SWIFTv2Middleware{Cli: mock.NewClient()}
-	svc.AttachSWIFTv2Middleware(&middleware)
+	svc.AttachIPConfigsHandlerMiddleware(&middleware)
 
 	setEnvVars()
 	defer unsetEnvVars()
@@ -1612,7 +1612,7 @@ func TestIPAMGetSWIFTv2IPSuccess(t *testing.T) {
 func TestIPAMGetSWIFTv2IPFailure(t *testing.T) {
 	svc := getTestService()
 	middleware := middlewares.SWIFTv2Middleware{Cli: mock.NewClient()}
-	svc.AttachSWIFTv2Middleware(&middleware)
+	svc.AttachIPConfigsHandlerMiddleware(&middleware)
 	ncStates := []ncState{
 		{
 			ncID: testNCID,

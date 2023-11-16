@@ -13,6 +13,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/dockerclient"
 	"github.com/Azure/azure-container-networking/cns/ipamclient"
 	"github.com/Azure/azure-container-networking/cns/logger"
+	"github.com/Azure/azure-container-networking/cns/middlewares"
 	"github.com/Azure/azure-container-networking/cns/networkcontainers"
 	"github.com/Azure/azure-container-networking/cns/routes"
 	"github.com/Azure/azure-container-networking/cns/types"
@@ -72,7 +73,7 @@ type HTTPRestService struct {
 	EndpointStateStore      store.KeyValueStore
 	cniConflistGenerator    CNIConflistGenerator
 	generateCNIConflistOnce sync.Once
-	SWIFTv2Middleware       cns.SWIFTv2Middleware
+	SWIFTv2Middleware       cns.IPConfigsHandlerMiddleware
 }
 
 type CNIConflistGenerator interface {
@@ -358,6 +359,9 @@ func (service *HTTPRestService) MustGenerateCNIConflistOnce() {
 	})
 }
 
-func (service *HTTPRestService) AttachSWIFTv2Middleware(middleware cns.SWIFTv2Middleware) {
-	service.SWIFTv2Middleware = middleware
+func (service *HTTPRestService) AttachIPConfigsHandlerMiddleware(middleware cns.IPConfigsHandlerMiddleware) {
+	swiftV2Implementation, ok := middleware.(*middlewares.SWIFTv2Middleware)
+	if ok {
+		service.SWIFTv2Middleware = swiftV2Implementation
+	}
 }

@@ -277,4 +277,4 @@ func (fake *HTTPServiceFake) Init(*common.ServiceConfig) error {
 
 func (fake *HTTPServiceFake) Stop() {}
 
-func (fake *HTTPServiceFake) AttachSWIFTv2Middleware(cns.SWIFTv2Middleware) {}
+func (fake *HTTPServiceFake) AttachIPConfigsHandlerMiddleware(cns.IPConfigsHandlerMiddleware) {}

@@ -1382,7 +1382,7 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 		}
 		// if SWIFT v2 is enabled on CNS, attach multitenant middleware to rest service
 		swiftV2Middleware := middlewares.SWIFTv2Middleware{Cli: manager.GetClient()}
-		httpRestService.AttachSWIFTv2Middleware(&swiftV2Middleware)
+		httpRestService.AttachIPConfigsHandlerMiddleware(&swiftV2Middleware)
 	}
 
 	// start the pool Monitor before the Reconciler, since it needs to be ready to receive an
