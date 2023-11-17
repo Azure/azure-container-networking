@@ -15,6 +15,7 @@ import (
 	"sync"
 
 	"github.com/Azure/azure-container-networking/cns"
+	"github.com/Azure/azure-container-networking/cns/configuration"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/log"
@@ -161,7 +162,7 @@ func createOrUpdateWithOperation(adapterName string, ipConfig cns.IPConfiguratio
 		"/weakhostreceive",
 		"true",
 		"/renamewithnetsh",
-		"true",
+		fmt.Sprintf("%t", configuration.CnsConfig.EnableRenameWithNetSh),
 	}
 
 	c := exec.Command("cmd", args...)

@@ -48,7 +48,10 @@ type CNSConfig struct {
 	WatchPods                   bool
 	EnableAsyncPodDelete        bool
 	AsyncPodDeletePath          string
+	EnableRenameWithNetSh       bool
 }
+
+var CnsConfig CNSConfig
 
 type TelemetrySettings struct {
 	// Flag to disable the telemetry.
@@ -133,11 +136,12 @@ func readConfigFromFile(f string) (*CNSConfig, error) {
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to read config file %s", f)
 	}
-	var config CNSConfig
-	if err := json.Unmarshal(content, &config); err != nil {
+
+	if err := json.Unmarshal(content, &CnsConfig); err != nil {
 		return nil, errors.Wrap(err, "failed to unmarshal config")
 	}
-	return &config, nil
+
+	return &CnsConfig, nil
 }
 
 // set telmetry setting defaults

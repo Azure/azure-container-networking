@@ -57,6 +57,7 @@ func TestReadConfigFromFile(t *testing.T) {
 				InitializeFromCNI:    true,
 				EnablePprof:          true,
 				EnableSubnetScarcity: true,
+				EnableRenameWithNetSh: true,
 				ManagedSettings: ManagedSettings{
 					PrivateEndpoint:           "abc",
 					InfrastructureNetworkID:   "abc",

@@ -3,6 +3,7 @@
     "InitializeFromCNI": true,
     "EnablePprof": true,
     "EnableSubnetScarcity": true,
+    "EnableRenameWithNetSh": true,
     "ManagedSettings": {
         "InfrastructureNetworkID": "abc",
         "NodeID": "abc",
