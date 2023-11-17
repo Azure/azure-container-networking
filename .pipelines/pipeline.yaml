@@ -58,549 +58,549 @@ stages:
             name: "Test"
             displayName: "Run Tests"
 
-  - stage: test_windows
-    displayName: Test ACN Windows
-    dependsOn:
-      - setup
-    jobs:
-      - job: test
-        displayName: Run Tests
-        variables:
-          STORAGE_ID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.StorageID'] ]
-        pool:
-          name: "$(BUILD_POOL_NAME_DEFAULT_WINDOWS_ALT)"
-        steps:
-          - script: |
-              cd npm/
-              go test ./...
-            retryCountOnTaskFailure: 3
-            name: "TestWindows"
-            displayName: "Run Windows Tests"
+  # - stage: test_windows
+  #   displayName: Test ACN Windows
+  #   dependsOn:
+  #     - setup
+  #   jobs:
+  #     - job: test
+  #       displayName: Run Tests
+  #       variables:
+  #         STORAGE_ID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.StorageID'] ]
+  #       pool:
+  #         name: "$(BUILD_POOL_NAME_DEFAULT_WINDOWS_ALT)"
+  #       steps:
+  #         - script: |
+  #             cd npm/
+  #             go test ./...
+  #           retryCountOnTaskFailure: 3
+  #           name: "TestWindows"
+  #           displayName: "Run Windows Tests"
 
-  - stage: binaries
-    displayName: Build Binaries
-    dependsOn:
-      - setup
-      - test
-    jobs:
-      - job: build
-        displayName: Build Binaries
-        variables:
-          STORAGE_ID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.StorageID'] ]
-        pool:
-          name: "$(BUILD_POOL_NAME_DEFAULT)"
-        steps:
-          - script: |
-              make all-binaries-platforms
-            name: "BuildAllPlatformBinaries"
-            displayName: "Build all platform binaries"
+  # - stage: binaries
+  #   displayName: Build Binaries
+  #   dependsOn:
+  #     - setup
+  #     - test
+  #   jobs:
+  #     - job: build
+  #       displayName: Build Binaries
+  #       variables:
+  #         STORAGE_ID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.StorageID'] ]
+  #       pool:
+  #         name: "$(BUILD_POOL_NAME_DEFAULT)"
+  #       steps:
+  #         - script: |
+  #             make all-binaries-platforms
+  #           name: "BuildAllPlatformBinaries"
+  #           displayName: "Build all platform binaries"
 
-          - script: |
-              mkdir -p ./output/bins
-              cd ./output
-              find . -name '*.tgz' -print -exec mv -t ./bins/ {} +
-              find . -name '*.zip' -print -exec mv -t ./bins/ {} +
-              shopt -s extglob
-              rm -rf !("bins")
-            name: "PrepareArtifacts"
-            displayName: "Prepare Artifacts"
+  #         - script: |
+  #             mkdir -p ./output/bins
+  #             cd ./output
+  #             find . -name '*.tgz' -print -exec mv -t ./bins/ {} +
+  #             find . -name '*.zip' -print -exec mv -t ./bins/ {} +
+  #             shopt -s extglob
+  #             rm -rf !("bins")
+  #           name: "PrepareArtifacts"
+  #           displayName: "Prepare Artifacts"
 
-          - task: CopyFiles@2
-            inputs:
-              sourceFolder: "output"
-              targetFolder: $(Build.ArtifactStagingDirectory)
-            condition: succeeded()
+  #         - task: CopyFiles@2
+  #           inputs:
+  #             sourceFolder: "output"
+  #             targetFolder: $(Build.ArtifactStagingDirectory)
+  #           condition: succeeded()
 
-          - task: PublishBuildArtifacts@1
-            inputs:
-              artifactName: "output"
-              pathtoPublish: "$(Build.ArtifactStagingDirectory)"
-            condition: succeeded()
+  #         - task: PublishBuildArtifacts@1
+  #           inputs:
+  #             artifactName: "output"
+  #             pathtoPublish: "$(Build.ArtifactStagingDirectory)"
+  #           condition: succeeded()
 
-          - task: AzureCLI@1
-            inputs:
-              azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
-              scriptLocation: "inlineScript"
-              inlineScript: |
-                echo Creating storage container with name acn-$(STORAGE_ID) and account name $(STORAGE_ACCOUNT_NAME)
-                az storage container create -n acn-$(STORAGE_ID) --account-name $(STORAGE_ACCOUNT_NAME) --public-access container
-                az storage blob upload-batch -d acn-$(STORAGE_ID) -s ./output/bins/  --account-name $(STORAGE_ACCOUNT_NAME)
-            displayName: Create artifact storage container
-            condition: succeeded()
+  #         - task: AzureCLI@1
+  #           inputs:
+  #             azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+  #             scriptLocation: "inlineScript"
+  #             inlineScript: |
+  #               echo Creating storage container with name acn-$(STORAGE_ID) and account name $(STORAGE_ACCOUNT_NAME)
+  #               az storage container create -n acn-$(STORAGE_ID) --account-name $(STORAGE_ACCOUNT_NAME) --public-access container
+  #               az storage blob upload-batch -d acn-$(STORAGE_ID) -s ./output/bins/  --account-name $(STORAGE_ACCOUNT_NAME)
+  #           displayName: Create artifact storage container
+  #           condition: succeeded()
 
-  - stage: containerize
-    displayName: Build Images
-    dependsOn:
-      - setup
-      - test
-    jobs:
-      - job: containerize_amd64
-        displayName: Build Images
-        pool:
-          name: "$(BUILD_POOL_NAME_LINUX_AMD64)"
-        strategy:
-          matrix:
-            azure_ipam_linux_amd64:
-              arch: amd64
-              name: azure-ipam
-              os: linux
-            azure_ipam_windows2019_amd64:
-              arch: amd64
-              name: azure-ipam
-              os: windows
-              os_version: ltsc2019
-            azure_ipam_windows2022_amd64:
-              arch: amd64
-              name: azure-ipam
-              os: windows
-              os_version: ltsc2022
-            cni_linux_amd64:
-              arch: amd64
-              name: cni
-              os: linux
-            cni_windows2019_amd64:
-              arch: amd64
-              name: cni
-              os: windows
-              os_version: ltsc2019
-            cni_windows2022_amd64:
-              arch: amd64
-              name: cni
-              os: windows
-              os_version: ltsc2022
-            cni_dropgz_linux_amd64:
-              arch: amd64
-              name: cni-dropgz
-              os: linux
-            cni_dropgz_test_linux_amd64:
-              arch: amd64
-              name: cni-dropgz-test
-              os: linux
-            cni_dropgz_windows2019_amd64:
-              arch: amd64
-              name: cni-dropgz
-              os: windows
-              os_version: ltsc2019
-            cni_dropgz_windows2022_amd64:
-              arch: amd64
-              name: cni-dropgz
-              os: windows
-              os_version: ltsc2022
-            cni_dropgz_test_windows2019_amd64:
-              arch: amd64
-              name: cni-dropgz-test
-              os: windows
-              os_version: ltsc2019
-            cni_dropgz_test_windows2022_amd64:
-              arch: amd64
-              name: cni-dropgz-test
-              os: windows
-              os_version: ltsc2022
-            cns_linux_amd64:
-              arch: amd64
-              name: cns
-              os: linux
-            cns_windows2019_amd64:
-              arch: amd64
-              name: cns
-              os: windows
-              os_version: ltsc2019
-            cns_windows2022_amd64:
-              arch: amd64
-              name: cns
-              os: windows
-              os_version: ltsc2022
-            npm_linux_amd64:
-              arch: amd64
-              name: npm
-              os: linux
-            npm_windows2022_amd64:
-              arch: amd64
-              name: npm
-              os: windows
-              os_version: ltsc2022
-        steps:
-          - template: containers/container-template.yaml
-            parameters:
-              arch: $(arch)
-              name: $(name)
-              os: $(os)
-              os_version: $(os_version)
-      - job: containerize_linux_arm64
-        displayName: Build Images
-        variables:
-          TAG: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
-        pool:
-          name: "$(BUILD_POOL_NAME_LINUX_ARM64)"
-        strategy:
-          matrix:
-            azure_ipam_linux_arm64:
-              arch: arm64
-              name: azure-ipam
-              os: linux
-            cni_linux_arm64:
-              arch: arm64
-              name: cni
-              os: linux
-            cni_dropgz_linux_arm64:
-              arch: arm64
-              name: cni-dropgz
-              os: linux
-            cni_dropgz_test_linux_arm64:
-              arch: arm64
-              name: cni-dropgz-test
-              os: linux
-            cns_linux_arm64:
-              arch: arm64
-              name: cns
-              os: linux
-            npm_linux_arm64:
-              arch: arm64
-              name: npm
-              os: linux
-        steps:
-          - template: containers/container-template.yaml
-            parameters:
-              arch: $(arch)
-              name: $(name)
-              os: $(os)
-      - job: check_tag
-        displayName: Check Tag
-        pool:
-          name: $(BUILD_POOL_NAME_DEFAULT)
-        steps:
-          - script: |
-              echo "##vso[task.setvariable variable=currentTagBuild;isOutput=true]$(make version)"
-            name: "CurrentTagBuild"
-            displayName: "Set current tag variable"
-            condition: always()
+  # - stage: containerize
+  #   displayName: Build Images
+  #   dependsOn:
+  #     - setup
+  #     - test
+  #   jobs:
+  #     - job: containerize_amd64
+  #       displayName: Build Images
+  #       pool:
+  #         name: "$(BUILD_POOL_NAME_LINUX_AMD64)"
+  #       strategy:
+  #         matrix:
+  #           azure_ipam_linux_amd64:
+  #             arch: amd64
+  #             name: azure-ipam
+  #             os: linux
+  #           azure_ipam_windows2019_amd64:
+  #             arch: amd64
+  #             name: azure-ipam
+  #             os: windows
+  #             os_version: ltsc2019
+  #           azure_ipam_windows2022_amd64:
+  #             arch: amd64
+  #             name: azure-ipam
+  #             os: windows
+  #             os_version: ltsc2022
+  #           cni_linux_amd64:
+  #             arch: amd64
+  #             name: cni
+  #             os: linux
+  #           cni_windows2019_amd64:
+  #             arch: amd64
+  #             name: cni
+  #             os: windows
+  #             os_version: ltsc2019
+  #           cni_windows2022_amd64:
+  #             arch: amd64
+  #             name: cni
+  #             os: windows
+  #             os_version: ltsc2022
+  #           cni_dropgz_linux_amd64:
+  #             arch: amd64
+  #             name: cni-dropgz
+  #             os: linux
+  #           cni_dropgz_test_linux_amd64:
+  #             arch: amd64
+  #             name: cni-dropgz-test
+  #             os: linux
+  #           cni_dropgz_windows2019_amd64:
+  #             arch: amd64
+  #             name: cni-dropgz
+  #             os: windows
+  #             os_version: ltsc2019
+  #           cni_dropgz_windows2022_amd64:
+  #             arch: amd64
+  #             name: cni-dropgz
+  #             os: windows
+  #             os_version: ltsc2022
+  #           cni_dropgz_test_windows2019_amd64:
+  #             arch: amd64
+  #             name: cni-dropgz-test
+  #             os: windows
+  #             os_version: ltsc2019
+  #           cni_dropgz_test_windows2022_amd64:
+  #             arch: amd64
+  #             name: cni-dropgz-test
+  #             os: windows
+  #             os_version: ltsc2022
+  #           cns_linux_amd64:
+  #             arch: amd64
+  #             name: cns
+  #             os: linux
+  #           cns_windows2019_amd64:
+  #             arch: amd64
+  #             name: cns
+  #             os: windows
+  #             os_version: ltsc2019
+  #           cns_windows2022_amd64:
+  #             arch: amd64
+  #             name: cns
+  #             os: windows
+  #             os_version: ltsc2022
+  #           npm_linux_amd64:
+  #             arch: amd64
+  #             name: npm
+  #             os: linux
+  #           npm_windows2022_amd64:
+  #             arch: amd64
+  #             name: npm
+  #             os: windows
+  #             os_version: ltsc2022
+  #       steps:
+  #         - template: containers/container-template.yaml
+  #           parameters:
+  #             arch: $(arch)
+  #             name: $(name)
+  #             os: $(os)
+  #             os_version: $(os_version)
+  #     - job: containerize_linux_arm64
+  #       displayName: Build Images
+  #       variables:
+  #         TAG: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
+  #       pool:
+  #         name: "$(BUILD_POOL_NAME_LINUX_ARM64)"
+  #       strategy:
+  #         matrix:
+  #           azure_ipam_linux_arm64:
+  #             arch: arm64
+  #             name: azure-ipam
+  #             os: linux
+  #           cni_linux_arm64:
+  #             arch: arm64
+  #             name: cni
+  #             os: linux
+  #           cni_dropgz_linux_arm64:
+  #             arch: arm64
+  #             name: cni-dropgz
+  #             os: linux
+  #           cni_dropgz_test_linux_arm64:
+  #             arch: arm64
+  #             name: cni-dropgz-test
+  #             os: linux
+  #           cns_linux_arm64:
+  #             arch: arm64
+  #             name: cns
+  #             os: linux
+  #           npm_linux_arm64:
+  #             arch: arm64
+  #             name: npm
+  #             os: linux
+  #       steps:
+  #         - template: containers/container-template.yaml
+  #           parameters:
+  #             arch: $(arch)
+  #             name: $(name)
+  #             os: $(os)
+  #     - job: check_tag
+  #       displayName: Check Tag
+  #       pool:
+  #         name: $(BUILD_POOL_NAME_DEFAULT)
+  #       steps:
+  #         - script: |
+  #             echo "##vso[task.setvariable variable=currentTagBuild;isOutput=true]$(make version)"
+  #           name: "CurrentTagBuild"
+  #           displayName: "Set current tag variable"
+  #           condition: always()
 
-  - stage: validate1
-    displayName: Validate Tags
-    dependsOn:
-      - setup
-      - containerize
-    variables:
-      TAG: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
-      CURRENT_VERSION: $[ stagedependencies.containerize.check_tag.outputs['CurrentTagBuild.currentTagBuild'] ]
-    condition: ne(variables.TAG, variables.CURRENT_VERSION)
-    jobs:
-      - job: timeout_and_cancel
-        displayName: Cancel Run
-        pool:
-          name: $(BUILD_POOL_NAME_DEFAULT)
-        steps:
-          - script: |
-              echo $TAG
-              echo $CURRENT_VERSION
-              echo "Checking if branch up to date with master"
+  # - stage: validate1
+  #   displayName: Validate Tags
+  #   dependsOn:
+  #     - setup
+  #     - containerize
+  #   variables:
+  #     TAG: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
+  #     CURRENT_VERSION: $[ stagedependencies.containerize.check_tag.outputs['CurrentTagBuild.currentTagBuild'] ]
+  #   condition: ne(variables.TAG, variables.CURRENT_VERSION)
+  #   jobs:
+  #     - job: timeout_and_cancel
+  #       displayName: Cancel Run
+  #       pool:
+  #         name: $(BUILD_POOL_NAME_DEFAULT)
+  #       steps:
+  #         - script: |
+  #             echo $TAG
+  #             echo $CURRENT_VERSION
+  #             echo "Checking if branch up to date with master"
 
-  - stage: publish
-    displayName: Publish Multiarch Manifests
-    dependsOn:
-      - containerize
-    variables:
-      TAG: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
-      CURRENT_VERSION: $[ stagedependencies.containerize.check_tag.outputs['CurrentTagBuild.currentTagBuild'] ]
-      Packaging.EnableSBOMSigning: false
-    condition: and(succeeded(), eq(variables.TAG, variables.CURRENT_VERSION))
-    jobs:
-      - job: manifest
-        displayName: Compile Manifests
-        pool:
-          name: "$(BUILD_POOL_NAME_DEFAULT)"
-        strategy:
-          matrix:
-            azure_ipam:
-              name: azure-ipam
-              os_versions: ltsc2019 ltsc2022
-              platforms: linux/amd64 linux/arm64 windows/amd64
-            cni:
-              name: cni
-              os_versions: ltsc2019 ltsc2022
-              platforms: linux/amd64 linux/arm64 windows/amd64
-            cni_dropgz:
-              name: cni-dropgz
-              os_versions: ltsc2019 ltsc2022
-              platforms: linux/amd64 linux/arm64 windows/amd64
-            cni_dropgz_test:
-              name: cni-dropgz-test
-              os_versions: ltsc2019 ltsc2022
-              platforms: linux/amd64 linux/arm64 windows/amd64
-            cns:
-              name: cns
-              os_versions: ltsc2019 ltsc2022
-              platforms: linux/amd64 linux/arm64 windows/amd64
-            npm:
-              name: npm
-              os_versions: ltsc2022
-              platforms: linux/amd64 linux/arm64 windows/amd64
-        steps:
-          - template: containers/manifest-template.yaml
-            parameters:
-              name: $(name)
-              os_versions: $(os_versions)
-              platforms: $(platforms)
-              tag: $(TAG)
-      - job: check_tag
-        displayName: Check Tag
-        pool:
-          name: $(BUILD_POOL_NAME_DEFAULT)
-        steps:
-          - script: |
-              echo "##vso[task.setvariable variable=currentTagManifests;isOutput=true]$(make version)"
-            name: "CurrentTagManifests"
-            displayName: "Set current tag variable"
-            condition: always()
+  # - stage: publish
+  #   displayName: Publish Multiarch Manifests
+  #   dependsOn:
+  #     - containerize
+  #   variables:
+  #     TAG: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
+  #     CURRENT_VERSION: $[ stagedependencies.containerize.check_tag.outputs['CurrentTagBuild.currentTagBuild'] ]
+  #     Packaging.EnableSBOMSigning: false
+  #   condition: and(succeeded(), eq(variables.TAG, variables.CURRENT_VERSION))
+  #   jobs:
+  #     - job: manifest
+  #       displayName: Compile Manifests
+  #       pool:
+  #         name: "$(BUILD_POOL_NAME_DEFAULT)"
+  #       strategy:
+  #         matrix:
+  #           azure_ipam:
+  #             name: azure-ipam
+  #             os_versions: ltsc2019 ltsc2022
+  #             platforms: linux/amd64 linux/arm64 windows/amd64
+  #           cni:
+  #             name: cni
+  #             os_versions: ltsc2019 ltsc2022
+  #             platforms: linux/amd64 linux/arm64 windows/amd64
+  #           cni_dropgz:
+  #             name: cni-dropgz
+  #             os_versions: ltsc2019 ltsc2022
+  #             platforms: linux/amd64 linux/arm64 windows/amd64
+  #           cni_dropgz_test:
+  #             name: cni-dropgz-test
+  #             os_versions: ltsc2019 ltsc2022
+  #             platforms: linux/amd64 linux/arm64 windows/amd64
+  #           cns:
+  #             name: cns
+  #             os_versions: ltsc2019 ltsc2022
+  #             platforms: linux/amd64 linux/arm64 windows/amd64
+  #           npm:
+  #             name: npm
+  #             os_versions: ltsc2022
+  #             platforms: linux/amd64 linux/arm64 windows/amd64
+  #       steps:
+  #         - template: containers/manifest-template.yaml
+  #           parameters:
+  #             name: $(name)
+  #             os_versions: $(os_versions)
+  #             platforms: $(platforms)
+  #             tag: $(TAG)
+  #     - job: check_tag
+  #       displayName: Check Tag
+  #       pool:
+  #         name: $(BUILD_POOL_NAME_DEFAULT)
+  #       steps:
+  #         - script: |
+  #             echo "##vso[task.setvariable variable=currentTagManifests;isOutput=true]$(make version)"
+  #           name: "CurrentTagManifests"
+  #           displayName: "Set current tag variable"
+  #           condition: always()
 
-  # Cilium Podsubnet E2E tests
-  - template: singletenancy/cilium/cilium-e2e-job-template.yaml
-    parameters:
-      name: "cilium_e2e"
-      displayName: Cilium
-      testDropgz: ""
-      clusterType: swift-byocni-nokubeproxy-up
-      clusterName: "ciliume2e"
-      vmSize: Standard_B2ms
-      k8sVersion: ""
-      dependsOn: "containerize"
+  # # Cilium Podsubnet E2E tests
+  # - template: singletenancy/cilium/cilium-e2e-job-template.yaml
+  #   parameters:
+  #     name: "cilium_e2e"
+  #     displayName: Cilium
+  #     testDropgz: ""
+  #     clusterType: swift-byocni-nokubeproxy-up
+  #     clusterName: "ciliume2e"
+  #     vmSize: Standard_B2ms
+  #     k8sVersion: ""
+  #     dependsOn: "containerize"
 
-  - template: singletenancy/cilium/cilium-e2e-job-template.yaml
-    parameters:
-      name: "cilium_podsubnet_cni_e2e"
-      displayName: CNI - Cilium Podsubnet
-      testDropgz: true
-      clusterType: swift-byocni-nokubeproxy-up
-      clusterName: "cilpodcnie2e"
-      vmSize: Standard_B2ms
-      k8sVersion: ""
-      dependsOn: "containerize"
+  # - template: singletenancy/cilium/cilium-e2e-job-template.yaml
+  #   parameters:
+  #     name: "cilium_podsubnet_cni_e2e"
+  #     displayName: CNI - Cilium Podsubnet
+  #     testDropgz: true
+  #     clusterType: swift-byocni-nokubeproxy-up
+  #     clusterName: "cilpodcnie2e"
+  #     vmSize: Standard_B2ms
+  #     k8sVersion: ""
+  #     dependsOn: "containerize"
 
-  # Cilium Overlay E2E tests
-  - template: singletenancy/cilium-overlay/cilium-overlay-e2e-job-template.yaml
-    parameters:
-      name: "cilium_overlay_e2e"
-      displayName: Cilium on AKS Overlay
-      testDropgz: ""
-      clusterType: overlay-byocni-nokubeproxy-up
-      clusterName: "cilovere2e"
-      vmSize: Standard_B2ms
-      k8sVersion: ""
-      dependsOn: "containerize"
+  # # Cilium Overlay E2E tests
+  # - template: singletenancy/cilium-overlay/cilium-overlay-e2e-job-template.yaml
+  #   parameters:
+  #     name: "cilium_overlay_e2e"
+  #     displayName: Cilium on AKS Overlay
+  #     testDropgz: ""
+  #     clusterType: overlay-byocni-nokubeproxy-up
+  #     clusterName: "cilovere2e"
+  #     vmSize: Standard_B2ms
+  #     k8sVersion: ""
+  #     dependsOn: "containerize"
 
-  - template: singletenancy/cilium-overlay/cilium-overlay-e2e-job-template.yaml
-    parameters:
-      name: "cilium_overlay_cni_e2e"
-      displayName: CNI - Cilium on AKS Overlay
-      testDropgz: true
-      clusterType: overlay-byocni-nokubeproxy-up
-      clusterName: "cilovercnie2e"
-      vmSize: Standard_B2ms
-      k8sVersion: ""
-      dependsOn: "containerize"
+  # - template: singletenancy/cilium-overlay/cilium-overlay-e2e-job-template.yaml
+  #   parameters:
+  #     name: "cilium_overlay_cni_e2e"
+  #     displayName: CNI - Cilium on AKS Overlay
+  #     testDropgz: true
+  #     clusterType: overlay-byocni-nokubeproxy-up
+  #     clusterName: "cilovercnie2e"
+  #     vmSize: Standard_B2ms
+  #     k8sVersion: ""
+  #     dependsOn: "containerize"
 
-  # Azure Overlay E2E tests
-  - template: singletenancy/azure-cni-overlay/azure-cni-overlay-e2e-job-template.yaml
-    parameters:
-      name: "azure_overlay_e2e"
-      displayName: Azure Overlay
-      os: linux
-      testDropgz: ""
-      clusterType: overlay-byocni-up
-      clusterName: "azovere2e"
-      vmSize: Standard_B2ms
-      k8sVersion: ""
-      dependsOn: "containerize"
+  # # Azure Overlay E2E tests
+  # - template: singletenancy/azure-cni-overlay/azure-cni-overlay-e2e-job-template.yaml
+  #   parameters:
+  #     name: "azure_overlay_e2e"
+  #     displayName: Azure Overlay
+  #     os: linux
+  #     testDropgz: ""
+  #     clusterType: overlay-byocni-up
+  #     clusterName: "azovere2e"
+  #     vmSize: Standard_B2ms
+  #     k8sVersion: ""
+  #     dependsOn: "containerize"
 
-  - template: singletenancy/azure-cni-overlay/azure-cni-overlay-e2e-job-template.yaml
-    parameters:
-      name: "azure_overlay_cni_e2e"
-      displayName: CNI - Azure Overlay
-      os: linux
-      testDropgz: true
-      clusterType: overlay-byocni-up
-      clusterName: "azovercnie2e"
-      vmSize: Standard_B2ms
-      k8sVersion: ""
-      dependsOn: "containerize"
+  # - template: singletenancy/azure-cni-overlay/azure-cni-overlay-e2e-job-template.yaml
+  #   parameters:
+  #     name: "azure_overlay_cni_e2e"
+  #     displayName: CNI - Azure Overlay
+  #     os: linux
+  #     testDropgz: true
+  #     clusterType: overlay-byocni-up
+  #     clusterName: "azovercnie2e"
+  #     vmSize: Standard_B2ms
+  #     k8sVersion: ""
+  #     dependsOn: "containerize"
 
-  # AKS Swift E2E tests
-  - template: singletenancy/aks-swift/e2e-job-template.yaml
-    parameters:
-      name: "aks_swift_e2e"
-      displayName: AKS Swift Ubuntu
-      testDropgz: ""
-      clusterType: swift-byocni-up
-      clusterName: "swifte2e"
-      vmSize: Standard_B2s
-      k8sVersion: ""
-      dependsOn: "containerize"
+  # # AKS Swift E2E tests
+  # - template: singletenancy/aks-swift/e2e-job-template.yaml
+  #   parameters:
+  #     name: "aks_swift_e2e"
+  #     displayName: AKS Swift Ubuntu
+  #     testDropgz: ""
+  #     clusterType: swift-byocni-up
+  #     clusterName: "swifte2e"
+  #     vmSize: Standard_B2s
+  #     k8sVersion: ""
+  #     dependsOn: "containerize"
 
-  - template: singletenancy/aks-swift/e2e-job-template.yaml
-    parameters:
-      name: "aks_swift_cni_e2e"
-      displayName: CNI - AKS Swift
-      testDropgz: true
-      clusterType: swift-byocni-up
-      clusterName: "swiftcnie2e"
-      vmSize: Standard_B2ms
-      k8sVersion: ""
-      dependsOn: "containerize"
+  # - template: singletenancy/aks-swift/e2e-job-template.yaml
+  #   parameters:
+  #     name: "aks_swift_cni_e2e"
+  #     displayName: CNI - AKS Swift
+  #     testDropgz: true
+  #     clusterType: swift-byocni-up
+  #     clusterName: "swiftcnie2e"
+  #     vmSize: Standard_B2ms
+  #     k8sVersion: ""
+  #     dependsOn: "containerize"
 
-  # CNIv1 E2E tests
-  - template: singletenancy/aks/e2e-job-template.yaml
-    parameters:
-      name: "aks_ubuntu_22_linux_e2e"
-      displayName: AKS Ubuntu 22
-      arch: "amd64"
-      os: "linux"
-      clusterType: linux-cniv1-up
-      clusterName: "ubuntu22e2e"
-      vmSize: Standard_B2s
-      k8sVersion: 1.25
-      scaleup: 100
-      dependsOn: "containerize"
+  # # CNIv1 E2E tests
+  # - template: singletenancy/aks/e2e-job-template.yaml
+  #   parameters:
+  #     name: "aks_ubuntu_22_linux_e2e"
+  #     displayName: AKS Ubuntu 22
+  #     arch: "amd64"
+  #     os: "linux"
+  #     clusterType: linux-cniv1-up
+  #     clusterName: "ubuntu22e2e"
+  #     vmSize: Standard_B2s
+  #     k8sVersion: 1.25
+  #     scaleup: 100
+  #     dependsOn: "containerize"
 
-  - template: singletenancy/aks/e2e-job-template.yaml
-    parameters:
-      name: "aks_windows_22_e2e"
-      displayName: AKS Windows 2022
-      arch: amd64
-      os: windows
-      clusterType: windows-cniv1-up
-      clusterName: "win22e2e"
-      vmSize: Standard_B2ms
-      os_version: "ltsc2022"
-      scaleup: 50
-      dependsOn: "containerize"
+  # - template: singletenancy/aks/e2e-job-template.yaml
+  #   parameters:
+  #     name: "aks_windows_22_e2e"
+  #     displayName: AKS Windows 2022
+  #     arch: amd64
+  #     os: windows
+  #     clusterType: windows-cniv1-up
+  #     clusterName: "win22e2e"
+  #     vmSize: Standard_B2ms
+  #     os_version: "ltsc2022"
+  #     scaleup: 50
+  #     dependsOn: "containerize"
 
-  # CNI dual stack overlay E2E tests
-  - template: singletenancy/dualstack-overlay/dualstackoverlay-e2e-job-template.yaml
-    parameters:
-      name: "dualstackoverlay_e2e"
-      displayName: AKS DualStack Overlay
-      os: linux
-      clusterType: dualstack-overlay-byocni-up
-      clusterName: "dsovere2e"
-      vmSize: Standard_B2ms
-      dependsOn: "containerize"
-      testDropgz: true
+  # # CNI dual stack overlay E2E tests
+  # - template: singletenancy/dualstack-overlay/dualstackoverlay-e2e-job-template.yaml
+  #   parameters:
+  #     name: "dualstackoverlay_e2e"
+  #     displayName: AKS DualStack Overlay
+  #     os: linux
+  #     clusterType: dualstack-overlay-byocni-up
+  #     clusterName: "dsovere2e"
+  #     vmSize: Standard_B2ms
+  #     dependsOn: "containerize"
+  #     testDropgz: true
 
-  - stage: delete
-    displayName: Delete Clusters
-    condition: always()
-    dependsOn:
-      - setup
-      - "azure_overlay_e2e"
-      - "azure_overlay_cni_e2e"
-      - "aks_swift_e2e"
-      - "aks_swift_cni_e2e"
-      - "cilium_e2e"
-      - "cilium_podsubnet_cni_e2e"
-      - "cilium_overlay_e2e"
-      - "cilium_overlay_cni_e2e"
-      - "aks_ubuntu_22_linux_e2e"
-      - "aks_windows_22_e2e"
-      - "dualstackoverlay_e2e"
-    variables:
-      commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
-    jobs:
-      - job: delete
-        displayName: Delete Cluster
-        pool:
-          name: "$(BUILD_POOL_NAME_DEFAULT)"
-        strategy:
-          matrix:
-            cilium_e2e:
-              name: cilium_e2e
-              clusterName: "ciliume2e"
-            cilium_overlay_e2e:
-              name: cilium_overlay_e2e
-              clusterName: "cilovere2e"
-            azure_overlay_e2e:
-              name: azure_overlay_e2e
-              clusterName: "azovere2e"
-            aks_swift_e2e:
-              name: aks_swift_e2e
-              clusterName: "swifte2e"
-            azure_overlay_cni_e2e:
-              name: "azure_overlay_cni_e2e"
-              clusterName: "azovercnie2e"
-            cilium_podsubnet_cni_e2e:
-              name: cilium_podsubnet_cni_e2e
-              clusterName: "cilpodcnie2e"
-            cilium_overlay_cni_e2e:
-              name: cilium_overlay_cni_e2e
-              clusterName: "cilovercnie2e"
-            aks_swift_cni_e2e:
-              name: aks_swift_cni_e2e
-              clusterName: "swiftcnie2e"
-            aks_ubuntu_22_linux_e2e:
-              name: aks_ubuntu_22_linux_e2e
-              clusterName: "ubuntu22e2e"
-            aks_windows_22_e2e:
-              name: aks_windows_22_e2e
-              clusterName: "win22e2e"
-            dualstackoverlay_e2e:
-              name: dualstackoverlay_e2e
-              clusterName: "dsovere2e"
-        steps:
-          - template: templates/delete-cluster.yaml
-            parameters:
-              name: $(name)
-              clusterName: $(clusterName)-$(commitID)
-              region: $(REGION_AKS_CLUSTER_TEST)
+  # - stage: delete
+  #   displayName: Delete Clusters
+  #   condition: always()
+  #   dependsOn:
+  #     - setup
+  #     - "azure_overlay_e2e"
+  #     - "azure_overlay_cni_e2e"
+  #     - "aks_swift_e2e"
+  #     - "aks_swift_cni_e2e"
+  #     - "cilium_e2e"
+  #     - "cilium_podsubnet_cni_e2e"
+  #     - "cilium_overlay_e2e"
+  #     - "cilium_overlay_cni_e2e"
+  #     - "aks_ubuntu_22_linux_e2e"
+  #     - "aks_windows_22_e2e"
+  #     - "dualstackoverlay_e2e"
+  #   variables:
+  #     commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
+  #   jobs:
+  #     - job: delete
+  #       displayName: Delete Cluster
+  #       pool:
+  #         name: "$(BUILD_POOL_NAME_DEFAULT)"
+  #       strategy:
+  #         matrix:
+  #           cilium_e2e:
+  #             name: cilium_e2e
+  #             clusterName: "ciliume2e"
+  #           cilium_overlay_e2e:
+  #             name: cilium_overlay_e2e
+  #             clusterName: "cilovere2e"
+  #           azure_overlay_e2e:
+  #             name: azure_overlay_e2e
+  #             clusterName: "azovere2e"
+  #           aks_swift_e2e:
+  #             name: aks_swift_e2e
+  #             clusterName: "swifte2e"
+  #           azure_overlay_cni_e2e:
+  #             name: "azure_overlay_cni_e2e"
+  #             clusterName: "azovercnie2e"
+  #           cilium_podsubnet_cni_e2e:
+  #             name: cilium_podsubnet_cni_e2e
+  #             clusterName: "cilpodcnie2e"
+  #           cilium_overlay_cni_e2e:
+  #             name: cilium_overlay_cni_e2e
+  #             clusterName: "cilovercnie2e"
+  #           aks_swift_cni_e2e:
+  #             name: aks_swift_cni_e2e
+  #             clusterName: "swiftcnie2e"
+  #           aks_ubuntu_22_linux_e2e:
+  #             name: aks_ubuntu_22_linux_e2e
+  #             clusterName: "ubuntu22e2e"
+  #           aks_windows_22_e2e:
+  #             name: aks_windows_22_e2e
+  #             clusterName: "win22e2e"
+  #           dualstackoverlay_e2e:
+  #             name: dualstackoverlay_e2e
+  #             clusterName: "dsovere2e"
+  #       steps:
+  #         - template: templates/delete-cluster.yaml
+  #           parameters:
+  #             name: $(name)
+  #             clusterName: $(clusterName)-$(commitID)
+  #             region: $(REGION_AKS_CLUSTER_TEST)
 
-  - stage: validate2
-    displayName: Validate Tags
-    dependsOn:
-      - setup
-      - publish
-    variables:
-      TAG: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
-      CURRENT_VERSION: $[ stagedependencies.publish.check_tag.outputs['CurrentTagManifests.currentTagManifests'] ]
-    condition: ne(variables.TAG, variables.CURRENT_VERSION)
-    jobs:
-      - job: timeout_and_cancel
-        displayName: Cancel Run
-        pool:
-          name: $(BUILD_POOL_NAME_DEFAULT)
-        steps:
-          - script: |
-              echo $TAG
-              echo $CURRENT_VERSION
-              echo "Checking if branch is up to date with master"
+  # - stage: validate2
+  #   displayName: Validate Tags
+  #   dependsOn:
+  #     - setup
+  #     - publish
+  #   variables:
+  #     TAG: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
+  #     CURRENT_VERSION: $[ stagedependencies.publish.check_tag.outputs['CurrentTagManifests.currentTagManifests'] ]
+  #   condition: ne(variables.TAG, variables.CURRENT_VERSION)
+  #   jobs:
+  #     - job: timeout_and_cancel
+  #       displayName: Cancel Run
+  #       pool:
+  #         name: $(BUILD_POOL_NAME_DEFAULT)
+  #       steps:
+  #         - script: |
+  #             echo $TAG
+  #             echo $CURRENT_VERSION
+  #             echo "Checking if branch is up to date with master"
 
-  - stage: cleanup
-    displayName: Cleanup
-    dependsOn:
-      - "azure_overlay_e2e"
-      - "azure_overlay_cni_e2e"
-      - "aks_swift_e2e"
-      - "aks_swift_cni_e2e"
-      - "cilium_e2e"
-      - "cilium_podsubnet_cni_e2e"
-      - "cilium_overlay_e2e"
-      - "cilium_overlay_cni_e2e"
-      - "aks_ubuntu_22_linux_e2e"
-      - "aks_windows_22_e2e"
-      - "dualstackoverlay_e2e"
+  # - stage: cleanup
+  #   displayName: Cleanup
+  #   dependsOn:
+  #     - "azure_overlay_e2e"
+  #     - "azure_overlay_cni_e2e"
+  #     - "aks_swift_e2e"
+  #     - "aks_swift_cni_e2e"
+  #     - "cilium_e2e"
+  #     - "cilium_podsubnet_cni_e2e"
+  #     - "cilium_overlay_e2e"
+  #     - "cilium_overlay_cni_e2e"
+  #     - "aks_ubuntu_22_linux_e2e"
+  #     - "aks_windows_22_e2e"
+  #     - "dualstackoverlay_e2e"
 
-    jobs:
-      - job: delete_remote_artifacts
-        displayName: Delete remote artifacts
-        pool:
-          name: $(BUILD_POOL_NAME_DEFAULT)
-          demands: agent.os -equals Linux
-        steps:
-          - checkout: none
-          - task: AzureCLI@1
-            inputs:
-              azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
-              scriptLocation: "inlineScript"
-              inlineScript: |
-                BUILD_NUMBER=$(Build.BuildNumber)
-                BUILD_NUMBER=${BUILD_NUMBER//./-}
-                echo Deleting storage container with name acn-$BUILD_NUMBER and account name $(STORAGE_ACCOUNT_NAME)
-                az storage container delete -n acn-$BUILD_NUMBER --account-name $(STORAGE_ACCOUNT_NAME)
-            displayName: Cleanup remote Azure storage container
+  #   jobs:
+  #     - job: delete_remote_artifacts
+  #       displayName: Delete remote artifacts
+  #       pool:
+  #         name: $(BUILD_POOL_NAME_DEFAULT)
+  #         demands: agent.os -equals Linux
+  #       steps:
+  #         - checkout: none
+  #         - task: AzureCLI@1
+  #           inputs:
+  #             azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+  #             scriptLocation: "inlineScript"
+  #             inlineScript: |
+  #               BUILD_NUMBER=$(Build.BuildNumber)
+  #               BUILD_NUMBER=${BUILD_NUMBER//./-}
+  #               echo Deleting storage container with name acn-$BUILD_NUMBER and account name $(STORAGE_ACCOUNT_NAME)
+  #               az storage container delete -n acn-$BUILD_NUMBER --account-name $(STORAGE_ACCOUNT_NAME)
+  #           displayName: Cleanup remote Azure storage container
