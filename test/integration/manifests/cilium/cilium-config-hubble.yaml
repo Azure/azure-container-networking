@@ -42,7 +42,8 @@ data:
   enable-vtep: "false"
   enable-well-known-identities: "false"
   enable-xt-socket-fallback: "true"
-  hubble-metrics: flow:sourceContext=workload-name;destinationContext=workload-name
+  hubble-metrics:
+    flow:sourceContext=workload-name;destinationContext=workload-name
     tcp:sourceContext=workload-name;destinationContext=workload-name
     dns:flow:sourceContext=workload-name;destinationContext=workload-name
   hubble-metrics-server: :9965
@@ -81,7 +82,7 @@ data:
   tofqdns-max-deferred-connection-deletes: "10000"
   tofqdns-min-ttl: "3600"
   tofqdns-proxy-response-max-delay: 100ms
-  tunnel: disabled
+  routing-mode: "native"
   unmanaged-pod-watcher-interval: "15"
   vtep-cidr: ""
   vtep-endpoint: ""
