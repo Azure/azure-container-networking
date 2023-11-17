@@ -25,3 +25,7 @@ func (v *CiliumGenerator) Generate() error {
 func (v *SWIFTGenerator) Generate() error {
 	return errNotImplemented
 }
+
+func (v *MultitenantTransparentVLANGenerator) Generate() error {
+	return errNotImplemented
+}

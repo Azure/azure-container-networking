@@ -22,6 +22,7 @@ const (
 	storeKey        = "Network"
 	VlanIDKey       = "VlanID"
 	AzureCNS        = "azure-cns"
+	AzureVnetIPAM   = "azure-vnet-ipam"
 	SNATIPKey       = "NCPrimaryIPKey"
 	RoutesKey       = "RoutesKey"
 	IPTablesKey     = "IPTablesKey"

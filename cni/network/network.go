@@ -38,6 +38,7 @@ import (
 const (
 	dockerNetworkOption = "com.docker.network.generic"
 	OpModeTransparent   = "transparent"
+	OpModeTransparentVLAN   = "transparent-vlan"
 	// Supported IP version. Currently support only IPv4
 	ipamV6                = "azure-vnet-ipamv6"
 	defaultRequestTimeout = 15 * time.Second

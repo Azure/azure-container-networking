@@ -161,3 +161,31 @@ func (v *SWIFTGenerator) Generate() error {
 
 	return nil
 }
+
+// Generate writes the CNI conflist to the Generator's output stream
+func (v *MultitenantTransparentVLANGenerator) Generate() error {
+	conflist := cniConflist{
+		CNIVersion: azurecniVersion,
+		Name:       azureName,
+		Plugins: []any{
+			cni.NetworkConfig{
+				Type:             azureType,
+				Mode:             cninet.OpModeTransparentVLAN,
+				MultiTenancy:     true,
+				EnableSnatOnHost: true,
+				IPAM: cni.IPAM{
+					Type: network.AzureVnetIPAM,
+				},
+			},
+			portmapConfig,
+		},
+	}
+
+	enc := json.NewEncoder(v.Writer)
+	enc.SetIndent("", "\t")
+	if err := enc.Encode(conflist); err != nil {
+		return errors.Wrap(err, "error encoding conflist to json")
+	}
+
+	return nil
+}

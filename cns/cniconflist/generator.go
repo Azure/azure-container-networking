@@ -71,6 +71,11 @@ type SWIFTGenerator struct {
 	Writer io.WriteCloser
 }
 
+// MultitenantTransparentVLANGenerator generates the Azure CNI conflist for the Multitenant scenario
+type MultitenantTransparentVLANGenerator struct {
+	Writer io.WriteCloser
+}
+
 func (v *V4OverlayGenerator) Close() error {
 	if err := v.Writer.Close(); err != nil {
 		return errors.Wrap(err, "error closing generator")
@@ -104,6 +109,14 @@ func (v *CiliumGenerator) Close() error {
 }
 
 func (v *SWIFTGenerator) Close() error {
+	if err := v.Writer.Close(); err != nil {
+		return errors.Wrap(err, "error closing generator")
+	}
+
+	return nil
+}
+
+func (v *MultitenantTransparentVLANGenerator) Close() error {
 	if err := v.Writer.Close(); err != nil {
 		return errors.Wrap(err, "error closing generator")
 	}

@@ -1,0 +1,27 @@
+{
+	"cniVersion": "0.3.0",
+	"name": "azure",
+	"plugins": [
+		{
+			"type": "azure-vnet",
+			"mode": "transparent-vlan",
+			"multiTenancy": true,
+			"enableSnatOnHost": true,
+			"ipam": {
+				"type": "azure-vnet-ipam"
+			},
+			"dns": {},
+			"runtimeConfig": {
+				"dns": {}
+			},
+			"windowsSettings": {}
+		},
+		{
+			"type": "portmap",
+			"capabilities": {
+				"portMappings": true
+			},
+			"snat": true
+		}
+	]
+}
