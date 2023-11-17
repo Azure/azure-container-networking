@@ -2,6 +2,8 @@ pr:
   branches:
     include:
       - master
+      - merge-queue-test
+      - gh-readonly-queue/*
       - release/*
   paths:
     exclude:
