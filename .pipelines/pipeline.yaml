@@ -1,28 +1,7 @@
 pr:
   branches:
     include:
-      - master
-      - merge-queue-test
-      - gh-readonly-queue/*
-      - release/*
-  paths:
-    exclude:
-      - ".devcontainer"
-      - ".hooks"
-      - ".vscode"
-      - ".github"
-      - docs
-
-trigger:
-  paths:
-    exclude:
-      - docs
-      - "zapai/*"
-      - "azure-ipam/*"
-      - "dropgz/*"
-  tags:
-    include:
-      - "*"
+      - gh-readonly-queue/merge-queue-test/*
 
 stages:
   - stage: setup
