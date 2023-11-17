@@ -462,6 +462,8 @@ func configureSecondaryAddResult(info *IPResultInfo, addResult *IPAMAddResult, p
 
 	result.ipResult.Routes = append(result.ipResult.Routes, routes...)
 	addResult.secondaryInterfacesInfo = append(addResult.secondaryInterfacesInfo, result)
+	// todo: remove after testing l1vh adding defaultinterfaceinfo
+	addResult.defaultInterfaceInfo = addResult.secondaryInterfacesInfo[0]
 
 	logger.Info("addResult is", zap.Any("addResult", addResult))
 	return nil
