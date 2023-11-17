@@ -405,7 +405,7 @@ func (client *TransparentVlanEndpointClient) AddVnetRules(epInfo *EndpointInfo) 
 		return errors.Wrap(err, "unable to insert iptables rule accept all incoming from vlan interface")
 	}
 
-	if err := networkutils.BlockWireserverTraffic(); err != nil {
+	if err := networkutils.BlockEgressTrafficFromContainer(networkutils.AzureDNS, iptables.HTTPPort); err != nil {
 		return errors.Wrap(err, "unable to insert iptables rule drop all wireserver port 80 packets")
 	}
 
