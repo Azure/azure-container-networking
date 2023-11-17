@@ -73,7 +73,7 @@ type HTTPRestService struct {
 	EndpointStateStore      store.KeyValueStore
 	cniConflistGenerator    CNIConflistGenerator
 	generateCNIConflistOnce sync.Once
-	SWIFTv2Middleware       cns.IPConfigsHandlerMiddleware
+	SWIFTv2Middleware       *middlewares.SWIFTv2Middleware
 }
 
 type CNIConflistGenerator interface {
