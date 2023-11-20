@@ -544,6 +544,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 			}
 		}()
 
+		logger.Info("nwInfoErr is", zap.Any("nwInfoErr", nwInfoErr))
 		// Create network
 		if nwInfoErr != nil {
 			// Network does not exist.
