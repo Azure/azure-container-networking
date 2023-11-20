@@ -1,5 +1,12 @@
 pr: none
-trigger: none
+trigger:
+  tags:
+    include:
+    - dropgz/*
+    - azure-cni/*
+    - azure-ipam/*
+    - azure-cns/*
+    - v*
 
 stages:
   - stage: setup
