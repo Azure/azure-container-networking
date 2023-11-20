@@ -430,11 +430,13 @@ func configureDefaultAddResult(info *IPResultInfo, addConfig *IPAMAddConfig, add
 
 func configureSecondaryAddResult(info *IPResultInfo, addResult *IPAMAddResult, podIPConfig *cns.IPSubnet) error {
 	ip, ipnet, err := podIPConfig.GetIPNet()
+	logger.Info("ip, ipnet", zap.Any("ip", ip), zap.Any("ipnet", ipnet))
 	if ip == nil {
 		return errors.Wrap(err, "Unable to parse IP from response: "+info.podIPAddress+" with err %w")
 	}
 
 	macAddress, err := net.ParseMAC(info.macAddress)
+	logger.Info("macAddress", zap.Any("macAddress", macAddress))
 	if err != nil {
 		return errors.Wrap(err, "Invalid mac address")
 	}
@@ -455,11 +457,13 @@ func configureSecondaryAddResult(info *IPResultInfo, addResult *IPAMAddResult, p
 		skipDefaultRoutes: info.skipDefaultRoutes,
 	}
 
+	logger.Info("secondary result is", zap.Any("secondary", macAddress))
 	routes, err := getRoutes(info.routes, info.skipDefaultRoutes)
 	if err != nil {
 		return err
 	}
 
+	logger.Info("secondary routes is", zap.Any("secondary routes are", macAddress))
 	result.ipResult.Routes = append(result.ipResult.Routes, routes...)
 	addResult.secondaryInterfacesInfo = append(addResult.secondaryInterfacesInfo, result)
 	// todo: remove after testing l1vh adding defaultinterfaceinfo
