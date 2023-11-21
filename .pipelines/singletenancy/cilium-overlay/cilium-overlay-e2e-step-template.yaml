@@ -89,7 +89,13 @@ steps:
 
   - script: |
       echo "Start Azilium E2E Tests on Overlay Cluster"
-      sudo -E env "PATH=$PATH" make test-integration AZURE_IPAM_VERSION=$(make azure-ipam-version) CNS_VERSION=$(make cns-version) INSTALL_CNS=true INSTALL_OVERLAY=true
+      if [ "$CILIUM_VERSION_TAG" = "cilium-nightly-pipeline" ]
+      then
+          CNS=$(CNS_VERSION) IPAM=$(AZURE_IPAM_VERSION) && echo "Running nightly"
+      else
+          CNS=$(make cns-version) IPAM=$(make azure-ipam-version)
+      fi
+      sudo -E env "PATH=$PATH" make test-integration AZURE_IPAM_VERSION=${IPAM} CNS_VERSION=${CNS} INSTALL_CNS=true INSTALL_OVERLAY=true
     retryCountOnTaskFailure: 3
     name: "aziliumTest"
     displayName: "Run Azilium E2E on AKS Overlay"
