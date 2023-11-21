@@ -306,6 +306,7 @@ func (nm *networkManager) GetNetworkInfo(networkId string) (NetworkInfo, error) 
 	defer nm.Unlock()
 
 	nw, err := nm.getNetwork(networkId)
+	logger.Info("nw is, err is", zap.Any("nw", nw), zap.Error(err))
 	if err != nil {
 		return NetworkInfo{}, err
 	}
@@ -325,6 +326,7 @@ func (nm *networkManager) GetNetworkInfo(networkId string) (NetworkInfo, error) 
 		nwInfo.BridgeName = nw.extIf.BridgeName
 	}
 
+	logger.Info("manager nwInfo is", zap.Any("nwInfo", nwInfo))
 	return nwInfo, nil
 }
 

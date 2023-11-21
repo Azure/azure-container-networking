@@ -243,6 +243,8 @@ func (nm *networkManager) deleteNetwork(networkID string) error {
 
 // GetNetwork returns the network with the given ID.
 func (nm *networkManager) getNetwork(networkId string) (*network, error) {
+	logger.Info("networkId is", zap.String("networkId", networkId))
+	logger.Info("nm.ExternalInterfaces are ", zap.Any("nm.ExternalInterfaces", nm.ExternalInterfaces))
 	for _, extIf := range nm.ExternalInterfaces {
 		nw, ok := extIf.Networks[networkId]
 		if ok {

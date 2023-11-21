@@ -487,6 +487,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 
 		options := make(map[string]any)
 		networkID, err = plugin.getNetworkName(args.Netns, &ipamAddResult, nwCfg)
+		logger.Info("network.go networkID", zap.String("networkID", networkID))
 
 		endpointID := GetEndpointID(args)
 		policies := cni.GetPoliciesFromNwCfg(nwCfg.AdditionalArgs)
