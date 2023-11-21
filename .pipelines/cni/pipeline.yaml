@@ -3,9 +3,7 @@ trigger:
   tags:
     include:
     - dropgz/*
-    - azure-cni/*
     - azure-ipam/*
-    - azure-cns/*
     - v*
 
 stages:
