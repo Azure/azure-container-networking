@@ -1462,6 +1462,7 @@ func TestIngressPolicy(t *testing.T) {
 	targetPodMatchType := policies.EitherMatch
 	peerMatchType := policies.SrcMatch
 	emptyString := intstr.FromString("")
+	port443 := intstr.FromInt(443)
 	// TODO(jungukcho): add test cases with more complex rules
 	tests := []struct {
 		name                  string
@@ -1787,6 +1788,45 @@ func TestIngressPolicy(t *testing.T) {
 				},
 			},
 			rules: []networkingv1.NetworkPolicyIngressRule{
+				{},
+			},
+			npmNetPol: &policies.NPMNetworkPolicy{
+				Namespace:   "default",
+				PolicyKey:   "default/serve-tcp",
+				ACLPolicyID: "azure-acl-default-serve-tcp",
+				PodSelectorIPSets: []*ipsets.TranslatedIPSet{
+					ipsets.NewTranslatedIPSet("label:src", ipsets.KeyValueLabelOfPod),
+					ipsets.NewTranslatedIPSet("default", ipsets.Namespace),
+				},
+				ChildPodSelectorIPSets: []*ipsets.TranslatedIPSet{},
+				PodSelectorList: []policies.SetInfo{
+					policies.NewSetInfo("label:src", ipsets.KeyValueLabelOfPod, included, targetPodMatchType),
+					policies.NewSetInfo("default", ipsets.Namespace, included, targetPodMatchType),
+				},
+				ACLs: []*policies.ACLPolicy{
+					{
+						Target:    policies.Allowed,
+						Direction: policies.Ingress,
+					},
+				},
+			},
+		},
+		{
+			name: "allow all ingress rules works with ports rules",
+			targetSelector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"label": "src",
+				},
+			},
+			rules: []networkingv1.NetworkPolicyIngressRule{
+				{
+					Ports: []networkingv1.NetworkPolicyPort{
+						{
+							Protocol: &tcp,
+							Port:     &port443,
+						},
+					},
+				},
 				{},
 			},
 			npmNetPol: &policies.NPMNetworkPolicy{
@@ -2152,6 +2192,7 @@ func TestIngressPolicy(t *testing.T) {
 func TestEgressPolicy(t *testing.T) {
 	tcp := v1.ProtocolTCP
 	emptyString := intstr.FromString("")
+	port443 := intstr.FromInt(443)
 	targetPodMatchType := policies.EitherMatch
 	peerMatchType := policies.DstMatch
 	tests := []struct {
@@ -2387,6 +2428,45 @@ func TestEgressPolicy(t *testing.T) {
 				},
 			},
 			rules: []networkingv1.NetworkPolicyEgressRule{
+				{},
+			},
+			npmNetPol: &policies.NPMNetworkPolicy{
+				Namespace:   "default",
+				PolicyKey:   "default/serve-tcp",
+				ACLPolicyID: "azure-acl-default-serve-tcp",
+				PodSelectorIPSets: []*ipsets.TranslatedIPSet{
+					ipsets.NewTranslatedIPSet("label:dst", ipsets.KeyValueLabelOfPod),
+					ipsets.NewTranslatedIPSet("default", ipsets.Namespace),
+				},
+				ChildPodSelectorIPSets: []*ipsets.TranslatedIPSet{},
+				PodSelectorList: []policies.SetInfo{
+					policies.NewSetInfo("label:dst", ipsets.KeyValueLabelOfPod, included, targetPodMatchType),
+					policies.NewSetInfo("default", ipsets.Namespace, included, targetPodMatchType),
+				},
+				ACLs: []*policies.ACLPolicy{
+					{
+						Target:    policies.Allowed,
+						Direction: policies.Egress,
+					},
+				},
+			},
+		},
+		{
+			name: "allow all egress rules works with ports rules",
+			targetSelector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"label": "dst",
+				},
+			},
+			rules: []networkingv1.NetworkPolicyEgressRule{
+				{
+					Ports: []networkingv1.NetworkPolicyPort{
+						{
+							Protocol: &tcp,
+							Port:     &port443,
+						},
+					},
+				},
 				{},
 			},
 			npmNetPol: &policies.NPMNetworkPolicy{

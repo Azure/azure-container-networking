@@ -491,9 +491,13 @@ func allowAllPolicy(npmNetPol *policies.NPMNetworkPolicy, direction policies.Dir
 // isAllowAllToIngress returns true if this network policy allows all traffic from internal (i.e,. K8s cluster) and external (i.e., internet)
 // Otherwise, it returns false.
 func isAllowAllToIngress(ingress []networkingv1.NetworkPolicyIngressRule) bool {
-	return len(ingress) == 1 &&
-		len(ingress[0].Ports) == 0 &&
-		len(ingress[0].From) == 0
+	for _, ingressRule := range ingress {
+		// Allow all if any of the ingress rules are allow all.
+		if len(ingressRule.Ports) == 0 && len(ingressRule.From) == 0 {
+			return true
+		}
+	}
+	return false
 }
 
 // ingressPolicy traslates NetworkPolicyIngressRule in NetworkPolicy object
@@ -530,9 +534,13 @@ func ingressPolicy(npmNetPol *policies.NPMNetworkPolicy, netPolName string, ingr
 // isAllowAllToEgress returns true if this network policy allows all traffic to internal (i.e,. K8s cluster) and external (i.e., internet)
 // Otherwise, it returns false.
 func isAllowAllToEgress(egress []networkingv1.NetworkPolicyEgressRule) bool {
-	return len(egress) == 1 &&
-		len(egress[0].Ports) == 0 &&
-		len(egress[0].To) == 0
+	for _, egressRule := range egress {
+		// Allow all if any of the egress rules are allow all.
+		if len(egressRule.Ports) == 0 && len(egressRule.To) == 0 {
+			return true
+		}
+	}
+	return false
 }
 
 // egressPolicy traslates NetworkPolicyEgressRule in networkpolicy object
