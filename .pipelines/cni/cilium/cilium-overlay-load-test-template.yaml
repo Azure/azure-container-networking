@@ -14,7 +14,7 @@ parameters:
 # CONTROL_CNI either contains 'cniv1' or 'all'. It is not case sensitive
 stages:
   - stage: create_${{ parameters.name }}
-    condition: and( succeeded(), or( contains(variables.CONTROL_CNI, 'cilium') , contains(variables.CONTROL_CNI, 'all') ) )
+    condition: and( succeeded(), and( or( contains(variables.CONTROL_CNI, 'cilium') , contains(variables.CONTROL_CNI, 'all') ), or( contains(variables.CONTROL_OS, 'linux'), contains(variables.CONTROL_OS, 'all') ) ) )
     variables:
       commitID: $[ stagedependencies.setup.env.outputs['SetEnvVars.commitID'] ]
     dependsOn:
