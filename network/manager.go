@@ -325,6 +325,7 @@ func (nm *networkManager) GetNetworkInfo(networkId string) (NetworkInfo, error) 
 		nwInfo.BridgeName = nw.extIf.BridgeName
 	}
 
+	logger.Info("manager nwInfo is", zap.Any("nwInfo", nwInfo))
 	return nwInfo, nil
 }
 

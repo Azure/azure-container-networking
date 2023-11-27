@@ -818,6 +818,22 @@ func isPrivateIP(ip net.IP) bool {
 	return false
 }
 
+func (service *HTTPRestService) getSecondaryHostInterface(ctx context.Context) (*wireserver.InterfaceInfo, error) {
+	if service.state.secondaryInterface == nil {
+		res, err := service.wscli.GetInterfaces(ctx)
+		logger.Printf("secondary interface res is %+v", res)
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to get interfaces from IMDS")
+		}
+		secondary, err := wireserver.GetSecondaryInterfaceFromResult(res)
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to get secondary interface from IMDS response")
+		}
+		service.state.secondaryInterface = secondary
+	}
+	return service.state.secondaryInterface, nil
+}
+
 // getPrimaryHostInterface returns the cached InterfaceInfo, if available, otherwise
 // queries the IMDS to get the primary interface info and caches it in the server state
 // before returning the result.

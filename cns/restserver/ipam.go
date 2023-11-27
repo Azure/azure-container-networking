@@ -4,10 +4,13 @@
 package restserver
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"strconv"
 
 	"github.com/Azure/azure-container-networking/cns"
@@ -24,9 +27,15 @@ var (
 	ErrNoNCs            = errors.New("No NCs found in the CNS internal state")
 )
 
+const (
+	contentTypeJSON   = "application/json"
+	headerContentType = "Content-Type"
+)
+
 // requestIPConfigHandlerHelper validates the request, assign IPs and return the IPConfigs
 func (service *HTTPRestService) requestIPConfigHandlerHelper(ctx context.Context, ipconfigsRequest cns.IPConfigsRequest) (*cns.IPConfigsResponse, error) {
 	// For SWIFT v2 scenario, the validator function will also modify the ipconfigsRequest.
+	logger.Printf("ipconfigsRequest inside requestIPConfigHandlerHelper ipamgo is: %+v", ipconfigsRequest)
 	podInfo, returnCode, returnMessage := service.validateIPConfigsRequest(ctx, ipconfigsRequest)
 	if returnCode != types.Success {
 		return &cns.IPConfigsResponse{
@@ -37,46 +46,57 @@ func (service *HTTPRestService) requestIPConfigHandlerHelper(ctx context.Context
 		}, errors.New("failed to validate ip config request")
 	}
 
+	logger.Printf("podinfo after validateIpconfigsRequest is %+v", podInfo)
 	// record a pod requesting an IP
-	service.podsPendingIPAssignment.Push(podInfo.Key())
+	// service.podsPendingIPAssignment.Push(podInfo.Key())
 
-	podIPInfo, err := requestIPConfigsHelper(service, ipconfigsRequest)
-	if err != nil {
-		return &cns.IPConfigsResponse{
-			Response: cns.Response{
-				ReturnCode: types.FailedToAllocateIPConfig,
-				Message:    fmt.Sprintf("AllocateIPConfig failed: %v, IP config request is %v", err, ipconfigsRequest),
-			},
-			PodIPInfo: podIPInfo,
-		}, err
-	}
+	// podIPInfo, err := requestIPConfigsHelper(service, ipconfigsRequest)
+	// if err != nil {
+	// 	return &cns.IPConfigsResponse{
+	// 		Response: cns.Response{
+	// 			ReturnCode: types.FailedToAllocateIPConfig,
+	// 			Message:    fmt.Sprintf("AllocateIPConfig failed: %v, IP config request is %v", err, ipconfigsRequest),
+	// 		},
+	// 		PodIPInfo: podIPInfo,
+	// 	}, err
+	// }
 
 	// record a pod assigned an IP
-	defer func() {
-		// observe IP assignment wait time
-		if since := service.podsPendingIPAssignment.Pop(podInfo.Key()); since > 0 {
-			ipAssignmentLatency.Observe(since.Seconds())
-		}
-	}()
+	// defer func() {
+	// 	// observe IP assignment wait time
+	// 	if since := service.podsPendingIPAssignment.Pop(podInfo.Key()); since > 0 {
+	// 		ipAssignmentLatency.Observe(since.Seconds())
+	// 	}
+	// }()
 
 	// Check if http rest service managed endpoint state is set
-	if service.Options[common.OptManageEndpointState] == true {
-		err = service.updateEndpointState(ipconfigsRequest, podInfo, podIPInfo)
-		if err != nil {
-			return &cns.IPConfigsResponse{
-				Response: cns.Response{
-					ReturnCode: types.UnexpectedError,
-					Message:    fmt.Sprintf("Update endpoint state failed: %v ", err),
-				},
-				PodIPInfo: podIPInfo,
-			}, err
-		}
-	}
+	// if service.Options[common.OptManageEndpointState] == true {
+	// 	err = service.updateEndpointState(ipconfigsRequest, podInfo, podIPInfo)
+	// 	if err != nil {
+	// 		return &cns.IPConfigsResponse{
+	// 			Response: cns.Response{
+	// 				ReturnCode: types.UnexpectedError,
+	// 				Message:    fmt.Sprintf("Update endpoint state failed: %v ", err),
+	// 			},
+	// 			PodIPInfo: podIPInfo,
+	// 		}, err
+	// 	}
+	// }
 
 	// Check if request is for pod with secondary interface(s)
-	if podInfo.SecondaryInterfacesExist() {
+	var podIPInfo []cns.PodIpInfo
+	if ipconfigsRequest.ProgramSecondaryNICOnly {
+		logger.Printf("into ipconfigs.programsecondaryniconly : %t", ipconfigsRequest.ProgramSecondaryNICOnly)
+		//cmdLineConfigPath := acn.GetArg(acn.OptCNSConfigPath).(string)
+		//cnsconfig, err := configuration.ReadConfig(cmdLineConfigPath)
 		// In the future, if we have multiple scenario with secondary interfaces, we can add a switch case here
-		SWIFTv2PodIPInfo, err := service.SWIFTv2Middleware.GetIPConfig(ctx, podInfo)
+		var SWIFTv2PodIPInfo cns.PodIpInfo
+		//switch cnsconfig.EnableSwiftV2 {
+		//case configuration.EnableSFSwiftV2:
+		SWIFTv2PodIPInfo, err := service.GetIPConfigs(podInfo)
+		//case configuration.EnableK8SwiftV2:
+		//	SWIFTv2PodIPInfo, err = service.SWIFTv2Middleware.GetIPConfig(ctx, podInfo)
+		//}
 		if err != nil {
 			defer func() {
 				logger.Errorf("failed to get SWIFTv2 IP config : %v. Releasing default IP config...", err)
@@ -95,26 +115,26 @@ func (service *HTTPRestService) requestIPConfigHandlerHelper(ctx context.Context
 		}
 		podIPInfo = append(podIPInfo, SWIFTv2PodIPInfo)
 		// Setting up routes for SWIFTv2 scenario
-		for i := range podIPInfo {
-			ipInfo := &podIPInfo[i]
-			err := service.SWIFTv2Middleware.SetRoutes(ipInfo)
-			if err != nil {
-				defer func() { //nolint:gocritic
-					logger.Errorf("failed to set routes for SWIFTv2 IP config : %v. Releasing default IP config...", err)
-					_, err = service.releaseIPConfigHandlerHelper(ctx, ipconfigsRequest)
-					if err != nil {
-						logger.Errorf("failed to release default IP config : %v", err)
-					}
-				}()
-				return &cns.IPConfigsResponse{
-					Response: cns.Response{
-						ReturnCode: types.UnexpectedError,
-						Message:    fmt.Sprintf("failed to set SWIFTv2 routes : %v", err),
-					},
-					PodIPInfo: []cns.PodIpInfo{},
-				}, errors.Wrapf(err, "failed to set SWIFTv2 routes : %v", ipconfigsRequest)
-			}
-		}
+		//for i := range podIPInfo {
+		//	ipInfo := &podIPInfo[i]
+		//	err := service.SWIFTv2Middleware.SetRoutes(ipInfo)
+		//	if err != nil {
+		//		defer func() { //nolint:gocritic
+		//			logger.Errorf("failed to set routes for SWIFTv2 IP config : %v. Releasing default IP config...", err)
+		//			_, err = service.releaseIPConfigHandlerHelper(ctx, ipconfigsRequest)
+		//			if err != nil {
+		//				logger.Errorf("failed to release default IP config : %v", err)
+		//			}
+		//		}()
+		//		return &cns.IPConfigsResponse{
+		//			Response: cns.Response{
+		//				ReturnCode: types.UnexpectedError,
+		//				Message:    fmt.Sprintf("failed to set SWIFTv2 routes : %v", err),
+		//			},
+		//			PodIPInfo: []cns.PodIpInfo{},
+		//		}, errors.Wrapf(err, "failed to set SWIFTv2 routes : %v", ipconfigsRequest)
+		//	}
+		//}
 	}
 
 	return &cns.IPConfigsResponse{
@@ -123,6 +143,86 @@ func (service *HTTPRestService) requestIPConfigHandlerHelper(ctx context.Context
 		},
 		PodIPInfo: podIPInfo,
 	}, nil
+}
+
+func (service *HTTPRestService) GetIPConfigs(podInfo cns.PodInfo) (cns.PodIpInfo, error) {
+
+	var body bytes.Buffer
+	var resp cns.GetNetworkContainerResponse
+	podInfoBytes, err := json.Marshal(podInfo)
+	if err != nil {
+		logger.Printf("error in marshal podinfo for getipconfigs: %+v", err)
+		return cns.PodIpInfo{}, err
+	}
+	payload := &cns.GetNetworkContainerRequest{OrchestratorContext: podInfoBytes}
+
+	if err := json.NewEncoder(&body).Encode(payload); err != nil {
+		logger.Printf("error in encoding request for getncbyorchcontext: %+v", err)
+		return cns.PodIpInfo{}, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, cns.GetNetworkContainerByOrchestratorContext, &body)
+	if err != nil {
+		logger.Printf("error in building request for getncbyorchcontext: %+v", err)
+		return cns.PodIpInfo{}, errors.Wrap(err, "failed to build request")
+	}
+	req.Header.Set(headerContentType, contentTypeJSON)
+	w := httptest.NewRecorder()
+	service.getNetworkContainerByOrchestratorContext(w, req)
+
+	err = json.NewDecoder(w.Body).Decode(&resp)
+	if err != nil {
+		logger.Printf("error in deconding response for getncbyorchcontext: %+v", err)
+		return cns.PodIpInfo{}, fmt.Errorf("decoding response: %w", err)
+	}
+
+	logger.Printf("swiftv2 response for all NCs is %+v", resp)
+	// Check if the ncstate/ipconfig ready. If one of the fields is empty, return error
+	if resp.IPConfiguration.IPSubnet.IPAddress == "" || resp.NetworkInterfaceInfo.MACAddress == "" || resp.NetworkContainerID == "" || resp.IPConfiguration.GatewayIPAddress == "" {
+		return cns.PodIpInfo{}, errors.New("ipconfig is empty for given nc")
+	}
+	logger.Printf("[SWIFTv2Middleware] networkcontainerrequest for pod %s is : %+v", podInfo.Name(), resp)
+
+	var podIPInfo cns.PodIpInfo
+	var ipconfigsRequest cns.IPConfigsRequest
+	if !ipconfigsRequest.ProgramSecondaryNICOnly {
+		hostInterface, err := service.getPrimaryHostInterface(context.TODO())
+		if err != nil {
+			return cns.PodIpInfo{}, err
+		}
+		podIPInfo = cns.PodIpInfo{
+			PodIPConfig:       resp.IPConfiguration.IPSubnet,
+			MacAddress:        resp.NetworkInterfaceInfo.MACAddress,
+			NICType:           resp.NetworkInterfaceInfo.NICType,
+			SkipDefaultRoutes: false,
+			HostPrimaryIPInfo: cns.HostIPInfo{
+				Gateway:   hostInterface.Gateway,
+				PrimaryIP: hostInterface.PrimaryIP,
+				Subnet:    hostInterface.Subnet,
+			},
+			NetworkContainerPrimaryIPConfig: resp.IPConfiguration,
+		}
+	} else {
+		hostInterface, err := service.getSecondaryHostInterface(context.TODO())
+		if err != nil {
+			return cns.PodIpInfo{}, err
+		}
+		podIPInfo = cns.PodIpInfo{
+			PodIPConfig:       resp.IPConfiguration.IPSubnet,
+			MacAddress:        resp.NetworkInterfaceInfo.MACAddress,
+			NICType:           resp.NetworkInterfaceInfo.NICType,
+			SkipDefaultRoutes: false,
+			HostSecondaryIPInfo: cns.HostIPInfo{
+				Gateway:     hostInterface.Gateway,
+				SecondaryIP: hostInterface.SecondaryIPs[0],
+				Subnet:      hostInterface.Subnet,
+			},
+			NetworkContainerPrimaryIPConfig: resp.IPConfiguration,
+		}
+	}
+
+	logger.Printf("latest podIPInfo is %+v", podIPInfo)
+	return podIPInfo, nil
 }
 
 // requestIPConfigHandler requests an IPConfig from the CNS state
@@ -210,6 +310,7 @@ func (service *HTTPRestService) requestIPConfigsHandler(w http.ResponseWriter, r
 		return
 	}
 
+	ipconfigsRequest.ProgramSecondaryNICOnly = true
 	ipConfigsResp, err := service.requestIPConfigHandlerHelper(r.Context(), ipconfigsRequest) // nolint:contextcheck // appease linter
 	if err != nil {
 		w.Header().Set(cnsReturnCode, ipConfigsResp.Response.ReturnCode.String())
@@ -859,7 +960,7 @@ func (service *HTTPRestService) AssignAvailableIPConfigs(podInfo cns.PodInfo) ([
 			break
 		}
 	}
-
+	logger.Printf("cns.IPConfigurationStatus is %+v", ipsToAssign)
 	// Checks to make sure we found one IP for each NC
 	if len(ipsToAssign) != numOfNCs {
 		for ncID := range service.state.ContainerStatus {
