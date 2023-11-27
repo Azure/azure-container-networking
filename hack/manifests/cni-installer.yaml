@@ -41,7 +41,7 @@ spec:
           effect: NoSchedule
       initContainers:
         - name: azure-cni
-          image: mcr.microsoft.com/containernetworking/azure-cni:v1.5.14
+          image: mcr.microsoft.com/containernetworking/azure-cni:v1.5.15
           imagePullPolicy: Always
           command: ["/dropgz"]
           args:
