@@ -7,7 +7,6 @@ import (
 	"github.com/Azure/azure-container-networking/cni/client"
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/restserver"
-	"github.com/Azure/azure-container-networking/platform"
 	"github.com/Azure/azure-container-networking/store"
 	"github.com/pkg/errors"
 	"k8s.io/utils/exec"
@@ -16,11 +15,7 @@ import (
 // NewCNIPodInfoProvider returns an implementation of cns.PodInfoByIPProvider
 // that execs out to the CNI and uses the response to build the PodInfo map.
 func NewCNIPodInfoProvider() (cns.PodInfoByIPProvider, error) {
-	return newCNIPodInfoProvider(exec.New(), platform.CNIBinaryPath)
-}
-
-func NewStatefullCNIPodInfoProvider() (cns.PodInfoByIPProvider, error) {
-	return newCNIPodInfoProvider(exec.New(), platform.StatefullCNIBinaryPath)
+	return newCNIPodInfoProvider(exec.New())
 }
 
 func NewCNSPodInfoProvider(endpointStore store.KeyValueStore) (cns.PodInfoByIPProvider, error) {
@@ -44,9 +39,9 @@ func newCNSPodInfoProvider(endpointStore store.KeyValueStore) (cns.PodInfoByIPPr
 	}), nil
 }
 
-func newCNIPodInfoProvider(exec exec.Interface, cniBinaryPath string) (cns.PodInfoByIPProvider, error) {
+func newCNIPodInfoProvider(exec exec.Interface) (cns.PodInfoByIPProvider, error) {
 	cli := client.New(exec)
-	state, err := cli.GetEndpointState(cniBinaryPath)
+	state, err := cli.GetEndpointState()
 	if err != nil {
 		return nil, fmt.Errorf("failed to invoke CNI client.GetEndpointState(): %w", err)
 	}

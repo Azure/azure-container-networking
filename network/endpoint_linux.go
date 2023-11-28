@@ -6,7 +6,6 @@ package network
 import (
 	"crypto/sha1"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"net"
 	"strings"
@@ -533,7 +532,8 @@ func getDefaultGateway(routes []RouteInfo) net.IP {
 	return nil
 }
 
-// getHNSEndpointIdByIP returns an HNS Endpoint IP that matches an specific IPAddress.
-func (nm *networkManager) GetEndpointInfoByIPImpl(ipAddresses []net.IPNet, _ string) (string, error) {
-	return "", errors.New("No HostVethName matches the IPAddress: " + ipAddresses[0].IP.String())
+// GetEndpointInfoByIPImpl returns an endpointInfo that contains corresponding HostVethName.
+// TODO: It needs to be tested to see if HostVethName is required for SingleTenancy
+func (epInfo *EndpointInfo) GetEndpointInfoByIPImpl(_ []net.IPNet, _ string) (*EndpointInfo, error) {
+	return epInfo, nil
 }

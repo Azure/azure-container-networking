@@ -40,9 +40,6 @@ const (
 	// CNIBinaryPath is the path to the CNI binary
 	CNIBinaryPath = "C:\\k\\azurecni\\bin\\azure-vnet.exe"
 
-	// StatefullCNIBinaryPath is the path to the Statefull CNI binary
-	StatefullCNIBinaryPath = "C:\\k\\azurecni\\bin\\azure-vnet-statefull.exe"
-
 	// CNI runtime path on a Kubernetes cluster
 	K8SCNIRuntimePath = "C:\\k\\azurecni\\bin"
 

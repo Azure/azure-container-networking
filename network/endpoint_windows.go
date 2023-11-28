@@ -497,26 +497,27 @@ func (nm *networkManager) updateEndpointImpl(nw *network, existingEpInfo *Endpoi
 	return nil, nil
 }
 
-// getHNSEndpointIdByIP returns an HNS Endpoint IP that matches an specific IPAddress.
-func (nm *networkManager) GetEndpointInfoByIPImpl(ipAddresses []net.IPNet, networkId string) (string, error) {
+// GetEndpointInfoByIPImpl returns an endpointInfo with the corrsponding HNS Endpoint ID that matches an specific IPAddress.
+func (epInfo *EndpointInfo) GetEndpointInfoByIPImpl(ipAddresses []net.IPNet, networkID string) (*EndpointInfo, error) {
 	// check if network exists, only create the network does not exist
-	hnsResponse, err := Hnsv2.GetNetworkByName(networkId)
+	hnsResponse, err := Hnsv2.GetNetworkByName(networkID)
 	if err != nil {
-		return "", err
+		return epInfo, err
 	}
 	hcnEndpoints, err := Hnsv2.ListEndpointsOfNetwork(hnsResponse.Id)
 	if err != nil {
-		return "", err
+		return epInfo, err
 	}
 	for _, hcnEndpoint := range hcnEndpoints {
 		for _, ipConfiguration := range hcnEndpoint.IpConfigurations {
 			for _, ipAddress := range ipAddresses {
 				prefixLength, _ := ipAddress.Mask.Size()
 				if ipConfiguration.IpAddress == ipAddress.IP.String() && ipConfiguration.PrefixLength == uint8(prefixLength) {
-					return hcnEndpoint.Id, nil
+					epInfo.HNSEndpointID = hcnEndpoint.Id
+					return epInfo, nil
 				}
 			}
 		}
 	}
-	return "", errors.New("No HNSEndpointID matches the IPAddress: " + ipAddresses[0].IP.String())
+	return epInfo, errors.New("No HNSEndpointID matches the IPAddress: " + ipAddresses[0].IP.String())
 }

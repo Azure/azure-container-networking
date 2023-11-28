@@ -6,7 +6,6 @@ package network
 import (
 	"context"
 	"net"
-	"runtime"
 	"sync"
 	"time"
 
@@ -103,7 +102,6 @@ type NetworkManager interface {
 	CreateEndpoint(client apipaClient, networkID string, epInfo []*EndpointInfo) error
 	DeleteEndpoint(networkID string, endpointID string, epInfo *EndpointInfo) error
 	GetEndpointInfo(networkID string, endpointID string) (*EndpointInfo, error)
-	GetEndpointInfoByIP(ipAddresses []net.IPNet, networkId string) (string, error)
 	GetAllEndpoints(networkID string) (map[string]*EndpointInfo, error)
 	GetEndpointInfoBasedOnPODDetails(networkID string, podName string, podNameSpace string, doExactMatchForPodName bool) (*EndpointInfo, error)
 	AttachEndpoint(networkID string, endpointID string, sandboxKey string) (*endpoint, error)
@@ -503,15 +501,10 @@ func (nm *networkManager) GetEndpointInfo(networkId string, endpointId string) (
 			epInfo.IPAddresses = append(epInfo.IPAddresses, ip.IPv6...)
 
 		}
-		if epInfo.HNSEndpointID == "" && epInfo.IfName == "" {
-			endpointInfoData, err := nm.GetEndpointInfoByIP(epInfo.IPAddresses, networkId)
+		if epInfo.IsEndpointStateIncomplete() {
+			epInfo, err = epInfo.GetEndpointInfoByIP(epInfo.IPAddresses, networkId)
 			if err != nil {
 				return nil, errors.Wrapf(err, "Get endpoint API returend with error")
-			}
-			if runtime.GOOS == "windows" {
-				epInfo.HNSEndpointID = endpointInfoData
-			} else {
-				epInfo.IfName = endpointInfoData
 			}
 		}
 		logger.Info("returning getEndpoint API with", zap.String("Endpoint Info: ", epInfo.PrettyString()), zap.String("HNISID : ", epInfo.HNSEndpointID))
@@ -690,15 +683,4 @@ func (nm *networkManager) GetEndpointID(containerID, ifName string) string {
 		return ""
 	}
 	return containerID + "-" + ifName
-
-}
-
-// GetEndpointID returns a unique endpoint ID based on the CNI mode.
-func (nm *networkManager) GetEndpointInfoByIP(ipAddresses []net.IPNet, networkId string) (string, error) {
-	// Call the platform implementation.
-	endpointData, err := nm.GetEndpointInfoByIPImpl(ipAddresses, networkId)
-	if err != nil {
-		return "", err
-	}
-	return endpointData, nil
 }

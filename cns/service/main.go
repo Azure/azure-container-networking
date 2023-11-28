@@ -1241,7 +1241,7 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 				if os.Getenv("StatelessCNIMigration") == "true" {
 					logger.Printf("StatelessCNI Migration is enabled")
 					logger.Printf("Initializing from Statefull CNI")
-					podInfoByIPProvider, err = cnireconciler.NewStatefullCNIPodInfoProvider()
+					podInfoByIPProvider, err = cnireconciler.NewCNIPodInfoProvider()
 					if err != nil {
 						return errors.Wrap(err, "failed to create CNI PodInfoProvider")
 					}
