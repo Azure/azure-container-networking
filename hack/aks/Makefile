@@ -217,6 +217,9 @@ swift-up: rg-up swift-net-up ## Bring up a SWIFT AzCNI cluster
 		--yes
 	@$(MAKE) set-kubeconf
 
+# The below Vnet Scale clusters are currently only in private preview and available with Kubernetes 1.28
+# These AKS clusters can only be created in a limited subscription listed here: 
+# https://dev.azure.com/msazure/CloudNativeCompute/_git/aks-rp?path=/resourceprovider/server/microsoft.com/containerservice/flags/network_flags.go&version=GBmaster&line=134&lineEnd=135&lineStartColumn=1&lineEndColumn=1&lineStyle=plain&_a=contents
 vnetscale-swift-byocni-up: rg-up vnetscale-swift-net-up ## Bring up a Vnet Scale SWIFT BYO CNI cluster
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
 		--auto-upgrade-channel $(AUTOUPGRADE) \
