@@ -46,6 +46,11 @@ var linuxChecksMap = map[string][]check{
 		{"cns cache", cnsCacheStateFileIps, cnsLabelSelector, privilegedNamespace, cnsCachedAssignedIPStateCmd},
 		{"azure dualstackoverlay", azureVnetStateIps, privilegedLabelSelector, privilegedNamespace, azureVnetStateFileCmd},
 	},
+	"cilium_dualstack": {
+		{"azure dualstackoverlay", azureVnetStateIps, privilegedLabelSelector, privilegedNamespace, azureVnetStateFileCmd},
+		{"cilium", ciliumStateFileIps, ciliumLabelSelector, privilegedNamespace, ciliumStateFileCmd},
+		{"cns cache", cnsCacheStateFileIps, cnsLabelSelector, privilegedNamespace, cnsLocalCacheCmd},
+	},
 }
 
 type CnsManagedState struct {
