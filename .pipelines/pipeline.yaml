@@ -393,6 +393,17 @@ stages:
       k8sVersion: ""
       dependsOn: "test"
 
+  # AKS Swift Vnet Scale E2E tests
+  - template: singletenancy/aks-swift/e2e-job-template.yaml
+    parameters:
+      name: "aks_swift_vnetscale_e2e"
+      displayName: AKS Swift Vnet Scale Ubuntu
+      clusterType: vnetscale-swift-byocni-up
+      clusterName: "vnetscaleswifte2e"
+      vmSize: Standard_B2s
+      k8sVersion: "1.28"
+      dependsOn: "test"
+
   # CNIv1 E2E tests
   - template: singletenancy/aks/e2e-job-template.yaml
     parameters:
