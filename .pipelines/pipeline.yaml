@@ -419,7 +419,7 @@ stages:
         vmSize: Standard_B2ms
         k8sVersion: ""
         dependsOn: "test"
-        
+
     # Cilium Dualstack Overlay E2E tests
     - template: singletenancy/cilium-dualstack-overlay/cilium-dualstackoverlay-e2e-job-template.yaml
       parameters:
