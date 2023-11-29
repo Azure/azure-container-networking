@@ -96,7 +96,7 @@ jobs:
         displayName: "Verify Directory Exists"
         failOnStderr: true
       - task: AzureCLI@2
-        displayName: "Download Kubectl and Kwok"
+        displayName: "Download Kubectl"
         inputs:
           azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
           scriptType: "bash"
@@ -107,11 +107,6 @@ jobs:
             set -e
             curl -LO https://dl.k8s.io/release/v1.23.0/bin/linux/amd64/kubectl
             chmod +x kubectl
-
-            KWOK_REPO=kubernetes-sigs/kwok
-            KWOK_LATEST_RELEASE=$(curl "https://api.github.com/repos/${KWOK_REPO}/releases/latest" | jq -r '.tag_name')
-            wget -O kwok -c "https://github.com/kubernetes-sigs/kwok/releases/download/${KWOK_LATEST_RELEASE}/kwok-$(go env GOOS)-$(go env GOARCH)"
-            chmod +x kwok
       - task: AzureCLI@2
         displayName: "Create AKS Cluster"
         inputs:
@@ -140,17 +135,22 @@ jobs:
                 --vm-set-type VirtualMachineScaleSets \
                 --node-vm-size Standard_D4s_v3 \
                 --node-count 1 \
+                --tier standard \
                 --max-pods 100
 
-            if [[ $(PROFILE) == *ws22 ]]; then
-              # don't schedule anything on the linux system pool
-              echo "Updating $CLUSTER_NAME to not schedule anything on linux pool..."
-              az aks nodepool update \
-                --cluster-name $CLUSTER_NAME \
-                -g $(RESOURCE_GROUP) \
-                -n nodepool1 \
-                --node-taints CriticalAddonsOnly=true:NoSchedule
+            echo "Getting credentials to $CLUSTER_NAME"
+            az aks get-credentials -g $(RESOURCE_GROUP) -n $CLUSTER_NAME --overwrite-existing --file ./kubeconfig
+            mkdir -p ~/.kube/
+            cp ./kubeconfig ~/.kube/config
 
+            # install kwok on linux node
+            cd $(Pipeline.Workspace)/s/test/scale/
+            chmod u+x run-kwok-as-pod.sh test-scale.sh connectivity/test-connectivity.sh
+            ./run-kwok-as-pod.sh
+            # need reliability in case multiple controllers enter CrashLoopBackOff from "context cancelled"
+            kubectl scale deployment -n kube-system -l app=kwok-controller --replicas=5
+
+            if [[ $(PROFILE) == *ws22 ]]; then
               echo "Adding Windows nodepool to $CLUSTER_NAME"
               az aks nodepool add \
                   --resource-group $(RESOURCE_GROUP) \
@@ -162,11 +162,6 @@ jobs:
                   --node-count 1 \
                   --max-pods 100
             fi
-
-            echo "Getting credentials to $CLUSTER_NAME"
-            az aks get-credentials -g $(RESOURCE_GROUP) -n $CLUSTER_NAME --overwrite-existing --file ./kubeconfig
-            mkdir -p ~/.kube/
-            cp ./kubeconfig ~/.kube/config
 
       - task: AzureCLI@2
         displayName: "Deploy NPM to Test Cluster"
@@ -230,15 +225,6 @@ jobs:
             set -e
             export CLUSTER_NAME=$(RESOURCE_GROUP)-$(PROFILE)
             mkdir -p $(System.DefaultWorkingDirectory)/$CLUSTER_NAME
-            ./kwok --kubeconfig ~/.kube/config \
-              --cidr=155.0.0.0/16 \
-              --node-ip=155.0.0.1 \
-              --manage-all-nodes=false \
-              --manage-nodes-with-annotation-selector=kwok.x-k8s.io/node=fake \
-              --manage-nodes-with-label-selector= \
-              --disregard-status-with-annotation-selector=kwok.x-k8s.io/status=custom \
-              --disregard-status-with-label-selector= > $(System.DefaultWorkingDirectory)/$CLUSTER_NAME/kwok-scale-up.log &
-            kwok_pid=$!
 
             # 20 kwok nodes
             # 1000 kwok Pods
@@ -262,7 +248,6 @@ jobs:
                 --num-unique-labels-per-deployment=2 \
                 --num-shared-labels-per-pod=10
             rc=$?
-            kill $kwok_pid
             exit $rc
 
       - task: AzureCLI@2
@@ -277,19 +262,16 @@ jobs:
             set -e
             export CLUSTER_NAME=$(RESOURCE_GROUP)-$(PROFILE)
             mkdir -p $(System.DefaultWorkingDirectory)/$CLUSTER_NAME
-            ./kwok --kubeconfig ~/.kube/config \
-              --cidr=155.0.0.0/16 \
-              --node-ip=155.0.0.1 \
-              --manage-all-nodes=false \
-              --manage-nodes-with-annotation-selector=kwok.x-k8s.io/node=fake \
-              --manage-nodes-with-label-selector= \
-              --disregard-status-with-annotation-selector=kwok.x-k8s.io/status=custom \
-              --disregard-status-with-label-selector= > $(System.DefaultWorkingDirectory)/$CLUSTER_NAME/kwok-bootup-latency.log &
-            kwok_pid=$!
 
             kubectl rollout restart -n kube-system ds azure-npm-win
             echo "sleeping 3 minutes to allow NPM pods to restart after scale-up..."
             sleep 3m
+
+            kubectl get pod -n kube-system -l app=kwok-controller -owide
+            kubectl get pod -n kube-system -l app=kwok-controller -owide | grep -q Running || {
+                echo "##vso[task.logissue type=error]need at least one kwok pod running"
+                exit 1
+            }
 
             cd $(Pipeline.Workspace)/s/test/scale/connectivity/
             # notes for Windows:
@@ -302,11 +284,29 @@ jobs:
                 --max-wait-after-adding-netpol=30
             rc=$?
             if [[ $rc != 0 ]]; then
+                echo "capturing cluster state due to failure"
+                if [[ $(PROFILE) == *ws22 ]]; then
+                    cd $(Pipeline.Workspace)/s/debug/windows/npm/
+                    chmod u+x win-debug.sh
+                    ./win-debug.sh
+                    mv logs_* $(System.DefaultWorkingDirectory)/$CLUSTER_NAME/
+                else
+                    set -x
+                    npmPod=`kubectl get pod -n kube-system | grep npm | grep -v npm-win | awk '{print $1}' | head -n 1 | tr -d '\n'`
+                    kubectl exec -n kube-system $npmPod -- iptables-nft -vnL > $(System.DefaultWorkingDirectory)/$CLUSTER_NAME/iptables.out
+                    kubectl exec -n kube-system $npmPod -- ipset -L > $(System.DefaultWorkingDirectory)/$CLUSTER_NAME/ipset.out
+                fi
+
                 kubectl get pod -n scale-test
                 kubectl get pod -n connectivity-test
+                exit $rc
             fi
-            kill $kwok_pid
-            exit $rc
+
+            kubectl get pod -n kube-system -l app=kwok-controller -owide
+            kubectl get pod -n kube-system -l app=kwok-controller -owide | grep -q Running || {
+                echo "##vso[task.logissue type=error]need at least one kwok pod running"
+                exit 1
+            }
 
       - task: AzureCLI@2
         displayName: "CRUD at Medium Scale"
@@ -320,15 +320,6 @@ jobs:
             set -e
             export CLUSTER_NAME=$(RESOURCE_GROUP)-$(PROFILE)
             mkdir -p $(System.DefaultWorkingDirectory)/$CLUSTER_NAME
-            ./kwok --kubeconfig ~/.kube/config \
-              --cidr=155.0.0.0/16 \
-              --node-ip=155.0.0.1 \
-              --manage-all-nodes=false \
-              --manage-nodes-with-annotation-selector=kwok.x-k8s.io/node=fake \
-              --manage-nodes-with-label-selector= \
-              --disregard-status-with-annotation-selector=kwok.x-k8s.io/status=custom \
-              --disregard-status-with-label-selector= > $(System.DefaultWorkingDirectory)/$CLUSTER_NAME/kwok-crud.log &
-            kwok_pid=$!
 
             # will delete scale-test and connectivity-test namespaces from previous run
             # 10 kwok Pods
@@ -359,7 +350,6 @@ jobs:
                 --delete-pods-interval=120 \
                 --delete-pods-times=2
             rc=$?
-            kill $kwok_pid
             exit $rc
 
       - task: AzureCLI@2
@@ -374,15 +364,13 @@ jobs:
             set -e
             export CLUSTER_NAME=$(RESOURCE_GROUP)-$(PROFILE)
             mkdir -p $(System.DefaultWorkingDirectory)/$CLUSTER_NAME
-            ./kwok --kubeconfig ~/.kube/config \
-              --cidr=155.0.0.0/16 \
-              --node-ip=155.0.0.1 \
-              --manage-all-nodes=false \
-              --manage-nodes-with-annotation-selector=kwok.x-k8s.io/node=fake \
-              --manage-nodes-with-label-selector= \
-              --disregard-status-with-annotation-selector=kwok.x-k8s.io/status=custom \
-              --disregard-status-with-label-selector= > $(System.DefaultWorkingDirectory)/$CLUSTER_NAME/kwok-crud-connectivity.log &
-            kwok_pid=$!
+
+            kubectl get pod -n kube-system -l app=kwok-controller -owide
+            kubectl get pod -n kube-system -l app=kwok-controller -owide | grep -q Running || {
+                echo "##vso[task.logissue type=error]need at least one kwok pod running"
+                exit 1
+            }
+
 
             cd $(Pipeline.Workspace)/s/test/scale/connectivity/
             # initial connectivity should be established within 10 minutes
@@ -394,11 +382,29 @@ jobs:
                 --max-wait-after-adding-netpol=20
             rc=$?
             if [[ $rc != 0 ]]; then
+                echo "capturing cluster state due to failure"
+                if [[ $(PROFILE) == *ws22 ]]; then
+                    cd $(Pipeline.Workspace)/s/debug/windows/npm/
+                    chmod u+x win-debug.sh
+                    ./win-debug.sh
+                    mv logs_* $(System.DefaultWorkingDirectory)/$CLUSTER_NAME/
+                else
+                    set -x
+                    npmPod=`kubectl get pod -n kube-system | grep npm | grep -v npm-win | awk '{print $1}' | head -n 1 | tr -d '\n'`
+                    kubectl exec -n kube-system $npmPod -- iptables-nft -vnL > $(System.DefaultWorkingDirectory)/$CLUSTER_NAME/iptables.out
+                    kubectl exec -n kube-system $npmPod -- ipset -L > $(System.DefaultWorkingDirectory)/$CLUSTER_NAME/ipset.out
+                fi
+
                 kubectl get pod -n scale-test
                 kubectl get pod -n connectivity-test
+                exit $rc
             fi
-            kill $kwok_pid
-            exit $rc
+
+            kubectl get pod -n kube-system -l app=kwok-controller -owide
+            kubectl get pod -n kube-system -l app=kwok-controller -owide | grep -q Running || {
+                echo "##vso[task.logissue type=error]need at least one kwok pod running"
+                exit 1
+            }
 
       - bash: |
           export CLUSTER_NAME=$(RESOURCE_GROUP)-$(PROFILE)
