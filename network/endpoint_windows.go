@@ -497,7 +497,7 @@ func (nm *networkManager) updateEndpointImpl(nw *network, existingEpInfo *Endpoi
 	return nil, nil
 }
 
-// GetEndpointInfoByIPImpl returns an endpointInfo with the corrsponding HNS Endpoint ID that matches an specific IPAddress.
+// GetEndpointInfoByIPImpl returns an endpointInfo with the corrsponding HNS Endpoint ID that matches an specific IP Address.
 func (epInfo *EndpointInfo) GetEndpointInfoByIPImpl(ipAddresses []net.IPNet, networkID string) (*EndpointInfo, error) {
 	// check if network exists, only create the network does not exist
 	hnsResponse, err := Hnsv2.GetNetworkByName(networkID)
