@@ -1,5 +1,10 @@
 pr: none
-trigger: none
+trigger:
+  tags:
+    include:
+    - dropgz/*
+    - azure-ipam/*
+    - v*
 
 stages:
   - stage: setup
