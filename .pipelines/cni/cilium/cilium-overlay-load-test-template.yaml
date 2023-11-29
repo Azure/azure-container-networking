@@ -45,6 +45,7 @@ stages:
       name: "$(BUILD_POOL_NAME_DEFAULT)"
     dependsOn:
       - create_${{ parameters.name }}
+      - publish
       - setup
     displayName: "Cilium Test - ${{ parameters.name }}"
     jobs:
