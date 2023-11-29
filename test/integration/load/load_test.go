@@ -40,6 +40,13 @@ var noopDeploymentMap = map[string]string{
 	"linux":   manifestDir + "/noop-deployment-linux.yaml",
 }
 
+// This map is used exclusively for TestLoad. Windows is expected to take 10-15 minutes per iteration.
+// Will change this as scale testing results are verified. This will ensure we keep a standard performance metric.
+var scaleTimeoutMap = map[string]time.Duration{
+	"windows": 15 * time.Minute,
+	"linux":   10 * time.Minute,
+}
+
 /*
 In order to run the scale tests, you need a k8s cluster and its kubeconfig.
 If no kubeconfig is passed, the test will attempt to find one in the default location for kubectl config.
@@ -64,8 +71,7 @@ todo: consider adding the following scenarios
 */
 func TestLoad(t *testing.T) {
 	clientset := kubernetes.MustGetClientset()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(testConfig.Iterations)*scaleTimeoutMap[testConfig.OSType])
 	defer cancel()
 
 	// Create namespace if it doesn't exist
