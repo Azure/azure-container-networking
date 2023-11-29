@@ -98,6 +98,10 @@ func (nm *networkManager) newNetworkImpl(nwInfo *NetworkInfo, extIf *externalInt
 			return nil, errors.Wrap(err, "ipv4 forwarding failed")
 		}
 		logger.Info("Ipv4 forwarding enabled")
+		if err := nu.UpdateIPV6Setting(1); err != nil {
+			return nil, errors.Wrap(err, "failed to disable ipv6 on vm")
+		}
+		logger.Info("Disabled ipv6")
 		// Blocks wireserver traffic from apipa nic
 		if err := networkutils.BlockEgressTrafficFromContainer(iptables.V4, networkutils.AzureDNS, iptables.TCP, iptables.HTTPPort); err != nil {
 			return nil, errors.Wrap(err, "unable to insert vm iptables rule drop wireserver packets")
