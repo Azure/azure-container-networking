@@ -176,10 +176,10 @@ func (nu NetworkUtils) AllowIPAddresses(iptablesClient IPTablesClientInterface, 
 	return nil
 }
 
-func BlockEgressTrafficFromContainer(version, ipAddress, protocol string, port int) error {
+func (nu NetworkUtils) BlockEgressTrafficFromContainer(iptablesClient IPTablesClientInterface, version, ipAddress, protocol string, port int) error {
 	// iptables -t filter -I FORWARD -j DROP -d <ip> -p <protocol> -m <protocol> --dport <port>
 	dropTraffic := fmt.Sprintf("-d %s -p %s -m %s --dport %d", ipAddress, protocol, protocol, port)
-	return errors.Wrap(iptables.InsertIptableRule(version, iptables.Filter, iptables.Forward, dropTraffic, iptables.Drop), "iptables block traffic failed")
+	return errors.Wrap(iptablesClient.InsertIptableRule(version, iptables.Filter, iptables.Forward, dropTraffic, iptables.Drop), "iptables block traffic failed")
 }
 
 func (nu NetworkUtils) BlockIPAddresses(iptablesClient IPTablesClientInterface, bridgeName, action string) error {

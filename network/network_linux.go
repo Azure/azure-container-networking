@@ -103,7 +103,7 @@ func (nm *networkManager) newNetworkImpl(nwInfo *NetworkInfo, extIf *externalInt
 		}
 		logger.Info("Disabled ipv6")
 		// Blocks wireserver traffic from apipa nic
-		if err := networkutils.BlockEgressTrafficFromContainer(iptables.V4, networkutils.AzureDNS, iptables.TCP, iptables.HTTPPort); err != nil {
+		if err := nu.BlockEgressTrafficFromContainer(nm.iptablesClient, iptables.V4, networkutils.AzureDNS, iptables.TCP, iptables.HTTPPort); err != nil {
 			return nil, errors.Wrap(err, "unable to insert vm iptables rule drop wireserver packets")
 		}
 		logger.Info("Block wireserver traffic rule added")
