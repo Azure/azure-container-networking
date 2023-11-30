@@ -95,9 +95,14 @@ func (nm *networkManager) newNetworkImpl(nwInfo *NetworkInfo, extIf *externalInt
 		ifName = extIf.Name
 		nu := networkutils.NewNetworkUtils(nm.netlink, nm.plClient)
 		if err := nu.EnableIPV4Forwarding(); err != nil {
-			return nil, fmt.Errorf("Ipv4 forwarding failed: %w", err)
+			return nil, errors.Wrap(err, "ipv4 forwarding failed")
 		}
 		logger.Info("Ipv4 forwarding enabled")
+		// Blocks wireserver traffic from apipa nic
+		if err := networkutils.BlockEgressTrafficFromContainer(iptables.V4, networkutils.AzureDNS, iptables.TCP, iptables.HTTPPort); err != nil {
+			return nil, errors.Wrap(err, "unable to insert vm iptables rule drop wireserver packets")
+		}
+		logger.Info("Block wireserver traffic rule added")
 	default:
 		return nil, errNetworkModeInvalid
 	}

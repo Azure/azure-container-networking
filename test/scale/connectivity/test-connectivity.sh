@@ -29,7 +29,7 @@ REQUIRED PARAMETERS:
 
 OPTIONAL PARAMETERS:
     --kubeconfig=<path>                 path to kubeconfig file
-    --kubectl-binary=<path>               path to kubectl binary. Default is kubectl
+    --kubectl-binary=<path>             path to kubectl binary. Default is kubectl
 
 EXIT CODES:
 0 - success
