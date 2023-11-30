@@ -276,21 +276,49 @@ fi
 
 ## HELPER FUNCTIONS
 wait_for_pods() {
-    # wait for all pods to run
-    minutesToWaitForRealPods=$(( 10 + $numRealPods / 250 ))
-    set -x
-    if [[ $numRealPods -gt 0 ]]; then
-        $KUBECTL $KUBECONFIG_ARG wait --for=condition=Ready pods -n scale-test -l is-real=true --all --timeout="${minutesToWaitForRealPods}m"
-    fi
-    set +x
-
-    # just make sure kwok pods are Running, not necessarily Ready (sometimes kwok pods have NodeNotReady even though the node is ready)
-    minutesToWaitForKwokPods=$(( 1 + $numKwokPods / 500 ))
-    set -x
     if [[ $numKwokPods -gt 0 ]]; then
-        $KUBECTL $KUBECONFIG_ARG wait --for=condition=Initialized pods -n scale-test -l is-kwok=true --all --timeout="${minutesToWaitForKwokPods}m"
+        # wait up to 20 minutes
+        startDate=`date +%s`
+        count=0
+        while : ; do
+            echo "waiting for fake pods to run (try $count)"
+            count=$((count+1))
+            # just make sure kwok pods are Running, not necessarily Ready (sometimes kwok pods have NodeNotReady even though the node is ready)
+            set +e -x
+            $KUBECTL $KUBECONFIG_ARG wait --for=condition=Initialized pods -n scale-test -l is-kwok=true --all --timeout=0 && set -e +x && break
+            endDate=`date +%s`
+            set -e +x
+            if [[ $endDate -gt $(( startDate + (20*60) )) ]]; then
+                echo "timed out waiting for all kwok pods to run"
+                k get pod -n scale-test -owide
+                k get node
+                k get pod -n kube-system -l app=kwok-controller -owide
+                k top pod -n kube-system -l app=kwok-controller
+                k top node
+                exit 1
+            fi
+            # try recreating nodes if KWOK controller failed
+            $KUBECTL $KUBECONFIG_ARG apply -f generated/kwok-nodes/
+        done
     fi
-    set +x
+
+    if [[ $numRealPods -gt 0 ]]; then
+        # wait up to 10 minutes
+        startDate=`date +%s`
+        count=0
+        while : ; do
+            echo "waiting for real pods to run (try $count)"
+            count=$((count+1))
+            set +e -x
+            $KUBECTL $KUBECONFIG_ARG wait --for=condition=Ready pods -n scale-test -l is-real=true --all --timeout=0 && set -e +x && break
+            set -e +x
+            endDate=`date +%s`
+            if [[ $endDate -gt $(( startDate + (10*60) )) ]]; then
+                echo "timed out waiting for all real pods to run"
+                exit 1
+            fi
+        done
+    fi
 }
 
 ## FILE SETUP
@@ -444,19 +472,29 @@ echo
 
 set -x
 $KUBECTL $KUBECONFIG_ARG create ns scale-test
+set +x
+
 if [[ $numKwokNodes -gt 0 ]]; then
+    set -x
     $KUBECTL $KUBECONFIG_ARG apply -f generated/kwok-nodes/
+    set +x
 fi
 if [[ $numRealPods -gt 0 ]]; then
+    set -x
     $KUBECTL $KUBECONFIG_ARG apply -f generated/deployments/real-$realPodType/
+    set +x
 fi
 if [[ $numKwokPods -gt 0 ]]; then
+    set -x
     $KUBECTL $KUBECONFIG_ARG apply -f generated/deployments/kwok/
+    set +x
 fi
 if [[ $numRealServices -gt 0 ]]; then
+    set -x
     $KUBECTL $KUBECONFIG_ARG apply -f generated/services/real/
+    set +x
 fi
-set +x
+
 
 add_shared_labels() {
     if [[ $numSharedLabelsPerPod -gt 0 ]]; then
@@ -489,16 +527,19 @@ if [[ $numUniqueLabelsPerPod -gt 0 ]]; then
     done
 fi
 
-set -x
+# to better evaluate time to apply ACLs, wait for pods to come up first (takes a variable amount of time) before applying the NetPols
+wait_for_pods
+
 if [[ $numUnappliedNetworkPolicies -gt 0 ]]; then
+    set -x
     $KUBECTL $KUBECONFIG_ARG apply -f generated/networkpolicies/unapplied
+    set +x
 fi
 if [[ $numNetworkPolicies -gt 0 ]]; then
+    set -x
     $KUBECTL $KUBECONFIG_ARG apply -f generated/networkpolicies/applied
+    set +x
 fi
-set +x
-
-wait_for_pods
 
 echo
 echo "done scaling at $(date -u). Had started at $startDate."

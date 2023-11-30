@@ -176,6 +176,12 @@ func AllowIPAddresses(bridgeName string, skipAddresses []string, action string) 
 	return nil
 }
 
+func BlockEgressTrafficFromContainer(version, ipAddress, protocol string, port int) error {
+	// iptables -t filter -I FORWARD -j DROP -d <ip> -p <protocol> -m <protocol> --dport <port>
+	dropTraffic := fmt.Sprintf("-d %s -p %s -m %s --dport %d", ipAddress, protocol, protocol, port)
+	return errors.Wrap(iptables.InsertIptableRule(version, iptables.Filter, iptables.Forward, dropTraffic, iptables.Drop), "iptables block traffic failed")
+}
+
 func BlockIPAddresses(bridgeName, action string) error {
 	privateIPAddresses := getPrivateIPSpace()
 	chains := getFilterChains()
