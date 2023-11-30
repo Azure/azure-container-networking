@@ -56,6 +56,7 @@ func (nw *network) newEndpointImpl(
 	netioCli netio.NetIOInterface,
 	testEpClient EndpointClient,
 	nsc NamespaceClientInterface,
+	iptc networkutils.IPTablesClientInterface,
 	epInfo []*EndpointInfo,
 ) (*endpoint, error) {
 	var (
@@ -134,7 +135,7 @@ func (nw *network) newEndpointImpl(
 					if _, ok := epInfo.Data[SnatBridgeIPKey]; ok {
 						nw.SnatBridgeIP = epInfo.Data[SnatBridgeIPKey].(string)
 					}
-					epClient = NewTransparentVlanEndpointClient(nw, epInfo, hostIfName, contIfName, vlanid, localIP, nl, plc, nsc)
+					epClient = NewTransparentVlanEndpointClient(nw, epInfo, hostIfName, contIfName, vlanid, localIP, nl, plc, nsc, iptc)
 				} else {
 					logger.Info("OVS client")
 					if _, ok := epInfo.Data[SnatBridgeIPKey]; ok {
@@ -150,7 +151,8 @@ func (nw *network) newEndpointImpl(
 						localIP,
 						nl,
 						ovsctl.NewOvsctl(),
-						plc)
+						plc,
+						iptc)
 				}
 			} else if nw.Mode != opModeTransparent {
 				logger.Info("Bridge client")
@@ -255,7 +257,7 @@ func (nw *network) newEndpointImpl(
 }
 
 // deleteEndpointImpl deletes an existing endpoint from the network.
-func (nw *network) deleteEndpointImpl(nl netlink.NetlinkInterface, plc platform.ExecClient, epClient EndpointClient, nioc netio.NetIOInterface, nsc NamespaceClientInterface, ep *endpoint) error {
+func (nw *network) deleteEndpointImpl(nl netlink.NetlinkInterface, plc platform.ExecClient, epClient EndpointClient, nioc netio.NetIOInterface, nsc NamespaceClientInterface, iptc networkutils.IPTablesClientInterface, ep *endpoint) error {
 	// Delete the veth pair by deleting one of the peer interfaces.
 	// Deleting the host interface is more convenient since it does not require
 	// entering the container netns and hence works both for CNI and CNM.
@@ -267,10 +269,10 @@ func (nw *network) deleteEndpointImpl(nl netlink.NetlinkInterface, plc platform.
 			epInfo := ep.getInfo()
 			if nw.Mode == opModeTransparentVlan {
 				logger.Info("Transparent vlan client")
-				epClient = NewTransparentVlanEndpointClient(nw, epInfo, ep.HostIfName, "", ep.VlanID, ep.LocalIP, nl, plc, nsc)
+				epClient = NewTransparentVlanEndpointClient(nw, epInfo, ep.HostIfName, "", ep.VlanID, ep.LocalIP, nl, plc, nsc, iptc)
 
 			} else {
-				epClient = NewOVSEndpointClient(nw, epInfo, ep.HostIfName, "", ep.VlanID, ep.LocalIP, nl, ovsctl.NewOvsctl(), plc)
+				epClient = NewOVSEndpointClient(nw, epInfo, ep.HostIfName, "", ep.VlanID, ep.LocalIP, nl, ovsctl.NewOvsctl(), plc, iptc)
 			}
 		} else if nw.Mode != opModeTransparent {
 			epClient = NewLinuxBridgeEndpointClient(nw.extIf, ep.HostIfName, "", nw.Mode, nl, plc)

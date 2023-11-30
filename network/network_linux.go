@@ -611,7 +611,7 @@ func (nm *networkManager) connectExternalInterface(extIf *externalInterface, nwI
 
 		// unmark packet if set by kube-proxy to skip kube-postrouting rule and processed
 		// by cni snat rule
-		if err = iptables.InsertIptableRule(iptables.V6, iptables.Mangle, iptables.Postrouting, "", "MARK --set-mark 0x0"); err != nil {
+		if err = nm.iptablesClient.InsertIptableRule(iptables.V6, iptables.Mangle, iptables.Postrouting, "", "MARK --set-mark 0x0"); err != nil {
 			logger.Error("Adding Iptable mangle rule failed", zap.Error(err))
 			return err
 		}
@@ -651,10 +651,10 @@ func (nm *networkManager) disconnectExternalInterface(extIf *externalInterface, 
 	logger.Info("Disconnected interface", zap.String("Name", extIf.Name))
 }
 
-func (*networkManager) addToIptables(cmds []iptables.IPTableEntry) error {
+func (nm *networkManager) addToIptables(cmds []iptables.IPTableEntry) error {
 	logger.Info("Adding additional iptable rules...")
 	for _, cmd := range cmds {
-		err := iptables.RunCmd(cmd.Version, cmd.Params)
+		err := nm.iptablesClient.RunCmd(cmd.Version, cmd.Params)
 		if err != nil {
 			return err
 		}
@@ -684,7 +684,7 @@ func (nm *networkManager) addIpv6NatGateway(nwInfo *NetworkInfo) error {
 }
 
 // snat ipv6 traffic to secondary ipv6 ip before leaving VM
-func (*networkManager) addIpv6SnatRule(extIf *externalInterface, nwInfo *NetworkInfo) error {
+func (nm *networkManager) addIpv6SnatRule(extIf *externalInterface, nwInfo *NetworkInfo) error {
 	var (
 		ipv6SnatRuleSet  bool
 		ipv6SubnetPrefix net.IPNet
@@ -705,8 +705,9 @@ func (*networkManager) addIpv6SnatRule(extIf *externalInterface, nwInfo *Network
 		if ipAddr.IP.To4() == nil {
 			logger.Info("Adding ipv6 snat rule")
 			matchSrcPrefix := fmt.Sprintf("-s %s", ipv6SubnetPrefix.String())
-			if err := networkutils.AddSnatRule(matchSrcPrefix, ipAddr.IP); err != nil {
-				return fmt.Errorf("Adding iptable snat rule failed:%w", err)
+			nu := networkutils.NewNetworkUtils(nm.netlink, nm.plClient)
+			if err := nu.AddSnatRule(nm.iptablesClient, matchSrcPrefix, ipAddr.IP); err != nil {
+				return fmt.Errorf("adding iptable snat rule failed:%w", err)
 			}
 			ipv6SnatRuleSet = true
 		}

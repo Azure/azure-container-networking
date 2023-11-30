@@ -11,6 +11,7 @@ import (
 	"github.com/Azure/azure-container-networking/cnm"
 	cnsclient "github.com/Azure/azure-container-networking/cns/client"
 	"github.com/Azure/azure-container-networking/common"
+	"github.com/Azure/azure-container-networking/iptables"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/netio"
 	"github.com/Azure/azure-container-networking/netlink"
@@ -53,7 +54,7 @@ func NewPlugin(config *common.PluginConfig) (NetPlugin, error) {
 
 	nl := netlink.NewNetlink()
 	// Setup network manager.
-	nm, err := network.NewNetworkManager(nl, platform.NewExecClient(nil), &netio.NetIO{}, network.NewNamespaceClient())
+	nm, err := network.NewNetworkManager(nl, platform.NewExecClient(nil), &netio.NetIO{}, network.NewNamespaceClient(), iptables.NewIPTablesClient())
 	if err != nil {
 		return nil, err
 	}

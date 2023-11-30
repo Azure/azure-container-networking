@@ -20,6 +20,7 @@ func (client *TransparentVlanEndpointClient) NewSnatClient(snatBridgeIP, localIP
 			true,
 			client.netlink,
 			client.plClient,
+			client.iptablesClient,
 		)
 	}
 }

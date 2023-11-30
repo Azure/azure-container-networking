@@ -66,6 +66,7 @@ type TransparentVlanEndpointClient struct {
 	plClient                 platform.ExecClient
 	netUtilsClient           networkutils.NetworkUtils
 	nsClient                 NamespaceClientInterface
+	iptablesClient           networkutils.IPTablesClientInterface
 }
 
 func NewTransparentVlanEndpointClient(
@@ -78,6 +79,7 @@ func NewTransparentVlanEndpointClient(
 	nl netlink.NetlinkInterface,
 	plc platform.ExecClient,
 	nsc NamespaceClientInterface,
+	iptc networkutils.IPTablesClientInterface,
 ) *TransparentVlanEndpointClient {
 	vlanVethName := fmt.Sprintf("%s_%d", nw.extIf.Name, vlanid)
 	vnetNSName := fmt.Sprintf("az_ns_%d", vlanid)
@@ -100,6 +102,7 @@ func NewTransparentVlanEndpointClient(
 		plClient:                 plc,
 		netUtilsClient:           networkutils.NewNetworkUtils(nl, plc),
 		nsClient:                 nsc,
+		iptablesClient:           iptc,
 	}
 
 	client.NewSnatClient(nw.SnatBridgeIP, localIP, ep)
@@ -396,12 +399,12 @@ func (client *TransparentVlanEndpointClient) AddEndpointRules(epInfo *EndpointIn
 func (client *TransparentVlanEndpointClient) AddVnetRules(epInfo *EndpointInfo) error {
 	// iptables -t mangle -I PREROUTING -j MARK --set-mark <TUNNELING MARK>
 	markOption := fmt.Sprintf("MARK --set-mark %d", tunnelingMark)
-	if err := iptables.InsertIptableRule(iptables.V4, "mangle", "PREROUTING", "", markOption); err != nil {
+	if err := client.iptablesClient.InsertIptableRule(iptables.V4, "mangle", "PREROUTING", "", markOption); err != nil {
 		return errors.Wrap(err, "unable to insert iptables rule mark all packets not entering on vlan interface")
 	}
 	// iptables -t mangle -I PREROUTING -j ACCEPT -i <VLAN IF>
 	match := fmt.Sprintf("-i %s", client.vlanIfName)
-	if err := iptables.InsertIptableRule(iptables.V4, "mangle", "PREROUTING", match, "ACCEPT"); err != nil {
+	if err := client.iptablesClient.InsertIptableRule(iptables.V4, "mangle", "PREROUTING", match, "ACCEPT"); err != nil {
 		return errors.Wrap(err, "unable to insert iptables rule accept all incoming from vlan interface")
 	}
 	// Blocks wireserver traffic from customer vnet nic

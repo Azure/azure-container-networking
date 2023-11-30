@@ -227,25 +227,26 @@ func setHostOptions(ncSubnetPrefix *net.IPNet, options map[string]interface{}, i
 	// we need to snat IMDS traffic to node IP, this sets up snat '--to'
 	snatHostIPJump := fmt.Sprintf("%s --to %s", iptables.Snat, info.hostPrimaryIP)
 
+	iptablesClient := iptables.NewIPTablesClient()
 	var iptableCmds []iptables.IPTableEntry
-	if !iptables.ChainExists(iptables.V4, iptables.Nat, iptables.Swift) {
-		iptableCmds = append(iptableCmds, iptables.GetCreateChainCmd(iptables.V4, iptables.Nat, iptables.Swift))
+	if !iptablesClient.ChainExists(iptables.V4, iptables.Nat, iptables.Swift) {
+		iptableCmds = append(iptableCmds, iptablesClient.GetCreateChainCmd(iptables.V4, iptables.Nat, iptables.Swift))
 	}
 
-	if !iptables.RuleExists(iptables.V4, iptables.Nat, iptables.Postrouting, "", iptables.Swift) {
-		iptableCmds = append(iptableCmds, iptables.GetAppendIptableRuleCmd(iptables.V4, iptables.Nat, iptables.Postrouting, "", iptables.Swift))
+	if !iptablesClient.RuleExists(iptables.V4, iptables.Nat, iptables.Postrouting, "", iptables.Swift) {
+		iptableCmds = append(iptableCmds, iptablesClient.GetAppendIptableRuleCmd(iptables.V4, iptables.Nat, iptables.Postrouting, "", iptables.Swift))
 	}
 
-	if !iptables.RuleExists(iptables.V4, iptables.Nat, iptables.Swift, azureDNSUDPMatch, snatPrimaryIPJump) {
-		iptableCmds = append(iptableCmds, iptables.GetInsertIptableRuleCmd(iptables.V4, iptables.Nat, iptables.Swift, azureDNSUDPMatch, snatPrimaryIPJump))
+	if !iptablesClient.RuleExists(iptables.V4, iptables.Nat, iptables.Swift, azureDNSUDPMatch, snatPrimaryIPJump) {
+		iptableCmds = append(iptableCmds, iptablesClient.GetInsertIptableRuleCmd(iptables.V4, iptables.Nat, iptables.Swift, azureDNSUDPMatch, snatPrimaryIPJump))
 	}
 
-	if !iptables.RuleExists(iptables.V4, iptables.Nat, iptables.Swift, azureDNSTCPMatch, snatPrimaryIPJump) {
-		iptableCmds = append(iptableCmds, iptables.GetInsertIptableRuleCmd(iptables.V4, iptables.Nat, iptables.Swift, azureDNSTCPMatch, snatPrimaryIPJump))
+	if !iptablesClient.RuleExists(iptables.V4, iptables.Nat, iptables.Swift, azureDNSTCPMatch, snatPrimaryIPJump) {
+		iptableCmds = append(iptableCmds, iptablesClient.GetInsertIptableRuleCmd(iptables.V4, iptables.Nat, iptables.Swift, azureDNSTCPMatch, snatPrimaryIPJump))
 	}
 
-	if !iptables.RuleExists(iptables.V4, iptables.Nat, iptables.Swift, azureIMDSMatch, snatHostIPJump) {
-		iptableCmds = append(iptableCmds, iptables.GetInsertIptableRuleCmd(iptables.V4, iptables.Nat, iptables.Swift, azureIMDSMatch, snatHostIPJump))
+	if !iptablesClient.RuleExists(iptables.V4, iptables.Nat, iptables.Swift, azureIMDSMatch, snatHostIPJump) {
+		iptableCmds = append(iptableCmds, iptablesClient.GetInsertIptableRuleCmd(iptables.V4, iptables.Nat, iptables.Swift, azureIMDSMatch, snatHostIPJump))
 	}
 
 	options[network.IPTablesKey] = iptableCmds

@@ -37,7 +37,7 @@ func AddSnatEndpointRules(snatClient *snat.Client, hostToNC, ncToHost bool, nl n
 		return errors.Wrap(err, "failed to block ip addresses on snat bridge")
 	}
 	nuc := networkutils.NewNetworkUtils(nl, plc)
-	if err := nuc.EnableIPForwarding(); err != nil {
+	if err := nuc.EnableIPForwarding(snatClient.IPTablesClient); err != nil {
 		return errors.Wrap(err, "failed to enable ip forwarding")
 	}
 

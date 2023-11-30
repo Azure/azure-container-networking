@@ -15,6 +15,7 @@ import (
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/netio"
 	"github.com/Azure/azure-container-networking/netlink"
+	"github.com/Azure/azure-container-networking/network/networkutils"
 	"github.com/Azure/azure-container-networking/platform"
 	"github.com/Azure/azure-container-networking/store"
 	"github.com/pkg/errors"
@@ -81,6 +82,7 @@ type networkManager struct {
 	netio              netio.NetIOInterface
 	plClient           platform.ExecClient
 	nsClient           NamespaceClientInterface
+	iptablesClient     networkutils.IPTablesClientInterface
 	sync.Mutex
 }
 
@@ -113,13 +115,14 @@ type NetworkManager interface {
 }
 
 // Creates a new network manager.
-func NewNetworkManager(nl netlink.NetlinkInterface, plc platform.ExecClient, netioCli netio.NetIOInterface, nsc NamespaceClientInterface) (NetworkManager, error) {
+func NewNetworkManager(nl netlink.NetlinkInterface, plc platform.ExecClient, netioCli netio.NetIOInterface, nsc NamespaceClientInterface, iptc networkutils.IPTablesClientInterface) (NetworkManager, error) {
 	nm := &networkManager{
 		ExternalInterfaces: make(map[string]*externalInterface),
 		netlink:            nl,
 		plClient:           plc,
 		netio:              netioCli,
 		nsClient:           nsc,
+		iptablesClient:     iptc,
 	}
 
 	return nm, nil
@@ -386,7 +389,9 @@ func (nm *networkManager) CreateEndpoint(cli apipaClient, networkID string, epIn
 			epInfo[0].Data[VlanIDKey] = nw.VlanId
 		}
 	}
-	ep, err := nw.newEndpoint(cli, nm.netlink, nm.plClient, nm.netio, nm.nsClient, epInfo)
+
+	ep, err := nw.newEndpoint(cli, nm.netlink, nm.plClient, nm.netio, nm.nsClient, nm.iptablesClient, epInfo)
+
 	if err != nil {
 		return err
 	}
@@ -429,7 +434,7 @@ func (nm *networkManager) DeleteEndpoint(networkID, endpointID string, epInfo *E
 		return err
 	}
 
-	err = nw.deleteEndpoint(nm.netlink, nm.plClient, nm.netio, nm.nsClient, endpointID)
+	err = nw.deleteEndpoint(nm.netlink, nm.plClient, nm.netio, nm.nsClient, nm.iptablesClient, endpointID)
 	if err != nil {
 		return err
 	}
@@ -466,7 +471,7 @@ func (nm *networkManager) DeleteEndpointState(networkID string, epInfo *Endpoint
 		NetworkContainerID:       epInfo.Id,
 	}
 	logger.Info("Deleting endpoint with", zap.String("Endpoint Info: ", epInfo.PrettyString()), zap.String("HNISID : ", ep.HnsId))
-	return nw.deleteEndpointImpl(netlink.NewNetlink(), platform.NewExecClient(logger), nil, nil, nil, ep)
+	return nw.deleteEndpointImpl(netlink.NewNetlink(), platform.NewExecClient(logger), nil, nil, nil, nil, ep)
 }
 
 // GetEndpointInfo returns information about the given endpoint.

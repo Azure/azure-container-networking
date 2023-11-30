@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/Azure/azure-container-networking/cns"
+	"github.com/Azure/azure-container-networking/iptables"
 	"github.com/Azure/azure-container-networking/netio"
 	"github.com/Azure/azure-container-networking/netlink"
 	"github.com/Azure/azure-container-networking/platform"
@@ -183,7 +184,7 @@ var _ = Describe("Test Endpoint", func() {
 			It("Should be added", func() {
 				// Add endpoint with valid id
 				ep, err := nw.newEndpointImpl(nil, netlink.NewMockNetlink(false, ""), platform.NewMockExecClient(false),
-					netio.NewMockNetIO(false, 0), NewMockEndpointClient(nil), NewMockNamespaceClient(), []*EndpointInfo{epInfo})
+					netio.NewMockNetIO(false, 0), NewMockEndpointClient(nil), NewMockNamespaceClient(), iptables.NewIPTablesClient(), []*EndpointInfo{epInfo})
 				Expect(err).NotTo(HaveOccurred())
 				Expect(ep).NotTo(BeNil())
 				Expect(ep.Id).To(Equal(epInfo.Id))
@@ -195,7 +196,7 @@ var _ = Describe("Test Endpoint", func() {
 					extIf:     &externalInterface{IPv4Gateway: net.ParseIP("192.168.0.1")},
 				}
 				ep, err := nw2.newEndpointImpl(nil, netlink.NewMockNetlink(false, ""), platform.NewMockExecClient(false),
-					netio.NewMockNetIO(false, 0), NewMockEndpointClient(nil), NewMockNamespaceClient(), []*EndpointInfo{epInfo})
+					netio.NewMockNetIO(false, 0), NewMockEndpointClient(nil), NewMockNamespaceClient(), iptables.NewIPTablesClient(), []*EndpointInfo{epInfo})
 				Expect(err).NotTo(HaveOccurred())
 				Expect(ep).NotTo(BeNil())
 				Expect(ep.Id).To(Equal(epInfo.Id))
@@ -211,7 +212,7 @@ var _ = Describe("Test Endpoint", func() {
 				Expect(err).ToNot(HaveOccurred())
 				// Adding endpoint with same id should fail and delete should cleanup the state
 				ep2, err := nw.newEndpointImpl(nil, netlink.NewMockNetlink(false, ""), platform.NewMockExecClient(false),
-					netio.NewMockNetIO(false, 0), mockCli, NewMockNamespaceClient(), []*EndpointInfo{epInfo})
+					netio.NewMockNetIO(false, 0), mockCli, NewMockNamespaceClient(), iptables.NewIPTablesClient(), []*EndpointInfo{epInfo})
 				Expect(err).To(HaveOccurred())
 				Expect(ep2).To(BeNil())
 				assert.Contains(GinkgoT(), err.Error(), "Endpoint already exists")
@@ -221,17 +222,17 @@ var _ = Describe("Test Endpoint", func() {
 				// Adding an endpoint with an id.
 				mockCli := NewMockEndpointClient(nil)
 				ep2, err := nw.newEndpointImpl(nil, netlink.NewMockNetlink(false, ""), platform.NewMockExecClient(false),
-					netio.NewMockNetIO(false, 0), mockCli, NewMockNamespaceClient(), []*EndpointInfo{epInfo})
+					netio.NewMockNetIO(false, 0), mockCli, NewMockNamespaceClient(), iptables.NewIPTablesClient(), []*EndpointInfo{epInfo})
 				Expect(err).ToNot(HaveOccurred())
 				Expect(ep2).ToNot(BeNil())
 				Expect(len(mockCli.endpoints)).To(Equal(1))
 				// Deleting the endpoint
 				//nolint:errcheck // ignore error
-				nw.deleteEndpointImpl(netlink.NewMockNetlink(false, ""), platform.NewMockExecClient(false), mockCli, netio.NewMockNetIO(false, 0), NewMockNamespaceClient(), ep2)
+				nw.deleteEndpointImpl(netlink.NewMockNetlink(false, ""), platform.NewMockExecClient(false), mockCli, netio.NewMockNetIO(false, 0), NewMockNamespaceClient(), iptables.NewIPTablesClient(), ep2)
 				Expect(len(mockCli.endpoints)).To(Equal(0))
 				// Deleting same endpoint with same id should not fail
 				//nolint:errcheck // ignore error
-				nw.deleteEndpointImpl(netlink.NewMockNetlink(false, ""), platform.NewMockExecClient(false), mockCli, netio.NewMockNetIO(false, 0), NewMockNamespaceClient(), ep2)
+				nw.deleteEndpointImpl(netlink.NewMockNetlink(false, ""), platform.NewMockExecClient(false), mockCli, netio.NewMockNetIO(false, 0), NewMockNamespaceClient(), iptables.NewIPTablesClient(), ep2)
 				Expect(len(mockCli.endpoints)).To(Equal(0))
 			})
 		})
@@ -252,11 +253,11 @@ var _ = Describe("Test Endpoint", func() {
 						}
 
 						return nil
-					}), NewMockNamespaceClient(), []*EndpointInfo{epInfo})
+					}), NewMockNamespaceClient(), iptables.NewIPTablesClient(), []*EndpointInfo{epInfo})
 				Expect(err).To(HaveOccurred())
 				Expect(ep).To(BeNil())
 				ep, err = nw.newEndpointImpl(nil, netlink.NewMockNetlink(false, ""), platform.NewMockExecClient(false),
-					netio.NewMockNetIO(false, 0), NewMockEndpointClient(nil), NewMockNamespaceClient(), []*EndpointInfo{epInfo})
+					netio.NewMockNetIO(false, 0), NewMockEndpointClient(nil), NewMockNamespaceClient(), iptables.NewIPTablesClient(), []*EndpointInfo{epInfo})
 				Expect(err).NotTo(HaveOccurred())
 				Expect(ep).NotTo(BeNil())
 				Expect(ep.Id).To(Equal(epInfo.Id))
@@ -282,14 +283,14 @@ var _ = Describe("Test Endpoint", func() {
 			It("Should not endpoint to the network when there is an error", func() {
 				secondaryEpInfo.MacAddress = netio.BadHwAddr // mock netlink will fail to set link state on bad eth
 				ep, err := nw.newEndpointImpl(nil, netlink.NewMockNetlink(false, ""), platform.NewMockExecClient(false),
-					netio.NewMockNetIO(false, 0), nil, NewMockNamespaceClient(), []*EndpointInfo{epInfo, secondaryEpInfo})
+					netio.NewMockNetIO(false, 0), nil, NewMockNamespaceClient(), iptables.NewIPTablesClient(), []*EndpointInfo{epInfo, secondaryEpInfo})
 				Expect(err).To(HaveOccurred())
 				Expect(err.Error()).To(Equal("SecondaryEndpointClient Error: " + netlink.ErrorMockNetlink.Error()))
 				Expect(ep).To(BeNil())
 
 				secondaryEpInfo.MacAddress = netio.HwAddr
 				ep, err = nw.newEndpointImpl(nil, netlink.NewMockNetlink(false, ""), platform.NewMockExecClient(false),
-					netio.NewMockNetIO(false, 0), nil, NewMockNamespaceClient(), []*EndpointInfo{epInfo, secondaryEpInfo})
+					netio.NewMockNetIO(false, 0), nil, NewMockNamespaceClient(), iptables.NewIPTablesClient(), []*EndpointInfo{epInfo, secondaryEpInfo})
 				Expect(err).ToNot(HaveOccurred())
 				Expect(ep.Id).To(Equal(epInfo.Id))
 			})
@@ -297,7 +298,7 @@ var _ = Describe("Test Endpoint", func() {
 			It("Should add endpoint when there are no errors", func() {
 				secondaryEpInfo.MacAddress = netio.HwAddr
 				ep, err := nw.newEndpointImpl(nil, netlink.NewMockNetlink(false, ""), platform.NewMockExecClient(false),
-					netio.NewMockNetIO(false, 0), nil, NewMockNamespaceClient(), []*EndpointInfo{epInfo, secondaryEpInfo})
+					netio.NewMockNetIO(false, 0), nil, NewMockNamespaceClient(), iptables.NewIPTablesClient(), []*EndpointInfo{epInfo, secondaryEpInfo})
 				Expect(err).ToNot(HaveOccurred())
 				Expect(ep.Id).To(Equal(epInfo.Id))
 			})

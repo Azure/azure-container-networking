@@ -4,6 +4,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/Azure/azure-container-networking/iptables"
 	"github.com/Azure/azure-container-networking/netlink"
 )
 
@@ -19,11 +20,13 @@ func TestMain(m *testing.M) {
 
 func TestAllowInboundFromHostToNC(t *testing.T) {
 	nl := netlink.NewNetlink()
+	iptc := iptables.NewIPTablesClient()
 	client := &Client{
 		SnatBridgeIP:          "169.254.0.1/16",
 		localIP:               "169.254.0.4/16",
 		containerSnatVethName: anyInterface,
 		netlink:               nl,
+		IPTablesClient:        iptc,
 	}
 
 	if err := nl.AddLink(&netlink.DummyLink{
@@ -66,11 +69,13 @@ func TestAllowInboundFromHostToNC(t *testing.T) {
 
 func TestAllowInboundFromNCToHost(t *testing.T) {
 	nl := netlink.NewNetlink()
+	iptc := iptables.NewIPTablesClient()
 	client := &Client{
 		SnatBridgeIP:          "169.254.0.1/16",
 		localIP:               "169.254.0.4/16",
 		containerSnatVethName: anyInterface,
 		netlink:               nl,
+		IPTablesClient:        iptc,
 	}
 
 	if err := nl.AddLink(&netlink.DummyLink{
