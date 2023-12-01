@@ -521,7 +521,7 @@ func (service *HTTPRestService) CreateOrUpdateNetworkContainerInternal(req *cns.
 
 	// For now only RequestController uses this API which will be initialized only for AKS scenario.
 	// Validate ContainerType is set as Docker
-	if service.state.OrchestratorType != cns.KubernetesCRD && service.state.OrchestratorType != cns.Kubernetes {
+	if service.state.OrchestratorType != cns.KubernetesCRD && service.state.OrchestratorType != cns.Kubernetes && service.state.OrchestratorType != cns.ServiceFabric {
 		logger.Errorf("[Azure CNS] Error. Unsupported OrchestratorType: %s", service.state.OrchestratorType)
 		return types.UnsupportedOrchestratorType
 	}
