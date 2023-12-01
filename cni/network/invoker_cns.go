@@ -447,12 +447,10 @@ func configureSecondaryAddResult(info *IPResultInfo, addResult *IPAMAddResult, p
 	}
 
 	macAddress, err := net.ParseMAC(info.macAddress)
-	logger.Info("macAddress", zap.Any("macAddress", macAddress))
 	if err != nil {
 		return errors.Wrap(err, "Invalid mac address")
 	}
 
-	logger.Info("secondary result is", zap.Any("secondary", macAddress))
 	routes, err := getRoutes(info.routes, info.skipDefaultRoutes)
 	if err != nil {
 		return err
@@ -473,11 +471,10 @@ func configureSecondaryAddResult(info *IPResultInfo, addResult *IPAMAddResult, p
 		SkipDefaultRoutes: info.skipDefaultRoutes,
 	}
 
-	logger.Info("secondary routes is", zap.Any("secondary routes are", macAddress))
+	logger.Info("result is", zap.Any("result", result))
 	addResult.secondaryInterfacesInfo = append(addResult.secondaryInterfacesInfo, result)
-	// todo: remove after testing l1vh adding defaultinterfaceinfo
-	addResult.defaultInterfaceInfo = addResult.secondaryInterfacesInfo[0]
 
 	logger.Info("addResult is", zap.Any("addResult", addResult))
+	logger.Info("addResult secondaryInterfacesInfo is", zap.Any("addResult secondaryInterfacesInfo", addResult.secondaryInterfacesInfo))
 	return nil
 }

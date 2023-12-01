@@ -209,13 +209,17 @@ func (plugin *NetPlugin) Stop() {
 func (plugin *NetPlugin) findMasterInterface(nwCfg *cni.NetworkConfig, subnetPrefix *net.IPNet) string {
 	// An explicit master configuration wins. Explicitly specifying a master is
 	// useful if host has multiple interfaces with addresses in the same subnet.
+	logger.Info("subnetPrefix is", zap.Any("subnetPrefix", subnetPrefix))
 	if nwCfg.Master != "" {
 		return nwCfg.Master
 	}
 
+	logger.Info("nwCfg.Master is", zap.String("nwCfg.Master", nwCfg.Master))
+
 	// Otherwise, pick the first interface with an IP address in the given subnet.
 	subnetPrefixString := subnetPrefix.String()
 	interfaces, _ := net.Interfaces()
+	logger.Info("master interfaces are", zap.Any("master interfaces", interfaces))
 	for _, iface := range interfaces {
 		addrs, _ := iface.Addrs()
 		for _, addr := range addrs {
@@ -519,6 +523,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 		ipamAddConfig := IPAMAddConfig{nwCfg: nwCfg, args: args, options: options}
 		if !nwCfg.MultiTenancy {
 			ipamAddResult, err = plugin.ipamInvoker.Add(ipamAddConfig)
+			logger.Info("ipamAddResult is", zap.Any("ipamAddResult", ipamAddResult))
 			if err != nil {
 				return fmt.Errorf("IPAM Invoker Add failed with error: %w", err)
 			}
@@ -608,6 +613,7 @@ func (plugin *NetPlugin) createNetworkInternal(
 	ipamAddResult.hostSubnetPrefix.IP = ipamAddResult.hostSubnetPrefix.IP.Mask(ipamAddResult.hostSubnetPrefix.Mask)
 	ipamAddConfig.nwCfg.IPAM.Subnet = ipamAddResult.hostSubnetPrefix.String()
 	// Find the master interface.
+	logger.Info("ipamAddConfig.nwCfg", zap.Any("ipamAddConfig.nwCfg", ipamAddConfig.nwCfg))
 	masterIfName := plugin.findMasterInterface(ipamAddConfig.nwCfg, &ipamAddResult.hostSubnetPrefix)
 	if masterIfName == "" {
 		err := plugin.Errorf("Failed to find the master interface")
