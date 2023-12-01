@@ -166,7 +166,9 @@ func (nw *network) newEndpoint(
 }
 
 // DeleteEndpoint deletes an existing endpoint from the network.
-func (nw *network) deleteEndpoint(nl netlink.NetlinkInterface, plc platform.ExecClient, nioc netio.NetIOInterface, nsc NamespaceClientInterface, iptc networkutils.IPTablesClientInterface, endpointID string) error {
+func (nw *network) deleteEndpoint(nl netlink.NetlinkInterface, plc platform.ExecClient, nioc netio.NetIOInterface, nsc NamespaceClientInterface,
+	iptc networkutils.IPTablesClientInterface, endpointID string,
+) error {
 	var err error
 
 	logger.Info("Deleting endpoint from network", zap.String("endpointID", endpointID), zap.String("id", nw.Id))

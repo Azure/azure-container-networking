@@ -260,7 +260,7 @@ func (nu NetworkUtils) UpdateIPV6Setting(disable int) error {
 	return err
 }
 
-// This fucntion adds rule which snat to ip passed filtered by match string.
+// This function adds rule which snat to ip passed filtered by match string.
 func (nu NetworkUtils) AddSnatRule(iptablesClient IPTablesClientInterface, match string, ip net.IP) error {
 	version := iptables.V4
 	if ip.To4() == nil {
@@ -268,7 +268,7 @@ func (nu NetworkUtils) AddSnatRule(iptablesClient IPTablesClientInterface, match
 	}
 
 	target := fmt.Sprintf("SNAT --to %s", ip.String())
-	return iptablesClient.InsertIptableRule(version, iptables.Nat, iptables.Postrouting, match, target)
+	return errors.Wrap(iptablesClient.InsertIptableRule(version, iptables.Nat, iptables.Postrouting, match, target), "failed to add snat rule")
 }
 
 func (nu NetworkUtils) DisableRAForInterface(ifName string) error {

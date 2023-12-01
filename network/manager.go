@@ -115,7 +115,9 @@ type NetworkManager interface {
 }
 
 // Creates a new network manager.
-func NewNetworkManager(nl netlink.NetlinkInterface, plc platform.ExecClient, netioCli netio.NetIOInterface, nsc NamespaceClientInterface, iptc networkutils.IPTablesClientInterface) (NetworkManager, error) {
+func NewNetworkManager(nl netlink.NetlinkInterface, plc platform.ExecClient, netioCli netio.NetIOInterface, nsc NamespaceClientInterface,
+	iptc networkutils.IPTablesClientInterface,
+) (NetworkManager, error) {
 	nm := &networkManager{
 		ExternalInterfaces: make(map[string]*externalInterface),
 		netlink:            nl,

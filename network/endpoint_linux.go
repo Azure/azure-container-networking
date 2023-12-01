@@ -257,7 +257,9 @@ func (nw *network) newEndpointImpl(
 }
 
 // deleteEndpointImpl deletes an existing endpoint from the network.
-func (nw *network) deleteEndpointImpl(nl netlink.NetlinkInterface, plc platform.ExecClient, epClient EndpointClient, nioc netio.NetIOInterface, nsc NamespaceClientInterface, iptc networkutils.IPTablesClientInterface, ep *endpoint) error {
+func (nw *network) deleteEndpointImpl(nl netlink.NetlinkInterface, plc platform.ExecClient, epClient EndpointClient, nioc netio.NetIOInterface, nsc NamespaceClientInterface,
+	iptc networkutils.IPTablesClientInterface, ep *endpoint,
+) error {
 	// Delete the veth pair by deleting one of the peer interfaces.
 	// Deleting the host interface is more convenient since it does not require
 	// entering the container netns and hence works both for CNI and CNM.

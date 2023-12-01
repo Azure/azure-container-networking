@@ -87,14 +87,14 @@ type IPTableEntry struct {
 	Params  string
 }
 
-type IPTablesClient struct{}
+type Client struct{}
 
-func NewIPTablesClient() *IPTablesClient {
-	return &IPTablesClient{}
+func NewIPTablesClient() *Client {
+	return &Client{}
 }
 
 // Run iptables command
-func (c *IPTablesClient) RunCmd(version, params string) error {
+func (c *Client) RunCmd(version, params string) error {
 	var cmd string
 
 	p := platform.NewExecClient(logger)
@@ -117,7 +117,7 @@ func (c *IPTablesClient) RunCmd(version, params string) error {
 }
 
 // check if iptable chain alreay exists
-func (c *IPTablesClient) ChainExists(version, tableName, chainName string) bool {
+func (c *Client) ChainExists(version, tableName, chainName string) bool {
 	params := fmt.Sprintf("-t %s -L %s", tableName, chainName)
 	if err := c.RunCmd(version, params); err != nil {
 		return false
@@ -126,7 +126,7 @@ func (c *IPTablesClient) ChainExists(version, tableName, chainName string) bool 
 	return true
 }
 
-func (c *IPTablesClient) GetCreateChainCmd(version, tableName, chainName string) IPTableEntry {
+func (c *Client) GetCreateChainCmd(version, tableName, chainName string) IPTableEntry {
 	return IPTableEntry{
 		Version: version,
 		Params:  fmt.Sprintf("-t %s -N %s", tableName, chainName),
@@ -134,7 +134,7 @@ func (c *IPTablesClient) GetCreateChainCmd(version, tableName, chainName string)
 }
 
 // create new iptable chain under specified table name
-func (c *IPTablesClient) CreateChain(version, tableName, chainName string) error {
+func (c *Client) CreateChain(version, tableName, chainName string) error {
 	var err error
 
 	if !c.ChainExists(version, tableName, chainName) {
@@ -148,7 +148,7 @@ func (c *IPTablesClient) CreateChain(version, tableName, chainName string) error
 }
 
 // check if iptable rule alreay exists
-func (c *IPTablesClient) RuleExists(version, tableName, chainName, match, target string) bool {
+func (c *Client) RuleExists(version, tableName, chainName, match, target string) bool {
 	params := fmt.Sprintf("-t %s -C %s %s -j %s", tableName, chainName, match, target)
 	if err := c.RunCmd(version, params); err != nil {
 		return false
@@ -156,7 +156,7 @@ func (c *IPTablesClient) RuleExists(version, tableName, chainName, match, target
 	return true
 }
 
-func (c *IPTablesClient) GetInsertIptableRuleCmd(version, tableName, chainName, match, target string) IPTableEntry {
+func (c *Client) GetInsertIptableRuleCmd(version, tableName, chainName, match, target string) IPTableEntry {
 	return IPTableEntry{
 		Version: version,
 		Params:  fmt.Sprintf("-t %s -I %s 1 %s -j %s", tableName, chainName, match, target),
@@ -164,7 +164,7 @@ func (c *IPTablesClient) GetInsertIptableRuleCmd(version, tableName, chainName, 
 }
 
 // Insert iptable rule at beginning of iptable chain
-func (c *IPTablesClient) InsertIptableRule(version, tableName, chainName, match, target string) error {
+func (c *Client) InsertIptableRule(version, tableName, chainName, match, target string) error {
 	if c.RuleExists(version, tableName, chainName, match, target) {
 		logger.Info("Rule already exists")
 		return nil
@@ -174,7 +174,7 @@ func (c *IPTablesClient) InsertIptableRule(version, tableName, chainName, match,
 	return c.RunCmd(version, cmd.Params)
 }
 
-func (c *IPTablesClient) GetAppendIptableRuleCmd(version, tableName, chainName, match, target string) IPTableEntry {
+func (c *Client) GetAppendIptableRuleCmd(version, tableName, chainName, match, target string) IPTableEntry {
 	return IPTableEntry{
 		Version: version,
 		Params:  fmt.Sprintf("-t %s -A %s %s -j %s", tableName, chainName, match, target),
@@ -182,7 +182,7 @@ func (c *IPTablesClient) GetAppendIptableRuleCmd(version, tableName, chainName, 
 }
 
 // Append iptable rule at end of iptable chain
-func (c *IPTablesClient) AppendIptableRule(version, tableName, chainName, match, target string) error {
+func (c *Client) AppendIptableRule(version, tableName, chainName, match, target string) error {
 	if c.RuleExists(version, tableName, chainName, match, target) {
 		logger.Info("Rule already exists")
 		return nil
@@ -193,7 +193,7 @@ func (c *IPTablesClient) AppendIptableRule(version, tableName, chainName, match,
 }
 
 // Delete matched iptable rule
-func (c *IPTablesClient) DeleteIptableRule(version, tableName, chainName, match, target string) error {
+func (c *Client) DeleteIptableRule(version, tableName, chainName, match, target string) error {
 	params := fmt.Sprintf("-t %s -D %s %s -j %s", tableName, chainName, match, target)
 	return c.RunCmd(version, params)
 }
