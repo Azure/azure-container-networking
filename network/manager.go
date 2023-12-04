@@ -15,7 +15,6 @@ import (
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/netio"
 	"github.com/Azure/azure-container-networking/netlink"
-	"github.com/Azure/azure-container-networking/network/networkutils"
 	"github.com/Azure/azure-container-networking/platform"
 	"github.com/Azure/azure-container-networking/store"
 	"github.com/pkg/errors"
@@ -82,7 +81,7 @@ type networkManager struct {
 	netio              netio.NetIOInterface
 	plClient           platform.ExecClient
 	nsClient           NamespaceClientInterface
-	iptablesClient     networkutils.IPTablesClientInterface
+	iptablesClient     ipTablesClientInterface
 	sync.Mutex
 }
 
@@ -116,7 +115,7 @@ type NetworkManager interface {
 
 // Creates a new network manager.
 func NewNetworkManager(nl netlink.NetlinkInterface, plc platform.ExecClient, netioCli netio.NetIOInterface, nsc NamespaceClientInterface,
-	iptc networkutils.IPTablesClientInterface,
+	iptc ipTablesClientInterface,
 ) (NetworkManager, error) {
 	nm := &networkManager{
 		ExternalInterfaces: make(map[string]*externalInterface),

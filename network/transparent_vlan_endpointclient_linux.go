@@ -66,7 +66,7 @@ type TransparentVlanEndpointClient struct {
 	plClient                 platform.ExecClient
 	netUtilsClient           networkutils.NetworkUtils
 	nsClient                 NamespaceClientInterface
-	iptablesClient           networkutils.IPTablesClientInterface
+	iptablesClient           ipTablesClientInterface
 }
 
 func NewTransparentVlanEndpointClient(
@@ -79,7 +79,7 @@ func NewTransparentVlanEndpointClient(
 	nl netlink.NetlinkInterface,
 	plc platform.ExecClient,
 	nsc NamespaceClientInterface,
-	iptc networkutils.IPTablesClientInterface,
+	iptc ipTablesClientInterface,
 ) *TransparentVlanEndpointClient {
 	vlanVethName := fmt.Sprintf("%s_%d", nw.extIf.Name, vlanid)
 	vnetNSName := fmt.Sprintf("az_ns_%d", vlanid)

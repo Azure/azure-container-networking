@@ -30,6 +30,13 @@ const (
 
 var logger = log.CNILogger.With(zap.String("component", "net"))
 
+type ipTablesClientInterface interface {
+	InsertIptableRule(version, tableName, chainName, match, target string) error
+	AppendIptableRule(version, tableName, chainName, match, target string) error
+	DeleteIptableRule(version, tableName, chainName, match, target string) error
+	CreateChain(version, tableName, chainName string) error
+}
+
 var errorSnatClient = errors.New("SnatClient Error")
 
 func newErrorSnatClient(errStr string) error {
@@ -46,7 +53,7 @@ type Client struct {
 	enableProxyArpOnBridge bool
 	netlink                netlink.NetlinkInterface
 	plClient               platform.ExecClient
-	IPTablesClient         networkutils.IPTablesClientInterface
+	IPTablesClient         ipTablesClientInterface
 }
 
 func NewSnatClient(hostIfName string,
@@ -58,7 +65,7 @@ func NewSnatClient(hostIfName string,
 	enableProxyArpOnBridge bool,
 	nl netlink.NetlinkInterface,
 	plClient platform.ExecClient,
-	ipTablesClient networkutils.IPTablesClientInterface,
+	ipTablesClient ipTablesClientInterface,
 ) Client {
 	logger.Info("Initialize new snat client")
 	snatClient := Client{

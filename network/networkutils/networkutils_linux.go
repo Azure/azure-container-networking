@@ -41,6 +41,12 @@ const (
 
 var logger = log.CNILogger.With(zap.String("component", "net-utils"))
 
+type ipTablesClientInterface interface {
+	InsertIptableRule(version, tableName, chainName, match, target string) error
+	AppendIptableRule(version, tableName, chainName, match, target string) error
+	DeleteIptableRule(version, tableName, chainName, match, target string) error
+}
+
 var errorNetworkUtils = errors.New("NetworkUtils Error")
 
 func newErrorNetworkUtils(errStr string) error {
@@ -130,7 +136,7 @@ func (nu NetworkUtils) AssignIPToInterface(interfaceName string, ipAddresses []n
 	return nil
 }
 
-func (nu NetworkUtils) addOrDeleteFilterRule(iptablesClient IPTablesClientInterface, bridgeName, action, ipAddress, chainName, target string) error {
+func (nu NetworkUtils) addOrDeleteFilterRule(iptablesClient ipTablesClientInterface, bridgeName, action, ipAddress, chainName, target string) error {
 	var err error
 	option := "i"
 
@@ -152,7 +158,7 @@ func (nu NetworkUtils) addOrDeleteFilterRule(iptablesClient IPTablesClientInterf
 	return err
 }
 
-func (nu NetworkUtils) AllowIPAddresses(iptablesClient IPTablesClientInterface, bridgeName string, skipAddresses []string, action string) error {
+func (nu NetworkUtils) AllowIPAddresses(iptablesClient ipTablesClientInterface, bridgeName string, skipAddresses []string, action string) error {
 	chains := getFilterChains()
 	target := getFilterchainTarget()
 
@@ -176,13 +182,13 @@ func (nu NetworkUtils) AllowIPAddresses(iptablesClient IPTablesClientInterface, 
 	return nil
 }
 
-func (nu NetworkUtils) BlockEgressTrafficFromContainer(iptablesClient IPTablesClientInterface, version, ipAddress, protocol string, port int) error {
+func (nu NetworkUtils) BlockEgressTrafficFromContainer(iptablesClient ipTablesClientInterface, version, ipAddress, protocol string, port int) error {
 	// iptables -t filter -I FORWARD -j DROP -d <ip> -p <protocol> -m <protocol> --dport <port>
 	dropTraffic := fmt.Sprintf("-d %s -p %s -m %s --dport %d", ipAddress, protocol, protocol, port)
 	return errors.Wrap(iptablesClient.InsertIptableRule(version, iptables.Filter, iptables.Forward, dropTraffic, iptables.Drop), "iptables block traffic failed")
 }
 
-func (nu NetworkUtils) BlockIPAddresses(iptablesClient IPTablesClientInterface, bridgeName, action string) error {
+func (nu NetworkUtils) BlockIPAddresses(iptablesClient ipTablesClientInterface, bridgeName, action string) error {
 	privateIPAddresses := getPrivateIPSpace()
 	chains := getFilterChains()
 	target := getFilterchainTarget()
@@ -207,7 +213,7 @@ func (nu NetworkUtils) BlockIPAddresses(iptablesClient IPTablesClientInterface, 
 }
 
 // This function enables ip forwarding in VM and allow forwarding packets from the interface
-func (nu NetworkUtils) EnableIPForwarding(iptablesClient IPTablesClientInterface) error {
+func (nu NetworkUtils) EnableIPForwarding(iptablesClient ipTablesClientInterface) error {
 	// Enable ip forwading on linux vm.
 	// sysctl -w net.ipv4.ip_forward=1
 	cmd := fmt.Sprint(enableIPForwardCmd)
@@ -261,7 +267,7 @@ func (nu NetworkUtils) UpdateIPV6Setting(disable int) error {
 }
 
 // This function adds rule which snat to ip passed filtered by match string.
-func (nu NetworkUtils) AddSnatRule(iptablesClient IPTablesClientInterface, match string, ip net.IP) error {
+func (nu NetworkUtils) AddSnatRule(iptablesClient ipTablesClientInterface, match string, ip net.IP) error {
 	version := iptables.V4
 	if ip.To4() == nil {
 		version = iptables.V6

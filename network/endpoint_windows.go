@@ -11,7 +11,6 @@ import (
 
 	"github.com/Azure/azure-container-networking/netio"
 	"github.com/Azure/azure-container-networking/netlink"
-	"github.com/Azure/azure-container-networking/network/networkutils"
 	"github.com/Azure/azure-container-networking/network/policy"
 	"github.com/Azure/azure-container-networking/platform"
 	"github.com/Microsoft/hcsshim"
@@ -72,7 +71,7 @@ func (nw *network) newEndpointImpl(
 	_ netio.NetIOInterface,
 	_ EndpointClient,
 	_ NamespaceClientInterface,
-	_ networkutils.IPTablesClientInterface,
+	_ ipTablesClientInterface,
 	epInfo []*EndpointInfo,
 ) (*endpoint, error) {
 	// there is only 1 epInfo for windows, multiple interfaces will be added in the future
@@ -412,7 +411,7 @@ func (nw *network) newEndpointImplHnsV2(cli apipaClient, epInfo *EndpointInfo) (
 
 // deleteEndpointImpl deletes an existing endpoint from the network.
 func (nw *network) deleteEndpointImpl(_ netlink.NetlinkInterface, _ platform.ExecClient, _ EndpointClient, _ netio.NetIOInterface, _ NamespaceClientInterface,
-	_ networkutils.IPTablesClientInterface, ep *endpoint,
+	_ ipTablesClientInterface, ep *endpoint,
 ) error {
 	if useHnsV2, err := UseHnsV2(ep.NetNs); useHnsV2 {
 		if err != nil {

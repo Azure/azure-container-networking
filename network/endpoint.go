@@ -13,7 +13,6 @@ import (
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/netio"
 	"github.com/Azure/azure-container-networking/netlink"
-	"github.com/Azure/azure-container-networking/network/networkutils"
 	"github.com/Azure/azure-container-networking/network/policy"
 	"github.com/Azure/azure-container-networking/platform"
 	"go.uber.org/zap"
@@ -141,7 +140,7 @@ func (nw *network) newEndpoint(
 	plc platform.ExecClient,
 	netioCli netio.NetIOInterface,
 	nsc NamespaceClientInterface,
-	iptc networkutils.IPTablesClientInterface,
+	iptc ipTablesClientInterface,
 	epInfo []*EndpointInfo,
 ) (*endpoint, error) {
 	var ep *endpoint
@@ -167,7 +166,7 @@ func (nw *network) newEndpoint(
 
 // DeleteEndpoint deletes an existing endpoint from the network.
 func (nw *network) deleteEndpoint(nl netlink.NetlinkInterface, plc platform.ExecClient, nioc netio.NetIOInterface, nsc NamespaceClientInterface,
-	iptc networkutils.IPTablesClientInterface, endpointID string,
+	iptc ipTablesClientInterface, endpointID string,
 ) error {
 	var err error
 
