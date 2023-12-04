@@ -702,15 +702,16 @@ func (nm *networkManager) addIpv6SnatRule(extIf *externalInterface, nwInfo *Netw
 	}
 
 	for _, ipAddr := range extIf.IPAddresses {
-		if ipAddr.IP.To4() == nil {
-			logger.Info("Adding ipv6 snat rule")
-			matchSrcPrefix := fmt.Sprintf("-s %s", ipv6SubnetPrefix.String())
-			nu := networkutils.NewNetworkUtils(nm.netlink, nm.plClient)
-			if err := nu.AddSnatRule(nm.iptablesClient, matchSrcPrefix, ipAddr.IP); err != nil {
-				return fmt.Errorf("adding iptable snat rule failed:%w", err)
-			}
-			ipv6SnatRuleSet = true
+		if ipAddr.IP.To4() != nil {
+			continue
 		}
+		logger.Info("Adding ipv6 snat rule")
+		matchSrcPrefix := fmt.Sprintf("-s %s", ipv6SubnetPrefix.String())
+		nu := networkutils.NewNetworkUtils(nm.netlink, nm.plClient)
+		if err := nu.AddSnatRule(nm.iptablesClient, matchSrcPrefix, ipAddr.IP); err != nil {
+			return fmt.Errorf("adding iptable snat rule failed:%w", err)
+		}
+		ipv6SnatRuleSet = true
 	}
 
 	if !ipv6SnatRuleSet {
