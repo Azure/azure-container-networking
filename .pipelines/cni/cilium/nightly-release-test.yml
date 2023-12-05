@@ -11,7 +11,7 @@ stages:
           name: "$(BUILD_POOL_NAME_DEFAULT)"
         steps:
           - script: |
-              echo "##vso[task.setvariable variable=commitID;isOutput=true]$(make revision)"
+              echo "##vso[task.setvariable variable=commitID;isOutput=true]$(echo $(make revision)-$(date "+%d%H%M"))"
             name: "EnvironmentalVariables"
             displayName: "Set environmental variables"
             condition: always()
@@ -86,11 +86,11 @@ stages:
         pool:
           name: $(BUILD_POOL_NAME_DEFAULT)
         steps:
-        - template: ../../singletenancy/cilium-overlay/cilium-overlay-e2e-step-template.yaml
-          parameters:
-            name: "cilium_nightly"
-            clusterName: ciliumnightly-$(commitID)
-            testHubble: true
+          - template: ../../singletenancy/cilium-overlay/cilium-overlay-e2e-step-template.yaml
+            parameters:
+              name: "cilium_nightly"
+              clusterName: ciliumnightly-$(commitID)
+              testHubble: true
       - job: logs
         displayName: "Failure Logs"
         dependsOn:
