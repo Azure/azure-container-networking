@@ -89,7 +89,7 @@ type IPTableEntry struct {
 
 type Client struct{}
 
-func NewIPTablesClient() *Client {
+func NewClient() *Client {
 	return &Client{}
 }
 

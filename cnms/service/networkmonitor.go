@@ -158,7 +158,7 @@ func main() {
 		}
 
 		nl := netlink.NewNetlink()
-		nm, err := network.NewNetworkManager(nl, platform.NewExecClient(nil), &netio.NetIO{}, network.NewNamespaceClient(), iptables.NewIPTablesClient())
+		nm, err := network.NewNetworkManager(nl, platform.NewExecClient(nil), &netio.NetIO{}, network.NewNamespaceClient(), iptables.NewClient())
 		if err != nil {
 			log.Printf("[monitor] Failed while creating network manager")
 			return

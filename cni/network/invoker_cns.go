@@ -227,7 +227,7 @@ func setHostOptions(ncSubnetPrefix *net.IPNet, options map[string]interface{}, i
 	// we need to snat IMDS traffic to node IP, this sets up snat '--to'
 	snatHostIPJump := fmt.Sprintf("%s --to %s", iptables.Snat, info.hostPrimaryIP)
 
-	iptablesClient := iptables.NewIPTablesClient()
+	iptablesClient := iptables.NewClient()
 	var iptableCmds []iptables.IPTableEntry
 	if !iptablesClient.ChainExists(iptables.V4, iptables.Nat, iptables.Swift) {
 		iptableCmds = append(iptableCmds, iptablesClient.GetCreateChainCmd(iptables.V4, iptables.Nat, iptables.Swift))
