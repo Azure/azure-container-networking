@@ -144,6 +144,7 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 
 	addResult := IPAMAddResult{}
 	numInterfacesWithDefaultRoutes := 0
+	logger.Info("response.PodIPInfo", zap.Any("response.PodIPInfo", response.PodIPInfo))
 
 	for i := 0; i < len(response.PodIPInfo); i++ {
 		info := IPResultInfo{
@@ -151,9 +152,9 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 			ncSubnetPrefix:     response.PodIPInfo[i].NetworkContainerPrimaryIPConfig.IPSubnet.PrefixLength,
 			ncPrimaryIP:        response.PodIPInfo[i].NetworkContainerPrimaryIPConfig.IPSubnet.IPAddress,
 			ncGatewayIPAddress: response.PodIPInfo[i].NetworkContainerPrimaryIPConfig.GatewayIPAddress,
-			hostSubnet:         response.PodIPInfo[i].HostPrimaryIPInfo.Subnet,
-			hostPrimaryIP:      response.PodIPInfo[i].HostPrimaryIPInfo.PrimaryIP,
-			hostGateway:        response.PodIPInfo[i].HostPrimaryIPInfo.Gateway,
+			hostSubnet:         response.PodIPInfo[i].HostSecondaryIPInfo.Subnet,
+			hostPrimaryIP:      response.PodIPInfo[i].HostSecondaryIPInfo.PrimaryIP,
+			hostGateway:        response.PodIPInfo[i].HostSecondaryIPInfo.Gateway,
 			nicType:            response.PodIPInfo[i].NICType,
 			macAddress:         response.PodIPInfo[i].MacAddress,
 			skipDefaultRoutes:  response.PodIPInfo[i].SkipDefaultRoutes,
@@ -171,6 +172,8 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 			if !info.skipDefaultRoutes {
 				numInterfacesWithDefaultRoutes++
 			}
+
+			logger.Info("hostSubnet info", zap.Any("info", info))
 
 			if err := configureSecondaryAddResult(&info, &addResult, &response.PodIPInfo[i].PodIPConfig); err != nil {
 				return IPAMAddResult{}, err
@@ -441,6 +444,7 @@ func configureDefaultAddResult(info *IPResultInfo, addConfig *IPAMAddConfig, add
 
 func configureSecondaryAddResult(info *IPResultInfo, addResult *IPAMAddResult, podIPConfig *cns.IPSubnet) error {
 	ip, ipnet, err := podIPConfig.GetIPNet()
+	logger.Info("IPResultInfo configureSecondaryAddResult", zap.Any("info", info))
 	logger.Info("ip, ipnet", zap.Any("ip", ip), zap.Any("ipnet", ipnet))
 	if ip == nil {
 		return errors.Wrap(err, "Unable to parse IP from response: "+info.podIPAddress+" with err %w")
@@ -450,6 +454,13 @@ func configureSecondaryAddResult(info *IPResultInfo, addResult *IPAMAddResult, p
 	if err != nil {
 		return errors.Wrap(err, "Invalid mac address")
 	}
+
+	_, hostIPNet, err := net.ParseCIDR(info.hostSubnet)
+	if err != nil {
+		return fmt.Errorf("unable to parse hostSubnet: %w", err)
+	}
+
+	addResult.hostSubnetPrefix = *hostIPNet
 
 	routes, err := getRoutes(info.routes, info.skipDefaultRoutes)
 	if err != nil {
@@ -463,6 +474,7 @@ func configureSecondaryAddResult(info *IPResultInfo, addResult *IPAMAddResult, p
 					IP:   ip,
 					Mask: ipnet.Mask,
 				},
+				Gateway: net.ParseIP(info.ncGatewayIPAddress),
 			},
 		},
 		Routes:            routes,

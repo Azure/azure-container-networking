@@ -778,7 +778,7 @@ func (service *HTTPRestService) validateIPConfigsRequest(ctx context.Context, ip
 
 // validateDefaultIPConfigsRequest validates the request for default IP configs request
 func (service *HTTPRestService) validateDefaultIPConfigsRequest(_ context.Context, ipConfigsRequest *cns.IPConfigsRequest) (respCode types.ResponseCode, message string) {
-	if service.state.OrchestratorType != cns.KubernetesCRD && service.state.OrchestratorType != cns.Kubernetes {
+	if service.state.OrchestratorType != cns.KubernetesCRD && service.state.OrchestratorType != cns.Kubernetes && service.state.OrchestratorType != cns.ServiceFabric {
 		return types.UnsupportedOrchestratorType, "ReleaseIPConfig API supported only for kubernetes orchestrator"
 	}
 
@@ -796,11 +796,13 @@ func (service *HTTPRestService) getSecondaryHostInterface(ctx context.Context) (
 			return nil, errors.Wrap(err, "failed to get interfaces from IMDS")
 		}
 		secondary, err := wireserver.GetSecondaryInterfaceFromResult(res)
+		logger.Printf("secondary paul interface is %+v", secondary)
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to get secondary interface from IMDS response")
 		}
 		service.state.secondaryInterface = secondary
 	}
+	logger.Printf("service.state.secondaryInterface is %+v", service.state.secondaryInterface)
 	return service.state.secondaryInterface, nil
 }
 

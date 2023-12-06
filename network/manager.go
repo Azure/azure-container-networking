@@ -339,6 +339,12 @@ func (nm *networkManager) CreateEndpoint(cli apipaClient, networkID string, epIn
 		return err
 	}
 
+	for _, n := range nw.Endpoints {
+		n.IfName = "eth0"
+		n.Id = n.Id + "eth0"
+	}
+
+	logger.Info("networkManager nw", zap.Any("networkManager nw", nw))
 	if nw.VlanId != 0 {
 		// the first entry in epInfo is InfraNIC type
 		if epInfo[0].Data[VlanIDKey] == nil {

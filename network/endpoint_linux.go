@@ -68,6 +68,8 @@ func (nw *network) newEndpointImpl(
 		containerIf   *net.Interface
 	)
 
+	logger.Info("defaultEpInfo is", zap.Any("defaultEpInfo is", defaultEpInfo))
+
 	if nw.Endpoints[defaultEpInfo.Id] != nil {
 		logger.Info("[net] Endpoint already exists.")
 		err = errEndpointExists

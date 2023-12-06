@@ -366,12 +366,13 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 		telemetry.SendCNIMetric(&cniMetric, plugin.tb)
 
 		// Add Interfaces to result.
-		defaultCniResult := convertInterfaceInfoToCniResult(ipamAddResult.defaultInterfaceInfo, args.IfName)
-
-		addSnatInterface(nwCfg, defaultCniResult)
+		//defaultCniResult := convertInterfaceInfoToCniResult(ipamAddResult.defaultInterfaceInfo, args.IfName)
+		secondaryCniResult := convertInterfaceInfoToCniResult(ipamAddResult.secondaryInterfacesInfo[0], args.IfName)
+		logger.Info("secondaryCniResult is", zap.Any("secondaryCniResult", secondaryCniResult))
+		addSnatInterface(nwCfg, secondaryCniResult)
 
 		// Convert result to the requested CNI version.
-		res, vererr := defaultCniResult.GetAsVersion(nwCfg.CNIVersion)
+		res, vererr := secondaryCniResult.GetAsVersion(nwCfg.CNIVersion)
 		if vererr != nil {
 			logger.Error("GetAsVersion failed", zap.Error(vererr))
 			plugin.Error(vererr)
@@ -384,7 +385,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 
 		logger.Info("ADD command completed for",
 			zap.String("pod", k8sPodName),
-			zap.Any("IPs", defaultCniResult.IPs),
+			zap.Any("IPs", secondaryCniResult.IPs),
 			zap.Error(err))
 	}()
 
@@ -490,9 +491,10 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 		// Issue link: https://github.com/kubernetes/kubernetes/issues/57253
 
 		if nwInfoErr == nil {
-			logger.Info("Found network with subnet",
-				zap.String("network", networkID),
-				zap.String("subnet", nwInfo.Subnets[0].Prefix.String()))
+			// logger.Info("Found network with subnet",
+			// 	zap.String("network", networkID),
+			// 	zap.String("subnet", nwInfo.Subnets[0].Prefix.String()))
+			logger.Info("nwInfo in network.go is", zap.Any("nwInfo in network.go", nwInfo))
 			nwInfo.IPAMType = nwCfg.IPAM.Type
 			options = nwInfo.Options
 
@@ -523,7 +525,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 		ipamAddConfig := IPAMAddConfig{nwCfg: nwCfg, args: args, options: options}
 		if !nwCfg.MultiTenancy {
 			ipamAddResult, err = plugin.ipamInvoker.Add(ipamAddConfig)
-			logger.Info("ipamAddResult is", zap.Any("ipamAddResult", ipamAddResult))
+			logger.Info("ipamAddResult is", zap.Any("ipamAddResult", ipamAddResult.secondaryInterfacesInfo))
 			if err != nil {
 				return fmt.Errorf("IPAM Invoker Add failed with error: %w", err)
 			}
@@ -713,15 +715,24 @@ func (plugin *NetPlugin) createEndpointInternal(opt *createEndpointInternalOpt) 
 	epInfo := network.EndpointInfo{}
 
 	defaultInterfaceInfo := opt.ipamAddResult.defaultInterfaceInfo
-	epDNSInfo, err := getEndpointDNSSettings(opt.nwCfg, defaultInterfaceInfo.DNS, opt.k8sNamespace)
+	secondaryInterfaceInfo := opt.ipamAddResult.secondaryInterfacesInfo
+
+	// epDNSInfo, err := getEndpointDNSSettings(opt.nwCfg, defaultInterfaceInfo.DNS, opt.k8sNamespace)
+	// if err != nil {
+	// 	err = plugin.Errorf("Failed to getEndpointDNSSettings: %v", err)
+	// 	return epInfo, err
+	// }
+
+	epDNSInfo, err := getEndpointDNSSettings(opt.nwCfg, secondaryInterfaceInfo[0].DNS, opt.k8sNamespace)
 	if err != nil {
 		err = plugin.Errorf("Failed to getEndpointDNSSettings: %v", err)
 		return epInfo, err
 	}
+
 	policyArgs := PolicyArgs{
 		nwInfo:    opt.nwInfo,
 		nwCfg:     opt.nwCfg,
-		ipconfigs: defaultInterfaceInfo.IPConfigs,
+		ipconfigs: secondaryInterfaceInfo[0].IPConfigs,
 	}
 	endpointPolicies, err := getEndpointPolicies(policyArgs)
 	if err != nil {
@@ -798,18 +809,26 @@ func (plugin *NetPlugin) createEndpointInternal(opt *createEndpointInternalOpt) 
 	}
 
 	epInfos := []*network.EndpointInfo{&epInfo}
+	logger.Info("opt.ipamAddResult secondaryInterfacesInfo", zap.Any("opt.ipamAddResult.secondaryInterfacesInfo", opt.ipamAddResult.secondaryInterfacesInfo))
 	// get secondary interface info
 	for _, secondaryCniResult := range opt.ipamAddResult.secondaryInterfacesInfo {
+		logger.Info("secondaryCniResult is", zap.Any("secondaryCniResult", secondaryCniResult))
 		var addresses []net.IPNet
 		for _, ipconfig := range secondaryCniResult.IPConfigs {
 			addresses = append(addresses, ipconfig.Address)
 		}
+		logger.Info("addresses are", zap.Any("addresses", addresses))
 
 		epInfos = append(epInfos,
 			&network.EndpointInfo{
 				ContainerID:       epInfo.ContainerID,
 				NetNsPath:         epInfo.NetNsPath,
+				IfName:            opt.args.IfName,
 				IPAddresses:       addresses,
+				DNS:               epDNSInfo,
+				Policies:          opt.policies,
+				PODName:           opt.k8sPodName,
+				PODNameSpace:      opt.k8sNamespace,
 				Routes:            secondaryCniResult.Routes,
 				MacAddress:        secondaryCniResult.MacAddress,
 				NICType:           secondaryCniResult.NICType,
@@ -1362,10 +1381,12 @@ func convertNnsToIPConfigs(
 }
 
 func convertInterfaceInfoToCniResult(info network.InterfaceInfo, ifName string) *cniTypesCurr.Result {
+	logger.Info("convertInterfaceInfoToCniResult", zap.Any("info", info))
 	result := &cniTypesCurr.Result{
 		Interfaces: []*cniTypesCurr.Interface{
 			{
 				Name: ifName,
+				Mac:  string(info.MacAddress),
 			},
 		},
 		DNS: cniTypes.DNS{

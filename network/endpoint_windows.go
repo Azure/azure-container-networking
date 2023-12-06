@@ -74,12 +74,13 @@ func (nw *network) newEndpointImpl(
 	epInfo []*EndpointInfo,
 ) (*endpoint, error) {
 	// there is only 1 epInfo for windows, multiple interfaces will be added in the future
-	if useHnsV2, err := UseHnsV2(epInfo[0].NetNsPath); useHnsV2 {
+	logger.Info("newEndpointImpl epInfo", zap.Any("newEndpointImpl epInfo[1]", epInfo[1]))
+	if useHnsV2, err := UseHnsV2(epInfo[1].NetNsPath); useHnsV2 {
 		if err != nil {
 			return nil, err
 		}
 
-		return nw.newEndpointImplHnsV2(cli, epInfo[0])
+		return nw.newEndpointImplHnsV2(cli, epInfo[1])
 	}
 
 	return nw.newEndpointImplHnsV1(epInfo[0], plc)
@@ -206,6 +207,10 @@ func (nw *network) addIPv6NeighborEntryForGateway(epInfo *EndpointInfo, plc plat
 func (nw *network) configureHcnEndpoint(epInfo *EndpointInfo) (*hcn.HostComputeEndpoint, error) {
 	infraEpName, _ := ConstructEndpointID(epInfo.ContainerID, epInfo.NetNsPath, epInfo.IfName)
 
+	mac := epInfo.MacAddress.String()
+	macAddress := strings.Split(mac, ":")
+	newMacAddress := strings.Join(macAddress, "-")
+
 	hcnEndpoint := &hcn.HostComputeEndpoint{
 		Name:               infraEpName,
 		HostComputeNetwork: nw.HnsId,
@@ -218,8 +223,10 @@ func (nw *network) configureHcnEndpoint(epInfo *EndpointInfo) (*hcn.HostComputeE
 			Major: hcnSchemaVersionMajor,
 			Minor: hcnSchemaVersionMinor,
 		},
-		MacAddress: epInfo.MacAddress.String(),
+		MacAddress: newMacAddress,
 	}
+
+	logger.Info("configureHcnEndpoint hcnEndpoint", zap.Any("hcnEndpoint", hcnEndpoint))
 
 	if endpointPolicies, err := policy.GetHcnEndpointPolicies(policy.EndpointPolicy, epInfo.Policies, epInfo.Data, epInfo.EnableSnatForDns, epInfo.EnableMultiTenancy, epInfo.NATInfo); err == nil {
 		for _, epPolicy := range endpointPolicies {

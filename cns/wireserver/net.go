@@ -63,7 +63,7 @@ func GetSecondaryInterfaceFromResult(res *GetInterfacesResult) (*InterfaceInfo, 
 		}
 
 		// get the second subnet
-		s := i.IPSubnet[1]
+		s := i.IPSubnet[0]
 		gw, err := calculateGatewayIP(s.Prefix)
 		if err != nil {
 			return nil, err

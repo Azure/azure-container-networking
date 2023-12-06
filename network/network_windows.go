@@ -290,6 +290,9 @@ func (nm *networkManager) configureHcnNetwork(nwInfo *NetworkInfo, extIf *extern
 		hcnNetwork.Type = hcn.L2Bridge
 	case opModeTunnel:
 		hcnNetwork.Type = hcn.L2Tunnel
+	case opModeTransparent:
+		hcnNetwork.Type = hcn.Transparent
+		hcnNetwork.Flags = 1024
 	default:
 		return nil, errNetworkModeInvalid
 	}
