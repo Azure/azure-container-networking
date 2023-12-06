@@ -141,6 +141,7 @@ require (
 	github.com/emicklei/go-restful/v3 v3.11.0 // indirect
 	github.com/golang-jwt/jwt/v5 v5.0.0 // indirect
 	github.com/rootless-containers/rootlesskit v1.1.1 // indirect
+	golang.org/x/sync v0.5.0 // indirect
 )
 
 replace (
