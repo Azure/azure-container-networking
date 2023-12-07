@@ -4,6 +4,7 @@
 package common
 
 import (
+	"bytes"
 	"context"
 	"encoding/binary"
 	"encoding/json"
@@ -76,6 +77,19 @@ type Metadata struct {
 // This is how metadata server returns in response for querying metadata
 type metadataWrapper struct {
 	Metadata Metadata `json:"compute"`
+}
+
+// HTTPClient interface to abstract http.Client methods
+type HTTPClient interface {
+	Post(url string, contentType string, body []byte) (*http.Response, error)
+}
+
+// StandardHTTPClient is a standard implementation of the HTTPClient interface
+type StandardHTTPClient struct{}
+
+// Post is the implementation of the Post method for StandardHTTPClient
+func (s *StandardHTTPClient) Post(url string, contentType string, body []byte) (*http.Response, error) {
+	return http.Post(url, contentType, bytes.NewBuffer(body))
 }
 
 // Creating http client object to be reused instead of creating one every time.
