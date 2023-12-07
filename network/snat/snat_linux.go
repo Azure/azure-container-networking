@@ -493,18 +493,14 @@ func (client *Client) addVlanDropRule() error {
 func (client *Client) EnableIPForwarding() error {
 	// Enable ip forwading on linux vm.
 	// sysctl -w net.ipv4.ip_forward=1
-	cmd := fmt.Sprint(enableIPForwardCmd)
-	_, err := client.plClient.ExecuteCommand(cmd)
+	_, err := client.plClient.ExecuteCommand(enableIPForwardCmd)
 	if err != nil {
-		logger.Error("Enable ipforwarding failed with", zap.Error(err))
-		return err
+		return errors.Wrap(err, "enable ipforwarding command failed")
 	}
 
 	// Append a rule in forward chain to allow forwarding from bridge
 	if err := client.ipTablesClient.AppendIptableRule(iptables.V4, iptables.Filter, iptables.Forward, "", iptables.Accept); err != nil {
-		logger.Error("Appending forward chain rule: allow traffic coming from snatbridge failed with",
-			zap.Error(err))
-		return err
+		return errors.Wrap(err, "appending forward chain rule to allow traffic from snat bridge failed")
 	}
 
 	return nil
