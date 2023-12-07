@@ -26,7 +26,7 @@ func TestAllowInboundFromHostToNC(t *testing.T) {
 		localIP:               "169.254.0.4/16",
 		containerSnatVethName: anyInterface,
 		netlink:               nl,
-		IPTablesClient:        iptc,
+		ipTablesClient:        iptc,
 	}
 
 	if err := nl.AddLink(&netlink.DummyLink{
@@ -75,7 +75,7 @@ func TestAllowInboundFromNCToHost(t *testing.T) {
 		localIP:               "169.254.0.4/16",
 		containerSnatVethName: anyInterface,
 		netlink:               nl,
-		IPTablesClient:        iptc,
+		ipTablesClient:        iptc,
 	}
 
 	if err := nl.AddLink(&netlink.DummyLink{

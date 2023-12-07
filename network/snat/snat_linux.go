@@ -26,6 +26,7 @@ const (
 	vlanDropAddRule     = "ebtables -t nat -A PREROUTING -p 802_1Q -j DROP"
 	vlanDropMatch       = "-p 802_1Q -j DROP"
 	l2PreroutingEntries = "ebtables -t nat -L PREROUTING"
+	enableIPForwardCmd  = "sysctl -w net.ipv4.ip_forward=1"
 )
 
 var logger = log.CNILogger.With(zap.String("component", "net"))
@@ -53,7 +54,7 @@ type Client struct {
 	enableProxyArpOnBridge bool
 	netlink                netlink.NetlinkInterface
 	plClient               platform.ExecClient
-	IPTablesClient         ipTablesClientInterface
+	ipTablesClient         ipTablesClientInterface
 }
 
 func NewSnatClient(hostIfName string,
@@ -77,7 +78,7 @@ func NewSnatClient(hostIfName string,
 		enableProxyArpOnBridge: enableProxyArpOnBridge,
 		netlink:                nl,
 		plClient:               plClient,
-		IPTablesClient:         ipTablesClient,
+		ipTablesClient:         ipTablesClient,
 	}
 
 	snatClient.SkipAddressesFromBlock = append(snatClient.SkipAddressesFromBlock, skipAddressesFromBlock...)
@@ -131,7 +132,7 @@ func (client *Client) CreateSnatEndpoint() error {
 // AllowIPAddressesOnSnatBridge adds iptables rules  that allows only specific Private IPs via linux bridge
 func (client *Client) AllowIPAddressesOnSnatBridge() error {
 	nu := networkutils.NewNetworkUtils(client.netlink, client.plClient)
-	if err := nu.AllowIPAddresses(client.IPTablesClient, SnatBridgeName, client.SkipAddressesFromBlock, iptables.Insert); err != nil {
+	if err := nu.AllowIPAddresses(client.ipTablesClient, SnatBridgeName, client.SkipAddressesFromBlock, iptables.Insert); err != nil {
 		logger.Error("AllowIPAddresses failed with", zap.Error(err))
 		return newErrorSnatClient(err.Error())
 	}
@@ -142,7 +143,7 @@ func (client *Client) AllowIPAddressesOnSnatBridge() error {
 // BlockIPAddressesOnSnatBridge adds iptables rules  that blocks all private IPs flowing via linux bridge
 func (client *Client) BlockIPAddressesOnSnatBridge() error {
 	nu := networkutils.NewNetworkUtils(client.netlink, client.plClient)
-	if err := nu.BlockIPAddresses(client.IPTablesClient, SnatBridgeName, iptables.Append); err != nil {
+	if err := nu.BlockIPAddresses(client.ipTablesClient, SnatBridgeName, iptables.Append); err != nil {
 		logger.Error("AllowIPAddresses failed with", zap.Error(err))
 		return newErrorSnatClient(err.Error())
 	}
@@ -184,40 +185,40 @@ func (client *Client) AllowInboundFromHostToNC() error {
 	bridgeIP, containerIP := getNCLocalAndGatewayIP(client)
 
 	// Create CNI Output chain
-	if err := client.IPTablesClient.CreateChain(iptables.V4, iptables.Filter, iptables.CNIOutputChain); err != nil {
+	if err := client.ipTablesClient.CreateChain(iptables.V4, iptables.Filter, iptables.CNIOutputChain); err != nil {
 		logger.Error("AllowInboundFromHostToNC: Creating failed with", zap.Any("CNIOutputChain", iptables.CNIOutputChain), zap.Error(err))
 		return newErrorSnatClient(err.Error())
 	}
 
 	// Forward traffic from Ouptut chain to CNI Output chain
-	if err := client.IPTablesClient.InsertIptableRule(iptables.V4, iptables.Filter, iptables.Output, "", iptables.CNIOutputChain); err != nil {
+	if err := client.ipTablesClient.InsertIptableRule(iptables.V4, iptables.Filter, iptables.Output, "", iptables.CNIOutputChain); err != nil {
 		logger.Error("AllowInboundFromHostToNC: Creating failed with", zap.Any("CNIOutputChain", iptables.CNIOutputChain), zap.Error(err))
 		return newErrorSnatClient(err.Error())
 	}
 
 	// Allow connection from Host to NC
 	matchCondition := fmt.Sprintf("-s %s -d %s", bridgeIP.String(), containerIP.String())
-	err := client.IPTablesClient.InsertIptableRule(iptables.V4, iptables.Filter, iptables.CNIOutputChain, matchCondition, iptables.Accept)
+	err := client.ipTablesClient.InsertIptableRule(iptables.V4, iptables.Filter, iptables.CNIOutputChain, matchCondition, iptables.Accept)
 	if err != nil {
 		logger.Error("AllowInboundFromHostToNC: Inserting output rule failed with ", zap.Error(err))
 		return newErrorSnatClient(err.Error())
 	}
 
 	// Create cniinput chain
-	if err = client.IPTablesClient.CreateChain(iptables.V4, iptables.Filter, iptables.CNIInputChain); err != nil {
+	if err = client.ipTablesClient.CreateChain(iptables.V4, iptables.Filter, iptables.CNIInputChain); err != nil {
 		logger.Error("AllowInboundFromHostToNC: Creating failed with", zap.Any("CNIOutputChain", iptables.CNIOutputChain), zap.Error(err))
 		return newErrorSnatClient(err.Error())
 	}
 
 	// Forward from Input to cniinput chain
-	if err = client.IPTablesClient.InsertIptableRule(iptables.V4, iptables.Filter, iptables.Input, "", iptables.CNIInputChain); err != nil {
+	if err = client.ipTablesClient.InsertIptableRule(iptables.V4, iptables.Filter, iptables.Input, "", iptables.CNIInputChain); err != nil {
 		logger.Error("AllowInboundFromHostToNC: Inserting forward rule to failed with", zap.Any("CNIOutputChain", iptables.CNIOutputChain), zap.Error(err))
 		return newErrorSnatClient(err.Error())
 	}
 
 	// Accept packets from NC only if established connection
 	matchCondition = fmt.Sprintf(" -i %s -m state --state %s,%s", SnatBridgeName, iptables.Established, iptables.Related)
-	err = client.IPTablesClient.InsertIptableRule(iptables.V4, iptables.Filter, iptables.CNIInputChain, matchCondition, iptables.Accept)
+	err = client.ipTablesClient.InsertIptableRule(iptables.V4, iptables.Filter, iptables.CNIInputChain, matchCondition, iptables.Accept)
 	if err != nil {
 		logger.Error("AllowInboundFromHostToNC: Inserting input rule failed with", zap.Error(err))
 		return newErrorSnatClient(err.Error())
@@ -249,7 +250,7 @@ func (client *Client) DeleteInboundFromHostToNC() error {
 
 	// Delete allow connection from Host to NC
 	matchCondition := fmt.Sprintf("-s %s -d %s", bridgeIP.String(), containerIP.String())
-	err := client.IPTablesClient.DeleteIptableRule(iptables.V4, iptables.Filter, iptables.CNIOutputChain, matchCondition, iptables.Accept)
+	err := client.ipTablesClient.DeleteIptableRule(iptables.V4, iptables.Filter, iptables.CNIOutputChain, matchCondition, iptables.Accept)
 	if err != nil {
 		logger.Error("DeleteInboundFromHostToNC: Error removing output rule", zap.Error(err))
 	}
@@ -276,14 +277,14 @@ func (client *Client) AllowInboundFromNCToHost() error {
 	bridgeIP, containerIP := getNCLocalAndGatewayIP(client)
 
 	// Create CNI Input chain
-	if err := client.IPTablesClient.CreateChain(iptables.V4, iptables.Filter, iptables.CNIInputChain); err != nil {
+	if err := client.ipTablesClient.CreateChain(iptables.V4, iptables.Filter, iptables.CNIInputChain); err != nil {
 		logger.Error("AllowInboundFromHostToNC: Creating failed with", zap.String("CNIInputChain", iptables.CNIInputChain),
 			zap.Error(err))
 		return err
 	}
 
 	// Forward traffic from Input to cniinput chain
-	if err := client.IPTablesClient.InsertIptableRule(iptables.V4, iptables.Filter, iptables.Input, "", iptables.CNIInputChain); err != nil {
+	if err := client.ipTablesClient.InsertIptableRule(iptables.V4, iptables.Filter, iptables.Input, "", iptables.CNIInputChain); err != nil {
 		logger.Error("AllowInboundFromHostToNC: Inserting forward rule to failed with", zap.String("CNIInputChain", iptables.CNIInputChain),
 			zap.Error(err))
 		return err
@@ -291,21 +292,21 @@ func (client *Client) AllowInboundFromNCToHost() error {
 
 	// Allow NC to Host connection
 	matchCondition := fmt.Sprintf("-s %s -d %s", containerIP.String(), bridgeIP.String())
-	err := client.IPTablesClient.InsertIptableRule(iptables.V4, iptables.Filter, iptables.CNIInputChain, matchCondition, iptables.Accept)
+	err := client.ipTablesClient.InsertIptableRule(iptables.V4, iptables.Filter, iptables.CNIInputChain, matchCondition, iptables.Accept)
 	if err != nil {
 		logger.Error("AllowInboundFromHostToNC: Inserting output rule failed with", zap.Error(err))
 		return err
 	}
 
 	// Create CNI output chain
-	if err = client.IPTablesClient.CreateChain(iptables.V4, iptables.Filter, iptables.CNIOutputChain); err != nil {
+	if err = client.ipTablesClient.CreateChain(iptables.V4, iptables.Filter, iptables.CNIOutputChain); err != nil {
 		logger.Error("AllowInboundFromHostToNC: Creating failed with", zap.String("CNIInputChain", iptables.CNIInputChain),
 			zap.Error(err))
 		return err
 	}
 
 	// Forward traffic from Output to CNI Output chain
-	if err = client.IPTablesClient.InsertIptableRule(iptables.V4, iptables.Filter, iptables.Output, "", iptables.CNIOutputChain); err != nil {
+	if err = client.ipTablesClient.InsertIptableRule(iptables.V4, iptables.Filter, iptables.Output, "", iptables.CNIOutputChain); err != nil {
 		logger.Error("AllowInboundFromHostToNC: Inserting forward rule to failed with", zap.String("CNIInputChain", iptables.CNIInputChain),
 			zap.Error(err))
 		return err
@@ -313,7 +314,7 @@ func (client *Client) AllowInboundFromNCToHost() error {
 
 	// Accept packets from Host only if established connection
 	matchCondition = fmt.Sprintf(" -o %s -m state --state %s,%s", SnatBridgeName, iptables.Established, iptables.Related)
-	err = client.IPTablesClient.InsertIptableRule(iptables.V4, iptables.Filter, iptables.CNIOutputChain, matchCondition, iptables.Accept)
+	err = client.ipTablesClient.InsertIptableRule(iptables.V4, iptables.Filter, iptables.CNIOutputChain, matchCondition, iptables.Accept)
 	if err != nil {
 		logger.Error("AllowInboundFromHostToNC: Inserting input rule failed with", zap.Error(err))
 		return err
@@ -343,7 +344,7 @@ func (client *Client) DeleteInboundFromNCToHost() error {
 
 	// Delete allow NC to Host connection
 	matchCondition := fmt.Sprintf("-s %s -d %s", containerIP.String(), bridgeIP.String())
-	err := client.IPTablesClient.DeleteIptableRule(iptables.V4, iptables.Filter, iptables.CNIInputChain, matchCondition, iptables.Accept)
+	err := client.ipTablesClient.DeleteIptableRule(iptables.V4, iptables.Filter, iptables.CNIInputChain, matchCondition, iptables.Accept)
 	if err != nil {
 		logger.Error("DeleteInboundFromNCToHost: Error removing output rule", zap.Error(err))
 	}
@@ -465,7 +466,7 @@ func (client *Client) createSnatBridge(snatBridgeIP, hostPrimaryMac string) erro
 func (client *Client) addMasqueradeRule(snatBridgeIPWithPrefix string) error {
 	_, ipNet, _ := net.ParseCIDR(snatBridgeIPWithPrefix)
 	matchCondition := fmt.Sprintf("-s %s", ipNet.String())
-	return errors.Wrap(client.IPTablesClient.InsertIptableRule(iptables.V4, iptables.Nat, iptables.Postrouting, matchCondition, iptables.Masquerade),
+	return errors.Wrap(client.ipTablesClient.InsertIptableRule(iptables.V4, iptables.Nat, iptables.Postrouting, matchCondition, iptables.Masquerade),
 		"failed to add masquerade rule")
 }
 
@@ -486,4 +487,25 @@ func (client *Client) addVlanDropRule() error {
 	logger.Info("Adding ebtable rule to drop vlan traffic on snat bridge", zap.String("vlanDropAddRule", vlanDropAddRule))
 	_, err = client.plClient.ExecuteCommand(vlanDropAddRule)
 	return err
+}
+
+// This function enables ip forwarding in VM and allow forwarding packets from the interface
+func (client *Client) EnableIPForwarding() error {
+	// Enable ip forwading on linux vm.
+	// sysctl -w net.ipv4.ip_forward=1
+	cmd := fmt.Sprint(enableIPForwardCmd)
+	_, err := client.plClient.ExecuteCommand(cmd)
+	if err != nil {
+		logger.Error("Enable ipforwarding failed with", zap.Error(err))
+		return err
+	}
+
+	// Append a rule in forward chain to allow forwarding from bridge
+	if err := client.ipTablesClient.AppendIptableRule(iptables.V4, iptables.Filter, iptables.Forward, "", iptables.Accept); err != nil {
+		logger.Error("Appending forward chain rule: allow traffic coming from snatbridge failed with",
+			zap.Error(err))
+		return err
+	}
+
+	return nil
 }

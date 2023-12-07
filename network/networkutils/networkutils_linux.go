@@ -31,7 +31,6 @@ RFC for Link Local Addresses: https://tools.ietf.org/html/rfc3927
 */
 
 const (
-	enableIPForwardCmd   = "sysctl -w net.ipv4.ip_forward=1"
 	toggleIPV6Cmd        = "sysctl -w net.ipv6.conf.all.disable_ipv6=%d"
 	enableIPV6ForwardCmd = "sysctl -w net.ipv6.conf.all.forwarding=1"
 	enableIPV4ForwardCmd = "sysctl -w net.ipv4.conf.all.forwarding=1"
@@ -207,27 +206,6 @@ func (nu NetworkUtils) BlockIPAddresses(iptablesClient ipTablesClientInterface, 
 		if err := nu.addOrDeleteFilterRule(iptablesClient, bridgeName, action, ipAddress, chains[2], target[1]); err != nil {
 			return err
 		}
-	}
-
-	return nil
-}
-
-// This function enables ip forwarding in VM and allow forwarding packets from the interface
-func (nu NetworkUtils) EnableIPForwarding(iptablesClient ipTablesClientInterface) error {
-	// Enable ip forwading on linux vm.
-	// sysctl -w net.ipv4.ip_forward=1
-	cmd := fmt.Sprint(enableIPForwardCmd)
-	_, err := nu.plClient.ExecuteCommand(cmd)
-	if err != nil {
-		logger.Error("Enable ipforwarding failed with", zap.Error(err))
-		return err
-	}
-
-	// Append a rule in forward chain to allow forwarding from bridge
-	if err := iptablesClient.AppendIptableRule(iptables.V4, iptables.Filter, iptables.Forward, "", iptables.Accept); err != nil {
-		logger.Error("Appending forward chain rule: allow traffic coming from snatbridge failed with",
-			zap.Error(err))
-		return err
 	}
 
 	return nil

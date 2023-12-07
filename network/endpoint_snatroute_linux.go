@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	"github.com/Azure/azure-container-networking/netlink"
-	"github.com/Azure/azure-container-networking/network/networkutils"
 	"github.com/Azure/azure-container-networking/network/snat"
 	"github.com/Azure/azure-container-networking/platform"
 	"github.com/pkg/errors"
@@ -36,8 +35,7 @@ func AddSnatEndpointRules(snatClient *snat.Client, hostToNC, ncToHost bool, nl n
 	if err := snatClient.BlockIPAddressesOnSnatBridge(); err != nil {
 		return errors.Wrap(err, "failed to block ip addresses on snat bridge")
 	}
-	nuc := networkutils.NewNetworkUtils(nl, plc)
-	if err := nuc.EnableIPForwarding(snatClient.IPTablesClient); err != nil {
+	if err := snatClient.EnableIPForwarding(); err != nil {
 		return errors.Wrap(err, "failed to enable ip forwarding")
 	}
 
