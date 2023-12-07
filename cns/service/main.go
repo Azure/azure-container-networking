@@ -60,6 +60,7 @@ import (
 	"github.com/avast/retry-go/v4"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -579,9 +580,24 @@ func main() {
 		}
 	}
 
-	// start the health server
-	z, _ := zap.NewProduction()
-	go healthserver.Start(z, cnsconfig.MetricsBindAddress)
+	// configure zap logger
+	zconfig := zap.NewProductionConfig()
+	zconfig.EncoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
+	z, _ := zconfig.Build()
+
+	// start the healthz/readyz/metrics server
+	readyCh := make(chan interface{})
+	readyChecker := healthz.CheckHandler{
+		Checker: healthz.Checker(func(*http.Request) error {
+			select {
+			default:
+				return errors.New("not ready")
+			case <-readyCh:
+			}
+			return nil
+		}),
+	}
+	go healthserver.Start(z, cnsconfig.MetricsBindAddress, &healthz.Handler{}, readyChecker)
 
 	nmaConfig, err := nmagent.NewConfig(cnsconfig.WireserverIP)
 	if err != nil {
@@ -953,6 +969,8 @@ func main() {
 		}
 	}
 
+	// mark the service as "ready"
+	close(readyCh)
 	// block until process exiting
 	<-rootCtx.Done()
 
@@ -1351,13 +1369,6 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 		// if SWIFT v2 is enabled on CNS, attach multitenant middleware to rest service
 		swiftV2Middleware := middlewares.SWIFTv2Middleware{Cli: manager.GetClient()}
 		httpRestService.AttachSWIFTv2Middleware(&swiftV2Middleware)
-	}
-
-	// adding some routes to the root service mux
-	mux := httpRestServiceImplementation.Listener.GetMux()
-	mux.Handle("/readyz", http.StripPrefix("/readyz", &healthz.Handler{}))
-	if cnsconfig.EnablePprof {
-		httpRestServiceImplementation.RegisterPProfEndpoints()
 	}
 
 	// start the pool Monitor before the Reconciler, since it needs to be ready to receive an
