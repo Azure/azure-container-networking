@@ -114,6 +114,7 @@ func (w *watcher) watchFS(ctx context.Context) error {
 	}
 	defer watcher.Close()
 
+	// Start watching the directory, so that we don't miss any events.
 	err = watcher.Add(w.path)
 	if err != nil {
 		w.log.Error("failed to add path to fsnotify watcher", zap.String("path", w.path), zap.Error(err))
@@ -163,9 +164,7 @@ func (w *watcher) watchFS(ctx context.Context) error {
 // Start starts the filesystem watcher to handle async Pod deletes.
 // Blocks until the context is closed; returns underlying fsnotify errors
 // if something goes fatally wrong.
-func (w *watcher) Start(c context.Context) error {
-	ctx, cancel := context.WithCancel(c)
-	defer cancel()
+func (w *watcher) Start(ctx context.Context) error {
 	g, groupCtx := errgroup.WithContext(ctx)
 	// Start watching for enqueued missed deletes so that we process them as soon as they arrive.
 	g.Go(func() error { return w.watchPendingDelete(groupCtx) })
