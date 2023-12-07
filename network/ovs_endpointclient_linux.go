@@ -35,7 +35,7 @@ type OVSEndpointClient struct {
 	netioshim                netio.NetIOInterface
 	ovsctlClient             ovsctl.OvsInterface
 	plClient                 platform.ExecClient
-	iptablesClient           ipTablesClientInterface
+	iptablesClient           ipTablesClient
 }
 
 const (
@@ -53,7 +53,7 @@ func NewOVSEndpointClient(
 	nl netlink.NetlinkInterface,
 	ovs ovsctl.OvsInterface,
 	plc platform.ExecClient,
-	iptc ipTablesClientInterface,
+	iptc ipTablesClient,
 ) *OVSEndpointClient {
 	client := &OVSEndpointClient{
 		bridgeName:               nw.extIf.BridgeName,

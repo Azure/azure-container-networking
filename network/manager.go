@@ -81,7 +81,7 @@ type networkManager struct {
 	netio              netio.NetIOInterface
 	plClient           platform.ExecClient
 	nsClient           NamespaceClientInterface
-	iptablesClient     ipTablesClientInterface
+	iptablesClient     ipTablesClient
 	sync.Mutex
 }
 
@@ -115,7 +115,7 @@ type NetworkManager interface {
 
 // Creates a new network manager.
 func NewNetworkManager(nl netlink.NetlinkInterface, plc platform.ExecClient, netioCli netio.NetIOInterface, nsc NamespaceClientInterface,
-	iptc ipTablesClientInterface,
+	iptc ipTablesClient,
 ) (NetworkManager, error) {
 	nm := &networkManager{
 		ExternalInterfaces: make(map[string]*externalInterface),

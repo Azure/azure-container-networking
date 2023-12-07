@@ -1,6 +1,6 @@
 package network
 
-type ipTablesClientInterface interface {
+type ipTablesClient interface {
 	InsertIptableRule(version, tableName, chainName, match, target string) error
 	AppendIptableRule(version, tableName, chainName, match, target string) error
 	DeleteIptableRule(version, tableName, chainName, match, target string) error

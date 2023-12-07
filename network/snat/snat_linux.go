@@ -31,7 +31,7 @@ const (
 
 var logger = log.CNILogger.With(zap.String("component", "net"))
 
-type ipTablesClientInterface interface {
+type ipTablesClient interface {
 	InsertIptableRule(version, tableName, chainName, match, target string) error
 	AppendIptableRule(version, tableName, chainName, match, target string) error
 	DeleteIptableRule(version, tableName, chainName, match, target string) error
@@ -54,7 +54,7 @@ type Client struct {
 	enableProxyArpOnBridge bool
 	netlink                netlink.NetlinkInterface
 	plClient               platform.ExecClient
-	ipTablesClient         ipTablesClientInterface
+	ipTablesClient         ipTablesClient
 }
 
 func NewSnatClient(hostIfName string,
@@ -66,7 +66,7 @@ func NewSnatClient(hostIfName string,
 	enableProxyArpOnBridge bool,
 	nl netlink.NetlinkInterface,
 	plClient platform.ExecClient,
-	ipTablesClient ipTablesClientInterface,
+	iptc ipTablesClient,
 ) Client {
 	logger.Info("Initialize new snat client")
 	snatClient := Client{
@@ -78,7 +78,7 @@ func NewSnatClient(hostIfName string,
 		enableProxyArpOnBridge: enableProxyArpOnBridge,
 		netlink:                nl,
 		plClient:               plClient,
-		ipTablesClient:         ipTablesClient,
+		ipTablesClient:         iptc,
 	}
 
 	snatClient.SkipAddressesFromBlock = append(snatClient.SkipAddressesFromBlock, skipAddressesFromBlock...)

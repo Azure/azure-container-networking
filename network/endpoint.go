@@ -140,7 +140,7 @@ func (nw *network) newEndpoint(
 	plc platform.ExecClient,
 	netioCli netio.NetIOInterface,
 	nsc NamespaceClientInterface,
-	iptc ipTablesClientInterface,
+	iptc ipTablesClient,
 	epInfo []*EndpointInfo,
 ) (*endpoint, error) {
 	var ep *endpoint
@@ -166,7 +166,7 @@ func (nw *network) newEndpoint(
 
 // DeleteEndpoint deletes an existing endpoint from the network.
 func (nw *network) deleteEndpoint(nl netlink.NetlinkInterface, plc platform.ExecClient, nioc netio.NetIOInterface, nsc NamespaceClientInterface,
-	iptc ipTablesClientInterface, endpointID string,
+	iptc ipTablesClient, endpointID string,
 ) error {
 	var err error
 
