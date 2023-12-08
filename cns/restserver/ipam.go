@@ -23,9 +23,9 @@ import (
 var (
 	ErrStoreEmpty             = errors.New("empty endpoint state store")
 	ErrParsePodIPFailed       = errors.New("failed to parse pod's ip")
-	ErrNoNCs                  = errors.New("No NCs found in the CNS internal state")
+	ErrNoNCs                  = errors.New("no NCs found in the CNS internal state")
 	ErrOptManageEndpointState = errors.New("CNS is not set to manage the endpoint state")
-	ErrEndpointStateNotFound  = errors.New("Endpoint state could not be found in the statefile")
+	ErrEndpointStateNotFound  = errors.New("endpoint state could not be found in the statefile")
 )
 
 // requestIPConfigHandlerHelper validates the request, assign IPs and return the IPConfigs
