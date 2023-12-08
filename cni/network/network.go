@@ -664,6 +664,8 @@ func (plugin *NetPlugin) createNetworkInternal(
 	}
 	setNetworkOptions(ipamAddResult.ncResponse, &nwInfo)
 
+	logger.Info("addSubnetToNetworkInfo nwInfo", zap.Any("addSubnetToNetworkInfo", nwInfo))
+
 	err = plugin.nm.CreateNetwork(&nwInfo)
 	if err != nil {
 		err = plugin.Errorf("createNetworkInternal: Failed to create network: %v", err)
@@ -674,7 +676,7 @@ func (plugin *NetPlugin) createNetworkInternal(
 
 // construct network info with ipv4/ipv6 subnets
 func addSubnetToNetworkInfo(ipamAddResult IPAMAddResult, nwInfo *network.NetworkInfo) error {
-	for _, ipConfig := range ipamAddResult.defaultInterfaceInfo.IPConfigs {
+	for _, ipConfig := range ipamAddResult.secondaryInterfacesInfo[0].IPConfigs {
 		ip, podSubnetPrefix, err := net.ParseCIDR(ipConfig.Address.String())
 		if err != nil {
 			return fmt.Errorf("Failed to ParseCIDR for pod subnet prefix: %w", err)

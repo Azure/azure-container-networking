@@ -297,6 +297,7 @@ func (nm *networkManager) configureHcnNetwork(nwInfo *NetworkInfo, extIf *extern
 		return nil, errNetworkModeInvalid
 	}
 
+	logger.Info("network windows.go nwInfo.Subnets", zap.Any("nwInfo.Subnets", nwInfo.Subnets))
 	// Populate subnets.
 	for _, subnet := range nwInfo.Subnets {
 		hnsSubnet := hcn.Subnet{
@@ -318,6 +319,7 @@ func (nm *networkManager) configureHcnNetwork(nwInfo *NetworkInfo, extIf *extern
 		hcnNetwork.Ipams[0].Subnets = append(hcnNetwork.Ipams[0].Subnets, hnsSubnet)
 	}
 
+	logger.Info("hcnNetwork is", zap.Any("hcnNetwork", hcnNetwork))
 	return hcnNetwork, nil
 }
 

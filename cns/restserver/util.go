@@ -788,24 +788,6 @@ func (service *HTTPRestService) validateDefaultIPConfigsRequest(_ context.Contex
 	return types.Success, ""
 }
 
-func (service *HTTPRestService) getSecondaryHostInterface(ctx context.Context) (*wireserver.InterfaceInfo, error) {
-	if service.state.secondaryInterface == nil {
-		res, err := service.wscli.GetInterfaces(ctx)
-		logger.Printf("secondary interface res is %+v", res)
-		if err != nil {
-			return nil, errors.Wrap(err, "failed to get interfaces from IMDS")
-		}
-		secondary, err := wireserver.GetSecondaryInterfaceFromResult(res)
-		logger.Printf("secondary paul interface is %+v", secondary)
-		if err != nil {
-			return nil, errors.Wrap(err, "failed to get secondary interface from IMDS response")
-		}
-		service.state.secondaryInterface = secondary
-	}
-	logger.Printf("service.state.secondaryInterface is %+v", service.state.secondaryInterface)
-	return service.state.secondaryInterface, nil
-}
-
 // getPrimaryHostInterface returns the cached InterfaceInfo, if available, otherwise
 // queries the IMDS to get the primary interface info and caches it in the server state
 // before returning the result.
@@ -815,15 +797,28 @@ func (service *HTTPRestService) getPrimaryHostInterface(ctx context.Context) (*w
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to get interfaces from IMDS")
 		}
-
 		primary, err := wireserver.GetPrimaryInterfaceFromResult(res)
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to get primary interface from IMDS response")
 		}
-
 		service.state.primaryInterface = primary
 	}
 	return service.state.primaryInterface, nil
+}
+
+func (service *HTTPRestService) getSecondaryHostInterface(ctx context.Context) (*wireserver.InterfaceInfo, error) {
+	if service.state.secondaryInterface == nil {
+		res, err := service.wscli.GetInterfaces(ctx)
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to get interfaces from IMDS")
+		}
+		secondary, err := wireserver.GetSecondaryInterfaceFromResult(res)
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to get secondary interface from IMDS response")
+		}
+		service.state.secondaryInterface = secondary
+	}
+	return service.state.secondaryInterface, nil
 }
 
 //nolint:gocritic // ignore hugeParam pls
