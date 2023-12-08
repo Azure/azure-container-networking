@@ -81,14 +81,14 @@ type metadataWrapper struct {
 
 // HTTPClient interface to abstract http.Client methods
 type HTTPClient interface {
-	Post(url string, contentType string, body []byte) (*http.Response, error)
+	Post(url, contentType string, body []byte) (*http.Response, error)
 }
 
 // StandardHTTPClient is a standard implementation of the HTTPClient interface
 type StandardHTTPClient struct{}
 
 // Post is the implementation of the Post method for StandardHTTPClient
-func (s *StandardHTTPClient) Post(url string, contentType string, body []byte) (*http.Response, error) {
+func (c *StandardHTTPClient) Post(url string, contentType string, body []byte) (*http.Response, error) {
 	return http.Post(url, contentType, bytes.NewBuffer(body))
 }
 
