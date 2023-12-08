@@ -92,6 +92,7 @@ type EndpointInfo struct {
 	NICType                  cns.NICType
 	SkipDefaultRoutes        bool
 	HNSEndpointID            string
+	HostIfName               string
 }
 
 // RouteInfo contains information about an IP route.
@@ -267,6 +268,8 @@ func (ep *endpoint) getInfo() *EndpointInfo {
 		PODName:                  ep.PODName,
 		PODNameSpace:             ep.PODNameSpace,
 		NetworkContainerID:       ep.NetworkContainerID,
+		HNSEndpointID:            ep.HnsId,
+		HostIfName:               ep.HostIfName,
 	}
 
 	info.Routes = append(info.Routes, ep.Routes...)

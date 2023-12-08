@@ -839,7 +839,7 @@ func main() {
 
 		logger.Printf("Set GlobalPodInfoScheme %v (InitializeFromCNI=%t)", cns.GlobalPodInfoScheme, cnsconfig.InitializeFromCNI)
 
-		err = InitializeCRDState(rootCtx, httpRestService, cnsconfig)
+		err = InitializeCRDState(rootCtx, httpRestService, cnsconfig, endpointStateStore)
 		if err != nil {
 			logger.Errorf("Failed to start CRD Controller, err:%v.\n", err)
 			return
@@ -1182,7 +1182,7 @@ func reconcileInitialCNSState(ctx context.Context, cli nodeNetworkConfigGetter, 
 }
 
 // InitializeCRDState builds and starts the CRD controllers.
-func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cnsconfig *configuration.CNSConfig) error {
+func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cnsconfig *configuration.CNSConfig, endpointStateStore store.KeyValueStore) error {
 	// convert interface type to implementation type
 	httpRestServiceImplementation, ok := httpRestService.(*restserver.HTTPRestService)
 	if !ok {
@@ -1238,12 +1238,17 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 		if err != nil {
 			if errors.Is(err, store.ErrKeyNotFound) {
 				logger.Printf("[Azure CNS] No endpoint state found, skipping initializing CNS state")
-				if os.Getenv("StatelessCNIMigration") == "true" {
+				if cnsconfig.StatelessCNIMigration {
 					logger.Printf("StatelessCNI Migration is enabled")
 					logger.Printf("Initializing from Statefull CNI")
-					podInfoByIPProvider, err = cnireconciler.NewCNIPodInfoProvider()
+					var endpointState map[string]*restserver.EndpointInfo
+					podInfoByIPProvider, endpointState, err = cnireconciler.NewCNIPodInfoProvider()
 					if err != nil {
 						return errors.Wrap(err, "failed to create CNI PodInfoProvider")
+					}
+					err := endpointStateStore.Write(restserver.EndpointStoreKey, endpointState)
+					if err != nil {
+						return fmt.Errorf("failed to write endpoint state to store: %w", err)
 					}
 				}
 			} else {
@@ -1253,7 +1258,7 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 
 	case cnsconfig.InitializeFromCNI:
 		logger.Printf("Initializing from CNI")
-		podInfoByIPProvider, err = cnireconciler.NewCNIPodInfoProvider()
+		podInfoByIPProvider, _, err = cnireconciler.NewCNIPodInfoProvider()
 		if err != nil {
 			return errors.Wrap(err, "failed to create CNI PodInfoProvider")
 		}

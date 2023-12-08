@@ -2,10 +2,12 @@ package cnireconciler
 
 import (
 	"fmt"
+	"net"
 
 	"github.com/Azure/azure-container-networking/cni/api"
 	"github.com/Azure/azure-container-networking/cni/client"
 	"github.com/Azure/azure-container-networking/cns"
+	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/restserver"
 	"github.com/Azure/azure-container-networking/store"
 	"github.com/pkg/errors"
@@ -14,7 +16,7 @@ import (
 
 // NewCNIPodInfoProvider returns an implementation of cns.PodInfoByIPProvider
 // that execs out to the CNI and uses the response to build the PodInfo map.
-func NewCNIPodInfoProvider() (cns.PodInfoByIPProvider, error) {
+func NewCNIPodInfoProvider() (cns.PodInfoByIPProvider, map[string]*restserver.EndpointInfo, error) {
 	return newCNIPodInfoProvider(exec.New())
 }
 
@@ -39,15 +41,16 @@ func newCNSPodInfoProvider(endpointStore store.KeyValueStore) (cns.PodInfoByIPPr
 	}), nil
 }
 
-func newCNIPodInfoProvider(exec exec.Interface) (cns.PodInfoByIPProvider, error) {
+func newCNIPodInfoProvider(exec exec.Interface) (cns.PodInfoByIPProvider, map[string]*restserver.EndpointInfo, error) {
 	cli := client.New(exec)
 	state, err := cli.GetEndpointState()
 	if err != nil {
-		return nil, fmt.Errorf("failed to invoke CNI client.GetEndpointState(): %w", err)
+		return nil, nil, fmt.Errorf("failed to invoke CNI client.GetEndpointState(): %w", err)
 	}
+	endpointState, err := cniStateToCnsEndpointState(state)
 	return cns.PodInfoByIPProviderFunc(func() (map[string]cns.PodInfo, error) {
 		return cniStateToPodInfoByIP(state)
-	}), nil
+	}), endpointState, nil
 }
 
 // cniStateToPodInfoByIP converts an AzureCNIState dumped from a CNI exec
@@ -100,4 +103,38 @@ func endpointStateToPodInfoByIP(state map[string]*restserver.EndpointInfo) (map[
 		}
 	}
 	return podInfoByIP, nil
+}
+
+// cniStateToCnsEndpointState converts an AzureCNIState dumped from a CNI exec
+// into a EndpointInfo map, using the containerID as keys in the map.
+// The map then will be saved on CNS endpoint state
+func cniStateToCnsEndpointState(state *api.AzureCNIState) (map[string]*restserver.EndpointInfo, error) {
+	logger.Printf("Generating CNS ENdpoint State")
+	endpointState := map[string]*restserver.EndpointInfo{}
+	for _, endpoint := range state.ContainerInterfaces {
+		endpointInfo := &restserver.EndpointInfo{PodName: endpoint.PodName, PodNamespace: endpoint.PodNamespace, HnsEndpointID: endpoint.HNSEndpointID, HostVethName: endpoint.HostIfName, IfnameToIPMap: make(map[string]*restserver.IPInfo)}
+		for _, epIP := range endpoint.IPAddresses {
+			if epIP.IP.To4() == nil { // is an ipv6 address
+				ipconfig := net.IPNet{IP: epIP.IP, Mask: epIP.Mask}
+				for _, ipconf := range endpointInfo.IfnameToIPMap[endpoint.IfName].IPv6 {
+					if ipconf.IP.Equal(ipconfig.IP) {
+						logger.Printf("Found existing ipv6 ipconfig for infra container %s", endpoint.ContainerID)
+						return nil, nil
+					}
+				}
+				endpointInfo.IfnameToIPMap[endpoint.IfName].IPv6 = append(endpointInfo.IfnameToIPMap[endpoint.IfName].IPv6, ipconfig)
+			} else {
+				ipconfig := net.IPNet{IP: epIP.IP, Mask: epIP.Mask}
+				for _, ipconf := range endpointInfo.IfnameToIPMap[endpoint.IfName].IPv4 {
+					if ipconf.IP.Equal(ipconfig.IP) {
+						logger.Printf("Found existing ipv4 ipconfig for infra container %s", endpoint.ContainerID)
+						return nil, nil
+					}
+				}
+				endpointInfo.IfnameToIPMap[endpoint.IfName].IPv4 = append(endpointInfo.IfnameToIPMap[endpoint.IfName].IPv4, ipconfig)
+			}
+		}
+		endpointState[endpoint.ContainerID] = endpointInfo
+	}
+	return endpointState, nil
 }
