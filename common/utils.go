@@ -88,7 +88,7 @@ type HTTPClient interface {
 type StandardHTTPClient struct{}
 
 // Post is the implementation of the Post method for StandardHTTPClient
-func (c *StandardHTTPClient) Post(url string, contentType string, body []byte) (*http.Response, error) {
+func (c *StandardHTTPClient) Post(url, contentType string, body []byte) (*http.Response, error) {
 	return http.Post(url, contentType, bytes.NewBuffer(body))
 }
 

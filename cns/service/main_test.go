@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/fakes"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"testing"
 )
@@ -24,7 +24,7 @@ func TestPostDataWithMockClient(t *testing.T) {
 	// Create a mock HTTP client
 	mockResponse := &http.Response{
 		StatusCode: http.StatusOK,
-		Body:       ioutil.NopCloser(bytes.NewBufferString(`{"status": "success", "OrchestratorType": "Kubernetes", "DncPartitionKey": "1234", "NodeID": "5678"}`)),
+		Body:       io.NopCloser(bytes.NewBufferString(`{"status": "success", "OrchestratorType": "Kubernetes", "DncPartitionKey": "1234", "NodeID": "5678"}`)),
 		Header:     make(http.Header),
 	}
 	mockClient := &MockHTTPClient{Response: mockResponse, Err: nil}
