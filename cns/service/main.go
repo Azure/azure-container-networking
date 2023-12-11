@@ -373,7 +373,7 @@ type NodeInterrogator interface {
 }
 
 // RegisterNode - Tries to register node with DNC when CNS is started in managed DNC mode
-func registerNode(httpClient acn.HTTPClient, httpRestService cns.HTTPService, dncEP, infraVnet, nodeID string, ni NodeInterrogator) error {
+func registerNode(ctx context.Context, httpClient acn.HTTPClient, httpRestService cns.HTTPService, dncEP, infraVnet, nodeID string, ni NodeInterrogator) error {
 	logger.Printf("[Azure CNS] Registering node %s with Infrastructure Network: %s PrivateEndpoint: %s", nodeID, infraVnet, dncEP)
 
 	var (
@@ -400,7 +400,7 @@ func registerNode(httpClient acn.HTTPClient, httpRestService cns.HTTPService, dn
 
 	// CNS tries to register Node for maximum of an hour.
 	err := retry.Do(func() error {
-		return sendRegisterNodeRequest(httpClient, httpRestService, nodeRegisterRequest, url)
+		return sendRegisterNodeRequest(ctx, httpClient, httpRestService, nodeRegisterRequest, url)
 	}, retry.Delay(acn.FiveSeconds), retry.Attempts(maxRetryNodeRegister), retry.DelayType(retry.FixedDelay))
 
 	return errors.Wrap(err, fmt.Sprintf("[Azure CNS] Failed to register node %s after maximum reties for an hour with Infrastructure Network: %s PrivateEndpoint: %s",
@@ -408,7 +408,7 @@ func registerNode(httpClient acn.HTTPClient, httpRestService cns.HTTPService, dn
 }
 
 // sendRegisterNodeRequest func helps in registering the node until there is an error.
-func sendRegisterNodeRequest(httpClient acn.HTTPClient, httpRestService cns.HTTPService, nodeRegisterRequest cns.NodeRegisterRequest, registerURL string) error {
+func sendRegisterNodeRequest(ctx context.Context, httpClient acn.HTTPClient, httpRestService cns.HTTPService, nodeRegisterRequest cns.NodeRegisterRequest, registerURL string) error {
 	var body bytes.Buffer
 	err := json.NewEncoder(&body).Encode(nodeRegisterRequest)
 	if err != nil {
@@ -416,7 +416,7 @@ func sendRegisterNodeRequest(httpClient acn.HTTPClient, httpRestService cns.HTTP
 		return errors.Wrap(retry.Unrecoverable(err), "failed to sendRegisterNodeRequest")
 	}
 
-	request, err := http.NewRequest(http.MethodPost, registerURL, &body)
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, registerURL, &body)
 	if err != nil {
 		return errors.Wrap(err, "failed to build request")
 	}
@@ -899,7 +899,7 @@ func main() {
 
 		standardClient := &acn.StandardHTTPClient{}
 
-		registerErr := registerNode(standardClient, httpRestService, privateEndpoint, infravnet, nodeID, nmaClient)
+		registerErr := registerNode(rootCtx, standardClient, httpRestService, privateEndpoint, infravnet, nodeID, nmaClient)
 		if registerErr != nil {
 			logger.Errorf("[Azure CNS] Resgistering Node failed with error: %v PrivateEndpoint: %s InfrastructureNetworkID: %s NodeID: %s",
 				registerErr,

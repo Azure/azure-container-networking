@@ -2,16 +2,15 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"io"
 	"net/http"
 	"testing"
 
-	"github.com/Azure/azure-container-networking/cns/logger"
-
-	"github.com/stretchr/testify/assert"
-
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/fakes"
+	"github.com/Azure/azure-container-networking/cns/logger"
+	"github.com/stretchr/testify/assert"
 )
 
 // MockHTTPClient is a mock implementation of HTTPClient
@@ -26,6 +25,7 @@ func (m *MockHTTPClient) Do(_ *http.Request) (*http.Response, error) {
 }
 
 func TestSendRegisterNodeRequest_StatusOK(t *testing.T) {
+	ctx := context.Background()
 	logger.InitLogger("testlogs", 0, 0, "./")
 	httpServiceFake := fakes.NewHTTPServiceFake()
 	nodeRegisterReq := cns.NodeRegisterRequest{
@@ -44,10 +44,11 @@ func TestSendRegisterNodeRequest_StatusOK(t *testing.T) {
 
 	mockClient := &MockHTTPClient{Response: mockResponse, Err: nil}
 
-	assert.NoError(t, sendRegisterNodeRequest(mockClient, httpServiceFake, nodeRegisterReq, url))
+	assert.NoError(t, sendRegisterNodeRequest(ctx, mockClient, httpServiceFake, nodeRegisterReq, url))
 }
 
 func TestSendRegisterNodeRequest_StatusAccepted(t *testing.T) {
+	ctx := context.Background()
 	logger.InitLogger("testlogs", 0, 0, "./")
 	httpServiceFake := fakes.NewHTTPServiceFake()
 	nodeRegisterReq := cns.NodeRegisterRequest{
@@ -66,5 +67,5 @@ func TestSendRegisterNodeRequest_StatusAccepted(t *testing.T) {
 
 	mockClient := &MockHTTPClient{Response: mockResponse, Err: nil}
 
-	assert.Error(t, sendRegisterNodeRequest(mockClient, httpServiceFake, nodeRegisterReq, url))
+	assert.Error(t, sendRegisterNodeRequest(ctx, mockClient, httpServiceFake, nodeRegisterReq, url))
 }
