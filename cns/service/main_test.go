@@ -2,11 +2,16 @@ package main
 
 import (
 	"bytes"
-	"github.com/Azure/azure-container-networking/cns"
-	"github.com/Azure/azure-container-networking/cns/fakes"
 	"io"
 	"net/http"
 	"testing"
+
+	"github.com/Azure/azure-container-networking/cns/logger"
+
+	"github.com/stretchr/testify/assert"
+
+	"github.com/Azure/azure-container-networking/cns"
+	"github.com/Azure/azure-container-networking/cns/fakes"
 )
 
 // MockHTTPClient is a mock implementation of HTTPClient
@@ -16,26 +21,50 @@ type MockHTTPClient struct {
 }
 
 // Post is the implementation of the Post method for MockHTTPClient
-func (m *MockHTTPClient) Post(url string, contentType string, body []byte) (*http.Response, error) {
+func (m *MockHTTPClient) Post(url, contentType string, body []byte) (*http.Response, error) {
 	return m.Response, m.Err
 }
 
-func TestPostDataWithMockClient(t *testing.T) {
+func TestSendRegisterNodeRequest_StatusOK(t *testing.T) {
+	logger.InitLogger("testlogs", 0, 0, "./")
+	httpServiceFake := fakes.NewHTTPServiceFake()
+	nodeRegisterReq := cns.NodeRegisterRequest{
+		NumCores:             2,
+		NmAgentSupportedApis: nil,
+	}
+
+	url := "https://localhost:9000/api"
+
 	// Create a mock HTTP client
 	mockResponse := &http.Response{
 		StatusCode: http.StatusOK,
 		Body:       io.NopCloser(bytes.NewBufferString(`{"status": "success", "OrchestratorType": "Kubernetes", "DncPartitionKey": "1234", "NodeID": "5678"}`)),
 		Header:     make(http.Header),
 	}
-	mockClient := &MockHTTPClient{Response: mockResponse, Err: nil}
-	httpServiceFake := fakes.NewHTTPServiceFake()
 
-	// Make the HTTP request using the mock client
-	err := sendRegisterNodeRequest(mockClient, httpServiceFake, cns.NodeRegisterRequest{
+	mockClient := &MockHTTPClient{Response: mockResponse, Err: nil}
+
+	assert.NoError(t, sendRegisterNodeRequest(mockClient, httpServiceFake, nodeRegisterReq, url))
+}
+
+func TestSendRegisterNodeRequest_StatusAccepted(t *testing.T) {
+	logger.InitLogger("testlogs", 0, 0, "./")
+	httpServiceFake := fakes.NewHTTPServiceFake()
+	nodeRegisterReq := cns.NodeRegisterRequest{
 		NumCores:             2,
 		NmAgentSupportedApis: nil,
-	}, "https://localhost:9000/api")
-	if err != nil {
-		t.Fatalf("Error making HTTP request: %v", err)
 	}
+
+	url := "https://localhost:9000/api"
+
+	// Create a mock HTTP client
+	mockResponse := &http.Response{
+		StatusCode: http.StatusAccepted,
+		Body:       io.NopCloser(bytes.NewBufferString(`{"status": "accepted", "OrchestratorType": "Kubernetes", "DncPartitionKey": "1234", "NodeID": "5678"}`)),
+		Header:     make(http.Header),
+	}
+
+	mockClient := &MockHTTPClient{Response: mockResponse, Err: nil}
+
+	assert.Error(t, sendRegisterNodeRequest(mockClient, httpServiceFake, nodeRegisterReq, url))
 }
