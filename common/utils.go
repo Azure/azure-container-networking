@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/Azure/azure-container-networking/log"
+	"github.com/pkg/errors"
 )
 
 const (
@@ -89,7 +90,12 @@ type StandardHTTPClient struct{}
 // Do is the implementation of the Post method for StandardHTTPClient
 func (c *StandardHTTPClient) Do(req *http.Request) (*http.Response, error) {
 	client := http.Client{}
-	return client.Do(req)
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, errors.Wrap(err, "http request failed")
+	}
+
+	return resp, nil
 }
 
 // Creating http client object to be reused instead of creating one every time.
