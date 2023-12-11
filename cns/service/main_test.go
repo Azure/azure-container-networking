@@ -21,7 +21,7 @@ type MockHTTPClient struct {
 }
 
 // Post is the implementation of the Post method for MockHTTPClient
-func (m *MockHTTPClient) Post(_, _ string, _ []byte) (*http.Response, error) {
+func (m *MockHTTPClient) Do(_ *http.Request) (*http.Response, error) {
 	return m.Response, m.Err
 }
 

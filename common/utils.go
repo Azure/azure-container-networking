@@ -4,7 +4,6 @@
 package common
 
 import (
-	"bytes"
 	"context"
 	"encoding/binary"
 	"encoding/json"
@@ -81,15 +80,16 @@ type metadataWrapper struct {
 
 // HTTPClient interface to abstract http.Client methods
 type HTTPClient interface {
-	Post(url, contentType string, body []byte) (*http.Response, error)
+	Do(req *http.Request) (*http.Response, error)
 }
 
 // StandardHTTPClient is a standard implementation of the HTTPClient interface
 type StandardHTTPClient struct{}
 
-// Post is the implementation of the Post method for StandardHTTPClient
-func (c *StandardHTTPClient) Post(url, contentType string, body []byte) (*http.Response, error) {
-	return http.Post(url, contentType, bytes.NewBuffer(body))
+// Do is the implementation of the Post method for StandardHTTPClient
+func (c *StandardHTTPClient) Do(req *http.Request) (*http.Response, error) {
+	client := http.Client{}
+	return client.Do(req)
 }
 
 // Creating http client object to be reused instead of creating one every time.

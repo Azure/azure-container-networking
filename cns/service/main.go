@@ -416,11 +416,17 @@ func sendRegisterNodeRequest(httpClient acn.HTTPClient, httpRestService cns.HTTP
 		return errors.Wrap(retry.Unrecoverable(err), "failed to sendRegisterNodeRequest")
 	}
 
-	response, err := httpClient.Post(registerURL, "application/json", body.Bytes())
+	request, err := http.NewRequest(http.MethodPost, registerURL, &body)
 	if err != nil {
-		logger.Errorf("[Azure CNS] Failed to register node with retryable err: %+v", err)
-		return errors.Wrap(err, "failed to sendRegisterNodeRequest")
+		return errors.Wrap(err, "failed to build request")
 	}
+
+	request.Header.Set("Content-Type", "application/json")
+	response, err := httpClient.Do(request)
+	if err != nil {
+		return errors.Wrap(err, "http request failed")
+	}
+
 	defer response.Body.Close()
 
 	if response.StatusCode != http.StatusOK {
