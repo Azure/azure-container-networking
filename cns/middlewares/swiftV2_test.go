@@ -3,7 +3,6 @@ package middlewares
 import (
 	"context"
 	"fmt"
-	"os"
 	"testing"
 
 	"github.com/Azure/azure-container-networking/cns"
@@ -28,18 +27,6 @@ var (
 	testPod4Info = cns.NewPodInfo("b21e1e-eth0", testPod4GUID, "testpod4", "testpod4namespace")
 )
 
-func setEnvVar() {
-	os.Setenv(configuration.EnvPodCIDRs, "10.0.1.10/24,16A0:0010:AB00:001E::2/32")
-	os.Setenv(configuration.EnvServiceCIDRs, "10.0.0.0/16,16A0:0010:AB00:0000::/32")
-	os.Setenv(configuration.EnvInfraVNETCIDRs, "10.240.0.1/16,16A0:0020:AB00:0000::/32")
-}
-
-func unsetEnvVar() {
-	os.Unsetenv(configuration.EnvPodCIDRs)
-	os.Unsetenv(configuration.EnvServiceCIDRs)
-	os.Unsetenv(configuration.EnvInfraVNETCIDRs)
-}
-
 func TestMain(m *testing.M) {
 	logger.InitLogger("testlogs", 0, 0, "./")
 	m.Run()
@@ -47,8 +34,9 @@ func TestMain(m *testing.M) {
 
 func TestIPConfigsRequestHandlerWrapperSuccess(t *testing.T) {
 	middleware := SWIFTv2Middleware{Cli: mock.NewClient()}
-	setEnvVar()
-	defer unsetEnvVar()
+	t.Setenv(configuration.EnvPodCIDRs, "10.0.1.10/24,16A0:0010:AB00:001E::2/32")
+	t.Setenv(configuration.EnvServiceCIDRs, "10.0.0.0/16,16A0:0010:AB00:0000::/32")
+	t.Setenv(configuration.EnvInfraVNETCIDRs, "10.240.0.1/16,16A0:0020:AB00:0000::/32")
 	defaultHandler := func(context.Context, cns.IPConfigsRequest) (*cns.IPConfigsResponse, error) {
 		return &cns.IPConfigsResponse{
 			PodIPInfo: []cns.PodIpInfo{
@@ -185,8 +173,9 @@ func TestValidateMultitenantIPConfigsRequestFailure(t *testing.T) {
 }
 
 func TestGetSWIFTv2IPConfigSuccess(t *testing.T) {
-	setEnvVar()
-	defer unsetEnvVar()
+	t.Setenv(configuration.EnvPodCIDRs, "10.0.1.10/24,16A0:0010:AB00:001E::2/32")
+	t.Setenv(configuration.EnvServiceCIDRs, "10.0.0.0/16,16A0:0010:AB00:0000::/32")
+	t.Setenv(configuration.EnvInfraVNETCIDRs, "10.240.0.1/16,16A0:0020:AB00:0000::/32")
 
 	middleware := SWIFTv2Middleware{Cli: mock.NewClient()}
 
@@ -210,8 +199,10 @@ func TestGetSWIFTv2IPConfigFailure(t *testing.T) {
 
 func TestSetRoutesSuccess(t *testing.T) {
 	middleware := SWIFTv2Middleware{Cli: mock.NewClient()}
-	setEnvVar()
-	defer unsetEnvVar()
+	t.Setenv(configuration.EnvPodCIDRs, "10.0.1.10/24,16A0:0010:AB00:001E::2/32")
+	t.Setenv(configuration.EnvServiceCIDRs, "10.0.0.0/16,16A0:0010:AB00:0000::/32")
+	t.Setenv(configuration.EnvInfraVNETCIDRs, "10.240.0.1/16,16A0:0020:AB00:0000::/32")
+
 	podIPInfo := []cns.PodIpInfo{
 		{
 			PodIPConfig: cns.IPSubnet{

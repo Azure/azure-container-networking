@@ -40,6 +40,7 @@ var _ cns.IPConfigsHandlerMiddleware = (*SWIFTv2Middleware)(nil)
 func (m *SWIFTv2Middleware) IPConfigsRequestHandlerWrapper(defaultHandler, failureHandler cns.IPConfigsHandlerFunc) cns.IPConfigsHandlerFunc {
 	return func(ctx context.Context, req cns.IPConfigsRequest) (*cns.IPConfigsResponse, error) {
 		podInfo, respCode, message := m.validateIPConfigsRequest(ctx, &req)
+
 		if respCode != types.Success {
 			return &cns.IPConfigsResponse{
 				Response: cns.Response{
@@ -48,12 +49,12 @@ func (m *SWIFTv2Middleware) IPConfigsRequestHandlerWrapper(defaultHandler, failu
 				},
 			}, errors.New("failed to validate ip configs request")
 		}
+		ipConfigsResp, err := defaultHandler(ctx, req)
 		// If the pod is not v2, return the response from the handler
 		if !req.SecondaryInterfacesExist {
-			return defaultHandler(ctx, req)
+			return ipConfigsResp, err
 		}
 		// If the pod is v2, get the infra IP configs from the handler first and then add the SWIFTv2 IP config
-		ipConfigsResp, err := defaultHandler(ctx, req)
 		defer func() {
 			// Release the default IP config if there is an error
 			if err != nil {
