@@ -404,7 +404,7 @@ func registerNode(ctx context.Context, httpClient httpDoer, httpRestService cns.
 
 	// CNS tries to register Node for maximum of an hour.
 	err := retry.Do(func() error {
-		return sendRegisterNodeRequest(ctx, httpClient, httpRestService, nodeRegisterRequest, url)
+		return errors.Wrap(sendRegisterNodeRequest(ctx, httpClient, httpRestService, nodeRegisterRequest, url), "failed to build request")
 	}, retry.Delay(acn.FiveSeconds), retry.Attempts(maxRetryNodeRegister), retry.DelayType(retry.FixedDelay))
 
 	return errors.Wrap(err, fmt.Sprintf("[Azure CNS] Failed to register node %s after maximum reties for an hour with Infrastructure Network: %s PrivateEndpoint: %s",
