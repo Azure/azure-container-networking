@@ -390,12 +390,11 @@ func registerNode(ctx context.Context, httpClient httpDoer, httpRestService cns.
 	supportedApis, retErr := ni.SupportedAPIs(context.TODO())
 
 	if retErr != nil {
-		logger.Errorf("[Azure CNS] Failed to retrieve SupportedApis from NMagent of node %s with Infrastructure Network: %s PrivateEndpoint: %s",
-			nodeID, infraVnet, dncEP)
-		return retErr
+		return errors.Wrap(retErr, fmt.Sprintf("[Azure CNS] Failed to retrieve SupportedApis from NMagent of node %s with Infrastructure Network: %s PrivateEndpoint: %s",
+			nodeID, infraVnet, dncEP))
 	}
 
-	// To avoid any null-pointer deferencing errors.
+	// To avoid any null-pointer de-referencing errors.
 	if supportedApis == nil {
 		supportedApis = []string{}
 	}
@@ -404,7 +403,7 @@ func registerNode(ctx context.Context, httpClient httpDoer, httpRestService cns.
 
 	// CNS tries to register Node for maximum of an hour.
 	err := retry.Do(func() error {
-		return errors.Wrap(sendRegisterNodeRequest(ctx, httpClient, httpRestService, nodeRegisterRequest, url), "failed to build request")
+		return errors.Wrap(sendRegisterNodeRequest(ctx, httpClient, httpRestService, nodeRegisterRequest, url), "failed to sendRegisterNodeRequest")
 	}, retry.Delay(acn.FiveSeconds), retry.Attempts(maxRetryNodeRegister), retry.DelayType(retry.FixedDelay))
 
 	return errors.Wrap(err, fmt.Sprintf("[Azure CNS] Failed to register node %s after maximum reties for an hour with Infrastructure Network: %s PrivateEndpoint: %s",
