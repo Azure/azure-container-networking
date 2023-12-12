@@ -18,7 +18,6 @@ import (
 	"time"
 
 	"github.com/Azure/azure-container-networking/log"
-	"github.com/pkg/errors"
 )
 
 const (
@@ -77,25 +76,6 @@ type Metadata struct {
 // This is how metadata server returns in response for querying metadata
 type metadataWrapper struct {
 	Metadata Metadata `json:"compute"`
-}
-
-// HTTPClient interface to abstract http.Client methods
-type HTTPClient interface {
-	Do(req *http.Request) (*http.Response, error)
-}
-
-// StandardHTTPClient is a standard implementation of the HTTPClient interface
-type StandardHTTPClient struct{}
-
-// Do is the implementation of the Post method for StandardHTTPClient
-func (c *StandardHTTPClient) Do(req *http.Request) (*http.Response, error) {
-	client := http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, errors.Wrap(err, "http request failed")
-	}
-
-	return resp, nil
 }
 
 // Creating http client object to be reused instead of creating one every time.

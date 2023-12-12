@@ -372,8 +372,12 @@ type NodeInterrogator interface {
 	SupportedAPIs(context.Context) ([]string, error)
 }
 
+type httpDoer interface {
+	Do(req *http.Request) (*http.Response, error)
+}
+
 // RegisterNode - Tries to register node with DNC when CNS is started in managed DNC mode
-func registerNode(ctx context.Context, httpClient acn.HTTPClient, httpRestService cns.HTTPService, dncEP, infraVnet, nodeID string, ni NodeInterrogator) error {
+func registerNode(ctx context.Context, httpClient httpDoer, httpRestService cns.HTTPService, dncEP, infraVnet, nodeID string, ni NodeInterrogator) error {
 	logger.Printf("[Azure CNS] Registering node %s with Infrastructure Network: %s PrivateEndpoint: %s", nodeID, infraVnet, dncEP)
 
 	var (
@@ -408,7 +412,7 @@ func registerNode(ctx context.Context, httpClient acn.HTTPClient, httpRestServic
 }
 
 // sendRegisterNodeRequest func helps in registering the node until there is an error.
-func sendRegisterNodeRequest(ctx context.Context, httpClient acn.HTTPClient, httpRestService cns.HTTPService, nodeRegisterRequest cns.NodeRegisterRequest, registerURL string) error {
+func sendRegisterNodeRequest(ctx context.Context, httpClient httpDoer, httpRestService cns.HTTPService, nodeRegisterRequest cns.NodeRegisterRequest, registerURL string) error {
 	var body bytes.Buffer
 	err := json.NewEncoder(&body).Encode(nodeRegisterRequest)
 	if err != nil {
@@ -797,7 +801,7 @@ func main() {
 		}
 
 		// We might be configured to reinitialize state from the CNI instead of the apiserver.
-		// If so, we should check that the the CNI is new enough to support the state commands,
+		// If so, we should check that the CNI is new enough to support the state commands,
 		// otherwise we fall back to the existing behavior.
 		if cnsconfig.InitializeFromCNI {
 			var isGoodVer bool
@@ -897,11 +901,12 @@ func main() {
 		httpRestService.SetOption(acn.OptInfrastructureNetworkID, infravnet)
 		httpRestService.SetOption(acn.OptNodeID, nodeID)
 
-		standardClient := &acn.StandardHTTPClient{}
+		// Passing in the default http client that already implements Do function
+		standardClient := http.DefaultClient
 
 		registerErr := registerNode(rootCtx, standardClient, httpRestService, privateEndpoint, infravnet, nodeID, nmaClient)
 		if registerErr != nil {
-			logger.Errorf("[Azure CNS] Resgistering Node failed with error: %v PrivateEndpoint: %s InfrastructureNetworkID: %s NodeID: %s",
+			logger.Errorf("[Azure CNS] Registering Node failed with error: %v PrivateEndpoint: %s InfrastructureNetworkID: %s NodeID: %s",
 				registerErr,
 				privateEndpoint,
 				infravnet,
