@@ -392,7 +392,6 @@ func (nm *networkManager) CreateEndpoint(cli apipaClient, networkID string, epIn
 	}
 
 	ep, err := nw.newEndpoint(cli, nm.netlink, nm.plClient, nm.netio, nm.nsClient, nm.iptablesClient, epInfo)
-
 	if err != nil {
 		return err
 	}
