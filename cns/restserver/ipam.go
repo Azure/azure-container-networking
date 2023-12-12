@@ -191,8 +191,8 @@ func (service *HTTPRestService) GetIPConfigs(podInfo cns.PodInfo) (cns.PodIpInfo
 		return cns.PodIpInfo{}, err
 	}
 
-	hostSecondaryInterface, err := service.getSecondaryHostInterface(context.TODO())
-	logger.Printf("secondary hostInterface is %+v", hostInterface)
+	hostSecondaryInterface, err := service.getSecondaryHostInterface(context.TODO(), resp.NetworkInterfaceInfo.MACAddress)
+	logger.Printf("secondary hostInterface is %+v", hostSecondaryInterface)
 
 	podIPInfo = cns.PodIpInfo{
 		PodIPConfig:       resp.IPConfiguration.IPSubnet,
@@ -211,24 +211,6 @@ func (service *HTTPRestService) GetIPConfigs(podInfo cns.PodInfo) (cns.PodIpInfo
 		},
 		NetworkContainerPrimaryIPConfig: resp.IPConfiguration,
 	}
-
-	// hostInterface, err := service.getSecondaryHostInterface(context.TODO())
-	// logger.Printf("secondary hostInterface is %+v", hostInterface)
-	// if err != nil {
-	// 	return cns.PodIpInfo{}, err
-	// }
-	// podIPInfo = cns.PodIpInfo{
-	// 	PodIPConfig:       resp.IPConfiguration.IPSubnet,
-	// 	MacAddress:        resp.NetworkInterfaceInfo.MACAddress,
-	// 	NICType:           resp.NetworkInterfaceInfo.NICType,
-	// 	SkipDefaultRoutes: false,
-	// 	// wrong HostSecondaryIPInfo
-	// 	HostSecondaryIPInfo: cns.HostIPInfo{
-	// 		Gateway:     hostInterface.Gateway,
-	// 		SecondaryIP: hostInterface.SecondaryIPs[0],
-	// 		Subnet:      hostInterface.Subnet,
-	// 	},
-	// 	NetworkContainerPrimaryIPConfig: resp.IPConfiguration,
 
 	logger.Printf("latest podIPInfo is %+v", podIPInfo)
 	return podIPInfo, nil

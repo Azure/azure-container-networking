@@ -74,7 +74,6 @@ func (nw *network) newEndpointImpl(
 	epInfo []*EndpointInfo,
 ) (*endpoint, error) {
 	// there is only 1 epInfo for windows, multiple interfaces will be added in the future
-	logger.Info("newEndpointImpl epInfo", zap.Any("newEndpointImpl epInfo[1]", epInfo[1]))
 	if useHnsV2, err := UseHnsV2(epInfo[1].NetNsPath); useHnsV2 {
 		if err != nil {
 			return nil, err

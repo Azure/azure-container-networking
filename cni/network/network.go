@@ -366,10 +366,17 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 		telemetry.SendCNIMetric(&cniMetric, plugin.tb)
 
 		// Add Interfaces to result.
+
+		secondaryCniResult := cniTypesCurr.Result{}
+
+		logger.Info("ipamAddResult.secondaryInterfacesInfo", zap.Any("ipamAddResult.secondaryInterfacesInfo", ipamAddResult.secondaryInterfacesInfo))
+
+		secondaryCniResult = *convertInterfaceInfoToCniResult(ipamAddResult.secondaryInterfacesInfo[0], args.IfName)
+
 		//defaultCniResult := convertInterfaceInfoToCniResult(ipamAddResult.defaultInterfaceInfo, args.IfName)
-		secondaryCniResult := convertInterfaceInfoToCniResult(ipamAddResult.secondaryInterfacesInfo[0], args.IfName)
+		// secondaryCniResult := convertInterfaceInfoToCniResult(ipamAddResult.secondaryInterfacesInfo[0], args.IfName)
 		logger.Info("secondaryCniResult is", zap.Any("secondaryCniResult", secondaryCniResult))
-		addSnatInterface(nwCfg, secondaryCniResult)
+		addSnatInterface(nwCfg, &secondaryCniResult)
 
 		// Convert result to the requested CNI version.
 		res, vererr := secondaryCniResult.GetAsVersion(nwCfg.CNIVersion)
@@ -547,6 +554,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 			logger.Info("Creating network", zap.String("networkID", networkID))
 			sendEvent(plugin, fmt.Sprintf("[cni-net] Creating network %v.", networkID))
 			// opts map needs to get passed in here
+			logger.Info("nwInfoErr ipamAddResult", zap.Any("ipamAddResult", ipamAddResult))
 			if nwInfo, err = plugin.createNetworkInternal(networkID, policies, ipamAddConfig, ipamAddResult); err != nil {
 				logger.Error("Create network failed", zap.Error(err))
 				return err
@@ -577,6 +585,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 
 		var epInfo network.EndpointInfo
 		epInfo, err = plugin.createEndpointInternal(&createEndpointInternalOpt)
+
 		if err != nil {
 			logger.Error("Endpoint creation failed", zap.Error(err))
 			return err
@@ -676,6 +685,7 @@ func (plugin *NetPlugin) createNetworkInternal(
 
 // construct network info with ipv4/ipv6 subnets
 func addSubnetToNetworkInfo(ipamAddResult IPAMAddResult, nwInfo *network.NetworkInfo) error {
+	logger.Info("addSubnetToNetworkInfo ipamAddResult is", zap.Any("ipamAddResult", ipamAddResult))
 	for _, ipConfig := range ipamAddResult.secondaryInterfacesInfo[0].IPConfigs {
 		ip, podSubnetPrefix, err := net.ParseCIDR(ipConfig.Address.String())
 		if err != nil {
@@ -716,16 +726,11 @@ type createEndpointInternalOpt struct {
 func (plugin *NetPlugin) createEndpointInternal(opt *createEndpointInternalOpt) (network.EndpointInfo, error) {
 	epInfo := network.EndpointInfo{}
 
-	defaultInterfaceInfo := opt.ipamAddResult.defaultInterfaceInfo
-	secondaryInterfaceInfo := opt.ipamAddResult.secondaryInterfacesInfo
+	interfaceInfo := network.InterfaceInfo{}
 
-	// epDNSInfo, err := getEndpointDNSSettings(opt.nwCfg, defaultInterfaceInfo.DNS, opt.k8sNamespace)
-	// if err != nil {
-	// 	err = plugin.Errorf("Failed to getEndpointDNSSettings: %v", err)
-	// 	return epInfo, err
-	// }
+	interfaceInfo = opt.ipamAddResult.defaultInterfaceInfo
 
-	epDNSInfo, err := getEndpointDNSSettings(opt.nwCfg, secondaryInterfaceInfo[0].DNS, opt.k8sNamespace)
+	epDNSInfo, err := getEndpointDNSSettings(opt.nwCfg, interfaceInfo.DNS, opt.k8sNamespace)
 	if err != nil {
 		err = plugin.Errorf("Failed to getEndpointDNSSettings: %v", err)
 		return epInfo, err
@@ -734,12 +739,13 @@ func (plugin *NetPlugin) createEndpointInternal(opt *createEndpointInternalOpt) 
 	policyArgs := PolicyArgs{
 		nwInfo:    opt.nwInfo,
 		nwCfg:     opt.nwCfg,
-		ipconfigs: secondaryInterfaceInfo[0].IPConfigs,
+		ipconfigs: interfaceInfo.IPConfigs,
 	}
+
 	endpointPolicies, err := getEndpointPolicies(policyArgs)
 	if err != nil {
 		logger.Error("Failed to get endpoint policies", zap.Error(err))
-		return epInfo, err
+		return network.EndpointInfo{}, err
 	}
 
 	opt.policies = append(opt.policies, endpointPolicies...)
@@ -774,7 +780,7 @@ func (plugin *NetPlugin) createEndpointInternal(opt *createEndpointInternalOpt) 
 		NATInfo:            opt.natInfo,
 		NICType:            cns.InfraNIC,
 		SkipDefaultRoutes:  opt.ipamAddResult.defaultInterfaceInfo.SkipDefaultRoutes,
-		Routes:             defaultInterfaceInfo.Routes,
+		Routes:             interfaceInfo.Routes,
 	}
 
 	epPolicies, err := getPoliciesFromRuntimeCfg(opt.nwCfg, opt.ipamAddResult.ipv6Enabled)
@@ -785,7 +791,7 @@ func (plugin *NetPlugin) createEndpointInternal(opt *createEndpointInternalOpt) 
 	epInfo.Policies = append(epInfo.Policies, epPolicies...)
 
 	// Populate addresses.
-	for _, ipconfig := range defaultInterfaceInfo.IPConfigs {
+	for _, ipconfig := range interfaceInfo.IPConfigs {
 		epInfo.IPAddresses = append(epInfo.IPAddresses, ipconfig.Address)
 	}
 
@@ -798,7 +804,7 @@ func (plugin *NetPlugin) createEndpointInternal(opt *createEndpointInternalOpt) 
 	}
 
 	if opt.nwCfg.MultiTenancy {
-		plugin.multitenancyClient.SetupRoutingForMultitenancy(opt.nwCfg, opt.cnsNetworkConfig, opt.azIpamResult, &epInfo, &defaultInterfaceInfo)
+		plugin.multitenancyClient.SetupRoutingForMultitenancy(opt.nwCfg, opt.cnsNetworkConfig, opt.azIpamResult, &epInfo, &interfaceInfo)
 	}
 
 	setEndpointOptions(opt.cnsNetworkConfig, &epInfo, vethName)
@@ -819,7 +825,27 @@ func (plugin *NetPlugin) createEndpointInternal(opt *createEndpointInternalOpt) 
 		for _, ipconfig := range secondaryCniResult.IPConfigs {
 			addresses = append(addresses, ipconfig.Address)
 		}
-		logger.Info("addresses are", zap.Any("addresses", addresses))
+
+		epDNSInfo, err := getEndpointDNSSettings(opt.nwCfg, secondaryCniResult.DNS, opt.k8sNamespace)
+		if err != nil {
+			err = plugin.Errorf("Failed to getEndpointDNSSettings: %v", err)
+			return epInfo, err
+		}
+
+		policyArgs := PolicyArgs{
+			nwInfo:    opt.nwInfo,
+			nwCfg:     opt.nwCfg,
+			ipconfigs: secondaryCniResult.IPConfigs,
+		}
+
+		endpointPolicies, err := getEndpointPolicies(policyArgs)
+		if err != nil {
+			logger.Error("Failed to get endpoint policies", zap.Error(err))
+			return network.EndpointInfo{}, err
+		}
+
+		policies := []policy.Policy{}
+		policies = append(policies, endpointPolicies...)
 
 		epInfos = append(epInfos,
 			&network.EndpointInfo{
@@ -828,7 +854,7 @@ func (plugin *NetPlugin) createEndpointInternal(opt *createEndpointInternalOpt) 
 				IfName:            opt.args.IfName,
 				IPAddresses:       addresses,
 				DNS:               epDNSInfo,
-				Policies:          opt.policies,
+				Policies:          policies,
 				PODName:           opt.k8sPodName,
 				PODNameSpace:      opt.k8sNamespace,
 				Routes:            secondaryCniResult.Routes,

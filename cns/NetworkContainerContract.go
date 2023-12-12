@@ -202,6 +202,8 @@ type PodInfo interface {
 	String() string
 	// SecondaryInterfacesExist returns true if there exist a secondary interface for this pod
 	SecondaryInterfacesExist() bool
+	// Get Secondary Mac Address
+	GetSecondaryInterfaceMacAddress() string
 }
 
 type KubernetesPodInfo struct {
@@ -273,6 +275,10 @@ func (p *podInfo) OrchestratorContext() (json.RawMessage, error) {
 
 func (p *podInfo) SecondaryInterfacesExist() bool {
 	return p.SecondaryInterfaceSet
+}
+
+func (p *podInfo) GetSecondaryInterfaceMacAddress() string {
+	return p.GetSecondaryInterfaceMacAddress()
 }
 
 // NewPodInfo returns an implementation of PodInfo that returns the passed

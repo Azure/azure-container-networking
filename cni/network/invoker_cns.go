@@ -109,6 +109,8 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 		zap.Any("pod", podInfo),
 		zap.Any("ipconfig", ipconfigs))
 	response, err := invoker.cnsClient.RequestIPs(context.TODO(), ipconfigs)
+	logger.Info("RequestIPs response is", zap.Any("response", response))
+	logger.Info("RequestIPs response err", zap.Error(err))
 	if err != nil {
 		if cnscli.IsUnsupportedAPI(err) {
 			// If RequestIPs is not supported by CNS, use RequestIPAddress API

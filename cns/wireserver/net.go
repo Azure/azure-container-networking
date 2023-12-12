@@ -2,7 +2,10 @@ package wireserver
 
 import (
 	"net"
+	"regexp"
+	"strings"
 
+	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/pkg/errors"
 )
 
@@ -50,7 +53,7 @@ func GetPrimaryInterfaceFromResult(res *GetInterfacesResult) (*InterfaceInfo, er
 	return nil, ErrNoPrimaryInterface
 }
 
-func GetSecondaryInterfaceFromResult(res *GetInterfacesResult) (*InterfaceInfo, error) {
+func GetSecondaryInterfaceFromResult(res *GetInterfacesResult, macAddress string) (*InterfaceInfo, error) {
 	for _, i := range res.Interface {
 		// skip if primary
 		if i.IsPrimary {
@@ -62,28 +65,32 @@ func GetSecondaryInterfaceFromResult(res *GetInterfacesResult) (*InterfaceInfo, 
 			continue
 		}
 
-		// get the second subnet
-		s := i.IPSubnet[0]
-		gw, err := calculateGatewayIP(s.Prefix)
-		if err != nil {
-			return nil, err
-		}
-
-		secondaryIP := ""
-		for _, ip := range s.IPAddress {
-			if !ip.IsPrimary {
-				secondaryIP = ip.Address
+		logger.Printf("i.MacAddress is %s", strings.Split(i.MacAddress, ":"))
+		newMacAddress := regexp.MustCompile(`[^a-zA-Z0-9 ]+`).ReplaceAllString(macAddress, "")
+		if i.MacAddress == strings.ToUpper(newMacAddress) {
+			// get the second subnet
+			s := i.IPSubnet[0]
+			gw, err := calculateGatewayIP(s.Prefix)
+			if err != nil {
+				return nil, err
 			}
-		}
-		secondaryIPs := []string{}
-		secondaryIPs = append(secondaryIPs, secondaryIP)
 
-		return &InterfaceInfo{
-			Subnet:       s.Prefix,
-			IsPrimary:    false,
-			Gateway:      gw.String(),
-			SecondaryIPs: secondaryIPs,
-		}, nil
+			secondaryIP := ""
+			for _, ip := range s.IPAddress {
+				if !ip.IsPrimary {
+					secondaryIP = ip.Address
+				}
+			}
+			secondaryIPs := []string{}
+			secondaryIPs = append(secondaryIPs, secondaryIP)
+
+			return &InterfaceInfo{
+				Subnet:       s.Prefix,
+				IsPrimary:    false,
+				Gateway:      gw.String(),
+				SecondaryIPs: secondaryIPs,
+			}, nil
+		}
 	}
 	return nil, ErrNoSecondaryInterface
 }

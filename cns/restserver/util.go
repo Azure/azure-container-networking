@@ -806,13 +806,15 @@ func (service *HTTPRestService) getPrimaryHostInterface(ctx context.Context) (*w
 	return service.state.primaryInterface, nil
 }
 
-func (service *HTTPRestService) getSecondaryHostInterface(ctx context.Context) (*wireserver.InterfaceInfo, error) {
+func (service *HTTPRestService) getSecondaryHostInterface(ctx context.Context, macAddress string) (*wireserver.InterfaceInfo, error) {
 	if service.state.secondaryInterface == nil {
 		res, err := service.wscli.GetInterfaces(ctx)
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to get interfaces from IMDS")
 		}
-		secondary, err := wireserver.GetSecondaryInterfaceFromResult(res)
+		logger.Printf("getSecondaryHostInterface mac %s", macAddress)
+		secondary, err := wireserver.GetSecondaryInterfaceFromResult(res, macAddress)
+		logger.Printf("getSecondaryHostInterface is %+v", secondary)
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to get secondary interface from IMDS response")
 		}
