@@ -558,6 +558,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 			sendEvent(plugin, fmt.Sprintf("[cni-net] Creating network %v.", networkID))
 			// opts map needs to get passed in here
 			logger.Info("nwInfoErr ipamAddResult", zap.Any("ipamAddResult", ipamAddResult))
+			ipamAddConfig := IPAMAddConfig{nwCfg: nwCfg, args: args, options: options}
 			if nwInfo, err = plugin.createNetworkInternal(networkID, policies, ipamAddConfig, ipamAddResult); err != nil {
 				logger.Error("Create network failed", zap.Error(err))
 				return err
