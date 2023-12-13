@@ -214,8 +214,6 @@ func (plugin *NetPlugin) findMasterInterface(nwCfg *cni.NetworkConfig, subnetPre
 		return nwCfg.Master
 	}
 
-	logger.Info("nwCfg.Master is", zap.String("nwCfg.Master", nwCfg.Master))
-
 	// Otherwise, pick the first interface with an IP address in the given subnet.
 	subnetPrefixString := subnetPrefix.String()
 	interfaces, _ := net.Interfaces()
@@ -224,10 +222,12 @@ func (plugin *NetPlugin) findMasterInterface(nwCfg *cni.NetworkConfig, subnetPre
 		addrs, _ := iface.Addrs()
 		for _, addr := range addrs {
 			_, ipnet, err := net.ParseCIDR(addr.String())
+			logger.Info("interfaces ipnet is:", zap.Any("ipnet interface", ipnet.String()))
 			if err != nil {
 				continue
 			}
 			if subnetPrefixString == ipnet.String() {
+				logger.Info("Master intface chosen is", zap.String("nwCfg.Master", iface.Name))
 				return iface.Name
 			}
 		}
@@ -486,6 +486,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 
 		options := make(map[string]any)
 		networkID, err = plugin.getNetworkName(args.Netns, &ipamAddResult, nwCfg)
+		logger.Info("networkID retrieved for config", zap.Any("networkID", networkID), zap.Any("config", nwCfg.SwiftV2Mode))
 
 		endpointID := GetEndpointID(args)
 		policies := cni.GetPoliciesFromNwCfg(nwCfg.AdditionalArgs)
@@ -625,7 +626,9 @@ func (plugin *NetPlugin) createNetworkInternal(
 	ipamAddConfig.nwCfg.IPAM.Subnet = ipamAddResult.hostSubnetPrefix.String()
 	// Find the master interface.
 	logger.Info("ipamAddConfig.nwCfg", zap.Any("ipamAddConfig.nwCfg", ipamAddConfig.nwCfg))
-	masterIfName := plugin.findMasterInterface(ipamAddConfig.nwCfg, &ipamAddResult.hostSubnetPrefix)
+	_, ipnet, _ := net.ParseCIDR(ipamAddResult.secondaryInterfacesInfo[0].IPConfigs[0].Address.String())
+	logger.Info("before calling findMasterInterface, subnet prefix", zap.Any("subnetprefix of secondary int", ipnet))
+	masterIfName := plugin.findMasterInterface(ipamAddConfig.nwCfg, ipnet)
 	if masterIfName == "" {
 		err := plugin.Errorf("Failed to find the master interface")
 		return nwInfo, err
@@ -633,7 +636,7 @@ func (plugin *NetPlugin) createNetworkInternal(
 	logger.Info("Found master interface", zap.String("ifname", masterIfName))
 
 	// Add the master as an external interface.
-	err := plugin.nm.AddExternalInterface(masterIfName, ipamAddResult.hostSubnetPrefix.String())
+	err := plugin.nm.AddExternalInterface(masterIfName, ipamAddResult.secondaryInterfacesInfo[0].IPConfigs[0].Address.String())
 	if err != nil {
 		err = plugin.Errorf("Failed to add external interface: %v", err)
 		return nwInfo, err

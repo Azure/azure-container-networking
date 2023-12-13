@@ -145,7 +145,7 @@ func addSnatInterface(nwCfg *cni.NetworkConfig, result *cniTypesCurr.Result) {
 func (plugin *NetPlugin) getNetworkName(netNs string, ipamAddResult *IPAMAddResult, nwCfg *cni.NetworkConfig) (string, error) {
 	determineWinVer()
 	// For singletenancy, the network name is simply the nwCfg.Name
-	if !nwCfg.MultiTenancy {
+	if !nwCfg.MultiTenancy && nwCfg.Name != "swiftv2" {
 		return nwCfg.Name, nil
 	}
 
@@ -157,6 +157,12 @@ func (plugin *NetPlugin) getNetworkName(netNs string, ipamAddResult *IPAMAddResu
 	// First try to build the network name from the cnsResponse if present
 	// This will happen during ADD call
 	if ipamAddResult != nil && ipamAddResult.ncResponse != nil {
+		// add ad-hoc condition to return unique networkname for swift2.0 SF
+		if nwCfg.Name == "swiftv2" {
+			swiftv2networkName := "azure" + ipamAddResult.ncResponse.NetworkContainerID
+			return swiftv2networkName, nil
+		}
+
 		// networkName will look like ~ azure-vlan1-172-28-1-0_24
 		ipAddrNet := ipamAddResult.defaultInterfaceInfo.IPConfigs[0].Address
 		prefix, err := netip.ParsePrefix(ipAddrNet.String())
