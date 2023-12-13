@@ -476,6 +476,17 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 		// TODO: refactor this code for simplification
 		// Add dummy ipamAddResult nil object for single tenancy mode
 		// this will be used for: ipamAddResult, err = plugin.ipamInvoker.Add(ipamAddConfig)
+		options := make(map[string]any)
+
+		ipamAddConfig := IPAMAddConfig{nwCfg: nwCfg, args: args, options: options}
+		if !nwCfg.MultiTenancy {
+			ipamAddResult, err = plugin.ipamInvoker.Add(ipamAddConfig)
+			logger.Info("ipamAddResult is", zap.Any("ipamAddResult", ipamAddResult.secondaryInterfacesInfo))
+			if err != nil {
+				return fmt.Errorf("IPAM Invoker Add failed with error: %w", err)
+			}
+			sendEvent(plugin, fmt.Sprintf("Allocated IPAddress from ipam DefaultInterface: %+v, SecondaryInterfaces: %+v", ipamAddResult.defaultInterfaceInfo, ipamAddResult.secondaryInterfacesInfo))
+		}
 		ipamAddResults = append(ipamAddResults, ipamAddResult)
 	}
 
@@ -483,16 +494,17 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 	for i := 0; i < len(ipamAddResults); i++ {
 		var networkID string
 		ipamAddResult = ipamAddResults[i]
+		logger.Info("")
 
 		options := make(map[string]any)
 		networkID, err = plugin.getNetworkName(args.Netns, &ipamAddResult, nwCfg)
-		logger.Info("networkID retrieved for config", zap.Any("networkID", networkID), zap.Any("config", nwCfg.SwiftV2Mode))
 
 		endpointID := GetEndpointID(args)
 		policies := cni.GetPoliciesFromNwCfg(nwCfg.AdditionalArgs)
 
 		// Check whether the network already exists.
 		nwInfo, nwInfoErr := plugin.nm.GetNetworkInfo(networkID)
+		logger.Info("nwInfo is", zap.Any("nwInfo", nwInfo))
 		// Handle consecutive ADD calls for infrastructure containers.
 		// This is a temporary work around for issue #57253 of Kubernetes.
 		// We can delete this if statement once they fix it.
@@ -528,16 +540,6 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 			default:
 				plugin.ipamInvoker = NewAzureIpamInvoker(plugin, &nwInfo)
 			}
-		}
-
-		ipamAddConfig := IPAMAddConfig{nwCfg: nwCfg, args: args, options: options}
-		if !nwCfg.MultiTenancy {
-			ipamAddResult, err = plugin.ipamInvoker.Add(ipamAddConfig)
-			logger.Info("ipamAddResult is", zap.Any("ipamAddResult", ipamAddResult.secondaryInterfacesInfo))
-			if err != nil {
-				return fmt.Errorf("IPAM Invoker Add failed with error: %w", err)
-			}
-			sendEvent(plugin, fmt.Sprintf("Allocated IPAddress from ipam DefaultInterface: %+v, SecondaryInterfaces: %+v", ipamAddResult.defaultInterfaceInfo, ipamAddResult.secondaryInterfacesInfo))
 		}
 
 		defer func() { //nolint:gocritic
