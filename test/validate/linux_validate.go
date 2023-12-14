@@ -47,7 +47,7 @@ var linuxChecksMap = map[string][]check{
 		{"azure dualstackoverlay", azureVnetStateIps, privilegedLabelSelector, privilegedNamespace, azureVnetStateFileCmd},
 	},
 	"cilium_dualstack": {
-		{"cns", cnsManagedStateFileIps, cnsLabelSelector, privilegedNamespace, cnsManagedStateFileCmd}, // cns configmap "ManageEndpointState": true, | Endpoints managed in CNS State File
+		{"cns", cnsManagedStateFileDualStackIps, cnsLabelSelector, privilegedNamespace, cnsManagedStateFileCmd}, // cns configmap "ManageEndpointState": true, | Endpoints managed in CNS State File
 		{"cilium", ciliumStateFileIps, ciliumLabelSelector, privilegedNamespace, ciliumStateFileCmd},
 		{"cns cache", cnsCacheStateFileIps, cnsLabelSelector, privilegedNamespace, cnsLocalCacheCmd},
 	},
@@ -75,7 +75,7 @@ type NetworkingAddressing struct {
 }
 
 type Address struct {
-	Addr string `json:"ipv4"`
+	Addr string `json:"ip"`
 }
 
 // parse azure-vnet.json
@@ -140,6 +140,25 @@ func cnsManagedStateFileIps(result []byte) (map[string]string, error) {
 			if ifName == "eth0" {
 				ip := ip.IPv4[0].IP.String()
 				cnsPodIps[ip] = v.PodName
+			}
+		}
+	}
+	return cnsPodIps, nil
+}
+
+func cnsManagedStateFileDualStackIps(result []byte) (map[string]string, error) {
+	var cnsResult CnsManagedState
+	err := json.Unmarshal(result, &cnsResult)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to unmarshal cns endpoint list")
+	}
+
+	cnsPodIps := make(map[string]string)
+	for _, v := range cnsResult.Endpoints {
+		for ifName, ip := range v.IfnameToIPMap {
+			if ifName == "eth0" {
+				cnsPodIps[ip.IPv4[0].IP.String()] = v.PodName
+				cnsPodIps[ip.IPv6[0].IP.String()] = v.PodName
 			}
 		}
 	}
