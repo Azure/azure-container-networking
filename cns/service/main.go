@@ -550,6 +550,27 @@ func main() {
 		}
 	}
 	configuration.SetCNSConfigDefaults(cnsconfig)
+
+	disableTelemetry := cnsconfig.TelemetrySettings.DisableAll
+	if !disableTelemetry {
+		ts := cnsconfig.TelemetrySettings
+		aiConfig := aitelemetry.AIConfig{
+			AppName:                      name,
+			AppVersion:                   version,
+			BatchSize:                    ts.TelemetryBatchSizeBytes,
+			BatchInterval:                ts.TelemetryBatchIntervalInSecs,
+			RefreshTimeout:               ts.RefreshIntervalInSecs,
+			DisableMetadataRefreshThread: ts.DisableMetadataRefreshThread,
+			DebugMode:                    ts.DebugMode,
+		}
+
+		if aiKey := cnsconfig.TelemetrySettings.AppInsightsInstrumentationKey; aiKey != "" {
+			logger.InitAIWithIKey(aiConfig, aiKey, ts.DisableTrace, ts.DisableMetric, ts.DisableEvent)
+		} else {
+			logger.InitAI(aiConfig, ts.DisableTrace, ts.DisableMetric, ts.DisableEvent)
+		}
+	}
+
 	logger.Printf("[Azure CNS] Using config: %+v", cnsconfig)
 
 	_, envEnableConflistGeneration := os.LookupEnv(envVarEnableCNIConflistGeneration)
@@ -639,25 +660,6 @@ func main() {
 		config.ChannelMode = cns.Managed
 	}
 
-	disableTelemetry := cnsconfig.TelemetrySettings.DisableAll
-	if !disableTelemetry {
-		ts := cnsconfig.TelemetrySettings
-		aiConfig := aitelemetry.AIConfig{
-			AppName:                      name,
-			AppVersion:                   version,
-			BatchSize:                    ts.TelemetryBatchSizeBytes,
-			BatchInterval:                ts.TelemetryBatchIntervalInSecs,
-			RefreshTimeout:               ts.RefreshIntervalInSecs,
-			DisableMetadataRefreshThread: ts.DisableMetadataRefreshThread,
-			DebugMode:                    ts.DebugMode,
-		}
-
-		if aiKey := cnsconfig.TelemetrySettings.AppInsightsInstrumentationKey; aiKey != "" {
-			logger.InitAIWithIKey(aiConfig, aiKey, ts.DisableTrace, ts.DisableMetric, ts.DisableEvent)
-		} else {
-			logger.InitAI(aiConfig, ts.DisableTrace, ts.DisableMetric, ts.DisableEvent)
-		}
-	}
 	if telemetryDaemonEnabled {
 		log.Printf("CNI Telemtry is enabled")
 		go startTelemetryService(rootCtx)
