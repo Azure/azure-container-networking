@@ -154,12 +154,14 @@ func (plugin *NetPlugin) getNetworkName(netNs string, ipamAddResult *IPAMAddResu
 		return "", fmt.Errorf("NetNs cannot be empty")
 	}
 
+	logger.Info("ipamAddResult.ncResponse", zap.Any("ipamAddResult.ncResponse", ipamAddResult.ncResponse))
 	// First try to build the network name from the cnsResponse if present
 	// This will happen during ADD call
-	if ipamAddResult != nil && ipamAddResult.ncResponse != nil {
+	if ipamAddResult != nil {
 		// add ad-hoc condition to return unique networkname for swift2.0 SF
 		if nwCfg.Name == "swiftv2" {
-			swiftv2networkName := "azure" + ipamAddResult.ncResponse.NetworkContainerID
+			swiftv2networkName := "azure" + ipamAddResult.secondaryInterfacesInfo[0].MacAddress.String()
+			logger.Info("swiftv2networkName", zap.String("swiftv2networkName", swiftv2networkName))
 			return swiftv2networkName, nil
 		}
 

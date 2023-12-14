@@ -476,29 +476,35 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 		// TODO: refactor this code for simplification
 		// Add dummy ipamAddResult nil object for single tenancy mode
 		// this will be used for: ipamAddResult, err = plugin.ipamInvoker.Add(ipamAddConfig)
+		logger.Info("Getting ipamAddResult secondaryInterfacesInfo")
+		plugin.ipamInvoker = NewCNSInvoker(k8sPodName, k8sNamespace, cnsClient, util.ExecutionMode(nwCfg.ExecutionMode), util.IpamMode(nwCfg.IPAM.Mode))
 		options := make(map[string]any)
 
 		ipamAddConfig := IPAMAddConfig{nwCfg: nwCfg, args: args, options: options}
-		if !nwCfg.MultiTenancy {
-			ipamAddResult, err = plugin.ipamInvoker.Add(ipamAddConfig)
-			logger.Info("ipamAddResult is", zap.Any("ipamAddResult", ipamAddResult.secondaryInterfacesInfo))
-			if err != nil {
-				return fmt.Errorf("IPAM Invoker Add failed with error: %w", err)
-			}
-			sendEvent(plugin, fmt.Sprintf("Allocated IPAddress from ipam DefaultInterface: %+v, SecondaryInterfaces: %+v", ipamAddResult.defaultInterfaceInfo, ipamAddResult.secondaryInterfacesInfo))
+		logger.Info("ipamAddConfig", zap.Any("args", ipamAddConfig.args), zap.Any("nwCfg", ipamAddConfig.nwCfg))
+		ipamAddResult, err = plugin.ipamInvoker.Add(ipamAddConfig)
+		logger.Info("ipamAddResult secondaryInterfacesInfo is", zap.Any("ipamAddResult", ipamAddResult.secondaryInterfacesInfo))
+		if err != nil {
+			return fmt.Errorf("IPAM Invoker Add failed with error: %w", err)
 		}
+		sendEvent(plugin, fmt.Sprintf("Allocated IPAddress from ipam DefaultInterface: %+v, SecondaryInterfaces: %+v", ipamAddResult.defaultInterfaceInfo, ipamAddResult.secondaryInterfacesInfo))
+
 		ipamAddResults = append(ipamAddResults, ipamAddResult)
+		logger.Info("ipamAddResults", zap.Any("ipamAddResults", ipamAddResults))
 	}
 
+	logger.Info("ipamAddResults ipamAddResults", zap.Any("ipamAddResults", ipamAddResults))
 	// iterate ipamAddResults and program the endpoint
 	for i := 0; i < len(ipamAddResults); i++ {
 		var networkID string
 		ipamAddResult = ipamAddResults[i]
-		logger.Info("")
+		logger.Info("ipamAddResult is", zap.Any("ipamAddResult", ipamAddResult.secondaryInterfacesInfo))
+		logger.Info("ipamAddResult ncresponse is", zap.Any("ipamAddResult", ipamAddResult.ncResponse))
 
 		options := make(map[string]any)
 		networkID, err = plugin.getNetworkName(args.Netns, &ipamAddResult, nwCfg)
 
+		logger.Info("This time networkID is", zap.String("networkID", networkID))
 		endpointID := GetEndpointID(args)
 		policies := cni.GetPoliciesFromNwCfg(nwCfg.AdditionalArgs)
 
@@ -681,6 +687,7 @@ func (plugin *NetPlugin) createNetworkInternal(
 
 	logger.Info("addSubnetToNetworkInfo nwInfo", zap.Any("addSubnetToNetworkInfo", nwInfo))
 
+	logger.Info("creating hnsNetwork nwInfo is", zap.Any("nwInfo", nwInfo))
 	err = plugin.nm.CreateNetwork(&nwInfo)
 	if err != nil {
 		err = plugin.Errorf("createNetworkInternal: Failed to create network: %v", err)

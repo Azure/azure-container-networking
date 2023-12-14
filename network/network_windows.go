@@ -331,6 +331,7 @@ func (nm *networkManager) newNetworkImplHnsV2(nwInfo *NetworkInfo, extIf *extern
 		return nil, err
 	}
 
+	logger.Info("hcnNetwork is", zap.Any("hcnNetwork", hcnNetwork))
 	// check if network exists, only create the network does not exist
 	hnsResponse, err := Hnsv2.GetNetworkByName(hcnNetwork.Name)
 
