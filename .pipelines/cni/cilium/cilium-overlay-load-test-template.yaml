@@ -161,6 +161,17 @@ stages:
             retryCountOnTaskFailure: 6
             name: "CiliumConnectivityTests"
             displayName: "Run Cilium Connectivity Tests"
+      - template: ../k8s-e2e/k8s-e2e-job-template.yaml
+        parameters:
+          sub: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+          clusterName: ${{ parameters.clusterName }}-$(commitID)
+          os: ${{ parameters.os }}
+          cni: cilium
+          dependsOn: cni_tests
+          datapath: true
+          dns: true
+          portforward: true
+          service: true
       - job: failedE2ELogs
         displayName: "Failure Logs"
         dependsOn:
@@ -169,6 +180,7 @@ stages:
           - restart_nodes
           - restart_cns
           - cni_tests
+          - cni_${{ parameters.os }}
         condition: failed()
         steps:
           - template: ../../templates/log-template.yaml

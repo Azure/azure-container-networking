@@ -6,6 +6,7 @@ parameters:
   vmSize: ""
   k8sVersion: ""
   dependsOn: ""
+  os: "linux"
 
 stages:
   - stage: ${{ parameters.clusterName }}
@@ -57,10 +58,23 @@ stages:
               name: ${{ parameters.name }}
               clusterName: ${{ parameters.clusterName }}-$(commitID)
 
+      - template: ../../cni/k8s-e2e/k8s-e2e-job-template.yaml
+        parameters:
+          sub: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+          clusterName: ${{ parameters.clusterName }}-$(commitID)
+          os: ${{ parameters.os }}
+          cni: cilium
+          dependsOn: ${{ parameters.name }}
+          datapath: true
+          dns: true
+          portforward: true
+          service: true
+
       - job: failedE2ELogs
         displayName: "Failure Logs"
         dependsOn:
           - ${{ parameters.name }}
+          - cni_${{ parameters.os }}
         condition: failed()
         steps:
           - template: ../../templates/log-template.yaml
