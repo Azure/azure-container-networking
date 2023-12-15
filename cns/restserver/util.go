@@ -49,21 +49,17 @@ func (service *HTTPRestService) removeNetworkInfo(networkName string) {
 
 // saveState writes CNS state to persistent store.
 func (service *HTTPRestService) saveState() error {
-	logger.Printf("[Azure CNS] saveState")
-
 	// Skip if a store is not provided.
 	if service.store == nil {
-		logger.Printf("[Azure CNS]  store not initialized.")
+		logger.Printf("[Azure CNS] store not initialized.")
 		return nil
 	}
 
 	// Update time stamp.
 	service.state.TimeStamp = time.Now()
 	err := service.store.Write(storeKey, &service.state)
-	if err == nil {
-		logger.Printf("[Azure CNS]  State saved successfully.\n")
-	} else {
-		logger.Errorf("[Azure CNS]  Failed to save state., err:%v\n", err)
+	if err != nil {
+		logger.Errorf("[Azure CNS] Failed to save state, err: %v", err)
 	}
 
 	return err

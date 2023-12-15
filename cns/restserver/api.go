@@ -783,10 +783,9 @@ func (service *HTTPRestService) getHomeAz(w http.ResponseWriter, r *http.Request
 }
 
 func (service *HTTPRestService) createOrUpdateNetworkContainer(w http.ResponseWriter, r *http.Request) {
-	logger.Printf("[Azure CNS] createOrUpdateNetworkContainer")
-
 	var req cns.CreateNetworkContainerRequest
 	if err := service.Listener.Decode(w, r, &req); err != nil {
+		logger.Errorf("[Azure CNS] could not decode request: %v", err)
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
