@@ -399,7 +399,7 @@ stages:
       name: "aks_swift_vnetscale_e2e"
       displayName: AKS Swift Vnet Scale Ubuntu
       clusterType: vnetscale-swift-byocni-up
-      clusterName: "vnetscaleswifte2e"
+      clusterName: "vscaleswifte2e"
       vmSize: Standard_B2s
       k8sVersion: "1.28"
       dependsOn: "test"
@@ -475,6 +475,9 @@ stages:
             aks_swift_e2e:
               name: aks_swift_e2e
               clusterName: "swifte2e"
+            aks_swift_vnetscale_e2e:
+              name: aks_swift_vnetscale_e2e
+              clusterName: "vscaleswifte2e"
             azure_overlay_cni_e2e:
               name: "azure_overlay_cni_e2e"
               clusterName: "azovercnie2e"
