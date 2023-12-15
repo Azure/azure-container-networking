@@ -45,7 +45,7 @@ func (service *HTTPRestService) requestIPConfigHandlerHelper(ctx context.Context
 	if cnsconfig.EnableSwiftV2 == configuration.EnableSFSwiftV2 {
 		swiftv2sf = true
 	}
-	// For SWIFT v2 scenario, the validator function will also modify the ipconfigsRequest.
+	// For only SWIFTV2-AKS scenario, the validator function will also modify the ipconfigsRequest.
 	podInfo, returnCode, returnMessage := service.validateIPConfigsRequest(ctx, ipconfigsRequest)
 	if returnCode != types.Success {
 		return &cns.IPConfigsResponse{
@@ -101,7 +101,7 @@ func (service *HTTPRestService) requestIPConfigHandlerHelper(ctx context.Context
 		// In the future, if we have multiple scenario with secondary interfaces, we can add a switch case here
 		var SWIFTv2PodIPInfo cns.PodIpInfo
 		if swiftv2sf {
-			SWIFTv2PodIPInfo, err = service.getIPConfig(podInfo)
+			SWIFTv2PodIPInfo, err = service.getIPConfigforSwiftV2SF(podInfo)
 		} else {
 			SWIFTv2PodIPInfo, err = service.SWIFTv2Middleware.GetIPConfig(ctx, podInfo)
 		}
@@ -153,7 +153,8 @@ func (service *HTTPRestService) requestIPConfigHandlerHelper(ctx context.Context
 	}, nil
 }
 
-func (service *HTTPRestService) getIPConfig(podInfo cns.PodInfo) (cns.PodIpInfo, error) {
+// getIPConfig PodIpInfo for swiftv2 SF scenario, gets info from NC goal state
+func (service *HTTPRestService) getIPConfigforSwiftV2SF(podInfo cns.PodInfo) (cns.PodIpInfo, error) {
 	var body bytes.Buffer
 	var resp cns.GetNetworkContainerResponse
 	podInfoBytes, err := json.Marshal(podInfo)
@@ -183,10 +184,9 @@ func (service *HTTPRestService) getIPConfig(podInfo cns.PodInfo) (cns.PodIpInfo,
 	if resp.IPConfiguration.IPSubnet.IPAddress == "" || resp.NetworkInterfaceInfo.MACAddress == "" || resp.NetworkContainerID == "" || resp.IPConfiguration.GatewayIPAddress == "" {
 		return cns.PodIpInfo{}, errors.New("ipconfig is empty for given nc")
 	}
-	logger.Printf("[SWIFTv2SF] NetworkContainerResponse for pod %s is : %+v", podInfo.Name(), resp)
+	logger.Printf("[SWIFTv2-SF] NetworkContainerResponse for pod %s is : %+v", podInfo.Name(), resp)
 
-	hostInterface, err := service.getSecondaryHostInterface(context.TODO())
-	logger.Printf("secondary hostInterface is %+v", hostInterface)
+	hostInterface, err := service.getSecondaryHostInterface(context.TODO(), resp.NetworkInterfaceInfo.MACAddress)
 	if err != nil {
 		return cns.PodIpInfo{}, err
 	}

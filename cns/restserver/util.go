@@ -790,21 +790,20 @@ func (service *HTTPRestService) getPrimaryHostInterface(ctx context.Context) (*w
 	return service.state.primaryInterface, nil
 }
 
-func (service *HTTPRestService) getSecondaryHostInterface(ctx context.Context) (*wireserver.InterfaceInfo, error) {
+func (service *HTTPRestService) getSecondaryHostInterface(ctx context.Context, macAddress string) (*wireserver.InterfaceInfo, error) {
 	if service.state.secondaryInterface == nil {
 		res, err := service.wscli.GetInterfaces(ctx)
-		logger.Printf("secondary interface res is %+v", res)
+
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to get interfaces from IMDS")
 		}
-		secondary, err := wireserver.GetSecondaryInterfaceFromResult(res)
-		logger.Printf("secondary is %+v", secondary)
+		secondary, err := wireserver.GetSecondaryInterfaceFromResult(res, macAddress)
+
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to get secondary interface from IMDS response")
 		}
 		service.state.secondaryInterface = secondary
 	}
-	logger.Printf("service.state.secondaryInterface is %+v", service.state.secondaryInterface)
 	return service.state.secondaryInterface, nil
 }
 
