@@ -60,7 +60,7 @@ func (service *HTTPRestService) requestIPConfigHandlerHelper(ctx context.Context
 	service.podsPendingIPAssignment.Push(podInfo.Key())
 	var podIPInfo []cns.PodIpInfo
 	// request IPs from pod state only if scenario for swiftv2 is non-Standalone i.e. AKS
-	if swiftv2sf {
+	if !swiftv2sf {
 		podIPInfo, err = requestIPConfigsHelper(service, ipconfigsRequest)
 	}
 
@@ -186,7 +186,12 @@ func (service *HTTPRestService) getIPConfigforSwiftV2SF(podInfo cns.PodInfo) (cn
 	}
 	logger.Printf("[SWIFTv2-SF] NetworkContainerResponse for pod %s is : %+v", podInfo.Name(), resp)
 
-	hostInterface, err := service.getSecondaryHostInterface(context.TODO(), resp.NetworkInterfaceInfo.MACAddress)
+	hostPrimaryInterface, err := service.getPrimaryHostInterface(context.TODO())
+	if err != nil {
+		return cns.PodIpInfo{}, err
+	}
+
+	hostSecondaryInterface, err := service.getSecondaryHostInterface(context.TODO(), resp.NetworkInterfaceInfo.MACAddress)
 	if err != nil {
 		return cns.PodIpInfo{}, err
 	}
@@ -195,12 +200,16 @@ func (service *HTTPRestService) getIPConfigforSwiftV2SF(podInfo cns.PodInfo) (cn
 		MacAddress:        resp.NetworkInterfaceInfo.MACAddress,
 		NICType:           resp.NetworkInterfaceInfo.NICType,
 		SkipDefaultRoutes: false,
-		HostSecondaryIPInfo: cns.HostIPInfo{
-			Gateway:     hostInterface.Gateway,
-			SecondaryIP: hostInterface.SecondaryIPs[0],
-			Subnet:      hostInterface.Subnet,
+		HostPrimaryIPInfo: cns.HostIPInfo{
+			Gateway:   hostPrimaryInterface.Gateway,
+			PrimaryIP: hostPrimaryInterface.PrimaryIP,
+			Subnet:    hostPrimaryInterface.Subnet,
 		},
-		HostPrimaryIPInfo:               cns.HostIPInfo{Subnet: hostInterface.Subnet},
+		HostSecondaryIPInfo: cns.HostIPInfo{
+			Gateway:     hostSecondaryInterface.Gateway,
+			SecondaryIP: hostSecondaryInterface.SecondaryIPs[0],
+			Subnet:      hostSecondaryInterface.Subnet,
+		},
 		NetworkContainerPrimaryIPConfig: resp.IPConfiguration,
 	}
 	return podIPInfo, nil
