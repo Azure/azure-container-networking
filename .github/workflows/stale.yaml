@@ -8,6 +8,7 @@ jobs:
   stale:
     runs-on: ubuntu-latest
     permissions:
+      contents: write
       issues: write
       pull-requests: write
     steps:
@@ -17,11 +18,12 @@ jobs:
           ascending: true
           close-issue-message: 'Issue closed due to inactivity.'
           close-pr-message: 'Pull request closed due to inactivity.'
-          days-before-close: 14
-          days-before-stale: 60
-          exempt-issue-labels: 'blocked,must,should,keep'
+          days-before-close: 7
+          days-before-stale: 14
+          delete-branch: true
+          exempt-issue-labels: 'exempt-stale'
           operations-per-run: 100
-          stale-issue-message: 'This issue is stale because it has been open 60 days with no activity. Remove stale label or comment or this will be closed in 14 days'
-          stale-pr-message: 'This pull request is stale because it has been open 60 days with no activity. Remove stale label or comment or this will be closed in 14 days'
+          stale-issue-message: 'This issue is stale because it has been open for 2 weeks with no activity. Remove stale label or comment or this will be closed in 7 days'
+          stale-pr-message: 'This pull request is stale because it has been open for 2 weeks with no activity. Remove stale label or comment or this will be closed in 7 days'
       - name: Print outputs
         run: echo ${{ join(steps.stale.outputs.*, ',') }}
