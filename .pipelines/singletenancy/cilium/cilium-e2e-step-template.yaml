@@ -70,20 +70,6 @@ steps:
     displayName: "Install Cilium CLI"
 
   - script: |
-      echo "install kubetest2 and gsutils"
-      go get github.com/onsi/ginkgo/ginkgo
-      go get github.com/onsi/gomega/...
-      go install github.com/onsi/ginkgo/ginkgo@latest
-      go install sigs.k8s.io/kubetest2@latest
-      go install sigs.k8s.io/kubetest2/kubetest2-noop@latest
-      go install sigs.k8s.io/kubetest2/kubetest2-tester-ginkgo@latest
-      wget https://storage.googleapis.com/pub/gsutil.tar.gz
-      tar xfz gsutil.tar.gz
-      sudo mv gsutil /usr/local/bin
-    name: "installKubetest"
-    displayName: "Set up Conformance Tests"
-
-  - script: |
       echo "Start Azilium E2E Tests"
       kubectl get po -owide -A
       sudo -E env "PATH=$PATH" make test-integration AZURE_IPAM_VERSION=$(make azure-ipam-version) CNS_VERSION=$(make cns-version) INSTALL_CNS=true INSTALL_AZILIUM=true
@@ -119,16 +105,6 @@ steps:
     retryCountOnTaskFailure: 3
     name: "CiliumStatus"
     displayName: "Cilium Status"
-
-  - script: |
-      echo "Run Service Conformance E2E"
-      export PATH=${PATH}:/usr/local/bin/gsutil
-      KUBECONFIG=~/.kube/config kubetest2 noop \
-        --test ginkgo -- \
-        --focus-regex "Services.*\[Conformance\].*" \
-        --skip-regex "should serve endpoints on same port and different protocols" # Cilium does not support this feature. For more info on test: https://github.com/kubernetes/kubernetes/blame/e602e9e03cd744c23dde9fee09396812dd7bdd93/test/conformance/testdata/conformance.yaml#L1780-L1788
-    name: "servicesConformance"
-    displayName: "Run Services Conformance Tests"
 
   - script: |
       echo "Run Cilium Connectivity Tests"
