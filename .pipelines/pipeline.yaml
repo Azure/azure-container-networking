@@ -1,7 +1,17 @@
 pr:
   branches:
     include:
+      - merge-queue-test
+      - master
+      - release/*
+trigger:
+  branches:
+    include:
       - gh-readonly-queue/merge-queue-test/*
+  tags:
+    include:
+      - "*"
+
 
 stages:
   - stage: setup
@@ -9,8 +19,6 @@ stages:
     jobs:
       - job: env
         displayName: Setup
-        pool:
-          name: "$(BUILD_POOL_NAME_DEFAULT)"
         steps:
           - script: |
               # To use the variables below, you must make the respective stage's dependsOn have - setup or it will not retain context of this stage
@@ -28,35 +36,49 @@ stages:
               go env
               which go
               echo $PATH
+              echo "------"
+              echo $(Build.QueuedBy)
+              echo $(Build.Reason) # manual, PR, IndividualCI
+              echo $(Build.SourceBranch)
+
             name: "EnvironmentalVariables"
             displayName: "Set environmental variables"
             condition: always()
+  - ${{ if contains(variables['Build.SourceBranch'], 'refs/pull') }}:
+    - stage: test2
+      displayName: Test ACN Short
+      dependsOn:
+        - setup
+      jobs:
+        - job: test2
+          displayName: Run Tests | Short
+          variables:
+            STORAGE_ID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.StorageID'] ]
+          steps:
+            - script: |
+                echo "lets sleep for a while"
+                echo "We will run just unit tests in this block"
+                sleep 60s
+              name: "sleep"
+              displayName: "Sleep 60s"
+  - ${{ else }}:
+    - stage: test
+      displayName: Test ACN Long
+      dependsOn:
+        - setup
+      jobs:
+        - job: test
+          displayName: Run Tests | Long
+          variables:
+            STORAGE_ID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.StorageID'] ]
+          steps:
+            - script: |
+                echo "lets sleep for a while"
+                echo "This block should be used for all other E2E, Tags/Releases, Manual runs, ect"
+                sleep 60s
+              name: "sleep"
+              displayName: "Sleep 60s"
 
-  - stage: test
-    displayName: Test ACN
-    dependsOn:
-      - setup
-    jobs:
-      - job: test
-        displayName: Run Tests
-        variables:
-          STORAGE_ID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.StorageID'] ]
-        pool:
-          name: "$(BUILD_POOL_NAME_DEFAULT)"
-        steps:
-          - script: |
-              make tools
-              # run test, echo exit status code to fd 3, pipe output from test to tee, which splits output to stdout and go-junit-report (which converts test output to report.xml), stdout from tee is redirected to fd 4. Take output written to fd 3 (which is the exit code of test), redirect to stdout, pipe to read from stdout then exit with that status code. Read all output from fd 4 (output from tee) and write to top stdout
-              { { { {
-                    sudo -E env "PATH=$PATH" make test-all;
-                    echo $? >&3;
-                    } | tee >(build/tools/bin/go-junit-report > report.xml) >&4;
-                  } 3>&1;
-                } | { read xs; exit $xs; }
-              } 4>&1
-            retryCountOnTaskFailure: 3
-            name: "Test"
-            displayName: "Run Tests"
 
   # - stage: test_windows
   #   displayName: Test ACN Windows
