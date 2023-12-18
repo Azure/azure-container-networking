@@ -96,15 +96,10 @@ func (service *HTTPRestService) requestIPConfigHandlerHelper(ctx context.Context
 		}
 	}
 
-	// Check if request is for pod with secondary interface(s)
-	if podInfo.SecondaryInterfacesExist() || swiftv2sf {
+	// Follow AKS swiftv2 podinfo path if secondary interface(s) exist
+	if podInfo.SecondaryInterfacesExist() && !swiftv2sf {
 		// In the future, if we have multiple scenario with secondary interfaces, we can add a switch case here
-		var SWIFTv2PodIPInfo cns.PodIpInfo
-		if swiftv2sf {
-			SWIFTv2PodIPInfo, err = service.getIPConfigforSwiftV2SF(podInfo)
-		} else {
-			SWIFTv2PodIPInfo, err = service.SWIFTv2Middleware.GetIPConfig(ctx, podInfo)
-		}
+		SWIFTv2PodIPInfo, err := service.SWIFTv2Middleware.GetIPConfig(ctx, podInfo)
 		if err != nil {
 			defer func() {
 				logger.Errorf("failed to get SWIFTv2 IP config : %v. Releasing default IP config...", err)
@@ -143,6 +138,35 @@ func (service *HTTPRestService) requestIPConfigHandlerHelper(ctx context.Context
 				}, errors.Wrapf(err, "failed to set SWIFTv2 routes : %v", ipconfigsRequest)
 			}
 		}
+	}
+	// Check if request is for pod with secondary interface(s)
+	if swiftv2sf {
+		// In the future, if we have multiple scenario with secondary interfaces, we can add a switch case here
+		SWIFTv2PodIPInfo, err := service.getIPConfigforSwiftV2SF(podInfo)
+		if err != nil {
+			defer func() {
+				logger.Errorf("failed to get SWIFTv2 IP config : %v. Releasing default IP config...", err)
+				_, err = service.releaseIPConfigHandlerHelper(ctx, ipconfigsRequest)
+				if err != nil {
+					logger.Errorf("failed to release default IP config : %v", err)
+				}
+			}()
+			return &cns.IPConfigsResponse{
+				Response: cns.Response{
+					ReturnCode: types.FailedToAllocateIPConfig,
+					Message:    fmt.Sprintf("AllocateIPConfig failed: %v, IP config request is %v", err, ipconfigsRequest),
+				},
+				PodIPInfo: []cns.PodIpInfo{},
+			}, errors.Wrapf(err, "failed to get SWIFTv2 IP config : %v", ipconfigsRequest)
+		}
+		podIPInfo = append(podIPInfo, SWIFTv2PodIPInfo)
+		return &cns.IPConfigsResponse{
+			Response: cns.Response{
+				ReturnCode: types.UnexpectedError,
+				Message:    fmt.Sprintf("failed to set SWIFTv2 routes : %v", err),
+			},
+			PodIPInfo: []cns.PodIpInfo{},
+		}, errors.Wrapf(err, "failed to set SWIFTv2 routes : %v", ipconfigsRequest)
 	}
 
 	return &cns.IPConfigsResponse{

@@ -2,7 +2,6 @@ package wireserver
 
 import (
 	"net"
-	"regexp"
 	"strings"
 
 	"github.com/pkg/errors"
@@ -11,8 +10,8 @@ import (
 var (
 	// ErrNoPrimaryInterface indicates the wireserver response does not have a primary interface indicated.
 	ErrNoPrimaryInterface = errors.New("no primary interface found")
-	// ErrNoSecondaryInterface indicates the wireserver response does not have a secondary interface
-	ErrNoSecondaryInterface = errors.New("no secondary interface found")
+	// ErrNoSecondaryInterfaces indicates the wireserver response does not have secondary interfaces on the node
+	ErrNoSecondaryInterfaces = errors.New("no secondary interfaces found")
 	// ErrInsufficientAddressSpace indicates that the CIDR space is too small to include a gateway IP; it is 1 IP.
 	ErrInsufficientAddressSpace = errors.New("insufficient address space to generate gateway IP")
 )
@@ -66,7 +65,7 @@ func GetSecondaryInterfaceFromResult(res *GetInterfacesResult, macAddress string
 			continue
 		}
 
-		newMacAddress := regexp.MustCompile(`[^a-zA-Z0-9 ]+`).ReplaceAllString(macAddress, "")
+		newMacAddress := strings.ReplaceAll(macAddress, "-", "")
 		if i.MacAddress == strings.ToUpper(newMacAddress) {
 			// get the second subnet
 			s := i.IPSubnet[0]
@@ -92,7 +91,7 @@ func GetSecondaryInterfaceFromResult(res *GetInterfacesResult, macAddress string
 			}, nil
 		}
 	}
-	return nil, ErrNoSecondaryInterface
+	return nil, ErrNoSecondaryInterfaces
 }
 
 // calculateGatewayIP parses the passed CIDR string and returns the first IP in the range.
