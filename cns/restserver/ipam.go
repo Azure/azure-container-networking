@@ -171,9 +171,9 @@ func (service *HTTPRestService) requestIPConfigsHandler(w http.ResponseWriter, r
 	}
 	var ipConfigsResp *cns.IPConfigsResponse
 
-	// Check if SWIFTv2 middleware is enabled
+	// Check if IPConfigsHandlerMiddleware is set
 	if service.IPConfigsHandlerMiddleware != nil {
-		// Wrap the handler with the SWIFTv2 middleware
+		// Wrap the default datapath handlers with the middleware
 		wrappedHandler := service.IPConfigsHandlerMiddleware.IPConfigsRequestHandlerWrapper(service.requestIPConfigHandlerHelper, service.releaseIPConfigHandlerHelper)
 		ipConfigsResp, err = wrappedHandler(r.Context(), ipconfigsRequest)
 	} else {
