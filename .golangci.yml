@@ -1,6 +1,7 @@
 issues:
   max-same-issues: 0
   max-issues-per-linter: 0
+  new-from-rev: origin/master
 linters:
   presets: 
   - bugs
