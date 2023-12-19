@@ -1,7 +1,9 @@
 package wireserver
 
 import (
+	"github.com/Azure/azure-container-networking/cns/logger"
 	"net"
+	"regexp"
 	"strings"
 
 	"github.com/pkg/errors"
@@ -65,7 +67,8 @@ func GetSecondaryInterfaceFromResult(res *GetInterfacesResult, macAddress string
 			continue
 		}
 
-		newMacAddress := strings.ReplaceAll(macAddress, "-", "")
+		logger.Printf("i.MacAddress is %s", strings.Split(i.MacAddress, ":"))
+		newMacAddress := regexp.MustCompile(`[^a-zA-Z0-9 ]+`).ReplaceAllString(macAddress, "")
 		if i.MacAddress == strings.ToUpper(newMacAddress) {
 			// get the second subnet
 			s := i.IPSubnet[0]
