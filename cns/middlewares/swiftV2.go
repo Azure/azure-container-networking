@@ -30,14 +30,14 @@ const (
 	overlayGatewayV6 = "fe80::1234:5678:9abc"
 )
 
-type SWIFTv2Middleware struct {
+type K8sSWIFTv2Middleware struct {
 	Cli client.Client
 }
 
 // Verify interface compliance at compile time
-var _ cns.IPConfigsHandlerMiddleware = (*SWIFTv2Middleware)(nil)
+var _ cns.IPConfigsHandlerMiddleware = (*K8sSWIFTv2Middleware)(nil)
 
-func (m *SWIFTv2Middleware) IPConfigsRequestHandlerWrapper(defaultHandler, failureHandler cns.IPConfigsHandlerFunc) cns.IPConfigsHandlerFunc {
+func (m *K8sSWIFTv2Middleware) IPConfigsRequestHandlerWrapper(defaultHandler, failureHandler cns.IPConfigsHandlerFunc) cns.IPConfigsHandlerFunc {
 	return func(ctx context.Context, req cns.IPConfigsRequest) (*cns.IPConfigsResponse, error) {
 		podInfo, respCode, message := m.validateIPConfigsRequest(ctx, &req)
 
@@ -98,7 +98,7 @@ func (m *SWIFTv2Middleware) IPConfigsRequestHandlerWrapper(defaultHandler, failu
 
 // validateIPConfigsRequest validates if pod is multitenant by checking the pod labels, used in SWIFT V2 scenario.
 // nolint
-func (m *SWIFTv2Middleware) validateIPConfigsRequest(ctx context.Context, req *cns.IPConfigsRequest) (podInfo cns.PodInfo, respCode types.ResponseCode, message string) {
+func (m *K8sSWIFTv2Middleware) validateIPConfigsRequest(ctx context.Context, req *cns.IPConfigsRequest) (podInfo cns.PodInfo, respCode types.ResponseCode, message string) {
 	// Retrieve the pod from the cluster
 	podInfo, err := cns.UnmarshalPodInfo(req.OrchestratorContext)
 	if err != nil {
@@ -133,7 +133,7 @@ func (m *SWIFTv2Middleware) validateIPConfigsRequest(ctx context.Context, req *c
 }
 
 // getIPConfig returns the pod's SWIFT V2 IP configuration.
-func (m *SWIFTv2Middleware) getIPConfig(ctx context.Context, podInfo cns.PodInfo) (cns.PodIpInfo, error) {
+func (m *K8sSWIFTv2Middleware) getIPConfig(ctx context.Context, podInfo cns.PodInfo) (cns.PodIpInfo, error) {
 	// Check if the MTPNC CRD exists for the pod, if not, return error
 	mtpnc := v1alpha1.MultitenantPodNetworkConfig{}
 	mtpncNamespacedName := k8stypes.NamespacedName{Namespace: podInfo.Namespace(), Name: podInfo.Name()}
@@ -173,7 +173,7 @@ func (m *SWIFTv2Middleware) getIPConfig(ctx context.Context, podInfo cns.PodInfo
 }
 
 // setRoutes sets the routes for podIPInfo used in SWIFT V2 scenario.
-func (m *SWIFTv2Middleware) setRoutes(podIPInfo *cns.PodIpInfo) error {
+func (m *K8sSWIFTv2Middleware) setRoutes(podIPInfo *cns.PodIpInfo) error {
 	logger.Printf("[SWIFTv2Middleware] set routes for pod with nic type : %s", podIPInfo.NICType)
 	podIPInfo.Routes = []cns.Route{}
 	switch podIPInfo.NICType {

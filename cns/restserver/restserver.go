@@ -13,7 +13,6 @@ import (
 	"github.com/Azure/azure-container-networking/cns/dockerclient"
 	"github.com/Azure/azure-container-networking/cns/ipamclient"
 	"github.com/Azure/azure-container-networking/cns/logger"
-	"github.com/Azure/azure-container-networking/cns/middlewares"
 	"github.com/Azure/azure-container-networking/cns/networkcontainers"
 	"github.com/Azure/azure-container-networking/cns/routes"
 	"github.com/Azure/azure-container-networking/cns/types"
@@ -68,12 +67,12 @@ type HTTPRestService struct {
 	state                    *httpRestServiceState
 	podsPendingIPAssignment  *bounded.TimedSet
 	sync.RWMutex
-	dncPartitionKey         string
-	EndpointState           map[string]*EndpointInfo // key : container id
-	EndpointStateStore      store.KeyValueStore
-	cniConflistGenerator    CNIConflistGenerator
-	generateCNIConflistOnce sync.Once
-	SWIFTv2Middleware       *middlewares.SWIFTv2Middleware
+	dncPartitionKey            string
+	EndpointState              map[string]*EndpointInfo // key : container id
+	EndpointStateStore         store.KeyValueStore
+	cniConflistGenerator       CNIConflistGenerator
+	generateCNIConflistOnce    sync.Once
+	IPConfigsHandlerMiddleware cns.IPConfigsHandlerMiddleware
 }
 
 type CNIConflistGenerator interface {
@@ -360,8 +359,5 @@ func (service *HTTPRestService) MustGenerateCNIConflistOnce() {
 }
 
 func (service *HTTPRestService) AttachIPConfigsHandlerMiddleware(middleware cns.IPConfigsHandlerMiddleware) {
-	swiftV2Implementation, ok := middleware.(*middlewares.SWIFTv2Middleware)
-	if ok {
-		service.SWIFTv2Middleware = swiftV2Implementation
-	}
+	service.IPConfigsHandlerMiddleware = middleware
 }

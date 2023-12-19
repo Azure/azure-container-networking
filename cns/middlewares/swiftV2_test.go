@@ -33,7 +33,7 @@ func TestMain(m *testing.M) {
 }
 
 func TestIPConfigsRequestHandlerWrapperSuccess(t *testing.T) {
-	middleware := SWIFTv2Middleware{Cli: mock.NewClient()}
+	middleware := K8sSWIFTv2Middleware{Cli: mock.NewClient()}
 	t.Setenv(configuration.EnvPodCIDRs, "10.0.1.10/24,16A0:0010:AB00:001E::2/32")
 	t.Setenv(configuration.EnvServiceCIDRs, "10.0.0.0/16,16A0:0010:AB00:0000::/32")
 	t.Setenv(configuration.EnvInfraVNETCIDRs, "10.240.0.1/16,16A0:0020:AB00:0000::/32")
@@ -74,7 +74,7 @@ func TestIPConfigsRequestHandlerWrapperSuccess(t *testing.T) {
 }
 
 func TestIPConfigsRequestHandlerWrapperFailure(t *testing.T) {
-	middleware := SWIFTv2Middleware{Cli: mock.NewClient()}
+	middleware := K8sSWIFTv2Middleware{Cli: mock.NewClient()}
 	defaultHandler := func(context.Context, cns.IPConfigsRequest) (*cns.IPConfigsResponse, error) {
 		return &cns.IPConfigsResponse{
 			PodIPInfo: []cns.PodIpInfo{
@@ -121,7 +121,7 @@ func TestIPConfigsRequestHandlerWrapperFailure(t *testing.T) {
 }
 
 func TestValidateMultitenantIPConfigsRequestSuccess(t *testing.T) {
-	middleware := SWIFTv2Middleware{Cli: mock.NewClient()}
+	middleware := K8sSWIFTv2Middleware{Cli: mock.NewClient()}
 
 	happyReq := &cns.IPConfigsRequest{
 		PodInterfaceID:   testPod1Info.InterfaceID(),
@@ -138,7 +138,7 @@ func TestValidateMultitenantIPConfigsRequestSuccess(t *testing.T) {
 }
 
 func TestValidateMultitenantIPConfigsRequestFailure(t *testing.T) {
-	middleware := SWIFTv2Middleware{Cli: mock.NewClient()}
+	middleware := K8sSWIFTv2Middleware{Cli: mock.NewClient()}
 
 	// Fail to unmarshal pod info test
 	failReq := &cns.IPConfigsRequest{
@@ -177,7 +177,7 @@ func TestGetSWIFTv2IPConfigSuccess(t *testing.T) {
 	t.Setenv(configuration.EnvServiceCIDRs, "10.0.0.0/16,16A0:0010:AB00:0000::/32")
 	t.Setenv(configuration.EnvInfraVNETCIDRs, "10.240.0.1/16,16A0:0020:AB00:0000::/32")
 
-	middleware := SWIFTv2Middleware{Cli: mock.NewClient()}
+	middleware := K8sSWIFTv2Middleware{Cli: mock.NewClient()}
 
 	ipInfo, err := middleware.getIPConfig(context.TODO(), testPod1Info)
 	assert.Equal(t, err, nil)
@@ -186,7 +186,7 @@ func TestGetSWIFTv2IPConfigSuccess(t *testing.T) {
 }
 
 func TestGetSWIFTv2IPConfigFailure(t *testing.T) {
-	middleware := SWIFTv2Middleware{Cli: mock.NewClient()}
+	middleware := K8sSWIFTv2Middleware{Cli: mock.NewClient()}
 
 	// Pod's MTPNC doesn't exist in cache test
 	_, err := middleware.getIPConfig(context.TODO(), testPod3Info)
@@ -198,7 +198,7 @@ func TestGetSWIFTv2IPConfigFailure(t *testing.T) {
 }
 
 func TestSetRoutesSuccess(t *testing.T) {
-	middleware := SWIFTv2Middleware{Cli: mock.NewClient()}
+	middleware := K8sSWIFTv2Middleware{Cli: mock.NewClient()}
 	t.Setenv(configuration.EnvPodCIDRs, "10.0.1.10/24,16A0:0010:AB00:001E::2/32")
 	t.Setenv(configuration.EnvServiceCIDRs, "10.0.0.0/16,16A0:0010:AB00:0000::/32")
 	t.Setenv(configuration.EnvInfraVNETCIDRs, "10.240.0.1/16,16A0:0020:AB00:0000::/32")
@@ -306,7 +306,7 @@ func TestSetRoutesSuccess(t *testing.T) {
 
 func TestSetRoutesFailure(t *testing.T) {
 	// Failure due to env var not set
-	middleware := SWIFTv2Middleware{Cli: mock.NewClient()}
+	middleware := K8sSWIFTv2Middleware{Cli: mock.NewClient()}
 	podIPInfo := []cns.PodIpInfo{
 		{
 			PodIPConfig: cns.IPSubnet{

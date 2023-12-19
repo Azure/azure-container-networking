@@ -1381,7 +1381,8 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 			return errors.Wrapf(err, "failed to setup mtpnc reconciler with manager")
 		}
 		// if SWIFT v2 is enabled on CNS, attach multitenant middleware to rest service
-		swiftV2Middleware := middlewares.SWIFTv2Middleware{Cli: manager.GetClient()}
+		// switch here for different type of swift v2 middleware (k8s or SF)
+		swiftV2Middleware := middlewares.K8sSWIFTv2Middleware{Cli: manager.GetClient()}
 		httpRestService.AttachIPConfigsHandlerMiddleware(&swiftV2Middleware)
 	}
 

@@ -1547,9 +1547,9 @@ func unsetEnvVars() {
 	_ = os.Unsetenv(configuration.EnvInfraVNETCIDRs)
 }
 
-func TestIPAMGetSWIFTv2IPSuccess(t *testing.T) {
+func TestIPAMGetK8sSWIFTv2IPSuccess(t *testing.T) {
 	svc := getTestService()
-	middleware := middlewares.SWIFTv2Middleware{Cli: mock.NewClient()}
+	middleware := middlewares.K8sSWIFTv2Middleware{Cli: mock.NewClient()}
 	svc.AttachIPConfigsHandlerMiddleware(&middleware)
 
 	setEnvVars()
@@ -1591,7 +1591,7 @@ func TestIPAMGetSWIFTv2IPSuccess(t *testing.T) {
 	req.DesiredIPAddresses[0] = testIP1
 	req.DesiredIPAddresses[1] = testIP1v6
 
-	wrappedHandler := svc.SWIFTv2Middleware.IPConfigsRequestHandlerWrapper(svc.requestIPConfigHandlerHelper, svc.releaseIPConfigHandlerHelper)
+	wrappedHandler := svc.IPConfigsHandlerMiddleware.IPConfigsRequestHandlerWrapper(svc.requestIPConfigHandlerHelper, svc.releaseIPConfigHandlerHelper)
 	resp, err := wrappedHandler(context.TODO(), req)
 	if err != nil {
 		t.Fatalf("Expected to not fail requesting IPs: %+v", err)
@@ -1609,9 +1609,9 @@ func TestIPAMGetSWIFTv2IPSuccess(t *testing.T) {
 	assert.False(t, podIPInfo[2].SkipDefaultRoutes)
 }
 
-func TestIPAMGetSWIFTv2IPFailure(t *testing.T) {
+func TestIPAMGetK8sSWIFTv2IPFailure(t *testing.T) {
 	svc := getTestService()
-	middleware := middlewares.SWIFTv2Middleware{Cli: mock.NewClient()}
+	middleware := middlewares.K8sSWIFTv2Middleware{Cli: mock.NewClient()}
 	svc.AttachIPConfigsHandlerMiddleware(&middleware)
 	ncStates := []ncState{
 		{
@@ -1647,7 +1647,7 @@ func TestIPAMGetSWIFTv2IPFailure(t *testing.T) {
 	req.DesiredIPAddresses = make([]string, 2)
 	req.DesiredIPAddresses[0] = testIP1
 	req.DesiredIPAddresses[1] = testIP1v6
-	wrappedHandler := svc.SWIFTv2Middleware.IPConfigsRequestHandlerWrapper(svc.requestIPConfigHandlerHelper, svc.releaseIPConfigHandlerHelper)
+	wrappedHandler := svc.IPConfigsHandlerMiddleware.IPConfigsRequestHandlerWrapper(svc.requestIPConfigHandlerHelper, svc.releaseIPConfigHandlerHelper)
 	_, err := wrappedHandler(context.TODO(), req)
 	if err == nil {
 		t.Fatalf("Expected failing requesting IPs due to MTPNC not ready")

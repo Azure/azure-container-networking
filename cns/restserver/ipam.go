@@ -172,9 +172,9 @@ func (service *HTTPRestService) requestIPConfigsHandler(w http.ResponseWriter, r
 	var ipConfigsResp *cns.IPConfigsResponse
 
 	// Check if SWIFTv2 middleware is enabled
-	if service.SWIFTv2Middleware != nil {
+	if service.IPConfigsHandlerMiddleware != nil {
 		// Wrap the handler with the SWIFTv2 middleware
-		wrappedHandler := service.SWIFTv2Middleware.IPConfigsRequestHandlerWrapper(service.requestIPConfigHandlerHelper, service.releaseIPConfigHandlerHelper)
+		wrappedHandler := service.IPConfigsHandlerMiddleware.IPConfigsRequestHandlerWrapper(service.requestIPConfigHandlerHelper, service.releaseIPConfigHandlerHelper)
 		ipConfigsResp, err = wrappedHandler(r.Context(), ipconfigsRequest)
 	} else {
 		ipConfigsResp, err = service.requestIPConfigHandlerHelper(r.Context(), ipconfigsRequest) // nolint:contextcheck // appease linter
