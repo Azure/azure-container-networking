@@ -53,7 +53,7 @@ import (
 	localtls "github.com/Azure/azure-container-networking/server/tls"
 	"github.com/Azure/azure-container-networking/store"
 	"github.com/Azure/azure-container-networking/telemetry"
-	"github.com/avast/retry-go/v3"
+	"github.com/avast/retry-go/v4"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -804,15 +804,19 @@ func main() {
 			z.Error("failed to create cnsclient", zap.Error(err))
 		}
 		go func() {
-			for {
+			_ = retry.Do(func() error {
 				z.Info("starting fsnotify watcher to process missed Pod deletes")
-				w := fsnotify.New(cnsclient, cnsconfig.AsyncPodDeletePath, z)
+				w, err := fsnotify.New(cnsclient, cnsconfig.AsyncPodDeletePath, z)
+				if err != nil {
+					z.Error("failed to create fsnotify watcher", zap.Error(err))
+					return errors.Wrap(err, "failed to create fsnotify watcher, will retry")
+				}
 				if err := w.Start(rootCtx); err != nil {
 					z.Error("failed to start fsnotify watcher, will retry", zap.Error(err))
-					time.Sleep(time.Minute)
-					continue
+					return errors.Wrap(err, "failed to start fsnotify watcher, will retry")
 				}
-			}
+				return nil
+			}, retry.DelayType(retry.BackOffDelay), retry.Attempts(0), retry.Context(rootCtx)) // infinite cancellable exponential backoff retrier
 		}()
 	}
 

@@ -1,6 +1,6 @@
 module github.com/Azure/azure-container-networking
 
-go 1.20
+go 1.21
 
 require (
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.1.3
@@ -34,6 +34,7 @@ require (
 	github.com/stretchr/testify v1.8.2
 	go.uber.org/zap v1.24.0
 	golang.org/x/exp v0.0.0-20230522175609-2e198f4a06a1
+	golang.org/x/sync v0.1.0
 	golang.org/x/sys v0.13.0
 	google.golang.org/grpc v1.52.0
 	google.golang.org/protobuf v1.28.1
