@@ -138,7 +138,7 @@ require (
 )
 
 require (
-	github.com/containerd/containerd v1.6.23 // indirect
+	github.com/containerd/containerd v1.6.26 // indirect
 	github.com/emicklei/go-restful/v3 v3.11.0 // indirect
 	github.com/golang-jwt/jwt/v5 v5.0.0 // indirect
 	github.com/rootless-containers/rootlesskit v1.1.1 // indirect
