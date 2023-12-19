@@ -52,7 +52,6 @@ stages:
               echo $(Build.QueuedBy)
               echo $(Build.Reason) # manual, PR, IndividualCI
               echo $(Build.SourceBranch)
-
             name: "EnvironmentalVariables"
             displayName: "Set environmental variables"
             condition: always()
@@ -147,6 +146,7 @@ stages:
               retryCountOnTaskFailure: 3
               name: "TestWindows"
               displayName: "Run Windows Tests"
+
     - stage: binaries
       displayName: Build Binaries
       dependsOn:
@@ -242,10 +242,6 @@ stages:
                 arch: amd64
                 name: cni-dropgz
                 os: linux
-              cni_dropgz_test_linux_amd64:
-                arch: amd64
-                name: cni-dropgz-test
-                os: linux
               cni_dropgz_windows2019_amd64:
                 arch: amd64
                 name: cni-dropgz
@@ -254,16 +250,6 @@ stages:
               cni_dropgz_windows2022_amd64:
                 arch: amd64
                 name: cni-dropgz
-                os: windows
-                os_version: ltsc2022
-              cni_dropgz_test_windows2019_amd64:
-                arch: amd64
-                name: cni-dropgz-test
-                os: windows
-                os_version: ltsc2019
-              cni_dropgz_test_windows2022_amd64:
-                arch: amd64
-                name: cni-dropgz-test
                 os: windows
                 os_version: ltsc2022
               cns_linux_amd64:
@@ -315,10 +301,6 @@ stages:
               cni_dropgz_linux_arm64:
                 arch: arm64
                 name: cni-dropgz
-                os: linux
-              cni_dropgz_test_linux_arm64:
-                arch: arm64
-                name: cni-dropgz-test
                 os: linux
               cns_linux_arm64:
                 arch: arm64
@@ -393,10 +375,6 @@ stages:
                 name: cni-dropgz
                 os_versions: ltsc2019 ltsc2022
                 platforms: linux/amd64 linux/arm64 windows/amd64
-              cni_dropgz_test:
-                name: cni-dropgz-test
-                os_versions: ltsc2019 ltsc2022
-                platforms: linux/amd64 linux/arm64 windows/amd64
               cns:
                 name: cns
                 os_versions: ltsc2019 ltsc2022
@@ -428,46 +406,22 @@ stages:
       parameters:
         name: "cilium_e2e"
         displayName: Cilium
-        testDropgz: ""
         clusterType: swift-byocni-nokubeproxy-up
         clusterName: "ciliume2e"
         vmSize: Standard_B2ms
         k8sVersion: ""
-        dependsOn: "containerize"
-
-    - template: singletenancy/cilium/cilium-e2e-job-template.yaml
-      parameters:
-        name: "cilium_podsubnet_cni_e2e"
-        displayName: CNI - Cilium Podsubnet
-        testDropgz: true
-        clusterType: swift-byocni-nokubeproxy-up
-        clusterName: "cilpodcnie2e"
-        vmSize: Standard_B2ms
-        k8sVersion: ""
-        dependsOn: "containerize"
+        dependsOn: "test"
 
     # Cilium Overlay E2E tests
     - template: singletenancy/cilium-overlay/cilium-overlay-e2e-job-template.yaml
       parameters:
         name: "cilium_overlay_e2e"
         displayName: Cilium on AKS Overlay
-        testDropgz: ""
         clusterType: overlay-byocni-nokubeproxy-up
         clusterName: "cilovere2e"
         vmSize: Standard_B2ms
         k8sVersion: ""
-        dependsOn: "containerize"
-
-    - template: singletenancy/cilium-overlay/cilium-overlay-e2e-job-template.yaml
-      parameters:
-        name: "cilium_overlay_cni_e2e"
-        displayName: CNI - Cilium on AKS Overlay
-        testDropgz: true
-        clusterType: overlay-byocni-nokubeproxy-up
-        clusterName: "cilovercnie2e"
-        vmSize: Standard_B2ms
-        k8sVersion: ""
-        dependsOn: "containerize"
+        dependsOn: "test"
 
     # Azure Overlay E2E tests
     - template: singletenancy/azure-cni-overlay/azure-cni-overlay-e2e-job-template.yaml
@@ -475,47 +429,33 @@ stages:
         name: "azure_overlay_e2e"
         displayName: Azure Overlay
         os: linux
-        testDropgz: ""
         clusterType: overlay-byocni-up
         clusterName: "azovere2e"
         vmSize: Standard_B2ms
         k8sVersion: ""
-        dependsOn: "containerize"
-
-    - template: singletenancy/azure-cni-overlay/azure-cni-overlay-e2e-job-template.yaml
-      parameters:
-        name: "azure_overlay_cni_e2e"
-        displayName: CNI - Azure Overlay
-        os: linux
-        testDropgz: true
-        clusterType: overlay-byocni-up
-        clusterName: "azovercnie2e"
-        vmSize: Standard_B2ms
-        k8sVersion: ""
-        dependsOn: "containerize"
+        dependsOn: "test"
 
     # AKS Swift E2E tests
     - template: singletenancy/aks-swift/e2e-job-template.yaml
       parameters:
         name: "aks_swift_e2e"
         displayName: AKS Swift Ubuntu
-        testDropgz: ""
         clusterType: swift-byocni-up
         clusterName: "swifte2e"
         vmSize: Standard_B2s
         k8sVersion: ""
-        dependsOn: "containerize"
+        dependsOn: "test"
 
+    # AKS Swift Vnet Scale E2E tests
     - template: singletenancy/aks-swift/e2e-job-template.yaml
       parameters:
-        name: "aks_swift_cni_e2e"
-        displayName: CNI - AKS Swift
-        testDropgz: true
-        clusterType: swift-byocni-up
-        clusterName: "swiftcnie2e"
-        vmSize: Standard_B2ms
-        k8sVersion: ""
-        dependsOn: "containerize"
+        name: "aks_swift_vnetscale_e2e"
+        displayName: AKS Swift Vnet Scale Ubuntu
+        clusterType: vnetscale-swift-byocni-up
+        clusterName: "vscaleswifte2e"
+        vmSize: Standard_B2s
+        k8sVersion: "1.28"
+        dependsOn: "test"
 
     # CNIv1 E2E tests
     - template: singletenancy/aks/e2e-job-template.yaml
@@ -529,7 +469,7 @@ stages:
         vmSize: Standard_B2s
         k8sVersion: 1.25
         scaleup: 100
-        dependsOn: "containerize"
+        dependsOn: "test"
 
     - template: singletenancy/aks/e2e-job-template.yaml
       parameters:
@@ -542,7 +482,7 @@ stages:
         vmSize: Standard_B2ms
         os_version: "ltsc2022"
         scaleup: 50
-        dependsOn: "containerize"
+        dependsOn: "test"
 
     # CNI dual stack overlay E2E tests
     - template: singletenancy/dualstack-overlay/dualstackoverlay-e2e-job-template.yaml
@@ -553,25 +493,21 @@ stages:
         clusterType: dualstack-overlay-byocni-up
         clusterName: "dsovere2e"
         vmSize: Standard_B2ms
-        dependsOn: "containerize"
-        testDropgz: true
+        dependsOn: "test"
 
     - stage: delete
       displayName: Delete Clusters
       condition: always()
       dependsOn:
         - setup
-        - "azure_overlay_e2e"
-        - "azure_overlay_cni_e2e"
-        - "aks_swift_e2e"
-        - "aks_swift_cni_e2e"
-        - "cilium_e2e"
-        - "cilium_podsubnet_cni_e2e"
-        - "cilium_overlay_e2e"
-        - "cilium_overlay_cni_e2e"
-        - "aks_ubuntu_22_linux_e2e"
-        - "aks_windows_22_e2e"
-        - "dualstackoverlay_e2e"
+        - azure_overlay_e2e
+        - aks_swift_e2e
+        - cilium_e2e
+        - cilium_overlay_e2e
+        - aks_ubuntu_22_linux_e2e
+        - aks_swift_vnetscale_e2e
+        - aks_windows_22_e2e
+        - dualstackoverlay_e2e
       variables:
         commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
       jobs:
@@ -593,6 +529,9 @@ stages:
               aks_swift_e2e:
                 name: aks_swift_e2e
                 clusterName: "swifte2e"
+              aks_swift_vnetscale_e2e:
+                name: aks_swift_vnetscale_e2e
+                clusterName: "vscaleswifte2e"
               azure_overlay_cni_e2e:
                 name: "azure_overlay_cni_e2e"
                 clusterName: "azovercnie2e"
@@ -644,18 +583,13 @@ stages:
     - stage: cleanup
       displayName: Cleanup
       dependsOn:
-        - "azure_overlay_e2e"
-        - "azure_overlay_cni_e2e"
-        - "aks_swift_e2e"
-        - "aks_swift_cni_e2e"
-        - "cilium_e2e"
-        - "cilium_podsubnet_cni_e2e"
-        - "cilium_overlay_e2e"
-        - "cilium_overlay_cni_e2e"
-        - "aks_ubuntu_22_linux_e2e"
-        - "aks_windows_22_e2e"
-        - "dualstackoverlay_e2e"
-
+        - azure_overlay_e2e
+        - aks_swift_e2e
+        - cilium_e2e
+        - cilium_overlay_e2e
+        - aks_ubuntu_22_linux_e2e
+        - aks_windows_22_e2e
+        - dualstackoverlay_e2e
       jobs:
         - job: delete_remote_artifacts
           displayName: Delete remote artifacts

@@ -7,6 +7,9 @@ on:
         - reopened
         - synchronize
         - ready_for_review
+  merge_group:
+    types:
+      - checks_requested
 jobs:
   crdgen:
     strategy:
@@ -21,7 +24,7 @@ jobs:
         fetch-depth: 0
     - uses: actions/setup-go@v5
       with:
-        go-version: ${{ matrix.go-version }} 
+        go-version: ${{ matrix.go-version }}
     - name: Regenerate NodeNetworkConfig CRD
       run: make -C crd/nodenetworkconfig
     - name: Regenerate MultitenantNetworkContainer CRD
