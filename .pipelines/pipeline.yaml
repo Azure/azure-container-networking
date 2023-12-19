@@ -14,7 +14,7 @@ pr:
 trigger:
   branches:
     include:
-      - gh-readonly-queue/merge-queue-test/*
+      - gh-readonly-queue/master/*
   paths:
     exclude:
       - docs
@@ -107,7 +107,6 @@ stages:
       displayName: Build Binaries
       dependsOn:
         - setup
-        - test
       jobs:
         - job: build
           displayName: Build Binaries
@@ -158,7 +157,6 @@ stages:
       displayName: Build Images
       dependsOn:
         - setup
-        - test
       jobs:
         - job: containerize_amd64
           displayName: Build Images
