@@ -11,6 +11,7 @@ import (
 )
 
 // ClusterSubnetStatesYAML embeds the CRD YAML for downstream consumers.
+//
 //go:embed manifests/acn.azure.com_clustersubnetstates.yaml
 var ClusterSubnetStatesYAML []byte
 

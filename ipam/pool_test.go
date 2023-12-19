@@ -4,12 +4,10 @@ import (
 	"net"
 	"testing"
 
+	"github.com/Azure/azure-container-networking/testutils"
 	"github.com/google/uuid"
-
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-
-	"github.com/Azure/azure-container-networking/testutils"
 )
 
 func TestPool(t *testing.T) {

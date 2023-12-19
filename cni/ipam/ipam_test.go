@@ -276,7 +276,7 @@ var (
 			})
 
 			Context("When pool is not use", func() {
-				It("Confirm pool was released by succesfully requesting pool", func() {
+				It("Confirm pool was released by successfully requesting pool", func() {
 					arg.StdinData = getStdinData("0.4.0", "", "")
 					err = plugin.Add(arg)
 					Expect(err).ShouldNot(HaveOccurred())

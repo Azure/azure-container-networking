@@ -337,7 +337,6 @@ func parseModuleOptionAndValue(
 	ruleLine []byte,
 	included bool,
 ) int {
-
 	spaceIndex := bytes.Index(ruleLine[nextIndex:], SpaceBytes)
 	currentOption := curOption
 	if spaceIndex == -1 {

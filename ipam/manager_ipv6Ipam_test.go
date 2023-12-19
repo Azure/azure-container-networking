@@ -6,10 +6,9 @@ package ipam
 import (
 	"testing"
 
+	"github.com/Azure/azure-container-networking/common"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-
-	"github.com/Azure/azure-container-networking/common"
 )
 
 var (

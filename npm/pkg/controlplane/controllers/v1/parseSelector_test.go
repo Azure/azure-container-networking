@@ -114,11 +114,11 @@ func TestGetOperatorsAndLabels(t *testing.T) {
 	}
 
 	if !reflect.DeepEqual(resultOps, expectedOps) {
-		t.Errorf("TestGetOperatorsAndLabels failed @ op comparision")
+		t.Errorf("TestGetOperatorsAndLabels failed @ op comparison")
 	}
 
 	if !reflect.DeepEqual(resultLabels, expectedLabels) {
-		t.Errorf("TestGetOperatorsAndLabels failed @ label comparision")
+		t.Errorf("TestGetOperatorsAndLabels failed @ label comparison")
 	}
 }
 

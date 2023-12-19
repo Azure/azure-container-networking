@@ -5,11 +5,10 @@ import (
 	"testing"
 	"time"
 
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
-
 	"github.com/Azure/azure-container-networking/store"
 	"github.com/Azure/azure-container-networking/testutils"
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
 )
 
 func TestManager(t *testing.T) {
@@ -204,7 +203,7 @@ var _ = Describe("Test Manager", func() {
 			})
 		})
 
-		Context("When ifName not specifed in GetNumberofEndpoints", func() {
+		Context("When ifName not specified in GetNumberofEndpoints", func() {
 			It("Should range the nm.ExternalInterfaces", func() {
 				ifName := "eth0"
 				nwId := "nwId"

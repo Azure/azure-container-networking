@@ -15,8 +15,10 @@ type NetIOInterface interface {
 }
 
 // ErrInterfaceNil - errors out when interface is nil
-var ErrInterfaceNil = errors.New("Interface is nil")
-var ErrInterfaceNotFound = errors.New("Inteface not found")
+var (
+	ErrInterfaceNil      = errors.New("Interface is nil")
+	ErrInterfaceNotFound = errors.New("Inteface not found")
+)
 
 type NetIO struct{}
 

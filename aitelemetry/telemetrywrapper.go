@@ -333,7 +333,7 @@ func (th *telemetryHandle) Close(timeout int) {
 	// wait for items to be sent otherwise timeout
 	<-th.client.Channel().Close(time.Duration(timeout) * time.Second)
 
-	// Remove diganostic message listener
+	// Remove diagnostic message listener
 	if th.diagListener != nil {
 		th.diagListener.Remove()
 		th.diagListener = nil

@@ -172,7 +172,7 @@ func TestCreateAndUpdateNCWithSecondaryIPNCVersion(t *testing.T) {
 	// Validate secondary IPs' NC version has been updated by NC request
 	receivedSecondaryIPConfigs := containerStatus.CreateNetworkContainerRequest.SecondaryIPConfigs
 	if len(receivedSecondaryIPConfigs) != 1 {
-		t.Fatalf("receivedSecondaryIPConfigs lenth must be 1, but recieved %d", len(receivedSecondaryIPConfigs))
+		t.Fatalf("receivedSecondaryIPConfigs lenth must be 1, but received %d", len(receivedSecondaryIPConfigs))
 	}
 	for _, secIPConfig := range receivedSecondaryIPConfigs {
 		if secIPConfig.IPAddress != "10.0.0.16" || secIPConfig.NCVersion != 0 {

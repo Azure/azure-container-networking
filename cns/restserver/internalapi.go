@@ -55,7 +55,7 @@ func (service *HTTPRestService) SyncNodeStatus(dncEP, infraVnet, nodeID string, 
 
 	// try to retrieve NodeInfoResponse from mDNC
 	url := fmt.Sprintf(common.SyncNodeNetworkContainersURLFmt, dncEP, infraVnet, nodeID, dncApiVersion)
-	req, _ := http.NewRequestWithContext(context.TODO(), http.MethodGet, url, nil)
+	req, _ := http.NewRequestWithContext(context.TODO(), http.MethodGet, url, http.NoBody)
 	resp, err := httpc.Do(req)
 	if err == nil {
 		if resp.StatusCode == http.StatusOK {

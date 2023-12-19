@@ -2,7 +2,6 @@ package translation
 
 import (
 	"fmt"
-
 	"regexp"
 
 	"github.com/Azure/azure-container-networking/log"

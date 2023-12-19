@@ -15,7 +15,6 @@ import (
 	"github.com/Azure/azure-container-networking/npm/util"
 	"github.com/Azure/azure-container-networking/npm/util/ioutil"
 	utilexec "k8s.io/utils/exec"
-	// utiliptables "k8s.io/kubernetes/pkg/util/iptables"
 )
 
 const (

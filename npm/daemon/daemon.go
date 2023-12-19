@@ -33,7 +33,6 @@ func NewNetworkPolicyDaemon(
 	client *transport.EventsClient,
 	npmVersion string,
 ) (*NetworkPolicyDaemon, error) {
-
 	if dp == nil {
 		return nil, ErrDataplaneNotInitialized
 	}

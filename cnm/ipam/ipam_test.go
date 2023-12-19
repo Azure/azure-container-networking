@@ -123,7 +123,7 @@ func decodeResponse(w *httptest.ResponseRecorder, response interface{}) error {
 func TestActivate(t *testing.T) {
 	var resp cnm.ActivateResponse
 
-	req, err := http.NewRequest(http.MethodGet, "/Plugin.Activate", nil)
+	req, err := http.NewRequest(http.MethodGet, "/Plugin.Activate", http.NoBody)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -142,7 +142,7 @@ func TestActivate(t *testing.T) {
 func TestGetCapabilities(t *testing.T) {
 	var resp GetCapabilitiesResponse
 
-	req, err := http.NewRequest(http.MethodGet, GetCapabilitiesPath, nil)
+	req, err := http.NewRequest(http.MethodGet, GetCapabilitiesPath, http.NoBody)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -161,7 +161,7 @@ func TestGetCapabilities(t *testing.T) {
 func TestGetDefaultAddressSpaces(t *testing.T) {
 	var resp GetDefaultAddressSpacesResponse
 
-	req, err := http.NewRequest(http.MethodGet, GetAddressSpacesPath, nil)
+	req, err := http.NewRequest(http.MethodGet, GetAddressSpacesPath, http.NoBody)
 	if err != nil {
 		t.Fatal(err)
 	}

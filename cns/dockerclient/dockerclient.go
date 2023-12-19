@@ -152,7 +152,7 @@ func (c *Client) DeleteNetwork(networkName string) error {
 	logger.Printf("[Azure CNS] DeleteNetwork")
 
 	url := c.connectionURL + inspectNetworkPath + networkName
-	req, err := http.NewRequest("DELETE", url, nil)
+	req, err := http.NewRequest("DELETE", url, http.NoBody)
 	if err != nil {
 		logger.Printf("[Azure CNS] Error received while creating http DELETE request for network delete %v %v", networkName, err.Error())
 		return err

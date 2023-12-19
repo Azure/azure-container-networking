@@ -41,7 +41,7 @@ func TestPemConsumptionLinux(t *testing.T) {
 		t.Fatalf("Failed to get certificate %+v", err)
 	}
 	if certificate.Subject.CommonName != commonName {
-		t.Fatalf("Recieved a unexpected subject name %+v", err)
+		t.Fatalf("Received a unexpected subject name %+v", err)
 	}
 	_, err = fileCertRetriever.GetPrivateKey()
 	if err != nil {

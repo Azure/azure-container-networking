@@ -7,7 +7,6 @@ import (
 	"fmt"
 
 	"github.com/Azure/azure-container-networking/npm/http/api"
-
 	npm "github.com/Azure/azure-container-networking/npm/http/client"
 	c "github.com/Azure/azure-container-networking/tools/acncli/api"
 	"github.com/Azure/azure-container-networking/tools/acncli/cmd/npm/get"

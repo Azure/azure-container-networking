@@ -273,7 +273,9 @@ func translatedIPSetsToString(items []*ipsets.TranslatedIPSet) string {
 // Included is false when match set have "!".
 // MatchType captures match direction flags.
 // For example match set in linux:
-//             ! azure-npm-123 src
+//
+//	! azure-npm-123 src
+//
 // "!" this indicates a negative match (Included is false) of an azure-npm-123
 // MatchType is "src"
 type SetInfo struct {

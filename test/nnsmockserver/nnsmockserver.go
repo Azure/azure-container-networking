@@ -24,11 +24,11 @@ type serverApi struct{}
 
 func (s *serverApi) ConfigureContainerNetworking(
 	ctx context.Context,
-	req *nns.ConfigureContainerNetworkingRequest) (*nns.ConfigureContainerNetworkingResponse, error) {
-
-	fmt.Printf("Received request of type :%s \n", req.RequestType)
-	if err := isValidPodName(req.ContainerId); err != nil {
-		return nil, fmt.Errorf("NnsMockServer: RequestType:%s failed with error: %v", req.RequestType, err)
+	req *nns.ConfigureContainerNetworkingRequest,
+) (*nns.ConfigureContainerNetworkingResponse, error) {
+	fmt.Printf("Received request of type :%s \n", req.GetRequestType())
+	if err := isValidPodName(req.GetContainerId()); err != nil {
+		return nil, fmt.Errorf("NnsMockServer: RequestType:%s failed with error: %v", req.GetRequestType(), err)
 	}
 
 	ipaddress := &nns.ContainerIPAddress{
@@ -40,7 +40,7 @@ func (s *serverApi) ConfigureContainerNetworking(
 
 	contTnterface := &nns.ContainerNetworkInterface{
 		Name:               "azurevnet_45830dd4-1778-4735-9173-bba59b74cc8b_4ab80fb9-147e-4461-a213-56f4d44e806f",
-		NetworkNamespaceId: req.NetworkNamespaceId,
+		NetworkNamespaceId: req.GetNetworkNamespaceId(),
 		Ipaddresses:        []*nns.ContainerIPAddress{ipaddress},
 		MacAddress:         "0036578BB0F1",
 	}
@@ -54,13 +54,15 @@ func (s *serverApi) ConfigureContainerNetworking(
 
 func (s *serverApi) ConfigureNetworking(
 	context.Context,
-	*nns.ConfigureNetworkingRequest) (*nns.ConfigureNetworkingResponse, error) {
+	*nns.ConfigureNetworkingRequest,
+) (*nns.ConfigureNetworkingResponse, error) {
 	return nil, nil
 }
 
 func (s *serverApi) PingNodeNetworkService(
 	context.Context,
-	*nns.PingNodeNetworkServiceRequest) (*nns.PingNodeNetworkServiceResponse, error) {
+	*nns.PingNodeNetworkServiceRequest,
+) (*nns.PingNodeNetworkServiceResponse, error) {
 	return nil, nil
 }
 

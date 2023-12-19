@@ -219,7 +219,7 @@ var args = acn.ArgumentList{
 		Shorthand:    acn.OptNetPluginConfigFileAlias,
 		Description:  "Set network plugin configuration file absolute path",
 		Type:         "string",
-		DefaultValue: platform.K8SNetConfigPath + string(os.PathSeparator) + defaultCNINetworkConfigFileName,
+		DefaultValue: filepath.Join(platform.K8SNetConfigPath, defaultCNINetworkConfigFileName),
 	},
 	{
 		Name:         acn.OptCreateDefaultExtNetworkType,

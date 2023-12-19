@@ -15,9 +15,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-var errNetnsMock = errors.New("mock netns error")
-var errMockNetIOFail = errors.New("netio fail")
-var errMockNetIONoIfFail = &net.OpError{Op: "route", Net: "ip+net", Source: nil, Addr: nil, Err: errors.New("no such network interface")}
+var (
+	errNetnsMock         = errors.New("mock netns error")
+	errMockNetIOFail     = errors.New("netio fail")
+	errMockNetIONoIfFail = &net.OpError{Op: "route", Net: "ip+net", Source: nil, Addr: nil, Err: errors.New("no such network interface")}
+)
 
 func newNetnsErrorMock(errStr string) error {
 	return errors.Wrap(errNetnsMock, errStr)

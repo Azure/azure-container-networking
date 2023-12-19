@@ -20,7 +20,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	coreinformer "k8s.io/client-go/informers/core/v1"
 	corelisters "k8s.io/client-go/listers/core/v1"
-
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog"
@@ -407,7 +406,7 @@ func (c *PodController) syncAddAndUpdatePod(newPodObj *corev1.Pod) (metrics.Oper
 	// now we know this is an update event, and we'll return metrics.UpdateOp
 
 	// Dealing with "updatePod" event - Compare last applied states against current Pod states
-	// There are two possiblities for npmPodObj and newPodObj
+	// There are two possibilities for npmPodObj and newPodObj
 	// #1 case The same object with the same UID and the same key (namespace + name)
 	// #2 case Different objects with different UID, but the same key (namespace + name) due to missing some events for the old object
 
@@ -536,7 +535,8 @@ func (c *PodController) cleanUpDeletedPod(cachedNpmPodKey string) error {
 
 // manageNamedPortIpsets helps with adding or deleting Pod namedPort IPsets.
 func (c *PodController) manageNamedPortIpsets(portList []corev1.ContainerPort, podKey string,
-	podIP string, namedPortOperation NamedPortOperation) error {
+	podIP string, namedPortOperation NamedPortOperation,
+) error {
 	for _, port := range portList {
 		klog.Infof("port is %+v", port)
 		if port.Name == "" {

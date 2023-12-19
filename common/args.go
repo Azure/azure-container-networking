@@ -106,7 +106,7 @@ func printErrorForArg(arg *Argument) {
 // printHelpForArg prints the help line for the given argument.
 func printHelpForArg(arg *Argument) {
 	left := fmt.Sprintf("  -%v, --%v", arg.Shorthand, arg.Name)
-	right := fmt.Sprintf("%v", arg.Description)
+	right := arg.Description
 
 	if arg.ValueMap != nil {
 		left += fmt.Sprintf("=%v", arg.DefaultValue)

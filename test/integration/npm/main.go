@@ -186,7 +186,6 @@ func main() {
 	fmt.Printf("\ncreating an unused set %s. The prior empty set %s should be deleted on this apply\n", unusedSet2.GetHashedName(), unusedSet1.GetHashedName())
 	dp.CreateIPSets([]*ipsets.IPSetMetadata{unusedSet2})
 	panicOnError(dp.ApplyDataPlane())
-
 }
 
 func panicOnError(err error) {

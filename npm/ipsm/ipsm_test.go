@@ -693,7 +693,7 @@ func TestElemSeparatorSupportsNone(t *testing.T) {
 	}
 
 	if _, err := ipsMgr.Run(entry); err == nil || err.ErrID != ElemSeperatorNotSupported {
-		t.Errorf("Expected elem seperator error: %+v", err)
+		t.Errorf("Expected elem separator error: %+v", err)
 	}
 }
 

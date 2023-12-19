@@ -86,7 +86,8 @@ var httpClient *http.Client
 // InitHttpClient initializes the httpClient object
 func InitHttpClient(
 	connectionTimeoutSec int,
-	responseHeaderTimeoutSec int) *http.Client {
+	responseHeaderTimeoutSec int,
+) *http.Client {
 	log.Printf("[Utils] Initializing HTTP client with connection timeout: %d, response header timeout: %d",
 		connectionTimeoutSec, responseHeaderTimeoutSec)
 	httpClient = &http.Client{
@@ -180,7 +181,7 @@ func GetHostMetadata(fileName string) (Metadata, error) {
 
 	log.Printf("[Telemetry] Request metadata from wireserver")
 
-	req, err := http.NewRequest("GET", metadataURL, nil)
+	req, err := http.NewRequest("GET", metadataURL, http.NoBody)
 	if err != nil {
 		return Metadata{}, err
 	}
@@ -239,7 +240,7 @@ func GetAzureCloud(url string) (string, error) {
 	}
 
 	log.Printf("GetAzureCloud querying url: %s", url)
-	req, err := http.NewRequest("GET", url, nil)
+	req, err := http.NewRequest("GET", url, http.NoBody)
 	if err != nil {
 		return "", err
 	}

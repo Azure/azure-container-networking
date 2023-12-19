@@ -6,11 +6,9 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/Azure/azure-container-networking/tools/acncli/cmd/npm"
-
-	"github.com/Azure/azure-container-networking/tools/acncli/cmd/cni"
-
 	c "github.com/Azure/azure-container-networking/tools/acncli/api"
+	"github.com/Azure/azure-container-networking/tools/acncli/cmd/cni"
+	"github.com/Azure/azure-container-networking/tools/acncli/cmd/npm"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )

@@ -21,7 +21,7 @@ func TestGetNPMCacheHandler(t *testing.T) {
 	n := &NPMRestServer{}
 	handler := n.npmCacheHandler(npmCacheEncoder)
 
-	req, err := http.NewRequest(http.MethodGet, api.NPMMgrPath, nil)
+	req, err := http.NewRequest(http.MethodGet, api.NPMMgrPath, http.NoBody)
 	if err != nil {
 		t.Fatal(err)
 	}

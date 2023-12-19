@@ -35,8 +35,8 @@ func (networkMonitor *NetworkMonitor) deleteRulesNotExistInMap(chainRules map[st
 // addRulesNotExistInMap adds rules to nat Ebtable if rule was in stateRules and not in current chain rules after a certain number of iterations.
 func (networkMonitor *NetworkMonitor) addRulesNotExistInMap(
 	stateRules map[string]string,
-	chainRules map[string]string) {
-
+	chainRules map[string]string,
+) {
 	table := ebtables.Nat
 	action := ebtables.Append
 
@@ -63,8 +63,8 @@ func (networkMonitor *NetworkMonitor) addRulesNotExistInMap(
 // CreateRequiredL2Rules finds the rules that should be in nat ebtable based on state.
 func (networkMonitor *NetworkMonitor) CreateRequiredL2Rules(
 	currentEbtableRulesMap map[string]string,
-	currentStateRulesMap map[string]string) error {
-
+	currentStateRulesMap map[string]string,
+) error {
 	for rule := range networkMonitor.AddRulesToBeValidated {
 		if _, ok := currentStateRulesMap[rule]; !ok {
 			delete(networkMonitor.AddRulesToBeValidated, rule)
@@ -79,8 +79,8 @@ func (networkMonitor *NetworkMonitor) CreateRequiredL2Rules(
 // RemoveInvalidL2Rules removes rules that should not be in nat ebtable based on state.
 func (networkMonitor *NetworkMonitor) RemoveInvalidL2Rules(
 	currentEbtableRulesMap map[string]string,
-	currentStateRulesMap map[string]string) error {
-
+	currentStateRulesMap map[string]string,
+) error {
 	for rule := range networkMonitor.DeleteRulesToBeValidated {
 		if _, ok := currentEbtableRulesMap[rule]; !ok {
 			delete(networkMonitor.DeleteRulesToBeValidated, rule)

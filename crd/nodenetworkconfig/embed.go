@@ -11,6 +11,7 @@ import (
 )
 
 // NodeNetworkConfigsYAML embeds the CRD YAML for downstream consumers.
+//
 //go:embed manifests/acn.azure.com_nodenetworkconfigs.yaml
 var NodeNetworkConfigsYAML []byte
 

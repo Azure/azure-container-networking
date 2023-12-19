@@ -226,7 +226,6 @@ func (ipsMgr *IpsetManager) run(entry *ipsEntry) (int, error) {
 
 // CreateListNoLock is identical to CreateList except it does not lock the ipsMgr.
 func (ipsMgr *IpsetManager) CreateListNoLock(listName string) error {
-
 	if _, exists := ipsMgr.listMap[listName]; exists {
 		return nil
 	}

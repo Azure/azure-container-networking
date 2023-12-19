@@ -14,7 +14,7 @@ func TestPrometheusNodeHandler(t *testing.T) {
 	assert := assert.New(t)
 	InitializeAll()
 	handler := GetHandler(NodeMetrics)
-	req, err := http.NewRequest(http.MethodGet, api.NodeMetricsPath, nil)
+	req, err := http.NewRequest(http.MethodGet, api.NodeMetricsPath, http.NoBody)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -29,7 +29,7 @@ func TestPrometheusClusterHandler(t *testing.T) {
 	assert := assert.New(t)
 	InitializeAll()
 	handler := GetHandler(ClusterMetrics)
-	req, err := http.NewRequest(http.MethodGet, api.ClusterMetricsPath, nil)
+	req, err := http.NewRequest(http.MethodGet, api.ClusterMetricsPath, http.NoBody)
 	if err != nil {
 		t.Fatal(err)
 	}

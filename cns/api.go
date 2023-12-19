@@ -213,7 +213,7 @@ type CreateHnsNetworkRequest struct {
 	AutomaticDNS         bool   `json:",omitempty"`
 }
 
-// SubnetInfo is assoicated with HNS network and represents a list
+// SubnetInfo is associated with HNS network and represents a list
 // of subnets available to the network
 type SubnetInfo struct {
 	AddressPrefix  string
@@ -221,7 +221,7 @@ type SubnetInfo struct {
 	Policies       []json.RawMessage `json:",omitempty"`
 }
 
-// MacPool is assoicated with HNS  network and represents a list
+// MacPool is associated with HNS  network and represents a list
 // of macaddresses available to the network
 type MacPool struct {
 	StartMacAddress string
@@ -263,7 +263,7 @@ type GetIPAddressesResponse struct {
 	IPAddresses []string
 }
 
-// HostLocalIPAddressResponse describes reponse that returns the host local IP Address.
+// HostLocalIPAddressResponse describes response that returns the host local IP Address.
 type HostLocalIPAddressResponse struct {
 	Response  Response
 	IPAddress string

@@ -124,7 +124,7 @@ func decodeResponse(w *httptest.ResponseRecorder, response interface{}) error {
 func TestActivate(t *testing.T) {
 	var resp cnm.ActivateResponse
 
-	req, err := http.NewRequest(http.MethodGet, "/Plugin.Activate", nil)
+	req, err := http.NewRequest(http.MethodGet, "/Plugin.Activate", http.NoBody)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -143,7 +143,7 @@ func TestActivate(t *testing.T) {
 func TestGetCapabilities(t *testing.T) {
 	var resp remoteApi.GetCapabilityResponse
 
-	req, err := http.NewRequest(http.MethodGet, getCapabilitiesPath, nil)
+	req, err := http.NewRequest(http.MethodGet, getCapabilitiesPath, http.NoBody)
 	if err != nil {
 		t.Fatal(err)
 	}

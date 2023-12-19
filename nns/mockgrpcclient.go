@@ -18,7 +18,8 @@ var ErrMockNnsAdd = errors.New("mock nns add fail")
 // AddContainerNetworking - Mock nns add
 func (c *MockGrpcClient) AddContainerNetworking(
 	ctx context.Context,
-	podName, nwNamespace string) (*contracts.ConfigureContainerNetworkingResponse, error) {
+	podName, nwNamespace string,
+) (*contracts.ConfigureContainerNetworkingResponse, error) {
 	if c.Fail {
 		return nil, ErrMockNnsAdd
 	}
@@ -29,7 +30,7 @@ func (c *MockGrpcClient) AddContainerNetworking(
 // DeleteContainerNetworking - Mock nns delete
 func (c *MockGrpcClient) DeleteContainerNetworking(
 	ctx context.Context,
-	podName, nwNamespace string) (*contracts.ConfigureContainerNetworkingResponse, error) {
-
+	podName, nwNamespace string,
+) (*contracts.ConfigureContainerNetworkingResponse, error) {
 	return &contracts.ConfigureContainerNetworkingResponse{}, nil
 }

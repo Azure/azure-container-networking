@@ -5,9 +5,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/Azure/azure-container-networking/npm/http/api"
-
 	"github.com/Azure/azure-container-networking/npm"
+	"github.com/Azure/azure-container-networking/npm/http/api"
 )
 
 type NPMHttpClient struct {
@@ -26,7 +25,7 @@ func NewNPMHttpClient(endpoint string) *NPMHttpClient {
 
 func (n *NPMHttpClient) GetNpmMgr() (*npm.NetworkPolicyManager, error) {
 	url := n.endpoint + api.NPMMgrPath
-	req, err := http.NewRequest(http.MethodGet, url, nil)
+	req, err := http.NewRequest(http.MethodGet, url, http.NoBody)
 	if err != nil {
 		return nil, err
 	}

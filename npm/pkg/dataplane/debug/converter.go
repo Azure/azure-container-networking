@@ -217,7 +217,6 @@ func (c *Converter) GetProtobufRulesFromIptableFile(
 	npmCacheFile string,
 	iptableSaveFile string,
 ) (map[*pb.RuleResponse]struct{}, error) {
-
 	err := c.initConverterFile(npmCacheFile)
 	if err != nil {
 		return nil, fmt.Errorf("error occurred during getting protobuf rules from iptables from file: %w", err)
@@ -291,19 +290,19 @@ func (c *Converter) pbRuleList(ipTable *NPMIPtable.Table) (map[*pb.RuleResponse]
 
 			// if rule is a string-int, we need to find the parent jump
 			// to add the src for egress and dst for ingress
-			if strings.HasPrefix(childRule.Chain, EgressChainPrefix) {
+			if strings.HasPrefix(childRule.GetChain(), EgressChainPrefix) {
 				for parentRule := range allRulesInNPMChains {
-					if strings.HasPrefix(parentRule.Chain, EgressChain) && parentRule.JumpTo == childRule.Chain {
-						childRule.SrcList = append(childRule.SrcList, parentRule.SrcList...)
+					if strings.HasPrefix(parentRule.GetChain(), EgressChain) && parentRule.JumpTo == childRule.GetChain() {
+						childRule.SrcList = append(childRule.GetSrcList(), parentRule.GetSrcList()...)
 						childRule.Comment = parentRule.Comment
 						parentRules = append(parentRules, parentRule)
 					}
 				}
 			}
-			if strings.HasPrefix(childRule.Chain, IngressChainPrefix) {
+			if strings.HasPrefix(childRule.GetChain(), IngressChainPrefix) {
 				for parentRule := range allRulesInNPMChains {
-					if strings.HasPrefix(parentRule.Chain, IngressChain) && parentRule.JumpTo == childRule.Chain {
-						childRule.DstList = append(childRule.DstList, parentRule.DstList...)
+					if strings.HasPrefix(parentRule.GetChain(), IngressChain) && parentRule.JumpTo == childRule.GetChain() {
+						childRule.DstList = append(childRule.GetDstList(), parentRule.GetDstList()...)
 						childRule.Comment = parentRule.Comment
 						parentRules = append(parentRules, parentRule)
 					}
@@ -404,8 +403,8 @@ func (c *Converter) getSetType(name string, m string) pb.SetType {
 	if strings.Contains(name, util.IpsetLabelDelimter) {
 		return pb.SetType_KEYVALUELABELOFPOD
 	}
-	matcher.Match([]byte(name))
-	if matched := matcher.Match([]byte(name)); matched {
+	matcher.MatchString(name)
+	if matched := matcher.MatchString(name); matched {
 		return pb.SetType_CIDRBLOCKS
 	}
 	return pb.SetType_KEYLABELOFPOD
@@ -502,16 +501,15 @@ func (c *Converter) getModulesFromRule(moduleList []*NPMIPtable.Module, ruleRes 
 }
 
 func (c *Converter) populateSetInfo(setInfo *pb.RuleResponse_SetInfo, values []string, ruleRes *pb.RuleResponse) error {
-
 	ipsetHashedName := values[0]
 	ipsetOrigin := values[1]
 	setInfo.HashedSetName = ipsetHashedName
 
 	if c.EnableV2NPM {
 		setInfo.Name = c.SetMap[ipsetHashedName]
-		settype, _ := c.getSetTypeV2(setInfo.Name)
+		settype, _ := c.getSetTypeV2(setInfo.GetName())
 		if settype == pb.SetType_UNKNOWN {
-			return errors.Wrapf(ErrUnknownSetType, "unknown set type for set: %s", setInfo.Name)
+			return errors.Wrapf(ErrUnknownSetType, "unknown set type for set: %s", setInfo.GetName())
 		}
 
 		setInfo.Type = settype
@@ -522,7 +520,7 @@ func (c *Converter) populateSetInfo(setInfo *pb.RuleResponse_SetInfo, values []s
 		} else if v, ok := c.SetMap[ipsetHashedName]; ok {
 			setInfo.Name = v
 			setInfo.Type = c.getSetType(v, "SetMap")
-			if setInfo.Type == pb.SetType_CIDRBLOCKS {
+			if setInfo.GetType() == pb.SetType_CIDRBLOCKS {
 				populateCIDRBlockSet(setInfo)
 			}
 		} else {
@@ -534,9 +532,9 @@ func (c *Converter) populateSetInfo(setInfo *pb.RuleResponse_SetInfo, values []s
 		ruleRes.UnsortedIpset[ipsetHashedName] = ipsetOrigin
 	}
 	if strings.Contains(ipsetOrigin, "src") {
-		ruleRes.SrcList = append(ruleRes.SrcList, setInfo)
+		ruleRes.SrcList = append(ruleRes.GetSrcList(), setInfo)
 	} else {
-		ruleRes.DstList = append(ruleRes.DstList, setInfo)
+		ruleRes.DstList = append(ruleRes.GetDstList(), setInfo)
 	}
 	return nil
 }
@@ -544,7 +542,7 @@ func (c *Converter) populateSetInfo(setInfo *pb.RuleResponse_SetInfo, values []s
 // populate CIDRBlock set's content with ip addresses
 func populateCIDRBlockSet(setInfo *pb.RuleResponse_SetInfo) {
 	ipsetBuffer := bytes.NewBuffer(nil)
-	cmdArgs := []string{"list", setInfo.HashedSetName}
+	cmdArgs := []string{"list", setInfo.GetHashedSetName()}
 	cmd := exec.Command(util.Ipset, cmdArgs...) //nolint:gosec
 
 	cmd.Stdout = ipsetBuffer
@@ -570,7 +568,7 @@ func populateCIDRBlockSet(setInfo *pb.RuleResponse_SetInfo) {
 	}
 	for curReadIndex < len(ipsetBuffer.Bytes()) {
 		member, nextReadIndex := parse.Line(curReadIndex, ipsetBuffer.Bytes())
-		setInfo.Contents = append(setInfo.Contents, string(member))
+		setInfo.Contents = append(setInfo.GetContents(), string(member))
 		curReadIndex = nextReadIndex
 	}
 }

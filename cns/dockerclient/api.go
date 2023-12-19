@@ -30,7 +30,7 @@ type NetworkConfiguration struct {
 	Options  map[string]interface{}
 }
 
-// DockerErrorResponse defines the error response retunred by docker.
+// DockerErrorResponse defines the error response returned by docker.
 type DockerErrorResponse struct {
 	message string
 }

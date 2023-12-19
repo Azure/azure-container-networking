@@ -13,7 +13,7 @@ import (
 
 func AsSha256(o interface{}) string {
 	h := sha256.New()
-	h.Write([]byte(fmt.Sprintf("%v", o)))
+	fmt.Fprintf(h, "%v", o)
 
 	return fmt.Sprintf("%x", h.Sum(nil))
 }

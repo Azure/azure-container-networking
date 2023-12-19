@@ -39,7 +39,8 @@ func CreateHostNCApipaEndpoint(
 	localIPConfiguration cns.IPConfiguration,
 	allowNCToHostCommunication bool,
 	allowHostToNCCommunication bool,
-	ncPolicies []cns.NetworkContainerRequestPolicies) (string, error) {
+	ncPolicies []cns.NetworkContainerRequestPolicies,
+) (string, error) {
 	return "", nil
 }
 
@@ -47,6 +48,7 @@ func CreateHostNCApipaEndpoint(
 // created for host container connectivity
 // This is windows platform specific.
 func DeleteHostNCApipaEndpoint(
-	networkContainerID string) error {
+	networkContainerID string,
+) error {
 	return nil
 }

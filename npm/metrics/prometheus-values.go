@@ -14,7 +14,7 @@ func counterValue(counter prometheus.Counter) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	return int(dtoMetric.Counter.GetValue()), nil
+	return int(dtoMetric.GetCounter().GetValue()), nil
 }
 
 func histogramVecCount(histogramVec *prometheus.HistogramVec, labels prometheus.Labels) (int, error) {
@@ -30,7 +30,7 @@ func histogramCount(histogram prometheus.Collector) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	return int(dtoMetric.Histogram.GetSampleCount()), nil
+	return int(dtoMetric.GetHistogram().GetSampleCount()), nil
 }
 
 // getValue returns a Gauge metric's value.
@@ -40,7 +40,7 @@ func getValue(gaugeMetric prometheus.Gauge) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	return int(dtoMetric.Gauge.GetValue()), nil
+	return int(dtoMetric.GetGauge().GetValue()), nil
 }
 
 // getVecValue returns a Gauge Vec metric's value, or 0 if the label doesn't exist for the metric.
@@ -56,7 +56,7 @@ func getCountValue(collector prometheus.Collector) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	return int(dtoMetric.Summary.GetSampleCount()), nil
+	return int(dtoMetric.GetSummary().GetSampleCount()), nil
 }
 
 func getCountVecValue(summaryVecMetric *prometheus.SummaryVec, labels prometheus.Labels) (int, error) {
@@ -92,7 +92,7 @@ func getQuantiles(summaryMetric prometheus.Summary) ([]*dto.Quantile, error) {
 	if err != nil {
 		return nil, err
 	}
-	return dtoMetric.Summary.GetQuantile(), nil
+	return dtoMetric.GetSummary().GetQuantile(), nil
 }
 
 // This function is slow.

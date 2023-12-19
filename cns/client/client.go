@@ -536,7 +536,7 @@ func (c *Client) GetIPAddressesMatchingStates(ctx context.Context, stateFilter .
 // GetPodOrchestratorContext calls GetPodIpOrchestratorContext API on CNS
 func (c *Client) GetPodOrchestratorContext(ctx context.Context) (map[string][]string, error) {
 	u := c.routes[cns.PathDebugPodContext]
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), http.NoBody)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to build request")
 	}
@@ -565,7 +565,7 @@ func (c *Client) GetPodOrchestratorContext(ctx context.Context) (map[string][]st
 // GetHTTPServiceData gets all public in-memory struct details for debugging purpose
 func (c *Client) GetHTTPServiceData(ctx context.Context) (*restserver.GetHTTPServiceDataResponse, error) {
 	u := c.routes[cns.PathDebugRestData]
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), http.NoBody)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to build request")
 	}

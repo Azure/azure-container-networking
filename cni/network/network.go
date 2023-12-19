@@ -1321,15 +1321,15 @@ func convertNnsToIPConfigs(
 	// method of ADD method
 	var ipConfigs []*network.IPConfig
 
-	if netRes.Interfaces != nil {
-		for _, ni := range netRes.Interfaces {
-			for _, ip := range ni.Ipaddresses {
-				ipAddr := net.ParseIP(ip.Ip)
+	if netRes.GetInterfaces() != nil {
+		for _, ni := range netRes.GetInterfaces() {
+			for _, ip := range ni.GetIpaddresses() {
+				ipAddr := net.ParseIP(ip.GetIp())
 
-				prefixLength, err := strconv.Atoi(ip.PrefixLength)
+				prefixLength, err := strconv.Atoi(ip.GetPrefixLength())
 				if err != nil {
 					logger.Error("Error parsing prefix length while converting to cni result",
-						zap.String("prefixLength", ip.PrefixLength),
+						zap.String("prefixLength", ip.GetPrefixLength()),
 						zap.String("operation", operationName),
 						zap.String("pod", podName),
 						zap.Error(err))
@@ -1345,7 +1345,7 @@ func convertNnsToIPConfigs(
 					address.Mask = net.CIDRMask(prefixLength, ipv4FullMask)
 				}
 
-				gateway := net.ParseIP(ip.DefaultGateway)
+				gateway := net.ParseIP(ip.GetDefaultGateway())
 
 				ipConfigs = append(ipConfigs, &network.IPConfig{
 					Address: address,

@@ -222,7 +222,7 @@ func (nu NetworkUtils) EnableIPV4Forwarding() error {
 }
 
 func (nu NetworkUtils) EnableIPV6Forwarding() error {
-	cmd := fmt.Sprint(enableIPV6ForwardCmd)
+	cmd := enableIPV6ForwardCmd
 	_, err := nu.plClient.ExecuteCommand(cmd)
 	if err != nil {
 		logger.Error("Enable ipv6 forwarding failed with", zap.Error(err))

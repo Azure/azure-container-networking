@@ -5,10 +5,9 @@ import (
 	"fmt"
 	"sort"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/npm/util"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // An ReqHeap is a min-heap of labelSelectorRequirements.
@@ -133,7 +132,7 @@ func getSetNameForMultiValueSelector(key string, vals []string) string {
 // HashSelector returns the hash value of the selector.
 func HashSelector(selector *metav1.LabelSelector) string {
 	sortSelector(selector)
-	return util.Hash(fmt.Sprintf("%v", selector))
+	return util.Hash(selector.String())
 }
 
 // flattenNameSpaceSelector will help flatten multiple NameSpace selector match Expressions values
@@ -141,7 +140,7 @@ func HashSelector(selector *metav1.LabelSelector) string {
 func FlattenNameSpaceSelector(nsSelector *metav1.LabelSelector) []metav1.LabelSelector {
 	/*
 			This function helps to create multiple labelSelectors when given a single multivalue nsSelector
-			Take below exmaple: this nsSelector has 2 values in a matchSelector.
+			Take below example: this nsSelector has 2 values in a matchSelector.
 			- namespaceSelector:
 		        matchExpressions:
 		        - key: ns
@@ -291,7 +290,7 @@ func parseSelector(selector *metav1.LabelSelector) ([]string, map[string][]strin
 				labels = append(labels, k+":"+req.Values[0])
 			} else {
 				// We are not adding the k:v to labels for multiple values, because, labels are used
-				// to contruct partial IptEntries and if these below labels are added then we are inducing
+				// to construct partial IptEntries and if these below labels are added then we are inducing
 				// AND condition on values of a match expression instead of OR
 				vals[k] = append(vals[k], req.Values...)
 			}

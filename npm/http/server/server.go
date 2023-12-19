@@ -11,9 +11,8 @@ import (
 	npmconfig "github.com/Azure/azure-container-networking/npm/config"
 	"github.com/Azure/azure-container-networking/npm/http/api"
 	"github.com/Azure/azure-container-networking/npm/metrics"
-	"k8s.io/klog"
-
 	"github.com/gorilla/mux"
+	"k8s.io/klog"
 )
 
 type NPMRestServer struct {

@@ -31,8 +31,8 @@ func NewGoalStateProcessor(
 	nodeID string,
 	podName string,
 	inputChan chan *protos.Events,
-	dp dataplane.GenericDataplane) (*GoalStateProcessor, error) {
-
+	dp dataplane.GenericDataplane,
+) (*GoalStateProcessor, error) {
 	if nodeID == "" || podName == "" {
 		return nil, ErrPodOrNodeNameNil
 	}

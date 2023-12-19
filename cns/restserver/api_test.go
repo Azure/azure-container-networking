@@ -643,7 +643,7 @@ func TestGetNumOfCPUCores(t *testing.T) {
 		req *http.Request
 	)
 
-	req, err = http.NewRequest(http.MethodGet, cns.NumberOfCPUCoresPath, nil)
+	req, err = http.NewRequest(http.MethodGet, cns.NumberOfCPUCoresPath, http.NoBody)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1030,7 +1030,7 @@ func publishNCViaCNS(
 		}
 	}
 
-	fmt.Printf("PublishNetworkContainer succeded with response %+v, raw:%+v\n", resp, w.Body)
+	fmt.Printf("PublishNetworkContainer succeeded with response %+v, raw:%+v\n", resp, w.Body)
 	return nil
 }
 

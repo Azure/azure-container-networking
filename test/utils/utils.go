@@ -13,7 +13,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"k8s.io/utils/exec"
-
 	fakeexec "k8s.io/utils/exec/testing"
 )
 

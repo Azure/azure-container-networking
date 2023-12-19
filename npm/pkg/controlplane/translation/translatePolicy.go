@@ -356,7 +356,8 @@ func peerAndPortRule(npmNetPol *policies.NPMNetworkPolicy, direction policies.Di
 
 // translateRule translates ingress or egress rules and update npmNetPol object.
 func translateRule(npmNetPol *policies.NPMNetworkPolicy, netPolName string, direction policies.Direction, matchType policies.MatchType, ruleIndex int,
-	ports []networkingv1.NetworkPolicyPort, peers []networkingv1.NetworkPolicyPeer) error {
+	ports []networkingv1.NetworkPolicyPort, peers []networkingv1.NetworkPolicyPeer,
+) error {
 	// TODO(jungukcho): need to clean up it.
 	// Leave allowExternal variable now while the condition is checked before calling this function.
 	allowExternal, portRuleExists, peerRuleExists := ruleExists(ports, peers)

@@ -9,7 +9,6 @@ import (
 	"runtime"
 
 	"github.com/Azure/azure-container-networking/netlink"
-
 	"golang.org/x/sys/unix"
 )
 

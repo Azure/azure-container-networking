@@ -187,7 +187,7 @@ func execPlugin(rt *libcni.RuntimeConf, netconf []byte, operation, path string) 
 		environ := args(operation, path, rt).AsEnv()
 		logger.Printf("[Azure CNS] CNI called with environ variables %v", environ)
 		stdout := &bytes.Buffer{}
-		command := exec.Command(path + string(os.PathSeparator) + "azure-vnet")
+		command := exec.Command(filepath.Join(path, "azure-vnet"))
 		command.Env = environ
 		command.Stdin = bytes.NewBuffer(netconf)
 		command.Stdout = stdout

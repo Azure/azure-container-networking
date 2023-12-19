@@ -461,7 +461,7 @@ func (c *NetworkPolicyController) cleanUpNetworkPolicy(netPolKey string, isSafeC
 		return fmt.Errorf("[cleanUpNetworkPolicy] Error: removeCidrsRule out due to %w", err)
 	}
 
-	// Sucess to clean up ipset and iptables operations in kernel and delete the cached network policy from RawNpMap
+	// Success to clean up ipset and iptables operations in kernel and delete the cached network policy from RawNpMap
 	delete(c.rawNpMap, netPolKey)
 	metrics.DecNumPolicies()
 

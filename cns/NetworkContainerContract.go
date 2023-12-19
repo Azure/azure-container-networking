@@ -640,15 +640,15 @@ func (u UnpublishNetworkContainerResponse) String() string {
 
 // ValidAclPolicySetting - Used to validate ACL policy
 type ValidAclPolicySetting struct {
-	Protocols       string `json:","`
-	Action          string `json:","`
-	Direction       string `json:","`
-	LocalAddresses  string `json:","`
-	RemoteAddresses string `json:","`
-	LocalPorts      string `json:","`
-	RemotePorts     string `json:","`
-	RuleType        string `json:","`
-	Priority        uint16 `json:","`
+	Protocols       string `json:""`
+	Action          string `json:""`
+	Direction       string `json:""`
+	LocalAddresses  string `json:""`
+	RemoteAddresses string `json:""`
+	LocalPorts      string `json:""`
+	RemotePorts     string `json:""`
+	RuleType        string `json:""`
+	Priority        uint16 `json:""`
 }
 
 const (
