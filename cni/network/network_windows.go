@@ -143,6 +143,8 @@ func addSnatInterface(nwCfg *cni.NetworkConfig, result *cniTypesCurr.Result) {
 }
 
 func (plugin *NetPlugin) getNetworkName(netNs string, ipamAddResult *IPAMAddResult, nwCfg *cni.NetworkConfig) (string, error) {
+	logger.Info("getNetworkName ipamAddResult", zap.Any("ipamAddResult", ipamAddResult))
+	logger.Info("getNetworkName nwCfg", zap.Any("nwCfg", nwCfg))
 	determineWinVer()
 	// For singletenancy, the network name is simply the nwCfg.Name
 	if !nwCfg.MultiTenancy && nwCfg.Name != "swiftv2" {
@@ -154,7 +156,7 @@ func (plugin *NetPlugin) getNetworkName(netNs string, ipamAddResult *IPAMAddResu
 		return "", fmt.Errorf("NetNs cannot be empty")
 	}
 
-	logger.Info("ipamAddResult.ncResponse", zap.Any("ipamAddResult.ncResponse", ipamAddResult.ncResponse))
+	//logger.Info("ipamAddResult.ncResponse", zap.Any("ipamAddResult.ncResponse", ipamAddResult.ncResponse))
 	// First try to build the network name from the cnsResponse if present
 	// This will happen during ADD call
 	if ipamAddResult != nil {

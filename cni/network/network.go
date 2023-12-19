@@ -624,6 +624,10 @@ func (plugin *NetPlugin) cleanupAllocationOnError(
 	}
 }
 
+// save master interfaces that are used by delegatedVMNICs
+// key is the ipnet, value is the map (key is the ifName, value is bool indicating this interface is used or not)
+var MasterInterfaces map[string]map[string]bool
+
 func (plugin *NetPlugin) createNetworkInternal(
 	networkID string,
 	policies []policy.Policy,
@@ -637,11 +641,26 @@ func (plugin *NetPlugin) createNetworkInternal(
 	logger.Info("ipamAddConfig.nwCfg", zap.Any("ipamAddConfig.nwCfg", ipamAddConfig.nwCfg))
 	_, ipnet, _ := net.ParseCIDR(ipamAddResult.secondaryInterfacesInfo[0].IPConfigs[0].Address.String())
 	logger.Info("before calling findMasterInterface, subnet prefix", zap.Any("subnetprefix of secondary int", ipnet))
+
+	MasterInterfaces[ipnet.String()] = make(map[string]bool)
+
 	masterIfName := plugin.findMasterInterface(ipamAddConfig.nwCfg, ipnet)
+
 	if masterIfName == "" {
-		err := plugin.Errorf("Failed to find the master interface")
-		return nwInfo, err
+		// check if masterInterface is in masterInterfaces map
+		if name, ok := MasterInterfaces[ipnet.String()]; ok {
+			for ifName := range name {
+				masterIfName = ifName
+				logger.Info("masterIfName is", zap.String("masterIfName", masterIfName))
+			}
+		} else {
+			err := plugin.Errorf("Failed to find the master interface")
+			return nwInfo, err
+		}
 	}
+
+	MasterInterfaces[ipnet.String()][masterIfName] = true
+
 	logger.Info("Found master interface", zap.String("ifname", masterIfName))
 
 	// Add the master as an external interface.
@@ -1142,6 +1161,7 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 		logger.Info("Deleting endpoint",
 			zap.String("endpointID", endpointID))
 		sendEvent(plugin, fmt.Sprintf("Deleting endpoint:%v", endpointID))
+
 		// Delete the endpoint.
 		if err = plugin.nm.DeleteEndpoint(networkID, endpointID); err != nil {
 			// return a retriable error so the container runtime will retry this DEL later
