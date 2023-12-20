@@ -27,5 +27,7 @@ data:
       "ProgramSNATIPTables" : false,
       "EnableCNIConflistGeneration": true,
       "CNIConflistFilepath": "/etc/cni/net.d/15-azure-swift-overlay.conflist",
-      "CNIConflistScenario": "v4overlay"
+      "CNIConflistScenario": "v4overlay",
+      "EnableAsyncPodDelete": true,
+      "AsyncPodDeletePath": "/var/run/azure-vnet/deleteIDs"
     }

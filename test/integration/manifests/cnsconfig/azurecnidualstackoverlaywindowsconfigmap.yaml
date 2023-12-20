@@ -29,5 +29,7 @@ data:
       "MetricsBindAddress": ":10092",
       "EnableCNIConflistGeneration": false,
       "CNIConflistFilepath": "C:\\k\\azurecni\\netconf\\10-azure.conflist",
-      "CNIConflistScenario": "dualStackOverlay"
+      "CNIConflistScenario": "dualStackOverlay",
+      "EnableAsyncPodDelete": false,
+      "AsyncPodDeletePath": "/var/run/azure-vnet/deleteIDs"
     }

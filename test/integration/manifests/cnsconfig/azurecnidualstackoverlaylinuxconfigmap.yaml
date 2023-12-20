@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: cns-win-config
+  name: cns-config
   namespace: kube-system
 data:
   cns_config.json: |
@@ -21,15 +21,13 @@ data:
           "NodeID": "",
           "NodeSyncIntervalInSeconds": 30
       },
-      "EnableSubnetScarcity": false,
       "ChannelMode": "CRD",
       "InitializeFromCNI": true,
       "ManageEndpointState": false,
       "ProgramSNATIPTables" : false,
-      "MetricsBindAddress": ":10092",
-      "EnableCNIConflistGeneration": false,
-      "CNIConflistFilepath": "C:\\k\\azurecni\\netconf\\10-azure.conflist",
-      "CNIConflistScenario": "v4overlay",
-      "EnableAsyncPodDelete": true,
+      "EnableCNIConflistGeneration": true,
+      "CNIConflistFilepath": "/etc/cni/net.d/15-azure-swift-overlay.conflist",
+      "CNIConflistScenario": "overlay",
+      "EnableAsyncPodDelete": false,
       "AsyncPodDeletePath": "/var/run/azure-vnet/deleteIDs"
     }
