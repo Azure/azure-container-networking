@@ -19,7 +19,6 @@ on:
       - checks_requested
 jobs:
   analyze:
-    if: ${{ github.event_name == 'pull_request' }}
     name: Analyze
     strategy:
       fail-fast: false
