@@ -18,9 +18,6 @@ trigger:
   paths:
     exclude:
       - docs
-      - "zapai/*"
-      - "azure-ipam/*"
-      - "dropgz/*"
   tags:
     include:
       - "*"
