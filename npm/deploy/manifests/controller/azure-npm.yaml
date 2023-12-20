@@ -149,7 +149,7 @@ spec:
               fieldPath: spec.nodeName
         - name: NPM_CONFIG
           value: /etc/azure-npm/azure-npm.json
-        image: azure-npm:v1.4.1
+        image:  mcr.microsoft.com/containernetworking/azure-npm:v1.4.1
         name: azure-npm
         resources:
           limits:

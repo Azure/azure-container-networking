@@ -34,7 +34,7 @@ spec:
           ports:
           - name: metrics
             containerPort: 10091
-          image: azure-npm:v1.4.1
+          image:  mcr.microsoft.com/containernetworking/azure-npm:v1.4.1
           command: ["azure-npm"]
           args: ["daemon"]
           resources:

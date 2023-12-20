@@ -41,7 +41,7 @@ spec:
           effect: NoSchedule
       containers:
         - name: busybox
-          image: docker.io/busybox:latest
+          image: mcr.microsoft.com/cbl-mariner/busybox:2.0
           command: ["sleep","3600"]
           imagePullPolicy: Always
           volumeMounts:

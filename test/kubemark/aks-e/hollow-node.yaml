@@ -16,7 +16,7 @@ spec:
     spec:
       initContainers:
       - name: init-inotify-limit
-        image: busybox:1.32
+        image: mcr.microsoft.com/cbl-mariner/busybox:2.0
         command: ['sysctl', '-w', 'fs.inotify.max_user_instances=1000']
         securityContext:
           privileged: true
