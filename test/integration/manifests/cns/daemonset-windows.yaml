@@ -74,6 +74,8 @@ spec:
               mountPath: /etc/azure-cns
             - name: cni-conflist
               mountPath: /k/azurecni/netconf
+            - name: azure-vnet
+              mountPath: /var/run/azure-vnet
           ports:
             - containerPort: 10090
               hostPort: 10090
@@ -130,5 +132,9 @@ spec:
           hostPath:
             path: /k/azurecni/bin
             type: Directory # // TODO: add windows cni conflist when ready
+        - name: azure-vnet
+          hostPath:
+            path: /var/run/azure-vnet
+            type: DirectoryOrCreate
       serviceAccount: azure-cns
       serviceAccountName: azure-cns
