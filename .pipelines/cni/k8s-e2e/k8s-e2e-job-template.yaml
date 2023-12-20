@@ -72,7 +72,7 @@ jobs:
             ginkgoFocus: 'Services.*\[Conformance\].*'
             ginkgoSkip: ''
             os: ${{ parameters.os }}
-            processes: 1 # change to 8 after testing complete
+            processes: 8
             attempts: 3
       - ${{ if and( eq(parameters.service, true), contains(parameters.cni, 'cilium') ) }}:
         - template: ../k8s-e2e/k8s-e2e-step-template.yaml
@@ -82,7 +82,7 @@ jobs:
             ginkgoFocus: 'Services.*\[Conformance\].*'
             ginkgoSkip: 'should serve endpoints on same port and different protocols' # Cilium does not support this feature. For more info on test: https://github.com/kubernetes/kubernetes/blame/e602e9e03cd744c23dde9fee09396812dd7bdd93/test/conformance/testdata/conformance.yaml#L1780-L1788
             os: ${{ parameters.os }}
-            processes: 1 # change to 8 after testing complete
+            processes: 8
             attempts: 3
       - ${{ if eq(parameters.hostport, true) }}:
         - template: ../k8s-e2e/k8s-e2e-step-template.yaml
