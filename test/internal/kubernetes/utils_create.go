@@ -674,6 +674,15 @@ func volumesForAzureCNIOverlayWindows() []corev1.Volume {
 				},
 			},
 		}, // TODO: add windows cni conflist when ready
+		{
+			Name: "azure-vnet",
+			VolumeSource: corev1.VolumeSource{
+				HostPath: &corev1.HostPathVolumeSource{
+					Path: "/var/run/azure-vnet",
+					Type: hostPathTypePtr(corev1.HostPathDirectoryOrCreate),
+				},
+			},
+		},
 	}
 }
 
@@ -746,5 +755,9 @@ func cnsVolumeMountsForAzureCNIOverlayWindows() []corev1.VolumeMount {
 			Name:      "cni-bin",
 			MountPath: "/k/azurecni/bin",
 		}, // TODO: add windows cni conflist when ready
+		{
+			Name:      "azure-vnet",
+			MountPath: "/var/run/azure-vnet",
+		},
 	}
 }
