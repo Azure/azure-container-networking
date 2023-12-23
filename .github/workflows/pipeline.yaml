@@ -4,7 +4,6 @@ on:
   pull_request:
     branches:
     - master
-    - release/*
   merge_group:
     types:
       - checks_requested
