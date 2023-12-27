@@ -43,9 +43,8 @@ stages:
     pool:
       name: $(BUILD_POOL_NAME_DEFAULT)
     jobs:
-      - job: ${{ parameters.name }}
-        displayName: Azure CNI Overlay Test Suite - (${{ parameters.name }})
-        timeoutInMinutes: 120
+      - job: ${{ parameters.name }}_linux
+        displayName: Azure CNI Overlay Test Suite | Linux - (${{ parameters.name }})
         pool:
           name: $(BUILD_POOL_NAME_DEFAULT)
           demands:
@@ -56,6 +55,21 @@ stages:
             parameters:
               name: ${{ parameters.name }}
               clusterName: ${{ parameters.clusterName }}-$(commitID)
+              os: linux
+
+      - job: ${{ parameters.name }}_windows
+        displayName: Azure CNI Overlay Test Suite | Windows - (${{ parameters.name }})
+        pool:
+          name: $(BUILD_POOL_NAME_DEFAULT)
+          demands:
+          - agent.os -equals Linux
+          - Role -equals $(CUSTOM_E2E_ROLE)
+        steps:
+          - template: azure-cni-overlay-e2e-step-template.yaml
+            parameters:
+              name: ${{ parameters.name }}
+              clusterName: ${{ parameters.clusterName }}-$(commitID)
+              os: windows
 
       - template: ../../cni/k8s-e2e/k8s-e2e-job-template.yaml
         parameters:
@@ -63,6 +77,7 @@ stages:
           clusterName: ${{ parameters.clusterName }}-$(commitID)
           os: ${{ parameters.os }}
           dependsOn: ${{ parameters.name }}
+          datapath: true
           dns: true
           portforward: true
           hostport: true
@@ -74,18 +89,32 @@ stages:
           clusterName: ${{ parameters.clusterName }}-$(commitID)
           os: windows
           dependsOn: cni_${{ parameters.os }}
+          datapath: true
           dns: true
           portforward: true
           hostport: true
           service: true
           hybridWin: true
-          datapath: true
 
-      - job: failedE2ELogs
-        displayName: "Failure Logs"
+      - job: failedE2ELogs_linux
+        displayName: "Linux Failure Logs"
         dependsOn:
-          - ${{ parameters.name }}
-          - cni_${{ parameters.os }}
+          - ${{ parameters.name }}_linux
+          - cni_linux
+          - cni_windows
+        condition: failed()
+        steps:
+          - template: ../../templates/log-template.yaml
+            parameters:
+              clusterName: ${{ parameters.clusterName }}-$(commitID)
+              os: ${{ parameters.os }}
+              cni: cniv2
+
+      - job: failedE2ELogs_windows
+        displayName: "Windows Failure Logs"
+        dependsOn:
+          - ${{ parameters.name }}_windows
+          - cni_linux
           - cni_windows
         condition: failed()
         steps:
