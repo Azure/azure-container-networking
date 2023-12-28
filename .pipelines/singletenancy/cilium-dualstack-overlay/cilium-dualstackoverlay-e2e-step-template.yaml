@@ -40,7 +40,6 @@ steps:
         pwd
         kubectl cluster-info
         kubectl get po -owide -A
-        if [ "$CILIUM_VERSION_TAG" = "cilium-nightly-pipeline" ]; then FILE_PATH=-nightly && echo "Running nightly"; fi
         echo "deploy Cilium ConfigMap"
         kubectl apply -f test/integration/manifests/cilium/cilium${FILE_PATH}-config.yaml
         echo "install Cilium ${CILIUM_VERSION_TAG}"
