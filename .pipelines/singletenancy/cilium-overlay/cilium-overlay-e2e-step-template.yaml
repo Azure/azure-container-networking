@@ -81,13 +81,14 @@ steps:
       else
           CNS=$(make cns-version) IPAM=$(make azure-ipam-version)
       fi
+      kubectl get po -owide -A
       sudo -E env "PATH=$PATH" make test-load SCALE_UP=32 OS_TYPE=linux VALIDATE_STATEFILE=true INSTALL_CNS=true INSTALL_OVERLAY=true AZURE_IPAM_VERSION=${IPAM} CNS_VERSION=${CNS} CLEANUP=true
     retryCountOnTaskFailure: 3
     name: "aziliumTest"
     displayName: "Run Azilium E2E on AKS Overlay"
 
   - script: |
-      kubectl get pods -A
+      kubectl get po -owide -A
       echo "Waiting < 2 minutes for cilium to be ready"
       # Ensure Cilium is ready Xm\Xs
       cilium status --wait --wait-duration 2m

@@ -78,7 +78,7 @@ steps:
     displayName: "Run Azilium E2E"
 
   - script: |
-      kubectl get pods -A
+      kubectl get po -owide -A
       echo "Waiting < 2 minutes for cilium to be ready"
       # Ensure Cilium is ready Xm\Xs
       cilium status --wait --wait-duration 2m

@@ -58,6 +58,7 @@ steps:
     displayName: "Run AKS Swift E2E"
 
   - script: |
+      kubectl get po -owide -A
       echo "Run Service Conformance E2E"
       export PATH=${PATH}:/usr/local/bin/gsutil
       KUBECONFIG=~/.kube/config kubetest2 noop \
