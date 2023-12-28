@@ -5,11 +5,6 @@ parameters:
 
 steps:
   - bash: |
-      echo $UID
-      sudo rm -rf $(System.DefaultWorkingDirectory)/*
-    displayName: "Set up OS environment"
-
-  - bash: |
       go version
       go env
       mkdir -p '$(GOBIN)'
@@ -106,7 +101,6 @@ steps:
         scriptType: "bash"
         addSpnToEnvironment: true
         inlineScript: |
-          set -e
           make -C ./hack/aks windows-nodepool-up AZCLI=az SUB=$(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS) CLUSTER=${{ parameters.clusterName }} VM_SIZE_WIN=${{ parameters.vmSizeWin }}
           echo "Windows node are successfully added to v4 Overlay Cluster"
           kubectl cluster-info
