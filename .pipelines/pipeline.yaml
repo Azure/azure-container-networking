@@ -439,7 +439,7 @@ stages:
         displayName: AKS Swift Ubuntu
         clusterType: swift-byocni-up
         clusterName: "swifte2e"
-        vmSize: Standard_B2s
+        vmSize: Standard_B2ms
         k8sVersion: ""
         dependsOn: "test"
 
@@ -450,7 +450,7 @@ stages:
         displayName: AKS Swift Vnet Scale Ubuntu
         clusterType: vnetscale-swift-byocni-up
         clusterName: "vscaleswifte2e"
-        vmSize: Standard_B2s
+        vmSize: Standard_B2ms
         k8sVersion: "1.28"
         dependsOn: "test"
 
