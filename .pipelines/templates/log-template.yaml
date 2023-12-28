@@ -76,6 +76,26 @@ steps:
     displayName: Deployment Images
     condition: always()
 
+  - ${{ if eq(parameters.logType, 'failure') }}:
+    - bash: |
+        kubectl get pods -n kube-system -o custom-columns=NAME:.metadata.name,STATUS:.status.phase,NODE:.spec.nodeName
+        podList=`kubectl get pods -n kube-system -o custom-columns=NAME:.metadata.name,STATUS:.status.phase,NODE:.spec.nodeName --no-headers | grep -v Running | awk '{print $1}'`
+        array=($podList)
+
+        if [ -z ${array[0]} ]; then
+          echo "There are no kube-system pods in a non-ready state."
+        else
+          mkdir -p $acnLogs/${{ parameters.os }}non-ready
+          echo "Directory created: $acnLogs/${{ parameters.os }}non-ready"
+          echo "Capturing failed pods"
+          for pod in $podList; do
+            kubectl describe pod -n kube-system $pod > $acnLogs/${{ parameters.os }}non-ready/$pod.txt
+            echo "$acnLogs/${{ parameters.os }}non-ready/$pod.txt"
+          done
+        fi
+      displayName: Failure Logs
+      condition: always()
+
   - ${{ if eq(parameters.os, 'linux') }}:
     - bash: |
         echo "Ensure that privileged pod exists on each node"
@@ -246,26 +266,6 @@ steps:
           done
         fi
       displayName: Windows Logs
-      condition: always()
-
-  - ${{ if eq(parameters.logType, 'failure') }}:
-    - bash: |
-        kubectl get pods -n kube-system -o custom-columns=NAME:.metadata.name,STATUS:.status.phase,NODE:.spec.nodeName
-        podList=`kubectl get pods -n kube-system -o custom-columns=NAME:.metadata.name,STATUS:.status.phase,NODE:.spec.nodeName --no-headers | grep -v Running | awk '{print $1}'`
-        array=($podList)
-
-        if [ -z ${array[0]} ]; then
-          echo "There are no kube-system pods in a non-ready state."
-        else
-          mkdir -p $acnLogs/${{ parameters.os }}non-ready
-          echo "Directory created: $acnLogs/${{ parameters.os }}non-ready"
-          echo "Capturing failed pods"
-          for pod in $podList; do
-            kubectl describe pod -n kube-system $pod > $acnLogs/${{ parameters.os }}non-ready/$pod.txt
-            echo "$acnLogs/${{ parameters.os }}non-ready/$pod.txt"
-          done
-        fi
-      displayName: Failure Logs
       condition: always()
 
   - publish: $(System.DefaultWorkingDirectory)/${{ parameters.clusterName }}_${{ parameters.logType }}_Attempt_#$(System.StageAttempt)
