@@ -249,7 +249,7 @@ func InstallCNSDaemonset(ctx context.Context, clientset *kubernetes.Clientset, l
 	return cleanupds, nil
 }
 
-func RestartCNSDaemonset(ctx context.Context, clientset *kubernetes.Clientset) error {
+func RestartCNSDaemonset(ctx context.Context, clientset *kubernetes.Clientset, waitForReady bool) error {
 	cnsScenarioMap, err := initCNSScenarioVars()
 	if err != nil {
 		return errors.Wrap(err, "failed to initialize cns scenario map")
@@ -284,6 +284,20 @@ func RestartCNSDaemonset(ctx context.Context, clientset *kubernetes.Clientset) e
 		log.Printf("Saw errors %+v", restartErrors)
 		return restartErrors[0]
 	}
+
+	if waitForReady {
+		for _, nodeOS := range oses {
+			cns, cnsScenarioDetails, err := parseCNSDaemonset(cnsScenarioMap, nodeOS)
+			if err != nil {
+				return errors.Wrap(err, "failed to parse cns daemonset")
+			}
+
+			if err := WaitForPodDaemonset(ctx, clientset, cns.Namespace, cns.Name, cnsScenarioDetails.labelSelector); err != nil {
+				return errors.Wrap(err, "failed to check daemonset ready")
+			}
+		}
+	}
+
 	return nil
 }
 

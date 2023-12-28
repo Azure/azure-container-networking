@@ -195,7 +195,7 @@ func TestValidCNSStateDuringScaleAndCNSRestartToTriggerDropgzInstall(t *testing.
 	kubernetes.MustScaleDeployment(ctx, deploymentsClient, deployment, clientset, namespace, podLabelSelector, testConfig.ScaleUpReplicas, skipWait)
 
 	// restart linux CNS (linux, windows)
-	err = kubernetes.RestartCNSDaemonset(ctx, clientset)
+	err = kubernetes.RestartCNSDaemonset(ctx, clientset, true)
 	require.NoError(t, err)
 
 	// wait for pods to settle before checking cns state (otherwise, race between getting pods in creating state, and getting CNS state file)
@@ -210,7 +210,7 @@ func TestValidCNSStateDuringScaleAndCNSRestartToTriggerDropgzInstall(t *testing.
 	kubernetes.MustScaleDeployment(ctx, deploymentsClient, deployment, clientset, namespace, podLabelSelector, testConfig.ScaleDownReplicas, skipWait)
 
 	// restart linux CNS (linux, windows)
-	err = kubernetes.RestartCNSDaemonset(ctx, clientset)
+	err = kubernetes.RestartCNSDaemonset(ctx, clientset, true)
 	require.NoError(t, err)
 
 	// wait for pods to settle before checking cns state (otherwise, race between getting pods in terminating state, and getting CNS state file)
