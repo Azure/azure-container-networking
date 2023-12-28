@@ -70,6 +70,7 @@ stages:
               name: ${{ parameters.name }}
               clusterName: ${{ parameters.clusterName }}-$(commitID)
               os: windows
+              vmSizeWin: ${{ parameters.vmSize }} # Matching linux vmSize
 
       - template: ../../cni/k8s-e2e/k8s-e2e-job-template.yaml
         parameters:
