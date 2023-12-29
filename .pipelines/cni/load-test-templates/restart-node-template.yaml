@@ -49,6 +49,7 @@ steps:
         done
       name: kubeproxy
       displayName: Restart Kubeproxy on Windows nodes
+      retryCountOnTaskFailure: 3
 
   - template: ../../templates/log-template.yaml
     parameters:
