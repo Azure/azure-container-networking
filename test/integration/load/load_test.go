@@ -186,6 +186,13 @@ func TestValidCNSStateDuringScaleAndCNSRestartToTriggerDropgzInstall(t *testing.
 	deploymentsClient := clientset.AppsV1().Deployments(namespace)
 
 	if testConfig.Cleanup {
+		// Create namespace if it doesn't exist
+		namespaceExists, err := kubernetes.NamespaceExists(ctx, clientset, namespace)
+		require.NoError(t, err)
+		if !namespaceExists {
+			kubernetes.MustCreateNamespace(ctx, clientset, namespace)
+		}
+
 		// Create a deployment
 		kubernetes.MustCreateDeployment(ctx, deploymentsClient, deployment)
 	}

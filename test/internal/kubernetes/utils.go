@@ -259,10 +259,14 @@ func WaitForPodDaemonset(ctx context.Context, clientset *kubernetes.Clientset, n
 		if err != nil {
 			return errors.Wrapf(err, "could not get daemonset %s", daemonsetName)
 		}
+		if daemonset.Status.UpdatedNumberScheduled != daemonset.Status.DesiredNumberScheduled {
+			log.Printf("daemonset %s is updating, %v of %v pods updated", daemonsetName, daemonset.Status.UpdatedNumberScheduled, daemonset.Status.DesiredNumberScheduled)
+			return errors.New("daemonset failed to update all pods")
+		}
 
 		if daemonset.Status.NumberReady == 0 && daemonset.Status.DesiredNumberScheduled == 0 {
 			// Capture daemonset restart. Restart sets every numerical status to 0.
-			log.Printf("daemonset %s is in restart phase, no pods should be ready or scheduled", daemonsetName)
+			log.Printf("daemonset %s is fresh, no pods should be ready or scheduled", daemonsetName)
 			return errors.New("daemonset did not set any pods to be scheduled")
 		}
 
@@ -277,7 +281,7 @@ func WaitForPodDaemonset(ctx context.Context, clientset *kubernetes.Clientset, n
 			return errors.Wrapf(err, "could not list pods with label selector %s", podLabelSelector)
 		}
 
-		log.Printf("daemonset %s has %d pods in ready status, expected %d", daemonsetName, len(podList.Items), daemonset.Status.CurrentNumberScheduled)
+		log.Printf("daemonset %s has %d pods in ready status | %d pods up-to-date status, expected %d", daemonsetName, len(podList.Items), daemonset.Status.UpdatedNumberScheduled, daemonset.Status.CurrentNumberScheduled)
 		if len(podList.Items) != int(daemonset.Status.NumberReady) {
 			return errors.New("some pods of the daemonset are still not ready")
 		}
