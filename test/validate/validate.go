@@ -2,6 +2,7 @@ package validate
 
 import (
 	"context"
+	"encoding/json"
 	"log"
 
 	acnk8s "github.com/Azure/azure-container-networking/test/internal/kubernetes"
@@ -175,7 +176,7 @@ func (v *Validator) validateIPs(ctx context.Context, stateFileIps stateFileIpsFu
 		podIps := getPodIPsWithoutNodeIP(ctx, v.clientset, nodes.Items[index])
 
 		if err := compareIPs(filePodIps, podIps); err != nil {
-			return errors.Wrapf(errors.New("State file validation failed"), "for %s on node %s", checkType, nodes.Items[index].Name)
+			return errors.Wrapf(err, "State file validation failed for %s on node %s", checkType, nodes.Items[index].Name)
 		}
 	}
 	log.Printf("State file validation for %s passed", checkType)
@@ -289,4 +290,19 @@ func (v *Validator) Cleanup(ctx context.Context) {
 	privilegedDaemonSet := acnk8s.MustParseDaemonSet(privilegedDaemonSetPathMap[v.os])
 	daemonsetClient := v.clientset.AppsV1().DaemonSets(privilegedNamespace)
 	acnk8s.MustDeleteDaemonset(ctx, daemonsetClient, privilegedDaemonSet)
+}
+
+func cnsCacheStateFileIps(result []byte) (map[string]string, error) {
+	var cnsLocalCache CNSLocalCache
+
+	err := json.Unmarshal(result, &cnsLocalCache)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to unmarshal cns local cache")
+	}
+
+	cnsPodIps := make(map[string]string)
+	for index := range cnsLocalCache.IPConfigurationStatus {
+		cnsPodIps[cnsLocalCache.IPConfigurationStatus[index].IPAddress] = cnsLocalCache.IPConfigurationStatus[index].PodInfo.Name()
+	}
+	return cnsPodIps, nil
 }

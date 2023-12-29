@@ -156,21 +156,6 @@ func ciliumStateFileIps(result []byte) (map[string]string, error) {
 	return ciliumPodIps, nil
 }
 
-func cnsCacheStateFileIps(result []byte) (map[string]string, error) {
-	var cnsLocalCache CNSLocalCache
-
-	err := json.Unmarshal(result, &cnsLocalCache)
-	if err != nil {
-		return nil, errors.Wrapf(err, "failed to unmarshal cns local cache")
-	}
-
-	cnsPodIps := make(map[string]string)
-	for index := range cnsLocalCache.IPConfigurationStatus {
-		cnsPodIps[cnsLocalCache.IPConfigurationStatus[index].IPAddress] = cnsLocalCache.IPConfigurationStatus[index].PodInfo.Name()
-	}
-	return cnsPodIps, nil
-}
-
 func azureVnetStateIps(result []byte) (map[string]string, error) {
 	var azureVnetResult AzureCniState
 	err := json.Unmarshal(result, &azureVnetResult)
