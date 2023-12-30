@@ -7,6 +7,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
+	typedappsv1 "k8s.io/client-go/kubernetes/typed/apps/v1"
 )
 
 func GetNodeList(ctx context.Context, clientset *kubernetes.Clientset) (*corev1.NodeList, error) {
@@ -50,4 +51,13 @@ func GetPodsIpsByNode(ctx context.Context, clientset *kubernetes.Clientset, name
 		}
 	}
 	return ips, nil
+}
+
+func GetDeploymentAvailableReplicas(ctx context.Context, deploymentsClient typedappsv1.DeploymentInterface, deploymentName string) (int32, error) {
+	deployment, err := deploymentsClient.Get(ctx, deploymentName, metav1.GetOptions{})
+	if err != nil {
+		return -1, errors.Wrapf(err, "could not get deployment %s", deploymentName)
+	}
+
+	return deployment.Status.AvailableReplicas, nil
 }

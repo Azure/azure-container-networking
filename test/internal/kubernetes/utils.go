@@ -413,6 +413,18 @@ func NamespaceExists(ctx context.Context, clientset *kubernetes.Clientset, names
 	return true, nil
 }
 
+func DeploymentExists(ctx context.Context, deploymentsClient typedappsv1.DeploymentInterface, deploymentName string) (bool, error) {
+	_, err := deploymentsClient.Get(ctx, deploymentName, metav1.GetOptions{})
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return false, nil
+		}
+		return false, errors.Wrapf(err, "error in getting deployment %s", deploymentName)
+	}
+
+	return true, nil
+}
+
 // return a label selector
 func CreateLabelSelector(key string, selector *string) string {
 	return fmt.Sprintf("%s=%s", key, *selector)
