@@ -47,7 +47,7 @@ var windowsChecksMap = map[string][]check{
 type HNSEndpoint struct {
 	MacAddress       string `json:"MacAddress"`
 	IPAddress        net.IP `json:"IPAddress"`
-	IPv6Address      net.IP `json:",omitempty"`
+	IPv6Address      net.IP `json:"IPv6Address"`
 	IsRemoteEndpoint bool   `json:",omitempty"`
 }
 
@@ -112,6 +112,10 @@ func hnsStateFileIps(result []byte) (map[string]string, error) {
 	for _, v := range hnsResult {
 		if !v.IsRemoteEndpoint {
 			hnsPodIps[v.IPAddress.String()] = v.MacAddress
+			if v.IPv6Address.String() != "<nil>" {
+				hnsPodIps[v.IPv6Address.String()] = v.MacAddress
+			}
+
 		}
 	}
 	return hnsPodIps, nil
