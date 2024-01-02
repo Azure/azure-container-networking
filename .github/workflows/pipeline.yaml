@@ -46,11 +46,11 @@ jobs:
           echo "Checking for AZP triggered CI for 60s"
           end=$((SECONDS+60)) # Stop checking if not queued within a minute
           while [ $SECONDS -lt $end ]; do
-            if [ $status = 'inProgress' ]; then
-              echo "AZP triggered pipeline started successfully"
+            if [ $status = 'inProgress' ] || [ $status = 'notStarted' ]; then
+              echo "AZP triggered pipeline queued successfully"
               exit 0
             fi
-            echo "Waiting for 15 seconds for AZP to trigger run and show inProgress"
+            echo "Waiting for 15 seconds for AZP to trigger run and show inProgress or notStarted"
             sleep 15s
             status=`az pipelines runs list --pipeline-ids ${{ secrets.AZURE_PIPELINE_ID }} --org ${{ secrets.AZURE_PIPELINE_ORG }} --project ${{ secrets.AZURE_PIPELINE_PROJECT }} --top 1 --branch $GITHUB_REF --output json | jq -r .[].status`
             echo "Current CI Status - $status"
@@ -64,12 +64,12 @@ jobs:
           echo "Checking for Manually triggered CI for 60s"
           end=$((SECONDS+60)) # Stop checking if not queued within a minute
           while [ $SECONDS -lt $end ]; do
-            echo "Waiting for 5 seconds for pipeline to show inProgress on AZP"
+            echo "Waiting for 5 seconds for pipeline to show inProgress or notStarted on AZP"
             sleep 5s
             status=`az pipelines runs list --pipeline-ids ${{ secrets.AZURE_PIPELINE_ID }} --org ${{ secrets.AZURE_PIPELINE_ORG }} --project ${{ secrets.AZURE_PIPELINE_PROJECT }} --top 1 --branch $GITHUB_REF --output json | jq -r .[].status`
             echo "Current CI Status - $status"
-            if [ $status = 'inProgress' ]; then
-              echo "Manually triggered pipeline started successfully"
+            if [ $status = 'inProgress' ] || [ $status = 'notStarted' ]; then
+              echo "Manually triggered pipeline queued successfully"
               exit 0
             fi
           done
