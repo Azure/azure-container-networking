@@ -1,0 +1,79 @@
+name: Azure Pipeline Merge Queue Check
+on:
+  workflow_dispatch:
+  pull_request:
+    branches:
+    - master
+  merge_group:
+    types:
+      - checks_requested
+jobs:
+  Azure-Merge-Queue-Check:
+    if: ${{ github.event_name == 'merge_group' }}
+    strategy:
+      matrix:
+        go-version: ['1.21']
+        os: [ubuntu-latest]
+    name: Azure Pipeline Merge Queue Check
+    runs-on: ${{ matrix.os }}
+    permissions:
+      actions: read
+      contents: read
+      id-token: write
+    steps:
+    - name: Azure Login
+      uses: Azure/login@v1.5.1
+      env:
+        AZURE_CORE_OUTPUT: none
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+    - name: Check Azure Pipelines
+      uses: azure/CLI@v1
+      env:
+        AZURE_CORE_OUTPUT: none
+      with:
+        azcliversion: latest
+        inlineScript: |
+          az account show
+          echo ${{ secrets.AZURE_DEVOPS_EXT_PAT }} | az devops login --org ${{ secrets.AZURE_PIPELINE_ORG }}
+
+          echo "Sanity check recently triggered Merge Queue Pipeline runs"
+          az pipelines runs list --pipeline-ids ${{ secrets.AZURE_PIPELINE_ID }} --org ${{ secrets.AZURE_PIPELINE_ORG }} --project ${{ secrets.AZURE_PIPELINE_PROJECT }} --reason individualCI --top 10 --output json | jq -r .[].sourceBranch
+          status=`az pipelines runs list --pipeline-ids ${{ secrets.AZURE_PIPELINE_ID }} --org ${{ secrets.AZURE_PIPELINE_ORG }} --project ${{ secrets.AZURE_PIPELINE_PROJECT }} --top 1 --branch $GITHUB_REF --output json | jq -r .[].status`
+          echo "Triggered CI Status - $status"
+          echo "Branch Ref - $GITHUB_REF"
+
+          echo "Checking for AZP triggered CI for 60s"
+          end=$((SECONDS+60)) # Stop checking if not queued within a minute
+          while [ $SECONDS -lt $end ]; do
+            if [ $status = 'inProgress' ]; then
+              echo "AZP triggered pipeline started successfully"
+              exit 0
+            fi
+            echo "Waiting for 15 seconds for AZP to trigger run and show inProgress"
+            sleep 15s
+            status=`az pipelines runs list --pipeline-ids ${{ secrets.AZURE_PIPELINE_ID }} --org ${{ secrets.AZURE_PIPELINE_ORG }} --project ${{ secrets.AZURE_PIPELINE_PROJECT }} --top 1 --branch $GITHUB_REF --output json | jq -r .[].status`
+            echo "Current CI Status - $status"
+          done
+          echo "AZP did not trigger CI"
+
+          az pipelines run --branch $GITHUB_REF --id ${{ secrets.AZURE_PIPELINE_ID }} --org ${{ secrets.AZURE_PIPELINE_ORG }} --project ${{ secrets.AZURE_PIPELINE_PROJECT }}
+          echo "Pipeline queued for $GITHUB_REF"
+          echo "Pipeline will be marked as Manually triggered for $GITHUB_REF"
+
+          echo "Checking for Manually triggered CI for 60s"
+          end=$((SECONDS+60)) # Stop checking if not queued within a minute
+          while [ $SECONDS -lt $end ]; do
+            echo "Waiting for 5 seconds for pipeline to show inProgress on AZP"
+            sleep 5s
+            status=`az pipelines runs list --pipeline-ids ${{ secrets.AZURE_PIPELINE_ID }} --org ${{ secrets.AZURE_PIPELINE_ORG }} --project ${{ secrets.AZURE_PIPELINE_PROJECT }} --top 1 --branch $GITHUB_REF --output json | jq -r .[].status`
+            echo "Current CI Status - $status"
+            if [ $status = 'inProgress' ]; then
+              echo "Manually triggered pipeline started successfully"
+              exit 0
+            fi
+          done
+
+          echo "Pipeline not queued, break merge queue run. Please requeue the PR to the merge queue from the appropriate PR."
+          # NOTE: For this workflow to impact the Merge Queue and PR it must be made required in the appropriate branch protection rule
+          exit 1
