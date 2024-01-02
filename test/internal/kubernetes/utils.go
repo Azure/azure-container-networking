@@ -281,7 +281,8 @@ func WaitForPodDaemonset(ctx context.Context, clientset *kubernetes.Clientset, n
 			return errors.Wrapf(err, "could not list pods with label selector %s", podLabelSelector)
 		}
 
-		log.Printf("daemonset %s has %d pods in ready status | %d pods up-to-date status, expected %d", daemonsetName, len(podList.Items), daemonset.Status.UpdatedNumberScheduled, daemonset.Status.CurrentNumberScheduled)
+		log.Printf("daemonset %s has %d pods in ready status | %d pods up-to-date status, expected %d",
+			daemonsetName, len(podList.Items), daemonset.Status.UpdatedNumberScheduled, daemonset.Status.CurrentNumberScheduled)
 		if len(podList.Items) != int(daemonset.Status.NumberReady) {
 			return errors.New("some pods of the daemonset are still not ready")
 		}
