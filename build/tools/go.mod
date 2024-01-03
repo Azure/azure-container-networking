@@ -9,7 +9,7 @@ require (
 	github.com/golangci/golangci-lint v1.55.2
 	github.com/jstemmer/go-junit-report v1.0.0
 	google.golang.org/grpc/cmd/protoc-gen-go-grpc v1.3.0
-	google.golang.org/protobuf v1.31.0
+	google.golang.org/protobuf v1.32.0
 	mvdan.cc/gofumpt v0.5.0
 	sigs.k8s.io/controller-tools v0.13.0
 )
