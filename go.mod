@@ -47,7 +47,7 @@ require (
 	k8s.io/apimachinery v0.28.3
 	k8s.io/client-go v0.28.1
 	k8s.io/klog v1.0.0
-	k8s.io/klog/v2 v2.100.1
+	k8s.io/klog/v2 v2.110.1
 	k8s.io/utils v0.0.0-20230726121419-3b25d923346b
 	sigs.k8s.io/controller-runtime v0.16.2
 )
@@ -66,7 +66,7 @@ require (
 	github.com/docker/go-connections v0.4.0 // indirect
 	github.com/evanphx/json-patch v5.6.0+incompatible // indirect
 	github.com/fsnotify/fsnotify v1.6.0
-	github.com/go-logr/logr v1.2.4 // indirect
+	github.com/go-logr/logr v1.3.0 // indirect
 	github.com/go-openapi/jsonpointer v0.20.0 // indirect
 	github.com/go-openapi/jsonreference v0.20.2 // indirect
 	github.com/go-openapi/swag v0.22.4 // indirect
