@@ -1,7 +1,6 @@
 package wireserver
 
 import (
-	"github.com/Azure/azure-container-networking/cns/logger"
 	"net"
 	"regexp"
 	"strings"
@@ -12,8 +11,8 @@ import (
 var (
 	// ErrNoPrimaryInterface indicates the wireserver response does not have a primary interface indicated.
 	ErrNoPrimaryInterface = errors.New("no primary interface found")
-	// ErrNoSecondaryInterfaces indicates the wireserver response does not have secondary interfaces on the node
-	ErrNoSecondaryInterfaces = errors.New("no secondary interfaces found")
+	// ErrNoSecondaryInterface indicates the wireserver response does not have secondary interface on the node
+	ErrNoSecondaryInterface = errors.New("no secondary interface found")
 	// ErrInsufficientAddressSpace indicates that the CIDR space is too small to include a gateway IP; it is 1 IP.
 	ErrInsufficientAddressSpace = errors.New("insufficient address space to generate gateway IP")
 )
@@ -67,9 +66,8 @@ func GetSecondaryInterfaceFromResult(res *GetInterfacesResult, macAddress string
 			continue
 		}
 
-		logger.Printf("i.MacAddress is %s", strings.Split(i.MacAddress, ":"))
 		newMacAddress := regexp.MustCompile(`[^a-zA-Z0-9 ]+`).ReplaceAllString(macAddress, "")
-		if i.MacAddress == strings.ToUpper(newMacAddress) {
+		if strings.EqualFold(i.MacAddress, newMacAddress) {
 			// get the second subnet
 			s := i.IPSubnet[0]
 			gw, err := calculateGatewayIP(s.Prefix)
@@ -83,7 +81,7 @@ func GetSecondaryInterfaceFromResult(res *GetInterfacesResult, macAddress string
 					secondaryIP = ip.Address
 				}
 			}
-			secondaryIPs := []string{}
+			var secondaryIPs []string
 			secondaryIPs = append(secondaryIPs, secondaryIP)
 
 			return &InterfaceInfo{
@@ -94,7 +92,7 @@ func GetSecondaryInterfaceFromResult(res *GetInterfacesResult, macAddress string
 			}, nil
 		}
 	}
-	return nil, ErrNoSecondaryInterfaces
+	return nil, ErrNoSecondaryInterface
 }
 
 // calculateGatewayIP parses the passed CIDR string and returns the first IP in the range.
