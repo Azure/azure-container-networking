@@ -160,13 +160,6 @@ func (service *HTTPRestService) requestIPConfigHandlerHelper(ctx context.Context
 			}, errors.Wrapf(err, "failed to get SWIFTv2 IP config : %v", ipconfigsRequest)
 		}
 		podIPInfo = append(podIPInfo, SWIFTv2PodIPInfo)
-		return &cns.IPConfigsResponse{
-			Response: cns.Response{
-				ReturnCode: types.UnexpectedError,
-				Message:    fmt.Sprintf("failed to set SWIFTv2 routes : %v", err),
-			},
-			PodIPInfo: []cns.PodIpInfo{},
-		}, errors.Wrapf(err, "failed to set SWIFTv2 routes : %v", ipconfigsRequest)
 	}
 
 	return &cns.IPConfigsResponse{
@@ -209,7 +202,6 @@ func (service *HTTPRestService) getIPConfigforSwiftV2SF(podInfo cns.PodInfo) (cn
 		return cns.PodIpInfo{}, errors.New("ipconfig is empty for given nc")
 	}
 	logger.Printf("[SWIFTv2-SF] NetworkContainerResponse for pod %s is : %+v", podInfo.Name(), resp)
-
 	hostPrimaryInterface, err := service.getPrimaryHostInterface(context.TODO())
 	if err != nil {
 		return cns.PodIpInfo{}, err

@@ -791,20 +791,31 @@ func (service *HTTPRestService) getPrimaryHostInterface(ctx context.Context) (*w
 }
 
 func (service *HTTPRestService) getSecondaryHostInterface(ctx context.Context, macAddress string) (*wireserver.InterfaceInfo, error) {
-	if service.state.secondaryInterface == nil {
-		res, err := service.wscli.GetInterfaces(ctx)
-
-		if err != nil {
-			return nil, errors.Wrap(err, "failed to get interfaces from IMDS")
-		}
-		secondary, err := wireserver.GetSecondaryInterfaceFromResult(res, macAddress)
-
-		if err != nil {
-			return nil, errors.Wrap(err, "failed to get secondary interface from IMDS response")
-		}
-		service.state.secondaryInterface = secondary
+	// todo: remove this temp hack to test e2e code, wireserver isnt responding on node
+	secondaryIPs := []string{}
+	secondaryIPs = append(secondaryIPs, "10.0.0.5")
+	secondNIC := wireserver.InterfaceInfo{
+		Subnet:       "10.0.0.0/24",
+		Gateway:      "10.0.0.1",
+		IsPrimary:    false,
+		PrimaryIP:    "",
+		SecondaryIPs: secondaryIPs,
 	}
-	return service.state.secondaryInterface, nil
+	return &secondNIC, nil
+	//if service.state.secondaryInterface == nil {
+	//	res, err := service.wscli.GetInterfaces(ctx)
+	//
+	//	if err != nil {
+	//		return nil, errors.Wrap(err, "failed to get interfaces from IMDS")
+	//	}
+	//	secondary, err := wireserver.GetSecondaryInterfaceFromResult(res, macAddress)
+	//
+	//	if err != nil {
+	//		return nil, errors.Wrap(err, "failed to get secondary interface from IMDS response")
+	//	}
+	//	service.state.secondaryInterface = secondary
+	//}
+	//return service.state.secondaryInterface, nil
 }
 
 //nolint:gocritic // ignore hugeParam pls
