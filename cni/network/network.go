@@ -45,6 +45,9 @@ const (
 	ipv6FullMask          = 128
 )
 
+// Secondary interface NIC types
+var secondaryInterfaceNICType = []string{cns.BackendNICNC, string(cns.DelegatedVMNIC)}
+
 // CNI Operation Types
 const (
 	CNI_ADD    = "ADD"
@@ -76,6 +79,7 @@ type NetPlugin struct {
 	tb                 *telemetry.TelemetryBuffer
 	nnsClient          NnsClient
 	multitenancyClient MultitenancyClient
+	interfaceUsage     map[string]string // save master interfaces that are being used; key is ipnet, value is ifName
 }
 
 type PolicyArgs struct {
@@ -1145,6 +1149,15 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 		sendEvent(plugin, fmt.Sprintf("Deleting endpoint:%v", endpointID))
 		// Delete the endpoint.
 		if err = plugin.nm.DeleteEndpoint(networkID, endpointID, epInfo); err != nil {
+			// cleanup interfaces usage map
+			if plugin.interfaceUsage != nil {
+				delete(plugin.interfaceUsage, nwInfo.MasterIfName)
+				// delete hnsNetwork in delegatedVMNIC scenario
+				err = plugin.nm.DeleteNetwork(networkID)
+				if err != nil {
+					logger.Error("Failed to delete hnsNetwork", zap.Error(err))
+				}
+			}
 			// return a retriable error so the container runtime will retry this DEL later
 			// the implementation of this function returns nil if the endpoint doens't exist, so
 			// we don't have to check that here
