@@ -91,10 +91,24 @@ stages:
               name: "cilium_nightly"
               clusterName: ciliumnightly-$(commitID)
               testHubble: true
+
+      - template: ../../cni/k8s-e2e/k8s-e2e-job-template.yaml
+        parameters:
+          sub: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+          clusterName: ciliumnightly-$(commitID)
+          os: linux
+          cni: cilium
+          dependsOn: cilium_nightly
+          datapath: true
+          dns: true
+          portforward: true
+          service: true
+
       - job: logs
         displayName: "Failure Logs"
         dependsOn:
           - cilium_nightly
+          - cni_linux
         condition: failed()
         steps:
           - template: ../../templates/log-template.yaml
