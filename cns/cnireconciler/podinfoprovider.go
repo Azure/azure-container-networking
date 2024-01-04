@@ -113,27 +113,30 @@ func cniStateToCnsEndpointState(state *api.AzureCNIState) (map[string]*restserve
 	endpointState := map[string]*restserver.EndpointInfo{}
 	for _, endpoint := range state.ContainerInterfaces {
 		endpointInfo := &restserver.EndpointInfo{PodName: endpoint.PodName, PodNamespace: endpoint.PodNamespace, HnsEndpointID: endpoint.HNSEndpointID, HostVethName: endpoint.HostIfName, IfnameToIPMap: make(map[string]*restserver.IPInfo)}
+		ipInfo := &restserver.IPInfo{}
 		for _, epIP := range endpoint.IPAddresses {
 			if epIP.IP.To4() == nil { // is an ipv6 address
 				ipconfig := net.IPNet{IP: epIP.IP, Mask: epIP.Mask}
-				for _, ipconf := range endpointInfo.IfnameToIPMap[endpoint.IfName].IPv6 {
+				for _, ipconf := range ipInfo.IPv6 {
 					if ipconf.IP.Equal(ipconfig.IP) {
 						logger.Printf("Found existing ipv6 ipconfig for infra container %s", endpoint.ContainerID)
 						return nil, nil
 					}
 				}
-				endpointInfo.IfnameToIPMap[endpoint.IfName].IPv6 = append(endpointInfo.IfnameToIPMap[endpoint.IfName].IPv6, ipconfig)
+				ipInfo.IPv6 = append(ipInfo.IPv6, ipconfig)
+
 			} else {
 				ipconfig := net.IPNet{IP: epIP.IP, Mask: epIP.Mask}
-				for _, ipconf := range endpointInfo.IfnameToIPMap[endpoint.IfName].IPv4 {
+				for _, ipconf := range ipInfo.IPv4 {
 					if ipconf.IP.Equal(ipconfig.IP) {
 						logger.Printf("Found existing ipv4 ipconfig for infra container %s", endpoint.ContainerID)
 						return nil, nil
 					}
 				}
-				endpointInfo.IfnameToIPMap[endpoint.IfName].IPv4 = append(endpointInfo.IfnameToIPMap[endpoint.IfName].IPv4, ipconfig)
+				ipInfo.IPv4 = append(ipInfo.IPv4, ipconfig)
 			}
 		}
+		endpointInfo.IfnameToIPMap[endpoint.IfName] = ipInfo
 		endpointState[endpoint.ContainerID] = endpointInfo
 	}
 	return endpointState, nil

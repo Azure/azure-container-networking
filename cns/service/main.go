@@ -1240,7 +1240,7 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 				logger.Printf("[Azure CNS] No endpoint state found, skipping initializing CNS state")
 				if cnsconfig.StatelessCNIMigration {
 					logger.Printf("StatelessCNI Migration is enabled")
-					logger.Printf("Initializing from Statefull CNI")
+					logger.Printf("initializing from Statefull CNI")
 					var endpointState map[string]*restserver.EndpointInfo
 					podInfoByIPProvider, endpointState, err = cnireconciler.NewCNIPodInfoProvider()
 					if err != nil {
