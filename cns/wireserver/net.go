@@ -2,7 +2,6 @@ package wireserver
 
 import (
 	"net"
-	"regexp"
 	"strings"
 
 	"github.com/pkg/errors"
@@ -66,8 +65,7 @@ func GetSecondaryInterfaceFromResult(res *GetInterfacesResult, macAddress string
 			continue
 		}
 
-		newMacAddress := regexp.MustCompile(`[^a-zA-Z0-9 ]+`).ReplaceAllString(macAddress, "")
-		if strings.EqualFold(i.MacAddress, newMacAddress) {
+		if macAddressesEqual(i.MacAddress, macAddress) {
 			// get the second subnet
 			s := i.IPSubnet[0]
 			gw, err := calculateGatewayIP(s.Prefix)
@@ -124,4 +122,11 @@ func calculateGatewayIP(cidr string) (net.IP, error) {
 		}
 	}
 	return gw, nil
+}
+
+func macAddressesEqual(macAddress1, macAddress2 string) bool {
+	macAddress1 = strings.ToLower(strings.ReplaceAll(macAddress1, ":", ""))
+	macAddress2 = strings.ToLower(strings.ReplaceAll(macAddress2, ":", ""))
+
+	return macAddress1 == macAddress2
 }

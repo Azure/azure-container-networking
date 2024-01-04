@@ -39,6 +39,7 @@ var (
 
 // requestIPConfigHandlerHelper validates the request, assign IPs and return the IPConfigs
 func (service *HTTPRestService) requestIPConfigHandlerHelper(ctx context.Context, ipconfigsRequest cns.IPConfigsRequest) (*cns.IPConfigsResponse, error) {
+	// fetch config to check swiftV2ServiceFabric scenario & fetch podIPInfo from GetNetworkContainer API if swiftv2SF
 	cmdLineConfigPath := common.GetArg(common.OptCNSConfigPath).(string)
 	cnsconfig, err := configuration.ReadConfig(cmdLineConfigPath)
 	var swiftv2sf bool
