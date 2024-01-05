@@ -191,7 +191,7 @@ stages:
         condition: and( and( not(canceled()), not(failed()) ), or( contains(variables.CONTROL_SCENARIO, 'restartNode') , contains(variables.CONTROL_SCENARIO, 'all') ) )
         displayName: "Restart Test"
         dependsOn: deploy_pods
-        timeoutInMinutes: 90 # Windows podsubnet takes an extended time to reconcile
+        timeoutInMinutes: 90 # Windows podsubnet takes an extended amount of time to reconcile
         steps:
           - template: ../load-test-templates/restart-node-template.yaml
             parameters:
