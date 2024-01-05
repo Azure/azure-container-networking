@@ -89,13 +89,7 @@ steps:
 
   - script: |
       echo "Start Azilium E2E Tests on Overlay Cluster"
-      # Nightly does not build images per commit. Will use existing image.
-      if [ "$CILIUM_VERSION_TAG" = "cilium-nightly-pipeline" ]
-      then
-          CNS=$(CNS_VERSION) DROPGZ=$(DROP_GZ_VERSION) && echo "Running nightly"
-      else
-          CNS=$(make cns-version) DROPGZ=$(dropgzVersion)
-      fi
+      CNS=$(make cns-version) DROPGZ=$(dropgzVersion)
       sudo -E env "PATH=$PATH" make test-integration CNS_VERSION=${CNS} CNI_DROPGZ_VERSION=${DROPGZ} INSTALL_CNS=true INSTALL_OVERLAY=true TEST_DROPGZ=${{ parameters.testDropgz }}
     retryCountOnTaskFailure: 3
     name: "aziliumTest"
@@ -143,13 +137,7 @@ steps:
   - script: |
       echo "Run Cilium Connectivity Tests"
       cilium status
-      if [ "$CILIUM_VERSION_TAG" = "cilium-nightly-pipeline" ]
-      then
-        # Until the issue https://github.com/cilium/cilium/issues/29213 is resolved, skip metrics check for nightly run
-        cilium connectivity test --connect-timeout 4s --request-timeout 30s --test '!pod-to-pod-encryption,!node-to-node-encryption,!allow-all-with-metrics-check'
-      else
-        cilium connectivity test --connect-timeout 4s --request-timeout 30s --test '!pod-to-pod-encryption,!node-to-node-encryption'
-      fi
+      cilium connectivity test --connect-timeout 4s --request-timeout 30s --test '!pod-to-pod-encryption,!node-to-node-encryption'
     retryCountOnTaskFailure: 3
     name: "ciliumConnectivityTests"
     displayName: "Run Cilium Connectivity Tests"
@@ -168,33 +156,6 @@ steps:
         retryCountOnTaskFailure: 3
         name: "HubbleConnectivityTests"
         displayName: "Run Hubble Connectivity Tests"
-
-  - script: |
-      if [ "$CILIUM_VERSION_TAG" = "cilium-nightly-pipeline" ]; then
-        kubectl get pod -owide -n cilium-test
-        echo "wait for pod and cilium identity deletion in cilium-test namespace"
-        ns="cilium-test"
-        while true; do
-          pods=$(kubectl get pods -n $ns --no-headers=true 2>/dev/null)
-          if [[ -z "$pods" ]]; then
-            echo "No pods found"
-              break
-          fi
-          sleep 2s
-        done
-        sleep 20s
-        echo "Verify cilium identities are deleted from cilium-test"
-        checkIdentity="$(kubectl get ciliumidentity -o json | grep cilium-test | jq -e 'length == 0')"
-        if [[ -n $checkIdentity ]]; then
-          echo "##[error]Cilium Identities still present in cilium-test namespace"
-        else
-          printf -- "Identities deleted from cilium-test namespace\n"
-        fi
-      else
-        echo "skip cilium identities check for PR pipeline"
-      fi
-    name: "CiliumIdentities"
-    displayName: "Verify Cilium Identities Deletion"
 
   - script: |
       set -e
@@ -222,11 +183,6 @@ steps:
       # Deleting echo-external-node deployment until cilium version matches TODO. https://github.com/cilium/cilium-cli/issues/67 is addressing the change.
       # Saves 17 minutes
       kubectl delete deploy -n cilium-test echo-external-node
-      if [ "$CILIUM_VERSION_TAG" = "cilium-nightly-pipeline" ]; then
-        echo "Check cilium identities in cilium-test namepsace during nightly run"
-        echo "expect the identities to be deleted when the namespace is deleted"
-        kubectl get ciliumidentity | grep cilium-test
-      fi
       CNI_TYPE=cilium_dualstack go test -timeout 30m -tags load -run ^TestValidateState$
       echo "delete cilium connectivity test resources and re-validate state"
       kubectl delete ns cilium-test
