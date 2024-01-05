@@ -34,7 +34,7 @@ steps:
   - ${{ if eq(parameters.os, 'linux') }}:
     - script: |
         echo "Start Integration Tests on Overlay Cluster"
-        sudo -E env "PATH=$PATH" make test-load SCALE_UP=32 OS_TYPE=linux CNI_TYPE=cniv2 VALIDATE_STATEFILE=true INSTALL_CNS=true INSTALL_AZURE_CNI_OVERLAY=true VALIDATE_V4OVERLAY=true AZURE_IPAM_VERSION=$(make azure-ipam-version) CNS_VERSION=$(make cns-version) CNI_VERSION=$(make cni-version) CLEANUP=true
+        sudo -E env "PATH=$PATH" make test-integration AZURE_IPAM_VERSION=$(make azure-ipam-version) CNS_VERSION=$(make cns-version) INSTALL_CNS=true INSTALL_AZURE_CNI_OVERLAY=true
       retryCountOnTaskFailure: 2
       name: "integrationTest"
       displayName: "Run CNS Integration Tests on AKS Overlay"

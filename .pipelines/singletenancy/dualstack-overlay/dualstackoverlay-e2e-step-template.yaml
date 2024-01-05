@@ -36,7 +36,7 @@ steps:
     - script: |
         kubectl cluster-info
         kubectl get node
-        sudo -E env "PATH=$PATH" make test-load SCALE_UP=32 OS_TYPE=linux CNI_TYPE=cniv2 VALIDATE_STATEFILE=true INSTALL_CNS=true INSTALL_DUALSTACK_OVERLAY=true VALIDATE_DUALSTACK=true CNI_VERSION=$(make cni-version) CNS_VERSION=$(make cns-version) CLEANUP=true
+        sudo -E env "PATH=$PATH" make test-integration CNI_VERSION=$(make cni-version) CNS_VERSION=$(make cns-version) INSTALL_CNS=true INSTALL_DUALSTACK_OVERLAY=true
         kubectl get po -owide -A
       retryCountOnTaskFailure: 3
       name: "integrationTest"
