@@ -48,7 +48,7 @@ var linuxChecksMap = map[string][]check{
 	},
 	"cilium_dualstack": {
 		{"cns", cnsManagedStateFileDualStackIps, cnsLabelSelector, privilegedNamespace, cnsManagedStateFileCmd}, // cns configmap "ManageEndpointState": true, | Endpoints managed in CNS State File
-		{"cilium", ciliumStateFileIps, ciliumLabelSelector, privilegedNamespace, ciliumStateFileCmd},
+		{"cilium", ciliumStateFileDualStackIps, ciliumLabelSelector, privilegedNamespace, ciliumStateFileCmd},
 		{"cns cache", cnsCacheStateFileIps, cnsLabelSelector, privilegedNamespace, cnsLocalCacheCmd},
 	},
 }
