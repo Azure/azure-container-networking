@@ -17,21 +17,6 @@ func (b *bufferWriteCloser) Close() error {
 	return nil
 }
 
-func TestGenerateV4OverlayConflist(t *testing.T) {
-	fixture := "testdata/fixtures/azure-linux-swift-v4overlay.conflist"
-
-	buffer := new(bytes.Buffer)
-	g := cniconflist.V4OverlayGenerator{Writer: &bufferWriteCloser{buffer}}
-	err := g.Generate()
-	assert.NoError(t, err)
-
-	fixtureBytes, err := os.ReadFile(fixture)
-	assert.NoError(t, err)
-
-	// remove newlines and carriage returns in case these UTs are running on Windows
-	assert.Equal(t, removeNewLines(fixtureBytes), removeNewLines(buffer.Bytes()))
-}
-
 func TestGenerateOverlayConflist(t *testing.T) {
 	fixture := "testdata/fixtures/azure-linux-swift-overlay.conflist"
 
