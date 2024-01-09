@@ -46,16 +46,6 @@ type IPAM struct {
 	Type string `json:"type,omitempty"`
 }
 
-// V4OverlayGenerator generates the Azure CNI conflist for the ipv4 Overlay scenario
-type V4OverlayGenerator struct {
-	Writer io.WriteCloser
-}
-
-// DualStackOverlayGenerator generates the Azure CNI conflist for the dualstack Overlay scenario
-type DualStackOverlayGenerator struct {
-	Writer io.WriteCloser
-}
-
 // OverlayGenerator generates the Azure CNI conflist for all Overlay scenarios
 type OverlayGenerator struct {
 	Writer io.WriteCloser
@@ -69,22 +59,6 @@ type CiliumGenerator struct {
 // SWIFTGenerator generates the Azure CNI conflist for the SWIFT scenario
 type SWIFTGenerator struct {
 	Writer io.WriteCloser
-}
-
-func (v *V4OverlayGenerator) Close() error {
-	if err := v.Writer.Close(); err != nil {
-		return errors.Wrap(err, "error closing generator")
-	}
-
-	return nil
-}
-
-func (v *DualStackOverlayGenerator) Close() error {
-	if err := v.Writer.Close(); err != nil {
-		return errors.Wrap(err, "error closing generator")
-	}
-
-	return nil
 }
 
 func (v *OverlayGenerator) Close() error {

@@ -24,63 +24,6 @@ var portmapConfig any = struct {
 }
 
 // Generate writes the CNI conflist to the Generator's output stream
-func (v *V4OverlayGenerator) Generate() error {
-	conflist := cniConflist{
-		CNIVersion: overlaycniVersion,
-		Name:       overlaycniName,
-		Plugins: []any{
-			cni.NetworkConfig{
-				Type:              overlaycniType,
-				Mode:              cninet.OpModeTransparent,
-				ExecutionMode:     string(util.V4Swift),
-				IPsToRouteViaHost: []string{nodeLocalDNSIP},
-				IPAM: cni.IPAM{
-					Type: network.AzureCNS,
-					Mode: string(util.V4Overlay),
-				},
-			},
-			portmapConfig,
-		},
-	}
-
-	enc := json.NewEncoder(v.Writer)
-	enc.SetIndent("", "\t")
-	if err := enc.Encode(conflist); err != nil {
-		return errors.Wrap(err, "error encoding conflist to json")
-	}
-
-	return nil
-}
-
-// Generate writes the CNI conflist to the Generator's output stream
-func (v *DualStackOverlayGenerator) Generate() error {
-	conflist := cniConflist{
-		CNIVersion: overlaycniVersion,
-		Name:       overlaycniName,
-		Plugins: []any{
-			cni.NetworkConfig{
-				Type:              overlaycniType,
-				Mode:              cninet.OpModeTransparent,
-				IPsToRouteViaHost: []string{nodeLocalDNSIP},
-				IPAM: cni.IPAM{
-					Type: network.AzureCNS,
-					Mode: string(util.DualStackOverlay),
-				},
-			},
-			portmapConfig,
-		},
-	}
-
-	enc := json.NewEncoder(v.Writer)
-	enc.SetIndent("", "\t")
-	if err := enc.Encode(conflist); err != nil {
-		return errors.Wrap(err, "error encoding conflist to json")
-	}
-
-	return nil
-}
-
-// Generate writes the CNI conflist to the Generator's output stream
 func (v *OverlayGenerator) Generate() error {
 	conflist := cniConflist{
 		CNIVersion: overlaycniVersion,
