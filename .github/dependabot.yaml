@@ -10,6 +10,7 @@ updates:
   commit-message:
     prefix: "ci"
   labels: [ "ci", "dependencies" ]
+  open-pull-requests-limit: 10
 - package-ecosystem: "github-actions"
   directory: "/"
   schedule:
@@ -19,6 +20,7 @@ updates:
   commit-message:
     prefix: "ci"
   labels: [ "ci", "dependencies" ]
+  open-pull-requests-limit: 10
 - package-ecosystem: "gomod"
   directory: "/"
   schedule:
@@ -27,6 +29,7 @@ updates:
     - "azure/azure-sdn-members"
   commit-message:
     prefix: "deps"
+  open-pull-requests-limit: 10
 - package-ecosystem: "gomod"
   directory: "/azure-ipam"
   schedule:
@@ -35,6 +38,7 @@ updates:
     - "azure/azure-sdn-members"
   commit-message:
     prefix: "deps"
+  open-pull-requests-limit: 10
 - package-ecosystem: "gomod"
   directory: "/build/tools"
   schedule:
@@ -43,15 +47,18 @@ updates:
     - "azure/azure-sdn-members"
   commit-message:
     prefix: "deps"
+  open-pull-requests-limit: 10
 - package-ecosystem: "gomod"
   directory: "/dropgz"
   schedule:
     interval: "daily"
   commit-message:
     prefix: "deps"
+  open-pull-requests-limit: 10
 - package-ecosystem: "gomod"
   directory: "/zapai"
   schedule:
     interval: "daily"
   commit-message:
     prefix: "deps"
+  open-pull-requests-limit: 10
