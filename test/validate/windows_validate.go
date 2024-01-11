@@ -18,12 +18,12 @@ const (
 )
 
 var (
-	hnsEndPointCmd      = []string{"powershell", "-c", "Get-HnsEndpoint | ConvertTo-Json"}
-	hnsNetworkCmd       = []string{"powershell", "-c", "Get-HnsNetwork | ConvertTo-Json"}
-	azureVnetCmd        = []string{"powershell", "-c", "cat ../../k/azure-vnet.json"}
-	azureVnetIpamCmd    = []string{"powershell", "-c", "cat ../../k/azure-vnet-ipam.json"}
-	restartKubeProxyCmd = []string{"powershell", "Restart-service", "kubeproxy"}
-	cnsWinLocalCacheCmd = []string{
+	hnsEndPointCmd                 = []string{"powershell", "-c", "Get-HnsEndpoint | ConvertTo-Json"}
+	hnsNetworkCmd                  = []string{"powershell", "-c", "Get-HnsNetwork | ConvertTo-Json"}
+	azureVnetCmd                   = []string{"powershell", "-c", "cat ../../k/azure-vnet.json"}
+	azureVnetIpamCmd               = []string{"powershell", "-c", "cat ../../k/azure-vnet-ipam.json"}
+	restartKubeProxyCmd            = []string{"powershell", "Restart-service", "kubeproxy"}
+	cnsWinCachedAssignedIPStateCmd = []string{
 		"powershell", "Invoke-WebRequest -Uri 127.0.0.1:10090/debug/ipaddresses",
 		"-Method Post -ContentType application/x-www-form-urlencoded",
 		"-Body \"{`\"IPConfigStateFilter`\":[`\"Assigned`\"]}\"",
@@ -40,7 +40,7 @@ var windowsChecksMap = map[string][]check{
 	"cniv2": {
 		{"hns", hnsStateFileIps, privilegedLabelSelector, privilegedNamespace, hnsEndPointCmd},
 		{"azure-vnet", azureVnetIps, privilegedLabelSelector, privilegedNamespace, azureVnetCmd},
-		{"cns cache", cnsCacheStateFileIps, cnsWinLabelSelector, privilegedNamespace, cnsWinLocalCacheCmd},
+		{"cns cache", cnsCacheStateFileIps, cnsWinLabelSelector, privilegedNamespace, cnsWinCachedAssignedIPStateCmd},
 	},
 }
 

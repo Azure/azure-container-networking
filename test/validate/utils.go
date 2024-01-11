@@ -20,7 +20,7 @@ func compareIPs(expected map[string]string, actual []string) error {
 		delete(expected, ip)
 	}
 	if expectedLen != len(actual) {
-		return errors.Errorf("len of expected IPs != len of actual IPs, expected: %+v, actual: %+v | Remaining expected IP(s) - %v", expectedLen, len(actual), expected)
+		return errors.Errorf("len of expected IPs != len of actual IPs, expected: %+v, actual: %+v | Remaining, potentially leaked, IP(s) on state file - %v", expectedLen, len(actual), expected)
 	}
 
 	return nil
