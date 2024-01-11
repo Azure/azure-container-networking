@@ -216,7 +216,7 @@ func TestValidCNSStateDuringScaleAndCNSRestartToTriggerDropgzInstall(t *testing.
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Minute)
 	defer cancel()
 
-	// Provide option to validate state before running test
+	// Provide an option to validate state files with a proper environment before running test
 	if testConfig.ValidateStateFile {
 		t.Run("Validate state file", TestValidateState)
 	}
@@ -260,14 +260,14 @@ func TestValidCNSStateDuringScaleAndCNSRestartToTriggerDropgzInstall(t *testing.
 	require.NoError(t, err)
 
 	// Validate the CNS state
-	if testConfig.ValidateStateFile {
-		t.Run("Validate state file", TestValidateState)
-	}
+	err = validator.Validate(ctx)
+	require.NoError(t, err)
 
 	if testConfig.Cleanup {
 		kubernetes.MustDeleteDeployment(ctx, deploymentsClient, deployment)
 		err = kubernetes.WaitForPodsDelete(ctx, clientset, namespace, podLabelSelector)
 		require.NoError(t, err, "error waiting for pods to delete")
+		validator.Cleanup(ctx)
 	}
 }
 
