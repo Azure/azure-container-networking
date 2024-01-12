@@ -166,7 +166,7 @@ func (v *Validator) validateIPs(ctx context.Context, stateFileIps stateFileIpsFu
 		}
 		filePodIps, err := stateFileIps(result)
 		if err != nil {
-			return errors.Wrapf(err, "failed to get pod ips from state file")
+			return errors.Wrapf(err, "failed to get pod ips from state file on node %v", nodes.Items[index].Name)
 		}
 		if len(filePodIps) == 0 && v.restartCase {
 			log.Printf("No pods found on node %s", nodes.Items[index].Name)

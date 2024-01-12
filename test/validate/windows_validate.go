@@ -1,6 +1,7 @@
 package validate
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"log"
@@ -102,22 +103,46 @@ type AddressRecord struct {
 }
 
 func hnsStateFileIps(result []byte) (map[string]string, error) {
-	var hnsResult []HNSEndpoint
-	err := json.Unmarshal(result, &hnsResult)
-	if err != nil {
-		return nil, errors.Wrapf(err, "failed to unmarshal hns endpoint list")
-	}
-
+	jsonType := bytes.TrimLeft(result, " \t\r\n")
+	isObject := jsonType[0] == '{'
+	isArray := jsonType[0] == '['
 	hnsPodIps := make(map[string]string)
-	for _, v := range hnsResult {
-		if !v.IsRemoteEndpoint {
-			hnsPodIps[v.IPAddress.String()] = v.MacAddress
-			if v.IPv6Address.String() != "<nil>" {
-				hnsPodIps[v.IPv6Address.String()] = v.MacAddress
+
+	if isObject {
+		var hnsResult HNSEndpoint
+		err := json.Unmarshal(result, &hnsResult)
+		if err != nil {
+			return nil, errors.Wrapf(err, "failed to unmarshal hns endpoint list")
+		}
+		if !hnsResult.IsRemoteEndpoint {
+			hnsPodIps[hnsResult.IPAddress.String()] = hnsResult.MacAddress
+			if hnsResult.IPv6Address.String() != "<nil>" {
+				hnsPodIps[hnsResult.IPv6Address.String()] = hnsResult.MacAddress
 			}
 
 		}
+
+	} else if isArray {
+		var hnsResult []HNSEndpoint
+		err := json.Unmarshal(result, &hnsResult)
+		if err != nil {
+			return nil, errors.Wrapf(err, "failed to unmarshal hns endpoint list")
+		}
+
+		for _, v := range hnsResult {
+			if !v.IsRemoteEndpoint {
+				hnsPodIps[v.IPAddress.String()] = v.MacAddress
+				if v.IPv6Address.String() != "<nil>" {
+					hnsPodIps[v.IPv6Address.String()] = v.MacAddress
+				}
+
+			}
+		}
+	} else {
+		log.Printf("Leading character is - %s", jsonType[0])
+		return nil, errors.New("JSON is malformed and does not have correct leading character.")
 	}
+
 	return hnsPodIps, nil
 }
 
