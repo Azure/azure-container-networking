@@ -5,7 +5,6 @@ package network
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -16,6 +15,7 @@ import (
 	"github.com/Microsoft/hcsshim"
 	"github.com/Microsoft/hcsshim/hcn"
 	"github.com/google/uuid"
+	"github.com/pkg/errors"
 	"go.uber.org/zap"
 )
 
@@ -27,6 +27,7 @@ const (
 	vEthernetAdapterPrefix = "vEthernet"
 	baseDecimal            = 10
 	bitSize                = 32
+	numDualStackSubnet     = 2
 	defaultRouteCIDR       = "0.0.0.0/0"
 	// prefix for interface name created by azure network
 	ifNamePrefix = "vEthernet"
@@ -38,6 +39,12 @@ const (
 	routeCmd = "netsh interface ipv6 %s route \"%s\" \"%s\" \"%s\" store=persistent"
 	// add/delete ipv4 and ipv6 route rules to/from windows node
 	netRouteCmd = "netsh interface %s %s route \"%s\" \"%s\" \"%s\""
+	// Default IPv6 Route
+	defaultIPv6Route = "::/0"
+	// Default IPv6 nextHop
+	defaultIPv6NextHop = "fe80::1234:5678:9abc"
+	// Default ipv6 adding command attempt times
+	addIPv6DefaultRouteAttempts = 3
 )
 
 // Windows implementation of route.
@@ -318,6 +325,42 @@ func (nm *networkManager) configureHcnNetwork(nwInfo *NetworkInfo, extIf *extern
 	return hcnNetwork, nil
 }
 
+func (nm *networkManager) addIPv6DefaultRoute() error {
+	// add ipv6 default route if it does not exist in dualstack overlay windows node from persistentstore
+	cmd := `Get-NetAdapter | Where-Object { $_.InterfaceDescription -like 'Hyper-V*' } | Select-Object -ExpandProperty ifIndex`
+	ifIndex, err := nm.plClient.ExecutePowershellCommand(cmd)
+	if err != nil {
+		return fmt.Errorf("error while executing powershell command to get ipv6 Hyper-V interface: %w", err)
+	}
+
+	getIPv6RouteActiveCmd := fmt.Sprintf("Get-NetRoute -DestinationPrefix %s", defaultIPv6Route)
+	getIPv6RoutePersistentCmd := fmt.Sprintf("Get-NetRoute -DestinationPrefix %s -PolicyStore Persistentstore", defaultIPv6Route)
+	if out, err := nm.plClient.ExecutePowershellCommand(getIPv6RoutePersistentCmd); err != nil {
+		logger.Info("ipv6 default route is not found from persistentstore, adding default ipv6 route to the windows node", zap.Any("out", out))
+		// run powershell cmd to add ipv6 default route
+		addCmd := fmt.Sprintf("Remove-NetRoute -DestinationPrefix %s -InterfaceIndex %s -NextHop %s -confirm:$false;New-NetRoute -DestinationPrefix %s -InterfaceIndex %s -NextHop %s -confirm:$false",
+			defaultIPv6Route, ifIndex, defaultIPv6NextHop, defaultIPv6Route, ifIndex, defaultIPv6NextHop)
+
+		// if command is failed to execute, then attempt times
+		for i := 0; i <= addIPv6DefaultRouteAttemps; i++ {
+			if out, err := nm.plClient.ExecutePowershellCommand(addCmd); err != nil {
+				logger.Error("Failed to add ipv6 default gateway route, retrying after error", zap.Any("out", out), zap.Error(err))
+			} else {
+				if out, err := nm.plClient.ExecutePowershellCommand(getIPv6RoutePersistentCmd); err != nil {
+					logger.Error("default Route is not added to windows persistent store", zap.Any("out", out))
+					return errors.Wrapf(err, "Failed to add ipv6 default gateway route")
+				}
+				if out, err := nm.plClient.ExecutePowershellCommand(getIPv6RouteActiveCmd); err != nil {
+					logger.Error("default Route is not added to windows active store", zap.Any("out", out))
+					return errors.Wrapf(err, "Failed to add ipv6 default gateway route")
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
 // newNetworkImplHnsV2 creates a new container network for HNSv2.
 func (nm *networkManager) newNetworkImplHnsV2(nwInfo *NetworkInfo, extIf *externalInterface) (*network, error) {
 	hcnNetwork, err := nm.configureHcnNetwork(nwInfo, extIf)
@@ -345,6 +388,13 @@ func (nm *networkManager) newNetworkImplHnsV2(nwInfo *NetworkInfo, extIf *extern
 		}
 	} else {
 		logger.Info("Network with name already exists", zap.String("name", hcnNetwork.Name))
+	}
+
+	// check if ipv6 default gateway route is missing before windows endpoint creation
+	if len(nwInfo.Subnets) >= numDualStackSubnet {
+		if err = nm.addIPv6DefaultRoute(); err != nil {
+			return nil, errors.Wrapf(err, "failed to add missing ipv6 default route to windows node active and persistent store")
+		}
 	}
 
 	var vlanid int
