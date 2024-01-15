@@ -294,7 +294,14 @@ func (nm *networkManager) addDNSServers(ifName string, dnsServers []string) (str
 	case strings.HasPrefix(osVersion, Ubuntu22):
 		cmd = fmt.Sprintf("resolvectl dns %s %s", ifName, strings.Join(dnsServers, " "))
 	default:
-		cmd = fmt.Sprintf("systemd-resolve --interface %s %s", ifName, strings.Join(dnsServers, "--set-dns "))
+		serverList := ""
+		for _, server := range dnsServers {
+			if serverList == "" {
+				serverList = " --set-dns "
+			}
+			serverList = serverList + " --set-dns " + server
+		}
+		cmd = fmt.Sprintf("systemd-resolve --interface %s %s", ifName, serverList)
 	}
 	return cmd, nil
 }
