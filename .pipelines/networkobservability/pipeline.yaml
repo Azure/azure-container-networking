@@ -30,4 +30,4 @@ stages:
       displayName: Cilium on AKS Overlay dualstack with Hubble Enabled
       name: cilium_overlay_hubble_dualstack
       cilium_version: $(cilium_version)
-      stack: ipv4-ipv6
+      stack: ipv4_ipv6

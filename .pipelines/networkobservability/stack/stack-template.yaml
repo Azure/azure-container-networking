@@ -128,8 +128,8 @@ stages:
   - stage: deleteCluster_${{ parameters.stack }}
     condition: always()
     dependsOn: 
-     - createCluster
-     - setupCluster
+     - createCluster_${{ parameters.stack }}
+     - setupCluster_${{ parameters.stack }}
     jobs:
       - job: delete
         steps:
