@@ -54,7 +54,7 @@ stages:
               addSpnToEnvironment: true
               inlineScript: |
                 set -e
-                make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=$(clusterName)
+                make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
           name: "setupkubeconf"
           displayName: "Set up kubeconfig"
 
