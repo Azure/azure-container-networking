@@ -12,7 +12,7 @@ stages:
     dependsOn: []
     pool:
         name: $(BUILD_POOL_NAME_DEFAULT)
-    displayName: "create cluster"
+    displayName: "Create Cilium Cluster with Hubble enabled"
     jobs:
       - template: ../../templates/create-cluster.yaml
         parameters:
@@ -24,6 +24,7 @@ stages:
           k8sVersion: ""
           region: $(REGION_AKS_CLUSTER_TEST)
   - stage: setupCluster_${{ parameters.stack }}
+    displayName: "Setup cluster and run tests"
     dependsOn:
       - createCluster_${{ parameters.stack }}
     pool:
@@ -129,6 +130,7 @@ stages:
           displayName: "Run Hubble Connectivity Tests"
           
   - stage: deleteCluster_${{ parameters.stack }}
+    displayName: "Delete cluster and cleanup"
     condition: always()
     dependsOn: 
      - createCluster_${{ parameters.stack }}

@@ -17,7 +17,7 @@ stages:
     parameters:
       clusterName: $(clustername)-singlestack
       clusterType: overlay-byocni-nokubeproxy-up
-      cilium-config: cilium-config-hubble
+      ciliumconfig: cilium-config-hubble
       displayName: Cilium on AKS Overlay with Hubble Enabled
       name: cilium_overlay_hubble
       cilium_version: $(cilium_version)
@@ -26,7 +26,7 @@ stages:
     parameters:
       clusterName: $(clustername)-dualstack
       clusterType: dualstack-byocni-nokubeproxy-up
-      cilium-config: cilium-config-hubble-dual
+      ciliumconfig: cilium-config-hubble-dual
       displayName: Cilium on AKS Overlay dualstack with Hubble Enabled
       name: cilium_overlay_hubble_dualstack
       cilium_version: $(cilium_version)
