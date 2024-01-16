@@ -1,0 +1,145 @@
+pr: none
+trigger: none
+
+schedules:
+- cron: '0 0 * * *'
+  displayName: Daily midnight Cilium with Hubble
+  branches:
+    include:
+    - master
+
+variables:
+  clustername: ciliumhubble-$(Build.SourceBranchName)-$(Build.BuildId)
+  cilium_version: v1.14.4
+
+stages:
+  - stage: createCluster
+    pool:
+        name: $(BUILD_POOL_NAME_DEFAULT)
+    displayName: "create cluster"
+    jobs:
+      - template: ../templates/create-cluster.yaml
+        parameters:
+          name: cilium_overlay_hubble
+          displayName: Cilium on AKS Overlay with Hubble Enabled
+          clusterType: overlay-byocni-nokubeproxy-up
+          clusterName: $(clustername)
+          vmSize: Standard_B2ms
+          k8sVersion: ""
+          region: $(REGION_AKS_CLUSTER_TEST)
+  - stage: setupCluster
+    pool:
+        name: $(BUILD_POOL_NAME_DEFAULT)
+    jobs:
+      - job: "ciliuminstall"
+        steps:
+        - bash: |
+            go version
+            go env
+            mkdir -p '$(GOBIN)'
+            mkdir -p '$(GOPATH)/pkg'
+            mkdir -p '$(modulePath)'
+            echo '##vso[task.prependpath]$(GOBIN)'
+            echo '##vso[task.prependpath]$(GOROOT)/bin'
+          name: "GoEnv"
+          displayName: "Set up the Go environment"
+
+        - task: KubectlInstaller@0
+          inputs:
+              kubectlVersion: latest
+
+        - task: AzureCLI@1
+          inputs:
+              azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+              scriptLocation: "inlineScript"
+              scriptType: "bash"
+              addSpnToEnvironment: true
+              inlineScript: |
+                set -e
+                make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=$(clustername)
+          name: "setupkubeconf"
+          displayName: "Set up kubeconfig"
+
+        - script: |
+              CILIUM_CLI_VERSION=$(curl -s https://raw.githubusercontent.com/cilium/cilium-cli/main/stable.txt)
+              CLI_ARCH=amd64
+              if [ "$(uname -m)" = "aarch64" ]; then CLI_ARCH=arm64; fi
+              curl -L --fail --remote-name-all https://github.com/cilium/cilium-cli/releases/download/${CILIUM_CLI_VERSION}/cilium-linux-${CLI_ARCH}.tar.gz{,.sha256sum}
+              sha256sum --check cilium-linux-${CLI_ARCH}.tar.gz.sha256sum
+              sudo tar xzvfC cilium-linux-${CLI_ARCH}.tar.gz /usr/local/bin
+              rm cilium-linux-${CLI_ARCH}.tar.gz{,.sha256sum}
+          name: "installCiliumCLI"
+          displayName: "Install Cilium CLI"
+
+        - task: AzureCLI@1
+          inputs:
+            azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+            scriptLocation: "inlineScript"
+            scriptType: "bash"
+            addSpnToEnvironment: true
+            inlineScript: |
+              kubectl apply -f test/integration/manifests/cilium/$(cilium_version)/cilium-config/cilium-config-hubble.yaml
+              kubectl apply -f test/integration/manifests/cilium/$(cilium_version)/cilium-agent/files
+              kubectl apply -f test/integration/manifests/cilium/$(cilium_version)/cilium-operator/files
+              envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/$(cilium_version)/cilium-agent/templates/daemonset.tpl | kubectl apply -f -
+              envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/$(cilium_version)/cilium-operator/templates/deployment.tpl | kubectl apply -f -
+              # Use different file directories for nightly and current cilium version
+          name: "installCilium"
+          displayName: "Install Cilium on AKS Overlay"
+
+        - script: |
+            echo "Start Azilium E2E Tests on Overlay Cluster"
+            if [ "$CILIUM_VERSION_TAG" = "cilium-nightly-pipeline" ]
+            then
+                CNS=$(CNS_VERSION) IPAM=$(AZURE_IPAM_VERSION) && echo "Running nightly"
+            else
+                CNS=$(make cns-version) IPAM=$(make azure-ipam-version)
+            fi
+            sudo -E env "PATH=$PATH" make test-integration AZURE_IPAM_VERSION=${IPAM} CNS_VERSION=${CNS} INSTALL_CNS=true INSTALL_OVERLAY=true
+          retryCountOnTaskFailure: 3
+          name: "aziliumTest"
+          displayName: "Install Azure-CNS and Run Azilium E2E on AKS Overlay"
+          enabled: true
+
+        - script: |
+              cilium status --wait --wait-duration 5m
+          name: waitforhealthy
+          displayName: "Wait for healthy cilium pods"
+
+        - script: |
+            kubectl wait --for=condition=Ready pods --all --all-namespaces --timeout=5m
+          name: waitforallpodsrunning
+          displayName: "Wait for all pods to be running"
+          retryCountOnTaskFailure: 3
+
+        - script: |
+              echo "Run Cilium Connectivity Tests"
+              cilium status
+              cilium connectivity test --connect-timeout 4s --request-timeout 30s --test '!pod-to-pod-encryption,!node-to-node-encryption'
+          retryCountOnTaskFailure: 3
+          name: "ciliumConnectivityTests"
+          displayName: "Run Cilium Connectivity Tests"
+          enabled: true
+
+        - script: |
+            kubectl apply -f test/integration/manifests/cilium/$(cilium_version)/hubble/hubble-peer-svc.yaml
+            kubectl get pods -Aowide
+            echo "verify Hubble metrics endpoint is usable"
+            go test ./test/integration/networkobservability -tags=networkobservability
+          retryCountOnTaskFailure: 3
+          name: "HubbleConnectivityTests"
+          displayName: "Run Hubble Connectivity Tests"
+          
+  - stage: deleteCluster
+    condition: always()
+    dependsOn: 
+     - createCluster
+     - setupCluster
+    jobs:
+      - job: delete
+        steps:
+        - template: ../templates/delete-cluster.yaml
+          parameters:
+            name: cilium_overlay_e2e
+            clusterName: $(clustername)
+            region: $(REGION_AKS_CLUSTER_TEST)
