@@ -13,10 +13,16 @@ import (
 	"github.com/pkg/errors"
 )
 
+type SWIFTV2Mode string
+
 const (
 	// EnvCNSConfig is the CNS_CONFIGURATION_PATH env var key
 	EnvCNSConfig      = "CNS_CONFIGURATION_PATH"
 	defaultConfigName = "cns_config.json"
+	// Service Fabric SWIFTV2 mode
+	SFSWIFTV2 SWIFTV2Mode = "SFSWIFTV2"
+	// K8s SWIFTV2 mode
+	K8sSWIFTV2 SWIFTV2Mode = "K8sSWIFTV2"
 )
 
 type CNSConfig struct {
@@ -24,6 +30,7 @@ type CNSConfig struct {
 	EnablePprof                 bool
 	EnableSubnetScarcity        bool
 	EnableSwiftV2               bool
+	SWIFTV2Mode                 SWIFTV2Mode
 	InitializeFromCNI           bool
 	ManagedSettings             ManagedSettings
 	MetricsBindAddress          string

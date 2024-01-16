@@ -1382,8 +1382,17 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 		}
 		// if SWIFT v2 is enabled on CNS, attach multitenant middleware to rest service
 		// switch here for different type of swift v2 middleware (k8s or SF)
-		swiftV2Middleware := middlewares.K8sSWIFTv2Middleware{Cli: manager.GetClient()}
-		httpRestService.AttachIPConfigsHandlerMiddleware(&swiftV2Middleware)
+		var swiftV2Middleware cns.IPConfigsHandlerMiddleware
+		switch cnsconfig.SWIFTV2Mode {
+		case configuration.K8sSWIFTV2:
+			swiftV2Middleware = &middlewares.K8sSWIFTv2Middleware{Cli: manager.GetClient()}
+		case configuration.SFSWIFTV2:
+		default:
+			// default to K8s middleware for now, in a later changes we where start to pass in
+			// SWIFT v2 mode in CNS config, this should throw an error if the mode is not set.
+			swiftV2Middleware = &middlewares.K8sSWIFTv2Middleware{Cli: manager.GetClient()}
+		}
+		httpRestService.AttachIPConfigsHandlerMiddleware(swiftV2Middleware)
 	}
 
 	// start the pool Monitor before the Reconciler, since it needs to be ready to receive an

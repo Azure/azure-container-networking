@@ -37,6 +37,8 @@ type K8sSWIFTv2Middleware struct {
 // Verify interface compliance at compile time
 var _ cns.IPConfigsHandlerMiddleware = (*K8sSWIFTv2Middleware)(nil)
 
+// IPConfigsRequestHandlerWrapper is the middleware function for handling SWIFT v2 IP configs requests for AKS-SWIFT. This function wrapped the default SWIFT request
+// and release IP configs handlers.
 func (m *K8sSWIFTv2Middleware) IPConfigsRequestHandlerWrapper(defaultHandler, failureHandler cns.IPConfigsHandlerFunc) cns.IPConfigsHandlerFunc {
 	return func(ctx context.Context, req cns.IPConfigsRequest) (*cns.IPConfigsResponse, error) {
 		podInfo, respCode, message := m.validateIPConfigsRequest(ctx, &req)
@@ -96,7 +98,7 @@ func (m *K8sSWIFTv2Middleware) IPConfigsRequestHandlerWrapper(defaultHandler, fa
 	}
 }
 
-// validateIPConfigsRequest validates if pod is multitenant by checking the pod labels, used in SWIFT V2 scenario.
+// validateIPConfigsRequest validates if pod is multitenant by checking the pod labels, used in SWIFT V2 AKS scenario.
 // nolint
 func (m *K8sSWIFTv2Middleware) validateIPConfigsRequest(ctx context.Context, req *cns.IPConfigsRequest) (podInfo cns.PodInfo, respCode types.ResponseCode, message string) {
 	// Retrieve the pod from the cluster
