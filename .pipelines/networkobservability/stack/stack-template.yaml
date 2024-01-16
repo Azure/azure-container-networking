@@ -9,6 +9,7 @@ parameters:
 
 stages:
   - stage: createCluster_${{ parameters.stack }}
+    dependsOn: []
     pool:
         name: $(BUILD_POOL_NAME_DEFAULT)
     displayName: "create cluster"
@@ -23,6 +24,8 @@ stages:
           k8sVersion: ""
           region: $(REGION_AKS_CLUSTER_TEST)
   - stage: setupCluster_${{ parameters.stack }}
+    dependsOn:
+      - createCluster_${{ parameters.stack }}
     pool:
         name: $(BUILD_POOL_NAME_DEFAULT)
     jobs:
