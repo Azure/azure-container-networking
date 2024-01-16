@@ -9,13 +9,13 @@ schedules:
     - master
 
 variables:
-  clustername: cilium-hubble-$(Build.BuildId)
+  clustername: cilium-$(Build.BuildId)
   cilium_version: v1.14.4
 
 stages:
   - template: ./stack/stack-template.yaml
     parameters:
-      clusterName: $(clustername)
+      clusterName: $(clustername)-singlestack
       clusterType: overlay-byocni-nokubeproxy-up
       cilium-config: cilium-config-hubble
       displayName: Cilium on AKS Overlay with Hubble Enabled
@@ -24,7 +24,7 @@ stages:
       stack: singlestack
   - template: ./stack/stack-template.yaml
     parameters:
-      clusterName: $(clustername)
+      clusterName: $(clustername)-dualstack
       clusterType: dualstack-byocni-nokubeproxy-up
       cilium-config: cilium-config-hubble-dual
       displayName: Cilium on AKS Overlay dualstack with Hubble Enabled
