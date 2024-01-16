@@ -5,9 +5,10 @@ parameters:
   displayName: ""
   name: ""
   cilium_version: ""
+  stack: ""
 
 stages:
-  - stage: createCluster
+  - stage: createCluster-$(stack)
     pool:
         name: $(BUILD_POOL_NAME_DEFAULT)
     displayName: "create cluster"
@@ -21,7 +22,7 @@ stages:
           vmSize: Standard_B2ms
           k8sVersion: ""
           region: $(REGION_AKS_CLUSTER_TEST)
-  - stage: setupCluster
+  - stage: setupCluster-$(stack)
     pool:
         name: $(BUILD_POOL_NAME_DEFAULT)
     jobs:
@@ -124,7 +125,7 @@ stages:
           name: "HubbleConnectivityTests"
           displayName: "Run Hubble Connectivity Tests"
           
-  - stage: deleteCluster
+  - stage: deleteCluster-$(stack)
     condition: always()
     dependsOn: 
      - createCluster
