@@ -9,7 +9,7 @@ schedules:
     - master
 
 variables:
-  clustername: ciliumhubble-$(Build.SourceBranchName)-$(Build.BuildId)
+  clustername: cilium-hubble-$(Build.BuildId)
   cilium_version: v1.14.4
 
 stages:
