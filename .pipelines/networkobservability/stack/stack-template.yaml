@@ -8,7 +8,7 @@ parameters:
   stack: ""
 
 stages:
-  - stage: createCluster-${{ parameters.stack }}
+  - stage: createCluster_${{ parameters.stack }}
     pool:
         name: $(BUILD_POOL_NAME_DEFAULT)
     displayName: "create cluster"
@@ -22,7 +22,7 @@ stages:
           vmSize: Standard_B2ms
           k8sVersion: ""
           region: $(REGION_AKS_CLUSTER_TEST)
-  - stage: setupCluster-${{ parameters.stack }}
+  - stage: setupCluster_${{ parameters.stack }}
     pool:
         name: $(BUILD_POOL_NAME_DEFAULT)
     jobs:
@@ -125,7 +125,7 @@ stages:
           name: "HubbleConnectivityTests"
           displayName: "Run Hubble Connectivity Tests"
           
-  - stage: deleteCluster-${{ parameters.stack }}
+  - stage: deleteCluster_${{ parameters.stack }}
     condition: always()
     dependsOn: 
      - createCluster
