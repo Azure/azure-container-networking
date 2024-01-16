@@ -8,21 +8,21 @@ parameters:
   stack: ""
 
 stages:
-  - stage: createCluster-$(stack)
+  - stage: createCluster-${{ parameters.stack }}
     pool:
         name: $(BUILD_POOL_NAME_DEFAULT)
     displayName: "create cluster"
     jobs:
       - template: ../../templates/create-cluster.yaml
         parameters:
-          name: cilium_overlay_hubble
-          displayName: Cilium on AKS Overlay with Hubble Enabled
-          clusterType: overlay-byocni-nokubeproxy-up
-          clusterName: $(clusterName)
+          name: ${{ parameters.name }}
+          displayName: ${{ parameters.displayName }}
+          clusterType: ${{ parameters.clusterType }}
+          clusterName: ${{ parameters.clusterName }}
           vmSize: Standard_B2ms
           k8sVersion: ""
           region: $(REGION_AKS_CLUSTER_TEST)
-  - stage: setupCluster-$(stack)
+  - stage: setupCluster-${{ parameters.stack }}
     pool:
         name: $(BUILD_POOL_NAME_DEFAULT)
     jobs:
@@ -73,7 +73,7 @@ stages:
             scriptType: "bash"
             addSpnToEnvironment: true
             inlineScript: |
-              kubectl apply -f test/integration/manifests/cilium/$(cilium_version)/cilium-config/cilium-config-hubble-dual.yaml
+              kubectl apply -f test/integration/manifests/cilium/$(cilium_version)/cilium-config/${{ parameters.cilium-config }}.yaml
               kubectl apply -f test/integration/manifests/cilium/$(cilium_version)/cilium-agent/files
               kubectl apply -f test/integration/manifests/cilium/$(cilium_version)/cilium-operator/files
               envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/$(cilium_version)/cilium-agent/templates/daemonset.tpl | kubectl apply -f -
@@ -125,7 +125,7 @@ stages:
           name: "HubbleConnectivityTests"
           displayName: "Run Hubble Connectivity Tests"
           
-  - stage: deleteCluster-$(stack)
+  - stage: deleteCluster-${{ parameters.stack }}
     condition: always()
     dependsOn: 
      - createCluster
@@ -136,5 +136,5 @@ stages:
         - template: ../../templates/delete-cluster.yaml
           parameters:
             name: cilium_overlay_e2e
-            clusterName: $(clusterName)
+            clusterName: ${{ parameters.clusterName }}
             region: $(REGION_AKS_CLUSTER_TEST)
