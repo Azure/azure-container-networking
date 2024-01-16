@@ -1,7 +1,7 @@
 parameters:
   clusterName: ""
   clusterType: ""
-  cilium-config: ""
+  ciliumconfig: ""
   displayName: ""
   name: ""
   cilium_version: ""
@@ -73,7 +73,7 @@ stages:
             scriptType: "bash"
             addSpnToEnvironment: true
             inlineScript: |
-              kubectl apply -f test/integration/manifests/cilium/$(cilium_version)/cilium-config/${{ parameters.cilium-config }}.yaml
+              kubectl apply -f test/integration/manifests/cilium/$(cilium_version)/cilium-config/${{ parameters.ciliumconfig }}.yaml
               kubectl apply -f test/integration/manifests/cilium/$(cilium_version)/cilium-agent/files
               kubectl apply -f test/integration/manifests/cilium/$(cilium_version)/cilium-operator/files
               envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/$(cilium_version)/cilium-agent/templates/daemonset.tpl | kubectl apply -f -
