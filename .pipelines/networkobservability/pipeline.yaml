@@ -21,6 +21,7 @@ stages:
       displayName: Cilium on AKS Overlay with Hubble Enabled
       name: cilium_overlay_hubble
       cilium_version: $(cilium_version)
+      stack: ipv4
   - template: ./stack/stack-template.yaml
     parameters:
       clusterName: $(clustername)
@@ -29,3 +30,4 @@ stages:
       displayName: Cilium on AKS Overlay dualstack with Hubble Enabled
       name: cilium_overlay_hubble_dualstack
       cilium_version: $(cilium_version)
+      stack: ipv4-ipv6
