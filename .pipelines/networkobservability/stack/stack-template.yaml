@@ -12,7 +12,7 @@ stages:
         name: $(BUILD_POOL_NAME_DEFAULT)
     displayName: "create cluster"
     jobs:
-      - template: ../templates/create-cluster.yaml
+      - template: ../../templates/create-cluster.yaml
         parameters:
           name: cilium_overlay_hubble
           displayName: Cilium on AKS Overlay with Hubble Enabled
@@ -132,7 +132,7 @@ stages:
     jobs:
       - job: delete
         steps:
-        - template: ../templates/delete-cluster.yaml
+        - template: ../../templates/delete-cluster.yaml
           parameters:
             name: cilium_overlay_e2e
             clusterName: $(clusterName)
