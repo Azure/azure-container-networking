@@ -327,10 +327,10 @@ func (nm *networkManager) configureHcnNetwork(nwInfo *NetworkInfo, extIf *extern
 
 func (nm *networkManager) addIPv6DefaultRoute() error {
 	// add ipv6 default route if it does not exist in dualstack overlay windows node from persistentstore
-	cmd := `Get-NetAdapter | Where-Object { $_.InterfaceDescription -like 'Hyper-V*' } | Select-Object -ExpandProperty ifIndex`
+	cmd := `((Get-NetIPInterface | where InterfaceAlias  -Like "vEthernet*").IfIndex)[0]`
 	ifIndex, err := nm.plClient.ExecutePowershellCommand(cmd)
 	if err != nil {
-		return fmt.Errorf("error while executing powershell command to get ipv6 Hyper-V interface: %w", err)
+		return errors.Wrapf(err, "error while executing powershell command to get ipv6 Hyper-V interface")
 	}
 
 	getIPv6RouteActiveCmd := fmt.Sprintf("Get-NetRoute -DestinationPrefix %s", defaultIPv6Route)
@@ -341,11 +341,12 @@ func (nm *networkManager) addIPv6DefaultRoute() error {
 		addCmd := fmt.Sprintf("Remove-NetRoute -DestinationPrefix %s -InterfaceIndex %s -NextHop %s -confirm:$false;New-NetRoute -DestinationPrefix %s -InterfaceIndex %s -NextHop %s -confirm:$false",
 			defaultIPv6Route, ifIndex, defaultIPv6NextHop, defaultIPv6Route, ifIndex, defaultIPv6NextHop)
 
-		// if command is failed to execute, then attempt times
-		for i := 0; i <= addIPv6DefaultRouteAttemps; i++ {
+		// if command is failed to execute, then attempt to execute extra two times
+		for i := 0; i <= addIPv6DefaultRouteAttempts; i++ {
 			if out, err := nm.plClient.ExecutePowershellCommand(addCmd); err != nil {
 				logger.Error("Failed to add ipv6 default gateway route, retrying after error", zap.Any("out", out), zap.Error(err))
 			} else {
+				// check if ipv6 default route is added to both active and persistent store
 				if out, err := nm.plClient.ExecutePowershellCommand(getIPv6RoutePersistentCmd); err != nil {
 					logger.Error("default Route is not added to windows persistent store", zap.Any("out", out))
 					return errors.Wrapf(err, "Failed to add ipv6 default gateway route")
@@ -356,6 +357,10 @@ func (nm *networkManager) addIPv6DefaultRoute() error {
 				}
 			}
 		}
+	}
+
+	if err != nil {
+		return errors.Wrapf(err, "Failed to add ipv6 default gateway route")
 	}
 
 	return nil
