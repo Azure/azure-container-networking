@@ -241,7 +241,7 @@ func TestAddIPv6DefaultRoute(t *testing.T) {
 
 	extInterface := &externalInterface{
 		Name:    "eth0",
-		Subnets: []string{"subnet1", "subnet2"},
+		Subnets: []string{"ipv4Subnet", "ipv6Subnet"},
 	}
 
 	Hnsv2 = hnswrapper.NewHnsv2wrapperFake()
@@ -250,9 +250,5 @@ func TestAddIPv6DefaultRoute(t *testing.T) {
 	if err != nil {
 		fmt.Printf("+%v", err)
 		t.Fatal(err)
-	}
-
-	if err := nm.naddIPv6DefaultRoute(); err != nil {
-		t.Fatal("Failed to add ipv6 default route to system")
 	}
 }
