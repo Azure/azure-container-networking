@@ -227,3 +227,32 @@ func TestDeleteNetworkImplHnsV1WithTimeout(t *testing.T) {
 		t.Fatal("Failed to timeout HNS calls for deleting network")
 	}
 }
+
+func TestAddIPv6DefaultRoute(t *testing.T) {
+	nm := &networkManager{
+		ExternalInterfaces: map[string]*externalInterface{},
+	}
+
+	nwInfo := &NetworkInfo{
+		Id:           "d3f97a83-ba4c-45d5-ba88-dc56757ece28",
+		MasterIfName: "eth0",
+		Mode:         "bridge",
+	}
+
+	extInterface := &externalInterface{
+		Name:    "eth0",
+		Subnets: []string{"subnet1", "subnet2"},
+	}
+
+	Hnsv2 = hnswrapper.NewHnsv2wrapperFake()
+
+	network, err := nm.newNetworkImplHnsV2(nwInfo, extInterface)
+	if err != nil {
+		fmt.Printf("+%v", err)
+		t.Fatal(err)
+	}
+
+	if err := nm.naddIPv6DefaultRoute(); err != nil {
+		t.Fatal("Failed to add ipv6 default route to system")
+	}
+}
