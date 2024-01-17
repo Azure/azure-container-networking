@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
-	"os"
 	"strconv"
 	"testing"
 
@@ -1535,16 +1534,55 @@ func TestIPAMFailToRequestPartialIPsInPool(t *testing.T) {
 	}
 }
 
-func setEnvVars() {
-	os.Setenv(configuration.EnvPodCIDRs, "10.0.1.10/24")
-	os.Setenv(configuration.EnvServiceCIDRs, "10.0.2.10/24")
-	os.Setenv(configuration.EnvInfraVNETCIDRs, "10.0.3.10/24")
-}
+func TestIPAMReleaseSWIFTV2PodIPSuccess(t *testing.T) {
+	svc := getTestService()
+	middleware := middlewares.K8sSWIFTv2Middleware{Cli: mock.NewClient()}
+	svc.AttachIPConfigsHandlerMiddleware(&middleware)
 
-func unsetEnvVars() {
-	_ = os.Unsetenv(configuration.EnvPodCIDRs)
-	_ = os.Unsetenv(configuration.EnvServiceCIDRs)
-	_ = os.Unsetenv(configuration.EnvInfraVNETCIDRs)
+	t.Setenv(configuration.EnvPodCIDRs, "10.0.1.10/24")
+	t.Setenv(configuration.EnvServiceCIDRs, "10.0.2.10/24")
+	t.Setenv(configuration.EnvInfraVNETCIDRs, "10.0.3.10/24")
+
+	ncStates := []ncState{
+		{
+			ncID: testNCID,
+			ips: []string{
+				testIP1,
+			},
+		},
+		{
+			ncID: testNCIDv6,
+			ips: []string{
+				testIP1v6,
+			},
+		},
+	}
+
+	// Add Available Pod IP to state
+	for i := range ncStates {
+		ipconfigs := make(map[string]cns.IPConfigurationStatus, 0)
+		state := NewPodState(ncStates[i].ips[0], ipIDs[i][0], ncStates[i].ncID, types.Available, 0)
+		ipconfigs[state.ID] = state
+		err := UpdatePodIPConfigState(t, svc, ipconfigs, ncStates[i].ncID)
+		if err != nil {
+			t.Fatalf("Expected to not fail adding IPs to state: %+v", err)
+		}
+	}
+
+	req := cns.IPConfigsRequest{
+		PodInterfaceID:   testPod1Info.InterfaceID(),
+		InfraContainerID: testPod1Info.InfraContainerID(),
+	}
+	b, _ := testPod1Info.OrchestratorContext()
+	req.OrchestratorContext = b
+	req.DesiredIPAddresses = make([]string, 2)
+	req.DesiredIPAddresses[0] = testIP1
+	req.DesiredIPAddresses[1] = testIP1v6
+	// Requesting release ip config for SWIFT V2 pod when mtpnc is not ready, should be a no-op
+	_, err := svc.releaseIPConfigHandlerHelper(context.TODO(), req)
+	if err != nil {
+		t.Fatalf("Expected not to fail when requesting to release SWIFT V2 pod due to MTPNC not ready")
+	}
 }
 
 func TestIPAMGetK8sSWIFTv2IPSuccess(t *testing.T) {
@@ -1552,8 +1590,9 @@ func TestIPAMGetK8sSWIFTv2IPSuccess(t *testing.T) {
 	middleware := middlewares.K8sSWIFTv2Middleware{Cli: mock.NewClient()}
 	svc.AttachIPConfigsHandlerMiddleware(&middleware)
 
-	setEnvVars()
-	defer unsetEnvVars()
+	t.Setenv(configuration.EnvPodCIDRs, "10.0.1.10/24")
+	t.Setenv(configuration.EnvServiceCIDRs, "10.0.2.10/24")
+	t.Setenv(configuration.EnvInfraVNETCIDRs, "10.0.3.10/24")
 
 	ncStates := []ncState{
 		{
