@@ -108,7 +108,8 @@ func hnsStateFileIps(result []byte) (map[string]string, error) {
 	isArray := jsonType[0] == '['
 	hnsPodIps := make(map[string]string)
 
-	if isObject {
+	switch {
+	case isObject:
 		var hnsResult HNSEndpoint
 		err := json.Unmarshal(result, &hnsResult)
 		if err != nil {
@@ -119,10 +120,8 @@ func hnsStateFileIps(result []byte) (map[string]string, error) {
 			if hnsResult.IPv6Address.String() != "<nil>" {
 				hnsPodIps[hnsResult.IPv6Address.String()] = hnsResult.MacAddress
 			}
-
 		}
-
-	} else if isArray {
+	case isArray:
 		var hnsResult []HNSEndpoint
 		err := json.Unmarshal(result, &hnsResult)
 		if err != nil {
@@ -138,9 +137,9 @@ func hnsStateFileIps(result []byte) (map[string]string, error) {
 
 			}
 		}
-	} else {
-		log.Printf("Leading character is - %s", jsonType[0])
-		return nil, errors.New("JSON is malformed and does not have correct leading character.")
+	default:
+		log.Printf("Leading character is - %v", jsonType[0])
+		return nil, errors.New("json is malformed and does not have correct leading character")
 	}
 
 	return hnsPodIps, nil
