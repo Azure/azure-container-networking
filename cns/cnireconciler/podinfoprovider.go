@@ -137,7 +137,12 @@ func cniStateToCnsEndpointState(state *api.AzureCNIState) (map[string]*restserve
 			}
 		}
 		endpointInfo.IfnameToIPMap[endpoint.IfName] = ipInfo
+		logger.Printf("writing endpoint podName from stateful CNI %v", endpoint.PodName)
+		logger.Printf("writing endpoint info from stateful CNI [%+v]", *endpointInfo)
 		endpointState[endpoint.ContainerID] = endpointInfo
+	}
+	for containerID, endpointInfo := range endpointState {
+		logger.Printf("writing endpoint state from stateful CNI [%+v]:[%+v]", containerID, *endpointInfo)
 	}
 	return endpointState, nil
 }
