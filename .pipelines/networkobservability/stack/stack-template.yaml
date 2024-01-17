@@ -6,6 +6,7 @@ parameters:
   name: ""
   cilium_version: ""
   stack: ""
+  region: ""
 
 stages:
   - stage: createCluster_${{ parameters.stack }}
@@ -22,7 +23,7 @@ stages:
           clusterName: ${{ parameters.clusterName }}
           vmSize: Standard_B2ms
           k8sVersion: ""
-          region: $(REGION_AKS_CLUSTER_TEST)
+          region: ${{ parameters.region }}
   - stage: setupCluster_${{ parameters.stack }}
     displayName: "Setup cluster and run tests"
     dependsOn:
@@ -142,4 +143,4 @@ stages:
           parameters:
             name: cilium_overlay_e2e
             clusterName: ${{ parameters.clusterName }}
-            region: $(REGION_AKS_CLUSTER_TEST)
+            region: ${{ parameters.region }}

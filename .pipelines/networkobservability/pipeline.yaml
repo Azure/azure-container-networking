@@ -22,6 +22,7 @@ stages:
       name: cilium_overlay_hubble
       cilium_version: $(cilium_version)
       stack: singlestack
+      region: $(REGION_AKS_CLUSTER_TEST)
   - template: ./stack/stack-template.yaml
     parameters:
       clusterName: $(clustername)-dualstack
@@ -31,3 +32,4 @@ stages:
       name: cilium_overlay_hubble_dualstack
       cilium_version: $(cilium_version)
       stack: dualstack
+      region: $(REGION_DUALSTACKOVERLAY_CLUSTER_TEST)
