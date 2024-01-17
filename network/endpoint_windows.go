@@ -421,6 +421,7 @@ func (nw *network) newEndpointImplHnsV2(cli apipaClient, epInfo *EndpointInfo) (
 		ep.Routes = append(ep.Routes, route)
 	}
 
+	logger.Info("hnsResponse.MacAddress is", zap.Any("hnsResponse.MacAddress", hnsResponse.MacAddress))
 	ep.MacAddress, _ = net.ParseMAC(hnsResponse.MacAddress)
 
 	ipconfigs := make([]*IPConfig, len(epInfo.IPAddresses))
