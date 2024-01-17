@@ -10,7 +10,9 @@ import (
 	"time"
 
 	cnms "github.com/Azure/azure-container-networking/cnms/cnmspackage"
+	"github.com/Azure/azure-container-networking/cns"
 	cnsclient "github.com/Azure/azure-container-networking/cns/client"
+	"github.com/Azure/azure-container-networking/cns/restserver"
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/netio"
@@ -412,7 +414,7 @@ func (nm *networkManager) CreateEndpoint(cli apipaClient, networkID string, epIn
 // It will add HNSEndpointID or HostVeth name to the endpoint state
 func (nm *networkManager) UpdateEndpointState(ep *endpoint) error {
 	logger.Info("Calling cns updateEndpoint API with ", zap.String("containerID: ", ep.ContainerID), zap.String("HnsId: ", ep.HnsId), zap.String("HostIfName: ", ep.HostIfName))
-	response, err := nm.CnsClient.UpdateEndpoint(context.TODO(), ep.ContainerID, ep.HnsId, ep.HostIfName)
+	response, err := nm.CnsClient.UpdateEndpoint(context.TODO(), ep.ContainerID, ep.HnsId, ep.HostIfName, ep.IfName, cns.InfraNIC)
 	if err != nil {
 		return errors.Wrapf(err, "Update endpoint API returend with error")
 	}
@@ -485,25 +487,10 @@ func (nm *networkManager) GetEndpointInfo(networkId string, endpointId string) (
 		if err != nil {
 			return nil, errors.Wrapf(err, "Get endpoint API returend with error")
 		}
-		if endpointResponse.EndpointInfo.HnsEndpointID == "" && endpointResponse.EndpointInfo.HostVethName == "" {
-			return nil, errors.New("Get endpoint API returend with empty HNSEndpointID and HostVethName")
+		if result, err := validateEndpointResponse(endpointResponse.EndpointInfo); !result {
+			return nil, err
 		}
-		epInfo := &EndpointInfo{
-			Id:                 endpointId,
-			IfIndex:            EndpointIfIndex, // Azure CNI supports only one interface
-			IfName:             endpointResponse.EndpointInfo.HostVethName,
-			ContainerID:        endpointId,
-			PODName:            endpointResponse.EndpointInfo.PodName,
-			PODNameSpace:       endpointResponse.EndpointInfo.PodNamespace,
-			NetworkContainerID: endpointId,
-			HNSEndpointID:      endpointResponse.EndpointInfo.HnsEndpointID,
-		}
-
-		for _, ip := range endpointResponse.EndpointInfo.IfnameToIPMap {
-			epInfo.IPAddresses = ip.IPv4
-			epInfo.IPAddresses = append(epInfo.IPAddresses, ip.IPv6...)
-
-		}
+		epInfo := endpointInfotoepInfo(endpointResponse.EndpointInfo, endpointId)
 		logger.Info("returning getEndpoint API with", zap.String("Endpoint Info: ", epInfo.PrettyString()), zap.String("HNISID : ", epInfo.HNSEndpointID))
 		return epInfo, nil
 	}
@@ -680,4 +667,44 @@ func (nm *networkManager) GetEndpointID(containerID, ifName string) string {
 		return ""
 	}
 	return containerID + "-" + ifName
+}
+func endpointInfotoepInfo(endpointInfo restserver.EndpointInfo, endpointID string) *EndpointInfo {
+	epInfo := &EndpointInfo{
+		Id:                 endpointID,
+		IfIndex:            EndpointIfIndex, // Azure CNI supports only one interface
+		ContainerID:        endpointID,
+		PODName:            endpointInfo.PodName,
+		PODNameSpace:       endpointInfo.PodNamespace,
+		NetworkContainerID: endpointID,
+	}
+	secondaryInterfaces := map[string]*InterfaceInfo{}
+	for ifName, ipInfo := range endpointInfo.IfnameToIPMap {
+		if ipInfo.NICType == cns.InfraNIC {
+			epInfo.IPAddresses = ipInfo.IPv4
+			epInfo.IPAddresses = append(epInfo.IPAddresses, ipInfo.IPv6...)
+			epInfo.IfName = ifName
+			epInfo.HostIfName = ipInfo.HostVethName
+			epInfo.HNSEndpointID = ipInfo.HnsEndpointID
+		} else { // we will update secondary interface
+			interfaceInfo := &InterfaceInfo{
+				Name:    ifName,
+				NICType: ipInfo.NICType,
+			}
+			ipconfigs := []*IPConfig{}
+			// TODO: Fill out the ipconfig from the state
+			interfaceInfo.IPConfigs = ipconfigs
+			secondaryInterfaces[ifName] = interfaceInfo
+		}
+	}
+	epInfo.SecondaryInterfaces = secondaryInterfaces
+	return epInfo
+}
+
+func validateEndpointResponse(endpointInfo restserver.EndpointInfo) (bool, error) {
+	for _, ipInfo := range endpointInfo.IfnameToIPMap {
+		if ipInfo.HnsEndpointID == "" && ipInfo.HostVethName == "" {
+			return false, errors.New("Get endpoint API returend with empty HNSEndpointID and HostVethName")
+		}
+	}
+	return true, nil
 }

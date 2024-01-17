@@ -1098,11 +1098,15 @@ func (service *HTTPRestService) UpdateEndpointHelper(endpointID string, req cns.
 	if endpointInfo, ok := service.EndpointState[endpointID]; ok {
 		logger.Printf("[updateEndpoint] Found existing endpoint state for infra container %s", endpointID)
 		if req.HnsEndpointID != "" {
-			service.EndpointState[endpointID].HnsEndpointID = req.HnsEndpointID
+			service.EndpointState[endpointID].IfnameToIPMap[req.IFName].HnsEndpointID = req.HnsEndpointID
 			logger.Printf("[updateEndpoint] update the endpoint %s with HNSID  %s", endpointID, req.HnsEndpointID)
 		}
 		if req.HostVethName != "" {
-			service.EndpointState[endpointID].HostVethName = req.HostVethName
+			service.EndpointState[endpointID].IfnameToIPMap[req.IFName].HostVethName = req.HostVethName
+			logger.Printf("[updateEndpoint] update the endpoint %s with vethName  %s", endpointID, req.HostVethName)
+		}
+		if req.NICType != "" {
+			service.EndpointState[endpointID].IfnameToIPMap[req.IFName].NICType = req.NICType
 			logger.Printf("[updateEndpoint] update the endpoint %s with vethName  %s", endpointID, req.HostVethName)
 		}
 

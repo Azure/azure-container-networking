@@ -63,6 +63,7 @@ type EndpointInfo struct {
 	ContainerID              string
 	NetNsPath                string
 	IfName                   string
+	HostIfName               string
 	SandboxKey               string
 	IfIndex                  int
 	MacAddress               net.HardwareAddr
@@ -92,6 +93,8 @@ type EndpointInfo struct {
 	NICType                  cns.NICType
 	SkipDefaultRoutes        bool
 	HNSEndpointID            string
+	// SecondaryInterfaces is a map of interface name to InterfaceInfo
+	SecondaryInterfaces map[string]*InterfaceInfo
 }
 
 // RouteInfo contains information about an IP route.

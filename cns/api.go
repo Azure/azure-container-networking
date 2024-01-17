@@ -361,6 +361,9 @@ type GetHomeAzResponse struct {
 
 // Used by EndpointHandler API to update endpoint state.
 type EndpointRequest struct {
-	HnsEndpointID string `json:"hnsEndpointID"`
-	HostVethName  string `json:"hostVethName"`
+	HnsEndpointID string  `json:"hnsEndpointID"`
+	HostVethName  string  `json:"hostVethName"`
+	IFName        string  `json:"IFName"`
+	NICType       NICType `json:"NICType"`
+	MacAddress    string  `json:"MacAddress"`
 }
