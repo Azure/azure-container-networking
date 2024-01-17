@@ -10,6 +10,7 @@ import (
 	"time"
 
 	cnsclient "github.com/Azure/azure-container-networking/cns/client"
+	"github.com/Azure/azure-container-networking/cns/restserver"
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/Azure/azure-container-networking/netio"
@@ -422,7 +423,7 @@ func (nm *networkManager) CreateEndpoint(cli apipaClient, networkID string, epIn
 // It will add HNSEndpointID or HostVeth name to the endpoint state
 func (nm *networkManager) UpdateEndpointState(ep *endpoint) error {
 	logger.Info("Calling cns updateEndpoint API with ", zap.String("containerID: ", ep.ContainerID), zap.String("HnsId: ", ep.HnsId), zap.String("HostIfName: ", ep.HostIfName))
-	response, err := nm.CnsClient.UpdateEndpoint(context.TODO(), ep.ContainerID, ep.HnsId, ep.HostIfName)
+	response, err := nm.CnsClient.UpdateEndpoint(context.TODO(), ep.ContainerID, ep.HnsId, ep.HostIfName, ep.IfName)
 	if err != nil {
 		return errors.Wrapf(err, "Update endpoint API returend with error")
 	}
@@ -437,28 +438,15 @@ func (nm *networkManager) GetEndpointState(networkID, endpointID string) (*Endpo
 	if err != nil {
 		return nil, errors.Wrapf(err, "Get endpoint API returend with error")
 	}
-	epInfo := &EndpointInfo{
-		Id:                 endpointID,
-		IfIndex:            EndpointIfIndex, // Azure CNI supports only one interface
-		IfName:             endpointResponse.EndpointInfo.HostVethName,
-		ContainerID:        endpointID,
-		PODName:            endpointResponse.EndpointInfo.PodName,
-		PODNameSpace:       endpointResponse.EndpointInfo.PodNamespace,
-		NetworkContainerID: endpointID,
-		HNSEndpointID:      endpointResponse.EndpointInfo.HnsEndpointID,
-	}
+	epInfo := cnsEndpointInfotoCNIEpInfo(endpointResponse.EndpointInfo, endpointID)
 
-	for _, ip := range endpointResponse.EndpointInfo.IfnameToIPMap {
-		epInfo.IPAddresses = ip.IPv4
-		epInfo.IPAddresses = append(epInfo.IPAddresses, ip.IPv6...)
-
-	}
 	if epInfo.IsEndpointStateIncomplete() {
 		epInfo, err = epInfo.GetEndpointInfoByIPImpl(epInfo.IPAddresses, networkID)
 		if err != nil {
 			return nil, errors.Wrapf(err, "Get endpoint API returend with error")
 		}
 	}
+
 	logger.Info("returning getEndpoint API with", zap.String("Endpoint Info: ", epInfo.PrettyString()), zap.String("HNISID : ", epInfo.HNSEndpointID))
 	return epInfo, nil
 }
@@ -512,6 +500,7 @@ func (nm *networkManager) DeleteEndpointState(networkID string, epInfo *Endpoint
 		EnableSnatOnHost:         false,
 		EnableMultitenancy:       false,
 		NetworkContainerID:       epInfo.Id,
+		SecondaryInterfaces:      epInfo.SecondaryInterfaces,
 	}
 	logger.Info("Deleting endpoint with", zap.String("Endpoint Info: ", epInfo.PrettyString()), zap.String("HNISID : ", ep.HnsId))
 	return nw.deleteEndpointImpl(netlink.NewNetlink(), platform.NewExecClient(logger), nil, nil, nil, nil, ep)
@@ -697,4 +686,55 @@ func (nm *networkManager) GetEndpointID(containerID, ifName string) string {
 		return ""
 	}
 	return containerID + "-" + ifName
+}
+
+func cnsEndpointInfotoCNIEpInfo(endpointInfo restserver.EndpointInfo, endpointID string) *EndpointInfo {
+	epInfo := &EndpointInfo{
+		Id:                  endpointID,
+		IfIndex:             EndpointIfIndex, // Azure CNI supports only one interface
+		ContainerID:         endpointID,
+		PODName:             endpointInfo.PodName,
+		PODNameSpace:        endpointInfo.PodNamespace,
+		NetworkContainerID:  endpointID,
+		SecondaryInterfaces: make(map[string]*InterfaceInfo),
+	}
+	// filling out the InfraNIC from the state
+	for ifName, ipInfo := range endpointInfo.IfnameToIPMap {
+		if ifName == InfraInterfaceName {
+			epInfo.IPAddresses = ipInfo.IPv4
+			epInfo.IPAddresses = append(epInfo.IPAddresses, ipInfo.IPv6...)
+			epInfo.IfName = ifName
+			epInfo.HostIfName = ipInfo.HostVethName
+			epInfo.HNSEndpointID = ipInfo.HnsEndpointID
+		} else { // filling out the SecondaryNICs from the state
+			interfaceInfo := &InterfaceInfo{
+				Name:      ifName,
+				IPConfigs: generateIPConfigfromState(ipInfo),
+				NICType:   ipInfo.NICType,
+			}
+			epInfo.SecondaryInterfaces[ifName] = interfaceInfo
+		}
+	}
+	return epInfo
+}
+
+func generateIPConfigfromState(ipInfo *restserver.IPInfo) []*IPConfig {
+	ipConfigs := []*IPConfig{}
+	for _, ip := range ipInfo.IPv4 {
+		ipConfig := &IPConfig{
+			Address: net.IPNet{
+				IP: ip.IP,
+			},
+		}
+		ipConfigs = append(ipConfigs, ipConfig)
+	}
+	for _, ip := range ipInfo.IPv6 {
+		ipConfig := &IPConfig{
+			Address: net.IPNet{
+				IP: ip.IP,
+			},
+		}
+		ipConfigs = append(ipConfigs, ipConfig)
+	}
+	return ipConfigs
 }

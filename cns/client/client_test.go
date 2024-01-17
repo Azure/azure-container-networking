@@ -2710,12 +2710,14 @@ func TestUpdateEndpoint(t *testing.T) {
 		containerID string
 		hnsID       string
 		vethName    string
+		ifName      string
 		response    *RequestCapture
 		expReq      *cns.EndpointRequest
 		shouldErr   bool
 	}{
 		{
 			"empty",
+			"",
 			"",
 			"",
 			"",
@@ -2730,6 +2732,7 @@ func TestUpdateEndpoint(t *testing.T) {
 			"foo",
 			"bar",
 			"",
+			"eth0",
 			&RequestCapture{
 				Next: &mockdo{
 					httpStatusCodeToReturn: http.StatusOK,
@@ -2737,6 +2740,7 @@ func TestUpdateEndpoint(t *testing.T) {
 			},
 			&cns.EndpointRequest{
 				HnsEndpointID: "bar",
+				InterfaceName: "eth0",
 			},
 			false,
 		},
@@ -2745,13 +2749,15 @@ func TestUpdateEndpoint(t *testing.T) {
 			"foo",
 			"",
 			"bar",
+			"eth0",
 			&RequestCapture{
 				Next: &mockdo{
 					httpStatusCodeToReturn: http.StatusOK,
 				},
 			},
 			&cns.EndpointRequest{
-				HostVethName: "bar",
+				HostVethName:  "bar",
+				InterfaceName: "eth0",
 			},
 			false,
 		},
@@ -2760,13 +2766,15 @@ func TestUpdateEndpoint(t *testing.T) {
 			"foo",
 			"",
 			"bar",
+			"eth0",
 			&RequestCapture{
 				Next: &mockdo{
 					httpStatusCodeToReturn: http.StatusBadRequest,
 				},
 			},
 			&cns.EndpointRequest{
-				HostVethName: "bar",
+				HostVethName:  "bar",
+				InterfaceName: "eth0",
 			},
 			true,
 		},
@@ -2784,7 +2792,7 @@ func TestUpdateEndpoint(t *testing.T) {
 			}
 
 			// execute the method under test
-			res, err := client.UpdateEndpoint(context.TODO(), test.containerID, test.hnsID, test.vethName)
+			res, err := client.UpdateEndpoint(context.TODO(), test.containerID, test.hnsID, test.vethName, test.ifName)
 			if err != nil && !test.shouldErr {
 				t.Fatal("unexpected error: err: ", err, res.Message)
 			}
