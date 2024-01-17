@@ -246,7 +246,7 @@ func TestAddIPv6DefaultRoute(t *testing.T) {
 
 	Hnsv2 = hnswrapper.NewHnsv2wrapperFake()
 
-	network, err := nm.newNetworkImplHnsV2(nwInfo, extInterface)
+	_, err := nm.newNetworkImplHnsV2(nwInfo, extInterface)
 	if err != nil {
 		fmt.Printf("+%v", err)
 		t.Fatal(err)
