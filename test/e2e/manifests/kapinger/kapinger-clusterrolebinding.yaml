@@ -1,0 +1,28 @@
+typemeta:
+  kind: ClusterRoleBinding
+  apiversion: rbac.authorization.k8s.io/v1
+objectmeta:
+  name: kapinger-rolebinding
+  generatename: ""
+  namespace: default
+  selflink: ""
+  uid: ""
+  resourceversion: ""
+  generation: 0
+  creationtimestamp: "0001-01-01T00:00:00Z"
+  deletiontimestamp: null
+  deletiongraceperiodseconds: null
+  labels: {}
+  annotations: {}
+  ownerreferences: []
+  finalizers: []
+  managedfields: []
+subjects:
+- kind: ServiceAccount
+  apigroup: ""
+  name: kapinger-sa
+  namespace: default
+roleref:
+  apigroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: kapinger-role

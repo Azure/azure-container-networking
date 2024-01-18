@@ -1,0 +1,54 @@
+typemeta:
+  kind: Service
+  apiversion: v1
+objectmeta:
+  name: kapinger-service
+  generatename: ""
+  namespace: default
+  selflink: ""
+  uid: ""
+  resourceversion: ""
+  generation: 0
+  creationtimestamp: "0001-01-01T00:00:00Z"
+  deletiontimestamp: null
+  deletiongraceperiodseconds: null
+  labels:
+    app: kapinger
+  annotations: {}
+  ownerreferences: []
+  finalizers: []
+  managedfields: []
+spec:
+  ports:
+  - name: ""
+    protocol: TCP
+    appprotocol: null
+    port: 8080
+    targetport:
+      type: 0
+      intval: 8080
+      strval: ""
+    nodeport: 0
+  selector:
+    app: kapinger
+  clusterip: ""
+  clusterips: []
+  type: ""
+  externalips: []
+  sessionaffinity: ""
+  loadbalancerip: ""
+  loadbalancersourceranges: []
+  externalname: ""
+  externaltrafficpolicy: ""
+  healthchecknodeport: 0
+  publishnotreadyaddresses: false
+  sessionaffinityconfig: null
+  ipfamilies: []
+  ipfamilypolicy: null
+  allocateloadbalancernodeports: null
+  loadbalancerclass: null
+  internaltrafficpolicy: null
+status:
+  loadbalancer:
+    ingress: []
+  conditions: []

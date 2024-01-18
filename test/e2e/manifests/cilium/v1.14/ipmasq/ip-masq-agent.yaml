@@ -1,0 +1,91 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: azure-ip-masq-agent-user
+  namespace: kube-system
+spec:
+  selector:
+    matchLabels:
+      k8s-app: azure-ip-masq-agent-user
+  template:
+    metadata:
+      labels:
+        k8s-app: azure-ip-masq-agent-user
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.azure.com/cluster
+                    operator: Exists
+                  - key: type
+                    operator: NotIn
+                    values:
+                      - virtual-kubelet
+                  - key: kubernetes.io/os
+                    operator: In
+                    values:
+                      - linux
+      automountServiceAccountToken: false
+      containers:
+        - args:
+            - --v=2
+            - --resync-interval=60
+          image: mcr.microsoft.com/aks/ip-masq-agent-v2:v0.1.7
+          imagePullPolicy: IfNotPresent
+          name: azure-ip-masq-agent
+          resources:
+            limits:
+              cpu: 500m
+              memory: 250Mi
+            requests:
+              cpu: 100m
+              memory: 50Mi
+          securityContext:
+            capabilities:
+              add:
+                - NET_ADMIN
+                - NET_RAW
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+            - mountPath: /etc/config
+              name: azure-ip-masq-agent-config-volume
+            - mountPath: /run/xtables.lock
+              name: iptableslock
+      dnsPolicy: ClusterFirst
+      hostNetwork: true
+      priorityClassName: system-node-critical
+      restartPolicy: Always
+      terminationGracePeriodSeconds: 30
+      tolerations:
+        - key: CriticalAddonsOnly
+          operator: Exists
+        - effect: NoExecute
+          operator: Exists
+        - effect: NoSchedule
+          operator: Exists
+      volumes:
+        - name: azure-ip-masq-agent-config-volume
+          projected:
+            defaultMode: 420
+            sources:
+              - configMap:
+                  items:
+                    - key: ip-masq-agent
+                      mode: 444
+                      path: ip-masq-agent
+                  name: azure-ip-masq-agent-config
+                  optional: true
+              - configMap:
+                  items:
+                    - key: ip-masq-agent-reconciled
+                      mode: 444
+                      path: ip-masq-agent-reconciled
+                  name: azure-ip-masq-agent-config-user
+                  optional: true
+        - hostPath:
+            path: /run/xtables.lock
+            type: FileOrCreate
+          name: iptableslock

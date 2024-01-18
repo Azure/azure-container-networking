@@ -1,0 +1,164 @@
+typemeta:
+  kind: Deployment
+  apiversion: apps/v1
+objectmeta:
+  name: kapinger
+  generatename: ""
+  namespace: default
+  selflink: ""
+  uid: ""
+  resourceversion: ""
+  generation: 0
+  creationtimestamp: "0001-01-01T00:00:00Z"
+  deletiontimestamp: null
+  deletiongraceperiodseconds: null
+  labels: {}
+  annotations: {}
+  ownerreferences: []
+  finalizers: []
+  managedfields: []
+spec:
+  replicas: 1
+  selector:
+    matchlabels:
+      app: kapinger
+    matchexpressions: []
+  template:
+    objectmeta:
+      name: ""
+      generatename: ""
+      namespace: ""
+      selflink: ""
+      uid: ""
+      resourceversion: ""
+      generation: 0
+      creationtimestamp: "0001-01-01T00:00:00Z"
+      deletiontimestamp: null
+      deletiongraceperiodseconds: null
+      labels:
+        app: kapinger
+        server: good
+      annotations: {}
+      ownerreferences: []
+      finalizers: []
+      managedfields: []
+    spec:
+      volumes: []
+      initcontainers: []
+      containers:
+      - name: kapinger
+        image: acnpublic.azurecr.io/kapinger:be57650
+        command: []
+        args: []
+        workingdir: ""
+        ports:
+        - name: ""
+          hostport: 0
+          containerport: 8080
+          protocol: ""
+          hostip: ""
+        envfrom: []
+        env:
+        - name: TARGET_TYPE
+          value: service
+          valuefrom: null
+        - name: HTTP_PORT
+          value: "8080"
+          valuefrom: null
+        - name: TCP_PORT
+          value: "8085"
+          valuefrom: null
+        - name: UDP_PORT
+          value: "8086"
+          valuefrom: null
+        resources:
+          limits:
+            memory:
+              format: BinarySI
+          requests:
+            memory:
+              format: BinarySI
+          claims: []
+        resizepolicy: []
+        restartpolicy: null
+        volumemounts: []
+        volumedevices: []
+        livenessprobe: null
+        readinessprobe: null
+        startupprobe: null
+        lifecycle: null
+        terminationmessagepath: ""
+        terminationmessagepolicy: ""
+        imagepullpolicy: ""
+        securitycontext: null
+        stdin: false
+        stdinonce: false
+        tty: false
+      ephemeralcontainers: []
+      restartpolicy: ""
+      terminationgraceperiodseconds: null
+      activedeadlineseconds: null
+      dnspolicy: ""
+      nodeselector: {}
+      serviceaccountname: kapinger-sa
+      deprecatedserviceaccount: ""
+      automountserviceaccounttoken: null
+      nodename: ""
+      hostnetwork: false
+      hostpid: false
+      hostipc: false
+      shareprocessnamespace: null
+      securitycontext: null
+      imagepullsecrets: []
+      hostname: ""
+      subdomain: ""
+      affinity:
+        nodeaffinity: null
+        podaffinity: null
+        podantiaffinity:
+          requiredduringschedulingignoredduringexecution: []
+          preferredduringschedulingignoredduringexecution:
+          - weight: 100
+            podaffinityterm:
+              labelselector:
+                matchlabels:
+                  app: kapinger
+                matchexpressions: []
+              namespaces: []
+              topologykey: kubernetes.io/hostname
+              namespaceselector: null
+              matchlabelkeys: []
+              mismatchlabelkeys: []
+      schedulername: ""
+      tolerations: []
+      hostaliases: []
+      priorityclassname: ""
+      priority: null
+      dnsconfig: null
+      readinessgates: []
+      runtimeclassname: null
+      enableservicelinks: null
+      preemptionpolicy: null
+      overhead: {}
+      topologyspreadconstraints: []
+      sethostnameasfqdn: null
+      os: null
+      hostusers: null
+      schedulinggates: []
+      resourceclaims: []
+  strategy:
+    type: ""
+    rollingupdate: null
+  minreadyseconds: 0
+  revisionhistorylimit: null
+  paused: false
+  progressdeadlineseconds: null
+status:
+  observedgeneration: 0
+  replicas: 0
+  updatedreplicas: 0
+  readyreplicas: 0
+  availablereplicas: 0
+  unavailablereplicas: 0
+  conditions: []
+  collisioncount: null
