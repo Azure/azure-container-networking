@@ -45,7 +45,6 @@ stages:
     jobs:
       - job: ${{ parameters.name }}
         displayName: Cilium Dualstack Overlay Test Suite - (${{ parameters.name }})
-        timeoutInMinutes: 120
         pool:
           name: $(BUILD_POOL_NAME_DEFAULT)
           demands:
