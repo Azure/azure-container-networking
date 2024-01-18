@@ -1383,7 +1383,7 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 		// if SWIFT v2 is enabled on CNS, attach multitenant middleware to rest service
 		// switch here for different type of swift v2 middleware (k8s or SF)
 		var swiftV2Middleware cns.IPConfigsHandlerMiddleware
-		switch cnsconfig.SWIFTV2Mode {
+		switch configuration.SWIFTV2Mode(cnsconfig.SWIFTV2Mode) {
 		case configuration.K8sSWIFTV2:
 			swiftV2Middleware = &middlewares.K8sSWIFTv2Middleware{Cli: manager.GetClient()}
 		case configuration.SFSWIFTV2:
