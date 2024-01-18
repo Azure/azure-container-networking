@@ -22,7 +22,7 @@ jobs:
       id-token: write
     steps:
     - name: Azure Login
-      uses: Azure/login@v1.6.0
+      uses: Azure/login@v1.6.1
       env:
         AZURE_CORE_OUTPUT: none
       with:
