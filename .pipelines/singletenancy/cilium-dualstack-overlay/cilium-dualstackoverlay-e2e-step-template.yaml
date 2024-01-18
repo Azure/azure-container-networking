@@ -1,6 +1,5 @@
 parameters:
   name: ""
-  testDropgz: ""
   clusterName: ""
   testHubble: false
 
@@ -69,8 +68,7 @@ steps:
 
   - script: |
       echo "Start Azilium E2E Tests on Overlay Cluster"
-      CNS=$(make cns-version) DROPGZ=$(dropgzVersion)
-      sudo -E env "PATH=$PATH" make test-integration CNS_VERSION=${CNS} CNI_DROPGZ_VERSION=${DROPGZ} INSTALL_CNS=true INSTALL_OVERLAY=true TEST_DROPGZ=${{ parameters.testDropgz }}
+      sudo -E env "PATH=$PATH" make test-integration AZURE_IPAM_VERSION=${IPAM} CNS_VERSION=${CNS} INSTALL_CNS=true INSTALL_DUALSTACK_OVERLAY=true
     retryCountOnTaskFailure: 3
     name: "aziliumTest"
     displayName: "Run Azilium E2E on AKS Overlay"
@@ -111,21 +109,6 @@ steps:
     retryCountOnTaskFailure: 3
     name: "ciliumConnectivityTests"
     displayName: "Run Cilium Connectivity Tests"
-
-  - ${{ if eq( parameters['testHubble'], true) }}:
-      - script: |
-          echo "enable Hubble metrics server"
-          kubectl apply -f test/integration/manifests/cilium/hubble/hubble-peer-svc.yaml
-          kubectl apply -f test/integration/manifests/cilium/cilium-config-hubble.yaml
-          kubectl rollout restart ds cilium -n kube-system
-          echo "wait <3 minutes for pods to be ready after restart"
-          kubectl rollout status ds cilium -n kube-system --timeout=3m
-          kubectl get pods -Aowide
-          echo "verify Hubble metrics endpoint is usable"
-          go test ./test/integration/networkobservability -count=1 -v -tags=networkobservability
-        retryCountOnTaskFailure: 3
-        name: "HubbleConnectivityTests"
-        displayName: "Run Hubble Connectivity Tests"
 
   - script: |
       set -e

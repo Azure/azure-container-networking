@@ -1,7 +1,6 @@
 parameters:
   name: ""
   displayName: ""
-  testDropgz: ""
   clusterType: ""
   clusterName: ""
   vmSize: ""
@@ -64,6 +63,7 @@ stages:
           sub: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
           clusterName: ${{ parameters.clusterName }}-$(commitID)
           os: ${{ parameters.os }}
+          cni: cilium
           dependsOn: ${{ parameters.name }}
           dualstack: true
           dns: true

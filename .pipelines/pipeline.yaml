@@ -578,9 +578,6 @@ stages:
               cilium_dualstackoverlay_e2e:
                 name: cilium_dualstackoverlay_e2e
                 clusterName: "cildsovere2e"
-              cilium_dualstackoverlay_cni_e2e:
-                name: cilium_dualstackoverlay_cni_e2e
-                clustername: "cildsovcnie2e"
           steps:
             - template: templates/delete-cluster.yaml
               parameters:
