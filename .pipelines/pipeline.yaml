@@ -420,6 +420,18 @@ stages:
         k8sVersion: ""
         dependsOn: "test"
 
+        # Cilium Overlay with hubble E2E tests
+    - template: singletenancy/cilium-overlay-withhubble/cilium-overlay-e2e-job-template.yaml
+      parameters:
+        name: "cilium_h_overlay_e2e"
+        displayName: Cilium on AKS Overlay with Hubble
+        clusterType: overlay-byocni-nokubeproxy-up
+        clusterName: "cilwhleovere2e"
+        vmSize: Standard_B2ms
+        k8sVersion: ""
+        dependsOn: "test"
+        testHubble: true
+
     # Azure Overlay E2E tests
     - template: singletenancy/azure-cni-overlay/azure-cni-overlay-e2e-job-template.yaml
       parameters:
