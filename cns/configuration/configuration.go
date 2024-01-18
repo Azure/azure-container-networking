@@ -30,7 +30,7 @@ type CNSConfig struct {
 	EnablePprof                 bool
 	EnableSubnetScarcity        bool
 	EnableSwiftV2               bool
-	SWIFTV2Mode                 string
+	SWIFTV2Mode                 SWIFTV2Mode
 	InitializeFromCNI           bool
 	ManagedSettings             ManagedSettings
 	MetricsBindAddress          string
