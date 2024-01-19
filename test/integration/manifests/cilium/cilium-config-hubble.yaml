@@ -49,7 +49,6 @@ data:
   hubble-metrics-server: :9965
   hubble-disable-tls: "false"
   hubble-listen-address: ""
-  hubble-socket-path: /dev/null
   hubble-tls-cert-file: /var/lib/cilium/tls/hubble/server.crt
   hubble-tls-client-ca-files: /var/lib/cilium/tls/hubble/client-ca.crt
   hubble-tls-key-file: /var/lib/cilium/tls/hubble/server.key
