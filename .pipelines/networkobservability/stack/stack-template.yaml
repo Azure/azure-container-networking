@@ -95,7 +95,7 @@ stages:
             else
                 CNS=$(make cns-version) IPAM=$(make azure-ipam-version)
             fi
-            sudo -E env "PATH=$PATH" make test-integration AZURE_IPAM_VERSION=${IPAM} CNS_VERSION=${CNS} INSTALL_CNS=true INSTALL_OVERLAY=true
+            sudo -E env "PATH=$PATH" make test-integration CNI_VERSION=$(make cni-version) CNS_VERSION=$(make cns-version) INSTALL_CNS=true INSTALL_DUALSTACK_OVERLAY=true
           retryCountOnTaskFailure: 3
           name: "aziliumTest"
           displayName: "Install Azure-CNS and Run Azilium E2E on AKS Overlay"
