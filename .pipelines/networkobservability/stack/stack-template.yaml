@@ -101,7 +101,7 @@ stages:
           displayName: "Install Azure-CNS and Run Azilium E2E on AKS Overlay"
           enabled: true
           env:
-            CNS_IMAGE_REPO=mcr.microsoft.com/containernetworking
+            CNS_IMAGE_REPO: mcr.microsoft.com/containernetworking
 
         - script: |
               cilium status --wait --wait-duration 5m
