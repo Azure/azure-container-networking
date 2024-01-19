@@ -7,6 +7,7 @@ parameters:
   cilium_version: ""
   stack: ""
   region: ""
+  dualstack: false
 
 stages:
   - stage: createCluster_${{ parameters.stack }}
@@ -102,6 +103,7 @@ stages:
           enabled: true
           env:
             CNS_IMAGE_REPO: mcr.microsoft.com/containernetworking
+            INSTALL_DUALSTACK_OVERLAY: ${{ parameters.dualstack }}
 
         - script: |
               cilium status --wait --wait-duration 5m

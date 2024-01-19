@@ -23,6 +23,7 @@ stages:
       cilium_version: $(cilium_version)
       stack: singlestack
       region: $(REGION_AKS_CLUSTER_TEST)
+      dualstack: false
   - template: ./stack/stack-template.yaml
     parameters:
       clusterName: $(clustername)-dualstack
@@ -33,3 +34,4 @@ stages:
       cilium_version: $(cilium_version)
       stack: dualstack
       region: $(REGION_DUALSTACKOVERLAY_CLUSTER_TEST)
+      dualstack: true
