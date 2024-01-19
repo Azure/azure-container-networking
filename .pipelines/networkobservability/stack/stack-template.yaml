@@ -95,11 +95,13 @@ stages:
             else
                 CNS=$(make cns-version) IPAM=$(make azure-ipam-version)
             fi
-            sudo -E env "PATH=$PATH" make test-integration AZURE_IPAM_VERSION=${IPAM} CNS_VERSION=${CNS} INSTALL_CNS=true INSTALL_OVERLAY=true CNS_IMAGE_REPO=mcr.microsoft.com/containernetworking
+            sudo -E env "PATH=$PATH" make test-integration AZURE_IPAM_VERSION=${IPAM} CNS_VERSION=${CNS} INSTALL_CNS=true INSTALL_OVERLAY=true
           retryCountOnTaskFailure: 3
           name: "aziliumTest"
           displayName: "Install Azure-CNS and Run Azilium E2E on AKS Overlay"
           enabled: true
+          env:
+            CNS_IMAGE_REPO=mcr.microsoft.com/containernetworking
 
         - script: |
               cilium status --wait --wait-duration 5m
