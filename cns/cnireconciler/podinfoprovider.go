@@ -62,7 +62,7 @@ func cniStateToPodInfoByIP(state *api.AzureCNIState) (map[string]cns.PodInfo, er
 	for _, endpoint := range state.ContainerInterfaces {
 		for _, epIP := range endpoint.IPAddresses {
 			podInfo := cns.NewPodInfo(endpoint.ContainerID, endpoint.PodEndpointId, endpoint.PodName, endpoint.PodNamespace)
-
+			logger.Printf("podInfoByIp [%+v]", podInfoByIP)
 			ipKey := epIP.IP.String()
 			if prevPodInfo, ok := podInfoByIP[ipKey]; ok {
 				return nil, errors.Wrapf(cns.ErrDuplicateIP, "duplicate ip %s found for different pods: pod: %+v, pod: %+v", ipKey, podInfo, prevPodInfo)
@@ -71,6 +71,7 @@ func cniStateToPodInfoByIP(state *api.AzureCNIState) (map[string]cns.PodInfo, er
 			podInfoByIP[ipKey] = podInfo
 		}
 	}
+	logger.Printf("podInfoByIP [%+v]", podInfoByIP)
 	return podInfoByIP, nil
 }
 
@@ -112,7 +113,7 @@ func cniStateToCnsEndpointState(state *api.AzureCNIState) (map[string]*restserve
 	logger.Printf("Generating CNS ENdpoint State")
 	endpointState := map[string]*restserver.EndpointInfo{}
 	for _, endpoint := range state.ContainerInterfaces {
-		endpointInfo := &restserver.EndpointInfo{PodName: endpoint.PodName, PodNamespace: endpoint.PodNamespace, HnsEndpointID: endpoint.HNSEndpointID, HostVethName: endpoint.HostIfName, IfnameToIPMap: make(map[string]*restserver.IPInfo)}
+		endpointInfo := &restserver.EndpointInfo{PodName: endpoint.PodName, PodNamespace: endpoint.PodNamespace, IfnameToIPMap: make(map[string]*restserver.IPInfo)}
 		ipInfo := &restserver.IPInfo{}
 		for _, epIP := range endpoint.IPAddresses {
 			if epIP.IP.To4() == nil { // is an ipv6 address
@@ -136,7 +137,7 @@ func cniStateToCnsEndpointState(state *api.AzureCNIState) (map[string]*restserve
 				ipInfo.IPv4 = append(ipInfo.IPv4, ipconfig)
 			}
 		}
-		endpointInfo.IfnameToIPMap[endpoint.IfName] = ipInfo
+		endpointInfo.IfnameToIPMap["eth0"] = ipInfo
 		logger.Printf("writing endpoint podName from stateful CNI %v", endpoint.PodName)
 		logger.Printf("writing endpoint info from stateful CNI [%+v]", *endpointInfo)
 		endpointState[endpoint.ContainerID] = endpointInfo

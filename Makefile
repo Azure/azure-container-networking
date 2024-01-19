@@ -38,7 +38,7 @@ ACN_VERSION				?= $(shell git describe --exclude "azure-ipam*" --exclude "dropgz
 AZURE_IPAM_VERSION		?= $(notdir $(shell git describe --match "azure-ipam*" --tags --always))
 CNI_VERSION				?= $(ACN_VERSION)
 CNI_DROPGZ_VERSION		?= $(notdir $(shell git describe --match "dropgz*" --tags --always))
-CNS_VERSION				?= $(ACN_VERSION)-k
+CNS_VERSION				?= $(ACN_VERSION)-m
 NPM_VERSION				?= $(ACN_VERSION)
 ZAPAI_VERSION			?= $(notdir $(shell git describe --match "zapai*" --tags --always))
 
