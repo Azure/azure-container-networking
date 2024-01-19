@@ -24,6 +24,7 @@ stages:
       stack: singlestack
       region: $(REGION_AKS_CLUSTER_TEST)
       dualstack: false
+      installoverlay: true
   - template: ./stack/stack-template.yaml
     parameters:
       clusterName: $(clustername)-dualstack
@@ -35,3 +36,4 @@ stages:
       stack: dualstack
       region: $(REGION_DUALSTACKOVERLAY_CLUSTER_TEST)
       dualstack: true
+      installoverlay: false

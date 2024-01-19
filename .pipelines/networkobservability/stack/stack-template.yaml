@@ -8,6 +8,7 @@ parameters:
   stack: ""
   region: ""
   dualstack: false
+  installoverlay: false
 
 stages:
   - stage: createCluster_${{ parameters.stack }}
@@ -96,14 +97,11 @@ stages:
             else
                 CNS=$(make cns-version) IPAM=$(make azure-ipam-version)
             fi
-            sudo -E env "PATH=$PATH" make test-integration AZURE_IPAM_VERSION=${IPAM} CNS_VERSION=${CNS} INSTALL_CNS=true INSTALL_OVERLAY=true
+            sudo -E env "PATH=$PATH" make test-integration AZURE_IPAM_VERSION=${IPAM} CNS_VERSION=${CNS} INSTALL_CNS=true INSTALL_OVERLAY=${{ parameters.installoverlay }} INSTALL_DUALSTACK_OVERLAY=${{ parameters.dualstack }}
           retryCountOnTaskFailure: 3
           name: "aziliumTest"
           displayName: "Install Azure-CNS and Run Azilium E2E on AKS Overlay"
           enabled: true
-          env:
-            CNS_IMAGE_REPO: mcr.microsoft.com/containernetworking
-            INSTALL_DUALSTACK_OVERLAY: ${{ parameters.dualstack }}
 
         - script: |
               cilium status --wait --wait-duration 5m
