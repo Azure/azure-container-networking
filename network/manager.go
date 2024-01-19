@@ -111,8 +111,8 @@ type NetworkManager interface {
 	GetNumberOfEndpoints(ifName string, networkID string) int
 	SetupNetworkUsingState(networkMonitor *cnms.NetworkMonitor) error
 	GetEndpointID(containerID, ifName string) string
+	GetNetworkSecondaryInterfaceInfo(endpointId string) (*InterfaceInfo, error)
 	IsStatelessCNIMode() bool
-	GetNetworkInterfaceInfo(endpointId string) (*InterfaceInfo, error)
 }
 
 // Creates a new network manager.
