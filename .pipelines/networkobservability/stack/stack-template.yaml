@@ -109,10 +109,10 @@ stages:
           displayName: "Wait for healthy cilium pods"
 
         - script: |
-            kubectl wait --for=condition=Ready pods --all --all-namespaces --timeout=5m
+            kubectl wait --for=condition=Ready pods --all --all-namespaces --timeout=1m
           name: waitforallpodsrunning
           displayName: "Wait for all pods to be running"
-          retryCountOnTaskFailure: 3
+          retryCountOnTaskFailure: 5
 
         - script: |
               echo "Run Cilium Connectivity Tests"
