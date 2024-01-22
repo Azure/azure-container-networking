@@ -363,4 +363,5 @@ type GetHomeAzResponse struct {
 type EndpointRequest struct {
 	HnsEndpointID string `json:"hnsEndpointID"`
 	HostVethName  string `json:"hostVethName"`
+	IFName        string `json:"IFName"`
 }

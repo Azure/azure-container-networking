@@ -412,7 +412,7 @@ func (nm *networkManager) CreateEndpoint(cli apipaClient, networkID string, epIn
 // It will add HNSEndpointID or HostVeth name to the endpoint state
 func (nm *networkManager) UpdateEndpointState(ep *endpoint) error {
 	logger.Info("Calling cns updateEndpoint API with ", zap.String("containerID: ", ep.ContainerID), zap.String("HnsId: ", ep.HnsId), zap.String("HostIfName: ", ep.HostIfName))
-	response, err := nm.CnsClient.UpdateEndpoint(context.TODO(), ep.ContainerID, ep.HnsId, ep.HostIfName)
+	response, err := nm.CnsClient.UpdateEndpoint(context.TODO(), ep.ContainerID, ep.HnsId, ep.HostIfName, ep.IfName)
 	if err != nil {
 		return errors.Wrapf(err, "Update endpoint API returend with error")
 	}
@@ -481,7 +481,7 @@ func (nm *networkManager) GetEndpointInfo(networkId string, endpointId string) (
 
 	if nm.IsStatelessCNIMode() {
 		logger.Info("calling cns getEndpoint API")
-		endpointResponse, err := nm.CnsClient.GetEndpoint(context.TODO(), endpointId)
+		endpointResponse, err := nm.CnsClient.GetEndpoint(context.TODO(), endpointId, "eth0")
 		if err != nil {
 			return nil, errors.Wrapf(err, "Get endpoint API returend with error")
 		}

@@ -17,9 +17,6 @@ type PodNetworkInterfaceInfo struct {
 	PodEndpointId string
 	ContainerID   string
 	IPAddresses   []net.IPNet
-	//HostIfName    string
-	//HNSEndpointID string
-	//IfName        string
 }
 
 type AzureCNIState struct {

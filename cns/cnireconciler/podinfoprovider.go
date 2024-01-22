@@ -3,6 +3,7 @@ package cnireconciler
 import (
 	"fmt"
 	"net"
+	"strings"
 
 	"github.com/Azure/azure-container-networking/cni/api"
 	"github.com/Azure/azure-container-networking/cni/client"
@@ -13,6 +14,8 @@ import (
 	"github.com/pkg/errors"
 	"k8s.io/utils/exec"
 )
+
+const InterfaceName = "eth0"
 
 // NewCNIPodInfoProvider returns an implementation of cns.PodInfoByIPProvider
 // that execs out to the CNI and uses the response to build the PodInfo map.
@@ -41,16 +44,20 @@ func newCNSPodInfoProvider(endpointStore store.KeyValueStore) (cns.PodInfoByIPPr
 	}), nil
 }
 
-func newCNIPodInfoProvider(exec exec.Interface) (cns.PodInfoByIPProvider, map[string]*restserver.EndpointInfo, error) {
-	cli := client.New(exec)
+func newCNIPodInfoProvider(exc exec.Interface) (cns.PodInfoByIPProvider, map[string]*restserver.EndpointInfo, error) {
+	cli := client.New(exc)
 	state, err := cli.GetEndpointState()
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to invoke CNI client.GetEndpointState(): %w", err)
 	}
-	endpointState, err := cniStateToCnsEndpointState(state)
+	for containerID, endpointInfo := range state.ContainerInterfaces {
+		logger.Printf("state dump from CNI: [%+v], [%+v]", containerID, endpointInfo)
+	}
+	var endpointState map[string]*restserver.EndpointInfo
+	endpointState, err = cniStateToCnsEndpointState(state)
 	return cns.PodInfoByIPProviderFunc(func() (map[string]cns.PodInfo, error) {
 		return cniStateToPodInfoByIP(state)
-	}), endpointState, nil
+	}), endpointState, err
 }
 
 // cniStateToPodInfoByIP converts an AzureCNIState dumped from a CNI exec
@@ -112,7 +119,7 @@ func endpointStateToPodInfoByIP(state map[string]*restserver.EndpointInfo) (map[
 func cniStateToCnsEndpointState(state *api.AzureCNIState) (map[string]*restserver.EndpointInfo, error) {
 	logger.Printf("Generating CNS ENdpoint State")
 	endpointState := map[string]*restserver.EndpointInfo{}
-	for _, endpoint := range state.ContainerInterfaces {
+	for epID, endpoint := range state.ContainerInterfaces {
 		endpointInfo := &restserver.EndpointInfo{PodName: endpoint.PodName, PodNamespace: endpoint.PodNamespace, IfnameToIPMap: make(map[string]*restserver.IPInfo)}
 		ipInfo := &restserver.IPInfo{}
 		for _, epIP := range endpoint.IPAddresses {
@@ -120,8 +127,8 @@ func cniStateToCnsEndpointState(state *api.AzureCNIState) (map[string]*restserve
 				ipconfig := net.IPNet{IP: epIP.IP, Mask: epIP.Mask}
 				for _, ipconf := range ipInfo.IPv6 {
 					if ipconf.IP.Equal(ipconfig.IP) {
-						logger.Printf("Found existing ipv6 ipconfig for infra container %s", endpoint.ContainerID)
-						return nil, nil
+						logger.Errorf("Found existing ipv6 ipconfig for infra container %s", endpoint.ContainerID)
+						return nil, restserver.ErrExistingIpconfigFound
 					}
 				}
 				ipInfo.IPv6 = append(ipInfo.IPv6, ipconfig)
@@ -130,20 +137,28 @@ func cniStateToCnsEndpointState(state *api.AzureCNIState) (map[string]*restserve
 				ipconfig := net.IPNet{IP: epIP.IP, Mask: epIP.Mask}
 				for _, ipconf := range ipInfo.IPv4 {
 					if ipconf.IP.Equal(ipconfig.IP) {
-						logger.Printf("Found existing ipv4 ipconfig for infra container %s", endpoint.ContainerID)
-						return nil, nil
+						logger.Errorf("Found existing ipv4 ipconfig for infra container %s", endpoint.ContainerID)
+						return nil, restserver.ErrExistingIpconfigFound
 					}
 				}
 				ipInfo.IPv4 = append(ipInfo.IPv4, ipconfig)
 			}
 		}
-		endpointInfo.IfnameToIPMap["eth0"] = ipInfo
-		logger.Printf("writing endpoint podName from stateful CNI %v", endpoint.PodName)
-		logger.Printf("writing endpoint info from stateful CNI [%+v]", *endpointInfo)
-		endpointState[endpoint.ContainerID] = endpointInfo
-	}
-	for containerID, endpointInfo := range endpointState {
-		logger.Printf("writing endpoint state from stateful CNI [%+v]:[%+v]", containerID, *endpointInfo)
+		endpointID, Ifname := extractEndpointInfo(epID, endpoint.ContainerID)
+		endpointInfo.IfnameToIPMap[Ifname] = ipInfo
+		endpointState[endpointID] = endpointInfo
 	}
 	return endpointState, nil
+}
+
+// extractEndpointInfo extract Interface Name and endpointID for each endpoint based the CNI state
+func extractEndpointInfo(epID, containerID string) (endpointID, interfaceName string) {
+	ifName := InterfaceName
+	if strings.Contains(epID, "-eth") {
+		ifName = epID[len(epID)-4:]
+	}
+	if containerID == "" {
+		return epID, ifName
+	}
+	return containerID, ifName
 }

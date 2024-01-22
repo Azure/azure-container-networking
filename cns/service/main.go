@@ -1246,11 +1246,7 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 					if err != nil {
 						return errors.Wrap(err, "failed to create CNI PodInfoProvider")
 					}
-					logger.Printf("writing endpoint info from stateful CNI [%+v]", endpointState)
-					for containerID, endpointInfo := range endpointState {
-						logger.Printf("writing endpoint state from stateful CNI [%+v]:[%+v]", containerID, *endpointInfo)
-					}
-					err := endpointStateStore.Write(restserver.EndpointStoreKey, endpointState)
+					err = endpointStateStore.Write(restserver.EndpointStoreKey, endpointState)
 					if err != nil {
 						return fmt.Errorf("failed to write endpoint state to store: %w", err)
 					}

@@ -46,9 +46,7 @@ func (c *client) GetEndpointState() (*api.AzureCNIState, error) {
 	if err := json.Unmarshal(output, state); err != nil {
 		return nil, fmt.Errorf("failed to decode response from Azure CNI when retrieving state: [%w], response from CNI: [%s]", err, string(output))
 	}
-	for containerID, endpointInfo := range state.ContainerInterfaces {
-		logger.Info("writing endpoint state from stateful CNI ", zap.String("podname:", containerID), zap.String("podname:", endpointInfo.PodName), zap.Any("endpoint:", endpointInfo))
-	}
+
 	return state, nil
 }
 

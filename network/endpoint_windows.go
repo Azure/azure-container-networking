@@ -502,11 +502,11 @@ func (epInfo *EndpointInfo) GetEndpointInfoByIPImpl(ipAddresses []net.IPNet, net
 	// check if network exists, only create the network does not exist
 	hnsResponse, err := Hnsv2.GetNetworkByName(networkID)
 	if err != nil {
-		return epInfo, err
+		return epInfo, errors.Wrap(err, "HNS Network not found")
 	}
 	hcnEndpoints, err := Hnsv2.ListEndpointsOfNetwork(hnsResponse.Id)
 	if err != nil {
-		return epInfo, err
+		return epInfo, errors.Wrap(err, "failed to fetch HNS endpoints for the given network")
 	}
 	for _, hcnEndpoint := range hcnEndpoints {
 		for _, ipConfiguration := range hcnEndpoint.IpConfigurations {
@@ -519,5 +519,5 @@ func (epInfo *EndpointInfo) GetEndpointInfoByIPImpl(ipAddresses []net.IPNet, net
 			}
 		}
 	}
-	return epInfo, errors.New("No HNSEndpointID matches the IPAddress: " + ipAddresses[0].IP.String())
+	return epInfo, errors.wrap(err, "No HNSEndpointID matches the IPAddress: "+ipAddresses[0].IP.String())
 }
