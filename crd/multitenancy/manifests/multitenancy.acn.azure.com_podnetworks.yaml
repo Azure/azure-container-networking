@@ -80,7 +80,7 @@ spec:
                 - Ready
                 - InUse
                 - SubnetNotDelegated
-                - SubnetDelValFailed
+                - SubnetDelegationValidateFailed
                 type: string
             type: object
         type: object
