@@ -219,11 +219,11 @@ func (v *Validator) validateRestartNetwork(ctx context.Context) error {
 			return errors.Wrapf(err, "failed to get privileged pod")
 		}
 
-		privelegedPod := pod.Items[0]
+		privilegedPod := pod.Items[0]
 		// exec into the pod to get the state file
-		_, err = acnk8s.ExecCmdOnPod(ctx, v.clientset, privilegedNamespace, privelegedPod.Name, restartNetworkCmd, v.config)
+		_, err = acnk8s.ExecCmdOnPod(ctx, v.clientset, privilegedNamespace, privilegedPod.Name, restartNetworkCmd, v.config)
 		if err != nil {
-			return errors.Wrapf(err, "failed to exec into privileged pod %s on node %s", privelegedPod.Name, node.Name)
+			return errors.Wrapf(err, "failed to exec into privileged pod %s on node %s", privilegedPod.Name, node.Name)
 		}
 		err = acnk8s.WaitForPodsRunning(ctx, v.clientset, "", "")
 		if err != nil {

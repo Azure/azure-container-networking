@@ -10,16 +10,18 @@ import (
 
 	"github.com/Azure/azure-container-networking/test/internal/datapath"
 	"github.com/Azure/azure-container-networking/test/internal/kubernetes"
-	"github.com/Azure/azure-container-networking/test/validate"
 	"github.com/stretchr/testify/require"
 	apiv1 "k8s.io/api/core/v1"
 )
 
 const (
-	WindowsDeployYamlPath = "../manifests/datapath/windows-deployment.yaml"
-	podLabelKey           = "app"
-	podCount              = 2
-	nodepoolKey           = "agentpool"
+	WindowsDeployYamlPath   = "../manifests/datapath/windows-deployment.yaml"
+	podLabelKey             = "app"
+	podCount                = 2
+	nodepoolKey             = "agentpool"
+	privilegedDaemonSetPath = "../manifests/load/privileged-daemonset-windows.yaml"
+	privilegedLabelSelector = "app=privileged-daemonset"
+	privilegedNamespace     = "kube-system"
 )
 
 var (
@@ -57,9 +59,15 @@ func setupWindowsEnvironment(t *testing.T) {
 	clientset := kubernetes.MustGetClientset()
 
 	if *restartKubeproxy {
-		validator, err := validate.CreateValidator(ctx, clientset, restConfig, *podNamespace, "cniv2", false, "windows")
-		require.NoError(t, err)
-		err = validator.RestartKubeProxyService(ctx)
+		privilegedDaemonSet := kubernetes.MustParseDaemonSet(privilegedDaemonSetPath)
+		daemonsetClient := clientset.AppsV1().DaemonSets(privilegedNamespace)
+		kubernetes.MustCreateDaemonset(ctx, daemonsetClient, privilegedDaemonSet)
+
+		// Ensures that pods have been replaced if test is re-run after failure
+		if err := kubernetes.WaitForPodDaemonset(ctx, clientset, privilegedNamespace, privilegedDaemonSet.Name, privilegedLabelSelector); err != nil {
+			require.NoError(t, err)
+		}
+		err := kubernetes.RestartKubeProxyService(ctx, clientset, privilegedNamespace, privilegedLabelSelector, restConfig)
 		require.NoError(t, err)
 	}
 
