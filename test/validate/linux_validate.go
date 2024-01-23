@@ -1,11 +1,14 @@
 package validate
 
 import (
+	"context"
 	"encoding/json"
 
 	"github.com/Azure/azure-container-networking/cns"
 	restserver "github.com/Azure/azure-container-networking/cns/restserver"
+	acnk8s "github.com/Azure/azure-container-networking/test/internal/kubernetes"
 	"github.com/pkg/errors"
+	corev1 "k8s.io/api/core/v1"
 )
 
 const (
@@ -196,4 +199,36 @@ func azureVnetIpamStateIps(result []byte) (map[string]string, error) {
 		}
 	}
 	return azureVnetIpamPodIps, nil
+}
+
+// Linux only function
+func (v *Validator) validateRestartNetwork(ctx context.Context) error {
+	nodes, err := acnk8s.GetNodeList(ctx, v.clientset)
+	if err != nil {
+		return errors.Wrapf(err, "failed to get node list")
+	}
+
+	for index := range nodes.Items {
+		node := nodes.Items[index]
+		if node.Status.NodeInfo.OperatingSystem != string(corev1.Linux) {
+			continue
+		}
+		// get the privileged pod
+		pod, err := acnk8s.GetPodsByNode(ctx, v.clientset, privilegedNamespace, privilegedLabelSelector, nodes.Items[index].Name)
+		if err != nil {
+			return errors.Wrapf(err, "failed to get privileged pod")
+		}
+
+		privelegedPod := pod.Items[0]
+		// exec into the pod to get the state file
+		_, err = acnk8s.ExecCmdOnPod(ctx, v.clientset, privilegedNamespace, privelegedPod.Name, restartNetworkCmd, v.config)
+		if err != nil {
+			return errors.Wrapf(err, "failed to exec into privileged pod %s on node %s", privelegedPod.Name, node.Name)
+		}
+		err = acnk8s.WaitForPodsRunning(ctx, v.clientset, "", "")
+		if err != nil {
+			return errors.Wrapf(err, "failed to wait for pods running")
+		}
+	}
+	return nil
 }

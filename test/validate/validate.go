@@ -104,7 +104,7 @@ func (v *Validator) Validate(ctx context.Context) error {
 	if v.os == "linux" {
 		// We are restarting the systmemd network and checking that the connectivity works after the restart. For more details: https://github.com/cilium/cilium/issues/18706
 		log.Printf("Validating the restart network scenario")
-		err = v.ValidateRestartNetwork(ctx)
+		err = v.validateRestartNetwork(ctx)
 		if err != nil {
 			return errors.Wrapf(err, "failed to validate restart network scenario")
 		}
@@ -117,33 +117,6 @@ func (v *Validator) ValidateStateFile(ctx context.Context) error {
 		err := v.validateIPs(ctx, check.stateFileIps, check.cmd, check.name, check.podNamespace, check.podLabelSelector)
 		if err != nil {
 			return err
-		}
-	}
-	return nil
-}
-
-func (v *Validator) ValidateRestartNetwork(ctx context.Context) error {
-	nodes, err := acnk8s.GetNodeList(ctx, v.clientset)
-	if err != nil {
-		return errors.Wrapf(err, "failed to get node list")
-	}
-
-	for index := range nodes.Items {
-		// get the privileged pod
-		pod, err := acnk8s.GetPodsByNode(ctx, v.clientset, privilegedNamespace, privilegedLabelSelector, nodes.Items[index].Name)
-		if err != nil {
-			return errors.Wrapf(err, "failed to get privileged pod")
-		}
-
-		privelegedPod := pod.Items[0]
-		// exec into the pod to get the state file
-		_, err = acnk8s.ExecCmdOnPod(ctx, v.clientset, privilegedNamespace, privelegedPod.Name, restartNetworkCmd, v.config)
-		if err != nil {
-			return errors.Wrapf(err, "failed to exec into privileged pod - %s", privelegedPod.Name)
-		}
-		err = acnk8s.WaitForPodsRunning(ctx, v.clientset, "", "")
-		if err != nil {
-			return errors.Wrapf(err, "failed to wait for pods running")
 		}
 	}
 	return nil
