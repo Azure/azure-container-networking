@@ -80,7 +80,10 @@ func CreateValidator(ctx context.Context, clientset *kubernetes.Clientset, confi
 	}
 
 	if os == "windows" {
-		acnk8s.RestartKubeProxyService(ctx, clientset, privilegedNamespace, privilegedLabelSelector, config)
+		err := acnk8s.RestartKubeProxyService(ctx, clientset, privilegedNamespace, privilegedLabelSelector, config)
+		if err != nil {
+			return nil, errors.Wrapf(err, "failed to restart kubeproxy")
+		}
 	}
 
 	return &Validator{

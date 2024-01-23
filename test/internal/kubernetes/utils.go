@@ -470,7 +470,7 @@ func MustRestartDaemonset(ctx context.Context, clientset *kubernetes.Clientset, 
 }
 
 // Restarts kubeproxy on windows nodes from an existing privileged daemonset
-func RestartKubeProxyService(ctx context.Context, clientset *kubernetes.Clientset, privilegedNamespace string, privilegedLabelSelector string, config *rest.Config) error {
+func RestartKubeProxyService(ctx context.Context, clientset *kubernetes.Clientset, privilegedNamespace, privilegedLabelSelector string, config *rest.Config) error {
 	restartKubeProxyCmd := []string{"powershell", "Restart-service", "kubeproxy"}
 
 	nodes, err := GetNodeList(ctx, clientset)
