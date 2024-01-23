@@ -1213,7 +1213,7 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 
 	// check the Node labels for Swift V2
 	if _, ok := node.Labels[configuration.LabelNodeSwiftV2]; ok {
-		cnsconfig.EnableSwiftV2 = configuration.EnableK8SwiftV2
+		cnsconfig.EnableSwiftV2 = true
 		cnsconfig.WatchPods = true
 		// TODO(rbtr): create the NodeInfo for Swift V2
 		// register the noop mtpnc reconciler to populate the cache
@@ -1376,7 +1376,7 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 		}
 	}
 
-	if cnsconfig.EnableSwiftV2 == configuration.EnableK8SwiftV2 {
+	if cnsconfig.EnableSwiftV2 {
 		if err := mtpncctrl.SetupWithManager(manager); err != nil {
 			return errors.Wrapf(err, "failed to setup mtpnc reconciler with manager")
 		}
@@ -1387,6 +1387,7 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 		case configuration.K8sSWIFTV2:
 			swiftV2Middleware = &middlewares.K8sSWIFTv2Middleware{Cli: manager.GetClient()}
 		case configuration.SFSWIFTV2:
+			swiftV2Middleware = &middlewares.SFSWIFTv2Middleware{Cli: manager.GetClient()}
 		default:
 			// default to K8s middleware for now, in a later changes we where start to pass in
 			// SWIFT v2 mode in CNS config, this should throw an error if the mode is not set.

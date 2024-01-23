@@ -486,12 +486,13 @@ type IPConfigRequest struct {
 
 // Same as IPConfigRequest except that DesiredIPAddresses is passed in as a slice
 type IPConfigsRequest struct {
-	DesiredIPAddresses       []string        `json:"desiredIPAddresses"`
-	PodInterfaceID           string          `json:"podInterfaceID"`
-	InfraContainerID         string          `json:"infraContainerID"`
-	OrchestratorContext      json.RawMessage `json:"orchestratorContext"`
-	Ifname                   string          `json:"ifname"`                   // Used by delegated IPAM
-	SecondaryInterfacesExist bool            `json:"secondaryInterfacesExist"` // will be set by SWIFT v2 validator func
+	DesiredIPAddresses          []string        `json:"desiredIPAddresses"`
+	PodInterfaceID              string          `json:"podInterfaceID"`
+	InfraContainerID            string          `json:"infraContainerID"`
+	OrchestratorContext         json.RawMessage `json:"orchestratorContext"`
+	Ifname                      string          `json:"ifname"`                      // Used by delegated IPAM
+	SecondaryInterfacesExist    bool            `json:"secondaryInterfacesExist"`    // will be set by SWIFT v2 validator func
+	AddInterfacesDataToResponse bool            `json:"addInterfacesDataToResponse"` // used by SF Swiftv2 middleware to externally add interfaces using restserver methods
 }
 
 // IPConfigResponse is used in CNS IPAM mode as a response to CNI ADD

@@ -4,29 +4,20 @@
 package restserver
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
-	"net/http/httptest"
 	"strconv"
 	"strings"
 
 	"github.com/Azure/azure-container-networking/cns"
-	"github.com/Azure/azure-container-networking/cns/configuration"
 	"github.com/Azure/azure-container-networking/cns/filter"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/store"
 	"github.com/pkg/errors"
-)
-
-const (
-	contentTypeJSON   = "application/json"
-	headerContentType = "Content-Type"
 )
 
 var (
@@ -39,14 +30,7 @@ var (
 
 // requestIPConfigHandlerHelper validates the request, assign IPs and return the IPConfigs
 func (service *HTTPRestService) requestIPConfigHandlerHelper(ctx context.Context, ipconfigsRequest cns.IPConfigsRequest) (*cns.IPConfigsResponse, error) {
-	// fetch config to check swiftV2ServiceFabric scenario & fetch podIPInfo from GetNetworkContainer API if swiftv2SF
-	cmdLineConfigPath := common.GetArg(common.OptCNSConfigPath).(string)
-	cnsconfig, err := configuration.ReadConfig(cmdLineConfigPath)
-	var swiftv2sf bool
-	if cnsconfig.EnableSwiftV2 == configuration.EnableSFSwiftV2 {
-		swiftv2sf = true
-	}
-	// For only SWIFTV2-AKS scenario, the validator function will also modify the ipconfigsRequest.
+	// For SWIFT v2 scenario, the validator function will also modify the ipconfigsRequest.
 	podInfo, returnCode, returnMessage := service.validateIPConfigsRequest(ctx, ipconfigsRequest)
 	if returnCode != types.Success {
 		return &cns.IPConfigsResponse{
@@ -56,15 +40,9 @@ func (service *HTTPRestService) requestIPConfigHandlerHelper(ctx context.Context
 			},
 		}, errors.New("failed to validate ip config request")
 	}
-
 	// record a pod requesting an IP
 	service.podsPendingIPAssignment.Push(podInfo.Key())
-	var podIPInfo []cns.PodIpInfo
-	// request IPs from pod state only if scenario for swiftv2 is non-Standalone i.e. AKS
-	if !swiftv2sf {
-		podIPInfo, err = requestIPConfigsHelper(service, ipconfigsRequest) //nolint:contextcheck // appease linter
-	}
-
+	podIPInfo, err := requestIPConfigsHelper(service, ipconfigsRequest)
 	if err != nil {
 		return &cns.IPConfigsResponse{
 			Response: cns.Response{
@@ -74,7 +52,6 @@ func (service *HTTPRestService) requestIPConfigHandlerHelper(ctx context.Context
 			PodIPInfo: podIPInfo,
 		}, err
 	}
-
 	// record a pod assigned an IP
 	defer func() {
 		// observe IP assignment wait time
@@ -82,7 +59,6 @@ func (service *HTTPRestService) requestIPConfigHandlerHelper(ctx context.Context
 			ipAssignmentLatency.Observe(since.Seconds())
 		}
 	}()
-
 	// Check if http rest service managed endpoint state is set
 	if service.Options[common.OptManageEndpointState] == true {
 		err = service.updateEndpointState(ipconfigsRequest, podInfo, podIPInfo)
@@ -96,142 +72,12 @@ func (service *HTTPRestService) requestIPConfigHandlerHelper(ctx context.Context
 			}, err
 		}
 	}
-
-	// Follow AKS swiftv2 podinfo path if secondary interface(s) exist
-	if podInfo.SecondaryInterfacesExist() && !swiftv2sf {
-		// In the future, if we have multiple scenario with secondary interfaces, we can add a switch case here
-		SWIFTv2PodIPInfo, err := service.SWIFTv2Middleware.GetIPConfig(ctx, podInfo)
-		if err != nil {
-			defer func() {
-				logger.Errorf("failed to get SWIFTv2 IP config : %v. Releasing default IP config...", err)
-				_, err = service.releaseIPConfigHandlerHelper(ctx, ipconfigsRequest)
-				if err != nil {
-					logger.Errorf("failed to release default IP config : %v", err)
-				}
-			}()
-			return &cns.IPConfigsResponse{
-				Response: cns.Response{
-					ReturnCode: types.FailedToAllocateIPConfig,
-					Message:    fmt.Sprintf("AllocateIPConfig failed: %v, IP config request is %v", err, ipconfigsRequest),
-				},
-				PodIPInfo: []cns.PodIpInfo{},
-			}, errors.Wrapf(err, "failed to get SWIFTv2 IP config : %v", ipconfigsRequest)
-		}
-		podIPInfo = append(podIPInfo, SWIFTv2PodIPInfo)
-		// Setting up routes for SWIFTv2 scenario
-		for i := range podIPInfo {
-			ipInfo := &podIPInfo[i]
-			err := service.SWIFTv2Middleware.SetRoutes(ipInfo)
-			if err != nil {
-				defer func() { //nolint:gocritic
-					logger.Errorf("failed to set routes for SWIFTv2 IP config : %v. Releasing default IP config...", err)
-					_, err = service.releaseIPConfigHandlerHelper(ctx, ipconfigsRequest)
-					if err != nil {
-						logger.Errorf("failed to release default IP config : %v", err)
-					}
-				}()
-				return &cns.IPConfigsResponse{
-					Response: cns.Response{
-						ReturnCode: types.UnexpectedError,
-						Message:    fmt.Sprintf("failed to set SWIFTv2 routes : %v", err),
-					},
-					PodIPInfo: []cns.PodIpInfo{},
-				}, errors.Wrapf(err, "failed to set SWIFTv2 routes : %v", ipconfigsRequest)
-			}
-		}
-	}
-	// Check if request is for pod with secondary interface(s)
-	if swiftv2sf {
-		// In the future, if we have multiple scenario with secondary interfaces, we can add a switch case here
-		SWIFTv2PodIPInfo, err := service.getIPConfigforSwiftV2SF(podInfo) //nolint:contextcheck // appease linter
-		if err != nil {
-			defer func() {
-				logger.Errorf("failed to get SWIFTv2 IP config : %v. Releasing default IP config...", err)
-				_, err = service.releaseIPConfigHandlerHelper(ctx, ipconfigsRequest) //nolint:contextcheck // appease linter
-				if err != nil {
-					logger.Errorf("failed to release default IP config : %v", err)
-				}
-			}()
-			return &cns.IPConfigsResponse{
-				Response: cns.Response{
-					ReturnCode: types.FailedToAllocateIPConfig,
-					Message:    fmt.Sprintf("AllocateIPConfig failed: %v, IP config request is %v", err, ipconfigsRequest),
-				},
-				PodIPInfo: []cns.PodIpInfo{},
-			}, errors.Wrapf(err, "failed to get SWIFTv2 IP config : %v", ipconfigsRequest)
-		}
-		podIPInfo = append(podIPInfo, SWIFTv2PodIPInfo)
-	}
-
 	return &cns.IPConfigsResponse{
 		Response: cns.Response{
 			ReturnCode: types.Success,
 		},
 		PodIPInfo: podIPInfo,
 	}, nil
-}
-
-// getIPConfig PodIpInfo for swiftv2 SF scenario, gets info from NC goal state
-func (service *HTTPRestService) getIPConfigforSwiftV2SF(podInfo cns.PodInfo) (cns.PodIpInfo, error) {
-	var body bytes.Buffer
-	var resp cns.GetNetworkContainerResponse
-	podInfoBytes, err := json.Marshal(podInfo)
-	if err != nil {
-		return cns.PodIpInfo{}, errors.Wrap(err, "failed to marshal podinfo from request")
-	}
-	payload := &cns.GetNetworkContainerRequest{OrchestratorContext: podInfoBytes}
-
-	if err = json.NewEncoder(&body).Encode(payload); err != nil {
-		return cns.PodIpInfo{}, errors.Wrap(err, "failed to encode GetNetworkContainerRequest OrchestratorContext")
-	}
-
-	req, err := http.NewRequestWithContext(context.TODO(), http.MethodPost, cns.GetNetworkContainerByOrchestratorContext, &body)
-	if err != nil {
-		return cns.PodIpInfo{}, errors.Wrap(err, "failed to build request GetNetworkContainerByOrchestratorContext")
-	}
-	req.Header.Set(headerContentType, contentTypeJSON)
-	w := httptest.NewRecorder()
-	service.getNetworkContainerByOrchestratorContext(w, req)
-
-	err = json.NewDecoder(w.Body).Decode(&resp)
-	if err != nil {
-		return cns.PodIpInfo{}, fmt.Errorf("decoding response: %w", err)
-	}
-
-	// Check if the ncstate/ipconfig ready. If one of the fields is empty, return error
-	if resp.IPConfiguration.IPSubnet.IPAddress == "" || resp.NetworkInterfaceInfo.MACAddress == "" || resp.NetworkContainerID == "" || resp.IPConfiguration.GatewayIPAddress == "" {
-		return cns.PodIpInfo{}, fmt.Errorf("one of the fields for GetNCResponse is empty for given NC: %+v", resp) //nolint:goerr113 // return error
-	}
-	logger.Debugf("[SWIFTv2-SF] NetworkContainerResponse for pod %s is : %+v", podInfo.Name(), resp)
-
-	hostPrimaryInterface, err := service.getPrimaryHostInterface(context.TODO())
-	if err != nil {
-		return cns.PodIpInfo{}, err
-	}
-
-	hostSecondaryInterface, err := service.getSecondaryHostInterface(context.TODO(), resp.NetworkInterfaceInfo.MACAddress)
-	if err != nil {
-		return cns.PodIpInfo{}, err
-	}
-
-	podIPInfo := cns.PodIpInfo{
-		PodIPConfig:       resp.IPConfiguration.IPSubnet,
-		MacAddress:        resp.NetworkInterfaceInfo.MACAddress,
-		NICType:           resp.NetworkInterfaceInfo.NICType,
-		SkipDefaultRoutes: false,
-		HostPrimaryIPInfo: cns.HostIPInfo{
-			Gateway:   hostPrimaryInterface.Gateway,
-			PrimaryIP: hostPrimaryInterface.PrimaryIP,
-			Subnet:    hostPrimaryInterface.Subnet,
-		},
-		HostSecondaryIPInfo: cns.HostIPInfo{
-			Gateway:     hostSecondaryInterface.Gateway,
-			SecondaryIP: hostSecondaryInterface.SecondaryIPs[0],
-			Subnet:      hostSecondaryInterface.Subnet,
-		},
-		NetworkContainerPrimaryIPConfig: resp.IPConfiguration,
-	}
-	return podIPInfo, nil
 }
 
 // requestIPConfigHandler requests an IPConfig from the CNS state
@@ -325,6 +171,9 @@ func (service *HTTPRestService) requestIPConfigsHandler(w http.ResponseWriter, r
 		// Wrap the default datapath handlers with the middleware
 		wrappedHandler := service.IPConfigsHandlerMiddleware.IPConfigsRequestHandlerWrapper(service.requestIPConfigHandlerHelper, service.releaseIPConfigHandlerHelper)
 		ipConfigsResp, err = wrappedHandler(r.Context(), ipconfigsRequest)
+		if ipconfigsRequest.AddInterfacesDataToResponse {
+			ipConfigsResp, err = service.updatePodInfoWithInterfaces(ipConfigsResp)
+		}
 	} else {
 		ipConfigsResp, err = service.requestIPConfigHandlerHelper(r.Context(), ipconfigsRequest) // nolint:contextcheck // appease linter
 	}
@@ -341,6 +190,34 @@ func (service *HTTPRestService) requestIPConfigsHandler(w http.ResponseWriter, r
 	logger.ResponseEx(service.Name+operationName, ipconfigsRequest, ipConfigsResp, ipConfigsResp.Response.ReturnCode, err)
 }
 
+func (service *HTTPRestService) updatePodInfoWithInterfaces(ipconfigResponse *cns.IPConfigsResponse) (*cns.IPConfigsResponse, error) {
+	for _, podIpInfo := range ipconfigResponse.PodIPInfo {
+		hostPrimaryInterface, err := service.getPrimaryHostInterface(context.TODO())
+		if err != nil {
+			return &cns.IPConfigsResponse{}, err
+		}
+
+		hostSecondaryInterface, err := service.getSecondaryHostInterface(context.TODO(), podIpInfo.MacAddress)
+		if err != nil {
+			return &cns.IPConfigsResponse{}, err
+		}
+
+		podIpInfo.HostPrimaryIPInfo =
+			cns.HostIPInfo{
+				Gateway:   hostPrimaryInterface.Gateway,
+				PrimaryIP: hostPrimaryInterface.PrimaryIP,
+				Subnet:    hostPrimaryInterface.Subnet,
+			}
+		podIpInfo.HostSecondaryIPInfo =
+			cns.HostIPInfo{
+				Gateway:     hostSecondaryInterface.Gateway,
+				SecondaryIP: hostSecondaryInterface.SecondaryIPs[0],
+				Subnet:      hostSecondaryInterface.Subnet,
+			}
+	}
+
+	return ipconfigResponse, nil
+}
 func (service *HTTPRestService) updateEndpointState(ipconfigsRequest cns.IPConfigsRequest, podInfo cns.PodInfo, podIPInfo []cns.PodIpInfo) error {
 	if service.EndpointStateStore == nil {
 		return ErrStoreEmpty
