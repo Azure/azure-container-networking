@@ -18,7 +18,7 @@ const (
 )
 
 var (
-	restartNetworkCmd           = []string{"bash", "-c", "chroot /host /bin/bash -c systemctl restart systemd-networkd"}
+	restartNetworkCmd           = []string{"bash", "-c", "systemctl restart systemd-networkd"}
 	cnsManagedStateFileCmd      = []string{"bash", "-c", "cat /var/run/azure-cns/azure-endpoints.json"}
 	azureVnetStateFileCmd       = []string{"bash", "-c", "cat /var/run/azure-vnet.json"}
 	azureVnetIpamStateCmd       = []string{"bash", "-c", "cat /var/run/azure-vnet-ipam.json"}
