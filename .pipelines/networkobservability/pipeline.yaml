@@ -28,7 +28,7 @@ stages:
   - template: ./stack/stack-template.yaml
     parameters:
       clusterName: $(clustername)-dualstack
-      clusterType: "dualstack-overlay-byocni-up: rg-up overlay-net-up"
+      clusterType: dualstack-byocni-nokubeproxy-up
       ciliumconfig: cilium-config-hubble-dual
       displayName: Cilium on AKS Overlay dualstack with Hubble Enabled
       name: cilium_overlay_hubble_dualstack
