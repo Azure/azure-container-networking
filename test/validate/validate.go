@@ -79,6 +79,10 @@ func CreateValidator(ctx context.Context, clientset *kubernetes.Clientset, confi
 		return nil, errors.Errorf("unsupported os: %s", os)
 	}
 
+	if os == "windows" {
+		acnk8s.RestartKubeProxyService(ctx, clientset, privilegedNamespace, privilegedLabelSelector, config)
+	}
+
 	return &Validator{
 		clientset:   clientset,
 		config:      config,
@@ -255,33 +259,6 @@ func (v *Validator) ValidateDualStackControlPlane(ctx context.Context) error {
 		}
 	}
 
-	return nil
-}
-
-func (v *Validator) RestartKubeProxyService(ctx context.Context) error {
-	nodes, err := acnk8s.GetNodeList(ctx, v.clientset)
-	if err != nil {
-		return errors.Wrapf(err, "failed to get node list")
-	}
-
-	for index := range nodes.Items {
-		node := nodes.Items[index]
-		if node.Status.NodeInfo.OperatingSystem != string(corev1.Windows) {
-			continue
-		}
-		// get the privileged pod
-		pod, err := acnk8s.GetPodsByNode(ctx, v.clientset, privilegedNamespace, privilegedLabelSelector, nodes.Items[index].Name)
-		if err != nil {
-			return errors.Wrapf(err, "failed to get privileged pod")
-		}
-
-		privelegedPod := pod.Items[0]
-		// exec into the pod and restart kubeproxy
-		_, err = acnk8s.ExecCmdOnPod(ctx, v.clientset, privilegedNamespace, privelegedPod.Name, restartKubeProxyCmd, v.config)
-		if err != nil {
-			return errors.Wrapf(err, "failed to exec into privileged pod - %s", privelegedPod.Name)
-		}
-	}
 	return nil
 }
 
