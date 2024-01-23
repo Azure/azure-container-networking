@@ -24,8 +24,8 @@ func TestGetVMUniqueID(t *testing.T) {
 		metadataHeader := r.Header.Get("Metadata")
 		assert.Equal(t, "true", metadataHeader)
 		w.WriteHeader(http.StatusOK)
-		_, err := w.Write(computeMetadata)
-		require.NoError(t, err, "error writing response")
+		_, writeErr := w.Write(computeMetadata)
+		require.NoError(t, writeErr, "error writing response")
 	}))
 	defer mockIMDSServer.Close()
 
@@ -52,13 +52,14 @@ func TestIMDSInternalServerError(t *testing.T) {
 	imdsClient := imds.NewClient(imds.Endpoint(mockIMDSServer.URL), imds.RetryAttempts(1))
 
 	_, err := imdsClient.GetVMUniqueID(context.Background())
-	require.Error(t, err, "expected internal server error")
+	require.ErrorIs(t, err, imds.ErrUnexpectedStatusCode, "expected internal server error")
 }
 
 func TestIMDSInvalidJSON(t *testing.T) {
 	mockIMDSServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("not json"))
+		_, err := w.Write([]byte("not json"))
+		require.NoError(t, err)
 	}))
 	defer mockIMDSServer.Close()
 

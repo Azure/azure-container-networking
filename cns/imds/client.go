@@ -6,7 +6,6 @@ package imds
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/url"
 
@@ -28,17 +27,17 @@ type clientConfig struct {
 	retryAttempts uint
 }
 
-type clientOption func(*clientConfig)
+type ClientOption func(*clientConfig)
 
 // Endpoint overrides the default endpoint for a Client
-func Endpoint(url string) clientOption {
+func Endpoint(endpoint string) ClientOption {
 	return func(c *clientConfig) {
-		c.endpoint = url
+		c.endpoint = endpoint
 	}
 }
 
 // RetryAttempts overrides the default retry attempts for the client
-func RetryAttempts(attempts uint) clientOption {
+func RetryAttempts(attempts uint) ClientOption {
 	return func(c *clientConfig) {
 		c.retryAttempts = attempts
 	}
@@ -53,10 +52,13 @@ const (
 	defaultIMDSEndpoint  = "http://169.254.169.254"
 )
 
-var ErrVMUniqueIDNotFound = errors.New("vm unique ID not found")
+var (
+	ErrVMUniqueIDNotFound   = errors.New("vm unique ID not found")
+	ErrUnexpectedStatusCode = errors.New("imds returned an unexpected status code")
+)
 
 // NewClient creates a new imds client
-func NewClient(opts ...clientOption) *Client {
+func NewClient(opts ...ClientOption) *Client {
 	config := clientConfig{
 		endpoint: defaultIMDSEndpoint,
 	}
@@ -98,12 +100,12 @@ func (c *Client) GetVMUniqueID(ctx context.Context) (string, error) {
 }
 
 func (c *Client) getInstanceComputeMetadata(ctx context.Context) (map[string]any, error) {
-	url, err := url.JoinPath(c.config.endpoint, imdsComputePath)
+	imdsComputeURL, err := url.JoinPath(c.config.endpoint, imdsComputePath)
 	if err != nil {
 		return nil, errors.Wrap(err, "unable to build path to IMDS compute metadata")
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, imdsComputeURL, http.NoBody)
 	if err != nil {
 		return nil, errors.Wrap(err, "error building IMDS http request")
 	}
@@ -115,9 +117,10 @@ func (c *Client) getInstanceComputeMetadata(ctx context.Context) (map[string]any
 	if err != nil {
 		return nil, errors.Wrap(err, "error querying IMDS")
 	}
+	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("received unexpected status code %d from IMDS", resp.StatusCode)
+		return nil, errors.Wrapf(ErrUnexpectedStatusCode, "unexpected status code %d", resp.StatusCode)
 	}
 
 	var m map[string]any
