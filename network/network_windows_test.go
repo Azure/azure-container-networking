@@ -251,4 +251,5 @@ func TestAddIPv6DefaultRoute(t *testing.T) {
 		fmt.Printf("+%v", err)
 		t.Fatal(err)
 	}
+
 }
