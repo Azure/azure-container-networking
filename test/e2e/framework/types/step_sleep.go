@@ -15,6 +15,10 @@ func (c *Sleep) Run() error {
 	return nil
 }
 
+func (c *Sleep) Stop() error {
+	return nil
+}
+
 func (c *Sleep) Prevalidate() error {
 	return nil
 }
