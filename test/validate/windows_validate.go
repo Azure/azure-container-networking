@@ -204,7 +204,9 @@ func validateHNSNetworkState(ctx context.Context, nodes *corev1.NodeList, client
 		if err != nil {
 			return errors.Wrap(err, "failed to get privileged pod")
 		}
-
+		if len(pod.Items) == 0 {
+			return errors.Errorf("there are no privileged pods on node - %v", nodes.Items[index].Name)
+		}
 		podName := pod.Items[0].Name
 		// exec into the pod to get the state file
 		result, err := acnk8s.ExecCmdOnPod(ctx, clientset, privilegedNamespace, podName, hnsNetworkCmd, restConfig)

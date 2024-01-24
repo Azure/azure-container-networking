@@ -214,11 +214,13 @@ func (v *Validator) validateRestartNetwork(ctx context.Context) error {
 			continue
 		}
 		// get the privileged pod
-		pod, err := acnk8s.GetPodsByNode(ctx, v.clientset, privilegedNamespace, privilegedLabelSelector, nodes.Items[index].Name)
+		pod, err := acnk8s.GetPodsByNode(ctx, v.clientset, privilegedNamespace, privilegedLabelSelector, node.Name)
 		if err != nil {
 			return errors.Wrapf(err, "failed to get privileged pod")
 		}
-
+		if len(pod.Items) == 0 {
+			return errors.Errorf("there are no privileged pods on node - %v", node.Name)
+		}
 		privilegedPod := pod.Items[0]
 		// exec into the pod to get the state file
 		_, err = acnk8s.ExecCmdOnPod(ctx, v.clientset, privilegedNamespace, privilegedPod.Name, restartNetworkCmd, v.config)

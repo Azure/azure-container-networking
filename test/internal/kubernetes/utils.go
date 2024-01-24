@@ -34,10 +34,13 @@ const (
 	SubnetNameLabel        = "kubernetes.azure.com/podnetwork-subnet"
 
 	// RetryAttempts is the number of times to retry a test.
-	RetryAttempts       = 90
-	RetryDelay          = 10 * time.Second
-	DeleteRetryAttempts = 12
-	DeleteRetryDelay    = 5 * time.Second
+	RetryAttempts           = 90
+	RetryDelay              = 10 * time.Second
+	DeleteRetryAttempts     = 12
+	DeleteRetryDelay        = 5 * time.Second
+	PrivilegedDaemonSetPath = "../manifests/load/privileged-daemonset-windows.yaml"
+	PrivilegedLabelSelector = "app=privileged-daemonset"
+	PrivilegedNamespace     = "kube-system"
 )
 
 var Kubeconfig = flag.String("test-kubeconfig", filepath.Join(homedir.HomeDir(), ".kube", "config"), "(optional) absolute path to the kubeconfig file")
@@ -489,6 +492,9 @@ func RestartKubeProxyService(ctx context.Context, clientset *kubernetes.Clientse
 			return errors.Wrapf(err, "failed to get privileged pod on node %s", node.Name)
 		}
 
+		if len(pod.Items) == 0 {
+			return errors.Errorf("there are no privileged pods on node - %v", node.Name)
+		}
 		privilegedPod := pod.Items[0]
 		// exec into the pod and restart kubeproxy
 		_, err = ExecCmdOnPod(ctx, clientset, privilegedNamespace, privilegedPod.Name, restartKubeProxyCmd, config)

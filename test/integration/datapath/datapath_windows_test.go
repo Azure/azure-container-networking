@@ -15,13 +15,10 @@ import (
 )
 
 const (
-	WindowsDeployYamlPath   = "../manifests/datapath/windows-deployment.yaml"
-	podLabelKey             = "app"
-	podCount                = 2
-	nodepoolKey             = "agentpool"
-	privilegedDaemonSetPath = "../manifests/load/privileged-daemonset-windows.yaml"
-	privilegedLabelSelector = "app=privileged-daemonset"
-	privilegedNamespace     = "kube-system"
+	WindowsDeployYamlPath = "../manifests/datapath/windows-deployment.yaml"
+	podLabelKey           = "app"
+	podCount              = 2
+	nodepoolKey           = "agentpool"
 )
 
 var (
@@ -59,15 +56,15 @@ func setupWindowsEnvironment(t *testing.T) {
 	clientset := kubernetes.MustGetClientset()
 
 	if *restartKubeproxy {
-		privilegedDaemonSet := kubernetes.MustParseDaemonSet(privilegedDaemonSetPath)
-		daemonsetClient := clientset.AppsV1().DaemonSets(privilegedNamespace)
+		privilegedDaemonSet := kubernetes.MustParseDaemonSet(kubernetes.PrivilegedDaemonSetPath)
+		daemonsetClient := clientset.AppsV1().DaemonSets(kubernetes.PrivilegedNamespace)
 		kubernetes.MustCreateDaemonset(ctx, daemonsetClient, privilegedDaemonSet)
 
 		// Ensures that pods have been replaced if test is re-run after failure
-		if err := kubernetes.WaitForPodDaemonset(ctx, clientset, privilegedNamespace, privilegedDaemonSet.Name, privilegedLabelSelector); err != nil {
+		if err := kubernetes.WaitForPodDaemonset(ctx, clientset, kubernetes.PrivilegedNamespace, privilegedDaemonSet.Name, kubernetes.PrivilegedLabelSelector); err != nil {
 			require.NoError(t, err)
 		}
-		err := kubernetes.RestartKubeProxyService(ctx, clientset, privilegedNamespace, privilegedLabelSelector, restConfig)
+		err := kubernetes.RestartKubeProxyService(ctx, clientset, kubernetes.PrivilegedNamespace, kubernetes.PrivilegedLabelSelector, restConfig)
 		require.NoError(t, err)
 	}
 

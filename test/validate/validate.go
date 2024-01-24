@@ -73,17 +73,14 @@ func CreateValidator(ctx context.Context, clientset *kubernetes.Clientset, confi
 	switch os {
 	case "windows":
 		checks = windowsChecksMap[cni]
-	case "linux":
-		checks = linuxChecksMap[cni]
-	default:
-		return nil, errors.Errorf("unsupported os: %s", os)
-	}
-
-	if os == "windows" {
 		err := acnk8s.RestartKubeProxyService(ctx, clientset, privilegedNamespace, privilegedLabelSelector, config)
 		if err != nil {
 			return nil, errors.Wrapf(err, "failed to restart kubeproxy")
 		}
+	case "linux":
+		checks = linuxChecksMap[cni]
+	default:
+		return nil, errors.Errorf("unsupported os: %s", os)
 	}
 
 	return &Validator{
@@ -137,6 +134,9 @@ func (v *Validator) validateIPs(ctx context.Context, stateFileIps stateFileIpsFu
 		pod, err := acnk8s.GetPodsByNode(ctx, v.clientset, namespace, labelSelector, nodes.Items[index].Name)
 		if err != nil {
 			return errors.Wrapf(err, "failed to get privileged pod")
+		}
+		if len(pod.Items) == 0 {
+			return errors.Errorf("there are no privileged pods on node - %v", nodes.Items[index].Name)
 		}
 		podName := pod.Items[0].Name
 		// exec into the pod to get the state file
