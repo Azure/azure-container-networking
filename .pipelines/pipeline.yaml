@@ -426,7 +426,7 @@ stages:
         name: "cilium_dualstackoverlay_e2e"
         displayName: Cilium on AKS DualStack Overlay
         os: linux
-        clusterType: cilium-dualstack-up
+        clusterType: dualstack-byocni-nokubeproxy-up
         clusterName: "cildsovere2e"
         vmSize: Standard_B2ms
         k8sVersion: ""
