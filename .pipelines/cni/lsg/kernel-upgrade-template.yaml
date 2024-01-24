@@ -13,20 +13,19 @@ steps:
         az extension add --name aks-preview
         make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
     retryCountOnTaskFailure: 3
+    name: "config"
     displayName: "Set Kubeconfig"
-
   - script: |
       set -e
 
       echo "-- Start privileged daemonset --"
       kubectl get pods -Aowide
       kubectl apply -f test/integration/manifests/load/privileged-daemonset.yaml
-      sleep 3s
+      sleep 10s
       kubectl rollout status ds -n kube-system privileged-daemonset
     retryCountOnTaskFailure: 3
     name: "priv_daemonset"
     displayName: "Create Daemonset"
-
   - script: |
       set -e
 
@@ -40,16 +39,17 @@ steps:
     retryCountOnTaskFailure: 3
     name: "Ubuntu_Setup"
     displayName: "Ubuntu Setup"
-
   - script: |
       echo "-- Update kernel through daemonset --"
       kubectl get pods -n kube-system -l os=linux,app=privileged-daemonset -owide
       privList=`kubectl get pods -n kube-system -l os=linux,app=privileged-daemonset -owide --no-headers | awk '{print $1}'`
       for pod in $privList; do
         echo "-- Add proposed repository --"
-        kubectl exec -i -n kube-system $pod -- bash -c "add-apt-repository ppa:canonical-kernel-team/${{ parameters.ProposedRepoVersion }} -y"
+        kubectl exec -i -n kube-system $pod -- bash -c "add-apt-repository ppa:canonical-kernel-team/proposed -y"
+        kubectl exec -i -n kube-system $pod -- bash -c "add-apt-repository ppa:canonical-kernel-team/proposed2 -y"
+
         echo "-- Check apt-cache --"
-        kubectl exec -i -n kube-system $pod -- bash -c "apt-cache madison $(kernelType)"
+        kubectl exec -i -n kube-system $pod -- bash -c "apt-cache madison linux-azure-edge"
 
         echo "-- Check current Ubuntu kernel --"
         kubectl exec -i -n kube-system $pod -- bash -c "uname -r"
@@ -60,14 +60,18 @@ steps:
         flag1=""
         flag2=""
         echo "-- Confirm Proposed Repository --"
-        temp=`kubectl exec -i -n kube-system $pod -- bash -c "apt-cache madison $(kernelType)" | grep proposed | awk '{print $3}'`
+        temp=`kubectl exec -i -n kube-system $pod -- bash -c "apt-cache madison linux-azure-edge" | grep proposed | awk '{print $3}'`
         for t in $temp; do
-          if [[ $t =~ ${{ parameters.KernelVersion }} ]]; then
-            echo "$t - looking for ${{ parameters.KernelVersion }}"
+          if [[ $t =~ ${KERNEL_VERSION} ]]; then
+            echo "$t - looking for ${KERNEL_VERSION}"
             flag1="true"
           fi
+          if [[ $t =~ ${KERNEL_VERSION2} ]]; then
+            echo "$t - looking for ${KERNEL_VERSION2}"
+            flag2="true"
+          fi
         done
-        if [ -z $flag1 ]; then
+        if [ -z $flag1 ] || [ -z $flag2 ]; then
           echo "Missing required proposed repos"
           exit 1
         fi
@@ -75,19 +79,18 @@ steps:
     retryCountOnTaskFailure: 3
     name: "Kernel_Setup"
     displayName: "Kernel Setup"
-
   - script: |
       echo "-- Update kernel through daemonset --"
       kubectl get pods -n kube-system -l os=linux,app=privileged-daemonset -owide
       privList=`kubectl get pods -n kube-system -l os=linux,app=privileged-daemonset -owide --no-headers | awk '{print $1}'`
       for pod in $privList; do
         echo "-- Install Proposed Kernel --"
-        kubectl exec -i -n kube-system $pod -- bash -c "apt install -y $(kernelType)"
+        kubectl exec -i -n kube-system $pod -- bash -c "apt install -y linux-azure-edge"
       done
 
       for pod in $privList; do
         echo "-- Check for Installed Kernel --"
-        installed=`kubectl exec -i -n kube-system $pod -- bash -c "apt list $(kernelType) --installed" | grep installed | awk '{print $4}'`
+        installed=`kubectl exec -i -n kube-system $pod -- bash -c "apt list linux-azure-edge --installed" | grep installed | awk '{print $4}'`
         if [ -z $installed ]; then
           echo $pod needs to reinstall kernel
           exit 1
@@ -96,14 +99,13 @@ steps:
     retryCountOnTaskFailure: 3
     name: "Kernel_Install"
     displayName: "Kernel Install"
-
   - script: |
       echo "-- Restart Nodes to Finalize Upgrade Kernel --"
-      kubectl get node -owide
       kubectl get pods -n kube-system -l os=linux,app=privileged-daemonset -owide
 
       privArray=(`kubectl get pods -n kube-system -l os=linux,app=privileged-daemonset -owide --no-headers | awk '{print $1}'`)
       nodeArray=(`kubectl get pods -n kube-system -l os=linux,app=privileged-daemonset -owide --no-headers | awk '{print $7}'`)
+      kubectl get pods -n kube-system -l os=linux,app=privileged-daemonset -owide
 
       i=0
       for _ in ${privArray[@]}; do
@@ -119,18 +121,18 @@ steps:
       done
 
       privList=`kubectl get pods -n kube-system -l os=linux,app=privileged-daemonset -owide --no-headers | awk '{print $1}'`
+      # Add in regex check for expected kernel
       kubectl rollout status ds -n kube-system privileged-daemonset
-      kubectl get node -owide
 
       for pod in $privList; do
         echo "-- Confirm Ubuntu Kernel --"
-        kernelOut=`kubectl exec -i -n kube-system $pod -- bash -c "uname -r"`
-        ver=(${kernelOut//-/ }) # Slices $kernelOut with '-'
-        echo "$pod | kernel version - $kernelOut, expected - ${{ parameters.KernelVersion }}"
-        if [[ ! ${{ parameters.KernelVersion }}  =~ ${ver[1]} ]]; then
+        confirm=`kubectl exec -i -n kube-system $pod -- bash -c "uname -r"`
+        if [[ ! $confirm =~ ${KERNEL_VERSION} ]]; then
+          echo $pod kernel version - $confirm, expected - ${KERNEL_VERSION}
           exit 1
         fi
       done
+      kubectl get node -owide
     retryCountOnTaskFailure: 3
     name: "Kernel_Upgrade"
     displayName: "Kernel Upgrade"
