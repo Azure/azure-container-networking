@@ -57,8 +57,6 @@ type CNSConfig struct {
 	AsyncPodDeletePath          string
 }
 
-type EnableSwiftV2Mode string
-
 type TelemetrySettings struct {
 	// Flag to disable the telemetry.
 	DisableAll bool

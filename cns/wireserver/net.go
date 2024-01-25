@@ -77,6 +77,7 @@ func GetSecondaryInterfaceFromResult(res *GetInterfacesResult, macAddress string
 			for _, ip := range s.IPAddress {
 				if !ip.IsPrimary {
 					secondaryIP = ip.Address
+					break
 				}
 			}
 			var secondaryIPs []string

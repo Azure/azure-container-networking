@@ -25,7 +25,7 @@ type SFSWIFTv2Middleware struct {
 // Verify interface compliance at compile time
 var _ cns.IPConfigsHandlerMiddleware = (*SFSWIFTv2Middleware)(nil)
 
-// IPConfigsRequestHandlerWrapper is the middleware function for handling SWIFT v2 IP configs requests for AKS-SWIFT. This function wrapped the default SWIFT request
+// IPConfigsRequestHandlerWrapper is the middleware function for handling SWIFT v2 IP config requests for SF standalone scenario. This function wraps the default SWIFT request
 // and release IP configs handlers.
 func (m *SFSWIFTv2Middleware) IPConfigsRequestHandlerWrapper(defaultHandler, failureHandler cns.IPConfigsHandlerFunc) cns.IPConfigsHandlerFunc {
 	return func(ctx context.Context, req cns.IPConfigsRequest) (*cns.IPConfigsResponse, error) {

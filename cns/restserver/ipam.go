@@ -172,7 +172,7 @@ func (service *HTTPRestService) requestIPConfigsHandler(w http.ResponseWriter, r
 		wrappedHandler := service.IPConfigsHandlerMiddleware.IPConfigsRequestHandlerWrapper(service.requestIPConfigHandlerHelper, service.releaseIPConfigHandlerHelper)
 		ipConfigsResp, err = wrappedHandler(r.Context(), ipconfigsRequest)
 		if ipconfigsRequest.AddInterfacesDataToResponse {
-			ipConfigsResp, err = service.updatePodInfoWithInterfaces(ipConfigsResp)
+			ipConfigsResp, err = service.updatePodInfoWithInterfaces(r.Context(), ipConfigsResp)
 		}
 	} else {
 		ipConfigsResp, err = service.requestIPConfigHandlerHelper(r.Context(), ipconfigsRequest) // nolint:contextcheck // appease linter
@@ -190,14 +190,14 @@ func (service *HTTPRestService) requestIPConfigsHandler(w http.ResponseWriter, r
 	logger.ResponseEx(service.Name+operationName, ipconfigsRequest, ipConfigsResp, ipConfigsResp.Response.ReturnCode, err)
 }
 
-func (service *HTTPRestService) updatePodInfoWithInterfaces(ipconfigResponse *cns.IPConfigsResponse) (*cns.IPConfigsResponse, error) {
+func (service *HTTPRestService) updatePodInfoWithInterfaces(ctx context.Context, ipconfigResponse *cns.IPConfigsResponse) (*cns.IPConfigsResponse, error) {
 	for _, podIpInfo := range ipconfigResponse.PodIPInfo {
-		hostPrimaryInterface, err := service.getPrimaryHostInterface(context.TODO())
+		hostPrimaryInterface, err := service.getPrimaryHostInterface(ctx)
 		if err != nil {
 			return &cns.IPConfigsResponse{}, err
 		}
 
-		hostSecondaryInterface, err := service.getSecondaryHostInterface(context.TODO(), podIpInfo.MacAddress)
+		hostSecondaryInterface, err := service.getSecondaryHostInterface(ctx, podIpInfo.MacAddress)
 		if err != nil {
 			return &cns.IPConfigsResponse{}, err
 		}
