@@ -31,6 +31,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/fsnotify"
 	"github.com/Azure/azure-container-networking/cns/healthserver"
 	"github.com/Azure/azure-container-networking/cns/hnsclient"
+	"github.com/Azure/azure-container-networking/cns/imds"
 	"github.com/Azure/azure-container-networking/cns/ipampool"
 	cssctrl "github.com/Azure/azure-container-networking/cns/kubecontroller/clustersubnetstate"
 	mtpncctrl "github.com/Azure/azure-container-networking/cns/kubecontroller/multitenantpodnetworkconfig"
@@ -46,6 +47,7 @@ import (
 	acn "github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/crd"
 	cssv1alpha1 "github.com/Azure/azure-container-networking/crd/clustersubnetstate/api/v1alpha1"
+	"github.com/Azure/azure-container-networking/crd/multitenancy"
 	mtv1alpha1 "github.com/Azure/azure-container-networking/crd/multitenancy/api/v1alpha1"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
@@ -68,9 +70,11 @@ import (
 	kuberuntime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	ctrlzap "sigs.k8s.io/controller-runtime/pkg/log/zap"
 	ctrlmgr "sigs.k8s.io/controller-runtime/pkg/manager"
@@ -1215,8 +1219,9 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 	if _, ok := node.Labels[configuration.LabelNodeSwiftV2]; ok {
 		cnsconfig.EnableSwiftV2 = true
 		cnsconfig.WatchPods = true
-		// TODO(rbtr): create the NodeInfo for Swift V2
-		// register the noop mtpnc reconciler to populate the cache
+		if nodInfoErr := createOrUpdateNodeInfoCRD(ctx, kubeConfig, node); nodInfoErr != nil {
+			return errors.Wrap(nodInfoErr, "error creating or updating nodeinfo crd")
+		}
 	}
 
 	var podInfoByIPProvider cns.PodInfoByIPProvider
@@ -1456,5 +1461,43 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 		}
 	}()
 	logger.Printf("Initialized SyncHostNCVersion loop.")
+	return nil
+}
+
+// createOrUpdateNodeInfoCRD polls imds to learn the VM Unique ID and then creates or updates the NodeInfo CRD
+// with that vm unique ID
+func createOrUpdateNodeInfoCRD(ctx context.Context, restConfig *rest.Config, node *corev1.Node) error {
+	imdsCli := imds.NewClient()
+	vmUniqueID, err := imdsCli.GetVMUniqueID(ctx)
+	if err != nil {
+		return errors.Wrap(err, "error getting vm unique ID from imds")
+	}
+
+	directcli, err := client.New(restConfig, client.Options{Scheme: multitenancy.Scheme})
+	if err != nil {
+		return errors.Wrap(err, "failed to create ctrl client")
+	}
+
+	nodeInfoCli := multitenancy.NodeInfoClient{
+		Cli: directcli,
+	}
+
+	nodeInfo := &mtv1alpha1.NodeInfo{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: node.Name,
+		},
+		Spec: mtv1alpha1.NodeInfoSpec{
+			VMUniqueID: vmUniqueID,
+		},
+	}
+
+	if err := controllerutil.SetOwnerReference(node, nodeInfo, multitenancy.Scheme); err != nil {
+		return errors.Wrap(err, "failed to set nodeinfo owner reference to node")
+	}
+
+	if err := nodeInfoCli.CreateOrUpdate(ctx, nodeInfo, "azure-cns"); err != nil {
+		return errors.Wrap(err, "error ensuring nodeinfo CRD exists and is up-to-date")
+	}
+
 	return nil
 }

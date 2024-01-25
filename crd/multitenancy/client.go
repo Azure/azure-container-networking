@@ -14,6 +14,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 // Scheme is a runtime scheme containing the client-go scheme and the MTPNC/NI scheme.
@@ -189,4 +190,29 @@ func (i *Installer) InstallOrUpdatePodNetworkInstance(ctx context.Context) (*v1.
 		}
 	}
 	return current, nil
+}
+
+type NodeInfoClient struct {
+	Cli client.Client
+}
+
+func (n *NodeInfoClient) CreateOrUpdate(ctx context.Context, nodeInfo *v1alpha1.NodeInfo, fieldOwner string) error {
+	if err := n.Cli.Create(ctx, nodeInfo); err != nil {
+		if !apierrors.IsAlreadyExists(err) {
+			return errors.Wrap(err, "error creating nodeinfo crd")
+		}
+		if err := n.Cli.Patch(ctx, &v1alpha1.NodeInfo{
+			TypeMeta: metav1.TypeMeta{
+				APIVersion: v1alpha1.GroupVersion.String(),
+				Kind:       "NodeInfo",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name: nodeInfo.Name,
+			},
+			Spec: nodeInfo.Spec,
+		}, client.Apply, client.ForceOwnership, client.FieldOwner(fieldOwner)); err != nil {
+			return errors.Wrap(err, "error patching nodeinfo crd")
+		}
+	}
+	return nil
 }
