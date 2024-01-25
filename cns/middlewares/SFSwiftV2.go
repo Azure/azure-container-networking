@@ -8,7 +8,6 @@ import (
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/pkg/errors"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 	"time"
 )
 
@@ -19,7 +18,6 @@ const (
 )
 
 type SFSWIFTv2Middleware struct {
-	Cli client.Client
 }
 
 // Verify interface compliance at compile time
