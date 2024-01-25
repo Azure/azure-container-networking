@@ -1219,8 +1219,8 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 	if _, ok := node.Labels[configuration.LabelNodeSwiftV2]; ok {
 		cnsconfig.EnableSwiftV2 = true
 		cnsconfig.WatchPods = true
-		if nodInfoErr := createOrUpdateNodeInfoCRD(ctx, kubeConfig, node); nodInfoErr != nil {
-			return errors.Wrap(nodInfoErr, "error creating or updating nodeinfo crd")
+		if nodeInfoErr := createOrUpdateNodeInfoCRD(ctx, kubeConfig, node); nodeInfoErr != nil {
+			return errors.Wrap(nodeInfoErr, "error creating or updating nodeinfo crd")
 		}
 	}
 
