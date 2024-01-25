@@ -28,8 +28,8 @@ var _ cns.IPConfigsHandlerMiddleware = (*SFSWIFTv2Middleware)(nil)
 // IPConfigsRequestHandlerWrapper is the middleware function for handling SWIFT v2 IP config requests for SF standalone scenario. This function wraps the default SWIFT request
 // and release IP configs handlers.
 func (m *SFSWIFTv2Middleware) IPConfigsRequestHandlerWrapper(defaultHandler, failureHandler cns.IPConfigsHandlerFunc) cns.IPConfigsHandlerFunc {
-	return func(ctx context.Context, req cns.IPConfigsRequest) (*cns.IPConfigsResponse, error) {
-		podInfo, respCode, message := m.validateIPConfigsRequest(ctx, &req)
+	return func(ctx context.Context, req *cns.IPConfigsRequest) (*cns.IPConfigsResponse, error) {
+		podInfo, respCode, message := m.validateIPConfigsRequest(ctx, req)
 
 		if respCode != types.Success {
 			return &cns.IPConfigsResponse{
@@ -97,15 +97,15 @@ func (m *SFSWIFTv2Middleware) validateIPConfigsRequest(ctx context.Context, req 
 func (m *SFSWIFTv2Middleware) getIPConfig(ctx context.Context, podInfo cns.PodInfo) (cns.PodIpInfo, error) {
 	orchestratorContext, err := podInfo.OrchestratorContext()
 	if err != nil {
-		return cns.PodIpInfo{}, fmt.Errorf("error getting orchestrator context from PodInfo %v", err)
+		return cns.PodIpInfo{}, fmt.Errorf("error getting orchestrator context from PodInfo %w", err)
 	}
-	cnsclient, err := cnsclient.New("", cnsReqTimeout)
+	cnsClient, err := cnsclient.New("", cnsReqTimeout)
 	if err != nil {
-		return cns.PodIpInfo{}, fmt.Errorf("error initializing cnsclient %v", err)
+		return cns.PodIpInfo{}, fmt.Errorf("error initializing cnsclient %w", err)
 	}
-	resp, err := cnsclient.GetNetworkContainer(ctx, orchestratorContext)
+	resp, err := cnsClient.GetNetworkContainer(ctx, orchestratorContext)
 	if err != nil {
-		return cns.PodIpInfo{}, fmt.Errorf("error getNetworkContainerByOrchestrator Context %v", err)
+		return cns.PodIpInfo{}, fmt.Errorf("error getNetworkContainerByOrchestrator Context %w", err)
 	}
 
 	// Check if the ncstate/ipconfig ready. If one of the fields is empty, return error

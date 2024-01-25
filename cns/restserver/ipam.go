@@ -29,9 +29,9 @@ var (
 )
 
 // requestIPConfigHandlerHelper validates the request, assign IPs and return the IPConfigs
-func (service *HTTPRestService) requestIPConfigHandlerHelper(ctx context.Context, ipconfigsRequest cns.IPConfigsRequest) (*cns.IPConfigsResponse, error) {
+func (service *HTTPRestService) requestIPConfigHandlerHelper(ctx context.Context, ipconfigsRequest *cns.IPConfigsRequest) (*cns.IPConfigsResponse, error) {
 	// For SWIFT v2 scenario, the validator function will also modify the ipconfigsRequest.
-	podInfo, returnCode, returnMessage := service.validateIPConfigsRequest(ctx, ipconfigsRequest)
+	podInfo, returnCode, returnMessage := service.validateIPConfigsRequest(ctx, *ipconfigsRequest)
 	if returnCode != types.Success {
 		return &cns.IPConfigsResponse{
 			Response: cns.Response{
@@ -42,7 +42,7 @@ func (service *HTTPRestService) requestIPConfigHandlerHelper(ctx context.Context
 	}
 	// record a pod requesting an IP
 	service.podsPendingIPAssignment.Push(podInfo.Key())
-	podIPInfo, err := requestIPConfigsHelper(service, ipconfigsRequest)
+	podIPInfo, err := requestIPConfigsHelper(service, *ipconfigsRequest)
 	if err != nil {
 		return &cns.IPConfigsResponse{
 			Response: cns.Response{
@@ -61,7 +61,7 @@ func (service *HTTPRestService) requestIPConfigHandlerHelper(ctx context.Context
 	}()
 	// Check if http rest service managed endpoint state is set
 	if service.Options[common.OptManageEndpointState] == true {
-		err = service.updateEndpointState(ipconfigsRequest, podInfo, podIPInfo)
+		err = service.updateEndpointState(*ipconfigsRequest, podInfo, podIPInfo)
 		if err != nil {
 			return &cns.IPConfigsResponse{
 				Response: cns.Response{
@@ -118,7 +118,7 @@ func (service *HTTPRestService) requestIPConfigHandler(w http.ResponseWriter, r 
 		}
 	}
 
-	ipConfigsResp, errResp := service.requestIPConfigHandlerHelper(r.Context(), ipconfigsRequest) //nolint:contextcheck // appease linter
+	ipConfigsResp, errResp := service.requestIPConfigHandlerHelper(r.Context(), &ipconfigsRequest) //nolint:contextcheck // appease linter
 	if errResp != nil {
 		// As this API is expected to return IPConfigResponse, generate it from the IPConfigsResponse returned above
 		reserveResp := &cns.IPConfigResponse{
@@ -170,12 +170,12 @@ func (service *HTTPRestService) requestIPConfigsHandler(w http.ResponseWriter, r
 	if service.IPConfigsHandlerMiddleware != nil {
 		// Wrap the default datapath handlers with the middleware
 		wrappedHandler := service.IPConfigsHandlerMiddleware.IPConfigsRequestHandlerWrapper(service.requestIPConfigHandlerHelper, service.releaseIPConfigHandlerHelper)
-		ipConfigsResp, err = wrappedHandler(r.Context(), ipconfigsRequest)
+		ipConfigsResp, err = wrappedHandler(r.Context(), &ipconfigsRequest)
 		if ipconfigsRequest.AddInterfacesDataToResponse {
 			ipConfigsResp, err = service.updatePodInfoWithInterfaces(r.Context(), ipConfigsResp)
 		}
 	} else {
-		ipConfigsResp, err = service.requestIPConfigHandlerHelper(r.Context(), ipconfigsRequest) // nolint:contextcheck // appease linter
+		ipConfigsResp, err = service.requestIPConfigHandlerHelper(r.Context(), &ipconfigsRequest) // nolint:contextcheck // appease linter
 	}
 
 	if err != nil {
@@ -281,8 +281,8 @@ func (service *HTTPRestService) updateEndpointState(ipconfigsRequest cns.IPConfi
 }
 
 // releaseIPConfigHandlerHelper validates the request and removes the endpoint associated with the pod
-func (service *HTTPRestService) releaseIPConfigHandlerHelper(ctx context.Context, ipconfigsRequest cns.IPConfigsRequest) (*cns.IPConfigsResponse, error) {
-	podInfo, returnCode, returnMessage := service.validateIPConfigsRequest(ctx, ipconfigsRequest)
+func (service *HTTPRestService) releaseIPConfigHandlerHelper(ctx context.Context, ipconfigsRequest *cns.IPConfigsRequest) (*cns.IPConfigsResponse, error) {
+	podInfo, returnCode, returnMessage := service.validateIPConfigsRequest(ctx, *ipconfigsRequest)
 	if returnCode != types.Success {
 		return &cns.IPConfigsResponse{
 			Response: cns.Response{
@@ -362,7 +362,7 @@ func (service *HTTPRestService) releaseIPConfigHandler(w http.ResponseWriter, r 
 		Ifname:              ipconfigRequest.Ifname,
 	}
 
-	resp, err := service.releaseIPConfigHandlerHelper(r.Context(), ipconfigsRequest)
+	resp, err := service.releaseIPConfigHandlerHelper(r.Context(), &ipconfigsRequest)
 	if err != nil {
 		w.Header().Set(cnsReturnCode, resp.Response.ReturnCode.String())
 		err = service.Listener.Encode(w, &resp)
@@ -391,7 +391,7 @@ func (service *HTTPRestService) releaseIPConfigsHandler(w http.ResponseWriter, r
 		return
 	}
 
-	resp, err := service.releaseIPConfigHandlerHelper(r.Context(), ipconfigsRequest)
+	resp, err := service.releaseIPConfigHandlerHelper(r.Context(), &ipconfigsRequest)
 	if err != nil {
 		w.Header().Set(cnsReturnCode, resp.Response.ReturnCode.String())
 		err = service.Listener.Encode(w, &resp)

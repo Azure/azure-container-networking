@@ -53,7 +53,7 @@ type HTTPService interface {
 }
 
 // IPConfigsHandlerFunc
-type IPConfigsHandlerFunc func(context.Context, IPConfigsRequest) (*IPConfigsResponse, error)
+type IPConfigsHandlerFunc func(context.Context, *IPConfigsRequest) (*IPConfigsResponse, error)
 
 // IPConfigsHandlerMiddleware
 type IPConfigsHandlerMiddleware interface {
