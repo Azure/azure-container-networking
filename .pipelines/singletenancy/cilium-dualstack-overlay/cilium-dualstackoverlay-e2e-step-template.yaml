@@ -34,7 +34,7 @@ steps:
         kubectl cluster-info
         kubectl get po -owide -A
         echo "deploy Cilium ConfigMap"
-        kubectl apply -f test/integration/manifests/cilium/cilium${FILE_PATH}-config.yaml
+        kubectl apply -f test/integration/manifests/cilium/cilium-config-dualstack.yaml
         echo "install Cilium ${CILIUM_VERSION_TAG}"
         # Passes Cilium image to daemonset and deployment
         envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/daemonset.yaml | kubectl apply -f -
