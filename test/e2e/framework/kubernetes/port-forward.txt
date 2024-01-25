@@ -1,3 +1,5 @@
+// todo: matmerr, this is just going to remain broken until it can be validated with scenarios pr
+
 package k8s
 
 import (
@@ -76,6 +78,7 @@ func (p *PortForward) Run() error {
 
 	portForwardFn := func() error {
 		log.Printf("attempting port forward to a pod with label \"%s\", in namespace \"%s\"...\n", p.LabelSelector, p.Namespace)
+
 		var handle k8s.PortForwardStreamHandle
 
 		// if we have a pod name (likely from affinity above), use it, otherwise use label selector
@@ -105,6 +108,7 @@ func (p *PortForward) Run() error {
 
 		log.Printf("port forward validation HTTP request to \"%s\" succeeded, response: %s\n", handle.URL(), resp.Status)
 		p.portForwardHandle = handle
+
 		return nil
 	}
 
