@@ -364,7 +364,7 @@ func (epInfo *EndpointInfo) GetEndpointInfoByIP(ipAddresses []net.IPNet, network
 	return endpointInfo, nil
 }
 
-// IsEndpointStateComplete returns true if both HNSEndpointID and HostVethName are missing.
+// IsEndpointStateInComplete returns true if both HNSEndpointID and HostVethName are missing.
 func (epInfo *EndpointInfo) IsEndpointStateIncomplete() bool {
 	if epInfo.HNSEndpointID == "" && epInfo.IfName == "" {
 		return true

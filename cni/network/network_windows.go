@@ -40,7 +40,7 @@ var (
 func (plugin *NetPlugin) handleConsecutiveAdd(args *cniSkel.CmdArgs, endpointId string, networkId string,
 	nwInfo *network.NetworkInfo, nwCfg *cni.NetworkConfig,
 ) (*cniTypesCurr.Result, error) {
-	epInfo, _ := plugin.nm.GetEndpointInfo(networkId, endpointId)
+	epInfo, _ := plugin.nm.GetEndpointInfo(networkId, endpointId, "")
 	if epInfo == nil {
 		return nil, nil
 	}

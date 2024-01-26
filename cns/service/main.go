@@ -839,7 +839,7 @@ func main() {
 
 		logger.Printf("Set GlobalPodInfoScheme %v (InitializeFromCNI=%t)", cns.GlobalPodInfoScheme, cnsconfig.InitializeFromCNI)
 
-		err = InitializeCRDState(rootCtx, httpRestService, cnsconfig, endpointStateStore)
+		err = InitializeCRDState(rootCtx, httpRestService, cnsconfig)
 		if err != nil {
 			logger.Errorf("Failed to start CRD Controller, err:%v.\n", err)
 			return
@@ -1182,7 +1182,7 @@ func reconcileInitialCNSState(ctx context.Context, cli nodeNetworkConfigGetter, 
 }
 
 // InitializeCRDState builds and starts the CRD controllers.
-func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cnsconfig *configuration.CNSConfig, endpointStateStore store.KeyValueStore) error {
+func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cnsconfig *configuration.CNSConfig) error {
 	// convert interface type to implementation type
 	httpRestServiceImplementation, ok := httpRestService.(*restserver.HTTPRestService)
 	if !ok {
@@ -1234,26 +1234,9 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 	switch {
 	case cnsconfig.ManageEndpointState:
 		logger.Printf("Initializing from self managed endpoint store")
-		podInfoByIPProvider, err = cnireconciler.NewCNSPodInfoProvider(httpRestServiceImplementation.EndpointStateStore) // get reference to endpoint state store from rest server
+		podInfoByIPProvider, err = InitializeStateFromCNS(cnsconfig, httpRestServiceImplementation.EndpointStateStore)
 		if err != nil {
-			if errors.Is(err, store.ErrKeyNotFound) {
-				logger.Printf("[Azure CNS] No endpoint state found, skipping initializing CNS state")
-				if cnsconfig.StatelessCNIMigration {
-					logger.Printf("StatelessCNI Migration is enabled")
-					logger.Printf("initializing from Statefull CNI")
-					var endpointState map[string]*restserver.EndpointInfo
-					podInfoByIPProvider, endpointState, err = cnireconciler.NewCNIPodInfoProvider()
-					if err != nil {
-						return errors.Wrap(err, "failed to create CNI PodInfoProvider")
-					}
-					err = endpointStateStore.Write(restserver.EndpointStoreKey, endpointState)
-					if err != nil {
-						return fmt.Errorf("failed to write endpoint state to store: %w", err)
-					}
-				}
-			} else {
-				return errors.Wrap(err, "failed to create CNS PodInfoProvider")
-			}
+			return errors.Wrap(err, "failed to create CNI PodInfoProvider")
 		}
 
 	case cnsconfig.InitializeFromCNI:
@@ -1529,4 +1512,31 @@ func createOrUpdateNodeInfoCRD(ctx context.Context, restConfig *rest.Config, nod
 	}
 
 	return nil
+}
+
+// InitializeStateFromCNS initilizes CNS Endpoint State from CNS or perform the Migration of state from statefull CNI.
+func InitializeStateFromCNS(cnsconfig *configuration.CNSConfig, endpointStateStore store.KeyValueStore) (cns.PodInfoByIPProvider, error) {
+	logger.Printf("Initializing from self managed endpoint store")
+	podInfoByIPProvider, err := cnireconciler.NewCNSPodInfoProvider(endpointStateStore) // get reference to endpoint state store from rest server
+	if err != nil {
+		if errors.Is(err, store.ErrKeyNotFound) {
+			logger.Printf("[Azure CNS] No endpoint state found, skipping initializing CNS state")
+			if cnsconfig.StatelessCNIMigration {
+				logger.Printf("StatelessCNI Migration is enabled")
+				logger.Printf("initializing from Statefull CNI")
+				var endpointState map[string]*restserver.EndpointInfo
+				podInfoByIPProvider, endpointState, err = cnireconciler.NewCNIPodInfoProvider()
+				if err != nil {
+					return nil, errors.Wrap(err, "failed to create CNI PodInfoProvider")
+				}
+				err = endpointStateStore.Write(restserver.EndpointStoreKey, endpointState)
+				if err != nil {
+					return nil, fmt.Errorf("failed to write endpoint state to store: %w", err)
+				}
+			}
+		} else {
+			return nil, errors.Wrap(err, "failed to create CNS PodInfoProvider")
+		}
+	}
+	return podInfoByIPProvider, nil
 }

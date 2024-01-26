@@ -101,7 +101,7 @@ type NetworkManager interface {
 
 	CreateEndpoint(client apipaClient, networkID string, epInfo []*EndpointInfo) error
 	DeleteEndpoint(networkID string, endpointID string, epInfo *EndpointInfo) error
-	GetEndpointInfo(networkID string, endpointID string) (*EndpointInfo, error)
+	GetEndpointInfo(networkID string, endpointID string, ifName string) (*EndpointInfo, error)
 	GetAllEndpoints(networkID string) (map[string]*EndpointInfo, error)
 	GetEndpointInfoBasedOnPODDetails(networkID string, podName string, podNameSpace string, doExactMatchForPodName bool) (*EndpointInfo, error)
 	AttachEndpoint(networkID string, endpointID string, sandboxKey string) (*endpoint, error)
@@ -420,6 +420,38 @@ func (nm *networkManager) UpdateEndpointState(ep *endpoint) error {
 	return nil
 }
 
+// GetEndpointState will make a call to CNS GetEndpointState API in the stateless CNI mode to fetch the endpointInfo
+func (nm *networkManager) GetEndpointState(networkID, endpointID, ifName string) (*EndpointInfo, error) {
+	endpointResponse, err := nm.CnsClient.GetEndpoint(context.TODO(), endpointID, ifName)
+	if err != nil {
+		return nil, errors.Wrapf(err, "Get endpoint API returend with error")
+	}
+	epInfo := &EndpointInfo{
+		Id:                 endpointID,
+		IfIndex:            EndpointIfIndex, // Azure CNI supports only one interface
+		IfName:             endpointResponse.EndpointInfo.HostVethName,
+		ContainerID:        endpointID,
+		PODName:            endpointResponse.EndpointInfo.PodName,
+		PODNameSpace:       endpointResponse.EndpointInfo.PodNamespace,
+		NetworkContainerID: endpointID,
+		HNSEndpointID:      endpointResponse.EndpointInfo.HnsEndpointID,
+	}
+
+	for _, ip := range endpointResponse.EndpointInfo.IfnameToIPMap {
+		epInfo.IPAddresses = ip.IPv4
+		epInfo.IPAddresses = append(epInfo.IPAddresses, ip.IPv6...)
+
+	}
+	if epInfo.IsEndpointStateIncomplete() {
+		epInfo, err = epInfo.GetEndpointInfoByIP(epInfo.IPAddresses, networkID)
+		if err != nil {
+			return nil, errors.Wrapf(err, "Get endpoint API returend with error")
+		}
+	}
+	logger.Info("returning getEndpoint API with", zap.String("Endpoint Info: ", epInfo.PrettyString()), zap.String("HNISID : ", epInfo.HNSEndpointID))
+	return epInfo, nil
+}
+
 // DeleteEndpoint deletes an existing container endpoint.
 func (nm *networkManager) DeleteEndpoint(networkID, endpointID string, epInfo *EndpointInfo) error {
 	nm.Lock()
@@ -475,48 +507,23 @@ func (nm *networkManager) DeleteEndpointState(networkID string, epInfo *Endpoint
 }
 
 // GetEndpointInfo returns information about the given endpoint.
-func (nm *networkManager) GetEndpointInfo(networkId string, endpointId string) (*EndpointInfo, error) {
+func (nm *networkManager) GetEndpointInfo(networkID, endpointID, ifName string) (*EndpointInfo, error) {
 	nm.Lock()
 	defer nm.Unlock()
 
 	if nm.IsStatelessCNIMode() {
 		logger.Info("calling cns getEndpoint API")
-		endpointResponse, err := nm.CnsClient.GetEndpoint(context.TODO(), endpointId, "eth0")
-		if err != nil {
-			return nil, errors.Wrapf(err, "Get endpoint API returend with error")
-		}
-		epInfo := &EndpointInfo{
-			Id:                 endpointId,
-			IfIndex:            EndpointIfIndex, // Azure CNI supports only one interface
-			IfName:             endpointResponse.EndpointInfo.HostVethName,
-			ContainerID:        endpointId,
-			PODName:            endpointResponse.EndpointInfo.PodName,
-			PODNameSpace:       endpointResponse.EndpointInfo.PodNamespace,
-			NetworkContainerID: endpointId,
-			HNSEndpointID:      endpointResponse.EndpointInfo.HnsEndpointID,
-		}
+		epInfo, err := nm.GetEndpointState(networkID, endpointID, ifName)
 
-		for _, ip := range endpointResponse.EndpointInfo.IfnameToIPMap {
-			epInfo.IPAddresses = ip.IPv4
-			epInfo.IPAddresses = append(epInfo.IPAddresses, ip.IPv6...)
-
-		}
-		if epInfo.IsEndpointStateIncomplete() {
-			epInfo, err = epInfo.GetEndpointInfoByIP(epInfo.IPAddresses, networkId)
-			if err != nil {
-				return nil, errors.Wrapf(err, "Get endpoint API returend with error")
-			}
-		}
-		logger.Info("returning getEndpoint API with", zap.String("Endpoint Info: ", epInfo.PrettyString()), zap.String("HNISID : ", epInfo.HNSEndpointID))
-		return epInfo, nil
+		return epInfo, err
 	}
 
-	nw, err := nm.getNetwork(networkId)
+	nw, err := nm.getNetwork(networkID)
 	if err != nil {
 		return nil, err
 	}
 
-	ep, err := nw.getEndpoint(endpointId)
+	ep, err := nw.getEndpoint(endpointID)
 	if err != nil {
 		return nil, err
 	}

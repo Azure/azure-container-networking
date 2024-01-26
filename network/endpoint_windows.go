@@ -5,7 +5,6 @@ package network
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net"
 	"strings"
@@ -16,6 +15,7 @@ import (
 	"github.com/Azure/azure-container-networking/platform"
 	"github.com/Microsoft/hcsshim"
 	"github.com/Microsoft/hcsshim/hcn"
+	"github.com/pkg/errors"
 	"go.uber.org/zap"
 )
 
@@ -502,22 +502,22 @@ func (epInfo *EndpointInfo) GetEndpointInfoByIPImpl(ipAddresses []net.IPNet, net
 	// check if network exists, only create the network does not exist
 	hnsResponse, err := Hnsv2.GetNetworkByName(networkID)
 	if err != nil {
-		return epInfo, errors.Wrap(err, "HNS Network not found")
+		return epInfo, errors.Wrapf(err, "HNS Network not found")
 	}
 	hcnEndpoints, err := Hnsv2.ListEndpointsOfNetwork(hnsResponse.Id)
 	if err != nil {
-		return epInfo, errors.Wrap(err, "failed to fetch HNS endpoints for the given network")
+		return epInfo, errors.Wrapf(err, "failed to fetch HNS endpoints for the given network")
 	}
-	for _, hcnEndpoint := range hcnEndpoints {
-		for _, ipConfiguration := range hcnEndpoint.IpConfigurations {
+	for i := range hcnEndpoints {
+		for _, ipConfiguration := range hcnEndpoints[i].IpConfigurations {
 			for _, ipAddress := range ipAddresses {
 				prefixLength, _ := ipAddress.Mask.Size()
 				if ipConfiguration.IpAddress == ipAddress.IP.String() && ipConfiguration.PrefixLength == uint8(prefixLength) {
-					epInfo.HNSEndpointID = hcnEndpoint.Id
+					epInfo.HNSEndpointID = hcnEndpoints[i].Id
 					return epInfo, nil
 				}
 			}
 		}
 	}
-	return epInfo, errors.wrap(err, "No HNSEndpointID matches the IPAddress: "+ipAddresses[0].IP.String())
+	return epInfo, errors.Wrapf(err, "No HNSEndpointID matches the IPAddress: "+ipAddresses[0].IP.String())
 }

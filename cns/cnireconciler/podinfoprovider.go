@@ -69,7 +69,6 @@ func cniStateToPodInfoByIP(state *api.AzureCNIState) (map[string]cns.PodInfo, er
 	for _, endpoint := range state.ContainerInterfaces {
 		for _, epIP := range endpoint.IPAddresses {
 			podInfo := cns.NewPodInfo(endpoint.ContainerID, endpoint.PodEndpointId, endpoint.PodName, endpoint.PodNamespace)
-			logger.Printf("podInfoByIp [%+v]", podInfoByIP)
 			ipKey := epIP.IP.String()
 			if prevPodInfo, ok := podInfoByIP[ipKey]; ok {
 				return nil, errors.Wrapf(cns.ErrDuplicateIP, "duplicate ip %s found for different pods: pod: %+v, pod: %+v", ipKey, podInfo, prevPodInfo)
@@ -78,7 +77,6 @@ func cniStateToPodInfoByIP(state *api.AzureCNIState) (map[string]cns.PodInfo, er
 			podInfoByIP[ipKey] = podInfo
 		}
 	}
-	logger.Printf("podInfoByIP [%+v]", podInfoByIP)
 	return podInfoByIP, nil
 }
 
@@ -117,7 +115,7 @@ func endpointStateToPodInfoByIP(state map[string]*restserver.EndpointInfo) (map[
 // into a EndpointInfo map, using the containerID as keys in the map.
 // The map then will be saved on CNS endpoint state
 func cniStateToCnsEndpointState(state *api.AzureCNIState) (map[string]*restserver.EndpointInfo, error) {
-	logger.Printf("Generating CNS ENdpoint State")
+	logger.Printf("Generating CNS Endpoint State")
 	endpointState := map[string]*restserver.EndpointInfo{}
 	for epID, endpoint := range state.ContainerInterfaces {
 		endpointInfo := &restserver.EndpointInfo{PodName: endpoint.PodName, PodNamespace: endpoint.PodNamespace, IfnameToIPMap: make(map[string]*restserver.IPInfo)}
@@ -147,6 +145,7 @@ func cniStateToCnsEndpointState(state *api.AzureCNIState) (map[string]*restserve
 		endpointID, Ifname := extractEndpointInfo(epID, endpoint.ContainerID)
 		endpointInfo.IfnameToIPMap[Ifname] = ipInfo
 		endpointState[endpointID] = endpointInfo
+		logger.Printf("CNS endpoint state extracted from CNI: [%+v]", *endpointInfo)
 	}
 	return endpointState, nil
 }
