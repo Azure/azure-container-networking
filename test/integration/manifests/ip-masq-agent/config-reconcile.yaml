@@ -9,4 +9,6 @@ data:
   ip-masq-agent-reconciled: |-
     nonMasqueradeCIDRs:
       - 192.168.0.0/16
+      - 100.64.0.0/10
+      - 10.244.0.0/16
     masqLinkLocal: true
