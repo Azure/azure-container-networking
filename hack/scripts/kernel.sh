@@ -1,3 +1,15 @@
+#!/bin/bash
+
+# UPGRADE_ONLY  - Skip cluster creation
+# DUMMY_CNI     - Flag to provide a temporary CNI
+# DEFAULT       - Use predefined parameters for cluster creation sourced from hack/aks makefile
+# CLUSTER_TYPE  - generates resources for a predefined cluster
+# CLUSTER_NAME  - controls the resource group and cluster name
+# REGION        - controls where the resources will exist
+# SUB           - controls which subscription the resource are created in
+# VMSIZE        - controls the size of the vm
+
+
 # Should be used for manual validation. Does not check if correct kernel is installed or if installation failed.
 # If used within automation, error check at the end
 
@@ -8,7 +20,7 @@ if [ ! $UPGRADE_ONLY = "true" ] || [ -z $UPGRADE_ONLY ]; then
     else
         CLUSTER_TYPE=overlay-byocni-up
         REGION=eastus
-        CLUSTER_NAME="jpayne-kernel-$(date "+%d%H%M")"
+        CLUSTER_NAME="kup-overlay-$(date "+%d%H%M")"
         VMSIZE=Standard_B2ms
         DUMMY_CNI=true
         echo "CLUSTER_TYPE = $CLUSTER_TYPE"
