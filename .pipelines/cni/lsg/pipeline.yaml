@@ -37,6 +37,7 @@ stages:
       nodeCount: 2
       vmSize: Standard_B2ms
       arch: amd64
+      cni: cniv2
 
   - stage: delete_resources
     displayName: "Delete Resources"

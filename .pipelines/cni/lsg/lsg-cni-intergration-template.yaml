@@ -48,7 +48,6 @@ stages:
       commitID: $[ stagedependencies.setup.env.outputs['SetEnvVars.commitID'] ]
       cnsVersion: $[ stagedependencies.setup.env.outputs['SetEnvVars.cnsVersion'] ]
       cniVersion: $[ stagedependencies.setup.env.outputs['SetEnvVars.cniVersion'] ]
-      kernelType: $[ stagedependencies.setup.env.outputs['SetEnvVars.kernelType'] ]
     pool:
       name: $(BUILD_POOL_NAME_DEFAULT)
     dependsOn:
@@ -84,8 +83,6 @@ stages:
           - template: kernel-upgrade-template.yaml
             parameters:
               clusterName: ${{ parameters.clusterName }}-$(commitID)
-              KernelVersion : ${{ parameters.KernelVersion }}
-              ProposedRepoVersion : ${{ parameters.ProposedRepoVersion }}
       - job: deploy_pods
         displayName: "Scale Test"
         dependsOn: kernel_upgrade
