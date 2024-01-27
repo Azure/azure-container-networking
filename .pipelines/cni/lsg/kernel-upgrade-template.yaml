@@ -21,7 +21,7 @@ steps:
       echo "-- Start privileged daemonset --"
       kubectl get pods -Aowide
       kubectl apply -f test/integration/manifests/load/privileged-daemonset.yaml
-      sleep 10s
+      sleep 3s
       kubectl rollout status ds -n kube-system privileged-daemonset
     retryCountOnTaskFailure: 3
     name: "priv_daemonset"
