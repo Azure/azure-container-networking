@@ -26,14 +26,26 @@ const (
 )
 
 type CNSConfig struct {
+	AZRSettings                 AZRSettings
+	AsyncPodDeletePath          string
+	CNIConflistFilepath         string
+	CNIConflistScenario         string
 	ChannelMode                 string
+	EnableAsyncPodDelete        bool
+	EnableCNIConflistGeneration bool
+	EnableIPAMv2                bool
 	EnablePprof                 bool
 	EnableSubnetScarcity        bool
 	EnableSwiftV2               bool
-	SWIFTV2Mode                 SWIFTV2Mode
 	InitializeFromCNI           bool
+	KeyVaultSettings            KeyVaultSettings
+	MSISettings                 MSISettings
+	ManageEndpointState         bool
 	ManagedSettings             ManagedSettings
+	MellanoxMonitorIntervalSecs int
 	MetricsBindAddress          string
+	ProgramSNATIPTables         bool
+	SWIFTV2Mode                 SWIFTV2Mode
 	SyncHostNCTimeoutMs         int
 	SyncHostNCVersionIntervalMs int
 	TLSCertificatePath          string
@@ -42,19 +54,8 @@ type CNSConfig struct {
 	TLSSubjectName              string
 	TelemetrySettings           TelemetrySettings
 	UseHTTPS                    bool
+	WatchPods                   bool `json:"-"`
 	WireserverIP                string
-	KeyVaultSettings            KeyVaultSettings
-	MSISettings                 MSISettings
-	ProgramSNATIPTables         bool
-	ManageEndpointState         bool
-	CNIConflistScenario         string
-	EnableCNIConflistGeneration bool
-	CNIConflistFilepath         string
-	MellanoxMonitorIntervalSecs int
-	AZRSettings                 AZRSettings
-	WatchPods                   bool
-	EnableAsyncPodDelete        bool
-	AsyncPodDeletePath          string
 }
 
 type TelemetrySettings struct {
@@ -219,4 +220,5 @@ func SetCNSConfigDefaults(config *CNSConfig) {
 	if config.AsyncPodDeletePath == "" {
 		config.AsyncPodDeletePath = "/var/run/azure-vnet/deleteIDs"
 	}
+	config.WatchPods = config.EnableIPAMv2 || config.EnableSwiftV2
 }

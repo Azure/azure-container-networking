@@ -34,7 +34,8 @@ steps:
   - ${{ if eq(parameters.os, 'linux') }}:
     - script: |
         echo "Start Integration Tests on Overlay Cluster"
-        sudo -E env "PATH=$PATH" make test-integration AZURE_IPAM_VERSION=$(make azure-ipam-version) CNS_VERSION=$(make cns-version) INSTALL_CNS=true INSTALL_AZURE_CNI_OVERLAY=true
+        kubectl get po -owide -A
+        sudo -E env "PATH=$PATH" make test-load SCALE_UP=32 OS_TYPE=linux CNI_TYPE=cniv2 VALIDATE_STATEFILE=true INSTALL_CNS=true INSTALL_AZURE_CNI_OVERLAY=true VALIDATE_V4OVERLAY=true AZURE_IPAM_VERSION=$(make azure-ipam-version) CNS_VERSION=$(make cns-version) CNI_VERSION=$(make cni-version) CLEANUP=true
       retryCountOnTaskFailure: 2
       name: "integrationTest"
       displayName: "Run CNS Integration Tests on AKS Overlay"
@@ -47,6 +48,7 @@ steps:
         addSpnToEnvironment: true
         inlineScript: |
           set -e
+          kubectl get po -owide -A
           clusterName=${{ parameters.clusterName }}
           echo "Restarting nodes"
           for val in $(az vmss list -g MC_${clusterName}_${clusterName}_$(REGION_AKS_CLUSTER_TEST) --query "[].name" -o tsv); do
@@ -101,6 +103,7 @@ steps:
         scriptType: "bash"
         addSpnToEnvironment: true
         inlineScript: |
+          set -e
           make -C ./hack/aks windows-nodepool-up AZCLI=az SUB=$(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS) CLUSTER=${{ parameters.clusterName }} VM_SIZE_WIN=${{ parameters.vmSizeWin }}
           echo "Windows node are successfully added to v4 Overlay Cluster"
           kubectl cluster-info

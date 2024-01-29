@@ -33,6 +33,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/hnsclient"
 	"github.com/Azure/azure-container-networking/cns/imds"
 	"github.com/Azure/azure-container-networking/cns/ipampool"
+	ipampoolv2 "github.com/Azure/azure-container-networking/cns/ipampool/v2"
 	cssctrl "github.com/Azure/azure-container-networking/cns/kubecontroller/clustersubnetstate"
 	mtpncctrl "github.com/Azure/azure-container-networking/cns/kubecontroller/multitenantpodnetworkconfig"
 	nncctrl "github.com/Azure/azure-container-networking/cns/kubecontroller/nodenetworkconfig"
@@ -63,6 +64,7 @@ import (
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+	"golang.org/x/time/rate"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -115,6 +117,7 @@ const (
 var (
 	rootCtx   context.Context
 	rootErrCh chan error
+	z         *zap.Logger
 )
 
 // Version is populated by make during build.
@@ -617,7 +620,10 @@ func main() {
 	// configure zap logger
 	zconfig := zap.NewProductionConfig()
 	zconfig.EncoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
-	z, _ := zconfig.Build()
+	if z, err = zconfig.Build(); err != nil {
+		fmt.Printf("failed to create logger: %v", err)
+		os.Exit(1)
+	}
 
 	// start the healthz/readyz/metrics server
 	readyCh := make(chan interface{})
@@ -1336,9 +1342,6 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 		return errors.Wrap(err, "failed to create manager")
 	}
 
-	// Build the IPAM Pool monitor
-	clusterSubnetStateChan := make(chan cssv1alpha1.ClusterSubnetState)
-
 	// this cachedscopedclient is built using the Manager's cached client, which is
 	// NOT SAFE TO USE UNTIL THE MANAGER IS STARTED!
 	// This is okay because it is only used to build the IPAMPoolMonitor, which does not
@@ -1347,18 +1350,24 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 	// reconciler has pushed the Monitor a NodeNetworkConfig.
 	cachedscopedcli := nncctrl.NewScopedClient(nodenetworkconfig.NewClient(manager.GetClient()), types.NamespacedName{Namespace: "kube-system", Name: nodeName})
 
-	poolOpts := ipampool.Options{
-		RefreshDelay: poolIPAMRefreshRateInMilliseconds * time.Millisecond,
+	// Build the IPAM Pool monitor
+	var poolMonitor cns.IPAMPoolMonitor
+	cssCh := make(chan cssv1alpha1.ClusterSubnetState)
+	ipDemandCh := make(chan int)
+	if cnsconfig.EnableIPAMv2 {
+		nncCh := make(chan v1alpha.NodeNetworkConfig)
+		poolMonitor = ipampoolv2.NewMonitor(z, httpRestServiceImplementation, cachedscopedcli, ipDemandCh, nncCh, cssCh).AsV1(nncCh)
+	} else {
+		poolOpts := ipampool.Options{
+			RefreshDelay: poolIPAMRefreshRateInMilliseconds * time.Millisecond,
+		}
+		poolMonitor = ipampool.NewMonitor(httpRestServiceImplementation, cachedscopedcli, cssCh, &poolOpts)
 	}
-	poolMonitor := ipampool.NewMonitor(httpRestServiceImplementation, cachedscopedcli, clusterSubnetStateChan, &poolOpts)
-	httpRestServiceImplementation.IPAMPoolMonitor = poolMonitor
 
 	// Start building the NNC Reconciler
 
 	// get CNS Node IP to compare NC Node IP with this Node IP to ensure NCs were created for this node
 	nodeIP := configuration.NodeIP()
-
-	// NodeNetworkConfig reconciler
 	nncReconciler := nncctrl.NewReconciler(httpRestServiceImplementation, poolMonitor, nodeIP)
 	// pass Node to the Reconciler for Controller xref
 	if err := nncReconciler.SetupWithManager(manager, node); err != nil { //nolint:govet // intentional shadow
@@ -1367,7 +1376,7 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 
 	if cnsconfig.EnableSubnetScarcity {
 		// ClusterSubnetState reconciler
-		cssReconciler := cssctrl.New(clusterSubnetStateChan)
+		cssReconciler := cssctrl.New(cssCh)
 		if err := cssReconciler.SetupWithManager(manager); err != nil {
 			return errors.Wrapf(err, "failed to setup css reconciler with manager")
 		}
@@ -1375,8 +1384,14 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 
 	// TODO: add pod listeners based on Swift V1 vs MT/V2 configuration
 	if cnsconfig.WatchPods {
-		pw := podctrl.New(nodeName)
-		if err := pw.SetupWithManager(manager); err != nil {
+		pw := podctrl.New(z)
+		if cnsconfig.EnableIPAMv2 {
+			hostNetworkListOpt := &client.ListOptions{FieldSelector: fields.SelectorFromSet(fields.Set{"spec.hostNetwork": "false"})} // filter only podsubnet pods
+			// don't relist pods more than every 500ms
+			limit := rate.NewLimiter(rate.Every(500*time.Millisecond), 1) //nolint:gomnd // clearly 500ms
+			pw.With(pw.NewNotifierFunc(hostNetworkListOpt, limit, ipampoolv2.PodIPDemandListener(ipDemandCh)))
+		}
+		if err := pw.SetupWithManager(ctx, manager); err != nil {
 			return errors.Wrapf(err, "failed to setup pod watcher with manager")
 		}
 	}

@@ -36,14 +36,15 @@ steps:
     - script: |
         kubectl cluster-info
         kubectl get node
-        sudo -E env "PATH=$PATH" make test-integration CNI_VERSION=$(make cni-version) CNS_VERSION=$(make cns-version) INSTALL_CNS=true INSTALL_DUALSTACK_OVERLAY=true
         kubectl get po -owide -A
+        sudo -E env "PATH=$PATH" make test-load SCALE_UP=32 OS_TYPE=linux CNI_TYPE=cniv2 VALIDATE_STATEFILE=true INSTALL_CNS=true INSTALL_DUALSTACK_OVERLAY=true VALIDATE_DUALSTACK=true CNI_VERSION=$(make cni-version) CNS_VERSION=$(make cns-version) CLEANUP=true
       retryCountOnTaskFailure: 3
       name: "integrationTest"
       displayName: "Run CNS Integration Tests on AKS DualStack Overlay"
 
     - script: |
         set -e
+        kubectl get po -owide -A
         cd test/integration/datapath
         echo "Dualstack Overlay Linux datapath IPv6 test"
         go test -count=1 datapath_linux_test.go -timeout 3m -tags connection -run ^TestDatapathLinux$ -tags=connection,integration -isDualStack=true
@@ -108,6 +109,7 @@ steps:
         scriptType: "bash"
         addSpnToEnvironment: true
         inlineScript: |
+          set -e
           make -C ./hack/aks windows-nodepool-up AZCLI=az SUB=$(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS) CLUSTER=${{ parameters.clusterName }} VM_SIZE_WIN=${{ parameters.vmSizeWin }}
           echo "Windows nodes have been successfully added to DualStack Overlay Cluster"
           kubectl cluster-info

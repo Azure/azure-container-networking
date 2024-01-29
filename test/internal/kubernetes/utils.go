@@ -34,10 +34,13 @@ const (
 	SubnetNameLabel        = "kubernetes.azure.com/podnetwork-subnet"
 
 	// RetryAttempts is the number of times to retry a test.
-	RetryAttempts       = 90
-	RetryDelay          = 10 * time.Second
-	DeleteRetryAttempts = 12
-	DeleteRetryDelay    = 5 * time.Second
+	RetryAttempts           = 90
+	RetryDelay              = 10 * time.Second
+	DeleteRetryAttempts     = 12
+	DeleteRetryDelay        = 5 * time.Second
+	PrivilegedDaemonSetPath = "../manifests/load/privileged-daemonset-windows.yaml"
+	PrivilegedLabelSelector = "app=privileged-daemonset"
+	PrivilegedNamespace     = "kube-system"
 )
 
 var Kubeconfig = flag.String("test-kubeconfig", filepath.Join(homedir.HomeDir(), ".kube", "config"), "(optional) absolute path to the kubeconfig file")
@@ -403,6 +406,9 @@ func ExecCmdOnPod(ctx context.Context, clientset *kubernetes.Clientset, namespac
 	if err != nil {
 		return []byte{}, errors.Wrapf(err, "error in executing command %s", cmd)
 	}
+	if len(stdout.Bytes()) == 0 {
+		log.Printf("Warning: %v had 0 bytes returned from command - %v", podName, cmd)
+	}
 
 	return stdout.Bytes(), nil
 }
@@ -464,4 +470,37 @@ func MustRestartDaemonset(ctx context.Context, clientset *kubernetes.Clientset, 
 
 	_, err = clientset.AppsV1().DaemonSets(namespace).Update(ctx, ds, metav1.UpdateOptions{})
 	return errors.Wrapf(err, "failed to update ds %s", daemonsetName)
+}
+
+// Restarts kubeproxy on windows nodes from an existing privileged daemonset
+func RestartKubeProxyService(ctx context.Context, clientset *kubernetes.Clientset, privilegedNamespace, privilegedLabelSelector string, config *rest.Config) error {
+	restartKubeProxyCmd := []string{"powershell", "Restart-service", "kubeproxy"}
+
+	nodes, err := GetNodeList(ctx, clientset)
+	if err != nil {
+		return errors.Wrapf(err, "failed to get node list")
+	}
+
+	for index := range nodes.Items {
+		node := nodes.Items[index]
+		if node.Status.NodeInfo.OperatingSystem != string(corev1.Windows) {
+			continue
+		}
+		// get the privileged pod
+		pod, err := GetPodsByNode(ctx, clientset, privilegedNamespace, privilegedLabelSelector, node.Name)
+		if err != nil {
+			return errors.Wrapf(err, "failed to get privileged pod on node %s", node.Name)
+		}
+
+		if len(pod.Items) == 0 {
+			return errors.Errorf("there are no privileged pods on node - %v", node.Name)
+		}
+		privilegedPod := pod.Items[0]
+		// exec into the pod and restart kubeproxy
+		_, err = ExecCmdOnPod(ctx, clientset, privilegedNamespace, privilegedPod.Name, restartKubeProxyCmd, config)
+		if err != nil {
+			return errors.Wrapf(err, "failed to exec into privileged pod %s on node %s", privilegedPod.Name, node.Name)
+		}
+	}
+	return nil
 }

@@ -10,7 +10,6 @@ import (
 
 	"github.com/Azure/azure-container-networking/test/internal/datapath"
 	"github.com/Azure/azure-container-networking/test/internal/kubernetes"
-	"github.com/Azure/azure-container-networking/test/validate"
 	"github.com/stretchr/testify/require"
 	apiv1 "k8s.io/api/core/v1"
 )
@@ -57,9 +56,15 @@ func setupWindowsEnvironment(t *testing.T) {
 	clientset := kubernetes.MustGetClientset()
 
 	if *restartKubeproxy {
-		validator, err := validate.CreateValidator(ctx, clientset, restConfig, *podNamespace, "cniv2", false, "windows")
-		require.NoError(t, err)
-		err = validator.RestartKubeProxyService(ctx)
+		privilegedDaemonSet := kubernetes.MustParseDaemonSet(kubernetes.PrivilegedDaemonSetPath)
+		daemonsetClient := clientset.AppsV1().DaemonSets(kubernetes.PrivilegedNamespace)
+		kubernetes.MustCreateDaemonset(ctx, daemonsetClient, privilegedDaemonSet)
+
+		// Ensures that pods have been replaced if test is re-run after failure
+		if err := kubernetes.WaitForPodDaemonset(ctx, clientset, kubernetes.PrivilegedNamespace, privilegedDaemonSet.Name, kubernetes.PrivilegedLabelSelector); err != nil {
+			require.NoError(t, err)
+		}
+		err := kubernetes.RestartKubeProxyService(ctx, clientset, kubernetes.PrivilegedNamespace, kubernetes.PrivilegedLabelSelector, restConfig)
 		require.NoError(t, err)
 	}
 

@@ -18,6 +18,7 @@ import (
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/store"
 	"github.com/pkg/errors"
+	"golang.org/x/exp/maps"
 )
 
 var (
@@ -437,6 +438,65 @@ func (service *HTTPRestService) MarkIPAsPendingRelease(totalIpsToRelease int) (m
 	return pendingReleasedIps, nil
 }
 
+// MarkIPAsPendingRelease will attempt to set [n] number of ips to PendingRelease state.
+// It will start with any IPs in PendingProgramming state and then move on to any IPs in Allocated state
+// until it has reached the target release quantity.
+// If it is unable to set the expected number of IPs to PendingRelease, it will revert the changed IPs
+// and return an error.
+// MarkNIPsPendingRelease is no-op if [n] is not a positive integer.
+func (service *HTTPRestService) MarkNIPsPendingRelease(n int) (map[string]cns.IPConfigurationStatus, error) {
+	service.Lock()
+	defer service.Unlock()
+	// try to release from PendingProgramming
+	pendingProgrammingIPs := make(map[string]cns.IPConfigurationStatus)
+	for uuid, ipConfig := range service.PodIPConfigState { //nolint:gocritic // intentional value copy
+		if n <= 0 {
+			break
+		}
+		if ipConfig.GetState() == types.PendingProgramming {
+			updatedIPConfig, err := service.updateIPConfigState(uuid, types.PendingRelease, ipConfig.PodInfo)
+			if err != nil {
+				return nil, err
+			}
+
+			pendingProgrammingIPs[uuid] = updatedIPConfig
+			n--
+		}
+	}
+
+	// try to release from Available
+	availableIPs := make(map[string]cns.IPConfigurationStatus)
+	for uuid, ipConfig := range service.PodIPConfigState { //nolint:gocritic // intentional value copy
+		if n <= 0 {
+			break
+		}
+		if ipConfig.GetState() == types.Available {
+			updatedIPConfig, err := service.updateIPConfigState(uuid, types.PendingRelease, ipConfig.PodInfo)
+			if err != nil {
+				return nil, err
+			}
+
+			availableIPs[uuid] = updatedIPConfig
+			n--
+		}
+	}
+
+	// if we can release the requested quantity, return the IPs
+	if n <= 0 {
+		maps.Copy(pendingProgrammingIPs, availableIPs)
+		return pendingProgrammingIPs, nil
+	}
+
+	// else revert changes
+	for uuid, ipConfig := range pendingProgrammingIPs { //nolint:gocritic // intentional value copy
+		_, _ = service.updateIPConfigState(uuid, types.PendingProgramming, ipConfig.PodInfo)
+	}
+	for uuid, ipConfig := range availableIPs { //nolint:gocritic // intentional value copy
+		_, _ = service.updateIPConfigState(uuid, types.Available, ipConfig.PodInfo)
+	}
+	return nil, errors.New("unable to release requested number of IPs")
+}
+
 // TODO: Add a change so that we should only update the current state if it is different than the new state
 func (service *HTTPRestService) updateIPConfigState(ipID string, updatedState types.IPState, podInfo cns.PodInfo) (cns.IPConfigurationStatus, error) {
 	if ipConfig, found := service.PodIPConfigState[ipID]; found {
@@ -447,7 +507,7 @@ func (service *HTTPRestService) updateIPConfigState(ipID string, updatedState ty
 		return ipConfig, nil
 	}
 
-	//nolint:goerr113
+	//nolint:goerr113 //legacy
 	return cns.IPConfigurationStatus{}, fmt.Errorf("[updateIPConfigState] Failed to update state %s for the IPConfig. ID %s not found PodIPConfigState", updatedState, ipID)
 }
 

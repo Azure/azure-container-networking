@@ -11,14 +11,16 @@ import (
 )
 
 func compareIPs(expected map[string]string, actual []string) error {
-	if len(expected) != len(actual) {
-		return errors.Errorf("len of expected IPs != len of actual IPs, expected: %+v, actual: %+v", expected, actual)
-	}
+	expectedLen := len(expected)
 
 	for _, ip := range actual {
 		if _, ok := expected[ip]; !ok {
 			return errors.Errorf("actual ip %s is unexpected, expected: %+v, actual: %+v", ip, expected, actual)
 		}
+		delete(expected, ip)
+	}
+	if expectedLen != len(actual) {
+		return errors.Errorf("len of expected IPs != len of actual IPs, expected: %+v, actual: %+v | Remaining, potentially leaked, IP(s) on state file - %v", expectedLen, len(actual), expected)
 	}
 
 	return nil

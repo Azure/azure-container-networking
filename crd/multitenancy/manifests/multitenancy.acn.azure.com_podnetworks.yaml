@@ -80,6 +80,7 @@ spec:
                 - Ready
                 - InUse
                 - SubnetNotDelegated
+                - SubnetDelegatedToDifferentService
                 type: string
             type: object
         type: object
