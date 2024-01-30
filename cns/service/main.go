@@ -37,7 +37,6 @@ import (
 	nncctrl "github.com/Azure/azure-container-networking/cns/kubecontroller/nodenetworkconfig"
 	podctrl "github.com/Azure/azure-container-networking/cns/kubecontroller/pod"
 	"github.com/Azure/azure-container-networking/cns/logger"
-	"github.com/Azure/azure-container-networking/cns/middlewares"
 	"github.com/Azure/azure-container-networking/cns/multitenantcontroller"
 	"github.com/Azure/azure-container-networking/cns/multitenantcontroller/multitenantoperator"
 	"github.com/Azure/azure-container-networking/cns/restserver"
@@ -790,11 +789,14 @@ func main() {
 			go platform.MonitorAndSetMellanoxRegKeyPriorityVLANTag(rootCtx, cnsconfig.MellanoxMonitorIntervalSecs)
 		}
 		// if swiftv2 scenario is enabled, we need to initialize the Service Fabric (standalone) swiftv2 middleware to process IP configs requests
-		if cnsconfig.EnableSwiftV2 {
-			if cnsconfig.SWIFTV2Mode == configuration.SFSWIFTV2 {
-				swiftV2Middleware := &middlewares.SFSWIFTv2Middleware{}
-				httpRestService.AttachIPConfigsHandlerMiddleware(swiftV2Middleware)
+		if cnsconfig.SWIFTV2Mode == configuration.SFSWIFTV2 {
+			cnsClient, err := cnsclient.New("", cnsReqTimeout)
+			if err != nil {
+				logger.Errorf("Failed to init cnsclient, err:%v.\n", err)
+				return
 			}
+			swiftV2Middleware := &restserver.SFSWIFTv2Middleware{CnsClient: cnsClient}
+			httpRestService.AttachIPConfigsHandlerMiddleware(swiftV2Middleware)
 		}
 	}
 
@@ -1220,7 +1222,7 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 
 	// check the Node labels for Swift V2
 	if _, ok := node.Labels[configuration.LabelNodeSwiftV2]; ok {
-		cnsconfig.EnableSwiftV2 = true
+		cnsconfig.SWIFTV2Mode = configuration.K8sSWIFTV2
 		cnsconfig.WatchPods = true
 		// TODO(rbtr): create the NodeInfo for Swift V2
 		// register the noop mtpnc reconciler to populate the cache
@@ -1383,17 +1385,14 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 		}
 	}
 
-	if cnsconfig.EnableSwiftV2 {
+	if cnsconfig.SWIFTV2Mode == configuration.K8sSWIFTV2 {
 		if err := mtpncctrl.SetupWithManager(manager); err != nil {
 			return errors.Wrapf(err, "failed to setup mtpnc reconciler with manager")
 		}
 		// if SWIFT v2 is enabled on CNS, attach multitenant middleware to rest service
 		// here for AKS(K8s) swiftv2 middleware to process IP configs requests
-		if cnsconfig.SWIFTV2Mode == configuration.K8sSWIFTV2 {
-			swiftV2Middleware := &middlewares.K8sSWIFTv2Middleware{Cli: manager.GetClient()}
-			httpRestService.AttachIPConfigsHandlerMiddleware(swiftV2Middleware)
-		}
-
+		swiftV2Middleware := &restserver.K8sSWIFTv2Middleware{Cli: manager.GetClient()}
+		httpRestService.AttachIPConfigsHandlerMiddleware(swiftV2Middleware)
 	}
 
 	// start the pool Monitor before the Reconciler, since it needs to be ready to receive an

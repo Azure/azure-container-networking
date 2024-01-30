@@ -2359,7 +2359,7 @@ func TestGetHTTPServiceData(t *testing.T) {
 		ctx     context.Context
 		mockdo  *mockdo
 		routes  map[string]url.URL
-		want    *restserver.GetHTTPServiceDataResponse
+		want    *cns.GetHTTPServiceDataResponse
 		wantErr bool
 	}{
 		{
@@ -2367,11 +2367,11 @@ func TestGetHTTPServiceData(t *testing.T) {
 			ctx:  context.TODO(),
 			mockdo: &mockdo{
 				errToReturn:            nil,
-				objToReturn:            &restserver.GetHTTPServiceDataResponse{},
+				objToReturn:            &cns.GetHTTPServiceDataResponse{},
 				httpStatusCodeToReturn: http.StatusOK,
 			},
 			routes:  emptyRoutes,
-			want:    &restserver.GetHTTPServiceDataResponse{},
+			want:    &cns.GetHTTPServiceDataResponse{},
 			wantErr: false,
 		},
 		{
@@ -2391,7 +2391,7 @@ func TestGetHTTPServiceData(t *testing.T) {
 			ctx:  context.TODO(),
 			mockdo: &mockdo{
 				errToReturn:            nil,
-				objToReturn:            []restserver.GetHTTPServiceDataResponse{},
+				objToReturn:            []cns.GetHTTPServiceDataResponse{},
 				httpStatusCodeToReturn: http.StatusOK,
 			},
 			routes:  emptyRoutes,
@@ -2415,8 +2415,8 @@ func TestGetHTTPServiceData(t *testing.T) {
 			ctx:  context.TODO(),
 			mockdo: &mockdo{
 				errToReturn: nil,
-				objToReturn: &restserver.GetHTTPServiceDataResponse{
-					Response: restserver.Response{
+				objToReturn: &cns.GetHTTPServiceDataResponse{
+					Response: cns.Response{
 						ReturnCode: types.UnsupportedNetworkType,
 					},
 				},

@@ -1,4 +1,4 @@
-package middlewares
+package restserver
 
 import (
 	"context"
@@ -7,30 +7,14 @@ import (
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/configuration"
-	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/middlewares/mock"
 	"github.com/Azure/azure-container-networking/cns/types"
 	"gotest.tools/v3/assert"
 )
 
 var (
-	testPod1GUID = "898fb8f1-f93e-4c96-9c31-6b89098949a3"
-	testPod1Info = cns.NewPodInfo("898fb8-eth0", testPod1GUID, "testpod1", "testpod1namespace")
-
-	testPod2GUID = "b21e1ee1-fb7e-4e6d-8c68-22ee5049944e"
-	testPod2Info = cns.NewPodInfo("b21e1e-eth0", testPod2GUID, "testpod2", "testpod2namespace")
-
-	testPod3GUID = "718e04ac-5a13-4dce-84b3-040accaa9b41"
-	testPod3Info = cns.NewPodInfo("718e04-eth0", testPod3GUID, "testpod3", "testpod3namespace")
-
-	testPod4GUID = "b21e1ee1-fb7e-4e6d-8c68-22ee5049944e"
 	testPod4Info = cns.NewPodInfo("b21e1e-eth0", testPod4GUID, "testpod4", "testpod4namespace")
 )
-
-func TestMain(m *testing.M) {
-	logger.InitLogger("testlogs", 0, 0, "./")
-	m.Run()
-}
 
 func TestIPConfigsRequestHandlerWrapperSuccess(t *testing.T) {
 	middleware := K8sSWIFTv2Middleware{Cli: mock.NewClient()}

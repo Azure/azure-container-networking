@@ -1,27 +1,18 @@
-package middlewares
+package restserver
 
 import (
 	"context"
 	"fmt"
 	"github.com/Azure/azure-container-networking/cns"
-	cnsclient "github.com/Azure/azure-container-networking/cns/client"
+	"github.com/Azure/azure-container-networking/cns/client"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/pkg/errors"
-	"time"
-)
-
-const (
-	contentTypeJSON   = "application/json"
-	headerContentType = "Content-Type"
-	cnsReqTimeout     = 15 * time.Second
 )
 
 type SFSWIFTv2Middleware struct {
+	CnsClient *client.Client
 }
-
-// Verify interface compliance at compile time
-var _ cns.IPConfigsHandlerMiddleware = (*SFSWIFTv2Middleware)(nil)
 
 // IPConfigsRequestHandlerWrapper is the middleware function for handling SWIFT v2 IP config requests for SF standalone scenario. This function wraps the default SWIFT request
 // and release IP configs handlers.
@@ -37,11 +28,14 @@ func (m *SFSWIFTv2Middleware) IPConfigsRequestHandlerWrapper(defaultHandler, fai
 				},
 			}, errors.New("failed to validate ip configs request")
 		}
-		ipConfigsResp, err := defaultHandler(ctx, req)
-		// If the pod is not v2, return the response from the handler
-		if !req.SecondaryInterfacesExist {
-			return ipConfigsResp, err
+		podInfo, err := cns.NewPodInfoFromIPConfigsRequest(*req)
+		ipConfigsResp := &cns.IPConfigsResponse{
+			Response: cns.Response{
+				ReturnCode: types.Success,
+			},
+			PodIPInfo: []cns.PodIpInfo{},
 		}
+
 		// If the pod is v2, get the infra IP configs from the handler first and then add the SWIFTv2 IP config
 		defer func() {
 			// Release the default IP config if there is an error
@@ -97,11 +91,8 @@ func (m *SFSWIFTv2Middleware) getIPConfig(ctx context.Context, podInfo cns.PodIn
 	if err != nil {
 		return cns.PodIpInfo{}, fmt.Errorf("error getting orchestrator context from PodInfo %w", err)
 	}
-	cnsClient, err := cnsclient.New("", cnsReqTimeout)
-	if err != nil {
-		return cns.PodIpInfo{}, fmt.Errorf("error initializing cnsclient %w", err)
-	}
-	resp, err := cnsClient.GetNetworkContainer(ctx, orchestratorContext)
+	// call getNC via CNSClient
+	resp, err := m.CnsClient.GetNetworkContainer(ctx, orchestratorContext)
 	if err != nil {
 		return cns.PodIpInfo{}, fmt.Errorf("error getNetworkContainerByOrchestrator Context %w", err)
 	}

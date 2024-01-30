@@ -30,7 +30,6 @@ var (
 
 // requestIPConfigHandlerHelper validates the request, assign IPs and return the IPConfigs
 func (service *HTTPRestService) requestIPConfigHandlerHelper(ctx context.Context, ipconfigsRequest *cns.IPConfigsRequest) (*cns.IPConfigsResponse, error) {
-	// For SWIFT v2 scenario, the validator function will also modify the ipconfigsRequest.
 	podInfo, returnCode, returnMessage := service.validateIPConfigsRequest(ctx, *ipconfigsRequest)
 	if returnCode != types.Success {
 		return &cns.IPConfigsResponse{
@@ -538,8 +537,8 @@ func (service *HTTPRestService) handleDebugRestData(w http.ResponseWriter, r *ht
 		http.Error(w, "not ready", http.StatusServiceUnavailable)
 		return
 	}
-	resp := GetHTTPServiceDataResponse{
-		HTTPRestServiceData: HTTPRestServiceData{
+	resp := cns.GetHTTPServiceDataResponse{
+		HTTPRestServiceData: cns.HTTPRestServiceData{
 			PodIPIDByPodInterfaceKey: service.PodIPIDByPodInterfaceKey,
 			PodIPConfigState:         service.PodIPConfigState,
 			IPAMPoolMonitor:          service.IPAMPoolMonitor.GetStateSnapshot(),
