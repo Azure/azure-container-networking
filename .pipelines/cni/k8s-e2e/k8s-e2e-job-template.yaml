@@ -126,7 +126,7 @@ jobs:
             name: DualStack
             clusterName: ${{ parameters.clusterName }}
             ginkgoFocus: '\[Feature:IPv6DualStack\]'
-            ginkgoSkip: 'SCTP|session affinity'
+            ginkgoSkip: 'SCTP|session affinity|should function for service endpoints using hostNetwork' # Cilium dualstack has a known issue with this test https://github.com/cilium/cilium/issues/25135
             os: ${{ parameters.os }}
             processes: 8
             attempts: 3
