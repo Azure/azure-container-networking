@@ -51,6 +51,7 @@ stages:
     jobs:
       - ${{if eq(parameters.hubbleEnabled, false)}}:
         - job: deploy_cilium_components
+          displayName: Deploy Cilium
           steps:
             - task: AzureCLI@1
               displayName: "Install Cilium, CNS, and ip-masq-agent"
@@ -87,7 +88,7 @@ stages:
                   kubectl get po -owide -A
       - ${{if eq(parameters.hubbleEnabled, true)}}:
         - job: deploy_cilium_components
-          displayName: deploy_cilium_components_hubble_enabled
+          displayName: Deploy Cilium with Hubble
           steps:
             - task: AzureCLI@1
               displayName: "Install Cilium, CNS, and ip-masq-agent"
