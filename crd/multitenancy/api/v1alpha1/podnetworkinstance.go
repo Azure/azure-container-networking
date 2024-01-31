@@ -47,8 +47,20 @@ type PodNetworkInstanceSpec struct {
 
 // PodNetworkInstanceStatus defines the observed state of PodNetworkInstance
 type PodNetworkInstanceStatus struct {
-	PodIPAddresses []string `json:"podIPAddresses,omitempty"`
+	PodIPAddresses []string  `json:"podIPAddresses,omitempty"`
+	Status         PNIStatus `json:"status,omitempty"`
 }
+
+// PNIStatus indicates the status of PNI
+// +kubebuilder:validation:Enum=Ready;CreateReservationSetError;PodNetworkNotReady;InsufficientIPAddressesOnSubnet
+type PNIStatus string
+
+const (
+	PNIStatusReady                           PNIStatus = "Ready"
+	PNIStatusCreateReservationSetError       PNIStatus = "CreateReservationSetError"
+	PNIStatusPodNetworkNotReady              PNIStatus = "PodNetworkNotReady"
+	PNIStatusInsufficientIPAddressesOnSubnet PNIStatus = "InsufficientIPAddressesOnSubnet"
+)
 
 func init() {
 	SchemeBuilder.Register(&PodNetworkInstance{}, &PodNetworkInstanceList{})
