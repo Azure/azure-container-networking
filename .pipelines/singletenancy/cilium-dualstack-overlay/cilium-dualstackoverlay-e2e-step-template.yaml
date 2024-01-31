@@ -40,8 +40,8 @@ steps:
         envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/daemonset.yaml | kubectl apply -f -
         envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/deployment.yaml | kubectl apply -f -
         # Use different file directories for nightly and current cilium version
-        kubectl apply -f test/integration/manifests/cilium/cilium${FILE_PATH}-agent
-        kubectl apply -f test/integration/manifests/cilium/cilium${FILE_PATH}-operator
+        kubectl apply -f test/integration/manifests/cilium/cilium-agent
+        kubectl apply -f test/integration/manifests/cilium/cilium-operator
         kubectl get po -owide -A
     name: "installCilium"
     displayName: "Install Cilium on AKS Overlay"
