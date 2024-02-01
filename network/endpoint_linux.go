@@ -533,7 +533,7 @@ func getDefaultGateway(routes []RouteInfo) net.IP {
 }
 
 // GetEndpointInfoByIPImpl returns an endpointInfo that contains corresponding HostVethName.
-// TODO: It needs to be tested to see if HostVethName is required for SingleTenancy
+// TODO: It needs to be tested to see if HostVethName is required for SingleTenancy, WorkItem: 26606939
 func (epInfo *EndpointInfo) GetEndpointInfoByIPImpl(_ []net.IPNet, _ string) (*EndpointInfo, error) {
 	return epInfo, nil
 }

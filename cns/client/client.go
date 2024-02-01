@@ -1024,20 +1024,11 @@ func (c *Client) GetHomeAz(ctx context.Context) (*cns.GetHomeAzResponse, error) 
 }
 
 // GetEndpoint calls the EndpointHandlerAPI in CNS to retrieve the state of a given EndpointID
-func (c *Client) GetEndpoint(ctx context.Context, endpointID, ifName string) (*restserver.GetEndpointResponse, error) {
+func (c *Client) GetEndpoint(ctx context.Context, endpointID string) (*restserver.GetEndpointResponse, error) {
 	// build the request
-	getEndpoint := cns.EndpointRequest{
-		IFName: ifName,
-	}
-	var body bytes.Buffer
-
-	if err := json.NewEncoder(&body).Encode(getEndpoint); err != nil {
-		return nil, errors.Wrap(err, "failed to encode getEndpoint")
-	}
-
 	u := c.routes[cns.EndpointAPI]
 	uString := u.String() + endpointID
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, uString, &body)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, uString, http.NoBody)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to build request")
 	}
@@ -1068,12 +1059,11 @@ func (c *Client) GetEndpoint(ctx context.Context, endpointID, ifName string) (*r
 
 // UpdateEndpoint calls the EndpointHandlerAPI in CNS
 // to update the state of a given EndpointID with either HNSEndpointID or HostVethName
-func (c *Client) UpdateEndpoint(ctx context.Context, endpointID, hnsID, vethName, ifName string) (*cns.Response, error) {
+func (c *Client) UpdateEndpoint(ctx context.Context, endpointID, hnsID, vethName string) (*cns.Response, error) {
 	// build the request
 	updateEndpoint := cns.EndpointRequest{
 		HnsEndpointID: hnsID,
 		HostVethName:  vethName,
-		IFName:        ifName,
 	}
 	var body bytes.Buffer
 

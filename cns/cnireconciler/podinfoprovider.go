@@ -15,12 +15,11 @@ import (
 	"k8s.io/utils/exec"
 )
 
-const InterfaceName = "eth0"
-
 // NewCNIPodInfoProvider returns an implementation of cns.PodInfoByIPProvider
 // that execs out to the CNI and uses the response to build the PodInfo map.
-func NewCNIPodInfoProvider() (cns.PodInfoByIPProvider, map[string]*restserver.EndpointInfo, error) {
-	return newCNIPodInfoProvider(exec.New())
+// if stateMigration flag is set to true it will also returns a map of containerID->EndpointInfo
+func NewCNIPodInfoProvider(stateMigration bool) (cns.PodInfoByIPProvider, map[string]*restserver.EndpointInfo, error) {
+	return newCNIPodInfoProvider(exec.New(), stateMigration)
 }
 
 func NewCNSPodInfoProvider(endpointStore store.KeyValueStore) (cns.PodInfoByIPProvider, error) {
@@ -44,7 +43,7 @@ func newCNSPodInfoProvider(endpointStore store.KeyValueStore) (cns.PodInfoByIPPr
 	}), nil
 }
 
-func newCNIPodInfoProvider(exc exec.Interface) (cns.PodInfoByIPProvider, map[string]*restserver.EndpointInfo, error) {
+func newCNIPodInfoProvider(exc exec.Interface, stateMigration bool) (cns.PodInfoByIPProvider, map[string]*restserver.EndpointInfo, error) {
 	cli := client.New(exc)
 	state, err := cli.GetEndpointState()
 	if err != nil {
@@ -54,7 +53,11 @@ func newCNIPodInfoProvider(exc exec.Interface) (cns.PodInfoByIPProvider, map[str
 		logger.Printf("state dump from CNI: [%+v], [%+v]", containerID, endpointInfo)
 	}
 	var endpointState map[string]*restserver.EndpointInfo
-	endpointState, err = cniStateToCnsEndpointState(state)
+	if stateMigration {
+		endpointState, err = cniStateToCnsEndpointState(state)
+	} else {
+		endpointState = nil
+	}
 	return cns.PodInfoByIPProviderFunc(func() (map[string]cns.PodInfo, error) {
 		return cniStateToPodInfoByIP(state)
 	}), endpointState, err
@@ -152,7 +155,7 @@ func cniStateToCnsEndpointState(state *api.AzureCNIState) (map[string]*restserve
 
 // extractEndpointInfo extract Interface Name and endpointID for each endpoint based the CNI state
 func extractEndpointInfo(epID, containerID string) (endpointID, interfaceName string) {
-	ifName := InterfaceName
+	ifName := restserver.InterfaceName
 	if strings.Contains(epID, "-eth") {
 		ifName = epID[len(epID)-4:]
 	}

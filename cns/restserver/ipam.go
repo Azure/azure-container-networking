@@ -30,7 +30,10 @@ var (
 	ErrExistingIpconfigFound  = errors.New("Found existing ipconfig for infra container")
 )
 
-const ContainerIDLength = 8
+const (
+	ContainerIDLength = 8
+	InterfaceName     = "eth0"
+)
 
 // requestIPConfigHandlerHelper validates the request, assign IPs and return the IPConfigs
 func (service *HTTPRestService) requestIPConfigHandlerHelper(ctx context.Context, ipconfigsRequest cns.IPConfigsRequest) (*cns.IPConfigsResponse, error) {
@@ -1011,22 +1014,9 @@ func (service *HTTPRestService) EndpointHandlerAPI(w http.ResponseWriter, r *htt
 // GetEndpointHandler handles the incoming GetEndpoint requests with http Get method
 func (service *HTTPRestService) GetEndpointHandler(w http.ResponseWriter, r *http.Request) {
 	logger.Printf("[GetEndpointState] GetEndpoint for %s", r.URL.Path)
-	var req cns.EndpointRequest
-	err := service.Listener.Decode(w, r, &req)
 	endpointID := strings.TrimPrefix(r.URL.Path, cns.EndpointPath)
-	logger.Request(service.Name, &req, err)
+	endpointInfo, err := service.GetEndpointHelper(endpointID)
 	// Check if the request is valid
-	if err != nil || req.IFName == "" {
-		response := cns.Response{
-			ReturnCode: types.InvalidRequest,
-			Message:    fmt.Sprintf("[getEndpoint] getEndpoint failed with error: %s", err.Error()),
-		}
-		w.Header().Set(cnsReturnCode, response.ReturnCode.String())
-		err = service.Listener.Encode(w, &response)
-		logger.Response(service.Name, response, response.ReturnCode, err)
-		return
-	}
-	endpointInfo, err := service.GetEndpointHelper(endpointID, req)
 	if err != nil {
 		response := GetEndpointResponse{
 			Response: Response{
@@ -1060,7 +1050,7 @@ func (service *HTTPRestService) GetEndpointHandler(w http.ResponseWriter, r *htt
 }
 
 // GetEndpointHelper returns the state of the given endpointId
-func (service *HTTPRestService) GetEndpointHelper(endpointID string, req cns.EndpointRequest) (*EndpointInfo, error) {
+func (service *HTTPRestService) GetEndpointHelper(endpointID string) (*EndpointInfo, error) {
 	logger.Printf("[GetEndpointState] Get endpoint state for infra container %s", endpointID)
 
 	// Skip if a store is not provided.
@@ -1084,7 +1074,7 @@ func (service *HTTPRestService) GetEndpointHelper(endpointID string, req cns.End
 		logger.Warnf("[GetEndpointState] Found existing endpoint state for container %s", endpointID)
 		return endpointInfo, nil
 	}
-	legacyEndpointID := endpointID[:ContainerIDLength] + "-" + req.IFName
+	legacyEndpointID := endpointID[:ContainerIDLength] + "-" + InterfaceName
 	if endpointInfo, ok := service.EndpointState[legacyEndpointID]; ok {
 		logger.Warnf("[GetEndpointState] Found existing endpoint state for container %s", legacyEndpointID)
 		return endpointInfo, nil

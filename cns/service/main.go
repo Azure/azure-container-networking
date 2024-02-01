@@ -1241,7 +1241,7 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 
 	case cnsconfig.InitializeFromCNI:
 		logger.Printf("Initializing from CNI")
-		podInfoByIPProvider, _, err = cnireconciler.NewCNIPodInfoProvider()
+		podInfoByIPProvider, _, err = cnireconciler.NewCNIPodInfoProvider(false)
 		if err != nil {
 			return errors.Wrap(err, "failed to create CNI PodInfoProvider")
 		}
@@ -1525,7 +1525,7 @@ func InitializeStateFromCNS(cnsconfig *configuration.CNSConfig, endpointStateSto
 				logger.Printf("StatelessCNI Migration is enabled")
 				logger.Printf("initializing from Statefull CNI")
 				var endpointState map[string]*restserver.EndpointInfo
-				podInfoByIPProvider, endpointState, err = cnireconciler.NewCNIPodInfoProvider()
+				podInfoByIPProvider, endpointState, err = cnireconciler.NewCNIPodInfoProvider(cnsconfig.StatelessCNIMigration)
 				if err != nil {
 					return nil, errors.Wrap(err, "failed to create CNI PodInfoProvider")
 				}

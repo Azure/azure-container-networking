@@ -357,7 +357,7 @@ func (plugin *netPlugin) endpointOperInfo(w http.ResponseWriter, r *http.Request
 	}
 
 	// Process request.
-	epInfo, err := plugin.nm.GetEndpointInfo(req.NetworkID, req.EndpointID, "")
+	epInfo, err := plugin.nm.GetEndpointInfo(req.NetworkID, req.EndpointID)
 	if err != nil {
 		plugin.SendErrorResponse(w, err)
 		return

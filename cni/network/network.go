@@ -889,7 +889,7 @@ func (plugin *NetPlugin) Get(args *cniSkel.CmdArgs) error {
 	}
 
 	// Query the endpoint.
-	if epInfo, err = plugin.nm.GetEndpointInfo(networkID, endpointID, args.IfName); err != nil {
+	if epInfo, err = plugin.nm.GetEndpointInfo(networkID, endpointID); err != nil {
 		logger.Error("Failed to query endpoint", zap.Error(err))
 		return err
 	}
@@ -1051,7 +1051,7 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 
 		endpointID := plugin.nm.GetEndpointID(args.ContainerID, args.IfName)
 		// Query the endpoint.
-		if epInfo, err = plugin.nm.GetEndpointInfo(networkID, endpointID, args.IfName); err != nil {
+		if epInfo, err = plugin.nm.GetEndpointInfo(networkID, endpointID); err != nil {
 			logger.Info("GetEndpoint",
 				zap.String("endpoint", endpointID),
 				zap.Error(err))

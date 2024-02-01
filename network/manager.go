@@ -101,7 +101,7 @@ type NetworkManager interface {
 
 	CreateEndpoint(client apipaClient, networkID string, epInfo []*EndpointInfo) error
 	DeleteEndpoint(networkID string, endpointID string, epInfo *EndpointInfo) error
-	GetEndpointInfo(networkID string, endpointID string, ifName string) (*EndpointInfo, error)
+	GetEndpointInfo(networkID string, endpointID string) (*EndpointInfo, error)
 	GetAllEndpoints(networkID string) (map[string]*EndpointInfo, error)
 	GetEndpointInfoBasedOnPODDetails(networkID string, podName string, podNameSpace string, doExactMatchForPodName bool) (*EndpointInfo, error)
 	AttachEndpoint(networkID string, endpointID string, sandboxKey string) (*endpoint, error)
@@ -412,7 +412,7 @@ func (nm *networkManager) CreateEndpoint(cli apipaClient, networkID string, epIn
 // It will add HNSEndpointID or HostVeth name to the endpoint state
 func (nm *networkManager) UpdateEndpointState(ep *endpoint) error {
 	logger.Info("Calling cns updateEndpoint API with ", zap.String("containerID: ", ep.ContainerID), zap.String("HnsId: ", ep.HnsId), zap.String("HostIfName: ", ep.HostIfName))
-	response, err := nm.CnsClient.UpdateEndpoint(context.TODO(), ep.ContainerID, ep.HnsId, ep.HostIfName, ep.IfName)
+	response, err := nm.CnsClient.UpdateEndpoint(context.TODO(), ep.ContainerID, ep.HnsId, ep.HostIfName)
 	if err != nil {
 		return errors.Wrapf(err, "Update endpoint API returend with error")
 	}
@@ -421,8 +421,9 @@ func (nm *networkManager) UpdateEndpointState(ep *endpoint) error {
 }
 
 // GetEndpointState will make a call to CNS GetEndpointState API in the stateless CNI mode to fetch the endpointInfo
-func (nm *networkManager) GetEndpointState(networkID, endpointID, ifName string) (*EndpointInfo, error) {
-	endpointResponse, err := nm.CnsClient.GetEndpoint(context.TODO(), endpointID, ifName)
+// TODO unit tests need to be added, WorkItem: 26606939
+func (nm *networkManager) GetEndpointState(networkID, endpointID string) (*EndpointInfo, error) {
+	endpointResponse, err := nm.CnsClient.GetEndpoint(context.TODO(), endpointID)
 	if err != nil {
 		return nil, errors.Wrapf(err, "Get endpoint API returend with error")
 	}
@@ -507,13 +508,13 @@ func (nm *networkManager) DeleteEndpointState(networkID string, epInfo *Endpoint
 }
 
 // GetEndpointInfo returns information about the given endpoint.
-func (nm *networkManager) GetEndpointInfo(networkID, endpointID, ifName string) (*EndpointInfo, error) {
+func (nm *networkManager) GetEndpointInfo(networkID, endpointID string) (*EndpointInfo, error) {
 	nm.Lock()
 	defer nm.Unlock()
 
 	if nm.IsStatelessCNIMode() {
 		logger.Info("calling cns getEndpoint API")
-		epInfo, err := nm.GetEndpointState(networkID, endpointID, ifName)
+		epInfo, err := nm.GetEndpointState(networkID, endpointID)
 
 		return epInfo, err
 	}

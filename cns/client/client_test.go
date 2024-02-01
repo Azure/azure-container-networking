@@ -2777,14 +2777,12 @@ func TestUpdateEndpoint(t *testing.T) {
 		containerID string
 		hnsID       string
 		vethName    string
-		ifName      string
 		response    *RequestCapture
 		expReq      *cns.EndpointRequest
 		shouldErr   bool
 	}{
 		{
 			"empty",
-			"",
 			"",
 			"",
 			"",
@@ -2799,7 +2797,6 @@ func TestUpdateEndpoint(t *testing.T) {
 			"foo",
 			"bar",
 			"",
-			"too",
 			&RequestCapture{
 				Next: &mockdo{
 					httpStatusCodeToReturn: http.StatusOK,
@@ -2807,7 +2804,6 @@ func TestUpdateEndpoint(t *testing.T) {
 			},
 			&cns.EndpointRequest{
 				HnsEndpointID: "bar",
-				IFName:        "too",
 			},
 			false,
 		},
@@ -2816,7 +2812,6 @@ func TestUpdateEndpoint(t *testing.T) {
 			"foo",
 			"",
 			"bar",
-			"too",
 			&RequestCapture{
 				Next: &mockdo{
 					httpStatusCodeToReturn: http.StatusOK,
@@ -2824,7 +2819,6 @@ func TestUpdateEndpoint(t *testing.T) {
 			},
 			&cns.EndpointRequest{
 				HostVethName: "bar",
-				IFName:       "too",
 			},
 			false,
 		},
@@ -2833,7 +2827,6 @@ func TestUpdateEndpoint(t *testing.T) {
 			"foo",
 			"",
 			"bar",
-			"",
 			&RequestCapture{
 				Next: &mockdo{
 					httpStatusCodeToReturn: http.StatusBadRequest,
@@ -2858,7 +2851,7 @@ func TestUpdateEndpoint(t *testing.T) {
 			}
 
 			// execute the method under test
-			res, err := client.UpdateEndpoint(context.TODO(), test.containerID, test.hnsID, test.vethName, test.ifName)
+			res, err := client.UpdateEndpoint(context.TODO(), test.containerID, test.hnsID, test.vethName)
 			if err != nil && !test.shouldErr {
 				t.Fatal("unexpected error: err: ", err, res.Message)
 			}
@@ -2904,13 +2897,11 @@ func TestGetEndpoint(t *testing.T) {
 	getEndpointTests := []struct {
 		name        string
 		containerID string
-		ifName      string
 		response    *RequestCapture
 		shouldErr   bool
 	}{
 		{
 			"empty",
-			"",
 			"",
 			&RequestCapture{
 				Next: &mockdo{},
@@ -2919,7 +2910,6 @@ func TestGetEndpoint(t *testing.T) {
 		},
 		{
 			"with EndpointID",
-			"foo",
 			"foo",
 			&RequestCapture{
 				Next: &mockdo{
@@ -2930,7 +2920,6 @@ func TestGetEndpoint(t *testing.T) {
 		},
 		{
 			"Bad Request",
-			"foo",
 			"foo",
 			&RequestCapture{
 				Next: &mockdo{
@@ -2953,7 +2942,7 @@ func TestGetEndpoint(t *testing.T) {
 			}
 
 			// execute the method under test
-			res, err := client.GetEndpoint(context.TODO(), test.containerID, test.ifName)
+			res, err := client.GetEndpoint(context.TODO(), test.containerID)
 			if err != nil && !test.shouldErr {
 				t.Fatal("unexpected error: err: ", err, res.Response.Message)
 			}
