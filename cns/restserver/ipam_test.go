@@ -6,6 +6,12 @@ package restserver
 import (
 	"context"
 	"fmt"
+
+	"net"
+	"net/netip"
+	"strconv"
+	"testing"
+
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/common"
 	"github.com/Azure/azure-container-networking/cns/configuration"
@@ -16,17 +22,11 @@ import (
 	"github.com/Azure/azure-container-networking/store"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
-	"net"
-	"net/netip"
-	"strconv"
-	"testing"
 )
 
 var (
 	testNCID   = "06867cf3-332d-409d-8819-ed70d2c116b0"
-	testNCID2  = "131b26ff-11d2-45ab-9eef-c8a041c380dd"
 	testNCIDv6 = "a69b9217-3d89-4b73-a052-1e8baa453cb0"
-	testMAC    = "00:22:c4:26:64:d2"
 
 	ipPrefixBitsv4 = uint8(24)
 	ipPrefixBitsv6 = uint8(120)

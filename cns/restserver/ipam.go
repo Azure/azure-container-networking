@@ -190,7 +190,9 @@ func (service *HTTPRestService) requestIPConfigsHandler(w http.ResponseWriter, r
 }
 
 func (service *HTTPRestService) updatePodInfoWithInterfaces(ctx context.Context, ipconfigResponse *cns.IPConfigsResponse) (*cns.IPConfigsResponse, error) {
+	var podIpInfoList []cns.PodIpInfo
 	for _, podIpInfo := range ipconfigResponse.PodIPInfo {
+		// populating podIpInfo with primary & secondary interface info & updating IpConfigsResponse
 		hostPrimaryInterface, err := service.getPrimaryHostInterface(ctx)
 		if err != nil {
 			return &cns.IPConfigsResponse{}, err
@@ -213,10 +215,14 @@ func (service *HTTPRestService) updatePodInfoWithInterfaces(ctx context.Context,
 				SecondaryIP: hostSecondaryInterface.SecondaryIPs[0],
 				Subnet:      hostSecondaryInterface.Subnet,
 			}
-	}
 
+		podIpInfoList = append(podIpInfoList, podIpInfo)
+
+	}
+	ipconfigResponse.PodIPInfo = podIpInfoList
 	return ipconfigResponse, nil
 }
+
 func (service *HTTPRestService) updateEndpointState(ipconfigsRequest cns.IPConfigsRequest, podInfo cns.PodInfo, podIPInfo []cns.PodIpInfo) error {
 	if service.EndpointStateStore == nil {
 		return ErrStoreEmpty
