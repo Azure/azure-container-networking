@@ -108,6 +108,7 @@ steps:
       # Deleting echo-external-node deployment until cilium version matches TODO. https://github.com/cilium/cilium-cli/issues/67 is addressing the change.
       # Saves 17 minutes
       kubectl delete deploy -n cilium-test echo-external-node
+      cd test/integration/load
       CNI_TYPE=cilium_dualstack go test -timeout 30m -tags load -run ^TestValidateState$
       echo "delete cilium connectivity test resources and re-validate state"
       kubectl delete ns cilium-test
@@ -119,6 +120,8 @@ steps:
   - script: |
       echo "validate pod IP assignment before CNS restart"
       kubectl get pod -owide -A
+      echo "validate pod state before CNS restarts"
+      cd test/integration/load
       CNI_TYPE=cilium_dualstack go test -timeout 30m -tags load -run ^TestValidateState$
       echo "restart CNS"
       kubectl rollout restart ds azure-cns -n kube-system
