@@ -190,36 +190,35 @@ func (service *HTTPRestService) requestIPConfigsHandler(w http.ResponseWriter, r
 }
 
 func (service *HTTPRestService) updatePodInfoWithInterfaces(ctx context.Context, ipconfigResponse *cns.IPConfigsResponse) (*cns.IPConfigsResponse, error) {
-	var podIpInfoList []cns.PodIpInfo
-	for _, podIpInfo := range ipconfigResponse.PodIPInfo {
+	podIPInfoList := make([]cns.PodIpInfo, 0, len(ipconfigResponse.PodIPInfo))
+	for i := range ipconfigResponse.PodIPInfo {
 		// populating podIpInfo with primary & secondary interface info & updating IpConfigsResponse
 		hostPrimaryInterface, err := service.getPrimaryHostInterface(ctx)
 		if err != nil {
 			return &cns.IPConfigsResponse{}, err
 		}
 
-		hostSecondaryInterface, err := service.getSecondaryHostInterface(ctx, podIpInfo.MacAddress)
+		hostSecondaryInterface, err := service.getSecondaryHostInterface(ctx, ipconfigResponse.PodIPInfo[i].MacAddress)
 		if err != nil {
 			return &cns.IPConfigsResponse{}, err
 		}
 
-		podIpInfo.HostPrimaryIPInfo =
-			cns.HostIPInfo{
-				Gateway:   hostPrimaryInterface.Gateway,
-				PrimaryIP: hostPrimaryInterface.PrimaryIP,
-				Subnet:    hostPrimaryInterface.Subnet,
-			}
-		podIpInfo.HostSecondaryIPInfo =
-			cns.HostIPInfo{
-				Gateway:     hostSecondaryInterface.Gateway,
-				SecondaryIP: hostSecondaryInterface.SecondaryIPs[0],
-				Subnet:      hostSecondaryInterface.Subnet,
-			}
+		ipconfigResponse.PodIPInfo[i].HostPrimaryIPInfo = cns.HostIPInfo{
+			Gateway:   hostPrimaryInterface.Gateway,
+			PrimaryIP: hostPrimaryInterface.PrimaryIP,
+			Subnet:    hostPrimaryInterface.Subnet,
+		}
 
-		podIpInfoList = append(podIpInfoList, podIpInfo)
+		ipconfigResponse.PodIPInfo[i].HostSecondaryIPInfo = cns.HostIPInfo{
+			Gateway:     hostSecondaryInterface.Gateway,
+			SecondaryIP: hostSecondaryInterface.SecondaryIPs[0],
+			Subnet:      hostSecondaryInterface.Subnet,
+		}
+
+		podIPInfoList = append(podIPInfoList, ipconfigResponse.PodIPInfo[i])
 
 	}
-	ipconfigResponse.PodIPInfo = podIpInfoList
+	ipconfigResponse.PodIPInfo = podIPInfoList
 	return ipconfigResponse, nil
 }
 

@@ -2,13 +2,14 @@ package restserver
 
 import (
 	"context"
+	"testing"
+	"time"
+
 	"github.com/Azure/azure-container-networking/cns"
 	cnsclient "github.com/Azure/azure-container-networking/cns/client"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/types"
 	"gotest.tools/v3/assert"
-	"testing"
-	"time"
 )
 
 func TestValidateSFIPConfigsRequestSuccess(t *testing.T) {
