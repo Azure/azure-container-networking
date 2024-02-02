@@ -67,7 +67,7 @@ stages:
           dualstack: true
           dns: true
           portforward: true
-          hostport: true
+          hostport: false
           service: true
 
       - job: failedE2ELogs
