@@ -54,7 +54,6 @@ stages:
           - template: cilium-dualstackoverlay-e2e-step-template.yaml
             parameters:
               name: ${{ parameters.name }}
-              testDropgz: ${{ parameters.testDropgz }}
               clusterName: ${{ parameters.clusterName }}-$(commitID)
 
       - template: ../../cni/k8s-e2e/k8s-e2e-job-template.yaml
@@ -67,7 +66,6 @@ stages:
           dualstack: true
           dns: true
           portforward: true
-          hostport: false
           service: true
 
       - job: failedE2ELogs
