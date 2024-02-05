@@ -107,13 +107,13 @@ stages:
                   kubectl get po -owide -A
 
                   echo "deploy Cilium ConfigMap"
-                  kubectl apply -f test/integration/manifests/cilium/v${CILIUM_HUBBLE_VERSION_TAG}/cilium-config/cilium-config-hubble.yaml
+                  kubectl apply -f test/integration/manifests/cilium/v1.14.4/cilium-config/cilium-config-hubble.yaml
                   
                   echo "install Cilium onto Overlay Cluster with hubble enabled"
                   kubectl apply -f test/integration/manifests/cilium/v1.14.4/cilium-agent/files
                   kubectl apply -f test/integration/manifests/cilium/v1.14.4/cilium-operator/files
                   
-                  echo "install Cilium ${CILIUM_HUBBLE_VERSION_TAG} onto Overlay Cluster"
+                  echo "install Cilium v1.14.4 onto Overlay Cluster"
                   # Passes Cilium image to daemonset and deployment
                   envsubst '${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/v1.14.4/cilium-agent/templates/daemonset.tpl | kubectl apply -f -
                   envsubst '${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/v1.14.4/cilium-operator/templates/deployment.tpl | kubectl apply -f -
