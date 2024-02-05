@@ -790,7 +790,7 @@ func main() {
 		}
 		// if swiftv2 scenario is enabled, we need to initialize the Service Fabric (standalone) swiftv2 middleware to process IP configs requests
 		if cnsconfig.SWIFTV2Mode == configuration.SFSWIFTV2 {
-			cnsClient, err := cnsclient.New("", cnsReqTimeout)
+			cnsClient, err := cnsclient.New("", cnsReqTimeout) //nolint:govet // shadow ok as function returns in above errs
 			if err != nil {
 				logger.Errorf("Failed to init cnsclient, err:%v.\n", err)
 				return
