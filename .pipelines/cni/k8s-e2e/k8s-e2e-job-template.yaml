@@ -133,7 +133,7 @@ jobs:
       - ${{ if and( eq(parameters.dualstack, true), contains(parameters.cni, 'cilium') ) }}:
         - template: ../k8s-e2e/k8s-e2e-step-template.yaml
           parameters:
-            testName: DualStack Test
+            testName: DualStack Test|Cilium
             name: DualStack
             clusterName: ${{ parameters.clusterName }}
             ginkgoFocus: '\[Feature:IPv6DualStack\]'
