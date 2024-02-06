@@ -327,7 +327,7 @@ func (nm *networkManager) configureHcnNetwork(nwInfo *NetworkInfo, extIf *extern
 
 func (nm *networkManager) addIPv6DefaultRoute() error {
 	// add ipv6 default route if it does not exist in dualstack overlay windows node from persistentstore
-	getIpv6IfIndexCmd := `((Get-NetIPInterface | where InterfaceAlias  -Like "vEthernet*").IfIndex)[0]`
+	getIpv6IfIndexCmd := `((Get-NetIPInterface | where InterfaceAlias -Like "vEthernet*").IfIndex)[0]`
 	ifIndex, err := nm.plClient.ExecutePowershellCommand(getIpv6IfIndexCmd)
 	if err != nil {
 		return errors.Wrap(err, "error while executing powershell command to get ipv6 Hyper-V interface")
@@ -393,6 +393,7 @@ func (nm *networkManager) newNetworkImplHnsV2(nwInfo *NetworkInfo, extIf *extern
 		logger.Info("Network with name already exists", zap.String("name", hcnNetwork.Name))
 	}
 
+	logger.Info("extIf is", zap.Any("extIf", extIf))
 	// check if ipv6 default gateway route is missing before windows endpoint creation
 	if len(nwInfo.Subnets) == numDualStackSubnet {
 		if err = nm.addIPv6DefaultRoute(); err != nil {
