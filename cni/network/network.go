@@ -79,7 +79,14 @@ type NetPlugin struct {
 	tb                 *telemetry.TelemetryBuffer
 	nnsClient          NnsClient
 	multitenancyClient MultitenancyClient
-	interfaceUsage     map[string]string // save master interfaces that are being used; key is ipnet, value is ifName
+}
+
+// save secondary interface usage with ipNet and macAddress properties
+var SecondaryInterfaces map[string]SecondaryInterfaceProperty
+
+type SecondaryInterfaceProperty struct {
+	ipNet      string
+	macAddress string
 }
 
 type PolicyArgs struct {

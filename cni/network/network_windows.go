@@ -157,13 +157,6 @@ func (plugin *NetPlugin) getNetworkName(netNs string, ipamAddResult *IPAMAddResu
 		return nwCfg.Name, nil
 	}
 
-<<<<<<< HEAD
-	// if it's swiftv2 L1VH, then use "azure-macAddres" format networkName
-=======
-	logger.Info("ipamAddResult.secondaryInterfacesInfo[0]", zap.Any("secondaryInterfacesInfo", ipamAddResult.secondaryInterfacesInfo[0]))
-	logger.Info("ipamAddResult.secondaryInterfacesInfo[0].MacAddress.String()", zap.Any("macAddress", ipamAddResult.secondaryInterfacesInfo[0].MacAddress.String()))
-	// if it's swiftv2 secondaryInterfaceNIC, then use "azure-macAddres" format networkName
->>>>>>> 23cfce43 (fix cni deletion call)
 	// swiftv2NetworkName will look like ~ azure-01:23:ab:f4:ac:95
 	if ipamAddResult != nil && hasSecondaryInterfaceNIC {
 		swiftv2NetworkName := "azure-" + ipamAddResult.secondaryInterfacesInfo[0].MacAddress.String()
