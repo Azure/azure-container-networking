@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"reflect"
 	"strconv"
 	"strings"
 
@@ -170,7 +171,7 @@ func (service *HTTPRestService) requestIPConfigsHandler(w http.ResponseWriter, r
 		// Wrap the default datapath handlers with the middleware
 		wrappedHandler := service.IPConfigsHandlerMiddleware.IPConfigsRequestHandlerWrapper(service.requestIPConfigHandlerHelper, service.releaseIPConfigHandlerHelper)
 		ipConfigsResp, err = wrappedHandler(r.Context(), &ipconfigsRequest)
-		if ipconfigsRequest.AddInterfacesDataToResponse {
+		if reflect.DeepEqual(ipConfigsResp.PodIPInfo[0].HostPrimaryIPInfo, cns.HostIPInfo{}) || reflect.DeepEqual(ipConfigsResp.PodIPInfo[0].HostSecondaryIPInfo, cns.HostIPInfo{}) {
 			ipConfigsResp, err = service.updatePodInfoWithInterfaces(r.Context(), ipConfigsResp)
 		}
 	} else {

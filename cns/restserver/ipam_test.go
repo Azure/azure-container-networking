@@ -6,16 +6,18 @@ package restserver
 import (
 	"context"
 	"fmt"
-
 	"net"
 	"net/netip"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/Azure/azure-container-networking/cns"
+	cnsclient "github.com/Azure/azure-container-networking/cns/client"
 	"github.com/Azure/azure-container-networking/cns/common"
 	"github.com/Azure/azure-container-networking/cns/configuration"
 	"github.com/Azure/azure-container-networking/cns/fakes"
+	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/middlewares/mock"
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
@@ -1718,169 +1720,26 @@ func TestIPAMGetK8sSWIFTv2IPFailure(t *testing.T) {
 	}
 }
 
-//
-//func TestIPAMGetSFSWIFTv2IPSuccess(t *testing.T) {
-//	req := cns.IPConfigsRequest{
-//		PodInterfaceID:   testPod1Info.InterfaceID(),
-//		InfraContainerID: testPod1Info.InfraContainerID(),
-//	}
-//	b, _ := testPod1Info.OrchestratorContext()
-//	req.OrchestratorContext = b
-//
-//	svc := getTestServiceSF()
-//	ncResponse := cns.GetNetworkContainerResponse{
-//		NetworkContainerID:         testNCID,
-//		PrimaryInterfaceIdentifier: "10.0.0.1",
-//		LocalIPConfiguration: cns.IPConfiguration{
-//			IPSubnet: cns.IPSubnet{
-//				IPAddress:    "10.0.0.5",
-//				PrefixLength: 16,
-//			},
-//			GatewayIPAddress: "5.5.5.5",
-//		},
-//		IPConfiguration: cns.IPConfiguration{
-//			IPSubnet: cns.IPSubnet{
-//				IPAddress:    testIP2,
-//				PrefixLength: 16,
-//			},
-//			DNSServers:       nil,
-//			GatewayIPAddress: "10.1.0.1",
-//		},
-//		NetworkInterfaceInfo: cns.NetworkInterfaceInfo{NICType: cns.DelegatedVMNIC, MACAddress: testMAC},
-//		Routes: []cns.Route{
-//			{
-//				IPAddress:        "10.1.0.0/16",
-//				GatewayIPAddress: "10.1.0.1",
-//			},
-//		},
-//	}
-//	cx := ClientMockCNSSF{getNetworkContainerConfiguration: getNetworkContainerConfigurationHandler{
-//		orchestratorContext: b,
-//		returnResponse:      &ncResponse,
-//		err:                 nil,
-//	}}
-//	//cnsClient, err := cnsclient.New("", 15*time.Second)
-//	//if err != nil {
-//	//	logger.Errorf("Failed to init cnsclient, err:%v.\n", err)
-//	//	return
-//	//}
-//	middleware := SFSWIFTv2Middleware{CnsCli: &cx}
-//
-//	svc.AttachIPConfigsHandlerMiddleware(&middleware)
-//
-//	// prepare cns state file population
-//	//svc.state.OrchestratorType = cns.ServiceFabric
-//	//svc.state.ContainerStatus = make(map[string]containerstatus)
-//	//svc.state.ContainerStatus[testNCID] = containerstatus{
-//	//	ID:          testNCID,
-//	//	VMVersion:   "0",
-//	//	HostVersion: "0",
-//	//	CreateNetworkContainerRequest: cns.CreateNetworkContainerRequest{
-//	//		NetworkContainerid:         testNCID,
-//	//		PrimaryInterfaceIdentifier: testIP1,
-//	//		IPConfiguration: cns.IPConfiguration{
-//	//			IPSubnet: cns.IPSubnet{
-//	//				IPAddress:    testIP2,
-//	//				PrefixLength: 24,
-//	//			},
-//	//		},
-//	//		OrchestratorContext: b,
-//	//		NetworkInterfaceInfo: cns.NetworkInterfaceInfo{
-//	//			NICType:    cns.DelegatedVMNIC,
-//	//			MACAddress: testMAC,
-//	//		},
-//	//		NetworkContainerType: cns.AzureContainerInstance,
-//	//	},
-//	//}
-//
-//	wrappedHandler := svc.IPConfigsHandlerMiddleware.IPConfigsRequestHandlerWrapper(svc.requestIPConfigHandlerHelper, svc.releaseIPConfigHandlerHelper)
-//	resp, err := wrappedHandler(context.TODO(), &req)
-//	if err != nil {
-//		t.Fatalf("Expected to not fail requesting IPs: %+v", err)
-//	}
-//	podIPInfo := resp.PodIPInfo
-//
-//	// Asserting that SWIFT v2 IP is returned
-//	assert.Equal(t, testIP2, podIPInfo[0].PodIPConfig.IPAddress)
-//	assert.Equal(t, testMAC, podIPInfo[0].MacAddress)
-//	assert.Equal(t, cns.DelegatedVMNIC, podIPInfo[0].NICType)
-//}
-//
-//func TestIPAMGetSFSWIFTv2IPError(t *testing.T) {
-//	req := cns.IPConfigsRequest{
-//		PodInterfaceID:   testPod1Info.InterfaceID(),
-//		InfraContainerID: testPod1Info.InfraContainerID(),
-//	}
-//	b, _ := testPod1Info.OrchestratorContext()
-//	req.OrchestratorContext = b
-//
-//	svc := getTestServiceSF()
-//	ncResponse := cns.GetNetworkContainerResponse{
-//		NetworkContainerID:         testNCID,
-//		PrimaryInterfaceIdentifier: "10.0.0.1",
-//		LocalIPConfiguration: cns.IPConfiguration{
-//			IPSubnet: cns.IPSubnet{
-//				IPAddress:    "10.0.0.5",
-//				PrefixLength: 16,
-//			},
-//			GatewayIPAddress: "5.5.5.5",
-//		},
-//		IPConfiguration: cns.IPConfiguration{
-//			IPSubnet: cns.IPSubnet{
-//				IPAddress:    testIP2,
-//				PrefixLength: 16,
-//			},
-//			DNSServers:       nil,
-//			GatewayIPAddress: "10.1.0.1",
-//		},
-//		NetworkInterfaceInfo: cns.NetworkInterfaceInfo{NICType: cns.DelegatedVMNIC, MACAddress: ""},
-//		Routes: []cns.Route{
-//			{
-//				IPAddress:        "10.1.0.0/16",
-//				GatewayIPAddress: "10.1.0.1",
-//			},
-//		},
-//	}
-//	cx := ClientMockCNSSF{getNetworkContainerConfiguration: getNetworkContainerConfigurationHandler{
-//		orchestratorContext: b,
-//		returnResponse:      &ncResponse,
-//		err:                 nil,
-//	}}
-//	middleware := SFSWIFTv2Middleware{CnsCli: &cx}
-//
-//	svc.AttachIPConfigsHandlerMiddleware(&middleware)
-//
-//	// prepare cns state file population
-//	svc.state.OrchestratorType = cns.ServiceFabric
-//	svc.state.ContainerStatus = make(map[string]containerstatus)
-//	svc.state.ContainerStatus[testNCID] = containerstatus{
-//		ID:          testNCID,
-//		VMVersion:   "0",
-//		HostVersion: "0",
-//		CreateNetworkContainerRequest: cns.CreateNetworkContainerRequest{
-//			NetworkContainerid:         testNCID,
-//			PrimaryInterfaceIdentifier: testIP1,
-//			IPConfiguration: cns.IPConfiguration{
-//				IPSubnet: cns.IPSubnet{
-//					IPAddress:    testIP2,
-//					PrefixLength: 24,
-//				},
-//			},
-//			OrchestratorContext: b,
-//			NetworkInterfaceInfo: cns.NetworkInterfaceInfo{
-//				NICType:    cns.DelegatedVMNIC,
-//				MACAddress: testMAC,
-//			},
-//			NetworkContainerType: cns.AzureContainerInstance,
-//		},
-//	}
-//
-//	wrappedHandler := svc.IPConfigsHandlerMiddleware.IPConfigsRequestHandlerWrapper(svc.requestIPConfigHandlerHelper, svc.releaseIPConfigHandlerHelper)
-//	_, err := wrappedHandler(context.TODO(), &req)
-//	if err != nil {
-//		t.Logf("Expected to fail requesting IPs: %+v", err)
-//	}
-//	if err == nil {
-//		t.Fatalf("Expected fail requesting IPs due to empty MAC")
-//	}
-//}
+func TestValidateSFIPConfigsRequestFailure(t *testing.T) {
+	svc := getTestService()
+	cnsClient, err := cnsclient.New("", 15*time.Second)
+	if err != nil {
+		logger.Errorf("Failed to init cnsclient, err:%v.\n", err)
+		return
+	}
+	middleware := SFSWIFTv2Middleware{CnsClient: cnsClient}
+	svc.AttachIPConfigsHandlerMiddleware(&middleware)
+
+	// Fail to unmarshal pod info test
+	failReq := &cns.IPConfigsRequest{
+		PodInterfaceID:   testPod1Info.InterfaceID(),
+		InfraContainerID: testPod1Info.InfraContainerID(),
+	}
+	failReq.OrchestratorContext = []byte("invalid")
+
+	wrappedHandler := svc.IPConfigsHandlerMiddleware.IPConfigsRequestHandlerWrapper(svc.requestIPConfigHandlerHelper, svc.releaseIPConfigHandlerHelper)
+	resp, err := wrappedHandler(context.TODO(), failReq)
+
+	assert.NotEmpty(t, err)
+	assert.Equal(t, types.UnexpectedError, resp.Response.ReturnCode)
+}

@@ -17,18 +17,9 @@ type SFSWIFTv2Middleware struct {
 
 // IPConfigsRequestHandlerWrapper is the middleware function for handling SWIFT v2 IP config requests for SF standalone scenario. This function wraps the default SWIFT request
 // and release IP configs handlers.
-func (m *SFSWIFTv2Middleware) IPConfigsRequestHandlerWrapper(_, failureHandler cns.IPConfigsHandlerFunc) cns.IPConfigsHandlerFunc {
+func (m *SFSWIFTv2Middleware) IPConfigsRequestHandlerWrapper(_, _ cns.IPConfigsHandlerFunc) cns.IPConfigsHandlerFunc {
 	return func(ctx context.Context, req *cns.IPConfigsRequest) (*cns.IPConfigsResponse, error) {
-		_, respCode, message := m.validateIPConfigsRequest(ctx, req)
-
-		if respCode != types.Success {
-			return &cns.IPConfigsResponse{
-				Response: cns.Response{
-					ReturnCode: respCode,
-					Message:    message,
-				},
-			}, errors.New("failed to validate ip configs request")
-		}
+		// unmarshal & retrieve podInfo from OrchestratorContext
 		podInfo, err := cns.NewPodInfoFromIPConfigsRequest(*req)
 		ipConfigsResp := &cns.IPConfigsResponse{
 			Response: cns.Response{
@@ -36,20 +27,16 @@ func (m *SFSWIFTv2Middleware) IPConfigsRequestHandlerWrapper(_, failureHandler c
 			},
 			PodIPInfo: []cns.PodIpInfo{},
 		}
-
-		// If the pod is v2, get the infra IP configs from the handler first and then add the SWIFTv2 IP config
-		defer func() {
-			// Release the default IP config if there is an error
-			if err != nil {
-				_, err = failureHandler(ctx, req)
-				if err != nil {
-					logger.Errorf("failed to release default IP config : %v", err)
-				}
-			}
-		}()
 		if err != nil {
-			return ipConfigsResp, err
+			ipConfigsResp.Response.ReturnCode = types.UnexpectedError
+			return ipConfigsResp, errors.Wrapf(err, "Failed to receive PodInfo after unmarshalling from IPConfigsRequest %v", req)
 		}
+
+		// SwiftV2-SF will always request for secondaryInterfaces for a pod
+		req.SecondaryInterfacesExist = true
+		logger.Printf("[SWIFTv2Middleware] pod %s has secondary interface : %v", podInfo.Name(), req.SecondaryInterfacesExist)
+
+		// get the IPConfig for swiftv2 SF scenario by calling into cns getNC api
 		SWIFTv2PodIPInfo, err := m.getIPConfig(ctx, podInfo)
 		if err != nil {
 			return &cns.IPConfigsResponse{
@@ -63,27 +50,6 @@ func (m *SFSWIFTv2Middleware) IPConfigsRequestHandlerWrapper(_, failureHandler c
 		ipConfigsResp.PodIPInfo = append(ipConfigsResp.PodIPInfo, SWIFTv2PodIPInfo)
 		return ipConfigsResp, nil
 	}
-}
-
-// validateIPConfigsRequest validates if pod orchestrator context is unmarshalled & sets secondary interfaces true
-// nolint
-func (m *SFSWIFTv2Middleware) validateIPConfigsRequest(ctx context.Context, req *cns.IPConfigsRequest) (podInfo cns.PodInfo, respCode types.ResponseCode, message string) {
-	// Retrieve the pod from the cluster
-	podInfo, err := cns.UnmarshalPodInfo(req.OrchestratorContext)
-	if err != nil {
-		errBuf := errors.Wrapf(err, "failed to unmarshalling pod info from ipconfigs request %+v", req)
-		return nil, types.UnexpectedError, errBuf.Error()
-	}
-	logger.Printf("[SWIFTv2Middleware] validate ipconfigs request for pod %s", podInfo.Name())
-
-	req.SecondaryInterfacesExist = true
-	// swiftv2 SF scenario for windows requires host interface info to be populated
-	// which can be done only by restserver service function, hence setting this flag to do so in ipam.go
-	req.AddInterfacesDataToResponse = true
-
-	logger.Printf("[SWIFTv2Middleware] pod %s has secondary interface : %v", podInfo.Name(), req.SecondaryInterfacesExist)
-	// retrieve podinfo from orchestrator context
-	return podInfo, types.Success, ""
 }
 
 // getIPConfig returns the pod's SWIFT V2 IP configuration.
