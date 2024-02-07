@@ -6,9 +6,7 @@ package imds
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
-	"net/http/httputil"
 	"net/url"
 
 	"github.com/avast/retry-go/v4"
@@ -118,9 +116,6 @@ func (c *Client) getInstanceComputeMetadata(ctx context.Context) (map[string]any
 
 	// IMDS requires the "Metadata: true" header
 	req.Header.Add(metadataHeaderKey, metadataHeaderValue)
-
-	reqDump, _ := httputil.DumpRequestOut(req, false)
-	fmt.Printf("REQUEST:\n%s", string(reqDump))
 	resp, err := c.cli.Do(req)
 	if err != nil {
 		return nil, errors.Wrap(err, "error querying IMDS")
