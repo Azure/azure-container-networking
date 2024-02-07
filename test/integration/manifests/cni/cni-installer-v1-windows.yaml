@@ -47,10 +47,15 @@ spec:
           image: mcr.microsoft.com/powershell:lts-nanoserver-ltsc2022
           command: ["powershell.exe", "-command"]
           args: ["if (Get-Process -Name 'azure-vnet-telemetry' -ErrorAction SilentlyContinue) { Stop-Process -Name 'azure-vnet-telemetry' -Force }"]
+          env:
+          - name: PATHEXT
+            value: .COM;.EXE;.BAT;.CMD;.VBS;.VBE;.JS;.JSE;.WSF;.WSH;.MSC;.CPL;;
+          workingDir: $env:CONTAINER_SANDBOX_MOUNT_POINT
         - name: cni-installer
           image: ${CNI_IMAGE}
           imagePullPolicy: Always
-          command: ["%CONTAINER_SANDBOX_MOUNT_POINT%/dropgz"]
+          command:
+            - powershell.exe; $env:CONTAINER_SANDBOX_MOUNT_POINT/dropgz
           args:
             - deploy
             - azure-vnet
@@ -65,6 +70,9 @@ spec:
             - azure-vnet-telemetry.config
             - -o
             - /k/azurecni/bin/azure-vnet-telemetry.config
+          env:
+          - name: PATHEXT
+            value: .COM;.EXE;.BAT;.CMD;.VBS;.VBE;.JS;.JSE;.WSF;.WSH;.MSC;.CPL;;
           volumeMounts:
             - name: cni-bin
               mountPath: /k/azurecni/bin/
