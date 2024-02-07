@@ -6,7 +6,9 @@ package imds
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"net/http/httputil"
 	"net/url"
 
 	"github.com/avast/retry-go/v4"
@@ -44,12 +46,14 @@ func RetryAttempts(attempts uint) ClientOption {
 }
 
 const (
-	vmUniqueIDProperty   = "vmId"
-	imdsComputePath      = "/metadata/instance/compute?api-version=2021-01-01&format=json"
-	metadataHeaderKey    = "Metadata"
-	metadataHeaderValue  = "true"
-	defaultRetryAttempts = 10
-	defaultIMDSEndpoint  = "http://169.254.169.254"
+	vmUniqueIDProperty    = "vmId"
+	imdsComputePath       = "/metadata/instance/compute"
+	imdsComputeAPIVersion = "api-version=2021-01-01"
+	imdsFormatJSON        = "format=json"
+	metadataHeaderKey     = "Metadata"
+	metadataHeaderValue   = "true"
+	defaultRetryAttempts  = 3
+	defaultIMDSEndpoint   = "http://169.254.169.254"
 )
 
 var (
@@ -60,7 +64,8 @@ var (
 // NewClient creates a new imds client
 func NewClient(opts ...ClientOption) *Client {
 	config := clientConfig{
-		endpoint: defaultIMDSEndpoint,
+		endpoint:      defaultIMDSEndpoint,
+		retryAttempts: defaultRetryAttempts,
 	}
 
 	for _, o := range opts {
@@ -104,6 +109,7 @@ func (c *Client) getInstanceComputeMetadata(ctx context.Context) (map[string]any
 	if err != nil {
 		return nil, errors.Wrap(err, "unable to build path to IMDS compute metadata")
 	}
+	imdsComputeURL = imdsComputeURL + "?" + imdsComputeAPIVersion + "&" + imdsFormatJSON
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, imdsComputeURL, http.NoBody)
 	if err != nil {
@@ -113,6 +119,8 @@ func (c *Client) getInstanceComputeMetadata(ctx context.Context) (map[string]any
 	// IMDS requires the "Metadata: true" header
 	req.Header.Add(metadataHeaderKey, metadataHeaderValue)
 
+	reqDump, _ := httputil.DumpRequestOut(req, false)
+	fmt.Printf("REQUEST:\n%s", string(reqDump))
 	resp, err := c.cli.Do(req)
 	if err != nil {
 		return nil, errors.Wrap(err, "error querying IMDS")

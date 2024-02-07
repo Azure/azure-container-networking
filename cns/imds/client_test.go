@@ -23,6 +23,12 @@ func TestGetVMUniqueID(t *testing.T) {
 		// request header "Metadata: true" must be present
 		metadataHeader := r.Header.Get("Metadata")
 		assert.Equal(t, "true", metadataHeader)
+
+		// query params should include apiversion and json format
+		apiVersion := r.URL.Query().Get("api-version")
+		assert.Equal(t, "2021-01-01", apiVersion)
+		format := r.URL.Query().Get("format")
+		assert.Equal(t, "json", format)
 		w.WriteHeader(http.StatusOK)
 		_, writeErr := w.Write(computeMetadata)
 		require.NoError(t, writeErr, "error writing response")
