@@ -39,8 +39,7 @@ type PortForward struct {
 	OptionalLabelAffinity string
 
 	// local properties
-	pf                *k8s.PortForwarder
-	portForwardHandle k8s.PortForwardStreamHandle
+	pf *k8s.PortForwarder
 }
 
 func (p *PortForward) Run() error {
@@ -61,15 +60,11 @@ func (p *PortForward) Run() error {
 		return fmt.Errorf("could not create clientset: %w", err)
 	}
 
-	p.pf, err = k8s.NewPortForwarder(config)
-	if err != nil {
-		return fmt.Errorf("could not create port forwarder: %w", err)
-	}
-
 	// if we have an optional label affinity, find a pod with that label, on the same node as a pod with the label selector
 	targetPodName := ""
 	if p.OptionalLabelAffinity != "" {
 		// get all pods with label
+		log.Printf("attempting to find pod with label \"%s\", on a node with a pod with label \"%s\"\n", p.LabelSelector, p.OptionalLabelAffinity)
 		targetPodName, err = p.findPodsWithAffinity(pctx, clientset)
 		if err != nil {
 			return fmt.Errorf("could not find pod with affinity: %w", err)
@@ -77,37 +72,43 @@ func (p *PortForward) Run() error {
 	}
 
 	portForwardFn := func() error {
-		log.Printf("attempting port forward to a pod with label \"%s\", in namespace \"%s\"...\n", p.LabelSelector, p.Namespace)
-
-		var handle k8s.PortForwardStreamHandle
 
 		// if we have a pod name (likely from affinity above), use it, otherwise use label selector
+		opts := k8s.PortForwardingOpts{
+			Namespace: p.Namespace,
+			PodName:   targetPodName,
+			LocalPort: lport,
+			DestPort:  rport,
+		}
+
 		if targetPodName != "" {
-			handle, err = p.pf.ForwardWithPodName(pctx, p.Namespace, targetPodName, lport, rport)
-			if err != nil {
-				return fmt.Errorf("could not start port forward: %w", err)
-			}
-		} else {
-			handle, err = p.pf.ForwardWithLabelSelector(pctx, p.Namespace, p.LabelSelector, lport, rport)
-			if err != nil {
-				return fmt.Errorf("could not start port forward: %w", err)
-			}
+			opts.PodName = targetPodName
+		}
+
+		log.Printf("attempting port forward to pod name \"%s\" with label \"%s\", in namespace \"%s\"...\n", targetPodName, p.LabelSelector, p.Namespace)
+
+		p.pf, err = k8s.NewPortForwarder(config, &logger{}, opts)
+		if err != nil {
+			return fmt.Errorf("could not create port forwarder: %w", err)
+		}
+		err = p.pf.Forward(pctx)
+		if err != nil {
+			return fmt.Errorf("could not start port forward: %w", err)
 		}
 
 		// verify port forward succeeded
 		client := http.Client{
 			Timeout: defaultHTTPClientTimeout,
 		}
-		resp, err := client.Get(handle.URL()) //nolint
+		resp, err := client.Get(p.pf.Address()) //nolint
 		if err != nil {
-			log.Printf("port forward validation HTTP request to %s failed: %v\n", handle.URL(), err)
-			handle.Stop()
-			return fmt.Errorf("port forward validation HTTP request to %s failed: %w", handle.URL(), err)
+			log.Printf("port forward validation HTTP request to %s failed: %v\n", p.pf.Address(), err)
+			p.pf.Stop()
+			return fmt.Errorf("port forward validation HTTP request to %s failed: %w", p.pf.Address(), err)
 		}
 		defer resp.Body.Close()
 
-		log.Printf("port forward validation HTTP request to \"%s\" succeeded, response: %s\n", handle.URL(), resp.Status)
-		p.portForwardHandle = handle
+		log.Printf("port forward validation HTTP request to \"%s\" succeeded, response: %s\n", p.pf.Address(), resp.Status)
 
 		return nil
 	}
@@ -115,7 +116,7 @@ func (p *PortForward) Run() error {
 	if err = defaultRetrier.Do(portForwardCtx, portForwardFn); err != nil {
 		return fmt.Errorf("could not start port forward within %ds: %w", defaultTimeoutSeconds, err)
 	}
-	log.Printf("successfully port forwarded to \"%s\"\n", p.portForwardHandle.URL())
+	log.Printf("successfully port forwarded to \"%s\"\n", p.pf.Address())
 	return nil
 }
 
@@ -157,7 +158,13 @@ func (p *PortForward) Prevalidate() error {
 	return nil
 }
 
-func (p *PortForward) Postvalidate() error {
-	p.portForwardHandle.Stop()
+func (p *PortForward) Stop() error {
+	p.pf.Stop()
 	return nil
+}
+
+type logger struct{}
+
+func (l *logger) Logf(format string, args ...interface{}) {
+	log.Printf(format, args...)
 }

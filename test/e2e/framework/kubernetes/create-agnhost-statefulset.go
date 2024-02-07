@@ -19,11 +19,6 @@ var ErrLabelMissingFromPod = fmt.Errorf("label missing from pod")
 const (
 	AgnhostHTTPPort = 80
 	AgnhostReplicas = 1
-
-	defaultTimeoutSeconds    = 300
-	defaultRetryDelay        = 5 * time.Second
-	defaultRetryAttempts     = 60
-	defaultHTTPClientTimeout = 2 * time.Second
 )
 
 type CreateAgnhostStatefulSet struct {
@@ -71,7 +66,7 @@ func (c *CreateAgnhostStatefulSet) Prevalidate() error {
 	return nil
 }
 
-func (c *CreateAgnhostStatefulSet) Postvalidate() error {
+func (c *CreateAgnhostStatefulSet) Stop() error {
 	return nil
 }
 

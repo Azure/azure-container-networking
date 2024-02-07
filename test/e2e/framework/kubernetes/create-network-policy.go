@@ -72,7 +72,7 @@ func (c *CreateDenyAllNetworkPolicy) Prevalidate() error {
 	return nil
 }
 
-func (c *CreateDenyAllNetworkPolicy) Postvalidate() error {
+func (c *CreateDenyAllNetworkPolicy) Stop() error {
 	return nil
 }
 
@@ -106,9 +106,5 @@ func (d *DeleteDenyAllNetworkPolicy) Run() error {
 }
 
 func (d *DeleteDenyAllNetworkPolicy) Prevalidate() error {
-	return nil
-}
-
-func (d *DeleteDenyAllNetworkPolicy) Postvalidate() error {
 	return nil
 }

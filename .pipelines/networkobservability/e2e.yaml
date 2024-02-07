@@ -1,0 +1,29 @@
+pr: none
+
+stages:
+  - stage: Run_E2E
+    displayName: Run E2E
+    jobs:
+      - job: Run_E2E
+        displayName: Run Network Observability E2E
+        pool:
+          name: "$(BUILD_POOL_NAME_DEFAULT)"
+
+        steps:
+          - task: AzureCLI@2
+            displayName: "Verify E2E Manifests"
+            inputs:
+              azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+              scriptType: "bash"
+              scriptLocation: "inlineScript"
+              inlineScript: |
+                go test -v ./test/e2e/manifests/*.go
+
+          - task: AzureCLI@2
+            displayName: "Run Network Observability E2E"
+            inputs:
+              azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+              scriptType: "bash"
+              scriptLocation: "inlineScript"
+              inlineScript: |
+                go test -v ./test/e2e/scenarios/hubble/*.go -timeout 30m

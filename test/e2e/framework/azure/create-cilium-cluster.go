@@ -68,7 +68,7 @@ func (c *CreateBYOCiliumCluster) Prevalidate() error {
 	return nil
 }
 
-func (c *CreateBYOCiliumCluster) Postvalidate() error {
+func (c *CreateBYOCiliumCluster) Stop() error {
 	return nil
 }
 
@@ -112,6 +112,8 @@ func (c *CreateBYOCiliumCluster) Run() error {
 		return fmt.Errorf("failed to create az client: %w", err)
 	}
 
+	log.Printf("when the cluster is ready, use the below command to access and debug")
+	log.Printf("az aks get-credentials --resource-group %s --name %s --subscription %s", c.ResourceGroupName, c.ClusterName, c.SubscriptionID)
 	log.Printf("creating cluster \"%s\" in resource group \"%s\"...", c.ClusterName, c.ResourceGroupName)
 
 	poller, err := clientFactory.NewManagedClustersClient().BeginCreateOrUpdate(ctx, c.ResourceGroupName, c.ClusterName, ciliumCluster, nil)

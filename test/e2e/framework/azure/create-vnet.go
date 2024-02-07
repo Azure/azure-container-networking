@@ -59,7 +59,7 @@ func (c *CreateVNet) Prevalidate() error {
 	return nil
 }
 
-func (c *CreateVNet) Postvalidate() error {
+func (c *CreateVNet) Stop() error {
 	return nil
 }
 
@@ -105,6 +105,6 @@ func (c *CreateSubnet) Prevalidate() error {
 	return nil
 }
 
-func (c *CreateSubnet) Postvalidate() error {
+func (c *CreateSubnet) Stop() error {
 	return nil
 }

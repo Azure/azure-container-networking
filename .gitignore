@@ -38,3 +38,6 @@ test/scale/generated/*
 
 # test env file
 *.env
+
+# omit e2e bin
+test/e2e/bin/*

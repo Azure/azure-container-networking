@@ -18,7 +18,7 @@ const (
 )
 
 var (
-	restartNetworkCmd           = []string{"bash", "-c", "chroot /host /bin/bash -c systemctl restart systemd-networkd"}
+	restartNetworkCmd           = []string{"bash", "-c", "systemctl restart systemd-networkd"}
 	cnsManagedStateFileCmd      = []string{"bash", "-c", "cat /var/run/azure-cns/azure-endpoints.json"}
 	azureVnetStateFileCmd       = []string{"bash", "-c", "cat /var/run/azure-vnet.json"}
 	azureVnetIpamStateCmd       = []string{"bash", "-c", "cat /var/run/azure-vnet-ipam.json"}
@@ -46,6 +46,11 @@ var linuxChecksMap = map[string][]check{
 		{"cns cache", cnsCacheStateFileIps, cnsLabelSelector, privilegedNamespace, cnsCachedAssignedIPStateCmd},
 		{"azure dualstackoverlay", azureVnetStateIps, privilegedLabelSelector, privilegedNamespace, azureVnetStateFileCmd},
 	},
+	"cilium_dualstack": {
+		{"cns dualstack", cnsManagedStateFileDualStackIps, cnsLabelSelector, privilegedNamespace, cnsManagedStateFileCmd}, // cns configmap "ManageEndpointState": true, | Endpoints managed in CNS State File
+		{"cilium", ciliumStateFileDualStackIps, ciliumLabelSelector, privilegedNamespace, ciliumStateFileCmd},
+		{"cns cache", cnsCacheStateFileIps, cnsLabelSelector, privilegedNamespace, cnsCachedAssignedIPStateCmd},
+	},
 }
 
 type CnsManagedState struct {
@@ -70,7 +75,8 @@ type NetworkingAddressing struct {
 }
 
 type Address struct {
-	Addr string `json:"ipv4"`
+	IPv4 string `json:"ipv4"`
+	IPv6 string `json:"ipv6"`
 }
 
 // parse azure-vnet.json
@@ -133,8 +139,26 @@ func cnsManagedStateFileIps(result []byte) (map[string]string, error) {
 	for _, v := range cnsResult.Endpoints {
 		for ifName, ip := range v.IfnameToIPMap {
 			if ifName == "eth0" {
-				ip := ip.IPv4[0].IP.String()
-				cnsPodIps[ip] = v.PodName
+				cnsPodIps[ip.IPv4[0].IP.String()] = v.PodName
+			}
+		}
+	}
+	return cnsPodIps, nil
+}
+
+func cnsManagedStateFileDualStackIps(result []byte) (map[string]string, error) {
+	var cnsResult CnsManagedState
+	err := json.Unmarshal(result, &cnsResult)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to unmarshal cns endpoint list")
+	}
+
+	cnsPodIps := make(map[string]string)
+	for _, v := range cnsResult.Endpoints {
+		for ifName, ip := range v.IfnameToIPMap {
+			if ifName == "eth0" {
+				cnsPodIps[ip.IPv4[0].IP.String()] = v.PodName
+				cnsPodIps[ip.IPv6[0].IP.String()] = v.PodName
 			}
 		}
 	}
@@ -151,8 +175,27 @@ func ciliumStateFileIps(result []byte) (map[string]string, error) {
 	ciliumPodIps := make(map[string]string)
 	for _, v := range ciliumResult {
 		for _, addr := range v.Status.Networking.Addresses {
-			if addr.Addr != "" {
-				ciliumPodIps[addr.Addr] = v.Status.Networking.InterfaceName
+			if addr.IPv4 != "" {
+				ciliumPodIps[addr.IPv4] = v.Status.Networking.InterfaceName
+			}
+		}
+	}
+	return ciliumPodIps, nil
+}
+
+func ciliumStateFileDualStackIps(result []byte) (map[string]string, error) {
+	var ciliumResult []CiliumEndpointStatus
+	err := json.Unmarshal(result, &ciliumResult)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to unmarshal cilium endpoint list")
+	}
+
+	ciliumPodIps := make(map[string]string)
+	for _, v := range ciliumResult {
+		for _, addr := range v.Status.Networking.Addresses {
+			if addr.IPv4 != "" && addr.IPv6 != "" {
+				ciliumPodIps[addr.IPv4] = v.Status.Networking.InterfaceName
+				ciliumPodIps[addr.IPv6] = v.Status.Networking.InterfaceName
 			}
 		}
 	}

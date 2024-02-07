@@ -10,15 +10,15 @@ type Sleep struct {
 }
 
 func (c *Sleep) Run() error {
-	log.Printf("sleeping for %s...\n", c.Duration)
+	log.Printf("sleeping for %s...\n", c.Duration.String())
 	time.Sleep(c.Duration)
 	return nil
 }
 
-func (c *Sleep) Prevalidate() error {
+func (c *Sleep) Stop() error {
 	return nil
 }
 
-func (c *Sleep) Postvalidate() error {
+func (c *Sleep) Prevalidate() error {
 	return nil
 }

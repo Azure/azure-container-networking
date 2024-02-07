@@ -39,6 +39,7 @@ type PortForwarder struct {
 type PortForwardingOpts struct {
 	Namespace     string
 	LabelSelector string
+	PodName       string
 	LocalPort     int
 	DestPort      int
 }
@@ -71,7 +72,25 @@ func NewPortForwarder(restConfig *rest.Config, logger logger, opts PortForwardin
 // An error is returned if a port forwarding session could not be started. If no error is returned, the
 // Address method can be used to communicate with the pod, and the Stop and KeepAlive methods can be used
 // to manage the lifetime of the port forwarding session.
+
 func (p *PortForwarder) Forward(ctx context.Context) error {
+	var podName string
+	if p.opts.PodName == "" {
+		pods, err := p.clientset.CoreV1().Pods(p.opts.Namespace).List(ctx, metav1.ListOptions{LabelSelector: p.opts.LabelSelector, FieldSelector: "status.phase=Running"})
+		if err != nil {
+			return fmt.Errorf("could not list pods in %q with label %q: %w", p.opts.Namespace, p.opts.LabelSelector, err)
+		}
+
+		if len(pods.Items) < 1 {
+			return fmt.Errorf("no pods found in %q with label %q", p.opts.Namespace, p.opts.LabelSelector) //nolint:goerr113 //no specific handling expected
+		}
+
+		randomIndex := rand.Intn(len(pods.Items)) //nolint:gosec //this is going to be revised in the future anyways, avoid random pods
+		podName = pods.Items[randomIndex].Name
+	} else {
+		podName = p.opts.PodName
+	}
+
 	pods, err := p.clientset.CoreV1().Pods(p.opts.Namespace).List(ctx, metav1.ListOptions{LabelSelector: p.opts.LabelSelector, FieldSelector: "status.phase=Running"})
 	if err != nil {
 		return fmt.Errorf("could not list pods in %q with label %q: %w", p.opts.Namespace, p.opts.LabelSelector, err)
@@ -81,8 +100,6 @@ func (p *PortForwarder) Forward(ctx context.Context) error {
 		return fmt.Errorf("no pods found in %q with label %q", p.opts.Namespace, p.opts.LabelSelector) //nolint:goerr113 //no specific handling expected
 	}
 
-	randomIndex := rand.Intn(len(pods.Items)) //nolint:gosec //this is going to be revised in the future anyways, avoid random pods
-	podName := pods.Items[randomIndex].Name
 	portForwardURL := p.clientset.CoreV1().RESTClient().Post().
 		Resource("pods").
 		Namespace(p.opts.Namespace).

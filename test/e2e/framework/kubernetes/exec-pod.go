@@ -39,7 +39,7 @@ func (e *ExecInPod) Prevalidate() error {
 	return nil
 }
 
-func (e *ExecInPod) Postvalidate() error {
+func (e *ExecInPod) Stop() error {
 	return nil
 }
 

@@ -70,7 +70,7 @@ func (c *CreateKapingerDeployment) Prevalidate() error {
 	return nil
 }
 
-func (c *CreateKapingerDeployment) Postvalidate() error {
+func (c *CreateKapingerDeployment) Stop() error {
 	return nil
 }
 

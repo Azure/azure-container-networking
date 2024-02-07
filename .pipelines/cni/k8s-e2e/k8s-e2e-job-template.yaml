@@ -119,7 +119,7 @@ jobs:
             os: ${{ parameters.os }}
             processes: 8
             attempts: 3
-      - ${{ if eq(parameters.dualstack, true) }}:
+      - ${{ if and( eq(parameters.dualstack, true), eq(contains(parameters.cni, 'cilium'), false) ) }}:
         - template: ../k8s-e2e/k8s-e2e-step-template.yaml
           parameters:
             testName: DualStack Test
@@ -127,6 +127,17 @@ jobs:
             clusterName: ${{ parameters.clusterName }}
             ginkgoFocus: '\[Feature:IPv6DualStack\]'
             ginkgoSkip: 'SCTP|session affinity'
+            os: ${{ parameters.os }}
+            processes: 8
+            attempts: 3
+      - ${{ if and( eq(parameters.dualstack, true), contains(parameters.cni, 'cilium') ) }}:
+        - template: ../k8s-e2e/k8s-e2e-step-template.yaml
+          parameters:
+            testName: DualStack Test|Cilium
+            name: DualStack
+            clusterName: ${{ parameters.clusterName }}
+            ginkgoFocus: '\[Feature:IPv6DualStack\]'
+            ginkgoSkip: 'SCTP|session affinity|should function for service endpoints using hostNetwork' # Cilium dualstack has a known issue with this test https://github.com/cilium/cilium/issues/25135
             os: ${{ parameters.os }}
             processes: 8
             attempts: 3
