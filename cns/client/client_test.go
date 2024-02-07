@@ -22,15 +22,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const (
-	subnetPrfixLength   = 24
-	dockerContainerType = cns.Docker
-	releasePercent      = 150
-	requestPercent      = 50
-	batchSize           = 10
-	initPoolSize        = 10
-)
-
 var (
 	errBadRequest = errors.New("bad request")
 )

@@ -1,57 +1,37 @@
 package restserver
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
-
-	"github.com/Azure/azure-container-networking/cns/common"
-	"github.com/Azure/azure-container-networking/cns/fakes"
-	"github.com/Azure/azure-container-networking/cns/logger"
-	"github.com/Azure/azure-container-networking/log"
-
 	"net"
-	"net/http"
 	"strconv"
 	"testing"
 	"time"
 
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/client"
+	"github.com/Azure/azure-container-networking/cns/common"
+	"github.com/Azure/azure-container-networking/cns/fakes"
+	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 const (
-	primaryIp        = "10.0.0.5"
-	gatewayIp        = "10.0.0.1"
-	defaultBaseURL   = "http://localhost:10090"
 	podnametest      = "testpodname"
 	podnamespacetest = "testpodnamespace"
+	ncid             = "440515e4-bf48-4997-8e4c-d650d29b462d"
 )
 
-var (
-	dnsServers = []string{"8.8.8.8", "8.8.4.4"}
-)
+var dnsServers = []string{"8.8.8.8", "8.8.4.4"}
 
 func setUpRestserver() {
-	var (
-		info = &cns.SetOrchestratorTypeRequest{
-			OrchestratorType: cns.KubernetesCRD,
-		}
-		body bytes.Buffer
-		res  *http.Response
-	)
-
 	config := common.ServiceConfig{}
 
 	httpRestService, err := NewHTTPRestService(&config, &fakes.WireserverClientFake{}, &fakes.WireserverProxyFake{}, &fakes.NMAgentClientFake{}, nil, nil, nil)
-	svc = httpRestService
 	httpRestService.Name = "cns-test-server"
 	fakeNNC := v1alpha.NodeNetworkConfig{
 		TypeMeta:   metav1.TypeMeta{},
@@ -92,25 +72,14 @@ func setUpRestserver() {
 		return
 	}
 
-	if err := json.NewEncoder(&body).Encode(info); err != nil {
-		log.Errorf("encoding json failed with %v", err)
-		return
-	}
-
+	svc = httpRestService
+	svc = service.(*HTTPRestService)
 	svc.state.OrchestratorType = cns.KubernetesCRD
 	svc.IPAMPoolMonitor = &fakes.MonitorFake{IPsNotInUseCount: 13, NodeNetworkConfig: &fakeNNC}
-	httpc := &http.Client{}
-	url := defaultBaseURL + cns.SetOrchestratorType
-
-	res, err = httpc.Post(url, "application/json", &body)
-	if err != nil {
-		fmt.Println(err)
-	}
-	fmt.Println(res)
 }
 
 func TestCNSClientRequestAndRelease(t *testing.T) {
-	desiredIPAddress := "10.0.0.5"
+	desiredIPAddress := primaryIP
 	ip := net.ParseIP(desiredIPAddress)
 	_, ipnet, _ := net.ParseCIDR("10.0.0.5/24")
 	desired := net.IPNet{
@@ -124,27 +93,28 @@ func TestCNSClientRequestAndRelease(t *testing.T) {
 	setUpRestserver()
 	addTestStateToRestServer(t, secondaryIps)
 
-	podInfo := cns.KubernetesPodInfo{PodName: podnametest, PodNamespace: podnamespacetest}
+	podInfo := cns.NewPodInfo("some-guid-1", "abc-eth0", podnametest, podnamespacetest)
 	orchestratorContext, err := json.Marshal(podInfo)
 	assert.NoError(t, err)
 
 	// no IP reservation found with that context, expect no failure.
-	//err = cnsClient.ReleaseIPAddress(context.TODO(), cns.IPConfigRequest{OrchestratorContext: orchestratorContext})
-	//assert.NoError(t, err, "Release ip idempotent call failed")
+	err = cnsClient.ReleaseIPAddress(context.TODO(), cns.IPConfigRequest{OrchestratorContext: orchestratorContext})
+	assert.NoError(t, err, "Release ip idempotent call failed")
 
 	// request IP address
 	resp, err := cnsClient.RequestIPAddress(context.TODO(), cns.IPConfigRequest{OrchestratorContext: orchestratorContext})
 	assert.NoError(t, err, "get IP from CNS failed")
 
 	podIPInfo := resp.PodIpInfo
-	assert.Equal(t, primaryIp, podIPInfo.NetworkContainerPrimaryIPConfig.IPSubnet.IPAddress, "PrimaryIP is not added as epected ipConfig")
+	assert.Equal(t, primaryIP, podIPInfo.NetworkContainerPrimaryIPConfig.IPSubnet.IPAddress, "PrimaryIP is not added as epected ipConfig")
 	assert.EqualValues(t, podIPInfo.NetworkContainerPrimaryIPConfig.IPSubnet.PrefixLength, subnetPrfixLength, "Primary IP Prefix length is not added as expected ipConfig")
 
 	// validate DnsServer and Gateway Ip as the same configured for Primary IP
 	assert.Equal(t, dnsServers, podIPInfo.NetworkContainerPrimaryIPConfig.DNSServers, "DnsServer is not added as expected ipConfig")
-	assert.Equal(t, gatewayIp, podIPInfo.NetworkContainerPrimaryIPConfig.GatewayIPAddress, "Gateway is not added as expected ipConfig")
+	assert.Equal(t, gatewayIP, podIPInfo.NetworkContainerPrimaryIPConfig.GatewayIPAddress, "Gateway is not added as expected ipConfig")
 
 	resultIPnet, err := getIPNetFromResponse(resp)
+	assert.NoError(t, err, "getIPNetFromResponse failed")
 
 	assert.Equal(t, desired, resultIPnet, "Desired result not matching actual result")
 
@@ -166,10 +136,11 @@ func TestCNSClientRequestAndRelease(t *testing.T) {
 	// release requested IP address, expect success
 	err = cnsClient.ReleaseIPAddress(context.TODO(), cns.IPConfigRequest{DesiredIPAddress: ipaddresses[0].IPAddress, OrchestratorContext: orchestratorContext})
 	assert.NoError(t, err, "Expected to not fail when releasing IP reservation found with context")
+	service.Stop()
 }
 
 func TestCNSClientPodContextApi(t *testing.T) {
-	desiredIPAddress := "10.0.0.5"
+	desiredIPAddress := primaryIP
 	secondaryIps := []string{desiredIPAddress}
 	cnsClient, _ := client.New("", 2*time.Second)
 
@@ -194,10 +165,11 @@ func TestCNSClientPodContextApi(t *testing.T) {
 	// release requested IP address, expect success
 	err = cnsClient.ReleaseIPAddress(context.TODO(), cns.IPConfigRequest{OrchestratorContext: orchestratorContext})
 	assert.NoError(t, err, "Expected to not fail when releasing IP reservation found with context")
+	service.Stop()
 }
 
 func TestCNSClientDebugAPI(t *testing.T) {
-	desiredIPAddress := "10.0.0.5"
+	desiredIPAddress := primaryIP
 
 	secondaryIPs := []string{desiredIPAddress}
 	cnsClient, _ := client.New("", 2*time.Hour)
@@ -222,9 +194,9 @@ func TestCNSClientDebugAPI(t *testing.T) {
 	// testing Pod IP Configuration Status values set for test
 	podConfig := inmemory.HTTPRestServiceData.PodIPConfigState
 	for _, v := range podConfig {
-		assert.Equal(t, "10.0.0.5", v.IPAddress, "Not the expected set values for testing IPConfigurationStatus, %+v", podConfig)
+		assert.Equal(t, primaryIP, v.IPAddress, "Not the expected set values for testing IPConfigurationStatus, %+v", podConfig)
 		assert.Equal(t, types.Assigned, v.GetState(), "Not the expected set values for testing IPConfigurationStatus, %+v", podConfig)
-		assert.Equal(t, "testNcId1", v.NCID, "Not the expected set values for testing IPConfigurationStatus, %+v", podConfig)
+		assert.Equal(t, ncid, v.NCID, "Not the expected set values for testing IPConfigurationStatus, %+v", podConfig)
 	}
 	assert.GreaterOrEqual(t, len(inmemory.HTTPRestServiceData.PodIPConfigState), 1, "PodIpConfigState with at least 1 entry expected")
 
@@ -249,30 +221,31 @@ func TestCNSClientDebugAPI(t *testing.T) {
 	}
 	t.Logf("PodIPConfigState: %+v", inmemory.HTTPRestServiceData.PodIPConfigState)
 	t.Logf("IPAMPoolMonitor: %+v", inmemory.HTTPRestServiceData.IPAMPoolMonitor)
+	service.Stop()
 }
 
 func addTestStateToRestServer(t *testing.T, secondaryIps []string) {
 	var ipConfig cns.IPConfiguration
 	ipConfig.DNSServers = dnsServers
-	ipConfig.GatewayIPAddress = gatewayIp
+	ipConfig.GatewayIPAddress = gatewayIP
 	var ipSubnet cns.IPSubnet
-	ipSubnet.IPAddress = primaryIp
+	ipSubnet.IPAddress = primaryIP
 	ipSubnet.PrefixLength = subnetPrfixLength
 	ipConfig.IPSubnet = ipSubnet
 	secondaryIPConfigs := make(map[string]cns.SecondaryIPConfig)
 
-	for _, secIpAddress := range secondaryIps {
-		secIpConfig := cns.SecondaryIPConfig{
-			IPAddress: secIpAddress,
+	for _, secIPAddress := range secondaryIps {
+		secIPConfig := cns.SecondaryIPConfig{
+			IPAddress: secIPAddress,
 			NCVersion: -1,
 		}
-		ipId := uuid.New()
-		secondaryIPConfigs[ipId.String()] = secIpConfig
+		ipID := uuid.New()
+		secondaryIPConfigs[ipID.String()] = secIPConfig
 	}
 
 	req := &cns.CreateNetworkContainerRequest{
 		NetworkContainerType: dockerContainerType,
-		NetworkContainerid:   "testNcId1",
+		NetworkContainerid:   ncid,
 		IPConfiguration:      ipConfig,
 		SecondaryIPConfigs:   secondaryIPConfigs,
 		// Set it as -1 to be same as default host version.
@@ -293,8 +266,8 @@ func addTestStateToRestServer(t *testing.T, secondaryIps []string) {
 		Status: v1alpha.NodeNetworkConfigStatus{
 			Scaler: v1alpha.Scaler{
 				BatchSize:               batchSize,
-				ReleaseThresholdPercent: releasePercent,
-				RequestThresholdPercent: requestPercent,
+				ReleaseThresholdPercent: 150,
+				RequestThresholdPercent: 50,
 				MaxIPCount:              250,
 			},
 			NetworkContainers: []v1alpha.NetworkContainer{
@@ -314,7 +287,7 @@ func getIPNetFromResponse(resp *cns.IPConfigResponse) (net.IPNet, error) {
 	prefix := strconv.Itoa(int(resp.PodIpInfo.PodIPConfig.PrefixLength))
 	ip, ipnet, err := net.ParseCIDR(resp.PodIpInfo.PodIPConfig.IPAddress + "/" + prefix)
 	if err != nil {
-		return resultIPnet, err
+		return resultIPnet, err //nolint:wrapcheck // we don't need error wrapping for tests
 	}
 
 	// construct ipnet for result
@@ -322,5 +295,5 @@ func getIPNetFromResponse(resp *cns.IPConfigResponse) (net.IPNet, error) {
 		IP:   ip,
 		Mask: ipnet.Mask,
 	}
-	return resultIPnet, err
+	return resultIPnet, err //nolint:wrapcheck // we don't need error wrapping for tests
 }
