@@ -384,13 +384,15 @@ type IPInfo struct {
 }
 
 type GetHTTPServiceDataResponse struct {
-	HTTPRestServiceData HTTPRestServiceData
-	Response            Response
+	HTTPRestServiceData HTTPRestServiceData `json:"HTTPRestServiceData"`
+	Response            Response            `json:"response"`
 }
 
 // HTTPRestServiceData represents in-memory CNS data in the debug API paths.
+// PodInterfaceId is key and value is slice of Pod IP uuids in PodIPIDByPodInterfaceKey
+// secondaryipid(uuid) is key for PodIPConfigState
 type HTTPRestServiceData struct {
-	PodIPIDByPodInterfaceKey map[string][]string              // PodInterfaceId is key and value is slice of Pod IP uuids.
-	PodIPConfigState         map[string]IPConfigurationStatus // secondaryipid(uuid) is key
-	IPAMPoolMonitor          IpamPoolMonitorStateSnapshot
+	PodIPIDByPodInterfaceKey map[string][]string              `json:"podIPIDByPodInterfaceKey"`
+	PodIPConfigState         map[string]IPConfigurationStatus `json:"podIpConfigState"`
+	IPAMPoolMonitor          IpamPoolMonitorStateSnapshot     `json:"ipamPoolMonitor"`
 }
