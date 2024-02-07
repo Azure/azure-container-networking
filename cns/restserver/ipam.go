@@ -27,7 +27,6 @@ var (
 	ErrNoNCs                  = errors.New("no NCs found in the CNS internal state")
 	ErrOptManageEndpointState = errors.New("CNS is not set to manage the endpoint state")
 	ErrEndpointStateNotFound  = errors.New("endpoint state could not be found in the statefile")
-	ErrExistingIpconfigFound  = errors.New("Found existing ipconfig for infra container")
 )
 
 const (
@@ -1074,6 +1073,9 @@ func (service *HTTPRestService) GetEndpointHelper(endpointID string) (*EndpointI
 		logger.Warnf("[GetEndpointState] Found existing endpoint state for container %s", endpointID)
 		return endpointInfo, nil
 	}
+	// This part is a temprory fix if we have endpoint states belong to CNI version 1.4.X on Windows since the states don't have the containerID
+	// In case there was no endpoint founded with ContainerID as the key,
+	// then [First 8 character of containerid]-eth0 will be tried
 	legacyEndpointID := endpointID[:ContainerIDLength] + "-" + InterfaceName
 	if endpointInfo, ok := service.EndpointState[legacyEndpointID]; ok {
 		logger.Warnf("[GetEndpointState] Found existing endpoint state for container %s", legacyEndpointID)

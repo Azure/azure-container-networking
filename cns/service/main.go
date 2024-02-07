@@ -1521,11 +1521,11 @@ func InitializeStateFromCNS(cnsconfig *configuration.CNSConfig, endpointStateSto
 	if err != nil {
 		if errors.Is(err, store.ErrKeyNotFound) {
 			logger.Printf("[Azure CNS] No endpoint state found, skipping initializing CNS state")
-			if cnsconfig.StatelessCNIMigration {
+			if cnsconfig.StateMigration {
 				logger.Printf("StatelessCNI Migration is enabled")
 				logger.Printf("initializing from Statefull CNI")
 				var endpointState map[string]*restserver.EndpointInfo
-				podInfoByIPProvider, endpointState, err = cnireconciler.NewCNIPodInfoProvider(cnsconfig.StatelessCNIMigration)
+				podInfoByIPProvider, endpointState, err = cnireconciler.NewCNIPodInfoProvider(cnsconfig.StateMigration)
 				if err != nil {
 					return nil, errors.Wrap(err, "failed to create CNI PodInfoProvider")
 				}

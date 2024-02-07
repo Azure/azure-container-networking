@@ -54,7 +54,7 @@ func newCNIPodInfoProvider(exc exec.Interface, stateMigration bool) (cns.PodInfo
 	}
 	var endpointState map[string]*restserver.EndpointInfo
 	if stateMigration {
-		endpointState, err = cniStateToCnsEndpointState(state)
+		endpointState = cniStateToCnsEndpointState(state)
 	} else {
 		endpointState = nil
 	}
@@ -117,7 +117,7 @@ func endpointStateToPodInfoByIP(state map[string]*restserver.EndpointInfo) (map[
 // cniStateToCnsEndpointState converts an AzureCNIState dumped from a CNI exec
 // into a EndpointInfo map, using the containerID as keys in the map.
 // The map then will be saved on CNS endpoint state
-func cniStateToCnsEndpointState(state *api.AzureCNIState) (map[string]*restserver.EndpointInfo, error) {
+func cniStateToCnsEndpointState(state *api.AzureCNIState) map[string]*restserver.EndpointInfo {
 	logger.Printf("Generating CNS Endpoint State")
 	endpointState := map[string]*restserver.EndpointInfo{}
 	for epID, endpoint := range state.ContainerInterfaces {
@@ -126,22 +126,10 @@ func cniStateToCnsEndpointState(state *api.AzureCNIState) (map[string]*restserve
 		for _, epIP := range endpoint.IPAddresses {
 			if epIP.IP.To4() == nil { // is an ipv6 address
 				ipconfig := net.IPNet{IP: epIP.IP, Mask: epIP.Mask}
-				for _, ipconf := range ipInfo.IPv6 {
-					if ipconf.IP.Equal(ipconfig.IP) {
-						logger.Errorf("Found existing ipv6 ipconfig for infra container %s", endpoint.ContainerID)
-						return nil, restserver.ErrExistingIpconfigFound
-					}
-				}
 				ipInfo.IPv6 = append(ipInfo.IPv6, ipconfig)
 
 			} else {
 				ipconfig := net.IPNet{IP: epIP.IP, Mask: epIP.Mask}
-				for _, ipconf := range ipInfo.IPv4 {
-					if ipconf.IP.Equal(ipconfig.IP) {
-						logger.Errorf("Found existing ipv4 ipconfig for infra container %s", endpoint.ContainerID)
-						return nil, restserver.ErrExistingIpconfigFound
-					}
-				}
 				ipInfo.IPv4 = append(ipInfo.IPv4, ipconfig)
 			}
 		}
@@ -150,7 +138,7 @@ func cniStateToCnsEndpointState(state *api.AzureCNIState) (map[string]*restserve
 		endpointState[endpointID] = endpointInfo
 		logger.Printf("CNS endpoint state extracted from CNI: [%+v]", *endpointInfo)
 	}
-	return endpointState, nil
+	return endpointState
 }
 
 // extractEndpointInfo extract Interface Name and endpointID for each endpoint based the CNI state
