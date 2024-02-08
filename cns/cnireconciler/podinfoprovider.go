@@ -17,9 +17,14 @@ import (
 
 // NewCNIPodInfoProvider returns an implementation of cns.PodInfoByIPProvider
 // that execs out to the CNI and uses the response to build the PodInfo map.
-// if stateMigration flag is set to true it will also returns a map of containerID->EndpointInfo
-func NewCNIPodInfoProvider(stateMigration bool) (cns.PodInfoByIPProvider, map[string]*restserver.EndpointInfo, error) {
-	return newCNIPodInfoProvider(exec.New(), stateMigration)
+// if EnableStateMigration flag is set to true it will also returns a map of containerID->EndpointInfo
+func NewCNIPodInfoProvider(enableStateMigration bool) (cns.PodInfoByIPProvider, map[string]*restserver.EndpointInfo, error) {
+	podInfoByIPProvider, cniState, err := newCNIPodInfoProvider(exec.New())
+	if enableStateMigration {
+		endpointState := cniStateToCnsEndpointState(cniState)
+		return podInfoByIPProvider, endpointState, err
+	}
+	return podInfoByIPProvider, nil, err
 }
 
 func NewCNSPodInfoProvider(endpointStore store.KeyValueStore) (cns.PodInfoByIPProvider, error) {
@@ -43,7 +48,7 @@ func newCNSPodInfoProvider(endpointStore store.KeyValueStore) (cns.PodInfoByIPPr
 	}), nil
 }
 
-func newCNIPodInfoProvider(exc exec.Interface, stateMigration bool) (cns.PodInfoByIPProvider, map[string]*restserver.EndpointInfo, error) {
+func newCNIPodInfoProvider(exc exec.Interface) (cns.PodInfoByIPProvider, *api.AzureCNIState, error) {
 	cli := client.New(exc)
 	state, err := cli.GetEndpointState()
 	if err != nil {
@@ -52,15 +57,9 @@ func newCNIPodInfoProvider(exc exec.Interface, stateMigration bool) (cns.PodInfo
 	for containerID, endpointInfo := range state.ContainerInterfaces {
 		logger.Printf("state dump from CNI: [%+v], [%+v]", containerID, endpointInfo)
 	}
-	var endpointState map[string]*restserver.EndpointInfo
-	if stateMigration {
-		endpointState = cniStateToCnsEndpointState(state)
-	} else {
-		endpointState = nil
-	}
 	return cns.PodInfoByIPProviderFunc(func() (map[string]cns.PodInfo, error) {
 		return cniStateToPodInfoByIP(state)
-	}), endpointState, err
+	}), state, err
 }
 
 // cniStateToPodInfoByIP converts an AzureCNIState dumped from a CNI exec

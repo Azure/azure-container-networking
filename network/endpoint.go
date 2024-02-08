@@ -354,16 +354,6 @@ func GetPodNameWithoutSuffix(podName string) string {
 	return strings.Join(nameSplit, "-")
 }
 
-// GetEndpointInfoByIP returns an EndpointInfo with complete state when HNS Endpoint ID or HostVeth Name are missing on the CNS state.
-func (epInfo *EndpointInfo) GetEndpointInfoByIP(ipAddresses []net.IPNet, networkID string) (*EndpointInfo, error) {
-	// Call the platform implementation.
-	endpointInfo, err := epInfo.GetEndpointInfoByIPImpl(ipAddresses, networkID)
-	if err != nil {
-		return nil, err
-	}
-	return endpointInfo, nil
-}
-
 // IsEndpointStateInComplete returns true if both HNSEndpointID and HostVethName are missing.
 func (epInfo *EndpointInfo) IsEndpointStateIncomplete() bool {
 	if epInfo.HNSEndpointID == "" && epInfo.IfName == "" {

@@ -35,6 +35,7 @@ type CNSConfig struct {
 	EnableCNIConflistGeneration bool
 	EnableIPAMv2                bool
 	EnablePprof                 bool
+	EnableStateMigration        bool
 	EnableSubnetScarcity        bool
 	EnableSwiftV2               bool
 	InitializeFromCNI           bool
@@ -56,7 +57,6 @@ type CNSConfig struct {
 	UseHTTPS                    bool
 	WatchPods                   bool `json:"-"`
 	WireserverIP                string
-	StateMigration              bool
 }
 
 type TelemetrySettings struct {

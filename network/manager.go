@@ -444,7 +444,7 @@ func (nm *networkManager) GetEndpointState(networkID, endpointID string) (*Endpo
 
 	}
 	if epInfo.IsEndpointStateIncomplete() {
-		epInfo, err = epInfo.GetEndpointInfoByIP(epInfo.IPAddresses, networkID)
+		epInfo, err = epInfo.GetEndpointInfoByIPImpl(epInfo.IPAddresses, networkID)
 		if err != nil {
 			return nil, errors.Wrapf(err, "Get endpoint API returend with error")
 		}

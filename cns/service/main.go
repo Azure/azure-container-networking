@@ -1516,27 +1516,25 @@ func createOrUpdateNodeInfoCRD(ctx context.Context, restConfig *rest.Config, nod
 
 // InitializeStateFromCNS initilizes CNS Endpoint State from CNS or perform the Migration of state from statefull CNI.
 func InitializeStateFromCNS(cnsconfig *configuration.CNSConfig, endpointStateStore store.KeyValueStore) (cns.PodInfoByIPProvider, error) {
+	if cnsconfig.EnableStateMigration && !endpointStateStore.Exists() { // initilize form CNI and perform state migration
+		logger.Printf("StatelessCNI Migration is enabled")
+		logger.Printf("initializing from Statefull CNI")
+		var endpointState map[string]*restserver.EndpointInfo
+		podInfoByIPProvider, endpointState, err := cnireconciler.NewCNIPodInfoProvider(cnsconfig.EnableStateMigration)
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to create CNI PodInfoProvider")
+		}
+		err = endpointStateStore.Write(restserver.EndpointStoreKey, endpointState)
+		if err != nil {
+			return nil, fmt.Errorf("failed to write endpoint state to store: %w", err)
+		}
+		return podInfoByIPProvider, nil
+	}
+	// initilize form CNS and avoid state migration
 	logger.Printf("Initializing from self managed endpoint store")
 	podInfoByIPProvider, err := cnireconciler.NewCNSPodInfoProvider(endpointStateStore) // get reference to endpoint state store from rest server
 	if err != nil {
-		if errors.Is(err, store.ErrKeyNotFound) {
-			logger.Printf("[Azure CNS] No endpoint state found, skipping initializing CNS state")
-			if cnsconfig.StateMigration {
-				logger.Printf("StatelessCNI Migration is enabled")
-				logger.Printf("initializing from Statefull CNI")
-				var endpointState map[string]*restserver.EndpointInfo
-				podInfoByIPProvider, endpointState, err = cnireconciler.NewCNIPodInfoProvider(cnsconfig.StateMigration)
-				if err != nil {
-					return nil, errors.Wrap(err, "failed to create CNI PodInfoProvider")
-				}
-				err = endpointStateStore.Write(restserver.EndpointStoreKey, endpointState)
-				if err != nil {
-					return nil, fmt.Errorf("failed to write endpoint state to store: %w", err)
-				}
-			}
-		} else {
-			return nil, errors.Wrap(err, "failed to create CNS PodInfoProvider")
-		}
+		return nil, errors.Wrap(err, "failed to create CNS PodInfoProvider")
 	}
 	return podInfoByIPProvider, nil
 }
