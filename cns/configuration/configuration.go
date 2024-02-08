@@ -36,7 +36,6 @@ type CNSConfig struct {
 	EnableIPAMv2                bool
 	EnablePprof                 bool
 	EnableSubnetScarcity        bool
-	SWIFTV2Mode                 SWIFTV2Mode
 	InitializeFromCNI           bool
 	KeyVaultSettings            KeyVaultSettings
 	MSISettings                 MSISettings
@@ -220,5 +219,5 @@ func SetCNSConfigDefaults(config *CNSConfig) {
 	if config.AsyncPodDeletePath == "" {
 		config.AsyncPodDeletePath = "/var/run/azure-vnet/deleteIDs"
 	}
-	config.WatchPods = config.EnableIPAMv2 || config.EnableSwiftV2
+	config.WatchPods = config.EnableIPAMv2 || config.SWIFTV2Mode == K8sSWIFTV2
 }

@@ -76,6 +76,7 @@ func (m *SFSWIFTv2Middleware) getIPConfig(ctx context.Context, podInfo cns.PodIn
 		NICType:                         resp.NetworkInterfaceInfo.NICType,
 		SkipDefaultRoutes:               false,
 		NetworkContainerPrimaryIPConfig: resp.IPConfiguration,
+		AddInterfacesDataToPodInfo:      true,
 	}
 	return podIPInfo, nil
 }
