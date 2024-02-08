@@ -17,14 +17,8 @@ import (
 
 // NewCNIPodInfoProvider returns an implementation of cns.PodInfoByIPProvider
 // that execs out to the CNI and uses the response to build the PodInfo map.
-// if EnableStateMigration flag is set to true it will also returns a map of containerID->EndpointInfo
-func NewCNIPodInfoProvider(enableStateMigration bool) (cns.PodInfoByIPProvider, map[string]*restserver.EndpointInfo, error) {
-	podInfoByIPProvider, cniState, err := newCNIPodInfoProvider(exec.New())
-	if enableStateMigration {
-		endpointState := cniStateToCnsEndpointState(cniState)
-		return podInfoByIPProvider, endpointState, err
-	}
-	return podInfoByIPProvider, nil, err
+func NewCNIPodInfoProvider() (cns.PodInfoByIPProvider, error) {
+	return newCNIPodInfoProvider(exec.New())
 }
 
 func NewCNSPodInfoProvider(endpointStore store.KeyValueStore) (cns.PodInfoByIPProvider, error) {
@@ -48,18 +42,15 @@ func newCNSPodInfoProvider(endpointStore store.KeyValueStore) (cns.PodInfoByIPPr
 	}), nil
 }
 
-func newCNIPodInfoProvider(exc exec.Interface) (cns.PodInfoByIPProvider, *api.AzureCNIState, error) {
-	cli := client.New(exc)
+func newCNIPodInfoProvider(exec exec.Interface) (cns.PodInfoByIPProvider, error) {
+	cli := client.New(exec)
 	state, err := cli.GetEndpointState()
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to invoke CNI client.GetEndpointState(): %w", err)
-	}
-	for containerID, endpointInfo := range state.ContainerInterfaces {
-		logger.Printf("state dump from CNI: [%+v], [%+v]", containerID, endpointInfo)
+		return nil, fmt.Errorf("failed to invoke CNI client.GetEndpointState(): %w", err)
 	}
 	return cns.PodInfoByIPProviderFunc(func() (map[string]cns.PodInfo, error) {
 		return cniStateToPodInfoByIP(state)
-	}), state, err
+	}), nil
 }
 
 // cniStateToPodInfoByIP converts an AzureCNIState dumped from a CNI exec
@@ -71,6 +62,7 @@ func cniStateToPodInfoByIP(state *api.AzureCNIState) (map[string]cns.PodInfo, er
 	for _, endpoint := range state.ContainerInterfaces {
 		for _, epIP := range endpoint.IPAddresses {
 			podInfo := cns.NewPodInfo(endpoint.ContainerID, endpoint.PodEndpointId, endpoint.PodName, endpoint.PodNamespace)
+
 			ipKey := epIP.IP.String()
 			if prevPodInfo, ok := podInfoByIP[ipKey]; ok {
 				return nil, errors.Wrapf(cns.ErrDuplicateIP, "duplicate ip %s found for different pods: pod: %+v, pod: %+v", ipKey, podInfo, prevPodInfo)
@@ -111,6 +103,21 @@ func endpointStateToPodInfoByIP(state map[string]*restserver.EndpointInfo) (map[
 		}
 	}
 	return podInfoByIP, nil
+}
+
+// MigrateCNISate returns an endpoint state of CNS by reading the CNI state file
+func MigrateCNISate() (map[string]*restserver.EndpointInfo, error) {
+	return migrateCNISate(exec.New())
+}
+
+func migrateCNISate(exc exec.Interface) (map[string]*restserver.EndpointInfo, error) {
+	cli := client.New(exc)
+	state, err := cli.GetEndpointState()
+	if err != nil {
+		return nil, fmt.Errorf("failed to invoke CNI client.GetEndpointState(): %w", err)
+	}
+	endpointState := cniStateToCnsEndpointState(state)
+	return endpointState, nil
 }
 
 // cniStateToCnsEndpointState converts an AzureCNIState dumped from a CNI exec

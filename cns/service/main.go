@@ -1230,18 +1230,28 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 		}
 	}
 
+	// perform state migration from CNI in case CNS is set to manage the endpoint state and has emty state
+	if cnsconfig.EnableStateMigration && !httpRestServiceImplementation.EndpointStateStore.Exists() {
+		if err = PopulateCNSEndpointState(httpRestServiceImplementation.EndpointStateStore); err != nil {
+			return errors.Wrap(err, "failed to create CNS EndpointState From CNI")
+		}
+	}
+
 	var podInfoByIPProvider cns.PodInfoByIPProvider
 	switch {
 	case cnsconfig.ManageEndpointState:
 		logger.Printf("Initializing from self managed endpoint store")
-		podInfoByIPProvider, err = InitializeStateFromCNS(cnsconfig, httpRestServiceImplementation.EndpointStateStore)
+		podInfoByIPProvider, err = cnireconciler.NewCNSPodInfoProvider(httpRestServiceImplementation.EndpointStateStore) // get reference to endpoint state store from rest server
 		if err != nil {
-			return errors.Wrap(err, "failed to create CNI PodInfoProvider")
+			if errors.Is(err, store.ErrKeyNotFound) {
+				logger.Printf("[Azure CNS] No endpoint state found, skipping initializing CNS state")
+			} else {
+				return errors.Wrap(err, "failed to create CNS PodInfoProvider")
+			}
 		}
-
 	case cnsconfig.InitializeFromCNI:
 		logger.Printf("Initializing from CNI")
-		podInfoByIPProvider, _, err = cnireconciler.NewCNIPodInfoProvider(false)
+		podInfoByIPProvider, err = cnireconciler.NewCNIPodInfoProvider()
 		if err != nil {
 			return errors.Wrap(err, "failed to create CNI PodInfoProvider")
 		}
@@ -1514,27 +1524,16 @@ func createOrUpdateNodeInfoCRD(ctx context.Context, restConfig *rest.Config, nod
 	return nil
 }
 
-// InitializeStateFromCNS initilizes CNS Endpoint State from CNS or perform the Migration of state from statefull CNI.
-func InitializeStateFromCNS(cnsconfig *configuration.CNSConfig, endpointStateStore store.KeyValueStore) (cns.PodInfoByIPProvider, error) {
-	if cnsconfig.EnableStateMigration && !endpointStateStore.Exists() { // initilize form CNI and perform state migration
-		logger.Printf("StatelessCNI Migration is enabled")
-		logger.Printf("initializing from Statefull CNI")
-		var endpointState map[string]*restserver.EndpointInfo
-		podInfoByIPProvider, endpointState, err := cnireconciler.NewCNIPodInfoProvider(cnsconfig.EnableStateMigration)
-		if err != nil {
-			return nil, errors.Wrap(err, "failed to create CNI PodInfoProvider")
-		}
-		err = endpointStateStore.Write(restserver.EndpointStoreKey, endpointState)
-		if err != nil {
-			return nil, fmt.Errorf("failed to write endpoint state to store: %w", err)
-		}
-		return podInfoByIPProvider, nil
-	}
-	// initilize form CNS and avoid state migration
-	logger.Printf("Initializing from self managed endpoint store")
-	podInfoByIPProvider, err := cnireconciler.NewCNSPodInfoProvider(endpointStateStore) // get reference to endpoint state store from rest server
+// PopulateCNSEndpointState initilizes CNS Endpoint State by Migrating the CNI state.
+func PopulateCNSEndpointState(endpointStateStore store.KeyValueStore) error {
+	logger.Printf("State Migration is enabled")
+	endpointState, err := cnireconciler.MigrateCNISate()
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to create CNS PodInfoProvider")
+		return errors.Wrap(err, "failed to create CNS Endpoint state from CNI")
 	}
-	return podInfoByIPProvider, nil
+	err = endpointStateStore.Write(restserver.EndpointStoreKey, endpointState)
+	if err != nil {
+		return fmt.Errorf("failed to write endpoint state to store: %w", err)
+	}
+	return nil
 }
