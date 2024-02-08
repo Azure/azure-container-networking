@@ -18,9 +18,9 @@ type SFSWIFTv2Middleware struct {
 // IPConfigsRequestHandlerWrapper is the middleware function for handling SWIFT v2 IP config requests for SF standalone scenario. This function wraps the default SWIFT request
 // and release IP configs handlers.
 func (m *SFSWIFTv2Middleware) IPConfigsRequestHandlerWrapper(_, _ cns.IPConfigsHandlerFunc) cns.IPConfigsHandlerFunc {
-	return func(ctx context.Context, req *cns.IPConfigsRequest) (*cns.IPConfigsResponse, error) {
+	return func(ctx context.Context, req cns.IPConfigsRequest) (*cns.IPConfigsResponse, error) {
 		// unmarshal & retrieve podInfo from OrchestratorContext
-		podInfo, err := cns.NewPodInfoFromIPConfigsRequest(*req)
+		podInfo, err := cns.NewPodInfoFromIPConfigsRequest(req)
 		ipConfigsResp := &cns.IPConfigsResponse{
 			Response: cns.Response{
 				ReturnCode: types.Success,

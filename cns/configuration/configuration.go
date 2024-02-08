@@ -29,7 +29,6 @@ type CNSConfig struct {
 	ChannelMode                 string
 	EnablePprof                 bool
 	EnableSubnetScarcity        bool
-	EnableSwiftV2               bool
 	SWIFTV2Mode                 SWIFTV2Mode
 	InitializeFromCNI           bool
 	ManagedSettings             ManagedSettings

@@ -21,7 +21,7 @@ func TestIPConfigsRequestHandlerWrapperSuccess(t *testing.T) {
 	t.Setenv(configuration.EnvPodCIDRs, "10.0.1.10/24,16A0:0010:AB00:001E::2/32")
 	t.Setenv(configuration.EnvServiceCIDRs, "10.0.0.0/16,16A0:0010:AB00:0000::/32")
 	t.Setenv(configuration.EnvInfraVNETCIDRs, "10.240.0.1/16,16A0:0020:AB00:0000::/32")
-	defaultHandler := func(context.Context, *cns.IPConfigsRequest) (*cns.IPConfigsResponse, error) {
+	defaultHandler := func(context.Context, cns.IPConfigsRequest) (*cns.IPConfigsResponse, error) {
 		return &cns.IPConfigsResponse{
 			PodIPInfo: []cns.PodIpInfo{
 				{
@@ -41,7 +41,7 @@ func TestIPConfigsRequestHandlerWrapperSuccess(t *testing.T) {
 			},
 		}, nil
 	}
-	failureHandler := func(context.Context, *cns.IPConfigsRequest) (*cns.IPConfigsResponse, error) {
+	failureHandler := func(context.Context, cns.IPConfigsRequest) (*cns.IPConfigsResponse, error) {
 		return nil, nil
 	}
 	wrappedHandler := middleware.IPConfigsRequestHandlerWrapper(defaultHandler, failureHandler)
@@ -51,7 +51,7 @@ func TestIPConfigsRequestHandlerWrapperSuccess(t *testing.T) {
 	}
 	b, _ := testPod1Info.OrchestratorContext()
 	happyReq.OrchestratorContext = b
-	resp, err := wrappedHandler(context.TODO(), &happyReq)
+	resp, err := wrappedHandler(context.TODO(), happyReq)
 	assert.Equal(t, err, nil)
 	assert.Equal(t, resp.PodIPInfo[2].PodIPConfig.IPAddress, "192.168.0.1")
 	assert.Equal(t, resp.PodIPInfo[2].MacAddress, "00:00:00:00:00:00")
@@ -59,7 +59,7 @@ func TestIPConfigsRequestHandlerWrapperSuccess(t *testing.T) {
 
 func TestIPConfigsRequestHandlerWrapperFailure(t *testing.T) {
 	middleware := K8sSWIFTv2Middleware{Cli: mock.NewClient()}
-	defaultHandler := func(context.Context, *cns.IPConfigsRequest) (*cns.IPConfigsResponse, error) {
+	defaultHandler := func(context.Context, cns.IPConfigsRequest) (*cns.IPConfigsResponse, error) {
 		return &cns.IPConfigsResponse{
 			PodIPInfo: []cns.PodIpInfo{
 				{
@@ -79,7 +79,7 @@ func TestIPConfigsRequestHandlerWrapperFailure(t *testing.T) {
 			},
 		}, nil
 	}
-	failureHandler := func(context.Context, *cns.IPConfigsRequest) (*cns.IPConfigsResponse, error) {
+	failureHandler := func(context.Context, cns.IPConfigsRequest) (*cns.IPConfigsResponse, error) {
 		return nil, nil
 	}
 	wrappedHandler := middleware.IPConfigsRequestHandlerWrapper(defaultHandler, failureHandler)
@@ -90,7 +90,7 @@ func TestIPConfigsRequestHandlerWrapperFailure(t *testing.T) {
 	}
 	b, _ := testPod4Info.OrchestratorContext()
 	failReq.OrchestratorContext = b
-	resp, _ := wrappedHandler(context.TODO(), &failReq)
+	resp, _ := wrappedHandler(context.TODO(), failReq)
 	assert.Equal(t, resp.Response.Message, errMTPNCNotReady.Error())
 
 	// Failed to set routes
@@ -100,7 +100,7 @@ func TestIPConfigsRequestHandlerWrapperFailure(t *testing.T) {
 	}
 	b, _ = testPod1Info.OrchestratorContext()
 	failReq.OrchestratorContext = b
-	_, err := wrappedHandler(context.TODO(), &failReq)
+	_, err := wrappedHandler(context.TODO(), failReq)
 	assert.ErrorContains(t, err, "failed to set routes for pod")
 }
 

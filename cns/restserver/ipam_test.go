@@ -1581,7 +1581,7 @@ func TestIPAMReleaseSWIFTV2PodIPSuccess(t *testing.T) {
 	req.DesiredIPAddresses[0] = testIP1
 	req.DesiredIPAddresses[1] = testIP1v6
 	// Requesting release ip config for SWIFT V2 pod when mtpnc is not ready, should be a no-op
-	_, err := svc.releaseIPConfigHandlerHelper(context.TODO(), &req)
+	_, err := svc.releaseIPConfigHandlerHelper(context.TODO(), req)
 	if err != nil {
 		t.Fatalf("Expected not to fail when requesting to release SWIFT V2 pod due to MTPNC not ready")
 	}
@@ -1633,7 +1633,7 @@ func TestIPAMGetK8sSWIFTv2IPSuccess(t *testing.T) {
 	req.DesiredIPAddresses[1] = testIP1v6
 
 	wrappedHandler := svc.IPConfigsHandlerMiddleware.IPConfigsRequestHandlerWrapper(svc.requestIPConfigHandlerHelper, svc.releaseIPConfigHandlerHelper)
-	resp, err := wrappedHandler(context.TODO(), &req)
+	resp, err := wrappedHandler(context.TODO(), req)
 	if err != nil {
 		t.Fatalf("Expected to not fail requesting IPs: %+v", err)
 	}
@@ -1689,7 +1689,7 @@ func TestIPAMGetK8sSWIFTv2IPFailure(t *testing.T) {
 	req.DesiredIPAddresses[0] = testIP1
 	req.DesiredIPAddresses[1] = testIP1v6
 	wrappedHandler := svc.IPConfigsHandlerMiddleware.IPConfigsRequestHandlerWrapper(svc.requestIPConfigHandlerHelper, svc.releaseIPConfigHandlerHelper)
-	_, err := wrappedHandler(context.TODO(), &req)
+	_, err := wrappedHandler(context.TODO(), req)
 	if err == nil {
 		t.Fatalf("Expected failing requesting IPs due to MTPNC not ready")
 	}
@@ -1709,7 +1709,7 @@ func TestIPAMGetK8sSWIFTv2IPFailure(t *testing.T) {
 	req.DesiredIPAddresses[0] = testIP1
 	req.DesiredIPAddresses[1] = testIP1v6
 
-	_, err = wrappedHandler(context.TODO(), &req)
+	_, err = wrappedHandler(context.TODO(), req)
 	if err == nil {
 		t.Fatalf("Expected failing requesting IPs due to not able to set routes")
 	}
@@ -1731,7 +1731,7 @@ func TestValidateSFIPConfigsRequestFailure(t *testing.T) {
 	svc.AttachIPConfigsHandlerMiddleware(&middleware)
 
 	// Fail to unmarshal pod info test
-	failReq := &cns.IPConfigsRequest{
+	failReq := cns.IPConfigsRequest{
 		PodInterfaceID:   testPod1Info.InterfaceID(),
 		InfraContainerID: testPod1Info.InfraContainerID(),
 	}

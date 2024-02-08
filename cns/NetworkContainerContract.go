@@ -467,6 +467,8 @@ type PodIpInfo struct {
 	SkipDefaultRoutes bool
 	// Routes to configure on interface
 	Routes []Route
+	// AddInterfacesDataToPodInfo is set to true for SF SwiftV2 scenario
+	AddInterfacesDataToPodInfo bool
 }
 
 type HostIPInfo struct {
