@@ -1,4 +1,4 @@
-FROM mcr.microsoft.com/cbl-mariner/base/core:2.0.20240123-amd64
+FROM mcr.microsoft.com/cbl-mariner/base/core:2.0
 ARG CNMS_BUILD_DIR
 RUN tdnf upgrade
 RUN tdnf install -y ebtables
