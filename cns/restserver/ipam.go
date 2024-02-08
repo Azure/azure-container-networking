@@ -170,9 +170,6 @@ func (service *HTTPRestService) requestIPConfigsHandler(w http.ResponseWriter, r
 		// Wrap the default datapath handlers with the middleware
 		wrappedHandler := service.IPConfigsHandlerMiddleware.IPConfigsRequestHandlerWrapper(service.requestIPConfigHandlerHelper, service.releaseIPConfigHandlerHelper)
 		ipConfigsResp, err = wrappedHandler(r.Context(), ipconfigsRequest)
-		if ipConfigsResp.PodIPInfo[0].AddInterfacesDataToPodInfo {
-			ipConfigsResp, err = service.updatePodInfoWithInterfaces(r.Context(), ipConfigsResp)
-		}
 	} else {
 		ipConfigsResp, err = service.requestIPConfigHandlerHelper(r.Context(), ipconfigsRequest) // nolint:contextcheck // appease linter
 	}
@@ -182,6 +179,16 @@ func (service *HTTPRestService) requestIPConfigsHandler(w http.ResponseWriter, r
 		err = service.Listener.Encode(w, &ipConfigsResp)
 		logger.ResponseEx(service.Name+operationName, ipconfigsRequest, ipConfigsResp, ipConfigsResp.Response.ReturnCode, err)
 		return
+	}
+
+	if ipConfigsResp.PodIPInfo[0].AddInterfacesDataToPodInfo {
+		ipConfigsResp, err = service.updatePodInfoWithInterfaces(r.Context(), ipConfigsResp)
+		if err != nil {
+			w.Header().Set(cnsReturnCode, ipConfigsResp.Response.ReturnCode.String())
+			err = service.Listener.Encode(w, &ipConfigsResp)
+			logger.ResponseEx(service.Name+operationName, ipconfigsRequest, ipConfigsResp, ipConfigsResp.Response.ReturnCode, err)
+			return
+		}
 	}
 
 	w.Header().Set(cnsReturnCode, ipConfigsResp.Response.ReturnCode.String())
