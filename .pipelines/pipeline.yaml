@@ -420,6 +420,30 @@ stages:
         k8sVersion: ""
         dependsOn: "test"
 
+    # Cilium Dualstack Overlay E2E tests
+    - template: singletenancy/cilium-dualstack-overlay/cilium-dualstackoverlay-e2e-job-template.yaml
+      parameters:
+        name: "cilium_dualstackoverlay_e2e"
+        displayName: Cilium on AKS DualStack Overlay
+        os: linux
+        clusterType: dualstack-byocni-nokubeproxy-up
+        clusterName: "cildsovere2e"
+        vmSize: Standard_B2ms
+        k8sVersion: ""
+        dependsOn: "test"
+
+        # Cilium Overlay with hubble E2E tests
+    - template: singletenancy/cilium-overlay-withhubble/cilium-overlay-e2e-job-template.yaml
+      parameters:
+        name: "cilium_h_overlay_e2e"
+        displayName: Cilium on AKS Overlay with Hubble
+        clusterType: overlay-byocni-nokubeproxy-up
+        clusterName: "cilwhleovere2e"
+        vmSize: Standard_B2ms
+        k8sVersion: ""
+        dependsOn: "test"
+        testHubble: true
+
     # Azure Overlay E2E tests
     - template: singletenancy/azure-cni-overlay/azure-cni-overlay-e2e-job-template.yaml
       parameters:
@@ -505,6 +529,7 @@ stages:
         - aks_swift_vnetscale_e2e
         - aks_windows_22_e2e
         - dualstackoverlay_e2e
+        - cilium_dualstackoverlay_e2e
       variables:
         commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
       jobs:
@@ -550,6 +575,9 @@ stages:
               dualstackoverlay_e2e:
                 name: dualstackoverlay_e2e
                 clusterName: "dsovere2e"
+              cilium_dualstackoverlay_e2e:
+                name: cilium_dualstackoverlay_e2e
+                clusterName: "cildsovere2e"
           steps:
             - template: templates/delete-cluster.yaml
               parameters:
@@ -584,9 +612,11 @@ stages:
         - aks_swift_e2e
         - cilium_e2e
         - cilium_overlay_e2e
+        - cilium_h_overlay_e2e
         - aks_ubuntu_22_linux_e2e
         - aks_windows_22_e2e
         - dualstackoverlay_e2e
+        - cilium_dualstackoverlay_e2e
       jobs:
         - job: delete_remote_artifacts
           displayName: Delete remote artifacts

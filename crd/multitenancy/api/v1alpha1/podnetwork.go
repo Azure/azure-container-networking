@@ -48,13 +48,14 @@ type PodNetworkSpec struct {
 }
 
 // Status indicates the status of PN
-// +kubebuilder:validation:Enum=Ready;InUse;SubnetNotDelegated
+// +kubebuilder:validation:Enum=Ready;InUse;SubnetNotDelegated;SubnetDelegatedToDifferentService
 type Status string
 
 const (
-	Ready              Status = "Ready"
-	InUse              Status = "InUse"
-	SubnetNotDelegated Status = "SubnetNotDelegated"
+	Ready                             Status = "Ready"
+	InUse                             Status = "InUse"
+	SubnetNotDelegated                Status = "SubnetNotDelegated"
+	SubnetDelegatedToDifferentService Status = "SubnetDelegatedToDifferentService"
 )
 
 // PodNetworkStatus defines the observed state of PodNetwork

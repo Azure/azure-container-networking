@@ -2,6 +2,7 @@ package validate
 
 import (
 	"context"
+	"encoding/json"
 	"log"
 
 	acnk8s "github.com/Azure/azure-container-networking/test/internal/kubernetes"
@@ -72,6 +73,10 @@ func CreateValidator(ctx context.Context, clientset *kubernetes.Clientset, confi
 	switch os {
 	case "windows":
 		checks = windowsChecksMap[cni]
+		err := acnk8s.RestartKubeProxyService(ctx, clientset, privilegedNamespace, privilegedLabelSelector, config)
+		if err != nil {
+			return nil, errors.Wrapf(err, "failed to restart kubeproxy")
+		}
 	case "linux":
 		checks = linuxChecksMap[cni]
 	default:
@@ -99,7 +104,7 @@ func (v *Validator) Validate(ctx context.Context) error {
 	if v.os == "linux" {
 		// We are restarting the systmemd network and checking that the connectivity works after the restart. For more details: https://github.com/cilium/cilium/issues/18706
 		log.Printf("Validating the restart network scenario")
-		err = v.ValidateRestartNetwork(ctx)
+		err = v.validateRestartNetwork(ctx)
 		if err != nil {
 			return errors.Wrapf(err, "failed to validate restart network scenario")
 		}
@@ -112,33 +117,6 @@ func (v *Validator) ValidateStateFile(ctx context.Context) error {
 		err := v.validateIPs(ctx, check.stateFileIps, check.cmd, check.name, check.podNamespace, check.podLabelSelector)
 		if err != nil {
 			return err
-		}
-	}
-	return nil
-}
-
-func (v *Validator) ValidateRestartNetwork(ctx context.Context) error {
-	nodes, err := acnk8s.GetNodeList(ctx, v.clientset)
-	if err != nil {
-		return errors.Wrapf(err, "failed to get node list")
-	}
-
-	for index := range nodes.Items {
-		// get the privileged pod
-		pod, err := acnk8s.GetPodsByNode(ctx, v.clientset, privilegedNamespace, privilegedLabelSelector, nodes.Items[index].Name)
-		if err != nil {
-			return errors.Wrapf(err, "failed to get privileged pod")
-		}
-
-		privelegedPod := pod.Items[0]
-		// exec into the pod to get the state file
-		_, err = acnk8s.ExecCmdOnPod(ctx, v.clientset, privilegedNamespace, privelegedPod.Name, restartNetworkCmd, v.config)
-		if err != nil {
-			return errors.Wrapf(err, "failed to exec into privileged pod - %s", privelegedPod.Name)
-		}
-		err = acnk8s.WaitForPodsRunning(ctx, v.clientset, "", "")
-		if err != nil {
-			return errors.Wrapf(err, "failed to wait for pods running")
 		}
 	}
 	return nil
@@ -157,6 +135,9 @@ func (v *Validator) validateIPs(ctx context.Context, stateFileIps stateFileIpsFu
 		if err != nil {
 			return errors.Wrapf(err, "failed to get privileged pod")
 		}
+		if len(pod.Items) == 0 {
+			return errors.Errorf("there are no privileged pods on node - %v", nodes.Items[index].Name)
+		}
 		podName := pod.Items[0].Name
 		// exec into the pod to get the state file
 		result, err := acnk8s.ExecCmdOnPod(ctx, v.clientset, namespace, podName, cmd, v.config)
@@ -165,7 +146,7 @@ func (v *Validator) validateIPs(ctx context.Context, stateFileIps stateFileIpsFu
 		}
 		filePodIps, err := stateFileIps(result)
 		if err != nil {
-			return errors.Wrapf(err, "failed to get pod ips from state file")
+			return errors.Wrapf(err, "failed to get pod ips from state file on node %v", nodes.Items[index].Name)
 		}
 		if len(filePodIps) == 0 && v.restartCase {
 			log.Printf("No pods found on node %s", nodes.Items[index].Name)
@@ -175,7 +156,7 @@ func (v *Validator) validateIPs(ctx context.Context, stateFileIps stateFileIpsFu
 		podIps := getPodIPsWithoutNodeIP(ctx, v.clientset, nodes.Items[index])
 
 		if err := compareIPs(filePodIps, podIps); err != nil {
-			return errors.Wrapf(errors.New("State file validation failed"), "for %s on node %s", checkType, nodes.Items[index].Name)
+			return errors.Wrapf(err, "State file validation failed for %s on node %s", checkType, nodes.Items[index].Name)
 		}
 	}
 	log.Printf("State file validation for %s passed", checkType)
@@ -257,36 +238,24 @@ func (v *Validator) ValidateDualStackControlPlane(ctx context.Context) error {
 	return nil
 }
 
-func (v *Validator) RestartKubeProxyService(ctx context.Context) error {
-	nodes, err := acnk8s.GetNodeList(ctx, v.clientset)
-	if err != nil {
-		return errors.Wrapf(err, "failed to get node list")
-	}
-
-	for index := range nodes.Items {
-		node := nodes.Items[index]
-		if node.Status.NodeInfo.OperatingSystem != string(corev1.Windows) {
-			continue
-		}
-		// get the privileged pod
-		pod, err := acnk8s.GetPodsByNode(ctx, v.clientset, privilegedNamespace, privilegedLabelSelector, nodes.Items[index].Name)
-		if err != nil {
-			return errors.Wrapf(err, "failed to get privileged pod")
-		}
-
-		privelegedPod := pod.Items[0]
-		// exec into the pod and restart kubeproxy
-		_, err = acnk8s.ExecCmdOnPod(ctx, v.clientset, privilegedNamespace, privelegedPod.Name, restartKubeProxyCmd, v.config)
-		if err != nil {
-			return errors.Wrapf(err, "failed to exec into privileged pod - %s", privelegedPod.Name)
-		}
-	}
-	return nil
-}
-
 func (v *Validator) Cleanup(ctx context.Context) {
 	// deploy privileged pod
 	privilegedDaemonSet := acnk8s.MustParseDaemonSet(privilegedDaemonSetPathMap[v.os])
 	daemonsetClient := v.clientset.AppsV1().DaemonSets(privilegedNamespace)
 	acnk8s.MustDeleteDaemonset(ctx, daemonsetClient, privilegedDaemonSet)
+}
+
+func cnsCacheStateFileIps(result []byte) (map[string]string, error) {
+	var cnsLocalCache CNSLocalCache
+
+	err := json.Unmarshal(result, &cnsLocalCache)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to unmarshal cns local cache")
+	}
+
+	cnsPodIps := make(map[string]string)
+	for index := range cnsLocalCache.IPConfigurationStatus {
+		cnsPodIps[cnsLocalCache.IPConfigurationStatus[index].IPAddress] = cnsLocalCache.IPConfigurationStatus[index].PodInfo.Name()
+	}
+	return cnsPodIps, nil
 }

@@ -8,6 +8,7 @@ parameters:
   os: "linux"
   arch: ""
   osSKU: Ubuntu
+  hubbleEnabled: false
 
 # Condition confirms that:
 # Previous job has reported Succeeded. Previous job is currently setup which controls variable assignment and we are dependent on its success.
@@ -48,38 +49,80 @@ stages:
       - setup
     displayName: "Cilium Test - ${{ parameters.name }}"
     jobs:
-      - job: deploy_cilium_components
-        steps:
-          - task: AzureCLI@1
-            displayName: "Install Cilium, CNS, and ip-masq-agent"
-            inputs:
-              azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
-              scriptLocation: "inlineScript"
-              scriptType: "bash"
-              addSpnToEnvironment: true
-              inlineScript: |
-                set -ex
-                az extension add --name aks-preview
-                make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}-$(commitID)
-                ls -lah
-                pwd
-                kubectl cluster-info
-                kubectl get po -owide -A
+      - ${{if eq(parameters.hubbleEnabled, false)}}:
+        - job: deploy_cilium_components
+          displayName: Deploy Cilium
+          steps:
+            - task: AzureCLI@1
+              displayName: "Install Cilium, CNS, and ip-masq-agent"
+              inputs:
+                azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+                scriptLocation: "inlineScript"
+                scriptType: "bash"
+                addSpnToEnvironment: true
+                inlineScript: |
+                  set -ex
+                  az extension add --name aks-preview
+                  make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}-$(commitID)
+                  ls -lah
+                  pwd
+                  kubectl cluster-info
+                  kubectl get po -owide -A
 
-                echo "deploy Cilium ConfigMap"
-                kubectl apply -f test/integration/manifests/cilium/cilium-config.yaml
-                echo "install Cilium onto Overlay Cluster"
-                kubectl apply -f test/integration/manifests/cilium/cilium-agent
-                kubectl apply -f test/integration/manifests/cilium/cilium-operator
-                echo "install Cilium ${CILIUM_VERSION_TAG} onto Overlay Cluster"
-                # Passes Cilium image to daemonset and deployment
-                envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/daemonset.yaml | kubectl apply -f -
-                envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/deployment.yaml | kubectl apply -f -
-                kubectl get po -owide -A
+                  echo "deploy Cilium ConfigMap"
+                  kubectl apply -f test/integration/manifests/cilium/cilium-config.yaml
+                
+                  echo "install Cilium onto Overlay Cluster"
+                  kubectl apply -f test/integration/manifests/cilium/cilium-agent
+                  kubectl apply -f test/integration/manifests/cilium/cilium-operator
+                  
+                  
+                  echo "install Cilium ${CILIUM_VERSION_TAG} onto Overlay Cluster"
+                  # Passes Cilium image to daemonset and deployment
+                  envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/daemonset.yaml | kubectl apply -f -
+                  envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/deployment.yaml | kubectl apply -f -
+                  kubectl get po -owide -A
 
-                echo "Deploy Azure-CNS"
-                sudo -E env "PATH=$PATH" make test-integration AZURE_IPAM_VERSION=$(make azure-ipam-version) CNS_VERSION=$(make cns-version) INSTALL_CNS=true INSTALL_OVERLAY=true CNS_IMAGE_REPO=$(CNS_IMAGE_REPO)
-                kubectl get po -owide -A
+                  echo "Deploy Azure-CNS"
+                  sudo -E env "PATH=$PATH" make test-integration AZURE_IPAM_VERSION=$(make azure-ipam-version) CNS_VERSION=$(make cns-version) INSTALL_CNS=true INSTALL_OVERLAY=true CNS_IMAGE_REPO=$(CNS_IMAGE_REPO)
+                  kubectl get po -owide -A
+      - ${{if eq(parameters.hubbleEnabled, true)}}:
+        - job: deploy_cilium_components
+          displayName: Deploy Cilium with Hubble
+          steps:
+            - task: AzureCLI@1
+              displayName: "Install Cilium, CNS, and ip-masq-agent"
+              inputs:
+                azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+                scriptLocation: "inlineScript"
+                scriptType: "bash"
+                addSpnToEnvironment: true
+                inlineScript: |
+                  set -ex
+                  az extension add --name aks-preview
+                  make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}-$(commitID)
+                  ls -lah
+                  pwd
+                  kubectl cluster-info
+                  kubectl get po -owide -A
+
+                  echo "deploy Cilium ConfigMap"
+                  kubectl apply -f test/integration/manifests/cilium/v1.14.4/cilium-config/cilium-config-hubble.yaml
+                  
+                  echo "install Cilium onto Overlay Cluster with hubble enabled"
+                  kubectl apply -f test/integration/manifests/cilium/v1.14.4/cilium-agent/files
+                  kubectl apply -f test/integration/manifests/cilium/v1.14.4/cilium-operator/files
+                  
+                  echo "install Cilium v1.14.4 onto Overlay Cluster"
+                  # Passes Cilium image to daemonset and deployment
+                  envsubst '${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/v1.14.4/cilium-agent/templates/daemonset.tpl | kubectl apply -f -
+                  envsubst '${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/v1.14.4/cilium-operator/templates/deployment.tpl | kubectl apply -f -
+                  kubectl get po -owide -A
+
+                  echo "Deploy Azure-CNS"
+                  sudo -E env "PATH=$PATH" make test-integration AZURE_IPAM_VERSION=$(make azure-ipam-version) CNS_VERSION=$(make cns-version) INSTALL_CNS=true INSTALL_OVERLAY=true CNS_IMAGE_REPO=$(CNS_IMAGE_REPO)
+                  kubectl get po -owide -A
+          
       - job: deploy_pods
         condition: and( and( not(canceled()), not(failed()) ), or( contains(variables.CONTROL_SCENARIO, 'scaleTest') , contains(variables.CONTROL_SCENARIO, 'all') ) )
         displayName: "Scale Test"

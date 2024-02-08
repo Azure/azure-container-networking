@@ -52,29 +52,13 @@ steps:
       pwd
       kubectl cluster-info
       kubectl get po -owide -A
-      sudo -E env "PATH=$PATH" make test-integration CNS_VERSION=$(make cns-version) CNI_VERSION=$(make cni-version) INSTALL_CNS=true INSTALL_AZURE_VNET=true
+      sudo -E env "PATH=$PATH" make test-load SCALE_UP=32 OS_TYPE=linux CNI_TYPE=cniv2 VALIDATE_STATEFILE=true INSTALL_CNS=true INSTALL_AZURE_VNET=true CNS_VERSION=$(make cns-version) CNI_VERSION=$(make cni-version) CLEANUP=true
     retryCountOnTaskFailure: 3
     name: "aksswifte2e"
     displayName: "Run AKS Swift E2E"
 
   - script: |
-      echo "Logs will be available as a build artifact"
-      ARTIFACT_DIR=$(Build.ArtifactStagingDirectory)/aks-swift-output/
-      echo $ARTIFACT_DIR
-      sudo rm -rf $ARTIFACT_DIR
-      sudo mkdir $ARTIFACT_DIR
-      sudo cp test/integration/logs/* $ARTIFACT_DIR
-    name: "GetLogs"
-    displayName: "Get logs"
-    condition: always()
-
-  - task: PublishBuildArtifacts@1
-    inputs:
-      artifactName: aks-swift-output
-      pathtoPublish: "$(Build.ArtifactStagingDirectory)/aks-swift-output"
-    condition: always()
-
-  - script: |
+      kubectl get po -owide -A
       echo "Run Service Conformance E2E"
       export PATH=${PATH}:/usr/local/bin/gsutil
       KUBECONFIG=~/.kube/config kubetest2 noop \
@@ -98,7 +82,7 @@ steps:
     retryCountOnTaskFailure: 3
     name: "WireserverMetadataConnectivityTests"
     displayName: "Run Wireserver and Metadata Connectivity Tests"
-  
+
   - script: |
       cd hack/scripts
       chmod +x async-delete-test.sh
@@ -108,12 +92,3 @@ steps:
       fi
     name: "testAsyncDelete"
     displayName: "Verify Async Delete when CNS is down"
-
-  - script: |
-      ARTIFACT_DIR=$(Build.ArtifactStagingDirectory)/aks-swift-output/
-      echo $ARTIFACT_DIR
-      sudo rm -rf $ARTIFACT_DIR
-      sudo rm -rf test/integration/logs
-    name: "Cleanupartifactdir"
-    displayName: "Cleanup artifact dir"
-    condition: always()

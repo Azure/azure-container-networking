@@ -21,8 +21,19 @@ spec:
       hostPID: true
       containers:
         - name: privileged-container
-          image: mcr.microsoft.com/dotnet/runtime-deps:6.0
-          command: ["/bin/sleep", "3650d"]
+          image: mcr.microsoft.com/mirror/docker/library/alpine:3.16
+          command:
+            - nsenter
+            - -t
+            - "1"
+            - -m
+            - -u
+            - -i
+            - -n
+            - -p
+            - bash
+            - -c
+            - sleep 3650d
           securityContext:
             privileged: true
             runAsUser: 0

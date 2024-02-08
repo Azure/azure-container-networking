@@ -1,6 +1,7 @@
 package validate
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"log"
@@ -13,12 +14,21 @@ import (
 	"k8s.io/client-go/rest"
 )
 
+const (
+	cnsWinLabelSelector = "k8s-app=azure-cns-win"
+)
+
 var (
-	hnsEndPointCmd      = []string{"powershell", "-c", "Get-HnsEndpoint | ConvertTo-Json"}
-	hnsNetworkCmd       = []string{"powershell", "-c", "Get-HnsNetwork | ConvertTo-Json"}
-	azureVnetCmd        = []string{"powershell", "-c", "cat ../../k/azure-vnet.json"}
-	azureVnetIpamCmd    = []string{"powershell", "-c", "cat ../../k/azure-vnet-ipam.json"}
-	restartKubeProxyCmd = []string{"powershell", "Restart-service", "kubeproxy"}
+	hnsEndPointCmd                 = []string{"powershell", "-c", "Get-HnsEndpoint | ConvertTo-Json"}
+	hnsNetworkCmd                  = []string{"powershell", "-c", "Get-HnsNetwork | ConvertTo-Json"}
+	azureVnetCmd                   = []string{"powershell", "-c", "cat ../../k/azure-vnet.json"}
+	azureVnetIpamCmd               = []string{"powershell", "-c", "cat ../../k/azure-vnet-ipam.json"}
+	cnsWinCachedAssignedIPStateCmd = []string{
+		"powershell", "Invoke-WebRequest -Uri 127.0.0.1:10090/debug/ipaddresses",
+		"-Method Post -ContentType application/x-www-form-urlencoded",
+		"-Body \"{`\"IPConfigStateFilter`\":[`\"Assigned`\"]}\"",
+		"-UseBasicParsing | Select-Object -Expand Content",
+	}
 )
 
 var windowsChecksMap = map[string][]check{
@@ -28,14 +38,16 @@ var windowsChecksMap = map[string][]check{
 		{"azure-vnet-ipam", azureVnetIpamIps, privilegedLabelSelector, privilegedNamespace, azureVnetIpamCmd},
 	},
 	"cniv2": {
+		{"hns", hnsStateFileIps, privilegedLabelSelector, privilegedNamespace, hnsEndPointCmd},
 		{"azure-vnet", azureVnetIps, privilegedLabelSelector, privilegedNamespace, azureVnetCmd},
+		{"cns cache", cnsCacheStateFileIps, cnsWinLabelSelector, privilegedNamespace, cnsWinCachedAssignedIPStateCmd},
 	},
 }
 
 type HNSEndpoint struct {
 	MacAddress       string `json:"MacAddress"`
 	IPAddress        net.IP `json:"IPAddress"`
-	IPv6Address      net.IP `json:",omitempty"`
+	IPv6Address      net.IP `json:"IPv6Address"`
 	IsRemoteEndpoint bool   `json:",omitempty"`
 }
 
@@ -90,18 +102,45 @@ type AddressRecord struct {
 }
 
 func hnsStateFileIps(result []byte) (map[string]string, error) {
-	var hnsResult []HNSEndpoint
-	err := json.Unmarshal(result, &hnsResult)
-	if err != nil {
-		return nil, errors.Wrapf(err, "failed to unmarshal hns endpoint list")
+	jsonType := bytes.TrimLeft(result, " \t\r\n")
+	isObject := jsonType[0] == '{'
+	isArray := jsonType[0] == '['
+	hnsPodIps := make(map[string]string)
+
+	switch {
+	case isObject:
+		var hnsResult HNSEndpoint
+		err := json.Unmarshal(result, &hnsResult)
+		if err != nil {
+			return nil, errors.Wrapf(err, "failed to unmarshal hns endpoint list")
+		}
+		if !hnsResult.IsRemoteEndpoint {
+			hnsPodIps[hnsResult.IPAddress.String()] = hnsResult.MacAddress
+			if hnsResult.IPv6Address.String() != "<nil>" {
+				hnsPodIps[hnsResult.IPv6Address.String()] = hnsResult.MacAddress
+			}
+		}
+	case isArray:
+		var hnsResult []HNSEndpoint
+		err := json.Unmarshal(result, &hnsResult)
+		if err != nil {
+			return nil, errors.Wrapf(err, "failed to unmarshal hns endpoint list")
+		}
+
+		for _, v := range hnsResult {
+			if !v.IsRemoteEndpoint {
+				hnsPodIps[v.IPAddress.String()] = v.MacAddress
+				if v.IPv6Address.String() != "<nil>" {
+					hnsPodIps[v.IPv6Address.String()] = v.MacAddress
+				}
+
+			}
+		}
+	default:
+		log.Printf("Leading character is - %v", jsonType[0])
+		return nil, errors.New("json is malformed and does not have correct leading character")
 	}
 
-	hnsPodIps := make(map[string]string)
-	for _, v := range hnsResult {
-		if !v.IsRemoteEndpoint {
-			hnsPodIps[v.IPAddress.String()] = v.MacAddress
-		}
-	}
 	return hnsPodIps, nil
 }
 
@@ -165,7 +204,9 @@ func validateHNSNetworkState(ctx context.Context, nodes *corev1.NodeList, client
 		if err != nil {
 			return errors.Wrap(err, "failed to get privileged pod")
 		}
-
+		if len(pod.Items) == 0 {
+			return errors.Errorf("there are no privileged pods on node - %v", nodes.Items[index].Name)
+		}
 		podName := pod.Items[0].Name
 		// exec into the pod to get the state file
 		result, err := acnk8s.ExecCmdOnPod(ctx, clientset, privilegedNamespace, podName, hnsNetworkCmd, restConfig)

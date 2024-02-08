@@ -51,6 +51,7 @@ type HTTPService interface {
 	GetPodIPConfigState() map[string]IPConfigurationStatus
 	MarkIPAsPendingRelease(numberToMark int) (map[string]IPConfigurationStatus, error)
 	AttachIPConfigsHandlerMiddleware(IPConfigsHandlerMiddleware)
+	MarkNIPsPendingRelease(n int) (map[string]IPConfigurationStatus, error)
 }
 
 // IPConfigsHandlerFunc
@@ -282,13 +283,13 @@ type NodeConfiguration struct {
 	NodeSubnet Subnet
 }
 
+// IpamPoolMonitorStateSnapshot struct to expose state values for IPAMPoolMonitor struct
 type IPAMPoolMonitor interface {
 	Start(ctx context.Context) error
 	Update(nnc *v1alpha.NodeNetworkConfig) error
 	GetStateSnapshot() IpamPoolMonitorStateSnapshot
 }
 
-// IpamPoolMonitorStateSnapshot struct to expose state values for IPAMPoolMonitor struct
 type IpamPoolMonitorStateSnapshot struct {
 	MinimumFreeIps           int64
 	MaximumFreeIps           int64

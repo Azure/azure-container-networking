@@ -164,6 +164,15 @@ stages:
 
   - template: cilium/cilium-overlay-load-test-template.yaml
     parameters:
+      name: cilium_overlay_hubble
+      clusterType: overlay-byocni-nokubeproxy-up
+      clusterName: "cil-over-hub"
+      hubbleEnabled: true
+      nodeCount: ${NODE_COUNT_CILIUM}
+      vmSize: ${VM_SIZE_CILIUM}
+
+  - template: cilium/cilium-overlay-load-test-template.yaml
+    parameters:
       name: cilium_overlay_mariner
       clusterType: overlay-byocni-nokubeproxy-up
       clusterName: "cil-over-mar"
@@ -269,6 +278,7 @@ stages:
     condition: always()
     dependsOn:
       - cilium_overlay
+      - cilium_overlay_hubble
       - cilium_overlay_mariner
       - cilium_overlay_arm
       - cilium_overlay_rdma
@@ -292,6 +302,9 @@ stages:
             cilium_overlay:
               name: cilium_overlay
               clusterName: "cilium-over"
+            cilium_overlay_hubble:
+               name: cilium_overlay_hubble
+               clusterName: "cil-over-hub"
             cilium_overlay_mariner:
               name: cilium_overlay_mariner
               clusterName: "cil-over-mar"

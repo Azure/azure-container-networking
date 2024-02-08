@@ -1,11 +1,14 @@
 package validate
 
 import (
+	"context"
 	"encoding/json"
 
 	"github.com/Azure/azure-container-networking/cns"
 	restserver "github.com/Azure/azure-container-networking/cns/restserver"
+	acnk8s "github.com/Azure/azure-container-networking/test/internal/kubernetes"
 	"github.com/pkg/errors"
+	corev1 "k8s.io/api/core/v1"
 )
 
 const (
@@ -15,12 +18,12 @@ const (
 )
 
 var (
-	restartNetworkCmd      = []string{"bash", "-c", "chroot /host /bin/bash -c systemctl restart systemd-networkd"}
-	cnsManagedStateFileCmd = []string{"bash", "-c", "cat /var/run/azure-cns/azure-endpoints.json"}
-	azureVnetStateFileCmd  = []string{"bash", "-c", "cat /var/run/azure-vnet.json"}
-	azureVnetIpamStateCmd  = []string{"bash", "-c", "cat /var/run/azure-vnet-ipam.json"}
-	ciliumStateFileCmd     = []string{"bash", "-c", "cilium endpoint list -o json"}
-	cnsLocalCacheCmd       = []string{"curl", "localhost:10090/debug/ipaddresses", "-d", "{\"IPConfigStateFilter\":[\"Assigned\"]}"}
+	restartNetworkCmd           = []string{"bash", "-c", "systemctl restart systemd-networkd"}
+	cnsManagedStateFileCmd      = []string{"bash", "-c", "cat /var/run/azure-cns/azure-endpoints.json"}
+	azureVnetStateFileCmd       = []string{"bash", "-c", "cat /var/run/azure-vnet.json"}
+	azureVnetIpamStateCmd       = []string{"bash", "-c", "cat /var/run/azure-vnet-ipam.json"}
+	ciliumStateFileCmd          = []string{"bash", "-c", "cilium endpoint list -o json"}
+	cnsCachedAssignedIPStateCmd = []string{"curl", "localhost:10090/debug/ipaddresses", "-d", "{\"IPConfigStateFilter\":[\"Assigned\"]}"}
 )
 
 type stateFileIpsFunc func([]byte) (map[string]string, error)
@@ -29,19 +32,24 @@ var linuxChecksMap = map[string][]check{
 	"cilium": {
 		{"cns", cnsManagedStateFileIps, cnsLabelSelector, privilegedNamespace, cnsManagedStateFileCmd}, // cns configmap "ManageEndpointState": true, | Endpoints managed in CNS State File
 		{"cilium", ciliumStateFileIps, ciliumLabelSelector, privilegedNamespace, ciliumStateFileCmd},
-		{"cns cache", cnsCacheStateFileIps, cnsLabelSelector, privilegedNamespace, cnsLocalCacheCmd},
+		{"cns cache", cnsCacheStateFileIps, cnsLabelSelector, privilegedNamespace, cnsCachedAssignedIPStateCmd},
 	},
 	"cniv1": {
 		{"azure-vnet", azureVnetStateIps, privilegedLabelSelector, privilegedNamespace, azureVnetStateFileCmd},
 		{"azure-vnet-ipam", azureVnetIpamStateIps, privilegedLabelSelector, privilegedNamespace, azureVnetIpamStateCmd},
 	},
 	"cniv2": {
-		{"cns cache", cnsCacheStateFileIps, cnsLabelSelector, privilegedNamespace, cnsLocalCacheCmd},
+		{"cns cache", cnsCacheStateFileIps, cnsLabelSelector, privilegedNamespace, cnsCachedAssignedIPStateCmd},
 		{"azure-vnet", azureVnetStateIps, privilegedLabelSelector, privilegedNamespace, azureVnetStateFileCmd}, // cns configmap "ManageEndpointState": false, | Endpoints managed in CNI State File
 	},
 	"dualstack": {
-		{"cns cache", cnsCacheStateFileIps, cnsLabelSelector, privilegedNamespace, cnsLocalCacheCmd},
+		{"cns cache", cnsCacheStateFileIps, cnsLabelSelector, privilegedNamespace, cnsCachedAssignedIPStateCmd},
 		{"azure dualstackoverlay", azureVnetStateIps, privilegedLabelSelector, privilegedNamespace, azureVnetStateFileCmd},
+	},
+	"cilium_dualstack": {
+		{"cns dualstack", cnsManagedStateFileDualStackIps, cnsLabelSelector, privilegedNamespace, cnsManagedStateFileCmd}, // cns configmap "ManageEndpointState": true, | Endpoints managed in CNS State File
+		{"cilium", ciliumStateFileDualStackIps, ciliumLabelSelector, privilegedNamespace, ciliumStateFileCmd},
+		{"cns cache", cnsCacheStateFileIps, cnsLabelSelector, privilegedNamespace, cnsCachedAssignedIPStateCmd},
 	},
 }
 
@@ -67,7 +75,8 @@ type NetworkingAddressing struct {
 }
 
 type Address struct {
-	Addr string `json:"ipv4"`
+	IPv4 string `json:"ipv4"`
+	IPv6 string `json:"ipv6"`
 }
 
 // parse azure-vnet.json
@@ -130,8 +139,26 @@ func cnsManagedStateFileIps(result []byte) (map[string]string, error) {
 	for _, v := range cnsResult.Endpoints {
 		for ifName, ip := range v.IfnameToIPMap {
 			if ifName == "eth0" {
-				ip := ip.IPv4[0].IP.String()
-				cnsPodIps[ip] = v.PodName
+				cnsPodIps[ip.IPv4[0].IP.String()] = v.PodName
+			}
+		}
+	}
+	return cnsPodIps, nil
+}
+
+func cnsManagedStateFileDualStackIps(result []byte) (map[string]string, error) {
+	var cnsResult CnsManagedState
+	err := json.Unmarshal(result, &cnsResult)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to unmarshal cns endpoint list")
+	}
+
+	cnsPodIps := make(map[string]string)
+	for _, v := range cnsResult.Endpoints {
+		for ifName, ip := range v.IfnameToIPMap {
+			if ifName == "eth0" {
+				cnsPodIps[ip.IPv4[0].IP.String()] = v.PodName
+				cnsPodIps[ip.IPv6[0].IP.String()] = v.PodName
 			}
 		}
 	}
@@ -148,27 +175,31 @@ func ciliumStateFileIps(result []byte) (map[string]string, error) {
 	ciliumPodIps := make(map[string]string)
 	for _, v := range ciliumResult {
 		for _, addr := range v.Status.Networking.Addresses {
-			if addr.Addr != "" {
-				ciliumPodIps[addr.Addr] = v.Status.Networking.InterfaceName
+			if addr.IPv4 != "" {
+				ciliumPodIps[addr.IPv4] = v.Status.Networking.InterfaceName
 			}
 		}
 	}
 	return ciliumPodIps, nil
 }
 
-func cnsCacheStateFileIps(result []byte) (map[string]string, error) {
-	var cnsLocalCache CNSLocalCache
-
-	err := json.Unmarshal(result, &cnsLocalCache)
+func ciliumStateFileDualStackIps(result []byte) (map[string]string, error) {
+	var ciliumResult []CiliumEndpointStatus
+	err := json.Unmarshal(result, &ciliumResult)
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to unmarshal cns local cache")
+		return nil, errors.Wrapf(err, "failed to unmarshal cilium endpoint list")
 	}
 
-	cnsPodIps := make(map[string]string)
-	for index := range cnsLocalCache.IPConfigurationStatus {
-		cnsPodIps[cnsLocalCache.IPConfigurationStatus[index].IPAddress] = cnsLocalCache.IPConfigurationStatus[index].PodInfo.Name()
+	ciliumPodIps := make(map[string]string)
+	for _, v := range ciliumResult {
+		for _, addr := range v.Status.Networking.Addresses {
+			if addr.IPv4 != "" && addr.IPv6 != "" {
+				ciliumPodIps[addr.IPv4] = v.Status.Networking.InterfaceName
+				ciliumPodIps[addr.IPv6] = v.Status.Networking.InterfaceName
+			}
+		}
 	}
-	return cnsPodIps, nil
+	return ciliumPodIps, nil
 }
 
 func azureVnetStateIps(result []byte) (map[string]string, error) {
@@ -211,4 +242,38 @@ func azureVnetIpamStateIps(result []byte) (map[string]string, error) {
 		}
 	}
 	return azureVnetIpamPodIps, nil
+}
+
+// Linux only function
+func (v *Validator) validateRestartNetwork(ctx context.Context) error {
+	nodes, err := acnk8s.GetNodeList(ctx, v.clientset)
+	if err != nil {
+		return errors.Wrapf(err, "failed to get node list")
+	}
+
+	for index := range nodes.Items {
+		node := nodes.Items[index]
+		if node.Status.NodeInfo.OperatingSystem != string(corev1.Linux) {
+			continue
+		}
+		// get the privileged pod
+		pod, err := acnk8s.GetPodsByNode(ctx, v.clientset, privilegedNamespace, privilegedLabelSelector, node.Name)
+		if err != nil {
+			return errors.Wrapf(err, "failed to get privileged pod")
+		}
+		if len(pod.Items) == 0 {
+			return errors.Errorf("there are no privileged pods on node - %v", node.Name)
+		}
+		privilegedPod := pod.Items[0]
+		// exec into the pod to get the state file
+		_, err = acnk8s.ExecCmdOnPod(ctx, v.clientset, privilegedNamespace, privilegedPod.Name, restartNetworkCmd, v.config)
+		if err != nil {
+			return errors.Wrapf(err, "failed to exec into privileged pod %s on node %s", privilegedPod.Name, node.Name)
+		}
+		err = acnk8s.WaitForPodsRunning(ctx, v.clientset, "", "")
+		if err != nil {
+			return errors.Wrapf(err, "failed to wait for pods running")
+		}
+	}
+	return nil
 }
