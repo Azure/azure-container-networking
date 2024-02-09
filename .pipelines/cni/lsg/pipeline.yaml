@@ -25,6 +25,7 @@ stages:
               echo "##vso[task.setvariable variable=commitID;isOutput=true]$(echo $(make revision)-$(date "+%d%H%M"))"
               echo "##vso[task.setvariable variable=cnsVersion;isOutput=true]$(CNS_VERSION)"
               echo "##vso[task.setvariable variable=cniVersion;isOutput=true]$(CNI_VERSION)"
+              echo "##vso[task.setvariable variable=ipamVersion;isOutput=true]$(IPAM_VERSION)"
             name: "SetEnvVars"
             displayName: "Set Environment Variables"
             condition: always()
@@ -39,6 +40,16 @@ stages:
       arch: amd64
       cni: cniv2
 
+  - template: kernel-upgrade-template.yaml
+    parameters:
+      name: cilium_overlay
+      clusterType: overlay-byocni-nokubeproxy-up
+      clusterName: "kup-cilover"
+      nodeCount: 2
+      vmSize: Standard_B2ms
+      arch: amd64
+      cni: cilium
+
   - stage: delete_resources
     displayName: "Delete Resources"
     pool:
@@ -46,6 +57,7 @@ stages:
     condition: always()
     dependsOn:
       - linux_overlay
+      - cilium_overlay
       - setup
     variables:
       commitID: $[ stagedependencies.setup.env.outputs['SetEnvVars.commitID'] ]
@@ -59,6 +71,9 @@ stages:
             linux_overlay:
               name: linux_overlay
               clusterName: "kup-overlay"
+            cilium_overlay:
+              name: cilium_overlay
+              clusterName: "kup-cilover"
         steps:
           - template: ../../templates/delete-cluster.yaml
             parameters:
