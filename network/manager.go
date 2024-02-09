@@ -402,6 +402,10 @@ func (nm *networkManager) CreateEndpoint(cli apipaClient, networkID string, epIn
 
 	err = nm.save()
 	if err != nil {
+		delErr := nw.deleteEndpoint(nm.netlink, nm.plClient, nm.netio, nm.nsClient, nm.iptablesClient, ep.Id)
+		if delErr != nil {
+			logger.Error("Deleting endpoint after failing to save state failed with", zap.Error(delErr))
+		}
 		return err
 	}
 
