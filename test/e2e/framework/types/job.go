@@ -1,6 +1,7 @@
 package types
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"reflect"
@@ -19,10 +20,11 @@ var (
 
 // A Job is a logical grouping of steps, options and values
 type Job struct {
-	Values          *JobValues
+	values          *JobValues
 	Description     string
 	Steps           []*StepWrapper
 	BackgroundSteps map[string]*StepWrapper
+	Scenarios       map[*StepWrapper]*Scenario
 }
 
 // A StepWrapper is a coupling of a step and it's options
@@ -34,7 +36,17 @@ type StepWrapper struct {
 // A Scenario is a logical grouping of steps, used to describe a scenario such as "test drop metrics"
 // which will require port forwarding, exec'ing, scraping, etc.
 type Scenario struct {
-	Steps []*StepWrapper
+	Description string
+	Steps       []*StepWrapper
+	values      *JobValues
+}
+
+func NewScenario(description string, steps ...*StepWrapper) *Scenario {
+	return &Scenario{
+		Description: description,
+		Steps:       steps,
+		values:      &JobValues{kv: make(map[string]string)},
+	}
 }
 
 func responseDivider(jobname string) {
@@ -54,17 +66,19 @@ func responseDivider(jobname string) {
 
 func NewJob(description string) *Job {
 	return &Job{
-		Values: &JobValues{
+		values: &JobValues{
 			kv: make(map[string]string),
 		},
 		BackgroundSteps: make(map[string]*StepWrapper),
+		Scenarios:       make(map[*StepWrapper]*Scenario),
 		Description:     description,
 	}
 }
 
 func (j *Job) AddScenario(scenario *Scenario) {
-	for _, step := range scenario.Steps {
-		j.AddStep(step.Step, step.Opts)
+	for i, step := range scenario.Steps {
+		j.Steps = append(j.Steps, step)
+		j.Scenarios[scenario.Steps[i]] = scenario
 	}
 }
 
@@ -74,6 +88,42 @@ func (j *Job) AddStep(step Step, opts *StepOptions) {
 		Opts: opts,
 	}
 	j.Steps = append(j.Steps, stepw)
+}
+
+func (j *Job) GetValue(stepw *StepWrapper, key string) (string, bool) {
+
+	// if step exists in a scenario, use the scenario's values
+	// if the value isn't in the scenario's values, get the root job's value
+	if scenario, exists := j.Scenarios[stepw]; exists {
+		if scenario.values.Contains(key) {
+			return scenario.values.Get(key), true
+		}
+	}
+	if j.values.Contains(key) {
+		return j.values.Get(key), true
+	}
+
+	return "", false
+}
+
+func (j *Job) SetStepValues(stepw *StepWrapper, key, value string) (string, error) {
+	// if top level step parameter is set, and scenario step is not, inherit
+	// if top level step parameter is not set, and scenario step is, use scenario step
+	// if top level step parameter is set, and scenario step is set, warn and use scenario step
+
+	// check if scenario exists, if it does, check if the value is in the scenario's values
+	if scenario, exists := j.Scenarios[stepw]; exists {
+		scenarioValue, err := scenario.values.SetGet(key, value)
+		if err != nil && !errors.Is(err, ErrEmptyValue) {
+			return "", err
+		}
+		if scenarioValue != "" {
+			return scenarioValue, nil
+		}
+		fmt.Printf("parameter %s not found in scenario values, using top level value\n", key)
+	}
+
+	return j.values.SetGet(key, value)
 }
 
 func (j *Job) Run() error {
@@ -200,29 +250,19 @@ func (j *Job) validateStep(stepw *StepWrapper) error {
 			if k == reflect.String {
 				parameter := val.Type().Field(i).Name
 				value := val.Field(i).Interface().(string)
-				storedValue := j.Values.Get(parameter)
 
-				if storedValue == "" {
+				// if top level step parameter is set, and scenario step is not, inherit
+				// if top level step parameter is not set, and scenario step is, use scenario step
+				// if top level step parameter is set, and scenario step is set, warn and use scenario step
 
-					switch {
-					case stepw.Opts.SkipSavingParamatersToJob:
-						continue
-					case value != "":
-						fmt.Printf("\"%s\" setting parameter \"%s\" in job context to \"%s\"\n", stepName, parameter, value)
-						j.Values.Set(parameter, value)
-					default:
-						return fmt.Errorf("missing parameter \"%s\" for step \"%s\": %w", parameter, stepName, ErrMissingParameter)
-					}
-					continue
-				}
-
-				if value != "" {
-					return fmt.Errorf("parameter %s for step %s is already set from previous step: %w", parameter, stepName, ErrParameterAlreadySet)
+				storedvalue, err := j.SetStepValues(stepw, parameter, value)
+				if err != nil {
+					return fmt.Errorf("error setting parameter %s: %w", parameter, err)
 				}
 
 				// don't use log format since this is technically preexecution and easier to read
-				fmt.Println(stepName, "using previously stored value for parameter", parameter, "set as", j.Values.Get(parameter))
-				val.Field(i).SetString(storedValue)
+				fmt.Println(stepName, "setting stored value for parameter", parameter, "set as", storedvalue)
+				val.Field(i).SetString(storedvalue)
 			}
 		}
 	}
