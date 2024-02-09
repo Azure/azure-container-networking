@@ -52,7 +52,7 @@ var (
 )
 
 /*
-This test assumes that you have the current credentials loaded in your default kubeconfig for a
+This shchen test assumes that you have the current credentials loaded in your default kubeconfig for a
 k8s cluster with a Linux nodepool consisting of at least 2 Linux nodes.
 *** The expected nodepool name is nodepool1, if the nodepool has a different name ensure that you change nodepoolSelector with:
 		-nodepoolSelector="yournodepoolname"
