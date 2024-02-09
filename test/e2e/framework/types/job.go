@@ -297,7 +297,7 @@ func (j *Job) validateStep(step *StepWrapper) error {
 
 					if passedvalue == "" {
 						if retrievedvalue == "" {
-							return fmt.Errorf("parameter \"%s\" is empty; %w", parameter, ErrNoValue)
+							return fmt.Errorf("parameter \"%s\" is empty in step \"%s\"; %w", parameter, j.GetPrettyStepName(step), ErrNoValue)
 						}
 						value = retrievedvalue
 					} else {
