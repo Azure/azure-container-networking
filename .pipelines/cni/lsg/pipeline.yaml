@@ -30,7 +30,7 @@ stages:
             displayName: "Set Environment Variables"
             condition: always()
 
-  - template: kernel-upgrade-template.yaml
+  - template: lsg-cni-intergration-template.yaml
     parameters:
       name: linux_overlay
       clusterType: overlay-byocni-up
@@ -40,7 +40,7 @@ stages:
       arch: amd64
       cni: cniv2
 
-  - template: kernel-upgrade-template.yaml
+  - template: lsg-cni-intergration-template.yaml
     parameters:
       name: cilium_overlay
       clusterType: overlay-byocni-nokubeproxy-up

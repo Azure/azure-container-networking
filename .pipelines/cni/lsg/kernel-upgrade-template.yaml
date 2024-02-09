@@ -13,8 +13,8 @@ steps:
         az extension add --name aks-preview
         make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
     retryCountOnTaskFailure: 3
-    name: "config"
     displayName: "Set Kubeconfig"
+
   - script: |
       set -e
 
@@ -26,6 +26,7 @@ steps:
     retryCountOnTaskFailure: 3
     name: "priv_daemonset"
     displayName: "Create Daemonset"
+
   - script: |
       set -e
 
@@ -39,6 +40,7 @@ steps:
     retryCountOnTaskFailure: 3
     name: "Ubuntu_Setup"
     displayName: "Ubuntu Setup"
+
   - script: |
       echo "-- Update kernel through daemonset --"
       kubectl get pods -n kube-system -l os=linux,app=privileged-daemonset -owide
@@ -79,6 +81,7 @@ steps:
     retryCountOnTaskFailure: 3
     name: "Kernel_Setup"
     displayName: "Kernel Setup"
+
   - script: |
       echo "-- Update kernel through daemonset --"
       kubectl get pods -n kube-system -l os=linux,app=privileged-daemonset -owide
@@ -99,6 +102,7 @@ steps:
     retryCountOnTaskFailure: 3
     name: "Kernel_Install"
     displayName: "Kernel Install"
+
   - script: |
       echo "-- Restart Nodes to Finalize Upgrade Kernel --"
       kubectl get pods -n kube-system -l os=linux,app=privileged-daemonset -owide
