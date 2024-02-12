@@ -27,7 +27,7 @@ jobs:
       with:
         fetch-depth: 0
     - name: golangci-lint
-      uses: golangci/golangci-lint-action@v3
+      uses: golangci/golangci-lint-action@v4
       with:
         version: v1.55
         args: --new-from-rev=origin/master --config=.golangci.yml --timeout=25m 
