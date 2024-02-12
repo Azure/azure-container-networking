@@ -43,6 +43,7 @@ do
             break
         else
             echo "##[error]async delete failure. file still exists in deleteIDs directory."
+            exit 1
         fi
     fi
 done
