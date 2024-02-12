@@ -99,7 +99,7 @@ func (nm *MockNetworkManager) GetAllEndpoints(networkID string) (map[string]*End
 }
 
 // GetEndpointInfo mock
-func (nm *MockNetworkManager) GetEndpointInfo(networkID string, endpointID string) (*EndpointInfo, error) {
+func (nm *MockNetworkManager) GetEndpointInfo(_, endpointID string) (*EndpointInfo, error) {
 	if info, exists := nm.TestEndpointInfoMap[endpointID]; exists {
 		return info, nil
 	}

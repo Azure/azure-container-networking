@@ -2,13 +2,16 @@ package wireserver
 
 import (
 	"net"
+	"strings"
 
 	"github.com/pkg/errors"
 )
 
 var (
-	// ErrNoPrimaryInterface indicates the wireserver respnose does not have a primary interface indicated.
+	// ErrNoPrimaryInterface indicates the wireserver response does not have a primary interface indicated.
 	ErrNoPrimaryInterface = errors.New("no primary interface found")
+	// ErrNoSecondaryInterface indicates the wireserver response does not have secondary interface on the node
+	ErrNoSecondaryInterface = errors.New("no secondary interface found")
 	// ErrInsufficientAddressSpace indicates that the CIDR space is too small to include a gateway IP; it is 1 IP.
 	ErrInsufficientAddressSpace = errors.New("insufficient address space to generate gateway IP")
 )
@@ -49,6 +52,48 @@ func GetPrimaryInterfaceFromResult(res *GetInterfacesResult) (*InterfaceInfo, er
 	return nil, ErrNoPrimaryInterface
 }
 
+// Gets secondary interface details for swiftv2 secondary nics scenario
+func GetSecondaryInterfaceFromResult(res *GetInterfacesResult, macAddress string) (*InterfaceInfo, error) {
+	for _, i := range res.Interface {
+		// skip if primary
+		if i.IsPrimary {
+			continue
+		}
+
+		// skip if no subnets
+		if len(i.IPSubnet) == 0 {
+			continue
+		}
+
+		if macAddressesEqual(i.MacAddress, macAddress) {
+			// get the second subnet
+			s := i.IPSubnet[0]
+			gw, err := calculateGatewayIP(s.Prefix)
+			if err != nil {
+				return nil, err
+			}
+
+			secondaryIP := ""
+			for _, ip := range s.IPAddress {
+				if !ip.IsPrimary {
+					secondaryIP = ip.Address
+					break
+				}
+			}
+			var secondaryIPs []string
+			secondaryIPs = append(secondaryIPs, secondaryIP)
+
+			return &InterfaceInfo{
+				Subnet:       s.Prefix,
+				IsPrimary:    false,
+				Gateway:      gw.String(),
+				SecondaryIPs: secondaryIPs,
+			}, nil
+		}
+	}
+	return nil, ErrNoSecondaryInterface
+}
+
 // calculateGatewayIP parses the passed CIDR string and returns the first IP in the range.
 func calculateGatewayIP(cidr string) (net.IP, error) {
 	_, subnet, err := net.ParseCIDR(cidr)
@@ -78,4 +123,11 @@ func calculateGatewayIP(cidr string) (net.IP, error) {
 		}
 	}
 	return gw, nil
+}
+
+func macAddressesEqual(macAddress1, macAddress2 string) bool {
+	macAddress1 = strings.ToLower(strings.ReplaceAll(macAddress1, ":", ""))
+	macAddress2 = strings.ToLower(strings.ReplaceAll(macAddress2, ":", ""))
+
+	return macAddress1 == macAddress2
 }

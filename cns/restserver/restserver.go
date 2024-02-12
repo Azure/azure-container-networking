@@ -103,18 +103,6 @@ type IPInfo struct {
 	IPv6 []net.IPNet
 }
 
-type GetHTTPServiceDataResponse struct {
-	HTTPRestServiceData HTTPRestServiceData
-	Response            Response
-}
-
-// HTTPRestServiceData represents in-memory CNS data in the debug API paths.
-type HTTPRestServiceData struct {
-	PodIPIDByPodInterfaceKey map[string][]string                  // PodInterfaceId is key and value is slice of Pod IP uuids.
-	PodIPConfigState         map[string]cns.IPConfigurationStatus // secondaryipid(uuid) is key
-	IPAMPoolMonitor          cns.IpamPoolMonitorStateSnapshot
-}
-
 type Response struct {
 	ReturnCode types.ResponseCode
 	Message    string
@@ -148,6 +136,7 @@ type httpRestServiceState struct {
 	TimeStamp                        time.Time
 	joinedNetworks                   map[string]struct{}
 	primaryInterface                 *wireserver.InterfaceInfo
+	secondaryInterface               *wireserver.InterfaceInfo
 }
 
 type networkInfo struct {

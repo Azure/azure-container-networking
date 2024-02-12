@@ -10,12 +10,14 @@ import (
 	"net/netip"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/Azure/azure-container-networking/cns"
+	cnsclient "github.com/Azure/azure-container-networking/cns/client"
 	"github.com/Azure/azure-container-networking/cns/common"
 	"github.com/Azure/azure-container-networking/cns/configuration"
 	"github.com/Azure/azure-container-networking/cns/fakes"
-	"github.com/Azure/azure-container-networking/cns/middlewares"
+	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/middlewares/mock"
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
@@ -1485,7 +1487,7 @@ func TestIPAMFailToReleasePartialIPsInPool(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Expected to not fail adding empty NC to state: %+v", err)
 	}
-	// remove the IP from the from the ipconfig map so that it throws an error when trying to release one of the IPs
+	// remove the IP from the ipconfig map so that it throws an error when trying to release one of the IPs
 	delete(svc.PodIPConfigState, testStatev6.ID)
 
 	err = svc.releaseIPConfigs(testPod1Info)
@@ -1515,7 +1517,7 @@ func TestIPAMFailToRequestPartialIPsInPool(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Expected to not fail adding empty NC to state: %+v", err)
 	}
-	// remove the IP from the from the ipconfig map so that it throws an error when trying to release one of the IPs
+	// remove the IP from the ipconfig map so that it throws an error when trying to release one of the IPs
 	delete(svc.PodIPConfigState, testStatev6.ID)
 
 	req := cns.IPConfigsRequest{
@@ -1536,7 +1538,7 @@ func TestIPAMFailToRequestPartialIPsInPool(t *testing.T) {
 
 func TestIPAMReleaseSWIFTV2PodIPSuccess(t *testing.T) {
 	svc := getTestService()
-	middleware := middlewares.K8sSWIFTv2Middleware{Cli: mock.NewClient()}
+	middleware := K8sSWIFTv2Middleware{Cli: mock.NewClient()}
 	svc.AttachIPConfigsHandlerMiddleware(&middleware)
 
 	t.Setenv(configuration.EnvPodCIDRs, "10.0.1.10/24")
@@ -1587,7 +1589,7 @@ func TestIPAMReleaseSWIFTV2PodIPSuccess(t *testing.T) {
 
 func TestIPAMGetK8sSWIFTv2IPSuccess(t *testing.T) {
 	svc := getTestService()
-	middleware := middlewares.K8sSWIFTv2Middleware{Cli: mock.NewClient()}
+	middleware := K8sSWIFTv2Middleware{Cli: mock.NewClient()}
 	svc.AttachIPConfigsHandlerMiddleware(&middleware)
 
 	t.Setenv(configuration.EnvPodCIDRs, "10.0.1.10/24")
@@ -1650,7 +1652,7 @@ func TestIPAMGetK8sSWIFTv2IPSuccess(t *testing.T) {
 
 func TestIPAMGetK8sSWIFTv2IPFailure(t *testing.T) {
 	svc := getTestService()
-	middleware := middlewares.K8sSWIFTv2Middleware{Cli: mock.NewClient()}
+	middleware := K8sSWIFTv2Middleware{Cli: mock.NewClient()}
 	svc.AttachIPConfigsHandlerMiddleware(&middleware)
 	ncStates := []ncState{
 		{
@@ -1716,4 +1718,28 @@ func TestIPAMGetK8sSWIFTv2IPFailure(t *testing.T) {
 	if len(available) != 2 {
 		t.Fatal("Expected available ips to be 2 since we expect the IP to not be assigned")
 	}
+}
+
+func TestValidateSFIPConfigsRequestFailure(t *testing.T) {
+	svc := getTestService()
+	cnsClient, err := cnsclient.New("", 15*time.Second)
+	if err != nil {
+		logger.Errorf("Failed to init cnsclient, err:%v.\n", err)
+		return
+	}
+	middleware := SFSWIFTv2Middleware{CnsClient: cnsClient}
+	svc.AttachIPConfigsHandlerMiddleware(&middleware)
+
+	// Fail to unmarshal pod info test
+	failReq := cns.IPConfigsRequest{
+		PodInterfaceID:   testPod1Info.InterfaceID(),
+		InfraContainerID: testPod1Info.InfraContainerID(),
+	}
+	failReq.OrchestratorContext = []byte("invalid")
+
+	wrappedHandler := svc.IPConfigsHandlerMiddleware.IPConfigsRequestHandlerWrapper(svc.requestIPConfigHandlerHelper, svc.releaseIPConfigHandlerHelper)
+	resp, err := wrappedHandler(context.TODO(), failReq)
+
+	assert.NotEmpty(t, err)
+	assert.Equal(t, types.UnexpectedError, resp.Response.ReturnCode)
 }

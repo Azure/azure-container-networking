@@ -71,6 +71,14 @@ spec:
                 items:
                   type: string
                 type: array
+              status:
+                description: PNIStatus indicates the status of PNI
+                enum:
+                - Ready
+                - CreateReservationSetError
+                - PodNetworkNotReady
+                - InsufficientIPAddressesOnSubnet
+                type: string
             type: object
         type: object
     served: true

@@ -4,9 +4,12 @@ parameters:
   clusterType: ""
   clusterName: ""
   nodeCount: ""
+  nodeCountWin: ""
   vmSize: ""
   os: linux
   arch: ""
+  scaleup: 100
+  iterations: 3
   osSKU: Ubuntu
 
 # CNIv2
@@ -16,7 +19,7 @@ parameters:
 # + Pods should have ips assigned and connectivity/datapath test should be present.
 # + CNS restart and validates the state
 # Windows
-# The HNS state should be validated with that of CNI state.
+# + The HNS state should be validated with that of CNI state.
 # + All CNI E2E is re-ran after HNS service is restarted
 
 # If ensures that only linux template calls are compared against the below condition
@@ -68,9 +71,12 @@ stages:
                 clusterType: ${{ parameters.clusterType }}
                 clusterName: ${{ parameters.clusterName }}-$(commitID)
                 nodeCount: ${{ parameters.nodeCount }}
+                nodeCountWin: ${{ parameters.nodeCountWin }}
                 vmSize: ${{ parameters.vmSize }}
+                vmSizeWin: ${{ parameters.vmSizeWin }}
                 region: $(LOCATION)
                 osSKU: ${{ parameters.osSKU }}
+                os: ${{ parameters.os }}
 
 # Conditions for below E2E test scenarios confirm that:
 # Pipeline has not been canceled and that the previous job has reports anything other than failure(Succeeded, SuccededWithIssues, Skipped). Previous job is declared by dependsOn:
@@ -81,6 +87,10 @@ stages:
       commitID: $[ stagedependencies.setup.env.outputs['SetEnvVars.commitID'] ]
       cnsVersion: $[ stagedependencies.setup.env.outputs['SetEnvVars.cnsVersion'] ]
       npmVersion: $[ stagedependencies.setup.env.outputs['SetEnvVars.npmVersion'] ]
+      ${{ if eq(parameters.os, 'windows') }}:
+        nodeCount: ${{ parameters.nodeCountWin }}
+      ${{ else }}:
+        nodeCount: ${{ parameters.nodeCount }}
     pool:
       name: $(BUILD_POOL_NAME_DEFAULT)
     dependsOn:
@@ -104,7 +114,11 @@ stages:
                   make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}-$(commitID)
                   kubectl cluster-info
                   kubectl get po -owide -A
-                  sudo -E env "PATH=$PATH" make test-integration CNS_VERSION=$(make cns-version) CNI_VERSION=$(make cni-version) INSTALL_CNS=true INSTALL_AZURE_CNI_OVERLAY=true CNS_IMAGE_REPO=$(CNS_IMAGE_REPO)
+                  if [ "${{parameters.os}}" == "windows" ]; then
+                    sudo -E env "PATH=$PATH" make test-load CNS_ONLY=true CNS_VERSION=$(make cns-version) CNI_VERSION=$(make cni-version) INSTALL_CNS=true INSTALL_AZURE_CNI_OVERLAY=true CNS_IMAGE_REPO=$(CNS_IMAGE_REPO)
+                  else
+                    sudo -E env "PATH=$PATH" make test-integration CNS_VERSION=$(make cns-version) CNI_VERSION=$(make cni-version) INSTALL_CNS=true INSTALL_AZURE_CNI_OVERLAY=true CNS_IMAGE_REPO=$(CNS_IMAGE_REPO)
+                  fi
               name: "overlaye2e"
               displayName: "Overlay Integration"
           - ${{ if contains(parameters.clusterType, 'swift') }}:
@@ -119,13 +133,42 @@ stages:
                   make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}-$(commitID)
                   kubectl cluster-info
                   kubectl get po -owide -A
-                  sudo -E env "PATH=$PATH" make test-integration CNS_VERSION=$(make cns-version) CNI_VERSION=$(make cni-version) INSTALL_CNS=true INSTALL_AZURE_VNET=true CNS_IMAGE_REPO=$(CNS_IMAGE_REPO)
+                  if [ "${{parameters.os}}" == "windows" ]; then
+                    sudo -E env "PATH=$PATH" make test-load CNS_ONLY=true CNS_VERSION=$(make cns-version) CNI_VERSION=$(make cni-version) INSTALL_CNS=true INSTALL_AZURE_VNET=true CNS_IMAGE_REPO=$(CNS_IMAGE_REPO)
+                  else
+                    sudo -E env "PATH=$PATH" make test-integration CNS_VERSION=$(make cns-version) CNI_VERSION=$(make cni-version) INSTALL_CNS=true INSTALL_AZURE_VNET=true CNS_IMAGE_REPO=$(CNS_IMAGE_REPO)
+                  fi
               name: "swifte2e"
               displayName: "Swift Integration"
+          - ${{ if contains(parameters.os, 'windows') }}: # This should be removed in the future, ongoing cloud-node-manager-windows issue
+            - script: |
+                kubectl get nodes -l kubernetes.io/os=windows
+                nodeList=`kubectl get nodes -l kubernetes.io/os=windows --no-headers | awk '{print $1}'`
+                for node in $nodeList; do
+                    taint=`kubectl describe node $node | grep Taints | awk '{print $2}'`
+                    if [ $taint == "node.cloudprovider.kubernetes.io/uninitialized=true:NoSchedule" ]; then
+                        kubectl taint nodes $node node.cloudprovider.kubernetes.io/uninitialized=true:NoSchedule-
+                    fi
+                done
+              name: windows_taints
+              displayName: Remove Windows Taints
+            - script: |
+                kubectl apply -f test/integration/manifests/load/privileged-daemonset-windows.yaml
+                kubectl rollout status ds -n kube-system privileged-daemonset
+
+                kubectl get pod -n kube-system -l app=privileged-daemonset,os=windows -n kube-system
+                pods=`kubectl get pod -n kube-system -l app=privileged-daemonset,os=windows -n kube-system --no-headers | awk '{print $1}'`
+                for pod in $pods; do
+                  kubectl exec -i -n kube-system $pod -- powershell "Restart-service kubeproxy"
+                done
+              name: kubeproxy
+              displayName: Restart Kubeproxy on Windows nodes
+
       - template: ../../npm/npm-cni-integration-test.yaml
         parameters:
           clusterName: ${{ parameters.clusterName }}-$(commitID)
           os: ${{ parameters.os }}
+          os_version: ${{ parameters.os_version }}
           sub: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
           tag: $(npmVersion)
           dependsOn: integration
@@ -138,10 +181,10 @@ stages:
           - template: ../load-test-templates/pod-deployment-template.yaml
             parameters:
               clusterName: ${{ parameters.clusterName }}-$(commitID)
-              scaleup: ${SCALEUP_LINUX}
+              scaleup: ${{ parameters.scaleup }}
               os: ${{ parameters.os }}
-              iterations: ${ITERATIONS_LINUX}
-              nodeCount: ${{ parameters.nodeCount }}
+              iterations: ${{ parameters.iterations }}
+              nodeCount: $(nodeCount)
               cni: cniv2
           - template: ../load-test-templates/validate-state-template.yaml
             parameters:
@@ -152,6 +195,7 @@ stages:
         condition: and( and( not(canceled()), not(failed()) ), or( contains(variables.CONTROL_SCENARIO, 'restartNode') , contains(variables.CONTROL_SCENARIO, 'all') ) )
         displayName: "Restart Test"
         dependsOn: deploy_pods
+        timeoutInMinutes: 90 # Windows podsubnet takes an extended amount of time to reconcile
         steps:
           - template: ../load-test-templates/restart-node-template.yaml
             parameters:
@@ -174,9 +218,10 @@ stages:
               clusterName: ${{ parameters.clusterName }}-$(commitID)
               os: ${{ parameters.os }}
               cni: cniv2
-              scaleup: ${SCALEUP_LINUX}
+              scaleup: ${{ parameters.scaleup }}
               nodeCount: ${{ parameters.nodeCount }}
       - job: recover
+        condition: and( not(canceled()), not(failed()) )
         displayName: "Recover Resources"
         dependsOn: restart_cns
         steps:
@@ -205,6 +250,7 @@ stages:
           datapath: true
           dns: true
           portforward: true
+          hybridWin: true
           service: true
           hostport: true
       - job: failedE2ELogs
@@ -224,3 +270,117 @@ stages:
               clusterName: ${{ parameters.clusterName }}-$(commitID)
               os: ${{ parameters.os }}
               cni: cniv2
+
+  - ${{ if eq(parameters.os, 'windows') }}:
+    - stage: ${{ parameters.name }}_HNS
+      variables:
+        commitID: $[ stagedependencies.setup.env.outputs['SetEnvVars.commitID'] ]
+      pool:
+        name: $(BUILD_POOL_NAME_DEFAULT)
+      dependsOn:
+        - ${{ parameters.name }}
+        - setup
+      displayName: "HNS Test - ${{ parameters.clusterName }}"
+      jobs:
+        - job: restart_hns
+          displayName: "Restart and Validate HNS"
+          condition: and( succeeded(), ${{ eq(parameters.os, 'windows') }} )
+          steps:
+            - template: ../load-test-templates/restart-hns-template.yaml
+              parameters:
+                clusterName: ${{ parameters.clusterName }}-$(commitID)
+                cni: cniv2
+        - job: deploy_pods
+          displayName: "Scale Test"
+          dependsOn: restart_hns
+          steps:
+            - template: ../load-test-templates/pod-deployment-template.yaml
+              parameters:
+                clusterName: ${{ parameters.clusterName }}-$(commitID)
+                scaleup: ${{ parameters.scaleup }}
+                os: ${{ parameters.os }}
+                iterations: ${{ parameters.iterations }}
+                nodeCount: ${{ parameters.nodeCountWin }}
+                jobName: "HNS_deploy_pods"
+            - template: ../load-test-templates/validate-state-template.yaml
+              parameters:
+                clusterName: ${{ parameters.clusterName }}-$(commitID)
+                os: ${{ parameters.os }}
+                cni: cniv2
+        - job: restart_nodes
+          displayName: "Restart Test"
+          dependsOn: deploy_pods
+          steps:
+            - template: ../load-test-templates/restart-node-template.yaml
+              parameters:
+                clusterName: ${{ parameters.clusterName }}-$(commitID)
+                os: ${{ parameters.os }}
+                nodeCount: ${{ parameters.nodeCountWin }}
+                scaleup: ${{ parameters.scaleup }}
+                jobName: "HNS_restart_nodes"
+            - template: ../load-test-templates/validate-state-template.yaml
+              parameters:
+                clusterName: ${{ parameters.clusterName }}-$(commitID)
+                os: ${{ parameters.os }}
+                cni: cniv2
+                restartCase: "true"
+        - job: restart_cns
+          displayName: "Restart and Validate CNS"
+          dependsOn: restart_nodes
+          steps:
+            - template: ../load-test-templates/restart-cns-template.yaml
+              parameters:
+                clusterName: ${{ parameters.clusterName }}-$(commitID)
+                os: ${{ parameters.os }}
+                cni: cniv2
+                scaleup: ${{ parameters.scaleup }}
+                nodeCount: ${{ parameters.nodeCountWin }}
+                jobName: "HNS_restart_cns"
+        - job: recover
+          condition: and( not(canceled()), not(failed()) )
+          displayName: "Recover Resources"
+          dependsOn: restart_cns
+          steps:
+            - task: AzureCLI@1
+              inputs:
+                azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+                scriptLocation: "inlineScript"
+                scriptType: "bash"
+                addSpnToEnvironment: true
+                inlineScript: |
+                  echo "Delete load-test Namespace"
+                  make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}-$(commitID)
+                  kubectl delete ns load-test
+                  kubectl cluster-info
+                  kubectl get po -owide -A
+              name: "recover"
+              displayName: "Delete test Namespaces"
+        - template: ../k8s-e2e/k8s-e2e-job-template.yaml
+          parameters:
+            sub: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+            clusterName: ${{ parameters.clusterName }}-$(commitID)
+            os: ${{ parameters.os }}
+            dependsOn: recover
+            datapath: true
+            dns: true
+            portforward: true
+            hybridWin: true
+            service: true
+            hostport: true
+        - job: logs
+          displayName: "Log Failure"
+          dependsOn:
+            - restart_hns
+            - deploy_pods
+            - restart_nodes
+            - restart_cns
+            - recover
+            - cni_${{ parameters.os }}
+          condition: failed()
+          steps:
+            - template: ../../templates/log-template.yaml
+              parameters:
+                clusterName: ${{ parameters.clusterName }}-$(commitID)
+                os: ${{ parameters.os }}
+                cni: cniv2
+                jobName: "HNS_failedE2ELogs"

@@ -25,6 +25,7 @@ type TestConfig struct {
 	SkipWait          bool   `env:"SKIP_WAIT" default:"false"`
 	RestartCase       bool   `env:"RESTART_CASE" default:"false"`
 	Cleanup           bool   `env:"CLEANUP" default:"false"`
+	CNSOnly           bool   `env:"CNS_ONLY" default:"false"`
 }
 
 const (

@@ -12,7 +12,6 @@ steps:
       scriptType: "bash"
       addSpnToEnvironment: true
       inlineScript: |
-        echo "Scale up the pods and immediated restart the nodes"
         clusterName=${{ parameters.clusterName }}
         make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${clusterName}
         make -C ./hack/aks azcfg AZCLI=az REGION=$(LOCATION)
@@ -21,12 +20,13 @@ steps:
         for val in $(az vmss list -g MC_${clusterName}_${clusterName}_$(LOCATION) --query "[].name" -o tsv); do
           make -C ./hack/aks restart-vmss AZCLI=az CLUSTER=${clusterName} REGION=$(LOCATION) VMSS_NAME=$val
         done
+        kubectl get pods -n kube-system -owide
 
         if ! [ ${{ parameters.cni }} = 'cniv1' ]; then
           echo "Ensure CNS daemonsets are ready and available"
           labels="app=azure-cns app=azure-cns-win"
           for label in $labels; do
-            kubectl get pods -n kube-system -l $label
+            kubectl get pods -n kube-system -l k8s-$label -owide
             kubectl rollout status ds -n kube-system -l $label
           done
         fi
@@ -35,6 +35,20 @@ steps:
         kubectl rollout status deploy -n load-test
     name: "RestartNodes"
     displayName: "Restart Nodes"
+
+  - ${{ if contains(parameters.os, 'windows') }}:
+    - script: |
+        kubectl apply -f test/integration/manifests/load/privileged-daemonset-windows.yaml
+        kubectl rollout status -n kube-system ds privileged-daemonset
+
+        kubectl get pod -n kube-system -l app=privileged-daemonset,os=windows -owide
+        pods=`kubectl get pod -n kube-system -l app=privileged-daemonset,os=windows --no-headers | awk '{print $1}'`
+        for pod in $pods; do
+          kubectl exec -i -n kube-system $pod -- powershell "Restart-service kubeproxy"
+        done
+      name: kubeproxy
+      displayName: Restart Kubeproxy on Windows nodes
+      retryCountOnTaskFailure: 3
 
   - template: ../../templates/log-template.yaml
     parameters:

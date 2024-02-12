@@ -20,17 +20,17 @@ steps:
         echo "Ensure there are pods scheduled on each node"
         cd test/integration/load
         scale=$(( ${{ parameters.scaleup }} * ${{ parameters.nodeCount }} ))
-        REPLICAS=$scale go test -count 1 -timeout 30m -tags load -run ^TestScaleDeployment$ -tags=load
+        REPLICAS=$scale OS_TYPE=${{ parameters.os }} go test -count 1 -timeout 30m -tags load -run ^TestScaleDeployment$ -tags=load
         cd ../../../
 
         echo "Validate pod IP assignment before CNS restart"
-        make test-validate-state CNI_TYPE=${{ parameters.cni }}
+        make test-validate-state OS_TYPE=${{ parameters.os }} CNI_TYPE=${{ parameters.cni }}
         echo "restart CNS"
         kubectl rollout restart ds azure-cns -n kube-system
         kubectl rollout status ds azure-cns -n kube-system
         kubectl get pod -owide -A
         echo "Validate pod IP assignment after CNS restart"
-        make test-validate-state CNI_TYPE=${{ parameters.cni }}
+        make test-validate-state OS_TYPE=${{ parameters.os }} CNI_TYPE=${{ parameters.cni }}
     name: "restartCNS"
     displayName: "Restart CNS and Validate pods"
     retryCountOnTaskFailure: 3

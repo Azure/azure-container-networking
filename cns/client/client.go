@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/Azure/azure-container-networking/cns"
-	"github.com/Azure/azure-container-networking/cns/restserver"
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/pkg/errors"
 )
@@ -563,7 +562,7 @@ func (c *Client) GetPodOrchestratorContext(ctx context.Context) (map[string][]st
 }
 
 // GetHTTPServiceData gets all public in-memory struct details for debugging purpose
-func (c *Client) GetHTTPServiceData(ctx context.Context) (*restserver.GetHTTPServiceDataResponse, error) {
+func (c *Client) GetHTTPServiceData(ctx context.Context) (*cns.GetHTTPServiceDataResponse, error) {
 	u := c.routes[cns.PathDebugRestData]
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
 	if err != nil {
@@ -583,7 +582,7 @@ func (c *Client) GetHTTPServiceData(ctx context.Context) (*restserver.GetHTTPSer
 	if res.StatusCode != http.StatusOK {
 		return nil, errors.Errorf("http response %d", res.StatusCode)
 	}
-	var resp restserver.GetHTTPServiceDataResponse
+	var resp cns.GetHTTPServiceDataResponse
 	err = json.NewDecoder(bytes.NewReader(b)).Decode(&resp)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to decode GetHTTPServiceDataResponse")
@@ -1024,7 +1023,7 @@ func (c *Client) GetHomeAz(ctx context.Context) (*cns.GetHomeAzResponse, error) 
 }
 
 // GetEndpoint calls the EndpointHandlerAPI in CNS to retrieve the state of a given EndpointID
-func (c *Client) GetEndpoint(ctx context.Context, endpointID string) (*restserver.GetEndpointResponse, error) {
+func (c *Client) GetEndpoint(ctx context.Context, endpointID string) (*cns.GetEndpointResponse, error) {
 	// build the request
 	u := c.routes[cns.EndpointAPI]
 	uString := u.String() + endpointID
@@ -1044,7 +1043,7 @@ func (c *Client) GetEndpoint(ctx context.Context, endpointID string) (*restserve
 		return nil, errors.Errorf("http response %d", res.StatusCode)
 	}
 
-	var response restserver.GetEndpointResponse
+	var response cns.GetEndpointResponse
 	err = json.NewDecoder(res.Body).Decode(&response)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to decode GetEndpointResponse")

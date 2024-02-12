@@ -142,6 +142,7 @@ stages:
               platforms: linux/amd64 linux/arm64 windows/amd64
             cni:
               name: cni
+              os_versions: ltsc2022
               platforms: linux/amd64 linux/arm64 windows/amd64
             npm:
               name: npm
@@ -154,6 +155,122 @@ stages:
               os_versions: $(os_versions)
               platforms: $(platforms)
 
+## Windows E2E
+  - template: singletenancy/cniv1-template.yaml
+    parameters:
+      name: win22_cniv1
+      clusterType: windows-cniv1-up
+      clusterName: "win22-cniv1"
+      nodeCount: ${NODE_COUNT_WINCLUSTER_SYSTEMPOOL}
+      nodeCountWin: ${NODE_COUNT_WIN}
+      vmSize: ${VM_SIZE_WINCLUSTER_SYSTEMPOOL}
+      vmSizeWin: ${VM_SIZE_WIN}
+      os: windows
+      os_version: 'ltsc2022'
+      arch: amd64
+      scaleup: ${SCALEUP_WIN}
+      iterations: ${ITERATIONS_WIN}
+
+  - template: singletenancy/cniv2-template.yaml
+    parameters:
+      name: windows_podsubnet
+      clusterType: swift-byocni-up
+      clusterName: win-podsub
+      nodeCount: ${NODE_COUNT_WINCLUSTER_SYSTEMPOOL}
+      nodeCountWin: ${NODE_COUNT_WIN}
+      vmSize: ${VM_SIZE_WINCLUSTER_SYSTEMPOOL}
+      vmSizeWin: ${VM_SIZE_WIN}
+      arch: amd64
+      os: windows
+      os_version: 'ltsc2022'
+      scaleup: ${SCALEUP_WIN}
+      iterations: ${ITERATIONS_WIN}
+
+  - template: singletenancy/cniv2-template.yaml
+    parameters:
+      name: windows_overlay
+      clusterType: overlay-byocni-up
+      clusterName: win-over
+      nodeCount: ${NODE_COUNT_WINCLUSTER_SYSTEMPOOL}
+      nodeCountWin: ${NODE_COUNT_WIN}
+      vmSize: ${VM_SIZE_WINCLUSTER_SYSTEMPOOL}
+      vmSizeWin: ${VM_SIZE_WIN}
+      arch: amd64
+      os: windows
+      os_version: 'ltsc2022'
+      scaleup: ${SCALEUP_WIN}
+      iterations: ${ITERATIONS_WIN}
+
+## Linux E2E
+  - template: singletenancy/cniv1-template.yaml
+    parameters:
+      name: linux_cniv1
+      clusterType: linux-cniv1-up
+      clusterName: "linux-cniv1"
+      nodeCount: ${NODE_COUNT_LINUX}
+      vmSize: ${VM_SIZE}
+      os: linux
+      arch: amd64
+      scaleup: ${SCALEUP_LINUX}
+      iterations: ${ITERATIONS_LINUX}
+
+  - template: singletenancy/cniv2-template.yaml
+    parameters:
+      name: linux_podsubnet
+      clusterType: swift-byocni-up
+      clusterName: "linux-podsub"
+      nodeCount: ${NODE_COUNT_LINUX}
+      vmSize: ${VM_SIZE}
+      arch: amd64
+      scaleup: ${SCALEUP_LINUX}
+      iterations: ${ITERATIONS_LINUX}
+
+  - template: singletenancy/cniv2-template.yaml
+    parameters:
+      name: linux_overlay
+      clusterType: overlay-byocni-up
+      clusterName: "linux-over"
+      nodeCount: ${NODE_COUNT_LINUX}
+      vmSize: ${VM_SIZE}
+      arch: amd64
+      scaleup: ${SCALEUP_LINUX}
+      iterations: ${ITERATIONS_LINUX}
+
+  - template: singletenancy/cniv2-template.yaml
+    parameters:
+      name: mariner_linux_overlay
+      clusterType: overlay-byocni-up
+      clusterName: "mariner-over"
+      nodeCount: ${NODE_COUNT_LINUX}
+      vmSize:  ${VM_SIZE}
+      arch: amd64
+      osSKU: AzureLinux
+      scaleup: ${SCALEUP_LINUX}
+      iterations: ${ITERATIONS_LINUX}
+
+  - template: singletenancy/cniv2-template.yaml
+    parameters:
+      name: arm_linux_overlay
+      clusterType: overlay-byocni-up
+      clusterName: "arm-over"
+      nodeCount: ${NODE_COUNT_LINUX}
+      vmSize: Standard_D8ps_v5
+      arch: arm64
+      scaleup: ${SCALEUP_LINUX}
+      iterations: ${ITERATIONS_LINUX}
+
+  - template: singletenancy/cniv2-template.yaml
+    parameters:
+      name: rdma_linux_overlay
+      clusterType: overlay-byocni-up
+      clusterName: "rdma-over"
+      nodeCount: 2
+      vmSize: Standard_HC44-16rs
+      arch: amd64
+      scaleup: ${SCALEUP_LINUX}
+      iterations: ${ITERATIONS_LINUX}
+
+## Cilium E2E
   - template: cilium/cilium-overlay-load-test-template.yaml
     parameters:
       name: cilium_overlay
@@ -199,78 +316,6 @@ stages:
       vmSize: Standard_HC44-16rs
       arch: amd64
 
-  - template: singletenancy/cniv1-template.yaml
-    parameters:
-      name: win22_cniv1
-      clusterType: windows-cniv1-up
-      clusterName: "win22-cniv1"
-      nodeCount: ${NODE_COUNT_WIN}
-      vmSize: ${VM_SIZE_WINCLUSTER_SYSTEMPOOL}
-      vmSizeWin: ${VM_SIZE_WIN}
-      os: windows
-      os_version: 'ltsc2022'
-      arch: amd64
-      scaleup: ${SCALEUP_WIN}
-      iterations: ${ITERATIONS_WIN}
-
-  - template: singletenancy/cniv1-template.yaml
-    parameters:
-      name: linux_cniv1
-      clusterType: linux-cniv1-up
-      clusterName: "linux-cniv1"
-      nodeCount: ${NODE_COUNT_LINUX}
-      vmSize: ${VM_SIZE}
-      os: linux
-      arch: amd64
-      scaleup: ${SCALEUP_LINUX}
-      iterations: ${ITERATIONS_LINUX}
-
-  - template: singletenancy/linux-cniv2-template.yaml
-    parameters:
-      name: linux_podsubnet
-      clusterType: swift-byocni-up
-      clusterName: "linux-podsub"
-      nodeCount: ${NODE_COUNT_LINUX}
-      vmSize: ${VM_SIZE}
-      arch: amd64
-
-  - template: singletenancy/linux-cniv2-template.yaml
-    parameters:
-      name: linux_overlay
-      clusterType: overlay-byocni-up
-      clusterName: "linux-over"
-      nodeCount: ${NODE_COUNT_LINUX}
-      vmSize: ${VM_SIZE}
-      arch: amd64
-
-  - template: singletenancy/linux-cniv2-template.yaml
-    parameters:
-      name: mariner_linux_overlay
-      clusterType: overlay-byocni-up
-      clusterName: "mariner-over"
-      nodeCount: ${NODE_COUNT_LINUX}
-      vmSize:  ${VM_SIZE}
-      arch: amd64
-      osSKU: AzureLinux
-
-  - template: singletenancy/linux-cniv2-template.yaml
-    parameters:
-      name: arm_linux_overlay
-      clusterType: overlay-byocni-up
-      clusterName: "arm-over"
-      nodeCount: ${NODE_COUNT_LINUX}
-      vmSize: Standard_D8ps_v5
-      arch: arm64
-
-  - template: singletenancy/linux-cniv2-template.yaml
-    parameters:
-      name: rdma_linux_overlay
-      clusterType: overlay-byocni-up
-      clusterName: "rdma-over"
-      nodeCount: 2
-      vmSize: Standard_HC44-16rs
-      arch: amd64
-
   - stage: delete_resources
     displayName: "Delete Resources"
     pool:
@@ -289,6 +334,8 @@ stages:
       - mariner_linux_overlay
       - arm_linux_overlay
       - rdma_linux_overlay
+      - windows_podsubnet_HNS
+      - windows_overlay_HNS
       - setup
     variables:
       commitID: $[ stagedependencies.setup.env.outputs['SetEnvVars.commitID'] ]
@@ -335,6 +382,12 @@ stages:
             rdma_linux_overlay:
               name: rdma_linux_overlay
               clusterName: "rdma-over"
+            win-cniv2-podsubnet:
+              name: windows_podsubnet
+              clusterName: win-podsub
+            win-cniv2-overlay:
+              name: windows_overlay
+              clusterName: win-over
         steps:
           - task: AzureCLI@1
             inputs:

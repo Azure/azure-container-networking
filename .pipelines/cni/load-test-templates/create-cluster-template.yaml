@@ -5,6 +5,8 @@ parameters:
   vmSize: ""
   vmSizeWin: ""
   osSKU: Ubuntu
+  os: linux
+  nodeCountWin: 2
 
 steps:
   - task: AzureCLI@1
@@ -18,10 +20,10 @@ steps:
         make -C ./hack/aks azcfg AZCLI=az REGION=${{ parameters.region }}
         make -C ./hack/aks ${{ parameters.clusterType }} \
         AZCLI=az REGION=${{ parameters.region }} SUB=$(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS) \
-        CLUSTER=${{ parameters.clusterName }} NODE_COUNT=${{ parameters.nodeCount }} \
+        CLUSTER=${{ parameters.clusterName }} NODE_COUNT=${{ parameters.nodeCount }} NODE_COUNT_WIN=${{ parameters.nodeCountWin }} \
         VM_SIZE=${{ parameters.vmSize }} VM_SIZE_WIN=${{ parameters.vmSizeWin }} \
         WINDOWS_USERNAME=${WINDOWS_USERNAME} WINDOWS_PASSWORD=${WINDOWS_PASSWORD} \
-        OS_SKU=${{parameters.osSKU}}
+        OS_SKU=${{parameters.osSKU}} OS=${{parameters.os}}
         echo "Cluster successfully created"
 
     name: "CreateAksCluster"

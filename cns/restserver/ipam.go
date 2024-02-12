@@ -29,9 +29,13 @@ var (
 	ErrEndpointStateNotFound  = errors.New("endpoint state could not be found in the statefile")
 )
 
+const (
+	ContainerIDLength = 8
+	InterfaceName     = "eth0"
+)
+
 // requestIPConfigHandlerHelper validates the request, assign IPs and return the IPConfigs
 func (service *HTTPRestService) requestIPConfigHandlerHelper(ctx context.Context, ipconfigsRequest cns.IPConfigsRequest) (*cns.IPConfigsResponse, error) {
-	// For SWIFT v2 scenario, the validator function will also modify the ipconfigsRequest.
 	podInfo, returnCode, returnMessage := service.validateIPConfigsRequest(ctx, ipconfigsRequest)
 	if returnCode != types.Success {
 		return &cns.IPConfigsResponse{
@@ -41,11 +45,9 @@ func (service *HTTPRestService) requestIPConfigHandlerHelper(ctx context.Context
 			},
 		}, errors.New("failed to validate ip config request")
 	}
-
 	// record a pod requesting an IP
 	service.podsPendingIPAssignment.Push(podInfo.Key())
-
-	podIPInfo, err := requestIPConfigsHelper(service, ipconfigsRequest)
+	podIPInfo, err := requestIPConfigsHelper(service, ipconfigsRequest) //nolint:contextcheck // to refactor later
 	if err != nil {
 		return &cns.IPConfigsResponse{
 			Response: cns.Response{
@@ -55,7 +57,6 @@ func (service *HTTPRestService) requestIPConfigHandlerHelper(ctx context.Context
 			PodIPInfo: podIPInfo,
 		}, err
 	}
-
 	// record a pod assigned an IP
 	defer func() {
 		// observe IP assignment wait time
@@ -63,7 +64,6 @@ func (service *HTTPRestService) requestIPConfigHandlerHelper(ctx context.Context
 			ipAssignmentLatency.Observe(since.Seconds())
 		}
 	}()
-
 	// Check if http rest service managed endpoint state is set
 	if service.Options[common.OptManageEndpointState] == true {
 		err = service.updateEndpointState(ipconfigsRequest, podInfo, podIPInfo)
@@ -77,7 +77,6 @@ func (service *HTTPRestService) requestIPConfigHandlerHelper(ctx context.Context
 			}, err
 		}
 	}
-
 	return &cns.IPConfigsResponse{
 		Response: cns.Response{
 			ReturnCode: types.Success,
@@ -188,9 +187,52 @@ func (service *HTTPRestService) requestIPConfigsHandler(w http.ResponseWriter, r
 		return
 	}
 
+	if ipConfigsResp.PodIPInfo[0].AddInterfacesDataToPodInfo {
+		ipConfigsResp, err = service.updatePodInfoWithInterfaces(r.Context(), ipConfigsResp)
+		if err != nil {
+			w.Header().Set(cnsReturnCode, ipConfigsResp.Response.ReturnCode.String())
+			err = service.Listener.Encode(w, &ipConfigsResp)
+			logger.ResponseEx(service.Name+operationName, ipconfigsRequest, ipConfigsResp, ipConfigsResp.Response.ReturnCode, err)
+			return
+		}
+	}
+
 	w.Header().Set(cnsReturnCode, ipConfigsResp.Response.ReturnCode.String())
 	err = service.Listener.Encode(w, &ipConfigsResp)
 	logger.ResponseEx(service.Name+operationName, ipconfigsRequest, ipConfigsResp, ipConfigsResp.Response.ReturnCode, err)
+}
+
+func (service *HTTPRestService) updatePodInfoWithInterfaces(ctx context.Context, ipconfigResponse *cns.IPConfigsResponse) (*cns.IPConfigsResponse, error) {
+	podIPInfoList := make([]cns.PodIpInfo, 0, len(ipconfigResponse.PodIPInfo))
+	for i := range ipconfigResponse.PodIPInfo {
+		// populating podIpInfo with primary & secondary interface info & updating IpConfigsResponse
+		hostPrimaryInterface, err := service.getPrimaryHostInterface(ctx)
+		if err != nil {
+			return &cns.IPConfigsResponse{}, err
+		}
+
+		hostSecondaryInterface, err := service.getSecondaryHostInterface(ctx, ipconfigResponse.PodIPInfo[i].MacAddress)
+		if err != nil {
+			return &cns.IPConfigsResponse{}, err
+		}
+
+		ipconfigResponse.PodIPInfo[i].HostPrimaryIPInfo = cns.HostIPInfo{
+			Gateway:   hostPrimaryInterface.Gateway,
+			PrimaryIP: hostPrimaryInterface.PrimaryIP,
+			Subnet:    hostPrimaryInterface.Subnet,
+		}
+
+		ipconfigResponse.PodIPInfo[i].HostSecondaryIPInfo = cns.HostIPInfo{
+			Gateway:     hostSecondaryInterface.Gateway,
+			SecondaryIP: hostSecondaryInterface.SecondaryIPs[0],
+			Subnet:      hostSecondaryInterface.Subnet,
+		}
+
+		podIPInfoList = append(podIPInfoList, ipconfigResponse.PodIPInfo[i])
+
+	}
+	ipconfigResponse.PodIPInfo = podIPInfoList
+	return ipconfigResponse, nil
 }
 
 func (service *HTTPRestService) updateEndpointState(ipconfigsRequest cns.IPConfigsRequest, podInfo cns.PodInfo, podIPInfo []cns.PodIpInfo) error {
@@ -572,8 +614,8 @@ func (service *HTTPRestService) handleDebugRestData(w http.ResponseWriter, r *ht
 		http.Error(w, "not ready", http.StatusServiceUnavailable)
 		return
 	}
-	resp := GetHTTPServiceDataResponse{
-		HTTPRestServiceData: HTTPRestServiceData{
+	resp := cns.GetHTTPServiceDataResponse{
+		HTTPRestServiceData: cns.HTTPRestServiceData{
 			PodIPIDByPodInterfaceKey: service.PodIPIDByPodInterfaceKey,
 			PodIPConfigState:         service.PodIPConfigState,
 			IPAMPoolMonitor:          service.IPAMPoolMonitor.GetStateSnapshot(),
@@ -1008,9 +1050,9 @@ func (service *HTTPRestService) EndpointHandlerAPI(w http.ResponseWriter, r *htt
 // GetEndpointHandler handles the incoming GetEndpoint requests with http Get method
 func (service *HTTPRestService) GetEndpointHandler(w http.ResponseWriter, r *http.Request) {
 	logger.Printf("[GetEndpointState] GetEndpoint for %s", r.URL.Path)
-
 	endpointID := strings.TrimPrefix(r.URL.Path, cns.EndpointPath)
 	endpointInfo, err := service.GetEndpointHelper(endpointID)
+	// Check if the request is valid
 	if err != nil {
 		response := GetEndpointResponse{
 			Response: Response{
@@ -1066,6 +1108,14 @@ func (service *HTTPRestService) GetEndpointHelper(endpointID string) (*EndpointI
 	}
 	if endpointInfo, ok := service.EndpointState[endpointID]; ok {
 		logger.Warnf("[GetEndpointState] Found existing endpoint state for container %s", endpointID)
+		return endpointInfo, nil
+	}
+	// This part is a temprory fix if we have endpoint states belong to CNI version 1.4.X on Windows since the states don't have the containerID
+	// In case there was no endpoint founded with ContainerID as the key,
+	// then [First 8 character of containerid]-eth0 will be tried
+	legacyEndpointID := endpointID[:ContainerIDLength] + "-" + InterfaceName
+	if endpointInfo, ok := service.EndpointState[legacyEndpointID]; ok {
+		logger.Warnf("[GetEndpointState] Found existing endpoint state for container %s", legacyEndpointID)
 		return endpointInfo, nil
 	}
 	return nil, ErrEndpointStateNotFound

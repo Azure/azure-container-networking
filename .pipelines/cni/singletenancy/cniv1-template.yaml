@@ -4,6 +4,7 @@ parameters:
   clusterType: ""
   clusterName: ""
   nodeCount: ""
+  nodeCountWin: ""
   vmSize: ""
   vmSizeWin: ""
   os: ""
@@ -74,10 +75,12 @@ stages:
                 clusterType: ${{ parameters.clusterType }}
                 clusterName: ${{ parameters.clusterName }}-$(commitID)
                 nodeCount: ${{ parameters.nodeCount }}
+                nodeCountWin: ${{ parameters.nodeCountWin }}
                 vmSize: ${{ parameters.vmSize }}
                 vmSizeWin: ${{ parameters.vmSizeWin }}
                 region: $(LOCATION)
                 osSKU: ${{ parameters.osSKU }}
+                os: ${{ parameters.os }}
 
 # Conditions for below E2E test scenarios confirm that:
 # Pipeline has not been canceled and that the previous job has reports anything other than failure(Succeeded, SuccededWithIssues, Skipped). Previous job is declared by dependsOn:
@@ -131,8 +134,8 @@ stages:
         parameters:
           clusterName: ${{ parameters.clusterName }}-$(commitID)
           os: ${{ parameters.os }}
-          sub: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
           os_version: ${{ parameters.os_version }}
+          sub: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
           tag: $(npmVersion)
           dependsOn: update_cni
       - job: deploy_pods

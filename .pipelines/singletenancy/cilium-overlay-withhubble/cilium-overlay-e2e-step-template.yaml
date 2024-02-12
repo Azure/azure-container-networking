@@ -36,11 +36,12 @@ steps:
         set -e
         make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
         ls -lah
-        kubectl apply -f test/integration/manifests/cilium/v1.14.4/cilium-config/cilium-config-hubble.yaml
-        kubectl apply -f test/integration/manifests/cilium/v1.14.4/cilium-agent/files
-        kubectl apply -f test/integration/manifests/cilium/v1.14.4/cilium-operator/files
-        envsubst '${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/v1.14.4/cilium-agent/templates/daemonset.tpl | kubectl apply -f -
-        envsubst '${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/v1.14.4/cilium-operator/templates/deployment.tpl | kubectl apply -f -
+        export CILIUM_VERSION_TAG=${CILIUM_HUBBLE_VERSION_TAG}
+        kubectl apply -f test/integration/manifests/cilium/v${CILIUM_TEMPLATE_DIR}/cilium-config/cilium-config-hubble.yaml
+        kubectl apply -f test/integration/manifests/cilium/v${CILIUM_TEMPLATE_DIR}/cilium-agent/files
+        kubectl apply -f test/integration/manifests/cilium/v${CILIUM_TEMPLATE_DIR}/cilium-operator/files
+        envsubst '${CILIUM_IMAGE_REGISTRY},${CILIUM_VERSION_TAG}' < test/integration/manifests/cilium/v${CILIUM_TEMPLATE_DIR}/cilium-agent/templates/daemonset.tpl | kubectl apply -f -
+        envsubst '${CILIUM_IMAGE_REGISTRY},${CILIUM_VERSION_TAG}' < test/integration/manifests/cilium/v${CILIUM_TEMPLATE_DIR}/cilium-operator/templates/deployment.tpl | kubectl apply -f -
         # Use different file directories for nightly and current cilium version
     name: "installCilium"
     displayName: "Install Cilium on AKS Overlay"

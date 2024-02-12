@@ -92,6 +92,7 @@ type EndpointInfo struct {
 	NICType                  cns.NICType
 	SkipDefaultRoutes        bool
 	HNSEndpointID            string
+	HostIfName               string
 }
 
 // RouteInfo contains information about an IP route.
@@ -267,6 +268,8 @@ func (ep *endpoint) getInfo() *EndpointInfo {
 		PODName:                  ep.PODName,
 		PODNameSpace:             ep.PODNameSpace,
 		NetworkContainerID:       ep.NetworkContainerID,
+		HNSEndpointID:            ep.HnsId,
+		HostIfName:               ep.HostIfName,
 	}
 
 	info.Routes = append(info.Routes, ep.Routes...)
@@ -349,4 +352,12 @@ func GetPodNameWithoutSuffix(podName string) string {
 
 	logger.Info("Pod name after splitting based on", zap.Any("nameSplit", nameSplit))
 	return strings.Join(nameSplit, "-")
+}
+
+// IsEndpointStateInComplete returns true if both HNSEndpointID and HostVethName are missing.
+func (epInfo *EndpointInfo) IsEndpointStateIncomplete() bool {
+	if epInfo.HNSEndpointID == "" && epInfo.IfName == "" {
+		return true
+	}
+	return false
 }

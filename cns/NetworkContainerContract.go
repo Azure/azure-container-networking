@@ -457,6 +457,7 @@ type PodIpInfo struct {
 	PodIPConfig                     IPSubnet
 	NetworkContainerPrimaryIPConfig IPConfiguration
 	HostPrimaryIPInfo               HostIPInfo
+	HostSecondaryIPInfo             HostIPInfo
 	// NICType defines whether NIC is InfraNIC or DelegatedVMNIC or BackendNIC
 	NICType       NICType
 	InterfaceName string
@@ -466,12 +467,15 @@ type PodIpInfo struct {
 	SkipDefaultRoutes bool
 	// Routes to configure on interface
 	Routes []Route
+	// AddInterfacesDataToPodInfo is set to true for SF SwiftV2 scenario
+	AddInterfacesDataToPodInfo bool
 }
 
 type HostIPInfo struct {
-	Gateway   string
-	PrimaryIP string
-	Subnet    string
+	Gateway     string
+	PrimaryIP   string
+	SecondaryIP string
+	Subnet      string
 }
 
 type IPConfigRequest struct {
