@@ -91,5 +91,4 @@ func ValidateDropMetric() *types.Scenario {
 		},
 	}
 	return types.NewScenario(Name, Steps...)
-
 }

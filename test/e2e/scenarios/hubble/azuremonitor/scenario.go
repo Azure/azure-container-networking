@@ -7,7 +7,6 @@ import (
 
 // todo: once AMA is rolled out
 func ValidateAMATargets() *types.Scenario {
-
 	steps := []*types.StepWrapper{
 		{
 			Step: &k8s.PortForward{

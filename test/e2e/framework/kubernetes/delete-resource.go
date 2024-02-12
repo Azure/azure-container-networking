@@ -17,9 +17,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 )
 
-var (
-	ErrDeleteNilResource = fmt.Errorf("cannot create nil resource")
-)
+var ErrDeleteNilResource = fmt.Errorf("cannot create nil resource")
 
 type ResourceType string
 
@@ -167,7 +165,6 @@ func (d *DeleteKubernetesResource) Run() error {
 	case Secret:
 		resource = &v1.Secret{
 			ObjectMeta: metaV1.ObjectMeta{
-
 				Name:      d.ResourceName,
 				Namespace: d.ResourceNamespace,
 			},

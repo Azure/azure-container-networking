@@ -6,7 +6,6 @@ import "github.com/Azure/azure-container-networking/test/e2e/framework/types"
 func ValidateAMATargets() *types.Scenario {
 	name := "Validate that flow metrics are present in the prometheus endpoint"
 	steps := []*types.StepWrapper{
-
 		{
 			Step: &ValidateHubbleFlowMetric{
 				LocalPort: "9090",

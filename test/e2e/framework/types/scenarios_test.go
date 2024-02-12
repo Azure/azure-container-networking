@@ -50,7 +50,6 @@ func TestScenarioValuesWithSkip(t *testing.T) {
 		Parameter1: "Other Level Step 1",
 		Parameter2: "Other Level Step 2",
 	}, nil)
-
 }
 
 func TestScenarioValuesWithScenarioSkip(t *testing.T) {
@@ -117,9 +116,11 @@ func (d *DummyStep) Run() error {
 	fmt.Printf("Running DummyStep with parameter 2 as: %s\n", d.Parameter2)
 	return nil
 }
+
 func (d *DummyStep) Stop() error {
 	return nil
 }
+
 func (d *DummyStep) Prevalidate() error {
 	return nil
 }

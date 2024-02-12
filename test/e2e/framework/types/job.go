@@ -107,7 +107,6 @@ func (j *Job) AddStep(step Step, opts *StepOptions) {
 }
 
 func (j *Job) GetValue(stepw *StepWrapper, key string) (string, bool) {
-
 	// if step exists in a scenario, use the scenario's values
 	// if the value isn't in the scenario's values, get the root job's value
 	if scenario, exists := j.Scenarios[stepw]; exists {
