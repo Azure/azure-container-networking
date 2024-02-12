@@ -5,6 +5,7 @@ parameters:
   vmSize: ""
   vmSizeWin: ""
   osSKU: Ubuntu
+  osSkuWin: "Windows2022"
   os: linux
   nodeCountWin: 2
 
@@ -23,7 +24,7 @@ steps:
         CLUSTER=${{ parameters.clusterName }} NODE_COUNT=${{ parameters.nodeCount }} NODE_COUNT_WIN=${{ parameters.nodeCountWin }} \
         VM_SIZE=${{ parameters.vmSize }} VM_SIZE_WIN=${{ parameters.vmSizeWin }} \
         WINDOWS_USERNAME=${WINDOWS_USERNAME} WINDOWS_PASSWORD=${WINDOWS_PASSWORD} \
-        OS_SKU=${{parameters.osSKU}} OS=${{parameters.os}}
+        OS_SKU=${{ parameters.osSKU }} OS_SKU_WIN=${{ parameters.osSkuWin }} OS=${{ parameters.os }}
         echo "Cluster successfully created"
 
     name: "CreateAksCluster"
