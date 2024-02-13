@@ -395,18 +395,25 @@ func (nm *networkManager) CreateEndpoint(cli apipaClient, networkID string, epIn
 	if err != nil {
 		return err
 	}
+	var delEndpointErr error
+	// any error after this point should also clean up the endpoint we created above
+	defer func() {
+		if delEndpointErr != nil {
+			delErr := nw.deleteEndpoint(nm.netlink, nm.plClient, nm.netio, nm.nsClient, nm.iptablesClient, ep.Id)
+			if delErr != nil {
+				logger.Error("Deleting endpoint after failing to save state failed with", zap.Error(delErr))
+			}
+		}
+	}()
 
 	if nm.IsStatelessCNIMode() {
-		return nm.UpdateEndpointState(ep)
+		delEndpointErr = nm.UpdateEndpointState(ep)
+		return delEndpointErr
 	}
 
-	err = nm.save()
-	if err != nil {
-		delErr := nw.deleteEndpoint(nm.netlink, nm.plClient, nm.netio, nm.nsClient, nm.iptablesClient, ep.Id)
-		if delErr != nil {
-			logger.Error("Deleting endpoint after failing to save state failed with", zap.Error(delErr))
-		}
-		return err
+	delEndpointErr = nm.save()
+	if delEndpointErr != nil {
+		return delEndpointErr
 	}
 
 	return nil
