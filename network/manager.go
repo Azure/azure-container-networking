@@ -398,6 +398,7 @@ func (nm *networkManager) CreateEndpoint(cli apipaClient, networkID string, epIn
 	// any error after this point should also clean up the endpoint we created above
 	defer func() {
 		if err != nil {
+			logger.Error("Create endpoint failure failed with", zap.Error(err))
 			delErr := nw.deleteEndpoint(nm.netlink, nm.plClient, nm.netio, nm.nsClient, nm.iptablesClient, ep.Id)
 			if delErr != nil {
 				logger.Error("Deleting endpoint after create endpoint failure failed with", zap.Error(delErr))
