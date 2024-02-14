@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/Azure/azure-container-networking/network/hnswrapper"
+	"github.com/Azure/azure-container-networking/platform"
 	"github.com/Microsoft/hcsshim/hcn"
 )
 
@@ -243,12 +244,12 @@ func TestAddIPv6DefaultRoute(t *testing.T) {
 		Mode:         "bridge",
 		Subnets: []network.SubnetInfo{
 			{
-				Family:  2,
+				Family:  platform.AfINET,
 				Gateway: net.ParseIP("10.240.0.1"),
 				Prefix:  *ipnetv4,
 			},
 			{
-				Family:  10,
+				Family:  platform.AfINET6,
 				Gateway: net.ParseIP("fc00::1"),
 				Prefix:  *ipnetv6,
 			},
