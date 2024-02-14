@@ -241,22 +241,23 @@ func TestAddIPv6DefaultRoute(t *testing.T) {
 		Id:           "d3f97a83-ba4c-45d5-ba88-dc56757ece28",
 		MasterIfName: "eth0",
 		Mode:         "bridge",
-	}
-
-	extInterface := &externalInterface{
-		Name: "eth0",
 		Subnets: []network.SubnetInfo{
 			{
-				Family: 2,
-
+				Family:  2,
 				Gateway: net.ParseIP("10.240.0.1"),
 				Prefix:  *ipnetv4,
 			},
 			{
+				Family:  10,
 				Gateway: net.ParseIP("fc00::1"),
 				Prefix:  *ipnetv6,
 			},
 		},
+	}
+
+	extInterface := &externalInterface{
+		Name:    "eth0",
+		Subnets: []string{"subnet1", "subnet2"},
 	}
 
 	Hnsv2 = hnswrapper.NewHnsv2wrapperFake()
