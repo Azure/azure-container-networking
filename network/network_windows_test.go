@@ -238,7 +238,7 @@ func TestAddIPv6DefaultRoute(t *testing.T) {
 		ExternalInterfaces: map[string]*externalInterface{},
 	}
 
-	networkSubnetInfo := []network.SubnetInfo{
+	networkSubnetInfo := []SubnetInfo{
 		{
 			Family:  platform.AfINET,
 			Gateway: net.ParseIP("10.240.0.1"),
