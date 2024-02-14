@@ -80,9 +80,6 @@ spec:
       containers:
         - name: azure-npm
           image: mcr.microsoft.com/containernetworking/azure-npm:v1.4.29
-          securityContext:
-            allowPrivilegeEscalation: false
-            readOnlyRootFilesystem: true
           resources:
             limits:
               cpu: 250m
@@ -109,6 +106,7 @@ spec:
             - name: azure-npm-config
               mountPath: /etc/azure-npm
       hostNetwork: true
+      hostUsers: false
       nodeSelector:
         kubernetes.io/os: linux
       volumes:
