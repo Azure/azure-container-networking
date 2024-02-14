@@ -79,7 +79,7 @@ spec:
           operator: Exists
       containers:
         - name: azure-npm
-          image: mcr.microsoft.com/containernetworking/azure-npm:v1.4.29
+          image: mcr.microsoft.com/containernetworking/azure-npm:v1.4.45.3
           resources:
             limits:
               cpu: 250m
@@ -159,11 +159,10 @@ data:
         "MaxPendingNetPols":            100,
         "Toggles": {
             "EnablePrometheusMetrics": true,
-            "EnablePprof":             true,
+            "EnablePprof":             false,
             "EnableHTTPDebugAPI":      true,
             "EnableV2NPM":             true,
             "PlaceAzureChainFirst":    false,
-            "ApplyIPSetsOnNeed":       false,
             "ApplyInBackground":       true,
             "NetPolInBackground":      true
         }
