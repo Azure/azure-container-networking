@@ -9,7 +9,6 @@ import (
 	"sync"
 	"time"
 
-	cnms "github.com/Azure/azure-container-networking/cnms/cnmspackage"
 	cnsclient "github.com/Azure/azure-container-networking/cns/client"
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/log"
@@ -108,7 +107,6 @@ type NetworkManager interface {
 	DetachEndpoint(networkID string, endpointID string) error
 	UpdateEndpoint(networkID string, existingEpInfo *EndpointInfo, targetEpInfo *EndpointInfo) error
 	GetNumberOfEndpoints(ifName string, networkID string) int
-	SetupNetworkUsingState(networkMonitor *cnms.NetworkMonitor) error
 	GetEndpointID(containerID, ifName string) string
 	IsStatelessCNIMode() bool
 }
@@ -673,10 +671,6 @@ func (nm *networkManager) GetNumberOfEndpoints(ifName string, networkId string) 
 	}
 
 	return 0
-}
-
-func (nm *networkManager) SetupNetworkUsingState(networkMonitor *cnms.NetworkMonitor) error {
-	return nm.monitorNetworkState(networkMonitor)
 }
 
 // GetEndpointID returns a unique endpoint ID based on the CNI mode.
