@@ -8,6 +8,7 @@ package network
 
 import (
 	"fmt"
+	"net"
 	"testing"
 	"time"
 
@@ -229,6 +230,9 @@ func TestDeleteNetworkImplHnsV1WithTimeout(t *testing.T) {
 }
 
 func TestAddIPv6DefaultRoute(t *testing.T) {
+	_, ipnetv4, _ := net.ParseCIDR("10.240.0.0/12")
+	_, ipnetv6, _ := net.ParseCIDR("fc00::/64")
+
 	nm := &networkManager{
 		ExternalInterfaces: map[string]*externalInterface{},
 	}
@@ -240,16 +244,27 @@ func TestAddIPv6DefaultRoute(t *testing.T) {
 	}
 
 	extInterface := &externalInterface{
-		Name:    "eth0",
-		Subnets: []string{"ipv4Subnet", "ipv6Subnet"},
+		Name: "eth0",
+		Subnets: []network.SubnetInfo{
+			{
+				Family: 2,
+
+				Gateway: net.ParseIP("10.240.0.1"),
+				Prefix:  *ipnetv4,
+			},
+			{
+				Gateway: net.ParseIP("fc00::1"),
+				Prefix:  *ipnetv6,
+			},
+		},
 	}
 
 	Hnsv2 = hnswrapper.NewHnsv2wrapperFake()
 
+	// check if network can be successfully created
 	_, err := nm.newNetworkImplHnsV2(nwInfo, extInterface)
 	if err != nil {
 		fmt.Printf("+%v", err)
 		t.Fatal(err)
 	}
-
 }

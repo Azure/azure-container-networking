@@ -12,6 +12,7 @@ import (
 
 	"github.com/Azure/azure-container-networking/network/hnswrapper"
 	"github.com/Azure/azure-container-networking/network/policy"
+	"github.com/Azure/azure-container-networking/platform"
 	"github.com/Microsoft/hcsshim"
 	"github.com/Microsoft/hcsshim/hcn"
 	"github.com/google/uuid"
@@ -27,7 +28,6 @@ const (
 	vEthernetAdapterPrefix = "vEthernet"
 	baseDecimal            = 10
 	bitSize                = 32
-	numDualStackSubnet     = 2
 	defaultRouteCIDR       = "0.0.0.0/0"
 	// prefix for interface name created by azure network
 	ifNamePrefix = "vEthernet"
@@ -327,6 +327,8 @@ func (nm *networkManager) configureHcnNetwork(nwInfo *NetworkInfo, extIf *extern
 
 func (nm *networkManager) addIPv6DefaultRoute() error {
 	// add ipv6 default route if it does not exist in dualstack overlay windows node from persistentstore
+
+	// get interface index to add ipv6 default route and only consider there is one vEthernet interface for now
 	getIpv6IfIndexCmd := `((Get-NetIPInterface | where InterfaceAlias -Like "vEthernet*").IfIndex)[0]`
 	ifIndex, err := nm.plClient.ExecutePowershellCommand(getIpv6IfIndexCmd)
 	if err != nil {
@@ -348,13 +350,11 @@ func (nm *networkManager) addIPv6DefaultRoute() error {
 			} else {
 				// check if ipv6 default route is added to both active and persistent store
 				if out, err := nm.plClient.ExecutePowershellCommand(getIPv6RouteActiveCmd); err != nil {
-					logger.Error("Failed to get ipv6 default gateway route in active store", zap.String("out", out), zap.Error(err))
-					return errors.Wrap(err, "Failed to get ipv6 default gateway route in active store")
+					return errors.Wrapf(err, "Failed to get ipv6 default gateway route in active store. powershell output: %s", out)
 				}
 
 				if out, err := nm.plClient.ExecutePowershellCommand(getIPv6RoutePersistentCmd); err != nil {
-					logger.Error("Failed to get ipv6 default gateway route in persistent store", zap.String("out", out), zap.Error(err))
-					return errors.Wrap(err, "Failed to get ipv6 default gateway route in persistent store")
+					return errors.Wrapf(err, "Failed to get ipv6 default gateway route in persistent store. powershell output: %s", out)
 				}
 				break
 			}
@@ -393,12 +393,13 @@ func (nm *networkManager) newNetworkImplHnsV2(nwInfo *NetworkInfo, extIf *extern
 		logger.Info("Network with name already exists", zap.String("name", hcnNetwork.Name))
 	}
 
-	logger.Info("extIf is", zap.Any("extIf", extIf))
 	// check if ipv6 default gateway route is missing before windows endpoint creation
-	if len(nwInfo.Subnets) == numDualStackSubnet {
-		if err = nm.addIPv6DefaultRoute(); err != nil {
-			// should not block network creation but remind user that it's failed to add ipv6 default route to windows node
-			logger.Error("failed to add missing ipv6 default route to windows node active/persistent store", zap.Error(err))
+	for i := range nwInfo.Subnets {
+		if nwInfo.Subnets[i].Family == platform.AfINET6 {
+			if err = nm.addIPv6DefaultRoute(); err != nil {
+				// should not block network creation but remind user that it's failed to add ipv6 default route to windows node
+				logger.Error("failed to add missing ipv6 default route to windows node active/persistent store", zap.Error(err))
+			}
 		}
 	}
 
