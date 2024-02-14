@@ -216,22 +216,6 @@ stages:
 
   - template: singletenancy/cniv2-template.yaml
     parameters:
-      name: windows22_rdma_overlay
-      clusterType: overlay-byocni-up
-      clusterName: w22-rdma-ov
-      nodeCount: ${NODE_COUNT_WINCLUSTER_SYSTEMPOOL}
-      nodeCountWin: 2
-      vmSize: ${VM_SIZE_WINCLUSTER_SYSTEMPOOL}
-      vmSizeWin: Standard_HC44-16rs
-      arch: amd64
-      os: windows
-      os_version: 'ltsc2022'
-      osSkuWin: 'Windows2022'
-      scaleup: ${SCALEUP_WIN}
-      iterations: ${ITERATIONS_WIN}
-
-  - template: singletenancy/cniv2-template.yaml
-    parameters:
       name: windows19_overlay
       clusterType: overlay-byocni-up
       clusterName: w19-amd-ov
@@ -239,22 +223,6 @@ stages:
       nodeCountWin: ${NODE_COUNT_WIN}
       vmSize: ${VM_SIZE_WINCLUSTER_SYSTEMPOOL}
       vmSizeWin: ${VM_SIZE_WIN}
-      arch: amd64
-      os: windows
-      os_version: 'ltsc2019'
-      osSkuWin: 'Windows2019'
-      scaleup: ${SCALEUP_WIN}
-      iterations: ${ITERATIONS_WIN}
-
-  - template: singletenancy/cniv2-template.yaml
-    parameters:
-      name: windows19_rdma_overlay
-      clusterType: overlay-byocni-up
-      clusterName: w19-rdma-ov
-      nodeCount: ${NODE_COUNT_WINCLUSTER_SYSTEMPOOL}
-      nodeCountWin: ${NODE_COUNT_WIN}
-      vmSize: ${VM_SIZE_WINCLUSTER_SYSTEMPOOL}
-      vmSizeWin: Standard_HC44-16rs
       arch: amd64
       os: windows
       os_version: 'ltsc2019'
@@ -397,9 +365,7 @@ stages:
       - rdma_linux_overlay
       - windows_podsubnet_HNS
       - windows_overlay_HNS
-      - windows22_rdma_overlay_HNS
       - windows19_overlay_HNS
-      - windows19_rdma_overlay_HNS
       - setup
     variables:
       commitID: $[ stagedependencies.setup.env.outputs['SetEnvVars.commitID'] ]
@@ -452,15 +418,9 @@ stages:
             win-cniv2-overlay:
               name: windows_overlay
               clusterName: w22-over
-            windows22_rdma_overlay:
-              name: windows22_rdma_overlay
-              clusterName: w22-rdma-ov
             windows19_overlay:
               name: windows19_overlay
               clusterName: w19-amd-ov
-            windows19_rdma_overlay:
-              name: windows19_rdma_overlay
-              clusterName: w19-rdma-ov
         steps:
           - task: AzureCLI@1
             inputs:
