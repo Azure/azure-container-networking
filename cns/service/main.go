@@ -1244,6 +1244,9 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 		if err = PopulateCNSEndpointState(httpRestServiceImplementation.EndpointStateStore); err != nil {
 			return errors.Wrap(err, "failed to create CNS EndpointState From CNI")
 		}
+		if err = httpRestServiceImplementation.EndpointStateStore.Read(restserver.EndpointStoreKey, &httpRestServiceImplementation.EndpointState); err != nil {
+			return errors.Wrap(err, "Failed to restore endpoint state")
+		}
 	}
 
 	var podInfoByIPProvider cns.PodInfoByIPProvider
