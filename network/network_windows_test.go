@@ -238,22 +238,24 @@ func TestAddIPv6DefaultRoute(t *testing.T) {
 		ExternalInterfaces: map[string]*externalInterface{},
 	}
 
+	networkSubnetInfo := []network.SubnetInfo{
+		{
+			Family:  platform.AfINET,
+			Gateway: net.ParseIP("10.240.0.1"),
+			Prefix:  *ipnetv4,
+		},
+		{
+			Family:  platform.AfINET6,
+			Gateway: net.ParseIP("fc00::1"),
+			Prefix:  *ipnetv6,
+		},
+	}
+
 	nwInfo := &NetworkInfo{
 		Id:           "d3f97a83-ba4c-45d5-ba88-dc56757ece28",
 		MasterIfName: "eth0",
 		Mode:         "bridge",
-		Subnets: []network.SubnetInfo{
-			{
-				Family:  platform.AfINET,
-				Gateway: net.ParseIP("10.240.0.1"),
-				Prefix:  *ipnetv4,
-			},
-			{
-				Family:  platform.AfINET6,
-				Gateway: net.ParseIP("fc00::1"),
-				Prefix:  *ipnetv6,
-			},
-		},
+		Subnets:      networkSubnetInfo,
 	}
 
 	extInterface := &externalInterface{
