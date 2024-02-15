@@ -38,7 +38,7 @@ jobs:
         uses: helm/kind-action@v1
         with:
           version: "v0.11.1"
-          kubectl_version: "1.28.0"
+          kubectl_version: "v1.29.0"
           config: ./test/kind/kind.yaml
           cluster_name: npm-kind
 
