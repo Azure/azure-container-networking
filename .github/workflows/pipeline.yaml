@@ -35,7 +35,7 @@ jobs:
         azcliversion: latest
         inlineScript: |
           az account show
-          echo ${{ secrets.AZURE_DEVOPS_EXT_PAT }} | az devops login --org ${{ secrets.AZURE_PIPELINE_ORG }}
+          export AZURE_DEVOPS_EXT_PAT=${{ secrets.AZURE_DEVOPS_EXT_PAT }}
 
           echo "Sanity check recently triggered Merge Queue Pipeline runs"
           az pipelines runs list --pipeline-ids ${{ secrets.AZURE_PIPELINE_ID }} --org ${{ secrets.AZURE_PIPELINE_ORG }} --project ${{ secrets.AZURE_PIPELINE_PROJECT }} --reason individualCI --top 10 --query-order QueueTimeDesc --output json | jq -r .[].sourceBranch

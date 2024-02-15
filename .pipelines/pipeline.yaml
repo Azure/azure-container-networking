@@ -461,6 +461,7 @@ stages:
       parameters:
         name: "aks_swift_e2e"
         displayName: AKS Swift Ubuntu
+        os: linux
         clusterType: swift-byocni-up
         clusterName: "swifte2e"
         vmSize: Standard_B2ms
@@ -472,6 +473,7 @@ stages:
       parameters:
         name: "aks_swift_vnetscale_e2e"
         displayName: AKS Swift Vnet Scale Ubuntu
+        os: linux
         clusterType: vnetscale-swift-byocni-up
         clusterName: "vscaleswifte2e"
         vmSize: Standard_B2ms

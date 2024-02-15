@@ -1,6 +1,7 @@
 package types
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"reflect"
@@ -15,14 +16,17 @@ var (
 	ErrOrphanSteps         = fmt.Errorf("background steps with no corresponding stop")
 	ErrCannotStopStep      = fmt.Errorf("cannot stop step")
 	ErrMissingBackroundID  = fmt.Errorf("missing background id")
+	ErrNoValue             = fmt.Errorf("empty parameter not found saved in values")
+	ErrEmptyScenarioName   = fmt.Errorf("scenario name is empty")
 )
 
 // A Job is a logical grouping of steps, options and values
 type Job struct {
-	Values          *JobValues
+	values          *JobValues
 	Description     string
 	Steps           []*StepWrapper
 	BackgroundSteps map[string]*StepWrapper
+	Scenarios       map[*StepWrapper]*Scenario
 }
 
 // A StepWrapper is a coupling of a step and it's options
@@ -34,17 +38,41 @@ type StepWrapper struct {
 // A Scenario is a logical grouping of steps, used to describe a scenario such as "test drop metrics"
 // which will require port forwarding, exec'ing, scraping, etc.
 type Scenario struct {
-	Steps []*StepWrapper
+	name   string
+	steps  []*StepWrapper
+	values *JobValues
 }
 
-func responseDivider(jobname string) {
-	totalWidth := 100
+func NewScenario(name string, steps ...*StepWrapper) *Scenario {
+	if name == "" {
+		log.Printf("scenario name is empty")
+	}
+
+	return &Scenario{
+		name:   name,
+		steps:  steps,
+		values: &JobValues{kv: make(map[string]string)},
+	}
+}
+
+func (j *Job) GetPrettyStepName(step *StepWrapper) string {
+	prettyname := reflect.TypeOf(step.Step).Elem().Name()
+	if j.Scenarios[step] != nil {
+		prettyname = fmt.Sprintf("%s (scenario: %s)", prettyname, j.Scenarios[step].name)
+	}
+	return prettyname
+}
+
+func (j *Job) responseDivider(wrapper *StepWrapper) {
+	totalWidth := 125
 	start := 20
 	i := 0
 	for ; i < start; i++ {
 		fmt.Print("#")
 	}
-	mid := fmt.Sprintf(" %s ", jobname)
+
+	mid := fmt.Sprintf(" %s ", j.GetPrettyStepName(wrapper))
+
 	fmt.Print(mid)
 	for ; i < totalWidth-(start+len(mid)); i++ {
 		fmt.Print("#")
@@ -54,17 +82,19 @@ func responseDivider(jobname string) {
 
 func NewJob(description string) *Job {
 	return &Job{
-		Values: &JobValues{
+		values: &JobValues{
 			kv: make(map[string]string),
 		},
 		BackgroundSteps: make(map[string]*StepWrapper),
+		Scenarios:       make(map[*StepWrapper]*Scenario),
 		Description:     description,
 	}
 }
 
 func (j *Job) AddScenario(scenario *Scenario) {
-	for _, step := range scenario.Steps {
-		j.AddStep(step.Step, step.Opts)
+	for i, step := range scenario.steps {
+		j.Steps = append(j.Steps, step)
+		j.Scenarios[scenario.steps[i]] = scenario
 	}
 }
 
@@ -74,6 +104,56 @@ func (j *Job) AddStep(step Step, opts *StepOptions) {
 		Opts: opts,
 	}
 	j.Steps = append(j.Steps, stepw)
+}
+
+func (j *Job) GetValue(stepw *StepWrapper, key string) (string, bool) {
+	// if step exists in a scenario, use the scenario's values
+	// if the value isn't in the scenario's values, get the root job's value
+	if scenario, exists := j.Scenarios[stepw]; exists {
+		if scenario.values.Contains(key) {
+			return scenario.values.Get(key), true
+		}
+	}
+	if j.values.Contains(key) {
+		return j.values.Get(key), true
+	}
+
+	return "", false
+}
+
+// SetGetValues is used when we want to save parameters to job, and also check if
+// the parameter exists in the scenario's or top level values
+func (j *Job) SetGetValues(stepw *StepWrapper, key, value string) (string, error) {
+	// if top level step parameter is set, and scenario step is not, inherit
+	// if top level step parameter is not set, and scenario step is, use scenario step
+	// if top level step parameter is set, and scenario step is set, warn and use scenario step
+
+	// check if scenario exists, if it does, check if the value is in the scenario's values
+	if scenario, exists := j.Scenarios[stepw]; exists {
+		scenarioValue, err := scenario.values.SetGet(key, value)
+		if err != nil && !errors.Is(err, ErrEmptyValue) {
+			return "", err
+		}
+		if scenarioValue != "" {
+			return scenarioValue, nil
+		}
+	}
+
+	return j.values.SetGet(key, value)
+}
+
+// GetValues is used when we want to skip saving parameters to job, but also check if
+// the parameter exists in the scenario's or top level values
+func (j *Job) GetValues(stepw *StepWrapper, key string) string {
+	// check if scenario exists, if it does, check if the value is in the scenario's values
+	if scenario, exists := j.Scenarios[stepw]; exists {
+		scenarioValue := scenario.values.Get(key)
+		if scenarioValue != "" {
+			return scenarioValue
+		}
+	}
+
+	return j.values.Get(key)
 }
 
 func (j *Job) Run() error {
@@ -95,7 +175,7 @@ func (j *Job) Run() error {
 	}
 
 	for _, wrapper := range j.Steps {
-		responseDivider(reflect.TypeOf(wrapper.Step).Elem().Name())
+		j.responseDivider(wrapper)
 		err := wrapper.Step.Run()
 		if wrapper.Opts.ExpectError && err == nil {
 			return fmt.Errorf("expected error from step %s but got nil: %w", reflect.TypeOf(wrapper.Step).Elem().Name(), ErrNilError)
@@ -137,10 +217,10 @@ func (j *Job) validateBackgroundSteps() error {
 			}
 
 			if j.BackgroundSteps[s.BackgroundID] == nil {
-				return fmt.Errorf("cannot stop step %s, as it won't be started by this time; %w", s.BackgroundID, ErrCannotStopStep)
+				return fmt.Errorf("cannot stop step \"%s\", as it won't be started by this time; %w", s.BackgroundID, ErrCannotStopStep)
 			}
 			if stopped := stoppedBackgroundSteps[s.BackgroundID]; stopped {
-				return fmt.Errorf("cannot stop step %s, as it has already been stopped; %w", s.BackgroundID, ErrCannotStopStep)
+				return fmt.Errorf("cannot stop step \"%s\", as it has already been stopped; %w", s.BackgroundID, ErrCannotStopStep)
 			}
 
 			// track for later on if the stop step is called
@@ -152,7 +232,7 @@ func (j *Job) validateBackgroundSteps() error {
 		default:
 			if stepw.Opts.RunInBackgroundWithID != "" {
 				if _, exists := j.BackgroundSteps[stepw.Opts.RunInBackgroundWithID]; exists {
-					log.Fatalf("step with id %s already exists", stepw.Opts.RunInBackgroundWithID)
+					log.Fatalf("step with id \"%s\" already exists", stepw.Opts.RunInBackgroundWithID)
 				}
 				j.BackgroundSteps[stepw.Opts.RunInBackgroundWithID] = stepw
 				stoppedBackgroundSteps[stepw.Opts.RunInBackgroundWithID] = false
@@ -162,23 +242,22 @@ func (j *Job) validateBackgroundSteps() error {
 
 	for stepName, stopped := range stoppedBackgroundSteps {
 		if !stopped {
-			return fmt.Errorf("step %s was not stopped; %w", stepName, ErrOrphanSteps)
+			return fmt.Errorf("step \"%s\" was not stopped; %w", stepName, ErrOrphanSteps)
 		}
 	}
 
 	return nil
 }
 
-func (j *Job) validateStep(stepw *StepWrapper) error {
-	stepName := reflect.TypeOf(stepw.Step).Elem().Name()
-	val := reflect.ValueOf(stepw.Step).Elem()
+func (j *Job) validateStep(step *StepWrapper) error {
+	val := reflect.ValueOf(step.Step).Elem()
 
 	// set default options if none are provided
-	if stepw.Opts == nil {
-		stepw.Opts = &DefaultOpts
+	if step.Opts == nil {
+		step.Opts = &DefaultOpts
 	}
 
-	switch stepw.Step.(type) {
+	switch step.Step.(type) {
 	case *Stop:
 		// don't validate stop steps
 		return nil
@@ -199,30 +278,41 @@ func (j *Job) validateStep(stepw *StepWrapper) error {
 
 			if k == reflect.String {
 				parameter := val.Type().Field(i).Name
-				value := val.Field(i).Interface().(string)
-				storedValue := j.Values.Get(parameter)
+				passedvalue := val.Field(i).Interface().(string)
 
-				if storedValue == "" {
+				// if top level step parameter is set, and scenario step is not, inherit
+				// if top level step parameter is not set, and scenario step is, use scenario step
+				// if top level step parameter is set, and scenario step is set, warn and use scenario step
 
-					switch {
-					case stepw.Opts.SkipSavingParamatersToJob:
-						continue
-					case value != "":
-						fmt.Printf("\"%s\" setting parameter \"%s\" in job context to \"%s\"\n", stepName, parameter, value)
-						j.Values.Set(parameter, value)
-					default:
-						return fmt.Errorf("missing parameter \"%s\" for step \"%s\": %w", parameter, stepName, ErrMissingParameter)
+				var err error
+				var value string
+				if step.Opts.SkipSavingParamatersToJob {
+					retrievedvalue := j.GetValues(step, parameter)
+
+					// if the value is already set, and it's not the same as the one we're trying to set, error
+					if retrievedvalue != "" && passedvalue != "" && retrievedvalue != passedvalue {
+						return fmt.Errorf("parameter \"%s\" was set as \"%s\", but was already saved as \"%s\"; %w", parameter, retrievedvalue, passedvalue, ErrParameterAlreadySet)
 					}
-					continue
-				}
 
-				if value != "" {
-					return fmt.Errorf("parameter %s for step %s is already set from previous step: %w", parameter, stepName, ErrParameterAlreadySet)
+					if passedvalue == "" {
+						if retrievedvalue == "" {
+							return fmt.Errorf("parameter \"%s\" is empty in step \"%s\"; %w", parameter, j.GetPrettyStepName(step), ErrNoValue)
+						}
+						value = retrievedvalue
+					} else {
+						value = passedvalue
+					}
+
+				} else {
+					value, err = j.SetGetValues(step, parameter, passedvalue)
+					if err != nil {
+						return fmt.Errorf("error setting parameter \"%s\": in step \"%s\": %w", parameter, j.GetPrettyStepName(step), err)
+					}
 				}
 
 				// don't use log format since this is technically preexecution and easier to read
-				fmt.Println(stepName, "using previously stored value for parameter", parameter, "set as", j.Values.Get(parameter))
-				val.Field(i).SetString(storedValue)
+				fmt.Printf("%s setting stored value for parameter [%s] set as [%s]\n", j.GetPrettyStepName(step), parameter, value)
+				val.Field(i).SetString(value)
 			}
 		}
 	}

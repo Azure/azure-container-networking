@@ -77,11 +77,13 @@ stages:
             scriptType: "bash"
             addSpnToEnvironment: true
             inlineScript: |
-              kubectl apply -f test/integration/manifests/cilium/v${CILIUM_TEMPLATE_DIR}/cilium-config/cilium-config-hubble.yaml
-              kubectl apply -f test/integration/manifests/cilium/v${CILIUM_TEMPLATE_DIR}/cilium-agent/files
-              kubectl apply -f test/integration/manifests/cilium/v${CILIUM_TEMPLATE_DIR}/cilium-operator/files
-              envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/v${CILIUM_TEMPLATE_DIR}/cilium-agent/templates/daemonset.tpl | kubectl apply -f -
-              envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/v${CILIUM_TEMPLATE_DIR}/cilium-operator/templates/deployment.tpl | kubectl apply -f -
+              export DIR=${CILIUM_VERSION_TAG%.*}
+              echo "installing files from ${DIR}"
+              kubectl apply -f test/integration/manifests/cilium/v${DIR}/cilium-config/cilium-config-hubble.yaml
+              kubectl apply -f test/integration/manifests/cilium/v${DIR}/cilium-agent/files
+              kubectl apply -f test/integration/manifests/cilium/v${DIR}/cilium-operator/files
+              envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/v${DIR}/cilium-agent/templates/daemonset.tpl | kubectl apply -f -
+              envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/v${DIR}/cilium-operator/templates/deployment.tpl | kubectl apply -f -
               # Use different file directories for nightly and current cilium version
           name: "installCilium"
           displayName: "Install Cilium on AKS Overlay"
@@ -121,7 +123,8 @@ stages:
           enabled: true
 
         - script: |
-            kubectl apply -f test/integration/manifests/cilium/v${CILIUM_TEMPLATE_DIR}/hubble/hubble-peer-svc.yaml
+            export DIR=${CILIUM_VERSION_TAG%.*}
+            kubectl apply -f test/integration/manifests/cilium/v${DIR}/hubble/hubble-peer-svc.yaml
             kubectl get pods -Aowide
             echo "verify Hubble metrics endpoint is usable"
             go test ./test/integration/networkobservability -tags=networkobservability

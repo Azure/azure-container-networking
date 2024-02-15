@@ -7,29 +7,32 @@ import (
 
 // todo: once AMA is rolled out
 func ValidateAMATargets() *types.Scenario {
-	return &types.Scenario{
-		Steps: []*types.StepWrapper{
-			{
-				Step: &k8s.PortForward{
-					Namespace:     "kube-system",
-					LabelSelector: "k8s-app=cilium",
-					LocalPort:     "9965",
-					RemotePort:    "9965",
-				},
-				Opts: &types.StepOptions{
-					RunInBackgroundWithID: "validate-ama-targets",
-				},
+	steps := []*types.StepWrapper{
+		{
+			Step: &k8s.PortForward{
+				Namespace:     "kube-system",
+				LabelSelector: "k8s-app=cilium",
+				LocalPort:     "9965",
+				RemotePort:    "9965",
 			},
-			{
-				Step: &VerifyPrometheusMetrics{
-					Address: "http://localhost:9090",
-				},
+			Opts: &types.StepOptions{
+				RunInBackgroundWithID: "validate-ama-targets",
 			},
-			{
-				Step: &types.Stop{
-					BackgroundID: "validate-ama-targets",
-				},
+		},
+		{
+			Step: &VerifyPrometheusMetrics{
+				Address: "http://localhost:9090",
+			},
+		},
+		{
+			Step: &types.Stop{
+				BackgroundID: "validate-ama-targets",
 			},
 		},
 	}
+
+	return types.NewScenario(
+		"Validate that drop metrics are present in the prometheus endpoint",
+		steps...,
+	)
 }

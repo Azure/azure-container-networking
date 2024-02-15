@@ -1,6 +1,14 @@
 package types
 
-import "sync"
+import (
+	"fmt"
+	"sync"
+)
+
+var (
+	ErrValueAlreadySet = fmt.Errorf("parameter already set in values")
+	ErrEmptyValue      = fmt.Errorf("empty parameter not found in values")
+)
 
 type JobValues struct {
 	RWLock sync.RWMutex
@@ -26,8 +34,21 @@ func (j *JobValues) Get(key string) string {
 	return j.kv[key]
 }
 
-func (j *JobValues) Set(key, value string) {
+func (j *JobValues) SetGet(key, value string) (string, error) {
 	j.RWLock.Lock()
 	defer j.RWLock.Unlock()
-	j.kv[key] = value
+
+	_, ok := j.kv[key]
+
+	switch {
+	case !ok && value != "":
+		j.kv[key] = value
+		return value, nil
+	case ok && value == "":
+		return j.kv[key], nil
+	case ok && value != "":
+		return "", ErrValueAlreadySet
+	}
+
+	return "", ErrEmptyValue
 }

@@ -48,7 +48,7 @@ type MultitenantPodNetworkConfigSpec struct {
 	// name of PN object from requesting cx pod
 	PodNetwork string `json:"podNetwork"`
 	// name of the requesting cx pod
-	PodName string `json:"podName"`
+	PodName string `json:"podName,omitempty"`
 }
 
 // MultitenantPodNetworkConfigStatus defines the observed state of PodNetworkConfig

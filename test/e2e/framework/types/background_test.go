@@ -6,27 +6,25 @@ import (
 	"sync"
 	"testing"
 	"time"
-
-	"github.com/Azure/azure-container-networking/test/e2e/framework/types"
 )
 
 func TestFramework(t *testing.T) {
-	job := types.NewJob("Validate that drop metrics are present in the prometheus endpoint")
-	runner := types.NewRunner(t, job)
+	job := NewJob("Validate that drop metrics are present in the prometheus endpoint")
+	runner := NewRunner(t, job)
 	defer runner.Run()
 
 	job.AddStep(&TestBackground{
 		CounterName: "Example Counter",
-	}, &types.StepOptions{
+	}, &StepOptions{
 		ExpectError:           false,
 		RunInBackgroundWithID: "TestStep",
 	})
 
-	job.AddStep(&types.Sleep{
+	job.AddStep(&Sleep{
 		Duration: 1 * time.Second,
 	}, nil)
 
-	job.AddStep(&types.Stop{
+	job.AddStep(&Stop{
 		BackgroundID: "TestStep",
 	}, nil)
 }
