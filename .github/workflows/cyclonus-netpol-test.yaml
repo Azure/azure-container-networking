@@ -40,7 +40,7 @@ jobs:
           version: "v0.11.1"
           kubectl_version: "1.29.0"
           config: ./test/kind/kind.yaml
-          cluster_name: npm-kind
+          name: npm-kind
 
       - name: Check Kind
         run: |
