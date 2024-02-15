@@ -44,7 +44,7 @@ jobs:
 
       - name: Check Kind
         run: |
-          kubectl get po -owide -A
+          kubectl get node -owide -A
 
       - name: Make NPM image
         run: |
