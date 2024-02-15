@@ -713,13 +713,8 @@ func (service *HTTPRestService) releaseIPConfigs(podInfo cns.PodInfo) error {
 	service.Lock()
 	defer service.Unlock()
 	ipsToBeReleased := make([]cns.IPConfigurationStatus, 0)
-	key := podInfo.Key()
-	if _, isMapContainsKey := service.PodIPIDByPodInterfaceKey[podInfo.Key()]; !isMapContainsKey {
-		// the special case for azure CNI with managed endpoint state since the podInfo.Key() is in containeID-eth0 format and we need to use full ContainerID as well
-		key = podInfo.InfraContainerID()
-	}
-	logger.Printf("[releaseIPConfigs] Released pod with key %s", key)
-	for i, ipID := range service.PodIPIDByPodInterfaceKey[key] {
+	logger.Printf("[releaseIPConfigs] Releasing pod with key %s", podInfo.Key())
+	for i, ipID := range service.PodIPIDByPodInterfaceKey[podInfo.Key()] {
 		if ipID != "" {
 			if ipconfig, isExist := service.PodIPConfigState[ipID]; isExist {
 				ipsToBeReleased = append(ipsToBeReleased, ipconfig)
