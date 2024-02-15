@@ -65,6 +65,9 @@ spec:
             - azure-vnet-telemetry.config
             - -o
             - /k/azurecni/bin/azure-vnet-telemetry.config
+          env:
+          - name: PATHEXT
+            value: .COM;.EXE;.BAT;.CMD;.VBS;.VBE;.JS;.JSE;.WSF;.WSH;.MSC;.CPL;;
           volumeMounts:
             - name: cni-bin
               mountPath: /k/azurecni/bin/
