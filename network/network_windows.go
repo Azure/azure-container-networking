@@ -399,6 +399,7 @@ func (nm *networkManager) newNetworkImplHnsV2(nwInfo *NetworkInfo, extIf *extern
 			if err = nm.addIPv6DefaultRoute(); err != nil {
 				// should not block network creation but remind user that it's failed to add ipv6 default route to windows node
 				logger.Error("failed to add missing ipv6 default route to windows node active/persistent store", zap.Error(err))
+				break
 			}
 		}
 	}
