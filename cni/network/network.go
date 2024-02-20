@@ -45,9 +45,6 @@ const (
 	ipv6FullMask          = 128
 )
 
-// Secondary interface NIC types
-var secondaryInterfaceNICType = []string{cns.BackendNICNC, string(cns.DelegatedVMNIC)}
-
 // CNI Operation Types
 const (
 	CNI_ADD    = "ADD"
@@ -79,14 +76,6 @@ type NetPlugin struct {
 	tb                 *telemetry.TelemetryBuffer
 	nnsClient          NnsClient
 	multitenancyClient MultitenancyClient
-}
-
-// save secondary interface usage with ipNet and macAddress properties
-var SecondaryInterfaces map[string]SecondaryInterfaceProperty
-
-type SecondaryInterfaceProperty struct {
-	ipNet      string
-	macAddress string
 }
 
 type PolicyArgs struct {
