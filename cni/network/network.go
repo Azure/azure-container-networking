@@ -208,7 +208,7 @@ func (plugin *NetPlugin) Stop() {
 }
 
 // FindMasterInterfaceByMac returns the name of the master interface
-func (plugin *NetPlugin) findMasterInterfaceByMac(nwCfg *cni.NetworkConfig, macAddress string) string {
+func (plugin *NetPlugin) findMasterInterfaceByMac(macAddress string) string {
 	interfaces, _ := net.Interfaces()
 	for _, iface := range interfaces {
 		// find master interface by macAddress for Swiftv2 L1VH
@@ -333,10 +333,7 @@ func addNatIPV6SubnetInfo(nwCfg *cni.NetworkConfig,
 
 // check if seconday interface info exists or not from ipamAddResult based on NIC type
 func hasSecondaryInterface(ipamAddResult IPAMAddResult) bool {
-	if len(ipamAddResult.secondaryInterfacesInfo) > 0 {
-		return true
-	}
-	return false
+	return len(ipamAddResult.secondaryInterfacesInfo) > 0
 }
 
 // CNI implementation
@@ -388,8 +385,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 		telemetry.SendCNIMetric(&cniMetric, plugin.tb)
 
 		// Add Interfaces to result.
-		cniResult := &cniTypesCurr.Result{}
-		cniResult = convertInterfaceInfoToCniResult(ipamAddResult.defaultInterfaceInfo, args.IfName)
+		cniResult := convertInterfaceInfoToCniResult(ipamAddResult.defaultInterfaceInfo, args.IfName)
 		// if defaultInterfaceInfo does not exist, then try to use secondaryInterfaceInfo
 		if cniResult == nil && hasSecondaryInterface(ipamAddResult) {
 			cniResult = convertInterfaceInfoToCniResult(ipamAddResult.secondaryInterfacesInfo[0], args.IfName)
@@ -654,8 +650,7 @@ func (plugin *NetPlugin) createNetworkInternal(
 	ipamAddConfig.nwCfg.IPAM.Subnet = ipamAddResult.defaultInterfaceInfo.HostSubnetPrefix.String()
 
 	// Find the master interface.
-	interfaceInfo := network.InterfaceInfo{}
-	interfaceInfo = ipamAddResult.defaultInterfaceInfo
+	interfaceInfo := ipamAddResult.defaultInterfaceInfo
 
 	hostSubetPrefix := ipamAddResult.defaultInterfaceInfo.HostSubnetPrefix
 	masterIfName := plugin.findMasterInterfaceBySubnet(ipamAddConfig.nwCfg, &hostSubetPrefix)
@@ -665,7 +660,7 @@ func (plugin *NetPlugin) createNetworkInternal(
 		ipamAddResult.secondaryInterfacesInfo[0].HostSubnetPrefix.IP = ipamAddResult.secondaryInterfacesInfo[0].HostSubnetPrefix.IP.Mask(ipamAddResult.secondaryInterfacesInfo[0].HostSubnetPrefix.Mask)
 		ipamAddConfig.nwCfg.IPAM.Subnet = hostSubetPrefix.String()
 		interfaceInfo = ipamAddResult.secondaryInterfacesInfo[0]
-		masterIfName = plugin.findMasterInterfaceByMac(ipamAddConfig.nwCfg, interfaceInfo.MacAddress.String())
+		masterIfName = plugin.findMasterInterfaceByMac(interfaceInfo.MacAddress.String())
 	}
 
 	if masterIfName == "" {
@@ -685,6 +680,8 @@ func (plugin *NetPlugin) createNetworkInternal(
 		err = plugin.Errorf("Failed to getDNSSettings: %v", err)
 		return nwInfo, err
 	}
+
+	logger.Info("DNS Info", zap.Any("info", nwDNSInfo))
 
 	// Create the network.
 	nwInfo = network.NetworkInfo{
