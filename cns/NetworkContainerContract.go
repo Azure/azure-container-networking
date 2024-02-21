@@ -180,7 +180,6 @@ type podInfoScheme int
 const (
 	KubernetesPodInfoScheme podInfoScheme = iota
 	InterfaceIDPodInfoScheme
-	InfraIDPodInfoScheme
 )
 
 // PodInfo represents the object that we are providing network for.
@@ -250,18 +249,11 @@ func (p *podInfo) InterfaceID() string {
 // orchestrator pod name and namespace. if the Version is interfaceID, key is
 // composed of the CNI interfaceID, which is generated from the CRI infra
 // container ID and the pod net ns primary interface name.
-// If the version in InfraContainerID then the key is containerID.
 func (p *podInfo) Key() string {
-	switch p.Version {
-	case InfraIDPodInfoScheme:
-		return p.PodInfraContainerID
-	case InterfaceIDPodInfoScheme:
+	if p.Version == InterfaceIDPodInfoScheme {
 		return p.PodInterfaceID
-	case KubernetesPodInfoScheme:
-		return p.PodName + ":" + p.PodNamespace
-	default:
-		return p.PodName + ":" + p.PodNamespace
 	}
+	return p.PodName + ":" + p.PodNamespace
 }
 
 func (p *podInfo) Name() string {
