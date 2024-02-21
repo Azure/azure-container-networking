@@ -10,7 +10,7 @@ parameters:
   osSKU: Ubuntu
   hubbleEnabled: false
   dualstackVersion: ""
-  cni: ""
+  cni: "cilium"
 
 # Condition confirms that:
 # Previous job has reported Succeeded. Previous job is currently setup which controls variable assignment and we are dependent on its success.
