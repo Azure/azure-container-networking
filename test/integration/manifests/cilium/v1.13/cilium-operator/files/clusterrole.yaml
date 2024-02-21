@@ -211,4 +211,3 @@ rules:
   - ciliumloadbalancerippools/status
   verbs:
   - patch
-  
