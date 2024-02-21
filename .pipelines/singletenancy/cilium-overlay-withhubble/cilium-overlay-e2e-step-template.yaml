@@ -42,8 +42,8 @@ steps:
         kubectl apply -f test/integration/manifests/cilium/v${DIR}/cilium-config/cilium-config-hubble.yaml
         kubectl apply -f test/integration/manifests/cilium/v${DIR}/cilium-agent/files
         kubectl apply -f test/integration/manifests/cilium/v${DIR}/cilium-operator/files
-        envsubst '${CILIUM_IMAGE_REGISTRY},${CILIUM_VERSION_TAG}' < test/integration/manifests/cilium/v${DIR}/cilium-agent/templates/daemonset.tpl | kubectl apply -f -
-        envsubst '${CILIUM_IMAGE_REGISTRY},${CILIUM_VERSION_TAG}' < test/integration/manifests/cilium/v${DIR}/cilium-operator/templates/deployment.tpl | kubectl apply -f -
+        envsubst '${CILIUM_IMAGE_REGISTRY},${CILIUM_VERSION_TAG}' < test/integration/manifests/cilium/v${DIR}/cilium-agent/templates/daemonset.yaml | kubectl apply -f -
+        envsubst '${CILIUM_IMAGE_REGISTRY},${CILIUM_VERSION_TAG}' < test/integration/manifests/cilium/v${DIR}/cilium-operator/templates/deployment.yaml | kubectl apply -f -
         # Use different file directories for nightly and current cilium version
     name: "installCilium"
     displayName: "Install Cilium on AKS Overlay"

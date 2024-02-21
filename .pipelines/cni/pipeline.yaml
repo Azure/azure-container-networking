@@ -278,6 +278,7 @@ stages:
       clusterName: "cilium-over"
       nodeCount: ${NODE_COUNT_CILIUM}
       vmSize: ${VM_SIZE_CILIUM}
+      cni: "cilium"
 
   - template: cilium/cilium-overlay-load-test-template.yaml
     parameters:
@@ -287,6 +288,7 @@ stages:
       hubbleEnabled: true
       nodeCount: ${NODE_COUNT_CILIUM}
       vmSize: ${VM_SIZE_CILIUM}
+      cni: "cilium"
 
   - template: cilium/cilium-overlay-load-test-template.yaml
     parameters:
@@ -297,6 +299,7 @@ stages:
       vmSize: ${VM_SIZE_CILIUM}
       arch: amd64
       osSKU: AzureLinux
+      cni: "cilium"
 
   - template: cilium/cilium-overlay-load-test-template.yaml
     parameters:
@@ -306,6 +309,7 @@ stages:
       nodeCount: ${NODE_COUNT_CILIUM}
       vmSize: Standard_D8ps_v5
       arch: arm64
+      cni: "cilium"
 
   - template: cilium/cilium-overlay-load-test-template.yaml
     parameters:
@@ -315,6 +319,17 @@ stages:
       nodeCount: 2
       vmSize: Standard_HC44-16rs
       arch: amd64
+      cni: "cilium"
+  
+  - template: cilium/cilium-overlay-load-test-template.yaml
+    parameters:
+      name: cilium_overlay_ds
+      clusterType: dualstack-byocni-nokubeproxy-up
+      clusterName: "cilium-ds-ov"
+      nodeCount: ${NODE_COUNT_CILIUM}
+      vmSize: ${VM_SIZE_CILIUM}
+      dualstackVersion: ${CILIUM_DUALSTACK_VERSION}
+      cni: "cilium_dualstack"
 
   - stage: delete_resources
     displayName: "Delete Resources"
@@ -327,6 +342,7 @@ stages:
       - cilium_overlay_mariner
       - cilium_overlay_arm
       - cilium_overlay_rdma
+      - cilium_overlay_ds
       - win22_cniv1_HNS
       - linux_cniv1
       - linux_podsubnet
@@ -361,6 +377,9 @@ stages:
             cilium_overlay_rdma:
               name: cilium_overlay_rdma
               clusterName: "cil-over-rdma"
+            cilium_overlay_ds:
+              name: cilium_overlay_ds
+              clusterName: "cil-ds-ov"
             win22-cniv1:
               name: win22-cniv1
               clusterName: "win22-cniv1"

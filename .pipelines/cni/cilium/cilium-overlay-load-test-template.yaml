@@ -9,6 +9,8 @@ parameters:
   arch: ""
   osSKU: Ubuntu
   hubbleEnabled: false
+  dualstackVersion: ""
+  cni: ""
 
 # Condition confirms that:
 # Previous job has reported Succeeded. Previous job is currently setup which controls variable assignment and we are dependent on its success.
@@ -70,11 +72,23 @@ stages:
                   kubectl cluster-info
                   kubectl get po -owide -A
 
+                  if [ ! -z ${{ parameters.dualstackVersion }} ]; then
+                    echo "Use dualstack version of Cilium"
+                    export CILIUM_VERSION_TAG=${{ parameters.dualstackVersion }}
+                  fi
+
                   echo "install Cilium ${CILIUM_VERSION_TAG}"
                   export DIR=${CILIUM_VERSION_TAG%.*}
                   echo "installing files from ${DIR}"
+
                   echo "deploy Cilium ConfigMap"
-                  kubectl apply -f test/integration/manifests/cilium/v${DIR}/cilium-config/cilium-config.yaml
+                  if [ ! -z ${{ parameters.dualstackVersion }} ]; then
+                    echo "Use dualstack configmap for Cilium"
+                    kubectl apply -f test/integration/manifests/cilium/v${DIR}/cilium-config/cilium-config-dualstack.yaml
+                  else
+                    kubectl apply -f test/integration/manifests/cilium/v${DIR}/cilium-config/cilium-config.yaml
+                  fi
+                  
                   # Passes Cilium image to daemonset and deployment
                   kubectl apply -f test/integration/manifests/cilium/v${DIR}/cilium-agent/files
                   kubectl apply -f test/integration/manifests/cilium/v${DIR}/cilium-operator/files
@@ -113,8 +127,8 @@ stages:
                   kubectl apply -f test/integration/manifests/cilium/v${DIR}/cilium-config/cilium-config-hubble.yaml
                   kubectl apply -f test/integration/manifests/cilium/v${DIR}/cilium-agent/files
                   kubectl apply -f test/integration/manifests/cilium/v${DIR}/cilium-operator/files
-                  envsubst '${CILIUM_IMAGE_REGISTRY},${CILIUM_VERSION_TAG}' < test/integration/manifests/cilium/v${DIR}/cilium-agent/templates/daemonset.tpl | kubectl apply -f -
-                  envsubst '${CILIUM_IMAGE_REGISTRY},${CILIUM_VERSION_TAG}' < test/integration/manifests/cilium/v${DIR}/cilium-operator/templates/deployment.tpl | kubectl apply -f -
+                  envsubst '${CILIUM_IMAGE_REGISTRY},${CILIUM_VERSION_TAG}' < test/integration/manifests/cilium/v${DIR}/cilium-agent/templates/daemonset.yaml | kubectl apply -f -
+                  envsubst '${CILIUM_IMAGE_REGISTRY},${CILIUM_VERSION_TAG}' < test/integration/manifests/cilium/v${DIR}/cilium-operator/templates/deployment.yaml | kubectl apply -f -
                   kubectl get po -owide -A
 
                   echo "Deploy Azure-CNS"
@@ -137,6 +151,7 @@ stages:
           - template: ../load-test-templates/validate-state-template.yaml
             parameters:
               clusterName: ${{ parameters.clusterName }}-$(commitID)
+              cni: ${{ parameters.cni }}
       - job: restart_nodes
         condition: and( and( not(canceled()), not(failed()) ), or( contains(variables.CONTROL_SCENARIO, 'restartNode') , contains(variables.CONTROL_SCENARIO, 'all') ) )
         displayName: "Restart Test"
@@ -151,6 +166,7 @@ stages:
             parameters:
               clusterName: ${{ parameters.clusterName }}-$(commitID)
               restartCase: "true"
+              cni: ${{ parameters.cni }}
       - job: restart_cns
         condition: and( and( not(canceled()), not(failed()) ), or( contains(variables.CONTROL_SCENARIO, 'restartCNS') , contains(variables.CONTROL_SCENARIO, 'all') ) )
         displayName: "Restart and Validate CNS"
@@ -162,7 +178,7 @@ stages:
               os: ${{ parameters.os }}
               scaleup: ${SCALEUP_CILIUM}
               nodeCount: ${{ parameters.nodeCount }}
-              cni: cilium
+              cni: ${{ parameters.cni }}
       - job: cni_tests
         displayName: "Cilium Test"
         dependsOn: restart_cns
