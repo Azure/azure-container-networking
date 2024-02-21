@@ -843,7 +843,7 @@ func main() {
 		// in this case, cns maintains state with containerid as key and so in-memory cache can lookup
 		// and update based on container id.
 		if cnsconfig.ManageEndpointState {
-			cns.GlobalPodInfoScheme = cns.InterfaceIDPodInfoScheme
+			cns.GlobalPodInfoScheme = cns.InfraIDPodInfoScheme
 		}
 
 		logger.Printf("Set GlobalPodInfoScheme %v (InitializeFromCNI=%t)", cns.GlobalPodInfoScheme, cnsconfig.InitializeFromCNI)
@@ -1243,6 +1243,10 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 	if cnsconfig.EnableStateMigration && !httpRestServiceImplementation.EndpointStateStore.Exists() {
 		if err = PopulateCNSEndpointState(httpRestServiceImplementation.EndpointStateStore); err != nil {
 			return errors.Wrap(err, "failed to create CNS EndpointState From CNI")
+		}
+		// endpoint state needs tobe loaded in memory so the subsequent Delete calls remove the state and release the IPs.
+		if err = httpRestServiceImplementation.EndpointStateStore.Read(restserver.EndpointStoreKey, &httpRestServiceImplementation.EndpointState); err != nil {
+			return errors.Wrap(err, "failed to restore endpoint state")
 		}
 	}
 
