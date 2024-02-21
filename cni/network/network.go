@@ -18,6 +18,7 @@ import (
 	"github.com/Azure/azure-container-networking/cni/util"
 	"github.com/Azure/azure-container-networking/cns"
 	cnscli "github.com/Azure/azure-container-networking/cns/client"
+	cnsConfig "github.com/Azure/azure-container-networking/cns/configuration"
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/iptables"
 	"github.com/Azure/azure-container-networking/netio"
@@ -465,9 +466,6 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 		return fmt.Errorf("failed to create cns client with error: %w", err)
 	}
 
-	options := make(map[string]any)
-	ipamAddConfig := IPAMAddConfig{nwCfg: nwCfg, args: args, options: options}
-
 	if nwCfg.MultiTenancy {
 		plugin.report.Context = "AzureCNIMultitenancy"
 		plugin.multitenancyClient.Init(cnsClient, AzureNetIOShim{})
@@ -494,14 +492,6 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 				zap.Any("results", ipamAddResult))
 			return plugin.Errorf(errMsg)
 		}
-	} else if !nwCfg.MultiTenancy && nwCfg.IPAM.Type == network.AzureCNS {
-		plugin.ipamInvoker = NewCNSInvoker(k8sPodName, k8sNamespace, cnsClient, util.ExecutionMode(nwCfg.ExecutionMode), util.IpamMode(nwCfg.IPAM.Mode))
-		ipamAddResult, err = plugin.ipamInvoker.Add(ipamAddConfig)
-		if err != nil {
-			return fmt.Errorf("IPAM Invoker Add failed with error: %w", err)
-		}
-		ipamAddResults = append(ipamAddResults, ipamAddResult)
-		sendEvent(plugin, fmt.Sprintf("Allocated IPAddress from ipam DefaultInterface: %+v, SecondaryInterfaces: %+v", ipamAddResult.defaultInterfaceInfo, ipamAddResult.secondaryInterfacesInfo))
 	} else {
 		// TODO: refactor this code for simplification
 		// Add dummy ipamAddResult nil object for single tenancy mode
@@ -509,11 +499,26 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 		ipamAddResults = append(ipamAddResults, ipamAddResult)
 	}
 
+	var config cnsConfig.CNSConfig
+	if config.SWIFTV2Mode == "SFSWIFTV2" {
+		options := make(map[string]any)
+		ipamAddConfig := IPAMAddConfig{nwCfg: nwCfg, args: args, options: options}
+		plugin.ipamInvoker = NewCNSInvoker(k8sPodName, k8sNamespace, cnsClient, util.ExecutionMode(nwCfg.ExecutionMode), util.IpamMode(nwCfg.IPAM.Mode))
+		ipamAddResult, err = plugin.ipamInvoker.Add(ipamAddConfig)
+		if err != nil {
+			return fmt.Errorf("IPAM Invoker Add failed with error: %w", err)
+		}
+		ipamAddResults = append(ipamAddResults, ipamAddResult)
+
+		sendEvent(plugin, fmt.Sprintf("Allocated IPAddress from ipam DefaultInterface: %+v, SecondaryInterfaces: %+v", ipamAddResult.defaultInterfaceInfo, ipamAddResult.secondaryInterfacesInfo))
+	}
+
 	// iterate ipamAddResults and program the endpoint
 	for i := 0; i < len(ipamAddResults); i++ {
 		var networkID string
 		ipamAddResult = ipamAddResults[i]
 
+		options := make(map[string]any)
 		networkID, err = plugin.getNetworkName(args.Netns, &ipamAddResult, nwCfg)
 
 		endpointID := plugin.nm.GetEndpointID(args.ContainerID, args.IfName)
@@ -548,14 +553,22 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 
 		// Initialize azureipam/cns ipam
 		if plugin.ipamInvoker == nil {
-			plugin.ipamInvoker = NewAzureIpamInvoker(plugin, &nwInfo)
-			if !nwCfg.MultiTenancy {
-				ipamAddResult, err = plugin.ipamInvoker.Add(ipamAddConfig)
-				if err != nil {
-					return fmt.Errorf("IPAM Invoker Add failed with error: %w", err)
-				}
-				sendEvent(plugin, fmt.Sprintf("Allocated IPAddress from ipam DefaultInterface: %+v, SecondaryInterfaces: %+v", ipamAddResult.defaultInterfaceInfo, ipamAddResult.secondaryInterfacesInfo))
+			switch nwCfg.IPAM.Type {
+			case network.AzureCNS:
+				plugin.ipamInvoker = NewCNSInvoker(k8sPodName, k8sNamespace, cnsClient, util.ExecutionMode(nwCfg.ExecutionMode), util.IpamMode(nwCfg.IPAM.Mode))
+
+			default:
+				plugin.ipamInvoker = NewAzureIpamInvoker(plugin, &nwInfo)
 			}
+		}
+
+		ipamAddConfig := IPAMAddConfig{nwCfg: nwCfg, args: args, options: options}
+		if !nwCfg.MultiTenancy {
+			ipamAddResult, err = plugin.ipamInvoker.Add(ipamAddConfig)
+			if err != nil {
+				return fmt.Errorf("IPAM Invoker Add failed with error: %w", err)
+			}
+			sendEvent(plugin, fmt.Sprintf("Allocated IPAddress from ipam DefaultInterface: %+v, SecondaryInterfaces: %+v", ipamAddResult.defaultInterfaceInfo, ipamAddResult.secondaryInterfacesInfo))
 		}
 
 		defer func() { //nolint:gocritic
@@ -1145,14 +1158,10 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 		sendEvent(plugin, fmt.Sprintf("Deleting endpoint:%v", endpointID))
 		// Delete the endpoint.
 		if err = plugin.nm.DeleteEndpoint(networkID, endpointID, epInfo); err != nil {
-			// cleanup interfaces usage map
-			if plugin.interfaceUsage != nil {
-				delete(plugin.interfaceUsage, nwInfo.MasterIfName)
-				// delete hnsNetwork in delegatedVMNIC scenario
-				err = plugin.nm.DeleteNetwork(networkID)
-				if err != nil {
-					logger.Error("Failed to delete hnsNetwork", zap.Error(err))
-				}
+			// delete hnsNetwork in delegatedVMNIC scenario
+			err = plugin.nm.DeleteNetwork(networkID)
+			if err != nil {
+				logger.Error("Failed to delete hnsNetwork", zap.Error(err))
 			}
 			// return a retriable error so the container runtime will retry this DEL later
 			// the implementation of this function returns nil if the endpoint doens't exist, so
