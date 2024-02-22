@@ -236,6 +236,7 @@ func TestAddIPv6DefaultRoute(t *testing.T) {
 
 	nm := &networkManager{
 		ExternalInterfaces: map[string]*externalInterface{},
+		plClient:           platform.NewMockExecClient(false),
 	}
 
 	networkSubnetInfo := []SubnetInfo{

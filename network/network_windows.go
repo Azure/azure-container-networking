@@ -326,7 +326,8 @@ func (nm *networkManager) configureHcnNetwork(nwInfo *NetworkInfo, extIf *extern
 }
 
 func (nm *networkManager) addIPv6DefaultRoute() error {
-	// add ipv6 default route if it does not exist in dualstack overlay windows node from persistentstore
+	// add ipv6 default route if it does not exist in dualstack overlay windows node from persistent store
+	// persistent store setting is only read during the adapter restarts or reboots to re-populate the active store
 
 	// get interface index to add ipv6 default route and only consider there is one vEthernet interface for now
 	getIpv6IfIndexCmd := `((Get-NetIPInterface | where InterfaceAlias -Like "vEthernet*").IfIndex)[0]`
@@ -338,8 +339,10 @@ func (nm *networkManager) addIPv6DefaultRoute() error {
 	getIPv6RouteActiveCmd := fmt.Sprintf("Get-NetRoute -DestinationPrefix %s", defaultIPv6Route)
 	getIPv6RoutePersistentCmd := fmt.Sprintf("Get-NetRoute -DestinationPrefix %s -PolicyStore Persistentstore", defaultIPv6Route)
 	if out, err := nm.plClient.ExecutePowershellCommand(getIPv6RoutePersistentCmd); err != nil {
-		logger.Info("ipv6 default route is not found from persistentstore, adding default ipv6 route to the windows node", zap.String("out", out))
+		logger.Info("ipv6 default route is not found from persistentstore, adding default ipv6 route to the windows node", zap.String("out", out), zap.Error(err))
 		// run powershell cmd to add ipv6 default route
+		// if there is an ipv6 default route in active store but not persistent store; to add ipv6 default route to persistent store
+		// need to remove ipv6 default route from active store and then use this command to add default route entry to both active and persistent store
 		addCmd := fmt.Sprintf("Remove-NetRoute -DestinationPrefix %s -InterfaceIndex %s -NextHop %s -confirm:$false;New-NetRoute -DestinationPrefix %s -InterfaceIndex %s -NextHop %s -confirm:$false",
 			defaultIPv6Route, ifIndex, defaultIPv6NextHop, defaultIPv6Route, ifIndex, defaultIPv6NextHop)
 
@@ -347,16 +350,7 @@ func (nm *networkManager) addIPv6DefaultRoute() error {
 		for i := 0; i <= addIPv6DefaultRouteRetryAttempts; i++ {
 			if out, err := nm.plClient.ExecutePowershellCommand(addCmd); err != nil {
 				logger.Error("Failed to add ipv6 default gateway route, retrying after error", zap.String("out", out), zap.Error(err))
-			} else {
-				// check if ipv6 default route is added to both active and persistent store
-				if out, err := nm.plClient.ExecutePowershellCommand(getIPv6RouteActiveCmd); err != nil {
-					return errors.Wrapf(err, "Failed to get ipv6 default gateway route in active store. powershell output: %s", out)
-				}
-
-				if out, err := nm.plClient.ExecutePowershellCommand(getIPv6RoutePersistentCmd); err != nil {
-					return errors.Wrapf(err, "Failed to get ipv6 default gateway route in persistent store. powershell output: %s", out)
-				}
-				break
+				continue
 			}
 		}
 	}
@@ -399,8 +393,8 @@ func (nm *networkManager) newNetworkImplHnsV2(nwInfo *NetworkInfo, extIf *extern
 			if err = nm.addIPv6DefaultRoute(); err != nil {
 				// should not block network creation but remind user that it's failed to add ipv6 default route to windows node
 				logger.Error("failed to add missing ipv6 default route to windows node active/persistent store", zap.Error(err))
-				break
 			}
+			break
 		}
 	}
 
