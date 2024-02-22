@@ -351,6 +351,7 @@ func (nm *networkManager) addIPv6DefaultRoute() error {
 				logger.Error("Failed to add ipv6 default gateway route, retrying after error", zap.String("out", out), zap.Error(err))
 				continue
 			}
+			break
 		}
 	}
 
