@@ -336,7 +336,6 @@ func (nm *networkManager) addIPv6DefaultRoute() error {
 		return errors.Wrap(err, "error while executing powershell command to get ipv6 Hyper-V interface")
 	}
 
-	getIPv6RouteActiveCmd := fmt.Sprintf("Get-NetRoute -DestinationPrefix %s", defaultIPv6Route)
 	getIPv6RoutePersistentCmd := fmt.Sprintf("Get-NetRoute -DestinationPrefix %s -PolicyStore Persistentstore", defaultIPv6Route)
 	if out, err := nm.plClient.ExecutePowershellCommand(getIPv6RoutePersistentCmd); err != nil {
 		logger.Info("ipv6 default route is not found from persistentstore, adding default ipv6 route to the windows node", zap.String("out", out), zap.Error(err))
