@@ -269,6 +269,6 @@ func TestAddIPv6DefaultRoute(t *testing.T) {
 	// check if network can be successfully created
 	_, err := nm.newNetworkImplHnsV2(nwInfo, extInterface)
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("Failed to create network due to error:%+v", err)
 	}
 }
