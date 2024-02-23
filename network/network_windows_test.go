@@ -272,3 +272,46 @@ func TestAddIPv6DefaultRoute(t *testing.T) {
 		t.Fatalf("Failed to create network due to error:%+v", err)
 	}
 }
+
+func TestAddIPv6DefaultRouteFailure(t *testing.T) {
+	_, ipnetv4, _ := net.ParseCIDR("10.240.0.0/12")
+	_, ipnetv6, _ := net.ParseCIDR("fc00::/64")
+
+	nm := &networkManager{
+		ExternalInterfaces: map[string]*externalInterface{},
+		plClient:           platform.NewMockExecClient(true), // return mock exec error
+	}
+
+	networkSubnetInfo := []SubnetInfo{
+		{
+			Family:  platform.AfINET,
+			Gateway: net.ParseIP("10.240.0.1"),
+			Prefix:  *ipnetv4,
+		},
+		{
+			Family:  platform.AfINET6,
+			Gateway: net.ParseIP("fc00::1"),
+			Prefix:  *ipnetv6,
+		},
+	}
+
+	nwInfo := &NetworkInfo{
+		Id:           "d3f97a83-ba4c-45d5-ba88-dc56757ece28",
+		MasterIfName: "eth0",
+		Mode:         "bridge",
+		Subnets:      networkSubnetInfo,
+	}
+
+	extInterface := &externalInterface{
+		Name:    "eth0",
+		Subnets: []string{"subnet1", "subnet2"},
+	}
+
+	Hnsv2 = hnswrapper.NewHnsv2wrapperFake()
+
+	// check if network is failed to create
+	_, err := nm.newNetworkImplHnsV2(nwInfo, extInterface)
+	if err == nil {
+		t.Fatal("Network should not be created")
+	}
+}
