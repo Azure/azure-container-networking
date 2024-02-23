@@ -668,6 +668,7 @@ func main() {
 	// This will prevent the monitor from unnecessarily calling NMA APIs for other scenarios such as AKS-swift, swiftv2
 	if cnsconfig.ChannelMode == cns.Direct {
 		homeAzMonitor.Start()
+		defer homeAzMonitor.Stop()
 	}
 
 	if telemetryDaemonEnabled {
