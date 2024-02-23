@@ -10,7 +10,6 @@ import (
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/nmagent"
-	"github.com/google/go-cmp/cmp"
 	"github.com/patrickmn/go-cache"
 	"github.com/pkg/errors"
 )
@@ -65,6 +64,7 @@ func (h *HomeAzMonitor) readCacheValue() cns.GetHomeAzResponse {
 func (h *HomeAzMonitor) Start() {
 	logger.Printf("[HomeAzMonitor] start the goroutine for refreshing homeAz")
 	go h.refresh()
+	defer h.Stop()
 }
 
 // Stop ends the refresh thread
@@ -169,7 +169,7 @@ func (h *HomeAzMonitor) update(code types.ResponseCode, msg string, homeAzRespon
 	}
 
 	// log the response and update the cache if it doesn't match with the current cached value
-	if !cmp.Equal(h.readCacheValue(), resp) {
+	if h.readCacheValue() != resp {
 		logger.Printf("[HomeAzMonitor] updating home az cache value: %+v", resp)
 		h.updateCacheValue(resp)
 	}

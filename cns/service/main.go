@@ -1016,8 +1016,6 @@ func main() {
 		}
 	}
 
-	homeAzMonitor.Stop()
-
 	logger.Printf("stop cns service")
 	// Cleanup.
 	if httpRestService != nil {
