@@ -650,12 +650,6 @@ func main() {
 		return
 	}
 
-	homeAzMonitor := restserver.NewHomeAzMonitor(nmaClient, time.Duration(cnsconfig.AZRSettings.PopulateHomeAzCacheRetryIntervalSecs)*time.Second)
-	if cnsconfig.AZRSettings.EnableAZR {
-		logger.Printf("start the goroutine for refreshing homeAz")
-		homeAzMonitor.Start()
-	}
-
 	if cnsconfig.ChannelMode == cns.Managed {
 		config.ChannelMode = cns.Managed
 		privateEndpoint = cnsconfig.ManagedSettings.PrivateEndpoint
@@ -667,6 +661,11 @@ func main() {
 		config.ChannelMode = cns.MultiTenantCRD
 	} else if acn.GetArg(acn.OptManaged).(bool) {
 		config.ChannelMode = cns.Managed
+	}
+
+	homeAzMonitor := restserver.NewHomeAzMonitor(nmaClient, time.Duration(cnsconfig.AZRSettings.PopulateHomeAzCacheRetryIntervalSecs)*time.Second)
+	if config.ChannelMode == cns.Direct {
+		homeAzMonitor.Start()
 	}
 
 	if telemetryDaemonEnabled {
@@ -1015,10 +1014,7 @@ func main() {
 		}
 	}
 
-	if cnsconfig.AZRSettings.EnableAZR {
-		logger.Printf("end the goroutine for refreshing homeAz")
-		homeAzMonitor.Stop()
-	}
+	homeAzMonitor.Stop()
 
 	logger.Printf("stop cns service")
 	// Cleanup.

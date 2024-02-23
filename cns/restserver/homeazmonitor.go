@@ -10,13 +10,14 @@ import (
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/nmagent"
+	"github.com/google/go-cmp/cmp"
 	"github.com/patrickmn/go-cache"
 	"github.com/pkg/errors"
 )
 
 const (
 	GetHomeAzAPIName = "GetHomeAz"
-	ContextTimeOut   = 2 * time.Second
+	ContextTimeOut   = 5 * time.Second
 	homeAzCacheKey   = "HomeAz"
 )
 
@@ -62,6 +63,7 @@ func (h *HomeAzMonitor) readCacheValue() cns.GetHomeAzResponse {
 
 // Start starts a new thread to refresh home az cache
 func (h *HomeAzMonitor) Start() {
+	logger.Printf("[HomeAzMonitor] start the goroutine for refreshing homeAz")
 	go h.refresh()
 }
 
@@ -165,8 +167,12 @@ func (h *HomeAzMonitor) update(code types.ResponseCode, msg string, homeAzRespon
 		},
 		HomeAzResponse: homeAzResponse,
 	}
-	logger.Printf("[HomeAzMonitor] updating home az cache value: %+v", resp)
-	h.updateCacheValue(resp)
+
+	// log the response and update the cache if it doesn't match with the current cached value
+	if !cmp.Equal(h.readCacheValue(), resp) {
+		logger.Printf("[HomeAzMonitor] updating home az cache value: %+v", resp)
+		h.updateCacheValue(resp)
+	}
 }
 
 // isAPISupportedByNMAgent checks if a nmagent client api slice contains a given api
