@@ -63,8 +63,8 @@ func (h *HomeAzMonitor) readCacheValue() cns.GetHomeAzResponse {
 // Start starts a new thread to refresh home az cache
 func (h *HomeAzMonitor) Start() {
 	logger.Printf("[HomeAzMonitor] start the goroutine for refreshing homeAz")
-	go h.refresh()
 	defer h.Stop()
+	go h.refresh()
 }
 
 // Stop ends the refresh thread
