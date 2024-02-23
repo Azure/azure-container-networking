@@ -466,10 +466,31 @@ func MustRestartDaemonset(ctx context.Context, clientset *kubernetes.Clientset, 
 		ds.Spec.Template.ObjectMeta.Annotations = make(map[string]string)
 	}
 
+	gen := ds.Status.ObservedGeneration
+	log.Printf("Current generation is %v", gen)
 	ds.Spec.Template.ObjectMeta.Annotations["kubectl.kubernetes.io/restartedAt"] = time.Now().Format(time.RFC3339)
 
 	_, err = clientset.AppsV1().DaemonSets(namespace).Update(ctx, ds, metav1.UpdateOptions{})
-	return errors.Wrapf(err, "failed to update ds %s", daemonsetName)
+	if err != nil {
+		return errors.Wrapf(err, "failed to update ds %s", daemonsetName)
+	}
+	checkDaemonsetGenerationFn := func() error {
+		ds, err := clientset.AppsV1().DaemonSets(namespace).Get(ctx, daemonsetName, metav1.GetOptions{})
+		if err != nil {
+			return errors.Wrapf(err, "could not get daemonset %s", daemonsetName)
+		}
+
+		if ds.Status.ObservedGeneration <= gen {
+			// Capture daemonset restart. Restart sets every numerical status to 0.
+			log.Printf("daemonset %s has not updated generation", daemonsetName) // Remove as it will clutter logs
+			return errors.New("daemonset did not update")
+		}
+
+		log.Printf("daemonset %s has updated generation", daemonsetName)
+		return nil
+	}
+	retrier := retry.Retrier{Attempts: 8, Delay: 250 * time.Millisecond} // Should be a short lived check for restart
+	return errors.Wrapf(retrier.Do(ctx, checkDaemonsetGenerationFn), "could not wait for ds %s generation update", daemonsetName)
 }
 
 // Restarts kubeproxy on windows nodes from an existing privileged daemonset
