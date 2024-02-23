@@ -664,6 +664,8 @@ func main() {
 	}
 
 	homeAzMonitor := restserver.NewHomeAzMonitor(nmaClient, time.Duration(cnsconfig.AZRSettings.PopulateHomeAzCacheRetryIntervalSecs)*time.Second)
+	// homeAz monitor is only required when there is a direct channel between DNC and CNS.
+	// This will prevent the monitor from unnecessarily calling NMA APIs for other scenarios such as AKS-swift, swiftv2
 	if cnsconfig.ChannelMode == cns.Direct {
 		homeAzMonitor.Start()
 	}
