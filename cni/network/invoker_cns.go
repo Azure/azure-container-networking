@@ -429,7 +429,7 @@ func configureDefaultAddResult(info *IPResultInfo, addConfig *IPAMAddConfig, add
 		return fmt.Errorf("unable to parse hostSubnet: %w", err)
 	}
 
-	addResult.defaultInterfaceInfo.HostSubnetPrefix = *hostIPNet
+	addResult.hostSubnetPrefix = *hostIPNet
 	addResult.defaultInterfaceInfo.NICType = cns.InfraNIC
 
 	// set subnet prefix for host vm
@@ -454,13 +454,6 @@ func configureSecondaryAddResult(info *IPResultInfo, addResult *IPAMAddResult, p
 	if err != nil {
 		return errors.Wrap(err, "Invalid mac address")
 	}
-
-	_, hostIPNet, err := net.ParseCIDR(info.hostSubnet)
-	if err != nil {
-		return fmt.Errorf("unable to parse hostSubnet: %w", err)
-	}
-
-	addResult.secondaryInterfacesInfo[0].HostSubnetPrefix = *hostIPNet
 
 	routes, err := getRoutes(info.routes, info.skipDefaultRoutes)
 	if err != nil {

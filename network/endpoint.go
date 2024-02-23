@@ -117,7 +117,6 @@ type InterfaceInfo struct {
 	DNS               DNSInfo
 	NICType           cns.NICType
 	SkipDefaultRoutes bool
-	HostSubnetPrefix  net.IPNet
 }
 
 type IPConfig struct {

@@ -588,8 +588,8 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 			}
 			logger.Info("Created network",
 				zap.String("networkId", networkID),
-				zap.String("subnet", ipamAddResult.defaultInterfaceInfo.HostSubnetPrefix.String()))
-			sendEvent(plugin, fmt.Sprintf("[cni-net] Created network %v with subnet %v.", networkID, ipamAddResult.defaultInterfaceInfo.HostSubnetPrefix.String()))
+				zap.String("subnet", ipamAddResult.hostSubnetPrefix.String()))
+			sendEvent(plugin, fmt.Sprintf("[cni-net] Created network %v with subnet %v.", networkID, ipamAddResult.hostSubnetPrefix.String()))
 		}
 
 		natInfo := getNATInfo(nwCfg, options[network.SNATIPKey], enableSnatForDNS)
@@ -646,19 +646,16 @@ func (plugin *NetPlugin) createNetworkInternal(
 	ipamAddResult IPAMAddResult,
 ) (network.NetworkInfo, error) {
 	nwInfo := network.NetworkInfo{}
-	ipamAddResult.defaultInterfaceInfo.HostSubnetPrefix.IP = ipamAddResult.defaultInterfaceInfo.HostSubnetPrefix.IP.Mask(ipamAddResult.defaultInterfaceInfo.HostSubnetPrefix.Mask)
-	ipamAddConfig.nwCfg.IPAM.Subnet = ipamAddResult.defaultInterfaceInfo.HostSubnetPrefix.String()
+	ipamAddResult.hostSubnetPrefix.IP = ipamAddResult.hostSubnetPrefix.IP.Mask(ipamAddResult.hostSubnetPrefix.Mask)
+	ipamAddConfig.nwCfg.IPAM.Subnet = ipamAddResult.hostSubnetPrefix.String()
 
 	// Find the master interface.
 	interfaceInfo := ipamAddResult.defaultInterfaceInfo
 
-	hostSubetPrefix := ipamAddResult.defaultInterfaceInfo.HostSubnetPrefix
+	hostSubetPrefix := ipamAddResult.hostSubnetPrefix
 	masterIfName := plugin.findMasterInterfaceBySubnet(ipamAddConfig.nwCfg, &hostSubetPrefix)
 
 	if len(ipamAddResult.secondaryInterfacesInfo) > 0 {
-		hostSubetPrefix = ipamAddResult.secondaryInterfacesInfo[0].HostSubnetPrefix
-		ipamAddResult.secondaryInterfacesInfo[0].HostSubnetPrefix.IP = ipamAddResult.secondaryInterfacesInfo[0].HostSubnetPrefix.IP.Mask(ipamAddResult.secondaryInterfacesInfo[0].HostSubnetPrefix.Mask)
-		ipamAddConfig.nwCfg.IPAM.Subnet = hostSubetPrefix.String()
 		interfaceInfo = ipamAddResult.secondaryInterfacesInfo[0]
 		masterIfName = plugin.findMasterInterfaceByMac(interfaceInfo.MacAddress.String())
 	}
@@ -702,7 +699,7 @@ func (plugin *NetPlugin) createNetworkInternal(
 		IsIPv6Enabled:                 ipamAddResult.ipv6Enabled,
 	}
 
-	if err = addSubnetToNetworkInfo(ipamAddResult.secondaryInterfacesInfo[0], &nwInfo); err != nil {
+	if err = addSubnetToNetworkInfo(interfaceInfo, &nwInfo); err != nil {
 		logger.Info("Failed to add subnets to networkInfo",
 			zap.Error(err))
 		return nwInfo, err

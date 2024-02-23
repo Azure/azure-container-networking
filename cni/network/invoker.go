@@ -31,6 +31,7 @@ type IPAMAddResult struct {
 	defaultInterfaceInfo    network.InterfaceInfo
 	secondaryInterfacesInfo []network.InterfaceInfo
 	// ncResponse is used for Swift 1.0 multitenancy
-	ncResponse  *cns.GetNetworkContainerResponse
-	ipv6Enabled bool
+	ncResponse       *cns.GetNetworkContainerResponse
+	hostSubnetPrefix net.IPNet
+	ipv6Enabled      bool
 }

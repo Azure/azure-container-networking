@@ -50,7 +50,7 @@ func (invoker *MockIpamInvoker) Add(opt IPAMAddConfig) (ipamAddResult IPAMAddRes
 		return ipamAddResult, errV4
 	}
 
-	ipamAddResult.defaultInterfaceInfo.HostSubnetPrefix = net.IPNet{}
+	ipamAddResult.hostSubnetPrefix = net.IPNet{}
 
 	ipv4Str := "10.240.0.5"
 	if _, ok := invoker.ipMap["10.240.0.5/24"]; ok {

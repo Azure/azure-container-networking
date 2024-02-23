@@ -219,7 +219,7 @@ func (m *Multitenancy) GetAllNetworkContainers(
 
 	for i := 0; i < len(ncResponses); i++ {
 		ipamResults[i].ncResponse = &ncResponses[i]
-		ipamResults[i].defaultInterfaceInfo.HostSubnetPrefix = hostSubnetPrefixes[i]
+		ipamResults[i].hostSubnetPrefix = hostSubnetPrefixes[i]
 		ipconfig, routes := convertToIPConfigAndRouteInfo(ipamResults[i].ncResponse)
 		ipamResults[i].defaultInterfaceInfo.IPConfigs = []*network.IPConfig{ipconfig}
 		ipamResults[i].defaultInterfaceInfo.Routes = routes

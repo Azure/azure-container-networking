@@ -157,7 +157,7 @@ func (m *MockMultitenancy) GetAllNetworkContainers(
 	ipamResults := make([]IPAMAddResult, len(cnsResponses))
 	for i := 0; i < len(cnsResponses); i++ {
 		ipamResults[i].ncResponse = &cnsResponses[i]
-		ipamResults[i].defaultInterfaceInfo.HostSubnetPrefix = ipNets[i]
+		ipamResults[i].hostSubnetPrefix = ipNets[i]
 		ipconfig, routes := convertToIPConfigAndRouteInfo(ipamResults[i].ncResponse)
 		ipamResults[i].defaultInterfaceInfo.IPConfigs = []*network.IPConfig{ipconfig}
 		ipamResults[i].defaultInterfaceInfo.Routes = routes
