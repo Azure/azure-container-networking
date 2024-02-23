@@ -664,7 +664,7 @@ func main() {
 	}
 
 	homeAzMonitor := restserver.NewHomeAzMonitor(nmaClient, time.Duration(cnsconfig.AZRSettings.PopulateHomeAzCacheRetryIntervalSecs)*time.Second)
-	if config.ChannelMode == cns.Direct {
+	if cnsconfig.ChannelMode == cns.Direct {
 		homeAzMonitor.Start()
 	}
 
