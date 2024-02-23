@@ -273,7 +273,7 @@ func TestAddIPv6DefaultRoute(t *testing.T) {
 	}
 }
 
-func TestAddIPv6DefaultRouteFailure(t *testing.T) {
+func TestFailToAddIPv6DefaultRoute(t *testing.T) {
 	_, ipnetv4, _ := net.ParseCIDR("10.240.0.0/12")
 	_, ipnetv6, _ := net.ParseCIDR("fc00::/64")
 
