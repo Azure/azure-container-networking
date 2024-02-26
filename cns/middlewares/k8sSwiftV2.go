@@ -1,4 +1,4 @@
-package restserver
+package middlewares
 
 import (
 	"context"
