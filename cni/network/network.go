@@ -505,7 +505,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 			return fmt.Errorf("IPAM Invoker Add failed with error: %w", err)
 		}
 
-		// cleanup ipamAddResults on line 495
+		// cleanup ipamAddResults from line 495
 		ipamAddResults = nil
 		ipamAddResults = append(ipamAddResults, ipamAddResult)
 
