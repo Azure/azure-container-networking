@@ -496,7 +496,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 	}
 
 	var config cnsConfig.CNSConfig
-	if config.SWIFTV2Mode == "SFSWIFTV2" {
+	if config.SWIFTV2Mode == cnsConfig.SFSWIFTV2 {
 		options := make(map[string]any)
 		ipamAddConfig := IPAMAddConfig{nwCfg: nwCfg, args: args, options: options}
 		plugin.ipamInvoker = NewCNSInvoker(k8sPodName, k8sNamespace, cnsClient, util.ExecutionMode(nwCfg.ExecutionMode), util.IpamMode(nwCfg.IPAM.Mode))
@@ -505,7 +505,6 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 			return fmt.Errorf("IPAM Invoker Add failed with error: %w", err)
 		}
 
-		// cleanup ipamAddResults from line 495
 		ipamAddResults = nil
 		ipamAddResults = append(ipamAddResults, ipamAddResult)
 
@@ -660,7 +659,7 @@ func (plugin *NetPlugin) createNetworkInternal(
 	hostSubetPrefix := ipamAddResult.hostSubnetPrefix
 	masterIfName := plugin.findMasterInterfaceBySubnet(ipamAddConfig.nwCfg, &hostSubetPrefix)
 
-	if len(ipamAddResult.secondaryInterfacesInfo) > 0 && config.SWIFTV2Mode == "SFSWIFTV2" {
+	if len(ipamAddResult.secondaryInterfacesInfo) > 0 && config.SWIFTV2Mode == cnsConfig.SFSWIFTV2 {
 		interfaceInfo = ipamAddResult.secondaryInterfacesInfo[0]
 		masterIfName = plugin.findMasterInterfaceByMac(interfaceInfo.MacAddress.String())
 	}
