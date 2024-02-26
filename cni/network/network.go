@@ -497,9 +497,6 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 
 	var config cnsConfig.CNSConfig
 	if config.SWIFTV2Mode == "SFSWIFTV2" {
-		// cleanup ipamAddResults
-		var ipamAddResults []IPAMAddResult
-
 		options := make(map[string]any)
 		ipamAddConfig := IPAMAddConfig{nwCfg: nwCfg, args: args, options: options}
 		plugin.ipamInvoker = NewCNSInvoker(k8sPodName, k8sNamespace, cnsClient, util.ExecutionMode(nwCfg.ExecutionMode), util.IpamMode(nwCfg.IPAM.Mode))
@@ -507,6 +504,9 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 		if err != nil {
 			return fmt.Errorf("IPAM Invoker Add failed with error: %w", err)
 		}
+
+		// cleanup ipamAddResults on line 495
+		ipamAddResults = nil
 		ipamAddResults = append(ipamAddResults, ipamAddResult)
 
 		sendEvent(plugin, fmt.Sprintf("Allocated IPAddress from ipam DefaultInterface: %+v, SecondaryInterfaces: %+v", ipamAddResult.defaultInterfaceInfo, ipamAddResult.secondaryInterfacesInfo))
