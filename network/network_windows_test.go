@@ -19,7 +19,11 @@ import (
 	"github.com/Microsoft/hcsshim/hcn"
 )
 
-var errTestFailure = errors.New("test failure")
+var (
+	errTestFailure     = errors.New("test failure")
+	failedCaseReturn   = "false"
+	succededCaseReturn = "true"
+)
 
 func TestNewAndDeleteNetworkImplHnsV2(t *testing.T) {
 	nm := &networkManager{
@@ -330,12 +334,12 @@ func TestAddIPv6DefaultRouteHappyPath(t *testing.T) {
 	// happy path
 	mockExecClient.SetPowershellCommandResponder(func(cmd string) (string, error) {
 		if strings.Contains(cmd, "Get-NetIPInterface") || strings.Contains(cmd, "Remove-NetRoute") {
-			return "True", nil
+			return succededCaseReturn, nil
 		}
 
 		// fail secondary command execution and successfully execute remove-netRoute command
 		if strings.Contains(cmd, "Get-NetRoute") {
-			return "False", errTestFailure
+			return failedCaseReturn, errTestFailure
 		}
 
 		return "", nil
@@ -357,7 +361,7 @@ func TestAddIPv6DefaultRouteUnhappyPathGetNetInterface(t *testing.T) {
 	// failed to execute Get-NetIPInterface command to find interface index
 	mockExecClient.SetPowershellCommandResponder(func(cmd string) (string, error) {
 		if strings.Contains(cmd, "Get-NetIPInterface") {
-			return "False", errTestFailure
+			return failedCaseReturn, errTestFailure
 		}
 		return "", nil
 	})
@@ -377,16 +381,16 @@ func TestAddIPv6DefaultRouteUnhappyPathAddRoute(t *testing.T) {
 
 	mockExecClient.SetPowershellCommandResponder(func(cmd string) (string, error) {
 		if strings.Contains(cmd, "Get-NetIPInterface") {
-			return "True", nil
+			return succededCaseReturn, nil
 		}
 
 		// fail secondary command execution and failed to execute remove-netRoute command
 		if strings.Contains(cmd, "Get-NetRoute") {
-			return "False", errTestFailure
+			return failedCaseReturn, errTestFailure
 		}
 
 		if strings.Contains(cmd, "Remove-NetRoute") {
-			return "False", errTestFailure
+			return failedCaseReturn, errTestFailure
 		}
 		return "", nil
 	})
