@@ -321,12 +321,14 @@ func TestFailToAddIPv6DefaultRoute(t *testing.T) {
 }
 
 func TestAddIPv6DefaultRouteHappyPath(t *testing.T) {
+	mockExecClient := platform.NewMockExecClient(false)
+
 	nm := &networkManager{
-		plClient: platform.NewMockExecClient(false),
+		plClient: mockExecClient,
 	}
 
 	// happy path
-	nm.plClient.SetPowershellCommandResponder(func(cmd string) (string, error) {
+	mockExecClient.SetPowershellCommandResponder(func(cmd string) (string, error) {
 		if strings.Contains(cmd, "Get-NetIPInterface") || strings.Contains(cmd, "Remove-NetRoute") {
 			return "True", nil
 		}
@@ -346,12 +348,14 @@ func TestAddIPv6DefaultRouteHappyPath(t *testing.T) {
 }
 
 func TestAddIPv6DefaultRouteUnhappyPathGetNetInterface(t *testing.T) {
+	mockExecClient := platform.NewMockExecClient(false)
+
 	nm := &networkManager{
-		plClient: platform.NewMockExecClient(false),
+		plClient: mockExecClient,
 	}
 
 	// failed to execute Get-NetIPInterface command to find interface index
-	nm.plClient.SetPowershellCommandResponder(func(cmd string) (string, error) {
+	mockExecClient.SetPowershellCommandResponder(func(cmd string) (string, error) {
 		if strings.Contains(cmd, "Get-NetIPInterface") {
 			return "False", errTestFailure
 		}
@@ -365,12 +369,13 @@ func TestAddIPv6DefaultRouteUnhappyPathGetNetInterface(t *testing.T) {
 }
 
 func TestAddIPv6DefaultRouteUnhappyPathAddRoute(t *testing.T) {
+	mockExecClient := platform.NewMockExecClient(false)
+
 	nm := &networkManager{
-		plClient: platform.NewMockExecClient(false),
+		plClient: mockExecClient,
 	}
 
-	// happy path
-	nm.plClient.SetPowershellCommandResponder(func(cmd string) (string, error) {
+	mockExecClient.SetPowershellCommandResponder(func(cmd string) (string, error) {
 		if strings.Contains(cmd, "Get-NetIPInterface") {
 			return "True", nil
 		}

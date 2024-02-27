@@ -343,8 +343,8 @@ func (nm *networkManager) addIPv6DefaultRoute() error {
 		addCmd := fmt.Sprintf("Remove-NetRoute -DestinationPrefix %s -InterfaceIndex %s -NextHop %s -confirm:$false;New-NetRoute -DestinationPrefix %s -InterfaceIndex %s -NextHop %s -confirm:$false",
 			defaultIPv6Route, ifIndex, defaultIPv6NextHop, defaultIPv6Route, ifIndex, defaultIPv6NextHop)
 
-		if out, err := nm.plClient.ExecutePowershellCommand(addCmd); err != nil {
-			return errors.Wrap(err, "Failed to add ipv6 default route")
+		if _, err := nm.plClient.ExecutePowershellCommand(addCmd); err != nil {
+			return errors.Wrap(err, "Failed to add ipv6 default route to both persistent and active store")
 		}
 	}
 
