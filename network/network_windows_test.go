@@ -7,8 +7,10 @@
 package network
 
 import (
+	"errors"
 	"fmt"
 	"net"
+	"strings"
 	"testing"
 	"time"
 
@@ -16,6 +18,8 @@ import (
 	"github.com/Azure/azure-container-networking/platform"
 	"github.com/Microsoft/hcsshim/hcn"
 )
+
+var errTestFailure = errors.New("test failure")
 
 func TestNewAndDeleteNetworkImplHnsV2(t *testing.T) {
 	nm := &networkManager{
@@ -313,5 +317,77 @@ func TestFailToAddIPv6DefaultRoute(t *testing.T) {
 	_, err := nm.newNetworkImplHnsV2(nwInfo, extInterface)
 	if err == nil {
 		t.Fatal("Network should not be created")
+	}
+}
+
+func TestAddIPv6DefaultRouteHappyPath(t *testing.T) {
+	nm := &networkManager{
+		plClient: platform.NewMockExecClient(false),
+	}
+
+	// happy path
+	nm.plClient.SetPowershellCommandResponder(func(cmd string) (string, error) {
+		if strings.Contains(cmd, "Get-NetIPInterface") || strings.Contains(cmd, "Remove-NetRoute") {
+			return "True", nil
+		}
+
+		// fail secondary command execution and successfully execute remove-netRoute command
+		if strings.Contains(cmd, "Get-NetRoute") {
+			return "False", errTestFailure
+		}
+
+		return "", nil
+	})
+
+	err := nm.addIPv6DefaultRoute()
+	if err != nil {
+		t.Fatal("Failed to test happy path")
+	}
+}
+
+func TestAddIPv6DefaultRouteUnhappyPathGetNetInterface(t *testing.T) {
+	nm := &networkManager{
+		plClient: platform.NewMockExecClient(false),
+	}
+
+	// failed to execute Get-NetIPInterface command to find interface index
+	nm.plClient.SetPowershellCommandResponder(func(cmd string) (string, error) {
+		if strings.Contains(cmd, "Get-NetIPInterface") {
+			return "False", errTestFailure
+		}
+		return "", nil
+	})
+
+	err := nm.addIPv6DefaultRoute()
+	if err == nil {
+		t.Fatal("Failed to test unhappy path with failing to execute get-netIPInterface command")
+	}
+}
+
+func TestAddIPv6DefaultRouteUnhappyPathAddRoute(t *testing.T) {
+	nm := &networkManager{
+		plClient: platform.NewMockExecClient(false),
+	}
+
+	// happy path
+	nm.plClient.SetPowershellCommandResponder(func(cmd string) (string, error) {
+		if strings.Contains(cmd, "Get-NetIPInterface") {
+			return "True", nil
+		}
+
+		// fail secondary command execution and failed to execute remove-netRoute command
+		if strings.Contains(cmd, "Get-NetRoute") {
+			return "False", errTestFailure
+		}
+
+		if strings.Contains(cmd, "Remove-NetRoute") {
+			return "False", errTestFailure
+		}
+		return "", nil
+	})
+
+	err := nm.addIPv6DefaultRoute()
+	if err == nil {
+		t.Fatal("Failed to test unhappy path with failing to add default route command")
 	}
 }

@@ -43,8 +43,6 @@ const (
 	defaultIPv6Route = "::/0"
 	// Default IPv6 nextHop
 	defaultIPv6NextHop = "fe80::1234:5678:9abc"
-	// Default ipv6 adding command attempt times
-	addIPv6DefaultRouteRetryAttempts = 3
 )
 
 // Windows implementation of route.
@@ -345,13 +343,8 @@ func (nm *networkManager) addIPv6DefaultRoute() error {
 		addCmd := fmt.Sprintf("Remove-NetRoute -DestinationPrefix %s -InterfaceIndex %s -NextHop %s -confirm:$false;New-NetRoute -DestinationPrefix %s -InterfaceIndex %s -NextHop %s -confirm:$false",
 			defaultIPv6Route, ifIndex, defaultIPv6NextHop, defaultIPv6Route, ifIndex, defaultIPv6NextHop)
 
-		// if command is failed to execute, then attempt to execute additional two times
-		for i := 0; i <= addIPv6DefaultRouteRetryAttempts; i++ {
-			if out, err := nm.plClient.ExecutePowershellCommand(addCmd); err != nil {
-				logger.Error("Failed to add ipv6 default gateway route, retrying after error", zap.String("out", out), zap.Error(err))
-				continue
-			}
-			break
+		if out, err := nm.plClient.ExecutePowershellCommand(addCmd); err != nil {
+			return errors.Wrap(err, "Failed to add ipv6 default route")
 		}
 	}
 
