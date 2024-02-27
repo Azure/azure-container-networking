@@ -18,7 +18,6 @@ import (
 	"github.com/Azure/azure-container-networking/cni/util"
 	"github.com/Azure/azure-container-networking/cns"
 	cnscli "github.com/Azure/azure-container-networking/cns/client"
-	cnsConfig "github.com/Azure/azure-container-networking/cns/configuration"
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/iptables"
 	"github.com/Azure/azure-container-networking/netio"
@@ -336,6 +335,15 @@ func hasSecondaryInterface(ipamAddResult IPAMAddResult) bool {
 	return len(ipamAddResult.secondaryInterfacesInfo) > 0
 }
 
+func (plugin *NetPlugin) addIpamInvoker(ipamAddConfig IPAMAddConfig) (IPAMAddResult, error) {
+	ipamAddResult, err := plugin.ipamInvoker.Add(ipamAddConfig)
+	if err != nil {
+		return IPAMAddResult{}, fmt.Errorf("IPAM Invoker Add failed with error: %w", err)
+	}
+	sendEvent(plugin, fmt.Sprintf("Allocated IPAddress from ipam DefaultInterface: %+v, SecondaryInterfaces: %+v", ipamAddResult.defaultInterfaceInfo, ipamAddResult.secondaryInterfacesInfo))
+	return ipamAddResult, nil
+}
+
 // CNI implementation
 // https://github.com/containernetworking/cni/blob/master/SPEC.md
 
@@ -349,7 +357,6 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 		enableSnatForDNS bool
 		k8sPodName       string
 		cniMetric        telemetry.AIMetric
-		cnsconfig        cnsConfig.CNSConfig
 	)
 
 	startTime := time.Now()
@@ -496,32 +503,30 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 		ipamAddResults = append(ipamAddResults, ipamAddResult)
 	}
 
-	if cnsconfig.SWIFTV2Mode == cnsConfig.SFSWIFTV2 {
-		options := make(map[string]any)
-		ipamAddConfig := IPAMAddConfig{nwCfg: nwCfg, args: args, options: options}
-		plugin.ipamInvoker = NewCNSInvoker(k8sPodName, k8sNamespace, cnsClient, util.ExecutionMode(nwCfg.ExecutionMode), util.IpamMode(nwCfg.IPAM.Mode))
-		ipamAddResult, err = plugin.ipamInvoker.Add(ipamAddConfig)
-		if err != nil {
-			return fmt.Errorf("IPAM Invoker Add failed with error: %w", err)
-		}
-
-		ipamAddResults = nil
-		ipamAddResults = append(ipamAddResults, ipamAddResult)
-
-		sendEvent(plugin, fmt.Sprintf("Allocated IPAddress from ipam DefaultInterface: %+v, SecondaryInterfaces: %+v", ipamAddResult.defaultInterfaceInfo, ipamAddResult.secondaryInterfacesInfo))
-	}
-
 	// iterate ipamAddResults and program the endpoint
 	for i := 0; i < len(ipamAddResults); i++ {
-		var networkID string
 		ipamAddResult = ipamAddResults[i]
-
-		options := make(map[string]any)
-		networkID, err = plugin.getNetworkName(args.Netns, &ipamAddResult, nwCfg)
 
 		endpointID := plugin.nm.GetEndpointID(args.ContainerID, args.IfName)
 		policies := cni.GetPoliciesFromNwCfg(nwCfg.AdditionalArgs)
 
+		// Initialize azureipam/cns ipam
+		options := make(map[string]any)
+		ipamAddConfig := IPAMAddConfig{nwCfg: nwCfg, args: args, options: options}
+		if plugin.ipamInvoker == nil {
+			switch nwCfg.IPAM.Type {
+			case network.AzureCNS:
+				plugin.ipamInvoker = NewCNSInvoker(k8sPodName, k8sNamespace, cnsClient, util.ExecutionMode(nwCfg.ExecutionMode), util.IpamMode(nwCfg.IPAM.Mode))
+				// default:
+				// 	plugin.ipamInvoker = NewAzureIpamInvoker(plugin, &nwInfo)
+			}
+		}
+
+		if !nwCfg.MultiTenancy {
+			ipamAddResult, _ = plugin.addIpamInvoker(ipamAddConfig)
+		}
+
+		networkID, _ := plugin.getNetworkName(args.Netns, &ipamAddResult, nwCfg)
 		// Check whether the network already exists.
 		nwInfo, nwInfoErr := plugin.nm.GetNetworkInfo(networkID)
 		// Handle consecutive ADD calls for infrastructure containers.
@@ -547,26 +552,6 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 				ipamAddResult.defaultInterfaceInfo = convertCniResultToInterfaceInfo(resultSecondAdd)
 				return nil
 			}
-		}
-
-		// Initialize azureipam/cns ipam
-		if plugin.ipamInvoker == nil {
-			switch nwCfg.IPAM.Type {
-			case network.AzureCNS:
-				plugin.ipamInvoker = NewCNSInvoker(k8sPodName, k8sNamespace, cnsClient, util.ExecutionMode(nwCfg.ExecutionMode), util.IpamMode(nwCfg.IPAM.Mode))
-
-			default:
-				plugin.ipamInvoker = NewAzureIpamInvoker(plugin, &nwInfo)
-			}
-		}
-
-		ipamAddConfig := IPAMAddConfig{nwCfg: nwCfg, args: args, options: options}
-		if !nwCfg.MultiTenancy {
-			ipamAddResult, err = plugin.ipamInvoker.Add(ipamAddConfig)
-			if err != nil {
-				return fmt.Errorf("IPAM Invoker Add failed with error: %w", err)
-			}
-			sendEvent(plugin, fmt.Sprintf("Allocated IPAddress from ipam DefaultInterface: %+v, SecondaryInterfaces: %+v", ipamAddResult.defaultInterfaceInfo, ipamAddResult.secondaryInterfacesInfo))
 		}
 
 		defer func() { //nolint:gocritic
@@ -647,7 +632,6 @@ func (plugin *NetPlugin) createNetworkInternal(
 	ipamAddConfig IPAMAddConfig,
 	ipamAddResult IPAMAddResult,
 ) (network.NetworkInfo, error) {
-	var config cnsConfig.CNSConfig
 
 	nwInfo := network.NetworkInfo{}
 	ipamAddResult.hostSubnetPrefix.IP = ipamAddResult.hostSubnetPrefix.IP.Mask(ipamAddResult.hostSubnetPrefix.Mask)
@@ -659,7 +643,7 @@ func (plugin *NetPlugin) createNetworkInternal(
 	hostSubetPrefix := ipamAddResult.hostSubnetPrefix
 	masterIfName := plugin.findMasterInterfaceBySubnet(ipamAddConfig.nwCfg, &hostSubetPrefix)
 
-	if len(ipamAddResult.secondaryInterfacesInfo) > 0 && config.SWIFTV2Mode == cnsConfig.SFSWIFTV2 {
+	if len(ipamAddResult.secondaryInterfacesInfo) > 0 {
 		interfaceInfo = ipamAddResult.secondaryInterfacesInfo[0]
 		masterIfName = plugin.findMasterInterfaceByMac(interfaceInfo.MacAddress.String())
 	}
