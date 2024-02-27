@@ -349,6 +349,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 		enableSnatForDNS bool
 		k8sPodName       string
 		cniMetric        telemetry.AIMetric
+		cnsconfig        cnsConfig.CNSConfig
 	)
 
 	startTime := time.Now()
@@ -495,8 +496,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 		ipamAddResults = append(ipamAddResults, ipamAddResult)
 	}
 
-	var config cnsConfig.CNSConfig
-	if config.SWIFTV2Mode == cnsConfig.SFSWIFTV2 {
+	if cnsconfig.SWIFTV2Mode == cnsConfig.SFSWIFTV2 {
 		options := make(map[string]any)
 		ipamAddConfig := IPAMAddConfig{nwCfg: nwCfg, args: args, options: options}
 		plugin.ipamInvoker = NewCNSInvoker(k8sPodName, k8sNamespace, cnsClient, util.ExecutionMode(nwCfg.ExecutionMode), util.IpamMode(nwCfg.IPAM.Mode))
