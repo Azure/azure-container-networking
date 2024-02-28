@@ -344,6 +344,39 @@ func (plugin *NetPlugin) addIpamInvoker(ipamAddConfig IPAMAddConfig) (IPAMAddRes
 	return ipamAddResult, nil
 }
 
+// get network info
+func (plugin *NetPlugin) getNwInfo(args *cniSkel.CmdArgs, netNs string, endpointID string, ipamAddResult IPAMAddResult, nwCfg *cni.NetworkConfig, options map[string]interface{}) (network.NetworkInfo, error) {
+	networkID, _ := plugin.getNetworkName(netNs, &ipamAddResult, nwCfg)
+	// Check whether the network already exists.
+	nwInfo, nwInfoErr := plugin.nm.GetNetworkInfo(networkID)
+	// Handle consecutive ADD calls for infrastructure containers.
+	// This is a temporary work around for issue #57253 of Kubernetes.
+	// We can delete this if statement once they fix it.
+	// Issue link: https://github.com/kubernetes/kubernetes/issues/57253
+
+	if nwInfoErr == nil {
+		logger.Info("Found network with subnet",
+			zap.String("network", networkID),
+			zap.String("subnet", nwInfo.Subnets[0].Prefix.String()))
+		nwInfo.IPAMType = nwCfg.IPAM.Type
+		options = nwInfo.Options
+
+		var resultSecondAdd *cniTypesCurr.Result
+		resultSecondAdd, err := plugin.handleConsecutiveAdd(args, endpointID, networkID, &nwInfo, nwCfg)
+		if err != nil {
+			logger.Error("handleConsecutiveAdd failed", zap.Error(err))
+			return network.NetworkInfo{}, err
+		}
+
+		if resultSecondAdd != nil {
+			ipamAddResult.defaultInterfaceInfo = convertCniResultToInterfaceInfo(resultSecondAdd)
+			return network.NetworkInfo{}, nil
+		}
+	}
+
+	return nwInfo, nil
+}
+
 // CNI implementation
 // https://github.com/containernetworking/cni/blob/master/SPEC.md
 
@@ -507,9 +540,13 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 	for i := 0; i < len(ipamAddResults); i++ {
 		ipamAddResult = ipamAddResults[i]
 
+		var (
+			nwInfo    network.NetworkInfo
+			nwInfoErr error
+		)
+
 		endpointID := plugin.nm.GetEndpointID(args.ContainerID, args.IfName)
 		policies := cni.GetPoliciesFromNwCfg(nwCfg.AdditionalArgs)
-
 		// Initialize azureipam/cns ipam
 		options := make(map[string]any)
 		ipamAddConfig := IPAMAddConfig{nwCfg: nwCfg, args: args, options: options}
@@ -517,40 +554,17 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 			switch nwCfg.IPAM.Type {
 			case network.AzureCNS:
 				plugin.ipamInvoker = NewCNSInvoker(k8sPodName, k8sNamespace, cnsClient, util.ExecutionMode(nwCfg.ExecutionMode), util.IpamMode(nwCfg.IPAM.Mode))
-				// default:
-				// 	plugin.ipamInvoker = NewAzureIpamInvoker(plugin, &nwInfo)
-			}
-		}
+				if !nwCfg.MultiTenancy {
+					ipamAddResult, _ = plugin.addIpamInvoker(ipamAddConfig)
+				}
+				nwInfo, nwInfoErr = plugin.getNwInfo(args, args.Netns, endpointID, ipamAddResult, nwCfg, options)
 
-		if !nwCfg.MultiTenancy {
-			ipamAddResult, _ = plugin.addIpamInvoker(ipamAddConfig)
-		}
-
-		networkID, _ := plugin.getNetworkName(args.Netns, &ipamAddResult, nwCfg)
-		// Check whether the network already exists.
-		nwInfo, nwInfoErr := plugin.nm.GetNetworkInfo(networkID)
-		// Handle consecutive ADD calls for infrastructure containers.
-		// This is a temporary work around for issue #57253 of Kubernetes.
-		// We can delete this if statement once they fix it.
-		// Issue link: https://github.com/kubernetes/kubernetes/issues/57253
-
-		if nwInfoErr == nil {
-			logger.Info("Found network with subnet",
-				zap.String("network", networkID),
-				zap.String("subnet", nwInfo.Subnets[0].Prefix.String()))
-			nwInfo.IPAMType = nwCfg.IPAM.Type
-			options = nwInfo.Options
-
-			var resultSecondAdd *cniTypesCurr.Result
-			resultSecondAdd, err = plugin.handleConsecutiveAdd(args, endpointID, networkID, &nwInfo, nwCfg)
-			if err != nil {
-				logger.Error("handleConsecutiveAdd failed", zap.Error(err))
-				return err
-			}
-
-			if resultSecondAdd != nil {
-				ipamAddResult.defaultInterfaceInfo = convertCniResultToInterfaceInfo(resultSecondAdd)
-				return nil
+			default:
+				nwInfo, nwInfoErr = plugin.getNwInfo(args, args.Netns, endpointID, ipamAddResult, nwCfg, options)
+				plugin.ipamInvoker = NewAzureIpamInvoker(plugin, &nwInfo)
+				if !nwCfg.MultiTenancy {
+					ipamAddResult, _ = plugin.addIpamInvoker(ipamAddConfig)
+				}
 			}
 		}
 
@@ -562,6 +576,8 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 				}
 			}
 		}()
+
+		networkID := nwInfo.Id
 
 		// Create network
 		if nwInfoErr != nil {
