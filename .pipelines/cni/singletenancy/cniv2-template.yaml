@@ -11,6 +11,7 @@ parameters:
   scaleup: 100
   iterations: 3
   osSKU: Ubuntu
+  osSkuWin: Windows2022
 
 # CNIv2
 # + Should be able to scale up/down the pods successfully certain number of times.
