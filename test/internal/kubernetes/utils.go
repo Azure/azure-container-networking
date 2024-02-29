@@ -480,16 +480,22 @@ func MustRestartDaemonset(ctx context.Context, clientset *kubernetes.Clientset, 
 			return errors.Wrapf(err, "could not get daemonset %s", daemonsetName)
 		}
 
-		if ds.Status.ObservedGeneration <= gen {
-			// Capture daemonset restart. Restart sets every numerical status to 0.
-			log.Printf("daemonset %s has not updated generation", daemonsetName) // Remove as it will clutter logs
-			return errors.New("daemonset did not update")
+		if ds.Status.ObservedGeneration < gen {
+			// Generation update should not reset or lower the ObservedGeneration. Only happens if a complete restart or teardown of the daemonset occurs.
+			log.Printf("Warning: daemonset %s current generation (%d) is less than starting generation (%d)", daemonsetName, gen, ds.Status.ObservedGeneration)
+			return errors.New("daemonset generation was less than original")
+		}
+
+		if ds.Status.ObservedGeneration == gen {
+			// Check for generation update.
+			log.Printf("daemonset %s has not updated generation", daemonsetName)
+			return errors.New("daemonset generation did not change")
 		}
 
 		log.Printf("daemonset %s has updated generation", daemonsetName)
 		return nil
 	}
-	retrier := retry.Retrier{Attempts: 8, Delay: 250 * time.Millisecond} // Should be a short lived check for restart
+	retrier := retry.Retrier{Attempts: 8, Delay: 250 * time.Millisecond}
 	return errors.Wrapf(retrier.Do(ctx, checkDaemonsetGenerationFn), "could not wait for ds %s generation update", daemonsetName)
 }
 
