@@ -104,8 +104,8 @@ type IPInfo struct {
 }
 
 type GetHTTPServiceDataResponse struct {
-	HTTPRestServiceData HTTPRestServiceData
-	Response            Response
+	HTTPRestServiceData HTTPRestServiceData `json:"HTTPRestServiceData"`
+	Response            Response            `json:"Response"`
 }
 
 // HTTPRestServiceData represents in-memory CNS data in the debug API paths.

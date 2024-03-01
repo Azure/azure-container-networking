@@ -129,7 +129,7 @@ func getIPNetFromResponse(resp *cns.IPConfigResponse) (net.IPNet, error) {
 	prefix := strconv.Itoa(int(resp.PodIpInfo.PodIPConfig.PrefixLength))
 	ip, ipnet, err := net.ParseCIDR(resp.PodIpInfo.PodIPConfig.IPAddress + "/" + prefix)
 	if err != nil {
-		return resultIPnet, err
+		return resultIPnet, err //nolint:wrapcheck // ignore wrapping for test
 	}
 
 	// construct ipnet for result
@@ -227,19 +227,19 @@ func TestMain(m *testing.M) {
 		}
 	}
 
-	if err := json.NewEncoder(&body).Encode(info); err != nil {
-		log.Errorf("encoding json failed with %v", err)
+	if jsonErr := json.NewEncoder(&body).Encode(info); jsonErr != nil {
+		log.Errorf("encoding json failed with %v", jsonErr)
 		return
 	}
 
 	httpc := &http.Client{}
-	setOrchUrl := defaultBaseURL + cns.SetOrchestratorType
+	setOrchURL := defaultBaseURL + cns.SetOrchestratorType
 
-	res, err = httpc.Post(setOrchUrl, "application/json", &body)
-	defer res.Body.Close()
+	res, err = httpc.Post(setOrchURL, "application/json", &body) //nolint:noctx // ignore for unit test
 	if err != nil {
 		fmt.Println(err)
 	}
+	defer res.Body.Close()
 	fmt.Println(res)
 
 	exitCode := m.Run()
@@ -284,6 +284,7 @@ func TestCNSClientRequestAndRelease(t *testing.T) {
 	assert.Equal(t, gatewayIP, podIPInfo.NetworkContainerPrimaryIPConfig.GatewayIPAddress, "Gateway is not added as expected ipConfig")
 
 	resultIPnet, err := getIPNetFromResponse(resp)
+	require.NoError(t, err, "Get IPNetFromResponse failed")
 
 	assert.Equal(t, desired, resultIPnet, "Desired result not matching actual result")
 
@@ -326,7 +327,7 @@ func TestCNSClientPodContextApi(t *testing.T) {
 	// test for pod ip by orch context map
 	podcontext, err := cnsClient.GetPodOrchestratorContext(context.TODO())
 	require.NoError(t, err, "Get pod ip by orchestrator context failed")
-	assert.GreaterOrEqual(t, len(podcontext), 1, "Expected at least 1 entry in map for podcontext")
+	assert.NotEmpty(t, podcontext, "Expected at least 1 entry in map for podcontext")
 
 	t.Log(podcontext)
 
@@ -357,7 +358,7 @@ func TestCNSClientDebugAPI(t *testing.T) {
 	inmemory, err := cnsClient.GetHTTPServiceData(context.TODO())
 	require.NoError(t, err, "Get in-memory http REST Struct failed")
 
-	assert.GreaterOrEqual(t, len(inmemory.HTTPRestServiceData.PodIPIDByPodInterfaceKey), 1, "OrchestratorContext map is expected but not returned")
+	assert.NotEmpty(t, inmemory.HTTPRestServiceData.PodIPIDByPodInterfaceKey, "OrchestratorContext map is expected but not returned")
 
 	// testing Pod IP Configuration Status values set for test
 	podConfig := inmemory.HTTPRestServiceData.PodIPConfigState
@@ -366,7 +367,7 @@ func TestCNSClientDebugAPI(t *testing.T) {
 		assert.Equal(t, types.Assigned, v.GetState(), "Not the expected set values for testing IPConfigurationStatus, %+v", podConfig)
 		assert.Equal(t, "testNcId1", v.NCID, "Not the expected set values for testing IPConfigurationStatus, %+v", podConfig)
 	}
-	assert.GreaterOrEqual(t, len(inmemory.HTTPRestServiceData.PodIPConfigState), 1, "PodIpConfigState with at least 1 entry expected")
+	assert.NotEmpty(t, inmemory.HTTPRestServiceData.PodIPConfigState, "PodIpConfigState with at least 1 entry expected")
 
 	testIpamPoolMonitor := inmemory.HTTPRestServiceData.IPAMPoolMonitor
 	assert.EqualValues(t, 5, testIpamPoolMonitor.MinimumFreeIps, "IPAMPoolMonitor state is not reflecting the initial set values")

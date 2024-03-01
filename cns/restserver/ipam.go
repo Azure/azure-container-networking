@@ -50,7 +50,7 @@ func (service *HTTPRestService) requestIPConfigHandlerHelper(ctx context.Context
 	// record a pod requesting an IP
 	service.podsPendingIPAssignment.Push(podInfo.Key())
 
-	podIPInfo, err := requestIPConfigsHelper(service, ipconfigsRequest)
+	podIPInfo, err := requestIPConfigsHelper(service, ipconfigsRequest) //nolint:contextcheck // appease linter for revert PR
 	if err != nil {
 		return &cns.IPConfigsResponse{
 			Response: cns.Response{
