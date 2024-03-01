@@ -38,6 +38,8 @@ const (
 	RetryDelay              = 10 * time.Second
 	DeleteRetryAttempts     = 12
 	DeleteRetryDelay        = 5 * time.Second
+	ShortRetryAttempts      = 8
+	ShortRetryDelay         = 250 * time.Millisecond
 	PrivilegedDaemonSetPath = "../manifests/load/privileged-daemonset-windows.yaml"
 	PrivilegedLabelSelector = "app=privileged-daemonset"
 	PrivilegedNamespace     = "kube-system"
@@ -495,7 +497,7 @@ func MustRestartDaemonset(ctx context.Context, clientset *kubernetes.Clientset, 
 		log.Printf("daemonset %s has updated generation", daemonsetName)
 		return nil
 	}
-	retrier := retry.Retrier{Attempts: 8, Delay: 250 * time.Millisecond}
+	retrier := retry.Retrier{Attempts: ShortRetryAttempts, Delay: ShortRetryDelay}
 	return errors.Wrapf(retrier.Do(ctx, checkDaemonsetGenerationFn), "could not wait for ds %s generation update", daemonsetName)
 }
 
