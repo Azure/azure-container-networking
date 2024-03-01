@@ -32,14 +32,16 @@ import (
 )
 
 const (
-	primaryIp           = "10.0.0.5"
-	gatewayIp           = "10.0.0.1"
+	primaryIP           = "10.0.0.5"
+	gatewayIP           = "10.0.0.1"
 	subnetPrfixLength   = 24
 	dockerContainerType = cns.Docker
 	releasePercent      = 150
 	requestPercent      = 50
 	batchSize           = 10
 	initPoolSize        = 10
+	testpodname         = "testpodname"
+	testpodnamespace    = "testpodnamespace"
 )
 
 var (
@@ -67,20 +69,20 @@ func (m *mockdo) Do(req *http.Request) (*http.Response, error) {
 func addTestStateToRestServer(t *testing.T, secondaryIps []string) {
 	var ipConfig cns.IPConfiguration
 	ipConfig.DNSServers = dnsServers
-	ipConfig.GatewayIPAddress = gatewayIp
+	ipConfig.GatewayIPAddress = gatewayIP
 	var ipSubnet cns.IPSubnet
-	ipSubnet.IPAddress = primaryIp
+	ipSubnet.IPAddress = primaryIP
 	ipSubnet.PrefixLength = subnetPrfixLength
 	ipConfig.IPSubnet = ipSubnet
 	secondaryIPConfigs := make(map[string]cns.SecondaryIPConfig)
 
-	for _, secIpAddress := range secondaryIps {
-		secIpConfig := cns.SecondaryIPConfig{
-			IPAddress: secIpAddress,
+	for _, secIPAddress := range secondaryIps {
+		secIPConfig := cns.SecondaryIPConfig{
+			IPAddress: secIPAddress,
 			NCVersion: -1,
 		}
-		ipId := uuid.New()
-		secondaryIPConfigs[ipId.String()] = secIpConfig
+		ipID := uuid.New()
+		secondaryIPConfigs[ipID.String()] = secIPConfig
 	}
 
 	req := &cns.CreateNetworkContainerRequest{
@@ -244,9 +246,9 @@ func TestMain(m *testing.M) {
 }
 
 func TestCNSClientRequestAndRelease(t *testing.T) {
-	podName := "testpodname"
-	podNamespace := "testpodnamespace"
-	desiredIpAddress := "10.0.0.5"
+	podName := testpodname
+	podNamespace := testpodnamespace
+	desiredIpAddress := primaryIP
 	ip := net.ParseIP(desiredIpAddress)
 	_, ipnet, _ := net.ParseCIDR("10.0.0.5/24")
 	desired := net.IPNet{
@@ -262,7 +264,7 @@ func TestCNSClientRequestAndRelease(t *testing.T) {
 
 	podInfo := cns.KubernetesPodInfo{PodName: podName, PodNamespace: podNamespace}
 	orchestratorContext, err := json.Marshal(podInfo)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// no IP reservation found with that context, expect no failure.
 	err = cnsClient.ReleaseIPAddress(context.TODO(), cns.IPConfigRequest{OrchestratorContext: orchestratorContext})
@@ -273,12 +275,12 @@ func TestCNSClientRequestAndRelease(t *testing.T) {
 	assert.NoError(t, err, "get IP from CNS failed")
 
 	podIPInfo := resp.PodIpInfo
-	assert.Equal(t, primaryIp, podIPInfo.NetworkContainerPrimaryIPConfig.IPSubnet.IPAddress, "PrimaryIP is not added as epected ipConfig")
+	assert.Equal(t, primaryIP, podIPInfo.NetworkContainerPrimaryIPConfig.IPSubnet.IPAddress, "PrimaryIP is not added as epected ipConfig")
 	assert.EqualValues(t, podIPInfo.NetworkContainerPrimaryIPConfig.IPSubnet.PrefixLength, subnetPrfixLength, "Primary IP Prefix length is not added as expected ipConfig")
 
 	// validate DnsServer and Gateway Ip as the same configured for Primary IP
 	assert.Equal(t, dnsServers, podIPInfo.NetworkContainerPrimaryIPConfig.DNSServers, "DnsServer is not added as expected ipConfig")
-	assert.Equal(t, gatewayIp, podIPInfo.NetworkContainerPrimaryIPConfig.GatewayIPAddress, "Gateway is not added as expected ipConfig")
+	assert.Equal(t, gatewayIP, podIPInfo.NetworkContainerPrimaryIPConfig.GatewayIPAddress, "Gateway is not added as expected ipConfig")
 
 	resultIPnet, err := getIPNetFromResponse(resp)
 
@@ -305,16 +307,14 @@ func TestCNSClientRequestAndRelease(t *testing.T) {
 }
 
 func TestCNSClientPodContextApi(t *testing.T) {
-	podName := "testpodname"
-	podNamespace := "testpodnamespace"
-	desiredIpAddress := "10.0.0.5"
+	desiredIPAddress := primaryIP
 
-	secondaryIps := []string{desiredIpAddress}
+	secondaryIps := []string{desiredIPAddress}
 	cnsClient, _ := New("", 2*time.Second)
 
 	addTestStateToRestServer(t, secondaryIps)
 
-	podInfo := cns.NewPodInfo("some-guid-1", "abc-eth0", podName, podNamespace)
+	podInfo := cns.NewPodInfo("some-guid-1", "abc-eth0", testpodname, testpodnamespace)
 	orchestratorContext, err := json.Marshal(podInfo)
 	assert.NoError(t, err)
 
@@ -335,9 +335,9 @@ func TestCNSClientPodContextApi(t *testing.T) {
 }
 
 func TestCNSClientDebugAPI(t *testing.T) {
-	podName := "testpodname"
-	podNamespace := "testpodnamespace"
-	desiredIpAddress := "10.0.0.5"
+	podName := testpodname
+	podNamespace := testpodnamespace
+	desiredIpAddress := primaryIP
 
 	secondaryIps := []string{desiredIpAddress}
 	cnsClient, _ := New("", 2*time.Hour)
