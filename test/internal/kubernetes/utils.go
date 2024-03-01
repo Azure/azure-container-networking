@@ -468,6 +468,7 @@ func MustRestartDaemonset(ctx context.Context, clientset *kubernetes.Clientset, 
 		ds.Spec.Template.ObjectMeta.Annotations = make(map[string]string)
 	}
 
+	// gen represents the generation before triggering a restart
 	gen := ds.Status.ObservedGeneration
 	log.Printf("Current generation is %v", gen)
 	ds.Spec.Template.ObjectMeta.Annotations["kubectl.kubernetes.io/restartedAt"] = time.Now().Format(time.RFC3339)
