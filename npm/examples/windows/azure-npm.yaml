@@ -83,6 +83,7 @@ spec:
       hostNetwork: true
       containers:
         - name: azure-npm
+          workingDir: $env:CONTAINER_SANDBOX_MOUNT_POINT
           image: mcr.microsoft.com/containernetworking/azure-npm:v1.5.5
           command: ["powershell.exe"]
           args:
