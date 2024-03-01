@@ -87,7 +87,11 @@ spec:
             requests:
               cpu: 250m
           securityContext:
-            privileged: true
+            privileged: false
+            capabilities:
+              add:
+              - NET_ADMIN
+            readOnlyRootFilesystem: true
           env:
             - name: HOSTNAME
               valueFrom:
@@ -105,6 +109,8 @@ spec:
               mountPath: /etc/protocols
             - name: azure-npm-config
               mountPath: /etc/azure-npm
+            - name: tmp
+              mountPath: /tmp
       hostNetwork: true
       hostUsers: false
       nodeSelector:
@@ -125,6 +131,8 @@ spec:
         - name: azure-npm-config
           configMap:
             name: azure-npm-config
+        - name: tmp
+          emptyDir: {}
       serviceAccountName: azure-npm
 ---
 apiVersion: v1

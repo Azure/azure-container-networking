@@ -1,4 +1,5 @@
 pr: none
+trigger: none
 
 stages:
   - stage: Run_E2E

@@ -133,7 +133,6 @@ azure-cnm-plugin: cnm-binary cnm-archive
 azure-cni-plugin: azure-vnet-binary azure-vnet-ipam-binary azure-vnet-ipamv6-binary azure-vnet-telemetry-binary cni-archive
 azure-cns: azure-cns-binary cns-archive
 acncli: acncli-binary acncli-archive
-azure-cnms: azure-cnms-binary cnms-archive
 azure-npm: azure-npm-binary npm-archive
 azure-ipam: azure-ipam-binary azure-ipam-archive
 

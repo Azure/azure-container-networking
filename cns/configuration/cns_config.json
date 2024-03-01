@@ -31,7 +31,6 @@
     },
     "MellanoxMonitorIntervalSecs": 30,
     "AZRSettings": {
-        "EnableAZR": false,
         "PopulateHomeAzCacheRetryIntervalSecs": 60
     }
 }

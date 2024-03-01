@@ -84,7 +84,6 @@ func TestReadConfigFromFile(t *testing.T) {
 					TelemetryBatchSizeBytes:      16384,
 				},
 				AZRSettings: AZRSettings{
-					EnableAZR:                            true,
 					PopulateHomeAzCacheRetryIntervalSecs: 60,
 				},
 				UseHTTPS:     true,
@@ -238,7 +237,6 @@ func TestSetCNSConfigDefaults(t *testing.T) {
 					RefreshIntervalInHrs: 3,
 				},
 				AZRSettings: AZRSettings{
-					EnableAZR:                            true,
 					PopulateHomeAzCacheRetryIntervalSecs: 10,
 				},
 			},
@@ -261,7 +259,6 @@ func TestSetCNSConfigDefaults(t *testing.T) {
 					RefreshIntervalInHrs: 3,
 				},
 				AZRSettings: AZRSettings{
-					EnableAZR:                            true,
 					PopulateHomeAzCacheRetryIntervalSecs: 10,
 				},
 				WireserverIP:       "168.63.129.16",
