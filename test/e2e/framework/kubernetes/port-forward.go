@@ -72,7 +72,6 @@ func (p *PortForward) Run() error {
 	}
 
 	portForwardFn := func() error {
-
 		// if we have a pod name (likely from affinity above), use it, otherwise use label selector
 		opts := k8s.PortForwardingOpts{
 			Namespace: p.Namespace,

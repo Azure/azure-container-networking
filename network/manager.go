@@ -9,7 +9,6 @@ import (
 	"sync"
 	"time"
 
-	cnms "github.com/Azure/azure-container-networking/cnms/cnmspackage"
 	cnsclient "github.com/Azure/azure-container-networking/cns/client"
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/log"
@@ -108,7 +107,6 @@ type NetworkManager interface {
 	DetachEndpoint(networkID string, endpointID string) error
 	UpdateEndpoint(networkID string, existingEpInfo *EndpointInfo, targetEpInfo *EndpointInfo) error
 	GetNumberOfEndpoints(ifName string, networkID string) int
-	SetupNetworkUsingState(networkMonitor *cnms.NetworkMonitor) error
 	GetEndpointID(containerID, ifName string) string
 	IsStatelessCNIMode() bool
 }
@@ -395,9 +393,21 @@ func (nm *networkManager) CreateEndpoint(cli apipaClient, networkID string, epIn
 	if err != nil {
 		return err
 	}
+	// any error after this point should also clean up the endpoint we created above
+	defer func() {
+		if err != nil {
+			logger.Error("Create endpoint failure", zap.Error(err))
+			logger.Info("Cleanup resources")
+			delErr := nw.deleteEndpoint(nm.netlink, nm.plClient, nm.netio, nm.nsClient, nm.iptablesClient, ep.Id)
+			if delErr != nil {
+				logger.Error("Deleting endpoint after create endpoint failure failed with", zap.Error(delErr))
+			}
+		}
+	}()
 
 	if nm.IsStatelessCNIMode() {
-		return nm.UpdateEndpointState(ep)
+		err = nm.UpdateEndpointState(ep)
+		return err
 	}
 
 	err = nm.save()
@@ -673,10 +683,6 @@ func (nm *networkManager) GetNumberOfEndpoints(ifName string, networkId string) 
 	}
 
 	return 0
-}
-
-func (nm *networkManager) SetupNetworkUsingState(networkMonitor *cnms.NetworkMonitor) error {
-	return nm.monitorNetworkState(networkMonitor)
 }
 
 // GetEndpointID returns a unique endpoint ID based on the CNI mode.

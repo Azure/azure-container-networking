@@ -48,6 +48,7 @@ spec:
           imagePullPolicy: IfNotPresent
           securityContext:
             privileged: true
+          workingDir: $env:CONTAINER_SANDBOX_MOUNT_POINT
           command: ["powershell.exe"]
           args:
             [
@@ -86,6 +87,8 @@ spec:
           env:
             - name: PATH
               value: '%CONTAINER_SANDBOX_MOUNT_POINT%\Windows\System32\WindowsPowershell\v1.0\'
+            - name: PATHEXT
+              value: .COM;.EXE;.BAT;.CMD;.VBS;.VBE;.JS;.JSE;.WSF;.WSH;.MSC;.CPL;;
             - name: CNSIpAddress
               value: "127.0.0.1"
             - name: CNSPort
@@ -107,12 +110,16 @@ spec:
         - name: cni-installer
           image: acnpublic.azurecr.io/cni-dropgz:latest
           imagePullPolicy: Always
-          command: ["%CONTAINER_SANDBOX_MOUNT_POINT%/dropgz"]
+          command:
+            - powershell.exe; $env:CONTAINER_SANDBOX_MOUNT_POINT/dropgz
           args:
             - deploy
             - azure-vnet
             - -o
             - /k/azurecni/bin/azure-vnet.exe # // TODO: add windows cni conflist when ready
+          env:
+          - name: PATHEXT
+            value: .COM;.EXE;.BAT;.CMD;.VBS;.VBE;.JS;.JSE;.WSF;.WSH;.MSC;.CPL;;
           volumeMounts:
             - name: cni-bin
               mountPath: /k/azurecni/bin/ # TODO: add cni conflist when ready

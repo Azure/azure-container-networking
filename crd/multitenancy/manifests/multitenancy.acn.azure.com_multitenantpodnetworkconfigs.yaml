@@ -73,7 +73,6 @@ spec:
                 description: name of PNI object from requesting cx pod
                 type: string
             required:
-            - podName
             - podNetwork
             type: object
           status:

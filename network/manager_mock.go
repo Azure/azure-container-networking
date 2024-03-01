@@ -1,7 +1,6 @@
 package network
 
 import (
-	cnms "github.com/Azure/azure-container-networking/cnms/cnmspackage"
 	"github.com/Azure/azure-container-networking/common"
 )
 
@@ -129,11 +128,6 @@ func (nm *MockNetworkManager) UpdateEndpoint(networkID string, existingEpInfo *E
 // GetNumberOfEndpoints mock
 func (nm *MockNetworkManager) GetNumberOfEndpoints(ifName string, networkID string) int {
 	return 0
-}
-
-// SetupNetworkUsingState mock
-func (nm *MockNetworkManager) SetupNetworkUsingState(networkMonitor *cnms.NetworkMonitor) error {
-	return nil
 }
 
 func (nm *MockNetworkManager) FindNetworkIDFromNetNs(netNs string) (string, error) {

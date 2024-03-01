@@ -93,7 +93,6 @@ type ManagedSettings struct {
 }
 
 type AZRSettings struct {
-	EnableAZR                            bool
 	PopulateHomeAzCacheRetryIntervalSecs int
 }
 

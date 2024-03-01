@@ -713,7 +713,7 @@ func (service *HTTPRestService) releaseIPConfigs(podInfo cns.PodInfo) error {
 	service.Lock()
 	defer service.Unlock()
 	ipsToBeReleased := make([]cns.IPConfigurationStatus, 0)
-
+	logger.Printf("[releaseIPConfigs] Releasing pod with key %s", podInfo.Key())
 	for i, ipID := range service.PodIPIDByPodInterfaceKey[podInfo.Key()] {
 		if ipID != "" {
 			if ipconfig, isExist := service.PodIPConfigState[ipID]; isExist {

@@ -32,7 +32,6 @@
     "UseHTTPS": true,
     "WireserverIP": "168.63.129.16",
     "AZRSettings": {
-        "EnableAZR": true,
         "PopulateHomeAzCacheRetryIntervalSecs": 60
     }
 }

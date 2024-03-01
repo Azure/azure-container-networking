@@ -32,17 +32,19 @@ steps:
         pwd
         kubectl cluster-info
         kubectl get po -owide -A
-        echo "deploy Cilium ConfigMap"
-        kubectl apply -f test/integration/manifests/cilium/v${CILIUM_TEMPLATE_DIR}/cilium-config/cilium-config-dualstack.yaml
         echo "install Cilium ${CILIUM_DUALSTACK_VERSION}"
+        export DIR=${CILIUM_DUALSTACK_VERSION%.*}
+        echo "installing files from ${DIR}"
+        echo "deploy Cilium ConfigMap"
+        kubectl apply -f test/integration/manifests/cilium/v${DIR}/cilium-config/cilium-config-dualstack.yaml
         # Passes Cilium image to daemonset and deployment
-        kubectl apply -f test/integration/manifests/cilium/v${CILIUM_TEMPLATE_DIR}/cilium-agent/files
-        kubectl apply -f test/integration/manifests/cilium/v${CILIUM_TEMPLATE_DIR}/cilium-operator/files
+        kubectl apply -f test/integration/manifests/cilium/v${DIR}/cilium-agent/files
+        kubectl apply -f test/integration/manifests/cilium/v${DIR}/cilium-operator/files
                   
         export CILIUM_VERSION_TAG=${CILIUM_DUALSTACK_VERSION}
         echo "install Cilium ${CILIUM_DUALSTACK_VERSION} onto Overlay Cluster"
-        envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/v${CILIUM_TEMPLATE_DIR}/cilium-agent/templates/daemonset.tpl | kubectl apply -f -
-        envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/v${CILIUM_TEMPLATE_DIR}/cilium-operator/templates/deployment.tpl | kubectl apply -f -
+        envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/v${DIR}/cilium-agent/templates/daemonset.tpl | kubectl apply -f -
+        envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/v${DIR}/cilium-operator/templates/deployment.tpl | kubectl apply -f -
         kubectl get po -owide -A
     name: "installCilium"
     displayName: "Install Cilium on AKS Dualstack Overlay"

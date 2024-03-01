@@ -70,18 +70,17 @@ stages:
                   kubectl cluster-info
                   kubectl get po -owide -A
 
+                  echo "install Cilium ${CILIUM_VERSION_TAG}"
+                  export DIR=${CILIUM_VERSION_TAG%.*}
+                  echo "installing files from ${DIR}"
                   echo "deploy Cilium ConfigMap"
-                  kubectl apply -f test/integration/manifests/cilium/cilium-config.yaml
-                
-                  echo "install Cilium onto Overlay Cluster"
-                  kubectl apply -f test/integration/manifests/cilium/cilium-agent
-                  kubectl apply -f test/integration/manifests/cilium/cilium-operator
-                  
-                  
-                  echo "install Cilium ${CILIUM_VERSION_TAG} onto Overlay Cluster"
+                  kubectl apply -f test/integration/manifests/cilium/v${DIR}/cilium-config/cilium-config.yaml
                   # Passes Cilium image to daemonset and deployment
-                  envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/daemonset.yaml | kubectl apply -f -
-                  envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/deployment.yaml | kubectl apply -f -
+                  kubectl apply -f test/integration/manifests/cilium/v${DIR}/cilium-agent/files
+                  kubectl apply -f test/integration/manifests/cilium/v${DIR}/cilium-operator/files
+                            
+                  envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/v${DIR}/cilium-agent/templates/daemonset.yaml | kubectl apply -f -
+                  envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/v${DIR}/cilium-operator/templates/deployment.yaml | kubectl apply -f -
                   kubectl get po -owide -A
 
                   echo "Deploy Azure-CNS"
@@ -109,11 +108,13 @@ stages:
                   
                   echo "install Cilium onto Overlay Cluster with hubble enabled"
                   export CILIUM_VERSION_TAG=${CILIUM_HUBBLE_VERSION_TAG}
-                  kubectl apply -f test/integration/manifests/cilium/v${CILIUM_TEMPLATE_DIR}/cilium-config/cilium-config-hubble.yaml
-                  kubectl apply -f test/integration/manifests/cilium/v${CILIUM_TEMPLATE_DIR}/cilium-agent/files
-                  kubectl apply -f test/integration/manifests/cilium/v${CILIUM_TEMPLATE_DIR}/cilium-operator/files
-                  envsubst '${CILIUM_IMAGE_REGISTRY},${CILIUM_VERSION_TAG}' < test/integration/manifests/cilium/v${CILIUM_TEMPLATE_DIR}/cilium-agent/templates/daemonset.tpl | kubectl apply -f -
-                  envsubst '${CILIUM_IMAGE_REGISTRY},${CILIUM_VERSION_TAG}' < test/integration/manifests/cilium/v${CILIUM_TEMPLATE_DIR}/cilium-operator/templates/deployment.tpl | kubectl apply -f -
+                  export DIR=${CILIUM_VERSION_TAG%.*}
+                  echo "installing files from ${DIR}"
+                  kubectl apply -f test/integration/manifests/cilium/v${DIR}/cilium-config/cilium-config-hubble.yaml
+                  kubectl apply -f test/integration/manifests/cilium/v${DIR}/cilium-agent/files
+                  kubectl apply -f test/integration/manifests/cilium/v${DIR}/cilium-operator/files
+                  envsubst '${CILIUM_IMAGE_REGISTRY},${CILIUM_VERSION_TAG}' < test/integration/manifests/cilium/v${DIR}/cilium-agent/templates/daemonset.tpl | kubectl apply -f -
+                  envsubst '${CILIUM_IMAGE_REGISTRY},${CILIUM_VERSION_TAG}' < test/integration/manifests/cilium/v${DIR}/cilium-operator/templates/deployment.tpl | kubectl apply -f -
                   kubectl get po -owide -A
 
                   echo "Deploy Azure-CNS"
