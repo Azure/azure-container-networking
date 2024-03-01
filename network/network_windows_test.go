@@ -7,12 +7,22 @@
 package network
 
 import (
+	"errors"
 	"fmt"
+	"net"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/Azure/azure-container-networking/network/hnswrapper"
+	"github.com/Azure/azure-container-networking/platform"
 	"github.com/Microsoft/hcsshim/hcn"
+)
+
+var (
+	errTestFailure     = errors.New("test failure")
+	failedCaseReturn   = "false"
+	succededCaseReturn = "true"
 )
 
 func TestNewAndDeleteNetworkImplHnsV2(t *testing.T) {
@@ -225,5 +235,168 @@ func TestDeleteNetworkImplHnsV1WithTimeout(t *testing.T) {
 
 	if err == nil {
 		t.Fatal("Failed to timeout HNS calls for deleting network")
+	}
+}
+
+func TestAddIPv6DefaultRoute(t *testing.T) {
+	_, ipnetv4, _ := net.ParseCIDR("10.240.0.0/12")
+	_, ipnetv6, _ := net.ParseCIDR("fc00::/64")
+
+	nm := &networkManager{
+		ExternalInterfaces: map[string]*externalInterface{},
+		plClient:           platform.NewMockExecClient(false),
+	}
+
+	networkSubnetInfo := []SubnetInfo{
+		{
+			Family:  platform.AfINET,
+			Gateway: net.ParseIP("10.240.0.1"),
+			Prefix:  *ipnetv4,
+		},
+		{
+			Family:  platform.AfINET6,
+			Gateway: net.ParseIP("fc00::1"),
+			Prefix:  *ipnetv6,
+		},
+	}
+
+	nwInfo := &NetworkInfo{
+		Id:           "d3f97a83-ba4c-45d5-ba88-dc56757ece28",
+		MasterIfName: "eth0",
+		Mode:         "bridge",
+		Subnets:      networkSubnetInfo,
+	}
+
+	extInterface := &externalInterface{
+		Name:    "eth0",
+		Subnets: []string{"subnet1", "subnet2"},
+	}
+
+	Hnsv2 = hnswrapper.NewHnsv2wrapperFake()
+
+	// check if network can be successfully created
+	_, err := nm.newNetworkImplHnsV2(nwInfo, extInterface)
+	if err != nil {
+		t.Fatalf("Failed to create network due to error:%+v", err)
+	}
+}
+
+func TestFailToAddIPv6DefaultRoute(t *testing.T) {
+	_, ipnetv4, _ := net.ParseCIDR("10.240.0.0/12")
+	_, ipnetv6, _ := net.ParseCIDR("fc00::/64")
+
+	nm := &networkManager{
+		ExternalInterfaces: map[string]*externalInterface{},
+		plClient:           platform.NewMockExecClient(true), // return mock exec error
+	}
+
+	networkSubnetInfo := []SubnetInfo{
+		{
+			Family:  platform.AfINET,
+			Gateway: net.ParseIP("10.240.0.1"),
+			Prefix:  *ipnetv4,
+		},
+		{
+			Family:  platform.AfINET6,
+			Gateway: net.ParseIP("fc00::1"),
+			Prefix:  *ipnetv6,
+		},
+	}
+
+	nwInfo := &NetworkInfo{
+		Id:           "d3f97a83-ba4c-45d5-ba88-dc56757ece28",
+		MasterIfName: "eth0",
+		Mode:         "bridge",
+		Subnets:      networkSubnetInfo,
+	}
+
+	extInterface := &externalInterface{
+		Name:    "eth0",
+		Subnets: []string{"subnet1", "subnet2"},
+	}
+
+	Hnsv2 = hnswrapper.NewHnsv2wrapperFake()
+
+	// check if network is failed to create
+	_, err := nm.newNetworkImplHnsV2(nwInfo, extInterface)
+	if err == nil {
+		t.Fatal("Network should not be created")
+	}
+}
+
+func TestAddIPv6DefaultRouteHappyPath(t *testing.T) {
+	mockExecClient := platform.NewMockExecClient(false)
+
+	nm := &networkManager{
+		plClient: mockExecClient,
+	}
+
+	// happy path
+	mockExecClient.SetPowershellCommandResponder(func(cmd string) (string, error) {
+		if strings.Contains(cmd, "Get-NetIPInterface") || strings.Contains(cmd, "Remove-NetRoute") {
+			return succededCaseReturn, nil
+		}
+
+		// fail secondary command execution and successfully execute remove-netRoute command
+		if strings.Contains(cmd, "Get-NetRoute") {
+			return failedCaseReturn, errTestFailure
+		}
+
+		return "", nil
+	})
+
+	err := nm.addIPv6DefaultRoute()
+	if err != nil {
+		t.Fatal("Failed to test happy path")
+	}
+}
+
+func TestAddIPv6DefaultRouteUnhappyPathGetNetInterface(t *testing.T) {
+	mockExecClient := platform.NewMockExecClient(false)
+
+	nm := &networkManager{
+		plClient: mockExecClient,
+	}
+
+	// failed to execute Get-NetIPInterface command to find interface index
+	mockExecClient.SetPowershellCommandResponder(func(cmd string) (string, error) {
+		if strings.Contains(cmd, "Get-NetIPInterface") {
+			return failedCaseReturn, errTestFailure
+		}
+		return "", nil
+	})
+
+	err := nm.addIPv6DefaultRoute()
+	if err == nil {
+		t.Fatal("Failed to test unhappy path with failing to execute get-netIPInterface command")
+	}
+}
+
+func TestAddIPv6DefaultRouteUnhappyPathAddRoute(t *testing.T) {
+	mockExecClient := platform.NewMockExecClient(false)
+
+	nm := &networkManager{
+		plClient: mockExecClient,
+	}
+
+	mockExecClient.SetPowershellCommandResponder(func(cmd string) (string, error) {
+		if strings.Contains(cmd, "Get-NetIPInterface") {
+			return succededCaseReturn, nil
+		}
+
+		// fail secondary command execution and failed to execute remove-netRoute command
+		if strings.Contains(cmd, "Get-NetRoute") {
+			return failedCaseReturn, errTestFailure
+		}
+
+		if strings.Contains(cmd, "Remove-NetRoute") {
+			return failedCaseReturn, errTestFailure
+		}
+		return "", nil
+	})
+
+	err := nm.addIPv6DefaultRoute()
+	if err == nil {
+		t.Fatal("Failed to test unhappy path with failing to add default route command")
 	}
 }
