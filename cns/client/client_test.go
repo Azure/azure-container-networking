@@ -233,9 +233,10 @@ func TestMain(m *testing.M) {
 	}
 
 	httpc := &http.Client{}
-	url := defaultBaseURL + cns.SetOrchestratorType
+	setOrchUrl := defaultBaseURL + cns.SetOrchestratorType
 
-	res, err = httpc.Post(url, "application/json", &body)
+	res, err = httpc.Post(setOrchUrl, "application/json", &body)
+	defer res.Body.Close()
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -248,8 +249,8 @@ func TestMain(m *testing.M) {
 func TestCNSClientRequestAndRelease(t *testing.T) {
 	podName := testpodname
 	podNamespace := testpodnamespace
-	desiredIpAddress := primaryIP
-	ip := net.ParseIP(desiredIpAddress)
+	desiredIPAddress := primaryIP
+	ip := net.ParseIP(desiredIPAddress)
 	_, ipnet, _ := net.ParseCIDR("10.0.0.5/24")
 	desired := net.IPNet{
 		IP:   ip,
@@ -257,7 +258,7 @@ func TestCNSClientRequestAndRelease(t *testing.T) {
 	}
 
 	secondaryIps := make([]string, 0)
-	secondaryIps = append(secondaryIps, desiredIpAddress)
+	secondaryIps = append(secondaryIps, desiredIPAddress)
 	cnsClient, _ := New("", 2*time.Hour)
 
 	addTestStateToRestServer(t, secondaryIps)
@@ -268,11 +269,11 @@ func TestCNSClientRequestAndRelease(t *testing.T) {
 
 	// no IP reservation found with that context, expect no failure.
 	err = cnsClient.ReleaseIPAddress(context.TODO(), cns.IPConfigRequest{OrchestratorContext: orchestratorContext})
-	assert.NoError(t, err, "Release ip idempotent call failed")
+	require.NoError(t, err, "Release ip idempotent call failed")
 
 	// request IP address
 	resp, err := cnsClient.RequestIPAddress(context.TODO(), cns.IPConfigRequest{OrchestratorContext: orchestratorContext})
-	assert.NoError(t, err, "get IP from CNS failed")
+	require.NoError(t, err, "get IP from CNS failed")
 
 	podIPInfo := resp.PodIpInfo
 	assert.Equal(t, primaryIP, podIPInfo.NetworkContainerPrimaryIPConfig.IPSubnet.IPAddress, "PrimaryIP is not added as epected ipConfig")
@@ -288,10 +289,10 @@ func TestCNSClientRequestAndRelease(t *testing.T) {
 
 	// checking for assigned IP address and pod context printing before ReleaseIPAddress is called
 	ipaddresses, err := cnsClient.GetIPAddressesMatchingStates(context.TODO(), types.Assigned)
-	assert.NoError(t, err, "Get assigned IP addresses failed")
+	require.NoError(t, err, "Get assigned IP addresses failed")
 
 	assert.Len(t, ipaddresses, 1, "Number of available IP addresses expected to be 1")
-	assert.Equal(t, desiredIpAddress, ipaddresses[0].IPAddress, "Available IP address does not match expected, address state")
+	assert.Equal(t, desiredIPAddress, ipaddresses[0].IPAddress, "Available IP address does not match expected, address state")
 	assert.Equal(t, types.Assigned, ipaddresses[0].GetState(), "Available IP address does not match expected, address state")
 
 	t.Log(ipaddresses)
@@ -303,7 +304,7 @@ func TestCNSClientRequestAndRelease(t *testing.T) {
 
 	// release requested IP address, expect success
 	err = cnsClient.ReleaseIPAddress(context.TODO(), cns.IPConfigRequest{DesiredIPAddress: ipaddresses[0].IPAddress, OrchestratorContext: orchestratorContext})
-	assert.NoError(t, err, "Expected to not fail when releasing IP reservation found with context")
+	require.NoError(t, err, "Expected to not fail when releasing IP reservation found with context")
 }
 
 func TestCNSClientPodContextApi(t *testing.T) {
@@ -316,45 +317,45 @@ func TestCNSClientPodContextApi(t *testing.T) {
 
 	podInfo := cns.NewPodInfo("some-guid-1", "abc-eth0", testpodname, testpodnamespace)
 	orchestratorContext, err := json.Marshal(podInfo)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// request IP address
 	_, err = cnsClient.RequestIPAddress(context.TODO(), cns.IPConfigRequest{OrchestratorContext: orchestratorContext})
-	assert.NoError(t, err, "get IP from CNS failed")
+	require.NoError(t, err, "get IP from CNS failed")
 
 	// test for pod ip by orch context map
 	podcontext, err := cnsClient.GetPodOrchestratorContext(context.TODO())
-	assert.NoError(t, err, "Get pod ip by orchestrator context failed")
+	require.NoError(t, err, "Get pod ip by orchestrator context failed")
 	assert.GreaterOrEqual(t, len(podcontext), 1, "Expected at least 1 entry in map for podcontext")
 
 	t.Log(podcontext)
 
 	// release requested IP address, expect success
 	err = cnsClient.ReleaseIPAddress(context.TODO(), cns.IPConfigRequest{OrchestratorContext: orchestratorContext})
-	assert.NoError(t, err, "Expected to not fail when releasing IP reservation found with context")
+	require.NoError(t, err, "Expected to not fail when releasing IP reservation found with context")
 }
 
 func TestCNSClientDebugAPI(t *testing.T) {
 	podName := testpodname
 	podNamespace := testpodnamespace
-	desiredIpAddress := primaryIP
+	desiredIPAddress := primaryIP
 
-	secondaryIps := []string{desiredIpAddress}
+	secondaryIps := []string{desiredIPAddress}
 	cnsClient, _ := New("", 2*time.Hour)
 
 	addTestStateToRestServer(t, secondaryIps)
 
 	podInfo := cns.NewPodInfo("some-guid-1", "abc-eth0", podName, podNamespace)
 	orchestratorContext, err := json.Marshal(podInfo)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// request IP address
 	_, err1 := cnsClient.RequestIPAddress(context.TODO(), cns.IPConfigRequest{OrchestratorContext: orchestratorContext})
-	assert.NoError(t, err1, "get IP from CNS failed")
+	require.NoError(t, err1, "get IP from CNS failed")
 
 	// test for debug api/cmd to get inmemory data from HTTPRestService
 	inmemory, err := cnsClient.GetHTTPServiceData(context.TODO())
-	assert.NoError(t, err, "Get in-memory http REST Struct failed")
+	require.NoError(t, err, "Get in-memory http REST Struct failed")
 
 	assert.GreaterOrEqual(t, len(inmemory.HTTPRestServiceData.PodIPIDByPodInterfaceKey), 1, "OrchestratorContext map is expected but not returned")
 
@@ -644,13 +645,13 @@ func TestGetAllNetworkContainers(t *testing.T) {
 			}
 
 			orchestratorContext, err := json.Marshal(tt.podInfo)
-			assert.NoError(t, err, "marshaling orchestrator context failed")
+			require.NoError(t, err, "marshaling orchestrator context failed")
 
 			got, err := client.GetAllNetworkContainers(tt.ctx, orchestratorContext)
 			if tt.wantErr {
 				assert.Error(t, err)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 			assert.Equal(t, tt.want, got)
 		})
@@ -775,13 +776,13 @@ func TestGetNetworkConfiguration(t *testing.T) {
 			}
 
 			orchestratorContext, err := json.Marshal(tt.podInfo)
-			assert.NoError(t, err, "marshaling orchestrator context failed")
+			require.NoError(t, err, "marshaling orchestrator context failed")
 
 			got, err := client.GetNetworkContainer(tt.ctx, orchestratorContext)
 			if tt.wantErr {
 				assert.Error(t, err)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 			assert.Equal(t, tt.want, got)
 		})
@@ -889,7 +890,7 @@ func TestCreateHostNCApipaEndpoint(t *testing.T) {
 			if tt.wantErr {
 				assert.Error(t, err)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 			assert.Equal(t, tt.want, got)
 		})
@@ -1576,7 +1577,7 @@ func TestDeleteHostNCApipaEndpoint(t *testing.T) {
 			if tt.wantErr {
 				assert.Error(t, err)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}
@@ -1703,7 +1704,7 @@ func TestRequestIPAddress(t *testing.T) {
 			if tt.wantErr {
 				assert.Error(t, err)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 			assert.Equal(t, tt.want, got)
 		})
@@ -1822,7 +1823,7 @@ func TestReleaseIPAddress(t *testing.T) {
 			if tt.wantErr {
 				assert.Error(t, err)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}
@@ -1979,7 +1980,7 @@ func TestRequestIPs(t *testing.T) {
 			if tt.wantErr {
 				assert.Error(t, err)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 			assert.Equal(t, tt.want, got)
 		})
@@ -2126,7 +2127,7 @@ func TestReleaseIPs(t *testing.T) {
 			if tt.wantErr {
 				assert.Error(t, err)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 		})
 	}
@@ -2243,7 +2244,7 @@ func TestGetIPAddressesMatchingStates(t *testing.T) {
 			if tt.wantErr {
 				assert.Error(t, err)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 			assert.Equal(t, tt.want, got)
 		})
@@ -2345,7 +2346,7 @@ func TestGetPodOrchestratorContext(t *testing.T) {
 			if tt.wantErr {
 				assert.Error(t, err)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 			assert.Equal(t, tt.want, got)
 		})
@@ -2445,7 +2446,7 @@ func TestGetHTTPServiceData(t *testing.T) {
 			if tt.wantErr {
 				assert.Error(t, err)
 			} else {
-				assert.NoError(t, err)
+				require.NoError(t, err)
 			}
 			assert.Equal(t, tt.want, got)
 		})
@@ -2608,7 +2609,7 @@ func TestGetAllNCsFromCns(t *testing.T) {
 	}
 
 	got, err := client.GetAllNCsFromCns(context.TODO())
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.Equal(t, exp.Response.ReturnCode, got.Response.ReturnCode)
 }
 
