@@ -835,18 +835,6 @@ func createAndValidateNCRequest(t *testing.T, secondaryIPConfigs map[string]cns.
 	if returnCode != 0 {
 		t.Fatalf("Failed to createNetworkContainerRequest, req: %+v, err: %d", req, returnCode)
 	}
-	_ = svc.IPAMPoolMonitor.Update(&v1alpha.NodeNetworkConfig{
-		Status: v1alpha.NodeNetworkConfigStatus{
-			Scaler: v1alpha.Scaler{
-				BatchSize:               batchSize,
-				ReleaseThresholdPercent: releasePercent,
-				RequestThresholdPercent: requestPercent,
-			},
-		},
-		Spec: v1alpha.NodeNetworkConfigSpec{
-			RequestedIPCount: initPoolSize,
-		},
-	})
 	validateNetworkRequest(t, *req)
 }
 
@@ -1061,18 +1049,6 @@ func createNCReqInternal(t *testing.T, secondaryIPConfigs map[string]cns.Seconda
 	if returnCode != 0 {
 		t.Fatalf("Failed to createNetworkContainerRequest, req: %+v, err: %d", req, returnCode)
 	}
-	_ = svc.IPAMPoolMonitor.Update(&v1alpha.NodeNetworkConfig{
-		Status: v1alpha.NodeNetworkConfigStatus{
-			Scaler: v1alpha.Scaler{
-				BatchSize:               batchSize,
-				ReleaseThresholdPercent: releasePercent,
-				RequestThresholdPercent: requestPercent,
-			},
-		},
-		Spec: v1alpha.NodeNetworkConfigSpec{
-			RequestedIPCount: initPoolSize,
-		},
-	})
 	return *req
 }
 

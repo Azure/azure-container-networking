@@ -61,7 +61,6 @@ type HTTPRestService struct {
 	networkContainer         *networkcontainers.NetworkContainers
 	PodIPIDByPodInterfaceKey map[string][]string                  // PodInterfaceId is key and value is slice of Pod IP (SecondaryIP) uuids.
 	PodIPConfigState         map[string]cns.IPConfigurationStatus // Secondary IP ID(uuid) is key
-	IPAMPoolMonitor          cns.IPAMPoolMonitor
 	routingTable             *routes.RoutingTable
 	store                    store.KeyValueStore
 	state                    *httpRestServiceState
@@ -113,7 +112,6 @@ type GetHTTPServiceDataResponse struct {
 type HTTPRestServiceData struct { //nolint:musttag // not tagging struct for revert-PR
 	PodIPIDByPodInterfaceKey map[string][]string                  // PodInterfaceId is key and value is slice of Pod IP uuids.
 	PodIPConfigState         map[string]cns.IPConfigurationStatus // secondaryipid(uuid) is key
-	IPAMPoolMonitor          cns.IpamPoolMonitorStateSnapshot
 }
 
 type Response struct {

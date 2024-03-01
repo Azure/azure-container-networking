@@ -95,7 +95,7 @@ func getInMemory(ctx context.Context, client *client.Client) error {
 	if err != nil {
 		return err
 	}
-	fmt.Printf("PodIPIDByOrchestratorContext: %v\nPodIPConfigState: %v\nIPAMPoolMonitor: %v\n",
-		data.HTTPRestServiceData.PodIPIDByPodInterfaceKey, data.HTTPRestServiceData.PodIPConfigState, data.HTTPRestServiceData.IPAMPoolMonitor)
+	fmt.Printf("PodIPIDByOrchestratorContext: %v\nPodIPConfigState: %v\n",
+		data.HTTPRestServiceData.PodIPIDByPodInterfaceKey, data.HTTPRestServiceData.PodIPConfigState)
 	return nil
 }

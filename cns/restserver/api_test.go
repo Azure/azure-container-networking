@@ -1686,7 +1686,6 @@ func startService() error {
 	svc = service.(*HTTPRestService)
 	svc.Name = "cns-test-server"
 
-	svc.IPAMPoolMonitor = &fakes.MonitorFake{}
 	nmagentClient.GetNCVersionListF = func(context.Context) (nmagent.NCVersionList, error) {
 		var hostVersionNeedsUpdateContainers []string
 		for idx := range svc.state.ContainerStatus {

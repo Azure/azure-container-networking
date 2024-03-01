@@ -573,15 +573,10 @@ func (service *HTTPRestService) handleDebugPodContext(w http.ResponseWriter, r *
 func (service *HTTPRestService) handleDebugRestData(w http.ResponseWriter, r *http.Request) {
 	service.RLock()
 	defer service.RUnlock()
-	if service.IPAMPoolMonitor == nil {
-		http.Error(w, "not ready", http.StatusServiceUnavailable)
-		return
-	}
 	resp := GetHTTPServiceDataResponse{
 		HTTPRestServiceData: HTTPRestServiceData{
 			PodIPIDByPodInterfaceKey: service.PodIPIDByPodInterfaceKey,
 			PodIPConfigState:         service.PodIPConfigState,
-			IPAMPoolMonitor:          service.IPAMPoolMonitor.GetStateSnapshot(),
 		},
 	}
 	err := service.Listener.Encode(w, &resp)

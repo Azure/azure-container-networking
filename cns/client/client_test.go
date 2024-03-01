@@ -22,13 +22,11 @@ import (
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/restserver"
 	"github.com/Azure/azure-container-networking/cns/types"
-	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 const (
@@ -99,24 +97,6 @@ func addTestStateToRestServer(t *testing.T, secondaryIps []string) {
 	if returnCode != 0 {
 		t.Fatalf("Failed to createNetworkContainerRequest, req: %+v, err: %d", req, returnCode)
 	}
-
-	_ = svc.IPAMPoolMonitor.Update(&v1alpha.NodeNetworkConfig{
-		Spec: v1alpha.NodeNetworkConfigSpec{
-			RequestedIPCount: 16,
-			IPsNotInUse:      []string{"abc"},
-		},
-		Status: v1alpha.NodeNetworkConfigStatus{
-			Scaler: v1alpha.Scaler{
-				BatchSize:               batchSize,
-				ReleaseThresholdPercent: releasePercent,
-				RequestThresholdPercent: requestPercent,
-				MaxIPCount:              250,
-			},
-			NetworkContainers: []v1alpha.NetworkContainer{
-				{},
-			},
-		},
-	})
 }
 
 func getIPNetFromResponse(resp *cns.IPConfigResponse) (net.IPNet, error) {
@@ -174,39 +154,6 @@ func TestMain(m *testing.M) {
 	httpRestService, err := restserver.NewHTTPRestService(&config, &fakes.WireserverClientFake{}, &fakes.WireserverProxyFake{}, &fakes.NMAgentClientFake{}, nil, nil, nil)
 	svc = httpRestService
 	httpRestService.Name = "cns-test-server"
-	fakeNNC := v1alpha.NodeNetworkConfig{
-		TypeMeta:   metav1.TypeMeta{},
-		ObjectMeta: metav1.ObjectMeta{},
-		Spec: v1alpha.NodeNetworkConfigSpec{
-			RequestedIPCount: 16,
-			IPsNotInUse:      []string{"abc"},
-		},
-		Status: v1alpha.NodeNetworkConfigStatus{
-			Scaler: v1alpha.Scaler{
-				BatchSize:               10,
-				ReleaseThresholdPercent: 150,
-				RequestThresholdPercent: 50,
-				MaxIPCount:              250,
-			},
-			NetworkContainers: []v1alpha.NetworkContainer{
-				{
-					ID:         "nc1",
-					PrimaryIP:  "10.0.0.11",
-					SubnetName: "sub1",
-					IPAssignments: []v1alpha.IPAssignment{
-						{
-							Name: "ip1",
-							IP:   "10.0.0.10",
-						},
-					},
-					DefaultGateway:     "10.0.0.1",
-					SubnetAddressSpace: "10.0.0.0/24",
-					Version:            2,
-				},
-			},
-		},
-	}
-	httpRestService.IPAMPoolMonitor = &fakes.MonitorFake{IPsNotInUseCount: 13, NodeNetworkConfig: &fakeNNC}
 
 	if err != nil {
 		logger.Errorf("Failed to create CNS object, err:%v.\n", err)
@@ -369,27 +316,11 @@ func TestCNSClientDebugAPI(t *testing.T) {
 	}
 	assert.NotEmpty(t, inmemory.HTTPRestServiceData.PodIPConfigState, "PodIpConfigState with at least 1 entry expected")
 
-	testIpamPoolMonitor := inmemory.HTTPRestServiceData.IPAMPoolMonitor
-	assert.EqualValues(t, 5, testIpamPoolMonitor.MinimumFreeIps, "IPAMPoolMonitor state is not reflecting the initial set values")
-	assert.EqualValues(t, 15, testIpamPoolMonitor.MaximumFreeIps, "IPAMPoolMonitor state is not reflecting the initial set values")
-	assert.EqualValues(t, 13, testIpamPoolMonitor.UpdatingIpsNotInUseCount, "IPAMPoolMonitor state is not reflecting the initial set values")
-
-	// check for cached NNC Spec struct values
-	assert.EqualValues(t, 16, testIpamPoolMonitor.CachedNNC.Spec.RequestedIPCount, "IPAMPoolMonitor cached NNC Spec is not reflecting the initial set values")
-	assert.Len(t, testIpamPoolMonitor.CachedNNC.Spec.IPsNotInUse, 1, "IPAMPoolMonitor cached NNC Spec is not reflecting the initial set values")
-
-	// check for cached NNC Status struct values
-	assert.EqualValues(t, 10, testIpamPoolMonitor.CachedNNC.Status.Scaler.BatchSize, "IPAMPoolMonitor cached NNC Status is not reflecting the initial set values")
-	assert.EqualValues(t, 150, testIpamPoolMonitor.CachedNNC.Status.Scaler.ReleaseThresholdPercent, "IPAMPoolMonitor cached NNC Status is not reflecting the initial set values")
-	assert.EqualValues(t, 50, testIpamPoolMonitor.CachedNNC.Status.Scaler.RequestThresholdPercent, "IPAMPoolMonitor cached NNC Status is not reflecting the initial set values")
-	assert.Len(t, testIpamPoolMonitor.CachedNNC.Status.NetworkContainers, 1, "Expected only one Network Container in the list")
-
 	t.Logf("In-memory Data: ")
 	for i := range inmemory.HTTPRestServiceData.PodIPIDByPodInterfaceKey {
 		t.Logf("PodIPIDByOrchestratorContext: %+v", inmemory.HTTPRestServiceData.PodIPIDByPodInterfaceKey[i])
 	}
 	t.Logf("PodIPConfigState: %+v", inmemory.HTTPRestServiceData.PodIPConfigState)
-	t.Logf("IPAMPoolMonitor: %+v", inmemory.HTTPRestServiceData.IPAMPoolMonitor)
 }
 
 func TestNew(t *testing.T) {
