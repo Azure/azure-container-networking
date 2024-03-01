@@ -109,7 +109,7 @@ type GetHTTPServiceDataResponse struct {
 }
 
 // HTTPRestServiceData represents in-memory CNS data in the debug API paths.
-type HTTPRestServiceData struct {
+type HTTPRestServiceData struct { //nolint:musttag // not tagging struct for revert-PR
 	PodIPIDByPodInterfaceKey map[string][]string                  // PodInterfaceId is key and value is slice of Pod IP uuids.
 	PodIPConfigState         map[string]cns.IPConfigurationStatus // secondaryipid(uuid) is key
 	IPAMPoolMonitor          cns.IpamPoolMonitorStateSnapshot

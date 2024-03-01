@@ -137,7 +137,7 @@ func getIPNetFromResponse(resp *cns.IPConfigResponse) (net.IPNet, error) {
 		IP:   ip,
 		Mask: ipnet.Mask,
 	}
-	return resultIPnet, err
+	return resultIPnet, err //nolint:wrapcheck // we don't need error wrapping for tests
 }
 
 func TestMain(m *testing.M) {
