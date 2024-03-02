@@ -200,6 +200,9 @@ func (c *Client) SupportedAPIs(ctx context.Context) ([]string, error) {
 	defer resp.Body.Close()
 
 	var out SupportedAPIsResponseXML
+	if resp.StatusCode != http.StatusOK {
+		return out.SupportedApis, die(resp.StatusCode, resp.Header, resp.Body, req.URL.Path)
+	}
 	err = xml.NewDecoder(resp.Body).Decode(&out)
 	if err != nil {
 		return nil, errors.Wrap(err, "decoding response")

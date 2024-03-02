@@ -503,24 +503,35 @@ func TestNMAgentDeleteNC(t *testing.T) {
 
 func TestNMAgentSupportedAPIs(t *testing.T) {
 	tests := []struct {
-		name      string
-		exp       []string
-		expPath   string
-		resp      string
-		shouldErr bool
+		name           string
+		exp            []string
+		expPath        string
+		resp           string
+		respStatusCode int
+		shouldErr      bool
 	}{
 		{
 			"empty",
 			nil,
 			"/machine/plugins?comp=nmagent&type=GetSupportedApis",
 			"<SupportedAPIsResponseXML></SupportedAPIsResponseXML>",
+			http.StatusOK,
 			false,
+		},
+		{
+			"non-200",
+			nil,
+			"/machine/plugins?comp=nmagent&type=GetSupportedApis",
+			"",
+			http.StatusForbidden,
+			true,
 		},
 		{
 			"happy",
 			[]string{"foo"},
 			"/machine/plugins?comp=nmagent&type=GetSupportedApis",
 			"<SupportedAPIsResponseXML><type>foo</type></SupportedAPIsResponseXML>",
+			http.StatusOK,
 			false,
 		},
 	}
@@ -535,6 +546,7 @@ func TestNMAgentSupportedAPIs(t *testing.T) {
 				RoundTripF: func(req *http.Request) (*http.Response, error) {
 					gotPath = req.URL.RequestURI()
 					rr := httptest.NewRecorder()
+					rr.WriteHeader(test.respStatusCode)
 					_, _ = rr.WriteString(test.resp)
 					return rr.Result(), nil
 				},
