@@ -11,6 +11,10 @@ import (
 	"github.com/pkg/errors"
 )
 
+const (
+	WireserverIP = "168.63.129.16"
+)
+
 type GetNetworkContainerOpts struct {
 	NetworkContainerID string
 	PrimaryAddress     string

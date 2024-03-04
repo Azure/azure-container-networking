@@ -756,12 +756,12 @@ func (service *HTTPRestService) SendNCSnapShotPeriodically(ctx context.Context, 
 }
 
 func (service *HTTPRestService) validateIPConfigsRequest(ctx context.Context, ipConfigsRequest cns.IPConfigsRequest) (cns.PodInfo, types.ResponseCode, string) {
-	if service.state.OrchestratorType != cns.KubernetesCRD && service.state.OrchestratorType != cns.Kubernetes && service.state.OrchestratorType != cns.ServiceFabric {
+	if service.state.OrchestratorType != cns.KubernetesCRD && service.state.OrchestratorType != cns.Kubernetes {
 		return nil, types.UnsupportedOrchestratorType, "ReleaseIPConfig API supported only for kubernetes orchestrator"
 	}
 
 	if ipConfigsRequest.OrchestratorContext == nil {
-		return nil, types.EmptyOrchestratorContext, fmt.Sprintf("OrchestratorContext is not set in the req: %+v", ipConfigsRequest)
+		return nil, types.EmptyOrchestratorContext, fmt.Sprintf("OrchastratorContext is not set in the req: %+v", ipConfigsRequest)
 	}
 
 	// retrieve podinfo from orchestrator context
@@ -788,24 +788,6 @@ func (service *HTTPRestService) getPrimaryHostInterface(ctx context.Context) (*w
 		service.state.primaryInterface = primary
 	}
 	return service.state.primaryInterface, nil
-}
-
-// getSecondaryHostInterface returns the cached InterfaceInfo, if available, otherwise
-// queries the IMDS to get the secondary interface info and caches it in the server-state before returning the result.
-func (service *HTTPRestService) getSecondaryHostInterface(ctx context.Context, macAddress string) (*wireserver.InterfaceInfo, error) {
-	if service.state.secondaryInterface == nil {
-		res, err := service.wscli.GetInterfaces(ctx)
-		if err != nil {
-			return nil, errors.Wrap(err, "failed to get interfaces from wireserver client")
-		}
-		secondary, err := wireserver.GetSecondaryInterfaceFromResult(res, macAddress)
-		if err != nil {
-			return nil, errors.Wrap(err, "failed to get secondary interface from wireserver client")
-		}
-
-		service.state.secondaryInterface = secondary
-	}
-	return service.state.secondaryInterface, nil
 }
 
 //nolint:gocritic // ignore hugeParam pls

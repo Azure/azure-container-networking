@@ -36,6 +36,7 @@ const (
 
 // requestIPConfigHandlerHelper validates the request, assign IPs and return the IPConfigs
 func (service *HTTPRestService) requestIPConfigHandlerHelper(ctx context.Context, ipconfigsRequest cns.IPConfigsRequest) (*cns.IPConfigsResponse, error) {
+	// For SWIFT v2 scenario, the validator function will also modify the ipconfigsRequest.
 	podInfo, returnCode, returnMessage := service.validateIPConfigsRequest(ctx, ipconfigsRequest)
 	if returnCode != types.Success {
 		return &cns.IPConfigsResponse{
@@ -45,9 +46,11 @@ func (service *HTTPRestService) requestIPConfigHandlerHelper(ctx context.Context
 			},
 		}, errors.New("failed to validate ip config request")
 	}
+
 	// record a pod requesting an IP
 	service.podsPendingIPAssignment.Push(podInfo.Key())
-	podIPInfo, err := requestIPConfigsHelper(service, ipconfigsRequest) //nolint:contextcheck // to refactor later
+
+	podIPInfo, err := requestIPConfigsHelper(service, ipconfigsRequest) //nolint:contextcheck // appease linter for revert PR
 	if err != nil {
 		return &cns.IPConfigsResponse{
 			Response: cns.Response{
@@ -57,6 +60,7 @@ func (service *HTTPRestService) requestIPConfigHandlerHelper(ctx context.Context
 			PodIPInfo: podIPInfo,
 		}, err
 	}
+
 	// record a pod assigned an IP
 	defer func() {
 		// observe IP assignment wait time
@@ -64,6 +68,7 @@ func (service *HTTPRestService) requestIPConfigHandlerHelper(ctx context.Context
 			ipAssignmentLatency.Observe(since.Seconds())
 		}
 	}()
+
 	// Check if http rest service managed endpoint state is set
 	if service.Options[common.OptManageEndpointState] == true {
 		err = service.updateEndpointState(ipconfigsRequest, podInfo, podIPInfo)
@@ -77,6 +82,7 @@ func (service *HTTPRestService) requestIPConfigHandlerHelper(ctx context.Context
 			}, err
 		}
 	}
+
 	return &cns.IPConfigsResponse{
 		Response: cns.Response{
 			ReturnCode: types.Success,
@@ -187,52 +193,9 @@ func (service *HTTPRestService) requestIPConfigsHandler(w http.ResponseWriter, r
 		return
 	}
 
-	if ipConfigsResp.PodIPInfo[0].AddInterfacesDataToPodInfo {
-		ipConfigsResp, err = service.updatePodInfoWithInterfaces(r.Context(), ipConfigsResp)
-		if err != nil {
-			w.Header().Set(cnsReturnCode, ipConfigsResp.Response.ReturnCode.String())
-			err = service.Listener.Encode(w, &ipConfigsResp)
-			logger.ResponseEx(service.Name+operationName, ipconfigsRequest, ipConfigsResp, ipConfigsResp.Response.ReturnCode, err)
-			return
-		}
-	}
-
 	w.Header().Set(cnsReturnCode, ipConfigsResp.Response.ReturnCode.String())
 	err = service.Listener.Encode(w, &ipConfigsResp)
 	logger.ResponseEx(service.Name+operationName, ipconfigsRequest, ipConfigsResp, ipConfigsResp.Response.ReturnCode, err)
-}
-
-func (service *HTTPRestService) updatePodInfoWithInterfaces(ctx context.Context, ipconfigResponse *cns.IPConfigsResponse) (*cns.IPConfigsResponse, error) {
-	podIPInfoList := make([]cns.PodIpInfo, 0, len(ipconfigResponse.PodIPInfo))
-	for i := range ipconfigResponse.PodIPInfo {
-		// populating podIpInfo with primary & secondary interface info & updating IpConfigsResponse
-		hostPrimaryInterface, err := service.getPrimaryHostInterface(ctx)
-		if err != nil {
-			return &cns.IPConfigsResponse{}, err
-		}
-
-		hostSecondaryInterface, err := service.getSecondaryHostInterface(ctx, ipconfigResponse.PodIPInfo[i].MacAddress)
-		if err != nil {
-			return &cns.IPConfigsResponse{}, err
-		}
-
-		ipconfigResponse.PodIPInfo[i].HostPrimaryIPInfo = cns.HostIPInfo{
-			Gateway:   hostPrimaryInterface.Gateway,
-			PrimaryIP: hostPrimaryInterface.PrimaryIP,
-			Subnet:    hostPrimaryInterface.Subnet,
-		}
-
-		ipconfigResponse.PodIPInfo[i].HostSecondaryIPInfo = cns.HostIPInfo{
-			Gateway:     hostSecondaryInterface.Gateway,
-			SecondaryIP: hostSecondaryInterface.SecondaryIPs[0],
-			Subnet:      hostSecondaryInterface.Subnet,
-		}
-
-		podIPInfoList = append(podIPInfoList, ipconfigResponse.PodIPInfo[i])
-
-	}
-	ipconfigResponse.PodIPInfo = podIPInfoList
-	return ipconfigResponse, nil
 }
 
 func (service *HTTPRestService) updateEndpointState(ipconfigsRequest cns.IPConfigsRequest, podInfo cns.PodInfo, podIPInfo []cns.PodIpInfo) error {
@@ -614,8 +577,8 @@ func (service *HTTPRestService) handleDebugRestData(w http.ResponseWriter, r *ht
 		http.Error(w, "not ready", http.StatusServiceUnavailable)
 		return
 	}
-	resp := cns.GetHTTPServiceDataResponse{
-		HTTPRestServiceData: cns.HTTPRestServiceData{
+	resp := GetHTTPServiceDataResponse{
+		HTTPRestServiceData: HTTPRestServiceData{
 			PodIPIDByPodInterfaceKey: service.PodIPIDByPodInterfaceKey,
 			PodIPConfigState:         service.PodIPConfigState,
 			IPAMPoolMonitor:          service.IPAMPoolMonitor.GetStateSnapshot(),
