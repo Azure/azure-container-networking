@@ -243,7 +243,6 @@ swiftv2-multitenancy-cluster-up: rg-up
 		--no-ssh-key \
 		--yes
 	@$(MAKE) set-kubeconf
---network-plugin azure --network-plugin-mode overlay --location centraluseuap --kubernetes-version 1.28 --nodepool-name "mtapool0" --nodepool-tags fastpathenabled=true
 
 swiftv2-dummy-cluster-up: rg-up swift-net-up ## Bring up a SWIFT AzCNI cluster
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \

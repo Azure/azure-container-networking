@@ -505,7 +505,7 @@ stages:
         dependsOn: "test"
 
     # Swiftv2 E2E tests with multitenancy cluster start up
-    - template: singletenancy/multitenancy/swiftv2-e2e-job-template.yaml
+    - template: multitenancy/swiftv2-e2e-job-template.yaml
       parameters:
         name: "swiftv2_e2e"
         displayName: Swiftv2 Multitenancy
@@ -515,17 +515,20 @@ stages:
         nodePoolName: "mtapool"
         vmSize: Standard_D4_v2
         dependsOn: "test"
+        dummyClusterName: "swiftv2dummy"
+        dummyClusterType: "swiftv2-dummy-cluster-up"
+        dummyClusterDisplayName: Swiftv2 Multitenancy Dummy Cluster
 
     # Swiftv2 E2E tests with dummy cluster start up
-    - template: singletenancy/multitenancy/swiftv2-e2e-job-template.yaml
-      parameters:
-        name: "swiftv2_e2e_dummy"
-        displayName: Swiftv2 Multitenancy Dummy Cluster
-        os: linux
-        clusterType: swiftv2-dummy-cluster-up
-        clusterName: "mtcluster"
-        vmSize: Standard_D4_v2
-        dependsOn: "test"
+    # - template: multitenancy/swiftv2-e2e-job-template.yaml
+    #   parameters:
+    #     name: "swiftv2_e2e_dummy"
+    #     displayName: Swiftv2 Multitenancy Dummy Cluster
+    #     os: linux
+    #     clusterType: swiftv2-dummy-cluster-up
+    #     clusterName: "mtcluster"
+    #     vmSize: Standard_D4_v2
+    #     dependsOn: "test"
 
     - stage: delete
       displayName: Delete Clusters
@@ -541,6 +544,7 @@ stages:
         - aks_windows_22_e2e
         - dualstackoverlay_e2e
         - cilium_dualstackoverlay_e2e
+        - swiftv2_e2e
       variables:
         commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
       jobs:
@@ -589,6 +593,9 @@ stages:
               cilium_dualstackoverlay_e2e:
                 name: cilium_dualstackoverlay_e2e
                 clusterName: "cildsovere2e"
+              aswiftv2_e2e:
+                name: swiftv2_e2e
+                clusterName: "mtcluster"
           steps:
             - template: templates/delete-cluster.yaml
               parameters:
@@ -615,3 +622,35 @@ stages:
                 echo $TAG
                 echo $CURRENT_VERSION
                 echo "Checking if branch is up to date with master"
+
+    - stage: cleanup
+      displayName: Cleanup
+      dependsOn:
+        - azure_overlay_e2e
+        - aks_swift_e2e
+        - cilium_e2e
+        - cilium_overlay_e2e
+        - cilium_h_overlay_e2e
+        - aks_ubuntu_22_linux_e2e
+        - aks_windows_22_e2e
+        - dualstackoverlay_e2e
+        - cilium_dualstackoverlay_e2e
+        - swiftv2_e2e
+      jobs:
+        - job: delete_remote_artifacts
+          displayName: Delete remote artifacts
+          pool:
+            name: $(BUILD_POOL_NAME_DEFAULT)
+            demands: agent.os -equals Linux
+          steps:
+            - checkout: none
+            - task: AzureCLI@1
+              inputs:
+                azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+                scriptLocation: "inlineScript"
+                inlineScript: |
+                  BUILD_NUMBER=$(Build.BuildNumber)
+                  BUILD_NUMBER=${BUILD_NUMBER//./-}
+                  echo Deleting storage container with name acn-$BUILD_NUMBER and account name $(STORAGE_ACCOUNT_NAME)
+                  az storage container delete -n acn-$BUILD_NUMBER --account-name $(STORAGE_ACCOUNT_NAME)
+              displayName: Cleanup remote Azure storage container
