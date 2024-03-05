@@ -90,7 +90,7 @@ stages:
           - cni_linux
         condition: in(dependencies.${{ parameters.name }}_linux.result, 'Failed')
         steps:
-          - template: ../../templates/log-template.yaml
+          - template: ../templates/log-template.yaml
             parameters:
               clusterName: ${{ parameters.clusterName }}-$(commitID)
               os: linux
