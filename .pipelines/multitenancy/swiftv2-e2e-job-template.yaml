@@ -87,7 +87,6 @@ stages:
         displayName: "Linux Failure Logs"
         dependsOn:
           - ${{ parameters.name }}_linux
-          - cni_linux
         condition: in(dependencies.${{ parameters.name }}_linux.result, 'Failed')
         steps:
           - template: ../templates/log-template.yaml
