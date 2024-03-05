@@ -504,6 +504,29 @@ stages:
         vmSize: Standard_B2ms
         dependsOn: "test"
 
+    # Swiftv2 E2E tests with multitenancy cluster start up
+    - template: singletenancy/multitenancy/swiftv2-e2e-job-template.yaml
+      parameters:
+        name: "swiftv2_e2e"
+        displayName: Swiftv2 Multitenancy
+        os: linux
+        clusterType: swiftv2-multitenancy-cluster-up
+        clusterName: "mtcluster"
+        nodePoolName: "mtapool"
+        vmSize: Standard_D4_v2
+        dependsOn: "test"
+
+    # Swiftv2 E2E tests with dummy cluster start up
+    - template: singletenancy/multitenancy/swiftv2-e2e-job-template.yaml
+      parameters:
+        name: "swiftv2_e2e_dummy"
+        displayName: Swiftv2 Multitenancy Dummy Cluster
+        os: linux
+        clusterType: swiftv2-dummy-cluster-up
+        clusterName: "mtcluster"
+        vmSize: Standard_D4_v2
+        dependsOn: "test"
+
     - stage: delete
       displayName: Delete Clusters
       condition: always()
