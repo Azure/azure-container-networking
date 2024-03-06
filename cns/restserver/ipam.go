@@ -91,8 +91,8 @@ func (service *HTTPRestService) requestIPConfigHandlerHelper(ctx context.Context
 	}, nil
 }
 
-// requestIPConfigHandler requests an IPConfig from the CNS state
-func (service *HTTPRestService) requestIPConfigHandler(w http.ResponseWriter, r *http.Request) {
+// RequestIPConfigHandler requests an IPConfig from the CNS state
+func (service *HTTPRestService) RequestIPConfigHandler(w http.ResponseWriter, r *http.Request) {
 	var ipconfigRequest cns.IPConfigRequest
 	err := service.Listener.Decode(w, r, &ipconfigRequest)
 	operationName := "requestIPConfigHandler"
@@ -166,8 +166,8 @@ func (service *HTTPRestService) requestIPConfigHandler(w http.ResponseWriter, r 
 	logger.ResponseEx(service.Name+operationName, ipconfigsRequest, reserveResp, reserveResp.Response.ReturnCode, err)
 }
 
-// requestIPConfigsHandler requests multiple IPConfigs from the CNS state
-func (service *HTTPRestService) requestIPConfigsHandler(w http.ResponseWriter, r *http.Request) {
+// RequestIPConfigsHandler requests multiple IPConfigs from the CNS state
+func (service *HTTPRestService) RequestIPConfigsHandler(w http.ResponseWriter, r *http.Request) {
 	var ipconfigsRequest cns.IPConfigsRequest
 	err := service.Listener.Decode(w, r, &ipconfigsRequest)
 	operationName := "requestIPConfigsHandler"
@@ -301,8 +301,8 @@ func (service *HTTPRestService) releaseIPConfigHandlerHelper(ctx context.Context
 	}, nil
 }
 
-// releaseIPConfigHandler frees the IP assigned to a pod from CNS
-func (service *HTTPRestService) releaseIPConfigHandler(w http.ResponseWriter, r *http.Request) {
+// ReleaseIPConfigHandler frees the IP assigned to a pod from CNS
+func (service *HTTPRestService) ReleaseIPConfigHandler(w http.ResponseWriter, r *http.Request) {
 	var ipconfigRequest cns.IPConfigRequest
 	err := service.Listener.Decode(w, r, &ipconfigRequest)
 	logger.Request(service.Name+"releaseIPConfigHandler", ipconfigRequest, err)
@@ -354,8 +354,8 @@ func (service *HTTPRestService) releaseIPConfigHandler(w http.ResponseWriter, r 
 	logger.ResponseEx(service.Name, ipconfigRequest, resp, resp.Response.ReturnCode, err)
 }
 
-// releaseIPConfigsHandler frees multiple IPConfigs from the CNS state
-func (service *HTTPRestService) releaseIPConfigsHandler(w http.ResponseWriter, r *http.Request) {
+// ReleaseIPConfigsHandler frees multiple IPConfigs from the CNS state
+func (service *HTTPRestService) ReleaseIPConfigsHandler(w http.ResponseWriter, r *http.Request) {
 	var ipconfigsRequest cns.IPConfigsRequest
 	err := service.Listener.Decode(w, r, &ipconfigsRequest)
 	logger.Request(service.Name+"releaseIPConfigsHandler", ipconfigsRequest, err)
@@ -560,7 +560,7 @@ func (service *HTTPRestService) GetPodIPConfigState() map[string]cns.IPConfigura
 	return podIPConfigState
 }
 
-func (service *HTTPRestService) handleDebugPodContext(w http.ResponseWriter, r *http.Request) {
+func (service *HTTPRestService) HandleDebugPodContext(w http.ResponseWriter, r *http.Request) {
 	service.RLock()
 	defer service.RUnlock()
 	resp := cns.GetPodContextResponse{
@@ -570,7 +570,7 @@ func (service *HTTPRestService) handleDebugPodContext(w http.ResponseWriter, r *
 	logger.Response(service.Name, resp, resp.Response.ReturnCode, err)
 }
 
-func (service *HTTPRestService) handleDebugRestData(w http.ResponseWriter, r *http.Request) {
+func (service *HTTPRestService) HandleDebugRestData(w http.ResponseWriter, r *http.Request) {
 	service.RLock()
 	defer service.RUnlock()
 	resp := GetHTTPServiceDataResponse{
@@ -583,7 +583,7 @@ func (service *HTTPRestService) handleDebugRestData(w http.ResponseWriter, r *ht
 	logger.Response(service.Name, resp, resp.Response.ReturnCode, err)
 }
 
-func (service *HTTPRestService) handleDebugIPAddresses(w http.ResponseWriter, r *http.Request) {
+func (service *HTTPRestService) HandleDebugIPAddresses(w http.ResponseWriter, r *http.Request) {
 	var req cns.GetIPAddressesRequest
 	if err := service.Listener.Decode(w, r, &req); err != nil {
 		resp := cns.GetIPAddressStatusResponse{

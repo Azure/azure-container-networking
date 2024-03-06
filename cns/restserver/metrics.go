@@ -20,7 +20,7 @@ const (
 )
 
 var (
-	httpRequestLatency = prometheus.NewHistogramVec(
+	HttpRequestLatency = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Name: "http_request_latency_seconds",
 			Help: "Request latency in seconds by endpoint, verb, and response code.",
@@ -106,7 +106,7 @@ var (
 
 func init() {
 	metrics.Registry.MustRegister(
-		httpRequestLatency,
+		HttpRequestLatency,
 		ipAssignmentLatency,
 		ipConfigStatusStateTransitionTime,
 		syncHostNCVersionCount,
@@ -123,7 +123,7 @@ func init() {
 // Hard tto do with middleware unless we derserialize the responses but making it an explit header works around it.
 // if that doesn't work we could have a separate countervec just for response codes.
 
-func newHandlerFuncWithHistogram(handler http.HandlerFunc, histogram *prometheus.HistogramVec) http.HandlerFunc {
+func NewHandlerFuncWithHistogram(handler http.HandlerFunc, histogram *prometheus.HistogramVec) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
 		start := time.Now()
 		defer func() {

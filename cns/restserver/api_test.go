@@ -1238,12 +1238,12 @@ func TestNmAgentSupportedApisHandler(t *testing.T) {
 
 	err = decodeResponse(w, &nmAgentSupportedApisResponse)
 	if err != nil || nmAgentSupportedApisResponse.Response.ReturnCode != 0 {
-		t.Errorf("nmAgentSupportedApisHandler failed with response %+v", nmAgentSupportedApisResponse)
+		t.Errorf("NmAgentSupportedApisHandler failed with response %+v", nmAgentSupportedApisResponse)
 	}
 
 	// Since we are testing the NMAgent API in internalapi_test, we will skip POST call
 	// and test other paths
-	fmt.Printf("nmAgentSupportedApisHandler Responded with %+v\n", nmAgentSupportedApisResponse)
+	fmt.Printf("NmAgentSupportedApisHandler Responded with %+v\n", nmAgentSupportedApisResponse)
 }
 
 // Testing GetHomeAz API handler, return UnsupportedVerb if http method is not supported
