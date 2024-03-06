@@ -20,7 +20,7 @@ const (
 )
 
 var (
-	HttpRequestLatency = prometheus.NewHistogramVec(
+	HTTPRequestLatency = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Name: "http_request_latency_seconds",
 			Help: "Request latency in seconds by endpoint, verb, and response code.",
@@ -106,7 +106,7 @@ var (
 
 func init() {
 	metrics.Registry.MustRegister(
-		HttpRequestLatency,
+		HTTPRequestLatency,
 		ipAssignmentLatency,
 		ipConfigStatusStateTransitionTime,
 		syncHostNCVersionCount,

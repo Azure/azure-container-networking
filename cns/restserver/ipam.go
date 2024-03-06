@@ -560,7 +560,7 @@ func (service *HTTPRestService) GetPodIPConfigState() map[string]cns.IPConfigura
 	return podIPConfigState
 }
 
-func (service *HTTPRestService) HandleDebugPodContext(w http.ResponseWriter, r *http.Request) {
+func (service *HTTPRestService) HandleDebugPodContext(w http.ResponseWriter, r *http.Request) { //nolint
 	service.RLock()
 	defer service.RUnlock()
 	resp := cns.GetPodContextResponse{
@@ -570,7 +570,7 @@ func (service *HTTPRestService) HandleDebugPodContext(w http.ResponseWriter, r *
 	logger.Response(service.Name, resp, resp.Response.ReturnCode, err)
 }
 
-func (service *HTTPRestService) HandleDebugRestData(w http.ResponseWriter, r *http.Request) {
+func (service *HTTPRestService) HandleDebugRestData(w http.ResponseWriter, r *http.Request) { //nolint
 	service.RLock()
 	defer service.RUnlock()
 	resp := GetHTTPServiceDataResponse{
