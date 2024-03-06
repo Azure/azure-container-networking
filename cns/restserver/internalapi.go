@@ -124,7 +124,7 @@ func (service *HTTPRestService) SyncNodeStatus(dncEP, infraVnet, nodeID string, 
 			req.Header.Set(common.ContentType, common.JsonContent)
 
 			w := httptest.NewRecorder()
-			service.createOrUpdateNetworkContainer(w, req)
+			service.CreateOrUpdateNetworkContainer(w, req)
 			result := w.Result()
 			if result.StatusCode == http.StatusOK {
 				var resp cns.CreateNetworkContainerResponse

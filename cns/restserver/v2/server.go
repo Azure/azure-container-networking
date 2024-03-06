@@ -17,7 +17,7 @@ func New(s *restserver.HTTPRestService) *Server {
 	return &Server{s}
 }
 
-func (s *Server) Start(log *zap.Logger, addr string) {
+func (s Server) Start(log *zap.Logger, addr string) {
 	e := echo.New()
 	e.HideBanner = true
 	e.GET(cns.RequestIPConfig, echo.WrapHandler(restserver.NewHandlerFuncWithHistogram(s.RequestIPConfigHandler, restserver.HttpRequestLatency)))
