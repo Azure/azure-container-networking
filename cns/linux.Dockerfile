@@ -8,8 +8,7 @@ RUN CGO_ENABLED=0 go build -a -o /usr/local/bin/azure-cns -ldflags "-X main.vers
 RUN CGO_ENABLED=0 go build -a -o /usr/local/bin/azure-vnet-telemetry -ldflags "-X main.version="$VERSION"" -gcflags="-dwarflocationlists=true" cni/telemetry/service/*.go
 
 FROM mcr.microsoft.com/cbl-mariner/base/core:2.0
-RUN tdnf upgrade -y && tdnf install -y ca-certificates
-RUN tdnf install -y iptables
+RUN tdnf upgrade -y && tdnf install -y ca-certificates iptables
 COPY --from=builder /etc/passwd /etc/passwd
 COPY --from=builder /etc/group /etc/group
 COPY --from=builder /usr/local/bin/azure-cns \
