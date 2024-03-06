@@ -284,5 +284,5 @@ func (m *K8sSWIFTv2Middleware) setRoutes(podIPInfo *cns.PodIpInfo) error {
 }
 
 func (m *K8sSWIFTv2Middleware) GetMiddlewareType() configuration.SWIFTV2Mode {
-	return configuration.SFSWIFTV2
+	return configuration.K8sSWIFTV2
 }

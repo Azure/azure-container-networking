@@ -3,9 +3,8 @@ package middlewares
 import (
 	"context"
 
-	"github.com/Azure/azure-container-networking/cns/configuration"
-
 	"github.com/Azure/azure-container-networking/cns"
+	"github.com/Azure/azure-container-networking/cns/configuration"
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/pkg/errors"
 )
