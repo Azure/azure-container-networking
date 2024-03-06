@@ -801,6 +801,12 @@ func main() {
 		if platform.HasMellanoxAdapter() {
 			go platform.MonitorAndSetMellanoxRegKeyPriorityVLANTag(rootCtx, cnsconfig.MellanoxMonitorIntervalSecs)
 		}
+
+		// if swiftv2 scenario is enabled, we need to initialize the Service Fabric (standalone) swiftv2 middleware to process IP configs requests
+		if cnsconfig.SWIFTV2Mode == configuration.SFSWIFTV2 {
+			swiftV2Middleware := &middlewares.SFSWIFTv2Middleware{}
+			httpRestService.AttachIPConfigsHandlerMiddleware(swiftV2Middleware)
+		}
 	}
 
 	// Initialze state in if CNS is running in CRD mode
@@ -1220,7 +1226,7 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 
 	// check the Node labels for Swift V2
 	if _, ok := node.Labels[configuration.LabelNodeSwiftV2]; ok {
-		cnsconfig.EnableSwiftV2 = true
+		cnsconfig.SWIFTV2Mode = configuration.K8sSWIFTV2
 		cnsconfig.WatchPods = true
 		if nodeInfoErr := createOrUpdateNodeInfoCRD(ctx, kubeConfig, node); nodeInfoErr != nil {
 			return errors.Wrap(nodeInfoErr, "error creating or updating nodeinfo crd")
@@ -1404,22 +1410,13 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 		}
 	}
 
-	if cnsconfig.EnableSwiftV2 {
+	if cnsconfig.SWIFTV2Mode == configuration.K8sSWIFTV2 {
 		if err := mtpncctrl.SetupWithManager(manager); err != nil {
 			return errors.Wrapf(err, "failed to setup mtpnc reconciler with manager")
 		}
 		// if SWIFT v2 is enabled on CNS, attach multitenant middleware to rest service
-		// switch here for different type of swift v2 middleware (k8s or SF)
-		var swiftV2Middleware cns.IPConfigsHandlerMiddleware
-		switch cnsconfig.SWIFTV2Mode {
-		case configuration.K8sSWIFTV2:
-			swiftV2Middleware = &middlewares.K8sSWIFTv2Middleware{Cli: manager.GetClient()}
-		case configuration.SFSWIFTV2:
-		default:
-			// default to K8s middleware for now, in a later changes we where start to pass in
-			// SWIFT v2 mode in CNS config, this should throw an error if the mode is not set.
-			swiftV2Middleware = &middlewares.K8sSWIFTv2Middleware{Cli: manager.GetClient()}
-		}
+		// switch here for AKS(K8s) swiftv2 middleware to process IP configs requests
+		swiftV2Middleware := &middlewares.K8sSWIFTv2Middleware{Cli: manager.GetClient()}
 		httpRestService.AttachIPConfigsHandlerMiddleware(swiftV2Middleware)
 	}
 

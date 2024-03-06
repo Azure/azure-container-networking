@@ -147,6 +147,7 @@ type httpRestServiceState struct {
 	TimeStamp                        time.Time
 	joinedNetworks                   map[string]struct{}
 	primaryInterface                 *wireserver.InterfaceInfo
+	secondaryInterface               *wireserver.InterfaceInfo
 }
 
 type networkInfo struct {

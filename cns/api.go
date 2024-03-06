@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/Azure/azure-container-networking/cns/configuration"
+
 	"github.com/Azure/azure-container-networking/cns/common"
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
@@ -59,6 +61,7 @@ type IPConfigsHandlerFunc func(context.Context, IPConfigsRequest) (*IPConfigsRes
 // IPConfigsHandlerMiddleware
 type IPConfigsHandlerMiddleware interface {
 	IPConfigsRequestHandlerWrapper(defaultHandler IPConfigsHandlerFunc, failureHandler IPConfigsHandlerFunc) IPConfigsHandlerFunc
+	GetMiddlewareType() configuration.SWIFTV2Mode
 }
 
 // This is used for KubernetesCRD orchestrator Type where NC has multiple ips.
