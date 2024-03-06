@@ -1,7 +1,7 @@
 ARG ARCH
 ARG DROPGZ_VERSION=v0.0.12
-ARG OS
 ARG OS_VERSION
+ARG OS
 
 FROM --platform=linux/${ARCH} mcr.microsoft.com/oss/go/microsoft/golang:1.21 AS azure-ipam
 ARG OS
@@ -27,6 +27,10 @@ WORKDIR /go/pkg/mod/github.com/azure/azure-container-networking/dropgz\@$DROPGZ_
 COPY --from=compressor /payload/* pkg/embed/fs/
 RUN GOOS=$OS CGO_ENABLED=0 go build -a -o /go/bin/dropgz -trimpath -ldflags "-X github.com/Azure/azure-container-networking/dropgz/internal/buildinfo.Version="$VERSION"" -gcflags="-dwarflocationlists=true" main.go
 
-FROM mcr.microsoft.com/windows/nanoserver:${OS_VERSION}
+FROM scratch as linux
 COPY --from=dropgz /go/bin/dropgz dropgz
 ENTRYPOINT [ "/dropgz" ]
+
+FROM mcr.microsoft.com/windows/nanoserver:${OS_VERSION} as windows
+COPY --from=dropgz /go/bin/dropgz dropgz.exe
+ENTRYPOINT [ "/dropgz.exe" ]

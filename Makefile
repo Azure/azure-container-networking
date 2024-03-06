@@ -269,10 +269,16 @@ qemu-user-static: ## Set up the host to run qemu multiplatform container builds.
 
 container-buildah: # util target to build container images using buildah. do not invoke directly.
 	buildah bud \
+		--build-arg ARCH=$(ARCH) \
+		--build-arg OS=$(OS) \
+		--build-arg OS_VERSION=$(OS_VERSION) \
+		--build-arg PLATFORM=$(PLATFORM) \
+		--build-arg VERSION=$(TAG) \
+		$(EXTRA_BUILD_ARGS) \
 		--jobs 16 \
 		--platform $(PLATFORM) \
+		--target $(TARGET) \
 		-f $(DOCKERFILE) \
-		--build-arg VERSION=$(TAG) $(EXTRA_BUILD_ARGS) \
 		-t $(IMAGE_REGISTRY)/$(IMAGE):$(TAG) \
 		.
 	buildah push $(IMAGE_REGISTRY)/$(IMAGE):$(TAG)
@@ -281,19 +287,26 @@ container-docker: # util target to build container images using docker buildx. d
 	docker buildx create --use --platform $(PLATFORM)
 	docker buildx build \
 		$(BUILDX_ACTION) \
+		--build-arg ARCH=$(ARCH) \
+		--build-arg OS=$(OS) \
+		--build-arg OS_VERSION=$(OS_VERSION) \
+		--build-arg PLATFORM=$(PLATFORM) \
+		--build-arg VERSION=$(TAG) \
+		$(EXTRA_BUILD_ARGS) \
 		--platform $(PLATFORM) \
+		--target $(TARGET) \
 		-f $(DOCKERFILE) \
-		--build-arg VERSION=$(TAG) $(EXTRA_BUILD_ARGS) \
 		-t $(IMAGE_REGISTRY)/$(IMAGE):$(TAG) \
 		.
 
 container: # util target to build container images. do not invoke directly.
 	$(MAKE) container-$(CONTAINER_BUILDER) \
+		ARCH=$(ARCH) \
+		OS=$(OS) \
+		OS_VERSION=$(OS_VERSION) \
 		PLATFORM=$(PLATFORM) \
 		TAG=$(TAG) \
-		OS=$(OS) \
-		ARCH=$(ARCH) \
-		OS_VERSION=$(OS_VERSION)
+		TARGET=$(TARGET)
 
 container-push: # util target to publish container image. do not invoke directly.
 	$(CONTAINER_BUILDER) push \
@@ -341,11 +354,11 @@ azure-ipam-image-name-and-tag: # util target to print the azure-ipam image name 
 
 azure-ipam-image: ## build azure-ipam container image.
 	$(MAKE) container \
-		DOCKERFILE=azure-ipam/$(OS).Dockerfile \
+		DOCKERFILE=azure-ipam/Dockerfile \
 		IMAGE=$(AZURE_IPAM_IMAGE) \
-		EXTRA_BUILD_ARGS='--build-arg OS=$(OS) --build-arg ARCH=$(ARCH) --build-arg OS_VERSION=$(OS_VERSION)' \
 		PLATFORM=$(PLATFORM) \
 		TAG=$(AZURE_IPAM_PLATFORM_TAG) \
+		TARGET=$(OS) \
 		OS=$(OS) \
 		ARCH=$(ARCH) \
 		OS_VERSION=$(OS_VERSION)
@@ -371,11 +384,11 @@ cni-image-name-and-tag: # util target to print the cni image name and tag.
 
 cni-image: ## build cni container image.
 	$(MAKE) container \
-		DOCKERFILE=cni/$(OS).Dockerfile \
+		DOCKERFILE=cni/Dockerfile \
 		IMAGE=$(CNI_IMAGE) \
-		EXTRA_BUILD_ARGS='--build-arg OS=$(OS) --build-arg ARCH=$(ARCH) --build-arg OS_VERSION=$(OS_VERSION)' \
 		PLATFORM=$(PLATFORM) \
 		TAG=$(CNI_PLATFORM_TAG) \
+		TARGET=$(OS) \
 		OS=$(OS) \
 		ARCH=$(ARCH) \
 		OS_VERSION=$(OS_VERSION)
@@ -402,7 +415,6 @@ cni-dropgz-image-name-and-tag: # util target to print the CNI dropgz image name 
 cni-dropgz-image: ## build cni-dropgz container image.
 	$(MAKE) container \
 		DOCKERFILE=dropgz/build/$(OS).Dockerfile \
-		EXTRA_BUILD_ARGS='--build-arg OS=$(OS) --build-arg ARCH=$(ARCH) --build-arg OS_VERSION=$(OS_VERSION)' \
 		IMAGE=$(CNI_DROPGZ_IMAGE) \
 		TAG=$(CNI_DROPGZ_PLATFORM_TAG)
 
@@ -427,11 +439,12 @@ cns-image-name-and-tag: # util target to print the CNS image name and tag.
 
 cns-image: ## build cns container image.
 	$(MAKE) container \
-		DOCKERFILE=cns/$(OS).Dockerfile \
+		DOCKERFILE=cns/Dockerfile \
 		IMAGE=$(CNS_IMAGE) \
-		EXTRA_BUILD_ARGS='--build-arg CNS_AI_PATH=$(CNS_AI_PATH) --build-arg CNS_AI_ID=$(CNS_AI_ID) --build-arg OS_VERSION=$(OS_VERSION)' \
+		EXTRA_BUILD_ARGS='--build-arg CNS_AI_PATH=$(CNS_AI_PATH) --build-arg CNS_AI_ID=$(CNS_AI_ID)' \
 		PLATFORM=$(PLATFORM) \
 		TAG=$(CNS_PLATFORM_TAG) \
+		TARGET=$(OS) \
 		OS=$(OS) \
 		ARCH=$(ARCH) \
 		OS_VERSION=$(OS_VERSION)
@@ -458,9 +471,10 @@ npm-image: ## build the npm container image.
 	$(MAKE) container-$(CONTAINER_BUILDER) \
 		DOCKERFILE=npm/$(OS).Dockerfile \
 		IMAGE=$(NPM_IMAGE) \
-		EXTRA_BUILD_ARGS='--build-arg NPM_AI_PATH=$(NPM_AI_PATH) --build-arg NPM_AI_ID=$(NPM_AI_ID) --build-arg OS_VERSION=$(OS_VERSION)' \
+		EXTRA_BUILD_ARGS='--build-arg NPM_AI_PATH=$(NPM_AI_PATH) --build-arg NPM_AI_ID=$(NPM_AI_ID)' \
 		PLATFORM=$(PLATFORM) \
-		TAG=$(NPM_PLATFORM_TAG)\
+		TAG=$(NPM_PLATFORM_TAG) \
+		TARGET=$(OS) \
 		OS=$(OS) \
 		ARCH=$(ARCH) \
 		OS_VERSION=$(OS_VERSION)
@@ -529,8 +543,6 @@ manifest-build: # util target to compose multiarch container manifests from plat
 			$(MAKE) manifest-add PLATFORM=$(PLATFORM);\
 		)\
 	)\
-
-
 
 manifest-push: # util target to push multiarch container manifest.
 	$(CONTAINER_BUILDER) manifest push --all $(IMAGE_REGISTRY)/$(IMAGE):$(TAG) docker://$(IMAGE_REGISTRY)/$(IMAGE):$(TAG)
