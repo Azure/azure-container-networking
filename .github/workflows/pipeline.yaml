@@ -28,7 +28,7 @@ jobs:
       with:
         creds: ${{ secrets.AZURE_CREDENTIALS }}
     - name: Check Azure Pipelines
-      uses: azure/CLI@v1
+      uses: azure/CLI@v2
       env:
         AZURE_CORE_OUTPUT: none
       with:
