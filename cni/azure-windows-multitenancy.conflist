@@ -55,6 +55,24 @@
                         "Priority": 200,
                         "RuleType": "Switch"
                     }
+                },
+                {
+                    "Name":  "EndpointPolicy",
+                    "Value":  {
+                        "Type":  "ACL",
+                        "Action":  "Allow",
+                        "Direction":  "In",
+                        "Priority":  65500
+                    }
+                },
+                {
+                    "Name":  "EndpointPolicy",
+                    "Value":  {
+                        "Type":  "ACL",
+                        "Action":  "Allow",
+                        "Direction":  "Out",
+                        "Priority":  65500
+                    }
                 }
             ],
              "windowsSettings": {
