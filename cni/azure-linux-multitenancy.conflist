@@ -9,7 +9,7 @@
          "multiTenancy":true,
          "infraVnetAddressSpace":"",
          "podNamespaceForDualNetwork":[],
-         "enableExactMatchForPodName": false,
+         "enableExactMatchForPodName": true,
          "enableSnatOnHost":true,
          "ipam":{
             "type":"azure-cns"
