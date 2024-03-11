@@ -716,8 +716,8 @@ func (service *HTTPRestService) getHealthReport(w http.ResponseWriter, r *http.R
 	logger.Response(service.Name, resp, resp.ReturnCode, err)
 }
 
-func (service *HTTPRestService) SetOrchestratorType(w http.ResponseWriter, r *http.Request) {
-	logger.Printf("[Azure CNS] SetOrchestratorType")
+func (service *HTTPRestService) setOrchestratorType(w http.ResponseWriter, r *http.Request) {
+	logger.Printf("[Azure CNS] setOrchestratorType")
 
 	var (
 		req           cns.SetOrchestratorTypeRequest
@@ -763,10 +763,10 @@ func (service *HTTPRestService) SetOrchestratorType(w http.ResponseWriter, r *ht
 	logger.Response(service.Name, resp, resp.ReturnCode, err)
 }
 
-// GetHomeAz retrieves home AZ of host
-func (service *HTTPRestService) GetHomeAz(w http.ResponseWriter, r *http.Request) {
-	logger.Printf("[Azure CNS] GetHomeAz")
-	logger.Request(service.Name, "GetHomeAz", nil)
+// getHomeAz retrieves home AZ of host
+func (service *HTTPRestService) getHomeAz(w http.ResponseWriter, r *http.Request) {
+	logger.Printf("[Azure CNS] getHomeAz")
+	logger.Request(service.Name, "getHomeAz", nil)
 	ctx := r.Context()
 
 	switch r.Method {
@@ -782,7 +782,7 @@ func (service *HTTPRestService) GetHomeAz(w http.ResponseWriter, r *http.Request
 	}
 }
 
-func (service *HTTPRestService) CreateOrUpdateNetworkContainer(w http.ResponseWriter, r *http.Request) {
+func (service *HTTPRestService) createOrUpdateNetworkContainer(w http.ResponseWriter, r *http.Request) {
 	var req cns.CreateNetworkContainerRequest
 	if err := service.Listener.Decode(w, r, &req); err != nil {
 		logger.Errorf("[Azure CNS] could not decode request: %v", err)
@@ -956,8 +956,8 @@ func (service *HTTPRestService) GetOrRefreshNetworkContainers(w http.ResponseWri
 	}
 }
 
-func (service *HTTPRestService) DeleteNetworkContainer(w http.ResponseWriter, r *http.Request) {
-	logger.Printf("[Azure CNS] DeleteNetworkContainer")
+func (service *HTTPRestService) deleteNetworkContainer(w http.ResponseWriter, r *http.Request) {
+	logger.Printf("[Azure CNS] deleteNetworkContainer")
 
 	var req cns.DeleteNetworkContainerRequest
 	var returnCode types.ResponseCode
@@ -1119,9 +1119,9 @@ func (service *HTTPRestService) detachNetworkContainerFromNetwork(w http.Respons
 
 // Retrieves the number of logic processors on a node. It will be primarily
 // used to enforce per VM delegated NIC limit by DNC.
-func (service *HTTPRestService) GetNumberOfCPUCores(w http.ResponseWriter, r *http.Request) {
-	logger.Printf("[Azure-CNS] GetNumberOfCPUCores")
-	logger.Request(service.Name, "GetNumberOfCPUCores", nil)
+func (service *HTTPRestService) getNumberOfCPUCores(w http.ResponseWriter, r *http.Request) {
+	logger.Printf("[Azure-CNS] getNumberOfCPUCores")
+	logger.Request(service.Name, "getNumberOfCPUCores", nil)
 
 	var (
 		num        int
@@ -1187,9 +1187,9 @@ func respondJSON(w http.ResponseWriter, statusCode int, body any) {
 }
 
 // Publish Network Container by calling nmagent
-func (service *HTTPRestService) PublishNetworkContainer(w http.ResponseWriter, r *http.Request) {
+func (service *HTTPRestService) publishNetworkContainer(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		http.Error(w, "PublishNetworkContainer expects a POST", http.StatusBadRequest)
+		http.Error(w, "publishNetworkContainer expects a POST", http.StatusBadRequest)
 		return
 	}
 
@@ -1283,9 +1283,9 @@ func (service *HTTPRestService) PublishNetworkContainer(w http.ResponseWriter, r
 	logger.Response(service.Name, resp, resp.Response.ReturnCode, nil)
 }
 
-func (service *HTTPRestService) UnpublishNetworkContainer(w http.ResponseWriter, r *http.Request) {
+func (service *HTTPRestService) unpublishNetworkContainer(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		http.Error(w, "UnpublishNetworkContainer expects a POST", http.StatusBadRequest)
+		http.Error(w, "unpublishNetworkContainer expects a POST", http.StatusBadRequest)
 		return
 	}
 
@@ -1480,8 +1480,8 @@ func (service *HTTPRestService) DeleteHostNCApipaEndpoint(w http.ResponseWriter,
 }
 
 // This function is used to query NMagents's supported APIs list
-func (service *HTTPRestService) NmAgentSupportedApisHandler(w http.ResponseWriter, r *http.Request) {
-	logger.Request(service.Name, "NmAgentSupportedApisHandler", nil)
+func (service *HTTPRestService) nmAgentSupportedApisHandler(w http.ResponseWriter, r *http.Request) {
+	logger.Request(service.Name, "nmAgentSupportedApisHandler", nil)
 	var (
 		err, retErr   error
 		req           cns.NmAgentSupportedApisRequest

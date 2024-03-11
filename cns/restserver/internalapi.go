@@ -41,7 +41,7 @@ func (service *HTTPRestService) SetNodeOrchestrator(r *cns.SetOrchestratorTypeRe
 	body, _ := json.Marshal(r)
 	req, _ := http.NewRequest(http.MethodPost, "", bytes.NewBuffer(body))
 	req.Header.Set(common.ContentType, common.JsonContent)
-	service.SetOrchestratorType(httptest.NewRecorder(), req)
+	service.setOrchestratorType(httptest.NewRecorder(), req)
 }
 
 func (service *HTTPRestService) SyncNodeStatus(dncEP, infraVnet, nodeID string, contextFromCNI json.RawMessage) (returnCode types.ResponseCode, errStr string) {
@@ -124,7 +124,7 @@ func (service *HTTPRestService) SyncNodeStatus(dncEP, infraVnet, nodeID string, 
 			req.Header.Set(common.ContentType, common.JsonContent)
 
 			w := httptest.NewRecorder()
-			service.CreateOrUpdateNetworkContainer(w, req)
+			service.createOrUpdateNetworkContainer(w, req)
 			result := w.Result()
 			if result.StatusCode == http.StatusOK {
 				var resp cns.CreateNetworkContainerResponse
@@ -152,7 +152,7 @@ func (service *HTTPRestService) SyncNodeStatus(dncEP, infraVnet, nodeID string, 
 		req, err = http.NewRequest(http.MethodPost, "", &body)
 		if err == nil {
 			req.Header.Set(common.JsonContent, common.JsonContent)
-			service.DeleteNetworkContainer(httptest.NewRecorder(), req)
+			service.deleteNetworkContainer(httptest.NewRecorder(), req)
 		} else {
 			logger.Errorf("[Azure-CNS] Failed to delete NC request to sync state: %s", err.Error())
 		}
