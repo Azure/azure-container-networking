@@ -947,6 +947,7 @@ func (plugin *NetPlugin) createEndpointInternal(opts []createEndpointInternalOpt
 		err = plugin.nm.CreateEndpoint(cnsclient, opt.nwInfo.Id, epInfos)
 		if err != nil {
 			err = plugin.Errorf("Failed to create endpoint: %v", err)
+			return epInfo, err
 		}
 	}
 
