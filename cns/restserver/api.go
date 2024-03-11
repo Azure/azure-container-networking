@@ -774,7 +774,7 @@ func (service *HTTPRestService) getHomeAz(w http.ResponseWriter, r *http.Request
 		getHomeAzResponse := service.homeAzMonitor.GetHomeAz(ctx)
 		service.setResponse(w, getHomeAzResponse.Response.ReturnCode, getHomeAzResponse)
 	default:
-		returnMessage := "[Azure CNS] Error. GetHomeAz did not receive a GET."
+		returnMessage := "[Azure CNS] Error. getHomeAz did not receive a GET."
 		returnCode := types.UnsupportedVerb
 		service.setResponse(w, returnCode, cns.GetHomeAzResponse{
 			Response: cns.Response{ReturnCode: returnCode, Message: returnMessage},
@@ -935,22 +935,22 @@ func (service *HTTPRestService) GetNetworkContainerByOrchestratorContext(w http.
 	logger.Response(service.Name, getNetworkContainerResponses[0], getNetworkContainerResponses[0].Response.ReturnCode, err)
 }
 
-// GetOrRefreshNetworkContainers is to check whether refresh association is needed. The state file in CNS will get updated if it is lost.
+// getOrRefreshNetworkContainers is to check whether refresh association is needed. The state file in CNS will get updated if it is lost.
 // If received  "GET": Return all NCs in CNS's state file to DNC in order to check if NC refresh is needed
 // If received "POST": Store all the NCs (from the request body that client sent) into CNS's state file
-func (service *HTTPRestService) GetOrRefreshNetworkContainers(w http.ResponseWriter, r *http.Request) {
+func (service *HTTPRestService) getOrRefreshNetworkContainers(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
-		logger.Printf("[Azure CNS] GetOrRefreshNetworkContainers received GET")
+		logger.Printf("[Azure CNS] getOrRefreshNetworkContainers received GET")
 		service.handleGetNetworkContainers(w)
 		return
 	case http.MethodPost:
-		logger.Printf("[Azure CNS] GetOrRefreshNetworkContainers received POST")
+		logger.Printf("[Azure CNS] getOrRefreshNetworkContainers received POST")
 		service.handlePostNetworkContainers(w, r)
 		return
 	default:
 		w.WriteHeader(http.StatusMethodNotAllowed)
-		err := errors.New("[Azure CNS] GetOrRefreshNetworkContainers did not receive a GET or POST")
+		err := errors.New("[Azure CNS] getOrRefreshNetworkContainers did not receive a GET or POST")
 		logger.Response(service.Name, nil, types.InvalidParameter, err)
 		return
 	}
@@ -1133,7 +1133,7 @@ func (service *HTTPRestService) getNumberOfCPUCores(w http.ResponseWriter, r *ht
 	case http.MethodGet:
 		num = runtime.NumCPU()
 	default:
-		errMsg = "[Azure-CNS] GetNumberOfCPUCores API expects a GET."
+		errMsg = "[Azure-CNS] getNumberOfCPUCores API expects a GET."
 		returnCode = types.UnsupportedVerb
 	}
 
@@ -1189,7 +1189,7 @@ func respondJSON(w http.ResponseWriter, statusCode int, body any) {
 // Publish Network Container by calling nmagent
 func (service *HTTPRestService) publishNetworkContainer(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		http.Error(w, "publishNetworkContainer expects a POST", http.StatusBadRequest)
+		http.Error(w, "PublishNetworkContainer expects a POST", http.StatusBadRequest)
 		return
 	}
 
@@ -1285,7 +1285,7 @@ func (service *HTTPRestService) publishNetworkContainer(w http.ResponseWriter, r
 
 func (service *HTTPRestService) unpublishNetworkContainer(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		http.Error(w, "unpublishNetworkContainer expects a POST", http.StatusBadRequest)
+		http.Error(w, "UnpublishNetworkContainer expects a POST", http.StatusBadRequest)
 		return
 	}
 
