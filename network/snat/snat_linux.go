@@ -68,7 +68,6 @@ func NewSnatClient(hostIfName string,
 	plClient platform.ExecClient,
 	iptc ipTablesClient,
 ) Client {
-	logger.Info("Initialize new snat client")
 	snatClient := Client{
 		hostSnatVethName:       hostIfName,
 		containerSnatVethName:  contIfName,
@@ -445,8 +444,6 @@ func (client *Client) createSnatBridge(snatBridgeIP, hostPrimaryMac string) erro
 	if err = nuc.DisableRAForInterface(SnatBridgeName); err != nil {
 		return err
 	}
-
-	logger.Info("Setting snat bridge mac", zap.String("hostPrimaryMac", hostPrimaryMac))
 
 	ip, addr, _ := net.ParseCIDR(snatBridgeIP)
 	err = client.netlink.AddIPAddress(SnatBridgeName, ip, addr)

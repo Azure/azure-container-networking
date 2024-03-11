@@ -286,8 +286,6 @@ func (client *TransparentEndpointClient) ConfigureContainerInterfacesAndRoutes(e
 }
 
 func (client *TransparentEndpointClient) setupIPV6Routes() error {
-	logger.Info("Setting up ipv6 routes in container")
-
 	// add route for virtualgwip
 	// ip -6 route add fe80::1234:5678:9abc/128 dev eth0
 	virtualGwIP, virtualGwNet, _ := net.ParseCIDR(virtualv6GwString)
@@ -298,7 +296,7 @@ func (client *TransparentEndpointClient) setupIPV6Routes() error {
 
 	// ip -6 route add default via fe80::1234:5678:9abc dev eth0
 	_, defaultIPNet, _ := net.ParseCIDR(defaultv6Cidr)
-	logger.Info("defaultv6ipnet", zap.Any("defaultIPNet", defaultIPNet))
+	logger.Info("Setting up ipv6 routes in container", zap.Any("defaultIPNet", defaultIPNet))
 	defaultRoute := RouteInfo{
 		Dst: *defaultIPNet,
 		Gw:  virtualGwIP,

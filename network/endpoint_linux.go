@@ -232,10 +232,9 @@ func (nw *network) newEndpointImpl(
 
 			if epInfo.IPV6Mode != "" {
 				// Enable ipv6 setting in container
-				logger.Info("Enable ipv6 setting in container.")
 				nuc := networkutils.NewNetworkUtils(nl, plc)
 				if epErr := nuc.UpdateIPV6Setting(0); epErr != nil {
-					return fmt.Errorf("Enable ipv6 in container failed:%w", epErr)
+					return fmt.Errorf("enable ipv6 in container failed:%w", epErr)
 				}
 			}
 
@@ -270,7 +269,6 @@ func (nw *network) deleteEndpointImpl(nl netlink.NetlinkInterface, plc platform.
 		if ep.VlanID != 0 {
 			epInfo := ep.getInfo()
 			if nw.Mode == opModeTransparentVlan {
-				logger.Info("Transparent vlan client")
 				epClient = NewTransparentVlanEndpointClient(nw, epInfo, ep.HostIfName, "", ep.VlanID, ep.LocalIP, nl, plc, nsc, iptc)
 
 			} else {
@@ -462,7 +460,7 @@ func (nm *networkManager) updateRoutes(existingEp *EndpointInfo, targetEp *Endpo
 	// we do not support enable/disable snat for now
 	defaultDst := net.ParseIP("0.0.0.0")
 
-	logger.Info("Going to collect routes and skip default and infravnet routes if applicable.")
+	// collect routes and skip default and infravnet routes if applicable
 	logger.Info("Key for default route", zap.String("route", defaultDst.String()))
 
 	infraVnetKey := ""
@@ -476,7 +474,6 @@ func (nm *networkManager) updateRoutes(existingEp *EndpointInfo, targetEp *Endpo
 	logger.Info("Key for route to infra vnet", zap.String("infraVnetKey", infraVnetKey))
 	for _, route := range existingEp.Routes {
 		destination := route.Dst.IP.String()
-		logger.Info("Checking destination as to skip or not", zap.String("destination", destination))
 		isDefaultRoute := destination == defaultDst.String()
 		isInfraVnetRoute := targetEp.EnableInfraVnet && (destination == infraVnetKey)
 		if !isDefaultRoute && !isInfraVnetRoute {

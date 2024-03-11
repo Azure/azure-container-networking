@@ -82,7 +82,6 @@ func (nu NetworkUtils) CreateEndpoint(hostVethName, containerVethName string, ma
 		return newErrorNetworkUtils(err.Error())
 	}
 
-	logger.Info("Setting link state up", zap.String("hostVethName", hostVethName))
 	err = nu.netlink.SetLinkState(hostVethName, true)
 	if err != nil {
 		return newErrorNetworkUtils(err.Error())
@@ -97,7 +96,6 @@ func (nu NetworkUtils) CreateEndpoint(hostVethName, containerVethName string, ma
 
 func (nu NetworkUtils) SetupContainerInterface(containerVethName, targetIfName string) error {
 	// Interface needs to be down before renaming.
-	logger.Info("Setting link state down", zap.String("containerVethName", containerVethName))
 	if err := nu.netlink.SetLinkState(containerVethName, false); err != nil {
 		return newErrorNetworkUtils(err.Error())
 	}
@@ -113,7 +111,6 @@ func (nu NetworkUtils) SetupContainerInterface(containerVethName, targetIfName s
 	}
 
 	// Bring the interface back up.
-	logger.Info("Setting link state up.", zap.String("targetIfName", targetIfName))
 	err := nu.netlink.SetLinkState(targetIfName, true)
 	if err != nil {
 		return newErrorNetworkUtils(err.Error())

@@ -116,6 +116,8 @@ func (client *OVSNetworkClient) DeleteBridge() error {
 }
 
 func (client *OVSNetworkClient) AddL2Rules(extIf *externalInterface) error {
+	logger.Info("[ovs] Adding L2 Rules")
+
 	mac := extIf.MacAddress.String()
 	macHex := strings.Replace(mac, ":", "", -1)
 
@@ -124,13 +126,11 @@ func (client *OVSNetworkClient) AddL2Rules(extIf *externalInterface) error {
 		return err
 	}
 
-	// Arp SNAT Rule
-	logger.Info("[ovs] Adding ARP SNAT rule for egress traffic on interface", zap.String("hostInterfaceName", client.hostInterfaceName))
+	// Arp SNAT Rule for egress traffic on interface
 	if err := client.ovsctlClient.AddArpSnatRule(client.bridgeName, mac, macHex, ofport); err != nil {
 		return err
 	}
-
-	logger.Info("[ovs] Adding DNAT rule for ingress ARP traffic on interface", zap.String("hostInterfaceName", client.hostInterfaceName))
+	// DNAT rule for ingress ARP traffic on interface
 	err = client.ovsctlClient.AddArpDnatRule(client.bridgeName, ofport, macHex)
 	if err != nil {
 		return newErrorOVSNetworkClient(err.Error())

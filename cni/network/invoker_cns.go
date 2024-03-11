@@ -88,7 +88,6 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 		PodNamespace: invoker.podNamespace,
 	}
 
-	logger.Info(podInfo.PodName)
 	orchestratorContext, err := json.Marshal(podInfo)
 	if err != nil {
 		return IPAMAddResult{}, errors.Wrap(err, "Failed to unmarshal orchestrator context during add: %w")
