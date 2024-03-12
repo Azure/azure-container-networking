@@ -75,7 +75,7 @@ var _ = Describe("Test Network", func() {
 	})
 
 	Describe("Test findExternalInterfaceByName", func() {
-		Context("When ifName found or nor found", func() {
+		Context("When ifName found or not found", func() {
 			It("Should return the external interface when found and nil when not found", func() {
 				nm := &networkManager{
 					ExternalInterfaces: map[string]*externalInterface{},

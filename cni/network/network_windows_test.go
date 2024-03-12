@@ -334,6 +334,69 @@ func TestDSRPolciy(t *testing.T) {
 	}
 }
 
+func TestGetNetworkNameSwiftv2FromCNS(t *testing.T) {
+	plugin, _ := cni.NewPlugin("name", "0.3.0")
+	macAddress := "00:00:5e:00:53:01"
+	parsedMacAddress, _ := net.ParseMAC(macAddress)
+	swiftv2L1VHSecondaryInterfacesInfo := []network.InterfaceInfo{}
+	swiftv2L1VHInterfaceInfo := network.InterfaceInfo{
+		Name:       "swiftv2L1VHinterface",
+		MacAddress: parsedMacAddress,
+		NICType:    cns.DelegatedVMNIC,
+	}
+
+	swiftv2L1VHSecondaryInterfacesInfo = append(swiftv2L1VHSecondaryInterfacesInfo, swiftv2L1VHInterfaceInfo)
+	tests := []struct {
+		name          string
+		plugin        *NetPlugin
+		netNs         string
+		nwCfg         *cni.NetworkConfig
+		ipamAddResult *IPAMAddResult
+		want          net.HardwareAddr
+		wantErr       bool
+	}{
+		{
+			name: "Get Network Name from CNS for swiftv2",
+			plugin: &NetPlugin{
+				Plugin:      plugin,
+				nm:          network.NewMockNetworkmanager(network.NewMockEndpointClient(nil)),
+				ipamInvoker: NewMockIpamInvoker(false, false, false, true, false),
+				report:      &telemetry.CNIReport{},
+				tb:          &telemetry.TelemetryBuffer{},
+			},
+			netNs: "azure",
+			nwCfg: &cni.NetworkConfig{
+				CNIVersion:   "0.3.0",
+				MultiTenancy: false,
+			},
+			ipamAddResult: &IPAMAddResult{
+				ncResponse: &cns.GetNetworkContainerResponse{},
+				defaultInterfaceInfo: network.InterfaceInfo{
+					IPConfigs: []*network.IPConfig{},
+				},
+				secondaryInterfacesInfo: swiftv2L1VHSecondaryInterfacesInfo,
+			},
+			want:    parsedMacAddress,
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Log(tt.ipamAddResult.secondaryInterfacesInfo[0])
+			networkName, err := tt.plugin.getNetworkName(tt.netNs, tt.ipamAddResult, tt.nwCfg)
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				expectedMacAddress := "azure-" + tt.want.String()
+				require.NoError(t, err)
+				require.Equal(t, expectedMacAddress, networkName)
+			}
+		})
+	}
+}
+
 func TestGetNetworkNameFromCNS(t *testing.T) {
 	plugin, _ := cni.NewPlugin("name", "0.3.0")
 	tests := []struct {

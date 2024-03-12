@@ -169,6 +169,38 @@ var _ = Describe("Test Endpoint", func() {
 		})
 	})
 
+	Describe("Test endpointImpl Swiftv2", func() {
+		Context("When endpoint add succeed", func() {
+			nw := &network{
+				Endpoints: map[string]*endpoint{},
+			}
+
+			epInfo := &EndpointInfo{
+				Id:      "d34c0acb-eth0",
+				Data:    make(map[string]interface{}),
+				IfName:  eth0IfName,
+				NICType: cns.InfraNIC,
+			}
+
+			epInfoSwiftv2L1VH := &EndpointInfo{
+				Id:      "768e8deb-eth1",
+				Data:    make(map[string]interface{}),
+				IfName:  eth0IfName,
+				NICType: cns.DelegatedVMNIC,
+			}
+
+			It("Should be added", func() {
+				// Add endpoint with valid id
+				ep, err := nw.newEndpointImpl(nil, netlink.NewMockNetlink(false, ""), platform.NewMockExecClient(false),
+					netio.NewMockNetIO(false, 0), NewMockEndpointClient(nil), NewMockNamespaceClient(), iptables.NewClient(), []*EndpointInfo{epInfo, epInfoSwiftv2L1VH})
+				Expect(err).NotTo(HaveOccurred())
+				Expect(ep).NotTo(BeNil())
+				Expect(ep.Id).To(Equal(epInfo.Id))
+				Expect(ep.Gateways).To(BeEmpty())
+			})
+		})
+	})
+
 	Describe("Test endpointImpl", func() {
 		Context("When endpoint add/delete succeed", func() {
 			nw := &network{

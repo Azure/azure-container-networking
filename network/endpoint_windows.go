@@ -9,6 +9,7 @@ import (
 	"net"
 	"strings"
 
+	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/netio"
 	"github.com/Azure/azure-container-networking/netlink"
 	"github.com/Azure/azure-container-networking/network/policy"
@@ -75,16 +76,26 @@ func (nw *network) newEndpointImpl(
 	_ ipTablesClient,
 	epInfo []*EndpointInfo,
 ) (*endpoint, error) {
-	// there is only 1 epInfo for windows, multiple interfaces will be added in the future
-	if useHnsV2, err := UseHnsV2(epInfo[0].NetNsPath); useHnsV2 {
-		if err != nil {
-			return nil, err
+
+	for _, ep := range epInfo { //nolint
+		if useHnsV2, err := UseHnsV2(ep.NetNsPath); useHnsV2 {
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			return nw.newEndpointImplHnsV1(ep, plc)
 		}
 
-		return nw.newEndpointImplHnsV2(cli, epInfo[0])
+		switch ep.NICType {
+		case cns.InfraNIC, cns.DelegatedVMNIC:
+			return nw.newEndpointImplHnsV2(cli, ep)
+		case cns.BackendNIC: // return if nic type is infinite band
+			return nil, nil
+		}
 	}
 
-	return nw.newEndpointImplHnsV1(epInfo[0], plc)
+	err := fmt.Errorf("No CNS NIC type is found from endpoint")
+	return nil, errors.Wrap(err, "Failed to create a new endpoint")
 }
 
 // newEndpointImplHnsV1 creates a new endpoint in the network using HnsV1
@@ -220,8 +231,11 @@ func (nw *network) configureHcnEndpoint(epInfo *EndpointInfo) (*hcn.HostComputeE
 			Major: hcnSchemaVersionMajor,
 			Minor: hcnSchemaVersionMinor,
 		},
-		MacAddress: epInfo.MacAddress.String(),
 	}
+
+	// convert the format of macAddress that HNS can accept, i.e, "60-45-bd-12-45-65"
+	macAddress := strings.Join(strings.Split(epInfo.MacAddress.String(), ":"), "-")
+	hcnEndpoint.MacAddress = macAddress
 
 	if endpointPolicies, err := policy.GetHcnEndpointPolicies(policy.EndpointPolicy, epInfo.Policies, epInfo.Data, epInfo.EnableSnatForDns, epInfo.EnableMultiTenancy, epInfo.NATInfo); err == nil {
 		for _, epPolicy := range endpointPolicies {
@@ -399,6 +413,7 @@ func (nw *network) newEndpointImplHnsV2(cli apipaClient, epInfo *EndpointInfo) (
 		ContainerID:              epInfo.ContainerID,
 		PODName:                  epInfo.PODName,
 		PODNameSpace:             epInfo.PODNameSpace,
+		SecondaryInterfaces:      make(map[string]*InterfaceInfo),
 	}
 
 	for _, route := range epInfo.Routes {
@@ -406,6 +421,18 @@ func (nw *network) newEndpointImplHnsV2(cli apipaClient, epInfo *EndpointInfo) (
 	}
 
 	ep.MacAddress, _ = net.ParseMAC(hnsResponse.MacAddress)
+
+	ipconfigs := make([]*IPConfig, len(ep.IPAddresses))
+	for i, ipconfig := range ep.IPAddresses {
+		ipconfigs[i] = &IPConfig{Address: ipconfig}
+	}
+
+	// Add secondary interfaces info to CNI state file
+	ep.SecondaryInterfaces[ep.IfName] = &InterfaceInfo{
+		MacAddress: ep.MacAddress,
+		IPConfigs:  ipconfigs,
+		Routes:     ep.Routes,
+	}
 
 	return ep, nil
 }

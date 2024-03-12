@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Azure/azure-container-networking/cns"
 	cnsclient "github.com/Azure/azure-container-networking/cns/client"
 	"github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/log"
@@ -469,7 +470,15 @@ func (nm *networkManager) DeleteEndpoint(networkID, endpointID string, epInfo *E
 	defer nm.Unlock()
 
 	if nm.IsStatelessCNIMode() {
-		return nm.DeleteEndpointState(networkID, epInfo)
+		err := nm.DeleteEndpointState(networkID, epInfo)
+		// if it's swiftv2 mode, delete hnsNetwork as well
+		if err == nil && (epInfo.NICType == cns.DelegatedVMNIC) {
+			if err = nm.DeleteNetwork(networkID); err != nil {
+				return errors.Wrapf(err, "Failed to delete hnsNetwork %s", networkID)
+			}
+		}
+
+		return err
 	}
 
 	nw, err := nm.getNetwork(networkID)
