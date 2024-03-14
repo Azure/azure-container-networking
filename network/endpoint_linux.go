@@ -154,9 +154,6 @@ func (nw *network) newEndpointImpl(
 						plc,
 						iptc)
 				}
-			} else if nw.Mode != opModeTransparent {
-				logger.Info("Bridge client")
-				epClient = NewLinuxBridgeEndpointClient(nw.extIf, hostIfName, contIfName, nw.Mode, nl, plc)
 			} else if epInfo.NICType == cns.DelegatedVMNIC {
 				logger.Info("Secondary client")
 				epClient = NewSecondaryEndpointClient(nl, netioCli, plc, nsc, ep)
@@ -276,8 +273,6 @@ func (nw *network) deleteEndpointImpl(nl netlink.NetlinkInterface, plc platform.
 			} else {
 				epClient = NewOVSEndpointClient(nw, epInfo, ep.HostIfName, "", ep.VlanID, ep.LocalIP, nl, ovsctl.NewOvsctl(), plc, iptc)
 			}
-		} else if nw.Mode != opModeTransparent {
-			epClient = NewLinuxBridgeEndpointClient(nw.extIf, ep.HostIfName, "", nw.Mode, nl, plc)
 		} else {
 			if len(ep.SecondaryInterfaces) > 0 {
 				epClient = NewSecondaryEndpointClient(nl, nioc, plc, nsc, ep)

@@ -154,14 +154,10 @@ func (nm *networkManager) handleCommonOptions(ifName string, nwInfo *NetworkInfo
 func (nm *networkManager) deleteNetworkImpl(nw *network) error {
 	var networkClient NetworkClient
 
-	if nw.VlanId != 0 {
+	if nw.VlanId != 0 && len(nw.extIf.Networks) == 1 {
 		networkClient = NewOVSClient(nw.extIf.BridgeName, nw.extIf.Name, ovsctl.NewOvsctl(), nm.netlink, nm.plClient)
-	} else {
-		networkClient = NewLinuxBridgeClient(nw.extIf.BridgeName, nw.extIf.Name, NetworkInfo{}, nm.netlink, nm.plClient)
-	}
 
-	// Disconnect the interface if this was the last network using it.
-	if len(nw.extIf.Networks) == 1 {
+		// Disconnect the interface if this was the last network using it.
 		nm.disconnectExternalInterface(nw.extIf, networkClient)
 	}
 
@@ -494,8 +490,6 @@ func (nm *networkManager) connectExternalInterface(extIf *externalInterface, nwI
 	opt, _ := nwInfo.Options[genericData].(map[string]interface{})
 	if opt != nil && opt[VlanIDKey] != nil {
 		networkClient = NewOVSClient(bridgeName, extIf.Name, ovsctl.NewOvsctl(), nm.netlink, nm.plClient)
-	} else {
-		networkClient = NewLinuxBridgeClient(bridgeName, extIf.Name, *nwInfo, nm.netlink, nm.plClient)
 	}
 
 	// Check if the bridge already exists.
