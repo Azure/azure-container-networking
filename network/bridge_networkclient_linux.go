@@ -90,8 +90,9 @@ func (client *LinuxBridgeClient) AddL2Rules(extIf *externalInterface) error {
 	if err != nil {
 		return err
 	}
-	logger.Info("Adding L2 Rules")
+
 	// Add SNAT rule to translate container egress traffic.
+	logger.Info("Adding SNAT rule for egress traffic on", zap.String("hostInterfaceName", client.hostInterfaceName))
 	if err := ebtables.SetSnatForInterface(client.hostInterfaceName, hostIf.HardwareAddr, ebtables.Append); err != nil {
 		return err
 	}
@@ -100,11 +101,13 @@ func (client *LinuxBridgeClient) AddL2Rules(extIf *externalInterface) error {
 	// ARP requests for all IP addresses are forwarded to the SDN fabric, but fabric
 	// doesn't respond to ARP requests from the VM for its own primary IP address.
 	primary := extIf.IPAddresses[0].IP
+	logger.Info("Adding ARP reply rule for primary IP address", zap.Any("address", primary))
 	if err := ebtables.SetArpReply(primary, hostIf.HardwareAddr, ebtables.Append); err != nil {
 		return err
 	}
 
 	// Add DNAT rule to forward ARP replies to container interfaces.
+	logger.Info("Adding DNAT rule for ingress ARP traffic on interface", zap.String("hostInterfaceName", client.hostInterfaceName))
 	if err := ebtables.SetDnatForArpReplies(client.hostInterfaceName, ebtables.Append); err != nil {
 		return err
 	}

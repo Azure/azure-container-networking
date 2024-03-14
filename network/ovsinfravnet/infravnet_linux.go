@@ -139,22 +139,21 @@ func (client *OVSInfraVnetClient) DeleteInfraVnetRules(
 	infraIP net.IPNet,
 	hostPort string,
 ) {
-	logger.Info("[ovs] Deleting Infra Vnet Rules")
 	ovs := ovsctl.NewOvsctl()
 
-	// Delete MAC DNAT rule for infravnet IP address
+	logger.Info("[ovs] Deleting MAC DNAT rule for infravnet IP address", zap.String("IP", infraIP.IP.String()))
 	ovs.DeleteMacDnatRule(bridgeName, hostPort, infraIP.IP, 0)
 
-	// Get ovs port for infravnet interface
+	logger.Info("[ovs] Get ovs port for infravnet interface", zap.String("hostInfraVethName", client.hostInfraVethName))
 	infraContainerPort, err := ovs.GetOVSPortNumber(client.hostInfraVethName)
 	if err != nil {
 		logger.Error("[ovs] Get infravnet portnum failed with", zap.Error(err))
 	}
 
-	// Delete IP SNAT for infravnet port
+	logger.Info("Deleting IP SNAT for infravnet port", zap.String("infraContainerPort", infraContainerPort))
 	ovs.DeleteIPSnatRule(bridgeName, infraContainerPort)
 
-	// Delete infravnet interface
+	logger.Info("[ovs] Deleting infravnet interface", zap.String("hostInfraVethName", client.hostInfraVethName), zap.String("bridgeName", bridgeName))
 	if err := ovs.DeletePortFromOVS(bridgeName, client.hostInfraVethName); err != nil {
 		logger.Error("[ovs] Deletion of infravnet interface", zap.String("hostInfraVethName", client.hostInfraVethName), zap.String("bridgeName", bridgeName))
 	}

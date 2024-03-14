@@ -84,12 +84,14 @@ func (client *LinuxBridgeEndpointClient) AddEndpointRules(epInfo *EndpointInfo) 
 	for _, ipAddr := range epInfo.IPAddresses {
 		if ipAddr.IP.To4() != nil {
 			// Add ARP reply rule.
+			logger.Info("Adding ARP reply rule for IP address", zap.String("address", ipAddr.String()))
 			if err = ebtables.SetArpReply(ipAddr.IP, client.getArpReplyAddress(client.containerMac), ebtables.Append); err != nil {
 				return err
 			}
 		}
 
 		// Add MAC address translation rule.
+		logger.Info("Adding MAC DNAT rule for IP address", zap.String("address", ipAddr.String()))
 		if err := ebtables.SetDnatForIPAddress(client.hostPrimaryIfName, ipAddr.IP, client.containerMac, ebtables.Append); err != nil {
 			return err
 		}
@@ -124,6 +126,7 @@ func (client *LinuxBridgeEndpointClient) DeleteEndpointRules(ep *endpoint) {
 	for _, ipAddr := range ep.IPAddresses {
 		if ipAddr.IP.To4() != nil {
 			// Delete ARP reply rule.
+			logger.Info("Deleting ARP reply rule for IP address on", zap.String("address", ipAddr.String()), zap.String("id", ep.Id))
 			err := ebtables.SetArpReply(ipAddr.IP, client.getArpReplyAddress(ep.MacAddress), ebtables.Delete)
 			if err != nil {
 				logger.Error("Failed to delete ARP reply rule for IP address", zap.String("address", ipAddr.String()), zap.Error(err))
