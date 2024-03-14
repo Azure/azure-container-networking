@@ -26,7 +26,7 @@ jobs:
         os: [ubuntu-latest, windows-latest]
         language: [go]
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 60
+    timeout-minutes: 90 # windows Autobuild time increase by 20 minutes https://codeql.github.com/docs/codeql-overview/codeql-changelog/codeql-cli-2.16.4/#golang-1
     permissions:
       actions: read
       contents: read
