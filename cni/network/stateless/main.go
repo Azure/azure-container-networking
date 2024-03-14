@@ -94,6 +94,7 @@ func rootExecute() error {
 	cniCmd := os.Getenv(cni.Cmd)
 
 	if cniCmd != cni.CmdVersion {
+		logger.Info("Environment variable set", zap.String("CNI_COMMAND", cniCmd))
 		cniReport.GetReport(pluginName, version, ipamQueryURL)
 
 		var upTime time.Time

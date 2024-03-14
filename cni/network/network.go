@@ -1253,7 +1253,7 @@ func (plugin *NetPlugin) Update(args *cniSkel.CmdArgs) error {
 	// get the target routes that should replace existingEpInfo.Routes inside the network namespace
 	if targetNetworkConfig.Routes != nil && len(targetNetworkConfig.Routes) > 0 {
 		for _, route := range targetNetworkConfig.Routes {
-			logger.Info("Adding route from routes to targetEpInfo", zap.Any("route", route))
+			logger.Info("Adding route from routes from targetNetworkConfig to targetEpInfo", zap.Any("route", route))
 			_, dstIPNet, _ := net.ParseCIDR(route.IPAddress)
 			gwIP := net.ParseIP(route.GatewayIPAddress)
 			targetEpInfo.Routes = append(targetEpInfo.Routes, network.RouteInfo{Dst: *dstIPNet, Gw: gwIP, DevName: existingEpInfo.IfName})
