@@ -110,6 +110,9 @@ func (service *HTTPRestService) requestIPConfigHandlerHelperSF(ctx context.Conte
 	service.podsPendingIPAssignment.Push(podInfo.Key())
 	// unmarshal & retrieve podInfo from OrchestratorContext
 	podInfo, err := cns.NewPodInfoFromIPConfigsRequest(ipconfigsRequest)
+	if err != nil {
+		return &cns.IPConfigsResponse{}, errors.Wrapf(err, "failed to parse IPConfigsRequest %v", ipconfigsRequest)
+	}
 	orchestratorContext, err := podInfo.OrchestratorContext()
 	if err != nil {
 		return &cns.IPConfigsResponse{}, fmt.Errorf("error getting orchestrator context from PodInfo %w", err)
@@ -280,7 +283,7 @@ func (service *HTTPRestService) RequestIPConfigsHandler(w http.ResponseWriter, r
 	if service.IPConfigsHandlerMiddleware != nil {
 		// Wrap the default datapath handlers with the middleware depending on middleware type
 		var wrappedHandler cns.IPConfigsHandlerFunc
-		switch service.IPConfigsHandlerMiddleware.GetMiddlewareType() {
+		switch service.IPConfigsHandlerMiddleware.Type() {
 		case configuration.K8sSWIFTV2:
 			wrappedHandler = service.IPConfigsHandlerMiddleware.IPConfigsRequestHandlerWrapper(service.requestIPConfigHandlerHelper, service.ReleaseIPConfigHandlerHelper)
 		case configuration.SFSWIFTV2:

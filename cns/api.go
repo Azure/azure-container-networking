@@ -61,7 +61,7 @@ type IPConfigsHandlerFunc func(context.Context, IPConfigsRequest) (*IPConfigsRes
 // IPConfigsHandlerMiddleware
 type IPConfigsHandlerMiddleware interface {
 	IPConfigsRequestHandlerWrapper(defaultHandler IPConfigsHandlerFunc, failureHandler IPConfigsHandlerFunc) IPConfigsHandlerFunc
-	GetMiddlewareType() configuration.SWIFTV2Mode
+	Type() configuration.SWIFTV2Mode
 }
 
 // This is used for KubernetesCRD orchestrator Type where NC has multiple ips.

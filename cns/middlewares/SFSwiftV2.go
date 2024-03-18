@@ -27,6 +27,6 @@ func (m *SFSWIFTv2Middleware) IPConfigsRequestHandlerWrapper(ipRequestHandler, _
 	}
 }
 
-func (m *SFSWIFTv2Middleware) GetMiddlewareType() configuration.SWIFTV2Mode {
+func (m *SFSWIFTv2Middleware) Type() configuration.SWIFTV2Mode {
 	return configuration.SFSWIFTV2
 }
