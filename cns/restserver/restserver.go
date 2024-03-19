@@ -185,6 +185,9 @@ func NewHTTPRestService(config *common.ServiceConfig, wscli interfaceGetter, wsp
 		return nil, errors.Wrap(err, "failed to get primary interface from IMDS response")
 	}
 
+	// add primaryInterfaceIP to cns config
+	config.PrimaryInterfaceIP = primaryInterface.PrimaryIP
+
 	serviceState := &httpRestServiceState{
 		Networks:         make(map[string]*networkInfo),
 		joinedNetworks:   make(map[string]struct{}),
@@ -249,25 +252,14 @@ func (service *HTTPRestService) Init(config *common.ServiceConfig) error {
 	listener.AddHandler(cns.DeleteNetworkContainer, service.deleteNetworkContainer)
 	listener.AddHandler(cns.GetInterfaceForContainer, service.getInterfaceForContainer)
 	listener.AddHandler(cns.SetOrchestratorType, service.setOrchestratorType)
-	listener.AddHandler(cns.GetNetworkContainerByOrchestratorContext, service.GetNetworkContainerByOrchestratorContext)
-	listener.AddHandler(cns.GetAllNetworkContainers, service.GetAllNetworkContainers)
 	listener.AddHandler(cns.AttachContainerToNetwork, service.attachNetworkContainerToNetwork)
 	listener.AddHandler(cns.DetachContainerFromNetwork, service.detachNetworkContainerFromNetwork)
 	listener.AddHandler(cns.CreateHnsNetworkPath, service.createHnsNetwork)
 	listener.AddHandler(cns.DeleteHnsNetworkPath, service.deleteHnsNetwork)
 	listener.AddHandler(cns.NumberOfCPUCoresPath, service.getNumberOfCPUCores)
-	listener.AddHandler(cns.CreateHostNCApipaEndpointPath, service.CreateHostNCApipaEndpoint)
-	listener.AddHandler(cns.DeleteHostNCApipaEndpointPath, service.DeleteHostNCApipaEndpoint)
 	listener.AddHandler(cns.PublishNetworkContainer, service.publishNetworkContainer)
 	listener.AddHandler(cns.UnpublishNetworkContainer, service.unpublishNetworkContainer)
-	listener.AddHandler(cns.RequestIPConfig, NewHandlerFuncWithHistogram(service.RequestIPConfigHandler, HTTPRequestLatency))
-	listener.AddHandler(cns.RequestIPConfigs, NewHandlerFuncWithHistogram(service.RequestIPConfigsHandler, HTTPRequestLatency))
-	listener.AddHandler(cns.ReleaseIPConfig, NewHandlerFuncWithHistogram(service.ReleaseIPConfigHandler, HTTPRequestLatency))
-	listener.AddHandler(cns.ReleaseIPConfigs, NewHandlerFuncWithHistogram(service.ReleaseIPConfigsHandler, HTTPRequestLatency))
 	listener.AddHandler(cns.NmAgentSupportedApisPath, service.nmAgentSupportedApisHandler)
-	listener.AddHandler(cns.PathDebugIPAddresses, service.HandleDebugIPAddresses)
-	listener.AddHandler(cns.PathDebugPodContext, service.HandleDebugPodContext)
-	listener.AddHandler(cns.PathDebugRestData, service.HandleDebugRestData)
 	listener.AddHandler(cns.NetworkContainersURLPath, service.getOrRefreshNetworkContainers)
 	listener.AddHandler(cns.GetHomeAz, service.getHomeAz)
 	listener.AddHandler(cns.EndpointPath, service.EndpointHandlerAPI)
@@ -284,15 +276,11 @@ func (service *HTTPRestService) Init(config *common.ServiceConfig) error {
 	listener.AddHandler(cns.V2Prefix+cns.DeleteNetworkContainer, service.deleteNetworkContainer)
 	listener.AddHandler(cns.V2Prefix+cns.GetInterfaceForContainer, service.getInterfaceForContainer)
 	listener.AddHandler(cns.V2Prefix+cns.SetOrchestratorType, service.setOrchestratorType)
-	listener.AddHandler(cns.V2Prefix+cns.GetNetworkContainerByOrchestratorContext, service.GetNetworkContainerByOrchestratorContext)
-	listener.AddHandler(cns.V2Prefix+cns.GetAllNetworkContainers, service.GetAllNetworkContainers)
 	listener.AddHandler(cns.V2Prefix+cns.AttachContainerToNetwork, service.attachNetworkContainerToNetwork)
 	listener.AddHandler(cns.V2Prefix+cns.DetachContainerFromNetwork, service.detachNetworkContainerFromNetwork)
 	listener.AddHandler(cns.V2Prefix+cns.CreateHnsNetworkPath, service.createHnsNetwork)
 	listener.AddHandler(cns.V2Prefix+cns.DeleteHnsNetworkPath, service.deleteHnsNetwork)
 	listener.AddHandler(cns.V2Prefix+cns.NumberOfCPUCoresPath, service.getNumberOfCPUCores)
-	listener.AddHandler(cns.V2Prefix+cns.CreateHostNCApipaEndpointPath, service.CreateHostNCApipaEndpoint)
-	listener.AddHandler(cns.V2Prefix+cns.DeleteHostNCApipaEndpointPath, service.DeleteHostNCApipaEndpoint)
 	listener.AddHandler(cns.V2Prefix+cns.NmAgentSupportedApisPath, service.nmAgentSupportedApisHandler)
 	listener.AddHandler(cns.V2Prefix+cns.GetHomeAz, service.getHomeAz)
 	listener.AddHandler(cns.V2Prefix+cns.EndpointPath, service.EndpointHandlerAPI)

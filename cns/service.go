@@ -24,9 +24,9 @@ import (
 )
 
 const (
-	// Default CNS server URL.
-	defaultAPIServerURL = "tcp://localhost:10090"
-	genericData         = "com.microsoft.azure.network.generic"
+	DefaultAPIServerURL  = "tcp://localhost:10090"
+	defaultAPIServerPort = "10090"
+	genericData          = "com.microsoft.azure.network.generic"
 )
 
 // Service defines Container Networking Service.
@@ -48,14 +48,50 @@ func NewService(name, version, channelMode string, store store.KeyValueStore) (*
 	}, nil
 }
 
-// GetAPIServerURL returns the API server URL.
-func (service *Service) getAPIServerURL() string {
-	urls, _ := service.GetOption(acn.OptCnsURL).(string)
-	if urls == "" {
-		urls = defaultAPIServerURL
+func (service *Service) AddListener(config *common.ServiceConfig) error {
+	// Fetch and parse the API server URL.
+	var nodeURL *url.URL
+	cnsURL, _ := service.GetOption(acn.OptCnsURL).(string)
+	if cnsURL == "" {
+		// get VM primary interface's private IP
+		nodeURL, _ = url.Parse(fmt.Sprintf("tcp://%s:%s", config.PrimaryInterfaceIP, defaultAPIServerPort))
+	} else {
+		// use the URL that customer provides
+		nodeURL, _ = url.Parse(cnsURL)
 	}
 
-	return urls
+	nodeListener, err := acn.NewListener(nodeURL)
+
+	if err != nil {
+		return errors.Wrap(err, "Failed to construct url for node listener")
+	}
+
+	// only use TLS connection for DNC/CNS listener:
+	if config.TLSSettings.TLSPort != "" {
+		if config.TLSSettings.TLSPort != "" {
+			// listener.URL.Host will always be hostname:port, passed in to CNS via CNS command
+			// else it will default to localhost
+			// extract hostname and override tls port.
+			hostParts := strings.Split(nodeListener.URL.Host, ":")
+			tlsAddress := net.JoinHostPort(hostParts[0], config.TLSSettings.TLSPort)
+
+			// Start the listener and HTTP and HTTPS server.
+			tlsConfig, err := getTLSConfig(config.TLSSettings, config.ErrChan) //nolint
+			if err != nil {
+				log.Printf("Failed to compose Tls Configuration with error: %+v", err)
+				return errors.Wrap(err, "could not get tls config")
+			}
+
+			if err := nodeListener.StartTLS(config.ErrChan, tlsConfig, tlsAddress); err != nil {
+				return errors.Wrap(err, "could not start tls")
+			}
+		}
+	}
+
+	service.Listener = nodeListener
+	log.Debugf("[Azure CNS] Successfully initialized a service with config: %+v", config)
+
+	return nil
 }
 
 // Initialize initializes the service and starts the listener.
@@ -67,45 +103,10 @@ func (service *Service) Initialize(config *common.ServiceConfig) error {
 		return errors.Wrap(err, "failed to initialize")
 	}
 
-	// Initialize the listener.
-	if config.Listener == nil {
-		// Fetch and parse the API server URL.
-		u, err := url.Parse(service.getAPIServerURL())
-		if err != nil {
-			return err
-		}
-
-		listener, err := acn.NewListener(u)
-		if err != nil {
-			return err
-		}
-
-		if config.TlsSettings.TLSPort != "" {
-			// listener.URL.Host will always be hostname:port, passed in to CNS via CNS command
-			// else it will default to localhost
-			// extract hostname and override tls port.
-			hostParts := strings.Split(listener.URL.Host, ":")
-			tlsAddress := net.JoinHostPort(hostParts[0], config.TlsSettings.TLSPort)
-
-			// Start the listener and HTTP and HTTPS server.
-			tlsConfig, err := getTLSConfig(config.TlsSettings, config.ErrChan)
-			if err != nil {
-				log.Printf("Failed to compose Tls Configuration with error: %+v", err)
-				return errors.Wrap(err, "could not get tls config")
-			}
-
-			if err := listener.StartTLS(config.ErrChan, tlsConfig, tlsAddress); err != nil {
-				return err
-			}
-		}
-
-		logger.Printf("HTTP listener will be started later after CNS state has been reconciled")
-		config.Listener = listener
+	if err := service.AddListener(config); err != nil {
+		return errors.Wrap(err, "failed to initialize listener")
 	}
 
-	service.Listener = config.Listener
-
-	log.Debugf("[Azure CNS] Successfully initialized a service with config: %+v", config)
 	return nil
 }
 
@@ -226,6 +227,6 @@ func (service *Service) ParseOptions(options OptionMap) OptionMap {
 // SendErrorResponse sends and logs an error response.
 func (service *Service) SendErrorResponse(w http.ResponseWriter, errMsg error) {
 	resp := errorResponse{errMsg.Error()}
-	err := service.Listener.Encode(w, &resp)
+	err := acn.Encode(w, &resp)
 	log.Errorf("[%s] %+v %s.", service.Name, &resp, err.Error())
 }

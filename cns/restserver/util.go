@@ -913,7 +913,7 @@ func (service *HTTPRestService) handleGetNetworkContainers(w http.ResponseWriter
 			ReturnCode: types.Success,
 		},
 	}
-	err := service.Listener.Encode(w, &response)
+	err := acn.Encode(w, &response)
 	logger.Response(service.Name, response, response.Response.ReturnCode, err)
 }
 
@@ -921,7 +921,7 @@ func (service *HTTPRestService) handleGetNetworkContainers(w http.ResponseWriter
 func (service *HTTPRestService) handlePostNetworkContainers(w http.ResponseWriter, r *http.Request) {
 	logger.Printf("[Azure CNS] handlePostNetworkContainers")
 	var req cns.PostNetworkContainersRequest
-	err := service.Listener.Decode(w, r, &req)
+	err := acn.Decode(w, r, &req)
 	logger.Request(service.Name, &req, err)
 	if err != nil {
 		response := cns.PostNetworkContainersResponse{
@@ -930,7 +930,7 @@ func (service *HTTPRestService) handlePostNetworkContainers(w http.ResponseWrite
 				Message:    fmt.Sprintf("[Azure CNS] handlePostNetworkContainers failed with error: %s", err.Error()),
 			},
 		}
-		err = service.Listener.Encode(w, &response)
+		err = acn.Encode(w, &response)
 		logger.Response(service.Name, response, response.Response.ReturnCode, err)
 		return
 	}
@@ -944,7 +944,7 @@ func (service *HTTPRestService) handlePostNetworkContainers(w http.ResponseWrite
 	response := cns.PostNetworkContainersResponse{
 		Response: createNCsResp,
 	}
-	err = service.Listener.Encode(w, &response)
+	err = acn.Encode(w, &response)
 	logger.Response(service.Name, response, response.Response.ReturnCode, err)
 }
 
@@ -982,7 +982,7 @@ func (service *HTTPRestService) createNetworkContainers(createNetworkContainerRe
 
 // setResponse encodes the http response
 func (service *HTTPRestService) setResponse(w http.ResponseWriter, returnCode types.ResponseCode, response interface{}) {
-	serviceErr := service.Listener.Encode(w, &response)
+	serviceErr := acn.Encode(w, &response)
 	logger.Response(service.Name, response, returnCode, serviceErr)
 }
 
