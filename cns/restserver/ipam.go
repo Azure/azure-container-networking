@@ -116,15 +116,15 @@ func (service *HTTPRestService) requestIPConfigHandlerHelperSF(ctx context.Conte
 		return &cns.IPConfigsResponse{}, fmt.Errorf("error getting orchestrator context from PodInfo %w", err)
 	}
 	cnsRequest := cns.GetNetworkContainerRequest{OrchestratorContext: orchestratorContext}
-	resp := service.getAllNetworkContainerResponses(cnsRequest)
+	resp := service.getAllNetworkContainerResponses(cnsRequest) //nolint:contextcheck
 	// return err if nil - error should be failed due to no nc response above
 	if resp == nil {
 		return &cns.IPConfigsResponse{
 			Response: cns.Response{
 				ReturnCode: types.FailedToAllocateIPConfig,
-				Message:    fmt.Sprintf("AllocateIPConfig failed due to not getting NC Response: %v, IP config request is %v", err, ipconfigsRequest),
+				Message:    fmt.Sprintf("AllocateIPConfig failed due to not getting NC Response from statefile, IP config request is %v", ipconfigsRequest),
 			},
-		}, err
+		}, fmt.Errorf("failed to get all NC Responses from state file")
 	}
 	podIPInfo := cns.PodIpInfo{
 		PodIPConfig:                     resp[0].IPConfiguration.IPSubnet,
