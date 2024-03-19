@@ -40,8 +40,8 @@ func (s Server) Start(log *zap.Logger, addr string) error {
 	e.GET(cns.V2Prefix+cns.DeleteHostNCApipaEndpointPath, echo.WrapHandler(http.HandlerFunc(s.DeleteHostNCApipaEndpoint)))
 
 	if err := e.Start(addr); err != nil {
-		log.Error("failed to run server", zap.Error(err))
-		return errors.Wrap(err, "failed to initialize listener")
+		log.Error("failed to run echo server", zap.Error(err))
+		return errors.Wrap(err, "failed to start echo server")
 	}
 
 	return nil
