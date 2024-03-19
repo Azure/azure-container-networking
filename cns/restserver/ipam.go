@@ -11,8 +11,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Azure/azure-container-networking/cns/configuration"
-
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/filter"
 	"github.com/Azure/azure-container-networking/cns/logger"
@@ -284,9 +282,9 @@ func (service *HTTPRestService) RequestIPConfigsHandler(w http.ResponseWriter, r
 		// Wrap the default datapath handlers with the middleware depending on middleware type
 		var wrappedHandler cns.IPConfigsHandlerFunc
 		switch service.IPConfigsHandlerMiddleware.Type() {
-		case configuration.K8sSWIFTV2:
+		case cns.K8sSWIFTV2:
 			wrappedHandler = service.IPConfigsHandlerMiddleware.IPConfigsRequestHandlerWrapper(service.requestIPConfigHandlerHelper, service.ReleaseIPConfigHandlerHelper)
-		case configuration.SFSWIFTV2:
+		case cns.SFSWIFTV2:
 			wrappedHandler = service.IPConfigsHandlerMiddleware.IPConfigsRequestHandlerWrapper(service.requestIPConfigHandlerHelperSF, nil)
 		}
 

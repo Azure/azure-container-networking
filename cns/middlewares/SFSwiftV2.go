@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/Azure/azure-container-networking/cns"
-	"github.com/Azure/azure-container-networking/cns/configuration"
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/pkg/errors"
 )
@@ -27,6 +26,6 @@ func (m *SFSWIFTv2Middleware) IPConfigsRequestHandlerWrapper(ipRequestHandler, _
 	}
 }
 
-func (m *SFSWIFTv2Middleware) Type() configuration.SWIFTV2Mode {
-	return configuration.SFSWIFTV2
+func (m *SFSWIFTv2Middleware) Type() cns.SWIFTV2Mode {
+	return cns.SFSWIFTV2
 }

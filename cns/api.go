@@ -9,8 +9,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/Azure/azure-container-networking/cns/configuration"
-
 	"github.com/Azure/azure-container-networking/cns/common"
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
@@ -37,6 +35,10 @@ const (
 	V1Prefix                      = "/v0.1"
 	V2Prefix                      = "/v0.2"
 	EndpointPath                  = "/network/endpoints/"
+	// Service Fabric SWIFTV2 mode
+	SFSWIFTV2 SWIFTV2Mode = "SFSWIFTV2"
+	// K8s SWIFTV2 mode
+	K8sSWIFTV2 SWIFTV2Mode = "K8sSWIFTV2"
 )
 
 // HTTPService describes the min API interface that every service should have.
@@ -61,8 +63,11 @@ type IPConfigsHandlerFunc func(context.Context, IPConfigsRequest) (*IPConfigsRes
 // IPConfigsHandlerMiddleware
 type IPConfigsHandlerMiddleware interface {
 	IPConfigsRequestHandlerWrapper(defaultHandler IPConfigsHandlerFunc, failureHandler IPConfigsHandlerFunc) IPConfigsHandlerFunc
-	Type() configuration.SWIFTV2Mode
+	Type() SWIFTV2Mode
 }
+
+// SWIFTV2Mode describes the orchestrator-related scenario for swiftv2 flow, used in CNSConfig
+type SWIFTV2Mode string
 
 // This is used for KubernetesCRD orchestrator Type where NC has multiple ips.
 // This struct captures the state for SecondaryIPs associated to a given NC
