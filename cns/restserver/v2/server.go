@@ -6,6 +6,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/restserver"
 	"github.com/labstack/echo/v4"
+	"github.com/pkg/errors"
 	"go.uber.org/zap"
 )
 
@@ -17,7 +18,7 @@ func New(s *restserver.HTTPRestService) *Server {
 	return &Server{s}
 }
 
-func (s Server) Start(log *zap.Logger, addr string) {
+func (s Server) Start(log *zap.Logger, addr string) error {
 	e := echo.New()
 	e.HideBanner = true
 	e.GET(cns.RequestIPConfig, echo.WrapHandler(restserver.NewHandlerFuncWithHistogram(s.RequestIPConfigHandler, restserver.HTTPRequestLatency)))
@@ -40,5 +41,8 @@ func (s Server) Start(log *zap.Logger, addr string) {
 
 	if err := e.Start(addr); err != nil {
 		log.Error("failed to run server", zap.Error(err))
+		return errors.Wrap(err, "failed to initialize listener")
 	}
+
+	return nil
 }
