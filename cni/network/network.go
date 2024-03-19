@@ -807,7 +807,7 @@ func (plugin *NetPlugin) createEndpointInternal(opt *createEndpointInternalOpt, 
 
 	epInfos := []*network.EndpointInfo{&epInfo}
 	// get secondary interface info
-	for _, secondaryCniResult := range opt.ipamAddResult.interfaceInfo {
+	for i, secondaryCniResult := range opt.ipamAddResult.interfaceInfo {
 		switch secondaryCniResult.NICType {
 		case cns.DelegatedVMNIC:
 			// secondary
@@ -830,6 +830,7 @@ func (plugin *NetPlugin) createEndpointInternal(opt *createEndpointInternalOpt, 
 			// todo
 		default:
 			// InfraNic
+			defaultIndex = i
 			continue
 		}
 	}
