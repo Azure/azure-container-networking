@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/fs"
+	"math/rand/v2"
 	"net/http"
 	"os"
 	"os/signal"
@@ -43,6 +44,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/multitenantcontroller"
 	"github.com/Azure/azure-container-networking/cns/multitenantcontroller/multitenantoperator"
 	"github.com/Azure/azure-container-networking/cns/restserver"
+	"github.com/Azure/azure-container-networking/cns/restserver/v2"
 	cnstypes "github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/cns/wireserver"
 	acn "github.com/Azure/azure-container-networking/common"
@@ -766,7 +768,7 @@ func main() {
 	logger.Printf("[Azure CNS] Initialize HTTPRestService")
 	if httpRestService != nil {
 		if cnsconfig.UseHTTPS {
-			config.TlsSettings = localtls.TlsSettings{
+			config.TLSSettings = localtls.TlsSettings{
 				TLSSubjectName:                     cnsconfig.TLSSubjectName,
 				TLSCertificatePath:                 cnsconfig.TLSCertificatePath,
 				TLSPort:                            cnsconfig.TLSPort,
@@ -856,7 +858,16 @@ func main() {
 			logger.Errorf("Failed to start multiTenantController, err:%v.\n", err)
 			return
 		}
+	}
 
+	logger.Printf("[Azure CNS] Start HTTP local echo server")
+	httpEchoRestService := v2.New(httpRestService)
+	if httpEchoRestService != nil {
+		err = httpEchoRestService.Start(z.Log(zap.InfoLevel, ""), cns.DefaultAPIServerURL)
+		if err != nil {
+			logger.Errorf("Failed to start localhost echo server, err:%v.\n", err)
+			return
+		}
 	}
 
 	logger.Printf("[Azure CNS] Start HTTP listener")

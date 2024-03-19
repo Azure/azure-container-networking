@@ -1666,6 +1666,27 @@ func setEnv(t *testing.T) *httptest.ResponseRecorder {
 	return w
 }
 
+// Since UT can only run with localhost, to mock all api test cases, add nodeListener service handlers
+func addHandlersToListener(service *HTTPRestService) {
+	// Add handlers for UT
+	listener := service.Listener
+
+	listener.AddHandler(cns.GetNetworkContainerByOrchestratorContext, service.GetNetworkContainerByOrchestratorContext)
+	listener.AddHandler(cns.GetAllNetworkContainers, service.GetAllNetworkContainers)
+	listener.AddHandler(cns.CreateHostNCApipaEndpointPath, service.CreateHostNCApipaEndpoint)
+	listener.AddHandler(cns.DeleteHostNCApipaEndpointPath, service.DeleteHostNCApipaEndpoint)
+	listener.AddHandler(cns.RequestIPConfig, NewHandlerFuncWithHistogram(service.RequestIPConfigHandler, HTTPRequestLatency))
+	listener.AddHandler(cns.RequestIPConfigs, NewHandlerFuncWithHistogram(service.RequestIPConfigsHandler, HTTPRequestLatency))
+	listener.AddHandler(cns.ReleaseIPConfig, NewHandlerFuncWithHistogram(service.ReleaseIPConfigHandler, HTTPRequestLatency))
+	listener.AddHandler(cns.ReleaseIPConfigs, NewHandlerFuncWithHistogram(service.ReleaseIPConfigsHandler, HTTPRequestLatency))
+	listener.AddHandler(cns.PathDebugIPAddresses, service.HandleDebugIPAddresses)
+	listener.AddHandler(cns.PathDebugPodContext, service.HandleDebugPodContext)
+	listener.AddHandler(cns.PathDebugRestData, service.HandleDebugRestData)
+	listener.AddHandler(cns.V2Prefix+cns.GetNetworkContainerByOrchestratorContext, service.GetNetworkContainerByOrchestratorContext)
+	listener.AddHandler(cns.V2Prefix+cns.GetAllNetworkContainers, service.GetAllNetworkContainers)
+	listener.AddHandler(cns.V2Prefix+cns.CreateHostNCApipaEndpointPath, service.CreateHostNCApipaEndpoint)
+}
+
 func startService() error {
 	// Create the service.
 	config := common.ServiceConfig{}
@@ -1720,11 +1741,17 @@ func startService() error {
 		file, _ := os.Create(cnsJsonFileName)
 		file.Close()
 
+		// mock localhost as primary interface IP
+		config.PrimaryInterfaceIP = "localhost"
+
 		err = service.Init(&config)
 		if err != nil {
 			logger.Errorf("Failed to Init CNS, err:%v.\n", err)
 			return err
 		}
+
+		service := service.(*HTTPRestService)
+		addHandlersToListener(service)
 
 		err = service.Start(&config)
 		if err != nil {

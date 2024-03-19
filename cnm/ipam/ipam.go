@@ -118,7 +118,7 @@ func (plugin *ipamPlugin) getCapabilities(w http.ResponseWriter, r *http.Request
 		RequiresRequestReplay: requiresRequestReplay,
 	}
 
-	err := plugin.Listener.Encode(w, &resp)
+	err := common.Encode(w, &resp)
 
 	log.Response(plugin.Name, &resp, returnCode, returnStr, err)
 }
@@ -135,7 +135,7 @@ func (plugin *ipamPlugin) getDefaultAddressSpaces(w http.ResponseWriter, r *http
 	resp.LocalDefaultAddressSpace = localId
 	resp.GlobalDefaultAddressSpace = globalId
 
-	err := plugin.Listener.Encode(w, &resp)
+	err := common.Encode(w, &resp)
 
 	log.Response(plugin.Name, &resp, returnCode, returnStr, err)
 }
@@ -145,7 +145,7 @@ func (plugin *ipamPlugin) requestPool(w http.ResponseWriter, r *http.Request) {
 	var req RequestPoolRequest
 
 	// Decode request.
-	err := plugin.Listener.Decode(w, r, &req)
+	err := common.Decode(w, r, &req)
 	log.Request(plugin.Name, &req, err)
 	if err != nil {
 		return
@@ -163,7 +163,7 @@ func (plugin *ipamPlugin) requestPool(w http.ResponseWriter, r *http.Request) {
 	poolId = ipam.NewAddressPoolId(req.AddressSpace, poolId, "").String()
 	resp := RequestPoolResponse{PoolID: poolId, Pool: subnet, Data: data}
 
-	err = plugin.Listener.Encode(w, &resp)
+	err = common.Encode(w, &resp)
 
 	log.Response(plugin.Name, &resp, returnCode, returnStr, err)
 }
@@ -173,7 +173,7 @@ func (plugin *ipamPlugin) releasePool(w http.ResponseWriter, r *http.Request) {
 	var req ReleasePoolRequest
 
 	// Decode request.
-	err := plugin.Listener.Decode(w, r, &req)
+	err := common.Decode(w, r, &req)
 	log.Request(plugin.Name, &req, err)
 	if err != nil {
 		return
@@ -195,7 +195,7 @@ func (plugin *ipamPlugin) releasePool(w http.ResponseWriter, r *http.Request) {
 	// Encode response.
 	resp := ReleasePoolResponse{}
 
-	err = plugin.Listener.Encode(w, &resp)
+	err = common.Encode(w, &resp)
 
 	log.Response(plugin.Name, &resp, returnCode, returnStr, err)
 }
@@ -205,7 +205,7 @@ func (plugin *ipamPlugin) getPoolInfo(w http.ResponseWriter, r *http.Request) {
 	var req GetPoolInfoRequest
 
 	// Decode request.
-	err := plugin.Listener.Decode(w, r, &req)
+	err := common.Decode(w, r, &req)
 	log.Request(plugin.Name, &req, err)
 	if err != nil {
 		return
@@ -234,7 +234,7 @@ func (plugin *ipamPlugin) getPoolInfo(w http.ResponseWriter, r *http.Request) {
 		resp.UnhealthyAddresses = append(resp.UnhealthyAddresses, addr.String())
 	}
 
-	err = plugin.Listener.Encode(w, &resp)
+	err = common.Encode(w, &resp)
 
 	log.Response(plugin.Name, &resp, returnCode, returnStr, err)
 }
@@ -244,7 +244,7 @@ func (plugin *ipamPlugin) requestAddress(w http.ResponseWriter, r *http.Request)
 	var req RequestAddressRequest
 
 	// Decode request.
-	err := plugin.Listener.Decode(w, r, &req)
+	err := common.Decode(w, r, &req)
 	log.Request(plugin.Name, &req, err)
 	if err != nil {
 		return
@@ -275,7 +275,7 @@ func (plugin *ipamPlugin) requestAddress(w http.ResponseWriter, r *http.Request)
 	data := make(map[string]string)
 	resp := RequestAddressResponse{Address: addr, Data: data}
 
-	err = plugin.Listener.Encode(w, &resp)
+	err = common.Encode(w, &resp)
 
 	log.Response(plugin.Name, &resp, returnCode, returnStr, err)
 }
@@ -285,7 +285,7 @@ func (plugin *ipamPlugin) releaseAddress(w http.ResponseWriter, r *http.Request)
 	var req ReleaseAddressRequest
 
 	// Decode request.
-	err := plugin.Listener.Decode(w, r, &req)
+	err := common.Decode(w, r, &req)
 	log.Request(plugin.Name, &req, err)
 	if err != nil {
 		return
@@ -307,7 +307,7 @@ func (plugin *ipamPlugin) releaseAddress(w http.ResponseWriter, r *http.Request)
 	// Encode response.
 	resp := ReleaseAddressResponse{}
 
-	err = plugin.Listener.Encode(w, &resp)
+	err = common.Encode(w, &resp)
 
 	log.Response(plugin.Name, &resp, returnCode, returnStr, err)
 }
