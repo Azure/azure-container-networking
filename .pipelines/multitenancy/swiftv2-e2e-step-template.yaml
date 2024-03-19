@@ -35,8 +35,8 @@ steps:
         kubectl get po -owide -A
         echo "Apply the pod network yaml to start the delegation"
         less test/integration/manifests/swiftv2/podnetwork.yaml
-        envsubst '${DUMMY_CLUSTER_SUBNET_TOKEN},${SUBNET_GUID},${SUBNET_RESOURCE_ID},${VNET_GUID}' < test/integration/manifests/cilium/v${DIR}/cilium-agent/templates/daemonset.yaml | kubectl apply -f -
-        kubectl apply -f test/integration/manifests/swiftv2/podnetwork.yaml
+        envsubst '${SUBNET_TOKEN},${SUBNET_GUID},${SUBNET_RESOURCE_ID},${VNET_GUID}' < test/integration/manifests/cilium/v${DIR}/cilium-agent/templates/daemonset.yaml | kubectl apply -f -
+        less test/integration/manifests/swiftv2/podnetwork.yaml
         kubectl get pn
         kubectl describe pn
         echo "Apply the pod network instance yaml to reserve IP"
@@ -46,6 +46,7 @@ steps:
         echo "Start the pod using the reserved IP"
         kubectl apply -f test/integration/manifests/swiftv2/mtpod.yaml
         kubectl get pod -o wide
+        kubectl get po -owide -A
         echo "Start the connection test"
         kubectl exec mtpodjae2 -it -t -- /bin/bash
         ip a

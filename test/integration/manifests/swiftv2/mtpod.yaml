@@ -4,13 +4,13 @@ metadata:
   labels:
     kubernetes.azure.com/pod-network: aksswiftvnet
     kubernetes.azure.com/pod-network-instance: pni1
-  name: mtpodjae
+  name: mtpod
   namespace: default
 spec:
   containers:
   - image: nicolaka/netshoot:latest
     imagePullPolicy: Always
-    name: mtpodjae
+    name: mtpod
     command: ["/bin/bash"]
     args: ["-c", "while true; do ping localhost; sleep 60;done"]
     securityContext:
