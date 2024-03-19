@@ -128,7 +128,7 @@ func (plugin *netPlugin) getCapabilities(w http.ResponseWriter, r *http.Request)
 	log.Request(plugin.Name, &req, nil)
 
 	resp := getCapabilitiesResponse{Scope: plugin.scope}
-	err := plugin.Listener.Encode(w, &resp)
+	err := common.Encode(w, &resp)
 
 	log.Response(plugin.Name, &resp, returnCode, returnStr, err)
 }
@@ -138,7 +138,7 @@ func (plugin *netPlugin) createNetwork(w http.ResponseWriter, r *http.Request) {
 	var req createNetworkRequest
 
 	// Decode request.
-	err := plugin.Listener.Decode(w, r, &req)
+	err := common.Decode(w, r, &req)
 	log.Request(plugin.Name, &req, err)
 	if err != nil {
 		return
@@ -182,7 +182,7 @@ func (plugin *netPlugin) createNetwork(w http.ResponseWriter, r *http.Request) {
 
 	// Encode response.
 	resp := createNetworkResponse{}
-	err = plugin.Listener.Encode(w, &resp)
+	err = common.Encode(w, &resp)
 
 	log.Response(plugin.Name, &resp, returnCode, returnStr, err)
 }
@@ -192,7 +192,7 @@ func (plugin *netPlugin) deleteNetwork(w http.ResponseWriter, r *http.Request) {
 	var req deleteNetworkRequest
 
 	// Decode request.
-	err := plugin.Listener.Decode(w, r, &req)
+	err := common.Decode(w, r, &req)
 	log.Request(plugin.Name, &req, err)
 	if err != nil {
 		return
@@ -207,7 +207,7 @@ func (plugin *netPlugin) deleteNetwork(w http.ResponseWriter, r *http.Request) {
 
 	// Encode response.
 	resp := deleteNetworkResponse{}
-	err = plugin.Listener.Encode(w, &resp)
+	err = common.Encode(w, &resp)
 
 	log.Response(plugin.Name, &resp, returnCode, returnStr, err)
 }
@@ -217,7 +217,7 @@ func (plugin *netPlugin) createEndpoint(w http.ResponseWriter, r *http.Request) 
 	var req createEndpointRequest
 
 	// Decode request.
-	err := plugin.Listener.Decode(w, r, &req)
+	err := common.Decode(w, r, &req)
 	log.Request(plugin.Name, &req, err)
 	if err != nil {
 		return
@@ -256,7 +256,7 @@ func (plugin *netPlugin) createEndpoint(w http.ResponseWriter, r *http.Request) 
 	// Encode response.
 	resp := createEndpointResponse{}
 
-	err = plugin.Listener.Encode(w, &resp)
+	err = common.Encode(w, &resp)
 
 	log.Response(plugin.Name, &resp, returnCode, returnStr, err)
 }
@@ -266,7 +266,7 @@ func (plugin *netPlugin) deleteEndpoint(w http.ResponseWriter, r *http.Request) 
 	var req deleteEndpointRequest
 
 	// Decode request.
-	err := plugin.Listener.Decode(w, r, &req)
+	err := common.Decode(w, r, &req)
 	log.Request(plugin.Name, &req, err)
 	if err != nil {
 		return
@@ -281,7 +281,7 @@ func (plugin *netPlugin) deleteEndpoint(w http.ResponseWriter, r *http.Request) 
 
 	// Encode response.
 	resp := deleteEndpointResponse{}
-	err = plugin.Listener.Encode(w, &resp)
+	err = common.Encode(w, &resp)
 
 	log.Response(plugin.Name, &resp, returnCode, returnStr, err)
 }
@@ -291,7 +291,7 @@ func (plugin *netPlugin) join(w http.ResponseWriter, r *http.Request) {
 	var req joinRequest
 
 	// Decode request.
-	err := plugin.Listener.Decode(w, r, &req)
+	err := common.Decode(w, r, &req)
 	log.Request(plugin.Name, &req, err)
 	if err != nil {
 		return
@@ -315,7 +315,7 @@ func (plugin *netPlugin) join(w http.ResponseWriter, r *http.Request) {
 		Gateway:       ep.Gateways[0].String(),
 	}
 
-	err = plugin.Listener.Encode(w, &resp)
+	err = common.Encode(w, &resp)
 
 	log.Response(plugin.Name, &resp, returnCode, returnStr, err)
 }
@@ -325,7 +325,7 @@ func (plugin *netPlugin) leave(w http.ResponseWriter, r *http.Request) {
 	var req leaveRequest
 
 	// Decode request.
-	err := plugin.Listener.Decode(w, r, &req)
+	err := common.Decode(w, r, &req)
 	log.Request(plugin.Name, &req, err)
 	if err != nil {
 		return
@@ -340,7 +340,7 @@ func (plugin *netPlugin) leave(w http.ResponseWriter, r *http.Request) {
 
 	// Encode response.
 	resp := leaveResponse{}
-	err = plugin.Listener.Encode(w, &resp)
+	err = common.Encode(w, &resp)
 
 	log.Response(plugin.Name, &resp, returnCode, returnStr, err)
 }
@@ -350,7 +350,7 @@ func (plugin *netPlugin) endpointOperInfo(w http.ResponseWriter, r *http.Request
 	var req endpointOperInfoRequest
 
 	// Decode request.
-	err := plugin.Listener.Decode(w, r, &req)
+	err := common.Decode(w, r, &req)
 	log.Request(plugin.Name, &req, err)
 	if err != nil {
 		return
@@ -365,7 +365,7 @@ func (plugin *netPlugin) endpointOperInfo(w http.ResponseWriter, r *http.Request
 
 	// Encode response.
 	resp := endpointOperInfoResponse{Value: epInfo.Data}
-	err = plugin.Listener.Encode(w, &resp)
+	err = common.Encode(w, &resp)
 
 	log.Response(plugin.Name, &resp, returnCode, returnStr, err)
 }
