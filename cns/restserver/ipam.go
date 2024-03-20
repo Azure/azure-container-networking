@@ -27,6 +27,7 @@ var (
 	ErrNoNCs                  = errors.New("no NCs found in the CNS internal state")
 	ErrOptManageEndpointState = errors.New("CNS is not set to manage the endpoint state")
 	ErrEndpointStateNotFound  = errors.New("endpoint state could not be found in the statefile")
+	ErrGetAllNCResponseEmpty  = errors.New("failed to get all NC responses from statefile")
 )
 
 const (
@@ -116,7 +117,7 @@ func (service *HTTPRestService) requestIPConfigHandlerHelperSF(ctx context.Conte
 		return &cns.IPConfigsResponse{}, fmt.Errorf("error getting orchestrator context from PodInfo %w", err)
 	}
 	cnsRequest := cns.GetNetworkContainerRequest{OrchestratorContext: orchestratorContext}
-	resp := service.getAllNetworkContainerResponses(cnsRequest) //nolint:contextcheck
+	resp := service.getAllNetworkContainerResponses(cnsRequest) //nolint:contextcheck // not passed in any methods, appease linter
 	// return err if nil - error should be failed due to no nc response above
 	if resp == nil {
 		return &cns.IPConfigsResponse{
@@ -124,7 +125,7 @@ func (service *HTTPRestService) requestIPConfigHandlerHelperSF(ctx context.Conte
 				ReturnCode: types.FailedToAllocateIPConfig,
 				Message:    fmt.Sprintf("AllocateIPConfig failed due to not getting NC Response from statefile, IP config request is %v", ipconfigsRequest),
 			},
-		}, fmt.Errorf("failed to get all NC Responses from state file")
+		}, ErrGetAllNCResponseEmpty
 	}
 	podIPInfo := cns.PodIpInfo{
 		PodIPConfig:                     resp[0].IPConfiguration.IPSubnet,
