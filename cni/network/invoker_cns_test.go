@@ -495,9 +495,10 @@ func TestCNSIPAMInvoker_Add_Overlay(t *testing.T) {
 					}
 				case cns.BackendNIC:
 					// todo
-				default:
-					// Default | InfraNIC
+				case cns.InfraNIC:
 					require.Equalf(tt.wantDefaultResult, ifInfo, "incorrect default response")
+				default:
+					// Error catch for unsupported NICType?
 				}
 			}
 		})
@@ -733,9 +734,11 @@ func TestCNSIPAMInvoker_Add(t *testing.T) {
 					}
 				case cns.BackendNIC:
 					// todo
-				default:
-					// Default | InfraNIC
+				case cns.InfraNIC:
 					require.Equalf(tt.wantDefaultResult, ifInfo, "incorrect default response")
+				default:
+					// Error catch for unsupported NICType?
+
 				}
 			}
 		})
@@ -860,9 +863,10 @@ func TestCNSIPAMInvoker_Add_UnsupportedAPI(t *testing.T) {
 					// Secondary
 				case cns.BackendNIC:
 					// todo
-				default:
-					// Default | InfraNIC
+				case cns.InfraNIC:
 					require.Equalf(tt.want, ifInfo, "incorrect ipv4 response")
+				default:
+					// Error catch for unsupported NICType?
 				}
 			}
 		})

@@ -828,10 +828,11 @@ func (plugin *NetPlugin) createEndpointInternal(opt *createEndpointInternalOpt, 
 				})
 		case cns.BackendNIC:
 			// todo
-		default:
-			// InfraNic
+		case cns.InfraNIC:
 			defaultIndex = i
 			continue
+		default:
+			// Error catch for unsupported NICType?
 		}
 	}
 
@@ -1430,7 +1431,6 @@ func convertCniResultToInterfaceInfo(result *cniTypesCurr.Result) network.Interf
 }
 
 func findDefaultInterface(ipamAddResult IPAMAddResult) int {
-	// defaultIf := network.InterfaceInfo{}
 	for i, ifInfo := range ipamAddResult.interfaceInfo {
 		if ifInfo.NICType == cns.InfraNIC {
 			return i

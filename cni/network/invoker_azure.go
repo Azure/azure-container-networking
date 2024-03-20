@@ -116,7 +116,15 @@ func (invoker *AzureIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, er
 		routes[i] = network.RouteInfo{Dst: route.Dst, Gw: route.GW}
 	}
 
-	addResult.interfaceInfo = append(addResult.interfaceInfo, network.InterfaceInfo{IPConfigs: ipconfigs, Routes: routes, DNS: network.DNSInfo{Suffix: result.DNS.Domain, Servers: result.DNS.Nameservers}, NICType: cns.InfraNIC})
+	addResult.interfaceInfo = append(addResult.interfaceInfo, network.InterfaceInfo{
+		IPConfigs: ipconfigs,
+		Routes:    routes,
+		DNS: network.DNSInfo{
+			Suffix:  result.DNS.Domain,
+			Servers: result.DNS.Nameservers,
+		},
+		NICType: cns.InfraNIC,
+	})
 	return addResult, err
 }
 
