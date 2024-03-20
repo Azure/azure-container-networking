@@ -7,32 +7,8 @@ parameters:
   k8sVersion: ""
   dependsOn: ""
   nodePoolName: ""
-  dummyClusterName: ""
-  dummyClusterType: ""
-  dummyClusterDisplayName: ""
 
-# stages:
-#   - stage: ${{ parameters.dummyClusterName }}
-#     displayName: Create Dummy Cluster - ${{ parameters.dummyClusterDisplayName }}
-#     dependsOn:
-#       - ${{ parameters.dependsOn }}
-#       - setup
-#     pool:
-#       name: $(BUILD_POOL_NAME_DEFAULT)
-#     variables:
-#       commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
-#     jobs:
-#       - template: ../templates/create-cluster.yaml
-#         parameters:
-#           name: ${{ parameters.name }}
-#           displayName: ${{ parameters.displayName }}
-#           clusterType: ${{ parameters.dummyClusterType }}
-#           clusterName: ${{ parameters.dummyClusterName }}-$(commitID)
-#           vmSize: ${{ parameters.vmSize }}
-#           k8sVersion: ${{ parameters.k8sVersion }}
-#           dependsOn: ${{ parameters.dependsOn }}
-#           region: $(REGION_DUALSTACKOVERLAY_CLUSTER_TEST) # Swiftv2 has a specific region requirement and its the same with dualstack reagion
-
+stages:
   - stage: ${{ parameters.clusterName }}
     displayName: Create Cluster - ${{ parameters.displayName }}
     dependsOn:
@@ -52,7 +28,7 @@ parameters:
           vmSize: ${{ parameters.vmSize }}
           k8sVersion: ${{ parameters.k8sVersion }}
           dependsOn: ${{ parameters.dependsOn }}
-          region: $(REGION_SWIFTV2_CLUSTER_TEST) # Swiftv2 has a specific region requirement and its the same with dualstack reagion
+          region: $(REGION_SWIFTV2_CLUSTER_TEST) # Swiftv2 has a specific region requirements
 
   - stage: ${{ parameters.name }}
     condition: and( succeeded(), not(eq(dependencies.dualstackoverlaye2e.result,'SucceededWithIssues')) ) # Cant use parameters in dependencies
