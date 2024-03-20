@@ -59,7 +59,6 @@ func (nm *MockNetworkManager) CreateEndpoint(_ apipaClient, _ string, epInfos []
 			return err
 		}
 	}
-	// Look into changing this...
 	nm.TestEndpointInfoMap[epInfos[0].Id] = epInfos[0]
 	return nil
 }

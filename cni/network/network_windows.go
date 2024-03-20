@@ -158,7 +158,7 @@ func (plugin *NetPlugin) getNetworkName(netNs string, ipamAddResult *IPAMAddResu
 	// This will happen during ADD call
 	if ipamAddResult != nil && ipamAddResult.ncResponse != nil {
 		// find defaultInterface within AddResult
-		defaultIndex := findDefaultInterface(ipamAddResult)
+		defaultIndex := findDefaultInterface(*ipamAddResult)
 		// networkName will look like ~ azure-vlan1-172-28-1-0_24
 		ipAddrNet := ipamAddResult.interfaceInfo[defaultIndex].IPConfigs[0].Address
 		prefix, err := netip.ParsePrefix(ipAddrNet.String())

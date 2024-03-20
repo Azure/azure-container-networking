@@ -66,7 +66,7 @@ func (nw *network) newEndpointImpl(
 		contIfName    string
 		localIP       string
 		vlanid        = 0
-		defaultEpInfo = epInfo[defaultIndex] // this needs to be changed, out of scope...
+		defaultEpInfo = epInfo[defaultIndex]
 		containerIf   *net.Interface
 	)
 
