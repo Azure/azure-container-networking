@@ -519,17 +519,6 @@ stages:
         dummyClusterType: "swiftv2-dummy-cluster-up"
         dummyClusterDisplayName: Swiftv2 Multitenancy Dummy Cluster
 
-    # Swiftv2 E2E tests with dummy cluster start up
-    # - template: multitenancy/swiftv2-e2e-job-template.yaml
-    #   parameters:
-    #     name: "swiftv2_e2e_dummy"
-    #     displayName: Swiftv2 Multitenancy Dummy Cluster
-    #     os: linux
-    #     clusterType: swiftv2-dummy-cluster-up
-    #     clusterName: "mtcluster"
-    #     vmSize: Standard_D4_v2
-    #     dependsOn: "test"
-
     - stage: delete
       displayName: Delete Clusters
       condition: always()
