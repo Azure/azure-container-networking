@@ -596,6 +596,34 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 
 		natInfo := getNATInfo(nwCfg, options[network.SNATIPKey], enableSnatForDNS)
 
+		var epInfo network.EndpointInfo
+		if len(nwInfos) == 0 {
+			createEndpointInternalOpt := createEndpointInternalOpt{
+				nwCfg:            nwCfg,
+				cnsNetworkConfig: ipamAddResult.ncResponse,
+				ipamAddResult:    ipamAddResult,
+				azIpamResult:     azIpamResult,
+				args:             args,
+				nwInfo:           &nwInfo,
+				policies:         policies,
+				endpointID:       endpointID,
+				k8sPodName:       k8sPodName,
+				k8sNamespace:     k8sNamespace,
+				enableInfraVnet:  enableInfraVnet,
+				enableSnatForDNS: enableSnatForDNS,
+				natInfo:          natInfo,
+			}
+
+			epInfo, err = plugin.createEndpointInternal(&createEndpointInternalOpt, defaultIndex)
+			if err != nil {
+				logger.Error("Endpoint creation failed", zap.Error(err))
+				return err
+			}
+
+			sendEvent(plugin, fmt.Sprintf("CNI ADD succeeded: IP:%+v, VlanID: %v, podname %v, namespace %v numendpoints:%d",
+				ipamAddResult.interfaceInfo[defaultIndex].IPConfigs, epInfo.Data[network.VlanIDKey], k8sPodName, k8sNamespace, plugin.nm.GetNumberOfEndpoints("", nwCfg.Name)))
+		}
+
 		for _, nwInfo := range nwInfos {
 			createEndpointInternalOpt := createEndpointInternalOpt{
 				nwCfg:            nwCfg,
