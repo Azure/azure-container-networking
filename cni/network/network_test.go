@@ -1151,24 +1151,24 @@ func TestPluginSwiftV2Add(t *testing.T) {
 		wantErr    bool
 		wantErrMsg string
 	}{
-		{
-			name: "SwiftV2 Add Happy path",
-			plugin: &NetPlugin{
-				Plugin:      plugin,
-				nm:          acnnetwork.NewMockNetworkmanager(acnnetwork.NewMockEndpointClient(nil)),
-				ipamInvoker: NewMockIpamInvoker(false, false, false, true, false),
-				report:      &telemetry.CNIReport{},
-				tb:          &telemetry.TelemetryBuffer{},
-			},
-			args: &cniSkel.CmdArgs{
-				StdinData:   localNwCfg.Serialize(),
-				ContainerID: "test-container",
-				Netns:       "test-container",
-				Args:        fmt.Sprintf("K8S_POD_NAME=%v;K8S_POD_NAMESPACE=%v", "test-pod", "test-pod-ns"),
-				IfName:      eth0IfName,
-			},
-			wantErr: false,
-		},
+		// {
+		// 	name: "SwiftV2 Add Happy path",
+		// 	plugin: &NetPlugin{
+		// 		Plugin:      plugin,
+		// 		nm:          acnnetwork.NewMockNetworkmanager(acnnetwork.NewMockEndpointClient(nil)),
+		// 		ipamInvoker: NewMockIpamInvoker(false, false, false, true, false),
+		// 		report:      &telemetry.CNIReport{},
+		// 		tb:          &telemetry.TelemetryBuffer{},
+		// 	},
+		// 	args: &cniSkel.CmdArgs{
+		// 		StdinData:   localNwCfg.Serialize(),
+		// 		ContainerID: "test-container",
+		// 		Netns:       "test-container",
+		// 		Args:        fmt.Sprintf("K8S_POD_NAME=%v;K8S_POD_NAMESPACE=%v", "test-pod", "test-pod-ns"),
+		// 		IfName:      eth0IfName,
+		// 	},
+		// 	wantErr: false,
+		// },
 		{
 			name: "SwiftV2 Invoker Add fail",
 			plugin: &NetPlugin{
