@@ -485,10 +485,21 @@ func TestCNSIPAMInvoker_Add_Overlay(t *testing.T) {
 				require.NoError(err)
 			}
 
-			fmt.Printf("want:%+v\nrest:%+v\n", tt.wantSecondaryInterfacesInfo, ipamAddResult.secondaryInterfacesInfo)
-			require.Equalf(tt.wantDefaultResult, ipamAddResult.defaultInterfaceInfo, "incorrect default response")
-			if len(tt.wantSecondaryInterfacesInfo.IPConfigs) > 0 {
-				require.EqualValues(tt.wantSecondaryInterfacesInfo, ipamAddResult.secondaryInterfacesInfo[0], "incorrect multitenant response")
+			for _, ifInfo := range ipamAddResult.interfaceInfo {
+				switch ifInfo.NICType {
+				case cns.DelegatedVMNIC:
+					fmt.Printf("want:%+v\nrest:%+v\n", tt.wantSecondaryInterfacesInfo, ifInfo)
+					if len(tt.wantSecondaryInterfacesInfo.IPConfigs) > 0 {
+						require.EqualValues(tt.wantSecondaryInterfacesInfo, ifInfo, "incorrect multitenant response")
+					}
+				case cns.BackendNIC:
+					fmt.Print(errInvalidNIC)
+					require.FailNow("No coverage for this NICType")
+				case cns.InfraNIC:
+					require.Equalf(tt.wantDefaultResult, ifInfo, "incorrect default response")
+				default:
+					require.FailNow("Unsupported NICType")
+				}
 			}
 		})
 	}
@@ -713,10 +724,21 @@ func TestCNSIPAMInvoker_Add(t *testing.T) {
 				require.NoError(err)
 			}
 
-			fmt.Printf("want:%+v\nrest:%+v\n", tt.wantMultitenantResult, ipamAddResult.secondaryInterfacesInfo)
-			require.Equalf(tt.wantDefaultResult, ipamAddResult.defaultInterfaceInfo, "incorrect default response")
-			if len(tt.wantMultitenantResult.IPConfigs) > 0 {
-				require.Equalf(tt.wantMultitenantResult, ipamAddResult.secondaryInterfacesInfo[0], "incorrect multitenant response")
+			for _, ifInfo := range ipamAddResult.interfaceInfo {
+				switch ifInfo.NICType {
+				case cns.DelegatedVMNIC:
+					fmt.Printf("want:%+v\nrest:%+v\n", tt.wantMultitenantResult, ifInfo)
+					if len(tt.wantMultitenantResult.IPConfigs) > 0 {
+						require.Equalf(tt.wantMultitenantResult, ifInfo, "incorrect multitenant response")
+					}
+				case cns.BackendNIC:
+					fmt.Print(errInvalidNIC)
+					require.FailNow("No coverage for this NICType")
+				case cns.InfraNIC:
+					require.Equalf(tt.wantDefaultResult, ifInfo, "incorrect default response")
+				default:
+					require.FailNow("Unsupported NICType")
+				}
 			}
 		})
 	}
@@ -747,7 +769,7 @@ func TestCNSIPAMInvoker_Add_UnsupportedAPI(t *testing.T) {
 		fields  fields
 		args    args
 		want    network.InterfaceInfo
-		want1   network.InterfaceInfo
+		want1   network.InterfaceInfo // We dont use this anywhere..? Dead Code potentially, ask jaeryn
 		wantErr bool
 	}{
 		{
@@ -833,7 +855,18 @@ func TestCNSIPAMInvoker_Add_UnsupportedAPI(t *testing.T) {
 				t.Fatalf("expected an error %+v but none received", err)
 			}
 			require.NoError(err)
-			require.Equalf(tt.want, ipamAddResult.defaultInterfaceInfo, "incorrect ipv4 response")
+
+			for _, ifInfo := range ipamAddResult.interfaceInfo {
+				switch ifInfo.NICType {
+				case cns.DelegatedVMNIC, cns.BackendNIC:
+					fmt.Print(errInvalidNIC)
+					require.FailNow("No coverage for this NICType")
+				case cns.InfraNIC:
+					require.Equalf(tt.want, ifInfo, "incorrect ipv4 response")
+				default:
+					require.FailNow("Unsupported NICType")
+				}
+			}
 		})
 	}
 }

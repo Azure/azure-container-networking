@@ -8,6 +8,7 @@ import (
 
 	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/cni/log"
+	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/ipam"
 	"github.com/Azure/azure-container-networking/network"
 	cniSkel "github.com/containernetworking/cni/pkg/skel"
@@ -238,8 +239,18 @@ func TestAzureIPAMInvoker_Add(t *testing.T) {
 				require.Nil(err)
 			}
 
-			fmt.Printf("want:%+v\nrest:%+v\n", tt.want, ipamAddResult.defaultInterfaceInfo.IPConfigs)
-			require.Exactly(tt.want, ipamAddResult.defaultInterfaceInfo.IPConfigs)
+			for _, ifInfo := range ipamAddResult.interfaceInfo {
+				switch ifInfo.NICType {
+				case cns.DelegatedVMNIC, cns.BackendNIC:
+					fmt.Print(errInvalidNIC)
+					require.FailNow("No coverage for this NICType")
+				case cns.InfraNIC:
+					fmt.Printf("want:%+v\nrest:%+v\n", tt.want, ifInfo.IPConfigs)
+					require.Exactly(tt.want, ifInfo.IPConfigs)
+				default:
+					require.FailNow("Unsupported NICType")
+				}
+			}
 		})
 	}
 }

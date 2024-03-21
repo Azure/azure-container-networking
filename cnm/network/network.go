@@ -247,7 +247,8 @@ func (plugin *netPlugin) createEndpoint(w http.ResponseWriter, r *http.Request) 
 	if err != nil {
 		log.Errorf("failed to init CNS client", err)
 	}
-	err = plugin.nm.CreateEndpoint(cnscli, req.NetworkID, []*network.EndpointInfo{&epInfo})
+	// We only pass a single epInfo, so can pass default index as 0
+	err = plugin.nm.CreateEndpoint(cnscli, req.NetworkID, []*network.EndpointInfo{&epInfo}, 0)
 	if err != nil {
 		plugin.SendErrorResponse(w, err)
 		return

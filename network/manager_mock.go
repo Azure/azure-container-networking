@@ -53,7 +53,7 @@ func (nm *MockNetworkManager) GetNetworkInfo(networkID string) (NetworkInfo, err
 }
 
 // CreateEndpoint mock
-func (nm *MockNetworkManager) CreateEndpoint(_ apipaClient, _ string, epInfos []*EndpointInfo) error {
+func (nm *MockNetworkManager) CreateEndpoint(_ apipaClient, _ string, epInfos []*EndpointInfo, _ int) error {
 	for _, epInfo := range epInfos {
 		if err := nm.TestEndpointClient.AddEndpoints(epInfo); err != nil {
 			return err
