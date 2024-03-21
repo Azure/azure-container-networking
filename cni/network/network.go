@@ -391,30 +391,27 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 		telemetry.SendCNIMetric(&cniMetric, plugin.tb)
 
 		// Add Interfaces to result.
-		if len(ipamAddResult.interfaceInfo) < 1 {
-			ipamAddResult.interfaceInfo = append(ipamAddResult.interfaceInfo, network.InterfaceInfo{NICType: cns.InfraNIC})
+		for _, intfInfo := range ipamAddResult.interfaceInfo {
+			cniResult := convertInterfaceInfoToCniResult(intfInfo, args.IfName)
+			addSnatInterface(nwCfg, cniResult)
+
+			// Convert result to the requested CNI version.
+			res, vererr := cniResult.GetAsVersion(nwCfg.CNIVersion)
+			if vererr != nil {
+				logger.Error("GetAsVersion failed", zap.Error(vererr))
+				plugin.Error(vererr)
+			}
+
+			if err == nil && res != nil {
+				// Output the result to stdout.
+				res.Print()
+			}
+
+			logger.Info("ADD command completed for",
+				zap.String("pod", k8sPodName),
+				zap.Any("IPs", cniResult.IPs),
+				zap.Error(err))
 		}
-		defaultIndex := findDefaultInterface(ipamAddResult)
-		defaultCniResult := convertInterfaceInfoToCniResult(ipamAddResult.interfaceInfo[defaultIndex], args.IfName)
-
-		addSnatInterface(nwCfg, defaultCniResult)
-
-		// Convert result to the requested CNI version.
-		res, vererr := defaultCniResult.GetAsVersion(nwCfg.CNIVersion)
-		if vererr != nil {
-			logger.Error("GetAsVersion failed", zap.Error(vererr))
-			plugin.Error(vererr)
-		}
-
-		if err == nil && res != nil {
-			// Output the result to stdout.
-			res.Print()
-		}
-
-		logger.Info("ADD command completed for",
-			zap.String("pod", k8sPodName),
-			zap.Any("IPs", defaultCniResult.IPs),
-			zap.Error(err))
 	}()
 
 	// Parse Pod arguments.
