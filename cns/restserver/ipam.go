@@ -102,24 +102,17 @@ func (service *HTTPRestService) requestIPConfigHandlerHelperSF(ctx context.Conte
 				ReturnCode: returnCode,
 				Message:    returnMessage,
 			},
-		}, errors.New("failed to validate ip config request")
+		}, errors.New("failed to validate ip config request or unmarshal orchestratorContext")
 	}
 
-	// record a pod requesting an IP
-	service.podsPendingIPAssignment.Push(podInfo.Key())
-	// unmarshal & retrieve podInfo from OrchestratorContext
-	podInfo, err := cns.NewPodInfoFromIPConfigsRequest(ipconfigsRequest)
-	if err != nil {
-		return &cns.IPConfigsResponse{}, errors.Wrapf(err, "failed to parse IPConfigsRequest %v", ipconfigsRequest)
-	}
 	orchestratorContext, err := podInfo.OrchestratorContext()
 	if err != nil {
 		return &cns.IPConfigsResponse{}, fmt.Errorf("error getting orchestrator context from PodInfo %w", err)
 	}
 	cnsRequest := cns.GetNetworkContainerRequest{OrchestratorContext: orchestratorContext}
 	resp := service.getAllNetworkContainerResponses(cnsRequest) //nolint:contextcheck // not passed in any methods, appease linter
-	// return err if nil - error should be failed due to no nc response above
-	if resp == nil {
+	// return err if returned list has no NCs
+	if len(resp) == 0 {
 		return &cns.IPConfigsResponse{
 			Response: cns.Response{
 				ReturnCode: types.FailedToAllocateIPConfig,
@@ -138,11 +131,11 @@ func (service *HTTPRestService) requestIPConfigHandlerHelperSF(ctx context.Conte
 		Response: cns.Response{
 			ReturnCode: types.Success,
 		},
-		PodIPInfo: []cns.PodIpInfo{},
+		PodIPInfo: []cns.PodIpInfo{podIPInfo},
 	}
 
-	ipConfigsResp.PodIPInfo = append(ipConfigsResp.PodIPInfo, podIPInfo)
-	ipConfigsResp, err = service.updatePodInfoWithInterfaces(ctx, ipConfigsResp)
+	//ipConfigsResp.PodIPInfo = append(ipConfigsResp.PodIPInfo, podIPInfo)
+	err = service.updatePodInfoWithInterfaces(ctx, ipConfigsResp)
 	if err != nil {
 		return &cns.IPConfigsResponse{
 			Response: cns.Response{
@@ -151,27 +144,22 @@ func (service *HTTPRestService) requestIPConfigHandlerHelperSF(ctx context.Conte
 			},
 		}, err
 	}
-	return &cns.IPConfigsResponse{
-		Response: cns.Response{
-			ReturnCode: types.Success,
-		},
-		PodIPInfo: ipConfigsResp.PodIPInfo,
-	}, nil
+	return ipConfigsResp, nil
 }
 
-func (service *HTTPRestService) updatePodInfoWithInterfaces(ctx context.Context, ipconfigResponse *cns.IPConfigsResponse) (*cns.IPConfigsResponse, error) {
+func (service *HTTPRestService) updatePodInfoWithInterfaces(ctx context.Context, ipconfigResponse *cns.IPConfigsResponse) error {
 	podIPInfoList := make([]cns.PodIpInfo, 0, len(ipconfigResponse.PodIPInfo))
 
 	// fetching primary host interface to use below for updating IPConfigsResponse
 	hostPrimaryInterface, err := service.getPrimaryHostInterface(ctx)
 	if err != nil {
-		return &cns.IPConfigsResponse{}, err
+		return err
 	}
 	for i := range ipconfigResponse.PodIPInfo {
 		// populating podIpInfo with secondary interface info & updating IpConfigsResponse
 		hostSecondaryInterface, err := service.getSecondaryHostInterface(ctx, ipconfigResponse.PodIPInfo[i].MacAddress)
 		if err != nil {
-			return &cns.IPConfigsResponse{}, err
+			return err
 		}
 
 		ipconfigResponse.PodIPInfo[i].HostPrimaryIPInfo = cns.HostIPInfo{
@@ -189,7 +177,7 @@ func (service *HTTPRestService) updatePodInfoWithInterfaces(ctx context.Context,
 		podIPInfoList = append(podIPInfoList, ipconfigResponse.PodIPInfo[i])
 	}
 	ipconfigResponse.PodIPInfo = podIPInfoList
-	return ipconfigResponse, nil
+	return nil
 }
 
 // RequestIPConfigHandler requests an IPConfig from the CNS state

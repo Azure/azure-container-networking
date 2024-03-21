@@ -20,8 +20,6 @@ func (m *SFSWIFTv2Middleware) IPConfigsRequestHandlerWrapper(ipRequestHandler, _
 			return ipConfigsResp, errors.Wrapf(err, "Failed to requestIPConfigs for SF from IPConfigsRequest %v", req)
 		}
 
-		// SwiftV2-SF will always request for secondaryInterfaces for a pod
-		req.SecondaryInterfacesExist = true
 		return ipConfigsResp, nil
 	}
 }

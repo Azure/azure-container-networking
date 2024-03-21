@@ -793,19 +793,16 @@ func (service *HTTPRestService) getPrimaryHostInterface(ctx context.Context) (*w
 // getSecondaryHostInterface returns the cached InterfaceInfo, if available, otherwise
 // queries the IMDS to get the secondary interface info and caches it in the server-state before returning the result.
 func (service *HTTPRestService) getSecondaryHostInterface(ctx context.Context, macAddress string) (*wireserver.InterfaceInfo, error) {
-	if service.state.secondaryInterface == nil {
-		res, err := service.wscli.GetInterfaces(ctx)
-		if err != nil {
-			return nil, errors.Wrap(err, "failed to get interfaces from wireserver client")
-		}
-		secondary, err := wireserver.GetSecondaryInterfaceFromResult(res, macAddress)
-		if err != nil {
-			return nil, errors.Wrap(err, "failed to get secondary interface from wireserver client")
-		}
-
-		service.state.secondaryInterface = secondary
+	// note: not checking or saving secondary nic state in the restserver service state since each secondary nic changes based on request
+	res, err := service.wscli.GetInterfaces(ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get interfaces from wireserver client")
 	}
-	return service.state.secondaryInterface, nil
+	secondary, err := wireserver.GetSecondaryInterfaceFromResult(res, macAddress)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get secondary interface from wireserver client")
+	}
+	return secondary, nil
 }
 
 //nolint:gocritic // ignore hugeParam pls
