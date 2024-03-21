@@ -75,6 +75,7 @@ type NetworkInfo struct {
 	IPAMType                      string
 	ServiceCidrs                  string
 	IsIPv6Enabled                 bool
+	NICType                       string
 }
 
 // SubnetInfo contains subnet information for a container network.
