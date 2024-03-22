@@ -1,0 +1,54 @@
+parameters:
+  name: ""
+  clusterName: ""
+  cni: cni
+  os: ""
+
+steps:
+  - bash: |
+      go version
+      go env
+      mkdir -p '$(GOBIN)'
+      mkdir -p '$(GOPATH)/pkg'
+      mkdir -p '$(modulePath)'
+      echo '##vso[task.prependpath]$(GOBIN)'
+      echo '##vso[task.prependpath]$(GOROOT)/bin'
+    name: "GoEnv"
+    displayName: "Set up the Go environment"
+
+  - task: KubectlInstaller@0
+    inputs:
+      kubectlVersion: latest
+
+  - task: AzureCLI@1
+    inputs:
+      azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+      scriptLocation: "inlineScript"
+      scriptType: "bash"
+      addSpnToEnvironment: true
+      inlineScript: |
+        set -e
+        make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
+        ls -lah
+        pwd
+        kubectl cluster-info
+        kubectl get po -owide -A
+        echo "Apply the pod network yaml to start the delegation"
+        less test/integration/manifests/swiftv2/podnetwork.yaml
+        envsubst '${SUBNET_TOKEN},${SUBNET_GUID},${SUBNET_RESOURCE_ID},${VNET_GUID}' < test/integration/manifests/cilium/v${DIR}/cilium-agent/templates/daemonset.yaml | kubectl apply -f -
+        less test/integration/manifests/swiftv2/podnetwork.yaml
+        kubectl get pn
+        kubectl describe pn
+        echo "Apply the pod network instance yaml to reserve IP"
+        kubectl apply -f test/integration/manifests/swiftv2/pni.yaml
+        kubectl get pni
+        kubectl describe pni
+        echo "Start the pod using the reserved IP"
+        kubectl apply -f test/integration/manifests/swiftv2/mtpod.yaml
+        kubectl get pod -o wide
+        kubectl get po -owide -A
+        echo "Start the connection test"
+        kubectl exec mtpodjae2 -it -t -- /bin/bash
+        ip a
+        ping -c 3 172.25.0.22
+
