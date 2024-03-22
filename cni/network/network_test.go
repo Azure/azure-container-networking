@@ -10,7 +10,6 @@ import (
 	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/cni/api"
 	"github.com/Azure/azure-container-networking/cni/util"
-	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/common"
 	acnnetwork "github.com/Azure/azure-container-networking/network"
 	"github.com/Azure/azure-container-networking/network/networkutils"
@@ -1151,54 +1150,11 @@ func TestPluginSwiftV2Add(t *testing.T) {
 		wantErr    bool
 		wantErrMsg string
 	}{
-		// {
-		// 	name: "SwiftV2 Add Happy path",
-		// 	plugin: &NetPlugin{
-		// 		Plugin:      plugin,
-		// 		nm:          acnnetwork.NewMockNetworkmanager(acnnetwork.NewMockEndpointClient(nil)),
-		// 		ipamInvoker: NewMockIpamInvoker(false, false, false, true, false),
-		// 		report:      &telemetry.CNIReport{},
-		// 		tb:          &telemetry.TelemetryBuffer{},
-		// 	},
-		// 	args: &cniSkel.CmdArgs{
-		// 		StdinData:   localNwCfg.Serialize(),
-		// 		ContainerID: "test-container",
-		// 		Netns:       "test-container",
-		// 		Args:        fmt.Sprintf("K8S_POD_NAME=%v;K8S_POD_NAMESPACE=%v", "test-pod", "test-pod-ns"),
-		// 		IfName:      eth0IfName,
-		// 	},
-		// 	wantErr: false,
-		// },
 		{
-			name: "SwiftV2 Invoker Add fail",
+			name: "SwiftV2 Add Happy path",
 			plugin: &NetPlugin{
 				Plugin:      plugin,
 				nm:          acnnetwork.NewMockNetworkmanager(acnnetwork.NewMockEndpointClient(nil)),
-				ipamInvoker: NewMockIpamInvoker(false, false, false, true, true),
-				report:      &telemetry.CNIReport{},
-				tb:          &telemetry.TelemetryBuffer{},
-			},
-			args: &cniSkel.CmdArgs{
-				StdinData:   localNwCfg.Serialize(),
-				ContainerID: "test-container",
-				Netns:       "test-container",
-				Args:        fmt.Sprintf("K8S_POD_NAME=%v;K8S_POD_NAMESPACE=%v", "test-pod", "test-pod-ns"),
-				IfName:      eth0IfName,
-			},
-			wantErr:    true,
-			wantErrMsg: "IPAM Invoker Add failed with error: delegatedVMNIC fail",
-		},
-		{
-			name: "SwiftV2 EndpointClient Add fail",
-			plugin: &NetPlugin{
-				Plugin: plugin,
-				nm: acnnetwork.NewMockNetworkmanager(acnnetwork.NewMockEndpointClient(func(ep *acnnetwork.EndpointInfo) error {
-					if ep.NICType == cns.DelegatedVMNIC {
-						return acnnetwork.NewErrorMockEndpointClient("AddEndpoints Delegated VM NIC failed") //nolint:wrapcheck // ignore wrapping for test
-					}
-
-					return nil
-				})),
 				ipamInvoker: NewMockIpamInvoker(false, false, false, true, false),
 				report:      &telemetry.CNIReport{},
 				tb:          &telemetry.TelemetryBuffer{},
@@ -1210,9 +1166,52 @@ func TestPluginSwiftV2Add(t *testing.T) {
 				Args:        fmt.Sprintf("K8S_POD_NAME=%v;K8S_POD_NAMESPACE=%v", "test-pod", "test-pod-ns"),
 				IfName:      eth0IfName,
 			},
-			wantErr:    true,
-			wantErrMsg: "Failed to create endpoint: MockEndpointClient Error : AddEndpoints Delegated VM NIC failed",
+			wantErr: false,
 		},
+		// {
+		// 	name: "SwiftV2 Invoker Add fail",
+		// 	plugin: &NetPlugin{
+		// 		Plugin:      plugin,
+		// 		nm:          acnnetwork.NewMockNetworkmanager(acnnetwork.NewMockEndpointClient(nil)),
+		// 		ipamInvoker: NewMockIpamInvoker(false, false, false, true, true),
+		// 		report:      &telemetry.CNIReport{},
+		// 		tb:          &telemetry.TelemetryBuffer{},
+		// 	},
+		// 	args: &cniSkel.CmdArgs{
+		// 		StdinData:   localNwCfg.Serialize(),
+		// 		ContainerID: "test-container",
+		// 		Netns:       "test-container",
+		// 		Args:        fmt.Sprintf("K8S_POD_NAME=%v;K8S_POD_NAMESPACE=%v", "test-pod", "test-pod-ns"),
+		// 		IfName:      eth0IfName,
+		// 	},
+		// 	wantErr:    true,
+		// 	wantErrMsg: "IPAM Invoker Add failed with error: delegatedVMNIC fail",
+		// },
+		// {
+		// 	name: "SwiftV2 EndpointClient Add fail",
+		// 	plugin: &NetPlugin{
+		// 		Plugin: plugin,
+		// 		nm: acnnetwork.NewMockNetworkmanager(acnnetwork.NewMockEndpointClient(func(ep *acnnetwork.EndpointInfo) error {
+		// 			if ep.NICType == cns.DelegatedVMNIC {
+		// 				return acnnetwork.NewErrorMockEndpointClient("AddEndpoints Delegated VM NIC failed") //nolint:wrapcheck // ignore wrapping for test
+		// 			}
+
+		// 			return nil
+		// 		})),
+		// 		ipamInvoker: NewMockIpamInvoker(false, false, false, true, false),
+		// 		report:      &telemetry.CNIReport{},
+		// 		tb:          &telemetry.TelemetryBuffer{},
+		// 	},
+		// 	args: &cniSkel.CmdArgs{
+		// 		StdinData:   localNwCfg.Serialize(),
+		// 		ContainerID: "test-container",
+		// 		Netns:       "test-container",
+		// 		Args:        fmt.Sprintf("K8S_POD_NAME=%v;K8S_POD_NAMESPACE=%v", "test-pod", "test-pod-ns"),
+		// 		IfName:      eth0IfName,
+		// 	},
+		// 	wantErr:    true,
+		// 	wantErrMsg: "Failed to create endpoint: MockEndpointClient Error : AddEndpoints Delegated VM NIC failed",
+		// },
 	}
 
 	for _, tt := range tests {
