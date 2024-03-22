@@ -74,17 +74,18 @@ func (nw *network) newEndpointImpl(
 	_ NamespaceClientInterface,
 	_ ipTablesClient,
 	epInfo []*EndpointInfo,
+	defaultIndex int,
 ) (*endpoint, error) {
 	// there is only 1 epInfo for windows, multiple interfaces will be added in the future
-	if useHnsV2, err := UseHnsV2(epInfo[0].NetNsPath); useHnsV2 {
+	if useHnsV2, err := UseHnsV2(epInfo[defaultIndex].NetNsPath); useHnsV2 {
 		if err != nil {
 			return nil, err
 		}
 
-		return nw.newEndpointImplHnsV2(cli, epInfo[0])
+		return nw.newEndpointImplHnsV2(cli, epInfo[defaultIndex])
 	}
 
-	return nw.newEndpointImplHnsV1(epInfo[0], plc)
+	return nw.newEndpointImplHnsV1(epInfo[defaultIndex], plc)
 }
 
 // newEndpointImplHnsV1 creates a new endpoint in the network using HnsV1

@@ -366,12 +366,14 @@ func TestGetNetworkNameFromCNS(t *testing.T) {
 						ID: 1,
 					},
 				},
-				defaultInterfaceInfo: network.InterfaceInfo{
-					IPConfigs: []*network.IPConfig{
-						{
-							Address: net.IPNet{
-								IP:   net.ParseIP("10.240.0.5"),
-								Mask: net.CIDRMask(24, 32),
+				interfaceInfo: []network.InterfaceInfo{
+					{
+						IPConfigs: []*network.IPConfig{
+							{
+								Address: net.IPNet{
+									IP:   net.ParseIP("10.240.0.5"),
+									Mask: net.CIDRMask(24, 32),
+								},
 							},
 						},
 					},
@@ -401,12 +403,14 @@ func TestGetNetworkNameFromCNS(t *testing.T) {
 						ID: 1,
 					},
 				},
-				defaultInterfaceInfo: network.InterfaceInfo{
-					IPConfigs: []*network.IPConfig{
-						{
-							Address: net.IPNet{
-								IP:   net.ParseIP(""),
-								Mask: net.CIDRMask(24, 32),
+				interfaceInfo: []network.InterfaceInfo{
+					{
+						IPConfigs: []*network.IPConfig{
+							{
+								Address: net.IPNet{
+									IP:   net.ParseIP(""),
+									Mask: net.CIDRMask(24, 32),
+								},
 							},
 						},
 					},
@@ -436,12 +440,14 @@ func TestGetNetworkNameFromCNS(t *testing.T) {
 						ID: 1,
 					},
 				},
-				defaultInterfaceInfo: network.InterfaceInfo{
-					IPConfigs: []*network.IPConfig{
-						{
-							Address: net.IPNet{
-								IP:   net.ParseIP("10.0.00.6"),
-								Mask: net.CIDRMask(24, 32),
+				interfaceInfo: []network.InterfaceInfo{
+					{
+						IPConfigs: []*network.IPConfig{
+							{
+								Address: net.IPNet{
+									IP:   net.ParseIP("10.0.00.6"),
+									Mask: net.CIDRMask(24, 32),
+								},
 							},
 						},
 					},
@@ -471,12 +477,14 @@ func TestGetNetworkNameFromCNS(t *testing.T) {
 						ID: 1,
 					},
 				},
-				defaultInterfaceInfo: network.InterfaceInfo{
-					IPConfigs: []*network.IPConfig{
-						{
-							Address: net.IPNet{
-								IP:   net.ParseIP("10.0.0.6"),
-								Mask: net.CIDRMask(24, 32),
+				interfaceInfo: []network.InterfaceInfo{
+					{
+						IPConfigs: []*network.IPConfig{
+							{
+								Address: net.IPNet{
+									IP:   net.ParseIP("10.0.0.6"),
+									Mask: net.CIDRMask(24, 32),
+								},
 							},
 						},
 					},
@@ -502,12 +510,14 @@ func TestGetNetworkNameFromCNS(t *testing.T) {
 			},
 			ipamAddResult: &IPAMAddResult{
 				ncResponse: &cns.GetNetworkContainerResponse{},
-				defaultInterfaceInfo: network.InterfaceInfo{
-					IPConfigs: []*network.IPConfig{
-						{
-							Address: net.IPNet{
-								IP:   net.ParseIP("10.0.0.6"),
-								Mask: net.CIDRMask(24, 32),
+				interfaceInfo: []network.InterfaceInfo{
+					{
+						IPConfigs: []*network.IPConfig{
+							{
+								Address: net.IPNet{
+									IP:   net.ParseIP("10.0.0.6"),
+									Mask: net.CIDRMask(24, 32),
+								},
 							},
 						},
 					},

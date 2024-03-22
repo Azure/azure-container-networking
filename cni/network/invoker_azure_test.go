@@ -238,8 +238,18 @@ func TestAzureIPAMInvoker_Add(t *testing.T) {
 				require.Nil(err)
 			}
 
-			fmt.Printf("want:%+v\nrest:%+v\n", tt.want, ipamAddResult.defaultInterfaceInfo.IPConfigs)
-			require.Exactly(tt.want, ipamAddResult.defaultInterfaceInfo.IPConfigs)
+			for _, ifInfo := range ipamAddResult.interfaceInfo {
+				switch string(ifInfo.NICType) {
+				case "DelegatedVMNIC":
+					// Secondary
+				case "BackendNIC":
+					// todo
+				default:
+					// Default | InfraNIC
+					fmt.Printf("want:%+v\nrest:%+v\n", tt.want, ifInfo.IPConfigs)
+					require.Exactly(tt.want, ifInfo.IPConfigs)
+				}
+			}
 		})
 	}
 }

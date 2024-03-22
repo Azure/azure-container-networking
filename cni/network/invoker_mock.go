@@ -60,17 +60,18 @@ func (invoker *MockIpamInvoker) Add(opt IPAMAddConfig) (ipamAddResult IPAMAddRes
 	ip := net.ParseIP(ipv4Str)
 	ipnet := net.IPNet{IP: ip, Mask: net.CIDRMask(subnetBits, ipv4Bits)}
 	gwIP := net.ParseIP("10.240.0.1")
-	ipamAddResult.defaultInterfaceInfo = network.InterfaceInfo{
+	ipamAddResult.interfaceInfo = append(ipamAddResult.interfaceInfo, network.InterfaceInfo{
 		IPConfigs: []*network.IPConfig{
 			{Address: ipnet, Gateway: gwIP},
 		},
 		NICType: cns.InfraNIC,
-	}
+	})
 	invoker.ipMap[ipnet.String()] = true
 	if invoker.v6Fail {
 		return ipamAddResult, errV6
 	}
 
+	defaultIndex := findDefaultInterface(ipamAddResult)
 	if invoker.isIPv6 {
 		ipv6Str := "fc00::2"
 		if _, ok := invoker.ipMap["fc00::2/128"]; ok {
@@ -80,7 +81,7 @@ func (invoker *MockIpamInvoker) Add(opt IPAMAddConfig) (ipamAddResult IPAMAddRes
 		ip := net.ParseIP(ipv6Str)
 		ipnet := net.IPNet{IP: ip, Mask: net.CIDRMask(subnetv6Bits, ipv6Bits)}
 		gwIP := net.ParseIP("fc00::1")
-		ipamAddResult.defaultInterfaceInfo.IPConfigs = append(ipamAddResult.defaultInterfaceInfo.IPConfigs, &network.IPConfig{Address: ipnet, Gateway: gwIP})
+		ipamAddResult.interfaceInfo[defaultIndex].IPConfigs = append(ipamAddResult.interfaceInfo[defaultIndex].IPConfigs, &network.IPConfig{Address: ipnet, Gateway: gwIP})
 		invoker.ipMap[ipnet.String()] = true
 	}
 
@@ -91,7 +92,7 @@ func (invoker *MockIpamInvoker) Add(opt IPAMAddConfig) (ipamAddResult IPAMAddRes
 
 		ipStr := "20.20.20.20/32"
 		_, ipnet, _ := net.ParseCIDR(ipStr)
-		ipamAddResult.secondaryInterfacesInfo = append(ipamAddResult.secondaryInterfacesInfo, network.InterfaceInfo{
+		ipamAddResult.interfaceInfo = append(ipamAddResult.interfaceInfo, network.InterfaceInfo{
 			IPConfigs: []*network.IPConfig{
 				{Address: *ipnet},
 			},

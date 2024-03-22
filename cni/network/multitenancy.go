@@ -216,14 +216,15 @@ func (m *Multitenancy) GetAllNetworkContainers(
 	}
 
 	ipamResults := make([]IPAMAddResult, len(ncResponses))
-
+	// Can use hard coded 0 as ipamResults is empty and we are creating the first interface
 	for i := 0; i < len(ncResponses); i++ {
 		ipamResults[i].ncResponse = &ncResponses[i]
 		ipamResults[i].hostSubnetPrefix = hostSubnetPrefixes[i]
 		ipconfig, routes := convertToIPConfigAndRouteInfo(ipamResults[i].ncResponse)
-		ipamResults[i].defaultInterfaceInfo.IPConfigs = []*network.IPConfig{ipconfig}
-		ipamResults[i].defaultInterfaceInfo.Routes = routes
-		ipamResults[i].defaultInterfaceInfo.NICType = cns.InfraNIC
+		ipamResults[i].interfaceInfo = append(ipamResults[i].interfaceInfo, network.InterfaceInfo{})
+		ipamResults[i].interfaceInfo[0].IPConfigs = []*network.IPConfig{ipconfig}
+		ipamResults[i].interfaceInfo[0].Routes = routes
+		ipamResults[i].interfaceInfo[0].NICType = cns.InfraNIC
 	}
 
 	return ipamResults, err

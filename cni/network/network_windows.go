@@ -157,8 +157,10 @@ func (plugin *NetPlugin) getNetworkName(netNs string, ipamAddResult *IPAMAddResu
 	// First try to build the network name from the cnsResponse if present
 	// This will happen during ADD call
 	if ipamAddResult != nil && ipamAddResult.ncResponse != nil {
+		// find defaultInterface within AddResult
+		defaultIndex := findDefaultInterface(*ipamAddResult)
 		// networkName will look like ~ azure-vlan1-172-28-1-0_24
-		ipAddrNet := ipamAddResult.defaultInterfaceInfo.IPConfigs[0].Address
+		ipAddrNet := ipamAddResult.interfaceInfo[defaultIndex].IPConfigs[0].Address
 		prefix, err := netip.ParsePrefix(ipAddrNet.String())
 		if err != nil {
 			logger.Error("Error parsing network CIDR",
@@ -284,7 +286,6 @@ func getPoliciesFromRuntimeCfg(nwCfg *cni.NetworkConfig, isIPv6Enabled bool) ([]
 			Protocol:     protocol,
 			Flags:        flag,
 		})
-
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to marshal HNS portMappingPolicySetting")
 		}
@@ -293,7 +294,6 @@ func getPoliciesFromRuntimeCfg(nwCfg *cni.NetworkConfig, isIPv6Enabled bool) ([]
 			Type:     hnsv2.PortMapping,
 			Settings: rawPolicy,
 		})
-
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to marshal HNS endpointPolicy")
 		}
