@@ -20,7 +20,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/cns/wireserver"
-	acn "github.com/Azure/azure-container-networking/common"
+	"github.com/Azure/azure-container-networking/common"
 	"github.com/pkg/errors"
 )
 
@@ -47,7 +47,7 @@ func (service *HTTPRestService) setEnvironment(w http.ResponseWriter, r *http.Re
 	logger.Printf("[Azure CNS] setEnvironment")
 
 	var req cns.SetEnvironmentRequest
-	err := acn.Decode(w, r, &req)
+	err := common.Decode(w, r, &req)
 	logger.Request(service.Name, &req, err)
 
 	if err != nil {
@@ -65,7 +65,7 @@ func (service *HTTPRestService) setEnvironment(w http.ResponseWriter, r *http.Re
 	}
 
 	resp := &cns.Response{ReturnCode: 0}
-	err = acn.Encode(w, &resp)
+	err = common.Encode(w, &resp)
 
 	logger.Response(service.Name, resp, resp.ReturnCode, err)
 }
@@ -80,7 +80,7 @@ func (service *HTTPRestService) createNetwork(w http.ResponseWriter, r *http.Req
 
 	if service.state.Initialized {
 		var req cns.CreateNetworkRequest
-		err = acn.Decode(w, r, &req)
+		err = common.Decode(w, r, &req)
 		logger.Request(service.Name, &req, err)
 
 		if err != nil {
@@ -167,7 +167,7 @@ func (service *HTTPRestService) createNetwork(w http.ResponseWriter, r *http.Req
 		Message:    returnMessage,
 	}
 
-	err = acn.Encode(w, &resp)
+	err = common.Encode(w, &resp)
 
 	if returnCode == 0 {
 		service.saveState()
@@ -183,7 +183,7 @@ func (service *HTTPRestService) deleteNetwork(w http.ResponseWriter, r *http.Req
 	var req cns.DeleteNetworkRequest
 	var returnCode types.ResponseCode
 	returnMessage := ""
-	err := acn.Decode(w, r, &req)
+	err := common.Decode(w, r, &req)
 	logger.Request(service.Name, &req, err)
 
 	if err != nil {
@@ -222,7 +222,7 @@ func (service *HTTPRestService) deleteNetwork(w http.ResponseWriter, r *http.Req
 		Message:    returnMessage,
 	}
 
-	err = acn.Encode(w, &resp)
+	err = common.Encode(w, &resp)
 
 	if returnCode == 0 {
 		service.removeNetworkInfo(req.NetworkName)
@@ -241,7 +241,7 @@ func (service *HTTPRestService) createHnsNetwork(w http.ResponseWriter, r *http.
 	returnMessage := ""
 
 	var req cns.CreateHnsNetworkRequest
-	err = acn.Decode(w, r, &req)
+	err = common.Decode(w, r, &req)
 	logger.Request(service.Name, &req, err)
 
 	if err != nil {
@@ -274,7 +274,7 @@ func (service *HTTPRestService) createHnsNetwork(w http.ResponseWriter, r *http.
 		Message:    returnMessage,
 	}
 
-	err = acn.Encode(w, &resp)
+	err = common.Encode(w, &resp)
 
 	if returnCode == 0 {
 		service.saveState()
@@ -292,7 +292,7 @@ func (service *HTTPRestService) deleteHnsNetwork(w http.ResponseWriter, r *http.
 	var returnCode types.ResponseCode
 	returnMessage := ""
 
-	err = acn.Decode(w, r, &req)
+	err = common.Decode(w, r, &req)
 	logger.Request(service.Name, &req, err)
 
 	if err != nil {
@@ -325,7 +325,7 @@ func (service *HTTPRestService) deleteHnsNetwork(w http.ResponseWriter, r *http.
 		Message:    returnMessage,
 	}
 
-	err = acn.Encode(w, &resp)
+	err = common.Encode(w, &resp)
 
 	if returnCode == 0 {
 		service.removeNetworkInfo(req.NetworkName)
@@ -344,7 +344,7 @@ func (service *HTTPRestService) reserveIPAddress(w http.ResponseWriter, r *http.
 	returnMessage := ""
 	addr := ""
 	address := ""
-	err := acn.Decode(w, r, &req)
+	err := common.Decode(w, r, &req)
 
 	logger.Request(service.Name, &req, err)
 
@@ -415,7 +415,7 @@ func (service *HTTPRestService) reserveIPAddress(w http.ResponseWriter, r *http.
 	}
 
 	reserveResp := &cns.ReserveIPAddressResponse{Response: resp, IPAddress: address}
-	err = acn.Encode(w, &reserveResp)
+	err = common.Encode(w, &reserveResp)
 	logger.Response(service.Name, reserveResp, resp.ReturnCode, err)
 }
 
@@ -427,7 +427,7 @@ func (service *HTTPRestService) releaseIPAddress(w http.ResponseWriter, r *http.
 	var returnCode types.ResponseCode
 	returnMessage := ""
 
-	err := acn.Decode(w, r, &req)
+	err := common.Decode(w, r, &req)
 	logger.Request(service.Name, &req, err)
 
 	if err != nil {
@@ -486,7 +486,7 @@ func (service *HTTPRestService) releaseIPAddress(w http.ResponseWriter, r *http.
 		publishIPStateMetrics(service.buildIPState())
 	}
 
-	err = acn.Encode(w, &resp)
+	err = common.Encode(w, &resp)
 	logger.Response(service.Name, resp, resp.ReturnCode, err)
 }
 
@@ -537,7 +537,7 @@ func (service *HTTPRestService) getHostLocalIP(w http.ResponseWriter, r *http.Re
 		IPAddress: hostLocalIP,
 	}
 
-	err := acn.Encode(w, &hostLocalIPResponse)
+	err := common.Encode(w, &hostLocalIPResponse)
 
 	logger.Response(service.Name, hostLocalIPResponse, resp.ReturnCode, err)
 }
@@ -603,7 +603,7 @@ func (service *HTTPRestService) getIPAddressUtilization(w http.ResponseWriter, r
 		Unhealthy: len(unhealthyAddrs),
 	}
 
-	err := acn.Encode(w, &utilResponse)
+	err := common.Encode(w, &utilResponse)
 	logger.Response(service.Name, utilResponse, resp.ReturnCode, err)
 }
 
@@ -614,7 +614,7 @@ func (service *HTTPRestService) getAvailableIPAddresses(w http.ResponseWriter, r
 
 	resp := cns.Response{ReturnCode: 0}
 	ipResp := &cns.GetIPAddressesResponse{Response: resp}
-	err := acn.Encode(w, &ipResp)
+	err := common.Encode(w, &ipResp)
 
 	logger.Response(service.Name, ipResp, resp.ReturnCode, err)
 }
@@ -626,7 +626,7 @@ func (service *HTTPRestService) getReservedIPAddresses(w http.ResponseWriter, r 
 
 	resp := cns.Response{ReturnCode: 0}
 	ipResp := &cns.GetIPAddressesResponse{Response: resp}
-	err := acn.Encode(w, &ipResp)
+	err := common.Encode(w, &ipResp)
 
 	logger.Response(service.Name, ipResp, resp.ReturnCode, err)
 }
@@ -690,7 +690,7 @@ func (service *HTTPRestService) getUnhealthyIPAddresses(w http.ResponseWriter, r
 		IPAddresses: unhealthyAddrs,
 	}
 
-	err := acn.Encode(w, &ipResp)
+	err := common.Encode(w, &ipResp)
 	logger.Response(service.Name, ipResp, resp.ReturnCode, err)
 }
 
@@ -701,7 +701,7 @@ func (service *HTTPRestService) getAllIPAddresses(w http.ResponseWriter, r *http
 
 	resp := cns.Response{ReturnCode: 0}
 	ipResp := &cns.GetIPAddressesResponse{Response: resp}
-	err := acn.Encode(w, &ipResp)
+	err := common.Encode(w, &ipResp)
 
 	logger.Response(service.Name, ipResp, resp.ReturnCode, err)
 }
@@ -712,7 +712,7 @@ func (service *HTTPRestService) getHealthReport(w http.ResponseWriter, r *http.R
 	logger.Request(service.Name, "getHealthReport", nil)
 
 	resp := &cns.Response{ReturnCode: 0}
-	err := acn.Encode(w, &resp)
+	err := common.Encode(w, &resp)
 
 	logger.Response(service.Name, resp, resp.ReturnCode, err)
 }
@@ -727,7 +727,7 @@ func (service *HTTPRestService) setOrchestratorType(w http.ResponseWriter, r *ht
 		nodeID        string
 	)
 
-	err := acn.Decode(w, r, &req)
+	err := common.Decode(w, r, &req)
 	if err != nil {
 		return
 	}
@@ -760,7 +760,7 @@ func (service *HTTPRestService) setOrchestratorType(w http.ResponseWriter, r *ht
 		Message:    returnMessage,
 	}
 
-	err = acn.Encode(w, &resp)
+	err = common.Encode(w, &resp)
 	logger.Response(service.Name, resp, resp.ReturnCode, err)
 }
 
@@ -785,7 +785,7 @@ func (service *HTTPRestService) getHomeAz(w http.ResponseWriter, r *http.Request
 
 func (service *HTTPRestService) createOrUpdateNetworkContainer(w http.ResponseWriter, r *http.Request) {
 	var req cns.CreateNetworkContainerRequest
-	if err := acn.Decode(w, r, &req); err != nil {
+	if err := common.Decode(w, r, &req); err != nil {
 		logger.Errorf("[Azure CNS] could not decode request: %v", err)
 		w.WriteHeader(http.StatusBadRequest)
 		return
@@ -844,7 +844,7 @@ func (service *HTTPRestService) createOrUpdateNetworkContainer(w http.ResponseWr
 	}
 
 	reserveResp := &cns.CreateNetworkContainerResponse{Response: resp}
-	err = acn.Encode(w, &reserveResp)
+	err = common.Encode(w, &reserveResp)
 
 	// If the NC was created successfully, log NC snapshot.
 	if returnCode == types.Success {
@@ -861,7 +861,7 @@ func (service *HTTPRestService) getNetworkContainerByID(w http.ResponseWriter, r
 	var returnCode types.ResponseCode
 	returnMessage := ""
 
-	err := acn.Decode(w, r, &req)
+	err := common.Decode(w, r, &req)
 	logger.Request(service.Name, &req, err)
 	if err != nil {
 		return
@@ -873,7 +873,7 @@ func (service *HTTPRestService) getNetworkContainerByID(w http.ResponseWriter, r
 	}
 
 	reserveResp := &cns.GetNetworkContainerResponse{Response: resp}
-	err = acn.Encode(w, &reserveResp)
+	err = common.Encode(w, &reserveResp)
 	logger.Response(service.Name, reserveResp, resp.ReturnCode, err)
 }
 
@@ -883,7 +883,7 @@ func (service *HTTPRestService) GetAllNetworkContainers(w http.ResponseWriter, r
 
 	var req cns.GetNetworkContainerRequest
 
-	err := acn.Decode(w, r, &req)
+	err := common.Decode(w, r, &req)
 	logger.Request(service.Name, &req, err)
 	if err != nil {
 		logger.Errorf("[Azure CNS] failed to decode cns request with req %+v due to %+v", req, err)
@@ -916,7 +916,7 @@ func (service *HTTPRestService) GetAllNetworkContainers(w http.ResponseWriter, r
 		resp.Response.Message = "Successfully retrieved NCs"
 	}
 
-	err = acn.Encode(w, &resp)
+	err = common.Encode(w, &resp)
 	logger.Response(service.Name, resp, resp.Response.ReturnCode, err)
 }
 
@@ -925,14 +925,14 @@ func (service *HTTPRestService) GetNetworkContainerByOrchestratorContext(w http.
 
 	var req cns.GetNetworkContainerRequest
 
-	err := acn.Decode(w, r, &req)
+	err := common.Decode(w, r, &req)
 	logger.Request(service.Name, &req, err)
 	if err != nil {
 		return
 	}
 
 	getNetworkContainerResponses := service.getAllNetworkContainerResponses(req) // nolint
-	err = acn.Encode(w, &getNetworkContainerResponses[0])
+	err = common.Encode(w, &getNetworkContainerResponses[0])
 	logger.Response(service.Name, getNetworkContainerResponses[0], getNetworkContainerResponses[0].Response.ReturnCode, err)
 }
 
@@ -964,7 +964,7 @@ func (service *HTTPRestService) deleteNetworkContainer(w http.ResponseWriter, r 
 	var returnCode types.ResponseCode
 	returnMessage := ""
 
-	err := acn.Decode(w, r, &req)
+	err := common.Decode(w, r, &req)
 	logger.Request(service.Name, &req, err)
 	if err != nil {
 		return
@@ -1028,7 +1028,7 @@ func (service *HTTPRestService) deleteNetworkContainer(w http.ResponseWriter, r 
 	}
 
 	reserveResp := &cns.DeleteNetworkContainerResponse{Response: resp}
-	err = acn.Encode(w, &reserveResp)
+	err = common.Encode(w, &reserveResp)
 	logger.Response(service.Name, reserveResp, resp.ReturnCode, err)
 }
 
@@ -1039,7 +1039,7 @@ func (service *HTTPRestService) getInterfaceForContainer(w http.ResponseWriter, 
 	var returnCode types.ResponseCode
 	returnMessage := ""
 
-	err := acn.Decode(w, r, &req)
+	err := common.Decode(w, r, &req)
 	logger.Request(service.Name, &req, err)
 	if err != nil {
 		return
@@ -1081,7 +1081,7 @@ func (service *HTTPRestService) getInterfaceForContainer(w http.ResponseWriter, 
 		NetworkContainerVersion: version,
 	}
 
-	err = acn.Encode(w, &getInterfaceForContainerResponse)
+	err = common.Encode(w, &getInterfaceForContainerResponse)
 
 	logger.Response(service.Name, getInterfaceForContainerResponse, resp.ReturnCode, err)
 }
@@ -1090,7 +1090,7 @@ func (service *HTTPRestService) attachNetworkContainerToNetwork(w http.ResponseW
 	logger.Printf("[Azure CNS] attachNetworkContainerToNetwork")
 
 	var req cns.ConfigureContainerNetworkingRequest
-	err := acn.Decode(w, r, &req)
+	err := common.Decode(w, r, &req)
 	logger.Request(service.Name, &req, err)
 	if err != nil {
 		return
@@ -1098,7 +1098,7 @@ func (service *HTTPRestService) attachNetworkContainerToNetwork(w http.ResponseW
 
 	resp := service.attachOrDetachHelper(req, attach, r.Method)
 	attachResp := &cns.AttachContainerToNetworkResponse{Response: resp}
-	err = acn.Encode(w, &attachResp)
+	err = common.Encode(w, &attachResp)
 	logger.Response(service.Name, attachResp, resp.ReturnCode, err)
 }
 
@@ -1106,7 +1106,7 @@ func (service *HTTPRestService) detachNetworkContainerFromNetwork(w http.Respons
 	logger.Printf("[Azure CNS] detachNetworkContainerFromNetwork")
 
 	var req cns.ConfigureContainerNetworkingRequest
-	err := acn.Decode(w, r, &req)
+	err := common.Decode(w, r, &req)
 	logger.Request(service.Name, &req, err)
 	if err != nil {
 		return
@@ -1114,7 +1114,7 @@ func (service *HTTPRestService) detachNetworkContainerFromNetwork(w http.Respons
 
 	resp := service.attachOrDetachHelper(req, detach, r.Method)
 	detachResp := &cns.DetachContainerFromNetworkResponse{Response: resp}
-	err = acn.Encode(w, &detachResp)
+	err = common.Encode(w, &detachResp)
 	logger.Response(service.Name, detachResp, resp.ReturnCode, err)
 }
 
@@ -1144,7 +1144,7 @@ func (service *HTTPRestService) getNumberOfCPUCores(w http.ResponseWriter, r *ht
 		NumOfCPUCores: num,
 	}
 
-	err := acn.Encode(w, &numOfCPUCoresResp)
+	err := common.Encode(w, &numOfCPUCoresResp)
 
 	logger.Response(service.Name, numOfCPUCoresResp, resp.ReturnCode, err)
 }
@@ -1393,7 +1393,7 @@ func (service *HTTPRestService) CreateHostNCApipaEndpoint(w http.ResponseWriter,
 		endpointID    string
 	)
 
-	err = acn.Decode(w, r, &req)
+	err = common.Decode(w, r, &req)
 	logger.Request(service.Name, &req, err)
 	if err != nil {
 		return
@@ -1437,7 +1437,7 @@ func (service *HTTPRestService) CreateHostNCApipaEndpoint(w http.ResponseWriter,
 		EndpointID: endpointID,
 	}
 
-	err = acn.Encode(w, &response)
+	err = common.Encode(w, &response)
 	logger.Response(service.Name, response, response.Response.ReturnCode, err)
 }
 
@@ -1451,7 +1451,7 @@ func (service *HTTPRestService) DeleteHostNCApipaEndpoint(w http.ResponseWriter,
 		returnMessage string
 	)
 
-	err = acn.Decode(w, r, &req)
+	err = common.Decode(w, r, &req)
 	logger.Request(service.Name, &req, err)
 	if err != nil {
 		return
@@ -1476,7 +1476,7 @@ func (service *HTTPRestService) DeleteHostNCApipaEndpoint(w http.ResponseWriter,
 		},
 	}
 
-	err = acn.Encode(w, &response)
+	err = common.Encode(w, &response)
 	logger.Response(service.Name, response, response.Response.ReturnCode, err)
 }
 
@@ -1493,7 +1493,7 @@ func (service *HTTPRestService) nmAgentSupportedApisHandler(w http.ResponseWrite
 
 	ctx := r.Context()
 
-	err = acn.Decode(w, r, &req)
+	err = common.Decode(w, r, &req)
 	logger.Request(service.Name, &req, err)
 	if err != nil {
 		return
@@ -1518,7 +1518,7 @@ func (service *HTTPRestService) nmAgentSupportedApisHandler(w http.ResponseWrite
 		SupportedApis: supportedApis,
 	}
 
-	serviceErr := acn.Encode(w, &nmAgentSupportedApisResponse)
+	serviceErr := common.Encode(w, &nmAgentSupportedApisResponse)
 
 	logger.Response(service.Name, nmAgentSupportedApisResponse, resp.ReturnCode, serviceErr)
 }

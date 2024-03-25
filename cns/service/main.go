@@ -43,7 +43,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/multitenantcontroller"
 	"github.com/Azure/azure-container-networking/cns/multitenantcontroller/multitenantoperator"
 	"github.com/Azure/azure-container-networking/cns/restserver"
-	v2 "github.com/Azure/azure-container-networking/cns/restserver/v2"
+	restserver2 "github.com/Azure/azure-container-networking/cns/restserver/v2"
 	cnstypes "github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/cns/wireserver"
 	acn "github.com/Azure/azure-container-networking/common"
@@ -860,10 +860,11 @@ func main() {
 	}
 
 	logger.Printf("[Azure CNS] Start HTTP local echo server")
-	httpEchoRestService := v2.New(httpRestService)
+	httpEchoRestService := restserver2.New(httpRestService)
 	if httpEchoRestService != nil {
-		err = httpEchoRestService.Start(z, cns.DefaultAPIServerURL)
+		err = httpEchoRestService.Start(cns.DefaultAPIServerURL)
 		if err != nil {
+			logger.Errorf("Failed to start echo server, err:%v.\n", err)
 			return
 		}
 	}

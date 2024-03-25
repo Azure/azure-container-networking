@@ -50,14 +50,24 @@ func NewService(name, version, channelMode string, store store.KeyValueStore) (*
 
 func (service *Service) AddListener(config *common.ServiceConfig) error {
 	// Fetch and parse the API server URL.
-	var nodeURL *url.URL
+	var (
+		err     error
+		nodeURL *url.URL
+	)
+
 	cnsURL, _ := service.GetOption(acn.OptCnsURL).(string)
 	if cnsURL == "" {
 		// get VM primary interface's private IP
-		nodeURL, _ = url.Parse(fmt.Sprintf("tcp://%s:%s", config.PrimaryInterfaceIP, defaultAPIServerPort))
+		nodeURL, err = url.Parse(fmt.Sprintf("tcp://%s:%s", config.PrimaryInterfaceIP, defaultAPIServerPort))
+		if err != nil {
+			return errors.Wrap(err, "Failed to parse VM private interface IP")
+		}
 	} else {
 		// use the URL that customer provides
-		nodeURL, _ = url.Parse(cnsURL)
+		nodeURL, err = url.Parse(cnsURL)
+		if err != nil {
+			return errors.Wrap(err, "Failed to parse IP that customer provides")
+		}
 	}
 
 	nodeListener, err := acn.NewListener(nodeURL)
