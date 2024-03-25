@@ -102,7 +102,8 @@ const (
 	// envVarEnableCNIConflistGeneration enables cni conflist generation if set (value doesn't matter)
 	envVarEnableCNIConflistGeneration = "CNS_ENABLE_CNI_CONFLIST_GENERATION"
 
-	cnsReqTimeout = 15 * time.Second
+	cnsReqTimeout       = 15 * time.Second
+	defaultAPIServerURL = "localhost:10090"
 )
 
 type cniConflistScenario string
@@ -862,7 +863,7 @@ func main() {
 	logger.Printf("[Azure CNS] Start HTTP local echo server")
 	httpEchoRestService := restserver2.New(httpRestService)
 	if httpEchoRestService != nil {
-		err = httpEchoRestService.Start(cns.DefaultAPIServerURL)
+		err = httpEchoRestService.Start(defaultAPIServerURL)
 		if err != nil {
 			logger.Errorf("Failed to start echo server, err:%v.\n", err)
 			return
