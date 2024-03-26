@@ -37,18 +37,23 @@ var validOverlayRequest = &cns.CreateNetworkContainerRequest{
 }
 
 var validVNETBlockRequest = &cns.CreateNetworkContainerRequest{
-	Version: strconv.FormatInt(version, 10),
+	Version:       strconv.FormatInt(version, 10),
+	HostPrimaryIP: vnetBlockNodeIP,
 	IPConfiguration: cns.IPConfiguration{
 		GatewayIPAddress: vnetBlockDefaultGateway,
 		IPSubnet: cns.IPSubnet{
 			PrefixLength: uint8(vnetBlockSubnetPrefixLen),
-			IPAddress:    vnetBlockPrimaryIP,
+			IPAddress:    vnetBlockNodeIP,
 		},
 	},
 	NetworkContainerid:   ncID,
 	NetworkContainerType: cns.Docker,
 	// Ignore first IP in first CIDR Block, i.e. 10.224.0.4
 	SecondaryIPConfigs: map[string]cns.SecondaryIPConfig{
+		"10.224.0.4": {
+			IPAddress: "10.224.0.4",
+			NCVersion: version,
+		},
 		"10.224.0.5": {
 			IPAddress: "10.224.0.5",
 			NCVersion: version,
