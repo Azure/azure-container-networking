@@ -863,11 +863,13 @@ func main() {
 	logger.Printf("[Azure CNS] Start HTTP local echo server")
 	httpEchoRestService := restserver2.New(httpRestService)
 	if httpEchoRestService != nil {
-		err = httpEchoRestService.Start(defaultAPIServerURL)
-		if err != nil {
-			logger.Errorf("Failed to start echo server, err:%v.\n", err)
-			return
-		}
+		go func() {
+			err = httpEchoRestService.Start(defaultAPIServerURL)
+			if err != nil {
+				logger.Errorf("Failed to start echo server, err:%v.\n", err)
+				return
+			}
+		}()
 	}
 
 	logger.Printf("[Azure CNS] Start HTTP listener")
@@ -876,11 +878,13 @@ func main() {
 			httpRestService.RegisterPProfEndpoints()
 		}
 
-		err = httpRestService.Start(&config)
-		if err != nil {
-			logger.Errorf("Failed to start CNS, err:%v.\n", err)
-			return
-		}
+		go func() {
+			err = httpRestService.Start(&config)
+			if err != nil {
+				logger.Errorf("Failed to start CNS, err:%v.\n", err)
+				return
+			}
+		}()
 	}
 
 	if cnsconfig.EnableAsyncPodDelete {
