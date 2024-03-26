@@ -37,7 +37,8 @@ var validOverlayRequest = &cns.CreateNetworkContainerRequest{
 }
 
 var validVNETBlockRequest = &cns.CreateNetworkContainerRequest{
-	Version: strconv.FormatInt(version, 10),
+	Version:       strconv.FormatInt(version, 10),
+	HostPrimaryIP: vnetBlockNodeIP,
 	IPConfiguration: cns.IPConfiguration{
 		GatewayIPAddress: vnetBlockDefaultGateway,
 		IPSubnet: cns.IPSubnet{
