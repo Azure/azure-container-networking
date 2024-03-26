@@ -27,8 +27,6 @@ func createNCRequestFromStaticNCHelper(nc v1alpha.NetworkContainer, primaryIPPre
 
 	// Add IPs from CIDR block to the secondary IPConfigs
 	if nc.Type == v1alpha.VNETBlock {
-		// Delete primary IP reserved for Primary IP for NC
-		delete(secondaryIPConfigs, primaryIPPrefix.Addr().String())
 
 		for _, ipAssignment := range nc.IPAssignments {
 			cidrPrefix, err := netip.ParsePrefix(ipAssignment.IP)
