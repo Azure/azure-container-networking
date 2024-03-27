@@ -42,6 +42,6 @@ WORKDIR /dropgz
 COPY --from=compressor /dropgz .
 RUN CGO_ENABLED=0 go build -a -o bin/dropgz -trimpath -ldflags "-X github.com/Azure/azure-container-networking/dropgz/internal/buildinfo.Version="$VERSION"" -gcflags="-dwarflocationlists=true" main.go
 
-FROM scratch
+FROM scratch as linux
 COPY --from=dropgz /dropgz/bin/dropgz /dropgz
 ENTRYPOINT [ "/dropgz" ]

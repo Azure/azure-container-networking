@@ -34,6 +34,6 @@ WORKDIR /dropgz
 COPY --from=compressor /dropgz .
 RUN GOOS=windows CGO_ENABLED=0 go build -a -o bin/dropgz.exe -trimpath -ldflags "-X github.com/Azure/azure-container-networking/dropgz/internal/buildinfo.Version="$VERSION"" -gcflags="-dwarflocationlists=true" main.go
 
-FROM mcr.microsoft.com/windows/nanoserver:${OS_VERSION}
+FROM mcr.microsoft.com/windows/nanoserver:${OS_VERSION} as windows
 COPY --from=dropgz /dropgz/bin/dropgz.exe dropgz.exe
 ENTRYPOINT [ "dropgz.exe" ]
