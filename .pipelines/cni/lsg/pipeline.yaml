@@ -26,6 +26,26 @@ stages:
               echo "##vso[task.setvariable variable=cnsVersion;isOutput=true]$(CNS_VERSION)"
               echo "##vso[task.setvariable variable=cniVersion;isOutput=true]$(CNI_VERSION)"
               echo "##vso[task.setvariable variable=ipamVersion;isOutput=true]$(IPAM_VERSION)"
+
+              echo "------"
+              echo Queued by $(Build.QueuedBy)
+              echo "Runtime Variables passed"
+              echo "KernelType : $(KernelType)"
+              echo "KernelVersion : $(KernelVersion)"
+              echo "ProposedRepoVersion : $(ProposedRepoVersion)"
+              echo "------"
+              echo "KernelType Check"
+              Kernel=$(KernelType)
+              if [ $Kernel = 'proposed-azure' ]; then
+                echo "KernelType is $Kernel , change to linux-azure"
+                Kernel=linux-azure
+              fi
+              if [ $Kernel = 'proposed-edge' ]; then
+                echo "KernelType is $Kernel , change to linux-azure-edge"
+                Kernel=linux-azure-edge
+              fi
+              echo "Final KernelType : $Kernel"
+              echo "##vso[task.setvariable variable=kernelType;isOutput=true]$Kernel"
             name: "SetEnvVars"
             displayName: "Set Environment Variables"
             condition: always()
@@ -34,7 +54,7 @@ stages:
     parameters:
       name: linux_overlay
       clusterType: overlay-byocni-up
-      clusterName: "kup-overlay"
+      clusterName: "kup-over"
       nodeCount: 2
       vmSize: Standard_B2ms
       arch: amd64
@@ -70,7 +90,7 @@ stages:
           matrix:
             linux_overlay:
               name: linux_overlay
-              clusterName: "kup-overlay"
+              clusterName: "kup-over"
             cilium_overlay:
               name: cilium_overlay
               clusterName: "kup-cilover"
