@@ -1,14 +1,3 @@
-parameters:
-- name: KernelVersion
-  type: string
-  default: 1000
-- name: KernelType
-  type: string
-  default: linux-azure-edge
-- name: ProposedRepoVersion
-  type: string
-  default: proposed
-
 pr: none
 trigger: none
 
@@ -36,41 +25,50 @@ stages:
               echo "##vso[task.setvariable variable=commitID;isOutput=true]$(echo $(make revision)-$(date "+%d%H%M"))"
               echo "##vso[task.setvariable variable=cnsVersion;isOutput=true]$(CNS_VERSION)"
               echo "##vso[task.setvariable variable=cniVersion;isOutput=true]$(CNI_VERSION)"
+              echo "##vso[task.setvariable variable=ipamVersion;isOutput=true]$(IPAM_VERSION)"
 
               echo "------"
               echo Queued by $(Build.QueuedBy)
-              echo "Runtime Parameters passed"
-              echo "KernelType : ${{ parameters.KernelType }}"
-              echo "KernelVersion : ${{ parameters.KernelVersion }}"
-              echo "ProposedRepoVersion : ${{ parameters.ProposedRepoVersion }}"
+              echo "Runtime Variables passed"
+              echo "KernelType : $(KernelType)"
+              echo "KernelVersion : $(KernelVersion)"
+              echo "ProposedRepoVersion : $(ProposedRepoVersion)"
               echo "------"
               echo "KernelType Check"
-              KernelType=${{ parameters.KernelType }}
-              if [ $KernelType = 'proposed-azure' ]; then
-                echo "KernelType is $KernelType , change to linux-azure"
-                KernelType=linux-azure
+              Kernel=$(KernelType)
+              if [ $Kernel = 'proposed-azure' ]; then
+                echo "KernelType is $Kernel , change to linux-azure"
+                Kernel=linux-azure
               fi
-              if [ $KernelType = 'proposed-edge' ]; then
-                echo "KernelType is $KernelType , change to linux-azure-edge"
-                KernelType=linux-azure-edge
+              if [ $Kernel = 'proposed-edge' ]; then
+                echo "KernelType is $Kernel , change to linux-azure-edge"
+                Kernel=linux-azure-edge
               fi
-              echo "##vso[task.setvariable variable=kernelType;isOutput=true]$KernelType"
+              echo "Final KernelType : $Kernel"
+              echo "##vso[task.setvariable variable=kernelType;isOutput=true]$Kernel"
             name: "SetEnvVars"
             displayName: "Set Environment Variables"
             condition: always()
 
   - template: lsg-cni-intergration-template.yaml
     parameters:
-      name: linux_over
+      name: linux_overlay
       clusterType: overlay-byocni-up
       clusterName: "kup-over"
       nodeCount: 2
       vmSize: Standard_B2ms
       arch: amd64
       cni: cniv2
-      test: par
-      KernelVersion : ${{ parameters.KernelVersion }}
-      ProposedRepoVersion : ${{ parameters.ProposedRepoVersion }}
+
+  - template: lsg-cni-intergration-template.yaml
+    parameters:
+      name: cilium_overlay
+      clusterType: overlay-byocni-nokubeproxy-up
+      clusterName: "kup-cilover"
+      nodeCount: 2
+      vmSize: Standard_B2ms
+      arch: amd64
+      cni: cilium
 
   - stage: delete_resources
     displayName: "Delete Resources"
@@ -78,7 +76,8 @@ stages:
       name: "$(BUILD_POOL_NAME_DEFAULT)"
     condition: always()
     dependsOn:
-      - linux_over
+      - linux_overlay
+      - cilium_overlay
       - setup
     variables:
       commitID: $[ stagedependencies.setup.env.outputs['SetEnvVars.commitID'] ]
@@ -90,8 +89,11 @@ stages:
         strategy:
           matrix:
             linux_overlay:
-              name: linux_over
+              name: linux_overlay
               clusterName: "kup-over"
+            cilium_overlay:
+              name: cilium_overlay
+              clusterName: "kup-cilover"
         steps:
           - template: ../../templates/delete-cluster.yaml
             parameters:
