@@ -93,15 +93,20 @@ stages:
                   pwd
                   kubectl cluster-info
                   kubectl get po -owide -A
+
+                  echo "install Cilium ${CILIUM_VERSION_TAG}"
+                  export DIR=${CILIUM_VERSION_TAG%.*}
+                  echo "installing files from ${DIR}"
+
                   echo "deploy Cilium ConfigMap"
-                  kubectl apply -f test/integration/manifests/cilium/cilium-config.yaml
-                  echo "install Cilium onto Overlay Cluster"
-                  kubectl apply -f test/integration/manifests/cilium/cilium-agent
-                  kubectl apply -f test/integration/manifests/cilium/cilium-operator
-                  echo "install Cilium ${CILIUM_VERSION_TAG} onto Overlay Cluster"
+                  kubectl apply -f test/integration/manifests/cilium/v${DIR}/cilium-config/cilium-config.yaml
+
                   # Passes Cilium image to daemonset and deployment
-                  envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/daemonset.yaml | kubectl apply -f -
-                  envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/deployment.yaml | kubectl apply -f -
+                  kubectl apply -f test/integration/manifests/cilium/v${DIR}/cilium-agent/files
+                  kubectl apply -f test/integration/manifests/cilium/v${DIR}/cilium-operator/files
+
+                  envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/v${DIR}/cilium-agent/templates/daemonset.yaml | kubectl apply -f -
+                  envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/v${DIR}/cilium-operator/templates/deployment.yaml | kubectl apply -f -
                   kubectl get po -owide -A
                   echo "Deploy Azure-CNS"
                   sudo -E env "PATH=$PATH" make test-load CNS_ONLY=true AZURE_IPAM_VERSION=$(ipamVersion) CNS_VERSION=$(cnsVersion) INSTALL_CNS=true INSTALL_OVERLAY=true CNS_IMAGE_REPO=$(CNS_IMAGE_REPO) IPAM_IMAGE_REPO=$(IPAM_IMAGE_REPO)
