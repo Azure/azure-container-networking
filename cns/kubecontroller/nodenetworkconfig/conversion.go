@@ -88,13 +88,13 @@ func CreateNCRequestFromStaticNC(nc v1alpha.NetworkContainer) (*cns.CreateNetwor
 		return nil, errors.Wrapf(err, "invalid SubnetAddressSpace %s", nc.SubnetAddressSpace)
 	}
 
-	var subnet cns.IPSubnet
+	subnet := cns.IPSubnet{
+		PrefixLength: uint8(subnetPrefix.Bits()),
+	}
 	if nc.Type == v1alpha.VNETBlock {
 		subnet.IPAddress = nc.NodeIP
-		subnet.PrefixLength = uint8(subnetPrefix.Bits())
 	} else {
 		subnet.IPAddress = primaryPrefix.Addr().String()
-		subnet.PrefixLength = uint8(subnetPrefix.Bits())
 	}
 
 	req, err := createNCRequestFromStaticNCHelper(nc, primaryPrefix, subnet)
