@@ -46,6 +46,7 @@ func createNCRequestFromStaticNCHelper(nc v1alpha.NetworkContainer, primaryIPPre
 	}
 
 	return &cns.CreateNetworkContainerRequest{
+		HostPrimaryIP:        nc.NodeIP,
 		SecondaryIPConfigs:   secondaryIPConfigs,
 		NetworkContainerid:   nc.ID,
 		NetworkContainerType: cns.Docker,
