@@ -49,12 +49,13 @@ func NewService(name, version, channelMode string, store store.KeyValueStore) (*
 }
 
 func (service *Service) AddListener(config *common.ServiceConfig) error {
-	// Fetch and parse the API server URL.
 	var (
 		err     error
 		nodeURL *url.URL
 	)
 
+	// if cnsURL is empty or customer provides default URL(localhost), the VM primary interface IP will be used
+	// otherwise the url that customer provides will be used for legacy server
 	cnsURL, ok := service.GetOption(acn.OptCnsURL).(string)
 	if !ok || cnsURL == defaultAPIServerURL {
 		// get VM primary interface's private IP
