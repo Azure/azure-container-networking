@@ -93,7 +93,6 @@ type EndpointInfo struct {
 	SkipDefaultRoutes        bool
 	HNSEndpointID            string
 	HostIfName               string
-	SecondaryInterfaces      map[string]*InterfaceInfo
 }
 
 // RouteInfo contains information about an IP route.
