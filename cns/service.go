@@ -55,8 +55,8 @@ func (service *Service) AddListener(config *common.ServiceConfig) error {
 		nodeURL *url.URL
 	)
 
-	cnsURL := service.GetOption(acn.OptCnsURL).(string)
-	if cnsURL == "" || cnsURL == defaultAPIServerURL {
+	cnsURL, ok := service.GetOption(acn.OptCnsURL).(string)
+	if !ok || cnsURL == defaultAPIServerURL {
 		// get VM primary interface's private IP
 		nodeURL, err = url.Parse(fmt.Sprintf("tcp://%s:%s", config.PrimaryInterfaceIP, defaultAPIServerPort))
 		if err != nil {
