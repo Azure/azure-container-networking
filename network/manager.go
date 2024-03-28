@@ -698,35 +698,16 @@ func cnsEndpointInfotoCNIEpInfo(endpointInfo restserver.EndpointInfo, endpointID
 	}
 
 	for ifName, ipInfo := range endpointInfo.IfnameToIPMap {
-		if ifName == InfraInterfaceName { // filling out the InfraNIC from the state
-			epInfo.IPAddresses = ipInfo.IPv4
-			epInfo.IPAddresses = append(epInfo.IPAddresses, ipInfo.IPv6...)
-			epInfo.IfName = ifName
-			epInfo.HostIfName = ipInfo.HostVethName
-			epInfo.HNSEndpointID = ipInfo.HnsEndpointID
+		if ifName != InfraInterfaceName {
+			// TODO: filling out the SecondaryNICs from the state for Swift 2.0
+			continue
 		}
-		// TODO: filling out the SecondaryNICs from the state for Swift 2.0
+		// filling out the InfraNIC from the state
+		epInfo.IPAddresses = ipInfo.IPv4
+		epInfo.IPAddresses = append(epInfo.IPAddresses, ipInfo.IPv6...)
+		epInfo.IfName = ifName
+		epInfo.HostIfName = ipInfo.HostVethName
+		epInfo.HNSEndpointID = ipInfo.HnsEndpointID
 	}
 	return epInfo
-}
-
-func generateIPConfigfromState(ipInfo *restserver.IPInfo) []*IPConfig {
-	ipConfigs := []*IPConfig{}
-	for _, ip := range ipInfo.IPv4 {
-		ipConfig := &IPConfig{
-			Address: net.IPNet{
-				IP: ip.IP,
-			},
-		}
-		ipConfigs = append(ipConfigs, ipConfig)
-	}
-	for _, ip := range ipInfo.IPv6 {
-		ipConfig := &IPConfig{
-			Address: net.IPNet{
-				IP: ip.IP,
-			},
-		}
-		ipConfigs = append(ipConfigs, ipConfig)
-	}
-	return ipConfigs
 }
