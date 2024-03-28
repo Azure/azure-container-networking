@@ -71,7 +71,7 @@ type EndpointClient interface {
 
 // NetworkManager manages the set of container networking resources.
 type networkManager struct {
-	StatelessCniMode   bool
+	statelessCniMode   bool
 	CnsClient          *cnsclient.Client
 	Version            string
 	TimeStamp          time.Time
@@ -150,7 +150,7 @@ func (nm *networkManager) Uninitialize() {
 
 // SetStatelessCNIMode enable the statelessCNI falg and inititlizes a CNSClient
 func (nm *networkManager) SetStatelessCNIMode() error {
-	nm.StatelessCniMode = true
+	nm.statelessCniMode = true
 	// Create CNS client
 	client, err := cnsclient.New(cnsBaseURL, cnsReqTimeout)
 	if err != nil {
@@ -162,7 +162,7 @@ func (nm *networkManager) SetStatelessCNIMode() error {
 
 // IsStatelessCNIMode checks if the Stateless CNI mode has been enabled or not
 func (nm *networkManager) IsStatelessCNIMode() bool {
-	return nm.StatelessCniMode
+	return nm.statelessCniMode
 }
 
 // Restore reads network manager state from persistent store.
@@ -500,7 +500,6 @@ func (nm *networkManager) DeleteEndpointState(networkID string, epInfo *Endpoint
 		EnableSnatOnHost:         false,
 		EnableMultitenancy:       false,
 		NetworkContainerID:       epInfo.Id,
-		SecondaryInterfaces:      epInfo.SecondaryInterfaces,
 	}
 	logger.Info("Deleting endpoint with", zap.String("Endpoint Info: ", epInfo.PrettyString()), zap.String("HNISID : ", ep.HnsId))
 	return nw.deleteEndpointImpl(netlink.NewNetlink(), platform.NewExecClient(logger), nil, nil, nil, nil, ep)
@@ -690,30 +689,23 @@ func (nm *networkManager) GetEndpointID(containerID, ifName string) string {
 
 func cnsEndpointInfotoCNIEpInfo(endpointInfo restserver.EndpointInfo, endpointID string) *EndpointInfo {
 	epInfo := &EndpointInfo{
-		Id:                  endpointID,
-		IfIndex:             EndpointIfIndex, // Azure CNI supports only one interface
-		ContainerID:         endpointID,
-		PODName:             endpointInfo.PodName,
-		PODNameSpace:        endpointInfo.PodNamespace,
-		NetworkContainerID:  endpointID,
-		SecondaryInterfaces: make(map[string]*InterfaceInfo),
+		Id:                 endpointID,
+		IfIndex:            EndpointIfIndex, // Azure CNI supports only one interface
+		ContainerID:        endpointID,
+		PODName:            endpointInfo.PodName,
+		PODNameSpace:       endpointInfo.PodNamespace,
+		NetworkContainerID: endpointID,
 	}
-	// filling out the InfraNIC from the state
+
 	for ifName, ipInfo := range endpointInfo.IfnameToIPMap {
-		if ifName == InfraInterfaceName {
+		if ifName == InfraInterfaceName { // filling out the InfraNIC from the state
 			epInfo.IPAddresses = ipInfo.IPv4
 			epInfo.IPAddresses = append(epInfo.IPAddresses, ipInfo.IPv6...)
 			epInfo.IfName = ifName
 			epInfo.HostIfName = ipInfo.HostVethName
 			epInfo.HNSEndpointID = ipInfo.HnsEndpointID
-		} else { // filling out the SecondaryNICs from the state
-			interfaceInfo := &InterfaceInfo{
-				Name:      ifName,
-				IPConfigs: generateIPConfigfromState(ipInfo),
-				NICType:   ipInfo.NICType,
-			}
-			epInfo.SecondaryInterfaces[ifName] = interfaceInfo
 		}
+		// TODO: filling out the SecondaryNICs from the state for Swift 2.0
 	}
 	return epInfo
 }
