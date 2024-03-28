@@ -4,9 +4,10 @@ import (
 	"net/http"
 
 	"github.com/Azure/azure-container-networking/cns"
+	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/restserver"
 	"github.com/labstack/echo/v4"
-	"go.uber.org/zap"
+	"github.com/pkg/errors"
 )
 
 type Server struct {
@@ -17,7 +18,7 @@ func New(s *restserver.HTTPRestService) *Server {
 	return &Server{s}
 }
 
-func (s Server) Start(log *zap.Logger, addr string) {
+func (s Server) Start(addr string) error {
 	e := echo.New()
 	e.HideBanner = true
 	e.GET(cns.RequestIPConfig, echo.WrapHandler(restserver.NewHandlerFuncWithHistogram(s.RequestIPConfigHandler, restserver.HTTPRequestLatency)))
@@ -39,6 +40,9 @@ func (s Server) Start(log *zap.Logger, addr string) {
 	e.GET(cns.V2Prefix+cns.DeleteHostNCApipaEndpointPath, echo.WrapHandler(http.HandlerFunc(s.DeleteHostNCApipaEndpoint)))
 
 	if err := e.Start(addr); err != nil {
-		log.Error("failed to run server", zap.Error(err))
+		logger.Errorf("failed to run echo server due to %+v", err)
+		return errors.Wrap(err, "failed to start echo server")
 	}
+
+	return nil
 }

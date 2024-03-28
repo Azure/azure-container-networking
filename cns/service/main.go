@@ -43,6 +43,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/multitenantcontroller"
 	"github.com/Azure/azure-container-networking/cns/multitenantcontroller/multitenantoperator"
 	"github.com/Azure/azure-container-networking/cns/restserver"
+	restserver2 "github.com/Azure/azure-container-networking/cns/restserver/v2"
 	cnstypes "github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/cns/wireserver"
 	acn "github.com/Azure/azure-container-networking/common"
@@ -101,7 +102,8 @@ const (
 	// envVarEnableCNIConflistGeneration enables cni conflist generation if set (value doesn't matter)
 	envVarEnableCNIConflistGeneration = "CNS_ENABLE_CNI_CONFLIST_GENERATION"
 
-	cnsReqTimeout = 15 * time.Second
+	cnsReqTimeout       = 15 * time.Second
+	defaultAPIServerURL = "localhost:10090"
 )
 
 type cniConflistScenario string
@@ -766,7 +768,7 @@ func main() {
 	logger.Printf("[Azure CNS] Initialize HTTPRestService")
 	if httpRestService != nil {
 		if cnsconfig.UseHTTPS {
-			config.TlsSettings = localtls.TlsSettings{
+			config.TLSSettings = localtls.TlsSettings{
 				TLSSubjectName:                     cnsconfig.TLSSubjectName,
 				TLSCertificatePath:                 cnsconfig.TLSCertificatePath,
 				TLSPort:                            cnsconfig.TLSPort,
@@ -856,20 +858,33 @@ func main() {
 			logger.Errorf("Failed to start multiTenantController, err:%v.\n", err)
 			return
 		}
-
 	}
 
-	logger.Printf("[Azure CNS] Start HTTP listener")
+	logger.Printf("[Azure CNS] Start HTTP local echo server")
+	httpEchoRestService := restserver2.New(httpRestService)
+	if httpEchoRestService != nil {
+		go func() {
+			err = httpEchoRestService.Start(defaultAPIServerURL)
+			if err != nil {
+				logger.Errorf("Failed to start echo server, err:%v.\n", err)
+				return
+			}
+		}()
+	}
+
+	logger.Printf("[Azure CNS] Start HTTP listener %+v", config)
 	if httpRestService != nil {
 		if cnsconfig.EnablePprof {
 			httpRestService.RegisterPProfEndpoints()
 		}
 
-		err = httpRestService.Start(&config)
-		if err != nil {
-			logger.Errorf("Failed to start CNS, err:%v.\n", err)
-			return
-		}
+		go func() {
+			err = httpRestService.Start(&config)
+			if err != nil {
+				logger.Errorf("Failed to start CNS, err:%v.\n", err)
+				return
+			}
+		}()
 	}
 
 	if cnsconfig.EnableAsyncPodDelete {
