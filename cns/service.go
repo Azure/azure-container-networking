@@ -24,7 +24,7 @@ import (
 )
 
 const (
-	defaultCNSURL        = "localhost:10090"
+	defaultAPIServerURL  = "tcp://localhost:10090"
 	defaultAPIServerPort = "10090"
 	genericData          = "com.microsoft.azure.network.generic"
 )
@@ -55,9 +55,8 @@ func (service *Service) AddListener(config *common.ServiceConfig) error {
 		nodeURL *url.URL
 	)
 
-	cnsURL, _ := service.GetOption(acn.OptCnsURL).(string)
-	logger.Printf("cnsURL is %+v", cnsURL)
-	if cnsURL == "" || cnsURL == defaultCNSURL {
+	cnsURL := service.GetOption(acn.OptCnsURL).(string)
+	if cnsURL == "" || cnsURL == defaultAPIServerURL {
 		// get VM primary interface's private IP
 		nodeURL, err = url.Parse(fmt.Sprintf("tcp://%s:%s", config.PrimaryInterfaceIP, defaultAPIServerPort))
 		if err != nil {
@@ -71,7 +70,7 @@ func (service *Service) AddListener(config *common.ServiceConfig) error {
 		}
 	}
 
-	logger.Printf("nodeURL is %+v", nodeURL)
+	logger.Printf("legacy server url: %+v", nodeURL)
 
 	nodeListener, err := acn.NewListener(nodeURL)
 	if err != nil {
