@@ -69,6 +69,8 @@ func (service *Service) AddListener(config *common.ServiceConfig) error {
 		}
 	}
 
+	logger.Printf("nodeURL is %+v", nodeURL)
+
 	nodeListener, err := acn.NewListener(nodeURL)
 	if err != nil {
 		return errors.Wrap(err, "Failed to construct url for node listener")

@@ -872,7 +872,7 @@ func main() {
 		}()
 	}
 
-	logger.Printf("[Azure CNS] Start HTTP listener")
+	logger.Printf("[Azure CNS] Start HTTP listener %s %+v", config.PrimaryInterfaceIP, config.Listener.URL)
 	if httpRestService != nil {
 		if cnsconfig.EnablePprof {
 			httpRestService.RegisterPProfEndpoints()
