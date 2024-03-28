@@ -1109,6 +1109,17 @@ func (service *HTTPRestService) UpdateEndpointHandler(w http.ResponseWriter, r *
 		logger.Response(service.Name, response, response.ReturnCode, err)
 		return
 	}
+	if req.InterfaceName == "" {
+		logger.Warnf("[updateEndpoint] No Interface has been provided")
+		response := cns.Response{
+			ReturnCode: types.InvalidRequest,
+			Message:    "[updateEndpoint] No Interface has been provided",
+		}
+		w.Header().Set(cnsReturnCode, response.ReturnCode.String())
+		err = service.Listener.Encode(w, &response)
+		logger.Response(service.Name, response, response.ReturnCode, err)
+		return
+	}
 	// Update the endpoint state
 	err = service.UpdateEndpointHelper(endpointID, req)
 	if err != nil {
@@ -1139,11 +1150,11 @@ func (service *HTTPRestService) UpdateEndpointHelper(endpointID string, req cns.
 	if endpointInfo, ok := service.EndpointState[endpointID]; ok {
 		logger.Printf("[updateEndpoint] Found existing endpoint state for infra container %s", endpointID)
 		if req.HnsEndpointID != "" {
-			service.EndpointState[endpointID].HnsEndpointID = req.HnsEndpointID
+			service.EndpointState[endpointID].IfnameToIPMap[req.InterfaceName].HnsEndpointID = req.HnsEndpointID
 			logger.Printf("[updateEndpoint] update the endpoint %s with HNSID  %s", endpointID, req.HnsEndpointID)
 		}
 		if req.HostVethName != "" {
-			service.EndpointState[endpointID].HostVethName = req.HostVethName
+			service.EndpointState[endpointID].IfnameToIPMap[req.InterfaceName].HostVethName = req.HostVethName
 			logger.Printf("[updateEndpoint] update the endpoint %s with vethName  %s", endpointID, req.HostVethName)
 		}
 
