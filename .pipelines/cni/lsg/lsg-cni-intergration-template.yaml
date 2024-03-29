@@ -184,7 +184,7 @@ stages:
       - job: cni_tests
         displayName: "Cilium Test"
         dependsOn: recover
-        condition: and( succeeded(), ${{ contains(parameters.name, 'cilium') }} )
+        condition: and( succeeded(), ${{ contains(parameters.cni, 'cilium') }} )
         steps:
           - script: |
               echo "install cilium CLI"
@@ -221,7 +221,7 @@ stages:
             retryCountOnTaskFailure: 6
             name: "CiliumConnectivityTests"
             displayName: "Run Cilium Connectivity Tests"
-      - ${{ if contains(parameters.name, 'cilium') }}:
+      - ${{ if contains(parameters.cni, 'cilium') }}:
         - template: ../k8s-e2e/k8s-e2e-job-template.yaml
           parameters:
             sub: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
@@ -233,7 +233,7 @@ stages:
             dns: true
             portforward: true
             service: true
-      - ${{ if contains(parameters.name, 'linux') }}:
+      - ${{ if contains(parameters.cni, 'cniv2') }}:
         - template: ../k8s-e2e/k8s-e2e-job-template.yaml
           parameters:
             sub: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
