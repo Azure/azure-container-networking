@@ -24,7 +24,7 @@ import (
 )
 
 const (
-	defaultAPIServerURL  = "tcp://localhost:10090"
+	defaultAPIServerURL  = "tcp://127.0.0.1:10090"
 	defaultAPIServerPort = "10090"
 	genericData          = "com.microsoft.azure.network.generic"
 )
