@@ -71,7 +71,7 @@ func (service *Service) AddListener(config *common.ServiceConfig) error {
 		}
 	}
 
-	logger.Printf("legacy server url: %+v", nodeURL)
+	logger.Debugf("legacy server url: %+v", nodeURL)
 
 	nodeListener, err := acn.NewListener(nodeURL)
 	if err != nil {
