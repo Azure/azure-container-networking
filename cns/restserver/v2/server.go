@@ -21,23 +21,23 @@ func New(s *restserver.HTTPRestService) *Server {
 func (s Server) Start(addr string) error {
 	e := echo.New()
 	e.HideBanner = true
-	e.GET(cns.RequestIPConfig, echo.WrapHandler(restserver.NewHandlerFuncWithHistogram(s.RequestIPConfigHandler, restserver.HTTPRequestLatency)))
-	e.GET(cns.RequestIPConfigs, echo.WrapHandler(restserver.NewHandlerFuncWithHistogram(s.RequestIPConfigsHandler, restserver.HTTPRequestLatency)))
-	e.GET(cns.ReleaseIPConfig, echo.WrapHandler(restserver.NewHandlerFuncWithHistogram(s.ReleaseIPConfigHandler, restserver.HTTPRequestLatency)))
-	e.GET(cns.ReleaseIPConfigs, echo.WrapHandler(restserver.NewHandlerFuncWithHistogram(s.ReleaseIPConfigsHandler, restserver.HTTPRequestLatency)))
-	e.GET(cns.PathDebugIPAddresses, echo.WrapHandler(http.HandlerFunc(s.HandleDebugIPAddresses)))
-	e.GET(cns.PathDebugPodContext, echo.WrapHandler(http.HandlerFunc(s.HandleDebugPodContext)))
-	e.GET(cns.PathDebugRestData, echo.WrapHandler(http.HandlerFunc(s.HandleDebugRestData)))
-	e.GET(cns.GetNetworkContainerByOrchestratorContext, echo.WrapHandler(http.HandlerFunc(s.GetNetworkContainerByOrchestratorContext)))
-	e.GET(cns.GetAllNetworkContainers, echo.WrapHandler(http.HandlerFunc(s.GetAllNetworkContainers)))
-	e.GET(cns.CreateHostNCApipaEndpointPath, echo.WrapHandler(http.HandlerFunc(s.CreateHostNCApipaEndpoint)))
-	e.GET(cns.DeleteHostNCApipaEndpointPath, echo.WrapHandler(http.HandlerFunc(s.DeleteHostNCApipaEndpoint)))
+	e.POST(cns.RequestIPConfig, echo.WrapHandler(restserver.NewHandlerFuncWithHistogram(s.RequestIPConfigHandler, restserver.HTTPRequestLatency)))
+	e.POST(cns.RequestIPConfigs, echo.WrapHandler(restserver.NewHandlerFuncWithHistogram(s.RequestIPConfigsHandler, restserver.HTTPRequestLatency)))
+	e.POST(cns.ReleaseIPConfig, echo.WrapHandler(restserver.NewHandlerFuncWithHistogram(s.ReleaseIPConfigHandler, restserver.HTTPRequestLatency)))
+	e.POST(cns.ReleaseIPConfigs, echo.WrapHandler(restserver.NewHandlerFuncWithHistogram(s.ReleaseIPConfigsHandler, restserver.HTTPRequestLatency)))
+	e.POST(cns.PathDebugIPAddresses, echo.WrapHandler(http.HandlerFunc(s.HandleDebugIPAddresses)))
+	e.POST(cns.PathDebugPodContext, echo.WrapHandler(http.HandlerFunc(s.HandleDebugPodContext)))
+	e.POST(cns.PathDebugRestData, echo.WrapHandler(http.HandlerFunc(s.HandleDebugRestData)))
+	e.POST(cns.GetNetworkContainerByOrchestratorContext, echo.WrapHandler(http.HandlerFunc(s.GetNetworkContainerByOrchestratorContext)))
+	e.POST(cns.GetAllNetworkContainers, echo.WrapHandler(http.HandlerFunc(s.GetAllNetworkContainers)))
+	e.POST(cns.CreateHostNCApipaEndpointPath, echo.WrapHandler(http.HandlerFunc(s.CreateHostNCApipaEndpoint)))
+	e.POST(cns.DeleteHostNCApipaEndpointPath, echo.WrapHandler(http.HandlerFunc(s.DeleteHostNCApipaEndpoint)))
 
 	// for handlers 2.0
-	e.GET(cns.V2Prefix+cns.GetNetworkContainerByOrchestratorContext, echo.WrapHandler(http.HandlerFunc(s.GetNetworkContainerByOrchestratorContext)))
-	e.GET(cns.V2Prefix+cns.GetAllNetworkContainers, echo.WrapHandler(http.HandlerFunc(s.GetAllNetworkContainers)))
-	e.GET(cns.V2Prefix+cns.CreateHostNCApipaEndpointPath, echo.WrapHandler(http.HandlerFunc(s.CreateHostNCApipaEndpoint)))
-	e.GET(cns.V2Prefix+cns.DeleteHostNCApipaEndpointPath, echo.WrapHandler(http.HandlerFunc(s.DeleteHostNCApipaEndpoint)))
+	e.POST(cns.V2Prefix+cns.GetNetworkContainerByOrchestratorContext, echo.WrapHandler(http.HandlerFunc(s.GetNetworkContainerByOrchestratorContext)))
+	e.POST(cns.V2Prefix+cns.GetAllNetworkContainers, echo.WrapHandler(http.HandlerFunc(s.GetAllNetworkContainers)))
+	e.POST(cns.V2Prefix+cns.CreateHostNCApipaEndpointPath, echo.WrapHandler(http.HandlerFunc(s.CreateHostNCApipaEndpoint)))
+	e.POST(cns.V2Prefix+cns.DeleteHostNCApipaEndpointPath, echo.WrapHandler(http.HandlerFunc(s.DeleteHostNCApipaEndpoint)))
 
 	if err := e.Start(addr); err != nil {
 		logger.Errorf("failed to run echo server due to %+v", err)
