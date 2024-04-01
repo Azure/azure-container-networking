@@ -2,7 +2,9 @@ package log
 
 import (
 	"os"
+	"runtime"
 
+	"github.com/Azure/azure-container-networking/cni/log/ETWZapCore"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"gopkg.in/natefinch/lumberjack.v2"
@@ -17,9 +19,10 @@ var (
 const (
 	maxLogFileSizeInMb = 5
 	maxLogFileCount    = 8
+	etwCNIEventName    = "Azure-CNI"
 )
 
-func initZapLog(logFile string) *zap.Logger {
+func initZapLog(logFile string, isEtwLoggingEnabled bool) *zap.Logger {
 	logFileCNIWriter := zapcore.AddSync(&lumberjack.Logger{
 		Filename:   LogPath + logFile,
 		MaxSize:    maxLogFileSizeInMb,
@@ -29,14 +32,27 @@ func initZapLog(logFile string) *zap.Logger {
 	encoderConfig := zap.NewProductionEncoderConfig()
 	encoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
 	jsonEncoder := zapcore.NewJSONEncoder(encoderConfig)
+	loggingLevel := zapcore.DebugLevel
 
-	core := zapcore.NewCore(jsonEncoder, logFileCNIWriter, zapcore.DebugLevel)
-	Logger := zap.New(core)
-	return Logger
+	textfilecore := zapcore.NewCore(jsonEncoder, logFileCNIWriter, loggingLevel)
+	Logger := zap.New(textfilecore, zap.AddCaller())
+
+	// Initialize ETW logger
+	if isEtwLoggingEnabled && runtime.GOOS == "windows" {
+		etwSyncer, err := ETWZapCore.NewEtwWriteSyncer(etwCNIEventName, loggingLevel)
+		if err != nil {
+			Logger.Warn("Failed to initialize ETW logger.", zap.Error(err))
+		} else {
+			etwcore := zapcore.NewCore(jsonEncoder, zapcore.AddSync(etwSyncer), loggingLevel)
+			teecore := zapcore.NewTee(textfilecore, etwcore)
+			Logger = zap.New(teecore, zap.AddCaller())
+		}
+	}
+	return Logger.With(zap.Int("pid", os.Getpid()))
 }
 
 var (
-	CNILogger       = initZapLog(zapCNILogFile).With(zap.Int("pid", os.Getpid()))
-	IPamLogger      = initZapLog(zapIpamLogFile).With(zap.Int("pid", os.Getpid()))
-	TelemetryLogger = initZapLog(zapTelemetryLogFile).With(zap.Int("pid", os.Getpid()))
+	CNILogger       = initZapLog(zapCNILogFile, true)
+	IPamLogger      = initZapLog(zapIpamLogFile, true)
+	TelemetryLogger = initZapLog(zapTelemetryLogFile, false)
 )
