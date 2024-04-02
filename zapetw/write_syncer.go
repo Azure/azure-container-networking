@@ -1,7 +1,7 @@
 //go:build windows
 // +build windows
 
-package ETWZapCore
+package zapetw
 
 import (
 	"fmt"
