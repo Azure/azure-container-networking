@@ -1,7 +1,7 @@
 //go:build windows
 // +build windows
 
-package zapetw
+package ETWZapCore
 
 import (
 	"fmt"
@@ -65,7 +65,7 @@ func (e *EtwWriteSyncer) Sync() error {
 func mapZapLevelToETWLevel(zapLevel zapcore.Level) etw.Level {
 	switch zapLevel {
 	case zapcore.DebugLevel:
-		return etw.LevelVerbose // ETW doesn't have a Debug level, Verbose is used instead
+		return etw.LevelVerbose // ETW doesn't have a Debug level, so we use Verbose instead
 	case zapcore.InfoLevel:
 		return etw.LevelInfo
 	case zapcore.WarnLevel:
