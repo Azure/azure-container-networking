@@ -1,6 +1,7 @@
 package v2
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/Azure/azure-container-networking/cns"
@@ -18,7 +19,7 @@ func New(s *restserver.HTTPRestService) *Server {
 	return &Server{s}
 }
 
-func (s Server) Start(addr string) error {
+func (s Server) Start(ctx context.Context, addr string) error {
 	e := echo.New()
 	e.HideBanner = true
 	e.POST(cns.RequestIPConfig, echo.WrapHandler(restserver.NewHandlerFuncWithHistogram(s.RequestIPConfigHandler, restserver.HTTPRequestLatency)))

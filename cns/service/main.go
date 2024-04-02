@@ -860,11 +860,11 @@ func main() {
 		}
 	}
 
-	logger.Printf("[Azure CNS] Start HTTP local echo server")
+	logger.Printf("[Azure CNS] Start HTTP echo server")
 	httpEchoRestService := restserverv2.New(httpRestService)
 	if httpEchoRestService != nil {
 		go func() {
-			err = httpEchoRestService.Start(defaultAPIServerURL)
+			err = httpEchoRestService.Start(rootCtx, defaultAPIServerURL)
 			if err != nil {
 				logger.Errorf("Failed to start echo server, err:%v.\n", err)
 				return
@@ -872,6 +872,7 @@ func main() {
 		}()
 	}
 
+	logger.Printf("[Azure CNS] Start HTTP legacy server")
 	if httpRestService != nil {
 		if cnsconfig.EnablePprof {
 			httpRestService.RegisterPProfEndpoints()
