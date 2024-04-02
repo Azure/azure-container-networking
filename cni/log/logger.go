@@ -4,7 +4,7 @@ import (
 	"os"
 	"runtime"
 
-	"github.com/Azure/azure-container-networking/cni/log/ETWZapCore"
+	"github.com/Azure/azure-container-networking/zapetw"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"gopkg.in/natefinch/lumberjack.v2"
@@ -39,7 +39,7 @@ func initZapLog(logFile string, isEtwLoggingEnabled bool) *zap.Logger {
 
 	// Initialize ETW logger
 	if isEtwLoggingEnabled && runtime.GOOS == "windows" {
-		etwSyncer, err := ETWZapCore.NewEtwWriteSyncer(etwCNIEventName, loggingLevel)
+		etwSyncer, err := zapetw.NewEtwWriteSyncer(etwCNIEventName, loggingLevel)
 		if err != nil {
 			Logger.Warn("Failed to initialize ETW logger.", zap.Error(err))
 		} else {
