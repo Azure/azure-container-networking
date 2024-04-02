@@ -19,12 +19,11 @@ type EtwWriteSyncer struct {
 	etwLevel  etw.Level
 }
 
-func etwEventCallback(sourceID guid.GUID, state etw.ProviderState, level etw.Level, matchAnyKeyword uint64, matchAllKeyword uint64, filterData uintptr) {
+func etwEventCallback(sourceID guid.GUID, state etw.ProviderState, level etw.Level, matchAnyKeyword, matchAllKeyword uint64, filterData uintptr) {
 	fmt.Printf("ETW Callback: isEnabled=%d, level=%d, matchAnyKeyword=%d\n", state, level, matchAnyKeyword)
 }
 
 func NewEtwWriteSyncer(eventName string, zapLevel zapcore.Level) (*EtwWriteSyncer, error) {
-
 	provider, err := etw.NewProviderWithOptions(providername, etw.WithCallback(etwEventCallback))
 	if err != nil {
 		return nil, err
@@ -38,7 +37,6 @@ func NewEtwWriteSyncer(eventName string, zapLevel zapcore.Level) (*EtwWriteSynce
 }
 
 func (e *EtwWriteSyncer) Write(p []byte) (int, error) {
-
 	err := e.provider.WriteEvent(
 		e.eventName,
 		etw.WithEventOpts(
@@ -48,12 +46,10 @@ func (e *EtwWriteSyncer) Write(p []byte) (int, error) {
 			etw.StringField("Message", string(p)),
 		},
 	)
-
 	if err != nil {
 		return 0, err
 	}
 	return len(p), nil
-
 }
 
 // flush any buffered data to the underlying log destination,
