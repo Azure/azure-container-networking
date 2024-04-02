@@ -56,7 +56,7 @@ data:
   install-iptables-rules: "true"
   install-no-conntrack-iptables-rules: "false"
   ipam: delegated-plugin
-  kube-proxy-replacement: strict
+  kube-proxy-replacement: "true"
   kube-proxy-replacement-healthz-bind-address: "0.0.0.0:10256"
   local-router-ipv4: 169.254.23.0
   metrics: +cilium_bpf_map_pressure
