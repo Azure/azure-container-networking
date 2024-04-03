@@ -43,6 +43,7 @@ func initZapLogWithETW(logFile string) *zap.Logger {
 	etwLogger, err := zapetw.AttachETWLogger(Logger, ETWCNIEventName, loggingLevel)
 	if err != nil {
 		Logger.Error("Failed to attach ETW logger", zap.Error(err))
+		return Logger
 	}
 	return etwLogger.With(zap.Int("pid", os.Getpid()))
 }
