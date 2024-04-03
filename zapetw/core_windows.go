@@ -15,7 +15,7 @@ func getETWencoder() zapcore.Encoder {
 func getETWCore(eventName string, loggingLevel zapcore.Level) (zapcore.Core, error) {
 	etwSyncer, err := NewETWWriteSyncer(eventName, loggingLevel)
 	if err != nil {
-		return nil, errors.Wrapf(err, "Failed to initialize ETW logger")
+		return nil, errors.Wrap(err, "Failed to initialize ETW logger core.")
 	}
 	etwcore := zapcore.NewCore(getETWencoder(), zapcore.AddSync(etwSyncer), loggingLevel)
 	return etwcore, nil
@@ -24,7 +24,7 @@ func getETWCore(eventName string, loggingLevel zapcore.Level) (zapcore.Core, err
 func InitETWLogger(eventName string, loggingLevel zapcore.Level) (*zap.Logger, error) {
 	etwcore, err := getETWCore(eventName, loggingLevel)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "Failed to initialize ETW logger.")
 	}
 	return zap.New(etwcore, zap.AddCaller()), nil
 }
@@ -32,7 +32,7 @@ func InitETWLogger(eventName string, loggingLevel zapcore.Level) (*zap.Logger, e
 func AttachETWLogger(baseLogger *zap.Logger, eventName string, loggingLevel zapcore.Level) (*zap.Logger, error) {
 	etwcore, err := getETWCore(eventName, loggingLevel)
 	if err != nil {
-		return baseLogger, err
+		return baseLogger, errors.Wrap(err, "Failed to attach ETW logger.")
 	}
 	teecore := zapcore.NewTee(baseLogger.Core(), etwcore)
 	return zap.New(teecore, zap.AddCaller()), nil

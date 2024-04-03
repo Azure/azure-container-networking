@@ -17,7 +17,7 @@ type ETWWriteSyncer struct {
 func NewETWWriteSyncer(eventName string, zapLevel zapcore.Level) (*ETWWriteSyncer, error) {
 	provider, err := etw.NewProviderWithOptions(providername)
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to create ETW provider")
+		return nil, errors.Wrap(err, "failed to create ETW provider")
 	}
 
 	return &ETWWriteSyncer{
