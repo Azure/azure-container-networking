@@ -1,42 +1,33 @@
-//go:build windows
-// +build windows
-
 package zapetw
 
 import (
-	"fmt"
-
 	"github.com/Microsoft/go-winio/pkg/etw"
-	"github.com/Microsoft/go-winio/pkg/guid"
+	"github.com/pkg/errors"
 	"go.uber.org/zap/zapcore"
 )
 
-const providername = "Azure-Container-Networking-CCP"
+const providername = "ACN-Data-Plane"
 
-type EtwWriteSyncer struct {
+type ETWWriteSyncer struct {
 	provider  *etw.Provider
 	eventName string
 	etwLevel  etw.Level
 }
 
-func etwEventCallback(sourceID guid.GUID, state etw.ProviderState, level etw.Level, matchAnyKeyword, matchAllKeyword uint64, filterData uintptr) {
-	fmt.Printf("ETW Callback: isEnabled=%d, level=%d, matchAnyKeyword=%d\n", state, level, matchAnyKeyword)
-}
-
-func NewEtwWriteSyncer(eventName string, zapLevel zapcore.Level) (*EtwWriteSyncer, error) {
-	provider, err := etw.NewProviderWithOptions(providername, etw.WithCallback(etwEventCallback))
+func NewETWWriteSyncer(eventName string, zapLevel zapcore.Level) (*ETWWriteSyncer, error) {
+	provider, err := etw.NewProviderWithOptions(providername)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrapf(err, "failed to create ETW provider")
 	}
 
-	return &EtwWriteSyncer{
+	return &ETWWriteSyncer{
 		provider:  provider,
 		eventName: eventName,
 		etwLevel:  mapZapLevelToETWLevel(zapLevel),
 	}, nil
 }
 
-func (e *EtwWriteSyncer) Write(p []byte) (int, error) {
+func (e *ETWWriteSyncer) Write(p []byte) (int, error) {
 	err := e.provider.WriteEvent(
 		e.eventName,
 		etw.WithEventOpts(
@@ -47,28 +38,28 @@ func (e *EtwWriteSyncer) Write(p []byte) (int, error) {
 		},
 	)
 	if err != nil {
-		return 0, err
+		return 0, errors.Wrapf(err, "failed to write to ETW")
 	}
 	return len(p), nil
 }
 
 // flush any buffered data to the underlying log destination,
 // ensuring that all logged data is actually written out and not just held in memory.
-func (e *EtwWriteSyncer) Sync() error {
+func (e *ETWWriteSyncer) Sync() error {
 	return nil
 }
 
 func mapZapLevelToETWLevel(zapLevel zapcore.Level) etw.Level {
 	switch zapLevel {
 	case zapcore.DebugLevel:
-		return etw.LevelVerbose // ETW doesn't have a Debug level, so we use Verbose instead
+		return etw.LevelVerbose // ETW doesn't have a Debug level, so Verbose is used instead.
 	case zapcore.InfoLevel:
 		return etw.LevelInfo
 	case zapcore.WarnLevel:
 		return etw.LevelWarning
 	case zapcore.ErrorLevel:
 		return etw.LevelError
-	case zapcore.DPanicLevel, zapcore.PanicLevel, zapcore.FatalLevel:
+	case zapcore.DPanicLevel, zapcore.PanicLevel, zapcore.FatalLevel, zapcore.InvalidLevel:
 		return etw.LevelCritical
 	default:
 		return etw.LevelAlways
