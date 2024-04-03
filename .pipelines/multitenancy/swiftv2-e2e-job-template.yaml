@@ -31,7 +31,7 @@ stages:
           region: $(REGION_SWIFTV2_CLUSTER_TEST) # Swiftv2 has a specific region requirements
 
   - stage: ${{ parameters.name }}
-    condition: and( succeeded(), not(eq(dependencies.dualstackoverlaye2e.result,'SucceededWithIssues')) ) # Cant use parameters in dependencies
+    # condition: and( succeeded(), not(eq(dependencies.dualstackoverlaye2e.result,'SucceededWithIssues')) ) # Cant use parameters in dependencies
     displayName: E2E - ${{ parameters.displayName }}
     dependsOn:
     - setup
@@ -45,8 +45,8 @@ stages:
     pool:
       name: $(BUILD_POOL_NAME_DEFAULT)
     jobs:
-      - job: ${{ parameters.name }}_linux
-        displayName: Swiftv2 Multitenancy E2E Test Suite | Linux - (${{ parameters.name }})
+      - job: ${{ parameters.name }}
+        displayName: Swiftv2 Multitenancy E2E Test Suite - (${{ parameters.name }})
         pool:
           name: $(BUILD_POOL_NAME_DEFAULT)
           demands:
@@ -59,11 +59,23 @@ stages:
               clusterName: ${{ parameters.clusterName }}-$(commitID)
               os: linux
 
-      - job: failedE2ELogs_linux
-        displayName: "Linux Failure Logs"
+      - template: ../cni/k8s-e2e/k8s-e2e-job-template.yaml
+        parameters:
+          sub: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+          clusterName: ${{ parameters.clusterName }}-$(commitID)
+          os: ${{ parameters.os }}
+          dependsOn: ${{ parameters.name }}
+          datapath: true
+          dns: true
+          portforward: true
+          hostport: true
+          service: true
+
+      - job: failedE2ELogs
+        displayName: "Failure Logs"
         dependsOn:
-          - ${{ parameters.name }}_linux
-        condition: in(dependencies.${{ parameters.name }}_linux.result, 'Failed')
+          - ${{ parameters.name }}
+        condition: failed()
         steps:
           - template: ../templates/log-template.yaml
             parameters:

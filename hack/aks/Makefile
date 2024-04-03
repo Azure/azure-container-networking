@@ -238,7 +238,7 @@ swiftv2-multitenancy-cluster-up: rg-up
 		--network-plugin azure \
 		--network-plugin-mode overlay \
 		--kubernetes-version 1.28 \
-		--nodepool-name "mtapool0" \
+		--nodepool-name "mtapool" \
 		--nodepool-tags fastpathenabled=true \
 		--no-ssh-key \
 		--yes
