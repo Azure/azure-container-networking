@@ -24,10 +24,15 @@ import (
 )
 
 const (
-	defaultAPIServerURL  = "tcp://127.0.0.1:10090"
 	defaultAPIServerPort = "10090"
 	genericData          = "com.microsoft.azure.network.generic"
 )
+
+var invalidURLs = map[string]string{
+	"tcp://127.0.0.1:10090": "localhost",
+	"tcp://localhost:10090": "localhost",
+	"tcp://0.0.0.0:10090":   "default",
+}
 
 // Service defines Container Networking Service.
 type Service struct {
@@ -54,10 +59,14 @@ func (service *Service) AddListener(config *common.ServiceConfig) error {
 		nodeURL *url.URL
 	)
 
-	// if cnsURL is empty or customer provides default URL(localhost), the VM primary interface IP will be used
+	// if cnsURL is empty the VM primary interface IP will be used
 	// otherwise the url that customer provides will be used for legacy server
 	cnsURL, ok := service.GetOption(acn.OptCnsURL).(string)
-	if !ok || cnsURL == defaultAPIServerURL {
+
+	// if customer provides default or localhost URL, then use VM IP
+	_, isInValidURL := invalidURLs[cnsURL]
+
+	if !ok || isInValidURL {
 		// get VM primary interface's private IP
 		nodeURL, err = url.Parse(fmt.Sprintf("tcp://%s:%s", config.PrimaryInterfaceIP, defaultAPIServerPort))
 		if err != nil {
@@ -71,7 +80,7 @@ func (service *Service) AddListener(config *common.ServiceConfig) error {
 		}
 	}
 
-	logger.Debugf("legacy server url: %+v", nodeURL)
+	logger.Debugf("CNS remote server url: %+v", nodeURL)
 
 	nodeListener, err := acn.NewListener(nodeURL)
 	if err != nil {
