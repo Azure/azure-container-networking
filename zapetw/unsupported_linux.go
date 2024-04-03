@@ -1,3 +1,8 @@
+/*
+Package zapetw provides a stub implementation of ETW (Event Tracing for Windows)
+logging functionality for Linux environments.
+Since ETW is specific to Windows, this package returns errors indicating the lack of support on Linux.
+*/
 package zapetw
 
 import (
@@ -7,6 +12,10 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
+/*
+ETWWriteSyncer is a no-op structure implementing a zapcore.WriteSyncer interface for Linux.
+It provides stub methods that simply return an error indicating that ETW is not supported on Linux.
+*/
 type ETWWriteSyncer struct{}
 
 var ErrETWNotSupported = errors.New("ETW is not supported for Linux")
