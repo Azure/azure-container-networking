@@ -38,7 +38,7 @@ func (e *ETWWriteSyncer) Write(p []byte) (int, error) {
 		},
 	)
 	if err != nil {
-		return 0, errors.Wrapf(err, "failed to write to ETW")
+		return 0, errors.Wrap(err, "failed to write to ETW")
 	}
 	return len(p), nil
 }
