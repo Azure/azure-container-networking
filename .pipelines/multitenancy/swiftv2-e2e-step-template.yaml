@@ -51,6 +51,7 @@ steps:
         sleep 2m
         echo "Check pods after 4 minutes"
         kubectl get po -owide -A
+        kubectl describe pni
         echo "Start the connection test"
         kubectl exec mtpod -it -t -- /bin/bash
         ip a
