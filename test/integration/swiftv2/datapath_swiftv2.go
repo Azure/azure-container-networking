@@ -55,10 +55,6 @@ k8s cluster with a Linux nodepool consisting of at least 2 Linux nodes.
 *** The expected nodepool name is mtapool, if the nodepool has a different name ensure that you change nodepoolSelector with:
 		-nodepoolSelector="yournodepoolname"
 
-To run the test use one of the following commands:
-go test -count=1 test/integration/datapath/datapath_linux_test.go -timeout 3m -tags connection -run ^TestDatapathLinux$ -tags=connection,integration
-
-
 This test checks pod to pod, pod to node, pod to Internet check
 
 Timeout context is controled by the -timeout flag.
