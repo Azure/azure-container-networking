@@ -48,7 +48,7 @@ steps:
         kubectl get pod -o wide
         kubectl get po -owide -A
         echo "Start the connection test"
-        kubectl exec mtpodjae2 -it -t -- /bin/bash
+        kubectl exec mtpod -it -t -- /bin/bash
         ip a
         ping -c 3 172.25.0.22
     name: "start_swiftv2_pods"
