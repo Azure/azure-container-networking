@@ -36,6 +36,7 @@ steps:
         echo "Apply the pod network yaml to start the delegation"
         less test/integration/manifests/swiftv2/podnetwork.yaml
         envsubst '${SUBNET_TOKEN},${SUBNET_GUID},${SUBNET_RESOURCE_ID},${VNET_GUID}' < test/integration/manifests/swiftv2/podnetwork.yaml | kubectl apply -f -
+        echo "Check the podnetwork yaml file"
         less test/integration/manifests/swiftv2/podnetwork.yaml
         kubectl get pn
         kubectl describe pn
@@ -45,7 +46,10 @@ steps:
         kubectl describe pni
         echo "Start the pod using the reserved IP"
         kubectl apply -f test/integration/manifests/swiftv2/mtpod.yaml
-        kubectl get pod -o wide
+        sleep 2m
+        kubectl get pod -o wide -A
+        sleep 2m
+        echo "Check pods after 4 minutes"
         kubectl get po -owide -A
         echo "Start the connection test"
         kubectl exec mtpod -it -t -- /bin/bash
