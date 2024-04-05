@@ -23,6 +23,9 @@ const (
 	podCount                   = 2
 	nodepoolKey                = "mtapool"
 	LinuxDeployIPV4            = "../manifests/datapath/linux-deployment.yaml"
+	podNetworkYaml             = "../manifests/swiftv2/podnetwork.yaml"
+	mtpodYaml                  = "../manifests/swiftv2/mtpod.yaml"
+	pniYaml                    = "../manifests/swiftv2/pni.yaml"
 	maxRetryDelaySeconds       = 10
 	defaultTimeoutSeconds      = 120
 	defaultRetryDelaySeconds   = 1
