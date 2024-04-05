@@ -511,7 +511,7 @@ stages:
         displayName: Swiftv2 Multitenancy
         os: linux
         clusterType: swiftv2-multitenancy-cluster-up
-        clusterName: "mtcluster"
+        clusterName: "mtacluster"
         nodePoolName: "mtapool"
         vmSize: Standard_D4_v2
         dependsOn: "test"
