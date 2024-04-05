@@ -3,5 +3,5 @@ kind: PodNetworkInstance
 metadata:
    name: pni1
 spec:
-   podnetwork: aksswiftvnet
+   podnetwork: aksswiftvnet172
    podIPReservationSize: 2
