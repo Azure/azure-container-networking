@@ -19,7 +19,7 @@ stages:
     variables:
       commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
     jobs:
-      - template: ../templates/create-cluster.yaml
+      - template: ../templates/create-cluster-swiftv2.yaml
         parameters:
           name: ${{ parameters.name }}
           displayName: ${{ parameters.displayName }}
@@ -61,7 +61,7 @@ stages:
 
       - template: ../cni/k8s-e2e/k8s-e2e-job-template.yaml
         parameters:
-          sub: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+          sub: $(ACN_TEST_SERVICE_CONNECTION)
           clusterName: ${{ parameters.clusterName }}-$(commitID)
           os: ${{ parameters.os }}
           dependsOn: ${{ parameters.name }}
