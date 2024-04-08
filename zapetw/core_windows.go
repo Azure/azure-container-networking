@@ -54,11 +54,16 @@ func (core *ETWCore) Write(entry zapcore.Entry, fields []zapcore.Field) error {
 		return errors.Wrap(err, "failed to encode entry")
 	}
 
-	return core.provider.WriteEvent(
+	err = core.provider.WriteEvent(
 		core.eventName,
 		[]etw.EventOpt{etw.WithLevel(etwLevel)},
 		[]etw.FieldOpt{etw.StringField("Message", buffer.String())},
 	)
+	if err != nil {
+		return errors.Wrap(err, "failed to write event")
+	}
+
+	return nil
 }
 
 func (core *ETWCore) Sync() error {
