@@ -3,7 +3,6 @@ package log
 import (
 	"os"
 
-	"github.com/Azure/azure-container-networking/zapetw"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 	"gopkg.in/natefinch/lumberjack.v2"
@@ -40,12 +39,14 @@ func initZapLog(logFile string) *zap.Logger {
 
 func initZapLogWithETW(logFile string) *zap.Logger {
 	Logger := initZapLog(logFile)
-	etwLogger, err := zapetw.AttachETWLogger(Logger, ETWCNIEventName, loggingLevel)
+	etwcore, err := GetETWCore(ETWCNIEventName, loggingLevel)
 	if err != nil {
-		Logger.Error("Failed to attach ETW logger", zap.Error(err))
+		Logger.Error("Failed to attach ETW core to logger", zap.Error(err))
 		return Logger
 	}
-	return etwLogger.With(zap.Int("pid", os.Getpid()))
+	teecore := zapcore.NewTee(Logger.Core(), etwcore)
+	Logger = zap.New(teecore, zap.AddCaller())
+	return Logger.With(zap.Int("pid", os.Getpid()))
 }
 
 var (
