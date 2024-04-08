@@ -1,39 +1,85 @@
 package zapetw
 
 import (
+	"github.com/Microsoft/go-winio/pkg/etw"
 	"github.com/pkg/errors"
-	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
 
-func getETWencoder() zapcore.Encoder {
-	encoderConfig := zap.NewProductionEncoderConfig()
-	encoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
-	return zapcore.NewJSONEncoder(encoderConfig)
+const providername = "Azure-Container-Networking"
+
+type ETWCore struct {
+	provider  *etw.Provider
+	eventName string
+	encoder   zapcore.Encoder
+	fields    []zapcore.Field
+	zapcore.LevelEnabler
 }
 
-func getETWCore(eventName string, loggingLevel zapcore.Level) (zapcore.Core, error) {
-	etwSyncer, err := NewETWWriteSyncer(eventName, loggingLevel)
+func NewETWCore(eventName string, encoder zapcore.Encoder, levelEnabler zapcore.LevelEnabler) (*ETWCore, error) {
+	provider, err := etw.NewProviderWithOptions(providername)
 	if err != nil {
-		return nil, errors.Wrap(err, "Failed to initialize ETW logger core")
+		return nil, errors.Wrap(err, "failed to create ETW provider")
 	}
-	etwcore := zapcore.NewCore(getETWencoder(), zapcore.AddSync(etwSyncer), loggingLevel)
-	return etwcore, nil
+	return &ETWCore{
+		provider:     provider,
+		eventName:    eventName,
+		encoder:      encoder,
+		LevelEnabler: levelEnabler,
+	}, nil
 }
 
-func InitETWLogger(eventName string, loggingLevel zapcore.Level) (*zap.Logger, error) {
-	etwcore, err := getETWCore(eventName, loggingLevel)
-	if err != nil {
-		return nil, errors.Wrap(err, "Failed to initialize ETW logger")
+func (core *ETWCore) With(fields []zapcore.Field) zapcore.Core {
+	// Copy existing fields and append new ones
+
+	return &ETWCore{
+		provider:     core.provider,
+		eventName:    core.eventName,
+		encoder:      core.encoder,
+		LevelEnabler: core.LevelEnabler,
+		fields:       append(core.fields, fields...),
 	}
-	return zap.New(etwcore, zap.AddCaller()), nil
 }
 
-func AttachETWLogger(baseLogger *zap.Logger, eventName string, loggingLevel zapcore.Level) (*zap.Logger, error) {
-	etwcore, err := getETWCore(eventName, loggingLevel)
-	if err != nil {
-		return baseLogger, errors.Wrap(err, "Failed to attach ETW logger")
+func (core *ETWCore) Check(entry zapcore.Entry, checkedEntry *zapcore.CheckedEntry) *zapcore.CheckedEntry {
+	if core.Enabled(entry.Level) {
+		return checkedEntry.AddCore(entry, core)
 	}
-	teecore := zapcore.NewTee(baseLogger.Core(), etwcore)
-	return zap.New(teecore, zap.AddCaller()), nil
+	return checkedEntry
+}
+
+func (core *ETWCore) Write(entry zapcore.Entry, fields []zapcore.Field) error {
+	etwLevel := zapLevelToETWLevel(entry.Level)
+
+	buffer, err := core.encoder.EncodeEntry(entry, fields)
+	if err != nil {
+		return err
+	}
+
+	return core.provider.WriteEvent(
+		core.eventName,
+		[]etw.EventOpt{etw.WithLevel(etwLevel)},
+		[]etw.FieldOpt{etw.StringField("Message", buffer.String())},
+	)
+}
+
+func (core *ETWCore) Sync() error {
+	return nil
+}
+
+func zapLevelToETWLevel(level zapcore.Level) etw.Level {
+	switch level {
+	case zapcore.DebugLevel:
+		return etw.LevelVerbose // ETW doesn't have a Debug level, so Verbose is used instead.
+	case zapcore.InfoLevel:
+		return etw.LevelInfo
+	case zapcore.WarnLevel:
+		return etw.LevelWarning
+	case zapcore.ErrorLevel:
+		return etw.LevelError
+	case zapcore.DPanicLevel, zapcore.PanicLevel, zapcore.FatalLevel, zapcore.InvalidLevel:
+		return etw.LevelCritical
+	default:
+		return etw.LevelAlways
+	}
 }
