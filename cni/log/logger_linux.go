@@ -11,6 +11,8 @@ const (
 	LogPath = "/var/log/"
 )
 
-func GetETWCore(eventName string, loggingLevel zapcore.Level) (zapcore.Core, error) {
-	return nil, errors.New("ETW is not supported for Linux")
+var ErrETWNotSupported = errors.New("ETW is not supported for Linux")
+
+func GetETWCore(_ string, _ zapcore.Level) (zapcore.Core, error) {
+	return nil, ErrETWNotSupported
 }

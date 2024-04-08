@@ -30,8 +30,6 @@ func NewETWCore(eventName string, encoder zapcore.Encoder, levelEnabler zapcore.
 }
 
 func (core *ETWCore) With(fields []zapcore.Field) zapcore.Core {
-	// Copy existing fields and append new ones
-
 	return &ETWCore{
 		provider:     core.provider,
 		eventName:    core.eventName,
@@ -53,7 +51,7 @@ func (core *ETWCore) Write(entry zapcore.Entry, fields []zapcore.Field) error {
 
 	buffer, err := core.encoder.EncodeEntry(entry, fields)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "failed to encode entry")
 	}
 
 	return core.provider.WriteEvent(
