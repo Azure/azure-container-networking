@@ -6,7 +6,8 @@ import (
 	"go.uber.org/zap/zapcore"
 )
 
-const providername = "Azure-Container-Networking"
+// <organization_name>-<product_name>-<component_name>
+const providername = "Azure-CNI-CNS-Monitoring"
 
 type ETWCore struct {
 	provider  *etw.Provider
