@@ -3,7 +3,7 @@ kind: PodNetwork
 metadata:
   labels:
     kubernetes.azure.com/override-subnet-token: $SUBNET_TOKEN
-  name: aksswiftvnet172
+  name: aksswiftvnetv2
 spec:
   subnetGUID: $SUBNET_GUID
   subnetResourceID: $SUBNET_RESOURCE_ID

@@ -2,7 +2,7 @@ apiVersion: v1
 kind: Pod
 metadata:
   labels:
-    kubernetes.azure.com/pod-network: aksswiftvnet172
+    kubernetes.azure.com/pod-network: aksswiftvnetv2
     kubernetes.azure.com/pod-network-instance: pni1
   name: mtpod
   namespace: default
