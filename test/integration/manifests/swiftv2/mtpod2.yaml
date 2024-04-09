@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    kubernetes.azure.com/pod-network: aksswiftvnetv2
+    kubernetes.azure.com/pod-network-instance: pni1
+  name: mtpod2
+  namespace: default
+spec:
+  containers:
+  - image: nicolaka/netshoot:latest
+    imagePullPolicy: Always
+    name: mtpod2
+    command: ["/bin/bash"]
+    args: ["-c", "while true; do ping localhost; sleep 60;done"]
+    securityContext:
+       privileged: true
+    ports:
+    - containerPort: 80
+      protocol: TCP
