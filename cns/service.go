@@ -28,12 +28,6 @@ const (
 	genericData          = "com.microsoft.azure.network.generic"
 )
 
-var invalidURLs = map[string]string{
-	"tcp://127.0.0.1:10090": "localhost",
-	"tcp://localhost:10090": "localhost",
-	"tcp://0.0.0.0:10090":   "default",
-}
-
 // Service defines Container Networking Service.
 type Service struct {
 	*common.Service
@@ -63,10 +57,8 @@ func (service *Service) AddListener(config *common.ServiceConfig) error {
 	// otherwise the url that customer provides will be used for legacy server
 	cnsURL, ok := service.GetOption(acn.OptCnsURL).(string)
 
-	// if customer provides default or localhost URL, then use VM IP
-	_, isInValidURL := invalidURLs[cnsURL]
-
-	if !ok || isInValidURL {
+	if !ok {
+		config.EnableLocalServer = true
 		// get VM primary interface's private IP
 		nodeURL, err = url.Parse(fmt.Sprintf("tcp://%s:%s", config.PrimaryInterfaceIP, defaultAPIServerPort))
 		if err != nil {
@@ -74,9 +66,13 @@ func (service *Service) AddListener(config *common.ServiceConfig) error {
 		}
 	} else {
 		// use the URL that customer provides
+		logger.Warnf("Do not specify cns-url by -c option, this option will be deprecated!")
+
+		// do not enable local server if customer uses -c option
+		config.EnableLocalServer = false
 		nodeURL, err = url.Parse(cnsURL)
 		if err != nil {
-			return errors.Wrap(err, "Failed to parse IP that customer provides")
+			return errors.Wrap(err, "Failed to parse URL that customer provides")
 		}
 	}
 

@@ -41,6 +41,7 @@ type ServiceConfig struct {
 	PrimaryInterfaceIP string
 	ChannelMode        string
 	TLSSettings        tls.TlsSettings
+	EnableLocalServer  bool // TODO: Remove this flag once -c option gets deprecated
 }
 
 // NewService creates a new Service object.

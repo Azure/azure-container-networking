@@ -203,6 +203,13 @@ var args = acn.ArgumentList{
 		DefaultValue: "",
 	},
 	{
+		Name:         acn.OptCnsPort,
+		Shorthand:    acn.OptCnsPortAlias,
+		Description:  "Set the URL port for CNS to listen on",
+		Type:         "string",
+		DefaultValue: "",
+	},
+	{
 		Name:         acn.OptStartAzureCNM,
 		Shorthand:    acn.OptStartAzureCNMAlias,
 		Description:  "Start Azure-CNM if flag is set",
@@ -492,6 +499,7 @@ func main() {
 	cniPath := acn.GetArg(acn.OptNetPluginPath).(string)
 	cniConfigFile := acn.GetArg(acn.OptNetPluginConfigFile).(string)
 	cnsURL := acn.GetArg(acn.OptCnsURL).(string)
+	cnsPort := acn.GetArg(acn.OptCnsPort).(string)
 	logLevel := acn.GetArg(acn.OptLogLevel).(int)
 	logTarget := acn.GetArg(acn.OptLogTarget).(int)
 	logDirectory := acn.GetArg(acn.OptLogLocation).(string)
@@ -747,6 +755,7 @@ func main() {
 
 	// Set CNS options.
 	httpRemoteRestService.SetOption(acn.OptCnsURL, cnsURL)
+	httpRemoteRestService.SetOption(acn.OptCnsPort, cnsPort)
 	httpRemoteRestService.SetOption(acn.OptNetPluginPath, cniPath)
 	httpRemoteRestService.SetOption(acn.OptNetPluginConfigFile, cniConfigFile)
 	httpRemoteRestService.SetOption(acn.OptCreateDefaultExtNetworkType, createDefaultExtNetworkType)
@@ -860,18 +869,7 @@ func main() {
 		}
 	}
 
-	logger.Printf("[Azure CNS] Start HTTP local server")
-	httpLocalRestService := restserverv2.New(httpRemoteRestService)
-	if httpLocalRestService != nil {
-		go func() {
-			err = httpLocalRestService.Start(rootCtx, defaultAPIServerURL)
-			if err != nil {
-				logger.Errorf("Failed to start echo server, err:%v.\n", err)
-				return
-			}
-		}()
-	}
-
+	// if user provides cns url by -c option, then only start HTTP remote server using this url
 	logger.Printf("[Azure CNS] Start HTTP Remote server")
 	if httpRemoteRestService != nil {
 		if cnsconfig.EnablePprof {
@@ -885,6 +883,23 @@ func main() {
 				return
 			}
 		}()
+	}
+
+	// if user does not provide cns url by -c option, then start http local server
+	// TODO: we will deprecated -c option in next phase and start local server in any case
+	if config.EnableLocalServer {
+		logger.Printf("[Azure CNS] Start HTTP local server")
+
+		httpLocalRestService := restserverv2.New(httpRemoteRestService)
+		if httpLocalRestService != nil {
+			go func() {
+				err = httpLocalRestService.Start(rootCtx, defaultAPIServerURL)
+				if err != nil {
+					logger.Errorf("Failed to start local echo server, err:%v.\n", err)
+					return
+				}
+			}()
+		}
 	}
 
 	if cnsconfig.EnableAsyncPodDelete {
