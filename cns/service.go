@@ -54,18 +54,28 @@ func (service *Service) AddListener(config *common.ServiceConfig) error {
 	)
 
 	// if cnsURL is empty the VM primary interface IP will be used
-	// otherwise the url that customer provides will be used for legacy server
-	cnsURL, ok := service.GetOption(acn.OptCnsURL).(string)
+	// if customer specifies -c option, then use this URL with warning message and it will be deprecated soon
+	cnsURL, hasURL := service.GetOption(acn.OptCnsURL).(string)
 
-	if !ok {
+	// if customer provides port number by -p option, then use VM IP with this port and localhost server also uses this port
+	// otherwise it will use defaultAPIServerPort 10090
+	cnsPort, hasPort := service.GetOption(acn.OptCnsPort).(string)
+
+	if !hasURL {
 		config.EnableLocalServer = true
 		// get VM primary interface's private IP
-		nodeURL, err = url.Parse(fmt.Sprintf("tcp://%s:%s", config.PrimaryInterfaceIP, defaultAPIServerPort))
+		// if customer does use -p option, then use port number customers provide
+		if hasPort {
+			nodeURL, err = url.Parse(fmt.Sprintf("tcp://%s:%s", config.PrimaryInterfaceIP, cnsPort))
+		} else {
+			nodeURL, err = url.Parse(fmt.Sprintf("tcp://%s:%s", config.PrimaryInterfaceIP, defaultAPIServerPort))
+		}
+
 		if err != nil {
 			return errors.Wrap(err, "Failed to parse VM private interface IP")
 		}
 	} else {
-		// use the URL that customer provides
+		// use the URL that customer provides by -c
 		logger.Warnf("Do not specify cns-url by -c option, this option will be deprecated!")
 
 		// do not enable local server if customer uses -c option
