@@ -32,25 +32,18 @@ func initZapLog(logFile string) *zap.Logger {
 	encoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
 	jsonEncoder := zapcore.NewJSONEncoder(encoderConfig)
 
-	textfilecore := zapcore.NewCore(jsonEncoder, logFileCNIWriter, loggingLevel)
-	Logger := zap.New(textfilecore, zap.AddCaller())
-	return Logger.With(zap.Int("pid", os.Getpid()))
-}
-
-func initZapLogWithETW(logFile string) *zap.Logger {
-	Logger := initZapLog(logFile)
-	etwcore, err := GetETWCore(ETWCNIEventName, loggingLevel)
+	textFileCore := zapcore.NewCore(jsonEncoder, logFileCNIWriter, loggingLevel)
+	core, err := JoinPlatformCores(textFileCore, loggingLevel)
 	if err != nil {
-		Logger.Error("Failed to attach ETW core to logger", zap.Error(err))
-		return Logger
+		// If we fail to join the platform cores, fallback to the original core.
+		core = textFileCore
 	}
-	teecore := zapcore.NewTee(Logger.Core(), etwcore)
-	Logger = zap.New(teecore, zap.AddCaller())
+	Logger := zap.New(core, zap.AddCaller())
 	return Logger.With(zap.Int("pid", os.Getpid()))
 }
 
 var (
-	CNILogger       = initZapLogWithETW(zapCNILogFile)
-	IPamLogger      = initZapLogWithETW(zapIpamLogFile)
+	CNILogger       = initZapLog(zapCNILogFile)
+	IPamLogger      = initZapLog(zapIpamLogFile)
 	TelemetryLogger = initZapLog(zapTelemetryLogFile)
 )

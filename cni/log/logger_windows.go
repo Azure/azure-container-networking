@@ -12,12 +12,21 @@ const (
 	LogPath = ""
 )
 
-func GetETWCore(eventName string, loggingLevel zapcore.Level) (zapcore.Core, error) {
+func JoinPlatformCores(core zapcore.Core, loggingLevel zapcore.Level) (zapcore.Core, error) {
+	etwcore, err := etwCore(loggingLevel)
+	if err != nil {
+		return core, err
+	}
+	teecore := zapcore.NewTee(core, etwcore)
+	return teecore, nil
+}
+
+func etwCore(loggingLevel zapcore.Level) (zapcore.Core, error) {
 	encoderConfig := zap.NewProductionEncoderConfig()
 	encoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
 	jsonEncoder := zapcore.NewJSONEncoder(encoderConfig)
 
-	etwcore, err := zapetw.NewETWCore(eventName, jsonEncoder, loggingLevel)
+	etwcore, err := zapetw.NewETWCore(ETWCNIEventName, jsonEncoder, loggingLevel)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to create ETW core")
 	}
