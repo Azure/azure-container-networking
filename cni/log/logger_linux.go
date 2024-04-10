@@ -9,6 +9,6 @@ const (
 	LogPath = "/var/log/"
 )
 
-func JoinPlatformCores(c zapcore.Core, loggingLevel zapcore.Level) (zapcore.Core, error) {
+func JoinPlatformCores(c zapcore.Core, _ zapcore.Level) (zapcore.Core, error) {
 	return c, nil
 }
