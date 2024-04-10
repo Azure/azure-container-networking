@@ -109,7 +109,7 @@ func RunCmd(version, params string) error {
 
 // check if iptable chain alreay exists
 func ChainExists(version, tableName, chainName string) bool {
-	params := fmt.Sprintf("-t %s -L %s", tableName, chainName)
+	params := fmt.Sprintf("-t %s -nL %s", tableName, chainName)
 	if err := RunCmd(version, params); err != nil {
 		return false
 	}
