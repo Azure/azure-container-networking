@@ -212,7 +212,6 @@ func (client *TransparentVlanEndpointClient) PopulateVM(epInfo *EndpointInfo) er
 		return errors.Wrap(err, "failed to get vm ns handle")
 	}
 
-	logger.Info("Checking if NS exists...")
 	var existingErr error
 	client.vnetNSFileDescriptor, existingErr = client.netnsClient.GetFromName(client.vnetNSName)
 	// If the ns does not exist, the below code will trigger to create it
@@ -308,7 +307,7 @@ func (client *TransparentVlanEndpointClient) PopulateVM(epInfo *EndpointInfo) er
 	// Get the default constant host veth mac
 	mac, err := net.ParseMAC(defaultHostVethHwAddr)
 	if err != nil {
-		logger.Info("Failed to parse the mac addrress", zap.String("defaultHostVethHwAddr", defaultHostVethHwAddr))
+		logger.Info("Failed to parse the mac address", zap.String("defaultHostVethHwAddr", defaultHostVethHwAddr))
 	}
 
 	// Create veth pair

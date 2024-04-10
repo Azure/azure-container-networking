@@ -97,16 +97,13 @@ func (nm *networkManager) newNetworkImpl(nwInfo *NetworkInfo, extIf *externalInt
 		if err := nu.EnableIPV4Forwarding(); err != nil {
 			return nil, errors.Wrap(err, "ipv4 forwarding failed")
 		}
-		logger.Info("Ipv4 forwarding enabled")
 		if err := nu.UpdateIPV6Setting(1); err != nil {
 			return nil, errors.Wrap(err, "failed to disable ipv6 on vm")
 		}
-		logger.Info("Disabled ipv6")
 		// Blocks wireserver traffic from apipa nic
 		if err := nu.BlockEgressTrafficFromContainer(nm.iptablesClient, iptables.V4, networkutils.AzureDNS, iptables.TCP, iptables.HTTPPort); err != nil {
 			return nil, errors.Wrap(err, "unable to insert vm iptables rule drop wireserver packets")
 		}
-		logger.Info("Block wireserver traffic rule added")
 	default:
 		return nil, errNetworkModeInvalid
 	}
@@ -469,7 +466,6 @@ func (nm *networkManager) connectExternalInterface(extIf *externalInterface, nwI
 		networkClient NetworkClient
 	)
 
-	logger.Info("Connecting interface", zap.String("Name", extIf.Name))
 	defer func() {
 		logger.Info("Connecting interface completed", zap.String("Name", extIf.Name), zap.Error(err))
 	}()
@@ -548,37 +544,35 @@ func (nm *networkManager) connectExternalInterface(extIf *externalInterface, nwI
 		}
 	}
 
+	logger.Info("Modifying interfaces", zap.String("Name", hostIf.Name))
+
 	// External interface down.
-	logger.Info("Setting link state down", zap.String("Name", hostIf.Name))
 	err = nm.netlink.SetLinkState(hostIf.Name, false)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "failed to set external interface down")
 	}
 
 	// Connect the external interface to the bridge.
-	logger.Info("Setting link master", zap.String("Name", hostIf.Name), zap.String("bridgeName", bridgeName))
 	if err = networkClient.SetBridgeMasterToHostInterface(); err != nil {
-		return err
+		return errors.Wrap(err, "failed to connect external interface to bridge")
 	}
 
 	// External interface up.
-	logger.Info("Setting link state up", zap.String("Name", hostIf.Name))
 	err = nm.netlink.SetLinkState(hostIf.Name, true)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "failed to set external interface up")
 	}
 
 	// Bridge up.
-	logger.Info("Setting link state up", zap.String("bridgeName", bridgeName))
 	err = nm.netlink.SetLinkState(bridgeName, true)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "failed to set bridge link state up")
 	}
 
 	// Add the bridge rules.
 	err = networkClient.AddL2Rules(extIf)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "failed to add bridge rules")
 	}
 
 	// External interface hairpin on.
@@ -597,8 +591,6 @@ func (nm *networkManager) connectExternalInterface(extIf *externalInterface, nwI
 	}
 
 	if isGreaterOrEqualUbuntu17 && isSystemdResolvedActive {
-		logger.Info("Applying dns config on", zap.String("bridgeName", bridgeName))
-
 		if err = nm.applyDNSConfig(extIf, bridgeName); err != nil {
 			logger.Error("Failed to apply DNS configuration with", zap.Error(err))
 			return err
@@ -635,9 +627,7 @@ func (nm *networkManager) connectExternalInterface(extIf *externalInterface, nwI
 
 // DisconnectExternalInterface disconnects a host interface from its bridge.
 func (nm *networkManager) disconnectExternalInterface(extIf *externalInterface, networkClient NetworkClient) {
-	logger.Info("Disconnecting interface", zap.String("Name", extIf.Name))
-
-	logger.Info("Deleting bridge rules")
+	logger.Info("Disconnecting interface and deleting bridge rules", zap.String("Name", extIf.Name))
 	// Delete bridge rules set on the external interface.
 	networkClient.DeleteL2Rules(extIf)
 

@@ -980,9 +980,6 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 
 	logger.Info("Execution mode", zap.String("mode", nwCfg.ExecutionMode))
 	if nwCfg.ExecutionMode == string(util.Baremetal) {
-
-		logger.Info("Baremetal mode. Calling vnet agent for delete container")
-
 		// schedule send metric before attempting delete
 		defer sendMetricFunc()
 		_, err = plugin.nnsClient.DeleteContainerNetworking(context.Background(), k8sPodName, args.Netns)
@@ -1254,16 +1251,12 @@ func (plugin *NetPlugin) Update(args *cniSkel.CmdArgs) error {
 	targetEpInfo := &network.EndpointInfo{}
 
 	// get the target routes that should replace existingEpInfo.Routes inside the network namespace
-	logger.Info("Going to collect target routes for from targetNetworkConfig",
-		zap.String("pod", k8sPodName),
-		zap.String("namespace", k8sNamespace))
 	if targetNetworkConfig.Routes != nil && len(targetNetworkConfig.Routes) > 0 {
 		for _, route := range targetNetworkConfig.Routes {
-			logger.Info("Adding route from routes to targetEpInfo", zap.Any("route", route))
+			logger.Info("Adding route from routes from targetNetworkConfig to targetEpInfo", zap.Any("route", route))
 			_, dstIPNet, _ := net.ParseCIDR(route.IPAddress)
 			gwIP := net.ParseIP(route.GatewayIPAddress)
 			targetEpInfo.Routes = append(targetEpInfo.Routes, network.RouteInfo{Dst: *dstIPNet, Gw: gwIP, DevName: existingEpInfo.IfName})
-			logger.Info("Successfully added route from routes to targetEpInfo", zap.Any("route", route))
 		}
 	}
 
@@ -1278,7 +1271,6 @@ func (plugin *NetPlugin) Update(args *cniSkel.CmdArgs) error {
 		gwIP := net.ParseIP(ipconfig.GatewayIPAddress)
 		route := network.RouteInfo{Dst: dstIPNet, Gw: gwIP, DevName: existingEpInfo.IfName}
 		targetEpInfo.Routes = append(targetEpInfo.Routes, route)
-		logger.Info("Successfully added route from cnetAddressspace to targetEpInfo", zap.Any("subnet", ipRouteSubnet))
 	}
 
 	logger.Info("Finished collecting new routes in targetEpInfo", zap.Any("route", targetEpInfo.Routes))

@@ -1,0 +1,266 @@
+parameters:
+  dependsOn: ""
+  name: ""
+  clusterType: ""
+  clusterName: ""
+  nodeCount: ""
+  vmSize: ""
+  os: linux
+  arch: ""
+  osSKU: Ubuntu
+
+stages:
+  - stage: create_${{ parameters.name }}
+    variables:
+      commitID: $[ stagedependencies.setup.env.outputs['SetEnvVars.commitID'] ]
+    pool:
+      name: $(BUILD_POOL_NAME_DEFAULT)
+    dependsOn:
+      - setup
+    displayName: "Create Cluster - ${{ parameters.clusterName }}"
+    jobs:
+      - job: create_aks_cluster_with_${{ parameters.name }}
+        steps:
+          - task: AzureCLI@1
+            inputs:
+              azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+              scriptLocation: "inlineScript"
+              scriptType: "bash"
+              addSpnToEnvironment: true
+              inlineScript: |
+                make -C ./hack/aks azcfg AZCLI=az REGION=$(LOCATION)
+                make -C ./hack/aks ${{ parameters.clusterType }} \
+                AZCLI=az REGION=$(LOCATION) SUB=$(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS) \
+                CLUSTER=${{ parameters.clusterName }}-$(commitID) \
+                VM_SIZE=${{ parameters.vmSize }} \
+                AUTOUPGRADE=none
+            name: "CreateAksCluster"
+            displayName: "Create AKS Cluster"
+
+  - stage: ${{ parameters.name }}
+    variables:
+      commitID: $[ stagedependencies.setup.env.outputs['SetEnvVars.commitID'] ]
+      cnsVersion: $[ stagedependencies.setup.env.outputs['SetEnvVars.cnsVersion'] ]
+      cniVersion: $[ stagedependencies.setup.env.outputs['SetEnvVars.cniVersion'] ]
+      kernelType: $[ stagedependencies.setup.env.outputs['SetEnvVars.kernelType'] ]
+      ipamVersion: $[ stagedependencies.setup.env.outputs['SetEnvVars.ipamVersion'] ]
+    pool:
+      name: $(BUILD_POOL_NAME_DEFAULT)
+    dependsOn:
+      - create_${{ parameters.name }}
+      - setup
+    displayName: "CNIv2 Test - ${{ parameters.name }}"
+    jobs:
+      - ${{ if contains(parameters.name, 'linux') }}:
+        - job: integration
+          displayName: "Integration Test - ${{ parameters.name }}"
+          steps:
+            - task: AzureCLI@1
+              inputs:
+                azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+                scriptLocation: "inlineScript"
+                scriptType: "bash"
+                addSpnToEnvironment: true
+                inlineScript: |
+                  echo cns version - $(cnsVersion)
+                  echo cni version - $(cniVersion)
+
+                  echo "Start Integration Tests on Overlay Cluster"
+                  make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}-$(commitID)
+                  kubectl cluster-info
+                  kubectl get po -owide -A
+                  sudo -E env "PATH=$PATH" make test-load CNS_ONLY=true CNS_VERSION=$(cnsVersion) CNI_VERSION=$(cniVersion) INSTALL_CNS=true INSTALL_AZURE_CNI_OVERLAY=true CNS_IMAGE_REPO=$(CNS_IMAGE_REPO) CNI_IMAGE_REPO=$(CNI_IMAGE_REPO)
+              name: "overlaye2e"
+              displayName: "Overlay Integration"
+              retryCountOnTaskFailure: 2
+      - ${{ if contains(parameters.name, 'cilium') }}:
+        - job: integration
+          displayName: "Deploy Cilium Components"
+          steps:
+            - task: AzureCLI@1
+              displayName: "Install Cilium, CNS, and ip-masq-agent"
+              retryCountOnTaskFailure: 2
+              inputs:
+                azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+                scriptLocation: "inlineScript"
+                scriptType: "bash"
+                addSpnToEnvironment: true
+                inlineScript: |
+                  set -ex
+                  az extension add --name aks-preview
+                  make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}-$(commitID)
+                  ls -lah
+                  pwd
+                  kubectl cluster-info
+                  kubectl get po -owide -A
+
+                  echo "install Cilium ${CILIUM_VERSION_TAG}"
+                  export DIR=${CILIUM_VERSION_TAG%.*}
+                  echo "installing files from ${DIR}"
+
+                  echo "deploy Cilium ConfigMap"
+                  kubectl apply -f test/integration/manifests/cilium/v${DIR}/cilium-config/cilium-config.yaml
+
+                  # Passes Cilium image to daemonset and deployment
+                  kubectl apply -f test/integration/manifests/cilium/v${DIR}/cilium-agent/files
+                  kubectl apply -f test/integration/manifests/cilium/v${DIR}/cilium-operator/files
+
+                  envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/v${DIR}/cilium-agent/templates/daemonset.yaml | kubectl apply -f -
+                  envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/v${DIR}/cilium-operator/templates/deployment.yaml | kubectl apply -f -
+                  kubectl get po -owide -A
+                  echo "Deploy Azure-CNS"
+                  sudo -E env "PATH=$PATH" make test-load CNS_ONLY=true AZURE_IPAM_VERSION=$(ipamVersion) CNS_VERSION=$(cnsVersion) INSTALL_CNS=true INSTALL_OVERLAY=true CNS_IMAGE_REPO=$(CNS_IMAGE_REPO) IPAM_IMAGE_REPO=$(IPAM_IMAGE_REPO)
+                  kubectl get po -owide -A
+      - job: kernel_upgrade
+        displayName: "Kernel Node Upgrade"
+        dependsOn: integration
+        steps:
+          - template: kernel-upgrade-template.yaml
+            parameters:
+              clusterName: ${{ parameters.clusterName }}-$(commitID)
+      - job: deploy_pods
+        displayName: "Scale Test"
+        dependsOn: kernel_upgrade
+        steps:
+          - template: ../load-test-templates/pod-deployment-template.yaml
+            parameters:
+              clusterName: ${{ parameters.clusterName }}-$(commitID)
+              scaleup: ${SCALEUP_LINUX}
+              os: ${{ parameters.os }}
+              iterations: ${ITERATIONS_LINUX}
+              nodeCount: ${{ parameters.nodeCount }}
+              cni: ${{ parameters.cni }}
+          - template: ../load-test-templates/validate-state-template.yaml
+            parameters:
+              clusterName: ${{ parameters.clusterName }}-$(commitID)
+              os: ${{ parameters.os }}
+              cni: ${{ parameters.cni }}
+      - job: restart_nodes
+        displayName: "Restart Test"
+        dependsOn: deploy_pods
+        steps:
+          - template: ../load-test-templates/restart-node-template.yaml
+            parameters:
+              clusterName: ${{ parameters.clusterName }}-$(commitID)
+              os: ${{ parameters.os }}
+              cni: ${{ parameters.cni }}
+          - template: ../load-test-templates/validate-state-template.yaml
+            parameters:
+              clusterName: ${{ parameters.clusterName }}-$(commitID)
+              os: ${{ parameters.os }}
+              cni: ${{ parameters.cni }}
+              restartCase: "true"
+      - job: restart_cns
+        displayName: "Restart and Validate CNS"
+        dependsOn: restart_nodes
+        steps:
+          - template: ../load-test-templates/restart-cns-template.yaml
+            parameters:
+              clusterName: ${{ parameters.clusterName }}-$(commitID)
+              os: ${{ parameters.os }}
+              cni: ${{ parameters.cni }}
+              scaleup: ${SCALEUP_LINUX}
+              nodeCount: ${{ parameters.nodeCount }}
+      - job: recover
+        displayName: "Recover Resources"
+        dependsOn: restart_cns
+        steps:
+          - task: AzureCLI@1
+            inputs:
+              azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+              scriptLocation: "inlineScript"
+              scriptType: "bash"
+              addSpnToEnvironment: true
+              inlineScript: |
+                echo "Delete load-test Namespace"
+                make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}-$(commitID)
+                kubectl get ns --no-headers | grep -v 'kube\|default' | awk '{print $1}'
+                delete=`kubectl get ns --no-headers | grep -v 'kube\|default' | awk '{print $1}'`
+                kubectl delete ns $delete
+                kubectl cluster-info
+                kubectl get po -owide -A
+            name: "recover"
+            displayName: "Delete test Namespaces"
+      - job: cni_tests
+        displayName: "Cilium Test"
+        dependsOn: recover
+        condition: and( succeeded(), ${{ contains(parameters.cni, 'cilium') }} )
+        steps:
+          - script: |
+              echo "install cilium CLI"
+              if [[ ${CILIUM_VERSION_TAG} =~ ^1.1[1-3].[0-9]{1,2} ]]; then
+                echo "Cilium Agent Version ${BASH_REMATCH[0]}"
+                CILIUM_CLI_VERSION=$(curl -s https://raw.githubusercontent.com/cilium/cilium-cli/main/stable-v0.14.txt)
+              else
+                echo "Cilium Agent Version ${CILIUM_VERSION_TAG}"
+                CILIUM_CLI_VERSION=$(curl -s https://raw.githubusercontent.com/cilium/cilium-cli/master/stable.txt)
+              fi
+              CLI_ARCH=amd64
+              curl -L --fail --remote-name-all https://github.com/cilium/cilium-cli/releases/download/${CILIUM_CLI_VERSION}/cilium-linux-${CLI_ARCH}.tar.gz{,.sha256sum}
+              sha256sum --check cilium-linux-${CLI_ARCH}.tar.gz.sha256sum
+              sudo tar xzvfC cilium-linux-${CLI_ARCH}.tar.gz /usr/local/bin
+              rm cilium-linux-${CLI_ARCH}.tar.gz{,.sha256sum}
+              cilium status
+              cilium version
+            name: "InstallCiliumCli"
+            displayName: "Install Cilium CLI"
+          - task: AzureCLI@1
+            inputs:
+              azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+              scriptLocation: "inlineScript"
+              scriptType: "bash"
+              addSpnToEnvironment: true
+              inlineScript: |
+                set -ex
+                make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}-$(commitID)
+            name: "GetCluster"
+            displayName: "Get AKS Cluster"
+          - script: |
+              kubectl delete ns load-test
+              cilium connectivity test --connect-timeout 4s --request-timeout 30s --test '!pod-to-pod-encryption,!node-to-node-encryption'
+            retryCountOnTaskFailure: 6
+            name: "CiliumConnectivityTests"
+            displayName: "Run Cilium Connectivity Tests"
+      - ${{ if contains(parameters.cni, 'cilium') }}:
+        - template: ../k8s-e2e/k8s-e2e-job-template.yaml
+          parameters:
+            sub: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+            clusterName: ${{ parameters.clusterName }}-$(commitID)
+            os: ${{ parameters.os }}
+            cni: ${{ parameters.cni }}
+            dependsOn: cni_tests
+            datapath: true
+            dns: true
+            portforward: true
+            service: true
+      - ${{ if contains(parameters.cni, 'cniv2') }}:
+        - template: ../k8s-e2e/k8s-e2e-job-template.yaml
+          parameters:
+            sub: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+            clusterName: ${{ parameters.clusterName }}-$(commitID)
+            os: ${{ parameters.os }}
+            cni: ${{ parameters.cni }}
+            dependsOn: recover
+            datapath: true
+            dns: true
+            portforward: true
+            service: true
+            hostport: true
+      - job: failedE2ELogs
+        displayName: "Failure Logs"
+        dependsOn:
+          - integration
+          - kernel_upgrade
+          - deploy_pods
+          - restart_nodes
+          - restart_cns
+          - recover
+          - cni_tests
+          - cni_${{ parameters.os }}
+        condition: failed()
+        steps:
+          - template: ../../templates/log-template.yaml
+            parameters:
+              clusterName: ${{ parameters.clusterName }}-$(commitID)
+              os: ${{ parameters.os }}
+              cni: ${{ parameters.cni }}
