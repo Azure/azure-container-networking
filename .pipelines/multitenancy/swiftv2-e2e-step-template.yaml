@@ -44,10 +44,14 @@ steps:
         kubectl apply -f test/integration/manifests/swiftv2/pni.yaml
         kubectl get pni
         kubectl describe pni
-        echo "Start the pod using the reserved IP"
-        kubectl apply -f test/integration/manifests/swiftv2/mtpod.yaml
+        export NODE_NAME_0="$(kubectl get nodes -o json | jq -r .items[0].metadata.name)"
+        echo $NODE_NAME_0
+        echo "Start the first pod using the reserved IP"
+        envsubst '$NODE_NAME_0' < test/integration/manifests/swiftv2/mtpod0.yaml | kubectl apply -f -
+        export NODE_NAME_1="$(kubectl get nodes -o json | jq -r .items[1].metadata.name)"
+        echo $NODE_NAME_1
         echo "Start another pod using the reserved IP"
-        kubectl apply -f test/integration/manifests/swiftv2/mtpod2.yaml
+        envsubst '$NODE_NAME_1' < test/integration/manifests/swiftv2/mtpod1.yaml | kubectl apply -f -
         sleep 2m
         kubectl get pod -o wide -A
         sleep 2m
@@ -55,8 +59,8 @@ steps:
         kubectl get po -owide -A
         kubectl describe pni
         echo "Start the connection test"
-        kubectl exec mtpod -it -- ip a
-        kubectl exec mtpod -it -- ping -c 3 -W 1 172.25.0.27
+        kubectl exec mtpod0 -it -- ip a
+        kubectl exec mtpod0 -it -- ping -c 3 -W 1 172.25.0.27
     name: "start_swiftv2_pods_and_test_basic_connection"
     displayName: "Start Swiftv2 Pods and test basic connection"
 
