@@ -17,7 +17,7 @@ var (
 const (
 	maxLogFileSizeInMb = 5
 	maxLogFileCount    = 8
-	ETWCNIEventName    = "Azure-CNI"
+	etwCNIEventName    = "Azure-CNI"
 	loggingLevel       = zapcore.DebugLevel
 )
 
@@ -38,8 +38,7 @@ func initZapLog(logFile string) *zap.Logger {
 		// If we fail to join the platform cores, fallback to the original core.
 		core = textFileCore
 	}
-	Logger := zap.New(core, zap.AddCaller())
-	return Logger.With(zap.Int("pid", os.Getpid()))
+	return zap.New(core, zap.AddCaller()).With(zap.Int("pid", os.Getpid()))
 }
 
 var (
