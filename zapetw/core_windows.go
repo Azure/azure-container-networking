@@ -40,6 +40,9 @@ func (core *ETWCore) With(fields []zapcore.Field) zapcore.Core {
 	}
 }
 
+// Check is an implementation of the zapcore.Core interface's Check method.
+// Check determines whether the logger core is enabled at the supplied zapcore.Entry's Level.
+// If enabled, it adds the core to the CheckedEntry and returns it, otherwise returns the CheckedEntry unchanged.
 func (core *ETWCore) Check(entry zapcore.Entry, checkedEntry *zapcore.CheckedEntry) *zapcore.CheckedEntry {
 	if core.Enabled(entry.Level) {
 		return checkedEntry.AddCore(entry, core)
