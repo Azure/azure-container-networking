@@ -1721,15 +1721,13 @@ func startService() error {
 		file.Close()
 
 		// mock localhost as primary interface IP
-		config.PrimaryInterfaceIP = "localhost"
+		config.Server.PrimaryInterfaceIP = "localhost"
 
 		err = service.Init(&config)
 		if err != nil {
 			logger.Errorf("Failed to Init CNS, err:%v.\n", err)
 			return err
 		}
-
-		service := service.(*HTTPRestService)
 
 		err = service.Start(&config)
 		if err != nil {

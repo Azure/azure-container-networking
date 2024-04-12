@@ -62,13 +62,14 @@ func (service *Service) AddListener(config *common.ServiceConfig) error {
 	cnsPort, hasPort := service.GetOption(acn.OptCnsPort).(string)
 
 	if !hasURL {
-		config.EnableLocalServer = true
+		config.Server.EnableLocalServer = true
 		// get VM primary interface's private IP
 		// if customer does use -p option, then use port number customers provide
 		if hasPort {
-			nodeURL, err = url.Parse(fmt.Sprintf("tcp://%s:%s", config.PrimaryInterfaceIP, cnsPort))
+			config.Server.Port = cnsPort
+			nodeURL, err = url.Parse(fmt.Sprintf("tcp://%s:%s", config.Server.PrimaryInterfaceIP, cnsPort))
 		} else {
-			nodeURL, err = url.Parse(fmt.Sprintf("tcp://%s:%s", config.PrimaryInterfaceIP, defaultAPIServerPort))
+			nodeURL, err = url.Parse(fmt.Sprintf("tcp://%s:%s", config.Server.PrimaryInterfaceIP, defaultAPIServerPort))
 		}
 
 		if err != nil {
@@ -79,7 +80,7 @@ func (service *Service) AddListener(config *common.ServiceConfig) error {
 		logger.Warnf("Do not specify cns-url by -c option, this option will be deprecated!")
 
 		// do not enable local server if customer uses -c option
-		config.EnableLocalServer = false
+		config.Server.EnableLocalServer = false
 		nodeURL, err = url.Parse(cnsURL)
 		if err != nil {
 			return errors.Wrap(err, "Failed to parse URL that customer provides")

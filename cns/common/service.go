@@ -33,14 +33,20 @@ type ServiceAPI interface {
 
 // ServiceConfig specifies common configuration.
 type ServiceConfig struct {
-	Name               string
-	Version            string
-	Listener           *acn.Listener
-	ErrChan            chan<- error
-	Store              store.KeyValueStore
+	Name        string
+	Version     string
+	Listener    *acn.Listener
+	ErrChan     chan<- error
+	Store       store.KeyValueStore
+	Server      server
+	ChannelMode string
+	TLSSettings tls.TlsSettings
+}
+
+// server struct to store primaryInterfaceIP from VM, port where customer provides by -p and temporary flag EnableLocalServer
+type server struct {
 	PrimaryInterfaceIP string
-	ChannelMode        string
-	TLSSettings        tls.TlsSettings
+	Port               string
 	EnableLocalServer  bool // TODO: Remove this flag once -c option gets deprecated
 }
 

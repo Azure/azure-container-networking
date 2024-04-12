@@ -102,8 +102,8 @@ const (
 	// envVarEnableCNIConflistGeneration enables cni conflist generation if set (value doesn't matter)
 	envVarEnableCNIConflistGeneration = "CNS_ENABLE_CNI_CONFLIST_GENERATION"
 
-	cnsReqTimeout       = 15 * time.Second
-	defaultAPIServerURL = "localhost:10090"
+	cnsReqTimeout      = 15 * time.Second
+	defaultAPIServerIP = "localhost"
 )
 
 type cniConflistScenario string
@@ -887,11 +887,12 @@ func main() {
 
 	// if user does not provide cns url by -c option, then start http local server
 	// TODO: we will deprecated -c option in next phase and start local server in any case
-	if config.EnableLocalServer {
+	if config.Server.EnableLocalServer {
 		logger.Printf("[Azure CNS] Start HTTP local server")
 
 		httpLocalRestService := restserverv2.New(httpRemoteRestService)
 		if httpLocalRestService != nil {
+			defaultAPIServerURL := fmt.Sprintf(defaultAPIServerIP + ":" + config.Server.Port)
 			go func() {
 				err = httpLocalRestService.Start(rootCtx, defaultAPIServerURL)
 				if err != nil {
