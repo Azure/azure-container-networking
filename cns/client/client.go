@@ -1059,16 +1059,11 @@ func (c *Client) GetEndpoint(ctx context.Context, endpointID string) (*restserve
 
 // UpdateEndpoint calls the EndpointHandlerAPI in CNS
 // to update the state of a given EndpointID with either HNSEndpointID or HostVethName
-func (c *Client) UpdateEndpoint(ctx context.Context, endpointID, hnsID, vethName, ifName string) (*cns.Response, error) {
+func (c *Client) UpdateEndpoint(ctx context.Context, endpointID string, ipInfo map[string]*restserver.IPInfo) (*cns.Response, error) {
 	// build the request
-	updateEndpoint := cns.EndpointRequest{
-		HnsEndpointID: hnsID,
-		HostVethName:  vethName,
-		InterfaceName: ifName,
-	}
 	var body bytes.Buffer
 
-	if err := json.NewEncoder(&body).Encode(updateEndpoint); err != nil {
+	if err := json.NewEncoder(&body).Encode(ipInfo); err != nil {
 		return nil, errors.Wrap(err, "failed to encode updateEndpoint")
 	}
 

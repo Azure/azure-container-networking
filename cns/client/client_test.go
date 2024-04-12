@@ -2712,7 +2712,7 @@ func TestUpdateEndpoint(t *testing.T) {
 		vethName    string
 		ifName      string
 		response    *RequestCapture
-		expReq      *cns.EndpointRequest
+		expReq      map[string]*restserver.IPInfo
 		shouldErr   bool
 	}{
 		{
@@ -2738,9 +2738,11 @@ func TestUpdateEndpoint(t *testing.T) {
 					httpStatusCodeToReturn: http.StatusOK,
 				},
 			},
-			&cns.EndpointRequest{
-				HnsEndpointID: "bar",
-				InterfaceName: "eth0",
+			map[string]*restserver.IPInfo{
+				"eth0": {
+					HnsEndpointID: "bar",
+					NICType:       cns.InfraNIC,
+				},
 			},
 			false,
 		},
@@ -2755,9 +2757,11 @@ func TestUpdateEndpoint(t *testing.T) {
 					httpStatusCodeToReturn: http.StatusOK,
 				},
 			},
-			&cns.EndpointRequest{
-				HostVethName:  "bar",
-				InterfaceName: "eth0",
+			map[string]*restserver.IPInfo{
+				"eth0": {
+					HostVethName: "bar",
+					NICType:      cns.InfraNIC,
+				},
 			},
 			false,
 		},
@@ -2772,9 +2776,11 @@ func TestUpdateEndpoint(t *testing.T) {
 					httpStatusCodeToReturn: http.StatusBadRequest,
 				},
 			},
-			&cns.EndpointRequest{
-				HostVethName:  "bar",
-				InterfaceName: "eth0",
+			map[string]*restserver.IPInfo{
+				"eth0": {
+					HostVethName: "bar",
+					NICType:      cns.InfraNIC,
+				},
 			},
 			true,
 		},
@@ -2792,7 +2798,7 @@ func TestUpdateEndpoint(t *testing.T) {
 			}
 
 			// execute the method under test
-			res, err := client.UpdateEndpoint(context.TODO(), test.containerID, test.hnsID, test.vethName, test.ifName)
+			res, err := client.UpdateEndpoint(context.TODO(), test.containerID, test.expReq)
 			if err != nil && !test.shouldErr {
 				t.Fatal("unexpected error: err: ", err, res.Message)
 			}
@@ -2809,7 +2815,7 @@ func TestUpdateEndpoint(t *testing.T) {
 			// if a request was expected to be sent, decode it and ensure that it
 			// matches expectations
 			if test.expReq != nil {
-				var gotReq cns.EndpointRequest
+				var gotReq map[string]*restserver.IPInfo
 				err = json.NewDecoder(test.response.Request.Body).Decode(&gotReq)
 				if err != nil {
 					t.Fatal("error decoding the received request: err:", err)
@@ -2818,7 +2824,7 @@ func TestUpdateEndpoint(t *testing.T) {
 				// a nil expReq is semantically meaningful (i.e. "no request"), but in
 				// order for cmp to work properly, the outer types should be identical.
 				// Thus we have to dereference it explicitly:
-				expReq := *test.expReq
+				expReq := test.expReq
 
 				// ensure that the received request is what was expected
 				if !cmp.Equal(gotReq, expReq) {
