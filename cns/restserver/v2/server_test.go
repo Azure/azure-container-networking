@@ -1,7 +1,6 @@
 package v2
 
 import (
-	"fmt"
 	"net"
 	"net/url"
 	"os"
@@ -13,6 +12,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/restserver"
 	acncommon "github.com/Azure/azure-container-networking/common"
+	"github.com/pkg/errors"
 )
 
 // TestStartServices will test three scenarios:
@@ -28,7 +28,7 @@ func TestStartServerWithCNSPort(t *testing.T) {
 
 	// Create the service with -p 8000
 	if err = startService(cnsPort, ""); err != nil {
-		fmt.Printf("Failed to start CNS Service. Error: %v", err)
+		t.Errorf("Failed to start CNS Service. Error: %v", err)
 		os.Exit(1)
 	}
 }
@@ -40,7 +40,7 @@ func TestStartServerWithNoInput(t *testing.T) {
 	logger.InitLogger("testlogs", 0, 0, "./")
 
 	if err = startService("", ""); err != nil {
-		fmt.Printf("Failed to start CNS Service. Error: %v", err)
+		t.Errorf("Failed to start CNS Service. Error: %v", err)
 		os.Exit(1)
 	}
 }
@@ -52,7 +52,7 @@ func TestStartServerWithCNSURL(t *testing.T) {
 
 	// Create the service with -c "localhost:8000"
 	if err = startService("", "tcp://localhost:8000"); err != nil {
-		fmt.Printf("Failed to start CNS Service. Error: %v", err)
+		t.Errorf("Failed to start CNS Service. Error: %v", err)
 		os.Exit(1)
 	}
 }
@@ -66,7 +66,7 @@ func startService(cnsPort, cnsURL string) error {
 	nmagentClient := &fakes.NMAgentClientFake{}
 	service, err := restserver.NewHTTPRestService(&config, &fakes.WireserverClientFake{}, &fakes.WireserverProxyFake{}, nmagentClient, nil, nil, nil)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "Failed to initialize service")
 	}
 	service.Name = "cns-test-server"
 
@@ -79,13 +79,13 @@ func startService(cnsPort, cnsURL string) error {
 		err = service.Init(&config)
 		if err != nil {
 			logger.Errorf("Failed to Init CNS, err:%v.\n", err)
-			return err
+			return errors.Wrap(err, "Failed to Init CNS")
 		}
 
 		err = service.Start(&config)
 		if err != nil {
 			logger.Errorf("Failed to start CNS, err:%v.\n", err)
-			return err
+			return errors.Wrap(err, "Failed to Start CNS")
 		}
 	}
 
@@ -103,7 +103,7 @@ func startService(cnsPort, cnsURL string) error {
 
 	_, err = net.DialTimeout("tcp", urls, 10*time.Millisecond)
 	if err != nil {
-		return err
+		return errors.Wrapf(err, "Failed to check reachability to urls %+v", urls)
 	}
 
 	return nil
