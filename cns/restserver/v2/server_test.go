@@ -68,12 +68,13 @@ func startService(cnsPort, cnsURL string) error {
 	if err != nil {
 		return errors.Wrap(err, "Failed to initialize service")
 	}
-	service.Name = "cns-test-server"
-
-	service.SetOption(acncommon.OptCnsPort, cnsPort)
-	service.SetOption(acncommon.OptCnsURL, cnsURL)
 
 	if service != nil {
+		service.Name = "cns-test-server"
+
+		service.SetOption(acncommon.OptCnsPort, cnsPort)
+		service.SetOption(acncommon.OptCnsURL, cnsURL)
+
 		config.Server.PrimaryInterfaceIP = "localhost"
 
 		err = service.Init(&config)
