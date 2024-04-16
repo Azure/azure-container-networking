@@ -107,5 +107,7 @@ func startService(cnsPort, cnsURL string) error {
 		return errors.Wrapf(err, "Failed to check reachability to urls %+v", urls)
 	}
 
+	service.Stop()
+
 	return nil
 }
