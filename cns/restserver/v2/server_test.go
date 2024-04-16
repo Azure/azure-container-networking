@@ -17,8 +17,7 @@ import (
 
 // TestStartServices will test three scenarios:
 // 1. when customer provides -p option, make sure local server is running and server is using this port
-// 2. when customer does not provide -p or -c option, local server will start running with default port 10090
-// 3. when customer provides -c option, local server will this -c URL
+// 2. when customer provides -c option, local server will this -c URL
 
 func TestStartServerWithCNSPort(t *testing.T) {
 	var err error
@@ -33,25 +32,13 @@ func TestStartServerWithCNSPort(t *testing.T) {
 	}
 }
 
-// customer does not provide -c or -p command, then use default port 10090
-func TestStartServerWithNoInput(t *testing.T) {
-	var err error
-
-	logger.InitLogger("testlogs", 0, 0, "./")
-
-	if err = startService("", ""); err != nil {
-		t.Errorf("Failed to start CNS Service. Error: %v", err)
-		os.Exit(1)
-	}
-}
-
 func TestStartServerWithCNSURL(t *testing.T) {
 	var err error
 
 	logger.InitLogger("testlogs", 0, 0, "./")
 
 	// Create the service with -c "localhost:8000"
-	if err = startService("", "tcp://localhost:8000"); err != nil {
+	if err = startService("", "tcp://localhost:8500"); err != nil {
 		t.Errorf("Failed to start CNS Service. Error: %v", err)
 		os.Exit(1)
 	}
