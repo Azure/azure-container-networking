@@ -27,7 +27,7 @@ func TestStartServerWithCNSPort(t *testing.T) {
 
 	// Create the service with -p 8000
 	if err = startService(cnsPort, ""); err != nil {
-		t.Errorf("Failed to start CNS Service. Error: %v", err)
+		t.Errorf("Failed to connect to CNS Service on expected port:%s. Error: %v", cnsPort, err)
 		os.Exit(1)
 	}
 }
@@ -38,8 +38,9 @@ func TestStartServerWithCNSURL(t *testing.T) {
 	logger.InitLogger("testlogs", 0, 0, "./")
 
 	// Create the service with -c "localhost:8000"
-	if err = startService("", "tcp://localhost:8500"); err != nil {
-		t.Errorf("Failed to start CNS Service. Error: %v", err)
+	url := "tcp://localhost:8500"
+	if err = startService("", url); err != nil {
+		t.Errorf("Failed to connect to CNS Service by this url:%s. Error: %v", url, err)
 		os.Exit(1)
 	}
 }

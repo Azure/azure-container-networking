@@ -877,13 +877,12 @@ func main() {
 			httpRemoteRestService.RegisterPProfEndpoints()
 		}
 
-		go func() {
-			err = httpRemoteRestService.Start(&config)
-			if err != nil {
-				logger.Errorf("Failed to start CNS, err:%v.\n", err)
-				return
-			}
-		}()
+		err = httpRemoteRestService.Start(&config)
+		if err != nil {
+			logger.Errorf("Failed to start CNS, err:%v.\n", err)
+			return
+		}
+
 	}
 
 	// if user does not provide cns url by -c option, then start http local server
