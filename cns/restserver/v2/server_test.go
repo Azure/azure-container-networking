@@ -38,9 +38,9 @@ func TestStartServerWithCNSURL(t *testing.T) {
 	logger.InitLogger("testlogs", 0, 0, "./")
 
 	// Create the service with -c "localhost:8000"
-	url := "tcp://localhost:8500"
-	if err = startService("", url); err != nil {
-		t.Errorf("Failed to connect to CNS Service by this url:%s. Error: %v", url, err)
+	cnsURL := "tcp://localhost:8500"
+	if err = startService("", cnsURL); err != nil {
+		t.Errorf("Failed to connect to CNS Service by this cns url:%s. Error: %v", cnsURL, err)
 		os.Exit(1)
 	}
 }
