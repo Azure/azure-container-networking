@@ -72,7 +72,7 @@ steps:
     name: "start_swiftv2_pods_and_test_basic_connection"
     displayName: "Start Swiftv2 Pods and test basic connection"
     env:
-    SUBNET_TOKEN: $(SUBNET_TOKEN)
+      SUBNET_TOKEN: $(SUBNET_TOKEN)
 
   - script: |
       set -e
