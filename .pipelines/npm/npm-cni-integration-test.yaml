@@ -120,7 +120,8 @@ jobs:
           --provider=local \
           --ginkgo.focus="$focus" \
           --ginkgo.skip="NetworkPolicyLegacy|SCTP" \
-          --kubeconfig=$HOME/.kube/config
+          --kubeconfig=$HOME/.kube/config \
+          --ginkgo.timeout="2h"
         displayName: "Run Kubernetes e2e.test"
         continueOnError: ${{ parameters.continueOnError }}
 
