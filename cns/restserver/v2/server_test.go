@@ -3,7 +3,6 @@ package v2
 import (
 	"net"
 	"net/url"
-	"os"
 	"testing"
 	"time"
 
@@ -27,8 +26,7 @@ func TestStartServerWithCNSPort(t *testing.T) {
 
 	// Create the service with -p 8000
 	if err = startService(cnsPort, ""); err != nil {
-		t.Errorf("Failed to connect to CNS Service on expected port:%s. Error: %v", cnsPort, err)
-		os.Exit(1)
+		t.Fatalf("Failed to connect to CNS Service on expected port:%s. Error: %v", cnsPort, err)
 	}
 }
 
@@ -40,8 +38,7 @@ func TestStartServerWithCNSURL(t *testing.T) {
 	// Create the service with -c "localhost:8000"
 	cnsURL := "tcp://localhost:8500"
 	if err = startService("", cnsURL); err != nil {
-		t.Errorf("Failed to connect to CNS Service by this cns url:%s. Error: %v", cnsURL, err)
-		os.Exit(1)
+		t.Fatalf("Failed to connect to CNS Service by this cns url:%s. Error: %v", cnsURL, err)
 	}
 }
 
