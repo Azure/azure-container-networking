@@ -80,7 +80,7 @@ steps:
       cd test/integration/swiftv2
       echo "Swiftv2 test"
       echo "will run it in the near future"
-      go test -count=1 datapath_swiftv2.go -timeout 3m -tags connection -run ^TestDatapathLinux$ -tags=swiftv2,integration
+      go test -count=1 datapath_swiftv2.go -timeout 3m -tags swiftv2 -run ^TestDatapathLinux$ -tags=swiftv2,integration
     retryCountOnTaskFailure: 3
     name: "Swiftv2_Tests"
     displayName: "Swiftv2 Tests"

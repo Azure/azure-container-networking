@@ -13,9 +13,6 @@ import (
 	"github.com/Azure/azure-container-networking/test/internal/kubernetes"
 	"github.com/Azure/azure-container-networking/test/internal/retry"
 	"github.com/pkg/errors"
-
-	appsv1 "k8s.io/api/apps/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 const (
@@ -41,7 +38,7 @@ const (
 )
 
 var (
-	podPrefix        = flag.String("podName", "goldpinger", "Prefix for test pods")
+	podPrefix        = flag.String("podName", "mta", "Prefix for test pods")
 	podNamespace     = flag.String("namespace", "default", "Namespace for test pods")
 	nodepoolSelector = flag.String("nodepoolSelector", "mtapool", "Provides nodepool as a Linux Node-Selector for pods")
 	// TODO: add flag to support dual nic scenario
@@ -80,45 +77,46 @@ func setupLinuxEnvironment(t *testing.T) {
 		t.Fatalf("could not get k8s node list: %v", err)
 	}
 
-	t.Log("Creating Linux pods through deployment")
+	// shchen comment out
+	// t.Log("Creating Linux pods through deployment")
 
-	// run goldpinger ipv4 and ipv6 test cases saperately
-	var daemonset appsv1.DaemonSet
-	var deployment appsv1.Deployment
+	// // run goldpinger ipv4 and ipv6 test cases saperately
+	// var daemonset appsv1.DaemonSet
+	// var deployment appsv1.Deployment
 
-	deployment = kubernetes.MustParseDeployment(LinuxDeployIPV4)
-	daemonset = kubernetes.MustParseDaemonSet(gpDaemonset)
+	// deployment = kubernetes.MustParseDeployment(LinuxDeployIPV4)
+	// daemonset = kubernetes.MustParseDaemonSet(gpDaemonset)
 
 	// setup common RBAC, ClusteerRole, ClusterRoleBinding, ServiceAccount
-	rbacSetupFn := kubernetes.MustSetUpClusterRBAC(ctx, clientset, gpClusterRolePath, gpClusterRoleBindingPath, gpServiceAccountPath)
+	// rbacSetupFn := kubernetes.MustSetUpClusterRBAC(ctx, clientset, gpClusterRolePath, gpClusterRoleBindingPath, gpServiceAccountPath)
 
 	// Fields for overwritting existing deployment yaml.
 	// Defaults from flags will not change anything
-	deployment.Spec.Selector.MatchLabels[podLabelKey] = *podPrefix
-	deployment.Spec.Template.ObjectMeta.Labels[podLabelKey] = *podPrefix
-	deployment.Spec.Template.Spec.NodeSelector[nodepoolKey] = *nodepoolSelector
-	deployment.Name = *podPrefix
-	deployment.Namespace = *podNamespace
-	daemonset.Namespace = *podNamespace
+	// deployment.Spec.Selector.MatchLabels[podLabelKey] = *podPrefix
+	// deployment.Spec.Template.ObjectMeta.Labels[podLabelKey] = *podPrefix
+	// deployment.Spec.Template.Spec.NodeSelector[nodepoolKey] = *nodepoolSelector
+	// deployment.Name = *podPrefix
+	// deployment.Namespace = *podNamespace
+	// daemonset.Namespace = *podNamespace
 
-	deploymentsClient := clientset.AppsV1().Deployments(*podNamespace)
-	kubernetes.MustCreateDeployment(ctx, deploymentsClient, deployment)
+	// deploymentsClient := clientset.AppsV1().Deployments(*podNamespace)
+	// kubernetes.MustCreateDeployment(ctx, deploymentsClient, deployment)
 
-	daemonsetClient := clientset.AppsV1().DaemonSets(daemonset.Namespace)
-	kubernetes.MustCreateDaemonset(ctx, daemonsetClient, daemonset)
+	// daemonsetClient := clientset.AppsV1().DaemonSets(daemonset.Namespace)
+	// kubernetes.MustCreateDaemonset(ctx, daemonsetClient, daemonset)
 
-	t.Cleanup(func() {
-		t.Log("cleaning up resources")
-		rbacSetupFn()
+	// t.Cleanup(func() {
+	// 	t.Log("cleaning up resources")
+	// 	rbacSetupFn()
 
-		if err := deploymentsClient.Delete(ctx, deployment.Name, metav1.DeleteOptions{}); err != nil {
-			t.Log(err)
-		}
+	// 	if err := deploymentsClient.Delete(ctx, deployment.Name, metav1.DeleteOptions{}); err != nil {
+	// 		t.Log(err)
+	// 	}
 
-		if err := daemonsetClient.Delete(ctx, daemonset.Name, metav1.DeleteOptions{}); err != nil {
-			t.Log(err)
-		}
-	})
+	// 	if err := daemonsetClient.Delete(ctx, daemonset.Name, metav1.DeleteOptions{}); err != nil {
+	// 		t.Log(err)
+	// 	}
+	// })
 
 	t.Log("Waiting for pods to be running state")
 	err = kubernetes.WaitForPodsRunning(ctx, clientset, *podNamespace, podLabelSelector)
