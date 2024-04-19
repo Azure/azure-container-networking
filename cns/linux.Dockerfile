@@ -1,6 +1,3 @@
-FROM mcr.microsoft.com/cbl-mariner/base/core:1.0 AS certs
-RUN tdnf upgrade -y && tdnf install -y ca-certificates
-
 FROM mcr.microsoft.com/oss/go/microsoft/golang:1.21 AS builder
 ARG VERSION
 ARG CNS_AI_PATH
@@ -11,13 +8,12 @@ RUN CGO_ENABLED=0 go build -a -o /usr/local/bin/azure-cns -ldflags "-X main.vers
 RUN CGO_ENABLED=0 go build -a -o /usr/local/bin/azure-vnet-telemetry -ldflags "-X main.version="$VERSION"" -gcflags="-dwarflocationlists=true" cni/telemetry/service/*.go
 
 FROM mcr.microsoft.com/cbl-mariner/base/core:2.0
-RUN tdnf install -y iptables
+RUN tdnf upgrade -y && tdnf install -y ca-certificates iptables
 COPY --from=builder /etc/passwd /etc/passwd
 COPY --from=builder /etc/group /etc/group
 COPY --from=builder /usr/local/bin/azure-cns \
 	/usr/local/bin/azure-cns
 COPY --from=builder /usr/local/bin/azure-vnet-telemetry \
 	/usr/local/bin/azure-vnet-telemetry
-COPY --from=certs /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 ENTRYPOINT [ "/usr/local/bin/azure-cns" ]
 EXPOSE 10090
