@@ -1158,7 +1158,6 @@ func (service *HTTPRestService) UpdateEndpointHelper(endpointID string, req map[
 		return nil
 	}
 	return errors.New("[updateEndpoint] endpoint could not be found in the statefile")
-
 }
 
 // verifyUpdateEndpointStateRequest verify the CNI request body for the UpdateENdpointState API

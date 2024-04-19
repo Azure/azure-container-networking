@@ -97,9 +97,9 @@ type EndpointInfo struct {
 
 type IPInfo struct {
 	IPv4          []net.IPNet
-	IPv6          []net.IPNet
-	HnsEndpointID string
-	HostVethName  string
+	IPv6          []net.IPNet `json:",omitempty"`
+	HnsEndpointID string      `json:",omitempty"`
+	HostVethName  string      `json:",omitempty"`
 	NICType       cns.NICType
 }
 

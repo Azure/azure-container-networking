@@ -725,7 +725,6 @@ func generateCNSIPInfoMap(ep *endpoint) map[string]*restserver.IPInfo {
 		for ifName, InterfaceInfo := range ep.SecondaryInterfaces {
 			ifNametoIPInfoMap[ifName].NICType = InterfaceInfo.NICType
 		}
-
 	}
 	return ifNametoIPInfoMap
 }
