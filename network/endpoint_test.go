@@ -276,7 +276,7 @@ var _ = Describe("Test Endpoint", func() {
 				NICType: cns.InfraNIC,
 			}
 			secondaryEpInfo := &EndpointInfo{
-				NICType: cns.DelegatedVMNIC,
+				NICType: cns.NodeNetworkInterfaceDelegatedVMNIC,
 				Routes:  []RouteInfo{{Dst: *ipnet}},
 			}
 

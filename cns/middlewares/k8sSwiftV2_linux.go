@@ -16,7 +16,7 @@ func (k *K8sSWIFTv2Middleware) setRoutes(podIPInfo *cns.PodIpInfo) error {
 	logger.Printf("[SWIFTv2Middleware] set routes for pod with nic type : %s", podIPInfo.NICType)
 	podIPInfo.Routes = []cns.Route{}
 	switch podIPInfo.NICType {
-	case cns.DelegatedVMNIC:
+	case cns.NodeNetworkInterfaceDelegatedVMNIC:
 		virtualGWRoute := cns.Route{
 			IPAddress: fmt.Sprintf("%s/%d", virtualGW, prefixLength),
 		}
