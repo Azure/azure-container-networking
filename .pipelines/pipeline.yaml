@@ -184,17 +184,6 @@ stages:
                 pathtoPublish: "$(Build.ArtifactStagingDirectory)"
               condition: succeeded()
 
-            - task: AzureCLI@1
-              inputs:
-                azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
-                scriptLocation: "inlineScript"
-                inlineScript: |
-                  echo Creating storage container with name acn-$(STORAGE_ID) and account name $(STORAGE_ACCOUNT_NAME)
-                  az storage container create -n acn-$(STORAGE_ID) --account-name $(STORAGE_ACCOUNT_NAME) --public-access container
-                  az storage blob upload-batch -d acn-$(STORAGE_ID) -s ./output/bins/  --account-name $(STORAGE_ACCOUNT_NAME)
-              displayName: Create artifact storage container
-              condition: succeeded()
-
     - stage: containerize
       displayName: Build Images
       dependsOn:
@@ -606,34 +595,3 @@ stages:
                 echo $TAG
                 echo $CURRENT_VERSION
                 echo "Checking if branch is up to date with master"
-
-    - stage: cleanup
-      displayName: Cleanup
-      dependsOn:
-        - azure_overlay_e2e
-        - aks_swift_e2e
-        - cilium_e2e
-        - cilium_overlay_e2e
-        - cilium_h_overlay_e2e
-        - aks_ubuntu_22_linux_e2e
-        - aks_windows_22_e2e
-        - dualstackoverlay_e2e
-        - cilium_dualstackoverlay_e2e
-      jobs:
-        - job: delete_remote_artifacts
-          displayName: Delete remote artifacts
-          pool:
-            name: $(BUILD_POOL_NAME_DEFAULT)
-            demands: agent.os -equals Linux
-          steps:
-            - checkout: none
-            - task: AzureCLI@1
-              inputs:
-                azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
-                scriptLocation: "inlineScript"
-                inlineScript: |
-                  BUILD_NUMBER=$(Build.BuildNumber)
-                  BUILD_NUMBER=${BUILD_NUMBER//./-}
-                  echo Deleting storage container with name acn-$BUILD_NUMBER and account name $(STORAGE_ACCOUNT_NAME)
-                  az storage container delete -n acn-$BUILD_NUMBER --account-name $(STORAGE_ACCOUNT_NAME)
-              displayName: Cleanup remote Azure storage container
