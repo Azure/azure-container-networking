@@ -41,6 +41,9 @@ spec:
     - jsonPath: .status.gatewayIP
       name: GatewayIP
       type: string
+    - jsonPath: .status.NICType
+      name: NICType
+      type: string
     name: v1alpha1
     schema:
       openAPIV3Schema:
