@@ -96,7 +96,7 @@ spec:
           effect: NoSchedule
       initContainers:
         - name: init-cni-dropgz
-          image: mcr.microsoft.com/containernetworking/azure-cns:v1.4.43.1 # CNI
+          image: mcr.microsoft.com/containernetworking/cni-dropgz:v0.0.4.1 # CNI 1.4.39.1
           imagePullPolicy: IfNotPresent
           command: ["/dropgz"]
           args: ["deploy" , "azure-vnet", "-o", "/opt/cni/bin/azure-vnet", "azure-vnet-telemetry", "-o", "/opt/cni/bin/azure-vnet-telemetry", "azure-swift.conflist", "-o", "/etc/cni/net.d/10-azure.conflist"]
