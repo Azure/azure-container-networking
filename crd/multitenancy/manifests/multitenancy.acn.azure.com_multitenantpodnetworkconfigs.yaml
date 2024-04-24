@@ -79,6 +79,9 @@ spec:
             description: MultitenantPodNetworkConfigStatus defines the observed state
               of PodNetworkConfig
             properties:
+              NICType:
+                description: NICType specifies the type of NIC to enable appropriate programming by CNS/CNI
+                type: string
               gatewayIP:
                 description: Gateway IP
                 type: string
