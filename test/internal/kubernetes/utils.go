@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/Azure/azure-container-networking/crd/multitenancy/api/v1alpha1"
 	"github.com/Azure/azure-container-networking/test/internal/retry"
 	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
@@ -18,6 +19,8 @@ import (
 	v1 "k8s.io/api/rbac/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/apimachinery/pkg/util/yaml"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
@@ -47,6 +50,10 @@ const (
 
 var Kubeconfig = flag.String("test-kubeconfig", filepath.Join(homedir.HomeDir(), ".kube", "config"), "(optional) absolute path to the kubeconfig file")
 
+func GetKubeconfig() *string {
+	return Kubeconfig
+}
+
 func MustGetClientset() *kubernetes.Clientset {
 	config, err := clientcmd.BuildConfigFromFlags("", *Kubeconfig)
 	if err != nil {
@@ -65,6 +72,25 @@ func MustGetRestConfig() *rest.Config {
 		panic(err)
 	}
 	return config
+}
+func GetRESTClientForMultitenantCRD(kubeconfig string) (*rest.RESTClient, error) {
+	scheme := runtime.NewScheme()
+	err := v1alpha1.AddToScheme(scheme)
+	if err != nil {
+		return nil, err
+	}
+
+	restConfig, err := clientcmd.RESTConfigFromKubeConfig([]byte(kubeconfig))
+	if err != nil {
+		return nil, err
+	}
+
+	restConfig.ContentConfig.GroupVersion = &v1alpha1.GroupVersion
+	restConfig.APIPath = "/apis"
+	restConfig.NegotiatedSerializer = serializer.NewCodecFactory(scheme)
+	restConfig.UserAgent = rest.DefaultKubernetesUserAgent()
+
+	return rest.UnversionedRESTClientFor(restConfig)
 }
 
 func mustParseResource(path string, out interface{}) {
