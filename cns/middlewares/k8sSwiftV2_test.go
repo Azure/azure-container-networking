@@ -181,7 +181,7 @@ func TestGetSWIFTv2IPConfigSuccess(t *testing.T) {
 
 	ipInfo, err := middleware.getIPConfig(context.TODO(), testPod1Info)
 	assert.Equal(t, err, nil)
-	assert.Equal(t, ipInfo.NICType, cns.NodeNetworkInterfaceDelegatedVMNIC)
+	assert.Equal(t, ipInfo.NICType, cns.NodeNetworkInterfaceFrontendNIC)
 	assert.Equal(t, ipInfo.SkipDefaultRoutes, false)
 }
 
@@ -223,7 +223,7 @@ func TestSetRoutesSuccess(t *testing.T) {
 				IPAddress:    "20.240.1.242",
 				PrefixLength: 32,
 			},
-			NICType:    cns.NodeNetworkInterfaceDelegatedVMNIC,
+			NICType:    cns.NodeNetworkInterfaceFrontendNIC,
 			MacAddress: "12:34:56:78:9a:bc",
 		},
 	}
@@ -275,7 +275,7 @@ func TestSetRoutesSuccess(t *testing.T) {
 				IPAddress:    "20.240.1.242",
 				PrefixLength: 32,
 			},
-			NICType:    cns.NodeNetworkInterfaceDelegatedVMNIC,
+			NICType:    cns.NodeNetworkInterfaceFrontendNIC,
 			MacAddress: "12:34:56:78:9a:bc",
 			Routes: []cns.Route{
 				{

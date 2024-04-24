@@ -78,8 +78,8 @@ type NICType string
 // NIC Types
 const (
 	InfraNIC NICType = "InfraNIC"
-	// NodeNetworkInterfaceDelegatedVMNIC are projected from VM to container network namespace
-	NodeNetworkInterfaceDelegatedVMNIC NICType = "NodeNetworkInterfaceDelegatedVMNIC"
+	// NodeNetworkInterfaceFrontendNIC are projected from VM to container network namespace
+	NodeNetworkInterfaceFrontendNIC NICType = "FrontendNIC"
 	// NodeNetworkInterfaceBackendNIC are used for infiniband NICs on a VM
 	NodeNetworkInterfaceBackendNIC NICType = "BackendNIC"
 	// NodeNetworkInterfaceAccelnetFrontendNIC is a type of front-end nic that offers accelerated networking performance

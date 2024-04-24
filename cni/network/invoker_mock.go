@@ -95,7 +95,7 @@ func (invoker *MockIpamInvoker) Add(opt IPAMAddConfig) (ipamAddResult IPAMAddRes
 			IPConfigs: []*network.IPConfig{
 				{Address: *ipnet},
 			},
-			NICType: cns.NodeNetworkInterfaceDelegatedVMNIC,
+			NICType: cns.NodeNetworkInterfaceFrontendNIC,
 		})
 	}
 
