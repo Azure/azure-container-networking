@@ -117,7 +117,7 @@ stages:
         displayName: "Build k8s NPM Linux Test Suite Binary"
         steps:
           - bash: |
-              git clone https://github.com/huntergregory/kubernetes.git --depth=1 --branch=linux-long-sleep
+              git clone https://github.com/kubernetes/kubernetes.git --depth=1
               cd kubernetes
               export PATH=$PATH:/usr/local/go/bin/
               make WHAT=test/e2e/e2e.test
@@ -128,7 +128,7 @@ stages:
         displayName: "Build k8s NPM Windows Test Suite Binary"
         steps:
           - bash: |
-              git clone https://github.com/huntergregory/kubernetes.git --depth=1 --branch=sleep-before-probing
+              git clone https://github.com/kubernetes/kubernetes.git --depth=1
               cd kubernetes
               export PATH=$PATH:/usr/local/go/bin/
               make WHAT=test/e2e/e2e.test
@@ -349,7 +349,7 @@ stages:
       vmSize: Standard_HC44-16rs
       arch: amd64
       cni: "cilium"
-  
+
   - template: cilium/cilium-overlay-load-test-template.yaml
     parameters:
       name: cilium_overlay_ds
