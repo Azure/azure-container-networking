@@ -41,9 +41,6 @@ spec:
     - jsonPath: .status.gatewayIP
       name: GatewayIP
       type: string
-    - jsonPath: .status.NICType
-      name: NICType
-      type: string
     name: v1alpha1
     schema:
       openAPIV3Schema:
@@ -83,7 +80,8 @@ spec:
               of PodNetworkConfig
             properties:
               NICType:
-                description: NICType specifies the type of NIC to enable appropriate programming by CNS/CNI
+                description: NICType specifies the type of NIC to enable appropriate
+                  programming by CNS/CNI
                 type: string
               gatewayIP:
                 description: Gateway IP
