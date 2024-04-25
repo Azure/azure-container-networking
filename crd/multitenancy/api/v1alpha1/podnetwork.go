@@ -36,6 +36,15 @@ type PodNetworkList struct {
 	Items           []PodNetwork `json:"items"`
 }
 
+// NetworkType indicates the network type
+// +kubebuilder:validation:Enum=AzNet;Backend
+type NetworkType string
+
+const (
+	AzNet   NetworkType = "AzNet"
+	Backend NetworkType = "Backend"
+)
+
 // PodNetworkSpec defines the desired state of PodNetwork
 type PodNetworkSpec struct {
 	// +kubebuilder:validation:Optional
@@ -45,6 +54,11 @@ type PodNetworkSpec struct {
 	SubnetResourceID string `json:"subnetResourceID,omitempty"`
 	// customer subnet guid
 	SubnetGUID string `json:"subnetGUID,omitempty"`
+	// +kubebuilder:validation:Optional
+	// customer network guid
+	NetworkID string `json:"networkID,omitempty"`
+	//customer network type
+	NetworkType NetworkType `json:"networkType,omitempty"`
 }
 
 // Status indicates the status of PN
