@@ -3,6 +3,7 @@ package mock
 import (
 	"context"
 
+	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/configuration"
 	"github.com/Azure/azure-container-networking/crd/multitenancy/api/v1alpha1"
 	"github.com/pkg/errors"
@@ -42,16 +43,31 @@ func NewClient() *Client {
 	testPod4.Labels = make(map[string]string)
 	testPod4.Labels[configuration.LabelPodSwiftV2] = podNetwork
 
+	testPod5 := v1.Pod{}
+	testPod5.Labels = make(map[string]string)
+	testPod5.Labels[configuration.LabelPodSwiftV2] = podNetwork
+
 	testMTPNC1 := v1alpha1.MultitenantPodNetworkConfig{
 		Status: v1alpha1.MultitenantPodNetworkConfigStatus{
 			PrimaryIP:  "192.168.0.1/32",
 			MacAddress: "00:00:00:00:00:00",
 			GatewayIP:  "10.0.0.1",
 			NCID:       "testncid",
+			NICType:    cns.NodeNetworkInterfaceAccelnetFrontendNIC,
 		},
 	}
 
 	testMTPNC2 := v1alpha1.MultitenantPodNetworkConfig{}
+
+	testMTPNC3 := v1alpha1.MultitenantPodNetworkConfig{
+		Status: v1alpha1.MultitenantPodNetworkConfigStatus{
+			PrimaryIP:  "192.168.0.1/32",
+			MacAddress: "00:00:00:00:00:00",
+			GatewayIP:  "10.0.0.1",
+			NCID:       "testncid",
+			NICType:    cns.NodeNetworkInterfaceBackendNIC,
+		},
+	}
 
 	testMTPNC4 := v1alpha1.MultitenantPodNetworkConfig{}
 
@@ -60,6 +76,7 @@ func NewClient() *Client {
 		mtpncCache: map[string]*v1alpha1.MultitenantPodNetworkConfig{
 			"testpod1namespace/testpod1": &testMTPNC1,
 			"testpod2namespace/testpod2": &testMTPNC2,
+			"testpod5namespace/testpod5": &testMTPNC3,
 			"testpod4namespace/testpod4": &testMTPNC4,
 		},
 	}

@@ -25,6 +25,9 @@ var (
 
 	testPod4GUID = "b21e1ee1-fb7e-4e6d-8c68-22ee5049944e"
 	testPod4Info = cns.NewPodInfo("b21e1e-eth0", testPod4GUID, "testpod4", "testpod4namespace")
+
+	testPod5GUID = "898fb8f1-f93e-4c96-9c31-6b89098949a3"
+	testPod5Info = cns.NewPodInfo("898fb8-eth0", testPod5GUID, "testpod5", "testpod5namespace")
 )
 
 func TestMain(m *testing.M) {
@@ -330,4 +333,32 @@ func TestSetRoutesFailure(t *testing.T) {
 			t.Errorf("SetRoutes should fail due to env var not set")
 		}
 	}
+}
+
+func TestNICTypeConfigSuccess(t *testing.T) {
+	middleware := K8sSWIFTv2Middleware{Cli: mock.NewClient()}
+	//t.Setenv(configuration.EnvPodCIDRs, "10.0.1.20/24,16A0:0010:AB00:001F::2/32")
+	//t.Setenv(configuration.EnvServiceCIDRs, "10.0.0.0/16,16A0:0010:AB00:0000::/32")
+	//t.Setenv(configuration.EnvInfraVNETCIDRs, "10.241.0.1/16,16A0:0020:AB00:0000::/32")
+
+	ipInfo, err := middleware.getIPConfig(context.TODO(), testPod1Info)
+	if err != nil {
+		t.Fatalf("Unexpected error getting IP configuration: %v", err)
+	}
+
+	assert.Equal(t, ipInfo.NICType, cns.NodeNetworkInterfaceAccelnetFrontendNIC)
+	assert.Equal(t, ipInfo.SkipDefaultRoutes, false)
+
+	// Check if routes are properly set according to the Accelnet NIC type
+	expectedRoutes := []cns.Route{
+		{
+			IPAddress:        "10.0.1.20/24",
+			GatewayIPAddress: "10.241.0.1",
+		},
+		{
+			IPAddress:        "16A0:0010:AB00:001F::2/32",
+			GatewayIPAddress: "16A0:0020:AB00:0000::",
+		},
+	}
+	assert.DeepEqual(t, ipInfo.Routes, expectedRoutes)
 }
