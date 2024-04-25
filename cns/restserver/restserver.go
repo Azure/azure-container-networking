@@ -93,13 +93,14 @@ type EndpointInfo struct {
 	PodName       string
 	PodNamespace  string
 	IfnameToIPMap map[string]*IPInfo // key : interface name, value : IPInfo
-	HnsEndpointID string
-	HostVethName  string
 }
 
 type IPInfo struct {
-	IPv4 []net.IPNet
-	IPv6 []net.IPNet
+	IPv4          []net.IPNet
+	IPv6          []net.IPNet `json:",omitempty"`
+	HnsEndpointID string      `json:",omitempty"`
+	HostVethName  string      `json:",omitempty"`
+	NICType       cns.NICType
 }
 
 type GetHTTPServiceDataResponse struct {

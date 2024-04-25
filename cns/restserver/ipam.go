@@ -1083,7 +1083,7 @@ func (service *HTTPRestService) GetEndpointHelper(endpointID string) (*EndpointI
 func (service *HTTPRestService) UpdateEndpointHandler(w http.ResponseWriter, r *http.Request) {
 	logger.Printf("[updateEndpoint] updateEndpoint for %s", r.URL.Path)
 
-	var req cns.EndpointRequest
+	var req map[string]*IPInfo
 	err := service.Listener.Decode(w, r, &req)
 	endpointID := strings.TrimPrefix(r.URL.Path, cns.EndpointPath)
 	logger.Request(service.Name, &req, err)
@@ -1098,11 +1098,10 @@ func (service *HTTPRestService) UpdateEndpointHandler(w http.ResponseWriter, r *
 		logger.Response(service.Name, response, response.ReturnCode, err)
 		return
 	}
-	if req.HostVethName == "" && req.HnsEndpointID == "" {
-		logger.Warnf("[updateEndpoint] No HnsEndpointID or HostVethName has been provided")
+	if err = verifyUpdateEndpointStateRequest(req); err != nil {
 		response := cns.Response{
 			ReturnCode: types.InvalidRequest,
-			Message:    "[updateEndpoint] No HnsEndpointID or HostVethName has been provided",
+			Message:    err.Error(),
 		}
 		w.Header().Set(cnsReturnCode, response.ReturnCode.String())
 		err = service.Listener.Encode(w, &response)
@@ -1131,22 +1130,27 @@ func (service *HTTPRestService) UpdateEndpointHandler(w http.ResponseWriter, r *
 }
 
 // UpdateEndpointHelper updates the state of the given endpointId with HNSId or VethName
-func (service *HTTPRestService) UpdateEndpointHelper(endpointID string, req cns.EndpointRequest) error {
+func (service *HTTPRestService) UpdateEndpointHelper(endpointID string, req map[string]*IPInfo) error {
 	if service.EndpointStateStore == nil {
 		return ErrStoreEmpty
 	}
 	logger.Printf("[updateEndpoint] Updating endpoint state for infra container %s", endpointID)
 	if endpointInfo, ok := service.EndpointState[endpointID]; ok {
-		logger.Printf("[updateEndpoint] Found existing endpoint state for infra container %s", endpointID)
-		if req.HnsEndpointID != "" {
-			service.EndpointState[endpointID].HnsEndpointID = req.HnsEndpointID
-			logger.Printf("[updateEndpoint] update the endpoint %s with HNSID  %s", endpointID, req.HnsEndpointID)
+		for ifName, InterfaceInfo := range req {
+			logger.Printf("[updateEndpoint] Found existing endpoint state for infra container %s", endpointID)
+			if InterfaceInfo.HnsEndpointID != "" {
+				service.EndpointState[endpointID].IfnameToIPMap[ifName].HnsEndpointID = InterfaceInfo.HnsEndpointID
+				logger.Printf("[updateEndpoint] update the endpoint %s with HNSID  %s", endpointID, InterfaceInfo.HnsEndpointID)
+			}
+			if InterfaceInfo.HostVethName != "" {
+				service.EndpointState[endpointID].IfnameToIPMap[ifName].HostVethName = InterfaceInfo.HostVethName
+				logger.Printf("[updateEndpoint] update the endpoint %s with vethName  %s", endpointID, InterfaceInfo.HostVethName)
+			}
+			if InterfaceInfo.NICType != "" {
+				service.EndpointState[endpointID].IfnameToIPMap[ifName].NICType = InterfaceInfo.NICType
+				logger.Printf("[updateEndpoint] update the endpoint %s with NICType  %s", endpointID, InterfaceInfo.NICType)
+			}
 		}
-		if req.HostVethName != "" {
-			service.EndpointState[endpointID].HostVethName = req.HostVethName
-			logger.Printf("[updateEndpoint] update the endpoint %s with vethName  %s", endpointID, req.HostVethName)
-		}
-
 		err := service.EndpointStateStore.Write(EndpointStoreKey, service.EndpointState)
 		if err != nil {
 			return fmt.Errorf("[updateEndpoint] failed to write endpoint state to store for pod %s :  %w", endpointInfo.PodName, err)
@@ -1154,4 +1158,17 @@ func (service *HTTPRestService) UpdateEndpointHelper(endpointID string, req cns.
 		return nil
 	}
 	return errors.New("[updateEndpoint] endpoint could not be found in the statefile")
+}
+
+// verifyUpdateEndpointStateRequest verify the CNI request body for the UpdateENdpointState API
+func verifyUpdateEndpointStateRequest(req map[string]*IPInfo) error {
+	for ifName, InterfaceInfo := range req {
+		if InterfaceInfo.HostVethName == "" && InterfaceInfo.HnsEndpointID == "" && InterfaceInfo.NICType == "" {
+			return errors.New("[updateEndpoint] No NicType, HnsEndpointID or HostVethName has been provided")
+		}
+		if ifName == "" {
+			return errors.New("[updateEndpoint] No Interface has been provided")
+		}
+	}
+	return nil
 }
