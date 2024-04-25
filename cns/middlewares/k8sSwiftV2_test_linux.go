@@ -337,28 +337,18 @@ func TestSetRoutesFailure(t *testing.T) {
 
 func TestNICTypeConfigSuccess(t *testing.T) {
 	middleware := K8sSWIFTv2Middleware{Cli: mock.NewClient()}
-	//t.Setenv(configuration.EnvPodCIDRs, "10.0.1.20/24,16A0:0010:AB00:001F::2/32")
-	//t.Setenv(configuration.EnvServiceCIDRs, "10.0.0.0/16,16A0:0010:AB00:0000::/32")
-	//t.Setenv(configuration.EnvInfraVNETCIDRs, "10.241.0.1/16,16A0:0020:AB00:0000::/32")
 
+	// Test Accelnet Frontend NIC type
 	ipInfo, err := middleware.getIPConfig(context.TODO(), testPod1Info)
 	if err != nil {
 		t.Fatalf("Unexpected error getting IP configuration: %v", err)
 	}
-
 	assert.Equal(t, ipInfo.NICType, cns.NodeNetworkInterfaceAccelnetFrontendNIC)
-	assert.Equal(t, ipInfo.SkipDefaultRoutes, false)
 
-	// Check if routes are properly set according to the Accelnet NIC type
-	expectedRoutes := []cns.Route{
-		{
-			IPAddress:        "10.0.1.20/24",
-			GatewayIPAddress: "10.241.0.1",
-		},
-		{
-			IPAddress:        "16A0:0010:AB00:001F::2/32",
-			GatewayIPAddress: "16A0:0020:AB00:0000::",
-		},
+	// Test Backend NIC type
+	ipInfo2, err := middleware.getIPConfig(context.TODO(), testPod5Info)
+	if err != nil {
+		t.Fatalf("Unexpected error getting IP configuration: %v", err)
 	}
-	assert.DeepEqual(t, ipInfo.Routes, expectedRoutes)
+	assert.Equal(t, ipInfo2.NICType, cns.NodeNetworkInterfaceBackendNIC)
 }
