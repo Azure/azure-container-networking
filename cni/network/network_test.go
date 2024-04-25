@@ -1186,7 +1186,7 @@ func TestPluginSwiftV2Add(t *testing.T) {
 				IfName:      eth0IfName,
 			},
 			wantErr:    true,
-			wantErrMsg: "IPAM Invoker Add failed with error: delegatedVMNIC fail",
+			wantErrMsg: "IPAM Invoker Add failed with error: nodeNetworkInterfaceFrontendNIC fail",
 		},
 		{
 			name: "SwiftV2 EndpointClient Add fail",

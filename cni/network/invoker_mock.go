@@ -18,28 +18,28 @@ const (
 )
 
 var (
-	errV4             = errors.New("v4 fail")
-	errV6             = errors.New("v6 Fail")
-	errDelegatedVMNIC = errors.New("delegatedVMNIC fail")
-	errDeleteIpam     = errors.New("delete fail")
+	errV4                              = errors.New("v4 fail")
+	errV6                              = errors.New("v6 Fail")
+	errNodeNetworkInterfaceFrontendNIC = errors.New("FrontendNIC fail")
+	errDeleteIpam                      = errors.New("delete fail")
 )
 
 type MockIpamInvoker struct {
-	isIPv6             bool
-	v4Fail             bool
-	v6Fail             bool
-	delegatedVMNIC     bool
-	delegatedVMNICFail bool
-	ipMap              map[string]bool
+	isIPv6                              bool
+	v4Fail                              bool
+	v6Fail                              bool
+	nodeNetworkInterfaceFrontendNIC     bool
+	nodeNetworkInterfaceFrontendNICFail bool
+	ipMap                               map[string]bool
 }
 
-func NewMockIpamInvoker(ipv6, v4Fail, v6Fail, delegatedVMNIC, delegatedVMNICFail bool) *MockIpamInvoker {
+func NewMockIpamInvoker(ipv6, v4Fail, v6Fail, nodeNetworkInterfaceFrontendNIC, nodeNetworkInterfaceFrontendNICFail bool) *MockIpamInvoker {
 	return &MockIpamInvoker{
-		isIPv6:             ipv6,
-		v4Fail:             v4Fail,
-		v6Fail:             v6Fail,
-		delegatedVMNIC:     delegatedVMNIC,
-		delegatedVMNICFail: delegatedVMNICFail,
+		isIPv6:                              ipv6,
+		v4Fail:                              v4Fail,
+		v6Fail:                              v6Fail,
+		nodeNetworkInterfaceFrontendNIC:     nodeNetworkInterfaceFrontendNIC,
+		nodeNetworkInterfaceFrontendNICFail: nodeNetworkInterfaceFrontendNICFail,
 
 		ipMap: make(map[string]bool),
 	}
@@ -84,9 +84,9 @@ func (invoker *MockIpamInvoker) Add(opt IPAMAddConfig) (ipamAddResult IPAMAddRes
 		invoker.ipMap[ipnet.String()] = true
 	}
 
-	if invoker.delegatedVMNIC {
-		if invoker.delegatedVMNICFail {
-			return IPAMAddResult{}, errDelegatedVMNIC
+	if invoker.nodeNetworkInterfaceFrontendNIC {
+		if invoker.nodeNetworkInterfaceFrontendNICFail {
+			return IPAMAddResult{}, errNodeNetworkInterfaceFrontendNIC
 		}
 
 		ipStr := "20.20.20.20/32"
