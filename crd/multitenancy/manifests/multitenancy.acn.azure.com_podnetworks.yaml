@@ -63,8 +63,8 @@ spec:
               networkType:
                 description: customer network type
                 enum:
-                - DeviceTypeVnetNIC
-                - DeviceTypeGpuNIC
+                - acn.azure.com/vnet-nic
+                - acn.azure.com/gpu-nic
                 type: string
               subnetGUID:
                 description: customer subnet guid
