@@ -28,6 +28,9 @@ var (
 
 	testPod5GUID = "898fb8f1-f93e-4c96-9c31-6b89098949a3"
 	testPod5Info = cns.NewPodInfo("898fb8-eth0", testPod5GUID, "testpod5", "testpod5namespace")
+
+	testPod6GUID = "898fb8f1-f93e-4c96-9c31-6b89098949a3"
+	testPod6Info = cns.NewPodInfo("898fb8-eth0", testPod6GUID, "testpod6", "testpod6namespace")
 )
 
 func TestMain(m *testing.M) {
@@ -339,7 +342,7 @@ func TestNICTypeConfigSuccess(t *testing.T) {
 	middleware := K8sSWIFTv2Middleware{Cli: mock.NewClient()}
 
 	// Test Accelnet Frontend NIC type
-	ipInfo, err := middleware.getIPConfig(context.TODO(), testPod1Info)
+	ipInfo, err := middleware.getIPConfig(context.TODO(), testPod6Info)
 	if err != nil {
 		t.Fatalf("Unexpected error getting IP configuration: %v", err)
 	}
