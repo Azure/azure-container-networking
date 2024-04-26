@@ -57,6 +57,15 @@ spec:
           spec:
             description: PodNetworkSpec defines the desired state of PodNetwork
             properties:
+              networkID:
+                description: customer network guid
+                type: string
+              networkType:
+                description: customer network type
+                enum:
+                - AzNet
+                - Backend
+                type: string
               subnetGUID:
                 description: customer subnet guid
                 type: string
