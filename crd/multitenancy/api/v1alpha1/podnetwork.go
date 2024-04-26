@@ -37,7 +37,7 @@ type PodNetworkList struct {
 }
 
 // DeviceType indicates the device type of PN
-// +kubebuilder:validation:Enum=AzNet;Backend
+// +kubebuilder:validation:Enum=DeviceTypeVnetNIC;DeviceTypeGpuNIC
 type DeviceType string
 
 const (

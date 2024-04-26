@@ -63,8 +63,8 @@ spec:
               networkType:
                 description: customer network type
                 enum:
-                - AzNet
-                - Backend
+                - DeviceTypeVnetNIC
+                - DeviceTypeGpuNIC
                 type: string
               subnetGUID:
                 description: customer subnet guid
