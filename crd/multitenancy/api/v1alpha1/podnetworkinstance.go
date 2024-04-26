@@ -43,12 +43,23 @@ type PodNetworkInstanceSpec struct {
 	// number of backend IP address to reserve for running pods
 	// +kubebuilder:default=0
 	PodIPReservationSize int `json:"podIPReservationSize"`
+	// PodNetworks describes each PodNetwork to attach to a single Pod
+	PodNetworks []PodNetworkInstanceItem `json:"podNetworks"`
 }
 
 // PodNetworkInstanceStatus defines the observed state of PodNetworkInstance
 type PodNetworkInstanceStatus struct {
 	PodIPAddresses []string  `json:"podIPAddresses,omitempty"`
 	Status         PNIStatus `json:"status,omitempty"`
+}
+
+// PodNetworkInstanceItem describes a template for how to attach a PodNetwork to a Pod
+type PodNetworkInstanceItem struct {
+	// pod network resource object name
+	PodNetwork string `json:"podnetwork"`
+	// number of backend IP address to reserve for running pods
+	// +kubebuilder:default=0
+	PodIPReservationSize int `json:"podIPReservationSize"`
 }
 
 // PNIStatus indicates the status of PNI
