@@ -86,8 +86,8 @@ steps:
         export IP1=`kubectl describe pni pni1 | grep /32 | tail -1 | cut -c 5- | head -c -4`
         echo $IP1
         kubectl exec mtpod0 -it -- ping -c 3 $IP1
-        echo "Test the connection to a non-mt pod (172.25.0.27) in the same delegated network and in another cluster"
-        kubectl exec mtpod0 -it -- ping -c 3 -W 1 172.25.0.27
+        echo "Test the connection to a non-mt pod (172.25.0.7) in the same delegated network and in another cluster"
+        kubectl exec mtpod0 -it -- ping -c 3 -W 1 172.25.0.7
       cd test/integration/swiftv2
       echo "Swiftv2 TestDatapathLinux"
       go test -count=1 swiftv2_test.go -timeout 3m -tags swiftv2 -run ^TestDatapathLinux$ -tags=swiftv2,integration
