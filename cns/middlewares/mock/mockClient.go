@@ -86,7 +86,13 @@ func NewClient() *Client {
 	}
 
 	return &Client{
-		mtPodCache: map[string]*v1.Pod{"testpod1namespace/testpod1": &testPod1, "testpod3namespace/testpod3": &testPod3, "testpod4namespace/testpod4": &testPod4, "testpod5namespace/testpod5": &testPod5, "testpod6namespace/testpod6": &testPod6},
+		mtPodCache: map[string]*v1.Pod{
+			"testpod1namespace/testpod1": &testPod1,
+			"testpod3namespace/testpod3": &testPod3,
+			"testpod4namespace/testpod4": &testPod4,
+			"testpod5namespace/testpod5": &testPod5,
+			"testpod6namespace/testpod6": &testPod6,
+		},
 		mtpncCache: map[string]*v1alpha1.MultitenantPodNetworkConfig{
 			"testpod1namespace/testpod1": &testMTPNC1,
 			"testpod2namespace/testpod2": &testMTPNC2,
