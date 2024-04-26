@@ -577,7 +577,6 @@ func main() {
 			logger.InitAI(aiConfig, ts.DisableTrace, ts.DisableMetric, ts.DisableEvent)
 		}
 	}
-
 	logger.Printf("[Azure CNS] Using config: %+v", cnsconfig)
 
 	_, envEnableConflistGeneration := os.LookupEnv(envVarEnableCNIConflistGeneration)

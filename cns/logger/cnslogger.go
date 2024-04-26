@@ -2,12 +2,15 @@ package logger
 
 import (
 	"fmt"
+	"os"
 	"sync"
 
 	"github.com/Azure/azure-container-networking/aitelemetry"
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/log"
 	"github.com/pkg/errors"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 type CNSLogger struct {
@@ -16,6 +19,8 @@ type CNSLogger struct {
 	DisableTraceLogging  bool
 	DisableMetricLogging bool
 	DisableEventLogging  bool
+
+	zapLogger *zap.Logger
 
 	m            sync.RWMutex
 	Orchestrator string
@@ -28,7 +33,20 @@ func NewCNSLogger(fileName string, logLevel, logTarget int, logDir string) (*CNS
 		return nil, errors.Wrap(err, "could not get new logger")
 	}
 
-	return &CNSLogger{logger: l}, nil
+	encoderConfig := zap.NewProductionEncoderConfig()
+	encoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
+	jsonEncoder := zapcore.NewJSONEncoder(encoderConfig)
+
+	platformCore, err := getPlatformCores(zapcore.DebugLevel, jsonEncoder)
+	if err != nil {
+		l.Errorf("Failed to get zap Platform cores: %v", err)
+	}
+	zapLogger := zap.New(platformCore, zap.AddCaller()).With(zap.Int("pid", os.Getpid()))
+
+	return &CNSLogger{
+		logger:    l,
+		zapLogger: zapLogger,
+	}, nil
 }
 
 func (c *CNSLogger) InitAI(aiConfig aitelemetry.AIConfig, disableTraceLogging, disableMetricLogging, disableEventLogging bool) {
@@ -69,6 +87,7 @@ func (c *CNSLogger) SetContextDetails(orchestrator, nodeID string) {
 
 func (c *CNSLogger) Printf(format string, args ...any) {
 	c.logger.Logf(format, args...)
+	c.zapLogger.Info(fmt.Sprintf(format, args...))
 
 	if c.th == nil || c.DisableTraceLogging {
 		return
@@ -80,6 +99,7 @@ func (c *CNSLogger) Printf(format string, args ...any) {
 
 func (c *CNSLogger) Debugf(format string, args ...any) {
 	c.logger.Debugf(format, args...)
+	c.zapLogger.Debug(fmt.Sprintf(format, args...))
 
 	if c.th == nil || c.DisableTraceLogging {
 		return
@@ -91,6 +111,7 @@ func (c *CNSLogger) Debugf(format string, args ...any) {
 
 func (c *CNSLogger) Warnf(format string, args ...any) {
 	c.logger.Warnf(format, args...)
+	c.zapLogger.Warn(fmt.Sprintf(format, args...))
 
 	if c.th == nil || c.DisableTraceLogging {
 		return
@@ -102,6 +123,7 @@ func (c *CNSLogger) Warnf(format string, args ...any) {
 
 func (c *CNSLogger) Errorf(format string, args ...any) {
 	c.logger.Errorf(format, args...)
+	c.zapLogger.Error(fmt.Sprintf(format, args...))
 
 	if c.th == nil || c.DisableTraceLogging {
 		return
