@@ -57,11 +57,32 @@ spec:
                 default: 0
                 description: number of backend IP address to reserve for running pods
                 type: integer
+              podNetworks:
+                description: PodNetworks describes each PodNetwork to attach to a
+                  single Pod
+                items:
+                  description: PodNetworkInstanceItem describes a template for how
+                    to attach a PodNetwork to a Pod
+                  properties:
+                    podIPReservationSize:
+                      default: 0
+                      description: number of backend IP address to reserve for running
+                        pods
+                      type: integer
+                    podnetwork:
+                      description: pod network resource object name
+                      type: string
+                  required:
+                  - podIPReservationSize
+                  - podnetwork
+                  type: object
+                type: array
               podnetwork:
                 description: pod network resource object name
                 type: string
             required:
             - podIPReservationSize
+            - podNetworks
             - podnetwork
             type: object
           status:
