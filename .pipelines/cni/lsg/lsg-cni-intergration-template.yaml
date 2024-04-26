@@ -69,7 +69,7 @@ stages:
                   make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}-$(commitID)
                   kubectl cluster-info
                   kubectl get po -owide -A
-                  sudo -E env "PATH=$PATH" make test-load CNS_ONLY=true CNS_VERSION=$(cnsVersion) CNI_VERSION=$(cniVersion) INSTALL_CNS=true INSTALL_AZURE_CNI_OVERLAY=true CNS_IMAGE_REPO=$(CNS_IMAGE_REPO) CNI_IMAGE_REPO=$(CNI_IMAGE_REPO)
+                  sudo -E env "PATH=$PATH" make test-load CNS_ONLY=true CNS_VERSION=$(cnsVersion) CNI_VERSION=$(cniVersion) INSTALL_CNS=true INSTALL_AZURE_CNI_OVERLAY=true CNS_IMAGE_REPO=$(CNS_IMAGE_REPO) CNI_IMAGE_REPO=$(CNI_IMAGE_REPO) CNI_DROPGZ=$(DROPGZ)
               name: "overlaye2e"
               displayName: "Overlay Integration"
               retryCountOnTaskFailure: 2
@@ -109,7 +109,7 @@ stages:
                   envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/v${DIR}/cilium-operator/templates/deployment.yaml | kubectl apply -f -
                   kubectl get po -owide -A
                   echo "Deploy Azure-CNS"
-                  sudo -E env "PATH=$PATH" make test-load CNS_ONLY=true AZURE_IPAM_VERSION=$(ipamVersion) CNS_VERSION=$(cnsVersion) INSTALL_CNS=true INSTALL_OVERLAY=true CNS_IMAGE_REPO=$(CNS_IMAGE_REPO) IPAM_IMAGE_REPO=$(IPAM_IMAGE_REPO)
+                  sudo -E env "PATH=$PATH" make test-load CNS_ONLY=true AZURE_IPAM_VERSION=$(ipamVersion) CNS_VERSION=$(cnsVersion) INSTALL_CNS=true INSTALL_OVERLAY=true CNS_IMAGE_REPO=$(CNS_IMAGE_REPO) IPAM_IMAGE_REPO=$(IPAM_IMAGE_REPO) CNI_DROPGZ=$(DROPGZ)
                   kubectl get po -owide -A
       - job: kernel_upgrade
         displayName: "Kernel Node Upgrade"

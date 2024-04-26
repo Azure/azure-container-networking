@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strconv"
+	"strings"
 
 	"github.com/pkg/errors"
 	appsv1 "k8s.io/api/apps/v1"
@@ -51,6 +52,7 @@ type cnsDetails struct {
 const (
 	envAzureIPAMVersion     = "AZURE_IPAM_VERSION"
 	envCNIVersion           = "CNI_VERSION"
+	envDROPGZ               = "CNI_DROPGZ"
 	envCNSVersion           = "CNS_VERSION"
 	envCNIImageRepo         = "CNI_IMAGE_REPO"
 	envCNSImageRepo         = "CNS_IMAGE_REPO"
@@ -344,7 +346,11 @@ func initCNSScenarioVars() (map[CNSScenario]map[corev1.OSName]cnsDetails, error)
 		log.Printf("%s not set to expected value \"ACN\", \"MCR\". Default to %s", envCNIImageRepo, imageRepoURL["ACN"])
 		url = imageRepoURL["ACN"]
 	}
-	initContainerNameCNI := path.Join(url, "azure-cni:") + os.Getenv(envCNIVersion)
+	cniImage := "azure-cni:"
+	if strings.Contains(strings.ToLower(os.Getenv(envDROPGZ)), "true") {
+		cniImage = "cni-dropgz"
+	}
+	initContainerNameCNI := path.Join(url, cniImage) + os.Getenv(envCNIVersion)
 	log.Printf("CNI init container image - %v", initContainerNameCNI)
 
 	url, key = imageRepoURL[os.Getenv(string(envAzureIPAMImageRepo))]
