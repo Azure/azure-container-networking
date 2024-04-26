@@ -154,11 +154,17 @@ func (tb *TelemetryBuffer) StartServer() error {
 						}
 						if _, ok := tmp["CniSucceeded"]; ok {
 							var cniReport CNIReport
-							json.Unmarshal([]byte(reportStr), &cniReport)
+							err = json.Unmarshal([]byte(reportStr), &cniReport)
+							if err != nil {
+								return
+							}
 							tb.data <- cniReport
 						} else if _, ok := tmp["Metric"]; ok {
 							var aiMetric AIMetric
-							json.Unmarshal([]byte(reportStr), &aiMetric)
+							err = json.Unmarshal([]byte(reportStr), &aiMetric)
+							if err != nil {
+								return
+							}
 							tb.data <- aiMetric
 						} else {
 							if tb.logger != nil {
