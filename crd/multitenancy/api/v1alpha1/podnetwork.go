@@ -36,29 +36,29 @@ type PodNetworkList struct {
 	Items           []PodNetwork `json:"items"`
 }
 
-// NetworkType indicates the network type
+// DeviceType indicates the device type of PN
 // +kubebuilder:validation:Enum=AzNet;Backend
-type NetworkType string
+type DeviceType string
 
 const (
-	AzNet   NetworkType = "AzNet"
-	Backend NetworkType = "Backend"
+	DeviceTypeVnetNIC DeviceType = "acn.azure.com/vnet-nic"
+	DeviceTypeGpuNIC  DeviceType = "acn.azure.com/gpu-nic"
 )
 
 // PodNetworkSpec defines the desired state of PodNetwork
 type PodNetworkSpec struct {
 	// +kubebuilder:validation:Optional
-	// customer vnet guid
-	VnetGUID string `json:"vnetGUID,omitempty"`
+	// customer network guid
+	NetworkID string `json:"networkID,omitempty"`
+	//customer network type
+	DeviceType DeviceType `json:"networkType,omitempty"`
 	// customer subnet id
 	SubnetResourceID string `json:"subnetResourceID,omitempty"`
 	// customer subnet guid
 	SubnetGUID string `json:"subnetGUID,omitempty"`
 	// +kubebuilder:validation:Optional
-	// customer network guid
-	NetworkID string `json:"networkID,omitempty"`
-	//customer network type
-	NetworkType NetworkType `json:"networkType,omitempty"`
+	// customer vnet guid
+	VnetGUID string `json:"vnetGUID,omitempty"`
 }
 
 // Status indicates the status of PN
