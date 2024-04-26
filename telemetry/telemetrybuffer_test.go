@@ -70,6 +70,30 @@ func TestClientConnClose(t *testing.T) {
 	tbClient.Close()
 }
 
+func TestCloseOnWriteError(t *testing.T) {
+	tbServer, closeTBServer := createTBServer(t)
+	defer closeTBServer()
+
+	tbClient := NewTelemetryBuffer(nil)
+	err := tbClient.Connect()
+	require.NoError(t, err)
+	defer tbClient.Close()
+
+	data := []byte("{\"good\":1}")
+	_, err = tbClient.Write(data)
+	require.NoError(t, err)
+	// need to wait for connection to populate in server
+	time.Sleep(1 * time.Second)
+	require.Len(t, tbServer.connections, 1)
+
+	// the connection should be automatically closed on failure
+	badData := []byte("} malformed json }}}")
+	_, err = tbClient.Write(badData)
+	require.NoError(t, err)
+	time.Sleep(1 * time.Second)
+	require.Empty(t, tbServer.connections)
+}
+
 func TestWrite(t *testing.T) {
 	_, closeTBServer := createTBServer(t)
 	defer closeTBServer()
