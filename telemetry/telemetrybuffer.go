@@ -139,34 +139,33 @@ func (tb *TelemetryBuffer) StartServer() error {
 
 					for {
 						reportStr, err := read(conn)
-						if err == nil {
-							var tmp map[string]interface{}
-							err = json.Unmarshal(reportStr, &tmp)
-							if err != nil {
-								if tb.logger != nil {
-									tb.logger.Error("StartServer: unmarshal error", zap.Error(err))
-								} else {
-									log.Logf("StartServer: unmarshal error:%v", err)
-								}
-								return
-							}
-							if _, ok := tmp["CniSucceeded"]; ok {
-								var cniReport CNIReport
-								json.Unmarshal([]byte(reportStr), &cniReport)
-								tb.data <- cniReport
-							} else if _, ok := tmp["Metric"]; ok {
-								var aiMetric AIMetric
-								json.Unmarshal([]byte(reportStr), &aiMetric)
-								tb.data <- aiMetric
-							} else {
-								if tb.logger != nil {
-									tb.logger.Info("StartServer: default", zap.Any("case", tmp))
-								} else {
-									log.Logf("StartServer: default case:%+v...", tmp)
-								}
-							}
-						} else {
+						if err != nil {
 							return
+						}
+						var tmp map[string]interface{}
+						err = json.Unmarshal(reportStr, &tmp)
+						if err != nil {
+							if tb.logger != nil {
+								tb.logger.Error("StartServer: unmarshal error", zap.Error(err))
+							} else {
+								log.Logf("StartServer: unmarshal error:%v", err)
+							}
+							return
+						}
+						if _, ok := tmp["CniSucceeded"]; ok {
+							var cniReport CNIReport
+							json.Unmarshal([]byte(reportStr), &cniReport)
+							tb.data <- cniReport
+						} else if _, ok := tmp["Metric"]; ok {
+							var aiMetric AIMetric
+							json.Unmarshal([]byte(reportStr), &aiMetric)
+							tb.data <- aiMetric
+						} else {
+							if tb.logger != nil {
+								tb.logger.Info("StartServer: default", zap.Any("case", tmp))
+							} else {
+								log.Logf("StartServer: default case:%+v...", tmp)
+							}
 						}
 					}
 				}()
