@@ -149,7 +149,7 @@ func cniStateToCnsEndpointState(state *api.AzureCNIState) map[string]*restserver
 
 // extractEndpointInfo extract Interface Name and endpointID for each endpoint based the CNI state
 func extractEndpointInfo(epID, containerID string) (endpointID, interfaceName string) {
-	ifName := restserver.InterfaceName
+	ifName := restserver.InfraInterfaceName
 	if strings.Contains(epID, "-eth") {
 		ifName = epID[len(epID)-4:]
 	}

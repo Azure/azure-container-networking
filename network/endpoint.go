@@ -30,6 +30,7 @@ type AzureHNSEndpoint struct{}
 type endpoint struct {
 	Id                       string
 	HnsId                    string `json:",omitempty"`
+	HNSNetworkID             string `json:",omitempty"`
 	SandboxKey               string
 	IfName                   string
 	HostIfName               string
@@ -92,6 +93,7 @@ type EndpointInfo struct {
 	NICType                  cns.NICType
 	SkipDefaultRoutes        bool
 	HNSEndpointID            string
+	HNSNetworkID             string
 	HostIfName               string
 }
 
