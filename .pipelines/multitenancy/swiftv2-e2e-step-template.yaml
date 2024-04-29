@@ -69,10 +69,12 @@ steps:
       echo "Start the connection test"
       kubectl exec mtpod0 -it -- ip a
       echo "Test the connection to a mtpod in the same delegated network and in another node"
-      export IP0=`kubectl describe pni pni1 | grep /32 | head -1 | cut -c 5- | head -c -4`
+      //export IP0=`kubectl describe pni pni1 | grep /32 | head -1 | cut -c 5- | head -c -4`
+      export IP0=`k describe mtpnc mtpod0 | grep "Primary IP" | cut -c 17- | head -c -4`
       echo $IP0
       kubectl exec mtpod0 -it -- ping -c 3 $IP0
-      export IP1=`kubectl describe pni pni1 | grep /32 | tail -1 | cut -c 5- | head -c -4`
+      //export IP1=`kubectl describe pni pni1 | grep /32 | tail -1 | cut -c 5- | head -c -4`
+      export IP1=`k describe mtpnc mtpod1 | grep "Primary IP" | cut -c 17- | head -c -4`
       echo $IP1
       kubectl exec mtpod0 -it -- ping -c 3 $IP1
       echo "Test the connection to a non-mt pod (172.25.0.7) in the same delegated network and in another cluster"

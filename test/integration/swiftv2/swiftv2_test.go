@@ -290,7 +290,7 @@ func PodExecWithError(
 	return stdoutRead, stderrRead, readStreamErr
 }
 
-func TestSwiftv2PodToPod() (t *testing.T) {
+func TestSwiftv2PodToPod(t *testing.T) {
 	var (
 		kubeconfig string
 		numNodes   int
