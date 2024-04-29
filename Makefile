@@ -47,6 +47,7 @@ AZURE_IPAM_DIR = $(REPO_ROOT)/azure-ipam
 CNM_DIR = $(REPO_ROOT)/cnm/plugin
 CNI_NET_DIR = $(REPO_ROOT)/cni/network/plugin
 CNI_IPAM_DIR = $(REPO_ROOT)/cni/ipam/plugin
+STATELESS_CNI_NET_DIR = $(REPO_ROOT)/cni/network/stateless
 CNI_IPAMV6_DIR = $(REPO_ROOT)/cni/ipam/pluginv6
 CNI_TELEMETRY_DIR = $(REPO_ROOT)/cni/telemetry/service
 ACNCLI_DIR = $(REPO_ROOT)/tools/acncli
@@ -59,10 +60,13 @@ IMAGE_DIR  = $(OUTPUT_DIR)/images
 CNM_BUILD_DIR = $(BUILD_DIR)/cnm
 CNI_BUILD_DIR = $(BUILD_DIR)/cni
 ACNCLI_BUILD_DIR = $(BUILD_DIR)/acncli
+STATELESS_CNI_BUILD_DIR = $(CNI_BUILD_DIR)/stateless
 CNI_MULTITENANCY_BUILD_DIR = $(BUILD_DIR)/cni-multitenancy
 CNI_MULTITENANCY_TRANSPARENT_VLAN_BUILD_DIR = $(BUILD_DIR)/cni-multitenancy-transparent-vlan
 CNI_SWIFT_BUILD_DIR = $(BUILD_DIR)/cni-swift
 CNI_OVERLAY_BUILD_DIR = $(BUILD_DIR)/cni-overlay
+STATELESS_CNI_OVERLAY_BUILD_DIR = $(CNI_OVERLAY_BUILD_DIR)/stateless
+STATELESS_CNI_SWIFT_BUILD_DIR = $(CNI_SWIFT_BUILD_DIR)/stateless
 CNI_BAREMETAL_BUILD_DIR = $(BUILD_DIR)/cni-baremetal
 CNI_DUALSTACK_BUILD_DIR = $(BUILD_DIR)/cni-dualstack
 CNS_BUILD_DIR = $(BUILD_DIR)/cns
@@ -130,7 +134,7 @@ endif
 
 # Shorthand target names for convenience.
 azure-cnm-plugin: cnm-binary cnm-archive
-azure-cni-plugin: azure-vnet-binary azure-vnet-ipam-binary azure-vnet-ipamv6-binary azure-vnet-telemetry-binary cni-archive
+azure-cni-plugin: azure-vnet-binary azure-vnet-stateless-binary azure-vnet-ipam-binary azure-vnet-ipamv6-binary azure-vnet-telemetry-binary cni-archive
 azure-cns: azure-cns-binary cns-archive
 acncli: acncli-binary acncli-archive
 azure-npm: azure-npm-binary npm-archive
@@ -178,6 +182,10 @@ cnm-binary:
 # Build the Azure CNI network binary.
 azure-vnet-binary:
 	cd $(CNI_NET_DIR) && CGO_ENABLED=0 go build -v -o $(CNI_BUILD_DIR)/azure-vnet$(EXE_EXT) -ldflags "-X main.version=$(CNI_VERSION)" -gcflags="-dwarflocationlists=true"
+
+# Build the Azure CNI stateless network binary
+azure-vnet-stateless-binary:
+	cd $(STATELESS_CNI_NET_DIR) && CGO_ENABLED=0 go build -v -o $(STATELESS_CNI_BUILD_DIR)/azure-vnet$(EXE_EXT) -ldflags "-X main.version=$(CNI_VERSION)" -gcflags="-dwarflocationlists=true"
 
 # Build the Azure CNI IPAM binary.
 azure-vnet-ipam-binary:
@@ -674,12 +682,16 @@ endif
 	cp cni/azure-$(GOOS)-swift.conflist $(CNI_SWIFT_BUILD_DIR)/10-azure.conflist
 	cp telemetry/azure-vnet-telemetry.config $(CNI_SWIFT_BUILD_DIR)/azure-vnet-telemetry.config
 	cp $(CNI_BUILD_DIR)/azure-vnet$(EXE_EXT) $(CNI_BUILD_DIR)/azure-vnet-ipam$(EXE_EXT) $(CNI_BUILD_DIR)/azure-vnet-telemetry$(EXE_EXT) $(CNI_SWIFT_BUILD_DIR)
+	$(MKDIR) $(STATELESS_CNI_SWIFT_BUILD_DIR)
+	cp $(STATELESS_CNI_BUILD_DIR)/azure-vnet$(EXE_EXT) $(STATELESS_CNI_SWIFT_BUILD_DIR)
 	cd $(CNI_SWIFT_BUILD_DIR) && $(ARCHIVE_CMD) $(CNI_SWIFT_ARCHIVE_NAME) azure-vnet$(EXE_EXT) azure-vnet-ipam$(EXE_EXT) azure-vnet-telemetry$(EXE_EXT) 10-azure.conflist azure-vnet-telemetry.config
 
 	$(MKDIR) $(CNI_OVERLAY_BUILD_DIR)
 	cp cni/azure-$(GOOS)-swift-overlay.conflist $(CNI_OVERLAY_BUILD_DIR)/10-azure.conflist
 	cp telemetry/azure-vnet-telemetry.config $(CNI_OVERLAY_BUILD_DIR)/azure-vnet-telemetry.config
 	cp $(CNI_BUILD_DIR)/azure-vnet$(EXE_EXT) $(CNI_BUILD_DIR)/azure-vnet-ipam$(EXE_EXT) $(CNI_BUILD_DIR)/azure-vnet-telemetry$(EXE_EXT) $(CNI_OVERLAY_BUILD_DIR)
+	$(MKDIR) $(STATELESS_CNI_OVERLAY_BUILD_DIR)
+	cp $(STATELESS_CNI_BUILD_DIR)/azure-vnet$(EXE_EXT) $(STATELESS_CNI_OVERLAY_BUILD_DIR)
 	cd $(CNI_OVERLAY_BUILD_DIR) && $(ARCHIVE_CMD) $(CNI_OVERLAY_ARCHIVE_NAME) azure-vnet$(EXE_EXT) azure-vnet-ipam$(EXE_EXT) azure-vnet-telemetry$(EXE_EXT) 10-azure.conflist azure-vnet-telemetry.config
 
 	$(MKDIR) $(CNI_DUALSTACK_BUILD_DIR)
