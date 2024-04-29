@@ -55,10 +55,17 @@ func (service *Service) AddListener(config *common.ServiceConfig) error {
 
 	// if cnsURL is empty the VM primary interface IP will be used
 	// if customer specifies -c option, then use this URL with warning message and it will be deprecated soon
-	cnsURL, _ := service.GetOption(acn.OptCnsURL).(string)
+	cnsURL, ok := service.GetOption(acn.OptCnsURL).(string)
+	if !ok {
+		return errors.New("cnsURL type is wrong")
+	}
+
 	// if customer provides port number by -p option, then use VM IP with this port and localhost server also uses this port
 	// otherwise it will use defaultAPIServerPort 10090
-	cnsPort, _ := service.GetOption(acn.OptCnsPort).(string)
+	cnsPort, ok := service.GetOption(acn.OptCnsPort).(string)
+	if !ok {
+		return errors.New("cnsPort type is wrong")
+	}
 
 	if cnsURL == "" {
 		config.Server.EnableLocalServer = true
@@ -76,7 +83,7 @@ func (service *Service) AddListener(config *common.ServiceConfig) error {
 		}
 	} else {
 		// use the URL that customer provides by -c
-		logger.Printf("CNS remote server url: %+v", nodeURL)
+		logger.Printf("user specifies -c option")
 
 		// do not enable local server if customer uses -c option
 		config.Server.EnableLocalServer = false
@@ -85,6 +92,8 @@ func (service *Service) AddListener(config *common.ServiceConfig) error {
 			return errors.Wrap(err, "Failed to parse URL that customer provides")
 		}
 	}
+
+	logger.Debugf("CNS remote server url: %+v", nodeURL)
 
 	nodeListener, err := acn.NewListener(nodeURL)
 	if err != nil {
