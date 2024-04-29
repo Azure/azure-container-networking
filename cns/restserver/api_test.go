@@ -1684,6 +1684,8 @@ func startService() error {
 		return err
 	}
 	svc = service.(*HTTPRestService)
+	svc.Service.Options[acncommon.OptCnsURL] = ""
+	svc.Service.Options[acncommon.OptCnsPort] = ""
 	svc.Name = "cns-test-server"
 
 	nmagentClient.GetNCVersionListF = func(context.Context) (nmagent.NCVersionList, error) {
