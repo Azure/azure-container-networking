@@ -47,5 +47,10 @@ func (s Server) Start(ctx context.Context, addr string) error {
 
 	// after context is done, shutdown local server
 	<-ctx.Done()
-	return e.Shutdown(ctx)
+	if err := e.Shutdown(ctx); err != nil {
+		logger.Errorf("failed to shutdown echo server due to %+v", err)
+		return errors.Wrap(err, "failed to shutdown echo server")
+	}
+
+	return nil
 }
