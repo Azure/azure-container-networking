@@ -76,7 +76,7 @@ func (service *Service) AddListener(config *common.ServiceConfig) error {
 		}
 	} else {
 		// use the URL that customer provides by -c
-		logger.Warnf("Do not specify cns-url by -c option, this option will be deprecated!")
+		logger.Printf("CNS remote server url: %+v", nodeURL)
 
 		// do not enable local server if customer uses -c option
 		config.Server.EnableLocalServer = false
@@ -85,8 +85,6 @@ func (service *Service) AddListener(config *common.ServiceConfig) error {
 			return errors.Wrap(err, "Failed to parse URL that customer provides")
 		}
 	}
-
-	logger.Debugf("CNS remote server url: %+v", nodeURL)
 
 	nodeListener, err := acn.NewListener(nodeURL)
 	if err != nil {
