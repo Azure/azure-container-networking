@@ -10,6 +10,10 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+// calculate l4 offset
+#define L4_HDR_OFF (ETH_HLEN + sizeof(struct ipv6hdr))
+#define BPF_F_PSEUDO_HDR (1ULL << 4)
+
 static __always_inline bool compare_ipv6_addr(const struct in6_addr *addr1, const struct in6_addr *addr2)
 {
 #pragma unroll
@@ -64,6 +68,18 @@ int linklocal_to_gua(struct __sk_buff *skb)
         if (ret != 0)
         {
             bpf_printk("bpf_skb_store_bytes failed with error code %d.\n", ret);
+            return TC_ACT_SHOT;
+        }
+
+        // Update the checksum
+        __be32 sum = bpf_csum_diff((__be32 *)LINKLOCAL_ADDR.s6_addr32, 16, (__be32 *)GLOBAL_UNICAST_ADDR.s6_addr32, 16, 0);
+
+        int offset = offsetof(struct tcphdr, check);
+
+        int retu = bpf_l4_csum_replace(skb, L4_HDR_OFF + offset, 0, sum, BPF_F_PSEUDO_HDR);
+        if (retu < 0)
+        {
+            bpf_printk("csum_l4_replace failed: %d", retu);
             return TC_ACT_SHOT;
         }
     }
