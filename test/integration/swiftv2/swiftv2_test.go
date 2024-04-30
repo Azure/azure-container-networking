@@ -27,7 +27,7 @@ import (
 )
 
 const (
-	podLabelKey                = "kubernetes.azure.com/pod-network-instance"
+	pniKey                     = "kubernetes.azure.com/pod-network-instance"
 	podCount                   = 2
 	nodepoolKey                = "agentpool"
 	LinuxDeployIPV4            = "../manifests/datapath/linux-deployment.yaml"
@@ -80,7 +80,7 @@ func setupLinuxEnvironment(t *testing.T) {
 	clientset := kubernetes.MustGetClientset()
 
 	t.Log("Create Label Selectors")
-	podLabelSelector := kubernetes.CreateLabelSelector(podLabelKey, podPrefix)
+	podLabelSelector := kubernetes.CreateLabelSelector(pniKey, podPrefix)
 	nodeLabelSelector := kubernetes.CreateLabelSelector(nodepoolKey, nodepoolSelector)
 
 	t.Log("Get Nodes")
@@ -125,7 +125,7 @@ func TestDatapathLinux(t *testing.T) {
 	clientset := kubernetes.MustGetClientset()
 
 	setupLinuxEnvironment(t)
-	podLabelSelector := kubernetes.CreateLabelSelector(podLabelKey, podPrefix)
+	podLabelSelector := kubernetes.CreateLabelSelector(pniKey, podPrefix)
 
 	t.Run("Linux ping tests", func(t *testing.T) {
 		// Check goldpinger health
@@ -302,7 +302,7 @@ func TestSwiftv2PodToPod(t *testing.T) {
 	clientset := kubernetes.MustGetClientset()
 
 	t.Log("Create Label Selectors")
-	podLabelSelector := kubernetes.CreateLabelSelector(podLabelKey, podPrefix)
+	podLabelSelector := kubernetes.CreateLabelSelector(pniKey, podPrefix)
 	nodeLabelSelector := kubernetes.CreateLabelSelector(nodepoolKey, nodepoolSelector)
 
 	t.Log("Get Nodes")
