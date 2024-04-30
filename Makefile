@@ -35,6 +35,7 @@ endif
 REPO_ROOT				 = $(shell git rev-parse --show-toplevel)
 REVISION				?= $(shell git rev-parse --short HEAD)
 ACN_VERSION				?= $(shell git describe --exclude "azure-ipam*" --exclude "dropgz*" --exclude "zapai*" --tags --always)
+BPF_TC_VERSION			?= $(notdir $(shell git describe --match "bpf-tc*" --tags --always))
 AZURE_IPAM_VERSION		?= $(notdir $(shell git describe --match "azure-ipam*" --tags --always))
 CNI_VERSION				?= $(ACN_VERSION)
 CNI_DROPGZ_VERSION		?= $(notdir $(shell git describe --match "dropgz*" --tags --always))
@@ -44,6 +45,7 @@ ZAPAI_VERSION			?= $(notdir $(shell git describe --match "zapai*" --tags --alway
 
 # Build directories.
 AZURE_IPAM_DIR = $(REPO_ROOT)/azure-ipam
+BPF_TC_DIR = $(REPO_ROOT)/bpf-tc
 CNM_DIR = $(REPO_ROOT)/cnm/plugin
 CNI_NET_DIR = $(REPO_ROOT)/cni/network/plugin
 CNI_IPAM_DIR = $(REPO_ROOT)/cni/ipam/plugin
@@ -55,6 +57,7 @@ NPM_DIR = $(REPO_ROOT)/npm/cmd
 OUTPUT_DIR = $(REPO_ROOT)/output
 BUILD_DIR = $(OUTPUT_DIR)/$(GOOS)_$(GOARCH)
 AZURE_IPAM_BUILD_DIR = $(BUILD_DIR)/azure-ipam
+BPF_TC_BUILD_DIR = $(BUILD_DIR)bpf-tc
 IMAGE_DIR  = $(OUTPUT_DIR)/images
 CNM_BUILD_DIR = $(BUILD_DIR)/cnm
 CNI_BUILD_DIR = $(BUILD_DIR)/cni
@@ -135,6 +138,7 @@ azure-cns: azure-cns-binary cns-archive
 acncli: acncli-binary acncli-archive
 azure-npm: azure-npm-binary npm-archive
 azure-ipam: azure-ipam-binary azure-ipam-archive
+bpf-tc: bpf-tc-binary bpf-tc-archive
 
 
 ##@ Versioning
@@ -149,6 +153,9 @@ acncli-version: version
 
 azure-ipam-version: ## prints the azure-ipam version
 	@echo $(AZURE_IPAM_VERSION)
+
+bpf-tc-version: ## prints the bpf-tc version
+	@echo $(BPF_TC_VERSION)
 
 cni-version: ## prints the cni version
 	@echo $(CNI_VERSION)
@@ -170,6 +177,11 @@ zapai-version: ## prints the zapai version
 # Build the delegated IPAM plugin binary.
 azure-ipam-binary:
 	cd $(AZURE_IPAM_DIR) && CGO_ENABLED=0 go build -v -o $(AZURE_IPAM_BUILD_DIR)/azure-ipam$(EXE_EXT) -ldflags "-X github.com/Azure/azure-container-networking/azure-ipam/internal/buildinfo.Version=$(AZURE_IPAM_VERSION)" -gcflags="-dwarflocationlists=true"
+
+# Build the bpf-tc binary.
+bpf-tc-binary:
+	cd $(BPF_TC_DIR) && CGO_ENABLED=0 go generate ./... 
+	cd $(BPF_TC_DIR)/cmd/bpf-tc && CGO_ENABLED=0 go build -v -o $(BPF_TC_BUILD_DIR)$(EXE_EXT) -ldflags "-X main.version=$(BPF_TC_VERSION)" -gcflags="-dwarflocationlists=true"
 
 # Build the Azure CNM binary.
 cnm-binary:
@@ -244,6 +256,7 @@ endif
 ## Image name definitions.
 ACNCLI_IMAGE		= acncli
 AZURE_IPAM_IMAGE	= azure-ipam
+BPF_TC_IMAGE		= bpf-tc
 CNI_IMAGE			= azure-cni
 CNI_DROPGZ_IMAGE	= cni-dropgz
 CNS_IMAGE			= azure-cns
@@ -253,6 +266,7 @@ NPM_IMAGE			= azure-npm
 ACNCLI_PLATFORM_TAG				?= $(subst /,-,$(PLATFORM))$(if $(OS_VERSION),-$(OS_VERSION),)-$(ACN_VERSION)
 AZURE_IPAM_PLATFORM_TAG			?= $(subst /,-,$(PLATFORM))$(if $(OS_VERSION),-$(OS_VERSION),)-$(AZURE_IPAM_VERSION)
 AZURE_IPAM_WINDOWS_PLATFORM_TAG	?= $(subst /,-,$(PLATFORM))$(if $(OS_VERSION),-$(OS_VERSION),)-$(AZURE_IPAM_VERSION)-$(OS_SKU_WIN)
+BPF_TC_IMAGE_PLATFORM_TAG		?= $(subst /,-,$(PLATFORM))$(if $(OS_VERSION),-$(OS_VERSION),)-$(BPF_TC_VERSION)
 CNI_PLATFORM_TAG				?= $(subst /,-,$(PLATFORM))$(if $(OS_VERSION),-$(OS_VERSION),)-$(CNI_VERSION)
 CNI_WINDOWS_PLATFORM_TAG		?= $(subst /,-,$(PLATFORM))$(if $(OS_VERSION),-$(OS_VERSION),)-$(CNI_VERSION)-$(OS_SKU_WIN)
 CNI_DROPGZ_PLATFORM_TAG 		?= $(subst /,-,$(PLATFORM))$(if $(OS_VERSION),-$(OS_VERSION),)-$(CNI_DROPGZ_VERSION)
@@ -360,6 +374,34 @@ azure-ipam-image-pull: ## pull azure-ipam container image.
 		IMAGE=$(AZURE_IPAM_IMAGE) \
 		TAG=$(AZURE_IPAM_PLATFORM_TAG)
 
+# bpf-tc
+
+bpf-tc-image-name: # util target to print the bpf-tc image name.
+	@echo $(BPF_TC_IMAGE)
+
+bpf-tc-image-name-and-tag: # util target to print the azure-ipam image name and tag.
+	@echo $(IMAGE_REGISTRY)/$(BPF_TC_IMAGE):$(BPF_TC_IMAGE_PLATFORM_TAG)
+
+bpf-tc-image: ## build azure-ipam container image.
+	$(MAKE) container \
+		DOCKERFILE=azure-ipam/$(OS).Dockerfile \
+		IMAGE=$(BPF_TC_IMAGE) \
+		EXTRA_BUILD_ARGS='--build-arg OS=$(OS) --build-arg ARCH=$(ARCH) --build-arg OS_VERSION=$(OS_VERSION)' \
+		PLATFORM=$(PLATFORM) \
+		TAG=$(BPF_TC_IMAGE) \
+		OS=$(OS) \
+		ARCH=$(ARCH) \
+		OS_VERSION=$(OS_VERSION)
+
+bpf-tc-image-push: ## push azure-ipam container image.
+	$(MAKE) container-push \
+		IMAGE=$(BPF_TC_IMAGE) \
+		TAG=$(BPF_TC_IMAGE_PLATFORM_TAG)
+
+bpf-tc-image-pull: ## pull azure-ipam container image.
+	$(MAKE) container-pull \
+		IMAGE=$(BPF_TC_IMAGE) \
+		TAG=$(BPF_TC_IMAGE_PLATFORM_TAG)
 
 # cni
 
@@ -730,6 +772,13 @@ ifeq ($(GOOS),linux)
 	cd $(AZURE_IPAM_BUILD_DIR) && $(ARCHIVE_CMD) $(AZURE_IPAM_ARCHIVE_NAME) azure-ipam$(EXE_EXT)
 endif
 
+# Create a bpf-tc archive for the target platform.
+.PHONY: bpf-tc-archive
+bpf-tc-archive: bpf-tc-binary
+ifeq ($(GOOS),linux)
+	$(MKDIR) $(BPF_TC_BUILD_DIR)
+	cd $(BPF_TC_BUILD_DIR) && $(ARCHIVE_CMD) $(BPF_TC_ARCHIVE_NAME) bpf-tc$(EXE_EXT)
+endif
 
 ##@ Utils
 
