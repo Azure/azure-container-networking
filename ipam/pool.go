@@ -293,7 +293,7 @@ func (as *addressSpace) requestPool(poolId string, subPoolId string, options map
 	var ap *addressPool
 	var err error
 
-	logger.Info("Requesting pool with", zap.String("poolId", poolId), zap.Any("options", options), zap.Any("v6", v6))
+	logger.Info("Requesting a new address pool")
 
 	if poolId != "" {
 		// Return the specific address pool requested.
@@ -377,9 +377,9 @@ func (as *addressSpace) releasePool(poolId string) error {
 	}
 
 	if addressesInUse = ap.IsAnyRecordInUse(); addressesInUse {
-		logger.Info("Skip releasing pool with due to address being in use", zap.String("poolId", poolId))
+		logger.Info("Skip releasing pool with due to address being in use")
 	} else {
-		logger.Info("Releasing pool as there are no allocations", zap.String("poolId", poolId))
+		logger.Info("Releasing pool as there are no allocations")
 		ap.RefCount = 0
 	}
 
@@ -459,7 +459,7 @@ func (ap *addressPool) requestAddress(address string, options map[string]string)
 	var addr *net.IPNet
 	id := options[OptAddressID]
 
-	logger.Info("Requesting address with", zap.String("address", address), zap.Any("options", options))
+	logger.Info("Requesting a new address from the address pool")
 
 	if address != "" {
 		// Return the specific address requested.
@@ -526,7 +526,7 @@ func (ap *addressPool) releaseAddress(address string, options map[string]string)
 	var err error
 
 	logger.Info("Releasing address with", zap.String("address", address), zap.Any("options", options))
-	defer func() { logger.Error("Address release completed with", zap.String("address", address), zap.Error(err)) }()
+	defer func() { logger.Error("Address release completed with", zap.Error(err)) }()
 
 	if options != nil {
 		id = options[OptAddressID]

@@ -149,7 +149,7 @@ func (nw *network) newEndpoint(
 
 	defer func() {
 		if err != nil {
-			logger.Error("Failed to create endpoint with err", zap.String("id", epInfo[0].Id), zap.Error(err))
+			logger.Error("Failed to create endpoint with err", zap.Error(err))
 		}
 	}()
 
@@ -174,14 +174,14 @@ func (nw *network) deleteEndpoint(nl netlink.NetlinkInterface, plc platform.Exec
 	logger.Info("Deleting endpoint from network", zap.String("endpointID", endpointID), zap.String("id", nw.Id))
 	defer func() {
 		if err != nil {
-			logger.Error("Failed to delete endpoint with", zap.String("endpointID", endpointID), zap.Error(err))
+			logger.Error("Failed to delete endpoint with", zap.Error(err))
 		}
 	}()
 
 	// Look up the endpoint.
 	ep, err := nw.getEndpoint(endpointID)
 	if err != nil {
-		logger.Error("Endpoint not found. Not Returning error", zap.String("endpointID", endpointID), zap.Error(err))
+		logger.Error("Endpoint not found. Not Returning error", zap.Error(err))
 		return nil
 	}
 
@@ -290,7 +290,7 @@ func (ep *endpoint) attach(sandboxKey string) error {
 
 	ep.SandboxKey = sandboxKey
 
-	logger.Info("Attached endpoint to sandbox", zap.String("id", ep.Id), zap.String("sandboxKey", sandboxKey))
+	logger.Info("Attached endpoint to sandbox", zap.String("id", ep.Id))
 
 	return nil
 }
