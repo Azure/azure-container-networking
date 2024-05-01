@@ -1,13 +1,13 @@
 parameters:
-  name: ""
-  displayName: ""
-  clusterType: ""
-  clusterName: "" # Recommended to pass in unique identifier
-  vmSize: ""
-  vmSizeWin: ""
-  k8sVersion: "
-  dependsOn: ""
-  region: ""
+  # name: ""
+  # displayName: ""
+  # clusterType: ""
+  # clusterName: ""
+  # vmSize: ""
+  # vmSizeWin: ""
+  # k8sVersion: ""
+  # dependsOn: ""
+  # region: ""
   os: linux
 
 jobs:
