@@ -1,13 +1,4 @@
 parameters:
-  # name: ""
-  # displayName: ""
-  # clusterType: ""
-  # clusterName: ""
-  # vmSize: ""
-  # vmSizeWin: ""
-  # k8sVersion: ""
-  # dependsOn: ""
-  # region: ""
   os: linux
 
 jobs:
