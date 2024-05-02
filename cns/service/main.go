@@ -43,6 +43,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/multitenantcontroller"
 	"github.com/Azure/azure-container-networking/cns/multitenantcontroller/multitenantoperator"
 	"github.com/Azure/azure-container-networking/cns/restserver"
+	restserverv2 "github.com/Azure/azure-container-networking/cns/restserver/v2"
 	cnstypes "github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/cns/wireserver"
 	acn "github.com/Azure/azure-container-networking/common"
@@ -101,7 +102,9 @@ const (
 	// envVarEnableCNIConflistGeneration enables cni conflist generation if set (value doesn't matter)
 	envVarEnableCNIConflistGeneration = "CNS_ENABLE_CNI_CONFLIST_GENERATION"
 
-	cnsReqTimeout = 15 * time.Second
+	cnsReqTimeout          = 15 * time.Second
+	defaultLocalServerIP   = "localhost"
+	defaultLocalServerPort = "10090"
 )
 
 type cniConflistScenario string
@@ -197,6 +200,13 @@ var args = acn.ArgumentList{
 		Name:         acn.OptCnsURL,
 		Shorthand:    acn.OptCnsURLAlias,
 		Description:  "Set the URL for CNS to listen on",
+		Type:         "string",
+		DefaultValue: "",
+	},
+	{
+		Name:         acn.OptCnsPort,
+		Shorthand:    acn.OptCnsPortAlias,
+		Description:  "Set the URL port for CNS to listen on",
 		Type:         "string",
 		DefaultValue: "",
 	},
@@ -490,6 +500,7 @@ func main() {
 	cniPath := acn.GetArg(acn.OptNetPluginPath).(string)
 	cniConfigFile := acn.GetArg(acn.OptNetPluginConfigFile).(string)
 	cnsURL := acn.GetArg(acn.OptCnsURL).(string)
+	cnsPort := acn.GetArg(acn.OptCnsPort).(string)
 	logLevel := acn.GetArg(acn.OptLogLevel).(int)
 	logTarget := acn.GetArg(acn.OptLogTarget).(int)
 	logDirectory := acn.GetArg(acn.OptLogLocation).(string)
@@ -735,7 +746,7 @@ func main() {
 		Logger:     logger.Log,
 	}
 
-	httpRestService, err := restserver.NewHTTPRestService(&config, wsclient, &wsProxy, nmaClient,
+	httpRemoteRestService, err := restserver.NewHTTPRestService(&config, wsclient, &wsProxy, nmaClient,
 		endpointStateStore, conflistGenerator, homeAzMonitor)
 	if err != nil {
 		logger.Errorf("Failed to create CNS object, err:%v.\n", err)
@@ -743,14 +754,15 @@ func main() {
 	}
 
 	// Set CNS options.
-	httpRestService.SetOption(acn.OptCnsURL, cnsURL)
-	httpRestService.SetOption(acn.OptNetPluginPath, cniPath)
-	httpRestService.SetOption(acn.OptNetPluginConfigFile, cniConfigFile)
-	httpRestService.SetOption(acn.OptCreateDefaultExtNetworkType, createDefaultExtNetworkType)
-	httpRestService.SetOption(acn.OptHttpConnectionTimeout, httpConnectionTimeout)
-	httpRestService.SetOption(acn.OptHttpResponseHeaderTimeout, httpResponseHeaderTimeout)
-	httpRestService.SetOption(acn.OptProgramSNATIPTables, cnsconfig.ProgramSNATIPTables)
-	httpRestService.SetOption(acn.OptManageEndpointState, cnsconfig.ManageEndpointState)
+	httpRemoteRestService.SetOption(acn.OptCnsURL, cnsURL)
+	httpRemoteRestService.SetOption(acn.OptCnsPort, cnsPort)
+	httpRemoteRestService.SetOption(acn.OptNetPluginPath, cniPath)
+	httpRemoteRestService.SetOption(acn.OptNetPluginConfigFile, cniConfigFile)
+	httpRemoteRestService.SetOption(acn.OptCreateDefaultExtNetworkType, createDefaultExtNetworkType)
+	httpRemoteRestService.SetOption(acn.OptHttpConnectionTimeout, httpConnectionTimeout)
+	httpRemoteRestService.SetOption(acn.OptHttpResponseHeaderTimeout, httpResponseHeaderTimeout)
+	httpRemoteRestService.SetOption(acn.OptProgramSNATIPTables, cnsconfig.ProgramSNATIPTables)
+	httpRemoteRestService.SetOption(acn.OptManageEndpointState, cnsconfig.ManageEndpointState)
 
 	// Create default ext network if commandline option is set
 	if len(strings.TrimSpace(createDefaultExtNetworkType)) > 0 {
@@ -762,10 +774,10 @@ func main() {
 		}
 	}
 
-	logger.Printf("[Azure CNS] Initialize HTTPRestService")
-	if httpRestService != nil {
+	logger.Printf("[Azure CNS] Initialize HTTPRemoteRestService")
+	if httpRemoteRestService != nil {
 		if cnsconfig.UseHTTPS {
-			config.TlsSettings = localtls.TlsSettings{
+			config.TLSSettings = localtls.TlsSettings{
 				TLSSubjectName:                     cnsconfig.TLSSubjectName,
 				TLSCertificatePath:                 cnsconfig.TLSCertificatePath,
 				TLSPort:                            cnsconfig.TLSPort,
@@ -776,7 +788,7 @@ func main() {
 			}
 		}
 
-		err = httpRestService.Init(&config)
+		err = httpRemoteRestService.Init(&config)
 		if err != nil {
 			logger.Errorf("Failed to init HTTPService, err:%v.\n", err)
 			return
@@ -840,7 +852,7 @@ func main() {
 
 		logger.Printf("Set GlobalPodInfoScheme %v (InitializeFromCNI=%t)", cns.GlobalPodInfoScheme, cnsconfig.InitializeFromCNI)
 
-		err = InitializeCRDState(rootCtx, httpRestService, cnsconfig)
+		err = InitializeCRDState(rootCtx, httpRemoteRestService, cnsconfig)
 		if err != nil {
 			logger.Errorf("Failed to start CRD Controller, err:%v.\n", err)
 			return
@@ -848,26 +860,51 @@ func main() {
 	}
 
 	// Initialize multi-tenant controller if the CNS is running in MultiTenantCRD mode.
-	// It must be started before we start HTTPRestService.
+	// It must be started before we start HTTPRemoteRestService.
 	if config.ChannelMode == cns.MultiTenantCRD {
-		err = InitializeMultiTenantController(rootCtx, httpRestService, *cnsconfig)
+		err = InitializeMultiTenantController(rootCtx, httpRemoteRestService, *cnsconfig)
 		if err != nil {
 			logger.Errorf("Failed to start multiTenantController, err:%v.\n", err)
+			return
+		}
+	}
+
+	// if user provides cns url by -c option, then only start HTTP remote server using this url
+	logger.Printf("[Azure CNS] Start HTTP Remote server")
+	if httpRemoteRestService != nil {
+		if cnsconfig.EnablePprof {
+			httpRemoteRestService.RegisterPProfEndpoints()
+		}
+
+		err = httpRemoteRestService.Start(&config)
+		if err != nil {
+			logger.Errorf("Failed to start CNS, err:%v.\n", err)
 			return
 		}
 
 	}
 
-	logger.Printf("[Azure CNS] Start HTTP listener")
-	if httpRestService != nil {
-		if cnsconfig.EnablePprof {
-			httpRestService.RegisterPProfEndpoints()
+	// if user does not provide cns url by -c option, then start http local server
+	// TODO: we will deprecated -c option in next phase and start local server in any case
+	if config.Server.EnableLocalServer {
+		logger.Printf("[Azure CNS] Start HTTP local server")
+
+		var localServerURL string
+		if config.Server.Port != "" {
+			localServerURL = fmt.Sprintf(defaultLocalServerIP + ":" + config.Server.Port)
+		} else {
+			localServerURL = fmt.Sprintf(defaultLocalServerIP + ":" + defaultLocalServerPort)
 		}
 
-		err = httpRestService.Start(&config)
-		if err != nil {
-			logger.Errorf("Failed to start CNS, err:%v.\n", err)
-			return
+		httpLocalRestService := restserverv2.New(httpRemoteRestService)
+		if httpLocalRestService != nil {
+			go func() {
+				err = httpLocalRestService.Start(rootCtx, localServerURL)
+				if err != nil {
+					logger.Errorf("Failed to start local echo server, err:%v.\n", err)
+					return
+				}
+			}()
 		}
 	}
 
@@ -896,7 +933,7 @@ func main() {
 
 	if !disableTelemetry {
 		go logger.SendHeartBeat(rootCtx, cnsconfig.TelemetrySettings.HeartBeatIntervalInMins)
-		go httpRestService.SendNCSnapShotPeriodically(rootCtx, cnsconfig.TelemetrySettings.SnapshotIntervalInMins)
+		go httpRemoteRestService.SendNCSnapShotPeriodically(rootCtx, cnsconfig.TelemetrySettings.SnapshotIntervalInMins)
 	}
 
 	// If CNS is running on managed DNC mode
@@ -909,14 +946,14 @@ func main() {
 			return
 		}
 
-		httpRestService.SetOption(acn.OptPrivateEndpoint, privateEndpoint)
-		httpRestService.SetOption(acn.OptInfrastructureNetworkID, infravnet)
-		httpRestService.SetOption(acn.OptNodeID, nodeID)
+		httpRemoteRestService.SetOption(acn.OptPrivateEndpoint, privateEndpoint)
+		httpRemoteRestService.SetOption(acn.OptInfrastructureNetworkID, infravnet)
+		httpRemoteRestService.SetOption(acn.OptNodeID, nodeID)
 
 		// Passing in the default http client that already implements Do function
 		standardClient := http.DefaultClient
 
-		registerErr := registerNode(rootCtx, standardClient, httpRestService, privateEndpoint, infravnet, nodeID, nmaClient)
+		registerErr := registerNode(rootCtx, standardClient, httpRemoteRestService, privateEndpoint, infravnet, nodeID, nmaClient)
 		if registerErr != nil {
 			logger.Errorf("[Azure CNS] Registering Node failed with error: %v PrivateEndpoint: %s InfrastructureNetworkID: %s NodeID: %s",
 				registerErr,
@@ -930,7 +967,7 @@ func main() {
 			tickerChannel := time.Tick(time.Duration(cnsconfig.ManagedSettings.NodeSyncIntervalInSeconds) * time.Second)
 			for {
 				<-tickerChannel
-				httpRestService.SyncNodeStatus(ep, vnet, node, json.RawMessage{})
+				httpRemoteRestService.SyncNodeStatus(ep, vnet, node, json.RawMessage{})
 			}
 		}(privateEndpoint, infravnet, nodeID)
 	}
@@ -1009,8 +1046,8 @@ func main() {
 
 	logger.Printf("stop cns service")
 	// Cleanup.
-	if httpRestService != nil {
-		httpRestService.Stop()
+	if httpRemoteRestService != nil {
+		httpRemoteRestService.Stop()
 	}
 
 	if startCNM {

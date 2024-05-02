@@ -354,7 +354,7 @@ stages:
     parameters:
       name: cilium_overlay_ds
       clusterType: dualstack-byocni-nokubeproxy-up
-      clusterName: "cilium-ds-ov"
+      clusterName: "cil-ds-ov"
       nodeCount: ${NODE_COUNT_CILIUM}
       vmSize: ${VM_SIZE_CILIUM}
       dualstackVersion: ${CILIUM_DUALSTACK_VERSION}
