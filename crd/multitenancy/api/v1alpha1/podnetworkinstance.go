@@ -35,8 +35,8 @@ type PodNetworkInstanceList struct {
 	Items           []PodNetworkInstance `json:"items"`
 }
 
-// PodNetworkInstanceItem describes a template for how to attach a PodNetwork to a Pod
-type PodNetworkInstanceItem struct {
+// PodNetworkConfig describes a template for how to attach a PodNetwork to a Pod
+type PodNetworkConfig struct {
 	// PodNetwork is the name of a PodNetwork resource
 	PodNetwork string `json:"podNetwork"`
 	// PodIPReservationSize is the number of IP address to statically reserve
@@ -52,10 +52,10 @@ type PodNetworkInstanceSpec struct {
 	// Deprecated - use PodNetworks
 	// +kubebuilder:default=0
 	PodIPReservationSize int `json:"podIPReservationSize,omitempty"`
-	// PodNetworks describes each PodNetwork to attach to a single Pod
+	// PodNetworkConfigs describes each PodNetwork to attach to a single Pod
 	// optional for now in case orchestrator uses the deprecated fields
 	// +kubebuilder:validation:Optional
-	PodNetworks []PodNetworkInstanceItem `json:"podNetworks"`
+	PodNetworkConfigs []PodNetworkConfig `json:"podNetworkConfigs"`
 }
 
 // PodNetworkInstanceStatus defines the observed state of PodNetworkInstance

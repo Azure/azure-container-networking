@@ -52,13 +52,13 @@ spec:
                 default: 0
                 description: Deprecated - use PodNetworks
                 type: integer
-              podNetworks:
-                description: PodNetworks describes each PodNetwork to attach to a
-                  single Pod optional for now in case orchestrator uses the deprecated
+              podNetworkConfigs:
+                description: PodNetworkConfigs describes each PodNetwork to attach
+                  to a single Pod optional for now in case orchestrator uses the deprecated
                   fields
                 items:
-                  description: PodNetworkInstanceItem describes a template for how
-                    to attach a PodNetwork to a Pod
+                  description: PodNetworkConfig describes a template for how to attach
+                    a PodNetwork to a Pod
                   properties:
                     podIPReservationSize:
                       default: 0
