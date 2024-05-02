@@ -379,26 +379,26 @@ azure-ipam-image-pull: ## pull azure-ipam container image.
 bpf-tc-image-name: # util target to print the bpf-tc image name.
 	@echo $(BPF_TC_IMAGE)
 
-bpf-tc-image-name-and-tag: # util target to print the azure-ipam image name and tag.
+bpf-tc-image-name-and-tag: # util target to print the bpf-tc image name and tag.
 	@echo $(IMAGE_REGISTRY)/$(BPF_TC_IMAGE):$(BPF_TC_IMAGE_PLATFORM_TAG)
 
-bpf-tc-image: ## build azure-ipam container image.
+bpf-tc-image: ## build bpf-tc container image.
 	$(MAKE) container \
-		DOCKERFILE=azure-ipam/$(OS).Dockerfile \
+		DOCKERFILE=bpf-prog/bpf-tc/$(OS).Dockerfile \
 		IMAGE=$(BPF_TC_IMAGE) \
 		EXTRA_BUILD_ARGS='--build-arg OS=$(OS) --build-arg ARCH=$(ARCH) --build-arg OS_VERSION=$(OS_VERSION)' \
 		PLATFORM=$(PLATFORM) \
-		TAG=$(BPF_TC_IMAGE) \
+		TAG=$(BPF_TC_IMAGE_PLATFORM_TAG) \
 		OS=$(OS) \
 		ARCH=$(ARCH) \
 		OS_VERSION=$(OS_VERSION)
 
-bpf-tc-image-push: ## push azure-ipam container image.
+bpf-tc-image-push: ## push bpf-tc container image.
 	$(MAKE) container-push \
 		IMAGE=$(BPF_TC_IMAGE) \
 		TAG=$(BPF_TC_IMAGE_PLATFORM_TAG)
 
-bpf-tc-image-pull: ## pull azure-ipam container image.
+bpf-tc-image-pull: ## pull bpf-tc container image.
 	$(MAKE) container-pull \
 		IMAGE=$(BPF_TC_IMAGE) \
 		TAG=$(BPF_TC_IMAGE_PLATFORM_TAG)
