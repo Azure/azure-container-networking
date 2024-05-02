@@ -51,11 +51,15 @@ type InterfaceInfo struct {
 	// NCID is the network container id
 	NCID string `json:"ncID,omitempty"`
 	// PrimaryIP is the ip allocated to the network container
+	// +kubebuilder:validation:Optional
 	PrimaryIP string `json:"primaryIP,omitempty"`
 	// MacAddress is the MAC Address of the VM's NIC which this network container was created for
 	MacAddress string `json:"macAddress,omitempty"`
 	// GatewayIP is the gateway ip of the injected subnet
+	// +kubebuilder:validation:Optional
 	GatewayIP string `json:"gatewayIP,omitempty"`
+	// DeviceType is the device type that this NC was created for
+	DeviceType DeviceType `json:"deviceType,omitempty"`
 }
 
 // MultitenantPodNetworkConfigStatus defines the observed state of PodNetworkConfig

@@ -37,12 +37,12 @@ type PodNetworkList struct {
 	Items           []PodNetwork `json:"items"`
 }
 
-// +kubebuilder:validation:Enum=acn.azure.com/vnet-nic;acn.azure.com/gpu-nic
+// +kubebuilder:validation:Enum=acn.azure.com/vnet-nic;acn.azure.com/infiniband-nic
 type DeviceType string
 
 const (
-	DeviceTypeVnetNIC DeviceType = "acn.azure.com/vnet-nic"
-	DeviceTypeGPUNIC  DeviceType = "acn.azure.com/gpu-nic"
+	DeviceTypeVnetNIC       DeviceType = "acn.azure.com/vnet-nic"
+	DeviceTypeInfiniBandNIC DeviceType = "acn.azure.com/infiniband-nic"
 )
 
 // PodNetworkSpec defines the desired state of PodNetwork
