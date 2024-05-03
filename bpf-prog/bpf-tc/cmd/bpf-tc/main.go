@@ -5,6 +5,7 @@ import (
 
 	"github.com/Azure/azure-container-networking/bpf-prog/bpf-tc/pkg/egress"
 	"github.com/Azure/azure-container-networking/bpf-prog/bpf-tc/pkg/ingress"
+	"github.com/vishvananda/netlink"
 
 	"github.com/cilium/ebpf/rlimit"
 	"go.uber.org/zap"
@@ -28,9 +29,21 @@ func main() {
 	}
 	logger.Info("Interface has index", zap.String("interface", ifname), zap.Int("index", iface.Index))
 
+	// Create a qdisc filter for traffic on the interface.
+	fq := &netlink.GenericQdisc{
+		QdiscAttrs: netlink.QdiscAttrs{
+			LinkIndex: iface.Index,
+			Handle:    netlink.MakeHandle(0xffff, 0),
+			Parent:    netlink.HANDLE_CLSACT,
+		},
+		QdiscType: "clsact",
+	}
+	if err := netlink.QdiscReplace(fq); err != nil {
+		logger.Error("failed setting egress qdisc", zap.Error(err))
+	}
+
 	// Load the compiled eBPF ELF and load it into the kernel.
 	// Set up ingress and egress filters to attach to eth0 clsact qdisc
-	// the qdisc already exists from cilium installation
 	var objsEgress egress.EgressObjects
 	defer objsEgress.Close()
 	if err := egress.LoadEgressObjects(&objsEgress, nil); err != nil {
