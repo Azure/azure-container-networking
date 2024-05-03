@@ -10,7 +10,4 @@ ENV C_INCLUDE_PATH=/usr/include/bpf
 RUN GOOS=$OS CGO_ENABLED=0 go generate ./...
 RUN GOOS=$OS CGO_ENABLED=0 go build -a -o /go/bin/bpf-tc -trimpath -ldflags "-X main.version="$VERSION"" -gcflags="-dwarflocationlists=true" .
 
-FROM ubuntu:latest
-RUN apt-get update && apt-get install -y iproute2 && rm -rf /var/lib/apt/lists/*
-COPY --from=builder /go/bin/bpf-tc /go/bin/bpf-tc
-CMD ["/go/bin/bpf-tc"]
+CMD ["./bpc-tc"]
