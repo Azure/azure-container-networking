@@ -26,14 +26,14 @@ int linklocal_to_gua(struct __sk_buff *skb)
     if (ret != 0)
     {
         bpf_printk("bpf_skb_load_bytes failed with error code %d.\n", ret);
-        return TC_ACT_SHOT;
+        return TC_ACT_UNSPEC;
     }
 
     int ret_hdr = bpf_skb_load_bytes(skb, ETH_HLEN, &ipv6_hdr, sizeof(ipv6_hdr));
     if (ret_hdr != 0)
     {
         bpf_printk("bpf_skb_load_bytes failed with error code %d.\n", ret_hdr);
-        return TC_ACT_SHOT;
+        return TC_ACT_UNSPEC;
     }
 
     // Check if the packet is TCP

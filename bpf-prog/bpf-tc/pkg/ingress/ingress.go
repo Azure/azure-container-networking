@@ -1,14 +1,14 @@
 package ingress
 
 import (
-	"log"
 	"syscall"
 
 	"github.com/vishvananda/netlink"
+	"go.uber.org/zap"
 )
 
 // SetupIngressFilter sets up the ingress filter
-func SetupIngressFilter(ifaceIndex int, objs *IngressObjects) error {
+func SetupIngressFilter(ifaceIndex int, objs *IngressObjects, logger *zap.Logger) error {
 	ingressFilter := &netlink.BpfFilter{
 		FilterAttrs: netlink.FilterAttrs{
 			LinkIndex: ifaceIndex,
@@ -22,10 +22,10 @@ func SetupIngressFilter(ifaceIndex int, objs *IngressObjects) error {
 	}
 
 	if err := netlink.FilterReplace(ingressFilter); err != nil {
-		log.Printf("failed setting ingress filter: %v", err)
+		logger.Error("failed setting ingress filter", zap.Error(err))
 		return err
 	} else {
-		log.Printf("Successfully set ingress filter on %d..", ifaceIndex)
+		logger.Info("Successfully set ingress filter on", zap.Int("ifaceIndex", ifaceIndex))
 	}
 
 	return nil

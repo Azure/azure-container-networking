@@ -1,14 +1,14 @@
 package egress
 
 import (
-	"log"
 	"syscall"
 
 	"github.com/vishvananda/netlink"
+	"go.uber.org/zap"
 )
 
 // SetupEgressFilter sets up the egress filter
-func SetupEgressFilter(ifaceIndex int, objs *EgressObjects) error {
+func SetupEgressFilter(ifaceIndex int, objs *EgressObjects, logger *zap.Logger) error {
 	egressFilter := &netlink.BpfFilter{
 		FilterAttrs: netlink.FilterAttrs{
 			LinkIndex: ifaceIndex,
@@ -22,10 +22,10 @@ func SetupEgressFilter(ifaceIndex int, objs *EgressObjects) error {
 	}
 
 	if err := netlink.FilterReplace(egressFilter); err != nil {
-		log.Printf("failed setting egress filter: %v", err)
+		logger.Error("failed setting egress filter", zap.Error(err))
 		return err
 	} else {
-		log.Printf("Successfully set egress filter on %d..", ifaceIndex)
+		logger.Info("Successfully set egress filter on", zap.Int("ifaceIndex", ifaceIndex))
 	}
 
 	return nil

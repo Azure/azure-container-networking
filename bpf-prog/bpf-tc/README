@@ -9,37 +9,27 @@ The egress bpf code converts the destination IP of the packet from global unicas
 
 ## Usage
 
-Use the make command to build the binary or follow the steps below.
+Follow the steps below to compile the program and install it onto your node:
+
+1. Use the make command to build the binary or follow the steps below.
     ```bash
     make bpf-tc-binary
     ```
 
-Follow the steps below to compile the program and install it onto your node:
+2. Copy the new binary to your node(s).
 
-1. Navigate to the `/bpf-tc` directory and compile the bpf code by running:
-    ```bash
-    go generate ./...
-    ```
-
-2. To compile the go program, navigate to `cmd/tcprog` and run:
-    ```bash
-    go build
-    ```
-
-3. Copy the new binary to your node(s).
-
-4. Remove the nftable rules for ipv6 with the following commands:
+3. Remove the nftable rules for ipv6 with the following commands:
     ```bash
     nft delete chain ip6 azureSLBProbe postrouting 
     nft delete chain ip6 azureSLBProbe prerouting 
     nft -n list table ip6 azureSLBProbe 
     ```
 
-5. Start the program with:
+4. Start the program with:
     ```bash
     ./bpf-tc
     ```
-6. Debugging logs can be seen in the node under `/sys/kernel/debug/traceing/trace_pipe`
+5. Debugging logs can be seen in the node under `/sys/kernel/debug/traceing/trace_pipe`
 
 ## Manual Compilation
 For testing purposes you can compile the bpf program without go, and attach it to the interface yourself. This is how you would do it for egress:
