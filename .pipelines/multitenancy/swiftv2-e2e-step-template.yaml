@@ -66,28 +66,6 @@ steps:
   - script: |
       set -e
       kubectl get po -owide -A
-      echo "Start the connection test"
-      kubectl exec mtpod0 -it -- ip a
-      echo "Check mtpnc"
-      kubectl get mtpnc
-      kubectl describe mtpnc mtpod0
-      kubectl describe mtpnc mtpod1
-      echo "Test the connection to a mtpod in the same delegated network and in another node"
-      export IP0=`kubectl describe mtpnc mtpod0 | grep "Primary IP" | cut -c 17- | head -c -4`
-      echo $IP0
-      kubectl exec mtpod0 -it -- ping -c 3 $IP0
-      export IP1=`kubectl describe mtpnc mtpod1 | grep "Primary IP" | cut -c 17- | head -c -4`
-      echo $IP1
-      kubectl exec mtpod0 -it -- ping -c 3 $IP1
-      echo "Test the connection to a non-mt pod (172.25.0.7) in the same delegated network and in another cluster"
-      kubectl exec mtpod0 -it -- ping -c 3 -W 1 172.25.0.7
-    retryCountOnTaskFailure: 3
-    name: "Swiftv2_Tests"
-    displayName: "Swiftv2 Tests through script"
-
-  - script: |
-      set -e
-      kubectl get po -owide -A
       cd test/integration/swiftv2
       echo "TestSwiftv2PodToPod and will run it after migration from scripts."
       go test -count=1 swiftv2_test.go -timeout 3m -tags swiftv2 -run ^TestSwiftv2PodToPod$ -tags=swiftv2,integration -v
