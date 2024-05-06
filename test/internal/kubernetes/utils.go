@@ -73,6 +73,20 @@ func MustGetRestConfig() *rest.Config {
 	}
 	return config
 }
+
+func GetRESTClientForMultitenantCRDFromConfig(config *rest.Config) (*rest.RESTClient, error) {
+	scheme := runtime.NewScheme()
+	err := v1alpha1.AddToScheme(scheme)
+	if err != nil {
+		return nil, err
+	}
+	config.ContentConfig.GroupVersion = &v1alpha1.GroupVersion
+	config.APIPath = "/apis"
+	config.NegotiatedSerializer = serializer.NewCodecFactory(scheme)
+	config.UserAgent = rest.DefaultKubernetesUserAgent()
+	return rest.UnversionedRESTClientFor(config)
+}
+
 func GetRESTClientForMultitenantCRD(kubeconfig string) (*rest.RESTClient, error) {
 	scheme := runtime.NewScheme()
 	err := v1alpha1.AddToScheme(scheme)

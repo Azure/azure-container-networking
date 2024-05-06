@@ -3,27 +3,18 @@
 package swiftv2
 
 import (
-	"bytes"
 	"context"
 	"flag"
-	"fmt"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/Azure/azure-container-networking/crd/multitenancy/api/v1alpha1"
-	k8s "github.com/Azure/azure-container-networking/test/integration"
-	"github.com/Azure/azure-container-networking/test/integration/goldpinger"
 	"github.com/Azure/azure-container-networking/test/internal/kubernetes"
 	"github.com/Azure/azure-container-networking/test/internal/retry"
-	"github.com/pkg/errors"
-	k8scorev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
-	k8smetav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	k8sclientset "k8s.io/client-go/kubernetes"
-	k8sscheme "k8s.io/client-go/kubernetes/scheme"
-	"k8s.io/client-go/tools/clientcmd"
-	"k8s.io/client-go/tools/remotecommand"
+	kuberneteslib "k8s.io/client-go/kubernetes"
+	restclient "k8s.io/client-go/rest"
 )
 
 const (
@@ -46,7 +37,7 @@ const (
 	gpDaemonset                = gpFolder + "/daemonset.yaml"
 	gpDaemonsetIPv6            = gpFolder + "/daemonset-ipv6.yaml"
 	gpDeployment               = gpFolder + "/deployment.yaml"
-	IpsInAnotherCluster        = "172.25.0.27"
+	IpsInAnotherCluster        = "172.25.0.7"
 )
 
 var (
@@ -111,91 +102,10 @@ func setupLinuxEnvironment(t *testing.T) {
 	t.Log("Linux test environment ready")
 }
 
-func TestDatapathLinux(t *testing.T) {
-	ctx := context.Background()
-
-	t.Log("Get REST config")
-	restConfig := kubernetes.MustGetRestConfig()
-
-	t.Log("Get REST Client from REST config")
-
-	//crdClient, err := kubernetes.GetRESTClientForMultitenantCRD(*kubernetes.Kubeconfig)
-
-	t.Log("Create Clientset")
-	clientset := kubernetes.MustGetClientset()
-
-	setupLinuxEnvironment(t)
-	podLabelSelector := kubernetes.CreateLabelSelector(pniKey, podPrefix)
-
-	t.Run("Linux ping tests", func(t *testing.T) {
-		// Check goldpinger health
-		t.Run("all pods have IPs assigned", func(t *testing.T) {
-			err := kubernetes.WaitForPodsRunning(ctx, clientset, *podNamespace, podLabelSelector)
-			if err != nil {
-				t.Fatalf("Pods are not in running state due to %+v", err)
-			}
-			t.Log("all pods have been allocated IPs")
-		})
-
-		t.Run("all linux pods can ping each other", func(t *testing.T) {
-			clusterCheckCtx, cancel := context.WithTimeout(ctx, 3*time.Minute)
-			defer cancel()
-
-			pfOpts := k8s.PortForwardingOpts{
-				Namespace:     *podNamespace,
-				LabelSelector: podLabelSelector,
-				LocalPort:     9090,
-				DestPort:      8080,
-			}
-
-			pf, err := k8s.NewPortForwarder(restConfig, t, pfOpts)
-			if err != nil {
-				t.Fatal(err)
-			}
-
-			portForwardCtx, cancel := context.WithTimeout(ctx, defaultTimeoutSeconds*time.Second)
-			defer cancel()
-
-			portForwardFn := func() error {
-				err := pf.Forward(portForwardCtx)
-				if err != nil {
-					t.Logf("unable to start port forward: %v", err)
-					return err
-				}
-				return nil
-			}
-
-			if err := defaultRetrier.Do(portForwardCtx, portForwardFn); err != nil {
-				t.Fatalf("could not start port forward within %d: %v", defaultTimeoutSeconds, err)
-			}
-			defer pf.Stop()
-
-			gpClient := goldpinger.Client{Host: pf.Address()}
-			clusterCheckFn := func() error {
-				clusterState, err := gpClient.CheckAll(clusterCheckCtx)
-				if err != nil {
-					return err
-				}
-				stats := goldpinger.ClusterStats(clusterState)
-				stats.PrintStats()
-				if stats.AllPingsHealthy() {
-					return nil
-				}
-
-				return errors.New("not all pings are healthy")
-			}
-			retrier := retry.Retrier{Attempts: goldpingerRetryCount, Delay: goldpingerDelayTimeSeconds * time.Second}
-			if err := retrier.Do(clusterCheckCtx, clusterCheckFn); err != nil {
-				t.Fatalf("goldpinger pods network health could not reach healthy state after %d seconds: %v", goldpingerRetryCount*goldpingerDelayTimeSeconds, err)
-			}
-
-			t.Log("all pings successful!")
-		})
-	})
-}
-
 func GetMultitenantPodNetworkConfig(t *testing.T, ctx context.Context, kubeconfig, namespace, name string) v1alpha1.MultitenantPodNetworkConfig {
-	crdClient, err := kubernetes.GetRESTClientForMultitenantCRD(*kubernetes.Kubeconfig)
+	config := kubernetes.MustGetRestConfig()
+	crdClient, err := kubernetes.GetRESTClientForMultitenantCRDFromConfig(config)
+	t.Logf("config is %s", config)
 	if err != nil {
 		t.Fatalf("failed to get multitenant crd rest client: %s", err)
 	}
@@ -211,95 +121,22 @@ func GetMultitenantPodNetworkConfig(t *testing.T, ctx context.Context, kubeconfi
 	return mtpnc
 }
 
-// PodExecWithError executes a command in a pod by using its first container.
-// It returns the stdout, stderr and error.
-func PodExecWithError(
-	t *testing.T,
-	kubeconfig string,
-	podName string, namespace string,
-	command []string,
-) (string, string, error) {
-	clientcmdConfig, err := clientcmd.Load([]byte(kubeconfig))
-	if err != nil {
-		return "", "", fmt.Errorf("failed to load kube config: %w", err)
-	}
-
-	directClientcmdConfig := clientcmd.NewNonInteractiveClientConfig(
-		*clientcmdConfig,
-		"", // default context
-		&clientcmd.ConfigOverrides{},
-		nil, // config access
-	)
-
-	clientRestConfig, err := directClientcmdConfig.ClientConfig()
-	if err != nil {
-		return "", "", fmt.Errorf("failed to create kube client config: %w", err)
-	}
-
-	clientRestConfig.Timeout = 10 * time.Minute
-
-	client, err := k8sclientset.NewForConfig(clientRestConfig)
-	if err != nil {
-		return "", "", fmt.Errorf("failed to create kube clientset: %w", err)
-	}
-
-	pod, err := client.CoreV1().Pods(namespace).Get(context.TODO(), podName, k8smetav1.GetOptions{})
-	if err != nil {
-		return "", "", fmt.Errorf("get pod: %w", err)
-	}
-	containerName := pod.Spec.Containers[0].Name
-	req := client.CoreV1().RESTClient().Post().
-		Resource("pods").
-		Name(podName).
-		Namespace(namespace).
-		SubResource("exec").
-		Param("container", containerName)
-
-	req.VersionedParams(&k8scorev1.PodExecOptions{
-		Command:   command,
-		Stdin:     false,
-		Stdout:    true,
-		Stderr:    true,
-		TTY:       false,
-		Container: containerName,
-	}, k8sscheme.ParameterCodec)
-
-	var stdout, stderr bytes.Buffer
-	executor, err := remotecommand.NewSPDYExecutor(clientRestConfig, "POST", req.URL())
-	if err != nil {
-		return "", "", fmt.Errorf("NewSPDYExecutor: %w", err)
-	}
-
-	// NOTE: remotecommand is not a Kubernetes pod resource API used here, but a tool API.
-	ctx := context.Background()
-	// yes, 3 mins is a magic number
-	ctx, cancel := context.WithTimeout(ctx, 3*time.Minute)
-	defer cancel()
-	t.Logf("executing command: %s", strings.Join(command, " "))
-	readStreamErr := executor.StreamWithContext(ctx, remotecommand.StreamOptions{
-		Stdin:  nil,
-		Stdout: &stdout,
-		Stderr: &stderr,
-		Tty:    false,
-	})
-
-	// FIXME(hbc): Windows validation expect stdout/stderr output even seeing error
-	//             therefore we need to return the stdout/stderr output here
-	stdoutRead := strings.TrimSpace(stdout.String())
-	stderrRead := strings.TrimSpace(stderr.String())
-	return stdoutRead, stderrRead, readStreamErr
-}
-
 func TestSwiftv2PodToPod(t *testing.T) {
 	var (
 		kubeconfig string
 		numNodes   int
 	)
 
+	kubeconfigPath := *kubernetes.GetKubeconfig()
+	t.Logf("TestSwiftv2PodToPod kubeconfig is %v", kubeconfigPath)
+
 	ctx := context.Background()
 
 	t.Log("Create Clientset")
 	clientset := kubernetes.MustGetClientset()
+	t.Log("Get Clientset config")
+	restConfig := kubernetes.MustGetRestConfig()
+	t.Log("rest config is", restConfig)
 
 	t.Log("Create Label Selectors")
 	podLabelSelector := kubernetes.CreateLabelSelector(pniKey, podPrefix)
@@ -331,6 +168,7 @@ func TestSwiftv2PodToPod(t *testing.T) {
 			t.Fatalf("No pod on node: %v", node.Name)
 		}
 		for _, pod := range pods.Items {
+			t.Logf("Pod name is %s", pod.Name)
 			allPods = append(allPods, pod)
 			mtpnc := GetMultitenantPodNetworkConfig(t, ctx, kubeconfig, pod.Namespace, pod.Name)
 			if len(pod.Status.PodIPs) != 1 {
@@ -350,17 +188,20 @@ func TestSwiftv2PodToPod(t *testing.T) {
 	for _, pod := range allPods {
 		for _, ip := range ipsToPing {
 			t.Logf("ping from pod %q to %q", pod.Name, ip)
-			stdout, stderr, err := PodExecWithError(
-				t,
-				kubeconfig,
-				pod.Name,
-				pod.Namespace,
-				[]string{"ping", "-c", "3", ip},
-			)
-			if err != nil {
-				t.Errorf("ping %q failed: error: %s, stdout: %s, stderr: %s", ip, err, stdout, stderr)
+			result := podTest(t, ctx, clientset, pod, []string{"ping", "-c", "3", ip}, restConfig)
+			if result != nil {
+				t.Errorf("ping %q failed: error: %s", ip, result)
 			}
 		}
 	}
 	return
+}
+
+func podTest(t *testing.T, ctx context.Context, clientset *kuberneteslib.Clientset, srcPod v1.Pod, cmd []string, rc *restclient.Config) error {
+	output, err := kubernetes.ExecCmdOnPod(ctx, clientset, srcPod.Namespace, srcPod.Name, cmd, rc)
+	t.Logf(string(output))
+	if err != nil {
+		t.Errorf("failed to execute command on pod: %v", srcPod.Name)
+	}
+	return err
 }
