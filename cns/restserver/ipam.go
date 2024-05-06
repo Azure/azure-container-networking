@@ -1129,13 +1129,14 @@ func (service *HTTPRestService) UpdateEndpointHandler(w http.ResponseWriter, r *
 	logger.Response(service.Name, response, response.ReturnCode, err)
 }
 
-// UpdateEndpointHelper updates the state of the given endpointId with HNSId or VethName
+// UpdateEndpointHelper updates the state of the given endpointId with HNSId, VethName or other InterfaceInfo fields
 func (service *HTTPRestService) UpdateEndpointHelper(endpointID string, req map[string]*IPInfo) error {
 	if service.EndpointStateStore == nil {
 		return ErrStoreEmpty
 	}
 	logger.Printf("[updateEndpoint] Updating endpoint state for infra container %s", endpointID)
 	if endpointInfo, ok := service.EndpointState[endpointID]; ok {
+		// Updating the InterfaceInfo map of endpoint states with the interfaceInfo map that is given by Stateless Azure CNI
 		for ifName, interfaceInfo := range req {
 			// This codition will create a map for SecodaryNIC and also also creates MAP entry for InfraNic in case that the initial goalState is using empty InterfaceName
 			if _, keyExist := service.EndpointState[endpointID].IfnameToIPMap[ifName]; !keyExist {

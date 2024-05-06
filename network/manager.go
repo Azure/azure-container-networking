@@ -38,6 +38,7 @@ const (
 	InfraInterfaceName   = "eth0"
 	ContainerIDLength    = 8
 	EndpointIfIndex      = 0 // Azure CNI supports only one interface
+	DefaultNetworkID     = "azure"
 )
 
 var Ipv4DefaultRouteDstPrefix = net.IPNet{
@@ -442,8 +443,10 @@ func (nm *networkManager) GetEndpointState(networkID, endpointID string) (*Endpo
 		return nil, errors.Wrapf(err, "Get endpoint API returend with error")
 	}
 	epInfo := cnsEndpointInfotoCNIEpInfo(endpointResponse.EndpointInfo, endpointID)
-
 	if epInfo.IsEndpointStateIncomplete() {
+		if networkID == "" {
+			networkID = DefaultNetworkID
+		}
 		epInfo, err = epInfo.GetEndpointInfoByIPImpl(epInfo.IPAddresses, networkID)
 		if err != nil {
 			return nil, errors.Wrapf(err, "Get endpoint API returend with error")

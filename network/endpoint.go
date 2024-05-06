@@ -353,7 +353,7 @@ func GetPodNameWithoutSuffix(podName string) string {
 
 // IsEndpointStateInComplete returns true if both HNSEndpointID and HostVethName are missing.
 func (epInfo *EndpointInfo) IsEndpointStateIncomplete() bool {
-	if epInfo.HNSEndpointID == "" && epInfo.IfName == "" {
+	if epInfo.HNSEndpointID == "" && epInfo.HostIfName == "" {
 		return true
 	}
 	return false

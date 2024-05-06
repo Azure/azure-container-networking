@@ -500,6 +500,7 @@ func (nm *networkManager) updateEndpointImpl(nw *network, existingEpInfo *Endpoi
 // GetEndpointInfoByIPImpl returns an endpointInfo with the corrsponding HNS Endpoint ID that matches an specific IP Address.
 func (epInfo *EndpointInfo) GetEndpointInfoByIPImpl(ipAddresses []net.IPNet, networkID string) (*EndpointInfo, error) {
 	// check if network exists, only create the network does not exist
+	logger.Info("Fetching missing HNS endpoint id for endpoints in network with id", zap.String("id", networkID))
 	hnsResponse, err := Hnsv2.GetNetworkByName(networkID)
 	if err != nil {
 		return epInfo, errors.Wrapf(err, "HNS Network not found")
@@ -513,6 +514,7 @@ func (epInfo *EndpointInfo) GetEndpointInfoByIPImpl(ipAddresses []net.IPNet, net
 			for _, ipAddress := range ipAddresses {
 				prefixLength, _ := ipAddress.Mask.Size()
 				if ipConfiguration.IpAddress == ipAddress.IP.String() && ipConfiguration.PrefixLength == uint8(prefixLength) {
+					logger.Info("Successfully found hcn endpoint id", zap.String("id", hcnEndpoints[i].Id))
 					epInfo.HNSEndpointID = hcnEndpoints[i].Id
 					return epInfo, nil
 				}
