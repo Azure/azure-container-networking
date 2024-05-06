@@ -7,49 +7,33 @@ import (
 	"flag"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/Azure/azure-container-networking/crd/multitenancy/api/v1alpha1"
 	"github.com/Azure/azure-container-networking/test/internal/kubernetes"
-	"github.com/Azure/azure-container-networking/test/internal/retry"
 	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kuberneteslib "k8s.io/client-go/kubernetes"
 	restclient "k8s.io/client-go/rest"
 )
 
 const (
-	pniKey                     = "kubernetes.azure.com/pod-network-instance"
-	podCount                   = 2
-	nodepoolKey                = "agentpool"
-	LinuxDeployIPV4            = "../manifests/datapath/linux-deployment.yaml"
-	podNetworkYaml             = "../manifests/swiftv2/podnetwork.yaml"
-	mtpodYaml                  = "../manifests/swiftv2/mtpod0.yaml"
-	pniYaml                    = "../manifests/swiftv2/pni.yaml"
-	maxRetryDelaySeconds       = 10
-	defaultTimeoutSeconds      = 120
-	defaultRetryDelaySeconds   = 1
-	goldpingerRetryCount       = 24
-	goldpingerDelayTimeSeconds = 5
-	gpFolder                   = "../manifests/goldpinger"
-	gpClusterRolePath          = gpFolder + "/cluster-role.yaml"
-	gpClusterRoleBindingPath   = gpFolder + "/cluster-role-binding.yaml"
-	gpServiceAccountPath       = gpFolder + "/service-account.yaml"
-	gpDaemonset                = gpFolder + "/daemonset.yaml"
-	gpDaemonsetIPv6            = gpFolder + "/daemonset-ipv6.yaml"
-	gpDeployment               = gpFolder + "/deployment.yaml"
-	IpsInAnotherCluster        = "172.25.0.7"
+	pniKey                   = "kubernetes.azure.com/pod-network-instance"
+	podCount                 = 2
+	nodepoolKey              = "agentpool"
+	podNetworkYaml           = "../manifests/swiftv2/podnetwork.yaml"
+	mtpodYaml                = "../manifests/swiftv2/mtpod0.yaml"
+	pniYaml                  = "../manifests/swiftv2/pni.yaml"
+	maxRetryDelaySeconds     = 10
+	defaultTimeoutSeconds    = 120
+	defaultRetryDelaySeconds = 1
+	IpsInAnotherCluster      = "172.25.0.7"
+	namespace                = "default"
 )
 
 var (
 	podPrefix        = flag.String("podnetworkinstance", "pni1", "the pni pod used")
 	podNamespace     = flag.String("namespace", "default", "Namespace for test pods")
 	nodepoolSelector = flag.String("nodelabel", "mtapool", "One of the node label and the key is agentpool")
-	// TODO: add flag to support dual nic scenario
-	isDualStack    = flag.Bool("isDualStack", false, "whether system supports dualstack scenario")
-	defaultRetrier = retry.Retrier{
-		Attempts: 10,
-		Delay:    defaultRetryDelaySeconds * time.Second,
-	}
 )
 
 /*
@@ -140,52 +124,34 @@ func TestSwiftv2PodToPod(t *testing.T) {
 
 	t.Log("Create Label Selectors")
 	podLabelSelector := kubernetes.CreateLabelSelector(pniKey, podPrefix)
-	nodeLabelSelector := kubernetes.CreateLabelSelector(nodepoolKey, nodepoolSelector)
-
-	t.Log("Get Nodes")
-	nodes, err := kubernetes.GetNodeListByLabelSelector(ctx, clientset, nodeLabelSelector)
-	if err != nil {
-		t.Fatalf("could not get k8s node list: %v", err)
-	}
-
-	t.Log("Waiting for pods to be running state")
-	err = kubernetes.WaitForPodsRunning(ctx, clientset, *podNamespace, podLabelSelector)
-	if err != nil {
-		t.Fatalf("Pods are not in running state due to %+v", err)
-	}
 
 	t.Log("Successfully created customer Linux pods")
 
 	t.Log("Checking swiftv2 multitenant pods number and get IPs")
-	allPods := make([]v1.Pod, numNodes)
 	ipsToPing := make([]string, 0, numNodes)
-	for _, node := range nodes.Items {
-		pods, err := kubernetes.GetPodsByNode(ctx, clientset, *podNamespace, podLabelSelector, node.Name)
-		if err != nil {
-			t.Fatalf("could not get k8s clientset: %v", err)
+
+	podsClient := clientset.CoreV1().Pods(namespace)
+	allPods, err := podsClient.List(ctx, metav1.ListOptions{LabelSelector: podLabelSelector})
+	if err != nil {
+		t.Fatalf("could not get pods from clientset: %v", err)
+	}
+	for _, pod := range allPods.Items {
+		t.Logf("Pod name is %s", pod.Name)
+		mtpnc := GetMultitenantPodNetworkConfig(t, ctx, kubeconfig, pod.Namespace, pod.Name)
+		if len(pod.Status.PodIPs) != 1 {
+			t.Fatalf("Pod doesn't have any IP associated.")
 		}
-		if len(pods.Items) < 1 {
-			t.Fatalf("No pod on node: %v", node.Name)
+		// remove /32 from PrimaryIP
+		splitcidr := strings.Split(mtpnc.Status.PrimaryIP, "/")
+		if len(splitcidr) != 2 {
+			t.Fatalf("Split Pods IP with its cidr failed.")
 		}
-		for _, pod := range pods.Items {
-			t.Logf("Pod name is %s", pod.Name)
-			allPods = append(allPods, pod)
-			mtpnc := GetMultitenantPodNetworkConfig(t, ctx, kubeconfig, pod.Namespace, pod.Name)
-			if len(pod.Status.PodIPs) != 1 {
-				t.Fatalf("Pod doesn't have any IP associated.")
-			}
-			// remove /32 from PrimaryIP
-			splitcidr := strings.Split(mtpnc.Status.PrimaryIP, "/")
-			if len(splitcidr) != 2 {
-				t.Fatalf("Split Pods IP with its cidr failed.")
-			}
-			ipsToPing = append(ipsToPing, splitcidr[0])
-		}
+		ipsToPing = append(ipsToPing, splitcidr[0])
 	}
 	ipsToPing = append(ipsToPing, IpsInAnotherCluster)
 	t.Log("Linux test environment ready")
 
-	for _, pod := range allPods {
+	for _, pod := range allPods.Items {
 		for _, ip := range ipsToPing {
 			t.Logf("ping from pod %q to %q", pod.Name, ip)
 			result := podTest(t, ctx, clientset, pod, []string{"ping", "-c", "3", ip}, restConfig)
