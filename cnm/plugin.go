@@ -121,7 +121,7 @@ func (plugin *Plugin) activate(w http.ResponseWriter, r *http.Request) {
 	log.Request(plugin.Name, &req, nil)
 
 	resp := ActivateResponse{Implements: plugin.Listener.GetEndpoints()}
-	err := plugin.Listener.Encode(w, &resp)
+	err := common.Encode(w, &resp)
 
 	log.Response(plugin.Name, &resp, 0, "Success", err)
 }
@@ -129,7 +129,7 @@ func (plugin *Plugin) activate(w http.ResponseWriter, r *http.Request) {
 // SendErrorResponse sends and logs an error response.
 func (plugin *Plugin) SendErrorResponse(w http.ResponseWriter, errMsg error) {
 	resp := errorResponse{errMsg.Error()}
-	err := plugin.Listener.Encode(w, &resp)
+	err := common.Encode(w, &resp)
 
 	log.Response(plugin.Name, &resp, 0, "Success", err)
 }

@@ -188,6 +188,9 @@ func NewHTTPRestService(config *common.ServiceConfig, wscli interfaceGetter, wsp
 		return nil, errors.Wrap(err, "failed to get primary interface from IMDS response")
 	}
 
+	// add primaryInterfaceIP to cns config
+	config.Server.PrimaryInterfaceIP = primaryInterface.PrimaryIP
+
 	serviceState := &httpRestServiceState{
 		Networks:         make(map[string]*networkInfo),
 		joinedNetworks:   make(map[string]struct{}),
