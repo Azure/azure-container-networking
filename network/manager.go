@@ -426,7 +426,6 @@ func (nm *networkManager) CreateEndpoint(cli apipaClient, networkID string, epIn
 func (nm *networkManager) UpdateEndpointState(ep *endpoint) error {
 	ifnameToIPInfoMap := generateCNSIPInfoMap(ep) // key : interface name, value : IPInfo
 	logger.Info("Calling cns updateEndpoint API with ", zap.String("containerID: ", ep.ContainerID), zap.String("HnsId: ", ep.HnsId), zap.String("HostIfName: ", ep.HostIfName))
-	logger.Info("ifnameToIPInfoMap:", zap.Any("ifnameToIPInfoMap", ifnameToIPInfoMap))
 	response, err := nm.CnsClient.UpdateEndpoint(context.TODO(), ep.ContainerID, ifnameToIPInfoMap)
 	if err != nil {
 		return errors.Wrapf(err, "Update endpoint API returend with error")
@@ -705,11 +704,14 @@ func cnsEndpointInfotoCNIEpInfo(endpointInfo restserver.EndpointInfo, endpointID
 	}
 
 	for ifName, ipInfo := range endpointInfo.IfnameToIPMap {
+		// This is an special case for endpoint state that are being crated by statefull CNI
+		if ifName == "" {
+			ifName = InfraInterfaceName
+		}
+		// TODO: DelegatedNIC state will be added in a future PR
 		if ifName != InfraInterfaceName {
-			// TODO: filling out the SecondaryNICs from the state for Swift 2.0
 			continue
 		}
-		// filling out the InfraNIC from the state
 		epInfo.IPAddresses = ipInfo.IPv4
 		epInfo.IPAddresses = append(epInfo.IPAddresses, ipInfo.IPv6...)
 		epInfo.IfName = ifName
