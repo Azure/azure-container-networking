@@ -38,8 +38,16 @@ type ServiceConfig struct {
 	Listener    *acn.Listener
 	ErrChan     chan<- error
 	Store       store.KeyValueStore
+	Server      server
 	ChannelMode string
-	TlsSettings tls.TlsSettings
+	TLSSettings tls.TlsSettings
+}
+
+// server struct to store primaryInterfaceIP from VM, port where customer provides by -p and temporary flag EnableLocalServer
+type server struct {
+	PrimaryInterfaceIP string
+	Port               string
+	EnableLocalServer  bool // TODO: Remove this flag once -c option gets deprecated
 }
 
 // NewService creates a new Service object.

@@ -94,7 +94,7 @@ func (service *HTTPRestService) requestIPConfigHandlerHelper(ctx context.Context
 // RequestIPConfigHandler requests an IPConfig from the CNS state
 func (service *HTTPRestService) RequestIPConfigHandler(w http.ResponseWriter, r *http.Request) {
 	var ipconfigRequest cns.IPConfigRequest
-	err := service.Listener.Decode(w, r, &ipconfigRequest)
+	err := common.Decode(w, r, &ipconfigRequest)
 	operationName := "requestIPConfigHandler"
 	logger.Request(service.Name+operationName, ipconfigRequest, err)
 	if err != nil {
@@ -111,7 +111,7 @@ func (service *HTTPRestService) RequestIPConfigHandler(w http.ResponseWriter, r 
 			},
 		}
 		w.Header().Set(cnsReturnCode, reserveResp.Response.ReturnCode.String())
-		err = service.Listener.Encode(w, &reserveResp)
+		err = common.Encode(w, &reserveResp)
 		logger.ResponseEx(service.Name+operationName, ipconfigRequest, reserveResp, reserveResp.Response.ReturnCode, err)
 		return
 	}
@@ -136,7 +136,7 @@ func (service *HTTPRestService) RequestIPConfigHandler(w http.ResponseWriter, r 
 			Response: ipConfigsResp.Response,
 		}
 		w.Header().Set(cnsReturnCode, reserveResp.Response.ReturnCode.String())
-		err = service.Listener.Encode(w, &reserveResp)
+		err = common.Encode(w, &reserveResp)
 		logger.ResponseEx(service.Name+operationName, ipconfigsRequest, reserveResp, reserveResp.Response.ReturnCode, err)
 		return
 	}
@@ -152,7 +152,7 @@ func (service *HTTPRestService) RequestIPConfigHandler(w http.ResponseWriter, r 
 			},
 		}
 		w.Header().Set(cnsReturnCode, reserveResp.Response.ReturnCode.String())
-		err = service.Listener.Encode(w, &reserveResp)
+		err = common.Encode(w, &reserveResp)
 		logger.ResponseEx(service.Name+operationName, ipconfigRequest, reserveResp, reserveResp.Response.ReturnCode, err)
 		return
 	}
@@ -162,14 +162,14 @@ func (service *HTTPRestService) RequestIPConfigHandler(w http.ResponseWriter, r 
 		PodIpInfo: ipConfigsResp.PodIPInfo[0],
 	}
 	w.Header().Set(cnsReturnCode, reserveResp.Response.ReturnCode.String())
-	err = service.Listener.Encode(w, &reserveResp)
+	err = common.Encode(w, &reserveResp)
 	logger.ResponseEx(service.Name+operationName, ipconfigsRequest, reserveResp, reserveResp.Response.ReturnCode, err)
 }
 
 // RequestIPConfigsHandler requests multiple IPConfigs from the CNS state
 func (service *HTTPRestService) RequestIPConfigsHandler(w http.ResponseWriter, r *http.Request) {
 	var ipconfigsRequest cns.IPConfigsRequest
-	err := service.Listener.Decode(w, r, &ipconfigsRequest)
+	err := common.Decode(w, r, &ipconfigsRequest)
 	operationName := "requestIPConfigsHandler"
 	logger.Request(service.Name+operationName, ipconfigsRequest, err)
 	if err != nil {
@@ -188,13 +188,13 @@ func (service *HTTPRestService) RequestIPConfigsHandler(w http.ResponseWriter, r
 
 	if err != nil {
 		w.Header().Set(cnsReturnCode, ipConfigsResp.Response.ReturnCode.String())
-		err = service.Listener.Encode(w, &ipConfigsResp)
+		err = common.Encode(w, &ipConfigsResp)
 		logger.ResponseEx(service.Name+operationName, ipconfigsRequest, ipConfigsResp, ipConfigsResp.Response.ReturnCode, err)
 		return
 	}
 
 	w.Header().Set(cnsReturnCode, ipConfigsResp.Response.ReturnCode.String())
-	err = service.Listener.Encode(w, &ipConfigsResp)
+	err = common.Encode(w, &ipConfigsResp)
 	logger.ResponseEx(service.Name+operationName, ipconfigsRequest, ipConfigsResp, ipConfigsResp.Response.ReturnCode, err)
 }
 
@@ -304,7 +304,7 @@ func (service *HTTPRestService) ReleaseIPConfigHandlerHelper(ctx context.Context
 // ReleaseIPConfigHandler frees the IP assigned to a pod from CNS
 func (service *HTTPRestService) ReleaseIPConfigHandler(w http.ResponseWriter, r *http.Request) {
 	var ipconfigRequest cns.IPConfigRequest
-	err := service.Listener.Decode(w, r, &ipconfigRequest)
+	err := common.Decode(w, r, &ipconfigRequest)
 	logger.Request(service.Name+"releaseIPConfigHandler", ipconfigRequest, err)
 	if err != nil {
 		resp := cns.Response{
@@ -313,7 +313,7 @@ func (service *HTTPRestService) ReleaseIPConfigHandler(w http.ResponseWriter, r 
 		}
 		logger.Errorf("releaseIPConfigHandler decode failed becase %v, release IP config info %s", resp.Message, ipconfigRequest)
 		w.Header().Set(cnsReturnCode, resp.ReturnCode.String())
-		err = service.Listener.Encode(w, &resp)
+		err = common.Encode(w, &resp)
 		logger.ResponseEx(service.Name, ipconfigRequest, resp, resp.ReturnCode, err)
 		return
 	}
@@ -327,7 +327,7 @@ func (service *HTTPRestService) ReleaseIPConfigHandler(w http.ResponseWriter, r 
 			},
 		}
 		w.Header().Set(cnsReturnCode, reserveResp.Response.ReturnCode.String())
-		err = service.Listener.Encode(w, &reserveResp)
+		err = common.Encode(w, &reserveResp)
 		logger.ResponseEx(service.Name, ipconfigRequest, reserveResp, reserveResp.Response.ReturnCode, err)
 		return
 	}
@@ -345,19 +345,19 @@ func (service *HTTPRestService) ReleaseIPConfigHandler(w http.ResponseWriter, r 
 	resp, err := service.ReleaseIPConfigHandlerHelper(r.Context(), ipconfigsRequest)
 	if err != nil {
 		w.Header().Set(cnsReturnCode, resp.Response.ReturnCode.String())
-		err = service.Listener.Encode(w, &resp)
+		err = common.Encode(w, &resp)
 		logger.ResponseEx(service.Name, ipconfigRequest, resp, resp.Response.ReturnCode, err)
 	}
 
 	w.Header().Set(cnsReturnCode, resp.Response.ReturnCode.String())
-	err = service.Listener.Encode(w, &resp)
+	err = common.Encode(w, &resp)
 	logger.ResponseEx(service.Name, ipconfigRequest, resp, resp.Response.ReturnCode, err)
 }
 
 // ReleaseIPConfigsHandler frees multiple IPConfigs from the CNS state
 func (service *HTTPRestService) ReleaseIPConfigsHandler(w http.ResponseWriter, r *http.Request) {
 	var ipconfigsRequest cns.IPConfigsRequest
-	err := service.Listener.Decode(w, r, &ipconfigsRequest)
+	err := common.Decode(w, r, &ipconfigsRequest)
 	logger.Request(service.Name+"releaseIPConfigsHandler", ipconfigsRequest, err)
 	if err != nil {
 		resp := cns.Response{
@@ -366,7 +366,7 @@ func (service *HTTPRestService) ReleaseIPConfigsHandler(w http.ResponseWriter, r
 		}
 		logger.Errorf("releaseIPConfigsHandler decode failed because %v, release IP config info %+v", resp.Message, ipconfigsRequest)
 		w.Header().Set(cnsReturnCode, resp.ReturnCode.String())
-		err = service.Listener.Encode(w, &resp)
+		err = common.Encode(w, &resp)
 		logger.ResponseEx(service.Name, ipconfigsRequest, resp, resp.ReturnCode, err)
 		return
 	}
@@ -374,12 +374,12 @@ func (service *HTTPRestService) ReleaseIPConfigsHandler(w http.ResponseWriter, r
 	resp, err := service.ReleaseIPConfigHandlerHelper(r.Context(), ipconfigsRequest)
 	if err != nil {
 		w.Header().Set(cnsReturnCode, resp.Response.ReturnCode.String())
-		err = service.Listener.Encode(w, &resp)
+		err = common.Encode(w, &resp)
 		logger.ResponseEx(service.Name, ipconfigsRequest, resp, resp.Response.ReturnCode, err)
 	}
 
 	w.Header().Set(cnsReturnCode, resp.Response.ReturnCode.String())
-	err = service.Listener.Encode(w, &resp)
+	err = common.Encode(w, &resp)
 	logger.ResponseEx(service.Name, ipconfigsRequest, resp, resp.Response.ReturnCode, err)
 }
 
@@ -566,7 +566,7 @@ func (service *HTTPRestService) HandleDebugPodContext(w http.ResponseWriter, r *
 	resp := cns.GetPodContextResponse{
 		PodContext: service.PodIPIDByPodInterfaceKey,
 	}
-	err := service.Listener.Encode(w, &resp)
+	err := common.Encode(w, &resp)
 	logger.Response(service.Name, resp, resp.Response.ReturnCode, err)
 }
 
@@ -579,20 +579,20 @@ func (service *HTTPRestService) HandleDebugRestData(w http.ResponseWriter, r *ht
 			PodIPConfigState:         service.PodIPConfigState,
 		},
 	}
-	err := service.Listener.Encode(w, &resp)
+	err := common.Encode(w, &resp)
 	logger.Response(service.Name, resp, resp.Response.ReturnCode, err)
 }
 
 func (service *HTTPRestService) HandleDebugIPAddresses(w http.ResponseWriter, r *http.Request) {
 	var req cns.GetIPAddressesRequest
-	if err := service.Listener.Decode(w, r, &req); err != nil {
+	if err := common.Decode(w, r, &req); err != nil {
 		resp := cns.GetIPAddressStatusResponse{
 			Response: cns.Response{
 				ReturnCode: types.UnexpectedError,
 				Message:    err.Error(),
 			},
 		}
-		err = service.Listener.Encode(w, &resp)
+		err = common.Encode(w, &resp)
 		logger.ResponseEx(service.Name, req, resp, resp.Response.ReturnCode, err)
 		return
 	}
@@ -600,7 +600,7 @@ func (service *HTTPRestService) HandleDebugIPAddresses(w http.ResponseWriter, r 
 	resp := cns.GetIPAddressStatusResponse{
 		IPConfigurationStatus: filter.MatchAnyIPConfigState(service.PodIPConfigState, filter.PredicatesForStates(req.IPConfigStateFilter...)...),
 	}
-	err := service.Listener.Encode(w, &resp)
+	err := common.Encode(w, &resp)
 	logger.ResponseEx(service.Name, req, resp, resp.Response.ReturnCode, err)
 }
 
@@ -991,7 +991,7 @@ func (service *HTTPRestService) EndpointHandlerAPI(w http.ResponseWriter, r *htt
 			ReturnCode: types.UnexpectedError,
 			Message:    fmt.Sprintf("[EndpointHandlerAPI] EndpointHandlerAPI failed with error: %s", ErrOptManageEndpointState),
 		}
-		err := service.Listener.Encode(w, &response)
+		err := common.Encode(w, &response)
 		logger.Response(service.Name, response, response.ReturnCode, err)
 		return
 	}
@@ -1027,7 +1027,7 @@ func (service *HTTPRestService) GetEndpointHandler(w http.ResponseWriter, r *htt
 			}
 		}
 		w.Header().Set(cnsReturnCode, response.Response.ReturnCode.String())
-		err = service.Listener.Encode(w, &response)
+		err = common.Encode(w, &response)
 		logger.Response(service.Name, response, response.Response.ReturnCode, err)
 		return
 	}
@@ -1039,7 +1039,7 @@ func (service *HTTPRestService) GetEndpointHandler(w http.ResponseWriter, r *htt
 		EndpointInfo: *endpointInfo,
 	}
 	w.Header().Set(cnsReturnCode, response.Response.ReturnCode.String())
-	err = service.Listener.Encode(w, &response)
+	err = common.Encode(w, &response)
 	logger.Response(service.Name, response, response.Response.ReturnCode, err)
 }
 
@@ -1084,7 +1084,7 @@ func (service *HTTPRestService) UpdateEndpointHandler(w http.ResponseWriter, r *
 	logger.Printf("[updateEndpoint] updateEndpoint for %s", r.URL.Path)
 
 	var req map[string]*IPInfo
-	err := service.Listener.Decode(w, r, &req)
+	err := common.Decode(w, r, &req)
 	endpointID := strings.TrimPrefix(r.URL.Path, cns.EndpointPath)
 	logger.Request(service.Name, &req, err)
 	// Check if the request is valid
@@ -1094,7 +1094,7 @@ func (service *HTTPRestService) UpdateEndpointHandler(w http.ResponseWriter, r *
 			Message:    fmt.Sprintf("[updateEndpoint] updateEndpoint failed with error: %s", err.Error()),
 		}
 		w.Header().Set(cnsReturnCode, response.ReturnCode.String())
-		err = service.Listener.Encode(w, &response)
+		err = common.Encode(w, &response)
 		logger.Response(service.Name, response, response.ReturnCode, err)
 		return
 	}
@@ -1104,7 +1104,7 @@ func (service *HTTPRestService) UpdateEndpointHandler(w http.ResponseWriter, r *
 			Message:    err.Error(),
 		}
 		w.Header().Set(cnsReturnCode, response.ReturnCode.String())
-		err = service.Listener.Encode(w, &response)
+		err = common.Encode(w, &response)
 		logger.Response(service.Name, response, response.ReturnCode, err)
 		return
 	}
@@ -1116,7 +1116,7 @@ func (service *HTTPRestService) UpdateEndpointHandler(w http.ResponseWriter, r *
 			Message:    fmt.Sprintf("[updateEndpoint] updateEndpoint failed with error: %s", err.Error()),
 		}
 		w.Header().Set(cnsReturnCode, response.ReturnCode.String())
-		err = service.Listener.Encode(w, &response)
+		err = common.Encode(w, &response)
 		logger.Response(service.Name, response, response.ReturnCode, err)
 		return
 	}
@@ -1125,7 +1125,7 @@ func (service *HTTPRestService) UpdateEndpointHandler(w http.ResponseWriter, r *
 		Message:    "[updateEndpoint] updateEndpoint retruned successfully",
 	}
 	w.Header().Set(cnsReturnCode, response.ReturnCode.String())
-	err = service.Listener.Encode(w, &response)
+	err = common.Encode(w, &response)
 	logger.Response(service.Name, response, response.ReturnCode, err)
 }
 

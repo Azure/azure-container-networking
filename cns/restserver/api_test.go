@@ -1684,6 +1684,8 @@ func startService() error {
 		return err
 	}
 	svc = service.(*HTTPRestService)
+	svc.Service.Options[acncommon.OptCnsURL] = ""
+	svc.Service.Options[acncommon.OptCnsPort] = ""
 	svc.Name = "cns-test-server"
 
 	nmagentClient.GetNCVersionListF = func(context.Context) (nmagent.NCVersionList, error) {
@@ -1719,6 +1721,9 @@ func startService() error {
 		// Create empty azure-cns.json. CNS should start successfully by deleting this file
 		file, _ := os.Create(cnsJsonFileName)
 		file.Close()
+
+		// mock localhost as primary interface IP
+		config.Server.PrimaryInterfaceIP = "localhost"
 
 		err = service.Init(&config)
 		if err != nil {
