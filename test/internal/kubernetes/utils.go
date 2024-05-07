@@ -75,36 +75,44 @@ func MustGetRestConfig() *rest.Config {
 }
 
 func GetRESTClientForMultitenantCRDFromConfig(config *rest.Config) (*rest.RESTClient, error) {
-	scheme := runtime.NewScheme()
-	err := v1alpha1.AddToScheme(scheme)
+	schemeLocal := runtime.NewScheme()
+	err := v1alpha1.AddToScheme(schemeLocal)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "failed to AddToScheme")
 	}
 	config.ContentConfig.GroupVersion = &v1alpha1.GroupVersion
 	config.APIPath = "/apis"
-	config.NegotiatedSerializer = serializer.NewCodecFactory(scheme)
+	config.NegotiatedSerializer = serializer.NewCodecFactory(schemeLocal)
 	config.UserAgent = rest.DefaultKubernetesUserAgent()
-	return rest.UnversionedRESTClientFor(config)
+	client, err := rest.UnversionedRESTClientFor(config)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to UnversionedRESTClientFor config")
+	}
+	return client, nil
 }
 
 func GetRESTClientForMultitenantCRD(kubeconfig string) (*rest.RESTClient, error) {
-	scheme := runtime.NewScheme()
-	err := v1alpha1.AddToScheme(scheme)
+	schemeLocal := runtime.NewScheme()
+	err := v1alpha1.AddToScheme(schemeLocal)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "failed to AddToScheme")
 	}
 
 	restConfig, err := clientcmd.RESTConfigFromKubeConfig([]byte(kubeconfig))
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "failed to get RESTConfigFromKubeConfig")
 	}
 
 	restConfig.ContentConfig.GroupVersion = &v1alpha1.GroupVersion
 	restConfig.APIPath = "/apis"
-	restConfig.NegotiatedSerializer = serializer.NewCodecFactory(scheme)
+	restConfig.NegotiatedSerializer = serializer.NewCodecFactory(schemeLocal)
 	restConfig.UserAgent = rest.DefaultKubernetesUserAgent()
 
-	return rest.UnversionedRESTClientFor(restConfig)
+	client, err := rest.UnversionedRESTClientFor(restConfig)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to UnversionedRESTClientFor config")
+	}
+	return client, nil
 }
 
 func mustParseResource(path string, out interface{}) {
