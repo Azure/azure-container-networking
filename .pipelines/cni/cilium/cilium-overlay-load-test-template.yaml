@@ -88,11 +88,11 @@ stages:
                   else
                     kubectl apply -f test/integration/manifests/cilium/v${DIR}/cilium-config/cilium-config.yaml
                   fi
-                  
+
                   # Passes Cilium image to daemonset and deployment
                   kubectl apply -f test/integration/manifests/cilium/v${DIR}/cilium-agent/files
                   kubectl apply -f test/integration/manifests/cilium/v${DIR}/cilium-operator/files
-                            
+
                   envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/v${DIR}/cilium-agent/templates/daemonset.yaml | kubectl apply -f -
                   envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/v${DIR}/cilium-operator/templates/deployment.yaml | kubectl apply -f -
                   kubectl get po -owide -A
@@ -119,7 +119,7 @@ stages:
                   pwd
                   kubectl cluster-info
                   kubectl get po -owide -A
-                  
+
                   echo "install Cilium onto Overlay Cluster with hubble enabled"
                   export CILIUM_VERSION_TAG=${CILIUM_HUBBLE_VERSION_TAG}
                   export DIR=${CILIUM_VERSION_TAG%.*}
@@ -134,7 +134,7 @@ stages:
                   echo "Deploy Azure-CNS"
                   sudo -E env "PATH=$PATH" make test-integration AZURE_IPAM_VERSION=$(make azure-ipam-version) CNS_VERSION=$(make cns-version) INSTALL_CNS=true INSTALL_OVERLAY=true CNS_IMAGE_REPO=$(CNS_IMAGE_REPO)
                   kubectl get po -owide -A
-          
+
       - job: deploy_pods
         condition: and( and( not(canceled()), not(failed()) ), or( contains(variables.CONTROL_SCENARIO, 'scaleTest') , contains(variables.CONTROL_SCENARIO, 'all') ) )
         displayName: "Scale Test"
@@ -183,24 +183,7 @@ stages:
         displayName: "Cilium Test"
         dependsOn: restart_cns
         steps:
-          - script: |
-              echo "install cilium CLI"
-              if [[ ${CILIUM_VERSION_TAG} =~ ^1.1[1-3].[0-9]{1,2} ]]; then
-                echo "Cilium Agent Version ${BASH_REMATCH[0]}"
-                CILIUM_CLI_VERSION=$(curl -s https://raw.githubusercontent.com/cilium/cilium-cli/main/stable-v0.14.txt)
-              else
-                echo "Cilium Agent Version ${CILIUM_VERSION_TAG}"
-                CILIUM_CLI_VERSION=$(curl -s https://raw.githubusercontent.com/cilium/cilium-cli/master/stable.txt)
-              fi
-              CLI_ARCH=amd64
-              curl -L --fail --remote-name-all https://github.com/cilium/cilium-cli/releases/download/${CILIUM_CLI_VERSION}/cilium-linux-${CLI_ARCH}.tar.gz{,.sha256sum}
-              sha256sum --check cilium-linux-${CLI_ARCH}.tar.gz.sha256sum
-              sudo tar xzvfC cilium-linux-${CLI_ARCH}.tar.gz /usr/local/bin
-              rm cilium-linux-${CLI_ARCH}.tar.gz{,.sha256sum}
-              cilium status
-              cilium version
-            name: "InstallCiliumCli"
-            displayName: "Install Cilium CLI"
+          - template: ../../templates/cilium-cli.yaml
           - task: AzureCLI@1
             inputs:
               azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
