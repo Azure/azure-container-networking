@@ -165,7 +165,7 @@ func (k *K8sSWIFTv2Middleware) getIPConfig(ctx context.Context, podInfo cns.PodI
 			PrefixLength: uint8(prefixSize),
 		},
 		MacAddress:        mtpnc.Status.MacAddress,
-		NICType:           mtpnc.Status.NICType,
+		NICType:           mtpnc.Status.InterfaceInfos[0].NICType,
 		SkipDefaultRoutes: false,
 		// InterfaceName is empty for NodeNetworkInterfaceFrontendNIC
 	}

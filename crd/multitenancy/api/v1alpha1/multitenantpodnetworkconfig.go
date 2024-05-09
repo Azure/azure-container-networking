@@ -4,6 +4,7 @@
 package v1alpha1
 
 import (
+	"github.com/Azure/azure-container-networking/cns"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -60,6 +61,8 @@ type InterfaceInfo struct {
 	GatewayIP string `json:"gatewayIP,omitempty"`
 	// DeviceType is the device type that this NC was created for
 	DeviceType DeviceType `json:"deviceType,omitempty"`
+	// NICType specifies the type of NIC to enable appropriate programming by CNS/CNI
+	NICType cns.NICType `json:"NICType,omitempty"`
 }
 
 // MultitenantPodNetworkConfigStatus defines the observed state of PodNetworkConfig
@@ -76,11 +79,9 @@ type MultitenantPodNetworkConfigStatus struct {
 	// Deprecated - use InterfaceInfos
 	// +kubebuilder:validation:Optional
 	GatewayIP string `json:"gatewayIP,omitempty"`
-	// InterfaceInfos describes all of the network container goal state for this Pod
+	// InterfaceInfos describes all the network container goal state for this Pod
 	// +kubebuilder:validation:Optional
 	InterfaceInfos []InterfaceInfo `json:"interfaceInfos,omitempty"`
-	// NICType specifies the type of NIC to enable appropriate programming by CNS/CNI
-	NICType cns.NICType `json:"NICType,omitempty"`
 }
 
 func init() {
