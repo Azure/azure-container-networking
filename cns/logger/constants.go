@@ -8,6 +8,8 @@ const (
 	// Dimensions
 	OrchestratorTypeStr = "OrchestratorType"
 	NodeIDStr           = "NodeID"
+	HomeAZStr           = "HomeAZ"
+	IsAZRSupportedStr   = "IsAZRSupported"
 	// CNS Snspshot properties
 	CnsNCSnapshotEventStr         = "CNSNCSnapshot"
 	IpConfigurationStr            = "IPConfiguration"

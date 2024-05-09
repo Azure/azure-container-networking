@@ -32,6 +32,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/healthserver"
 	"github.com/Azure/azure-container-networking/cns/hnsclient"
 	"github.com/Azure/azure-container-networking/cns/imds"
+	"github.com/Azure/azure-container-networking/cns/internal"
 	"github.com/Azure/azure-container-networking/cns/ipampool"
 	ipampoolv2 "github.com/Azure/azure-container-networking/cns/ipampool/v2"
 	cssctrl "github.com/Azure/azure-container-networking/cns/kubecontroller/clustersubnetstate"
@@ -932,7 +933,7 @@ func main() {
 	}
 
 	if !disableTelemetry {
-		go logger.SendHeartBeat(rootCtx, cnsconfig.TelemetrySettings.HeartBeatIntervalInMins)
+		go internal.SendHeartBeat(rootCtx, cnsconfig.TelemetrySettings.HeartBeatIntervalInMins, homeAzMonitor)
 		go httpRemoteRestService.SendNCSnapShotPeriodically(rootCtx, cnsconfig.TelemetrySettings.SnapshotIntervalInMins)
 	}
 
