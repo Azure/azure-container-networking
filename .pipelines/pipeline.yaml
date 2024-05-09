@@ -504,6 +504,21 @@ stages:
         vmSize: Standard_B2ms
         dependsOn: "test"
 
+    # Swiftv2 E2E tests with multitenancy cluster start up
+    - template: multitenancy/swiftv2-e2e-job-template.yaml
+      parameters:
+        name: "swiftv2_e2e"
+        displayName: Swiftv2 Multitenancy
+        os: linux
+        clusterType: swiftv2-multitenancy-cluster-up
+        clusterName: "mtacluster"
+        nodePoolName: "mtapool"
+        vmSize: Standard_D4_v2
+        dependsOn: "test"
+        dummyClusterName: "swiftv2dummy"
+        dummyClusterType: "swiftv2-dummy-cluster-up"
+        dummyClusterDisplayName: Swiftv2 Multitenancy Dummy Cluster
+
     - stage: delete
       displayName: Delete Clusters
       condition: always()
@@ -518,6 +533,7 @@ stages:
         - aks_windows_22_e2e
         - dualstackoverlay_e2e
         - cilium_dualstackoverlay_e2e
+        - swiftv2_e2e
       variables:
         commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
       jobs:
@@ -566,6 +582,12 @@ stages:
               cilium_dualstackoverlay_e2e:
                 name: cilium_dualstackoverlay_e2e
                 clusterName: "cildsovere2e"
+              swiftv2_e2e:
+                name: swiftv2_e2e
+                clusterName: "mtcluster"
+              swiftv2_dummy_e2e:
+                name: swiftv2_dummy_e2e
+                clusterName: "swiftv2dummy"              
           steps:
             - template: templates/delete-cluster.yaml
               parameters:

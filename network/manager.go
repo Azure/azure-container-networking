@@ -38,6 +38,7 @@ const (
 	InfraInterfaceName   = "eth0"
 	ContainerIDLength    = 8
 	EndpointIfIndex      = 0 // Azure CNI supports only one interface
+	DefaultNetworkID     = "azure"
 )
 
 var Ipv4DefaultRouteDstPrefix = net.IPNet{
@@ -441,8 +442,10 @@ func (nm *networkManager) GetEndpointState(networkID, endpointID string) (*Endpo
 		return nil, errors.Wrapf(err, "Get endpoint API returend with error")
 	}
 	epInfo := cnsEndpointInfotoCNIEpInfo(endpointResponse.EndpointInfo, endpointID)
-
 	if epInfo.IsEndpointStateIncomplete() {
+		if networkID == "" {
+			networkID = DefaultNetworkID
+		}
 		epInfo, err = epInfo.GetEndpointInfoByIPImpl(epInfo.IPAddresses, networkID)
 		if err != nil {
 			return nil, errors.Wrapf(err, "Get endpoint API returend with error")
@@ -689,6 +692,7 @@ func (nm *networkManager) GetEndpointID(containerID, ifName string) string {
 	return containerID + "-" + ifName
 }
 
+// cnsEndpointInfotoCNIEpInfo convert a CNS endpoint state to CNI EndpointInfo
 func cnsEndpointInfotoCNIEpInfo(endpointInfo restserver.EndpointInfo, endpointID string) *EndpointInfo {
 	epInfo := &EndpointInfo{
 		Id:                 endpointID,
@@ -700,31 +704,34 @@ func cnsEndpointInfotoCNIEpInfo(endpointInfo restserver.EndpointInfo, endpointID
 	}
 
 	for ifName, ipInfo := range endpointInfo.IfnameToIPMap {
+		// This is an special case for endpoint state that are being crated by statefull CNI
+		if ifName == "" {
+			ifName = InfraInterfaceName
+		}
+		// TODO: DelegatedNIC state will be added in a future PR
 		if ifName != InfraInterfaceName {
-			// TODO: filling out the SecondaryNICs from the state for Swift 2.0
 			continue
 		}
-		// filling out the InfraNIC from the state
 		epInfo.IPAddresses = ipInfo.IPv4
 		epInfo.IPAddresses = append(epInfo.IPAddresses, ipInfo.IPv6...)
 		epInfo.IfName = ifName
 		epInfo.HostIfName = ipInfo.HostVethName
 		epInfo.HNSEndpointID = ipInfo.HnsEndpointID
+		epInfo.HNSNetworkID = ipInfo.HnsNetworkID
+		epInfo.MacAddress = net.HardwareAddr(ipInfo.MacAddress)
 	}
 	return epInfo
 }
 
+// generateCNSIPInfoMap generates a CNS ifNametoIPInfoMap structure based on CNI endpoint
 func generateCNSIPInfoMap(ep *endpoint) map[string]*restserver.IPInfo {
 	ifNametoIPInfoMap := make(map[string]*restserver.IPInfo) // key : interface name, value : IPInfo
-	if ep.IfName != "" {
-		ifNametoIPInfoMap[ep.IfName].NICType = cns.InfraNIC
-		ifNametoIPInfoMap[ep.IfName].HnsEndpointID = ep.HnsId
-		ifNametoIPInfoMap[ep.IfName].HostVethName = ep.HostIfName
-	}
-	if ep.SecondaryInterfaces != nil {
-		for ifName, InterfaceInfo := range ep.SecondaryInterfaces {
-			ifNametoIPInfoMap[ifName].NICType = InterfaceInfo.NICType
-		}
+	ifNametoIPInfoMap[ep.IfName] = &restserver.IPInfo{
+		NICType:       cns.InfraNIC,
+		HnsEndpointID: ep.HnsId,
+		HnsNetworkID:  ep.HNSNetworkID,
+		HostVethName:  ep.HostIfName,
+		MacAddress:    ep.MacAddress.String(),
 	}
 	return ifNametoIPInfoMap
 }

@@ -35,11 +35,13 @@ stages:
               make docker-operator-generic-image
             name: BuildCiliumImage
             displayName: "Build Cilium Image"
-          - task: Docker@2
-            displayName: Login
+          - task: AzureCLI@1
+            displayName: "Login"
             inputs:
-              containerRegistry: $(CONTAINER_REGISTRY)
-              command: "login"
+              azureSubscription: $(ACR_ARM_SERVICE_CONNECTION)
+              scriptLocation: "inlineScript"
+              inlineScript: |
+                az acr login -n $(ACR)
           - task: AzureCLI@1
             inputs:
               azureSubscription: $(TEST_SUB_SERVICE_CONNECTION)
@@ -52,11 +54,13 @@ stages:
                 docker push $(ACR).azurecr.io/cilium/operator-generic:$(DOCKER_IMAGE_TAG)
             name: "PushCiliumImage"
             displayName: "Push Cilium Image"
-          - task: Docker@2
-            displayName: Logout
+          - task: AzureCLI@1
+            displayName: "Logout"
             inputs:
-              containerRegistry: $(CONTAINER_REGISTRY)
-              command: "logout"
+              azureSubscription: $(ACR_ARM_SERVICE_CONNECTION)
+              scriptLocation: "inlineScript"
+              inlineScript: |
+                docker logout
 
   - stage: cilium_nightly
     displayName: E2E - Cilium Nightly

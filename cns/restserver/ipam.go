@@ -30,8 +30,8 @@ var (
 )
 
 const (
-	ContainerIDLength = 8
-	InterfaceName     = "eth0"
+	ContainerIDLength  = 8
+	InfraInterfaceName = "eth0"
 )
 
 // requestIPConfigHandlerHelper validates the request, assign IPs and return the IPConfigs
@@ -1071,7 +1071,7 @@ func (service *HTTPRestService) GetEndpointHelper(endpointID string) (*EndpointI
 	// This part is a temprory fix if we have endpoint states belong to CNI version 1.4.X on Windows since the states don't have the containerID
 	// In case there was no endpoint founded with ContainerID as the key,
 	// then [First 8 character of containerid]-eth0 will be tried
-	legacyEndpointID := endpointID[:ContainerIDLength] + "-" + InterfaceName
+	legacyEndpointID := endpointID[:ContainerIDLength] + "-" + InfraInterfaceName
 	if endpointInfo, ok := service.EndpointState[legacyEndpointID]; ok {
 		logger.Warnf("[GetEndpointState] Found existing endpoint state for container %s", legacyEndpointID)
 		return endpointInfo, nil
@@ -1129,42 +1129,67 @@ func (service *HTTPRestService) UpdateEndpointHandler(w http.ResponseWriter, r *
 	logger.Response(service.Name, response, response.ReturnCode, err)
 }
 
-// UpdateEndpointHelper updates the state of the given endpointId with HNSId or VethName
+// UpdateEndpointHelper updates the state of the given endpointId with HNSId, VethName or other InterfaceInfo fields
 func (service *HTTPRestService) UpdateEndpointHelper(endpointID string, req map[string]*IPInfo) error {
 	if service.EndpointStateStore == nil {
 		return ErrStoreEmpty
 	}
 	logger.Printf("[updateEndpoint] Updating endpoint state for infra container %s", endpointID)
 	if endpointInfo, ok := service.EndpointState[endpointID]; ok {
-		for ifName, InterfaceInfo := range req {
-			logger.Printf("[updateEndpoint] Found existing endpoint state for infra container %s", endpointID)
-			if InterfaceInfo.HnsEndpointID != "" {
-				service.EndpointState[endpointID].IfnameToIPMap[ifName].HnsEndpointID = InterfaceInfo.HnsEndpointID
-				logger.Printf("[updateEndpoint] update the endpoint %s with HNSID  %s", endpointID, InterfaceInfo.HnsEndpointID)
-			}
-			if InterfaceInfo.HostVethName != "" {
-				service.EndpointState[endpointID].IfnameToIPMap[ifName].HostVethName = InterfaceInfo.HostVethName
-				logger.Printf("[updateEndpoint] update the endpoint %s with vethName  %s", endpointID, InterfaceInfo.HostVethName)
-			}
-			if InterfaceInfo.NICType != "" {
-				service.EndpointState[endpointID].IfnameToIPMap[ifName].NICType = InterfaceInfo.NICType
-				logger.Printf("[updateEndpoint] update the endpoint %s with NICType  %s", endpointID, InterfaceInfo.NICType)
-			}
+		// Updating the InterfaceInfo map of endpoint states with the interfaceInfo map that is given by Stateless Azure CNI
+		for ifName, interfaceInfo := range req {
+			// updating the ipInfoMap
+			updateIPInfoMap(endpointInfo.IfnameToIPMap, interfaceInfo, ifName, endpointID)
 		}
 		err := service.EndpointStateStore.Write(EndpointStoreKey, service.EndpointState)
 		if err != nil {
 			return fmt.Errorf("[updateEndpoint] failed to write endpoint state to store for pod %s :  %w", endpointInfo.PodName, err)
 		}
+		logger.Printf("[updateEndpoint] successfully write the state to the file %s", endpointID)
 		return nil
 	}
 	return errors.New("[updateEndpoint] endpoint could not be found in the statefile")
 }
 
+// updateIPInfoMap updates the IfnameToIPMap of endpoint states with the interfaceInfo map that is given by Stateless Azure CNI
+func updateIPInfoMap(iPInfo map[string]*IPInfo, interfaceInfo *IPInfo, ifName, endpointID string) {
+	// This codition will create a map for SecodaryNIC and also also creates MAP entry for InfraNic in case that the initial goalState is using empty InterfaceName
+	if _, keyExist := iPInfo[ifName]; !keyExist {
+		iPInfo[ifName] = &IPInfo{}
+		if val, emptyKeyExist := iPInfo[""]; emptyKeyExist && ifName == InfraInterfaceName {
+			iPInfo[ifName].IPv4 = val.IPv4
+			iPInfo[ifName].IPv6 = val.IPv6
+			delete(iPInfo, "")
+		}
+	}
+	logger.Printf("[updateEndpoint] Found existing endpoint state for infra container %s with  %s , [%+v]", endpointID, ifName, interfaceInfo)
+	if interfaceInfo.HnsEndpointID != "" {
+		iPInfo[ifName].HnsEndpointID = interfaceInfo.HnsEndpointID
+		logger.Printf("[updateEndpoint] update the endpoint %s with HNSID  %s", endpointID, interfaceInfo.HnsEndpointID)
+	}
+	if interfaceInfo.HnsNetworkID != "" {
+		iPInfo[ifName].HnsNetworkID = interfaceInfo.HnsNetworkID
+		logger.Printf("[updateEndpoint] update the endpoint %s with HnsNetworkID  %s", endpointID, interfaceInfo.HnsEndpointID)
+	}
+	if interfaceInfo.HostVethName != "" {
+		iPInfo[ifName].HostVethName = interfaceInfo.HostVethName
+		logger.Printf("[updateEndpoint] update the endpoint %s with vethName  %s", endpointID, interfaceInfo.HostVethName)
+	}
+	if interfaceInfo.NICType != "" {
+		iPInfo[ifName].NICType = interfaceInfo.NICType
+		logger.Printf("[updateEndpoint] update the endpoint %s with NICType  %s", endpointID, interfaceInfo.NICType)
+	}
+	if interfaceInfo.MacAddress != "" {
+		iPInfo[ifName].MacAddress = interfaceInfo.MacAddress
+		logger.Printf("[updateEndpoint] update the endpoint %s with MacAddress  %s", endpointID, interfaceInfo.MacAddress)
+	}
+}
+
 // verifyUpdateEndpointStateRequest verify the CNI request body for the UpdateENdpointState API
 func verifyUpdateEndpointStateRequest(req map[string]*IPInfo) error {
 	for ifName, InterfaceInfo := range req {
-		if InterfaceInfo.HostVethName == "" && InterfaceInfo.HnsEndpointID == "" && InterfaceInfo.NICType == "" {
-			return errors.New("[updateEndpoint] No NicType, HnsEndpointID or HostVethName has been provided")
+		if InterfaceInfo.HostVethName == "" && InterfaceInfo.HnsEndpointID == "" && InterfaceInfo.NICType == "" && InterfaceInfo.MacAddress == "" {
+			return errors.New("[updateEndpoint] No NicType, MacAddress, HnsEndpointID or HostVethName has been provided")
 		}
 		if ifName == "" {
 			return errors.New("[updateEndpoint] No Interface has been provided")

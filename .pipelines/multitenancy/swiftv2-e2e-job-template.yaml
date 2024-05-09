@@ -1,0 +1,84 @@
+parameters:
+  name: ""
+  displayName: ""
+  clusterType: ""
+  clusterName: ""
+  vmSize: ""
+  k8sVersion: ""
+  dependsOn: ""
+  nodePoolName: ""
+
+stages:
+  - stage: ${{ parameters.clusterName }}
+    displayName: Create Cluster - ${{ parameters.displayName }}
+    dependsOn:
+      - ${{ parameters.dependsOn }}
+      - setup
+    pool:
+      name: $(BUILD_POOL_NAME_DEFAULT)
+    variables:
+      commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
+    jobs:
+      - template: ../templates/create-cluster-swiftv2.yaml
+        parameters:
+          name: ${{ parameters.name }}
+          displayName: ${{ parameters.displayName }}
+          clusterType: ${{ parameters.clusterType }}
+          clusterName: ${{ parameters.clusterName }}-$(commitID)
+          vmSize: ${{ parameters.vmSize }}
+          k8sVersion: ${{ parameters.k8sVersion }}
+          dependsOn: ${{ parameters.dependsOn }}
+          region: $(REGION_SWIFTV2_CLUSTER_TEST) # Swiftv2 has a specific region requirements
+
+  - stage: ${{ parameters.name }}
+    # condition: and( succeeded(), not(eq(dependencies.dualstackoverlaye2e.result,'SucceededWithIssues')) ) # Cant use parameters in dependencies
+    displayName: E2E - ${{ parameters.displayName }}
+    dependsOn:
+    - setup
+    - publish
+    - ${{ parameters.clusterName }}
+    variables:
+      GOPATH: "$(Agent.TempDirectory)/go" # Go workspace path
+      GOBIN: "$(GOPATH)/bin" # Go binaries path
+      modulePath: "$(GOPATH)/src/github.com/Azure/azure-container-networking"
+      commitID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.commitID'] ]
+    pool:
+      name: $(BUILD_POOL_NAME_DEFAULT)
+    jobs:
+      - job: ${{ parameters.name }}
+        displayName: Swiftv2 Multitenancy E2E Test Suite - (${{ parameters.name }})
+        pool:
+          name: $(BUILD_POOL_NAME_DEFAULT)
+          demands:
+          - agent.os -equals Linux
+          - Role -equals $(CUSTOM_E2E_ROLE)
+        steps:
+          - template: swiftv2-e2e-step-template.yaml
+            parameters:
+              name: ${{ parameters.name }}
+              clusterName: ${{ parameters.clusterName }}-$(commitID)
+              os: linux
+
+      - template: ../cni/k8s-e2e/k8s-e2e-job-template.yaml
+        parameters:
+          sub: $(ACN_TEST_SERVICE_CONNECTION)
+          clusterName: ${{ parameters.clusterName }}-$(commitID)
+          os: ${{ parameters.os }}
+          dependsOn: ${{ parameters.name }}
+          datapath: true
+          dns: true
+          portforward: true
+          hostport: true
+          service: true
+
+      - job: failedE2ELogs
+        displayName: "Failure Logs"
+        dependsOn:
+          - ${{ parameters.name }}
+        condition: failed()
+        steps:
+          - template: ../templates/log-template.yaml
+            parameters:
+              clusterName: ${{ parameters.clusterName }}-$(commitID)
+              os: linux
+              cni: cniv2

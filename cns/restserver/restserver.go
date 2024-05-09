@@ -99,7 +99,9 @@ type IPInfo struct {
 	IPv4          []net.IPNet
 	IPv6          []net.IPNet `json:",omitempty"`
 	HnsEndpointID string      `json:",omitempty"`
+	HnsNetworkID  string      `json:",omitempty"`
 	HostVethName  string      `json:",omitempty"`
+	MacAddress    string      `json:",omitempty"`
 	NICType       cns.NICType
 }
 
