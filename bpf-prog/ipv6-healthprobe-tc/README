@@ -1,11 +1,11 @@
-# bpf-tc
+# ipv6-healthprobe-tc
 
-`bpf-tc` is a project that leverages eBPF (Extended Berkeley Packet Filter) technology for traffic control in Linux kernel. This is a POC to fix external load balancer services in cilium dualstack clusters.
+`ipv6-healthprobe-tc` is a project that leverages eBPF (Extended Berkeley Packet Filter) technology for traffic control in Linux kernel. This is a POC to fix external load balancer services in cilium dualstack clusters.
 
 ## Description
 
 The goal of this bpf program is to fix the issue described [here](https://github.com/cilium/cilium/issues/31326). It includes both egress and ingress TC programs. These programs are meant to replace the nftable rules since they don't work on cilium clusters. 
-The egress bpf code converts the destination IP of the packet from global unicast to link local, and ingress converts the source IP from link local to global unicast.
+The egress bpf code converts the destination IPv6 of the packet from global unicast to link local, and ingress converts the source IPv6 from link local to global unicast.
 
 ## Usage
 
@@ -13,7 +13,7 @@ Follow the steps below to compile the program and install it onto your node:
 
 1. Use the make command to build the binary or follow the steps below.
     ```bash
-    make bpf-tc-binary
+    make ipv6-healthprobe-tc-binary
     ```
 
 2. Copy the new binary to your node(s).
@@ -27,7 +27,7 @@ Follow the steps below to compile the program and install it onto your node:
 
 4. Start the program with:
     ```bash
-    ./bpf-tc
+    ./ipv6-healthprobe-tc
     ```
 5. Debugging logs can be seen in the node under `/sys/kernel/debug/traceing/trace_pipe`
 

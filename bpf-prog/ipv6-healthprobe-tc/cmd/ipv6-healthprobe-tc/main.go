@@ -3,8 +3,8 @@ package main
 import (
 	"net"
 
-	"github.com/Azure/azure-container-networking/bpf-prog/bpf-tc/pkg/egress"
-	"github.com/Azure/azure-container-networking/bpf-prog/bpf-tc/pkg/ingress"
+	"github.com/Azure/azure-container-networking/bpf-prog/ipv6-healthprobe-tc/pkg/egress"
+	"github.com/Azure/azure-container-networking/bpf-prog/ipv6-healthprobe-tc/pkg/ingress"
 	"github.com/vishvananda/netlink"
 
 	"github.com/cilium/ebpf/rlimit"
@@ -21,6 +21,7 @@ func main() {
 	// Remove resource limits for kernels <5.11.
 	if err := rlimit.RemoveMemlock(); err != nil {
 		logger.Error("Removing memlock", zap.Error(err))
+		return
 	}
 	ifname := "eth0"
 	iface, err := net.InterfaceByName(ifname)
@@ -40,6 +41,7 @@ func main() {
 	}
 	if err := netlink.QdiscReplace(fq); err != nil {
 		logger.Error("failed setting egress qdisc", zap.Error(err))
+		return
 	}
 
 	// Load the compiled eBPF ELF and load it into the kernel.

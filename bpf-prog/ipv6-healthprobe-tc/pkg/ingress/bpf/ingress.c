@@ -22,17 +22,19 @@ int linklocal_to_gua(struct __sk_buff *skb)
     struct in6_addr src_addr;
     struct ipv6hdr ipv6_hdr;
 
+    // Load the source address from the packet
     int ret = bpf_skb_load_bytes(skb, ETH_HLEN + offsetof(struct ipv6hdr, saddr), &src_addr, sizeof(src_addr));
     if (ret != 0)
     {
-        bpf_printk("bpf_skb_load_bytes failed with error code %d.\n", ret);
+        bpf_printk("bpf_skb_load_bytes failed to load source address with error code %d.\n", ret);
         return TC_ACT_UNSPEC;
     }
 
+    // Load the IPv6 header from the packet
     int ret_hdr = bpf_skb_load_bytes(skb, ETH_HLEN, &ipv6_hdr, sizeof(ipv6_hdr));
     if (ret_hdr != 0)
     {
-        bpf_printk("bpf_skb_load_bytes failed with error code %d.\n", ret_hdr);
+        bpf_printk("bpf_skb_load_bytes failed to load IPv6 header with error code %d.\n", ret_hdr);
         return TC_ACT_UNSPEC;
     }
 
@@ -43,15 +45,18 @@ int linklocal_to_gua(struct __sk_buff *skb)
     // Check the source address to determine if it is Link Local
     if (compare_ipv6_addr(&src_addr, &LINKLOCAL_ADDR))
     {
+
+#ifdef DEBUG
         bpf_printk("Source address is a link local address. Setting new addr to global unicast.\n");
         bpf_printk("Source address is %pI6.\n", &src_addr);
+#endif
 
         // Store the new source address in the packet
         int ret = bpf_skb_store_bytes(skb, ETH_HLEN + offsetof(struct ipv6hdr, saddr),
                                       &GLOBAL_UNICAST_ADDR, sizeof(GLOBAL_UNICAST_ADDR), BPF_F_RECOMPUTE_CSUM);
         if (ret != 0)
         {
-            bpf_printk("bpf_skb_store_bytes failed with error code %d.\n", ret);
+            bpf_printk("bpf_skb_store_bytes failed to store new source address with error code %d.\n", ret);
             return TC_ACT_SHOT;
         }
 
@@ -61,10 +66,10 @@ int linklocal_to_gua(struct __sk_buff *skb)
 
         int offset = offsetof(struct tcphdr, check);
 
-        int retu = bpf_l4_csum_replace(skb, L4_HDR_OFF + offset, 0, sum, BPF_F_PSEUDO_HDR);
-        if (retu < 0)
+        ret = bpf_l4_csum_replace(skb, L4_HDR_OFF + offset, 0, sum, BPF_F_PSEUDO_HDR);
+        if (ret < 0)
         {
-            bpf_printk("csum_l4_replace failed: %d", retu);
+            bpf_printk("csum_l4_replace failed to update checksum: %d", ret);
             return TC_ACT_SHOT;
         }
     }
