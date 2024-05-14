@@ -1625,7 +1625,7 @@ func TestIPAMGetK8sSWIFTv2IPSuccess(t *testing.T) {
 	// Asserting that SWIFT v2 IP is returned
 	assert.Equal(t, SWIFTv2IP, podIPInfo[2].PodIPConfig.IPAddress)
 	assert.Equal(t, SWIFTv2MAC, podIPInfo[2].MacAddress)
-	assert.Equal(t, cns.NodeNetworkInterfaceFrontendNIC, podIPInfo[2].NICType)
+	assert.Equal(t, cns.DelegatedVMNIC, podIPInfo[2].NICType)
 	assert.False(t, podIPInfo[2].SkipDefaultRoutes)
 }
 

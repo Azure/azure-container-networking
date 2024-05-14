@@ -16,7 +16,7 @@ func (k *K8sSWIFTv2Middleware) setRoutes(podIPInfo *cns.PodIpInfo) error {
 	logger.Printf("[SWIFTv2Middleware] set routes for pod with nic type : %s", podIPInfo.NICType)
 	podIPInfo.Routes = []cns.Route{}
 	switch podIPInfo.NICType {
-	case cns.NodeNetworkInterfaceFrontendNIC:
+	case cns.DelegatedVMNIC:
 		virtualGWRoute := cns.Route{
 			IPAddress: fmt.Sprintf("%s/%d", virtualGW, prefixLength),
 		}
@@ -77,8 +77,8 @@ func (k *K8sSWIFTv2Middleware) setRoutes(podIPInfo *cns.PodIpInfo) error {
 			addRoutes(&podIPInfo.Routes, infraVNETCIDRsv6, overlayGatewayV6)
 		}
 		podIPInfo.SkipDefaultRoutes = true
-	case cns.NodeNetworkInterfaceBackendNIC:
-		// TODO: Set routes for NodeNetworkInterfaceBackendNIC
+	case cns.BackendNIC:
+		// TODO: Set routes for BackendNIC
 	case cns.NodeNetworkInterfaceAccelnetFrontendNIC:
 		// TODO: Set routes for NodeNetworkInterfaceAccelnetFrontendNIC
 	default:

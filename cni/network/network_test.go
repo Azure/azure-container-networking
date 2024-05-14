@@ -1193,7 +1193,7 @@ func TestPluginSwiftV2Add(t *testing.T) {
 			plugin: &NetPlugin{
 				Plugin: plugin,
 				nm: acnnetwork.NewMockNetworkmanager(acnnetwork.NewMockEndpointClient(func(ep *acnnetwork.EndpointInfo) error {
-					if ep.NICType == cns.NodeNetworkInterfaceFrontendNIC {
+					if ep.NICType == cns.DelegatedVMNIC {
 						return acnnetwork.NewErrorMockEndpointClient("AddEndpoints Delegated VM NIC failed") //nolint:wrapcheck // ignore wrapping for test
 					}
 

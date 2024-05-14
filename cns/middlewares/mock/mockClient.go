@@ -57,7 +57,7 @@ func NewClient() *Client {
 		MacAddress: "00:00:00:00:00:00",
 		GatewayIP:  "10.0.0.1",
 		DeviceType: "",
-		NICType:    cns.NodeNetworkInterfaceFrontendNIC,
+		NICType:    cns.DelegatedVMNIC,
 	}
 	testInterfaceInfos3 := v1alpha1.InterfaceInfo{
 		NCID:       "testncid",
@@ -65,7 +65,7 @@ func NewClient() *Client {
 		MacAddress: "00:00:00:00:00:00",
 		GatewayIP:  "10.0.0.1",
 		DeviceType: "",
-		NICType:    cns.NodeNetworkInterfaceBackendNIC,
+		NICType:    cns.BackendNIC,
 	}
 	testInterfaceInfos5 := v1alpha1.InterfaceInfo{
 		NCID:       "testncid",
@@ -154,7 +154,7 @@ func (c *Client) SetMTPNCReady() {
 		MacAddress: "00:00:00:00:00:00",
 		GatewayIP:  "10.0.0.1",
 		DeviceType: "",
-		NICType:    cns.NodeNetworkInterfaceFrontendNIC,
+		NICType:    cns.DelegatedVMNIC,
 	}
 
 	testMTPNC1 := v1alpha1.MultitenantPodNetworkConfig{}
