@@ -53,7 +53,7 @@ int linklocal_to_gua(struct __sk_buff *skb)
 
         // Store the new source address in the packet
         int ret = bpf_skb_store_bytes(skb, ETH_HLEN + offsetof(struct ipv6hdr, saddr),
-                                      &GLOBAL_UNICAST_ADDR, sizeof(GLOBAL_UNICAST_ADDR), BPF_F_RECOMPUTE_CSUM);
+                                      &GLOBAL_UNICAST_ADDR, sizeof(GLOBAL_UNICAST_ADDR), 0);
         if (ret != 0)
         {
             bpf_printk("bpf_skb_store_bytes failed to store new source address with error code %d.\n", ret);
