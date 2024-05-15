@@ -75,7 +75,7 @@ func TestIPConfigsRequestHandlerWrapperSuccess(t *testing.T) {
 	happyReq.OrchestratorContext = b
 	resp, err := wrappedHandler(context.TODO(), happyReq)
 	assert.Equal(t, err, nil)
-	assert.Equal(t, resp.PodIPInfo[2].PodIPConfig.IPAddress, "192.168.0.1")
+	assert.Equal(t, resp.PodIPInfo[2].PodIPConfig.IPAddress, "10.0.1.10")
 	assert.Equal(t, resp.PodIPInfo[2].MacAddress, "00:00:00:00:00:00")
 }
 
@@ -185,10 +185,13 @@ func TestGetSWIFTv2IPConfigSuccess(t *testing.T) {
 
 	middleware := K8sSWIFTv2Middleware{Cli: mock.NewClient()}
 
-	ipInfo, err := middleware.getIPConfig(context.TODO(), testPod1Info)
+	ipInfos, err := middleware.getIPConfig(context.TODO(), testPod1Info)
 	assert.Equal(t, err, nil)
-	assert.Equal(t, ipInfo.NICType, cns.DelegatedVMNIC)
-	assert.Equal(t, ipInfo.SkipDefaultRoutes, false)
+	// Ensure that the length of ipInfos matches the number of InterfaceInfos
+	// Adjust this according to the test setup
+	assert.Equal(t, len(ipInfos), 1)
+	assert.Equal(t, ipInfos[0].NICType, cns.DelegatedVMNIC)
+	assert.Equal(t, ipInfos[0].SkipDefaultRoutes, false)
 }
 
 func TestGetSWIFTv2IPConfigFailure(t *testing.T) {
@@ -342,16 +345,16 @@ func TestNICTypeConfigSuccess(t *testing.T) {
 	middleware := K8sSWIFTv2Middleware{Cli: mock.NewClient()}
 
 	// Test Accelnet Frontend NIC type
-	ipInfo, err := middleware.getIPConfig(context.TODO(), testPod6Info)
-	if err != nil {
-		t.Fatalf("Unexpected error getting IP configuration: %v", err)
-	}
-	assert.Equal(t, ipInfo.NICType, cns.NodeNetworkInterfaceAccelnetFrontendNIC)
+	ipInfos, err := middleware.getIPConfig(context.TODO(), testPod6Info)
+	assert.Equal(t, err, nil)
+	// Ensure that the length of ipInfos matches the number of InterfaceInfos
+	// Adjust this according to the test setup
+	assert.Equal(t, len(ipInfos), 1)
+	assert.Equal(t, ipInfos[0].NICType, cns.NodeNetworkInterfaceAccelnetFrontendNIC)
 
 	// Test Backend NIC type
-	ipInfo2, err := middleware.getIPConfig(context.TODO(), testPod5Info)
-	if err != nil {
-		t.Fatalf("Unexpected error getting IP configuration: %v", err)
-	}
-	assert.Equal(t, ipInfo2.NICType, cns.BackendNIC)
+	ipInfos2, err := middleware.getIPConfig(context.TODO(), testPod5Info)
+	assert.Equal(t, err, nil)
+	assert.Equal(t, len(ipInfos2), 1)
+	assert.Equal(t, ipInfos2[0].NICType, cns.BackendNIC)
 }
