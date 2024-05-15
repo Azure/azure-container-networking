@@ -55,6 +55,7 @@ type CNSConfig struct {
 	TLSSubjectName              string
 	TelemetrySettings           TelemetrySettings
 	UseHTTPS                    bool
+	UseMTLS                     bool
 	WatchPods                   bool `json:"-"`
 	WireserverIP                string
 }
