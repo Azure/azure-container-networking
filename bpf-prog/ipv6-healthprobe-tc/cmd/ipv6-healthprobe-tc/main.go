@@ -15,8 +15,9 @@ var logger *zap.Logger
 
 func main() {
 	// Set up logger
-	logger, _ = zap.NewProduction()
-	defer logger.Sync()
+	config := zap.NewProductionConfig()
+	config.OutputPaths = []string{"stdout", "/var/log/ipv6-healthprobe-tc.log"}
+	logger, _ = config.Build()
 
 	// Remove resource limits for kernels <5.11.
 	if err := rlimit.RemoveMemlock(); err != nil {
