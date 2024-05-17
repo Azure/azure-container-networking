@@ -22,6 +22,10 @@ int linklocal_to_gua(struct __sk_buff *skb)
     struct in6_addr src_addr;
     struct ipv6hdr ipv6_hdr;
 
+    // Check if the packet is TCP
+    if (ipv6_hdr.nexthdr != IPPROTO_TCP)
+        return TC_ACT_UNSPEC;
+
     // Load the source address from the packet
     int ret = bpf_skb_load_bytes(skb, ETH_HLEN + offsetof(struct ipv6hdr, saddr), &src_addr, sizeof(src_addr));
     if (ret != 0)
@@ -37,10 +41,6 @@ int linklocal_to_gua(struct __sk_buff *skb)
         bpf_printk("bpf_skb_load_bytes failed to load IPv6 header with error code %d.\n", ret_hdr);
         return TC_ACT_UNSPEC;
     }
-
-    // Check if the packet is TCP
-    if (ipv6_hdr.nexthdr != IPPROTO_TCP)
-        return TC_ACT_UNSPEC;
 
     // Check the source address to determine if it is Link Local
     if (compare_ipv6_addr(&src_addr, &LINKLOCAL_ADDR))

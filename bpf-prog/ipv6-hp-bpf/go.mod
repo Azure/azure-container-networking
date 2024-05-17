@@ -1,4 +1,4 @@
-module github.com/Azure/azure-container-networking/bpf-prog/ipv6-healthprobe-tc
+module github.com/Azure/azure-container-networking/bpf-prog/ipv6-hp-bpf
 
 go 1.21.6
 

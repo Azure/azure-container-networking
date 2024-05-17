@@ -1,6 +1,6 @@
-# ipv6-healthprobe-tc
+# ipv6-hp-bpf
 
-`ipv6-healthprobe-tc` is a project that leverages eBPF (Extended Berkeley Packet Filter) technology for traffic control in Linux kernel. This is a POC to fix external load balancer services in cilium dualstack clusters.
+`ipv6-hp-bpf` is a project that leverages eBPF (Extended Berkeley Packet Filter) technology for traffic control in Linux kernel. This is a POC to fix external load balancer services in cilium dualstack clusters.
 
 ## Description
 
@@ -13,7 +13,7 @@ Follow the steps below to compile the program and install it onto your node:
 
 1. Use the make command to build the binary or follow the steps below.
     ```bash
-    make ipv6-healthprobe-tc-binary
+    make ipv6-hp-bpf-binary
     ```
 
 2. Copy the new binary to your node(s).
@@ -27,7 +27,7 @@ Follow the steps below to compile the program and install it onto your node:
 
 4. Start the program with:
     ```bash
-    ./ipv6-healthprobe-tc
+    ./ipv6-hp-bpf
     ```
 5. Debugging logs can be seen in the node under `/sys/kernel/debug/traceing/trace_pipe`
 

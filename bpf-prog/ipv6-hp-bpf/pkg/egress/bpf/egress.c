@@ -24,6 +24,10 @@ int gua_to_linklocal(struct __sk_buff *skb)
     struct in6_addr dst_addr;
     struct ipv6hdr ipv6_hdr;
 
+    // Check if the packet is TCP
+    if (ipv6_hdr.nexthdr != IPPROTO_TCP)
+        return TC_ACT_UNSPEC;
+
     // Load the destination address from the packet
     int ret = bpf_skb_load_bytes(skb, ETH_HLEN + offsetof(struct ipv6hdr, daddr), &dst_addr, sizeof(dst_addr));
     if (ret != 0)
@@ -39,10 +43,6 @@ int gua_to_linklocal(struct __sk_buff *skb)
         bpf_printk("bpf_skb_load_bytes failed to load IPv6 header with error code %d.\n", ret_hdr);
         return TC_ACT_UNSPEC;
     }
-
-    // Check if the packet is TCP
-    if (ipv6_hdr.nexthdr != IPPROTO_TCP)
-        return TC_ACT_UNSPEC;
 
     // Check the destination address to determine if it is a global unicast address
     if (compare_ipv6_addr(&dst_addr, &GLOBAL_UNICAST_ADDR))

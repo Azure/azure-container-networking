@@ -1,4 +1,4 @@
-package egress
+package ingress
 
 import (
 	"syscall"
@@ -7,8 +7,8 @@ import (
 	"go.uber.org/zap"
 )
 
-// SetupEgressFilter sets up the egress filter
-func SetupEgressFilter(ifaceIndex int, objs *EgressObjects, logger *zap.Logger) error {
+// SetupIngressFilter sets up the ingress filter
+func SetupIngressFilter(ifaceIndex int, objs *IngressObjects, logger *zap.Logger) error {
 	link, err := netlink.LinkByIndex(ifaceIndex)
 	if err != nil {
 		logger.Error("Failed to get link", zap.Error(err))
@@ -16,7 +16,7 @@ func SetupEgressFilter(ifaceIndex int, objs *EgressObjects, logger *zap.Logger) 
 	}
 
 	// Get the list of filters on the link
-	filters, err := netlink.FilterList(link, netlink.HANDLE_MIN_EGRESS)
+	filters, err := netlink.FilterList(link, netlink.HANDLE_MIN_INGRESS)
 	if err != nil {
 		logger.Error("Failed to get filter list", zap.Error(err))
 		return err
@@ -34,23 +34,23 @@ func SetupEgressFilter(ifaceIndex int, objs *EgressObjects, logger *zap.Logger) 
 		}
 	}
 
-	egressFilter := &netlink.BpfFilter{
+	ingressFilter := &netlink.BpfFilter{
 		FilterAttrs: netlink.FilterAttrs{
 			LinkIndex: ifaceIndex,
-			Parent:    netlink.HANDLE_MIN_EGRESS,
+			Parent:    netlink.HANDLE_MIN_INGRESS,
 			Protocol:  syscall.ETH_P_ALL,
 			Priority:  1,
 		},
-		Fd:           objs.GuaToLinklocal.FD(),
-		Name:         "ipv6_healthprobe_egress_filter",
+		Fd:           objs.LinklocalToGua.FD(),
+		Name:         "ipv6_hp_ingress",
 		DirectAction: true,
 	}
 
-	if err := netlink.FilterReplace(egressFilter); err != nil {
-		logger.Error("failed setting egress filter", zap.Error(err))
+	if err := netlink.FilterReplace(ingressFilter); err != nil {
+		logger.Error("failed setting ingress filter", zap.Error(err))
 		return err
 	} else {
-		logger.Info("Successfully set egress filter on", zap.Int("ifaceIndex", ifaceIndex))
+		logger.Info("Successfully set ingress filter on", zap.Int("ifaceIndex", ifaceIndex))
 	}
 
 	return nil

@@ -5,8 +5,8 @@ import (
 	"net"
 	"os/exec"
 
-	"github.com/Azure/azure-container-networking/bpf-prog/ipv6-healthprobe-tc/pkg/egress"
-	"github.com/Azure/azure-container-networking/bpf-prog/ipv6-healthprobe-tc/pkg/ingress"
+	"github.com/Azure/azure-container-networking/bpf-prog/ipv6-hp-bpf/pkg/egress"
+	"github.com/Azure/azure-container-networking/bpf-prog/ipv6-hp-bpf/pkg/ingress"
 	"github.com/vishvananda/netlink"
 
 	"github.com/cilium/ebpf/rlimit"
@@ -18,7 +18,7 @@ var logger *zap.Logger
 func main() {
 	// Set up logger
 	config := zap.NewProductionConfig()
-	config.OutputPaths = []string{"stdout", "/var/log/ipv6-healthprobe-tc.log"}
+	config.OutputPaths = []string{"stdout", "/var/log/azure-ipv6-hp-bpf.log"}
 	logger, _ = config.Build()
 
 	// Remove resource limits for kernels <5.11.
