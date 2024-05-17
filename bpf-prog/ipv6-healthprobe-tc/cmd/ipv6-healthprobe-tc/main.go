@@ -1,7 +1,9 @@
 package main
 
 import (
+	"bytes"
 	"net"
+	"os/exec"
 
 	"github.com/Azure/azure-container-networking/bpf-prog/ipv6-healthprobe-tc/pkg/egress"
 	"github.com/Azure/azure-container-networking/bpf-prog/ipv6-healthprobe-tc/pkg/ingress"
@@ -24,6 +26,25 @@ func main() {
 		logger.Error("Removing memlock", zap.Error(err))
 		return
 	}
+
+	// Check 'nft -n list tables ip6' to see if table exists
+	cmd := exec.Command("nft", "-n", "list", "tables", "ip6")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		logger.Error("error running 'nft -n list tables ip6'", zap.Error(err), zap.String("output", string(output)))
+		return
+	}
+
+	// if azureSLBProbe table exists, delete it
+	if bytes.Contains(output, []byte("azureSLBProbe")) {
+		cmd := exec.Command("nft", "delete", "table", "ip6", "azureSLBProbe")
+		err = cmd.Run()
+		if err != nil {
+			logger.Error("failed to run 'nft delete table ip6 azureSLBProbe'", zap.Error(err))
+			return
+		}
+	}
+
 	ifname := "eth0"
 	iface, err := net.InterfaceByName(ifname)
 	if err != nil {
