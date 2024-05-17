@@ -53,25 +53,7 @@ steps:
     name: "installCilium"
     displayName: "Install Cilium on AKS Overlay"
 
-  - script: |
-      echo "install cilium CLI"
-      if [[ ${CILIUM_VERSION_TAG_V1_4} =~ ^1.1[1-3].[0-9]{1,2} ]]; then
-        echo "Cilium Agent Version ${BASH_REMATCH[0]}"
-        CILIUM_CLI_VERSION=$(curl -s https://raw.githubusercontent.com/cilium/cilium-cli/main/stable-v0.14.txt)
-      else
-        echo "Cilium Agent Version ${CILIUM_VERSION_TAG_V1_4}"
-        CILIUM_CLI_VERSION=$(curl -s https://raw.githubusercontent.com/cilium/cilium-cli/master/stable.txt)
-      fi
-      CLI_ARCH=amd64
-      if [ "$(uname -m)" = "aarch64" ]; then CLI_ARCH=arm64; fi
-      curl -L --fail --remote-name-all https://github.com/cilium/cilium-cli/releases/download/${CILIUM_CLI_VERSION}/cilium-linux-${CLI_ARCH}.tar.gz{,.sha256sum}
-      sha256sum --check cilium-linux-${CLI_ARCH}.tar.gz.sha256sum
-      sudo tar xzvfC cilium-linux-${CLI_ARCH}.tar.gz /usr/local/bin
-      rm cilium-linux-${CLI_ARCH}.tar.gz{,.sha256sum}
-      cilium status
-      cilium version
-    name: "installCiliumCLI"
-    displayName: "Install Cilium CLI"
+  - template: ../../templates/cilium-cli.yaml
 
   - script: |
       echo "Start Azilium E2E Tests on Overlay Cluster"
