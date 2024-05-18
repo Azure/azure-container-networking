@@ -67,18 +67,18 @@ spec:
             description: MultitenantPodNetworkConfigStatus defines the observed state
               of PodNetworkConfig
             properties:
-              NICType:
-                description: NICType specifies the type of NIC to enable appropriate
-                  programming by CNS/CNI
-                type: string
               gatewayIP:
                 description: Deprecated - use InterfaceInfos
                 type: string
               interfaceInfos:
-                description: InterfaceInfos describes all of the network container
-                  goal state for this Pod
+                description: InterfaceInfos describes all the network container goal
+                  state for this Pod
                 items:
                   properties:
+                    NICType:
+                      description: NICType specifies the type of NIC to enable appropriate
+                        programming by CNS/CNI
+                      type: string
                     deviceType:
                       description: DeviceType is the device type that this NC was
                         created for
