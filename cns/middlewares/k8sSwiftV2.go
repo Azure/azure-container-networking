@@ -161,13 +161,30 @@ func (k *K8sSWIFTv2Middleware) getIPConfig(ctx context.Context, podInfo cns.PodI
 	}
 
 	podIPInfos := make([]cns.PodIpInfo, len(mtpnc.Status.InterfaceInfos))
-	for i, interfaceInfo := range mtpnc.Status.InterfaceInfos {
+
+	// Set the first element from the first InterfaceInfos
+	if len(mtpnc.Status.InterfaceInfos) > 0 {
+		podIPInfos[0] = cns.PodIpInfo{
+			PodIPConfig: cns.IPSubnet{
+				IPAddress:    ip.String(),
+				PrefixLength: uint8(prefixSize),
+			},
+			MacAddress:        mtpnc.Status.InterfaceInfos[0].MacAddress,
+			NICType:           mtpnc.Status.InterfaceInfos[0].NICType,
+			SkipDefaultRoutes: false,
+			// InterfaceName is empty for DelegatedVMNIC
+		}
+	}
+
+	// Fill rest of the elements from InterfaceInfos
+	for i := 1; i < len(mtpnc.Status.InterfaceInfos); i++ {
+		interfaceInfo := mtpnc.Status.InterfaceInfos[i]
 		podIPInfos[i] = cns.PodIpInfo{
 			PodIPConfig: cns.IPSubnet{
 				IPAddress:    ip.String(),
 				PrefixLength: uint8(prefixSize),
 			},
-			MacAddress:        mtpnc.Status.MacAddress,
+			MacAddress:        interfaceInfo.MacAddress,
 			NICType:           interfaceInfo.NICType,
 			SkipDefaultRoutes: false,
 			// InterfaceName is empty for DelegatedVMNIC
