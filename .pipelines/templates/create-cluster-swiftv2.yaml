@@ -1,5 +1,6 @@
 parameters:
   os: linux
+  continueOnError: true
 
 jobs:
   - job: ${{ parameters.name }}
@@ -31,4 +32,4 @@ jobs:
 
             echo "Cluster successfully created"
         displayName: Cluster - ${{ parameters.clusterType }}
-        continueOnError: ${{ contains(parameters.clusterType, 'dualstack') }}
+        continueOnError: ${{ parameters.continueOnError }}

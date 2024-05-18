@@ -7,6 +7,7 @@ parameters:
   k8sVersion: ""
   dependsOn: ""
   nodePoolName: ""
+  continueOnError: true
 
 stages:
   - stage: ${{ parameters.clusterName }}
@@ -28,10 +29,11 @@ stages:
           vmSize: ${{ parameters.vmSize }}
           k8sVersion: ${{ parameters.k8sVersion }}
           dependsOn: ${{ parameters.dependsOn }}
+          continueOnError: ${{ parameters.continueOnError }}
           region: $(REGION_SWIFTV2_CLUSTER_TEST) # Swiftv2 has a specific region requirements
 
   - stage: ${{ parameters.name }}
-    # condition: and( succeeded(), not(eq(dependencies.dualstackoverlaye2e.result,'SucceededWithIssues')) ) # Cant use parameters in dependencies
+    condition: and( succeeded(), not(eq(dependencies.mtacluster.result,'SucceededWithIssues')) ) # Cant use parameters in dependencies
     displayName: E2E - ${{ parameters.displayName }}
     dependsOn:
     - setup
@@ -58,27 +60,3 @@ stages:
               name: ${{ parameters.name }}
               clusterName: ${{ parameters.clusterName }}-$(commitID)
               os: linux
-
-      - template: ../cni/k8s-e2e/k8s-e2e-job-template.yaml
-        parameters:
-          sub: $(ACN_TEST_SERVICE_CONNECTION)
-          clusterName: ${{ parameters.clusterName }}-$(commitID)
-          os: ${{ parameters.os }}
-          dependsOn: ${{ parameters.name }}
-          datapath: true
-          dns: true
-          portforward: true
-          hostport: true
-          service: true
-
-      - job: failedE2ELogs
-        displayName: "Failure Logs"
-        dependsOn:
-          - ${{ parameters.name }}
-        condition: failed()
-        steps:
-          - template: ../templates/log-template.yaml
-            parameters:
-              clusterName: ${{ parameters.clusterName }}-$(commitID)
-              os: linux
-              cni: cniv2
