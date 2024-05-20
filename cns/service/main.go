@@ -814,10 +814,9 @@ func main() {
 		}
 
 		// if swiftv2 scenario is enabled, we need to initialize the Service Fabric (standalone) swiftv2 middleware to process IP configs requests
-		if cnsconfig.SWIFTV2Mode == cns.SFSWIFTV2 {
-			swiftV2Middleware := &middlewares.SFSWIFTv2Middleware{}
-			httpRestService.AttachIPConfigsHandlerMiddleware(swiftV2Middleware)
-		}
+		// we don't need a config check here since this middleware will be called only for swiftv2 path for standalone
+		swiftV2Middleware := &middlewares.SFSWIFTv2Middleware{}
+		httpRemoteRestService.AttachIPConfigsHandlerMiddleware(swiftV2Middleware)
 	}
 
 	// Initialze state in if CNS is running in CRD mode
@@ -1262,7 +1261,7 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 
 	// check the Node labels for Swift V2
 	if _, ok := node.Labels[configuration.LabelNodeSwiftV2]; ok {
-		cnsconfig.SWIFTV2Mode = cns.K8sSWIFTV2
+		cnsconfig.EnableSwiftV2 = true
 		cnsconfig.WatchPods = true
 		if nodeInfoErr := createOrUpdateNodeInfoCRD(ctx, kubeConfig, node); nodeInfoErr != nil {
 			return errors.Wrap(nodeInfoErr, "error creating or updating nodeinfo crd")
@@ -1446,7 +1445,7 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 		}
 	}
 
-	if cnsconfig.SWIFTV2Mode == cns.K8sSWIFTV2 {
+	if cnsconfig.EnableSwiftV2 {
 		if err := mtpncctrl.SetupWithManager(manager); err != nil {
 			return errors.Wrapf(err, "failed to setup mtpnc reconciler with manager")
 		}
