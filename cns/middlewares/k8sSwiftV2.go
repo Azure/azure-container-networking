@@ -169,7 +169,7 @@ func (k *K8sSWIFTv2Middleware) getIPConfig(ctx context.Context, podInfo cns.PodI
 				IPAddress:    ip.String(),
 				PrefixLength: uint8(prefixSize),
 			},
-			MacAddress:        mtpnc.Status.InterfaceInfos[0].MacAddress,
+			MacAddress:        mtpnc.Status.MacAddress,
 			NICType:           mtpnc.Status.InterfaceInfos[0].NICType,
 			SkipDefaultRoutes: false,
 			// InterfaceName is empty for DelegatedVMNIC
@@ -179,6 +179,10 @@ func (k *K8sSWIFTv2Middleware) getIPConfig(ctx context.Context, podInfo cns.PodI
 	// Fill rest of the elements from InterfaceInfos
 	for i := 1; i < len(mtpnc.Status.InterfaceInfos); i++ {
 		interfaceInfo := mtpnc.Status.InterfaceInfos[i]
+		// Check for duplicate NCID
+		if interfaceInfo.NCID == mtpnc.Status.NCID {
+			continue
+		}
 		podIPInfos[i] = cns.PodIpInfo{
 			PodIPConfig: cns.IPSubnet{
 				IPAddress:    ip.String(),
