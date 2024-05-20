@@ -148,41 +148,20 @@ func (k *K8sSWIFTv2Middleware) getIPConfig(ctx context.Context, podInfo cns.PodI
 	}
 	logger.Printf("[SWIFTv2Middleware] mtpnc for pod %s is : %+v", podInfo.Name(), mtpnc)
 
-	// Parse MTPNC primaryIP to get the IP address and prefix length
-	p, err := netip.ParsePrefix(mtpnc.Status.PrimaryIP)
-	if err != nil {
-		return nil, errors.Wrapf(err, "failed to parse mtpnc primaryIP %s", mtpnc.Status.PrimaryIP)
-	}
-	// Get the IP address and prefix length
-	ip := p.Addr()
-	prefixSize := p.Bits()
-	if prefixSize != prefixLength {
-		return nil, errors.Wrapf(errInvalidMTPNCPrefixLength, "mtpnc primaryIP prefix length is %d", prefixSize)
-	}
-
 	podIPInfos := make([]cns.PodIpInfo, len(mtpnc.Status.InterfaceInfos))
 
-	// Set the first element from the first InterfaceInfos
-	if len(mtpnc.Status.InterfaceInfos) > 0 {
-		podIPInfos[0] = cns.PodIpInfo{
-			PodIPConfig: cns.IPSubnet{
-				IPAddress:    ip.String(),
-				PrefixLength: uint8(prefixSize),
-			},
-			MacAddress:        mtpnc.Status.MacAddress,
-			NICType:           mtpnc.Status.InterfaceInfos[0].NICType,
-			SkipDefaultRoutes: false,
-			// InterfaceName is empty for DelegatedVMNIC
+	for i, interfaceInfo := range mtpnc.Status.InterfaceInfos {
+		// Parse MTPNC primaryIP to get the IP address and prefix length for each interface
+		p, err := netip.ParsePrefix(interfaceInfo.PrimaryIP)
+		if err != nil {
+			return nil, errors.Wrapf(err, "failed to parse mtpnc primaryIP %s", interfaceInfo.PrimaryIP)
 		}
-	}
+		ip := p.Addr()
+		prefixSize := p.Bits()
+		if prefixSize != prefixLength {
+			return nil, errors.Wrapf(errInvalidMTPNCPrefixLength, "mtpnc primaryIP prefix length is %d", prefixSize)
+		}
 
-	// Fill rest of the elements from InterfaceInfos
-	for i := 1; i < len(mtpnc.Status.InterfaceInfos); i++ {
-		interfaceInfo := mtpnc.Status.InterfaceInfos[i]
-		// Check for duplicate NCID
-		if interfaceInfo.NCID == mtpnc.Status.NCID {
-			continue
-		}
 		podIPInfos[i] = cns.PodIpInfo{
 			PodIPConfig: cns.IPSubnet{
 				IPAddress:    ip.String(),
