@@ -3,11 +3,10 @@ package middlewares
 import (
 	"context"
 	"fmt"
-	"net/netip"
-
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/configuration"
 	"github.com/Azure/azure-container-networking/cns/logger"
+	"github.com/Azure/azure-container-networking/cns/middlewares/utils"
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/crd/multitenancy/api/v1alpha1"
 	"github.com/pkg/errors"
@@ -148,23 +147,49 @@ func (k *K8sSWIFTv2Middleware) getIPConfig(ctx context.Context, podInfo cns.PodI
 	}
 	logger.Printf("[SWIFTv2Middleware] mtpnc for pod %s is : %+v", podInfo.Name(), mtpnc)
 
+	// Parse MTPNC primaryIP to get the IP address and prefix length
+	ip, prefixSize, err := utils.ParseIPAndPrefix(mtpnc.Status.PrimaryIP)
+	if err != nil {
+		return nil, err
+	}
+	if prefixSize != prefixLength {
+		return nil, errors.Wrapf(errInvalidMTPNCPrefixLength, "mtpnc primaryIP prefix length is %d", prefixSize)
+	}
+
 	podIPInfos := make([]cns.PodIpInfo, len(mtpnc.Status.InterfaceInfos))
 
-	for i, interfaceInfo := range mtpnc.Status.InterfaceInfos {
-		// Parse MTPNC primaryIP to get the IP address and prefix length for each interface
-		p, err := netip.ParsePrefix(interfaceInfo.PrimaryIP)
-		if err != nil {
-			return nil, errors.Wrapf(err, "failed to parse mtpnc primaryIP %s", interfaceInfo.PrimaryIP)
+	// Set the first element from the first InterfaceInfos
+	podIPInfos[0] = cns.PodIpInfo{
+		PodIPConfig: cns.IPSubnet{
+			IPAddress:    ip,
+			PrefixLength: uint8(prefixSize),
+		},
+		MacAddress:        mtpnc.Status.MacAddress,
+		NICType:           mtpnc.Status.InterfaceInfos[0].NICType,
+		SkipDefaultRoutes: false,
+		// InterfaceName is empty for DelegatedVMNIC
+	}
+
+	// Fill rest of the elements from InterfaceInfos
+	for i := 1; i < len(mtpnc.Status.InterfaceInfos); i++ {
+		interfaceInfo := mtpnc.Status.InterfaceInfos[i]
+		// Check for duplicate NCID
+		if interfaceInfo.NCID == mtpnc.Status.NCID {
+			continue
 		}
-		ip := p.Addr()
-		prefixSize := p.Bits()
+
+		// Parse MTPNC primaryIP to get the IP address and prefix length
+		ip, prefixSize, err = utils.ParseIPAndPrefix(interfaceInfo.PrimaryIP)
+		if err != nil {
+			return nil, err
+		}
 		if prefixSize != prefixLength {
 			return nil, errors.Wrapf(errInvalidMTPNCPrefixLength, "mtpnc primaryIP prefix length is %d", prefixSize)
 		}
 
 		podIPInfos[i] = cns.PodIpInfo{
 			PodIPConfig: cns.IPSubnet{
-				IPAddress:    ip.String(),
+				IPAddress:    ip,
 				PrefixLength: uint8(prefixSize),
 			},
 			MacAddress:        interfaceInfo.MacAddress,
