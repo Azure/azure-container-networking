@@ -20,16 +20,11 @@ spec:
   scope: Namespaced
   versions:
   - additionalPrinterColumns:
-    - jsonPath: .status.podIPAddresses
-      name: Pod IPs
-      priority: 1
+    - jsonPath: .status.status
+      name: Status
       type: string
-    - jsonPath: .spec.podNetwork
-      name: PodNetwork
-      priority: 1
-      type: string
-    - jsonPath: .spec.podIPReservationSize
-      name: PodIPReservationSize
+    - jsonPath: .spec.podNetworks
+      name: PodNetworks
       priority: 1
       type: string
     name: v1alpha1
@@ -55,14 +50,31 @@ spec:
             properties:
               podIPReservationSize:
                 default: 0
-                description: number of backend IP address to reserve for running pods
+                description: Deprecated - use PodNetworks
                 type: integer
+              podNetworkConfigs:
+                description: PodNetworkConfigs describes each PodNetwork to attach
+                  to a single Pod optional for now in case orchestrator uses the deprecated
+                  fields
+                items:
+                  description: PodNetworkConfig describes a template for how to attach
+                    a PodNetwork to a Pod
+                  properties:
+                    podIPReservationSize:
+                      default: 0
+                      description: PodIPReservationSize is the number of IP address
+                        to statically reserve
+                      type: integer
+                    podNetwork:
+                      description: PodNetwork is the name of a PodNetwork resource
+                      type: string
+                  required:
+                  - podNetwork
+                  type: object
+                type: array
               podnetwork:
-                description: pod network resource object name
+                description: Deprecated - use PodNetworks
                 type: string
-            required:
-            - podIPReservationSize
-            - podnetwork
             type: object
           status:
             description: PodNetworkInstanceStatus defines the observed state of PodNetworkInstance
@@ -71,6 +83,16 @@ spec:
                 items:
                   type: string
                 type: array
+              podNetworkStatuses:
+                additionalProperties:
+                  description: PNIStatus indicates the status of PNI
+                  enum:
+                  - Ready
+                  - CreateReservationSetError
+                  - PodNetworkNotReady
+                  - InsufficientIPAddressesOnSubnet
+                  type: string
+                type: object
               status:
                 description: PNIStatus indicates the status of PNI
                 enum:

@@ -25,7 +25,7 @@ spec:
       name: Address Prefixes
       priority: 1
       type: string
-    - jsonPath: .spec.vnetGUID
+    - jsonPath: .spec.networkID
       name: Network
       priority: 1
       type: string
@@ -35,6 +35,10 @@ spec:
       type: string
     - jsonPath: .spec.subnetGUID
       name: SubnetGUID
+      priority: 1
+      type: string
+    - jsonPath: .spec.subnetGUID
+      name: DeviceType
       priority: 1
       type: string
     name: v1alpha1
@@ -57,6 +61,17 @@ spec:
           spec:
             description: PodNetworkSpec defines the desired state of PodNetwork
             properties:
+              deviceType:
+                description: DeviceType is the device type that is required by this
+                  network
+                enum:
+                - acn.azure.com/vnet-nic
+                - acn.azure.com/infiniband-nic
+                type: string
+              networkID:
+                description: NetworkID is the identifier for the network, e.g. vnet
+                  guid or IB network ID
+                type: string
               subnetGUID:
                 description: customer subnet guid
                 type: string
@@ -64,7 +79,7 @@ spec:
                 description: customer subnet id
                 type: string
               vnetGUID:
-                description: customer vnet guid
+                description: Deprecated - Use NetworkID
                 type: string
             type: object
           status:

@@ -1,0 +1,7 @@
+apiVersion: multitenancy.acn.azure.com/v1alpha1
+kind: PodNetworkInstance
+metadata:
+   name: pni1
+spec:
+   podnetwork: aksswiftvnetv20425
+   podIPReservationSize: 2

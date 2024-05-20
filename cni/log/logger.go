@@ -17,6 +17,8 @@ var (
 const (
 	maxLogFileSizeInMb = 5
 	maxLogFileCount    = 8
+	etwCNIEventName    = "Azure-CNI"
+	loggingLevel       = zapcore.DebugLevel
 )
 
 func initZapLog(logFile string) *zap.Logger {
@@ -30,13 +32,17 @@ func initZapLog(logFile string) *zap.Logger {
 	encoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
 	jsonEncoder := zapcore.NewJSONEncoder(encoderConfig)
 
-	core := zapcore.NewCore(jsonEncoder, logFileCNIWriter, zapcore.DebugLevel)
-	Logger := zap.New(core)
-	return Logger
+	textFileCore := zapcore.NewCore(jsonEncoder, logFileCNIWriter, loggingLevel)
+	core, err := JoinPlatformCores(textFileCore, loggingLevel)
+	if err != nil {
+		// If we fail to join the platform cores, fallback to the original core.
+		core = textFileCore
+	}
+	return zap.New(core, zap.AddCaller()).With(zap.Int("pid", os.Getpid()))
 }
 
 var (
-	CNILogger       = initZapLog(zapCNILogFile).With(zap.Int("pid", os.Getpid()))
-	IPamLogger      = initZapLog(zapIpamLogFile).With(zap.Int("pid", os.Getpid()))
-	TelemetryLogger = initZapLog(zapTelemetryLogFile).With(zap.Int("pid", os.Getpid()))
+	CNILogger       = initZapLog(zapCNILogFile)
+	IPamLogger      = initZapLog(zapIpamLogFile)
+	TelemetryLogger = initZapLog(zapTelemetryLogFile)
 )

@@ -29,18 +29,6 @@ spec:
     - jsonPath: .spec.podName
       name: PodName
       type: string
-    - jsonPath: .status.ncID
-      name: NCID
-      type: string
-    - jsonPath: .status.primaryIP
-      name: PrimaryIP
-      type: string
-    - jsonPath: .status.macAddress
-      name: MacAddress
-      type: string
-    - jsonPath: .status.gatewayIP
-      name: GatewayIP
-      type: string
     name: v1alpha1
     schema:
       openAPIV3Schema:
@@ -80,16 +68,43 @@ spec:
               of PodNetworkConfig
             properties:
               gatewayIP:
-                description: Gateway IP
+                description: Deprecated - use InterfaceInfos
                 type: string
+              interfaceInfos:
+                description: InterfaceInfos describes all of the network container
+                  goal state for this Pod
+                items:
+                  properties:
+                    deviceType:
+                      description: DeviceType is the device type that this NC was
+                        created for
+                      enum:
+                      - acn.azure.com/vnet-nic
+                      - acn.azure.com/infiniband-nic
+                      type: string
+                    gatewayIP:
+                      description: GatewayIP is the gateway ip of the injected subnet
+                      type: string
+                    macAddress:
+                      description: MacAddress is the MAC Address of the VM's NIC which
+                        this network container was created for
+                      type: string
+                    ncID:
+                      description: NCID is the network container id
+                      type: string
+                    primaryIP:
+                      description: PrimaryIP is the ip allocated to the network container
+                      type: string
+                  type: object
+                type: array
               macAddress:
-                description: maps to the NIC to be injected for the network container
+                description: Deprecated - use InterfaceInfos
                 type: string
               ncID:
-                description: network container id
+                description: Deprecated - use InterfaceInfos
                 type: string
               primaryIP:
-                description: ip allocated to the network container
+                description: Deprecated - use InterfaceInfos
                 type: string
             type: object
         type: object

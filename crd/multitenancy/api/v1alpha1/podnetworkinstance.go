@@ -16,9 +16,8 @@ import (
 // +kubebuilder:subresource:status
 // +kubebuilder:metadata:labels=managed=
 // +kubebuilder:metadata:labels=owner=
-// +kubebuilder:printcolumn:name="Pod IPs",type=string,priority=1,JSONPath=`.status.podIPAddresses`
-// +kubebuilder:printcolumn:name="PodNetwork",type=string,priority=1,JSONPath=`.spec.podNetwork`
-// +kubebuilder:printcolumn:name="PodIPReservationSize",type=string,priority=1,JSONPath=`.spec.podIPReservationSize`
+// +kubebuilder:printcolumn:name="Status",type=string,JSONPath=`.status.status`
+// +kubebuilder:printcolumn:name="PodNetworks",priority=1,type=string,JSONPath=`.spec.podNetworks`
 type PodNetworkInstance struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -36,19 +35,35 @@ type PodNetworkInstanceList struct {
 	Items           []PodNetworkInstance `json:"items"`
 }
 
+// PodNetworkConfig describes a template for how to attach a PodNetwork to a Pod
+type PodNetworkConfig struct {
+	// PodNetwork is the name of a PodNetwork resource
+	PodNetwork string `json:"podNetwork"`
+	// PodIPReservationSize is the number of IP address to statically reserve
+	// +kubebuilder:default=0
+	PodIPReservationSize int `json:"podIPReservationSize,omitempty"`
+}
+
 // PodNetworkInstanceSpec defines the desired state of PodNetworkInstance
 type PodNetworkInstanceSpec struct {
-	// pod network resource object name
-	PodNetwork string `json:"podnetwork"`
-	// number of backend IP address to reserve for running pods
+	// Deprecated - use PodNetworks
+	// +kubebuilder:validation:Optional
+	PodNetwork string `json:"podnetwork,omitempty"`
+	// Deprecated - use PodNetworks
 	// +kubebuilder:default=0
-	PodIPReservationSize int `json:"podIPReservationSize"`
+	PodIPReservationSize int `json:"podIPReservationSize,omitempty"`
+	// PodNetworkConfigs describes each PodNetwork to attach to a single Pod
+	// optional for now in case orchestrator uses the deprecated fields
+	// +kubebuilder:validation:Optional
+	PodNetworkConfigs []PodNetworkConfig `json:"podNetworkConfigs"`
 }
 
 // PodNetworkInstanceStatus defines the observed state of PodNetworkInstance
 type PodNetworkInstanceStatus struct {
-	PodIPAddresses []string  `json:"podIPAddresses,omitempty"`
-	Status         PNIStatus `json:"status,omitempty"`
+	// +kubebuilder:validation:Optional
+	PodIPAddresses     []string             `json:"podIPAddresses,omitempty"`
+	Status             PNIStatus            `json:"status,omitempty"`
+	PodNetworkStatuses map[string]PNIStatus `json:"podNetworkStatuses,omitempty"`
 }
 
 // PNIStatus indicates the status of PNI

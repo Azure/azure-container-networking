@@ -18,6 +18,8 @@ const (
 	OptAPIServerURLAlias = "u"
 	OptCnsURL            = "cns-url"
 	OptCnsURLAlias       = "c"
+	OptCnsPort           = "cns-port"
+	OptCnsPortAlias      = "p"
 
 	// Logging level.
 	OptLogLevel      = "log-level"
