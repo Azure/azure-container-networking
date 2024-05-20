@@ -24,6 +24,14 @@ int gua_to_linklocal(struct __sk_buff *skb)
     struct in6_addr dst_addr;
     struct ipv6hdr ipv6_hdr;
 
+    // Load the IPv6 header from the packet
+    int ret_hdr = bpf_skb_load_bytes(skb, ETH_HLEN, &ipv6_hdr, sizeof(ipv6_hdr));
+    if (ret_hdr != 0)
+    {
+        bpf_printk("bpf_skb_load_bytes failed to load IPv6 header with error code %d.\n", ret_hdr);
+        return TC_ACT_UNSPEC;
+    }
+
     // Check if the packet is TCP
     if (ipv6_hdr.nexthdr != IPPROTO_TCP)
         return TC_ACT_UNSPEC;
@@ -33,14 +41,6 @@ int gua_to_linklocal(struct __sk_buff *skb)
     if (ret != 0)
     {
         bpf_printk("bpf_skb_load_bytes failed to load destination address with error code %d.\n", ret);
-        return TC_ACT_UNSPEC;
-    }
-
-    // Load the IPv6 header from the packet
-    int ret_hdr = bpf_skb_load_bytes(skb, ETH_HLEN, &ipv6_hdr, sizeof(ipv6_hdr));
-    if (ret_hdr != 0)
-    {
-        bpf_printk("bpf_skb_load_bytes failed to load IPv6 header with error code %d.\n", ret_hdr);
         return TC_ACT_UNSPEC;
     }
 
