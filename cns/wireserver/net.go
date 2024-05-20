@@ -60,7 +60,7 @@ func GetSecondaryInterfaceFromResult(res *GetInterfacesResult, macAddress string
 			continue
 		}
 
-		// skip if no subnets
+		// Skip if interface is not ready/programmed by nmagent, i.e. no ipsubnet assigned
 		if len(i.IPSubnet) == 0 {
 			continue
 		}
@@ -80,15 +80,19 @@ func GetSecondaryInterfaceFromResult(res *GetInterfacesResult, macAddress string
 					break
 				}
 			}
-			var secondaryIPs []string
-			secondaryIPs = append(secondaryIPs, secondaryIP)
 
-			return &InterfaceInfo{
-				Subnet:       s.Prefix,
-				IsPrimary:    false,
-				Gateway:      gw.String(),
-				SecondaryIPs: secondaryIPs,
-			}, nil
+			if secondaryIP != "" {
+				var secondaryIPs []string
+				secondaryIPs = append(secondaryIPs, secondaryIP)
+
+				return &InterfaceInfo{
+					Subnet:       s.Prefix,
+					IsPrimary:    false,
+					Gateway:      gw.String(),
+					SecondaryIPs: secondaryIPs,
+				}, nil
+			}
+
 		}
 	}
 	return nil, ErrNoSecondaryInterface
