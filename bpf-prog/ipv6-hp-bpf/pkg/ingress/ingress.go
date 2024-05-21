@@ -22,10 +22,10 @@ func SetupIngressFilter(ifaceIndex int, objs *IngressObjects, logger *zap.Logger
 		return err
 	}
 
-	// Check if egress filter exists and delete it. Filter is identified by priority=1 and handle=1.
-	// this is to avoid duplicate filters after restarting the daemonset
+	// Check if egress filter exists and delete it. Filter is identified by its name.
+	// this is to avoid duplicate filters after restarting the daemonsetS
 	for _, filter := range filters {
-		if filter.Attrs().Priority == 1 && filter.Attrs().Handle == 1 {
+		if filter, ok := filter.(*netlink.BpfFilter); ok && filter.Name == "ipv6_hp_ingress" {
 			if err := netlink.FilterDel(filter); err != nil {
 				logger.Error("Failed to delete filter", zap.Error(err))
 				return err
