@@ -14,7 +14,6 @@ import (
 	acn "github.com/Azure/azure-container-networking/common"
 	serverTLS "github.com/Azure/azure-container-networking/server/tls"
 	"github.com/Azure/azure-container-networking/store"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -54,7 +53,7 @@ func TestNewService(t *testing.T) {
 		t.Cleanup(func() {
 			resp.Body.Close()
 		})
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("NewServiceWithTLS", func(t *testing.T) {
@@ -98,7 +97,7 @@ func TestNewService(t *testing.T) {
 		t.Cleanup(func() {
 			resp.Body.Close()
 		})
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 
 	t.Run("NewServiceWithMutualTLS", func(t *testing.T) {
@@ -140,6 +139,6 @@ func TestNewService(t *testing.T) {
 		t.Cleanup(func() {
 			resp.Body.Close()
 		})
-		assert.NoError(t, err)
+		require.NoError(t, err)
 	})
 }
