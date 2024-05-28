@@ -75,8 +75,8 @@ func TestIPConfigsRequestHandlerWrapperSuccess(t *testing.T) {
 	happyReq.OrchestratorContext = b
 	resp, err := wrappedHandler(context.TODO(), happyReq)
 	assert.Equal(t, err, nil)
-	assert.Equal(t, resp.PodIPInfo[2].PodIPConfig.IPAddress, "10.0.1.10")
-	assert.Equal(t, resp.PodIPInfo[2].MacAddress, "00:00:00:00:00:00")
+	assert.Equal(t, resp.PodIPInfo[0].PodIPConfig.IPAddress, "192.168.0.1")
+	assert.Equal(t, resp.PodIPInfo[0].MacAddress, "00:00:00:00:00:00")
 }
 
 func TestIPConfigsRequestHandlerWrapperFailure(t *testing.T) {

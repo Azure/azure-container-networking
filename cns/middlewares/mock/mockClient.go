@@ -3,7 +3,6 @@ package mock
 import (
 	"context"
 
-	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/configuration"
 	"github.com/Azure/azure-container-networking/crd/multitenancy/api/v1alpha1"
 	"github.com/pkg/errors"
@@ -52,28 +51,25 @@ func NewClient() *Client {
 	testPod6.Labels[configuration.LabelPodSwiftV2] = podNetwork
 
 	testInterfaceInfos1 := v1alpha1.InterfaceInfo{
-		NCID:       "testncid",
-		PrimaryIP:  "192.168.0.1/32",
-		MacAddress: "00:00:00:00:00:00",
-		GatewayIP:  "10.0.0.1",
-		DeviceType: "",
-		NICType:    cns.DelegatedVMNIC,
+		NCID:            "testncid",
+		PrimaryIP:       "192.168.0.1/32",
+		MacAddress:      "00:00:00:00:00:00",
+		GatewayIP:       "10.0.0.1",
+		AccelnetEnabled: false,
 	}
 	testInterfaceInfos3 := v1alpha1.InterfaceInfo{
-		NCID:       "testncid",
-		PrimaryIP:  "192.168.0.1/32",
-		MacAddress: "00:00:00:00:00:00",
-		GatewayIP:  "10.0.0.1",
-		DeviceType: "",
-		NICType:    cns.BackendNIC,
+		NCID:            "testncid",
+		PrimaryIP:       "192.168.0.1/32",
+		MacAddress:      "00:00:00:00:00:00",
+		GatewayIP:       "10.0.0.1",
+		AccelnetEnabled: false,
 	}
 	testInterfaceInfos5 := v1alpha1.InterfaceInfo{
-		NCID:       "testncid",
-		PrimaryIP:  "192.168.0.1/32",
-		MacAddress: "00:00:00:00:00:00",
-		GatewayIP:  "10.0.0.1",
-		DeviceType: "",
-		NICType:    cns.NodeNetworkInterfaceAccelnetFrontendNIC,
+		NCID:            "testncid",
+		PrimaryIP:       "192.168.0.1/32",
+		MacAddress:      "00:00:00:00:00:00",
+		GatewayIP:       "10.0.0.1",
+		AccelnetEnabled: true,
 	}
 
 	testMTPNC1 := v1alpha1.MultitenantPodNetworkConfig{
@@ -149,12 +145,11 @@ func (c *Client) Get(_ context.Context, key client.ObjectKey, obj client.Object,
 
 func (c *Client) SetMTPNCReady() {
 	testInterfaceInfos1 := v1alpha1.InterfaceInfo{
-		NCID:       "testncid",
-		PrimaryIP:  "192.168.0.1/32",
-		MacAddress: "00:00:00:00:00:00",
-		GatewayIP:  "10.0.0.1",
-		DeviceType: "",
-		NICType:    cns.DelegatedVMNIC,
+		NCID:            "testncid",
+		PrimaryIP:       "192.168.0.1/32",
+		MacAddress:      "00:00:00:00:00:00",
+		GatewayIP:       "10.0.0.1",
+		AccelnetEnabled: false,
 	}
 
 	testMTPNC1 := v1alpha1.MultitenantPodNetworkConfig{}
