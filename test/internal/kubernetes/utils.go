@@ -428,39 +428,46 @@ func writeToFile(dir, fileName, str string) error {
 }
 
 func ExecCmdOnPod(ctx context.Context, clientset *kubernetes.Clientset, namespace, podName string, cmd []string, config *rest.Config) ([]byte, error) {
-	req := clientset.CoreV1().RESTClient().Post().
-		Resource("pods").
-		Name(podName).
-		Namespace(namespace).
-		SubResource("exec").
-		VersionedParams(&corev1.PodExecOptions{
-			Command: cmd,
-			Stdin:   false,
-			Stdout:  true,
-			Stderr:  true,
-			TTY:     false,
-		}, scheme.ParameterCodec)
+	var result []byte
+	execCmdOnPod := func() error {
+		req := clientset.CoreV1().RESTClient().Post().
+			Resource("pods").
+			Name(podName).
+			Namespace(namespace).
+			SubResource("exec").
+			VersionedParams(&corev1.PodExecOptions{
+				Command: cmd,
+				Stdin:   false,
+				Stdout:  true,
+				Stderr:  true,
+				TTY:     false,
+			}, scheme.ParameterCodec)
 
-	exec, err := remotecommand.NewSPDYExecutor(config, "POST", req.URL())
-	if err != nil {
-		return []byte{}, errors.Wrapf(err, "error in creating executor for req %s", req.URL())
-	}
+		exec, err := remotecommand.NewSPDYExecutor(config, "POST", req.URL())
+		if err != nil {
+			return errors.Wrapf(err, "error in creating executor for req %s", req.URL())
+		}
 
-	var stdout, stderr bytes.Buffer
-	err = exec.StreamWithContext(ctx, remotecommand.StreamOptions{
-		Stdin:  nil,
-		Stdout: &stdout,
-		Stderr: &stderr,
-		Tty:    false,
-	})
-	if err != nil {
-		return []byte{}, errors.Wrapf(err, "error in executing command %s", cmd)
+		var stdout, stderr bytes.Buffer
+		err = exec.StreamWithContext(ctx, remotecommand.StreamOptions{
+			Stdin:  nil,
+			Stdout: &stdout,
+			Stderr: &stderr,
+			Tty:    false,
+		})
+		if err != nil {
+			log.Printf("Error: %v had error %v from command - %v, will retry", podName, err, cmd)
+			return errors.Wrapf(err, "error in executing command %s", cmd)
+		}
+		if len(stdout.Bytes()) == 0 {
+			log.Printf("Warning: %v had 0 bytes returned from command - %v", podName, cmd)
+		}
+		result = stdout.Bytes()
+		return nil
 	}
-	if len(stdout.Bytes()) == 0 {
-		log.Printf("Warning: %v had 0 bytes returned from command - %v", podName, cmd)
-	}
-
-	return stdout.Bytes(), nil
+	retrier := retry.Retrier{Attempts: ShortRetryAttempts, Delay: RetryDelay}
+	err := retrier.Do(ctx, execCmdOnPod)
+	return result, errors.Wrapf(err, "could not execute the cmd %s on %s", cmd, podName)
 }
 
 func NamespaceExists(ctx context.Context, clientset *kubernetes.Clientset, namespace string) (bool, error) {

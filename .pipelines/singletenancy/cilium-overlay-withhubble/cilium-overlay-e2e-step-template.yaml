@@ -48,25 +48,7 @@ steps:
     name: "installCilium"
     displayName: "Install Cilium on AKS Overlay"
 
-  - script: |
-      echo "install cilium CLI"
-      if [[ ${CILIUM_VERSION_TAG} =~ ^1.1[1-3].[0-9]{1,2} ]]; then
-        echo "Cilium Agent Version ${BASH_REMATCH[0]}"
-        CILIUM_CLI_VERSION=$(curl -s https://raw.githubusercontent.com/cilium/cilium-cli/main/stable-v0.14.txt)
-      else
-        echo "Cilium Agent Version ${CILIUM_VERSION_TAG}"
-        CILIUM_CLI_VERSION=$(curl -s https://raw.githubusercontent.com/cilium/cilium-cli/master/stable.txt)
-      fi
-      CLI_ARCH=amd64
-      if [ "$(uname -m)" = "aarch64" ]; then CLI_ARCH=arm64; fi
-      curl -L --fail --remote-name-all https://github.com/cilium/cilium-cli/releases/download/${CILIUM_CLI_VERSION}/cilium-linux-${CLI_ARCH}.tar.gz{,.sha256sum}
-      sha256sum --check cilium-linux-${CLI_ARCH}.tar.gz.sha256sum
-      sudo tar xzvfC cilium-linux-${CLI_ARCH}.tar.gz /usr/local/bin
-      rm cilium-linux-${CLI_ARCH}.tar.gz{,.sha256sum}
-      cilium status
-      cilium version
-    name: "installCiliumCLI"
-    displayName: "Install Cilium CLI"
+  - template: ../../templates/cilium-cli.yaml
 
   - script: |
       echo "Start Azilium E2E Tests on Overlay Cluster"
@@ -165,6 +147,16 @@ steps:
     retryCountOnTaskFailure: 3
     name: "WireserverMetadataConnectivityTests"
     displayName: "Run Wireserver and Metadata Connectivity Tests"
+  
+  - script: |
+      cd hack/scripts
+      chmod +x async-delete-test.sh
+      ./async-delete-test.sh
+      if ! [ -z $(kubectl -n kube-system get ds  azure-cns | grep non-existing) ]; then
+        kubectl -n kube-system patch daemonset azure-cns --type json -p='[{"op": "remove", "path": "/spec/template/spec/nodeSelector/non-existing"}]'
+      fi
+    name: "testAsyncDelete"
+    displayName: "Verify Async Delete when CNS is down"
 
   - script: |
       ARTIFACT_DIR=$(Build.ArtifactStagingDirectory)/test-output/
