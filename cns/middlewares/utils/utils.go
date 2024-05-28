@@ -27,12 +27,13 @@ func ParseCIDRs(cidrs string) (v4IPs, v6IPs []string, err error) {
 }
 
 // ParseIPAndPrefix parses the primaryIP and returns the IP address and prefix length.
-func ParseIPAndPrefix(primaryIP string) (string, int, error) {
+func ParseIPAndPrefix(primaryIP string) (ip string, prefixSize int, err error) {
 	p, err := netip.ParsePrefix(primaryIP)
 	if err != nil {
-		return "", 0, errors.Wrapf(err, "failed to parse primaryIP %s", primaryIP)
+		err = errors.Wrapf(err, "failed to parse primaryIP %s", primaryIP)
+		return "", 0, err
 	}
-	ip := p.Addr().String()
-	prefixSize := p.Bits()
+	ip = p.Addr().String()
+	prefixSize = p.Bits()
 	return ip, prefixSize, nil
 }
