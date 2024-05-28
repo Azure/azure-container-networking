@@ -75,10 +75,10 @@ spec:
                   state for this Pod
                 items:
                   properties:
-                    NICType:
-                      description: NICType specifies the type of NIC to enable appropriate
-                        programming by CNS/CNI
-                      type: string
+                    accelnetEnabled:
+                      description: AccelnetEnabled determines if the CNI will provision
+                        the NIC with accelerated networking enabled
+                      type: boolean
                     deviceType:
                       description: DeviceType is the device type that this NC was
                         created for
