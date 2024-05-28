@@ -33,14 +33,50 @@ var (
 
 var windowsChecksMap = map[string][]check{
 	"cniv1": {
-		{"hns", hnsStateFileIps, privilegedLabelSelector, privilegedNamespace, hnsEndPointCmd},
-		{"azure-vnet", azureVnetIps, privilegedLabelSelector, privilegedNamespace, azureVnetCmd},
-		{"azure-vnet-ipam", azureVnetIpamIps, privilegedLabelSelector, privilegedNamespace, azureVnetIpamCmd},
+		{
+			name:             "hns",
+			stateFileIPs:     hnsStateFileIPs,
+			podLabelSelector: privilegedLabelSelector,
+			podNamespace:     privilegedNamespace,
+			cmd:              hnsEndPointCmd,
+		},
+		{
+			name:             "azure-vnet",
+			stateFileIPs:     azureVnetIps,
+			podLabelSelector: privilegedLabelSelector,
+			podNamespace:     privilegedNamespace,
+			cmd:              azureVnetCmd,
+		},
+		{
+			name:             "azure-vnet-ipam",
+			stateFileIPs:     azureVnetIpamIps,
+			podLabelSelector: privilegedLabelSelector,
+			podNamespace:     privilegedNamespace,
+			cmd:              azureVnetIpamCmd,
+		},
 	},
 	"cniv2": {
-		{"hns", hnsStateFileIps, privilegedLabelSelector, privilegedNamespace, hnsEndPointCmd},
-		{"azure-vnet", azureVnetIps, privilegedLabelSelector, privilegedNamespace, azureVnetCmd},
-		{"cns cache", cnsCacheStateFileIps, cnsWinLabelSelector, privilegedNamespace, cnsWinCachedAssignedIPStateCmd},
+		{
+			name:             "hns",
+			stateFileIPs:     hnsStateFileIPs,
+			podLabelSelector: privilegedLabelSelector,
+			podNamespace:     privilegedNamespace,
+			cmd:              hnsEndPointCmd,
+		},
+		{
+			name:             "azure-vnet",
+			stateFileIPs:     azureVnetIps,
+			podLabelSelector: privilegedLabelSelector,
+			podNamespace:     privilegedNamespace,
+			cmd:              azureVnetCmd,
+		},
+		{
+			name:             "cns cache",
+			stateFileIPs:     cnsCacheStateFileIps,
+			podLabelSelector: cnsWinLabelSelector,
+			podNamespace:     privilegedNamespace,
+			cmd:              cnsWinCachedAssignedIPStateCmd,
+		},
 	},
 }
 
@@ -101,7 +137,7 @@ type AddressRecord struct {
 	InUse bool
 }
 
-func hnsStateFileIps(result []byte) (map[string]string, error) {
+func hnsStateFileIPs(result []byte) (map[string]string, error) {
 	jsonType := bytes.TrimLeft(result, " \t\r\n")
 	isObject := jsonType[0] == '{'
 	isArray := jsonType[0] == '['
@@ -209,7 +245,7 @@ func validateHNSNetworkState(ctx context.Context, nodes *corev1.NodeList, client
 		}
 		podName := pod.Items[0].Name
 		// exec into the pod to get the state file
-		result, err := acnk8s.ExecCmdOnPod(ctx, clientset, privilegedNamespace, podName, hnsNetworkCmd, restConfig)
+		result, err := acnk8s.ExecCmdOnPod(ctx, clientset, privilegedNamespace, podName, "", hnsNetworkCmd, restConfig)
 		if err != nil {
 			return errors.Wrap(err, "failed to exec into privileged pod")
 		}

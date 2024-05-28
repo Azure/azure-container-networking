@@ -154,7 +154,7 @@ func TestSwiftv2PodToPod(t *testing.T) {
 	for _, pod := range allPods.Items {
 		for _, ip := range ipsToPing {
 			t.Logf("ping from pod %q to %q", pod.Name, ip)
-			result := podTest(t, ctx, clientset, pod, []string{"ping", "-c", "3", ip}, restConfig)
+			result := podTest(t, ctx, clientset, pod, "", []string{"ping", "-c", "3", ip}, restConfig)
 			if result != nil {
 				t.Errorf("ping %q failed: error: %s", ip, result)
 			}
@@ -163,8 +163,8 @@ func TestSwiftv2PodToPod(t *testing.T) {
 	return
 }
 
-func podTest(t *testing.T, ctx context.Context, clientset *kuberneteslib.Clientset, srcPod v1.Pod, cmd []string, rc *restclient.Config) error {
-	output, err := kubernetes.ExecCmdOnPod(ctx, clientset, srcPod.Namespace, srcPod.Name, cmd, rc)
+func podTest(t *testing.T, ctx context.Context, clientset *kuberneteslib.Clientset, srcPod v1.Pod, container string, cmd []string, rc *restclient.Config) error {
+	output, err := kubernetes.ExecCmdOnPod(ctx, clientset, srcPod.Namespace, srcPod.Name, container, cmd, rc)
 	t.Logf(string(output))
 	if err != nil {
 		t.Errorf("failed to execute command on pod: %v", srcPod.Name)

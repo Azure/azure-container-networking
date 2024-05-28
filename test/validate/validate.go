@@ -52,9 +52,10 @@ type Validator struct {
 
 type check struct {
 	name             string
-	stateFileIps     func([]byte) (map[string]string, error)
+	stateFileIPs     func([]byte) (map[string]string, error)
 	podLabelSelector string
 	podNamespace     string
+	containerName    string
 	cmd              []string
 }
 
@@ -114,7 +115,7 @@ func (v *Validator) Validate(ctx context.Context) error {
 
 func (v *Validator) ValidateStateFile(ctx context.Context) error {
 	for _, check := range v.checks {
-		err := v.validateIPs(ctx, check.stateFileIps, check.cmd, check.name, check.podNamespace, check.podLabelSelector)
+		err := v.validateIPs(ctx, check.stateFileIPs, check.cmd, check.name, check.podNamespace, check.podLabelSelector, check.containerName)
 		if err != nil {
 			return err
 		}
@@ -122,7 +123,7 @@ func (v *Validator) ValidateStateFile(ctx context.Context) error {
 	return nil
 }
 
-func (v *Validator) validateIPs(ctx context.Context, stateFileIps stateFileIpsFunc, cmd []string, checkType, namespace, labelSelector string) error {
+func (v *Validator) validateIPs(ctx context.Context, stateFileIps stateFileIpsFunc, cmd []string, checkType, namespace, labelSelector, containerName string) error {
 	log.Printf("Validating %s state file", checkType)
 	nodes, err := acnk8s.GetNodeListByLabelSelector(ctx, v.clientset, nodeSelectorMap[v.os])
 	if err != nil {
@@ -140,7 +141,8 @@ func (v *Validator) validateIPs(ctx context.Context, stateFileIps stateFileIpsFu
 		}
 		podName := pod.Items[0].Name
 		// exec into the pod to get the state file
-		result, err := acnk8s.ExecCmdOnPod(ctx, v.clientset, namespace, podName, cmd, v.config)
+		log.Printf("Executing command %s on pod %s, container %s", cmd, podName, containerName)
+		result, err := acnk8s.ExecCmdOnPod(ctx, v.clientset, namespace, podName, containerName, cmd, v.config)
 		if err != nil {
 			return errors.Wrapf(err, "failed to exec into privileged pod - %s", podName)
 		}

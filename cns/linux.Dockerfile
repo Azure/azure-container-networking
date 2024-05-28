@@ -21,9 +21,7 @@ RUN tdnf install -y iptables
 
 FROM mariner-distroless
 COPY --from=iptables /usr/sbin/*tables* /usr/sbin/
-COPY --from=iptables /usr/lib/iptables /usr/lib/iptables
-COPY --from=iptables /usr/lib/libip* /usr/lib/
-COPY --from=iptables /usr/lib/libxtables* /usr/lib/
+COPY --from=iptables /usr/lib /usr/lib
 COPY --from=builder /usr/local/bin/azure-cns \
 	/usr/local/bin/azure-cns
 ENTRYPOINT [ "/usr/local/bin/azure-cns" ]

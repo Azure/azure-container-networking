@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	cnsLabelSelector        = "k8s-app=azure-cns"
+	validatorPod            = "k8s-app=azure-cns"
 	ciliumLabelSelector     = "k8s-app=cilium"
 	overlayClusterLabelName = "overlay"
 )
@@ -30,26 +30,104 @@ type stateFileIpsFunc func([]byte) (map[string]string, error)
 
 var linuxChecksMap = map[string][]check{
 	"cilium": {
-		{"cns", cnsManagedStateFileIps, cnsLabelSelector, privilegedNamespace, cnsManagedStateFileCmd}, // cns configmap "ManageEndpointState": true, | Endpoints managed in CNS State File
-		{"cilium", ciliumStateFileIps, ciliumLabelSelector, privilegedNamespace, ciliumStateFileCmd},
-		{"cns cache", cnsCacheStateFileIps, cnsLabelSelector, privilegedNamespace, cnsCachedAssignedIPStateCmd},
+		{
+			name:             "cns",
+			stateFileIPs:     cnsManagedStateFileIps,
+			podLabelSelector: validatorPod,
+			podNamespace:     privilegedNamespace,
+			containerName:    "debug",
+			cmd:              cnsManagedStateFileCmd,
+		}, // cns configmap "ManageEndpointState": true, | Endpoints managed in CNS State File
+		{
+			name:             "cilium",
+			stateFileIPs:     ciliumStateFileIps,
+			podLabelSelector: ciliumLabelSelector,
+			podNamespace:     privilegedNamespace,
+			cmd:              ciliumStateFileCmd,
+		},
+		{
+			name:             "cns cache",
+			stateFileIPs:     cnsCacheStateFileIps,
+			podLabelSelector: validatorPod,
+			podNamespace:     privilegedNamespace,
+			containerName:    "debug",
+			cmd:              cnsCachedAssignedIPStateCmd,
+		},
 	},
 	"cniv1": {
-		{"azure-vnet", azureVnetStateIps, privilegedLabelSelector, privilegedNamespace, azureVnetStateFileCmd},
-		{"azure-vnet-ipam", azureVnetIpamStateIps, privilegedLabelSelector, privilegedNamespace, azureVnetIpamStateCmd},
+		{
+			name:             "azure-vnet",
+			stateFileIPs:     azureVnetStateIps,
+			podLabelSelector: privilegedLabelSelector,
+			podNamespace:     privilegedNamespace,
+			cmd:              azureVnetStateFileCmd,
+		},
+		{
+			name:             "azure-vnet-ipam",
+			stateFileIPs:     azureVnetIpamStateIps,
+			podLabelSelector: privilegedLabelSelector,
+			podNamespace:     privilegedNamespace,
+			cmd:              azureVnetIpamStateCmd,
+		},
 	},
 	"cniv2": {
-		{"cns cache", cnsCacheStateFileIps, cnsLabelSelector, privilegedNamespace, cnsCachedAssignedIPStateCmd},
-		{"azure-vnet", azureVnetStateIps, privilegedLabelSelector, privilegedNamespace, azureVnetStateFileCmd}, // cns configmap "ManageEndpointState": false, | Endpoints managed in CNI State File
+		{
+			name:             "cns cache",
+			stateFileIPs:     cnsCacheStateFileIps,
+			podLabelSelector: validatorPod,
+			podNamespace:     privilegedNamespace,
+			containerName:    "debug",
+			cmd:              cnsCachedAssignedIPStateCmd,
+		},
+		{
+			name:             "azure-vnet",
+			stateFileIPs:     azureVnetStateIps,
+			podLabelSelector: privilegedLabelSelector,
+			podNamespace:     privilegedNamespace,
+			cmd:              azureVnetStateFileCmd,
+		}, // cns configmap "ManageEndpointState": false, | Endpoints managed in CNI State File
 	},
 	"dualstack": {
-		{"cns cache", cnsCacheStateFileIps, cnsLabelSelector, privilegedNamespace, cnsCachedAssignedIPStateCmd},
-		{"azure dualstackoverlay", azureVnetStateIps, privilegedLabelSelector, privilegedNamespace, azureVnetStateFileCmd},
+		{
+			name:             "cns cache",
+			stateFileIPs:     cnsCacheStateFileIps,
+			podLabelSelector: validatorPod,
+			podNamespace:     privilegedNamespace,
+			containerName:    "debug",
+			cmd:              cnsCachedAssignedIPStateCmd,
+		},
+		{
+			name:             "azure dualstackoverlay",
+			stateFileIPs:     azureVnetStateIps,
+			podLabelSelector: privilegedLabelSelector,
+			podNamespace:     privilegedNamespace,
+			cmd:              azureVnetStateFileCmd,
+		},
 	},
 	"cilium_dualstack": {
-		{"cns dualstack", cnsManagedStateFileDualStackIps, cnsLabelSelector, privilegedNamespace, cnsManagedStateFileCmd}, // cns configmap "ManageEndpointState": true, | Endpoints managed in CNS State File
-		{"cilium", ciliumStateFileDualStackIps, ciliumLabelSelector, privilegedNamespace, ciliumStateFileCmd},
-		{"cns cache", cnsCacheStateFileIps, cnsLabelSelector, privilegedNamespace, cnsCachedAssignedIPStateCmd},
+		{
+			name:             "cns dualstack",
+			stateFileIPs:     cnsManagedStateFileDualStackIps,
+			podLabelSelector: validatorPod,
+			podNamespace:     privilegedNamespace,
+			containerName:    "debug",
+			cmd:              cnsManagedStateFileCmd,
+		}, // cns configmap "ManageEndpointState": true, | Endpoints managed in CNS State File
+		{
+			name:             "cilium",
+			stateFileIPs:     ciliumStateFileDualStackIps,
+			podLabelSelector: ciliumLabelSelector,
+			podNamespace:     privilegedNamespace,
+			cmd:              ciliumStateFileCmd,
+		},
+		{
+			name:             "cns cache",
+			stateFileIPs:     cnsCacheStateFileIps,
+			podLabelSelector: validatorPod,
+			podNamespace:     privilegedNamespace,
+			containerName:    "debug",
+			cmd:              cnsCachedAssignedIPStateCmd,
+		},
 	},
 }
 
@@ -266,7 +344,7 @@ func (v *Validator) validateRestartNetwork(ctx context.Context) error {
 		}
 		privilegedPod := pod.Items[0]
 		// exec into the pod to get the state file
-		_, err = acnk8s.ExecCmdOnPod(ctx, v.clientset, privilegedNamespace, privilegedPod.Name, restartNetworkCmd, v.config)
+		_, err = acnk8s.ExecCmdOnPod(ctx, v.clientset, privilegedNamespace, privilegedPod.Name, "", restartNetworkCmd, v.config)
 		if err != nil {
 			return errors.Wrapf(err, "failed to exec into privileged pod %s on node %s", privilegedPod.Name, node.Name)
 		}
