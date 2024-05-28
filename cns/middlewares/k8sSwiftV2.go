@@ -153,7 +153,7 @@ func (k *K8sSWIFTv2Middleware) getIPConfig(ctx context.Context, podInfo cns.PodI
 		// Use fields from mtpnc.Status if InterfaceInfos is empty
 		ip, prefixSize, err := utils.ParseIPAndPrefix(mtpnc.Status.PrimaryIP)
 		if err != nil {
-			return nil, err
+			return nil, errors.Wrap(err, "failed to parse mtpnc primary IP and prefix")
 		}
 		if prefixSize != prefixLength {
 			return nil, errors.Wrapf(errInvalidMTPNCPrefixLength, "mtpnc primaryIP prefix length is %d", prefixSize)
@@ -176,7 +176,7 @@ func (k *K8sSWIFTv2Middleware) getIPConfig(ctx context.Context, podInfo cns.PodI
 			// Parse MTPNC primaryIP to get the IP address and prefix length
 			ip, prefixSize, err := utils.ParseIPAndPrefix(interfaceInfo.PrimaryIP)
 			if err != nil {
-				return nil, err
+				return nil, errors.Wrap(err, "failed to parse mtpnc primary IP and prefix")
 			}
 			if prefixSize != prefixLength {
 				return nil, errors.Wrapf(errInvalidMTPNCPrefixLength, "mtpnc primaryIP prefix length is %d", prefixSize)
