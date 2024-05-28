@@ -147,39 +147,11 @@ func (k *K8sSWIFTv2Middleware) getIPConfig(ctx context.Context, podInfo cns.PodI
 	}
 	logger.Printf("[SWIFTv2Middleware] mtpnc for pod %s is : %+v", podInfo.Name(), mtpnc)
 
-	// Parse MTPNC primaryIP to get the IP address and prefix length
-	ip, prefixSize, err := utils.ParseIPAndPrefix(mtpnc.Status.PrimaryIP)
-	if err != nil {
-		return nil, err
-	}
-	if prefixSize != prefixLength {
-		return nil, errors.Wrapf(errInvalidMTPNCPrefixLength, "mtpnc primaryIP prefix length is %d", prefixSize)
-	}
+	var podIPInfos []cns.PodIpInfo
 
-	podIPInfos := make([]cns.PodIpInfo, len(mtpnc.Status.InterfaceInfos))
-
-	// Set the first element from the first InterfaceInfos
-	podIPInfos[0] = cns.PodIpInfo{
-		PodIPConfig: cns.IPSubnet{
-			IPAddress:    ip,
-			PrefixLength: uint8(prefixSize),
-		},
-		MacAddress:        mtpnc.Status.MacAddress,
-		NICType:           mtpnc.Status.InterfaceInfos[0].NICType,
-		SkipDefaultRoutes: false,
-		// InterfaceName is empty for DelegatedVMNIC
-	}
-
-	// Fill rest of the elements from InterfaceInfos
-	for i := 1; i < len(mtpnc.Status.InterfaceInfos); i++ {
-		interfaceInfo := mtpnc.Status.InterfaceInfos[i]
-		// Check for duplicate NCID
-		if interfaceInfo.NCID == mtpnc.Status.NCID {
-			continue
-		}
-
-		// Parse MTPNC primaryIP to get the IP address and prefix length
-		ip, prefixSize, err = utils.ParseIPAndPrefix(interfaceInfo.PrimaryIP)
+	if len(mtpnc.Status.InterfaceInfos) == 0 {
+		// Use fields from mtpnc.Status if InterfaceInfos is empty
+		ip, prefixSize, err := utils.ParseIPAndPrefix(mtpnc.Status.PrimaryIP)
 		if err != nil {
 			return nil, err
 		}
@@ -187,15 +159,43 @@ func (k *K8sSWIFTv2Middleware) getIPConfig(ctx context.Context, podInfo cns.PodI
 			return nil, errors.Wrapf(errInvalidMTPNCPrefixLength, "mtpnc primaryIP prefix length is %d", prefixSize)
 		}
 
-		podIPInfos[i] = cns.PodIpInfo{
+		podIPInfos = append(podIPInfos, cns.PodIpInfo{
 			PodIPConfig: cns.IPSubnet{
 				IPAddress:    ip,
 				PrefixLength: uint8(prefixSize),
 			},
-			MacAddress:        interfaceInfo.MacAddress,
-			NICType:           interfaceInfo.NICType,
+			MacAddress:        mtpnc.Status.MacAddress,
+			NICType:           cns.DelegatedVMNIC,
 			SkipDefaultRoutes: false,
 			// InterfaceName is empty for DelegatedVMNIC
+		})
+	} else {
+		// Use InterfaceInfos if not empty
+		podIPInfos = make([]cns.PodIpInfo, len(mtpnc.Status.InterfaceInfos))
+		for i, interfaceInfo := range mtpnc.Status.InterfaceInfos {
+			// Parse MTPNC primaryIP to get the IP address and prefix length
+			ip, prefixSize, err := utils.ParseIPAndPrefix(interfaceInfo.PrimaryIP)
+			if err != nil {
+				return nil, err
+			}
+			if prefixSize != prefixLength {
+				return nil, errors.Wrapf(errInvalidMTPNCPrefixLength, "mtpnc primaryIP prefix length is %d", prefixSize)
+			}
+
+			nicType := cns.DelegatedVMNIC
+			if interfaceInfo.AccelnetEnabled {
+				nicType = cns.NodeNetworkInterfaceAccelnetFrontendNIC
+			}
+
+			podIPInfos[i] = cns.PodIpInfo{
+				PodIPConfig: cns.IPSubnet{
+					IPAddress:    ip,
+					PrefixLength: uint8(prefixSize),
+				},
+				MacAddress:        interfaceInfo.MacAddress,
+				NICType:           nicType,
+				SkipDefaultRoutes: false,
+			}
 		}
 	}
 
