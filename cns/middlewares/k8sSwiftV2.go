@@ -182,9 +182,16 @@ func (k *K8sSWIFTv2Middleware) getIPConfig(ctx context.Context, podInfo cns.PodI
 				return nil, errors.Wrapf(errInvalidMTPNCPrefixLength, "mtpnc primaryIP prefix length is %d", prefixSize)
 			}
 
-			nicType := cns.DelegatedVMNIC
-			if interfaceInfo.AccelnetEnabled {
+			var nicType cns.NICType
+			switch {
+			case interfaceInfo.DeviceType == v1alpha1.DeviceTypeVnetNIC && !interfaceInfo.AccelnetEnabled:
+				nicType = cns.DelegatedVMNIC
+			case interfaceInfo.DeviceType == v1alpha1.DeviceTypeVnetNIC && interfaceInfo.AccelnetEnabled:
 				nicType = cns.NodeNetworkInterfaceAccelnetFrontendNIC
+			case interfaceInfo.DeviceType == v1alpha1.DeviceTypeInfiniBandNIC:
+				nicType = cns.NodeNetworkInterfaceBackendNIC
+			default:
+				nicType = cns.DelegatedVMNIC
 			}
 
 			podIPInfos[i] = cns.PodIpInfo{
