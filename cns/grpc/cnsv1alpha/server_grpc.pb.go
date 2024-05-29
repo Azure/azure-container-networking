@@ -19,14 +19,14 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
-	CNSService_SetOrchestratorInfo_FullMethodName = "/cns.CNSService/SetOrchestratorInfo"
-	CNSService_GetNodeInfo_FullMethodName         = "/cns.CNSService/GetNodeInfo"
+	CNS_SetOrchestratorInfo_FullMethodName = "/cns.CNS/SetOrchestratorInfo"
+	CNS_GetNodeInfo_FullMethodName         = "/cns.CNS/GetNodeInfo"
 )
 
-// CNSServiceClient is the client API for CNSService service.
+// CNSClient is the client API for CNS service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
-type CNSServiceClient interface {
+type CNSClient interface {
 	// Sets the orchestrator information for a node.
 	SetOrchestratorInfo(ctx context.Context, in *SetOrchestratorInfoRequest, opts ...grpc.CallOption) (*SetOrchestratorInfoResponse, error)
 	// Retrieves detailed information about a specific node.
@@ -34,117 +34,117 @@ type CNSServiceClient interface {
 	GetNodeInfo(ctx context.Context, in *NodeInfoRequest, opts ...grpc.CallOption) (*NodeInfoResponse, error)
 }
 
-type cNSServiceClient struct {
+type cNSClient struct {
 	cc grpc.ClientConnInterface
 }
 
-func NewCNSServiceClient(cc grpc.ClientConnInterface) CNSServiceClient {
-	return &cNSServiceClient{cc}
+func NewCNSClient(cc grpc.ClientConnInterface) CNSClient {
+	return &cNSClient{cc}
 }
 
-func (c *cNSServiceClient) SetOrchestratorInfo(ctx context.Context, in *SetOrchestratorInfoRequest, opts ...grpc.CallOption) (*SetOrchestratorInfoResponse, error) {
+func (c *cNSClient) SetOrchestratorInfo(ctx context.Context, in *SetOrchestratorInfoRequest, opts ...grpc.CallOption) (*SetOrchestratorInfoResponse, error) {
 	out := new(SetOrchestratorInfoResponse)
-	err := c.cc.Invoke(ctx, CNSService_SetOrchestratorInfo_FullMethodName, in, out, opts...)
+	err := c.cc.Invoke(ctx, CNS_SetOrchestratorInfo_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *cNSServiceClient) GetNodeInfo(ctx context.Context, in *NodeInfoRequest, opts ...grpc.CallOption) (*NodeInfoResponse, error) {
+func (c *cNSClient) GetNodeInfo(ctx context.Context, in *NodeInfoRequest, opts ...grpc.CallOption) (*NodeInfoResponse, error) {
 	out := new(NodeInfoResponse)
-	err := c.cc.Invoke(ctx, CNSService_GetNodeInfo_FullMethodName, in, out, opts...)
+	err := c.cc.Invoke(ctx, CNS_GetNodeInfo_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-// CNSServiceServer is the server API for CNSService service.
-// All implementations must embed UnimplementedCNSServiceServer
+// CNSServer is the server API for CNS service.
+// All implementations must embed UnimplementedCNSServer
 // for forward compatibility
-type CNSServiceServer interface {
+type CNSServer interface {
 	// Sets the orchestrator information for a node.
 	SetOrchestratorInfo(context.Context, *SetOrchestratorInfoRequest) (*SetOrchestratorInfoResponse, error)
 	// Retrieves detailed information about a specific node.
 	// Primarily used for health checks.
 	GetNodeInfo(context.Context, *NodeInfoRequest) (*NodeInfoResponse, error)
-	mustEmbedUnimplementedCNSServiceServer()
+	mustEmbedUnimplementedCNSServer()
 }
 
-// UnimplementedCNSServiceServer must be embedded to have forward compatible implementations.
-type UnimplementedCNSServiceServer struct {
+// UnimplementedCNSServer must be embedded to have forward compatible implementations.
+type UnimplementedCNSServer struct {
 }
 
-func (UnimplementedCNSServiceServer) SetOrchestratorInfo(context.Context, *SetOrchestratorInfoRequest) (*SetOrchestratorInfoResponse, error) {
+func (UnimplementedCNSServer) SetOrchestratorInfo(context.Context, *SetOrchestratorInfoRequest) (*SetOrchestratorInfoResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SetOrchestratorInfo not implemented")
 }
-func (UnimplementedCNSServiceServer) GetNodeInfo(context.Context, *NodeInfoRequest) (*NodeInfoResponse, error) {
+func (UnimplementedCNSServer) GetNodeInfo(context.Context, *NodeInfoRequest) (*NodeInfoResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetNodeInfo not implemented")
 }
-func (UnimplementedCNSServiceServer) mustEmbedUnimplementedCNSServiceServer() {}
+func (UnimplementedCNSServer) mustEmbedUnimplementedCNSServer() {}
 
-// UnsafeCNSServiceServer may be embedded to opt out of forward compatibility for this service.
-// Use of this interface is not recommended, as added methods to CNSServiceServer will
+// UnsafeCNSServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to CNSServer will
 // result in compilation errors.
-type UnsafeCNSServiceServer interface {
-	mustEmbedUnimplementedCNSServiceServer()
+type UnsafeCNSServer interface {
+	mustEmbedUnimplementedCNSServer()
 }
 
-func RegisterCNSServiceServer(s grpc.ServiceRegistrar, srv CNSServiceServer) {
-	s.RegisterService(&CNSService_ServiceDesc, srv)
+func RegisterCNSServer(s grpc.ServiceRegistrar, srv CNSServer) {
+	s.RegisterService(&CNS_ServiceDesc, srv)
 }
 
-func _CNSService_SetOrchestratorInfo_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _CNS_SetOrchestratorInfo_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(SetOrchestratorInfoRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(CNSServiceServer).SetOrchestratorInfo(ctx, in)
+		return srv.(CNSServer).SetOrchestratorInfo(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: CNSService_SetOrchestratorInfo_FullMethodName,
+		FullMethod: CNS_SetOrchestratorInfo_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(CNSServiceServer).SetOrchestratorInfo(ctx, req.(*SetOrchestratorInfoRequest))
+		return srv.(CNSServer).SetOrchestratorInfo(ctx, req.(*SetOrchestratorInfoRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _CNSService_GetNodeInfo_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _CNS_GetNodeInfo_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(NodeInfoRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(CNSServiceServer).GetNodeInfo(ctx, in)
+		return srv.(CNSServer).GetNodeInfo(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: CNSService_GetNodeInfo_FullMethodName,
+		FullMethod: CNS_GetNodeInfo_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(CNSServiceServer).GetNodeInfo(ctx, req.(*NodeInfoRequest))
+		return srv.(CNSServer).GetNodeInfo(ctx, req.(*NodeInfoRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-// CNSService_ServiceDesc is the grpc.ServiceDesc for CNSService service.
+// CNS_ServiceDesc is the grpc.ServiceDesc for CNS service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
-var CNSService_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "cns.CNSService",
-	HandlerType: (*CNSServiceServer)(nil),
+var CNS_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "cns.CNS",
+	HandlerType: (*CNSServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
 			MethodName: "SetOrchestratorInfo",
-			Handler:    _CNSService_SetOrchestratorInfo_Handler,
+			Handler:    _CNS_SetOrchestratorInfo_Handler,
 		},
 		{
 			MethodName: "GetNodeInfo",
-			Handler:    _CNSService_GetNodeInfo_Handler,
+			Handler:    _CNS_GetNodeInfo_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
