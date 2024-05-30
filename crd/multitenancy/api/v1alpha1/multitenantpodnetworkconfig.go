@@ -79,7 +79,7 @@ type MultitenantPodNetworkConfigStatus struct {
 	// Deprecated - use InterfaceInfos
 	// +kubebuilder:validation:Optional
 	GatewayIP string `json:"gatewayIP,omitempty"`
-	// InterfaceInfos describes all the network container goal state for this Pod
+	// InterfaceInfos describes all of the network container goal state for this Pod
 	// +kubebuilder:validation:Optional
 	InterfaceInfos []InterfaceInfo `json:"interfaceInfos,omitempty"`
 }

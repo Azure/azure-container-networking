@@ -71,8 +71,8 @@ spec:
                 description: Deprecated - use InterfaceInfos
                 type: string
               interfaceInfos:
-                description: InterfaceInfos describes all the network container goal
-                  state for this Pod
+                description: InterfaceInfos describes all of the network container
+                  goal state for this Pod
                 items:
                   properties:
                     accelnetEnabled:
