@@ -14,8 +14,9 @@ import (
 	"github.com/Azure/azure-container-networking/cns/types"
 )
 
-func SendHeartBeat(ctx context.Context, heartbeatIntervalInMins int, homeAzMonitor *restserver.HomeAzMonitor) {
-	ticker := time.NewTicker(time.Minute * time.Duration(heartbeatIntervalInMins))
+// SendHeartBeat emits node metrics periodically
+func SendHeartBeat(ctx context.Context, heartbeatInterval time.Duration, homeAzMonitor *restserver.HomeAzMonitor) {
+	ticker := time.NewTicker(heartbeatInterval)
 	defer ticker.Stop()
 	for {
 		select {
