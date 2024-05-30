@@ -1099,13 +1099,11 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 			logger.Error("Failed to query endpoint",
 				zap.String("endpoint", endpointID),
 				zap.Error(err))
-			if !plugin.nm.IsStatelessCNIMode() {
-				logger.Error("Release ip by ContainerID (endpoint not found)",
-					zap.String("containerID", args.ContainerID))
-				sendEvent(plugin, fmt.Sprintf("Release ip by ContainerID (endpoint not found):%v", args.ContainerID))
-				if err = plugin.ipamInvoker.Delete(nil, nwCfg, args, nwInfo.Options); err != nil {
-					return plugin.RetriableError(fmt.Errorf("failed to release address(no endpoint): %w", err))
-				}
+			logger.Error("Release ip by ContainerID (endpoint not found)",
+				zap.String("containerID", args.ContainerID))
+			sendEvent(plugin, fmt.Sprintf("Release ip by ContainerID (endpoint not found):%v", args.ContainerID))
+			if err = plugin.ipamInvoker.Delete(nil, nwCfg, args, nwInfo.Options); err != nil {
+				return plugin.RetriableError(fmt.Errorf("failed to release address(no endpoint): %w", err))
 			}
 		}
 		// Log the error but return success if the endpoint being deleted is not found.
