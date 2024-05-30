@@ -14,7 +14,8 @@ import (
 // setRoutes sets the routes for podIPInfo used in SWIFT V2 scenario.
 func (k *K8sSWIFTv2Middleware) setRoutes(podIPInfo *cns.PodIpInfo) error {
 	logger.Printf("[SWIFTv2Middleware] set routes for pod with nic type : %s", podIPInfo.NICType)
-	podIPInfo.Routes = []cns.Route{}
+	var routes []cns.Route
+
 	switch podIPInfo.NICType {
 	case cns.DelegatedVMNIC:
 		virtualGWRoute := cns.Route{
@@ -25,7 +26,8 @@ func (k *K8sSWIFTv2Middleware) setRoutes(podIPInfo *cns.PodIpInfo) error {
 			IPAddress:        "0.0.0.0/0",
 			GatewayIPAddress: virtualGW,
 		}
-		podIPInfo.Routes = []cns.Route{virtualGWRoute, route}
+		routes = append(routes, virtualGWRoute, route)
+
 	case cns.InfraNIC:
 		// Get and parse infraVNETCIDRs from env
 		infraVNETCIDRs, err := configuration.InfraVNETCIDRs()
@@ -56,27 +58,23 @@ func (k *K8sSWIFTv2Middleware) setRoutes(podIPInfo *cns.PodIpInfo) error {
 		if err != nil {
 			return errors.Wrapf(err, "failed to parse serviceCIDRs")
 		}
-		// Check if the podIPInfo is IPv4 or IPv6
+
 		ip, err := netip.ParseAddr(podIPInfo.PodIPConfig.IPAddress)
 		if err != nil {
 			return errors.Wrapf(err, "failed to parse podIPConfig IP address %s", podIPInfo.PodIPConfig.IPAddress)
 		}
+
 		if ip.Is4() {
-			// routes for IPv4 podCIDR traffic
-			addRoutes(&podIPInfo.Routes, podCIDRsV4, overlayGatewayv4)
-			// route for IPv4 serviceCIDR traffic
-			addRoutes(&podIPInfo.Routes, serviceCIDRsV4, overlayGatewayv4)
-			// route for IPv4 infraVNETCIDR traffic
-			addRoutes(&podIPInfo.Routes, infraVNETCIDRsv4, overlayGatewayv4)
+			routes = append(routes, addRoutes(podCIDRsV4, overlayGatewayv4)...)
+			routes = append(routes, addRoutes(serviceCIDRsV4, overlayGatewayv4)...)
+			routes = append(routes, addRoutes(infraVNETCIDRsv4, overlayGatewayv4)...)
 		} else {
-			// routes for IPv6 podCIDR traffic
-			addRoutes(&podIPInfo.Routes, podCIDRv6, overlayGatewayV6)
-			// route for IPv6 serviceCIDR traffic
-			addRoutes(&podIPInfo.Routes, serviceCIDRsV6, overlayGatewayV6)
-			// route for IPv6 infraVNETCIDR traffic
-			addRoutes(&podIPInfo.Routes, infraVNETCIDRsv6, overlayGatewayV6)
+			routes = append(routes, addRoutes(podCIDRv6, overlayGatewayV6)...)
+			routes = append(routes, addRoutes(serviceCIDRsV6, overlayGatewayV6)...)
+			routes = append(routes, addRoutes(infraVNETCIDRsv6, overlayGatewayV6)...)
 		}
 		podIPInfo.SkipDefaultRoutes = true
+
 	case cns.BackendNIC:
 		// TODO: Set routes for BackendNIC
 	case cns.NodeNetworkInterfaceAccelnetFrontendNIC:
@@ -84,15 +82,18 @@ func (k *K8sSWIFTv2Middleware) setRoutes(podIPInfo *cns.PodIpInfo) error {
 	default:
 		return errInvalidSWIFTv2NICType
 	}
+
+	podIPInfo.Routes = routes
 	return nil
 }
 
-func addRoutes(routes *[]cns.Route, cidrs []string, gatewayIP string) {
-	for _, cidr := range cidrs {
-		route := cns.Route{
+func addRoutes(cidrs []string, gatewayIP string) []cns.Route {
+	routes := make([]cns.Route, len(cidrs))
+	for i, cidr := range cidrs {
+		routes[i] = cns.Route{
 			IPAddress:        cidr,
 			GatewayIPAddress: gatewayIP,
 		}
-		*routes = append(*routes, route)
 	}
+	return routes
 }
