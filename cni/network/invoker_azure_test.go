@@ -125,18 +125,18 @@ func getResult(ips ...string) []*network.IPConfig {
 }
 
 func getNwInfo(subnetv4, subnetv6 string) *network.EndpointInfo {
-	nwinfo := &network.EndpointInfo{}
+	nwInfo := &network.EndpointInfo{}
 	if subnetv4 != "" {
-		nwinfo.Subnets = append(nwinfo.Subnets, network.SubnetInfo{
+		nwInfo.Subnets = append(nwInfo.Subnets, network.SubnetInfo{
 			Prefix: *getCIDRNotationForAddress(subnetv4),
 		})
 	}
 	if subnetv6 != "" {
-		nwinfo.Subnets = append(nwinfo.Subnets, network.SubnetInfo{
+		nwInfo.Subnets = append(nwInfo.Subnets, network.SubnetInfo{
 			Prefix: *getCIDRNotationForAddress(subnetv6),
 		})
 	}
-	return nwinfo
+	return nwInfo
 }
 
 func TestAzureIPAMInvoker_Add(t *testing.T) {

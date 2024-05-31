@@ -580,6 +580,15 @@ func TestGetNetworkNameSwiftv2FromCNS(t *testing.T) {
 				require.NoError(t, err)
 				require.Equal(t, expectedMacAddress, networkName)
 			}
+
+			networkID, err := tt.plugin.getNetworkID(tt.netNs, &swiftv2L1VHInterfaceInfo, tt.nwCfg)
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				expectedMacAddress := "azure-" + tt.want.String()
+				require.NoError(t, err)
+				require.Equal(t, expectedMacAddress, networkID)
+			}
 		})
 	}
 }
