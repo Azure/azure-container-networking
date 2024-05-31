@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package cns;
 
-option go_package = "cns/grpc/cnsv1alpha";
+option go_package = "cns/grpc/v1alpha";
 
 // The Container Network Service (CNS) exposes a set of operations that allow the Delegated Network Controller (DNC) to manage
 // and monitor nodes in an orchestrator's infrastructure.
