@@ -365,7 +365,7 @@ var _ = Describe("Test Manager", func() {
 				epInfos := cnsEndpointInfotoCNIEpInfos(cnsEndpointInfo, endpointID)
 
 				Expect(len(epInfos)).To(Equal(2))
-				Expect(epInfos[0]).To(Equal(
+				Expect(epInfos).To(ContainElement(
 					&EndpointInfo{
 						IPAddresses:        dummyIPv4Slice,
 						IfName:             "ifName1",
@@ -381,7 +381,7 @@ var _ = Describe("Test Manager", func() {
 						PODNameSpace:       "test-pod-ns",
 					},
 				))
-				Expect(epInfos[1]).To(Equal(
+				Expect(epInfos).To(ContainElement(
 					&EndpointInfo{
 						IPAddresses:        dummyIPv4Slice2,
 						IfName:             "ifName2",
