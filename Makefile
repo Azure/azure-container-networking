@@ -35,6 +35,7 @@ endif
 REPO_ROOT				 = $(shell git rev-parse --show-toplevel)
 REVISION				?= $(shell git rev-parse --short HEAD)
 ACN_VERSION				?= $(shell git describe --exclude "azure-ipam*" --exclude "dropgz*" --exclude "zapai*" --tags --always)
+IPV6_HP_BPF_VERSION			?= $(notdir $(shell git describe --match "ipv6-hp-bpf*" --tags --always))
 AZURE_IPAM_VERSION		?= $(notdir $(shell git describe --match "azure-ipam*" --tags --always))
 CNI_VERSION				?= $(ACN_VERSION)
 CNI_DROPGZ_VERSION		?= $(notdir $(shell git describe --match "dropgz*" --tags --always))
@@ -44,6 +45,7 @@ ZAPAI_VERSION			?= $(notdir $(shell git describe --match "zapai*" --tags --alway
 
 # Build directories.
 AZURE_IPAM_DIR = $(REPO_ROOT)/azure-ipam
+IPV6_HP_BPF_DIR = $(REPO_ROOT)/bpf-prog/ipv6-hp-bpf
 CNM_DIR = $(REPO_ROOT)/cnm/plugin
 CNI_NET_DIR = $(REPO_ROOT)/cni/network/plugin
 CNI_IPAM_DIR = $(REPO_ROOT)/cni/ipam/plugin
@@ -56,6 +58,7 @@ NPM_DIR = $(REPO_ROOT)/npm/cmd
 OUTPUT_DIR = $(REPO_ROOT)/output
 BUILD_DIR = $(OUTPUT_DIR)/$(GOOS)_$(GOARCH)
 AZURE_IPAM_BUILD_DIR = $(BUILD_DIR)/azure-ipam
+IPV6_HP_BPF_BUILD_DIR = $(BUILD_DIR)/bpf-prog/ipv6-hp-bpf
 IMAGE_DIR  = $(OUTPUT_DIR)/images
 CNM_BUILD_DIR = $(BUILD_DIR)/cnm
 CNI_BUILD_DIR = $(BUILD_DIR)/cni
@@ -139,6 +142,7 @@ azure-cns: azure-cns-binary cns-archive
 acncli: acncli-binary acncli-archive
 azure-npm: azure-npm-binary npm-archive
 azure-ipam: azure-ipam-binary azure-ipam-archive
+ipv6-hp-bpf: ipv6-hp-bpf-binary ipv6-hp-bpf-archive
 
 
 ##@ Versioning
@@ -153,6 +157,9 @@ acncli-version: version
 
 azure-ipam-version: ## prints the azure-ipam version
 	@echo $(AZURE_IPAM_VERSION)
+
+ipv6-hp-bpf-version: ## prints the ipv6-hp-bpf version
+	@echo $(IPV6_HP_BPF_VERSION)
 
 cni-version: ## prints the cni version
 	@echo $(CNI_VERSION)
@@ -174,6 +181,11 @@ zapai-version: ## prints the zapai version
 # Build the delegated IPAM plugin binary.
 azure-ipam-binary:
 	cd $(AZURE_IPAM_DIR) && CGO_ENABLED=0 go build -v -o $(AZURE_IPAM_BUILD_DIR)/azure-ipam$(EXE_EXT) -ldflags "-X github.com/Azure/azure-container-networking/azure-ipam/internal/buildinfo.Version=$(AZURE_IPAM_VERSION)" -gcflags="-dwarflocationlists=true"
+
+# Build the ipv6-hp-bpf binary.
+ipv6-hp-bpf-binary:
+	cd $(IPV6_HP_BPF_DIR) && CGO_ENABLED=0 go generate ./... 
+	cd $(IPV6_HP_BPF_DIR)/cmd/ipv6-hp-bpf && CGO_ENABLED=0 go build -v -o $(IPV6_HP_BPF_BUILD_DIR)$(EXE_EXT) -ldflags "-X main.version=$(IPV6_HP_BPF_VERSION)" -gcflags="-dwarflocationlists=true"
 
 # Build the Azure CNM binary.
 cnm-binary:
@@ -252,6 +264,7 @@ endif
 ## Image name definitions.
 ACNCLI_IMAGE		= acncli
 AZURE_IPAM_IMAGE	= azure-ipam
+IPV6_HP_BPF_IMAGE		= ipv6-hp-bpf
 CNI_IMAGE			= azure-cni
 CNI_DROPGZ_IMAGE	= cni-dropgz
 CNS_IMAGE			= azure-cns
@@ -261,6 +274,7 @@ NPM_IMAGE			= azure-npm
 ACNCLI_PLATFORM_TAG				?= $(subst /,-,$(PLATFORM))$(if $(OS_VERSION),-$(OS_VERSION),)-$(ACN_VERSION)
 AZURE_IPAM_PLATFORM_TAG			?= $(subst /,-,$(PLATFORM))$(if $(OS_VERSION),-$(OS_VERSION),)-$(AZURE_IPAM_VERSION)
 AZURE_IPAM_WINDOWS_PLATFORM_TAG	?= $(subst /,-,$(PLATFORM))$(if $(OS_VERSION),-$(OS_VERSION),)-$(AZURE_IPAM_VERSION)-$(OS_SKU_WIN)
+IPV6_HP_BPF_IMAGE_PLATFORM_TAG		?= $(subst /,-,$(PLATFORM))$(if $(OS_VERSION),-$(OS_VERSION),)-$(IPV6_HP_BPF_VERSION)
 CNI_PLATFORM_TAG				?= $(subst /,-,$(PLATFORM))$(if $(OS_VERSION),-$(OS_VERSION),)-$(CNI_VERSION)
 CNI_WINDOWS_PLATFORM_TAG		?= $(subst /,-,$(PLATFORM))$(if $(OS_VERSION),-$(OS_VERSION),)-$(CNI_VERSION)-$(OS_SKU_WIN)
 CNI_DROPGZ_PLATFORM_TAG 		?= $(subst /,-,$(PLATFORM))$(if $(OS_VERSION),-$(OS_VERSION),)-$(CNI_DROPGZ_VERSION)
@@ -368,6 +382,34 @@ azure-ipam-image-pull: ## pull azure-ipam container image.
 		IMAGE=$(AZURE_IPAM_IMAGE) \
 		TAG=$(AZURE_IPAM_PLATFORM_TAG)
 
+# ipv6-hp-bpf
+
+ipv6-hp-bpf-image-name: # util target to print the ipv6-hp-bpf image name.
+	@echo $(IPV6_HP_BPF_IMAGE)
+
+ipv6-hp-bpf-image-name-and-tag: # util target to print the ipv6-hp-bpf image name and tag.
+	@echo $(IMAGE_REGISTRY)/$(IPV6_HP_BPF_IMAGE):$(IPV6_HP_BPF_IMAGE_PLATFORM_TAG)
+
+ipv6-hp-bpf-image: ## build ipv6-hp-bpf container image.
+	$(MAKE) container \
+		DOCKERFILE=bpf-prog/ipv6-hp-bpf/$(OS).Dockerfile \
+		IMAGE=$(IPV6_HP_BPF_IMAGE) \
+		EXTRA_BUILD_ARGS='--build-arg OS=$(OS) --build-arg ARCH=$(ARCH) --build-arg OS_VERSION=$(OS_VERSION) --build-arg DEBUG=$(DEBUG)'\
+		PLATFORM=$(PLATFORM) \
+		TAG=$(IPV6_HP_BPF_IMAGE_PLATFORM_TAG) \
+		OS=$(OS) \
+		ARCH=$(ARCH) \
+		OS_VERSION=$(OS_VERSION)
+
+ipv6-hp-bpf-image-push: ## push ipv6-hp-bpf container image.
+	$(MAKE) container-push \
+		IMAGE=$(IPV6_HP_BPF_IMAGE) \
+		TAG=$(IPV6_HP_BPF_IMAGE_PLATFORM_TAG)
+
+ipv6-hp-bpf-image-pull: ## pull ipv6-hp-bpf container image.
+	$(MAKE) container-pull \
+		IMAGE=$(IPV6_HP_BPF_IMAGE) \
+		TAG=$(IPV6_HP_BPF_IMAGE_PLATFORM_TAG)
 
 # cni
 
@@ -742,6 +784,13 @@ ifeq ($(GOOS),linux)
 	cd $(AZURE_IPAM_BUILD_DIR) && $(ARCHIVE_CMD) $(AZURE_IPAM_ARCHIVE_NAME) azure-ipam$(EXE_EXT)
 endif
 
+# Create a ipv6-hp-bpf archive for the target platform.
+.PHONY: ipv6-hp-bpf-archive
+ipv6-hp-bpf-archive: ipv6-hp-bpf-binary
+ifeq ($(GOOS),linux)
+	$(MKDIR) $(IPV6_HP_BPF_BUILD_DIR)
+	cd $(IPV6_HP_BPF_BUILD_DIR) && $(ARCHIVE_CMD) $(IPV6_HP_BPF_ARCHIVE_NAME) ipv6-hp-bpf$(EXE_EXT)
+endif
 
 ##@ Utils
 
