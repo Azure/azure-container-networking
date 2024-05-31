@@ -255,19 +255,22 @@ func getTLSConfigFromKeyVault(tlsSettings localtls.TlsSettings, errChan chan<- e
 
 // Given a TLS cert, return the root CAs
 func mtlsRootCAsFromCertificate(tlsCert *tls.Certificate) (*x509.CertPool, error) {
-	certPool := x509.NewCertPool()
-
-	// self signed, we assume this is a root CA
-	if len(tlsCert.Certificate) == 1 {
+	switch {
+	case tlsCert == nil:
+		fallthrough
+	case len(tlsCert.Certificate) == 0:
+		return nil, errors.New("no certificate provided")
+	case len(tlsCert.Certificate) == 1:
+		certs := x509.NewCertPool()
 		cert, err := x509.ParseCertificate(tlsCert.Certificate[0])
 		if err != nil {
 			return nil, errors.Wrap(err, "parsing self signed cert")
 		}
-		certPool.AddCert(cert)
+		certs.AddCert(cert)
 
-		return certPool, nil
-	}
-
+		return certs, nil
+	default:
+		certs := x509.NewCertPool()
 	// given a fullchain cert, we skip leaf cert at index 0 because
 	// we only want intermediate and root certs in the cert pool for mTLS
 	for _, certBytes := range tlsCert.Certificate[1:] {
@@ -275,10 +278,10 @@ func mtlsRootCAsFromCertificate(tlsCert *tls.Certificate) (*x509.CertPool, error
 		if err != nil {
 			return nil, errors.Wrap(err, "parsing root certs")
 		}
-		certPool.AddCert(cert)
+			certs.AddCert(cert)
+		}
+		return certs, nil
 	}
-
-	return certPool, nil
 }
 
 func (service *Service) StartListener(config *common.ServiceConfig) error {
