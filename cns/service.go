@@ -201,7 +201,7 @@ func getTLSConfigFromFile(tlsSettings localtls.TlsSettings) (*tls.Config, error)
 		tlsConfig.RootCAs = rootCAs
 	}
 
-	log.Debugf("TLS configured successfully from file: %+v", tlsSettings)
+	logger.Debugf("TLS configured successfully from file: %+v", tlsSettings)
 
 	return tlsConfig, nil
 }
@@ -248,7 +248,7 @@ func getTLSConfigFromKeyVault(tlsSettings localtls.TlsSettings, errChan chan<- e
 		tlsConfig.RootCAs = rootCAs
 	}
 
-	log.Debugf("TLS configured successfully from KV: %+v", tlsSettings)
+	logger.Debugf("TLS configured successfully from KV: %+v", tlsSettings)
 
 	return &tlsConfig, nil
 }
