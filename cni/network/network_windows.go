@@ -72,9 +72,10 @@ func (plugin *NetPlugin) getNetworkName(netNs string, interfaceInfo *network.Int
 
 	determineWinVer()
 	// Swiftv2 L1VH Network Name
+	swiftv2NetworkNamePrefix := "azure-"
 	if interfaceInfo != nil && interfaceInfo.NICType == cns.DelegatedVMNIC {
 		logger.Info("swiftv2", zap.String("network name", interfaceInfo.MacAddress.String()))
-		return "azure-" + interfaceInfo.MacAddress.String(), nil
+		return swiftv2NetworkNamePrefix + interfaceInfo.MacAddress.String(), nil
 	}
 
 	// For singletenancy, the network name is simply the nwCfg.Name

@@ -527,6 +527,7 @@ func TestGetNetworkNameSwiftv2FromCNS(t *testing.T) {
 	plugin, _ := cni.NewPlugin("name", "0.3.0")
 
 	macAddress := "00:00:5e:00:53:01"
+	swiftv2NetworkNamePrefix := "azure-"
 	parsedMacAddress, _ := net.ParseMAC(macAddress)
 	swiftv2L1VHSecondaryInterfacesInfo := make(map[string]network.InterfaceInfo)
 
@@ -576,7 +577,7 @@ func TestGetNetworkNameSwiftv2FromCNS(t *testing.T) {
 			if tt.wantErr {
 				require.Error(t, err)
 			} else {
-				expectedMacAddress := "azure-" + tt.want.String()
+				expectedMacAddress := swiftv2NetworkNamePrefix + tt.want.String()
 				require.NoError(t, err)
 				require.Equal(t, expectedMacAddress, networkName)
 			}
@@ -585,7 +586,7 @@ func TestGetNetworkNameSwiftv2FromCNS(t *testing.T) {
 			if tt.wantErr {
 				require.Error(t, err)
 			} else {
-				expectedMacAddress := "azure-" + tt.want.String()
+				expectedMacAddress := swiftv2NetworkNamePrefix + tt.want.String()
 				require.NoError(t, err)
 				require.Equal(t, expectedMacAddress, networkID)
 			}
