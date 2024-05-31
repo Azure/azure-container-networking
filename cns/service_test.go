@@ -6,13 +6,13 @@ package cns
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"net/http"
 	"testing"
 
 	"github.com/Azure/azure-container-networking/cns/common"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	acn "github.com/Azure/azure-container-networking/common"
-	localtls "github.com/Azure/azure-container-networking/server/tls"
 	serverTLS "github.com/Azure/azure-container-networking/server/tls"
 	"github.com/Azure/azure-container-networking/store"
 	"github.com/stretchr/testify/assert"
@@ -149,7 +149,7 @@ func TestMtlsRootCAsFromCertificate(t *testing.T) {
 	tlsSettings := serverTLS.TlsSettings{
 		TLSCertificatePath: "testdata/dummy.pem",
 	}
-	tlsCertRetriever, err := localtls.GetTlsCertificateRetriever(tlsSettings)
+	tlsCertRetriever, err := serverTLS.GetTlsCertificateRetriever(tlsSettings)
 	require.NoError(t, err)
 
 	cert, err := tlsCertRetriever.GetCertificate()
@@ -166,7 +166,8 @@ func TestMtlsRootCAsFromCertificate(t *testing.T) {
 			Leaf:        cert,
 		}
 
-		r, err := mtlsRootCAsFromCertificate(&tlsCert)
+		var r *x509.CertPool
+		r, err = mtlsRootCAsFromCertificate(&tlsCert)
 		require.NoError(t, err)
 		assert.NotNil(t, r)
 	})

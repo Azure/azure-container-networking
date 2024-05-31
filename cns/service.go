@@ -256,9 +256,7 @@ func getTLSConfigFromKeyVault(tlsSettings localtls.TlsSettings, errChan chan<- e
 // Given a TLS cert, return the root CAs
 func mtlsRootCAsFromCertificate(tlsCert *tls.Certificate) (*x509.CertPool, error) {
 	switch {
-	case tlsCert == nil:
-		fallthrough
-	case len(tlsCert.Certificate) == 0:
+	case tlsCert == nil || len(tlsCert.Certificate) == 0:
 		return nil, errors.New("no certificate provided")
 	case len(tlsCert.Certificate) == 1:
 		certs := x509.NewCertPool()
@@ -271,13 +269,13 @@ func mtlsRootCAsFromCertificate(tlsCert *tls.Certificate) (*x509.CertPool, error
 		return certs, nil
 	default:
 		certs := x509.NewCertPool()
-	// given a fullchain cert, we skip leaf cert at index 0 because
-	// we only want intermediate and root certs in the cert pool for mTLS
-	for _, certBytes := range tlsCert.Certificate[1:] {
-		cert, err := x509.ParseCertificate(certBytes)
-		if err != nil {
-			return nil, errors.Wrap(err, "parsing root certs")
-		}
+		// given a fullchain cert, we skip leaf cert at index 0 because
+		// we only want intermediate and root certs in the cert pool for mTLS
+		for _, certBytes := range tlsCert.Certificate[1:] {
+			cert, err := x509.ParseCertificate(certBytes)
+			if err != nil {
+				return nil, errors.Wrap(err, "parsing root certs")
+			}
 			certs.AddCert(cert)
 		}
 		return certs, nil
