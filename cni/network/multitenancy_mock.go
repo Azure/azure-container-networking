@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net"
 	"runtime"
+	"strconv"
 
 	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/cns"
@@ -88,9 +89,9 @@ func (m *MockMultitenancy) GetAllNetworkContainers(
 	podName string,
 	podNamespace string,
 	ifName string,
-) ([]IPAMAddResult, error) {
+) (IPAMAddResult, error) {
 	if m.fail {
-		return nil, errMockMulAdd
+		return IPAMAddResult{}, errMockMulAdd
 	}
 
 	var cnsResponses []cns.GetNetworkContainerResponse
@@ -154,15 +155,24 @@ func (m *MockMultitenancy) GetAllNetworkContainers(
 	ipNets = append(ipNets, *firstIPnet)
 	cnsResponses = append(cnsResponses, *cnsResponseOne)
 
-	ipamResults := make([]IPAMAddResult, len(cnsResponses))
+	ipamResult := IPAMAddResult{}
+	ipamResult.interfaceInfo = make(map[string]network.InterfaceInfo)
+
 	for i := 0; i < len(cnsResponses); i++ {
-		ipamResults[i].ncResponse = &cnsResponses[i]
-		ipamResults[i].hostSubnetPrefix = ipNets[i]
-		ipconfig, routes := convertToIPConfigAndRouteInfo(ipamResults[i].ncResponse)
-		ipamResults[i].defaultInterfaceInfo.IPConfigs = []*network.IPConfig{ipconfig}
-		ipamResults[i].defaultInterfaceInfo.Routes = routes
-		ipamResults[i].defaultInterfaceInfo.NICType = cns.InfraNIC
+		// one ncResponse gets you one interface info in the returned IPAMAddResult
+		ifInfo := network.InterfaceInfo{
+			NCResponse:       &cnsResponses[i],
+			HostSubnetPrefix: ipNets[i],
+		}
+
+		ipconfig, routes := convertToIPConfigAndRouteInfo(ifInfo.NCResponse)
+		ifInfo.IPConfigs = append(ifInfo.IPConfigs, ipconfig)
+		ifInfo.Routes = routes
+		ifInfo.NICType = cns.InfraNIC
+
+		// assuming we only assign infra nics in this function
+		ipamResult.interfaceInfo[string(ifInfo.NICType)+strconv.Itoa(i)] = ifInfo
 	}
 
-	return ipamResults, nil
+	return ipamResult, nil
 }

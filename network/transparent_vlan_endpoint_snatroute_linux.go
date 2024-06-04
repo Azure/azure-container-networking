@@ -16,7 +16,7 @@ func (client *TransparentVlanEndpointClient) NewSnatClient(snatBridgeIP, localIP
 			localIP,
 			snatBridgeIP,
 			client.hostPrimaryMac.String(),
-			epInfo.DNS.Servers,
+			epInfo.EndpointDNS.Servers,
 			true,
 			client.netlink,
 			client.plClient,

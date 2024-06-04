@@ -9,6 +9,7 @@ import (
 	"net"
 	"strings"
 
+	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/netio"
 	"github.com/Azure/azure-container-networking/netlink"
 	"github.com/Azure/azure-container-networking/network/policy"
@@ -73,18 +74,18 @@ func (nw *network) newEndpointImpl(
 	_ EndpointClient,
 	_ NamespaceClientInterface,
 	_ ipTablesClient,
-	epInfo []*EndpointInfo,
+	epInfo *EndpointInfo,
 ) (*endpoint, error) {
-	// there is only 1 epInfo for windows, multiple interfaces will be added in the future
-	if useHnsV2, err := UseHnsV2(epInfo[0].NetNsPath); useHnsV2 {
+	if useHnsV2, err := UseHnsV2(epInfo.NetNsPath); useHnsV2 {
 		if err != nil {
 			return nil, err
 		}
 
-		return nw.newEndpointImplHnsV2(cli, epInfo[0])
+		return nw.newEndpointImplHnsV2(cli, epInfo)
 	}
 
-	return nw.newEndpointImplHnsV1(epInfo[0], plc)
+	return nw.newEndpointImplHnsV1(epInfo, plc)
+	// TODO: add switch statement for NIC type for IB and Accelnet NIC support to create endpoint here in the future
 }
 
 // newEndpointImplHnsV1 creates a new endpoint in the network using HnsV1
@@ -103,9 +104,9 @@ func (nw *network) newEndpointImplHnsV1(epInfo *EndpointInfo, plc platform.ExecC
 	hnsEndpoint := &hcsshim.HNSEndpoint{
 		Name:           infraEpName,
 		VirtualNetwork: nw.HnsId,
-		DNSSuffix:      epInfo.DNS.Suffix,
-		DNSServerList:  strings.Join(epInfo.DNS.Servers, ","),
-		Policies:       policy.SerializePolicies(policy.EndpointPolicy, epInfo.Policies, epInfo.Data, epInfo.EnableSnatForDns, epInfo.EnableMultiTenancy),
+		DNSSuffix:      epInfo.EndpointDNS.Suffix,
+		DNSServerList:  strings.Join(epInfo.EndpointDNS.Servers, ","),
+		Policies:       policy.SerializePolicies(policy.EndpointPolicy, epInfo.EndpointPolicies, epInfo.Data, epInfo.EnableSnatForDns, epInfo.EnableMultiTenancy),
 	}
 
 	// HNS currently supports one IP address and one IPv6 address per endpoint.
@@ -164,11 +165,12 @@ func (nw *network) newEndpointImplHnsV1(epInfo *EndpointInfo, plc platform.ExecC
 		IfName:           epInfo.IfName,
 		IPAddresses:      epInfo.IPAddresses,
 		Gateways:         []net.IP{net.ParseIP(hnsResponse.GatewayAddress)},
-		DNS:              epInfo.DNS,
+		DNS:              epInfo.EndpointDNS,
 		VlanID:           vlanid,
 		EnableSnatOnHost: epInfo.EnableSnatOnHost,
 		NetNs:            epInfo.NetNsPath,
 		ContainerID:      epInfo.ContainerID,
+		NICType:          epInfo.NICType,
 	}
 
 	for _, route := range epInfo.Routes {
@@ -176,6 +178,8 @@ func (nw *network) newEndpointImplHnsV1(epInfo *EndpointInfo, plc platform.ExecC
 	}
 
 	ep.MacAddress, _ = net.ParseMAC(hnsResponse.MacAddress)
+
+	epInfo.HNSEndpointID = hnsResponse.Id // we use the ep info hns id later in stateless to clean up in ADD if there is an error
 
 	return ep, nil
 }
@@ -193,7 +197,7 @@ func (nw *network) addIPv6NeighborEntryForGateway(epInfo *EndpointInfo, plc plat
 
 		// run powershell cmd to set neighbor entry for gw ip to 12-34-56-78-9a-bc
 		cmd := fmt.Sprintf("New-NetNeighbor -IPAddress %s -InterfaceAlias \"%s (%s)\" -LinkLayerAddress \"%s\"",
-			nw.Subnets[1].Gateway.String(), containerIfNamePrefix, epInfo.Id, defaultGwMac)
+			nw.Subnets[1].Gateway.String(), containerIfNamePrefix, epInfo.EndpointID, defaultGwMac)
 
 		if out, err = plc.ExecutePowershellCommand(cmd); err != nil {
 			logger.Error("Adding ipv6 gw neigh entry failed", zap.Any("out", out), zap.Error(err))
@@ -212,21 +216,27 @@ func (nw *network) configureHcnEndpoint(epInfo *EndpointInfo) (*hcn.HostComputeE
 		Name:               infraEpName,
 		HostComputeNetwork: nw.HnsId,
 		Dns: hcn.Dns{
-			Search:     strings.Split(epInfo.DNS.Suffix, ","),
-			ServerList: epInfo.DNS.Servers,
-			Options:    epInfo.DNS.Options,
+			Search:     strings.Split(epInfo.EndpointDNS.Suffix, ","),
+			ServerList: epInfo.EndpointDNS.Servers,
+			Options:    epInfo.EndpointDNS.Options,
 		},
 		SchemaVersion: hcn.SchemaVersion{
 			Major: hcnSchemaVersionMajor,
 			Minor: hcnSchemaVersionMinor,
 		},
-		MacAddress: epInfo.MacAddress.String(),
 	}
 
-	if endpointPolicies, err := policy.GetHcnEndpointPolicies(policy.EndpointPolicy, epInfo.Policies, epInfo.Data, epInfo.EnableSnatForDns, epInfo.EnableMultiTenancy, epInfo.NATInfo); err == nil {
-		for _, epPolicy := range endpointPolicies {
-			hcnEndpoint.Policies = append(hcnEndpoint.Policies, epPolicy)
-		}
+	// macAddress type for InfraNIC is like "60:45:bd:12:45:65"
+	// if NICType is delegatedVMNIC, convert the macaddress format
+	macAddress := epInfo.MacAddress.String()
+	if epInfo.NICType == cns.DelegatedVMNIC {
+		// convert the format of macAddress that HNS can accept, i.e, "60-45-bd-12-45-65" if NIC type is delegated NIC
+		macAddress = strings.Join(strings.Split(macAddress, ":"), "-")
+	}
+	hcnEndpoint.MacAddress = macAddress
+
+	if epPolicies, err := policy.GetHcnEndpointPolicies(policy.EndpointPolicy, epInfo.EndpointPolicies, epInfo.Data, epInfo.EnableSnatForDns, epInfo.EnableMultiTenancy, epInfo.NATInfo); err == nil {
+		hcnEndpoint.Policies = append(hcnEndpoint.Policies, epPolicies...)
 	} else {
 		logger.Error("Failed to get endpoint policies due to", zap.Error(err))
 		return nil, err
@@ -328,7 +338,7 @@ func (nw *network) newEndpointImplHnsV2(cli apipaClient, epInfo *EndpointInfo) (
 	}
 
 	// Create the HCN endpoint.
-	logger.Info("Creating hcn endpoint", zap.String("name", hcnEndpoint.Name), zap.String("computenetwork", hcnEndpoint.HostComputeNetwork))
+	logger.Info("Creating hcn endpoint", zap.Any("hcnEndpoint", hcnEndpoint), zap.String("computenetwork", hcnEndpoint.HostComputeNetwork))
 	hnsResponse, err := Hnsv2.CreateEndpoint(hcnEndpoint)
 	if err != nil {
 		return nil, fmt.Errorf("Failed to create endpoint: %s due to error: %v", hcnEndpoint.Name, err)
@@ -381,15 +391,21 @@ func (nw *network) newEndpointImplHnsV2(cli apipaClient, epInfo *EndpointInfo) (
 		gateway = net.ParseIP(hnsResponse.Routes[0].NextHop)
 	}
 
+	nicName := epInfo.IfName
+	// infra nic nicname will look like eth0, but delegated/secondary nics will look like "vEthernet x" where x is 1-7
+	if epInfo.NICType != cns.InfraNIC {
+		nicName = epInfo.MasterIfName
+	}
+
 	// Create the endpoint object.
 	ep := &endpoint{
 		Id:                       hcnEndpoint.Name,
 		HnsId:                    hnsResponse.Id,
 		SandboxKey:               epInfo.ContainerID,
-		IfName:                   epInfo.IfName,
+		IfName:                   nicName,
 		IPAddresses:              epInfo.IPAddresses,
 		Gateways:                 []net.IP{gateway},
-		DNS:                      epInfo.DNS,
+		DNS:                      epInfo.EndpointDNS,
 		VlanID:                   vlanid,
 		EnableSnatOnHost:         epInfo.EnableSnatOnHost,
 		NetNs:                    epInfo.NetNsPath,
@@ -399,6 +415,7 @@ func (nw *network) newEndpointImplHnsV2(cli apipaClient, epInfo *EndpointInfo) (
 		ContainerID:              epInfo.ContainerID,
 		PODName:                  epInfo.PODName,
 		PODNameSpace:             epInfo.PODNameSpace,
+		NICType:                  epInfo.NICType,
 	}
 
 	for _, route := range epInfo.Routes {
@@ -406,6 +423,11 @@ func (nw *network) newEndpointImplHnsV2(cli apipaClient, epInfo *EndpointInfo) (
 	}
 
 	ep.MacAddress, _ = net.ParseMAC(hnsResponse.MacAddress)
+
+	epInfo.HNSEndpointID = hnsResponse.Id // we use the ep info hns id later in stateless to clean up in ADD if there is an error
+
+	// TODO: Confirm with TM: when we delete an endpoint, this code is to find ifName from endpoint and then we can delete this endpoint
+	// TODO: deal with ep.SecondaryInterfaces here at all anymore?
 
 	return ep, nil
 }

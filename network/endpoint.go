@@ -53,26 +53,29 @@ type endpoint struct {
 	PODName                  string `json:",omitempty"`
 	PODNameSpace             string `json:",omitempty"`
 	InfraVnetAddressSpace    string `json:",omitempty"`
-	NetNs                    string `json:",omitempty"`
+	NetNs                    string `json:",omitempty"` // used in windows
 	// SecondaryInterfaces is a map of interface name to InterfaceInfo
 	SecondaryInterfaces map[string]*InterfaceInfo
+	// Store nic type since we no longer populate SecondaryInterfaces
+	NICType cns.NICType
 }
 
 // EndpointInfo contains read-only information about an endpoint.
 type EndpointInfo struct {
-	Id                       string
+	EndpointID               string
 	ContainerID              string
 	NetNsPath                string
-	IfName                   string
+	IfName                   string // value differs during creation vs. deletion flow
 	SandboxKey               string
 	IfIndex                  int
 	MacAddress               net.HardwareAddr
-	DNS                      DNSInfo
+	EndpointDNS              DNSInfo
 	IPAddresses              []net.IPNet
 	IPsToRouteViaHost        []string
 	InfraVnetIP              net.IPNet
 	Routes                   []RouteInfo
-	Policies                 []policy.Policy
+	EndpointPolicies         []policy.Policy // used in windows
+	NetworkPolicies          []policy.Policy // used in windows
 	Gateways                 []net.IP
 	EnableSnatOnHost         bool
 	EnableInfraVnet          bool
@@ -94,7 +97,20 @@ type EndpointInfo struct {
 	SkipDefaultRoutes        bool
 	HNSEndpointID            string
 	HNSNetworkID             string
-	HostIfName               string
+	HostIfName               string // unused in windows, and in linux
+	// Fields related to the network are below
+	MasterIfName                  string
+	AdapterName                   string
+	NetworkID                     string
+	Mode                          string
+	Subnets                       []SubnetInfo
+	BridgeName                    string
+	NetNs                         string // used in windows
+	Options                       map[string]interface{}
+	DisableHairpinOnHostInterface bool
+	IsIPv6Enabled                 bool
+
+	HostSubnetPrefix string // can be used later to add an external interface
 }
 
 // RouteInfo contains information about an IP route.
@@ -118,6 +134,8 @@ type InterfaceInfo struct {
 	DNS               DNSInfo
 	NICType           cns.NICType
 	SkipDefaultRoutes bool
+	HostSubnetPrefix  net.IPNet // Move this field from ipamAddResult
+	NCResponse        *cns.GetNetworkContainerResponse
 }
 
 type IPConfig struct {
@@ -131,9 +149,14 @@ type apipaClient interface {
 }
 
 func (epInfo *EndpointInfo) PrettyString() string {
-	return fmt.Sprintf("Id:%s ContainerID:%s NetNsPath:%s IfName:%s IfIndex:%d MacAddr:%s IPAddrs:%v Gateways:%v Data:%+v",
-		epInfo.Id, epInfo.ContainerID, epInfo.NetNsPath, epInfo.IfName, epInfo.IfIndex, epInfo.MacAddress.String(), epInfo.IPAddresses,
-		epInfo.Gateways, epInfo.Data)
+	return fmt.Sprintf("Id:%s ContainerID:%s NetNsPath:%s IfName:%s IfIndex:%d MacAddr:%s IPAddrs:%v Gateways:%v Data:%+v NICType: %s NetworkContainerID: %s HostIfName: %s NetNs: %s",
+		epInfo.EndpointID, epInfo.ContainerID, epInfo.NetNsPath, epInfo.IfName, epInfo.IfIndex, epInfo.MacAddress.String(), epInfo.IPAddresses,
+		epInfo.Gateways, epInfo.Data, epInfo.NICType, epInfo.NetworkContainerID, epInfo.HostIfName, epInfo.NetNs)
+}
+
+func (ifInfo *InterfaceInfo) PrettyString() string {
+	return fmt.Sprintf("Name:%s NICType:%v MacAddr:%s IPConfigs:%+v Routes:%+v DNSInfo:%+v",
+		ifInfo.Name, ifInfo.NICType, ifInfo.MacAddress.String(), ifInfo.IPConfigs, ifInfo.Routes, ifInfo.DNS)
 }
 
 // NewEndpoint creates a new endpoint in the network.
@@ -144,14 +167,14 @@ func (nw *network) newEndpoint(
 	netioCli netio.NetIOInterface,
 	nsc NamespaceClientInterface,
 	iptc ipTablesClient,
-	epInfo []*EndpointInfo,
+	epInfo *EndpointInfo,
 ) (*endpoint, error) {
 	var ep *endpoint
 	var err error
 
 	defer func() {
 		if err != nil {
-			logger.Error("Failed to create endpoint with err", zap.String("id", epInfo[0].Id), zap.Error(err))
+			logger.Error("Failed to create endpoint with err", zap.String("id", epInfo.EndpointID), zap.Error(err))
 		}
 	}()
 
@@ -251,14 +274,14 @@ func podNameMatches(source string, actualValue string, doExactMatch bool) bool {
 // GetInfo returns information about the endpoint.
 func (ep *endpoint) getInfo() *EndpointInfo {
 	info := &EndpointInfo{
-		Id:                       ep.Id,
+		EndpointID:               ep.Id,
 		IPAddresses:              ep.IPAddresses,
 		InfraVnetIP:              ep.InfraVnetIP,
 		Data:                     make(map[string]interface{}),
 		MacAddress:               ep.MacAddress,
 		SandboxKey:               ep.SandboxKey,
 		IfIndex:                  0, // Azure CNI supports only one interface
-		DNS:                      ep.DNS,
+		EndpointDNS:              ep.DNS,
 		EnableSnatOnHost:         ep.EnableSnatOnHost,
 		EnableInfraVnet:          ep.EnableInfraVnet,
 		EnableMultiTenancy:       ep.EnableMultitenancy,
@@ -272,6 +295,7 @@ func (ep *endpoint) getInfo() *EndpointInfo {
 		NetworkContainerID:       ep.NetworkContainerID,
 		HNSEndpointID:            ep.HnsId,
 		HostIfName:               ep.HostIfName,
+		NICType:                  ep.NICType,
 	}
 
 	info.Routes = append(info.Routes, ep.Routes...)
@@ -318,11 +342,13 @@ func (nm *networkManager) updateEndpoint(nw *network, existingEpInfo, targetEpIn
 		zap.String("id", nw.Id), zap.Any("targetEpInfo", targetEpInfo))
 	defer func() {
 		if err != nil {
-			logger.Error("Failed to update endpoint with err", zap.String("id", existingEpInfo.Id), zap.Error(err))
+			logger.Error("Failed to update endpoint with err", zap.String("id", existingEpInfo.EndpointID), zap.Error(err))
 		}
 	}()
 
-	ep := nw.Endpoints[existingEpInfo.Id]
+	logger.Info("Trying to retrieve endpoint id", zap.String("id", existingEpInfo.EndpointID))
+
+	ep := nw.Endpoints[existingEpInfo.EndpointID]
 	if ep == nil {
 		return errEndpointNotFound
 	}
@@ -336,7 +362,7 @@ func (nm *networkManager) updateEndpoint(nw *network, existingEpInfo, targetEpIn
 	}
 
 	// Update routes for existing endpoint
-	nw.Endpoints[existingEpInfo.Id].Routes = ep.Routes
+	nw.Endpoints[existingEpInfo.EndpointID].Routes = ep.Routes
 
 	return nil
 }

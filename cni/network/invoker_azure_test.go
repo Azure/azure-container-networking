@@ -8,6 +8,7 @@ import (
 
 	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/cni/log"
+	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/ipam"
 	"github.com/Azure/azure-container-networking/network"
 	cniSkel "github.com/containernetworking/cni/pkg/skel"
@@ -81,12 +82,24 @@ func (m *mockDelegatePlugin) Errorf(format string, args ...interface{}) *cniType
 	}
 }
 
+// net.ParseCIDR will first get the ip, which contains byte data for the ip and mask,
+// and the ipnet, which has a field for the *masked* ip and a field for the mask
+// this function then replaces the masked ip with the "ip" field retrieved earlier and returns the ipnet
 func getCIDRNotationForAddress(ipaddresswithcidr string) *net.IPNet {
 	ip, ipnet, err := net.ParseCIDR(ipaddresswithcidr)
 	if err != nil {
 		panic(fmt.Sprintf("failed to parse cidr with err: %v", err))
 	}
 	ipnet.IP = ip
+	return ipnet
+}
+
+// returns an ipnet, which contains the *masked* ip (zeroed out based on CIDR) and the mask itself
+func parseCIDR(ipaddresswithcidr string) *net.IPNet {
+	_, ipnet, err := net.ParseCIDR(ipaddresswithcidr)
+	if err != nil {
+		panic(fmt.Sprintf("failed to parse cidr with err: %v", err))
+	}
 	return ipnet
 }
 
@@ -111,26 +124,26 @@ func getResult(ips ...string) []*network.IPConfig {
 	return res
 }
 
-func getNwInfo(subnetv4, subnetv6 string) *network.NetworkInfo {
-	nwinfo := &network.NetworkInfo{}
+func getNwInfo(subnetv4, subnetv6 string) *network.EndpointInfo {
+	nwInfo := &network.EndpointInfo{}
 	if subnetv4 != "" {
-		nwinfo.Subnets = append(nwinfo.Subnets, network.SubnetInfo{
+		nwInfo.Subnets = append(nwInfo.Subnets, network.SubnetInfo{
 			Prefix: *getCIDRNotationForAddress(subnetv4),
 		})
 	}
 	if subnetv6 != "" {
-		nwinfo.Subnets = append(nwinfo.Subnets, network.SubnetInfo{
+		nwInfo.Subnets = append(nwInfo.Subnets, network.SubnetInfo{
 			Prefix: *getCIDRNotationForAddress(subnetv6),
 		})
 	}
-	return nwinfo
+	return nwInfo
 }
 
 func TestAzureIPAMInvoker_Add(t *testing.T) {
 	require := require.New(t)
 	type fields struct {
 		plugin delegatePlugin
-		nwInfo *network.NetworkInfo
+		nwInfo *network.EndpointInfo
 	}
 	type args struct {
 		nwCfg        *cni.NetworkConfig
@@ -238,8 +251,15 @@ func TestAzureIPAMInvoker_Add(t *testing.T) {
 				require.Nil(err)
 			}
 
-			fmt.Printf("want:%+v\nrest:%+v\n", tt.want, ipamAddResult.defaultInterfaceInfo.IPConfigs)
-			require.Exactly(tt.want, ipamAddResult.defaultInterfaceInfo.IPConfigs)
+			for key, ifInfo := range ipamAddResult.interfaceInfo {
+				if ifInfo.NICType == cns.InfraNIC {
+					fmt.Printf("want:%+v\nrest:%+v\n", tt.want, ifInfo.IPConfigs)
+					require.Exactly(tt.want, ifInfo.IPConfigs)
+				}
+				// azure ipam invoker always sets key as infra nic
+				require.Equal(string(cns.InfraNIC), key)
+				require.Equal(cns.InfraNIC, ifInfo.NICType)
+			}
 		})
 	}
 }
@@ -248,7 +268,7 @@ func TestAzureIPAMInvoker_Delete(t *testing.T) {
 	require := require.New(t)
 	type fields struct {
 		plugin delegatePlugin
-		nwInfo *network.NetworkInfo
+		nwInfo *network.EndpointInfo
 	}
 	type args struct {
 		address *net.IPNet
@@ -383,7 +403,7 @@ func TestRemoveIpamState_Add(t *testing.T) {
 	requires := require.New(t)
 	type fields struct {
 		plugin delegatePlugin
-		nwInfo *network.NetworkInfo
+		nwInfo *network.EndpointInfo
 	}
 	type args struct {
 		nwCfg        *cni.NetworkConfig

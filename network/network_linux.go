@@ -59,7 +59,7 @@ func newErrorNetworkManager(errStr string) error {
 type route netlink.Route
 
 // NewNetworkImpl creates a new container network.
-func (nm *networkManager) newNetworkImpl(nwInfo *NetworkInfo, extIf *externalInterface) (*network, error) {
+func (nm *networkManager) newNetworkImpl(nwInfo *EndpointInfo, extIf *externalInterface) (*network, error) {
 	// Connect the external interface.
 	var (
 		vlanid int
@@ -116,19 +116,18 @@ func (nm *networkManager) newNetworkImpl(nwInfo *NetworkInfo, extIf *externalInt
 
 	// Create the network object.
 	nw := &network{
-		Id:               nwInfo.Id,
+		Id:               nwInfo.NetworkID,
 		Mode:             nwInfo.Mode,
 		Endpoints:        make(map[string]*endpoint),
 		extIf:            extIf,
 		VlanId:           vlanid,
-		DNS:              nwInfo.DNS,
 		EnableSnatOnHost: nwInfo.EnableSnatOnHost,
 	}
 
 	return nw, nil
 }
 
-func (nm *networkManager) handleCommonOptions(ifName string, nwInfo *NetworkInfo) error {
+func (nm *networkManager) handleCommonOptions(ifName string, nwInfo *EndpointInfo) error {
 	var err error
 	if routes, exists := nwInfo.Options[RoutesKey]; exists {
 		err = addRoutes(nm.netlink, nm.netio, ifName, routes.([]RouteInfo))
@@ -154,7 +153,7 @@ func (nm *networkManager) deleteNetworkImpl(nw *network) error {
 	if nw.VlanId != 0 {
 		networkClient = NewOVSClient(nw.extIf.BridgeName, nw.extIf.Name, ovsctl.NewOvsctl(), nm.netlink, nm.plClient)
 	} else {
-		networkClient = NewLinuxBridgeClient(nw.extIf.BridgeName, nw.extIf.Name, NetworkInfo{}, nm.netlink, nm.plClient)
+		networkClient = NewLinuxBridgeClient(nw.extIf.BridgeName, nw.extIf.Name, EndpointInfo{}, nm.netlink, nm.plClient)
 	}
 
 	// Disconnect the interface if this was the last network using it.
@@ -460,7 +459,7 @@ func (nm *networkManager) applyDNSConfig(extIf *externalInterface, ifName string
 }
 
 // ConnectExternalInterface connects the given host interface to a bridge.
-func (nm *networkManager) connectExternalInterface(extIf *externalInterface, nwInfo *NetworkInfo) error {
+func (nm *networkManager) connectExternalInterface(extIf *externalInterface, nwInfo *EndpointInfo) error {
 	var (
 		err           error
 		networkClient NetworkClient
@@ -664,7 +663,7 @@ func (nm *networkManager) addToIptables(cmds []iptables.IPTableEntry) error {
 }
 
 // Add ipv6 nat gateway IP on bridge
-func (nm *networkManager) addIpv6NatGateway(nwInfo *NetworkInfo) error {
+func (nm *networkManager) addIpv6NatGateway(nwInfo *EndpointInfo) error {
 	logger.Info("Adding ipv6 nat gateway on azure bridge")
 	for _, subnetInfo := range nwInfo.Subnets {
 		if subnetInfo.Family == platform.AfINET6 {
@@ -684,7 +683,7 @@ func (nm *networkManager) addIpv6NatGateway(nwInfo *NetworkInfo) error {
 }
 
 // snat ipv6 traffic to secondary ipv6 ip before leaving VM
-func (nm *networkManager) addIpv6SnatRule(extIf *externalInterface, nwInfo *NetworkInfo) error {
+func (nm *networkManager) addIpv6SnatRule(extIf *externalInterface, nwInfo *EndpointInfo) error {
 	var (
 		ipv6SnatRuleSet  bool
 		ipv6SubnetPrefix net.IPNet
@@ -721,7 +720,7 @@ func (nm *networkManager) addIpv6SnatRule(extIf *externalInterface, nwInfo *Netw
 	return nil
 }
 
-func getNetworkInfoImpl(nwInfo *NetworkInfo, nw *network) {
+func getNetworkInfoImpl(nwInfo *EndpointInfo, nw *network) {
 	if nw.VlanId != 0 {
 		vlanMap := make(map[string]interface{})
 		vlanMap[VlanIDKey] = strconv.Itoa(nw.VlanId)

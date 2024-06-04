@@ -34,8 +34,8 @@ func TestNewAndDeleteNetworkImplHnsV2(t *testing.T) {
 	// we do this to avoid passing around os specific objects in platform agnostic code
 	Hnsv2 = hnswrapper.NewHnsv2wrapperFake()
 
-	nwInfo := &NetworkInfo{
-		Id:           "d3e97a83-ba4c-45d5-ba88-dc56757ece28",
+	nwInfo := &EndpointInfo{
+		NetworkID:    "d3e97a83-ba4c-45d5-ba88-dc56757ece28",
 		MasterIfName: "eth0",
 		Mode:         "bridge",
 	}
@@ -75,8 +75,8 @@ func TestSuccesfulNetworkCreationWhenAlreadyExists(t *testing.T) {
 	_, err := Hnsv2.CreateNetwork(network)
 
 	// network name is derived from network info id
-	nwInfo := &NetworkInfo{
-		Id:           "azure-vlan1-172-28-1-0_24",
+	nwInfo := &EndpointInfo{
+		NetworkID:    "azure-vlan1-172-28-1-0_24",
 		MasterIfName: "eth0",
 		Mode:         "bridge",
 	}
@@ -108,8 +108,8 @@ func TestNewNetworkImplHnsV2WithTimeout(t *testing.T) {
 		HnsCallTimeout: 10 * time.Second,
 	}
 
-	nwInfo := &NetworkInfo{
-		Id:           "d3e97a83-ba4c-45d5-ba88-dc56757ece28",
+	nwInfo := &EndpointInfo{
+		NetworkID:    "d3e97a83-ba4c-45d5-ba88-dc56757ece28",
 		MasterIfName: "eth0",
 		Mode:         "bridge",
 	}
@@ -131,8 +131,8 @@ func TestDeleteNetworkImplHnsV2WithTimeout(t *testing.T) {
 		ExternalInterfaces: map[string]*externalInterface{},
 	}
 
-	nwInfo := &NetworkInfo{
-		Id:           "d3e97a83-ba4c-45d5-ba88-dc56757ece28",
+	nwInfo := &EndpointInfo{
+		NetworkID:    "d3e97a83-ba4c-45d5-ba88-dc56757ece28",
 		MasterIfName: "eth0",
 		Mode:         "bridge",
 	}
@@ -180,8 +180,8 @@ func TestNewNetworkImplHnsV1WithTimeout(t *testing.T) {
 		HnsCallTimeout: 5 * time.Second,
 	}
 
-	nwInfo := &NetworkInfo{
-		Id:           "d3e97a83-ba4c-45d5-ba88-dc56757ece28",
+	nwInfo := &EndpointInfo{
+		NetworkID:    "d3e97a83-ba4c-45d5-ba88-dc56757ece28",
 		MasterIfName: "eth0",
 		Mode:         "bridge",
 	}
@@ -203,8 +203,8 @@ func TestDeleteNetworkImplHnsV1WithTimeout(t *testing.T) {
 		ExternalInterfaces: map[string]*externalInterface{},
 	}
 
-	nwInfo := &NetworkInfo{
-		Id:           "d3e97a83-ba4c-45d5-ba88-dc56757ece28",
+	nwInfo := &EndpointInfo{
+		NetworkID:    "d3e97a83-ba4c-45d5-ba88-dc56757ece28",
 		MasterIfName: "eth0",
 		Mode:         "bridge",
 	}
@@ -260,8 +260,8 @@ func TestAddIPv6DefaultRoute(t *testing.T) {
 		},
 	}
 
-	nwInfo := &NetworkInfo{
-		Id:           "d3f97a83-ba4c-45d5-ba88-dc56757ece28",
+	nwInfo := &EndpointInfo{
+		NetworkID:    "d3f97a83-ba4c-45d5-ba88-dc56757ece28",
 		MasterIfName: "eth0",
 		Mode:         "bridge",
 		Subnets:      networkSubnetInfo,
@@ -303,8 +303,8 @@ func TestFailToAddIPv6DefaultRoute(t *testing.T) {
 		},
 	}
 
-	nwInfo := &NetworkInfo{
-		Id:           "d3f97a83-ba4c-45d5-ba88-dc56757ece28",
+	nwInfo := &EndpointInfo{
+		NetworkID:    "d3f97a83-ba4c-45d5-ba88-dc56757ece28",
 		MasterIfName: "eth0",
 		Mode:         "bridge",
 		Subnets:      networkSubnetInfo,

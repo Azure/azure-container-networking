@@ -56,7 +56,7 @@ type network struct {
 	SnatBridgeIP     string
 }
 
-// NetworkInfo contains read-only information about a container network.
+// NetworkInfo contains read-only information about a container network. Use EndpointInfo instead when possible.
 type NetworkInfo struct {
 	MasterIfName                  string
 	AdapterName                   string
@@ -160,14 +160,14 @@ func (nm *networkManager) findExternalInterfaceByName(ifName string) *externalIn
 }
 
 // NewNetwork creates a new container network.
-func (nm *networkManager) newNetwork(nwInfo *NetworkInfo) (*network, error) {
+func (nm *networkManager) newNetwork(nwInfo *EndpointInfo) (*network, error) {
 	var nw *network
 	var err error
 
 	logger.Info("Creating", zap.String("network", nwInfo.PrettyString()))
 	defer func() {
 		if err != nil {
-			logger.Error("Failed to create network", zap.String("id", nwInfo.Id), zap.Error(err))
+			logger.Error("Failed to create network", zap.String("id", nwInfo.NetworkID), zap.Error(err))
 		}
 	}()
 
@@ -190,7 +190,7 @@ func (nm *networkManager) newNetwork(nwInfo *NetworkInfo) (*network, error) {
 	}
 
 	// Make sure this network does not already exist.
-	if extIf.Networks[nwInfo.Id] != nil {
+	if extIf.Networks[nwInfo.NetworkID] != nil {
 		err = errNetworkExists
 		return nil, err
 	}
@@ -203,9 +203,9 @@ func (nm *networkManager) newNetwork(nwInfo *NetworkInfo) (*network, error) {
 
 	// Add the network object.
 	nw.Subnets = nwInfo.Subnets
-	extIf.Networks[nwInfo.Id] = nw
+	extIf.Networks[nwInfo.NetworkID] = nw
 
-	logger.Info("Created network on interface", zap.String("id", nwInfo.Id), zap.String("Name", extIf.Name))
+	logger.Info("Created network on interface", zap.String("id", nwInfo.NetworkID), zap.String("Name", extIf.Name))
 	return nw, nil
 }
 
@@ -295,4 +295,42 @@ func (nm *networkManager) GetNumEndpointsByContainerID(containerID string) int {
 	}
 
 	return numEndpoints
+}
+
+// Creates the network and corresponding endpoint (should be called once during Add)
+func (nm *networkManager) EndpointCreate(cnsclient apipaClient, epInfos []*EndpointInfo) error {
+	eps := []*endpoint{} // save endpoints for stateless
+
+	for _, epInfo := range epInfos {
+		logger.Info("Creating endpoint and network", zap.String("endpointInfo", epInfo.PrettyString()))
+		// check if network exists by searching through all external interfaces for the network
+		_, nwGetErr := nm.GetNetworkInfo(epInfo.NetworkID)
+		if nwGetErr != nil {
+			logger.Info("Existing network not found", zap.String("networkID", epInfo.NetworkID))
+
+			logger.Info("Found master interface", zap.String("masterIfName", epInfo.MasterIfName))
+
+			// Add the master as an external interface.
+			err := nm.AddExternalInterface(epInfo.MasterIfName, epInfo.HostSubnetPrefix)
+			if err != nil {
+				return err
+			}
+
+			// Create the network if it is not found
+			err = nm.CreateNetwork(epInfo)
+			if err != nil {
+				return err
+			}
+		}
+
+		ep, err := nm.createEndpoint(cnsclient, epInfo.NetworkID, epInfo)
+		if err != nil {
+			return err
+		}
+
+		eps = append(eps, ep)
+	}
+
+	// save endpoints
+	return nm.SaveState(eps)
 }

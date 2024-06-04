@@ -1,0 +1,43 @@
+syntax = "proto3";
+
+package cns;
+
+option go_package = "cns/grpc/v1alpha";
+
+// The Container Network Service (CNS) exposes a set of operations that allow the Delegated Network Controller (DNC) to manage
+// and monitor nodes in an orchestrator's infrastructure.
+
+// CNS defines the gRPC service exposed by CNS to interact with DNC.
+service CNS {
+  // Sets the orchestrator information for a node.
+  rpc SetOrchestratorInfo(SetOrchestratorInfoRequest) returns (SetOrchestratorInfoResponse);
+
+  // Retrieves detailed information about a specific node.
+  // Primarily used for health checks.
+  rpc GetNodeInfo(NodeInfoRequest) returns (NodeInfoResponse);
+}
+
+// SetOrchestratorInfoRequest is the request message for setting the orchestrator information.
+message SetOrchestratorInfoRequest {
+  string dncPartitionKey = 1; // The partition key for DNC.
+  string nodeID = 2; // The node ID.
+  string orchestratorType = 3; // The type of the orchestrator.
+}
+
+// SetOrchestratorInfoResponse is the response message for setting the orchestrator information.
+message SetOrchestratorInfoResponse {}
+
+// NodeInfoRequest is the request message for retrieving detailed information about a specific node.
+message NodeInfoRequest {
+  string nodeID = 1; // The node ID to identify the specific node.
+}
+
+// NodeInfoResponse is the response message containing detailed information about a specific node.
+message NodeInfoResponse {
+  string nodeID = 1; // The node ID.
+  string name = 2; // The name of the node.
+  string ip = 3; // The IP address of the node.
+  bool isHealthy = 4; // Indicates whether the node is healthy or not.
+  string status = 5; // The current status of the node (e.g., running, stopped).
+  string message = 6; // Additional information about the node's health or status.
+}

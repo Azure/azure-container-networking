@@ -28,7 +28,7 @@ func (client *OVSEndpointClient) NewSnatClient(snatBridgeIP, localIP string, epI
 			localIP,
 			snatBridgeIP,
 			client.hostPrimaryMac,
-			epInfo.DNS.Servers,
+			epInfo.EndpointDNS.Servers,
 			false,
 			client.netlink,
 			client.plClient,

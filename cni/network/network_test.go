@@ -382,7 +382,7 @@ func TestIpamAddFail(t *testing.T) {
 			},
 			wantErr:           []bool{false},
 			wantEndpointErr:   true,
-			wantErrMsg:        "Failed to create endpoint: MockEndpointClient Error : Endpoint Error",
+			wantErrMsg:        "failed to create endpoint: MockEndpointClient Error : Endpoint Error",
 			expectedEndpoints: 0,
 		},
 	}
@@ -696,18 +696,41 @@ func TestPluginMultitenancyDelete(t *testing.T) {
 		Master:                     "eth0",
 	}
 
+	happyArgs := &cniSkel.CmdArgs{
+		StdinData:   localNwCfg.Serialize(),
+		ContainerID: "test-container",
+		Netns:       "test-container",
+		Args:        fmt.Sprintf("K8S_POD_NAME=%v;K8S_POD_NAMESPACE=%v", "test-pod", "test-pod-ns"),
+		IfName:      eth0IfName,
+	}
+
 	tests := []struct {
 		name       string
 		methods    []string
 		args       *cniSkel.CmdArgs
+		delArgs    *cniSkel.CmdArgs
 		wantErr    bool
 		wantErrMsg string
 	}{
 		{
 			name:    "Multitenancy delete success",
 			methods: []string{CNI_ADD, CNI_DEL},
-			args: &cniSkel.CmdArgs{
-				StdinData:   localNwCfg.Serialize(),
+			args:    happyArgs,
+			delArgs: happyArgs,
+			wantErr: false,
+		},
+		{
+			name:    "Multitenancy delete net not found",
+			methods: []string{CNI_ADD, CNI_DEL},
+			args:    happyArgs,
+			delArgs: &cniSkel.CmdArgs{
+				StdinData: (&cni.NetworkConfig{
+					CNIVersion:                 "0.3.0",
+					Name:                       "othernet",
+					MultiTenancy:               true,
+					EnableExactMatchForPodName: true,
+					Master:                     "eth0",
+				}).Serialize(),
 				ContainerID: "test-container",
 				Netns:       "test-container",
 				Args:        fmt.Sprintf("K8S_POD_NAME=%v;K8S_POD_NAMESPACE=%v", "test-pod", "test-pod-ns"),
@@ -725,7 +748,7 @@ func TestPluginMultitenancyDelete(t *testing.T) {
 				if method == CNI_ADD {
 					err = plugin.Add(tt.args)
 				} else if method == CNI_DEL {
-					err = plugin.Delete(tt.args)
+					err = plugin.Delete(tt.delArgs)
 				}
 			}
 			if tt.wantErr {
@@ -1024,7 +1047,7 @@ func getTestEndpoint(podname, podnamespace, ipwithcidr, podinterfaceid, infracon
 	ep := acnnetwork.EndpointInfo{
 		PODName:      podname,
 		PODNameSpace: podnamespace,
-		Id:           podinterfaceid,
+		EndpointID:   podinterfaceid,
 		ContainerID:  infracontainerid,
 		IPAddresses: []net.IPNet{
 			*ipnet,
@@ -1042,13 +1065,13 @@ func TestGetAllEndpointState(t *testing.T) {
 	ep2 := getTestEndpoint("podname2", "podnamespace2", "10.0.0.2/24", "podinterfaceid2", "testcontainerid2")
 	ep3 := getTestEndpoint("podname3", "podnamespace3", "10.240.1.242/16", "podinterfaceid3", "testcontainerid3")
 
-	err := plugin.nm.CreateEndpoint(nil, networkid, []*acnnetwork.EndpointInfo{ep1})
+	err := plugin.nm.CreateEndpoint(nil, networkid, ep1)
 	require.NoError(t, err)
 
-	err = plugin.nm.CreateEndpoint(nil, networkid, []*acnnetwork.EndpointInfo{ep2})
+	err = plugin.nm.CreateEndpoint(nil, networkid, ep2)
 	require.NoError(t, err)
 
-	err = plugin.nm.CreateEndpoint(nil, networkid, []*acnnetwork.EndpointInfo{ep3})
+	err = plugin.nm.CreateEndpoint(nil, networkid, ep3)
 	require.NoError(t, err)
 
 	state, err := plugin.GetAllEndpointState(networkid)
@@ -1056,22 +1079,22 @@ func TestGetAllEndpointState(t *testing.T) {
 
 	res := &api.AzureCNIState{
 		ContainerInterfaces: map[string]api.PodNetworkInterfaceInfo{
-			ep1.Id: {
-				PodEndpointId: ep1.Id,
+			ep1.EndpointID: {
+				PodEndpointId: ep1.EndpointID,
 				PodName:       ep1.PODName,
 				PodNamespace:  ep1.PODNameSpace,
 				ContainerID:   ep1.ContainerID,
 				IPAddresses:   ep1.IPAddresses,
 			},
-			ep2.Id: {
-				PodEndpointId: ep2.Id,
+			ep2.EndpointID: {
+				PodEndpointId: ep2.EndpointID,
 				PodName:       ep2.PODName,
 				PodNamespace:  ep2.PODNameSpace,
 				ContainerID:   ep2.ContainerID,
 				IPAddresses:   ep2.IPAddresses,
 			},
-			ep3.Id: {
-				PodEndpointId: ep3.Id,
+			ep3.EndpointID: {
+				PodEndpointId: ep3.EndpointID,
 				PodName:       ep3.PODName,
 				PodNamespace:  ep3.PODNameSpace,
 				ContainerID:   ep3.ContainerID,
@@ -1133,6 +1156,18 @@ func TestGetPodSubnetNatInfo(t *testing.T) {
 	}
 }
 
+type InterfaceGetterMock struct {
+	interfaces []net.Interface
+	err        error
+}
+
+func (n *InterfaceGetterMock) GetNetworkInterfaces() ([]net.Interface, error) {
+	if n.err != nil {
+		return nil, n.err
+	}
+	return n.interfaces, nil
+}
+
 func TestPluginSwiftV2Add(t *testing.T) {
 	plugin, _ := cni.NewPlugin("name", "0.3.0")
 
@@ -1142,6 +1177,14 @@ func TestPluginSwiftV2Add(t *testing.T) {
 		ExecutionMode:              string(util.V4Overlay),
 		EnableExactMatchForPodName: true,
 		Master:                     "eth0",
+	}
+
+	args := &cniSkel.CmdArgs{
+		StdinData:   localNwCfg.Serialize(),
+		ContainerID: "test-container",
+		Netns:       "test-container",
+		Args:        fmt.Sprintf("K8S_POD_NAME=%v;K8S_POD_NAMESPACE=%v", "test-pod", "test-pod-ns"),
+		IfName:      eth0IfName,
 	}
 
 	tests := []struct {
@@ -1159,14 +1202,13 @@ func TestPluginSwiftV2Add(t *testing.T) {
 				ipamInvoker: NewMockIpamInvoker(false, false, false, true, false),
 				report:      &telemetry.CNIReport{},
 				tb:          &telemetry.TelemetryBuffer{},
+				netClient: &InterfaceGetterMock{
+					interfaces: []net.Interface{
+						{Name: "eth0"},
+					},
+				},
 			},
-			args: &cniSkel.CmdArgs{
-				StdinData:   localNwCfg.Serialize(),
-				ContainerID: "test-container",
-				Netns:       "test-container",
-				Args:        fmt.Sprintf("K8S_POD_NAME=%v;K8S_POD_NAMESPACE=%v", "test-pod", "test-pod-ns"),
-				IfName:      eth0IfName,
-			},
+			args:    args,
 			wantErr: false,
 		},
 		{
@@ -1177,16 +1219,15 @@ func TestPluginSwiftV2Add(t *testing.T) {
 				ipamInvoker: NewMockIpamInvoker(false, false, false, true, true),
 				report:      &telemetry.CNIReport{},
 				tb:          &telemetry.TelemetryBuffer{},
+				netClient: &InterfaceGetterMock{
+					interfaces: []net.Interface{
+						{Name: "eth0"},
+					},
+				},
 			},
-			args: &cniSkel.CmdArgs{
-				StdinData:   localNwCfg.Serialize(),
-				ContainerID: "test-container",
-				Netns:       "test-container",
-				Args:        fmt.Sprintf("K8S_POD_NAME=%v;K8S_POD_NAMESPACE=%v", "test-pod", "test-pod-ns"),
-				IfName:      eth0IfName,
-			},
+			args:       args,
 			wantErr:    true,
-			wantErrMsg: "IPAM Invoker Add failed with error: delegatedVMNIC fail",
+			wantErrMsg: "IPAM Invoker Add failed with error: failed to add ipam invoker: delegatedVMNIC fail",
 		},
 		{
 			name: "SwiftV2 EndpointClient Add fail",
@@ -1202,16 +1243,58 @@ func TestPluginSwiftV2Add(t *testing.T) {
 				ipamInvoker: NewMockIpamInvoker(false, false, false, true, false),
 				report:      &telemetry.CNIReport{},
 				tb:          &telemetry.TelemetryBuffer{},
+				netClient: &InterfaceGetterMock{
+					interfaces: []net.Interface{
+						{Name: "eth0"},
+					},
+				},
+			},
+			args:       args,
+			wantErr:    true,
+			wantErrMsg: "failed to create endpoint: MockEndpointClient Error : AddEndpoints Delegated VM NIC failed",
+		},
+		{
+			name: "SwiftV2 Find Interface By MAC Address Fail",
+			plugin: &NetPlugin{
+				Plugin:      plugin,
+				nm:          acnnetwork.NewMockNetworkmanager(acnnetwork.NewMockEndpointClient(nil)),
+				ipamInvoker: NewMockIpamInvoker(false, false, false, true, false),
+				report:      &telemetry.CNIReport{},
+				tb:          &telemetry.TelemetryBuffer{},
+				netClient: &InterfaceGetterMock{
+					interfaces: []net.Interface{},
+				},
+			},
+			args:       args,
+			wantErr:    true,
+			wantErrMsg: "Failed to find the master interface",
+		},
+		{
+			name: "SwiftV2 Find Interface By Subnet Prefix Fail",
+			plugin: &NetPlugin{
+				Plugin:      plugin,
+				nm:          acnnetwork.NewMockNetworkmanager(acnnetwork.NewMockEndpointClient(nil)),
+				ipamInvoker: NewMockIpamInvoker(false, false, false, false, false),
+				report:      &telemetry.CNIReport{},
+				tb:          &telemetry.TelemetryBuffer{},
+				netClient: &InterfaceGetterMock{
+					interfaces: []net.Interface{},
+				},
 			},
 			args: &cniSkel.CmdArgs{
-				StdinData:   localNwCfg.Serialize(),
+				StdinData: (&cni.NetworkConfig{
+					CNIVersion:                 "0.3.0",
+					Name:                       "swiftv2",
+					ExecutionMode:              string(util.V4Overlay),
+					EnableExactMatchForPodName: true,
+				}).Serialize(),
 				ContainerID: "test-container",
 				Netns:       "test-container",
 				Args:        fmt.Sprintf("K8S_POD_NAME=%v;K8S_POD_NAMESPACE=%v", "test-pod", "test-pod-ns"),
 				IfName:      eth0IfName,
 			},
 			wantErr:    true,
-			wantErrMsg: "Failed to create endpoint: MockEndpointClient Error : AddEndpoints Delegated VM NIC failed",
+			wantErrMsg: "Failed to find the master interface",
 		},
 	}
 
@@ -1221,7 +1304,7 @@ func TestPluginSwiftV2Add(t *testing.T) {
 			err := tt.plugin.Add(tt.args)
 			if tt.wantErr {
 				require.Error(t, err)
-				assert.Equal(t, err.Error(), tt.wantErrMsg, "Expected %v but got %+v", tt.wantErrMsg, err.Error())
+				assert.Equal(t, tt.wantErrMsg, err.Error(), "Expected %v but got %+v", tt.wantErrMsg, err.Error())
 				endpoints, _ := tt.plugin.nm.GetAllEndpoints(localNwCfg.Name)
 				require.Condition(t, assert.Comparison(func() bool { return len(endpoints) == 0 }))
 			} else {
@@ -1229,6 +1312,150 @@ func TestPluginSwiftV2Add(t *testing.T) {
 				endpoints, _ := tt.plugin.nm.GetAllEndpoints(localNwCfg.Name)
 				require.Condition(t, assert.Comparison(func() bool { return len(endpoints) == 1 }))
 			}
+		})
+	}
+}
+
+func TestPluginSwiftV2MultipleAddDelete(t *testing.T) {
+	// checks cases where we create multiple endpoints in one call (also checks endpoint id)
+	// assumes we never get two infras created in one add call
+	plugin, _ := cni.NewPlugin("name", "0.3.0")
+
+	localNwCfg := cni.NetworkConfig{
+		CNIVersion:                 "0.3.0",
+		Name:                       "swiftv2",
+		ExecutionMode:              string(util.V4Overlay),
+		EnableExactMatchForPodName: true,
+		Master:                     "eth0",
+	}
+
+	args := &cniSkel.CmdArgs{
+		StdinData:   localNwCfg.Serialize(),
+		ContainerID: "test-container",
+		Netns:       "test-container",
+		Args:        fmt.Sprintf("K8S_POD_NAME=%v;K8S_POD_NAMESPACE=%v", "test-pod", "test-pod-ns"),
+		IfName:      eth0IfName,
+	}
+
+	tests := []struct {
+		name       string
+		plugin     *NetPlugin
+		args       *cniSkel.CmdArgs
+		wantErr    bool
+		wantErrMsg string
+		wantNumEps int
+		validEpIDs map[string]struct{}
+	}{
+		{
+			name: "SwiftV2 Add Infra and Delegated",
+			plugin: &NetPlugin{
+				Plugin: plugin,
+				nm:     acnnetwork.NewMockNetworkmanager(acnnetwork.NewMockEndpointClient(nil)),
+				ipamInvoker: NewCustomMockIpamInvoker(map[string]acnnetwork.InterfaceInfo{
+					"eth0-1": {
+						NICType: cns.DelegatedVMNIC,
+					},
+					"eth0": {
+						NICType: cns.InfraNIC,
+					},
+				}),
+				report: &telemetry.CNIReport{},
+				tb:     &telemetry.TelemetryBuffer{},
+				netClient: &InterfaceGetterMock{
+					interfaces: []net.Interface{
+						{Name: "eth0"},
+					},
+				},
+			},
+			args:       args,
+			wantErr:    false,
+			wantNumEps: 2,
+		},
+		{
+			name: "SwiftV2 Add Two Delegated",
+			plugin: &NetPlugin{
+				Plugin: plugin,
+				nm:     acnnetwork.NewMockNetworkmanager(acnnetwork.NewMockEndpointClient(nil)),
+				ipamInvoker: NewCustomMockIpamInvoker(map[string]acnnetwork.InterfaceInfo{
+					"eth0": {
+						NICType: cns.DelegatedVMNIC,
+					},
+					"eth0-1": {
+						NICType: cns.DelegatedVMNIC,
+					},
+				}),
+				report: &telemetry.CNIReport{},
+				tb:     &telemetry.TelemetryBuffer{},
+				netClient: &InterfaceGetterMock{
+					interfaces: []net.Interface{
+						{Name: "eth0"},
+					},
+				},
+			},
+			args:       args,
+			wantErr:    false,
+			wantNumEps: 2,
+		},
+		{
+			// creates 2 endpoints, the first succeeds, the second doesn't
+			// ensures that delete is called to clean up the first endpoint that succeeded
+			name: "SwiftV2 Partial Add fail",
+			plugin: &NetPlugin{
+				Plugin: plugin,
+				nm: acnnetwork.NewMockNetworkmanager(acnnetwork.NewMockEndpointClient(func(ep *acnnetwork.EndpointInfo) error {
+					if ep.NICType == cns.DelegatedVMNIC {
+						return acnnetwork.NewErrorMockEndpointClient("AddEndpoints Delegated VM NIC failed") //nolint:wrapcheck // ignore wrapping for test
+					}
+
+					return nil
+				})),
+				ipamInvoker: NewCustomMockIpamInvoker(map[string]acnnetwork.InterfaceInfo{
+					"eth0": {
+						NICType: cns.InfraNIC,
+					},
+					"eth0-1": {
+						NICType: cns.DelegatedVMNIC,
+					},
+				}),
+				report: &telemetry.CNIReport{},
+				tb:     &telemetry.TelemetryBuffer{},
+				netClient: &InterfaceGetterMock{
+					interfaces: []net.Interface{
+						{Name: "eth0"},
+					},
+				},
+			},
+			args:       args,
+			wantNumEps: 0,
+			wantErr:    true,
+			wantErrMsg: "failed to create endpoint: MockEndpointClient Error : AddEndpoints Delegated VM NIC failed",
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.plugin.Add(tt.args)
+			if tt.wantErr {
+				require.Error(t, err)
+				assert.Equal(t, tt.wantErrMsg, err.Error(), "Expected %v but got %+v", tt.wantErrMsg, err.Error())
+			} else {
+				require.NoError(t, err)
+			}
+			endpoints, _ := tt.plugin.nm.GetAllEndpoints(localNwCfg.Name)
+			require.Condition(t, assert.Comparison(func() bool { return len(endpoints) == tt.wantNumEps }))
+			for _, ep := range endpoints {
+				if ep.NICType == cns.InfraNIC {
+					require.Equal(t, "test-con-"+tt.args.IfName, ep.EndpointID, "infra nic must use ifname for its endpoint id")
+				} else {
+					require.Regexp(t, `test-con-\d+$`, ep.EndpointID, "other nics must use an index for their endpoint ids")
+				}
+			}
+
+			err = tt.plugin.Delete(tt.args)
+			require.NoError(t, err)
+			endpoints, _ = tt.plugin.nm.GetAllEndpoints(localNwCfg.Name)
+			require.Condition(t, assert.Comparison(func() bool { return len(endpoints) == 0 }))
 		})
 	}
 }

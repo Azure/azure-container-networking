@@ -27,12 +27,12 @@ func TestNewAndDeleteEndpointImplHnsV2(t *testing.T) {
 	}
 
 	epInfo := &EndpointInfo{
-		Id:          "753d3fb6-e9b3-49e2-a109-2acc5dda61f1",
+		EndpointID:  "753d3fb6-e9b3-49e2-a109-2acc5dda61f1",
 		ContainerID: "545055c2-1462-42c8-b222-e75d0b291632",
 		NetNsPath:   "fakeNameSpace",
 		IfName:      "eth0",
 		Data:        make(map[string]interface{}),
-		DNS: DNSInfo{
+		EndpointDNS: DNSInfo{
 			Suffix:  "10.0.0.0",
 			Servers: []string{"10.0.0.1, 10.0.0.2"},
 			Options: nil,
@@ -71,12 +71,12 @@ func TestNewEndpointImplHnsv2Timesout(t *testing.T) {
 	}
 
 	epInfo := &EndpointInfo{
-		Id:          "753d3fb6-e9b3-49e2-a109-2acc5dda61f1",
+		EndpointID:  "753d3fb6-e9b3-49e2-a109-2acc5dda61f1",
 		ContainerID: "545055c2-1462-42c8-b222-e75d0b291632",
 		NetNsPath:   "fakeNameSpace",
 		IfName:      "eth0",
 		Data:        make(map[string]interface{}),
-		DNS: DNSInfo{
+		EndpointDNS: DNSInfo{
 			Suffix:  "10.0.0.0",
 			Servers: []string{"10.0.0.1, 10.0.0.2"},
 			Options: nil,
@@ -98,12 +98,12 @@ func TestDeleteEndpointImplHnsv2Timeout(t *testing.T) {
 	Hnsv2 = hnswrapper.NewHnsv2wrapperFake()
 
 	epInfo := &EndpointInfo{
-		Id:          "753d3fb6-e9b3-49e2-a109-2acc5dda61f1",
+		EndpointID:  "753d3fb6-e9b3-49e2-a109-2acc5dda61f1",
 		ContainerID: "545055c2-1462-42c8-b222-e75d0b291632",
 		NetNsPath:   "fakeNameSpace",
 		IfName:      "eth0",
 		Data:        make(map[string]interface{}),
-		DNS: DNSInfo{
+		EndpointDNS: DNSInfo{
 			Suffix:  "10.0.0.0",
 			Servers: []string{"10.0.0.1, 10.0.0.2"},
 			Options: nil,
@@ -147,12 +147,12 @@ func TestCreateEndpointImplHnsv1Timeout(t *testing.T) {
 	}
 
 	epInfo := &EndpointInfo{
-		Id:          "753d3fb6-e9b3-49e2-a109-2acc5dda61f1",
+		EndpointID:  "753d3fb6-e9b3-49e2-a109-2acc5dda61f1",
 		ContainerID: "545055c2-1462-42c8-b222-e75d0b291632",
 		NetNsPath:   "fakeNameSpace",
 		IfName:      "eth0",
 		Data:        make(map[string]interface{}),
-		DNS: DNSInfo{
+		EndpointDNS: DNSInfo{
 			Suffix:  "10.0.0.0",
 			Servers: []string{"10.0.0.1, 10.0.0.2"},
 			Options: nil,
@@ -174,12 +174,12 @@ func TestDeleteEndpointImplHnsv1Timeout(t *testing.T) {
 	Hnsv1 = hnswrapper.NewHnsv1wrapperFake()
 
 	epInfo := &EndpointInfo{
-		Id:          "753d3fb6-e9b3-49e2-a109-2acc5dda61f1",
+		EndpointID:  "753d3fb6-e9b3-49e2-a109-2acc5dda61f1",
 		ContainerID: "545055c2-1462-42c8-b222-e75d0b291632",
 		NetNsPath:   "fakeNameSpace",
 		IfName:      "eth0",
 		Data:        make(map[string]interface{}),
-		DNS: DNSInfo{
+		EndpointDNS: DNSInfo{
 			Suffix:  "10.0.0.0",
 			Servers: []string{"10.0.0.1, 10.0.0.2"},
 			Options: nil,

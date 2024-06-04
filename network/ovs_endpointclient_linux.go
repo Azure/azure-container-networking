@@ -74,7 +74,7 @@ func NewOVSEndpointClient(
 		netioshim:                &netio.NetIO{},
 	}
 
-	NewInfraVnetClient(client, epInfo.Id[:7])
+	NewInfraVnetClient(client, epInfo.EndpointID[:7])
 	client.NewSnatClient(nw.SnatBridgeIP, localIP, epInfo)
 
 	return client
@@ -251,5 +251,5 @@ func (client *OVSEndpointClient) DeleteEndpoints(ep *endpoint) error {
 	if err := client.DeleteSnatEndpoint(); err != nil {
 		return err
 	}
-	return DeleteInfraVnetEndpoint(client, ep.Id[:7])
+	return DeleteInfraVnetEndpoint(client)
 }

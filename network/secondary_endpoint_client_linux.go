@@ -169,7 +169,7 @@ func (client *SecondaryEndpointClient) DeleteEndpoints(ep *endpoint) error {
 			logger.Error("Failed to exit netns with", zap.Error(newErrorSecondaryEndpointClient(err)))
 		}
 	}()
-
+	// TODO: For stateless cni linux, check if delegated vmnic type, and if so, delete using this *endpoint* struct's ifname
 	for iface := range ep.SecondaryInterfaces {
 		if err := client.netlink.SetLinkNetNs(iface, uintptr(vmns)); err != nil {
 			logger.Error("Failed to move interface", zap.String("IfName", iface), zap.Error(newErrorSecondaryEndpointClient(err)))

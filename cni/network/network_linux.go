@@ -8,7 +8,6 @@ import (
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/network"
 	"github.com/Azure/azure-container-networking/network/policy"
-	cniSkel "github.com/containernetworking/cni/pkg/skel"
 	cniTypesCurr "github.com/containernetworking/cni/pkg/types/100"
 )
 
@@ -18,13 +17,6 @@ const (
 )
 
 const snatConfigFileName = "/tmp/snatConfig"
-
-// handleConsecutiveAdd is a dummy function for Linux platform.
-func (plugin *NetPlugin) handleConsecutiveAdd(args *cniSkel.CmdArgs, endpointID string, networkID string,
-	nwInfo *network.NetworkInfo, nwCfg *cni.NetworkConfig,
-) (*cniTypesCurr.Result, error) {
-	return nil, nil
-}
 
 func addDefaultRoute(gwIPString string, epInfo *network.EndpointInfo, result *network.InterfaceInfo) {
 	_, defaultIPNet, _ := net.ParseCIDR("0.0.0.0/0")
@@ -41,7 +33,8 @@ func addSnatForDNS(gwIPString string, epInfo *network.EndpointInfo, result *netw
 	result.Routes = append(result.Routes, network.RouteInfo{Dst: *dnsIPNet, Gw: gwIP})
 }
 
-func setNetworkOptions(cnsNwConfig *cns.GetNetworkContainerResponse, nwInfo *network.NetworkInfo) {
+// updates options field
+func setNetworkOptions(cnsNwConfig *cns.GetNetworkContainerResponse, nwInfo *network.EndpointInfo) {
 	if cnsNwConfig != nil && cnsNwConfig.MultiTenancyInfo.ID != 0 {
 		logger.Info("Setting Network Options")
 		vlanMap := make(map[string]interface{})
@@ -119,7 +112,7 @@ func addIPV6EndpointPolicy(nwInfo network.NetworkInfo) (policy.Policy, error) {
 	return policy.Policy{}, nil
 }
 
-func (plugin *NetPlugin) getNetworkName(_ string, _ *IPAMAddResult, nwCfg *cni.NetworkConfig) (string, error) {
+func (plugin *NetPlugin) getNetworkName(_ string, _ *network.InterfaceInfo, nwCfg *cni.NetworkConfig) (string, error) {
 	return nwCfg.Name, nil
 }
 
