@@ -10,6 +10,9 @@ const (
 	NodeIDStr           = "NodeID"
 	HomeAZStr           = "HomeAZ"
 	IsAZRSupportedStr   = "IsAZRSupported"
+	HomeAZErrorCodeStr  = "HomeAZErrorCode"
+	HomeAZErrorMsgStr   = "HomeAZErrorMsg"
+
 	// CNS Snspshot properties
 	CnsNCSnapshotEventStr         = "CNSNCSnapshot"
 	IpConfigurationStr            = "IPConfiguration"
