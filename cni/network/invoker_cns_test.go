@@ -1444,7 +1444,7 @@ func Test_getInterfaceInfoKey(t *testing.T) {
 	require.Equal(string(cns.InfraNIC), inv.getInterfaceInfoKey(cns.InfraNIC, dummyMAC))
 	require.Equal(dummyMAC, inv.getInterfaceInfoKey(cns.DelegatedVMNIC, dummyMAC))
 	require.Equal("", inv.getInterfaceInfoKey(cns.DelegatedVMNIC, ""))
-	require.Equal(string(cns.BackendNIC), inv.getInterfaceInfoKey(cns.BackendNIC, dummyMAC))
+	require.Equal(string(cns.NodeNetworkInterfaceBackendNIC), inv.getInterfaceInfoKey(cns.NodeNetworkInterfaceBackendNIC, dummyMAC))
 }
 
 func TestCNSIPAMInvoker_Add_SwiftV2(t *testing.T) {
