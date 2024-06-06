@@ -17,14 +17,15 @@ import (
 
 // Listener represents an HTTP listener.
 type Listener struct {
-	URL          *url.URL
-	protocol     string
-	localAddress string
-	endpoints    []string
-	active       bool
-	listener     net.Listener
-	tlsListener  net.Listener
-	mux          *http.ServeMux
+	URL             *url.URL
+	protocol        string
+	localAddress    string
+	tlsLocalAddress string
+	endpoints       []string
+	active          bool
+	listener        net.Listener
+	tlsListener     net.Listener
+	mux             *http.ServeMux
 }
 
 // NewListener creates a new Listener.
@@ -55,6 +56,7 @@ func (l *Listener) StartTLS(errChan chan<- error, tlsConfig *tls.Config, address
 	}
 
 	l.tlsListener = list
+	l.tlsLocalAddress = address
 	log.Printf("[Listener] Started listening on tls endpoint %s.", address)
 
 	// Launch goroutine for servicing https requests
@@ -100,6 +102,7 @@ func (l *Listener) Stop() {
 	if l.tlsListener != nil {
 		// Stop servicing requests on secure listener
 		_ = l.tlsListener.Close()
+		log.Printf("[Listener] Stopped listening on tls endpoint %s", l.tlsLocalAddress)
 	}
 
 	// Delete the unix socket.
