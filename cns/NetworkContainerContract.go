@@ -465,7 +465,6 @@ type PodIpInfo struct {
 	PodIPConfig                     IPSubnet
 	NetworkContainerPrimaryIPConfig IPConfiguration
 	HostPrimaryIPInfo               HostIPInfo
-	HostSecondaryIPInfo             HostIPInfo
 	// NICType defines whether NIC is InfraNIC or DelegatedVMNIC or BackendNIC
 	NICType       NICType
 	InterfaceName string

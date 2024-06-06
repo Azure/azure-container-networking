@@ -134,7 +134,6 @@ func (service *HTTPRestService) requestIPConfigHandlerHelperSF(ctx context.Conte
 		PodIPInfo: []cns.PodIpInfo{podIPInfo},
 	}
 
-	//ipConfigsResp.PodIPInfo = append(ipConfigsResp.PodIPInfo, podIPInfo)
 	err = service.updatePodInfoWithInterfaces(ctx, ipConfigsResp)
 	if err != nil {
 		return &cns.IPConfigsResponse{
@@ -156,24 +155,11 @@ func (service *HTTPRestService) updatePodInfoWithInterfaces(ctx context.Context,
 		return err
 	}
 	for i := range ipconfigResponse.PodIPInfo {
-		// populating podIpInfo with secondary interface info & updating IpConfigsResponse
-		hostSecondaryInterface, err := service.getSecondaryHostInterface(ctx, ipconfigResponse.PodIPInfo[i].MacAddress)
-		if err != nil {
-			return err
-		}
-
 		ipconfigResponse.PodIPInfo[i].HostPrimaryIPInfo = cns.HostIPInfo{
 			Gateway:   hostPrimaryInterface.Gateway,
 			PrimaryIP: hostPrimaryInterface.PrimaryIP,
 			Subnet:    hostPrimaryInterface.Subnet,
 		}
-
-		ipconfigResponse.PodIPInfo[i].HostSecondaryIPInfo = cns.HostIPInfo{
-			Gateway:     hostSecondaryInterface.Gateway,
-			SecondaryIP: hostSecondaryInterface.SecondaryIPs[0],
-			Subnet:      hostSecondaryInterface.Subnet,
-		}
-
 		podIPInfoList = append(podIPInfoList, ipconfigResponse.PodIPInfo[i])
 	}
 	ipconfigResponse.PodIPInfo = podIPInfoList
