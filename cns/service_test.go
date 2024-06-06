@@ -81,7 +81,7 @@ func TestNewService(t *testing.T) {
 		err = svc.StartListener(config)
 		require.NoError(t, err)
 
-		client := &http.Client{
+		tlsClient := &http.Client{
 			Transport: &http.Transport{
 				TLSClientConfig: &tls.Config{
 					MinVersion: tls.VersionTLS12,
@@ -93,9 +93,20 @@ func TestNewService(t *testing.T) {
 			},
 		}
 
+		// TLS listener
 		req, err := http.NewRequestWithContext(context.TODO(), http.MethodGet, "https://localhost:10091", http.NoBody)
 		require.NoError(t, err)
-		resp, err := client.Do(req)
+		resp, err := tlsClient.Do(req)
+		t.Cleanup(func() {
+			resp.Body.Close()
+		})
+		require.NoError(t, err)
+
+		// HTTP listener
+		httpClient := &http.Client{}
+		req, err = http.NewRequestWithContext(context.TODO(), http.MethodGet, "http://localhost:10090", http.NoBody)
+		require.NoError(t, err)
+		resp, err = httpClient.Do(req)
 		t.Cleanup(func() {
 			resp.Body.Close()
 		})
@@ -126,18 +137,29 @@ func TestNewService(t *testing.T) {
 		err = svc.StartListener(config)
 		require.NoError(t, err)
 
-		tlsConfig, err := getTLSConfigFromFile(config.TLSSettings)
+		mTLSConfig, err := getTLSConfigFromFile(config.TLSSettings)
 		require.NoError(t, err)
 
 		client := &http.Client{
 			Transport: &http.Transport{
-				TLSClientConfig: tlsConfig,
+				TLSClientConfig: mTLSConfig,
 			},
 		}
 
+		// TLS listener
 		req, err := http.NewRequestWithContext(context.TODO(), http.MethodGet, "https://localhost:10091", http.NoBody)
 		require.NoError(t, err)
 		resp, err := client.Do(req)
+		t.Cleanup(func() {
+			resp.Body.Close()
+		})
+		require.NoError(t, err)
+
+		// HTTP listener
+		httpClient := &http.Client{}
+		req, err = http.NewRequestWithContext(context.TODO(), http.MethodGet, "http://localhost:10090", http.NoBody)
+		require.NoError(t, err)
+		resp, err = httpClient.Do(req)
 		t.Cleanup(func() {
 			resp.Body.Close()
 		})
