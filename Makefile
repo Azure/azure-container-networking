@@ -143,7 +143,7 @@ azure-cns: azure-cns-binary cns-archive
 acncli: acncli-binary acncli-archive
 azure-npm: azure-npm-binary npm-archive
 azure-ipam: azure-ipam-binary azure-ipam-archive
-ipv6-hp-bpf: ipv6-hp-bpf-binary-amd64 ipv6-hp-bpf-binary-arm64 ipv6-hp-bpf-archive
+ipv6-hp-bpf: ipv6-hp-bpf-binary ipv6-hp-bpf-archive
 
 
 ##@ Versioning
@@ -184,19 +184,10 @@ azure-ipam-binary:
 	cd $(AZURE_IPAM_DIR) && CGO_ENABLED=0 go build -v -o $(AZURE_IPAM_BUILD_DIR)/azure-ipam$(EXE_EXT) -ldflags "-X github.com/Azure/azure-container-networking/azure-ipam/internal/buildinfo.Version=$(AZURE_IPAM_VERSION)" -gcflags="-dwarflocationlists=true"
 
 # Build the ipv6-hp-bpf binary.
-ipv6-hp-bpf-binary-amd64:
-	sudo apt-get update && sudo apt-get install -y llvm clang linux-libc-dev linux-headers-generic libbpf-dev libc6-dev nftables iproute2 gcc-multilib
-	for dir in /usr/include/x86_64-linux-gnu/*; do sudo ln -sfn "$dir" /usr/include/$(basename "$dir"); done
-	cd $(IPV6_HP_BPF_DIR) && CGO_ENABLED=0 go generate ./... 
-	cd $(IPV6_HP_BPF_DIR)/cmd/ipv6-hp-bpf && CGO_ENABLED=0 go build -v -o $(IPV6_HP_BPF_BUILD_DIR)/ipv6-hp-bpf$(EXE_EXT) -ldflags "-X main.version=$(IPV6_HP_BPF_VERSION)" -gcflags="-dwarflocationlists=true"
-
-# Build the ipv6-hp-bpf binary (arm64).
-ipv6-hp-bpf-binary-arm64:
-	sudo apt-get update && sudo apt-get install -y llvm clang linux-libc-dev linux-headers-generic libbpf-dev libc6-dev nftables iproute2 gcc-aarch64-linux-gnu
-	for dir in /usr/include/aarch64-linux-gnu/*; do sudo ln -sfn "$dir" /usr/include/$(basename "$dir"); done
-	sudo ln -sfn /usr/include/x86_64-linux-gnu/asm /usr/include/asm
-	cd $(IPV6_HP_BPF_DIR) && CGO_ENABLED=0 go generate ./... 
-	cd $(IPV6_HP_BPF_DIR)/cmd/ipv6-hp-bpf && CGO_ENABLED=0 go build -v -o $(IPV6_HP_BPF_BUILD_DIR)/ipv6-hp-bpf$(EXE_EXT) -ldflags "-X main.version=$(IPV6_HP_BPF_VERSION)" -gcflags="-dwarflocationlists=true"
+ipv6-hp-bpf-binary: ipv6-hp-bpf-image
+	container=$$(docker create $(IMAGE_REGISTRY)/$(IPV6_HP_BPF_IMAGE):$(IPV6_HP_BPF_IMAGE_PLATFORM_TAG)) && \
+	docker cp $$container:/ipv6-hp-bpf $(IPV6_HP_BPF_BUILD_DIR)/ipv6-hp-bpf && \
+	docker rm $$container
 
 # Build the Azure CNM binary.
 cnm-binary:
@@ -403,7 +394,7 @@ ipv6-hp-bpf-image-name-and-tag: # util target to print the ipv6-hp-bpf image nam
 
 ipv6-hp-bpf-image: ## build ipv6-hp-bpf container image.
 	$(MAKE) container \
-		DOCKERFILE=bpf-prog/ipv6-hp-bpf/$(OS)-$(ARCH).Dockerfile \
+		DOCKERFILE=bpf-prog/ipv6-hp-bpf/$(OS).Dockerfile \
 		IMAGE=$(IPV6_HP_BPF_IMAGE) \
 		EXTRA_BUILD_ARGS='--build-arg OS=$(OS) --build-arg ARCH=$(ARCH) --build-arg OS_VERSION=$(OS_VERSION) --build-arg DEBUG=$(DEBUG)'\
 		PLATFORM=$(PLATFORM) \
@@ -814,7 +805,7 @@ endif
 
 # Create a ipv6-hp-bpf archive for the target platform.
 .PHONY: ipv6-hp-bpf-archive
-ipv6-hp-bpf-archive: ipv6-hp-bpf-binary-amd64 ipv6-hp-bpf-binary-arm64
+ipv6-hp-bpf-archive: ipv6-hp-bpf-binary
 ifeq ($(GOOS),linux)
 	$(MKDIR) $(IPV6_HP_BPF_BUILD_DIR)
 	cd $(IPV6_HP_BPF_BUILD_DIR) && $(ARCHIVE_CMD) $(IPV6_HP_BPF_ARCHIVE_NAME) ipv6-hp-bpf$(EXE_EXT)
