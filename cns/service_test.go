@@ -5,10 +5,19 @@ package cns
 
 import (
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/pem"
+	"math/big"
 	"net/http"
+	"os"
+	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/Azure/azure-container-networking/cns/common"
 	"github.com/Azure/azure-container-networking/cns/logger"
@@ -59,10 +68,12 @@ func TestNewService(t *testing.T) {
 	})
 
 	t.Run("NewServiceWithTLS", func(t *testing.T) {
+		testCertFilePath := createTestCertificate(t)
+
 		config.TLSSettings = serverTLS.TlsSettings{
 			TLSPort:            "10091",
 			TLSSubjectName:     "localhost",
-			TLSCertificatePath: "testdata/dummy.pem",
+			TLSCertificatePath: testCertFilePath,
 		}
 
 		svc, err := NewService(config.Name, config.Version, config.ChannelMode, config.Store)
@@ -114,10 +125,12 @@ func TestNewService(t *testing.T) {
 	})
 
 	t.Run("NewServiceWithMutualTLS", func(t *testing.T) {
+		testCertFilePath := createTestCertificate(t)
+
 		config.TLSSettings = serverTLS.TlsSettings{
 			TLSPort:            "10091",
 			TLSSubjectName:     "localhost",
-			TLSCertificatePath: "testdata/dummy.pem",
+			TLSCertificatePath: testCertFilePath,
 			UseMTLS:            true,
 		}
 
@@ -168,8 +181,10 @@ func TestNewService(t *testing.T) {
 }
 
 func TestMtlsRootCAsFromCertificate(t *testing.T) {
+	testCertFilePath := createTestCertificate(t)
+
 	tlsSettings := serverTLS.TlsSettings{
-		TLSCertificatePath: "testdata/dummy.pem",
+		TLSCertificatePath: testCertFilePath,
 	}
 	tlsCertRetriever, err := serverTLS.GetTlsCertificateRetriever(tlsSettings)
 	require.NoError(t, err)
@@ -231,4 +246,59 @@ func TestMtlsRootCAsFromCertificate(t *testing.T) {
 			assert.Nil(t, r)
 		}
 	})
+}
+
+// createTestCertificate is a test helper that creates a test certificate
+// and writes it to a temporary file that is cleaned up after the test.
+// Returns the path to the test certificate file
+func createTestCertificate(t *testing.T) string {
+	t.Helper()
+
+	t.Log("Creating test certificate...")
+
+	privateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err)
+
+	serialNumberLimit := new(big.Int).Lsh(big.NewInt(1), 128)
+	serialNumber, err := rand.Int(rand.Reader, serialNumberLimit)
+	require.NoError(t, err)
+
+	template := x509.Certificate{
+		SerialNumber: serialNumber,
+		Subject: pkix.Name{
+			CommonName: "foo.com",
+		},
+		DNSNames:  []string{"localhost", "127.0.0.1", "example.com"},
+		NotBefore: time.Now(),
+		NotAfter:  time.Now().Add(3 * time.Hour),
+
+		KeyUsage:              x509.KeyUsageDigitalSignature,
+		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth, x509.ExtKeyUsageClientAuth},
+		BasicConstraintsValid: true,
+	}
+
+	// Create certificate with the template and keys
+	derBytes, err := x509.CreateCertificate(rand.Reader, &template, &template, &privateKey.PublicKey, privateKey)
+	require.NoError(t, err)
+
+	// Cert PEM
+	pemCert := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: derBytes})
+	require.NotNil(t, pemCert)
+
+	// Private Key PEM
+	privBytes, err := x509.MarshalPKCS8PrivateKey(privateKey)
+	require.NoError(t, err)
+	pemKey := pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: privBytes})
+	require.NotNil(t, pemKey)
+
+	pemCert = append(pemCert, pemKey...)
+
+	// Write PEM cert and key to a file in a temp dir
+	testCertFilePath := filepath.Join(t.TempDir(), "dummy.pem")
+	err = os.WriteFile(testCertFilePath, pemCert, 0o600)
+	require.NoError(t, err)
+
+	t.Log("Created test certificate file at: ", testCertFilePath)
+
+	return testCertFilePath
 }
