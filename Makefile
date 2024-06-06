@@ -184,10 +184,19 @@ azure-ipam-binary:
 	cd $(AZURE_IPAM_DIR) && CGO_ENABLED=0 go build -v -o $(AZURE_IPAM_BUILD_DIR)/azure-ipam$(EXE_EXT) -ldflags "-X github.com/Azure/azure-container-networking/azure-ipam/internal/buildinfo.Version=$(AZURE_IPAM_VERSION)" -gcflags="-dwarflocationlists=true"
 
 # Build the ipv6-hp-bpf binary.
-ipv6-hp-bpf-binary: ipv6-hp-bpf-image
-	container=$$(docker create $(IMAGE_REGISTRY)/$(IPV6_HP_BPF_IMAGE):$(IPV6_HP_BPF_IMAGE_PLATFORM_TAG)) && \
-	docker cp $$container:/ipv6-hp-bpf $(IPV6_HP_BPF_BUILD_DIR)/ipv6-hp-bpf && \
-	docker rm $$container
+ipv6-hp-bpf-binary:
+	cd $(IPV6_HP_BPF_DIR) && CGO_ENABLED=0 go generate ./... 
+	cd $(IPV6_HP_BPF_DIR)/cmd/ipv6-hp-bpf && CGO_ENABLED=0 go build -v -o $(IPV6_HP_BPF_BUILD_DIR)/ipv6-hp-bpf$(EXE_EXT) -ldflags "-X main.version=$(IPV6_HP_BPF_VERSION)" -gcflags="-dwarflocationlists=true"
+
+# Libarires for ipv6-hp-bpf amd64
+ipv6-hp-bpf-lib-amd64:
+	sudo apt-get update && sudo apt-get install -y llvm clang linux-libc-dev linux-headers-generic libbpf-dev libc6-dev nftables iproute2 gcc-multilib
+	for dir in /usr/include/x86_64-linux-gnu/*; do sudo ln -sfn "$dir" /usr/include/$(basename "$dir"); done
+
+# Libarires for ipv6-hp-bpf arm64
+ipv6-hp-bpf-lib-arm64:
+sudo apt-get update && sudo apt-get install -y llvm clang linux-libc-dev linux-headers-generic libbpf-dev libc6-dev nftables iproute2 gcc-aarch64-linux-gnu
+	for dir in /usr/include/aarch64-linux-gnu/*; do sudo ln -sfn "$dir" /usr/include/$(basename "$dir"); done
 
 # Build the Azure CNM binary.
 cnm-binary:

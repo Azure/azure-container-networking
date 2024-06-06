@@ -155,6 +155,8 @@ stages:
             name: "$(BUILD_POOL_NAME_DEFAULT)"
           steps:
             - script: |
+                make ipv6-hp-bpf-lib-arm64
+                make ipv6-hp-bpf-lib-amd64
                 make all-binaries-platforms
               name: "BuildAllPlatformBinaries"
               displayName: "Build all platform binaries"
