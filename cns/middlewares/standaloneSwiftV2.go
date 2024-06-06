@@ -8,11 +8,11 @@ import (
 	"github.com/pkg/errors"
 )
 
-type SFSWIFTv2Middleware struct{}
+type StandaloneSWIFTv2Middleware struct{}
 
 // IPConfigsRequestHandlerWrapper is the middleware function for handling SWIFT v2 IP config requests for SF standalone scenario. This function wraps the default SWIFT request
 // and release IP configs handlers.
-func (m *SFSWIFTv2Middleware) IPConfigsRequestHandlerWrapper(ipRequestHandler, _ cns.IPConfigsHandlerFunc) cns.IPConfigsHandlerFunc {
+func (m *StandaloneSWIFTv2Middleware) IPConfigsRequestHandlerWrapper(ipRequestHandler, _ cns.IPConfigsHandlerFunc) cns.IPConfigsHandlerFunc {
 	return func(ctx context.Context, req cns.IPConfigsRequest) (*cns.IPConfigsResponse, error) {
 		ipConfigsResp, err := ipRequestHandler(ctx, req)
 		if err != nil {
@@ -24,6 +24,6 @@ func (m *SFSWIFTv2Middleware) IPConfigsRequestHandlerWrapper(ipRequestHandler, _
 	}
 }
 
-func (m *SFSWIFTv2Middleware) Type() cns.SWIFTV2Mode {
-	return cns.SFSWIFTV2
+func (m *StandaloneSWIFTv2Middleware) Type() cns.SWIFTV2Mode {
+	return cns.StandaloneSWIFTV2
 }

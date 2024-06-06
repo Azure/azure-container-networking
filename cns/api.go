@@ -36,7 +36,7 @@ const (
 	V2Prefix                      = "/v0.2"
 	EndpointPath                  = "/network/endpoints/"
 	// Service Fabric SWIFTV2 mode
-	SFSWIFTV2 SWIFTV2Mode = "SFSWIFTV2"
+	StandaloneSWIFTV2 SWIFTV2Mode = "StandaloneSWIFTV2"
 	// K8s SWIFTV2 mode
 	K8sSWIFTV2 SWIFTV2Mode = "K8sSWIFTV2"
 )

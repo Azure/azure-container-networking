@@ -815,7 +815,7 @@ func main() {
 
 		// if swiftv2 scenario is enabled, we need to initialize the Service Fabric (standalone) swiftv2 middleware to process IP configs requests
 		// we don't need a config check here since this middleware will be called only for swiftv2 path for standalone
-		swiftV2Middleware := &middlewares.SFSWIFTv2Middleware{}
+		swiftV2Middleware := &middlewares.StandaloneSWIFTv2Middleware{}
 		httpRemoteRestService.AttachIPConfigsHandlerMiddleware(swiftV2Middleware)
 	}
 

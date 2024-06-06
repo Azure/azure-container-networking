@@ -273,7 +273,7 @@ func (service *HTTPRestService) RequestIPConfigsHandler(w http.ResponseWriter, r
 		switch service.IPConfigsHandlerMiddleware.Type() {
 		case cns.K8sSWIFTV2:
 			wrappedHandler = service.IPConfigsHandlerMiddleware.IPConfigsRequestHandlerWrapper(service.requestIPConfigHandlerHelper, service.ReleaseIPConfigHandlerHelper)
-		case cns.SFSWIFTV2:
+		case cns.StandaloneSWIFTV2:
 			wrappedHandler = service.IPConfigsHandlerMiddleware.IPConfigsRequestHandlerWrapper(service.requestIPConfigHandlerHelperSF, nil)
 		}
 
