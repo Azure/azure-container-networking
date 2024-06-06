@@ -75,6 +75,10 @@ spec:
                   goal state for this Pod
                 items:
                   properties:
+                    accelnetEnabled:
+                      description: AccelnetEnabled determines if the CNI will provision
+                        the NIC with accelerated networking enabled
+                      type: boolean
                     deviceType:
                       description: DeviceType is the device type that this NC was
                         created for

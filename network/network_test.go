@@ -100,7 +100,7 @@ var _ = Describe("Test Network", func() {
 				nm := &networkManager{
 					ExternalInterfaces: map[string]*externalInterface{},
 				}
-				nwInfo := &NetworkInfo{
+				nwInfo := &EndpointInfo{
 					MasterIfName: "eth0",
 				}
 				_, _ = nm.newNetwork(nwInfo)
@@ -113,7 +113,7 @@ var _ = Describe("Test Network", func() {
 				nm := &networkManager{
 					ExternalInterfaces: map[string]*externalInterface{},
 				}
-				nwInfo := &NetworkInfo{
+				nwInfo := &EndpointInfo{
 					MasterIfName: "eth0",
 				}
 				nw, err := nm.newNetwork(nwInfo)
@@ -127,7 +127,7 @@ var _ = Describe("Test Network", func() {
 				nm := &networkManager{
 					ExternalInterfaces: map[string]*externalInterface{},
 				}
-				nwInfo := &NetworkInfo{
+				nwInfo := &EndpointInfo{
 					Subnets: []SubnetInfo{{
 						Prefix: net.IPNet{
 							IP:   net.IPv4(10, 0, 0, 1),
@@ -150,8 +150,8 @@ var _ = Describe("Test Network", func() {
 					Networks: map[string]*network{},
 				}
 				nm.ExternalInterfaces["eth0"].Networks["nw"] = &network{}
-				nwInfo := &NetworkInfo{
-					Id:           "nw",
+				nwInfo := &EndpointInfo{
+					NetworkID:    "nw",
 					MasterIfName: "eth0",
 				}
 				nw, err := nm.newNetwork(nwInfo)
@@ -169,8 +169,8 @@ var _ = Describe("Test Network", func() {
 				nm.ExternalInterfaces["eth0"] = &externalInterface{
 					Networks: map[string]*network{},
 				}
-				nwInfo := &NetworkInfo{
-					Id:           "nw",
+				nwInfo := &EndpointInfo{
+					NetworkID:    "nw",
 					MasterIfName: "eth0",
 					Mode:         opModeTransparent,
 					IPV6Mode:     IPV6Nat,
@@ -178,7 +178,7 @@ var _ = Describe("Test Network", func() {
 				nw, err := nm.newNetwork(nwInfo)
 				Expect(err).To(BeNil())
 				Expect(nw).NotTo(BeNil())
-				Expect(nw.Id).To(Equal(nwInfo.Id))
+				Expect(nw.Id).To(Equal(nwInfo.NetworkID))
 			})
 		})
 
@@ -191,8 +191,8 @@ var _ = Describe("Test Network", func() {
 				nm.ExternalInterfaces["eth0"] = &externalInterface{
 					Networks: map[string]*network{},
 				}
-				nwInfo := &NetworkInfo{
-					Id:           "nw",
+				nwInfo := &EndpointInfo{
+					NetworkID:    "nw",
 					MasterIfName: "eth0",
 					Mode:         opModeTransparentVlan,
 				}

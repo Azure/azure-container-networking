@@ -11,11 +11,11 @@ import (
 )
 
 func GetSnatHostIfName(epInfo *EndpointInfo) string {
-	return fmt.Sprintf("%s%s", snatVethInterfacePrefix, epInfo.Id[:7])
+	return fmt.Sprintf("%s%s", snatVethInterfacePrefix, epInfo.EndpointID[:7])
 }
 
 func GetSnatContIfName(epInfo *EndpointInfo) string {
-	return fmt.Sprintf("%s%s-2", snatVethInterfacePrefix, epInfo.Id[:7])
+	return fmt.Sprintf("%s%s-2", snatVethInterfacePrefix, epInfo.EndpointID[:7])
 }
 
 func AddSnatEndpoint(snatClient *snat.Client) error {

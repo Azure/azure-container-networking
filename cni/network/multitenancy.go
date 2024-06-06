@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 
@@ -43,7 +44,7 @@ type MultitenancyClient interface {
 		nwCfg *cni.NetworkConfig,
 		podName string,
 		podNamespace string,
-		ifName string) ([]IPAMAddResult, error)
+		ifName string) (IPAMAddResult, error)
 	Init(cnsclient cnsclient, netioshim netioshim)
 }
 
@@ -189,7 +190,7 @@ func (m *Multitenancy) SetupRoutingForMultitenancy(
 // get all network container configuration(s) for given orchestratorContext
 func (m *Multitenancy) GetAllNetworkContainers(
 	ctx context.Context, nwCfg *cni.NetworkConfig, podName, podNamespace, ifName string,
-) ([]IPAMAddResult, error) {
+) (IPAMAddResult, error) {
 	var podNameWithoutSuffix string
 
 	if !nwCfg.EnableExactMatchForPodName {
@@ -202,7 +203,7 @@ func (m *Multitenancy) GetAllNetworkContainers(
 
 	ncResponses, hostSubnetPrefixes, err := m.getNetworkContainersInternal(ctx, podNamespace, podNameWithoutSuffix)
 	if err != nil {
-		return []IPAMAddResult{}, fmt.Errorf("%w", err)
+		return IPAMAddResult{}, fmt.Errorf("%w", err)
 	}
 
 	for i := 0; i < len(ncResponses); i++ {
@@ -210,23 +211,31 @@ func (m *Multitenancy) GetAllNetworkContainers(
 			if ncResponses[i].LocalIPConfiguration.IPSubnet.IPAddress == "" {
 				logger.Info("Snat IP is not populated for ncs. Got empty string",
 					zap.Any("response", ncResponses))
-				return []IPAMAddResult{}, errSnatIP
+				return IPAMAddResult{}, errSnatIP
 			}
 		}
 	}
 
-	ipamResults := make([]IPAMAddResult, len(ncResponses))
+	ipamResult := IPAMAddResult{}
+	ipamResult.interfaceInfo = make(map[string]network.InterfaceInfo)
 
 	for i := 0; i < len(ncResponses); i++ {
-		ipamResults[i].ncResponse = &ncResponses[i]
-		ipamResults[i].hostSubnetPrefix = hostSubnetPrefixes[i]
-		ipconfig, routes := convertToIPConfigAndRouteInfo(ipamResults[i].ncResponse)
-		ipamResults[i].defaultInterfaceInfo.IPConfigs = []*network.IPConfig{ipconfig}
-		ipamResults[i].defaultInterfaceInfo.Routes = routes
-		ipamResults[i].defaultInterfaceInfo.NICType = cns.InfraNIC
+		// one ncResponse gets you one interface info in the returned IPAMAddResult
+		ifInfo := network.InterfaceInfo{
+			NCResponse:       &ncResponses[i],
+			HostSubnetPrefix: hostSubnetPrefixes[i],
+		}
+
+		ipconfig, routes := convertToIPConfigAndRouteInfo(ifInfo.NCResponse)
+		ifInfo.IPConfigs = append(ifInfo.IPConfigs, ipconfig)
+		ifInfo.Routes = routes
+		ifInfo.NICType = cns.InfraNIC
+
+		// assuming we only assign infra nics in this function
+		ipamResult.interfaceInfo[m.getInterfaceInfoKey(ifInfo.NICType, i)] = ifInfo
 	}
 
-	return ipamResults, err
+	return ipamResult, err
 }
 
 // get all network containers configuration for given orchestratorContext
@@ -355,6 +364,10 @@ func checkIfSubnetOverlaps(enableInfraVnet bool, nwCfg *cni.NetworkConfig, cnsNe
 	}
 
 	return false
+}
+
+func (m *Multitenancy) getInterfaceInfoKey(nicType cns.NICType, i int) string {
+	return string(nicType) + strconv.Itoa(i)
 }
 
 var (

@@ -36,11 +36,11 @@ func NewMockEndpointClient(fn func(*EndpointInfo) error) *MockEndpointClient {
 }
 
 func (client *MockEndpointClient) AddEndpoints(epInfo *EndpointInfo) error {
-	if ok := client.endpoints[epInfo.Id]; ok && epInfo.IfName == eth0IfName {
+	if ok := client.endpoints[epInfo.EndpointID]; ok && epInfo.IfName == eth0IfName {
 		return NewErrorMockEndpointClient("Endpoint already exists")
 	}
 
-	client.endpoints[epInfo.Id] = true
+	client.endpoints[epInfo.EndpointID] = true
 
 	return client.testAddEndpointFn(epInfo)
 }

@@ -9,7 +9,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/metrics"
 )
 
-func Start(log *zap.Logger, addr string, readyz, healthz http.Handler) {
+func Start(log *zap.Logger, addr string, healthz, readyz http.Handler) {
 	e := echo.New()
 	e.HideBanner = true
 	e.GET("/healthz", echo.WrapHandler(http.StripPrefix("/healthz", healthz)))

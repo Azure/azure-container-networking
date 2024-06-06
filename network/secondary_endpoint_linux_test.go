@@ -7,6 +7,7 @@ import (
 	"net"
 	"testing"
 
+	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/netio"
 	"github.com/Azure/azure-container-networking/netlink"
 	"github.com/Azure/azure-container-networking/network/networkutils"
@@ -184,6 +185,40 @@ func TestSecondaryDeleteEndpoints(t *testing.T) {
 				},
 			},
 			wantErr: true,
+		},
+		{
+			// new way to handle delegated nics
+			// if the nictype is delegated, the data is on the endpoint itself, not the secondary interfaces field
+			name: "Delete endpoint with nic type delegated",
+			client: &SecondaryEndpointClient{
+				netlink:        netlink.NewMockNetlink(false, ""),
+				plClient:       platform.NewMockExecClient(false),
+				netUtilsClient: networkutils.NewNetworkUtils(nl, plc),
+				netioshim:      netio.NewMockNetIO(false, 0),
+				nsClient:       NewMockNamespaceClient(),
+			},
+			// revisit in future, but currently the struct looks like this (with duplicated fields)
+			ep: &endpoint{
+				NetworkNameSpace: "testns",
+				IfName:           "eth1",
+				Routes: []RouteInfo{
+					{
+						Dst: net.IPNet{IP: net.ParseIP("192.168.0.4"), Mask: net.CIDRMask(ipv4FullMask, ipv4Bits)},
+					},
+				},
+				NICType: cns.DelegatedVMNIC,
+				SecondaryInterfaces: map[string]*InterfaceInfo{
+					"eth1": {
+						Name: "eth1",
+						Routes: []RouteInfo{
+							{
+								Dst: net.IPNet{IP: net.ParseIP("192.168.0.4"), Mask: net.CIDRMask(ipv4FullMask, ipv4Bits)},
+							},
+						},
+					},
+				},
+			},
+			wantErr: false,
 		},
 	}
 

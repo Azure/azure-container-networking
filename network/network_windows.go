@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/network/hnswrapper"
 	"github.com/Azure/azure-container-networking/network/policy"
 	"github.com/Azure/azure-container-networking/platform"
@@ -86,7 +87,7 @@ func EnableHnsV1Timeout(timeoutValue int) {
 }
 
 // newNetworkImplHnsV1 creates a new container network for HNSv1.
-func (nm *networkManager) newNetworkImplHnsV1(nwInfo *NetworkInfo, extIf *externalInterface) (*network, error) {
+func (nm *networkManager) newNetworkImplHnsV1(nwInfo *EndpointInfo, extIf *externalInterface) (*network, error) {
 	var (
 		vlanid int
 		err    error
@@ -111,10 +112,9 @@ func (nm *networkManager) newNetworkImplHnsV1(nwInfo *NetworkInfo, extIf *extern
 
 	// Initialize HNS network.
 	hnsNetwork := &hcsshim.HNSNetwork{
-		Name:               nwInfo.Id,
+		Name:               nwInfo.NetworkID,
 		NetworkAdapterName: networkAdapterName,
-		DNSServerList:      strings.Join(nwInfo.DNS.Servers, ","),
-		Policies:           policy.SerializePolicies(policy.NetworkPolicy, nwInfo.Policies, nil, false, false),
+		Policies:           policy.SerializePolicies(policy.NetworkPolicy, nwInfo.NetworkPolicies, nil, false, false),
 	}
 
 	// Set the VLAN and OutboundNAT policies
@@ -172,7 +172,7 @@ func (nm *networkManager) newNetworkImplHnsV1(nwInfo *NetworkInfo, extIf *extern
 
 	// Create the network object.
 	nw := &network{
-		Id:               nwInfo.Id,
+		Id:               nwInfo.NetworkID,
 		HnsId:            hnsResponse.Id,
 		Mode:             nwInfo.Mode,
 		Endpoints:        make(map[string]*endpoint),
@@ -181,6 +181,8 @@ func (nm *networkManager) newNetworkImplHnsV1(nwInfo *NetworkInfo, extIf *extern
 		EnableSnatOnHost: nwInfo.EnableSnatOnHost,
 		NetNs:            nwInfo.NetNs,
 	}
+
+	nwInfo.HNSNetworkID = hnsResponse.Id // we use this later in stateless to clean up in ADD if there is an error
 
 	globals, err := Hnsv1.GetHNSGlobals()
 	if err != nil || globals.Version.Major <= hcsshim.HNSVersion1803.Major {
@@ -193,7 +195,7 @@ func (nm *networkManager) newNetworkImplHnsV1(nwInfo *NetworkInfo, extIf *extern
 	return nw, nil
 }
 
-func (nm *networkManager) appIPV6RouteEntry(nwInfo *NetworkInfo) error {
+func (nm *networkManager) appIPV6RouteEntry(nwInfo *EndpointInfo) error {
 	var (
 		err error
 		out string
@@ -227,14 +229,10 @@ func (nm *networkManager) appIPV6RouteEntry(nwInfo *NetworkInfo) error {
 }
 
 // configureHcnEndpoint configures hcn endpoint for creation
-func (nm *networkManager) configureHcnNetwork(nwInfo *NetworkInfo, extIf *externalInterface) (*hcn.HostComputeNetwork, error) {
+func (nm *networkManager) configureHcnNetwork(nwInfo *EndpointInfo, extIf *externalInterface) (*hcn.HostComputeNetwork, error) {
 	// Initialize HNS network.
 	hcnNetwork := &hcn.HostComputeNetwork{
-		Name: nwInfo.Id,
-		Dns: hcn.Dns{
-			Domain:     nwInfo.DNS.Suffix,
-			ServerList: nwInfo.DNS.Servers,
-		},
+		Name: nwInfo.NetworkID,
 		Ipams: []hcn.Ipam{
 			{
 				Type: hcnIpamTypeStatic,
@@ -299,6 +297,11 @@ func (nm *networkManager) configureHcnNetwork(nwInfo *NetworkInfo, extIf *extern
 		return nil, errNetworkModeInvalid
 	}
 
+	if nwInfo.NICType == cns.DelegatedVMNIC {
+		hcnNetwork.Type = hcn.Transparent
+		hcnNetwork.Flags = hcn.DisableHostPort
+	}
+
 	// Populate subnets.
 	for _, subnet := range nwInfo.Subnets {
 		hnsSubnet := hcn.Subnet{
@@ -352,7 +355,7 @@ func (nm *networkManager) addIPv6DefaultRoute() error {
 }
 
 // newNetworkImplHnsV2 creates a new container network for HNSv2.
-func (nm *networkManager) newNetworkImplHnsV2(nwInfo *NetworkInfo, extIf *externalInterface) (*network, error) {
+func (nm *networkManager) newNetworkImplHnsV2(nwInfo *EndpointInfo, extIf *externalInterface) (*network, error) {
 	hcnNetwork, err := nm.configureHcnNetwork(nwInfo, extIf)
 	if err != nil {
 		logger.Error("Failed to configure hcn network due to", zap.Error(err))
@@ -400,7 +403,7 @@ func (nm *networkManager) newNetworkImplHnsV2(nwInfo *NetworkInfo, extIf *extern
 
 	// Create the network object.
 	nw := &network{
-		Id:               nwInfo.Id,
+		Id:               nwInfo.NetworkID,
 		HnsId:            hnsResponse.Id,
 		Mode:             nwInfo.Mode,
 		Endpoints:        make(map[string]*endpoint),
@@ -410,11 +413,13 @@ func (nm *networkManager) newNetworkImplHnsV2(nwInfo *NetworkInfo, extIf *extern
 		NetNs:            nwInfo.NetNs,
 	}
 
+	nwInfo.HNSNetworkID = hnsResponse.Id // we use this later in stateless to clean up in ADD if there is an error
+
 	return nw, nil
 }
 
 // NewNetworkImpl creates a new container network.
-func (nm *networkManager) newNetworkImpl(nwInfo *NetworkInfo, extIf *externalInterface) (*network, error) {
+func (nm *networkManager) newNetworkImpl(nwInfo *EndpointInfo, extIf *externalInterface) (*network, error) {
 	if useHnsV2, err := UseHnsV2(nwInfo.NetNs); useHnsV2 {
 		if err != nil {
 			return nil, err
@@ -463,5 +468,5 @@ func (nm *networkManager) deleteNetworkImplHnsV2(nw *network) error {
 	return err
 }
 
-func getNetworkInfoImpl(nwInfo *NetworkInfo, nw *network) {
+func getNetworkInfoImpl(_ *EndpointInfo, _ *network) {
 }

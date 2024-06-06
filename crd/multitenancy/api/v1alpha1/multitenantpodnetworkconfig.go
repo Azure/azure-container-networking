@@ -60,6 +60,9 @@ type InterfaceInfo struct {
 	GatewayIP string `json:"gatewayIP,omitempty"`
 	// DeviceType is the device type that this NC was created for
 	DeviceType DeviceType `json:"deviceType,omitempty"`
+	// AccelnetEnabled determines if the CNI will provision the NIC with accelerated networking enabled
+	// +kubebuilder:validation:Optional
+	AccelnetEnabled bool `json:"accelnetEnabled,omitempty"`
 }
 
 // MultitenantPodNetworkConfigStatus defines the observed state of PodNetworkConfig

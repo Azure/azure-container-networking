@@ -29,7 +29,7 @@ const (
 
 type AzureIPAMInvoker struct {
 	plugin delegatePlugin
-	nwInfo *network.NetworkInfo
+	nwInfo *network.EndpointInfo
 }
 
 type delegatePlugin interface {
@@ -39,7 +39,7 @@ type delegatePlugin interface {
 }
 
 // Create an IPAM instance every time a CNI action is called.
-func NewAzureIpamInvoker(plugin *NetPlugin, nwInfo *network.NetworkInfo) *AzureIPAMInvoker {
+func NewAzureIpamInvoker(plugin *NetPlugin, nwInfo *network.EndpointInfo) *AzureIPAMInvoker {
 	return &AzureIPAMInvoker{
 		plugin: plugin,
 		nwInfo: nwInfo,
@@ -47,7 +47,7 @@ func NewAzureIpamInvoker(plugin *NetPlugin, nwInfo *network.NetworkInfo) *AzureI
 }
 
 func (invoker *AzureIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, error) {
-	addResult := IPAMAddResult{}
+	addResult := IPAMAddResult{interfaceInfo: make(map[string]network.InterfaceInfo)}
 
 	if addConfig.nwCfg == nil {
 		return addResult, invoker.plugin.Errorf("nil nwCfg passed to CNI ADD, stack: %+v", string(debug.Stack()))
@@ -69,14 +69,11 @@ func (invoker *AzureIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, er
 		err = invoker.plugin.Errorf("Failed to allocate pool: %v", err)
 		return addResult, err
 	}
-	if len(result.IPs) > 0 {
-		addResult.hostSubnetPrefix = result.IPs[0].Address
-	}
 
 	defer func() {
 		if err != nil {
-			if len(addResult.defaultInterfaceInfo.IPConfigs) > 0 {
-				if er := invoker.Delete(&addResult.defaultInterfaceInfo.IPConfigs[0].Address, addConfig.nwCfg, nil, addConfig.options); er != nil {
+			if len(addResult.interfaceInfo) > 0 && len(addResult.interfaceInfo[invoker.getInterfaceInfoKey(cns.InfraNIC)].IPConfigs) > 0 {
+				if er := invoker.Delete(&addResult.interfaceInfo[invoker.getInterfaceInfoKey(cns.InfraNIC)].IPConfigs[0].Address, addConfig.nwCfg, nil, addConfig.options); er != nil {
 					err = invoker.plugin.Errorf("Failed to clean up IP's during Delete with error %v, after Add failed with error %w", er, err)
 				}
 			} else {
@@ -116,7 +113,21 @@ func (invoker *AzureIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, er
 		routes[i] = network.RouteInfo{Dst: route.Dst, Gw: route.GW}
 	}
 
-	addResult.defaultInterfaceInfo = network.InterfaceInfo{IPConfigs: ipconfigs, Routes: routes, DNS: network.DNSInfo{Suffix: result.DNS.Domain, Servers: result.DNS.Nameservers}, NICType: cns.InfraNIC}
+	// TODO: changed how host subnet prefix populated (check)
+	hostSubnetPrefix := net.IPNet{}
+	if len(result.IPs) > 0 {
+		hostSubnetPrefix = result.IPs[0].Address
+	}
+	addResult.interfaceInfo[invoker.getInterfaceInfoKey(cns.InfraNIC)] = network.InterfaceInfo{
+		IPConfigs: ipconfigs,
+		Routes:    routes,
+		DNS: network.DNSInfo{
+			Suffix:  result.DNS.Domain,
+			Servers: result.DNS.Nameservers,
+		},
+		NICType:          cns.InfraNIC,
+		HostSubnetPrefix: hostSubnetPrefix,
+	}
 
 	return addResult, err
 }
@@ -196,4 +207,8 @@ func (invoker *AzureIPAMInvoker) Delete(address *net.IPNet, nwCfg *cni.NetworkCo
 	}
 
 	return nil
+}
+
+func (invoker *AzureIPAMInvoker) getInterfaceInfoKey(nicType cns.NICType) string {
+	return string(nicType)
 }

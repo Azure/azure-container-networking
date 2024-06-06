@@ -6,17 +6,19 @@ import (
 
 // MockNetworkManager is a mock structure for Network Manager
 type MockNetworkManager struct {
-	TestNetworkInfoMap  map[string]*NetworkInfo
+	TestNetworkInfoMap  map[string]*EndpointInfo
 	TestEndpointInfoMap map[string]*EndpointInfo
 	TestEndpointClient  *MockEndpointClient
+	SaveStateMap        map[string]*endpoint
 }
 
 // NewMockNetworkmanager returns a new mock
 func NewMockNetworkmanager(mockEndpointclient *MockEndpointClient) *MockNetworkManager {
 	return &MockNetworkManager{
-		TestNetworkInfoMap:  make(map[string]*NetworkInfo),
+		TestNetworkInfoMap:  make(map[string]*EndpointInfo),
 		TestEndpointInfoMap: make(map[string]*EndpointInfo),
 		TestEndpointClient:  mockEndpointclient,
+		SaveStateMap:        make(map[string]*endpoint),
 	}
 }
 
@@ -34,8 +36,8 @@ func (nm *MockNetworkManager) AddExternalInterface(ifName string, subnet string)
 }
 
 // CreateNetwork mock
-func (nm *MockNetworkManager) CreateNetwork(nwInfo *NetworkInfo) error {
-	nm.TestNetworkInfoMap[nwInfo.Id] = nwInfo
+func (nm *MockNetworkManager) CreateNetwork(nwInfo *EndpointInfo) error {
+	nm.TestNetworkInfoMap[nwInfo.NetworkID] = nwInfo
 	return nil
 }
 
@@ -45,22 +47,21 @@ func (nm *MockNetworkManager) DeleteNetwork(networkID string) error {
 }
 
 // GetNetworkInfo mock
-func (nm *MockNetworkManager) GetNetworkInfo(networkID string) (NetworkInfo, error) {
+func (nm *MockNetworkManager) GetNetworkInfo(networkID string) (EndpointInfo, error) {
 	if info, exists := nm.TestNetworkInfoMap[networkID]; exists {
 		return *info, nil
 	}
-	return NetworkInfo{}, errNetworkNotFound
+	return EndpointInfo{}, errNetworkNotFound
 }
 
 // CreateEndpoint mock
-func (nm *MockNetworkManager) CreateEndpoint(_ apipaClient, _ string, epInfos []*EndpointInfo) error {
-	for _, epInfo := range epInfos {
-		if err := nm.TestEndpointClient.AddEndpoints(epInfo); err != nil {
-			return err
-		}
+// TODO: Fix mock behavior because create endpoint no longer also saves the state
+func (nm *MockNetworkManager) CreateEndpoint(_ apipaClient, _ string, epInfo *EndpointInfo) error {
+	if err := nm.TestEndpointClient.AddEndpoints(epInfo); err != nil {
+		return err
 	}
 
-	nm.TestEndpointInfoMap[epInfos[0].Id] = epInfos[0]
+	nm.TestEndpointInfoMap[epInfo.EndpointID] = epInfo
 	return nil
 }
 
@@ -147,10 +148,65 @@ func (nm *MockNetworkManager) GetNumEndpointsByContainerID(_ string) int {
 	numEndpoints := 0
 
 	for _, network := range nm.TestNetworkInfoMap {
-		if _, err := nm.GetAllEndpoints(network.Id); err == nil {
+		if _, err := nm.GetAllEndpoints(network.NetworkID); err == nil {
 			numEndpoints++
 		}
 	}
 
 	return numEndpoints
+}
+
+func (nm *MockNetworkManager) SaveState(eps []*endpoint) error {
+	for _, ep := range eps {
+		nm.SaveStateMap[ep.Id] = ep
+	}
+
+	return nil
+}
+
+func (nm *MockNetworkManager) EndpointCreate(client apipaClient, epInfos []*EndpointInfo) error {
+	eps := []*endpoint{}
+	for _, epInfo := range epInfos {
+		_, nwGetErr := nm.GetNetworkInfo(epInfo.NetworkID)
+		if nwGetErr != nil {
+			err := nm.CreateNetwork(epInfo)
+			if err != nil {
+				return err
+			}
+		}
+
+		err := nm.CreateEndpoint(client, epInfo.NetworkID, epInfo)
+		if err != nil {
+			return err
+		}
+		eps = append(eps, &endpoint{
+			Id:          epInfo.EndpointID,
+			ContainerID: epInfo.ContainerID,
+			NICType:     epInfo.NICType,
+		}) // mock append
+	}
+
+	// mock save endpoints
+	return nm.SaveState(eps)
+}
+
+func (nm *MockNetworkManager) DeleteState(epInfos []*EndpointInfo) error {
+	for _, epInfo := range epInfos {
+		delete(nm.SaveStateMap, epInfo.EndpointID)
+	}
+	return nil
+}
+
+func (nm *MockNetworkManager) GetEndpointInfosFromContainerID(containerID string) []*EndpointInfo {
+	ret := []*EndpointInfo{}
+	for _, epInfo := range nm.TestEndpointInfoMap {
+		if epInfo.ContainerID == containerID {
+			ret = append(ret, epInfo)
+		}
+	}
+	return ret
+}
+
+func (nm *MockNetworkManager) GetEndpointState(_, _ string) ([]*EndpointInfo, error) {
+	return []*EndpointInfo{}, nil
 }

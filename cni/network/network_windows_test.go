@@ -31,13 +31,13 @@ func TestAddWithRunTimeNetPolicies(t *testing.T) {
 
 	tests := []struct {
 		name       string
-		nwInfo     network.NetworkInfo
+		nwInfo     network.EndpointInfo
 		wantErr    bool
 		wantErrMsg string
 	}{
 		{
 			name: "add ipv6 endpoint policy",
-			nwInfo: network.NetworkInfo{
+			nwInfo: network.EndpointInfo{
 				Subnets: []network.SubnetInfo{
 					{
 						Gateway: net.ParseIP("10.240.0.1"),
@@ -56,7 +56,7 @@ func TestAddWithRunTimeNetPolicies(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			p, err := getIPV6EndpointPolicy(&tt.nwInfo)
+			p, err := getIPV6EndpointPolicy(tt.nwInfo.Subnets)
 			if tt.wantErr {
 				require.Error(t, err)
 			} else {
@@ -143,7 +143,7 @@ func TestSetNetworkOptions(t *testing.T) {
 	tests := []struct {
 		name           string
 		cnsNwConfig    cns.GetNetworkContainerResponse
-		nwInfo         network.NetworkInfo
+		nwInfo         network.EndpointInfo
 		expectedVlanID string
 	}{
 		{
@@ -153,7 +153,7 @@ func TestSetNetworkOptions(t *testing.T) {
 					ID: 1,
 				},
 			},
-			nwInfo: network.NetworkInfo{
+			nwInfo: network.EndpointInfo{
 				Options: make(map[string]interface{}),
 			},
 			expectedVlanID: "1",
@@ -294,7 +294,7 @@ func TestDSRPolciy(t *testing.T) {
 						EnableLoopbackDSR: true,
 					},
 				},
-				nwInfo: &network.NetworkInfo{},
+				subnetInfos: []network.SubnetInfo{},
 				ipconfigs: []*network.IPConfig{
 					{
 						Address: func() net.IPNet {
@@ -309,8 +309,8 @@ func TestDSRPolciy(t *testing.T) {
 		{
 			name: "test disable dsr policy",
 			args: PolicyArgs{
-				nwCfg:  &cni.NetworkConfig{},
-				nwInfo: &network.NetworkInfo{},
+				nwCfg:       &cni.NetworkConfig{},
+				subnetInfos: []network.SubnetInfo{},
 				ipconfigs: []*network.IPConfig{
 					{
 						Address: func() net.IPNet {
@@ -341,7 +341,7 @@ func TestGetNetworkNameFromCNS(t *testing.T) {
 		plugin        *NetPlugin
 		netNs         string
 		nwCfg         *cni.NetworkConfig
-		ipamAddResult *IPAMAddResult
+		interfaceInfo *network.InterfaceInfo
 		want          string
 		wantErr       bool
 	}{
@@ -360,20 +360,18 @@ func TestGetNetworkNameFromCNS(t *testing.T) {
 				Name:         "azure",
 				MultiTenancy: true,
 			},
-			ipamAddResult: &IPAMAddResult{
-				ncResponse: &cns.GetNetworkContainerResponse{
-					MultiTenancyInfo: cns.MultiTenancyInfo{
-						ID: 1,
+			interfaceInfo: &network.InterfaceInfo{
+				IPConfigs: []*network.IPConfig{
+					{
+						Address: net.IPNet{
+							IP:   net.ParseIP("10.240.0.5"),
+							Mask: net.CIDRMask(24, 32),
+						},
 					},
 				},
-				defaultInterfaceInfo: network.InterfaceInfo{
-					IPConfigs: []*network.IPConfig{
-						{
-							Address: net.IPNet{
-								IP:   net.ParseIP("10.240.0.5"),
-								Mask: net.CIDRMask(24, 32),
-							},
-						},
+				NCResponse: &cns.GetNetworkContainerResponse{
+					MultiTenancyInfo: cns.MultiTenancyInfo{
+						ID: 1,
 					},
 				},
 			},
@@ -395,20 +393,18 @@ func TestGetNetworkNameFromCNS(t *testing.T) {
 				Name:         "azure",
 				MultiTenancy: true,
 			},
-			ipamAddResult: &IPAMAddResult{
-				ncResponse: &cns.GetNetworkContainerResponse{
-					MultiTenancyInfo: cns.MultiTenancyInfo{
-						ID: 1,
+			interfaceInfo: &network.InterfaceInfo{
+				IPConfigs: []*network.IPConfig{
+					{
+						Address: net.IPNet{
+							IP:   net.ParseIP(""),
+							Mask: net.CIDRMask(24, 32),
+						},
 					},
 				},
-				defaultInterfaceInfo: network.InterfaceInfo{
-					IPConfigs: []*network.IPConfig{
-						{
-							Address: net.IPNet{
-								IP:   net.ParseIP(""),
-								Mask: net.CIDRMask(24, 32),
-							},
-						},
+				NCResponse: &cns.GetNetworkContainerResponse{
+					MultiTenancyInfo: cns.MultiTenancyInfo{
+						ID: 1,
 					},
 				},
 			},
@@ -430,20 +426,18 @@ func TestGetNetworkNameFromCNS(t *testing.T) {
 				Name:         "azure",
 				MultiTenancy: true,
 			},
-			ipamAddResult: &IPAMAddResult{
-				ncResponse: &cns.GetNetworkContainerResponse{
-					MultiTenancyInfo: cns.MultiTenancyInfo{
-						ID: 1,
+			interfaceInfo: &network.InterfaceInfo{
+				IPConfigs: []*network.IPConfig{
+					{
+						Address: net.IPNet{
+							IP:   net.ParseIP("10.0.00.6"),
+							Mask: net.CIDRMask(24, 32),
+						},
 					},
 				},
-				defaultInterfaceInfo: network.InterfaceInfo{
-					IPConfigs: []*network.IPConfig{
-						{
-							Address: net.IPNet{
-								IP:   net.ParseIP("10.0.00.6"),
-								Mask: net.CIDRMask(24, 32),
-							},
-						},
+				NCResponse: &cns.GetNetworkContainerResponse{
+					MultiTenancyInfo: cns.MultiTenancyInfo{
+						ID: 1,
 					},
 				},
 			},
@@ -465,20 +459,18 @@ func TestGetNetworkNameFromCNS(t *testing.T) {
 				Name:         "azure",
 				MultiTenancy: true,
 			},
-			ipamAddResult: &IPAMAddResult{
-				ncResponse: &cns.GetNetworkContainerResponse{
-					MultiTenancyInfo: cns.MultiTenancyInfo{
-						ID: 1,
+			interfaceInfo: &network.InterfaceInfo{
+				IPConfigs: []*network.IPConfig{
+					{
+						Address: net.IPNet{
+							IP:   net.ParseIP("10.0.0.6"),
+							Mask: net.CIDRMask(24, 32),
+						},
 					},
 				},
-				defaultInterfaceInfo: network.InterfaceInfo{
-					IPConfigs: []*network.IPConfig{
-						{
-							Address: net.IPNet{
-								IP:   net.ParseIP("10.0.0.6"),
-								Mask: net.CIDRMask(24, 32),
-							},
-						},
+				NCResponse: &cns.GetNetworkContainerResponse{
+					MultiTenancyInfo: cns.MultiTenancyInfo{
+						ID: 1,
 					},
 				},
 			},
@@ -500,18 +492,16 @@ func TestGetNetworkNameFromCNS(t *testing.T) {
 				Name:         "azure",
 				MultiTenancy: false,
 			},
-			ipamAddResult: &IPAMAddResult{
-				ncResponse: &cns.GetNetworkContainerResponse{},
-				defaultInterfaceInfo: network.InterfaceInfo{
-					IPConfigs: []*network.IPConfig{
-						{
-							Address: net.IPNet{
-								IP:   net.ParseIP("10.0.0.6"),
-								Mask: net.CIDRMask(24, 32),
-							},
+			interfaceInfo: &network.InterfaceInfo{
+				IPConfigs: []*network.IPConfig{
+					{
+						Address: net.IPNet{
+							IP:   net.ParseIP("10.0.0.6"),
+							Mask: net.CIDRMask(24, 32),
 						},
 					},
 				},
+				NCResponse: &cns.GetNetworkContainerResponse{},
 			},
 			want:    "azure",
 			wantErr: false,
@@ -521,12 +511,84 @@ func TestGetNetworkNameFromCNS(t *testing.T) {
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
-			networkName, err := tt.plugin.getNetworkName(tt.netNs, tt.ipamAddResult, tt.nwCfg)
+			networkName, err := tt.plugin.getNetworkName(tt.netNs, tt.interfaceInfo, tt.nwCfg)
 			if tt.wantErr {
 				require.Error(t, err)
 			} else {
 				require.NoError(t, err)
 				require.Equal(t, tt.want, networkName)
+			}
+		})
+	}
+}
+
+func TestGetNetworkNameSwiftv2FromCNS(t *testing.T) {
+	// TODO: Add IB and Accelnet NIC test to this test
+	plugin, _ := cni.NewPlugin("name", "0.3.0")
+
+	macAddress := "00:00:5e:00:53:01"
+	swiftv2NetworkNamePrefix := "azure-"
+	parsedMacAddress, _ := net.ParseMAC(macAddress)
+	swiftv2L1VHSecondaryInterfacesInfo := make(map[string]network.InterfaceInfo)
+
+	swiftv2L1VHInterfaceInfo := network.InterfaceInfo{
+		Name:       "swiftv2L1VHinterface",
+		MacAddress: parsedMacAddress,
+		NICType:    cns.DelegatedVMNIC,
+	}
+	swiftv2L1VHSecondaryInterfacesInfo[macAddress] = swiftv2L1VHInterfaceInfo
+
+	tests := []struct {
+		name          string
+		plugin        *NetPlugin
+		netNs         string
+		nwCfg         *cni.NetworkConfig
+		ipamAddResult *IPAMAddResult
+		want          net.HardwareAddr
+		wantErr       bool
+	}{
+		{
+			name: "Get Network Name from CNS for swiftv2",
+			plugin: &NetPlugin{
+				Plugin:      plugin,
+				nm:          network.NewMockNetworkmanager(network.NewMockEndpointClient(nil)),
+				ipamInvoker: NewMockIpamInvoker(false, false, false, true, false),
+				report:      &telemetry.CNIReport{},
+				tb:          &telemetry.TelemetryBuffer{},
+			},
+			netNs: "azure",
+			nwCfg: &cni.NetworkConfig{
+				CNIVersion:   "0.3.0",
+				MultiTenancy: false,
+			},
+			ipamAddResult: &IPAMAddResult{
+				interfaceInfo: swiftv2L1VHSecondaryInterfacesInfo,
+			},
+			want:    parsedMacAddress,
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Log(tt.ipamAddResult.interfaceInfo)
+			networkName, err := tt.plugin.getNetworkName(tt.netNs, &swiftv2L1VHInterfaceInfo, tt.nwCfg)
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				expectedMacAddress := swiftv2NetworkNamePrefix + tt.want.String()
+				require.NoError(t, err)
+				require.Equal(t, expectedMacAddress, networkName)
+			}
+
+			networkID, err := tt.plugin.getNetworkID(tt.netNs, &swiftv2L1VHInterfaceInfo, tt.nwCfg)
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				expectedMacAddress := swiftv2NetworkNamePrefix + tt.want.String()
+				require.NoError(t, err)
+				require.Equal(t, expectedMacAddress, networkID)
 			}
 		})
 	}
