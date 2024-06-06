@@ -195,7 +195,7 @@ ipv6-hp-bpf-lib-amd64:
 
 # Libarires for ipv6-hp-bpf arm64
 ipv6-hp-bpf-lib-arm64:
-sudo apt-get update && sudo apt-get install -y llvm clang linux-libc-dev linux-headers-generic libbpf-dev libc6-dev nftables iproute2 gcc-aarch64-linux-gnu
+	sudo apt-get update && sudo apt-get install -y llvm clang linux-libc-dev linux-headers-generic libbpf-dev libc6-dev nftables iproute2 gcc-aarch64-linux-gnu
 	for dir in /usr/include/aarch64-linux-gnu/*; do sudo ln -sfn "$dir" /usr/include/$(basename "$dir"); done
 
 # Build the Azure CNM binary.
