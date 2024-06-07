@@ -47,6 +47,8 @@ func TestNewService(t *testing.T) {
 		svc.SetOption(acn.OptCnsURL, "")
 		svc.SetOption(acn.OptCnsPort, "")
 
+		require.Empty(t, config.TLSSettings)
+
 		err = svc.Initialize(config)
 		t.Cleanup(func() {
 			svc.Uninitialize()
