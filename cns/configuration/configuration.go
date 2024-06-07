@@ -110,8 +110,8 @@ type KeyVaultSettings struct {
 
 type GRPCSettings struct {
 	Enable          bool
-	ServerIPAddress string
-	ServerPort      uint16
+	IPAddress string
+	Port      uint16
 }
 
 func getConfigFilePath(cmdPath string) (string, error) {
@@ -227,11 +227,11 @@ func SetCNSConfigDefaults(config *CNSConfig) {
 	if config.AsyncPodDeletePath == "" {
 		config.AsyncPodDeletePath = "/var/run/azure-vnet/deleteIDs"
 	}
-	if config.GRPCSettings.ServerIPAddress == "" {
-		config.GRPCSettings.ServerIPAddress = "localhost"
+	if config.GRPCSettings.IPAddress == "" {
+		config.GRPCSettings.IPAddress = "localhost"
 	}
-	if config.GRPCSettings.ServerPort == 0 {
-		config.GRPCSettings.ServerPort = 8080
+	if config.GRPCSettings.Port == 0 {
+		config.GRPCSettings.Port = 8080
 	}
 	config.GRPCSettings.Enable = false
 	config.WatchPods = config.EnableIPAMv2 || config.EnableSwiftV2
