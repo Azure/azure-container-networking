@@ -15,13 +15,13 @@ type CNS struct {
 	State  *restserver.HTTPRestService
 }
 
-func (s *Server) SetOrchestratorInfo(_ context.Context, req *pb.SetOrchestratorInfoRequest) (*pb.SetOrchestratorInfoResponse, error) {
+func (s *CNS) SetOrchestratorInfo(_ context.Context, req *pb.SetOrchestratorInfoRequest) (*pb.SetOrchestratorInfoResponse, error) {
 	s.Logger.Info("SetOrchestratorInfo called", zap.String("nodeID", req.GetNodeID()), zap.String("orchestratorType", req.GetOrchestratorType()))
 	// todo: Implement the logic
 	return &pb.SetOrchestratorInfoResponse{}, nil
 }
 
-func (s *Server) GetNodeInfo(_ context.Context, req *pb.NodeInfoRequest) (*pb.NodeInfoResponse, error) {
+func (s *CNS) GetNodeInfo(_ context.Context, req *pb.NodeInfoRequest) (*pb.NodeInfoResponse, error) {
 	s.Logger.Info("GetNodeInfo called", zap.String("nodeID", req.GetNodeID()))
 	// todo: Implement the logic
 	return &pb.NodeInfoResponse{}, nil
