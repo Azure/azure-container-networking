@@ -814,8 +814,8 @@ func main() {
 			go platform.MonitorAndSetMellanoxRegKeyPriorityVLANTag(rootCtx, cnsconfig.MellanoxMonitorIntervalSecs)
 		}
 
-		// if swiftv2 scenario is enabled, we need to initialize the Service Fabric (standalone) swiftv2 middleware to process IP configs requests
-		// we don't need a config check here since this middleware will be called only for swiftv2 path for standalone
+		// if swiftv2 scenario is enabled, we need to initialize the ServiceFabric(standalone) swiftv2 middleware to process IPConfigsRequests
+		// we don't need a cns-config check here since this middleware will be called only by CNI for SwiftV2 flow
 		swiftV2Middleware := &middlewares.StandaloneSWIFTv2Middleware{}
 		httpRemoteRestService.AttachIPConfigsHandlerMiddleware(swiftV2Middleware)
 	}

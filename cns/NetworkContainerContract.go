@@ -477,10 +477,9 @@ type PodIpInfo struct {
 }
 
 type HostIPInfo struct {
-	Gateway     string
-	PrimaryIP   string
-	SecondaryIP string
-	Subnet      string
+	Gateway   string
+	PrimaryIP string
+	Subnet    string
 }
 
 type IPConfigRequest struct {

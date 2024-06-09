@@ -27,7 +27,7 @@ var (
 	ErrNoNCs                  = errors.New("no NCs found in the CNS internal state")
 	ErrOptManageEndpointState = errors.New("CNS is not set to manage the endpoint state")
 	ErrEndpointStateNotFound  = errors.New("endpoint state could not be found in the statefile")
-	ErrGetAllNCResponseEmpty  = errors.New("failed to get all NC responses from statefile")
+	ErrGetAllNCResponseEmpty  = errors.New("failed to get NC responses from statefile")
 )
 
 const (

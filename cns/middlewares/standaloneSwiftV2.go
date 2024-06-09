@@ -17,7 +17,7 @@ func (m *StandaloneSWIFTv2Middleware) IPConfigsRequestHandlerWrapper(ipRequestHa
 		ipConfigsResp, err := ipRequestHandler(ctx, req)
 		if err != nil {
 			ipConfigsResp.Response.ReturnCode = types.UnexpectedError
-			return ipConfigsResp, errors.Wrapf(err, "Failed to requestIPConfigs for SF from IPConfigsRequest %v", req)
+			return ipConfigsResp, errors.Wrapf(err, "Failed to requestIPConfigs for Standalone-SwiftV2 from IPConfigsRequest %v", req)
 		}
 
 		return ipConfigsResp, nil
