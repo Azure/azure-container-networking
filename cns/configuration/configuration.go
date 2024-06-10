@@ -109,7 +109,7 @@ type KeyVaultSettings struct {
 }
 
 type GRPCSettings struct {
-	Enable          bool
+	Enable    bool
 	IPAddress string
 	Port      uint16
 }
