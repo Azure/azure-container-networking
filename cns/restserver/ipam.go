@@ -120,18 +120,23 @@ func (service *HTTPRestService) requestIPConfigHandlerHelperSF(ctx context.Conte
 			},
 		}, ErrGetAllNCResponseEmpty
 	}
-	podIPInfo := cns.PodIpInfo{
-		PodIPConfig:                     resp[0].IPConfiguration.IPSubnet,
-		MacAddress:                      resp[0].NetworkInterfaceInfo.MACAddress,
-		NICType:                         resp[0].NetworkInterfaceInfo.NICType,
-		SkipDefaultRoutes:               false,
-		NetworkContainerPrimaryIPConfig: resp[0].IPConfiguration,
+
+	podIPInfoList := make([]cns.PodIpInfo, 0, len(resp))
+	for i := range resp {
+		podIPInfo := cns.PodIpInfo{
+			PodIPConfig:                     resp[i].IPConfiguration.IPSubnet,
+			MacAddress:                      resp[i].NetworkInterfaceInfo.MACAddress,
+			NICType:                         resp[i].NetworkInterfaceInfo.NICType,
+			NetworkContainerPrimaryIPConfig: resp[i].IPConfiguration,
+		}
+		podIPInfoList = append(podIPInfoList, podIPInfo)
 	}
+
 	ipConfigsResp := &cns.IPConfigsResponse{
 		Response: cns.Response{
 			ReturnCode: types.Success,
 		},
-		PodIPInfo: []cns.PodIpInfo{podIPInfo},
+		PodIPInfo: podIPInfoList,
 	}
 
 	err = service.updatePodInfoWithInterfaces(ctx, ipConfigsResp)
@@ -147,7 +152,6 @@ func (service *HTTPRestService) requestIPConfigHandlerHelperSF(ctx context.Conte
 }
 
 func (service *HTTPRestService) updatePodInfoWithInterfaces(ctx context.Context, ipconfigResponse *cns.IPConfigsResponse) error {
-	podIPInfoList := make([]cns.PodIpInfo, 0, len(ipconfigResponse.PodIPInfo))
 
 	// fetching primary host interface to use below for updating IPConfigsResponse
 	hostPrimaryInterface, err := service.getPrimaryHostInterface(ctx)
@@ -160,9 +164,7 @@ func (service *HTTPRestService) updatePodInfoWithInterfaces(ctx context.Context,
 			PrimaryIP: hostPrimaryInterface.PrimaryIP,
 			Subnet:    hostPrimaryInterface.Subnet,
 		}
-		podIPInfoList = append(podIPInfoList, ipconfigResponse.PodIPInfo[i])
 	}
-	ipconfigResponse.PodIPInfo = podIPInfoList
 	return nil
 }
 
@@ -259,6 +261,7 @@ func (service *HTTPRestService) RequestIPConfigsHandler(w http.ResponseWriter, r
 		switch service.IPConfigsHandlerMiddleware.Type() {
 		case cns.K8sSWIFTV2:
 			wrappedHandler = service.IPConfigsHandlerMiddleware.IPConfigsRequestHandlerWrapper(service.requestIPConfigHandlerHelper, service.ReleaseIPConfigHandlerHelper)
+		// this middleware is used for standalone swiftv2 secenario where a different helper is invoked as the PodInfo is read from cns state
 		case cns.StandaloneSWIFTV2:
 			wrappedHandler = service.IPConfigsHandlerMiddleware.IPConfigsRequestHandlerWrapper(service.requestIPConfigHandlerHelperSF, nil)
 		}
