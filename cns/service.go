@@ -103,23 +103,21 @@ func (service *Service) AddListener(config *common.ServiceConfig) error {
 
 	// only use TLS connection for DNC/CNS listener:
 	if config.TLSSettings.TLSPort != "" {
-		if config.TLSSettings.TLSPort != "" {
-			// listener.URL.Host will always be hostname:port, passed in to CNS via CNS command
-			// else it will default to localhost
-			// extract hostname and override tls port.
-			hostParts := strings.Split(nodeListener.URL.Host, ":")
-			tlsAddress := net.JoinHostPort(hostParts[0], config.TLSSettings.TLSPort)
+		// listener.URL.Host will always be hostname:port, passed in to CNS via CNS command
+		// else it will default to localhost
+		// extract hostname and override tls port.
+		hostParts := strings.Split(nodeListener.URL.Host, ":")
+		tlsAddress := net.JoinHostPort(hostParts[0], config.TLSSettings.TLSPort)
 
-			// Start the listener and HTTP and HTTPS server.
-			tlsConfig, err := getTLSConfig(config.TLSSettings, config.ErrChan) //nolint
-			if err != nil {
-				log.Printf("Failed to compose Tls Configuration with error: %+v", err)
-				return errors.Wrap(err, "could not get tls config")
-			}
+		// Start the listener and HTTP and HTTPS server.
+		tlsConfig, err := getTLSConfig(config.TLSSettings, config.ErrChan) //nolint
+		if err != nil {
+			log.Printf("Failed to compose Tls Configuration with error: %+v", err)
+			return errors.Wrap(err, "could not get tls config")
+		}
 
-			if err := nodeListener.StartTLS(config.ErrChan, tlsConfig, tlsAddress); err != nil {
-				return errors.Wrap(err, "could not start tls")
-			}
+		if err := nodeListener.StartTLS(config.ErrChan, tlsConfig, tlsAddress); err != nil {
+			return errors.Wrap(err, "could not start tls")
 		}
 	}
 
