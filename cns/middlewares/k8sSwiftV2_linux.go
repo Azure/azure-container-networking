@@ -12,7 +12,7 @@ import (
 )
 
 // setRoutes sets the routes for podIPInfo used in SWIFT V2 scenario.
-func (k *K8sSWIFTv2Middleware) setRoutes1(podIPInfo *cns.PodIpInfo) error {
+func (k *K8sSWIFTv2Middleware) setRoutes(podIPInfo *cns.PodIpInfo) error {
 	logger.Printf("[SWIFTv2Middleware] set routes for pod with nic type : %s", podIPInfo.NICType)
 	var routes []cns.Route
 

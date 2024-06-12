@@ -299,7 +299,7 @@ func TestSetRoutesSuccess(t *testing.T) {
 	}
 	for i := range podIPInfo {
 		ipInfo := &podIPInfo[i]
-		err := middleware.setRoutes1(ipInfo)
+		err := middleware.setRoutes(ipInfo)
 		assert.Equal(t, err, nil)
 		if ipInfo.NICType == cns.InfraNIC {
 			assert.Equal(t, ipInfo.SkipDefaultRoutes, true)
@@ -334,7 +334,7 @@ func TestSetRoutesFailure(t *testing.T) {
 	}
 	for i := range podIPInfo {
 		ipInfo := &podIPInfo[i]
-		err := middleware.setRoutes1(ipInfo)
+		err := middleware.setRoutes(ipInfo)
 		if err == nil {
 			t.Errorf("SetRoutes should fail due to env var not set")
 		}
