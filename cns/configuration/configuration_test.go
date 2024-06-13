@@ -87,6 +87,7 @@ func TestReadConfigFromFile(t *testing.T) {
 					PopulateHomeAzCacheRetryIntervalSecs: 60,
 				},
 				UseHTTPS:     true,
+				UseMTLS:      true,
 				WireserverIP: "168.63.129.16",
 			},
 			wantErr: false,

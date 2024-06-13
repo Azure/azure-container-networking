@@ -25,6 +25,15 @@ var (
 
 	testPod4GUID = "b21e1ee1-fb7e-4e6d-8c68-22ee5049944e"
 	testPod4Info = cns.NewPodInfo("b21e1e-eth0", testPod4GUID, "testpod4", "testpod4namespace")
+
+	testPod5GUID = "898fb8f1-f93e-4c96-9c31-6b89098949a3"
+	testPod5Info = cns.NewPodInfo("898fb8-eth0", testPod5GUID, "testpod5", "testpod5namespace")
+
+	testPod6GUID = "898fb8f1-f93e-4c96-9c31-6b89098949a3"
+	testPod6Info = cns.NewPodInfo("898fb8-eth0", testPod6GUID, "testpod6", "testpod6namespace")
+
+	testPod7GUID = "123e4567-e89b-12d3-a456-426614174000"
+	testPod7Info = cns.NewPodInfo("123e45-eth0", testPod7GUID, "testpod7", "testpod7namespace")
 )
 
 func TestMain(m *testing.M) {
@@ -179,10 +188,13 @@ func TestGetSWIFTv2IPConfigSuccess(t *testing.T) {
 
 	middleware := K8sSWIFTv2Middleware{Cli: mock.NewClient()}
 
-	ipInfo, err := middleware.getIPConfig(context.TODO(), testPod1Info)
+	ipInfos, err := middleware.getIPConfig(context.TODO(), testPod1Info)
 	assert.Equal(t, err, nil)
-	assert.Equal(t, ipInfo.NICType, cns.DelegatedVMNIC)
-	assert.Equal(t, ipInfo.SkipDefaultRoutes, false)
+	// Ensure that the length of ipInfos matches the number of InterfaceInfos
+	// Adjust this according to the test setup
+	assert.Equal(t, len(ipInfos), 1)
+	assert.Equal(t, ipInfos[0].NICType, cns.DelegatedVMNIC)
+	assert.Equal(t, ipInfos[0].SkipDefaultRoutes, false)
 }
 
 func TestGetSWIFTv2IPConfigFailure(t *testing.T) {
@@ -329,5 +341,83 @@ func TestSetRoutesFailure(t *testing.T) {
 		if err == nil {
 			t.Errorf("SetRoutes should fail due to env var not set")
 		}
+	}
+}
+
+func TestAddRoutes(t *testing.T) {
+	cidrs := []string{"10.0.0.0/24", "20.0.0.0/24"}
+	gatewayIP := "192.168.1.1"
+	routes := addRoutes(cidrs, gatewayIP)
+	expectedRoutes := []cns.Route{
+		{
+			IPAddress:        "10.0.0.0/24",
+			GatewayIPAddress: gatewayIP,
+		},
+		{
+			IPAddress:        "20.0.0.0/24",
+			GatewayIPAddress: gatewayIP,
+		},
+	}
+	assert.Equal(t, expectedRoutes, routes, "expected routes to match the expected routes")
+}
+
+func TestNICTypeConfigSuccess(t *testing.T) {
+	middleware := K8sSWIFTv2Middleware{Cli: mock.NewClient()}
+
+	// Test Accelnet Frontend NIC type
+	ipInfos, err := middleware.getIPConfig(context.TODO(), testPod6Info)
+	assert.Equal(t, err, nil)
+	// Ensure that the length of ipInfos matches the number of InterfaceInfos
+	// Adjust this according to the test setup
+	assert.Equal(t, len(ipInfos), 1)
+	assert.Equal(t, ipInfos[0].NICType, cns.NodeNetworkInterfaceAccelnetFrontendNIC)
+
+	// Test Backend NIC type
+	ipInfos2, err := middleware.getIPConfig(context.TODO(), testPod5Info)
+	assert.Equal(t, err, nil)
+	assert.Equal(t, len(ipInfos2), 1)
+	assert.Equal(t, ipInfos2[0].NICType, cns.BackendNIC)
+}
+
+func TestGetSWIFTv2IPConfigMultiInterfaceFailure(t *testing.T) {
+	middleware := K8sSWIFTv2Middleware{Cli: mock.NewClient()}
+
+	// Pod's MTPNC doesn't exist in cache test
+	_, err := middleware.getIPConfig(context.TODO(), testPod3Info)
+	assert.ErrorContains(t, err, mock.ErrMTPNCNotFound.Error())
+
+	// Pod's MTPNC is not ready test
+	_, err = middleware.getIPConfig(context.TODO(), testPod4Info)
+	assert.Error(t, err, errMTPNCNotReady.Error())
+}
+
+func TestGetSWIFTv2IPConfigMultiInterfaceSuccess(t *testing.T) {
+	t.Setenv(configuration.EnvPodCIDRs, "10.0.1.10/24,16A0:0010:AB00:001E::2/32")
+	t.Setenv(configuration.EnvServiceCIDRs, "10.0.0.0/16,16A0:0010:AB00:0000::/32")
+	t.Setenv(configuration.EnvInfraVNETCIDRs, "10.240.0.1/16,16A0:0020:AB00:0000::/32")
+
+	middleware := K8sSWIFTv2Middleware{Cli: mock.NewClient()}
+
+	ipInfos, err := middleware.getIPConfig(context.TODO(), testPod7Info)
+	assert.Equal(t, err, nil)
+	// Ensure that the length of ipInfos matches the number of InterfaceInfos
+	// Adjust this according to the test setup in mock client
+	expectedInterfaceCount := 3
+	assert.Equal(t, len(ipInfos), expectedInterfaceCount)
+
+	for _, ipInfo := range ipInfos {
+		switch ipInfo.NICType {
+		case cns.DelegatedVMNIC:
+			assert.Equal(t, ipInfo.NICType, cns.DelegatedVMNIC)
+		case cns.NodeNetworkInterfaceAccelnetFrontendNIC:
+			assert.Equal(t, ipInfo.NICType, cns.NodeNetworkInterfaceAccelnetFrontendNIC)
+		case cns.NodeNetworkInterfaceBackendNIC:
+			assert.Equal(t, ipInfo.NICType, cns.NodeNetworkInterfaceBackendNIC)
+		case cns.InfraNIC:
+			assert.Equal(t, ipInfo.NICType, cns.InfraNIC)
+		default:
+			t.Errorf("unexpected NICType: %v", ipInfo.NICType)
+		}
+		assert.Equal(t, ipInfo.SkipDefaultRoutes, false)
 	}
 }

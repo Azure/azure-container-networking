@@ -6,6 +6,7 @@ package cns
 import (
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"fmt"
 	"net"
 	"net/http"
@@ -190,6 +191,18 @@ func getTLSConfigFromFile(tlsSettings localtls.TlsSettings) (*tls.Config, error)
 		},
 	}
 
+	if tlsSettings.UseMTLS {
+		rootCAs, err := mtlsRootCAsFromCertificate(&tlsCert)
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to get root CAs for configuring mTLS")
+		}
+		tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
+		tlsConfig.ClientCAs = rootCAs
+		tlsConfig.RootCAs = rootCAs
+	}
+
+	logger.Debugf("TLS configured successfully from file: %+v", tlsSettings)
+
 	return tlsConfig, nil
 }
 
@@ -224,7 +237,49 @@ func getTLSConfigFromKeyVault(tlsSettings localtls.TlsSettings, errChan chan<- e
 		},
 	}
 
+	if tlsSettings.UseMTLS {
+		tlsCert := cr.GetCertificate()
+		rootCAs, err := mtlsRootCAsFromCertificate(tlsCert)
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to get root CAs for configuring mTLS")
+		}
+		tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
+		tlsConfig.ClientCAs = rootCAs
+		tlsConfig.RootCAs = rootCAs
+	}
+
+	logger.Debugf("TLS configured successfully from KV: %+v", tlsSettings)
+
 	return &tlsConfig, nil
+}
+
+// Given a TLS cert, return the root CAs
+func mtlsRootCAsFromCertificate(tlsCert *tls.Certificate) (*x509.CertPool, error) {
+	switch {
+	case tlsCert == nil || len(tlsCert.Certificate) == 0:
+		return nil, errors.New("no certificate provided")
+	case len(tlsCert.Certificate) == 1:
+		certs := x509.NewCertPool()
+		cert, err := x509.ParseCertificate(tlsCert.Certificate[0])
+		if err != nil {
+			return nil, errors.Wrap(err, "parsing self signed cert")
+		}
+		certs.AddCert(cert)
+
+		return certs, nil
+	default:
+		certs := x509.NewCertPool()
+		// given a fullchain cert, we skip leaf cert at index 0 because
+		// we only want intermediate and root certs in the cert pool for mTLS
+		for _, certBytes := range tlsCert.Certificate[1:] {
+			cert, err := x509.ParseCertificate(certBytes)
+			if err != nil {
+				return nil, errors.Wrap(err, "parsing root certs")
+			}
+			certs.AddCert(cert)
+		}
+		return certs, nil
+	}
 }
 
 func (service *Service) StartListener(config *common.ServiceConfig) error {
