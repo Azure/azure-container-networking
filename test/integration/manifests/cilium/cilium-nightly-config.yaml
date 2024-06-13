@@ -36,7 +36,6 @@ data:
   enable-local-redirect-policy: "false"
   enable-metrics: "true"
   enable-policy: default
-  enable-remote-node-identity: "true"
   enable-session-affinity: "true"
   enable-svc-source-range-check: "true"
   enable-vtep: "false"
