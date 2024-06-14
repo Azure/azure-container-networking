@@ -136,9 +136,9 @@ func (tb *TelemetryBuffer) StartServer() error {
 							tb.connections = remove(tb.connections, index)
 						}
 					}()
-
+					reader := bufio.NewReader(conn)
 					for {
-						reportStr, err := read(conn)
+						reportStr, err := read(reader)
 						if err != nil {
 							return
 						}
@@ -229,8 +229,8 @@ func (tb *TelemetryBuffer) PushData(ctx context.Context) {
 }
 
 // read - read from the file descriptor
-func read(conn net.Conn) (b []byte, err error) {
-	b, err = bufio.NewReader(conn).ReadBytes(Delimiter)
+func read(reader *bufio.Reader) (b []byte, err error) {
+	b, err = reader.ReadBytes(Delimiter)
 	if err == nil {
 		b = b[:len(b)-1]
 	}
