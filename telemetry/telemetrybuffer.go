@@ -138,8 +138,8 @@ func (tb *TelemetryBuffer) StartServer() error {
 					}()
 					reader := bufio.NewReader(conn)
 					for {
-						reportStr, err := read(reader)
-						if err != nil {
+						reportStr, readErr := read(reader)
+						if readErr != nil {
 							return
 						}
 						var tmp map[string]interface{}
