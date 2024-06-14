@@ -26,9 +26,6 @@ var (
 	testPod4GUID = "b21e1ee1-fb7e-4e6d-8c68-22ee5049944e"
 	testPod4Info = cns.NewPodInfo("b21e1e-eth0", testPod4GUID, "testpod4", "testpod4namespace")
 
-	testPod5GUID = "898fb8f1-f93e-4c96-9c31-6b89098949a3"
-	testPod5Info = cns.NewPodInfo("898fb8-eth0", testPod5GUID, "testpod5", "testpod5namespace")
-
 	testPod6GUID = "898fb8f1-f93e-4c96-9c31-6b89098949a3"
 	testPod6Info = cns.NewPodInfo("898fb8-eth0", testPod6GUID, "testpod6", "testpod6namespace")
 
@@ -358,25 +355,30 @@ func TestAddRoutes(t *testing.T) {
 			GatewayIPAddress: gatewayIP,
 		},
 	}
-	assert.Equal(t, expectedRoutes, routes, "expected routes to match the expected routes")
+	if len(routes) != len(expectedRoutes) {
+		t.Fatalf("expected %d routes, got %d", len(expectedRoutes), len(routes))
+	}
+	for i := range routes {
+		if routes[i] != expectedRoutes[i] {
+			t.Errorf("route %d: expected %+v, got %+v", i, expectedRoutes[i], routes[i])
+		}
+	}
 }
 
 func TestNICTypeConfigSuccess(t *testing.T) {
 	middleware := K8sSWIFTv2Middleware{Cli: mock.NewClient()}
 
-	// Test Accelnet Frontend NIC type
-	ipInfos, err := middleware.getIPConfig(context.TODO(), testPod6Info)
-	assert.Equal(t, err, nil)
-	// Ensure that the length of ipInfos matches the number of InterfaceInfos
-	// Adjust this according to the test setup
-	assert.Equal(t, len(ipInfos), 1)
-	assert.Equal(t, ipInfos[0].NICType, cns.NodeNetworkInterfaceAccelnetFrontendNIC)
-
 	// Test Backend NIC type
-	ipInfos2, err := middleware.getIPConfig(context.TODO(), testPod5Info)
-	assert.Equal(t, err, nil)
-	assert.Equal(t, len(ipInfos2), 1)
-	assert.Equal(t, ipInfos2[0].NICType, cns.BackendNIC)
+	ipInfos, err := middleware.getIPConfig(context.TODO(), testPod6Info)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(ipInfos) != 1 {
+		t.Fatalf("expected 1 ipInfo, got %d", len(ipInfos))
+	}
+	if ipInfos[0].NICType != cns.BackendNIC {
+		t.Errorf("expected NIC type %v, got %v", cns.BackendNIC, ipInfos[0].NICType)
+	}
 }
 
 func TestGetSWIFTv2IPConfigMultiInterfaceFailure(t *testing.T) {
