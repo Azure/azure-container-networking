@@ -815,7 +815,7 @@ func main() {
 		}
 
 		// if swiftv2 scenario is enabled, we need to initialize the ServiceFabric(standalone) swiftv2 middleware to process IPConfigsRequests
-		// we don't need a cns-config check here since this middleware will be called only by CNI for SwiftV2 flow
+		// `RequestIPConfigs` will be invoked only for swiftv2 or swiftv1 k8s scenarios. For swiftv1 direct mode different api will be invoked. So initializing this middleware always under `direct` mode should not affect any other scenarios.
 		swiftV2Middleware := &middlewares.StandaloneSWIFTv2Middleware{}
 		httpRemoteRestService.AttachIPConfigsHandlerMiddleware(swiftV2Middleware)
 	}
