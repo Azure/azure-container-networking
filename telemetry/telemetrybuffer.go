@@ -138,10 +138,12 @@ func (tb *TelemetryBuffer) StartServer() error {
 					}()
 					reader := bufio.NewReader(conn)
 					for {
-						reportStr, readErr := read(reader)
+						reportStr, readErr := reader.ReadBytes(Delimiter)
 						if readErr != nil {
 							return
 						}
+						reportStr = reportStr[:len(reportStr)-1]
+
 						var tmp map[string]interface{}
 						err = json.Unmarshal(reportStr, &tmp)
 						if err != nil {
@@ -226,16 +228,6 @@ func (tb *TelemetryBuffer) PushData(ctx context.Context) {
 			return
 		}
 	}
-}
-
-// read - read from the file descriptor
-func read(reader *bufio.Reader) (b []byte, err error) {
-	b, err = reader.ReadBytes(Delimiter)
-	if err == nil {
-		b = b[:len(b)-1]
-	}
-
-	return
 }
 
 // Write - write to the file descriptor.
