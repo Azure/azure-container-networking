@@ -117,8 +117,8 @@ func TestWrite(t *testing.T) {
 	}{
 		{
 			name:    "write",
-			data:    []byte("testdata"),
-			want:    len("testdata") + 1, // +1 due to Delimiter('\n)
+			data:    []byte("{\"testdata\":1}"),
+			want:    len("{\"testdata\":1}") + 1, // +1 due to Delimiter('\n)
 			wantErr: false,
 		},
 		{
