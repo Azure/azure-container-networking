@@ -375,11 +375,11 @@ stages:
                 platforms: linux/amd64 linux/arm64 windows/amd64
               cni_dropgz:
                 name: cni-dropgz
-                os_versions: ltsc2019 ltsc2022
+                os_versions: ltsc2019 ltsc2022 ltsc2022-KB5035857
                 platforms: linux/amd64 linux/arm64 windows/amd64
               cns:
                 name: cns
-                os_versions: ltsc2019 ltsc2022
+                os_versions: ltsc2019 ltsc2022 win2025
                 platforms: linux/amd64 linux/arm64 windows/amd64
               ipv6_hp_bpf:
                 name: ipv6-hp-bpf
