@@ -208,6 +208,11 @@ stages:
                 name: azure-ipam
                 os: windows
                 os_version: ltsc2022
+              cni_dropgz_windows2025_amd64:
+                arch: amd64
+                name: cni-dropgz
+                os: windows
+                os_version: ltsc2022-KB5035857
               cni_linux_amd64:
                 arch: amd64
                 name: cni
@@ -250,6 +255,11 @@ stages:
                 name: cns
                 os: windows
                 os_version: ltsc2022
+              cns_windows2025_amd64:
+                arch: amd64
+                name: cns
+                os: windows
+                os_version: win2025
               ipv6_hp_bpf_linux_amd64:
                 arch: amd64
                 name: ipv6-hp-bpf
@@ -599,7 +609,7 @@ stages:
                 clusterName: "mtcluster"
               swiftv2_dummy_e2e:
                 name: swiftv2_dummy_e2e
-                clusterName: "swiftv2dummy"              
+                clusterName: "swiftv2dummy"
           steps:
             - template: templates/delete-cluster.yaml
               parameters:
