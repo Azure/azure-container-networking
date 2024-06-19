@@ -28,7 +28,6 @@ FROM mcr.microsoft.com/windows/servercore@sha256:6fdf140282a2f809dae9b13fe441635
 # intermediate for win-ltsc2022
 FROM mcr.microsoft.com/windows/servercore@sha256:45952938708fbde6ec0b5b94de68bcdec3f8c838be018536b1e9e5bd95e6b943 as ltsc2022
 
-# FROM mcr.microsoft.com/windows/server/insider:10.0.26080.1 as
 FROM mcr.microsoft.com/windows/servercore:ltsc2022-KB5035857-amd64 as win2025
 
 FROM ${OS_VERSION} as windows
