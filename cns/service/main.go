@@ -1201,6 +1201,9 @@ func reconcileInitialCNSState(ctx context.Context, cli nodeNetworkConfigGetter, 
 	}
 
 	logger.Printf("Retrieved NNC: %+v", nnc)
+	if !nnc.DeletionTimestamp.IsZero() {
+		return errors.New("failed to init CNS state: NNC is being deleted")
+	}
 
 	// If there are no NCs, we can't initialize our state and we should fail out.
 	if len(nnc.Status.NetworkContainers) == 0 {

@@ -180,6 +180,10 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager, node *v1.Node) error {
 				return ue.ObjectOld.GetGeneration() == ue.ObjectNew.GetGeneration()
 			},
 		}).
+		WithEventFilter(predicate.NewPredicateFuncs(func(object client.Object) bool {
+			// only process events on objects that are not being deleted.
+			return object.GetDeletionTimestamp().IsZero()
+		})).
 		Complete(r)
 	if err != nil {
 		return errors.Wrap(err, "failed to set up reconciler with manager")
