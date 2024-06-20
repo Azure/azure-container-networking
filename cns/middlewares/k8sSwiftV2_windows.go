@@ -5,7 +5,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/logger"
 )
 
-// setRoutes sets the routes for podIPInfo used in SWIFT V2 scenario. This is a no-op as route setting is not applicable for Windows.
+// setRoutes sets the routes for podIPInfo used in SWIFT V2 scenario. 
 // for AKS L1VH, do not set default route on infraNIC to avoid customer pod reaching all infra vnet services
 // default route is set for secondary interface NIC
 func (k *K8sSWIFTv2Middleware) setRoutes(podIPInfo *cns.PodIpInfo) error {
