@@ -92,8 +92,8 @@ func (service *HTTPRestService) requestIPConfigHandlerHelper(ctx context.Context
 	}, nil
 }
 
-// requestIPConfigHandlerHelperSF validates the request, assign IPs and return the IPConfigs
-func (service *HTTPRestService) requestIPConfigHandlerHelperSF(ctx context.Context, ipconfigsRequest cns.IPConfigsRequest) (*cns.IPConfigsResponse, error) {
+// requestIPConfigHandlerHelperStandalone validates the request, assign IPs and return the IPConfigs
+func (service *HTTPRestService) requestIPConfigHandlerHelperStandalone(ctx context.Context, ipconfigsRequest cns.IPConfigsRequest) (*cns.IPConfigsResponse, error) {
 	// For SWIFT v2 scenario, the validator function will also modify the ipconfigsRequest.
 	podInfo, returnCode, returnMessage := service.validateIPConfigsRequest(ctx, ipconfigsRequest)
 	if returnCode != types.Success {
@@ -152,7 +152,6 @@ func (service *HTTPRestService) requestIPConfigHandlerHelperSF(ctx context.Conte
 }
 
 func (service *HTTPRestService) updatePodInfoWithInterfaces(ctx context.Context, ipconfigResponse *cns.IPConfigsResponse) error {
-
 	// fetching primary host interface to use below for updating IPConfigsResponse
 	hostPrimaryInterface, err := service.getPrimaryHostInterface(ctx)
 	if err != nil {
@@ -263,7 +262,7 @@ func (service *HTTPRestService) RequestIPConfigsHandler(w http.ResponseWriter, r
 			wrappedHandler = service.IPConfigsHandlerMiddleware.IPConfigsRequestHandlerWrapper(service.requestIPConfigHandlerHelper, service.ReleaseIPConfigHandlerHelper)
 		// this middleware is used for standalone swiftv2 secenario where a different helper is invoked as the PodInfo is read from cns state
 		case cns.StandaloneSWIFTV2:
-			wrappedHandler = service.IPConfigsHandlerMiddleware.IPConfigsRequestHandlerWrapper(service.requestIPConfigHandlerHelperSF, nil)
+			wrappedHandler = service.IPConfigsHandlerMiddleware.IPConfigsRequestHandlerWrapper(service.requestIPConfigHandlerHelperStandalone, nil)
 		}
 
 		ipConfigsResp, err = wrappedHandler(r.Context(), ipconfigsRequest)
