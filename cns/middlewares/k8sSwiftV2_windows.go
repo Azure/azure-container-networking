@@ -8,8 +8,8 @@ import (
 // for AKS L1VH, do not set default route on infraNIC to avoid customer pod reaching all infra vnet services
 // default route is set for secondary interface NIC(i.e,delegatedNIC)
 func (k *K8sSWIFTv2Middleware) setRoutes(podIPInfo *cns.PodIpInfo) error {
-	logger.Printf("[SWIFTv2Middleware] setRoutes: only set skipDefaultRoutes flag to true for InfraNIC")
 	if podIPInfo.NICType == cns.InfraNIC {
+		logger.Printf("[SWIFTv2Middleware] skip setting default route on InfraNIC interface")
 		podIPInfo.SkipDefaultRoutes = true
 	}
 	return nil
