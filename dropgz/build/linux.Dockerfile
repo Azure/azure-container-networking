@@ -12,7 +12,7 @@ COPY ./azure-ipam .
 RUN curl -LO --cacert /etc/ssl/certs/ca-certificates.crt https://github.com/Azure/azure-container-networking/releases/download/azure-ipam%2F$AZIPAM_VERSION/azure-ipam-$OS-$ARCH-$AZIPAM_VERSION.tgz && tar -xvf azure-ipam-$OS-$ARCH-$AZIPAM_VERSION.tgz
 
 FROM tar AS azure-vnet
-ARG AZCNI_VERSION=v1.5.28
+ARG AZCNI_VERSION=v1.6.0
 ARG VERSION
 ARG OS
 ARG ARCH
@@ -42,6 +42,6 @@ WORKDIR /dropgz
 COPY --from=compressor /dropgz .
 RUN CGO_ENABLED=0 go build -a -o bin/dropgz -trimpath -ldflags "-X github.com/Azure/azure-container-networking/dropgz/internal/buildinfo.Version="$VERSION"" -gcflags="-dwarflocationlists=true" main.go
 
-FROM scratch
+FROM scratch as linux
 COPY --from=dropgz /dropgz/bin/dropgz /dropgz
 ENTRYPOINT [ "/dropgz" ]

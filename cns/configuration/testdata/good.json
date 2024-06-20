@@ -30,6 +30,7 @@
         "TelemetryBatchSizeBytes": 16384
     },
     "UseHTTPS": true,
+    "UseMTLS": true,
     "WireserverIP": "168.63.129.16",
     "AZRSettings": {
         "PopulateHomeAzCacheRetryIntervalSecs": 60

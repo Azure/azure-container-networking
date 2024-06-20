@@ -87,6 +87,7 @@ func TestReadConfigFromFile(t *testing.T) {
 					PopulateHomeAzCacheRetryIntervalSecs: 60,
 				},
 				UseHTTPS:     true,
+				UseMTLS:      true,
 				WireserverIP: "168.63.129.16",
 			},
 			wantErr: false,
@@ -214,6 +215,11 @@ func TestSetCNSConfigDefaults(t *testing.T) {
 				},
 				WireserverIP:       "168.63.129.16",
 				AsyncPodDeletePath: "/var/run/azure-vnet/deleteIDs",
+				GRPCSettings: GRPCSettings{
+					Enable:    false,
+					IPAddress: "localhost",
+					Port:      8080,
+				},
 			},
 		},
 		{
@@ -239,6 +245,11 @@ func TestSetCNSConfigDefaults(t *testing.T) {
 				AZRSettings: AZRSettings{
 					PopulateHomeAzCacheRetryIntervalSecs: 10,
 				},
+				GRPCSettings: GRPCSettings{
+					Enable:    false,
+					IPAddress: "192.168.1.1",
+					Port:      9090,
+				},
 			},
 			want: CNSConfig{
 				ChannelMode: "Other",
@@ -263,6 +274,11 @@ func TestSetCNSConfigDefaults(t *testing.T) {
 				},
 				WireserverIP:       "168.63.129.16",
 				AsyncPodDeletePath: "/var/run/azure-vnet/deleteIDs",
+				GRPCSettings: GRPCSettings{
+					Enable:    false,
+					IPAddress: "192.168.1.1",
+					Port:      9090,
+				},
 			},
 		},
 	}

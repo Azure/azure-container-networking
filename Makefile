@@ -34,7 +34,7 @@ endif
 # Interrogate the git repo and set some variables
 REPO_ROOT				 = $(shell git rev-parse --show-toplevel)
 REVISION				?= $(shell git rev-parse --short HEAD)
-ACN_VERSION				?= $(shell git describe --exclude "azure-ipam*" --exclude "dropgz*" --exclude "zapai*" --tags --always)
+ACN_VERSION				?= $(shell git describe --exclude "azure-ipam*" --exclude "dropgz*" --exclude "zapai*" --exclude "ipv6-hp-bpf*" --tags --always)
 IPV6_HP_BPF_VERSION			?= $(notdir $(shell git describe --match "ipv6-hp-bpf*" --tags --always))
 AZURE_IPAM_VERSION		?= $(notdir $(shell git describe --match "azure-ipam*" --tags --always))
 CNI_VERSION				?= $(ACN_VERSION)
@@ -68,8 +68,6 @@ CNI_MULTITENANCY_BUILD_DIR = $(BUILD_DIR)/cni-multitenancy
 CNI_MULTITENANCY_TRANSPARENT_VLAN_BUILD_DIR = $(BUILD_DIR)/cni-multitenancy-transparent-vlan
 CNI_SWIFT_BUILD_DIR = $(BUILD_DIR)/cni-swift
 CNI_OVERLAY_BUILD_DIR = $(BUILD_DIR)/cni-overlay
-STATELESS_CNI_OVERLAY_BUILD_DIR = $(CNI_OVERLAY_BUILD_DIR)/stateless
-STATELESS_CNI_SWIFT_BUILD_DIR = $(CNI_SWIFT_BUILD_DIR)/stateless
 CNI_BAREMETAL_BUILD_DIR = $(BUILD_DIR)/cni-baremetal
 CNI_DUALSTACK_BUILD_DIR = $(BUILD_DIR)/cni-dualstack
 CNS_BUILD_DIR = $(BUILD_DIR)/cns
@@ -106,6 +104,7 @@ CNM_ARCHIVE_NAME = azure-vnet-cnm-$(GOOS)-$(GOARCH)-$(ACN_VERSION).$(ARCHIVE_EXT
 CNS_ARCHIVE_NAME = azure-cns-$(GOOS)-$(GOARCH)-$(CNS_VERSION).$(ARCHIVE_EXT)
 NPM_ARCHIVE_NAME = azure-npm-$(GOOS)-$(GOARCH)-$(NPM_VERSION).$(ARCHIVE_EXT)
 AZURE_IPAM_ARCHIVE_NAME = azure-ipam-$(GOOS)-$(GOARCH)-$(AZURE_IPAM_VERSION).$(ARCHIVE_EXT)
+IPV6_HP_BPF_ARCHIVE_NAME = ipv6-hp-bpf-$(GOOS)-$(GOARCH)-$(IPV6_HP_BPF_VERSION).$(ARCHIVE_EXT)
 
 # Image info file names.
 CNI_IMAGE_INFO_FILE			= azure-cni-$(CNI_VERSION).txt
@@ -127,8 +126,8 @@ all-binaries-platforms: ## Make all platform binaries
 
 # OS specific binaries/images
 ifeq ($(GOOS),linux)
-all-binaries: acncli azure-cni-plugin azure-cns azure-npm azure-ipam
-all-images: npm-image cns-image cni-manager-image
+all-binaries: acncli azure-cni-plugin azure-cns azure-npm azure-ipam ipv6-hp-bpf
+all-images: npm-image cns-image cni-manager-image ipv6-hp-bpf-image
 else
 all-binaries: azure-cni-plugin azure-cns azure-npm
 all-images:
@@ -185,7 +184,17 @@ azure-ipam-binary:
 # Build the ipv6-hp-bpf binary.
 ipv6-hp-bpf-binary:
 	cd $(IPV6_HP_BPF_DIR) && CGO_ENABLED=0 go generate ./... 
-	cd $(IPV6_HP_BPF_DIR)/cmd/ipv6-hp-bpf && CGO_ENABLED=0 go build -v -o $(IPV6_HP_BPF_BUILD_DIR)$(EXE_EXT) -ldflags "-X main.version=$(IPV6_HP_BPF_VERSION)" -gcflags="-dwarflocationlists=true"
+	cd $(IPV6_HP_BPF_DIR)/cmd/ipv6-hp-bpf && CGO_ENABLED=0 go build -v -o $(IPV6_HP_BPF_BUILD_DIR)/ipv6-hp-bpf$(EXE_EXT) -ldflags "-X main.version=$(IPV6_HP_BPF_VERSION)" -gcflags="-dwarflocationlists=true"
+
+# Libraries for ipv6-hp-bpf
+ipv6-hp-bpf-lib: 
+ifeq ($(GOARCH),amd64)
+	sudo apt-get update && sudo apt-get install -y llvm clang linux-libc-dev linux-headers-generic libbpf-dev libc6-dev nftables iproute2 gcc-multilib
+	for dir in /usr/include/x86_64-linux-gnu/*; do sudo ln -sfn "$$dir" /usr/include/$$(basename "$$dir"); done
+else ifeq ($(GOARCH),arm64)
+	sudo apt-get update && sudo apt-get install -y llvm clang linux-libc-dev linux-headers-generic libbpf-dev libc6-dev nftables iproute2 gcc-aarch64-linux-gnu
+	for dir in /usr/include/aarch64-linux-gnu/*; do sudo ln -sfn "$$dir" /usr/include/$$(basename "$$dir"); done
+endif
 
 # Build the Azure CNM binary.
 cnm-binary:
@@ -264,7 +273,7 @@ endif
 ## Image name definitions.
 ACNCLI_IMAGE		= acncli
 AZURE_IPAM_IMAGE	= azure-ipam
-IPV6_HP_BPF_IMAGE		= ipv6-hp-bpf
+IPV6_HP_BPF_IMAGE	= ipv6-hp-bpf
 CNI_IMAGE			= azure-cni
 CNI_DROPGZ_IMAGE	= cni-dropgz
 CNS_IMAGE			= azure-cns
@@ -274,7 +283,7 @@ NPM_IMAGE			= azure-npm
 ACNCLI_PLATFORM_TAG				?= $(subst /,-,$(PLATFORM))$(if $(OS_VERSION),-$(OS_VERSION),)-$(ACN_VERSION)
 AZURE_IPAM_PLATFORM_TAG			?= $(subst /,-,$(PLATFORM))$(if $(OS_VERSION),-$(OS_VERSION),)-$(AZURE_IPAM_VERSION)
 AZURE_IPAM_WINDOWS_PLATFORM_TAG	?= $(subst /,-,$(PLATFORM))$(if $(OS_VERSION),-$(OS_VERSION),)-$(AZURE_IPAM_VERSION)-$(OS_SKU_WIN)
-IPV6_HP_BPF_IMAGE_PLATFORM_TAG		?= $(subst /,-,$(PLATFORM))$(if $(OS_VERSION),-$(OS_VERSION),)-$(IPV6_HP_BPF_VERSION)
+IPV6_HP_BPF_IMAGE_PLATFORM_TAG	?= $(subst /,-,$(PLATFORM))$(if $(OS_VERSION),-$(OS_VERSION),)-$(IPV6_HP_BPF_VERSION)
 CNI_PLATFORM_TAG				?= $(subst /,-,$(PLATFORM))$(if $(OS_VERSION),-$(OS_VERSION),)-$(CNI_VERSION)
 CNI_WINDOWS_PLATFORM_TAG		?= $(subst /,-,$(PLATFORM))$(if $(OS_VERSION),-$(OS_VERSION),)-$(CNI_VERSION)-$(OS_SKU_WIN)
 CNI_DROPGZ_PLATFORM_TAG 		?= $(subst /,-,$(PLATFORM))$(if $(OS_VERSION),-$(OS_VERSION),)-$(CNI_DROPGZ_VERSION)
@@ -291,10 +300,16 @@ qemu-user-static: ## Set up the host to run qemu multiplatform container builds.
 
 container-buildah: # util target to build container images using buildah. do not invoke directly.
 	buildah bud \
+		--build-arg ARCH=$(ARCH) \
+		--build-arg OS=$(OS) \
+		--build-arg OS_VERSION=$(OS_VERSION) \
+		--build-arg PLATFORM=$(PLATFORM) \
+		--build-arg VERSION=$(TAG) \
+		$(EXTRA_BUILD_ARGS) \
 		--jobs 16 \
 		--platform $(PLATFORM) \
+		--target $(TARGET) \
 		-f $(DOCKERFILE) \
-		--build-arg VERSION=$(TAG) $(EXTRA_BUILD_ARGS) \
 		-t $(IMAGE_REGISTRY)/$(IMAGE):$(TAG) \
 		.
 	buildah push $(IMAGE_REGISTRY)/$(IMAGE):$(TAG)
@@ -303,19 +318,26 @@ container-docker: # util target to build container images using docker buildx. d
 	docker buildx create --use --platform $(PLATFORM)
 	docker buildx build \
 		$(BUILDX_ACTION) \
+		--build-arg ARCH=$(ARCH) \
+		--build-arg OS=$(OS) \
+		--build-arg OS_VERSION=$(OS_VERSION) \
+		--build-arg PLATFORM=$(PLATFORM) \
+		--build-arg VERSION=$(TAG) \
+		$(EXTRA_BUILD_ARGS) \
 		--platform $(PLATFORM) \
+		--target $(TARGET) \
 		-f $(DOCKERFILE) \
-		--build-arg VERSION=$(TAG) $(EXTRA_BUILD_ARGS) \
 		-t $(IMAGE_REGISTRY)/$(IMAGE):$(TAG) \
 		.
 
 container: # util target to build container images. do not invoke directly.
 	$(MAKE) container-$(CONTAINER_BUILDER) \
+		ARCH=$(ARCH) \
+		OS=$(OS) \
+		OS_VERSION=$(OS_VERSION) \
 		PLATFORM=$(PLATFORM) \
 		TAG=$(TAG) \
-		OS=$(OS) \
-		ARCH=$(ARCH) \
-		OS_VERSION=$(OS_VERSION)
+		TARGET=$(TARGET)
 
 container-push: # util target to publish container image. do not invoke directly.
 	$(CONTAINER_BUILDER) push \
@@ -363,11 +385,11 @@ azure-ipam-image-name-and-tag: # util target to print the azure-ipam image name 
 
 azure-ipam-image: ## build azure-ipam container image.
 	$(MAKE) container \
-		DOCKERFILE=azure-ipam/$(OS).Dockerfile \
+		DOCKERFILE=azure-ipam/Dockerfile \
 		IMAGE=$(AZURE_IPAM_IMAGE) \
-		EXTRA_BUILD_ARGS='--build-arg OS=$(OS) --build-arg ARCH=$(ARCH) --build-arg OS_VERSION=$(OS_VERSION)' \
 		PLATFORM=$(PLATFORM) \
 		TAG=$(AZURE_IPAM_PLATFORM_TAG) \
+		TARGET=$(OS) \
 		OS=$(OS) \
 		ARCH=$(ARCH) \
 		OS_VERSION=$(OS_VERSION)
@@ -397,6 +419,7 @@ ipv6-hp-bpf-image: ## build ipv6-hp-bpf container image.
 		EXTRA_BUILD_ARGS='--build-arg OS=$(OS) --build-arg ARCH=$(ARCH) --build-arg OS_VERSION=$(OS_VERSION) --build-arg DEBUG=$(DEBUG)'\
 		PLATFORM=$(PLATFORM) \
 		TAG=$(IPV6_HP_BPF_IMAGE_PLATFORM_TAG) \
+		TARGET=$(OS) \
 		OS=$(OS) \
 		ARCH=$(ARCH) \
 		OS_VERSION=$(OS_VERSION)
@@ -421,11 +444,11 @@ cni-image-name-and-tag: # util target to print the cni image name and tag.
 
 cni-image: ## build cni container image.
 	$(MAKE) container \
-		DOCKERFILE=cni/$(OS).Dockerfile \
+		DOCKERFILE=cni/Dockerfile \
 		IMAGE=$(CNI_IMAGE) \
-		EXTRA_BUILD_ARGS='--build-arg OS=$(OS) --build-arg ARCH=$(ARCH) --build-arg OS_VERSION=$(OS_VERSION)' \
 		PLATFORM=$(PLATFORM) \
 		TAG=$(CNI_PLATFORM_TAG) \
+		TARGET=$(OS) \
 		OS=$(OS) \
 		ARCH=$(ARCH) \
 		OS_VERSION=$(OS_VERSION)
@@ -452,9 +475,9 @@ cni-dropgz-image-name-and-tag: # util target to print the CNI dropgz image name 
 cni-dropgz-image: ## build cni-dropgz container image.
 	$(MAKE) container \
 		DOCKERFILE=dropgz/build/$(OS).Dockerfile \
-		EXTRA_BUILD_ARGS='--build-arg OS=$(OS) --build-arg ARCH=$(ARCH) --build-arg OS_VERSION=$(OS_VERSION)' \
 		IMAGE=$(CNI_DROPGZ_IMAGE) \
-		TAG=$(CNI_DROPGZ_PLATFORM_TAG)
+		TAG=$(CNI_DROPGZ_PLATFORM_TAG) \
+		TARGET=$(OS)
 
 cni-dropgz-image-push: ## push cni-dropgz container image.
 	$(MAKE) container-push \
@@ -477,11 +500,12 @@ cns-image-name-and-tag: # util target to print the CNS image name and tag.
 
 cns-image: ## build cns container image.
 	$(MAKE) container \
-		DOCKERFILE=cns/$(OS).Dockerfile \
+		DOCKERFILE=cns/Dockerfile \
 		IMAGE=$(CNS_IMAGE) \
-		EXTRA_BUILD_ARGS='--build-arg CNS_AI_PATH=$(CNS_AI_PATH) --build-arg CNS_AI_ID=$(CNS_AI_ID) --build-arg OS_VERSION=$(OS_VERSION)' \
+		EXTRA_BUILD_ARGS='--build-arg CNS_AI_PATH=$(CNS_AI_PATH) --build-arg CNS_AI_ID=$(CNS_AI_ID)' \
 		PLATFORM=$(PLATFORM) \
 		TAG=$(CNS_PLATFORM_TAG) \
+		TARGET=$(OS) \
 		OS=$(OS) \
 		ARCH=$(ARCH) \
 		OS_VERSION=$(OS_VERSION)
@@ -508,9 +532,10 @@ npm-image: ## build the npm container image.
 	$(MAKE) container-$(CONTAINER_BUILDER) \
 		DOCKERFILE=npm/$(OS).Dockerfile \
 		IMAGE=$(NPM_IMAGE) \
-		EXTRA_BUILD_ARGS='--build-arg NPM_AI_PATH=$(NPM_AI_PATH) --build-arg NPM_AI_ID=$(NPM_AI_ID) --build-arg OS_VERSION=$(OS_VERSION)' \
+		EXTRA_BUILD_ARGS='--build-arg NPM_AI_PATH=$(NPM_AI_PATH) --build-arg NPM_AI_ID=$(NPM_AI_ID)' \
 		PLATFORM=$(PLATFORM) \
-		TAG=$(NPM_PLATFORM_TAG)\
+		TAG=$(NPM_PLATFORM_TAG) \
+		TARGET=$(OS) \
 		OS=$(OS) \
 		ARCH=$(ARCH) \
 		OS_VERSION=$(OS_VERSION)
@@ -580,8 +605,6 @@ manifest-build: # util target to compose multiarch container manifests from plat
 		)\
 	)\
 
-
-
 manifest-push: # util target to push multiarch container manifest.
 	$(CONTAINER_BUILDER) manifest push --all $(IMAGE_REGISTRY)/$(IMAGE):$(TAG) docker://$(IMAGE_REGISTRY)/$(IMAGE):$(TAG)
 
@@ -622,6 +645,23 @@ azure-ipam-skopeo-archive: ## export tar archive of azure-ipam multiplat contain
 	$(MAKE) manifest-skopeo-archive \
 		IMAGE=$(AZURE_IPAM_IMAGE) \
 		TAG=$(AZURE_IPAM_VERSION)
+
+ipv6-hp-bpf-manifest-build: ## build ipv6-hp-bpf multiplat container manifest.
+	$(MAKE) manifest-build \
+		PLATFORMS="$(PLATFORMS)" \
+		IMAGE=$(IPV6_HP_BPF_IMAGE) \
+		TAG=$(IPV6_HP_BPF_VERSION) \
+		OS_VERSIONS="$(OS_VERSIONS)"
+
+ipv6-hp-bpf-manifest-push: ## push ipv6-hp-bpf multiplat container manifest
+	$(MAKE) manifest-push \
+		IMAGE=$(IPV6_HP_BPF_IMAGE) \
+		TAG=$(IPV6_HP_BPF_VERSION)
+
+ipv6-hp-bpf-skopeo-archive: ## export tar archive of ipv6-hp-bpf multiplat container manifest.
+	$(MAKE) manifest-skopeo-archive \
+		IMAGE=$(IPV6_HP_BPF_IMAGE) \
+		TAG=$(IPV6_HP_BPF_VERSION)
 
 cni-manifest-build: ## build cni multiplat container manifest.
 	$(MAKE) manifest-build \
@@ -700,7 +740,8 @@ cni-archive: azure-vnet-binary azure-vnet-ipam-binary azure-vnet-ipamv6-binary a
 	$(MKDIR) $(CNI_BUILD_DIR)
 	cp cni/azure-$(GOOS).conflist $(CNI_BUILD_DIR)/10-azure.conflist
 	cp telemetry/azure-vnet-telemetry.config $(CNI_BUILD_DIR)/azure-vnet-telemetry.config
-	cd $(CNI_BUILD_DIR) && $(ARCHIVE_CMD) $(CNI_ARCHIVE_NAME) azure-vnet$(EXE_EXT) azure-vnet-ipam$(EXE_EXT) azure-vnet-ipamv6$(EXE_EXT) azure-vnet-telemetry$(EXE_EXT) 10-azure.conflist azure-vnet-telemetry.config
+	cp $(STATELESS_CNI_BUILD_DIR)/azure-vnet$(EXE_EXT) $(CNI_BUILD_DIR)/azure-vnet-stateless$(EXE_EXT)
+	cd $(CNI_BUILD_DIR) && $(ARCHIVE_CMD) $(CNI_ARCHIVE_NAME) azure-vnet$(EXE_EXT) azure-vnet-stateless$(EXE_EXT) azure-vnet-ipam$(EXE_EXT) azure-vnet-ipamv6$(EXE_EXT) azure-vnet-telemetry$(EXE_EXT) 10-azure.conflist azure-vnet-telemetry.config
 
 	$(MKDIR) $(CNI_MULTITENANCY_BUILD_DIR)
 	cp cni/azure-$(GOOS)-multitenancy.conflist $(CNI_MULTITENANCY_BUILD_DIR)/10-azure.conflist
@@ -724,23 +765,22 @@ endif
 	cp cni/azure-$(GOOS)-swift.conflist $(CNI_SWIFT_BUILD_DIR)/10-azure.conflist
 	cp telemetry/azure-vnet-telemetry.config $(CNI_SWIFT_BUILD_DIR)/azure-vnet-telemetry.config
 	cp $(CNI_BUILD_DIR)/azure-vnet$(EXE_EXT) $(CNI_BUILD_DIR)/azure-vnet-ipam$(EXE_EXT) $(CNI_BUILD_DIR)/azure-vnet-telemetry$(EXE_EXT) $(CNI_SWIFT_BUILD_DIR)
-	$(MKDIR) $(STATELESS_CNI_SWIFT_BUILD_DIR)
-	cp $(STATELESS_CNI_BUILD_DIR)/azure-vnet$(EXE_EXT) $(STATELESS_CNI_SWIFT_BUILD_DIR)
-	cd $(CNI_SWIFT_BUILD_DIR) && $(ARCHIVE_CMD) $(CNI_SWIFT_ARCHIVE_NAME) azure-vnet$(EXE_EXT) azure-vnet-ipam$(EXE_EXT) azure-vnet-telemetry$(EXE_EXT) 10-azure.conflist azure-vnet-telemetry.config
+	cp $(STATELESS_CNI_BUILD_DIR)/azure-vnet$(EXE_EXT) $(CNI_SWIFT_BUILD_DIR)/azure-vnet-stateless$(EXE_EXT)
+	cd $(CNI_SWIFT_BUILD_DIR) && $(ARCHIVE_CMD) $(CNI_SWIFT_ARCHIVE_NAME) azure-vnet$(EXE_EXT) azure-vnet-stateless$(EXE_EXT) azure-vnet-ipam$(EXE_EXT) azure-vnet-telemetry$(EXE_EXT) 10-azure.conflist azure-vnet-telemetry.config
 
 	$(MKDIR) $(CNI_OVERLAY_BUILD_DIR)
 	cp cni/azure-$(GOOS)-swift-overlay.conflist $(CNI_OVERLAY_BUILD_DIR)/10-azure.conflist
 	cp telemetry/azure-vnet-telemetry.config $(CNI_OVERLAY_BUILD_DIR)/azure-vnet-telemetry.config
 	cp $(CNI_BUILD_DIR)/azure-vnet$(EXE_EXT) $(CNI_BUILD_DIR)/azure-vnet-ipam$(EXE_EXT) $(CNI_BUILD_DIR)/azure-vnet-telemetry$(EXE_EXT) $(CNI_OVERLAY_BUILD_DIR)
-	$(MKDIR) $(STATELESS_CNI_OVERLAY_BUILD_DIR)
-	cp $(STATELESS_CNI_BUILD_DIR)/azure-vnet$(EXE_EXT) $(STATELESS_CNI_OVERLAY_BUILD_DIR)
-	cd $(CNI_OVERLAY_BUILD_DIR) && $(ARCHIVE_CMD) $(CNI_OVERLAY_ARCHIVE_NAME) azure-vnet$(EXE_EXT) azure-vnet-ipam$(EXE_EXT) azure-vnet-telemetry$(EXE_EXT) 10-azure.conflist azure-vnet-telemetry.config
+	cp $(STATELESS_CNI_BUILD_DIR)/azure-vnet$(EXE_EXT) $(CNI_OVERLAY_BUILD_DIR)/azure-vnet-stateless$(EXE_EXT)
+	cd $(CNI_OVERLAY_BUILD_DIR) && $(ARCHIVE_CMD) $(CNI_OVERLAY_ARCHIVE_NAME) azure-vnet$(EXE_EXT) azure-vnet-stateless$(EXE_EXT) azure-vnet-ipam$(EXE_EXT) azure-vnet-telemetry$(EXE_EXT) 10-azure.conflist azure-vnet-telemetry.config
 
 	$(MKDIR) $(CNI_DUALSTACK_BUILD_DIR)
 	cp cni/azure-$(GOOS)-swift-overlay-dualstack.conflist $(CNI_DUALSTACK_BUILD_DIR)/10-azure.conflist
 	cp telemetry/azure-vnet-telemetry.config $(CNI_DUALSTACK_BUILD_DIR)/azure-vnet-telemetry.config
 	cp $(CNI_BUILD_DIR)/azure-vnet$(EXE_EXT) $(CNI_BUILD_DIR)/azure-vnet-telemetry$(EXE_EXT) $(CNI_DUALSTACK_BUILD_DIR)
-	cd $(CNI_DUALSTACK_BUILD_DIR) && $(ARCHIVE_CMD) $(CNI_DUALSTACK_ARCHIVE_NAME) azure-vnet$(EXE_EXT) azure-vnet-telemetry$(EXE_EXT) 10-azure.conflist azure-vnet-telemetry.config
+	cp $(STATELESS_CNI_BUILD_DIR)/azure-vnet$(EXE_EXT) $(CNI_DUALSTACK_BUILD_DIR)/azure-vnet-stateless$(EXE_EXT)
+	cd $(CNI_DUALSTACK_BUILD_DIR) && $(ARCHIVE_CMD) $(CNI_DUALSTACK_ARCHIVE_NAME) azure-vnet$(EXE_EXT) azure-vnet-stateless$(EXE_EXT) azure-vnet-telemetry$(EXE_EXT) 10-azure.conflist azure-vnet-telemetry.config
 
 #baremetal mode is windows only (at least for now)
 ifeq ($(GOOS),windows)

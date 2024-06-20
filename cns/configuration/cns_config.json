@@ -20,6 +20,7 @@
     "TLSPort": "10091",
     "TLSSubjectName": "",
     "UseHTTPS": false,
+    "UseMTLS": false,
     "WireserverIP": "168.63.129.16",
     "KeyVaultSettings": {
         "URL": "",

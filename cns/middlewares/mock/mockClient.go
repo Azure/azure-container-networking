@@ -42,25 +42,87 @@ func NewClient() *Client {
 	testPod4.Labels = make(map[string]string)
 	testPod4.Labels[configuration.LabelPodSwiftV2] = podNetwork
 
+	testPod5 := v1.Pod{}
+	testPod5.Labels = make(map[string]string)
+	testPod5.Labels[configuration.LabelPodSwiftV2] = podNetwork
+
+	testPod6 := v1.Pod{}
+	testPod6.Labels = make(map[string]string)
+	testPod6.Labels[configuration.LabelPodSwiftV2] = podNetwork
+
+	testPod7 := v1.Pod{}
+	testPod7.Labels = make(map[string]string)
+	testPod7.Labels[configuration.LabelPodSwiftV2] = podNetwork
+
+	testInterfaceInfos1 := v1alpha1.InterfaceInfo{
+		NCID:            "testncid",
+		PrimaryIP:       "192.168.0.1/32",
+		MacAddress:      "00:00:00:00:00:00",
+		GatewayIP:       "10.0.0.1",
+		DeviceType:      v1alpha1.DeviceTypeVnetNIC,
+		AccelnetEnabled: false,
+	}
+	testInterfaceInfos3 := v1alpha1.InterfaceInfo{
+		NCID:            "testncid",
+		PrimaryIP:       "192.168.0.1/32",
+		MacAddress:      "00:00:00:00:00:00",
+		GatewayIP:       "10.0.0.1",
+		DeviceType:      v1alpha1.DeviceTypeVnetNIC,
+		AccelnetEnabled: false,
+	}
+	testInterfaceInfos5 := v1alpha1.InterfaceInfo{
+		NCID:            "testncid",
+		PrimaryIP:       "192.168.0.1/32",
+		MacAddress:      "00:00:00:00:00:00",
+		GatewayIP:       "10.0.0.1",
+		DeviceType:      v1alpha1.DeviceTypeInfiniBandNIC,
+		AccelnetEnabled: true,
+	}
+
 	testMTPNC1 := v1alpha1.MultitenantPodNetworkConfig{
 		Status: v1alpha1.MultitenantPodNetworkConfigStatus{
-			PrimaryIP:  "192.168.0.1/32",
-			MacAddress: "00:00:00:00:00:00",
-			GatewayIP:  "10.0.0.1",
-			NCID:       "testncid",
+			InterfaceInfos: []v1alpha1.InterfaceInfo{testInterfaceInfos1},
 		},
 	}
 
 	testMTPNC2 := v1alpha1.MultitenantPodNetworkConfig{}
 
+	testMTPNC3 := v1alpha1.MultitenantPodNetworkConfig{
+		Status: v1alpha1.MultitenantPodNetworkConfigStatus{
+			InterfaceInfos: []v1alpha1.InterfaceInfo{testInterfaceInfos3},
+		},
+	}
+
 	testMTPNC4 := v1alpha1.MultitenantPodNetworkConfig{}
 
+	testMTPNC5 := v1alpha1.MultitenantPodNetworkConfig{
+		Status: v1alpha1.MultitenantPodNetworkConfigStatus{
+			InterfaceInfos: []v1alpha1.InterfaceInfo{testInterfaceInfos5},
+		},
+	}
+
+	testMTPNCMulti := v1alpha1.MultitenantPodNetworkConfig{
+		Status: v1alpha1.MultitenantPodNetworkConfigStatus{
+			InterfaceInfos: []v1alpha1.InterfaceInfo{testInterfaceInfos1, testInterfaceInfos3, testInterfaceInfos5},
+		},
+	}
+
 	return &Client{
-		mtPodCache: map[string]*v1.Pod{"testpod1namespace/testpod1": &testPod1, "testpod3namespace/testpod3": &testPod3, "testpod4namespace/testpod4": &testPod4},
+		mtPodCache: map[string]*v1.Pod{
+			"testpod1namespace/testpod1": &testPod1,
+			"testpod3namespace/testpod3": &testPod3,
+			"testpod4namespace/testpod4": &testPod4,
+			"testpod5namespace/testpod5": &testPod5,
+			"testpod6namespace/testpod6": &testPod6,
+			"testpod7namespace/testpod7": &testPod7,
+		},
 		mtpncCache: map[string]*v1alpha1.MultitenantPodNetworkConfig{
 			"testpod1namespace/testpod1": &testMTPNC1,
 			"testpod2namespace/testpod2": &testMTPNC2,
 			"testpod4namespace/testpod4": &testMTPNC4,
+			"testpod5namespace/testpod5": &testMTPNC3,
+			"testpod6namespace/testpod6": &testMTPNC5,
+			"testpod7namespace/testpod7": &testMTPNCMulti,
 		},
 	}
 }
@@ -85,11 +147,18 @@ func (c *Client) Get(_ context.Context, key client.ObjectKey, obj client.Object,
 }
 
 func (c *Client) SetMTPNCReady() {
+	testInterfaceInfos1 := v1alpha1.InterfaceInfo{
+		NCID:            "testncid",
+		PrimaryIP:       "192.168.0.1/32",
+		MacAddress:      "00:00:00:00:00:00",
+		GatewayIP:       "10.0.0.1",
+		DeviceType:      v1alpha1.DeviceTypeVnetNIC,
+		AccelnetEnabled: false,
+	}
+
 	testMTPNC1 := v1alpha1.MultitenantPodNetworkConfig{}
-	testMTPNC1.Status.PrimaryIP = "192.168.0.1/32"
-	testMTPNC1.Status.MacAddress = "00:00:00:00:00:00"
-	testMTPNC1.Status.GatewayIP = "10.0.0.1"
-	testMTPNC1.Status.NCID = "testncid"
+	testMTPNC1.Status.InterfaceInfos = []v1alpha1.InterfaceInfo{testInterfaceInfos1}
+
 	c.mtpncCache["testpod1namespace/testpod1"] = &testMTPNC1
 }
 

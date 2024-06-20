@@ -427,7 +427,7 @@ func writeToFile(dir, fileName, str string) error {
 	return errors.Wrap(err, "failed to write string")
 }
 
-func ExecCmdOnPod(ctx context.Context, clientset *kubernetes.Clientset, namespace, podName string, cmd []string, config *rest.Config) ([]byte, error) {
+func ExecCmdOnPod(ctx context.Context, clientset *kubernetes.Clientset, namespace, podName, containerName string, cmd []string, config *rest.Config) ([]byte, error) {
 	var result []byte
 	execCmdOnPod := func() error {
 		req := clientset.CoreV1().RESTClient().Post().
@@ -436,11 +436,12 @@ func ExecCmdOnPod(ctx context.Context, clientset *kubernetes.Clientset, namespac
 			Namespace(namespace).
 			SubResource("exec").
 			VersionedParams(&corev1.PodExecOptions{
-				Command: cmd,
-				Stdin:   false,
-				Stdout:  true,
-				Stderr:  true,
-				TTY:     false,
+				Command:   cmd,
+				Container: containerName,
+				Stdin:     false,
+				Stdout:    true,
+				Stderr:    true,
+				TTY:       false,
 			}, scheme.ParameterCodec)
 
 		exec, err := remotecommand.NewSPDYExecutor(config, "POST", req.URL())
@@ -582,7 +583,7 @@ func RestartKubeProxyService(ctx context.Context, clientset *kubernetes.Clientse
 		}
 		privilegedPod := pod.Items[0]
 		// exec into the pod and restart kubeproxy
-		_, err = ExecCmdOnPod(ctx, clientset, privilegedNamespace, privilegedPod.Name, restartKubeProxyCmd, config)
+		_, err = ExecCmdOnPod(ctx, clientset, privilegedNamespace, privilegedPod.Name, "", restartKubeProxyCmd, config)
 		if err != nil {
 			return errors.Wrapf(err, "failed to exec into privileged pod %s on node %s", privilegedPod.Name, node.Name)
 		}

@@ -77,7 +77,7 @@ func MustCreateDaemonset(ctx context.Context, daemonsets typedappsv1.DaemonSetIn
 	MustDeleteDaemonset(ctx, daemonsets, ds)
 	log.Printf("Creating Daemonset %v", ds.Name)
 	if _, err := daemonsets.Create(ctx, &ds, metav1.CreateOptions{}); err != nil {
-		panic(errors.Wrap(err, "failed to create daemonset"))
+		log.Fatal(errors.Wrap(err, "failed to create daemonset"))
 	}
 }
 
@@ -85,79 +85,79 @@ func MustCreateDeployment(ctx context.Context, deployments typedappsv1.Deploymen
 	MustDeleteDeployment(ctx, deployments, d)
 	log.Printf("Creating Deployment %v", d.Name)
 	if _, err := deployments.Create(ctx, &d, metav1.CreateOptions{}); err != nil {
-		panic(errors.Wrap(err, "failed to create deployment"))
+		log.Fatal(errors.Wrap(err, "failed to create deployment"))
 	}
 }
 
 func mustCreateServiceAccount(ctx context.Context, svcAccounts typedcorev1.ServiceAccountInterface, s corev1.ServiceAccount) {
 	if err := svcAccounts.Delete(ctx, s.Name, metav1.DeleteOptions{}); err != nil {
 		if !apierrors.IsNotFound(err) {
-			panic(errors.Wrap(err, "failed to delete svc account"))
+			log.Fatal(errors.Wrap(err, "failed to delete svc account"))
 		}
 	}
 	log.Printf("Creating ServiceAccount %v", s.Name)
 	if _, err := svcAccounts.Create(ctx, &s, metav1.CreateOptions{}); err != nil {
-		panic(errors.Wrap(err, "failed to create svc account"))
+		log.Fatal(errors.Wrap(err, "failed to create svc account"))
 	}
 }
 
 func mustCreateClusterRole(ctx context.Context, clusterRoles typedrbacv1.ClusterRoleInterface, cr rbacv1.ClusterRole) {
 	if err := clusterRoles.Delete(ctx, cr.Name, metav1.DeleteOptions{}); err != nil {
 		if !apierrors.IsNotFound(err) {
-			panic(errors.Wrap(err, "failed to delete cluster role"))
+			log.Fatal(errors.Wrap(err, "failed to delete cluster role"))
 		}
 	}
 	log.Printf("Creating ClusterRoles %v", cr.Name)
 	if _, err := clusterRoles.Create(ctx, &cr, metav1.CreateOptions{}); err != nil {
-		panic(errors.Wrap(err, "failed to create cluster role"))
+		log.Fatal(errors.Wrap(err, "failed to create cluster role"))
 	}
 }
 
 func mustCreateClusterRoleBinding(ctx context.Context, crBindings typedrbacv1.ClusterRoleBindingInterface, crb rbacv1.ClusterRoleBinding) {
 	if err := crBindings.Delete(ctx, crb.Name, metav1.DeleteOptions{}); err != nil {
 		if !apierrors.IsNotFound(err) {
-			panic(errors.Wrap(err, "failed to delete cluster role binding"))
+			log.Fatal(errors.Wrap(err, "failed to delete cluster role binding"))
 		}
 	}
 	log.Printf("Creating RoleBinding %v", crb.Name)
 	if _, err := crBindings.Create(ctx, &crb, metav1.CreateOptions{}); err != nil {
-		panic(errors.Wrap(err, "failed to create role binding"))
+		log.Fatal(errors.Wrap(err, "failed to create role binding"))
 	}
 }
 
 func mustCreateRole(ctx context.Context, rs typedrbacv1.RoleInterface, r rbacv1.Role) {
 	if err := rs.Delete(ctx, r.Name, metav1.DeleteOptions{}); err != nil {
 		if !apierrors.IsNotFound(err) {
-			panic(errors.Wrap(err, "failed to delete role"))
+			log.Fatal(errors.Wrap(err, "failed to delete role"))
 		}
 	}
 	log.Printf("Creating Role %v", r.Name)
 	if _, err := rs.Create(ctx, &r, metav1.CreateOptions{}); err != nil {
-		panic(errors.Wrap(err, "failed to create role"))
+		log.Fatal(errors.Wrap(err, "failed to create role"))
 	}
 }
 
 func mustCreateRoleBinding(ctx context.Context, rbi typedrbacv1.RoleBindingInterface, rb rbacv1.RoleBinding) {
 	if err := rbi.Delete(ctx, rb.Name, metav1.DeleteOptions{}); err != nil {
 		if !apierrors.IsNotFound(err) {
-			panic(errors.Wrap(err, "failed to delete role binding"))
+			log.Fatal(errors.Wrap(err, "failed to delete role binding"))
 		}
 	}
 	log.Printf("Creating RoleBinding %v", rb.Name)
 	if _, err := rbi.Create(ctx, &rb, metav1.CreateOptions{}); err != nil {
-		panic(errors.Wrap(err, "failed to create role binding"))
+		log.Fatal(errors.Wrap(err, "failed to create role binding"))
 	}
 }
 
 func mustCreateConfigMap(ctx context.Context, cmi typedcorev1.ConfigMapInterface, cm corev1.ConfigMap) {
 	if err := cmi.Delete(ctx, cm.Name, metav1.DeleteOptions{}); err != nil {
 		if !apierrors.IsNotFound(err) {
-			panic(errors.Wrap(err, "failed to delete configmap"))
+			log.Fatal(errors.Wrap(err, "failed to delete configmap"))
 		}
 	}
 	log.Printf("Creating ConfigMap %v", cm.Name)
 	if _, err := cmi.Create(ctx, &cm, metav1.CreateOptions{}); err != nil {
-		panic(errors.Wrap(err, "failed to create configmap"))
+		log.Fatal(errors.Wrap(err, "failed to create configmap"))
 	}
 }
 
@@ -177,7 +177,7 @@ func MustScaleDeployment(ctx context.Context,
 		log.Printf("Waiting for pods to be ready..")
 		err := WaitForPodDeployment(ctx, clientset, namespace, deployment.Name, podLabelSelector, replicas)
 		if err != nil {
-			panic(errors.Wrap(err, "failed to wait for pod deployment"))
+			log.Fatal(errors.Wrap(err, "failed to wait for pod deployment"))
 		}
 	}
 }
@@ -189,7 +189,7 @@ func MustCreateNamespace(ctx context.Context, clienset *kubernetes.Clientset, na
 		},
 	}, metav1.CreateOptions{})
 	if err != nil {
-		panic(errors.Wrapf(err, "failed to create namespace %v", namespace))
+		log.Fatal(errors.Wrapf(err, "failed to create namespace %v", namespace))
 	}
 }
 
@@ -615,6 +615,15 @@ func hostPathTypePtr(h corev1.HostPathType) *corev1.HostPathType {
 func volumesForAzureCNIOverlayLinux() []corev1.Volume {
 	return []corev1.Volume{
 		{
+			Name: "azure-endpoints",
+			VolumeSource: corev1.VolumeSource{
+				HostPath: &corev1.HostPathVolumeSource{
+					Path: "/var/run/azure-cns/",
+					Type: hostPathTypePtr(corev1.HostPathDirectoryOrCreate),
+				},
+			},
+		},
+		{
 			Name: "log",
 			VolumeSource: corev1.VolumeSource{
 				HostPath: &corev1.HostPathVolumeSource{
@@ -684,6 +693,15 @@ func volumesForAzureCNIOverlayLinux() []corev1.Volume {
 					LocalObjectReference: corev1.LocalObjectReference{
 						Name: "cns-config",
 					},
+				},
+			},
+		},
+		{
+			Name: "xtables-lock",
+			VolumeSource: corev1.VolumeSource{
+				HostPath: &corev1.HostPathVolumeSource{
+					Path: "/run/xtables.lock",
+					Type: hostPathTypePtr(corev1.HostPathFile),
 				},
 			},
 		},

@@ -24,11 +24,11 @@ do
 
         echo "check directory for pending delete"
         cns_pod=$(kubectl get pods -l k8s-app=azure-cns -n kube-system -o wide | grep "$node_name" | awk '{print $1}')
-        file=$(kubectl exec -it $cns_pod -n kube-system -- ls var/run/azure-vnet/deleteIDs)
+        file=$(kubectl exec -it $cns_pod -c debug -n kube-system -- ls var/run/azure-vnet/deleteIDs)
         if [ -z $file ]; then
             while [ -z $file ]; 
             do
-                file=$(kubectl exec -i $cns_pod -n kube-system -- ls var/run/azure-vnet/deleteIDs)
+                file=$(kubectl exec -i $cns_pod -c debug -n kube-system -- ls var/run/azure-vnet/deleteIDs)
             done
         fi
         echo "pending deletes"
@@ -37,7 +37,7 @@ do
         echo "wait 30s for filesystem delete to occur"
         sleep 30s
         echo "check directory is now empty"
-        check_directory=$(kubectl exec -i $cns_pod -n kube-system -- ls var/run/azure-vnet/deleteIDs)
+        check_directory=$(kubectl exec -i $cns_pod -c debug -n kube-system -- ls var/run/azure-vnet/deleteIDs)
         if [ -z $check_directory ]; then
             echo "async delete success"
             break

@@ -29,6 +29,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/common"
 	"github.com/Azure/azure-container-networking/cns/configuration"
 	"github.com/Azure/azure-container-networking/cns/fsnotify"
+	"github.com/Azure/azure-container-networking/cns/grpc"
 	"github.com/Azure/azure-container-networking/cns/healthserver"
 	"github.com/Azure/azure-container-networking/cns/hnsclient"
 	"github.com/Azure/azure-container-networking/cns/imds"
@@ -786,6 +787,7 @@ func main() {
 				KeyVaultCertificateName:            cnsconfig.KeyVaultSettings.CertificateName,
 				MSIResourceID:                      cnsconfig.MSISettings.ResourceID,
 				KeyVaultCertificateRefreshInterval: time.Duration(cnsconfig.KeyVaultSettings.RefreshIntervalInHrs) * time.Hour,
+				UseMTLS:                            cnsconfig.UseMTLS,
 			}
 		}
 
@@ -873,6 +875,33 @@ func main() {
 			logger.Errorf("Failed to start multiTenantController, err:%v.\n", err)
 			return
 		}
+	}
+
+	// Conditionally initialize and start the gRPC server
+	if cnsconfig.GRPCSettings.Enable {
+		// Define gRPC server settings
+		settings := grpc.ServerSettings{
+			IPAddress: cnsconfig.GRPCSettings.IPAddress,
+			Port:      cnsconfig.GRPCSettings.Port,
+		}
+
+		// Initialize CNS service
+		cnsService := &grpc.CNS{Logger: z}
+
+		// Create a new gRPC server
+		server, grpcErr := grpc.NewServer(settings, cnsService, z)
+		if grpcErr != nil {
+			logger.Errorf("[Listener] Could not initialize gRPC server: %v", grpcErr)
+			return
+		}
+
+		// Start the gRPC server
+		go func() {
+			if grpcErr := server.Start(); grpcErr != nil {
+				logger.Errorf("[Listener] Could not start gRPC server: %v", grpcErr)
+				return
+			}
+		}()
 	}
 
 	// if user provides cns url by -c option, then only start HTTP remote server using this url

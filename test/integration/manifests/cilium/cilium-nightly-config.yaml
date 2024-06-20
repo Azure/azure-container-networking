@@ -36,7 +36,6 @@ data:
   enable-local-redirect-policy: "false"
   enable-metrics: "true"
   enable-policy: default
-  enable-remote-node-identity: "true"
   enable-session-affinity: "true"
   enable-svc-source-range-check: "true"
   enable-vtep: "false"
@@ -62,7 +61,6 @@ data:
   prometheus-serve-addr: :9962
   remove-cilium-node-taints: "true"
   set-cilium-is-up-condition: "true"
-  sidecar-istio-proxy-image: cilium/istio_proxy
   synchronize-k8s-nodes: "true"
   tofqdns-dns-reject-response-code: refused
   tofqdns-enable-dns-compression: "true"

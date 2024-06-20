@@ -100,6 +100,7 @@ func (l *Listener) Stop() {
 	if l.tlsListener != nil {
 		// Stop servicing requests on secure listener
 		_ = l.tlsListener.Close()
+		log.Printf("[Listener] Stopped listening on tls endpoint %s", l.tlsListener.Addr())
 	}
 
 	// Delete the unix socket.
@@ -107,7 +108,7 @@ func (l *Listener) Stop() {
 		_ = os.Remove(l.localAddress)
 	}
 
-	log.Printf("[Listener] Stopped listening on %s", l.localAddress)
+	log.Printf("[Listener] Stopped listening on %s", l.listener.Addr())
 }
 
 // GetMux returns the HTTP mux for the listener.

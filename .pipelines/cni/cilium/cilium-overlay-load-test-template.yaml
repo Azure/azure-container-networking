@@ -205,7 +205,7 @@ stages:
               cd hack/scripts
               chmod +x async-delete-test.sh
               ./async-delete-test.sh
-              if ! [ -z $(kubectl -n kube-system get ds  azure-cns | grep non-existing) ]; then
+              if ! [ -z $(kubectl -n kube-system get ds azure-cns | grep non-existing) ]; then
                 kubectl -n kube-system patch daemonset azure-cns --type json -p='[{"op": "remove", "path": "/spec/template/spec/nodeSelector/non-existing"}]'
               fi
             name: "testAsyncDelete"
