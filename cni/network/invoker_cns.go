@@ -173,9 +173,9 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 			}
 
 			// Add secondary interface info from podIPInfo to ipamAddResult
+			info.hostSubnet = response.PodIPInfo[i].HostPrimaryIPInfo.Subnet
 			info.hostPrimaryIP = response.PodIPInfo[i].HostPrimaryIPInfo.PrimaryIP
 			info.hostGateway = response.PodIPInfo[i].HostPrimaryIPInfo.Gateway
-			logger.Info("vnet ip and gateway", zap.String("vnet ip", info.hostPrimaryIP), zap.String("vnet gateway", info.hostGateway))
 
 			if err := configureSecondaryAddResult(&info, &addResult, &response.PodIPInfo[i].PodIPConfig, key); err != nil {
 				return IPAMAddResult{}, err

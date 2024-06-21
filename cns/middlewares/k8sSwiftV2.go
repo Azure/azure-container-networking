@@ -204,8 +204,7 @@ func (k *K8sSWIFTv2Middleware) getIPConfig(ctx context.Context, podInfo cns.PodI
 				NICType:           nicType,
 				SkipDefaultRoutes: false,
 				HostPrimaryIPInfo: cns.HostIPInfo{
-					Gateway:   interfaceInfo.GatewayIP,
-					PrimaryIP: interfaceInfo.PrimaryIP,
+					Gateway: interfaceInfo.GatewayIP,
 				},
 			}
 		}

@@ -304,7 +304,6 @@ func (nm *networkManager) configureHcnNetwork(nwInfo *EndpointInfo, extIf *exter
 
 	// Populate subnets.
 	for _, subnet := range nwInfo.Subnets {
-		logger.Info("NextHop is", zap.String("NextHop", subnet.Gateway.String()))
 		hnsSubnet := hcn.Subnet{
 			IpAddressPrefix: subnet.Prefix.String(),
 			// Set the Gateway route
