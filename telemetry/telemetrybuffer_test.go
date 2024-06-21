@@ -70,6 +70,36 @@ func TestClientConnClose(t *testing.T) {
 	tbClient.Close()
 }
 
+func TestCloseOnWriteError(t *testing.T) {
+	tbServer, closeTBServer := createTBServer(t)
+	defer closeTBServer()
+
+	tbClient := NewTelemetryBuffer(nil)
+	err := tbClient.Connect()
+	require.NoError(t, err)
+	defer tbClient.Close()
+
+	data := []byte("{\"good\":1}")
+	_, err = tbClient.Write(data)
+	require.NoError(t, err)
+	// need to wait for connection to populate in server
+	time.Sleep(1 * time.Second)
+	tbServer.mutex.Lock()
+	conns := tbServer.connections
+	tbServer.mutex.Unlock()
+	require.Len(t, conns, 1)
+
+	// the connection should be automatically closed on failure
+	badData := []byte("} malformed json }}}")
+	_, err = tbClient.Write(badData)
+	require.NoError(t, err)
+	time.Sleep(1 * time.Second)
+	tbServer.mutex.Lock()
+	conns = tbServer.connections
+	tbServer.mutex.Unlock()
+	require.Empty(t, conns)
+}
+
 func TestWrite(t *testing.T) {
 	_, closeTBServer := createTBServer(t)
 	defer closeTBServer()
@@ -87,8 +117,8 @@ func TestWrite(t *testing.T) {
 	}{
 		{
 			name:    "write",
-			data:    []byte("testdata"),
-			want:    len("testdata") + 1, // +1 due to Delimiter('\n)
+			data:    []byte("{\"testdata\":1}"),
+			want:    len("{\"testdata\":1}") + 1, // +1 due to Delimiter('\n)
 			wantErr: false,
 		},
 		{
