@@ -4,7 +4,7 @@ go 1.21
 
 require (
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.12.0
-	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.5.2
+	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.6.0
 	github.com/Azure/azure-sdk-for-go/sdk/keyvault/azsecrets v0.12.0
 	github.com/Masterminds/semver v1.5.0
 	github.com/Microsoft/go-winio v0.6.1

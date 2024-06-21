@@ -599,7 +599,7 @@ stages:
                 clusterName: "mtcluster"
               swiftv2_dummy_e2e:
                 name: swiftv2_dummy_e2e
-                clusterName: "swiftv2dummy"              
+                clusterName: "swiftv2dummy"
           steps:
             - template: templates/delete-cluster.yaml
               parameters:

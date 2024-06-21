@@ -183,11 +183,11 @@ azure-ipam-binary:
 
 # Build the ipv6-hp-bpf binary.
 ipv6-hp-bpf-binary:
-	cd $(IPV6_HP_BPF_DIR) && CGO_ENABLED=0 go generate ./... 
+	cd $(IPV6_HP_BPF_DIR) && CGO_ENABLED=0 go generate ./...
 	cd $(IPV6_HP_BPF_DIR)/cmd/ipv6-hp-bpf && CGO_ENABLED=0 go build -v -o $(IPV6_HP_BPF_BUILD_DIR)/ipv6-hp-bpf$(EXE_EXT) -ldflags "-X main.version=$(IPV6_HP_BPF_VERSION)" -gcflags="-dwarflocationlists=true"
 
 # Libraries for ipv6-hp-bpf
-ipv6-hp-bpf-lib: 
+ipv6-hp-bpf-lib:
 ifeq ($(GOARCH),amd64)
 	sudo apt-get update && sudo apt-get install -y llvm clang linux-libc-dev linux-headers-generic libbpf-dev libc6-dev nftables iproute2 gcc-multilib
 	for dir in /usr/include/x86_64-linux-gnu/*; do sudo ln -sfn "$$dir" /usr/include/$$(basename "$$dir"); done
