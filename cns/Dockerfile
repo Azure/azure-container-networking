@@ -2,7 +2,7 @@ ARG ARCH
 ARG OS_VERSION
 ARG OS
 
-FROM --platform=linux/${ARCH} mcr.microsoft.com/oss/go/microsoft/golang:1.22-cbl-mariner2.0  AS builder
+FROM --platform=linux/${ARCH} mcr.microsoft.com/oss/go/microsoft/golang:1.22-cbl-mariner2.0 AS builder
 ARG OS
 ARG CNS_AI_ID
 ARG CNS_AI_PATH
