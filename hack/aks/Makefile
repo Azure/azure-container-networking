@@ -19,6 +19,7 @@ OS_SKU_WIN      ?= Windows2022
 REGION          ?= westus2
 VM_SIZE	        ?= Standard_B2s
 VM_SIZE_WIN     ?= Standard_B2s
+TAGGED_IP_PREFIX  ?= serviceTaggedIp
 
 # overrideable variables
 SUB        ?= $(AZURE_SUBSCRIPTION)
@@ -88,6 +89,8 @@ overlay-net-up: ## Create vnet, nodenet subnets
 	$(AZCLI) network vnet create -g $(GROUP) -l $(REGION) --name $(VNET) --address-prefixes 10.0.0.0/8 -o none
 	$(AZCLI) network vnet subnet create -g $(GROUP) --vnet-name $(VNET) --name nodenet --address-prefix 10.10.0.0/16 -o none
 
+create-tagged-ip:
+	$(AZCLI) network public-ip create --name $(TAGGED_IP_PREFIX)-$(CLUSTER) --resource-group $(GROUP) --allocation-method static --ip-tags FirstPartyUsage=/TestTagging-O365 --version IPV4 --sku Standard --location $(REGION) --tier regional
 
 ##@ AKS Clusters
 
@@ -95,7 +98,7 @@ byocni-up: swift-byocni-up ## Alias to swift-byocni-up
 cilium-up: swift-cilium-up ## Alias to swift-cilium-up
 up: swift-up ## Alias to swift-up
 
-overlay-byocni-up: rg-up overlay-net-up ## Brings up an Overlay BYO CNI cluster
+overlay-byocni-up: rg-up overlay-net-up create-tagged-ip ## Brings up an Overlay BYO CNI cluster
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
 		--auto-upgrade-channel $(AUTOUPGRADE) \
 		--node-os-upgrade-channel $(NODEUPGRADE) \
@@ -103,6 +106,7 @@ overlay-byocni-up: rg-up overlay-net-up ## Brings up an Overlay BYO CNI cluster
 		--node-count $(NODE_COUNT) \
 		--node-vm-size $(VM_SIZE) \
 		--load-balancer-sku standard \
+		--load-balancer-outbound-ips /subscriptions/$(SUB)/resourceGroups/$(GROUP)/providers/Microsoft.Network/publicIPAddresses/$(TAGGED_IP_PREFIX)-$(CLUSTER) \
 		--network-plugin none \
 		--network-plugin-mode overlay \
 		--pod-cidr 192.168.0.0/16 \
