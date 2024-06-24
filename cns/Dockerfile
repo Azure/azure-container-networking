@@ -2,7 +2,7 @@ ARG ARCH
 ARG OS_VERSION
 ARG OS
 
-FROM --platform=linux/${ARCH} mcr.microsoft.com/oss/go/microsoft/golang:1.22-cbl-mariner2.0  AS builder
+FROM --platform=linux/${ARCH} mcr.microsoft.com/oss/go/microsoft/golang:1.22-cbl-mariner2.0 AS builder
 ARG OS
 ARG CNS_AI_ID
 ARG CNS_AI_PATH
@@ -27,6 +27,9 @@ FROM mcr.microsoft.com/windows/servercore@sha256:6fdf140282a2f809dae9b13fe441635
 
 # intermediate for win-ltsc2022
 FROM mcr.microsoft.com/windows/servercore@sha256:45952938708fbde6ec0b5b94de68bcdec3f8c838be018536b1e9e5bd95e6b943 as ltsc2022
+
+# intermediate for win2025
+FROM mcr.microsoft.com/windows/servercore:ltsc2022-KB5035857-amd64 as win2025
 
 FROM ${OS_VERSION} as windows
 COPY --from=builder /azure-container-networking/cns/kubeconfigtemplate.yaml kubeconfigtemplate.yaml
