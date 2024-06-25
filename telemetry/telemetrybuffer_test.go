@@ -71,7 +71,7 @@ func TestCloseOnWriteError(t *testing.T) {
 	tbServer, closeTBServer := createTBServer(t)
 	defer closeTBServer()
 
-	tbClient := NewTelemetryBuffer(nil)
+	tbClient := NewTelemetryBuffer()
 	err := tbClient.Connect()
 	require.NoError(t, err)
 	defer tbClient.Close()
