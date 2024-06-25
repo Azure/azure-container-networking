@@ -4,7 +4,7 @@ go 1.21
 
 require (
 	github.com/Azure/azure-container-networking v1.5.21
-	github.com/containernetworking/cni v1.2.1
+	github.com/containernetworking/cni v1.2.2
 	github.com/containernetworking/plugins v1.5.1
 	github.com/pkg/errors v0.9.1
 	github.com/stretchr/testify v1.9.0
@@ -21,7 +21,6 @@ require (
 	github.com/Azure/azure-sdk-for-go/sdk/keyvault/internal v0.7.1 // indirect
 	github.com/AzureAD/microsoft-authentication-library-for-go v1.2.2 // indirect
 	github.com/Masterminds/semver v1.5.0 // indirect
-	github.com/Masterminds/semver/v3 v3.2.1 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/Microsoft/hcsshim v0.12.3 // indirect
 	github.com/avast/retry-go/v3 v3.1.1 // indirect
