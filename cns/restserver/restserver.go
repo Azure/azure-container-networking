@@ -72,6 +72,7 @@ type HTTPRestService struct {
 	cniConflistGenerator       CNIConflistGenerator
 	generateCNIConflistOnce    sync.Once
 	IPConfigsHandlerMiddleware cns.IPConfigsHandlerMiddleware
+	PnpIDByMacAddress          map[string]string
 }
 
 type CNIConflistGenerator interface {

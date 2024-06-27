@@ -40,6 +40,30 @@ func (service *HTTPRestService) setNetworkInfo(networkName string, networkInfo *
 	service.state.Networks[networkName] = networkInfo
 }
 
+func GetPnpIDMacaddressMapping(ctx context.Context) (map[string]string, error) {
+	p := platform.NewExecClient(nil)
+	VfMacAddressMapping, err := platform.FetchMacAddressPnpIDMapping(ctx, p)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to fetch MACAddressPnpIDMapping")
+	}
+	return VfMacAddressMapping, nil
+}
+
+func (service *HTTPRestService) getPNPIDFromMacAddress(ctx context.Context, macAddress string) (string, error) {
+	var err error
+	if _, ok := service.PnpIDByMacAddress[macAddress]; !ok {
+		if service.PnpIDByMacAddress, err = GetPnpIDMacaddressMapping(ctx); err != nil {
+			return "", err
+		}
+		// IB adapters can be absent from the list of adapters, checking for the value after the fetch
+		if _, ok := service.PnpIDByMacAddress[macAddress]; !ok {
+			return "", errors.New("Backend Network adapter not found")
+		}
+
+	}
+	return service.PnpIDByMacAddress[macAddress], nil
+}
+
 // Remove the network info from the service network state
 func (service *HTTPRestService) removeNetworkInfo(networkName string) {
 	service.Lock()
