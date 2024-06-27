@@ -229,6 +229,9 @@ func (k *K8sSWIFTv2Middleware) getIPConfig(ctx context.Context, podInfo cns.PodI
 					MacAddress:        interfaceInfo.MacAddress,
 					NICType:           cns.DelegatedVMNIC,
 					SkipDefaultRoutes: false,
+					HostPrimaryIPInfo: cns.HostIPInfo{
+						Gateway: interfaceInfo.GatewayIP,
+					},
 					// InterfaceName is empty for DelegatedVMNIC
 				})
 			}
