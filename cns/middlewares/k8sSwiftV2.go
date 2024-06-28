@@ -3,6 +3,7 @@ package middlewares
 import (
 	"context"
 	"fmt"
+
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/configuration"
 	"github.com/Azure/azure-container-networking/cns/logger"
@@ -202,6 +203,9 @@ func (k *K8sSWIFTv2Middleware) getIPConfig(ctx context.Context, podInfo cns.PodI
 				MacAddress:        interfaceInfo.MacAddress,
 				NICType:           nicType,
 				SkipDefaultRoutes: false,
+				HostPrimaryIPInfo: cns.HostIPInfo{
+					Gateway: interfaceInfo.GatewayIP,
+				},
 			}
 		}
 	}
