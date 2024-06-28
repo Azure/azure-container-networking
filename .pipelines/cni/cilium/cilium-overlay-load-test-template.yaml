@@ -19,6 +19,12 @@ stages:
   - stage: create_${{ parameters.name }}
     condition: and( succeeded(), and( or( contains(variables.CONTROL_CNI, 'cilium') , contains(variables.CONTROL_CNI, 'all') ), or( contains(variables.CONTROL_OS, 'linux'), contains(variables.CONTROL_OS, 'all') ) ) )
     variables:
+      ${{ if contains(parameters.clusterName, 'rdma') }}:
+        location: $(LOCATION_RDMA)
+      ${{ elseif eq(parameters.arch, 'arm64') }}:
+        location: $(LOCATION_ARM64)
+      ${{ else }}:
+        location: $(LOCATION_AMD64)
       commitID: $[ stagedependencies.setup.env.outputs['SetEnvVars.commitID'] ]
     dependsOn:
       - setup
@@ -34,7 +40,7 @@ stages:
               clusterName: ${{ parameters.clusterName }}-$(commitID)
               nodeCount: ${{ parameters.nodeCount }}
               vmSize: ${{ parameters.vmSize }}
-              region: $(LOCATION)
+              region: $(location)
 
 # Conditions for below E2E test scenarios confirm that:
 # Pipeline has not been canceled and that the previous job has reports anything other than failure(Succeeded, SuccededWithIssues, Skipped). Previous job is declared by dependsOn:
