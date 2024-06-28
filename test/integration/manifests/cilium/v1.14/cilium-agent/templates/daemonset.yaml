@@ -308,35 +308,6 @@ spec:
           name: cilium-cgroup
         - mountPath: /var/run/cilium
           name: cilium-run
-      - command:
-        - bash
-        - -cex
-        - |
-          export LD_LIBRARY_PATH=/host/lib/systemd:/host/usr/lib/aarch64-linux-gnu:/host/usr/lib/x86_64-linux-gnu
-          export SYSTEMD_VERSION="$(/host/lib/systemd/systemd --version | head -n 1 | cut -d' ' -f2)"
-          [[ $SYSTEMD_VERSION -ge 249 ]] && {
-              mkdir -p /host/etc/systemd/networkd.conf.d
-              echo -e "[Network]\nManageForeignRoutes=no\nManageForeignRoutingPolicyRules=no\n" \
-                >/host/etc/systemd/networkd.conf.d/99-cilium-foreign-routes.conf
-              chmod -R u+rwX,go+rX /host/etc/systemd/networkd.conf.d
-            } || exit 0
-        image: mcr.microsoft.com/cbl-mariner/base/core:2.0
-        imagePullPolicy: IfNotPresent
-        name: systemd-networkd-overrides
-        resources: {}
-        securityContext:
-          privileged: true
-        terminationMessagePath: /dev/termination-log
-        terminationMessagePolicy: File
-        volumeMounts:
-        - mountPath: /host/etc/systemd
-          name: host-etc-systemd
-        - mountPath: /host/lib/systemd
-          name: host-lib-systemd
-          readOnly: true
-        - mountPath: /host/usr/lib
-          name: host-usr-lib
-          readOnly: true
       - name: block-wireserver
         image: $CILIUM_IMAGE_REGISTRY/cilium/cilium:$CILIUM_VERSION_TAG
         imagePullPolicy: IfNotPresent
