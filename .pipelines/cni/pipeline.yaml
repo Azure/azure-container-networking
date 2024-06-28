@@ -453,20 +453,20 @@ stages:
               inlineScript: |
                 set -x
 
-                if [[ $(clusterName) =~ 'rdma' ]]; then
-                  region=$(LOCATION_RDMA)
-                elif [[ $(clusterName) =~ 'arm' ]]; then
-                  region=$(LOCATION_ARM64)
+                if [[ ${clusterName} =~ 'rdma' ]]; then
+                  export LOCATION=${LOCATION_RDMA}
+                elif [[ ${clusterName} =~ 'arm' ]]; then
+                  export LOCATION=${LOCATION_ARM64}
                 else
-                  region=$(LOCATION_AMD64)
+                  export LOCATION=${LOCATION_AMD64}
                 fi
 
                 if [ "$(DELETE_RESOURCES)" ]
                 then
                   echo "Deleting Cluster and resource group"
                   make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=$(clusterName)-$(commitID)
-                  make -C ./hack/aks azcfg AZCLI=az REGION=$region
-                  make -C ./hack/aks down AZCLI=az REGION=$region SUB=$(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS) CLUSTER=$(clusterName)-$(commitID)
+                  make -C ./hack/aks azcfg AZCLI=az REGION=${LOCATION}
+                  make -C ./hack/aks down AZCLI=az REGION=${LOCATION} SUB=$(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS) CLUSTER=$(clusterName)-$(commitID)
                   echo "Cluster and resources down"
                 else
                   echo "Deletion of resources is False"
