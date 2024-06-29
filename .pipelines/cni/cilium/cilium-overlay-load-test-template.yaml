@@ -50,6 +50,12 @@ stages:
     variables:
       commitID: $[ stagedependencies.setup.env.outputs['SetEnvVars.commitID'] ]
       cnsVersion: $[ stagedependencies.setup.env.outputs['SetEnvVars.cnsVersion'] ]
+      ${{ if contains(parameters.clusterName, 'rdma') }}:
+        location: $(LOCATION_RDMA)
+      ${{ elseif eq(parameters.arch, 'arm64') }}:
+        location: $(LOCATION_ARM64)
+      ${{ else }}:
+        location: $(LOCATION_AMD64)
     pool:
       name: "$(BUILD_POOL_NAME_DEFAULT)"
     dependsOn:
@@ -168,6 +174,7 @@ stages:
               clusterName: ${{ parameters.clusterName }}-$(commitID)
               os: ${{ parameters.os }}
               cni: cilium
+              region: $(location)
           - template: ../load-test-templates/validate-state-template.yaml
             parameters:
               clusterName: ${{ parameters.clusterName }}-$(commitID)
