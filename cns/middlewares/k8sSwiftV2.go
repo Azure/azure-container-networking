@@ -224,7 +224,7 @@ func (k *K8sSWIFTv2Middleware) getIPConfig(ctx context.Context, podInfo cns.PodI
 				podIPInfos = append(podIPInfos, cns.PodIpInfo{
 					PodIPConfig: cns.IPSubnet{
 						IPAddress:    ip,
-						PrefixLength: uint8(prefixSize),
+						PrefixLength: 16,
 					},
 					MacAddress:        interfaceInfo.MacAddress,
 					NICType:           cns.DelegatedVMNIC,
