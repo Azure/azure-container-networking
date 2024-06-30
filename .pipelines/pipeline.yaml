@@ -288,10 +288,6 @@ stages:
             name: "$(BUILD_POOL_NAME_LINUX_ARM64)"
           strategy:
             matrix:
-              azure_ipam_linux_arm64:
-                arch: arm64
-                name: azure-ipam
-                os: linux
               cni_dropgz_linux_arm64:
                 arch: arm64
                 name: cni-dropgz
