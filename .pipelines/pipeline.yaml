@@ -292,10 +292,6 @@ stages:
                 arch: arm64
                 name: azure-ipam
                 os: linux
-              cni_linux_arm64:
-                arch: arm64
-                name: cni
-                os: linux
               cni_dropgz_linux_arm64:
                 arch: arm64
                 name: cni-dropgz

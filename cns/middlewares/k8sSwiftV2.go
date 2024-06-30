@@ -231,6 +231,15 @@ func (k *K8sSWIFTv2Middleware) getIPConfig(ctx context.Context, podInfo cns.PodI
 					SkipDefaultRoutes: false,
 					HostPrimaryIPInfo: cns.HostIPInfo{
 						Gateway: interfaceInfo.GatewayIP,
+						PrimaryIP: ip,
+						Subnet: "10.230.0.0/16",
+					},
+					NetworkContainerPrimaryIPConfig: cns.IPConfiguration{
+						IPSubnet: cns.IPSubnet{
+							IPAddress: "10.230.0.0",
+							PrefixLength: 16,
+						},
+						GatewayIPAddress: interfaceInfo.GatewayIP, 
 					},
 					// InterfaceName is empty for DelegatedVMNIC
 				})
