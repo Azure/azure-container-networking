@@ -27,6 +27,7 @@ var (
 	ErrNoNCs                  = errors.New("no NCs found in the CNS internal state")
 	ErrOptManageEndpointState = errors.New("CNS is not set to manage the endpoint state")
 	ErrEndpointStateNotFound  = errors.New("endpoint state could not be found in the statefile")
+	ErrGetAllNCResponseEmpty  = errors.New("failed to get NC responses from statefile")
 )
 
 const (
@@ -89,6 +90,81 @@ func (service *HTTPRestService) requestIPConfigHandlerHelper(ctx context.Context
 		},
 		PodIPInfo: podIPInfo,
 	}, nil
+}
+
+// requestIPConfigHandlerHelperStandalone validates the request, assign IPs and return the IPConfigs
+func (service *HTTPRestService) requestIPConfigHandlerHelperStandalone(ctx context.Context, ipconfigsRequest cns.IPConfigsRequest) (*cns.IPConfigsResponse, error) {
+	// For SWIFT v2 scenario, the validator function will also modify the ipconfigsRequest.
+	podInfo, returnCode, returnMessage := service.validateIPConfigsRequest(ctx, ipconfigsRequest)
+	if returnCode != types.Success {
+		return &cns.IPConfigsResponse{
+			Response: cns.Response{
+				ReturnCode: returnCode,
+				Message:    returnMessage,
+			},
+		}, errors.New("failed to validate ip config request or unmarshal orchestratorContext")
+	}
+
+	orchestratorContext, err := podInfo.OrchestratorContext()
+	if err != nil {
+		return &cns.IPConfigsResponse{}, fmt.Errorf("error getting orchestrator context from PodInfo %w", err)
+	}
+	cnsRequest := cns.GetNetworkContainerRequest{OrchestratorContext: orchestratorContext}
+	resp := service.getAllNetworkContainerResponses(cnsRequest) //nolint:contextcheck // not passed in any methods, appease linter
+	// return err if returned list has no NCs
+	if len(resp) == 0 {
+		return &cns.IPConfigsResponse{
+			Response: cns.Response{
+				ReturnCode: types.FailedToAllocateIPConfig,
+				Message:    fmt.Sprintf("AllocateIPConfig failed due to not getting NC Response from statefile, IP config request is %v", ipconfigsRequest),
+			},
+		}, ErrGetAllNCResponseEmpty
+	}
+
+	podIPInfoList := make([]cns.PodIpInfo, 0, len(resp))
+	for i := range resp {
+		podIPInfo := cns.PodIpInfo{
+			PodIPConfig:                     resp[i].IPConfiguration.IPSubnet,
+			MacAddress:                      resp[i].NetworkInterfaceInfo.MACAddress,
+			NICType:                         resp[i].NetworkInterfaceInfo.NICType,
+			NetworkContainerPrimaryIPConfig: resp[i].IPConfiguration,
+		}
+		podIPInfoList = append(podIPInfoList, podIPInfo)
+	}
+
+	ipConfigsResp := &cns.IPConfigsResponse{
+		Response: cns.Response{
+			ReturnCode: types.Success,
+		},
+		PodIPInfo: podIPInfoList,
+	}
+
+	err = service.updatePodInfoWithInterfaces(ctx, ipConfigsResp)
+	if err != nil {
+		return &cns.IPConfigsResponse{
+			Response: cns.Response{
+				ReturnCode: types.FailedToAllocateIPConfig,
+				Message:    fmt.Sprintf("AllocateIPConfig failed while updating pod with interfaces: %v, IP config request is %v", err, ipconfigsRequest),
+			},
+		}, err
+	}
+	return ipConfigsResp, nil
+}
+
+func (service *HTTPRestService) updatePodInfoWithInterfaces(ctx context.Context, ipconfigResponse *cns.IPConfigsResponse) error {
+	// fetching primary host interface to use below for updating IPConfigsResponse
+	hostPrimaryInterface, err := service.getPrimaryHostInterface(ctx)
+	if err != nil {
+		return err
+	}
+	for i := range ipconfigResponse.PodIPInfo {
+		ipconfigResponse.PodIPInfo[i].HostPrimaryIPInfo = cns.HostIPInfo{
+			Gateway:   hostPrimaryInterface.Gateway,
+			PrimaryIP: hostPrimaryInterface.PrimaryIP,
+			Subnet:    hostPrimaryInterface.Subnet,
+		}
+	}
+	return nil
 }
 
 // RequestIPConfigHandler requests an IPConfig from the CNS state
@@ -179,8 +255,16 @@ func (service *HTTPRestService) RequestIPConfigsHandler(w http.ResponseWriter, r
 
 	// Check if IPConfigsHandlerMiddleware is set
 	if service.IPConfigsHandlerMiddleware != nil {
-		// Wrap the default datapath handlers with the middleware
-		wrappedHandler := service.IPConfigsHandlerMiddleware.IPConfigsRequestHandlerWrapper(service.requestIPConfigHandlerHelper, service.ReleaseIPConfigHandlerHelper)
+		// Wrap the default datapath handlers with the middleware depending on middleware type
+		var wrappedHandler cns.IPConfigsHandlerFunc
+		switch service.IPConfigsHandlerMiddleware.Type() {
+		case cns.K8sSWIFTV2:
+			wrappedHandler = service.IPConfigsHandlerMiddleware.IPConfigsRequestHandlerWrapper(service.requestIPConfigHandlerHelper, service.ReleaseIPConfigHandlerHelper)
+		// this middleware is used for standalone swiftv2 secenario where a different helper is invoked as the PodInfo is read from cns state
+		case cns.StandaloneSWIFTV2:
+			wrappedHandler = service.IPConfigsHandlerMiddleware.IPConfigsRequestHandlerWrapper(service.requestIPConfigHandlerHelperStandalone, nil)
+		}
+
 		ipConfigsResp, err = wrappedHandler(r.Context(), ipconfigsRequest)
 	} else {
 		ipConfigsResp, err = service.requestIPConfigHandlerHelper(r.Context(), ipconfigsRequest) // nolint:contextcheck // appease linter

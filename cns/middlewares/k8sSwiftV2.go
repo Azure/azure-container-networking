@@ -212,3 +212,7 @@ func (k *K8sSWIFTv2Middleware) getIPConfig(ctx context.Context, podInfo cns.PodI
 
 	return podIPInfos, nil
 }
+
+func (k *K8sSWIFTv2Middleware) Type() cns.SWIFTV2Mode {
+	return cns.K8sSWIFTV2
+}

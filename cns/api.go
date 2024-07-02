@@ -35,6 +35,10 @@ const (
 	V1Prefix                      = "/v0.1"
 	V2Prefix                      = "/v0.2"
 	EndpointPath                  = "/network/endpoints/"
+	// Service Fabric SWIFTV2 mode
+	StandaloneSWIFTV2 SWIFTV2Mode = "StandaloneSWIFTV2"
+	// K8s SWIFTV2 mode
+	K8sSWIFTV2 SWIFTV2Mode = "K8sSWIFTV2"
 )
 
 // HTTPService describes the min API interface that every service should have.
@@ -59,7 +63,11 @@ type IPConfigsHandlerFunc func(context.Context, IPConfigsRequest) (*IPConfigsRes
 // IPConfigsHandlerMiddleware
 type IPConfigsHandlerMiddleware interface {
 	IPConfigsRequestHandlerWrapper(defaultHandler IPConfigsHandlerFunc, failureHandler IPConfigsHandlerFunc) IPConfigsHandlerFunc
+	Type() SWIFTV2Mode
 }
+
+// SWIFTV2Mode describes the orchestrator-related scenario for swiftv2 flow, used in CNSConfig
+type SWIFTV2Mode string
 
 // This is used for KubernetesCRD orchestrator Type where NC has multiple ips.
 // This struct captures the state for SecondaryIPs associated to a given NC
