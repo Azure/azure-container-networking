@@ -313,7 +313,13 @@ spec:
         imagePullPolicy: IfNotPresent
         command: [/ipv6-hp-bpf]
         securityContext:
-          privileged: true
+          capabilities:
+            add:
+            - NET_ADMIN
+            - IPC_LOCK
+            - SYS_ADMIN
+            drop:
+            - ALL
         volumeMounts:
         - mountPath: /var/log
           name: ipv6-hp-bpf
