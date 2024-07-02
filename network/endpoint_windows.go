@@ -415,6 +415,7 @@ func (nw *network) newEndpointImplHnsV2(cli apipaClient, epInfo *EndpointInfo) (
 		ContainerID:              epInfo.ContainerID,
 		PODName:                  epInfo.PODName,
 		PODNameSpace:             epInfo.PODNameSpace,
+		HNSNetworkID:             epInfo.HNSNetworkID,
 		NICType:                  epInfo.NICType,
 	}
 
