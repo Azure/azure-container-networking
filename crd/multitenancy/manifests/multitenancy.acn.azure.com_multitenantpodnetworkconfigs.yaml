@@ -100,7 +100,8 @@ spec:
                       description: PrimaryIP is the ip allocated to the network container
                       type: string
                     subnetAddressSpace:
-                      description: SubnetAddressSpace is the address space of the injected subnet
+                      description: SubnetAddressSpace is the subnet address space
+                        of the injected subnet
                       type: string
                   type: object
                 type: array
