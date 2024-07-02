@@ -32,8 +32,8 @@ func NewFileLock(fileAbsPath string) (Interface, error) {
 		return nil, ErrEmptyFilePath
 	}
 
-	//nolint:gomnd //0o664 - permission to create directory in octal
-	err := os.MkdirAll(filepath.Dir(fileAbsPath), os.FileMode(0o664))
+	//nolint:gomnd //0o755 - permission to create directory in octal
+	err := os.MkdirAll(filepath.Dir(fileAbsPath), os.FileMode(0o755))
 	if err != nil {
 		return nil, errors.Wrap(err, "mkdir lock dir returned error")
 	}
