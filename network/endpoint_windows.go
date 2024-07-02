@@ -427,9 +427,6 @@ func (nw *network) newEndpointImplHnsV2(cli apipaClient, epInfo *EndpointInfo) (
 
 	epInfo.HNSEndpointID = hnsResponse.Id // we use the ep info hns id later in stateless to clean up in ADD if there is an error
 
-	// TODO: Confirm with TM: when we delete an endpoint, this code is to find ifName from endpoint and then we can delete this endpoint
-	// TODO: deal with ep.SecondaryInterfaces here at all anymore?
-
 	return ep, nil
 }
 

@@ -481,6 +481,7 @@ type PodIpInfo struct {
 	SkipDefaultRoutes bool
 	// Routes to configure on interface
 	Routes []Route
+	PnPID  string
 }
 
 type HostIPInfo struct {

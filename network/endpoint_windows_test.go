@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/network/hnswrapper"
 )
 
@@ -205,5 +206,38 @@ func TestDeleteEndpointImplHnsv1Timeout(t *testing.T) {
 
 	if err == nil {
 		t.Fatal("Failed to timeout HNS calls for deleting endpoint")
+	}
+}
+
+func TestNewEndpointImplHnsV2ForBackendNIC(t *testing.T) {
+	nw := &network{
+		Endpoints: map[string]*endpoint{},
+	}
+
+	// this hnsv2 variable overwrites the package level variable in network
+	// we do this to avoid passing around os specific objects in platform agnostic code
+	Hnsv2 = hnswrapper.Hnsv2wrapperwithtimeout{
+		Hnsv2: hnswrapper.NewHnsv2wrapperFake(),
+	}
+
+	epInfo := &EndpointInfo{
+		EndpointID:  "753d3fb6-e9b3-49e2-a109-2acc5dda61f1",
+		ContainerID: "545055c2-1462-42c8-b222-e75d0b291632",
+		NetNsPath:   "fakeNameSpace",
+		IfName:      "eth0",
+		Data:        make(map[string]interface{}),
+		EndpointDNS: DNSInfo{
+			Suffix:  "10.0.0.0",
+			Servers: []string{"10.0.0.1, 10.0.0.2"},
+			Options: nil,
+		},
+		MacAddress: net.HardwareAddr("00:00:5e:00:53:01"),
+		NICType:    cns.BackendNIC,
+	}
+
+	// should return nil if nicType is BackendNIC
+	endpoint, err := nw.newEndpointImplHnsV2(nil, epInfo)
+	if endpoint != nil && err != nil {
+		t.Fatal("HNS Endpoint is created with BackendNIC")
 	}
 }

@@ -5,6 +5,7 @@ package network
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"sync"
 	"time"
@@ -119,6 +120,12 @@ type NetworkManager interface {
 	DeleteState(epInfos []*EndpointInfo) error
 	GetEndpointInfosFromContainerID(containerID string) []*EndpointInfo
 	GetEndpointState(networkID, containerID string) ([]*EndpointInfo, error)
+
+	GetPnPDeviceID(instanceID string) (string, error)
+	DisableVFDevice(instanceID string) error
+	DisamountVFDevice(instanceID string) error
+	GetLocationPath(instanceID string) (string, error)
+	GetPnpDeviceState(instanceID string) (string, error)
 }
 
 // Creates a new network manager.
@@ -522,7 +529,7 @@ func (nm *networkManager) DeleteEndpointState(networkID string, epInfo *Endpoint
 			return err
 		}
 	}
-	if epInfo.NICType == cns.DelegatedVMNIC {
+	if epInfo.NICType == cns.DelegatedVMNIC || epInfo.NICType == cns.BackendNIC {
 		// we are currently assuming stateless is not running in linux
 		// CHECK: could this affect linux? (if it does, it could disconnect external interface, is that okay?)
 		// bad only when 1) stateless and 2) linux and 3) delegated vmnics exist
@@ -825,4 +832,87 @@ func generateCNSIPInfoMap(eps []*endpoint) map[string]*restserver.IPInfo {
 	}
 
 	return ifNametoIPInfoMap
+}
+
+// Get PnP Device ID
+func (nm *networkManager) GetPnPDeviceID(instanceID string) (string, error) {
+	getLocationPath := fmt.Sprintf("(Get-PnpDeviceProperty -KeyName DEVPKEY_Device_LocationPaths –InstanceId \"%s\").Data[0]", instanceID)
+	locationPath, err := nm.plClient.ExecutePowershellCommand(getLocationPath)
+	if err != nil {
+		errMsg := fmt.Sprintf("Failed to get VF locationPath due to error \"%s\"", err.Error())
+		return "", errors.Errorf(errMsg)
+	}
+
+	getPnPDeviceID := fmt.Sprintf("(Get-VMHostAssignableDevice | Where-Object LocationPath -eq \"%s\").InstanceID", locationPath)
+	pnpDeviceID, err := nm.plClient.ExecutePowershellCommand(getPnPDeviceID)
+	if err != nil {
+		logger.Error("Failed to get PnP device ID", zap.Error(err))
+		errMsg := fmt.Sprintf("Failed to get PnP device ID due to error %s", err.Error())
+		return "", errors.Errorf(errMsg)
+	}
+
+	logger.Info("Successfully got", zap.String("new device pciID", pnpDeviceID))
+	return pnpDeviceID, nil
+}
+
+// Disable VF device
+func (nm *networkManager) DisableVFDevice(instanceID string) error {
+	disableVFDevice := fmt.Sprintf("Disable-PnpDevice -InstanceId \"%s\" -confirm:$false", instanceID)
+	_, err := nm.plClient.ExecutePowershellCommand(disableVFDevice)
+	if err != nil {
+		logger.Error("Failed to disable VF device", zap.Error(err))
+		errMsg := fmt.Sprintf("Failed to disable VF device due to error %s", err.Error())
+		return errors.Errorf(errMsg)
+	}
+
+	logger.Info("Successfully disabled", zap.String("VF device", instanceID))
+	return nil
+}
+
+// Dismount VF device
+func (nm *networkManager) DisamountVFDevice(instanceID string) error {
+	locationPath, err := nm.GetLocationPath(instanceID)
+	if err != nil {
+		return err
+	}
+
+	disamountVFDevice := fmt.Sprintf("Dismount-VMHostAssignableDevice -Force -LocationPath \"%s\" -confirm:$false", locationPath)
+	_, err = nm.plClient.ExecutePowershellCommand(disamountVFDevice)
+	if err != nil {
+		logger.Error("Failed to dismount VF device", zap.Error(err))
+		errMsg := fmt.Sprintf("Failed to disamount VF device due to error %s", err.Error())
+		return errors.Errorf(errMsg)
+	}
+
+	logger.Info("Successfully dismounted", zap.String("VF device", instanceID))
+	return nil
+}
+
+// Get LocationPath
+func (nm *networkManager) GetLocationPath(instanceID string) (string, error) {
+	getLocationPath := fmt.Sprintf("(Get-PnpDeviceProperty -KeyName DEVPKEY_Device_LocationPaths –InstanceId \"%s\").Data[0]", instanceID)
+	locationPath, err := nm.plClient.ExecutePowershellCommand(getLocationPath)
+	if err != nil {
+		logger.Error("Failed to get VF locationPath", zap.Error(err))
+		errMsg := fmt.Sprintf("Failed to get VF locationPath due to error %s", err.Error())
+		return "", errors.Errorf(errMsg)
+	}
+
+	logger.Info("Successfully got", zap.String("location path", locationPath))
+	return locationPath, nil
+}
+
+// Get PnP device state
+func (nm *networkManager) GetPnpDeviceState(instanceID string) (string, error) {
+	getPnpDeviceState := fmt.Sprintf("Get-PnpDevice -PresentOnly -InstanceId \"%s\"", instanceID)
+	deviceState, err := nm.plClient.ExecutePowershellCommand(getPnpDeviceState)
+	if err != nil {
+		logger.Error("Failed to get PnP device state", zap.Error(err))
+		errMsg := fmt.Sprintf("Failed to get get PnP device state due to error %s", err.Error())
+		return "", errors.Errorf(errMsg)
+	}
+
+	logger.Info("Successfully got", zap.String("device state", deviceState))
+	return deviceState, nil
+
 }

@@ -109,8 +109,7 @@ type EndpointInfo struct {
 	Options                       map[string]interface{}
 	DisableHairpinOnHostInterface bool
 	IsIPv6Enabled                 bool
-
-	HostSubnetPrefix string // can be used later to add an external interface
+	HostSubnetPrefix              string // can be used later to add an external interface
 }
 
 // RouteInfo contains information about an IP route.
@@ -136,6 +135,7 @@ type InterfaceInfo struct {
 	SkipDefaultRoutes bool
 	HostSubnetPrefix  net.IPNet // Move this field from ipamAddResult
 	NCResponse        *cns.GetNetworkContainerResponse
+	PnPID             string
 }
 
 type IPConfig struct {

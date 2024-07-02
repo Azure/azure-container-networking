@@ -210,3 +210,23 @@ func (nm *MockNetworkManager) GetEndpointInfosFromContainerID(containerID string
 func (nm *MockNetworkManager) GetEndpointState(_, _ string) ([]*EndpointInfo, error) {
 	return []*EndpointInfo{}, nil
 }
+
+func (nm *MockNetworkManager) DisableVFDevice(_ string) error {
+	return nil
+}
+
+func (nm *MockNetworkManager) DisamountVFDevice(_ string) error {
+	return nil
+}
+
+func (nm *MockNetworkManager) GetLocationPath(_ string) (string, error) {
+	return "", nil
+}
+
+func (nm *MockNetworkManager) GetPnPDeviceID(_ string) (string, error) {
+	return "", nil
+}
+
+func (nm *MockNetworkManager) GetPnpDeviceState(_ string) (string, error) {
+	return "", nil
+}
