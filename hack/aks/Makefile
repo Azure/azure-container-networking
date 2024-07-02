@@ -133,6 +133,16 @@ overlay-byocni-nokubeproxy-up: rg-up overlay-net-up ## Brings up an Overlay BYO 
 	@$(MAKE) set-kubeconf
 
 overlay-cilium-up: rg-up overlay-net-up ## Brings up an Overlay Cilium cluster
+	$(AZCLI) publicIpName="public-ip-overlay-cilium"
+	$(AZCLI) az network public-ip create --name $publicIpName \
+		--resource-group $(GROUP) \
+		--allocation-method Static \
+		--ip-tags 'FirstPartyUsage=/TestTagging-O365' \
+		--location $LOCATION \
+		--sku Standard \
+		--tier Regional \
+		--version IPv4
+	$(AZCLI) publicIpId=$(az network public-ip show -g $RG -n $publicIpName --query id -o tsv)
 	$(AZCLI) aks create -n $(CLUSTER) -g $(GROUP) -l $(REGION) \
 		--auto-upgrade-channel $(AUTOUPGRADE) \
 		--node-os-upgrade-channel $(NODEUPGRADE) \
@@ -140,6 +150,7 @@ overlay-cilium-up: rg-up overlay-net-up ## Brings up an Overlay Cilium cluster
 		--node-count $(NODE_COUNT) \
 		--node-vm-size $(VM_SIZE) \
 		--load-balancer-sku basic \
+		--load-balancer-outbound-ips $publicIpId \
 		--network-plugin azure \
 		--network-dataplane cilium \
 		--network-plugin-mode overlay \
@@ -445,8 +456,22 @@ down: ## Delete the cluster
 	@$(MAKE) unset-kubeconf
 	@$(MAKE) rg-down
 
+#clean-public-ip:
+#	$(AZCLI) Remove-AzPublicIpAddress -Name $publicIpName -ResourceGroupName $(GROUP)
+
 restart-vmss: ## Restarts the nodes in the cluster
 	$(AZCLI) vmss restart -g MC_${GROUP}_${CLUSTER}_${REGION} --name $(VMSS_NAME)
 
 scale-vmss: ## Scales the nodes in the cluster
 	$(AZCLI) vmss scale -g MC_${GROUP}_${CLUSTER}_${REGION} --name $(VMSS_NAME) --new-capacity $(NODE_COUNT)
+
+#publicIp:
+#	$(AZCLI) publicIpName="public-ip-$ado_run_id"
+#	az network public-ip create --name $publicIpName \
+#		--resource-group $RG \
+#		--allocation-method Static \
+#		--ip-tags 'FirstPartyUsage=/TestTagging-O365' \
+#		--location $LOCATION \
+#		--sku Standard \
+#		--tier Regional \
+#		--version IPv4

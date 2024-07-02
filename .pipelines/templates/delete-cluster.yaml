@@ -15,6 +15,5 @@ steps:
         make -C ./hack/aks azcfg AZCLI=az REGION=${{ parameters.region }}
         make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}
         make -C ./hack/aks down AZCLI=az REGION=${{ parameters.region }} SUB=$(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS) CLUSTER=${{ parameters.clusterName }}
-        echo "Cluster and resources down"
     name: delete
     displayName: Delete - ${{ parameters.name }}
