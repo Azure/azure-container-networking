@@ -525,7 +525,7 @@ stages:
         clusterType: swiftv2-multitenancy-cluster-up
         clusterName: "mtacluster"
         nodePoolName: "mtapool"
-        vmSize: Standard_D4_v2
+        vmSize: $(SWIFTV2_MT_CLUSTER_SKU)
         dependsOn: "test"
         dummyClusterName: "swiftv2dummy"
         dummyClusterType: "swiftv2-dummy-cluster-up"
