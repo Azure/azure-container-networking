@@ -43,7 +43,6 @@ func (service *HTTPRestService) setNetworkInfo(networkName string, networkInfo *
 func (service *HTTPRestService) SavePnpIDMacaddressMapping(ctx context.Context) error {
 	// If mapping is already set, skip setting it again.
 	if len(service.state.PnpIDByMacAddress) != 0 {
-		logger.Printf("[Debug]State file already has mapping")
 		for key, value := range service.state.PnpIDByMacAddress {
 			fmt.Printf("%s: %s\n", key, value)
 		}

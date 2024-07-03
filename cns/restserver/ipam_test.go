@@ -163,7 +163,7 @@ func UpdatePodIPConfigState(t *testing.T, svc *HTTPRestService, ipconfigs map[st
 }
 
 func updatePnpIDMacAddressState(svc *HTTPRestService) {
-	svc.PnpIDByMacAddress = map[string]string{
+	svc.state.PnpIDByMacAddress = map[string]string{
 		"00:00:00:00:00:00": "pnpid/pciid",
 	}
 }

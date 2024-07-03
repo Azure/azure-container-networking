@@ -222,8 +222,6 @@ func (p *execClient) ExecutePowershellCommandWithContext(ctx context.Context, co
 	err = cmd.Run()
 	if err != nil {
 		ErrPowershellExecution := errors.New("failed to execute powershell command")
-		log.Errorf("powershell error: %v", err)
-		log.Errorf("stdout powershell error: %s", stderr.String())
 		return "", fmt.Errorf("%w:%s", ErrPowershellExecution, stderr.String())
 	}
 
@@ -390,7 +388,7 @@ func FetchMacAddressPnpIDMapping(ctx context.Context, execClient ExecClient) (ma
 	defer cancel() // The cancel should be deferred so resources are cleaned up
 	output, err := execClient.ExecutePowershellCommandWithContext(ctx, GetMacAddressVFPPnpIDMapping)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to execute powershell command")
+		return nil, errors.Wrap(err, "failed to fetch VF mapping")
 	}
 	result := make(map[string]string)
 	if output != "" {
@@ -401,13 +399,11 @@ func FetchMacAddressPnpIDMapping(ctx context.Context, execClient ExecClient) (ma
 			// Split based on " " to fetch the macaddress and pci id
 			parts := strings.Split(line, " ")
 			// Changing the format of macaddress from xx-xx-xx-xx to xx:xx:xx:xx
-			log.Printf("after split: %s", parts)
 			formattedMacaddress, err := net.ParseMAC(parts[0])
 			if err != nil {
 				return nil, errors.Wrap(err, "failed to fetch MACAddressPnpIDMapping")
 			}
 			key := formattedMacaddress.String()
-			log.Printf("key: %s", key)
 			value := parts[1]
 			result[key] = value
 		}

@@ -863,7 +863,7 @@ func main() {
 
 		if cnsconfig.EnableSwiftV2 {
 			// No-op for linux, mapping is set for windows in aks swiftv2 scenario
-			logger.Printf("Fetcing backend nics for debug")
+			logger.Printf("Fetching backend nics for the node")
 			if err = httpRemoteRestService.SavePnpIDMacaddressMapping(rootCtx); err != nil {
 				logger.Errorf("Failed to fetch PnpIDMacaddress mapping: %v", err)
 			}
