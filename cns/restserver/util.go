@@ -43,10 +43,6 @@ func (service *HTTPRestService) setNetworkInfo(networkName string, networkInfo *
 func (service *HTTPRestService) SavePnpIDMacaddressMapping(ctx context.Context) error {
 	// If mapping is already set, skip setting it again.
 	if len(service.state.PnpIDByMacAddress) != 0 {
-		for key, value := range service.state.PnpIDByMacAddress {
-			fmt.Printf("%s: %s\n", key, value)
-		}
-
 		return nil
 	}
 	p := platform.NewExecClient(nil)
@@ -55,14 +51,15 @@ func (service *HTTPRestService) SavePnpIDMacaddressMapping(ctx context.Context) 
 		return errors.Wrap(err, "failed to fetch MACAddressPnpIDMapping")
 	}
 	service.state.PnpIDByMacAddress = vfMacAddressMapping
-	service.saveState()
+	if err = service.saveState(); err != nil {
+		logger.Errorf("Failed to save mapping to statefile: %v", err)
+	}
 	return nil
 }
 
 func (service *HTTPRestService) getPNPIDFromMacAddress(ctx context.Context, macAddress string) (string, error) {
-	var err error
 	if len(service.state.PnpIDByMacAddress) != 0 {
-		if err = service.SavePnpIDMacaddressMapping(ctx); err != nil {
+		if err := service.SavePnpIDMacaddressMapping(ctx); err != nil {
 			return "", err
 		}
 	}
