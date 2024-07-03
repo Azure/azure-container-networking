@@ -182,6 +182,11 @@ func (k *K8sSWIFTv2Middleware) getIPConfig(ctx context.Context, podInfo cns.PodI
 			if prefixSize != prefixLength {
 				return nil, errors.Wrapf(errInvalidMTPNCPrefixLength, "mtpnc primaryIP prefix length is %d", prefixSize)
 			}
+			// Parse MTPNC SubnetAddressSpace to get the subnet prefix length
+			subnet, subnetPrefix, err := utils.ParseIPAndPrefix(interfaceInfo.PrimaryIP)
+			if err != nil {
+				return nil, errors.Wrap(err, "failed to parse mtpnc subnetAddressSpace prefix")
+			}
 
 			var nicType cns.NICType
 			switch {
@@ -204,7 +209,16 @@ func (k *K8sSWIFTv2Middleware) getIPConfig(ctx context.Context, podInfo cns.PodI
 				NICType:           nicType,
 				SkipDefaultRoutes: false,
 				HostPrimaryIPInfo: cns.HostIPInfo{
-					Gateway: interfaceInfo.GatewayIP,
+					Gateway:   interfaceInfo.GatewayIP,
+					PrimaryIP: ip,
+					Subnet:    interfaceInfo.SubnetAddressSpace,
+				},
+				NetworkContainerPrimaryIPConfig: cns.IPConfiguration{
+					IPSubnet: cns.IPSubnet{
+						IPAddress:    subnet,
+						PrefixLength: uint8(subnetPrefix),
+					},
+					GatewayIPAddress: interfaceInfo.GatewayIP,
 				},
 			}
 		}
