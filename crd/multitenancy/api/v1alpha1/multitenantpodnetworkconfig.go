@@ -58,6 +58,9 @@ type InterfaceInfo struct {
 	// GatewayIP is the gateway ip of the injected subnet
 	// +kubebuilder:validation:Optional
 	GatewayIP string `json:"gatewayIP,omitempty"`
+	// SubnetAddressSpace is the subnet address space of the injected subnet
+	// +kubebuilder:validation:Optional
+	SubnetAddressSpace string `json:"subnetAddressSpace,omitempty"`
 	// DeviceType is the device type that this NC was created for
 	DeviceType DeviceType `json:"deviceType,omitempty"`
 	// AccelnetEnabled determines if the CNI will provision the NIC with accelerated networking enabled
