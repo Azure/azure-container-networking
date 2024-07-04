@@ -12,6 +12,7 @@ import (
 // +kubebuilder:object:root=true
 
 // NodeInfo is the Schema for the NodeInfo API
+// +kubebuilder:subresource:status
 // +kubebuilder:resource:shortName=ni,scope=Cluster,path=nodeinfo
 // +kubebuilder:printcolumn:name="VMUniqueID",type=string,priority=0,JSONPath=`.spec.vmUniqueID`
 // +kubebuilder:printcolumn:name="Status",type=string,priority=1,JSONPath=`.status.status`
