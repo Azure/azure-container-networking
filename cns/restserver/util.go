@@ -58,7 +58,8 @@ func (service *HTTPRestService) SavePnpIDMacaddressMapping(ctx context.Context) 
 }
 
 func (service *HTTPRestService) getPNPIDFromMacAddress(ctx context.Context, macAddress string) (string, error) {
-	if len(service.state.PnpIDByMacAddress) != 0 {
+	// If map is empty in state file, CNS needs to populate state file before it returns back the response
+	if len(service.state.PnpIDByMacAddress) == 0 {
 		if err := service.SavePnpIDMacaddressMapping(ctx); err != nil {
 			return "", err
 		}
@@ -66,7 +67,7 @@ func (service *HTTPRestService) getPNPIDFromMacAddress(ctx context.Context, macA
 	if _, ok := service.state.PnpIDByMacAddress[macAddress]; !ok {
 		return "", errors.New("Backend Network adapter not found")
 	}
-	return service.PnpIDByMacAddress[macAddress], nil
+	return service.state.PnpIDByMacAddress[macAddress], nil
 }
 
 // Remove the network info from the service network state

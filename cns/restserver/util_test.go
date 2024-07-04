@@ -1,6 +1,7 @@
 package restserver
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -158,4 +159,22 @@ func TestDeleteNCs(t *testing.T) {
 			assert.Equal(t, tt.want4, ncs)
 		})
 	}
+}
+
+func TestGetPnpIDMapping(t *testing.T) {
+	svc := getTestService()
+	svc.state.PnpIDByMacAddress = map[string]string{
+		"macaddress1": "value1",
+	}
+	pnpId, _ := svc.getPNPIDFromMacAddress(context.Background(), "macaddress1")
+	assert.NotEmpty(t, pnpId)
+
+	// Backend network adapter not found
+	_, err := svc.getPNPIDFromMacAddress(context.Background(), "macaddress8")
+	assert.Error(t, err)
+
+	// Empty pnpidmacaddress mapping
+	svc.state.PnpIDByMacAddress = map[string]string{}
+	_, err = svc.getPNPIDFromMacAddress(context.Background(), "macaddress8")
+	assert.Error(t, err)
 }

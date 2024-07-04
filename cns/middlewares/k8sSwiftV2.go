@@ -212,7 +212,7 @@ func (k *K8sSWIFTv2Middleware) getIPConfig(ctx context.Context, podInfo cns.PodI
 			default:
 				nicType = cns.DelegatedVMNIC
 			}
-			if nicType != cns.BackendNIC {
+			if nicType != cns.NodeNetworkInterfaceBackendNIC {
 				// Parse MTPNC primaryIP to get the IP address and prefix length
 				ip, prefixSize, err = utils.ParseIPAndPrefix(interfaceInfo.PrimaryIP)
 				if err != nil {
