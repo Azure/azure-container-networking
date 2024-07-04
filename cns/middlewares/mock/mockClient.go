@@ -61,6 +61,7 @@ func NewClient() *Client {
 		GatewayIP:       "10.0.0.1",
 		DeviceType:      v1alpha1.DeviceTypeVnetNIC,
 		AccelnetEnabled: false,
+		SubnetAddressSpace: "192.168.0.0/24",
 	}
 	testInterfaceInfos3 := v1alpha1.InterfaceInfo{
 		NCID:            "testncid",
@@ -69,6 +70,7 @@ func NewClient() *Client {
 		GatewayIP:       "10.0.0.1",
 		DeviceType:      v1alpha1.DeviceTypeVnetNIC,
 		AccelnetEnabled: false,
+		SubnetAddressSpace: "192.168.0.0/24",
 	}
 	testInterfaceInfos5 := v1alpha1.InterfaceInfo{
 		NCID:            "testncid",
@@ -77,6 +79,7 @@ func NewClient() *Client {
 		GatewayIP:       "10.0.0.1",
 		DeviceType:      v1alpha1.DeviceTypeInfiniBandNIC,
 		AccelnetEnabled: true,
+		SubnetAddressSpace: "192.168.0.0/24",
 	}
 
 	testMTPNC1 := v1alpha1.MultitenantPodNetworkConfig{
@@ -154,6 +157,7 @@ func (c *Client) SetMTPNCReady() {
 		GatewayIP:       "10.0.0.1",
 		DeviceType:      v1alpha1.DeviceTypeVnetNIC,
 		AccelnetEnabled: false,
+		SubnetAddressSpace: "192.168.0.0/24",
 	}
 
 	testMTPNC1 := v1alpha1.MultitenantPodNetworkConfig{}
