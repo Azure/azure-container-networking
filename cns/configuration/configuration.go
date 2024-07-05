@@ -59,7 +59,6 @@ type CNSConfig struct {
 	WatchPods                   bool `json:"-"`
 	WireserverIP                string
 	GRPCSettings                GRPCSettings
-	BackendNICEnabled           bool
 }
 
 type TelemetrySettings struct {

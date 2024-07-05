@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestAreNCsPresent(t *testing.T) {
@@ -166,15 +167,15 @@ func TestGetPnpIDMapping(t *testing.T) {
 	svc.state.PnpIDByMacAddress = map[string]string{
 		"macaddress1": "value1",
 	}
-	pnpId, _ := svc.getPNPIDFromMacAddress(context.Background(), "macaddress1")
-	assert.NotEmpty(t, pnpId)
+	pnpID, _ := svc.getPNPIDFromMacAddress(context.Background(), "macaddress1")
+	require.NotEmpty(t, pnpID)
 
 	// Backend network adapter not found
 	_, err := svc.getPNPIDFromMacAddress(context.Background(), "macaddress8")
-	assert.Error(t, err)
+	require.Error(t, err)
 
 	// Empty pnpidmacaddress mapping
 	svc.state.PnpIDByMacAddress = map[string]string{}
 	_, err = svc.getPNPIDFromMacAddress(context.Background(), "macaddress8")
-	assert.Error(t, err)
+	require.Error(t, err)
 }
