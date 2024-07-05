@@ -62,6 +62,10 @@ func NewClient() *Client {
 	testPod9.Labels = make(map[string]string)
 	testPod9.Labels[configuration.LabelPodSwiftV2] = podNetwork
 
+	testPod10 := v1.Pod{}
+	testPod10.Labels = make(map[string]string)
+	testPod10.Labels[configuration.LabelPodNetworkInstanceSwiftV2] = podNetwork
+
 	testInterfaceInfos1 := v1alpha1.InterfaceInfo{
 		NCID:            "testncid",
 		PrimaryIP:       "192.168.0.1/32",
@@ -154,26 +158,33 @@ func NewClient() *Client {
 		},
 	}
 
+	// Mtpnc with just Infiniband interface
+	testMTPNC10 := v1alpha1.MultitenantPodNetworkConfig{
+		Status: v1alpha1.MultitenantPodNetworkConfigStatus{},
+	}
+
 	return &Client{
 		mtPodCache: map[string]*v1.Pod{
-			"testpod1namespace/testpod1": &testPod1,
-			"testpod3namespace/testpod3": &testPod3,
-			"testpod4namespace/testpod4": &testPod4,
-			"testpod5namespace/testpod5": &testPod5,
-			"testpod6namespace/testpod6": &testPod6,
-			"testpod7namespace/testpod7": &testPod7,
-			"testpod8namespace/testpod8": &testPod8,
-			"testpod9namespace/testpod9": &testPod9,
+			"testpod1namespace/testpod1":   &testPod1,
+			"testpod3namespace/testpod3":   &testPod3,
+			"testpod4namespace/testpod4":   &testPod4,
+			"testpod5namespace/testpod5":   &testPod5,
+			"testpod6namespace/testpod6":   &testPod6,
+			"testpod7namespace/testpod7":   &testPod7,
+			"testpod8namespace/testpod8":   &testPod8,
+			"testpod9namespace/testpod9":   &testPod9,
+			"testpod10namespace/testpod10": &testPod10,
 		},
 		mtpncCache: map[string]*v1alpha1.MultitenantPodNetworkConfig{
-			"testpod1namespace/testpod1": &testMTPNC1,
-			"testpod2namespace/testpod2": &testMTPNC2,
-			"testpod4namespace/testpod4": &testMTPNC4,
-			"testpod5namespace/testpod5": &testMTPNC3,
-			"testpod6namespace/testpod6": &testMTPNC5,
-			"testpod7namespace/testpod7": &testMTPNCMulti,
-			"testpod8namespace/testpod8": &testMTPNC8,
-			"testpod9namespace/testpod9": &testMTPNC9,
+			"testpod1namespace/testpod1":   &testMTPNC1,
+			"testpod2namespace/testpod2":   &testMTPNC2,
+			"testpod4namespace/testpod4":   &testMTPNC4,
+			"testpod5namespace/testpod5":   &testMTPNC3,
+			"testpod6namespace/testpod6":   &testMTPNC5,
+			"testpod7namespace/testpod7":   &testMTPNCMulti,
+			"testpod8namespace/testpod8":   &testMTPNC8,
+			"testpod9namespace/testpod9":   &testMTPNC9,
+			"testpod10namespace/testpod10": &testMTPNC10,
 		},
 	}
 }
