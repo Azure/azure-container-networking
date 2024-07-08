@@ -63,6 +63,10 @@ stages:
               name: cni
               os: windows
               os_version: ltsc2022
+            ipv6_hp_bpf_linux_amd64:
+              arch: amd64
+              name: ipv6-hp-bpf
+              os: linux
             npm_linux_amd64:
               arch: amd64
               name: npm
@@ -92,6 +96,10 @@ stages:
             cni_linux_arm64:
               arch: arm64
               name: cni
+              os: linux
+            ipv6_hp_bpf_linux_arm64:
+              arch: arm64
+              name: ipv6-hp-bpf
               os: linux
             npm_linux_arm64:
               arch: arm64
@@ -154,6 +162,9 @@ stages:
               name: cni
               os_versions: ltsc2019 ltsc2022
               platforms: linux/amd64 linux/arm64 windows/amd64
+            ipv6-hp-bpf:
+              name: ipv6-hp-bpf
+              platforms: linux/amd64 linux/arm64
             npm:
               name: npm
               os_versions: ltsc2022
