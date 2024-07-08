@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"net"
 	"os"
 	"os/exec"
 	"strings"
@@ -72,6 +73,9 @@ const (
 	CheckIfHNSStatePathExistsCommand = "Test-Path " +
 		"-Path HKLM:\\SYSTEM\\CurrentControlSet\\Services\\hns\\State"
 
+	// Command to fetch netadapter and pnp id
+	GetMacAddressVFPPnpIDMapping = "Get-NetAdapter | Select-Object MacAddress, PnpDeviceID| Format-Table -HideTableHeaders"
+
 	// Command to restart HNS service
 	RestartHnsServiceCommand = "Restart-Service -Name hns"
 
@@ -82,6 +86,8 @@ const (
 	// reg key value for PriorityVLANTag = 3  --> Packet priority and VLAN enabled
 	// for more details goto https://learn.microsoft.com/en-us/windows-hardware/drivers/network/standardized-inf-keywords-for-ndis-qos
 	desiredVLANTagForMellanox = 3
+	// Powershell command timeout
+	ExecTimeout = 10 * time.Second
 )
 
 // Flag to check if sdnRemoteArpMacAddress registry key is set
@@ -189,6 +195,34 @@ func (p *execClient) ExecutePowershellCommand(command string) (string, error) {
 	err = cmd.Run()
 	if err != nil {
 		return "", fmt.Errorf("%s:%s", err.Error(), stderr.String())
+	}
+
+	return strings.TrimSpace(stdout.String()), nil
+}
+
+// ExecutePowershellCommandWithContext executes powershell command wth context
+func (p *execClient) ExecutePowershellCommandWithContext(ctx context.Context, command string) (string, error) {
+	ps, err := exec.LookPath("powershell.exe")
+	if err != nil {
+		return "", errors.New("failed to find powershell executable")
+	}
+
+	if p.logger != nil {
+		p.logger.Info("[Azure-Utils]", zap.String("command", command))
+	} else {
+		log.Printf("[Azure-Utils] %s", command)
+	}
+
+	cmd := exec.CommandContext(ctx, ps, command)
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
+
+	err = cmd.Run()
+	if err != nil {
+		ErrPowershellExecution := errors.New("failed to execute powershell command")
+		return "", fmt.Errorf("%w:%s", ErrPowershellExecution, stderr.String())
 	}
 
 	return strings.TrimSpace(stdout.String()), nil
@@ -342,4 +376,37 @@ func ReplaceFile(source, destination string) error {
 	}
 
 	return windows.MoveFileEx(src, dest, windows.MOVEFILE_REPLACE_EXISTING|windows.MOVEFILE_WRITE_THROUGH)
+}
+
+/*
+Output:
+6C-A1-00-50-E4-2D PCI\VEN_8086&DEV_2723&SUBSYS_00808086&REV_1A\4&328243d9&0&00E0
+80-6D-97-1E-CF-4E USB\VID_17EF&PID_A359\3010019E3
+*/
+func FetchMacAddressPnpIDMapping(ctx context.Context, execClient ExecClient) (map[string]string, error) {
+	ctx, cancel := context.WithTimeout(ctx, ExecTimeout)
+	defer cancel() // The cancel should be deferred so resources are cleaned up
+	output, err := execClient.ExecutePowershellCommandWithContext(ctx, GetMacAddressVFPPnpIDMapping)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to fetch VF mapping")
+	}
+	result := make(map[string]string)
+	if output != "" {
+		// Split the output based on new line characters
+		lines := strings.Split(output, "\n")
+		for _, line := range lines {
+			line = strings.TrimSpace(line)
+			// Split based on " " to fetch the macaddress and pci id
+			parts := strings.Split(line, " ")
+			// Changing the format of macaddress from xx-xx-xx-xx to xx:xx:xx:xx
+			formattedMacaddress, err := net.ParseMAC(parts[0])
+			if err != nil {
+				return nil, errors.Wrap(err, "failed to fetch MACAddressPnpIDMapping")
+			}
+			key := formattedMacaddress.String()
+			value := parts[1]
+			result[key] = value
+		}
+	}
+	return result, nil
 }

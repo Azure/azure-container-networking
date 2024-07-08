@@ -43,6 +43,7 @@ const (
 	NmAgentInternalServerError             ResponseCode = 41
 	StatusUnauthorized                     ResponseCode = 42
 	UnsupportedAPI                         ResponseCode = 43
+	FailedToAllocateBackendConfig          ResponseCode = 44
 	UnexpectedError                        ResponseCode = 99
 )
 
@@ -123,6 +124,8 @@ func (c ResponseCode) String() string {
 		return "NmAgentInternalServerError"
 	case StatusUnauthorized:
 		return "StatusUnauthorized"
+	case FailedToAllocateBackendConfig:
+		return "FailedToAllocateBackendConfig"
 	default:
 		return "UnknownError"
 	}

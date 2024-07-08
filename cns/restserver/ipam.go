@@ -47,9 +47,30 @@ func (service *HTTPRestService) requestIPConfigHandlerHelper(ctx context.Context
 		}, errors.New("failed to validate ip config request")
 	}
 
+	var podIPInfoResult []cns.PodIpInfo
+	if ipconfigsRequest.BackendInterfaceExist {
+		for _, bNICMacAddress := range ipconfigsRequest.BackendInterfaceMacAddresses {
+			PnPID, err := service.getPNPIDFromMacAddress(ctx, bNICMacAddress)
+			if err != nil {
+				return &cns.IPConfigsResponse{
+					Response: cns.Response{
+						ReturnCode: types.FailedToAllocateIPConfig,
+						Message:    fmt.Sprintf("BackendNIC allocation failed: %v, config request is %v", err, ipconfigsRequest),
+					},
+					PodIPInfo: []cns.PodIpInfo{},
+				}, err
+			}
+			podBackendInfo := cns.PodIpInfo{
+				MacAddress: bNICMacAddress,
+				NICType:    cns.BackendNIC,
+				PnPID:      PnPID,
+			}
+			podIPInfoResult = append(podIPInfoResult, podBackendInfo)
+		}
+	}
+
 	// record a pod requesting an IP
 	service.podsPendingIPAssignment.Push(podInfo.Key())
-
 	podIPInfo, err := requestIPConfigsHelper(service, ipconfigsRequest) //nolint:contextcheck // appease linter for revert PR
 	if err != nil {
 		return &cns.IPConfigsResponse{
@@ -83,11 +104,12 @@ func (service *HTTPRestService) requestIPConfigHandlerHelper(ctx context.Context
 		}
 	}
 
+	podIPInfoResult = append(podIPInfoResult, podIPInfo...)
 	return &cns.IPConfigsResponse{
 		Response: cns.Response{
 			ReturnCode: types.Success,
 		},
-		PodIPInfo: podIPInfo,
+		PodIPInfo: podIPInfoResult,
 	}, nil
 }
 

@@ -805,7 +805,6 @@ func main() {
 		logger.Errorf("Failed to set remote ARP MAC address: %v", err)
 		return
 	}
-
 	// We are only setting the PriorityVLANTag in 'cns.Direct' mode, because it neatly maps today, to 'isUsingMultitenancy'
 	// In the future, we would want to have a better CNS flag, to explicitly say, this CNS is using multitenancy
 	if cnsconfig.ChannelMode == cns.Direct {
@@ -820,6 +819,7 @@ func main() {
 	// Initialze state in if CNS is running in CRD mode
 	// State must be initialized before we start HTTPRestService
 	if config.ChannelMode == cns.CRD {
+
 		// Check the CNI statefile mount, and if the file is empty
 		// stub an empty JSON object
 		if err := cnireconciler.WriteObjectToCNIStatefile(); err != nil {
@@ -859,6 +859,14 @@ func main() {
 		if err != nil {
 			logger.Errorf("Failed to start CRD Controller, err:%v.\n", err)
 			return
+		}
+
+		if cnsconfig.EnableSwiftV2 {
+			// No-op for linux, mapping is set for windows in aks swiftv2 scenario
+			logger.Printf("Fetching backend nics for the node")
+			if err = httpRemoteRestService.SavePnpIDMacaddressMapping(rootCtx); err != nil {
+				logger.Errorf("Failed to fetch PnpIDMacaddress mapping: %v", err)
+			}
 		}
 	}
 

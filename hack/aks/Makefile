@@ -239,7 +239,7 @@ swiftv2-multitenancy-cluster-up: rg-up
 		--network-plugin-mode overlay \
 		--kubernetes-version 1.28 \
 		--nodepool-name "mtapool" \
-		--node-vm-size Standard_D4_v2 \
+		--node-vm-size $(VM_SIZE) \
 		--node-count 2 \
 		--nodepool-tags fastpathenabled=true \
 		--no-ssh-key \

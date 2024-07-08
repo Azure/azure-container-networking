@@ -72,6 +72,7 @@ type HTTPRestService struct {
 	cniConflistGenerator       CNIConflistGenerator
 	generateCNIConflistOnce    sync.Once
 	IPConfigsHandlerMiddleware cns.IPConfigsHandlerMiddleware
+	PnpIDByMacAddress          map[string]string
 }
 
 type CNIConflistGenerator interface {
@@ -150,6 +151,7 @@ type httpRestServiceState struct {
 	TimeStamp                        time.Time
 	joinedNetworks                   map[string]struct{}
 	primaryInterface                 *wireserver.InterfaceInfo
+	PnpIDByMacAddress                map[string]string
 }
 
 type networkInfo struct {
@@ -192,9 +194,10 @@ func NewHTTPRestService(config *common.ServiceConfig, wscli interfaceGetter, wsp
 	config.Server.PrimaryInterfaceIP = primaryInterface.PrimaryIP
 
 	serviceState := &httpRestServiceState{
-		Networks:         make(map[string]*networkInfo),
-		joinedNetworks:   make(map[string]struct{}),
-		primaryInterface: primaryInterface,
+		Networks:          make(map[string]*networkInfo),
+		joinedNetworks:    make(map[string]struct{}),
+		primaryInterface:  primaryInterface,
+		PnpIDByMacAddress: make(map[string]string),
 	}
 
 	podIPIDByPodInterfaceKey := make(map[string][]string)

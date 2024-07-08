@@ -1,6 +1,7 @@
 package platform
 
 import (
+	"context"
 	"errors"
 	"time"
 )
@@ -62,4 +63,11 @@ func (e *MockExecClient) GetLastRebootTime() (time.Time, error) {
 
 func (e *MockExecClient) KillProcessByName(_ string) error {
 	return nil
+}
+
+func (e *MockExecClient) ExecutePowershellCommandWithContext(_ context.Context, cmd string) (string, error) {
+	if e.powershellCommandResponder != nil {
+		return e.powershellCommandResponder(cmd)
+	}
+	return "", nil
 }
