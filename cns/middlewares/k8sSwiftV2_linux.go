@@ -52,19 +52,13 @@ func (k *K8sSWIFTv2Middleware) getIPConfig(ctx context.Context, podInfo cns.PodI
 			// InterfaceName is empty for DelegatedVMNIC
 		})
 	} else {
-		// Use InterfaceInfos if not empty
-		podIPInfos = make([]cns.PodIpInfo, len(mtpnc.Status.InterfaceInfos))
-		for i, interfaceInfo := range mtpnc.Status.InterfaceInfos {
-			// Parse MTPNC primaryIP to get the IP address and prefix length
-			ip, prefixSize, err := utils.ParseIPAndPrefix(interfaceInfo.PrimaryIP)
-			if err != nil {
-				return nil, errors.Wrap(err, "failed to parse mtpnc primary IP and prefix")
-			}
-			if prefixSize != prefixLength {
-				return nil, errors.Wrapf(errInvalidMTPNCPrefixLength, "mtpnc primaryIP prefix length is %d", prefixSize)
-			}
-
-			var nicType cns.NICType
+		for _, interfaceInfo := range mtpnc.Status.InterfaceInfos {
+			var (
+				nicType    cns.NICType
+				ip         string
+				prefixSize int
+				err        error
+			)
 			switch {
 			case interfaceInfo.DeviceType == v1alpha1.DeviceTypeVnetNIC && !interfaceInfo.AccelnetEnabled:
 				nicType = cns.DelegatedVMNIC
@@ -75,19 +69,27 @@ func (k *K8sSWIFTv2Middleware) getIPConfig(ctx context.Context, podInfo cns.PodI
 			default:
 				nicType = cns.DelegatedVMNIC
 			}
-
-			podIPInfos[i] = cns.PodIpInfo{
-				PodIPConfig: cns.IPSubnet{
-					IPAddress:    ip,
-					PrefixLength: uint8(prefixSize),
-				},
-				MacAddress:        interfaceInfo.MacAddress,
-				NICType:           nicType,
-				SkipDefaultRoutes: false,
-				HostPrimaryIPInfo: cns.HostIPInfo{
-					Gateway: interfaceInfo.GatewayIP,
-				},
+			if nicType != cns.NodeNetworkInterfaceBackendNIC {
+				// Parse MTPNC primaryIP to get the IP address and prefix length
+				ip, prefixSize, err = utils.ParseIPAndPrefix(interfaceInfo.PrimaryIP)
+				if err != nil {
+					return nil, errors.Wrap(err, "failed to parse mtpnc primary IP and prefix")
+				}
+				if prefixSize != prefixLength {
+					return nil, errors.Wrapf(errInvalidMTPNCPrefixLength, "mtpnc primaryIP prefix length is %d", prefixSize)
+				}
+				podIPInfos = append(podIPInfos, cns.PodIpInfo{
+					PodIPConfig: cns.IPSubnet{
+						IPAddress:    ip,
+						PrefixLength: uint8(prefixSize),
+					},
+					MacAddress:        interfaceInfo.MacAddress,
+					NICType:           cns.DelegatedVMNIC,
+					SkipDefaultRoutes: false,
+					// InterfaceName is empty for DelegatedVMNIC
+				})
 			}
+
 		}
 	}
 
