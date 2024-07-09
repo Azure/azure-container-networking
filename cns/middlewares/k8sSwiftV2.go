@@ -7,6 +7,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/configuration"
 	"github.com/Azure/azure-container-networking/cns/logger"
+	"github.com/Azure/azure-container-networking/cns/middlewares/utils"
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/crd/multitenancy/api/v1alpha1"
 	"github.com/pkg/errors"
@@ -154,4 +155,93 @@ func (k *K8sSWIFTv2Middleware) validateIPConfigsRequest(ctx context.Context, req
 	logger.Printf("[SWIFTv2Middleware] pod %s has backend interface : %v", podInfo.Name(), req.BackendInterfaceExist)
 	// retrieve podinfo from orchestrator context
 	return podInfo, types.Success, ""
+}
+
+// getIPConfig returns the pod's SWIFT V2 IP configuration.
+func (k *K8sSWIFTv2Middleware) getIPConfig(ctx context.Context, podInfo cns.PodInfo) ([]cns.PodIpInfo, error) {
+	// Check if the MTPNC CRD exists for the pod, if not, return error
+	mtpnc := v1alpha1.MultitenantPodNetworkConfig{}
+	mtpncNamespacedName := k8stypes.NamespacedName{Namespace: podInfo.Namespace(), Name: podInfo.Name()}
+	if err := k.Cli.Get(ctx, mtpncNamespacedName, &mtpnc); err != nil {
+		return nil, errors.Wrapf(err, "failed to get pod's mtpnc from cache")
+	}
+
+	// Check if the MTPNC CRD is ready. If one of the fields is empty, return error
+	if !mtpnc.IsReady() {
+		return nil, errMTPNCNotReady
+	}
+	logger.Printf("[SWIFTv2Middleware] mtpnc for pod %s is : %+v", podInfo.Name(), mtpnc)
+
+	var podIPInfos []cns.PodIpInfo
+
+	if len(mtpnc.Status.InterfaceInfos) == 0 {
+		// Use fields from mtpnc.Status if InterfaceInfos is empty
+		ip, prefixSize, err := utils.ParseIPAndPrefix(mtpnc.Status.PrimaryIP)
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to parse mtpnc primary IP and prefix")
+		}
+		if prefixSize != prefixLength {
+			return nil, errors.Wrapf(errInvalidMTPNCPrefixLength, "mtpnc primaryIP prefix length is %d", prefixSize)
+		}
+
+		podIPInfos = append(podIPInfos, cns.PodIpInfo{
+			PodIPConfig: cns.IPSubnet{
+				IPAddress:    ip,
+				PrefixLength: uint8(prefixSize),
+			},
+			MacAddress:        mtpnc.Status.MacAddress,
+			NICType:           cns.DelegatedVMNIC,
+			SkipDefaultRoutes: false,
+			// InterfaceName is empty for DelegatedVMNIC
+		})
+	} else {
+		for _, interfaceInfo := range mtpnc.Status.InterfaceInfos {
+			var (
+				nicType    cns.NICType
+				ip         string
+				prefixSize int
+				err        error
+			)
+			switch {
+			case interfaceInfo.DeviceType == v1alpha1.DeviceTypeVnetNIC && !interfaceInfo.AccelnetEnabled:
+				nicType = cns.DelegatedVMNIC
+			case interfaceInfo.DeviceType == v1alpha1.DeviceTypeVnetNIC && interfaceInfo.AccelnetEnabled:
+				nicType = cns.NodeNetworkInterfaceAccelnetFrontendNIC
+			case interfaceInfo.DeviceType == v1alpha1.DeviceTypeInfiniBandNIC:
+				nicType = cns.NodeNetworkInterfaceBackendNIC
+			default:
+				nicType = cns.DelegatedVMNIC
+			}
+			if nicType != cns.NodeNetworkInterfaceBackendNIC {
+				// Parse MTPNC primaryIP to get the IP address and prefix length
+				ip, prefixSize, err = utils.ParseIPAndPrefix(interfaceInfo.PrimaryIP)
+				if err != nil {
+					return nil, errors.Wrap(err, "failed to parse mtpnc primary IP and prefix")
+				}
+				if prefixSize != prefixLength {
+					return nil, errors.Wrapf(errInvalidMTPNCPrefixLength, "mtpnc primaryIP prefix length is %d", prefixSize)
+				}
+
+				podIpInfo := cns.PodIpInfo{
+					PodIPConfig: cns.IPSubnet{
+						IPAddress:    ip,
+						PrefixLength: uint8(prefixSize),
+					},
+					MacAddress:        interfaceInfo.MacAddress,
+					NICType:           cns.DelegatedVMNIC,
+					SkipDefaultRoutes: false,
+					// InterfaceName is empty for DelegatedVMNIC
+				}
+				// for windows scenario, it is required to add additional fields with the exact subnetAddressSpace
+				// received from MTPNC, this function assigns them for windows while linux is a no-op
+				err = k.assignSubnetPrefixLengthFields(&podIpInfo, interfaceInfo, ip)
+				if err != nil {
+					return nil, errors.Wrap(err, "failed to parse mtpnc subnetAddressSpace prefix")
+				}
+				podIPInfos = append(podIPInfos, podIpInfo)
+			}
+		}
+	}
+
+	return podIPInfos, nil
 }
