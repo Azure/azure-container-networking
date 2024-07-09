@@ -222,7 +222,7 @@ func (k *K8sSWIFTv2Middleware) getIPConfig(ctx context.Context, podInfo cns.PodI
 					return nil, errors.Wrapf(errInvalidMTPNCPrefixLength, "mtpnc primaryIP prefix length is %d", prefixSize)
 				}
 
-				podIpInfo := cns.PodIpInfo{
+				podIPInfo := cns.PodIpInfo{
 					PodIPConfig: cns.IPSubnet{
 						IPAddress:    ip,
 						PrefixLength: uint8(prefixSize),
@@ -234,11 +234,11 @@ func (k *K8sSWIFTv2Middleware) getIPConfig(ctx context.Context, podInfo cns.PodI
 				}
 				// for windows scenario, it is required to add additional fields with the exact subnetAddressSpace
 				// received from MTPNC, this function assigns them for windows while linux is a no-op
-				err = k.assignSubnetPrefixLengthFields(&podIpInfo, interfaceInfo, ip)
+				err = k.assignSubnetPrefixLengthFields(&podIPInfo, interfaceInfo, ip)
 				if err != nil {
 					return nil, errors.Wrap(err, "failed to parse mtpnc subnetAddressSpace prefix")
 				}
-				podIPInfos = append(podIPInfos, podIpInfo)
+				podIPInfos = append(podIPInfos, podIPInfo)
 			}
 		}
 	}
