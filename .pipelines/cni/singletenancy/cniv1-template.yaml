@@ -35,6 +35,10 @@ stages:
       variables:
         commitID: $[ stagedependencies.setup.env.outputs['SetEnvVars.commitID'] ]
         npmVersion: $[ stagedependencies.setup.env.outputs['SetEnvVars.npmVersion'] ]
+        ${{ if eq(parameters.arch, 'amd64') }}:
+          location: $(LOCATION_AMD64)
+        ${{ if eq(parameters.arch, 'arm64') }}:
+          location: $(LOCATION_ARM64)
       pool:
         name: $(BUILD_POOL_NAME_DEFAULT)
       dependsOn:
@@ -50,7 +54,7 @@ stages:
                 nodeCount: ${{ parameters.nodeCount }}
                 vmSize: ${{ parameters.vmSize }}
                 vmSizeWin: ${{ parameters.vmSizeWin }}
-                region: $(LOCATION)
+                region: $(location)
                 osSKU: ${{ parameters.osSKU }}
 
 # If ensures that only windows template calls are compared against the below condition
@@ -63,6 +67,10 @@ stages:
       variables:
         commitID: $[ stagedependencies.setup.env.outputs['SetEnvVars.commitID'] ]
         npmVersion: $[ stagedependencies.setup.env.outputs['SetEnvVars.npmVersion'] ]
+        ${{ if eq(parameters.arch, 'amd64') }}:
+          location: $(LOCATION_AMD64)
+        ${{ if eq(parameters.arch, 'arm64') }}:
+          location: $(LOCATION_ARM64)
       pool:
         name: $(BUILD_POOL_NAME_DEFAULT)
       dependsOn:
@@ -79,7 +87,7 @@ stages:
                 nodeCountWin: ${{ parameters.nodeCountWin }}
                 vmSize: ${{ parameters.vmSize }}
                 vmSizeWin: ${{ parameters.vmSizeWin }}
-                region: $(LOCATION)
+                region: $(location)
                 osSKU: ${{ parameters.osSKU }}
                 os: ${{ parameters.os }}
                 osSkuWin: ${{ parameters.osSkuWin }}
@@ -92,6 +100,10 @@ stages:
     variables:
       commitID: $[ stagedependencies.setup.env.outputs['SetEnvVars.commitID'] ]
       npmVersion: $[ stagedependencies.setup.env.outputs['SetEnvVars.npmVersion'] ]
+      ${{ if eq(parameters.arch, 'amd64') }}:
+        location: $(LOCATION_AMD64)
+      ${{ if eq(parameters.arch, 'arm64') }}:
+        location: $(LOCATION_ARM64)
     pool:
       name: $(BUILD_POOL_NAME_DEFAULT)
     dependsOn:
@@ -168,6 +180,7 @@ stages:
               clusterName: ${{ parameters.clusterName }}-$(commitID)
               os: ${{ parameters.os }}
               cni: cniv1
+              region: $(location)
           - template: ../load-test-templates/validate-state-template.yaml
             parameters:
               clusterName: ${{ parameters.clusterName }}-$(commitID)
@@ -231,6 +244,10 @@ stages:
       variables:
         commitID: $[ stagedependencies.setup.env.outputs['SetEnvVars.commitID'] ]
         npmVersion: $[ stagedependencies.setup.env.outputs['SetEnvVars.npmVersion'] ]
+        ${{ if eq(parameters.arch, 'amd64') }}:
+          location: $(LOCATION_AMD64)
+        ${{ if eq(parameters.arch, 'arm64') }}:
+          location: $(LOCATION_ARM64)
       pool:
         name: $(BUILD_POOL_NAME_DEFAULT)
       dependsOn:
@@ -275,6 +292,7 @@ stages:
                 os: ${{ parameters.os }}
                 cni: cniv1
                 jobName: restart_nodesHNS
+                region: $(location)
             - template: ../load-test-templates/validate-state-template.yaml
               parameters:
                 clusterName: ${{ parameters.clusterName }}-$(commitID)
