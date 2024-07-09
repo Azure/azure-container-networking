@@ -10,6 +10,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/middlewares/mock"
 	"github.com/Azure/azure-container-networking/cns/types"
+	"github.com/Azure/azure-container-networking/crd/multitenancy/api/v1alpha1"
 	"gotest.tools/v3/assert"
 )
 
@@ -454,4 +455,30 @@ func TestGetSWIFTv2IPConfigMultiInterfaceSuccess(t *testing.T) {
 		}
 		assert.Equal(t, ipInfo.SkipDefaultRoutes, false)
 	}
+}
+
+func TestAssignSubnetPrefixSuccess(t *testing.T) {
+	middleware := K8sSWIFTv2Middleware{Cli: mock.NewClient()}
+
+	podIPInfo := cns.PodIpInfo{
+		PodIPConfig: cns.IPSubnet{
+			IPAddress:    "20.240.1.242",
+			PrefixLength: 32,
+		},
+		NICType:    cns.DelegatedVMNIC,
+		MacAddress: "12:34:56:78:9a:bc",
+	}
+
+	intInfo := v1alpha1.InterfaceInfo{
+		GatewayIP:          "20.240.1.1",
+		SubnetAddressSpace: "20.240.1.0/16",
+	}
+
+	ipInfo := podIPInfo
+	err := middleware.assignSubnetPrefixLengthFields(&ipInfo, intInfo, ipInfo.PodIPConfig.IPAddress)
+	assert.Equal(t, err, nil)
+	// assert that the function for linux does not modify any fields
+	assert.Equal(t, ipInfo.PodIPConfig.PrefixLength, uint8(32))
+	assert.Equal(t, ipInfo.HostPrimaryIPInfo.Gateway, "")
+	assert.Equal(t, ipInfo.HostPrimaryIPInfo.Subnet, "")
 }
