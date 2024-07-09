@@ -5,6 +5,5 @@ metadata:
     kubernetes.azure.com/override-subnet-token: $SUBNET_TOKEN
   name: aksswiftvnetv20425
 spec:
-  subnetGUID: $SUBNET_GUID
   subnetResourceID: $SUBNET_RESOURCE_ID
   vnetGUID: $VNET_GUID

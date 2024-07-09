@@ -20,6 +20,10 @@ spec:
     - jsonPath: .spec.vmUniqueID
       name: VMUniqueID
       type: string
+    - jsonPath: .status.status
+      name: Status
+      priority: 1
+      type: string
     name: v1alpha1
     schema:
       openAPIV3Schema:
@@ -43,7 +47,26 @@ spec:
               vmUniqueID:
                 type: string
             type: object
+          status:
+            description: NodeInfoStatus defines the observed state of NodeInfo
+            properties:
+              deviceInfos:
+                items:
+                  properties:
+                    deviceCount:
+                      type: integer
+                    deviceType:
+                      enum:
+                      - acn.azure.com/vnet-nic
+                      - acn.azure.com/infiniband-nic
+                      type: string
+                  required:
+                  - deviceCount
+                  type: object
+                type: array
+            type: object
         type: object
     served: true
     storage: true
-    subresources: {}
+    subresources:
+      status: {}

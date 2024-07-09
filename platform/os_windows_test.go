@@ -1,6 +1,7 @@
 package platform
 
 import (
+	"context"
 	"errors"
 	"os/exec"
 	"strings"
@@ -133,4 +134,28 @@ func TestSetSdnRemoteArpMacAddress_hnsEnabled(t *testing.T) {
 	assert.Equal(t, true, sdnRemoteArpMacAddressSet)
 	// reset sdnRemoteArpMacAddressSet
 	sdnRemoteArpMacAddressSet = false
+}
+
+func TestFetchPnpIDMapping(t *testing.T) {
+	mockExecClient := NewMockExecClient(false)
+	// happy path
+	mockExecClient.SetPowershellCommandResponder(func(cmd string) (string, error) {
+		return "6C-A1-00-50-E4-2D PCI\\VEN_8086&DEV_2723&SUBSYS_00808086&REV_1A\\4&328243d9&0&00E0\n80-6D-97-1E-CF-4E USB\\VID_17EF&PID_A359\\3010019E3", nil
+	})
+	vfmapping, _ := FetchMacAddressPnpIDMapping(context.Background(), mockExecClient)
+	require.Len(t, 2, len(vfmapping))
+
+	// Test when no adapters are found
+	mockExecClient.SetPowershellCommandResponder(func(cmd string) (string, error) {
+		return "", nil
+	})
+	vfmapping, _ = FetchMacAddressPnpIDMapping(context.Background(), mockExecClient)
+	require.Empty(t, 0, len(vfmapping))
+	// Adding carriage returns
+	mockExecClient.SetPowershellCommandResponder(func(cmd string) (string, error) {
+		return "6C-A1-00-50-E4-2D PCI\\VEN_8086&DEV_2723&SUBSYS_00808086&REV_1A\\4&328243d9&0&00E0\r\n\r80-6D-97-1E-CF-4E USB\\VID_17EF&PID_A359\\3010019E3", nil
+	})
+
+	vfmapping, _ = FetchMacAddressPnpIDMapping(context.Background(), mockExecClient)
+	require.Len(t, 2, len(vfmapping))
 }

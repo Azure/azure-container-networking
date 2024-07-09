@@ -34,7 +34,7 @@ steps:
         kubectl get po -owide -A
         echo "Apply the pod network yaml to start the delegation"
         less test/integration/manifests/swiftv2/podnetwork.yaml
-        envsubst '${SUBNET_TOKEN},${SUBNET_GUID},${SUBNET_RESOURCE_ID},${VNET_GUID}' < test/integration/manifests/swiftv2/podnetwork.yaml | kubectl apply -f -
+        envsubst '${SUBNET_TOKEN},${SUBNET_RESOURCE_ID},${VNET_GUID}' < test/integration/manifests/swiftv2/podnetwork.yaml | kubectl apply -f -
         echo "Check the podnetwork yaml file"
         less test/integration/manifests/swiftv2/podnetwork.yaml
         kubectl get pn

@@ -82,15 +82,18 @@ func (k *K8sSWIFTv2Middleware) IPConfigsRequestHandlerWrapper(defaultHandler, fa
 		// Set routes for the pod
 		for i := range ipConfigsResp.PodIPInfo {
 			ipInfo := &ipConfigsResp.PodIPInfo[i]
-			err = k.setRoutes(ipInfo)
-			if err != nil {
-				return &cns.IPConfigsResponse{
-					Response: cns.Response{
-						ReturnCode: types.FailedToAllocateIPConfig,
-						Message:    fmt.Sprintf("AllocateIPConfig failed: %v, IP config request is %v", err, req),
-					},
-					PodIPInfo: []cns.PodIpInfo{},
-				}, errors.Wrapf(err, "failed to set routes for pod %s", podInfo.Name())
+			// Backend nics doesn't need routes to be set
+			if ipInfo.NICType != cns.BackendNIC {
+				err = k.setRoutes(ipInfo)
+				if err != nil {
+					return &cns.IPConfigsResponse{
+						Response: cns.Response{
+							ReturnCode: types.FailedToAllocateIPConfig,
+							Message:    fmt.Sprintf("AllocateIPConfig failed: %v, IP config request is %v", err, req),
+						},
+						PodIPInfo: []cns.PodIpInfo{},
+					}, errors.Wrapf(err, "failed to set routes for pod %s", podInfo.Name())
+				}
 			}
 		}
 		return ipConfigsResp, nil
@@ -115,8 +118,10 @@ func (k *K8sSWIFTv2Middleware) validateIPConfigsRequest(ctx context.Context, req
 	}
 
 	// check the pod labels for Swift V2, set the request's SecondaryInterfaceSet flag to true and check if its MTPNC CRD is ready
-	if _, ok := pod.Labels[configuration.LabelPodSwiftV2]; ok {
-		req.SecondaryInterfacesExist = true
+	_, swiftV2PodNetworkLabel := pod.Labels[configuration.LabelPodSwiftV2]
+	_, swiftV2PodNetworkInstanceLabel := pod.Labels[configuration.LabelPodNetworkInstanceSwiftV2]
+	if swiftV2PodNetworkLabel || swiftV2PodNetworkInstanceLabel {
+
 		// Check if the MTPNC CRD exists for the pod, if not, return error
 		mtpnc := v1alpha1.MultitenantPodNetworkConfig{}
 		mtpncNamespacedName := k8stypes.NamespacedName{Namespace: podInfo.Namespace(), Name: podInfo.Name()}
@@ -127,8 +132,27 @@ func (k *K8sSWIFTv2Middleware) validateIPConfigsRequest(ctx context.Context, req
 		if !mtpnc.IsReady() {
 			return nil, types.UnexpectedError, errMTPNCNotReady.Error()
 		}
+		// If primary Ip is set in status field, it indicates the presence of secondary interfaces
+		if mtpnc.Status.PrimaryIP != "" {
+			req.SecondaryInterfacesExist = true
+		}
+		interfaceInfos := mtpnc.Status.InterfaceInfos
+		for _, interfaceInfo := range interfaceInfos {
+			if interfaceInfo.DeviceType == v1alpha1.DeviceTypeInfiniBandNIC {
+				if interfaceInfo.MacAddress == "" || interfaceInfo.NCID == "" {
+					return nil, types.UnexpectedError, errMTPNCNotReady.Error()
+				}
+				req.BackendInterfaceExist = true
+				req.BackendInterfaceMacAddresses = append(req.BackendInterfaceMacAddresses, interfaceInfo.MacAddress)
+
+			}
+			if interfaceInfo.DeviceType == v1alpha1.DeviceTypeVnetNIC {
+				req.SecondaryInterfacesExist = true
+			}
+		}
 	}
 	logger.Printf("[SWIFTv2Middleware] pod %s has secondary interface : %v", podInfo.Name(), req.SecondaryInterfacesExist)
+	logger.Printf("[SWIFTv2Middleware] pod %s has backend interface : %v", podInfo.Name(), req.BackendInterfaceExist)
 	// retrieve podinfo from orchestrator context
 	return podInfo, types.Success, ""
 }
@@ -171,19 +195,13 @@ func (k *K8sSWIFTv2Middleware) getIPConfig(ctx context.Context, podInfo cns.PodI
 			// InterfaceName is empty for DelegatedVMNIC
 		})
 	} else {
-		// Use InterfaceInfos if not empty
-		podIPInfos = make([]cns.PodIpInfo, len(mtpnc.Status.InterfaceInfos))
-		for i, interfaceInfo := range mtpnc.Status.InterfaceInfos {
-			// Parse MTPNC primaryIP to get the IP address and prefix length
-			ip, prefixSize, err := utils.ParseIPAndPrefix(interfaceInfo.PrimaryIP)
-			if err != nil {
-				return nil, errors.Wrap(err, "failed to parse mtpnc primary IP and prefix")
-			}
-			if prefixSize != prefixLength {
-				return nil, errors.Wrapf(errInvalidMTPNCPrefixLength, "mtpnc primaryIP prefix length is %d", prefixSize)
-			}
-
-			var nicType cns.NICType
+		for _, interfaceInfo := range mtpnc.Status.InterfaceInfos {
+			var (
+				nicType    cns.NICType
+				ip         string
+				prefixSize int
+				err        error
+			)
 			switch {
 			case interfaceInfo.DeviceType == v1alpha1.DeviceTypeVnetNIC && !interfaceInfo.AccelnetEnabled:
 				nicType = cns.DelegatedVMNIC
@@ -194,19 +212,27 @@ func (k *K8sSWIFTv2Middleware) getIPConfig(ctx context.Context, podInfo cns.PodI
 			default:
 				nicType = cns.DelegatedVMNIC
 			}
-
-			podIPInfos[i] = cns.PodIpInfo{
-				PodIPConfig: cns.IPSubnet{
-					IPAddress:    ip,
-					PrefixLength: uint8(prefixSize),
-				},
-				MacAddress:        interfaceInfo.MacAddress,
-				NICType:           nicType,
-				SkipDefaultRoutes: false,
-				HostPrimaryIPInfo: cns.HostIPInfo{
-					Gateway: interfaceInfo.GatewayIP,
-				},
+			if nicType != cns.NodeNetworkInterfaceBackendNIC {
+				// Parse MTPNC primaryIP to get the IP address and prefix length
+				ip, prefixSize, err = utils.ParseIPAndPrefix(interfaceInfo.PrimaryIP)
+				if err != nil {
+					return nil, errors.Wrap(err, "failed to parse mtpnc primary IP and prefix")
+				}
+				if prefixSize != prefixLength {
+					return nil, errors.Wrapf(errInvalidMTPNCPrefixLength, "mtpnc primaryIP prefix length is %d", prefixSize)
+				}
+				podIPInfos = append(podIPInfos, cns.PodIpInfo{
+					PodIPConfig: cns.IPSubnet{
+						IPAddress:    ip,
+						PrefixLength: uint8(prefixSize),
+					},
+					MacAddress:        interfaceInfo.MacAddress,
+					NICType:           cns.DelegatedVMNIC,
+					SkipDefaultRoutes: false,
+					// InterfaceName is empty for DelegatedVMNIC
+				})
 			}
+
 		}
 	}
 
