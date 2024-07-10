@@ -20,10 +20,6 @@ spec:
     - jsonPath: .spec.vmUniqueID
       name: VMUniqueID
       type: string
-    - jsonPath: .status.status
-      name: Status
-      priority: 1
-      type: string
     name: v1alpha1
     schema:
       openAPIV3Schema:
