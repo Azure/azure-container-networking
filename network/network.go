@@ -346,6 +346,10 @@ func (nm *networkManager) EndpointCreate(cnsclient apipaClient, epInfos []*Endpo
 		eps = append(eps, ep)
 	}
 
+	if err := validateEndpoints(eps); err != nil {
+		return err
+	}
+
 	// save endpoints
 	return nm.SaveState(eps)
 }
