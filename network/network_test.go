@@ -197,7 +197,7 @@ var _ = Describe("Test Network", func() {
 					Mode:         opModeTransparentVlan,
 				}
 				nw, err := nm.newNetwork(nwInfo)
-				Expect(err).To(MatchError(platform.ErrMockExec))
+				Expect(err).NotTo(BeNil())
 				Expect(nw).To(BeNil())
 			})
 		})

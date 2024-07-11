@@ -35,9 +35,7 @@ func TestNewAndDeleteEndpointImplHnsV2(t *testing.T) {
 
 	// this hnsv2 variable overwrites the package level variable in network
 	// we do this to avoid passing around os specific objects in platform agnostic code
-	Hnsv2 = hnswrapper.Hnsv2wrapperwithtimeout{
-		Hnsv2: hnswrapper.NewHnsv2wrapperFake(),
-	}
+	Hnsv2 = hnswrapper.NewHnsv2wrapperFake()
 
 	epInfo := &EndpointInfo{
 		EndpointID:  "753d3fb6-e9b3-49e2-a109-2acc5dda61f1",
@@ -50,15 +48,35 @@ func TestNewAndDeleteEndpointImplHnsV2(t *testing.T) {
 			Servers: []string{"10.0.0.1, 10.0.0.2"},
 			Options: nil,
 		},
-		MacAddress: net.HardwareAddr("00:00:5e:00:53:01"),
+		MacAddress:   net.HardwareAddr("00:00:5e:00:53:01"),
+		NICType:      cns.InfraNIC,
+		HNSNetworkID: "853d3fb6-e9b3-49e2-a109-2acc5dda61f1",
 	}
-	endpoint, err := nw.newEndpointImplHnsV2(nil, epInfo)
+	ep, err := nw.newEndpointImplHnsV2(nil, epInfo)
 	if err != nil {
 		fmt.Printf("+%v", err)
 		t.Fatal(err)
 	}
 
-	err = nw.deleteEndpointImplHnsV2(endpoint)
+	if err := validateEndpoints([]*endpoint{ep}); err != nil {
+		fmt.Printf("+%v", err)
+		t.Fatal(err)
+	}
+
+	if epInfo.HNSEndpointID == "" {
+		t.Fatal("hns endpoint id not populated inside endpoint info during new endpoint impl call")
+	}
+
+	if ep.HnsId == "" {
+		t.Fatal("hns endpoint id not populated inside endpoint struct during new endpoint impl call")
+	}
+
+	if ep.HNSNetworkID == "" {
+		t.Fatal("hns network id was not copied to the endpoint struct during new endpoint impl call")
+	}
+
+	err = nw.deleteEndpointImplHnsV2(ep)
+
 	if err != nil {
 		fmt.Printf("+%v", err)
 		t.Fatal(err)

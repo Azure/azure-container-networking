@@ -402,9 +402,10 @@ func validateEndpoints(eps []*endpoint) error {
 			return errors.Wrap(err, "failed to validate endpoint struct")
 		}
 		containerIDs[ep.ContainerID] = true
-	}
-	if len(containerIDs) != 1 {
-		return errors.New("multiple distinct container ids detected")
+
+		if len(containerIDs) != 1 {
+			return errors.New("multiple distinct container ids detected")
+		}
 	}
 	return nil
 }

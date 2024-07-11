@@ -52,6 +52,13 @@ func TestNewAndDeleteNetworkImplHnsV2(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	if network.HnsId == "" {
+		t.Fatal("hns network id not populated in network struct")
+	}
+	if nwInfo.HNSNetworkID == "" {
+		t.Fatal("hns network id not populated")
+	}
+
 	err = nm.deleteNetworkImplHnsV2(network)
 
 	if err != nil {
