@@ -142,10 +142,12 @@ func (req *CreateNetworkContainerRequest) Validate() error {
 }
 
 func isValidIP(ipStr string) bool {
+	// if can parse (i.e. not nil), then valid ip
 	if ip, _, err := net.ParseCIDR(ipStr); err == nil {
 		return ip != nil
 	}
-	return net.ParseIP(ipStr) != nil
+	ip := net.ParseIP(ipStr)
+	return ip != nil
 }
 
 // CreateNetworkContainerRequest implements fmt.Stringer for logging

@@ -36,6 +36,8 @@ import (
 	"go.uber.org/zap"
 )
 
+var validRegexp = regexp.MustCompile(`^[a-zA-Z0-9._\-\(\) ]*$`)
+
 const (
 	dockerNetworkOption = "com.docker.network.generic"
 	OpModeTransparent   = "transparent"
@@ -409,7 +411,8 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 		return err
 	}
 
-	if err = plugin.validateArgs(args, nwCfg); err != nil {
+	if argErr := plugin.validateArgs(args, nwCfg); argErr != nil {
+		err = argErr
 		return err
 	}
 
@@ -938,7 +941,8 @@ func (plugin *NetPlugin) Get(args *cniSkel.CmdArgs) error {
 
 	logger.Info("Read network configuration", zap.Any("config", nwCfg))
 
-	if err = plugin.validateArgs(args, nwCfg); err != nil {
+	if argErr := plugin.validateArgs(args, nwCfg); argErr != nil {
+		err = argErr
 		return err
 	}
 
@@ -1024,7 +1028,8 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 		return err
 	}
 
-	if err = plugin.validateArgs(args, nwCfg); err != nil {
+	if argErr := plugin.validateArgs(args, nwCfg); argErr != nil {
+		err = argErr
 		return err
 	}
 
@@ -1219,7 +1224,8 @@ func (plugin *NetPlugin) Update(args *cniSkel.CmdArgs) error {
 		return err
 	}
 
-	if err = plugin.validateArgs(args, nwCfg); err != nil {
+	if argErr := plugin.validateArgs(args, nwCfg); argErr != nil {
+		err = argErr
 		return err
 	}
 
@@ -1499,7 +1505,5 @@ func (plugin *NetPlugin) validateArgs(args *cniSkel.CmdArgs, nwCfg *cni.NetworkC
 
 // returns true if the string fully consists of zero or more alphanumeric, dots, dashes, parentheses, or underscores
 func isValidString(value string) bool {
-	pattern := `^[a-zA-Z0-9._\-\(\) ]*$`
-	re := regexp.MustCompile(pattern)
-	return re.MatchString(value)
+	return validRegexp.MatchString(value)
 }
