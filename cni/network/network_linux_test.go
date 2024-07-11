@@ -16,7 +16,7 @@ func TestSetNetworkOptions(t *testing.T) {
 	tests := []struct {
 		name             string
 		cnsNwConfig      cns.GetNetworkContainerResponse
-		nwInfo           network.EndpointInfo
+		nwInfo           network.NetworkInfo
 		expectedVlanID   string
 		expectedSnatBrIP string
 	}{
@@ -34,7 +34,7 @@ func TestSetNetworkOptions(t *testing.T) {
 					GatewayIPAddress: "169.254.0.1",
 				},
 			},
-			nwInfo: network.EndpointInfo{
+			nwInfo: network.NetworkInfo{
 				Options: make(map[string]interface{}),
 			},
 			expectedVlanID:   "1",

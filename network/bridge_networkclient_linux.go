@@ -25,7 +25,7 @@ func newErrorLinuxBridgeClient(errStr string) error {
 type LinuxBridgeClient struct {
 	bridgeName        string
 	hostInterfaceName string
-	nwInfo            EndpointInfo
+	nwInfo            NetworkInfo
 	netlink           netlink.NetlinkInterface
 	nuClient          networkutils.NetworkUtils
 }
@@ -33,7 +33,7 @@ type LinuxBridgeClient struct {
 func NewLinuxBridgeClient(
 	bridgeName string,
 	hostInterfaceName string,
-	nwInfo EndpointInfo,
+	nwInfo NetworkInfo,
 	nl netlink.NetlinkInterface,
 	plc platform.ExecClient,
 ) *LinuxBridgeClient {

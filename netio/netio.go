@@ -48,8 +48,3 @@ func (ns *NetIO) GetNetworkInterfaceByMac(mac net.HardwareAddr) (*net.Interface,
 
 	return nil, ErrInterfaceNotFound
 }
-
-func (ns *NetIO) GetNetworkInterfaces() ([]net.Interface, error) {
-	ifs, err := net.Interfaces()
-	return ifs, errors.Wrap(err, "GetNetworkInterfaces failed")
-}

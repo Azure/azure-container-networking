@@ -62,7 +62,7 @@ func ConfigureInfraVnetContainerInterface(client *OVSEndpointClient, infraIP net
 	return nil
 }
 
-func DeleteInfraVnetEndpoint(client *OVSEndpointClient) error {
+func DeleteInfraVnetEndpoint(client *OVSEndpointClient, epID string) error {
 	if client.enableInfraVnet {
 		return client.infraVnetClient.DeleteInfraVnetEndpoint()
 	}
