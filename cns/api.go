@@ -373,3 +373,8 @@ type EndpointRequest struct {
 	HostVethName  string `json:"hostVethName"`
 	InterfaceName string `json:"InterfaceName"`
 }
+
+type GetVMUniqueIDResponse struct {
+	Response   Response `json:"response"`
+	VMUniqueID string   `json:"VMUniqueID"`
+}

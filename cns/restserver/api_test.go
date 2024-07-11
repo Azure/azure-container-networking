@@ -29,6 +29,7 @@ import (
 	"github.com/Azure/azure-container-networking/store"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -1756,6 +1757,62 @@ func contains(networkContainers []cns.GetNetworkContainerResponse, str string) b
 		}
 	}
 	return false
+}
+
+// Testing GetVMUniqueID API handler with mock IMDS server with success
+func TestVMUniqueID_Success(t *testing.T) {
+	computeMetadata, err := os.ReadFile("../imds/testdata/computeMetadata.json")
+	require.NoError(t, err, "error reading testdata compute metadata file")
+
+	mockIMDSServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// request header "Metadata: true" must be present
+		metadataHeader := r.Header.Get("Metadata")
+		assert.Equal(t, "true", metadataHeader)
+
+		// query params should include apiversion and json format
+		apiVersion := r.URL.Query().Get("api-version")
+		assert.Equal(t, "2021-01-01", apiVersion)
+		format := r.URL.Query().Get("format")
+		assert.Equal(t, "json", format)
+		w.WriteHeader(http.StatusOK)
+		_, writeErr := w.Write(computeMetadata)
+		assert.NoError(t, writeErr, "error writing response")
+	}))
+	defer mockIMDSServer.Close()
+
+	u, err := url.Parse(mockIMDSServer.URL)
+	require.NoError(t, err)
+
+	req, err := http.NewRequestWithContext(context.TODO(), http.MethodGet, cns.GetVMUniqueID, http.NoBody)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.Header.Set("X-Use-Test-IMDS-Port", u.Port())
+
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	var vmIDResp cns.GetVMUniqueIDResponse
+	err = decodeResponse(w, &vmIDResp)
+	require.NoError(t, err)
+	assert.Equal(t, types.Success, vmIDResp.Response.ReturnCode)
+	assert.Equal(t, "55b8499d-9b42-4f85-843f-24ff69f4a643", vmIDResp.VMUniqueID)
+}
+
+// Testing GetVMUniqueID API handler with real IMDS server with failure as imds won't be available
+func TestVMUniqueID_Failed(t *testing.T) {
+	req, err := http.NewRequestWithContext(context.TODO(), http.MethodGet, cns.GetVMUniqueID, http.NoBody)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	var vmIDResp cns.GetVMUniqueIDResponse
+	err = decodeResponse(w, &vmIDResp)
+	require.NoError(t, err)
+	assert.Equal(t, types.UnexpectedError, vmIDResp.Response.ReturnCode)
 }
 
 // IGNORE TEST AS IT IS FAILING. TODO:- Fix it https://msazure.visualstudio.com/One/_workitems/edit/7720083

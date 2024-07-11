@@ -17,6 +17,7 @@ import (
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/hnsclient"
+	"github.com/Azure/azure-container-networking/cns/imds"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/cns/wireserver"
@@ -1521,4 +1522,51 @@ func (service *HTTPRestService) nmAgentSupportedApisHandler(w http.ResponseWrite
 	serviceErr := common.Encode(w, &nmAgentSupportedApisResponse)
 
 	logger.Response(service.Name, nmAgentSupportedApisResponse, resp.ReturnCode, serviceErr)
+}
+
+// getVMUniqueID retrieves VMUniqueID from the IMDS
+func (service *HTTPRestService) getVMUniqueID(w http.ResponseWriter, r *http.Request) {
+	logger.Printf("[Azure CNS] getVMUniqueID")
+	logger.Request(service.Name, "getVMUniqueID", nil)
+	ctx := r.Context()
+
+	switch r.Method {
+	case http.MethodGet:
+		imdsClient := getIMDSClient(r)
+		vmUniqueID, err := imdsClient.GetVMUniqueID(ctx)
+		var resp cns.GetVMUniqueIDResponse
+		if err != nil {
+			resp = cns.GetVMUniqueIDResponse{
+				Response: cns.Response{
+					ReturnCode: types.UnexpectedError,
+					Message:    errors.Wrap(err, "failed to get vmuniqueid").Error(),
+				},
+			}
+		} else {
+			resp = cns.GetVMUniqueIDResponse{
+				Response: cns.Response{
+					ReturnCode: types.Success,
+				},
+				VMUniqueID: vmUniqueID,
+			}
+		}
+
+		service.setResponse(w, resp.Response.ReturnCode, resp)
+	default:
+		returnMessage := "[Azure CNS] Error. getVMUniqueID did not receive a GET."
+		returnCode := types.UnsupportedVerb
+		service.setResponse(w, returnCode, cns.GetHomeAzResponse{
+			Response: cns.Response{ReturnCode: returnCode, Message: returnMessage},
+		})
+	}
+}
+
+func getIMDSClient(r *http.Request) *imds.Client {
+	imdsPort := r.Header.Get("X-Use-Test-IMDS-Port")
+	if imdsPort == "" {
+		return imds.NewClient()
+	}
+
+	// Use IMDS running on local host. Needed for testing API
+	return imds.NewClient(imds.Endpoint("http://127.0.0.1:"+imdsPort), imds.RetryAttempts(1))
 }

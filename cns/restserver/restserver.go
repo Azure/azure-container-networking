@@ -280,6 +280,8 @@ func (service *HTTPRestService) Init(config *common.ServiceConfig) error {
 	listener.AddHandler(cns.NetworkContainersURLPath, service.getOrRefreshNetworkContainers)
 	listener.AddHandler(cns.GetHomeAz, service.getHomeAz)
 	listener.AddHandler(cns.EndpointPath, service.EndpointHandlerAPI)
+	listener.AddHandler(cns.GetVMUniqueID, service.getVMUniqueID)
+
 	// handlers for v0.2
 	listener.AddHandler(cns.V2Prefix+cns.SetEnvironmentPath, service.setEnvironment)
 	listener.AddHandler(cns.V2Prefix+cns.CreateNetworkPath, service.createNetwork)
@@ -305,6 +307,7 @@ func (service *HTTPRestService) Init(config *common.ServiceConfig) error {
 	listener.AddHandler(cns.V2Prefix+cns.NmAgentSupportedApisPath, service.nmAgentSupportedApisHandler)
 	listener.AddHandler(cns.V2Prefix+cns.GetHomeAz, service.getHomeAz)
 	listener.AddHandler(cns.V2Prefix+cns.EndpointPath, service.EndpointHandlerAPI)
+	listener.AddHandler(cns.V2Prefix+cns.GetVMUniqueID, service.getVMUniqueID)
 
 	// Initialize HTTP client to be reused in CNS
 	connectionTimeout, _ := service.GetOption(acn.OptHttpConnectionTimeout).(int)
