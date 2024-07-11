@@ -1484,3 +1484,73 @@ func TestPluginSwiftV2MultipleAddDelete(t *testing.T) {
 		})
 	}
 }
+
+func TestValidateArgs(t *testing.T) {
+	p, _ := cni.NewPlugin("name", "0.3.0")
+	plugin := &NetPlugin{
+		Plugin: p,
+	}
+
+	tests := []struct {
+		name    string
+		args    *cniSkel.CmdArgs
+		nwCfg   *cni.NetworkConfig
+		wantErr bool
+	}{
+		{
+			name: "Args",
+			args: &cniSkel.CmdArgs{
+				ContainerID: "5419067fa51b3b942bdd1af1ae78ea5f9cabc67ae71c7b5ef57ba8ca1b2386ec",
+				IfName:      "eth0",
+			},
+			nwCfg: &cni.NetworkConfig{
+				Bridge: "azure0",
+			},
+			wantErr: false,
+		},
+		{
+			name: "Args with spaces and special characters",
+			args: &cniSkel.CmdArgs{
+				ContainerID: "test2-container",
+				IfName:      "vEthernet (Ethernet 2)",
+			},
+			nwCfg: &cni.NetworkConfig{
+				Bridge: ".-_",
+			},
+			wantErr: false,
+		},
+		{
+			name: "Empty args",
+			args: &cniSkel.CmdArgs{
+				ContainerID: "",
+				IfName:      "",
+			},
+			nwCfg: &cni.NetworkConfig{
+				Bridge: "",
+			},
+			wantErr: false,
+		},
+		{
+			name: "Invalid args",
+			args: &cniSkel.CmdArgs{
+				ContainerID: "",
+				IfName:      "",
+			},
+			nwCfg: &cni.NetworkConfig{
+				Bridge: "\\value/\"",
+			},
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			err := plugin.validateArgs(tt.args, tt.nwCfg)
+			if tt.wantErr {
+				require.Error(t, err, "Expected error but did not receive one")
+			} else {
+				require.NoError(t, err, "Expected no error but received one")
+			}
+		})
+	}
+}

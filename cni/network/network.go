@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"regexp"
 	"strconv"
 	"time"
 
@@ -405,6 +406,10 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 	nwCfg, err := cni.ParseNetworkConfig(args.StdinData)
 	if err != nil {
 		err = plugin.Errorf("Failed to parse network configuration: %v.", err)
+		return err
+	}
+
+	if err = plugin.validateArgs(args, nwCfg); err != nil {
 		return err
 	}
 
@@ -933,6 +938,10 @@ func (plugin *NetPlugin) Get(args *cniSkel.CmdArgs) error {
 
 	logger.Info("Read network configuration", zap.Any("config", nwCfg))
 
+	if err = plugin.validateArgs(args, nwCfg); err != nil {
+		return err
+	}
+
 	iptables.DisableIPTableLock = nwCfg.DisableIPTableLock
 
 	// Initialize values from network config.
@@ -1012,6 +1021,10 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 	// Parse network configuration from stdin.
 	if nwCfg, err = cni.ParseNetworkConfig(args.StdinData); err != nil {
 		err = plugin.Errorf("[cni-net] Failed to parse network configuration: %v", err)
+		return err
+	}
+
+	if err = plugin.validateArgs(args, nwCfg); err != nil {
 		return err
 	}
 
@@ -1203,6 +1216,10 @@ func (plugin *NetPlugin) Update(args *cniSkel.CmdArgs) error {
 	// Parse network configuration from stdin.
 	if nwCfg, err = cni.ParseNetworkConfig(args.StdinData); err != nil {
 		err = plugin.Errorf("Failed to parse network configuration: %v.", err)
+		return err
+	}
+
+	if err = plugin.validateArgs(args, nwCfg); err != nil {
 		return err
 	}
 
@@ -1467,4 +1484,22 @@ func convertCniResultToInterfaceInfo(result *cniTypesCurr.Result) network.Interf
 	}
 
 	return interfaceInfo
+}
+
+func (plugin *NetPlugin) validateArgs(args *cniSkel.CmdArgs, nwCfg *cni.NetworkConfig) error {
+	if !isValidString(args.ContainerID) || !isValidString(args.IfName) {
+		return errors.New("invalid args value")
+	}
+	if !isValidString(nwCfg.Bridge) {
+		return errors.New("invalid network config value")
+	}
+
+	return nil
+}
+
+// returns true if the string fully consists of zero or more alphanumeric, dots, dashes, parentheses, or underscores
+func isValidString(value string) bool {
+	pattern := `^[a-zA-Z0-9._\-\(\) ]*$`
+	re := regexp.MustCompile(pattern)
+	return re.MatchString(value)
 }
