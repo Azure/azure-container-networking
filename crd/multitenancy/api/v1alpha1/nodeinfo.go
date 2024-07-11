@@ -45,8 +45,8 @@ type NodeInfoStatus struct {
 }
 
 type DeviceInfo struct {
-	DeviceType  DeviceType `json:"deviceType,omitempty"`
-	DeviceCount int        `json:"deviceCount"`
+	DeviceType     DeviceType `json:"deviceType,omitempty"`
+	MacAddressList []string   `json:"macAddressList"`
 }
 
 func init() {

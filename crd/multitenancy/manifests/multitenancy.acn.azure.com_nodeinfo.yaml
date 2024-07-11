@@ -49,15 +49,17 @@ spec:
               deviceInfos:
                 items:
                   properties:
-                    deviceCount:
-                      type: integer
                     deviceType:
                       enum:
                       - acn.azure.com/vnet-nic
                       - acn.azure.com/infiniband-nic
                       type: string
+                    macAddressList:
+                      items:
+                        type: string
+                      type: array
                   required:
-                  - deviceCount
+                  - macAddressList
                   type: object
                 type: array
             type: object
