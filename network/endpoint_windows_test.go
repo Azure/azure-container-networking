@@ -58,7 +58,7 @@ func TestNewAndDeleteEndpointImplHnsV2(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := validateEndpoints([]*endpoint{ep}); err != nil {
+	if err = validateEndpoints([]*endpoint{ep}); err != nil {
 		fmt.Printf("+%v", err)
 		t.Fatal(err)
 	}
