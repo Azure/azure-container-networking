@@ -44,6 +44,7 @@ const (
 	defaultIPv6Route = "::/0"
 	// Default IPv6 nextHop
 	defaultIPv6NextHop = "fe80::1234:5678:9abc"
+	hcnIov             = 9216
 )
 
 // Windows implementation of route.
@@ -297,9 +298,17 @@ func (nm *networkManager) configureHcnNetwork(nwInfo *EndpointInfo, extIf *exter
 		return nil, errNetworkModeInvalid
 	}
 
+	// DelegatedNIC flag: hcn.DisableHostPort(1024)
 	if nwInfo.NICType == cns.DelegatedVMNIC {
 		hcnNetwork.Type = hcn.Transparent
 		hcnNetwork.Flags = hcn.DisableHostPort
+	}
+
+	// enable accelerated networking on the delegatedNIC, so we need both flags
+	// AccelnetNIC flag: hcn.EnableIov(9216)
+	if nwInfo.NICType == cns.NodeNetworkInterfaceAccelnetFrontendNIC {
+		// TODO: add hcn.EnableIov flag once get hcsshim new release is ready
+		hcnNetwork.Flags = hcnIov
 	}
 
 	// Populate subnets.
