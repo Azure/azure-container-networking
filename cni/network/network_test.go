@@ -78,7 +78,7 @@ func GetTestResources() *NetPlugin {
 	plugin.report = &telemetry.CNIReport{}
 	mockNetworkManager := acnnetwork.NewMockNetworkmanager(acnnetwork.NewMockEndpointClient(nil))
 	plugin.nm = mockNetworkManager
-	plugin.ipamInvoker = NewMockIpamInvoker(isIPv6, false, false, false, false)
+	plugin.ipamInvoker = NewMockIpamInvoker(isIPv6, false, false, false, false, false, false)
 	return plugin
 }
 
