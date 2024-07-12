@@ -558,17 +558,20 @@ func AddNATPolicyV2(vip string, destinations []string) (hcn.EndpointPolicy, erro
 
 // AddAccelnetPolicySetting returns serialized endpoint IOV policy
 func AddAccelnetPolicySetting() (hcn.EndpointPolicy, error) {
-	accelnetPolicySetting := hcn.IovPolicySetting{
+	accelnetPolicy := hcn.IovPolicySetting{
 		InterruptModeration: interruptModeration,
 		IovOffloadWeight:    iovOffloadWeight,
 		QueuePairsRequested: queuePairsRequested,
 	}
 
-	rawPolicy, err := json.Marshal(accelnetPolicySetting)
+	rawPolicy, err := json.Marshal(accelnetPolicy)
+	if err != nil {
+		return nil, errors.Wrap(err, "Failed to marshal accelnet policy")
+	}
 	endpointPolicy := hcn.EndpointPolicy{
 		Type:     hcn.IOV,
 		Settings: rawPolicy,
 	}
 
-	return endpointPolicy, err
+	return endpointPolicy, nil
 }

@@ -22,6 +22,7 @@ var (
 	errV6             = errors.New("v6 Fail")
 	errDelegatedVMNIC = errors.New("delegatedVMNIC fail")
 	errDeleteIpam     = errors.New("delete fail")
+	errAccelnetVMNIC  = errors.New("accelnetNIC fail")
 )
 
 type MockIpamInvoker struct {
@@ -30,17 +31,21 @@ type MockIpamInvoker struct {
 	v6Fail             bool
 	delegatedVMNIC     bool
 	delegatedVMNICFail bool
+	accelnetNIC        bool
+	accelnetNICFail    bool
 	ipMap              map[string]bool
 	customReturn       map[string]network.InterfaceInfo
 }
 
-func NewMockIpamInvoker(ipv6, v4Fail, v6Fail, delegatedVMNIC, delegatedVMNICFail bool) *MockIpamInvoker {
+func NewMockIpamInvoker(ipv6, v4Fail, v6Fail, delegatedVMNIC, delegatedVMNICFail, accelnetNIC, accelnetNICFail bool) *MockIpamInvoker {
 	return &MockIpamInvoker{
 		isIPv6:             ipv6,
 		v4Fail:             v4Fail,
 		v6Fail:             v6Fail,
 		delegatedVMNIC:     delegatedVMNIC,
 		delegatedVMNICFail: delegatedVMNICFail,
+		accelnetNIC:        accelnetNIC,
+		accelnetNICFail:    accelnetNICFail,
 		ipMap:              make(map[string]bool),
 	}
 }
@@ -109,6 +114,20 @@ func (invoker *MockIpamInvoker) Add(opt IPAMAddConfig) (ipamAddResult IPAMAddRes
 		ipamAddResult.interfaceInfo[string(cns.InfraNIC)] = network.InterfaceInfo{
 			IPConfigs: ipRes,
 			NICType:   cns.DelegatedVMNIC,
+		}
+	}
+
+	if invoker.accelnetNIC {
+		if invoker.accelnetNICFail {
+			return IPAMAddResult{}, errAccelnetVMNIC
+		}
+
+		ipStr := "30.30.30.30/32"
+		_, ipnet, _ := net.ParseCIDR(ipStr)
+		ipRes = append(ipRes, &network.IPConfig{Address: *ipnet})
+		ipamAddResult.interfaceInfo[string(cns.InfraNIC)] = network.InterfaceInfo{
+			IPConfigs: ipRes,
+			NICType:   cns.NodeNetworkInterfaceAccelnetFrontendNIC,
 		}
 	}
 

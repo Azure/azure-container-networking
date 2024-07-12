@@ -325,7 +325,7 @@ func (nw *network) configureHcnEndpoint(epInfo *EndpointInfo) (*hcn.HostComputeE
 		endpointPolicy, err := policy.AddAccelnetPolicySetting()
 		if err != nil {
 			logger.Error("Failed to get iov endpoint policy due to", zap.Error(err))
-			return nil, err
+			return nil, errors.Wrap(err, "Failed to get iov endpoint policy")
 		}
 		hcnEndpoint.Policies = append(hcnEndpoint.Policies, endpointPolicy)
 	}

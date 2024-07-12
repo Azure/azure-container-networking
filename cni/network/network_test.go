@@ -394,9 +394,9 @@ func TestIpamAddFail(t *testing.T) {
 			for i, method := range tt.methods {
 				fmt.Println("method", method, "wanterr", tt.wantErr[i])
 				if tt.wantErr[i] {
-					plugin.ipamInvoker = NewMockIpamInvoker(false, true, false, false, false)
+					plugin.ipamInvoker = NewMockIpamInvoker(false, true, false, false, false, false, false)
 				} else {
-					plugin.ipamInvoker = NewMockIpamInvoker(false, false, false, false, false)
+					plugin.ipamInvoker = NewMockIpamInvoker(false, false, false, false, false, false, false)
 				}
 
 				if tt.wantEndpointErr {
@@ -459,7 +459,7 @@ func TestIpamDeleteFail(t *testing.T) {
 			err := plugin.Add(tt.args)
 			require.NoError(t, err)
 
-			plugin.ipamInvoker = NewMockIpamInvoker(false, true, false, false, false)
+			plugin.ipamInvoker = NewMockIpamInvoker(false, true, false, false, false, false, false)
 			err = plugin.Delete(args)
 			if tt.wantErr {
 				require.Error(t, err)
@@ -489,7 +489,7 @@ func TestAddDualStack(t *testing.T) {
 			plugin: &NetPlugin{
 				Plugin:      cniPlugin,
 				nm:          acnnetwork.NewMockNetworkmanager(acnnetwork.NewMockEndpointClient(nil)),
-				ipamInvoker: NewMockIpamInvoker(true, false, false, false, false),
+				ipamInvoker: NewMockIpamInvoker(true, false, false, false, false, false, false),
 				report:      &telemetry.CNIReport{},
 				tb:          &telemetry.TelemetryBuffer{},
 			},
@@ -500,7 +500,7 @@ func TestAddDualStack(t *testing.T) {
 			plugin: &NetPlugin{
 				Plugin:      cniPlugin,
 				nm:          acnnetwork.NewMockNetworkmanager(acnnetwork.NewMockEndpointClient(nil)),
-				ipamInvoker: NewMockIpamInvoker(true, false, true, false, false),
+				ipamInvoker: NewMockIpamInvoker(true, false, true, false, false, false, false),
 				report:      &telemetry.CNIReport{},
 				tb:          &telemetry.TelemetryBuffer{},
 			},
@@ -546,7 +546,7 @@ func TestPluginGet(t *testing.T) {
 			plugin: &NetPlugin{
 				Plugin:      plugin,
 				nm:          acnnetwork.NewMockNetworkmanager(acnnetwork.NewMockEndpointClient(nil)),
-				ipamInvoker: NewMockIpamInvoker(false, false, false, false, false),
+				ipamInvoker: NewMockIpamInvoker(false, false, false, false, false, false, false),
 				report:      &telemetry.CNIReport{},
 				tb:          &telemetry.TelemetryBuffer{},
 			},
@@ -558,7 +558,7 @@ func TestPluginGet(t *testing.T) {
 			plugin: &NetPlugin{
 				Plugin:      plugin,
 				nm:          acnnetwork.NewMockNetworkmanager(acnnetwork.NewMockEndpointClient(nil)),
-				ipamInvoker: NewMockIpamInvoker(false, false, false, false, false),
+				ipamInvoker: NewMockIpamInvoker(false, false, false, false, false, false, false),
 				report:      &telemetry.CNIReport{},
 				tb:          &telemetry.TelemetryBuffer{},
 			},
@@ -571,7 +571,7 @@ func TestPluginGet(t *testing.T) {
 			plugin: &NetPlugin{
 				Plugin:      plugin,
 				nm:          acnnetwork.NewMockNetworkmanager(acnnetwork.NewMockEndpointClient(nil)),
-				ipamInvoker: NewMockIpamInvoker(false, false, false, false, false),
+				ipamInvoker: NewMockIpamInvoker(false, false, false, false, false, false, false),
 				report:      &telemetry.CNIReport{},
 				tb:          &telemetry.TelemetryBuffer{},
 			},
@@ -1199,7 +1199,7 @@ func TestPluginSwiftV2Add(t *testing.T) {
 			plugin: &NetPlugin{
 				Plugin:      plugin,
 				nm:          acnnetwork.NewMockNetworkmanager(acnnetwork.NewMockEndpointClient(nil)),
-				ipamInvoker: NewMockIpamInvoker(false, false, false, true, false),
+				ipamInvoker: NewMockIpamInvoker(false, false, false, true, false, true, false),
 				report:      &telemetry.CNIReport{},
 				tb:          &telemetry.TelemetryBuffer{},
 				netClient: &InterfaceGetterMock{
@@ -1216,7 +1216,7 @@ func TestPluginSwiftV2Add(t *testing.T) {
 			plugin: &NetPlugin{
 				Plugin:      plugin,
 				nm:          acnnetwork.NewMockNetworkmanager(acnnetwork.NewMockEndpointClient(nil)),
-				ipamInvoker: NewMockIpamInvoker(false, false, false, true, true),
+				ipamInvoker: NewMockIpamInvoker(false, false, false, true, true, true, true),
 				report:      &telemetry.CNIReport{},
 				tb:          &telemetry.TelemetryBuffer{},
 				netClient: &InterfaceGetterMock{
@@ -1230,7 +1230,7 @@ func TestPluginSwiftV2Add(t *testing.T) {
 			wantErrMsg: "IPAM Invoker Add failed with error: failed to add ipam invoker: delegatedVMNIC fail",
 		},
 		{
-			name: "SwiftV2 EndpointClient Add fail",
+			name: "SwiftV2 EndpointClient Add fail with delegatedVMNIC",
 			plugin: &NetPlugin{
 				Plugin: plugin,
 				nm: acnnetwork.NewMockNetworkmanager(acnnetwork.NewMockEndpointClient(func(ep *acnnetwork.EndpointInfo) error {
@@ -1240,7 +1240,7 @@ func TestPluginSwiftV2Add(t *testing.T) {
 
 					return nil
 				})),
-				ipamInvoker: NewMockIpamInvoker(false, false, false, true, false),
+				ipamInvoker: NewMockIpamInvoker(false, false, false, true, false, false, false),
 				report:      &telemetry.CNIReport{},
 				tb:          &telemetry.TelemetryBuffer{},
 				netClient: &InterfaceGetterMock{
@@ -1254,11 +1254,51 @@ func TestPluginSwiftV2Add(t *testing.T) {
 			wantErrMsg: "failed to create endpoint: MockEndpointClient Error : AddEndpoints Delegated VM NIC failed",
 		},
 		{
-			name: "SwiftV2 Find Interface By MAC Address Fail",
+			name: "SwiftV2 EndpointClient Add fail with AccelnetNIC",
+			plugin: &NetPlugin{
+				Plugin: plugin,
+				nm: acnnetwork.NewMockNetworkmanager(acnnetwork.NewMockEndpointClient(func(ep *acnnetwork.EndpointInfo) error {
+					if ep.NICType == cns.NodeNetworkInterfaceAccelnetFrontendNIC {
+						return acnnetwork.NewErrorMockEndpointClient("AddEndpoints Accelnet VM NIC failed") //nolint:wrapcheck // ignore wrapping for test
+					}
+
+					return nil
+				})),
+				ipamInvoker: NewMockIpamInvoker(false, false, false, false, false, true, false),
+				report:      &telemetry.CNIReport{},
+				tb:          &telemetry.TelemetryBuffer{},
+				netClient: &InterfaceGetterMock{
+					interfaces: []net.Interface{
+						{Name: "eth0"},
+					},
+				},
+			},
+			args:       args,
+			wantErr:    true,
+			wantErrMsg: "failed to create endpoint: MockEndpointClient Error : AddEndpoints Accelnet VM NIC failed",
+		},
+		{
+			name: "SwiftV2 Find Interface By MAC Address Fail with delegated VM NIC",
 			plugin: &NetPlugin{
 				Plugin:      plugin,
 				nm:          acnnetwork.NewMockNetworkmanager(acnnetwork.NewMockEndpointClient(nil)),
-				ipamInvoker: NewMockIpamInvoker(false, false, false, true, false),
+				ipamInvoker: NewMockIpamInvoker(false, false, false, true, false, false, false),
+				report:      &telemetry.CNIReport{},
+				tb:          &telemetry.TelemetryBuffer{},
+				netClient: &InterfaceGetterMock{
+					interfaces: []net.Interface{},
+				},
+			},
+			args:       args,
+			wantErr:    true,
+			wantErrMsg: "Failed to find the master interface",
+		},
+		{
+			name: "SwiftV2 Find Interface By MAC Address Fail with Accelnet VM NIC",
+			plugin: &NetPlugin{
+				Plugin:      plugin,
+				nm:          acnnetwork.NewMockNetworkmanager(acnnetwork.NewMockEndpointClient(nil)),
+				ipamInvoker: NewMockIpamInvoker(false, false, false, false, false, true, false),
 				report:      &telemetry.CNIReport{},
 				tb:          &telemetry.TelemetryBuffer{},
 				netClient: &InterfaceGetterMock{
@@ -1274,7 +1314,7 @@ func TestPluginSwiftV2Add(t *testing.T) {
 			plugin: &NetPlugin{
 				Plugin:      plugin,
 				nm:          acnnetwork.NewMockNetworkmanager(acnnetwork.NewMockEndpointClient(nil)),
-				ipamInvoker: NewMockIpamInvoker(false, false, false, false, false),
+				ipamInvoker: NewMockIpamInvoker(false, false, false, false, false, false, false),
 				report:      &telemetry.CNIReport{},
 				tb:          &telemetry.TelemetryBuffer{},
 				netClient: &InterfaceGetterMock{
@@ -1372,6 +1412,59 @@ func TestPluginSwiftV2MultipleAddDelete(t *testing.T) {
 			wantNumEps: 2,
 		},
 		{
+			name: "SwiftV2 Add Delegated and Accelnet",
+			plugin: &NetPlugin{
+				Plugin: plugin,
+				nm:     acnnetwork.NewMockNetworkmanager(acnnetwork.NewMockEndpointClient(nil)),
+				ipamInvoker: NewCustomMockIpamInvoker(map[string]acnnetwork.InterfaceInfo{
+					"eth0-1": {
+						NICType: cns.NodeNetworkInterfaceAccelnetFrontendNIC,
+					},
+					"eth0": {
+						NICType: cns.DelegatedVMNIC,
+					},
+				}),
+				report: &telemetry.CNIReport{},
+				tb:     &telemetry.TelemetryBuffer{},
+				netClient: &InterfaceGetterMock{
+					interfaces: []net.Interface{
+						{Name: "eth0"},
+					},
+				},
+			},
+			args:       args,
+			wantErr:    false,
+			wantNumEps: 2,
+		},
+		{
+			name: "SwiftV2 Add Infra and Delegated and Accelnet",
+			plugin: &NetPlugin{
+				Plugin: plugin,
+				nm:     acnnetwork.NewMockNetworkmanager(acnnetwork.NewMockEndpointClient(nil)),
+				ipamInvoker: NewCustomMockIpamInvoker(map[string]acnnetwork.InterfaceInfo{
+					"eth0-2": {
+						NICType: cns.NodeNetworkInterfaceAccelnetFrontendNIC,
+					},
+					"eth0-1": {
+						NICType: cns.DelegatedVMNIC,
+					},
+					"eth0": {
+						NICType: cns.InfraNIC,
+					},
+				}),
+				report: &telemetry.CNIReport{},
+				tb:     &telemetry.TelemetryBuffer{},
+				netClient: &InterfaceGetterMock{
+					interfaces: []net.Interface{
+						{Name: "eth0"},
+					},
+				},
+			},
+			args:       args,
+			wantErr:    false,
+			wantNumEps: 3,
+		},
+		{
 			name: "SwiftV2 Add Infra and InfiniteBand",
 			plugin: &NetPlugin{
 				Plugin: plugin,
@@ -1422,9 +1515,34 @@ func TestPluginSwiftV2MultipleAddDelete(t *testing.T) {
 			wantNumEps: 2,
 		},
 		{
+			name: "SwiftV2 Add Two Accelnet",
+			plugin: &NetPlugin{
+				Plugin: plugin,
+				nm:     acnnetwork.NewMockNetworkmanager(acnnetwork.NewMockEndpointClient(nil)),
+				ipamInvoker: NewCustomMockIpamInvoker(map[string]acnnetwork.InterfaceInfo{
+					"eth0": {
+						NICType: cns.NodeNetworkInterfaceAccelnetFrontendNIC,
+					},
+					"eth0-1": {
+						NICType: cns.NodeNetworkInterfaceAccelnetFrontendNIC,
+					},
+				}),
+				report: &telemetry.CNIReport{},
+				tb:     &telemetry.TelemetryBuffer{},
+				netClient: &InterfaceGetterMock{
+					interfaces: []net.Interface{
+						{Name: "eth0"},
+					},
+				},
+			},
+			args:       args,
+			wantErr:    false,
+			wantNumEps: 2,
+		},
+		{
 			// creates 2 endpoints, the first succeeds, the second doesn't
 			// ensures that delete is called to clean up the first endpoint that succeeded
-			name: "SwiftV2 Partial Add fail",
+			name: "SwiftV2 Partial Add fail with Delegated VM NIC",
 			plugin: &NetPlugin{
 				Plugin: plugin,
 				nm: acnnetwork.NewMockNetworkmanager(acnnetwork.NewMockEndpointClient(func(ep *acnnetwork.EndpointInfo) error {
@@ -1454,6 +1572,38 @@ func TestPluginSwiftV2MultipleAddDelete(t *testing.T) {
 			wantNumEps: 0,
 			wantErr:    true,
 			wantErrMsg: "failed to create endpoint: MockEndpointClient Error : AddEndpoints Delegated VM NIC failed",
+		},
+		{
+			name: "SwiftV2 Partial Add fail with Accelnet VM NIC",
+			plugin: &NetPlugin{
+				Plugin: plugin,
+				nm: acnnetwork.NewMockNetworkmanager(acnnetwork.NewMockEndpointClient(func(ep *acnnetwork.EndpointInfo) error {
+					if ep.NICType == cns.NodeNetworkInterfaceAccelnetFrontendNIC {
+						return acnnetwork.NewErrorMockEndpointClient("AddEndpoints Accelnet VM NIC failed") //nolint:wrapcheck // ignore wrapping for test
+					}
+
+					return nil
+				})),
+				ipamInvoker: NewCustomMockIpamInvoker(map[string]acnnetwork.InterfaceInfo{
+					"eth0": {
+						NICType: cns.DelegatedVMNIC,
+					},
+					"eth0-1": {
+						NICType: cns.NodeNetworkInterfaceAccelnetFrontendNIC,
+					},
+				}),
+				report: &telemetry.CNIReport{},
+				tb:     &telemetry.TelemetryBuffer{},
+				netClient: &InterfaceGetterMock{
+					interfaces: []net.Interface{
+						{Name: "eth0"},
+					},
+				},
+			},
+			args:       args,
+			wantNumEps: 0,
+			wantErr:    true,
+			wantErrMsg: "failed to create endpoint: MockEndpointClient Error : AddEndpoints Accelnet VM NIC failed",
 		},
 	}
 
