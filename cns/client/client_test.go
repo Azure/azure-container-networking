@@ -151,7 +151,9 @@ func TestMain(m *testing.M) {
 	logger.InitLogger(logName, 0, 0, tmpLogDir+"/")
 	config := common.ServiceConfig{}
 
-	httpRestService, err := restserver.NewHTTPRestService(&config, &fakes.WireserverClientFake{}, &fakes.WireserverProxyFake{}, &fakes.NMAgentClientFake{}, nil, nil, nil)
+	httpRestService, err := restserver.NewHTTPRestService(&config, &fakes.WireserverClientFake{},
+		&fakes.WireserverProxyFake{}, &fakes.NMAgentClientFake{}, nil, nil, nil,
+		fakes.NewMockIMDSClient())
 	svc = httpRestService
 	httpRestService.Name = "cns-test-server"
 

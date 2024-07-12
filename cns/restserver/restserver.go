@@ -49,6 +49,10 @@ type wireserverProxy interface {
 	UnpublishNC(ctx context.Context, ncParams cns.NetworkContainerParameters, payload []byte) (*http.Response, error)
 }
 
+type IMDSClient interface {
+	GetVMUniqueID(ctx context.Context) (string, error)
+}
+
 // HTTPRestService represents http listener for CNS - Container Networking Service.
 type HTTPRestService struct {
 	*cns.Service
@@ -73,6 +77,7 @@ type HTTPRestService struct {
 	generateCNIConflistOnce    sync.Once
 	IPConfigsHandlerMiddleware cns.IPConfigsHandlerMiddleware
 	PnpIDByMacAddress          map[string]string
+	imdsClient                 IMDSClient
 }
 
 type CNIConflistGenerator interface {
@@ -163,6 +168,7 @@ type networkInfo struct {
 // NewHTTPRestService creates a new HTTP Service object.
 func NewHTTPRestService(config *common.ServiceConfig, wscli interfaceGetter, wsproxy wireserverProxy, nmagentClient nmagentClient,
 	endpointStateStore store.KeyValueStore, gen CNIConflistGenerator, homeAzMonitor *HomeAzMonitor,
+	imdsClient IMDSClient,
 ) (*HTTPRestService, error) {
 	service, err := cns.NewService(config.Name, config.Version, config.ChannelMode, config.Store)
 	if err != nil {
@@ -225,6 +231,7 @@ func NewHTTPRestService(config *common.ServiceConfig, wscli interfaceGetter, wsp
 		EndpointState:            make(map[string]*EndpointInfo),
 		homeAzMonitor:            homeAzMonitor,
 		cniConflistGenerator:     gen,
+		imdsClient:               imdsClient,
 	}, nil
 }
 

@@ -17,7 +17,6 @@ import (
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/hnsclient"
-	"github.com/Azure/azure-container-networking/cns/imds"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/cns/wireserver"
@@ -1532,9 +1531,9 @@ func (service *HTTPRestService) getVMUniqueID(w http.ResponseWriter, r *http.Req
 
 	switch r.Method {
 	case http.MethodGet:
-		imdsClient := getIMDSClient(r)
-		vmUniqueID, err := imdsClient.GetVMUniqueID(ctx)
+		vmUniqueID, err := service.imdsClient.GetVMUniqueID(ctx)
 		var resp cns.GetVMUniqueIDResponse
+		httpStatus := http.StatusOK
 		if err != nil {
 			resp = cns.GetVMUniqueIDResponse{
 				Response: cns.Response{
@@ -1542,6 +1541,7 @@ func (service *HTTPRestService) getVMUniqueID(w http.ResponseWriter, r *http.Req
 					Message:    errors.Wrap(err, "failed to get vmuniqueid").Error(),
 				},
 			}
+			httpStatus = http.StatusInternalServerError
 		} else {
 			resp = cns.GetVMUniqueIDResponse{
 				Response: cns.Response{
@@ -1551,7 +1551,9 @@ func (service *HTTPRestService) getVMUniqueID(w http.ResponseWriter, r *http.Req
 			}
 		}
 
-		service.setResponse(w, resp.Response.ReturnCode, resp)
+		respondJSON(w, httpStatus, resp)
+		logger.Response(service.Name, resp, resp.Response.ReturnCode, err)
+
 	default:
 		returnMessage := "[Azure CNS] Error. getVMUniqueID did not receive a GET."
 		returnCode := types.UnsupportedVerb
@@ -1559,14 +1561,4 @@ func (service *HTTPRestService) getVMUniqueID(w http.ResponseWriter, r *http.Req
 			Response: cns.Response{ReturnCode: returnCode, Message: returnMessage},
 		})
 	}
-}
-
-func getIMDSClient(r *http.Request) *imds.Client {
-	imdsPort := r.Header.Get("X-Use-Test-IMDS-Port")
-	if imdsPort == "" {
-		return imds.NewClient()
-	}
-
-	// Use IMDS running on local host. Needed for testing API
-	return imds.NewClient(imds.Endpoint("http://127.0.0.1:"+imdsPort), imds.RetryAttempts(1))
 }

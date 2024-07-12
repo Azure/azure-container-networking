@@ -1680,7 +1680,8 @@ func startService() error {
 	config.Store = fileStore
 
 	nmagentClient := &fakes.NMAgentClientFake{}
-	service, err = NewHTTPRestService(&config, &fakes.WireserverClientFake{}, &fakes.WireserverProxyFake{}, nmagentClient, nil, nil, nil)
+	service, err = NewHTTPRestService(&config, &fakes.WireserverClientFake{}, &fakes.WireserverProxyFake{},
+		nmagentClient, nil, nil, nil, fakes.NewMockIMDSClient())
 	if err != nil {
 		return err
 	}
@@ -1759,35 +1760,12 @@ func contains(networkContainers []cns.GetNetworkContainerResponse, str string) b
 	return false
 }
 
-// Testing GetVMUniqueID API handler with mock IMDS server with success
-func TestVMUniqueID_Success(t *testing.T) {
-	computeMetadata, err := os.ReadFile("../imds/testdata/computeMetadata.json")
-	require.NoError(t, err, "error reading testdata compute metadata file")
-
-	mockIMDSServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// request header "Metadata: true" must be present
-		metadataHeader := r.Header.Get("Metadata")
-		assert.Equal(t, "true", metadataHeader)
-
-		// query params should include apiversion and json format
-		apiVersion := r.URL.Query().Get("api-version")
-		assert.Equal(t, "2021-01-01", apiVersion)
-		format := r.URL.Query().Get("format")
-		assert.Equal(t, "json", format)
-		w.WriteHeader(http.StatusOK)
-		_, writeErr := w.Write(computeMetadata)
-		assert.NoError(t, writeErr, "error writing response")
-	}))
-	defer mockIMDSServer.Close()
-
-	u, err := url.Parse(mockIMDSServer.URL)
-	require.NoError(t, err)
-
+// Testing GetVMUniqueID API handler with success
+func TestGetVMUniqueIDSuccess(t *testing.T) {
 	req, err := http.NewRequestWithContext(context.TODO(), http.MethodGet, cns.GetVMUniqueID, http.NoBody)
 	if err != nil {
 		t.Fatal(err)
 	}
-	req.Header.Set("X-Use-Test-IMDS-Port", u.Port())
 
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
@@ -1799,9 +1777,12 @@ func TestVMUniqueID_Success(t *testing.T) {
 	assert.Equal(t, "55b8499d-9b42-4f85-843f-24ff69f4a643", vmIDResp.VMUniqueID)
 }
 
-// Testing GetVMUniqueID API handler with real IMDS server with failure as imds won't be available
-func TestVMUniqueID_Failed(t *testing.T) {
-	req, err := http.NewRequestWithContext(context.TODO(), http.MethodGet, cns.GetVMUniqueID, http.NoBody)
+// Testing GetVMUniqueID API handler with failure
+func TestGetVMUniqueIDFailed(t *testing.T) {
+	ctx := context.TODO()
+	key := fakes.MockIMDSCtxKey(fakes.SimulateError)
+	ctx = context.WithValue(ctx, key, Interface{})
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, cns.GetVMUniqueID, http.NoBody)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1809,8 +1790,10 @@ func TestVMUniqueID_Failed(t *testing.T) {
 	w := httptest.NewRecorder()
 	mux.ServeHTTP(w, req)
 
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+
 	var vmIDResp cns.GetVMUniqueIDResponse
-	err = decodeResponse(w, &vmIDResp)
+	err = json.NewDecoder(w.Body).Decode(&vmIDResp)
 	require.NoError(t, err)
 	assert.Equal(t, types.UnexpectedError, vmIDResp.Response.ReturnCode)
 }

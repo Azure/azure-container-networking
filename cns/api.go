@@ -306,8 +306,8 @@ type IpamPoolMonitorStateSnapshot struct {
 
 // Response describes generic response from CNS.
 type Response struct {
-	ReturnCode types.ResponseCode
-	Message    string
+	ReturnCode types.ResponseCode `json:"ReturnCode"`
+	Message    string             `json:"Message"`
 }
 
 // NumOfCPUCoresResponse describes num of cpu cores present on host.
