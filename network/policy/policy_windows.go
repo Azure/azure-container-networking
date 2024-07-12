@@ -566,7 +566,7 @@ func AddAccelnetPolicySetting() (hcn.EndpointPolicy, error) {
 
 	rawPolicy, err := json.Marshal(accelnetPolicy)
 	if err != nil {
-		return nil, errors.Wrap(err, "Failed to marshal accelnet policy")
+		return hcn.EndpointPolicy{}, errors.Wrap(err, "Failed to marshal accelnet policy")
 	}
 	endpointPolicy := hcn.EndpointPolicy{
 		Type:     hcn.IOV,

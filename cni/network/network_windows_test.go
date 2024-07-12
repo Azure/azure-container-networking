@@ -93,7 +93,7 @@ func TestPluginSecondAddSamePodWindows(t *testing.T) {
 			plugin: &NetPlugin{
 				Plugin:      plugin,
 				nm:          network.NewMockNetworkmanager(network.NewMockEndpointClient(nil)),
-				ipamInvoker: NewMockIpamInvoker(false, false, false, false, false),
+				ipamInvoker: NewMockIpamInvoker(false, false, false, false, false, false, false),
 				report:      &telemetry.CNIReport{},
 				tb:          &telemetry.TelemetryBuffer{},
 			},
@@ -478,7 +478,7 @@ func TestGetNetworkNameFromCNS(t *testing.T) {
 			plugin: &NetPlugin{
 				Plugin:      plugin,
 				nm:          network.NewMockNetworkmanager(network.NewMockEndpointClient(nil)),
-				ipamInvoker: NewMockIpamInvoker(false, false, false, false, false),
+				ipamInvoker: NewMockIpamInvoker(false, false, false, false, false, false, false),
 				report:      &telemetry.CNIReport{},
 				tb:          &telemetry.TelemetryBuffer{},
 			},
@@ -511,7 +511,7 @@ func TestGetNetworkNameFromCNS(t *testing.T) {
 			plugin: &NetPlugin{
 				Plugin:      plugin,
 				nm:          network.NewMockNetworkmanager(network.NewMockEndpointClient(nil)),
-				ipamInvoker: NewMockIpamInvoker(false, false, false, false, false),
+				ipamInvoker: NewMockIpamInvoker(false, false, false, false, false, false, false),
 				report:      &telemetry.CNIReport{},
 				tb:          &telemetry.TelemetryBuffer{},
 			},
@@ -544,7 +544,7 @@ func TestGetNetworkNameFromCNS(t *testing.T) {
 			plugin: &NetPlugin{
 				Plugin:      plugin,
 				nm:          network.NewMockNetworkmanager(network.NewMockEndpointClient(nil)),
-				ipamInvoker: NewMockIpamInvoker(false, false, false, false, false),
+				ipamInvoker: NewMockIpamInvoker(false, false, false, false, false, false, false),
 				report:      &telemetry.CNIReport{},
 				tb:          &telemetry.TelemetryBuffer{},
 			},
@@ -577,7 +577,7 @@ func TestGetNetworkNameFromCNS(t *testing.T) {
 			plugin: &NetPlugin{
 				Plugin:      plugin,
 				nm:          network.NewMockNetworkmanager(network.NewMockEndpointClient(nil)),
-				ipamInvoker: NewMockIpamInvoker(false, false, false, false, false),
+				ipamInvoker: NewMockIpamInvoker(false, false, false, false, false, false, false),
 				report:      &telemetry.CNIReport{},
 				tb:          &telemetry.TelemetryBuffer{},
 			},
@@ -610,7 +610,7 @@ func TestGetNetworkNameFromCNS(t *testing.T) {
 			plugin: &NetPlugin{
 				Plugin:      plugin,
 				nm:          network.NewMockNetworkmanager(network.NewMockEndpointClient(nil)),
-				ipamInvoker: NewMockIpamInvoker(false, false, false, false, false),
+				ipamInvoker: NewMockIpamInvoker(false, false, false, false, false, false, false),
 				report:      &telemetry.CNIReport{},
 				tb:          &telemetry.TelemetryBuffer{},
 			},
@@ -671,7 +671,7 @@ func TestGetNetworkNameSwiftv2FromCNS(t *testing.T) {
 			plugin: &NetPlugin{
 				Plugin:      plugin,
 				nm:          network.NewMockNetworkmanager(network.NewMockEndpointClient(nil)),
-				ipamInvoker: NewMockIpamInvoker(false, false, false, true, false),
+				ipamInvoker: NewMockIpamInvoker(false, false, false, true, false, false, false),
 				report:      &telemetry.CNIReport{},
 				tb:          &telemetry.TelemetryBuffer{},
 			},
@@ -693,7 +693,7 @@ func TestGetNetworkNameSwiftv2FromCNS(t *testing.T) {
 			plugin: &NetPlugin{
 				Plugin:      plugin,
 				nm:          network.NewMockNetworkmanager(network.NewMockEndpointClient(nil)),
-				ipamInvoker: NewMockIpamInvoker(false, false, false, true, false),
+				ipamInvoker: NewMockIpamInvoker(false, false, false, true, false, false, false),
 				report:      &telemetry.CNIReport{},
 				tb:          &telemetry.TelemetryBuffer{},
 			},
@@ -715,7 +715,7 @@ func TestGetNetworkNameSwiftv2FromCNS(t *testing.T) {
 			plugin: &NetPlugin{
 				Plugin:      plugin,
 				nm:          network.NewMockNetworkmanager(network.NewMockEndpointClient(nil)),
-				ipamInvoker: NewMockIpamInvoker(false, false, false, true, false),
+				ipamInvoker: NewMockIpamInvoker(false, false, false, false, false, true, false),
 				report:      &telemetry.CNIReport{},
 				tb:          &telemetry.TelemetryBuffer{},
 			},
