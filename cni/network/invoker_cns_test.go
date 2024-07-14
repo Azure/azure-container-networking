@@ -1460,7 +1460,7 @@ func TestCNSIPAMInvoker_Add_SwiftV2(t *testing.T) {
 	ibParsedMacAddress, _ := net.ParseMAC(ibMacAddress)
 
 	accelnetAddress := "ab:cd:ef:12:34:56"
-	accelnetParsedMacAddress, _ := net.ParseMAC(ibMacAddress)
+	accelnetParsedMacAddress, _ := net.ParseMAC(accelnetAddress)
 
 	pnpID := "PCI\\VEN_15B3&DEV_101C&SUBSYS_000715B3&REV_00\\5&8c5acce&0&0"
 

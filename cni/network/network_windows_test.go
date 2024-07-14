@@ -112,7 +112,7 @@ func TestPluginSecondAddSamePodWindows(t *testing.T) {
 			plugin: &NetPlugin{
 				Plugin:      plugin,
 				nm:          network.NewMockNetworkmanager(network.NewMockEndpointClient(nil)),
-				ipamInvoker: NewMockIpamInvoker(false, false, false, false, false),
+				ipamInvoker: NewMockIpamInvoker(false, false, false, false, false, false, false),
 				report:      &telemetry.CNIReport{},
 				tb:          &telemetry.TelemetryBuffer{},
 			},
