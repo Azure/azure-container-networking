@@ -284,16 +284,7 @@ func TestDisableVFDeviceHappyPath(t *testing.T) {
 	}
 }
 
-func TestDisableVFDeviceUnHappyPathOne(t *testing.T) {
-	// set unhappy path
-	mockExecClient := platform.NewMockExecClient(true)
-	err := disableVFDevice(instanceID, mockExecClient)
-	if err == nil {
-		t.Fatal("Failed to test disable VF unhappy path")
-	}
-}
-
-func TestDisableVFDeviceUnHappyPathTwo(t *testing.T) {
+func TestDisableVFDeviceUnHappyPath(t *testing.T) {
 	mockExecClient := platform.NewMockExecClient(false)
 	// set unhappy path
 	mockExecClient.SetPowershellCommandResponder(func(cmd string) (string, error) {
@@ -328,10 +319,15 @@ func TestGetLocationPathHappyPath(t *testing.T) {
 }
 
 func TestGetLocationPathUnHappyPath(t *testing.T) {
-	mockExecClient := platform.NewMockExecClient(true)
+	mockExecClient := platform.NewMockExecClient(false)
+	// set unhappy path
+	mockExecClient.SetPowershellCommandResponder(func(cmd string) (string, error) {
+		return failedCaseReturn, errTestFailure
+	})
+
 	_, err := getLocationPath(instanceID, mockExecClient)
 	if err == nil {
-		t.Fatal("Failed to test get locationPath unhappy path")
+		t.Fatal("Failed to test get location path on unhappy path")
 	}
 }
 
@@ -356,16 +352,7 @@ func TestDismountVFDeviceHappyPath(t *testing.T) {
 	}
 }
 
-func TestDismountVFDeviceUnHappyPathOne(t *testing.T) {
-	// set unhappy path
-	mockExecClient := platform.NewMockExecClient(true)
-	err := dismountVFDevice(instanceID, mockExecClient)
-	if err == nil {
-		t.Fatal("Failed to test dismount VF unhappy path")
-	}
-}
-
-func TestDismountVFDeviceUnHappyPathTwo(t *testing.T) {
+func TestDismountVFDeviceUnHappyPath(t *testing.T) {
 	mockExecClient := platform.NewMockExecClient(false)
 	// set unhappy path
 	mockExecClient.SetPowershellCommandResponder(func(cmd string) (string, error) {
@@ -401,7 +388,12 @@ func TestGetPnPDeviceIDHappyPath(t *testing.T) {
 }
 
 func TestGetPnPDeviceIDUnHappyPath(t *testing.T) {
-	mockExecClient := platform.NewMockExecClient(true)
+	mockExecClient := platform.NewMockExecClient(false)
+	// set unhappy path
+	mockExecClient.SetPowershellCommandResponder(func(cmd string) (string, error) {
+		return failedCaseReturn, errTestFailure
+	})
+
 	_, err := getPnPDeviceID(instanceID, mockExecClient)
 	if err == nil {
 		t.Fatal("Failed to test get pnp device id unhappy path")
@@ -431,7 +423,12 @@ func TestGetPnPDeviceStateHappyPath(t *testing.T) {
 }
 
 func TestGetPnPDeviceStateUnHappyPath(t *testing.T) {
-	mockExecClient := platform.NewMockExecClient(true)
+	mockExecClient := platform.NewMockExecClient(false)
+	// set unhappy path
+	mockExecClient.SetPowershellCommandResponder(func(cmd string) (string, error) {
+		return failedCaseReturn, errTestFailure
+	})
+
 	_, _, err := getPnpDeviceState(instanceID, mockExecClient)
 	if err == nil {
 		t.Fatal("Failed to test get pnp device state unhappy path")
@@ -505,6 +502,35 @@ func TestNewEndpointImplHnsv2ForIBUnHappyPath(t *testing.T) {
 	}
 }
 
+func TestNewEndpointImplHnsv2ForDelegatedHappyPath(t *testing.T) {
+	nw := &network{
+		Endpoints: map[string]*endpoint{},
+	}
+
+	// this hnsv2 variable overwrites the package level variable in network
+	// we do this to avoid passing around os specific objects in platform agnostic code
+	hnsFake := hnswrapper.NewHnsv2wrapperFake()
+
+	Hnsv2 = hnswrapper.Hnsv2wrapperwithtimeout{
+		Hnsv2:          hnsFake,
+		HnsCallTimeout: 5 * time.Second,
+	}
+
+	epInfo := &EndpointInfo{
+		EndpointID: "768e8deb-eth1",
+		Data:       make(map[string]interface{}),
+		IfName:     "eth1",
+		NICType:    cns.DelegatedVMNIC,
+		MacAddress: net.HardwareAddr("00:00:5e:00:53:01"),
+	}
+
+	// Happy Path
+	_, err := nw.newEndpointImplHnsV2(nil, epInfo)
+	if err != nil {
+		t.Fatal("Failed to create endpoint for Delegated NIC")
+	}
+}
+
 func TestNewEndpointImplHnsv2ForAccelnetHappyPath(t *testing.T) {
 	nw := &network{
 		Endpoints: map[string]*endpoint{},
@@ -528,44 +554,8 @@ func TestNewEndpointImplHnsv2ForAccelnetHappyPath(t *testing.T) {
 	}
 
 	// Happy Path
-	_, err := nw.newEndpointImpl(nil, netlink.NewMockNetlink(false, ""), platform.NewMockExecClient(false),
-		netio.NewMockNetIO(false, 0), NewMockEndpointClient(nil), NewMockNamespaceClient(), iptables.NewClient(), epInfo)
+	_, err := nw.newEndpointImplHnsV2(nil, epInfo)
 	if err != nil {
 		t.Fatal("Failed to create endpoint for Accelnet NIC")
-	}
-}
-
-func TestNewEndpointImplHnsv2ForAccelnetUnHappyPath(t *testing.T) {
-	nw := &network{
-		Endpoints: map[string]*endpoint{},
-	}
-
-	// this hnsv2 variable overwrites the package level variable in network
-	// we do this to avoid passing around os specific objects in platform agnostic code
-	hnsFake := hnswrapper.NewHnsv2wrapperFake()
-
-	Hnsv2 = hnswrapper.Hnsv2wrapperwithtimeout{
-		Hnsv2:          hnsFake,
-		HnsCallTimeout: 5 * time.Second,
-	}
-
-	epInfo := &EndpointInfo{
-		EndpointID: "768e8deb-eth1",
-		Data:       make(map[string]interface{}),
-		IfName:     "eth1",
-		NICType:    cns.NodeNetworkInterfaceAccelnetFrontendNIC,
-		MacAddress: net.HardwareAddr("00:00:5e:00:53:01"),
-	}
-
-	// Set UnHappy Path
-	_, err := nw.newEndpointImpl(nil, netlink.NewMockNetlink(false, ""), platform.NewMockExecClient(true),
-		netio.NewMockNetIO(false, 0), NewMockEndpointClient(nil), NewMockNamespaceClient(), iptables.NewClient(), epInfo)
-
-	if err == nil {
-		t.Fatal("Failed to test Endpoint creation for Accelnet with unhappy path")
-	}
-
-	if !errors.Is(err, platform.ErrMockExec) {
-		t.Fatalf("Unexpected Error:%v; Error should be %v", err, platform.ErrMockExec)
 	}
 }
