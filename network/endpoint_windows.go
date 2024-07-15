@@ -321,6 +321,7 @@ func (nw *network) configureHcnEndpoint(epInfo *EndpointInfo) (*hcn.HostComputeE
 		return nil, err
 	}
 
+	// add hcnEndpoint policy for accelnet
 	if epInfo.NICType == cns.NodeNetworkInterfaceAccelnetFrontendNIC {
 		endpointPolicy, err := policy.AddAccelnetPolicySetting()
 		if err != nil {
