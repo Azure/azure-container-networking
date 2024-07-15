@@ -504,3 +504,69 @@ func TestNewEndpointImplHnsv2ForIBUnHappyPath(t *testing.T) {
 		t.Fatalf("Unexpected Error:%v; Error should be %v", err, platform.ErrMockExec)
 	}
 }
+
+func TestNewEndpointImplHnsv2ForAccelnetHappyPath(t *testing.T) {
+	nw := &network{
+		Endpoints: map[string]*endpoint{},
+	}
+
+	// this hnsv2 variable overwrites the package level variable in network
+	// we do this to avoid passing around os specific objects in platform agnostic code
+	hnsFake := hnswrapper.NewHnsv2wrapperFake()
+
+	Hnsv2 = hnswrapper.Hnsv2wrapperwithtimeout{
+		Hnsv2:          hnsFake,
+		HnsCallTimeout: 5 * time.Second,
+	}
+
+	epInfo := &EndpointInfo{
+		EndpointID: "768e8deb-eth1",
+		Data:       make(map[string]interface{}),
+		IfName:     "eth1",
+		NICType:    cns.NodeNetworkInterfaceAccelnetFrontendNIC,
+		MacAddress: net.HardwareAddr("00:00:5e:00:53:01"),
+	}
+
+	// Happy Path
+	_, err := nw.newEndpointImpl(nil, netlink.NewMockNetlink(false, ""), platform.NewMockExecClient(false),
+		netio.NewMockNetIO(false, 0), NewMockEndpointClient(nil), NewMockNamespaceClient(), iptables.NewClient(), epInfo)
+
+	if err != nil {
+		t.Fatal("Failed to create endpoint for Accelnet NIC")
+	}
+}
+
+func TestNewEndpointImplHnsv2ForAccelnetUnHappyPath(t *testing.T) {
+	nw := &network{
+		Endpoints: map[string]*endpoint{},
+	}
+
+	// this hnsv2 variable overwrites the package level variable in network
+	// we do this to avoid passing around os specific objects in platform agnostic code
+	hnsFake := hnswrapper.NewHnsv2wrapperFake()
+
+	Hnsv2 = hnswrapper.Hnsv2wrapperwithtimeout{
+		Hnsv2:          hnsFake,
+		HnsCallTimeout: 5 * time.Second,
+	}
+
+	epInfo := &EndpointInfo{
+		EndpointID: "768e8deb-eth1",
+		Data:       make(map[string]interface{}),
+		IfName:     "eth1",
+		NICType:    cns.NodeNetworkInterfaceAccelnetFrontendNIC,
+		MacAddress: net.HardwareAddr("00:00:5e:00:53:01"),
+	}
+
+	// Set UnHappy Path
+	_, err := nw.newEndpointImpl(nil, netlink.NewMockNetlink(false, ""), platform.NewMockExecClient(true),
+		netio.NewMockNetIO(false, 0), NewMockEndpointClient(nil), NewMockNamespaceClient(), iptables.NewClient(), epInfo)
+
+	if err == nil {
+		t.Fatal("Failed to test Endpoint creation for Accelnet with unhappy path")
+	}
+
+	if !errors.Is(err, platform.ErrMockExec) {
+		t.Fatalf("Unexpected Error:%v; Error should be %v", err, platform.ErrMockExec)
+	}
+}

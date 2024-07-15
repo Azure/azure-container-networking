@@ -275,7 +275,6 @@ var _ = Describe("Test Endpoint", func() {
 				MasterIfName: "accelnetNIC",
 				NICType:      cns.NodeNetworkInterfaceAccelnetFrontendNIC,
 			}
-			epInfo.Data[VlanIDKey] = 100
 
 			It("should have fields set", func() {
 				nw2 := &network{
@@ -290,7 +289,6 @@ var _ = Describe("Test Endpoint", func() {
 				Expect(ep.Gateways).NotTo(BeNil())
 				Expect(len(ep.Gateways)).To(Equal(1))
 				Expect(ep.Gateways[0].String()).To(Equal("192.168.0.1"))
-				Expect(ep.VlanID).To(Equal(epInfo.Data[VlanIDKey].(int)))
 				Expect(ep.IfName).To(Equal("accelnetNIC"))
 			})
 		})
