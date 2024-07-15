@@ -423,13 +423,28 @@ func (nm *networkManager) UpdateEndpointState(eps []*endpoint) error {
 		logger.Info("Update endpoint state", zap.String("hnsEndpointID", ipinfo.HnsEndpointID), zap.String("hnsNetworkID", ipinfo.HnsNetworkID),
 			zap.String("hostVethName", ipinfo.HostVethName), zap.String("macAddress", ipinfo.MacAddress), zap.String("nicType", string(ipinfo.NICType)))
 	}
-	// logger.Info("Calling cns updateEndpoint API with ", zap.String("containerID: ", ep.ContainerID), zap.String("HnsId: ", ep.HnsId), zap.String("HostIfName: ", ep.HostIfName))
+
 	// we assume all endpoints have the same container id
-	response, err := nm.CnsClient.UpdateEndpoint(context.TODO(), eps[0].ContainerID, ifnameToIPInfoMap)
+	cnsEndpointID := eps[0].ContainerID
+	if err := validateUpdateEndpointState(cnsEndpointID, ifnameToIPInfoMap); err != nil {
+		return errors.Wrap(err, "failed to validate update endpoint state that will be sent to cns")
+	}
+	response, err := nm.CnsClient.UpdateEndpoint(context.TODO(), cnsEndpointID, ifnameToIPInfoMap)
 	if err != nil {
 		return errors.Wrapf(err, "Update endpoint API returend with error")
 	}
 	logger.Info("Update endpoint API returend ", zap.String("podname: ", response.ReturnCode.String()))
+	return nil
+}
+func validateUpdateEndpointState(endpointID string, ifNameToIPInfoMap map[string]*restserver.IPInfo) error {
+	if endpointID == "" {
+		return errors.New("endpoint id empty while validating update endpoint state")
+	}
+	for ifName := range ifNameToIPInfoMap {
+		if ifName == "" {
+			return errors.New("an interface name is empty while validating update endpoint state")
+		}
+	}
 	return nil
 }
 

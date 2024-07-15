@@ -229,6 +229,44 @@ var _ = Describe("Test Manager", func() {
 				Expect(num).To(Equal(3))
 			})
 		})
+
+		Context("When different fields passed to update endpoint state", func() {
+			It("Should error or validate correctly", func() {
+				nm := &networkManager{}
+
+				err := nm.UpdateEndpointState([]*endpoint{
+					{
+						IfName:      "eth0",
+						ContainerID: "2bfc3b23e078f0bea48612d5d081ace587599cdac026d23e4d57bd03c85d357c",
+					},
+					{
+						IfName:      "",
+						ContainerID: "2bfc3b23e078f0bea48612d5d081ace587599cdac026d23e4d57bd03c85d357c",
+					},
+				})
+				Expect(err).To(HaveOccurred())
+
+				err = nm.UpdateEndpointState([]*endpoint{
+					{
+						IfName:      "eth1",
+						ContainerID: "",
+					},
+					{
+						IfName:      "eth0",
+						ContainerID: "",
+					},
+				})
+				Expect(err).To(HaveOccurred())
+
+				err = validateUpdateEndpointState(
+					"2bfc3b23e078f0bea48612d5d081ace587599cdac026d23e4d57bd03c85d357c",
+					map[string]*restserver.IPInfo{
+						"eth1": {},
+						"eth2": {},
+					})
+				Expect(err).To(BeNil())
+			})
+		})
 	})
 	Describe("Test EndpointCreate", func() {
 		Context("When no endpoints provided", func() {

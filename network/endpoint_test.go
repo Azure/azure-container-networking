@@ -439,5 +439,16 @@ var _ = Describe("Test Endpoint", func() {
 				Expect(validateEndpoints(eps)).ToNot(BeNil())
 			})
 		})
+		Context("When no container id ib nic", func() {
+			It("Should error", func() {
+				eps := []*endpoint{
+					{
+						ContainerID: "",
+						NICType:     cns.NodeNetworkInterfaceBackendNIC,
+					},
+				}
+				Expect(validateEndpoints(eps)).ToNot(BeNil())
+			})
+		})
 	})
 })
