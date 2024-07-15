@@ -1621,7 +1621,7 @@ func TestCNSIPAMInvoker_Add_SwiftV2(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "Test happy CNI add with DelegatedNIC + AccelnetNIC interfaces",
+			name: "Test happy CNI add with InfraNIC + AccelnetNIC interfaces",
 			fields: fields{
 				podName:      testPodInfo.PodName,
 				podNamespace: testPodInfo.PodNamespace,
@@ -1637,17 +1637,24 @@ func TestCNSIPAMInvoker_Add_SwiftV2(t *testing.T) {
 							PodIPInfo: []cns.PodIpInfo{
 								{
 									PodIPConfig: cns.IPSubnet{
-										IPAddress:    "10.1.1.10",
+										IPAddress:    "10.0.1.10",
 										PrefixLength: 24,
+									},
+									NetworkContainerPrimaryIPConfig: cns.IPConfiguration{
+										IPSubnet: cns.IPSubnet{
+											IPAddress:    "10.0.1.0",
+											PrefixLength: 24,
+										},
+										DNSServers:       nil,
+										GatewayIPAddress: "10.0.0.1",
 									},
 									HostPrimaryIPInfo: cns.HostIPInfo{
 										Gateway:   "10.0.0.1",
-										PrimaryIP: "10.0.0.2",
-										Subnet:    "10.0.0.1/24",
+										PrimaryIP: "10.0.0.1",
+										Subnet:    "10.0.0.0/24",
 									},
-									NICType:           cns.DelegatedVMNIC,
-									MacAddress:        macAddress,
-									SkipDefaultRoutes: false,
+									NICType:           cns.InfraNIC,
+									SkipDefaultRoutes: true,
 								},
 								{
 									PodIPConfig: cns.IPSubnet{
@@ -1661,7 +1668,7 @@ func TestCNSIPAMInvoker_Add_SwiftV2(t *testing.T) {
 									},
 									NICType:           cns.NodeNetworkInterfaceAccelnetFrontendNIC,
 									MacAddress:        accelnetAddress,
-									SkipDefaultRoutes: true, // accelnetNIC is used in delegated transparent network, CNS sets SkipDefaultRoutes to True
+									SkipDefaultRoutes: true,
 								},
 							},
 							Response: cns.Response{
@@ -1683,17 +1690,24 @@ func TestCNSIPAMInvoker_Add_SwiftV2(t *testing.T) {
 				hostSubnetPrefix: getCIDRNotationForAddress("10.0.0.1/24"),
 				options:          map[string]interface{}{},
 			},
-			wantSecondaryInterfacesInfo: map[string]network.InterfaceInfo{
-				macAddress: {
-					IPConfigs: []*network.IPConfig{
-						{
-							Address: *getCIDRNotationForAddress("10.1.1.10/24"),
-						},
+			wantDefaultResult: network.InterfaceInfo{
+				IPConfigs: []*network.IPConfig{
+					{
+						Address: *getCIDRNotationForAddress("10.0.1.10/24"),
+						Gateway: net.ParseIP("10.0.0.1"),
 					},
-					Routes:     []network.RouteInfo{},
-					NICType:    cns.DelegatedVMNIC,
-					MacAddress: parsedMacAddress,
 				},
+				Routes: []network.RouteInfo{
+					{
+						Dst: network.Ipv4DefaultRouteDstPrefix,
+						Gw:  net.ParseIP("10.0.0.1"),
+					},
+				},
+				NICType:           cns.InfraNIC,
+				SkipDefaultRoutes: true,
+				HostSubnetPrefix:  *parseCIDR("10.0.0.0/24"),
+			},
+			wantSecondaryInterfacesInfo: map[string]network.InterfaceInfo{
 				accelnetAddress: {
 					IPConfigs: []*network.IPConfig{
 						{
@@ -1820,7 +1834,7 @@ func TestCNSIPAMInvoker_Add_SwiftV2(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "Test happy CNI add with InfraNIC + DelegatedNIC + AccelnetNIC + BackendNIC interfaces",
+			name: "Test happy CNI add with InfraNIC + AccelnetNIC + BackendNIC interfaces",
 			fields: fields{
 				podName:      testPodInfo.PodName,
 				podNamespace: testPodInfo.PodNamespace,
@@ -1854,20 +1868,6 @@ func TestCNSIPAMInvoker_Add_SwiftV2(t *testing.T) {
 									},
 									NICType:           cns.InfraNIC,
 									SkipDefaultRoutes: true,
-								},
-								{
-									PodIPConfig: cns.IPSubnet{
-										IPAddress:    "20.1.1.10",
-										PrefixLength: 24,
-									},
-									HostPrimaryIPInfo: cns.HostIPInfo{
-										Gateway:   "20.0.0.1",
-										PrimaryIP: "20.0.0.2",
-										Subnet:    "20.0.0.1/24",
-									},
-									NICType:           cns.DelegatedVMNIC,
-									MacAddress:        macAddress,
-									SkipDefaultRoutes: false,
 								},
 								{
 									PodIPConfig: cns.IPSubnet{
@@ -1926,16 +1926,6 @@ func TestCNSIPAMInvoker_Add_SwiftV2(t *testing.T) {
 				HostSubnetPrefix:  *parseCIDR("10.0.0.0/24"),
 			},
 			wantSecondaryInterfacesInfo: map[string]network.InterfaceInfo{
-				macAddress: {
-					IPConfigs: []*network.IPConfig{
-						{
-							Address: *getCIDRNotationForAddress("20.1.1.10/24"),
-						},
-					},
-					Routes:     []network.RouteInfo{},
-					NICType:    cns.DelegatedVMNIC,
-					MacAddress: parsedMacAddress,
-				},
 				accelnetAddress: {
 					IPConfigs: []*network.IPConfig{
 						{
