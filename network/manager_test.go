@@ -486,13 +486,13 @@ var _ = Describe("Test Manager", func() {
 					},
 				))
 			})
-			It("Should generate the cns endpoint info data from the endpoint structs for DelegatedVMNIC+AccelnetNIC", func() {
+			It("Should generate the cns endpoint info data from the endpoint structs for infraNIC+AccelnetNIC", func() {
 				mac1, _ := net.ParseMAC("12:34:56:78:9a:bc")
 				mac2, _ := net.ParseMAC("22:34:56:78:9a:bc")
 				endpoints := []*endpoint{
 					{
 						IfName:       "eth0",
-						NICType:      cns.DelegatedVMNIC,
+						NICType:      cns.InfraNIC,
 						HnsId:        "hnsEndpointID1",
 						HNSNetworkID: "hnsNetworkID1",
 						HostIfName:   "hostIfName1",
@@ -510,62 +510,6 @@ var _ = Describe("Test Manager", func() {
 				cnsEpInfos := generateCNSIPInfoMap(endpoints)
 				Expect(len(cnsEpInfos)).To(Equal(2))
 
-				Expect(cnsEpInfos).To(HaveKey("eth0"))
-				Expect(cnsEpInfos["eth0"]).To(Equal(
-					&restserver.IPInfo{
-						NICType:       cns.DelegatedVMNIC,
-						HnsEndpointID: "hnsEndpointID1",
-						HnsNetworkID:  "hnsNetworkID1",
-						HostVethName:  "hostIfName1",
-						MacAddress:    "12:34:56:78:9a:bc",
-					},
-				))
-
-				Expect(cnsEpInfos).To(HaveKey("eth1"))
-				Expect(cnsEpInfos["eth1"]).To(Equal(
-					&restserver.IPInfo{
-						NICType:       cns.NodeNetworkInterfaceAccelnetFrontendNIC,
-						HnsEndpointID: "hnsEndpointID2",
-						HnsNetworkID:  "hnsNetworkID2",
-						HostVethName:  "hostIfName2",
-						MacAddress:    "22:34:56:78:9a:bc",
-					},
-				))
-			})
-			It("Should generate the cns endpoint info data from the endpoint structs for infra+DelegatedVMNIC+AccelnetNIC", func() {
-				mac1, _ := net.ParseMAC("12:34:56:78:9a:bc")
-				mac2, _ := net.ParseMAC("22:34:56:78:9a:bc")
-				mac3, _ := net.ParseMAC("33:34:56:78:9a:bc")
-				endpoints := []*endpoint{
-					{
-						IfName:       "eth0",
-						NICType:      cns.InfraNIC,
-						HnsId:        "hnsEndpointID1",
-						HNSNetworkID: "hnsNetworkID1",
-						HostIfName:   "hostIfName1",
-						MacAddress:   mac1,
-					},
-					{
-						IfName:       "eth1",
-						NICType:      cns.DelegatedVMNIC,
-						HnsId:        "hnsEndpointID2",
-						HNSNetworkID: "hnsNetworkID2",
-						HostIfName:   "hostIfName2",
-						MacAddress:   mac2,
-					},
-					{
-						IfName:       "eth2",
-						NICType:      cns.NodeNetworkInterfaceAccelnetFrontendNIC,
-						HnsId:        "hnsEndpointID3",
-						HNSNetworkID: "hnsNetworkID3",
-						HostIfName:   "hostIfName3",
-						MacAddress:   mac3,
-					},
-				}
-				cnsEpInfos := generateCNSIPInfoMap(endpoints)
-				Expect(len(cnsEpInfos)).To(Equal(3))
-
-				Expect(cnsEpInfos).To(HaveKey("eth0"))
 				Expect(cnsEpInfos["eth0"]).To(Equal(
 					&restserver.IPInfo{
 						NICType:       cns.InfraNIC,
@@ -579,22 +523,11 @@ var _ = Describe("Test Manager", func() {
 				Expect(cnsEpInfos).To(HaveKey("eth1"))
 				Expect(cnsEpInfos["eth1"]).To(Equal(
 					&restserver.IPInfo{
-						NICType:       cns.DelegatedVMNIC,
+						NICType:       cns.NodeNetworkInterfaceAccelnetFrontendNIC,
 						HnsEndpointID: "hnsEndpointID2",
 						HnsNetworkID:  "hnsNetworkID2",
 						HostVethName:  "hostIfName2",
 						MacAddress:    "22:34:56:78:9a:bc",
-					},
-				))
-
-				Expect(cnsEpInfos).To(HaveKey("eth2"))
-				Expect(cnsEpInfos["eth2"]).To(Equal(
-					&restserver.IPInfo{
-						NICType:       cns.NodeNetworkInterfaceAccelnetFrontendNIC,
-						HnsEndpointID: "hnsEndpointID3",
-						HnsNetworkID:  "hnsNetworkID3",
-						HostVethName:  "hostIfName3",
-						MacAddress:    "33:34:56:78:9a:bc",
 					},
 				))
 			})
