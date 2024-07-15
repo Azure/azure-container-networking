@@ -1668,7 +1668,7 @@ func TestCNSIPAMInvoker_Add_SwiftV2(t *testing.T) {
 									},
 									NICType:           cns.NodeNetworkInterfaceAccelnetFrontendNIC,
 									MacAddress:        accelnetAddress,
-									SkipDefaultRoutes: true,
+									SkipDefaultRoutes: false,
 								},
 							},
 							Response: cns.Response{
