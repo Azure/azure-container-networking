@@ -301,13 +301,13 @@ func (nm *networkManager) configureHcnNetwork(nwInfo *EndpointInfo, extIf *exter
 	// DelegatedNIC flag: hcn.DisableHostPort(1024)
 	if nwInfo.NICType == cns.DelegatedVMNIC {
 		hcnNetwork.Type = hcn.Transparent
-		hcnNetwork.Flags = hcn.DisableHostPort // TODO: pick up latest hcsshim release when it's ready
+		hcnNetwork.Flags = hcn.DisableHostPort
 	}
 
 	// AccelnetNIC flag: hcn.EnableIov(9216)
 	if nwInfo.NICType == cns.NodeNetworkInterfaceAccelnetFrontendNIC {
 		hcnNetwork.Type = hcn.Transparent
-		hcnNetwork.Flags = hcnIov
+		hcnNetwork.Flags = hcnIov // TODO: pick up latest hcsshim release for hcnIov flag when it's ready
 	}
 
 	// Populate subnets.
