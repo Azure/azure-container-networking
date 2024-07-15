@@ -26,8 +26,11 @@ const (
 	CnetAddressSpace = "cnetAddressSpace"
 
 	// Accelnet NIC IOV policy setting flags
+	// The interrupt moderation value for I/O virtualization(IOV) offloading
 	interruptModeration = 0
-	iovOffloadWeight    = 100
+	// The weight assigned to this port for I/0 virtualization(IOV) offloading;
+	iovOffloadWeight = 100
+	// The number of queue pairs requested for this port for I/0 virtualization(IOV) offloading
 	queuePairsRequested = 1
 )
 
@@ -557,6 +560,8 @@ func AddNATPolicyV2(vip string, destinations []string) (hcn.EndpointPolicy, erro
 }
 
 // AddAccelnetPolicySetting returns serialized endpoint IOV policy
+// IOV(I/O virtualization) is the accelnet from networking point of view == VF = Accelnet
+// To enable IOV, must set iovOffloadWeight to 100
 func AddAccelnetPolicySetting() (hcn.EndpointPolicy, error) {
 	accelnetPolicy := hcn.IovPolicySetting{
 		InterruptModeration: interruptModeration,

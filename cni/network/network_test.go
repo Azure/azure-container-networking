@@ -1605,6 +1605,38 @@ func TestPluginSwiftV2MultipleAddDelete(t *testing.T) {
 			wantErr:    true,
 			wantErrMsg: "failed to create endpoint: MockEndpointClient Error : AddEndpoints Accelnet VM NIC failed",
 		},
+		{
+			name: "SwiftV2 Partial Add fail with Infra+Accelnet VM NIC",
+			plugin: &NetPlugin{
+				Plugin: plugin,
+				nm: acnnetwork.NewMockNetworkmanager(acnnetwork.NewMockEndpointClient(func(ep *acnnetwork.EndpointInfo) error {
+					if ep.NICType == cns.NodeNetworkInterfaceAccelnetFrontendNIC {
+						return acnnetwork.NewErrorMockEndpointClient("AddEndpoints Accelnet VM NIC failed") //nolint:wrapcheck // ignore wrapping for test
+					}
+
+					return nil
+				})),
+				ipamInvoker: NewCustomMockIpamInvoker(map[string]acnnetwork.InterfaceInfo{
+					"eth0": {
+						NICType: cns.InfraNIC,
+					},
+					"eth0-1": {
+						NICType: cns.NodeNetworkInterfaceAccelnetFrontendNIC,
+					},
+				}),
+				report: &telemetry.CNIReport{},
+				tb:     &telemetry.TelemetryBuffer{},
+				netClient: &InterfaceGetterMock{
+					interfaces: []net.Interface{
+						{Name: "eth0"},
+					},
+				},
+			},
+			args:       args,
+			wantNumEps: 0,
+			wantErr:    true,
+			wantErrMsg: "failed to create endpoint: MockEndpointClient Error : AddEndpoints Accelnet VM NIC failed",
+		},
 	}
 
 	for _, tt := range tests {

@@ -437,3 +437,77 @@ func TestNewNetworkImplHnsV2ForBackendNIC(t *testing.T) {
 		t.Fatal("HNS network is created with BackendNIC interface")
 	}
 }
+
+// mock hns network creation and deletion for DelegatedNIC
+func TestNewAndDeleteNetworkImplHnsV2ForDelegated(t *testing.T) {
+	nm := &networkManager{
+		ExternalInterfaces: map[string]*externalInterface{},
+	}
+
+	// this hnsv2 variable overwrites the package level variable in network
+	// we do this to avoid passing around os specific objects in platform agnostic code
+	Hnsv2 = hnswrapper.NewHnsv2wrapperFake()
+
+	nwInfo := &EndpointInfo{
+		NetworkID:    "d3e97a83-ba4c-45d5-ba88-dc56757ece28",
+		MasterIfName: "eth0",
+		Mode:         "bridge",
+		NICType:      cns.DelegatedVMNIC,
+		MacAddress:   net.HardwareAddr("12:34:56:78:9a:bc"),
+	}
+
+	extInterface := &externalInterface{
+		Name:    "eth0",
+		Subnets: []string{"subnet1", "subnet2"},
+	}
+
+	network, err := nm.newNetworkImplHnsV2(nwInfo, extInterface)
+	if err != nil {
+		fmt.Printf("+%v", err)
+		t.Fatal(err)
+	}
+
+	err = nm.deleteNetworkImplHnsV2(network)
+
+	if err != nil {
+		fmt.Printf("+%v", err)
+		t.Fatal(err)
+	}
+}
+
+// mock hns network creation and deletion for AccelnetNIC
+func TestNewAndDeleteNetworkImplHnsV2ForAccelnet(t *testing.T) {
+	nm := &networkManager{
+		ExternalInterfaces: map[string]*externalInterface{},
+	}
+
+	// this hnsv2 variable overwrites the package level variable in network
+	// we do this to avoid passing around os specific objects in platform agnostic code
+	Hnsv2 = hnswrapper.NewHnsv2wrapperFake()
+
+	nwInfo := &EndpointInfo{
+		NetworkID:    "d3e97a83-ba4c-45d5-ba88-dc56757ece28",
+		MasterIfName: "eth0",
+		Mode:         "bridge",
+		NICType:      cns.NodeNetworkInterfaceAccelnetFrontendNIC,
+		MacAddress:   net.HardwareAddr("12:34:56:78:9a:bc"),
+	}
+
+	extInterface := &externalInterface{
+		Name:    "eth0",
+		Subnets: []string{"subnet1", "subnet2"},
+	}
+
+	network, err := nm.newNetworkImplHnsV2(nwInfo, extInterface)
+	if err != nil {
+		fmt.Printf("+%v", err)
+		t.Fatal(err)
+	}
+
+	err = nm.deleteNetworkImplHnsV2(network)
+
+	if err != nil {
+		fmt.Printf("+%v", err)
+		t.Fatal(err)
+	}
+}
