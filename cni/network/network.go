@@ -36,7 +36,8 @@ import (
 	"go.uber.org/zap"
 )
 
-var validRegexp = regexp.MustCompile(`^[a-zA-Z0-9._\-\(\) ]*$`)
+// matches if the string fully consists of zero or more alphanumeric, dots, dashes, parentheses, spaces, or underscores
+var allowedInput = regexp.MustCompile(`^[a-zA-Z0-9._\-\(\) ]*$`)
 
 const (
 	dockerNetworkOption = "com.docker.network.generic"
@@ -1493,17 +1494,12 @@ func convertCniResultToInterfaceInfo(result *cniTypesCurr.Result) network.Interf
 }
 
 func (plugin *NetPlugin) validateArgs(args *cniSkel.CmdArgs, nwCfg *cni.NetworkConfig) error {
-	if !isValidString(args.ContainerID) || !isValidString(args.IfName) {
+	if !allowedInput.MatchString(args.ContainerID) || !allowedInput.MatchString(args.IfName) {
 		return errors.New("invalid args value")
 	}
-	if !isValidString(nwCfg.Bridge) {
+	if !allowedInput.MatchString(nwCfg.Bridge) {
 		return errors.New("invalid network config value")
 	}
 
 	return nil
-}
-
-// returns true if the string fully consists of zero or more alphanumeric, dots, dashes, parentheses, or underscores
-func isValidString(value string) bool {
-	return validRegexp.MatchString(value)
 }
