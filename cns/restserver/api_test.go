@@ -20,6 +20,7 @@ import (
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/common"
+	"github.com/Azure/azure-container-networking/cns/configuration"
 	"github.com/Azure/azure-container-networking/cns/fakes"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/types"
@@ -173,8 +174,10 @@ func TestMain(m *testing.M) {
 	var err error
 	logger.InitLogger("testlogs", 0, 0, "./")
 
-	// Create the service.
-	if err = startService(); err != nil {
+	// Create the service. If CRD channel mode is needed, then at the start of the test,
+	// it can stop the service (service.Stop), invoke startService again with new ServiceConfig (with CRD mode)
+	// perform the test and then restore the service again.
+	if err = startService(common.ServiceConfig{ChannelMode: cns.Direct}, configuration.CNSConfig{}); err != nil {
 		fmt.Printf("Failed to start CNS Service. Error: %v", err)
 		os.Exit(1)
 	}
@@ -1667,9 +1670,9 @@ func setEnv(t *testing.T) *httptest.ResponseRecorder {
 	return w
 }
 
-func startService() error {
+func startService(serviceConfig common.ServiceConfig, _ configuration.CNSConfig) error {
 	// Create the service.
-	config := common.ServiceConfig{}
+	config := serviceConfig
 
 	// Create the key value fileStore.
 	fileStore, err := store.NewJsonFileStore(cnsJsonFileName, processlock.NewMockFileLock(false), nil)
