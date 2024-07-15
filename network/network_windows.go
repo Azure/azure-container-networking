@@ -298,22 +298,16 @@ func (nm *networkManager) configureHcnNetwork(nwInfo *EndpointInfo, extIf *exter
 		return nil, errNetworkModeInvalid
 	}
 
-	// Accelnet networking should be enabled on the delegated NIC, so need enable both flags
-	enableAccelnetNIC := false
-	if nwInfo.NICType == cns.NodeNetworkInterfaceAccelnetFrontendNIC {
-		enableAccelnetNIC = true
-	}
-
 	// DelegatedNIC flag: hcn.DisableHostPort(1024)
 	if nwInfo.NICType == cns.DelegatedVMNIC {
 		hcnNetwork.Type = hcn.Transparent
-		hcnNetwork.Flags = hcn.DisableHostPort
+		hcnNetwork.Flags = hcn.DisableHostPort // TODO: pick up latest hcsshim release when it's ready
+	}
 
-		// check if accelnet needs to be enabled
-		if enableAccelnetNIC {
-			// AccelnetNIC flag: hcn.EnableIov(9216)
-			hcnNetwork.Flags = hcnIov
-		}
+	// AccelnetNIC flag: hcn.EnableIov(9216)
+	if nwInfo.NICType == cns.NodeNetworkInterfaceAccelnetFrontendNIC {
+		hcnNetwork.Type = hcn.Transparent
+		hcnNetwork.Flags = hcnIov
 	}
 
 	// Populate subnets.
