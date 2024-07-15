@@ -530,7 +530,6 @@ func TestNewEndpointImplHnsv2ForAccelnetHappyPath(t *testing.T) {
 	// Happy Path
 	_, err := nw.newEndpointImpl(nil, netlink.NewMockNetlink(false, ""), platform.NewMockExecClient(false),
 		netio.NewMockNetIO(false, 0), NewMockEndpointClient(nil), NewMockNamespaceClient(), iptables.NewClient(), epInfo)
-
 	if err != nil {
 		t.Fatal("Failed to create endpoint for Accelnet NIC")
 	}
