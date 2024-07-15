@@ -91,7 +91,7 @@ func TestInvalidVMUniqueID(t *testing.T) {
 		assert.Equal(t, "json", format)
 		w.WriteHeader(http.StatusOK)
 		_, writeErr := w.Write(computeMetadata)
-		assert.NoError(t, writeErr, "error writing response")
+		require.NoError(t, writeErr, "error writing response")
 	}))
 	defer mockIMDSServer.Close()
 
