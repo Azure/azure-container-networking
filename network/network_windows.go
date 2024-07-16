@@ -450,7 +450,7 @@ func (nm *networkManager) newNetworkImpl(nwInfo *EndpointInfo, extIf *externalIn
 
 // DeleteNetworkImpl deletes an existing container network.
 func (nm *networkManager) deleteNetworkImpl(nw *network, nicType cns.NICType) error {
-	if nicType != cns.DelegatedVMNIC || nicType != cns.NodeNetworkInterfaceAccelnetFrontendNIC {
+	if nicType != cns.DelegatedVMNIC || nicType != cns.NodeNetworkInterfaceAccelnetFrontendNIC { //nolint
 		logger.Info("No delegatedVMNIC or accelnetNIC type found. Skip network deletion")
 		return nil
 	}

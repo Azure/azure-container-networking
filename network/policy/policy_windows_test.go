@@ -47,4 +47,14 @@ var _ = Describe("Windows Policies", func() {
 			Expect(string(generatedPolicy.Settings)).To(Equal(expected_policy))
 		})
 	})
+
+	Describe("Test AddAccelnetPolicySetting", func() {
+		It("Should marshall the policy correctly", func() {
+			expected_policy := `{"interruptModeration":"0","iovOffloadWeight":"100","queuePairsRequested":"1"}`
+
+			generatedPolicy, err := AddAccelnetPolicySetting()
+			Expect(err).To(BeNil())
+			Expect(string(generatedPolicy.Settings)).To(Equal(expected_policy))
+		})
+	})
 })

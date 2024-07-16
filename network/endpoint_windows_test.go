@@ -7,6 +7,7 @@
 package network
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"strings"
@@ -493,7 +494,7 @@ func TestNewEndpointImplHnsv2ForIBHappyPath(t *testing.T) {
 	}
 }
 
-func TestNewEndpointImplHnsv2ForDelegatedHappyPath(t *testing.T) {
+func TestCreateAndDeleteEndpointImplHnsv2ForDelegatedHappyPath(t *testing.T) {
 	nw := &network{
 		Endpoints: map[string]*endpoint{},
 	}
@@ -515,14 +516,20 @@ func TestNewEndpointImplHnsv2ForDelegatedHappyPath(t *testing.T) {
 		MacAddress: net.HardwareAddr("00:00:5e:00:53:01"),
 	}
 
-	// Happy Path
-	_, err := nw.newEndpointImplHnsV2(nil, epInfo)
+	// Happy Path to create and delete endpoint for delegated NIC
+	ep, err := nw.newEndpointImplHnsV2(nil, epInfo)
 	if err != nil {
 		t.Fatal("Failed to create endpoint for Delegated NIC")
 	}
+
+	mockCli := NewMockEndpointClient(nil)
+	err = nw.deleteEndpointImpl(netlink.NewMockNetlink(false, ""), platform.NewMockExecClient(false), mockCli, netio.NewMockNetIO(false, 0), NewMockNamespaceClient(), iptables.NewClient(), ep)
+	if err != nil {
+		t.Fatal("Failed to delete endpoint for Delegated NIC")
+	}
 }
 
-func TestNewEndpointImplHnsv2ForAccelnetHappyPath(t *testing.T) {
+func TestCreateAndDeleteEndpointImplHnsv2ForAccelnetHappyPath(t *testing.T) {
 	nw := &network{
 		Endpoints: map[string]*endpoint{},
 	}
@@ -544,9 +551,54 @@ func TestNewEndpointImplHnsv2ForAccelnetHappyPath(t *testing.T) {
 		MacAddress: net.HardwareAddr("00:00:5e:00:53:01"),
 	}
 
-	// Happy Path
-	_, err := nw.newEndpointImplHnsV2(nil, epInfo)
+	// Happy Path to create and delete endpoint for accelnet NIC
+	ep, err := nw.newEndpointImplHnsV2(nil, epInfo)
 	if err != nil {
 		t.Fatal("Failed to create endpoint for Accelnet NIC")
+	}
+
+	mockCli := NewMockEndpointClient(nil)
+	err = nw.deleteEndpointImpl(netlink.NewMockNetlink(false, ""), platform.NewMockExecClient(false), mockCli, netio.NewMockNetIO(false, 0), NewMockNamespaceClient(), iptables.NewClient(), ep)
+	if err != nil {
+		t.Fatal("Failed to delete endpoint for Accelnet NIC")
+	}
+}
+
+func TestCreateAndDeleteEndpointImplHnsv2ForAccelnetUnHappyPath(t *testing.T) {
+	nw := &network{
+		Endpoints: map[string]*endpoint{},
+	}
+
+	// this hnsv2 variable overwrites the package level variable in network
+	// we do this to avoid passing around os specific objects in platform agnostic code
+	hnsFake := hnswrapper.NewHnsv2wrapperFake()
+
+	Hnsv2 = hnswrapper.Hnsv2wrapperwithtimeout{
+		Hnsv2:          hnsFake,
+		HnsCallTimeout: 5 * time.Second,
+	}
+
+	epInfo := &EndpointInfo{
+		EndpointID: "768e8deb-eth1",
+		Data:       make(map[string]interface{}),
+		IfName:     "eth1",
+		NICType:    cns.NodeNetworkInterfaceAccelnetFrontendNIC,
+		MacAddress: net.HardwareAddr("00:00:5e:00:53:01"),
+	}
+
+	// Happy Path to create and delete endpoint for accelnet NIC
+	ep, err := nw.newEndpointImplHnsV2(nil, epInfo)
+	if err != nil {
+		t.Fatal("Failed to create endpoint for Accelnet NIC")
+	}
+
+	mockCli := NewMockEndpointClient(nil)
+	err = nw.deleteEndpointImpl(netlink.NewMockNetlink(false, ""), platform.NewMockExecClient(true), mockCli, netio.NewMockNetIO(false, 0), NewMockNamespaceClient(), iptables.NewClient(), ep)
+	if err == nil {
+		t.Fatal("Successfully deleted endpoint for Accelnet NIC")
+	}
+
+	if !errors.Is(err, platform.ErrMockExec) {
+		t.Fatalf("Unexpected Error:%v; Error should be %v", err, platform.ErrMockExec)
 	}
 }
