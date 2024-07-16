@@ -467,7 +467,7 @@ func TestNewAndDeleteNetworkImplHnsV2ForDelegated(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err = nm.deleteNetworkImplHnsV2(network)
+	err = nm.deleteNetworkImpl(network, cns.DelegatedVMNIC)
 
 	if err != nil {
 		fmt.Printf("+%v", err)
@@ -504,8 +504,21 @@ func TestNewAndDeleteNetworkImplHnsV2ForAccelnet(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err = nm.deleteNetworkImplHnsV2(network)
+	err = nm.deleteNetworkImpl(network, cns.NodeNetworkInterfaceAccelnetFrontendNIC)
 
+	if err != nil {
+		fmt.Printf("+%v", err)
+		t.Fatal(err)
+	}
+}
+
+func TestSkipNetworkDeletion(t *testing.T) {
+	nm := &networkManager{
+		ExternalInterfaces: map[string]*externalInterface{},
+	}
+
+	// should return nil if nicType is Backend
+	err := nm.deleteNetworkImpl(nil, cns.BackendNIC)
 	if err != nil {
 		fmt.Printf("+%v", err)
 		t.Fatal(err)

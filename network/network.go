@@ -242,7 +242,7 @@ func (nm *networkManager) deleteNetwork(networkID string) error {
 	}
 
 	// Call the OS-specific implementation.
-	err = nm.deleteNetworkImpl(nw)
+	err = nm.deleteNetworkImpl(nw, cns.InfraNIC)
 	if err != nil {
 		return err
 	}

@@ -325,7 +325,7 @@ func (nw *network) configureHcnEndpoint(epInfo *EndpointInfo) (*hcn.HostComputeE
 	if epInfo.NICType == cns.NodeNetworkInterfaceAccelnetFrontendNIC {
 		endpointPolicy, err := policy.AddAccelnetPolicySetting()
 		if err != nil {
-			logger.Error("Failed to set iov endpoint policy due to", zap.Error(err))
+			logger.Error("Failed to set iov endpoint policy", zap.Error(err))
 			return nil, errors.Wrap(err, "Failed to set iov endpoint policy")
 		}
 		hcnEndpoint.Policies = append(hcnEndpoint.Policies, endpointPolicy)
@@ -525,6 +525,11 @@ func (nw *network) deleteEndpointImpl(_ netlink.NetlinkInterface, _ platform.Exe
 ) error {
 	// endpoint deletion is not required for IB
 	if ep.NICType == cns.BackendNIC {
+		return nil
+	}
+
+	if ep.HnsId == "" {
+		logger.Info("No HNS id found. Skip endpoint deletion")
 		return nil
 	}
 

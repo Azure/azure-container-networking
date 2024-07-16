@@ -107,6 +107,33 @@ func TestDeleteEndpointImplHnsV2ForIB(t *testing.T) {
 	}
 }
 
+// Test endpoint deletion when hns id is empty
+func TestDeleteEndpointImplHnsV2WithEmptyHNSID(t *testing.T) {
+	nw := &network{
+		Endpoints: map[string]*endpoint{},
+	}
+
+	// this hnsv2 variable overwrites the package level variable in network
+	// we do this to avoid passing around os specific objects in platform agnostic code
+	Hnsv2 = hnswrapper.Hnsv2wrapperwithtimeout{
+		Hnsv2: hnswrapper.NewHnsv2wrapperFake(),
+	}
+
+	ep := endpoint{
+		HnsId:      "",
+		IfName:     "eth1",
+		MacAddress: net.HardwareAddr("00:00:5e:00:53:01"),
+		NICType:    cns.DelegatedVMNIC,
+	}
+
+	// should return nil because HnsID is empty
+	mockCli := NewMockEndpointClient(nil)
+	err := nw.deleteEndpointImpl(netlink.NewMockNetlink(false, ""), platform.NewMockExecClient(false), mockCli, netio.NewMockNetIO(false, 0), NewMockNamespaceClient(), iptables.NewClient(), &ep)
+	if err != nil {
+		t.Fatal("endpoint deletion gets executed")
+	}
+}
+
 func TestNewEndpointImplHnsv2Timesout(t *testing.T) {
 	nw := &network{
 		Endpoints: map[string]*endpoint{},

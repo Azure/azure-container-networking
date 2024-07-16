@@ -1943,6 +1943,117 @@ func TestCNSIPAMInvoker_Add_SwiftV2(t *testing.T) {
 			},
 			wantErr: false,
 		},
+		{
+			name: "Test unhappy CNI add with InfraNIC + AccelnetNIC + BackendNIC interfaces",
+			fields: fields{
+				podName:      testPodInfo.PodName,
+				podNamespace: testPodInfo.PodNamespace,
+				cnsClient: &MockCNSClient{
+					require: require,
+					requestIPs: requestIPsHandler{
+						ipconfigArgument: cns.IPConfigsRequest{
+							PodInterfaceID:      "testcont-testifname1",
+							InfraContainerID:    "testcontainerid1",
+							OrchestratorContext: marshallPodInfo(testPodInfo),
+						},
+						result: &cns.IPConfigsResponse{
+							PodIPInfo: []cns.PodIpInfo{
+								{
+									PodIPConfig: cns.IPSubnet{
+										IPAddress:    "10.0.1.10",
+										PrefixLength: 24,
+									},
+									NetworkContainerPrimaryIPConfig: cns.IPConfiguration{
+										IPSubnet: cns.IPSubnet{
+											IPAddress:    "10.0.1.0",
+											PrefixLength: 24,
+										},
+										DNSServers:       nil,
+										GatewayIPAddress: "10.0.0.1",
+									},
+									HostPrimaryIPInfo: cns.HostIPInfo{
+										Gateway:   "10.0.0.1",
+										PrimaryIP: "10.0.0.1",
+										Subnet:    "10.0.0.0/24",
+									},
+									NICType:           cns.InfraNIC,
+									SkipDefaultRoutes: false,
+								},
+								{
+									PodIPConfig: cns.IPSubnet{
+										IPAddress:    "30.1.1.10",
+										PrefixLength: 24,
+									},
+									HostPrimaryIPInfo: cns.HostIPInfo{
+										Gateway:   "30.0.0.1",
+										PrimaryIP: "30.0.0.2",
+										Subnet:    "30.0.0.1/24",
+									},
+									NICType:           cns.NodeNetworkInterfaceAccelnetFrontendNIC,
+									MacAddress:        "invalid mac",
+									SkipDefaultRoutes: false,
+								},
+								{
+									MacAddress: ibMacAddress,
+									NICType:    cns.BackendNIC,
+									PnPID:      "invalid pnpID",
+								},
+							},
+							Response: cns.Response{
+								ReturnCode: 0,
+								Message:    "",
+							},
+						},
+						err: nil,
+					},
+				},
+			},
+			args: args{
+				nwCfg: &cni.NetworkConfig{},
+				args: &cniSkel.CmdArgs{
+					ContainerID: "testcontainerid1",
+					Netns:       "testnetns1",
+					IfName:      "testifname1",
+				},
+				hostSubnetPrefix: getCIDRNotationForAddress("10.0.0.1/24"),
+				options:          map[string]interface{}{},
+			},
+			wantDefaultResult: network.InterfaceInfo{
+				IPConfigs: []*network.IPConfig{
+					{
+						Address: *getCIDRNotationForAddress("10.0.1.10/24"),
+						Gateway: net.ParseIP("10.0.0.1"),
+					},
+				},
+				Routes: []network.RouteInfo{
+					{
+						Dst: network.Ipv4DefaultRouteDstPrefix,
+						Gw:  net.ParseIP("10.0.0.1"),
+					},
+				},
+				NICType:           cns.InfraNIC,
+				SkipDefaultRoutes: true,
+				HostSubnetPrefix:  *parseCIDR("10.0.0.0/24"),
+			},
+			wantSecondaryInterfacesInfo: map[string]network.InterfaceInfo{
+				accelnetAddress: {
+					IPConfigs: []*network.IPConfig{
+						{
+							Address: *getCIDRNotationForAddress("30.1.1.10/24"),
+						},
+					},
+					Routes:     []network.RouteInfo{},
+					NICType:    cns.NodeNetworkInterfaceAccelnetFrontendNIC,
+					MacAddress: accelnetParsedMacAddress,
+				},
+				ibMacAddress: {
+					NICType:    cns.BackendNIC,
+					MacAddress: ibParsedMacAddress,
+					PnPID:      pnpID,
+				},
+			},
+			wantErr: true,
+		},
 	}
 	for _, tt := range tests {
 		tt := tt
