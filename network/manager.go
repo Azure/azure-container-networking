@@ -536,7 +536,6 @@ func (nm *networkManager) DeleteEndpointState(networkID string, epInfo *Endpoint
 		return err
 	}
 
-	logger.Info("Deleting network", zap.String("HNSNetworkID", nw.HnsId))
 	err = nm.deleteNetworkImpl(nw, ep.NICType)
 	// no need to clean up state in stateless
 	if err != nil {

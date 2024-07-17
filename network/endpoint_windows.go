@@ -529,7 +529,7 @@ func (nw *network) deleteEndpointImpl(_ netlink.NetlinkInterface, _ platform.Exe
 	}
 
 	if ep.HnsId == "" {
-		logger.Info("No HNS id found. Skip endpoint deletion")
+		logger.Info("No HNS id found. Skip endpoint deletion", zap.Any("nicType", ep.NICType), zap.String("containerId", ep.ContainerID))
 		return nil
 	}
 
