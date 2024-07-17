@@ -376,5 +376,5 @@ type EndpointRequest struct {
 
 type GetVMUniqueIDResponse struct {
 	Response   Response `json:"response"`
-	VMUniqueID string   `json:"VMUniqueID"`
+	VMUniqueID string   `json:"vmuniqueid"`
 }
