@@ -168,7 +168,7 @@ func (am *addressManager) setAddressSpace(as *addressSpace) error {
 	// Notify NetPlugin of external interfaces.
 	if am.netApi != nil {
 		for _, ap := range as.Pools {
-			am.netApi.AddExternalInterface(ap.IfName, ap.Subnet.String())
+			am.netApi.AddExternalInterface(ap.IfName, ap.Subnet.String(), "") //nolint
 		}
 	}
 

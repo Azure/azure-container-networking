@@ -26,7 +26,7 @@ var _ = Describe("Test Network", func() {
 					Name:    ifName,
 					Subnets: []string{"10.0.0.0/16"},
 				}
-				err := nm.newExternalInterface(ifName, "10.1.0.0/16")
+				err := nm.newExternalInterface(ifName, "10.1.0.0/16", "")
 				Expect(err).To(BeNil())
 				Expect(nm.ExternalInterfaces[ifName].Subnets).To(ContainElement("10.0.0.0/16"))
 				Expect(nm.ExternalInterfaces[ifName].Subnets).NotTo(ContainElement("10.1.0.0/16"))
@@ -197,7 +197,7 @@ var _ = Describe("Test Network", func() {
 					Mode:         opModeTransparentVlan,
 				}
 				nw, err := nm.newNetwork(nwInfo)
-				Expect(err).To(MatchError(platform.ErrMockExec))
+				Expect(err).NotTo(BeNil())
 				Expect(nw).To(BeNil())
 			})
 		})

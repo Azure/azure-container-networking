@@ -43,6 +43,7 @@ const (
 	defaultRequestTimeout = 15 * time.Second
 	ipv4FullMask          = 32
 	ipv6FullMask          = 128
+	ibInterfacePrefix     = "ib"
 )
 
 // CNI Operation Types
@@ -385,6 +386,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 		enableSnatForDNS bool
 		k8sPodName       string
 		cniMetric        telemetry.AIMetric
+		epInfos          []*network.EndpointInfo
 	)
 
 	startTime := time.Now()
@@ -421,11 +423,9 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 		telemetry.SendCNIMetric(&cniMetric, plugin.tb)
 
 		// Add Interfaces to result.
-		// previously just logged the default (infra) interface so this is equivalent behavior
+		// previously we had a default interface info to select which interface info was the one to be returned from cni add
 		cniResult := &cniTypesCurr.Result{}
 		for key := range ipamAddResult.interfaceInfo {
-			logger.Info("Exiting add, interface info retrieved", zap.Any("ifInfo", ipamAddResult.interfaceInfo[key]))
-			// previously we had a default interface info to select which interface info was the one to be returned from cni add
 			// now we have to infer which interface info should be returned
 			// we assume that we want to return the infra nic always, and if that is not found, return any one of the secondary interfaces
 			// if there is an infra nic + secondary, we will always return the infra nic (linux swift v2)
@@ -435,13 +435,26 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 			}
 		}
 
-		addSnatInterface(nwCfg, cniResult)
+		// stdout multiple cniResults for containerd to create multiple pods
+		// containerd receives each cniResult as the stdout and create pod
+		addSnatInterface(nwCfg, cniResult) //nolint TODO: check whether Linux supports adding secondary snatinterface
+
+		// add IB NIC interfaceInfo to cniResult
+		for _, epInfo := range epInfos {
+			if epInfo.NICType == cns.BackendNIC {
+				cniResult.Interfaces = append(cniResult.Interfaces, &cniTypesCurr.Interface{
+					Name:  epInfo.MasterIfName,
+					Mac:   epInfo.MacAddress.String(),
+					PciID: epInfo.PnPID,
+				})
+			}
+		}
 
 		// Convert result to the requested CNI version.
 		res, vererr := cniResult.GetAsVersion(nwCfg.CNIVersion)
 		if vererr != nil {
 			logger.Error("GetAsVersion failed", zap.Error(vererr))
-			plugin.Error(vererr)
+			plugin.Error(vererr) //nolint
 		}
 
 		if err == nil && res != nil {
@@ -582,7 +595,6 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 		}
 	}()
 
-	epInfos := []*network.EndpointInfo{}
 	infraSeen := false
 	endpointIndex := 0
 	for key := range ipamAddResult.interfaceInfo {
@@ -610,11 +622,13 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 			infraSeen:        &infraSeen,
 			endpointIndex:    endpointIndex,
 		}
+
 		var epInfo *network.EndpointInfo
 		epInfo, err = plugin.createEpInfo(&createEpInfoOpt)
 		if err != nil {
 			return err
 		}
+
 		epInfos = append(epInfos, epInfo)
 		// TODO: should this statement be based on the current iteration instead of the constant ifIndex?
 		// TODO figure out where to put telemetry: sendEvent(plugin, fmt.Sprintf("CNI ADD succeeded: IP:%+v, VlanID: %v, podname %v, namespace %v numendpoints:%d",
@@ -662,8 +676,9 @@ func (plugin *NetPlugin) findMasterInterface(opt *createEpInfoOpt) string {
 		return plugin.findMasterInterfaceBySubnet(opt.ipamAddConfig.nwCfg, &opt.ifInfo.HostSubnetPrefix)
 	case cns.DelegatedVMNIC:
 		return plugin.findInterfaceByMAC(opt.ifInfo.MacAddress.String())
-	case cns.BackendNIC:
-		return ""
+	case cns.BackendNIC: // TODO: how to find interface with IB NIC by mac address
+		opt.ifInfo.Name = ibInterfacePrefix + strconv.Itoa(opt.endpointIndex)
+		return opt.ifInfo.Name
 	default:
 		return ""
 	}
@@ -695,6 +710,7 @@ func (plugin *NetPlugin) createEpInfo(opt *createEpInfoOpt) (*network.EndpointIn
 	// ensure we can find the master interface
 	opt.ifInfo.HostSubnetPrefix.IP = opt.ifInfo.HostSubnetPrefix.IP.Mask(opt.ifInfo.HostSubnetPrefix.Mask)
 	opt.ipamAddConfig.nwCfg.IPAM.Subnet = opt.ifInfo.HostSubnetPrefix.String()
+
 	// populate endpoint info section
 	masterIfName := plugin.findMasterInterface(opt)
 	if masterIfName == "" {
@@ -776,6 +792,7 @@ func (plugin *NetPlugin) createEpInfo(opt *createEpInfoOpt) (*network.EndpointIn
 		MacAddress:  opt.ifInfo.MacAddress,
 		// the following is used for creating an external interface if we can't find an existing network
 		HostSubnetPrefix: opt.ifInfo.HostSubnetPrefix.String(),
+		PnPID:            opt.ifInfo.PnPID,
 	}
 
 	if err = addSubnetToEndpointInfo(*opt.ifInfo, &endpointInfo); err != nil {
@@ -1132,7 +1149,7 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 			zap.String("endpointID", epInfo.EndpointID))
 		sendEvent(plugin, fmt.Sprintf("Deleting endpoint:%v", epInfo.EndpointID))
 
-		if !nwCfg.MultiTenancy && epInfo.NICType != cns.DelegatedVMNIC {
+		if !nwCfg.MultiTenancy && (epInfo.NICType == cns.InfraNIC || epInfo.NICType == "") {
 			// Delegated/secondary nic ips are statically allocated so we don't need to release
 			// Call into IPAM plugin to release the endpoint's addresses.
 			for i := range epInfo.IPAddresses {
@@ -1213,7 +1230,7 @@ func (plugin *NetPlugin) Update(args *cniSkel.CmdArgs) error {
 		res, vererr := result.GetAsVersion(nwCfg.CNIVersion)
 		if vererr != nil {
 			logger.Error("GetAsVersion failed", zap.Error(vererr))
-			plugin.Error(vererr)
+			plugin.Error(vererr) //nolint
 		}
 
 		if err == nil && res != nil {

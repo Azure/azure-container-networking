@@ -1372,6 +1372,31 @@ func TestPluginSwiftV2MultipleAddDelete(t *testing.T) {
 			wantNumEps: 2,
 		},
 		{
+			name: "SwiftV2 Add Infra and InfiniteBand",
+			plugin: &NetPlugin{
+				Plugin: plugin,
+				nm:     acnnetwork.NewMockNetworkmanager(acnnetwork.NewMockEndpointClient(nil)),
+				ipamInvoker: NewCustomMockIpamInvoker(map[string]acnnetwork.InterfaceInfo{
+					"eth0-1": {
+						NICType: cns.BackendNIC,
+					},
+					"eth0": {
+						NICType: cns.InfraNIC,
+					},
+				}),
+				report: &telemetry.CNIReport{},
+				tb:     &telemetry.TelemetryBuffer{},
+				netClient: &InterfaceGetterMock{
+					interfaces: []net.Interface{
+						{Name: "eth0"},
+					},
+				},
+			},
+			args:       args,
+			wantErr:    false,
+			wantNumEps: 2,
+		},
+		{
 			name: "SwiftV2 Add Two Delegated",
 			plugin: &NetPlugin{
 				Plugin: plugin,

@@ -31,7 +31,7 @@ func (nm *MockNetworkManager) Initialize(config *common.PluginConfig, isRehydrat
 func (nm *MockNetworkManager) Uninitialize() {}
 
 // AddExternalInterface mock
-func (nm *MockNetworkManager) AddExternalInterface(ifName string, subnet string) error {
+func (nm *MockNetworkManager) AddExternalInterface(ifName, subnet, nicType string) error { //nolint
 	return nil
 }
 

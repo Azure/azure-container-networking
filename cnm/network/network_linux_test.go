@@ -74,7 +74,7 @@ func TestMain(m *testing.M) {
 		os.Exit(3)
 	}
 
-	err = plugin.(*netPlugin).nm.AddExternalInterface(anyInterface, anySubnet)
+	err = plugin.(*netPlugin).nm.AddExternalInterface(anyInterface, anySubnet, "")
 	if err != nil {
 		fmt.Printf("Failed to add test network interface, err:%v.\n", err)
 		os.Exit(4)

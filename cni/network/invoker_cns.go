@@ -53,6 +53,7 @@ type IPResultInfo struct {
 	macAddress         string
 	skipDefaultRoutes  bool
 	routes             []cns.Route
+	pnpID              string
 }
 
 func (i IPResultInfo) MarshalLogObject(encoder zapcore.ObjectEncoder) error {
@@ -143,6 +144,7 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 
 	addResult := IPAMAddResult{interfaceInfo: make(map[string]network.InterfaceInfo)}
 	numInterfacesWithDefaultRoutes := 0
+
 	for i := 0; i < len(response.PodIPInfo); i++ {
 		info := IPResultInfo{
 			podIPAddress:       response.PodIPInfo[i].PodIPConfig.IPAddress,
@@ -156,6 +158,7 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 			macAddress:         response.PodIPInfo[i].MacAddress,
 			skipDefaultRoutes:  response.PodIPInfo[i].SkipDefaultRoutes,
 			routes:             response.PodIPInfo[i].Routes,
+			pnpID:              response.PodIPInfo[i].PnPID,
 		}
 
 		logger.Info("Received info for pod",
@@ -167,7 +170,7 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 		key := invoker.getInterfaceInfoKey(info.nicType, info.macAddress)
 		switch info.nicType {
 		case cns.DelegatedVMNIC:
-			// only handling single v4 PodIPInfo for Frontend NICs at the moment, will have to update once v6 gets added
+			// only handling single v4 PodIPInfo for DelegatedVMNIC at the moment, will have to update once v6 gets added
 			if !info.skipDefaultRoutes {
 				numInterfacesWithDefaultRoutes++
 			}
@@ -178,6 +181,12 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 			info.hostGateway = response.PodIPInfo[i].HostPrimaryIPInfo.Gateway
 
 			if err := configureSecondaryAddResult(&info, &addResult, &response.PodIPInfo[i].PodIPConfig, key); err != nil {
+				return IPAMAddResult{}, err
+			}
+		case cns.BackendNIC:
+			// TODO: check whether setting default route on IB interface
+			// handle ipv4 PodIPInfo for BackendNIC
+			if err := addBackendNICToResult(&info, &addResult, key); err != nil {
 				return IPAMAddResult{}, err
 			}
 		case cns.InfraNIC, "":
@@ -464,6 +473,7 @@ func configureSecondaryAddResult(info *IPResultInfo, addResult *IPAMAddResult, p
 
 	macAddress, err := net.ParseMAC(info.macAddress)
 	if err != nil {
+		logger.Error("Invalid mac address", zap.Error(err))
 		return errors.Wrap(err, "Invalid mac address")
 	}
 
@@ -491,8 +501,31 @@ func configureSecondaryAddResult(info *IPResultInfo, addResult *IPAMAddResult, p
 	return nil
 }
 
+func addBackendNICToResult(info *IPResultInfo, addResult *IPAMAddResult, key string) error {
+	macAddress, err := net.ParseMAC(info.macAddress)
+	if err != nil {
+		logger.Error("Invalid mac address", zap.Error(err))
+		return errors.Wrap(err, "Invalid mac address")
+	}
+
+	// return error if pnp id is missing in cns goalstate
+	if info.pnpID == "" {
+		logger.Error("pnp id is not received from cns")
+		return errors.Wrap(err, "pnp id is not received from cns")
+	}
+
+	addResult.interfaceInfo[key] = network.InterfaceInfo{
+		NICType:           info.nicType,
+		MacAddress:        macAddress,
+		SkipDefaultRoutes: info.skipDefaultRoutes,
+		PnPID:             info.pnpID,
+	}
+
+	return nil
+}
+
 func (invoker *CNSIPAMInvoker) getInterfaceInfoKey(nicType cns.NICType, macAddress string) string {
-	if nicType == cns.DelegatedVMNIC {
+	if nicType == cns.DelegatedVMNIC || nicType == cns.BackendNIC {
 		return macAddress
 	}
 	return string(nicType)
