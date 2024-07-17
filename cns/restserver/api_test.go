@@ -1783,8 +1783,7 @@ func TestGetVMUniqueIDSuccess(t *testing.T) {
 // Testing GetVMUniqueID API handler with failure
 func TestGetVMUniqueIDFailed(t *testing.T) {
 	ctx := context.TODO()
-	key := fakes.MockIMDSCtxKey(fakes.SimulateError)
-	ctx = context.WithValue(ctx, key, Interface{})
+	ctx = context.WithValue(ctx, fakes.SimulateError, Interface{})
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, cns.GetVMUniqueID, http.NoBody)
 	if err != nil {
 		t.Fatal(err)

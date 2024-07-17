@@ -1525,37 +1525,36 @@ func (service *HTTPRestService) nmAgentSupportedApisHandler(w http.ResponseWrite
 
 // getVMUniqueID retrieves VMUniqueID from the IMDS
 func (service *HTTPRestService) getVMUniqueID(w http.ResponseWriter, r *http.Request) {
-	logger.Printf("[Azure CNS] getVMUniqueID")
 	logger.Request(service.Name, "getVMUniqueID", nil)
 	ctx := r.Context()
 
 	switch r.Method {
 	case http.MethodGet:
 		vmUniqueID, err := service.imdsClient.GetVMUniqueID(ctx)
-		var resp cns.GetVMUniqueIDResponse
-		httpStatus := http.StatusOK
 		if err != nil {
-			resp = cns.GetVMUniqueIDResponse{
+			resp := cns.GetVMUniqueIDResponse{
 				Response: cns.Response{
 					ReturnCode: types.UnexpectedError,
 					Message:    errors.Wrap(err, "failed to get vmuniqueid").Error(),
 				},
 			}
-			httpStatus = http.StatusInternalServerError
-		} else {
-			resp = cns.GetVMUniqueIDResponse{
-				Response: cns.Response{
-					ReturnCode: types.Success,
-				},
-				VMUniqueID: vmUniqueID,
-			}
+			respondJSON(w, http.StatusInternalServerError, resp)
+			logger.Response(service.Name, resp, resp.Response.ReturnCode, err)
+			return
 		}
 
-		respondJSON(w, httpStatus, resp)
+		resp := cns.GetVMUniqueIDResponse{
+			Response: cns.Response{
+				ReturnCode: types.Success,
+			},
+			VMUniqueID: vmUniqueID,
+		}
+		respondJSON(w, http.StatusOK, resp)
 		logger.Response(service.Name, resp, resp.Response.ReturnCode, err)
 
 	default:
-		returnMessage := "[Azure CNS] Error. getVMUniqueID did not receive a GET."
+		returnMessage := fmt.Sprintf("[Azure CNS] Error. getVMUniqueID did not receive a GET."+
+			" Received: %s", r.Method)
 		returnCode := types.UnsupportedVerb
 		service.setResponse(w, returnCode, cns.GetHomeAzResponse{
 			Response: cns.Response{ReturnCode: returnCode, Message: returnMessage},

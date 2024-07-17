@@ -17,8 +17,8 @@ const (
 	// HostPrimaryIP 10.0.0.4
 	HostPrimaryIP = "10.0.0.4"
 	// HostSubnet 10.0.0.0/24
-	HostSubnet    = "10.0.0.0/24"
-	SimulateError = "simulate-error"
+	HostSubnet                   = "10.0.0.0/24"
+	SimulateError MockIMDSCtxKey = "simulate-error"
 )
 
 type WireserverClientFake struct{}
@@ -51,8 +51,7 @@ func NewMockIMDSClient() *MockIMDSClient {
 }
 
 func (m *MockIMDSClient) GetVMUniqueID(ctx context.Context) (string, error) {
-	key := MockIMDSCtxKey(SimulateError)
-	if ctx.Value(key) != nil {
+	if ctx.Value(SimulateError) != nil {
 		return "", imds.ErrUnexpectedStatusCode
 	}
 
