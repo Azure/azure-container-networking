@@ -241,10 +241,6 @@ stages:
                 name: cni-dropgz
                 os: windows
                 os_version: ltsc2022
-              cns_linux_amd64:
-                arch: amd64
-                name: cns
-                os: linux
               cns_windows2019_amd64:
                 arch: amd64
                 name: cns
@@ -297,10 +293,6 @@ stages:
               cni_dropgz_linux_arm64:
                 arch: arm64
                 name: cni-dropgz
-                os: linux
-              cns_linux_arm64:
-                arch: arm64
-                name: cns
                 os: linux
               ipv6_hp_bpf_linux_arm64:
                 arch: arm64
