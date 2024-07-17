@@ -44,7 +44,10 @@ const (
 	defaultIPv6Route = "::/0"
 	// Default IPv6 nextHop
 	defaultIPv6NextHop = "fe80::1234:5678:9abc"
-	hcnIov             = 9216
+	// For L1VH with accelnet, hcn.DisableHostPort and hcn.EnableIov must be configured
+	// To set this, need logical OR: hcnNetwork.flags = hcn.DisablePort | hcn.EnableIov: (1024 + 8192 = 9216)
+	// TODO: once hcsshim is ready, do OR operation instead of hardcode 9216
+	hcnIov = 9216
 )
 
 // Windows implementation of route.
