@@ -228,7 +228,7 @@ func (k *K8sSWIFTv2Middleware) getIPConfig(ctx context.Context, podInfo cns.PodI
 						PrefixLength: uint8(prefixSize),
 					},
 					MacAddress:        interfaceInfo.MacAddress,
-					NICType:           cns.DelegatedVMNIC,
+					NICType:           nicType,
 					SkipDefaultRoutes: false,
 					// InterfaceName is empty for DelegatedVMNIC
 				}

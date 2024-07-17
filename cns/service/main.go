@@ -63,6 +63,7 @@ import (
 	localtls "github.com/Azure/azure-container-networking/server/tls"
 	"github.com/Azure/azure-container-networking/store"
 	"github.com/Azure/azure-container-networking/telemetry"
+	"github.com/Microsoft/hcsshim"
 	"github.com/avast/retry-go/v4"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
@@ -492,6 +493,10 @@ func startTelemetryService(ctx context.Context) {
 	tb.PushData(rootCtx)
 }
 
+type wscliInterface interface {
+	GetInterfaces(ctx context.Context) (*wireserver.GetInterfacesResult, error)
+}
+
 // Main is the entry point for CNS.
 func main() {
 	// Initialize and parse command line arguments.
@@ -874,6 +879,19 @@ func main() {
 			logger.Printf("Fetching backend nics for the node")
 			if err = httpRemoteRestService.SavePnpIDMacaddressMapping(rootCtx); err != nil {
 				logger.Errorf("Failed to fetch PnpIDMacaddress mapping: %v", err)
+			}
+
+			// Setting primary macaddress if VF is enabled on the nics for swiftv2
+			var wscli wscliInterface
+			// SWIFT V2 mode for accelnet, supply the MAC address to the HNS
+			macAddress, err := getPrimaryNICMACAddress(wscli)
+			if err != nil {
+				logger.Errorf("Failed to get primary NIC MAC address: %v", err)
+			} else {
+				macAddresses := []string{macAddress}
+				if _, err := hcsshim.SetNnvManagementMacAddresses(macAddresses); err != nil {
+					logger.Errorf("Failed to set primary NIC MAC address: %v", err)
+				}
 			}
 		}
 	}
@@ -1613,4 +1631,29 @@ func PopulateCNSEndpointState(endpointStateStore store.KeyValueStore) error {
 		return fmt.Errorf("failed to write endpoint state to store: %w", err)
 	}
 	return nil
+}
+
+// getPrimaryNICMacAddress fetches the MAC address of the primary NIC on the node.
+func getPrimaryNICMACAddress(wscli wscliInterface) (string, error) {
+	res, err := wscli.GetInterfaces(context.TODO())
+	if err != nil {
+		return "", fmt.Errorf("failed to find primary interface info: %w", err)
+	}
+	var macAddress string
+	for _, i := range res.Interface {
+		// skip if not primary
+		if !i.IsPrimary {
+			continue
+		}
+		// skip if no subnets
+		if len(i.IPSubnet) == 0 {
+			continue
+		}
+		macAddress = i.MacAddress
+	}
+
+	if macAddress == "" {
+		return "", errors.New("MAC address not found in wscli")
+	}
+	return macAddress, nil
 }
