@@ -20,7 +20,7 @@ func setVFForAccelnetNICs() error {
 	macAddress, err := getPrimaryNICMACAddress(wscli)
 	if err != nil {
 		return err
-	} 
+	}
 	macAddresses := []string{macAddress}
 	if _, err := hcsshim.SetNnvManagementMacAddresses(macAddresses); err != nil {
 		logger.Errorf("Failed to set primary NIC MAC address: %v", err)

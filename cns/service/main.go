@@ -877,7 +877,7 @@ func main() {
 			}
 
 			// Setting primary macaddress if VF is enabled on the nics for swiftv2
-			err = setVFForAccelnetNICs()	
+			err = setVFForAccelnetNICs()
 			if err != nil {
 				logger.Errorf("Failed to get primary NIC MAC address & set VF for accelnet NICs: %v", err)
 			}
