@@ -54,12 +54,10 @@ spec:
                       - acn.azure.com/vnet-nic
                       - acn.azure.com/infiniband-nic
                       type: string
-                    macAddressList:
-                      items:
-                        type: string
-                      type: array
+                    macAddress:
+                      type: string
                   required:
-                  - macAddressList
+                  - macAddress
                   type: object
                 type: array
             type: object
