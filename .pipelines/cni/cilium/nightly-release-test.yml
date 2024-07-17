@@ -22,6 +22,16 @@ stages:
       - job: build_and_push_cilium_image
         pool:
           name: $(BUILD_POOL_NAME_DEFAULT)
+        strategy:
+          matrix:
+            cilium_agent:
+              type: docker-cilium-image
+              image: cilium
+              directory: cilium
+            cilium_operator_generic:
+              type: docker-operator-generic-image
+              image: operator-generic
+              directory: operator
         steps:
           - bash: |
               set -ex
@@ -31,8 +41,31 @@ stages:
               if [ ! -z $CILIUM_COMMIT_ID ]; then
                 git reset --hard $CILIUM_COMMIT_ID
               fi
-              make docker-cilium-image
-              make docker-operator-generic-image
+
+              # Override current images used within dockerfiles
+              goImage=`cat ./images/$(directory)/Dockerfile | grep "ARG GOLANG_IMAGE" | awk '{print $2}'`
+              alpineImage=`cat ./images/$(directory)/Dockerfile | grep "ARG ALPINE_IMAGE" | awk '{print $2}'`
+
+              if ! [ -z $goImage ]; then
+                goTag=${goImage#*:}
+                goVersion=${goTag%@*}
+                goMCR=mcr.microsoft.com/oss/go/microsoft/golang:${goVersion}
+                echo "Golang MCR image: ${goMCR}"
+                GO_ARGS="--build-arg GOLANG_IMAGE=${goMCR} "
+              fi
+
+              if ! [ -z $alpineImage ]; then
+                alpineTag=${alpineImage#*:}
+                alpineVersion=${alpineTag%@*}
+                # Alpine images are no longer updated on MCR, use ACR Cache mirror
+                alpineACR=acnpublic.azurecr.io/alpine:${alpineVersion}
+                echo "alpine MCR image: ${alpineACR}"
+                ALPINE_ARGS="--build-arg ALPINE_IMAGE=${alpineACR} "
+              fi
+              BUILD_ARGS=${GO_ARGS}${ALPINE_ARGS}
+
+              DOCKER_FLAGS="$BUILD_ARGS" \
+              make $(type)
             name: BuildCiliumImage
             displayName: "Build Cilium Image"
           - task: AzureCLI@1
@@ -48,10 +81,8 @@ stages:
               scriptLocation: "inlineScript"
               inlineScript: |
                 set -ex
-                docker tag quay.io/cilium/cilium:$(DOCKER_IMAGE_TAG) $(ACR).azurecr.io/cilium/cilium:$(DOCKER_IMAGE_TAG)
-                docker tag quay.io/cilium/operator-generic:$(DOCKER_IMAGE_TAG) $(ACR).azurecr.io/cilium/operator-generic:$(DOCKER_IMAGE_TAG)
-                docker push $(ACR).azurecr.io/cilium/cilium:$(DOCKER_IMAGE_TAG)
-                docker push $(ACR).azurecr.io/cilium/operator-generic:$(DOCKER_IMAGE_TAG)
+                docker tag quay.io/cilium/$(image):$(DOCKER_IMAGE_TAG) $(ACR).azurecr.io/cilium/$(image):$(DOCKER_IMAGE_TAG)
+                docker push $(ACR).azurecr.io/cilium/$(image):$(DOCKER_IMAGE_TAG)
             name: "PushCiliumImage"
             displayName: "Push Cilium Image"
           - task: AzureCLI@1
