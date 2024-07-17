@@ -27,7 +27,7 @@ stages:
         location: $(LOCATION_AMD64)
       commitID: $[ stagedependencies.setup.env.outputs['SetEnvVars.commitID'] ]
     dependsOn:
-      - setup
+      - binaries
     displayName: "Create Cluster - ${{ parameters.clusterName }}"
     jobs:
       - job: create_aks_cluster_with_${{ parameters.name }}
@@ -112,7 +112,7 @@ stages:
                   else
                     envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/v${DIR}/cilium-agent/templates/daemonset.yaml | kubectl apply -f -
                   fi
-                  
+
                   envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/v${DIR}/cilium-operator/templates/deployment.yaml | kubectl apply -f -
                   kubectl get po -owide -A
 

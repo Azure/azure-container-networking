@@ -405,7 +405,7 @@ stages:
         clusterName: "ciliume2e"
         vmSize: Standard_B2ms
         k8sVersion: ""
-        dependsOn: "test"
+        dependsOn: "containerize"
 
     # Cilium Overlay E2E tests
     - template: singletenancy/cilium-overlay/cilium-overlay-e2e-job-template.yaml
@@ -416,7 +416,7 @@ stages:
         clusterName: "cilovere2e"
         vmSize: Standard_B2ms
         k8sVersion: ""
-        dependsOn: "test"
+        dependsOn: "containerize"
 
     # Cilium Dualstack Overlay E2E tests
     - template: singletenancy/cilium-dualstack-overlay/cilium-dualstackoverlay-e2e-job-template.yaml
@@ -428,7 +428,7 @@ stages:
         clusterName: "cildsovere2e"
         vmSize: Standard_B2ms
         k8sVersion: ""
-        dependsOn: "test"
+        dependsOn: "containerize"
 
         # Cilium Overlay with hubble E2E tests
     - template: singletenancy/cilium-overlay-withhubble/cilium-overlay-e2e-job-template.yaml
@@ -439,7 +439,7 @@ stages:
         clusterName: "cilwhleovere2e"
         vmSize: Standard_B2ms
         k8sVersion: ""
-        dependsOn: "test"
+        dependsOn: "containerize"
         testHubble: true
 
     # Azure Overlay E2E tests
@@ -452,7 +452,7 @@ stages:
         clusterName: "azovere2e"
         vmSize: Standard_B2ms
         k8sVersion: ""
-        dependsOn: "test"
+        dependsOn: "containerize"
 
     # AKS Swift E2E tests
     - template: singletenancy/aks-swift/e2e-job-template.yaml
@@ -464,7 +464,7 @@ stages:
         clusterName: "swifte2e"
         vmSize: Standard_B2ms
         k8sVersion: ""
-        dependsOn: "test"
+        dependsOn: "containerize"
 
     # AKS Swift Vnet Scale E2E tests
     - template: singletenancy/aks-swift/e2e-job-template.yaml
@@ -476,7 +476,7 @@ stages:
         clusterName: "vscaleswifte2e"
         vmSize: Standard_B2ms
         k8sVersion: "1.28"
-        dependsOn: "test"
+        dependsOn: "containerize"
 
     # CNIv1 E2E tests
     - template: singletenancy/aks/e2e-job-template.yaml
@@ -490,7 +490,7 @@ stages:
         vmSize: Standard_B2s
         k8sVersion: 1.25
         scaleup: 100
-        dependsOn: "test"
+        dependsOn: "containerize"
 
     - template: singletenancy/aks/e2e-job-template.yaml
       parameters:
@@ -503,7 +503,7 @@ stages:
         vmSize: Standard_B2ms
         os_version: "ltsc2022"
         scaleup: 50
-        dependsOn: "test"
+        dependsOn: "containerize"
 
     # CNI dual stack overlay E2E tests
     - template: singletenancy/dualstack-overlay/dualstackoverlay-e2e-job-template.yaml
@@ -514,7 +514,7 @@ stages:
         clusterType: dualstack-overlay-byocni-up
         clusterName: "dsovere2e"
         vmSize: Standard_B2ms
-        dependsOn: "test"
+        dependsOn: "containerize"
 
     # Swiftv2 E2E tests with multitenancy cluster start up
     - template: multitenancy/swiftv2-e2e-job-template.yaml
@@ -526,7 +526,7 @@ stages:
         clusterName: "mtacluster"
         nodePoolName: "mtapool"
         vmSize: $(SWIFTV2_MT_CLUSTER_SKU)
-        dependsOn: "test"
+        dependsOn: "containerize"
         dummyClusterName: "swiftv2dummy"
         dummyClusterType: "swiftv2-dummy-cluster-up"
         dummyClusterDisplayName: Swiftv2 Multitenancy Dummy Cluster
