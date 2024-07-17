@@ -272,8 +272,6 @@ stages:
                 os_version: $(os_version)
         - job: containerize_linux_arm64
           displayName: Build Images
-          variables:
-            TAG: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
           pool:
             name: "$(BUILD_POOL_NAME_LINUX_ARM64)"
           strategy:
@@ -308,46 +306,13 @@ stages:
                 arch: $(arch)
                 name: $(name)
                 os: $(os)
-        - job: check_tag
-          displayName: Check Tag
-          pool:
-            name: $(BUILD_POOL_NAME_DEFAULT)
-          steps:
-            - script: |
-                echo "##vso[task.setvariable variable=currentTagBuild;isOutput=true]$(make version)"
-              name: "CurrentTagBuild"
-              displayName: "Set current tag variable"
-              condition: always()
-
-    - stage: validate1
-      displayName: Validate Tags
-      dependsOn:
-        - setup
-        - containerize
-      variables:
-        TAG: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
-        CURRENT_VERSION: $[ stagedependencies.containerize.check_tag.outputs['CurrentTagBuild.currentTagBuild'] ]
-      condition: ne(variables.TAG, variables.CURRENT_VERSION)
-      jobs:
-        - job: timeout_and_cancel
-          displayName: Cancel Run
-          pool:
-            name: $(BUILD_POOL_NAME_DEFAULT)
-          steps:
-            - script: |
-                echo $TAG
-                echo $CURRENT_VERSION
-                echo "Checking if branch up to date with master"
 
     - stage: publish
       displayName: Publish Multiarch Manifests
       dependsOn:
         - containerize
       variables:
-        TAG: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
-        CURRENT_VERSION: $[ stagedependencies.containerize.check_tag.outputs['CurrentTagBuild.currentTagBuild'] ]
         Packaging.EnableSBOMSigning: false
-      condition: and(succeeded(), eq(variables.TAG, variables.CURRENT_VERSION))
       jobs:
         - job: manifest
           displayName: Compile Manifests
@@ -384,17 +349,6 @@ stages:
                 name: $(name)
                 os_versions: $(os_versions)
                 platforms: $(platforms)
-                tag: $(TAG)
-        - job: check_tag
-          displayName: Check Tag
-          pool:
-            name: $(BUILD_POOL_NAME_DEFAULT)
-          steps:
-            - script: |
-                echo "##vso[task.setvariable variable=currentTagManifests;isOutput=true]$(make version)"
-              name: "CurrentTagManifests"
-              displayName: "Set current tag variable"
-              condition: always()
 
     # Cilium Podsubnet E2E tests
     - template: singletenancy/cilium/cilium-e2e-job-template.yaml
@@ -540,6 +494,7 @@ stages:
         - aks_swift_e2e
         - cilium_e2e
         - cilium_overlay_e2e
+        - cilium_h_overlay_e2e
         - aks_ubuntu_22_linux_e2e
         - aks_swift_vnetscale_e2e
         - aks_windows_22_e2e
@@ -561,6 +516,9 @@ stages:
               cilium_overlay_e2e:
                 name: cilium_overlay_e2e
                 clusterName: "cilovere2e"
+              cilium_h_overlay_e2e:
+                name: cilium_h_overlay_e2e
+                clusterName: "cilwhleovere2e"
               azure_overlay_e2e:
                 name: azure_overlay_e2e
                 clusterName: "azovere2e"
@@ -570,18 +528,6 @@ stages:
               aks_swift_vnetscale_e2e:
                 name: aks_swift_vnetscale_e2e
                 clusterName: "vscaleswifte2e"
-              azure_overlay_cni_e2e:
-                name: "azure_overlay_cni_e2e"
-                clusterName: "azovercnie2e"
-              cilium_podsubnet_cni_e2e:
-                name: cilium_podsubnet_cni_e2e
-                clusterName: "cilpodcnie2e"
-              cilium_overlay_cni_e2e:
-                name: cilium_overlay_cni_e2e
-                clusterName: "cilovercnie2e"
-              aks_swift_cni_e2e:
-                name: aks_swift_cni_e2e
-                clusterName: "swiftcnie2e"
               aks_ubuntu_22_linux_e2e:
                 name: aks_ubuntu_22_linux_e2e
                 clusterName: "ubuntu22e2e"
@@ -607,22 +553,3 @@ stages:
                 clusterName: $(clusterName)-$(commitID)
                 region: $(REGION_AKS_CLUSTER_TEST)
 
-    - stage: validate2
-      displayName: Validate Tags
-      dependsOn:
-        - setup
-        - publish
-      variables:
-        TAG: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.Tag'] ]
-        CURRENT_VERSION: $[ stagedependencies.publish.check_tag.outputs['CurrentTagManifests.currentTagManifests'] ]
-      condition: ne(variables.TAG, variables.CURRENT_VERSION)
-      jobs:
-        - job: timeout_and_cancel
-          displayName: Cancel Run
-          pool:
-            name: $(BUILD_POOL_NAME_DEFAULT)
-          steps:
-            - script: |
-                echo $TAG
-                echo $CURRENT_VERSION
-                echo "Checking if branch is up to date with master"
