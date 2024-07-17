@@ -27,7 +27,8 @@ stages:
         location: $(LOCATION_AMD64)
       commitID: $[ stagedependencies.setup.env.outputs['SetEnvVars.commitID'] ]
     dependsOn:
-      - binaries
+      - setup
+      - build_images
     displayName: "Create Cluster - ${{ parameters.clusterName }}"
     jobs:
       - job: create_aks_cluster_with_${{ parameters.name }}
