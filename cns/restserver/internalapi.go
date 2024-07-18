@@ -578,3 +578,7 @@ func (service *HTTPRestService) CreateOrUpdateNetworkContainerInternal(req *cns.
 
 	return returnCode
 }
+
+func (service *HTTPRestService) SetVFForAccelnetNICs() error {
+	return service.setVFForAccelnetNICs()
+}

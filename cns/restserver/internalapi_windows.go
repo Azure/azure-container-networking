@@ -1,11 +1,54 @@
 package restserver
 
 import (
+	"context"
+	"fmt"
+
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/types"
+	"github.com/Microsoft/hcsshim"
+	"github.com/pkg/errors"
 )
 
 // nolint
 func (service *HTTPRestService) programSNATRules(req *cns.CreateNetworkContainerRequest) (types.ResponseCode, string) {
 	return types.Success, ""
+}
+
+func (service *HTTPRestService) setVFForAccelnetNICs() error {
+	// SWIFT V2 mode for accelnet, supply the MAC address to the HNS
+	macAddress, err := service.getPrimaryNICMACAddress()
+	if err != nil {
+		return err
+	}
+	macAddresses := []string{macAddress}
+	if _, err := hcsshim.SetNnvManagementMacAddresses(macAddresses); err != nil {
+		return errors.Wrap(err, "Failed to set primary NIC MAC address")
+	}
+	return nil
+}
+
+// getPrimaryNICMacAddress fetches the MAC address of the primary NIC on the node.
+func (service *HTTPRestService) getPrimaryNICMACAddress() (string, error) {
+	res, err := service.wscli.GetInterfaces(context.TODO())
+	if err != nil {
+		return "", fmt.Errorf("failed to find primary interface info: %w", err)
+	}
+	var macAddress string
+	for _, i := range res.Interface {
+		// skip if not primary
+		if !i.IsPrimary {
+			continue
+		}
+		// skip if no subnets
+		if len(i.IPSubnet) == 0 {
+			continue
+		}
+		macAddress = i.MacAddress
+	}
+
+	if macAddress == "" {
+		return "", errors.New("MAC address not found in wscli")
+	}
+	return macAddress, nil
 }

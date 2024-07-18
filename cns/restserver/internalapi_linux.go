@@ -93,3 +93,8 @@ func (service *HTTPRestService) programSNATRules(req *cns.CreateNetworkContainer
 	}
 	return types.Success, ""
 }
+
+// no-op for linux
+func (service *HTTPRestService) setVFForAccelnetNICs() error {
+	return nil
+}
