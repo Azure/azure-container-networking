@@ -320,7 +320,7 @@ func TestDisableVFDeviceUnHappyPath(t *testing.T) {
 
 	err := disableVFDevice(instanceID, mockExecClient)
 	if err == nil {
-		t.Fatalf("Failed to test disable VF unhappy path due to %v", err)
+		t.Fatalf("Failed to test disable VF unhappy path")
 	}
 }
 
@@ -354,7 +354,7 @@ func TestGetLocationPathUnHappyPath(t *testing.T) {
 
 	_, err := getLocationPath(instanceID, mockExecClient)
 	if err == nil {
-		t.Fatalf("Failed to test get location path on unhappy path due to %v", err)
+		t.Fatal("Failed to test get location path on unhappy path")
 	}
 }
 
@@ -388,7 +388,7 @@ func TestDismountVFDeviceUnHappyPath(t *testing.T) {
 
 	err := dismountVFDevice(instanceID, mockExecClient)
 	if err == nil {
-		t.Fatalf("Failed to test dismount VF unhappy path due to %v", err)
+		t.Fatal("Failed to test dismount VF unhappy path")
 	}
 }
 
@@ -423,7 +423,7 @@ func TestGetPnPDeviceIDUnHappyPath(t *testing.T) {
 
 	_, err := getPnPDeviceID(instanceID, mockExecClient)
 	if err == nil {
-		t.Fatalf("Failed to test get pnp device id unhappy path due to %v", err)
+		t.Fatal("Failed to test get pnp device id unhappy path")
 	}
 }
 
@@ -458,7 +458,7 @@ func TestGetPnPDeviceStateUnHappyPath(t *testing.T) {
 
 	_, _, err := getPnpDeviceState(instanceID, mockExecClient)
 	if err == nil {
-		t.Fatalf("Failed to test get pnp device state unhappy path due to %v", err)
+		t.Fatal("Failed to test get pnp device state unhappy path")
 	}
 }
 
