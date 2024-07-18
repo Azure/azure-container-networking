@@ -1378,13 +1378,14 @@ func TestPluginSwiftV2MultipleAddDelete(t *testing.T) {
 	}
 
 	tests := []struct {
-		name       string
-		plugin     *NetPlugin
-		args       *cniSkel.CmdArgs
-		wantErr    bool
-		wantErrMsg string
-		wantNumEps int
-		validEpIDs map[string]struct{}
+		name          string
+		plugin        *NetPlugin
+		args          *cniSkel.CmdArgs
+		wantErr       bool
+		wantErrMsg    string
+		wantNumEps    int
+		deletedNumEps int
+		validEpIDs    map[string]struct{}
 	}{
 		{
 			name: "SwiftV2 Add Infra and Delegated",
@@ -1637,6 +1638,32 @@ func TestPluginSwiftV2MultipleAddDelete(t *testing.T) {
 			wantErr:    true,
 			wantErrMsg: "failed to create endpoint: MockEndpointClient Error : AddEndpoints Accelnet VM NIC failed",
 		},
+		{
+			name: "SwiftV2 create and delete endpoints successfully",
+			plugin: &NetPlugin{
+				Plugin: plugin,
+				nm:     acnnetwork.NewMockNetworkmanager(acnnetwork.NewMockEndpointClient(nil)),
+				ipamInvoker: NewCustomMockIpamInvoker(map[string]acnnetwork.InterfaceInfo{
+					"eth0": {
+						NICType: cns.InfraNIC,
+					},
+					"eth1": {
+						NICType: cns.DelegatedVMNIC,
+					},
+				}),
+				report: &telemetry.CNIReport{},
+				tb:     &telemetry.TelemetryBuffer{},
+				netClient: &InterfaceGetterMock{
+					interfaces: []net.Interface{
+						{Name: "eth0"},
+					},
+				},
+			},
+			args:          args,
+			wantNumEps:    2,
+			wantErr:       false,
+			deletedNumEps: 2,
+		},
 	}
 
 	for _, tt := range tests {
@@ -1660,7 +1687,13 @@ func TestPluginSwiftV2MultipleAddDelete(t *testing.T) {
 			}
 
 			err = tt.plugin.Delete(tt.args)
-			require.NoError(t, err)
+			if tt.wantErr {
+				require.Error(t, err)
+				assert.Equal(t, tt.wantErrMsg, err.Error(), "Expected %v but got %+v", tt.wantErrMsg, err.Error())
+			} else {
+				require.Condition(t, assert.Comparison(func() bool { return len(endpoints) == (tt.deletedNumEps - tt.wantNumEps) }))
+				require.NoError(t, err)
+			}
 			endpoints, _ = tt.plugin.nm.GetAllEndpoints(localNwCfg.Name)
 			require.Condition(t, assert.Comparison(func() bool { return len(endpoints) == 0 }))
 		})

@@ -307,7 +307,7 @@ func TestDisableVFDeviceHappyPath(t *testing.T) {
 
 	err := disableVFDevice(instanceID, nm.plClient)
 	if err != nil {
-		t.Fatal("Failed to test disable VF happy path")
+		t.Fatalf("Failed to test disable VF happy path due to %v", err)
 	}
 }
 
@@ -320,7 +320,7 @@ func TestDisableVFDeviceUnHappyPath(t *testing.T) {
 
 	err := disableVFDevice(instanceID, mockExecClient)
 	if err == nil {
-		t.Fatal("Failed to test disable VF unhappy path")
+		t.Fatalf("Failed to test disable VF unhappy path due to %v", err)
 	}
 }
 
@@ -341,7 +341,7 @@ func TestGetLocationPathHappyPath(t *testing.T) {
 
 	_, err := getLocationPath(instanceID, nm.plClient)
 	if err != nil {
-		t.Fatal("Failed to test get locationPath happy path")
+		t.Fatalf("Failed to test get locationPath happy path due to %v", err)
 	}
 }
 
@@ -354,7 +354,7 @@ func TestGetLocationPathUnHappyPath(t *testing.T) {
 
 	_, err := getLocationPath(instanceID, mockExecClient)
 	if err == nil {
-		t.Fatal("Failed to test get location path on unhappy path")
+		t.Fatalf("Failed to test get location path on unhappy path due to %v", err)
 	}
 }
 
@@ -375,7 +375,7 @@ func TestDismountVFDeviceHappyPath(t *testing.T) {
 
 	err := dismountVFDevice(locationPath, nm.plClient)
 	if err != nil {
-		t.Fatal("Failed to test dismount vf device happy path")
+		t.Fatalf("Failed to test dismount vf device happy path due to %v", err)
 	}
 }
 
@@ -388,7 +388,7 @@ func TestDismountVFDeviceUnHappyPath(t *testing.T) {
 
 	err := dismountVFDevice(instanceID, mockExecClient)
 	if err == nil {
-		t.Fatal("Failed to test dismount VF unhappy path")
+		t.Fatalf("Failed to test dismount VF unhappy path due to %v", err)
 	}
 }
 
@@ -410,7 +410,7 @@ func TestGetPnPDeviceIDHappyPath(t *testing.T) {
 
 	_, err := getPnPDeviceID(instanceID, nm.plClient)
 	if err != nil {
-		t.Fatal("Failed to test get pnp device id happy path")
+		t.Fatalf("Failed to test get pnp device id happy path due to %v", err)
 	}
 }
 
@@ -423,7 +423,7 @@ func TestGetPnPDeviceIDUnHappyPath(t *testing.T) {
 
 	_, err := getPnPDeviceID(instanceID, mockExecClient)
 	if err == nil {
-		t.Fatal("Failed to test get pnp device id unhappy path")
+		t.Fatalf("Failed to test get pnp device id unhappy path due to %v", err)
 	}
 }
 
@@ -445,7 +445,7 @@ func TestGetPnPDeviceStateHappyPath(t *testing.T) {
 
 	_, _, err := getPnpDeviceState(instanceID, nm.plClient)
 	if err != nil {
-		t.Fatal("Failed to test happy path")
+		t.Fatalf("Failed to test happy path due to %v", err)
 	}
 }
 
@@ -458,7 +458,7 @@ func TestGetPnPDeviceStateUnHappyPath(t *testing.T) {
 
 	_, _, err := getPnpDeviceState(instanceID, mockExecClient)
 	if err == nil {
-		t.Fatal("Failed to test get pnp device state unhappy path")
+		t.Fatalf("Failed to test get pnp device state unhappy path due to %v", err)
 	}
 }
 
@@ -490,7 +490,7 @@ func TestNewEndpointImplHnsv2ForIBHappyPath(t *testing.T) {
 		netio.NewMockNetIO(false, 0), NewMockEndpointClient(nil), NewMockNamespaceClient(), iptables.NewClient(), epInfo)
 
 	if endpoint != nil || err != nil {
-		t.Fatal("Endpoint is created for IB")
+		t.Fatalf("Endpoint is created for IB due to %v", err)
 	}
 }
 
@@ -519,13 +519,13 @@ func TestCreateAndDeleteEndpointImplHnsv2ForDelegatedHappyPath(t *testing.T) {
 	// Happy Path to create and delete endpoint for delegated NIC
 	ep, err := nw.newEndpointImplHnsV2(nil, epInfo)
 	if err != nil {
-		t.Fatal("Failed to create endpoint for Delegated NIC")
+		t.Fatalf("Failed to create endpoint for Delegated NIC due to %v", err)
 	}
 
 	mockCli := NewMockEndpointClient(nil)
 	err = nw.deleteEndpointImpl(netlink.NewMockNetlink(false, ""), platform.NewMockExecClient(false), mockCli, netio.NewMockNetIO(false, 0), NewMockNamespaceClient(), iptables.NewClient(), ep)
 	if err != nil {
-		t.Fatal("Failed to delete endpoint for Delegated NIC")
+		t.Fatalf("Failed to delete endpoint for Delegated NIC due to %v", err)
 	}
 }
 
@@ -554,13 +554,13 @@ func TestCreateAndDeleteEndpointImplHnsv2ForAccelnetHappyPath(t *testing.T) {
 	// Happy Path to create and delete endpoint for accelnet NIC
 	ep, err := nw.newEndpointImplHnsV2(nil, epInfo)
 	if err != nil {
-		t.Fatal("Failed to create endpoint for Accelnet NIC")
+		t.Fatalf("Failed to create endpoint for Accelnet NIC due to %v", err)
 	}
 
 	mockCli := NewMockEndpointClient(nil)
 	err = nw.deleteEndpointImpl(netlink.NewMockNetlink(false, ""), platform.NewMockExecClient(false), mockCli, netio.NewMockNetIO(false, 0), NewMockNamespaceClient(), iptables.NewClient(), ep)
 	if err != nil {
-		t.Fatal("Failed to delete endpoint for Accelnet NIC")
+		t.Fatalf("Failed to delete endpoint for Accelnet NIC due to %v", err)
 	}
 }
 
@@ -589,13 +589,13 @@ func TestCreateAndDeleteEndpointImplHnsv2ForAccelnetUnHappyPath(t *testing.T) {
 	// Happy Path to create and delete endpoint for accelnet NIC
 	ep, err := nw.newEndpointImplHnsV2(nil, epInfo)
 	if err != nil {
-		t.Fatal("Failed to create endpoint for Accelnet NIC")
+		t.Fatalf("Failed to create endpoint for Accelnet NIC due to %v", err)
 	}
 
 	mockCli := NewMockEndpointClient(nil)
 	err = nw.deleteEndpointImpl(netlink.NewMockNetlink(false, ""), platform.NewMockExecClient(true), mockCli, netio.NewMockNetIO(false, 0), NewMockNamespaceClient(), iptables.NewClient(), ep)
 	if err == nil {
-		t.Fatal("Successfully deleted endpoint for Accelnet NIC")
+		t.Fatalf("Successfully deleted endpoint for Accelnet NIC")
 	}
 
 	if !errors.Is(err, platform.ErrMockExec) {
