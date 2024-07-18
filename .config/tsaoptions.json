@@ -1,0 +1,13 @@
+ {
+   "instanceUrl"        :  "https://msazure.visualstudio.com",
+   "projectName"        :  "One",
+   "areaPath"           :  "One\\Networking\\ContainerNetworking",
+   "notificationAliases":  [
+                             "shtrudo@microsoft.com",
+                             "estebanca@microsoft.com",
+                             "acn-ci@service.microsoft.com"
+                           ],
+   "ppe"                :  "false",
+   "template"           :  "TFSMSAzure",
+   "codebaseName"       :  "TFSMSAzure_Azure_azure-container-networking"
+ }
