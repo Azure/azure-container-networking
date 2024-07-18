@@ -208,3 +208,7 @@ func MonitorAndSetMellanoxRegKeyPriorityVLANTag(_ context.Context, _ int) {}
 func FetchMacAddressPnpIDMapping(_ context.Context, _ ExecClient) (map[string]string, error) {
 	return nil, nil
 }
+
+func SetVFForAccelnetNICs() error {
+	return nil
+}

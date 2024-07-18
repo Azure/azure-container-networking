@@ -876,10 +876,10 @@ func main() {
 				logger.Errorf("Failed to fetch PnpIDMacaddress mapping: %v", err)
 			}
 
-			// Setting primary macaddress if VF is enabled on the nics for swiftv2
-			err = setVFForAccelnetNICs()
+			// No-op for linux, setting primary macaddress if VF is enabled on the nics for aks swiftv2
+			err = platform.SetVFForAccelnetNICs()
 			if err != nil {
-				logger.Errorf("Failed to get primary NIC MAC address & set VF for accelnet NICs: %v", err)
+				logger.Errorf("Failed to set VF for accelnet NICs: %v", err)
 			}
 		}
 	}
