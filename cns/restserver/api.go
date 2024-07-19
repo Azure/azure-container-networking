@@ -1522,3 +1522,42 @@ func (service *HTTPRestService) nmAgentSupportedApisHandler(w http.ResponseWrite
 
 	logger.Response(service.Name, nmAgentSupportedApisResponse, resp.ReturnCode, serviceErr)
 }
+
+// getVMUniqueID retrieves VMUniqueID from the IMDS
+func (service *HTTPRestService) getVMUniqueID(w http.ResponseWriter, r *http.Request) {
+	logger.Request(service.Name, "getVMUniqueID", nil)
+	ctx := r.Context()
+
+	switch r.Method {
+	case http.MethodGet:
+		vmUniqueID, err := service.imdsClient.GetVMUniqueID(ctx)
+		if err != nil {
+			resp := cns.GetVMUniqueIDResponse{
+				Response: cns.Response{
+					ReturnCode: types.UnexpectedError,
+					Message:    errors.Wrap(err, "failed to get vmuniqueid").Error(),
+				},
+			}
+			respondJSON(w, http.StatusInternalServerError, resp)
+			logger.Response(service.Name, resp, resp.Response.ReturnCode, err)
+			return
+		}
+
+		resp := cns.GetVMUniqueIDResponse{
+			Response: cns.Response{
+				ReturnCode: types.Success,
+			},
+			VMUniqueID: vmUniqueID,
+		}
+		respondJSON(w, http.StatusOK, resp)
+		logger.Response(service.Name, resp, resp.Response.ReturnCode, err)
+
+	default:
+		returnMessage := fmt.Sprintf("[Azure CNS] Error. getVMUniqueID did not receive a GET."+
+			" Received: %s", r.Method)
+		returnCode := types.UnsupportedVerb
+		service.setResponse(w, returnCode, cns.GetHomeAzResponse{
+			Response: cns.Response{ReturnCode: returnCode, Message: returnMessage},
+		})
+	}
+}

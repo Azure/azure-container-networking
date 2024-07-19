@@ -16,6 +16,8 @@ import (
 	"time"
 
 	"github.com/Azure/azure-container-networking/cns"
+	"github.com/Azure/azure-container-networking/cns/common"
+	"github.com/Azure/azure-container-networking/cns/configuration"
 	"github.com/Azure/azure-container-networking/cns/fakes"
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
@@ -1056,7 +1058,7 @@ func restartService() {
 	fmt.Println("Restart Service")
 
 	service.Stop()
-	if err := startService(); err != nil {
+	if err := startService(common.ServiceConfig{}, configuration.CNSConfig{}); err != nil {
 		fmt.Printf("Failed to restart CNS Service. Error: %v", err)
 		os.Exit(1)
 	}

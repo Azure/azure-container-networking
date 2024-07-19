@@ -43,6 +43,7 @@ stages:
         name: $(BUILD_POOL_NAME_DEFAULT)
       dependsOn:
         - setup
+        - build_images
       displayName: "Create Cluster - ${{ parameters.clusterName }}"
       jobs:
         - job: create_aks_cluster_with_${{ parameters.name }}
@@ -75,6 +76,7 @@ stages:
         name: $(BUILD_POOL_NAME_DEFAULT)
       dependsOn:
         - setup
+        - build_images
       displayName: "Create Cluster - ${{ parameters.clusterName }}"
       jobs:
         - job: create_aks_cluster_with_${{ parameters.name }}

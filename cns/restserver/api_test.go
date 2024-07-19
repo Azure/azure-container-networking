@@ -20,6 +20,7 @@ import (
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/common"
+	"github.com/Azure/azure-container-networking/cns/configuration"
 	"github.com/Azure/azure-container-networking/cns/fakes"
 	"github.com/Azure/azure-container-networking/cns/logger"
 	"github.com/Azure/azure-container-networking/cns/types"
@@ -29,6 +30,7 @@ import (
 	"github.com/Azure/azure-container-networking/store"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const (
@@ -172,8 +174,10 @@ func TestMain(m *testing.M) {
 	var err error
 	logger.InitLogger("testlogs", 0, 0, "./")
 
-	// Create the service.
-	if err = startService(); err != nil {
+	// Create the service. If CRD channel mode is needed, then at the start of the test,
+	// it can stop the service (service.Stop), invoke startService again with new ServiceConfig (with CRD mode)
+	// perform the test and then restore the service again.
+	if err = startService(common.ServiceConfig{ChannelMode: cns.Direct}, configuration.CNSConfig{}); err != nil {
 		fmt.Printf("Failed to start CNS Service. Error: %v", err)
 		os.Exit(1)
 	}
@@ -1666,9 +1670,9 @@ func setEnv(t *testing.T) *httptest.ResponseRecorder {
 	return w
 }
 
-func startService() error {
+func startService(serviceConfig common.ServiceConfig, _ configuration.CNSConfig) error {
 	// Create the service.
-	config := common.ServiceConfig{}
+	config := serviceConfig
 
 	// Create the key value fileStore.
 	fileStore, err := store.NewJsonFileStore(cnsJsonFileName, processlock.NewMockFileLock(false), nil)
@@ -1679,7 +1683,8 @@ func startService() error {
 	config.Store = fileStore
 
 	nmagentClient := &fakes.NMAgentClientFake{}
-	service, err = NewHTTPRestService(&config, &fakes.WireserverClientFake{}, &fakes.WireserverProxyFake{}, nmagentClient, nil, nil, nil)
+	service, err = NewHTTPRestService(&config, &fakes.WireserverClientFake{}, &fakes.WireserverProxyFake{},
+		nmagentClient, nil, nil, nil, fakes.NewMockIMDSClient())
 	if err != nil {
 		return err
 	}
@@ -1756,6 +1761,43 @@ func contains(networkContainers []cns.GetNetworkContainerResponse, str string) b
 		}
 	}
 	return false
+}
+
+// Testing GetVMUniqueID API handler with success
+func TestGetVMUniqueIDSuccess(t *testing.T) {
+	req, err := http.NewRequestWithContext(context.TODO(), http.MethodGet, cns.GetVMUniqueID, http.NoBody)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	var vmIDResp cns.GetVMUniqueIDResponse
+	err = decodeResponse(w, &vmIDResp)
+	require.NoError(t, err)
+	assert.Equal(t, types.Success, vmIDResp.Response.ReturnCode)
+	assert.Equal(t, "55b8499d-9b42-4f85-843f-24ff69f4a643", vmIDResp.VMUniqueID)
+}
+
+// Testing GetVMUniqueID API handler with failure
+func TestGetVMUniqueIDFailed(t *testing.T) {
+	ctx := context.TODO()
+	ctx = context.WithValue(ctx, fakes.SimulateError, Interface{})
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, cns.GetVMUniqueID, http.NoBody)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+
+	var vmIDResp cns.GetVMUniqueIDResponse
+	err = json.NewDecoder(w.Body).Decode(&vmIDResp)
+	require.NoError(t, err)
+	assert.Equal(t, types.UnexpectedError, vmIDResp.Response.ReturnCode)
 }
 
 // IGNORE TEST AS IT IS FAILING. TODO:- Fix it https://msazure.visualstudio.com/One/_workitems/edit/7720083

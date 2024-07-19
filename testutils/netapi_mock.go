@@ -7,6 +7,6 @@ type NetApiMock struct {
 	err error
 }
 
-func (netApi *NetApiMock) AddExternalInterface(ifName string, subnet string) error {
+func (netApi *NetApiMock) AddExternalInterface(ifName, subnet, nicType string) error { //nolint
 	return netApi.err
 }

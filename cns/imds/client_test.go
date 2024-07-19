@@ -74,3 +74,29 @@ func TestIMDSInvalidJSON(t *testing.T) {
 	_, err := imdsClient.GetVMUniqueID(context.Background())
 	require.Error(t, err, "expected json decoding error")
 }
+
+func TestInvalidVMUniqueID(t *testing.T) {
+	computeMetadata, err := os.ReadFile("testdata/invalidComputeMetadata.json")
+	require.NoError(t, err, "error reading testdata compute metadata file")
+
+	mockIMDSServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// request header "Metadata: true" must be present
+		metadataHeader := r.Header.Get("Metadata")
+		assert.Equal(t, "true", metadataHeader)
+
+		// query params should include apiversion and json format
+		apiVersion := r.URL.Query().Get("api-version")
+		assert.Equal(t, "2021-01-01", apiVersion)
+		format := r.URL.Query().Get("format")
+		assert.Equal(t, "json", format)
+		w.WriteHeader(http.StatusOK)
+		_, writeErr := w.Write(computeMetadata)
+		require.NoError(t, writeErr, "error writing response")
+	}))
+	defer mockIMDSServer.Close()
+
+	imdsClient := imds.NewClient(imds.Endpoint(mockIMDSServer.URL))
+	vmUniqueID, err := imdsClient.GetVMUniqueID(context.Background())
+	require.Error(t, err, "error querying testserver")
+	require.Equal(t, "", vmUniqueID)
+}

@@ -20,10 +20,6 @@ spec:
     - jsonPath: .spec.vmUniqueID
       name: VMUniqueID
       type: string
-    - jsonPath: .status.status
-      name: Status
-      priority: 1
-      type: string
     name: v1alpha1
     schema:
       openAPIV3Schema:
@@ -53,15 +49,15 @@ spec:
               deviceInfos:
                 items:
                   properties:
-                    deviceCount:
-                      type: integer
                     deviceType:
                       enum:
                       - acn.azure.com/vnet-nic
                       - acn.azure.com/infiniband-nic
                       type: string
+                    macAddress:
+                      type: string
                   required:
-                  - deviceCount
+                  - macAddress
                   type: object
                 type: array
             type: object

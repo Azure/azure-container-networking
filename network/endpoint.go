@@ -15,6 +15,7 @@ import (
 	"github.com/Azure/azure-container-networking/netlink"
 	"github.com/Azure/azure-container-networking/network/policy"
 	"github.com/Azure/azure-container-networking/platform"
+	"github.com/pkg/errors"
 	"go.uber.org/zap"
 )
 
@@ -109,8 +110,8 @@ type EndpointInfo struct {
 	Options                       map[string]interface{}
 	DisableHairpinOnHostInterface bool
 	IsIPv6Enabled                 bool
-
-	HostSubnetPrefix string // can be used later to add an external interface
+	HostSubnetPrefix              string // can be used later to add an external interface
+	PnPID                         string
 }
 
 // RouteInfo contains information about an IP route.
@@ -136,6 +137,7 @@ type InterfaceInfo struct {
 	SkipDefaultRoutes bool
 	HostSubnetPrefix  net.IPNet // Move this field from ipamAddResult
 	NCResponse        *cns.GetNetworkContainerResponse
+	PnPID             string
 }
 
 type IPConfig struct {
@@ -187,6 +189,7 @@ func (nw *network) newEndpoint(
 
 	nw.Endpoints[ep.Id] = ep
 	logger.Info("Created endpoint. Num of endpoints", zap.Any("ep", ep), zap.Int("numEndpoints", len(nw.Endpoints)))
+
 	return ep, nil
 }
 
@@ -383,4 +386,26 @@ func (epInfo *EndpointInfo) IsEndpointStateIncomplete() bool {
 		return true
 	}
 	return false
+}
+
+func (ep *endpoint) validateEndpoint() error {
+	if ep.ContainerID == "" || ep.NICType == "" {
+		return errors.New("endpoint struct must contain a container id and nic type")
+	}
+	return nil
+}
+
+func validateEndpoints(eps []*endpoint) error {
+	containerIDs := map[string]bool{}
+	for _, ep := range eps {
+		if err := ep.validateEndpoint(); err != nil {
+			return errors.Wrap(err, "failed to validate endpoint struct")
+		}
+		containerIDs[ep.ContainerID] = true
+
+		if len(containerIDs) != 1 {
+			return errors.New("multiple distinct container ids detected")
+		}
+	}
+	return nil
 }

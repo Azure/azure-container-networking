@@ -175,10 +175,11 @@ var _ = Describe("Test Endpoint", func() {
 				Endpoints: map[string]*endpoint{},
 			}
 			epInfo := &EndpointInfo{
-				EndpointID: "768e8deb-eth1",
-				Data:       make(map[string]interface{}),
-				IfName:     eth0IfName,
-				NICType:    cns.InfraNIC,
+				EndpointID:  "768e8deb-eth1",
+				Data:        make(map[string]interface{}),
+				IfName:      eth0IfName,
+				NICType:     cns.InfraNIC,
+				ContainerID: "0ea7476f26d192f067abdc8b3df43ce3cdbe324386e1c010cb48de87eefef480",
 			}
 			epInfo.Data[VlanIDKey] = 100
 
@@ -206,6 +207,7 @@ var _ = Describe("Test Endpoint", func() {
 				Expect(ep.Gateways[0].String()).To(Equal("192.168.0.1"))
 				Expect(ep.VlanID).To(Equal(epInfo.Data[VlanIDKey].(int)))
 				Expect(ep.IfName).To(Equal(epInfo.IfName))
+				Expect(ep.ContainerID).To(Equal(epInfo.ContainerID))
 			})
 			It("Should be not added", func() {
 				// Adding an endpoint with an id.
@@ -371,6 +373,81 @@ var _ = Describe("Test Endpoint", func() {
 					podName := GetPodNameWithoutSuffix(testValue)
 					Expect(podName).To(Equal(expectedPodName))
 				}
+			})
+		})
+	})
+
+	// validation when calling add
+	Describe("Test validateEndpoints", func() {
+		Context("When in a single add call we create two endpoint structs", func() {
+			It("Should have the same container id", func() {
+				eps := []*endpoint{
+					{
+						ContainerID: "0ea7476f26d192f067abdc8b3df43ce3cdbe324386e1c010cb48de87eefef480",
+						NICType:     cns.InfraNIC,
+					},
+					{
+						ContainerID: "0ea7476f26d192f067abdc8b3df43ce3cdbe324386e1c010cb48de87eefef480",
+						NICType:     cns.DelegatedVMNIC,
+					},
+				}
+				Expect(validateEndpoints(eps)).To(BeNil())
+			})
+		})
+		Context("When in a single add call we have different container ids", func() {
+			It("Should error", func() {
+				eps := []*endpoint{
+					{
+						ContainerID: "0ea7476f26d192f067abdc8b3df43ce3cdbe324386e1c010cb48de87eefef480",
+						NICType:     cns.InfraNIC,
+					},
+					{
+						ContainerID: "0ea7476f26d192f067abdc8b3df43ce3cdbe324386e1c010cb48de87eefef481",
+						NICType:     cns.DelegatedVMNIC,
+					},
+				}
+				Expect(validateEndpoints(eps)).ToNot(BeNil())
+			})
+		})
+		Context("When no container id", func() {
+			It("Should error", func() {
+				eps := []*endpoint{
+					{
+						ContainerID: "",
+						NICType:     cns.InfraNIC,
+					},
+					{
+						ContainerID: "",
+						NICType:     cns.DelegatedVMNIC,
+					},
+				}
+				Expect(validateEndpoints(eps)).ToNot(BeNil())
+			})
+		})
+		Context("When missing nic type", func() {
+			It("Should error", func() {
+				eps := []*endpoint{
+					{
+						ContainerID: "0ea7476f26d192f067abdc8b3df43ce3cdbe324386e1c010cb48de87eefef480",
+						NICType:     cns.InfraNIC,
+					},
+					{
+						ContainerID: "0ea7476f26d192f067abdc8b3df43ce3cdbe324386e1c010cb48de87eefef480",
+						NICType:     "",
+					},
+				}
+				Expect(validateEndpoints(eps)).ToNot(BeNil())
+			})
+		})
+		Context("When no container id ib nic", func() {
+			It("Should error", func() {
+				eps := []*endpoint{
+					{
+						ContainerID: "",
+						NICType:     cns.NodeNetworkInterfaceBackendNIC,
+					},
+				}
+				Expect(validateEndpoints(eps)).ToNot(BeNil())
 			})
 		})
 	})
