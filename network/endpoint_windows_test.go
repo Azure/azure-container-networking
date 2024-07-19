@@ -639,6 +639,10 @@ func TestCreateAndDeleteEndpointImplHnsv2ForAccelnetUnHappyPath(t *testing.T) {
 }
 
 func TestDeleteEndpointState(t *testing.T) {
+	nm := &networkManager{
+		ExternalInterfaces: map[string]*externalInterface{},
+	}
+
 	// this hnsv2 variable overwrites the package level variable in network
 	// we do this to avoid passing around os specific objects in platform agnostic code
 	hnsFake := hnswrapper.NewHnsv2wrapperFake()
@@ -670,5 +674,30 @@ func TestDeleteEndpointState(t *testing.T) {
 	_, err = Hnsv2.CreateEndpoint(endpoint)
 	if err != nil {
 		t.Fatalf("Failed to create endpoint due to %v", err)
+	}
+
+	epInfo := &EndpointInfo{
+		EndpointID: endpointID,
+		Data:       make(map[string]interface{}),
+		IfName:     "eth1",
+		NICType:    cns.DelegatedVMNIC,
+	}
+
+	// mock DeleteEndpointState() to make sure endpoint and network is deleted from cache
+	// network and endpoint should be deleted from cache
+	err = nm.DeleteEndpointState(networkID, epInfo)
+	if err != nil {
+		t.Fatalf("Failed to delete endpoint state due to %v", err)
+	}
+
+	// check cache if networks and endpoints are deleted
+	networks := hnsFake.Cache.GetNetworks()
+	endpoints := hnsFake.Cache.GetEndpoints()
+	if len(endpoints) != 0 {
+		t.Fatalf("Not all endpoints are deleted, the remaining endpoints are %v", endpoints)
+	}
+
+	if len(networks) != 0 {
+		t.Fatalf("Not all networks are deleted, the remaining networks are %v", networks)
 	}
 }

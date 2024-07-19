@@ -405,6 +405,6 @@ func (h Hnsv2wrapperwithtimeout) GetEndpointByName(endpointName string) (*hcn.Ho
 	}
 }
 
-func (f Hnsv2wrapperwithtimeout) HNSV2Supported() error {
+func (h Hnsv2wrapperwithtimeout) HNSV2Supported() error {
 	return nil
 }

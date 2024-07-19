@@ -351,6 +351,16 @@ type FakeHNSCache struct {
 	endpoints map[string]*FakeHostComputeEndpoint
 }
 
+// get networks from fake HNS cache
+func (fCache FakeHNSCache) GetNetworks() map[string]*FakeHostComputeNetwork {
+	return fCache.networks
+}
+
+// get endpoints from fake HNS cache
+func (fCache FakeHNSCache) GetEndpoints() map[string]*FakeHostComputeEndpoint {
+	return fCache.endpoints
+}
+
 // SetPolicy returns the first SetPolicy found with this ID in any network.
 func (fCache FakeHNSCache) SetPolicy(setID string) *hcn.SetPolicySetting {
 	for _, network := range fCache.networks {
