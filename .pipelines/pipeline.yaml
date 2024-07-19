@@ -1,3 +1,61 @@
+trigger:
+  branches:
+    include:
+      - gh-readonly-queue/master/*
+
+paths:
+    exclude:
+      - ".devcontainer"
+      - ".hooks"
+      - ".vscode"
+      - ".github"
+      - docs
+
+resources:
+  repositories:
+  - repository: templates
+    type: git
+    name: OneBranch.Pipelines/GovernedTemplates
+    ref: refs/heads/master
+  
+  - repository: 1ESPipelineTemplates
+    type: git
+    name: 1ESPipelineTemplates/1ESPipelineTemplates
+    ref: refs/tags/release-2024-07-10-3
+
+variables:
+  WindowsContainerImage: onebranch.azurecr.io/windows/ltsc2019/vse2022:latest # for Windows jobs
+  LinuxContainerImage: mcr.microsoft.com/onebranch/cbl-mariner/build:2.0 # for Linux jobs
+  NUGET_PLUGIN_HANDSHAKE_TIMEOUT_IN_SECONDS: 40
+  NUGET_PLUGIN_REQUEST_TIMEOUT_IN_SECONDS: 300
+  NUGET_PLUGIN_IDLE_TIMEOUT_IN_SECONDS: 1200
+  mingwurl: 'https://github.com/niXman/mingw-builds-binaries/releases/download/12.1.0-rt_v10-rev3/x86_64-12.1.0-release-posix-seh-rt_v10-rev3.7z'
+  ESRP_XSIGN_MAX_PARALLELIZATION: 100
+  Codeql.ADO.Build.Repository.Provider: GitHub
+  Codeql.ADO.Build.SourceVersion: $[ resources.repositories['PLACEHOLDER'].version ]
+  Codeql.ADO.Build.Repository.Uri: $[ resources.repositories['PLACEHOLDER'].url ]
+  Codeql.ADO.Build.SourceBranch: $[ resources.repositories['PLACEHOLDER'].ref ]
+  Codeql.ADO.Build.SourceBranchName: $[ replace(resources.repositories['PLACEHOLDER'].ref, 'refs/heads/', '') ]
+
+
+extends:
+  template: v2/OneBranch.Official.CrossPlat.yml@templates
+  parameters:
+    isOfficial: true
+    platform:
+      name: onebranch
+    globalSdl:
+      cg:
+        failOnAlert: false
+      suppression:
+        suppressionFile: $(Build.SourcesDirectory)\.gdn\.gdnsuppress
+        suppressionSet: default
+      credscan:
+        enabled: true
+        suppressionsFileForArtifacts: $(Build.SourcesDirectory)/.config/CredScanSuppressions.json
+    stages:
+    - template: $(Build.SourcesDirectory)/.pipelines/pipeine.yaml
+
 stages:
   - stage: setup
     displayName: ACN
