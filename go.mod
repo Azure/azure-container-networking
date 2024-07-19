@@ -151,7 +151,6 @@ require (
 )
 
 replace (
-	github.com/Microsoft/go-winio => github.com/microsoft/go-winio v0.4.17
 	github.com/onsi/ginkgo => github.com/onsi/ginkgo v1.12.0
 	github.com/onsi/gomega => github.com/onsi/gomega v1.10.0
 )
