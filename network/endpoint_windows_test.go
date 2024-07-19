@@ -20,6 +20,7 @@ import (
 	"github.com/Azure/azure-container-networking/netlink"
 	"github.com/Azure/azure-container-networking/network/hnswrapper"
 	"github.com/Azure/azure-container-networking/platform"
+	"github.com/Microsoft/hcsshim/hcn"
 )
 
 var (
@@ -494,6 +495,40 @@ func TestNewEndpointImplHnsv2ForIBHappyPath(t *testing.T) {
 	}
 }
 
+func TestNewEndpointImplHnsv2ForIBUnHappyPath(t *testing.T) {
+	nw := &network{
+		Endpoints: map[string]*endpoint{},
+	}
+
+	// this hnsv2 variable overwrites the package level variable in network
+	// we do this to avoid passing around os specific objects in platform agnostic code
+	hnsFake := hnswrapper.NewHnsv2wrapperFake()
+	Hnsv2 = hnswrapper.Hnsv2wrapperwithtimeout{
+		Hnsv2:          hnsFake,
+		HnsCallTimeout: 5 * time.Second,
+	}
+
+	epInfo := &EndpointInfo{
+		EndpointID: "768e8deb-eth1",
+		Data:       make(map[string]interface{}),
+		IfName:     "eth1",
+		NICType:    cns.BackendNIC,
+		PnPID:      pnpID,
+	}
+
+	// Set UnHappy Path
+	_, err := nw.newEndpointImpl(nil, netlink.NewMockNetlink(false, ""), platform.NewMockExecClient(true),
+		netio.NewMockNetIO(false, 0), NewMockEndpointClient(nil), NewMockNamespaceClient(), iptables.NewClient(), epInfo)
+
+	if err == nil {
+		t.Fatal("Failed to test Endpoint creation for IB with unhappy path")
+	}
+
+	if !errors.Is(err, platform.ErrMockExec) {
+		t.Fatalf("Unexpected Error:%v; Error should be %v", err, platform.ErrMockExec)
+	}
+}
+
 func TestCreateAndDeleteEndpointImplHnsv2ForDelegatedHappyPath(t *testing.T) {
 	nw := &network{
 		Endpoints: map[string]*endpoint{},
@@ -595,10 +630,45 @@ func TestCreateAndDeleteEndpointImplHnsv2ForAccelnetUnHappyPath(t *testing.T) {
 	mockCli := NewMockEndpointClient(nil)
 	err = nw.deleteEndpointImpl(netlink.NewMockNetlink(false, ""), platform.NewMockExecClient(true), mockCli, netio.NewMockNetIO(false, 0), NewMockNamespaceClient(), iptables.NewClient(), ep)
 	if err == nil {
-		t.Fatalf("Successfully deleted endpoint for Accelnet NIC")
+		t.Fatal("Successfully deleted endpoint for Accelnet NIC")
 	}
 
 	if !errors.Is(err, platform.ErrMockExec) {
 		t.Fatalf("Unexpected Error:%v; Error should be %v", err, platform.ErrMockExec)
+	}
+}
+
+func TestDeleteEndpointState(t *testing.T) {
+	// this hnsv2 variable overwrites the package level variable in network
+	// we do this to avoid passing around os specific objects in platform agnostic code
+	hnsFake := hnswrapper.NewHnsv2wrapperFake()
+
+	Hnsv2 = hnswrapper.Hnsv2wrapperwithtimeout{
+		Hnsv2:          hnsFake,
+		HnsCallTimeout: 5 * time.Second,
+	}
+
+	// create network
+	networkID := "azure-12:34:56:78:90:ab"
+	network := &hcn.HostComputeNetwork{
+		Name: networkID,
+	}
+	_, err := Hnsv2.CreateNetwork(network)
+	if err != nil {
+		t.Fatalf("Failed to create network due to %v", err)
+	}
+
+	// create endpoint
+	endpointID := "endpoint1"
+	macAddress := "60-45-bd-12-45-65"
+	endpoint := &hcn.HostComputeEndpoint{
+		Id:                 endpointID,
+		Name:               endpointID,
+		HostComputeNetwork: networkID,
+		MacAddress:         macAddress,
+	}
+	_, err = Hnsv2.CreateEndpoint(endpoint)
+	if err != nil {
+		t.Fatalf("Failed to create endpoint due to %v", err)
 	}
 }

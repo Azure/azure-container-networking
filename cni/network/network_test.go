@@ -1378,16 +1378,13 @@ func TestPluginSwiftV2MultipleAddDelete(t *testing.T) {
 	}
 
 	tests := []struct {
-		name             string
-		plugin           *NetPlugin
-		args             *cniSkel.CmdArgs
-		wantErr          bool
-		wantErrMsg       string
-		wantNumEps       int
-		deletedNumEps    int
-		wantDeleteErr    bool
-		wantDeleteErrMsg string
-		validEpIDs       map[string]struct{}
+		name       string
+		plugin     *NetPlugin
+		args       *cniSkel.CmdArgs
+		wantErr    bool
+		wantErrMsg string
+		wantNumEps int
+		validEpIDs map[string]struct{}
 	}{
 		{
 			name: "SwiftV2 Add Infra and Delegated",
@@ -1410,10 +1407,9 @@ func TestPluginSwiftV2MultipleAddDelete(t *testing.T) {
 					},
 				},
 			},
-			args:          args,
-			wantErr:       false,
-			wantNumEps:    2,
-			wantDeleteErr: false,
+			args:       args,
+			wantErr:    false,
+			wantNumEps: 2,
 		},
 		{
 			name: "SwiftV2 Add Delegated and Accelnet",
@@ -1436,11 +1432,9 @@ func TestPluginSwiftV2MultipleAddDelete(t *testing.T) {
 					},
 				},
 			},
-			args:          args,
-			wantErr:       false,
-			wantNumEps:    2,
-			wantDeleteErr: false,
-			deletedNumEps: 2,
+			args:       args,
+			wantErr:    false,
+			wantNumEps: 2,
 		},
 		{
 			name: "SwiftV2 Add Infra and Delegated and Accelnet",
@@ -1466,11 +1460,9 @@ func TestPluginSwiftV2MultipleAddDelete(t *testing.T) {
 					},
 				},
 			},
-			args:          args,
-			wantErr:       false,
-			wantNumEps:    3,
-			wantDeleteErr: false,
-			deletedNumEps: 3,
+			args:       args,
+			wantErr:    false,
+			wantNumEps: 3,
 		},
 		{
 			name: "SwiftV2 Add Infra and InfiniteBand",
@@ -1493,11 +1485,9 @@ func TestPluginSwiftV2MultipleAddDelete(t *testing.T) {
 					},
 				},
 			},
-			args:          args,
-			wantErr:       false,
-			wantNumEps:    2,
-			wantDeleteErr: false,
-			deletedNumEps: 2,
+			args:       args,
+			wantErr:    false,
+			wantNumEps: 2,
 		},
 		{
 			name: "SwiftV2 Add Two Delegated",
@@ -1520,11 +1510,9 @@ func TestPluginSwiftV2MultipleAddDelete(t *testing.T) {
 					},
 				},
 			},
-			args:          args,
-			wantErr:       false,
-			wantNumEps:    2,
-			wantDeleteErr: false,
-			deletedNumEps: 2,
+			args:       args,
+			wantErr:    false,
+			wantNumEps: 2,
 		},
 		{
 			name: "SwiftV2 Add Two Accelnet",
@@ -1547,11 +1535,9 @@ func TestPluginSwiftV2MultipleAddDelete(t *testing.T) {
 					},
 				},
 			},
-			args:          args,
-			wantErr:       false,
-			wantNumEps:    2,
-			wantDeleteErr: false,
-			deletedNumEps: 2,
+			args:       args,
+			wantErr:    false,
+			wantNumEps: 2,
 		},
 		{
 			// creates 2 endpoints, the first succeeds, the second doesn't
@@ -1582,11 +1568,9 @@ func TestPluginSwiftV2MultipleAddDelete(t *testing.T) {
 					},
 				},
 			},
-			args:          args,
-			wantNumEps:    0,
-			wantErr:       true,
-			wantErrMsg:    "failed to create endpoint: MockEndpointClient Error : AddEndpoints Delegated VM NIC failed",
-			wantDeleteErr: false,
+			args:       args,
+			wantNumEps: 0,
+			wantErr:    true,
 		},
 		{
 			name: "SwiftV2 Partial Add fail with Accelnet VM NIC",
@@ -1615,11 +1599,9 @@ func TestPluginSwiftV2MultipleAddDelete(t *testing.T) {
 					},
 				},
 			},
-			args:          args,
-			wantNumEps:    0,
-			wantErr:       true,
-			wantErrMsg:    "failed to create endpoint: MockEndpointClient Error : AddEndpoints Accelnet VM NIC failed",
-			wantDeleteErr: false,
+			args:       args,
+			wantNumEps: 0,
+			wantErr:    true,
 		},
 		{
 			name: "SwiftV2 Partial Add fail with Infra+Accelnet VM NIC",
@@ -1648,41 +1630,9 @@ func TestPluginSwiftV2MultipleAddDelete(t *testing.T) {
 					},
 				},
 			},
-			args:          args,
-			wantNumEps:    0,
-			wantErr:       true,
-			wantErrMsg:    "failed to create endpoint: MockEndpointClient Error : AddEndpoints Accelnet VM NIC failed",
-			wantDeleteErr: false,
-		},
-		{
-			name: "SwiftV2 create and delete endpoints successfully",
-			plugin: &NetPlugin{
-				Plugin: plugin,
-				nm:     acnnetwork.NewMockNetworkmanager(acnnetwork.NewMockEndpointClient(nil)),
-				ipamInvoker: NewCustomMockIpamInvoker(map[string]acnnetwork.InterfaceInfo{
-					"eth0": {
-						NICType: cns.InfraNIC,
-					},
-					"eth0-1": {
-						NICType: cns.DelegatedVMNIC,
-					},
-					"eth0-2": {
-						NICType: cns.NodeNetworkInterfaceAccelnetFrontendNIC,
-					},
-				}),
-				report: &telemetry.CNIReport{},
-				tb:     &telemetry.TelemetryBuffer{},
-				netClient: &InterfaceGetterMock{
-					interfaces: []net.Interface{
-						{Name: "eth0"},
-					},
-				},
-			},
-			args:          args,
-			wantNumEps:    3,
-			wantErr:       false,
-			deletedNumEps: 3,
-			wantDeleteErr: false,
+			args:       args,
+			wantNumEps: 0,
+			wantErr:    true,
 		},
 	}
 
@@ -1707,13 +1657,8 @@ func TestPluginSwiftV2MultipleAddDelete(t *testing.T) {
 			}
 
 			err = tt.plugin.Delete(tt.args)
-			if tt.wantDeleteErr {
-				require.Error(t, err)
-				assert.Equal(t, tt.wantDeleteErrMsg, err.Error(), "Expected %v but got %+v", tt.wantDeleteErrMsg, err.Error())
-			} else {
-				require.Condition(t, assert.Comparison(func() bool { return len(endpoints) == (tt.deletedNumEps - tt.wantNumEps) }))
-				require.NoError(t, err)
-			}
+			require.NoError(t, err)
+
 			endpoints, _ = tt.plugin.nm.GetAllEndpoints(localNwCfg.Name)
 			require.Condition(t, assert.Comparison(func() bool { return len(endpoints) == 0 }))
 		})

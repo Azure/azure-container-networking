@@ -79,3 +79,7 @@ func (Hnsv2wrapper) ApplyEndpointPolicy(endpoint *hcn.HostComputeEndpoint, reque
 func (Hnsv2wrapper) GetEndpointByName(endpointName string) (*hcn.HostComputeEndpoint, error) {
 	return hcn.GetEndpointByName(endpointName) // nolint:wrapcheck // no need to wrap check for this wrapper
 }
+
+func (Hnsv2wrapper) HNSV2Supported() error {
+	return hcn.V2ApiSupported() // nolint:wrapcheck // no need to wrap check for this wrapper
+}
