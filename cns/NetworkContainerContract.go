@@ -101,6 +101,7 @@ const (
 )
 
 var ErrInvalidNCID = errors.New("invalid NetworkContainerID")
+var ErrInvalidIP = errors.New("invalid IP")
 
 // CreateNetworkContainerRequest specifies request to create a network container or network isolation boundary.
 type CreateNetworkContainerRequest struct {
@@ -131,7 +132,22 @@ func (req *CreateNetworkContainerRequest) Validate() error {
 	if _, err := uuid.Parse(strings.TrimPrefix(req.NetworkContainerid, SwiftPrefix)); err != nil {
 		return errors.Wrapf(ErrInvalidNCID, "NetworkContainerID %s is not a valid UUID: %s", req.NetworkContainerid, err.Error())
 	}
+	if req.PrimaryInterfaceIdentifier != "" && !isValidIP(req.PrimaryInterfaceIdentifier) {
+		return errors.Wrapf(ErrInvalidIP, "PrimaryInterfaceIdentifier %s is not a valid ip address", req.PrimaryInterfaceIdentifier)
+	}
+	if req.IPConfiguration.GatewayIPAddress != "" && !isValidIP(req.IPConfiguration.GatewayIPAddress) {
+		return errors.Wrapf(ErrInvalidIP, "GatewayIPAddress %s is not a valid ip address", req.IPConfiguration.GatewayIPAddress)
+	}
 	return nil
+}
+
+func isValidIP(ipStr string) bool {
+	// if can parse (i.e. not nil), then valid ip
+	if ip, _, err := net.ParseCIDR(ipStr); err == nil {
+		return ip != nil
+	}
+	ip := net.ParseIP(ipStr)
+	return ip != nil
 }
 
 // CreateNetworkContainerRequest implements fmt.Stringer for logging

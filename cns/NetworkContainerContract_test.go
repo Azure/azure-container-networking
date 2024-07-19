@@ -157,7 +157,15 @@ func TestPostNetworkContainersRequest_Validate(t *testing.T) {
 						NetworkContainerid: "f47ac10b-58cc-0372-8567-0e02b2c3d479",
 					},
 					{
-						NetworkContainerid: "f47ac10b-58cc-0372-8567-0e02b2c3d478",
+						NetworkContainerid:         "f47ac10b-58cc-0372-8567-0e02b2c3d478",
+						PrimaryInterfaceIdentifier: "10.240.0.4",
+						IPConfiguration: IPConfiguration{
+							GatewayIPAddress: "10.0.0.1",
+						},
+					},
+					{
+						NetworkContainerid:         "a47ac10b-58cc-0372-8567-0e02b2c3d478",
+						PrimaryInterfaceIdentifier: "10.240.0.4/24",
 					},
 				},
 			},
@@ -186,6 +194,36 @@ func TestPostNetworkContainersRequest_Validate(t *testing.T) {
 					},
 					{
 						NetworkContainerid: "-f47ac10b-58cc-0372-8567-0e02b2c3d478",
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "invalid",
+			req: PostNetworkContainersRequest{
+				CreateNetworkContainerRequests: []CreateNetworkContainerRequest{
+					{
+						NetworkContainerid:         "f47ac10b-58cc-0372-8567-0e02b2c3d478",
+						PrimaryInterfaceIdentifier: "10.240.0.4",
+						IPConfiguration: IPConfiguration{
+							GatewayIPAddress: "10.0.0.1;",
+						},
+					},
+				},
+			},
+			wantErr: true,
+		},
+		{
+			name: "invalid",
+			req: PostNetworkContainersRequest{
+				CreateNetworkContainerRequests: []CreateNetworkContainerRequest{
+					{
+						NetworkContainerid:         "f47ac10b-58cc-0372-8567-0e02b2c3d478",
+						PrimaryInterfaceIdentifier: "-10.240.0.4",
+						IPConfiguration: IPConfiguration{
+							GatewayIPAddress: "10.0.0.1",
+						},
 					},
 				},
 			},
