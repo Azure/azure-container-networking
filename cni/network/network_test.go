@@ -1603,7 +1603,7 @@ func TestPluginSwiftV2MultipleAddDelete(t *testing.T) {
 			args:       args,
 			wantNumEps: 0,
 			wantErr:    true,
-			wantErrMsg: "failed to create endpoint: MockEndpointClient Error : AddEndpoints Delegated VM NIC failed",
+			wantErrMsg: "failed to create endpoint: MockEndpointClient Error : AddEndpoints Accelnet VM NIC failed",
 		},
 		{
 			name: "SwiftV2 Partial Add fail with Infra+Accelnet VM NIC",
@@ -1635,7 +1635,7 @@ func TestPluginSwiftV2MultipleAddDelete(t *testing.T) {
 			args:       args,
 			wantNumEps: 0,
 			wantErr:    true,
-			wantErrMsg: "failed to create endpoint: MockEndpointClient Error : AddEndpoints Delegated VM NIC failed",
+			wantErrMsg: "failed to create endpoint: MockEndpointClient Error : AddEndpoints Accelnet VM NIC failed",
 		},
 	}
 
