@@ -1,5 +1,20 @@
+pr:
+  branches:
+    include:
+      - master
+      - release/*
+  paths:
+    include:
+      - npm/*
+      - .pipelines/npm/*
+
 trigger:
-  - master
+  branches:
+    include:
+      - master
+  tags:
+    include:
+      - "*"
 
 variables:
   - name: VNET_NAME
