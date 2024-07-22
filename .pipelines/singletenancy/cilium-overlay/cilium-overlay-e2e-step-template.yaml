@@ -1,6 +1,5 @@
 parameters:
   name: ""
-  testDropgz: ""
   clusterName: ""
 
 steps:
@@ -86,11 +85,11 @@ steps:
       # Nightly does not build images per commit. Will use existing image.
       if [ "$CILIUM_VERSION_TAG" = "cilium-nightly-pipeline" ]
       then
-          CNS=$(CNS_VERSION) DROPGZ=$(DROP_GZ_VERSION) && echo "Running nightly"
+          CNS=$(CNS_VERSION) CNI=$(CNI_VERSION) && echo "Running nightly"
       else
-          CNS=$(make cns-version) DROPGZ=$(make cni-dropgz-version)
+          CNS=$(make cns-version) CNI=$(make azure-ipam-version)
       fi
-      sudo -E env "PATH=$PATH" make test-integration CNS_VERSION=${CNS} CNI_DROPGZ_VERSION=${DROPGZ} INSTALL_CNS=true INSTALL_OVERLAY=true TEST_DROPGZ=${{ parameters.testDropgz }}
+      sudo -E env "PATH=$PATH" make test-integration CNS_VERSION=${CNS} CNI_VERSION=${CNI} INSTALL_CNS=true INSTALL_OVERLAY=true INSTALL_AZILIUM=true
     retryCountOnTaskFailure: 3
     name: "aziliumTest"
     displayName: "Run Azilium E2E on AKS Overlay"

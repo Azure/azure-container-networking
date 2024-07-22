@@ -156,14 +156,6 @@ stages:
           name: "$(BUILD_POOL_NAME_LINUX_AMD64)"
         strategy:
           matrix:
-            cni_dropgz_linux_amd64:
-              arch: amd64
-              name: cni-dropgz
-              os: linux
-            cni_dropgz_test_linux_amd64:
-              arch: amd64
-              name: cni-dropgz-test
-              os: linux
             cns_linux_amd64:
               arch: amd64
               name: cns
@@ -207,14 +199,6 @@ stages:
           name: "$(BUILD_POOL_NAME_LINUX_ARM64)"
         strategy:
           matrix:
-            cni_dropgz_linux_arm64:
-              arch: arm64
-              name: cni-dropgz
-              os: linux
-            cni_dropgz_test_linux_arm64:
-              arch: arm64
-              name: cni-dropgz-test
-              os: linux
             cns_linux_arm64:
               arch: arm64
               name: cns
@@ -241,12 +225,6 @@ stages:
           name: "$(BUILD_POOL_NAME_DEFAULT)"
         strategy:
           matrix:
-            cni_dropgz:
-              name: cni-dropgz
-              platforms: linux/amd64 linux/arm64
-            cni_dropgz_test:
-              name: cni-dropgz-test
-              platforms: linux/amd64 linux/arm64
             cns:
               name: cns
               os_versions: ltsc2019 ltsc2022
@@ -267,7 +245,6 @@ stages:
     parameters:
       name: "cilium_e2e"
       displayName: Cilium
-      testDropgz: true
       clusterType: cilium-podsubnet-up
       clusterName: "submodciliume2e"
       vmSize: Standard_B2ms
@@ -279,7 +256,6 @@ stages:
     parameters:
       name: "cilium_overlay_e2e"
       displayName: Cilium on AKS Overlay
-      testDropgz: true
       clusterType: cilium-overlay-up
       clusterName: "submodoverlaye2e"
       vmSize: Standard_B2ms
@@ -291,7 +267,6 @@ stages:
     parameters:
       name: "aks_swift_e2e"
       displayName: AKS Swift
-      testDropgz: true
       clusterType: swift-byocni-up
       clusterName: "submodswift"
       vmSize: Standard_B2ms

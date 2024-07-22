@@ -1,7 +1,6 @@
 parameters:
   name: ""
   displayName: ""
-  testDropgz: ""
   clusterType: ""
   clusterName: ""
   vmSize: ""
@@ -57,7 +56,6 @@ stages:
           - template: cilium-overlay-e2e-step-template.yaml
             parameters:
               name: ${{ parameters.name }}
-              testDropgz: ${{ parameters.testDropgz }}
               clusterName: ${{ parameters.clusterName }}-$(commitID)
 
       - template: ../../cni/k8s-e2e/k8s-e2e-job-template.yaml

@@ -1,6 +1,5 @@
 parameters:
   name: ""
-  testDropgz: ""
   clusterName: ""
 
 steps:
@@ -47,8 +46,7 @@ steps:
       kubectl apply -f config-reconcile.yaml
       cd ../../../..
       kubectl get po -owide -A
-      CNS=$(make cns-version) DROPGZ=$(make cni-dropgz-version)
-      sudo -E env "PATH=$PATH" make test-integration CNS_VERSION=${CNS} CNI_DROPGZ_VERSION=${DROPGZ} INSTALL_CNS=true INSTALL_AZURE_CNI_OVERLAY=true TEST_DROPGZ=${{ parameters.testDropgz }}
+      sudo -E env "PATH=$PATH" make test-integration CNS_VERSION=$(make cns-version) CNI_VERSION=$(make cni-version) INSTALL_CNS=true INSTALL_AZURE_CNI_OVERLAY=true
     retryCountOnTaskFailure: 3
     name: "integrationTest"
     displayName: "Run CNS Integration Tests on AKS Overlay"

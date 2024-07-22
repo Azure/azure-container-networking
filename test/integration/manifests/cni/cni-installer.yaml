@@ -1,0 +1,171 @@
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: azure-cni
+  namespace: kube-system
+  labels:
+    addonmanager.kubernetes.io/mode: EnsureExists
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: azure-cni
+  namespace: kube-system
+  labels:
+    app: azure-cni
+spec:
+  selector:
+    matchLabels:
+      k8s-app: azure-cni
+  template:
+    metadata:
+      labels:
+        k8s-app: azure-cni
+      annotations:
+        cluster-autoscaler.kubernetes.io/daemonset-pod: "true"
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: type
+                operator: NotIn
+                values:
+                - virtual-kubelet
+              - key: kubernetes.io/os
+                operator: In
+                values:
+                - linux
+      priorityClassName: system-node-critical
+      tolerations:
+        - key: CriticalAddonsOnly
+          operator: Exists
+        - operator: "Exists"
+          effect: NoExecute
+        - operator: "Exists"
+          effect: NoSchedule
+      initContainers:
+        - name: cni-installer
+          image:  acnpublic.azurecr.io/azure-cni:${CNI_VERSION}
+          imagePullPolicy: Always
+          command: ["/dropgz"]
+          args:
+            - deploy
+            - azure-vnet
+            - -o
+            - /opt/cni/bin/azure-vnet
+            - azure-vnet-ipam
+            - -o
+            - /opt/cni/bin/azure-vnet-ipam
+            - azure-vnet-telemetry
+            - -o 
+            - /opt/cni/bin/azure-vnet-telemetry
+            - azure.conflist
+            - -o
+            - /etc/cni/net.d/10-azure.conflist
+            - azure-vnet-telemetry.config
+            - -o
+            - /opt/cni/bin/azure-vnet-telemetry.config
+          volumeMounts:
+            - name: cni-bin
+              mountPath: /opt/cni/bin
+            - name: cni-conflist
+              mountPath: /etc/cni/net.d
+      containers:
+        - name: pause
+          image: mcr.microsoft.com/oss/kubernetes/pause:3.6
+      hostNetwork: true
+      volumes:
+        - name: cni-conflist
+          hostPath:
+            path: /etc/cni/net.d
+            type: Directory
+        - name: cni-bin
+          hostPath:
+            path: /opt/cni/bin
+            type: Directory
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: azure-cni-windows
+  labels:
+    tier: node
+    app: azure-cni
+  namespace: kube-system
+spec:
+  selector:
+    matchLabels:
+      app: azure-cni
+  template:
+    metadata:
+      labels:
+        tier: node
+        app: azure-cni
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/os
+                    operator: In
+                    values:
+                      - windows
+                  - key: kubernetes.io/arch
+                    operator: In
+                    values:
+                      - amd64
+      securityContext:
+        windowsOptions:
+          hostProcess: true
+          runAsUserName: "NT AUTHORITY\\system"
+      hostNetwork: true
+      serviceAccountName: azure-cni
+      tolerations:
+        - key: CriticalAddonsOnly
+          operator: Exists
+        - operator: "Exists"
+          effect: NoExecute
+        - operator: "Exists"
+          effect: NoSchedule
+      initContainers:
+        - name: delete-azure-vnet-telemetry
+          image: mcr.microsoft.com/powershell:lts-nanoserver-ltsc2022
+          command: ["powershell.exe", "-command"]
+          args: ["if (Get-Process -Name 'azure-vnet-telemetry' -ErrorAction SilentlyContinue) { Stop-Process -Name 'azure-vnet-telemetry' -Force }"]
+        - name: cni-installer
+          image: acnpublic.azurecr.io/azure-cni:${CNI_VERSION}
+          imagePullPolicy: Always
+          command: ["%CONTAINER_SANDBOX_MOUNT_POINT%/dropgz"]
+          args:
+            - deploy
+            - azure-vnet
+            - -o
+            - /k/azurecni/bin/azure-vnet.exe
+            - azure-vnet-ipam
+            - -o
+            - /k/azurecni/bin/azure-vnet-ipam.exe
+            - azure-vnet-telemetry
+            - -o
+            - /k/azurecni/bin/azure-vnet-telemetry.exe
+            - azure-vnet-telemetry.config
+            - -o
+            - /k/azurecni/bin/azure-vnet-telemetry.config
+          env:
+          - name: PATHEXT
+            value: .COM;.EXE;.BAT;.CMD;.VBS;.VBE;.JS;.JSE;.WSF;.WSH;.MSC;.CPL;;
+          volumeMounts:
+            - name: cni-bin
+              mountPath: /k/azurecni/bin/
+      containers:
+        - name: pause
+          image: mcr.microsoft.com/oss/kubernetes/pause:3.6
+          command: ["%CONTAINER_SANDBOX_MOUNT_POINT%/pause.exe"]
+      volumes:
+        - name: cni-bin
+          hostPath:
+            path: /k/azurecni/bin
+            type: DirectoryOrCreate

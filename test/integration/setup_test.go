@@ -8,6 +8,7 @@ import (
 	"os"
 	"runtime/debug"
 	"strconv"
+	"strings"
 	"testing"
 
 	k8sutils "github.com/Azure/azure-container-networking/test/internal/k8sutils"
@@ -18,8 +19,7 @@ import (
 const (
 	exitFail = 1
 
-	envTestDropgz             = "TEST_DROPGZ"
-	envCNIDropgzVersion       = "CNI_DROPGZ_VERSION"
+	envCNIVersion             = "CNI_VERSION"
 	envCNSVersion             = "CNS_VERSION"
 	envInstallCNS             = "INSTALL_CNS"
 	envInstallAzilium         = "INSTALL_AZILIUM"
@@ -98,7 +98,7 @@ func TestMain(m *testing.M) {
 }
 
 func installCNSDaemonset(ctx context.Context, clientset *kubernetes.Clientset, logDir string) (func() error, error) {
-	cniDropgzVersion := os.Getenv(envCNIDropgzVersion)
+	cniVersion := os.Getenv(envCNIVersion)
 	cnsVersion := os.Getenv(envCNSVersion)
 
 	// setup daemonset
@@ -109,20 +109,11 @@ func installCNSDaemonset(ctx context.Context, clientset *kubernetes.Clientset, l
 
 	image, _ := k8sutils.ParseImageString(cns.Spec.Template.Spec.Containers[0].Image)
 	cns.Spec.Template.Spec.Containers[0].Image = k8sutils.GetImageString(image, cnsVersion)
+	initImage, _ := k8sutils.ParseImageString(cns.Spec.Template.Spec.InitContainers[0].Image)
+	cns.Spec.Template.Spec.InitContainers[0].Image = k8sutils.GetImageString(initImage, cniVersion)
 
 	// check environment scenario
 	log.Printf("Checking environment scenario")
-	if installBoolDropgz := os.Getenv(envTestDropgz); installBoolDropgz != "" {
-		if testDropgzScenario, err := strconv.ParseBool(installBoolDropgz); err == nil && testDropgzScenario == true {
-			log.Printf("Env %v set to true, deploy cniTest.Dockerfile", envTestDropgz)
-			initImage, _ := k8sutils.ParseImageString("acnpublic.azurecr.io/cni-dropgz-test:latest")
-			cns.Spec.Template.Spec.InitContainers[0].Image = k8sutils.GetImageString(initImage, cniDropgzVersion)
-		}
-	} else {
-		log.Printf("Env %v not set to true, deploying cni.Dockerfile", envTestDropgz)
-		initImage, _ := k8sutils.ParseImageString(cns.Spec.Template.Spec.InitContainers[0].Image)
-		cns.Spec.Template.Spec.InitContainers[0].Image = k8sutils.GetImageString(initImage, cniDropgzVersion)
-	}
 
 	if installBool1 := os.Getenv(envInstallAzureVnet); installBool1 != "" {
 		if azureVnetScenario, err := strconv.ParseBool(installBool1); err == nil && azureVnetScenario == true {
@@ -140,6 +131,8 @@ func installCNSDaemonset(ctx context.Context, clientset *kubernetes.Clientset, l
 	if installBool2 := os.Getenv(envInstallAzilium); installBool2 != "" {
 		if aziliumScenario, err := strconv.ParseBool(installBool2); err == nil && aziliumScenario == true {
 			log.Printf("Env %v set to true, deploy azure-ipam and cilium-cni", envInstallAzilium)
+			initImage = strings.Replace(initImage, "azure-cni", "azure-ipam", 1)
+			cns.Spec.Template.Spec.InitContainers[0].Image = k8sutils.GetImageString(initImage, cniVersion)
 			cns.Spec.Template.Spec.InitContainers[0].Args = []string{"deploy", "azure-ipam", "-o", "/opt/cni/bin/azure-ipam"}
 		}
 		// setup the CNS ciliumconfigmap

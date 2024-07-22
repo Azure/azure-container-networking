@@ -39,7 +39,6 @@ stages:
               echo "##vso[task.setvariable variable=Tag;isOutput=true]$(make version)"
               echo "##vso[task.setvariable variable=cniVersion;isOutput=true]$(make cni-version)"
               echo "##vso[task.setvariable variable=npmVersion;isOutput=true]$(make npm-version)"
-              echo "##vso[task.setvariable variable=dropgzVersion;isOutput=true]$(make cni-dropgz-version)"
               cat /etc/os-release
               uname -a
               sudo chown -R $(whoami):$(whoami) .
@@ -148,17 +147,32 @@ stages:
           name: "$(BUILD_POOL_NAME_LINUX_AMD64)"
         strategy:
           matrix:
-            cni_dropgz_linux_amd64:
+            azure_ipam_linux_amd64:
               arch: amd64
-              name: cni-dropgz
+              name: azure-ipam
               os: linux
-            cni_dropgz_test_linux_amd64:
+            azure_ipam_windows2019_amd64:
               arch: amd64
-              name: cni-dropgz-test
+              name: azure-ipam
+              os: windows
+              os_version: ltsc2019
+            azure_ipam_windows2022_amd64:
+              arch: amd64
+              name: azure-ipam
+              os: windows
+              os_version: ltsc2022
+            cni_linux_amd64:
+              arch: amd64
+              name: cni
               os: linux
-            cni_dropgz_test_windows2022_amd64:
+            cni_windows2019_amd64:
               arch: amd64
-              name: cni-dropgz-test
+              name: cni
+              os: windows
+              os_version: ltsc2019
+            cni_windows2022_amd64:
+              arch: amd64
+              name: cni
               os: windows
               os_version: ltsc2022
             cns_linux_amd64:
@@ -199,13 +213,13 @@ stages:
           name: "$(BUILD_POOL_NAME_LINUX_ARM64)"
         strategy:
           matrix:
-            cni_dropgz_linux_arm64:
+            azure_ipam_linux_arm64:
               arch: arm64
-              name: cni-dropgz
+              name: azure-ipam
               os: linux
-            cni_dropgz_test_linux_arm64:
+            cni_linux_arm64:
               arch: arm64
-              name: cni-dropgz-test
+              name: cni
               os: linux
             cns_linux_arm64:
               arch: arm64
@@ -268,11 +282,13 @@ stages:
           name: "$(BUILD_POOL_NAME_DEFAULT)"
         strategy:
           matrix:
-            cni_dropgz:
-              name: cni-dropgz
-              platforms: linux/amd64 linux/arm64
-            cni_dropgz_test:
-              name: cni-dropgz-test
+            azure_ipam:
+              name: azure-ipam
+              os_versions: ltsc2019 ltsc2022
+              platforms: linux/amd64 linux/arm64 windows/amd64
+            cni:
+              name: cni
+              os_versions: ltsc2019 ltsc2022
               platforms: linux/amd64 linux/arm64 windows/amd64
             cns:
               name: cns
@@ -304,7 +320,6 @@ stages:
     parameters:
       name: "cilium_e2e"
       displayName: Cilium
-      testDropgz: ""
       clusterType: cilium-podsubnet-up
       clusterName: "ciliume2e"
       vmSize: Standard_B2ms
@@ -315,7 +330,6 @@ stages:
     parameters:
       name: "cilium_overlay_cilium_e2e"
       displayName: Cilium on AKS Overlay
-      testDropgz: ""
       clusterType: cilium-overlay-up
       clusterName: "overlaye2e"
       vmSize: Standard_B2ms
@@ -327,7 +341,6 @@ stages:
       name: "azure_overlay_e2e"
       displayName: Azure Overlay
       os: linux
-      testDropgz: ""
       clusterType: overlay-byocni-up
       clusterName: "azurecnioverlaye2e"
       vmSize: Standard_B2ms
@@ -339,7 +352,6 @@ stages:
       name: "aks_swift_e2e"
       displayName: AKS Swift Ubuntu
       os: linux
-      testDropgz: ""
       clusterType: swift-byocni-up
       clusterName: "swifte2e"
       vmSize: Standard_B2s

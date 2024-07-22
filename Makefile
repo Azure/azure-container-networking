@@ -32,16 +32,14 @@ EXE_EXT 	= .exe
 endif
 
 # Interrogate the git repo and set some variables
-REPO_ROOT 		   		 = $(shell git rev-parse --show-toplevel)
-REVISION 		   		?= $(shell git rev-parse --short HEAD)
-ACN_VERSION  	   		?= $(shell git describe --exclude "azure-ipam*" --exclude "dropgz*" --exclude "zapai*" --tags --always)
-AZURE_IPAM_VERSION 		?= $(notdir $(shell git describe --match "azure-ipam*" --tags --always))
-CNI_VERSION        		?= $(ACN_VERSION)
-CNI_DROPGZ_VERSION 		?= $(notdir $(shell git describe --match "dropgz*" --tags --always))
-CNI_DROPGZ_TEST_VERSION ?= $(notdir $(shell git describe --match "dropgz-test*" --tags --always))
-CNS_VERSION  	   		?= $(ACN_VERSION)
-NPM_VERSION        		?= $(ACN_VERSION)
-ZAPAI_VERSION  	   		?= $(notdir $(shell git describe --match "zapai*" --tags --always))
+REPO_ROOT				 = $(shell git rev-parse --show-toplevel)
+REVISION				?= $(shell git rev-parse --short HEAD)
+ACN_VERSION				?= $(shell git describe --exclude "azure-ipam*" --exclude "dropgz*" --exclude "zapai*" --tags --always)
+AZURE_IPAM_VERSION		?= $(notdir $(shell git describe --match "azure-ipam*" --tags --always))
+CNI_VERSION				?= $(ACN_VERSION)
+CNS_VERSION				?= $(ACN_VERSION)
+NPM_VERSION				?= $(ACN_VERSION)
+ZAPAI_VERSION			?= $(notdir $(shell git describe --match "zapai*" --tags --always))
 
 # Build directories.
 AZURE_IPAM_DIR = $(REPO_ROOT)/azure-ipam
@@ -100,9 +98,9 @@ NPM_ARCHIVE_NAME = azure-npm-$(GOOS)-$(GOARCH)-$(NPM_VERSION).$(ARCHIVE_EXT)
 AZURE_IPAM_ARCHIVE_NAME = azure-ipam-$(GOOS)-$(GOARCH)-$(AZURE_IPAM_VERSION).$(ARCHIVE_EXT)
 
 # Image info file names.
-CNI_DROPGZ_IMAGE_INFO_FILE = cni-dropgz-$(CNI_DROPGZ_VERSION).txt
-CNS_IMAGE_INFO_FILE 	   = azure-cns-$(CNS_VERSION).txt
-NPM_IMAGE_INFO_FILE 	   = azure-npm-$(NPM_VERSION).txt
+CNI_IMAGE_INFO_FILE			= azure-cni-$(CNI_VERSION).txt
+CNS_IMAGE_INFO_FILE			= azure-cns-$(CNS_VERSION).txt
+NPM_IMAGE_INFO_FILE			= azure-npm-$(NPM_VERSION).txt
 
 # Docker libnetwork (CNM) plugin v2 image parameters.
 CNM_PLUGIN_IMAGE ?= microsoft/azure-vnet-plugin
@@ -151,12 +149,6 @@ azure-ipam-version: ## prints the azure-ipam version
 
 cni-version: ## prints the cni version
 	@echo $(CNI_VERSION)
-
-cni-dropgz-version: ## prints the cni-dropgz version
-	@echo $(CNI_DROPGZ_VERSION)
-
-cni-dropgz-test-version: ## prints the cni-dropgz version
-	@echo $(CNI_DROPGZ_TEST_VERSION)
 
 cns-version:
 	@echo $(CNS_VERSION)
@@ -244,21 +236,23 @@ CONTAINER_TRANSPORT = docker
 endif
 
 ## Image name definitions.
-ACNCLI_IMAGE     	  = acncli
-CNI_PLUGIN_IMAGE 	  = azure-cni-plugin
-CNI_DROPGZ_IMAGE 	  = cni-dropgz
-CNI_DROPGZ_TEST_IMAGE = cni-dropgz-test
-CNS_IMAGE        	  = azure-cns
-NPM_IMAGE        	  = azure-npm
+ACNCLI_IMAGE			= acncli
+CNI_PLUGIN_IMAGE		= azure-cni-plugin
+AZURE_IPAM_IMAGE		= azure-ipam
+CNI_IMAGE				= azure-cni
+CNS_IMAGE				= azure-cns
+NPM_IMAGE				= azure-npm
 
 ## Image platform tags.
-ACNCLI_PLATFORM_TAG    		 ?= $(subst /,-,$(PLATFORM))$(if $(OS_VERSION),-$(OS_VERSION),)-$(ACN_VERSION)
-CNI_PLUGIN_PLATFORM_TAG 	 ?= $(subst /,-,$(PLATFORM))$(if $(OS_VERSION),-$(OS_VERSION),)-$(CNI_VERSION)
-CNI_DROPGZ_PLATFORM_TAG 	 ?= $(subst /,-,$(PLATFORM))$(if $(OS_VERSION),-$(OS_VERSION),)-$(CNI_DROPGZ_VERSION)
-CNI_DROPGZ_TEST_PLATFORM_TAG ?= $(subst /,-,$(PLATFORM))$(if $(OS_VERSION),-$(OS_VERSION),)-$(CNI_DROPGZ_TEST_VERSION)
-CNS_PLATFORM_TAG        	 ?= $(subst /,-,$(PLATFORM))$(if $(OS_VERSION),-$(OS_VERSION),)-$(CNS_VERSION)
-CNS_WINDOWS_PLATFORM_TAG 	 ?= $(subst /,-,$(PLATFORM))$(if $(OS_VERSION),-$(OS_VERSION),)-$(CNS_VERSION)-$(WINDOWS_OS_SKU)
-NPM_PLATFORM_TAG        	 ?= $(subst /,-,$(PLATFORM))$(if $(OS_VERSION),-$(OS_VERSION),)-$(NPM_VERSION)
+ACNCLI_PLATFORM_TAG				?= $(subst /,-,$(PLATFORM))$(if $(OS_VERSION),-$(OS_VERSION),)-$(ACN_VERSION)
+AZURE_IPAM_PLATFORM_TAG			?= $(subst /,-,$(PLATFORM))$(if $(OS_VERSION),-$(OS_VERSION),)-$(AZURE_IPAM_VERSION)
+AZURE_IPAM_WINDOWS_PLATFORM_TAG	?= $(subst /,-,$(PLATFORM))$(if $(OS_VERSION),-$(OS_VERSION),)-$(AZURE_IPAM_VERSION)-$(OS_SKU_WIN)
+CNI_PLATFORM_TAG				?= $(subst /,-,$(PLATFORM))$(if $(OS_VERSION),-$(OS_VERSION),)-$(CNI_VERSION)
+CNI_WINDOWS_PLATFORM_TAG		?= $(subst /,-,$(PLATFORM))$(if $(OS_VERSION),-$(OS_VERSION),)-$(CNI_VERSION)-$(WINDOWS_OS_SKU)
+CNI_PLUGIN_PLATFORM_TAG			?= $(subst /,-,$(PLATFORM))$(if $(OS_VERSION),-$(OS_VERSION),)-$(CNI_VERSION)
+CNS_PLATFORM_TAG				?= $(subst /,-,$(PLATFORM))$(if $(OS_VERSION),-$(OS_VERSION),)-$(CNS_VERSION)
+CNS_WINDOWS_PLATFORM_TAG		?= $(subst /,-,$(PLATFORM))$(if $(OS_VERSION),-$(OS_VERSION),)-$(CNS_VERSION)-$(WINDOWS_OS_SKU)
+NPM_PLATFORM_TAG				?= $(subst /,-,$(PLATFORM))$(if $(OS_VERSION),-$(OS_VERSION),)-$(NPM_VERSION)
 
 
 qemu-user-static: ## Set up the host to run qemu multiplatform container builds.
@@ -330,55 +324,66 @@ acncli-image-pull: ## pull cni-manager container image.
 		IMAGE=$(ACNCLI_IMAGE) \
 		TAG=$(ACNCLI_PLATFORM_TAG)
 
-# cni-dropgz
 
-cni-dropgz-image-name: # util target to print the CNI dropgz image name.
-	@echo $(CNI_DROPGZ_IMAGE)
+# azure-ipam
 
-cni-dropgz-image-name-and-tag: # util target to print the CNI dropgz image name and tag.
-	@echo $(IMAGE_REGISTRY)/$(CNI_DROPGZ_IMAGE):$(CNI_DROPGZ_PLATFORM_TAG)
+azure-ipam-image-name: # util target to print the azure-ipam  image name.
+	@echo $(AZURE_IPAM_IMAGE)
 
-cni-dropgz-image: ## build cni-dropgz container image.
+azure-ipam-image-name-and-tag: # util target to print the azure-ipam image name and tag.
+	@echo $(IMAGE_REGISTRY)/$(AZURE_IPAM_IMAGE):$(AZURE_IPAM_PLATFORM_TAG)
+
+azure-ipam-image: ## build azure-ipam container image.
 	$(MAKE) container \
-		DOCKERFILE=dropgz/build/$(OS).Dockerfile \
+		DOCKERFILE=azure-ipam/$(OS).Dockerfile \
+		IMAGE=$(AZURE_IPAM_IMAGE) \
 		EXTRA_BUILD_ARGS='--build-arg OS=$(OS) --build-arg ARCH=$(ARCH) --build-arg OS_VERSION=$(OS_VERSION)' \
-		IMAGE=$(CNI_DROPGZ_IMAGE) \
-		TAG=$(CNI_DROPGZ_PLATFORM_TAG)
+		PLATFORM=$(PLATFORM) \
+		TAG=$(AZURE_IPAM_PLATFORM_TAG) \
+		OS=$(OS) \
+		ARCH=$(ARCH) \
+		OS_VERSION=$(OS_VERSION)
 
-cni-dropgz-image-push: ## push cni-dropgz container image.
+azure-ipam-image-push: ## push azure-ipam container image.
 	$(MAKE) container-push \
-		IMAGE=$(CNI_DROPGZ_IMAGE) \
-		TAG=$(CNI_DROPGZ_PLATFORM_TAG)
+		IMAGE=$(AZURE_IPAM_IMAGE) \
+		TAG=$(AZURE_IPAM_PLATFORM_TAG)
 
-cni-dropgz-image-pull: ## pull cni-dropgz container image.
+azure-ipam-image-pull: ## pull azure-ipam container image.
 	$(MAKE) container-pull \
-		IMAGE=$(CNI_DROPGZ_IMAGE) \
-		TAG=$(CNI_DROPGZ_PLATFORM_TAG)
+		IMAGE=$(AZURE_IPAM_IMAGE) \
+		TAG=$(AZURE_IPAM_PLATFORM_TAG)
 
-# cni-dropgz-test
 
-cni-dropgz-test-image-name: # util target to print the CNI dropgz test image name.
-	@echo $(CNI_DROPGZ_TEST_IMAGE)
+# cni
 
-cni-dropgz-test-image-name-and-tag: # util target to print the CNI dropgz test image name and tag.
-	@echo $(IMAGE_REGISTRY)/$(CNI_DROPGZ_TEST_IMAGE):$(CNI_DROPGZ_TEST_PLATFORM_TAG)
+cni-image-name: # util target to print the cni image name.
+	@echo $(CNI_IMAGE)
 
-cni-dropgz-test-image: ## build cni-dropgz-test container image.
+cni-image-name-and-tag: # util target to print the cni image name and tag.
+	@echo $(IMAGE_REGISTRY)/$(CNI_IMAGE):$(CNI_PLATFORM_TAG)
+
+cni-image: ## build cni container image.
 	$(MAKE) container \
-		DOCKERFILE=dropgz/build/cniTest_$(OS).Dockerfile \
-		EXTRA_BUILD_ARGS='--build-arg OS=$(OS)  --build-arg ARCH=$(ARCH) --build-arg OS_VERSION=$(OS_VERSION)' \
-		IMAGE=$(CNI_DROPGZ_TEST_IMAGE) \
-		TAG=$(CNI_DROPGZ_TEST_PLATFORM_TAG)
+		DOCKERFILE=cni/$(OS).Dockerfile \
+		IMAGE=$(CNI_IMAGE) \
+		EXTRA_BUILD_ARGS='--build-arg OS=$(OS) --build-arg ARCH=$(ARCH) --build-arg OS_VERSION=$(OS_VERSION)' \
+		PLATFORM=$(PLATFORM) \
+		TAG=$(CNI_PLATFORM_TAG) \
+		OS=$(OS) \
+		ARCH=$(ARCH) \
+		OS_VERSION=$(OS_VERSION)
 
-cni-dropgz-test-image-push: ## push cni-dropgz-test container image.
+cni-image-push: ## push cni container image.
 	$(MAKE) container-push \
-		IMAGE=$(CNI_DROPGZ_TEST_IMAGE) \
-		TAG=$(CNI_DROPGZ_TEST_PLATFORM_TAG)
+		IMAGE=$(CNI_IMAGE) \
+		TAG=$(CNI_PLATFORM_TAG)
 
-cni-dropgz-test-image-pull: ## pull cni-dropgz-test container image.
+cni-image-pull: ## pull cni container image.
 	$(MAKE) container-pull \
-		IMAGE=$(CNI_DROPGZ_TEST_IMAGE) \
-		TAG=$(CNI_DROPGZ_TEST_PLATFORM_TAG)
+		IMAGE=$(CNI_IMAGE) \
+		TAG=$(CNI_PLATFORM_TAG)
+
 
 # cns
 
@@ -437,21 +442,6 @@ npm-image-pull: ## pull cns container image.
 	$(MAKE) container-pull \
 		IMAGE=$(NPM_IMAGE) \
 		TAG=$(NPM_PLATFORM_TAG)
-
-# cni-plugin - Specifically used for windows clusters, will be removed once we have Dropgz for windows
-cni-plugin-image-name-and-tag: # util target to print the CNI plugin image name and tag.
-	@echo $(IMAGE_REGISTRY)/$(CNI_PLUGIN_IMAGE):$(CNI_PLUGIN_PLATFORM_TAG)
-
-cni-plugin-image: ## build cni plugin container image.
-	$(MAKE) container \
-		DOCKERFILE=cni/build/$(OS).Dockerfile \
-		IMAGE=$(CNI_PLUGIN_IMAGE) \
-		EXTRA_BUILD_ARGS='--build-arg  CNI_AI_PATH=$(CNI_AI_PATH) --build-arg CNI_AI_ID=$(CNI_AI_ID) --build-arg OS_VERSION=$(OS_VERSION)' \
-		PLATFORM=$(PLATFORM) \
-		TAG=$(CNI_PLUGIN_PLATFORM_TAG) \
-		OS=$(OS) \
-		ARCH=$(ARCH) \
-		OS_VERSION=$(OS_VERSION)
 
 
 ## Legacy
@@ -534,37 +524,39 @@ acncli-skopeo-archive: ## export tar archive of acncli multiplat container manif
 		IMAGE=$(ACNCLI_IMAGE) \
 		TAG=$(ACN_VERSION)
 
-cni-dropgz-manifest-build: ## build cni-dropgz multiplat container manifest.
+azure-ipam-manifest-build: ## build azure-ipam multiplat container manifest.
 	$(MAKE) manifest-build \
 		PLATFORMS="$(PLATFORMS)" \
-		IMAGE=$(CNI_DROPGZ_IMAGE) \
-		TAG=$(CNI_DROPGZ_VERSION)
+		IMAGE=$(AZURE_IPAM_IMAGE) \
+		TAG=$(AZURE_IPAM_VERSION) \
+		OS_VERSIONS="$(OS_VERSIONS)"
 
-cni-dropgz-manifest-push: ## push cni-dropgz multiplat container manifest
+azure-ipam-manifest-push: ## push azure-ipam multiplat container manifest
 	$(MAKE) manifest-push \
-		IMAGE=$(CNI_DROPGZ_IMAGE) \
-		TAG=$(CNI_DROPGZ_VERSION)
+		IMAGE=$(AZURE_IPAM_IMAGE) \
+		TAG=$(AZURE_IPAM_VERSION)
 
-cni-dropgz-skopeo-archive: ## export tar archive of cni-dropgz multiplat container manifest.
+azure-ipam-skopeo-archive: ## export tar archive of azure-ipam multiplat container manifest.
 	$(MAKE) manifest-skopeo-archive \
-		IMAGE=$(CNI_DROPGZ_IMAGE) \
-		TAG=$(CNI_DROPGZ_VERSION)
+		IMAGE=$(AZURE_IPAM_IMAGE) \
+		TAG=$(AZURE_IPAM_VERSION)
 
-cni-dropgz-test-manifest-build: ## build cni-dropgz multiplat container manifest.
+cni-manifest-build: ## build cni multiplat container manifest.
 	$(MAKE) manifest-build \
 		PLATFORMS="$(PLATFORMS)" \
-		IMAGE=$(CNI_DROPGZ_TEST_IMAGE) \
-		TAG=$(CNI_DROPGZ_TEST_VERSION)
+		IMAGE=$(CNI_IMAGE) \
+		TAG=$(CNI_VERSION) \
+		OS_VERSIONS="$(OS_VERSIONS)"
 
-cni-dropgz-test-manifest-push: ## push cni-dropgz multiplat container manifest
+cni-manifest-push: ## push cni multiplat container manifest
 	$(MAKE) manifest-push \
-		IMAGE=$(CNI_DROPGZ_TEST_IMAGE) \
-		TAG=$(CNI_DROPGZ_TEST_VERSION)
+		IMAGE=$(CNI_IMAGE) \
+		TAG=$(CNI_VERSION)
 
-cni-dropgz-test-skopeo-archive: ## export tar archive of cni-dropgz multiplat container manifest.
+cni-skopeo-archive: ## export tar archive of cni multiplat container manifest.
 	$(MAKE) manifest-skopeo-archive \
-		IMAGE=$(CNI_DROPGZ_TEST_IMAGE) \
-		TAG=$(CNI_DROPGZ_TEST_VERSION)
+		IMAGE=$(CNI_IMAGE) \
+		TAG=$(CNI_VERSION)
 
 cns-manifest-build: ## build azure-cns multiplat container manifest.
 	$(MAKE) manifest-build \
@@ -712,7 +704,6 @@ workspace: ## Set up the Go workspace.
 	go work use .
 	go work use ./azure-ipam
 	go work use ./build/tools
-	go work use ./dropgz
 	go work use ./zapai
 
 ##@ Test
@@ -728,7 +719,7 @@ test-all: ## run all unit tests.
 	go test -mod=readonly -buildvcs=false -tags "unit" -coverpkg=$(COVER_FILTER) -race -covermode atomic -coverprofile=coverage.out $(COVER_PKG)/...
 
 test-integration: ## run all integration tests.
-	CNI_DROPGZ_VERSION=$(CNI_DROPGZ_VERSION) \
+	CNI_VERSION=$(CNI_VERSION) \
 		CNS_VERSION=$(CNS_VERSION) \
 		go test -mod=readonly -buildvcs=false -timeout 1h -coverpkg=./... -race -covermode atomic -coverprofile=coverage.out -tags=integration ./test/integration...
 
