@@ -73,7 +73,7 @@ jobs:
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: logs
+          name: logs-${{ matrix.profile }}
           path: |
             ./npm-logs_${{ matrix.profile }}.txt
             ./cyclonus-test_${{ matrix.profile }}.txt
