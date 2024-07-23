@@ -316,7 +316,7 @@ jobs:
               $(System.DefaultWorkingDirectory)/kubernetes/_output/local/bin/linux/amd64/e2e.test \
               --provider=local \
               --ginkgo.focus="$focus" \
-              --ginkgo.skip="NetworkPolicyLegacy|SCTP" \
+              --ginkgo.skip="\[LinuxOnly\]|NetworkPolicyLegacy|SCTP" \
               --node-os-distro=windows \
               --allowed-not-ready-nodes=1 \
               --kubeconfig=./kubeconfig \
