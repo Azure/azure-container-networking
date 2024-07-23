@@ -296,22 +296,21 @@ jobs:
 
             # slimmed down to 14 tests like npm-cni-integration-test.yaml
             # NetworkPolicy between server and...
-            focus="\
-            client should enforce policy to allow traffic only from a different namespace, based on NamespaceSelector|\
-            client should deny egress from pods based on PodSelector|\
-            client should enforce multiple, stacked policies with overlapping podSelectors|\
-            client should enforce egress policy allowing traffic to a server in a different namespace based on PodSelector and NamespaceSelector|\
-            client should work with Ingress, Egress specified together|\
-            client should enforce ingress policy allowing any port traffic to a server on a specific protocol|\
-            client should not allow access by TCP when a policy specifies only UDP|\
-            client should allow egress access to server in CIDR block|\
-            client should enforce policy based on Ports|\
-            client should support allow-all policy|\
-            client should enforce updated policy|\
-            client should support denying of egress traffic on the client side|\
-            client should stop enforcing policies after they are deleted|\
-            client should support a 'default-deny-ingress' policy"
-
+            f1="client should enforce policy to allow traffic only from a different namespace, based on NamespaceSelector"
+            f2="client should deny egress from pods based on PodSelector"
+            f3="client should enforce multiple, stacked policies with overlapping podSelectors"
+            f4="client should enforce egress policy allowing traffic to a server in a different namespace based on PodSelector and NamespaceSelector"
+            f5="client should work with Ingress, Egress specified together"
+            f6="client should enforce ingress policy allowing any port traffic to a server on a specific protocol"
+            f7="client should not allow access by TCP when a policy specifies only UDP"
+            f8="client should allow egress access to server in CIDR block"
+            f9="client should enforce policy based on Ports"
+            f10="client should support allow-all policy"
+            f11="client should enforce updated policy"
+            f12="client should support denying of egress traffic on the client side"
+            f13="client should stop enforcing policies after they are deleted"
+            f14="client should support a 'default-deny-ingress' policy"
+            focus="$f1|$f2|$f3|$f4|$f5|$f6|$f7|$f8|$f9|$f10|$f11|$f12|$f13|$f14"
             KUBERNETES_SERVICE_HOST="$FQDN" KUBERNETES_SERVICE_PORT=443 \
               $(System.DefaultWorkingDirectory)/kubernetes/_output/local/bin/linux/amd64/e2e.test \
               --provider=local \
