@@ -28,6 +28,7 @@ type CNSConfig struct {
 	EnableAsyncPodDelete        bool
 	EnableCNIConflistGeneration bool
 	EnableIPAMv2                bool
+	EnableK8sDevicePlugin       bool
 	EnablePprof                 bool
 	EnableStateMigration        bool
 	EnableSubnetScarcity        bool
@@ -52,7 +53,6 @@ type CNSConfig struct {
 	WatchPods                   bool `json:"-"`
 	WireserverIP                string
 	GRPCSettings                GRPCSettings
-	EnableK8sDevicePlugin       bool
 }
 
 type TelemetrySettings struct {
