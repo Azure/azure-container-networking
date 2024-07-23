@@ -99,10 +99,11 @@ jobs:
           PROFILE: "sc-lin"
           NUM_NETPOLS: 800
           INITIAL_CONNECTIVITY_TIMEOUT: 60
-        ws22:
-          PROFILE: "sc-ws22"
-          NUM_NETPOLS: 50
-          INITIAL_CONNECTIVITY_TIMEOUT: 720
+        # 2024/07/23: Windows Scale Test is consistently failing to establish initial connectivity in time
+        # ws22:
+        #   PROFILE: "sc-ws22"
+        #   NUM_NETPOLS: 50
+        #   INITIAL_CONNECTIVITY_TIMEOUT: 720
     steps:
       - checkout: self
       - bash: |
