@@ -564,83 +564,8 @@ func TestCreateAndDeleteEndpointImplHnsv2ForDelegatedHappyPath(t *testing.T) {
 	}
 }
 
-func TestCreateAndDeleteEndpointImplHnsv2ForAccelnetHappyPath(t *testing.T) {
-	nw := &network{
-		Endpoints: map[string]*endpoint{},
-	}
-
-	// this hnsv2 variable overwrites the package level variable in network
-	// we do this to avoid passing around os specific objects in platform agnostic code
-	hnsFake := hnswrapper.NewHnsv2wrapperFake()
-
-	Hnsv2 = hnswrapper.Hnsv2wrapperwithtimeout{
-		Hnsv2:          hnsFake,
-		HnsCallTimeout: 5 * time.Second,
-	}
-
-	epInfo := &EndpointInfo{
-		EndpointID: "768e8deb-eth1",
-		Data:       make(map[string]interface{}),
-		IfName:     "eth1",
-		NICType:    cns.NodeNetworkInterfaceAccelnetFrontendNIC,
-		MacAddress: net.HardwareAddr("00:00:5e:00:53:01"),
-	}
-
-	// Happy Path to create and delete endpoint for accelnet NIC
-	ep, err := nw.newEndpointImplHnsV2(nil, epInfo)
-	if err != nil {
-		t.Fatalf("Failed to create endpoint for Accelnet NIC due to %v", err)
-	}
-
-	mockCli := NewMockEndpointClient(nil)
-	err = nw.deleteEndpointImpl(netlink.NewMockNetlink(false, ""), platform.NewMockExecClient(false), mockCli, netio.NewMockNetIO(false, 0), NewMockNamespaceClient(), iptables.NewClient(), ep)
-	if err != nil {
-		t.Fatalf("Failed to delete endpoint for Accelnet NIC due to %v", err)
-	}
-}
-
-func TestCreateAndDeleteEndpointImplHnsv2ForAccelnetUnHappyPath(t *testing.T) {
-	nw := &network{
-		Endpoints: map[string]*endpoint{},
-	}
-
-	// this hnsv2 variable overwrites the package level variable in network
-	// we do this to avoid passing around os specific objects in platform agnostic code
-	hnsFake := hnswrapper.NewHnsv2wrapperFake()
-
-	Hnsv2 = hnswrapper.Hnsv2wrapperwithtimeout{
-		Hnsv2:          hnsFake,
-		HnsCallTimeout: 5 * time.Second,
-	}
-
-	epInfo := &EndpointInfo{
-		EndpointID: "768e8deb-eth1",
-		Data:       make(map[string]interface{}),
-		IfName:     "eth1",
-		NICType:    cns.NodeNetworkInterfaceAccelnetFrontendNIC,
-		MacAddress: net.HardwareAddr("00:00:5e:00:53:01"),
-	}
-
-	// Happy Path to create and delete endpoint for accelnet NIC
-	ep, err := nw.newEndpointImplHnsV2(nil, epInfo)
-	if err != nil {
-		t.Fatalf("Failed to create endpoint for Accelnet NIC due to %v", err)
-	}
-
-	mockCli := NewMockEndpointClient(nil)
-	err = nw.deleteEndpointImpl(netlink.NewMockNetlink(false, ""), platform.NewMockExecClient(true), mockCli, netio.NewMockNetIO(false, 0), NewMockNamespaceClient(), iptables.NewClient(), ep)
-	if err == nil {
-		t.Fatal("Successfully deleted endpoint for Accelnet NIC")
-	}
-
-	if !errors.Is(err, platform.ErrMockExec) {
-		t.Fatalf("Unexpected Error:%v; Error should be %v", err, platform.ErrMockExec)
-	}
-}
-
-// delete single network and endpoint with delegatedNIC
-// network and endpoint should be all deleted
-func TestDeleteEndpointStateForDelegated(t *testing.T) {
+// Test: if hnsID is empty, the endpoint and network cannot be deleted
+func TestCreateAndDeleteEndpointStateForAccelnetNICWithEmptyHNSId(t *testing.T) {
 	nm := &networkManager{
 		ExternalInterfaces: map[string]*externalInterface{},
 	}
@@ -654,59 +579,75 @@ func TestDeleteEndpointStateForDelegated(t *testing.T) {
 		HnsCallTimeout: 5 * time.Second,
 	}
 
-	// create network
-	networkID := "azure-12:34:56:78:90:ab"
-	network := &hcn.HostComputeNetwork{
-		Name: networkID,
+	// create network for AccelnetNIC
+	accelnetNetworkID := "azure-23:34:56:78:90:ab"
+	accelnetNetwork := &hcn.HostComputeNetwork{
+		Id:   accelnetNetworkID,
+		Name: accelnetNetworkID,
 	}
-	_, err := Hnsv2.CreateNetwork(network)
+	_, err := Hnsv2.CreateNetwork(accelnetNetwork)
 	if err != nil {
-		t.Fatalf("Failed to create network due to %v", err)
+		t.Fatalf("Failed to create network for accelnetNIC due to %v", err)
 	}
 
-	// create endpoint
-	endpointID := "endpoint1"
+	// make sure two networks are created:
+	networks := hnsFake.Cache.GetNetworks()
+	t.Logf("networks are %v", networks)
+	if len(networks) != 1 {
+		t.Fatal("Failed to create one network for accelnetNIC")
+	}
+
+	// create endpoint for accelnetNIC
+	accelnetEndpointID := "accelnetEndpoint"
 	macAddress := "60-45-bd-12-45-65"
-	endpoint := &hcn.HostComputeEndpoint{
-		Id:                 endpointID,
-		Name:               endpointID,
-		HostComputeNetwork: networkID,
+	acclnetEndpoint := &hcn.HostComputeEndpoint{
+		Id:                 accelnetEndpointID,
+		Name:               accelnetEndpointID,
+		HostComputeNetwork: accelnetNetworkID,
 		MacAddress:         macAddress,
 	}
-	_, err = Hnsv2.CreateEndpoint(endpoint)
+
+	_, err = Hnsv2.CreateEndpoint(acclnetEndpoint)
 	if err != nil {
-		t.Fatalf("Failed to create endpoint due to %v", err)
+		t.Fatalf("Failed to create endpoint for accelnetNIC due to %v", err)
 	}
 
-	epInfo := &EndpointInfo{
-		EndpointID: endpointID,
-		Data:       make(map[string]interface{}),
-		IfName:     "eth1",
-		NICType:    cns.DelegatedVMNIC,
-		MacAddress: net.HardwareAddr(macAddress),
+	// make sure two endpoints are created:
+	endpoints := hnsFake.Cache.GetEndpoints()
+	if len(endpoints) != 1 {
+		t.Fatal("Failed to create an endpoint for accelnetNIC")
+	}
+
+	accelnetEpInfo := &EndpointInfo{
+		EndpointID:   accelnetEndpointID,
+		Data:         make(map[string]interface{}),
+		IfName:       "eth1",
+		NICType:      cns.NodeNetworkInterfaceAccelnetFrontendNIC,
+		MacAddress:   net.HardwareAddr(macAddress),
+		HNSNetworkID: accelnetNetworkID,
 	}
 
 	// mock DeleteEndpointState() to make sure endpoint and network is deleted from cache
-	// network and endpoint should be deleted from cache
-	err = nm.DeleteEndpointState(networkID, epInfo)
+	// network and endpoint should be deleted from cache for accelnetnic
+	err = nm.DeleteEndpointState(accelnetNetworkID, accelnetEpInfo)
 	if err != nil {
-		t.Fatalf("Failed to delete endpoint state due to %v", err)
+		t.Fatalf("Failed to delete endpoint for accelnetNIC state due to %v", err)
 	}
 
-	// check cache if networks and endpoints are deleted
-	networks := hnsFake.Cache.GetNetworks()
-	endpoints := hnsFake.Cache.GetEndpoints()
-	if len(endpoints) != 0 {
-		t.Fatalf("Not all endpoints are deleted, the remaining endpoints are %v", endpoints)
+	// check cache if endpoints are deleted
+	endpoints = hnsFake.Cache.GetEndpoints()
+	if len(endpoints) != 1 {
+		t.Fatal("The endpoint for accelnetNIC is deleted")
 	}
 
-	if len(networks) != 0 {
-		t.Fatalf("Not all networks are deleted, the remaining networks are %v", networks)
+	// check cache if accelnet network is deleted and infra network is still there
+	networks = hnsFake.Cache.GetNetworks()
+	if len(networks) != 1 {
+		t.Fatalf("The network for accelnetNIC is deleted")
 	}
 }
 
-// delete networks and endpoints with InfraNIC + AccelnetNIC
-// network should not be deleted for infraNIC
+// mock to invoke endpointState deletion with InfraNIC + AccelnetNIC
 func TestDeleteEndpointStateForInfraAccelnetNIC(t *testing.T) {
 	nm := &networkManager{
 		ExternalInterfaces: map[string]*externalInterface{},
@@ -721,10 +662,13 @@ func TestDeleteEndpointStateForInfraAccelnetNIC(t *testing.T) {
 		HnsCallTimeout: 5 * time.Second,
 	}
 
+	Hnsv2 = hnswrapper.NewHnsv2wrapperFake()
+
 	// create network for InfraNIC
 	infraNetworkID := "azure"
 	infraNetwork := &hcn.HostComputeNetwork{
 		Name: infraNetworkID,
+		Type: "bridge",
 	}
 	_, err := Hnsv2.CreateNetwork(infraNetwork)
 	if err != nil {
@@ -746,6 +690,7 @@ func TestDeleteEndpointStateForInfraAccelnetNIC(t *testing.T) {
 	if len(networks) != 2 {
 		t.Fatal("Failed to create two networks for infraNIC and accelnetNIC")
 	}
+	t.Logf("networks are %v", networks)
 
 	// create endpoint for InfraNIC
 	infraEndpointID := "infraEndpoint"
@@ -760,7 +705,7 @@ func TestDeleteEndpointStateForInfraAccelnetNIC(t *testing.T) {
 		t.Fatalf("Failed to create endpoint for infraNIC due to %v", err)
 	}
 
-	// create endpoint for accelnetNIC
+	// create endpoint for AccelnetNIC
 	accelnetEndpointID := "accelnetEndpoint"
 	macAddress := "60-45-bd-12-45-65"
 	acclnetEndpoint := &hcn.HostComputeEndpoint{
@@ -781,24 +726,151 @@ func TestDeleteEndpointStateForInfraAccelnetNIC(t *testing.T) {
 		t.Fatal("Failed to create two endpoints for infraNIC and accelnetNIC")
 	}
 
+	t.Logf("endpoints are %v", endpoints)
+
 	infraEpInfo := &EndpointInfo{
-		EndpointID: infraEndpointID,
-		Data:       make(map[string]interface{}),
-		IfName:     "eth0",
-		NICType:    cns.InfraNIC,
+		EndpointID:    infraEndpointID,
+		Data:          make(map[string]interface{}),
+		IfName:        "eth0",
+		NICType:       cns.InfraNIC,
+		HNSEndpointID: infraEndpointID,
+		HNSNetworkID:  infraNetworkID,
 	}
 
 	accelnetEpInfo := &EndpointInfo{
-		EndpointID: accelnetEndpointID,
-		Data:       make(map[string]interface{}),
-		IfName:     "eth1",
-		NICType:    cns.NodeNetworkInterfaceAccelnetFrontendNIC,
-		MacAddress: net.HardwareAddr(macAddress),
+		EndpointID:    accelnetEndpointID,
+		Data:          make(map[string]interface{}),
+		IfName:        "eth1",
+		NICType:       cns.NodeNetworkInterfaceAccelnetFrontendNIC,
+		MacAddress:    net.HardwareAddr(macAddress),
+		HNSEndpointID: accelnetEndpointID,
+		HNSNetworkID:  accelnetNetworkID,
+	}
+
+	// mock DeleteEndpointState() to make sure endpoint and network is deleted from cache
+	// endpoints should be deleted from cache
+	err = nm.DeleteEndpointState(infraNetworkID, infraEpInfo)
+	if err != nil {
+		t.Fatalf("Failed to delete endpoint for accelnetNIC state due to %v", err)
+	}
+
+	// network and endpoint should be deleted from cache for accelnetnic
+	err = nm.DeleteEndpointState(accelnetNetworkID, accelnetEpInfo)
+	if err != nil {
+		t.Fatalf("Failed to delete endpoint for accelnetNIC state due to %v", err)
+	}
+
+	// check cache if endpoints are deleted
+	endpoints = hnsFake.Cache.GetEndpoints()
+	if len(endpoints) != 0 {
+		t.Fatalf("Not all endpoints are deleted, the remaining endpoints are %v", endpoints)
+	}
+
+	// check cache if networks are deleted
+	networks = hnsFake.Cache.GetNetworks()
+	if len(networks) != 0 {
+		t.Fatalf("Not all networks are deleted, the remaining networks are %v", networks)
+	}
+}
+
+// mock to nivoke endpointState deletion with InfraNIC + DelegatedNIC
+func TestDeleteEndpointStateForInfraDelegatedNIC(t *testing.T) {
+	nm := &networkManager{
+		ExternalInterfaces: map[string]*externalInterface{},
+	}
+
+	// this hnsv2 variable overwrites the package level variable in network
+	// we do this to avoid passing around os specific objects in platform agnostic code
+	hnsFake := hnswrapper.NewHnsv2wrapperFake()
+
+	Hnsv2 = hnswrapper.Hnsv2wrapperwithtimeout{
+		Hnsv2:          hnsFake,
+		HnsCallTimeout: 5 * time.Second,
+	}
+
+	// create network for InfraNIC
+	infraNetworkID := "azure"
+	infraNetwork := &hcn.HostComputeNetwork{
+		Name: infraNetworkID,
+	}
+
+	_, err := Hnsv2.CreateNetwork(infraNetwork)
+	if err != nil {
+		t.Fatalf("Failed to create network for infraNIC due to %v", err)
+	}
+
+	// create network for DelegatedNIC
+	delegatedNetworkID := "azure-23:34:56:78:90:ab"
+	delegatedNetwork := &hcn.HostComputeNetwork{
+		Name: delegatedNetworkID,
+	}
+	_, err = Hnsv2.CreateNetwork(delegatedNetwork)
+	if err != nil {
+		t.Fatalf("Failed to create network for delegatedNIC due to %v", err)
+	}
+
+	// make sure two networks are created:
+	networks := hnsFake.Cache.GetNetworks()
+	if len(networks) != 2 {
+		t.Fatal("Failed to create two networks for infraNIC and accelnetNIC")
+	}
+
+	// create endpoint for InfraNIC
+	infraEndpointID := "infraEndpoint"
+	infraEndpoint := &hcn.HostComputeEndpoint{
+		Id:                 infraEndpointID,
+		Name:               infraEndpointID,
+		HostComputeNetwork: infraNetworkID,
+	}
+
+	_, err = Hnsv2.CreateEndpoint(infraEndpoint)
+	if err != nil {
+		t.Fatalf("Failed to create endpoint for infraNIC due to %v", err)
+	}
+
+	// create endpoint for delegated NIC
+	deletegatedEndpointID := "delegatedEndpoint"
+	macAddress := "60-45-bd-12-45-65"
+	delegatedEndpoint := &hcn.HostComputeEndpoint{
+		Id:                 deletegatedEndpointID,
+		Name:               deletegatedEndpointID,
+		HostComputeNetwork: deletegatedEndpointID,
+		MacAddress:         macAddress,
+	}
+
+	_, err = Hnsv2.CreateEndpoint(delegatedEndpoint)
+	if err != nil {
+		t.Fatalf("Failed to create endpoint for delegatedNIC due to %v", err)
+	}
+
+	// make sure two endpoints are created:
+	endpoints := hnsFake.Cache.GetEndpoints()
+	if len(endpoints) != 2 {
+		t.Fatal("Failed to create two endpoints for infraNIC and delegatedNIC")
+	}
+
+	infraEpInfo := &EndpointInfo{
+		EndpointID:    infraEndpointID,
+		Data:          make(map[string]interface{}),
+		IfName:        "eth0",
+		NICType:       cns.InfraNIC,
+		HNSEndpointID: infraEndpointID,
+		HNSNetworkID:  infraNetworkID,
+	}
+
+	delegatedEpInfo := &EndpointInfo{
+		EndpointID:    deletegatedEndpointID,
+		Data:          make(map[string]interface{}),
+		IfName:        "eth1",
+		NICType:       cns.DelegatedVMNIC,
+		MacAddress:    net.HardwareAddr(macAddress),
+		HNSEndpointID: deletegatedEndpointID,
+		HNSNetworkID:  delegatedNetworkID,
 	}
 
 	// mock DeleteEndpointState() to make sure endpoint and network is deleted from cache
 	// network and endpoint should be deleted from cache for accelnetnic
-	err = nm.DeleteEndpointState(accelnetNetworkID, accelnetEpInfo)
+	err = nm.DeleteEndpointState(delegatedNetworkID, delegatedEpInfo)
 	if err != nil {
 		t.Fatalf("Failed to delete endpoint for accelnetNIC state due to %v", err)
 	}
@@ -817,12 +889,105 @@ func TestDeleteEndpointStateForInfraAccelnetNIC(t *testing.T) {
 
 	// check cache if accelnet network is deleted and infra network is still there
 	networks = hnsFake.Cache.GetNetworks()
-	if len(networks) != 1 {
-		t.Fatal("all networks are deleted")
+	if len(networks) != 0 {
+		t.Fatalf("Not all networks are deleted, the remaining networks are %v", networks)
+	}
+}
+
+func TestDeleteEndpointStateForDelegatedNIC(t *testing.T) {
+	nm := &networkManager{
+		ExternalInterfaces: map[string]*externalInterface{},
 	}
 
-	// check if network name belongs to infra
-	if _, ok := networks[infraNetworkID]; !ok {
-		t.Fatalf("network name is not same as correct infraNIC network name %s", infraNetworkID)
+	// this hnsv2 variable overwrites the package level variable in network
+	// we do this to avoid passing around os specific objects in platform agnostic code
+	hnsFake := hnswrapper.NewHnsv2wrapperFake()
+
+	Hnsv2 = hnswrapper.Hnsv2wrapperwithtimeout{
+		Hnsv2:          hnsFake,
+		HnsCallTimeout: 5 * time.Second,
+	}
+
+	// create network for DelegatedNIC
+	delegatedNetworkID := "azure-23:34:56:78:90:ab"
+	delegatedNetwork := &hcn.HostComputeNetwork{
+		Name: delegatedNetworkID,
+	}
+	_, err := Hnsv2.CreateNetwork(delegatedNetwork)
+	if err != nil {
+		t.Fatalf("Failed to create network for delegatedNIC due to %v", err)
+	}
+
+	nwInfo := &EndpointInfo{
+		NetworkID:    delegatedNetworkID,
+		MasterIfName: "eth1",
+		Mode:         "bridge",
+	}
+
+	extInterface := &externalInterface{
+		Name:    "eth1",
+		Subnets: []string{"subnet1"},
+	}
+
+	_, err = nm.newNetworkImplHnsV2(nwInfo, extInterface)
+	if err != nil {
+		fmt.Printf("+%v", err)
+		t.Fatal(err)
+	}
+
+	// make sure two networks are created:
+	networks := hnsFake.Cache.GetNetworks()
+	if len(networks) != 1 {
+		t.Fatal("Failed to create two networks for infraNIC and accelnetNIC")
+	}
+
+	// create endpoint for delegated NIC
+	deletegatedEndpointID := "delegatedEndpoint"
+	macAddress := "60-45-bd-12-45-65"
+	delegatedEndpoint := &hcn.HostComputeEndpoint{
+		Id:                 deletegatedEndpointID,
+		Name:               deletegatedEndpointID,
+		HostComputeNetwork: deletegatedEndpointID,
+		MacAddress:         macAddress,
+	}
+
+	_, err = Hnsv2.CreateEndpoint(delegatedEndpoint)
+	if err != nil {
+		t.Fatalf("Failed to create endpoint for delegatedNIC due to %v", err)
+	}
+
+	// make sure two endpoints are created:
+	endpoints := hnsFake.Cache.GetEndpoints()
+	if len(endpoints) != 1 {
+		t.Fatal("Failed to create two endpoints for infraNIC and delegatedNIC")
+	}
+
+	delegatedEpInfo := &EndpointInfo{
+		EndpointID:    deletegatedEndpointID,
+		Data:          make(map[string]interface{}),
+		IfName:        "eth1",
+		NICType:       cns.DelegatedVMNIC,
+		MacAddress:    net.HardwareAddr(macAddress),
+		HNSEndpointID: deletegatedEndpointID,
+		HNSNetworkID:  delegatedNetworkID,
+	}
+
+	// mock DeleteEndpointState() to make sure endpoint and network is deleted from cache
+	// network and endpoint should be deleted from cache for accelnetnic
+	err = nm.DeleteEndpointState(delegatedNetworkID, delegatedEpInfo)
+	if err != nil {
+		t.Fatalf("Failed to delete endpoint for accelnetNIC state due to %v", err)
+	}
+
+	// check cache if endpoints are deleted
+	endpoints = hnsFake.Cache.GetEndpoints()
+	if len(endpoints) != 0 {
+		t.Fatalf("Not all endpoints are deleted, the remaining endpoints are %v", endpoints)
+	}
+
+	// check cache if accelnet network is deleted and infra network is still there
+	networks = hnsFake.Cache.GetNetworks()
+	if len(networks) != 0 {
+		t.Fatalf("Not all networks are deleted, the remaining networks are %v", networks)
 	}
 }
