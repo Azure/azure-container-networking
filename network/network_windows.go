@@ -389,7 +389,7 @@ func (nm *networkManager) newNetworkImplHnsV2(nwInfo *EndpointInfo, extIf *exter
 			// CNI triggers Add() for new pod first and then delete older pod later
 			// for transparent network type, do not ignore network creation if network already exists
 			// return error to avoid creating second endpoint
-			return nil, fmt.Errorf("Do not create endpoint for transparent network if network already exists")
+			return nil, fmt.Errorf("Do not create endpoint for transparent network if hcn network %s already exists", hcnNetwork.Name)
 		}
 		logger.Info("Network with name already exists", zap.String("name", hcnNetwork.Name))
 	}
