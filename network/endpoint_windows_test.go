@@ -600,7 +600,6 @@ func TestCreateAndDeleteEndpointStateForAccelnetNICWithEmptyHNSId(t *testing.T) 
 
 	// create endpoint for accelnetNIC
 	accelnetEndpointID := "accelnetEndpoint"
-	macAddress := "60-45-bd-12-45-65"
 	acclnetEndpoint := &hcn.HostComputeEndpoint{
 		Id:                 accelnetEndpointID,
 		Name:               accelnetEndpointID,
