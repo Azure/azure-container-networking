@@ -87,26 +87,6 @@ stages:
             os: $(os)
             os_version: $(os_version)
 
-    - job: k8se2e
-      displayName: "Build Kubernetes Test Suite"
-      pool:
-        name: $(BUILD_POOL_NAME_DEFAULT)
-        demands:
-          - agent.os -equals Linux
-          - Role -equals Build
-      steps:
-        - checkout: self
-
-        - bash: |
-            git clone https://github.com/kubernetes/kubernetes.git --depth=1
-            cd kubernetes
-            export PATH=$PATH:/usr/local/go/bin/
-            make WHAT=test/e2e/e2e.test
-          displayName: "Build Kubernetes e2e.test"
-
-        - publish: $(System.DefaultWorkingDirectory)/kubernetes/_output/local/bin/linux/amd64
-          artifact: Test
-
   - stage: Create_Cluster_and_Run_Test
     displayName: NPM Conformance
     dependsOn: [setup, build]
@@ -143,8 +123,6 @@ stages:
         FQDN: empty
       steps:
         - checkout: self
-        - download: current
-          artifact: Test
 
         - task: AzureCLI@2
           displayName: "Create resource group"
@@ -302,7 +280,7 @@ stages:
 
             ## Run all Conformance tests in the background
             echo $FQDN
-            # chmod +x $(Pipeline.Workspace)/Test/e2e.test
+
             runConformance () {
                 KUBERNETES_SERVICE_HOST="$FQDN" KUBERNETES_SERVICE_PORT=443 ./e2e.test --provider=local --ginkgo.focus="NetworkPolicy" --ginkgo.skip="SCTP" --kubeconfig=./kubeconfig
                 # there can't be a command after e2e.test because the exit code is important
@@ -419,6 +397,32 @@ stages:
         - publish: $(System.DefaultWorkingDirectory)/npmLogs_$(AZURE_CLUSTER)
           condition: always()
           artifact: NpmLogs_$(AZURE_CLUSTER)
+
+  - stage: clean_up_Create_Cluster_and_Run_Test
+    displayName: Cleanup Conformance
+    dependsOn: [setup, Create_Cluster_and_Run_Test]
+    condition: always()
+    jobs:
+    - job: clean_up
+      displayName: "Cleanup"
+      pool:
+        name: $(BUILD_POOL_NAME_DEFAULT)
+        demands:
+          - agent.os -equals Linux
+          - Role -equals Build
+      variables:
+        RESOURCE_GROUP: $[ stagedependencies.setup.setup.outputs['EnvironmentalVariables.RESOURCE_GROUP'] ]
+      steps:
+        - checkout: none
+        - task: AzureCLI@2
+          displayName: "Delete Test Cluster Resource Group"
+          inputs:
+            azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+            scriptType: "bash"
+            scriptLocation: "inlineScript"
+            inlineScript: |
+              echo Deleting $(RESOURCE_GROUP)
+              az group delete -n $(RESOURCE_GROUP) --yes
 
   # - stage: cyclonus_win
   #   displayName: Windows Cyclonus
@@ -562,32 +566,6 @@ stages:
   #       - publish: $(System.DefaultWorkingDirectory)/$(RESOURCE_GROUP)-$(PROFILE)
   #         condition: always()
   #         artifact: NpmLogs-$(RESOURCE_GROUP)-$(PROFILE)
-
-  - stage: clean_up_Create_Cluster_and_Run_Test
-    displayName: Cleanup Conformance
-    dependsOn: [setup, Create_Cluster_and_Run_Test]
-    condition: always()
-    jobs:
-    - job: clean_up
-      displayName: "Cleanup"
-      pool:
-        name: $(BUILD_POOL_NAME_DEFAULT)
-        demands:
-          - agent.os -equals Linux
-          - Role -equals Build
-      variables:
-        RESOURCE_GROUP: $[ stagedependencies.setup.setup.outputs['EnvironmentalVariables.RESOURCE_GROUP'] ]
-      steps:
-        - checkout: none
-        - task: AzureCLI@2
-          displayName: "Delete Test Cluster Resource Group"
-          inputs:
-            azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
-            scriptType: "bash"
-            scriptLocation: "inlineScript"
-            inlineScript: |
-              echo Deleting $(RESOURCE_GROUP)
-              az group delete -n $(RESOURCE_GROUP) --yes
 
   # - stage: clean_up_cyclonus_win
   #   displayName: Cleanup Cyclonus
