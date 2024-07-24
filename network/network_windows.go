@@ -384,12 +384,13 @@ func (nm *networkManager) newNetworkImplHnsV2(nwInfo *EndpointInfo, extIf *exter
 			// we can't validate if the network already exists, don't continue
 			return nil, fmt.Errorf("Failed to create hcn network: %s, failed to query for existing network with error: %v", hcnNetwork.Name, err)
 		}
-	} else if hcnNetwork.Type == hcn.Transparent {
-		// CNI triggers Add() for new pod first and then delete older pod later
-		// for transparent network type, do not ignore network creation if network already exists
-		// return error to avoid creating second endpoint
-		return nil, fmt.Errorf("Do not create endpoint for transparent network if network already exists")
 	} else {
+		if hcnNetwork.Type == hcn.Transparent {
+			// CNI triggers Add() for new pod first and then delete older pod later
+			// for transparent network type, do not ignore network creation if network already exists
+			// return error to avoid creating second endpoint
+			return nil, fmt.Errorf("Do not create endpoint for transparent network if network already exists")
+		}
 		logger.Info("Network with name already exists", zap.String("name", hcnNetwork.Name))
 	}
 
