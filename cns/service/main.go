@@ -876,9 +876,9 @@ func main() {
 				logger.Errorf("Failed to fetch PnpIDMacaddress mapping: %v", err)
 			}
 
-			// No-op for linux, setting primary macaddress if VF is enabled on the nics for aks swiftv2
-			err = httpRemoteRestService.SetVFForAccelnetNICs()
-			if err != nil {
+			// No-op for linux, setting primary macaddress if VF is enabled on the nics for aks swiftv2 windows
+			logger.Printf("Setting VF for accelnet nics if enabled")
+			if err = httpRemoteRestService.SetVFForAccelnetNICs(); err != nil {
 				logger.Errorf("Failed to set VF for accelnet NICs: %v", err)
 			}
 		}
