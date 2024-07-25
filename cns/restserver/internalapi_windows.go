@@ -49,7 +49,7 @@ func (service *HTTPRestService) getPrimaryNICMACAddress() (string, error) {
 	}
 
 	if macAddress == "" {
-		return "", errors.New("MAC address not found in wscli")
+		return "", errors.New("MAC address not found(empty) from wireserver")
 	}
 	return macAddress, nil
 }

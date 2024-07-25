@@ -230,7 +230,7 @@ func (k *K8sSWIFTv2Middleware) getIPConfig(ctx context.Context, podInfo cns.PodI
 					MacAddress:        interfaceInfo.MacAddress,
 					NICType:           nicType,
 					SkipDefaultRoutes: false,
-					// InterfaceName is empty for DelegatedVMNIC
+					// InterfaceName is empty for DelegatedVMNIC and AccelnetFrontendNIC
 				}
 				// for windows scenario, it is required to add additional fields with the exact subnetAddressSpace
 				// received from MTPNC, this function assigns them for windows while linux is a no-op
