@@ -44,10 +44,6 @@ const (
 	defaultIPv6Route = "::/0"
 	// Default IPv6 nextHop
 	defaultIPv6NextHop = "fe80::1234:5678:9abc"
-	// For L1VH with accelnet, hcn.DisableHostPort and hcn.EnableIov must be configured
-	// To set this, need logical OR: hcnNetwork.flags = hcn.DisablePort | hcn.EnableIov: (1024 + 8192 = 9216)
-	// TODO: once hcsshim is ready, do OR operation instead of hardcode 9216
-	hcnIov = 9216
 )
 
 // Windows implementation of route.
@@ -308,9 +304,11 @@ func (nm *networkManager) configureHcnNetwork(nwInfo *EndpointInfo, extIf *exter
 	}
 
 	// AccelnetNIC flag: hcn.EnableIov(9216)
+	// For L1VH with accelnet, hcn.DisableHostPort and hcn.EnableIov must be configured
+	// To set this, need do OR operation: hcnNetwork.flags = hcn.DisableHostPort | hcn.EnableIov: (1024 + 8192 = 9216)
 	if nwInfo.NICType == cns.NodeNetworkInterfaceAccelnetFrontendNIC {
 		hcnNetwork.Type = hcn.Transparent
-		hcnNetwork.Flags = hcnIov // TODO: pick up latest hcsshim release for hcnIov flag when it's ready
+		hcnNetwork.Flags = hcn.DisableHostPort | hcn.EnableIov
 	}
 
 	// Populate subnets.
