@@ -15,8 +15,9 @@ func (service *HTTPRestService) programSNATRules(req *cns.CreateNetworkContainer
 	return types.Success, ""
 }
 
+// setVFForAccelnetNICs is used in SWIFTV2 mode to set VF on accelnet nics
 func (service *HTTPRestService) setVFForAccelnetNICs() error {
-	// SWIFT V2 mode for accelnet, supply the MAC address to the HNS
+	// supply the primary MAC address to HNS api
 	macAddress, err := service.getPrimaryNICMACAddress()
 	if err != nil {
 		return err
