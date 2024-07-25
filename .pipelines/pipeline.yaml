@@ -222,6 +222,11 @@ stages:
                 name: cni
                 os: windows
                 os_version: ltsc2022
+              cni_windows2025_amd64:
+                arch: amd64
+                name: cni
+                os: windows
+                os_version: ltsc2025
               cni_dropgz_linux_amd64:
                 arch: amd64
                 name: cni-dropgz
@@ -250,6 +255,11 @@ stages:
                 name: cns
                 os: windows
                 os_version: ltsc2022
+              cns_windows2025_amd64:
+                arch: amd64
+                name: cns
+                os: windows
+                os_version: ltsc2025
               ipv6_hp_bpf_linux_amd64:
                 arch: amd64
                 name: ipv6-hp-bpf
@@ -326,7 +336,7 @@ stages:
                 platforms: linux/amd64 linux/arm64 windows/amd64
               cni:
                 name: cni
-                os_versions: ltsc2019 ltsc2022
+                os_versions: ltsc2019 ltsc2022 ltsc2025
                 platforms: linux/amd64 linux/arm64 windows/amd64
               cni_dropgz:
                 name: cni-dropgz
@@ -334,7 +344,7 @@ stages:
                 platforms: linux/amd64 linux/arm64 windows/amd64
               cns:
                 name: cns
-                os_versions: ltsc2019 ltsc2022
+                os_versions: ltsc2019 ltsc2022 ltsc2025
                 platforms: linux/amd64 linux/arm64 windows/amd64
               ipv6_hp_bpf:
                 name: ipv6-hp-bpf

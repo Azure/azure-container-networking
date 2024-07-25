@@ -43,6 +43,15 @@ FROM scratch as linux
 COPY --from=dropgz /go/bin/dropgz dropgz
 ENTRYPOINT [ "/dropgz" ]
 
-FROM mcr.microsoft.com/windows/nanoserver:${OS_VERSION} as windows
+# intermediate for win-ltsc2019
+FROM mcr.microsoft.com/windows/nanoserver@sha256:736f8845da1c7bbc9510b419abddb870230485e74644a96e0001a21e1ca4c172 as ltsc2019
+
+# intermediate for win-ltsc2022
+FROM mcr.microsoft.com/windows/nanoserver@sha256:cc9f6a1334190c1f18a905f56d285132e562a9a1ce18ff9476cfaf95194aa0b7 as ltsc2022
+
+# intermediate for win-ltsc2025
+FROM mcr.microsoft.com/windows/nanoserver/insider@sha256:67e0ab7f3a79cd73be4a18bae24659c03b294aed0dbeaa624feb3810931f0bd2 as ltsc2025
+
+FROM ${OS_VERSION} as windows
 COPY --from=dropgz /go/bin/dropgz dropgz.exe
 ENTRYPOINT [ "/dropgz.exe" ]

@@ -22,8 +22,7 @@ GOOSES   ?= "linux windows" # To override at the cli do: GOOSES="\"darwin bsd\""
 GOARCHES ?= "amd64 arm64" # To override at the cli do: GOARCHES="\"ppc64 mips\""
 ltsc2019  = "10.0.17763.4010"
 ltsc2022  = "10.0.20348.643"
-ltsc2022-KB5035857   = "10.0.26100.1"
-win2025 = "10.0.26100.1"
+ltsc2025  = "10.0.26244.5000"
 
 # Windows specific extensions
 # set these based on the GOOS, not the OS
