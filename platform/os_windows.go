@@ -285,7 +285,7 @@ func hasNetworkAdapter(na adapter.NetworkAdapter) bool {
 func MonitorAndSetMellanoxRegKeyPriorityVLANTag(ctx context.Context, intervalSecs int) {
 	m := &mellanox.Mellanox{}
 	interval := defaultMellanoxMonitorInterval
-	if intervalSecs > 0 {
+	if intervalSecs >= 0 {
 		interval = time.Duration(intervalSecs) * time.Second
 	}
 	err := updatePriorityVLANTagIfRequired(m, desiredVLANTagForMellanox)
