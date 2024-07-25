@@ -224,6 +224,7 @@ func TestSetPoliciesFromNwCfg(t *testing.T) {
 		expected      []hnsv2.PortMappingPolicySetting
 	}{
 		{
+			// ipv6 disabled, ipv4 host ip --> ipv4 host ip policy only
 			name: "Runtime network polices",
 			nwCfg: cni.NetworkConfig{
 				RuntimeConfig: cni.RuntimeConfig{
@@ -249,6 +250,7 @@ func TestSetPoliciesFromNwCfg(t *testing.T) {
 			},
 		},
 		{
+			// ipv6 disabled, no host ip --> ipv4 policy only
 			name: "Runtime hostPort mapping polices without hostIP",
 			nwCfg: cni.NetworkConfig{
 				RuntimeConfig: cni.RuntimeConfig{
@@ -272,6 +274,7 @@ func TestSetPoliciesFromNwCfg(t *testing.T) {
 			},
 		},
 		{
+			// ipv6 enabled, ipv6 host ip --> ipv6 host ip policy only
 			name: "Runtime hostPort mapping polices with ipv6 hostIP",
 			nwCfg: cni.NetworkConfig{
 				RuntimeConfig: cni.RuntimeConfig{
@@ -297,6 +300,7 @@ func TestSetPoliciesFromNwCfg(t *testing.T) {
 			},
 		},
 		{
+			// ipv6 enabled, ipv4 host ip --> ipv4 host ip policy only
 			name: "Runtime hostPort mapping polices with ipv4 hostIP on ipv6 enabled cluster",
 			nwCfg: cni.NetworkConfig{
 				RuntimeConfig: cni.RuntimeConfig{
@@ -322,6 +326,7 @@ func TestSetPoliciesFromNwCfg(t *testing.T) {
 			},
 		},
 		{
+			// ipv6 enabled, no host ip --> ipv4 and ipv6 policies
 			name: "Runtime hostPort mapping polices with ipv6 without hostIP",
 			nwCfg: cni.NetworkConfig{
 				RuntimeConfig: cni.RuntimeConfig{
@@ -347,6 +352,32 @@ func TestSetPoliciesFromNwCfg(t *testing.T) {
 					ExternalPort: uint16(44000),
 					InternalPort: uint16(80),
 					VIP:          "",
+					Protocol:     policy.ProtocolTcp,
+					Flags:        hnsv2.NatFlagsIPv6,
+				},
+			},
+		},
+		{
+			// ipv6 enabled, ipv6 localhost ip --> ipv6 host ip policy only
+			name: "Runtime hostPort mapping polices with ipv6 localhost hostIP on ipv6 enabled cluster",
+			nwCfg: cni.NetworkConfig{
+				RuntimeConfig: cni.RuntimeConfig{
+					PortMappings: []cni.PortMapping{
+						{
+							Protocol:      "tcp",
+							HostPort:      44000,
+							ContainerPort: 80,
+							HostIp:        "::1",
+						},
+					},
+				},
+			},
+			isIPv6Enabled: true,
+			expected: []hnsv2.PortMappingPolicySetting{
+				{
+					ExternalPort: uint16(44000),
+					InternalPort: uint16(80),
+					VIP:          "::1",
 					Protocol:     policy.ProtocolTcp,
 					Flags:        hnsv2.NatFlagsIPv6,
 				},

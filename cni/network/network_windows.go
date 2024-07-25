@@ -180,7 +180,18 @@ func getEndpointDNSSettings(nwCfg *cni.NetworkConfig, dns network.DNSInfo, names
 	return epDNS, nil
 }
 
-// getPoliciesFromRuntimeCfg returns network policies from network config.
+/*
+getPoliciesFromRuntimeCfg returns network policies from network config.
+
+Windows
+test-netconnection to --->    to node ipv4    to node ipv6    to localhost ipv4    to localhost ipv6
+host port mapping w/
+no host ip                     ok             ok              fail                 fail
+localhost ipv4 host ip         fail           fail            fail                 fail
+node ipv6 host ip              fail           ok              fail                 fail
+localhost ipv6 host ip         fail           fail            fail                 fail
+node ipv4 host ip              ok             fail            fail                 fail
+*/
 func getPoliciesFromRuntimeCfg(nwCfg *cni.NetworkConfig, isIPv6Enabled bool) ([]policy.Policy, error) {
 	logger.Info("Runtime Info", zap.Any("config", nwCfg.RuntimeConfig))
 	var policies []policy.Policy
@@ -219,7 +230,6 @@ func getPoliciesFromRuntimeCfg(nwCfg *cni.NetworkConfig, isIPv6Enabled bool) ([]
 		}
 
 		hnsPortMappingPolicy, err := createPortMappingPolicy(mapping.HostPort, mapping.ContainerPort, mapping.HostIp, protocol, flag)
-
 		if err != nil {
 			return nil, err
 		}
