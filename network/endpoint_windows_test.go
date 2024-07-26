@@ -24,12 +24,13 @@ import (
 )
 
 var (
-	instanceID   = "12345-abcde-789"
-	locationPath = "12345-abcde-789-fea14"
-	pnpID        = "PCI\\VEN_15B3&DEV_101C&SUBSYS_000715B3&REV_00\\5&8c5acce&0&0"
-	macAddress   = "60-45-bd-12-45-65"
-	networkID    = "azure-23:34:56:78:90:ab"
-	networkName  = "l1vh"
+	instanceID      = "12345-abcde-789"
+	locationPath    = "12345-abcde-789-fea14"
+	pnpID           = "PCI\\VEN_15B3&DEV_101C&SUBSYS_000715B3&REV_00\\5&8c5acce&0&0"
+	macAddress      = "60-45-bd-12-45-65"
+	networkID       = "azure-23:34:56:78:90:ab"
+	networkName     = "l1vh"
+	l1vhNetworkType = hcn.Transparent
 )
 
 func TestNewAndDeleteEndpointImplHnsV2(t *testing.T) {
@@ -674,11 +675,12 @@ func TestDeleteEndpointStateForInfraAccelnetNIC(t *testing.T) {
 	}
 
 	// create network for AccelnetNIC
-	delegatedNetwork := &hcn.HostComputeNetwork{
+	accelnetNetwork := &hcn.HostComputeNetwork{
 		Id:   networkID,
 		Name: networkName,
+		Type: l1vhNetworkType,
 	}
-	_, err = Hnsv2.CreateNetwork(delegatedNetwork)
+	_, err = Hnsv2.CreateNetwork(accelnetNetwork)
 	if err != nil {
 		t.Fatalf("Failed to create network for AccelnetNIC due to %v", err)
 	}
@@ -801,6 +803,7 @@ func TestDeleteEndpointStateForInfraDelegatedNIC(t *testing.T) {
 	delegatedNetwork := &hcn.HostComputeNetwork{
 		Id:   networkID,
 		Name: networkName,
+		Type: l1vhNetworkType,
 	}
 	_, err = Hnsv2.CreateNetwork(delegatedNetwork)
 	if err != nil {

@@ -524,3 +524,71 @@ func TestSkipNetworkDeletion(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestTransparentNetworkCreationForAccelnet(t *testing.T) {
+	nm := &networkManager{
+		ExternalInterfaces: map[string]*externalInterface{},
+	}
+
+	// this hnsv2 variable overwrites the package level variable in network
+	// we do this to avoid passing around os specific objects in platform agnostic code
+	Hnsv2 = hnswrapper.NewHnsv2wrapperFake()
+
+	nwInfo := &EndpointInfo{
+		NetworkID:    "d3e97a83-ba4c-45d5-ba88-dc56757ece28",
+		MasterIfName: "eth1",
+		Mode:         "bridge",
+		NICType:      cns.NodeNetworkInterfaceAccelnetFrontendNIC,
+	}
+
+	extInterface := &externalInterface{
+		Name:    "eth0",
+		Subnets: []string{"subnet1", "subnet2"},
+	}
+
+	_, err := nm.newNetworkImplHnsV2(nwInfo, extInterface)
+	if err != nil {
+		fmt.Printf("+%v", err)
+		t.Fatal(err)
+	}
+
+	// create a network again with same name and it should return error for transparent network
+	_, err = nm.newNetworkImplHnsV2(nwInfo, extInterface)
+	if err == nil {
+		t.Fatal("network creation does not return error")
+	}
+}
+
+func TestTransparentNetworkCreationForDelegated(t *testing.T) {
+	nm := &networkManager{
+		ExternalInterfaces: map[string]*externalInterface{},
+	}
+
+	// this hnsv2 variable overwrites the package level variable in network
+	// we do this to avoid passing around os specific objects in platform agnostic code
+	Hnsv2 = hnswrapper.NewHnsv2wrapperFake()
+
+	nwInfo := &EndpointInfo{
+		NetworkID:    "d3e97a83-ba4c-45d5-ba88-dc56757ece28",
+		MasterIfName: "eth0",
+		Mode:         "bridge",
+		NICType:      cns.DelegatedVMNIC,
+	}
+
+	extInterface := &externalInterface{
+		Name:    "eth1",
+		Subnets: []string{"subnet1", "subnet2"},
+	}
+
+	_, err := nm.newNetworkImplHnsV2(nwInfo, extInterface)
+	if err != nil {
+		fmt.Printf("+%v", err)
+		t.Fatal(err)
+	}
+
+	// create a network again with same name and it should return error for transparent network
+	_, err = nm.newNetworkImplHnsV2(nwInfo, extInterface)
+	if err == nil {
+		t.Fatal("network creation does not return error")
+	}
+}
