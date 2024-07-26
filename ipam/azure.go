@@ -115,6 +115,8 @@ func (s *azureSource) refresh() error {
 		return err
 	}
 
+	log.Printf("[ipam] xml name received:%v interfaces:%d", doc.XMLName, len(doc.Interface))
+
 	// For each interface...
 	for _, i := range doc.Interface {
 		ifName := ""
@@ -141,6 +143,8 @@ func (s *azureSource) refresh() error {
 			log.Printf("[ipam] Failed to find interface with MAC address:%v.", i.MacAddress)
 			continue
 		}
+
+		log.Printf("[ipam] processing interface:%s IsPrimary:%t macAddress:%s", ifName, i.IsPrimary, i.MacAddress)
 
 		// For each subnet on the interface...
 		for _, s := range i.IPSubnet {
