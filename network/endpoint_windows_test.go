@@ -640,7 +640,7 @@ func TestCreateAndDeleteEndpointStateForAccelnetNICWithEmptyHNSId(t *testing.T) 
 		t.Fatal("The endpoint for accelnetNIC is deleted")
 	}
 
-	// check cache if accelnet network is deleted and infra network is still there
+	// if hns ID is empty, then return nil and network will not be deleted
 	networks = hnsFake.Cache.GetNetworks()
 	if len(networks) != 1 {
 		t.Fatalf("The network for accelnetNIC is deleted")
@@ -762,8 +762,12 @@ func TestDeleteEndpointStateForInfraAccelnetNIC(t *testing.T) {
 
 	// check cache if accelnet network is deleted and infra network is still there
 	networks = hnsFake.Cache.GetNetworks()
-	if len(networks) != 0 {
-		t.Fatalf("Not all networks are deleted, the remaining networks are %v", networks)
+	if len(networks) != 1 {
+		t.Fatalf("Failed to delete networks")
+	}
+
+	if _, ok := networks[infraNetworkID]; !ok {
+		t.Fatal("Network for InfraNIC does not exist")
 	}
 }
 
@@ -880,9 +884,13 @@ func TestDeleteEndpointStateForInfraDelegatedNIC(t *testing.T) {
 		t.Fatalf("Not all endpoints are deleted, the remaining endpoints are %v", endpoints)
 	}
 
-	// check cache if accelnet network is deleted and infra network is still there
+	// check cache if delegated network is deleted and infra network is still there
 	networks = hnsFake.Cache.GetNetworks()
-	if len(networks) != 0 {
-		t.Fatalf("Not all networks are deleted, the remaining networks are %v", networks)
+	if len(networks) != 1 {
+		t.Fatalf("Failed to delete networks")
+	}
+
+	if _, ok := networks[infraNetworkID]; !ok {
+		t.Fatal("Network for InfraNIC does not exist")
 	}
 }
