@@ -30,4 +30,4 @@ jobs:
       uses: golangci/golangci-lint-action@v5
       with:
         version: v1.55
-        args: --new-from-rev=origin/master --config=.golangci.yml --timeout=25m 
+        args: --new-from-rev=origin/release/v1.5 --config=.golangci.yml --timeout=25m 
