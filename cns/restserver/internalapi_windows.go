@@ -13,7 +13,7 @@ import (
 
 const (
 	// timeout for powershell command to return the interfaces list
-	pwshTimeoutInSeconds = 120 * time.Second
+	pwshTimeout = 120 * time.Second
 )
 
 // nolint
@@ -39,7 +39,7 @@ func (service *HTTPRestService) setVFForAccelnetNICs() error {
 func (service *HTTPRestService) getPrimaryNICMACAddress() (string, error) {
 
 	// Create a new context and add a timeout to it
-	ctx, cancel := context.WithTimeout(context.Background(), pwshTimeoutInSeconds)
+	ctx, cancel := context.WithTimeout(context.Background(), pwshTimeout)
 	defer cancel() // The cancel should be deferred so resources are cleaned up
 
 	res, err := service.wscli.GetInterfaces(ctx)
