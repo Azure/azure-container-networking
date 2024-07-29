@@ -3,11 +3,17 @@ package restserver
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/cns/types"
 	"github.com/Microsoft/hcsshim"
 	"github.com/pkg/errors"
+)
+
+const (
+	// timeout for powershell command to return the interfaces list
+	pwshTimeoutInSeconds = 120 * time.Second
 )
 
 // nolint
@@ -31,7 +37,12 @@ func (service *HTTPRestService) setVFForAccelnetNICs() error {
 
 // getPrimaryNICMacAddress fetches the MAC address of the primary NIC on the node.
 func (service *HTTPRestService) getPrimaryNICMACAddress() (string, error) {
-	res, err := service.wscli.GetInterfaces(context.TODO())
+
+	// Create a new context and add a timeout to it
+	ctx, cancel := context.WithTimeout(context.Background(), pwshTimeoutInSeconds)
+	defer cancel() // The cancel should be deferred so resources are cleaned up
+
+	res, err := service.wscli.GetInterfaces(ctx)
 	if err != nil {
 		return "", fmt.Errorf("failed to find primary interface info: %w", err)
 	}

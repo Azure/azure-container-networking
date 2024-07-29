@@ -877,7 +877,7 @@ func main() {
 			}
 
 			// No-op for linux, setting primary macaddress if VF is enabled on the nics for aks swiftv2 windows
-			logger.Printf("Setting VF for accelnet nics if enabled")
+			logger.Printf("Setting VF for accelnet nics if enabled if using windows VM & swiftV2")
 			if err = httpRemoteRestService.SetVFForAccelnetNICs(); err != nil {
 				logger.Errorf("Failed to set VF for accelnet NICs: %v", err)
 			}
