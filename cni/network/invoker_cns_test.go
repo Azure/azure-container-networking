@@ -286,7 +286,7 @@ func TestCNSIPAMInvoker_Add_Overlay(t *testing.T) {
 										IPAddress:    "20.240.1.242",
 										PrefixLength: 24,
 									},
-									NICType:    cns.DelegatedVMNIC,
+									NICType:    cns.NodeNetworkInterfaceFrontendNIC,
 									MacAddress: macAddress,
 								},
 							},
@@ -333,7 +333,7 @@ func TestCNSIPAMInvoker_Add_Overlay(t *testing.T) {
 					},
 				},
 				Routes:     []network.RouteInfo{},
-				NICType:    cns.DelegatedVMNIC,
+				NICType:    cns.NodeNetworkInterfaceFrontendNIC,
 				MacAddress: parsedMacAddress,
 				// secondaries don't have a host subnet prefix
 			},
@@ -381,7 +381,7 @@ func TestCNSIPAMInvoker_Add_Overlay(t *testing.T) {
 										IPAddress:    "20.240.1.242",
 										PrefixLength: 24,
 									},
-									NICType:    cns.DelegatedVMNIC,
+									NICType:    cns.NodeNetworkInterfaceFrontendNIC,
 									MacAddress: "bad mac",
 								},
 							},
@@ -448,7 +448,7 @@ func TestCNSIPAMInvoker_Add_Overlay(t *testing.T) {
 										IPAddress:    "bad ip",
 										PrefixLength: 24,
 									},
-									NICType:    cns.DelegatedVMNIC,
+									NICType:    cns.NodeNetworkInterfaceFrontendNIC,
 									MacAddress: macAddress,
 								},
 							},
@@ -493,7 +493,7 @@ func TestCNSIPAMInvoker_Add_Overlay(t *testing.T) {
 			}
 
 			for _, ifInfo := range ipamAddResult.interfaceInfo {
-				if ifInfo.NICType == cns.DelegatedVMNIC {
+				if ifInfo.NICType == cns.NodeNetworkInterfaceFrontendNIC {
 					fmt.Printf("want:%+v\nrest:%+v\n", tt.wantSecondaryInterfacesInfo, ifInfo)
 					if len(tt.wantSecondaryInterfacesInfo.IPConfigs) > 0 {
 						require.EqualValues(tt.wantSecondaryInterfacesInfo, ifInfo, "incorrect response for delegatedNIC")
@@ -801,7 +801,7 @@ func TestCNSIPAMInvoker_Add(t *testing.T) {
 
 			for _, ifInfo := range ipamAddResult.interfaceInfo {
 				require.NotEqual("", string(ifInfo.NICType), "nictype should be auto populated if empty")
-				if ifInfo.NICType == cns.DelegatedVMNIC {
+				if ifInfo.NICType == cns.NodeNetworkInterfaceFrontendNIC {
 					fmt.Printf("want:%+v\nrest:%+v\n", tt.wantMultitenantResult, ifInfo)
 					if len(tt.wantMultitenantResult.IPConfigs) > 0 {
 						require.Equalf(tt.wantMultitenantResult, ifInfo, "incorrect multitenant response")
@@ -1442,8 +1442,8 @@ func Test_getInterfaceInfoKey(t *testing.T) {
 	inv := &CNSIPAMInvoker{}
 	dummyMAC := "12:34:56:78:9a:bc"
 	require.Equal(string(cns.InfraNIC), inv.getInterfaceInfoKey(cns.InfraNIC, dummyMAC))
-	require.Equal(dummyMAC, inv.getInterfaceInfoKey(cns.DelegatedVMNIC, dummyMAC))
-	require.Equal("", inv.getInterfaceInfoKey(cns.DelegatedVMNIC, ""))
+	require.Equal(dummyMAC, inv.getInterfaceInfoKey(cns.NodeNetworkInterfaceFrontendNIC, dummyMAC))
+	require.Equal("", inv.getInterfaceInfoKey(cns.NodeNetworkInterfaceFrontendNIC, ""))
 	require.Equal(dummyMAC, inv.getInterfaceInfoKey(cns.BackendNIC, dummyMAC))
 	require.Equal("", inv.getInterfaceInfoKey(cns.BackendNIC, ""))
 	require.Equal(dummyMAC, inv.getInterfaceInfoKey(cns.NodeNetworkInterfaceAccelnetFrontendNIC, dummyMAC))
@@ -1510,7 +1510,7 @@ func TestCNSIPAMInvoker_Add_SwiftV2(t *testing.T) {
 										PrimaryIP: "10.0.0.2",
 										Subnet:    "10.0.0.1/24",
 									},
-									NICType:    cns.DelegatedVMNIC,
+									NICType:    cns.NodeNetworkInterfaceFrontendNIC,
 									MacAddress: macAddress,
 								},
 							},
@@ -1541,7 +1541,7 @@ func TestCNSIPAMInvoker_Add_SwiftV2(t *testing.T) {
 						},
 					},
 					Routes:     []network.RouteInfo{},
-					NICType:    cns.DelegatedVMNIC,
+					NICType:    cns.NodeNetworkInterfaceFrontendNIC,
 					MacAddress: parsedMacAddress,
 				},
 			},
@@ -1572,7 +1572,7 @@ func TestCNSIPAMInvoker_Add_SwiftV2(t *testing.T) {
 										PrimaryIP: "10.0.0.2",
 										Subnet:    "10.0.0.1/24",
 									},
-									NICType:           cns.DelegatedVMNIC,
+									NICType:           cns.NodeNetworkInterfaceFrontendNIC,
 									MacAddress:        macAddress,
 									SkipDefaultRoutes: false,
 								},
@@ -1609,7 +1609,7 @@ func TestCNSIPAMInvoker_Add_SwiftV2(t *testing.T) {
 						},
 					},
 					Routes:     []network.RouteInfo{},
-					NICType:    cns.DelegatedVMNIC,
+					NICType:    cns.NodeNetworkInterfaceFrontendNIC,
 					MacAddress: parsedMacAddress,
 				},
 				ibMacAddress: {
@@ -1767,7 +1767,7 @@ func TestCNSIPAMInvoker_Add_SwiftV2(t *testing.T) {
 										PrimaryIP: "20.0.0.2",
 										Subnet:    "20.0.0.1/24",
 									},
-									NICType:           cns.DelegatedVMNIC,
+									NICType:           cns.NodeNetworkInterfaceFrontendNIC,
 									MacAddress:        macAddress,
 									SkipDefaultRoutes: false,
 								},
@@ -1821,7 +1821,7 @@ func TestCNSIPAMInvoker_Add_SwiftV2(t *testing.T) {
 						},
 					},
 					Routes:     []network.RouteInfo{},
-					NICType:    cns.DelegatedVMNIC,
+					NICType:    cns.NodeNetworkInterfaceFrontendNIC,
 					MacAddress: parsedMacAddress,
 				},
 				ibMacAddress: {
@@ -2081,7 +2081,7 @@ func TestCNSIPAMInvoker_Add_SwiftV2(t *testing.T) {
 					require.EqualValues(tt.wantSecondaryInterfacesInfo[ibMacAddress], ipamAddResult.interfaceInfo[ibMacAddress], "incorrect response for IB")
 				}
 
-				if ifInfo.NICType == cns.DelegatedVMNIC {
+				if ifInfo.NICType == cns.NodeNetworkInterfaceFrontendNIC {
 					fmt.Printf("want:%+v\nrest:%+v\n", tt.wantSecondaryInterfacesInfo[macAddress], ipamAddResult.interfaceInfo[macAddress])
 					require.EqualValues(tt.wantSecondaryInterfacesInfo[macAddress], ipamAddResult.interfaceInfo[macAddress], "incorrect response for Delegated")
 				}

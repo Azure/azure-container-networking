@@ -129,7 +129,7 @@ func TestDeleteEndpointImplHnsV2WithEmptyHNSID(t *testing.T) {
 		HnsId:      "",
 		IfName:     "eth1",
 		MacAddress: net.HardwareAddr("00:00:5e:00:53:01"),
-		NICType:    cns.DelegatedVMNIC,
+		NICType:    cns.NodeNetworkInterfaceFrontendNIC,
 	}
 
 	// should return nil because HnsID is empty
@@ -551,7 +551,7 @@ func TestCreateAndDeleteEndpointImplHnsv2ForDelegatedHappyPath(t *testing.T) {
 		EndpointID: "768e8deb-eth1",
 		Data:       make(map[string]interface{}),
 		IfName:     "eth1",
-		NICType:    cns.DelegatedVMNIC,
+		NICType:    cns.NodeNetworkInterfaceFrontendNIC,
 		MacAddress: net.HardwareAddr("00:00:5e:00:53:01"),
 	}
 
@@ -850,7 +850,7 @@ func TestDeleteEndpointStateForInfraDelegatedNIC(t *testing.T) {
 		EndpointID:    deletegatedEndpointID,
 		Data:          make(map[string]interface{}),
 		IfName:        "eth1",
-		NICType:       cns.DelegatedVMNIC,
+		NICType:       cns.NodeNetworkInterfaceFrontendNIC,
 		MacAddress:    net.HardwareAddr(macAddress),
 		HNSEndpointID: deletegatedEndpointID,
 		HNSNetworkID:  networkID,

@@ -113,7 +113,7 @@ func (invoker *MockIpamInvoker) Add(opt IPAMAddConfig) (ipamAddResult IPAMAddRes
 		ipRes = append(ipRes, &network.IPConfig{Address: *ipnet})
 		ipamAddResult.interfaceInfo[string(cns.InfraNIC)] = network.InterfaceInfo{
 			IPConfigs: ipRes,
-			NICType:   cns.DelegatedVMNIC,
+			NICType:   cns.NodeNetworkInterfaceFrontendNIC,
 		}
 	}
 

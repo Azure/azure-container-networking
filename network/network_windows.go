@@ -298,7 +298,7 @@ func (nm *networkManager) configureHcnNetwork(nwInfo *EndpointInfo, extIf *exter
 	}
 
 	// DelegatedNIC flag: hcn.DisableHostPort(1024)
-	if nwInfo.NICType == cns.DelegatedVMNIC {
+	if nwInfo.NICType == cns.NodeNetworkInterfaceFrontendNIC {
 		hcnNetwork.Type = hcn.Transparent
 		hcnNetwork.Flags = hcn.DisableHostPort
 	}
@@ -451,7 +451,7 @@ func (nm *networkManager) newNetworkImpl(nwInfo *EndpointInfo, extIf *externalIn
 
 // DeleteNetworkImpl deletes an existing container network.
 func (nm *networkManager) deleteNetworkImpl(nw *network, nicType cns.NICType) error {
-	if nicType != cns.DelegatedVMNIC && nicType != cns.NodeNetworkInterfaceAccelnetFrontendNIC { //nolint
+	if nicType != cns.NodeNetworkInterfaceFrontendNIC && nicType != cns.NodeNetworkInterfaceAccelnetFrontendNIC { //nolint
 		return nil
 	}
 

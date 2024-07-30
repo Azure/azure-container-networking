@@ -246,7 +246,7 @@ var _ = Describe("Test Endpoint", func() {
 				Data:         make(map[string]interface{}),
 				IfName:       eth0IfName,
 				MasterIfName: "masterIfName",
-				NICType:      cns.DelegatedVMNIC,
+				NICType:      cns.NodeNetworkInterfaceFrontendNIC,
 			}
 			epInfo.Data[VlanIDKey] = 100
 
@@ -335,7 +335,7 @@ var _ = Describe("Test Endpoint", func() {
 			secondaryEpInfo := &EndpointInfo{
 				// When we create the secondary endpoint infos while looping over the interface infos, we pass in the same endpoint id
 				EndpointID: "768e8deb-eth1",
-				NICType:    cns.DelegatedVMNIC,
+				NICType:    cns.NodeNetworkInterfaceFrontendNIC,
 				Routes:     []RouteInfo{{Dst: *ipnet}},
 			}
 
@@ -413,7 +413,7 @@ var _ = Describe("Test Endpoint", func() {
 					},
 					{
 						ContainerID: "0ea7476f26d192f067abdc8b3df43ce3cdbe324386e1c010cb48de87eefef480",
-						NICType:     cns.DelegatedVMNIC,
+						NICType:     cns.NodeNetworkInterfaceFrontendNIC,
 					},
 				}
 				Expect(validateEndpoints(eps)).To(BeNil())
@@ -428,7 +428,7 @@ var _ = Describe("Test Endpoint", func() {
 					},
 					{
 						ContainerID: "0ea7476f26d192f067abdc8b3df43ce3cdbe324386e1c010cb48de87eefef481",
-						NICType:     cns.DelegatedVMNIC,
+						NICType:     cns.NodeNetworkInterfaceFrontendNIC,
 					},
 				}
 				Expect(validateEndpoints(eps)).ToNot(BeNil())
@@ -443,7 +443,7 @@ var _ = Describe("Test Endpoint", func() {
 					},
 					{
 						ContainerID: "",
-						NICType:     cns.DelegatedVMNIC,
+						NICType:     cns.NodeNetworkInterfaceFrontendNIC,
 					},
 				}
 				Expect(validateEndpoints(eps)).ToNot(BeNil())

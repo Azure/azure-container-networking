@@ -1227,14 +1227,14 @@ func TestPluginSwiftV2Add(t *testing.T) {
 			},
 			args:       args,
 			wantErr:    true,
-			wantErrMsg: "IPAM Invoker Add failed with error: failed to add ipam invoker: delegatedVMNIC fail",
+			wantErrMsg: "IPAM Invoker Add failed with error: failed to add ipam invoker: NodeNetworkInterfaceFrontendNIC fail",
 		},
 		{
-			name: "SwiftV2 EndpointClient Add fail with delegatedVMNIC",
+			name: "SwiftV2 EndpointClient Add fail with NodeNetworkInterfaceFrontendNIC",
 			plugin: &NetPlugin{
 				Plugin: plugin,
 				nm: acnnetwork.NewMockNetworkmanager(acnnetwork.NewMockEndpointClient(func(ep *acnnetwork.EndpointInfo) error {
-					if ep.NICType == cns.DelegatedVMNIC {
+					if ep.NICType == cns.NodeNetworkInterfaceFrontendNIC {
 						return acnnetwork.NewErrorMockEndpointClient("AddEndpoints Delegated VM NIC failed") //nolint:wrapcheck // ignore wrapping for test
 					}
 
@@ -1393,7 +1393,7 @@ func TestPluginSwiftV2MultipleAddDelete(t *testing.T) {
 				nm:     acnnetwork.NewMockNetworkmanager(acnnetwork.NewMockEndpointClient(nil)),
 				ipamInvoker: NewCustomMockIpamInvoker(map[string]acnnetwork.InterfaceInfo{
 					"eth0-1": {
-						NICType: cns.DelegatedVMNIC,
+						NICType: cns.NodeNetworkInterfaceFrontendNIC,
 					},
 					"eth0": {
 						NICType: cns.InfraNIC,
@@ -1421,7 +1421,7 @@ func TestPluginSwiftV2MultipleAddDelete(t *testing.T) {
 						NICType: cns.NodeNetworkInterfaceAccelnetFrontendNIC,
 					},
 					"eth0": {
-						NICType: cns.DelegatedVMNIC,
+						NICType: cns.NodeNetworkInterfaceFrontendNIC,
 					},
 				}),
 				report: &telemetry.CNIReport{},
@@ -1446,7 +1446,7 @@ func TestPluginSwiftV2MultipleAddDelete(t *testing.T) {
 						NICType: cns.NodeNetworkInterfaceAccelnetFrontendNIC,
 					},
 					"eth0-1": {
-						NICType: cns.DelegatedVMNIC,
+						NICType: cns.NodeNetworkInterfaceFrontendNIC,
 					},
 					"eth0": {
 						NICType: cns.InfraNIC,
@@ -1496,10 +1496,10 @@ func TestPluginSwiftV2MultipleAddDelete(t *testing.T) {
 				nm:     acnnetwork.NewMockNetworkmanager(acnnetwork.NewMockEndpointClient(nil)),
 				ipamInvoker: NewCustomMockIpamInvoker(map[string]acnnetwork.InterfaceInfo{
 					"eth0": {
-						NICType: cns.DelegatedVMNIC,
+						NICType: cns.NodeNetworkInterfaceFrontendNIC,
 					},
 					"eth0-1": {
-						NICType: cns.DelegatedVMNIC,
+						NICType: cns.NodeNetworkInterfaceFrontendNIC,
 					},
 				}),
 				report: &telemetry.CNIReport{},
@@ -1546,7 +1546,7 @@ func TestPluginSwiftV2MultipleAddDelete(t *testing.T) {
 			plugin: &NetPlugin{
 				Plugin: plugin,
 				nm: acnnetwork.NewMockNetworkmanager(acnnetwork.NewMockEndpointClient(func(ep *acnnetwork.EndpointInfo) error {
-					if ep.NICType == cns.DelegatedVMNIC {
+					if ep.NICType == cns.NodeNetworkInterfaceFrontendNIC {
 						return acnnetwork.NewErrorMockEndpointClient("AddEndpoints Delegated VM NIC failed") //nolint:wrapcheck // ignore wrapping for test
 					}
 
@@ -1557,7 +1557,7 @@ func TestPluginSwiftV2MultipleAddDelete(t *testing.T) {
 						NICType: cns.InfraNIC,
 					},
 					"eth0-1": {
-						NICType: cns.DelegatedVMNIC,
+						NICType: cns.NodeNetworkInterfaceFrontendNIC,
 					},
 				}),
 				report: &telemetry.CNIReport{},
@@ -1586,7 +1586,7 @@ func TestPluginSwiftV2MultipleAddDelete(t *testing.T) {
 				})),
 				ipamInvoker: NewCustomMockIpamInvoker(map[string]acnnetwork.InterfaceInfo{
 					"eth0": {
-						NICType: cns.DelegatedVMNIC,
+						NICType: cns.NodeNetworkInterfaceFrontendNIC,
 					},
 					"eth0-1": {
 						NICType: cns.NodeNetworkInterfaceAccelnetFrontendNIC,

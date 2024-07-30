@@ -452,7 +452,7 @@ func TestNewAndDeleteNetworkImplHnsV2ForDelegated(t *testing.T) {
 		NetworkID:    "d3e97a83-ba4c-45d5-ba88-dc56757ece28",
 		MasterIfName: "eth0",
 		Mode:         "bridge",
-		NICType:      cns.DelegatedVMNIC,
+		NICType:      cns.NodeNetworkInterfaceFrontendNIC,
 		MacAddress:   net.HardwareAddr("12:34:56:78:9a:bc"),
 	}
 
@@ -467,7 +467,7 @@ func TestNewAndDeleteNetworkImplHnsV2ForDelegated(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err = nm.deleteNetworkImpl(network, cns.DelegatedVMNIC)
+	err = nm.deleteNetworkImpl(network, cns.NodeNetworkInterfaceFrontendNIC)
 
 	if err != nil {
 		fmt.Printf("+%v", err)
@@ -572,7 +572,7 @@ func TestTransparentNetworkCreationForDelegated(t *testing.T) {
 		NetworkID:    "d3e97a83-ba4c-45d5-ba88-dc56757ece28",
 		MasterIfName: "eth0",
 		Mode:         "bridge",
-		NICType:      cns.DelegatedVMNIC,
+		NICType:      cns.NodeNetworkInterfaceFrontendNIC,
 	}
 
 	extInterface := &externalInterface{

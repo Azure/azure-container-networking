@@ -683,7 +683,7 @@ func TestGetNetworkNameSwiftv2FromCNS(t *testing.T) {
 			interfaceInfo: &network.InterfaceInfo{
 				Name:       "swiftv2L1VHDelegatedInterface",
 				MacAddress: parsedMacAddress,
-				NICType:    cns.DelegatedVMNIC,
+				NICType:    cns.NodeNetworkInterfaceFrontendNIC,
 			},
 			want:    parsedMacAddress,
 			wantErr: false,

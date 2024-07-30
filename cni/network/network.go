@@ -683,7 +683,7 @@ func (plugin *NetPlugin) findMasterInterface(opt *createEpInfoOpt) string {
 	switch opt.ifInfo.NICType {
 	case cns.InfraNIC:
 		return plugin.findMasterInterfaceBySubnet(opt.ipamAddConfig.nwCfg, &opt.ifInfo.HostSubnetPrefix)
-	case cns.DelegatedVMNIC, cns.NodeNetworkInterfaceAccelnetFrontendNIC:
+	case cns.NodeNetworkInterfaceFrontendNIC, cns.NodeNetworkInterfaceAccelnetFrontendNIC:
 		return plugin.findInterfaceByMAC(opt.ifInfo.MacAddress.String())
 	case cns.BackendNIC: // TODO: how to find interface with IB NIC by mac address
 		opt.ifInfo.Name = ibInterfacePrefix + strconv.Itoa(opt.endpointIndex)
