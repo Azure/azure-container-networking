@@ -20,7 +20,7 @@ const (
 var (
 	errV4             = errors.New("v4 fail")
 	errV6             = errors.New("v6 Fail")
-	errDelegatedVMNIC = errors.New("delegatedVMNIC fail")
+	errDelegatedVMNIC = errors.New("NodeNetworkInterfaceFrontendNIC fail")
 	errDeleteIpam     = errors.New("delete fail")
 	errAccelnetVMNIC  = errors.New("accelnetNIC fail")
 )
