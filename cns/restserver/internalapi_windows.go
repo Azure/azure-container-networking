@@ -37,7 +37,6 @@ func (service *HTTPRestService) setVFForAccelnetNICs() error {
 
 // getPrimaryNICMacAddress fetches the MAC address of the primary NIC on the node.
 func (service *HTTPRestService) getPrimaryNICMACAddress() (string, error) {
-
 	// Create a new context and add a timeout to it
 	ctx, cancel := context.WithTimeout(context.Background(), pwshTimeout)
 	defer cancel() // The cancel should be deferred so resources are cleaned up
