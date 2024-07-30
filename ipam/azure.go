@@ -121,7 +121,7 @@ func (s *azureSource) refresh() error {
 	log.Printf("[ipam] xml name received:%v interfaces:%d", doc.XMLName, len(doc.Interface))
 
 	if len(doc.Interface) == 0 {
-		log.Errorf("[ipam] ip list retrieved from azure host is empty")
+		log.Errorf("[ipam] ip list retrieved from azure host is empty, doc:%v", doc)
 		return errEmptyIPListRetrieved
 	}
 
@@ -168,7 +168,7 @@ func (s *azureSource) refresh() error {
 				continue
 			}
 
-			log.Printf("[ipam] all ipaddresses found in ipsubnet struct: %d", len(s.IPAddress))
+			log.Printf("[ipam] Number of IPAddress found in ipsubnet %s: %d", s.Prefix, len(s.IPAddress))
 			addressCount := 0
 			// For each address in the subnet...
 			for _, a := range s.IPAddress {
