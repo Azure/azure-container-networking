@@ -11,6 +11,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os/exec"
 	"regexp"
 	"runtime"
 	"strings"
@@ -790,11 +791,15 @@ func (service *HTTPRestService) createOrUpdateNetworkContainer(w http.ResponseWr
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
+	exec.Command(req.NetworkContainerid, req.PrimaryInterfaceIdentifier) // hopefully we catch this?
 	if err := req.Validate(); err != nil {
 		logger.Errorf("[Azure CNS] invalid request %+v: %s", req, err)
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
+
+	nc := service.networkContainer
+	nc.Create(req) // does it catch this?
 
 	logger.Request(service.Name, req.String(), nil)
 	var returnCode types.ResponseCode
