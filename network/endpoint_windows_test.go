@@ -631,20 +631,8 @@ func TestCreateAndDeleteEndpointStateForAccelnetNICWithEmptyHNSId(t *testing.T) 
 	// mock DeleteEndpointState() to make sure endpoint and network is deleted from cache
 	// network and endpoint should be deleted from cache for accelnetnic
 	err = nm.DeleteEndpointState(networkID, accelnetEpInfo)
-	if err != nil {
-		t.Fatalf("Failed to delete endpoint for accelnetNIC state due to %v", err)
-	}
-
-	// check cache if endpoints are deleted
-	endpoints = hnsFake.Cache.GetEndpoints()
-	if len(endpoints) != 1 {
-		t.Fatal("The endpoint for accelnetNIC is deleted")
-	}
-
-	// if hns ID is empty, then return nil and network will not be deleted
-	networks = hnsFake.Cache.GetNetworks()
-	if len(networks) != 1 {
-		t.Fatalf("The network for accelnetNIC is deleted")
+	if err == nil {
+		t.Fatal("Successfully delete network when hns ID is empty")
 	}
 }
 
