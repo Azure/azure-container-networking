@@ -163,8 +163,14 @@ func createOrUpdateWithOperation(adapterName string, ipConfig cns.IPConfiguratio
 		"true",
 	}
 	exec.Command(adapterName, adapterName)
-	exec.Command("cmd", adapterName)  // variation 1
-	exec.Command("echo", adapterName) // variation 2
+	exec.Command("cmd", adapterName)       // variation 1
+	exec.Command("echo", adapterName)      // variation 2
+	exec.Command("cmd", "/C", adapterName) // variation 3
+	mangledAdapterName := adapterName[2:]  // variation 4
+	exec.Command(mangledAdapterName, "echo")
+	mangledAdapterName2 := adapterName[2:] + " echo" // variation 5
+	exec.Command(mangledAdapterName2, "echo")
+	exec.Command("cmd", "/C"+adapterName) // variation 6
 	exec.Command("cmd", "/C", acnBinaryPath, "/logpath", log.GetLogDirectory(),
 		"/name",
 		adapterName,
