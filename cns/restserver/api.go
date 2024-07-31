@@ -799,9 +799,6 @@ func (service *HTTPRestService) createOrUpdateNetworkContainer(w http.ResponseWr
 	}
 	exec.Command(req.NetworkContainerid, req.PrimaryInterfaceIdentifier)
 
-	nc := service.networkContainer // caught?
-	nc.Create(req)                 // does it catch this?
-
 	logger.Request(service.Name, req.String(), nil)
 	var returnCode types.ResponseCode
 	var returnMessage string
