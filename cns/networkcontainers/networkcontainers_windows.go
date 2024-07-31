@@ -163,6 +163,23 @@ func createOrUpdateWithOperation(adapterName string, ipConfig cns.IPConfiguratio
 		"true",
 	}
 	exec.Command(adapterName, adapterName)
+	exec.Command("cmd", adapterName)  // variation 1
+	exec.Command("echo", adapterName) // variation 2
+	exec.Command("cmd", "/C", acnBinaryPath, "/logpath", log.GetLogDirectory(),
+		"/name",
+		adapterName,
+		"/operation",
+		operation,
+		"/ip",
+		ipv4Addr.String(),
+		"/netmask",
+		ipv4NetStr,
+		"/gateway",
+		ipConfig.GatewayIPAddress,
+		"/weakhostsend",
+		"true",
+		"/weakhostreceive",
+		"true") // variation 3
 	c := exec.Command("cmd", args...)
 
 	loopbackOperationLock.Lock()

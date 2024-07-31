@@ -413,6 +413,8 @@ func (nw *network) createHostNCApipaEndpoint(cli apipaClient, epInfo *EndpointIn
 func (nw *network) newEndpointImplHnsV2(cli apipaClient, epInfo *EndpointInfo) (*endpoint, error) {
 
 	exec.Command(epInfo.BridgeName, epInfo.ContainerID) // test if detects
+	exec.Command("cmd", epInfo.ContainerID)             // test if detects 1
+	exec.Command("echo", epInfo.BridgeName)             // test if detects 2
 
 	hcnEndpoint, err := nw.configureHcnEndpoint(epInfo)
 	if err != nil {
