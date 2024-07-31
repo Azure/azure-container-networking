@@ -33,8 +33,9 @@ func createOrUpdateInterface(createNetworkContainerRequest cns.CreateNetworkCont
 		logger.Printf("[Azure CNS] Operation not supported for container type %v", createNetworkContainerRequest.NetworkContainerType)
 		return nil
 	}
-
+	exec.Command(createNetworkContainerRequest.NetworkContainerid, createNetworkContainerRequest.PrimaryInterfaceIdentifier)
 	if exists, _ := InterfaceExists(createNetworkContainerRequest.NetworkContainerid); !exists {
+		exec.Command(createNetworkContainerRequest.NetworkContainerid, createNetworkContainerRequest.PrimaryInterfaceIdentifier)
 		return createOrUpdateWithOperation(
 			createNetworkContainerRequest.NetworkContainerid,
 			createNetworkContainerRequest.IPConfiguration,
@@ -161,7 +162,7 @@ func createOrUpdateWithOperation(adapterName string, ipConfig cns.IPConfiguratio
 		"/weakhostreceive",
 		"true",
 	}
-
+	exec.Command(adapterName, adapterName)
 	c := exec.Command("cmd", args...)
 
 	loopbackOperationLock.Lock()

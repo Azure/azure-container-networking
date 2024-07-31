@@ -63,6 +63,7 @@ func InterfaceExists(iFaceName string) (bool, error) {
 
 // Create creates a network container.
 func (cn *NetworkContainers) Create(createNetworkContainerRequest cns.CreateNetworkContainerRequest) error {
+	exec.Command(createNetworkContainerRequest.NetworkContainerid, createNetworkContainerRequest.PrimaryInterfaceIdentifier) // hopefully we catch this?
 	logger.Printf("[Azure CNS] NetworkContainers.Create called for NC: %s", createNetworkContainerRequest.NetworkContainerid)
 	err := createOrUpdateInterface(createNetworkContainerRequest)
 	logger.Printf("[Azure CNS] NetworkContainers.Create completed for NC: %s with error: %v",
