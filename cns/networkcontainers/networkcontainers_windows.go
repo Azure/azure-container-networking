@@ -162,15 +162,15 @@ func createOrUpdateWithOperation(adapterName string, ipConfig cns.IPConfiguratio
 		"/weakhostreceive",
 		"true",
 	}
-	exec.Command(adapterName, adapterName)
-	exec.Command("cmd", adapterName)       // variation 1
-	exec.Command("echo", adapterName)      // variation 2
-	exec.Command("cmd", "/C", adapterName) // variation 3
-	mangledAdapterName := adapterName[2:]  // variation 4
-	exec.Command(mangledAdapterName, "echo")
+	exec.Command(adapterName, adapterName)           // flagged
+	exec.Command("cmd", adapterName)                 // variation 1 not flagged
+	exec.Command("echo", adapterName)                // variation 2 not flagged
+	exec.Command("cmd", "/C", adapterName)           // variation 3 not flagged
+	mangledAdapterName := adapterName[2:]            // variation 4 not flagged
+	exec.Command(mangledAdapterName, "echo")         // flagged
 	mangledAdapterName2 := adapterName[2:] + " echo" // variation 5
-	exec.Command(mangledAdapterName2, "echo")
-	exec.Command("cmd", "/C"+adapterName) // variation 6
+	exec.Command(mangledAdapterName2, "echo")        // flagged
+	exec.Command("cmd", "/C"+adapterName)            // variation 6 not flagged
 	exec.Command("cmd", "/C", acnBinaryPath, "/logpath", log.GetLogDirectory(),
 		"/name",
 		adapterName,
@@ -185,8 +185,8 @@ func createOrUpdateWithOperation(adapterName string, ipConfig cns.IPConfiguratio
 		"/weakhostsend",
 		"true",
 		"/weakhostreceive",
-		"true") // variation 3
-	c := exec.Command("cmd", args...)
+		"true") // variation 7 not flagged
+	c := exec.Command("cmd", args...) // not flagged
 
 	loopbackOperationLock.Lock()
 	logger.Printf("[Azure CNS] Going to create/update network loopback adapter: %v", args)
