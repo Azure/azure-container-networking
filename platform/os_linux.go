@@ -56,7 +56,7 @@ func GetOSInfo() string {
 func GetProcessSupport() error {
 	p := NewExecClient(nil)
 	cmd := fmt.Sprintf("ps -p %v -o comm=", os.Getpid())
-	_, err := p.ExecuteCommand(cmd)
+	_, err := p.ExecuteRawCommand(cmd)
 	return err
 }
 
@@ -88,7 +88,7 @@ func (p *execClient) GetLastRebootTime() (time.Time, error) {
 	return rebootTime.UTC(), nil
 }
 
-func (p *execClient) ExecuteCommand(command string) (string, error) {
+func (p *execClient) ExecuteRawCommand(command string) (string, error) {
 	if p.logger != nil {
 		p.logger.Info("[Azure-Utils]", zap.String("command", command))
 	} else {
@@ -118,7 +118,7 @@ func SetOutboundSNAT(subnet string) error {
 	p := NewExecClient(nil)
 	cmd := fmt.Sprintf("iptables -t nat -A POSTROUTING -m iprange ! --dst-range 168.63.129.16 -m addrtype ! --dst-type local ! -d %v -j MASQUERADE",
 		subnet)
-	_, err := p.ExecuteCommand(cmd)
+	_, err := p.ExecuteRawCommand(cmd)
 	if err != nil {
 		log.Printf("SNAT Iptable rule was not set")
 		return err
@@ -142,7 +142,7 @@ func (p *execClient) ExecutePowershellCommandWithContext(_ context.Context, _ st
 
 func (p *execClient) KillProcessByName(processName string) error {
 	cmd := fmt.Sprintf("pkill -f %v", processName)
-	_, err := p.ExecuteCommand(cmd)
+	_, err := p.ExecuteRawCommand(cmd)
 	return err
 }
 
@@ -174,7 +174,7 @@ func GetProcessNameByID(pidstr string) (string, error) {
 	p := NewExecClient(nil)
 	pidstr = strings.Trim(pidstr, "\n")
 	cmd := fmt.Sprintf("ps -p %s -o comm=", pidstr)
-	out, err := p.ExecuteCommand(cmd)
+	out, err := p.ExecuteRawCommand(cmd)
 	if err != nil {
 		log.Printf("GetProcessNameByID returned error: %v", err)
 		return "", err
@@ -188,7 +188,7 @@ func GetProcessNameByID(pidstr string) (string, error) {
 
 func PrintDependencyPackageDetails() {
 	p := NewExecClient(nil)
-	out, err := p.ExecuteCommand("iptables --version")
+	out, err := p.ExecuteRawCommand("iptables --version")
 	out = strings.TrimSuffix(out, "\n")
 	log.Printf("[cni-net] iptable version:%s, err:%v", out, err)
 }

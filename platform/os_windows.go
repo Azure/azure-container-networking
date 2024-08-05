@@ -128,11 +128,11 @@ func (p *execClient) GetLastRebootTime() (time.Time, error) {
 	return rebootTime.UTC(), nil
 }
 
-func (p *execClient) ExecuteCommand(command string) (string, error) {
+func (p *execClient) ExecuteRawCommand(command string) (string, error) {
 	if p.logger != nil {
-		p.logger.Info("[Azure-Utils]", zap.String("ExecuteCommand", command))
+		p.logger.Info("[Azure-Utils]", zap.String("ExecuteRawCommand", command))
 	} else {
-		log.Printf("[Azure-Utils] ExecuteCommand: %q", command)
+		log.Printf("[Azure-Utils] ExecuteRawCommand: %q", command)
 	}
 
 	var stderr, stdout bytes.Buffer
@@ -142,7 +142,7 @@ func (p *execClient) ExecuteCommand(command string) (string, error) {
 	cmd.Stdout = &stdout
 
 	if err := cmd.Run(); err != nil {
-		return "", errors.Wrapf(err, "ExecuteCommand failed. stdout: %q, stderr: %q", stdout.String(), stderr.String())
+		return "", errors.Wrapf(err, "ExecuteRawCommand failed. stdout: %q, stderr: %q", stdout.String(), stderr.String())
 	}
 
 	return stdout.String(), nil
@@ -169,7 +169,7 @@ func (p *execClient) ClearNetworkConfiguration() (bool, error) {
 
 func (p *execClient) KillProcessByName(processName string) error {
 	cmd := fmt.Sprintf("taskkill /IM %v /F", processName)
-	_, err := p.ExecuteCommand(cmd)
+	_, err := p.ExecuteRawCommand(cmd)
 	return err // nolint
 }
 

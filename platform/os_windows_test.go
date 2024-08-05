@@ -86,14 +86,14 @@ func TestUpdatePriorityVLANTagIfRequiredIfCurrentValNotEqualDesiredValAndSetRetu
 	assert.EqualError(t, result, "error while setting Priority VLAN Tag value: test failure")
 }
 
-func TestExecuteCommand(t *testing.T) {
-	out, err := NewExecClient(nil).ExecuteCommand("dir")
+func TestExecuteRawCommand(t *testing.T) {
+	out, err := NewExecClient(nil).ExecuteRawCommand("dir")
 	require.NoError(t, err)
 	require.NotEmpty(t, out)
 }
 
-func TestExecuteCommandError(t *testing.T) {
-	_, err := NewExecClient(nil).ExecuteCommand("dontaddtopath")
+func TestExecuteRawCommandError(t *testing.T) {
+	_, err := NewExecClient(nil).ExecuteRawCommand("dontaddtopath")
 	require.Error(t, err)
 
 	var xErr *exec.ExitError

@@ -181,7 +181,7 @@ func (c *Client) DeleteNetwork(networkName string) error {
 
 		cmd := fmt.Sprintf("iptables -t nat -D POSTROUTING -m iprange ! --dst-range 168.63.129.16 -m addrtype ! --dst-type local ! -d %v -j MASQUERADE",
 			primaryNic.Subnet)
-		_, err = p.ExecuteCommand(cmd)
+		_, err = p.ExecuteRawCommand(cmd)
 		if err != nil {
 			logger.Printf("[Azure CNS] Error Removing Outbound SNAT rule %v", err)
 		}

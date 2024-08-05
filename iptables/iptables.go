@@ -109,7 +109,7 @@ func (c *Client) RunCmd(version, params string) error {
 		cmd = fmt.Sprintf("%s -w %d %s", iptCmd, lockTimeout, params)
 	}
 
-	if _, err := p.ExecuteCommand(cmd); err != nil {
+	if _, err := p.ExecuteRawCommand(cmd); err != nil {
 		return err
 	}
 

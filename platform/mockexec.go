@@ -26,7 +26,7 @@ func NewMockExecClient(returnErr bool) *MockExecClient {
 	}
 }
 
-func (e *MockExecClient) ExecuteCommand(cmd string) (string, error) {
+func (e *MockExecClient) ExecuteRawCommand(cmd string) (string, error) {
 	if e.setExecCommand != nil {
 		return e.setExecCommand(cmd)
 	}

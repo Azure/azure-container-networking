@@ -214,13 +214,13 @@ func (nm *networkManager) appIPV6RouteEntry(nwInfo *EndpointInfo) error {
 
 		cmd := fmt.Sprintf(routeCmd, "delete", nwInfo.Subnets[1].Prefix.String(),
 			ifName, ipv6DefaultHop)
-		if out, err = nm.plClient.ExecuteCommand(cmd); err != nil {
+		if out, err = nm.plClient.ExecuteRawCommand(cmd); err != nil {
 			logger.Error("Deleting ipv6 route failed", zap.Any("out", out), zap.Error(err))
 		}
 
 		cmd = fmt.Sprintf(routeCmd, "add", nwInfo.Subnets[1].Prefix.String(),
 			ifName, ipv6DefaultHop)
-		if out, err = nm.plClient.ExecuteCommand(cmd); err != nil {
+		if out, err = nm.plClient.ExecuteRawCommand(cmd); err != nil {
 			logger.Error("Adding ipv6 route failed", zap.Any("out", out), zap.Error(err))
 		}
 	}

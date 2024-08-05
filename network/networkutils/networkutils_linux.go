@@ -209,7 +209,7 @@ func (nu NetworkUtils) BlockIPAddresses(iptablesClient ipTablesClient, bridgeNam
 }
 
 func (nu NetworkUtils) EnableIPV4Forwarding() error {
-	_, err := nu.plClient.ExecuteCommand(enableIPV4ForwardCmd)
+	_, err := nu.plClient.ExecuteRawCommand(enableIPV4ForwardCmd)
 	if err != nil {
 		logger.Error("Enable ipv4 forwarding failed with", zap.Error(err))
 		return errors.Wrap(err, "enable ipv4 forwarding failed")
@@ -220,7 +220,7 @@ func (nu NetworkUtils) EnableIPV4Forwarding() error {
 
 func (nu NetworkUtils) EnableIPV6Forwarding() error {
 	cmd := fmt.Sprint(enableIPV6ForwardCmd)
-	_, err := nu.plClient.ExecuteCommand(cmd)
+	_, err := nu.plClient.ExecuteRawCommand(cmd)
 	if err != nil {
 		logger.Error("Enable ipv6 forwarding failed with", zap.Error(err))
 		return err
@@ -233,7 +233,7 @@ func (nu NetworkUtils) EnableIPV6Forwarding() error {
 func (nu NetworkUtils) UpdateIPV6Setting(disable int) error {
 	// sysctl -w net.ipv6.conf.all.disable_ipv6=0/1
 	cmd := fmt.Sprintf(toggleIPV6Cmd, disable)
-	_, err := nu.plClient.ExecuteCommand(cmd)
+	_, err := nu.plClient.ExecuteRawCommand(cmd)
 	if err != nil {
 		logger.Error("Update IPV6 Setting failed with", zap.Error(err))
 	}
@@ -261,7 +261,7 @@ func (nu NetworkUtils) DisableRAForInterface(ifName string) error {
 	}
 
 	cmd := fmt.Sprintf(disableRACmd, ifName)
-	out, err := nu.plClient.ExecuteCommand(cmd)
+	out, err := nu.plClient.ExecuteRawCommand(cmd)
 	if err != nil {
 		logger.Error("Diabling ra failed with", zap.Error(err), zap.Any("out", out))
 	}
@@ -271,7 +271,7 @@ func (nu NetworkUtils) DisableRAForInterface(ifName string) error {
 
 func (nu NetworkUtils) SetProxyArp(ifName string) error {
 	cmd := fmt.Sprintf("echo 1 > /proc/sys/net/ipv4/conf/%v/proxy_arp", ifName)
-	_, err := nu.plClient.ExecuteCommand(cmd)
+	_, err := nu.plClient.ExecuteRawCommand(cmd)
 	return errors.Wrapf(err, "failed to set proxy arp for interface %v", ifName)
 }
 

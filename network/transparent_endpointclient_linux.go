@@ -73,7 +73,7 @@ func NewTransparentEndpointClient(
 
 func (client *TransparentEndpointClient) setArpProxy(ifName string) error {
 	cmd := fmt.Sprintf("echo 1 > /proc/sys/net/ipv4/conf/%v/proxy_arp", ifName)
-	_, err := client.plClient.ExecuteCommand(cmd)
+	_, err := client.plClient.ExecuteRawCommand(cmd)
 	return err
 }
 

@@ -256,7 +256,7 @@ func isGreaterOrEqaulUbuntuVersion(versionToMatch int) bool {
 }
 
 func (nm *networkManager) systemVersion() (string, error) {
-	osVersion, err := nm.plClient.ExecuteCommand("lsb_release -rs")
+	osVersion, err := nm.plClient.ExecuteRawCommand("lsb_release -rs")
 	if err != nil {
 		return osVersion, errors.Wrap(err, "error retrieving the system distribution version")
 	}
@@ -327,7 +327,7 @@ func (nm *networkManager) readDNSInfo(ifName string) (DNSInfo, error) {
 		return dnsInfo, errors.Wrap(err, "Error generating interface name status cmd")
 	}
 
-	out, err := nm.plClient.ExecuteCommand(cmd)
+	out, err := nm.plClient.ExecuteRawCommand(cmd)
 	if err != nil {
 		return dnsInfo, errors.Wrapf(err, "Error executing interface status with cmd %s", cmd)
 	}
@@ -434,7 +434,7 @@ func (nm *networkManager) applyDNSConfig(extIf *externalInterface, ifName string
 				return errors.Wrap(err, "Error generating add DNS Servers cmd")
 			}
 			if cmd != "" {
-				_, err = nm.plClient.ExecuteCommand(cmd)
+				_, err = nm.plClient.ExecuteRawCommand(cmd)
 				if err != nil {
 					return errors.Wrapf(err, "Error executing add DNS Servers with cmd %s", cmd)
 				}
@@ -447,7 +447,7 @@ func (nm *networkManager) applyDNSConfig(extIf *externalInterface, ifName string
 				return errors.Wrap(err, "Error generating add domain cmd")
 			}
 
-			_, err = nm.plClient.ExecuteCommand(cmd)
+			_, err = nm.plClient.ExecuteRawCommand(cmd)
 			if err != nil {
 				return errors.Wrapf(err, "Error executing add Domain with cmd %s", cmd)
 			}
@@ -533,7 +533,7 @@ func (nm *networkManager) connectExternalInterface(extIf *externalInterface, nwI
 	isSystemdResolvedActive := false
 	if isGreaterOrEqualUbuntu17 {
 		// Don't copy dns servers if systemd-resolved isn't available
-		if _, cmderr := nm.plClient.ExecuteCommand("systemctl status systemd-resolved"); cmderr == nil {
+		if _, cmderr := nm.plClient.ExecuteRawCommand("systemctl status systemd-resolved"); cmderr == nil {
 			isSystemdResolvedActive = true
 			logger.Info("Saving dns config from", zap.String("Name", hostIf.Name))
 			if err = nm.saveDNSConfig(extIf); err != nil {

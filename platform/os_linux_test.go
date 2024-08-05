@@ -5,25 +5,25 @@ import (
 	"time"
 )
 
-// Command execution time is more than timeout, so ExecuteCommand should return error
-func TestExecuteCommandTimeout(t *testing.T) {
+// Command execution time is more than timeout, so ExecuteRawCommand should return error
+func TestExecuteRawCommandTimeout(t *testing.T) {
 	const timeout = 2 * time.Second
 	client := NewExecClientTimeout(timeout)
 
-	_, err := client.ExecuteCommand("sleep 3")
+	_, err := client.ExecuteRawCommand("sleep 3")
 	if err == nil {
-		t.Errorf("TestExecuteCommandTimeout should have returned timeout error")
+		t.Errorf("TestExecuteRawCommandTimeout should have returned timeout error")
 	}
 	t.Logf("%s", err.Error())
 }
 
-// Command execution time is less than timeout, so ExecuteCommand should work without error
-func TestExecuteCommandNoTimeout(t *testing.T) {
+// Command execution time is less than timeout, so ExecuteRawCommand should work without error
+func TestExecuteRawCommandNoTimeout(t *testing.T) {
 	const timeout = 2 * time.Second
 	client := NewExecClientTimeout(timeout)
 
-	_, err := client.ExecuteCommand("sleep 1")
+	_, err := client.ExecuteRawCommand("sleep 1")
 	if err != nil {
-		t.Errorf("TestExecuteCommandNoTimeout failed with error %v", err)
+		t.Errorf("TestExecuteRawCommandNoTimeout failed with error %v", err)
 	}
 }
