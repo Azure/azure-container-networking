@@ -128,6 +128,7 @@ func (p *execClient) GetLastRebootTime() (time.Time, error) {
 	return rebootTime.UTC(), nil
 }
 
+// note: it is recommended to use ExecuteCommand when possible
 func (p *execClient) ExecuteRawCommand(command string) (string, error) {
 	if p.logger != nil {
 		p.logger.Info("[Azure-Utils]", zap.String("ExecuteRawCommand", command))
@@ -221,6 +222,7 @@ func (p *execClient) ExecutePowershellCommand(command string) (string, error) {
 }
 
 // ExecutePowershellCommandWithContext executes powershell command wth context
+// note: it is recommended to use ExecuteCommand when possible
 func (p *execClient) ExecutePowershellCommandWithContext(ctx context.Context, command string) (string, error) {
 	ps, err := exec.LookPath("powershell.exe")
 	if err != nil {

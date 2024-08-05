@@ -101,6 +101,19 @@ func TestExecuteRawCommandError(t *testing.T) {
 	assert.Equal(t, 1, xErr.ExitCode())
 }
 
+func TestExecuteCommand(t *testing.T) {
+	_, err := NewExecClient(nil).ExecuteCommand("ping", "localhost")
+	if err != nil {
+		t.Errorf("TestExecuteCommand failed with error %v", err)
+	}
+}
+
+func TestExecuteCommandError(t *testing.T) {
+	_, err := NewExecClient(nil).ExecuteCommand("dontaddtopath")
+	require.Error(t, err)
+	require.ErrorIs(t, err, exec.ErrNotFound)
+}
+
 func TestSetSdnRemoteArpMacAddress_hnsNotEnabled(t *testing.T) {
 	mockExecClient := NewMockExecClient(false)
 	// testing skip setting SdnRemoteArpMacAddress when hns not enabled

@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/Azure/azure-container-networking/log"
+	"github.com/pkg/errors"
 	"go.uber.org/zap"
 )
 
@@ -88,6 +89,7 @@ func (p *execClient) GetLastRebootTime() (time.Time, error) {
 	return rebootTime.UTC(), nil
 }
 
+// note: it is recommended to use ExecuteCommand when possible
 func (p *execClient) ExecuteRawCommand(command string) (string, error) {
 	if p.logger != nil {
 		p.logger.Info("[Azure-Utils]", zap.String("command", command))
@@ -134,7 +136,7 @@ func (p *execClient) ExecuteCommand(command string, args ...string) (string, err
 
 	err := cmd.Run()
 	if err != nil {
-		return "", fmt.Errorf("%s:%s", err.Error(), stderr.String())
+		return "", errors.Wrapf(err, "%s:%s", err.Error(), stderr.String())
 	}
 
 	return out.String(), nil
@@ -158,10 +160,12 @@ func (p *execClient) ClearNetworkConfiguration() (bool, error) {
 	return false, nil
 }
 
+// not supported on linux
 func (p *execClient) ExecutePowershellCommand(_ string) (string, error) {
 	return "", nil
 }
 
+// not supported on linux
 func (p *execClient) ExecutePowershellCommandWithContext(_ context.Context, _ string) (string, error) {
 	return "", nil
 }

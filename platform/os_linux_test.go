@@ -1,6 +1,9 @@
 package platform
 
 import (
+	"errors"
+	"os/exec"
+	"strings"
 	"testing"
 	"time"
 )
@@ -25,5 +28,22 @@ func TestExecuteRawCommandNoTimeout(t *testing.T) {
 	_, err := client.ExecuteRawCommand("sleep 1")
 	if err != nil {
 		t.Errorf("TestExecuteRawCommandNoTimeout failed with error %v", err)
+	}
+}
+
+func TestExecuteCommand(t *testing.T) {
+	output, err := NewExecClient(nil).ExecuteCommand("echo", "/B && echo two")
+	if err != nil {
+		t.Errorf("TestExecuteCommand failed with error %v", err)
+	}
+	if strings.TrimRight(output, "\n\r") != "/B && echo two" {
+		t.Errorf("TestExecuteCommand failed with output %s", output)
+	}
+}
+
+func TestExecuteCommandError(t *testing.T) {
+	_, err := NewExecClient(nil).ExecuteCommand("donotaddtopath")
+	if !errors.Is(err, exec.ErrNotFound) {
+		t.Errorf("TestExecuteCommand failed with error %v", err)
 	}
 }
