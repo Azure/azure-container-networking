@@ -114,6 +114,32 @@ func (p *execClient) ExecuteRawCommand(command string) (string, error) {
 	return out.String(), nil
 }
 
+func (p *execClient) ExecuteCommand(command string, args ...string) (string, error) {
+	if p.logger != nil {
+		p.logger.Info("[Azure-Utils]", zap.String("command", command), zap.Strings("args", args))
+	} else {
+		log.Printf("[Azure-Utils] %s %v", command, args)
+	}
+
+	var stderr bytes.Buffer
+	var out bytes.Buffer
+
+	// Create a new context and add a timeout to it
+	ctx, cancel := context.WithTimeout(context.Background(), p.Timeout)
+	defer cancel() // The cancel should be deferred so resources are cleaned up
+
+	cmd := exec.CommandContext(ctx, command, args...)
+	cmd.Stderr = &stderr
+	cmd.Stdout = &out
+
+	err := cmd.Run()
+	if err != nil {
+		return "", fmt.Errorf("%s:%s", err.Error(), stderr.String())
+	}
+
+	return out.String(), nil
+}
+
 func SetOutboundSNAT(subnet string) error {
 	p := NewExecClient(nil)
 	cmd := fmt.Sprintf("iptables -t nat -A POSTROUTING -m iprange ! --dst-range 168.63.129.16 -m addrtype ! --dst-type local ! -d %v -j MASQUERADE",

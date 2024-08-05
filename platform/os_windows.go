@@ -148,6 +148,26 @@ func (p *execClient) ExecuteRawCommand(command string) (string, error) {
 	return stdout.String(), nil
 }
 
+func (p *execClient) ExecuteCommand(command string, args ...string) (string, error) {
+	if p.logger != nil {
+		p.logger.Info("[Azure-Utils]", zap.String("ExecuteCommand", command), zap.Strings("args", args))
+	} else {
+		log.Printf("[Azure-Utils] ExecuteCommand: %q %v", command, args)
+	}
+
+	var stderr, stdout bytes.Buffer
+
+	cmd := exec.Command(command, args...)
+	cmd.Stderr = &stderr
+	cmd.Stdout = &stdout
+
+	if err := cmd.Run(); err != nil {
+		return "", errors.Wrapf(err, "ExecuteCommand failed. stdout: %q, stderr: %q", stdout.String(), stderr.String())
+	}
+
+	return stdout.String(), nil
+}
+
 func SetOutboundSNAT(subnet string) error {
 	return nil
 }
