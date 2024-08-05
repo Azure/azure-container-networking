@@ -69,11 +69,9 @@ steps:
       cd test/integration/load
       ITERATIONS=2 SCALE_UP=${{ parameters.scaleup }} OS_TYPE=${{ parameters.os }} go test -count 1 -timeout 30m -tags load -run ^TestLoad$
       cd ../../..
-      # Remove this once we have cniv1 support for validating the test cluster
-      echo "Validate State skipped for linux cniv1 for now"
-      if [ "${{parameters.os}}" == "windows" ]; then
-        make test-validate-state OS_TYPE=${{ parameters.os }} CNI_TYPE=cniv1
-      fi
+
+      make test-validate-state OS_TYPE=${{ parameters.os }} CNI_TYPE=cniv1
+      
       kubectl delete ns load-test
     displayName: "Validate State"
     retryCountOnTaskFailure: 3
