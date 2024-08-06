@@ -8,7 +8,6 @@ import (
 	"os"
 	"testing"
 
-	"github.com/Azure/azure-container-networking/cnm/ipam"
 	"github.com/Azure/azure-container-networking/common"
 )
 
@@ -26,11 +25,11 @@ func TestMain(m *testing.M) {
 		fmt.Printf("Failed to create agent, err:%v.\n", err)
 		return
 	}
-	ipamAgent.AddHandler(ipam.GetAddressSpacesPath, handleIpamAsIDQuery)
-	ipamAgent.AddHandler(ipam.RequestPoolPath, handlePoolIDQuery)
-	ipamAgent.AddHandler(ipam.RequestAddressPath, handleReserveIPQuery)
-	ipamAgent.AddHandler(ipam.ReleasePoolPath, handleReleaseIPQuery)
-	ipamAgent.AddHandler(ipam.GetPoolInfoPath, handleIPUtilizationQuery)
+	ipamAgent.AddHandler(GetAddressSpacesPath, handleIpamAsIDQuery)
+	ipamAgent.AddHandler(RequestPoolPath, handlePoolIDQuery)
+	ipamAgent.AddHandler(RequestAddressPath, handleReserveIPQuery)
+	ipamAgent.AddHandler(ReleasePoolPath, handleReleaseIPQuery)
+	ipamAgent.AddHandler(GetPoolInfoPath, handleIPUtilizationQuery)
 
 	err = ipamAgent.Start(make(chan error, 1))
 	if err != nil {
