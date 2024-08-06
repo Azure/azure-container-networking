@@ -40,7 +40,7 @@ func (e *MockExecClient) ExecuteRawCommand(cmd string) (string, error) {
 	return "", nil
 }
 
-func (e *MockExecClient) ExecuteCommand(cmd string, args ...string) (string, error) {
+func (e *MockExecClient) ExecuteCommand(_ context.Context, cmd string, args ...string) (string, error) {
 	if e.setExecCommand != nil {
 		return e.setExecCommand(cmd, args...)
 	}

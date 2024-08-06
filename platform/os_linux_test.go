@@ -1,6 +1,7 @@
 package platform
 
 import (
+	"context"
 	"errors"
 	"os/exec"
 	"strings"
@@ -32,7 +33,7 @@ func TestExecuteRawCommandNoTimeout(t *testing.T) {
 }
 
 func TestExecuteCommand(t *testing.T) {
-	output, err := NewExecClient(nil).ExecuteCommand("echo", "/B && echo two")
+	output, err := NewExecClient(nil).ExecuteCommand(context.Background(), "echo", "/B && echo two")
 	if err != nil {
 		t.Errorf("TestExecuteCommand failed with error %v", err)
 	}
@@ -42,7 +43,7 @@ func TestExecuteCommand(t *testing.T) {
 }
 
 func TestExecuteCommandError(t *testing.T) {
-	_, err := NewExecClient(nil).ExecuteCommand("donotaddtopath")
+	_, err := NewExecClient(nil).ExecuteCommand(context.Background(), "donotaddtopath")
 	if !errors.Is(err, exec.ErrNotFound) {
 		t.Errorf("TestExecuteCommand failed with error %v", err)
 	}
@@ -53,7 +54,7 @@ func TestExecuteCommandTimeout(t *testing.T) {
 	const timeout = 2 * time.Second
 	client := NewExecClientTimeout(timeout)
 
-	_, err := client.ExecuteCommand("sleep", "3")
+	_, err := client.ExecuteCommand(context.Background(), "sleep", "3")
 	if err == nil {
 		t.Errorf("TestExecuteCommandTimeout should have returned timeout error")
 	}

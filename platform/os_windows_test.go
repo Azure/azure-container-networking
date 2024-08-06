@@ -103,14 +103,14 @@ func TestExecuteRawCommandError(t *testing.T) {
 }
 
 func TestExecuteCommand(t *testing.T) {
-	_, err := NewExecClient(nil).ExecuteCommand("ping", "localhost")
+	_, err := NewExecClient(nil).ExecuteCommand(context.Background(), "ping", "localhost")
 	if err != nil {
 		t.Errorf("TestExecuteCommand failed with error %v", err)
 	}
 }
 
 func TestExecuteCommandError(t *testing.T) {
-	_, err := NewExecClient(nil).ExecuteCommand("dontaddtopath")
+	_, err := NewExecClient(nil).ExecuteCommand(context.Background(), "dontaddtopath")
 	require.Error(t, err)
 	require.ErrorIs(t, err, exec.ErrNotFound)
 }
@@ -179,6 +179,6 @@ func TestExecuteCommandTimeout(t *testing.T) {
 	const timeout = 5 * time.Second
 	client := NewExecClientTimeout(timeout)
 
-	_, err := client.ExecuteCommand("ping", "-t", "localhost")
+	_, err := client.ExecuteCommand(context.Background(), "ping", "-t", "localhost")
 	require.Error(t, err)
 }

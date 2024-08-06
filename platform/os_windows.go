@@ -150,7 +150,7 @@ func (p *execClient) ExecuteRawCommand(command string) (string, error) {
 }
 
 // ExecuteCommand passes its parameters to an exec.CommandContext, runs the command, and returns its output, or an error if the command fails or times out
-func (p *execClient) ExecuteCommand(command string, args ...string) (string, error) {
+func (p *execClient) ExecuteCommand(ctx context.Context, command string, args ...string) (string, error) {
 	if p.logger != nil {
 		p.logger.Info("[Azure-Utils]", zap.String("ExecuteCommand", command), zap.Strings("args", args))
 	} else {
@@ -160,10 +160,10 @@ func (p *execClient) ExecuteCommand(command string, args ...string) (string, err
 	var stderr, stdout bytes.Buffer
 
 	// Create a new context and add a timeout to it
-	ctx, cancel := context.WithTimeout(context.Background(), p.Timeout)
+	derivedCtx, cancel := context.WithTimeout(ctx, p.Timeout)
 	defer cancel() // The cancel should be deferred so resources are cleaned up
 
-	cmd := exec.CommandContext(ctx, command, args...)
+	cmd := exec.CommandContext(derivedCtx, command, args...)
 	cmd.Stderr = &stderr
 	cmd.Stdout = &stdout
 
