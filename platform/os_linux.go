@@ -89,7 +89,7 @@ func (p *execClient) GetLastRebootTime() (time.Time, error) {
 	return rebootTime.UTC(), nil
 }
 
-// note: it is recommended to use ExecuteCommand when possible
+// Deprecated: ExecuteRawCommand is deprecated, it is recommended to use ExecuteCommand when possible
 func (p *execClient) ExecuteRawCommand(command string) (string, error) {
 	if p.logger != nil {
 		p.logger.Info("[Azure-Utils]", zap.String("command", command))
@@ -116,6 +116,7 @@ func (p *execClient) ExecuteRawCommand(command string) (string, error) {
 	return out.String(), nil
 }
 
+// ExecuteCommand passes its parameters to an exec.CommandContext, runs the command, and returns its output, or an error if the command fails or times out
 func (p *execClient) ExecuteCommand(command string, args ...string) (string, error) {
 	if p.logger != nil {
 		p.logger.Info("[Azure-Utils]", zap.String("command", command), zap.Strings("args", args))

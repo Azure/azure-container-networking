@@ -47,3 +47,15 @@ func TestExecuteCommandError(t *testing.T) {
 		t.Errorf("TestExecuteCommand failed with error %v", err)
 	}
 }
+
+// Command execution time is more than timeout, so ExecuteCommand should return error
+func TestExecuteCommandTimeout(t *testing.T) {
+	const timeout = 2 * time.Second
+	client := NewExecClientTimeout(timeout)
+
+	_, err := client.ExecuteCommand("sleep", "3")
+	if err == nil {
+		t.Errorf("TestExecuteCommandTimeout should have returned timeout error")
+	}
+	t.Logf("%s", err.Error())
+}

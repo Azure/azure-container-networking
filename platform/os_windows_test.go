@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Azure/azure-container-networking/platform/windows/adapter/mocks"
 	"github.com/golang/mock/gomock"
@@ -171,4 +172,13 @@ func TestFetchPnpIDMapping(t *testing.T) {
 
 	vfmapping, _ = FetchMacAddressPnpIDMapping(context.Background(), mockExecClient)
 	require.Len(t, vfmapping, 2)
+}
+
+// ping -t localhost will ping indefinitely and should exceed the 5 second timeout
+func TestExecuteCommandTimeout(t *testing.T) {
+	const timeout = 5 * time.Second
+	client := NewExecClientTimeout(timeout)
+
+	_, err := client.ExecuteCommand("ping", "-t", "localhost")
+	require.Error(t, err)
 }

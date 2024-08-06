@@ -128,7 +128,7 @@ func (p *execClient) GetLastRebootTime() (time.Time, error) {
 	return rebootTime.UTC(), nil
 }
 
-// note: it is recommended to use ExecuteCommand when possible
+// Deprecated: ExecuteRawCommand is deprecated, it is recommended to use ExecuteCommand when possible
 func (p *execClient) ExecuteRawCommand(command string) (string, error) {
 	if p.logger != nil {
 		p.logger.Info("[Azure-Utils]", zap.String("ExecuteRawCommand", command))
@@ -149,6 +149,7 @@ func (p *execClient) ExecuteRawCommand(command string) (string, error) {
 	return stdout.String(), nil
 }
 
+// ExecuteCommand passes its parameters to an exec.CommandContext, runs the command, and returns its output, or an error if the command fails or times out
 func (p *execClient) ExecuteCommand(command string, args ...string) (string, error) {
 	if p.logger != nil {
 		p.logger.Info("[Azure-Utils]", zap.String("ExecuteCommand", command), zap.Strings("args", args))
@@ -158,7 +159,11 @@ func (p *execClient) ExecuteCommand(command string, args ...string) (string, err
 
 	var stderr, stdout bytes.Buffer
 
-	cmd := exec.Command(command, args...)
+	// Create a new context and add a timeout to it
+	ctx, cancel := context.WithTimeout(context.Background(), p.Timeout)
+	defer cancel() // The cancel should be deferred so resources are cleaned up
+
+	cmd := exec.CommandContext(ctx, command, args...)
 	cmd.Stderr = &stderr
 	cmd.Stdout = &stdout
 
@@ -195,6 +200,7 @@ func (p *execClient) KillProcessByName(processName string) error {
 }
 
 // ExecutePowershellCommand executes powershell command
+// Deprecated: ExecutePowershellCommand is deprecated, it is recommended to use ExecuteCommand when possible
 func (p *execClient) ExecutePowershellCommand(command string) (string, error) {
 	ps, err := exec.LookPath("powershell.exe")
 	if err != nil {
@@ -222,7 +228,7 @@ func (p *execClient) ExecutePowershellCommand(command string) (string, error) {
 }
 
 // ExecutePowershellCommandWithContext executes powershell command wth context
-// note: it is recommended to use ExecuteCommand when possible
+// Deprecated: ExecutePowershellCommandWithContext is deprecated, it is recommended to use ExecuteCommand when possible
 func (p *execClient) ExecutePowershellCommandWithContext(ctx context.Context, command string) (string, error) {
 	ps, err := exec.LookPath("powershell.exe")
 	if err != nil {
