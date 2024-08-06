@@ -49,10 +49,6 @@ const (
 	OptIpamQueryInterval      = "ipam-query-interval"
 	OptIpamQueryIntervalAlias = "i"
 
-	// Start CNM
-	OptStartAzureCNM      = "start-azure-cnm"
-	OptStartAzureCNMAlias = "startcnm"
-
 	// Interval to send reports to host
 	OptReportToHostInterval      = "report-interval"
 	OptReportToHostIntervalAlias = "hostinterval"

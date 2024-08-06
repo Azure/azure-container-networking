@@ -211,18 +211,18 @@ var args = acn.ArgumentList{
 		DefaultValue: "",
 	},
 	{
-		Name:         acn.OptStartAzureCNM,
-		Shorthand:    acn.OptStartAzureCNMAlias,
-		Description:  "Start Azure-CNM if flag is set",
-		Type:         "bool",
-		DefaultValue: false,
-	},
-	{
 		Name:         acn.OptVersion,
 		Shorthand:    acn.OptVersionAlias,
 		Description:  "Print version information",
 		Type:         "bool",
 		DefaultValue: false,
+	},
+	{
+		Name:         acn.OptStoreFileLocation,
+		Shorthand:    acn.OptStoreFileLocationAlias,
+		Description:  "Set store file absolute path",
+		Type:         "string",
+		DefaultValue: platform.CNMRuntimePath,
 	},
 	{
 		Name:         acn.OptNetPluginPath,
@@ -265,13 +265,6 @@ var args = acn.ArgumentList{
 		Description:  "Set HTTP response header timeout in seconds to be used by http client in CNS",
 		Type:         "int",
 		DefaultValue: "120",
-	},
-	{
-		Name:         acn.OptStoreFileLocation,
-		Shorthand:    acn.OptStoreFileLocationAlias,
-		Description:  "Set store file absolute path",
-		Type:         "string",
-		DefaultValue: platform.CNMRuntimePath,
 	},
 	{
 		Name:         acn.OptPrivateEndpoint,
