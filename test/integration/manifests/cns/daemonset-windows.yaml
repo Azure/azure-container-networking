@@ -123,6 +123,10 @@ spec:
           volumeMounts:
             - name: cni-bin
               mountPath: /k/azurecni/bin/ # TODO: add cni conflist when ready
+          securityContext:
+            capabilities:
+              drop:
+                - ALL
       hostNetwork: true
       volumes:
         - name: log
