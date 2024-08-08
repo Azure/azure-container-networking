@@ -52,6 +52,8 @@ type IPSetManager struct {
 	dirtyCache dirtyCacheInterface
 	ioShim     *common.IOShim
 	sync.RWMutex
+
+	// for Windows only
 	wp             *workerPool
 	threadsStarted int
 	networkID      string
@@ -85,12 +87,13 @@ func NewIPSetManager(iMgrCfg *IPSetManagerCfg, ioShim *common.IOShim) *IPSetMana
 	}
 
 	return &IPSetManager{
-		iMgrCfg:    iMgrCfg,
-		emptySet:   nil, // will be set if needed in calls to AddToLists
-		setMap:     make(map[string]*IPSet),
-		dirtyCache: newDirtyCache(),
-		ioShim:     ioShim,
-		wp:         newWorkerPool(iMgrCfg.SetPolicyThreads),
+		iMgrCfg:        iMgrCfg,
+		emptySet:       nil, // will be set if needed in calls to AddToLists
+		setMap:         make(map[string]*IPSet),
+		dirtyCache:     newDirtyCache(),
+		ioShim:         ioShim,
+		wp:             newWorkerPool(iMgrCfg.SetPolicyThreads),
+		threadsStarted: 0,
 	}
 }
 
