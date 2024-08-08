@@ -74,6 +74,7 @@ func (dp *DataPlane) getNetworkInfo() error {
 	for ; true; <-ticker.C {
 		err = dp.setNetworkIDByName(dp.NetworkName)
 		if err == nil || !isNetworkNotFoundErr(err) {
+			dp.ipsetMgr.SetNetworkID(dp.networkID)
 			return err
 		}
 		retryNumber++
