@@ -47,7 +47,7 @@ ZAPAI_VERSION			?= $(notdir $(shell git describe --match "zapai*" --tags --alway
 # Build directories.
 AZURE_IPAM_DIR = $(REPO_ROOT)/azure-ipam
 IPV6_HP_BPF_DIR = $(REPO_ROOT)/bpf-prog/ipv6-hp-bpf
-CNM_DIR = $(REPO_ROOT)/cnm/plugin
+
 CNI_NET_DIR = $(REPO_ROOT)/cni/network/plugin
 CNI_IPAM_DIR = $(REPO_ROOT)/cni/ipam/plugin
 STATELESS_CNI_NET_DIR = $(REPO_ROOT)/cni/network/stateless
@@ -61,7 +61,7 @@ BUILD_DIR = $(OUTPUT_DIR)/$(GOOS)_$(GOARCH)
 AZURE_IPAM_BUILD_DIR = $(BUILD_DIR)/azure-ipam
 IPV6_HP_BPF_BUILD_DIR = $(BUILD_DIR)/bpf-prog/ipv6-hp-bpf
 IMAGE_DIR  = $(OUTPUT_DIR)/images
-CNM_BUILD_DIR = $(BUILD_DIR)/cnm
+
 CNI_BUILD_DIR = $(BUILD_DIR)/cni
 ACNCLI_BUILD_DIR = $(BUILD_DIR)/acncli
 STATELESS_CNI_BUILD_DIR = $(CNI_BUILD_DIR)/stateless
@@ -101,7 +101,7 @@ CNI_SWIFT_ARCHIVE_NAME = azure-vnet-cni-swift-$(GOOS)-$(GOARCH)-$(CNI_VERSION).$
 CNI_OVERLAY_ARCHIVE_NAME = azure-vnet-cni-overlay-$(GOOS)-$(GOARCH)-$(CNI_VERSION).$(ARCHIVE_EXT)
 CNI_BAREMETAL_ARCHIVE_NAME = azure-vnet-cni-baremetal-$(GOOS)-$(GOARCH)-$(CNI_VERSION).$(ARCHIVE_EXT)
 CNI_DUALSTACK_ARCHIVE_NAME = azure-vnet-cni-overlay-dualstack-$(GOOS)-$(GOARCH)-$(CNI_VERSION).$(ARCHIVE_EXT)
-CNM_ARCHIVE_NAME = azure-vnet-cnm-$(GOOS)-$(GOARCH)-$(ACN_VERSION).$(ARCHIVE_EXT)
+
 CNS_ARCHIVE_NAME = azure-cns-$(GOOS)-$(GOARCH)-$(CNS_VERSION).$(ARCHIVE_EXT)
 NPM_ARCHIVE_NAME = azure-npm-$(GOOS)-$(GOARCH)-$(NPM_VERSION).$(ARCHIVE_EXT)
 AZURE_IPAM_ARCHIVE_NAME = azure-ipam-$(GOOS)-$(GOARCH)-$(AZURE_IPAM_VERSION).$(ARCHIVE_EXT)
@@ -112,10 +112,6 @@ CNI_IMAGE_INFO_FILE			= azure-cni-$(CNI_VERSION).txt
 CNI_DROPGZ_IMAGE_INFO_FILE	= cni-dropgz-$(CNI_DROPGZ_VERSION).txt
 CNS_IMAGE_INFO_FILE			= azure-cns-$(CNS_VERSION).txt
 NPM_IMAGE_INFO_FILE			= azure-npm-$(NPM_VERSION).txt
-
-# Docker libnetwork (CNM) plugin v2 image parameters.
-CNM_PLUGIN_IMAGE ?= microsoft/azure-vnet-plugin
-CNM_PLUGIN_ROOTFS = azure-vnet-plugin-rootfs
 
 # Default target
 all-binaries-platforms: ## Make all platform binaries
@@ -136,7 +132,6 @@ all-images:
 endif
 
 # Shorthand target names for convenience.
-azure-cnm-plugin: cnm-binary cnm-archive
 azure-cni-plugin: azure-vnet-binary azure-vnet-stateless-binary azure-vnet-ipam-binary azure-vnet-ipamv6-binary azure-vnet-telemetry-binary cni-archive
 azure-cns: azure-cns-binary cns-archive
 acncli: acncli-binary acncli-archive
@@ -196,10 +191,6 @@ else ifeq ($(GOARCH),arm64)
 	sudo apt-get update && sudo apt-get install -y llvm clang linux-libc-dev linux-headers-generic libbpf-dev libc6-dev nftables iproute2 gcc-aarch64-linux-gnu
 	for dir in /usr/include/aarch64-linux-gnu/*; do sudo ln -sfn "$$dir" /usr/include/$$(basename "$$dir"); done
 endif
-
-# Build the Azure CNM binary.
-cnm-binary:
-	cd $(CNM_DIR) && CGO_ENABLED=0 go build -v -o $(CNM_BUILD_DIR)/azure-vnet-plugin$(EXE_EXT) -ldflags "-X main.version=$(ACN_VERSION)" -gcflags="-dwarflocationlists=true"
 
 # Build the Azure CNI network binary.
 azure-vnet-binary:
@@ -551,40 +542,6 @@ npm-image-pull: ## pull cns container image.
 		IMAGE=$(NPM_IMAGE) \
 		TAG=$(NPM_PLATFORM_TAG)
 
-
-## Legacy
-
-# Build the Azure CNM plugin image, installable with "docker plugin install".
-azure-cnm-plugin-image: azure-cnm-plugin ## build the azure-cnm plugin container image.
-	docker images -q $(CNM_PLUGIN_ROOTFS):$(ACN_VERSION) > cid
-	docker build --no-cache \
-		-f Dockerfile.cnm \
-		-t $(CNM_PLUGIN_ROOTFS):$(ACN_VERSION) \
-		--build-arg CNM_BUILD_DIR=$(CNM_BUILD_DIR) \
-		.
-	$(eval CID := `cat cid`)
-	docker rmi $(CID) || true
-
-	# Create a container using the image and export its rootfs.
-	docker create $(CNM_PLUGIN_ROOTFS):$(ACN_VERSION) > cid
-	$(eval CID := `cat cid`)
-	$(MKDIR) $(OUTPUT_DIR)/$(CID)/rootfs
-	docker export $(CID) | tar -x -C $(OUTPUT_DIR)/$(CID)/rootfs
-	docker rm -vf $(CID)
-
-	# Copy the plugin configuration and set ownership.
-	cp cnm/config.json $(OUTPUT_DIR)/$(CID)
-	chgrp -R docker $(OUTPUT_DIR)/$(CID)
-
-	# Create the plugin.
-	docker plugin rm $(CNM_PLUGIN_IMAGE):$(ACN_VERSION) || true
-	docker plugin create $(CNM_PLUGIN_IMAGE):$(ACN_VERSION) $(OUTPUT_DIR)/$(CID)
-
-	# Cleanup temporary files.
-	rm -rf $(OUTPUT_DIR)/$(CID)
-	rm cid
-
-
 ## Reusable targets for building multiplat container image manifests.
 
 IMAGE_ARCHIVE_DIR ?= $(shell pwd)
@@ -790,11 +747,6 @@ ifeq ($(GOOS),windows)
 	cp $(CNI_BUILD_DIR)/azure-vnet$(EXE_EXT) $(CNI_BAREMETAL_BUILD_DIR)
 	cd $(CNI_BAREMETAL_BUILD_DIR) && $(ARCHIVE_CMD) $(CNI_BAREMETAL_ARCHIVE_NAME) azure-vnet$(EXE_EXT) 10-azure.conflist
 endif
-
-# Create a CNM archive for the target platform.
-.PHONY: cnm-archive
-cnm-archive: cnm-binary
-	cd $(CNM_BUILD_DIR) && $(ARCHIVE_CMD) $(CNM_ARCHIVE_NAME) azure-vnet-plugin$(EXE_EXT)
 
 # Create a cli archive for the target platform.
 .PHONY: acncli-archive
