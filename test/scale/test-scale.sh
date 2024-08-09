@@ -372,13 +372,13 @@ generateDeployments() {
         if [[ $numSharedLabelsPerPod -gt 0 ]]; then
             sharedLabels=""
             for j in $(seq -f "%05g" 1 $numSharedLabelsPerPod); do
-                sharedLabels="$sharedLabels\n      shared-lab-$i=val"
+                sharedLabels="$sharedLabels\n      shared-lab-$i: val"
             done
             perl -pi -e "s/SHARED_LABELS_6_SPACES/$sharedLabels/g" $outFile
 
             sharedLabels=""
             for j in $(seq -f "%05g" 1 $numSharedLabelsPerPod); do
-                sharedLabels="$sharedLabels\n        shared-lab-$i=val"
+                sharedLabels="$sharedLabels\n        shared-lab-$i: val"
             done
             perl -pi -e "s/SHARED_LABELS_8_SPACES/$sharedLabels/g" $outFile
         else
@@ -390,14 +390,14 @@ generateDeployments() {
             sharedKeyLabels=""
             for j in $(seq 1 $numSharedLabelKeysPerDeployment); do
                 k=`printf "%05d" $deployCount`
-                sharedKeyLabels="$sharedKeyLabels\n      shared-key-$j=val-$k"
+                sharedKeyLabels="$sharedKeyLabels\n      shared-key-$j: val-$k"
             done
             perl -pi -e "s/SHARED_LABEL_KEYS_PER_DEPLOYMENT_6_SPACES/$sharedKeyLabels/g" $outFile
 
             sharedKeyLabels=""
             for j in $(seq 1 $numSharedLabelKeysPerDeployment); do
                 k=`printf "%05d" $deployCount`
-                sharedKeyLabels="$sharedKeyLabels\n        shared-key-$j=val-$k"
+                sharedKeyLabels="$sharedKeyLabels\n        shared-key-$j: val-$k"
             done
             perl -pi -e "s/SHARED_LABEL_KEYS_PER_DEPLOYMENT_8_SPACES/$sharedKeyLabels/g" $outFile
         else
