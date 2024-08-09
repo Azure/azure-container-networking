@@ -52,6 +52,11 @@ type IPSetManager struct {
 	dirtyCache dirtyCacheInterface
 	ioShim     *common.IOShim
 	sync.RWMutex
+
+	// for Windows only
+	wp             *workerPool
+	threadsStarted int
+	networkID      string
 }
 
 type IPSetManagerCfg struct {
@@ -62,16 +67,38 @@ type IPSetManagerCfg struct {
 	// This is necessary for HNS (Windows); otherwise, an allow ACL with a list condition
 	// allows all IPs if the list has no members.
 	AddEmptySetToLists bool
+
+	// for Windows only
+	ParallelizeSetPolicyCalls bool
+	SetPolicyThreads          int
 }
 
 func NewIPSetManager(iMgrCfg *IPSetManagerCfg, ioShim *common.IOShim) *IPSetManager {
-	return &IPSetManager{
-		iMgrCfg:    iMgrCfg,
-		emptySet:   nil, // will be set if needed in calls to AddToLists
-		setMap:     make(map[string]*IPSet),
-		dirtyCache: newDirtyCache(),
-		ioShim:     ioShim,
+	if util.IsWindowsDP() {
+		if iMgrCfg.ParallelizeSetPolicyCalls {
+			if iMgrCfg.SetPolicyThreads <= 0 {
+				iMgrCfg.SetPolicyThreads = 1
+			}
+
+			klog.Infof("[IPSetManager] Parallelizing SetPolicy calls is enabled with %d threads", iMgrCfg.SetPolicyThreads)
+		} else {
+			klog.Info("[IPSetManager] Parallelizing SetPolicy calls is disabled")
+		}
 	}
+
+	return &IPSetManager{
+		iMgrCfg:        iMgrCfg,
+		emptySet:       nil, // will be set if needed in calls to AddToLists
+		setMap:         make(map[string]*IPSet),
+		dirtyCache:     newDirtyCache(),
+		ioShim:         ioShim,
+		wp:             newWorkerPool(iMgrCfg.SetPolicyThreads),
+		threadsStarted: 0,
+	}
+}
+
+func (iMgr *IPSetManager) SetNetworkID(networkID string) {
+	iMgr.networkID = networkID
 }
 
 /*

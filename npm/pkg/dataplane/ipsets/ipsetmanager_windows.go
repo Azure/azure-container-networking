@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/Azure/azure-container-networking/npm/metrics"
 	"github.com/Azure/azure-container-networking/npm/util"
@@ -186,7 +187,7 @@ func (iMgr *IPSetManager) resetIPSets() error {
 	}
 
 	klog.Infof("[IPSetManager Windows] Deleting %d Set Policies", len(toDeleteSets))
-	err = iMgr.modifySetPolicies(network, hcn.RequestTypeRemove, toDeleteSets)
+	err = iMgr.modifySetPolicies(hcn.RequestTypeRemove, toDeleteSets)
 	if err != nil {
 		klog.Infof("[IPSetManager Windows] Update set policies failed with error %s", err.Error())
 		return err
@@ -206,8 +207,38 @@ func (iMgr *IPSetManager) applyIPSets() error {
 		return err
 	}
 
+	if iMgr.iMgrCfg.ParallelizeSetPolicyCalls {
+		// if a set is being updated, we can update it in parallel
+		// otherwise, hold off on operations to a set until the other operation is complete
+		// ignore the set and keep it in the dirtyCache
+
+		iMgr.dirtyCache.resetAddOrUpdateCache()
+		iMgr.clearDirtyCache()
+
+		blockers, addsThatShouldActuallyBeUpdates := iMgr.getBlockers(setPolicyBuilder)
+
+		for _, set := range addsThatShouldActuallyBeUpdates {
+			setPolicyBuilder.toUpdateSets[set.Name] = set
+			delete(setPolicyBuilder.toAddSets, set.Name)
+		}
+
+		createThread := iMgr.newThread(hcn.RequestTypeAdd, setPolicyBuilder.toAddSets)
+		updateThread := iMgr.newThread(hcn.RequestTypeUpdate, setPolicyBuilder.toUpdateSets)
+		deleteThread := iMgr.newThread(hcn.RequestTypeRemove, setPolicyBuilder.toDeleteSets)
+
+		for _, b := range blockers {
+			b.Wait()
+		}
+
+		iMgr.submit(createThread)
+		iMgr.submit(updateThread)
+		iMgr.submit(deleteThread)
+
+		return nil
+	}
+
 	if len(setPolicyBuilder.toAddSets) > 0 {
-		err = iMgr.modifySetPolicies(network, hcn.RequestTypeAdd, setPolicyBuilder.toAddSets)
+		err = iMgr.modifySetPolicies(hcn.RequestTypeAdd, setPolicyBuilder.toAddSets)
 		if err != nil {
 			klog.Infof("[IPSetManager Windows] Add set policies failed with error %s", err.Error())
 			return err
@@ -215,7 +246,7 @@ func (iMgr *IPSetManager) applyIPSets() error {
 	}
 
 	if len(setPolicyBuilder.toUpdateSets) > 0 {
-		err = iMgr.modifySetPolicies(network, hcn.RequestTypeUpdate, setPolicyBuilder.toUpdateSets)
+		err = iMgr.modifySetPolicies(hcn.RequestTypeUpdate, setPolicyBuilder.toUpdateSets)
 		if err != nil {
 			klog.Infof("[IPSetManager Windows] Update set policies failed with error %s", err.Error())
 			return err
@@ -225,7 +256,7 @@ func (iMgr *IPSetManager) applyIPSets() error {
 	iMgr.dirtyCache.resetAddOrUpdateCache()
 
 	if len(setPolicyBuilder.toDeleteSets) > 0 {
-		err = iMgr.modifySetPolicies(network, hcn.RequestTypeRemove, setPolicyBuilder.toDeleteSets)
+		err = iMgr.modifySetPolicies(hcn.RequestTypeRemove, setPolicyBuilder.toDeleteSets)
 		if err != nil {
 			klog.Infof("[IPSetManager Windows] Delete set policies failed with error %s", err.Error())
 			return err
@@ -237,6 +268,135 @@ func (iMgr *IPSetManager) applyIPSets() error {
 	iMgr.clearDirtyCache()
 
 	return nil
+}
+
+func (iMgr *IPSetManager) getBlockers(setPolicyBuilder *networkPolicyBuilder) ([]*sync.WaitGroup, []*hcn.SetPolicySetting) {
+	iMgr.wp.Lock()
+	defer iMgr.wp.Unlock()
+
+	blockers := make([]*sync.WaitGroup, 0)
+	addsThatShouldActuallyBeUpdates := make([]*hcn.SetPolicySetting, 0)
+
+	for setName, set := range setPolicyBuilder.toAddSets {
+		for _, th := range iMgr.wp.threads {
+			switch th.op {
+			case hcn.RequestTypeAdd:
+				addsThatShouldActuallyBeUpdates = append(addsThatShouldActuallyBeUpdates, set)
+				klog.Infof("[IPSetManager Windows] moving set from add to update: %s", setName)
+			case hcn.RequestTypeUpdate:
+				klog.Warning("[IPSetManager Windows] warning: found a thread with an update operation for a set slated to be added")
+			}
+
+			if _, ok := th.ipsets[setName]; ok {
+				blockers = append(blockers, th.wg)
+			}
+
+			if th.op == hcn.RequestTypeUpdate {
+				continue
+			}
+
+			// if the set being added is a nested set, check if any of the sets it references are being created/deleted
+			if set.Type == SetPolicyTypeNestedIPSet {
+				for _, memberSet := range strings.Split(set.Values, ",") {
+					if _, ok := th.ipsets[memberSet]; ok {
+						if th.op == hcn.RequestTypeRemove {
+							klog.Warning("[IPSetManager Windows] warning: found a thread with a remove operation for a child of a nested ipset slated to be added")
+						}
+
+						blockers = append(blockers, th.wg)
+					}
+				}
+			}
+		}
+	}
+
+	for setName, set := range setPolicyBuilder.toUpdateSets {
+		for _, th := range iMgr.wp.threads {
+			if th.op == hcn.RequestTypeUpdate {
+				continue
+			}
+
+			if th.op == hcn.RequestTypeRemove {
+				klog.Warning("[IPSetManager Windows] warning: found a thread with a remove operation for a set slated to be updated")
+			}
+
+			if _, ok := th.ipsets[setName]; ok {
+				blockers = append(blockers, th.wg)
+			}
+
+			// if the set being added is a nested set, check if any of the sets it references are being created/deleted
+			if set.Type == SetPolicyTypeNestedIPSet {
+				for _, memberSet := range strings.Split(set.Values, ",") {
+					if _, ok := th.ipsets[memberSet]; ok {
+						if th.op == hcn.RequestTypeRemove {
+							klog.Warning("[IPSetManager Windows] warning: found a thread with a remove operation for a child of a nested ipset slated to be updated")
+						}
+
+						blockers = append(blockers, th.wg)
+					}
+				}
+			}
+		}
+	}
+
+	for setName := range setPolicyBuilder.toDeleteSets {
+		for _, th := range iMgr.wp.threads {
+			if th.op == hcn.RequestTypeRemove {
+				klog.Warning("[IPSetManager Windows] warning: found a thread with a delete operation for a set slated to be deleted")
+			}
+
+			if _, ok := th.ipsets[setName]; ok {
+				blockers = append(blockers, th.wg)
+			}
+
+			// TODO for a first-level set, would also need to block on deleting/flushing nested ipsets which reference it
+		}
+	}
+
+	return blockers, addsThatShouldActuallyBeUpdates
+}
+
+func (iMgr *IPSetManager) newThread(op hcn.RequestType, ipsets map[string]*hcn.SetPolicySetting) *thread {
+	iMgr.threadsStarted++
+	return &thread{
+		id:     iMgr.threadsStarted,
+		op:     op,
+		wg:     &sync.WaitGroup{},
+		ipsets: ipsets,
+	}
+}
+
+func (iMgr *IPSetManager) submit(th *thread) {
+	if len(th.ipsets) == 0 {
+		return
+	}
+
+	wp := iMgr.wp
+	wp.Lock()
+	wp.threads[th.id] = th
+	wp.Unlock()
+
+	// block until there is a free thread
+	wp.semaphore <- struct{}{}
+	th.wg.Add(1)
+
+	go func() {
+		defer func() {
+			<-wp.semaphore
+			wp.Lock()
+			th.wg.Done()
+			delete(wp.threads, th.id)
+			wp.Unlock()
+
+			klog.Infof("[IPSetManager Windows] workerpool finished thread. %s operation. thread: %d", th.op, th.id)
+		}()
+
+		klog.Infof("[IPSetManager Windows] workerpool starting thread. %s operation. thread: %d", th.op, th.id)
+		err := iMgr.modifySetPolicies(th.op, th.ipsets)
+		if err != nil {
+			klog.Errorf("[IPSetManager Windows] workerpool failed to run %s operation with error %s", th.op, err.Error())
+		}
+	}()
 }
 
 // calculateNewSetPolicies will take in existing setPolicies on network in HNS and the dirty cache, will return back
@@ -327,7 +487,7 @@ func (iMgr *IPSetManager) getHCnNetwork() (*hcn.HostComputeNetwork, error) {
 	return network, nil
 }
 
-func (iMgr *IPSetManager) modifySetPolicies(network *hcn.HostComputeNetwork, operation hcn.RequestType, setPolicies map[string]*hcn.SetPolicySetting) error {
+func (iMgr *IPSetManager) modifySetPolicies(operation hcn.RequestType, setPolicies map[string]*hcn.SetPolicySetting) error {
 	klog.Infof("[IPSetManager Windows] %s operation on set policies is called", operation)
 	/*
 		Due to complexities in HNS, we need to do the following:
@@ -375,6 +535,8 @@ func (iMgr *IPSetManager) modifySetPolicies(network *hcn.HostComputeNetwork, ope
 		}
 
 		timer := metrics.StartNewTimer()
+		// going off the assumption that hnsv2wrapper.ModifyNetworkSettings(network, request) -> network.ModifyNetworkSettings(request) only uses network.Id field
+		network := &hcn.HostComputeNetwork{Id: iMgr.networkID}
 		err = iMgr.ioShim.Hns.ModifyNetworkSettings(network, requestMessage)
 		metrics.RecordSetPolicyLatency(timer, op, isNested)
 		if err != nil {

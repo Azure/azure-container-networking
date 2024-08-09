@@ -163,6 +163,14 @@ func start(config npmconfig.Config, flags npmconfig.Flags) error {
 			npmV2DataplaneCfg.IPSetMode = ipsets.ApplyAllIPSets
 		}
 
+		npmV2DataplaneCfg.ParallelizeSetPolicyCalls = config.Toggles.ParallelizeSetPolicyCalls
+
+		if config.SetPolicyThreads == 0 {
+			config.SetPolicyThreads = npmconfig.DefaultConfig.SetPolicyThreads
+		}
+
+		npmV2DataplaneCfg.SetPolicyThreads = config.SetPolicyThreads
+
 		var nodeIP string
 		if util.IsWindowsDP() {
 			nodeIP, err = util.NodeIP()

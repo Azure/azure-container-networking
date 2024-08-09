@@ -9,6 +9,7 @@ const (
 	defaultMaxBatchedACLsPerPod = 30
 	defaultMaxPendingNetPols    = 100
 	defaultNetPolInterval       = 500
+	defaultSetPolicyThreads     = 10
 	defaultListeningPort        = 10091
 	defaultGrpcPort             = 10092
 	defaultGrpcServicePort      = 9002
@@ -40,6 +41,8 @@ var DefaultConfig = Config{
 	MaxPendingNetPols:            defaultMaxPendingNetPols,
 	NetPolInvervalInMilliseconds: defaultNetPolInterval,
 
+	SetPolicyThreads: defaultSetPolicyThreads,
+
 	Toggles: Toggles{
 		EnablePrometheusMetrics: true,
 		EnablePprof:             true,
@@ -50,7 +53,8 @@ var DefaultConfig = Config{
 		// ApplyInBackground is currently used in Windows to apply the following in background: IPSets and NetPols for new/updated Pods
 		ApplyInBackground: true,
 		// NetPolInBackground is currently used in Linux to apply NetPol controller Add events in the background
-		NetPolInBackground: true,
+		NetPolInBackground:        true,
+		ParallelizeSetPolicyCalls: false,
 	},
 }
 
@@ -80,6 +84,7 @@ type Config struct {
 	MaxBatchedACLsPerPod         int     `json:"MaxBatchedACLsPerPod,omitempty"`
 	MaxPendingNetPols            int     `json:"MaxPendingNetPols,omitempty"`
 	NetPolInvervalInMilliseconds int     `json:"NetPolInvervalInMilliseconds,omitempty"`
+	SetPolicyThreads             int     `json:"SetPolicyThreads,omitempty"`
 	Toggles                      Toggles `json:"Toggles,omitempty"`
 }
 
@@ -93,7 +98,8 @@ type Toggles struct {
 	// ApplyInBackground applies for Windows only
 	ApplyInBackground bool
 	// NetPolInBackground
-	NetPolInBackground bool
+	NetPolInBackground        bool
+	ParallelizeSetPolicyCalls bool
 }
 
 type Flags struct {
