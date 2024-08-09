@@ -11,12 +11,12 @@ spec:
   selector:
     matchLabels:
       app: scale-test
-      is-kwok: "true"OTHER_LABELS_6_SPACES
+      is-kwok: "true"UNIQUE_LABELS_PER_DEPLOYMENT_6_SPACESSHARED_LABELS_6_SPACESSHARED_LABEL_KEYS_PER_DEPLOYMENT_6_SPACES
   template:
     metadata:
       labels:
         app: scale-test
-        is-kwok: "true"OTHER_LABELS_8_SPACES
+        is-kwok: "true"UNIQUE_LABELS_PER_DEPLOYMENT_8_SPACESSHARED_LABELS_8_SPACESSHARED_LABEL_KEYS_PER_DEPLOYMENT_8_SPACES
     spec:
       affinity:
         nodeAffinity:
