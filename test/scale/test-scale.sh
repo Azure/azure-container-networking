@@ -31,18 +31,19 @@ REQUIRED PARAMETERS:
     --num-real-replicas                   per deployment
     --num-network-policies                NetPols applied to every Pod
     --num-unapplied-network-policies      NetPols that do not target any Pods
-    --num-unique-labels-per-pod           creates labels specific to each Pod. Creates numTotalPods*numUniqueLabelsPerPod distinct labels. In Cilium, a value >= 1 results in every Pod having a unique identity (not recommended for scale)
+    --num-unique-labels-per-pod           creates labels specific to each Pod. NOTE: this is slow to run and inaccurate since if Pods are bumped (often happens for KWOK), then the Pods come back up without the labels. Creates numTotalPods*numUniqueLabelsPerPod distinct labels. In Cilium, a value >= 1 results in every Pod having a unique identity (not recommended for scale)
     --num-unique-labels-per-deployment    create labels shared between replicas of a deployment. Creates numTotalDeployments*numUniqueLabelsPerDeployment distinct labels
     --num-shared-labels-per-pod           create labels shared between all Pods. Creates numSharedLabelsPerPod distinct labels. Must be >= 3 if numNetworkPolicies > 0 because of the way we generate network policies
 
 OPTIONAL PARAMETERS:
-    --kubeconfig=<path>                   path to kubeconfig file
-    --kubectl-binary=<path>               path to kubectl binary. Default is kubectl
-    --restart-npm                         make sure NPM exists and restart it before running scale test
-    --debug-exit-after-print-counts       skip scale test. Just print out counts of things to be created and counts of IPSets/ACLs that NPM would create
-    --num-real-services                   cluster ip service for the real deployments scheduled. Each svc will point to the respective deployment(having <num-real-replicas> pods) Default is 0
-    --debug-exit-after-generation         skip scale test. Exit after generating templates
-    --real-pod-type                       select deployment type. Options are agnhost or nginx. Default is agnhost
+    --num-shared-label-keys-per-deployment    create labels where the keys are shared between all deployments, but the values are different. Creates numSharedLabelKeysPerDeployment keys.
+    --kubeconfig=<path>                       path to kubeconfig file
+    --kubectl-binary=<path>                   path to kubectl binary. Default is kubectl
+    --restart-npm                             make sure NPM exists and restart it before running scale test
+    --debug-exit-after-print-counts           skip scale test. Just print out counts of things to be created and counts of IPSets/ACLs that NPM would create
+    --num-real-services                       cluster ip service for the real deployments scheduled. Each svc will point to the respective deployment(having <num-real-replicas> pods) Default is 0
+    --debug-exit-after-generation             skip scale test. Exit after generating templates
+    --real-pod-type                           select deployment type. Options are agnhost or nginx. Default is agnhost
 
 OPTIONAL PARAMETERS TO TEST DELETION:
     --sleep-after-creation=<int>          seconds to sleep after creating everything. Default is 0
@@ -104,6 +105,9 @@ while [[ $# -gt 0 ]]; do
             ;;
         --num-shared-labels-per-pod=*)
             numSharedLabelsPerPod="${1#*=}"
+            ;;
+        --num-shared-label-keys-per-deployment=*)
+            numSharedLabelKeysPerDeployment="${1#*=}"
             ;;
         --kubeconfig=*)
             file=${1#*=}
@@ -188,6 +192,7 @@ fi
 if [[ -z $realPodType ]]; then
     realPodType="agnhost"
 fi
+if [[ -z $numSharedLabelKeysPerDeployment ]]; then numSharedLabelKeysPerDeployment=0; fi
 if [[ -z $numRealServices ]]; then numRealServices=0; fi
 if [[ -z $deletePodsInterval ]]; then deletePodsInterval=60; fi
 if [[ -z $deletePodsTimes ]]; then deletePodsTimes=1; fi
@@ -223,7 +228,7 @@ fi
 if [[ $numRealServices -gt 0 ]]; then
     extraIPSets=$(( $extraIPSets + $numRealDeployments))
 fi
-numIPSetsAddedByNPM=$(( 4 + 2*$numTotalPods*$numUniqueLabelsPerPod + 2*$numSharedLabelsPerPod + 2*($numKwokDeployments+$numRealDeployments)*$numUniqueLabelsPerDeployment + $extraIPSets ))
+numIPSetsAddedByNPM=$(( 4 + 2*$numTotalPods*$numUniqueLabelsPerPod + 2*$numSharedLabelsPerPod + 2*($numKwokDeployments+$numRealDeployments)*$numUniqueLabelsPerDeployment + $extraIPSets + $numRealServices + (1 + $numRealDeployments + $numKwokDeployments)*$numSharedLabelKeysPerDeployment ))
 # 3 basic members are [all-ns,kubernetes.io/metadata.name,kubernetes.io/metadata.name:scale-test]
 # 5*pods members go to [ns-scale-test,kubernetes.io/metadata.name:scale-test,template-hash:xxxx,app:scale-test]
 numIPSetMembersAddedByNPM=$(( 3 + $numTotalPods*(5 + 2*$numUniqueLabelsPerPod + 2*$numSharedLabelsPerPod) + 2*($numKwokPods+$numRealPods)*$numUniqueLabelsPerDeployment + 2*$numKwokPods + 2*$numRealPods ))
@@ -242,6 +247,7 @@ numRealReplicas=$numRealReplicas
 numSharedLabelsPerPod=$numSharedLabelsPerPod
 numUniqueLabelsPerPod=$numUniqueLabelsPerPod
 numUniqueLabelsPerDeployment=$numUniqueLabelsPerDeployment
+numSharedLabelKeysPerDeployment=$numSharedLabelKeysPerDeployment
 numNetworkPolicies=$numNetworkPolicies
 numUnappliedNetworkPolicies=$numUnappliedNetworkPolicies
 
@@ -332,11 +338,11 @@ mkdir -p generated/deployments/real-$realPodType/
 mkdir -p generated/deployments/kwok/
 mkdir -p generated/services/real/
 
+deployCount=1
 generateDeployments() {
     local numDeployments=$1
     local numReplicas=$2
     local depKind=$3
-
 
     for i in $(seq -f "%05g" 1 $numDeployments); do
         name="$depKind-dep-$i"
@@ -351,17 +357,54 @@ generateDeployments() {
             for j in $(seq -f "%05g" 1 $numUniqueLabelsPerDeployment); do
                 depLabels="$depLabels\n      $labelPrefix-$j: val"
             done
-            perl -pi -e "s/OTHER_LABELS_6_SPACES/$depLabels/g" $outFile
+            perl -pi -e "s/UNIQUE_LABELS_PER_DEPLOYMENT_6_SPACES/$depLabels/g" $outFile
 
             depLabels=""
             for j in $(seq -f "%05g" 1 $numUniqueLabelsPerDeployment); do
                 depLabels="$depLabels\n        $labelPrefix-$j: val"
             done
-            perl -pi -e "s/OTHER_LABELS_8_SPACES/$depLabels/g" $outFile
+            perl -pi -e "s/UNIQUE_LABELS_PER_DEPLOYMENT_8_SPACES/$depLabels/g" $outFile
         else
-            sed -i "s/OTHER_LABELS_6_SPACES//g" $outFile
-            sed -i "s/OTHER_LABELS_8_SPACES//g" $outFile
+            sed -i "s/UNIQUE_LABELS_PER_DEPLOYMENT_6_SPACES//g" $outFile
+            sed -i "s/UNIQUE_LABELS_PER_DEPLOYMENT_8_SPACES//g" $outFile
         fi
+
+        if [[ $numSharedLabelsPerPod -gt 0 ]]; then
+            sharedLabels=""
+            for j in $(seq -f "%05g" 1 $numSharedLabelsPerPod); do
+                sharedLabels="$sharedLabels\n      shared-lab-$i=val"
+            done
+            perl -pi -e "s/SHARED_LABELS_6_SPACES/$sharedLabels/g" $outFile
+
+            sharedLabels=""
+            for j in $(seq -f "%05g" 1 $numSharedLabelsPerPod); do
+                sharedLabels="$sharedLabels\n        shared-lab-$i=val"
+            done
+            perl -pi -e "s/SHARED_LABELS_8_SPACES/$sharedLabels/g" $outFile
+        else
+            sed -i "s/SHARED_LABELS_6_SPACES//g" $outFile
+            sed -i "s/SHARED_LABELS_8_SPACES//g" $outFile
+        fi
+
+        if [[ $numSharedLabelKeysPerDeployment -gt 0 ]]; then
+            sharedKeyLabels=""
+            for j in $(seq 1 $numSharedLabelKeysPerDeployment); do
+                k=`printf "%05d" $deployCount`
+                sharedKeyLabels="$sharedKeyLabels\n      shared-key-$j=val-$k"
+            done
+            perl -pi -e "s/SHARED_LABEL_KEYS_PER_DEPLOYMENT_6_SPACES/$sharedKeyLabels/g" $outFile
+
+            sharedKeyLabels=""
+            for j in $(seq 1 $numSharedLabelKeysPerDeployment); do
+                k=`printf "%05d" $deployCount`
+                sharedKeyLabels="$sharedKeyLabels\n        shared-key-$j=val-$k"
+            done
+            perl -pi -e "s/SHARED_LABEL_KEYS_PER_DEPLOYMENT_8_SPACES/$sharedKeyLabels/g" $outFile
+        else
+            sed -i "s/SHARED_LABEL_KEYS_PER_DEPLOYMENT_6_SPACES//g" $outFile
+            sed -i "s/SHARED_LABEL_KEYS_PER_DEPLOYMENT_8_SPACES//g" $outFile
+        fi
+        deployCount=$(( $deployCount + 1 ))
     done
 }
 
@@ -496,22 +539,6 @@ if [[ $numRealServices -gt 0 ]]; then
     set +x
 fi
 
-
-add_shared_labels() {
-    if [[ $numSharedLabelsPerPod -gt 0 ]]; then
-        sharedLabels=""
-        for i in $(seq -f "%05g" 1 $numSharedLabelsPerPod); do
-            sharedLabels="$sharedLabels shared-lab-$i=val"
-        done
-
-        set -x
-        $KUBECTL $KUBECONFIG_ARG label pods -n scale-test --all $sharedLabels --overwrite
-        set +x
-    fi
-}
-
-add_shared_labels
-
 if [[ $numUniqueLabelsPerPod -gt 0 ]]; then
     count=1
     for pod in $($KUBECTL $KUBECONFIG_ARG get pods -n scale-test -o jsonpath='{.items[*].metadata.name}'); do
@@ -609,20 +636,19 @@ if [[ ($deleteKwokPods != "" && $deleteKwokPods -gt 0) || ($deleteRealPods != ""
     add_shared_labels
 fi
 
-
 if [[ $deleteLabels == true && $numSharedLabelsPerPod -gt 2 ]]; then
     echo "deleting labels..."
     for i in $(seq 1 $deleteLabelsTimes); do
         echo "deleting labels. round $i/$deleteLabelsTimes..."
         set -x
-        $KUBECTL $KUBECONFIG_ARG label pods -n scale-test --all shared-lab-00001- shared-lab-00002- shared-lab-00003-
+        $KUBECTL $KUBECONFIG_ARG label deployments -n scale-test --all shared-lab-00001- shared-lab-00002- shared-lab-00003-
         set +x
         echo "sleeping $deleteLabelsInterval seconds after deleting labels (round $i/$deleteLabelsTimes)..."
         sleep $deleteLabelsInterval
 
         echo "re-adding labels. round $i/$deleteLabelsTimes..."
         set -x
-        $KUBECTL $KUBECONFIG_ARG label pods -n scale-test --all shared-lab-00001=val shared-lab-00002=val shared-lab-00003=val
+        $KUBECTL $KUBECONFIG_ARG label deployments -n scale-test --all shared-lab-00001=val shared-lab-00002=val shared-lab-00003=val
         set +x
         echo "sleeping $deleteLabelsInterval seconds after readding labels (end of round $i/$deleteLabelsTimes)..."
         sleep $deleteLabelsInterval
