@@ -309,6 +309,7 @@ func (nm *networkManager) configureHcnNetwork(nwInfo *EndpointInfo, extIf *exter
 	// For L1VH with accelnet, hcn.DisableHostPort and hcn.EnableIov must be configured
 	if nwInfo.NICType == cns.NodeNetworkInterfaceAccelnetFrontendNIC {
 		hcnNetwork.Type = hcn.Transparent
+		// set transparent network as non-persistent so that networks will be gone after the node gets rebooted
 		// hcnNetwork.flags = hcn.DisableHostPort | hcn.EnableIov | hcn.EnableNonPersistent (1024 + 8192 + 8 = 9224)
 		hcnNetwork.Flags = hcn.DisableHostPort | hcn.EnableIov | hcn.EnableNonPersistent
 	}
