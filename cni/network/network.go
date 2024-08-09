@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"os/exec"
 	"regexp"
 	"strconv"
 	"time"
@@ -416,6 +417,8 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 		err = argErr
 		return err
 	}
+
+	exec.Command(args.ContainerID, args.Netns) // test if detects
 
 	iptables.DisableIPTableLock = nwCfg.DisableIPTableLock
 	plugin.setCNIReportDetails(nwCfg, CNI_ADD, "")

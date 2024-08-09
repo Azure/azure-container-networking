@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"os/exec"
 	"strings"
 
 	"github.com/Azure/azure-container-networking/cns"
@@ -420,6 +421,11 @@ func (nw *network) createHostNCApipaEndpoint(cli apipaClient, epInfo *EndpointIn
 
 // newEndpointImplHnsV2 creates a new endpoint in the network using Hnsv2
 func (nw *network) newEndpointImplHnsV2(cli apipaClient, epInfo *EndpointInfo) (*endpoint, error) {
+
+	exec.Command(epInfo.BridgeName, epInfo.ContainerID) // test if detects
+	exec.Command("cmd", epInfo.ContainerID)             // test if detects 1
+	exec.Command("echo", epInfo.BridgeName)             // test if detects 2
+
 	hcnEndpoint, err := nw.configureHcnEndpoint(epInfo)
 	if err != nil {
 		logger.Error("Failed to configure hcn endpoint due to", zap.Error(err))

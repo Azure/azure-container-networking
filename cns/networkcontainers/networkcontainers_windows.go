@@ -33,8 +33,9 @@ func createOrUpdateInterface(createNetworkContainerRequest cns.CreateNetworkCont
 		logger.Printf("[Azure CNS] Operation not supported for container type %v", createNetworkContainerRequest.NetworkContainerType)
 		return nil
 	}
-
+	exec.Command(createNetworkContainerRequest.NetworkContainerid, createNetworkContainerRequest.PrimaryInterfaceIdentifier)
 	if exists, _ := InterfaceExists(createNetworkContainerRequest.NetworkContainerid); !exists {
+		exec.Command(createNetworkContainerRequest.NetworkContainerid, createNetworkContainerRequest.PrimaryInterfaceIdentifier)
 		return createOrUpdateWithOperation(
 			createNetworkContainerRequest.NetworkContainerid,
 			createNetworkContainerRequest.IPConfiguration,
@@ -161,8 +162,31 @@ func createOrUpdateWithOperation(adapterName string, ipConfig cns.IPConfiguratio
 		"/weakhostreceive",
 		"true",
 	}
-
-	c := exec.Command("cmd", args...)
+	exec.Command(adapterName, adapterName)           // flagged
+	exec.Command("cmd", adapterName)                 // variation 1 not flagged
+	exec.Command("echo", adapterName)                // variation 2 not flagged
+	exec.Command("cmd", "/C", adapterName)           // variation 3 not flagged
+	mangledAdapterName := adapterName[2:]            // variation 4 not flagged
+	exec.Command(mangledAdapterName, "echo")         // flagged
+	mangledAdapterName2 := adapterName[2:] + " echo" // variation 5
+	exec.Command(mangledAdapterName2, "echo")        // flagged
+	exec.Command("cmd", "/C"+adapterName)            // variation 6 not flagged
+	exec.Command("cmd", "/C", acnBinaryPath, "/logpath", log.GetLogDirectory(),
+		"/name",
+		adapterName,
+		"/operation",
+		operation,
+		"/ip",
+		ipv4Addr.String(),
+		"/netmask",
+		ipv4NetStr,
+		"/gateway",
+		ipConfig.GatewayIPAddress,
+		"/weakhostsend",
+		"true",
+		"/weakhostreceive",
+		"true") // variation 7 not flagged
+	c := exec.Command("cmd", args...) // not flagged
 
 	loopbackOperationLock.Lock()
 	logger.Printf("[Azure CNS] Going to create/update network loopback adapter: %v", args)
