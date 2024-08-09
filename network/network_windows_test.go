@@ -592,3 +592,75 @@ func TestTransparentNetworkCreationForDelegated(t *testing.T) {
 		t.Fatal("network creation does not return error")
 	}
 }
+
+// Test Configure HCN Network for Swiftv2 DelegatedNIC HostComputeNetwork fields
+func TestConfigureHCNNetworkSwiftv2DelegatedNIC(t *testing.T) {
+	expectedSwiftv2NetworkMode := hcn.Transparent
+	expectedSwifv2NetworkFlags := hcn.EnableNonPersistent | hcn.DisableHostPort
+
+	nm := &networkManager{
+		ExternalInterfaces: map[string]*externalInterface{},
+	}
+
+	extIf := externalInterface{
+		Name: "eth1",
+	}
+
+	nwInfo := &EndpointInfo{
+		AdapterName:  "eth1",
+		NetworkID:    "d3e97a83-ba4c-45d5-ba88-dc56757ece28",
+		MasterIfName: "eth1",
+		Mode:         "bridge",
+		NICType:      cns.NodeNetworkInterfaceFrontendNIC,
+	}
+
+	hostComputeNetwork, err := nm.configureHcnNetwork(nwInfo, &extIf)
+	if err != nil {
+		t.Fatalf("Failed to configure hcn network for delegatedVMNIC interface due to: %v", err)
+	}
+
+	if hostComputeNetwork.Type != expectedSwiftv2NetworkMode {
+		t.Fatalf("host network mode is not configured as %v mode when interface NIC type is delegatedVMNIC", expectedSwiftv2NetworkMode)
+	}
+
+	// make sure network type is transparent and flags is 1032
+	if hostComputeNetwork.Flags != expectedSwifv2NetworkFlags {
+		t.Fatalf("host network flags is not configured as %v when interface NIC type is delegatedVMNIC", expectedSwifv2NetworkFlags)
+	}
+}
+
+// Test Configure HCN Network for Swiftv2 AccelnetNIC HostComputeNetwork fields
+func TestConfigureHCNNetworkSwiftv2AccelnetNIC(t *testing.T) {
+	expectedSwiftv2NetworkMode := hcn.Transparent
+	expectedSwifv2NetworkFlags := hcn.EnableNonPersistent | hcn.DisableHostPort | hcn.EnableIov
+
+	nm := &networkManager{
+		ExternalInterfaces: map[string]*externalInterface{},
+	}
+
+	extIf := externalInterface{
+		Name: "eth1",
+	}
+
+	nwInfo := &EndpointInfo{
+		AdapterName:  "eth1",
+		NetworkID:    "d3e97a83-ba4c-45d5-ba88-dc56757ece28",
+		MasterIfName: "eth1",
+		Mode:         "bridge",
+		NICType:      cns.NodeNetworkInterfaceAccelnetFrontendNIC,
+	}
+
+	hostComputeNetwork, err := nm.configureHcnNetwork(nwInfo, &extIf)
+	if err != nil {
+		t.Fatalf("Failed to configure hcn network for accelnetNIC interface due to: %v", err)
+	}
+
+	if hostComputeNetwork.Type != expectedSwiftv2NetworkMode {
+		t.Fatalf("host network mode is not configured as %v mode when interface NIC type is accelnetNIC", expectedSwiftv2NetworkMode)
+	}
+
+	// make sure network type is transparent and flags is 9224
+	if hostComputeNetwork.Flags != expectedSwifv2NetworkFlags {
+		t.Fatalf("host network flags is not configured as %v when interface NIC type is accelnetNIC", expectedSwifv2NetworkFlags)
+	}
+}

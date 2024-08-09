@@ -300,15 +300,17 @@ func (nm *networkManager) configureHcnNetwork(nwInfo *EndpointInfo, extIf *exter
 	// DelegatedNIC flag: hcn.DisableHostPort(1024)
 	if nwInfo.NICType == cns.NodeNetworkInterfaceFrontendNIC {
 		hcnNetwork.Type = hcn.Transparent
-		hcnNetwork.Flags = hcn.DisableHostPort
+		// set transparent network as non-persistent so that networks will be gone after the node gets rebooted
+		// hcnNetwork.flags = hcn.DisableHostPort | hcn.EnableNonPersistent (1024 + 8 = 1032)
+		hcnNetwork.Flags = hcn.DisableHostPort | hcn.EnableNonPersistent
 	}
 
 	// AccelnetNIC flag: hcn.EnableIov(9216)
 	// For L1VH with accelnet, hcn.DisableHostPort and hcn.EnableIov must be configured
-	// To set this, need do OR operation: hcnNetwork.flags = hcn.DisableHostPort | hcn.EnableIov: (1024 + 8192 = 9216)
 	if nwInfo.NICType == cns.NodeNetworkInterfaceAccelnetFrontendNIC {
 		hcnNetwork.Type = hcn.Transparent
-		hcnNetwork.Flags = hcn.DisableHostPort | hcn.EnableIov
+		// hcnNetwork.flags = hcn.DisableHostPort | hcn.EnableIov | hcn.EnableNonPersistent (1024 + 8192 + 8 = 9224)
+		hcnNetwork.Flags = hcn.DisableHostPort | hcn.EnableIov | hcn.EnableNonPersistent
 	}
 
 	// Populate subnets.
