@@ -46,8 +46,11 @@ spec:
           args: [ "-c", "tcp://$(CNSIpAddress):$(CNSPort)", "-t", "$(CNSLogTarget)"]
           securityContext:
             capabilities:
+              drop:
+                - ALL
               add:
-                - NET_ADMIN
+                - NET_ADMIN # only necessary for delegated IPAM/Cilium
+                - NET_RAW # only necessary for delegated IPAM/Cilium
           volumeMounts:
             - name: log
               mountPath: /var/log
@@ -89,8 +92,8 @@ spec:
           command: ["sleep", "3600"]
           securityContext:
             capabilities:
-              add:
-                - NET_ADMIN
+              drop:
+                - ALL
           volumeMounts:
             - name: log
               mountPath: /var/log
