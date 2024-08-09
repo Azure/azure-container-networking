@@ -84,6 +84,8 @@ steps:
           # Scale Cluster Up/Down to confirm functioning CNS
           ITERATIONS=2 SCALE_UP=${{ parameters.scaleup }} OS_TYPE=${{ parameters.os }} go test -count 1 -timeout 30m -tags load -run ^TestLoad$
           kubectl get pods -owide -A
+
+          cd ../../..
           echo "Validating Node Restart"
           make test-validate-state OS_TYPE=${{ parameters.os }} RESTART_CASE=true CNI_TYPE=cniv2
       displayName: "Validate Node Restart"
@@ -141,6 +143,8 @@ steps:
           # Scale Cluster Up/Down to confirm functioning CNS
           ITERATIONS=2 SCALE_UP=${{ parameters.scaleup }} OS_TYPE=${{ parameters.os }} go test -count 1 -timeout 30m -tags load -run ^TestLoad$
           kubectl get pods -owide -A
+
+          cd ../../..
           echo "Validating Node Restart"
           make test-validate-state OS_TYPE=${{ parameters.os }} RESTART_CASE=true CNI_TYPE=cniv2
       displayName: "Validate Node Restart"
