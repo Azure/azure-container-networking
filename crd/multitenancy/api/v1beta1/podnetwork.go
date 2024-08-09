@@ -1,7 +1,7 @@
 //go:build !ignore_uncovered
 // +build !ignore_uncovered
 
-package v1alpha1
+package v1beta1
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -13,18 +13,19 @@ import (
 
 // PodNetwork is the Schema for the PodNetworks API
 // +kubebuilder:resource:shortName=pn,scope=Cluster
-// +kubebuilder:storageversion
 // +kubebuilder:subresource:status
-// +kubebuilder:printcolumn:name="Status",type=string,priority=1,JSONPath=`.status.status`
+// +kubebuilder:printcolumn:name="Status",type=string,priority=0,JSONPath=`.status.status`
 // +kubebuilder:printcolumn:name="Address Prefixes",type=string,priority=1,JSONPath=`.status.addressPrefixes`
-// +kubebuilder:printcolumn:name="Network",type=string,priority=1,JSONPath=`.spec.networkID`
+// +kubebuilder:printcolumn:name="Network",type=string,priority=0,JSONPath=`.spec.networkID`
+// +kubebuilder:printcolumn:name="SubnetGUID",type=string,priority=0,JSONPath=`.spec.subnetGUID`
 // +kubebuilder:printcolumn:name="Subnet",type=string,priority=1,JSONPath=`.spec.subnetResourceID`
-// +kubebuilder:printcolumn:name="SubnetGUID",type=string,priority=1,JSONPath=`.spec.subnetGUID`
-// +kubebuilder:printcolumn:name="DeviceType",type=string,priority=1,JSONPath=`.spec.deviceType`
+// +kubebuilder:printcolumn:name="DeviceType",type=string,priority=0,JSONPath=`.spec.deviceType`
+// +kubebuilder:unservedversion
 type PodNetwork struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
+	// +kubebuilder:validation:XValidation:rule="self == oldSelf",message="Spec is immutable"
 	Spec   PodNetworkSpec   `json:"spec,omitempty"`
 	Status PodNetworkStatus `json:"status,omitempty"`
 }
@@ -49,7 +50,6 @@ const (
 // PodNetworkSpec defines the desired state of PodNetwork
 type PodNetworkSpec struct {
 	// NetworkID is the identifier for the network, e.g. vnet guid or IB network ID
-	// +kubebuilder:validation:Optional
 	NetworkID string `json:"networkID,omitempty"`
 	// DeviceType is the device type that is required by this network
 	// +kubebuilder:validation:Optional
@@ -60,9 +60,6 @@ type PodNetworkSpec struct {
 	// customer subnet guid
 	// +kubebuilder:validation:Optional
 	SubnetGUID string `json:"subnetGUID,omitempty"`
-	// Deprecated - Use NetworkID
-	// +kubebuilder:validation:Optional
-	VnetGUID string `json:"vnetGUID,omitempty"`
 }
 
 // Status indicates the status of PN
