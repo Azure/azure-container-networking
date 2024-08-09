@@ -494,7 +494,6 @@ func (iMgr *IPSetManager) ApplyIPSets() error {
 		return err
 	}
 
-	iMgr.clearDirtyCache()
 	// TODO could also set the number of ipsets in NPM (not necessarily in kernel) here using len(iMgr.setMap)
 	return nil
 }

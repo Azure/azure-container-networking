@@ -7,8 +7,9 @@ import (
 )
 
 type thread struct {
-	id     int
-	op     hcn.RequestType
+	id int
+	op hcn.RequestType
+	// currently not used
 	wg     *sync.WaitGroup
 	ipsets map[string]*hcn.SetPolicySetting
 }

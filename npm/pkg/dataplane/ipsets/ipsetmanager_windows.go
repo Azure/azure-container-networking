@@ -196,6 +196,16 @@ func (iMgr *IPSetManager) resetIPSets() error {
 	return nil
 }
 
+// The below applies to when parallelizeSetPolicyCalls is true.
+// This function will:
+// 1. get the current network
+// 2. determine setpolicies to add, update, delete
+// 3. clear the dirty cache.
+// 4. for the setpolicies currently being modified, do not modify them and add them back to the dirty cache.
+// 5. make up to 3 parallel calls to add setpolicies, update setpolicies, and delete setpolicies.
+// This function will block until threads are available for all the parallel calls (per the number of threads specified in the config).
+// There may be sets left in the dirty cache, which would need to be processed in the next call to applyIPSets.
+// Because of this, dataplane.Config.ApplyInBackground ought to be true if parallelizeSetPolicyCalls is true.
 func (iMgr *IPSetManager) applyIPSets() error {
 	network, err := iMgr.getHCnNetwork()
 	if err != nil {
@@ -215,20 +225,11 @@ func (iMgr *IPSetManager) applyIPSets() error {
 		iMgr.dirtyCache.resetAddOrUpdateCache()
 		iMgr.clearDirtyCache()
 
-		blockers, addsThatShouldActuallyBeUpdates := iMgr.getBlockers(setPolicyBuilder)
-
-		for _, set := range addsThatShouldActuallyBeUpdates {
-			setPolicyBuilder.toUpdateSets[set.Name] = set
-			delete(setPolicyBuilder.toAddSets, set.Name)
-		}
+		iMgr.handleBlockers(setPolicyBuilder)
 
 		createThread := iMgr.newThread(hcn.RequestTypeAdd, setPolicyBuilder.toAddSets)
 		updateThread := iMgr.newThread(hcn.RequestTypeUpdate, setPolicyBuilder.toUpdateSets)
 		deleteThread := iMgr.newThread(hcn.RequestTypeRemove, setPolicyBuilder.toDeleteSets)
-
-		for _, b := range blockers {
-			b.Wait()
-		}
 
 		iMgr.submit(createThread)
 		iMgr.submit(updateThread)
@@ -270,40 +271,36 @@ func (iMgr *IPSetManager) applyIPSets() error {
 	return nil
 }
 
-func (iMgr *IPSetManager) getBlockers(setPolicyBuilder *networkPolicyBuilder) ([]*sync.WaitGroup, []*hcn.SetPolicySetting) {
+// handleBlockers will determine which ipsets to be added, updated, or deleted are blocked by other operations
+// then it will put the blocked ipsets back in the dirty cache, and remove them from the toAddSets, toUpdateSets, and toDeleteSets.
+// MUST reset dirty cache before calling this function, and not after.
+func (iMgr *IPSetManager) handleBlockers(setPolicyBuilder *networkPolicyBuilder) {
 	iMgr.wp.Lock()
 	defer iMgr.wp.Unlock()
 
-	blockers := make([]*sync.WaitGroup, 0)
-	addsThatShouldActuallyBeUpdates := make([]*hcn.SetPolicySetting, 0)
-
 	for setName, set := range setPolicyBuilder.toAddSets {
 		for _, th := range iMgr.wp.threads {
-			switch th.op {
-			case hcn.RequestTypeAdd:
-				addsThatShouldActuallyBeUpdates = append(addsThatShouldActuallyBeUpdates, set)
-				klog.Infof("[IPSetManager Windows] moving set from add to update: %s", setName)
-			case hcn.RequestTypeUpdate:
-				klog.Warning("[IPSetManager Windows] warning: found a thread with an update operation for a set slated to be added")
-			}
-
 			if _, ok := th.ipsets[setName]; ok {
-				blockers = append(blockers, th.wg)
-			}
-
-			if th.op == hcn.RequestTypeUpdate {
-				continue
+				// add the set to the dirty cache so that it can be processed later
+				klog.Infof("[IPSetManager Windows] toAddSet is blocked. set: %s. thread: %d", setName, th.id)
+				// only IPSet.Name is necessary in windows dirtyCache
+				ipset := &IPSet{Name: setName}
+				iMgr.dirtyCache.create(ipset)
+				delete(setPolicyBuilder.toAddSets, setName)
+				break
 			}
 
 			// if the set being added is a nested set, check if any of the sets it references are being created/deleted
 			if set.Type == SetPolicyTypeNestedIPSet {
 				for _, memberSet := range strings.Split(set.Values, ",") {
 					if _, ok := th.ipsets[memberSet]; ok {
-						if th.op == hcn.RequestTypeRemove {
-							klog.Warning("[IPSetManager Windows] warning: found a thread with a remove operation for a child of a nested ipset slated to be added")
-						}
-
-						blockers = append(blockers, th.wg)
+						// add the nested ipset to the dirty cache so that it can be processed later. members would be handled elsewhere
+						klog.Infof("[IPSetManager Windows] toAddSet member is blocked. set: %s. member: %s. thread: %d", setName, memberSet, th.id)
+						// only IPSet.Name is necessary in windows dirtyCache
+						ipset := &IPSet{Name: setName}
+						iMgr.dirtyCache.create(ipset)
+						delete(setPolicyBuilder.toAddSets, setName)
+						break
 					}
 				}
 			}
@@ -312,48 +309,63 @@ func (iMgr *IPSetManager) getBlockers(setPolicyBuilder *networkPolicyBuilder) ([
 
 	for setName, set := range setPolicyBuilder.toUpdateSets {
 		for _, th := range iMgr.wp.threads {
-			if th.op == hcn.RequestTypeUpdate {
-				continue
-			}
-
-			if th.op == hcn.RequestTypeRemove {
-				klog.Warning("[IPSetManager Windows] warning: found a thread with a remove operation for a set slated to be updated")
-			}
-
 			if _, ok := th.ipsets[setName]; ok {
-				blockers = append(blockers, th.wg)
+				// add the set to the dirty cache so that it can be processed later
+				klog.Infof("[IPSetManager Windows] toUpdateSet is blocked. set: %s. thread: %d", setName, th.id)
+				// only IPSet.Name is necessary in windows dirtyCache
+				ipset := &IPSet{Name: setName}
+				// update ipset (member diff is not relevant or implemented for windows)
+				iMgr.dirtyCache.addMember(ipset, "")
+				delete(setPolicyBuilder.toUpdateSets, setName)
+				break
 			}
 
 			// if the set being added is a nested set, check if any of the sets it references are being created/deleted
 			if set.Type == SetPolicyTypeNestedIPSet {
 				for _, memberSet := range strings.Split(set.Values, ",") {
 					if _, ok := th.ipsets[memberSet]; ok {
-						if th.op == hcn.RequestTypeRemove {
-							klog.Warning("[IPSetManager Windows] warning: found a thread with a remove operation for a child of a nested ipset slated to be updated")
-						}
-
-						blockers = append(blockers, th.wg)
+						// add the nested ipset to the dirty cache so that it can be processed later. members would be handled elsewhere
+						klog.Infof("[IPSetManager Windows] toUpdateSet member is blocked. set: %s. member: %s. thread: %d", setName, memberSet, th.id)
+						// only IPSet.Name is necessary in windows dirtyCache
+						ipset := &IPSet{Name: setName}
+						// update ipset (member diff is not relevant or implemented for windows)
+						iMgr.dirtyCache.addMember(ipset, "")
+						delete(setPolicyBuilder.toUpdateSets, setName)
+						break
 					}
 				}
 			}
 		}
 	}
 
-	for setName := range setPolicyBuilder.toDeleteSets {
+	for setName, set := range setPolicyBuilder.toDeleteSets {
 		for _, th := range iMgr.wp.threads {
-			if th.op == hcn.RequestTypeRemove {
-				klog.Warning("[IPSetManager Windows] warning: found a thread with a delete operation for a set slated to be deleted")
-			}
-
 			if _, ok := th.ipsets[setName]; ok {
-				blockers = append(blockers, th.wg)
+				// add the set to the dirty cache so that it can be processed later
+				klog.Infof("[IPSetManager Windows] toDeleteSet is blocked. set: %s. thread: %d", setName, th.id)
+				// only IPSet.Name is necessary in windows dirtyCache
+				ipset := &IPSet{Name: setName}
+				iMgr.dirtyCache.destroy(ipset)
+				delete(setPolicyBuilder.toDeleteSets, setName)
+				break
 			}
 
-			// TODO for a first-level set, would also need to block on deleting/flushing nested ipsets which reference it
+			// if the set being added is a nested set, check if any of the sets it references are being created/deleted
+			if set.Type == SetPolicyTypeNestedIPSet {
+				for _, memberSet := range strings.Split(set.Values, ",") {
+					if _, ok := th.ipsets[memberSet]; ok {
+						// add the nested ipset to the dirty cache so that it can be processed later. members would be handled elsewhere
+						klog.Infof("[IPSetManager Windows] toDeleteSet member is blocked. set: %s. member: %s. thread: %d", setName, memberSet, th.id)
+						// only IPSet.Name is necessary in windows dirtyCache
+						ipset := &IPSet{Name: setName}
+						iMgr.dirtyCache.destroy(ipset)
+						delete(setPolicyBuilder.toDeleteSets, setName)
+						break
+					}
+				}
+			}
 		}
 	}
-
-	return blockers, addsThatShouldActuallyBeUpdates
 }
 
 func (iMgr *IPSetManager) newThread(op hcn.RequestType, ipsets map[string]*hcn.SetPolicySetting) *thread {
