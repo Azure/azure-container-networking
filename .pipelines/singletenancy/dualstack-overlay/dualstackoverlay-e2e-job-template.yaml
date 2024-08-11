@@ -77,7 +77,8 @@ stages:
               addSpnToEnvironment: true
               inlineScript: |
                 set -e
-                make -C ./hack/aks windows-nodepool-up AZCLI=az SUB=$(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS) CLUSTER=${{ parameters.clusterName }}-$(commitID) VM_SIZE_WIN=${{ parameters.vmSizeWin }}
+                make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${{ parameters.clusterName }}-$(commitID)
+                make -C ./hack/aks windows-nodepool-up AZCLI=az SUB=$(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS) CLUSTER=${{ parameters.clusterName }}-$(commitID) VM_SIZE_WIN=${{ parameters.vmSize }}
                 echo "Windows nodes have been successfully added to DualStack Overlay Cluster"
                 kubectl cluster-info
                 kubectl get node -owide
