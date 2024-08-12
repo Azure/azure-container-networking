@@ -131,7 +131,7 @@ func (s *Server) ListAndWatch(_ *v1beta1.Empty, stream v1beta1.DevicePlugin_List
 			devices := make([]*v1beta1.Device, advertisedCount)
 			for i := range devices {
 				devices[i] = &v1beta1.Device{
-					ID:     fmt.Sprintf("vnet-nic-%d", i),
+					ID:     fmt.Sprintf("%s%d", devicePrefix, i),
 					Health: v1beta1.Healthy,
 				}
 			}
