@@ -136,7 +136,6 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 			}
 		} else {
 			logger.Info("Failed to get IP address from CNS",
-				zap.Error(err),
 				zap.Any("response", response))
 			return IPAMAddResult{}, errors.Wrap(err, "Failed to get IP address from CNS")
 		}
@@ -321,7 +320,7 @@ func (invoker *CNSIPAMInvoker) Delete(address *net.IPNet, nwCfg *cni.NetworkConf
 				if errors.As(err, &connectionErr) {
 					addErr := fsnotify.AddFile(ipConfigs.PodInterfaceID, args.ContainerID, watcherPath)
 					if addErr != nil {
-						logger.Error("Failed to add file to watcher", zap.String("podInterfaceID", ipConfigs.PodInterfaceID), zap.String("containerID", args.ContainerID), zap.Error(addErr))
+						logger.Error("Failed to add file to watcher", zap.String("podInterfaceID", ipConfigs.PodInterfaceID), zap.String("containerID", args.ContainerID), zap.Error(simpleError{e: addErr}))
 						return errors.Wrap(addErr, fmt.Sprintf("failed to add file to watcher with containerID %s and podInterfaceID %s", args.ContainerID, ipConfigs.PodInterfaceID))
 					}
 				} else {
@@ -336,7 +335,7 @@ func (invoker *CNSIPAMInvoker) Delete(address *net.IPNet, nwCfg *cni.NetworkConf
 			if errors.As(err, &connectionErr) {
 				addErr := fsnotify.AddFile(ipConfigs.PodInterfaceID, args.ContainerID, watcherPath)
 				if addErr != nil {
-					logger.Error("Failed to add file to watcher", zap.String("podInterfaceID", ipConfigs.PodInterfaceID), zap.String("containerID", args.ContainerID), zap.Error(addErr))
+					logger.Error("Failed to add file to watcher", zap.String("podInterfaceID", ipConfigs.PodInterfaceID), zap.String("containerID", args.ContainerID), zap.Error(simpleError{e: addErr}))
 					return errors.Wrap(addErr, fmt.Sprintf("failed to add file to watcher with containerID %s and podInterfaceID %s", args.ContainerID, ipConfigs.PodInterfaceID))
 				}
 			} else {
