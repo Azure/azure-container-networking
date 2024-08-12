@@ -87,6 +87,23 @@ var linuxChecksMap = map[string][]check{
 			cmd:              azureVnetStateFileCmd,
 		}, // cns configmap "ManageEndpointState": false, | Endpoints managed in CNI State File
 	},
+	"statelessCNI": {
+		{
+			name:             "cns cache",
+			stateFileIPs:     cnsCacheStateFileIps,
+			podLabelSelector: validatorPod,
+			podNamespace:     privilegedNamespace,
+			containerName:    "debug",
+			cmd:              cnsCachedAssignedIPStateCmd,
+		},
+		{
+			name:             "azure-vnet",
+			stateFileIPs:     azureVnetStateIps,
+			podLabelSelector: privilegedLabelSelector,
+			podNamespace:     privilegedNamespace,
+			cmd:              azureVnetStateFileCmd,
+		}, // cns configmap "ManageEndpointState": false, | Endpoints managed in CNI State File
+	},
 	"dualstack": {
 		{
 			name:             "cns cache",
