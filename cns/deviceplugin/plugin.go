@@ -26,13 +26,13 @@ type Plugin struct {
 	deviceCheckInterval time.Duration
 }
 
-func NewPlugin(l *zap.Logger, resourceName string, socketWathcer *SocketWatcher, socket string,
+func NewPlugin(l *zap.Logger, resourceName string, socketWatcher *SocketWatcher, socket string,
 	initialDeviceCount int, kubeletSocket string, deviceCheckInterval time.Duration,
 ) *Plugin {
 	return &Plugin{
 		Logger:              l.With(zap.String("resourceName", resourceName)),
 		ResourceName:        resourceName,
-		SocketWatcher:       socketWathcer,
+		SocketWatcher:       socketWatcher,
 		Socket:              socket,
 		deviceCount:         initialDeviceCount,
 		kubeletSocket:       kubeletSocket,
@@ -60,7 +60,7 @@ func (p *Plugin) run(ctx context.Context) error {
 	childCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	s := NewServer(p.Socket, p.Logger, p, p.deviceCheckInterval)
+	s := NewServer(p.Logger, p.Socket, p, p.deviceCheckInterval)
 	runErrChan := make(chan error, 2) //nolint:gomnd // disabled in favor of readability
 	go func(errChan chan error) {
 		if err := s.Run(childCtx); err != nil {
@@ -132,8 +132,8 @@ func (p *Plugin) mustCleanUp() {
 
 func (p *Plugin) UpdateDeviceCount(count int) {
 	p.deviceCountMutex.Lock()
-	defer p.deviceCountMutex.Unlock()
 	p.deviceCount = count
+	p.deviceCountMutex.Unlock()
 }
 
 func (p *Plugin) getDeviceCount() int {

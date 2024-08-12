@@ -13,25 +13,27 @@ import (
 	"k8s.io/kubelet/pkg/apis/deviceplugin/v1beta1"
 )
 
+const devicePrefix = "NIC-"
+
 type deviceCounter interface {
 	getDeviceCount() int
 }
 
 type Server struct {
-	address              string
-	logger               *zap.Logger
-	deviceCounter        deviceCounter
-	listAndWatchDoneChan chan struct{}
-	deviceCheckInterval  time.Duration
+	address                  string
+	logger                   *zap.Logger
+	deviceCounter            deviceCounter
+	listAndWatchShutdownChan chan struct{}
+	deviceCheckInterval      time.Duration
 }
 
-func NewServer(address string, logger *zap.Logger, deviceCounter deviceCounter, deviceCheckInterval time.Duration) *Server {
+func NewServer(logger *zap.Logger, address string, deviceCounter deviceCounter, deviceCheckInterval time.Duration) *Server {
 	return &Server{
-		address:              address,
-		logger:               logger,
-		deviceCounter:        deviceCounter,
-		listAndWatchDoneChan: make(chan struct{}),
-		deviceCheckInterval:  deviceCheckInterval,
+		address:                  address,
+		logger:                   logger,
+		deviceCounter:            deviceCounter,
+		listAndWatchShutdownChan: make(chan struct{}),
+		deviceCheckInterval:      deviceCheckInterval,
 	}
 }
 
@@ -39,24 +41,23 @@ func NewServer(address string, logger *zap.Logger, deviceCounter deviceCounter, 
 func (s *Server) Run(ctx context.Context) error {
 	grpcServer := grpc.NewServer()
 	v1beta1.RegisterDevicePluginServer(grpcServer, s)
-	defer close(s.listAndWatchDoneChan)
+	defer close(s.listAndWatchShutdownChan)
 
 	l, err := net.Listen("unix", s.address)
 	if err != nil {
 		return errors.Wrap(err, "error listening on socket")
 	}
-	errChan := make(chan error, 2) //nolint:gomnd // disabled in favor of readability
-	go func() {
-		errChan <- grpcServer.Serve(l)
-	}()
-	defer grpcServer.Stop()
+	defer l.Close()
 
-	select {
-	case err := <-errChan:
+	go func() {
+		<-ctx.Done()
+		grpcServer.GracefulStop()
+	}()
+
+	if err := grpcServer.Serve(l); err != nil && errors.Is(err, grpc.ErrServerStopped) {
 		return errors.Wrap(err, "error running grpc server")
-	case <-ctx.Done():
-		return nil
 	}
+	return nil
 }
 
 // Ready blocks until the server is ready
@@ -87,7 +88,7 @@ func (s *Server) Allocate(_ context.Context, req *v1beta1.AllocateRequest) (*v1b
 			Envs: make(map[string]string),
 		}
 		for j := range containerReq.DevicesIDs {
-			resp.Envs[fmt.Sprintf("NIC_%d", j)] = containerReq.DevicesIDs[j]
+			resp.Envs[fmt.Sprintf("%s%d", devicePrefix, j)] = containerReq.DevicesIDs[j]
 		}
 		resps[i] = resp
 	}
@@ -103,7 +104,7 @@ func (s *Server) ListAndWatch(_ *v1beta1.Empty, stream v1beta1.DevicePlugin_List
 	devices := make([]*v1beta1.Device, advertisedCount)
 	for i := range devices {
 		devices[i] = &v1beta1.Device{
-			ID:     fmt.Sprintf("NIC-%d", i),
+			ID:     fmt.Sprintf("%s%d", devicePrefix, i),
 			Health: v1beta1.Healthy,
 		}
 	}
@@ -114,11 +115,14 @@ func (s *Server) ListAndWatch(_ *v1beta1.Empty, stream v1beta1.DevicePlugin_List
 	}
 
 	// every interval, check if the current count has changed from what we've previously sent, and if so, send the new count
+	ticker := time.NewTicker(s.deviceCheckInterval)
+	defer ticker.Stop()
+
 	for {
 		select {
-		case <-s.listAndWatchDoneChan:
+		case <-s.listAndWatchShutdownChan:
 			return nil
-		case <-time.After(s.deviceCheckInterval):
+		case <-ticker.C:
 			currentCount := s.deviceCounter.getDeviceCount()
 			if currentCount == advertisedCount {
 				continue

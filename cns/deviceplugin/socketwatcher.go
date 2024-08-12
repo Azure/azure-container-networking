@@ -24,7 +24,7 @@ func SocketWatcherStatInterval(d time.Duration) SocketWatcherOption {
 }
 
 type SocketWatcher struct {
-	socketChans map[string]chan struct{}
+	socketChans map[string]<-chan struct{}
 	mutex       sync.Mutex
 	logger      *zap.Logger
 	options     socketWatcherOptions
@@ -38,7 +38,7 @@ func NewSocketWatcher(logger *zap.Logger, opts ...SocketWatcherOption) *SocketWa
 		o(&defaultOptions)
 	}
 	return &SocketWatcher{
-		socketChans: make(map[string]chan struct{}),
+		socketChans: make(map[string]<-chan struct{}),
 		logger:      logger,
 		options:     defaultOptions,
 	}
