@@ -777,7 +777,7 @@ func (plugin *NetPlugin) createEpInfo(opt *createEpInfoOpt) (*network.EndpointIn
 		EndpointID:  endpointID,
 		ContainerID: opt.args.ContainerID,
 		NetNsPath:   opt.args.Netns, // probably same value as epInfo.NetNs
-		IfName:      opt.args.IfName,
+		IfName:      "eth" + strconv.Itoa(opt.endpointIndex),
 		Data:        make(map[string]interface{}),
 		EndpointDNS: epDNSInfo,
 		// endpoint policies are populated later
