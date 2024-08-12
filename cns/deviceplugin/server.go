@@ -20,20 +20,20 @@ type deviceCounter interface {
 }
 
 type Server struct {
-	address                  string
-	logger                   *zap.Logger
-	deviceCounter            deviceCounter
-	listAndWatchShutdownChan chan struct{}
-	deviceCheckInterval      time.Duration
+	address             string
+	logger              *zap.Logger
+	deviceCounter       deviceCounter
+	shutdownCh          <-chan struct{}
+	deviceCheckInterval time.Duration
 }
 
 func NewServer(logger *zap.Logger, address string, deviceCounter deviceCounter, deviceCheckInterval time.Duration) *Server {
 	return &Server{
-		address:                  address,
-		logger:                   logger,
-		deviceCounter:            deviceCounter,
-		listAndWatchShutdownChan: make(chan struct{}),
-		deviceCheckInterval:      deviceCheckInterval,
+		address:             address,
+		logger:              logger,
+		deviceCounter:       deviceCounter,
+		shutdownCh:          make(chan struct{}),
+		deviceCheckInterval: deviceCheckInterval,
 	}
 }
 
@@ -41,7 +41,10 @@ func NewServer(logger *zap.Logger, address string, deviceCounter deviceCounter, 
 func (s *Server) Run(ctx context.Context) error {
 	grpcServer := grpc.NewServer()
 	v1beta1.RegisterDevicePluginServer(grpcServer, s)
-	defer close(s.listAndWatchShutdownChan)
+
+	childCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	s.shutdownCh = childCtx.Done()
 
 	l, err := net.Listen("unix", s.address)
 	if err != nil {
@@ -54,7 +57,7 @@ func (s *Server) Run(ctx context.Context) error {
 		grpcServer.GracefulStop()
 	}()
 
-	if err := grpcServer.Serve(l); err != nil && errors.Is(err, grpc.ErrServerStopped) {
+	if err := grpcServer.Serve(l); err != nil && !errors.Is(err, grpc.ErrServerStopped) {
 		return errors.Wrap(err, "error running grpc server")
 	}
 	return nil
@@ -120,8 +123,10 @@ func (s *Server) ListAndWatch(_ *v1beta1.Empty, stream v1beta1.DevicePlugin_List
 
 	for {
 		select {
-		case <-s.listAndWatchShutdownChan:
+		case <-s.shutdownCh:
 			return nil
+		case <-stream.Context().Done():
+			return errors.Wrap(stream.Context().Err(), "client context done")
 		case <-ticker.C:
 			currentCount := s.deviceCounter.getDeviceCount()
 			if currentCount == advertisedCount {
