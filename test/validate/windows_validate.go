@@ -22,6 +22,7 @@ var (
 	hnsEndPointCmd                 = []string{"powershell", "-c", "Get-HnsEndpoint | ConvertTo-Json"}
 	hnsNetworkCmd                  = []string{"powershell", "-c", "Get-HnsNetwork | ConvertTo-Json"}
 	azureVnetCmd                   = []string{"powershell", "-c", "cat ../../k/azure-vnet.json"}
+	azureVnetStatelessCmd          = []string{"powershell", "-c", "cat ../../k/azure-cns/azure-endpoints.json"}
 	azureVnetIpamCmd               = []string{"powershell", "-c", "cat ../../k/azure-vnet-ipam.json"}
 	cnsWinCachedAssignedIPStateCmd = []string{
 		"powershell", "Invoke-WebRequest -Uri 127.0.0.1:10090/debug/ipaddresses",
@@ -69,6 +70,29 @@ var windowsChecksMap = map[string][]check{
 			podLabelSelector: privilegedLabelSelector,
 			podNamespace:     privilegedNamespace,
 			cmd:              azureVnetCmd,
+		},
+		{
+			name:             "cns cache",
+			stateFileIPs:     cnsCacheStateFileIps,
+			podLabelSelector: cnsWinLabelSelector,
+			podNamespace:     privilegedNamespace,
+			cmd:              cnsWinCachedAssignedIPStateCmd,
+		},
+	},
+	"StatelessCni": {
+		{
+			name:             "hns",
+			stateFileIPs:     hnsStateFileIPs,
+			podLabelSelector: privilegedLabelSelector,
+			podNamespace:     privilegedNamespace,
+			cmd:              hnsEndPointCmd,
+		},
+		{
+			name:             "azure-vnet",
+			stateFileIPs:     azureVnetIps,
+			podLabelSelector: privilegedLabelSelector,
+			podNamespace:     privilegedNamespace,
+			cmd:              azureVnetStatelessCmd,
 		},
 		{
 			name:             "cns cache",

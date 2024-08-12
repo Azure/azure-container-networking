@@ -24,11 +24,12 @@ import (
 type CNSScenario string
 
 const (
-	EnvInstallAzilium          CNSScenario = "INSTALL_AZILIUM"
-	EnvInstallAzureVnet        CNSScenario = "INSTALL_AZURE_VNET"
-	EnvInstallOverlay          CNSScenario = "INSTALL_OVERLAY"
-	EnvInstallAzureCNIOverlay  CNSScenario = "INSTALL_AZURE_CNI_OVERLAY"
-	EnvInstallDualStackOverlay CNSScenario = "INSTALL_DUALSTACK_OVERLAY"
+	EnvInstallAzilium            CNSScenario = "INSTALL_AZILIUM"
+	EnvInstallAzureVnet          CNSScenario = "INSTALL_AZURE_VNET"
+	EnvInstallAzureVnetStateless CNSScenario = "INSTALL_AZURE_VNET_STATELESS"
+	EnvInstallOverlay            CNSScenario = "INSTALL_OVERLAY"
+	EnvInstallAzureCNIOverlay    CNSScenario = "INSTALL_AZURE_CNI_OVERLAY"
+	EnvInstallDualStackOverlay   CNSScenario = "INSTALL_DUALSTACK_OVERLAY"
 )
 
 type cnsDetails struct {
@@ -333,6 +334,7 @@ func initCNSScenarioVars() (map[CNSScenario]map[corev1.OSName]cnsDetails, error)
 	cnsOverlayConfigMapPath := cnsConfigFolder + "/overlayconfigmap.yaml"
 	cnsAzureCNIOverlayLinuxConfigMapPath := cnsConfigFolder + "/azurecnioverlaylinuxconfigmap.yaml"
 	cnsAzureCNIOverlayWindowsConfigMapPath := cnsConfigFolder + "/azurecnioverlaywindowsconfigmap.yaml"
+	cnsAzureStatelessCNIOverlayWindowsConfigMapPath := cnsConfigFolder + "/azurestatelesscnioverlaywindowsconfigmap.yaml"
 	cnsAzureCNIDualStackLinuxConfigMapPath := cnsConfigFolder + "/azurecnidualstackoverlaylinuxconfigmap.yaml"
 	cnsAzureCNIDualStackWindowsConfigMapPath := cnsConfigFolder + "/azurecnidualstackoverlaywindowsconfigmap.yaml"
 	cnsRolePath := cnsManifestFolder + "/role.yaml"
@@ -391,6 +393,47 @@ func initCNSScenarioVars() (map[CNSScenario]map[corev1.OSName]cnsDetails, error)
 				initContainerName:  initContainerNameCNI,
 				configMapPath:      cnsSwiftWindowsConfigMapPath,
 				installIPMasqAgent: false,
+			},
+		},
+		EnvInstallAzureVnetStateless: {
+			corev1.Linux: {
+				daemonsetPath:          cnsLinuxDaemonSetPath,
+				labelSelector:          cnsLinuxLabelSelector,
+				rolePath:               cnsRolePath,
+				roleBindingPath:        cnsRoleBindingPath,
+				clusterRolePath:        cnsClusterRolePath,
+				clusterRoleBindingPath: cnsClusterRoleBindingPath,
+				serviceAccountPath:     cnsServiceAccountPath,
+				initContainerArgs: []string{
+					"deploy",
+					"azure-vnet", "-o", "/opt/cni/bin/azure-vnet",
+					"azure-vnet-telemetry", "-o", "/opt/cni/bin/azure-vnet-telemetry",
+				},
+				initContainerName:         initContainerNameCNI,
+				volumes:                   volumesForAzureCNIOverlayLinux(),
+				initContainerVolumeMounts: dropgzVolumeMountsForAzureCNIOverlayLinux(),
+				containerVolumeMounts:     cnsVolumeMountsForAzureCNIOverlayLinux(),
+				configMapPath:             cnsAzureCNIOverlayLinuxConfigMapPath,
+				installIPMasqAgent:        true,
+			},
+			corev1.Windows: {
+				daemonsetPath:          cnsWindowsDaemonSetPath,
+				labelSelector:          cnsWindowsLabelSelector,
+				rolePath:               cnsRolePath,
+				roleBindingPath:        cnsRoleBindingPath,
+				clusterRolePath:        cnsClusterRolePath,
+				clusterRoleBindingPath: cnsClusterRoleBindingPath,
+				serviceAccountPath:     cnsServiceAccountPath,
+				initContainerArgs: []string{
+					"deploy",
+					"azure-vnet-stateless", "-o", "/k/azurecni/bin/azure-vnet.exe",
+				},
+				initContainerName:         initContainerNameCNI,
+				volumes:                   volumesForAzureCNIOverlayWindows(),
+				initContainerVolumeMounts: dropgzVolumeMountsForAzureCNIOverlayWindows(),
+				containerVolumeMounts:     cnsVolumeMountsForAzureCNIOverlayWindows(),
+				configMapPath:             cnsAzureStatelessCNIOverlayWindowsConfigMapPath,
+				installIPMasqAgent:        true,
 			},
 		},
 		EnvInstallAzilium: {

@@ -224,6 +224,21 @@ stages:
       osSkuWin: 'Windows2022'
       scaleup: ${SCALEUP_WIN}
       iterations: ${ITERATIONS_WIN}
+  - template: singletenancy/cniv2-stateless-template.yaml
+    parameters:
+      name: windows_overlay_stateless
+      clusterType: overlay-byocni-up
+      clusterName: w22-over
+      nodeCount: ${NODE_COUNT_WINCLUSTER_SYSTEMPOOL}
+      nodeCountWin: ${NODE_COUNT_WIN}
+      vmSize: ${VM_SIZE_WINCLUSTER_SYSTEMPOOL}
+      vmSizeWin: ${VM_SIZE_WIN}
+      arch: amd64
+      os: windows
+      os_version: 'ltsc2022'
+      osSkuWin: 'Windows2022'
+      scaleup: ${SCALEUP_WIN}
+      iterations: ${ITERATIONS_WIN}
 
   - template: singletenancy/cniv2-template.yaml
     parameters:
