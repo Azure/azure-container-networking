@@ -1676,7 +1676,7 @@ func TestPluginGenerateEndpointNames(t *testing.T) {
 	accelnetAddress := "ab:cd:ef:12:34:56"
 	infraSeen := false
 	endpointIndex := 0
-	epInfos := []*network.EndpointInfo{}
+	epInfos := []*acnnetwork.EndpointInfo{}
 
 	type args struct {
 		nwCfg            *cni.NetworkConfig
@@ -1697,16 +1697,16 @@ func TestPluginGenerateEndpointNames(t *testing.T) {
 	}
 
 	// create createEpInfo
-	interfaceInfos := map[string]network.InterfaceInfo{
+	interfaceInfos := map[string]acnnetwork.InterfaceInfo{
 		infraAddress: {
-			IPConfigs: []*network.IPConfig{
+			IPConfigs: []*acnnetwork.IPConfig{
 				{
 					Address: *getCIDRNotationForAddress("10.1.1.10/24"),
 				},
 			},
-			Routes: []network.RouteInfo{
+			Routes: []acnnetwork.RouteInfo{
 				{
-					Dst: network.Ipv4DefaultRouteDstPrefix,
+					Dst: acnnetwork.Ipv4DefaultRouteDstPrefix,
 					Gw:  net.ParseIP("10.0.0.1"),
 				},
 			},
@@ -1714,12 +1714,12 @@ func TestPluginGenerateEndpointNames(t *testing.T) {
 			HostSubnetPrefix: *parseCIDR("10.0.0.0/24"),
 		},
 		accelnetAddress: {
-			IPConfigs: []*network.IPConfig{
+			IPConfigs: []*acnnetwork.IPConfig{
 				{
 					Address: *getCIDRNotationForAddress("20.1.1.10/24"),
 				},
 			},
-			Routes:     []network.RouteInfo{},
+			Routes:     []acnnetwork.RouteInfo{},
 			NICType:    cns.NodeNetworkInterfaceAccelnetFrontendNIC,
 			MacAddress: net.HardwareAddr(accelnetAddress),
 		},
