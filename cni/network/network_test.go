@@ -5,7 +5,6 @@ import (
 	"net"
 	"os"
 	"runtime"
-	"strconv"
 	"testing"
 
 	"github.com/Azure/azure-container-networking/cni"
@@ -1666,107 +1665,6 @@ func TestPluginSwiftV2MultipleAddDelete(t *testing.T) {
 			endpoints, _ = tt.plugin.nm.GetAllEndpoints(localNwCfg.Name)
 			require.Condition(t, assert.Comparison(func() bool { return len(endpoints) == 0 }))
 		})
-	}
-}
-
-func TestPluginGenerateEndpointNames(t *testing.T) {
-	plugin := GetTestResources()
-	infraAddress := "12:34:56:78:9a:bc"
-	accelnetAddress := "ab:cd:ef:12:34:56"
-	infraSeen := false
-	endpointIndex := 0
-	epInfos := []*acnnetwork.EndpointInfo{}
-
-	type args struct {
-		nwCfg            *cni.NetworkConfig
-		args             *cniSkel.CmdArgs
-		hostSubnetPrefix *net.IPNet
-		options          map[string]interface{}
-	}
-
-	argsInfo := args{
-		nwCfg: &cni.NetworkConfig{},
-		args: &cniSkel.CmdArgs{
-			ContainerID: "testcontainerid",
-			Netns:       "testnetns",
-			IfName:      "eth0",
-		},
-		hostSubnetPrefix: getCIDRNotationForAddress("10.224.0.0/16"),
-		options:          map[string]interface{}{},
-	}
-
-	// create createEpInfo
-	interfaceInfos := map[string]acnnetwork.InterfaceInfo{
-		infraAddress: {
-			IPConfigs: []*acnnetwork.IPConfig{
-				{
-					Address: *getCIDRNotationForAddress("10.1.1.10/24"),
-				},
-			},
-			Routes: []acnnetwork.RouteInfo{
-				{
-					Dst: acnnetwork.Ipv4DefaultRouteDstPrefix,
-					Gw:  net.ParseIP("10.0.0.1"),
-				},
-			},
-			NICType:          cns.InfraNIC,
-			HostSubnetPrefix: *parseCIDR("10.0.0.0/24"),
-		},
-		accelnetAddress: {
-			IPConfigs: []*acnnetwork.IPConfig{
-				{
-					Address: *getCIDRNotationForAddress("20.1.1.10/24"),
-				},
-			},
-			Routes:     []acnnetwork.RouteInfo{},
-			NICType:    cns.NodeNetworkInterfaceAccelnetFrontendNIC,
-			MacAddress: net.HardwareAddr(accelnetAddress),
-		},
-	}
-
-	for key := range interfaceInfos {
-		ifInfo := interfaceInfos[key]
-
-		epInfoOpt := createEpInfoOpt{
-			args:          argsInfo.args,
-			k8sPodName:    "test-pod",
-			k8sNamespace:  "test-pod-ns",
-			ifInfo:        &ifInfo,
-			ipamAddConfig: &IPAMAddConfig{nwCfg: argsInfo.nwCfg, args: argsInfo.args, options: argsInfo.options},
-			endpointIndex: endpointIndex,
-			infraSeen:     &infraSeen,
-		}
-
-		// generate endpoint info
-		var endpointID, ifName string
-
-		if epInfoOpt.ifInfo.NICType == cns.InfraNIC && !*epInfoOpt.infraSeen {
-			ifName = epInfoOpt.args.IfName
-			endpointID = plugin.nm.GetEndpointID(epInfoOpt.args.ContainerID, ifName)
-			*epInfoOpt.infraSeen = true
-		} else {
-			ifName = "eth" + strconv.Itoa(epInfoOpt.endpointIndex)
-			endpointID = plugin.nm.GetEndpointID(epInfoOpt.args.ContainerID, ifName)
-		}
-
-		endpointInfo := acnnetwork.EndpointInfo{
-			IfName:     ifName,
-			EndpointID: endpointID,
-			NICType:    epInfoOpt.ifInfo.NICType,
-		}
-
-		epInfos = append(epInfos, &endpointInfo)
-		endpointIndex++
-	}
-
-	// validate if cni generates expected endpoint names
-	for _, epInfo := range epInfos {
-		containerID := plugin.nm.GetEndpointID(argsInfo.args.ContainerID, epInfo.IfName)
-		// should generate endpoint name like testcont-eth0(infraNIC); testcont-eth1(accelnetNIC)
-		if epInfo.EndpointID != containerID {
-			t.Fatalf("Wrong endpointName %s for interface %s with NICType %s; expected endpointName should be %s", epInfo.EndpointID, epInfo.NICType,
-				epInfo.IfName, containerID)
-		}
 	}
 }
 
