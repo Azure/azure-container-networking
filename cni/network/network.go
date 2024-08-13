@@ -605,7 +605,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 	}()
 
 	infraSeen := false
-	endpointIndex := 0
+	endpointIndex := 1
 	for key := range ipamAddResult.interfaceInfo {
 		ifInfo := ipamAddResult.interfaceInfo[key]
 
