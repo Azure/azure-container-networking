@@ -2,10 +2,6 @@ package deviceplugin
 
 import (
 	"context"
-	"fmt"
-	"os"
-	"path"
-	"strings"
 	"sync"
 	"time"
 
@@ -14,8 +10,6 @@ import (
 	"go.uber.org/zap"
 	"k8s.io/kubelet/pkg/apis/deviceplugin/v1beta1"
 )
-
-var ErrUnknownDeviceType = errors.New("unknown device type")
 
 const (
 	defaultDevicePluginDirectory = "/var/lib/kubelet/device-plugins"
@@ -51,12 +45,13 @@ func PluginDeviceCheckInterval(i time.Duration) func(*pluginManagerOptions) {
 // PluginManager runs device plugins for vnet nics and ib nics
 type PluginManager struct {
 	Logger        *zap.Logger
-	VnetNICPlugin *Plugin
-	IBNICPlugin   *Plugin
+	plugins       []*Plugin
+	socketWatcher *SocketWatcher
 	options       pluginManagerOptions
+	mu            sync.Mutex
 }
 
-func NewPluginManager(l *zap.Logger, initialVnetNICCount, initialIBNICCount int, opts ...pluginManagerOption) *PluginManager {
+func NewPluginManager(l *zap.Logger, opts ...pluginManagerOption) *PluginManager {
 	logger := l.With(zap.String("component", "devicePlugin"))
 	socketWatcher := NewSocketWatcher(logger)
 	options := pluginManagerOptions{
@@ -68,80 +63,52 @@ func NewPluginManager(l *zap.Logger, initialVnetNICCount, initialIBNICCount int,
 		o(&options)
 	}
 	return &PluginManager{
-		Logger: logger,
-		VnetNICPlugin: NewPlugin(logger, string(v1alpha1.DeviceTypeVnetNIC), socketWatcher,
-			getSocketName(options.devicePluginDirectory, v1alpha1.DeviceTypeVnetNIC), initialVnetNICCount,
-			options.kubeletSocket, options.deviceCheckInterval),
-		IBNICPlugin: NewPlugin(logger, string(v1alpha1.DeviceTypeInfiniBandNIC), socketWatcher,
-			getSocketName(options.devicePluginDirectory, v1alpha1.DeviceTypeInfiniBandNIC), initialIBNICCount,
-			options.kubeletSocket, options.deviceCheckInterval),
-		options: options,
+		Logger:        logger,
+		socketWatcher: socketWatcher,
+		options:       options,
 	}
 }
 
+func (pm *PluginManager) AddPlugin(deviceType v1alpha1.DeviceType, deviceCount int) *PluginManager {
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
+	p := NewPlugin(pm.Logger, string(deviceType), pm.socketWatcher,
+		pm.options.devicePluginDirectory, deviceCount, deviceType, pm.options.kubeletSocket, pm.options.deviceCheckInterval)
+	pm.plugins = append(pm.plugins, p)
+	return pm
+}
+
 // Run runs the plugin manager until the context is cancelled or error encountered
-func (p *PluginManager) Run(ctx context.Context) error {
+func (pm *PluginManager) Run(ctx context.Context) error {
 	// clean up any leftover state from previous failed plugins
 	// this can happen if the process crashes before it is able to clean up after itself
-	if err := p.cleanOldState(); err != nil {
-		return errors.Wrap(err, "error cleaning state from previous plugin process")
+	for _, plugin := range pm.plugins {
+		if err := plugin.CleanOldState(); err != nil {
+			return errors.Wrap(err, "error cleaning state from previous plugin process")
+		}
 	}
 
 	var wg sync.WaitGroup
-	wg.Add(1) //nolint:gomnd // starting two goroutines to wait on
-	go func() {
-		defer wg.Done()
-		p.VnetNICPlugin.Run(ctx)
-	}()
-
-	wg.Add(1) //nolint:gomnd // starting two goroutines to wait on
-	go func() {
-		defer wg.Done()
-		p.IBNICPlugin.Run(ctx)
-	}()
+	for _, plugin := range pm.plugins {
+		wg.Add(1) //nolint:gomnd // in favor of readability
+		go func(p *Plugin) {
+			defer wg.Done()
+			p.Run(ctx)
+		}(plugin)
+	}
 
 	wg.Wait()
 	return nil
 }
 
-func (p *PluginManager) TrackDevices(deviceType v1alpha1.DeviceType, count int) error {
-	switch deviceType {
-	case v1alpha1.DeviceTypeInfiniBandNIC:
-		p.IBNICPlugin.UpdateDeviceCount(count)
-	case v1alpha1.DeviceTypeVnetNIC:
-		p.VnetNICPlugin.UpdateDeviceCount(count)
-	default:
-		return ErrUnknownDeviceType
-	}
-
-	return nil
-}
-
-func (p *PluginManager) cleanOldState() error {
-	entries, err := os.ReadDir(p.options.devicePluginDirectory)
-	if err != nil {
-		return errors.Wrap(err, "error listing existing device plugin sockets")
-	}
-	for _, entry := range entries {
-		if strings.HasPrefix(entry.Name(), path.Base(getSocketPrefix(p.options.devicePluginDirectory, v1alpha1.DeviceTypeVnetNIC))) ||
-			strings.HasPrefix(entry.Name(), path.Base(getSocketPrefix(p.options.devicePluginDirectory, v1alpha1.DeviceTypeInfiniBandNIC))) {
-			// try to delete it
-			f := path.Join(p.options.devicePluginDirectory, entry.Name())
-			if err := os.Remove(f); err != nil {
-				return errors.Wrapf(err, "error removing old socket %q", f)
-			}
+func (pm *PluginManager) TrackDevices(deviceType v1alpha1.DeviceType, count int) error {
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
+	for _, plugin := range pm.plugins {
+		if plugin.deviceType == deviceType {
+			plugin.UpdateDeviceCount(count)
+			break
 		}
 	}
 	return nil
-}
-
-// getSocketPrefix returns a fully qualified path prefix for a given device type. For example, if the device plugin directory is
-// /home/foo and the device type is acn.azure.com/vnet-nic, this function returns /home/foo/acn.azure.com_vnet-nic
-func getSocketPrefix(devicePluginDirectory string, deviceType v1alpha1.DeviceType) string {
-	sanitizedDeviceName := strings.ReplaceAll(string(deviceType), "/", "_")
-	return path.Join(devicePluginDirectory, sanitizedDeviceName)
-}
-
-func getSocketName(devicePluginDirectory string, deviceType v1alpha1.DeviceType) string {
-	return fmt.Sprintf("%s-%d.sock", getSocketPrefix(devicePluginDirectory, deviceType), time.Now().Unix())
 }

@@ -2,12 +2,16 @@ package deviceplugin
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"os"
+	"path"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
+	"github.com/Azure/azure-container-networking/crd/multitenancy/api/v1alpha1"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
@@ -16,27 +20,31 @@ import (
 )
 
 type Plugin struct {
-	Logger              *zap.Logger
-	ResourceName        string
-	SocketWatcher       *SocketWatcher
-	Socket              string
-	deviceCountMutex    sync.Mutex
-	deviceCount         int
-	kubeletSocket       string
-	deviceCheckInterval time.Duration
+	Logger                *zap.Logger
+	ResourceName          string
+	SocketWatcher         *SocketWatcher
+	Socket                string
+	deviceCountMutex      sync.Mutex
+	deviceCount           int
+	deviceType            v1alpha1.DeviceType
+	kubeletSocket         string
+	deviceCheckInterval   time.Duration
+	devicePluginDirectory string
 }
 
-func NewPlugin(l *zap.Logger, resourceName string, socketWatcher *SocketWatcher, socket string,
-	initialDeviceCount int, kubeletSocket string, deviceCheckInterval time.Duration,
+func NewPlugin(l *zap.Logger, resourceName string, socketWatcher *SocketWatcher, pluginDir string,
+	initialDeviceCount int, deviceType v1alpha1.DeviceType, kubeletSocket string, deviceCheckInterval time.Duration,
 ) *Plugin {
 	return &Plugin{
-		Logger:              l.With(zap.String("resourceName", resourceName)),
-		ResourceName:        resourceName,
-		SocketWatcher:       socketWatcher,
-		Socket:              socket,
-		deviceCount:         initialDeviceCount,
-		kubeletSocket:       kubeletSocket,
-		deviceCheckInterval: deviceCheckInterval,
+		Logger:                l.With(zap.String("resourceName", resourceName)),
+		ResourceName:          resourceName,
+		SocketWatcher:         socketWatcher,
+		Socket:                getSocketName(pluginDir, deviceType),
+		deviceCount:           initialDeviceCount,
+		deviceType:            deviceType,
+		kubeletSocket:         kubeletSocket,
+		deviceCheckInterval:   deviceCheckInterval,
+		devicePluginDirectory: pluginDir,
 	}
 }
 
@@ -130,6 +138,23 @@ func (p *Plugin) mustCleanUp() {
 	}
 }
 
+func (p *Plugin) CleanOldState() error {
+	entries, err := os.ReadDir(p.devicePluginDirectory)
+	if err != nil {
+		return errors.Wrap(err, "error listing existing device plugin sockets")
+	}
+	for _, entry := range entries {
+		if strings.HasPrefix(entry.Name(), path.Base(getSocketPrefix(p.devicePluginDirectory, p.deviceType))) {
+			// try to delete it
+			f := path.Join(p.devicePluginDirectory, entry.Name())
+			if err := os.Remove(f); err != nil {
+				return errors.Wrapf(err, "error removing old socket %q", f)
+			}
+		}
+	}
+	return nil
+}
+
 func (p *Plugin) UpdateDeviceCount(count int) {
 	p.deviceCountMutex.Lock()
 	p.deviceCount = count
@@ -140,4 +165,15 @@ func (p *Plugin) getDeviceCount() int {
 	p.deviceCountMutex.Lock()
 	defer p.deviceCountMutex.Unlock()
 	return p.deviceCount
+}
+
+// getSocketPrefix returns a fully qualified path prefix for a given device type. For example, if the device plugin directory is
+// /home/foo and the device type is acn.azure.com/vnet-nic, this function returns /home/foo/acn.azure.com_vnet-nic
+func getSocketPrefix(devicePluginDirectory string, deviceType v1alpha1.DeviceType) string {
+	sanitizedDeviceName := strings.ReplaceAll(string(deviceType), "/", "_")
+	return path.Join(devicePluginDirectory, sanitizedDeviceName)
+}
+
+func getSocketName(devicePluginDirectory string, deviceType v1alpha1.DeviceType) string {
+	return fmt.Sprintf("%s-%d.sock", getSocketPrefix(devicePluginDirectory, deviceType), time.Now().Unix())
 }
