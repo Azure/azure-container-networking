@@ -245,7 +245,8 @@ BUILDX_ACTION  		?= --load
 CONTAINER_BUILDER   ?= buildah
 CONTAINER_RUNTIME   ?= podman
 CONTAINER_TRANSPORT ?= skopeo
-
+# docker wants a value even if it is not used
+DOCKER_OS_VERSION   ?= $(if $(OS_VERSION),$(OS_VERSION),"none")
 
 # prefer buildah, if available, but fall back to docker if that binary is not in the path or on Windows.
 ifeq (, $(shell which $(CONTAINER_BUILDER)))
@@ -321,7 +322,7 @@ container-docker: # util target to build container images using docker buildx. d
 		$(BUILDX_ACTION) \
 		--build-arg ARCH=$(ARCH) \
 		--build-arg OS=$(OS) \
-		--build-arg OS_VERSION=$(OS_VERSION) \
+		--build-arg OS_VERSION=$(DOCKER_OS_VERSION) \
 		--build-arg PLATFORM=$(PLATFORM) \
 		--build-arg VERSION=$(TAG) \
 		$(EXTRA_BUILD_ARGS) \

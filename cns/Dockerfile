@@ -11,10 +11,10 @@ WORKDIR /azure-container-networking
 COPY . .
 RUN GOOS=$OS CGO_ENABLED=0 go build -a -o /go/bin/azure-cns -ldflags "-X main.version="$VERSION" -X "$CNS_AI_PATH"="$CNS_AI_ID"" -gcflags="-dwarflocationlists=true" cns/service/*.go
 
-FROM mcr.microsoft.com/cbl-mariner/base/core:2.0 as iptables
+FROM mcr.microsoft.com/cbl-mariner/base/core:2.0 AS iptables
 RUN tdnf install -y iptables
 
-FROM mcr.microsoft.com/cbl-mariner/distroless/minimal:2.0 as linux
+FROM mcr.microsoft.com/cbl-mariner/distroless/minimal:2.0 AS linux
 COPY --from=iptables /usr/sbin/*tables* /usr/sbin/
 COPY --from=iptables /usr/lib /usr/lib
 COPY --from=builder /go/bin/azure-cns /usr/local/bin/azure-cns
@@ -23,15 +23,15 @@ EXPOSE 10090
 
 
 # intermediate for win-ltsc2019
-FROM mcr.microsoft.com/windows/servercore@sha256:6fdf140282a2f809dae9b13fe441635867f0a27c33a438771673b8da8f3348a4 as ltsc2019
+FROM mcr.microsoft.com/windows/servercore@sha256:6fdf140282a2f809dae9b13fe441635867f0a27c33a438771673b8da8f3348a4 AS ltsc2019
 
 # intermediate for win-ltsc2022
-FROM mcr.microsoft.com/windows/servercore@sha256:45952938708fbde6ec0b5b94de68bcdec3f8c838be018536b1e9e5bd95e6b943 as ltsc2022
+FROM mcr.microsoft.com/windows/servercore@sha256:45952938708fbde6ec0b5b94de68bcdec3f8c838be018536b1e9e5bd95e6b943 AS ltsc2022
 
 # intermediate for win-ltsc2025
-FROM mcr.microsoft.com/windows/servercore/insider@sha256:4daaf3daa404fbdebec9d88783fb343f18009ffd9c8d98c43430ca1f4e615184 as ltsc2025
+FROM mcr.microsoft.com/windows/servercore/insider@sha256:4daaf3daa404fbdebec9d88783fb343f18009ffd9c8d98c43430ca1f4e615184 AS ltsc2025
 
-FROM ${OS_VERSION} as windows
+FROM ${OS_VERSION} AS windows
 COPY --from=builder /azure-container-networking/cns/kubeconfigtemplate.yaml kubeconfigtemplate.yaml
 COPY --from=builder /azure-container-networking/npm/examples/windows/setkubeconfigpath.ps1 setkubeconfigpath.ps1
 COPY --from=builder /go/bin/azure-cns /azure-cns.exe

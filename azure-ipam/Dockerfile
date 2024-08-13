@@ -27,10 +27,10 @@ WORKDIR /go/pkg/mod/github.com/azure/azure-container-networking/dropgz\@$DROPGZ_
 COPY --from=compressor /payload/* pkg/embed/fs/
 RUN GOOS=$OS CGO_ENABLED=0 go build -a -o /go/bin/dropgz -trimpath -ldflags "-X github.com/Azure/azure-container-networking/dropgz/internal/buildinfo.Version="$VERSION"" -gcflags="-dwarflocationlists=true" main.go
 
-FROM scratch as linux
+FROM scratch AS linux
 COPY --from=dropgz /go/bin/dropgz dropgz
 ENTRYPOINT [ "/dropgz" ]
 
-FROM mcr.microsoft.com/windows/nanoserver:${OS_VERSION} as windows
+FROM mcr.microsoft.com/windows/nanoserver:${OS_VERSION} AS windows
 COPY --from=dropgz /go/bin/dropgz dropgz.exe
 ENTRYPOINT [ "/dropgz.exe" ]
