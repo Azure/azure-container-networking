@@ -732,7 +732,6 @@ func (plugin *NetPlugin) createEpInfo(opt *createEpInfoOpt) (*network.EndpointIn
 	// populate endpoint info
 	epDNSInfo, err := getEndpointDNSSettings(opt.nwCfg, opt.ifInfo.DNS, opt.k8sNamespace) // Probably won't panic if given bad values
 	if err != nil {
-
 		err = plugin.Errorf("Failed to getEndpointDNSSettings: %v", err)
 		return nil, err
 	}
@@ -753,13 +752,16 @@ func (plugin *NetPlugin) createEpInfo(opt *createEpInfoOpt) (*network.EndpointIn
 	}
 
 	// generate endpoint info
-	var endpointID string
+	var endpointID, ifName string
+
 	if opt.ifInfo.NICType == cns.InfraNIC && !*opt.infraSeen {
 		// so we do not break existing scenarios, only the first infra gets the original endpoint id generation
-		endpointID = plugin.nm.GetEndpointID(opt.args.ContainerID, opt.args.IfName)
+		ifName = opt.args.IfName
+		endpointID = plugin.nm.GetEndpointID(opt.args.ContainerID, ifName)
 		*opt.infraSeen = true
 	} else {
-		endpointID = plugin.nm.GetEndpointID(opt.args.ContainerID, strconv.Itoa(opt.endpointIndex))
+		ifName = "eth" + strconv.Itoa(opt.endpointIndex)
+		endpointID = plugin.nm.GetEndpointID(opt.args.ContainerID, ifName)
 	}
 
 	endpointInfo := network.EndpointInfo{
@@ -777,7 +779,7 @@ func (plugin *NetPlugin) createEpInfo(opt *createEpInfoOpt) (*network.EndpointIn
 		EndpointID:  endpointID,
 		ContainerID: opt.args.ContainerID,
 		NetNsPath:   opt.args.Netns, // probably same value as epInfo.NetNs
-		IfName:      "eth" + strconv.Itoa(opt.endpointIndex),
+		IfName:      ifName,
 		Data:        make(map[string]interface{}),
 		EndpointDNS: epDNSInfo,
 		// endpoint policies are populated later
