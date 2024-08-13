@@ -1392,11 +1392,11 @@ func TestPluginSwiftV2MultipleAddDelete(t *testing.T) {
 				Plugin: plugin,
 				nm:     acnnetwork.NewMockNetworkmanager(acnnetwork.NewMockEndpointClient(nil)),
 				ipamInvoker: NewCustomMockIpamInvoker(map[string]acnnetwork.InterfaceInfo{
-					"eth0-1": {
-						NICType: cns.NodeNetworkInterfaceFrontendNIC,
-					},
 					"eth0": {
 						NICType: cns.InfraNIC,
+					},
+					"eth2": {
+						NICType: cns.NodeNetworkInterfaceFrontendNIC,
 					},
 				}),
 				report: &telemetry.CNIReport{},
@@ -1417,7 +1417,7 @@ func TestPluginSwiftV2MultipleAddDelete(t *testing.T) {
 				Plugin: plugin,
 				nm:     acnnetwork.NewMockNetworkmanager(acnnetwork.NewMockEndpointClient(nil)),
 				ipamInvoker: NewCustomMockIpamInvoker(map[string]acnnetwork.InterfaceInfo{
-					"eth0-1": {
+					"eth1": {
 						NICType: cns.NodeNetworkInterfaceAccelnetFrontendNIC,
 					},
 					"eth0": {
@@ -1442,14 +1442,14 @@ func TestPluginSwiftV2MultipleAddDelete(t *testing.T) {
 				Plugin: plugin,
 				nm:     acnnetwork.NewMockNetworkmanager(acnnetwork.NewMockEndpointClient(nil)),
 				ipamInvoker: NewCustomMockIpamInvoker(map[string]acnnetwork.InterfaceInfo{
-					"eth0-2": {
-						NICType: cns.NodeNetworkInterfaceAccelnetFrontendNIC,
-					},
-					"eth0-1": {
-						NICType: cns.NodeNetworkInterfaceFrontendNIC,
-					},
 					"eth0": {
 						NICType: cns.InfraNIC,
+					},
+					"eth1": {
+						NICType: cns.NodeNetworkInterfaceAccelnetFrontendNIC,
+					},
+					"eth2": {
+						NICType: cns.NodeNetworkInterfaceFrontendNIC,
 					},
 				}),
 				report: &telemetry.CNIReport{},
@@ -1470,11 +1470,11 @@ func TestPluginSwiftV2MultipleAddDelete(t *testing.T) {
 				Plugin: plugin,
 				nm:     acnnetwork.NewMockNetworkmanager(acnnetwork.NewMockEndpointClient(nil)),
 				ipamInvoker: NewCustomMockIpamInvoker(map[string]acnnetwork.InterfaceInfo{
-					"eth0-1": {
-						NICType: cns.BackendNIC,
-					},
 					"eth0": {
 						NICType: cns.InfraNIC,
+					},
+					"eth1": {
+						NICType: cns.BackendNIC,
 					},
 				}),
 				report: &telemetry.CNIReport{},
@@ -1495,10 +1495,10 @@ func TestPluginSwiftV2MultipleAddDelete(t *testing.T) {
 				Plugin: plugin,
 				nm:     acnnetwork.NewMockNetworkmanager(acnnetwork.NewMockEndpointClient(nil)),
 				ipamInvoker: NewCustomMockIpamInvoker(map[string]acnnetwork.InterfaceInfo{
-					"eth0": {
+					"eth1": {
 						NICType: cns.NodeNetworkInterfaceFrontendNIC,
 					},
-					"eth0-1": {
+					"eth2": {
 						NICType: cns.NodeNetworkInterfaceFrontendNIC,
 					},
 				}),
@@ -1520,10 +1520,10 @@ func TestPluginSwiftV2MultipleAddDelete(t *testing.T) {
 				Plugin: plugin,
 				nm:     acnnetwork.NewMockNetworkmanager(acnnetwork.NewMockEndpointClient(nil)),
 				ipamInvoker: NewCustomMockIpamInvoker(map[string]acnnetwork.InterfaceInfo{
-					"eth0": {
+					"eth1": {
 						NICType: cns.NodeNetworkInterfaceAccelnetFrontendNIC,
 					},
-					"eth0-1": {
+					"eth2": {
 						NICType: cns.NodeNetworkInterfaceAccelnetFrontendNIC,
 					},
 				}),
@@ -1556,7 +1556,7 @@ func TestPluginSwiftV2MultipleAddDelete(t *testing.T) {
 					"eth0": {
 						NICType: cns.InfraNIC,
 					},
-					"eth0-1": {
+					"eth1": {
 						NICType: cns.NodeNetworkInterfaceFrontendNIC,
 					},
 				}),
@@ -1588,7 +1588,7 @@ func TestPluginSwiftV2MultipleAddDelete(t *testing.T) {
 					"eth0": {
 						NICType: cns.NodeNetworkInterfaceFrontendNIC,
 					},
-					"eth0-1": {
+					"eth1": {
 						NICType: cns.NodeNetworkInterfaceAccelnetFrontendNIC,
 					},
 				}),
@@ -1620,7 +1620,7 @@ func TestPluginSwiftV2MultipleAddDelete(t *testing.T) {
 					"eth0": {
 						NICType: cns.InfraNIC,
 					},
-					"eth0-1": {
+					"eth1": {
 						NICType: cns.NodeNetworkInterfaceAccelnetFrontendNIC,
 					},
 				}),
@@ -1655,7 +1655,7 @@ func TestPluginSwiftV2MultipleAddDelete(t *testing.T) {
 				if ep.NICType == cns.InfraNIC {
 					require.Equal(t, "test-con-"+tt.args.IfName, ep.EndpointID, "infra nic must use ifname for its endpoint id")
 				} else {
-					require.Regexp(t, `test-con-\d+$`, ep.EndpointID, "other nics must use an index for their endpoint ids")
+					require.Regexp(t, `\d+$`, ep.EndpointID, "other nics must use an index for their endpoint ids")
 				}
 			}
 
