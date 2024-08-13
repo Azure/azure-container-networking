@@ -1727,7 +1727,7 @@ func TestPluginGenerateEndpointNames(t *testing.T) {
 	for key := range interfaceInfos {
 		ifInfo := interfaceInfos[key]
 
-		createEpInfoOpt := createEpInfoOpt{
+		epInfoOpt := createEpInfoOpt{
 			args:          argsInfo.args,
 			k8sPodName:    "test-pod",
 			k8sNamespace:  "test-pod-ns",
@@ -1740,19 +1740,19 @@ func TestPluginGenerateEndpointNames(t *testing.T) {
 		// generate endpoint info
 		var endpointID, ifName string
 
-		if createEpInfoOpt.ifInfo.NICType == cns.InfraNIC && !*createEpInfoOpt.infraSeen {
-			ifName = createEpInfoOpt.args.IfName
-			endpointID = plugin.nm.GetEndpointID(createEpInfoOpt.args.ContainerID, ifName)
-			*createEpInfoOpt.infraSeen = true
+		if epInfoOpt.ifInfo.NICType == cns.InfraNIC && !*epInfoOpt.infraSeen {
+			ifName = epInfoOpt.args.IfName
+			endpointID = plugin.nm.GetEndpointID(epInfoOpt.args.ContainerID, ifName)
+			*epInfoOpt.infraSeen = true
 		} else {
-			ifName = "eth" + strconv.Itoa(createEpInfoOpt.endpointIndex)
-			endpointID = plugin.nm.GetEndpointID(createEpInfoOpt.args.ContainerID, ifName)
+			ifName = "eth" + strconv.Itoa(epInfoOpt.endpointIndex)
+			endpointID = plugin.nm.GetEndpointID(epInfoOpt.args.ContainerID, ifName)
 		}
 
 		endpointInfo := acnnetwork.EndpointInfo{
 			IfName:     ifName,
 			EndpointID: endpointID,
-			NICType:    createEpInfoOpt.ifInfo.NICType,
+			NICType:    epInfoOpt.ifInfo.NICType,
 		}
 
 		epInfos = append(epInfos, &endpointInfo)
