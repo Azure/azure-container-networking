@@ -13,7 +13,6 @@ import (
 	"github.com/Azure/azure-container-networking/cni/util"
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/common"
-	"github.com/Azure/azure-container-networking/network"
 	acnnetwork "github.com/Azure/azure-container-networking/network"
 	"github.com/Azure/azure-container-networking/network/networkutils"
 	"github.com/Azure/azure-container-networking/network/policy"
@@ -1750,7 +1749,7 @@ func TestPluginGenerateEndpointNames(t *testing.T) {
 			endpointID = plugin.nm.GetEndpointID(createEpInfoOpt.args.ContainerID, ifName)
 		}
 
-		endpointInfo := network.EndpointInfo{
+		endpointInfo := acnnetwork.EndpointInfo{
 			IfName:     ifName,
 			EndpointID: endpointID,
 			NICType:    createEpInfoOpt.ifInfo.NICType,
