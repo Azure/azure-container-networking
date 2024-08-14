@@ -35,7 +35,7 @@ jobs:
     - name: Setup go
       uses: actions/setup-go@v5
       with:
-        go-version: '1.21'
+        go-version: '1.21.0'
         check-latest: true
     - name: Checkout repository
       uses: actions/checkout@v4
@@ -43,6 +43,7 @@ jobs:
       uses: github/codeql-action/init@v3
       with:
         languages: ${{ matrix.language }}
+        queries: ./codeql/
     - name: Autobuild
       uses: github/codeql-action/autobuild@v3
     - name: Perform CodeQL Analysis
