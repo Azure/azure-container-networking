@@ -320,8 +320,9 @@ func (invoker *CNSIPAMInvoker) Delete(address *net.IPNet, nwCfg *cni.NetworkConf
 				if errors.As(err, &connectionErr) {
 					addErr := fsnotify.AddFile(ipConfigs.PodInterfaceID, args.ContainerID, watcherPath)
 					if addErr != nil {
-						logger.Error("Failed to add file to watcher", zap.String("podInterfaceID", ipConfigs.PodInterfaceID), zap.String("containerID", args.ContainerID), zap.Error(simpleError{e: addErr}))
-						return errors.Wrap(addErr, fmt.Sprintf("failed to add file to watcher with containerID %s and podInterfaceID %s", args.ContainerID, ipConfigs.PodInterfaceID))
+						logger.Error("Failed to add file to watcher (unsupported api path)",
+							zap.String("podInterfaceID", ipConfigs.PodInterfaceID), zap.String("containerID", args.ContainerID), zap.Error(simpleError{e: addErr}))
+						return errors.Wrap(addErr, fmt.Sprintf("failed to add file to watcher with containerID %s and podInterfaceID %s (unsupported api path)", args.ContainerID, ipConfigs.PodInterfaceID))
 					}
 				} else {
 					logger.Error("Failed to release IP address from CNS using ReleaseIPAddress ",
