@@ -101,7 +101,7 @@ func (pm *PluginManager) Run(ctx context.Context) error {
 	return nil
 }
 
-func (pm *PluginManager) TrackDevices(deviceType v1alpha1.DeviceType, count int) error {
+func (pm *PluginManager) TrackDevices(deviceType v1alpha1.DeviceType, count int) {
 	pm.mu.Lock()
 	defer pm.mu.Unlock()
 	for _, plugin := range pm.plugins {
@@ -110,5 +110,4 @@ func (pm *PluginManager) TrackDevices(deviceType v1alpha1.DeviceType, count int)
 			break
 		}
 	}
-	return nil
 }

@@ -39,7 +39,7 @@ func TestPluginManagerStartStop(t *testing.T) {
 	// run the plugin manager
 	expectedVnetNICs := 2
 	expectedIBNICs := 3
-	manager := deviceplugin.NewPluginManager(logger, expectedVnetNICs, expectedIBNICs,
+	manager := deviceplugin.NewPluginManager(logger,
 		deviceplugin.PluginManagerSocketPrefix(fakeKubeletSocketDir),
 		deviceplugin.PluginManagerKubeletSocket(kubeletSocket),
 		deviceplugin.PluginDeviceCheckInterval(time.Second))
@@ -66,13 +66,9 @@ func TestPluginManagerStartStop(t *testing.T) {
 	// update the device counts and assert they match expected after some time
 	expectedVnetNICs = 5
 	expectedIBNICs = 6
-	if err = manager.TrackDevices(v1alpha1.DeviceTypeVnetNIC, expectedVnetNICs); err != nil {
-		t.Fatalf("error tracking VNET devices: %v", err)
-	}
+	manager.TrackDevices(v1alpha1.DeviceTypeVnetNIC, expectedVnetNICs)
 
-	if err = manager.TrackDevices(v1alpha1.DeviceTypeInfiniBandNIC, expectedIBNICs); err != nil {
-		t.Fatalf("error tracking IB devices: %v", err)
-	}
+	manager.TrackDevices(v1alpha1.DeviceTypeInfiniBandNIC, expectedIBNICs)
 
 	checkDeviceCounts := func() error {
 		gotVnetNICCount := getDeviceCount(t, vnetPluginEndpoint)
