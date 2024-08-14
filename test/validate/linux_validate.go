@@ -87,23 +87,6 @@ var linuxChecksMap = map[string][]check{
 			cmd:              azureVnetStateFileCmd,
 		}, // cns configmap "ManageEndpointState": false, | Endpoints managed in CNI State File
 	},
-	"statelessCNI": {
-		{
-			name:             "cns cache",
-			stateFileIPs:     cnsCacheStateFileIps,
-			podLabelSelector: validatorPod,
-			podNamespace:     privilegedNamespace,
-			containerName:    "debug",
-			cmd:              cnsCachedAssignedIPStateCmd,
-		},
-		{
-			name:             "azure-vnet",
-			stateFileIPs:     azureVnetStateIps,
-			podLabelSelector: privilegedLabelSelector,
-			podNamespace:     privilegedNamespace,
-			cmd:              azureVnetStateFileCmd,
-		}, // cns configmap "ManageEndpointState": false, | Endpoints managed in CNI State File
-	},
 	"dualstack": {
 		{
 			name:             "cns cache",
@@ -221,24 +204,6 @@ type AzureVnetEndpointInfo struct {
 	MacAddress  string
 	IPAddresses []Prefix
 	PodName     string
-}
-
-func cnsManagedStateFileIps(result []byte) (map[string]string, error) {
-	var cnsResult CnsManagedState
-	err := json.Unmarshal(result, &cnsResult)
-	if err != nil {
-		return nil, errors.Wrapf(err, "failed to unmarshal cns endpoint list")
-	}
-
-	cnsPodIps := make(map[string]string)
-	for _, v := range cnsResult.Endpoints {
-		for ifName, ip := range v.IfnameToIPMap {
-			if ifName == "eth0" {
-				cnsPodIps[ip.IPv4[0].IP.String()] = v.PodName
-			}
-		}
-	}
-	return cnsPodIps, nil
 }
 
 func cnsManagedStateFileDualStackIps(result []byte) (map[string]string, error) {
