@@ -334,11 +334,11 @@ stages:
       parameters:
         name: "azure_overlay_stateless_e2e"
         displayName: Azure Stateless CNI Overlay
-        os: linux
+        os: windows
         clusterType: overlay-byocni-up
-        clusterName: "azovere2estateless"
+        clusterName: "statelesswin"
         vmSize: Standard_B2ms
-        k8sVersion: ""
+        k8sVersion: "1.30"
         dependsOn: "containerize"
 
     # AKS Swift E2E tests
@@ -424,6 +424,7 @@ stages:
       dependsOn:
         - setup
         - azure_overlay_e2e
+        - azure_overlay_stateless_e2e
         - aks_swift_e2e
         - cilium_e2e
         - cilium_overlay_e2e
@@ -458,7 +459,9 @@ stages:
               azure_overlay_e2e:
                 name: azure_overlay_e2e
                 clusterName: "azovere2e"
-                region: $(REGION_AKS_CLUSTER_TEST)
+              azure_overlay_stateless_e2e:
+                name: azure_overlay_stateless_e2e
+                clusterName: "statelesswin"
               aks_swift_e2e:
                 name: aks_swift_e2e
                 clusterName: "swifte2e"

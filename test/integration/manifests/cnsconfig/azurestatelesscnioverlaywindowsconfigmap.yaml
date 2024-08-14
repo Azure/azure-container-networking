@@ -23,7 +23,7 @@ data:
       },
       "EnableSubnetScarcity": false,
       "ChannelMode": "CRD",
-      "InitializeFromCNI": true,
+      "InitializeFromCNI": false,
       "ManageEndpointState": true,
       "ProgramSNATIPTables" : false,
       "MetricsBindAddress": ":10092",

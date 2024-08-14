@@ -31,11 +31,11 @@ steps:
     name: "kubeconfig"
     displayName: "Set Kubeconfig"
 
-  - ${{ if eq(parameters.os, 'linux') }}:
+  - ${{ if eq(parameters.os, 'windows') }}:
     - script: |
         echo "Start Integration Tests on Overlay Cluster"
         kubectl get po -owide -A
-        sudo -E env "PATH=$PATH" make test-load SCALE_UP=32 OS_TYPE=linux CNI_TYPE=statelessCNI VALIDATE_STATEFILE=true INSTALL_CNS=true INSTALL_AZURE_VNET_STATELESS=true VALIDATE_V4OVERLAY=true AZURE_IPAM_VERSION=$(make azure-ipam-version) CNS_VERSION=$(make cns-version) CNI_VERSION=$(make cni-version) CLEANUP=true
+        sudo -E env "PATH=$PATH" make test-load SCALE_UP=32 OS_TYPE=windows CNI_TYPE=statelessCNI VALIDATE_STATEFILE=true INSTALL_CNS=true INSTALL_AZURE_VNET_STATELESS=true VALIDATE_V4OVERLAY=true AZURE_IPAM_VERSION=$(make azure-ipam-version) CNS_VERSION=$(make cns-version) CNI_VERSION=$(make cni-version) CLEANUP=true
       retryCountOnTaskFailure: 2
       name: "integrationTest"
       displayName: "Run CNS Integration Tests on AKS Overlay"
@@ -69,7 +69,7 @@ steps:
           make -C ./hack/aks azcfg AZCLI=az REGION=$(REGION_AKS_CLUSTER_TEST)
           kubectl get pods -owide -A
           echo "Validating Node Restart"
-          CNI_TYPE=statelessCNI RESTART_CASE=true go test -timeout 30m -tags load -run ^TestValidateState$
+          CNI_TYPE=stateless RESTART_CASE=true go test -timeout 30m -tags load -run ^TestValidateState$
       displayName: "Validate Node Restart"
       retryCountOnTaskFailure: 3
 
@@ -78,12 +78,12 @@ steps:
         kubectl get pod -owide -A
         echo "validate pod state before CNS restarts"
         cd test/integration/load
-        CNI_TYPE=statelessCNI go test -timeout 30m -tags load -run ^TestValidateState$
+        CNI_TYPE=stateless go test -timeout 30m -tags load -run ^TestValidateState$
         kubectl rollout restart ds azure-cns -n kube-system
         kubectl rollout status ds azure-cns -n kube-system
         kubectl get pod -owide -A
         echo "validate pods after CNS restart"
-        CNI_TYPE=statelessCNI go test -timeout 30m -tags load -run ^TestValidateState$
+        CNI_TYPE=stateless go test -timeout 30m -tags load -run ^TestValidateState$
       name: "restartCNS_ValidatePodState"
       displayName: "Restart CNS and validate pod state"
       retryCountOnTaskFailure: 3
@@ -94,23 +94,6 @@ steps:
       retryCountOnTaskFailure: 3
       name: "WireserverMetadataConnectivityTests"
       displayName: "Run Wireserver and Metadata Connectivity Tests"
-
-  - ${{ if eq(parameters.os, 'windows') }}:
-    - task: AzureCLI@2
-      inputs:
-        azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
-        scriptLocation: "inlineScript"
-        scriptType: "bash"
-        addSpnToEnvironment: true
-        inlineScript: |
-          set -e
-          make -C ./hack/aks windows-nodepool-up AZCLI=az SUB=$(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS) CLUSTER=${{ parameters.clusterName }} VM_SIZE_WIN=${{ parameters.vmSizeWin }}
-          echo "Windows node are successfully added to v4 Overlay Cluster"
-          kubectl cluster-info
-          kubectl get node -owide
-          kubectl get po -owide -A
-      name: "Add_Windows_Node"
-      displayName: "Add windows node on v4 overlay cluster"
 
     - script: |
         nodeList=`kubectl get node -owide | grep Windows | awk '{print $1}'`
