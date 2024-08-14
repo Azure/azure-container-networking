@@ -102,7 +102,8 @@ steps:
 
         cd ../../..
         echo "Validating Node Restart"
-        make test-validate-state OS_TYPE=${{ parameters.os }} RESTART_CASE=true CNI_TYPE=cniv2
+        make test-validate-state OS_TYPE=${{ parameters.os }} RESTART_CASE=true
+        kubectl delete ns load-test
     displayName: "Validate Node Restart"
     retryCountOnTaskFailure: 3
 
