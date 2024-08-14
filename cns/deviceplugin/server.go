@@ -32,7 +32,6 @@ func NewServer(logger *zap.Logger, address string, deviceCounter deviceCounter, 
 		address:             address,
 		logger:              logger,
 		deviceCounter:       deviceCounter,
-		shutdownCh:          make(chan struct{}),
 		deviceCheckInterval: deviceCheckInterval,
 	}
 }
