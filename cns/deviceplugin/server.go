@@ -83,6 +83,11 @@ func (s *Server) Ready(ctx context.Context) error {
 	return nil
 }
 
+// This is a dummy implementation for allocate to conform to the interface requirements.
+// Allocate is called during container creation so that the Device
+// Plugin can run device specific operations and instruct Kubelet
+// of the steps to make the Device available in the container
+// We are not using this functionality currently
 func (s *Server) Allocate(_ context.Context, req *v1beta1.AllocateRequest) (*v1beta1.AllocateResponse, error) {
 	s.logger.Info("allocate request", zap.Any("req", *req))
 	resps := make([]*v1beta1.ContainerAllocateResponse, len(req.ContainerRequests))

@@ -64,11 +64,15 @@ func (p *Plugin) Run(ctx context.Context) {
 	}
 }
 
+// Here we start the gRPC server and wait for it to be ready
+// Once the server is ready, device plugin registers with the Kubelet
+// so that it can start serving the kubelet requests
 func (p *Plugin) run(ctx context.Context) error {
 	childCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	s := NewServer(p.Logger, p.Socket, p, p.deviceCheckInterval)
+	// Run starts the grpc server and blocks until an error or context is cancelled
 	runErrChan := make(chan error, 2) //nolint:gomnd // disabled in favor of readability
 	go func(errChan chan error) {
 		if err := s.Run(childCtx); err != nil {
@@ -76,7 +80,8 @@ func (p *Plugin) run(ctx context.Context) error {
 		}
 	}(runErrChan)
 
-	// wait till the server is ready before registering with kubelet
+	// Wait till the server is ready before registering with kubelet
+	// This call is not blocking and returns as soon as the server is ready
 	readyErrChan := make(chan error, 2) //nolint:gomnd // disabled in favor of readability
 	go func(errChan chan error) {
 		errChan <- s.Ready(childCtx)
