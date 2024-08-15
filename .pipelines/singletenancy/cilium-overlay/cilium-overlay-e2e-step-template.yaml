@@ -2,6 +2,8 @@ parameters:
   name: ""
   clusterName: ""
   testHubble: false
+  scaleup: ""
+
 
 steps:
   - bash: |
@@ -117,17 +119,14 @@ steps:
       addSpnToEnvironment: true
       inlineScript: |
         cd test/integration/load
-        clusterName=${{ parameters.clusterName }}
-        make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${clusterName}
-        make -C ./hack/aks azcfg AZCLI=az REGION=$(REGION_AKS_CLUSTER_TEST)
 
         # Scale Cluster Up/Down to confirm functioning CNS
-        ITERATIONS=2 SCALE_UP=${{ parameters.scaleup }} OS_TYPE=${{ parameters.os }} go test -count 1 -timeout 30m -tags load -run ^TestLoad$
+        ITERATIONS=2 SCALE_UP=${{ parameters.scaleup }} OS_TYPE=linux go test -count 1 -timeout 30m -tags load -run ^TestLoad$
         kubectl get pods -owide -A
 
         cd ../../..
         echo "Validating Node Restart"
-        make test-validate-state OS_TYPE=${{ parameters.os }} RESTART_CASE=true
+        make test-validate-state OS_TYPE=linux RESTART_CASE=true
         kubectl delete ns load-test
     displayName: "Validate Node Restart"
     retryCountOnTaskFailure: 3

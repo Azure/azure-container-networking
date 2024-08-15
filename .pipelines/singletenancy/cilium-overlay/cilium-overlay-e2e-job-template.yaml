@@ -57,7 +57,6 @@ stages:
             parameters:
               name: ${{ parameters.name }}
               clusterName: ${{ parameters.clusterName }}-$(commitID)
-              os: linux
               scaleup: 100
 
       - template: ../../cni/k8s-e2e/k8s-e2e-job-template.yaml

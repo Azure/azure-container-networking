@@ -3,6 +3,7 @@ parameters:
   clusterName: ""
   cni: "dualstack"
   os: ""
+  scaleup: ""
 
 steps:
   - bash: |
@@ -37,7 +38,7 @@ steps:
         kubectl cluster-info
         kubectl get node
         kubectl get po -owide -A
-        sudo -E env "PATH=$PATH" make test-load SCALE_UP=32 OS_TYPE=linux CNI_TYPE=cniv2 VALIDATE_STATEFILE=true INSTALL_CNS=true INSTALL_DUALSTACK_OVERLAY=true VALIDATE_DUALSTACK=true CNI_VERSION=$(make cni-version) CNS_VERSION=$(make cns-version) CLEANUP=true
+        sudo -E env "PATH=$PATH" make test-load SCALE_UP=32 OS_TYPE=linux CNI_TYPE=dualstack VALIDATE_STATEFILE=true INSTALL_CNS=true INSTALL_DUALSTACK_OVERLAY=true VALIDATE_DUALSTACK=true CNI_VERSION=$(make cni-version) CNS_VERSION=$(make cns-version) CLEANUP=true
       retryCountOnTaskFailure: 3
       name: "integrationTest"
       displayName: "Run CNS Integration Tests on AKS DualStack Overlay"
@@ -77,17 +78,14 @@ steps:
         addSpnToEnvironment: true
         inlineScript: |
           cd test/integration/load
-          clusterName=${{ parameters.clusterName }}
-          make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${clusterName}
-          make -C ./hack/aks azcfg AZCLI=az REGION=$(REGION_DUALSTACKOVERLAY_CLUSTER_TEST)
 
           # Scale Cluster Up/Down to confirm functioning CNS
-          ITERATIONS=2 SCALE_UP=${{ parameters.scaleup }} OS_TYPE=${{ parameters.os }} go test -count 1 -timeout 30m -tags load -run ^TestLoad$
+          ITERATIONS=2 SCALE_UP=${{ parameters.scaleup }} OS_TYPE=linux go test -count 1 -timeout 30m -tags load -run ^TestLoad$
           kubectl get pods -owide -A
 
           cd ../../..
           echo "Validating Node Restart"
-          make test-validate-state OS_TYPE=${{ parameters.os }} RESTART_CASE=true CNI_TYPE=cniv2
+          make test-validate-state OS_TYPE=linux RESTART_CASE=true CNI_TYPE=dualstack
           kubectl delete ns load-test
       displayName: "Validate Node Restart"
       retryCountOnTaskFailure: 3
@@ -137,17 +135,14 @@ steps:
         addSpnToEnvironment: true
         inlineScript: |
           cd test/integration/load
-          clusterName=${{ parameters.clusterName }}
-          make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${clusterName}
-          make -C ./hack/aks azcfg AZCLI=az REGION=$(REGION_DUALSTACKOVERLAY_CLUSTER_TEST)
 
           # Scale Cluster Up/Down to confirm functioning CNS
-          ITERATIONS=2 SCALE_UP=${{ parameters.scaleup }} OS_TYPE=${{ parameters.os }} go test -count 1 -timeout 30m -tags load -run ^TestLoad$
+          ITERATIONS=2 SCALE_UP=${{ parameters.scaleup }} OS_TYPE=windows go test -count 1 -timeout 30m -tags load -run ^TestLoad$
           kubectl get pods -owide -A
 
           cd ../../..
           echo "Validating Node Restart"
-          make test-validate-state OS_TYPE=${{ parameters.os }} RESTART_CASE=true CNI_TYPE=cniv2
+          make test-validate-state OS_TYPE=windows RESTART_CASE=true CNI_TYPE=cniv2
           kubectl delete ns load-test
       displayName: "Validate Node Restart"
       retryCountOnTaskFailure: 3
