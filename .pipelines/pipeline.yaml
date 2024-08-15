@@ -351,7 +351,7 @@ stages:
         clusterType: vnetscale-swift-byocni-up
         clusterName: "vscaleswifte2e"
         vmSize: Standard_B2ms
-        k8sVersion: "1.28"
+        k8sVersion: "1.30"
         dependsOn: "containerize"
 
     # CNIv1 E2E tests
