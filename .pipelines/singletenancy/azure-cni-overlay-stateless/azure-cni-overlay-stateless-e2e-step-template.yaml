@@ -35,7 +35,7 @@ steps:
     - script: |
         echo "Start Integration Tests on Overlay Cluster"
         kubectl get po -owide -A
-        sudo -E env "PATH=$PATH" make test-load SCALE_UP=32 OS_TYPE=windows CNI_TYPE=statelessCNI VALIDATE_STATEFILE=true INSTALL_CNS=true INSTALL_AZURE_VNET_STATELESS=true VALIDATE_V4OVERLAY=true AZURE_IPAM_VERSION=$(make azure-ipam-version) CNS_VERSION=$(make cns-version) CNI_VERSION=$(make cni-version) CLEANUP=true
+        sudo -E env "PATH=$PATH" make test-load SCALE_UP=32 OS_TYPE=windows CNI_TYPE=stateless VALIDATE_STATEFILE=true INSTALL_CNS=true INSTALL_AZURE_VNET_STATELESS=true VALIDATE_V4OVERLAY=true AZURE_IPAM_VERSION=$(make azure-ipam-version) CNS_VERSION=$(make cns-version) CNI_VERSION=$(make cni-version) CLEANUP=true
       retryCountOnTaskFailure: 2
       name: "integrationTest"
       displayName: "Run CNS Integration Tests on AKS Overlay"
@@ -103,7 +103,7 @@ steps:
                 kubectl taint nodes $node node.cloudprovider.kubernetes.io/uninitialized=true:NoSchedule-
             fi
         done
-        sudo -E env "PATH=$PATH" make test-load SCALE_UP=32 OS_TYPE=windows CNI_TYPE=statelessCNI VALIDATE_STATEFILE=true INSTALL_CNS=true INSTALL_AZURE_VNET_STATELESS=true VALIDATE_V4OVERLAY=true CNS_VERSION=$(make cns-version) CNI_VERSION=$(make cni-version) CLEANUP=true
+        sudo -E env "PATH=$PATH" make test-load SCALE_UP=32 OS_TYPE=windows CNI_TYPE=stateless VALIDATE_STATEFILE=true INSTALL_CNS=true INSTALL_AZURE_VNET_STATELESS=true VALIDATE_V4OVERLAY=true CNS_VERSION=$(make cns-version) CNI_VERSION=$(make cni-version) CLEANUP=true
       name: "WindowsOverlayControlPlaneScaleTests"
       displayName: "Windows v4Overlay ControlPlane Scale Tests"
       retryCountOnTaskFailure: 2
