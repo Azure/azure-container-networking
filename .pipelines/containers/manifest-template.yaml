@@ -5,7 +5,7 @@ parameters:
 
 steps:
 
-  - task: AzureCLI@1
+  - task: AzureCLI@2
     displayName: "Login"
     inputs:
       azureSubscription: $(ACR_ARM_SERVICE_CONNECTION)
@@ -36,7 +36,7 @@ steps:
     displayName: Manifest Push
     retryCountOnTaskFailure: 3
 
-  - task: AzureCLI@1
+  - task: AzureCLI@2
     displayName: "Logout"
     inputs:
       azureSubscription: $(ACR_ARM_SERVICE_CONNECTION)

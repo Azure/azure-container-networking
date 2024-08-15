@@ -26,7 +26,7 @@ steps:
     inputs:
       kubectlVersion: latest
 
-  - task: AzureCLI@1
+  - task: AzureCLI@2
     inputs:
       azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
       scriptLocation: "inlineScript"
@@ -186,7 +186,7 @@ steps:
     retryCountOnTaskFailure: 3
     name: "WireserverMetadataConnectivityTests"
     displayName: "Run Wireserver and Metadata Connectivity Tests"
-  
+
   - script: |
       if [ "$CILIUM_VERSION_TAG" = "cilium-nightly-pipeline" ]; then
         echo "Running nightly, skip async delete test"
