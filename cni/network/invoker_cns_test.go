@@ -2095,7 +2095,6 @@ func TestCNSIPAMInvoker_Add_SwiftV2(t *testing.T) {
 	}
 }
 
-// Test convertInterfaceInfoToCniResult() to make sure primary interfaceInfo is converted to cni Result
 // Test addBackendNICToResult() and configureSecondaryAddResult() to update secondary interfaces to cni Result
 func TestAddNICsToCNIResult(t *testing.T) {
 	require := require.New(t) //nolint further usage of require without passing t
