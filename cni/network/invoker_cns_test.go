@@ -2414,13 +2414,19 @@ func TestAddNICsToCNIResult(t *testing.T) {
 			for _, ifInfo := range ipamAddResult.interfaceInfo {
 				if ifInfo.NICType == cns.BackendNIC {
 					// add new backendNIC info to cni Result
-					addBackendNICToResult(&tt.args.info, &ipamAddResult, macAddress)
+					err := addBackendNICToResult(&tt.args.info, &ipamAddResult, macAddress)
+					if err != nil {
+						t.Fatalf("Failed to add backend NIC to cni Result due to error %v", err)
+					}
 					fmt.Printf("want:%+v\nrest:%+v\n", tt.wantSecondaryInterfacesInfo, ipamAddResult.interfaceInfo[macAddress])
 					require.EqualValues(tt.wantSecondaryInterfacesInfo[macAddress], ipamAddResult.interfaceInfo[macAddress], "incorrect response for IB")
 				}
 				if ifInfo.NICType == cns.NodeNetworkInterfaceFrontendNIC || ifInfo.NICType == cns.NodeNetworkInterfaceAccelnetFrontendNIC {
 					// add new secondaryInterfaceNIC to cni Result
 					configureSecondaryAddResult(&tt.args.info, &ipamAddResult, tt.args.podIPConfig, macAddress)
+					if err != nil {
+						t.Fatalf("Failed to add secondary interface NIC %s to cni Result due to error %v", ifInfo.NICType, err)
+					}
 					fmt.Printf("want:%+v\nrest:%+v\n", tt.wantSecondaryInterfacesInfo, ipamAddResult.interfaceInfo[macAddress])
 					require.EqualValues(tt.wantSecondaryInterfacesInfo[macAddress], ipamAddResult.interfaceInfo[macAddress], "incorrect response for delegatedVMNIC/accelnetNIC")
 				}
