@@ -685,7 +685,10 @@ func (plugin *NetPlugin) findMasterInterface(opt *createEpInfoOpt) string {
 		return plugin.findMasterInterfaceBySubnet(opt.ipamAddConfig.nwCfg, &opt.ifInfo.HostSubnetPrefix)
 	case cns.NodeNetworkInterfaceFrontendNIC, cns.NodeNetworkInterfaceAccelnetFrontendNIC:
 		return plugin.findInterfaceByMAC(opt.ifInfo.MacAddress.String())
-	case cns.BackendNIC: // TODO: how to find interface with IB NIC by mac address
+	case cns.BackendNIC:
+		// if windows swiftv2 has right network drivers, there will be an NDIS interface while the VFs are mounted
+		// when the VF is dismounted, this interface will go away
+		// return an unique interface name to containerd
 		opt.ifInfo.Name = ibInterfacePrefix + strconv.Itoa(opt.endpointIndex)
 		return opt.ifInfo.Name
 	default:
