@@ -2423,7 +2423,7 @@ func TestAddNICsToCNIResult(t *testing.T) {
 				}
 				if ifInfo.NICType == cns.NodeNetworkInterfaceFrontendNIC || ifInfo.NICType == cns.NodeNetworkInterfaceAccelnetFrontendNIC {
 					// add new secondaryInterfaceNIC to cni Result
-					configureSecondaryAddResult(&tt.args.info, &ipamAddResult, tt.args.podIPConfig, macAddress)
+					err := configureSecondaryAddResult(&tt.args.info, &ipamAddResult, tt.args.podIPConfig, macAddress)
 					if err != nil {
 						t.Fatalf("Failed to add secondary interface NIC %s to cni Result due to error %v", ifInfo.NICType, err)
 					}
