@@ -73,12 +73,14 @@ stages:
             inputs:
               azureSubscription: $(ACR_ARM_SERVICE_CONNECTION)
               scriptLocation: "inlineScript"
+              scriptType: "bash"
               inlineScript: |
                 az acr login -n $(ACR)
           - task: AzureCLI@2
             inputs:
               azureSubscription: $(TEST_SUB_SERVICE_CONNECTION)
               scriptLocation: "inlineScript"
+              scriptType: "bash"
               inlineScript: |
                 set -ex
                 docker tag quay.io/cilium/$(image):$(DOCKER_IMAGE_TAG) $(ACR).azurecr.io/cilium/$(image):$(DOCKER_IMAGE_TAG)
@@ -90,6 +92,7 @@ stages:
             inputs:
               azureSubscription: $(ACR_ARM_SERVICE_CONNECTION)
               scriptLocation: "inlineScript"
+              scriptType: "bash"
               inlineScript: |
                 docker logout
 

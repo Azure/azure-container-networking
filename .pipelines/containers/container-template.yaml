@@ -10,6 +10,7 @@ steps:
   inputs:
     azureSubscription: $(ACR_ARM_SERVICE_CONNECTION)
     scriptLocation: "inlineScript"
+    scriptType: "bash"
     inlineScript: |
       az acr login -n $(ACR)
 
@@ -26,5 +27,6 @@ steps:
   inputs:
     azureSubscription: $(ACR_ARM_SERVICE_CONNECTION)
     scriptLocation: "inlineScript"
+    scriptType: "bash"
     inlineScript: |
       docker logout
