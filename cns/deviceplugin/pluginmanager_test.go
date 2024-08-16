@@ -44,6 +44,9 @@ func TestPluginManagerStartStop(t *testing.T) {
 		deviceplugin.PluginManagerKubeletSocket(kubeletSocket),
 		deviceplugin.PluginDeviceCheckInterval(time.Second))
 
+	manager.AddPlugin(v1alpha1.DeviceTypeVnetNIC, expectedVnetNICs)
+	manager.AddPlugin(v1alpha1.DeviceTypeInfiniBandNIC, expectedIBNICs)
+
 	errChan := make(chan error)
 	go func() {
 		errChan <- manager.Run(ctx)
