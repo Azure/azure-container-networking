@@ -31,15 +31,6 @@ type IPAMAddResult struct {
 	ipv6Enabled bool
 }
 
-func (ipamAddConfig IPAMAddConfig) getOptions() *map[string]interface{} {
-	res := map[string]interface{}{}
-	for k, v := range ipamAddConfig.options {
-		// only support permittive type
-		res[k] = v
-	}
-	return &res
-}
-
 func (ipamAddResult IPAMAddResult) PrettyString() string {
 	pStr := "InterfaceInfo: "
 	for key := range ipamAddResult.interfaceInfo {
@@ -47,4 +38,14 @@ func (ipamAddResult IPAMAddResult) PrettyString() string {
 		pStr += val.PrettyString()
 	}
 	return pStr
+}
+
+// shallow copy options from one map to a new options map
+func (ipamAddConfig IPAMAddConfig) shallowCopyIpamAddConfigOptions() map[string]interface{} {
+	res := map[string]interface{}{}
+	for k, v := range ipamAddConfig.options {
+		// only support primitive type
+		res[k] = v
+	}
+	return res
 }
