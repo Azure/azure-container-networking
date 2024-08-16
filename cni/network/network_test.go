@@ -642,7 +642,7 @@ func TestPluginMultitenancyAdd(t *testing.T) {
 			args: &cniSkel.CmdArgs{
 				StdinData:   localNwCfg.Serialize(),
 				ContainerID: "test-container",
-				Netns:       "test-container",
+				Netns:       "bc526fae-4ba0-4e80-bc90-ad721e5850bf",
 				Args:        fmt.Sprintf("K8S_POD_NAME=%v;K8S_POD_NAMESPACE=%v", "test-pod", "test-pod-ns"),
 				IfName:      eth0IfName,
 			},
@@ -679,7 +679,12 @@ func TestPluginMultitenancyAdd(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 				endpoints, _ := tt.plugin.nm.GetAllEndpoints(localNwCfg.Name)
-				require.Condition(t, assert.Comparison(func() bool { return len(endpoints) == 1 }))
+				if runtime.GOOS == "windows" {
+					// an extra cns response is added in windows mock multitenancy to test dualnic
+					require.Condition(t, assert.Comparison(func() bool { return len(endpoints) == 2 }))
+				} else {
+					require.Condition(t, assert.Comparison(func() bool { return len(endpoints) == 1 }))
+				}
 			}
 		})
 	}

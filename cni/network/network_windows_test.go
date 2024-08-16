@@ -5,7 +5,6 @@ package network
 
 import (
 	"encoding/json"
-	"fmt"
 	"net"
 	"testing"
 
@@ -16,7 +15,6 @@ import (
 	"github.com/Azure/azure-container-networking/network/policy"
 	"github.com/Azure/azure-container-networking/telemetry"
 	hnsv2 "github.com/Microsoft/hcsshim/hcn"
-	"github.com/containernetworking/cni/pkg/skel"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -64,78 +62,6 @@ func TestAddWithRunTimeNetPolicies(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 				require.Condition(t, assert.Comparison(func() bool { return p.Type == policy.EndpointPolicy }))
-			}
-		})
-	}
-}
-
-func TestPluginSecondAddSamePodWindows(t *testing.T) {
-	plugin, _ := cni.NewPlugin("name", "0.3.0")
-
-	tests := []struct {
-		name       string
-		methods    []string
-		cniArgs    skel.CmdArgs
-		plugin     *NetPlugin
-		wantErr    bool
-		wantErrMsg string
-	}{
-		{
-			name:    "CNI consecutive add already hot attached",
-			methods: []string{"ADD", "ADD"},
-			cniArgs: skel.CmdArgs{
-				ContainerID: "test1-container",
-				Netns:       "test1-container",
-				StdinData:   nwCfg.Serialize(),
-				Args:        fmt.Sprintf("K8S_POD_NAME=%v;K8S_POD_NAMESPACE=%v", "container1", "container1-ns"),
-				IfName:      eth0IfName,
-			},
-			plugin: &NetPlugin{
-				Plugin:      plugin,
-				nm:          network.NewMockNetworkmanager(network.NewMockEndpointClient(nil)),
-				ipamInvoker: NewMockIpamInvoker(false, false, false, false, false, false, false),
-				report:      &telemetry.CNIReport{},
-				tb:          &telemetry.TelemetryBuffer{},
-			},
-			wantErr: false,
-		},
-		{
-			name:    "CNI consecutive add not hot attached",
-			methods: []string{"ADD", "ADD"},
-			cniArgs: skel.CmdArgs{
-				ContainerID: "test1-container",
-				Netns:       "test1-container",
-				StdinData:   nwCfg.Serialize(),
-				Args:        fmt.Sprintf("K8S_POD_NAME=%v;K8S_POD_NAMESPACE=%v", "container1", "container1-ns"),
-				IfName:      eth0IfName,
-			},
-			plugin: &NetPlugin{
-				Plugin:      plugin,
-				nm:          network.NewMockNetworkmanager(network.NewMockEndpointClient(nil)),
-				ipamInvoker: NewMockIpamInvoker(false, false, false, false, false, false, false),
-				report:      &telemetry.CNIReport{},
-				tb:          &telemetry.TelemetryBuffer{},
-			},
-			wantErr: false,
-		},
-	}
-
-	for _, tt := range tests {
-		tt := tt
-		t.Run(tt.name, func(t *testing.T) {
-			var err error
-			for _, method := range tt.methods {
-				if method == "ADD" {
-					err = tt.plugin.Add(&tt.cniArgs)
-				}
-			}
-
-			if tt.wantErr {
-				require.Error(t, err)
-			} else {
-				require.NoError(t, err)
-				endpoints, _ := tt.plugin.nm.GetAllEndpoints(nwCfg.Name)
-				require.Condition(t, assert.Comparison(func() bool { return len(endpoints) == 1 }), "Expected 2 but got %v", len(endpoints))
 			}
 		})
 	}

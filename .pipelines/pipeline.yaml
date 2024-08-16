@@ -91,6 +91,8 @@ stages:
             - script: |
                 cd npm/
                 go test ./...
+                cd ../cni/
+                go test ./...
               retryCountOnTaskFailure: 3
               name: "TestWindows"
               displayName: "Run Windows Tests"
@@ -136,6 +138,8 @@ stages:
           steps:
             - script: |
                 cd npm/
+                go test ./...
+                cd ../cni/
                 go test ./...
               retryCountOnTaskFailure: 3
               name: "TestWindows"
