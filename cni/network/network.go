@@ -16,6 +16,7 @@ import (
 	"github.com/Azure/azure-container-networking/aitelemetry"
 	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/cni/api"
+	"github.com/Azure/azure-container-networking/cni/log"
 	"github.com/Azure/azure-container-networking/cni/util"
 	"github.com/Azure/azure-container-networking/cns"
 	cnscli "github.com/Azure/azure-container-networking/cns/client"
@@ -71,17 +72,6 @@ const (
 const (
 	jsonFileExtension = ".json"
 )
-
-type simpleError struct {
-	e error
-}
-
-func (se simpleError) Error() string {
-	if se.e == nil {
-		return ""
-	}
-	return se.e.Error()
-}
 
 // NetPlugin represents the CNI network plugin.
 type NetPlugin struct {
@@ -485,7 +475,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 		logger.Info("ADD command completed for",
 			zap.String("pod", k8sPodName),
 			zap.Any("IPs", cniResult.IPs),
-			zap.Error(simpleError{e: err}))
+			zap.Error(log.ErrorWithoutStackTrace{Err: err}))
 	}()
 
 	ipamAddResult = IPAMAddResult{interfaceInfo: make(map[string]network.InterfaceInfo)}
@@ -942,7 +932,7 @@ func (plugin *NetPlugin) Get(args *cniSkel.CmdArgs) error {
 		}
 
 		logger.Info("GET command completed", zap.Any("result", result),
-			zap.Error(simpleError{e: err}))
+			zap.Error(log.ErrorWithoutStackTrace{Err: err}))
 	}()
 
 	// Parse network configuration from stdin.
@@ -1031,7 +1021,7 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 	defer func() {
 		logger.Info("DEL command completed",
 			zap.String("pod", k8sPodName),
-			zap.Error(simpleError{e: err}))
+			zap.Error(log.ErrorWithoutStackTrace{Err: err}))
 	}()
 
 	// Parse network configuration from stdin.
@@ -1275,7 +1265,7 @@ func (plugin *NetPlugin) Update(args *cniSkel.CmdArgs) error {
 
 		logger.Info("UPDATE command completed",
 			zap.Any("result", result),
-			zap.Error(simpleError{e: err}))
+			zap.Error(log.ErrorWithoutStackTrace{Err: err}))
 	}()
 
 	// Parse Pod arguments.
