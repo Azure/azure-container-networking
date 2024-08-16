@@ -95,6 +95,7 @@ steps:
     displayName: "Validate Pods"
 
   - script: |
+      set -e
       echo "validate pod IP assignment before CNS restart"
       kubectl get pod -owide -A
       make test-validate-state
@@ -113,7 +114,7 @@ steps:
     retryCountOnTaskFailure: 3
     name: "WireserverMetadataConnectivityTests"
     displayName: "Run Wireserver and Metadata Connectivity Tests"
-  
+
   - script: |
       cd hack/scripts
       chmod +x async-delete-test.sh
