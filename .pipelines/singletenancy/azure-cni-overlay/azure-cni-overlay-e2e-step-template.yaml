@@ -2,6 +2,7 @@ parameters:
   name: ""
   clusterName: ""
   os: ""
+  scaleup: ""
 
 steps:
   - bash: |
@@ -64,28 +65,16 @@ steps:
         addSpnToEnvironment: true
         inlineScript: |
           cd test/integration/load
-          clusterName=${{ parameters.clusterName }}
-          make -C ./hack/aks set-kubeconf AZCLI=az CLUSTER=${clusterName}
-          make -C ./hack/aks azcfg AZCLI=az REGION=$(REGION_AKS_CLUSTER_TEST)
-          kubectl get pods -owide -A
-          echo "Validating Node Restart"
-          CNI_TYPE=cniv2 RESTART_CASE=true go test -timeout 30m -tags load -run ^TestValidateState$
-      displayName: "Validate Node Restart"
-      retryCountOnTaskFailure: 3
 
-    - script: |
-        echo "validate pod IP assignment before CNS restart"
-        kubectl get pod -owide -A
-        echo "validate pod state before CNS restarts"
-        cd test/integration/load
-        CNI_TYPE=cniv2 go test -timeout 30m -tags load -run ^TestValidateState$
-        kubectl rollout restart ds azure-cns -n kube-system
-        kubectl rollout status ds azure-cns -n kube-system
-        kubectl get pod -owide -A
-        echo "validate pods after CNS restart"
-        CNI_TYPE=cniv2 go test -timeout 30m -tags load -run ^TestValidateState$
-      name: "restartCNS_ValidatePodState"
-      displayName: "Restart CNS and validate pod state"
+          # Scale Cluster Up/Down to confirm functioning CNS
+          ITERATIONS=2 SCALE_UP=${{ parameters.scaleup }} OS_TYPE=linux go test -count 1 -timeout 30m -tags load -run ^TestLoad$
+          kubectl get pods -owide -A
+
+          cd ../../..
+          echo "Validating Node Restart"
+          make test-validate-state OS_TYPE=linux RESTART_CASE=true CNI_TYPE=cniv2
+          kubectl delete ns load-test
+      displayName: "Validate Node Restart"
       retryCountOnTaskFailure: 3
 
     - script: |
@@ -96,22 +85,6 @@ steps:
       displayName: "Run Wireserver and Metadata Connectivity Tests"
 
   - ${{ if eq(parameters.os, 'windows') }}:
-    - task: AzureCLI@2
-      inputs:
-        azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
-        scriptLocation: "inlineScript"
-        scriptType: "bash"
-        addSpnToEnvironment: true
-        inlineScript: |
-          set -e
-          make -C ./hack/aks windows-nodepool-up AZCLI=az SUB=$(SUB_AZURE_NETWORK_AGENT_BUILD_VALIDATIONS) CLUSTER=${{ parameters.clusterName }} VM_SIZE_WIN=${{ parameters.vmSizeWin }}
-          echo "Windows node are successfully added to v4 Overlay Cluster"
-          kubectl cluster-info
-          kubectl get node -owide
-          kubectl get po -owide -A
-      name: "Add_Windows_Node"
-      displayName: "Add windows node on v4 overlay cluster"
-
     - script: |
         nodeList=`kubectl get node -owide | grep Windows | awk '{print $1}'`
         for node in $nodeList; do
@@ -131,4 +104,40 @@ steps:
         sudo -E env "PATH=$PATH" go test -count=1 datapath_windows_test.go -timeout 3m -tags connection -restartKubeproxy true -run ^TestDatapathWin$
       name: "WindowsV4OverlayDatapathTests"
       displayName: "Windows v4Overlay Datapath Tests"
+      retryCountOnTaskFailure: 3
+
+    - task: AzureCLI@1
+      inputs:
+        azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+        scriptLocation: "inlineScript"
+        scriptType: "bash"
+        addSpnToEnvironment: true
+        inlineScript: |
+          set -e
+          kubectl get po -owide -A
+          clusterName=${{ parameters.clusterName }}
+          echo "Restarting nodes"
+          for val in $(az vmss list -g MC_${clusterName}_${clusterName}_$(REGION_AKS_CLUSTER_TEST) --query "[].name" -o tsv); do
+            make -C ./hack/aks restart-vmss AZCLI=az CLUSTER=${clusterName} REGION=$(REGION_AKS_CLUSTER_TEST) VMSS_NAME=${val}
+          done
+      displayName: "Restart Nodes"
+
+    - task: AzureCLI@1
+      inputs:
+        azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
+        scriptLocation: "inlineScript"
+        scriptType: "bash"
+        addSpnToEnvironment: true
+        inlineScript: |
+          cd test/integration/load
+
+          # Scale Cluster Up/Down to confirm functioning CNS
+          ITERATIONS=2 SCALE_UP=${{ parameters.scaleup }} OS_TYPE=windows go test -count 1 -timeout 30m -tags load -run ^TestLoad$
+          kubectl get pods -owide -A
+
+          cd ../../..
+          echo "Validating Node Restart"
+          make test-validate-state OS_TYPE=windows RESTART_CASE=true CNI_TYPE=cniv2
+          kubectl delete ns load-test
+      displayName: "Validate Node Restart"
       retryCountOnTaskFailure: 3
