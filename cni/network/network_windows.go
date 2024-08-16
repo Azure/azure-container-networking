@@ -43,6 +43,7 @@ func setNetworkOptions(cnsNwConfig *cns.GetNetworkContainerResponse, nwInfo *net
 		logger.Info("Setting Network Options")
 		vlanMap := make(map[string]interface{})
 		vlanMap[network.VlanIDKey] = strconv.Itoa(cnsNwConfig.MultiTenancyInfo.ID)
+		logger.Info("Add %s with %d to", zap.String("vlanIDKey", network.VlanIDKey), zap.Int("vlanID", cnsNwConfig.MultiTenancyInfo.ID), zap.Any("vlanMap", vlanMap))
 		nwInfo.Options[dockerNetworkOption] = vlanMap
 	}
 }
