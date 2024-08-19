@@ -2097,7 +2097,7 @@ func TestCNSIPAMInvoker_Add_SwiftV2(t *testing.T) {
 
 func TestShallowCopyIpamAddConfigOptions(t *testing.T) {
 	opts := IPAMAddConfig{
-		// mock all optios' fields
+		// mock different types of map value
 		options: map[string]interface{}{
 			network.SNATIPKey:   "10",
 			dockerNetworkOption: "20",
