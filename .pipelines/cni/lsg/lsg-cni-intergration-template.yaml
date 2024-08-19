@@ -21,7 +21,7 @@ stages:
     jobs:
       - job: create_aks_cluster_with_${{ parameters.name }}
         steps:
-          - task: AzureCLI@1
+          - task: AzureCLI@2
             inputs:
               azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
               scriptLocation: "inlineScript"
@@ -55,7 +55,7 @@ stages:
         - job: integration
           displayName: "Integration Test - ${{ parameters.name }}"
           steps:
-            - task: AzureCLI@1
+            - task: AzureCLI@2
               inputs:
                 azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
                 scriptLocation: "inlineScript"
@@ -77,7 +77,7 @@ stages:
         - job: integration
           displayName: "Deploy Cilium Components"
           steps:
-            - task: AzureCLI@1
+            - task: AzureCLI@2
               displayName: "Install Cilium, CNS, and ip-masq-agent"
               retryCountOnTaskFailure: 2
               inputs:
@@ -166,7 +166,7 @@ stages:
         displayName: "Recover Resources"
         dependsOn: restart_cns
         steps:
-          - task: AzureCLI@1
+          - task: AzureCLI@2
             inputs:
               azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
               scriptLocation: "inlineScript"
@@ -205,7 +205,7 @@ stages:
               cilium version
             name: "InstallCiliumCli"
             displayName: "Install Cilium CLI"
-          - task: AzureCLI@1
+          - task: AzureCLI@2
             inputs:
               azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
               scriptLocation: "inlineScript"

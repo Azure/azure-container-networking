@@ -19,7 +19,7 @@ steps:
     inputs:
       kubectlVersion: latest
 
-  - task: AzureCLI@1
+  - task: AzureCLI@2
     inputs:
       azureSubscription: $(ACN_TEST_SERVICE_CONNECTION)
       scriptLocation: "inlineScript"

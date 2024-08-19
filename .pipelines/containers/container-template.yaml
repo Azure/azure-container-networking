@@ -5,11 +5,12 @@ parameters:
   os_version: ""
 
 steps:
-- task: AzureCLI@1
+- task: AzureCLI@2
   displayName: "Login"
   inputs:
     azureSubscription: $(ACR_ARM_SERVICE_CONNECTION)
     scriptLocation: "inlineScript"
+    scriptType: "bash"
     inlineScript: |
       az acr login -n $(ACR)
 
@@ -21,10 +22,11 @@ steps:
   displayName: Image Build
   retryCountOnTaskFailure: 3
 
-- task: AzureCLI@1
+- task: AzureCLI@2
   displayName: "Logout"
   inputs:
     azureSubscription: $(ACR_ARM_SERVICE_CONNECTION)
     scriptLocation: "inlineScript"
+    scriptType: "bash"
     inlineScript: |
       docker logout

@@ -55,7 +55,7 @@ steps:
       name: "DualStack_Overlay_Linux_Tests"
       displayName: "DualStack Overlay Linux Tests"
 
-    - task: AzureCLI@1
+    - task: AzureCLI@2
       inputs:
         azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
         scriptLocation: "inlineScript"
@@ -70,7 +70,7 @@ steps:
           done
       displayName: "Restart Nodes"
 
-    - task: AzureCLI@1
+    - task: AzureCLI@2
       inputs:
         azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
         scriptLocation: "inlineScript"
