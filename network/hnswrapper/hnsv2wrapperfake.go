@@ -44,6 +44,10 @@ func delayHnsCall(delay time.Duration) {
 	time.Sleep(delay)
 }
 
+func (f Hnsv2wrapperFake) HNSV2Supported() error {
+	return nil
+}
+
 // NewMockIOShim is dependent on this function never returning an error
 func (f Hnsv2wrapperFake) CreateNetwork(network *hcn.HostComputeNetwork) (*hcn.HostComputeNetwork, error) {
 	f.Lock()
@@ -345,6 +349,16 @@ type FakeHNSCache struct {
 	networks map[string]*FakeHostComputeNetwork
 	// endpoints maps endpoint ID to endpoint object
 	endpoints map[string]*FakeHostComputeEndpoint
+}
+
+// get networks from fake HNS cache
+func (fCache FakeHNSCache) GetNetworks() map[string]*FakeHostComputeNetwork {
+	return fCache.networks
+}
+
+// get endpoints from fake HNS cache
+func (fCache FakeHNSCache) GetEndpoints() map[string]*FakeHostComputeEndpoint {
+	return fCache.endpoints
 }
 
 // SetPolicy returns the first SetPolicy found with this ID in any network.

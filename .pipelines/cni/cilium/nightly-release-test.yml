@@ -68,28 +68,31 @@ stages:
               make $(type)
             name: BuildCiliumImage
             displayName: "Build Cilium Image"
-          - task: AzureCLI@1
+          - task: AzureCLI@2
             displayName: "Login"
             inputs:
               azureSubscription: $(ACR_ARM_SERVICE_CONNECTION)
               scriptLocation: "inlineScript"
+              scriptType: "bash"
               inlineScript: |
                 az acr login -n $(ACR)
-          - task: AzureCLI@1
+          - task: AzureCLI@2
             inputs:
               azureSubscription: $(TEST_SUB_SERVICE_CONNECTION)
               scriptLocation: "inlineScript"
+              scriptType: "bash"
               inlineScript: |
                 set -ex
                 docker tag quay.io/cilium/$(image):$(DOCKER_IMAGE_TAG) $(ACR).azurecr.io/cilium/$(image):$(DOCKER_IMAGE_TAG)
                 docker push $(ACR).azurecr.io/cilium/$(image):$(DOCKER_IMAGE_TAG)
             name: "PushCiliumImage"
             displayName: "Push Cilium Image"
-          - task: AzureCLI@1
+          - task: AzureCLI@2
             displayName: "Logout"
             inputs:
               azureSubscription: $(ACR_ARM_SERVICE_CONNECTION)
               scriptLocation: "inlineScript"
+              scriptType: "bash"
               inlineScript: |
                 docker logout
 

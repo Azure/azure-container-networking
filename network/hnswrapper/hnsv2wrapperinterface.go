@@ -26,4 +26,5 @@ type HnsV2WrapperInterface interface {
 	ListEndpointsQuery(query hcn.HostComputeQuery) ([]hcn.HostComputeEndpoint, error)
 	ApplyEndpointPolicy(endpoint *hcn.HostComputeEndpoint, requestType hcn.RequestType, endpointPolicy hcn.PolicyEndpointRequest) error
 	GetEndpointByName(endpointName string) (*hcn.HostComputeEndpoint, error)
+	HNSV2Supported() error
 }

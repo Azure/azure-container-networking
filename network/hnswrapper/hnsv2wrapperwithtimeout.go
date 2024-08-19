@@ -404,3 +404,7 @@ func (h Hnsv2wrapperwithtimeout) GetEndpointByName(endpointName string) (*hcn.Ho
 		return nil, errors.Wrapf(ErrHNSCallTimeout, "GetEndpointByName %w , timeout value is %s seconds", h.HnsCallTimeout.String())
 	}
 }
+
+func (h Hnsv2wrapperwithtimeout) HNSV2Supported() error {
+	return nil
+}

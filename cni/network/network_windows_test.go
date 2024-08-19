@@ -93,7 +93,7 @@ func TestPluginSecondAddSamePodWindows(t *testing.T) {
 			plugin: &NetPlugin{
 				Plugin:      plugin,
 				nm:          network.NewMockNetworkmanager(network.NewMockEndpointClient(nil)),
-				ipamInvoker: NewMockIpamInvoker(false, false, false, false, false),
+				ipamInvoker: NewMockIpamInvoker(false, false, false, false, false, false, false),
 				report:      &telemetry.CNIReport{},
 				tb:          &telemetry.TelemetryBuffer{},
 			},
@@ -112,7 +112,7 @@ func TestPluginSecondAddSamePodWindows(t *testing.T) {
 			plugin: &NetPlugin{
 				Plugin:      plugin,
 				nm:          network.NewMockNetworkmanager(network.NewMockEndpointClient(nil)),
-				ipamInvoker: NewMockIpamInvoker(false, false, false, false, false),
+				ipamInvoker: NewMockIpamInvoker(false, false, false, false, false, false, false),
 				report:      &telemetry.CNIReport{},
 				tb:          &telemetry.TelemetryBuffer{},
 			},
@@ -478,7 +478,7 @@ func TestGetNetworkNameFromCNS(t *testing.T) {
 			plugin: &NetPlugin{
 				Plugin:      plugin,
 				nm:          network.NewMockNetworkmanager(network.NewMockEndpointClient(nil)),
-				ipamInvoker: NewMockIpamInvoker(false, false, false, false, false),
+				ipamInvoker: NewMockIpamInvoker(false, false, false, false, false, false, false),
 				report:      &telemetry.CNIReport{},
 				tb:          &telemetry.TelemetryBuffer{},
 			},
@@ -511,7 +511,7 @@ func TestGetNetworkNameFromCNS(t *testing.T) {
 			plugin: &NetPlugin{
 				Plugin:      plugin,
 				nm:          network.NewMockNetworkmanager(network.NewMockEndpointClient(nil)),
-				ipamInvoker: NewMockIpamInvoker(false, false, false, false, false),
+				ipamInvoker: NewMockIpamInvoker(false, false, false, false, false, false, false),
 				report:      &telemetry.CNIReport{},
 				tb:          &telemetry.TelemetryBuffer{},
 			},
@@ -544,7 +544,7 @@ func TestGetNetworkNameFromCNS(t *testing.T) {
 			plugin: &NetPlugin{
 				Plugin:      plugin,
 				nm:          network.NewMockNetworkmanager(network.NewMockEndpointClient(nil)),
-				ipamInvoker: NewMockIpamInvoker(false, false, false, false, false),
+				ipamInvoker: NewMockIpamInvoker(false, false, false, false, false, false, false),
 				report:      &telemetry.CNIReport{},
 				tb:          &telemetry.TelemetryBuffer{},
 			},
@@ -577,7 +577,7 @@ func TestGetNetworkNameFromCNS(t *testing.T) {
 			plugin: &NetPlugin{
 				Plugin:      plugin,
 				nm:          network.NewMockNetworkmanager(network.NewMockEndpointClient(nil)),
-				ipamInvoker: NewMockIpamInvoker(false, false, false, false, false),
+				ipamInvoker: NewMockIpamInvoker(false, false, false, false, false, false, false),
 				report:      &telemetry.CNIReport{},
 				tb:          &telemetry.TelemetryBuffer{},
 			},
@@ -610,7 +610,7 @@ func TestGetNetworkNameFromCNS(t *testing.T) {
 			plugin: &NetPlugin{
 				Plugin:      plugin,
 				nm:          network.NewMockNetworkmanager(network.NewMockEndpointClient(nil)),
-				ipamInvoker: NewMockIpamInvoker(false, false, false, false, false),
+				ipamInvoker: NewMockIpamInvoker(false, false, false, false, false, false, false),
 				report:      &telemetry.CNIReport{},
 				tb:          &telemetry.TelemetryBuffer{},
 			},
@@ -651,7 +651,6 @@ func TestGetNetworkNameFromCNS(t *testing.T) {
 }
 
 func TestGetNetworkNameSwiftv2FromCNS(t *testing.T) {
-	// TODO: Add Accelnet NIC test to this test
 	plugin, _ := cni.NewPlugin("name", "0.3.0")
 
 	macAddress := "00:00:5e:00:53:01"
@@ -672,7 +671,7 @@ func TestGetNetworkNameSwiftv2FromCNS(t *testing.T) {
 			plugin: &NetPlugin{
 				Plugin:      plugin,
 				nm:          network.NewMockNetworkmanager(network.NewMockEndpointClient(nil)),
-				ipamInvoker: NewMockIpamInvoker(false, false, false, true, false),
+				ipamInvoker: NewMockIpamInvoker(false, false, false, true, false, false, false),
 				report:      &telemetry.CNIReport{},
 				tb:          &telemetry.TelemetryBuffer{},
 			},
@@ -684,7 +683,7 @@ func TestGetNetworkNameSwiftv2FromCNS(t *testing.T) {
 			interfaceInfo: &network.InterfaceInfo{
 				Name:       "swiftv2L1VHDelegatedInterface",
 				MacAddress: parsedMacAddress,
-				NICType:    cns.DelegatedVMNIC,
+				NICType:    cns.NodeNetworkInterfaceFrontendNIC,
 			},
 			want:    parsedMacAddress,
 			wantErr: false,
@@ -694,7 +693,7 @@ func TestGetNetworkNameSwiftv2FromCNS(t *testing.T) {
 			plugin: &NetPlugin{
 				Plugin:      plugin,
 				nm:          network.NewMockNetworkmanager(network.NewMockEndpointClient(nil)),
-				ipamInvoker: NewMockIpamInvoker(false, false, false, true, false),
+				ipamInvoker: NewMockIpamInvoker(false, false, false, true, false, false, false),
 				report:      &telemetry.CNIReport{},
 				tb:          &telemetry.TelemetryBuffer{},
 			},
@@ -707,6 +706,28 @@ func TestGetNetworkNameSwiftv2FromCNS(t *testing.T) {
 				Name:       "swiftv2L1VHIBinterface",
 				MacAddress: parsedMacAddress,
 				NICType:    cns.BackendNIC,
+			},
+			want:    parsedMacAddress,
+			wantErr: false,
+		},
+		{
+			name: "Get Network Name from CNS for swiftv2 AccelnetNIC",
+			plugin: &NetPlugin{
+				Plugin:      plugin,
+				nm:          network.NewMockNetworkmanager(network.NewMockEndpointClient(nil)),
+				ipamInvoker: NewMockIpamInvoker(false, false, false, false, false, true, false),
+				report:      &telemetry.CNIReport{},
+				tb:          &telemetry.TelemetryBuffer{},
+			},
+			netNs: "azure",
+			nwCfg: &cni.NetworkConfig{
+				CNIVersion:   "0.3.0",
+				MultiTenancy: false,
+			},
+			interfaceInfo: &network.InterfaceInfo{
+				Name:       "swiftv2L1VHAccelnetInterface",
+				MacAddress: parsedMacAddress,
+				NICType:    cns.NodeNetworkInterfaceAccelnetFrontendNIC,
 			},
 			want:    parsedMacAddress,
 			wantErr: false,

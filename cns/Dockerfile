@@ -2,7 +2,16 @@ ARG ARCH
 ARG OS_VERSION
 ARG OS
 
-FROM --platform=linux/${ARCH} mcr.microsoft.com/oss/go/microsoft/golang:1.22-cbl-mariner2.0 AS builder
+# skopeo inspect docker://mcr.microsoft.com/oss/go/microsoft/golang:1.22-cbl-mariner2.0 --format "{{.Name}}@{{.Digest}}"
+FROM --platform=linux/${ARCH} mcr.microsoft.com/oss/go/microsoft/golang@sha256:c062e5e23f2d172a8fd590adcd171499af7005cae344a36284255f26e5ce4f8a AS go
+
+# skopeo inspect docker://mcr.microsoft.com/cbl-mariner/base/core:2.0 --format "{{.Name}}@{{.Digest}}"
+FROM mcr.microsoft.com/cbl-mariner/base/core@sha256:a490e0b0869dc570ae29782c2bc17643aaaad1be102aca83ce0b96e0d0d2d328 AS mariner-core
+
+# skopeo inspect docker://mcr.microsoft.com/cbl-mariner/distroless/minimal:2.0 --format "{{.Name}}@{{.Digest}}"
+FROM mcr.microsoft.com/cbl-mariner/distroless/minimal@sha256:d28cbaa097167b4f5fdea02aac5404e3c9ec6c37499df1e115765e38b0a21660 AS mariner-distroless
+
+FROM --platform=linux/${ARCH} go AS builder
 ARG OS
 ARG CNS_AI_ID
 ARG CNS_AI_PATH
@@ -11,27 +20,26 @@ WORKDIR /azure-container-networking
 COPY . .
 RUN GOOS=$OS CGO_ENABLED=0 go build -a -o /go/bin/azure-cns -ldflags "-X main.version="$VERSION" -X "$CNS_AI_PATH"="$CNS_AI_ID"" -gcflags="-dwarflocationlists=true" cns/service/*.go
 
-FROM mcr.microsoft.com/cbl-mariner/base/core:2.0 as iptables
+FROM mariner-core AS iptables
 RUN tdnf install -y iptables
 
-FROM mcr.microsoft.com/cbl-mariner/distroless/minimal:2.0 as linux
+FROM mariner-distroless AS linux
 COPY --from=iptables /usr/sbin/*tables* /usr/sbin/
 COPY --from=iptables /usr/lib /usr/lib
 COPY --from=builder /go/bin/azure-cns /usr/local/bin/azure-cns
 ENTRYPOINT [ "/usr/local/bin/azure-cns" ]
 EXPOSE 10090
 
+# skopeo inspect --override-os windows docker://mcr.microsoft.com/windows/nanoserver:ltsc2019 --format "{{.Name}}@{{.Digest}}"
+FROM mcr.microsoft.com/windows/nanoserver@sha256:7f6649348a11655e3576463fd6d55c29248f97405f8e643cab2409009339f520 AS ltsc2019
 
-# intermediate for win-ltsc2019
-FROM mcr.microsoft.com/windows/servercore@sha256:6fdf140282a2f809dae9b13fe441635867f0a27c33a438771673b8da8f3348a4 as ltsc2019
+# skopeo inspect --override-os windows docker://mcr.microsoft.com/windows/nanoserver:ltsc2022 --format "{{.Name}}@{{.Digest}}"
+FROM mcr.microsoft.com/windows/nanoserver@sha256:244113e50a678a25a63930780f9ccafd22e1a37aa9e3d93295e4cebf0f170a11 AS ltsc2022
 
-# intermediate for win-ltsc2022
-FROM mcr.microsoft.com/windows/servercore@sha256:45952938708fbde6ec0b5b94de68bcdec3f8c838be018536b1e9e5bd95e6b943 as ltsc2022
+# skopeo inspect --override-os windows docker://mcr.microsoft.com/windows/nanoserver:ltsc2025 --format "{{.Name}}@{{.Digest}}" ## 2025 isn't tagged yet
+FROM mcr.microsoft.com/windows/nanoserver/insider@sha256:67e0ab7f3a79cd73be4a18bae24659c03b294aed0dbeaa624feb3810931f0bd2 AS ltsc2025
 
-# intermediate for win-ltsc2025
-FROM mcr.microsoft.com/windows/servercore/insider@sha256:4daaf3daa404fbdebec9d88783fb343f18009ffd9c8d98c43430ca1f4e615184 as ltsc2025
-
-FROM ${OS_VERSION} as windows
+FROM ${OS_VERSION} AS windows
 COPY --from=builder /azure-container-networking/cns/kubeconfigtemplate.yaml kubeconfigtemplate.yaml
 COPY --from=builder /azure-container-networking/npm/examples/windows/setkubeconfigpath.ps1 setkubeconfigpath.ps1
 COPY --from=builder /go/bin/azure-cns /azure-cns.exe

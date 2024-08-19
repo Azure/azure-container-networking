@@ -165,7 +165,7 @@ func (nw *network) newEndpointImpl(
 		} else if nw.Mode != opModeTransparent {
 			logger.Info("Bridge client")
 			epClient = NewLinuxBridgeEndpointClient(nw.extIf, hostIfName, contIfName, nw.Mode, nl, plc)
-		} else if epInfo.NICType == cns.DelegatedVMNIC {
+		} else if epInfo.NICType == cns.NodeNetworkInterfaceFrontendNIC {
 			logger.Info("Secondary client")
 			epClient = NewSecondaryEndpointClient(nl, netioCli, plc, nsc, ep)
 		} else {
@@ -286,12 +286,12 @@ func (nw *network) deleteEndpointImpl(nl netlink.NetlinkInterface, plc platform.
 			epClient = NewLinuxBridgeEndpointClient(nw.extIf, ep.HostIfName, "", nw.Mode, nl, plc)
 		} else {
 			// delete if secondary interfaces populated or endpoint of type delegated (new way)
-			if len(ep.SecondaryInterfaces) > 0 || ep.NICType == cns.DelegatedVMNIC {
+			if len(ep.SecondaryInterfaces) > 0 || ep.NICType == cns.NodeNetworkInterfaceFrontendNIC {
 				epClient = NewSecondaryEndpointClient(nl, nioc, plc, nsc, ep)
 				epClient.DeleteEndpointRules(ep)
 				//nolint:errcheck // ignore error
 				epClient.DeleteEndpoints(ep)
-				if ep.NICType == cns.DelegatedVMNIC {
+				if ep.NICType == cns.NodeNetworkInterfaceFrontendNIC {
 					// if the ep itself is of type secondary (new way), don't use transparent client below
 					return nil
 				}

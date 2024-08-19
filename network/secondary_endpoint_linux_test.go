@@ -206,7 +206,7 @@ func TestSecondaryDeleteEndpoints(t *testing.T) {
 						Dst: net.IPNet{IP: net.ParseIP("192.168.0.4"), Mask: net.CIDRMask(ipv4FullMask, ipv4Bits)},
 					},
 				},
-				NICType: cns.DelegatedVMNIC,
+				NICType: cns.NodeNetworkInterfaceFrontendNIC,
 				SecondaryInterfaces: map[string]*InterfaceInfo{
 					"eth1": {
 						Name: "eth1",

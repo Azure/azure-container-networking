@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/iptables"
 	"github.com/Azure/azure-container-networking/netio"
 	"github.com/Azure/azure-container-networking/netlink"
@@ -147,7 +148,7 @@ func (nm *networkManager) handleCommonOptions(ifName string, nwInfo *EndpointInf
 }
 
 // DeleteNetworkImpl deletes an existing container network.
-func (nm *networkManager) deleteNetworkImpl(nw *network) error {
+func (nm *networkManager) deleteNetworkImpl(nw *network, _ cns.NICType) error {
 	var networkClient NetworkClient
 
 	if nw.VlanId != 0 {

@@ -69,7 +69,7 @@ stages:
         - job: deploy_cilium_components
           displayName: Deploy Cilium
           steps:
-            - task: AzureCLI@1
+            - task: AzureCLI@2
               displayName: "Install Cilium, CNS, and ip-masq-agent"
               inputs:
                 azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
@@ -124,7 +124,7 @@ stages:
         - job: deploy_cilium_components
           displayName: Deploy Cilium with Hubble
           steps:
-            - task: AzureCLI@1
+            - task: AzureCLI@2
               displayName: "Install Cilium, CNS, and ip-masq-agent"
               inputs:
                 azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
@@ -205,7 +205,7 @@ stages:
         dependsOn: restart_cns
         steps:
           - template: ../../templates/cilium-cli.yaml
-          - task: AzureCLI@1
+          - task: AzureCLI@2
             inputs:
               azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
               scriptLocation: "inlineScript"

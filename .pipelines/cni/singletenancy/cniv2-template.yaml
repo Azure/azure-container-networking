@@ -125,7 +125,7 @@ stages:
         displayName: "Integration Test - ${{ parameters.name }}"
         steps:
           - ${{ if contains(parameters.clusterType, 'overlay') }}:
-            - task: AzureCLI@1
+            - task: AzureCLI@2
               inputs:
                 azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
                 scriptLocation: "inlineScript"
@@ -144,7 +144,7 @@ stages:
               name: "overlaye2e"
               displayName: "Overlay Integration"
           - ${{ if contains(parameters.clusterType, 'swift') }}:
-            - task: AzureCLI@1
+            - task: AzureCLI@2
               inputs:
                 azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
                 scriptLocation: "inlineScript"
@@ -248,7 +248,7 @@ stages:
         displayName: "Recover Resources"
         dependsOn: restart_cns
         steps:
-          - task: AzureCLI@1
+          - task: AzureCLI@2
             inputs:
               azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
               scriptLocation: "inlineScript"
@@ -371,7 +371,7 @@ stages:
           displayName: "Recover Resources"
           dependsOn: restart_cns
           steps:
-            - task: AzureCLI@1
+            - task: AzureCLI@2
               inputs:
                 azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
                 scriptLocation: "inlineScript"

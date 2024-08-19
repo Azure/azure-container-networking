@@ -373,7 +373,7 @@ stages:
       arch: amd64
       dualstackVersion: ${CILIUM_DUALSTACK_VERSION}
       cni: "cilium_dualstack"
-  
+
   - template: cilium/cilium-overlay-load-test-template.yaml
     parameters:
       name: cilium_ds_arm
@@ -396,7 +396,7 @@ stages:
       osSKU: AzureLinux
       dualstackVersion: ${CILIUM_DUALSTACK_VERSION}
       cni: "cilium_dualstack"
-  
+
   - template: cilium/cilium-overlay-load-test-template.yaml
     parameters:
       name: cilium_ds_rdma
@@ -501,7 +501,7 @@ stages:
               name: windows19_overlay
               clusterName: w19-amd-ov
         steps:
-          - task: AzureCLI@1
+          - task: AzureCLI@2
             inputs:
               azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
               scriptLocation: "inlineScript"

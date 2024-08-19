@@ -530,22 +530,18 @@ func (nm *networkManager) DeleteEndpointState(networkID string, epInfo *Endpoint
 		IfName:                   epInfo.IfName, // TODO: For stateless cni linux populate IfName here to use in deletion in secondary endpoint client
 	}
 	logger.Info("Deleting endpoint with", zap.String("Endpoint Info: ", epInfo.PrettyString()), zap.String("HNISID : ", ep.HnsId))
-	// do not need to Delete HNS endpoint if the there is no HNS in state
-	if ep.HnsId != "" {
-		err := nw.deleteEndpointImpl(netlink.NewNetlink(), platform.NewExecClient(logger), nil, nil, nil, nil, ep)
-		if err != nil {
-			return err
-		}
-	}
-	if epInfo.NICType == cns.DelegatedVMNIC {
-		// we are currently assuming stateless is not running in linux
-		// CHECK: could this affect linux? (if it does, it could disconnect external interface, is that okay?)
-		// bad only when 1) stateless and 2) linux and 3) delegated vmnics exist
-		logger.Info("Deleting endpoint because delegated vmnic detected", zap.String("HNSNetworkID", nw.HnsId))
-		err := nm.deleteNetworkImpl(nw)
-		// no need to clean up state in stateless
+
+	err := nw.deleteEndpointImpl(netlink.NewNetlink(), platform.NewExecClient(logger), nil, nil, nil, nil, ep)
+	if err != nil {
 		return err
 	}
+
+	err = nm.deleteNetworkImpl(nw, ep.NICType)
+	// no need to clean up state in stateless
+	if err != nil {
+		return errors.Wrap(err, "Failed to delete HNS Network")
+	}
+
 	return nil
 }
 

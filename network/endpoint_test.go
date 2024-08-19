@@ -246,7 +246,7 @@ var _ = Describe("Test Endpoint", func() {
 				Data:         make(map[string]interface{}),
 				IfName:       eth0IfName,
 				MasterIfName: "masterIfName",
-				NICType:      cns.DelegatedVMNIC,
+				NICType:      cns.NodeNetworkInterfaceFrontendNIC,
 			}
 			epInfo.Data[VlanIDKey] = 100
 
@@ -265,6 +265,31 @@ var _ = Describe("Test Endpoint", func() {
 				Expect(ep.Gateways[0].String()).To(Equal("192.168.0.1"))
 				Expect(ep.VlanID).To(Equal(epInfo.Data[VlanIDKey].(int)))
 				Expect(ep.IfName).To(Equal("masterIfName"))
+			})
+		})
+		Context("When endpoint added accelnet", func() {
+			epInfo := &EndpointInfo{
+				EndpointID:   "768e8deb-eth1",
+				Data:         make(map[string]interface{}),
+				IfName:       eth0IfName,
+				MasterIfName: "accelnetNIC",
+				NICType:      cns.NodeNetworkInterfaceAccelnetFrontendNIC,
+			}
+
+			It("should have fields set", func() {
+				nw2 := &network{
+					Endpoints: map[string]*endpoint{},
+					extIf:     &externalInterface{IPv4Gateway: net.ParseIP("192.168.0.1")},
+				}
+				ep, err := nw2.newEndpointImpl(nil, netlink.NewMockNetlink(false, ""), platform.NewMockExecClient(false),
+					netio.NewMockNetIO(false, 0), NewMockEndpointClient(nil), NewMockNamespaceClient(), iptables.NewClient(), epInfo)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(ep).NotTo(BeNil())
+				Expect(ep.Id).To(Equal(epInfo.EndpointID))
+				Expect(ep.Gateways).NotTo(BeNil())
+				Expect(len(ep.Gateways)).To(Equal(1))
+				Expect(ep.Gateways[0].String()).To(Equal("192.168.0.1"))
+				Expect(ep.IfName).To(Equal("accelnetNIC"))
 			})
 		})
 		Context("When endpoint add failed", func() {
@@ -310,7 +335,7 @@ var _ = Describe("Test Endpoint", func() {
 			secondaryEpInfo := &EndpointInfo{
 				// When we create the secondary endpoint infos while looping over the interface infos, we pass in the same endpoint id
 				EndpointID: "768e8deb-eth1",
-				NICType:    cns.DelegatedVMNIC,
+				NICType:    cns.NodeNetworkInterfaceFrontendNIC,
 				Routes:     []RouteInfo{{Dst: *ipnet}},
 			}
 
@@ -388,7 +413,7 @@ var _ = Describe("Test Endpoint", func() {
 					},
 					{
 						ContainerID: "0ea7476f26d192f067abdc8b3df43ce3cdbe324386e1c010cb48de87eefef480",
-						NICType:     cns.DelegatedVMNIC,
+						NICType:     cns.NodeNetworkInterfaceFrontendNIC,
 					},
 				}
 				Expect(validateEndpoints(eps)).To(BeNil())
@@ -403,7 +428,7 @@ var _ = Describe("Test Endpoint", func() {
 					},
 					{
 						ContainerID: "0ea7476f26d192f067abdc8b3df43ce3cdbe324386e1c010cb48de87eefef481",
-						NICType:     cns.DelegatedVMNIC,
+						NICType:     cns.NodeNetworkInterfaceFrontendNIC,
 					},
 				}
 				Expect(validateEndpoints(eps)).ToNot(BeNil())
@@ -418,7 +443,7 @@ var _ = Describe("Test Endpoint", func() {
 					},
 					{
 						ContainerID: "",
-						NICType:     cns.DelegatedVMNIC,
+						NICType:     cns.NodeNetworkInterfaceFrontendNIC,
 					},
 				}
 				Expect(validateEndpoints(eps)).ToNot(BeNil())

@@ -58,7 +58,7 @@ func UseHnsV2(netNs string) (bool, error) {
 	var err error
 	if _, err = uuid.Parse(netNs); err == nil {
 		useHnsV2 = true
-		if err = hcn.V2ApiSupported(); err != nil {
+		if err = Hnsv2.HNSV2Supported(); err != nil {
 			logger.Info("HNSV2 is not supported on this windows platform")
 		}
 	}
@@ -297,9 +297,21 @@ func (nm *networkManager) configureHcnNetwork(nwInfo *EndpointInfo, extIf *exter
 		return nil, errNetworkModeInvalid
 	}
 
-	if nwInfo.NICType == cns.DelegatedVMNIC {
+	// DelegatedNIC flag: hcn.DisableHostPort(1024)
+	if nwInfo.NICType == cns.NodeNetworkInterfaceFrontendNIC {
 		hcnNetwork.Type = hcn.Transparent
-		hcnNetwork.Flags = hcn.DisableHostPort
+		// set transparent network as non-persistent so that networks will be gone after the node gets rebooted
+		// hcnNetwork.flags = hcn.DisableHostPort | hcn.EnableNonPersistent (1024 + 8 = 1032)
+		hcnNetwork.Flags = hcn.DisableHostPort | hcn.EnableNonPersistent
+	}
+
+	// AccelnetNIC flag: hcn.EnableIov(9216)
+	// For L1VH with accelnet, hcn.DisableHostPort and hcn.EnableIov must be configured
+	if nwInfo.NICType == cns.NodeNetworkInterfaceAccelnetFrontendNIC {
+		hcnNetwork.Type = hcn.Transparent
+		// set transparent network as non-persistent so that networks will be gone after the node gets rebooted
+		// hcnNetwork.flags = hcn.DisableHostPort | hcn.EnableIov | hcn.EnableNonPersistent (1024 + 8192 + 8 = 9224)
+		hcnNetwork.Flags = hcn.DisableHostPort | hcn.EnableIov | hcn.EnableNonPersistent
 	}
 
 	// Populate subnets.
@@ -441,7 +453,13 @@ func (nm *networkManager) newNetworkImpl(nwInfo *EndpointInfo, extIf *externalIn
 }
 
 // DeleteNetworkImpl deletes an existing container network.
-func (nm *networkManager) deleteNetworkImpl(nw *network) error {
+func (nm *networkManager) deleteNetworkImpl(nw *network, nicType cns.NICType) error {
+	if nicType != cns.NodeNetworkInterfaceFrontendNIC && nicType != cns.NodeNetworkInterfaceAccelnetFrontendNIC { //nolint
+		return nil
+	}
+
+	logger.Info("Deleting HNS network", zap.String("networkID", nw.HnsId), zap.Any("nictype", nicType))
+
 	if useHnsV2, err := UseHnsV2(nw.NetNs); useHnsV2 {
 		if err != nil {
 			return err
