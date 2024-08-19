@@ -2094,3 +2094,20 @@ func TestCNSIPAMInvoker_Add_SwiftV2(t *testing.T) {
 		})
 	}
 }
+
+func TestShallowCopyIpamAddConfigOptions(t *testing.T) {
+	opts := IPAMAddConfig{
+		// mock all optios' fields
+		options: map[string]interface{}{
+			network.SNATIPKey:   "10",
+			dockerNetworkOption: "20",
+			"intType":           10,
+			"floatType":         0.51,
+			"byteType":          byte('A'),
+		},
+	}
+
+	// shallow copy all ipamAddConfig options
+	res := opts.shallowCopyIpamAddConfigOptions()
+	require.Equal(t, opts.options, res)
+}
