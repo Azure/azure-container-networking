@@ -12,7 +12,6 @@ import (
 	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/network"
-	acnnetwork "github.com/Azure/azure-container-networking/network"
 	"github.com/Azure/azure-container-networking/network/hnswrapper"
 	"github.com/Azure/azure-container-networking/network/policy"
 	"github.com/Azure/azure-container-networking/telemetry"
@@ -711,7 +710,7 @@ func TestPluginMultitenancyWindowsAdd(t *testing.T) {
 			name: "Add Happy path",
 			plugin: &NetPlugin{
 				Plugin:             plugin,
-				nm:                 acnnetwork.NewMockNetworkmanager(acnnetwork.NewMockEndpointClient(nil)),
+				nm:                 network.NewMockNetworkmanager(network.NewMockEndpointClient(nil)),
 				tb:                 &telemetry.TelemetryBuffer{},
 				report:             &telemetry.CNIReport{},
 				multitenancyClient: NewMockMultitenancy(false, []*cns.GetNetworkContainerResponse{GetTestCNSResponse1(), GetTestCNSResponse2()}),
@@ -730,7 +729,7 @@ func TestPluginMultitenancyWindowsAdd(t *testing.T) {
 			name: "Add Fail",
 			plugin: &NetPlugin{
 				Plugin:             plugin,
-				nm:                 acnnetwork.NewMockNetworkmanager(acnnetwork.NewMockEndpointClient(nil)),
+				nm:                 network.NewMockNetworkmanager(network.NewMockEndpointClient(nil)),
 				tb:                 &telemetry.TelemetryBuffer{},
 				report:             &telemetry.CNIReport{},
 				multitenancyClient: NewMockMultitenancy(true, []*cns.GetNetworkContainerResponse{GetTestCNSResponse1(), GetTestCNSResponse2()}),
