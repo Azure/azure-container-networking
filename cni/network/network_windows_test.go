@@ -591,7 +591,7 @@ func TestGetNetworkNameSwiftv2FromCNS(t *testing.T) {
 		netNs         string
 		nwCfg         *cni.NetworkConfig
 		interfaceInfo *network.InterfaceInfo
-		want          net.HardwareAddr
+		want          string
 		wantErr       bool
 	}{
 		{
@@ -613,7 +613,7 @@ func TestGetNetworkNameSwiftv2FromCNS(t *testing.T) {
 				MacAddress: parsedMacAddress,
 				NICType:    cns.NodeNetworkInterfaceFrontendNIC,
 			},
-			want:    parsedMacAddress,
+			want:    swiftv2NetworkNamePrefix + parsedMacAddress.String(),
 			wantErr: false,
 		},
 		{
@@ -635,7 +635,7 @@ func TestGetNetworkNameSwiftv2FromCNS(t *testing.T) {
 				MacAddress: parsedMacAddress,
 				NICType:    cns.BackendNIC,
 			},
-			want:    parsedMacAddress,
+			want:    swiftv2NetworkNamePrefix + parsedMacAddress.String(),
 			wantErr: false,
 		},
 		{
@@ -657,7 +657,7 @@ func TestGetNetworkNameSwiftv2FromCNS(t *testing.T) {
 				MacAddress: parsedMacAddress,
 				NICType:    cns.NodeNetworkInterfaceAccelnetFrontendNIC,
 			},
-			want:    parsedMacAddress,
+			want:    swiftv2NetworkNamePrefix + parsedMacAddress.String(),
 			wantErr: false,
 		},
 		{
@@ -675,8 +675,8 @@ func TestGetNetworkNameSwiftv2FromCNS(t *testing.T) {
 				MultiTenancy: false,
 			},
 			interfaceInfo: &network.InterfaceInfo{}, // return empty network name with empty interfaceInfo
-			want:          parsedMacAddress,
-			wantErr:       true,
+			want:          "",
+			wantErr:       false,
 		},
 		{
 			name: "Unhappy path: Get Network Name from CNS for swiftv2 AccelnetNIC with invalid nicType",
@@ -697,8 +697,8 @@ func TestGetNetworkNameSwiftv2FromCNS(t *testing.T) {
 				MacAddress: parsedMacAddress,
 				NICType:    "invalidNICType",
 			}, // return empty network name with invalid nic type
-			want:    parsedMacAddress,
-			wantErr: true,
+			want:    "",
+			wantErr: false,
 		},
 	}
 
@@ -706,28 +706,20 @@ func TestGetNetworkNameSwiftv2FromCNS(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Log(tt.interfaceInfo)
+			// compare networkNamess
 			networkName, err := tt.plugin.getNetworkName(tt.netNs, tt.interfaceInfo, tt.nwCfg)
-			if err != nil {
-				t.Fatalf("Failed to get network name due to error: %v", err)
-			}
-
-			// compare networkNames
-			expectedMacAddress := swiftv2NetworkNamePrefix + tt.want.String()
 			if tt.wantErr {
-				require.NotEqual(t, expectedMacAddress, networkName)
+				require.Error(t, err)
 			} else {
-				require.Equal(t, expectedMacAddress, networkName)
+				require.Equal(t, tt.want, networkName)
 			}
 
 			// compare networkIDs
 			networkID, err := tt.plugin.getNetworkID(tt.netNs, tt.interfaceInfo, tt.nwCfg)
-			if err != nil {
-				t.Fatalf("Failed to get network ID due to error: %v", err)
-			}
 			if tt.wantErr {
-				require.NotEqual(t, expectedMacAddress, networkID)
+				require.Error(t, err)
 			} else {
-				require.Equal(t, expectedMacAddress, networkID)
+				require.Equal(t, tt.want, networkID)
 			}
 		})
 	}
