@@ -689,8 +689,7 @@ func (plugin *NetPlugin) findMasterInterface(opt *createEpInfoOpt) string {
 		// if windows swiftv2 has right network drivers, there will be an NDIS interface while the VFs are mounted
 		// when the VF is dismounted, this interface will go away
 		// return an unique interface name to containerd
-		opt.ifInfo.Name = ibInterfacePrefix + strconv.Itoa(opt.endpointIndex)
-		return opt.ifInfo.Name
+		return ibInterfacePrefix + strconv.Itoa(opt.endpointIndex)
 	default:
 		return ""
 	}
