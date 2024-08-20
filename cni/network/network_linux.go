@@ -41,7 +41,7 @@ func setNetworkOptions(cnsNwConfig *cns.GetNetworkContainerResponse, nwInfo *net
 		vlanMap := make(map[string]interface{})
 		vlanMap[network.VlanIDKey] = strconv.Itoa(cnsNwConfig.MultiTenancyInfo.ID)
 		vlanMap[network.SnatBridgeIPKey] = cnsNwConfig.LocalIPConfiguration.GatewayIPAddress + "/" + strconv.Itoa(int(cnsNwConfig.LocalIPConfiguration.IPSubnet.PrefixLength))
-		logger.Info("Add %s and %s with %d to", zap.String("vlanIDKey", network.VlanIDKey), zap.String("SnatBridgeIPKey", network.SnatBridgeIPKey),
+		logger.Info("Add vlanIDkey and SnatBridgeIPKey with vlanID to vlanMap", zap.String("vlanIDKey", network.VlanIDKey), zap.String("SnatBridgeIPKey", network.SnatBridgeIPKey),
 			zap.Int("vlanID", cnsNwConfig.MultiTenancyInfo.ID), zap.Any("vlanMap", vlanMap))
 		nwInfo.Options[dockerNetworkOption] = vlanMap
 	}
