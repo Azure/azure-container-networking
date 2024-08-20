@@ -5,6 +5,8 @@
  * @problem.severity Error
  * @id go/cmd-inject-decode
  * @tags security
+ * @security-severity 9.8
+ * @precision high
  */
 
 // Detect flow from the DECODE method (which decodes http requests) to a command execution

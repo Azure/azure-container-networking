@@ -5,6 +5,8 @@
  * @problem.severity Error
  * @id go/cmd-inject-ipam-add-result
  * @tags security
+ * @security-severity 9.8
+ * @precision high
  */
 
 // Detect inputs from CNS add ipam result / CNS multitenancy ipam add result to command injection

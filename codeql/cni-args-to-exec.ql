@@ -5,6 +5,8 @@
  * @problem.severity Error
  * @id go/cmd-inject-cni
  * @tags security
+ * @security-severity 9.8
+ * @precision high
  */
 
 // Detect inputs from CNI ARGS to command injection

@@ -5,6 +5,8 @@
  * @problem.severity Error
  * @id go/cmd-inject-cns-invoker
  * @tags security
+ * @security-severity 9.8
+ * @precision high
  */
 
 // Detect inputs from CNS Invoker to command injection
