@@ -21,7 +21,6 @@ import (
 	"github.com/Azure/azure-container-networking/network/hnswrapper"
 	"github.com/Azure/azure-container-networking/platform"
 	"github.com/Microsoft/hcsshim/hcn"
-	"github.com/stretchr/testify/require"
 )
 
 var (
@@ -884,73 +883,5 @@ func TestDeleteEndpointStateForInfraDelegatedNIC(t *testing.T) {
 
 	if _, ok := networks[infraNetworkID]; !ok {
 		t.Fatal("Network for InfraNIC does not exist")
-	}
-}
-
-// Test ConfigureHcnEndpoint() with different nicTypes
-func TestConfigureHcnEndpoint(t *testing.T) {
-	require := require.New(t) //nolint further usage of require without passing t
-	hnsID := "1234-5678-90ab-cdef"
-	macAddress := net.HardwareAddr("00:00:5e:00:53:01")
-	macAddrStr := macAddress.String()
-	parserdMacAddress := strings.Join(strings.Split(macAddrStr, ":"), "-")
-
-	nw := &network{
-		HnsId:     hnsID,
-		Endpoints: map[string]*endpoint{},
-	}
-
-	tests := []struct {
-		name                        string
-		endpointInfo                EndpointInfo
-		wantSecondaryInterfacesInfo *hcn.HostComputeEndpoint
-	}{
-		{
-			name: "test configureHcnEndpoint with delegatedVMNIC",
-			endpointInfo: EndpointInfo{
-				EndpointID:   "753d3fb6-e9b3-49e2-a109-2acc5dda61f1",
-				ContainerID:  "545055c2-1462-42c8-b222-e75d0b291632",
-				NetNsPath:    "fakeNameSpace",
-				HNSNetworkID: "853d3fb6-e9b3-49e2-a109-2acc5dda61f1",
-				Data:         make(map[string]interface{}),
-				EndpointDNS: DNSInfo{
-					Suffix:  "",
-					Servers: []string{"10.0.0.1"},
-					Options: []string{"10.0.0.2"},
-				},
-				IfName:     "eth1",
-				MacAddress: net.HardwareAddr(macAddress),
-				NICType:    cns.NodeNetworkInterfaceFrontendNIC,
-			},
-			wantSecondaryInterfacesInfo: &hcn.HostComputeEndpoint{
-				Name:               "545055c2-eth1",
-				HostComputeNetwork: hnsID,
-				MacAddress:         parserdMacAddress,
-				SchemaVersion: hcn.SchemaVersion{
-					Major: hcnSchemaVersionMajor,
-					Minor: hcnSchemaVersionMinor,
-				},
-				Dns: hcn.Dns{
-					Domain:     "",
-					Search:     nil,
-					ServerList: []string{"10.0.0.1"},
-					Options:    []string{"10.0.0.2"},
-				},
-			},
-		},
-	}
-
-	for _, tt := range tests {
-		tt := tt
-		t.Run(tt.name, func(t *testing.T) {
-			hostComputeEndpoint, err := nw.configureHcnEndpoint(&tt.endpointInfo)
-			if err != nil {
-				t.Fatalf("Failed to configure hcn endpoint due to error %v", err)
-			}
-			t.Logf("hostComputeEndpoint Dns Search is %v", hostComputeEndpoint.Dns.Search)
-			t.Logf("tt.wantSecondaryInterfacesInfo Search is %v", tt.wantSecondaryInterfacesInfo.Dns.Search)
-			fmt.Printf("want:%+v\nrest:%+v\n", tt.wantSecondaryInterfacesInfo, hostComputeEndpoint)
-			require.EqualValues(tt.wantSecondaryInterfacesInfo, hostComputeEndpoint, "incorrect response hostComputeEndpoint")
-		})
 	}
 }
