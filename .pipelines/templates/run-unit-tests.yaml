@@ -1,7 +1,3 @@
-parameters:
-  - name: poolName
-    type: string
-
 stages:
   - stage: test
     displayName: Test ACN
@@ -13,7 +9,7 @@ stages:
         variables:
           STORAGE_ID: $[ stagedependencies.setup.env.outputs['EnvironmentalVariables.StorageID'] ]
         pool:
-          name: ${{ parameters.poolName }}
+          name: "$(BUILD_POOL_NAME_DEFAULT)"
         steps:
           - script: |
               make tools

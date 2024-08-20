@@ -51,8 +51,6 @@ stages:
             condition: always()
 
   - template: templates/run-unit-tests.yaml
-    parameters:
-      poolName: "$(BUILD_POOL_NAME_DEFAULT)"
 
   - ${{ if not(contains(variables['Build.SourceBranch'], 'refs/pull')) }}:
     - stage: binaries
