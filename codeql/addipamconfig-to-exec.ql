@@ -2,7 +2,7 @@
  * @name Command Injection From CNS ipam add result / CNS multitenancy ipam add result
  * @description Flow exists from CNS ipam add result / CNS multitenancy ipam add result (untrusted) to exec command
  * @kind path-problem
- * @problem.severity warning
+ * @problem.severity Error
  * @id go/cmd-inject-ipam-add-result
  * @tags security
  */

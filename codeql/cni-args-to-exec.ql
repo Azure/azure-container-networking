@@ -2,7 +2,7 @@
  * @name Command Injection From CNI Args
  * @description Flow exists from CNI Args (untrusted) to exec command
  * @kind path-problem
- * @problem.severity warning
+ * @problem.severity Error
  * @id go/cmd-inject-cni
  * @tags security
  */
