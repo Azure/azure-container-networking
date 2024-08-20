@@ -593,7 +593,7 @@ func TestGetNetworkNameSwiftv2FromCNS(t *testing.T) {
 		interfaceInfo *network.InterfaceInfo
 		want          net.HardwareAddr
 		wantErr       bool
-		wantCmpErr    bool //compare if expected networkName is equal to actual networkName
+		wantCmpErr    bool // compare if expected networkName is equal to actual networkName
 	}{
 		{
 			name: "Get Network Name from CNS for swiftv2 DelegatedNIC",
