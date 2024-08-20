@@ -1,6 +1,7 @@
 package log
 
 import (
+	"errors"
 	"fmt"
 	"io"
 )
@@ -15,6 +16,7 @@ func (l *ErrorWithoutStackTrace) Error() string {
 	}
 	return l.error.Error()
 }
+
 func (l *ErrorWithoutStackTrace) Format(s fmt.State, verb rune) {
 	// if the error is nil, nothing should happen
 	if l.error == nil {
@@ -26,12 +28,14 @@ func (l *ErrorWithoutStackTrace) Format(s fmt.State, verb rune) {
 		v = 's'
 	}
 	// if the error implements formatter (which it should)
-	if fm, ok := l.error.(fmt.Formatter); ok {
-		fm.Format(s, v)
+	var formatter fmt.Formatter
+	if errors.As(l.error, &formatter) {
+		formatter.Format(s, v)
 	} else {
-		io.WriteString(s, l.error.Error())
+		_, _ = io.WriteString(s, l.error.Error())
 	}
 }
+
 func (l *ErrorWithoutStackTrace) Unwrap() error {
 	return l.error
 }
