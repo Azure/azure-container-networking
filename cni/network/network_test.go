@@ -5,6 +5,7 @@ import (
 	"net"
 	"os"
 	"runtime"
+	"strconv"
 	"testing"
 
 	"github.com/Azure/azure-container-networking/cni"
@@ -1236,6 +1237,7 @@ func TestGetPodSubnetNatInfo(t *testing.T) {
 
 type InterfaceGetterMock struct {
 	interfaces []net.Interface
+	addrs      []net.Addr
 	err        error
 }
 
@@ -1244,6 +1246,14 @@ func (n *InterfaceGetterMock) GetNetworkInterfaces() ([]net.Interface, error) {
 		return nil, n.err
 	}
 	return n.interfaces, nil
+}
+
+func (n *InterfaceGetterMock) GetNetworkInterfaceAddrs(iface *net.Interface) ([]net.Addr, error) {
+	if n.err != nil {
+		return nil, n.err
+	}
+	addrs, _ := iface.Addrs()
+	return addrs, nil
 }
 
 func TestPluginSwiftV2Add(t *testing.T) {
@@ -1742,6 +1752,135 @@ func TestPluginSwiftV2MultipleAddDelete(t *testing.T) {
 
 			endpoints, _ = tt.plugin.nm.GetAllEndpoints(localNwCfg.Name)
 			require.Condition(t, assert.Comparison(func() bool { return len(endpoints) == 0 }))
+		})
+	}
+}
+
+// test findMasterInterface with different NIC types
+func TestFindMasterInterface(t *testing.T) {
+	plugin, _ := cni.NewPlugin("name", "0.3.0")
+	endpointIndex := 1
+	macAddress := "12:34:56:78:90:ab"
+
+	tests := []struct {
+		name        string
+		endpointOpt createEpInfoOpt
+		plugin      *NetPlugin
+		nwCfg       *cni.NetworkConfig
+		want        string // expected master interface name
+		wantErr     bool
+	}{
+		{
+			name: "Find master interface by infraNIC with a master interfaceName",
+			plugin: &NetPlugin{
+				Plugin: plugin,
+				report: &telemetry.CNIReport{},
+				tb:     &telemetry.TelemetryBuffer{},
+				netClient: &InterfaceGetterMock{
+					interfaces: []net.Interface{
+						{
+							Name: "eth0",
+						},
+					},
+				},
+			},
+			endpointOpt: createEpInfoOpt{
+				ipamAddConfig: &IPAMAddConfig{
+					nwCfg: &cni.NetworkConfig{
+						Master: "eth0", // return this interface name
+					},
+				},
+				ifInfo: &acnnetwork.InterfaceInfo{
+					NICType: cns.InfraNIC,
+					HostSubnetPrefix: net.IPNet{
+						IP:   net.ParseIP("10.0.0.0"),
+						Mask: net.CIDRMask(16, 32),
+					},
+				},
+			},
+			want:    "eth0",
+			wantErr: false,
+		},
+		{
+			name: "Find master interface by delegatedVMNIC",
+			plugin: &NetPlugin{
+				Plugin: plugin,
+				report: &telemetry.CNIReport{},
+				tb:     &telemetry.TelemetryBuffer{},
+				netClient: &InterfaceGetterMock{
+					interfaces: []net.Interface{
+						{
+							Name:         "eth1",
+							HardwareAddr: net.HardwareAddr(macAddress),
+						},
+					},
+				},
+			},
+			endpointOpt: createEpInfoOpt{
+				ifInfo: &acnnetwork.InterfaceInfo{
+					NICType:    cns.NodeNetworkInterfaceFrontendNIC,
+					MacAddress: net.HardwareAddr(macAddress),
+				},
+			},
+			want:    "eth1",
+			wantErr: false,
+		},
+		{
+			name: "Find master interface by accelnetNIC",
+			plugin: &NetPlugin{
+				Plugin: plugin,
+				report: &telemetry.CNIReport{},
+				tb:     &telemetry.TelemetryBuffer{},
+				netClient: &InterfaceGetterMock{
+					interfaces: []net.Interface{
+						{
+							Name:         "eth1",
+							HardwareAddr: net.HardwareAddr(macAddress),
+						},
+					},
+				},
+			},
+			endpointOpt: createEpInfoOpt{
+				ifInfo: &acnnetwork.InterfaceInfo{
+					NICType:    cns.NodeNetworkInterfaceAccelnetFrontendNIC,
+					MacAddress: net.HardwareAddr(macAddress),
+				},
+			},
+			want:    "eth1",
+			wantErr: false,
+		},
+		{
+			name: "Find master interface by backend NIC",
+			endpointOpt: createEpInfoOpt{
+				endpointIndex: endpointIndex,
+				ifInfo: &acnnetwork.InterfaceInfo{
+					NICType:    cns.BackendNIC,
+					MacAddress: net.HardwareAddr(macAddress),
+				},
+			},
+			want:    ibInterfacePrefix + strconv.Itoa(endpointIndex),
+			wantErr: false,
+		},
+		{
+			name: "Find master interface by invalid NIC type",
+			endpointOpt: createEpInfoOpt{
+				endpointIndex: endpointIndex,
+				ifInfo: &acnnetwork.InterfaceInfo{
+					NICType:    "invalidType",
+					MacAddress: net.HardwareAddr(macAddress),
+				},
+			},
+			want:    "", // default interface name is ""
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			masterInterface := tt.plugin.findMasterInterface(&tt.endpointOpt)
+			t.Logf("masterInterface is %s\n", masterInterface)
+			require.Equal(t, tt.want, masterInterface)
 		})
 	}
 }
