@@ -1252,8 +1252,7 @@ func (n *InterfaceGetterMock) GetNetworkInterfaceAddrs(iface *net.Interface) ([]
 	if n.err != nil {
 		return nil, n.err
 	}
-	addrs, _ := iface.Addrs()
-	return addrs, nil
+	return n.addrs, nil
 }
 
 func TestPluginSwiftV2Add(t *testing.T) {
@@ -1770,6 +1769,37 @@ func TestFindMasterInterface(t *testing.T) {
 		want        string // expected master interface name
 		wantErr     bool
 	}{
+		{
+			name: "Find master interface by one infraNIC",
+			plugin: &NetPlugin{
+				Plugin: plugin,
+				report: &telemetry.CNIReport{},
+				tb:     &telemetry.TelemetryBuffer{},
+				netClient: &InterfaceGetterMock{
+					interfaces: []net.Interface{
+						{
+							Name: "eth0",
+						},
+					},
+				},
+			},
+			endpointOpt: createEpInfoOpt{
+				ipamAddConfig: &IPAMAddConfig{
+					nwCfg: &cni.NetworkConfig{
+						Master: "eth0",
+					},
+				},
+				ifInfo: &acnnetwork.InterfaceInfo{
+					NICType: cns.InfraNIC,
+					HostSubnetPrefix: net.IPNet{
+						IP:   net.ParseIP("10.0.0.0"),
+						Mask: net.CIDRMask(16, 32),
+					},
+				},
+			},
+			want:    "eth0",
+			wantErr: false,
+		},
 		{
 			name: "Find master interface by infraNIC with a master interfaceName",
 			plugin: &NetPlugin{
