@@ -2108,20 +2108,20 @@ func TestShallowCopyIpamAddConfigOptions(t *testing.T) {
 	}
 
 	// shallow copy all ipamAddConfig options
-	res1 := opts.shallowCopyIpamAddConfigOptions()
-	require.Equal(t, opts.options, res1)
+	res := opts.shallowCopyIpamAddConfigOptions()
+	require.Equal(t, opts.options, res)
 
 	// create a second opts for reference representing expected outputs
-	copyRes := res1
-	// modify res1 fields and make sure expectedOpts has not changed
-	res1[network.SNATIPKey] = "100"
-	res1[dockerNetworkOption] = "200"
-	require.Equal(t, copyRes, res1)
+	copyRes := res
+	// modify res1 fields and make sure copied res has changed
+	res[network.SNATIPKey] = "100"
+	res[dockerNetworkOption] = "200"
+	require.Equal(t, copyRes, res)
 
 	// shallow copy empty opts and make sure it does not break anything
 	emptyOpts := IPAMAddConfig{
 		options: map[string]interface{}{},
 	}
-	res3 := emptyOpts.shallowCopyIpamAddConfigOptions()
-	require.Equal(t, emptyOpts.options, res3)
+	emptyRes := emptyOpts.shallowCopyIpamAddConfigOptions()
+	require.Equal(t, emptyOpts.options, emptyRes)
 }
