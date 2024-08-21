@@ -2,6 +2,32 @@ pr: none
 trigger: none
 
 stages:
+  - stage: create_rg_cluster
+    displayName: "Create RG & Cluster"
+    jobs:
+      - job: create_rg_cluster
+        pool:
+          name: "$(BUILD_POOL_NAME_DEFAULT)"
+        steps:
+          - task: AzureCLI@2
+            inputs:
+              azureSubscription: $(TEST_SUB_SERVICE_CONNECTION)
+              scriptLocation: "inlineScript"
+              scriptType: "bash"
+              addSpnToEnvironment: true
+              inlineScript: |
+                set -ex
+                az extension add --name aks-preview
+
+                subscriptionId="$(az account list --query "[?isDefault].id" --output tsv)"
+                make -C ./hack/aks AZCLI=az ${CLUSTER_TYPE} CLUSTER=${CLUSTER} GROUP=${RESOURCE_GROUP} REGION=${LOCATION} NODE_COUNT=5 VM_SIZE=${VMSIZE} SUB=${subscriptionId} || {
+                  echo "Failed to create Cluster"
+                  exit 1
+                }
+                ls -lah
+                pwd
+                kubectl cluster-info
+                kubectl get po -owide -A
   - stage: update_daemonset_versions
     displayName: "Update Cilium + CNS Version and Restart Nodes"
     jobs:
@@ -16,24 +42,54 @@ stages:
               scriptType: "bash"
               addSpnToEnvironment: true
               inlineScript: |
-                az aks get-credentials --resource-group ${CLUSTER} --name ${CLUSTER}
+                az aks get-credentials --resource-group ${RESOURCE_GROUP} --name ${CLUSTER}
                 echo "Redeploy all cilium components and update cilium version. Redeploy all to catch all changes between versions"
-                echo "deploy Cilium ConfigMap"
-                kubectl apply -f test/integration/manifests/cilium/cilium-config.yaml
+                pwd
+
                 echo "install Cilium ${CILIUM_VERSION_TAG}"
-                envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/daemonset.yaml | kubectl apply -f -
-                envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/deployment.yaml | kubectl apply -f -
-                kubectl apply -f test/integration/manifests/cilium/cilium-agent
-                kubectl apply -f test/integration/manifests/cilium/cilium-operator
-                echo "Keep CNS version up to date, grabbing pipeline parameter"
-                CNS_IMAGE=${CNS_IMAGE}
-                sed -i '/containers:/{n;n;s/\(image\).*/\1: '"${CNS_IMAGE//\//\\/}"'/}' test/integration/manifests/cns/daemonset.yaml
-                kubectl apply -f test/integration/manifests/cns/daemonset.yaml
+                export DIR=${CILIUM_VERSION_TAG%.*}
+                echo "installing files from ${DIR}"
+
+                echo "deploy Cilium ConfigMap"
+                if ${IS_DUALSTACK}; then
+                  echo "Use dualstack configmap for Cilium"
+                  kubectl apply -f test/integration/manifests/cilium/v${DIR}/cilium-config/cilium-config-dualstack.yaml
+                else
+                  kubectl apply -f test/integration/manifests/cilium/v${DIR}/cilium-config/cilium-config.yaml
+                fi
+
+                # Passes Cilium image to daemonset and deployment
+                kubectl apply -f test/integration/manifests/cilium/v${DIR}/cilium-agent/files
+                kubectl apply -f test/integration/manifests/cilium/v${DIR}/cilium-operator/files
+
+                export CILIUM_VERSION_TAG=${CILIUM_VERSION_TAG}
+                export CILIUM_IMAGE_REGISTRY=${CILIUM_IMAGE_REGISTRY}
+                if ${IS_DUALSTACK}; then
+                  echo "Use dualstack daemonset for Cilium"
+                  envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY},${IPV6_HP_BPF_VERSION}' < test/integration/manifests/cilium/v${DIR}/cilium-agent/templates/daemonset-dualstack.yaml | kubectl apply -f -
+                else
+                  envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/v${DIR}/cilium-agent/templates/daemonset.yaml | kubectl apply -f -
+                fi
+
+                envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/v${DIR}/cilium-operator/templates/deployment.yaml | kubectl apply -f -
+                kubectl get po -owide -A
+
+                echo "Deploy Azure-CNS"
+                sudo -E env "PATH=$PATH" make test-load AZURE_IPAM_VERSION=v$(AZURE_IPAM_VERSION) CNS_ONLY=true CNS_VERSION=v$(CNS_VERSION) INSTALL_CNS=true INSTALL_OVERLAY=true CNS_IMAGE_REPO=$(CNS_IMAGE_REPO)
+                kubectl get po -owide -A
+                kubectl wait --for=condition=Ready pods --all --all-namespaces --timeout=10m || {
+                  echo "Not all pods ready"
+                  kubectl get po -owide -A
+                  exit 1
+                }
+                kubectl get po -owide -A
+
+                echo "Restart Nodes"
                 for val in $(az vmss list -g MC_${clusterName}_${clusterName}_$(REGION_AKS_CLUSTER_TEST) --query "[].name" -o tsv); do
                   make -C ./hack/aks restart-vmss AZCLI=az CLUSTER=${clusterName} REGION=$(REGION_AKS_CLUSTER_TEST) VMSS_NAME=${val}
                 done
                 kubectl get node
-                kubectl get pod -A
+                kubectl get po -owide -A
             name: "UpdateCiliumandCNSVersion"
             displayName: "Update Cilium and CNS Version"
   - stage: scale_up_cluster
@@ -88,7 +144,7 @@ stages:
               addSpnToEnvironment: true
               inlineScript: |
                 echo "Set node label scale-test=true and connectivity-test=true for testing"
-                az aks get-credentials --resource-group ${CLUSTER} --name ${CLUSTER}
+                az aks get-credentials --resource-group ${RESOURCE_GROUP} --name ${CLUSTER}
                 cd test/scale
                 chmod +x label-nodes.sh
                 ./label-nodes.sh
@@ -100,6 +156,7 @@ stages:
       - job: scale_deployments
         pool:
           name: "$(BUILD_POOL_NAME_DEFAULT)"
+        timeoutInMinutes: 120
         steps:
           - task: AzureCLI@2
             inputs:
@@ -108,7 +165,7 @@ stages:
               scriptType: "bash"
               addSpnToEnvironment: true
               inlineScript: |
-                az aks get-credentials --resource-group ${CLUSTER} --name ${CLUSTER}
+                az aks get-credentials --resource-group ${RESOURCE_GROUP} --name ${CLUSTER}
                 echo "collect cpu and memory usage before scaling for network policies"
                 mkdir test1_1_netpol_cpu_and_mem_before
                 cd test1_1_netpol_cpu_and_mem_before
@@ -173,7 +230,7 @@ stages:
               addSpnToEnvironment: true
               inlineScript: |
                 echo "Run network policies test"
-                az aks get-credentials --resource-group ${CLUSTER} --name ${CLUSTER}
+                az aks get-credentials --resource-group ${RESOURCE_GROUP} --name ${CLUSTER}
                 cd test/scale/connectivity
                 chmod +x test-connectivity.sh
                 ./test-connectivity.sh --num-scale-pods-to-verify=${NUM_SCALE_PODS_TO_VERIFY} --max-wait-for-initial-connectivity=600 --max-wait-after-adding-netpol=120
@@ -206,6 +263,7 @@ stages:
       - job: deploy_service
         pool:
           name: "$(BUILD_POOL_NAME_DEFAULT)"
+        timeoutInMinutes: 120
         steps:
           - task: AzureCLI@2
             inputs:
@@ -214,7 +272,7 @@ stages:
               scriptType: "bash"
               addSpnToEnvironment: true
               inlineScript: |
-                az aks get-credentials --resource-group ${CLUSTER} --name ${CLUSTER}
+                az aks get-credentials --resource-group ${RESOURCE_GROUP} --name ${CLUSTER}
                 echo "collect cpu and mem results before scale for lb tests"
                 mkdir test2_1_lb_cpu_and_mem_before
                 cd test2_1_lb_cpu_and_mem_before
@@ -276,7 +334,7 @@ stages:
               scriptType: "bash"
               addSpnToEnvironment: true
               inlineScript: |
-                az aks get-credentials --resource-group ${CLUSTER} --name ${CLUSTER}
+                az aks get-credentials --resource-group ${RESOURCE_GROUP} --name ${CLUSTER}
                 echo "Deploy apachebench pod and run test"
                 cd hack/manifests
                 kubectl apply -f apache.yaml
@@ -336,7 +394,7 @@ stages:
               scriptType: "bash"
               addSpnToEnvironment: true
               inlineScript: |
-                az aks get-credentials --resource-group ${CLUSTER} --name ${CLUSTER}
+                az aks get-credentials --resource-group ${RESOURCE_GROUP} --name ${CLUSTER}
                 chmod +x hack/scripts/netperf.sh
                 kubectl apply -f hack/manifests/netperf-pod.yaml
                 kubectl rollout status deployment container6 --timeout=30s
@@ -392,10 +450,10 @@ stages:
               addSpnToEnvironment: true
               inlineScript: |
                 set -ex
-                az aks get-credentials --resource-group ${CLUSTER} --name ${CLUSTER}
+                az aks get-credentials --resource-group ${RESOURCE_GROUP} --name ${CLUSTER}
                 echo "Scaling to 5 nodes"
-                vmss_name=$(az vmss list -g MC_${CLUSTER}_${CLUSTER}_$(LOCATION) --query "[].name" -o tsv)
-                make -C ./hack/aks scale-vmss AZCLI=az CLUSTER=${CLUSTER} REGION=$(LOCATION) VMSS_NAME=$vmss_name NODE_COUNT=5
+                vmss_name=$(az vmss list -g MC_${RESOURCE_GROUP}_${CLUSTER}_$(LOCATION) --query "[].name" -o tsv)
+                make -C ./hack/aks scale-vmss AZCLI=az GROUP=${RESOURCE_GROUP} CLUSTER=${CLUSTER} REGION=$(LOCATION) VMSS_NAME=$vmss_name NODE_COUNT=5
                 kubectl get node
             name: "ScaleDown"
             displayName: "Scale down to 5 Nodes"
@@ -414,7 +472,7 @@ stages:
             addSpnToEnvironment: true
             inlineScript: |
               echo "delete test resources and namespaces"
-              az aks get-credentials --resource-group ${CLUSTER} --name ${CLUSTER}
+              az aks get-credentials --resource-group ${RESOURCE_GROUP} --name ${CLUSTER}
               kubectl delete ns scale-test
               kubectl delete ns connectivity-test
               kubectl get ns
