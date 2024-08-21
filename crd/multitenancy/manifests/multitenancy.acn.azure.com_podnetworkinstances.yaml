@@ -27,6 +27,9 @@ spec:
       name: PodNetworks
       priority: 1
       type: string
+    deprecated: true
+    deprecationWarning: PNI in group multitenancy.acn.azure.com is deprecated and
+      will be removed in future. Please use WNC in group acn.azure.com instead.
     name: v1alpha1
     schema:
       openAPIV3Schema:

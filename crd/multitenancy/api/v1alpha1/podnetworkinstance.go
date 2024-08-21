@@ -18,6 +18,7 @@ import (
 // +kubebuilder:metadata:labels=owner=
 // +kubebuilder:printcolumn:name="Status",type=string,JSONPath=`.status.status`
 // +kubebuilder:printcolumn:name="PodNetworks",priority=1,type=string,JSONPath=`.spec.podNetworks`
+// +kubebuilder:deprecatedversion:warning="PNI in group multitenancy.acn.azure.com is deprecated and will be removed in future. Please use WNC in group acn.azure.com instead."
 type PodNetworkInstance struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`

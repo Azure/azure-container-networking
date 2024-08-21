@@ -20,6 +20,7 @@ import (
 // +kubebuilder:printcolumn:name="Subnet",type=string,priority=1,JSONPath=`.spec.subnetResourceID`
 // +kubebuilder:printcolumn:name="SubnetGUID",type=string,priority=1,JSONPath=`.spec.subnetGUID`
 // +kubebuilder:printcolumn:name="DeviceType",type=string,priority=1,JSONPath=`.spec.deviceType`
+// +kubebuilder:deprecatedversion:warning="PN in multitenancy.acn.azure.com group is deprecated and will be removed in future. Please use PN in acn.azure.com group instead."
 type PodNetwork struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`

@@ -37,10 +37,13 @@ spec:
       name: SubnetGUID
       priority: 1
       type: string
-    - jsonPath: .spec.subnetGUID
+    - jsonPath: .spec.deviceType
       name: DeviceType
       priority: 1
       type: string
+    deprecated: true
+    deprecationWarning: PN in multitenancy.acn.azure.com group is deprecated and will
+      be removed in future. Please use PN in acn.azure.com group instead.
     name: v1alpha1
     schema:
       openAPIV3Schema:
