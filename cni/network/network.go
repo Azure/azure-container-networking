@@ -256,7 +256,7 @@ func (plugin *NetPlugin) findMasterInterfaceBySubnet(nwCfg *cni.NetworkConfig, s
 	}
 	var ipnets []string
 	for _, iface := range interfaces {
-		addrs, _ := plugin.netClient.GetNetworkInterfaceAddrs(&iface)
+		addrs, _ := plugin.netClient.GetNetworkInterfaceAddrs(&iface) //nolint
 		for _, addr := range addrs {
 			_, ipnet, err := net.ParseCIDR(addr.String())
 			if err != nil {
