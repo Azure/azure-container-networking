@@ -474,6 +474,7 @@ func TestIpamDeleteFail(t *testing.T) {
 
 // test v4 and v6 address allocation from ipam
 func TestAddDualStack(t *testing.T) {
+	nwCfg.Name = "DualStackTest"
 	nwCfg.IPV6Mode = "ipv6nat"
 	args.StdinData = nwCfg.Serialize()
 	cniPlugin, _ := cni.NewPlugin("test", "0.3.0")
@@ -681,6 +682,96 @@ func TestPluginMultitenancyAdd(t *testing.T) {
 				endpoints, _ := tt.plugin.nm.GetAllEndpoints(localNwCfg.Name)
 				require.Condition(t, assert.Comparison(func() bool { return len(endpoints) == 1 }))
 			}
+		})
+	}
+}
+
+func TestIpCleanUpWhenIpamAddFail(t *testing.T) {
+	endpointErrMsg := "Endpoint Error"
+	plugin, _ := cni.NewPlugin("test", "0.3.0")
+
+	mockIpamInvokerSingleTenancy := NewMockIpamInvoker(false, false, false, false, false)
+	// nw config with MultiTenancy=false
+	localNwCfg1 := cni.NetworkConfig{
+		CNIVersion:                 "0.3.0",
+		Name:                       "mulnet",
+		MultiTenancy:               false,
+		EnableExactMatchForPodName: true,
+		Master:                     "eth0",
+	}
+
+	// nw config with MultiTenancy=true and IPAM.Type="azure-cns"
+	localNwCfg2 := cni.NetworkConfig{
+		CNIVersion:                 "0.3.0",
+		Name:                       "mulnet",
+		MultiTenancy:               true,
+		EnableExactMatchForPodName: true,
+		Master:                     "eth0",
+		IPAM: cni.IPAM{
+			Type: acnnetwork.AzureCNS,
+		},
+	}
+	mockIpamInvokerMultiTenancy := NewMockIpamInvoker(false, false, false, false, false)
+	// for Multitenancy, we did not insert ip to this ipmap. Pre-insert this multitenancy ip so we know if
+	// the deletion call get invoked or not after the test by checking the existent of this ip.
+	mockIpamInvokerMultiTenancy.ipMap["20.0.0.10/24"] = true
+
+	tests := []struct {
+		name                string
+		plugin              *NetPlugin
+		args                *cniSkel.CmdArgs
+		expectedIPMapLength int
+	}{
+		{
+			name: "SingleTenancy: endpoint creation failed, proceed to clean IPs",
+			plugin: &NetPlugin{
+				Plugin:             plugin,
+				tb:                 &telemetry.TelemetryBuffer{},
+				report:             &telemetry.CNIReport{},
+				multitenancyClient: NewMockMultitenancy(false),
+				ipamInvoker:        mockIpamInvokerSingleTenancy,
+				nm: acnnetwork.NewMockNetworkmanager(acnnetwork.NewMockEndpointClient(func(*acnnetwork.EndpointInfo) error {
+					return acnnetwork.NewErrorMockEndpointClient(endpointErrMsg) //nolint:wrapcheck // ignore wrapping for test
+				})),
+			},
+			args: &cniSkel.CmdArgs{
+				StdinData:   localNwCfg1.Serialize(),
+				ContainerID: "test-container1",
+				Netns:       "test-container1",
+				Args:        fmt.Sprintf("K8S_POD_NAME=%v;K8S_POD_NAMESPACE=%v", "test-pod", "test-pod-ns"),
+				IfName:      eth0IfName,
+			},
+			expectedIPMapLength: 0,
+		},
+		{
+			name: "MultiTenancy: endpoint creation failed, skip cleaning IPs",
+			plugin: &NetPlugin{
+				Plugin:             plugin,
+				tb:                 &telemetry.TelemetryBuffer{},
+				report:             &telemetry.CNIReport{},
+				multitenancyClient: NewMockMultitenancy(false),
+				ipamInvoker:        mockIpamInvokerMultiTenancy,
+				nm: acnnetwork.NewMockNetworkmanager(acnnetwork.NewMockEndpointClient(func(*acnnetwork.EndpointInfo) error {
+					return acnnetwork.NewErrorMockEndpointClient(endpointErrMsg) //nolint:wrapcheck // ignore wrapping for test
+				})),
+			},
+			args: &cniSkel.CmdArgs{
+				StdinData:   localNwCfg2.Serialize(),
+				ContainerID: "test-container2",
+				Netns:       "test-container2",
+				Args:        fmt.Sprintf("K8S_POD_NAME=%v;K8S_POD_NAMESPACE=%v", "test-pod2", "test-pod-ns2"),
+				IfName:      eth0IfName,
+			},
+			expectedIPMapLength: 1,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.plugin.Add(tt.args)
+			require.Error(t, err)
+			assert.Equal(t, tt.expectedIPMapLength, len(tt.plugin.ipamInvoker.(*MockIpamInvoker).ipMap))
 		})
 	}
 }

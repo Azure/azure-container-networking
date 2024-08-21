@@ -22,6 +22,7 @@ const (
 	localIPPrefixLen  = 17
 	multiTenancyVlan1 = 1
 	multiTenancyVlan2 = 2
+	windows           = "windows"
 )
 
 var errMockMulAdd = errors.New("multitenancy fail")
@@ -121,7 +122,8 @@ func (m *MockMultitenancy) GetAllNetworkContainers(
 	}
 
 	// TODO: add dual nic test cases for windows
-	if runtime.GOOS == "windows" {
+	// adhoc solution for dual stack tests
+	if runtime.GOOS == windows && nwCfg.Name == "DualStackTest" { //
 		cnsResponseTwo := &cns.GetNetworkContainerResponse{
 			IPConfiguration: cns.IPConfiguration{
 				IPSubnet: cns.IPSubnet{
