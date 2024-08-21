@@ -166,7 +166,7 @@ func (invoker *CNSIPAMInvoker) Add(addConfig IPAMAddConfig) (IPAMAddResult, erro
 		//nolint:exhaustive // ignore exhaustive types check
 		switch info.nicType {
 		case cns.DelegatedVMNIC:
-			// only handling single v4 PodIPInfo for Frontend NICs at the moment, will have to update once v6 gets added
+			// only handling single v4 PodIPInfo for DelegatedVMNICs at the moment, will have to update once v6 gets added
 			if !info.skipDefaultRoutes {
 				numInterfacesWithDefaultRoutes++
 			}

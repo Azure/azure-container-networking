@@ -78,18 +78,10 @@ type NICType string
 // NIC Types
 const (
 	InfraNIC NICType = "InfraNIC"
-	// DelegatedVMNIC are projected from VM to container network namespace
-	DelegatedVMNIC NICType = "FrontendNIC"
-	// BackendNIC are used for infiniband NICs on a VM
+	// Delegated VM NICs are projected from VM to container network namespace
+	DelegatedVMNIC NICType = "DelegatedVMNIC"
+	// BackendNIC NICs are used for infiniband nics on a VM
 	BackendNIC NICType = "BackendNIC"
-	// NodeNetworkInterfaceAccelnetFrontendNIC is a type of front-end nic that offers accelerated networking performance
-	NodeNetworkInterfaceAccelnetFrontendNIC NICType = "FrontendNIC_Accelnet"
-
-	// TODO: These two const are currently unused due to version compatibility with DNC. DelegatedVMNIC and NodeNetworkInterfaceBackendNIC should be renamed to align with the naming convention with DNC
-	// NodeNetworkInterfaceFrontendNIC is the new name for DelegatedVMNIC
-	NodeNetworkInterfaceFrontendNIC NICType = "FrontendNIC"
-	// NodeNetworkInterfaceBackendNIC is the new name for BackendNIC
-	NodeNetworkInterfaceBackendNIC NICType = "BackendNIC"
 )
 
 // ChannelMode :- CNS channel modes
@@ -473,8 +465,9 @@ type PodIpInfo struct {
 	PodIPConfig                     IPSubnet
 	NetworkContainerPrimaryIPConfig IPConfiguration
 	HostPrimaryIPInfo               HostIPInfo
-	NICType                         NICType
-	InterfaceName                   string
+	// NICType defines whether NIC is InfraNIC or DelegatedVMNIC or BackendNIC
+	NICType       NICType
+	InterfaceName string
 	// MacAddress of interface
 	MacAddress string
 	// SkipDefaultRoutes is true if default routes should not be added on interface
