@@ -240,7 +240,18 @@ func getEndpointDNSSettings(nwCfg *cni.NetworkConfig, dns network.DNSInfo, names
 	return epDNS, nil
 }
 
-// getPoliciesFromRuntimeCfg returns network policies from network config.
+/*
+getPoliciesFromRuntimeCfg returns network policies from network config.
+
+Windows
+test-netconnection to --->    to node ipv4    to node ipv6    to localhost ipv4    to localhost ipv6
+host port mapping w/
+no host ip                     ok             ok              fail                 fail
+localhost ipv4 host ip         fail           fail            fail                 fail
+node ipv6 host ip              fail           ok              fail                 fail
+localhost ipv6 host ip         fail           fail            fail                 fail
+node ipv4 host ip              ok             fail            fail                 fail
+*/
 func getPoliciesFromRuntimeCfg(nwCfg *cni.NetworkConfig, isIPv6Enabled bool) ([]policy.Policy, error) {
 	logger.Info("Runtime Info", zap.Any("config", nwCfg.RuntimeConfig))
 	var policies []policy.Policy
@@ -261,7 +272,8 @@ func getPoliciesFromRuntimeCfg(nwCfg *cni.NetworkConfig, isIPv6Enabled bool) ([]
 		// To support hostport policy mapping for ipv6 in dualstack overlay mode
 		// uint32 NatFlagsIPv6 = 2
 
-		flag := hnsv2.NatFlagsLocalRoutedVip
+		// if host ip is specified, we create a policy to match that ip only (ipv4 or ipv6), or ipv4 if no host ip
+		flag := hnsv2.NatFlagsLocalRoutedVip // ipv4 flag
 		if mapping.HostIp != "" {
 			hostIP, err := netip.ParseAddr(mapping.HostIp)
 			if err != nil {
@@ -277,38 +289,54 @@ func getPoliciesFromRuntimeCfg(nwCfg *cni.NetworkConfig, isIPv6Enabled bool) ([]
 			}
 		}
 
-		rawPolicy, err := json.Marshal(&hnsv2.PortMappingPolicySetting{
-			ExternalPort: uint16(mapping.HostPort),
-			InternalPort: uint16(mapping.ContainerPort),
-			VIP:          mapping.HostIp,
-			Protocol:     protocol,
-			Flags:        flag,
-		})
-
+		hnsPortMappingPolicy, err := createPortMappingPolicy(mapping.HostPort, mapping.ContainerPort, mapping.HostIp, protocol, flag)
 		if err != nil {
-			return nil, errors.Wrap(err, "failed to marshal HNS portMappingPolicySetting")
+			return nil, err
 		}
 
-		hnsv2Policy, err := json.Marshal(&hnsv2.EndpointPolicy{
-			Type:     hnsv2.PortMapping,
-			Settings: rawPolicy,
-		})
+		logger.Info("Creating port mapping policy", zap.Any("policy", hnsPortMappingPolicy))
+		policies = append(policies, *hnsPortMappingPolicy)
 
-		if err != nil {
-			return nil, errors.Wrap(err, "failed to marshal HNS endpointPolicy")
+		// if no host ip specified and ipv6 enabled, we also create an identical ipv6 policy in addition to the previous ipv4 policy
+		if mapping.HostIp == "" && isIPv6Enabled {
+			ipv6HnsPortMappingPolicy, err := createPortMappingPolicy(mapping.HostPort, mapping.ContainerPort, mapping.HostIp, protocol, hnsv2.NatFlagsIPv6)
+			if err != nil {
+				return nil, err
+			}
+			logger.Info("Creating ipv6 port mapping policy", zap.Any("policy", ipv6HnsPortMappingPolicy))
+			policies = append(policies, *ipv6HnsPortMappingPolicy)
 		}
-
-		hnsPolicy := policy.Policy{
-			Type: policy.EndpointPolicy,
-			Data: hnsv2Policy,
-		}
-
-		logger.Info("Creating port mapping policy", zap.Any("policy", hnsPolicy))
-
-		policies = append(policies, hnsPolicy)
 	}
 
 	return policies, nil
+}
+
+func createPortMappingPolicy(hostPort, containerPort int, hostIP string, protocol uint32, flags hnsv2.NatFlags) (*policy.Policy, error) {
+	rawPolicy, err := json.Marshal(&hnsv2.PortMappingPolicySetting{
+		ExternalPort: uint16(hostPort),
+		InternalPort: uint16(containerPort),
+		VIP:          hostIP,
+		Protocol:     protocol,
+		Flags:        flags,
+	})
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to marshal HNS portMappingPolicySetting")
+	}
+
+	hnsv2Policy, err := json.Marshal(&hnsv2.EndpointPolicy{
+		Type:     hnsv2.PortMapping,
+		Settings: rawPolicy,
+	})
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to marshal HNS endpointPolicy")
+	}
+
+	hnsPolicy := policy.Policy{
+		Type: policy.EndpointPolicy,
+		Data: hnsv2Policy,
+	}
+
+	return &hnsPolicy, nil
 }
 
 func getEndpointPolicies(args PolicyArgs) ([]policy.Policy, error) {

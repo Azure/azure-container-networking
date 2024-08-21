@@ -774,6 +774,17 @@ func (iMgr *IPSetManager) deleteMemberForApply(creator *ioutil.FileCreator, set 
 			},
 		},
 	}
+
+	splitMember := strings.Split(member, space)
+	if len(splitMember) == 2 && splitMember[1] == util.IpsetNomatch {
+		// Remove "nomatch" from the member.
+		// A "nomatch" CIDR must be deleted like so:
+		// ipset -D 10.0.0.1/32
+		// The following command would cause a syntax failure:
+		// ipset -D 10.0.0.1/32 nomatch
+		member = splitMember[0]
+	}
+
 	creator.AddLine(sectionID, errorHandlers, ipsetDeleteFlag, set.HashedName, member) // delete member
 }
 

@@ -28,6 +28,7 @@ stages:
       commitID: $[ stagedependencies.setup.env.outputs['SetEnvVars.commitID'] ]
     dependsOn:
       - setup
+      - build_images
     displayName: "Create Cluster - ${{ parameters.clusterName }}"
     jobs:
       - job: create_aks_cluster_with_${{ parameters.name }}
@@ -68,7 +69,7 @@ stages:
         - job: deploy_cilium_components
           displayName: Deploy Cilium
           steps:
-            - task: AzureCLI@1
+            - task: AzureCLI@2
               displayName: "Install Cilium, CNS, and ip-masq-agent"
               inputs:
                 azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
@@ -105,7 +106,7 @@ stages:
                   kubectl apply -f test/integration/manifests/cilium/v${DIR}/cilium-agent/files
                   kubectl apply -f test/integration/manifests/cilium/v${DIR}/cilium-operator/files
 
-                  envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/v${DIR}/cilium-agent/templates/daemonset.yaml | kubectl apply -f -
+                    envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/v${DIR}/cilium-agent/templates/daemonset.yaml | kubectl apply -f -
                   envsubst '${CILIUM_VERSION_TAG},${CILIUM_IMAGE_REGISTRY}' < test/integration/manifests/cilium/v${DIR}/cilium-operator/templates/deployment.yaml | kubectl apply -f -
                   kubectl get po -owide -A
 
@@ -116,7 +117,7 @@ stages:
         - job: deploy_cilium_components
           displayName: Deploy Cilium with Hubble
           steps:
-            - task: AzureCLI@1
+            - task: AzureCLI@2
               displayName: "Install Cilium, CNS, and ip-masq-agent"
               inputs:
                 azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
@@ -197,7 +198,7 @@ stages:
         dependsOn: restart_cns
         steps:
           - template: ../../templates/cilium-cli.yaml
-          - task: AzureCLI@1
+          - task: AzureCLI@2
             inputs:
               azureSubscription: $(BUILD_VALIDATIONS_SERVICE_CONNECTION)
               scriptLocation: "inlineScript"
