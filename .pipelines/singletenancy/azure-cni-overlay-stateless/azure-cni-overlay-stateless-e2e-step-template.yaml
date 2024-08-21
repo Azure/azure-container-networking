@@ -33,12 +33,17 @@ steps:
 
   - ${{ if eq(parameters.os, 'windows') }}:
     - script: |
-        echo "Start Integration Tests on Overlay Cluster"
-        kubectl get po -owide -A
-        sudo -E env "PATH=$PATH" make test-load SCALE_UP=32 OS_TYPE=windows CNI_TYPE=stateless VALIDATE_STATEFILE=true INSTALL_CNS=true INSTALL_AZURE_VNET_STATELESS=true VALIDATE_V4OVERLAY=true AZURE_IPAM_VERSION=$(make azure-ipam-version) CNS_VERSION=$(make cns-version) CNI_VERSION=$(make cni-version) CLEANUP=true
+        nodeList=`kubectl get node -owide | grep Windows | awk '{print $1}'`
+        for node in $nodeList; do
+          taint=`kubectl describe node $node | grep Taints | awk '{print $2}'`
+          if [ $taint == "node.cloudprovider.kubernetes.io/uninitialized=true:NoSchedule" ]; then
+              kubectl taint nodes $node node.cloudprovider.kubernetes.io/uninitialized=true:NoSchedule-
+          fi
+        done
+        sudo -E env "PATH=$PATH" make test-load SCALE_UP=32 OS_TYPE=windows CNI_TYPE=stateless VALIDATE_STATEFILE=true INSTALL_CNS=true INSTALL_AZURE_VNET_STATELESS=true VALIDATE_V4OVERLAY=true CNS_VERSION=$(make cns-version) CNI_VERSION=$(make cni-version) CLEANUP=true
+      name: "WindowsOverlayControlPlaneScaleTests"
+      displayName: "Windows v4Overlay ControlPlane Scale Tests"
       retryCountOnTaskFailure: 2
-      name: "integrationTest"
-      displayName: "Run CNS Integration Tests on AKS Overlay"
 
     - task: AzureCLI@1
       inputs:
@@ -94,19 +99,6 @@ steps:
       retryCountOnTaskFailure: 3
       name: "WireserverMetadataConnectivityTests"
       displayName: "Run Wireserver and Metadata Connectivity Tests"
-
-    - script: |
-        nodeList=`kubectl get node -owide | grep Windows | awk '{print $1}'`
-        for node in $nodeList; do
-            taint=`kubectl describe node $node | grep Taints | awk '{print $2}'`
-            if [ $taint == "node.cloudprovider.kubernetes.io/uninitialized=true:NoSchedule" ]; then
-                kubectl taint nodes $node node.cloudprovider.kubernetes.io/uninitialized=true:NoSchedule-
-            fi
-        done
-        sudo -E env "PATH=$PATH" make test-load SCALE_UP=32 OS_TYPE=windows CNI_TYPE=stateless VALIDATE_STATEFILE=true INSTALL_CNS=true INSTALL_AZURE_VNET_STATELESS=true VALIDATE_V4OVERLAY=true CNS_VERSION=$(make cns-version) CNI_VERSION=$(make cni-version) CLEANUP=true
-      name: "WindowsOverlayControlPlaneScaleTests"
-      displayName: "Windows v4Overlay ControlPlane Scale Tests"
-      retryCountOnTaskFailure: 2
 
     - script: |
         echo "IPv4 Overlay DataPath Test"
