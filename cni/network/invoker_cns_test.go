@@ -2112,14 +2112,14 @@ func TestShallowCopyIpamAddConfigOptions(t *testing.T) {
 	require.Equal(t, opts.options, res)
 
 	// modified copied res and make sure original opts is not changed
-	newSnapIPKeyValue := "100"
+	newSNATIPKeyValue := "100"
 	newDockerNetworkOptionValue := "200"
 
-	res[network.SNATIPKey] = newSnapIPKeyValue
+	res[network.SNATIPKey] = newSNATIPKeyValue
 	res[dockerNetworkOption] = newDockerNetworkOptionValue
 
 	expectedOpts := map[string]interface{}{
-		network.SNATIPKey:   newSnapIPKeyValue,
+		network.SNATIPKey:   newSNATIPKeyValue,
 		dockerNetworkOption: newDockerNetworkOptionValue,
 		"intType":           10,
 		"floatType":         0.51,
