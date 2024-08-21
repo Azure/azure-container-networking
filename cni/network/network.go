@@ -608,7 +608,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 	endpointIndex := 1
 	for key := range ipamAddResult.interfaceInfo {
 		ifInfo := ipamAddResult.interfaceInfo[key]
-		logger.Info("retrieving interfaceInfo:", zap.Any("ifInfo", ifInfo))
+		logger.Info("Processing interfaceInfo:", zap.Any("ifInfo", ifInfo))
 
 		natInfo := getNATInfo(nwCfg, options[network.SNATIPKey], enableSnatForDNS)
 		networkID, _ := plugin.getNetworkID(args.Netns, &ifInfo, nwCfg)
