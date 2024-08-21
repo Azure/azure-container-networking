@@ -41,10 +41,10 @@ func addSnatForDNS(_ string, _ *network.EndpointInfo, _ *network.InterfaceInfo) 
 func setNetworkOptions(cnsNwConfig *cns.GetNetworkContainerResponse, nwInfo *network.EndpointInfo) {
 	if cnsNwConfig != nil && cnsNwConfig.MultiTenancyInfo.ID != 0 {
 		logger.Info("Setting Network Options")
-		vlanMap := make(map[string]interface{})
-		vlanMap[network.VlanIDKey] = strconv.Itoa(cnsNwConfig.MultiTenancyInfo.ID)
-		logger.Info("Add vlanIDKey with vlanID to vlanMap", zap.String("vlanIDKey", network.VlanIDKey), zap.Int("vlanID", cnsNwConfig.MultiTenancyInfo.ID), zap.Any("vlanMap", vlanMap))
-		nwInfo.Options[dockerNetworkOption] = vlanMap
+		optionsMap := make(map[string]interface{})
+		optionsMap[network.VlanIDKey] = strconv.Itoa(cnsNwConfig.MultiTenancyInfo.ID)
+		logger.Info("Add vlanIDKey to optionsMap", zap.String("vlanIDKey", network.VlanIDKey))
+		nwInfo.Options[dockerNetworkOption] = optionsMap
 	}
 }
 
