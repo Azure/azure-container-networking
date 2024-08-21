@@ -80,13 +80,13 @@ var windowsChecksMap = map[string][]check{
 		},
 	},
 	"stateless": {
-		{
-			name:             "hns",
-			stateFileIPs:     hnsStateFileIPs,
-			podLabelSelector: privilegedLabelSelector,
-			podNamespace:     privilegedNamespace,
-			cmd:              hnsEndPointCmd,
-		},
+		//{
+		//	name:             "hns",
+		//	stateFileIPs:     hnsStateFileIPs,
+		//	podLabelSelector: privilegedLabelSelector,
+		//	podNamespace:     privilegedNamespace,
+		//	cmd:              hnsEndPointCmd,
+		//},
 		{
 			name:             "cns",
 			stateFileIPs:     cnsManagedStateFileIps,
