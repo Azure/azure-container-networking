@@ -1,0 +1,150 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.13.0
+  labels:
+    managed: ""
+    owner: ""
+  name: workloadnetworkconfigs.acn.azure.com
+spec:
+  group: acn.azure.com
+  names:
+    kind: WorkloadNetworkConfig
+    listKind: WorkloadNetworkConfigList
+    plural: workloadnetworkconfigs
+    shortNames:
+    - wnc
+    singular: workloadnetworkconfig
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .status.status
+      name: Status
+      type: string
+    name: v1beta1
+    schema:
+      openAPIV3Schema:
+        description: WorkloadNetworkConfig is the Schema for the WorkloadNetworkConfigs
+          API
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: WorkloadNetworkConfigSpec defines the desired state of WorkloadNetworkConfig
+            properties:
+              clusterNetworkConfig:
+                description: ClusterNetworkConfig describes how to attach the infra
+                  network to a Pod
+                properties:
+                  policyBasedRouting:
+                    default: true
+                    description: PolicyBasedRouting is a flag to enable policy based
+                      routing
+                    type: boolean
+                  routes:
+                    description: Routes is a list of routes to add to the Pod through
+                      interface assigned to the infra network
+                    items:
+                      type: string
+                    type: array
+                type: object
+                x-kubernetes-validations:
+                - message: Routes list shouldn't be empty if policybasedRouting is
+                    disabled.
+                  rule: self.policyBasedRouting || self.routes.size() > 0
+              podNetworkConfigs:
+                description: PodNetworkConfigs describes each PodNetwork to attach
+                  to a single Pod
+                items:
+                  description: PodNetworkConfig describes a template for how to attach
+                    a PodNetwork to a Pod
+                  properties:
+                    podIPReservationSize:
+                      default: 0
+                      description: PodIPReservationSize is the number of IP address
+                        to statically reserve
+                      type: integer
+                    podNetwork:
+                      description: PodNetwork is the name of a PodNetwork resource
+                      maxLength: 100
+                      type: string
+                    policyBasedRouting:
+                      default: true
+                      description: PolicyBasedRouting is a flag to enable policy based
+                        routing
+                      type: boolean
+                    routes:
+                      description: Routes is a list of routes to add to the Pod through
+                        interface assigned to this PodNetwork
+                      items:
+                        type: string
+                      type: array
+                  required:
+                  - podNetwork
+                  type: object
+                  x-kubernetes-validations:
+                  - message: routes list shouldn't be empty if policybasedRouting
+                      is disabled.
+                    rule: self.policyBasedRouting || self.routes.size() > 0
+                maxItems: 10
+                type: array
+                x-kubernetes-validations:
+                - message: Count of PodNetworkConfigs is immutable
+                  rule: self.size() == oldSelf.size()
+                - message: podNetwork and podIPReservationSize in podNetworkConfig
+                    are immutable
+                  rule: self.all(podNetworkConfig, oldSelf.exists(oldPodNetworkConfig,
+                    oldPodNetworkConfig.podNetwork == podNetworkConfig.podNetwork
+                    && oldPodNetworkConfig.podIPReservationSize == podNetworkConfig.podIPReservationSize))
+            required:
+            - clusterNetworkConfig
+            - podNetworkConfigs
+            type: object
+          status:
+            description: WorkloadNetworkConfigStatus defines the observed state of
+              WorkloadNetworkConfig
+            properties:
+              podNetworkConfigStatuses:
+                description: PodNetworkConfigStatuses describes the status of each
+                  PodNetworkConfig
+                items:
+                  description: PodNetworkConfigStatus is the status of the PodNetworkConfig
+                  properties:
+                    podIPAddresses:
+                      items:
+                        type: string
+                      type: array
+                    status:
+                      description: PNCStatus indicates the status of individual PodNetworkConfig
+                      enum:
+                      - Ready
+                      - CreateReservationSetError
+                      - PodNetworkNotReady
+                      - InsufficientIPAddressesOnSubnet
+                      type: string
+                  type: object
+                type: array
+              status:
+                description: Status indicates the status of WNC
+                enum:
+                - Ready
+                - NotReady
+                type: string
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

@@ -1,0 +1,101 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.13.0
+  name: podnetworks.acn.azure.com
+spec:
+  group: acn.azure.com
+  names:
+    kind: PodNetwork
+    listKind: PodNetworkList
+    plural: podnetworks
+    shortNames:
+    - pn
+    singular: podnetwork
+  scope: Cluster
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .status.status
+      name: Status
+      type: string
+    - jsonPath: .status.addressPrefixes
+      name: Address Prefixes
+      priority: 1
+      type: string
+    - jsonPath: .spec.networkID
+      name: Network
+      type: string
+    - jsonPath: .spec.subnetResourceID
+      name: Subnet
+      priority: 1
+      type: string
+    - jsonPath: .spec.subnetGUID
+      name: SubnetGUID
+      type: string
+    - jsonPath: .spec.deviceType
+      name: DeviceType
+      type: string
+    name: v1beta1
+    schema:
+      openAPIV3Schema:
+        description: PodNetwork is the Schema for the PodNetworks API
+        properties:
+          apiVersion:
+            description: 'APIVersion defines the versioned schema of this representation
+              of an object. Servers should convert recognized schemas to the latest
+              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            type: string
+          kind:
+            description: 'Kind is a string value representing the REST resource this
+              object represents. Servers may infer this from the endpoint the client
+              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: PodNetworkSpec defines the desired state of PodNetwork
+            properties:
+              deviceType:
+                description: DeviceType is the device type that is required by this
+                  network
+                enum:
+                - acn.azure.com/vnet-nic
+                - acn.azure.com/infiniband-nic
+                type: string
+              networkID:
+                description: NetworkID is the identifier for the network, e.g. vnet
+                  guid or IB network ID
+                type: string
+              subnetGUID:
+                description: customer subnet guid
+                type: string
+              subnetResourceID:
+                description: customer subnet id
+                type: string
+            type: object
+            x-kubernetes-validations:
+            - message: Spec is immutable
+              rule: self == oldSelf
+          status:
+            description: PodNetworkStatus defines the observed state of PodNetwork
+            properties:
+              addressPrefixes:
+                items:
+                  type: string
+                type: array
+              status:
+                description: Status indicates the status of PN
+                enum:
+                - Ready
+                - InUse
+                - SubnetNotDelegated
+                - SubnetDelegatedToDifferentService
+                type: string
+            type: object
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
