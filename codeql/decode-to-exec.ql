@@ -2,7 +2,7 @@
  * @name Command Injection From Decode
  * @description Flow exists from decodes (untrusted) to exec command
  * @kind path-problem
- * @problem.severity Error
+ * @problem.severity error
  * @id go/cmd-inject-decode
  * @tags security
  * @security-severity 9.8

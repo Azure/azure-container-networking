@@ -2,7 +2,7 @@
  * @name Command Injection From CNS Invoker
  * @description Flow exists from CNS Invoker (untrusted) to exec command
  * @kind path-problem
- * @problem.severity Error
+ * @problem.severity error
  * @id go/cmd-inject-cns-invoker
  * @tags security
  * @security-severity 9.8
