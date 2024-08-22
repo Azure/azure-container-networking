@@ -250,7 +250,6 @@ func (plugin *NetPlugin) findMasterInterfaceBySubnet(nwCfg *cni.NetworkConfig, s
 	// Otherwise, pick the first interface with an IP address in the given subnet.
 	subnetPrefixString := subnetPrefix.String()
 	interfaces, err := plugin.netClient.GetNetworkInterfaces()
-
 	if err != nil {
 		logger.Error("failed to get interfaces", zap.Error(err))
 		return ""
