@@ -1253,13 +1253,11 @@ func (n *InterfaceGetterMock) GetNetworkInterfaceAddrs(iface *net.Interface) ([]
 	}
 
 	// actual net.Addr invokes syscall; here just create a mocked net.Addr{}
-	ip := &net.IPAddr{
-		IP:   []byte{'A'},
-		Zone: iface.Name,
-	}
-
 	res := []net.Addr{}
-	res = append(res, ip)
+	res = append(res, &net.IPNet{
+		IP:   net.IPv4(10, 255, 0, byte(iface.Index)),
+		Mask: net.IPv4Mask(255, 255, 255, 0),
+	})
 
 	return res, nil
 }
@@ -1787,7 +1785,8 @@ func TestFindMasterInterface(t *testing.T) {
 				netClient: &InterfaceGetterMock{
 					interfaces: []net.Interface{
 						{
-							Name: "eth0",
+							Index: 0,
+							Name:  "eth0",
 						},
 					},
 				},
@@ -1795,14 +1794,14 @@ func TestFindMasterInterface(t *testing.T) {
 			endpointOpt: createEpInfoOpt{
 				ipamAddConfig: &IPAMAddConfig{
 					nwCfg: &cni.NetworkConfig{
-						Master: "eth0",
+						Master: "",
 					},
 				},
 				ifInfo: &acnnetwork.InterfaceInfo{
 					NICType: cns.InfraNIC,
 					HostSubnetPrefix: net.IPNet{
-						IP:   net.ParseIP("10.0.0.0"),
-						Mask: net.CIDRMask(16, 32),
+						IP:   net.ParseIP("10.255.0.0"),
+						Mask: net.CIDRMask(24, 32),
 					},
 				},
 			},
@@ -1832,8 +1831,8 @@ func TestFindMasterInterface(t *testing.T) {
 				ifInfo: &acnnetwork.InterfaceInfo{
 					NICType: cns.InfraNIC,
 					HostSubnetPrefix: net.IPNet{
-						IP:   net.ParseIP("10.0.0.0"),
-						Mask: net.CIDRMask(16, 32),
+						IP:   net.ParseIP("10.255.0.0"),
+						Mask: net.CIDRMask(24, 32),
 					},
 				},
 			},
