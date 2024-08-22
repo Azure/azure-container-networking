@@ -10,7 +10,6 @@
  */
 
 // Detect inputs from CNI ARGS to command injection
-// 2 windows, 1 linux
 import go
 
 private class Sink extends DataFlow2::Node {

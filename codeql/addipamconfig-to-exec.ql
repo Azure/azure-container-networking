@@ -10,7 +10,6 @@
  */
 
 // Detect inputs from CNS add ipam result / CNS multitenancy ipam add result to command injection
-// 1 linux, 2 windows
 import go
 
 private class Sink extends DataFlow2::Node {
@@ -29,7 +28,7 @@ private class Source extends DataFlow2::Node {
   Source() {
     exists(DataFlow::CallNode c, Method m |
       //m.hasQualifiedName("github.com/Azure/azure-container-networking/cni/network", "NetPlugin",
-      //  "addIpamInvoker") or // this is maybe not necessary since we call GetAllNetworkContainers right next to this = duplicated results
+      //  "addIpamInvoker") or // this is not necessary since we call GetAllNetworkContainers right next to this = duplicated results, but if this call moves, uncomment this
       m.hasQualifiedName("github.com/Azure/azure-container-networking/cni/network", "Multitenancy",
         "GetAllNetworkContainers") and
       c = m.getACall() and

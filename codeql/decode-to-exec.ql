@@ -10,7 +10,6 @@
  */
 
 // Detect flow from the DECODE method (which decodes http requests) to a command execution
-// 4 windows, 1 linux
 import go
 
 private class Sink extends DataFlow2::Node {
