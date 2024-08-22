@@ -609,6 +609,83 @@ func TestPluginGet(t *testing.T) {
 /*
 Multitenancy scenarios
 */
+// For use with GetNetworkContainer
+func GetTestCNSResponse0() *cns.GetNetworkContainerResponse {
+	return &cns.GetNetworkContainerResponse{
+		IPConfiguration: cns.IPConfiguration{
+			IPSubnet: cns.IPSubnet{
+				IPAddress:    "192.168.0.4",
+				PrefixLength: ipPrefixLen,
+			},
+			GatewayIPAddress: "192.168.0.1",
+		},
+		LocalIPConfiguration: cns.IPConfiguration{
+			IPSubnet: cns.IPSubnet{
+				IPAddress:    "169.254.0.4",
+				PrefixLength: localIPPrefixLen,
+			},
+			GatewayIPAddress: "169.254.0.1",
+		},
+
+		PrimaryInterfaceIdentifier: "10.240.0.4/24",
+		MultiTenancyInfo: cns.MultiTenancyInfo{
+			EncapType: cns.Vlan,
+			ID:        1,
+		},
+	}
+}
+
+// For use with GetAllNetworkContainers
+func GetTestCNSResponse1() *cns.GetNetworkContainerResponse {
+	return &cns.GetNetworkContainerResponse{
+		IPConfiguration: cns.IPConfiguration{
+			IPSubnet: cns.IPSubnet{
+				IPAddress:    "20.0.0.10",
+				PrefixLength: ipPrefixLen,
+			},
+			GatewayIPAddress: "20.0.0.1",
+		},
+		LocalIPConfiguration: cns.IPConfiguration{
+			IPSubnet: cns.IPSubnet{
+				IPAddress:    "168.254.0.4",
+				PrefixLength: localIPPrefixLen,
+			},
+			GatewayIPAddress: "168.254.0.1",
+		},
+
+		PrimaryInterfaceIdentifier: "20.240.0.4/24",
+		MultiTenancyInfo: cns.MultiTenancyInfo{
+			EncapType: cns.Vlan,
+			ID:        multiTenancyVlan1,
+		},
+	}
+}
+
+// For use with GetAllNetworkContainers in windows dualnic
+func GetTestCNSResponse2() *cns.GetNetworkContainerResponse {
+	return &cns.GetNetworkContainerResponse{
+		IPConfiguration: cns.IPConfiguration{
+			IPSubnet: cns.IPSubnet{
+				IPAddress:    "10.0.0.10",
+				PrefixLength: ipPrefixLen,
+			},
+			GatewayIPAddress: "10.0.0.1",
+		},
+		LocalIPConfiguration: cns.IPConfiguration{
+			IPSubnet: cns.IPSubnet{
+				IPAddress:    "169.254.0.4",
+				PrefixLength: localIPPrefixLen,
+			},
+			GatewayIPAddress: "169.254.0.1",
+		},
+
+		PrimaryInterfaceIdentifier: "10.240.0.4/24",
+		MultiTenancyInfo: cns.MultiTenancyInfo{
+			EncapType: cns.Vlan,
+			ID:        multiTenancyVlan2,
+		},
+	}
+}
 
 // Test Multitenancy Add
 func TestPluginMultitenancyAdd(t *testing.T) {
@@ -636,13 +713,13 @@ func TestPluginMultitenancyAdd(t *testing.T) {
 				nm:                 acnnetwork.NewMockNetworkmanager(acnnetwork.NewMockEndpointClient(nil)),
 				tb:                 &telemetry.TelemetryBuffer{},
 				report:             &telemetry.CNIReport{},
-				multitenancyClient: NewMockMultitenancy(false),
+				multitenancyClient: NewMockMultitenancy(false, []*cns.GetNetworkContainerResponse{GetTestCNSResponse1()}),
 			},
 
 			args: &cniSkel.CmdArgs{
 				StdinData:   localNwCfg.Serialize(),
 				ContainerID: "test-container",
-				Netns:       "test-container",
+				Netns:       "bc526fae-4ba0-4e80-bc90-ad721e5850bf",
 				Args:        fmt.Sprintf("K8S_POD_NAME=%v;K8S_POD_NAMESPACE=%v", "test-pod", "test-pod-ns"),
 				IfName:      eth0IfName,
 			},
@@ -655,7 +732,7 @@ func TestPluginMultitenancyAdd(t *testing.T) {
 				nm:                 acnnetwork.NewMockNetworkmanager(acnnetwork.NewMockEndpointClient(nil)),
 				tb:                 &telemetry.TelemetryBuffer{},
 				report:             &telemetry.CNIReport{},
-				multitenancyClient: NewMockMultitenancy(true),
+				multitenancyClient: NewMockMultitenancy(true, []*cns.GetNetworkContainerResponse{GetTestCNSResponse1()}),
 			},
 			args: &cniSkel.CmdArgs{
 				StdinData:   localNwCfg.Serialize(),
@@ -679,6 +756,7 @@ func TestPluginMultitenancyAdd(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 				endpoints, _ := tt.plugin.nm.GetAllEndpoints(localNwCfg.Name)
+
 				require.Condition(t, assert.Comparison(func() bool { return len(endpoints) == 1 }))
 			}
 		})
@@ -687,7 +765,7 @@ func TestPluginMultitenancyAdd(t *testing.T) {
 
 func TestPluginMultitenancyDelete(t *testing.T) {
 	plugin := GetTestResources()
-	plugin.multitenancyClient = NewMockMultitenancy(false)
+	plugin.multitenancyClient = NewMockMultitenancy(false, []*cns.GetNetworkContainerResponse{GetTestCNSResponse1()})
 	localNwCfg := cni.NetworkConfig{
 		CNIVersion:                 "0.3.0",
 		Name:                       "mulnet",

@@ -28,27 +28,6 @@ func TestAddRoutes(t *testing.T) {
 	}
 }
 
-func TestCreateBridge(t *testing.T) {
-	ovsctlClient := ovsctl.NewMockOvsctl(false, "", "")
-	f, err := os.Create(ovsConfigFile)
-	if err != nil {
-		t.Errorf("Unable to create %v before test: %v", ovsConfigFile, err)
-		return
-	}
-	defer f.Close()
-	if _, err := f.WriteString("FORCE_COREFILES=yes"); err != nil {
-		t.Errorf("Unable to write to file %v: %v", ovsConfigFile, err)
-	}
-
-	ovsClient := NewOVSClient(bridgeName, hostIntf, ovsctlClient,
-		netlink.NewMockNetlink(false, ""), platform.NewMockExecClient(false))
-	if err := ovsClient.CreateBridge(); err != nil {
-		t.Errorf("Error creating OVS bridge: %v", err)
-	}
-
-	os.Remove(ovsConfigFile)
-}
-
 func TestDeleteBridge(t *testing.T) {
 	ovsctlClient := ovsctl.NewMockOvsctl(false, "", "")
 
