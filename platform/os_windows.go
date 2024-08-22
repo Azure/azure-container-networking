@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"internal/syscall/windows/registry"
 	"net"
 	"os"
 	"os/exec"
@@ -61,23 +62,12 @@ const (
 	// for vlan tagged arp requests
 	SDNRemoteArpMacAddress = "12-34-56-78-9a-bc"
 
-	// Command to get SDNRemoteArpMacAddress registry key
-	GetSdnRemoteArpMacAddressCommand = "(Get-ItemProperty " +
-		"-Path HKLM:\\SYSTEM\\CurrentControlSet\\Services\\hns\\State -Name SDNRemoteArpMacAddress).SDNRemoteArpMacAddress"
-
-	// Command to set SDNRemoteArpMacAddress registry key
-	SetSdnRemoteArpMacAddressCommand = "Set-ItemProperty " +
-		"-Path HKLM:\\SYSTEM\\CurrentControlSet\\Services\\hns\\State -Name SDNRemoteArpMacAddress -Value \"12-34-56-78-9a-bc\""
-
-	// Command to check if system has hns state path or not
-	CheckIfHNSStatePathExistsCommand = "Test-Path " +
-		"-Path HKLM:\\SYSTEM\\CurrentControlSet\\Services\\hns\\State"
-
 	// Command to fetch netadapter and pnp id
+	//TODO can we replace this (and things in endpoint_windows) with "golang.org/x/sys/windows"
+	//var adapterInfo windows.IpAdapterInfo
+    //var bufferSize uint32 = uint32(unsafe.Sizeof(adapterInfo))
 	GetMacAddressVFPPnpIDMapping = "Get-NetAdapter | Select-Object MacAddress, PnpDeviceID| Format-Table -HideTableHeaders"
 
-	// Command to restart HNS service
-	RestartHnsServiceCommand = "Restart-Service -Name hns"
 
 	// Interval between successive checks for mellanox adapter's PriorityVLANTag value
 	defaultMellanoxMonitorInterval = 30 * time.Second
@@ -258,31 +248,41 @@ func (p *execClient) ExecutePowershellCommandWithContext(ctx context.Context, co
 
 // SetSdnRemoteArpMacAddress sets the regkey for SDNRemoteArpMacAddress needed for multitenancy if hns is enabled
 func SetSdnRemoteArpMacAddress(execClient ExecClient) error {
-	exists, err := execClient.ExecutePowershellCommand(CheckIfHNSStatePathExistsCommand)
+	key, err := registry.OpenKey(registry.LOCAL_MACHINE, "SYSTEM\\CurrentControlSet\\Services\\hns\\State\\SDNRemoteArpMacAddress")
 	if err != nil {
+		if err == registry.ErrNotExist {
+			log.Printf("hns state path does not exist, skip setting SdnRemoteArpMacAddress")
+			return nil
+		}
 		errMsg := fmt.Sprintf("Failed to check the existent of hns state path due to error %s", err.Error())
 		log.Printf(errMsg)
 		return errors.Errorf(errMsg)
 	}
-	if strings.EqualFold(exists, "false") {
-		log.Printf("hns state path does not exist, skip setting SdnRemoteArpMacAddress")
-		return nil
-	}
+
 	if sdnRemoteArpMacAddressSet == false {
-		result, err := execClient.ExecutePowershellCommand(GetSdnRemoteArpMacAddressCommand)
+
+		// Command to get SDNRemoteArpMacAddress registry key
+		//GetSdnRemoteArpMacAddressCommand = "(Get-ItemProperty " +
+		//	"-Path HKLM:\\SYSTEM\\CurrentControlSet\\Services\\hns\\State -Name SDNRemoteArpMacAddress).SDNRemoteArpMacAddress"
+
+		result, err = key.GetStringValue("SDNRemoteArpMacAddress").
 		if err != nil {
 			return err
 		}
-
+		
+		
 		// Set the reg key if not already set or has incorrect value
 		if result != SDNRemoteArpMacAddress {
-			if _, err = execClient.ExecutePowershellCommand(SetSdnRemoteArpMacAddressCommand); err != nil {
-				log.Printf("Failed to set SDNRemoteArpMacAddress due to error %s", err.Error())
-				return err
-			}
 
+			// Command to set SDNRemoteArpMacAddress registry key
+			//SetSdnRemoteArpMacAddressCommand = "Set-ItemProperty " +
+			// "-Path HKLM:\\SYSTEM\\CurrentControlSet\\Services\\hns\\State -Name SDNRemoteArpMacAddress -Value \"12-34-56-78-9a-bc\""
+
+			key.SetStringValue(SDNRemoteArpMacAddress)
 			log.Printf("[Azure CNS] SDNRemoteArpMacAddress regKey set successfully. Restarting hns service.")
-			if _, err := execClient.ExecutePowershellCommand(RestartHnsServiceCommand); err != nil {
+			// Command to restart HNS service
+			//	RestartHnsServiceCommand = "Restart-Service -Name hns"
+			if err := restartService("hns"); err != nil {
 				log.Printf("Failed to Restart HNS Service due to error %s", err.Error())
 				return err
 			}
@@ -292,6 +292,50 @@ func SetSdnRemoteArpMacAddress(execClient ExecClient) error {
 	}
 
 	return nil
+}
+
+//straight out of chat gpt
+func restartService(serviceName string) error {
+    // Connect to the service manager
+    m, err := mgr.Connect()
+    if err != nil {
+        return fmt.Errorf("could not connect to service manager: %v", err)
+    }
+    defer m.Disconnect()
+
+    // Open the service by name
+    service, err := m.OpenService(serviceName)
+    if err != nil {
+        return fmt.Errorf("could not access service: %v", err)
+    }
+    defer service.Close()
+
+    // Stop the service
+    err = service.Control(mgr.Stop)
+    if err != nil {
+        return fmt.Errorf("could not stop service: %v", err)
+    }
+
+    // Wait for the service to stop
+    status, err := service.Query()
+    if err != nil {
+        return fmt.Errorf("could not query service status: %v", err)
+    }
+    for status.State != mgr.Stopped {
+        time.Sleep(500 * time.Millisecond)
+        status, err = service.Query()
+        if err != nil {
+            return fmt.Errorf("could not query service status: %v", err)
+        }
+    }
+
+    // Start the service again
+    err = service.Start()
+    if err != nil {
+        return fmt.Errorf("could not start service: %v", err)
+    }
+
+    return nil
 }
 
 func HasMellanoxAdapter() bool {
@@ -364,6 +408,7 @@ func GetProcessNameByID(pidstr string) (string, error) {
 	pidstr = strings.Trim(pidstr, "\r\n")
 	cmd := fmt.Sprintf("Get-Process -Id %s|Format-List", pidstr)
 	p := NewExecClient(nil)
+	//TODO not riemovign this because it seems to only be called in test?
 	out, err := p.ExecutePowershellCommand(cmd)
 	if err != nil {
 		log.Printf("Process is not running. Output:%v, Error %v", out, err)
