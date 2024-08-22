@@ -685,3 +685,12 @@ func DeleteHostNCApipaEndpoint(
 
 	return nil
 }
+
+// DeleteHNSEndpointbyID deletes the HNS endpoint
+func DeleteHNSEndpointbyID(endpointName string) error {
+	if err := deleteEndpointByNameHnsV2(endpointName); err != nil {
+		logger.Errorf("[Azure CNS] Failed to delete HNS Endpoint: %s. Error: %v", endpointName, err)
+		return err
+	}
+	return nil
+}

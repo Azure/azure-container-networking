@@ -23,7 +23,7 @@ var (
 	hnsNetworkCmd                  = []string{"powershell", "-c", "Get-HnsNetwork | ConvertTo-Json"}
 	azureVnetCmd                   = []string{"powershell", "-c", "cat ../../k/azure-vnet.json"}
 	azureVnetIpamCmd               = []string{"powershell", "-c", "cat ../../k/azure-vnet-ipam.json"}
-	cnsWinManagedStateFileCmd      = []string{"powershell", "-c", "cat ../../k/azure-cns/azure-endpoints.json"}
+	cnsWinManagedStateFileCmd      = []string{"powershell", "-c", "cat ../../k/azurecns/azure-endpoints.json"}
 	cnsWinCachedAssignedIPStateCmd = []string{
 		"powershell", "Invoke-WebRequest -Uri 127.0.0.1:10090/debug/ipaddresses",
 		"-Method Post -ContentType application/x-www-form-urlencoded",
@@ -80,19 +80,18 @@ var windowsChecksMap = map[string][]check{
 		},
 	},
 	"stateless": {
-		//{
-		//	name:             "hns",
-		//	stateFileIPs:     hnsStateFileIPs,
-		//	podLabelSelector: privilegedLabelSelector,
-		//	podNamespace:     privilegedNamespace,
-		//	cmd:              hnsEndPointCmd,
-		//},
+		{
+			name:             "hns",
+			stateFileIPs:     hnsStateFileIPs,
+			podLabelSelector: privilegedLabelSelector,
+			podNamespace:     privilegedNamespace,
+			cmd:              hnsEndPointCmd,
+		},
 		{
 			name:             "cns",
 			stateFileIPs:     cnsManagedStateFileIps,
-			podLabelSelector: validatorPod,
+			podLabelSelector: privilegedLabelSelector,
 			podNamespace:     privilegedNamespace,
-			containerName:    "debug",
 			cmd:              cnsWinManagedStateFileCmd,
 		}, // cns configmap "ManageEndpointState": true, | Endpoints managed in CNS State File
 		{

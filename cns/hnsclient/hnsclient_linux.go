@@ -50,3 +50,9 @@ func DeleteHostNCApipaEndpoint(
 	networkContainerID string) error {
 	return nil
 }
+
+// DeleteHNSEndpointbyID deletes the HNS endpoint
+// created for Satateless CNI Asynch delete
+func DeleteHNSEndpointbyID(_ string) error {
+	return nil
+}

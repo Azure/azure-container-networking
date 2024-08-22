@@ -5,10 +5,14 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"runtime"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/Azure/azure-container-networking/cns"
+	"github.com/Azure/azure-container-networking/cns/hnsclient"
+	"github.com/Azure/azure-container-networking/cns/restserver"
 	"github.com/fsnotify/fsnotify"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
@@ -17,6 +21,7 @@ import (
 
 type releaseIPsClient interface {
 	ReleaseIPs(ctx context.Context, ipconfig cns.IPConfigsRequest) error
+	GetEndpoint(ctx context.Context, endpointID string) (*restserver.GetEndpointResponse, error)
 }
 
 type watcher struct {
@@ -68,7 +73,16 @@ func (w *watcher) releaseAll(ctx context.Context) {
 		}
 		file.Close()
 		podInterfaceID := string(data)
-
+		// in case of stateless CNI, CNS needs to remove HNS endpoitns first
+		if strings.Contains(podInterfaceID, "stateless") && runtime.GOOS == "windows" {
+			podInterfaceID = podInterfaceID[9:]
+			w.log.Info("removinf HNS Endpoint for", zap.String("podInterfaceID", podInterfaceID))
+			// remove HNS endpoint
+			if err := w.deleteHNSEndpoint(ctx, containerID); err != nil {
+				w.log.Error("failed to remove HNS endpoint", zap.Error(err))
+				return
+			}
+		}
 		w.log.Info("releasing IP for missed delete", zap.String("podInterfaceID", podInterfaceID), zap.String("containerID", containerID))
 		if err := w.releaseIP(ctx, podInterfaceID, containerID); err != nil {
 			w.log.Error("failed to release IP for missed delete", zap.String("containerID", containerID), zap.Error(err))
@@ -205,4 +219,18 @@ func (w *watcher) releaseIP(ctx context.Context, podInterfaceID, containerID str
 		InfraContainerID: containerID,
 	}
 	return errors.Wrap(w.cli.ReleaseIPs(ctx, *ipconfigreq), "failed to release IP from CNS")
+}
+
+// call GetEndpoint API to get the state and then remove assiciated HNS
+func (w *watcher) deleteHNSEndpoint(ctx context.Context, containerid string) error {
+	endpointResponse, err := w.cli.GetEndpoint(ctx, containerid)
+	if err != nil {
+		return errors.Wrap(err, "failed to read the endpoint from CNS state")
+	}
+	for _, ipInfo := range endpointResponse.EndpointInfo.IfnameToIPMap {
+		if err := hnsclient.DeleteHNSEndpointbyID(ipInfo.HnsEndpointID); err != nil {
+			return errors.Wrap(err, "failed to delete HNS endpoint with id "+ipInfo.HnsEndpointID)
+		}
+	}
+	return nil
 }
