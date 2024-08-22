@@ -1252,7 +1252,17 @@ func (n *InterfaceGetterMock) GetNetworkInterfaceAddrs(iface *net.Interface) ([]
 	if n.err != nil {
 		return nil, n.err
 	}
-	return n.addrs, nil
+
+	// actual net.Addr invokes syscall; here just create a mocked net.Addr{}
+	ip := &net.IPAddr{
+		IP:   []byte{'A'},
+		Zone: iface.Name,
+	}
+
+	res := []net.Addr{}
+	res = append(res, ip)
+
+	return res, nil
 }
 
 func TestPluginSwiftV2Add(t *testing.T) {
@@ -1801,7 +1811,7 @@ func TestFindMasterInterface(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name: "Find master interface by infraNIC with a master interfaceName",
+			name: "Find master interface by infraNIC with a master interfaceName in swiftv1 path",
 			plugin: &NetPlugin{
 				Plugin: plugin,
 				report: &telemetry.CNIReport{},
