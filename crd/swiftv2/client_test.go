@@ -31,7 +31,7 @@ func (m *mockClient) Patch(ctx context.Context, obj client.Object, patch client.
 func TestCreateNodeInfo(t *testing.T) {
 	cli := multitenancy.NodeInfoClient{
 		Cli: &mockClient{
-			createFunc: func(ctx context.Context, obj client.Object, opts ...client.CreateOption) error {
+			createFunc: func(_ context.Context, _ client.Object, _ ...client.CreateOption) error {
 				return nil
 			},
 		},
@@ -49,10 +49,10 @@ func TestCreateNodeInfo(t *testing.T) {
 func TestUpdateNodeInfo(t *testing.T) {
 	cli := multitenancy.NodeInfoClient{
 		Cli: &mockClient{
-			createFunc: func(ctx context.Context, obj client.Object, opts ...client.CreateOption) error {
+			createFunc: func(_ context.Context, obj client.Object, _ ...client.CreateOption) error {
 				return apierrors.NewAlreadyExists(schema.GroupResource{}, obj.GetName())
 			},
-			patchFunc: func(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
+			patchFunc: func(_ context.Context, _ client.Object, _ client.Patch, _ ...client.PatchOption) error {
 				return nil
 			},
 		},
@@ -71,7 +71,7 @@ func TestCreateNodeInfoInternalServerError(t *testing.T) {
 	someInternalError := errors.New("some internal error") //nolint:goerr113 // dynamic error is fine here
 	cli := multitenancy.NodeInfoClient{
 		Cli: &mockClient{
-			createFunc: func(ctx context.Context, obj client.Object, opts ...client.CreateOption) error {
+			createFunc: func(_ context.Context, _ client.Object, _ ...client.CreateOption) error {
 				return apierrors.NewInternalError(someInternalError)
 			},
 		},
@@ -93,10 +93,10 @@ func TestPatchNodeInfoInternalServerError(t *testing.T) {
 	someInternalError := errors.New("some internal error") //nolint:goerr113 // dynamic error is fine here
 	cli := multitenancy.NodeInfoClient{
 		Cli: &mockClient{
-			createFunc: func(ctx context.Context, obj client.Object, opts ...client.CreateOption) error {
+			createFunc: func(_ context.Context, obj client.Object, _ ...client.CreateOption) error {
 				return apierrors.NewAlreadyExists(schema.GroupResource{}, obj.GetName())
 			},
-			patchFunc: func(ctx context.Context, obj client.Object, patch client.Patch, opts ...client.PatchOption) error {
+			patchFunc: func(_ context.Context, _ client.Object, _ client.Patch, _ ...client.PatchOption) error {
 				return apierrors.NewInternalError(someInternalError)
 			},
 		},
