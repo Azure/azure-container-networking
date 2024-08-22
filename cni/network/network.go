@@ -608,6 +608,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 	endpointIndex := 1
 	for key := range ipamAddResult.interfaceInfo {
 		ifInfo := ipamAddResult.interfaceInfo[key]
+		logger.Info("Processing interfaceInfo:", zap.Any("ifInfo", ifInfo))
 
 		natInfo := getNATInfo(nwCfg, options[network.SNATIPKey], enableSnatForDNS)
 		networkID, _ := plugin.getNetworkID(args.Netns, &ifInfo, nwCfg)
@@ -774,7 +775,7 @@ func (plugin *NetPlugin) createEpInfo(opt *createEpInfoOpt) (*network.EndpointIn
 		BridgeName:                    opt.ipamAddConfig.nwCfg.Bridge,
 		NetworkPolicies:               networkPolicies, // nw and ep policies separated to avoid possible conflicts
 		NetNs:                         opt.ipamAddConfig.args.Netns,
-		Options:                       opt.ipamAddConfig.options,
+		Options:                       opt.ipamAddConfig.shallowCopyIpamAddConfigOptions(),
 		DisableHairpinOnHostInterface: opt.ipamAddConfig.nwCfg.DisableHairpinOnHostInterface,
 		IsIPv6Enabled:                 opt.ipv6Enabled, // present infra only
 

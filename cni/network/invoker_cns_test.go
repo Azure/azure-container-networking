@@ -2095,6 +2095,63 @@ func TestCNSIPAMInvoker_Add_SwiftV2(t *testing.T) {
 	}
 }
 
+func TestShallowCopyIpamAddConfigOptions(t *testing.T) {
+	opts := IPAMAddConfig{
+		// mock different types of map value
+		options: map[string]interface{}{
+			network.SNATIPKey:   "10",
+			dockerNetworkOption: "20",
+			"intType":           10,
+			"floatType":         0.51,
+			"byteType":          byte('A'),
+		},
+	}
+
+	// shallow copy all ipamAddConfig options
+	res := opts.shallowCopyIpamAddConfigOptions()
+	require.Equal(t, opts.options, res)
+
+	// modified copied res and make sure original opts is not changed
+	newSNATIPKeyValue := "100"
+	newDockerNetworkOptionValue := "200"
+
+	res[network.SNATIPKey] = newSNATIPKeyValue
+	res[dockerNetworkOption] = newDockerNetworkOptionValue
+
+	expectedOpts := map[string]interface{}{
+		network.SNATIPKey:   newSNATIPKeyValue,
+		dockerNetworkOption: newDockerNetworkOptionValue,
+		"intType":           10,
+		"floatType":         0.51,
+		"byteType":          byte('A'),
+	}
+	require.Equal(t, expectedOpts, res)
+
+	// make sure original object is equal to expected opts after copied res is changed
+	expectedOriginalOpts := map[string]interface{}{
+		network.SNATIPKey:   "10",
+		dockerNetworkOption: "20",
+		"intType":           10,
+		"floatType":         0.51,
+		"byteType":          byte('A'),
+	}
+	require.Equal(t, expectedOriginalOpts, opts.options)
+
+	// shallow copy empty opts and make sure it does not break anything
+	emptyOpts := IPAMAddConfig{
+		options: map[string]interface{}{},
+	}
+	emptyRes := emptyOpts.shallowCopyIpamAddConfigOptions()
+	require.Equal(t, emptyOpts.options, emptyRes)
+
+	// shallow copy null opts and make sure it does not break anything
+	nullOpts := IPAMAddConfig{
+		options: nil,
+	}
+	nullRes := nullOpts.shallowCopyIpamAddConfigOptions()
+	require.Equal(t, map[string]interface{}{}, nullRes)
+}
+
 // Test addBackendNICToResult() and configureSecondaryAddResult() to update secondary interfaces to cni Result
 func TestAddNICsToCNIResult(t *testing.T) {
 	require := require.New(t) //nolint further usage of require without passing t
