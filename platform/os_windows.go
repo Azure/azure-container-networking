@@ -7,7 +7,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"internal/syscall/windows/registry"
 	"net"
 	"os"
 	"os/exec"
@@ -21,6 +20,9 @@ import (
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
 	"golang.org/x/sys/windows"
+	"golang.org/x/sys/windows/registry"
+	"golang.org/x/sys/windows/svc"
+	"golang.org/x/sys/windows/svc/mgr"
 )
 
 const (
@@ -65,9 +67,8 @@ const (
 	// Command to fetch netadapter and pnp id
 	//TODO can we replace this (and things in endpoint_windows) with "golang.org/x/sys/windows"
 	//var adapterInfo windows.IpAdapterInfo
-    //var bufferSize uint32 = uint32(unsafe.Sizeof(adapterInfo))
+	//var bufferSize uint32 = uint32(unsafe.Sizeof(adapterInfo))
 	GetMacAddressVFPPnpIDMapping = "Get-NetAdapter | Select-Object MacAddress, PnpDeviceID| Format-Table -HideTableHeaders"
-
 
 	// Interval between successive checks for mellanox adapter's PriorityVLANTag value
 	defaultMellanoxMonitorInterval = 30 * time.Second
@@ -248,7 +249,7 @@ func (p *execClient) ExecutePowershellCommandWithContext(ctx context.Context, co
 
 // SetSdnRemoteArpMacAddress sets the regkey for SDNRemoteArpMacAddress needed for multitenancy if hns is enabled
 func SetSdnRemoteArpMacAddress(execClient ExecClient) error {
-	key, err := registry.OpenKey(registry.LOCAL_MACHINE, "SYSTEM\\CurrentControlSet\\Services\\hns\\State\\SDNRemoteArpMacAddress")
+	key, err := registry.OpenKey(registry.LOCAL_MACHINE, "SYSTEM\\CurrentControlSet\\Services\\hns\\State", registry.READ|registry.SET_VALUE)
 	if err != nil {
 		if err == registry.ErrNotExist {
 			log.Printf("hns state path does not exist, skip setting SdnRemoteArpMacAddress")
@@ -261,27 +262,24 @@ func SetSdnRemoteArpMacAddress(execClient ExecClient) error {
 
 	if sdnRemoteArpMacAddressSet == false {
 
-		// Command to get SDNRemoteArpMacAddress registry key
-		//GetSdnRemoteArpMacAddressCommand = "(Get-ItemProperty " +
-		//	"-Path HKLM:\\SYSTEM\\CurrentControlSet\\Services\\hns\\State -Name SDNRemoteArpMacAddress).SDNRemoteArpMacAddress"
-
-		result, err = key.GetStringValue("SDNRemoteArpMacAddress").
+		//Was (Get-ItemProperty -Path HKLM:\\SYSTEM\\CurrentControlSet\\Services\\hns\\State -Name SDNRemoteArpMacAddress).SDNRemoteArpMacAddress"
+		result, _, err := key.GetStringValue("SDNRemoteArpMacAddress")
 		if err != nil {
 			return err
 		}
-		
-		
+
 		// Set the reg key if not already set or has incorrect value
 		if result != SDNRemoteArpMacAddress {
 
-			// Command to set SDNRemoteArpMacAddress registry key
-			//SetSdnRemoteArpMacAddressCommand = "Set-ItemProperty " +
-			// "-Path HKLM:\\SYSTEM\\CurrentControlSet\\Services\\hns\\State -Name SDNRemoteArpMacAddress -Value \"12-34-56-78-9a-bc\""
+			//was "Set-ItemProperty -Path HKLM:\\SYSTEM\\CurrentControlSet\\Services\\hns\\State -Name SDNRemoteArpMacAddress -Value \"12-34-56-78-9a-bc\""
 
-			key.SetStringValue(SDNRemoteArpMacAddress)
+			if err := key.SetStringValue("SDNRemoteArpMacAddress", SDNRemoteArpMacAddress); err != nil {
+				log.Printf("Failed to set SDNRemoteArpMacAddress due to error %s", err.Error())
+				return err
+			}
 			log.Printf("[Azure CNS] SDNRemoteArpMacAddress regKey set successfully. Restarting hns service.")
-			// Command to restart HNS service
-			//	RestartHnsServiceCommand = "Restart-Service -Name hns"
+
+			//	was "Restart-Service -Name hns"
 			if err := restartService("hns"); err != nil {
 				log.Printf("Failed to Restart HNS Service due to error %s", err.Error())
 				return err
@@ -294,48 +292,48 @@ func SetSdnRemoteArpMacAddress(execClient ExecClient) error {
 	return nil
 }
 
-//straight out of chat gpt
+// straight out of chat gpt
 func restartService(serviceName string) error {
-    // Connect to the service manager
-    m, err := mgr.Connect()
-    if err != nil {
-        return fmt.Errorf("could not connect to service manager: %v", err)
-    }
-    defer m.Disconnect()
+	// Connect to the service manager
+	m, err := mgr.Connect()
+	if err != nil {
+		return fmt.Errorf("could not connect to service manager: %v", err)
+	}
+	defer m.Disconnect()
 
-    // Open the service by name
-    service, err := m.OpenService(serviceName)
-    if err != nil {
-        return fmt.Errorf("could not access service: %v", err)
-    }
-    defer service.Close()
+	// Open the service by name
+	service, err := m.OpenService(serviceName)
+	if err != nil {
+		return fmt.Errorf("could not access service: %v", err)
+	}
+	defer service.Close()
 
-    // Stop the service
-    err = service.Control(mgr.Stop)
-    if err != nil {
-        return fmt.Errorf("could not stop service: %v", err)
-    }
+	// Stop the service
+	_, err = service.Control(svc.Stop)
+	if err != nil {
+		return fmt.Errorf("could not stop service: %v", err)
+	}
 
-    // Wait for the service to stop
-    status, err := service.Query()
-    if err != nil {
-        return fmt.Errorf("could not query service status: %v", err)
-    }
-    for status.State != mgr.Stopped {
-        time.Sleep(500 * time.Millisecond)
-        status, err = service.Query()
-        if err != nil {
-            return fmt.Errorf("could not query service status: %v", err)
-        }
-    }
+	// Wait for the service to stop
+	status, err := service.Query()
+	if err != nil {
+		return fmt.Errorf("could not query service status: %v", err)
+	}
+	for status.State != svc.Stopped {
+		time.Sleep(500 * time.Millisecond)
+		status, err = service.Query()
+		if err != nil {
+			return fmt.Errorf("could not query service status: %v", err)
+		}
+	}
 
-    // Start the service again
-    err = service.Start()
-    if err != nil {
-        return fmt.Errorf("could not start service: %v", err)
-    }
+	// Start the service again
+	err = service.Start()
+	if err != nil {
+		return fmt.Errorf("could not start service: %v", err)
+	}
 
-    return nil
+	return nil
 }
 
 func HasMellanoxAdapter() bool {
