@@ -1237,7 +1237,6 @@ func TestGetPodSubnetNatInfo(t *testing.T) {
 
 type InterfaceGetterMock struct {
 	interfaces []net.Interface
-	addrs      []net.Addr
 	err        error
 }
 
