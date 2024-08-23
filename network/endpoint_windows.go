@@ -709,7 +709,7 @@ func getLocationPath(instanceID string, plc platform.ExecClient) (string, error)
 	return locationPath, nil
 }
 
-// Get PnP device state
+// Get PnP device state; PnP device objects represent the mounted/dismounted IB VFs
 // return devpkeyDeviceIsPresent and devpkeyDeviceProblemCode
 func getPnpDeviceState(instanceID string, plc platform.ExecClient) (string, string, error) { //nolint
 	// get if device is present

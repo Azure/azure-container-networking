@@ -346,6 +346,10 @@ func TestGetMultiTenancyCNIResult(t *testing.T) {
 				GatewayIPAddress: "10.1.0.1",
 			},
 		},
+		MultiTenancyInfo: cns.MultiTenancyInfo{
+			EncapType: "1", // vlanID 1
+			ID:        1,
+		},
 	}
 
 	ncResponseTwo := cns.GetNetworkContainerResponse{
@@ -376,6 +380,10 @@ func TestGetMultiTenancyCNIResult(t *testing.T) {
 				IPAddress:        "20.1.0.0/16",
 				GatewayIPAddress: "20.1.0.1",
 			},
+		},
+		MultiTenancyInfo: cns.MultiTenancyInfo{
+			EncapType: "2", // vlanID 2
+			ID:        2,
 		},
 	}
 	ncResponses = append(ncResponses, ncResponseOne, ncResponseTwo)
@@ -484,6 +492,10 @@ func TestGetMultiTenancyCNIResult(t *testing.T) {
 						GatewayIPAddress: "10.1.0.1",
 					},
 				},
+				MultiTenancyInfo: cns.MultiTenancyInfo{
+					EncapType: "1",
+					ID:        1,
+				},
 			},
 			want2: &cns.GetNetworkContainerResponse{
 				PrimaryInterfaceIdentifier: "20.0.0.0/16",
@@ -513,6 +525,10 @@ func TestGetMultiTenancyCNIResult(t *testing.T) {
 						IPAddress:        "20.1.0.0/16",
 						GatewayIPAddress: "20.1.0.1",
 					},
+				},
+				MultiTenancyInfo: cns.MultiTenancyInfo{
+					EncapType: "2",
+					ID:        2,
 				},
 			},
 			want3: *getCIDRNotationForAddress("10.0.0.0/16"),
