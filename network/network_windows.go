@@ -57,7 +57,7 @@ func UseHnsV2(netNs string) (bool, error) {
 	var err error
 	if _, err = uuid.Parse(netNs); err == nil {
 		useHnsV2 = true
-		if err = hcn.V2ApiSupported(); err != nil {
+		if err = Hnsv2.HNSV2Supported(); err != nil {
 			logger.Info("HNSV2 is not supported on this windows platform")
 		}
 	}
