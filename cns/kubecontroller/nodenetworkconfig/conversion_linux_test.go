@@ -67,22 +67,22 @@ var validVNETBlockRequest = &cns.CreateNetworkContainerRequest{
 			IPAddress: "10.224.0.7",
 			NCVersion: version,
 		},
-		"10.224.0.8": {
-			IPAddress: "10.224.0.8",
+		"fd00:aec6:6946:1::8": {
+			IPAddress: "fd00:aec6:6946:1::8",
 			NCVersion: version,
 		},
-		"10.224.0.9": {
-			IPAddress: "10.224.0.9",
+		"fd00:aec6:6946:1::9": {
+			IPAddress: "fd00:aec6:6946:1::9",
 			NCVersion: version,
 		},
-		"10.224.0.10": {
-			IPAddress: "10.224.0.10",
-			NCVersion: version,
-		},
-		"10.224.0.11": {
-			IPAddress: "10.224.0.11",
-			NCVersion: version,
-		},
+		// "10.224.0.10": {
+		// 	IPAddress: "10.224.0.10",
+		// 	NCVersion: version,
+		// },
+		// "10.224.0.11": {
+		// 	IPAddress: "10.224.0.11",
+		// 	NCVersion: version,
+		// },
 		"10.224.0.12": {
 			IPAddress: "10.224.0.12",
 			NCVersion: version,

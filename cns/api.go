@@ -81,6 +81,16 @@ type IPConfigurationStatus struct {
 	stateMiddlewareFuncs []stateMiddlewareFunc
 }
 
+type IPConfigurationStatus2IPs struct {
+	ID                   string // uuid
+	IPAddress            string
+	LastStateTransition  time.Time
+	NCID                 string
+	PodInfo              PodInfo
+	state                types.IPState
+	stateMiddlewareFuncs []stateMiddlewareFunc
+}
+
 // Equals compares a subset of the IPConfigurationStatus fields since a direct
 // DeepEquals or otherwise complete comparison of two IPConfigurationStatus objects
 // compares internal state details that don't impact their functional equality.

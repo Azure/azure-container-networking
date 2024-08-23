@@ -7,6 +7,8 @@ import (
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/crd/nodenetworkconfig/api/v1alpha"
 	"github.com/stretchr/testify/assert"
+
+	"fmt"
 )
 
 const (
@@ -25,12 +27,13 @@ const (
 	nodeIP                      = "10.1.0.5"
 	vnetBlockPrimaryIP          = "10.224.0.4"
 	vnetBlockPrimaryIPPrefix    = "10.224.0.4/30"
-	vnetBlockSubnetAddressSpace = "10.224.0.0/14"
-	vnetBlockSubnetPrefixLen    = 14
+	vnetBlockSubnetAddressSpace = "10.224.0.0/32"
+	vnetBlockSubnetPrefixLen    = 32
 	vnetBlockNodeIP             = "10.228.0.6"
 	vnetBlockDefaultGateway     = "10.224.0.1"
-	vnetBlockCIDR1              = "10.224.0.8/30"
-	vnetBlockCIDR2              = "10.224.0.12/30"
+	vnetBlockCIDR1              = "fd00:aec6:6946:1::8/127"
+	// "10.224.0.8/32"
+	vnetBlockCIDR2 = "10.224.0.12/30"
 )
 
 var invalidStatusMultiNC = v1alpha.NodeNetworkConfigStatus{
@@ -118,6 +121,7 @@ var validVNETBlockNC = v1alpha.NetworkContainer{
 }
 
 func TestCreateNCRequestFromDynamicNC(t *testing.T) {
+
 	tests := []struct {
 		name    string
 		input   v1alpha.NetworkContainer
@@ -227,6 +231,9 @@ func TestCreateNCRequestFromDynamicNC(t *testing.T) {
 }
 
 func TestCreateNCRequestFromStaticNC(t *testing.T) {
+	fmt.Println("validVNETBlockRequest is", validVNETBlockRequest)
+	fmt.Println("----------------------------------------------")
+	fmt.Println("validVNETBlockNC is", validVNETBlockNC)
 	tests := []struct {
 		name    string
 		input   v1alpha.NetworkContainer
