@@ -1264,7 +1264,6 @@ func (n *InterfaceGetterMock) GetNetworkInterfaceAddrs(iface *net.Interface) ([]
 			res = append(res, &netAddr)
 		}
 	}
-	fmt.Printf("res is %v", res)
 	return res, nil
 }
 
