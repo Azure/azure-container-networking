@@ -1237,7 +1237,11 @@ func TestGetPodSubnetNatInfo(t *testing.T) {
 
 type InterfaceGetterMock struct {
 	interfaces []net.Interface
+	intfAddr   map[string]interfaceAddr // key is interfaceName, value is interface Addr
 	err        error
+}
+type interfaceAddr struct {
+	ipNet net.IPNet // interface CIDR
 }
 
 func (n *InterfaceGetterMock) GetNetworkInterfaces() ([]net.Interface, error) {
@@ -1254,11 +1258,13 @@ func (n *InterfaceGetterMock) GetNetworkInterfaceAddrs(iface *net.Interface) ([]
 
 	// actual net.Addr invokes syscall; here just create a mocked net.Addr{}
 	res := []net.Addr{}
-	res = append(res, &net.IPNet{
-		IP:   net.IPv4(10, 255, 0, byte(iface.Index)),
-		Mask: net.IPv4Mask(255, 255, 255, 0),
-	})
-
+	for _, intf := range n.interfaces {
+		if iface.Name == intf.Name {
+			netAddr := n.intfAddr[iface.Name].ipNet
+			res = append(res, &netAddr)
+		}
+	}
+	fmt.Printf("res is %v", res)
 	return res, nil
 }
 
@@ -1777,38 +1783,6 @@ func TestFindMasterInterface(t *testing.T) {
 		wantErr     bool
 	}{
 		{
-			name: "Find master interface by one infraNIC",
-			plugin: &NetPlugin{
-				Plugin: plugin,
-				report: &telemetry.CNIReport{},
-				tb:     &telemetry.TelemetryBuffer{},
-				netClient: &InterfaceGetterMock{
-					interfaces: []net.Interface{
-						{
-							Index: 0,
-							Name:  "eth0",
-						},
-					},
-				},
-			},
-			endpointOpt: createEpInfoOpt{
-				ipamAddConfig: &IPAMAddConfig{
-					nwCfg: &cni.NetworkConfig{
-						Master: "",
-					},
-				},
-				ifInfo: &acnnetwork.InterfaceInfo{
-					NICType: cns.InfraNIC,
-					HostSubnetPrefix: net.IPNet{
-						IP:   net.ParseIP("10.255.0.0"),
-						Mask: net.CIDRMask(24, 32),
-					},
-				},
-			},
-			want:    "eth0",
-			wantErr: false,
-		},
-		{
 			name: "Find master interface by infraNIC with a master interfaceName in swiftv1 path",
 			plugin: &NetPlugin{
 				Plugin: plugin,
@@ -1826,6 +1800,46 @@ func TestFindMasterInterface(t *testing.T) {
 				ipamAddConfig: &IPAMAddConfig{
 					nwCfg: &cni.NetworkConfig{
 						Master: "eth0", // return this interface name
+					},
+				},
+				ifInfo: &acnnetwork.InterfaceInfo{
+					NICType: cns.InfraNIC,
+					HostSubnetPrefix: net.IPNet{
+						IP:   net.ParseIP("10.255.0.0"),
+						Mask: net.CIDRMask(24, 32),
+					},
+				},
+			},
+			want:    "eth0",
+			wantErr: false,
+		},
+		{
+			name: "Find master interface by one infraNIC",
+			plugin: &NetPlugin{
+				Plugin: plugin,
+				report: &telemetry.CNIReport{},
+				tb:     &telemetry.TelemetryBuffer{},
+				netClient: &InterfaceGetterMock{
+					interfaces: []net.Interface{
+						{
+							Index: 0,
+							Name:  "eth0",
+						},
+					},
+					intfAddr: map[string]interfaceAddr{
+						"eth0": {
+							net.IPNet{
+								IP:   net.IPv4(10, 255, 0, 1),
+								Mask: net.IPv4Mask(255, 255, 255, 0),
+							},
+						},
+					},
+				},
+			},
+			endpointOpt: createEpInfoOpt{
+				ipamAddConfig: &IPAMAddConfig{
+					nwCfg: &cni.NetworkConfig{
+						Master: "",
 					},
 				},
 				ifInfo: &acnnetwork.InterfaceInfo{
