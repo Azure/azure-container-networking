@@ -24,7 +24,7 @@ type AzureCNIState struct {
 }
 
 func (a *AzureCNIState) PrintResult() error {
-	b, err := json.MarshalIndent(a, "", "    ")
+	//b, err := json.MarshalIndent(a, "", "    ")
 	if err != nil {
 		logger.Error("Failed to unmarshall Azure CNI state", zap.Error(err))
 	}
