@@ -86,7 +86,7 @@ func (p *PortForward) Run() error {
 
 		log.Printf("attempting port forward to pod name \"%s\" with label \"%s\", in namespace \"%s\"...\n", targetPodName, p.LabelSelector, p.Namespace)
 
-		p.pf, err = k8s.NewPortForwarder(config, &logger{}, opts)
+		p.pf, err = k8s.NewPortForwarder(config, opts)
 		if err != nil {
 			return fmt.Errorf("could not create port forwarder: %w", err)
 		}
@@ -160,10 +160,4 @@ func (p *PortForward) Prevalidate() error {
 func (p *PortForward) Stop() error {
 	p.pf.Stop()
 	return nil
-}
-
-type logger struct{}
-
-func (l *logger) Logf(format string, args ...interface{}) {
-	log.Printf(format, args...)
 }
