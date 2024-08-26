@@ -989,6 +989,7 @@ func (service *HTTPRestService) AssignAvailableIPConfigs(podInfo cns.PodInfo) ([
 	// Creates a slice of PodIpInfo with the size as number of NCs to hold the result for assigned IP configs
 	//hard coding to 2 for POC
 	numOfIPs := 2
+	logger.Printf("[AssignAvailableIPConfigs] Testing changes")
 	podIPInfo := make([]cns.PodIpInfo, numOfIPs)
 	// This map is used to store whether or not we have found an available IP from an NC when looping through the pool
 	ipsToAssign := make(map[bool]cns.IPConfigurationStatus)
@@ -1010,6 +1011,8 @@ func (service *HTTPRestService) AssignAvailableIPConfigs(podInfo cns.PodInfo) ([
 			break
 		}
 	}
+	logger.Printf("[AssignAvailableIPConfigs] podIPInfo %+v", podIPInfo)
+	logger.Printf("[AssignAvailableIPConfigs] ipsToAssign %+v", ipsToAssign)
 
 	// Checks to make sure we found one IP for each NC
 	if len(ipsToAssign) != numOfIPs {
