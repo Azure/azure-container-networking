@@ -51,6 +51,9 @@ type IPSetManager struct {
 	setMap     map[string]*IPSet
 	dirtyCache dirtyCacheInterface
 	ioShim     *common.IOShim
+	// consecutiveApplyFailures is used in Linux to count the number of consecutive failures to apply ipsets
+	// if this count exceeds a threshold, we will panic
+	consecutiveApplyFailures int
 	sync.RWMutex
 }
 
@@ -71,6 +74,8 @@ func NewIPSetManager(iMgrCfg *IPSetManagerCfg, ioShim *common.IOShim) *IPSetMana
 		setMap:     make(map[string]*IPSet),
 		dirtyCache: newDirtyCache(),
 		ioShim:     ioShim,
+		// set to 0 to avoid lint error for windows
+		consecutiveApplyFailures: 0,
 	}
 }
 
