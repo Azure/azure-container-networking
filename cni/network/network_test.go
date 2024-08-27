@@ -1267,8 +1267,6 @@ func (n *InterfaceGetterMock) GetNetworkInterfaceAddrs(iface *net.Interface) ([]
 	// actual net.Addr invokes syscall; here just create a mocked net.Addr{}
 	for _, intf := range n.interfaces {
 		if iface.Name == intf.Name {
-			addr, _ := parseIntfAddr(n.intfAddr[iface.Name])
-			fmt.Printf("parsed interface address is %v", addr)
 			return parseIntfAddr(n.intfAddr[iface.Name])
 		}
 	}
