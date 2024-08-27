@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"os/exec"
-	"strings"
 	"testing"
 	"time"
 
@@ -12,9 +11,58 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sys/windows/registry"
 )
 
 var errTestFailure = errors.New("test failure")
+
+// MockRegistry is a mock implementation of the Registry interface
+type MockRegistry struct {
+	Keys map[string]*MockRegistryKey
+}
+
+// OpenKey opens a mock registry key.
+func (r *MockRegistry) OpenKey(k registry.Key, path string, access uint32) (RegistryKey, error) {
+	// Directly check if the key exists in the mock registry by its path
+	if key, exists := r.Keys[path]; exists {
+		return key, nil
+	}
+	return nil, errors.New("key does not exist")
+}
+
+// MockRegistryKey is a mock implementation of the RegistryKey interface
+type MockRegistryKey struct {
+	Values map[string]string
+}
+
+func (k *MockRegistryKey) GetStringValue(name string) (string, uint32, error) {
+	if value, exists := k.Values[name]; exists {
+		return value, registry.SZ, nil
+	}
+	return "", registry.SZ, registry.ErrNotExist
+}
+
+func (k *MockRegistryKey) SetStringValue(name, value string) error {
+	k.Values[name] = value
+	return nil
+}
+
+func (k *MockRegistryKey) Close() error {
+	return nil
+}
+
+func initMockRegistry() *MockRegistry {
+	mockRegistry := &MockRegistry{
+		Keys: map[string]*MockRegistryKey{
+			`SOFTWARE\MockCompany\MockApp`: {
+				Values: map[string]string{
+					"MockValue": "MockData",
+				},
+			},
+		},
+	}
+	return mockRegistry
+}
 
 // Test if hasNetworkAdapter returns false on actual error or empty adapter name(an error)
 func TestHasNetworkAdapterReturnsError(t *testing.T) {
@@ -116,34 +164,36 @@ func TestExecuteCommandError(t *testing.T) {
 }
 
 func TestSetSdnRemoteArpMacAddress_hnsNotEnabled(t *testing.T) {
-	mockExecClient := NewMockExecClient(false)
+	//mockExecClient := NewMockExecClient(false)
+	mockRegistry := initMockRegistry()
 	// testing skip setting SdnRemoteArpMacAddress when hns not enabled
-	mockExecClient.SetPowershellCommandResponder(func(_ string) (string, error) {
-		return "False", nil
-	})
-	err := SetSdnRemoteArpMacAddress(mockExecClient)
+	// mockExecClient.SetPowershellCommandResponder(func(_ string) (string, error) {
+	// 	return "False", nil
+	// })
+	err := SetSdnRemoteArpMacAddress(mockRegistry)
 	assert.NoError(t, err)
 	assert.Equal(t, false, sdnRemoteArpMacAddressSet)
 
 	// testing the scenario when there is an error in checking if hns is enabled or not
-	mockExecClient.SetPowershellCommandResponder(func(_ string) (string, error) {
-		return "", errTestFailure
-	})
-	err = SetSdnRemoteArpMacAddress(mockExecClient)
+	// mockExecClient.SetPowershellCommandResponder(func(_ string) (string, error) {
+	// 	return "", errTestFailure
+	// })
+	err = SetSdnRemoteArpMacAddress(mockRegistry)
 	assert.ErrorAs(t, err, &errTestFailure)
 	assert.Equal(t, false, sdnRemoteArpMacAddressSet)
 }
 
 func TestSetSdnRemoteArpMacAddress_hnsEnabled(t *testing.T) {
-	mockExecClient := NewMockExecClient(false)
+	//mockExecClient := NewMockExecClient(false)
+	mockRegistry := initMockRegistry()
 	// happy path
-	mockExecClient.SetPowershellCommandResponder(func(cmd string) (string, error) {
-		if strings.Contains(cmd, "Test-Path") {
-			return "True", nil
-		}
-		return "", nil
-	})
-	err := SetSdnRemoteArpMacAddress(mockExecClient)
+	// mockExecClient.SetPowershellCommandResponder(func(cmd string) (string, error) {
+	// 	if strings.Contains(cmd, "Test-Path") {
+	// 		return "True", nil
+	// 	}
+	// 	return "", nil
+	// })
+	err := SetSdnRemoteArpMacAddress(mockRegistry)
 	assert.NoError(t, err)
 	assert.Equal(t, true, sdnRemoteArpMacAddressSet)
 	// reset sdnRemoteArpMacAddressSet
