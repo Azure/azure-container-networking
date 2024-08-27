@@ -622,7 +622,8 @@ func TestPluginMultitenancyWindowsAdd(t *testing.T) {
 				ContainerID: "test-container",
 				Netns:       "bc526fae-4ba0-4e80-bc90-ad721e5850bf",
 				Args:        fmt.Sprintf("K8S_POD_NAME=%v;K8S_POD_NAMESPACE=%v", "test-pod", "test-pod-ns"),
-				IfName:      eth0IfName,
+				// if we set to eth0 we get an endpoint already exists error, but this is okay in dualnic since they are in different networks
+				IfName: "eth1",
 			},
 			wantErr: false,
 		},
@@ -640,7 +641,8 @@ func TestPluginMultitenancyWindowsAdd(t *testing.T) {
 				ContainerID: "test-container",
 				Netns:       "test-container",
 				Args:        fmt.Sprintf("K8S_POD_NAME=%v;K8S_POD_NAMESPACE=%v", "test-pod", "test-pod-ns"),
-				IfName:      eth0IfName,
+				// if we set to eth0 we get an endpoint already exists error, but this is okay in dualnic since they are in different networks
+				IfName: "eth1",
 			},
 			wantErr:    true,
 			wantErrMsg: errMockMulAdd.Error(),
@@ -656,9 +658,12 @@ func TestPluginMultitenancyWindowsAdd(t *testing.T) {
 				assert.Contains(t, err.Error(), tt.wantErrMsg, "Expected %v but got %+v", tt.wantErrMsg, err.Error())
 			} else {
 				require.NoError(t, err)
-				endpoints, _ := tt.plugin.nm.GetAllEndpoints(localNwCfg.Name)
+				endpoints, _ := tt.plugin.nm.GetAllEndpoints("mulnet-vlan1-20-0-0-0_24")
+				require.Len(t, endpoints, 1)
+
 				// an extra cns response is added in windows multitenancy to test dualnic
-				require.Condition(t, assert.Comparison(func() bool { return len(endpoints) == 2 }))
+				endpoints, _ = tt.plugin.nm.GetAllEndpoints("mulnet-vlan2-10-0-0-0_24")
+				require.Len(t, endpoints, 1)
 			}
 		})
 	}
@@ -678,9 +683,10 @@ func TestPluginMultitenancyWindowsDelete(t *testing.T) {
 	happyArgs := &cniSkel.CmdArgs{
 		StdinData:   localNwCfg.Serialize(),
 		ContainerID: "test-container",
-		Netns:       "test-container",
+		Netns:       "bc526fae-4ba0-4e80-bc90-ad721e5850bf",
 		Args:        fmt.Sprintf("K8S_POD_NAME=%v;K8S_POD_NAMESPACE=%v", "test-pod", "test-pod-ns"),
-		IfName:      eth0IfName,
+		// if we set to eth0 we get an endpoint already exists error, but this is okay in dualnic since they are in different networks
+		IfName: "eth1",
 	}
 
 	tests := []struct {
@@ -690,6 +696,7 @@ func TestPluginMultitenancyWindowsDelete(t *testing.T) {
 		delArgs    *cniSkel.CmdArgs
 		wantErr    bool
 		wantErrMsg string
+		wantNumEps []map[string]int
 	}{
 		{
 			name:    "Multitenancy delete success",
@@ -697,6 +704,18 @@ func TestPluginMultitenancyWindowsDelete(t *testing.T) {
 			args:    happyArgs,
 			delArgs: happyArgs,
 			wantErr: false,
+			wantNumEps: []map[string]int{
+				// after add, this should be the state
+				{
+					"mulnet-vlan1-20-0-0-0_24": 1,
+					"mulnet-vlan2-10-0-0-0_24": 1,
+				},
+				// after delete, this should be the state
+				{
+					"mulnet-vlan1-20-0-0-0_24": 0,
+					"mulnet-vlan2-10-0-0-0_24": 0,
+				},
+			},
 		},
 		{
 			name:    "Multitenancy delete net not found",
@@ -711,11 +730,24 @@ func TestPluginMultitenancyWindowsDelete(t *testing.T) {
 					Master:                     "eth0",
 				}).Serialize(),
 				ContainerID: "test-container",
-				Netns:       "test-container",
+				Netns:       "bc526fae-4ba0-4e80-bc90-ad721e5850bf",
 				Args:        fmt.Sprintf("K8S_POD_NAME=%v;K8S_POD_NAMESPACE=%v", "test-pod", "test-pod-ns"),
-				IfName:      eth0IfName,
+				// if we set to eth0 we get an endpoint already exists error, but this is okay in dualnic since they are in different networks
+				IfName: "eth1",
 			},
 			wantErr: false,
+			wantNumEps: []map[string]int{
+				// after add, this should be the state
+				{
+					"mulnet-vlan1-20-0-0-0_24": 1,
+					"mulnet-vlan2-10-0-0-0_24": 1,
+				},
+				// after delete, this should be the state
+				{
+					"mulnet-vlan1-20-0-0-0_24": 0,
+					"mulnet-vlan2-10-0-0-0_24": 0,
+				},
+			},
 		},
 	}
 
@@ -723,11 +755,16 @@ func TestPluginMultitenancyWindowsDelete(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			var err error
-			for _, method := range tt.methods {
+			for idx, method := range tt.methods {
 				if method == CNI_ADD {
 					err = plugin.Add(tt.args)
 				} else if method == CNI_DEL {
 					err = plugin.Delete(tt.delArgs)
+				}
+				// check state
+				for networkID, wantedState := range tt.wantNumEps[idx] {
+					endpoints, _ := plugin.nm.GetAllEndpoints(networkID)
+					require.Len(t, endpoints, wantedState)
 				}
 			}
 			if tt.wantErr {
@@ -735,7 +772,7 @@ func TestPluginMultitenancyWindowsDelete(t *testing.T) {
 			} else {
 				require.NoError(t, err)
 				endpoints, _ := plugin.nm.GetAllEndpoints(localNwCfg.Name)
-				require.Condition(t, assert.Comparison(func() bool { return len(endpoints) == 0 }))
+				require.Empty(t, endpoints)
 			}
 		})
 	}

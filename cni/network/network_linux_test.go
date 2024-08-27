@@ -4,10 +4,14 @@
 package network
 
 import (
+	"fmt"
 	"testing"
 
+	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/cns"
 	"github.com/Azure/azure-container-networking/network"
+	"github.com/Azure/azure-container-networking/telemetry"
+	cniSkel "github.com/containernetworking/cni/pkg/skel"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -157,6 +161,140 @@ func TestAddSnatForDns(t *testing.T) {
 					tt.epInfo.Routes[0].Gw.String() == "192.168.0.1" &&
 					tt.epInfo.Routes[0].Dst.String() == "168.63.129.16/32"
 			}))
+		})
+	}
+}
+
+// Test Linux Multitenancy Add
+func TestPluginMultitenancyLinuxAdd(t *testing.T) {
+	plugin, _ := cni.NewPlugin("test", "0.3.0")
+
+	localNwCfg := cni.NetworkConfig{
+		CNIVersion:                 "0.3.0",
+		Name:                       "mulnet",
+		MultiTenancy:               true,
+		EnableExactMatchForPodName: true,
+		Master:                     "eth0",
+	}
+
+	tests := []struct {
+		name       string
+		plugin     *NetPlugin
+		args       *cniSkel.CmdArgs
+		wantErr    bool
+		wantErrMsg string
+	}{
+		{
+			name: "Add Happy path",
+			plugin: &NetPlugin{
+				Plugin:             plugin,
+				nm:                 network.NewMockNetworkmanager(network.NewMockEndpointClient(nil)),
+				tb:                 &telemetry.TelemetryBuffer{},
+				report:             &telemetry.CNIReport{},
+				multitenancyClient: NewMockMultitenancy(false, []*cns.GetNetworkContainerResponse{GetTestCNSResponse1()}),
+			},
+
+			args: &cniSkel.CmdArgs{
+				StdinData:   localNwCfg.Serialize(),
+				ContainerID: "test-container",
+				Netns:       "bc526fae-4ba0-4e80-bc90-ad721e5850bf",
+				Args:        fmt.Sprintf("K8S_POD_NAME=%v;K8S_POD_NAMESPACE=%v", "test-pod", "test-pod-ns"),
+				IfName:      eth0IfName,
+			},
+			wantErr: false,
+		},
+		{
+			name: "Add Fail",
+			plugin: &NetPlugin{
+				Plugin:             plugin,
+				nm:                 network.NewMockNetworkmanager(network.NewMockEndpointClient(nil)),
+				tb:                 &telemetry.TelemetryBuffer{},
+				report:             &telemetry.CNIReport{},
+				multitenancyClient: NewMockMultitenancy(true, []*cns.GetNetworkContainerResponse{GetTestCNSResponse1()}),
+			},
+			args: &cniSkel.CmdArgs{
+				StdinData:   localNwCfg.Serialize(),
+				ContainerID: "test-container",
+				Netns:       "test-container",
+				Args:        fmt.Sprintf("K8S_POD_NAME=%v;K8S_POD_NAMESPACE=%v", "test-pod", "test-pod-ns"),
+				IfName:      eth0IfName,
+			},
+			wantErr:    true,
+			wantErrMsg: errMockMulAdd.Error(),
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.plugin.Add(tt.args)
+			if tt.wantErr {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.wantErrMsg, "Expected %v but got %+v", tt.wantErrMsg, err.Error())
+			} else {
+				require.NoError(t, err)
+				endpoints, _ := tt.plugin.nm.GetAllEndpoints(localNwCfg.Name)
+
+				require.Len(t, endpoints, 1)
+			}
+		})
+	}
+}
+
+func TestPluginMultitenancyLinuxDelete(t *testing.T) {
+	plugin := GetTestResources()
+	plugin.multitenancyClient = NewMockMultitenancy(false, []*cns.GetNetworkContainerResponse{GetTestCNSResponse1()})
+	localNwCfg := cni.NetworkConfig{
+		CNIVersion:                 "0.3.0",
+		Name:                       "mulnet",
+		MultiTenancy:               true,
+		EnableExactMatchForPodName: true,
+		Master:                     "eth0",
+	}
+
+	tests := []struct {
+		name       string
+		methods    []string
+		args       *cniSkel.CmdArgs
+		wantErr    bool
+		wantErrMsg string
+		wantNumEps []int
+	}{
+		{
+			name:    "Multitenancy delete success",
+			methods: []string{CNI_ADD, CNI_DEL},
+			args: &cniSkel.CmdArgs{
+				StdinData:   localNwCfg.Serialize(),
+				ContainerID: "test-container",
+				Netns:       "test-container",
+				Args:        fmt.Sprintf("K8S_POD_NAME=%v;K8S_POD_NAMESPACE=%v", "test-pod", "test-pod-ns"),
+				IfName:      eth0IfName,
+			},
+			wantErr:    false,
+			wantNumEps: []int{1, 0},
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			var err error
+			for idx, method := range tt.methods {
+				if method == CNI_ADD {
+					err = plugin.Add(tt.args)
+				} else if method == CNI_DEL {
+					err = plugin.Delete(tt.args)
+				}
+				endpoints, _ := plugin.nm.GetAllEndpoints(localNwCfg.Name)
+				require.Len(t, endpoints, tt.wantNumEps[idx])
+			}
+			if tt.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				endpoints, _ := plugin.nm.GetAllEndpoints(localNwCfg.Name)
+				require.Empty(t, endpoints)
+			}
 		})
 	}
 }

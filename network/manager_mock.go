@@ -6,17 +6,17 @@ import (
 
 // MockNetworkManager is a mock structure for Network Manager
 type MockNetworkManager struct {
-	TestNetworkInfoMap  map[string]*NetworkInfo
-	TestEndpointInfoMap map[string]*EndpointInfo
-	TestEndpointClient  *MockEndpointClient
+	TestNetworkInfoMap   map[string]*NetworkInfo
+	TestEndpointInfoMaps map[string]map[string]*EndpointInfo
+	TestEndpointClient   *MockEndpointClient
 }
 
 // NewMockNetworkmanager returns a new mock
 func NewMockNetworkmanager(mockEndpointclient *MockEndpointClient) *MockNetworkManager {
 	return &MockNetworkManager{
-		TestNetworkInfoMap:  make(map[string]*NetworkInfo),
-		TestEndpointInfoMap: make(map[string]*EndpointInfo),
-		TestEndpointClient:  mockEndpointclient,
+		TestNetworkInfoMap:   make(map[string]*NetworkInfo),
+		TestEndpointInfoMaps: make(map[string]map[string]*EndpointInfo),
+		TestEndpointClient:   mockEndpointclient,
 	}
 }
 
@@ -53,20 +53,27 @@ func (nm *MockNetworkManager) GetNetworkInfo(networkID string) (NetworkInfo, err
 }
 
 // CreateEndpoint mock
-func (nm *MockNetworkManager) CreateEndpoint(_ apipaClient, _ string, epInfos []*EndpointInfo) error {
+func (nm *MockNetworkManager) CreateEndpoint(_ apipaClient, networkID string, epInfos []*EndpointInfo) error {
 	for _, epInfo := range epInfos {
 		if err := nm.TestEndpointClient.AddEndpoints(epInfo); err != nil {
 			return err
 		}
 	}
 
-	nm.TestEndpointInfoMap[epInfos[0].Id] = epInfos[0]
+	if _, ok := nm.TestEndpointInfoMaps[networkID]; !ok {
+		nm.TestEndpointInfoMaps[networkID] = make(map[string]*EndpointInfo)
+	}
+	// now we for sure have a map for this network id
+	epInfoMap := nm.TestEndpointInfoMaps[networkID]
+	epInfoMap[epInfos[0].Id] = epInfos[0]
 	return nil
 }
 
 // DeleteEndpoint mock
-func (nm *MockNetworkManager) DeleteEndpoint(_, endpointID string, _ *EndpointInfo) error {
-	delete(nm.TestEndpointInfoMap, endpointID)
+func (nm *MockNetworkManager) DeleteEndpoint(networkID, endpointID string, _ *EndpointInfo) error {
+	if testEpInfoMap, ok := nm.TestEndpointInfoMaps[networkID]; ok {
+		delete(testEpInfoMap, endpointID)
+	}
 	return nil
 }
 
@@ -94,13 +101,15 @@ func (nm *MockNetworkManager) GetEndpointID(containerID, ifName string) string {
 }
 
 func (nm *MockNetworkManager) GetAllEndpoints(networkID string) (map[string]*EndpointInfo, error) {
-	return nm.TestEndpointInfoMap, nil
+	return nm.TestEndpointInfoMaps[networkID], nil
 }
 
 // GetEndpointInfo mock
-func (nm *MockNetworkManager) GetEndpointInfo(_, endpointID string) (*EndpointInfo, error) {
-	if info, exists := nm.TestEndpointInfoMap[endpointID]; exists {
-		return info, nil
+func (nm *MockNetworkManager) GetEndpointInfo(networkID, endpointID string) (*EndpointInfo, error) {
+	if epInfos, exists := nm.TestEndpointInfoMaps[networkID]; exists {
+		if epInfo, epInfoExists := epInfos[endpointID]; epInfoExists {
+			return epInfo, nil
+		}
 	}
 	return nil, errEndpointNotFound
 }
@@ -133,8 +142,15 @@ func (nm *MockNetworkManager) GetNumberOfEndpoints(ifName string, networkID stri
 func (nm *MockNetworkManager) FindNetworkIDFromNetNs(netNs string) (string, error) {
 	// based on the GetAllEndpoints func above, it seems that this mock is only intended to be used with
 	// one network, so just return the network here if it exists
-	for network := range nm.TestNetworkInfoMap {
-		return network, nil
+
+	for networkID, network := range nm.TestEndpointInfoMaps {
+		// Network may have multiple endpoints, so look through all of them
+		for _, endpoint := range network {
+			// If the netNs matches for this endpoint, return the network ID (which is the name)
+			if endpoint.NetNsPath == netNs {
+				return networkID, nil
+			}
+		}
 	}
 
 	return "", errNetworkNotFound
