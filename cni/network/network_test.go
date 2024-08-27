@@ -1237,7 +1237,7 @@ func TestGetPodSubnetNatInfo(t *testing.T) {
 
 type InterfaceGetterMock struct {
 	interfaces []net.Interface
-	intfAddr   map[string][]net.IPNet // key is interfaceName, value is one interface's CIDRs(IPs+Masks)
+	intfAddr   map[string][]net.Addr // key is interfaceName, value is one interface's CIDRs(IPs+Masks)
 	err        error
 }
 
@@ -1248,29 +1248,19 @@ func (n *InterfaceGetterMock) GetNetworkInterfaces() ([]net.Interface, error) {
 	return n.interfaces, nil
 }
 
-func parseIntfAddr(ipnets []net.IPNet) ([]net.Addr, error) {
-	netAddrs := []net.Addr{}
-	for _, ipnet := range ipnets {
-		netAddrs = append(netAddrs, &net.IPNet{
-			IP:   ipnet.IP,
-			Mask: ipnet.Mask,
-		})
-	}
-	return netAddrs, nil
-}
-
 func (n *InterfaceGetterMock) GetNetworkInterfaceAddrs(iface *net.Interface) ([]net.Addr, error) {
 	if n.err != nil {
 		return nil, n.err
 	}
 
 	// actual net.Addr invokes syscall; here just create a mocked net.Addr{}
+	netAddrs := []net.Addr{}
 	for _, intf := range n.interfaces {
 		if iface.Name == intf.Name {
-			return parseIntfAddr(n.intfAddr[iface.Name])
+			return n.intfAddr[iface.Name], nil
 		}
 	}
-	return []net.Addr{}, nil
+	return netAddrs, nil
 }
 
 func TestPluginSwiftV2Add(t *testing.T) {
@@ -1831,13 +1821,13 @@ func TestFindMasterInterface(t *testing.T) {
 							Name:  "eth0",
 						},
 					},
-					intfAddr: map[string][]net.IPNet{
+					intfAddr: map[string][]net.Addr{
 						"eth0": {
-							net.IPNet{
+							&net.IPNet{
 								IP:   net.IPv4(10, 255, 0, 1),
 								Mask: net.IPv4Mask(255, 255, 255, 0),
 							},
-							net.IPNet{
+							&net.IPNet{
 								IP:   net.IPv4(192, 168, 0, 1),
 								Mask: net.IPv4Mask(255, 255, 255, 0),
 							},
@@ -1879,23 +1869,23 @@ func TestFindMasterInterface(t *testing.T) {
 							Name:  "eth1",
 						},
 					},
-					intfAddr: map[string][]net.IPNet{
+					intfAddr: map[string][]net.Addr{
 						"eth0": {
-							net.IPNet{
+							&net.IPNet{
 								IP:   net.IPv4(10, 255, 0, 1),
 								Mask: net.IPv4Mask(255, 255, 255, 0),
 							},
-							net.IPNet{
+							&net.IPNet{
 								IP:   net.IPv4(192, 168, 0, 1),
 								Mask: net.IPv4Mask(255, 255, 255, 0),
 							},
 						},
 						"eth1": {
-							net.IPNet{
+							&net.IPNet{
 								IP:   net.IPv4(20, 255, 0, 1),
 								Mask: net.IPv4Mask(255, 255, 255, 0),
 							},
-							net.IPNet{
+							&net.IPNet{
 								IP:   net.IPv4(30, 255, 0, 1),
 								Mask: net.IPv4Mask(255, 255, 255, 0),
 							},
