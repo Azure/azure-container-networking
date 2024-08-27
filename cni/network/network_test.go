@@ -1236,9 +1236,9 @@ func TestGetPodSubnetNatInfo(t *testing.T) {
 }
 
 type InterfaceGetterMock struct {
-	interfaces []net.Interface
-	intfAddr   map[string][]net.Addr // key is interfaceName, value is one interface's CIDRs(IPs+Masks)
-	err        error
+	interfaces     []net.Interface
+	interfaceAddrs map[string][]net.Addr // key is interfaceName, value is one interface's CIDRs(IPs+Masks)
+	err            error
 }
 
 func (n *InterfaceGetterMock) GetNetworkInterfaces() ([]net.Interface, error) {
@@ -1257,7 +1257,7 @@ func (n *InterfaceGetterMock) GetNetworkInterfaceAddrs(iface *net.Interface) ([]
 	netAddrs := []net.Addr{}
 	for _, intf := range n.interfaces {
 		if iface.Name == intf.Name {
-			return n.intfAddr[iface.Name], nil
+			return n.interfaceAddrs[iface.Name], nil
 		}
 	}
 	return netAddrs, nil
@@ -1821,7 +1821,7 @@ func TestFindMasterInterface(t *testing.T) {
 							Name:  "eth0",
 						},
 					},
-					intfAddr: map[string][]net.Addr{
+					interfaceAddrs: map[string][]net.Addr{
 						"eth0": {
 							&net.IPNet{
 								IP:   net.IPv4(10, 255, 0, 1),
@@ -1869,7 +1869,7 @@ func TestFindMasterInterface(t *testing.T) {
 							Name:  "eth1",
 						},
 					},
-					intfAddr: map[string][]net.Addr{
+					interfaceAddrs: map[string][]net.Addr{
 						"eth0": {
 							&net.IPNet{
 								IP:   net.IPv4(10, 255, 0, 1),
