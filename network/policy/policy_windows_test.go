@@ -42,11 +42,11 @@ var _ = Describe("Windows Policies", func() {
 					}}`),
 			}
 
-			expected_policy := `{"InboundProxyPort":"15003","OutboundProxyPort":"15001","FilterTuple":{"Protocols":"6"},"UserSID":"S-1-5-32-556","InboundExceptions":{},"OutboundExceptions":{}}`
+			expectedPolicy := `{"InboundProxyPort":"15003","OutboundProxyPort":"15001","FilterTuple":{"Protocols":"6"},"UserSID":"S-1-5-32-556","InboundExceptions":{},"OutboundExceptions":{}}`
 
 			generatedPolicy, err := GetHcnL4WFPProxyPolicy(policy)
 			Expect(err).To(BeNil())
-			Expect(string(generatedPolicy.Settings)).To(Equal(expected_policy))
+			Expect(string(generatedPolicy.Settings)).To(Equal(expectedPolicy))
 		})
 	})
 
@@ -71,11 +71,66 @@ var _ = Describe("Windows Policies", func() {
 					"Action": "Allow"
 					}`),
 			}
-			expected_policy := `{"Protocols":"TCP","Action":"Allow","Direction":"In"}`
+			expectedPolicy := `{"Protocols":"TCP","Action":"Allow","Direction":"In"}`
 
 			generatedPolicy, err := GetHcnACLPolicy(policy)
 			Expect(err).To(BeNil())
-			Expect(string(generatedPolicy.Settings)).To(Equal(expected_policy))
+			Expect(string(generatedPolicy.Settings)).To(Equal(expectedPolicy))
+		})
+	})
+
+	Describe("Test GetHcnOutBoundNATPolicy", func() {
+		It("Should raise error for invalid json", func() {
+			policy := Policy{
+				Type: OutBoundNatPolicy,
+				Data: []byte(`invalid json`),
+			}
+
+			_, err := GetHcnOutBoundNATPolicy(policy, nil)
+			Expect(err).NotTo(BeNil())
+		})
+
+		It("Should marshall the OutBoundNAT policy correctly", func() {
+			policy := Policy{
+				Type: OutBoundNatPolicy,
+				Data: []byte(`{
+					"Type": "OutBoundNAT",
+					"ExceptionList": ["10.240.0.0/16","10.0.0.0/8"]
+					}`),
+			}
+			expectedPolicy := `{"Exceptions":["10.240.0.0/16","10.0.0.0/8"]}`
+
+			generatedPolicy, err := GetHcnOutBoundNATPolicy(policy, nil)
+			Expect(err).To(BeNil())
+			Expect(string(generatedPolicy.Settings)).To(Equal(expectedPolicy))
+		})
+	})
+
+	Describe("Test GetHcnRoutePolicy", func() {
+		It("Should raise error for invalid json", func() {
+			policy := Policy{
+				Type: RoutePolicy,
+				Data: []byte(`invalid json`),
+			}
+
+			_, err := GetHcnRoutePolicy(policy)
+			Expect(err).NotTo(BeNil())
+		})
+
+		It("Should marshall the Route policy correctly", func() {
+			policy := Policy{
+				Type: RoutePolicy,
+				Data: []byte(`{
+					"Type": "ROUTE",
+					"DestinationPrefix": "10.0.0.0/8",
+					"NeedEncap": true
+					}`),
+			}
+			expectedPolicy := `{"DestinationPrefix":"10.0.0.0/8","NeedEncap":true}`
+
+			generatedPolicy, err := GetHcnRoutePolicy(policy)
+			Expect(err).To(BeNil())
+			Expect(string(generatedPolicy.Settings)).To(Equal(expectedPolicy))
 		})
 	})
 
