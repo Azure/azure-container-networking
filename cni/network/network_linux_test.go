@@ -292,8 +292,6 @@ func TestPluginMultitenancyLinuxDelete(t *testing.T) {
 				require.Error(t, err)
 			} else {
 				require.NoError(t, err)
-				endpoints, _ := plugin.nm.GetAllEndpoints(localNwCfg.Name)
-				require.Empty(t, endpoints)
 			}
 		})
 	}

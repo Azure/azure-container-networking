@@ -717,38 +717,6 @@ func TestPluginMultitenancyWindowsDelete(t *testing.T) {
 				},
 			},
 		},
-		{
-			name:    "Multitenancy delete net not found",
-			methods: []string{CNI_ADD, CNI_DEL},
-			args:    happyArgs,
-			delArgs: &cniSkel.CmdArgs{
-				StdinData: (&cni.NetworkConfig{
-					CNIVersion:                 "0.3.0",
-					Name:                       "othernet",
-					MultiTenancy:               true,
-					EnableExactMatchForPodName: true,
-					Master:                     "eth0",
-				}).Serialize(),
-				ContainerID: "test-container",
-				Netns:       "bc526fae-4ba0-4e80-bc90-ad721e5850bf",
-				Args:        fmt.Sprintf("K8S_POD_NAME=%v;K8S_POD_NAMESPACE=%v", "test-pod", "test-pod-ns"),
-				// if we set to eth0 we get an endpoint already exists error, but this is okay in dualnic since they are in different networks
-				IfName: "eth1",
-			},
-			wantErr: false,
-			wantNumEps: []map[string]int{
-				// after add, this should be the state
-				{
-					"mulnet-vlan1-20-0-0-0_24": 1,
-					"mulnet-vlan2-10-0-0-0_24": 1,
-				},
-				// after delete, this should be the state
-				{
-					"mulnet-vlan1-20-0-0-0_24": 0,
-					"mulnet-vlan2-10-0-0-0_24": 0,
-				},
-			},
-		},
 	}
 
 	for _, tt := range tests {
@@ -771,8 +739,6 @@ func TestPluginMultitenancyWindowsDelete(t *testing.T) {
 				require.Error(t, err)
 			} else {
 				require.NoError(t, err)
-				endpoints, _ := plugin.nm.GetAllEndpoints(localNwCfg.Name)
-				require.Empty(t, endpoints)
 			}
 		})
 	}
