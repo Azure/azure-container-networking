@@ -4,8 +4,10 @@
 package policy
 
 import (
+	"encoding/json"
 	"testing"
 
+	"github.com/Microsoft/hcsshim/hcn"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
@@ -48,6 +50,35 @@ var _ = Describe("Windows Policies", func() {
 		})
 	})
 
+	Describe("Test GetHcnACLPolicy", func() {
+		It("Should raise error for invalid json", func() {
+			policy := Policy{
+				Type: ACLPolicy,
+				Data: []byte(`invalid json`),
+			}
+
+			_, err := GetHcnACLPolicy(policy)
+			Expect(err).NotTo(BeNil())
+		})
+
+		It("Should marshall the ACL policy correctly", func() {
+			policy := Policy{
+				Type: ACLPolicy,
+				Data: []byte(`{
+					"Type": "ACL",
+					"Protocols": "TCP",
+					"Direction": "In",
+					"Action": "Allow"
+					}`),
+			}
+			expected_policy := `{"Protocols":"TCP","Action":"Allow","Direction":"In"}`
+
+			generatedPolicy, err := GetHcnACLPolicy(policy)
+			Expect(err).To(BeNil())
+			Expect(string(generatedPolicy.Settings)).To(Equal(expected_policy))
+		})
+	})
+
 	Describe("Test AddAccelnetPolicySetting", func() {
 		It("Should marshall the policy correctly", func() {
 			expectedPolicy := `{"IovOffloadWeight":100,"QueuePairsRequested":1}`
@@ -82,13 +113,55 @@ var _ = Describe("Windows Policies", func() {
 	})
 
 	Describe("Test GetHcnEndpointPolicies", func() {
-		It("Should marshall the different types of policy correctly", func() {
-			endpointPolicyType := EndpointPolicy
+		It("Should marshall the policy correctly", func() {
+			testPolicies := []Policy{}
 
-			generatedPolicy, err := AddNATPolicyV2(vip, destinations)
+			rawPortMappingPolicy, _ := json.Marshal(&hcn.PortMappingPolicySetting{
+				ExternalPort: 8008,
+				InternalPort: 8080,
+			})
+
+			portMappingPolicy, _ := json.Marshal(&hcn.EndpointPolicy{
+				Type:     hcn.PortMapping,
+				Settings: rawPortMappingPolicy,
+			})
+
+			hnsPolicy := Policy{
+				Type: PortMappingPolicy,
+				Data: portMappingPolicy,
+			}
+
+			testPolicies = append(testPolicies, hnsPolicy)
+
+			generatedPolicy, err := GetHcnEndpointPolicies(PortMappingPolicy, testPolicies, nil, false, true, nil)
 			Expect(err).To(BeNil())
-			Expect(string(generatedPolicy.Settings)).To(Equal(expectedPolicy))
+			Expect(string(generatedPolicy[0].Settings)).To(Equal(string(rawPortMappingPolicy)))
 		})
 	})
 
+	Describe("Test GetHcnEndpointPolicies with invalid policy type", func() {
+		It("Should return error with invalid policy type", func() {
+			testPolicies := []Policy{}
+
+			rawPortMappingPolicy, _ := json.Marshal(&hcn.PortMappingPolicySetting{
+				ExternalPort: 8008,
+				InternalPort: 8080,
+			})
+
+			portMappingPolicy, _ := json.Marshal(&hcn.EndpointPolicy{
+				Type:     "invalidType",
+				Settings: rawPortMappingPolicy,
+			})
+
+			hnsPolicy := Policy{
+				Type: PortMappingPolicy,
+				Data: portMappingPolicy,
+			}
+
+			testPolicies = append(testPolicies, hnsPolicy)
+
+			_, err := GetHcnEndpointPolicies(PortMappingPolicy, testPolicies, nil, false, true, nil)
+			Expect(err).NotTo(BeNil())
+		})
+	})
 })
