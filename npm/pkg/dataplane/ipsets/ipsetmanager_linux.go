@@ -54,6 +54,8 @@ const (
 	destroySectionPrefix           = "delete"
 	addOrUpdateSectionPrefix       = "add/update"
 	ipsetRestoreLineFailurePattern = "Error in line (\\d+):"
+
+	maxConsecutiveFailures = 100
 )
 
 var (
@@ -408,8 +410,19 @@ func (iMgr *IPSetManager) applyIPSets() error {
 	creator := iMgr.fileCreatorForApply(maxTryCount)
 	restoreError := creator.RunCommandWithFile(ipsetCommand, ipsetRestoreFlag)
 	if restoreError != nil {
+		iMgr.consecutiveApplyFailures++
+		if iMgr.consecutiveApplyFailures >= maxConsecutiveFailures {
+			msg := fmt.Sprintf("exceeded max consecutive failures (%d) when applying ipsets. final error: %s", maxConsecutiveFailures, restoreError.Error())
+			klog.Error(msg)
+			metrics.SendErrorLogAndMetric(util.IpsmID, msg)
+			panic(msg)
+		}
+
 		return npmerrors.SimpleErrorWrapper("ipset restore failed when applying ipsets", restoreError)
 	}
+
+	iMgr.consecutiveApplyFailures = 0
+
 	return nil
 }
 
