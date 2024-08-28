@@ -220,7 +220,7 @@ func TestEndpoints(t *testing.T) {
 	defer cancel()
 	pingCheckFn := func() error {
 		var pf *k8s.PortForwarder
-		pf, err := k8s.NewPortForwarder(config, t, k8s.PortForwardingOpts{
+		pf, err := k8s.NewPortForwarder(config, k8s.PortForwardingOpts{
 			Namespace:     namespace,
 			LabelSelector: labelSelector,
 			LocalPort:     9965,
