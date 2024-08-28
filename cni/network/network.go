@@ -16,6 +16,7 @@ import (
 	"github.com/Azure/azure-container-networking/aitelemetry"
 	"github.com/Azure/azure-container-networking/cni"
 	"github.com/Azure/azure-container-networking/cni/api"
+	"github.com/Azure/azure-container-networking/cni/log"
 	"github.com/Azure/azure-container-networking/cni/util"
 	"github.com/Azure/azure-container-networking/cns"
 	cnscli "github.com/Azure/azure-container-networking/cns/client"
@@ -474,7 +475,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 		logger.Info("ADD command completed for",
 			zap.String("pod", k8sPodName),
 			zap.Any("IPs", cniResult.IPs),
-			zap.Error(err))
+			zap.Error(log.NewErrorWithoutStackTrace(err)))
 	}()
 
 	ipamAddResult = IPAMAddResult{interfaceInfo: make(map[string]network.InterfaceInfo)}
@@ -608,6 +609,7 @@ func (plugin *NetPlugin) Add(args *cniSkel.CmdArgs) error {
 	endpointIndex := 1
 	for key := range ipamAddResult.interfaceInfo {
 		ifInfo := ipamAddResult.interfaceInfo[key]
+		logger.Info("Processing interfaceInfo:", zap.Any("ifInfo", ifInfo))
 
 		natInfo := getNATInfo(nwCfg, options[network.SNATIPKey], enableSnatForDNS)
 		networkID, _ := plugin.getNetworkID(args.Netns, &ifInfo, nwCfg)
@@ -685,9 +687,11 @@ func (plugin *NetPlugin) findMasterInterface(opt *createEpInfoOpt) string {
 		return plugin.findMasterInterfaceBySubnet(opt.ipamAddConfig.nwCfg, &opt.ifInfo.HostSubnetPrefix)
 	case cns.NodeNetworkInterfaceFrontendNIC, cns.NodeNetworkInterfaceAccelnetFrontendNIC:
 		return plugin.findInterfaceByMAC(opt.ifInfo.MacAddress.String())
-	case cns.BackendNIC: // TODO: how to find interface with IB NIC by mac address
-		opt.ifInfo.Name = ibInterfacePrefix + strconv.Itoa(opt.endpointIndex)
-		return opt.ifInfo.Name
+	case cns.BackendNIC:
+		// if windows swiftv2 has right network drivers, there will be an NDIS interface while the VFs are mounted
+		// when the VF is dismounted, this interface will go away
+		// return an unique interface name to containerd
+		return ibInterfacePrefix + strconv.Itoa(opt.endpointIndex)
 	default:
 		return ""
 	}
@@ -772,7 +776,7 @@ func (plugin *NetPlugin) createEpInfo(opt *createEpInfoOpt) (*network.EndpointIn
 		BridgeName:                    opt.ipamAddConfig.nwCfg.Bridge,
 		NetworkPolicies:               networkPolicies, // nw and ep policies separated to avoid possible conflicts
 		NetNs:                         opt.ipamAddConfig.args.Netns,
-		Options:                       opt.ipamAddConfig.options,
+		Options:                       opt.ipamAddConfig.shallowCopyIpamAddConfigOptions(),
 		DisableHairpinOnHostInterface: opt.ipamAddConfig.nwCfg.DisableHairpinOnHostInterface,
 		IsIPv6Enabled:                 opt.ipv6Enabled, // present infra only
 
@@ -933,7 +937,7 @@ func (plugin *NetPlugin) Get(args *cniSkel.CmdArgs) error {
 		}
 
 		logger.Info("GET command completed", zap.Any("result", result),
-			zap.Error(err))
+			zap.Error(log.NewErrorWithoutStackTrace(err)))
 	}()
 
 	// Parse network configuration from stdin.
@@ -1022,7 +1026,7 @@ func (plugin *NetPlugin) Delete(args *cniSkel.CmdArgs) error {
 	defer func() {
 		logger.Info("DEL command completed",
 			zap.String("pod", k8sPodName),
-			zap.Error(err))
+			zap.Error(log.NewErrorWithoutStackTrace(err)))
 	}()
 
 	// Parse network configuration from stdin.
@@ -1266,7 +1270,7 @@ func (plugin *NetPlugin) Update(args *cniSkel.CmdArgs) error {
 
 		logger.Info("UPDATE command completed",
 			zap.Any("result", result),
-			zap.Error(err))
+			zap.Error(log.NewErrorWithoutStackTrace(err)))
 	}()
 
 	// Parse Pod arguments.

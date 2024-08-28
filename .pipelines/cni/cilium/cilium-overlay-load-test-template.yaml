@@ -238,10 +238,13 @@ stages:
           os: ${{ parameters.os }}
           cni: cilium
           dependsOn: cni_tests
-          datapath: true
           dns: true
           portforward: true
           service: true
+          ${{ if eq(parameters.dualstackVersion, '') }}:
+            datapath: true
+          ${{ else }}:
+            dualstack: true
       - job: failedE2ELogs
         displayName: "Failure Logs"
         dependsOn:

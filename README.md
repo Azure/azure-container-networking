@@ -13,7 +13,6 @@
 This repository contains container networking services and plugins for Linux and Windows containers running on Azure:
 
 * [Azure CNI network and IPAM plugins](docs/cni.md) for Kubernetes.
-* [Azure CNM (libnetwork) network and IPAM plugins](docs/cnm.md) for Docker Engine. **(MAINTENANCE MODE)**
 * [Azure NPM - Kubernetes Network Policy Manager](docs/npm.md) (Linux and (preview) Windows Server 2022)
 
 The `azure-vnet` network plugins connect containers to your [Azure VNET](https://docs.microsoft.com/en-us/azure/virtual-network/virtual-networks-overview), to take advantage of Azure SDN capabilities. The `azure-vnet-ipam` IPAM plugins provide address management functionality for container IP addresses allocated from Azure VNET address space.

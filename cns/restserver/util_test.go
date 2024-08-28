@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/Azure/azure-container-networking/cns"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -163,7 +164,7 @@ func TestDeleteNCs(t *testing.T) {
 }
 
 func TestGetPnpIDMapping(t *testing.T) {
-	svc := getTestService()
+	svc := getTestService(cns.KubernetesCRD)
 	svc.state.PnpIDByMacAddress = map[string]string{
 		"macaddress1": "value1",
 	}

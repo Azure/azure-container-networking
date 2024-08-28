@@ -19,8 +19,6 @@ import (
 	"time"
 
 	"github.com/Azure/azure-container-networking/aitelemetry"
-	"github.com/Azure/azure-container-networking/cnm/ipam"
-	"github.com/Azure/azure-container-networking/cnm/network"
 	"github.com/Azure/azure-container-networking/cns"
 	cnsclient "github.com/Azure/azure-container-networking/cns/client"
 	cnscli "github.com/Azure/azure-container-networking/cns/cmd/cli"
@@ -213,18 +211,18 @@ var args = acn.ArgumentList{
 		DefaultValue: "",
 	},
 	{
-		Name:         acn.OptStartAzureCNM,
-		Shorthand:    acn.OptStartAzureCNMAlias,
-		Description:  "Start Azure-CNM if flag is set",
-		Type:         "bool",
-		DefaultValue: false,
-	},
-	{
 		Name:         acn.OptVersion,
 		Shorthand:    acn.OptVersionAlias,
 		Description:  "Print version information",
 		Type:         "bool",
 		DefaultValue: false,
+	},
+	{
+		Name:         acn.OptStoreFileLocation,
+		Shorthand:    acn.OptStoreFileLocationAlias,
+		Description:  "Set store file absolute path",
+		Type:         "string",
+		DefaultValue: platform.CNMRuntimePath,
 	},
 	{
 		Name:         acn.OptNetPluginPath,
@@ -267,13 +265,6 @@ var args = acn.ArgumentList{
 		Description:  "Set HTTP response header timeout in seconds to be used by http client in CNS",
 		Type:         "int",
 		DefaultValue: "120",
-	},
-	{
-		Name:         acn.OptStoreFileLocation,
-		Shorthand:    acn.OptStoreFileLocationAlias,
-		Description:  "Set store file absolute path",
-		Type:         "string",
-		DefaultValue: platform.CNMRuntimePath,
 	},
 	{
 		Name:         acn.OptPrivateEndpoint,
@@ -497,8 +488,6 @@ func main() {
 	// Initialize and parse command line arguments.
 	acn.ParseArgs(&args, printVersion)
 
-	environment := acn.GetArg(acn.OptEnvironment).(string)
-	url := acn.GetArg(acn.OptAPIServerURL).(string)
 	cniPath := acn.GetArg(acn.OptNetPluginPath).(string)
 	cniConfigFile := acn.GetArg(acn.OptNetPluginConfigFile).(string)
 	cnsURL := acn.GetArg(acn.OptCnsURL).(string)
@@ -506,10 +495,7 @@ func main() {
 	logLevel := acn.GetArg(acn.OptLogLevel).(int)
 	logTarget := acn.GetArg(acn.OptLogTarget).(int)
 	logDirectory := acn.GetArg(acn.OptLogLocation).(string)
-	ipamQueryUrl := acn.GetArg(acn.OptIpamQueryUrl).(string)
-	ipamQueryInterval := acn.GetArg(acn.OptIpamQueryInterval).(int)
 
-	startCNM := acn.GetArg(acn.OptStartAzureCNM).(bool)
 	vers := acn.GetArg(acn.OptVersion).(bool)
 	createDefaultExtNetworkType := acn.GetArg(acn.OptCreateDefaultExtNetworkType).(string)
 	telemetryEnabled := acn.GetArg(acn.OptTelemetry).(bool)
@@ -1024,65 +1010,6 @@ func main() {
 		}(privateEndpoint, infravnet, nodeID)
 	}
 
-	var (
-		netPlugin     network.NetPlugin
-		ipamPlugin    ipam.IpamPlugin
-		lockclientCnm processlock.Interface
-	)
-
-	if startCNM {
-		var pluginConfig acn.PluginConfig
-		pluginConfig.Version = version
-
-		// Create a channel to receive unhandled errors from the plugins.
-		pluginConfig.ErrChan = make(chan error, 1)
-
-		// Create network plugin.
-		netPlugin, err = network.NewPlugin(&pluginConfig)
-		if err != nil {
-			logger.Errorf("Failed to create network plugin, err:%v.\n", err)
-			return
-		}
-
-		// Create IPAM plugin.
-		ipamPlugin, err = ipam.NewPlugin(&pluginConfig)
-		if err != nil {
-			logger.Errorf("Failed to create IPAM plugin, err:%v.\n", err)
-			return
-		}
-
-		lockclientCnm, err = processlock.NewFileLock(platform.CNILockPath + pluginName + store.LockExtension)
-		if err != nil {
-			log.Printf("Error initializing file lock:%v", err)
-			return
-		}
-
-		// Create the key value store.
-		pluginStoreFile := storeFileLocation + pluginName + ".json"
-		pluginConfig.Store, err = store.NewJsonFileStore(pluginStoreFile, lockclientCnm, nil)
-		if err != nil {
-			logger.Errorf("Failed to create plugin store file %s, due to error : %v\n", pluginStoreFile, err)
-			return
-		}
-
-		// Set plugin options.
-		netPlugin.SetOption(acn.OptAPIServerURL, url)
-		logger.Printf("Start netplugin\n")
-		if err := netPlugin.Start(&pluginConfig); err != nil {
-			logger.Errorf("Failed to create network plugin, err:%v.\n", err)
-			return
-		}
-
-		ipamPlugin.SetOption(acn.OptEnvironment, environment)
-		ipamPlugin.SetOption(acn.OptAPIServerURL, url)
-		ipamPlugin.SetOption(acn.OptIpamQueryUrl, ipamQueryUrl)
-		ipamPlugin.SetOption(acn.OptIpamQueryInterval, ipamQueryInterval)
-		if err := ipamPlugin.Start(&pluginConfig); err != nil {
-			logger.Errorf("Failed to create IPAM plugin, err:%v.\n", err)
-			return
-		}
-	}
-
 	// mark the service as "ready"
 	close(readyCh)
 	// block until process exiting
@@ -1100,22 +1027,6 @@ func main() {
 	// Cleanup.
 	if httpRemoteRestService != nil {
 		httpRemoteRestService.Stop()
-	}
-
-	if startCNM {
-		logger.Printf("stop cnm plugin")
-		if netPlugin != nil {
-			netPlugin.Stop()
-		}
-
-		if ipamPlugin != nil {
-			logger.Printf("stop ipam plugin")
-			ipamPlugin.Stop()
-		}
-
-		if err = lockclientCnm.Unlock(); err != nil {
-			log.Errorf("lockclient cnm unlock error:%v", err)
-		}
 	}
 
 	if err = lockclient.Unlock(); err != nil {

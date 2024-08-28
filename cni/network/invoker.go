@@ -39,3 +39,13 @@ func (ipamAddResult IPAMAddResult) PrettyString() string {
 	}
 	return pStr
 }
+
+// shallow copy options from one map to a new options map
+func (ipamAddConfig IPAMAddConfig) shallowCopyIpamAddConfigOptions() map[string]interface{} {
+	res := map[string]interface{}{}
+	for k, v := range ipamAddConfig.options {
+		// only support primitive type
+		res[k] = v
+	}
+	return res
+}
