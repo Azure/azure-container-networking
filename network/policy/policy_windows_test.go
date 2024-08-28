@@ -149,7 +149,7 @@ var _ = Describe("Windows Policies", func() {
 			})
 
 			portMappingPolicy, _ := json.Marshal(&hcn.EndpointPolicy{
-				Type:     "invalidType",
+				Type:     "invalidType", // should return error with invalid policy type
 				Settings: rawPortMappingPolicy,
 			})
 
