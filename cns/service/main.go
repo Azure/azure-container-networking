@@ -32,6 +32,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/hnsclient"
 	"github.com/Azure/azure-container-networking/cns/imds"
 	"github.com/Azure/azure-container-networking/cns/ipampool"
+	"github.com/Azure/azure-container-networking/cns/ipampool/metrics"
 	ipampoolv2 "github.com/Azure/azure-container-networking/cns/ipampool/v2"
 	cssctrl "github.com/Azure/azure-container-networking/cns/kubecontroller/clustersubnetstate"
 	mtpncctrl "github.com/Azure/azure-container-networking/cns/kubecontroller/multitenantpodnetworkconfig"
@@ -48,6 +49,7 @@ import (
 	"github.com/Azure/azure-container-networking/cns/wireserver"
 	acn "github.com/Azure/azure-container-networking/common"
 	"github.com/Azure/azure-container-networking/crd"
+	"github.com/Azure/azure-container-networking/crd/clustersubnetstate"
 	cssv1alpha1 "github.com/Azure/azure-container-networking/crd/clustersubnetstate/api/v1alpha1"
 	"github.com/Azure/azure-container-networking/crd/multitenancy"
 	mtv1alpha1 "github.com/Azure/azure-container-networking/crd/multitenancy/api/v1alpha1"
@@ -1366,7 +1368,10 @@ func InitializeCRDState(ctx context.Context, httpRestService cns.HTTPService, cn
 	ipDemandCh := make(chan int)
 	if cnsconfig.EnableIPAMv2 {
 		nncCh := make(chan v1alpha.NodeNetworkConfig)
-		poolMonitor = ipampoolv2.NewMonitor(z, httpRestServiceImplementation, cachedscopedcli, ipDemandCh, nncCh, cssCh).AsV1(nncCh)
+		pmv2 := ipampoolv2.NewMonitor(z, httpRestServiceImplementation, cachedscopedcli, ipDemandCh, nncCh, cssCh)
+		obs := metrics.NewLegacyMetricsObserver(ctx, httpRestService.GetPodIPConfigState, cachedscopedcli.Get, clustersubnetstate.NewClient(manager.GetClient()).List)
+		pmv2.WithLegacyMetricsObserver(obs)
+		poolMonitor = pmv2.AsV1(nncCh)
 	} else {
 		poolOpts := ipampool.Options{
 			RefreshDelay: poolIPAMRefreshRateInMilliseconds * time.Millisecond,
