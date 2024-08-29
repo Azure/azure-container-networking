@@ -5,6 +5,7 @@ package policy
 
 import (
 	"encoding/json"
+	"fmt"
 	"testing"
 
 	"github.com/Microsoft/hcsshim/hcn"
@@ -217,6 +218,53 @@ var _ = Describe("Windows Policies", func() {
 
 			_, err := GetHcnEndpointPolicies(PortMappingPolicy, testPolicies, nil, false, true, nil)
 			Expect(err).NotTo(BeNil())
+		})
+	})
+
+	Describe("Test GetHcnEndpointPolicies with multiple policies", func() {
+		It("Should marshall all policies correctly", func() {
+			testPolicies := []Policy{}
+
+			// add portMapping policy first
+			rawPortMappingPolicy, _ := json.Marshal(&hcn.PortMappingPolicySetting{
+				ExternalPort: 8008,
+				InternalPort: 8080,
+			})
+
+			portMappingPolicy, _ := json.Marshal(&hcn.EndpointPolicy{
+				Type:     hcn.PortMapping,
+				Settings: rawPortMappingPolicy,
+			})
+
+			portMappinghnsPolicy := Policy{
+				Type: PortMappingPolicy,
+				Data: portMappingPolicy,
+			}
+
+			testPolicies = append(testPolicies, portMappinghnsPolicy)
+
+			// add another ACL policy to testPolicies
+			rawAclPolicy, _ := json.Marshal(&hcn.AclPolicySetting{
+				Protocols: "tcp",
+				Action:    "Allow",
+				Direction: "In",
+			})
+
+			aclPolicy, _ := json.Marshal(&hcn.EndpointPolicy{
+				Type:     hcn.ACL,
+				Settings: rawAclPolicy,
+			})
+
+			aclHnsPolicy := Policy{
+				Type: ACLPolicy,
+				Data: aclPolicy,
+			}
+
+			testPolicies = append(testPolicies, aclHnsPolicy)
+
+			generatedPolicy, err := GetHcnEndpointPolicies(PortMappingPolicy, testPolicies, nil, false, true, nil)
+			Expect(err).To(BeNil())
+			fmt.Printf("generatedPolicy settings is %s", string(generatedPolicy[0].Settings))
 		})
 	})
 })

@@ -535,6 +535,10 @@ func GetHcnEndpointPolicies(policyType CNIPolicyType, policies []Policy, epInfoD
 		}
 	}
 
+	for _, poli := range hcnEndPointPolicies {
+		fmt.Printf("policy settings is %s\n", string(poli.Settings))
+	}
+	fmt.Printf("current hcnEndPointPolicies are %v\n", hcnEndPointPolicies)
 	return hcnEndPointPolicies, nil
 }
 
