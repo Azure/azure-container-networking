@@ -787,7 +787,6 @@ func main() {
 	}
 
 	// Setting the remote ARP MAC address to 12-34-56-78-9a-bc on windows for external traffic if HNS is enabled
-	//execClient := platform.NewExecClient(nil)
 
 	registry := platform.NewRegistryClient(nil)
 
