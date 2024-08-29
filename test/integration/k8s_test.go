@@ -195,7 +195,7 @@ func TestPodScaling(t *testing.T) {
 			}
 
 			pingCheckFn := func() error {
-				pf, err := NewPortForwarder(restConfig, t, pfOpts)
+				pf, err := NewPortForwarder(restConfig, pfOpts)
 				if err != nil {
 					t.Fatalf("could not build port forwarder: %v", err)
 				}

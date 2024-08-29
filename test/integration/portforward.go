@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"log"
 	"math/rand"
 	"net/http"
 	"sync"
@@ -26,7 +27,6 @@ type PortForwarder struct {
 	clientset *kubernetes.Clientset
 	transport http.RoundTripper
 	upgrader  spdy.Upgrader
-	logger    logger
 
 	opts PortForwardingOpts
 
@@ -44,7 +44,7 @@ type PortForwardingOpts struct {
 }
 
 // NewPortForwarder creates a PortForwarder.
-func NewPortForwarder(restConfig *rest.Config, logger logger, opts PortForwardingOpts) (*PortForwarder, error) {
+func NewPortForwarder(restConfig *rest.Config, opts PortForwardingOpts) (*PortForwarder, error) {
 	clientset, err := kubernetes.NewForConfig(restConfig)
 	if err != nil {
 		return nil, fmt.Errorf("could not create clientset: %w", err)
@@ -59,7 +59,6 @@ func NewPortForwarder(restConfig *rest.Config, logger logger, opts PortForwardin
 		clientset: clientset,
 		transport: transport,
 		upgrader:  upgrader,
-		logger:    logger,
 		opts:      opts,
 		stopChan:  make(chan struct{}, 1),
 	}, nil
@@ -156,7 +155,7 @@ func (p *PortForwarder) KeepAlive(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
-			p.logger.Logf("port forwarder: keep alive cancelled: %v", ctx.Err())
+			log.Printf("port forwarder: keep alive cancelled: %v", ctx.Err())
 			return
 		case pfErr := <-p.errChan:
 			// as of client-go v0.26.1, if the connection is successful at first but then fails,
@@ -165,14 +164,14 @@ func (p *PortForwarder) KeepAlive(ctx context.Context) {
 			//
 			// see https://github.com/kubernetes/client-go/commit/d0842249d3b92ea67c446fe273f84fe74ebaed9f
 			// for the relevant change.
-			p.logger.Logf("port forwarder: received error signal: %v. restarting session", pfErr)
+			log.Printf("port forwarder: received error signal: %v. restarting session", pfErr)
 			p.Stop()
 			if err := p.Forward(ctx); err != nil {
-				p.logger.Logf("port forwarder: could not restart session: %v. retrying", err)
+				log.Printf("port forwarder: could not restart session: %v. retrying", err)
 
 				select {
 				case <-ctx.Done():
-					p.logger.Logf("port forwarder: keep alive cancelled: %v", ctx.Err())
+					log.Printf("port forwarder: keep alive cancelled: %v", ctx.Err())
 					return
 				case <-time.After(time.Second): // todo: make configurable?
 					continue
