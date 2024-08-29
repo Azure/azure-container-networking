@@ -116,12 +116,6 @@ func TestExecuteCommandError(t *testing.T) {
 }
 
 func TestSetSdnRemoteArpMacAddress_hnsNotEnabled(t *testing.T) {
-	//mockExecClient := NewMockExecClient(false)
-
-	// testing skip setting SdnRemoteArpMacAddress when hns not enabled
-	// mockExecClient.SetPowershellCommandResponder(func(_ string) (string, error) {
-	// 	return "False", nil
-	// })
 
 	mockRegistryClient := NewMockRegistryClient(false)
 	// mockRegistryClient.SetOpenKey(func(k registry.Key, path string, access uint32) (RegistryKey, error) {
@@ -140,9 +134,7 @@ func TestSetSdnRemoteArpMacAddress_hnsNotEnabled(t *testing.T) {
 	assert.Equal(t, false, sdnRemoteArpMacAddressSet)
 
 	// testing the scenario when there is an error in checking if hns is enabled or not
-	// mockExecClient.SetPowershellCommandResponder(func(_ string) (string, error) {
-	// 	return "", errTestFailure
-	// })
+
 	mockRegistryClient.SetOpenKey(func(k registry.Key, path string, access uint32) (RegistryKey, error) {
 		return &mockRegistryKey{
 			Values: map[string]string{
@@ -157,15 +149,9 @@ func TestSetSdnRemoteArpMacAddress_hnsNotEnabled(t *testing.T) {
 }
 
 func TestSetSdnRemoteArpMacAddress_hnsEnabled(t *testing.T) {
-	//mockExecClient := NewMockExecClient(false)
 
 	mockRegistryClient := NewMockRegistryClient(false) // happy path
-	// mockExecClient.SetPowershellCommandResponder(func(cmd string) (string, error) {
-	// 	if strings.Contains(cmd, "Test-Path") {
-	// 		return "True", nil
-	// 	}
-	// 	return "", nil
-	// })
+
 	mockRegistryClient.SetOpenKey(func(k registry.Key, path string, access uint32) (RegistryKey, error) {
 		return &mockRegistryKey{
 			Values: map[string]string{
